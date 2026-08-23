@@ -36,18 +36,6 @@ async def run_web_server():
     await site.start()
     logger.info(f"Veb-server {port}-portda ishga tushdi.")
 
-# Zaxira /start funksiyasi (agar handlers/start.py ulanmasa ham aniq javob beradi)
-async def fallback_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_name = update.effective_user.first_name if update.effective_user else "Foydalanuvchi"
-    await update.message.reply_text(
-        f"Assalomu alaykum, {user_name}!\n\n"
-        "🤖 Bot muvaffaqiyatli ishga tushdi va buyruqlarni qabul qilmoqda.\n\n"
-        "Mavjud buyruqlar:\n"
-        "/start - Botni qayta ishga tushirish\n"
-        "/admin - Admin panel\n"
-        "/posts - Rejalashtirilgan postlar ro'yxati"
-    )
-
 async def main():
     if not BOT_TOKEN:
         logger.error("BOT_TOKEN topilmadi!")
@@ -59,74 +47,86 @@ async def main():
     # 2. Bot ilovasini qurish
     application = ApplicationBuilder().token(BOT_TOKEN).build()
 
-    # 3. Handlerlarni biriktirish
-    attached_start = False
-    try:
-        import handlers.start as h_start
-        for func_name in ["start_handler", "start", "start_command"]:
-            if hasattr(h_start, func_name):
-                func = getattr(h_start, func_name)
-                if isinstance(func, CommandHandler):
-                    application.add_handler(func)
-                else:
-                    application.add_handler(CommandHandler("start", func))
-                attached_start = True
-                break
-        if not attached_start and hasattr(h_start, "register_handlers"):
-            h_start.register_handlers(application)
-            attached_start = True
-    except Exception as e:
-        logger.warning(f"Start handler import qilinmadi: {e}")
-
-    # Agar fayldan ulanmasa, kafolatlangan start'ni ulash
-    if not attached_start:
-        application.add_handler(CommandHandler("start", fallback_start))
-
-    # Boshqa handlerlar
-    try:
-        import handlers.admin as h_admin
-        for func_name in ["admin_panel_handler", "admin_panel", "admin"]:
-            if hasattr(h_admin, func_name):
-                func = getattr(h_admin, func_name)
-                if isinstance(func, CommandHandler):
-                    application.add_handler(func)
-                else:
-                    application.add_handler(CommandHandler("admin", func))
-                break
-    except Exception as e:
-        logger.warning(f"Admin handler: {e}")
-
+    # 3. Conversation Handlerlarni (Post yaratish va o'chirish jarayonlari) birinchi bo'lib ulash
     try:
         import handlers.new_post as h_new_post
         if hasattr(h_new_post, "new_post_conv_handler"):
             application.add_handler(h_new_post.new_post_conv_handler)
     except Exception as e:
-        logger.warning(f"New post handler: {e}")
+        logger.warning(f"New post handler xatosi: {e}")
+
+    try:
+        import handlers.delete_post as h_del
+        if hasattr(h_del, "delete_post_conv_handler"):
+            application.add_handler(h_del.delete_post_conv_handler)
+    except Exception as e:
+        logger.warning(f"Delete post handler xatosi: {e}")
+
+    # 4. Handler fayllaridagi register_handlers funksiyalarini ulash
+    for module_name in ["handlers.start", "handlers.admin", "handlers.list_posts", "handlers.new_post", "handlers.delete_post"]:
+        try:
+            mod = __import__(module_name, fromlist=["register_handlers"])
+            if hasattr(mod, "register_handlers"):
+                mod.register_handlers(application)
+        except Exception as e:
+            logger.warning(f"{module_name} ro'yxatga olinmadi: {e}")
+
+    # 5. Tugmalar (CallbackQuery) uchun barcha callback funksiyalarni to'liq ulash
+    try:
+        import handlers.admin as h_admin
+        for attr in ["admin_callback", "button_click", "handle_callback", "admin_button_callback"]:
+            if hasattr(h_admin, attr):
+                application.add_handler(CallbackQueryHandler(getattr(h_admin, attr)))
+    except Exception as e:
+        logger.warning(f"Admin callback xatosi: {e}")
+
+    try:
+        import handlers.start as h_start
+        for attr in ["start_callback", "menu_callback", "handle_callback"]:
+            if hasattr(h_start, attr):
+                application.add_handler(CallbackQueryHandler(getattr(h_start, attr)))
+    except Exception as e:
+        logger.warning(f"Start callback xatosi: {e}")
+
+    # 6. Buyruqlar uchun zaxira (agar alohida funksiya bo'lsa)
+    try:
+        import handlers.start as h_start
+        if hasattr(h_start, "start"):
+            application.add_handler(CommandHandler("start", h_start.start))
+        elif hasattr(h_start, "start_handler") and not isinstance(h_start.start_handler, CommandHandler):
+            application.add_handler(CommandHandler("start", h_start.start_handler))
+    except Exception as e:
+        pass
+
+    try:
+        import handlers.admin as h_admin
+        if hasattr(h_admin, "admin_panel"):
+            application.add_handler(CommandHandler("admin", h_admin.admin_panel))
+        elif hasattr(h_admin, "admin_panel_handler") and not isinstance(h_admin.admin_panel_handler, CommandHandler):
+            application.add_handler(CommandHandler("admin", h_admin.admin_panel_handler))
+    except Exception as e:
+        pass
 
     try:
         import handlers.list_posts as h_list
-        for func_name in ["list_posts_handler", "list_posts", "posts"]:
-            if hasattr(h_list, func_name):
-                func = getattr(h_list, func_name)
-                if isinstance(func, CommandHandler):
-                    application.add_handler(func)
-                else:
-                    application.add_handler(CommandHandler("posts", func))
-                break
+        if hasattr(h_list, "list_posts"):
+            application.add_handler(CommandHandler("posts", h_list.list_posts))
+        elif hasattr(h_list, "list_posts_handler") and not isinstance(h_list.list_posts_handler, CommandHandler):
+            application.add_handler(CommandHandler("posts", h_list.list_posts_handler))
     except Exception as e:
-        logger.warning(f"List posts handler: {e}")
+        pass
 
-    # 4. Rejalashtiruvchini ulash
+    # 7. Rejalashtiruvchini (Scheduler) ulash
     start_scheduler(application)
 
-    # 5. Veb-serverni ishga tushirish
+    # 8. UptimeRobot uchun veb-serverni ishga tushirish
     await run_web_server()
 
-    # 6. Botni xabarlarni qabul qilish rejimiga o'tkazish
+    # 9. Botni ishga tushirish
     await application.initialize()
     await application.start()
     await application.updater.start_polling(drop_pending_updates=True)
-    logger.info("Bot tayyor va ishlamoqda!")
+    logger.info("Bot tayyor! Barcha tugmalar va buyruqlar ulandi.")
 
     while True:
         await asyncio.sleep(3600)
