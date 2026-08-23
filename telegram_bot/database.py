@@ -1,72 +1,169 @@
 import sqlite3
 from datetime import datetime
-from contextlib import closing
 
-DB_PATH = "bot_database.db"
-
+DB_NAME = "bot_database.db"
 
 def init_db():
-    """Ma'lumotlar bazasini va jadvalni yaratadi (agar mavjud bo'lmasa)."""
-    with closing(sqlite3.connect(DB_PATH)) as conn:
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS posts (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                text TEXT,                    -- matn yoki media izohi (caption), bo'sh bo'lishi mumkin
-                post_type TEXT NOT NULL,      -- 'once' yoki 'daily'
-                send_time TEXT NOT NULL,      -- 'HH:MM'
-                send_date TEXT,               -- 'once' uchun: 'YYYY-MM-DD'
-                end_date TEXT,                -- 'daily' uchun tugash sanasi (bo'sh = cheksiz)
-                media_type TEXT,              -- 'photo' | 'video' | 'document' | NULL (faqat matn)
-                media_file_id TEXT,           -- Telegram file_id (faylning o'zi emas, faqat havolasi!)
-                active INTEGER DEFAULT 1,
-                created_at TEXT NOT NULL
-            )
-        """)
-        conn.commit()
-
-
-def add_post(text, post_type, send_time, send_date=None, end_date=None,
-             media_type=None, media_file_id=None):
-    """Yangi rejalashtirilgan xabar qo'shadi va uning ID sini qaytaradi.
-    Diqqat: media_file_id — Telegram'ning o'zida saqlanadigan faylga ishora
-    qiluvchi qisqa satr, fayl bayt-baytlab bu yerga yozilmaydi."""
-    with closing(sqlite3.connect(DB_PATH)) as conn:
-        cur = conn.execute(
-            "INSERT INTO posts (text, post_type, send_time, send_date, end_date, "
-            "media_type, media_file_id, active, created_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)",
-            (text, post_type, send_time, send_date, end_date,
-             media_type, media_file_id, datetime.now().isoformat()),
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    
+    # Foydalanuvchilar
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            user_id INTEGER PRIMARY KEY,
+            username TEXT,
+            full_name TEXT,
+            joined_at TEXT
         )
+    """)
+    
+    # Kanallar
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS channels (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            channel_id TEXT,
+            channel_title TEXT,
+            UNIQUE(user_id, channel_id)
+        )
+    """)
+    
+    # Postlar
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS posts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            channel_id TEXT,
+            text TEXT,
+            photo TEXT,
+            scheduled_time TEXT,
+            status TEXT DEFAULT 'pending'
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+def register_user(user_id: int, username: str, full_name: str):
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT OR IGNORE INTO users (user_id, username, full_name, joined_at)
+        VALUES (?, ?, ?, ?)
+    """, (user_id, username, full_name, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+    conn.commit()
+    conn.close()
+
+def add_channel(user_id: int, channel_id: str, channel_title: str):
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            INSERT OR REPLACE INTO channels (user_id, channel_id, channel_title)
+            VALUES (?, ?, ?)
+        """, (user_id, str(channel_id), channel_title))
         conn.commit()
-        return cur.lastrowid
+        return True
+    except Exception:
+        return False
+    finally:
+        conn.close()
 
+def get_user_channels(user_id: int):
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("SELECT channel_id, channel_title FROM channels WHERE user_id = ?", (user_id,))
+    channels = cursor.fetchall()
+    conn.close()
+    return channels
 
-def get_active_posts():
-    """Barcha faol (hali o'chirilmagan) rejalashtirilgan xabarlarni qaytaradi."""
-    with closing(sqlite3.connect(DB_PATH)) as conn:
-        conn.row_factory = sqlite3.Row
-        rows = conn.execute("SELECT * FROM posts WHERE active = 1 ORDER BY id").fetchall()
-        return [dict(r) for r in rows]
+def delete_user_channel(user_id: int, channel_id: str):
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM channels WHERE user_id = ? AND channel_id = ?", (user_id, str(channel_id)))
+    affected = cursor.rowcount
+    conn.commit()
+    conn.close()
+    return affected > 0
 
+def add_post(user_id: int, channel_id: str, text: str, photo: str, scheduled_time: str):
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT INTO posts (user_id, channel_id, text, photo, scheduled_time)
+        VALUES (?, ?, ?, ?, ?)
+    """, (user_id, str(channel_id), text, photo, scheduled_time))
+    post_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    return post_id
 
-def get_post(post_id):
-    """Bitta xabarni ID bo'yicha qaytaradi (topilmasa None)."""
-    with closing(sqlite3.connect(DB_PATH)) as conn:
-        conn.row_factory = sqlite3.Row
-        row = conn.execute("SELECT * FROM posts WHERE id = ?", (post_id,)).fetchone()
-        return dict(row) if row else None
+def get_user_posts(user_id: int):
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT p.id, c.channel_title, p.text, p.scheduled_time 
+        FROM posts p
+        LEFT JOIN channels c ON p.channel_id = c.channel_id AND p.user_id = c.user_id
+        WHERE p.user_id = ? AND p.status = 'pending'
+        ORDER BY p.scheduled_time ASC
+    """, (user_id,))
+    posts = cursor.fetchall()
+    conn.close()
+    return posts
 
+def delete_user_post(user_id: int, post_id: int):
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM posts WHERE id = ? AND user_id = ?", (post_id, user_id))
+    affected = cursor.rowcount
+    conn.commit()
+    conn.close()
+    return affected > 0
 
-def deactivate_post(post_id):
-    """Bir martalik xabar yuborilgandan keyin uni faolsizlantiradi."""
-    with closing(sqlite3.connect(DB_PATH)) as conn:
-        conn.execute("UPDATE posts SET active = 0 WHERE id = ?", (post_id,))
-        conn.commit()
+def get_due_posts():
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
+    cursor.execute("""
+        SELECT id, channel_id, text, photo 
+        FROM posts 
+        WHERE scheduled_time <= ? AND status = 'pending'
+    """, (now_str,))
+    posts = cursor.fetchall()
+    conn.close()
+    return posts
 
+def mark_post_sent(post_id: int):
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("UPDATE posts SET status = 'sent' WHERE id = ?", (post_id,))
+    conn.commit()
+    conn.close()
 
-def delete_post(post_id):
-    """Xabarni bazadan butunlay o'chiradi."""
-    with closing(sqlite3.connect(DB_PATH)) as conn:
-        conn.execute("DELETE FROM posts WHERE id = ?", (post_id,))
-        conn.commit()
+# --- ADMIN FUNKSIYALARI ---
+def get_system_stats():
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("SELECT COUNT(*) FROM users")
+    users_count = cursor.fetchone()[0]
+    cursor.execute("SELECT COUNT(*) FROM channels")
+    channels_count = cursor.fetchone()[0]
+    cursor.execute("SELECT COUNT(*) FROM posts WHERE status = 'pending'")
+    pending_posts = cursor.fetchone()[0]
+    cursor.execute("SELECT COUNT(*) FROM posts WHERE status = 'sent'")
+    sent_posts = cursor.fetchone()[0]
+    conn.close()
+    return {
+        "users": users_count,
+        "channels": channels_count,
+        "pending": pending_posts,
+        "sent": sent_posts
+    }
+
+def get_all_user_ids():
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("SELECT user_id FROM users")
+    users = [row[0] for row in cursor.fetchall()]
+    conn.close()
+    return users
