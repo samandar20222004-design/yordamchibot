@@ -2,7 +2,15 @@ import os
 import asyncio
 import logging
 from aiohttp import web
-from telegram.ext import ApplicationBuilder
+from telegram import Update
+from telegram.ext import (
+    ApplicationBuilder,
+    CommandHandler,
+    MessageHandler,
+    CallbackQueryHandler,
+    filters,
+    ContextTypes
+)
 
 from config import BOT_TOKEN
 from database import init_db
@@ -14,7 +22,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# UptimeRobot signallarini qabul qilish uchun veb-server (ping)
+# UptimeRobot uchun veb-server
 async def handle_ping(request):
     return web.Response(text="Bot 24/7 faol ishlamoqda!")
 
@@ -28,68 +36,97 @@ async def run_web_server():
     await site.start()
     logger.info(f"Veb-server {port}-portda ishga tushdi.")
 
+# Zaxira /start funksiyasi (agar handlers/start.py ulanmasa ham aniq javob beradi)
+async def fallback_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_name = update.effective_user.first_name if update.effective_user else "Foydalanuvchi"
+    await update.message.reply_text(
+        f"Assalomu alaykum, {user_name}!\n\n"
+        "🤖 Bot muvaffaqiyatli ishga tushdi va buyruqlarni qabul qilmoqda.\n\n"
+        "Mavjud buyruqlar:\n"
+        "/start - Botni qayta ishga tushirish\n"
+        "/admin - Admin panel\n"
+        "/posts - Rejalashtirilgan postlar ro'yxati"
+    )
+
 async def main():
     if not BOT_TOKEN:
-        logger.error("BOT_TOKEN topilmadi! Render Environment Variables qismini tekshiring.")
+        logger.error("BOT_TOKEN topilmadi!")
         return
 
-    # 1. Ma'lumotlar bazasini ishga tushirish
+    # 1. Bazani sozlash
     init_db()
 
     # 2. Bot ilovasini qurish
     application = ApplicationBuilder().token(BOT_TOKEN).build()
 
-    # 3. Mavjud barcha handlerlarni avtomatik ro'yxatdan o'tkazish
+    # 3. Handlerlarni biriktirish
+    attached_start = False
     try:
         import handlers.start as h_start
-        if hasattr(h_start, "register_handlers"):
+        for func_name in ["start_handler", "start", "start_command"]:
+            if hasattr(h_start, func_name):
+                func = getattr(h_start, func_name)
+                if isinstance(func, CommandHandler):
+                    application.add_handler(func)
+                else:
+                    application.add_handler(CommandHandler("start", func))
+                attached_start = True
+                break
+        if not attached_start and hasattr(h_start, "register_handlers"):
             h_start.register_handlers(application)
+            attached_start = True
     except Exception as e:
-        logger.warning(f"Start handler ulanmadi: {e}")
+        logger.warning(f"Start handler import qilinmadi: {e}")
 
+    # Agar fayldan ulanmasa, kafolatlangan start'ni ulash
+    if not attached_start:
+        application.add_handler(CommandHandler("start", fallback_start))
+
+    # Boshqa handlerlar
     try:
         import handlers.admin as h_admin
-        if hasattr(h_admin, "register_handlers"):
-            h_admin.register_handlers(application)
+        for func_name in ["admin_panel_handler", "admin_panel", "admin"]:
+            if hasattr(h_admin, func_name):
+                func = getattr(h_admin, func_name)
+                if isinstance(func, CommandHandler):
+                    application.add_handler(func)
+                else:
+                    application.add_handler(CommandHandler("admin", func))
+                break
     except Exception as e:
-        logger.warning(f"Admin handler ulanmadi: {e}")
+        logger.warning(f"Admin handler: {e}")
 
     try:
         import handlers.new_post as h_new_post
         if hasattr(h_new_post, "new_post_conv_handler"):
             application.add_handler(h_new_post.new_post_conv_handler)
-        elif hasattr(h_new_post, "register_handlers"):
-            h_new_post.register_handlers(application)
     except Exception as e:
-        logger.warning(f"New post handler ulanmadi: {e}")
+        logger.warning(f"New post handler: {e}")
 
     try:
         import handlers.list_posts as h_list
-        if hasattr(h_list, "register_handlers"):
-            h_list.register_handlers(application)
+        for func_name in ["list_posts_handler", "list_posts", "posts"]:
+            if hasattr(h_list, func_name):
+                func = getattr(h_list, func_name)
+                if isinstance(func, CommandHandler):
+                    application.add_handler(func)
+                else:
+                    application.add_handler(CommandHandler("posts", func))
+                break
     except Exception as e:
-        logger.warning(f"List posts handler ulanmadi: {e}")
+        logger.warning(f"List posts handler: {e}")
 
-    try:
-        import handlers.delete_post as h_del
-        if hasattr(h_del, "delete_post_conv_handler"):
-            application.add_handler(h_del.delete_post_conv_handler)
-        elif hasattr(h_del, "register_handlers"):
-            h_del.register_handlers(application)
-    except Exception as e:
-        logger.warning(f"Delete post handler ulanmadi: {e}")
-
-    # 4. Rejalashtiruvchini (Scheduler) ulash
+    # 4. Rejalashtiruvchini ulash
     start_scheduler(application)
 
-    # 5. Veb-serverni fonda ishga tushirish
+    # 5. Veb-serverni ishga tushirish
     await run_web_server()
 
-    # 6. Botni ishga tushirish
+    # 6. Botni xabarlarni qabul qilish rejimiga o'tkazish
     await application.initialize()
     await application.start()
     await application.updater.start_polling(drop_pending_updates=True)
-    logger.info("Bot Telegram xabarlarini muvaffaqiyatli qabul qilmoqda!")
+    logger.info("Bot tayyor va ishlamoqda!")
 
     while True:
         await asyncio.sleep(3600)
