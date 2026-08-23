@@ -1,30 +1,49 @@
-from telegram import Update, ReplyKeyboardRemove
-from telegram.ext import ContextTypes, ConversationHandler
-from database import delete_user_post
+from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove
+from telegram.ext import (
+    ContextTypes,
+    CommandHandler,
+    MessageHandler,
+    ConversationHandler,
+    filters
+)
+from database import delete_post_by_id
 
-WAIT_DELETE_ID = 1
+CONFIRM_DELETE = 1
 
-async def delete_post_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def start_delete(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "O'chirmoqchi bo'lgan postingizning **ID raqamini** yuboring:\n*(ID ni '📋 Rejalashtirilgan postlar' bo'limidan ko'rishingiz mumkin)*\n\nBekor qilish uchun `/cancel` deb yozing.",
-        parse_mode="Markdown"
+        "O'chirmoqchi bo'lgan postingizning **ID raqamini** yozing:\n"
+        "(ID raqamini '📋 Rejalashtirilgan postlar' bo'limidan olishingiz mumkin)",
+        parse_mode="Markdown",
+        reply_markup=ReplyKeyboardMarkup([["Bekor qilish"]], resize_keyboard=True)
     )
-    return WAIT_DELETE_ID
+    return CONFIRM_DELETE
 
-async def delete_post_process(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    text = update.message.text.strip()
-    
-    if not text.isdigit():
-        await update.message.reply_text("Iltimos, faqat raqamli ID kiriting:")
-        return WAIT_DELETE_ID
-        
-    post_id = int(text)
-    success = delete_user_post(user_id, post_id)
-    
-    if success:
-        await update.message.reply_text(f"✅ #{post_id} raqamli post bekor qilindi va o'chirildi.")
-    else:
-        await update.message.reply_text(f"❌ #{post_id} raqamli post topilmadi yoki u sizga tegishli emas.")
-        
-    return ConversationHandler.END
+async def confirm_delete(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    msg = update.message.text.strip()
+    if msg == "Bekor qilish":
+        await update.message.reply_text("O'chirish bekor qilindi.", reply_markup=ReplyKeyboardRemove())
+        return ConversationHandler.END
+
+    try:
+        post_id = int(msg)
+        delete_post_by_id(post_id)
+        await update.message.reply_text(f"✅ ID `{post_id}` bo'lgan post muvaffaqiyatli o'chirildi.", parse_mode="Markdown")
+        return ConversationHandler.END
+    except ValueError:
+        await update.message.reply_text("⚠️ Iltimos, faqat raqam (ID) kiriting:")
+        return CONFIRM_DELETE
+
+delete_post_conv_handler = ConversationHandler(
+    entry_points=[
+        MessageHandler(filters.Regex("^🗑 Postni o'chirish$"), start_delete),
+        CommandHandler("deletepost", start_delete)
+    ],
+    states={
+        CONFIRM_DELETE: [MessageHandler(filters.TEXT & ~filters.COMMAND, confirm_delete)]
+    },
+    fallbacks=[MessageHandler(filters.Regex("^Bekor qilish$"), start_delete)]
+)
+
+def register_handlers(application):
+    application.add_handler(delete_post_conv_handler)
