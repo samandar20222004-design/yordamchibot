@@ -6,15 +6,7 @@ from telegram.ext import ApplicationBuilder
 
 from config import BOT_TOKEN
 from database import init_db
-from scheduler import setup_scheduler
-from handlers import (
-    start_handler,
-    admin_panel_handler,
-    broadcast_start,
-    new_post_conv_handler,
-    list_posts_handler,
-    delete_post_conv_handler
-)
+from scheduler import start_scheduler
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -22,7 +14,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# UptimeRobot uchun veb-server (ping qabul qiluvchi)
+# UptimeRobot signallarini qabul qiluvchi kichik veb-sahifa (ping)
 async def handle_ping(request):
     return web.Response(text="Bot 24/7 faol ishlamoqda!")
 
@@ -48,10 +40,9 @@ async def main():
     application = ApplicationBuilder().token(BOT_TOKEN).build()
 
     # Rejalashtiruvchini (Scheduler) ulash
-    setup_scheduler(application)
+    start_scheduler(application)
 
-    # Handlerlarni qo'shish (start, admin, postlar...)
-    # Asosiy handlerlar
+    # Handlerlarni ro'yxatdan o'tkazish
     try:
         from handlers.start import register_handlers as reg_start
         reg_start(application)
