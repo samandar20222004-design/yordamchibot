@@ -1,20 +1,26 @@
 from telegram import Update
-from telegram.ext import ContextTypes
-from database import get_user_posts
+from telegram.ext import ContextTypes, CommandHandler, MessageHandler, filters
+from database import get_posts_by_user
 
-async def list_posts_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def list_posts_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
-    posts = get_user_posts(user_id)
-    
+    posts = get_posts_by_user(user_id)
+
     if not posts:
-        await update.message.reply_text("Sizda rejalashtirilgan faol postlar mavjud emas.")
+        await update.message.reply_text("📭 Hozircha rejalashtirilgan postlar yo'q.")
         return
-        
-    text = "📋 **Sizning rejalashtirilgan postlaringiz:**\n\n"
+
+    text = "📋 **Rejalashtirilgan postlaringiz:**\n\n"
     for post in posts:
-        post_id, channel_title, post_text, sched_time = post
-        ch_name = channel_title or "Kanal"
-        snippet = (post_text[:40] + "...") if post_text and len(post_text) > 40 else (post_text or "[Rasm]")
-        text += f"🆔 **ID:** `{post_id}` | 📢 **{ch_name}**\n⏰ {sched_time}\n📝 {snippet}\n\n"
-        
+        # post: (id, user_id, channel_id, text, photo_id, scheduled_time, is_sent)
+        p_id = post[0]
+        channel = post[2]
+        time = post[5]
+        status = "Yuborilgan" if post[6] else "Kutilmoqda"
+        text += f"🆔 Post ID: `{p_id}`\n📢 Kanal: `{channel}`\n⏰ Vaqt: `{time}`\nHolati: {status}\n───────────────\n"
+
     await update.message.reply_text(text, parse_mode="Markdown")
+
+def register_handlers(application):
+    application.add_handler(CommandHandler("posts", list_posts_handler))
+    application.add_handler(MessageHandler(filters.Regex("^📋 Rejalashtirilgan postlar$"), list_posts_handler))
