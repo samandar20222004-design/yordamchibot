@@ -3,19 +3,21 @@ import asyncio
 import logging
 from threading import Thread
 from aiohttp import web
-from telegram import Update
 from telegram.ext import (
     ApplicationBuilder,
     CommandHandler,
     CallbackQueryHandler,
     MessageHandler,
-    filters,
-    ContextTypes
+    ConversationHandler,
+    filters
 )
 
-from config import BOT_TOKEN
+from config import BOT_TOKEN, ADMIN_ID
 from database import init_db
 from scheduler import start_scheduler
+
+# Barcha handler modullarini import qilish
+from handlers import start, admin, new_post, list_posts, delete_post
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -23,9 +25,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# 1. UptimeRobot uchun veb-serverni alohida oqimda ishga tushirish (xatoliksiz)
+# Render 24/7 faol turishi uchun veb-server (UptimeRobot uchun)
 async def handle_ping(request):
-    return web.Response(text="Bot 24/7 faol ishlamoqda!")
+    return web.Response(text="Bot 24/7 uzluksiz ishlamoqda!")
 
 def start_background_web_server():
     loop = asyncio.new_event_loop()
@@ -37,64 +39,41 @@ def start_background_web_server():
     port = int(os.getenv("PORT", 8080))
     site = web.TCPSite(runner, "0.0.0.0", port)
     loop.run_until_complete(site.start())
-    logger.info(f"Veb-server {port}-portda ishga tushdi.")
+    logger.info(f"Veb-server {port}-portda faol.")
     loop.run_forever()
-
-# Barcha noma'lum tugma bosishlariga javob beruvchi universal funksiya
-async def universal_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    data = query.data
-    logger.info(f"Tugma bosildi: {data}")
-    # Tugma ma'lumotiga qarab tegishli handlerga yo'naltirish
 
 def main():
     if not BOT_TOKEN:
-        logger.error("BOT_TOKEN topilmadi!")
+        logger.error("BOT_TOKEN aniqlanmadi!")
         return
 
-    # Bazani ishga tushirish
+    # Ma'lumotlar bazasini tayyorlash
     init_db()
 
-    # Veb-serverni fonda yoqish
+    # Veb-serverni fonda ishga tushirish
     Thread(target=start_background_web_server, daemon=True).start()
 
-    # Bot ilovasini qurish
+    # Telegram Bot dasturini qurish
     application = ApplicationBuilder().token(BOT_TOKEN).build()
 
-    # Conversation handlerlarni birinchi bo'lib ulash
-    try:
-        import handlers.new_post as h_new_post
-        if hasattr(h_new_post, "new_post_conv_handler"):
-            application.add_handler(h_new_post.new_post_conv_handler)
-    except Exception as e:
-        logger.warning(f"New post: {e}")
+    # 1. Yangi post yaratish dialogi (Conversation)
+    if hasattr(new_post, "new_post_conv_handler"):
+        application.add_handler(new_post.new_post_conv_handler)
 
-    try:
-        import handlers.delete_post as h_del
-        if hasattr(h_del, "delete_post_conv_handler"):
-            application.add_handler(h_del.delete_post_conv_handler)
-    except Exception as e:
-        logger.warning(f"Delete post: {e}")
+    # 2. Postni o'chirish dialogi (Conversation)
+    if hasattr(delete_post, "delete_post_conv_handler"):
+        application.add_handler(delete_post.delete_post_conv_handler)
 
-    # Barcha modullardagi register_handlers funksiyalarini ulash
-    modules = ["handlers.start", "handlers.admin", "handlers.list_posts", "handlers.new_post", "handlers.delete_post"]
-    for mod_name in modules:
-        try:
-            mod = __import__(mod_name, fromlist=["register_handlers"])
-            if hasattr(mod, "register_handlers"):
-                mod.register_handlers(application)
-        except Exception as e:
-            logger.warning(f"{mod_name} yuklanmadi: {e}")
+    # 3. Har bir modulning maxsus register_handlers funksiyalarini ulash
+    for module in [start, admin, list_posts, new_post, delete_post]:
+        if hasattr(module, "register_handlers"):
+            module.register_handlers(application)
 
-    # Tugmalar uchun universal handler
-    application.add_handler(CallbackQueryHandler(universal_callback))
-
-    # Scheduler'ni ulash
+    # 4. Rejalashtiruvchi (Scheduler) ni ishga tushirish
     start_scheduler(application)
 
-    # Botni barqaror rejimda doimiy yurgazish
-    logger.info("Bot ishga tushdi va to'liq rejimda ishlamoqda...")
+    # 5. Botni doimiy polling rejimida ishga tushirish
+    logger.info("Bot barcha tugmalar va buyruqlar bilan to'liq ishga tushdi!")
     application.run_polling(drop_pending_updates=True)
 
 if __name__ == "__main__":
