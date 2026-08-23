@@ -14,11 +14,11 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# UptimeRobot signallarini qabul qiluvchi kichik veb-sahifa (ping)
+# UptimeRobot signallarini qabul qiluvchi kichik veb-sahifa
 async def handle_ping(request):
     return web.Response(text="Bot 24/7 faol ishlamoqda!")
 
-async def start_web_server():
+async def run_web_server():
     app = web.Application()
     app.router.add_get("/", handle_ping)
     runner = web.AppRunner(app)
@@ -42,24 +42,24 @@ async def main():
     # Rejalashtiruvchini (Scheduler) ulash
     start_scheduler(application)
 
-    # Handlerlarni ro'yxatdan o'tkazish
+    # Handlerlarni ulash
     try:
         from handlers.start import register_handlers as reg_start
         reg_start(application)
     except Exception:
         pass
 
-    # Veb-serverni ishga tushirish (Render uxlamasligi uchun)
-    await start_web_server()
+    # Veb-serverni fonda ishga tushirish
+    await run_web_server()
 
-    # Botni ishga tushirish
-    logger.info("Bot polling rejimida ishga tushmoqda...")
-    await application.run_polling()
+    # Botni ishga tushirish (async tarzda)
+    async with application:
+        await application.start()
+        await application.updater.start_polling()
+        logger.info("Bot polling rejimida muvaffaqiyatli ishga tushdi!")
+        # Doimiy ishlab turishi uchun
+        while True:
+            await asyncio.sleep(3600)
 
 if __name__ == "__main__":
-    import nest_asyncio
-    try:
-        nest_asyncio.apply()
-    except Exception:
-        pass
     asyncio.run(main())
