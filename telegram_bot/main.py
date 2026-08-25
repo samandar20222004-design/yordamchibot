@@ -49,9 +49,9 @@ class HealthCheckHandler(BaseHTTPRequestHandler):
         pass
 
 def start_server():
-    server = HTTPServer(("0.0.0.0", PORT), HealthCheckHandler)
+    port = int(os.environ.get("PORT", 10000))
+    server = HTTPServer(("0.0.0.0", port), HealthCheckHandler)
     server.serve_forever()
-
 def save_user(user_id, username):
     try:
         conn = get_connection()
