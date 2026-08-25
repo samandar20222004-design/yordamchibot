@@ -1,80 +1,518 @@
-import os
-import asyncio
 import logging
-from threading import Thread
-from aiohttp import web
+import os
+import threading
+from http.server import HTTPServer, BaseHTTPRequestHandler
+from datetime import datetime, timedelta
+import pytz
+
+from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import (
     ApplicationBuilder,
     CommandHandler,
-    CallbackQueryHandler,
     MessageHandler,
     ConversationHandler,
-    filters
+    filters,
+    ContextTypes
 )
+from database import init_db, get_connection
+from scheduler import check_and_send_posts
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
-from config import BOT_TOKEN, ADMIN_ID
-from database import init_db
-from scheduler import start_scheduler
+logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
-# Barcha handler modullarini import qilish
-from handlers import start, admin, new_post, list_posts, delete_post
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+ADMIN_ID_RAW = os.getenv("ADMIN_ID", "7105264103")
+try:
+    ADMIN_ID = int(ADMIN_ID_RAW)
+except ValueError:
+    ADMIN_ID = 7105264103
 
-logging.basicConfig(
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    level=logging.INFO
-)
-logger = logging.getLogger(__name__)
+tashkent_tz = pytz.timezone("Asia/Tashkent")
 
-# Render 24/7 faol turishi uchun veb-server (UptimeRobot uchun)
-async def handle_ping(request):
-    return web.Response(text="Bot 24/7 uzluksiz ishlamoqda!")
+CHOOSE_CHANNEL, CHOOSE_TYPE, GET_CONTENT, GET_TIME = range(4)
+ADD_CHANNEL = 10
 
-def start_background_web_server():
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    app = web.Application()
-    app.router.add_get("/", handle_ping)
-    runner = web.AppRunner(app)
-    loop.run_until_complete(runner.setup())
+def get_main_keyboard(is_admin=False):
+    keyboard = [
+        ["➕ Yangi post rejalashtirish"],
+        ["📋 Kutilayotgan postlar", "📢 Kanallar"]
+    ]
+    if is_admin:
+        keyboard.append(["👑 Admin Panel", "📊 Statistika"])
+    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+
+def get_cancel_keyboard():
+    return ReplyKeyboardMarkup([["🔙 Asosiy menyu"]], resize_keyboard=True)
+
+class HealthCheckHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header("Content-type", "text/plain")
+        self.end_headers()
+        self.wfile.write(b"AssistBot is active and running 24/7!")
+
+    def log_message(self, format, *args):
+        pass
+
+def start_server():
     port = int(os.getenv("PORT", 8080))
-    site = web.TCPSite(runner, "0.0.0.0", port)
-    loop.run_until_complete(site.start())
-    logger.info(f"Veb-server {port}-portda faol.")
-    loop.run_forever()
+    server = HTTPServer(("0.0.0.0", port), HealthCheckHandler)
+    server.serve_forever()
 
-def main():
-    if not BOT_TOKEN:
-        logger.error("BOT_TOKEN aniqlanmadi!")
+def save_user(user_id, username, first_name):
+    try:
+        conn = get_connection()
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO users (telegram_id, username, created_at)
+            VALUES (%s, %s, NOW())
+            ON CONFLICT (telegram_id) DO NOTHING
+        """, (user_id, username or first_name))
+        conn.commit()
+        cur.close()
+        conn.close()
+    except Exception as e:
+        logging.error(f"User saqlashda xato: {e}")
+
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    context.user_data.clear()
+    user = update.effective_user
+    save_user(user.id, user.username, user.first_name)
+    is_admin = (user.id == ADMIN_ID)
+    
+    await update.message.reply_text(
+        f"Salom, {user.first_name}! 👋\n\n"
+        f"🤖 **AssistBot** — Telegram kanallaringiz uchun aqlli avtoposting yordamchingiz.\n\n"
+        f"Quyidagi menyudan kerakli bo'limni tanlang 👇",
+        reply_markup=get_main_keyboard(is_admin),
+        parse_mode="Markdown"
+    )
+    return ConversationHandler.END
+
+async def start_new_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    is_admin = (user_id == ADMIN_ID)
+    
+    try:
+        conn = get_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT channel_id, channel_title FROM channels WHERE user_id = %s AND is_active = TRUE", (user_id,))
+        channels = cur.fetchall()
+        cur.close()
+        conn.close()
+    except Exception as e:
+        logging.error(f"Kanal olishda DB xatosi: {e}")
+        channels = []
+
+    if not channels:
+        await update.message.reply_text(
+            "😔 **Faol kanal topilmadi!**\n\n"
+            "Post rejalashtirishdan oldin '📢 Kanallar' bo'limidan kanalingizni ulang.",
+            reply_markup=get_main_keyboard(is_admin),
+            parse_mode="Markdown"
+        )
+        return ConversationHandler.END
+
+    keyboard = [[ch[1]] for ch in channels]
+    keyboard.append(["🔙 Asosiy menyu"])
+    context.user_data["channels_map"] = {ch[1]: ch[0] for ch in channels}
+
+    await update.message.reply_text(
+        "📢 **Qaysi kanalga post rejalashtiramiz?**\nRo'yxatdan tanlang 👇",
+        reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True),
+        parse_mode="Markdown"
+    )
+    return CHOOSE_CHANNEL
+
+async def channel_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = update.message.text
+    is_admin = (update.effective_user.id == ADMIN_ID)
+
+    if text in ["🔙 Asosiy menyu", "❌ Bekor qilish", "/start"]:
+        context.user_data.clear()
+        await update.message.reply_text("👌 Jarayon to'xtatildi.", reply_markup=get_main_keyboard(is_admin))
+        return ConversationHandler.END
+
+    channels_map = context.user_data.get("channels_map", {})
+    if text not in channels_map:
+        await update.message.reply_text("🤔 Bunday kanal ro'yxatda yo'q. Pastdagi tugmalardan birini bosing:")
+        return CHOOSE_CHANNEL
+
+    context.user_data["selected_channel_id"] = channels_map[text]
+    context.user_data["selected_channel_title"] = text
+
+    keyboard = [
+        ["📝 Oddiy matn", "🖼 Rasm + Matn"],
+        ["🔙 Asosiy menyu"]
+    ]
+    await update.message.reply_text(
+        f"🎯 Kanal tanlandi: **{text}**\n\nEndi post formatini belgilang 👇",
+        reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True),
+        parse_mode="Markdown"
+    )
+    return CHOOSE_TYPE
+
+async def type_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = update.message.text
+    is_admin = (update.effective_user.id == ADMIN_ID)
+
+    if text in ["🔙 Asosiy menyu", "❌ Bekor qilish", "/start"]:
+        context.user_data.clear()
+        await update.message.reply_text("👌 Jarayon to'xtatildi.", reply_markup=get_main_keyboard(is_admin))
+        return ConversationHandler.END
+
+    if "Oddiy matn" not in text and "Rasm" not in text:
+        await update.message.reply_text("⚠️ Iltimos, pastdagi tugmalardan birini bosing.")
+        return CHOOSE_TYPE
+
+    context.user_data["post_type"] = "text" if "Oddiy matn" in text else "photo"
+
+    if context.user_data["post_type"] == "photo":
+        await update.message.reply_text(
+            "📸 **Rasmni yuboring:**\n(Tagiga post matnini ham yozishingiz mumkin)",
+            reply_markup=get_cancel_keyboard(),
+            parse_mode="Markdown"
+        )
+    else:
+        await update.message.reply_text(
+            "✍️ **Post matnini yuboring:**",
+            reply_markup=get_cancel_keyboard(),
+            parse_mode="Markdown"
+        )
+    return GET_CONTENT
+
+async def content_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    is_admin = (update.effective_user.id == ADMIN_ID)
+
+    if update.message.text in ["🔙 Asosiy menyu", "❌ Bekor qilish", "/start"]:
+        context.user_data.clear()
+        await update.message.reply_text("👌 Jarayon to'xtatildi.", reply_markup=get_main_keyboard(is_admin))
+        return ConversationHandler.END
+
+    post_type = context.user_data.get("post_type")
+
+    if post_type == "photo":
+        if not update.message.photo:
+            await update.message.reply_text("❌ Bu rasm emas! Rasm yuboring yoki '🔙 Asosiy menyu'ni bosing.")
+            return GET_CONTENT
+        context.user_data["file_id"] = update.message.photo[-1].file_id
+        context.user_data["caption"] = update.message.caption or ""
+    else:
+        if not update.message.text:
+            await update.message.reply_text("❌ Matn topilmadi! Iltimos, matn yuboring.")
+            return GET_CONTENT
+        context.user_data["content_text"] = update.message.text
+
+    keyboard = [
+        ["⏱ +15 daqiqa", "⏳ +1 soat"],
+        ["🌅 Ertaga 09:00", "🌇 Ertaga 18:00"],
+        ["🔙 Asosiy menyu"]
+    ]
+    await update.message.reply_text(
+        "⏰ **Post qaysi vaqtda kanalingizga chiqarilsin?**\n\n"
+        "Tugmalardan tanlang yoki aniq vaqtni yozing:\n"
+        "👉 `2026-08-25 15:30`",
+        reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True),
+        parse_mode="Markdown"
+    )
+    return GET_TIME
+
+async def time_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = update.message.text
+    is_admin = (update.effective_user.id == ADMIN_ID)
+
+    if text in ["🔙 Asosiy menyu", "❌ Bekor qilish", "/start"]:
+        context.user_data.clear()
+        await update.message.reply_text("👌 Jarayon to'xtatildi.", reply_markup=get_main_keyboard(is_admin))
+        return ConversationHandler.END
+
+    now = datetime.now(tashkent_tz)
+    post_time = None
+
+    try:
+        if "15 daqiqa" in text:
+            post_time = now + timedelta(minutes=15)
+        elif "1 soat" in text:
+            post_time = now + timedelta(hours=1)
+        elif "09:00" in text:
+            post_time = (now + timedelta(days=1)).replace(hour=9, minute=0, second=0, microsecond=0)
+        elif "18:00" in text:
+            post_time = (now + timedelta(days=1)).replace(hour=18, minute=0, second=0, microsecond=0)
+        else:
+            naive_time = datetime.strptime(text.strip(), "%Y-%m-%d %H:%M")
+            post_time = tashkent_tz.localize(naive_time)
+
+        if post_time <= now:
+            await update.message.reply_text("⚠️ **Vaqt xato!** Kelajakdagi vaqtni kiriting:")
+            return GET_TIME
+
+    except Exception:
+        await update.message.reply_text(
+            "❌ **Vaqt formati xato!**\n"
+            "Tugmalardan tanlang yoki `2026-08-25 14:00` shaklida yuboring.",
+            parse_mode="Markdown"
+        )
+        return GET_TIME
+
+    user_id = update.effective_user.id
+    channel_id = context.user_data["selected_channel_id"]
+    post_type = context.user_data["post_type"]
+    content = context.user_data.get("caption") if post_type == "photo" else context.user_data.get("content_text")
+    file_id = context.user_data.get("file_id")
+
+    try:
+        conn = get_connection()
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO scheduled_posts (user_id, channel_id, post_type, content, file_id, scheduled_time, status)
+            VALUES (%s, %s, %s, %s, %s, %s, 'pending')
+        """, (user_id, channel_id, post_type, content, file_id, post_time))
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        await update.message.reply_text(
+            f"🎉 **Post muvaffaqiyatli rejalashtirildi!**\n\n"
+            f"📢 Kanal: **{context.user_data['selected_channel_title']}**\n"
+            f"📅 Chiqish vaqti: **{post_time.strftime('%Y-%m-%d %H:%M')}**\n\n"
+            f"🚀 **AssistBot** belgilangan vaqtda chop etadi!",
+            reply_markup=get_main_keyboard(is_admin),
+            parse_mode="Markdown"
+        )
+    except Exception as e:
+        logging.error(f"Post saqlashda xato: {e}")
+        await update.message.reply_text("❌ Bazaga saqlashda xatolik yuz berdi.", reply_markup=get_main_keyboard(is_admin))
+
+    context.user_data.clear()
+    return ConversationHandler.END
+
+async def channels_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    try:
+        conn = get_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT channel_title, channel_id FROM channels WHERE user_id = %s", (user_id,))
+        channels = cur.fetchall()
+        cur.close()
+        conn.close()
+    except Exception as e:
+        logging.error(f"Kanal ro'yxati xatosi: {e}")
+        channels = []
+
+    text = "📢 **Ulangan kanallaringiz:**\n\n"
+    if not channels:
+        text += "Hozircha ulangan kanallar mavjud emas.\n"
+    else:
+        for idx, ch in enumerate(channels, 1):
+            text += f"{idx}. **{ch[0]}** (ID: `{ch[1]}`)\n"
+
+    keyboard = [["➕ Kanal qo'shish"], ["🔙 Asosiy menyu"]]
+    await update.message.reply_text(text, reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True), parse_mode="Markdown")
+
+async def start_add_channel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(
+        "➕ **Kanal ulash yo'riqnomasi:**\n\n"
+        "1. Botni kanalingizga **Admin** qilib qo'shing.\n"
+        "2. Kanaldan biror xabarni bu yerga **Forward (Uzatish)** qiling yoki ID raqamini yozing:",
+        reply_markup=get_cancel_keyboard(),
+        parse_mode="Markdown"
+    )
+    return ADD_CHANNEL
+
+async def channel_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    is_admin = (user_id == ADMIN_ID)
+    msg = update.message
+
+    if msg.text in ["🔙 Asosiy menyu", "❌ Bekor qilish", "/start"]:
+        await msg.reply_text("👌 Jarayon to'xtatildi.", reply_markup=get_main_keyboard(is_admin))
+        return ConversationHandler.END
+
+    channel_id = None
+    channel_title = "Telegram Kanal"
+
+    if msg.forward_origin and hasattr(msg.forward_origin, 'chat'):
+        channel_id = msg.forward_origin.chat.id
+        channel_title = msg.forward_origin.chat.title or "Telegram Kanal"
+    elif msg.forward_from_chat:
+        channel_id = msg.forward_from_chat.id
+        channel_title = msg.forward_from_chat.title or "Telegram Kanal"
+    elif msg.text and (msg.text.startswith("-100") or msg.text.startswith("@")):
+        channel_id = msg.text.strip()
+        channel_title = msg.text.strip()
+
+    if not channel_id:
+        await msg.reply_text(
+            "❌ **Kanal aniqlanmadi!**\n\n"
+            "Iltimos, kanaldan biror postni to'g'ridan-to'g'ri Forward qilib yuboring:",
+            reply_markup=get_cancel_keyboard(),
+            parse_mode="Markdown"
+        )
+        return ADD_CHANNEL
+
+    try:
+        conn = get_connection()
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO channels (user_id, channel_id, channel_title, is_active)
+            VALUES (%s, %s, %s, TRUE)
+            ON CONFLICT (channel_id) DO UPDATE SET is_active = TRUE, channel_title = EXCLUDED.channel_title
+        """, (user_id, channel_id, channel_title))
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        await msg.reply_text(
+            f"🎉 **Kanal muvaffaqiyatli ulandi!**\n\n📢 Nomi: **{channel_title}**\n🆔 ID: `{channel_id}`",
+            reply_markup=get_main_keyboard(is_admin),
+            parse_mode="Markdown"
+        )
+        return ConversationHandler.END
+    except Exception as e:
+        logging.error(f"Kanal saqlashda xato: {e}")
+        await msg.reply_text("❌ Baza bilan ulanishda xatolik bo'ldi.", reply_markup=get_main_keyboard(is_admin))
+        return ConversationHandler.END
+
+async def list_pending_posts(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    is_admin = (user_id == ADMIN_ID)
+
+    try:
+        conn = get_connection()
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT sp.id, c.channel_title, sp.post_type, sp.scheduled_time 
+            FROM scheduled_posts sp
+            LEFT JOIN channels c ON sp.channel_id = c.channel_id
+            WHERE sp.user_id = %s AND sp.status = 'pending'
+            ORDER BY sp.scheduled_time ASC
+        """, (user_id,))
+        posts = cur.fetchall()
+        cur.close()
+        conn.close()
+    except Exception as e:
+        logging.error(f"Kutilayotgan postlar xatosi: {e}")
+        posts = []
+
+    if not posts:
+        await update.message.reply_text(
+            "📋 **Hozircha rejalashtirilgan postlar yo'q.**",
+            reply_markup=get_main_keyboard(is_admin),
+            parse_mode="Markdown"
+        )
         return
 
-    # Ma'lumotlar bazasini tayyorlash
+    text = "📋 **Kutilayotgan postlar:**\n\n"
+    for p in posts:
+        pid, c_title, p_type, s_time = p
+        title = c_title if c_title else "Kanal"
+        text += f"🔹 **ID: #{pid}** | {title}\n⏰ Vaqti: `{s_time.strftime('%Y-%m-%d %H:%M')}`\n📁 Turi: {p_type}\n\n"
+
+    await update.message.reply_text(text, reply_markup=get_main_keyboard(is_admin), parse_mode="Markdown")
+
+async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if user_id != ADMIN_ID:
+        await update.message.reply_text("⛔️ Bu bo'lim faqat bot egasi uchun!")
+        return
+
+    try:
+        conn = get_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT COUNT(*) FROM users")
+        total_users = cur.fetchone()[0]
+        cur.execute("SELECT COUNT(*) FROM channels WHERE is_active = TRUE")
+        total_channels = cur.fetchone()[0]
+        cur.execute("SELECT COUNT(*) FROM scheduled_posts WHERE status = 'pending'")
+        pending_posts = cur.fetchone()[0]
+        cur.execute("SELECT COUNT(*) FROM scheduled_posts WHERE status = 'posted'")
+        sent_posts = cur.fetchone()[0]
+        cur.close()
+        conn.close()
+
+        text = (
+            f"👑 **ADMIN BOSHQARUV PANELI**\n\n"
+            f"👥 Foydalanuvchilar: **{total_users} ta**\n"
+            f"📢 Ulangan kanallar: **{total_channels} ta**\n"
+            f"⏳ Kutilayotgan postlar: **{pending_posts} ta**\n"
+            f"✅ Yuborilgan postlar: **{sent_posts} ta**\n"
+        )
+        await update.message.reply_text(text, reply_markup=get_main_keyboard(True), parse_mode="Markdown")
+    except Exception as e:
+        logging.error(f"Admin panel xatosi: {e}")
+        await update.message.reply_text("❌ Ma'lumotlarni yuklashda xatolik yuz berdi.")
+
+async def cancel_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    is_admin = (update.effective_user.id == ADMIN_ID)
+    context.user_data.clear()
+    await update.message.reply_text("👌 Jarayon bekor qilindi.", reply_markup=get_main_keyboard(is_admin))
+    return ConversationHandler.END
+
+async def unknown(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    is_admin = (update.effective_user.id == ADMIN_ID)
+    await update.message.reply_text(
+        "🤔 **Buyruq tushunarsiz!**\nPastdagi tugmalardan foydalaning yoki /start bosing 👇",
+        reply_markup=get_main_keyboard(is_admin),
+        parse_mode="Markdown"
+    )
+
+def main():
+    threading.Thread(target=start_server, daemon=True).start()
     init_db()
+    app = ApplicationBuilder().token(BOT_TOKEN).build()
 
-    # Veb-serverni fonda ishga tushirish
-    Thread(target=start_background_web_server, daemon=True).start()
+    new_post_conv = ConversationHandler(
+        entry_points=[
+            MessageHandler(filters.Regex("Yangi post"), start_new_post),
+            CommandHandler("newpost", start_new_post)
+        ],
+        states={
+            CHOOSE_CHANNEL: [MessageHandler(filters.TEXT & ~filters.COMMAND, channel_chosen)],
+            CHOOSE_TYPE: [MessageHandler(filters.TEXT & ~filters.COMMAND, type_chosen)],
+            GET_CONTENT: [
+                MessageHandler(filters.PHOTO | (filters.TEXT & ~filters.COMMAND), content_received)
+            ],
+            GET_TIME: [MessageHandler(filters.TEXT & ~filters.COMMAND, time_received)],
+        },
+        fallbacks=[
+            CommandHandler("start", start),
+            CommandHandler("cancel", cancel_handler),
+            MessageHandler(filters.Regex("(Asosiy|Bekor)"), cancel_handler)
+        ],
+        allow_reentry=True
+    )
 
-    # Telegram Bot dasturini qurish
-    application = ApplicationBuilder().token(BOT_TOKEN).build()
+    add_channel_conv = ConversationHandler(
+        entry_points=[
+            MessageHandler(filters.Regex("Kanal qo'shish"), start_add_channel)
+        ],
+        states={
+            ADD_CHANNEL: [MessageHandler(filters.ALL & ~filters.COMMAND, channel_received)]
+        },
+        fallbacks=[
+            CommandHandler("start", start),
+            CommandHandler("cancel", cancel_handler),
+            MessageHandler(filters.Regex("(Asosiy|Bekor)"), cancel_handler)
+        ],
+        allow_reentry=True
+    )
 
-    # 1. Yangi post yaratish dialogi (Conversation)
-    if hasattr(new_post, "new_post_conv_handler"):
-        application.add_handler(new_post.new_post_conv_handler)
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(MessageHandler(filters.Regex("Kanallar"), channels_menu))
+    app.add_handler(MessageHandler(filters.Regex("Kutilayotgan postlar"), list_pending_posts))
+    app.add_handler(MessageHandler(filters.Regex("Asosiy menyu"), start))
+    app.add_handler(MessageHandler(filters.Regex("(Admin Panel|Statistika)"), admin_panel))
 
-    # 2. Postni o'chirish dialogi (Conversation)
-    if hasattr(delete_post, "delete_post_conv_handler"):
-        application.add_handler(delete_post.delete_post_conv_handler)
+    app.add_handler(new_post_conv)
+    app.add_handler(add_channel_conv)
 
-    # 3. Har bir modulning maxsus register_handlers funksiyalarini ulash
-    for module in [start, admin, list_posts, new_post, delete_post]:
-        if hasattr(module, "register_handlers"):
-            module.register_handlers(application)
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, unknown))
 
-    # 4. Rejalashtiruvchi (Scheduler) ni ishga tushirish
-    start_scheduler(application)
+    scheduler = AsyncIOScheduler()
+    scheduler.add_job(check_and_send_posts, 'interval', minutes=1, args=[app.bot])
+    scheduler.start()
 
-    # 5. Botni doimiy polling rejimida ishga tushirish
-    logger.info("Bot barcha tugmalar va buyruqlar bilan to'liq ishga tushdi!")
-    application.run_polling(drop_pending_updates=True)
+    app.run_polling(drop_pending_updates=True)
 
 if __name__ == "__main__":
     main()
