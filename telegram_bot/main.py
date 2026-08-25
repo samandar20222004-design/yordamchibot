@@ -521,3 +521,8 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+scheduler = AsyncIOScheduler()
+    scheduler.add_job(check_and_send_posts, 'interval', minutes=1, args=[app.bot])
+    scheduler.add_job(keep_alive, 'interval', minutes=10) # <-- Har 10 daqiqada o'zini uyg'otadi
+    scheduler.start()
