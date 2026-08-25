@@ -1,4 +1,5 @@
 import logging
+import urllib.request
 from datetime import datetime
 import pytz
 from database import get_connection
@@ -6,6 +7,18 @@ from database import get_connection
 logger = logging.getLogger(__name__)
 tashkent_tz = pytz.timezone("Asia/Tashkent")
 
+# 1. Server o'z-o'zini uyg'otib turuvchi funksiya
+async def keep_alive():
+    try:
+        url = "https://asistbot-ennm.onrender.com"
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req, timeout=10) as response:
+            pass
+        logger.info("Keep-alive ping muvaffaqiyatli yuborildi.")
+    except Exception as e:
+        logger.warning(f"Keep-alive ping xatosi: {e}")
+
+# 2. Postlarni yuborish
 async def check_and_send_posts(bot):
     now = datetime.now(tashkent_tz)
     conn = None
