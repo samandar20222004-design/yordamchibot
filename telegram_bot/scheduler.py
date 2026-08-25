@@ -33,16 +33,16 @@ async def check_and_send_posts(bot):
                 
                 cur.execute("UPDATE scheduled_posts SET status = 'posted' WHERE id = %s", (post_id,))
                 conn.commit()
-                logger.info(f"Post #{post_id} sent successfully.")
+                logger.info(f"Post #{post_id} yuborildi.")
                 
             except Exception as e:
-                logger.error(f"Error sending post #{post_id}: {e}")
+                logger.error(f"Post #{post_id} yuborishda xato: {e}")
                 cur.execute("UPDATE scheduled_posts SET status = 'failed' WHERE id = %s", (post_id,))
                 conn.commit()
                 
         cur.close()
     except Exception as e:
-        logger.error(f"Scheduler execution error: {e}")
+        logger.error(f"Scheduler xatoligi: {e}")
     finally:
         if conn:
             conn.close()
