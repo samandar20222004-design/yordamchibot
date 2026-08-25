@@ -1,5 +1,4 @@
 import logging
-import os
 import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from datetime import datetime, timedelta
@@ -14,14 +13,13 @@ from telegram.ext import (
     filters,
     ContextTypes
 )
+from config import BOT_TOKEN, ADMIN_ID, PORT
 from database import init_db, get_connection
 from scheduler import check_and_send_posts
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
-
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-ADMIN_ID = 7105264103
+logger = logging.getLogger(__name__)
 
 tashkent_tz = pytz.timezone("Asia/Tashkent")
 
@@ -40,7 +38,7 @@ def get_main_keyboard(is_admin=False):
 def get_cancel_keyboard():
     return ReplyKeyboardMarkup([["🔙 Asosiy menyu"]], resize_keyboard=True)
 
-# Render portini ushlab turuvchi server
+# Render Web Service uchun portni ochiq tutuvchi server
 class HealthCheckHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
@@ -52,8 +50,7 @@ class HealthCheckHandler(BaseHTTPRequestHandler):
         pass
 
 def start_server():
-    port = int(os.getenv("PORT", "10000"))
-    server = HTTPServer(("0.0.0.0", port), HealthCheckHandler)
+    server = HTTPServer(("0.0.0.0", PORT), HealthCheckHandler)
     server.serve_forever()
 
 def save_user(user_id, username):
@@ -69,7 +66,7 @@ def save_user(user_id, username):
         cur.close()
         conn.close()
     except Exception as e:
-        logging.error(f"User saqlash xatosi: {e}")
+        logger.error(f"User save error: {e}")
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
@@ -79,13 +76,14 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     await update.message.reply_text(
         f"Salom, {user.first_name}! 👋\n\n"
-        f"🤖 **AssistBot** — Telegram kanallari va guruhlari uchun avtoposting xizmati.\n\n"
+        f"🤖 **AssistBot** — Telegram kanallari va guruhlari uchun aqlli avtoposting yordamchingiz.\n\n"
         f"Quyidagi menyudan kerakli bo'limni tanlang 👇",
         reply_markup=get_main_keyboard(is_admin),
         parse_mode="Markdown"
     )
     return ConversationHandler.END
 
+# Post rejalashtirish
 async def start_new_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     is_admin = (user_id == ADMIN_ID)
@@ -99,12 +97,12 @@ async def start_new_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
         cur.close()
         conn.close()
     except Exception as e:
-        logging.error(f"DB xatosi: {e}")
+        logger.error(f"DB channel fetch error: {e}")
 
     if not channels:
         await update.message.reply_text(
             "😔 **Faol kanal yoki guruh topilmadi!**\n\n"
-            "Avval '📢 Kanallar va Guruhlar' bo'limidan kanalingizni yoki guruhingizni ulang.",
+            "Post rejalashtirishdan oldin '📢 Kanallar va Guruhlar' bo'limidan kanalingizni ulang.",
             reply_markup=get_main_keyboard(is_admin),
             parse_mode="Markdown"
         )
@@ -115,7 +113,7 @@ async def start_new_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["channels_map"] = {ch[1]: ch[0] for ch in channels}
 
     await update.message.reply_text(
-        "📢 **Qaysi kanal yoki guruhga post rejalashtiramiz?**\nRo'yxatdan tanlang 👇",
+        "📢 **Qaysi manbaga post rejalashtiramiz?**\nRo'yxatdan tanlang 👇",
         reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True),
         parse_mode="Markdown"
     )
@@ -132,7 +130,7 @@ async def channel_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     channels_map = context.user_data.get("channels_map", {})
     if text not in channels_map:
-        await update.message.reply_text("🤔 Bunday kanal yo'q. Pastdagi tugmalardan tanlang:")
+        await update.message.reply_text("🤔 Bunday kanal ro'yxatda yo'q. Pastdagi tugmalardan tanlang:")
         return CHOOSE_CHANNEL
 
     context.user_data["selected_channel_id"] = channels_map[text]
@@ -243,7 +241,7 @@ async def time_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("⚠️ **Vaqt xato!** Kelajakdagi vaqtni kiriting:")
             return GET_TIME
     except Exception:
-        await update.message.reply_text("❌ Format xato! YYYY-MM-DD HH:MM shaklida yuboring.")
+        await update.message.reply_text("❌ Format xato! `2026-08-25 14:00` shaklida yuboring.")
         return GET_TIME
 
     user_id = update.effective_user.id
@@ -272,12 +270,13 @@ async def time_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode="Markdown"
         )
     except Exception as e:
-        logging.error(f"Post saqlash xatosi: {e}")
-        await update.message.reply_text("❌ Xatolik yuz berdi.", reply_markup=get_main_keyboard(is_admin))
+        logger.error(f"Post save error: {e}")
+        await update.message.reply_text("❌ Bazaga yozishda xatolik bo'ldi.", reply_markup=get_main_keyboard(is_admin))
 
     context.user_data.clear()
     return ConversationHandler.END
 
+# Kanallar va Guruhlar
 async def channels_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     channels = []
@@ -289,11 +288,11 @@ async def channels_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         cur.close()
         conn.close()
     except Exception as e:
-        logging.error(f"Kanal olish xatosi: {e}")
+        logger.error(f"Channel fetch error: {e}")
 
     text = "📢 **Ulangan kanallar va guruhlar:**\n\n"
     if not channels:
-        text += "Hozircha ulangan manbalar yo'q.\n"
+        text += "Hozircha ulangan manbalar mavjud emas.\n"
     else:
         for idx, ch in enumerate(channels, 1):
             text += f"{idx}. **{ch[0]}** (ID: `{ch[1]}`)\n"
@@ -305,7 +304,7 @@ async def start_add_channel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "➕ **Kanal yoki Guruh ulash tartibi:**\n\n"
         "1. Botni kanalingiz yoki guruhingizga **Admin** qilib tayinlang.\n"
-        "2. O'sha yerdan biror postni bu yerga **Forward (Uzatish)** qiling yoki ID / @username yuboring:",
+        "2. O'sha yerdan biror postni bu yerga **Forward (Uzatish)** qiling yoki manba ID raqamini / @usernameni yozing:",
         reply_markup=get_cancel_keyboard(),
         parse_mode="Markdown"
     )
@@ -327,7 +326,7 @@ async def channel_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if origin:
         chat = getattr(origin, 'chat', None)
         if chat:
-            channel_id = chat.id
+            channel_id = str(chat.id)
             channel_title = chat.title or "Telegram Manba"
 
     if not channel_id and msg.text:
@@ -339,7 +338,7 @@ async def channel_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not channel_id:
         await msg.reply_text(
             "❌ **Manba aniqlanmadi!**\n\n"
-            "Iltimos, manbadan biror postni to'g'ridan-to'g'ri Forward qiling:",
+            "Iltimos, kanaldan postni to'g'ridan-to'g'ri Forward qiling:",
             reply_markup=get_cancel_keyboard(),
             parse_mode="Markdown"
         )
@@ -352,7 +351,7 @@ async def channel_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
             INSERT INTO channels (user_id, channel_id, channel_title, is_active)
             VALUES (%s, %s, %s, TRUE)
             ON CONFLICT (channel_id) DO UPDATE SET is_active = TRUE, channel_title = EXCLUDED.channel_title
-        """, (user_id, channel_id, channel_title))
+        """, (user_id, str(channel_id), channel_title))
         conn.commit()
         cur.close()
         conn.close()
@@ -364,10 +363,11 @@ async def channel_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return ConversationHandler.END
     except Exception as e:
-        logging.error(f"Kanal saqlash xatosi: {e}")
+        logger.error(f"Channel save error: {e}")
         await msg.reply_text("❌ Saqlashda xatolik yuz berdi.", reply_markup=get_main_keyboard(is_admin))
         return ConversationHandler.END
 
+# Kutilayotgan postlar
 async def list_pending_posts(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     is_admin = (user_id == ADMIN_ID)
@@ -387,7 +387,7 @@ async def list_pending_posts(update: Update, context: ContextTypes.DEFAULT_TYPE)
         cur.close()
         conn.close()
     except Exception as e:
-        logging.error(f"Pending posts xatosi: {e}")
+        logger.error(f"Pending posts error: {e}")
 
     if not posts:
         await update.message.reply_text(
@@ -400,11 +400,12 @@ async def list_pending_posts(update: Update, context: ContextTypes.DEFAULT_TYPE)
     text = "📋 **Kutilayotgan postlar:**\n\n"
     for p in posts:
         pid, c_title, p_type, s_time = p
-        title = c_title if c_title else "Kanal"
+        title = c_title if c_title else "Kanal/Guruh"
         text += f"🔹 **ID: #{pid}** | {title}\n⏰ Vaqti: `{s_time.strftime('%Y-%m-%d %H:%M')}`\n📁 Turi: {p_type}\n\n"
 
     await update.message.reply_text(text, reply_markup=get_main_keyboard(is_admin), parse_mode="Markdown")
 
+# Admin Panel & Statistika
 async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     if user_id != ADMIN_ID:
@@ -434,7 +435,7 @@ async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         await update.message.reply_text(text, reply_markup=get_main_keyboard(True), parse_mode="Markdown")
     except Exception as e:
-        logging.error(f"Admin panel xatosi: {e}")
+        logger.error(f"Admin panel error: {e}")
         await update.message.reply_text("❌ Ma'lumotlarni yuklashda xatolik bo'ldi.")
 
 async def cancel_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -452,7 +453,6 @@ async def unknown(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 def main():
-    # Render portini darhol ishga tushirish
     server_thread = threading.Thread(target=start_server, daemon=True)
     server_thread.start()
 
@@ -496,7 +496,7 @@ def main():
     )
 
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(MessageHandler(filters.Regex("Kanallar"), channels_menu))
+    app.add_handler(MessageHandler(filters.Regex("Kanallar va Guruhlar"), channels_menu))
     app.add_handler(MessageHandler(filters.Regex("Kutilayotgan postlar"), list_pending_posts))
     app.add_handler(MessageHandler(filters.Regex("Asosiy menyu"), start))
     app.add_handler(MessageHandler(filters.Regex("(Admin Panel|Statistika)"), admin_panel))
