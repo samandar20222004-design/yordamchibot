@@ -13,7 +13,7 @@ def init_db():
         conn = get_connection()
         cur = conn.cursor()
         
-        # Foydalanuvchilar
+        # Foydalanuvchilar jadvali
         cur.execute("""
             CREATE TABLE IF NOT EXISTS users (
                 id SERIAL PRIMARY KEY,
@@ -23,7 +23,7 @@ def init_db():
             );
         """)
         
-        # Kanallar va Guruhlar
+        # Kanallar jadvali
         cur.execute("""
             CREATE TABLE IF NOT EXISTS channels (
                 id SERIAL PRIMARY KEY,
@@ -35,7 +35,7 @@ def init_db():
             );
         """)
         
-        # Rejalashtirilgan postlar
+        # Postlar jadvali
         cur.execute("""
             CREATE TABLE IF NOT EXISTS scheduled_posts (
                 id SERIAL PRIMARY KEY,
@@ -52,9 +52,9 @@ def init_db():
         
         conn.commit()
         cur.close()
-        logger.info("Database tables initialized successfully.")
+        logger.info("Database initialized successfully.")
     except Exception as e:
-        logger.error(f"Database initialization error: {e}")
+        logger.error(f"Database init error: {e}")
     finally:
         if conn:
             conn.close()
