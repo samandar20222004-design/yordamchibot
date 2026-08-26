@@ -1,15 +1,19 @@
 import os
-from dotenv import load_dotenv
-
-load_dotenv()
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
+ADMIN_ID = int(os.getenv("ADMIN_ID", 0))
 DATABASE_URL = os.getenv("DATABASE_URL")
-ADMIN_ID = int(os.getenv("ADMIN_ID", "0"))
-TIMEZONE = os.getenv("TIMEZONE", "Asia/Tashkent")
-PORT = int(os.getenv("PORT", "8080"))
+PORT = int(os.getenv("PORT", 10000))
 
 if not BOT_TOKEN:
-    raise ValueError("BOT_TOKEN aniqlanmadi! .env faylni tekshiring.")
+    raise RuntimeError("BOT_TOKEN topilmadi! .env faylida BOT_TOKEN ni to'g'ri kiriting.")
+
 if not DATABASE_URL:
-    raise ValueError("DATABASE_URL aniqlanmadi! .env faylni tekshiring.")
+    raise RuntimeError("DATABASE_URL topilmadi! .env faylida DATABASE_URL ni to'g'ri kiriting.")
+
+if ADMIN_ID == 0:
+    # Botni ADMIN_ID siz ishga tushirish mumkin, lekin admin panel ishlamaydi.
+    import logging
+    logging.getLogger(__name__).warning(
+        "ADMIN_ID sozlanmagan (0)! Admin panel va statistika hech kimga ko'rinmaydi."
+    )
