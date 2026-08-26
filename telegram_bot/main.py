@@ -26,9 +26,9 @@ tashkent_tz = pytz.timezone("Asia/Tashkent")
 CHOOSE_CHANNEL, CHOOSE_TYPE, GET_CONTENT, GET_TIME = range(4)
 ADD_CHANNEL = 10
 
-# Web server Render va UptimeRobot uchun
+# Web server (Render va UptimeRobot uchun)
 async def handle_ping(request):
-    return web.Response(text="OK", status=200)
+    return web.Response(text="PostAssistrobot OK", status=200)
 
 async def start_web_server():
     app = web.Application()
@@ -39,7 +39,7 @@ async def start_web_server():
     port = int(os.environ.get("PORT", 10000))
     site = web.TCPSite(runner, '0.0.0.0', port)
     await site.start()
-    logger.info(f"Web server 0.0.0.0:{port} portida ishga tushdi.")
+    logger.info(f"PostAssistrobot web server 0.0.0.0:{port} portida ishga tushdi.")
 
 def get_main_keyboard(is_admin=False):
     keyboard = [
@@ -76,7 +76,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     await update.message.reply_text(
         f"Salom, {user.first_name}! 👋\n\n"
-        f"🤖 **AssistBot** — Telegram kanallaringiz uchun aqlli avtoposting yordamchingiz.\n\n"
+        f"🤖 **PostAssistrobot** — Telegram kanallaringiz uchun aqlli avtoposting yordamchingiz.\n\n"
         f"Quyidagi menyudan kerakli bo'limni tanlang 👇",
         reply_markup=get_main_keyboard(is_admin),
         parse_mode="Markdown"
@@ -212,7 +212,7 @@ async def content_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "⏰ **Post qaysi vaqtda chiqsin?**\n\n"
         "Tugmalardan tanlang yoki aniq vaqtni yozing:\n"
-        "👉 `2026-08-25 18:30`",
+        "👉 `2026-08-26 18:30`",
         reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True),
         parse_mode="Markdown"
     )
@@ -247,7 +247,7 @@ async def time_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("⚠️ **Vaqt xato!** Kelajakdagi vaqtni kiriting:")
             return GET_TIME
     except Exception:
-        await update.message.reply_text("❌ Format xato! `2026-08-25 18:00` shaklida yuboring.")
+        await update.message.reply_text("❌ Format xato! `2026-08-26 18:00` shaklida yuboring.")
         return GET_TIME
 
     user_id = update.effective_user.id
@@ -271,7 +271,7 @@ async def time_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"🎉 **Post muvaffaqiyatli rejalashtirildi!**\n\n"
             f"📢 Joylash: **{context.user_data['selected_channel_title']}**\n"
             f"📅 Vaqti: **{post_time.strftime('%Y-%m-%d %H:%M')}**\n\n"
-            f"🚀 AssistBot belgilangan vaqtda kanalga chiqaradi!",
+            f"🚀 PostAssistrobot belgilangan vaqtda kanalga chiqaradi!",
             reply_markup=get_main_keyboard(is_admin),
             parse_mode="Markdown"
         )
@@ -435,7 +435,7 @@ async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
         conn.close()
 
         text = (
-            f"👑 **ADMIN BOSHQARUV PANELI**\n\n"
+            f"👑 **PostAssistrobot ADMIN BOSHQARUV PANELI**\n\n"
             f"👥 Jami foydalanuvchilar: **{total_users} ta**\n"
             f"📢 Ulangan kanallar: **{total_channels} ta**\n"
             f"⏳ Kutilayotgan postlar: **{pending_posts} ta**\n"
