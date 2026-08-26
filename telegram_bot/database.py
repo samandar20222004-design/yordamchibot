@@ -1,4 +1,3 @@
-import os
 import psycopg2
 from config import DATABASE_URL
 
@@ -9,7 +8,6 @@ def init_db():
     conn = get_connection()
     cur = conn.cursor()
     
-    # Foydalanuvchilar jadvali
     cur.execute("""
         CREATE TABLE IF NOT EXISTS users (
             user_id BIGINT PRIMARY KEY,
@@ -18,7 +16,6 @@ def init_db():
         );
     """)
     
-    # Kanallar jadvali
     cur.execute("""
         CREATE TABLE IF NOT EXISTS channels (
             id SERIAL PRIMARY KEY,
@@ -30,7 +27,6 @@ def init_db():
         );
     """)
     
-    # Rejalashtirilgan postlar jadvali
     cur.execute("""
         CREATE TABLE IF NOT EXISTS scheduled_posts (
             id SERIAL PRIMARY KEY,
