@@ -1,34 +1,26 @@
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, KeyboardButton
-from telegram.ext import ContextTypes, CommandHandler, CallbackQueryHandler
+from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
+from telegram.ext import ContextTypes
+from database import add_user
 
-# Asosiy menyu klaviaturasi
-def get_main_keyboard():
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    add_user(user.id, user.username, user.full_name)
+    await show_main_menu(update, context)
+
+async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
         [KeyboardButton("➕ Yangi post rejalashtirish")],
-        [KeyboardButton("📋 Rejalashtirilgan postlar"), KeyboardButton("🗑 Postni o'chirish")],
-        [KeyboardButton("⚙️ Admin panel"), KeyboardButton("ℹ️ Bot haqida")]
+        [KeyboardButton("📋 Kutilayotgan postlar"), KeyboardButton("📢 Kanallar")],
+        [KeyboardButton("➕ Kanal qo'shish")]
     ]
-    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
-
-async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = update.effective_user
+    reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+    
     text = (
-        f"Assalomu alaykum, {user.first_name}!\n\n"
-        "🤖 **Telegram Avtoposting Botiga xush kelibsiz!**\n\n"
-        "Ushbu bot orqali kanallaringizga postlarni belgilangan vaqtda "
-        "avtomatik tarzda chiqarishingiz mumkin.\n\n"
-        "Kerakli bo'limni tanlang 👇"
+        f"Salom, {update.effective_user.first_name}! 👋\n\n"
+        "🤖 <b>PostAssist robot</b> — Telegram kanallaringiz uchun aqlli avtoposting yordamchingiz.\n\n"
+        "Quyidagi menyudan kerakli bo'limni tanlang 👇"
     )
-    await update.message.reply_text(text, reply_markup=get_main_keyboard(), parse_mode="Markdown")
-
-async def about_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = (
-        "📌 **Bot haqida ma'lumot:**\n\n"
-        "• Kanallarga matn, rasm, video va tugmali postlarni rejalashtirish\n"
-        "• Postlarni belgilangan vaqtda avtomatik ulashish\n"
-        "• 24/7 uzluksiz server faoliyati"
-    )
-    await update.message.reply_text(text, parse_mode="Markdown")
-
-def register_handlers(application):
-    application.add_handler(CommandHandler("start", start_command))
+    if update.message:
+        await update.message.reply_text(text, reply_markup=reply_markup, parse_mode="HTML")
+    elif update.callback_query:
+        await update.callback_query.message.reply_text(text, reply_markup=reply_markup, parse_mode="HTML")
