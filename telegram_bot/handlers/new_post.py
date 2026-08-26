@@ -13,9 +13,10 @@ async def start_new_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
     raw_channels = get_user_channels(user_id)
     
     if not raw_channels:
-        await update.message.reply_text("Sizda hali ulangan kanallar yo'q. Avval '➕ Kanal qo'shish' bo'limidan kanal ulang.")
+        await update.message.reply_text("Sizda hali ulangan kanallar yo'q. Avval 'Kanal ulash' bo'limidan kanal qo'shing.")
         return ConversationHandler.END
 
+    # psycopg2 RealDictCursor yoki oddiy tuple holatini moslash
     channels = []
     for c in raw_channels:
         if isinstance(c, dict):
@@ -25,6 +26,7 @@ async def start_new_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 'username': str(c.get('channel_username') or "")
             })
         else:
+            # Tuple holatida (id, channel_id, channel_title, ...)
             channels.append({
                 'id': c[1],
                 'title': str(c[2]).strip(),
@@ -45,33 +47,16 @@ async def start_new_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def select_channel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip()
     
-    if text == "🔙 Asosiy menyu":
+    # Asosiy menyu yoki boshqa bo'lim bosilsa dialogdan toza chiqish
+    if text in ["🔙 Asosiy menyu", "➕ Kanal qo'shish", "📢 Kanallar", "📋 Kutilayotgan postlar", "➕ Yangi post rejalashtirish"]:
         from handlers.start import show_main_menu
         await show_main_menu(update, context)
         return ConversationHandler.END
 
     channels = context.user_data.get('available_channels', [])
-    if not channels:
-        user_id = update.effective_user.id
-        raw_channels = get_user_channels(user_id)
-        for c in raw_channels:
-            if isinstance(c, dict):
-                channels.append({
-                    'id': c.get('channel_id') or c.get('id'),
-                    'title': str(c.get('channel_title') or c.get('title') or "Kanal").strip(),
-                    'username': str(c.get('channel_username') or "")
-                })
-            else:
-                channels.append({
-                    'id': c[1],
-                    'title': str(c[2]).strip(),
-                    'username': str(c[3]) if len(c) > 3 and c[3] else ""
-                })
-        context.user_data['available_channels'] = channels
-
     selected = None
     for c in channels:
-        if c['title'].strip().lower() == text.lower() or (c['username'] and c['username'].strip().lower() == text.lower()):
+        if c['title'].lower() == text.lower() or (c['username'] and c['username'].lower() == text.lower()):
             selected = c
             break
 
@@ -79,7 +64,7 @@ async def select_channel(update: Update, context: ContextTypes.DEFAULT_TYPE):
         keyboard = [[KeyboardButton(c['title'])] for c in channels]
         keyboard.append([KeyboardButton("🔙 Asosiy menyu")])
         await update.message.reply_text(
-            "🤔 Bunday kanal topilmadi. Pastdagi tugmalardan tanlang:",
+            "🤔 Bunday kanal topilmadi. Iltimos, pastdagi tugmalardan tanlang:",
             reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
         )
         return SELECT_CHANNEL
@@ -106,24 +91,19 @@ async def receive_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data['message_type'] = 'photo'
         context.user_data['file_id'] = msg.photo[-1].file_id
         context.user_data['caption'] = msg.caption_html or ""
-        context.user_data['post_text'] = None
     elif msg.video:
         context.user_data['message_type'] = 'video'
         context.user_data['file_id'] = msg.video.file_id
         context.user_data['caption'] = msg.caption_html or ""
-        context.user_data['post_text'] = None
     elif msg.document:
         context.user_data['message_type'] = 'document'
         context.user_data['file_id'] = msg.document.file_id
         context.user_data['caption'] = msg.caption_html or ""
-        context.user_data['post_text'] = None
     elif msg.text:
         context.user_data['message_type'] = 'text'
         context.user_data['post_text'] = msg.text_html
-        context.user_data['file_id'] = None
-        context.user_data['caption'] = None
     else:
-        await update.message.reply_text("Iltimos, matn, rasm, video yoki hujjat yuboring.")
+        await update.message.reply_text("Iltimos, faqat matn, rasm, video yoki hujjat yuboring.")
         return SEND_POST
 
     tz_str = os.getenv("TIMEZONE", "Asia/Tashkent")
