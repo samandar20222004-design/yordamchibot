@@ -1,8 +1,8 @@
+import os
 import logging
-import threading
-from http.server import HTTPServer, BaseHTTPRequestHandler
 from datetime import datetime, timedelta
 import pytz
+from aiohttp import web
 
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import (
@@ -13,7 +13,7 @@ from telegram.ext import (
     filters,
     ContextTypes
 )
-from config import BOT_TOKEN, ADMIN_ID, PORT
+from config import BOT_TOKEN, ADMIN_ID
 from database import init_db, get_connection
 from scheduler import check_and_send_posts
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -25,6 +25,21 @@ tashkent_tz = pytz.timezone("Asia/Tashkent")
 
 CHOOSE_CHANNEL, CHOOSE_TYPE, GET_CONTENT, GET_TIME = range(4)
 ADD_CHANNEL = 10
+
+# Web server Render va UptimeRobot uchun
+async def handle_ping(request):
+    return web.Response(text="OK", status=200)
+
+async def start_web_server():
+    app = web.Application()
+    app.router.add_get('/', handle_ping)
+    app.router.add_get('/healthz', handle_ping)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    port = int(os.environ.get("PORT", 10000))
+    site = web.TCPSite(runner, '0.0.0.0', port)
+    await site.start()
+    logger.info(f"Web server 0.0.0.0:{port} portida ishga tushdi.")
 
 def get_main_keyboard(is_admin=False):
     keyboard = [
@@ -38,20 +53,6 @@ def get_main_keyboard(is_admin=False):
 def get_cancel_keyboard():
     return ReplyKeyboardMarkup([["🔙 Asosiy menyu"]], resize_keyboard=True)
 
-class HealthCheckHandler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        self.send_response(200)
-        self.send_header("Content-type", "text/plain")
-        self.end_headers()
-        self.wfile.write(b"OK")
-
-    def log_message(self, format, *args):
-        pass
-
-def start_server():
-    port = int(os.environ.get("PORT", 10000))
-    server = HTTPServer(("0.0.0.0", port), HealthCheckHandler)
-    server.serve_forever()
 def save_user(user_id, username):
     try:
         conn = get_connection()
@@ -156,7 +157,7 @@ async def type_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
     is_admin = (update.effective_user.id == ADMIN_ID)
 
-    if any(m in text for m in ["Asosiy", "Bekor", "Kanallar", "Kutilayotgan", "Admin", "Statistika", "/start"]):
+    if any(m in text for m in ["Asosiy", "Bekor", "/start"]):
         context.user_data.clear()
         await update.message.reply_text("👌 Jarayon to'xtatildi.", reply_markup=get_main_keyboard(is_admin))
         return ConversationHandler.END
@@ -459,12 +460,12 @@ async def unknown(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode="Markdown"
     )
 
-def main():
-    server_thread = threading.Thread(target=start_server, daemon=True)
-    server_thread.start()
+async def post_init(application):
+    await start_web_server()
 
+def main():
     init_db()
-    app = ApplicationBuilder().token(BOT_TOKEN).build()
+    app = ApplicationBuilder().token(BOT_TOKEN).post_init(post_init).build()
 
     new_post_conv = ConversationHandler(
         entry_points=[
@@ -521,8 +522,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-scheduler = AsyncIOScheduler()
-    scheduler.add_job(check_and_send_posts, 'interval', minutes=1, args=[app.bot])
-    scheduler.add_job(keep_alive, 'interval', minutes=10) # <-- Har 10 daqiqada o'zini uyg'otadi
-    scheduler.start()
