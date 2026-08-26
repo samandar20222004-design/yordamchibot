@@ -1,48 +1,39 @@
-import logging
-from datetime import datetime
 import pytz
-from database import get_connection
+from datetime import datetime
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from telegram import Bot, InlineKeyboardButton, InlineKeyboardMarkup
+from config import TIMEZONE
+from database import update_post_status
 
-logger = logging.getLogger(__name__)
-tashkent_tz = pytz.timezone("Asia/Tashkent")
+scheduler = AsyncIOScheduler(timezone=pytz.timezone(TIMEZONE))
 
-async def check_and_send_posts(bot):
-    now = datetime.now(tashkent_tz)
-    conn = None
+async def send_scheduled_post(bot: Bot, post_id: int, channel_id: int, message_type: str, text_content: str, file_id: str, buttons_data: str):
     try:
-        conn = get_connection()
-        cur = conn.cursor()
+        reply_markup = None
+        if buttons_data:
+            buttons = []
+            for item in buttons_data.split("||"):
+                if "-" in item:
+                    title, url = item.split("-", 1)
+                    buttons.append([InlineKeyboardButton(text=title.strip(), url=url.strip())])
+            if buttons:
+                reply_markup = InlineKeyboardMarkup(buttons)
+
+        if message_type == 'photo' and file_id:
+            await bot.send_photo(chat_id=channel_id, photo=file_id, caption=text_content, reply_markup=reply_markup, parse_mode="HTML")
+        else:
+            await bot.send_message(chat_id=channel_id, text=text_content, reply_markup=reply_markup, parse_mode="HTML")
         
-        cur.execute("""
-            SELECT id, user_id, channel_id, post_type, content, file_id 
-            FROM scheduled_posts 
-            WHERE status = 'pending' AND scheduled_time <= %s
-        """, (now,))
-        
-        posts = cur.fetchall()
-        
-        for post in posts:
-            post_id, user_id, channel_id, post_type, content, file_id = post
-            try:
-                target_chat = int(channel_id) if str(channel_id).lstrip('-').isdigit() else channel_id
-                
-                if post_type == "photo" and file_id:
-                    await bot.send_photo(chat_id=target_chat, photo=file_id, caption=content or "")
-                else:
-                    await bot.send_message(chat_id=target_chat, text=content or "")
-                
-                cur.execute("UPDATE scheduled_posts SET status = 'posted' WHERE id = %s", (post_id,))
-                conn.commit()
-                logger.info(f"PostAssistrobot: Post #{post_id} muvaffaqiyatli yuborildi.")
-                
-            except Exception as e:
-                logger.error(f"PostAssistrobot: Post #{post_id} yuborishda xato: {e}")
-                cur.execute("UPDATE scheduled_posts SET status = 'failed' WHERE id = %s", (post_id,))
-                conn.commit()
-                
-        cur.close()
+        update_post_status(post_id, "sent")
     except Exception as e:
-        logger.error(f"Scheduler xatoligi: {e}")
-    finally:
-        if conn:
-            conn.close()
+        print(f"Post {post_id} yuborishda xatolik: {e}")
+        update_post_status(post_id, f"failed: {str(e)[:40]}")
+
+def schedule_post_job(bot: Bot, post_id: int, channel_id: int, message_type: str, text_content: str, file_id: str, buttons_data: str, scheduled_time: datetime):
+    scheduler.add_job(
+        send_scheduled_post,
+        'date',
+        run_date=scheduled_time,
+        args=[bot, post_id, channel_id, message_type, text_content, file_id, buttons_data],
+        id=f"post_{post_id}"
+    )
