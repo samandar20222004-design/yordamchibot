@@ -35,30 +35,58 @@ logger = logging.getLogger(__name__)
 tashkent_tz = pytz.timezone("Asia/Tashkent")
 
 # --- Conversation states -----------------------------------------------------
-CHOOSE_CHANNEL, CHOOSE_TYPE, GET_CONTENT, GET_TIME = range(4)
+CHOOSE_CHANNEL, GET_CONTENT, GET_TIME, RECUR_DAY, RECUR_TIME = range(5)
 ADD_CHANNEL = 10
 BROADCAST_MESSAGE = 20
 
 # --- Fixed button labels (kept in one place so text and filters never drift) -
 BTN_NEW_POST = "➕ Yangi post rejalashtirish"
 BTN_PENDING = "📋 Kutilayotgan postlar"
-BTN_CHANNELS = "📢 Kanallar"
+BTN_CHANNELS = "📢 Kanal/Guruhlar"
 BTN_ADMIN_PANEL = "👑 Admin Panel"
 BTN_STATS = "📊 Statistika"
 BTN_MAIN_MENU = "🔙 Asosiy menyu"
-BTN_ADD_CHANNEL = "➕ Kanal qo'shish"
-BTN_ALL_CHANNELS_TARGET = "📢 Barcha kanallarga birdaniga"
-BTN_TEXT_POST = "📝 Oddiy matn"
-BTN_PHOTO_POST = "🖼 Rasm + Matn"
+BTN_ADD_CHANNEL = "➕ Kanal/Guruh qo'shish"
+BTN_ALL_CHANNELS_TARGET = "📢 Barchasiga birdaniga"
 BTN_BROADCAST = "📢 Xabar yuborish"
 BTN_ALL_POSTS = "📋 Barcha postlar"
-BTN_ALL_CHANNELS = "📢 Barcha kanallar"
+BTN_ALL_CHANNELS = "📢 Barcha kanal/guruhlar"
+
+# --- Vaqt tanlash tugmalari ---------------------------------------------------
+BTN_T_5MIN = "⏱ 5 daqiqa"
+BTN_T_15MIN = "⏱ 15 daqiqa"
+BTN_T_30MIN = "⏱ 30 daqiqa"
+BTN_T_1H = "⏳ 1 soat"
+BTN_T_2H = "⏳ 2 soat"
+BTN_T_TOM_9 = "🌅 Ertaga 09:00"
+BTN_T_TOM_18 = "🌇 Ertaga 18:00"
+BTN_T_3D = "📅 3 kundan keyin"
+BTN_T_RECURRING = "🔁 Har hafta (takrorlanuvchi)"
+
+WEEKDAY_BUTTONS = ["Dushanba", "Seshanba", "Chorshanba", "Payshanba", "Juma", "Shanba", "Yakshanba"]
+WEEKDAY_MAP = {name: idx for idx, name in enumerate(WEEKDAY_BUTTONS)}  # Dushanba=0 ... Yakshanba=6
+WEEKDAY_LABELS = {idx: name for name, idx in WEEKDAY_MAP.items()}
 
 
 def exact(*texts):
     """Tugma matniga aniq (regex maxsus belgilaridan xoli) mos keladigan filtr yaratadi."""
     pattern = "^(" + "|".join(re.escape(t) for t in texts) + ")$"
     return filters.Regex(pattern)
+
+
+def md_escape(text) -> str:
+    """
+    Dinamik matnlarni (kanal nomi, username, foydalanuvchi yozgan xabar) legacy
+    Markdown uchun xavfsiz qiladi. Aks holda matnda "_", "*", "`", "[" kabi
+    belgilar bo'lsa, Telegram butun xabarni RAD ETADI (parse xatosi) va tugma
+    "ishlamayapti"dek ko'rinadi — aslida xabar hech qachon yuborilmaydi edi.
+    """
+    if not text:
+        return ""
+    text = str(text)
+    for ch in ("\\", "_", "*", "`", "["):
+        text = text.replace(ch, "\\" + ch)
+    return text
 
 
 # --- Web server (Render / UptimeRobot uchun) --------------------------------
@@ -105,8 +133,41 @@ def get_admin_panel_keyboard():
     )
 
 
+def get_time_keyboard():
+    return ReplyKeyboardMarkup(
+        [
+            [BTN_T_5MIN, BTN_T_15MIN, BTN_T_30MIN],
+            [BTN_T_1H, BTN_T_2H],
+            [BTN_T_TOM_9, BTN_T_TOM_18],
+            [BTN_T_3D],
+            [BTN_T_RECURRING],
+            [BTN_MAIN_MENU],
+        ],
+        resize_keyboard=True,
+    )
+
+
+def get_weekday_keyboard():
+    rows = [[WEEKDAY_BUTTONS[i], WEEKDAY_BUTTONS[i + 1]] for i in range(0, 6, 2)]
+    rows.append([WEEKDAY_BUTTONS[6]])
+    rows.append([BTN_MAIN_MENU])
+    return ReplyKeyboardMarkup(rows, resize_keyboard=True)
+
+
 # --- Shared render helpers -----------------------------------------------------
-def render_pending_list(posts, title, show_owner=False):
+def _format_post_code(user_code, user_post_number) -> str:
+    return f"{user_code}-{user_post_number}" if user_post_number else str(user_code)
+
+
+def _format_schedule_line(s_time, is_recurring, recurrence_day, recurrence_time):
+    if is_recurring:
+        day_label = WEEKDAY_LABELS.get(recurrence_day, "?")
+        time_str = recurrence_time.strftime("%H:%M") if recurrence_time else "?"
+        return f"🔁 Har {day_label}, soat `{time_str}`"
+    return f"⏰ `{s_time.strftime('%Y-%m-%d %H:%M')}`"
+
+
+def render_pending_list(posts, title, show_owner=False, user_code=None):
     if not posts:
         return "📋 Hozircha rejalashtirilgan postlar yo'q.", None
 
@@ -116,25 +177,30 @@ def render_pending_list(posts, title, show_owner=False):
 
     for p in posts:
         if show_owner:
-            pid, c_title, p_type, s_time, owner_id, owner_username = p
+            (pid, c_title, p_type, s_time, owner_id, owner_username,
+             user_post_number, is_recurring, recurrence_day, recurrence_time, owner_code) = p
+            code_label = _format_post_code(owner_code, user_post_number)
         else:
-            pid, c_title, p_type, s_time = p
-        ch_title = c_title if c_title else "Kanal"
-        line = f"🔹 **#{pid}** | {ch_title}\n⏰ `{s_time.strftime('%Y-%m-%d %H:%M')}` | 📁 {p_type}"
+            pid, c_title, p_type, s_time, user_post_number, is_recurring, recurrence_day, recurrence_time = p
+            code_label = _format_post_code(user_code, user_post_number) if user_code else f"#{user_post_number or pid}"
+
+        ch_title = md_escape(c_title) if c_title else "Kanal/Guruh"
+        schedule_line = _format_schedule_line(s_time, is_recurring, recurrence_day, recurrence_time)
+        line = f"🔹 **{code_label}** | {ch_title}\n{schedule_line} | 📁 {p_type}"
         if show_owner:
-            owner_label = f"@{owner_username}" if owner_username else str(owner_id)
+            owner_label = md_escape(f"@{owner_username}") if owner_username else str(owner_id)
             line += f"\n👤 {owner_label}"
         text += line + "\n\n"
-        keyboard.append([InlineKeyboardButton(f"❌ #{pid} bekor qilish", callback_data=f"cancel_post:{pid}:{scope}")])
+        keyboard.append([InlineKeyboardButton(f"❌ {code_label} bekor qilish", callback_data=f"cancel_post:{pid}:{scope}")])
 
     return text, InlineKeyboardMarkup(keyboard)
 
 
 def render_channels_list(channels, show_owner=False):
     if not channels:
-        return "📢 Hozircha ulangan kanallar mavjud emas.", None
+        return "📢 Hozircha ulangan kanal/guruh mavjud emas.", None
 
-    text = "📢 **Ulangan kanallar:**\n\n"
+    text = "📢 **Ulangan kanal/guruhlar:**\n\n"
     keyboard = []
     scope = "all" if show_owner else "mine"
 
@@ -143,18 +209,19 @@ def render_channels_list(channels, show_owner=False):
             channel_id, channel_title, owner_id, owner_username = ch
         else:
             channel_id, channel_title = ch
-        line = f"• **{channel_title}** (ID: `{channel_id}`)"
+        safe_title = md_escape(channel_title) if channel_title else "Nomsiz"
+        line = f"• **{safe_title}** (ID: `{channel_id}`)"
         if show_owner:
-            owner_label = f"@{owner_username}" if owner_username else str(owner_id)
+            owner_label = md_escape(f"@{owner_username}") if owner_username else str(owner_id)
             line += f"\n  👤 {owner_label}"
         text += line + "\n"
-        keyboard.append([InlineKeyboardButton(f"🗑 {channel_title} o'chirish", callback_data=f"remove_channel:{channel_id}:{scope}")])
+        keyboard.append([InlineKeyboardButton(f"🗑 {channel_title or 'Nomsiz'} o'chirish", callback_data=f"remove_channel:{channel_id}:{scope}")])
 
     return text, InlineKeyboardMarkup(keyboard)
 
 
+# --- Jump helpers (suhbat ichida bo'lsa ham har doim ishlaydigan menyu tugmalari) --
 async def _jump_to(update: Update, context: ContextTypes.DEFAULT_TYPE, fn) -> int:
-    """Yordamchi: joriy suhbatni tugatib, oddiy (bosqichsiz) bo'limni ko'rsatadi."""
     context.user_data.clear()
     await fn(update, context)
     return ConversationHandler.END
@@ -196,8 +263,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     is_admin = (user.id == ADMIN_ID)
 
     await update.message.reply_text(
-        f"Salom, {user.first_name}! 👋\n\n"
-        f"🤖 **PostAssistrobot** — Telegram kanallaringiz uchun aqlli avtoposting yordamchingiz.\n\n"
+        f"Salom, {md_escape(user.first_name)}! 👋\n\n"
+        f"🤖 **PostAssistrobot** — Telegram kanal va guruhlaringiz uchun aqlli avtoposting yordamchingiz.\n\n"
         f"Quyidagi menyudan kerakli bo'limni tanlang 👇",
         reply_markup=get_main_keyboard(is_admin),
         parse_mode="Markdown"
@@ -212,11 +279,13 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/start — Botni qayta ishga tushirish\n"
         "/newpost — Yangi post rejalashtirish\n"
         "/cancel — Joriy jarayonni bekor qilish\n"
-        "/help — Ushbu yordam xabari\n"
+        "/help — Ushbu yordam xabari\n\n"
+        "📌 Post sifatida matn, rasm, video, GIF, ovozli xabar, audio, hujjat yoki "
+        "stikerning istalganini yuborsangiz bo'ladi — turini alohida tanlash shart emas."
     )
     if is_admin:
         text += (
-            "\n👑 **Admin buyruqlari:**\n"
+            "\n\n👑 **Admin buyruqlari:**\n"
             "/admin — Admin panelni ochish\n"
             "/broadcast — Barcha foydalanuvchilarga xabar yuborish\n"
             "/stats — Tezkor statistika\n"
@@ -250,8 +319,8 @@ async def start_new_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if not channels:
         await update.message.reply_text(
-            "😔 **Ulangan kanal topilmadi!**\n\n"
-            "Avval pastdagi **'📢 Kanallar'** tugmasi orqali kanalingizni ulang.",
+            "😔 **Ulangan kanal yoki guruh topilmadi!**\n\n"
+            "Avval pastdagi **'📢 Kanal/Guruhlar'** tugmasi orqali kanal yoki guruhingizni ulang.",
             reply_markup=get_main_keyboard(is_admin),
             parse_mode="Markdown"
         )
@@ -264,7 +333,7 @@ async def start_new_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["channels_map"] = {ch[1]: ch[0] for ch in channels}
 
     await update.message.reply_text(
-        "📢 **Qaysi kanalga post rejalashtiramiz?**\nRo'yxatdan tanlang 👇",
+        "📢 **Qaysi kanal yoki guruhga post rejalashtiramiz?**\nRo'yxatdan tanlang 👇",
         reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True),
         parse_mode="Markdown"
     )
@@ -276,100 +345,172 @@ async def channel_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if text == BTN_ALL_CHANNELS_TARGET:
         context.user_data["selected_channel_id"] = "ALL"
-        context.user_data["selected_channel_title"] = "📢 Barcha kanallar"
+        context.user_data["selected_channel_title"] = "📢 Barchasi"
     else:
         channels_map = context.user_data.get("channels_map", {})
         if text not in channels_map:
-            await update.message.reply_text("🤔 Bunday kanal yo'q. Pastdagi tugmalardan tanlang:")
+            await update.message.reply_text("🤔 Bunday kanal/guruh yo'q. Pastdagi tugmalardan tanlang:")
             return CHOOSE_CHANNEL
         context.user_data["selected_channel_id"] = channels_map[text]
         context.user_data["selected_channel_title"] = text
 
-    keyboard = [
-        [BTN_TEXT_POST, BTN_PHOTO_POST],
-        [BTN_MAIN_MENU]
-    ]
     await update.message.reply_text(
-        f"🎯 Tanlandi: **{context.user_data['selected_channel_title']}**\n\nEndi post formatini belgilang 👇",
-        reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True),
+        f"🎯 Tanlandi: **{md_escape(context.user_data['selected_channel_title'])}**\n\n"
+        f"✍️ **Post uchun istalgan kontentni yuboring:**\n"
+        f"matn, rasm, video, GIF, ovozli xabar, audio, hujjat yoki stiker — "
+        f"qaysi birini yubormang, bot avtomatik qabul qiladi 👇",
+        reply_markup=get_cancel_keyboard(),
         parse_mode="Markdown"
     )
-    return CHOOSE_TYPE
-
-
-async def type_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = update.message.text
-
-    if text not in (BTN_TEXT_POST, BTN_PHOTO_POST):
-        await update.message.reply_text("⚠️ Iltimos, pastdagi tugmalardan birini bosing.")
-        return CHOOSE_TYPE
-
-    context.user_data["post_type"] = "text" if text == BTN_TEXT_POST else "photo"
-
-    if context.user_data["post_type"] == "photo":
-        await update.message.reply_text(
-            "📸 **Rasmni yuboring:**\n(Tagiga post matnini ham yozishingiz mumkin)",
-            reply_markup=get_cancel_keyboard(),
-            parse_mode="Markdown"
-        )
-    else:
-        await update.message.reply_text(
-            "✍️ **Post matnini yuboring:**",
-            reply_markup=get_cancel_keyboard(),
-            parse_mode="Markdown"
-        )
     return GET_CONTENT
 
 
 async def content_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    post_type = context.user_data.get("post_type")
+    msg = update.message
 
-    if post_type == "photo":
-        if not update.message.photo:
-            await update.message.reply_text("❌ Bu rasm emas! Rasm yuboring yoki '🔙 Asosiy menyu'ni bosing.")
-            return GET_CONTENT
-        context.user_data["file_id"] = update.message.photo[-1].file_id
-        context.user_data["caption"] = update.message.caption or ""
-    else:
-        if not update.message.text:
-            await update.message.reply_text("❌ Matn topilmadi! Iltimos, matn yuboring.")
-            return GET_CONTENT
-        context.user_data["content_text"] = update.message.text
+    post_type = None
+    file_id = None
+    content = ""
+
+    if msg.photo:
+        post_type = "photo"
+        file_id = msg.photo[-1].file_id
+        content = msg.caption or ""
+    elif msg.video:
+        post_type = "video"
+        file_id = msg.video.file_id
+        content = msg.caption or ""
+    elif msg.animation:
+        post_type = "animation"
+        file_id = msg.animation.file_id
+        content = msg.caption or ""
+    elif msg.document:
+        post_type = "document"
+        file_id = msg.document.file_id
+        content = msg.caption or ""
+    elif msg.audio:
+        post_type = "audio"
+        file_id = msg.audio.file_id
+        content = msg.caption or ""
+    elif msg.voice:
+        post_type = "voice"
+        file_id = msg.voice.file_id
+    elif msg.video_note:
+        post_type = "video_note"
+        file_id = msg.video_note.file_id
+    elif msg.sticker:
+        post_type = "sticker"
+        file_id = msg.sticker.file_id
+    elif msg.text:
+        post_type = "text"
+        content = msg.text
+
+    if post_type is None:
+        await msg.reply_text(
+            "❌ Bu turdagi kontentni aniqlay olmadim. "
+            "Matn, rasm, video, GIF, ovozli xabar, audio, hujjat yoki stiker yuboring."
+        )
+        return GET_CONTENT
+
+    context.user_data["post_type"] = post_type
+    context.user_data["file_id"] = file_id
+    context.user_data["content"] = content
 
     now = datetime.now(tashkent_tz)
     example = (now + timedelta(days=1)).strftime("%Y-%m-%d %H:%M")
 
-    keyboard = [
-        ["⏱ +15 daqiqa", "⏳ +1 soat"],
-        ["🌅 Ertaga 09:00", "🌇 Ertaga 18:00"],
-        [BTN_MAIN_MENU]
-    ]
-    await update.message.reply_text(
+    await msg.reply_text(
         "⏰ **Post qaysi vaqtda chiqsin?**\n\n"
-        "Tugmalardan tanlang yoki aniq vaqtni yozing:\n"
+        "Tugmalardan tanlang, aniq vaqtni yozing, yoki har hafta takrorlansin desangiz "
+        f"pastdagi \"{BTN_T_RECURRING}\" tugmasini bosing:\n\n"
         f"👉 `{example}`",
-        reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True),
+        reply_markup=get_time_keyboard(),
         parse_mode="Markdown"
     )
     return GET_TIME
 
 
+async def _finalize_post(update, context, post_time, is_recurring=False, recurrence_day=None, recurrence_time_str=None):
+    """Post(lar)ni bazaga yozadi va tasdiq xabarini yuboradi. Bitta yoki barcha kanallar uchun ishlaydi."""
+    is_admin = (update.effective_user.id == ADMIN_ID)
+    user_id = update.effective_user.id
+    selected_channel_id = context.user_data["selected_channel_id"]
+    post_type = context.user_data["post_type"]
+    content = context.user_data.get("content")
+    file_id = context.user_data.get("file_id")
+
+    recurrence_time_obj = None
+    if is_recurring and recurrence_time_str:
+        recurrence_time_obj = recurrence_time_str  # "HH:MM:SS" shaklida uzatiladi (psycopg2 TIME uchun)
+
+    if selected_channel_id == "ALL":
+        channels = db.get_user_channels(user_id)
+        ok_count = 0
+        for ch_id, ch_title in channels:
+            if db.add_post(user_id, ch_id, post_type, content, file_id, post_time,
+                            is_recurring, recurrence_day, recurrence_time_obj):
+                ok_count += 1
+        if ok_count:
+            when_text = f"🔁 Har {WEEKDAY_LABELS.get(recurrence_day)}, soat {recurrence_time_str[:5]}" if is_recurring \
+                else f"📅 {post_time.strftime('%Y-%m-%d %H:%M')}"
+            await update.message.reply_text(
+                f"🎉 **Post {ok_count} ta kanal/guruhga rejalashtirildi!**\n\n"
+                f"{when_text}\n\n"
+                f"🚀 PostAssistrobot belgilangan vaqtda barchasiga chiqaradi!",
+                reply_markup=get_main_keyboard(is_admin),
+                parse_mode="Markdown"
+            )
+        else:
+            await update.message.reply_text("❌ Bazaga saqlashda xatolik bo'ldi.", reply_markup=get_main_keyboard(is_admin))
+    else:
+        if db.add_post(user_id, selected_channel_id, post_type, content, file_id, post_time,
+                        is_recurring, recurrence_day, recurrence_time_obj):
+            when_text = f"🔁 Har {WEEKDAY_LABELS.get(recurrence_day)}, soat {recurrence_time_str[:5]}" if is_recurring \
+                else f"📅 {post_time.strftime('%Y-%m-%d %H:%M')}"
+            await update.message.reply_text(
+                f"🎉 **Post muvaffaqiyatli rejalashtirildi!**\n\n"
+                f"📢 Joylash: **{md_escape(context.user_data['selected_channel_title'])}**\n"
+                f"{when_text}\n\n"
+                f"🚀 PostAssistrobot belgilangan vaqtda chiqaradi!",
+                reply_markup=get_main_keyboard(is_admin),
+                parse_mode="Markdown"
+            )
+        else:
+            await update.message.reply_text("❌ Bazaga saqlashda xatolik bo'ldi.", reply_markup=get_main_keyboard(is_admin))
+
+    context.user_data.clear()
+
+
 async def time_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
-    is_admin = (update.effective_user.id == ADMIN_ID)
-
     now = datetime.now(tashkent_tz)
-    post_time = None
 
+    if text == BTN_T_RECURRING:
+        await update.message.reply_text(
+            "🔁 **Har hafta qaysi kuni chiqsin?**",
+            reply_markup=get_weekday_keyboard(),
+            parse_mode="Markdown"
+        )
+        return RECUR_DAY
+
+    post_time = None
     try:
-        if "15 daqiqa" in text:
+        if text == BTN_T_5MIN:
+            post_time = now + timedelta(minutes=5)
+        elif text == BTN_T_15MIN:
             post_time = now + timedelta(minutes=15)
-        elif "1 soat" in text:
+        elif text == BTN_T_30MIN:
+            post_time = now + timedelta(minutes=30)
+        elif text == BTN_T_1H:
             post_time = now + timedelta(hours=1)
-        elif "09:00" in text:
+        elif text == BTN_T_2H:
+            post_time = now + timedelta(hours=2)
+        elif text == BTN_T_TOM_9:
             post_time = (now + timedelta(days=1)).replace(hour=9, minute=0, second=0, microsecond=0)
-        elif "18:00" in text:
+        elif text == BTN_T_TOM_18:
             post_time = (now + timedelta(days=1)).replace(hour=18, minute=0, second=0, microsecond=0)
+        elif text == BTN_T_3D:
+            post_time = (now + timedelta(days=3)).replace(hour=9, minute=0, second=0, microsecond=0)
         else:
             naive_time = datetime.strptime(text.strip(), "%Y-%m-%d %H:%M")
             post_time = tashkent_tz.localize(naive_time)
@@ -381,42 +522,49 @@ async def time_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ Format xato! `2026-08-26 18:00` shaklida yuboring.")
         return GET_TIME
 
-    user_id = update.effective_user.id
-    selected_channel_id = context.user_data["selected_channel_id"]
-    post_type = context.user_data["post_type"]
-    content = context.user_data.get("caption") if post_type == "photo" else context.user_data.get("content_text")
-    file_id = context.user_data.get("file_id")
+    await _finalize_post(update, context, post_time)
+    return ConversationHandler.END
 
-    if selected_channel_id == "ALL":
-        channels = db.get_user_channels(user_id)
-        ok_count = 0
-        for ch_id, ch_title in channels:
-            if db.add_post(user_id, ch_id, post_type, content, file_id, post_time):
-                ok_count += 1
-        if ok_count:
-            await update.message.reply_text(
-                f"🎉 **Post {ok_count} ta kanalga rejalashtirildi!**\n\n"
-                f"📅 Vaqti: **{post_time.strftime('%Y-%m-%d %H:%M')}**\n\n"
-                f"🚀 PostAssistrobot belgilangan vaqtda barcha kanallarga chiqaradi!",
-                reply_markup=get_main_keyboard(is_admin),
-                parse_mode="Markdown"
-            )
-        else:
-            await update.message.reply_text("❌ Bazaga saqlashda xatolik bo'ldi.", reply_markup=get_main_keyboard(is_admin))
-    else:
-        if db.add_post(user_id, selected_channel_id, post_type, content, file_id, post_time):
-            await update.message.reply_text(
-                f"🎉 **Post muvaffaqiyatli rejalashtirildi!**\n\n"
-                f"📢 Joylash: **{context.user_data['selected_channel_title']}**\n"
-                f"📅 Vaqti: **{post_time.strftime('%Y-%m-%d %H:%M')}**\n\n"
-                f"🚀 PostAssistrobot belgilangan vaqtda kanalga chiqaradi!",
-                reply_markup=get_main_keyboard(is_admin),
-                parse_mode="Markdown"
-            )
-        else:
-            await update.message.reply_text("❌ Bazaga saqlashda xatolik bo'ldi.", reply_markup=get_main_keyboard(is_admin))
 
-    context.user_data.clear()
+async def recur_day_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = update.message.text
+    if text not in WEEKDAY_MAP:
+        await update.message.reply_text("🤔 Iltimos, pastdagi kunlardan birini tanlang:")
+        return RECUR_DAY
+
+    context.user_data["recurrence_day"] = WEEKDAY_MAP[text]
+    await update.message.reply_text(
+        f"⏰ **Har {text} soat nechida chiqsin?**\n\nMasalan: `18:00`",
+        reply_markup=get_cancel_keyboard(),
+        parse_mode="Markdown"
+    )
+    return RECUR_TIME
+
+
+async def recur_time_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = update.message.text.strip()
+    try:
+        hh, mm = text.split(":")
+        hh, mm = int(hh), int(mm)
+        assert 0 <= hh < 24 and 0 <= mm < 60
+    except Exception:
+        await update.message.reply_text("❌ Format xato! Masalan: `18:00`", parse_mode="Markdown")
+        return RECUR_TIME
+
+    now = datetime.now(tashkent_tz)
+    target_weekday = context.user_data["recurrence_day"]
+    days_ahead = (target_weekday - now.weekday() + 7) % 7
+    candidate = (now + timedelta(days=days_ahead)).replace(hour=hh, minute=mm, second=0, microsecond=0)
+    if candidate <= now:
+        candidate += timedelta(days=7)
+
+    recurrence_time_str = f"{hh:02d}:{mm:02d}:00"
+    await _finalize_post(
+        update, context, candidate,
+        is_recurring=True,
+        recurrence_day=target_weekday,
+        recurrence_time_str=recurrence_time_str
+    )
     return ConversationHandler.END
 
 
@@ -435,7 +583,7 @@ async def channels_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode="Markdown"
     )
     if inline_markup:
-        await update.message.reply_text("O'chirmoqchi bo'lgan kanalni tanlang 👇", reply_markup=inline_markup)
+        await update.message.reply_text("O'chirmoqchi bo'lgan kanal/guruhni tanlang 👇", reply_markup=inline_markup)
     return ConversationHandler.END
 
 
@@ -535,7 +683,7 @@ async def channel_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if db.save_channel(user_id, channel_id, channel_title):
         await msg.reply_text(
-            f"🎉 **Muvaffaqiyatli ulandi!**\n\n📢 Nomi: **{channel_title}**\n🆔 ID: `{channel_id}`",
+            f"🎉 **Muvaffaqiyatli ulandi!**\n\n📢 Nomi: **{md_escape(channel_title)}**\n🆔 ID: `{channel_id}`",
             reply_markup=get_main_keyboard(is_admin),
             parse_mode="Markdown"
         )
@@ -550,8 +698,9 @@ async def list_pending_posts(update: Update, context: ContextTypes.DEFAULT_TYPE)
     user_id = update.effective_user.id
     is_admin = (user_id == ADMIN_ID)
     posts = db.get_pending_posts(user_id)
+    user_code = db.get_user_code(user_id)
 
-    text, inline_markup = render_pending_list(posts, "📋 **Kutilayotgan postlaringiz:**")
+    text, inline_markup = render_pending_list(posts, "📋 **Kutilayotgan postlaringiz:**", user_code=user_code)
     await update.message.reply_text(text, reply_markup=get_main_keyboard(is_admin), parse_mode="Markdown")
     if inline_markup:
         await update.message.reply_text("Bekor qilish uchun tugmani bosing 👇", reply_markup=inline_markup)
@@ -582,7 +731,7 @@ async def show_statistics(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = (
         f"📊 **PostAssistrobot statistikasi**\n\n"
         f"👥 Jami foydalanuvchilar: **{stats['users']} ta**\n"
-        f"📢 Ulangan kanallar: **{stats['channels']} ta**\n"
+        f"📢 Ulangan kanal/guruhlar: **{stats['channels']} ta**\n"
         f"⏳ Kutilayotgan postlar: **{stats['pending']} ta**\n"
         f"✅ Chiqqan postlar: **{stats['sent']} ta**\n"
         f"❌ Bekor qilingan postlar: **{stats['cancelled']} ta**\n"
@@ -616,7 +765,7 @@ async def admin_all_channels(update: Update, context: ContextTypes.DEFAULT_TYPE)
     text, inline_markup = render_channels_list(channels, show_owner=True)
     await update.message.reply_text(text, reply_markup=get_admin_panel_keyboard(), parse_mode="Markdown")
     if inline_markup:
-        await update.message.reply_text("O'chirmoqchi bo'lgan kanalni tanlang 👇", reply_markup=inline_markup)
+        await update.message.reply_text("O'chirmoqchi bo'lgan kanal/guruhni tanlang 👇", reply_markup=inline_markup)
 
 
 async def broadcast_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -638,13 +787,16 @@ async def broadcast_send(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return ConversationHandler.END
 
     text = update.message.text
-
     user_ids = db.get_all_user_ids()
     sent = 0
     failed = 0
     for uid in user_ids:
         try:
-            await context.bot.send_message(chat_id=uid, text=f"🔔 **Tizim xabari:**\n\n{text}", parse_mode="Markdown")
+            # DIQQAT: parse_mode ishlatilmaydi — adminning o'zi yozgan matnda
+            # "_", "*" kabi belgilar bo'lishi tabiiy va Markdown bilan yuborilsa
+            # butun xabar YUBORILMAY qolar edi (bu "broadcast ishlamayapti"
+            # muammosining aynan sababi edi).
+            await context.bot.send_message(chat_id=uid, text=f"🔔 Tizim xabari:\n\n{text}")
             sent += 1
         except Exception:
             failed += 1
@@ -696,7 +848,7 @@ async def cancel_post_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         text, markup = render_pending_list(posts, "📋 **Barcha foydalanuvchilarning kutilayotgan postlari:**", show_owner=True)
     else:
         posts = db.get_pending_posts(user_id)
-        text, markup = render_pending_list(posts, "📋 **Kutilayotgan postlaringiz:**")
+        text, markup = render_pending_list(posts, "📋 **Kutilayotgan postlaringiz:**", user_code=db.get_user_code(user_id))
 
     try:
         await query.edit_message_text(text, parse_mode="Markdown", reply_markup=markup)
@@ -716,9 +868,9 @@ async def remove_channel_callback(update: Update, context: ContextTypes.DEFAULT_
         return
 
     if db.remove_channel(user_id, channel_id, is_admin=is_admin):
-        await query.answer("✅ Kanal o'chirildi.")
+        await query.answer("✅ Kanal/guruh o'chirildi.")
     else:
-        await query.answer("⛔️ Bu kanal sizga tegishli emas yoki allaqachon o'chirilgan.", show_alert=True)
+        await query.answer("⛔️ Bu sizga tegishli emas yoki allaqachon o'chirilgan.", show_alert=True)
         return
 
     if scope == "all":
@@ -734,7 +886,7 @@ async def remove_channel_callback(update: Update, context: ContextTypes.DEFAULT_
         pass
 
 
-# --- Error handler ----------------------------------------------------------------
+# --- Bot kanal/guruhga qo'shilishi/chiqarilishini avtomatik kuzatish -----------
 async def on_bot_chat_member_update(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Bot biror kanal yoki guruhga qo'shilganda (yoki undan chiqarilganda) avtomatik
@@ -766,12 +918,11 @@ async def on_bot_chat_member_update(update: Update, context: ContextTypes.DEFAUL
                 await context.bot.send_message(
                     chat_id=adder.id,
                     text=(
-                        f"🎉 **Yangi {kind} avtomatik ulandi!**\n\n"
-                        f"📢 Nomi: **{chat.title}**\n"
-                        f"🆔 ID: `{chat.id}`\n\n"
+                        f"🎉 Yangi {kind} avtomatik ulandi!\n\n"
+                        f"📢 Nomi: {chat.title}\n"
+                        f"🆔 ID: {chat.id}\n\n"
                         f"Endi bu yerga post rejalashtira olasiz."
-                    ),
-                    parse_mode="Markdown"
+                    )
                 )
             except Exception:
                 pass  # Foydalanuvchi botni shaxsiyda ishga tushirmagan bo'lishi mumkin
@@ -782,8 +933,7 @@ async def on_bot_chat_member_update(update: Update, context: ContextTypes.DEFAUL
             try:
                 await context.bot.send_message(
                     chat_id=adder.id,
-                    text=f"ℹ️ Bot **{chat.title}** {kind}idan olib tashlandi, u ro'yxatdan chiqarildi.",
-                    parse_mode="Markdown"
+                    text=f"ℹ️ Bot \"{chat.title}\" {kind}idan olib tashlandi, u ro'yxatdan chiqarildi."
                 )
             except Exception:
                 pass
@@ -830,14 +980,17 @@ def main():
             CHOOSE_CHANNEL: global_jump_handlers + [
                 MessageHandler(filters.TEXT & ~filters.COMMAND, channel_chosen)
             ],
-            CHOOSE_TYPE: global_jump_handlers + [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, type_chosen)
-            ],
             GET_CONTENT: global_jump_handlers + [
-                MessageHandler(filters.PHOTO | (filters.TEXT & ~filters.COMMAND), content_received)
+                MessageHandler(filters.ALL & ~filters.COMMAND, content_received)
             ],
             GET_TIME: global_jump_handlers + [
                 MessageHandler(filters.TEXT & ~filters.COMMAND, time_received)
+            ],
+            RECUR_DAY: global_jump_handlers + [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, recur_day_chosen)
+            ],
+            RECUR_TIME: global_jump_handlers + [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, recur_time_received)
             ],
             ADD_CHANNEL: global_jump_handlers + [
                 MessageHandler(filters.ALL & ~filters.COMMAND, channel_received)
