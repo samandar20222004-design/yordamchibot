@@ -6,6 +6,24 @@ def get_referral_share_keyboard(ref_link: str):
         [InlineKeyboardButton("🚀 Do'stlarga ulashish", url=f"https://t.me/share/url?url={ref_link}&text=Telegram+kanallaringizga+postlarni+avtomatik+chiqaruvchi+zo'r+bot!")]
     ])
 
+def get_subscription_check_keyboard(sponsors: list):
+    buttons = []
+    for s_id, ch_id, ch_title, ch_url in sponsors:
+        buttons.append([InlineKeyboardButton(f"➕ {ch_title}", url=ch_url)])
+    buttons.append([InlineKeyboardButton("✅ Obunani tekshirish", callback_data="check_subscription")])
+    return InlineKeyboardMarkup(buttons)
+
+def render_sponsors_list(sponsors):
+    if not sponsors:
+        return "📢 *Hozircha majburiy obuna uchun homiy kanallar ulanmagan.*", None
+    text = "📢 *Majburiy a'zolik homiy kanallari:*\n\n"
+    keyboard = []
+    for s in sponsors:
+        s_id, ch_id, ch_title, ch_url = s
+        text += f"🔹 *{md_escape(ch_title)}*\n   🔗 {ch_url}\n"
+        keyboard.append([InlineKeyboardButton(f"🗑 {ch_title} o'chirish", callback_data=f"del_sponsor:{s_id}")])
+    return text, InlineKeyboardMarkup(keyboard)
+
 def render_pending_list(posts, title, show_owner=False, user_code=None):
     if not posts:
         return "📭 Hozircha rejalashtirilgan postlar yo'q.", None
