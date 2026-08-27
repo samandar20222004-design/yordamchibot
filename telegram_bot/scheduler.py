@@ -8,29 +8,22 @@ from database import get_due_posts, mark_post_status, reschedule_recurring_post
 
 logger = logging.getLogger(__name__)
 tashkent_tz = pytz.timezone("Asia/Tashkent")
-
 _bot_username_cache = None
 
 def _get_combined_markup(bot, custom_btn_text: Optional[str] = None, custom_btn_url: Optional[str] = None) -> Optional[InlineKeyboardMarkup]:
-    """
-    Foydalanuvchi kiritgan maxsus havola tugmasini va botning promo imzosini birlashtiradi.
-    """
     global _bot_username_cache
     keyboard = []
-    
-    # 1. Foydalanuvchi postiga qo'shgan havola tugmasi
     if custom_btn_text and custom_btn_url:
         keyboard.append([InlineKeyboardButton(custom_btn_text, url=custom_btn_url)])
-        
-    # 2. Botning doimiy tarqatuvchi promo imzosi
+    
+    # Botning reklama havolasi
     try:
         username = _bot_username_cache or getattr(bot, "username", None)
         if username:
             _bot_username_cache = username
-            keyboard.append([InlineKeyboardButton("✨ Bot orqali yaratildi", url=f"https://t.me/{username}")])
+            keyboard.append([InlineKeyboardButton("🤖 Avto Post Assist Bot", url=f"https://t.me/{username}")])
     except Exception:
         pass
-
     return InlineKeyboardMarkup(keyboard) if keyboard else None
 
 def _next_weekly_occurrence(current_scheduled_time, now):
@@ -73,34 +66,23 @@ async def check_and_send_posts(bot):
          btn_text, btn_url, scheduled_time, is_recurring, recurrence_day, recurrence_time) = post
         
         markup = _get_combined_markup(bot, btn_text, btn_url)
-        
         try:
             target_chat = int(channel_id) if str(channel_id).lstrip('-').isdigit() else channel_id
             await _send_by_type(bot, target_chat, post_type, content, file_id, markup)
-            
             if is_recurring:
                 next_time = _next_weekly_occurrence(scheduled_time, now)
                 reschedule_recurring_post(post_id, next_time)
-                logger.info(f"Takrorlanuvchi post #{post_id} yuborildi, keyingisi: {next_time}")
             else:
                 mark_post_status(post_id, "posted")
-                logger.info(f"Post #{post_id} muvaffaqiyatli yuborildi.")
         except TelegramError as e:
             logger.error(f"Post #{post_id} yuborishda xato: {e}")
             if not is_recurring:
                 mark_post_status(post_id, "failed")
             try:
-                await bot.send_message(
-                    chat_id=user_id,
-                    text=(
-                        f"⚠️ Post #{post_id} kanalga yuborilmadi!\n\n"
-                        f"Sabab: {e}\n\n"
-                        f"Iltimos, botning kanalda adminlik huquqini tekshiring."
-                    )
-                )
+                await bot.send_message(chat_id=user_id, text=f"⚠️ Post #{post_id} yuborilmadi: {e}")
             except Exception:
                 pass
         except Exception as e:
-            logger.error(f"Post #{post_id} yuborishda kutilmagan xato: {e}")
+            logger.error(f"Kutilmagan xato: {e}")
             if not is_recurring:
                 mark_post_status(post_id, "failed")
