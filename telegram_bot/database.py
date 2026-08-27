@@ -1,4 +1,6 @@
 import logging
+import random
+import string
 from contextlib import contextmanager
 
 import psycopg2
@@ -38,6 +40,7 @@ def init_db():
             CREATE TABLE IF NOT EXISTS users (
                 user_id BIGINT PRIMARY KEY,
                 username VARCHAR(255),
+                user_code VARCHAR(8) UNIQUE,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
         """)
@@ -63,9 +66,28 @@ def init_db():
                 file_id VARCHAR(255),
                 scheduled_time TIMESTAMP WITH TIME ZONE NOT NULL,
                 status VARCHAR(50) DEFAULT 'pending',
+                user_post_number INTEGER,
+                is_recurring BOOLEAN DEFAULT FALSE,
+                recurrence_day INTEGER,
+                recurrence_time TIME,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
         """)
+
+        # Eski (oldin yaratilgan) bazalarga yangi ustunlarni xavfsiz qo'shish.
+        # Bular allaqachon mavjud bo'lsa hech narsa buzilmaydi (IF NOT EXISTS).
+        migrations = [
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS user_code VARCHAR(8) UNIQUE;",
+            "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS user_post_number INTEGER;",
+            "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS is_recurring BOOLEAN DEFAULT FALSE;",
+            "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS recurrence_day INTEGER;",
+            "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS recurrence_time TIME;",
+        ]
+        for m in migrations:
+            try:
+                cur.execute(m)
+            except Exception as e:
+                logger.warning(f"Migratsiya o'tkazib yuborildi ({m}): {e}")
 
         cur.execute("""
             CREATE INDEX IF NOT EXISTS idx_scheduled_posts_status_time
@@ -82,14 +104,38 @@ def init_db():
 # USERS
 # ---------------------------------------------------------------------------
 
+def _generate_user_code(cur) -> str:
+    """
+    Har bir foydalanuvchi uchun 2 harf + 1 raqamdan iborat noyob kod yaratadi
+    (masalan 'ab1'). Postlar shu kod asosida 'ab1-1', 'ab1-2' shaklida
+    raqamlanadi — bu global emas, HAR BIR FOYDALANUVCHI UCHUN ALOHIDA.
+    """
+    letters = string.ascii_lowercase
+    for _ in range(50):
+        code = "".join(random.choice(letters) for _ in range(2)) + random.choice(string.digits)
+        cur.execute("SELECT 1 FROM users WHERE user_code = %s", (code,))
+        if not cur.fetchone():
+            return code
+    # Juda kam ehtimol bilan 50 urinishda ham topilmasa, uzunroq kod bilan davom etamiz.
+    return "".join(random.choice(letters) for _ in range(3)) + "".join(random.choice(string.digits) for _ in range(2))
+
+
 def save_user(user_id: int, username: str):
     try:
         with db_cursor(commit=True) as cur:
-            cur.execute("""
-                INSERT INTO users (user_id, username, created_at)
-                VALUES (%s, %s, NOW())
-                ON CONFLICT (user_id) DO UPDATE SET username = EXCLUDED.username
-            """, (user_id, username))
+            cur.execute("SELECT user_code FROM users WHERE user_id = %s", (user_id,))
+            row = cur.fetchone()
+            if row:
+                cur.execute(
+                    "UPDATE users SET username = %s WHERE user_id = %s",
+                    (username, user_id)
+                )
+            else:
+                code = _generate_user_code(cur)
+                cur.execute("""
+                    INSERT INTO users (user_id, username, user_code, created_at)
+                    VALUES (%s, %s, %s, NOW())
+                """, (user_id, username, code))
     except Exception as e:
         logger.error(f"User saqlash xatosi: {e}")
 
@@ -102,6 +148,17 @@ def get_all_user_ids() -> list:
     except Exception as e:
         logger.error(f"Foydalanuvchilar ro'yxatini olish xatosi: {e}")
         return []
+
+
+def get_user_code(user_id: int) -> str:
+    try:
+        with db_cursor() as cur:
+            cur.execute("SELECT user_code FROM users WHERE user_id = %s", (user_id,))
+            row = cur.fetchone()
+            return row[0] if row and row[0] else str(user_id)
+    except Exception as e:
+        logger.error(f"User kodini olish xatosi: {e}")
+        return str(user_id)
 
 
 # ---------------------------------------------------------------------------
@@ -154,7 +211,7 @@ def save_channel(user_id: int, channel_id: str, channel_title: str) -> bool:
 
 
 def remove_channel(user_id: int, channel_id: str, is_admin: bool = False) -> bool:
-    """Kanalni foydalanuvchi ro'yxatidan o'chiradi (soft-delete)."""
+    """Kanal/guruhni ro'yxatdan o'chiradi (soft-delete)."""
     try:
         with db_cursor(commit=True) as cur:
             if is_admin:
@@ -177,13 +234,33 @@ def remove_channel(user_id: int, channel_id: str, is_admin: bool = False) -> boo
 # POSTS
 # ---------------------------------------------------------------------------
 
-def add_post(user_id: int, channel_id: str, post_type: str, content: str, file_id: str, scheduled_time) -> bool:
+def add_post(
+    user_id: int,
+    channel_id: str,
+    post_type: str,
+    content: str,
+    file_id: str,
+    scheduled_time,
+    is_recurring: bool = False,
+    recurrence_day=None,
+    recurrence_time=None,
+) -> bool:
     try:
         with db_cursor(commit=True) as cur:
+            cur.execute(
+                "SELECT COALESCE(MAX(user_post_number), 0) + 1 FROM scheduled_posts WHERE user_id = %s",
+                (user_id,)
+            )
+            next_num = cur.fetchone()[0]
             cur.execute("""
-                INSERT INTO scheduled_posts (user_id, channel_id, post_type, content, file_id, scheduled_time, status)
-                VALUES (%s, %s, %s, %s, %s, %s, 'pending')
-            """, (user_id, str(channel_id), post_type, content, file_id, scheduled_time))
+                INSERT INTO scheduled_posts
+                    (user_id, channel_id, post_type, content, file_id, scheduled_time,
+                     status, user_post_number, is_recurring, recurrence_day, recurrence_time)
+                VALUES (%s, %s, %s, %s, %s, %s, 'pending', %s, %s, %s, %s)
+            """, (
+                user_id, str(channel_id), post_type, content, file_id, scheduled_time,
+                next_num, is_recurring, recurrence_day, recurrence_time
+            ))
         return True
     except Exception as e:
         logger.error(f"Post saqlash xatosi: {e}")
@@ -194,7 +271,8 @@ def get_pending_posts(user_id: int) -> list:
     try:
         with db_cursor() as cur:
             cur.execute("""
-                SELECT sp.id, c.channel_title, sp.post_type, sp.scheduled_time
+                SELECT sp.id, c.channel_title, sp.post_type, sp.scheduled_time,
+                       sp.user_post_number, sp.is_recurring, sp.recurrence_day, sp.recurrence_time
                 FROM scheduled_posts sp
                 LEFT JOIN channels c ON sp.channel_id = c.channel_id
                 WHERE sp.user_id = %s AND sp.status = 'pending'
@@ -210,7 +288,9 @@ def get_all_pending_posts() -> list:
     try:
         with db_cursor() as cur:
             cur.execute("""
-                SELECT sp.id, c.channel_title, sp.post_type, sp.scheduled_time, sp.user_id, u.username
+                SELECT sp.id, c.channel_title, sp.post_type, sp.scheduled_time,
+                       sp.user_id, u.username, sp.user_post_number,
+                       sp.is_recurring, sp.recurrence_day, sp.recurrence_time, u.user_code
                 FROM scheduled_posts sp
                 LEFT JOIN channels c ON sp.channel_id = c.channel_id
                 LEFT JOIN users u ON u.user_id = sp.user_id
@@ -234,7 +314,7 @@ def get_post_owner(post_id: int):
 
 
 def cancel_post(post_id: int, user_id: int, is_admin: bool = False) -> bool:
-    """Faqat 'pending' holatidagi postni bekor qiladi. Admin har qanday postni bekor qila oladi."""
+    """Faqat 'pending' holatidagi postni bekor qiladi (takrorlanuvchi bo'lsa, kelajakdagilar ham to'xtaydi)."""
     try:
         with db_cursor(commit=True) as cur:
             if is_admin:
@@ -257,7 +337,8 @@ def get_due_posts(now) -> list:
     try:
         with db_cursor() as cur:
             cur.execute("""
-                SELECT id, user_id, channel_id, post_type, content, file_id
+                SELECT id, user_id, channel_id, post_type, content, file_id,
+                       scheduled_time, is_recurring, recurrence_day, recurrence_time
                 FROM scheduled_posts
                 WHERE status = 'pending' AND scheduled_time <= %s
             """, (now,))
@@ -273,6 +354,18 @@ def mark_post_status(post_id: int, status: str):
             cur.execute("UPDATE scheduled_posts SET status = %s WHERE id = %s", (status, post_id))
     except Exception as e:
         logger.error(f"Post holatini yangilash xatosi ({post_id} -> {status}): {e}")
+
+
+def reschedule_recurring_post(post_id: int, next_time):
+    """Takrorlanuvchi post yuborilgach, uni bir hafta keyingi vaqtga qayta rejalashtiradi."""
+    try:
+        with db_cursor(commit=True) as cur:
+            cur.execute(
+                "UPDATE scheduled_posts SET scheduled_time = %s WHERE id = %s",
+                (next_time, post_id)
+            )
+    except Exception as e:
+        logger.error(f"Takrorlanuvchi postni qayta rejalashtirish xatosi ({post_id}): {e}")
 
 
 # ---------------------------------------------------------------------------
