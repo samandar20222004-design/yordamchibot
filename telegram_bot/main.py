@@ -19,6 +19,7 @@ from telegram.ext import (
     MessageHandler,
     CallbackQueryHandler,
     ConversationHandler,
+    ChatMemberHandler,
     filters,
     ContextTypes,
 )
@@ -84,7 +85,7 @@ def get_main_keyboard(is_admin=False):
         [BTN_PENDING, BTN_CHANNELS],
     ]
     if is_admin:
-        keyboard.append([BTN_ADMIN_PANEL, BTN_STATS])
+        keyboard.append([BTN_ADMIN_PANEL])
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
 
@@ -152,34 +153,39 @@ def render_channels_list(channels, show_owner=False):
     return text, InlineKeyboardMarkup(keyboard)
 
 
-async def handle_menu_escape(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str) -> bool:
-    """
-    Suhbat (ConversationHandler) ichida turganda foydalanuvchi asosiy menyu tugmalaridan
-    birini bossa, jarayonni to'xtatib, to'g'ri bo'limga o'tkazadi.
-    True qaytarsa — chaqiruvchi state ConversationHandler.END qilishi kerak.
-    """
-    if text is None:
-        return False
-
-    is_admin = (update.effective_user.id == ADMIN_ID)
+async def _jump_to(update: Update, context: ContextTypes.DEFAULT_TYPE, fn) -> int:
+    """Yordamchi: joriy suhbatni tugatib, oddiy (bosqichsiz) bo'limni ko'rsatadi."""
     context.user_data.clear()
+    await fn(update, context)
+    return ConversationHandler.END
 
-    if text in (BTN_MAIN_MENU, "/start"):
-        await start(update, context)
-        return True
-    if text == BTN_CHANNELS:
-        await channels_menu(update, context)
-        return True
-    if text == BTN_PENDING:
-        await list_pending_posts(update, context)
-        return True
-    if is_admin and text == BTN_ADMIN_PANEL:
-        await admin_panel_menu(update, context)
-        return True
-    if is_admin and text == BTN_STATS:
-        await show_statistics(update, context)
-        return True
-    return False
+
+async def jump_main_menu(update, context):
+    return await _jump_to(update, context, start)
+
+
+async def jump_channels(update, context):
+    return await _jump_to(update, context, channels_menu)
+
+
+async def jump_pending(update, context):
+    return await _jump_to(update, context, list_pending_posts)
+
+
+async def jump_admin_panel(update, context):
+    return await _jump_to(update, context, admin_panel_menu)
+
+
+async def jump_stats(update, context):
+    return await _jump_to(update, context, show_statistics)
+
+
+async def jump_all_posts(update, context):
+    return await _jump_to(update, context, admin_all_posts)
+
+
+async def jump_all_channels(update, context):
+    return await _jump_to(update, context, admin_all_channels)
 
 
 # --- Basic commands -------------------------------------------------------------
@@ -268,9 +274,6 @@ async def start_new_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def channel_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
 
-    if await handle_menu_escape(update, context, text):
-        return ConversationHandler.END
-
     if text == BTN_ALL_CHANNELS_TARGET:
         context.user_data["selected_channel_id"] = "ALL"
         context.user_data["selected_channel_title"] = "📢 Barcha kanallar"
@@ -297,9 +300,6 @@ async def channel_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def type_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
 
-    if await handle_menu_escape(update, context, text):
-        return ConversationHandler.END
-
     if text not in (BTN_TEXT_POST, BTN_PHOTO_POST):
         await update.message.reply_text("⚠️ Iltimos, pastdagi tugmalardan birini bosing.")
         return CHOOSE_TYPE
@@ -322,9 +322,6 @@ async def type_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def content_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.message.text and await handle_menu_escape(update, context, update.message.text):
-        return ConversationHandler.END
-
     post_type = context.user_data.get("post_type")
 
     if post_type == "photo":
@@ -360,9 +357,6 @@ async def content_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def time_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
     is_admin = (update.effective_user.id == ADMIN_ID)
-
-    if await handle_menu_escape(update, context, text):
-        return ConversationHandler.END
 
     now = datetime.now(tashkent_tz)
     post_time = None
@@ -448,10 +442,13 @@ async def channels_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def start_add_channel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
     await update.message.reply_text(
-        "➕ **Kanal ulash bo'yicha yo'riqnoma:**\n\n"
-        "1. Botni kanalingizga **Admin** (postlarni joylash huquqi bilan) qilib tayinlang.\n"
-        "2. O'sha kanaldan biror postni bu yerga **Forward (Uzatish)** qiling yoki kanal @username'ini yozing:\n\n"
-        "⚠️ Bot kanalda admin bo'lmasa, post avtomatik chiqmaydi!",
+        "➕ **Kanal yoki guruh ulash:**\n\n"
+        "✅ **ENG OSON YO'L:**\n"
+        "Botni kanalingizga (admin qilib) yoki guruhingizga (oddiy a'zo sifatida) qo'shing — "
+        "bot buni **avtomatik aniqlaydi** va sizga tasdiq xabarini yuboradi. Boshqa hech narsa qilish shart emas!\n\n"
+        "📌 **Agar bot allaqachon qo'shilgan bo'lsa:**\n"
+        "O'sha kanal/guruhdan biror xabarni shu yerga **Forward (Uzatish)** qiling, "
+        "yoki @username'ini yozing 👇",
         reply_markup=get_cancel_keyboard(),
         parse_mode="Markdown"
     )
@@ -463,9 +460,6 @@ async def channel_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     is_admin = (user_id == ADMIN_ID)
     msg = update.message
 
-    if msg.text and await handle_menu_escape(update, context, msg.text):
-        return ConversationHandler.END
-
     identifier = None
 
     origin = getattr(msg, 'forward_origin', None)
@@ -476,43 +470,64 @@ async def channel_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if identifier is None and msg.text:
         t = msg.text.strip()
-        if t.startswith("-100") or t.startswith("@"):
+        bare = t[1:] if t.startswith('-') else t
+        # Guruhlar uchun ID "-100" bilan boshlanmasligi ham mumkin (oddiy guruhlar),
+        # shuning uchun har qanday manfiy/musbat butun sonni ham qabul qilamiz.
+        if t.startswith("@") or bare.isdigit():
             identifier = t
 
     if identifier is None:
         await msg.reply_text(
-            "❌ **Kanal aniqlanmadi!**\n\n"
-            "Iltimos, kanaldan biror xabarni to'g'ridan-to'g'ri Forward qiling yoki @username yozing:",
+            "❌ **Kanal/guruh aniqlanmadi!**\n\n"
+            "Iltimos, o'sha yerdan biror xabarni to'g'ridan-to'g'ri Forward qiling "
+            "yoki @username yozing:",
             reply_markup=get_cancel_keyboard(),
             parse_mode="Markdown"
         )
         return ADD_CHANNEL
 
-    # Kanalni haqiqatan mavjudligini va bot admin ekanligini tekshiramiz.
+    # Kanal/guruh haqiqatan mavjudligini va botning postlash huquqi borligini tekshiramiz.
     # Bu tekshiruv bo'lmasa, keyinchalik post chiqarishga urinilganda botning
     # ruxsati yo'qligi sabab post "jim" yuborilmay qolishi mumkin edi.
     try:
         chat = await context.bot.get_chat(identifier)
         member = await context.bot.get_chat_member(chat.id, context.bot.id)
-        if member.status not in ("administrator", "creator"):
+        status = member.status
+
+        if chat.type == "channel":
+            # Kanalda faqat adminlar post joylay oladi (Telegram cheklovi).
+            allowed = status in ("administrator", "creator")
+        else:
+            # Guruh/superguruhda oddiy a'zolik ko'pincha yetarli, lekin
+            # "restricted" holatda yozish huquqi alohida tekshiriladi.
+            allowed = status in ("administrator", "creator", "member")
+            if status == "restricted":
+                allowed = getattr(member, "can_send_messages", False)
+
+        if not allowed:
+            kind = "kanal" if chat.type == "channel" else "guruh"
+            hint = (
+                "botni admin qilib tayinlang" if chat.type == "channel"
+                else "guruh sozlamalaridan botga yozish ruxsatini bering"
+            )
             await msg.reply_text(
-                "⚠️ **Bot bu kanalda admin emas!**\n\n"
-                "Iltimos, avval botni kanalingizga **admin** qilib tayinlang, "
-                "so'ng qaytadan urinib ko'ring.",
+                f"⚠️ **Bot bu {kind}da postlash huquqiga ega emas!**\n\n"
+                f"Iltimos, {hint} va qaytadan urinib ko'ring.",
                 reply_markup=get_cancel_keyboard(),
                 parse_mode="Markdown"
             )
             return ADD_CHANNEL
+
         channel_id = str(chat.id)
         channel_title = chat.title or "Telegram Kanal"
     except TelegramError as e:
         logger.error(f"Kanalni tekshirishda xato: {e}")
         await msg.reply_text(
-            "❌ **Kanalga ulanib bo'lmadi.**\n\n"
+            "❌ **Ulanib bo'lmadi.**\n\n"
             "Sabablari:\n"
-            "• Bot hali kanalga admin qilib qo'shilmagan\n"
-            "• Kanal @username noto'g'ri yozilgan\n\n"
-            "Botni kanalga admin qilib qo'shib, qaytadan urinib ko'ring.",
+            "• Bot hali kanal/guruhga qo'shilmagan\n"
+            "• @username noto'g'ri yozilgan\n\n"
+            "Botni kanal/guruhga qo'shib, qaytadan urinib ko'ring.",
             reply_markup=get_cancel_keyboard(),
             parse_mode="Markdown"
         )
@@ -520,7 +535,7 @@ async def channel_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if db.save_channel(user_id, channel_id, channel_title):
         await msg.reply_text(
-            f"🎉 **Kanal muvaffaqiyatli ulandi!**\n\n📢 Nomi: **{channel_title}**\n🆔 ID: `{channel_id}`",
+            f"🎉 **Muvaffaqiyatli ulandi!**\n\n📢 Nomi: **{channel_title}**\n🆔 ID: `{channel_id}`",
             reply_markup=get_main_keyboard(is_admin),
             parse_mode="Markdown"
         )
@@ -623,8 +638,6 @@ async def broadcast_send(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return ConversationHandler.END
 
     text = update.message.text
-    if await handle_menu_escape(update, context, text):
-        return ConversationHandler.END
 
     user_ids = db.get_all_user_ids()
     sent = 0
@@ -722,6 +735,60 @@ async def remove_channel_callback(update: Update, context: ContextTypes.DEFAULT_
 
 
 # --- Error handler ----------------------------------------------------------------
+async def on_bot_chat_member_update(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Bot biror kanal yoki guruhga qo'shilganda (yoki undan chiqarilganda) avtomatik
+    ishlaydi. Foydalanuvchi endi kanal/guruhni qo'lda @username yozib yoki forward
+    qilib qo'shishi shart emas — botni o'sha yerga a'zo/admin qilib qo'shishning o'zi
+    yetarli, qolganini bot o'zi bajaradi.
+    """
+    cmu = update.my_chat_member
+    if not cmu:
+        return
+
+    chat = cmu.chat
+    if chat.type not in ("channel", "group", "supergroup"):
+        return
+
+    new_status = cmu.new_chat_member.status
+    adder = cmu.from_user
+    kind = "kanal" if chat.type == "channel" else "guruh"
+
+    if new_status in ("administrator", "creator", "member", "restricted"):
+        if chat.type == "channel" and new_status not in ("administrator", "creator"):
+            return  # Kanalda faqat admin bo'lsa postlash mumkin
+        if new_status == "restricted" and not getattr(cmu.new_chat_member, "can_send_messages", False):
+            return
+
+        ok = db.save_channel(adder.id if adder else 0, str(chat.id), chat.title or "Nomsiz")
+        if ok and adder:
+            try:
+                await context.bot.send_message(
+                    chat_id=adder.id,
+                    text=(
+                        f"🎉 **Yangi {kind} avtomatik ulandi!**\n\n"
+                        f"📢 Nomi: **{chat.title}**\n"
+                        f"🆔 ID: `{chat.id}`\n\n"
+                        f"Endi bu yerga post rejalashtira olasiz."
+                    ),
+                    parse_mode="Markdown"
+                )
+            except Exception:
+                pass  # Foydalanuvchi botni shaxsiyda ishga tushirmagan bo'lishi mumkin
+
+    elif new_status in ("left", "kicked"):
+        db.remove_channel(0, str(chat.id), is_admin=True)
+        if adder:
+            try:
+                await context.bot.send_message(
+                    chat_id=adder.id,
+                    text=f"ℹ️ Bot **{chat.title}** {kind}idan olib tashlandi, u ro'yxatdan chiqarildi.",
+                    parse_mode="Markdown"
+                )
+            except Exception:
+                pass
+
+
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
     logger.error("Kutilmagan xatolik yuz berdi:", exc_info=context.error)
 
@@ -734,61 +801,74 @@ def main():
     db.init_db()
     app = ApplicationBuilder().token(BOT_TOKEN).post_init(post_init).build()
 
-    new_post_conv = ConversationHandler(
+    # Bu tugmalar suhbatning QAYSI bosqichida bo'lishidan qat'iy nazar har doim
+    # ishlashi kerak (masalan, "Kanal qo'shish" jarayonida turib "Xabar yuborish"
+    # tugmasini bossa ham to'g'ri bo'limga o'tishi kerak). Shuning uchun ular HAR
+    # bir suhbat bosqichi ro'yxatiga eng birinchi bo'lib qo'shiladi.
+    global_jump_handlers = [
+        MessageHandler(exact(BTN_MAIN_MENU), jump_main_menu),
+        MessageHandler(exact(BTN_NEW_POST), start_new_post),
+        MessageHandler(exact(BTN_ADD_CHANNEL), start_add_channel),
+        MessageHandler(exact(BTN_CHANNELS), jump_channels),
+        MessageHandler(exact(BTN_PENDING), jump_pending),
+        MessageHandler(exact(BTN_ADMIN_PANEL), jump_admin_panel),
+        MessageHandler(exact(BTN_STATS), jump_stats),
+        MessageHandler(exact(BTN_ALL_POSTS), jump_all_posts),
+        MessageHandler(exact(BTN_ALL_CHANNELS), jump_all_channels),
+        MessageHandler(exact(BTN_BROADCAST), broadcast_start),
+    ]
+
+    main_conv = ConversationHandler(
         entry_points=[
             MessageHandler(exact(BTN_NEW_POST), start_new_post),
-            CommandHandler("newpost", start_new_post)
-        ],
-        states={
-            CHOOSE_CHANNEL: [MessageHandler(filters.TEXT & ~filters.COMMAND, channel_chosen)],
-            CHOOSE_TYPE: [MessageHandler(filters.TEXT & ~filters.COMMAND, type_chosen)],
-            GET_CONTENT: [
-                MessageHandler(filters.PHOTO | (filters.TEXT & ~filters.COMMAND), content_received)
-            ],
-            GET_TIME: [MessageHandler(filters.TEXT & ~filters.COMMAND, time_received)],
-        },
-        fallbacks=[
-            CommandHandler("start", start),
-            CommandHandler("cancel", cancel_handler),
-        ],
-        allow_reentry=True
-    )
-
-    add_channel_conv = ConversationHandler(
-        entry_points=[
-            MessageHandler(exact(BTN_ADD_CHANNEL), start_add_channel)
-        ],
-        states={
-            ADD_CHANNEL: [MessageHandler(filters.ALL & ~filters.COMMAND, channel_received)]
-        },
-        fallbacks=[
-            CommandHandler("start", start),
-            CommandHandler("cancel", cancel_handler),
-        ],
-        allow_reentry=True
-    )
-
-    broadcast_conv = ConversationHandler(
-        entry_points=[
+            MessageHandler(exact(BTN_ADD_CHANNEL), start_add_channel),
             MessageHandler(exact(BTN_BROADCAST), broadcast_start),
+            CommandHandler("newpost", start_new_post),
             CommandHandler("broadcast", broadcast_start),
         ],
         states={
-            BROADCAST_MESSAGE: [MessageHandler(filters.TEXT & ~filters.COMMAND, broadcast_send)],
+            CHOOSE_CHANNEL: global_jump_handlers + [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, channel_chosen)
+            ],
+            CHOOSE_TYPE: global_jump_handlers + [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, type_chosen)
+            ],
+            GET_CONTENT: global_jump_handlers + [
+                MessageHandler(filters.PHOTO | (filters.TEXT & ~filters.COMMAND), content_received)
+            ],
+            GET_TIME: global_jump_handlers + [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, time_received)
+            ],
+            ADD_CHANNEL: global_jump_handlers + [
+                MessageHandler(filters.ALL & ~filters.COMMAND, channel_received)
+            ],
+            BROADCAST_MESSAGE: global_jump_handlers + [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, broadcast_send)
+            ],
         },
         fallbacks=[
             CommandHandler("start", start),
             CommandHandler("cancel", cancel_handler),
         ],
-        allow_reentry=True
+        allow_reentry=True,
     )
 
-    app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("help", help_command))
     app.add_handler(CommandHandler("admin", admin_panel_menu))
     app.add_handler(CommandHandler("stats", show_statistics))
-    app.add_handler(CommandHandler("cancel", cancel_handler))
 
+    # MUHIM: main_conv birinchi ro'yxatdan o'tishi SHART. Aks holda, quyidagi
+    # "bo'sh holat" tugmalari (masalan, "Kanallar") yoki /start, /cancel kabi
+    # buyruqlar suhbat ICHIDA yuborilganda ham to'g'ridan-to'g'ri ushlanib qolib,
+    # ConversationHandler o'zining ichki holatini to'g'ri yakunlay olmay,
+    # "osilib qolgan" holatga tushib qolar edi.
+    app.add_handler(main_conv)
+
+    # Suhbatdan tashqarida (bo'sh holatda) ham shu tugmalar/buyruqlar
+    # to'g'ridan-to'g'ri ishlaydi. (main_conv ularni entry_point yoki fallback
+    # sifatida tanimasa, bo'sh holatda bu yerga muammosiz "tushib" keladi.)
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("cancel", cancel_handler))
     app.add_handler(MessageHandler(exact(BTN_CHANNELS), channels_menu))
     app.add_handler(MessageHandler(exact(BTN_PENDING), list_pending_posts))
     app.add_handler(MessageHandler(exact(BTN_MAIN_MENU), start))
@@ -797,12 +877,11 @@ def main():
     app.add_handler(MessageHandler(exact(BTN_ALL_POSTS), admin_all_posts))
     app.add_handler(MessageHandler(exact(BTN_ALL_CHANNELS), admin_all_channels))
 
-    app.add_handler(new_post_conv)
-    app.add_handler(add_channel_conv)
-    app.add_handler(broadcast_conv)
-
     app.add_handler(CallbackQueryHandler(cancel_post_callback, pattern=r"^cancel_post:"))
     app.add_handler(CallbackQueryHandler(remove_channel_callback, pattern=r"^remove_channel:"))
+
+    # Bot biror kanal/guruhga qo'shilgan yoki chiqarib yuborilganda avtomatik ishlaydi.
+    app.add_handler(ChatMemberHandler(on_bot_chat_member_update, ChatMemberHandler.MY_CHAT_MEMBER))
 
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, unknown))
 
