@@ -1,3 +1,7 @@
+import pytz
+
+tashkent_tz = pytz.timezone("Asia/Tashkent")
+
 def md_escape(text) -> str:
     if not text:
         return ""
@@ -15,4 +19,12 @@ def format_schedule_line(s_time, is_recurring, recurrence_day, recurrence_time):
         day_label = WEEKDAY_LABELS.get(recurrence_day, "?")
         time_str = recurrence_time.strftime("%H:%M") if recurrence_time else "?"
         return f"🔄 Har {day_label}, soat `{time_str}`"
-    return f"🕒 `{s_time.strftime('%Y-%m-%d %H:%M')}`"
+    
+    # Toshkent vaqtiga o'girish
+    if s_time:
+        if s_time.tzinfo is None:
+            s_time = pytz.utc.localize(s_time).astimezone(tashkent_tz)
+        else:
+            s_time = s_time.astimezone(tashkent_tz)
+        return f"🕒 `{s_time.strftime('%Y-%m-%d %H:%M')}`"
+    return "🕒 `Noma'lum`"
