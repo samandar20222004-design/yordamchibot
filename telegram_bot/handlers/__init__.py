@@ -45,7 +45,6 @@ async def reaction_callback(update, context):
         post_id = int(pid_str)
         counts = db.toggle_reaction(post_id, user_id, emoji)
         
-        # Tugmalarni yangilash
         keyboard = []
         for row in query.message.reply_markup.inline_keyboard:
             new_row = []
