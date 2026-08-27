@@ -1,10 +1,30 @@
 from telegram import Update
+from telegram.error import TelegramError
 from telegram.ext import ContextTypes, ConversationHandler
 from config import ADMIN_ID
 import database as db
 from keyboards.default import get_main_keyboard
-from keyboards.inline import get_referral_share_keyboard
+from keyboards.inline import get_referral_share_keyboard, get_subscription_check_keyboard
 from utils.helpers import md_escape
+
+async def check_user_subscribed(bot, user_id: int) -> tuple[bool, list]:
+    if user_id == ADMIN_ID:
+        return True, []
+    sponsors = db.get_active_sponsors()
+    if not sponsors:
+        return True, []
+    
+    unsubscribed = []
+    for s in sponsors:
+        s_id, ch_id, ch_title, ch_url = s
+        try:
+            target_chat = int(ch_id) if str(ch_id).lstrip('-').isdigit() else ch_id
+            member = await bot.get_chat_member(chat_id=target_chat, user_id=user_id)
+            if member.status not in ("creator", "administrator", "member", "restricted"):
+                unsubscribed.append(s)
+        except TelegramError:
+            pass
+    return (len(unsubscribed) == 0), unsubscribed
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
@@ -20,16 +40,47 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 referrer_id = None
 
     db.save_user(user.id, user.username or "", user.full_name or "", referrer_id=referrer_id)
-    is_admin = (user.id == ADMIN_ID)
     
+    is_sub, unsubs = await check_user_subscribed(context.bot, user.id)
+    if not is_sub:
+        await update.message.reply_text(
+            "⚠️ *Botdan to'liq foydalanish uchun quyidagi homiy kanallarga obuna bo'ling:*",
+            reply_markup=get_subscription_check_keyboard(unsubs),
+            parse_mode="Markdown"
+        )
+        return ConversationHandler.END
+
+    is_admin = (user.id == ADMIN_ID)
     await update.message.reply_text(
         f"Salom, *{md_escape(user.first_name)}*! 👋\n\n"
-        f"🤖 *PostAssistrobot* — Telegram kanal va guruhlaringizga postlarni rejalashtirib joylovchi aqlli yordamchi.\n\n"
+        f"🤖 *PostAssistrobot* — Telegram kanal va guruhlaringizga postlarni rejalashtirib joylovchi aqlli yordamchingiz.\n\n"
         f"Quyidagi menyudan kerakli bo'limni tanlang 👇",
         reply_markup=get_main_keyboard(is_admin),
         parse_mode="Markdown"
     )
     return ConversationHandler.END
+
+async def subscription_check_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    user = query.from_user
+    is_sub, unsubs = await check_user_subscribed(context.bot, user.id)
+    
+    if is_sub:
+        await query.answer("✅ Obuna tasdiqlandi!")
+        await query.message.delete()
+        is_admin = (user.id == ADMIN_ID)
+        await context.bot.send_message(
+            chat_id=user.id,
+            text=f"Xush kelibsiz, *{md_escape(user.first_name)}*! Barcha imkoniyatlar siz uchun ochiq.",
+            reply_markup=get_main_keyboard(is_admin),
+            parse_mode="Markdown"
+        )
+    else:
+        await query.answer("❌ Hali barcha kanallarga a'zo bo'lmadingiz!", show_alert=True)
+        try:
+            await query.edit_message_reply_markup(reply_markup=get_subscription_check_keyboard(unsubs))
+        except TelegramError:
+            pass
 
 async def user_profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
@@ -44,7 +95,6 @@ async def user_profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"👥 Taklif qilgan do'stlaringiz: *{stats['referrals_count']} ta*\n\n"
         f"🔗 *Sizning taklif havolangiz:*\n`{ref_link}`"
     )
-    
     await update.message.reply_text(
         text,
         reply_markup=get_referral_share_keyboard(ref_link),
