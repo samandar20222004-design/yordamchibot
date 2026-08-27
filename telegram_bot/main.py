@@ -31,7 +31,8 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
-
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
 tashkent_tz = pytz.timezone("Asia/Tashkent")
 
 # --- Conversation states -----------------------------------------------------
