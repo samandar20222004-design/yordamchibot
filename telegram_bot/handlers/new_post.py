@@ -6,16 +6,17 @@ from config import ADMIN_ID
 import database as db
 from keyboards.default import (
     BTN_ALL_CHANNELS_TARGET, BTN_MAIN_MENU, BTN_SKIP_BUTTON,
+    BTN_REACTIONS_YES, BTN_REACTIONS_NO,
     BTN_T_5MIN, BTN_T_15MIN, BTN_T_30MIN, BTN_T_1H, BTN_T_2H,
     BTN_T_TOM_9, BTN_T_TOM_18, BTN_T_3D, BTN_T_RECURRING,
     WEEKDAY_MAP, WEEKDAY_LABELS,
     get_main_keyboard, get_cancel_keyboard, get_button_prompt_keyboard,
-    get_time_keyboard, get_weekday_keyboard
+    get_reactions_prompt_keyboard, get_time_keyboard, get_weekday_keyboard
 )
 from utils.helpers import md_escape
 
 tashkent_tz = pytz.timezone("Asia/Tashkent")
-CHOOSE_CHANNEL, GET_CONTENT, GET_BUTTON, GET_TIME, RECUR_DAY, RECUR_TIME = range(6)
+CHOOSE_CHANNEL, GET_CONTENT, GET_BUTTON, GET_REACTIONS, GET_TIME, RECUR_DAY, RECUR_TIME = range(7)
 
 async def start_new_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
@@ -99,9 +100,8 @@ async def content_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await msg.reply_text(
         "🔗 *Post ostiga havola (URL) tugma qo'shilsinmi?*\n\n"
-        "Agar tugma qo'shmoqchi bo'lsangiz, quyidagi formatda yozing:\n"
-        "`Saytga o'tish - https://sayt.uz`\n\n"
-        "👉 *Agar tugma kerak bo'lmasa*, pastdagi **'➡️ Tugmasiz davom etish'** tugmasini bosing:",
+        "Format: `Tugma matni - https://havola.uz`\n\n"
+        "Kerak bo'lmasa, pastdagi **'➡️ Tugmasiz davom etish'** tugmasini bosing:",
         reply_markup=get_button_prompt_keyboard(),
         parse_mode="Markdown"
     )
@@ -122,19 +122,28 @@ async def button_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
             context.user_data["btn_url"] = btn_link
         else:
             await update.message.reply_text(
-                "⚠️ *Format noto'g'ri kiritildi!*\n\n"
-                "Namuna: `Kanalga a'zo bo'lish - https://t.me/kanal`\n\n"
-                "Agar tugma qo'shmoqchi bo'lmasangiz, pastdagi **'➡️ Tugmasiz davom etish'** tugmasini bosing.",
+                "⚠️ *Format noto'g'ri!*\nMasalan: `Saytga o'tish - https://sayt.uz`\nYoki o'tkazib yuborish tugmasini bosing:",
                 reply_markup=get_button_prompt_keyboard(),
                 parse_mode="Markdown"
             )
             return GET_BUTTON
 
+    await update.message.reply_text(
+        "🔥 *Post ostiga reaksiya tugmalari (👍, ❤️, 🔥, 👏) qo'shilsinmi?*",
+        reply_markup=get_reactions_prompt_keyboard(),
+        parse_mode="Markdown"
+    )
+    return GET_REACTIONS
+
+async def reactions_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = update.message.text.strip()
+    context.user_data["enable_reactions"] = (text == BTN_REACTIONS_YES)
+
     now = datetime.now(tashkent_tz)
     example = (now + timedelta(days=1)).strftime("%Y-%m-%d %H:%M")
     await update.message.reply_text(
         "🕒 *Post qaysi vaqtda chiqsin?*\n\n"
-        "Tayyor variantlardan birini tanlang yoki aniq vaqtni yozing:\n"
+        "Tayyor tugmalardan tanlang yoki aniq vaqtni yozing:\n"
         f"Namuna: `{example}`",
         reply_markup=get_time_keyboard(),
         parse_mode="Markdown"
@@ -150,17 +159,18 @@ async def _finalize_post(update, context, post_time, is_recurring=False, recurre
     file_id = context.user_data.get("file_id")
     btn_text = context.user_data.get("btn_text")
     btn_url = context.user_data.get("btn_url")
+    enable_reactions = context.user_data.get("enable_reactions", False)
     recurrence_time_obj = recurrence_time_str if is_recurring else None
 
-    # Toshkent vaqtida ko'rsatish
     post_time_tz = post_time.astimezone(tashkent_tz)
 
     if selected_channel_id == "ALL":
         channels = db.get_user_channels(user_id)
         ok_count = 0
         for ch_id, ch_title in channels:
-            if db.add_post(user_id, ch_id, post_type, content, file_id, post_time_tz,
-                           is_recurring, recurrence_day, recurrence_time_obj, btn_text, btn_url):
+            pid = db.add_post(user_id, ch_id, post_type, content, file_id, post_time_tz,
+                              is_recurring, recurrence_day, recurrence_time_obj, btn_text, btn_url, enable_reactions)
+            if pid:
                 ok_count += 1
         if ok_count:
             when_text = f"🔄 Har {WEEKDAY_LABELS.get(recurrence_day)}, soat {recurrence_time_str[:5]}" if is_recurring else f"🕒 {post_time_tz.strftime('%Y-%m-%d %H:%M')}"
@@ -172,8 +182,9 @@ async def _finalize_post(update, context, post_time, is_recurring=False, recurre
         else:
             await update.message.reply_text("❌ Saqlashda xatolik yuz berdi.", reply_markup=get_main_keyboard(is_admin))
     else:
-        if db.add_post(user_id, selected_channel_id, post_type, content, file_id, post_time_tz,
-                       is_recurring, recurrence_day, recurrence_time_obj, btn_text, btn_url):
+        pid = db.add_post(user_id, selected_channel_id, post_type, content, file_id, post_time_tz,
+                          is_recurring, recurrence_day, recurrence_time_obj, btn_text, btn_url, enable_reactions)
+        if pid:
             when_text = f"🔄 Har {WEEKDAY_LABELS.get(recurrence_day)}, soat {recurrence_time_str[:5]}" if is_recurring else f"🕒 {post_time_tz.strftime('%Y-%m-%d %H:%M')}"
             await update.message.reply_text(
                 f"✅ *Post muvaffaqiyatli rejalashtirildi!*\n\n📢 Joylash: *{md_escape(context.user_data['selected_channel_title'])}*\n{when_text}",
