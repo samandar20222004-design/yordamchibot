@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+import re
 import pytz
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import ContextTypes, ConversationHandler
@@ -6,17 +7,29 @@ from config import ADMIN_ID
 import database as db
 from keyboards.default import (
     BTN_ALL_CHANNELS_TARGET, BTN_MAIN_MENU, BTN_SKIP_BUTTON,
-    BTN_REACTIONS_YES, BTN_REACTIONS_NO,
     BTN_T_5MIN, BTN_T_15MIN, BTN_T_30MIN, BTN_T_1H, BTN_T_2H,
     BTN_T_TOM_9, BTN_T_TOM_18, BTN_T_3D, BTN_T_RECURRING,
     WEEKDAY_MAP, WEEKDAY_LABELS,
     get_main_keyboard, get_cancel_keyboard, get_button_prompt_keyboard,
-    get_reactions_prompt_keyboard, get_time_keyboard, get_weekday_keyboard
+    get_time_keyboard, get_weekday_keyboard
 )
 from utils.helpers import md_escape
 
 tashkent_tz = pytz.timezone("Asia/Tashkent")
 CHOOSE_CHANNEL, GET_CONTENT, GET_BUTTON, GET_REACTIONS, GET_TIME, RECUR_DAY, RECUR_TIME = range(7)
+
+BTN_REACT_DEFAULT = "👍 ❤️ 🔥 👏"
+BTN_NO_REACT = "➡️ Reaksiyasiz davom etish"
+
+def get_reactions_keyboard():
+    return ReplyKeyboardMarkup(
+        [
+            [BTN_REACT_DEFAULT],
+            [BTN_NO_REACT],
+            [BTN_MAIN_MENU]
+        ],
+        resize_keyboard=True
+    )
 
 async def start_new_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
@@ -100,8 +113,10 @@ async def content_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await msg.reply_text(
         "🔗 *Post ostiga havola (URL) tugma qo'shilsinmi?*\n\n"
-        "Format: `Tugma matni - https://havola.uz`\n\n"
-        "Kerak bo'lmasa, pastdagi **'➡️ Tugmasiz davom etish'** tugmasini bosing:",
+        "Shunchaki kanal username yoki havolasini yozing:\n"
+        "• `@kanalim` yoki `https://t.me/kanalim`\n"
+        "• `Batafsil - @kanalim` yoki `Saytga o'tish - https://sayt.uz`\n\n"
+        "Tugma kerak bo'lmasa pastdagi **'➡️ Tugmasiz davom etish'** tugmasini bosing:",
         reply_markup=get_button_prompt_keyboard(),
         parse_mode="Markdown"
     )
@@ -112,32 +127,42 @@ async def button_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if text == BTN_SKIP_BUTTON:
         context.user_data["btn_text"], context.user_data["btn_url"] = None, None
     else:
-        if " - " in text and ("http://" in text or "https://" in text or "t.me/" in text):
-            parts = text.split(" - ", 1)
-            btn_title = parts[0].strip()
-            btn_link = parts[1].strip()
-            if not (btn_link.startswith("http://") or btn_link.startswith("https://")):
+        btn_title, btn_link = "Batafsil", text
+        if " - " in text:
+            btn_title, btn_link = text.split(" - ", 1)
+            btn_title, btn_link = btn_title.strip(), btn_link.strip()
+        
+        if btn_link.startswith("@"):
+            btn_link = f"https://t.me/{btn_link.replace('@', '')}"
+        elif not (btn_link.startswith("http://") or btn_link.startswith("https://") or btn_link.startswith("t.me/")):
+            if "." in btn_link:
                 btn_link = "https://" + btn_link
-            context.user_data["btn_text"] = btn_title
-            context.user_data["btn_url"] = btn_link
-        else:
-            await update.message.reply_text(
-                "⚠️ *Format noto'g'ri!*\nMasalan: `Saytga o'tish - https://sayt.uz`\nYoki o'tkazib yuborish tugmasini bosing:",
-                reply_markup=get_button_prompt_keyboard(),
-                parse_mode="Markdown"
-            )
-            return GET_BUTTON
+            else:
+                btn_link = f"https://t.me/{btn_link}"
+
+        context.user_data["btn_text"] = btn_title
+        context.user_data["btn_url"] = btn_link
 
     await update.message.reply_text(
-        "🔥 *Post ostiga reaksiya tugmalari (👍, ❤️, 🔥, 👏) qo'shilsinmi?*",
-        reply_markup=get_reactions_prompt_keyboard(),
+        "🔥 *Post ostiga reaksiya tugmalari qo'shilsinmi?*\n\n"
+        "Tayyor variantni tanlang yoki xohlagan emojilaringizni probel bilan yuboring:\n"
+        "Masalan: `👍 ❤️ 🔥 👏 ⚡️ 😍` (10 tagacha)",
+        reply_markup=get_reactions_keyboard(),
         parse_mode="Markdown"
     )
     return GET_REACTIONS
 
 async def reactions_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip()
-    context.user_data["enable_reactions"] = (text == BTN_REACTIONS_YES)
+    if text == BTN_NO_REACT:
+        context.user_data["enable_reactions"] = False
+        context.user_data["custom_reactions"] = None
+    else:
+        context.user_data["enable_reactions"] = True
+        emojis = re.findall(r'[^\s\w,.-]', text)
+        if not emojis:
+            emojis = ["👍", "❤️", "🔥", "👏"]
+        context.user_data["custom_reactions"] = emojis[:10]
 
     now = datetime.now(tashkent_tz)
     example = (now + timedelta(days=1)).strftime("%Y-%m-%d %H:%M")
