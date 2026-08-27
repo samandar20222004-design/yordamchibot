@@ -92,7 +92,7 @@ def init_db():
             );
         """)
 
-        # Reaksiya bosganlarni saqlash jadvali (Dublikat bo'lmasligi uchun)
+        # Reaksiya bosganlarni saqlash jadvali
         cur.execute("""
             CREATE TABLE IF NOT EXISTS post_reactions (
                 id SERIAL PRIMARY KEY,
@@ -104,11 +104,12 @@ def init_db():
             );
         """)
 
-        # Migratsiyalar
+        # Barcha yetishmayotgan ustunlarni eski bazaga xavfsiz qo'shish
         migrations = [
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS full_name VARCHAR(255);",
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS user_code VARCHAR(8) UNIQUE;",
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS referrer_id BIGINT;",
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;",
             "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS inline_button_text VARCHAR(255);",
             "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS inline_button_url TEXT;",
             "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS enable_reactions BOOLEAN DEFAULT FALSE;",
@@ -116,6 +117,7 @@ def init_db():
             "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS is_recurring BOOLEAN DEFAULT FALSE;",
             "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS recurrence_day INTEGER;",
             "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS recurrence_time TIME;",
+            "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;",
         ]
         for m in migrations:
             try:
@@ -183,7 +185,6 @@ def remove_sponsor_channel(sponsor_id: int) -> bool:
 
 # --- REACTIONS ---
 def toggle_reaction(post_id: int, user_id: int, reaction: str) -> dict:
-    """Reaksiya qo'shish yoki o'zgartirish va yangi hisoblarni qaytarish"""
     try:
         with db_cursor(commit=True) as cur:
             cur.execute("SELECT reaction_type FROM post_reactions WHERE post_id = %s AND user_id = %s", (post_id, user_id))
@@ -202,8 +203,7 @@ def toggle_reaction(post_id: int, user_id: int, reaction: str) -> dict:
                 WHERE post_id = %s 
                 GROUP BY reaction_type
             """, (post_id,))
-            counts = {r[0]: r[1] for r in cur.fetchall()}
-            return counts
+            return {r[0]: r[1] for r in cur.fetchall()}
     except Exception as e:
         logger.error(f"Reaksiya xatosi: {e}")
         return {}
