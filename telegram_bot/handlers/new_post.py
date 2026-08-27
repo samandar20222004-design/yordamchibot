@@ -60,7 +60,7 @@ async def channel_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(
         f"✅ Tanlandi: *{md_escape(context.user_data['selected_channel_title'])}*\n\n"
-        f"📝 *Post uchun kontentni yuboring:* (Matn, rasm, video, audio yoki fayl)",
+        f"📝 *Post uchun kontentni yuboring:* (Matn, rasm, video, audio yoki hujjat)",
         reply_markup=get_cancel_keyboard(),
         parse_mode="Markdown"
     )
@@ -98,9 +98,10 @@ async def content_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["content"] = content
 
     await msg.reply_text(
-        "🔗 *Post tagiga havola (URL) tugma qo'shilsinmi?*\n\n"
-        "Format: `Tugma matni - https://havola.uz`\n\n"
-        "Kerak bo'lmasa, pastdagi tugmani bosing 👇",
+        "🔗 *Post ostiga havola (URL) tugma qo'shilsinmi?*\n\n"
+        "Agar tugma qo'shmoqchi bo'lsangiz, quyidagi formatda yozing:\n"
+        "`Saytga o'tish - https://sayt.uz`\n\n"
+        "👉 *Agar tugma kerak bo'lmasa*, pastdagi **'➡️ Tugmasiz davom etish'** tugmasini bosing:",
         reply_markup=get_button_prompt_keyboard(),
         parse_mode="Markdown"
     )
@@ -112,15 +113,18 @@ async def button_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data["btn_text"], context.user_data["btn_url"] = None, None
     else:
         if " - " in text and ("http://" in text or "https://" in text or "t.me/" in text):
-            btn_title, btn_link = text.split(" - ", 1)
-            btn_link = btn_link.strip()
+            parts = text.split(" - ", 1)
+            btn_title = parts[0].strip()
+            btn_link = parts[1].strip()
             if not (btn_link.startswith("http://") or btn_link.startswith("https://")):
                 btn_link = "https://" + btn_link
-            context.user_data["btn_text"] = btn_title.strip()
+            context.user_data["btn_text"] = btn_title
             context.user_data["btn_url"] = btn_link
         else:
             await update.message.reply_text(
-                "⚠️ Format noto'g'ri!\nMasalan: `Saytga o'tish - https://sayt.uz`\nYoki o'tkazib yuborish tugmasini bosing:",
+                "⚠️ *Format noto'g'ri kiritildi!*\n\n"
+                "Namuna: `Kanalga a'zo bo'lish - https://t.me/kanal`\n\n"
+                "Agar tugma qo'shmoqchi bo'lmasangiz, pastdagi **'➡️ Tugmasiz davom etish'** tugmasini bosing.",
                 reply_markup=get_button_prompt_keyboard(),
                 parse_mode="Markdown"
             )
@@ -130,7 +134,7 @@ async def button_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     example = (now + timedelta(days=1)).strftime("%Y-%m-%d %H:%M")
     await update.message.reply_text(
         "🕒 *Post qaysi vaqtda chiqsin?*\n\n"
-        "Tayyor tugmalardan tanlang yoki aniq vaqtni yozing:\n"
+        "Tayyor variantlardan birini tanlang yoki aniq vaqtni yozing:\n"
         f"Namuna: `{example}`",
         reply_markup=get_time_keyboard(),
         parse_mode="Markdown"
@@ -148,15 +152,18 @@ async def _finalize_post(update, context, post_time, is_recurring=False, recurre
     btn_url = context.user_data.get("btn_url")
     recurrence_time_obj = recurrence_time_str if is_recurring else None
 
+    # Toshkent vaqtida ko'rsatish
+    post_time_tz = post_time.astimezone(tashkent_tz)
+
     if selected_channel_id == "ALL":
         channels = db.get_user_channels(user_id)
         ok_count = 0
         for ch_id, ch_title in channels:
-            if db.add_post(user_id, ch_id, post_type, content, file_id, post_time,
+            if db.add_post(user_id, ch_id, post_type, content, file_id, post_time_tz,
                            is_recurring, recurrence_day, recurrence_time_obj, btn_text, btn_url):
                 ok_count += 1
         if ok_count:
-            when_text = f"🔄 Har {WEEKDAY_LABELS.get(recurrence_day)}, soat {recurrence_time_str[:5]}" if is_recurring else f"🕒 {post_time.strftime('%Y-%m-%d %H:%M')}"
+            when_text = f"🔄 Har {WEEKDAY_LABELS.get(recurrence_day)}, soat {recurrence_time_str[:5]}" if is_recurring else f"🕒 {post_time_tz.strftime('%Y-%m-%d %H:%M')}"
             await update.message.reply_text(
                 f"✅ *Post {ok_count} ta kanal/guruhga rejalashtirildi!*\n\n{when_text}",
                 reply_markup=get_main_keyboard(is_admin),
@@ -165,9 +172,9 @@ async def _finalize_post(update, context, post_time, is_recurring=False, recurre
         else:
             await update.message.reply_text("❌ Saqlashda xatolik yuz berdi.", reply_markup=get_main_keyboard(is_admin))
     else:
-        if db.add_post(user_id, selected_channel_id, post_type, content, file_id, post_time,
+        if db.add_post(user_id, selected_channel_id, post_type, content, file_id, post_time_tz,
                        is_recurring, recurrence_day, recurrence_time_obj, btn_text, btn_url):
-            when_text = f"🔄 Har {WEEKDAY_LABELS.get(recurrence_day)}, soat {recurrence_time_str[:5]}" if is_recurring else f"🕒 {post_time.strftime('%Y-%m-%d %H:%M')}"
+            when_text = f"🔄 Har {WEEKDAY_LABELS.get(recurrence_day)}, soat {recurrence_time_str[:5]}" if is_recurring else f"🕒 {post_time_tz.strftime('%Y-%m-%d %H:%M')}"
             await update.message.reply_text(
                 f"✅ *Post muvaffaqiyatli rejalashtirildi!*\n\n📢 Joylash: *{md_escape(context.user_data['selected_channel_title'])}*\n{when_text}",
                 reply_markup=get_main_keyboard(is_admin),
