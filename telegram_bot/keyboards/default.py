@@ -16,6 +16,15 @@ BTN_ALL_POSTS = "🗂 Barcha postlar"
 BTN_ALL_CHANNELS = "📡 Barcha kanal/guruhlar"
 BTN_SKIP_BUTTON = "➡️ Tugmasiz davom etish"
 
+# Admin yangi tugmalari
+BTN_SPONSORS = "📢 Majburiy obuna"
+BTN_ADD_SPONSOR = "➕ Homiy kanal qo'shish"
+BTN_GLOBAL_AD = "📝 Reklama havolasi"
+
+# Reaksiyalar tanlash tugmalari
+BTN_REACTIONS_YES = "👍 Reaksiyalar qo'shilsin"
+BTN_REACTIONS_NO = "➡️ Reaksiyasiz davom etish"
+
 BTN_T_5MIN = "⚡️ 5 daqiqa"
 BTN_T_15MIN = "⏱ 15 daqiqa"
 BTN_T_30MIN = "⏳ 30 daqiqa"
@@ -50,15 +59,27 @@ def get_cancel_keyboard():
 def get_button_prompt_keyboard():
     return ReplyKeyboardMarkup([[BTN_SKIP_BUTTON], [BTN_MAIN_MENU]], resize_keyboard=True)
 
+def get_reactions_prompt_keyboard():
+    return ReplyKeyboardMarkup([[BTN_REACTIONS_YES, BTN_REACTIONS_NO], [BTN_MAIN_MENU]], resize_keyboard=True)
+
 def get_admin_panel_keyboard():
     return ReplyKeyboardMarkup(
         [
-            [BTN_BROADCAST],
+            [BTN_SPONSORS, BTN_GLOBAL_AD],
+            [BTN_BROADCAST, BTN_STATS],
             [BTN_ALL_POSTS, BTN_ALL_CHANNELS],
-            [BTN_STATS],
             [BTN_MAIN_MENU],
         ],
         resize_keyboard=True,
+    )
+
+def get_sponsors_keyboard():
+    return ReplyKeyboardMarkup(
+        [
+            [BTN_ADD_SPONSOR],
+            [BTN_ADMIN_PANEL, BTN_MAIN_MENU]
+        ],
+        resize_keyboard=True
     )
 
 def get_time_keyboard():
