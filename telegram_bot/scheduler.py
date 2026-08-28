@@ -64,11 +64,19 @@ async def _execute_send(bot, post):
         buttons.append(reactions_row)
     reply_markup = InlineKeyboardMarkup(buttons) if buttons else None
 
-    # Global Reklama qo'shish (Agar admin kiritgan bo'lsa)
+    # Post tarkibini shakllantirish
     final_content = content or ""
-    ad_text = db.get_setting("global_ad_text", "").strip()
-    if ad_text and user_id != ADMIN_ID:
-        final_content = f"{final_content}\n\n{ad_text}"
+    is_admin = (user_id == ADMIN_ID)
+    
+    # Reklamasiz post litsenziyasi bormi?
+    has_ad_free = db.consume_ad_free_post(user_id) if not is_admin else True
+
+    # Agar litsenziya bo'lmasa, eng tepasiga bot nishoni va pastiga homiy reklamasini qo'shamiz
+    if not has_ad_free:
+        bot_header = "📢 <b>@PostAssistrobot orqali rejalashtirildi</b>\n\n"
+        channel_ad = db.get_setting("channel_ad_text", "").strip()
+        ad_footer = f"\n\n{channel_ad}" if channel_ad else ""
+        final_content = f"{bot_header}{final_content}{ad_footer}"
 
     sent_msg = None
     try:
@@ -100,7 +108,6 @@ async def _execute_send(bot, post):
         db.mark_post_status(post_id, "failed")
         return
 
-    # Qaytariluvchi postlarni yangilash
     if recurrence_type in ('daily', 'weekly'):
         now = datetime.now(tashkent_tz)
         if end_date and now >= end_date:
@@ -112,7 +119,6 @@ async def _execute_send(bot, post):
                 db.mark_post_status(post_id, "pending")
 
 async def check_and_delete_expired_posts(bot):
-    """Muddati tugagan reklamalarni avtomatik o'chirish."""
     now = datetime.now(tashkent_tz)
     to_delete = db.get_posts_to_delete(now)
     for item in to_delete:
