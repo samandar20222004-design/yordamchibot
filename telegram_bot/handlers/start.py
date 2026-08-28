@@ -106,7 +106,13 @@ async def user_cabinet_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_code = db.get_user_code(user.id)
     
     credits_text = "♾ Cheksiz (Super Admin)" if is_admin else f"<b>{stats['ai_credits']} ta</b>"
-    ad_free_text = "♾ Cheksiz" if is_admin else f"<b>{stats['ad_free_posts']} ta</b>"
+    
+    if is_admin:
+        ad_free_text = "♾ Cheksiz (Super Admin)"
+    else:
+        status_badge = "🟢 Yoqilgan" if stats.get('ad_free_active', True) else "🔴 O'chirilgan"
+        ad_free_text = f"<b>{stats['ad_free_posts']} ta</b> ({status_badge})"
+        
     streak_val = stats.get('streak', 0)
     streak_text = f"🔥 <b>{streak_val}/7 kun</b>"
     ad_line = get_smart_reply_ad(user.id)
@@ -160,7 +166,7 @@ async def daily_bonus_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
         )
 
 async def buy_ad_free_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Tasdiqlash so'rovi bilan reklamasiz postlar xarid qilish."""
+    """Reklamasiz postlarni boshqarish menyusi."""
     user = update.effective_user
     is_admin = (user.id == ADMIN_ID)
     
@@ -168,50 +174,77 @@ async def buy_ad_free_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
         await update.message.reply_text("👑 Siz Super Adminsiz — barcha postlaringiz doim reklamasiz chiqadi!", parse_mode="HTML")
         return
         
-    credits = db.get_user_credits(user.id)
-    if credits < 1:
-        await update.message.reply_text(
-            "⚠️ <b>Hisobingizda yetarli ball mavjud emas!</b>\n\n"
-            "1 ta litsenziya xarid qilish uchun hisobingizda kamida <b>1 ta ball</b> bo'lishi kerak.\n"
-            "Kunlik bonus olishingiz yoki do'stlaringizni taklif qilib ball to'plashingiz mumkin.",
-            reply_markup=get_cabinet_keyboard(),
-            parse_mode="HTML"
-        )
-        return
-
+    stats = db.get_referral_stats(user.id)
+    posts_count = stats['ad_free_posts']
+    is_active = stats.get('ad_free_active', True)
+    
+    status_label = "🟢 Yoqilgan (Ishlatilmoqda)" if is_active else "🔴 O'chirilgan (Saqlanmoqda)"
+    toggle_btn_text = "🔴 O'chirish (Tejash)" if is_active else "🟢 Yoqish (Ishlatish)"
+    
     keyboard = [
-        [
-            InlineKeyboardButton("✅ Ha, xarid qilish (1 ball)", callback_data="adfree_confirm"),
-            InlineKeyboardButton("❌ Bekor qilish", callback_data="adfree_cancel")
-        ]
+        [InlineKeyboardButton(f"Holat: {toggle_btn_text}", callback_data="adfree_toggle")],
+        [InlineKeyboardButton("➕ 5 ta post xarid qilish (1 ball)", callback_data="adfree_confirm")],
     ]
     
+    if posts_count >= 5:
+        keyboard.append([InlineKeyboardButton("🔄 Ballga qaytarish (5 post = 1 ball)", callback_data="adfree_refund")])
+        
+    keyboard.append([InlineKeyboardButton("❌ Yopish", callback_data="adfree_close")])
+    
     await update.message.reply_text(
-        "💎 <b>Reklamasiz toza postlar xaridi:</b>\n\n"
-        "• Narxi: <b>1 ta AI ball</b>\n"
-        "• Beriladi: <b>5 ta reklamasiz toza post</b>\n\n"
-        "<i>Ushbu xaridni tasdiqlaysizmi?</i>",
+        f"💎 <b>Reklamasiz Toza Postlar Boshqaruvi:</b>\n\n"
+        f"📊 Sizdagi mavjud toza postlar soni: <b>{posts_count} ta</b>\n"
+        f"⚙️ Hozirgi holat: <b>{status_label}</b>\n\n"
+        f"<i>Kerakli amalni tanlang:</i>",
         reply_markup=InlineKeyboardMarkup(keyboard),
         parse_mode="HTML"
     )
 
 async def ad_free_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Tasdiqlash yoki bekor qilish tugmalari bosilganda."""
+    """Reklamasiz postlar menyusi tugmalari."""
     query = update.callback_query
     await query.answer()
     data = query.data
     user_id = query.from_user.id
     
-    if data == "adfree_cancel":
-        await query.edit_message_text("❌ Xarid bekor qilindi.")
+    if data == "adfree_close":
+        await query.message.delete()
         return
+
+    if data == "adfree_toggle":
+        success, new_status = db.toggle_ad_free_status(user_id)
+        stats = db.get_referral_stats(user_id)
+        posts_count = stats['ad_free_posts']
+        status_label = "🟢 Yoqilgan (Ishlatilmoqda)" if new_status else "🔴 O'chirilgan (Saqlanmoqda)"
+        toggle_btn_text = "🔴 O'chirish (Tejash)" if new_status else "🟢 Yoqish (Ishlatish)"
         
+        keyboard = [
+            [InlineKeyboardButton(f"Holat: {toggle_btn_text}", callback_data="adfree_toggle")],
+            [InlineKeyboardButton("➕ 5 ta post xarid qilish (1 ball)", callback_data="adfree_confirm")],
+        ]
+        if posts_count >= 5:
+            keyboard.append([InlineKeyboardButton("🔄 Ballga qaytarish (5 post = 1 ball)", callback_data="adfree_refund")])
+        keyboard.append([InlineKeyboardButton("❌ Yopish", callback_data="adfree_close")])
+
+        await query.edit_message_text(
+            f"💎 <b>Reklamasiz Toza Postlar Boshqaruvi:</b>\n\n"
+            f"📊 Sizdagi mavjud toza postlar soni: <b>{posts_count} ta</b>\n"
+            f"⚙️ Hozirgi holat: <b>{status_label}</b>\n\n"
+            f"<i>Holat muvaffaqiyatli yangilandi!</i>",
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode="HTML"
+        )
+        return
+
     if data == "adfree_confirm":
         success, msg = db.buy_ad_free_posts(user_id)
-        if success:
-            await query.edit_message_text(msg, parse_mode="HTML")
-        else:
-            await query.edit_message_text(f"❌ {msg}", parse_mode="HTML")
+        await query.edit_message_text(msg, parse_mode="HTML")
+        return
+
+    if data == "adfree_refund":
+        success, msg = db.refund_ad_free_posts(user_id)
+        await query.edit_message_text(msg, parse_mode="HTML")
+        return
 
 async def user_invite_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
@@ -335,7 +368,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "🔹 <b>1. Yangi post rejalashtirish:</b>\n"
         "• Matn, rasm, video yoki audio postlarni istalgan sanaga rejalashtirish.\n"
         "• Havola tugmalar (URL button), reaksiyalar va avto-o'chirish (12, 24, 48, 72 soat).\n"
-        "• <i>Bepul postlar boshida bot nishoni bo'ladi. Litsenziya xarid qilsangiz reklamasiz toza post chiqadi!</i>\n\n"
+        "• <i>Bepul postlar boshida bot nishoni bo'ladi. Litsenziya yoqilgan bo'lsa reklamasiz toza post chiqadi!</i>\n\n"
         "🔹 <b>2. AI Post Yordamchi:</b>\n"
         "• Matn yoki rasm yuborib, professional post va she'rlar tayyorlash.\n\n"
         "🔹 <b>3. Ballar va Kunlik Seriya (Streak):</b>\n"
