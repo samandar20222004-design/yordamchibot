@@ -1,4 +1,4 @@
-\import re
+import re
 from telegram import ReplyKeyboardMarkup
 from telegram.ext import filters
 
