@@ -1,4 +1,5 @@
 import logging
+import time
 from telegram.ext import (
     CommandHandler,
     MessageHandler,
@@ -45,29 +46,37 @@ from handlers.admin import (
     ad_text_received, BROADCAST_MESSAGE, ADD_SPONSOR_CHANNEL, SET_AD_TEXT
 )
 import database as db
-from utils.helpers import check_user_flood
 
 logger = logging.getLogger(__name__)
 
+# Foydalanuvchining so'nggi harakatini tekshirish uchun xotira
+_USER_LAST_CLICK = {}
+
 async def _single_jump(update, context, fn):
-    """Ketma-ket bosilgan takroriy so'rovlarni filtrlab, faqat 1 ta toza javob chiqaradi."""
+    """Ketma-ket bosilgan takroriy so'rovlarni bir zumda to'xtatib, faqat bitta javob beradi."""
     user = update.effective_user
-    if user and check_user_flood(user.id, cooldown_seconds=1.0):
-        # 1 soniya ichidagi takroriy bosishlarni e'tiborsiz qoldiramiz (chat to'lib ketmasligi uchun)
-        return ConversationHandler.END
+    if user:
+        now = time.time()
+        last_time = _USER_LAST_CLICK.get(user.id, 0)
+        # Agar oxirgi bosishdan keyin 1.2 soniya o'tmagan bo'lsa, takroriy bosishlarni darhol to'xtatamiz
+        if now - last_time < 1.2:
+            return ConversationHandler.END
+        _USER_LAST_CLICK[user.id] = now
         
     context.user_data.clear()
     await fn(update, context)
     return ConversationHandler.END
 
 async def reaction_callback(update, context):
-    """Reaksiya tugmasi bosilganda xavfsiz boshqarish."""
+    """Reaksiya tugmasini xavfsiz boshqarish."""
     query = update.callback_query
     user_id = query.from_user.id
     
-    if check_user_flood(user_id, cooldown_seconds=0.6):
+    now = time.time()
+    if now - _USER_LAST_CLICK.get(user_id, 0) < 0.6:
         await query.answer("Iltimos, shoshilmang...", show_alert=False)
         return
+    _USER_LAST_CLICK[user_id] = now
         
     try:
         await query.answer()
@@ -160,20 +169,20 @@ def register_all_handlers(app):
     app.add_handler(CommandHandler("admin", admin_panel_menu))
     app.add_handler(CommandHandler("stats", show_statistics))
     app.add_handler(main_conv)
-    app.add_handler(MessageHandler(exact(BTN_CABINET), user_cabinet_menu))
-    app.add_handler(MessageHandler(exact(BTN_INVITE), user_invite_menu))
-    app.add_handler(MessageHandler(exact(BTN_HELP), help_command))
-    app.add_handler(MessageHandler(exact(BTN_CHANNELS), channels_menu))
-    app.add_handler(MessageHandler(exact(BTN_CONVERTER), start_converter))
-    app.add_handler(MessageHandler(exact(BTN_AI_ASSISTANT), start_ai_assistant))
-    app.add_handler(MessageHandler(exact(BTN_PENDING), list_pending_posts))
-    app.add_handler(MessageHandler(exact(BTN_MAIN_MENU), start))
-    app.add_handler(MessageHandler(exact(BTN_ADMIN_PANEL), admin_panel_menu))
-    app.add_handler(MessageHandler(exact(BTN_STATS), show_statistics))
-    app.add_handler(MessageHandler(exact(BTN_ALL_POSTS), admin_all_posts))
-    app.add_handler(MessageHandler(exact(BTN_ALL_CHANNELS), admin_all_channels))
-    app.add_handler(MessageHandler(exact(BTN_SPONSORS), sponsors_menu))
-    app.add_handler(MessageHandler(exact(BTN_GLOBAL_AD), start_set_ad))
+    app.add_handler(MessageHandler(exact(BTN_CABINET), lambda u, c: _single_jump(u, c, user_cabinet_menu)))
+    app.add_handler(MessageHandler(exact(BTN_INVITE), lambda u, c: _single_jump(u, c, user_invite_menu)))
+    app.add_handler(MessageHandler(exact(BTN_HELP), lambda u, c: _single_jump(u, c, help_command)))
+    app.add_handler(MessageHandler(exact(BTN_CHANNELS), lambda u, c: _single_jump(u, c, channels_menu)))
+    app.add_handler(MessageHandler(exact(BTN_CONVERTER), lambda u, c: _single_jump(u, c, start_converter)))
+    app.add_handler(MessageHandler(exact(BTN_AI_ASSISTANT), lambda u, c: _single_jump(u, c, start_ai_assistant)))
+    app.add_handler(MessageHandler(exact(BTN_PENDING), lambda u, c: _single_jump(u, c, list_pending_posts)))
+    app.add_handler(MessageHandler(exact(BTN_MAIN_MENU), lambda u, c: _single_jump(u, c, start)))
+    app.add_handler(MessageHandler(exact(BTN_ADMIN_PANEL), lambda u, c: _single_jump(u, c, admin_panel_menu)))
+    app.add_handler(MessageHandler(exact(BTN_STATS), lambda u, c: _single_jump(u, c, show_statistics)))
+    app.add_handler(MessageHandler(exact(BTN_ALL_POSTS), lambda u, c: _single_jump(u, c, admin_all_posts)))
+    app.add_handler(MessageHandler(exact(BTN_ALL_CHANNELS), lambda u, c: _single_jump(u, c, admin_all_channels)))
+    app.add_handler(MessageHandler(exact(BTN_SPONSORS), lambda u, c: _single_jump(u, c, sponsors_menu)))
+    app.add_handler(MessageHandler(exact(BTN_GLOBAL_AD), lambda u, c: _single_jump(u, c, start_set_ad)))
     app.add_handler(CallbackQueryHandler(converter_callback, pattern=r"^conv_show:"))
     app.add_handler(CallbackQueryHandler(subscription_check_callback, pattern=r"^check_subscription$"))
     app.add_handler(CallbackQueryHandler(del_sponsor_callback, pattern=r"^del_sponsor:"))
