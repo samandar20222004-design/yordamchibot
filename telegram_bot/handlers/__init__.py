@@ -8,12 +8,14 @@ from telegram.ext import (
 )
 from keyboards.default import (
     exact,
-    BTN_NEW_POST, BTN_ADD_CHANNEL, BTN_CHANNELS, BTN_PENDING,
-    BTN_CONVERTER, BTN_PROFILE, BTN_ADMIN_PANEL, BTN_STATS, BTN_ALL_POSTS,
-    BTN_ALL_CHANNELS, BTN_BROADCAST, BTN_MAIN_MENU,
-    BTN_SPONSORS, BTN_ADD_SPONSOR, BTN_GLOBAL_AD
+    BTN_NEW_POST, BTN_AI_ASSISTANT, BTN_CABINET, BTN_INVITE,
+    BTN_ADD_CHANNEL, BTN_CHANNELS, BTN_PENDING, BTN_CONVERTER,
+    BTN_ADMIN_PANEL, BTN_STATS, BTN_ALL_POSTS, BTN_ALL_CHANNELS,
+    BTN_BROADCAST, BTN_MAIN_MENU, BTN_SPONSORS, BTN_ADD_SPONSOR, BTN_GLOBAL_AD
 )
-from handlers.start import start, user_profile, help_command, cancel_handler, subscription_check_callback
+from handlers.start import (
+    start, user_cabinet_menu, user_invite_menu, help_command, cancel_handler, subscription_check_callback
+)
 from handlers.new_post import (
     start_new_post, channel_chosen, content_received, btn_title_received,
     btn_url_received, reactions_received, auto_delete_received, time_received, 
@@ -74,11 +76,12 @@ def register_all_handlers(app):
     global_jump_handlers = [
         MessageHandler(exact(BTN_MAIN_MENU), lambda u, c: _jump_to(u, c, start)),
         MessageHandler(exact(BTN_NEW_POST), start_new_post),
+        MessageHandler(exact(BTN_CABINET), lambda u, c: _jump_to(u, c, user_cabinet_menu)),
+        MessageHandler(exact(BTN_INVITE), lambda u, c: _jump_to(u, c, user_invite_menu)),
         MessageHandler(exact(BTN_ADD_CHANNEL), start_add_channel),
         MessageHandler(exact(BTN_CHANNELS), lambda u, c: _jump_to(u, c, channels_menu)),
         MessageHandler(exact(BTN_CONVERTER), start_converter),
         MessageHandler(exact(BTN_PENDING), lambda u, c: _jump_to(u, c, list_pending_posts)),
-        MessageHandler(exact(BTN_PROFILE), lambda u, c: _jump_to(u, c, user_profile)),
         MessageHandler(exact(BTN_ADMIN_PANEL), lambda u, c: _jump_to(u, c, admin_panel_menu)),
         MessageHandler(exact(BTN_STATS), lambda u, c: _jump_to(u, c, show_statistics)),
         MessageHandler(exact(BTN_ALL_POSTS), lambda u, c: _jump_to(u, c, admin_all_posts)),
@@ -128,15 +131,16 @@ def register_all_handlers(app):
     )
 
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("profile", user_profile))
+    app.add_handler(CommandHandler("profile", user_cabinet_menu))
     app.add_handler(CommandHandler("help", help_command))
     app.add_handler(CommandHandler("admin", admin_panel_menu))
     app.add_handler(CommandHandler("stats", show_statistics))
     app.add_handler(main_conv)
+    app.add_handler(MessageHandler(exact(BTN_CABINET), user_cabinet_menu))
+    app.add_handler(MessageHandler(exact(BTN_INVITE), user_invite_menu))
     app.add_handler(MessageHandler(exact(BTN_CHANNELS), channels_menu))
     app.add_handler(MessageHandler(exact(BTN_CONVERTER), start_converter))
     app.add_handler(MessageHandler(exact(BTN_PENDING), list_pending_posts))
-    app.add_handler(MessageHandler(exact(BTN_PROFILE), user_profile))
     app.add_handler(MessageHandler(exact(BTN_MAIN_MENU), start))
     app.add_handler(MessageHandler(exact(BTN_ADMIN_PANEL), admin_panel_menu))
     app.add_handler(MessageHandler(exact(BTN_STATS), show_statistics))
