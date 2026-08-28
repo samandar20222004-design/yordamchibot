@@ -19,7 +19,7 @@ from utils.helpers import html_escape
 
 tashkent_tz = pytz.timezone("Asia/Tashkent")
 
-# Chalkashmaslik uchun aniq raqamlar berildi
+# Holatlar raqamlari
 CHOOSE_CHANNEL = 100
 GET_CONTENT = 101
 GET_BTN_TITLE = 102
@@ -75,7 +75,7 @@ async def channel_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         f"✅ Tanlandi: <b>{html_escape(context.user_data['selected_channel_title'])}</b>\n\n"
         f"📝 <b>Post uchun kontentni yuboring:</b>\n"
-        f"(Matn, rasm, video, audio yoki boshqa kanaldan forward qilingan xabar)",
+        f"(Matn, rasm, video, audio, premium stikerlar yoki boshqa kanaldan forward qilingan xabar)",
         reply_markup=get_cancel_keyboard(),
         parse_mode="HTML"
     )
@@ -83,6 +83,7 @@ async def channel_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def content_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = update.message
+    # Premium elementlar va stikerlarni 100% asl holida saqlab qolish uchun message_id ni saqlaymiz
     context.user_data["post_type"] = "original_message"
     context.user_data["file_id"] = str(msg.message_id)
     context.user_data["content"] = msg.caption or msg.text or ""
@@ -216,7 +217,7 @@ async def _save_and_finish(update, context, post_time, recurrence_type='none', r
             parse_mode="HTML"
         )
     else:
-        await update.message.reply_text("❌ Saqlashda xatolik yuz berdi.", reply_markup=get_main_keyboard(is_admin))
+        await update.message.reply_text("❌ Saqlashda xatolik yuz berdi.", reply_markup=get_main_keyboard(is_admin), parse_mode="HTML")
     context.user_data.clear()
 
 async def time_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
