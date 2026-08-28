@@ -1,100 +1,130 @@
 import re
 
-# O'zbek tili harflari uchun lug'at
-LAT_TO_CYR = {
-    "sh": "ш", "Sh": "Ш", "SH": "Ш",
-    "ch": "ч", "Ch": "Ч", "CH": "Ч",
-    "yo": "ё", "Yo": "Ё", "YO": "Ё",
-    "yu": "ю", "Yu": "Ю", "YU": "Ю",
-    "ya": "я", "Ya": "Я", "YA": "Я",
-    "ye": "е", "Ye": "Е", "YE": "Е",
-    "o'": "ў", "O'": "Ў", "o‘": "ў", "O‘": "Ў", "o`": "ў", "O`": "Ў",
-    "g'": "ғ", "G'": "Ғ", "g‘": "ғ", "G‘": "Ғ", "g`": "ғ", "G`": "Ғ",
-    "a": "а", "A": "А",
-    "b": "б", "B": "Б",
-    "d": "д", "D": "Д",
-    "e": "е", "E": "Е",
-    "f": "ф", "F": "Ф",
-    "g": "г", "G": "Г",
-    "h": "ҳ", "H": "Ҳ",
-    "i": "и", "I": "И",
-    "j": "ж", "J": "Ж",
-    "k": "к", "K": "К",
-    "l": "л", "L": "Л",
-    "m": "м", "M": "М",
-    "n": "н", "N": "Н",
-    "o": "о", "O": "О",
-    "p": "п", "P": "П",
-    "q": "қ", "Q": "Қ",
-    "r": "р", "R": "Р",
-    "s": "с", "S": "С",
-    "t": "т", "T": "Т",
-    "u": "у", "U": "У",
-    "v": "в", "V": "В",
-    "x": "х", "X": "Х",
-    "y": "й", "Y": "Й",
-    "z": "з", "Z": "З",
-    "'": "ъ", "‘": "ъ", "`": "ъ"
-}
+# Lotin -> Kirill juftliklari
+LAT_TO_CYR_RULES = [
+    # Maxsus harflar (har xil apostroflar bilan)
+    ("o'", "ў"), ("O'", "Ў"), ("o‘", "ў"), ("O‘", "Ў"), ("o`", "ў"), ("O`", "Ў"), ("o’", "ў"), ("O’", "Ў"),
+    ("g'", "ғ"), ("G'", "Ғ"), ("g‘", "ғ"), ("G‘", "Ғ"), ("g`", "ғ"), ("G`", "Ғ"), ("g’", "ғ"), ("G’", "Ғ"),
+    
+    # 2 ta belgili birikmalar
+    ("sh", "ш"), ("Sh", "Ш"), ("SH", "Ш"),
+    ("ch", "ч"), ("Ch", "Ч"), ("CH", "Ч"),
+    ("yo", "ё"), ("Yo", "Ё"), ("YO", "Ё"),
+    ("yu", "ю"), ("Yu", "Ю"), ("YU", "Ю"),
+    ("ya", "я"), ("Ya", "Я"), ("YA", "Я"),
+    ("ye", "е"), ("Ye", "Е"), ("YE", "Е"),
+    ("ts", "ц"), ("Ts", "Ц"), ("TS", "Ц"),
+    
+    # 1 ta belgili harflar
+    ("a", "а"), ("A", "А"),
+    ("b", "б"), ("B", "Б"),
+    ("d", "д"), ("D", "Д"),
+    ("e", "е"), ("E", "Е"),
+    ("f", "ф"), ("F", "Ф"),
+    ("g", "г"), ("G", "Г"),
+    ("h", "ҳ"), ("H", "Ҳ"),
+    ("i", "и"), ("I", "И"),
+    ("j", "ж"), ("J", "Ж"),
+    ("k", "к"), ("K", "К"),
+    ("l", "л"), ("L", "Л"),
+    ("m", "м"), ("M", "М"),
+    ("n", "н"), ("N", "Н"),
+    ("o", "о"), ("O", "О"),
+    ("p", "п"), ("P", "П"),
+    ("q", "қ"), ("Q", "Қ"),
+    ("r", "р"), ("R", "Р"),
+    ("s", "с"), ("S", "С"),
+    ("t", "т"), ("T", "Т"),
+    ("u", "у"), ("U", "У"),
+    ("v", "в"), ("V", "В"),
+    ("x", "х"), ("X", "Х"),
+    ("y", "й"), ("Y", "Й"),
+    ("z", "з"), ("Z", "З"),
+    ("'", "ъ"), ("‘", "ъ"), ("`", "ъ"), ("’", "ъ")
+]
 
-CYR_TO_LAT = {
-    "ш": "sh", "Ш": "Sh",
-    "ч": "ch", "Ч": "Ch",
-    "ё": "yo", "Ё": "Yo",
-    "ю": "yu", "Ю": "Yu",
-    "я": "ya", "Я": "Ya",
-    "ў": "o'", "Ў": "O'",
-    "ғ": "g'", "Ғ": "G'",
-    "қ": "q", "Қ": "Q",
-    "ҳ": "h", "Ҳ": "H",
-    "а": "a", "А": "A",
-    "б": "b", "Б": "B",
-    "в": "v", "В": "V",
-    "г": "g", "Г": "G",
-    "д": "d", "Д": "D",
-    "е": "e", "Е": "E",
-    "ж": "j", "Ж": "J",
-    "з": "z", "З": "Z",
-    "и": "i", "И": "I",
-    "й": "y", "Й": "Y",
-    "к": "k", "К": "K",
-    "л": "l", "Л": "L",
-    "м": "m", "М": "M",
-    "н": "n", "Н": "N",
-    "о": "o", "О": "O",
-    "п": "p", "П": "P",
-    "р": "r", "Р": "R",
-    "с": "s", "С": "S",
-    "т": "t", "Т": "T",
-    "у": "u", "У": "U",
-    "ф": "f", "Ф": "F",
-    "х": "x", "Х": "X",
-    "ц": "ts", "Ц": "Ts",
-    "ъ": "'", "Ъ": "'",
-    "ь": "", "Ь": "",
-    "э": "e", "Э": "E"
-}
+# Kirill -> Lotin juftliklari
+CYR_TO_LAT_RULES = [
+    ("Щ", "Ch"), ("щ", "ch"),
+    ("Ц", "Ts"), ("ц", "ts"),
+    ("Ч", "Ch"), ("ч", "ch"),
+    ("Ш", "Sh"), ("ш", "sh"),
+    ("Ё", "Yo"), ("ё", "yo"),
+    ("Ю", "Yu"), ("ю", "yu"),
+    ("Я", "Ya"), ("я", "ya"),
+    ("Ў", "O'"), ("ў", "o'"),
+    ("Ғ", "G'"), ("ғ", "g'"),
+    ("Қ", "Q"),  ("қ", "q"),
+    ("Ҳ", "H"),  ("ҳ", "h"),
+    ("Х", "X"),  ("х", "x"),
+    ("А", "A"),  ("а", "a"),
+    ("Б", "B"),  ("б", "b"),
+    ("В", "V"),  ("в", "v"),
+    ("Г", "G"),  ("г", "g"),
+    ("Д", "D"),  ("д", "d"),
+    ("Ж", "J"),  ("ж", "j"),
+    ("З", "Z"),  ("з", "z"),
+    ("И", "I"),  ("и", "i"),
+    ("Й", "Y"),  ("й", "y"),
+    ("К", "K"),  ("к", "k"),
+    ("Л", "L"),  ("л", "l"),
+    ("М", "M"),  ("м", "m"),
+    ("Н", "N"),  ("н", "n"),
+    ("О", "O"),  ("о", "o"),
+    ("П", "P"),  ("п", "p"),
+    ("Р", "R"),  ("р", "r"),
+    ("С", "S"),  ("с", "s"),
+    ("Т", "T"),  ("т", "t"),
+    ("У", "U"),  ("у", "u"),
+    ("Ф", "F"),  ("ф", "f"),
+    ("Э", "E"),  ("э", "e"),
+    ("Е", "E"),  ("е", "e"),
+    ("Ъ", "'"),  ("ъ", "'"),
+    ("Ь", ""),   ("ь", "")
+]
 
-def to_cyrillic(text: str) -> str:
-    """Lotin yozuvidagi matnni Kirillga o'giradi."""
-    if not text:
-        return ""
-    result = text
-    # Avval 2 harfli birikmalarni o'giramiz
-    for lat, cyr in LAT_TO_CYR.items():
-        if len(lat) >= 2:
-            result = result.replace(lat, cyr)
-    # So'ngra 1 harflilarni
-    for lat, cyr in LAT_TO_CYR.items():
-        if len(lat) == 1:
-            result = result.replace(lat, cyr)
-    return result
+
+def fix_word_case(word: str) -> str:
+    """Agar so'z to'liq katta harflarda bo'lsa, 'YaNGI' -> 'YANGI' qiladi."""
+    letters = [c for c in word if c.isalpha()]
+    if letters and all(c.isupper() for c in letters):
+        return word.upper()
+    return word
+
 
 def to_latin(text: str) -> str:
-    """Kirill yozuvidagi matnni Lotinga o'giradi."""
+    """Kirill matnini toza Lotin yozuviga o'tkazadi."""
     if not text:
         return ""
+
     result = text
-    for cyr, lat in CYR_TO_LAT.items():
+
+    # 'Е' harfini so'z boshida yoki unlilardan keyin 'Ye' qilib to'g'rilash
+    result = re.sub(r'(^|[\s\(\[\{\"\'])Е', r'\1Ye', result)
+    result = re.sub(r'(^|[\s\(\[\{\"\'])е', r'\1ye', result)
+    result = re.sub(r'([АЕЁИОУЎЭЮЯаеёиоуўэюя])Е', r'\1Ye', result)
+    result = re.sub(r'([АЕЁИОУЎЭЮЯаеёиоуўэюя])е', r'\1ye', result)
+
+    for cyr, lat in CYR_TO_LAT_RULES:
         result = result.replace(cyr, lat)
+
+    # Katta harflar aralashib qolmasligi uchun so'zma-so'z tekshiramiz
+    words = result.split(" ")
+    fixed_words = [fix_word_case(w) for w in words]
+    return " ".join(fixed_words)
+
+
+def to_cyrillic(text: str) -> str:
+    """Lotin matnini toza Kirill yozuviga o'tkazadi."""
+    if not text:
+        return ""
+
+    result = text
+
+    # Standartlashtirish: turli noodatiy apostroflarni bitta qolipga keltiramiz
+    result = result.replace("‘", "'").replace("’", "'").replace("`", "'")
+
+    for lat, cyr in LAT_TO_CYR_RULES:
+        result = result.replace(lat, cyr)
+
     return result
