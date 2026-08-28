@@ -30,6 +30,9 @@ from handlers.channels import (
 from handlers.converter import (
     start_converter, converter_received, converter_callback, CONVERT_INPUT
 )
+from handlers.ai_assistant import (
+    start_ai_assistant, ai_input_received, ai_confirm_callback, AI_INPUT, AI_CONFIRM
+)
 from handlers.pending import (
     list_pending_posts, cancel_post_callback,
     edit_post_time_start, edit_post_time_received, EDIT_POST_TIME
@@ -76,6 +79,7 @@ def register_all_handlers(app):
     global_jump_handlers = [
         MessageHandler(exact(BTN_MAIN_MENU), lambda u, c: _jump_to(u, c, start)),
         MessageHandler(exact(BTN_NEW_POST), start_new_post),
+        MessageHandler(exact(BTN_AI_ASSISTANT), start_ai_assistant),
         MessageHandler(exact(BTN_CABINET), lambda u, c: _jump_to(u, c, user_cabinet_menu)),
         MessageHandler(exact(BTN_INVITE), lambda u, c: _jump_to(u, c, user_invite_menu)),
         MessageHandler(exact(BTN_ADD_CHANNEL), start_add_channel),
@@ -95,6 +99,7 @@ def register_all_handlers(app):
     main_conv = ConversationHandler(
         entry_points=[
             MessageHandler(exact(BTN_NEW_POST), start_new_post),
+            MessageHandler(exact(BTN_AI_ASSISTANT), start_ai_assistant),
             MessageHandler(exact(BTN_ADD_CHANNEL), start_add_channel),
             MessageHandler(exact(BTN_CONVERTER), start_converter),
             MessageHandler(exact(BTN_BROADCAST), broadcast_start),
@@ -118,6 +123,8 @@ def register_all_handlers(app):
             GET_DURATION: global_jump_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, duration_chosen)],
             ADD_CHANNEL: global_jump_handlers + [MessageHandler(filters.ALL & ~filters.COMMAND, channel_received)],
             CONVERT_INPUT: global_jump_handlers + [MessageHandler(filters.ALL & ~filters.COMMAND, converter_received)],
+            AI_INPUT: global_jump_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, ai_input_received)],
+            AI_CONFIRM: global_jump_handlers + [CallbackQueryHandler(ai_confirm_callback, pattern=r"^ai_post_")],
             BROADCAST_MESSAGE: global_jump_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, broadcast_send)],
             ADD_SPONSOR_CHANNEL: global_jump_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, sponsor_channel_received)],
             SET_AD_TEXT: global_jump_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, ad_text_received)],
@@ -140,6 +147,7 @@ def register_all_handlers(app):
     app.add_handler(MessageHandler(exact(BTN_INVITE), user_invite_menu))
     app.add_handler(MessageHandler(exact(BTN_CHANNELS), channels_menu))
     app.add_handler(MessageHandler(exact(BTN_CONVERTER), start_converter))
+    app.add_handler(MessageHandler(exact(BTN_AI_ASSISTANT), start_ai_assistant))
     app.add_handler(MessageHandler(exact(BTN_PENDING), list_pending_posts))
     app.add_handler(MessageHandler(exact(BTN_MAIN_MENU), start))
     app.add_handler(MessageHandler(exact(BTN_ADMIN_PANEL), admin_panel_menu))
