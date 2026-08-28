@@ -36,6 +36,7 @@ def init_db():
                 referrer_id BIGINT,
                 ai_credits INTEGER DEFAULT 5,
                 ad_free_posts INTEGER DEFAULT 0,
+                ad_free_active BOOLEAN DEFAULT TRUE,
                 streak_days INTEGER DEFAULT 0,
                 last_bonus_date DATE,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -112,6 +113,7 @@ def init_db():
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS referrer_id BIGINT;",
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS ai_credits INTEGER DEFAULT 5;",
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS ad_free_posts INTEGER DEFAULT 0;",
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS ad_free_active BOOLEAN DEFAULT TRUE;",
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS streak_days INTEGER DEFAULT 0;",
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS last_bonus_date DATE;",
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;",
@@ -136,7 +138,7 @@ def init_db():
         cur.execute("CREATE INDEX IF NOT EXISTS idx_scheduled_posts_status_time ON scheduled_posts (status, scheduled_time);")
     logger.info("Baza jadvallari tayyor.")
 
-# --- SETTINGS (REKLAMA VA SOZLAMALAR) ---
+# --- SETTINGS ---
 def set_setting(key: str, value: str):
     try:
         with db_cursor(commit=True) as cur:
@@ -158,7 +160,7 @@ def get_setting(key: str, default: str = "") -> str:
         logger.error(f"Sozlama olish xatosi: {e}")
         return default
 
-# --- SPONSOR CHANNELS ---
+# --- SPONSORS ---
 def add_sponsor_channel(channel_id: str, channel_title: str, channel_url: str) -> bool:
     try:
         with db_cursor(commit=True) as cur:
@@ -211,7 +213,7 @@ def toggle_reaction(post_id: int, user_id: int, reaction: str) -> dict:
         logger.error(f"Reaksiya xatosi: {e}")
         return {}
 
-# --- USERS & DAILY STREAK BONUS ---
+# --- USERS, REKLAMASIZ POSTLAR & STREAK ---
 def _generate_user_code(cur) -> str:
     letters = string.ascii_lowercase
     for _ in range(50):
@@ -233,8 +235,8 @@ def save_user(user_id: int, username: str, full_name: str = "", referrer_id: int
                 code = _generate_user_code(cur)
                 valid_ref = referrer_id if referrer_id and referrer_id != user_id else None
                 cur.execute("""
-                    INSERT INTO users (user_id, username, full_name, user_code, referrer_id, ai_credits, ad_free_posts, streak_days, created_at)
-                    VALUES (%s, %s, %s, %s, %s, 5, 0, 0, NOW())
+                    INSERT INTO users (user_id, username, full_name, user_code, referrer_id, ai_credits, ad_free_posts, ad_free_active, streak_days, created_at)
+                    VALUES (%s, %s, %s, %s, %s, 5, 0, TRUE, 0, NOW())
                 """, (user_id, username, full_name, code, valid_ref))
                 
                 if valid_ref:
@@ -245,10 +247,6 @@ def save_user(user_id: int, username: str, full_name: str = "", referrer_id: int
         return False
 
 def claim_daily_streak_bonus(user_id: int) -> dict:
-    """
-    Ketma-ket kunlik kirish (Streak) bonusini hisoblash.
-    1-kun: +1 | 2-kun: +1 | 3-kun: +2 | 4-kun: +1 | 5-kun: +2 | 6-kun: +2 | 7-kun: +4
-    """
     today = date.today()
     reward_map = {1: 1, 2: 1, 3: 2, 4: 1, 5: 2, 6: 2, 7: 4}
 
@@ -262,7 +260,6 @@ def claim_daily_streak_bonus(user_id: int) -> dict:
             last_date, streak, credits = row
             streak = streak or 0
 
-            # Bugun allaqachon olgan bo'lsa
             if last_date == today:
                 return {
                     "success": False,
@@ -271,11 +268,10 @@ def claim_daily_streak_bonus(user_id: int) -> dict:
                     "credits": credits
                 }
 
-            # Seriya tekshiruvi: agar oxirgi kirgan kuni kecha bo'lsa streak davom etadi, aks holda 1-kundan boshlanadi
             if last_date == today - timedelta(days=1):
                 streak = streak + 1 if streak < 7 else 1
             else:
-                streak = 1  # Orada kun o'tkazib yuborilgan
+                streak = 1
 
             bonus_amount = reward_map.get(streak, 1)
             new_credits = credits + bonus_amount
@@ -298,30 +294,70 @@ def claim_daily_streak_bonus(user_id: int) -> dict:
         return {"success": False, "msg": "Tizim xatoligi yuz berdi."}
 
 def buy_ad_free_posts(user_id: int) -> tuple[bool, str]:
+    """1 ball evaziga 5 ta reklamasiz toza post olish."""
     try:
         with db_cursor(commit=True) as cur:
             cur.execute("SELECT ai_credits FROM users WHERE user_id = %s FOR UPDATE", (user_id,))
             row = cur.fetchone()
             if not row or row[0] < 1:
-                return False, "Hisobingizda yetarli ball yo'q (kamida 1 ball kerak)."
+                return False, "Hisobingizda yetarli ball mavjud emas."
             
-            cur.execute("UPDATE users SET ai_credits = ai_credits - 1, ad_free_posts = ad_free_posts + 5 WHERE user_id = %s", (user_id,))
-            return True, "🎉 <b>Tabriklaymiz!</b> Siz 1 ta ball evaziga <b>5 ta reklamasiz toza post</b> litsenziyasini faollashtirdingiz!"
+            cur.execute("UPDATE users SET ai_credits = ai_credits - 1, ad_free_posts = ad_free_posts + 5, ad_free_active = TRUE WHERE user_id = %s", (user_id,))
+            return True, "✅ <b>5 ta reklamasiz toza post</b> litsenziyasi qo'shildi!"
     except Exception as e:
-        logger.error(f"Reklamasiz post xaridida xato: {e}")
+        logger.error(f"Xarid xatosi: {e}")
         return False, f"Xatolik: {e}"
 
-def consume_ad_free_post(user_id: int) -> bool:
+def refund_ad_free_posts(user_id: int) -> tuple[bool, str]:
+    """Reklamasiz postlarni bekor qilib, ballarni qaytarib olish (5 post = 1 ball)."""
     try:
         with db_cursor(commit=True) as cur:
             cur.execute("SELECT ad_free_posts FROM users WHERE user_id = %s FOR UPDATE", (user_id,))
             row = cur.fetchone()
-            if row and row[0] > 0:
+            if not row or row[0] < 5:
+                return False, "Ballni qaytarish uchun kamida <b>5 ta</b> ishlatilmagan post litsenziyasi bo'lishi kerak."
+            
+            refund_credits = row[0] // 5
+            remaining_posts = row[0] % 5
+            
+            cur.execute("""
+                UPDATE users 
+                SET ai_credits = ai_credits + %s, ad_free_posts = %s 
+                WHERE user_id = %s
+            """, (refund_credits, remaining_posts, user_id))
+            
+            return True, f"✅ <b>{refund_credits * 5} ta post litsenziyasi</b> bekor qilindi va hisobingizga <b>+{refund_credits} ta AI ball</b> qaytarildi!"
+    except Exception as e:
+        logger.error(f"Qaytarish xatosi: {e}")
+        return False, f"Xatolik: {e}"
+
+def toggle_ad_free_status(user_id: int) -> tuple[bool, bool]:
+    """Reklamasiz post rejimini yoqish/o'chirish."""
+    try:
+        with db_cursor(commit=True) as cur:
+            cur.execute("SELECT ad_free_active, ad_free_posts FROM users WHERE user_id = %s FOR UPDATE", (user_id,))
+            row = cur.fetchone()
+            if not row:
+                return False, False
+            new_status = not (row[0] if row[0] is not None else True)
+            cur.execute("UPDATE users SET ad_free_active = %s WHERE user_id = %s", (new_status, user_id))
+            return True, new_status
+    except Exception as e:
+        logger.error(f"Status o'zgartirish xatosi: {e}")
+        return False, False
+
+def consume_ad_free_post(user_id: int) -> bool:
+    """Post chiqayotganda faqat rejim YOQILGAN va litsenziya bo'lsa ishlatish."""
+    try:
+        with db_cursor(commit=True) as cur:
+            cur.execute("SELECT ad_free_posts, ad_free_active FROM users WHERE user_id = %s FOR UPDATE", (user_id,))
+            row = cur.fetchone()
+            if row and row[0] > 0 and (row[1] is True or row[1] is None):
                 cur.execute("UPDATE users SET ad_free_posts = ad_free_posts - 1 WHERE user_id = %s", (user_id,))
                 return True
             return False
     except Exception as e:
-        logger.error(f"Litsenziya ishlatishda xato: {e}")
+        logger.error(f"Litsenziya sarflash xatosi: {e}")
         return False
 
 def get_user_credits(user_id: int) -> int:
@@ -375,7 +411,7 @@ def transfer_user_credits(from_user_id: int, to_user_id: int, amount: int) -> tu
             
             credits, created_at = row_from
             if created_at and (datetime.now() - created_at).days < 3:
-                return False, "⚠️ <b>Xavfsizlik qoidasi:</b> Yangi ro'yxatdan o'tgan foydalanuvchilar ballarni ro'yxatdan o'tgandan <b>3 kun o'tgach</b> boshqalarga ulasha oladi."
+                return False, "⚠️ <b>Xavfsizlik qoidasi:</b> Yangi ro'yxatdan o'tgan foydalanuvchilar ballarni <b>3 kun o'tgach</b> boshqalarga ulasha oladi."
                 
             if credits < amount:
                 return False, "Hisobingizda yetarli ball mavjud emas."
@@ -396,15 +432,16 @@ def get_referral_stats(user_id: int) -> dict:
         with db_cursor() as cur:
             cur.execute("SELECT COUNT(*) FROM users WHERE referrer_id = %s", (user_id,))
             ref_count = cur.fetchone()[0]
-            cur.execute("SELECT ai_credits, ad_free_posts, streak_days FROM users WHERE user_id = %s", (user_id,))
+            cur.execute("SELECT ai_credits, ad_free_posts, streak_days, ad_free_active FROM users WHERE user_id = %s", (user_id,))
             row = cur.fetchone()
             credits = row[0] if row and row[0] is not None else 0
             ad_free = row[1] if row and len(row) > 1 and row[1] is not None else 0
             streak = row[2] if row and len(row) > 2 and row[2] is not None else 0
-            return {"referrals_count": ref_count, "ai_credits": credits, "ad_free_posts": ad_free, "streak": streak}
+            active = row[3] if row and len(row) > 3 and row[3] is not None else True
+            return {"referrals_count": ref_count, "ai_credits": credits, "ad_free_posts": ad_free, "streak": streak, "ad_free_active": active}
     except Exception as e:
         logger.error(f"Referral xatosi: {e}")
-        return {"referrals_count": 0, "ai_credits": 0, "ad_free_posts": 0, "streak": 0}
+        return {"referrals_count": 0, "ai_credits": 0, "ad_free_posts": 0, "streak": 0, "ad_free_active": True}
 
 def get_all_user_ids() -> list:
     try:
