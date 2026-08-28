@@ -8,15 +8,39 @@ import database as db
 
 logger = logging.getLogger(__name__)
 tashkent_tz = pytz.timezone("Asia/Tashkent")
+_bot_username_cache = None
 
 DEFAULT_REACTIONS = ["👍", "❤️", "🔥", "👏"]
 
-def build_post_keyboard(post_id: int, custom_btn_text: Optional[str], custom_btn_url: Optional[str], enable_reactions: bool) -> Optional[InlineKeyboardMarkup]:
+def build_post_keyboard(bot, post_id: int, custom_btn_text: Optional[str], custom_btn_url: Optional[str], enable_reactions: bool) -> Optional[InlineKeyboardMarkup]:
+    global _bot_username_cache
     keyboard = []
     
+    # 1. Foydalanuvchining shaxsiy URL tugmasi (birinchi bo'lib turadi)
     if custom_btn_text and custom_btn_url:
         keyboard.append([InlineKeyboardButton(custom_btn_text, url=custom_btn_url)])
-        
+
+    # 2. Botning havolasi (Tugmalardan keyin, lekin reaksiyalardan oldin)
+    if (custom_btn_text and custom_btn_url) or enable_reactions:
+        ad_title = db.get_setting("ad_title", "")
+        ad_link = db.get_setting("ad_link", "")
+
+        if ad_title and ad_link:
+            keyboard.append([InlineKeyboardButton(f"📢 {ad_title}", url=ad_link)])
+        else:
+            try:
+                username = _bot_username_cache or getattr(bot, "username", None)
+                if username:
+                    _bot_username_cache = username
+                    bot_url = f"https://t.me/{username}"
+                    
+                    # Agar pastida 4 ta reaksiya bo'lsa qisqa (PostAR), bo'lmasa kattaroq nom
+                    btn_label = "🤖 PostAR" if enable_reactions else "🤖 Post Assist Bot"
+                    keyboard.append([InlineKeyboardButton(btn_label, url=bot_url)])
+            except Exception:
+                pass
+
+    # 3. Reaksiya (stikker) tugmalari (eng pastki qatorda turadi)
     if enable_reactions:
         counts = db.get_reaction_counts(post_id)
         react_row = []
@@ -52,11 +76,11 @@ async def check_and_send_posts(bot):
          btn_text, btn_url, enable_reactions, scheduled_time,
          recurrence_type, recurrence_day, recurrence_time, end_date) = post
         
-        markup = build_post_keyboard(post_id, btn_text, btn_url, enable_reactions)
+        markup = build_post_keyboard(bot, post_id, btn_text, btn_url, enable_reactions)
         try:
             target_chat = int(channel_id) if str(channel_id).lstrip('-').isdigit() else channel_id
             
-            # Premium emojilar va formatlarni 100% asl holatda nusxalash
+            # Postni 100% asl formatida nusxalab chiqarish
             if post_type == "original_message" and file_id:
                 await bot.copy_message(
                     chat_id=target_chat,
