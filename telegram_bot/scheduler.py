@@ -9,110 +9,144 @@ import database as db
 logger = logging.getLogger(__name__)
 tashkent_tz = pytz.timezone("Asia/Tashkent")
 _bot_username_cache = None
-
 DEFAULT_REACTIONS = ["👍", "❤️", "🔥", "👏"]
 
-def build_post_keyboard(bot, post_id: int, custom_btn_text: Optional[str], custom_btn_url: Optional[str], enable_reactions: bool) -> Optional[InlineKeyboardMarkup]:
-    global _bot_username_cache
-    keyboard = []
-    
-    # 1. Foydalanuvchining shaxsiy URL tugmasi (birinchi bo'lib turadi)
-    if custom_btn_text and custom_btn_url:
-        keyboard.append([InlineKeyboardButton(custom_btn_text, url=custom_btn_url)])
 
-    # 2. Botning havolasi (Tugmalardan keyin, lekin reaksiyalardan oldin)
-    if (custom_btn_text and custom_btn_url) or enable_reactions:
-        ad_title = db.get_setting("ad_title", "")
-        ad_link = db.get_setting("ad_link", "")
+def build_post_keyboard(
+    bot,
+    post_id: int,
+    custom_btn_text: Optional[str],
+    custom_btn_url: Optional[str],
+    enable_reactions: bool,
+) -> Optional[InlineKeyboardMarkup]:
+  global _bot_username_cache
+  keyboard = []
 
-        if ad_title and ad_link:
-            keyboard.append([InlineKeyboardButton(f"📢 {ad_title}", url=ad_link)])
-        else:
-            try:
-                username = _bot_username_cache or getattr(bot, "username", None)
-                if username:
-                    _bot_username_cache = username
-                    bot_url = f"https://t.me/{username}"
-                    
-                    # Agar pastida 4 ta reaksiya bo'lsa qisqa (PostAR), bo'lmasa kattaroq nom
-                    btn_label = "🤖 PostAR" if enable_reactions else "🤖 Post Assist Bot"
-                    keyboard.append([InlineKeyboardButton(btn_label, url=bot_url)])
-            except Exception:
-                pass
+  # 1. Shaxsiy URL tugma
+  if custom_btn_text and custom_btn_url:
+    keyboard.append([InlineKeyboardButton(custom_btn_text, url=custom_btn_url)])
 
-    # 3. Reaksiya (stikker) tugmalari (eng pastki qatorda turadi)
-    if enable_reactions:
-        counts = db.get_reaction_counts(post_id)
-        react_row = []
-        for emoji in DEFAULT_REACTIONS:
-            c = counts.get(emoji, 0)
-            label = f"{emoji} {c}" if c > 0 else emoji
-            react_row.append(InlineKeyboardButton(label, callback_data=f"react:{post_id}:{emoji}"))
-        keyboard.append(react_row)
+  # 2. Reklama yoki Bot havolasi
+  if (custom_btn_text and custom_btn_url) or enable_reactions:
+    ad_title = db.get_setting("ad_title", "")
+    ad_link = db.get_setting("ad_link", "")
+    if ad_title and ad_link:
+      keyboard.append([InlineKeyboardButton(f"📢 {ad_title}", url=ad_link)])
+    else:
+      try:
+        username = _bot_username_cache or getattr(bot, "username", None)
+        if username:
+          _bot_username_cache = username
+          bot_url = f"https://t.me/{username}"
+          btn_label = (
+              "⚡ PostAR" if enable_reactions else "🤖 Post Assist Bot"
+          )
+          keyboard.append([InlineKeyboardButton(btn_label, url=bot_url)])
+      except Exception:
+        pass
 
-    return InlineKeyboardMarkup(keyboard) if keyboard else None
+  # 3. Reaksiyalar qatori
+  if enable_reactions:
+    counts = db.get_reaction_counts(post_id)
+    react_row = []
+    for emoji in DEFAULT_REACTIONS:
+      c = counts.get(emoji, 0)
+      label = f"{emoji} {c}" if c > 0 else emoji
+      react_row.append(
+          InlineKeyboardButton(
+              label, callback_data=f"react:{post_id}:{emoji}"
+          )
+      )
+    keyboard.append(react_row)
+
+  return InlineKeyboardMarkup(keyboard) if keyboard else None
+
 
 def _calculate_next_run(rec_type, current_time, now):
-    if rec_type == 'daily':
-        next_time = current_time + timedelta(days=1)
-        while next_time <= now:
-            next_time += timedelta(days=1)
-        return next_time
-    elif rec_type == 'weekly':
-        next_time = current_time + timedelta(weeks=1)
-        while next_time <= now:
-            next_time += timedelta(weeks=1)
-        return next_time
-    return None
+  if rec_type == "daily":
+    next_time = current_time + timedelta(days=1)
+    while next_time <= now:
+      next_time += timedelta(days=1)
+    return next_time
+  elif rec_type == "weekly":
+    next_time = current_time + timedelta(weeks=1)
+    while next_time <= now:
+      next_time += timedelta(weeks=1)
+    return next_time
+  return None
+
 
 async def check_and_send_posts(bot):
-    now = datetime.now(tashkent_tz)
-    posts = db.get_due_posts(now)
-    if not posts:
-        return
+  now = datetime.now(tashkent_tz)
+  posts = db.get_due_posts(now)
+  if not posts:
+    return
 
-    for post in posts:
-        (post_id, user_id, channel_id, post_type, content, file_id,
-         btn_text, btn_url, enable_reactions, scheduled_time,
-         recurrence_type, recurrence_day, recurrence_time, end_date) = post
-        
-        markup = build_post_keyboard(bot, post_id, btn_text, btn_url, enable_reactions)
-        try:
-            target_chat = int(channel_id) if str(channel_id).lstrip('-').isdigit() else channel_id
-            
-            # Postni 100% asl formatida nusxalab chiqarish
-            if post_type == "original_message" and file_id:
-                await bot.copy_message(
-                    chat_id=target_chat,
-                    from_chat_id=user_id,
-                    message_id=int(file_id),
-                    reply_markup=markup
-                )
-            else:
-                caption = content or ""
-                await bot.send_message(chat_id=target_chat, text=caption, reply_markup=markup)
+  for post in posts:
+    (
+        post_id,
+        user_id,
+        channel_id,
+        post_type,
+        content,
+        file_id,
+        btn_text,
+        btn_url,
+        enable_reactions,
+        scheduled_time,
+        recurrence_type,
+        recurrence_day,
+        recurrence_time,
+        end_date,
+    ) = post
 
-            if recurrence_type in ('daily', 'weekly'):
-                if end_date and now >= end_date:
-                    db.mark_post_status(post_id, "completed")
-                else:
-                    next_time = _calculate_next_run(recurrence_type, scheduled_time, now)
-                    if next_time and (end_date is None or next_time <= end_date):
-                        db.reschedule_recurring_post(post_id, next_time)
-                    else:
-                        db.mark_post_status(post_id, "completed")
-            else:
-                db.mark_post_status(post_id, "posted")
+    markup = build_post_keyboard(
+        bot, post_id, btn_text, btn_url, enable_reactions
+    )
+    try:
+      target_chat = (
+          int(channel_id)
+          if str(channel_id).lstrip("-").isdigit()
+          else channel_id
+      )
 
-        except TelegramError as e:
-            logger.error(f"Post #{post_id} yuborishda xato: {e}")
-            if recurrence_type == 'none':
-                db.mark_post_status(post_id, "failed")
-            try:
-                await bot.send_message(chat_id=user_id, text=f"⚠️ Post #{post_id} kanalingizga yuborilmadi: {e}")
-            except Exception:
-                pass
-        except Exception as e:
-            logger.error(f"Kutilmagan xato: {e}")
-            if recurrence_type == 'none':
-                db.mark_post_status(post_id, "failed")
+      if post_type == "original_message" and file_id:
+        await bot.copy_message(
+            chat_id=target_chat,
+            from_chat_id=user_id,
+            message_id=int(file_id),
+            reply_markup=markup,
+        )
+      else:
+        caption = content or ""
+        await bot.send_message(
+            chat_id=target_chat, text=caption, reply_markup=markup
+        )
+
+      if recurrence_type in ("daily", "weekly"):
+        if end_date and now >= end_date:
+          db.mark_post_status(post_id, "completed")
+        else:
+          next_time = _calculate_next_run(recurrence_type, scheduled_time, now)
+          if next_time and (end_date is None or next_time <= end_date):
+            db.reschedule_recurring_post(post_id, next_time)
+          else:
+            db.mark_post_status(post_id, "completed")
+      else:
+        db.mark_post_status(post_id, "posted")
+
+    except TelegramError as e:
+      logger.error(f"Post #{post_id} yuborishda xato: {e}")
+      if recurrence_type == "none":
+        db.mark_post_status(post_id, "failed")
+      try:
+        await bot.send_message(
+            chat_id=user_id,
+            text=f"⚠️ Post #{post_id} kanalingizga yuborilmadi: {e}",
+        )
+      except Exception:
+        pass
+    except Exception as e:
+      logger.error(f"Kutilmagan xato: {e}")
+      if recurrence_type == "none":
+        db.mark_post_status(post_id, "failed")
