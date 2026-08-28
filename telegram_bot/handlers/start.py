@@ -5,7 +5,7 @@ from config import ADMIN_ID
 import database as db
 from keyboards.default import get_main_keyboard, get_cabinet_keyboard, get_cancel_keyboard
 from keyboards.inline import get_referral_share_keyboard, get_subscription_check_keyboard
-from utils.helpers import html_escape
+from utils.helpers import html_escape, get_smart_reply_ad
 
 TRANSFER_TARGET = 500
 TRANSFER_AMOUNT = 501
@@ -64,10 +64,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return ConversationHandler.END
 
     is_admin = (user.id == ADMIN_ID)
+    ad_line = get_smart_reply_ad(user.id)
     await update.message.reply_text(
         f"Salom, <b>{html_escape(user.first_name)}</b>! 👋\n\n"
         f"🤖 <b>PostAssistrobot</b> — Telegram kanallaringizga postlarni rejalashtirib joylovchi aqlli yordamchingiz.\n\n"
-        f"Quyidagi menyudan kerakli bo'limni tanlang 👇",
+        f"Quyidagi menyudan kerakli bo'limni tanlang 👇{ad_line}",
         reply_markup=get_main_keyboard(is_admin),
         parse_mode="HTML"
     )
@@ -105,20 +106,56 @@ async def user_cabinet_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_code = db.get_user_code(user.id)
     
     credits_text = "♾ Cheksiz (Super Admin)" if is_admin else f"<b>{stats['ai_credits']} ta</b>"
+    ad_free_text = "♾ Cheksiz" if is_admin else f"<b>{stats['ad_free_posts']} ta</b>"
+    ad_line = get_smart_reply_ad(user.id)
     
     text = (
         f"👤 <b>Shaxsiy Kabinet:</b>\n\n"
         f"🆔 Sizning ID: <code>{user.id}</code>\n"
-        f"🔑 Sizning kodingiz: <code>{user_code}</code>\n"
+        f"🔑 Maxsus kodingiz: <code>{user_code}</code>\n"
         f"💎 Mavjud AI so'rovlar soni: {credits_text}\n"
+        f"✨ Reklamasiz postlar litsenziyasi: {ad_free_text}\n"
         f"📢 Ulangan kanallar: <b>{len(channels)} ta</b>\n"
         f"👥 Taklif qilgan do'stlaringiz: <b>{stats['referrals_count']} ta</b>\n\n"
-        f"Quyidagi bo'limlardan birini tanlang 👇"
+        f"Quyidagi bo'limlardan birini tanlang 👇{ad_line}"
     )
     await update.message.reply_text(text, reply_markup=get_cabinet_keyboard(), parse_mode="HTML")
 
+async def daily_bonus_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    is_admin = (user.id == ADMIN_ID)
+    
+    if is_admin:
+        await update.message.reply_text("👑 <b>Siz Super Adminsiz</b> — hisobingizda cheksiz so'rov mavjud!", parse_mode="HTML")
+        return
+        
+    success, msg, credits = db.claim_daily_bonus(user.id)
+    if success:
+        await update.message.reply_text(
+            f"{msg}\n\n💎 Sizdagi jami AI so'rovlar soni: <b>{credits} ta</b>",
+            reply_markup=get_cabinet_keyboard(),
+            parse_mode="HTML"
+        )
+    else:
+        await update.message.reply_text(
+            f"ℹ️ {msg}\n\n💎 Hozirgi balansingiz: <b>{credits} ta</b>",
+            reply_markup=get_cabinet_keyboard(),
+            parse_mode="HTML"
+        )
+
+async def buy_ad_free_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """1 ballga 5 ta reklamasiz toza post sotib olish."""
+    user = update.effective_user
+    is_admin = (user.id == ADMIN_ID)
+    
+    if is_admin:
+        await update.message.reply_text("👑 Siz Super Adminsiz — barcha postlaringiz doim reklamasiz chiqadi!", parse_mode="HTML")
+        return
+        
+    success, msg = db.buy_ad_free_posts(user.id)
+    await update.message.reply_text(msg, reply_markup=get_cabinet_keyboard(), parse_mode="HTML")
+
 async def user_invite_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Do'stlarni taklif qilish bo'limi."""
     context.user_data.clear()
     user = update.effective_user
     is_admin = (user.id == ADMIN_ID)
@@ -141,9 +178,8 @@ async def user_invite_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode="HTML"
     )
 
-# --- BALLARNI ULASHISH (TRANSFER) ---
+# --- BALLARNI ULASHISH ---
 async def start_transfer_credits(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Ballarni boshqa do'stiga o'tkazishni boshlash."""
     context.user_data.clear()
     user_id = update.effective_user.id
     my_credits = db.get_user_credits(user_id)
@@ -151,18 +187,17 @@ async def start_transfer_credits(update: Update, context: ContextTypes.DEFAULT_T
     if my_credits < 3 and user_id != ADMIN_ID:
         await update.message.reply_text(
             f"⚠️ <b>Hisobingizda yetarli ball yo'q!</b>\n\n"
-            f"Ball o'tkazish uchun hisobingizda kamida <b>3 ta ball</b> bo'lishi kerak. Sizda esa: <b>{my_credits} ta</b>.\n"
-            f"Do'stlaringizni taklif qilib ko'proq ball to'plashingiz mumkin!",
+            f"Ball o'tkazish uchun kamida <b>3 ta ball</b> kerak. Sizda esa: <b>{my_credits} ta</b>.\n"
+            f"Kunlik bonus yoki taklif havolasi orqali ball to'plashingiz mumkin!",
             reply_markup=get_cabinet_keyboard(),
             parse_mode="HTML"
         )
         return ConversationHandler.END
 
     await update.message.reply_text(
-        "🎁 <b>Ballarni (AI so'rovlarni) ulashish:</b>\n\n"
-        "Ballarni kimga yubormoqchisiz?\n"
-        "Do'stingizning <b>ID raqamini</b>, <b>Telegram usernamesini (@ bilan)</b> yoki botdagi <b>maxsus kodini</b> yuboring:\n\n"
-        "<i>(Bekor qilish uchun '🔙 Asosiy menyu' tugmasini bosing)</i>",
+        "🔄 <b>Ballarni (AI so'rovlarni) ulashish:</b>\n\n"
+        "Do'stingizning <b>ID raqamini</b>, <b>Telegram usernamesini (@...)</b> yoki botdagi <b>maxsus kodini</b> yuboring:\n"
+        "<i>(Eslatma: Xavfsizlik uchun ro'yxatdan o'tganiga 3 kun to'lmagan foydalanuvchilar ball ulasha olmaydi)</i>",
         reply_markup=get_cancel_keyboard(),
         parse_mode="HTML"
     )
@@ -174,15 +209,14 @@ async def transfer_target_received(update: Update, context: ContextTypes.DEFAULT
     
     if not target_user:
         await update.message.reply_text(
-            "❌ <b>Foydalanuvchi topilmadi!</b>\n"
-            "Iltimos, do'stingiz botga kamida bir marta kirganligiga ishonch hosil qiling va uning to'g'ri ID raqamini yoki kodini yuboring:",
+            "❌ <b>Foydalanuvchi topilmadi!</b>\nIltimos, to'g'ri ID raqam yoki kodni kiriting:",
             parse_mode="HTML"
         )
         return TRANSFER_TARGET
 
     t_id, t_name, t_user, t_code, t_cred = target_user
     if t_id == update.effective_user.id:
-        await update.message.reply_text("⚠️ O'zingizga ball o'tkaza olmaysiz! Boshqa do'stingizning ID/kodini kiriting:")
+        await update.message.reply_text("⚠️ O'zingizga ball o'tkaza olmaysiz! Boshqa do'stingizning ma'lumotini kiriting:")
         return TRANSFER_TARGET
 
     context.user_data["transfer_to_id"] = t_id
@@ -220,7 +254,6 @@ async def transfer_amount_received(update: Update, context: ContextTypes.DEFAULT
             reply_markup=get_cabinet_keyboard(),
             parse_mode="HTML"
         )
-        # Qabul qiluvchiga xushxabar yuboramiz
         try:
             sender_name = update.effective_user.first_name
             await context.bot.send_message(
@@ -231,39 +264,38 @@ async def transfer_amount_received(update: Update, context: ContextTypes.DEFAULT
         except Exception:
             pass
     else:
-        await update.message.reply_text(f"❌ Xatolik: {msg}", reply_markup=get_cabinet_keyboard())
+        await update.message.reply_text(f"❌ Xatolik: {msg}", reply_markup=get_cabinet_keyboard(), parse_mode="HTML")
         
     context.user_data.clear()
     return ConversationHandler.END
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """To'liq qo'llanma va bot vazifalari."""
     is_admin = (update.effective_user.id == ADMIN_ID)
+    ad_line = get_smart_reply_ad(update.effective_user.id)
     text = (
         "📖 <b>PostAssistrobot — To'liq Qo'llanma:</b>\n\n"
         "🔹 <b>1. Yangi post rejalashtirish:</b>\n"
-        "• Matn, rasm, video, audio yoki premium stikerli postlarni istalgan sanaga rejalashtirish.\n"
-        "• Post ostiga havola tugmalar (URL button) va reaksiyalar qo'shish.\n"
-        "• <b>Avto-o'chirish:</b> Reklama postlarini kanalda 12, 24, 48 yoki 72 soatdan so'ng avtomatik o'chirish.\n\n"
-        "🔹 <b>2. AI Post Yordamchi (Sun'iy Intellekt):</b>\n"
-        "• Istalgan mavzuni erkin yozing yoki rasm yuboring (masalan: <i>'Ertaga 18:50 ga sevgi haqida she'r yoz'</i>).\n"
-        "• AI o'zbek tilidagi qisqartmalarni tushunib, post tayyorlaydi va chiqish vaqtini o'zi belgilaydi.\n\n"
-        "🔹 <b>3. Ballar, Referal va Ulashish:</b>\n"
-        "• Har bir yangi foydalanuvchiga <b>5 ta bepul AI so'rovi</b> beriladi.\n"
-        "• Har bir do'stingizni taklif qilganingiz uchun <b>+3 ta bepul AI so'rovi</b> olasiz.\n"
-        "• O'zingizdagi ballarni <b>'🎁 Ballarni ulashish'</b> orqali do'stlaringizga o'tkazib berishingiz mumkin (3 tadan 20 tagacha).\n\n"
-        "🔹 <b>4. Matn O'girgich (Lotin ⇄ Kirill):</b>\n"
-        "• Istalgan matn yoki fayl ostidagi izohlarni bir zumda xatosiz o'girib beradi.\n\n"
+        "• Matn, rasm, video yoki audio postlarni istalgan sanaga rejalashtirish.\n"
+        "• Havola tugmalar (URL button), reaksiyalar va avto-o'chirish (12, 24, 48, 72 soat).\n"
+        "• <i>Bepul postlar boshida bot nishoni bo'ladi. Litsenziya xarid qilsangiz reklamasiz toza post chiqadi!</i>\n\n"
+        "🔹 <b>2. AI Post Yordamchi:</b>\n"
+        "• Matn yoki rasm yuborib, professional post va she'rlar tayyorlash.\n\n"
+        "🔹 <b>3. Ballar va Litsenziyalar:</b>\n"
+        "• <b>Kunlik bonus:</b> Har kuni +1 ta ball oling.\n"
+        "• <b>Reklamasiz postlar:</b> 1 ta ball evaziga 5 ta toza post xarid qiling.\n"
+        "• <b>Ballarni ulashish:</b> 3 kun o'tgach ballaringizni do'stlaringizga o'tkazing.\n\n"
+        "🔹 <b>4. Matn O'girgich:</b>\n"
+        "• Lotin ⇄ Kirill alifbolariga tezkor o'girish.\n\n"
         "⚙️ <b>Tezkor buyruqlar:</b>\n"
         "/start — Bosh menyu\n"
         "/newpost — Yangi post\n"
-        "/profile — Kabinet va sozlamalar\n"
-        "/help — Ushbu yo'riqnoma\n"
+        "/profile — Kabinet\n"
+        "/help — Qo'llanma\n"
         "/cancel — Bekor qilish"
     )
     if is_admin:
-        text += "\n\n👑 <b>Admin buyruqlari:</b>\n/admin — Boshqaruv paneli\n/broadcast — Hammaga xabar yuborish\n/stats — Statistika"
-    await update.message.reply_text(text, reply_markup=get_main_keyboard(is_admin), parse_mode="HTML")
+        text += "\n\n👑 <b>Admin buyruqlari:</b>\n/admin — Boshqaruv paneli\n/broadcast — Xabar yuborish\n/stats — Statistika"
+    await update.message.reply_text(f"{text}{ad_line}", reply_markup=get_main_keyboard(is_admin), parse_mode="HTML")
 
 async def cancel_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     is_admin = (update.effective_user.id == ADMIN_ID)
