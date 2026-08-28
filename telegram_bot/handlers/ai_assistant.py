@@ -22,13 +22,14 @@ async def start_ai_assistant(update: Update, context: ContextTypes.DEFAULT_TYPE)
     is_admin = (user_id == ADMIN_ID)
     credits = db.get_user_credits(user_id)
     
+    # Super Admin uchun cheklov yo'q
     if not is_admin and credits <= 0:
         bot_obj = await context.bot.get_me()
         ref_link = f"https://t.me/{bot_obj.username}?start=ref_{user_id}"
         await update.message.reply_text(
             "⚠️ <b>Sizda bepul AI so'rovlari soni tugadi!</b>\n\n"
             "Ko'proq so'rov olish uchun do'stlaringizni taklif qiling.\n"
-            "🎁 <i>Har bir do'stingiz uchun sizga <b>+3 ta bepul so'rov</b> beriladi!</i>\n\n"
+            "🎁 <i>Har bir do'stingiz uchun sizga <b>+3 ta bepul AI so'rovi</b> beriladi!</i>\n\n"
             f"🔗 Sizning taklif havolangiz:\n<code>{ref_link}</code>",
             parse_mode="HTML"
         )
@@ -38,37 +39,62 @@ async def start_ai_assistant(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     await update.message.reply_text(
         f"🤖 <b>AI Post Yordamchisiga xush kelibsiz!</b>\n\n"
-        f"💎 Sizdagi mavjud so'rovlar soni: {limit_info}\n\n"
-        f"Istalgan sohada qanday post tayyorlash kerakligini erkin yozing:\n"
-        f"👉 <i>Masalan: 'Ertaga soat 15:00 ga chegirmalar haqida qiziqarli post yozib kanalga rejalashtir'</i>",
+        f"💎 Sizdagi mavjud AI so'rovlar soni: {limit_info}\n\n"
+        f"Post mavzusini matn yoki <b>rasm (izohi bilan)</b> yuboring:\n"
+        f"👉 <i>Masalan: 'Ertaga soat 15:00 ga aksiya haqida post yozib kanalga rejalashtir'</i>",
         reply_markup=get_cancel_keyboard(),
         parse_mode="HTML"
     )
     return AI_INPUT
 
 async def ai_input_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Foydalanuvchi matnini AI orqali tahlil qilish."""
+    """Foydalanuvchi matni yoki rasmini AI orqali tahlil qilish."""
+    msg = update.message
     user_id = update.effective_user.id
     is_admin = (user_id == ADMIN_ID)
-    prompt = update.message.text
     
+    prompt = ""
+    file_id = None
+    post_type = "text"
+    
+    # 1. Matn yoki Rasmni aniqlash
+    if msg.text:
+        prompt = msg.text
+        # Agar oldin rasm saqlangan bo'lsa, o'shani ishlatamiz
+        file_id = context.user_data.get("ai_file_id")
+        post_type = "photo" if file_id else "text"
+    elif msg.photo:
+        file_id = msg.photo[-1].file_id
+        context.user_data["ai_file_id"] = file_id
+        post_type = "photo"
+        prompt = msg.caption or ""
+        
+        # Agar rasm tagida yozuv bo'lmasa, matn so'raymiz
+        if not prompt:
+            await msg.reply_text(
+                "📸 <b>Rasm qabul qilindi!</b>\n\nEndi ushbu rasm uchun qanday post yozish kerakligini yozing:",
+                parse_mode="HTML"
+            )
+            return AI_INPUT
+
     if not prompt:
-        await update.message.reply_text("Iltimos, matnli buyruq yuboring:")
+        await msg.reply_text("Iltimos, post mavzusi yoki buyruqni matn ko'rinishida yuboring:")
         return AI_INPUT
 
-    msg_wait = await update.message.reply_text("⏳ <i>AI post tayyorlamoqda, iltimos kuting...</i>", parse_mode="HTML")
+    msg_wait = await msg.reply_text("⏳ <i>AI post tayyorlamoqda, iltimos kuting...</i>", parse_mode="HTML")
     
     result = analyze_user_prompt(prompt, user_id=user_id)
     await msg_wait.delete()
     
     if "error" in result:
-        await update.message.reply_text(
+        await msg.reply_text(
             f"⚠️ {result['error']}",
             reply_markup=get_main_keyboard(is_admin),
             parse_mode="HTML"
         )
         return ConversationHandler.END
 
+    # Post tayyor bo'lgach 1 ta so'rov ayiramiz
     if not is_admin:
         db.use_user_credit(user_id)
     
@@ -77,6 +103,8 @@ async def ai_input_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     context.user_data["ai_generated_post"] = post_text
     context.user_data["ai_scheduled_time"] = sched_time
+    context.user_data["ai_post_type"] = post_type
+    context.user_data["ai_file_id"] = file_id
     
     time_info = f"\n\n🕒 <b>Rejalashtirilgan chiqish vaqti:</b> <code>{sched_time}</code>" if sched_time else "\n\n🕒 <b>Chiqish vaqti:</b> Ko'rsatilmadi (Tasdiqlansa hozir chiqadi)"
     
@@ -85,14 +113,27 @@ async def ai_input_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("🔄 Qaytadan yozish", callback_data="ai_post_retry")]
     ]
     
-    await update.message.reply_text(
+    preview_text = (
         f"✨ <b>AI tomonidan tayyorlangan post:</b>\n\n"
         f"{html_escape(post_text)}"
         f"{time_info}\n\n"
-        f"Ushbu postni kanalingizga rejalashtiramizmi?",
-        reply_markup=InlineKeyboardMarkup(keyboard),
-        parse_mode="HTML"
+        f"Ushbu postni kanalingizga rejalashtiramizmi?"
     )
+    
+    if file_id:
+        await msg.reply_photo(
+            photo=file_id,
+            caption=preview_text[:1024],
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode="HTML"
+        )
+    else:
+        await msg.reply_text(
+            preview_text,
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode="HTML"
+        )
+        
     return AI_CONFIRM
 
 async def ai_confirm_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -104,11 +145,13 @@ async def ai_confirm_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
     is_admin = (user_id == ADMIN_ID)
     
     if data == "ai_post_retry":
-        await query.message.reply_text("Yangi buyruqni yozing:", reply_markup=get_cancel_keyboard())
+        await query.message.reply_text("Yangi mavzuni yozing:", reply_markup=get_cancel_keyboard())
         return AI_INPUT
 
     post_text = context.user_data.get("ai_generated_post", "")
     sched_time_str = context.user_data.get("ai_scheduled_time")
+    post_type = context.user_data.get("ai_post_type", "text")
+    file_id = context.user_data.get("ai_file_id")
     
     channels = db.get_user_channels(user_id)
     if not channels:
@@ -133,9 +176,9 @@ async def ai_confirm_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
     pid = db.add_post(
         user_id=user_id,
         channel_id=ch_id,
-        post_type="text",
+        post_type=post_type,
         content=post_text,
-        file_id=None,
+        file_id=file_id,
         scheduled_time=post_time,
         recurrence_type='none'
     )
