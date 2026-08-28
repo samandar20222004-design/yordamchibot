@@ -1,3 +1,4 @@
+import logging
 from telegram.ext import (
     CommandHandler,
     MessageHandler,
@@ -44,15 +45,31 @@ from handlers.admin import (
     ad_text_received, BROADCAST_MESSAGE, ADD_SPONSOR_CHANNEL, SET_AD_TEXT
 )
 import database as db
+from utils.helpers import check_user_flood
 
-async def _jump_to(update, context, fn):
+logger = logging.getLogger(__name__)
+
+async def _notify_and_jump(update, context, fn):
+    """Menyu tugmasi bosilganda xabar berib, keyin bo'limni ochadi."""
+    user = update.effective_user
+    if user and check_user_flood(user.id, cooldown_seconds=0.7):
+        try:
+            await update.message.reply_text("⏳ <i>Iltimos, biroz kuting, so'rovingiz ochilmoqda...</i>", parse_mode="HTML")
+        except Exception:
+            pass
+            
     context.user_data.clear()
     await fn(update, context)
     return ConversationHandler.END
 
 async def reaction_callback(update, context):
+    """Reaksiya tugmasi bosilganda darhol javob qaytarish."""
     query = update.callback_query
     user_id = query.from_user.id
+    
+    # Telegramga darhol 'Kuting' bildirishnomasini beramiz
+    await query.answer("⏳ Reaksiya qabul qilinmoqda...")
+    
     try:
         _, pid_str, emoji = query.data.split(":")
         post_id = int(pid_str)
@@ -71,41 +88,40 @@ async def reaction_callback(update, context):
                     new_row.append(btn)
             keyboard.append(new_row)
         await query.edit_message_reply_markup(reply_markup=query.message.reply_markup.__class__(keyboard))
-        await query.answer(f"Siz {emoji} reaksiyasini qoldirdingiz!")
     except Exception:
-        await query.answer()
+        pass
 
 def register_all_handlers(app):
     global_jump_handlers = [
-        MessageHandler(exact(BTN_MAIN_MENU), lambda u, c: _jump_to(u, c, start)),
-        MessageHandler(exact(BTN_NEW_POST), start_new_post),
-        MessageHandler(exact(BTN_AI_ASSISTANT), start_ai_assistant),
-        MessageHandler(exact(BTN_CABINET), lambda u, c: _jump_to(u, c, user_cabinet_menu)),
-        MessageHandler(exact(BTN_INVITE), lambda u, c: _jump_to(u, c, user_invite_menu)),
-        MessageHandler(exact(BTN_HELP), lambda u, c: _jump_to(u, c, help_command)),
-        MessageHandler(exact(BTN_ADD_CHANNEL), start_add_channel),
-        MessageHandler(exact(BTN_CHANNELS), lambda u, c: _jump_to(u, c, channels_menu)),
-        MessageHandler(exact(BTN_CONVERTER), start_converter),
-        MessageHandler(exact(BTN_PENDING), lambda u, c: _jump_to(u, c, list_pending_posts)),
-        MessageHandler(exact(BTN_ADMIN_PANEL), lambda u, c: _jump_to(u, c, admin_panel_menu)),
-        MessageHandler(exact(BTN_STATS), lambda u, c: _jump_to(u, c, show_statistics)),
-        MessageHandler(exact(BTN_ALL_POSTS), lambda u, c: _jump_to(u, c, admin_all_posts)),
-        MessageHandler(exact(BTN_ALL_CHANNELS), lambda u, c: _jump_to(u, c, admin_all_channels)),
-        MessageHandler(exact(BTN_BROADCAST), broadcast_start),
-        MessageHandler(exact(BTN_SPONSORS), lambda u, c: _jump_to(u, c, sponsors_menu)),
-        MessageHandler(exact(BTN_ADD_SPONSOR), start_add_sponsor),
-        MessageHandler(exact(BTN_GLOBAL_AD), start_set_ad),
+        MessageHandler(exact(BTN_MAIN_MENU), lambda u, c: _notify_and_jump(u, c, start)),
+        MessageHandler(exact(BTN_NEW_POST), lambda u, c: _notify_and_jump(u, c, start_new_post)),
+        MessageHandler(exact(BTN_AI_ASSISTANT), lambda u, c: _notify_and_jump(u, c, start_ai_assistant)),
+        MessageHandler(exact(BTN_CABINET), lambda u, c: _notify_and_jump(u, c, user_cabinet_menu)),
+        MessageHandler(exact(BTN_INVITE), lambda u, c: _notify_and_jump(u, c, user_invite_menu)),
+        MessageHandler(exact(BTN_HELP), lambda u, c: _notify_and_jump(u, c, help_command)),
+        MessageHandler(exact(BTN_ADD_CHANNEL), lambda u, c: _notify_and_jump(u, c, start_add_channel)),
+        MessageHandler(exact(BTN_CHANNELS), lambda u, c: _notify_and_jump(u, c, channels_menu)),
+        MessageHandler(exact(BTN_CONVERTER), lambda u, c: _notify_and_jump(u, c, start_converter)),
+        MessageHandler(exact(BTN_PENDING), lambda u, c: _notify_and_jump(u, c, list_pending_posts)),
+        MessageHandler(exact(BTN_ADMIN_PANEL), lambda u, c: _notify_and_jump(u, c, admin_panel_menu)),
+        MessageHandler(exact(BTN_STATS), lambda u, c: _notify_and_jump(u, c, show_statistics)),
+        MessageHandler(exact(BTN_ALL_POSTS), lambda u, c: _notify_and_jump(u, c, admin_all_posts)),
+        MessageHandler(exact(BTN_ALL_CHANNELS), lambda u, c: _notify_and_jump(u, c, admin_all_channels)),
+        MessageHandler(exact(BTN_BROADCAST), lambda u, c: _notify_and_jump(u, c, broadcast_start)),
+        MessageHandler(exact(BTN_SPONSORS), lambda u, c: _notify_and_jump(u, c, sponsors_menu)),
+        MessageHandler(exact(BTN_ADD_SPONSOR), lambda u, c: _notify_and_jump(u, c, start_add_sponsor)),
+        MessageHandler(exact(BTN_GLOBAL_AD), lambda u, c: _notify_and_jump(u, c, start_set_ad)),
     ]
 
     main_conv = ConversationHandler(
         entry_points=[
-            MessageHandler(exact(BTN_NEW_POST), start_new_post),
-            MessageHandler(exact(BTN_AI_ASSISTANT), start_ai_assistant),
-            MessageHandler(exact(BTN_ADD_CHANNEL), start_add_channel),
-            MessageHandler(exact(BTN_CONVERTER), start_converter),
-            MessageHandler(exact(BTN_BROADCAST), broadcast_start),
-            MessageHandler(exact(BTN_ADD_SPONSOR), start_add_sponsor),
-            MessageHandler(exact(BTN_GLOBAL_AD), start_set_ad),
+            MessageHandler(exact(BTN_NEW_POST), lambda u, c: _notify_and_jump(u, c, start_new_post)),
+            MessageHandler(exact(BTN_AI_ASSISTANT), lambda u, c: _notify_and_jump(u, c, start_ai_assistant)),
+            MessageHandler(exact(BTN_ADD_CHANNEL), lambda u, c: _notify_and_jump(u, c, start_add_channel)),
+            MessageHandler(exact(BTN_CONVERTER), lambda u, c: _notify_and_jump(u, c, start_converter)),
+            MessageHandler(exact(BTN_BROADCAST), lambda u, c: _notify_and_jump(u, c, broadcast_start)),
+            MessageHandler(exact(BTN_ADD_SPONSOR), lambda u, c: _notify_and_jump(u, c, start_add_sponsor)),
+            MessageHandler(exact(BTN_GLOBAL_AD), lambda u, c: _notify_and_jump(u, c, start_set_ad)),
             CallbackQueryHandler(edit_post_time_start, pattern=r"^edit_time:"),
             CommandHandler("newpost", start_new_post),
             CommandHandler("broadcast", broadcast_start),
