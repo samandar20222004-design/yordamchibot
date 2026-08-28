@@ -14,11 +14,9 @@ DEFAULT_REACTIONS = ["👍", "❤️", "🔥", "👏"]
 def build_post_keyboard(post_id: int, custom_btn_text: Optional[str], custom_btn_url: Optional[str], enable_reactions: bool) -> Optional[InlineKeyboardMarkup]:
     keyboard = []
     
-    # 1. Post egasining URL tugmasi
     if custom_btn_text and custom_btn_url:
         keyboard.append([InlineKeyboardButton(custom_btn_text, url=custom_btn_url)])
         
-    # 2. Reaksiya tugmalari
     if enable_reactions:
         counts = db.get_reaction_counts(post_id)
         react_row = []
@@ -58,40 +56,18 @@ async def check_and_send_posts(bot):
         try:
             target_chat = int(channel_id) if str(channel_id).lstrip('-').isdigit() else channel_id
             
-            # Agar file_id ichida botga kelgan xabar ID saqlangan bo'lsa, asl nusxasini (premium formatlari bilan) nusxalaymiz
-            if file_id and str(file_id).startswith("msg:"):
-                orig_msg_id = int(str(file_id).replace("msg:", ""))
+            # Premium emojilar va formatlarni 100% asl holatda nusxalash
+            if post_type == "original_message" and file_id:
                 await bot.copy_message(
                     chat_id=target_chat,
                     from_chat_id=user_id,
-                    message_id=orig_msg_id,
+                    message_id=int(file_id),
                     reply_markup=markup
                 )
             else:
-                # Standart usul (matn yoki rasm formati)
                 caption = content or ""
-                if post_type == "text":
-                    await bot.send_message(chat_id=target_chat, text=caption, reply_markup=markup)
-                elif post_type == "photo":
-                    await bot.send_photo(chat_id=target_chat, photo=file_id, caption=caption, reply_markup=markup)
-                elif post_type == "video":
-                    await bot.send_video(chat_id=target_chat, video=file_id, caption=caption, reply_markup=markup)
-                elif post_type == "animation":
-                    await bot.send_animation(chat_id=target_chat, animation=file_id, caption=caption, reply_markup=markup)
-                elif post_type == "document":
-                    await bot.send_document(chat_id=target_chat, document=file_id, caption=caption, reply_markup=markup)
-                elif post_type == "audio":
-                    await bot.send_audio(chat_id=target_chat, audio=file_id, caption=caption, reply_markup=markup)
-                elif post_type == "voice":
-                    await bot.send_voice(chat_id=target_chat, voice=file_id, caption=caption, reply_markup=markup)
-                elif post_type == "video_note":
-                    await bot.send_video_note(chat_id=target_chat, video_note=file_id)
-                elif post_type == "sticker":
-                    await bot.send_sticker(chat_id=target_chat, sticker=file_id, reply_markup=markup)
-                else:
-                    await bot.send_message(chat_id=target_chat, text=caption, reply_markup=markup)
+                await bot.send_message(chat_id=target_chat, text=caption, reply_markup=markup)
 
-            # Takrorlanuvchi post bo'lsa vaqtini yangilash
             if recurrence_type in ('daily', 'weekly'):
                 if end_date and now >= end_date:
                     db.mark_post_status(post_id, "completed")
@@ -109,7 +85,7 @@ async def check_and_send_posts(bot):
             if recurrence_type == 'none':
                 db.mark_post_status(post_id, "failed")
             try:
-                await bot.send_message(chat_id=user_id, text=f"⚠️ Post #{post_id} yuborilmadi: {e}")
+                await bot.send_message(chat_id=user_id, text=f"⚠️ Post #{post_id} kanalingizga yuborilmadi: {e}")
             except Exception:
                 pass
         except Exception as e:
