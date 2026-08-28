@@ -16,24 +16,28 @@ BTN_ALL_POSTS = "🗂 Barcha postlar"
 BTN_ALL_CHANNELS = "📡 Barcha kanal/guruhlar"
 BTN_SKIP_BUTTON = "➡️ Tugmasiz davom etish"
 
-# Admin yangi tugmalari
+# Admin
 BTN_SPONSORS = "📢 Majburiy obuna"
 BTN_ADD_SPONSOR = "➕ Homiy kanal qo'shish"
 BTN_GLOBAL_AD = "📝 Reklama havolasi"
 
-# Reaksiyalar tanlash tugmalari
-BTN_REACTIONS_YES = "👍 Reaksiyalar qo'shilsin"
-BTN_REACTIONS_NO = "➡️ Reaksiyasiz davom etish"
+# Reaksiyalar
+BTN_REACT_DEFAULT = "👍 ❤️ 🔥 👏"
+BTN_NO_REACT = "➡️ Reaksiyasiz davom etish"
 
+# Vaqt turlari
 BTN_T_5MIN = "⚡️ 5 daqiqa"
 BTN_T_15MIN = "⏱ 15 daqiqa"
-BTN_T_30MIN = "⏳ 30 daqiqa"
 BTN_T_1H = "🕒 1 soat"
-BTN_T_2H = "🕕 2 soat"
-BTN_T_TOM_9 = "🌅 Ertaga 09:00"
-BTN_T_TOM_18 = "🌇 Ertaga 18:00"
-BTN_T_3D = "📆 3 kundan keyin"
-BTN_T_RECURRING = "🔄 Har hafta (takrorlanuvchi)"
+BTN_T_DAILY = "🔄 Har kuni (har kuni bir vaqtda)"
+BTN_T_WEEKLY = "📅 Har hafta (haftaning ma'lum kuni)"
+
+# Muddatlar
+BTN_DUR_1M = "1 oy"
+BTN_DUR_3M = "3 oy"
+BTN_DUR_6M = "6 oy"
+BTN_DUR_1Y = "1 yil"
+BTN_DUR_INF = "♾ Cheksiz"
 
 WEEKDAY_BUTTONS = ["Dushanba", "Seshanba", "Chorshanba", "Payshanba", "Juma", "Shanba", "Yakshanba"]
 WEEKDAY_MAP = {name: idx for idx, name in enumerate(WEEKDAY_BUTTONS)}
@@ -57,10 +61,25 @@ def get_cancel_keyboard():
     return ReplyKeyboardMarkup([[BTN_MAIN_MENU]], resize_keyboard=True)
 
 def get_button_prompt_keyboard():
-    return ReplyKeyboardMarkup([[BTN_SKIP_BUTTON], [BTN_MAIN_MENU]], resize_keyboard=True)
+    return ReplyKeyboardMarkup(
+        [
+            ["Batafsil", "Kanalga a'zo bo'lish"],
+            ["Saytga o'tish", "Bog'lanish"],
+            [BTN_SKIP_BUTTON],
+            [BTN_MAIN_MENU]
+        ],
+        resize_keyboard=True
+    )
 
-def get_reactions_prompt_keyboard():
-    return ReplyKeyboardMarkup([[BTN_REACTIONS_YES, BTN_REACTIONS_NO], [BTN_MAIN_MENU]], resize_keyboard=True)
+def get_reactions_keyboard():
+    return ReplyKeyboardMarkup(
+        [
+            [BTN_REACT_DEFAULT],
+            [BTN_NO_REACT],
+            [BTN_MAIN_MENU]
+        ],
+        resize_keyboard=True
+    )
 
 def get_admin_panel_keyboard():
     return ReplyKeyboardMarkup(
@@ -85,14 +104,22 @@ def get_sponsors_keyboard():
 def get_time_keyboard():
     return ReplyKeyboardMarkup(
         [
-            [BTN_T_5MIN, BTN_T_15MIN, BTN_T_30MIN],
-            [BTN_T_1H, BTN_T_2H],
-            [BTN_T_TOM_9, BTN_T_TOM_18],
-            [BTN_T_3D],
-            [BTN_T_RECURRING],
+            [BTN_T_5MIN, BTN_T_15MIN, BTN_T_1H],
+            [BTN_T_DAILY],
+            [BTN_T_WEEKLY],
             [BTN_MAIN_MENU],
         ],
         resize_keyboard=True,
+    )
+
+def get_duration_keyboard():
+    return ReplyKeyboardMarkup(
+        [
+            [BTN_DUR_1M, BTN_DUR_3M, BTN_DUR_6M],
+            [BTN_DUR_1Y, BTN_DUR_INF],
+            [BTN_MAIN_MENU]
+        ],
+        resize_keyboard=True
     )
 
 def get_weekday_keyboard():
