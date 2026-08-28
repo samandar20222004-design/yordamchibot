@@ -1,11 +1,10 @@
-from datetime import datetime, timedelta
 import logging
+from datetime import datetime, timedelta
 from typing import Optional
-from config import ADMIN_ID
-import database as db
 import pytz
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.error import TelegramError
+import database as db
 
 logger = logging.getLogger(__name__)
 tashkent_tz = pytz.timezone("Asia/Tashkent")
@@ -20,6 +19,7 @@ def build_post_keyboard(
     custom_btn_url: Optional[str],
     enable_reactions: bool,
 ) -> Optional[InlineKeyboardMarkup]:
+  """Post ostidagi tugmalar, reklama va reaksiyalarni yig'uvchi funksiya."""
   global _bot_username_cache
   keyboard = []
 
@@ -64,6 +64,7 @@ def build_post_keyboard(
 
 
 def _calculate_next_run(rec_type, current_time, now):
+  """Takroriy postlar uchun keyingi chiqish vaqtini hisoblash."""
   if rec_type == "daily":
     next_time = current_time + timedelta(days=1)
     while next_time <= now:
@@ -78,6 +79,7 @@ def _calculate_next_run(rec_type, current_time, now):
 
 
 async def check_and_send_posts(bot):
+  """Rejalashtirilgan vaqti kelgan postlarni asl formatini buzmasdan yuborish."""
   now = datetime.now(tashkent_tz)
   posts = db.get_due_posts(now)
   if not posts:
@@ -112,7 +114,8 @@ async def check_and_send_posts(bot):
           else channel_id
       )
 
-      if post_type == "original_message" and file_id:
+      # copy_message asl xabarning barcha premium stiker, maxsus shrift va formatlarini 100% saqlaydi
+      if file_id and str(file_id).isdigit():
         sent_msg = await bot.copy_message(
             chat_id=target_chat,
             from_chat_id=user_id,
@@ -120,12 +123,14 @@ async def check_and_send_posts(bot):
             reply_markup=markup,
         )
       else:
-        caption = content or ""
+        # Zaxira varianti (agar faqat matn bo'lsa)
         sent_msg = await bot.send_message(
-            chat_id=target_chat, text=caption, reply_markup=markup
+            chat_id=target_chat,
+            text=content or "",
+            reply_markup=markup,
+            parse_mode="HTML",
         )
 
-      # Agar takrorlanuvchi post bo'lmasa, yuborilgan xabar ID sini saqlaymiz
       if recurrence_type in ("daily", "weekly"):
         if end_date and now >= end_date:
           db.mark_post_status(post_id, "completed")
@@ -146,6 +151,7 @@ async def check_and_send_posts(bot):
         await bot.send_message(
             chat_id=user_id,
             text=f"⚠️ Post #{post_id} kanalingizga yuborilmadi: {e}",
+            parse_mode="HTML",
         )
       except Exception:
         pass
@@ -156,6 +162,7 @@ async def check_and_send_posts(bot):
 
 
 async def check_and_delete_expired_posts(bot):
+  """Muddati tugagan postlarni kanaldan avtomatik o'chirish."""
   now = datetime.now(tashkent_tz)
   posts_to_delete = db.get_posts_to_delete(now)
 
@@ -170,6 +177,6 @@ async def check_and_delete_expired_posts(bot):
       )
     except TelegramError as e:
       logger.warning(
-          f"Post #{p_id} ni o'chirishda xatolik (balki qo'lda o'chirilgan): {e}"
+          f"Post #{p_id} ni o'chirishda xatolik: {e}"
       )
       db.mark_post_as_deleted(p_id)
