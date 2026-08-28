@@ -137,17 +137,31 @@ async def user_invite_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """To'liq qo'llanma va bot vazifalari."""
     is_admin = (update.effective_user.id == ADMIN_ID)
     text = (
-        "📖 <b>Buyruqlar ro'yxati:</b>\n\n"
-        "/start — Qayta ishga tushirish\n"
-        "/newpost — Yangi post rejalashtirish\n"
+        "📖 <b>PostAssistrobot — To'liq Qo'llanma:</b>\n\n"
+        "🔹 <b>1. Yangi post rejalashtirish:</b>\n"
+        "• Matn, rasm, video, audio yoki premium stikerli postlarni istalgan sanaga (bir marta, har kuni yoki haftalik) rejalashtirish.\n"
+        "• Post ostiga havola tugmalar (URL button) va reaksiyalar qo'shish.\n"
+        "• <b>Avto-o'chirish:</b> Reklama postlarini kanalda 12, 24, 48 yoki 72 soat turgandan so'ng avtomatik o'chirish.\n\n"
+        "🔹 <b>2. AI Post Yordamchi (Sun'iy Intellekt):</b>\n"
+        "• Istalgan mavzuni erkin yozing (masalan: <i>'Ertaga 18:00 ga chegirmalar haqida post yoz'</i>).\n"
+        "• AI o'zbek tilidagi shevalar va qisqartmalarni tushunib, post tayyorlaydi va chiqish vaqtini o'zi belgilaydi.\n\n"
+        "🔹 <b>3. Ballar va So'rovlar tizimi:</b>\n"
+        "• Har bir yangi foydalanuvchiga <b>5 ta bepul AI so'rovi</b> beriladi.\n"
+        "• Har bir do'stingizni taklif qilganingiz uchun <b>+3 ta so'rov</b> sovg'a qilinadi.\n\n"
+        "🔹 <b>4. Matn O'girgich (Lotin ⇄ Kirill):</b>\n"
+        "• Istalgan matn yoki rasm/video tagidagi izohlarni bir zumda ikki alifboga xatosiz o'girib beradi.\n\n"
+        "⚙️ <b>Tezkor buyruqlar:</b>\n"
+        "/start — Bosh menyu\n"
+        "/newpost — Yangi post\n"
         "/profile — Kabinet va taklif havolasi\n"
-        "/cancel — Bekor qilish\n"
-        "/help — Yordam"
+        "/help — Ushbu yo'riqnoma\n"
+        "/cancel — Joriy amalni bekor qilish"
     )
     if is_admin:
-        text += "\n\n⚙️ <b>Admin:</b>\n/admin — Admin panel\n/broadcast — Xabar yuborish\n/stats — Statistika"
+        text += "\n\n👑 <b>Admin buyruqlari:</b>\n/admin — Boshqaruv paneli\n/broadcast — Hammaga xabar yuborish\n/stats — Statistika"
     await update.message.reply_text(text, reply_markup=get_main_keyboard(is_admin), parse_mode="HTML")
 
 async def cancel_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
