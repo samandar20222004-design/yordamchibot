@@ -9,13 +9,16 @@ from telegram.ext import (
 )
 from keyboards.default import (
     exact,
-    BTN_NEW_POST, BTN_AI_ASSISTANT, BTN_CABINET, BTN_INVITE, BTN_HELP,
+    BTN_NEW_POST, BTN_AI_ASSISTANT, BTN_CABINET, BTN_INVITE, BTN_TRANSFER, BTN_HELP,
     BTN_ADD_CHANNEL, BTN_CHANNELS, BTN_PENDING, BTN_CONVERTER,
     BTN_ADMIN_PANEL, BTN_STATS, BTN_ALL_POSTS, BTN_ALL_CHANNELS,
     BTN_BROADCAST, BTN_MAIN_MENU, BTN_SPONSORS, BTN_ADD_SPONSOR, BTN_GLOBAL_AD
 )
 from handlers.start import (
-    start, user_cabinet_menu, user_invite_menu, help_command, cancel_handler, subscription_check_callback
+    start, user_cabinet_menu, user_invite_menu, start_transfer_credits,
+    transfer_target_received, transfer_amount_received,
+    help_command, cancel_handler, subscription_check_callback,
+    TRANSFER_TARGET, TRANSFER_AMOUNT
 )
 from handlers.new_post import (
     start_new_post, channel_chosen, content_received, btn_title_received,
@@ -50,7 +53,6 @@ from utils.helpers import check_rate_limit
 logger = logging.getLogger(__name__)
 
 async def guard_entry(update, context, fn):
-    """Jarayonlarni boshlovchi tugmalarni spamdan himoyalash."""
     user = update.effective_user
     if user:
         is_blocked, should_warn = check_rate_limit(user.id, max_requests=3, window_seconds=3.0)
@@ -63,7 +65,6 @@ async def guard_entry(update, context, fn):
     return await fn(update, context)
 
 async def guard_menu(update, context, fn):
-    """Menyu bo'limlarini ochishni spamdan himoyalash."""
     user = update.effective_user
     if user:
         is_blocked, should_warn = check_rate_limit(user.id, max_requests=3, window_seconds=3.0)
@@ -77,7 +78,6 @@ async def guard_menu(update, context, fn):
     return ConversationHandler.END
 
 async def reaction_callback(update, context):
-    """Reaksiya tugmasini himoyalash."""
     query = update.callback_query
     user_id = query.from_user.id
     
@@ -115,6 +115,7 @@ def register_all_handlers(app):
         MessageHandler(exact(BTN_AI_ASSISTANT), lambda u, c: guard_entry(u, c, start_ai_assistant)),
         MessageHandler(exact(BTN_CABINET), lambda u, c: guard_menu(u, c, user_cabinet_menu)),
         MessageHandler(exact(BTN_INVITE), lambda u, c: guard_menu(u, c, user_invite_menu)),
+        MessageHandler(exact(BTN_TRANSFER), lambda u, c: guard_entry(u, c, start_transfer_credits)),
         MessageHandler(exact(BTN_HELP), lambda u, c: guard_menu(u, c, help_command)),
         MessageHandler(exact(BTN_ADD_CHANNEL), lambda u, c: guard_entry(u, c, start_add_channel)),
         MessageHandler(exact(BTN_CHANNELS), lambda u, c: guard_menu(u, c, channels_menu)),
@@ -134,6 +135,7 @@ def register_all_handlers(app):
         entry_points=[
             MessageHandler(exact(BTN_NEW_POST), lambda u, c: guard_entry(u, c, start_new_post)),
             MessageHandler(exact(BTN_AI_ASSISTANT), lambda u, c: guard_entry(u, c, start_ai_assistant)),
+            MessageHandler(exact(BTN_TRANSFER), lambda u, c: guard_entry(u, c, start_transfer_credits)),
             MessageHandler(exact(BTN_ADD_CHANNEL), lambda u, c: guard_entry(u, c, start_add_channel)),
             MessageHandler(exact(BTN_CONVERTER), lambda u, c: guard_entry(u, c, start_converter)),
             MessageHandler(exact(BTN_BROADCAST), lambda u, c: guard_entry(u, c, broadcast_start)),
@@ -159,6 +161,8 @@ def register_all_handlers(app):
             CONVERT_INPUT: global_jump_handlers + [MessageHandler(filters.ALL & ~filters.COMMAND, converter_received)],
             AI_INPUT: global_jump_handlers + [MessageHandler(filters.ALL & ~filters.COMMAND, ai_input_received)],
             AI_CONFIRM: global_jump_handlers + [CallbackQueryHandler(ai_confirm_callback, pattern=r"^ai_post_")],
+            TRANSFER_TARGET: global_jump_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, transfer_target_received)],
+            TRANSFER_AMOUNT: global_jump_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, transfer_amount_received)],
             BROADCAST_MESSAGE: global_jump_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, broadcast_send)],
             ADD_SPONSOR_CHANNEL: global_jump_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, sponsor_channel_received)],
             SET_AD_TEXT: global_jump_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, ad_text_received)],
@@ -179,6 +183,7 @@ def register_all_handlers(app):
     app.add_handler(main_conv)
     app.add_handler(MessageHandler(exact(BTN_CABINET), lambda u, c: guard_menu(u, c, user_cabinet_menu)))
     app.add_handler(MessageHandler(exact(BTN_INVITE), lambda u, c: guard_menu(u, c, user_invite_menu)))
+    app.add_handler(MessageHandler(exact(BTN_TRANSFER), lambda u, c: guard_entry(u, c, start_transfer_credits)))
     app.add_handler(MessageHandler(exact(BTN_HELP), lambda u, c: guard_menu(u, c, help_command)))
     app.add_handler(MessageHandler(exact(BTN_CHANNELS), lambda u, c: guard_menu(u, c, channels_menu)))
     app.add_handler(MessageHandler(exact(BTN_CONVERTER), lambda u, c: guard_entry(u, c, start_converter)))
