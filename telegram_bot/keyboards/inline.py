@@ -36,3 +36,15 @@ def render_channels_list(channels: list) -> InlineKeyboardMarkup:
             InlineKeyboardButton("❌ O'chirish", callback_data=f"remove_channel:{ch_id}")
         ])
     return InlineKeyboardMarkup(keyboard)
+
+def render_pending_list(posts: list, user_code: str) -> InlineKeyboardMarkup:
+    """Kutilayotgan postlarni boshqarish (vaqtni o'zgartirish va bekor qilish) tugmalari."""
+    keyboard = []
+    for p in posts:
+        pid, ch_title, p_type, s_time, p_num, r_type, r_day, r_time = p
+        code_label = f"{user_code}-{p_num}" if p_num else f"#{pid}"
+        keyboard.append([
+            InlineKeyboardButton(f"✏️ {code_label} vaqtini o'zgartirish", callback_data=f"edit_time:{pid}"),
+            InlineKeyboardButton(f"❌ {code_label} bekor qilish", callback_data=f"cancel_post:{pid}")
+        ])
+    return InlineKeyboardMarkup(keyboard)
