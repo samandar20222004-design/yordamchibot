@@ -107,6 +107,7 @@ async def user_cabinet_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     credits_text = "♾ Cheksiz (Super Admin)" if is_admin else f"<b>{stats['ai_credits']} ta</b>"
     ad_free_text = "♾ Cheksiz" if is_admin else f"<b>{stats['ad_free_posts']} ta</b>"
+    streak_text = f"🔥 <b>{stats['streak']}/7 kun</b>"
     ad_line = get_smart_reply_ad(user.id)
     
     text = (
@@ -114,6 +115,7 @@ async def user_cabinet_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"🆔 Sizning ID: <code>{user.id}</code>\n"
         f"🔑 Maxsus kodingiz: <code>{user_code}</code>\n"
         f"💎 Mavjud AI so'rovlar soni: {credits_text}\n"
+        f"🔥 Ketma-ket kunlik seriya: {streak_text}\n"
         f"✨ Reklamasiz postlar litsenziyasi: {ad_free_text}\n"
         f"📢 Ulangan kanallar: <b>{len(channels)} ta</b>\n"
         f"👥 Taklif qilgan do'stlaringiz: <b>{stats['referrals_count']} ta</b>\n\n"
@@ -122,6 +124,7 @@ async def user_cabinet_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(text, reply_markup=get_cabinet_keyboard(), parse_mode="HTML")
 
 async def daily_bonus_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Ketma-ket kunlik bonus (Streak)."""
     user = update.effective_user
     is_admin = (user.id == ADMIN_ID)
     
@@ -129,16 +132,30 @@ async def daily_bonus_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
         await update.message.reply_text("👑 <b>Siz Super Adminsiz</b> — hisobingizda cheksiz so'rov mavjud!", parse_mode="HTML")
         return
         
-    success, msg, credits = db.claim_daily_bonus(user.id)
-    if success:
-        await update.message.reply_text(
-            f"{msg}\n\n💎 Sizdagi jami AI so'rovlar soni: <b>{credits} ta</b>",
-            reply_markup=get_cabinet_keyboard(),
-            parse_mode="HTML"
+    res = db.claim_daily_streak_bonus(user.id)
+    if res.get("success"):
+        streak = res["streak"]
+        bonus = res["bonus_amount"]
+        credits = res["credits"]
+        
+        # Streak progressini vizual ko'rsatish
+        progress_bar = "".join(["🟩" if i <= streak else "⬜" for i in range(1, 8)])
+        
+        reset_notice = "\n⚠️ <i>Orada kun o'tkazib yuborilgani sababli seriya 1-kundan qayta boshlandi.</i>\n" if res.get("is_reset") else ""
+        
+        text = (
+            f"🎉 <b>Kunlik bonus qabul qilindi!</b>\n\n"
+            f"{reset_notice}"
+            f"🔥 Sizning ketma-ketlik seriyangiz: <b>{streak}/7 kun</b>\n"
+            f"{progress_bar}\n\n"
+            f"🎁 Bugungi sovg'a: <b>+{bonus} ta AI so'rovi</b>\n"
+            f"💎 Jami balansingiz: <b>{credits} ta</b>\n\n"
+            f"📌 <i>Eslatma: Ertaga ham botga kiring va 7-kunda <b>+4 ta super-bonus</b> oling!</i>"
         )
+        await update.message.reply_text(text, reply_markup=get_cabinet_keyboard(), parse_mode="HTML")
     else:
         await update.message.reply_text(
-            f"ℹ️ {msg}\n\n💎 Hozirgi balansingiz: <b>{credits} ta</b>",
+            f"ℹ️ {res.get('msg')}\n\n💎 Sizdagi jami ballar: <b>{res.get('credits', 0)} ta</b>",
             reply_markup=get_cabinet_keyboard(),
             parse_mode="HTML"
         )
@@ -280,10 +297,10 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "• <i>Bepul postlar boshida bot nishoni bo'ladi. Litsenziya xarid qilsangiz reklamasiz toza post chiqadi!</i>\n\n"
         "🔹 <b>2. AI Post Yordamchi:</b>\n"
         "• Matn yoki rasm yuborib, professional post va she'rlar tayyorlash.\n\n"
-        "🔹 <b>3. Ballar va Litsenziyalar:</b>\n"
-        "• <b>Kunlik bonus:</b> Har kuni +1 ta ball oling.\n"
-        "• <b>Reklamasiz postlar:</b> 1 ta ball evaziga 5 ta toza post xarid qiling.\n"
-        "• <b>Ballarni ulashish:</b> 3 kun o'tgach ballaringizni do'stlaringizga o'tkazing.\n\n"
+        "🔹 <b>3. Ballar va Kunlik Seriya (Streak):</b>\n"
+        "• Har kuni botga kiring va <b>'🎁 Kunlik bonus'</b> tugmasini bosing.\n"
+        "• 1-kun (+1), 2-kun (+1), 3-kun (+2), ..., 7-kun (+4 ball) olasiz!\n"
+        "• 1 kun kirmasangiz, seriya yana 1-kundan boshlanadi.\n\n"
         "🔹 <b>4. Matn O'girgich:</b>\n"
         "• Lotin ⇄ Kirill alifbolariga tezkor o'girish.\n\n"
         "⚙️ <b>Tezkor buyruqlar:</b>\n"
