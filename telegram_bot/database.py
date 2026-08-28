@@ -213,7 +213,7 @@ def get_reaction_counts(post_id: int) -> dict:
         logger.error(f"Reaksiya olish xatosi: {e}")
         return {}
 
-# --- USERS & CREDITS ---
+# --- USERS, CREDITS & TRANSFER ---
 def _generate_user_code(cur) -> str:
     letters = string.ascii_lowercase
     for _ in range(50):
@@ -224,7 +224,6 @@ def _generate_user_code(cur) -> str:
     return "".join(random.choice(letters) for _ in range(3)) + "".join(random.choice(string.digits) for _ in range(2))
 
 def save_user(user_id: int, username: str, full_name: str = "", referrer_id: int = None) -> bool:
-    """Foydalanuvchini saqlaydi va agar yangi bo'lsa, taklif qiluvchiga +3 ball beradi."""
     try:
         with db_cursor(commit=True) as cur:
             cur.execute("SELECT user_id FROM users WHERE user_id = %s", (user_id,))
@@ -240,7 +239,6 @@ def save_user(user_id: int, username: str, full_name: str = "", referrer_id: int
                     VALUES (%s, %s, %s, %s, %s, 5, NOW())
                 """, (user_id, username, full_name, code, valid_ref))
                 
-                # Taklif qilgan insonga +3 ball qo'shamiz
                 if valid_ref:
                     cur.execute("UPDATE users SET ai_credits = ai_credits + 3 WHERE user_id = %s", (valid_ref,))
                 return True
@@ -249,7 +247,6 @@ def save_user(user_id: int, username: str, full_name: str = "", referrer_id: int
         return False
 
 def get_user_credits(user_id: int) -> int:
-    """Foydalanuvchining mavjud AI ballarini oladi."""
     try:
         with db_cursor() as cur:
             cur.execute("SELECT ai_credits FROM users WHERE user_id = %s", (user_id,))
@@ -260,7 +257,6 @@ def get_user_credits(user_id: int) -> int:
         return 0
 
 def use_user_credit(user_id: int) -> bool:
-    """AI ishlatilganda 1 ball ayiradi."""
     try:
         with db_cursor(commit=True) as cur:
             cur.execute("SELECT ai_credits FROM users WHERE user_id = %s", (user_id,))
@@ -272,6 +268,45 @@ def use_user_credit(user_id: int) -> bool:
     except Exception as e:
         logger.error(f"Ball ayirish xatosi: {e}")
         return False
+
+def find_user_by_target(target: str):
+    """Foydalanuvchini ID, username yoki user_code orqali qidiradi."""
+    target_clean = target.strip().lstrip("@").lower()
+    try:
+        with db_cursor() as cur:
+            if target_clean.isdigit():
+                cur.execute("SELECT user_id, full_name, username, user_code, ai_credits FROM users WHERE user_id = %s", (int(target_clean),))
+            else:
+                cur.execute("SELECT user_id, full_name, username, user_code, ai_credits FROM users WHERE LOWER(user_code) = %s OR LOWER(username) = %s", (target_clean, target_clean))
+            return cur.fetchone()
+    except Exception as e:
+        logger.error(f"Foydalanuvchi qidirishda xato: {e}")
+        return None
+
+def transfer_user_credits(from_user_id: int, to_user_id: int, amount: int) -> tuple[bool, str]:
+    """Bir foydalanuvchidan ikkinchisiga ball o'tkazish (Xavfsiz tranzaksiya)."""
+    if from_user_id == to_user_id:
+        return False, "O'zingizga ball o'tkaza olmaysiz."
+    if amount < 3 or amount > 20:
+        return False, "O'tkazish miqdori kamida 3 ta, ko'pi bilan 20 ta bo'lishi kerak."
+
+    try:
+        with db_cursor(commit=True) as cur:
+            cur.execute("SELECT ai_credits FROM users WHERE user_id = %s FOR UPDATE", (from_user_id,))
+            row_from = cur.fetchone()
+            if not row_from or row_from[0] < amount:
+                return False, "Hisobingizda yetarli ball mavjud emas."
+
+            cur.execute("SELECT user_id FROM users WHERE user_id = %s", (to_user_id,))
+            if not cur.fetchone():
+                return False, "Qabul qiluvchi foydalanuvchi topilmadi."
+
+            cur.execute("UPDATE users SET ai_credits = ai_credits - %s WHERE user_id = %s", (amount, from_user_id))
+            cur.execute("UPDATE users SET ai_credits = ai_credits + %s WHERE user_id = %s", (amount, to_user_id))
+            return True, "Ballar muvaffaqiyatli o'tkazildi!"
+    except Exception as e:
+        logger.error(f"Ball o'tkazish xatosi: {e}")
+        return False, f"Tizim xatoligi: {e}"
 
 def get_referral_stats(user_id: int) -> dict:
     try:
