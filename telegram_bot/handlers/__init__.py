@@ -9,7 +9,7 @@ from telegram.ext import (
 from keyboards.default import (
     exact,
     BTN_NEW_POST, BTN_ADD_CHANNEL, BTN_CHANNELS, BTN_PENDING,
-    BTN_PROFILE, BTN_ADMIN_PANEL, BTN_STATS, BTN_ALL_POSTS,
+    BTN_CONVERTER, BTN_PROFILE, BTN_ADMIN_PANEL, BTN_STATS, BTN_ALL_POSTS,
     BTN_ALL_CHANNELS, BTN_BROADCAST, BTN_MAIN_MENU,
     BTN_SPONSORS, BTN_ADD_SPONSOR, BTN_GLOBAL_AD
 )
@@ -24,6 +24,9 @@ from handlers.new_post import (
 from handlers.channels import (
     channels_menu, start_add_channel, channel_received,
     remove_channel_callback, on_bot_chat_member_update, ADD_CHANNEL
+)
+from handlers.converter import (
+    start_converter, converter_received, converter_callback, CONVERT_INPUT
 )
 from handlers.pending import (
     list_pending_posts, cancel_post_callback,
@@ -73,6 +76,7 @@ def register_all_handlers(app):
         MessageHandler(exact(BTN_NEW_POST), start_new_post),
         MessageHandler(exact(BTN_ADD_CHANNEL), start_add_channel),
         MessageHandler(exact(BTN_CHANNELS), lambda u, c: _jump_to(u, c, channels_menu)),
+        MessageHandler(exact(BTN_CONVERTER), start_converter),
         MessageHandler(exact(BTN_PENDING), lambda u, c: _jump_to(u, c, list_pending_posts)),
         MessageHandler(exact(BTN_PROFILE), lambda u, c: _jump_to(u, c, user_profile)),
         MessageHandler(exact(BTN_ADMIN_PANEL), lambda u, c: _jump_to(u, c, admin_panel_menu)),
@@ -89,6 +93,7 @@ def register_all_handlers(app):
         entry_points=[
             MessageHandler(exact(BTN_NEW_POST), start_new_post),
             MessageHandler(exact(BTN_ADD_CHANNEL), start_add_channel),
+            MessageHandler(exact(BTN_CONVERTER), start_converter),
             MessageHandler(exact(BTN_BROADCAST), broadcast_start),
             MessageHandler(exact(BTN_ADD_SPONSOR), start_add_sponsor),
             MessageHandler(exact(BTN_GLOBAL_AD), start_set_ad),
@@ -109,6 +114,7 @@ def register_all_handlers(app):
             RECUR_TIME: global_jump_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, recur_time_received)],
             GET_DURATION: global_jump_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, duration_chosen)],
             ADD_CHANNEL: global_jump_handlers + [MessageHandler(filters.ALL & ~filters.COMMAND, channel_received)],
+            CONVERT_INPUT: global_jump_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, converter_received)],
             BROADCAST_MESSAGE: global_jump_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, broadcast_send)],
             ADD_SPONSOR_CHANNEL: global_jump_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, sponsor_channel_received)],
             SET_AD_TEXT: global_jump_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, ad_text_received)],
@@ -128,6 +134,7 @@ def register_all_handlers(app):
     app.add_handler(CommandHandler("stats", show_statistics))
     app.add_handler(main_conv)
     app.add_handler(MessageHandler(exact(BTN_CHANNELS), channels_menu))
+    app.add_handler(MessageHandler(exact(BTN_CONVERTER), start_converter))
     app.add_handler(MessageHandler(exact(BTN_PENDING), list_pending_posts))
     app.add_handler(MessageHandler(exact(BTN_PROFILE), user_profile))
     app.add_handler(MessageHandler(exact(BTN_MAIN_MENU), start))
@@ -137,6 +144,7 @@ def register_all_handlers(app):
     app.add_handler(MessageHandler(exact(BTN_ALL_CHANNELS), admin_all_channels))
     app.add_handler(MessageHandler(exact(BTN_SPONSORS), sponsors_menu))
     app.add_handler(MessageHandler(exact(BTN_GLOBAL_AD), start_set_ad))
+    app.add_handler(CallbackQueryHandler(converter_callback, pattern=r"^conv_show:"))
     app.add_handler(CallbackQueryHandler(subscription_check_callback, pattern=r"^check_subscription$"))
     app.add_handler(CallbackQueryHandler(del_sponsor_callback, pattern=r"^del_sponsor:"))
     app.add_handler(CallbackQueryHandler(reaction_callback, pattern=r"^react:"))
