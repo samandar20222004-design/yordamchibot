@@ -1,4 +1,4 @@
-from telegram import Update
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.error import TelegramError
 from telegram.ext import ContextTypes, ConversationHandler
 from config import ADMIN_ID
@@ -107,7 +107,8 @@ async def user_cabinet_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     credits_text = "♾ Cheksiz (Super Admin)" if is_admin else f"<b>{stats['ai_credits']} ta</b>"
     ad_free_text = "♾ Cheksiz" if is_admin else f"<b>{stats['ad_free_posts']} ta</b>"
-    streak_text = f"🔥 <b>{stats['streak']}/7 kun</b>"
+    streak_val = stats.get('streak', 0)
+    streak_text = f"🔥 <b>{streak_val}/7 kun</b>"
     ad_line = get_smart_reply_ad(user.id)
     
     text = (
@@ -138,9 +139,7 @@ async def daily_bonus_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
         bonus = res["bonus_amount"]
         credits = res["credits"]
         
-        # Streak progressini vizual ko'rsatish
         progress_bar = "".join(["🟩" if i <= streak else "⬜" for i in range(1, 8)])
-        
         reset_notice = "\n⚠️ <i>Orada kun o'tkazib yuborilgani sababli seriya 1-kundan qayta boshlandi.</i>\n" if res.get("is_reset") else ""
         
         text = (
@@ -161,7 +160,7 @@ async def daily_bonus_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
         )
 
 async def buy_ad_free_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """1 ballga 5 ta reklamasiz toza post sotib olish."""
+    """Tasdiqlash so'rovi bilan reklamasiz postlar xarid qilish."""
     user = update.effective_user
     is_admin = (user.id == ADMIN_ID)
     
@@ -169,8 +168,50 @@ async def buy_ad_free_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
         await update.message.reply_text("👑 Siz Super Adminsiz — barcha postlaringiz doim reklamasiz chiqadi!", parse_mode="HTML")
         return
         
-    success, msg = db.buy_ad_free_posts(user.id)
-    await update.message.reply_text(msg, reply_markup=get_cabinet_keyboard(), parse_mode="HTML")
+    credits = db.get_user_credits(user.id)
+    if credits < 1:
+        await update.message.reply_text(
+            "⚠️ <b>Hisobingizda yetarli ball mavjud emas!</b>\n\n"
+            "1 ta litsenziya xarid qilish uchun hisobingizda kamida <b>1 ta ball</b> bo'lishi kerak.\n"
+            "Kunlik bonus olishingiz yoki do'stlaringizni taklif qilib ball to'plashingiz mumkin.",
+            reply_markup=get_cabinet_keyboard(),
+            parse_mode="HTML"
+        )
+        return
+
+    keyboard = [
+        [
+            InlineKeyboardButton("✅ Ha, xarid qilish (1 ball)", callback_data="adfree_confirm"),
+            InlineKeyboardButton("❌ Bekor qilish", callback_data="adfree_cancel")
+        ]
+    ]
+    
+    await update.message.reply_text(
+        "💎 <b>Reklamasiz toza postlar xaridi:</b>\n\n"
+        "• Narxi: <b>1 ta AI ball</b>\n"
+        "• Beriladi: <b>5 ta reklamasiz toza post</b>\n\n"
+        "<i>Ushbu xaridni tasdiqlaysizmi?</i>",
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode="HTML"
+    )
+
+async def ad_free_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Tasdiqlash yoki bekor qilish tugmalari bosilganda."""
+    query = update.callback_query
+    await query.answer()
+    data = query.data
+    user_id = query.from_user.id
+    
+    if data == "adfree_cancel":
+        await query.edit_message_text("❌ Xarid bekor qilindi.")
+        return
+        
+    if data == "adfree_confirm":
+        success, msg = db.buy_ad_free_posts(user_id)
+        if success:
+            await query.edit_message_text(msg, parse_mode="HTML")
+        else:
+            await query.edit_message_text(f"❌ {msg}", parse_mode="HTML")
 
 async def user_invite_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
@@ -281,7 +322,7 @@ async def transfer_amount_received(update: Update, context: ContextTypes.DEFAULT
         except Exception:
             pass
     else:
-        await update.message.reply_text(f"❌ Xatolik: {msg}", reply_markup=get_cabinet_keyboard(), parse_mode="HTML")
+        await update.message.reply_text(f"❌ Xatolik: {msg}", reply_markup=get_cabinet_keyboard())
         
     context.user_data.clear()
     return ConversationHandler.END
