@@ -7,10 +7,10 @@ tashkent_tz = pytz.timezone("Asia/Tashkent")
 # Foydalanuvchilarning oxirgi so'rov vaqtlarini saqlash
 _USER_LAST_ACTION = {}
 
-def check_user_flood(user_id: int, cooldown_seconds: float = 0.8) -> bool:
+def check_user_flood(user_id: int, cooldown_seconds: float = 1.0) -> bool:
     """
-    Foydalanuvchi ketma-ket juda tez bosayotganini aniqlaydi.
-    Agar vaqt oralig'i juda qisqa bo'lsa, True qaytaradi.
+    Foydalanuvchi tugmalarni ketma-ket tez bosayotganini tekshiradi.
+    Agar 1.0 soniya ichida qayta bosilsa, True qaytaradi (takroriy xabarlarni to'xtatish uchun).
     """
     now = time.time()
     last_action = _USER_LAST_ACTION.get(user_id, 0)
