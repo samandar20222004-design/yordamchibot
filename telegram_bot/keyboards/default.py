@@ -7,17 +7,17 @@ BTN_NEW_POST = "➕ Yangi post rejalashtirish"
 BTN_AI_ASSISTANT = "🤖 AI Post Yordamchi"
 BTN_PENDING = "⏳ Kutilayotgan postlar"
 BTN_CABINET = "👤 Kabinet & Sozlamalar"
+BTN_HELP = "📖 Yordam & Qo'llanma"
 BTN_ADMIN_PANEL = "⚙️ Admin Panel"
 BTN_MAIN_MENU = "🔙 Asosiy menyu"
 
 # --- Kabinet ichidagi tugmalar ---
 BTN_CHANNELS = "📢 Kanal/Guruhlar"
 BTN_CONVERTER = "🔤 Matn o'girgich (Lotin ⇄ Kirill)"
-BTN_DAILY_BONUS = "🎁 Kunlik bonus (+1 ball)"
-BTN_BUY_AD_FREE = "💎 Reklamasiz postlar xarid qilish"
+BTN_DAILY_BONUS = "🎁 Kunlik bonus"
+BTN_BUY_AD_FREE = "💎 Reklamasiz postlar"
 BTN_INVITE = "🚀 Do'stlarni taklif qilish"
 BTN_TRANSFER = "🔄 Ballarni ulashish"
-BTN_HELP = "📖 Yordam & Qo'llanma"
 
 # --- Admin tugmalari ---
 BTN_STATS = "📊 Statistika"
@@ -66,20 +66,23 @@ def exact(*texts):
     return filters.Regex(pattern)
 
 def get_main_keyboard(is_admin=False):
+    """Asosiy menyu: Yordam tugmasi bosh menyuga chiqarildi."""
     keyboard = [
         [BTN_NEW_POST, BTN_AI_ASSISTANT],
-        [BTN_PENDING, BTN_CABINET]
+        [BTN_PENDING, BTN_CABINET],
+        [BTN_HELP]
     ]
     if is_admin:
         keyboard.append([BTN_ADMIN_PANEL])
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
 def get_cabinet_keyboard():
+    """Kabinet menyusi: ixcham va toza ko'rinish."""
     keyboard = [
         [BTN_CHANNELS, BTN_CONVERTER],
         [BTN_DAILY_BONUS, BTN_BUY_AD_FREE],
         [BTN_INVITE, BTN_TRANSFER],
-        [BTN_HELP, BTN_MAIN_MENU]
+        [BTN_MAIN_MENU]
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
@@ -139,7 +142,7 @@ def get_time_keyboard():
             [BTN_T_WEEKLY],
             [BTN_MAIN_MENU],
         ],
-        resize_keyboard=True
+        resize_keyboard=True,
     )
 
 def get_duration_keyboard():
