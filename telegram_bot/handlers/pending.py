@@ -14,8 +14,8 @@ async def list_pending_posts(update: Update, context: ContextTypes.DEFAULT_TYPE)
     user_id = update.effective_user.id
     user_code = db.get_user_code(user_id)
     posts = db.get_pending_posts(user_id)
-    text, markup = render_pending_list(posts, "📋 *Sizning kutilayotgan postlaringiz:*", user_code=user_code)
-    await update.message.reply_text(text, reply_markup=markup, parse_mode="Markdown")
+    text, markup = render_pending_list(posts, "📋 Sizning kutilayotgan postlaringiz:", user_code=user_code)
+    await update.message.reply_text(text, reply_markup=markup)
 
 async def cancel_post_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -28,8 +28,8 @@ async def cancel_post_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         
         user_code = db.get_user_code(user_id)
         posts = db.get_pending_posts(user_id)
-        text, markup = render_pending_list(posts, "📋 *Sizning kutilayotgan postlaringiz:*", user_code=user_code)
-        await query.edit_message_text(text, parse_mode="Markdown", reply_markup=markup)
+        text, markup = render_pending_list(posts, "📋 Sizning kutilayotgan postlaringiz:", user_code=user_code)
+        await query.edit_message_text(text, reply_markup=markup)
     except Exception as e:
         await query.answer(f"Xatolik: {e}", show_alert=True)
 
@@ -42,11 +42,10 @@ async def edit_post_time_start(update: Update, context: ContextTypes.DEFAULT_TYP
     await query.answer()
     await context.bot.send_message(
         chat_id=query.from_user.id,
-        text="🕒 *Post uchun yangi chiqish vaqtini yuboring:*\n\n"
-             "• Bir martalik post bo'lsa: `2026-08-28 20:00`\n"
-             "• Har kunlik/haftalik post bo'lsa faqat soat: `10:00`",
-        reply_markup=get_cancel_keyboard(),
-        parse_mode="Markdown"
+        text="🕒 Post uchun yangi chiqish vaqtini yuboring:\n\n"
+             "• Bir martalik post bo'lsa: 2026-08-28 20:00\n"
+             "• Har kunlik post bo'lsa faqat soat: 10:00",
+        reply_markup=get_cancel_keyboard()
     )
     return EDIT_POST_TIME
 
@@ -75,9 +74,9 @@ async def edit_post_time_received(update: Update, context: ContextTypes.DEFAULT_
                 return EDIT_POST_TIME
             db.update_post_time(post_id, new_time)
             
-        await update.message.reply_text("✅ *Post vaqti muvaffaqiyatli yangilandi!*", reply_markup=get_main_keyboard(), parse_mode="Markdown")
+        await update.message.reply_text("✅ Post vaqti muvaffaqiyatli yangilandi!", reply_markup=get_main_keyboard())
         context.user_data.clear()
         return ConversationHandler.END
     except Exception:
-        await update.message.reply_text("⚠️ Format xato! Masalan: `2026-08-28 20:00` yoki `10:00`")
+        await update.message.reply_text("⚠️ Format xato! Masalan: 2026-08-28 20:00 yoki 10:00")
         return EDIT_POST_TIME
