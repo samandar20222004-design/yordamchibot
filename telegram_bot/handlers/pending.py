@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 import pytz
 from telegram import Update
 from telegram.ext import ContextTypes, ConversationHandler
@@ -65,7 +65,7 @@ async def edit_post_time_received(update: Update, context: ContextTypes.DEFAULT_
             hh, mm = map(int, text.split(":"))
             new_run = now.replace(hour=hh, minute=mm, second=0, microsecond=0)
             if new_run <= now:
-                new_run += datetime.timedelta(days=1)
+                new_run += timedelta(days=1)
             db.update_post_time(post_id, new_run, f"{hh:02d}:{mm:02d}:00")
         else:
             naive_time = datetime.strptime(text, "%Y-%m-%d %H:%M")
