@@ -4,26 +4,38 @@ import pytz
 
 tashkent_tz = pytz.timezone("Asia/Tashkent")
 
-# Foydalanuvchilarning oxirgi so'rov vaqtlarini saqlash
-_USER_LAST_ACTION = {}
+# Foydalanuvchilarning bosish vaqtlari tarixi
+_USER_HISTORY = {}
+_USER_WARNED = {}
 
-def check_user_flood(user_id: int, cooldown_seconds: float = 1.0) -> bool:
+def check_rate_limit(user_id: int, max_requests: int = 3, window_seconds: float = 3.0) -> tuple[bool, bool]:
     """
-    Foydalanuvchi tugmalarni ketma-ket tez bosayotganini tekshiradi.
-    Agar 1.0 soniya ichida qayta bosilsa, True qaytaradi (takroriy xabarlarni to'xtatish uchun).
+    Foydalanuvchi window_seconds ichida max_requests dan ko'p so'rov yuborganini tekshiradi.
+    Qaytaradi: (is_blocked, should_warn)
     """
     now = time.time()
-    last_action = _USER_LAST_ACTION.get(user_id, 0)
     
-    # Xotira to'lib ketmasligi uchun tozalash
-    if len(_USER_LAST_ACTION) > 5000:
-        _USER_LAST_ACTION.clear()
+    # Xotirani tozalash
+    if len(_USER_HISTORY) > 5000:
+        _USER_HISTORY.clear()
+        _USER_WARNED.clear()
         
-    if now - last_action < cooldown_seconds:
-        return True
+    history = _USER_HISTORY.get(user_id, [])
+    # Faqat so'nggi window_seconds ichidagi so'rovlarni qoldiramiz
+    history = [t for t in history if now - t < window_seconds]
+    
+    if len(history) >= max_requests:
+        # Bloklangan
+        warned = _USER_WARNED.get(user_id, 0)
+        should_warn = (now - warned > window_seconds)
+        if should_warn:
+            _USER_WARNED[user_id] = now
+        _USER_HISTORY[user_id] = history
+        return True, should_warn
         
-    _USER_LAST_ACTION[user_id] = now
-    return False
+    history.append(now)
+    _USER_HISTORY[user_id] = history
+    return False, False
 
 def html_escape(text) -> str:
     """HTML maxsus belgilarini xavfsiz holatga keltiradi."""
