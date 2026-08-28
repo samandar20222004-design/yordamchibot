@@ -17,7 +17,7 @@ from keyboards.default import (
 )
 from handlers.start import (
     start, user_cabinet_menu, user_invite_menu, daily_bonus_handler, buy_ad_free_handler,
-    start_transfer_credits, transfer_target_received, transfer_amount_received,
+    ad_free_callback, start_transfer_credits, transfer_target_received, transfer_amount_received,
     help_command, cancel_handler, subscription_check_callback,
     TRANSFER_TARGET, TRANSFER_AMOUNT
 )
@@ -206,6 +206,7 @@ def register_all_handlers(app):
     app.add_handler(MessageHandler(exact(BTN_SPONSORS), lambda u, c: guard_menu(u, c, sponsors_menu)))
     app.add_handler(MessageHandler(exact(BTN_CHANNEL_AD), lambda u, c: guard_entry(u, c, start_set_channel_ad)))
     app.add_handler(MessageHandler(exact(BTN_BOT_REPLY_AD), lambda u, c: guard_entry(u, c, start_set_bot_reply_ad)))
+    app.add_handler(CallbackQueryHandler(ad_free_callback, pattern=r"^adfree_"))
     app.add_handler(CallbackQueryHandler(converter_callback, pattern=r"^conv_show:"))
     app.add_handler(CallbackQueryHandler(subscription_check_callback, pattern=r"^check_subscription$"))
     app.add_handler(CallbackQueryHandler(del_sponsor_callback, pattern=r"^del_sponsor:"))
