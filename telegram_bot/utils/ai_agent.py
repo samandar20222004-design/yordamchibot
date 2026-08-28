@@ -1,17 +1,19 @@
 import json
 import logging
-import time
 from datetime import datetime
 import pytz
-from groq import Groq
+import aiohttp
 from config import GROQ_API_KEY
 
 logger = logging.getLogger(__name__)
 tashkent_tz = pytz.timezone("Asia/Tashkent")
 
-def analyze_user_prompt(prompt: str, user_id: int = 0) -> dict:
+GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
+
+async def analyze_user_prompt(prompt: str, user_id: int = 0) -> dict:
     """
-    Foydalanuvchi matnini Groq orqali tezkor tahlil qiladi va post/she'r tayyorlaydi.
+    Foydalanuvchi matnini aiohttp orqali to'g'ridan-to'g'ri Groq REST API ga yuboradi.
+    Httpx yoki proxies kutubxonalari ziddiyatidan mutlaqo xoli va juda tez ishlaydi.
     """
     if not GROQ_API_KEY or GROQ_API_KEY.strip() == "":
         logger.error("GROQ_API_KEY topilmadi!")
@@ -39,28 +41,32 @@ Javobni FAQAT quyidagi toza JSON formatida qaytaring, hech qanday boshqa matn qo
 }}
 """
 
-    # Modellarni navbat bilan sinab ko'ramiz (asosiy va zaxira)
-    models = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"]
-    last_error = ""
+    headers = {
+        "Authorization": f"Bearer {GROQ_API_KEY.strip()}",
+        "Content-Type": "application/json"
+    }
 
-    for model_name in models:
-        try:
-            client = Groq(api_key=GROQ_API_KEY.strip(), timeout=15.0)
-            response = client.chat.completions.create(
-                model=model_name,
-                messages=[
-                    {"role": "system", "content": system_instruction},
-                    {"role": "user", "content": prompt}
-                ],
-                response_format={"type": "json_object"},
-                temperature=0.7,
-            )
-            content = response.choices[0].message.content
-            data = json.loads(content)
-            return data
-        except Exception as e:
-            logger.warning(f"Model {model_name} xatosi: {e}")
-            last_error = str(e)
-            continue
+    payload = {
+        "model": "llama-3.3-70b-versatile",
+        "messages": [
+            {"role": "system", "content": system_instruction},
+            {"role": "user", "content": prompt}
+        ],
+        "response_format": {"type": "json_object"},
+        "temperature": 0.7
+    }
 
-    return {"error": f"AI bilan bog'lanishda xatolik: {last_error}"}
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.post(GROQ_API_URL, headers=headers, json=payload, timeout=20) as resp:
+                if resp.status != 200:
+                    err_body = await resp.text()
+                    logger.error(f"Groq API HTTP {resp.status}: {err_body}")
+                    return {"error": f"Groq serveridan xatolik (HTTP {resp.status})"}
+
+                res_json = await resp.json()
+                content = res_json["choices"][0]["message"]["content"]
+                return json.loads(content)
+    except Exception as e:
+        logger.error(f"AI so'rovida xatolik: {e}")
+        return {"error": f"AI bilan bog'lanishda xatolik: {e}"}
