@@ -2,28 +2,32 @@ import re
 from telegram import ReplyKeyboardMarkup
 from telegram.ext import filters
 
+# --- Bosh menyu tugmalari ---
 BTN_NEW_POST = "➕ Yangi post rejalashtirish"
 BTN_AI_ASSISTANT = "🤖 AI Post Yordamchi"
 BTN_PENDING = "⏳ Kutilayotgan postlar"
+BTN_CABINET = "👤 Kabinet & Sozlamalar"
+BTN_ADMIN_PANEL = "⚙️ Admin Panel"
+BTN_MAIN_MENU = "🔙 Asosiy menyu"
+
+# --- Kabinet ichidagi tugmalar ---
 BTN_CHANNELS = "📢 Kanal/Guruhlar"
 BTN_CONVERTER = "🔤 Matn o'girgich (Lotin ⇄ Kirill)"
-BTN_PROFILE = "👤 Profil & Taklif"
-BTN_ADMIN_PANEL = "⚙️ Admin Panel"
+BTN_INVITE = "🚀 Do'stlarni taklif qilish"
+
+# --- Admin tugmalari ---
 BTN_STATS = "📊 Statistika"
-BTN_MAIN_MENU = "🔙 Asosiy menyu"
-BTN_ADD_CHANNEL = "➕ Kanal/Guruh qo'shish"
-BTN_ALL_CHANNELS_TARGET = "🌐 Barchasiga birdaniga"
 BTN_BROADCAST = "✉️ Xabar yuborish"
 BTN_ALL_POSTS = "📋 Barcha postlar"
 BTN_ALL_CHANNELS = "📋 Barcha kanal/guruhlar"
-BTN_SKIP_BUTTON = "➡️ Tugmasiz davom etish"
-
-# Admin
 BTN_SPONSORS = "📢 Majburiy obuna"
 BTN_ADD_SPONSOR = "➕ Homiy kanal qo'shish"
 BTN_GLOBAL_AD = "🔗 Reklama havolasi"
 
-# Reaksiyalar
+# --- Kanal & Post yaratish tugmalari ---
+BTN_ADD_CHANNEL = "➕ Kanal/Guruh qo'shish"
+BTN_ALL_CHANNELS_TARGET = "🌐 Barchasiga birdaniga"
+BTN_SKIP_BUTTON = "➡️ Tugmasiz davom etish"
 BTN_REACT_DEFAULT = "👍 ❤️ 🔥 👏"
 BTN_NO_REACT = "➡️ Reaksiyasiz davom etish"
 
@@ -38,8 +42,8 @@ BTN_DEL_72H = "⏳ 72 soat (3 kun)"
 BTN_T_5MIN = "⚡ 5 daqiqa"
 BTN_T_15MIN = "⚡ 15 daqiqa"
 BTN_T_1H = "⚡ 1 soat"
-BTN_T_DAILY = "🔁 Har kuni (har kuni bir vaqtda)"
-BTN_T_WEEKLY = "📅 Har hafta (haftaning ma'lum kuni)"
+BTN_T_DAILY = "🔁 Har kuni (bir vaqtda)"
+BTN_T_WEEKLY = "📅 Har hafta (ma'lum kuni)"
 
 # Muddatlar
 BTN_DUR_1M = "1 oy"
@@ -57,13 +61,22 @@ def exact(*texts):
     return filters.Regex(pattern)
 
 def get_main_keyboard(is_admin=False):
+    """Ixchamlashtirilgan asosiy menyu."""
     keyboard = [
         [BTN_NEW_POST, BTN_AI_ASSISTANT],
-        [BTN_PENDING, BTN_CHANNELS],
-        [BTN_CONVERTER, BTN_PROFILE]
+        [BTN_PENDING, BTN_CABINET]
     ]
     if is_admin:
         keyboard.append([BTN_ADMIN_PANEL])
+    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+
+def get_cabinet_keyboard():
+    """Foydalanuvchining shaxsiy kabineti menyusi."""
+    keyboard = [
+        [BTN_CHANNELS, BTN_CONVERTER],
+        [BTN_INVITE],
+        [BTN_MAIN_MENU]
+    ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
 def get_cancel_keyboard():
@@ -82,11 +95,7 @@ def get_button_prompt_keyboard():
 
 def get_reactions_keyboard():
     return ReplyKeyboardMarkup(
-        [
-            [BTN_REACT_DEFAULT],
-            [BTN_NO_REACT],
-            [BTN_MAIN_MENU]
-        ],
+        [[BTN_REACT_DEFAULT], [BTN_NO_REACT], [BTN_MAIN_MENU]],
         resize_keyboard=True
     )
 
@@ -114,10 +123,7 @@ def get_admin_panel_keyboard():
 
 def get_sponsors_keyboard():
     return ReplyKeyboardMarkup(
-        [
-            [BTN_ADD_SPONSOR],
-            [BTN_ADMIN_PANEL, BTN_MAIN_MENU]
-        ],
+        [[BTN_ADD_SPONSOR], [BTN_ADMIN_PANEL, BTN_MAIN_MENU]],
         resize_keyboard=True
     )
 
