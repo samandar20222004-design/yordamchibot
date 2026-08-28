@@ -1,10 +1,11 @@
-import logging
 from datetime import datetime, timedelta
+import logging
 from typing import Optional
+from config import ADMIN_ID
+import database as db
 import pytz
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.error import TelegramError
-import database as db
 
 logger = logging.getLogger(__name__)
 tashkent_tz = pytz.timezone("Asia/Tashkent")
@@ -22,7 +23,7 @@ def build_post_keyboard(
   global _bot_username_cache
   keyboard = []
 
-  # 1. Shaxsiy URL tugma
+  # 1. Shaxsiy havola tugmasi
   if custom_btn_text and custom_btn_url:
     keyboard.append([InlineKeyboardButton(custom_btn_text, url=custom_btn_url)])
 
@@ -45,7 +46,7 @@ def build_post_keyboard(
       except Exception:
         pass
 
-  # 3. Reaksiyalar qatori
+  # 3. Reaksiya tugmalari
   if enable_reactions:
     counts = db.get_reaction_counts(post_id)
     react_row = []
@@ -98,6 +99,7 @@ async def check_and_send_posts(bot):
         recurrence_day,
         recurrence_time,
         end_date,
+        delete_after_hours,
     ) = post
 
     markup = build_post_keyboard(
@@ -111,7 +113,7 @@ async def check_and_send_posts(bot):
       )
 
       if post_type == "original_message" and file_id:
-        await bot.copy_message(
+        sent_msg = await bot.copy_message(
             chat_id=target_chat,
             from_chat_id=user_id,
             message_id=int(file_id),
@@ -119,10 +121,11 @@ async def check_and_send_posts(bot):
         )
       else:
         caption = content or ""
-        await bot.send_message(
+        sent_msg = await bot.send_message(
             chat_id=target_chat, text=caption, reply_markup=markup
         )
 
+      # Agar takrorlanuvchi post bo'lmasa, yuborilgan xabar ID sini saqlaymiz
       if recurrence_type in ("daily", "weekly"):
         if end_date and now >= end_date:
           db.mark_post_status(post_id, "completed")
@@ -133,7 +136,7 @@ async def check_and_send_posts(bot):
           else:
             db.mark_post_status(post_id, "completed")
       else:
-        db.mark_post_status(post_id, "posted")
+        db.mark_post_as_sent(post_id, sent_msg.message_id)
 
     except TelegramError as e:
       logger.error(f"Post #{post_id} yuborishda xato: {e}")
@@ -150,3 +153,23 @@ async def check_and_send_posts(bot):
       logger.error(f"Kutilmagan xato: {e}")
       if recurrence_type == "none":
         db.mark_post_status(post_id, "failed")
+
+
+async def check_and_delete_expired_posts(bot):
+  now = datetime.now(tashkent_tz)
+  posts_to_delete = db.get_posts_to_delete(now)
+
+  for post in posts_to_delete:
+    p_id, ch_id, msg_id = post
+    try:
+      target_chat = int(ch_id) if str(ch_id).lstrip("-").isdigit() else ch_id
+      await bot.delete_message(chat_id=target_chat, message_id=msg_id)
+      db.mark_post_as_deleted(p_id)
+      logger.info(
+          f"Post #{p_id} (msg_id: {msg_id}) kanaldan avtomatik o'chirildi."
+      )
+    except TelegramError as e:
+      logger.warning(
+          f"Post #{p_id} ni o'chirishda xatolik (balki qo'lda o'chirilgan): {e}"
+      )
+      db.mark_post_as_deleted(p_id)
