@@ -45,7 +45,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         try:
             await context.bot.send_message(
                 chat_id=referrer_id,
-                text="🎉 <b>Yangi do'st taklif qilindi!</b>\n\nSizning havolangiz orqali yangi foydalanuvchi qo'shildi va hisobingizga <b>+3 ta bepul AI so'rovi</b> qo'shildi! 🚀",
+                text="🎉 <b>Yangi do'st taklif qilindi!</b>\n\nSizning taklif havolangiz orqali yangi foydalanuvchi qo'shildi va hisobingizga <b>+3 ta bepul AI so'rovi</b> qo'shildi! 🚀",
                 parse_mode="HTML"
             )
         except Exception:
@@ -93,16 +93,19 @@ async def subscription_check_callback(update: Update, context: ContextTypes.DEFA
             pass
 
 async def user_cabinet_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Shaxsiy kabinet va sozlamalar bosh menyusi."""
+    """Shaxsiy kabinet menyusi."""
     context.user_data.clear()
     user = update.effective_user
+    is_admin = (user.id == ADMIN_ID)
     stats = db.get_referral_stats(user.id)
     channels = db.get_user_channels(user.id)
+    
+    credits_text = "♾ Cheksiz (Super Admin)" if is_admin else f"<b>{stats['ai_credits']} ta</b>"
     
     text = (
         f"👤 <b>Shaxsiy Kabinet:</b>\n\n"
         f"🆔 ID: <code>{user.id}</code>\n"
-        f"💎 Mavjud AI so'rovlar: <b>{stats['ai_credits']} ta</b>\n"
+        f"💎 Mavjud so'rovlar soni: {credits_text}\n"
         f"📢 Ulangan kanallar: <b>{len(channels)} ta</b>\n"
         f"👥 Taklif qilgan do'stlaringiz: <b>{stats['referrals_count']} ta</b>\n\n"
         f"Quyidagi bo'limlardan birini tanlang 👇"
@@ -110,19 +113,22 @@ async def user_cabinet_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(text, reply_markup=get_cabinet_keyboard(), parse_mode="HTML")
 
 async def user_invite_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Taklif havolasi va ballar bo'limi."""
+    """Do'stlarni taklif qilish bo'limi."""
     context.user_data.clear()
     user = update.effective_user
+    is_admin = (user.id == ADMIN_ID)
     bot_obj = await context.bot.get_me()
     stats = db.get_referral_stats(user.id)
     ref_link = f"https://t.me/{bot_obj.username}?start=ref_{user.id}"
     
+    credits_text = "♾ Cheksiz (Super Admin)" if is_admin else f"<b>{stats['ai_credits']} ta</b>"
+    
     text = (
-        f"🚀 <b>Do'stlarni taklif qiling va ball to'plang:</b>\n\n"
-        f"🎁 <i>Har bir yangi do'stingiz uchun sizga <b>+3 ta bepul AI so'rovi</b> beriladi!</i>\n\n"
-        f"💎 Sizning AI so'rovlaringiz: <b>{stats['ai_credits']} ta</b>\n"
-        f"👥 Taklif qilinganlar: <b>{stats['referrals_count']} ta</b>\n\n"
-        f"🔗 <b>Sizning shaxsiy taklif havolangiz:</b>\n<code>{ref_link}</code>"
+        f"🚀 <b>Do'stlarni taklif qiling va bepul so'rovlar oling:</b>\n\n"
+        f"🎁 <i>Har bir yangi do'stingiz uchun hisobingizga <b>+3 ta bepul AI so'rovi</b> qo'shiladi!</i>\n\n"
+        f"💎 Sizdagi mavjud so'rovlar soni: {credits_text}\n"
+        f"👥 Taklif qilingan do'stlaringiz: <b>{stats['referrals_count']} ta</b>\n\n"
+        f"🔗 <b>Sizning taklif havolangiz:</b>\n<code>{ref_link}</code>"
     )
     await update.message.reply_text(
         text,
