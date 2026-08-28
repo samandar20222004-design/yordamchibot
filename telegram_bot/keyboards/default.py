@@ -13,8 +13,10 @@ BTN_MAIN_MENU = "🔙 Asosiy menyu"
 # --- Kabinet ichidagi tugmalar ---
 BTN_CHANNELS = "📢 Kanal/Guruhlar"
 BTN_CONVERTER = "🔤 Matn o'girgich (Lotin ⇄ Kirill)"
+BTN_DAILY_BONUS = "🎁 Kunlik bonus (+1 ball)"
+BTN_BUY_AD_FREE = "💎 Reklamasiz postlar xarid qilish"
 BTN_INVITE = "🚀 Do'stlarni taklif qilish"
-BTN_TRANSFER = "🎁 Ballarni ulashish"
+BTN_TRANSFER = "🔄 Ballarni ulashish"
 BTN_HELP = "📖 Yordam & Qo'llanma"
 
 # --- Admin tugmalari ---
@@ -24,7 +26,8 @@ BTN_ALL_POSTS = "📋 Barcha postlar"
 BTN_ALL_CHANNELS = "📋 Barcha kanal/guruhlar"
 BTN_SPONSORS = "📢 Majburiy obuna"
 BTN_ADD_SPONSOR = "➕ Homiy kanal qo'shish"
-BTN_GLOBAL_AD = "🔗 Reklama havolasi"
+BTN_CHANNEL_AD = "📢 Kanal posti reklamasi"
+BTN_BOT_REPLY_AD = "🤖 Bot xabari reklamasi"
 
 # --- Kanal & Post yaratish tugmalari ---
 BTN_ADD_CHANNEL = "➕ Kanal/Guruh qo'shish"
@@ -74,6 +77,7 @@ def get_main_keyboard(is_admin=False):
 def get_cabinet_keyboard():
     keyboard = [
         [BTN_CHANNELS, BTN_CONVERTER],
+        [BTN_DAILY_BONUS, BTN_BUY_AD_FREE],
         [BTN_INVITE, BTN_TRANSFER],
         [BTN_HELP, BTN_MAIN_MENU]
     ]
@@ -113,10 +117,10 @@ def get_auto_delete_keyboard():
 def get_admin_panel_keyboard():
     return ReplyKeyboardMarkup(
         [
-            [BTN_SPONSORS, BTN_GLOBAL_AD],
-            [BTN_BROADCAST, BTN_STATS],
-            [BTN_ALL_POSTS, BTN_ALL_CHANNELS],
-            [BTN_MAIN_MENU],
+            [BTN_SPONSORS, BTN_STATS],
+            [BTN_CHANNEL_AD, BTN_BOT_REPLY_AD],
+            [BTN_BROADCAST, BTN_ALL_POSTS],
+            [BTN_ALL_CHANNELS, BTN_MAIN_MENU],
         ],
         resize_keyboard=True,
     )
@@ -135,7 +139,7 @@ def get_time_keyboard():
             [BTN_T_WEEKLY],
             [BTN_MAIN_MENU],
         ],
-        resize_keyboard=True,
+        resize_keyboard=True
     )
 
 def get_duration_keyboard():
