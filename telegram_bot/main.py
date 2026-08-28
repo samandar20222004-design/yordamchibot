@@ -3,7 +3,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from config import BOT_TOKEN
 import database as db
 from handlers import register_all_handlers
-from scheduler import check_and_send_posts
+from scheduler import check_and_delete_expired_posts, check_and_send_posts
 from telegram.ext import ApplicationBuilder
 from utils.web_server import start_web_server
 
@@ -26,8 +26,13 @@ def main():
   register_all_handlers(app)
 
   scheduler = AsyncIOScheduler(timezone="Asia/Tashkent")
+  # 1. Chiqishi kerak bo'lgan postlarni yuborish
   scheduler.add_job(
       check_and_send_posts, "interval", minutes=1, args=[app.bot]
+  )  #[cite: 1]
+  # 2. Muddati tugagan postlarni kanaldan o'chirish
+  scheduler.add_job(
+      check_and_delete_expired_posts, "interval", minutes=1, args=[app.bot]
   )
   scheduler.start()
 
