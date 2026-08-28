@@ -15,12 +15,12 @@ def get_subscription_check_keyboard(sponsors: list):
 
 def render_sponsors_list(sponsors):
     if not sponsors:
-        return "📢 *Hozircha majburiy obuna uchun homiy kanallar ulanmagan.*", None
-    text = "📢 *Majburiy a'zolik homiy kanallari:*\n\n"
+        return "📢 Hozircha majburiy obuna uchun homiy kanallar ulanmagan.", None
+    text = "📢 Majburiy a'zolik homiy kanallari:\n\n"
     keyboard = []
     for s in sponsors:
         s_id, ch_id, ch_title, ch_url = s
-        text += f"🔹 *{md_escape(ch_title)}*\n   🔗 {ch_url}\n"
+        text += f"🔹 {ch_title}\n   🔗 {ch_url}\n"
         keyboard.append([InlineKeyboardButton(f"🗑 {ch_title} o'chirish", callback_data=f"del_sponsor:{s_id}")])
     return text, InlineKeyboardMarkup(keyboard)
 
@@ -33,22 +33,21 @@ def render_pending_list(posts, title, show_owner=False, user_code=None):
     for p in posts:
         pid, c_title, p_type, s_time, user_post_number, rec_type, rec_day, rec_time = p
         code_label = format_post_code(user_code, user_post_number) if user_code else f"#{user_post_number or pid}"
-        ch_title = md_escape(c_title) if c_title else "Kanal/Guruh"
+        ch_title = c_title if c_title else "Kanal/Guruh"
         schedule_line = format_schedule_line(s_time, rec_type, rec_day, rec_time)
         
-        text += f"📌 *{code_label}* | {ch_title}\n{schedule_line} | 📎 {p_type}\n\n"
+        text += f"📌 Post: {code_label} | {ch_title}\n{schedule_line} | Turi: {p_type}\n\n"
         
-        # Har bir post uchun 2 ta boshqaruv tugmasi: Tahrirlash va Bekor qilish
         keyboard.append([
             InlineKeyboardButton(f"✏️ {code_label} vaqtini o'zgartirish", callback_data=f"edit_time:{pid}"),
-            InlineKeyboardButton(f"❌ Bekor qilish", callback_data=f"cancel_post:{pid}:{scope}")
+            InlineKeyboardButton(f"❌ {code_label} bekor qilish", callback_data=f"cancel_post:{pid}:{scope}")
         ])
     return text, InlineKeyboardMarkup(keyboard)
 
 def render_channels_list(channels, show_owner=False):
     if not channels:
         return "📭 Hozircha ulangan kanal/guruh mavjud emas.", None
-    text = "📢 *Ulangan kanal/guruhlar:*\n\n"
+    text = "📢 Ulangan kanal/guruhlar:\n\n"
     keyboard = []
     scope = "all" if show_owner else "mine"
     for ch in channels:
@@ -56,11 +55,11 @@ def render_channels_list(channels, show_owner=False):
             channel_id, channel_title, owner_id, owner_username = ch
         else:
             channel_id, channel_title = ch
-        safe_title = md_escape(channel_title) if channel_title else "Nomsiz"
-        line = f"🔹 *{safe_title}* (ID: `{channel_id}`)"
+        title = channel_title if channel_title else "Nomsiz"
+        line = f"🔹 {title} (ID: {channel_id})"
         if show_owner:
-            owner_label = md_escape(f"@{owner_username}") if owner_username else str(owner_id)
+            owner_label = f"@{owner_username}" if owner_username else str(owner_id)
             line += f"\n   👤 {owner_label}"
         text += line + "\n"
-        keyboard.append([InlineKeyboardButton(f"🗑 {channel_title or 'Nomsiz'} o'chirish", callback_data=f"remove_channel:{channel_id}:{scope}")])
+        keyboard.append([InlineKeyboardButton(f"🗑 {title} o'chirish", callback_data=f"remove_channel:{channel_id}:{scope}")])
     return text, InlineKeyboardMarkup(keyboard)
