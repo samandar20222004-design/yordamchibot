@@ -8,7 +8,7 @@ from telegram.ext import (
 )
 from keyboards.default import (
     exact,
-    BTN_NEW_POST, BTN_AI_ASSISTANT, BTN_CABINET, BTN_INVITE,
+    BTN_NEW_POST, BTN_AI_ASSISTANT, BTN_CABINET, BTN_INVITE, BTN_HELP,
     BTN_ADD_CHANNEL, BTN_CHANNELS, BTN_PENDING, BTN_CONVERTER,
     BTN_ADMIN_PANEL, BTN_STATS, BTN_ALL_POSTS, BTN_ALL_CHANNELS,
     BTN_BROADCAST, BTN_MAIN_MENU, BTN_SPONSORS, BTN_ADD_SPONSOR, BTN_GLOBAL_AD
@@ -82,6 +82,7 @@ def register_all_handlers(app):
         MessageHandler(exact(BTN_AI_ASSISTANT), start_ai_assistant),
         MessageHandler(exact(BTN_CABINET), lambda u, c: _jump_to(u, c, user_cabinet_menu)),
         MessageHandler(exact(BTN_INVITE), lambda u, c: _jump_to(u, c, user_invite_menu)),
+        MessageHandler(exact(BTN_HELP), lambda u, c: _jump_to(u, c, help_command)),
         MessageHandler(exact(BTN_ADD_CHANNEL), start_add_channel),
         MessageHandler(exact(BTN_CHANNELS), lambda u, c: _jump_to(u, c, channels_menu)),
         MessageHandler(exact(BTN_CONVERTER), start_converter),
@@ -145,6 +146,7 @@ def register_all_handlers(app):
     app.add_handler(main_conv)
     app.add_handler(MessageHandler(exact(BTN_CABINET), user_cabinet_menu))
     app.add_handler(MessageHandler(exact(BTN_INVITE), user_invite_menu))
+    app.add_handler(MessageHandler(exact(BTN_HELP), help_command))
     app.add_handler(MessageHandler(exact(BTN_CHANNELS), channels_menu))
     app.add_handler(MessageHandler(exact(BTN_CONVERTER), start_converter))
     app.add_handler(MessageHandler(exact(BTN_AI_ASSISTANT), start_ai_assistant))
