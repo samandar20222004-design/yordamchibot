@@ -22,7 +22,6 @@ async def start_ai_assistant(update: Update, context: ContextTypes.DEFAULT_TYPE)
     is_admin = (user_id == ADMIN_ID)
     credits = db.get_user_credits(user_id)
     
-    # Super Admin uchun cheklov yo'q
     if not is_admin and credits <= 0:
         bot_obj = await context.bot.get_me()
         ref_link = f"https://t.me/{bot_obj.username}?start=ref_{user_id}"
@@ -35,13 +34,13 @@ async def start_ai_assistant(update: Update, context: ContextTypes.DEFAULT_TYPE)
         )
         return ConversationHandler.END
 
-    limit_info = "♾ Cheksiz (Admin)" if is_admin else f"<b>{credits} ta</b>"
+    limit_info = "♾ Cheksiz (Super Admin)" if is_admin else f"<b>{credits} ta</b>"
 
     await update.message.reply_text(
         f"🤖 <b>AI Post Yordamchisiga xush kelibsiz!</b>\n\n"
         f"💎 Sizdagi mavjud so'rovlar soni: {limit_info}\n\n"
         f"Istalgan sohada qanday post tayyorlash kerakligini erkin yozing:\n"
-        f"👉 <i>Masalan: 'Ertaga soat 15:00 ga aksiya va chegirmalar haqida qiziqarli post yozib kanalga rejalashtir'</i>",
+        f"👉 <i>Masalan: 'Ertaga soat 15:00 ga chegirmalar haqida qiziqarli post yozib kanalga rejalashtir'</i>",
         reply_markup=get_cancel_keyboard(),
         parse_mode="HTML"
     )
@@ -59,17 +58,17 @@ async def ai_input_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     msg_wait = await update.message.reply_text("⏳ <i>AI post tayyorlamoqda, iltimos kuting...</i>", parse_mode="HTML")
     
-    result = analyze_user_prompt(prompt)
+    result = analyze_user_prompt(prompt, user_id=user_id)
     await msg_wait.delete()
     
     if "error" in result:
         await update.message.reply_text(
-            f"⚠️ Xatolik: {result['error']}",
-            reply_markup=get_main_keyboard(is_admin)
+            f"⚠️ {result['error']}",
+            reply_markup=get_main_keyboard(is_admin),
+            parse_mode="HTML"
         )
         return ConversationHandler.END
 
-    # Faqat post tayyor bo'lgandan so'ng (oddiy foydalanuvchidan) 1 ta so'rov ayiramiz
     if not is_admin:
         db.use_user_credit(user_id)
     
