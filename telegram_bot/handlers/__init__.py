@@ -48,8 +48,6 @@ from handlers.admin import (
 import database as db
 
 logger = logging.getLogger(__name__)
-
-# Foydalanuvchining so'nggi harakatini tekshirish uchun xotira
 _USER_LAST_CLICK = {}
 
 async def _single_jump(update, context, fn):
@@ -58,8 +56,7 @@ async def _single_jump(update, context, fn):
     if user:
         now = time.time()
         last_time = _USER_LAST_CLICK.get(user.id, 0)
-        # Agar oxirgi bosishdan keyin 1.2 soniya o'tmagan bo'lsa, takroriy bosishlarni darhol to'xtatamiz
-        if now - last_time < 1.2:
+        if now - last_time < 1.0:
             return ConversationHandler.END
         _USER_LAST_CLICK[user.id] = now
         
@@ -149,7 +146,7 @@ def register_all_handlers(app):
             GET_DURATION: global_jump_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, duration_chosen)],
             ADD_CHANNEL: global_jump_handlers + [MessageHandler(filters.ALL & ~filters.COMMAND, channel_received)],
             CONVERT_INPUT: global_jump_handlers + [MessageHandler(filters.ALL & ~filters.COMMAND, converter_received)],
-            AI_INPUT: global_jump_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, ai_input_received)],
+            AI_INPUT: global_jump_handlers + [MessageHandler(filters.ALL & ~filters.COMMAND, ai_input_received)],
             AI_CONFIRM: global_jump_handlers + [CallbackQueryHandler(ai_confirm_callback, pattern=r"^ai_post_")],
             BROADCAST_MESSAGE: global_jump_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, broadcast_send)],
             ADD_SPONSOR_CHANNEL: global_jump_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, sponsor_channel_received)],
