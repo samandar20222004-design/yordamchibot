@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from datetime import datetime
 import pytz
@@ -22,7 +23,6 @@ async def start_ai_assistant(update: Update, context: ContextTypes.DEFAULT_TYPE)
     is_admin = (user_id == ADMIN_ID)
     credits = db.get_user_credits(user_id)
     
-    # Super Admin uchun cheklov yo'q
     if not is_admin and credits <= 0:
         bot_obj = await context.bot.get_me()
         ref_link = f"https://t.me/{bot_obj.username}?start=ref_{user_id}"
@@ -41,7 +41,7 @@ async def start_ai_assistant(update: Update, context: ContextTypes.DEFAULT_TYPE)
         f"🤖 <b>AI Post Yordamchisiga xush kelibsiz!</b>\n\n"
         f"💎 Sizdagi mavjud AI so'rovlar soni: {limit_info}\n\n"
         f"Post mavzusini matn yoki <b>rasm (izohi bilan)</b> yuboring:\n"
-        f"👉 <i>Masalan: 'Ertaga soat 15:00 ga aksiya haqida post yozib kanalga rejalashtir'</i>",
+        f"👉 <i>Masalan: 'Ertaga soat 18:50 ga sevgi haqida chiroyli she'r yozib post tayyorla'</i>",
         reply_markup=get_cancel_keyboard(),
         parse_mode="HTML"
     )
@@ -57,10 +57,8 @@ async def ai_input_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     file_id = None
     post_type = "text"
     
-    # 1. Matn yoki Rasmni aniqlash
     if msg.text:
         prompt = msg.text
-        # Agar oldin rasm saqlangan bo'lsa, o'shani ishlatamiz
         file_id = context.user_data.get("ai_file_id")
         post_type = "photo" if file_id else "text"
     elif msg.photo:
@@ -69,7 +67,6 @@ async def ai_input_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
         post_type = "photo"
         prompt = msg.caption or ""
         
-        # Agar rasm tagida yozuv bo'lmasa, matn so'raymiz
         if not prompt:
             await msg.reply_text(
                 "📸 <b>Rasm qabul qilindi!</b>\n\nEndi ushbu rasm uchun qanday post yozish kerakligini yozing:",
@@ -81,10 +78,16 @@ async def ai_input_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await msg.reply_text("Iltimos, post mavzusi yoki buyruqni matn ko'rinishida yuboring:")
         return AI_INPUT
 
+    # Foydalanuvchiga darhol jarayon boshlanganini bildiramiz
     msg_wait = await msg.reply_text("⏳ <i>AI post tayyorlamoqda, iltimos kuting...</i>", parse_mode="HTML")
     
-    result = analyze_user_prompt(prompt, user_id=user_id)
-    await msg_wait.delete()
+    # Asinxron ravishda AI ga so'rov yuboramiz (bot qotib qolmasligi uchun)
+    result = await asyncio.to_thread(analyze_user_prompt, prompt, user_id)
+    
+    try:
+        await msg_wait.delete()
+    except Exception:
+        pass
     
     if "error" in result:
         await msg.reply_text(
@@ -94,7 +97,6 @@ async def ai_input_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return ConversationHandler.END
 
-    # Post tayyor bo'lgach 1 ta so'rov ayiramiz
     if not is_admin:
         db.use_user_credit(user_id)
     
@@ -139,7 +141,7 @@ async def ai_input_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def ai_confirm_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Postni kanalga saqlash."""
     query = update.callback_query
-    await query.answer()
+    await query.answer("Post saqlanmoqda...")
     data = query.data
     user_id = query.from_user.id
     is_admin = (user_id == ADMIN_ID)
