@@ -27,7 +27,7 @@ async def converter_received(update: Update, context: ContextTypes.DEFAULT_TYPE)
     media_type = "text"
     file_id = None
     
-    # 1. Media turini va matnni aniqlaymiz
+    # Media turi va matnni aniqlash
     if msg.text:
         text = msg.text
         media_type = "text"
@@ -51,7 +51,7 @@ async def converter_received(update: Update, context: ContextTypes.DEFAULT_TYPE)
         text = msg.caption or ""
         media_type = "voice"
         file_id = msg.voice.file_id
-    elif msg.animation: # GIF
+    elif msg.animation:
         text = msg.caption or ""
         media_type = "animation"
         file_id = msg.animation.file_id
@@ -63,11 +63,11 @@ async def converter_received(update: Update, context: ContextTypes.DEFAULT_TYPE)
         )
         return CONVERT_INPUT
 
-    # 2. Lotin va Kirill variantlarini hisoblaymiz
+    # Lotin va Kirill variantlarini hisoblash
     cyr = to_cyrillic(text)
     lat = to_latin(text)
     
-    # Ma'lumotlarni sessiyada saqlaymiz
+    # Ma'lumotlarni saqlash
     context.user_data["media_type"] = media_type
     context.user_data["file_id"] = file_id
     context.user_data["cyr_text"] = cyr
@@ -86,8 +86,32 @@ async def converter_received(update: Update, context: ContextTypes.DEFAULT_TYPE)
     )
     return CONVERT_INPUT
 
+def _split_smartly(text: str, max_first_len: int = 950) -> tuple[str, str]:
+    """Matnni mantiqiy xatboshi yoki bo'shliqdan ikkiga bo'ladi."""
+    if len(text) <= max_first_len:
+        return text, ""
+    
+    # 950 belgigacha bo'lgan eng oxirgi xatboshini (yangi qatorni) qidiramiz
+    split_index = text.rfind("\n", 0, max_first_len)
+    
+    # Yangi qator topilmasa, nuqta yoki bo'sh joydan ajratamiz
+    if split_index == -1 or split_index < 400:
+        split_index = text.rfind(". ", 0, max_first_len)
+        if split_index != -1:
+            split_index += 1
+            
+    if split_index == -1 or split_index < 400:
+        split_index = text.rfind(" ", 0, max_first_len)
+        
+    if split_index == -1:
+        split_index = max_first_len
+
+    part1 = text[:split_index].strip()
+    part2 = text[split_index:].strip()
+    return part1, part2
+
 async def converter_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Tugma bosilganda o'girilgan matnni yoki faylni yangi izoh bilan qaytaradi."""
+    """Tugma bosilganda o'girilgan matnni yoki media faylni yuboradi."""
     query = update.callback_query
     await query.answer()
     
@@ -103,50 +127,62 @@ async def converter_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
     chat_id = query.from_user.id
     bot = context.bot
     
-    # Media turiga qarab mos holda qaytarib yuboramiz
     try:
+        # 1. Agar oddiy matn bo'lsa
         if media_type == "text":
-            await bot.send_message(
-                chat_id=chat_id,
-                text=f"📋 <b>Natija:</b>\n\n<code>{html_escape(res_text)}</code>\n\n<i>(Nusxalash uchun matn ustiga bosing)</i>",
-                parse_mode="HTML"
-            )
-        elif media_type == "photo":
-            await bot.send_photo(
-                chat_id=chat_id,
-                photo=file_id,
-                caption=res_text
-            )
-        elif media_type == "video":
-            await bot.send_video(
-                chat_id=chat_id,
-                video=file_id,
-                caption=res_text
-            )
-        elif media_type == "document":
-            await bot.send_document(
-                chat_id=chat_id,
-                document=file_id,
-                caption=res_text
-            )
-        elif media_type == "audio":
-            await bot.send_audio(
-                chat_id=chat_id,
-                audio=file_id,
-                caption=res_text
-            )
-        elif media_type == "voice":
-            await bot.send_voice(
-                chat_id=chat_id,
-                voice=file_id,
-                caption=res_text
-            )
-        elif media_type == "animation":
-            await bot.send_animation(
-                chat_id=chat_id,
-                animation=file_id,
-                caption=res_text
-            )
+            if len(res_text) <= 4000:
+                await bot.send_message(
+                    chat_id=chat_id,
+                    text=f"📋 <b>Natija:</b>\n\n<code>{html_escape(res_text)}</code>\n\n<i>(Nusxalash uchun matn ustiga bosing)</i>",
+                    parse_mode="HTML"
+                )
+            else:
+                part1, part2 = _split_smartly(res_text, max_first_len=3800)
+                await bot.send_message(chat_id=chat_id, text=f"📋 <b>Natija (1-qism):</b>\n\n<code>{html_escape(part1)}</code>", parse_mode="HTML")
+                if part2:
+                    await bot.send_message(chat_id=chat_id, text=f"📋 <b>Natija (2-qism):</b>\n\n<code>{html_escape(part2)}</code>", parse_mode="HTML")
+            return
+
+        # 2. Agar rasm/video/fayl bo'lsa
+        if len(res_text) > 1000:
+            part1, part2 = _split_smartly(res_text, max_first_len=950)
+            
+            # Faylni 1-qism matni bilan yuboramiz
+            if media_type == "photo":
+                await bot.send_photo(chat_id=chat_id, photo=file_id, caption=part1)
+            elif media_type == "video":
+                await bot.send_video(chat_id=chat_id, video=file_id, caption=part1)
+            elif media_type == "document":
+                await bot.send_document(chat_id=chat_id, document=file_id, caption=part1)
+            elif media_type == "audio":
+                await bot.send_audio(chat_id=chat_id, audio=file_id, caption=part1)
+            elif media_type == "voice":
+                await bot.send_voice(chat_id=chat_id, voice=file_id, caption=part1)
+            elif media_type == "animation":
+                await bot.send_animation(chat_id=chat_id, animation=file_id, caption=part1)
+                
+            # 2-qismini tushuntirish bilan alohida yuboramiz
+            if part2:
+                notice = (
+                    "ℹ️ <i>Matn hajmi 1024 belgidan oshgani sababli, uning davomi alohida yuborildi:</i>\n\n"
+                    f"<code>{html_escape(part2)}</code>"
+                )
+                await bot.send_message(chat_id=chat_id, text=notice, parse_mode="HTML")
+        else:
+            # 1000 belgidan kam bo'lsa bittada to'liq caption bilan ketadi
+            if media_type == "photo":
+                await bot.send_photo(chat_id=chat_id, photo=file_id, caption=res_text)
+            elif media_type == "video":
+                await bot.send_video(chat_id=chat_id, video=file_id, caption=res_text)
+            elif media_type == "document":
+                await bot.send_document(chat_id=chat_id, document=file_id, caption=res_text)
+            elif media_type == "audio":
+                await bot.send_audio(chat_id=chat_id, audio=file_id, caption=res_text)
+            elif media_type == "voice":
+                await bot.send_voice(chat_id=chat_id, voice=file_id, caption=res_text)
+            elif media_type == "animation":
+                await bot.send_animation(chat_id=chat_id, animation=file_id, caption=res_text)
+                
     except Exception as e:
         logger.error(f"Konverter natijasini yuborishda xato: {e}")
         await bot.send_message(chat_id=chat_id, text=f"⚠️ Xatolik yuz berdi: {e}")
