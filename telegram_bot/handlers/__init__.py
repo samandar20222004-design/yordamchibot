@@ -15,15 +15,20 @@ from keyboards.default import (
 )
 from handlers.start import start, user_profile, help_command, cancel_handler, subscription_check_callback
 from handlers.new_post import (
-    start_new_post, channel_chosen, content_received, button_received,
-    reactions_received, time_received, recur_day_chosen, recur_time_received,
-    CHOOSE_CHANNEL, GET_CONTENT, GET_BUTTON, GET_REACTIONS, GET_TIME, RECUR_DAY, RECUR_TIME
+    start_new_post, channel_chosen, content_received, btn_title_received,
+    btn_url_received, reactions_received, time_received, daily_time_received,
+    recur_day_chosen, recur_time_received, duration_chosen,
+    CHOOSE_CHANNEL, GET_CONTENT, GET_BTN_TITLE, GET_BTN_URL,
+    GET_REACTIONS, GET_TIME, DAILY_TIME, RECUR_DAY, RECUR_TIME, GET_DURATION
 )
 from handlers.channels import (
     channels_menu, start_add_channel, channel_received,
     remove_channel_callback, on_bot_chat_member_update, ADD_CHANNEL
 )
-from handlers.pending import list_pending_posts, cancel_post_callback
+from handlers.pending import (
+    list_pending_posts, cancel_post_callback,
+    edit_post_time_start, edit_post_time_received, EDIT_POST_TIME
+)
 from handlers.admin import (
     admin_panel_menu, show_statistics, admin_all_posts, admin_all_channels,
     broadcast_start, broadcast_send, sponsors_menu, start_add_sponsor,
@@ -87,21 +92,26 @@ def register_all_handlers(app):
             MessageHandler(exact(BTN_BROADCAST), broadcast_start),
             MessageHandler(exact(BTN_ADD_SPONSOR), start_add_sponsor),
             MessageHandler(exact(BTN_GLOBAL_AD), start_set_ad),
+            CallbackQueryHandler(edit_post_time_start, pattern=r"^edit_time:"),
             CommandHandler("newpost", start_new_post),
             CommandHandler("broadcast", broadcast_start),
         ],
         states={
             CHOOSE_CHANNEL: global_jump_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, channel_chosen)],
             GET_CONTENT: global_jump_handlers + [MessageHandler(filters.ALL & ~filters.COMMAND, content_received)],
-            GET_BUTTON: global_jump_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, button_received)],
+            GET_BTN_TITLE: global_jump_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, btn_title_received)],
+            GET_BTN_URL: global_jump_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, btn_url_received)],
             GET_REACTIONS: global_jump_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, reactions_received)],
             GET_TIME: global_jump_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, time_received)],
+            DAILY_TIME: global_jump_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, daily_time_received)],
             RECUR_DAY: global_jump_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, recur_day_chosen)],
             RECUR_TIME: global_jump_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, recur_time_received)],
+            GET_DURATION: global_jump_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, duration_chosen)],
             ADD_CHANNEL: global_jump_handlers + [MessageHandler(filters.ALL & ~filters.COMMAND, channel_received)],
             BROADCAST_MESSAGE: global_jump_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, broadcast_send)],
             ADD_SPONSOR_CHANNEL: global_jump_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, sponsor_channel_received)],
             SET_AD_TEXT: global_jump_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, ad_text_received)],
+            EDIT_POST_TIME: global_jump_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, edit_post_time_received)],
         },
         fallbacks=[
             CommandHandler("start", start),
@@ -127,6 +137,7 @@ def register_all_handlers(app):
     app.add_handler(MessageHandler(exact(BTN_ALL_POSTS), admin_all_posts))
     app.add_handler(MessageHandler(exact(BTN_ALL_CHANNELS), admin_all_channels))
     app.add_handler(MessageHandler(exact(BTN_SPONSORS), sponsors_menu))
+    app.add_handler(MessageHandler(exact(BTN_GLOBAL_AD), start_set_ad))
 
     app.add_handler(CallbackQueryHandler(subscription_check_callback, pattern=r"^check_subscription$"))
     app.add_handler(CallbackQueryHandler(del_sponsor_callback, pattern=r"^del_sponsor:"))
