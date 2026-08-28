@@ -50,13 +50,28 @@ import database as db
 logger = logging.getLogger(__name__)
 _USER_LAST_CLICK = {}
 
-async def _single_jump(update, context, fn):
-    """Ketma-ket bosilgan takroriy so'rovlarni bir zumda to'xtatib, faqat bitta javob beradi."""
+async def start_entry_flow(update, context, fn):
+    """ConversationHandler boshlanishi uchun to'g'ri holatni qaytaruvchi funksiya."""
     user = update.effective_user
     if user:
         now = time.time()
         last_time = _USER_LAST_CLICK.get(user.id, 0)
-        if now - last_time < 1.0:
+        if now - last_time < 0.6:
+            # Agar juda tez bosilsa, yangi holatni uzmasdan o'sha holatda qoldiramiz
+            pass
+        _USER_LAST_CLICK[user.id] = now
+
+    context.user_data.clear()
+    # Eng muhimi: funksiya qaytargan state raqamini (AI_INPUT va h.k.) ConversationHandlerga qaytaramiz
+    return await fn(update, context)
+
+async def jump_menu_flow(update, context, fn):
+    """Menyudan tashqariga sakrash (Conversationni tugatish)."""
+    user = update.effective_user
+    if user:
+        now = time.time()
+        last_time = _USER_LAST_CLICK.get(user.id, 0)
+        if now - last_time < 0.6:
             return ConversationHandler.END
         _USER_LAST_CLICK[user.id] = now
         
@@ -70,7 +85,7 @@ async def reaction_callback(update, context):
     user_id = query.from_user.id
     
     now = time.time()
-    if now - _USER_LAST_CLICK.get(user_id, 0) < 0.6:
+    if now - _USER_LAST_CLICK.get(user_id, 0) < 0.5:
         await query.answer("Iltimos, shoshilmang...", show_alert=False)
         return
     _USER_LAST_CLICK[user_id] = now
@@ -99,38 +114,38 @@ async def reaction_callback(update, context):
 
 def register_all_handlers(app):
     global_jump_handlers = [
-        MessageHandler(exact(BTN_MAIN_MENU), lambda u, c: _single_jump(u, c, start)),
-        MessageHandler(exact(BTN_NEW_POST), lambda u, c: _single_jump(u, c, start_new_post)),
-        MessageHandler(exact(BTN_AI_ASSISTANT), lambda u, c: _single_jump(u, c, start_ai_assistant)),
-        MessageHandler(exact(BTN_CABINET), lambda u, c: _single_jump(u, c, user_cabinet_menu)),
-        MessageHandler(exact(BTN_INVITE), lambda u, c: _single_jump(u, c, user_invite_menu)),
-        MessageHandler(exact(BTN_HELP), lambda u, c: _single_jump(u, c, help_command)),
-        MessageHandler(exact(BTN_ADD_CHANNEL), lambda u, c: _single_jump(u, c, start_add_channel)),
-        MessageHandler(exact(BTN_CHANNELS), lambda u, c: _single_jump(u, c, channels_menu)),
-        MessageHandler(exact(BTN_CONVERTER), lambda u, c: _single_jump(u, c, start_converter)),
-        MessageHandler(exact(BTN_PENDING), lambda u, c: _single_jump(u, c, list_pending_posts)),
-        MessageHandler(exact(BTN_ADMIN_PANEL), lambda u, c: _single_jump(u, c, admin_panel_menu)),
-        MessageHandler(exact(BTN_STATS), lambda u, c: _single_jump(u, c, show_statistics)),
-        MessageHandler(exact(BTN_ALL_POSTS), lambda u, c: _single_jump(u, c, admin_all_posts)),
-        MessageHandler(exact(BTN_ALL_CHANNELS), lambda u, c: _single_jump(u, c, admin_all_channels)),
-        MessageHandler(exact(BTN_BROADCAST), lambda u, c: _single_jump(u, c, broadcast_start)),
-        MessageHandler(exact(BTN_SPONSORS), lambda u, c: _single_jump(u, c, sponsors_menu)),
-        MessageHandler(exact(BTN_ADD_SPONSOR), lambda u, c: _single_jump(u, c, start_add_sponsor)),
-        MessageHandler(exact(BTN_GLOBAL_AD), lambda u, c: _single_jump(u, c, start_set_ad)),
+        MessageHandler(exact(BTN_MAIN_MENU), lambda u, c: jump_menu_flow(u, c, start)),
+        MessageHandler(exact(BTN_NEW_POST), lambda u, c: start_entry_flow(u, c, start_new_post)),
+        MessageHandler(exact(BTN_AI_ASSISTANT), lambda u, c: start_entry_flow(u, c, start_ai_assistant)),
+        MessageHandler(exact(BTN_CABINET), lambda u, c: jump_menu_flow(u, c, user_cabinet_menu)),
+        MessageHandler(exact(BTN_INVITE), lambda u, c: jump_menu_flow(u, c, user_invite_menu)),
+        MessageHandler(exact(BTN_HELP), lambda u, c: jump_menu_flow(u, c, help_command)),
+        MessageHandler(exact(BTN_ADD_CHANNEL), lambda u, c: start_entry_flow(u, c, start_add_channel)),
+        MessageHandler(exact(BTN_CHANNELS), lambda u, c: jump_menu_flow(u, c, channels_menu)),
+        MessageHandler(exact(BTN_CONVERTER), lambda u, c: start_entry_flow(u, c, start_converter)),
+        MessageHandler(exact(BTN_PENDING), lambda u, c: jump_menu_flow(u, c, list_pending_posts)),
+        MessageHandler(exact(BTN_ADMIN_PANEL), lambda u, c: jump_menu_flow(u, c, admin_panel_menu)),
+        MessageHandler(exact(BTN_STATS), lambda u, c: jump_menu_flow(u, c, show_statistics)),
+        MessageHandler(exact(BTN_ALL_POSTS), lambda u, c: jump_menu_flow(u, c, admin_all_posts)),
+        MessageHandler(exact(BTN_ALL_CHANNELS), lambda u, c: jump_menu_flow(u, c, admin_all_channels)),
+        MessageHandler(exact(BTN_BROADCAST), lambda u, c: start_entry_flow(u, c, broadcast_start)),
+        MessageHandler(exact(BTN_SPONSORS), lambda u, c: jump_menu_flow(u, c, sponsors_menu)),
+        MessageHandler(exact(BTN_ADD_SPONSOR), lambda u, c: start_entry_flow(u, c, start_add_sponsor)),
+        MessageHandler(exact(BTN_GLOBAL_AD), lambda u, c: start_entry_flow(u, c, start_set_ad)),
     ]
 
     main_conv = ConversationHandler(
         entry_points=[
-            MessageHandler(exact(BTN_NEW_POST), lambda u, c: _single_jump(u, c, start_new_post)),
-            MessageHandler(exact(BTN_AI_ASSISTANT), lambda u, c: _single_jump(u, c, start_ai_assistant)),
-            MessageHandler(exact(BTN_ADD_CHANNEL), lambda u, c: _single_jump(u, c, start_add_channel)),
-            MessageHandler(exact(BTN_CONVERTER), lambda u, c: _single_jump(u, c, start_converter)),
-            MessageHandler(exact(BTN_BROADCAST), lambda u, c: _single_jump(u, c, broadcast_start)),
-            MessageHandler(exact(BTN_ADD_SPONSOR), lambda u, c: _single_jump(u, c, start_add_sponsor)),
-            MessageHandler(exact(BTN_GLOBAL_AD), lambda u, c: _single_jump(u, c, start_set_ad)),
+            MessageHandler(exact(BTN_NEW_POST), lambda u, c: start_entry_flow(u, c, start_new_post)),
+            MessageHandler(exact(BTN_AI_ASSISTANT), lambda u, c: start_entry_flow(u, c, start_ai_assistant)),
+            MessageHandler(exact(BTN_ADD_CHANNEL), lambda u, c: start_entry_flow(u, c, start_add_channel)),
+            MessageHandler(exact(BTN_CONVERTER), lambda u, c: start_entry_flow(u, c, start_converter)),
+            MessageHandler(exact(BTN_BROADCAST), lambda u, c: start_entry_flow(u, c, broadcast_start)),
+            MessageHandler(exact(BTN_ADD_SPONSOR), lambda u, c: start_entry_flow(u, c, start_add_sponsor)),
+            MessageHandler(exact(BTN_GLOBAL_AD), lambda u, c: start_entry_flow(u, c, start_set_ad)),
             CallbackQueryHandler(edit_post_time_start, pattern=r"^edit_time:"),
-            CommandHandler("newpost", start_new_post),
-            CommandHandler("broadcast", broadcast_start),
+            CommandHandler("newpost", lambda u, c: start_entry_flow(u, c, start_new_post)),
+            CommandHandler("broadcast", lambda u, c: start_entry_flow(u, c, broadcast_start)),
         ],
         states={
             CHOOSE_CHANNEL: global_jump_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, channel_chosen)],
@@ -166,20 +181,20 @@ def register_all_handlers(app):
     app.add_handler(CommandHandler("admin", admin_panel_menu))
     app.add_handler(CommandHandler("stats", show_statistics))
     app.add_handler(main_conv)
-    app.add_handler(MessageHandler(exact(BTN_CABINET), lambda u, c: _single_jump(u, c, user_cabinet_menu)))
-    app.add_handler(MessageHandler(exact(BTN_INVITE), lambda u, c: _single_jump(u, c, user_invite_menu)))
-    app.add_handler(MessageHandler(exact(BTN_HELP), lambda u, c: _single_jump(u, c, help_command)))
-    app.add_handler(MessageHandler(exact(BTN_CHANNELS), lambda u, c: _single_jump(u, c, channels_menu)))
-    app.add_handler(MessageHandler(exact(BTN_CONVERTER), lambda u, c: _single_jump(u, c, start_converter)))
-    app.add_handler(MessageHandler(exact(BTN_AI_ASSISTANT), lambda u, c: _single_jump(u, c, start_ai_assistant)))
-    app.add_handler(MessageHandler(exact(BTN_PENDING), lambda u, c: _single_jump(u, c, list_pending_posts)))
-    app.add_handler(MessageHandler(exact(BTN_MAIN_MENU), lambda u, c: _single_jump(u, c, start)))
-    app.add_handler(MessageHandler(exact(BTN_ADMIN_PANEL), lambda u, c: _single_jump(u, c, admin_panel_menu)))
-    app.add_handler(MessageHandler(exact(BTN_STATS), lambda u, c: _single_jump(u, c, show_statistics)))
-    app.add_handler(MessageHandler(exact(BTN_ALL_POSTS), lambda u, c: _single_jump(u, c, admin_all_posts)))
-    app.add_handler(MessageHandler(exact(BTN_ALL_CHANNELS), lambda u, c: _single_jump(u, c, admin_all_channels)))
-    app.add_handler(MessageHandler(exact(BTN_SPONSORS), lambda u, c: _single_jump(u, c, sponsors_menu)))
-    app.add_handler(MessageHandler(exact(BTN_GLOBAL_AD), lambda u, c: _single_jump(u, c, start_set_ad)))
+    app.add_handler(MessageHandler(exact(BTN_CABINET), lambda u, c: jump_menu_flow(u, c, user_cabinet_menu)))
+    app.add_handler(MessageHandler(exact(BTN_INVITE), lambda u, c: jump_menu_flow(u, c, user_invite_menu)))
+    app.add_handler(MessageHandler(exact(BTN_HELP), lambda u, c: jump_menu_flow(u, c, help_command)))
+    app.add_handler(MessageHandler(exact(BTN_CHANNELS), lambda u, c: jump_menu_flow(u, c, channels_menu)))
+    app.add_handler(MessageHandler(exact(BTN_CONVERTER), lambda u, c: start_entry_flow(u, c, start_converter)))
+    app.add_handler(MessageHandler(exact(BTN_AI_ASSISTANT), lambda u, c: start_entry_flow(u, c, start_ai_assistant)))
+    app.add_handler(MessageHandler(exact(BTN_PENDING), lambda u, c: jump_menu_flow(u, c, list_pending_posts)))
+    app.add_handler(MessageHandler(exact(BTN_MAIN_MENU), lambda u, c: jump_menu_flow(u, c, start)))
+    app.add_handler(MessageHandler(exact(BTN_ADMIN_PANEL), lambda u, c: jump_menu_flow(u, c, admin_panel_menu)))
+    app.add_handler(MessageHandler(exact(BTN_STATS), lambda u, c: jump_menu_flow(u, c, show_statistics)))
+    app.add_handler(MessageHandler(exact(BTN_ALL_POSTS), lambda u, c: jump_menu_flow(u, c, admin_all_posts)))
+    app.add_handler(MessageHandler(exact(BTN_ALL_CHANNELS), lambda u, c: jump_menu_flow(u, c, admin_all_channels)))
+    app.add_handler(MessageHandler(exact(BTN_SPONSORS), lambda u, c: jump_menu_flow(u, c, sponsors_menu)))
+    app.add_handler(MessageHandler(exact(BTN_GLOBAL_AD), lambda u, c: start_entry_flow(u, c, start_set_ad)))
     app.add_handler(CallbackQueryHandler(converter_callback, pattern=r"^conv_show:"))
     app.add_handler(CallbackQueryHandler(subscription_check_callback, pattern=r"^check_subscription$"))
     app.add_handler(CallbackQueryHandler(del_sponsor_callback, pattern=r"^del_sponsor:"))
