@@ -3,7 +3,7 @@ from telegram.error import TelegramError
 from telegram.ext import ContextTypes, ConversationHandler
 from config import ADMIN_ID
 import database as db
-from keyboards.default import get_main_keyboard
+from keyboards.default import get_main_keyboard, get_cabinet_keyboard
 from keyboards.inline import get_referral_share_keyboard, get_subscription_check_keyboard
 from utils.helpers import html_escape
 
@@ -41,12 +41,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     is_new = db.save_user(user.id, user.username or "", user.full_name or "", referrer_id=referrer_id)
     
-    # Agar yangi taklif orqali kirgan bo'lsa, taklif qilgan insonga xushxabar yuboramiz
     if is_new and referrer_id:
         try:
             await context.bot.send_message(
                 chat_id=referrer_id,
-                text=f"🎉 <b>Yangi do'st taklif qilindi!</b>\n\nSizning havolangiz orqali yangi foydalanuvchi qo'shildi va hisobingizga <b>+3 ta bepul AI so'rovi</b> qo'shildi! 🚀",
+                text="🎉 <b>Yangi do'st taklif qilindi!</b>\n\nSizning havolangiz orqali yangi foydalanuvchi qo'shildi va hisobingizga <b>+3 ta bepul AI so'rovi</b> qo'shildi! 🚀",
                 parse_mode="HTML"
             )
         except Exception:
@@ -93,7 +92,25 @@ async def subscription_check_callback(update: Update, context: ContextTypes.DEFA
         except TelegramError:
             pass
 
-async def user_profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def user_cabinet_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Shaxsiy kabinet va sozlamalar bosh menyusi."""
+    context.user_data.clear()
+    user = update.effective_user
+    stats = db.get_referral_stats(user.id)
+    channels = db.get_user_channels(user.id)
+    
+    text = (
+        f"👤 <b>Shaxsiy Kabinet:</b>\n\n"
+        f"🆔 ID: <code>{user.id}</code>\n"
+        f"💎 Mavjud AI so'rovlar: <b>{stats['ai_credits']} ta</b>\n"
+        f"📢 Ulangan kanallar: <b>{len(channels)} ta</b>\n"
+        f"👥 Taklif qilgan do'stlaringiz: <b>{stats['referrals_count']} ta</b>\n\n"
+        f"Quyidagi bo'limlardan birini tanlang 👇"
+    )
+    await update.message.reply_text(text, reply_markup=get_cabinet_keyboard(), parse_mode="HTML")
+
+async def user_invite_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Taklif havolasi va ballar bo'limi."""
     context.user_data.clear()
     user = update.effective_user
     bot_obj = await context.bot.get_me()
@@ -101,12 +118,11 @@ async def user_profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ref_link = f"https://t.me/{bot_obj.username}?start=ref_{user.id}"
     
     text = (
-        f"👤 <b>Sizning profilingiz:</b>\n\n"
-        f"🆔 ID: <code>{user.id}</code>\n"
-        f"💎 Mavjud AI so'rovlaringiz: <b>{stats['ai_credits']} ta</b>\n"
-        f"👥 Taklif qilgan do'stlaringiz: <b>{stats['referrals_count']} ta</b>\n\n"
-        f"🎁 <i>Har bir taklif qilingan do'stingiz uchun sizga <b>+3 ta AI so'rovi</b> sovg'a qilinadi!</i>\n\n"
-        f"🔗 <b>Sizning taklif havolangiz:</b>\n<code>{ref_link}</code>"
+        f"🚀 <b>Do'stlarni taklif qiling va ball to'plang:</b>\n\n"
+        f"🎁 <i>Har bir yangi do'stingiz uchun sizga <b>+3 ta bepul AI so'rovi</b> beriladi!</i>\n\n"
+        f"💎 Sizning AI so'rovlaringiz: <b>{stats['ai_credits']} ta</b>\n"
+        f"👥 Taklif qilinganlar: <b>{stats['referrals_count']} ta</b>\n\n"
+        f"🔗 <b>Sizning shaxsiy taklif havolangiz:</b>\n<code>{ref_link}</code>"
     )
     await update.message.reply_text(
         text,
@@ -120,7 +136,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "📖 <b>Buyruqlar ro'yxati:</b>\n\n"
         "/start — Qayta ishga tushirish\n"
         "/newpost — Yangi post rejalashtirish\n"
-        "/profile — Profil va taklif havolasi\n"
+        "/profile — Kabinet va taklif havolasi\n"
         "/cancel — Bekor qilish\n"
         "/help — Yordam"
     )
