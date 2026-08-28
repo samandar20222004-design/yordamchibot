@@ -26,7 +26,6 @@ def db_cursor(commit: bool = False):
 
 def init_db():
     with db_cursor(commit=True) as cur:
-        # Users jadvali
         cur.execute("""
             CREATE TABLE IF NOT EXISTS users (
                 user_id BIGINT PRIMARY KEY,
@@ -38,7 +37,6 @@ def init_db():
             );
         """)
         
-        # Channels jadvali
         cur.execute("""
             CREATE TABLE IF NOT EXISTS channels (
                 id SERIAL PRIMARY KEY,
@@ -50,7 +48,6 @@ def init_db():
             );
         """)
         
-        # Majburiy a'zolik homiy kanallari
         cur.execute("""
             CREATE TABLE IF NOT EXISTS sponsor_channels (
                 id SERIAL PRIMARY KEY,
@@ -62,7 +59,6 @@ def init_db():
             );
         """)
 
-        # Tizim sozlamalari (Global reklama matni va havolasi)
         cur.execute("""
             CREATE TABLE IF NOT EXISTS system_settings (
                 key VARCHAR(100) PRIMARY KEY,
@@ -70,7 +66,6 @@ def init_db():
             );
         """)
         
-        # Scheduled posts jadvali
         cur.execute("""
             CREATE TABLE IF NOT EXISTS scheduled_posts (
                 id SERIAL PRIMARY KEY,
@@ -85,14 +80,14 @@ def init_db():
                 scheduled_time TIMESTAMP WITH TIME ZONE NOT NULL,
                 status VARCHAR(50) DEFAULT 'pending',
                 user_post_number INTEGER,
-                is_recurring BOOLEAN DEFAULT FALSE,
+                recurrence_type VARCHAR(20) DEFAULT 'none',
                 recurrence_day INTEGER,
                 recurrence_time TIME,
+                end_date TIMESTAMP WITH TIME ZONE,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
         """)
 
-        # Reaksiya bosganlarni saqlash jadvali
         cur.execute("""
             CREATE TABLE IF NOT EXISTS post_reactions (
                 id SERIAL PRIMARY KEY,
@@ -104,7 +99,6 @@ def init_db():
             );
         """)
 
-        # Barcha yetishmayotgan ustunlarni eski bazaga xavfsiz qo'shish
         migrations = [
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS full_name VARCHAR(255);",
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS user_code VARCHAR(8) UNIQUE;",
@@ -114,22 +108,22 @@ def init_db():
             "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS inline_button_url TEXT;",
             "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS enable_reactions BOOLEAN DEFAULT FALSE;",
             "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS user_post_number INTEGER;",
-            "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS is_recurring BOOLEAN DEFAULT FALSE;",
+            "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS recurrence_type VARCHAR(20) DEFAULT 'none';",
             "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS recurrence_day INTEGER;",
             "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS recurrence_time TIME;",
+            "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS end_date TIMESTAMP WITH TIME ZONE;",
             "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;",
         ]
         for m in migrations:
             try:
                 cur.execute(m)
             except Exception as e:
-                logger.warning(f"Migratsiya eslatmasi ({m}): {e}")
+                logger.warning(f"Migratsiya eslatmasi: {e}")
 
         cur.execute("CREATE INDEX IF NOT EXISTS idx_scheduled_posts_status_time ON scheduled_posts (status, scheduled_time);")
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_channels_user ON channels (user_id);")
     logger.info("Baza jadvallari tayyor.")
 
-# --- SETTINGS & SPONSORS ---
+# --- SETTINGS ---
 def set_setting(key: str, value: str):
     try:
         with db_cursor(commit=True) as cur:
@@ -139,7 +133,7 @@ def set_setting(key: str, value: str):
                 ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
             """, (key, value))
     except Exception as e:
-        logger.error(f"Sozlamani saqlash xatosi: {e}")
+        logger.error(f"Sozlama xatosi: {e}")
 
 def get_setting(key: str, default: str = "") -> str:
     try:
@@ -148,9 +142,10 @@ def get_setting(key: str, default: str = "") -> str:
             row = cur.fetchone()
             return row[0] if row else default
     except Exception as e:
-        logger.error(f"Sozlamani olish xatosi: {e}")
+        logger.error(f"Sozlama olish xatosi: {e}")
         return default
 
+# --- SPONSORS ---
 def add_sponsor_channel(channel_id: str, channel_title: str, channel_url: str) -> bool:
     try:
         with db_cursor(commit=True) as cur:
@@ -162,7 +157,7 @@ def add_sponsor_channel(channel_id: str, channel_title: str, channel_url: str) -
             """, (str(channel_id), channel_title, channel_url))
         return True
     except Exception as e:
-        logger.error(f"Homiy kanal saqlash xatosi: {e}")
+        logger.error(f"Sponsor xatosi: {e}")
         return False
 
 def get_active_sponsors() -> list:
@@ -171,7 +166,7 @@ def get_active_sponsors() -> list:
             cur.execute("SELECT id, channel_id, channel_title, channel_url FROM sponsor_channels WHERE is_active = TRUE ORDER BY id ASC")
             return cur.fetchall()
     except Exception as e:
-        logger.error(f"Homiy kanallarni olish xatosi: {e}")
+        logger.error(f"Sponsorlar olish xatosi: {e}")
         return []
 
 def remove_sponsor_channel(sponsor_id: int) -> bool:
@@ -180,7 +175,7 @@ def remove_sponsor_channel(sponsor_id: int) -> bool:
             cur.execute("DELETE FROM sponsor_channels WHERE id = %s", (sponsor_id,))
             return cur.rowcount > 0
     except Exception as e:
-        logger.error(f"Homiy kanal o'chirish xatosi: {e}")
+        logger.error(f"Sponsor o'chirish xatosi: {e}")
         return False
 
 # --- REACTIONS ---
@@ -197,12 +192,7 @@ def toggle_reaction(post_id: int, user_id: int, reaction: str) -> dict:
             else:
                 cur.execute("INSERT INTO post_reactions (post_id, user_id, reaction_type) VALUES (%s, %s, %s)", (post_id, user_id, reaction))
 
-            cur.execute("""
-                SELECT reaction_type, COUNT(*) 
-                FROM post_reactions 
-                WHERE post_id = %s 
-                GROUP BY reaction_type
-            """, (post_id,))
+            cur.execute("SELECT reaction_type, COUNT(*) FROM post_reactions WHERE post_id = %s GROUP BY reaction_type", (post_id,))
             return {r[0]: r[1] for r in cur.fetchall()}
     except Exception as e:
         logger.error(f"Reaksiya xatosi: {e}")
@@ -211,18 +201,13 @@ def toggle_reaction(post_id: int, user_id: int, reaction: str) -> dict:
 def get_reaction_counts(post_id: int) -> dict:
     try:
         with db_cursor() as cur:
-            cur.execute("""
-                SELECT reaction_type, COUNT(*) 
-                FROM post_reactions 
-                WHERE post_id = %s 
-                GROUP BY reaction_type
-            """, (post_id,))
+            cur.execute("SELECT reaction_type, COUNT(*) FROM post_reactions WHERE post_id = %s GROUP BY reaction_type", (post_id,))
             return {r[0]: r[1] for r in cur.fetchall()}
     except Exception as e:
-        logger.error(f"Reaksiya hisobini olish xatosi: {e}")
+        logger.error(f"Reaksiya olish xatosi: {e}")
         return {}
 
-# --- USERS & REFERRAL ---
+# --- USERS ---
 def _generate_user_code(cur) -> str:
     letters = string.ascii_lowercase
     for _ in range(50):
@@ -238,10 +223,7 @@ def save_user(user_id: int, username: str, full_name: str = "", referrer_id: int
             cur.execute("SELECT user_id FROM users WHERE user_id = %s", (user_id,))
             row = cur.fetchone()
             if row:
-                cur.execute(
-                    "UPDATE users SET username = %s, full_name = %s WHERE user_id = %s",
-                    (username, full_name, user_id)
-                )
+                cur.execute("UPDATE users SET username = %s, full_name = %s WHERE user_id = %s", (username, full_name, user_id))
                 return False
             else:
                 code = _generate_user_code(cur)
@@ -259,10 +241,9 @@ def get_referral_stats(user_id: int) -> dict:
     try:
         with db_cursor() as cur:
             cur.execute("SELECT COUNT(*) FROM users WHERE referrer_id = %s", (user_id,))
-            count = cur.fetchone()[0]
-            return {"referrals_count": count}
+            return {"referrals_count": cur.fetchone()[0]}
     except Exception as e:
-        logger.error(f"Referral stats xatosi: {e}")
+        logger.error(f"Referral xatosi: {e}")
         return {"referrals_count": 0}
 
 def get_all_user_ids() -> list:
@@ -281,18 +262,14 @@ def get_user_code(user_id: int) -> str:
             row = cur.fetchone()
             return row[0] if row and row[0] else str(user_id)
     except Exception as e:
-        logger.error(f"User kodini olish xatosi: {e}")
+        logger.error(f"User kod xatosi: {e}")
         return str(user_id)
 
 # --- CHANNELS ---
 def get_user_channels(user_id: int) -> list:
     try:
         with db_cursor() as cur:
-            cur.execute("""
-                SELECT channel_id, channel_title FROM channels
-                WHERE user_id = %s AND is_active = TRUE
-                ORDER BY id ASC
-            """, (user_id,))
+            cur.execute("SELECT channel_id, channel_title FROM channels WHERE user_id = %s AND is_active = TRUE ORDER BY id ASC", (user_id,))
             return cur.fetchall()
     except Exception as e:
         logger.error(f"Kanallarni olish xatosi: {e}")
@@ -310,7 +287,7 @@ def get_all_channels() -> list:
             """)
             return cur.fetchall()
     except Exception as e:
-        logger.error(f"Barcha kanallarni olish xatosi: {e}")
+        logger.error(f"Barcha kanallar xatosi: {e}")
         return []
 
 def save_channel(user_id: int, channel_id: str, channel_title: str) -> bool:
@@ -333,10 +310,7 @@ def remove_channel(user_id: int, channel_id: str, is_admin: bool = False) -> boo
             if is_admin:
                 cur.execute("UPDATE channels SET is_active = FALSE WHERE channel_id = %s", (str(channel_id),))
             else:
-                cur.execute(
-                    "UPDATE channels SET is_active = FALSE WHERE channel_id = %s AND user_id = %s",
-                    (str(channel_id), user_id)
-                )
+                cur.execute("UPDATE channels SET is_active = FALSE WHERE channel_id = %s AND user_id = %s", (str(channel_id), user_id))
             return cur.rowcount > 0
     except Exception as e:
         logger.error(f"Kanal o'chirish xatosi: {e}")
@@ -350,29 +324,27 @@ def add_post(
     content: str,
     file_id: str,
     scheduled_time,
-    is_recurring: bool = False,
+    recurrence_type: str = 'none',
     recurrence_day=None,
     recurrence_time=None,
+    end_date=None,
     btn_text: str = None,
     btn_url: str = None,
     enable_reactions: bool = False
 ) -> int:
     try:
         with db_cursor(commit=True) as cur:
-            cur.execute(
-                "SELECT COALESCE(MAX(user_post_number), 0) + 1 FROM scheduled_posts WHERE user_id = %s",
-                (user_id,)
-            )
+            cur.execute("SELECT COALESCE(MAX(user_post_number), 0) + 1 FROM scheduled_posts WHERE user_id = %s", (user_id,))
             next_num = cur.fetchone()[0]
             cur.execute("""
                 INSERT INTO scheduled_posts
                     (user_id, channel_id, post_type, content, file_id, inline_button_text, inline_button_url,
-                     enable_reactions, scheduled_time, status, user_post_number, is_recurring, recurrence_day, recurrence_time)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 'pending', %s, %s, %s, %s)
+                     enable_reactions, scheduled_time, status, user_post_number, recurrence_type, recurrence_day, recurrence_time, end_date)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 'pending', %s, %s, %s, %s, %s)
                 RETURNING id
             """, (
                 user_id, str(channel_id), post_type, content, file_id, btn_text, btn_url,
-                enable_reactions, scheduled_time, next_num, is_recurring, recurrence_day, recurrence_time
+                enable_reactions, scheduled_time, next_num, recurrence_type, recurrence_day, recurrence_time, end_date
             ))
             return cur.fetchone()[0]
     except Exception as e:
@@ -384,7 +356,7 @@ def get_pending_posts(user_id: int) -> list:
         with db_cursor() as cur:
             cur.execute("""
                 SELECT sp.id, c.channel_title, sp.post_type, sp.scheduled_time,
-                       sp.user_post_number, sp.is_recurring, sp.recurrence_day, sp.recurrence_time
+                       sp.user_post_number, sp.recurrence_type, sp.recurrence_day, sp.recurrence_time
                 FROM scheduled_posts sp
                 LEFT JOIN channels c ON sp.channel_id = c.channel_id
                 WHERE sp.user_id = %s AND sp.status = 'pending'
@@ -395,32 +367,29 @@ def get_pending_posts(user_id: int) -> list:
         logger.error(f"Pending posts xatosi: {e}")
         return []
 
-def get_all_pending_posts() -> list:
+def get_post_by_id(post_id: int):
     try:
         with db_cursor() as cur:
             cur.execute("""
-                SELECT sp.id, c.channel_title, sp.post_type, sp.scheduled_time,
-                       sp.user_id, u.username, sp.user_post_number,
-                       sp.is_recurring, sp.recurrence_day, sp.recurrence_time, u.user_code
-                FROM scheduled_posts sp
-                LEFT JOIN channels c ON sp.channel_id = c.channel_id
-                LEFT JOIN users u ON u.user_id = sp.user_id
-                WHERE sp.status = 'pending'
-                ORDER BY sp.scheduled_time ASC
-            """)
-            return cur.fetchall()
-    except Exception as e:
-        logger.error(f"Barcha postlarni olish xatosi: {e}")
-        return []
-
-def get_post_owner(post_id: int):
-    try:
-        with db_cursor() as cur:
-            cur.execute("SELECT user_id, status FROM scheduled_posts WHERE id = %s", (post_id,))
+                SELECT id, user_id, channel_id, post_type, scheduled_time, recurrence_type, recurrence_time, user_post_number
+                FROM scheduled_posts WHERE id = %s
+            """, (post_id,))
             return cur.fetchone()
     except Exception as e:
-        logger.error(f"Post egasini aniqlash xatosi: {e}")
+        logger.error(f"Post olish xatosi: {e}")
         return None
+
+def update_post_time(post_id: int, new_time, recurrence_time=None) -> bool:
+    try:
+        with db_cursor(commit=True) as cur:
+            if recurrence_time:
+                cur.execute("UPDATE scheduled_posts SET scheduled_time = %s, recurrence_time = %s WHERE id = %s", (new_time, recurrence_time, post_id))
+            else:
+                cur.execute("UPDATE scheduled_posts SET scheduled_time = %s WHERE id = %s", (new_time, post_id))
+            return cur.rowcount > 0
+    except Exception as e:
+        logger.error(f"Post vaqtini yangilash xatosi: {e}")
+        return False
 
 def cancel_post(post_id: int, user_id: int, is_admin: bool = False) -> bool:
     try:
@@ -440,13 +409,13 @@ def get_due_posts(now) -> list:
             cur.execute("""
                 SELECT id, user_id, channel_id, post_type, content, file_id,
                        inline_button_text, inline_button_url, enable_reactions, scheduled_time,
-                       is_recurring, recurrence_day, recurrence_time
+                       recurrence_type, recurrence_day, recurrence_time, end_date
                 FROM scheduled_posts
                 WHERE status = 'pending' AND scheduled_time <= %s
             """, (now,))
             return cur.fetchall()
     except Exception as e:
-        logger.error(f"Yuborilishi kerak bo'lgan postlarni olish xatosi: {e}")
+        logger.error(f"Due posts xatosi: {e}")
         return []
 
 def mark_post_status(post_id: int, status: str):
@@ -454,14 +423,14 @@ def mark_post_status(post_id: int, status: str):
         with db_cursor(commit=True) as cur:
             cur.execute("UPDATE scheduled_posts SET status = %s WHERE id = %s", (status, post_id))
     except Exception as e:
-        logger.error(f"Post statusini yangilash xatosi: {e}")
+        logger.error(f"Post status xatosi: {e}")
 
 def reschedule_recurring_post(post_id: int, next_time):
     try:
         with db_cursor(commit=True) as cur:
             cur.execute("UPDATE scheduled_posts SET scheduled_time = %s WHERE id = %s", (next_time, post_id))
     except Exception as e:
-        logger.error(f"Takrorlanuvchi postni qayta rejalashtirish xatosi: {e}")
+        logger.error(f"Qayta rejalashtirish xatosi: {e}")
 
 # --- STATS ---
 def get_system_stats() -> dict:
