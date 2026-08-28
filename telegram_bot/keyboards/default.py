@@ -14,6 +14,7 @@ BTN_MAIN_MENU = "🔙 Asosiy menyu"
 BTN_CHANNELS = "📢 Kanal/Guruhlar"
 BTN_CONVERTER = "🔤 Matn o'girgich (Lotin ⇄ Kirill)"
 BTN_INVITE = "🚀 Do'stlarni taklif qilish"
+BTN_TRANSFER = "🎁 Ballarni ulashish"
 BTN_HELP = "📖 Yordam & Qo'llanma"
 
 # --- Admin tugmalari ---
@@ -62,7 +63,6 @@ def exact(*texts):
     return filters.Regex(pattern)
 
 def get_main_keyboard(is_admin=False):
-    """Ixchamlashtirilgan asosiy menyu."""
     keyboard = [
         [BTN_NEW_POST, BTN_AI_ASSISTANT],
         [BTN_PENDING, BTN_CABINET]
@@ -72,11 +72,10 @@ def get_main_keyboard(is_admin=False):
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
 def get_cabinet_keyboard():
-    """Foydalanuvchining shaxsiy kabineti menyusi."""
     keyboard = [
         [BTN_CHANNELS, BTN_CONVERTER],
-        [BTN_INVITE, BTN_HELP],
-        [BTN_MAIN_MENU]
+        [BTN_INVITE, BTN_TRANSFER],
+        [BTN_HELP, BTN_MAIN_MENU]
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
@@ -136,7 +135,7 @@ def get_time_keyboard():
             [BTN_T_WEEKLY],
             [BTN_MAIN_MENU],
         ],
-        resize_keyboard=True
+        resize_keyboard=True,
     )
 
 def get_duration_keyboard():
