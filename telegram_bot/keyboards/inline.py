@@ -25,3 +25,14 @@ def get_sponsors_delete_keyboard(sponsors: list) -> InlineKeyboardMarkup:
         s_id, ch_id, ch_title, ch_url = sponsor
         keyboard.append([InlineKeyboardButton(f"❌ {ch_title} (O'chirish)", callback_data=f"del_sponsor:{s_id}")])
     return InlineKeyboardMarkup(keyboard)
+
+def render_channels_list(channels: list) -> InlineKeyboardMarkup:
+    """Ulangan kanallarni ko'rish va o'chirish uchun inline tugmalar."""
+    keyboard = []
+    for ch in channels:
+        ch_id, ch_title = ch
+        keyboard.append([
+            InlineKeyboardButton(f"📢 {ch_title}", callback_data="noop"),
+            InlineKeyboardButton("❌ O'chirish", callback_data=f"remove_channel:{ch_id}")
+        ])
+    return InlineKeyboardMarkup(keyboard)
