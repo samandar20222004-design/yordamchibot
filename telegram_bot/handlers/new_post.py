@@ -1,5 +1,4 @@
 from datetime import datetime, timedelta
-import re
 import pytz
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import ContextTypes, ConversationHandler
@@ -7,29 +6,19 @@ from config import ADMIN_ID
 import database as db
 from keyboards.default import (
     BTN_ALL_CHANNELS_TARGET, BTN_MAIN_MENU, BTN_SKIP_BUTTON,
-    BTN_T_5MIN, BTN_T_15MIN, BTN_T_30MIN, BTN_T_1H, BTN_T_2H,
-    BTN_T_TOM_9, BTN_T_TOM_18, BTN_T_3D, BTN_T_RECURRING,
+    BTN_NO_REACT,
+    BTN_T_5MIN, BTN_T_15MIN, BTN_T_1H, BTN_T_DAILY, BTN_T_WEEKLY,
+    BTN_DUR_1M, BTN_DUR_3M, BTN_DUR_6M, BTN_DUR_1Y, BTN_DUR_INF,
     WEEKDAY_MAP, WEEKDAY_LABELS,
     get_main_keyboard, get_cancel_keyboard, get_button_prompt_keyboard,
-    get_time_keyboard, get_weekday_keyboard
+    get_reactions_keyboard, get_time_keyboard, get_duration_keyboard, get_weekday_keyboard
 )
 from utils.helpers import md_escape
 
 tashkent_tz = pytz.timezone("Asia/Tashkent")
-CHOOSE_CHANNEL, GET_CONTENT, GET_BUTTON, GET_REACTIONS, GET_TIME, RECUR_DAY, RECUR_TIME = range(7)
-
-BTN_REACT_DEFAULT = "👍 ❤️ 🔥 👏"
-BTN_NO_REACT = "➡️ Reaksiyasiz davom etish"
-
-def get_reactions_keyboard():
-    return ReplyKeyboardMarkup(
-        [
-            [BTN_REACT_DEFAULT],
-            [BTN_NO_REACT],
-            [BTN_MAIN_MENU]
-        ],
-        resize_keyboard=True
-    )
+(CHOOSE_CHANNEL, GET_CONTENT, GET_BTN_TITLE, 
+ GET_BTN_URL, GET_REACTIONS, GET_TIME, 
+ DAILY_TIME, RECUR_DAY, RECUR_TIME, GET_DURATION) = range(10)
 
 async def start_new_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
@@ -112,41 +101,48 @@ async def content_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["content"] = content
 
     await msg.reply_text(
-        "🔗 *Post ostiga havola (URL) tugma qo'shilsinmi?*\n\n"
-        "Shunchaki kanal username yoki havolasini yozing:\n"
-        "• `@kanalim` yoki `https://t.me/kanalim`\n"
-        "• `Batafsil - @kanalim` yoki `Saytga o'tish - https://sayt.uz`\n\n"
-        "Tugma kerak bo'lmasa pastdagi **'➡️ Tugmasiz davom etish'** tugmasini bosing:",
+        "🔗 *Post ostiga tugma qo'shilsinmi?*\n\n"
+        "Tugma matnini tanlang yoki o'zingiz yozing:\n"
+        "Tugma kerak bo'lmasa, **'➡️ Tugmasiz davom etish'** ni bosing:",
         reply_markup=get_button_prompt_keyboard(),
         parse_mode="Markdown"
     )
-    return GET_BUTTON
+    return GET_BTN_TITLE
 
-async def button_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def btn_title_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip()
     if text == BTN_SKIP_BUTTON:
         context.user_data["btn_text"], context.user_data["btn_url"] = None, None
-    else:
-        btn_title, btn_link = "Batafsil", text
-        if " - " in text:
-            btn_title, btn_link = text.split(" - ", 1)
-            btn_title, btn_link = btn_title.strip(), btn_link.strip()
-        
-        if btn_link.startswith("@"):
-            btn_link = f"https://t.me/{btn_link.replace('@', '')}"
-        elif not (btn_link.startswith("http://") or btn_link.startswith("https://") or btn_link.startswith("t.me/")):
-            if "." in btn_link:
-                btn_link = "https://" + btn_link
-            else:
-                btn_link = f"https://t.me/{btn_link}"
+        await update.message.reply_text(
+            "🔥 *Post ostiga reaksiya tugmalari qo'shilsinmi?*",
+            reply_markup=get_reactions_keyboard(),
+            parse_mode="Markdown"
+        )
+        return GET_REACTIONS
 
-        context.user_data["btn_text"] = btn_title
-        context.user_data["btn_url"] = btn_link
-
+    context.user_data["btn_text"] = text
     await update.message.reply_text(
-        "🔥 *Post ostiga reaksiya tugmalari qo'shilsinmi?*\n\n"
-        "Tayyor variantni tanlang yoki xohlagan emojilaringizni probel bilan yuboring:\n"
-        "Masalan: `👍 ❤️ 🔥 👏 ⚡️ 😍` (10 tagacha)",
+        f"🌐 *'{md_escape(text)}'* tugmasi uchun havola yoki kanal username'ini yuboring:\n\n"
+        f"Masalan: `@kanalim` yoki `https://sayt.uz`",
+        reply_markup=get_cancel_keyboard(),
+        parse_mode="Markdown"
+    )
+    return GET_BTN_URL
+
+async def btn_url_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = update.message.text.strip()
+    btn_link = text
+    if btn_link.startswith("@"):
+        btn_link = f"https://t.me/{btn_link.replace('@', '')}"
+    elif not (btn_link.startswith("http://") or btn_link.startswith("https://") or btn_link.startswith("t.me/")):
+        if "." in btn_link:
+            btn_link = "https://" + btn_link
+        else:
+            btn_link = f"https://t.me/{btn_link}"
+
+    context.user_data["btn_url"] = btn_link
+    await update.message.reply_text(
+        "🔥 *Post ostiga reaksiya tugmalari qo'shilsinmi?*",
         reply_markup=get_reactions_keyboard(),
         parse_mode="Markdown"
     )
@@ -154,15 +150,7 @@ async def button_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def reactions_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip()
-    if text == BTN_NO_REACT:
-        context.user_data["enable_reactions"] = False
-        context.user_data["custom_reactions"] = None
-    else:
-        context.user_data["enable_reactions"] = True
-        emojis = re.findall(r'[^\s\w,.-]', text)
-        if not emojis:
-            emojis = ["👍", "❤️", "🔥", "👏"]
-        context.user_data["custom_reactions"] = emojis[:10]
+    context.user_data["enable_reactions"] = (text != BTN_NO_REACT)
 
     now = datetime.now(tashkent_tz)
     example = (now + timedelta(days=1)).strftime("%Y-%m-%d %H:%M")
@@ -175,7 +163,7 @@ async def reactions_received(update: Update, context: ContextTypes.DEFAULT_TYPE)
     )
     return GET_TIME
 
-async def _finalize_post(update, context, post_time, is_recurring=False, recurrence_day=None, recurrence_time_str=None):
+async def _save_and_finish(update, context, post_time, recurrence_type='none', recurrence_day=None, recurrence_time_str=None, end_date=None):
     is_admin = (update.effective_user.id == ADMIN_ID)
     user_id = update.effective_user.id
     selected_channel_id = context.user_data["selected_channel_id"]
@@ -185,46 +173,48 @@ async def _finalize_post(update, context, post_time, is_recurring=False, recurre
     btn_text = context.user_data.get("btn_text")
     btn_url = context.user_data.get("btn_url")
     enable_reactions = context.user_data.get("enable_reactions", False)
-    recurrence_time_obj = recurrence_time_str if is_recurring else None
-
     post_time_tz = post_time.astimezone(tashkent_tz)
 
-    if selected_channel_id == "ALL":
-        channels = db.get_user_channels(user_id)
-        ok_count = 0
-        for ch_id, ch_title in channels:
-            pid = db.add_post(user_id, ch_id, post_type, content, file_id, post_time_tz,
-                              is_recurring, recurrence_day, recurrence_time_obj, btn_text, btn_url, enable_reactions)
-            if pid:
-                ok_count += 1
-        if ok_count:
-            when_text = f"🔄 Har {WEEKDAY_LABELS.get(recurrence_day)}, soat {recurrence_time_str[:5]}" if is_recurring else f"🕒 {post_time_tz.strftime('%Y-%m-%d %H:%M')}"
-            await update.message.reply_text(
-                f"✅ *Post {ok_count} ta kanal/guruhga rejalashtirildi!*\n\n{when_text}",
-                reply_markup=get_main_keyboard(is_admin),
-                parse_mode="Markdown"
-            )
-        else:
-            await update.message.reply_text("❌ Saqlashda xatolik yuz berdi.", reply_markup=get_main_keyboard(is_admin))
-    else:
-        pid = db.add_post(user_id, selected_channel_id, post_type, content, file_id, post_time_tz,
-                          is_recurring, recurrence_day, recurrence_time_obj, btn_text, btn_url, enable_reactions)
+    channels = db.get_user_channels(user_id) if selected_channel_id == "ALL" else [(selected_channel_id, context.user_data.get("selected_channel_title"))]
+    ok_count = 0
+    for ch_id, _ in channels:
+        pid = db.add_post(
+            user_id=user_id, channel_id=ch_id, post_type=post_type, content=content,
+            file_id=file_id, scheduled_time=post_time_tz, recurrence_type=recurrence_type,
+            recurrence_day=recurrence_day, recurrence_time=recurrence_time_str, end_date=end_date,
+            btn_text=btn_text, btn_url=btn_url, enable_reactions=enable_reactions
+        )
         if pid:
-            when_text = f"🔄 Har {WEEKDAY_LABELS.get(recurrence_day)}, soat {recurrence_time_str[:5]}" if is_recurring else f"🕒 {post_time_tz.strftime('%Y-%m-%d %H:%M')}"
-            await update.message.reply_text(
-                f"✅ *Post muvaffaqiyatli rejalashtirildi!*\n\n📢 Joylash: *{md_escape(context.user_data['selected_channel_title'])}*\n{when_text}",
-                reply_markup=get_main_keyboard(is_admin),
-                parse_mode="Markdown"
-            )
+            ok_count += 1
+
+    if ok_count:
+        if recurrence_type == 'daily':
+            when_text = f"🔄 Har kuni, soat `{recurrence_time_str[:5]}` da"
+        elif recurrence_type == 'weekly':
+            when_text = f"🔄 Har {WEEKDAY_LABELS.get(recurrence_day)}, soat `{recurrence_time_str[:5]}` da"
         else:
-            await update.message.reply_text("❌ Saqlashda xatolik yuz berdi.", reply_markup=get_main_keyboard(is_admin))
+            when_text = f"🕒 `{post_time_tz.strftime('%Y-%m-%d %H:%M')}`"
+            
+        await update.message.reply_text(
+            f"✅ *Post muvaffaqiyatli rejalashtirildi!*\n\n"
+            f"📢 Joylash: *{md_escape(context.user_data['selected_channel_title'])}*\n"
+            f"{when_text}",
+            reply_markup=get_main_keyboard(is_admin),
+            parse_mode="Markdown"
+        )
+    else:
+        await update.message.reply_text("❌ Saqlashda xatolik yuz berdi.", reply_markup=get_main_keyboard(is_admin))
     context.user_data.clear()
 
 async def time_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
     now = datetime.now(tashkent_tz)
-    if text == BTN_T_RECURRING:
-        await update.message.reply_text("🔄 *Har hafta qaysi kuni chiqsin?*", reply_markup=get_weekday_keyboard(), parse_mode="Markdown")
+    
+    if text == BTN_T_DAILY:
+        await update.message.reply_text("🕒 *Har kuni soat nechida chiqsin?*\nMasalan: `10:00` yoki `18:30`", reply_markup=get_cancel_keyboard(), parse_mode="Markdown")
+        return DAILY_TIME
+    elif text == BTN_T_WEEKLY:
+        await update.message.reply_text("📅 *Haftaning qaysi kuni chiqsin?*", reply_markup=get_weekday_keyboard(), parse_mode="Markdown")
         return RECUR_DAY
 
     post_time = None
@@ -233,18 +223,8 @@ async def time_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
             post_time = now + timedelta(minutes=5)
         elif text == BTN_T_15MIN:
             post_time = now + timedelta(minutes=15)
-        elif text == BTN_T_30MIN:
-            post_time = now + timedelta(minutes=30)
         elif text == BTN_T_1H:
             post_time = now + timedelta(hours=1)
-        elif text == BTN_T_2H:
-            post_time = now + timedelta(hours=2)
-        elif text == BTN_T_TOM_9:
-            post_time = (now + timedelta(days=1)).replace(hour=9, minute=0, second=0, microsecond=0)
-        elif text == BTN_T_TOM_18:
-            post_time = (now + timedelta(days=1)).replace(hour=18, minute=0, second=0, microsecond=0)
-        elif text == BTN_T_3D:
-            post_time = (now + timedelta(days=3)).replace(hour=9, minute=0, second=0, microsecond=0)
         else:
             naive_time = datetime.strptime(text.strip(), "%Y-%m-%d %H:%M")
             post_time = tashkent_tz.localize(naive_time)
@@ -255,35 +235,88 @@ async def time_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("⚠️ Format xato! `2026-08-28 18:00` shaklida yuboring.")
         return GET_TIME
 
-    await _finalize_post(update, context, post_time)
+    await _save_and_finish(update, context, post_time, recurrence_type='none')
     return ConversationHandler.END
+
+async def daily_time_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = update.message.text.strip()
+    try:
+        hh, mm = map(int, text.split(":"))
+        assert 0 <= hh < 24 and 0 <= mm < 60
+    except Exception:
+        await update.message.reply_text("⚠️ Noto'g'ri vaqt formati. Masalan: `10:00`")
+        return DAILY_TIME
+
+    now = datetime.now(tashkent_tz)
+    first_run = now.replace(hour=hh, minute=mm, second=0, microsecond=0)
+    if first_run <= now:
+        first_run += timedelta(days=1)
+
+    context.user_data["rec_first_run"] = first_run
+    context.user_data["rec_type"] = "daily"
+    context.user_data["rec_time_str"] = f"{hh:02d}:{mm:02d}:00"
+    context.user_data["rec_day"] = None
+
+    await update.message.reply_text("⏳ *Post qancha muddat davomida har kuni chiqsin?*", reply_markup=get_duration_keyboard(), parse_mode="Markdown")
+    return GET_DURATION
 
 async def recur_day_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
     if text not in WEEKDAY_MAP:
-        await update.message.reply_text("⚠️ Pastdagi kunlardan birini tanlang:")
+        await update.message.reply_text("⚠️ Kunlardan birini tanlang:")
         return RECUR_DAY
-    context.user_data["recurrence_day"] = WEEKDAY_MAP[text]
-    await update.message.reply_text(f"🕒 *Har {text} soat nechida chiqsin?*\nMasalan: `18:00`", reply_markup=get_cancel_keyboard(), parse_mode="Markdown")
+    context.user_data["rec_day"] = WEEKDAY_MAP[text]
+    await update.message.reply_text(f"🕒 *Har {text} soat nechida chiqsin?*\nMasalan: `10:00`", reply_markup=get_cancel_keyboard(), parse_mode="Markdown")
     return RECUR_TIME
 
 async def recur_time_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip()
     try:
-        hh, mm = text.split(":")
-        hh, mm = int(hh), int(mm)
+        hh, mm = map(int, text.split(":"))
         assert 0 <= hh < 24 and 0 <= mm < 60
     except Exception:
-        await update.message.reply_text("⚠️ Format xato! Masalan: `18:00`", parse_mode="Markdown")
+        await update.message.reply_text("⚠️ Noto'g'ri format! Masalan: `10:00`")
         return RECUR_TIME
 
     now = datetime.now(tashkent_tz)
-    target_weekday = context.user_data["recurrence_day"]
-    days_ahead = (target_weekday - now.weekday() + 7) % 7
-    candidate = (now + timedelta(days=days_ahead)).replace(hour=hh, minute=mm, second=0, microsecond=0)
-    if candidate <= now:
-        candidate += timedelta(days=7)
-    recurrence_time_str = f"{hh:02d}:{mm:02d}:00"
+    target_day = context.user_data["rec_day"]
+    days_ahead = (target_day - now.weekday() + 7) % 7
+    first_run = now.replace(hour=hh, minute=mm, second=0, microsecond=0) + timedelta(days=days_ahead)
+    if first_run <= now:
+        first_run += timedelta(days=7)
 
-    await _finalize_post(update, context, candidate, is_recurring=True, recurrence_day=target_weekday, recurrence_time_str=recurrence_time_str)
+    context.user_data["rec_first_run"] = first_run
+    context.user_data["rec_type"] = "weekly"
+    context.user_data["rec_time_str"] = f"{hh:02d}:{mm:02d}:00"
+
+    await update.message.reply_text("⏳ *Ushbu post qancha muddat davomida chiqsin?*", reply_markup=get_duration_keyboard(), parse_mode="Markdown")
+    return GET_DURATION
+
+async def duration_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = update.message.text
+    now = datetime.now(tashkent_tz)
+    end_date = None
+
+    if text == BTN_DUR_1M:
+        end_date = now + timedelta(days=30)
+    elif text == BTN_DUR_3M:
+        end_date = now + timedelta(days=90)
+    elif text == BTN_DUR_6M:
+        end_date = now + timedelta(days=180)
+    elif text == BTN_DUR_1Y:
+        end_date = now + timedelta(days=365)
+    elif text == BTN_DUR_INF:
+        end_date = None
+    else:
+        await update.message.reply_text("⚠️ Variantlardan birini tanlang:")
+        return GET_DURATION
+
+    await _save_and_finish(
+        update, context,
+        post_time=context.user_data["rec_first_run"],
+        recurrence_type=context.user_data["rec_type"],
+        recurrence_day=context.user_data["rec_day"],
+        recurrence_time_str=context.user_data["rec_time_str"],
+        end_date=end_date
+    )
     return ConversationHandler.END
