@@ -13,14 +13,16 @@ def md_escape(text) -> str:
 def format_post_code(user_code, user_post_number) -> str:
     return f"{user_code}-{user_post_number}" if user_post_number else str(user_code)
 
-def format_schedule_line(s_time, is_recurring, recurrence_day, recurrence_time):
+def format_schedule_line(s_time, recurrence_type, recurrence_day, recurrence_time):
     from keyboards.default import WEEKDAY_LABELS
-    if is_recurring:
+    if recurrence_type == 'daily':
+        time_str = recurrence_time.strftime("%H:%M") if recurrence_time else "?"
+        return f"🔄 Har kuni, soat `{time_str}`"
+    elif recurrence_type == 'weekly':
         day_label = WEEKDAY_LABELS.get(recurrence_day, "?")
         time_str = recurrence_time.strftime("%H:%M") if recurrence_time else "?"
         return f"🔄 Har {day_label}, soat `{time_str}`"
     
-    # Toshkent vaqtiga o'girish
     if s_time:
         if s_time.tzinfo is None:
             s_time = pytz.utc.localize(s_time).astimezone(tashkent_tz)
