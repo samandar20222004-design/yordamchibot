@@ -2,10 +2,10 @@ import re
 from telegram import ReplyKeyboardMarkup
 from telegram.ext import filters
 
-# --- Кнопки главного меню ---
 BTN_NEW_POST = "➕ Yangi post rejalashtirish"
 BTN_PENDING = "⏳ Kutilayotgan postlar"
 BTN_CHANNELS = "📢 Kanal/Guruhlar"
+BTN_CONVERTER = "🔤 Matn o'girgich (Lotin ⇄ Kirill)"
 BTN_PROFILE = "👤 Profil & Taklif"
 BTN_ADMIN_PANEL = "⚙️ Admin Panel"
 BTN_STATS = "📊 Statistika"
@@ -17,157 +17,132 @@ BTN_ALL_POSTS = "📋 Barcha postlar"
 BTN_ALL_CHANNELS = "📋 Barcha kanal/guruhlar"
 BTN_SKIP_BUTTON = "➡️ Tugmasiz davom etish"
 
-# --- Кнопки админ-панели ---
+# Admin
 BTN_SPONSORS = "📢 Majburiy obuna"
 BTN_ADD_SPONSOR = "➕ Homiy kanal qo'shish"
 BTN_GLOBAL_AD = "🔗 Reklama havolasi"
 
-# --- Кнопки реакций ---
+# Reaksiyalar
 BTN_REACT_DEFAULT = "👍 ❤️ 🔥 👏"
 BTN_NO_REACT = "➡️ Reaksiyasiz davom etish"
 
-# --- Кнопки автоматического удаления (Auto-delete) ---
+# Auto-delete
 BTN_DEL_NEVER = "❌ O'chirilmasin (Doimiy)"
 BTN_DEL_12H = "⏳ 12 soat"
 BTN_DEL_24H = "⏳ 24 soat (1 kun)"
 BTN_DEL_48H = "⏳ 48 soat (2 kun)"
 BTN_DEL_72H = "⏳ 72 soat (3 kun)"
 
-# --- Кнопки выбора времени ---
+# Vaqt turlari
 BTN_T_5MIN = "⚡ 5 daqiqa"
 BTN_T_15MIN = "⚡ 15 daqiqa"
 BTN_T_1H = "⚡ 1 soat"
 BTN_T_DAILY = "🔁 Har kuni (har kuni bir vaqtda)"
 BTN_T_WEEKLY = "📅 Har hafta (haftaning ma'lum kuni)"
 
-# --- Периоды повторения ---
+# Muddatlar
 BTN_DUR_1M = "1 oy"
 BTN_DUR_3M = "3 oy"
 BTN_DUR_6M = "6 oy"
 BTN_DUR_1Y = "1 yil"
 BTN_DUR_INF = "♾ Cheksiz"
 
-WEEKDAY_BUTTONS = [
-    "Dushanba",
-    "Seshanba",
-    "Chorshanba",
-    "Payshanba",
-    "Juma",
-    "Shanba",
-    "Yakshanba",
-]
+WEEKDAY_BUTTONS = ["Dushanba", "Seshanba", "Chorshanba", "Payshanba", "Juma", "Shanba", "Yakshanba"]
 WEEKDAY_MAP = {name: idx for idx, name in enumerate(WEEKDAY_BUTTONS)}
 WEEKDAY_LABELS = {idx: name for name, idx in WEEKDAY_MAP.items()}
 
-
 def exact(*texts):
-  """Функция для точного совпадения текста кнопки с фильтром сообщений."""
-  pattern = "^(" + "|".join(re.escape(t) for t in texts) + ")$"
-  return filters.Regex(pattern)
-
+    pattern = "^(" + "|".join(re.escape(t) for t in texts) + ")$"
+    return filters.Regex(pattern)
 
 def get_main_keyboard(is_admin=False):
-  """Главное меню бота."""
-  keyboard = [
-      [BTN_NEW_POST],
-      [BTN_PENDING, BTN_CHANNELS],
-      [BTN_PROFILE],
-  ]
-  if is_admin:
-    keyboard.append([BTN_ADMIN_PANEL])
-  return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
-
+    keyboard = [
+        [BTN_NEW_POST],
+        [BTN_PENDING, BTN_CHANNELS],
+        [BTN_CONVERTER, BTN_PROFILE]
+    ]
+    if is_admin:
+        keyboard.append([BTN_ADMIN_PANEL])
+    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
 def get_cancel_keyboard():
-  """Клавиатура с кнопкой возврата в главное меню."""
-  return ReplyKeyboardMarkup([[BTN_MAIN_MENU]], resize_keyboard=True)
-
+    return ReplyKeyboardMarkup([[BTN_MAIN_MENU]], resize_keyboard=True)
 
 def get_button_prompt_keyboard():
-  """Шаблоны названий для inline-кнопок к посту."""
-  return ReplyKeyboardMarkup(
-      [
-          ["Batafsil", "Kanalga a'zo bo'lish"],
-          ["Saytga o'tish", "Bog'lanish"],
-          [BTN_SKIP_BUTTON],
-          [BTN_MAIN_MENU],
-      ],
-      resize_keyboard=True,
-  )
-
+    return ReplyKeyboardMarkup(
+        [
+            ["Batafsil", "Kanalga a'zo bo'lish"],
+            ["Saytga o'tish", "Bog'lanish"],
+            [BTN_SKIP_BUTTON],
+            [BTN_MAIN_MENU]
+        ],
+        resize_keyboard=True
+    )
 
 def get_reactions_keyboard():
-  """Меню выбора реакций под постом."""
-  return ReplyKeyboardMarkup(
-      [[BTN_REACT_DEFAULT], [BTN_NO_REACT], [BTN_MAIN_MENU]],
-      resize_keyboard=True,
-  )
-
+    return ReplyKeyboardMarkup(
+        [
+            [BTN_REACT_DEFAULT],
+            [BTN_NO_REACT],
+            [BTN_MAIN_MENU]
+        ],
+        resize_keyboard=True
+    )
 
 def get_auto_delete_keyboard():
-  """Меню выбора времени жизни поста в канале."""
-  return ReplyKeyboardMarkup(
-      [
-          [BTN_DEL_NEVER],
-          [BTN_DEL_12H, BTN_DEL_24H],
-          [BTN_DEL_48H, BTN_DEL_72H],
-          [BTN_MAIN_MENU],
-      ],
-      resize_keyboard=True,
-  )
-
+    return ReplyKeyboardMarkup(
+        [
+            [BTN_DEL_NEVER],
+            [BTN_DEL_12H, BTN_DEL_24H],
+            [BTN_DEL_48H, BTN_DEL_72H],
+            [BTN_MAIN_MENU]
+        ],
+        resize_keyboard=True
+    )
 
 def get_admin_panel_keyboard():
-  """Клавиатура панели администратора."""
-  return ReplyKeyboardMarkup(
-      [
-          [BTN_SPONSORS, BTN_GLOBAL_AD],
-          [BTN_BROADCAST, BTN_STATS],
-          [BTN_ALL_POSTS, BTN_ALL_CHANNELS],
-          [BTN_MAIN_MENU],
-      ],
-      resize_keyboard=True,
-  )
-
+    return ReplyKeyboardMarkup(
+        [
+            [BTN_SPONSORS, BTN_GLOBAL_AD],
+            [BTN_BROADCAST, BTN_STATS],
+            [BTN_ALL_POSTS, BTN_ALL_CHANNELS],
+            [BTN_MAIN_MENU],
+        ],
+        resize_keyboard=True,
+    )
 
 def get_sponsors_keyboard():
-  """Меню управления каналами спонсоров."""
-  return ReplyKeyboardMarkup(
-      [[BTN_ADD_SPONSOR], [BTN_ADMIN_PANEL, BTN_MAIN_MENU]],
-      resize_keyboard=True,
-  )
-
+    return ReplyKeyboardMarkup(
+        [
+            [BTN_ADD_SPONSOR],
+            [BTN_ADMIN_PANEL, BTN_MAIN_MENU]
+        ],
+        resize_keyboard=True
+    )
 
 def get_time_keyboard():
-  """Быстрый выбор времени публикации."""
-  return ReplyKeyboardMarkup(
-      [
-          [BTN_T_5MIN, BTN_T_15MIN, BTN_T_1H],
-          [BTN_T_DAILY],
-          [BTN_T_WEEKLY],
-          [BTN_MAIN_MENU],
-      ],
-      resize_keyboard=True,
-  )
-
+    return ReplyKeyboardMarkup(
+        [
+            [BTN_T_5MIN, BTN_T_15MIN, BTN_T_1H],
+            [BTN_T_DAILY],
+            [BTN_T_WEEKLY],
+            [BTN_MAIN_MENU],
+        ],
+        resize_keyboard=True,
+    )
 
 def get_duration_keyboard():
-  """Выбор общей длительности для повторяющихся публикаций."""
-  return ReplyKeyboardMarkup(
-      [
-          [BTN_DUR_1M, BTN_DUR_3M, BTN_DUR_6M],
-          [BTN_DUR_1Y, BTN_DUR_INF],
-          [BTN_MAIN_MENU],
-      ],
-      resize_keyboard=True,
-  )
-
+    return ReplyKeyboardMarkup(
+        [
+            [BTN_DUR_1M, BTN_DUR_3M, BTN_DUR_6M],
+            [BTN_DUR_1Y, BTN_DUR_INF],
+            [BTN_MAIN_MENU]
+        ],
+        resize_keyboard=True
+    )
 
 def get_weekday_keyboard():
-  """Выбор дня недели для еженедельных публикаций."""
-  rows = [
-      [WEEKDAY_BUTTONS[i], WEEKDAY_BUTTONS[i + 1]] for i in range(0, 6, 2)
-  ]
-  rows.append([WEEKDAY_BUTTONS[6]])
-  rows.append([BTN_MAIN_MENU])
-  return ReplyKeyboardMarkup(rows, resize_keyboard=True)
+    rows = [[WEEKDAY_BUTTONS[i], WEEKDAY_BUTTONS[i + 1]] for i in range(0, 6, 2)]
+    rows.append([WEEKDAY_BUTTONS[6]])
+    rows.append([BTN_MAIN_MENU])
+    return ReplyKeyboardMarkup(rows, resize_keyboard=True)
