@@ -1,6 +1,5 @@
 import json
 import logging
-import re
 from datetime import datetime
 import pytz
 import aiohttp
@@ -12,7 +11,7 @@ tashkent_tz = pytz.timezone("Asia/Tashkent")
 GROQ_ENDPOINT = "https://api.groq.com/openai/v1/chat/completions"
 
 def _clean_json_string(raw_str: str) -> str:
-    """Удаляет markdown-разметку ```json ... ``` если модель ее добавила."""
+    """Markdown bloklarni tozalash (```json ... ```)."""
     raw_str = raw_str.strip()
     if raw_str.startswith("```json"):
         raw_str = raw_str[7:]
@@ -24,7 +23,7 @@ def _clean_json_string(raw_str: str) -> str:
 
 async def analyze_user_prompt(prompt: str, user_id: int = 0) -> dict:
     """
-    Отправляет запрос к Groq API и возвращает готовый пост и время публикации.
+    Foydalanuvchi matnini Groq API orqali tahlil qiladi va post/she'r yaratadi.
     """
     api_key = (GROQ_API_KEY or "").strip().replace('"', '').replace("'", "")
     
@@ -53,7 +52,12 @@ async def analyze_user_prompt(prompt: str, user_id: int = 0) -> dict:
         "Content-Type": "application/json",
     }
 
-    models_to_try = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"]
+    # Bepul tarifda 100% ishlaydigan modellar ro'yxati
+    models_to_try = [
+        "llama-3.3-70b-versatile",
+        "llama3-70b-8192",
+        "llama3-8b-8192"
+    ]
     last_err_msg = ""
 
     for model in models_to_try:
@@ -61,7 +65,7 @@ async def analyze_user_prompt(prompt: str, user_id: int = 0) -> dict:
             "model": model,
             "messages": [
                 {"role": "system", "content": system_instruction},
-                {"role": "user", "content": f"JSON formatida post tayyorlang: {prompt}"}
+                {"role": "user", "content": f"JSON formatida javob bering: {prompt}"}
             ],
             "response_format": {"type": "json_object"},
             "temperature": 0.7
@@ -81,7 +85,7 @@ async def analyze_user_prompt(prompt: str, user_id: int = 0) -> dict:
                         return parsed
                     else:
                         logger.warning(f"Groq ({model}) xatosi {resp.status}: {resp_text}")
-                        last_err_msg = f"HTTP {resp.status}: {resp_text[:120]}"
+                        last_err_msg = f"HTTP {resp.status}: {resp_text[:100]}"
         except Exception as e:
             logger.warning(f"Model {model} ulanish xatosi: {e}")
             last_err_msg = str(e)
