@@ -63,7 +63,7 @@ async def channel_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(
         f"✅ Tanlandi: *{md_escape(context.user_data['selected_channel_title'])}*\n\n"
-        f"📝 *Post uchun kontentni yuboring:* (Matn, rasm, video, audio yoki hujjat)",
+        f"📝 *Post uchun kontentni yuboring:* (Matn, rasm, video, audio yoki boshqa kanaldan ulashilgan xabar)",
         reply_markup=get_cancel_keyboard(),
         parse_mode="Markdown"
     )
@@ -71,30 +71,9 @@ async def channel_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def content_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = update.message
-    post_type, file_id, content = None, None, ""
-
-    if msg.photo:
-        post_type, file_id, content = "photo", msg.photo[-1].file_id, msg.caption or ""
-    elif msg.video:
-        post_type, file_id, content = "video", msg.video.file_id, msg.caption or ""
-    elif msg.animation:
-        post_type, file_id, content = "animation", msg.animation.file_id, msg.caption or ""
-    elif msg.document:
-        post_type, file_id, content = "document", msg.document.file_id, msg.caption or ""
-    elif msg.audio:
-        post_type, file_id, content = "audio", msg.audio.file_id, msg.caption or ""
-    elif msg.voice:
-        post_type, file_id = "voice", msg.voice.file_id
-    elif msg.video_note:
-        post_type, file_id = "video_note", msg.video_note.file_id
-    elif msg.sticker:
-        post_type, file_id = "sticker", msg.sticker.file_id
-    elif msg.text:
-        post_type, content = "text", msg.text
-
-    if post_type is None:
-        await msg.reply_text("⚠️ Noma'lum format. Rasm, video, matn yoki fayl yuboring.")
-        return GET_CONTENT
+    post_type = "forward_copy"
+    file_id = f"msg:{msg.message_id}"
+    content = msg.caption or msg.text or ""
 
     context.user_data["post_type"] = post_type
     context.user_data["file_id"] = file_id
