@@ -1,31 +1,24 @@
 import html
 import time
 import pytz
+import database as db
 
 tashkent_tz = pytz.timezone("Asia/Tashkent")
 
-# Foydalanuvchilarning bosish vaqtlari tarixi
 _USER_HISTORY = {}
 _USER_WARNED = {}
+_USER_MSG_COUNT = {}
 
 def check_rate_limit(user_id: int, max_requests: int = 3, window_seconds: float = 3.0) -> tuple[bool, bool]:
-    """
-    Foydalanuvchi window_seconds ichida max_requests dan ko'p so'rov yuborganini tekshiradi.
-    Qaytaradi: (is_blocked, should_warn)
-    """
     now = time.time()
-    
-    # Xotirani tozalash
     if len(_USER_HISTORY) > 5000:
         _USER_HISTORY.clear()
         _USER_WARNED.clear()
         
     history = _USER_HISTORY.get(user_id, [])
-    # Faqat so'nggi window_seconds ichidagi so'rovlarni qoldiramiz
     history = [t for t in history if now - t < window_seconds]
     
     if len(history) >= max_requests:
-        # Bloklangan
         warned = _USER_WARNED.get(user_id, 0)
         should_warn = (now - warned > window_seconds)
         if should_warn:
@@ -37,8 +30,21 @@ def check_rate_limit(user_id: int, max_requests: int = 3, window_seconds: float 
     _USER_HISTORY[user_id] = history
     return False, False
 
+def get_smart_reply_ad(user_id: int) -> str:
+    """Foydalanuvchiga har 3-marta so'rov berganda qisqa reklama biriktirish."""
+    ad_text = db.get_setting("bot_reply_ad_text", "").strip()
+    if not ad_text:
+        return ""
+        
+    count = _USER_MSG_COUNT.get(user_id, 0) + 1
+    _USER_MSG_COUNT[user_id] = count
+    
+    # Har 3 ta buyruqda bir marta reklama chiqarish
+    if count % 3 == 0:
+        return f"\n\n🏷 <i>({ad_text})</i>"
+    return ""
+
 def html_escape(text) -> str:
-    """HTML maxsus belgilarini xavfsiz holatga keltiradi."""
     if not text:
         return ""
     return html.escape(str(text))
