@@ -1,6 +1,7 @@
 import logging
 import random
 import string
+from datetime import datetime, date, timedelta
 from contextlib import contextmanager
 import psycopg2
 from config import DATABASE_URL
@@ -34,6 +35,8 @@ def init_db():
                 user_code VARCHAR(8) UNIQUE,
                 referrer_id BIGINT,
                 ai_credits INTEGER DEFAULT 5,
+                ad_free_posts INTEGER DEFAULT 0,
+                last_bonus_date DATE,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
         """)
@@ -107,6 +110,8 @@ def init_db():
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS user_code VARCHAR(8) UNIQUE;",
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS referrer_id BIGINT;",
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS ai_credits INTEGER DEFAULT 5;",
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS ad_free_posts INTEGER DEFAULT 0;",
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS last_bonus_date DATE;",
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;",
             "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS inline_button_text VARCHAR(255);",
             "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS inline_button_url TEXT;",
@@ -129,7 +134,7 @@ def init_db():
         cur.execute("CREATE INDEX IF NOT EXISTS idx_scheduled_posts_status_time ON scheduled_posts (status, scheduled_time);")
     logger.info("Baza jadvallari tayyor.")
 
-# --- SETTINGS ---
+# --- SETTINGS (REKLAMA VA SOZLAMALAR) ---
 def set_setting(key: str, value: str):
     try:
         with db_cursor(commit=True) as cur:
@@ -151,7 +156,7 @@ def get_setting(key: str, default: str = "") -> str:
         logger.error(f"Sozlama olish xatosi: {e}")
         return default
 
-# --- SPONSORS ---
+# --- SPONSOR CHANNELS ---
 def add_sponsor_channel(channel_id: str, channel_title: str, channel_url: str) -> bool:
     try:
         with db_cursor(commit=True) as cur:
@@ -184,36 +189,7 @@ def remove_sponsor_channel(sponsor_id: int) -> bool:
         logger.error(f"Sponsor o'chirish xatosi: {e}")
         return False
 
-# --- REACTIONS ---
-def toggle_reaction(post_id: int, user_id: int, reaction: str) -> dict:
-    try:
-        with db_cursor(commit=True) as cur:
-            cur.execute("SELECT reaction_type FROM post_reactions WHERE post_id = %s AND user_id = %s", (post_id, user_id))
-            row = cur.fetchone()
-            if row:
-                if row[0] == reaction:
-                    cur.execute("DELETE FROM post_reactions WHERE post_id = %s AND user_id = %s", (post_id, user_id))
-                else:
-                    cur.execute("UPDATE post_reactions SET reaction_type = %s WHERE post_id = %s AND user_id = %s", (reaction, post_id, user_id))
-            else:
-                cur.execute("INSERT INTO post_reactions (post_id, user_id, reaction_type) VALUES (%s, %s, %s)", (post_id, user_id, reaction))
-
-            cur.execute("SELECT reaction_type, COUNT(*) FROM post_reactions WHERE post_id = %s GROUP BY reaction_type", (post_id,))
-            return {r[0]: r[1] for r in cur.fetchall()}
-    except Exception as e:
-        logger.error(f"Reaksiya xatosi: {e}")
-        return {}
-
-def get_reaction_counts(post_id: int) -> dict:
-    try:
-        with db_cursor() as cur:
-            cur.execute("SELECT reaction_type, COUNT(*) FROM post_reactions WHERE post_id = %s GROUP BY reaction_type", (post_id,))
-            return {r[0]: r[1] for r in cur.fetchall()}
-    except Exception as e:
-        logger.error(f"Reaksiya olish xatosi: {e}")
-        return {}
-
-# --- USERS, CREDITS & TRANSFER ---
+# --- USERS, CREDITS, REVIEWS & ANTI-ABUSE ---
 def _generate_user_code(cur) -> str:
     letters = string.ascii_lowercase
     for _ in range(50):
@@ -235,8 +211,8 @@ def save_user(user_id: int, username: str, full_name: str = "", referrer_id: int
                 code = _generate_user_code(cur)
                 valid_ref = referrer_id if referrer_id and referrer_id != user_id else None
                 cur.execute("""
-                    INSERT INTO users (user_id, username, full_name, user_code, referrer_id, ai_credits, created_at)
-                    VALUES (%s, %s, %s, %s, %s, 5, NOW())
+                    INSERT INTO users (user_id, username, full_name, user_code, referrer_id, ai_credits, ad_free_posts, created_at)
+                    VALUES (%s, %s, %s, %s, %s, 5, 0, NOW())
                 """, (user_id, username, full_name, code, valid_ref))
                 
                 if valid_ref:
@@ -244,6 +220,64 @@ def save_user(user_id: int, username: str, full_name: str = "", referrer_id: int
                 return True
     except Exception as e:
         logger.error(f"User saqlash xatosi: {e}")
+        return False
+
+def get_user_data(user_id: int):
+    try:
+        with db_cursor() as cur:
+            cur.execute("SELECT user_id, ai_credits, ad_free_posts, created_at FROM users WHERE user_id = %s", (user_id,))
+            return cur.fetchone()
+    except Exception as e:
+        logger.error(f"User olish xatosi: {e}")
+        return None
+
+def claim_daily_bonus(user_id: int) -> tuple[bool, str, int]:
+    today = date.today()
+    try:
+        with db_cursor(commit=True) as cur:
+            cur.execute("SELECT last_bonus_date, ai_credits FROM users WHERE user_id = %s", (user_id,))
+            row = cur.fetchone()
+            if not row:
+                return False, "Foydalanuvchi topilmadi.", 0
+            
+            last_date, credits = row
+            if last_date == today:
+                return False, "Siz bugungi kunlik bonusingizni olgansiz. Ertaga qayta urinib ko'ring!", credits
+            
+            cur.execute("UPDATE users SET ai_credits = ai_credits + 1, last_bonus_date = %s WHERE user_id = %s RETURNING ai_credits", (today, user_id))
+            new_credits = cur.fetchone()[0]
+            return True, "Tabriklaymiz! Hisobingizga <b>+1 ta bepul AI so'rovi</b> qo'shildi! 🎁", new_credits
+    except Exception as e:
+        logger.error(f"Kunlik bonus xatosi: {e}")
+        return False, "Bonus olishda xatolik yuz berdi.", 0
+
+def buy_ad_free_posts(user_id: int) -> tuple[bool, str]:
+    """1 ta ball evaziga 5 ta reklamasiz post litsenziyasini sotib olish."""
+    try:
+        with db_cursor(commit=True) as cur:
+            cur.execute("SELECT ai_credits FROM users WHERE user_id = %s FOR UPDATE", (user_id,))
+            row = cur.fetchone()
+            if not row or row[0] < 1:
+                return False, "Hisobingizda yetarli ball yo'q (kamida 1 ball kerak)."
+            
+            cur.execute("UPDATE users SET ai_credits = ai_credits - 1, ad_free_posts = ad_free_posts + 5 WHERE user_id = %s", (user_id,))
+            return True, "🎉 <b>Tabriklaymiz!</b> Siz 1 ta ball evaziga <b>5 ta reklamasiz toza post</b> litsenziyasini faollashtirdingiz!"
+    except Exception as e:
+        logger.error(f"Reklamasiz post xaridida xato: {e}")
+        return False, f"Xatolik: {e}"
+
+def consume_ad_free_post(user_id: int) -> bool:
+    """Post chiqayotganda 1 ta reklamasiz litsenziyani ishlatish."""
+    try:
+        with db_cursor(commit=True) as cur:
+            cur.execute("SELECT ad_free_posts FROM users WHERE user_id = %s FOR UPDATE", (user_id,))
+            row = cur.fetchone()
+            if row and row[0] > 0:
+                cur.execute("UPDATE users SET ad_free_posts = ad_free_posts - 1 WHERE user_id = %s", (user_id,))
+                return True
+            return False
+    except Exception as e:
+        logger.error(f"Litsenziya ishlatishda xato: {e}")
         return False
 
 def get_user_credits(user_id: int) -> int:
@@ -270,7 +304,6 @@ def use_user_credit(user_id: int) -> bool:
         return False
 
 def find_user_by_target(target: str):
-    """Foydalanuvchini ID, username yoki user_code orqali qidiradi."""
     target_clean = target.strip().lstrip("@").lower()
     try:
         with db_cursor() as cur:
@@ -280,11 +313,10 @@ def find_user_by_target(target: str):
                 cur.execute("SELECT user_id, full_name, username, user_code, ai_credits FROM users WHERE LOWER(user_code) = %s OR LOWER(username) = %s", (target_clean, target_clean))
             return cur.fetchone()
     except Exception as e:
-        logger.error(f"Foydalanuvchi qidirishda xato: {e}")
+        logger.error(f"Foydalanuvchi qidirish xatosi: {e}")
         return None
 
 def transfer_user_credits(from_user_id: int, to_user_id: int, amount: int) -> tuple[bool, str]:
-    """Bir foydalanuvchidan ikkinchisiga ball o'tkazish (Xavfsiz tranzaksiya)."""
     if from_user_id == to_user_id:
         return False, "O'zingizga ball o'tkaza olmaysiz."
     if amount < 3 or amount > 20:
@@ -292,9 +324,17 @@ def transfer_user_credits(from_user_id: int, to_user_id: int, amount: int) -> tu
 
     try:
         with db_cursor(commit=True) as cur:
-            cur.execute("SELECT ai_credits FROM users WHERE user_id = %s FOR UPDATE", (from_user_id,))
+            # 3 kunlik cheklov: botga yangi kirganlar darhol ball o'tkaza olmaydi
+            cur.execute("SELECT ai_credits, created_at FROM users WHERE user_id = %s FOR UPDATE", (from_user_id,))
             row_from = cur.fetchone()
-            if not row_from or row_from[0] < amount:
+            if not row_from:
+                return False, "Foydalanuvchi topilmadi."
+            
+            credits, created_at = row_from
+            if created_at and (datetime.now() - created_at).days < 3:
+                return False, "⚠️ <b>Xavfsizlik qoidasi:</b> Yangi ro'yxatdan o'tgan foydalanuvchilar ballarni ro'yxatdan o'tgandan <b>3 kun o'tgach</b> boshqalarga ulasha oladi."
+                
+            if credits < amount:
                 return False, "Hisobingizda yetarli ball mavjud emas."
 
             cur.execute("SELECT user_id FROM users WHERE user_id = %s", (to_user_id,))
@@ -313,13 +353,14 @@ def get_referral_stats(user_id: int) -> dict:
         with db_cursor() as cur:
             cur.execute("SELECT COUNT(*) FROM users WHERE referrer_id = %s", (user_id,))
             ref_count = cur.fetchone()[0]
-            cur.execute("SELECT ai_credits FROM users WHERE user_id = %s", (user_id,))
+            cur.execute("SELECT ai_credits, ad_free_posts FROM users WHERE user_id = %s", (user_id,))
             row = cur.fetchone()
             credits = row[0] if row and row[0] is not None else 0
-            return {"referrals_count": ref_count, "ai_credits": credits}
+            ad_free = row[1] if row and len(row) > 1 and row[1] is not None else 0
+            return {"referrals_count": ref_count, "ai_credits": credits, "ad_free_posts": ad_free}
     except Exception as e:
         logger.error(f"Referral xatosi: {e}")
-        return {"referrals_count": 0, "ai_credits": 0}
+        return {"referrals_count": 0, "ai_credits": 0, "ad_free_posts": 0}
 
 def get_all_user_ids() -> list:
     try:
@@ -327,7 +368,7 @@ def get_all_user_ids() -> list:
             cur.execute("SELECT user_id FROM users")
             return [row[0] for row in cur.fetchall()]
     except Exception as e:
-        logger.error(f"Foydalanuvchilar ro'yxati xatosi: {e}")
+        logger.error(f"Foydalanuvchilar xatosi: {e}")
         return []
 
 def get_user_code(user_id: int) -> str:
@@ -347,7 +388,7 @@ def get_user_channels(user_id: int) -> list:
             cur.execute("SELECT channel_id, channel_title FROM channels WHERE user_id = %s AND is_active = TRUE ORDER BY id ASC", (user_id,))
             return cur.fetchall()
     except Exception as e:
-        logger.error(f"Kanallarni olish xatosi: {e}")
+        logger.error(f"Kanallar olish xatosi: {e}")
         return []
 
 def get_all_channels() -> list:
@@ -506,13 +547,9 @@ def mark_post_status(post_id: int, status: str):
 def mark_post_as_sent(post_id: int, sent_message_id: int):
     try:
         with db_cursor(commit=True) as cur:
-            cur.execute("""
-                UPDATE scheduled_posts 
-                SET status = 'posted', sent_message_id = %s 
-                WHERE id = %s
-            """, (sent_message_id, post_id))
+            cur.execute("UPDATE scheduled_posts SET status = 'posted', sent_message_id = %s WHERE id = %s", (sent_message_id, post_id))
     except Exception as e:
-        logger.error(f"Post yuborilganini belgilashda xato: {e}")
+        logger.error(f"Post yuborilganini belgilash xatosi: {e}")
 
 def get_posts_to_delete(now) -> list:
     try:
@@ -527,7 +564,7 @@ def get_posts_to_delete(now) -> list:
             """, (now,))
             return cur.fetchall()
     except Exception as e:
-        logger.error(f"O'chiriladigan postlarni olishda xato: {e}")
+        logger.error(f"O'chiriladigan postlar xatosi: {e}")
         return []
 
 def mark_post_as_deleted(post_id: int):
@@ -535,7 +572,7 @@ def mark_post_as_deleted(post_id: int):
         with db_cursor(commit=True) as cur:
             cur.execute("UPDATE scheduled_posts SET status = 'deleted' WHERE id = %s", (post_id,))
     except Exception as e:
-        logger.error(f"Postni o'chirilgan deb belgilashda xato: {e}")
+        logger.error(f"Post o'chirish xatosi: {e}")
 
 def reschedule_recurring_post(post_id: int, next_time):
     try:
