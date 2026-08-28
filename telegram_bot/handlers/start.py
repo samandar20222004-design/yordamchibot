@@ -105,7 +105,7 @@ async def user_cabinet_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = (
         f"👤 <b>Shaxsiy Kabinet:</b>\n\n"
         f"🆔 ID: <code>{user.id}</code>\n"
-        f"💎 Mavjud so'rovlar soni: {credits_text}\n"
+        f"💎 Mavjud AI so'rovlar soni: {credits_text}\n"
         f"📢 Ulangan kanallar: <b>{len(channels)} ta</b>\n"
         f"👥 Taklif qilgan do'stlaringiz: <b>{stats['referrals_count']} ta</b>\n\n"
         f"Quyidagi bo'limlardan birini tanlang 👇"
@@ -124,9 +124,9 @@ async def user_invite_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     credits_text = "♾ Cheksiz (Super Admin)" if is_admin else f"<b>{stats['ai_credits']} ta</b>"
     
     text = (
-        f"🚀 <b>Do'stlarni taklif qiling va bepul so'rovlar oling:</b>\n\n"
+        f"🚀 <b>Do'stlarni taklif qiling va bepul AI so'rovlar oling:</b>\n\n"
         f"🎁 <i>Har bir yangi do'stingiz uchun hisobingizga <b>+3 ta bepul AI so'rovi</b> qo'shiladi!</i>\n\n"
-        f"💎 Sizdagi mavjud so'rovlar soni: {credits_text}\n"
+        f"💎 Sizdagi mavjud AI so'rovlar soni: {credits_text}\n"
         f"👥 Taklif qilingan do'stlaringiz: <b>{stats['referrals_count']} ta</b>\n\n"
         f"🔗 <b>Sizning taklif havolangiz:</b>\n<code>{ref_link}</code>"
     )
@@ -148,9 +148,9 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "🔹 <b>2. AI Post Yordamchi (Sun'iy Intellekt):</b>\n"
         "• Istalgan mavzuni erkin yozing (masalan: <i>'Ertaga 18:00 ga chegirmalar haqida post yoz'</i>).\n"
         "• AI o'zbek tilidagi shevalar va qisqartmalarni tushunib, post tayyorlaydi va chiqish vaqtini o'zi belgilaydi.\n\n"
-        "🔹 <b>3. Ballar va So'rovlar tizimi:</b>\n"
+        "🔹 <b>3. Ballar va AI So'rovlar tizimi:</b>\n"
         "• Har bir yangi foydalanuvchiga <b>5 ta bepul AI so'rovi</b> beriladi.\n"
-        "• Har bir do'stingizni taklif qilganingiz uchun <b>+3 ta so'rov</b> sovg'a qilinadi.\n\n"
+        "• Har bir do'stingizni taklif qilganingiz uchun <b>+3 ta bepul AI so'rovi</b> sovg'a qilinadi.\n\n"
         "🔹 <b>4. Matn O'girgich (Lotin ⇄ Kirill):</b>\n"
         "• Istalgan matn yoki rasm/video tagidagi izohlarni bir zumda ikki alifboga xatosiz o'girib beradi.\n\n"
         "⚙️ <b>Tezkor buyruqlar:</b>\n"
