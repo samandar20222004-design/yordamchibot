@@ -1,4 +1,3 @@
-import asyncio
 import logging
 from datetime import datetime
 import pytz
@@ -78,11 +77,10 @@ async def ai_input_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await msg.reply_text("Iltimos, post mavzusi yoki buyruqni matn ko'rinishida yuboring:")
         return AI_INPUT
 
-    # Foydalanuvchiga darhol jarayon boshlanganini bildiramiz
     msg_wait = await msg.reply_text("⏳ <i>AI post tayyorlamoqda, iltimos kuting...</i>", parse_mode="HTML")
     
-    # Asinxron ravishda AI ga so'rov yuboramiz (bot qotib qolmasligi uchun)
-    result = await asyncio.to_thread(analyze_user_prompt, prompt, user_id)
+    # Asinxron aiohttp so'rovi
+    result = await analyze_user_prompt(prompt, user_id)
     
     try:
         await msg_wait.delete()
