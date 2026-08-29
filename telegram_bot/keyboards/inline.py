@@ -1,16 +1,11 @@
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
 def get_referral_share_keyboard(referral_link: str) -> InlineKeyboardMarkup:
-    """Do'stlarga ulashish uchun tugma."""
     share_text = "Salom! Ushbu bot orqali Telegram kanallaringizga postlarni avtomatik va qulay rejalashtiring:"
     share_url = f"https://t.me/share/url?url={referral_link}&text={share_text}"
-    keyboard = [
-        [InlineKeyboardButton("🚀 Do'stlarga ulashish", url=share_url)]
-    ]
-    return InlineKeyboardMarkup(keyboard)
+    return InlineKeyboardMarkup([[InlineKeyboardButton("🚀 Do'stlarga ulashish", url=share_url)]])
 
 def get_subscription_check_keyboard(unsubscribed_channels: list) -> InlineKeyboardMarkup:
-    """Majburiy a'zolik kanallari va tekshirish tugmasi."""
     keyboard = []
     for sponsor in unsubscribed_channels:
         s_id, ch_id, ch_title, ch_url = sponsor
@@ -19,7 +14,6 @@ def get_subscription_check_keyboard(unsubscribed_channels: list) -> InlineKeyboa
     return InlineKeyboardMarkup(keyboard)
 
 def get_sponsors_delete_keyboard(sponsors: list) -> InlineKeyboardMarkup:
-    """Admin uchun homiy kanallarni o'chirish tugmalari."""
     keyboard = []
     for sponsor in sponsors:
         s_id, ch_id, ch_title, ch_url = sponsor
@@ -27,7 +21,6 @@ def get_sponsors_delete_keyboard(sponsors: list) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(keyboard)
 
 def render_channels_list(channels: list) -> InlineKeyboardMarkup:
-    """Ulangan kanallarni ko'rish va o'chirish uchun inline tugmalar."""
     keyboard = []
     for ch in channels:
         ch_id, ch_title = ch
@@ -38,7 +31,6 @@ def render_channels_list(channels: list) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(keyboard)
 
 def render_pending_list(posts: list, user_code: str) -> InlineKeyboardMarkup:
-    """Kutilayotgan postlarni boshqarish (vaqtni o'zgartirish va bekor qilish) tugmalari."""
     keyboard = []
     for p in posts:
         pid, ch_title, p_type, s_time, p_num, r_type, r_day, r_time = p
