@@ -1,12 +1,12 @@
 import logging
 from datetime import datetime, timedelta
 import pytz
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes, ConversationHandler
 from config import ADMIN_ID
 import database as db
 from keyboards.default import (
-    BTN_T_5MIN, BTN_T_15MIN, BTN_T_1H, BTN_MAIN_MENU,
+    BTN_T_5MIN, BTN_T_15MIN, BTN_T_1H,
     get_cancel_keyboard, get_main_keyboard, get_time_keyboard
 )
 from utils.ai_agent import analyze_user_prompt
@@ -54,7 +54,6 @@ async def ai_input_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     is_admin = (user_id == ADMIN_ID)
     
-    # Media Group takrorlanishidan himoya
     media_group_id = msg.media_group_id
     if media_group_id:
         if context.user_data.get("last_ai_media_group_id") == media_group_id:
@@ -118,7 +117,6 @@ async def ai_input_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["ai_file_id"] = file_id
     context.user_data["ai_target_all"] = target_all
 
-    # 1-holat: Agar postda vaqt aniq aytilmagan bo'lsa -> Foydalanuvchidan qachonga qo'yishni so'raymiz
     if not has_explicit_time or not sched_time:
         preview_text = (
             f"✨ <b>Qabul qilingan post:</b>\n\n"
@@ -138,7 +136,6 @@ async def ai_input_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
         return AI_GET_TIME
 
-    # 2-holat: Vaqt aniq bo'lsa -> To'g'ridan-to'g'ri tasdiqlash oynasi chiqadi
     time_info = f"\n\n🕒 <b>Rejalashtirilgan chiqish vaqti:</b> <code>{sched_time}</code>"
     target_info = "\n🌐 <b>Kanal:</b> Barcha ulangan kanallarga" if target_all else ""
     
@@ -167,7 +164,6 @@ async def ai_input_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return AI_CONFIRM
 
 async def ai_time_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Foydalanuvchi AI posti uchun vaqtni tanlaganda qabul qilish."""
     text = update.message.text.strip()
     now = datetime.now(tashkent_tz)
     post_time = None
