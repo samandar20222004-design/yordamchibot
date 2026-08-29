@@ -2,7 +2,7 @@ import logging
 from datetime import datetime, timedelta
 import pytz
 from telegram import InlineKeyboardMarkup, InlineKeyboardButton
-from telegram.error import TelegramError
+from telegram.error import TelegramError, RetryAfter, TimedOut, NetworkError
 from config import ADMIN_ID
 import database as db
 
@@ -63,6 +63,18 @@ async def _execute_send(bot, post):
 
     sent_msg = None
     try:
+        # Telegram caption limiti 1024, oddiy matn limiti 4096 belgidan iborat.
+        pt_for_limit = str(post_type).lower()
+        if pt_for_limit in ("photo", "video", "animation", "document", "audio", "voice"):
+            final_content = final_content[:1024]
+        else:
+            final_content = final_content[:4096]
+    except Exception:
+        logger.exception("Post matnini tayyorlashda xatolik (Post ID: %s)", post_id)
+        db.mark_post_status(post_id, "failed")
+        return
+
+    try:
         pt = str(post_type).lower()
         target_chat = int(channel_id) if str(channel_id).lstrip('-').isdigit() else channel_id
 
@@ -86,6 +98,15 @@ async def _execute_send(bot, post):
         sent_msg_id = sent_msg.message_id if sent_msg else None
         db.mark_post_as_sent(post_id, sent_msg_id, channel_id, delete_after_hours)
 
+    except RetryAfter as e:
+        # Telegram rate-limit vaqtinchalik: postni yo'qotmasdan qayta navbatga qo'yamiz.
+        logger.warning(f"Telegram rate limit (Post ID: {post_id}), {e.retry_after}s dan keyin qayta uriniladi")
+        db.mark_post_status(post_id, "pending")
+        return
+    except (TimedOut, NetworkError) as e:
+        logger.warning(f"Telegram tarmoq xatosi (Post ID: {post_id}): {e}; qayta uriniladi")
+        db.mark_post_status(post_id, "pending")
+        return
     except TelegramError as e:
         logger.error(f"Post yuborishda xato (Post ID: {post_id}): {e}")
         db.mark_post_status(post_id, "failed")
