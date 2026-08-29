@@ -10,11 +10,9 @@ from utils.helpers import html_escape
 
 logger = logging.getLogger(__name__)
 
-# Kanal qo'shish holati
 ADD_CHANNEL = 301
 
 async def channels_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Foydalanuvchining ulangan kanallari ro'yxati."""
     user_id = update.effective_user.id
     channels = db.get_user_channels(user_id)
     
@@ -35,7 +33,6 @@ async def channels_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 async def start_add_channel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Yangi kanal qo'shish bo'yicha ko'rsatma."""
     bot_obj = await context.bot.get_me()
     await update.message.reply_text(
         f"➕ <b>Yangi kanal yoki guruh ulash:</b>\n\n"
@@ -48,7 +45,6 @@ async def start_add_channel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ADD_CHANNEL
 
 async def channel_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Kanal ma'lumotlarini qabul qilib saqlash."""
     msg = update.message
     user_id = update.effective_user.id
     is_admin = (user_id == ADMIN_ID)
@@ -99,7 +95,6 @@ async def channel_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 async def remove_channel_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Kanalni o'chirish."""
     query = update.callback_query
     await query.answer()
     channel_id = query.data.split(":")[1]
@@ -110,7 +105,6 @@ async def remove_channel_callback(update: Update, context: ContextTypes.DEFAULT_
     await query.edit_message_text("✅ Kanal muvaffaqiyatli o'chirildi.")
 
 async def on_bot_chat_member_update(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Bot kanalga admin qilib qo'shilganda avtomatik saqlash."""
     result = update.my_chat_member
     if not result:
         return
