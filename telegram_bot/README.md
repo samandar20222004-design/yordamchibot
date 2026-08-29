@@ -105,6 +105,14 @@ Telegram serverlarida qoladi. Shuning uchun 10MB rasm ham, 100MB video ham
 bazangizni og'irlashtirmaydi, va jo'natish vaqti kelganda bot shu ishora
 orqali qayta jo'natadi — hech qanday hajm cheklovisiz.
 
+## Render va UptimeRobot sozlamalari
+
+Render'da **Root Directory** ni `telegram_bot`, Build Command'ni `pip install -r requirements.txt`, Start Command'ni `python main.py` qilib qo'ying. Environment Variables ichida `BOT_TOKEN`, `ADMIN_ID` va Render PostgreSQL bergan `DATABASE_URL` bo'lishi kerak. `PORT` ni qo'lda berish shart emas: kod Render bergan portni o'zi oladi.
+
+UptimeRobot monitor turi **HTTP(s)** bo'lsin va URL quyidagicha berilsin:
+`https://sizning-render-service.onrender.com/health`
+Health endpoint `200` va JSON qaytaradi. UptimeRobot bot polling'ini emas, Render web-service'ni uyg'oq saqlaydi.
+
 ## Bot "doim ishlashi" uchun
 
 Yuqoridagi `python main.py` faqat siz uni ishga tushirib turgan vaqtda
