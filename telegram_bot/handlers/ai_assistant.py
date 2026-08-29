@@ -1,11 +1,14 @@
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 import pytz
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup
 from telegram.ext import ContextTypes, ConversationHandler
 from config import ADMIN_ID
 import database as db
-from keyboards.default import get_cancel_keyboard, get_main_keyboard
+from keyboards.default import (
+    BTN_T_5MIN, BTN_T_15MIN, BTN_T_1H, BTN_MAIN_MENU,
+    get_cancel_keyboard, get_main_keyboard, get_time_keyboard
+)
 from utils.ai_agent import analyze_user_prompt
 from utils.helpers import html_escape
 
@@ -14,6 +17,7 @@ tashkent_tz = pytz.timezone("Asia/Tashkent")
 
 AI_INPUT = 401
 AI_CONFIRM = 402
+AI_GET_TIME = 403
 
 async def start_ai_assistant(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
@@ -38,8 +42,8 @@ async def start_ai_assistant(update: Update, context: ContextTypes.DEFAULT_TYPE)
     await update.message.reply_text(
         f"🤖 <b>AI Post Yordamchisiga xush kelibsiz!</b>\n\n"
         f"💎 Sizdagi mavjud AI so'rovlar soni: {limit_info}\n\n"
-        f"Buyruq, post mavzusi yoki <b>rasm/post (izohi bilan)</b> yuboring:\n"
-        f"👉 <i>Masalan: 'Ushbu postni bugun 13:00 ga kanalga rejalashtir' deb postni forward qiling</i>",
+        f"Istalgan post, matn, forward xabar yoki <b>rasm</b> yuboring:\n"
+        f"👉 <i>Masalan: 'Ushbu postni bugun 13:00 ga kanalga rejalashtir' yoki shunchaki postning o'zini yuboring</i>",
         reply_markup=get_cancel_keyboard(),
         parse_mode="HTML"
     )
@@ -71,20 +75,17 @@ async def ai_input_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
         file_id = msg.document.file_id
         post_type = "document"
 
-    # Agar foydalanuvchi avval buyruq yozgan bo'lsa va endi post tashlayotgan bo'lsa
     prev_instruction = context.user_data.get("last_user_instruction", "")
     
-    # Agar rasm/video kelgan bo'lsa lekin matn bo'lmasa, avvalgi buyruqni tekshiramiz
     if file_id and not text_input and prev_instruction:
-        full_prompt = f"Foydalanuvchi buyrug'i: {prev_instruction}\nKontent: (Rasm/Media yuborildi)"
+        full_prompt = f"Foydalanuvchi buyrug'i: {prev_instruction}\nKontent: (Fayl/Rasm yuborildi)"
     elif prev_instruction and text_input:
         full_prompt = f"Foydalanuvchi buyrug'i: {prev_instruction}\nYuborilgan post matni:\n{text_input}"
     elif text_input:
         full_prompt = text_input
-        # Agar bu matnda aniq buyruq bo'lsa va post hali kelmagan bo'lsa, eslab qolamiz
         context.user_data["last_user_instruction"] = text_input
     else:
-        await msg.reply_text("Iltimos, post mavzusi yoki buyruqni yuboring:")
+        await msg.reply_text("Iltimos, post matni yoki mavzusini yuboring:")
         return AI_INPUT
 
     msg_wait = await msg.reply_text("⏳ <i>AI tahlil qilmoqda, iltimos kuting...</i>", parse_mode="HTML")
@@ -108,6 +109,7 @@ async def ai_input_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     post_text = result.get("post_text", "")
     sched_time = result.get("scheduled_time")
+    has_explicit_time = result.get("has_explicit_time", False)
     target_all = result.get("target_all", False)
     
     context.user_data["ai_generated_post"] = post_text
@@ -115,8 +117,29 @@ async def ai_input_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["ai_post_type"] = post_type
     context.user_data["ai_file_id"] = file_id
     context.user_data["ai_target_all"] = target_all
-    
-    time_info = f"\n\n🕒 <b>Rejalashtirilgan chiqish vaqti:</b> <code>{sched_time}</code>" if sched_time else "\n\n🕒 <b>Chiqish vaqti:</b> Ko'rsatilmadi (Tasdiqlansa hozir chiqadi)"
+
+    # 1-holat: Agar postda vaqt aniq aytilmagan bo'lsa -> Foydalanuvchidan qachonga qo'yishni so'raymiz
+    if not has_explicit_time or not sched_time:
+        preview_text = (
+            f"✨ <b>Qabul qilingan post:</b>\n\n"
+            f"{html_escape(post_text)}\n\n"
+            f"🕒 <b>Ushbu post qachon kanalga chiqsin?</b>\n"
+            f"Quyidagi tayyor tugmalardan tanlang yoki aniq vaqtni yozing (Masalan: <code>2026-08-30 18:00</code>):"
+        )
+        if file_id:
+            if post_type == "photo":
+                await msg.reply_photo(photo=file_id, caption=preview_text[:1024], reply_markup=get_time_keyboard(), parse_mode="HTML")
+            elif post_type == "video":
+                await msg.reply_video(video=file_id, caption=preview_text[:1024], reply_markup=get_time_keyboard(), parse_mode="HTML")
+            else:
+                await msg.reply_document(document=file_id, caption=preview_text[:1024], reply_markup=get_time_keyboard(), parse_mode="HTML")
+        else:
+            await msg.reply_text(preview_text, reply_markup=get_time_keyboard(), parse_mode="HTML")
+            
+        return AI_GET_TIME
+
+    # 2-holat: Vaqt aniq bo'lsa -> To'g'ridan-to'g'ri tasdiqlash oynasi chiqadi
+    time_info = f"\n\n🕒 <b>Rejalashtirilgan chiqish vaqti:</b> <code>{sched_time}</code>"
     target_info = "\n🌐 <b>Kanal:</b> Barcha ulangan kanallarga" if target_all else ""
     
     keyboard = [
@@ -141,6 +164,45 @@ async def ai_input_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await msg.reply_text(preview_text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="HTML")
         
+    return AI_CONFIRM
+
+async def ai_time_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Foydalanuvchi AI posti uchun vaqtni tanlaganda qabul qilish."""
+    text = update.message.text.strip()
+    now = datetime.now(tashkent_tz)
+    post_time = None
+
+    try:
+        if text == BTN_T_5MIN:
+            post_time = now + timedelta(minutes=5)
+        elif text == BTN_T_15MIN:
+            post_time = now + timedelta(minutes=15)
+        elif text == BTN_T_1H:
+            post_time = now + timedelta(hours=1)
+        else:
+            naive_time = datetime.strptime(text, "%Y-%m-%d %H:%M")
+            post_time = tashkent_tz.localize(naive_time)
+            
+        if post_time <= now:
+            await update.message.reply_text("⚠️ Kelajakdagi vaqtni kiriting:")
+            return AI_GET_TIME
+    except Exception:
+        await update.message.reply_text("⚠️ Format xato! Masalan: <code>2026-08-30 18:00</code> shaklida yuboring.", parse_mode="HTML")
+        return AI_GET_TIME
+
+    context.user_data["ai_scheduled_time"] = post_time.strftime("%Y-%m-%d %H:%M")
+    
+    keyboard = [
+        [InlineKeyboardButton("✅ Kanalga rejalashtirish", callback_data="ai_post_schedule")],
+        [InlineKeyboardButton("🔄 Qaytadan yozish", callback_data="ai_post_retry")]
+    ]
+    
+    await update.message.reply_text(
+        f"🕒 <b>Chiqish vaqti belgilandi:</b> <code>{post_time.strftime('%Y-%m-%d %H:%M')}</code>\n\n"
+        f"Postni kanalga rejalashtiramizmi?",
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode="HTML"
+    )
     return AI_CONFIRM
 
 async def ai_confirm_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
