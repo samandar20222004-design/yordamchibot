@@ -66,7 +66,6 @@ def exact(*texts):
     return filters.Regex(pattern)
 
 def get_main_keyboard(is_admin=False):
-    """Asosiy menyu: Yordam tugmasi bosh menyuga chiqarildi."""
     keyboard = [
         [BTN_NEW_POST, BTN_AI_ASSISTANT],
         [BTN_PENDING, BTN_CABINET],
@@ -77,7 +76,6 @@ def get_main_keyboard(is_admin=False):
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
 def get_cabinet_keyboard():
-    """Kabinet menyusi: ixcham va toza ko'rinish."""
     keyboard = [
         [BTN_CHANNELS, BTN_CONVERTER],
         [BTN_DAILY_BONUS, BTN_BUY_AD_FREE],
