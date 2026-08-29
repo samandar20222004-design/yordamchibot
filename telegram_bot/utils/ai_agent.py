@@ -11,7 +11,6 @@ tashkent_tz = pytz.timezone("Asia/Tashkent")
 GROQ_ENDPOINT = "https://api.groq.com/openai/v1/chat/completions"
 
 def _clean_json_string(raw_str: str) -> str:
-    """Markdown JSON bloklarini tozalash."""
     raw_str = raw_str.strip()
     if raw_str.startswith("```json"):
         raw_str = raw_str[7:]
@@ -30,14 +29,14 @@ def _get_system_instruction() -> str:
         f"Siz Telegram kanallar uchun professional, aqlli SMM yordamchisiz. "
         f"Hozirgi Toshkent vaqti: {now_str}, joriy yil: {current_year}.\n\n"
         f"Vazifangiz:\n"
-        f"1. Foydalanuvchi yuborgan xabar, rasm izohi yoki forward postni tahlil qiling.\n"
-        f"2. Agar tayyor yangilik yoki reklama posti forward qilingan/yozilgan bo'lsa, uning asl ma'nosi va tuzilishini saqlang.\n"
-        f"3. Agar yangi post yoki she'r yozish buyurilgan bo'lsa, chiroyli post yarating.\n"
-        f"4. VAQTNI ANIQLASH: Agar xabarda yoki buyruqda aniq chiqish vaqti aytilgan bo'lsa (masalan: 'bugun 13:00 ga', 'ertaga 10:00 da', '15 daqiqadan keyin'), "
+        f"1. Foydalanuvchi yuborgan kontentni (matn, rasm izohi yoki forward post) tahlil qiling.\n"
+        f"2. Agar tayyor post yoki yangilik forward qilingan bo'lsa, uning matnini buzmasdan, to'liq va asl holicha saqlang.\n"
+        f"3. Agar yangi post yoki she'r yozish buyurilgan bo'lsa, jozibador post tayyorlang.\n"
+        f"4. VAQTNI ANIQLASH: Agar xabarda aniq chiqish vaqti aytilgan bo'lsa (masalan: 'bugun 13:00 ga', 'ertaga 10:00 da', '15 daqiqadan keyin'), "
         f"uni Toshkent vaqti bo'yicha 'YYYY-MM-DD HH:MM' formatida yozing va has_explicit_time qiymatini true qiling.\n"
-        f"5. Agar xabarda aniq vaqt aytilmagan bo'lsa (shunchaki post matni yuborilgan bo'lsa), scheduled_time qiymatini null qiling va has_explicit_time qiymatini false qiling.\n"
+        f"5. Agar xabarda aniq vaqt aytilmagan bo'lsa, scheduled_time qiymatini null qiling va has_explicit_time qiymatini false qiling.\n"
         f"6. Agar xabarda 'barcha kanallarga' yoki 'hamma guruhlarga' deyilgan bo'lsa, target_all qiymatini true qiling, aks holda false.\n"
-        f"7. MUHIM: Javobni FAQAT quyidagi JSON formatida qaytaring, ortiqcha hech narsa yozmang:\n"
+        f"7. MUHIM: Javobni FAQAT quyidagi JSON formatida qaytaring, boshqa hech narsa yozmang:\n"
         f"{{\n"
         f'  "post_text": "Post matni...",\n'
         f'  "scheduled_time": "YYYY-MM-DD HH:MM yoki null",\n'
@@ -54,7 +53,7 @@ async def _call_gemini(prompt: str, api_key: str, system_instruction: str) -> di
             {
                 "role": "user",
                 "parts": [
-                    {"text": f"{system_instruction}\n\nFoydalanuvchi yuborgan kontent va buyruq:\n{prompt}\n\nJavobni faqat JSON formatida qaytaring."}
+                    {"text": f"{system_instruction}\n\nFoydalanuvchi so'rovi:\n{prompt}\n\nJavobni JSON formatida qaytaring."}
                 ]
             }
         ],
@@ -82,8 +81,7 @@ async def _call_groq(prompt: str, api_key: str, system_instruction: str) -> dict
         "Content-Type": "application/json",
     }
     
-    # 100% ishchi va mavjud Groq modellari
-    models = ["llama-3.3-70b-versatile", "llama-3.1-70b-versatile"]
+    models = ["llama-3.3-70b-versatile", "mixtral-8x7b-32768"]
     last_err = ""
     
     for model in models:
@@ -121,7 +119,6 @@ async def analyze_user_prompt(prompt: str, user_id: int = 0) -> dict:
     
     system_instruction = _get_system_instruction()
 
-    # 1. Google Gemini orqali urinish
     if gemini_key:
         try:
             result = await _call_gemini(prompt, gemini_key, system_instruction)
@@ -130,7 +127,6 @@ async def analyze_user_prompt(prompt: str, user_id: int = 0) -> dict:
         except Exception as e:
             logger.warning(f"Google Gemini ishlamadi ({e}). Groq zaxirasiga o'tilmoqda...")
 
-    # 2. Groq orqali urinish (Zaxira)
     if groq_key:
         try:
             result = await _call_groq(prompt, groq_key, system_instruction)
@@ -140,4 +136,4 @@ async def analyze_user_prompt(prompt: str, user_id: int = 0) -> dict:
             logger.error(f"Groq API xatosi: {e}")
             return {"error": f"AI xizmatlarida xatolik yuz berdi: {e}"}
 
-    return {"error": "AI API kalitlari topilmadi yoki ularning limiti tugagan."}
+    return {"error": "AI API kalitlari topilmadi yoki barchasi band."}
