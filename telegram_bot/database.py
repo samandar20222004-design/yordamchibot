@@ -214,7 +214,7 @@ def toggle_reaction(post_id: int, user_id: int, reaction: str) -> dict:
         logger.error(f"Reaksiya xatosi: {e}")
         return {}
 
-# --- USERS, REKLAMASIZ POSTLAR & STREAK ---
+# --- USERS & CREDITS ---
 def _generate_user_code(cur) -> str:
     letters = string.ascii_lowercase
     for _ in range(50):
