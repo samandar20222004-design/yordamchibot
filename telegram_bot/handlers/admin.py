@@ -15,7 +15,6 @@ from utils.helpers import html_escape, format_post_type_label
 
 logger = logging.getLogger(__name__)
 
-# Admin panel alohida xavfsiz holat raqamlari
 BROADCAST_MESSAGE = 801
 ADD_SPONSOR_CHANNEL = 802
 SET_CHANNEL_AD = 803
@@ -116,7 +115,7 @@ async def start_add_sponsor(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "➕ <b>Homiy kanal qo'shish:</b>\n\n"
         "Kanal ma'lumotlarini quyidagi formatda yuboring:\n"
         "<code>KANAL_ID|KANAL_NOMI|HAVOLA</code>\n\n"
-        "👉 <i>Masalan: -1001234567890|Mening Kanalim|https://t.me/mening_kanalim</i>",
+        "👉 <i>Masalan: -1001234567890|Mening Kanalim|[https://t.me/mening_kanalim](https://t.me/mening_kanalim)</i>",
         reply_markup=get_cancel_keyboard(),
         parse_mode="HTML"
     )
