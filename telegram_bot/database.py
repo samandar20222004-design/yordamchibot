@@ -107,6 +107,17 @@ def init_db():
                 UNIQUE(post_id, user_id)
             );
         """)
+        # Har bir recurring yuborishni alohida saqlaymiz: eski xabarlar ham o'chadi.
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS sent_post_messages (
+                id SERIAL PRIMARY KEY,
+                post_id INTEGER NOT NULL,
+                channel_id VARCHAR(255) NOT NULL,
+                message_id BIGINT NOT NULL,
+                delete_at TIMESTAMP WITH TIME ZONE,
+                deleted_at TIMESTAMP WITH TIME ZONE
+            );
+        """)
 
         migrations = [
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS full_name VARCHAR(255);",
@@ -641,10 +652,15 @@ def mark_post_status(post_id: int, status: str):
     except Exception as e:
         logger.error(f"Post status xatosi: {e}")
 
-def mark_post_as_sent(post_id: int, sent_message_id: int):
+def mark_post_as_sent(post_id: int, sent_message_id: int, channel_id: str = None, delete_after_hours: int = 0):
     try:
         with db_cursor(commit=True) as cur:
             cur.execute("UPDATE scheduled_posts SET status = 'posted', sent_message_id = %s WHERE id = %s", (sent_message_id, post_id))
+            if channel_id is not None:
+                cur.execute("""
+                    INSERT INTO sent_post_messages (post_id, channel_id, message_id, delete_at)
+                    VALUES (%s, %s, %s, CASE WHEN %s > 0 THEN NOW() + (%s || ' hours')::INTERVAL ELSE NULL END)
+                """, (post_id, str(channel_id), sent_message_id, delete_after_hours, delete_after_hours))
     except Exception as e:
         logger.error(f"Post yuborilganini belgilash xatosi: {e}")
 
@@ -652,22 +668,19 @@ def get_posts_to_delete(now) -> list:
     try:
         with db_cursor() as cur:
             cur.execute("""
-                SELECT id, channel_id, sent_message_id 
-                FROM scheduled_posts 
-                WHERE status = 'posted' 
-                  AND delete_after_hours > 0 
-                  AND sent_message_id IS NOT NULL 
-                  AND (scheduled_time + (delete_after_hours || ' hours')::INTERVAL) <= %s
+                SELECT id, channel_id, message_id
+                FROM sent_post_messages
+                WHERE deleted_at IS NULL AND delete_at IS NOT NULL AND delete_at <= %s
             """, (now,))
             return cur.fetchall()
     except Exception as e:
         logger.error(f"O'chiriladigan postlar xatosi: {e}")
         return []
 
-def mark_post_as_deleted(post_id: int):
+def mark_post_as_deleted(message_row_id: int):
     try:
         with db_cursor(commit=True) as cur:
-            cur.execute("UPDATE scheduled_posts SET status = 'deleted' WHERE id = %s", (post_id,))
+            cur.execute("UPDATE sent_post_messages SET deleted_at = NOW() WHERE id = %s", (message_row_id,))
     except Exception as e:
         logger.error(f"Post o'chirish xatosi: {e}")
 

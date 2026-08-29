@@ -84,7 +84,7 @@ async def _execute_send(bot, post):
             sent_msg = await bot.send_message(chat_id=target_chat, text=final_content, reply_markup=reply_markup, parse_mode="HTML")
 
         sent_msg_id = sent_msg.message_id if sent_msg else None
-        db.mark_post_as_sent(post_id, sent_msg_id)
+        db.mark_post_as_sent(post_id, sent_msg_id, channel_id, delete_after_hours)
 
     except TelegramError as e:
         logger.error(f"Post yuborishda xato (Post ID: {post_id}): {e}")
