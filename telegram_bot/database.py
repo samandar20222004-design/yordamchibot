@@ -1,3 +1,4 @@
+import os
 import logging
 import random
 import string
@@ -294,7 +295,6 @@ def claim_daily_streak_bonus(user_id: int) -> dict:
         return {"success": False, "msg": "Tizim xatoligi yuz berdi."}
 
 def buy_ad_free_posts(user_id: int) -> tuple[bool, str]:
-    """1 ball evaziga 5 ta reklamasiz toza post olish."""
     try:
         with db_cursor(commit=True) as cur:
             cur.execute("SELECT ai_credits FROM users WHERE user_id = %s FOR UPDATE", (user_id,))
@@ -309,7 +309,6 @@ def buy_ad_free_posts(user_id: int) -> tuple[bool, str]:
         return False, f"Xatolik: {e}"
 
 def refund_ad_free_posts(user_id: int) -> tuple[bool, str]:
-    """Reklamasiz postlarni bekor qilib, ballarni qaytarib olish (5 post = 1 ball)."""
     try:
         with db_cursor(commit=True) as cur:
             cur.execute("SELECT ad_free_posts FROM users WHERE user_id = %s FOR UPDATE", (user_id,))
@@ -332,7 +331,6 @@ def refund_ad_free_posts(user_id: int) -> tuple[bool, str]:
         return False, f"Xatolik: {e}"
 
 def toggle_ad_free_status(user_id: int) -> tuple[bool, bool]:
-    """Reklamasiz post rejimini yoqish/o'chirish."""
     try:
         with db_cursor(commit=True) as cur:
             cur.execute("SELECT ad_free_active, ad_free_posts FROM users WHERE user_id = %s FOR UPDATE", (user_id,))
@@ -347,7 +345,6 @@ def toggle_ad_free_status(user_id: int) -> tuple[bool, bool]:
         return False, False
 
 def consume_ad_free_post(user_id: int) -> bool:
-    """Post chiqayotganda faqat rejim YOQILGAN va litsenziya bo'lsa ishlatish."""
     try:
         with db_cursor(commit=True) as cur:
             cur.execute("SELECT ad_free_posts, ad_free_active FROM users WHERE user_id = %s FOR UPDATE", (user_id,))
