@@ -31,7 +31,6 @@ def check_rate_limit(user_id: int, max_requests: int = 3, window_seconds: float 
     return False, False
 
 def get_smart_reply_ad(user_id: int) -> str:
-    """Foydalanuvchiga har 3-marta so'rov berganda qisqa reklama biriktirish."""
     ad_text = db.get_setting("bot_reply_ad_text", "").strip()
     if not ad_text:
         return ""
@@ -39,9 +38,8 @@ def get_smart_reply_ad(user_id: int) -> str:
     count = _USER_MSG_COUNT.get(user_id, 0) + 1
     _USER_MSG_COUNT[user_id] = count
     
-    # Har 3 ta buyruqda bir marta reklama chiqarish
     if count % 3 == 0:
-        return f"\n\n🏷 <i>({ad_text})</i>"
+        return f"\n\n🏷 <i>({html_escape(ad_text)})</i>"
     return ""
 
 def html_escape(text) -> str:
@@ -49,35 +47,19 @@ def html_escape(text) -> str:
         return ""
     return html.escape(str(text))
 
-def md_escape(text) -> str:
-    return html_escape(text)
-
-def format_post_code(user_code, user_post_number) -> str:
-    return f"{user_code}-{user_post_number}" if user_post_number else str(user_code)
-
-def format_post_type_label(post_type: str, content: str = "") -> str:
+def format_post_type_label(post_type: str) -> str:
     pt = str(post_type).lower()
-    if pt == "photo":
-        return "Rasm"
-    elif pt == "video":
-        return "Video"
-    elif pt == "animation":
-        return "GIF"
-    elif pt == "document":
-        return "Hujjat"
-    elif pt == "audio":
-        return "Audio"
-    elif pt == "voice":
-        return "Ovozli xabar"
-    elif pt == "video_note":
-        return "Dumaloq video"
-    elif pt == "sticker":
-        return "Stiker"
-    elif pt == "text":
-        return "Matn"
-    elif pt in ("original_message", "forward_copy"):
-        return "Post"
-    return "Xabar"
+    mapping = {
+        "photo": "Rasm",
+        "video": "Video",
+        "animation": "GIF",
+        "document": "Hujjat",
+        "audio": "Audio",
+        "voice": "Ovozli xabar",
+        "sticker": "Stiker",
+        "text": "Matn"
+    }
+    return mapping.get(pt, "Xabar")
 
 def format_schedule_line(s_time, recurrence_type, recurrence_day, recurrence_time):
     from keyboards.default import WEEKDAY_LABELS
