@@ -36,7 +36,8 @@ from handlers.converter import (
     start_converter, converter_received, converter_callback, CONVERT_INPUT
 )
 from handlers.ai_assistant import (
-    start_ai_assistant, ai_input_received, ai_confirm_callback, AI_INPUT, AI_CONFIRM
+    start_ai_assistant, ai_input_received, ai_confirm_callback, ai_time_received,
+    AI_INPUT, AI_CONFIRM, AI_GET_TIME
 )
 from handlers.pending import (
     list_pending_posts, cancel_post_callback,
@@ -167,6 +168,7 @@ def register_all_handlers(app):
             CONVERT_INPUT: global_jump_handlers + [MessageHandler(filters.ALL & ~filters.COMMAND, converter_received)],
             AI_INPUT: global_jump_handlers + [MessageHandler(filters.ALL & ~filters.COMMAND, ai_input_received)],
             AI_CONFIRM: global_jump_handlers + [CallbackQueryHandler(ai_confirm_callback, pattern=r"^ai_post_")],
+            AI_GET_TIME: global_jump_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, ai_time_received)],
             TRANSFER_TARGET: global_jump_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, transfer_target_received)],
             TRANSFER_AMOUNT: global_jump_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, transfer_amount_received)],
             BROADCAST_MESSAGE: global_jump_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, broadcast_send)],
