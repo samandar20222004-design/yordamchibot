@@ -1,3 +1,4 @@
+import logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.error import TelegramError
 from telegram.ext import ContextTypes, ConversationHandler
@@ -7,10 +8,14 @@ from keyboards.default import get_main_keyboard, get_cabinet_keyboard, get_cance
 from keyboards.inline import get_referral_share_keyboard, get_subscription_check_keyboard
 from utils.helpers import html_escape, get_smart_reply_ad
 
-TRANSFER_TARGET = 500
-TRANSFER_AMOUNT = 501
+logger = logging.getLogger(__name__)
+
+# Ballarni ulashish holatlari (State ID)
+TRANSFER_TARGET = 501
+TRANSFER_AMOUNT = 502
 
 async def check_user_subscribed(bot, user_id: int) -> tuple[bool, list]:
+    """Foydalanuvchi homiy kanallarga a'zo bo'lganligini tekshiradi."""
     if user_id == ADMIN_ID:
         return True, []
     sponsors = db.get_active_sponsors()
@@ -30,6 +35,7 @@ async def check_user_subscribed(bot, user_id: int) -> tuple[bool, list]:
     return (len(unsubscribed) == 0), unsubscribed
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Boshlang'ich /start buyrug'i."""
     context.user_data.clear()
     user = update.effective_user
     
@@ -75,6 +81,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 async def subscription_check_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Homiy kanallarga obunani qayta tekshirish tugmasi."""
     query = update.callback_query
     user = query.from_user
     is_sub, unsubs = await check_user_subscribed(context.bot, user.id)
@@ -97,7 +104,7 @@ async def subscription_check_callback(update: Update, context: ContextTypes.DEFA
             pass
 
 async def user_cabinet_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Shaxsiy kabinet menyusi."""
+    """Shaxsiy kabinet menyusi va ma'lumotlari."""
     context.user_data.clear()
     user = update.effective_user
     is_admin = (user.id == ADMIN_ID)
@@ -131,7 +138,7 @@ async def user_cabinet_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(text, reply_markup=get_cabinet_keyboard(), parse_mode="HTML")
 
 async def daily_bonus_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Ketma-ket kunlik bonus (Streak)."""
+    """Kunlik kirish bonusi."""
     user = update.effective_user
     is_admin = (user.id == ADMIN_ID)
     
@@ -166,7 +173,7 @@ async def daily_bonus_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
         )
 
 async def buy_ad_free_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Reklamasiz postlarni boshqarish menyusi."""
+    """Reklamasiz postlar xarid qilish menyusi."""
     user = update.effective_user
     is_admin = (user.id == ADMIN_ID)
     
@@ -185,10 +192,8 @@ async def buy_ad_free_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
         [InlineKeyboardButton(f"Holat: {toggle_btn_text}", callback_data="adfree_toggle")],
         [InlineKeyboardButton("➕ 5 ta post xarid qilish (1 ball)", callback_data="adfree_confirm")],
     ]
-    
     if posts_count >= 5:
         keyboard.append([InlineKeyboardButton("🔄 Ballga qaytarish (5 post = 1 ball)", callback_data="adfree_refund")])
-        
     keyboard.append([InlineKeyboardButton("❌ Yopish", callback_data="adfree_close")])
     
     await update.message.reply_text(
@@ -201,7 +206,7 @@ async def buy_ad_free_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
     )
 
 async def ad_free_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Reklamasiz postlar menyusi tugmalari."""
+    """Reklamasiz postlar inline tugmalari boshqaruvi."""
     query = update.callback_query
     await query.answer()
     data = query.data
@@ -247,6 +252,7 @@ async def ad_free_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
 async def user_invite_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Do'stlarni taklif qilish menyusi."""
     context.user_data.clear()
     user = update.effective_user
     is_admin = (user.id == ADMIN_ID)
@@ -269,8 +275,8 @@ async def user_invite_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode="HTML"
     )
 
-# --- BALLARNI ULASHISH ---
 async def start_transfer_credits(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Ballarni ulashish jarayonini boshlash."""
     context.user_data.clear()
     user_id = update.effective_user.id
     my_credits = db.get_user_credits(user_id)
@@ -288,13 +294,14 @@ async def start_transfer_credits(update: Update, context: ContextTypes.DEFAULT_T
     await update.message.reply_text(
         "🔄 <b>Ballarni (AI so'rovlarni) ulashish:</b>\n\n"
         "Do'stingizning <b>ID raqamini</b>, <b>Telegram usernamesini (@...)</b> yoki botdagi <b>maxsus kodini</b> yuboring:\n"
-        "<i>(Eslatma: Xavfsizlik uchun ro'yxatdan o'tganiga 3 kun to'lmagan foydalanuvchilar ball ulasha olmaydi)</i>",
+        "<i>(Eslatma: Ro'yxatdan o'tganiga 3 kun to'lmagan foydalanuvchilar ball ulasha olmaydi)</i>",
         reply_markup=get_cancel_keyboard(),
         parse_mode="HTML"
     )
     return TRANSFER_TARGET
 
 async def transfer_target_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Qabul qiluvchi foydalanuvchini aniqlash."""
     target_input = update.message.text
     target_user = db.find_user_by_target(target_input)
     
@@ -307,7 +314,7 @@ async def transfer_target_received(update: Update, context: ContextTypes.DEFAULT
 
     t_id, t_name, t_user, t_code, t_cred = target_user
     if t_id == update.effective_user.id:
-        await update.message.reply_text("⚠️ O'zingizga ball o'tkaza olmaysiz! Boshqa do'stingizning ma'lumotini kiriting:")
+        await update.message.reply_text("⚠️ O'zingizga ball o'tkaza olmaysiz! Boshqa do'stingiz ma'lumotini kiriting:")
         return TRANSFER_TARGET
 
     context.user_data["transfer_to_id"] = t_id
@@ -322,6 +329,7 @@ async def transfer_target_received(update: Update, context: ContextTypes.DEFAULT
     return TRANSFER_AMOUNT
 
 async def transfer_amount_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Ballar miqdorini qabul qilib o'tkazish."""
     text = update.message.text.strip()
     if not text.isdigit():
         await update.message.reply_text("Iltimos, miqdorni faqat raqamlarda yozing (masalan: 5):")
@@ -361,6 +369,7 @@ async def transfer_amount_received(update: Update, context: ContextTypes.DEFAULT
     return ConversationHandler.END
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Yordam va qo'llanma matni."""
     is_admin = (update.effective_user.id == ADMIN_ID)
     ad_line = get_smart_reply_ad(update.effective_user.id)
     text = (
@@ -368,13 +377,12 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "🔹 <b>1. Yangi post rejalashtirish:</b>\n"
         "• Matn, rasm, video yoki audio postlarni istalgan sanaga rejalashtirish.\n"
         "• Havola tugmalar (URL button), reaksiyalar va avto-o'chirish (12, 24, 48, 72 soat).\n"
-        "• <i>Bepul postlar boshida bot nishoni bo'ladi. Litsenziya yoqilgan bo'lsa reklamasiz toza post chiqadi!</i>\n\n"
+        "• <i>Litsenziya bo'lsa reklamasiz toza post chiqadi!</i>\n\n"
         "🔹 <b>2. AI Post Yordamchi:</b>\n"
         "• Matn yoki rasm yuborib, professional post va she'rlar tayyorlash.\n\n"
         "🔹 <b>3. Ballar va Kunlik Seriya (Streak):</b>\n"
         "• Har kuni botga kiring va <b>'🎁 Kunlik bonus'</b> tugmasini bosing.\n"
-        "• 1-kun (+1), 2-kun (+1), 3-kun (+2), ..., 7-kun (+4 ball) olasiz!\n"
-        "• 1 kun kirmasangiz, seriya yana 1-kundan boshlanadi.\n\n"
+        "• 1-kun (+1), 2-kun (+1), 3-kun (+2), ..., 7-kun (+4 ball) olasiz!\n\n"
         "🔹 <b>4. Matn O'girgich:</b>\n"
         "• Lotin ⇄ Kirill alifbolariga tezkor o'girish.\n\n"
         "⚙️ <b>Tezkor buyruqlar:</b>\n"
@@ -389,6 +397,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(f"{text}{ad_line}", reply_markup=get_main_keyboard(is_admin), parse_mode="HTML")
 
 async def cancel_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Har qanday jarayonni bekor qilish."""
     is_admin = (update.effective_user.id == ADMIN_ID)
     context.user_data.clear()
     await update.message.reply_text("🚫 Jarayon bekor qilindi.", reply_markup=get_main_keyboard(is_admin), parse_mode="HTML")
