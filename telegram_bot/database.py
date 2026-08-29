@@ -129,6 +129,7 @@ def init_db():
             "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS recurrence_time TIME;",
             "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS end_date TIMESTAMP WITH TIME ZONE;",
             "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;",
+            "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS processing_started_at TIMESTAMP WITH TIME ZONE;",
         ]
         for m in migrations:
             try:
@@ -136,6 +137,13 @@ def init_db():
             except Exception as e:
                 logger.warning(f"Migratsiya eslatmasi: {e}")
 
+        # Server crash paytida processing holatida qolgan postlarni qayta navbatga qaytaramiz.
+        cur.execute("""
+            UPDATE scheduled_posts
+            SET status = 'pending', processing_started_at = NULL
+            WHERE status = 'processing'
+              AND processing_started_at < NOW() - INTERVAL '10 minutes'
+        """)
         cur.execute("CREATE INDEX IF NOT EXISTS idx_scheduled_posts_status_time ON scheduled_posts (status, scheduled_time);")
     logger.info("Baza jadvallari tayyor.")
 
@@ -602,14 +610,24 @@ def cancel_post(post_id: int, user_id: int, is_admin: bool = False) -> bool:
         return False
 
 def get_due_posts(now) -> list:
+    """Atomically claim due posts so concurrent scheduler runs cannot duplicate them."""
     try:
-        with db_cursor() as cur:
+        with db_cursor(commit=True) as cur:
             cur.execute("""
-                SELECT id, user_id, channel_id, post_type, content, file_id,
-                       inline_button_text, inline_button_url, enable_reactions, scheduled_time,
-                       recurrence_type, recurrence_day, recurrence_time, end_date, delete_after_hours
-                FROM scheduled_posts
-                WHERE status = 'pending' AND scheduled_time <= %s
+                WITH due AS (
+                    SELECT id FROM scheduled_posts
+                    WHERE status = 'pending' AND scheduled_time <= %s
+                    ORDER BY scheduled_time
+                    FOR UPDATE SKIP LOCKED
+                )
+                UPDATE scheduled_posts sp
+                SET status = 'processing', processing_started_at = NOW()
+                FROM due
+                WHERE sp.id = due.id
+                RETURNING sp.id, sp.user_id, sp.channel_id, sp.post_type, sp.content, sp.file_id,
+                          sp.inline_button_text, sp.inline_button_url, sp.enable_reactions,
+                          sp.scheduled_time, sp.recurrence_type, sp.recurrence_day,
+                          sp.recurrence_time, sp.end_date, sp.delete_after_hours
             """, (now,))
             return cur.fetchall()
     except Exception as e:
