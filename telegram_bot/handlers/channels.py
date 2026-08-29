@@ -10,7 +10,8 @@ from utils.helpers import html_escape
 
 logger = logging.getLogger(__name__)
 
-ADD_CHANNEL = 100
+# Kanal qo'shish holati
+ADD_CHANNEL = 301
 
 async def channels_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Foydalanuvchining ulangan kanallari ro'yxati."""
@@ -34,7 +35,7 @@ async def channels_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 async def start_add_channel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Yangi kanal qo'shish yo'riqnomasi."""
+    """Yangi kanal qo'shish bo'yicha ko'rsatma."""
     bot_obj = await context.bot.get_me()
     await update.message.reply_text(
         f"➕ <b>Yangi kanal yoki guruh ulash:</b>\n\n"
@@ -47,7 +48,7 @@ async def start_add_channel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ADD_CHANNEL
 
 async def channel_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Kanal ma'lumotlarini qabul qilish."""
+    """Kanal ma'lumotlarini qabul qilib saqlash."""
     msg = update.message
     user_id = update.effective_user.id
     is_admin = (user_id == ADMIN_ID)
@@ -73,7 +74,6 @@ async def channel_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ Kanal ma'lumotlari aniqlanmadi. Iltimos, kanaldan xabarni forward qiling:")
         return ADD_CHANNEL
 
-    # Bot adminligini tekshirish
     try:
         target_chat = int(channel_id) if str(channel_id).lstrip('-').isdigit() else channel_id
         member = await context.bot.get_chat_member(chat_id=target_chat, user_id=context.bot.id)
