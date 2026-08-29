@@ -376,6 +376,15 @@ def consume_ad_free_post(user_id: int) -> bool:
         logger.error(f"Litsenziya sarflash xatosi: {e}")
         return False
 
+def add_user_credit(user_id: int, amount: int = 1) -> bool:
+    try:
+        with db_cursor(commit=True) as cur:
+            cur.execute("UPDATE users SET ai_credits = ai_credits + %s WHERE user_id = %s", (amount, user_id))
+            return cur.rowcount > 0
+    except Exception as e:
+        logger.error(f"Ball qaytarish xatosi: {e}")
+        return False
+
 def get_user_credits(user_id: int) -> int:
     try:
         with db_cursor() as cur:

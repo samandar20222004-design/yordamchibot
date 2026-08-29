@@ -87,6 +87,12 @@ async def ai_input_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await msg.reply_text("Iltimos, post matni yoki mavzusini yuboring:")
         return AI_INPUT
 
+    # So'rov boshlanishidan oldin ballni atomik band qilamiz.
+    # Aks holda bir nechta parallel AI so'rovi mavjud balansdan oshib ketishi mumkin.
+    if not is_admin and not db.use_user_credit(user_id):
+        await msg.reply_text("⚠️ AI so'rovlari uchun ballaringiz yetarli emas.", reply_markup=get_main_keyboard(is_admin))
+        return ConversationHandler.END
+
     msg_wait = await msg.reply_text("⏳ <i>AI tahlil qilmoqda, iltimos kuting...</i>", parse_mode="HTML")
     result = await analyze_user_prompt(full_prompt, user_id)
     
@@ -96,6 +102,8 @@ async def ai_input_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
         pass
     
     if "error" in result:
+        if not is_admin:
+            db.add_user_credit(user_id)
         await msg.reply_text(
             f"⚠️ {result['error']}",
             reply_markup=get_main_keyboard(is_admin),
@@ -103,9 +111,6 @@ async def ai_input_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return ConversationHandler.END
 
-    if not is_admin:
-        db.use_user_credit(user_id)
-    
     post_text = result.get("post_text", "")
     sched_time = result.get("scheduled_time")
     has_explicit_time = result.get("has_explicit_time", False)
