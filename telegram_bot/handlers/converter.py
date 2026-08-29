@@ -7,11 +7,9 @@ from utils.helpers import html_escape
 
 logger = logging.getLogger(__name__)
 
-# Alohida xavfsiz holat raqami
 CONVERT_INPUT = 601
 
 async def start_converter(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Matn o'girgichni boshlash."""
     context.user_data.clear()
     await update.message.reply_text(
         "🔤 <b>Lotin ⇄ Kirill Matn O'girgich:</b>\n\n"
@@ -22,7 +20,6 @@ async def start_converter(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return CONVERT_INPUT
 
 async def converter_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Kelgan matn yoki media izohini o'girish tugmalari bilan chiqarish."""
     msg = update.message
     text = ""
     media_type = "text"
@@ -102,7 +99,6 @@ def _split_smartly(text: str, max_first_len: int = 950) -> tuple[str, str]:
     return part1, part2
 
 async def converter_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Tugma bosilganda o'girilgan natijani yuborish."""
     query = update.callback_query
     await query.answer()
     
