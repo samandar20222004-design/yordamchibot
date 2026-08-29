@@ -11,7 +11,6 @@ tashkent_tz = pytz.timezone("Asia/Tashkent")
 EDIT_POST_TIME = 201
 
 def _build_pending_view(user_id: int):
-    """Kutilayotgan postlar matni va inline tugmalarini shakllantirish."""
     user_code = db.get_user_code(user_id)
     posts = db.get_pending_posts(user_id)
     if not posts:
@@ -32,14 +31,12 @@ def _build_pending_view(user_id: int):
     return text, markup
 
 async def list_pending_posts(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Kutilayotgan postlarni chiqarish."""
     context.user_data.clear()
     user_id = update.effective_user.id
     text, markup = _build_pending_view(user_id)
     await update.message.reply_text(text, reply_markup=markup, parse_mode="HTML")
 
 async def cancel_post_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Postni bekor qilish tugmasi."""
     query = update.callback_query
     user_id = query.from_user.id
     try:
@@ -54,7 +51,6 @@ async def cancel_post_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         await query.answer(f"Xatolik: {e}", show_alert=True)
 
 async def edit_post_time_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Post vaqtini tahrirlashni boshlash."""
     query = update.callback_query
     parts = query.data.split(":")
     post_id = int(parts[1])
@@ -72,7 +68,6 @@ async def edit_post_time_start(update: Update, context: ContextTypes.DEFAULT_TYP
     return EDIT_POST_TIME
 
 async def edit_post_time_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Yangi kiritilgan vaqtni saqlash."""
     text = update.message.text.strip()
     post_id = context.user_data.get("editing_post_id")
     post = db.get_post_by_id(post_id)
