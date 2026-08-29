@@ -11,7 +11,7 @@ tashkent_tz = pytz.timezone("Asia/Tashkent")
 GROQ_ENDPOINT = "https://api.groq.com/openai/v1/chat/completions"
 
 def _clean_json_string(raw_str: str) -> str:
-    """JSON matnidan Markdown bloklarini tozalash."""
+    """Markdown JSON bloklarini tozalash."""
     raw_str = raw_str.strip()
     if raw_str.startswith("```json"):
         raw_str = raw_str[7:]
@@ -22,48 +22,46 @@ def _clean_json_string(raw_str: str) -> str:
     return raw_str.strip()
 
 def _get_system_instruction() -> str:
-    """Ikkala sun'iy intellekt uchun yagona va aqlli ko'rsatma."""
     now_dt = datetime.now(tashkent_tz)
     now_str = now_dt.strftime("%Y-%m-%d %H:%M")
     current_year = now_dt.year
 
     return (
-        f"Siz Telegram kanallar uchun professional SMM mutaxassisi va aqlli ijodiy yordamchisiz. "
+        f"Siz Telegram kanallar uchun professional, o'ta aqlli SMM yordamchisiz. "
         f"Hozirgi Toshkent vaqti: {now_str}, joriy yil: {current_year}.\n\n"
         f"Vazifangiz:\n"
-        f"1. Foydalanuvchi yuborgan xabar (matn, rasm izohi, reklama loyihasi, taklifnoma yoki buyruq)ni to'liq tushuning.\n"
-        f"2. Agar post tayyorlash so'ralgan bo'lsa yoki reklama/xizmat haqida yozilgan bo'lsa, uni Telegram kanalga moslab, "
-        f"chiroyli paragraflar, mos emojilar va aniq aloqa ma'lumotlari bilan tayyorlang.\n"
-        f"3. Agar xabarda aniq chiqish vaqti ko'rsatilgan bo'lsa (masalan: 'bugun 18:00 ga', 'ertaga soat 10 da', '15 daqiqadan keyin'), "
-        f"uni hisoblab 'YYYY-MM-DD HH:MM' formatida yozing. Agar vaqt aytilmagan bo'lsa, scheduled_time qiymatini null qiling.\n"
-        f"4. MUHIM: Javobni FAQAT quyidagi JSON formatida qaytaring, boshqa hech qanday ortiqcha gap yozmang:\n"
+        f"1. Foydalanuvchining buyrug'i va yuborilgan kontentni (matn, forward post yoki rasm) tahlil qiling.\n"
+        f"2. Agar foydalanuvchi tayyor postni kanalga qo'yishni so'ragan bo'lsa (masalan: 'shuni 13:00 ga qo'y'), post matnini o'zgartirmasdan, asl holicha saqlang.\n"
+        f"3. Agar yangi post yoki she'r yozishni so'ragan bo'lsa, mavzuga mos, chiroyli post tayyorlang.\n"
+        f"4. Chiqish vaqti aytilgan bo'lsa (masalan: 'bugun 13:00 ga', 'ertaga 18:00 da', '5 daqiqadan keyin'), uni Toshkent vaqti bo'yicha 'YYYY-MM-DD HH:MM' formatida aniqlang. Agar vaqt aytilmagan bo'lsa, scheduled_time null bo'lsin.\n"
+        f"5. Agar xabarda 'barcha guruhlarga' yoki 'hamma kanallarga' deyilgan bo'lsa, target_all qiymatini true qiling, aks holda false.\n"
+        f"6. MUHIM: Javobni FAQAT quyidagi JSON formatida qaytaring:\n"
         f"{{\n"
-        f'  "post_text": "Kanal uchun tayyor chiroyli post matni...",\n'
+        f'  "post_text": "Post matni...",\n'
         f'  "scheduled_time": "YYYY-MM-DD HH:MM yoki null",\n'
-        f'  "is_post": true\n'
+        f'  "target_all": false\n'
         f"}}"
     )
 
 async def _call_gemini(prompt: str, api_key: str, system_instruction: str) -> dict:
-    """1-bosqich: Google Gemini API orqali so'rov yuborish."""
-    url = f"[https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=](https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=){api_key}"
+    url = f"[https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=](https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=){api_key}"
     
     payload = {
         "contents": [
             {
                 "role": "user",
                 "parts": [
-                    {"text": f"{system_instruction}\n\nFoydalanuvchi so'rovi:\n{prompt}"}
+                    {"text": f"{system_instruction}\n\nFoydalanuvchi so'rovi va kontent:\n{prompt}\n\nJavobni JSON formatida qaytaring."}
                 ]
             }
         ],
         "generationConfig": {
             "response_mime_type": "application/json",
-            "temperature": 0.7
+            "temperature": 0.3
         }
     }
 
-    timeout = aiohttp.ClientTimeout(total=25)
+    timeout = aiohttp.ClientTimeout(total=20)
     async with aiohttp.ClientSession(timeout=timeout) as session:
         async with session.post(url, json=payload) as resp:
             if resp.status == 200:
@@ -73,16 +71,15 @@ async def _call_gemini(prompt: str, api_key: str, system_instruction: str) -> di
                 return json.loads(cleaned)
             else:
                 err_text = await resp.text()
-                raise RuntimeError(f"Gemini HTTP {resp.status}: {err_text[:120]}")
+                raise RuntimeError(f"Gemini HTTP {resp.status}: {err_text[:100]}")
 
 async def _call_groq(prompt: str, api_key: str, system_instruction: str) -> dict:
-    """2-bosqich (Zaxira): Groq API orqali so'rov yuborish."""
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
     }
     
-    models = ["llama-3.3-70b-versatile", "llama-3.1-70b-versatile"]
+    models = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"]
     last_err = ""
     
     for model in models:
@@ -90,10 +87,10 @@ async def _call_groq(prompt: str, api_key: str, system_instruction: str) -> dict
             "model": model,
             "messages": [
                 {"role": "system", "content": system_instruction},
-                {"role": "user", "content": prompt}
+                {"role": "user", "content": f"{prompt}\n\nIltimos, javobni faqat JSON formatida qaytaring."}
             ],
             "response_format": {"type": "json_object"},
-            "temperature": 0.6
+            "temperature": 0.3
         }
 
         try:
@@ -106,7 +103,8 @@ async def _call_groq(prompt: str, api_key: str, system_instruction: str) -> dict
                         clean_content = _clean_json_string(raw_content)
                         return json.loads(clean_content)
                     else:
-                        last_err = f"HTTP {resp.status}"
+                        resp_txt = await resp.text()
+                        last_err = f"HTTP {resp.status}: {resp_txt[:100]}"
         except Exception as e:
             last_err = str(e)
             continue
@@ -114,35 +112,28 @@ async def _call_groq(prompt: str, api_key: str, system_instruction: str) -> dict
     raise RuntimeError(f"Groq xatosi: {last_err}")
 
 async def analyze_user_prompt(prompt: str, user_id: int = 0) -> dict:
-    """
-    Asosiy funksiya:
-    1. Avval Google Gemini API orqali ishlaydi.
-    2. Agar Gemini band bo'lsa yoki limiti tugasa, avtomatik Groq zaxirasiga o'tadi.
-    """
     gemini_key = (GEMINI_API_KEY or "").strip().replace('"', '').replace("'", "")
     groq_key = (GROQ_API_KEY or "").strip().replace('"', '').replace("'", "")
     
     system_instruction = _get_system_instruction()
 
-    # 1. Google Gemini bilan sinash
+    # 1. Google Gemini orqali urinish
     if gemini_key:
         try:
-            logger.info("AI so'rovi Google Gemini API ga yuborilmoqda...")
             result = await _call_gemini(prompt, gemini_key, system_instruction)
             if "post_text" in result:
                 return result
         except Exception as e:
             logger.warning(f"Google Gemini ishlamadi ({e}). Groq zaxirasiga o'tilmoqda...")
 
-    # 2. Groq bilan sinash (Zaxira)
+    # 2. Groq orqali urinish (Zaxira)
     if groq_key:
         try:
-            logger.info("AI so'rovi Groq API ga yuborilmoqda...")
             result = await _call_groq(prompt, groq_key, system_instruction)
             if "post_text" in result:
                 return result
         except Exception as e:
-            logger.error(f"Groq API ham ishlamadi: {e}")
+            logger.error(f"Groq API xatosi: {e}")
             return {"error": f"AI xizmatlarida xatolik yuz berdi: {e}"}
 
-    return {"error": "AI kalitlari (GEMINI_API_KEY yoki GROQ_API_KEY) topilmadi yoki barchasi band."}
+    return {"error": "AI API kalitlari topilmadi yoki barchasi band."}
