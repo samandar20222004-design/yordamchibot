@@ -5,18 +5,16 @@ from aiohttp import web
 logger = logging.getLogger(__name__)
 
 async def health_check_handler(request):
-    """Отвечает 200 OK на любые запросы от UptimeRobot и Render."""
+    """UptimeRobot va Render so'rovlariga 200 OK javob qaytaradi."""
     return web.Response(text="OK - PostAssist Bot is running!", status=200)
 
 async def start_web_server():
-    """Запуск легковесного асинхронного веб-сервера для предотвращения спящего режима."""
+    """Doimiy ishlashi uchun veb-server (aiohttp)."""
     app = web.Application()
     
-    # Обрабатываем GET и HEAD запросы для корневого пути и /health
+    # Faqat add_get yetarli (u GET va HEAD metodlarini avtomatik qo'llab-quvvatlaydi)
     app.router.add_get("/", health_check_handler)
-    app.router.add_head("/", health_check_handler)
     app.router.add_get("/health", health_check_handler)
-    app.router.add_head("/health", health_check_handler)
 
     port = int(os.environ.get("PORT", 10000))
     runner = web.AppRunner(app)
