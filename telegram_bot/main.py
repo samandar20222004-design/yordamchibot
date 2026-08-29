@@ -16,7 +16,6 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 async def set_bot_commands(application):
-    """Telegram menyu buyruqlarini o'rnatish."""
     commands = [
         BotCommand("start", "Bosh menyu"),
         BotCommand("newpost", "Yangi post rejalashtirish"),
@@ -31,10 +30,8 @@ async def set_bot_commands(application):
         logger.warning(f"Menyu buyruqlarini o'rnatishda xatolik: {e}")
 
 async def main():
-    # 1. Baza jadvallarini tayyorlash
     db.init_db()
 
-    # 2. Telegram Bot ilovasini qurish
     application = (
         ApplicationBuilder()
         .token(BOT_TOKEN)
@@ -42,20 +39,15 @@ async def main():
         .build()
     )
 
-    # 3. Handlerlarni ulash
     register_all_handlers(application)
-
-    # 4. Web serverni ishga tushirish (UptimeRobot uchun)
     await start_web_server()
 
-    # 5. APScheduler orqali avtomatik postlar rejalashtiruvchisi
     scheduler = AsyncIOScheduler()
     scheduler.add_job(check_and_send_posts, 'interval', minutes=1, args=[application.bot], id="check_and_send_posts")
     scheduler.add_job(check_and_delete_expired_posts, 'interval', minutes=1, args=[application.bot], id="check_and_delete_expired_posts")
     scheduler.start()
     logger.info("Scheduler started.")
 
-    # 6. Botni ishga tushirish
     await application.initialize()
     await application.start()
     await set_bot_commands(application)
