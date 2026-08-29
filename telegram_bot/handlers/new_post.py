@@ -18,6 +18,7 @@ from utils.helpers import html_escape
 
 tashkent_tz = pytz.timezone("Asia/Tashkent")
 
+# Post yaratish bosqichlari raqamlari (State IDs: 100-110)
 CHOOSE_CHANNEL = 100
 GET_CONTENT = 101
 GET_BTN_TITLE = 102
@@ -31,6 +32,7 @@ RECUR_TIME = 109
 GET_DURATION = 110
 
 async def start_new_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Post rejalashtirishni boshlash va kanallarni chiqarish."""
     context.user_data.clear()
     user_id = update.effective_user.id
     is_admin = (user_id == ADMIN_ID)
@@ -58,6 +60,7 @@ async def start_new_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return CHOOSE_CHANNEL
 
 async def channel_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Tanlangan kanalni saqlab kontent so'rash."""
     text = update.message.text
     if text == BTN_ALL_CHANNELS_TARGET:
         context.user_data["selected_channel_id"] = "ALL"
@@ -73,13 +76,14 @@ async def channel_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         f"✅ Tanlandi: <b>{html_escape(context.user_data['selected_channel_title'])}</b>\n\n"
         f"📝 <b>Post uchun kontentni yuboring:</b>\n"
-        f"(Matn, rasm, video, audio, ovozli xabar yoki stiker)",
+        f"(Matn, rasm, video, hujjat, audio, ovozli xabar yoki stiker)",
         reply_markup=get_cancel_keyboard(),
         parse_mode="HTML"
     )
     return GET_CONTENT
 
 async def content_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Kontent turini aniq ajratib saqlash."""
     msg = update.message
     if msg.photo:
         context.user_data["post_type"] = "photo"
@@ -124,6 +128,7 @@ async def content_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return GET_BTN_TITLE
 
 async def btn_title_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Tugma sarlavhasi qabul qilish."""
     text = update.message.text.strip()
     if text == BTN_SKIP_BUTTON:
         context.user_data["btn_text"], context.user_data["btn_url"] = None, None
@@ -144,6 +149,7 @@ async def btn_title_received(update: Update, context: ContextTypes.DEFAULT_TYPE)
     return GET_BTN_URL
 
 async def btn_url_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Tugma URL manzilini qabul qilish."""
     text = update.message.text.strip()
     btn_link = text
     if btn_link.startswith("@"):
@@ -163,6 +169,7 @@ async def btn_url_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return GET_REACTIONS
 
 async def reactions_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Reaksiya tugmalarini belgilash."""
     text = update.message.text.strip()
     context.user_data["enable_reactions"] = (text != BTN_NO_REACT)
     
@@ -175,6 +182,7 @@ async def reactions_received(update: Update, context: ContextTypes.DEFAULT_TYPE)
     return GET_AUTO_DELETE
 
 async def auto_delete_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Avto-o'chirish vaqtini qabul qilish."""
     text = update.message.text.strip()
     hours = 0
     if "12" in text:
@@ -200,6 +208,7 @@ async def auto_delete_received(update: Update, context: ContextTypes.DEFAULT_TYP
     return GET_TIME
 
 async def _save_and_finish(update, context, post_time, recurrence_type='none', recurrence_day=None, recurrence_time_str=None, end_date=None):
+    """Postni bazaga yozib tasdiq xabarini berish."""
     is_admin = (update.effective_user.id == ADMIN_ID)
     user_id = update.effective_user.id
     selected_channel_id = context.user_data["selected_channel_id"]
@@ -247,6 +256,7 @@ async def _save_and_finish(update, context, post_time, recurrence_type='none', r
     context.user_data.clear()
 
 async def time_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Bir martalik yoki takroriy post vaqtini qabul qilish."""
     text = update.message.text
     now = datetime.now(tashkent_tz)
     
@@ -280,6 +290,7 @@ async def time_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 async def daily_time_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Har kunlik vaqtni qabul qilish."""
     text = update.message.text.strip()
     try:
         hh, mm = map(int, text.split(":"))
@@ -302,6 +313,7 @@ async def daily_time_received(update: Update, context: ContextTypes.DEFAULT_TYPE
     return GET_DURATION
 
 async def recur_day_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Haftalik kunni tanlash."""
     text = update.message.text
     if text not in WEEKDAY_MAP:
         await update.message.reply_text("⚠️ Kunlardan birini tanlang:")
@@ -312,6 +324,7 @@ async def recur_day_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return RECUR_TIME
 
 async def recur_time_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Haftalik post soatini qabul qilish."""
     text = update.message.text.strip()
     try:
         hh, mm = map(int, text.split(":"))
@@ -335,6 +348,7 @@ async def recur_time_received(update: Update, context: ContextTypes.DEFAULT_TYPE
     return GET_DURATION
 
 async def duration_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Takrorlanish umumiy muddatini belgilash."""
     text = update.message.text
     now = datetime.now(tashkent_tz)
     end_date = None
