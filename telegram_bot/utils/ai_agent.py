@@ -27,18 +27,21 @@ def _get_system_instruction() -> str:
     current_year = now_dt.year
 
     return (
-        f"Siz Telegram kanallar uchun professional, o'ta aqlli SMM yordamchisiz. "
+        f"Siz Telegram kanallar uchun professional, aqlli SMM yordamchisiz. "
         f"Hozirgi Toshkent vaqti: {now_str}, joriy yil: {current_year}.\n\n"
         f"Vazifangiz:\n"
-        f"1. Foydalanuvchining buyrug'i va yuborilgan kontentni (matn, forward post yoki rasm) tahlil qiling.\n"
-        f"2. Agar foydalanuvchi tayyor postni kanalga qo'yishni so'ragan bo'lsa (masalan: 'shuni 13:00 ga qo'y'), post matnini o'zgartirmasdan, asl holicha saqlang.\n"
-        f"3. Agar yangi post yoki she'r yozishni so'ragan bo'lsa, mavzuga mos, chiroyli post tayyorlang.\n"
-        f"4. Chiqish vaqti aytilgan bo'lsa (masalan: 'bugun 13:00 ga', 'ertaga 18:00 da', '5 daqiqadan keyin'), uni Toshkent vaqti bo'yicha 'YYYY-MM-DD HH:MM' formatida aniqlang. Agar vaqt aytilmagan bo'lsa, scheduled_time null bo'lsin.\n"
-        f"5. Agar xabarda 'barcha guruhlarga' yoki 'hamma kanallarga' deyilgan bo'lsa, target_all qiymatini true qiling, aks holda false.\n"
-        f"6. MUHIM: Javobni FAQAT quyidagi JSON formatida qaytaring:\n"
+        f"1. Foydalanuvchi yuborgan xabar, rasm izohi yoki forward postni tahlil qiling.\n"
+        f"2. Agar tayyor yangilik yoki reklama posti forward qilingan/yozilgan bo'lsa, uning asl ma'nosi va tuzilishini saqlang.\n"
+        f"3. Agar yangi post yoki she'r yozish buyurilgan bo'lsa, chiroyli post yarating.\n"
+        f"4. VAQTNI ANIQLASH: Agar xabarda yoki buyruqda aniq chiqish vaqti aytilgan bo'lsa (masalan: 'bugun 13:00 ga', 'ertaga 10:00 da', '15 daqiqadan keyin'), "
+        f"uni Toshkent vaqti bo'yicha 'YYYY-MM-DD HH:MM' formatida yozing va has_explicit_time qiymatini true qiling.\n"
+        f"5. Agar xabarda aniq vaqt aytilmagan bo'lsa (shunchaki post matni yuborilgan bo'lsa), scheduled_time qiymatini null qiling va has_explicit_time qiymatini false qiling.\n"
+        f"6. Agar xabarda 'barcha kanallarga' yoki 'hamma guruhlarga' deyilgan bo'lsa, target_all qiymatini true qiling, aks holda false.\n"
+        f"7. MUHIM: Javobni FAQAT quyidagi JSON formatida qaytaring, ortiqcha hech narsa yozmang:\n"
         f"{{\n"
         f'  "post_text": "Post matni...",\n'
         f'  "scheduled_time": "YYYY-MM-DD HH:MM yoki null",\n'
+        f'  "has_explicit_time": true,\n'
         f'  "target_all": false\n'
         f"}}"
     )
@@ -51,17 +54,17 @@ async def _call_gemini(prompt: str, api_key: str, system_instruction: str) -> di
             {
                 "role": "user",
                 "parts": [
-                    {"text": f"{system_instruction}\n\nFoydalanuvchi so'rovi va kontent:\n{prompt}\n\nJavobni JSON formatida qaytaring."}
+                    {"text": f"{system_instruction}\n\nFoydalanuvchi yuborgan kontent va buyruq:\n{prompt}\n\nJavobni faqat JSON formatida qaytaring."}
                 ]
             }
         ],
         "generationConfig": {
             "response_mime_type": "application/json",
-            "temperature": 0.3
+            "temperature": 0.2
         }
     }
 
-    timeout = aiohttp.ClientTimeout(total=20)
+    timeout = aiohttp.ClientTimeout(total=25)
     async with aiohttp.ClientSession(timeout=timeout) as session:
         async with session.post(url, json=payload) as resp:
             if resp.status == 200:
@@ -71,7 +74,7 @@ async def _call_gemini(prompt: str, api_key: str, system_instruction: str) -> di
                 return json.loads(cleaned)
             else:
                 err_text = await resp.text()
-                raise RuntimeError(f"Gemini HTTP {resp.status}: {err_text[:100]}")
+                raise RuntimeError(f"Gemini HTTP {resp.status}: {err_text[:120]}")
 
 async def _call_groq(prompt: str, api_key: str, system_instruction: str) -> dict:
     headers = {
@@ -79,18 +82,19 @@ async def _call_groq(prompt: str, api_key: str, system_instruction: str) -> dict
         "Content-Type": "application/json",
     }
     
-    models = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"]
+    # 100% ishchi va mavjud Groq modellari
+    models = ["llama-3.3-70b-versatile", "llama-3.1-70b-versatile"]
     last_err = ""
     
     for model in models:
         payload = {
             "model": model,
             "messages": [
-                {"role": "system", "content": system_instruction},
-                {"role": "user", "content": f"{prompt}\n\nIltimos, javobni faqat JSON formatida qaytaring."}
+                {"role": "system", "content": f"{system_instruction}\nJavobni faqat JSON formatida yozing."},
+                {"role": "user", "content": f"{prompt}\n\nJavobni JSON formatida qaytaring."}
             ],
             "response_format": {"type": "json_object"},
-            "temperature": 0.3
+            "temperature": 0.2
         }
 
         try:
@@ -104,7 +108,7 @@ async def _call_groq(prompt: str, api_key: str, system_instruction: str) -> dict
                         return json.loads(clean_content)
                     else:
                         resp_txt = await resp.text()
-                        last_err = f"HTTP {resp.status}: {resp_txt[:100]}"
+                        last_err = f"HTTP {resp.status}: {resp_txt[:120]}"
         except Exception as e:
             last_err = str(e)
             continue
@@ -136,4 +140,4 @@ async def analyze_user_prompt(prompt: str, user_id: int = 0) -> dict:
             logger.error(f"Groq API xatosi: {e}")
             return {"error": f"AI xizmatlarida xatolik yuz berdi: {e}"}
 
-    return {"error": "AI API kalitlari topilmadi yoki barchasi band."}
+    return {"error": "AI API kalitlari topilmadi yoki ularning limiti tugagan."}
