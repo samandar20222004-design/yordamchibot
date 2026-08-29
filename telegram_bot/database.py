@@ -142,10 +142,17 @@ def init_db():
             "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;",
             "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS processing_started_at TIMESTAMP WITH TIME ZONE;",
         ]
-        for m in migrations:
+        for index, migration in enumerate(migrations):
+            # Bitta migration xatosi qolgan migrationlarni transaction aborted
+            # holatiga tushirib qo'ymasligi uchun har birini savepoint bilan bajarish.
+            savepoint = f"migration_{index}"
             try:
-                cur.execute(m)
+                cur.execute(f"SAVEPOINT {savepoint}")
+                cur.execute(migration)
+                cur.execute(f"RELEASE SAVEPOINT {savepoint}")
             except Exception as e:
+                cur.execute(f"ROLLBACK TO SAVEPOINT {savepoint}")
+                cur.execute(f"RELEASE SAVEPOINT {savepoint}")
                 logger.warning(f"Migratsiya eslatmasi: {e}")
 
         # Server crash paytida processing holatida qolgan postlarni qayta navbatga qaytaramiz.
