@@ -596,13 +596,18 @@ def get_post_by_id(post_id: int):
         logger.error(f"Post olish xatosi: {e}")
         return None
 
-def update_post_time(post_id: int, new_time, recurrence_time=None) -> bool:
+def update_post_time(post_id: int, new_time, recurrence_time=None, user_id: int = None, is_admin: bool = False) -> bool:
     try:
         with db_cursor(commit=True) as cur:
+            owner_clause = "" if is_admin else " AND user_id = %s"
+            params = [new_time]
             if recurrence_time:
-                cur.execute("UPDATE scheduled_posts SET scheduled_time = %s, recurrence_time = %s WHERE id = %s", (new_time, recurrence_time, post_id))
+                query = "UPDATE scheduled_posts SET scheduled_time = %s, recurrence_time = %s WHERE id = %s"; params = [new_time, recurrence_time, post_id]
             else:
-                cur.execute("UPDATE scheduled_posts SET scheduled_time = %s WHERE id = %s", (new_time, post_id))
+                query = "UPDATE scheduled_posts SET scheduled_time = %s WHERE id = %s"; params = [new_time, post_id]
+            query += owner_clause
+            if not is_admin: params.append(user_id)
+            cur.execute(query, tuple(params))
             return cur.rowcount > 0
     except Exception as e:
         logger.error(f"Post vaqtini yangilash xatosi: {e}")
