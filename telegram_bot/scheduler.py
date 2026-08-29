@@ -54,8 +54,9 @@ async def _execute_send(bot, post):
     is_admin = (user_id == ADMIN_ID)
     has_ad_free = db.consume_ad_free_post(user_id) if not is_admin else True
 
+    # Faqat bot username qoldirildi (ortiqcha so'zlarsiz)
     if not has_ad_free:
-        bot_header = "📢 <b>@PostAssistrobot orqali rejalashtirildi</b>\n\n"
+        bot_header = "@PostAssistrobot\n\n"
         channel_ad = db.get_setting("channel_ad_text", "").strip()
         ad_footer = f"\n\n{channel_ad}" if channel_ad else ""
         final_content = f"{bot_header}{final_content}{ad_footer}"
