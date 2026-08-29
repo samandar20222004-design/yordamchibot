@@ -12,12 +12,10 @@ from utils.helpers import html_escape
 logger = logging.getLogger(__name__)
 tashkent_tz = pytz.timezone("Asia/Tashkent")
 
-# AI holatlari
 AI_INPUT = 401
 AI_CONFIRM = 402
 
 async def start_ai_assistant(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """AI yordamchisini ishga tushirish."""
     context.user_data.clear()
     user_id = update.effective_user.id
     is_admin = (user_id == ADMIN_ID)
@@ -25,7 +23,7 @@ async def start_ai_assistant(update: Update, context: ContextTypes.DEFAULT_TYPE)
     
     if not is_admin and credits <= 0:
         bot_obj = await context.bot.get_me()
-        ref_link = f"https://t.me/{bot_obj.username}?start=ref_{user_id}"
+        ref_link = f"[https://t.me/](https://t.me/){bot_obj.username}?start=ref_{user_id}"
         await update.message.reply_text(
             "⚠️ <b>Sizda bepul AI so'rovlari soni tugadi!</b>\n\n"
             "Ko'proq so'rov olish uchun do'stlaringizni taklif qiling.\n"
@@ -40,46 +38,57 @@ async def start_ai_assistant(update: Update, context: ContextTypes.DEFAULT_TYPE)
     await update.message.reply_text(
         f"🤖 <b>AI Post Yordamchisiga xush kelibsiz!</b>\n\n"
         f"💎 Sizdagi mavjud AI so'rovlar soni: {limit_info}\n\n"
-        f"Post mavzusini matn yoki <b>rasm (izohi bilan)</b> yuboring:\n"
-        f"👉 <i>Masalan: 'Ertaga soat 18:50 ga sevgi haqida chiroyli she'r yozib post tayyorla'</i>",
+        f"Buyruq, post mavzusi yoki <b>rasm/post (izohi bilan)</b> yuboring:\n"
+        f"👉 <i>Masalan: 'Ushbu postni bugun 13:00 ga kanalga rejalashtir' deb postni forward qiling</i>",
         reply_markup=get_cancel_keyboard(),
         parse_mode="HTML"
     )
     return AI_INPUT
 
 async def ai_input_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Foydalanuvchi so'rovini qabul qilib AI ga yuborish."""
     msg = update.message
     user_id = update.effective_user.id
     is_admin = (user_id == ADMIN_ID)
     
-    prompt = ""
+    # Media Group takrorlanishidan himoya
+    media_group_id = msg.media_group_id
+    if media_group_id:
+        if context.user_data.get("last_ai_media_group_id") == media_group_id:
+            return AI_INPUT
+        context.user_data["last_ai_media_group_id"] = media_group_id
+
+    text_input = msg.text or msg.caption or ""
     file_id = None
     post_type = "text"
     
-    if msg.text:
-        prompt = msg.text
-        file_id = context.user_data.get("ai_file_id")
-        post_type = "photo" if file_id else "text"
-    elif msg.photo:
+    if msg.photo:
         file_id = msg.photo[-1].file_id
-        context.user_data["ai_file_id"] = file_id
         post_type = "photo"
-        prompt = msg.caption or ""
-        
-        if not prompt:
-            await msg.reply_text(
-                "📸 <b>Rasm qabul qilindi!</b>\n\nEndi ushbu rasm uchun qanday post yozish kerakligini yozing:",
-                parse_mode="HTML"
-            )
-            return AI_INPUT
+    elif msg.video:
+        file_id = msg.video.file_id
+        post_type = "video"
+    elif msg.document:
+        file_id = msg.document.file_id
+        post_type = "document"
 
-    if not prompt:
-        await msg.reply_text("Iltimos, post mavzusini matn ko'rinishida yuboring:")
+    # Agar foydalanuvchi avval buyruq yozgan bo'lsa va endi post tashlayotgan bo'lsa
+    prev_instruction = context.user_data.get("last_user_instruction", "")
+    
+    # Agar rasm/video kelgan bo'lsa lekin matn bo'lmasa, avvalgi buyruqni tekshiramiz
+    if file_id and not text_input and prev_instruction:
+        full_prompt = f"Foydalanuvchi buyrug'i: {prev_instruction}\nKontent: (Rasm/Media yuborildi)"
+    elif prev_instruction and text_input:
+        full_prompt = f"Foydalanuvchi buyrug'i: {prev_instruction}\nYuborilgan post matni:\n{text_input}"
+    elif text_input:
+        full_prompt = text_input
+        # Agar bu matnda aniq buyruq bo'lsa va post hali kelmagan bo'lsa, eslab qolamiz
+        context.user_data["last_user_instruction"] = text_input
+    else:
+        await msg.reply_text("Iltimos, post mavzusi yoki buyruqni yuboring:")
         return AI_INPUT
 
-    msg_wait = await msg.reply_text("⏳ <i>AI post tayyorlamoqda, iltimos kuting...</i>", parse_mode="HTML")
-    result = await analyze_user_prompt(prompt, user_id)
+    msg_wait = await msg.reply_text("⏳ <i>AI tahlil qilmoqda, iltimos kuting...</i>", parse_mode="HTML")
+    result = await analyze_user_prompt(full_prompt, user_id)
     
     try:
         await msg_wait.delete()
@@ -99,13 +108,16 @@ async def ai_input_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     post_text = result.get("post_text", "")
     sched_time = result.get("scheduled_time")
+    target_all = result.get("target_all", False)
     
     context.user_data["ai_generated_post"] = post_text
     context.user_data["ai_scheduled_time"] = sched_time
     context.user_data["ai_post_type"] = post_type
     context.user_data["ai_file_id"] = file_id
+    context.user_data["ai_target_all"] = target_all
     
     time_info = f"\n\n🕒 <b>Rejalashtirilgan chiqish vaqti:</b> <code>{sched_time}</code>" if sched_time else "\n\n🕒 <b>Chiqish vaqti:</b> Ko'rsatilmadi (Tasdiqlansa hozir chiqadi)"
+    target_info = "\n🌐 <b>Kanal:</b> Barcha ulangan kanallarga" if target_all else ""
     
     keyboard = [
         [InlineKeyboardButton("✅ Kanalga rejalashtirish", callback_data="ai_post_schedule")],
@@ -113,30 +125,25 @@ async def ai_input_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ]
     
     preview_text = (
-        f"✨ <b>AI tomonidan tayyorlangan post:</b>\n\n"
+        f"✨ <b>Tayyorlangan post:</b>\n\n"
         f"{html_escape(post_text)}"
-        f"{time_info}\n\n"
-        f"Ushbu postni kanalingizga rejalashtiramizmi?"
+        f"{time_info}{target_info}\n\n"
+        f"Ushbu postni rejalashtiramizmi?"
     )
     
     if file_id:
-        await msg.reply_photo(
-            photo=file_id,
-            caption=preview_text[:1024],
-            reply_markup=InlineKeyboardMarkup(keyboard),
-            parse_mode="HTML"
-        )
+        if post_type == "photo":
+            await msg.reply_photo(photo=file_id, caption=preview_text[:1024], reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="HTML")
+        elif post_type == "video":
+            await msg.reply_video(video=file_id, caption=preview_text[:1024], reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="HTML")
+        else:
+            await msg.reply_document(document=file_id, caption=preview_text[:1024], reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="HTML")
     else:
-        await msg.reply_text(
-            preview_text,
-            reply_markup=InlineKeyboardMarkup(keyboard),
-            parse_mode="HTML"
-        )
+        await msg.reply_text(preview_text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="HTML")
         
     return AI_CONFIRM
 
 async def ai_confirm_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """AI postini kanalga saqlash."""
     query = update.callback_query
     await query.answer("Post saqlanmoqda...")
     data = query.data
@@ -144,13 +151,15 @@ async def ai_confirm_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
     is_admin = (user_id == ADMIN_ID)
     
     if data == "ai_post_retry":
-        await query.message.reply_text("Yangi mavzuni yozing:", reply_markup=get_cancel_keyboard())
+        context.user_data.clear()
+        await query.message.reply_text("Yangi mavzu yoki buyruqni yozing:", reply_markup=get_cancel_keyboard())
         return AI_INPUT
 
     post_text = context.user_data.get("ai_generated_post", "")
     sched_time_str = context.user_data.get("ai_scheduled_time")
     post_type = context.user_data.get("ai_post_type", "text")
     file_id = context.user_data.get("ai_file_id")
+    target_all = context.user_data.get("ai_target_all", False)
     
     channels = db.get_user_channels(user_id)
     if not channels:
@@ -171,21 +180,27 @@ async def ai_confirm_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
         except Exception:
             post_time = now
 
-    ch_id, ch_title = channels[0]
-    pid = db.add_post(
-        user_id=user_id,
-        channel_id=ch_id,
-        post_type=post_type,
-        content=post_text,
-        file_id=file_id,
-        scheduled_time=post_time,
-        recurrence_type='none'
-    )
+    target_channels = channels if target_all else [channels[0]]
+    ok_count = 0
     
-    if pid:
+    for ch_id, ch_title in target_channels:
+        pid = db.add_post(
+            user_id=user_id,
+            channel_id=ch_id,
+            post_type=post_type,
+            content=post_text,
+            file_id=file_id,
+            scheduled_time=post_time,
+            recurrence_type='none'
+        )
+        if pid:
+            ok_count += 1
+            
+    if ok_count > 0:
+        target_name = "Barcha ulangan kanallarga" if target_all else channels[0][1]
         await query.message.reply_text(
             f"✅ <b>AI Posti muvaffaqiyatli rejalashtirildi!</b>\n\n"
-            f"📢 Kanal: <b>{html_escape(ch_title)}</b>\n"
+            f"📢 Joylash: <b>{html_escape(target_name)}</b>\n"
             f"⏰ Chiqish vaqti: <b>{post_time.strftime('%Y-%m-%d %H:%M')}</b>",
             reply_markup=get_main_keyboard(is_admin),
             parse_mode="HTML"
