@@ -27,7 +27,7 @@ async def start_ai_assistant(update: Update, context: ContextTypes.DEFAULT_TYPE)
     
     if not is_admin and credits <= 0:
         bot_obj = await context.bot.get_me()
-        ref_link = f"[https://t.me/](https://t.me/){bot_obj.username}?start=ref_{user_id}"
+        ref_link = f"https://t.me/{bot_obj.username}?start=ref_{user_id}"
         await update.message.reply_text(
             "⚠️ <b>Sizda bepul AI so'rovlari soni tugadi!</b>\n\n"
             "Ko'proq so'rov olish uchun do'stlaringizni taklif qiling.\n"

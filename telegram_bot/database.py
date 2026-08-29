@@ -368,14 +368,15 @@ def get_user_credits(user_id: int) -> int:
         return 0
 
 def use_user_credit(user_id: int) -> bool:
+    """Atomically spend one credit; prevents double-spending on concurrent updates."""
     try:
         with db_cursor(commit=True) as cur:
-            cur.execute("SELECT ai_credits FROM users WHERE user_id = %s", (user_id,))
-            row = cur.fetchone()
-            if row and row[0] > 0:
-                cur.execute("UPDATE users SET ai_credits = ai_credits - 1 WHERE user_id = %s", (user_id,))
-                return True
-            return False
+            cur.execute(
+                "UPDATE users SET ai_credits = ai_credits - 1 "
+                "WHERE user_id = %s AND ai_credits > 0 RETURNING user_id",
+                (user_id,),
+            )
+            return cur.fetchone() is not None
     except Exception as e:
         logger.error(f"Ball ayirish xatosi: {e}")
         return False

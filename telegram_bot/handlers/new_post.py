@@ -155,12 +155,12 @@ async def btn_url_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip()
     btn_link = text
     if btn_link.startswith("@"):
-        btn_link = f"[https://t.me/](https://t.me/){btn_link.replace('@', '')}"
+        btn_link = f"https://t.me/{btn_link.lstrip('@')}"
     elif not (btn_link.startswith("http://") or btn_link.startswith("https://") or btn_link.startswith("t.me/")):
         if "." in btn_link:
             btn_link = "https://" + btn_link
         else:
-            btn_link = f"[https://t.me/](https://t.me/){btn_link}"
+            btn_link = f"https://t.me/{btn_link.lstrip('@')}"
     
     context.user_data["btn_url"] = btn_link
     await update.message.reply_text(
