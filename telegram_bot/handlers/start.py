@@ -10,12 +10,10 @@ from utils.helpers import html_escape, get_smart_reply_ad
 
 logger = logging.getLogger(__name__)
 
-# Ballarni ulashish holatlari (State ID)
 TRANSFER_TARGET = 501
 TRANSFER_AMOUNT = 502
 
 async def check_user_subscribed(bot, user_id: int) -> tuple[bool, list]:
-    """Foydalanuvchi homiy kanallarga a'zo bo'lganligini tekshiradi."""
     if user_id == ADMIN_ID:
         return True, []
     sponsors = db.get_active_sponsors()
@@ -35,7 +33,6 @@ async def check_user_subscribed(bot, user_id: int) -> tuple[bool, list]:
     return (len(unsubscribed) == 0), unsubscribed
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Boshlang'ich /start buyrug'i."""
     context.user_data.clear()
     user = update.effective_user
     
@@ -81,7 +78,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 async def subscription_check_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Homiy kanallarga obunani qayta tekshirish tugmasi."""
     query = update.callback_query
     user = query.from_user
     is_sub, unsubs = await check_user_subscribed(context.bot, user.id)
@@ -104,7 +100,6 @@ async def subscription_check_callback(update: Update, context: ContextTypes.DEFA
             pass
 
 async def user_cabinet_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Shaxsiy kabinet menyusi va ma'lumotlari."""
     context.user_data.clear()
     user = update.effective_user
     is_admin = (user.id == ADMIN_ID)
@@ -138,7 +133,6 @@ async def user_cabinet_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(text, reply_markup=get_cabinet_keyboard(), parse_mode="HTML")
 
 async def daily_bonus_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Kunlik kirish bonusi."""
     user = update.effective_user
     is_admin = (user.id == ADMIN_ID)
     
@@ -173,7 +167,6 @@ async def daily_bonus_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
         )
 
 async def buy_ad_free_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Reklamasiz postlar xarid qilish menyusi."""
     user = update.effective_user
     is_admin = (user.id == ADMIN_ID)
     
@@ -206,7 +199,6 @@ async def buy_ad_free_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
     )
 
 async def ad_free_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Reklamasiz postlar inline tugmalari boshqaruvi."""
     query = update.callback_query
     await query.answer()
     data = query.data
@@ -252,13 +244,12 @@ async def ad_free_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
 async def user_invite_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Do'stlarni taklif qilish menyusi."""
     context.user_data.clear()
     user = update.effective_user
     is_admin = (user.id == ADMIN_ID)
     bot_obj = await context.bot.get_me()
     stats = db.get_referral_stats(user.id)
-    ref_link = f"https://t.me/{bot_obj.username}?start=ref_{user.id}"
+    ref_link = f"[https://t.me/](https://t.me/){bot_obj.username}?start=ref_{user.id}"
     
     credits_text = "♾ Cheksiz (Super Admin)" if is_admin else f"<b>{stats['ai_credits']} ta</b>"
     
@@ -276,7 +267,6 @@ async def user_invite_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def start_transfer_credits(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Ballarni ulashish jarayonini boshlash."""
     context.user_data.clear()
     user_id = update.effective_user.id
     my_credits = db.get_user_credits(user_id)
@@ -294,14 +284,13 @@ async def start_transfer_credits(update: Update, context: ContextTypes.DEFAULT_T
     await update.message.reply_text(
         "🔄 <b>Ballarni (AI so'rovlarni) ulashish:</b>\n\n"
         "Do'stingizning <b>ID raqamini</b>, <b>Telegram usernamesini (@...)</b> yoki botdagi <b>maxsus kodini</b> yuboring:\n"
-        "<i>(Eslatma: Ro'yxatdan o'tganiga 3 kun to'lmagan foydalanuvchilar ball ulasha olmaydi)</i>",
+        "<i>(Eslatma: Xavfsizlik uchun yangi ro'yxatdan o'tgan foydalanuvchilar ballarni 3 kundan keyin ulasha oladi)</i>",
         reply_markup=get_cancel_keyboard(),
         parse_mode="HTML"
     )
     return TRANSFER_TARGET
 
 async def transfer_target_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Qabul qiluvchi foydalanuvchini aniqlash."""
     target_input = update.message.text
     target_user = db.find_user_by_target(target_input)
     
@@ -329,7 +318,6 @@ async def transfer_target_received(update: Update, context: ContextTypes.DEFAULT
     return TRANSFER_AMOUNT
 
 async def transfer_amount_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Ballar miqdorini qabul qilib o'tkazish."""
     text = update.message.text.strip()
     if not text.isdigit():
         await update.message.reply_text("Iltimos, miqdorni faqat raqamlarda yozing (masalan: 5):")
@@ -363,13 +351,12 @@ async def transfer_amount_received(update: Update, context: ContextTypes.DEFAULT
         except Exception:
             pass
     else:
-        await update.message.reply_text(f"❌ Xatolik: {msg}", reply_markup=get_cabinet_keyboard())
+        await update.message.reply_text(f"❌ <b>Xatolik:</b> {msg}", reply_markup=get_cabinet_keyboard(), parse_mode="HTML")
         
     context.user_data.clear()
     return ConversationHandler.END
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Yordam va qo'llanma matni."""
     is_admin = (update.effective_user.id == ADMIN_ID)
     ad_line = get_smart_reply_ad(update.effective_user.id)
     text = (
@@ -397,7 +384,6 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(f"{text}{ad_line}", reply_markup=get_main_keyboard(is_admin), parse_mode="HTML")
 
 async def cancel_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Har qanday jarayonni bekor qilish."""
     is_admin = (update.effective_user.id == ADMIN_ID)
     context.user_data.clear()
     await update.message.reply_text("🚫 Jarayon bekor qilindi.", reply_markup=get_main_keyboard(is_admin), parse_mode="HTML")
