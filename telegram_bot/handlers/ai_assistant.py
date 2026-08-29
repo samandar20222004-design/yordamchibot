@@ -12,11 +12,12 @@ from utils.helpers import html_escape
 logger = logging.getLogger(__name__)
 tashkent_tz = pytz.timezone("Asia/Tashkent")
 
-AI_INPUT = 400
-AI_CONFIRM = 401
+# AI holatlari
+AI_INPUT = 401
+AI_CONFIRM = 402
 
 async def start_ai_assistant(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """AI yordamchisini ishga tushirish va so'rovlar sonini tekshirish."""
+    """AI yordamchisini ishga tushirish."""
     context.user_data.clear()
     user_id = update.effective_user.id
     is_admin = (user_id == ADMIN_ID)
@@ -47,7 +48,7 @@ async def start_ai_assistant(update: Update, context: ContextTypes.DEFAULT_TYPE)
     return AI_INPUT
 
 async def ai_input_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Foydalanuvchi matni yoki rasmini AI orqali tahlil qilish."""
+    """Foydalanuvchi so'rovini qabul qilib AI ga yuborish."""
     msg = update.message
     user_id = update.effective_user.id
     is_admin = (user_id == ADMIN_ID)
@@ -74,12 +75,10 @@ async def ai_input_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return AI_INPUT
 
     if not prompt:
-        await msg.reply_text("Iltimos, post mavzusi yoki buyruqni matn ko'rinishida yuboring:")
+        await msg.reply_text("Iltimos, post mavzusini matn ko'rinishida yuboring:")
         return AI_INPUT
 
     msg_wait = await msg.reply_text("⏳ <i>AI post tayyorlamoqda, iltimos kuting...</i>", parse_mode="HTML")
-    
-    # Asinxron aiohttp so'rovi
     result = await analyze_user_prompt(prompt, user_id)
     
     try:
@@ -137,7 +136,7 @@ async def ai_input_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return AI_CONFIRM
 
 async def ai_confirm_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Postni kanalga saqlash."""
+    """AI postini kanalga saqlash."""
     query = update.callback_query
     await query.answer("Post saqlanmoqda...")
     data = query.data
