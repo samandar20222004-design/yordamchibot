@@ -17,26 +17,12 @@ def calculate_next_time(recurrence_type, recurrence_day, recurrence_time, curren
             next_dt += timedelta(days=1)
         return next_dt
     elif recurrence_type == 'weekly':
-        days_ahead = recurrence_day - now.weekday()
-        if days_ahead <= 0:
-            days_ahead += 7
+        days_ahead = (recurrence_day - now.weekday() + 7) % 7
+        if days_ahead == 0:
+            days_ahead = 7
         next_dt = now.replace(hour=recurrence_time.hour, minute=recurrence_time.minute, second=0, microsecond=0) + timedelta(days=days_ahead)
         return next_dt
     return None
-
-async def send_single_post(bot, post_id: int):
-    row = db.get_post_by_id(post_id)
-    if not row:
-        return
-    now = datetime.now(tashkent_tz)
-    due_posts = db.get_due_posts(now + timedelta(days=3650))
-    target = None
-    for p in due_posts:
-        if p[0] == post_id:
-            target = p
-            break
-    if target:
-        await _execute_send(bot, target)
 
 async def check_and_send_posts(bot):
     now = datetime.now(tashkent_tz)
@@ -64,14 +50,10 @@ async def _execute_send(bot, post):
         buttons.append(reactions_row)
     reply_markup = InlineKeyboardMarkup(buttons) if buttons else None
 
-    # Post tarkibini shakllantirish
     final_content = content or ""
     is_admin = (user_id == ADMIN_ID)
-    
-    # Reklamasiz post litsenziyasi bormi?
     has_ad_free = db.consume_ad_free_post(user_id) if not is_admin else True
 
-    # Agar litsenziya bo'lmasa, eng tepasiga bot nishoni va pastiga homiy reklamasini qo'shamiz
     if not has_ad_free:
         bot_header = "📢 <b>@PostAssistrobot orqali rejalashtirildi</b>\n\n"
         channel_ad = db.get_setting("channel_ad_text", "").strip()
@@ -81,24 +63,24 @@ async def _execute_send(bot, post):
     sent_msg = None
     try:
         pt = str(post_type).lower()
-        if pt == "text":
-            sent_msg = await bot.send_message(chat_id=channel_id, text=final_content, reply_markup=reply_markup, parse_mode="HTML")
-        elif pt == "photo":
-            sent_msg = await bot.send_photo(chat_id=channel_id, photo=file_id, caption=final_content, reply_markup=reply_markup, parse_mode="HTML")
+        target_chat = int(channel_id) if str(channel_id).lstrip('-').isdigit() else channel_id
+
+        if pt == "photo":
+            sent_msg = await bot.send_photo(chat_id=target_chat, photo=file_id, caption=final_content, reply_markup=reply_markup, parse_mode="HTML")
         elif pt == "video":
-            sent_msg = await bot.send_video(chat_id=channel_id, video=file_id, caption=final_content, reply_markup=reply_markup, parse_mode="HTML")
+            sent_msg = await bot.send_video(chat_id=target_chat, video=file_id, caption=final_content, reply_markup=reply_markup, parse_mode="HTML")
         elif pt == "animation":
-            sent_msg = await bot.send_animation(chat_id=channel_id, animation=file_id, caption=final_content, reply_markup=reply_markup, parse_mode="HTML")
+            sent_msg = await bot.send_animation(chat_id=target_chat, animation=file_id, caption=final_content, reply_markup=reply_markup, parse_mode="HTML")
         elif pt == "document":
-            sent_msg = await bot.send_document(chat_id=channel_id, document=file_id, caption=final_content, reply_markup=reply_markup, parse_mode="HTML")
+            sent_msg = await bot.send_document(chat_id=target_chat, document=file_id, caption=final_content, reply_markup=reply_markup, parse_mode="HTML")
         elif pt == "audio":
-            sent_msg = await bot.send_audio(chat_id=channel_id, audio=file_id, caption=final_content, reply_markup=reply_markup, parse_mode="HTML")
+            sent_msg = await bot.send_audio(chat_id=target_chat, audio=file_id, caption=final_content, reply_markup=reply_markup, parse_mode="HTML")
         elif pt == "voice":
-            sent_msg = await bot.send_voice(chat_id=channel_id, voice=file_id, caption=final_content, reply_markup=reply_markup, parse_mode="HTML")
+            sent_msg = await bot.send_voice(chat_id=target_chat, voice=file_id, caption=final_content, reply_markup=reply_markup, parse_mode="HTML")
         elif pt == "sticker":
-            sent_msg = await bot.send_sticker(chat_id=channel_id, sticker=file_id)
+            sent_msg = await bot.send_sticker(chat_id=target_chat, sticker=file_id)
         else:
-            sent_msg = await bot.send_message(chat_id=channel_id, text=final_content, reply_markup=reply_markup, parse_mode="HTML")
+            sent_msg = await bot.send_message(chat_id=target_chat, text=final_content, reply_markup=reply_markup, parse_mode="HTML")
 
         sent_msg_id = sent_msg.message_id if sent_msg else None
         db.mark_post_as_sent(post_id, sent_msg_id)
@@ -124,7 +106,8 @@ async def check_and_delete_expired_posts(bot):
     for item in to_delete:
         pid, ch_id, msg_id = item
         try:
-            await bot.delete_message(chat_id=ch_id, message_id=msg_id)
+            target_chat = int(ch_id) if str(ch_id).lstrip('-').isdigit() else ch_id
+            await bot.delete_message(chat_id=target_chat, message_id=msg_id)
             db.mark_post_as_deleted(pid)
         except Exception as e:
             logger.warning(f"Avto-o'chirish xatosi (Post {pid}): {e}")
