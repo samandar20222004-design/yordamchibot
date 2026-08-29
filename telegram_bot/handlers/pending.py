@@ -5,45 +5,62 @@ from telegram.ext import ContextTypes, ConversationHandler
 import database as db
 from keyboards.inline import render_pending_list
 from keyboards.default import get_cancel_keyboard, get_main_keyboard
+from utils.helpers import format_post_type_label, format_schedule_line, html_escape
 
 tashkent_tz = pytz.timezone("Asia/Tashkent")
 EDIT_POST_TIME = 50
 
+def _build_pending_view(user_id: int):
+    user_code = db.get_user_code(user_id)
+    posts = db.get_pending_posts(user_id)
+    if not posts:
+        return "⏳ <b>Sizda kutilayotgan faol postlar mavjud emas.</b>", None
+    
+    text = f"⏳ <b>Kutilayotgan postlaringiz ({len(posts)} ta):</b>\n\n"
+    for p in posts:
+        pid, ch_title, p_type, s_time, p_num, r_type, r_day, r_time = p
+        code_label = f"{user_code}-{p_num}" if p_num else f"#{pid}"
+        time_info = format_schedule_line(s_time, r_type, r_day, r_time)
+        text += (
+            f"🔹 <b>Post: {code_label}</b>\n"
+            f"📢 Kanal: <b>{html_escape(ch_title or 'Kanal')}</b>\n"
+            f"📦 Turi: <b>{format_post_type_label(p_type)}</b>\n"
+            f"{time_info}\n\n"
+        )
+    markup = render_pending_list(posts, user_code)
+    return text, markup
+
 async def list_pending_posts(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
     user_id = update.effective_user.id
-    user_code = db.get_user_code(user_id)
-    posts = db.get_pending_posts(user_id)
-    text, markup = render_pending_list(posts, "Sizning kutilayotgan postlaringiz:", user_code=user_code)
+    text, markup = _build_pending_view(user_id)
     await update.message.reply_text(text, reply_markup=markup, parse_mode="HTML")
 
 async def cancel_post_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     user_id = query.from_user.id
     try:
-        _, pid_str, scope = query.data.split(":")
-        post_id = int(pid_str)
+        parts = query.data.split(":")
+        post_id = int(parts[1])
         db.cancel_post(post_id, user_id)
-        await query.answer("✅ Post muvaffaqiyatli bekor qilindi.")
+        await query.answer("✅ Post bekor qilindi.")
         
-        user_code = db.get_user_code(user_id)
-        posts = db.get_pending_posts(user_id)
-        text, markup = render_pending_list(posts, "Sizning kutilayotgan postlaringiz:", user_code=user_code)
+        text, markup = _build_pending_view(user_id)
         await query.edit_message_text(text, reply_markup=markup, parse_mode="HTML")
     except Exception as e:
         await query.answer(f"Xatolik: {e}", show_alert=True)
 
 async def edit_post_time_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    _, pid_str = query.data.split(":")
-    post_id = int(pid_str)
+    parts = query.data.split(":")
+    post_id = int(parts[1])
     
     context.user_data["editing_post_id"] = post_id
     await query.answer()
     await context.bot.send_message(
         chat_id=query.from_user.id,
         text="🕒 <b>Post uchun yangi chiqish vaqtini yuboring:</b>\n\n"
-             "• Bir martalik post bo'lsa: <code>2026-08-28 20:00</code>\n"
+             "• Bir martalik post bo'lsa: <code>2026-08-30 20:00</code>\n"
              "• Har kunlik post bo'lsa faqat soat: <code>10:00</code>",
         reply_markup=get_cancel_keyboard(),
         parse_mode="HTML"
@@ -79,5 +96,5 @@ async def edit_post_time_received(update: Update, context: ContextTypes.DEFAULT_
         context.user_data.clear()
         return ConversationHandler.END
     except Exception:
-        await update.message.reply_text("⚠️ Format xato! Masalan: <code>2026-08-28 20:00</code> yoki <code>10:00</code>", parse_mode="HTML")
+        await update.message.reply_text("⚠️ Format xato! Masalan: <code>2026-08-30 20:00</code> yoki <code>10:00</code>", parse_mode="HTML")
         return EDIT_POST_TIME
