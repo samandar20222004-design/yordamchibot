@@ -284,7 +284,7 @@ async def start_transfer_credits(update: Update, context: ContextTypes.DEFAULT_T
     await update.message.reply_text(
         "🔄 <b>Ballarni (AI so'rovlarni) ulashish:</b>\n\n"
         "Do'stingizning <b>ID raqamini</b>, <b>Telegram usernamesini (@...)</b> yoki botdagi <b>maxsus kodini</b> yuboring:\n"
-        "<i>(Eslatma: Xavfsizlik uchun yangi ro'yxatdan o'tgan foydalanuvchilar ballarni 3 kundan keyin ulasha oladi)</i>",
+        "<i>(Eslatma: Faqat botdan ro'yxatdan o'tgan faol foydalanuvchilarga ball o'tkazish mumkin)</i>",
         reply_markup=get_cancel_keyboard(),
         parse_mode="HTML"
     )
@@ -294,9 +294,14 @@ async def transfer_target_received(update: Update, context: ContextTypes.DEFAULT
     target_input = update.message.text
     target_user = db.find_user_by_target(target_input)
     
+    # Ro'yxatdan o'tmagan foydalanuvchini qat'iy tekshirish
     if not target_user:
         await update.message.reply_text(
-            "❌ <b>Foydalanuvchi topilmadi!</b>\nIltimos, to'g'ri ID raqam yoki kodni kiriting:",
+            "❌ <b>Foydalanuvchi topilmadi!</b>\n\n"
+            "Ushbu foydalanuvchi hali botdan ro'yxatdan o'tmagan yoki ma'lumot xato kiritildi.\n"
+            "Do'stingiz avval botga kirib <b>/start</b> bosishi kerak.\n\n"
+            "Qaytadan to'g'ri ID raqam yoki kodni kiriting:",
+            reply_markup=get_cancel_keyboard(),
             parse_mode="HTML"
         )
         return TRANSFER_TARGET
@@ -310,7 +315,7 @@ async def transfer_target_received(update: Update, context: ContextTypes.DEFAULT
     context.user_data["transfer_to_name"] = t_name or t_user or str(t_id)
     
     await update.message.reply_text(
-        f"✅ <b>Qabul qiluvchi:</b> <b>{html_escape(context.user_data['transfer_to_name'])}</b>\n\n"
+        f"✅ <b>Qabul qiluvchi:</b> <b>{html_escape(context.user_data['transfer_to_name'])}</b> (ID: <code>{t_id}</code>)\n\n"
         f"Nechta ball yubormoqchisiz? <i>(Kamida <b>3 ta</b>, ko'pi bilan <b>20 ta</b>)</i>:",
         reply_markup=get_cancel_keyboard(),
         parse_mode="HTML"
