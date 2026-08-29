@@ -32,7 +32,7 @@ from handlers.channels import (
     channels_menu, start_add_channel, channel_received,
     remove_channel_callback, on_bot_chat_member_update, ADD_CHANNEL
 )
-from handlers.converter_2 import (
+from handlers.converter import (
     start_converter, converter_received, converter_callback, CONVERT_INPUT
 )
 from handlers.ai_assistant import (
@@ -190,7 +190,6 @@ def register_all_handlers(app):
     app.add_handler(CommandHandler("stats", show_statistics))
     app.add_handler(main_conv)
     
-    # Alohida menyu tugmalari
     app.add_handler(MessageHandler(exact(BTN_CABINET), lambda u, c: guard_menu(u, c, user_cabinet_menu)))
     app.add_handler(MessageHandler(exact(BTN_DAILY_BONUS), lambda u, c: guard_menu(u, c, daily_bonus_handler)))
     app.add_handler(MessageHandler(exact(BTN_BUY_AD_FREE), lambda u, c: guard_menu(u, c, buy_ad_free_handler)))
@@ -205,7 +204,6 @@ def register_all_handlers(app):
     app.add_handler(MessageHandler(exact(BTN_ALL_CHANNELS), lambda u, c: guard_menu(u, c, admin_all_channels)))
     app.add_handler(MessageHandler(exact(BTN_SPONSORS), lambda u, c: guard_menu(u, c, sponsors_menu)))
     
-    # Callbacklar
     app.add_handler(CallbackQueryHandler(ad_free_callback, pattern=r"^adfree_"))
     app.add_handler(CallbackQueryHandler(converter_callback, pattern=r"^conv_show:"))
     app.add_handler(CallbackQueryHandler(subscription_check_callback, pattern=r"^check_subscription$"))
