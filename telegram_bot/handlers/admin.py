@@ -11,14 +11,15 @@ from keyboards.default import (
     get_main_keyboard,
 )
 from keyboards.inline import get_sponsors_delete_keyboard
-from utils.helpers import html_escape, format_post_type_label, format_schedule_line
+from utils.helpers import html_escape, format_post_type_label
 
 logger = logging.getLogger(__name__)
 
-BROADCAST_MESSAGE = 300
-ADD_SPONSOR_CHANNEL = 301
-SET_CHANNEL_AD = 302
-SET_BOT_REPLY_AD = 303
+# Admin panel alohida xavfsiz holat raqamlari
+BROADCAST_MESSAGE = 801
+ADD_SPONSOR_CHANNEL = 802
+SET_CHANNEL_AD = 803
+SET_BOT_REPLY_AD = 804
 
 def is_admin(user_id: int) -> bool:
     return user_id == ADMIN_ID
@@ -91,7 +92,6 @@ async def admin_all_channels(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     await update.message.reply_text(text, reply_markup=get_admin_panel_keyboard(), parse_mode="HTML")
 
-# --- HOMIYLIK KANALLARI ---
 async def sponsors_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id):
         return
@@ -105,16 +105,9 @@ async def sponsors_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text += "Hozircha hech qanday homiy kanal qo'shilmagan.\n\n"
 
     text += "O'chirish uchun pastdagi ro'yxatdan tanlang yoki yangi kanal qo'shing 👇"
-    await update.message.reply_text(
-        text,
-        reply_markup=get_sponsors_keyboard(),
-        parse_mode="HTML"
-    )
+    await update.message.reply_text(text, reply_markup=get_sponsors_keyboard(), parse_mode="HTML")
     if sponsors:
-        await update.message.reply_text(
-            "O'chirish uchun tanlang:",
-            reply_markup=get_sponsors_delete_keyboard(sponsors)
-        )
+        await update.message.reply_text("O'chirish uchun tanlang:", reply_markup=get_sponsors_delete_keyboard(sponsors))
 
 async def start_add_sponsor(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id):
@@ -130,6 +123,8 @@ async def start_add_sponsor(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ADD_SPONSOR_CHANNEL
 
 async def sponsor_channel_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_admin(update.effective_user.id):
+        return ConversationHandler.END
     text = update.message.text.strip()
     parts = text.split("|")
     if len(parts) != 3:
@@ -153,7 +148,6 @@ async def del_sponsor_callback(update: Update, context: ContextTypes.DEFAULT_TYP
     db.remove_sponsor_channel(s_id)
     await query.edit_message_text("✅ Homiy kanal ro'yxatdan o'chirildi.")
 
-# --- REKLAMA SOZLAMALARI ---
 async def start_set_channel_ad(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id):
         return ConversationHandler.END
@@ -161,13 +155,15 @@ async def start_set_channel_ad(update: Update, context: ContextTypes.DEFAULT_TYP
     await update.message.reply_text(
         f"📢 <b>Kanal postlari ostiga chiquvchi reklama:</b>\n\n"
         f"Hozirgi matn:\n<i>{html_escape(current_ad)}</i>\n\n"
-        f"Yangi reklama matnini yuboring (yoki o'chirish uchun <code>clear</code> deb yozing):",
+        f"Yangi reklama matnini yuboring (o'chirish uchun <code>clear</code> deb yozing):",
         reply_markup=get_cancel_keyboard(),
         parse_mode="HTML"
     )
     return SET_CHANNEL_AD
 
 async def channel_ad_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_admin(update.effective_user.id):
+        return ConversationHandler.END
     text = update.message.text.strip()
     if text.lower() == "clear":
         db.set_setting("channel_ad_text", "")
@@ -184,13 +180,15 @@ async def start_set_bot_reply_ad(update: Update, context: ContextTypes.DEFAULT_T
     await update.message.reply_text(
         f"🤖 <b>Bot javoblari ostiga chiquvchi reklama:</b>\n\n"
         f"Hozirgi matn:\n<i>{html_escape(current_ad)}</i>\n\n"
-        f"Yangi reklama matnini yuboring (yoki o'chirish uchun <code>clear</code> deb yozing):",
+        f"Yangi reklama matnini yuboring (o'chirish uchun <code>clear</code> deb yozing):",
         reply_markup=get_cancel_keyboard(),
         parse_mode="HTML"
     )
     return SET_BOT_REPLY_AD
 
 async def bot_reply_ad_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_admin(update.effective_user.id):
+        return ConversationHandler.END
     text = update.message.text.strip()
     if text.lower() == "clear":
         db.set_setting("bot_reply_ad_text", "")
@@ -200,7 +198,6 @@ async def bot_reply_ad_received(update: Update, context: ContextTypes.DEFAULT_TY
         await update.message.reply_text("✅ Bot javoblari reklamasi muvaffaqiyatli saqlandi!", reply_markup=get_admin_panel_keyboard())
     return ConversationHandler.END
 
-# --- BROADCAST ---
 async def broadcast_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id):
         return ConversationHandler.END
@@ -212,6 +209,9 @@ async def broadcast_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return BROADCAST_MESSAGE
 
 async def broadcast_send(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_admin(update.effective_user.id):
+        return ConversationHandler.END
+        
     text = update.message.text
     user_ids = db.get_all_user_ids()
     sent = 0
@@ -224,7 +224,11 @@ async def broadcast_send(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception:
             pass
 
-    await msg_wait.delete()
+    try:
+        await msg_wait.delete()
+    except Exception:
+        pass
+
     await update.message.reply_text(
         f"✅ <b>Xabar tarqatildi!</b>\n\nYetib bordi: <b>{sent} / {len(user_ids)}</b> ta foydalanuvchiga.",
         reply_markup=get_admin_panel_keyboard(),
