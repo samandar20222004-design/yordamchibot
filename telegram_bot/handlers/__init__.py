@@ -32,7 +32,7 @@ from handlers.channels import (
     channels_menu, start_add_channel, channel_received,
     remove_channel_callback, on_bot_chat_member_update, ADD_CHANNEL
 )
-from handlers.converter import (
+from handlers.converter_2 import (
     start_converter, converter_received, converter_callback, CONVERT_INPUT
 )
 from handlers.ai_assistant import (
@@ -178,6 +178,7 @@ def register_all_handlers(app):
         fallbacks=[
             CommandHandler("start", start),
             CommandHandler("cancel", cancel_handler),
+            MessageHandler(exact(BTN_MAIN_MENU), lambda u, c: guard_menu(u, c, start)),
         ],
         allow_reentry=True,
     )
@@ -188,15 +189,14 @@ def register_all_handlers(app):
     app.add_handler(CommandHandler("admin", admin_panel_menu))
     app.add_handler(CommandHandler("stats", show_statistics))
     app.add_handler(main_conv)
+    
+    # Alohida menyu tugmalari
     app.add_handler(MessageHandler(exact(BTN_CABINET), lambda u, c: guard_menu(u, c, user_cabinet_menu)))
     app.add_handler(MessageHandler(exact(BTN_DAILY_BONUS), lambda u, c: guard_menu(u, c, daily_bonus_handler)))
     app.add_handler(MessageHandler(exact(BTN_BUY_AD_FREE), lambda u, c: guard_menu(u, c, buy_ad_free_handler)))
     app.add_handler(MessageHandler(exact(BTN_INVITE), lambda u, c: guard_menu(u, c, user_invite_menu)))
-    app.add_handler(MessageHandler(exact(BTN_TRANSFER), lambda u, c: guard_entry(u, c, start_transfer_credits)))
     app.add_handler(MessageHandler(exact(BTN_HELP), lambda u, c: guard_menu(u, c, help_command)))
     app.add_handler(MessageHandler(exact(BTN_CHANNELS), lambda u, c: guard_menu(u, c, channels_menu)))
-    app.add_handler(MessageHandler(exact(BTN_CONVERTER), lambda u, c: guard_entry(u, c, start_converter)))
-    app.add_handler(MessageHandler(exact(BTN_AI_ASSISTANT), lambda u, c: guard_entry(u, c, start_ai_assistant)))
     app.add_handler(MessageHandler(exact(BTN_PENDING), lambda u, c: guard_menu(u, c, list_pending_posts)))
     app.add_handler(MessageHandler(exact(BTN_MAIN_MENU), lambda u, c: guard_menu(u, c, start)))
     app.add_handler(MessageHandler(exact(BTN_ADMIN_PANEL), lambda u, c: guard_menu(u, c, admin_panel_menu)))
@@ -204,8 +204,8 @@ def register_all_handlers(app):
     app.add_handler(MessageHandler(exact(BTN_ALL_POSTS), lambda u, c: guard_menu(u, c, admin_all_posts)))
     app.add_handler(MessageHandler(exact(BTN_ALL_CHANNELS), lambda u, c: guard_menu(u, c, admin_all_channels)))
     app.add_handler(MessageHandler(exact(BTN_SPONSORS), lambda u, c: guard_menu(u, c, sponsors_menu)))
-    app.add_handler(MessageHandler(exact(BTN_CHANNEL_AD), lambda u, c: guard_entry(u, c, start_set_channel_ad)))
-    app.add_handler(MessageHandler(exact(BTN_BOT_REPLY_AD), lambda u, c: guard_entry(u, c, start_set_bot_reply_ad)))
+    
+    # Callbacklar
     app.add_handler(CallbackQueryHandler(ad_free_callback, pattern=r"^adfree_"))
     app.add_handler(CallbackQueryHandler(converter_callback, pattern=r"^conv_show:"))
     app.add_handler(CallbackQueryHandler(subscription_check_callback, pattern=r"^check_subscription$"))
