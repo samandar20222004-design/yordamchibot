@@ -11,6 +11,7 @@ tashkent_tz = pytz.timezone("Asia/Tashkent")
 GROQ_ENDPOINT = "https://api.groq.com/openai/v1/chat/completions"
 
 def _clean_json_string(raw_str: str) -> str:
+    """Markdown JSON bloklarini tozalash."""
     raw_str = raw_str.strip()
     if raw_str.startswith("```json"):
         raw_str = raw_str[7:]
@@ -46,34 +47,44 @@ def _get_system_instruction() -> str:
     )
 
 async def _call_gemini(prompt: str, api_key: str, system_instruction: str) -> dict:
-    url = f"[https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=](https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=){api_key}"
-    
-    payload = {
-        "contents": [
-            {
-                "role": "user",
-                "parts": [
-                    {"text": f"{system_instruction}\n\nFoydalanuvchi so'rovi:\n{prompt}\n\nJavobni JSON formatida qaytaring."}
-                ]
-            }
-        ],
-        "generationConfig": {
-            "response_mime_type": "application/json",
-            "temperature": 0.2
-        }
-    }
+    # Eng so'nggi va barqaror Gemini modellari
+    gemini_models = ["gemini-2.5-flash", "gemini-1.5-flash"]
+    last_gemini_err = ""
 
-    timeout = aiohttp.ClientTimeout(total=25)
-    async with aiohttp.ClientSession(timeout=timeout) as session:
-        async with session.post(url, json=payload) as resp:
-            if resp.status == 200:
-                data = await resp.json()
-                raw_text = data["candidates"][0]["content"]["parts"][0]["text"]
-                cleaned = _clean_json_string(raw_text)
-                return json.loads(cleaned)
-            else:
-                err_text = await resp.text()
-                raise RuntimeError(f"Gemini HTTP {resp.status}: {err_text[:120]}")
+    for model in gemini_models:
+        url = f"[https://generativelanguage.googleapis.com/v1beta/models/](https://generativelanguage.googleapis.com/v1beta/models/){model}:generateContent?key={api_key}"
+        payload = {
+            "contents": [
+                {
+                    "role": "user",
+                    "parts": [
+                        {"text": f"{system_instruction}\n\nFoydalanuvchi so'rovi:\n{prompt}\n\nJavobni JSON formatida qaytaring."}
+                    ]
+                }
+            ],
+            "generationConfig": {
+                "response_mime_type": "application/json",
+                "temperature": 0.2
+            }
+        }
+
+        try:
+            timeout = aiohttp.ClientTimeout(total=20)
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.post(url, json=payload) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        raw_text = data["candidates"][0]["content"]["parts"][0]["text"]
+                        cleaned = _clean_json_string(raw_text)
+                        return json.loads(cleaned)
+                    else:
+                        err_text = await resp.text()
+                        last_gemini_err = f"Gemini ({model}) HTTP {resp.status}: {err_text[:100]}"
+        except Exception as e:
+            last_gemini_err = str(e)
+            continue
+
+    raise RuntimeError(last_gemini_err)
 
 async def _call_groq(prompt: str, api_key: str, system_instruction: str) -> dict:
     headers = {
@@ -81,7 +92,8 @@ async def _call_groq(prompt: str, api_key: str, system_instruction: str) -> dict
         "Content-Type": "application/json",
     }
     
-    models = ["llama-3.3-70b-versatile", "mixtral-8x7b-32768"]
+    # Faqat rasmiy faol ishlayotgan Groq modellari
+    models = ["llama-3.3-70b-versatile", "llama3-70b-8192"]
     last_err = ""
     
     for model in models:
@@ -106,7 +118,7 @@ async def _call_groq(prompt: str, api_key: str, system_instruction: str) -> dict
                         return json.loads(clean_content)
                     else:
                         resp_txt = await resp.text()
-                        last_err = f"HTTP {resp.status}: {resp_txt[:120]}"
+                        last_err = f"HTTP {resp.status}: {resp_txt[:100]}"
         except Exception as e:
             last_err = str(e)
             continue
@@ -119,6 +131,7 @@ async def analyze_user_prompt(prompt: str, user_id: int = 0) -> dict:
     
     system_instruction = _get_system_instruction()
 
+    # 1. Avval Google Gemini API orqali urinish
     if gemini_key:
         try:
             result = await _call_gemini(prompt, gemini_key, system_instruction)
@@ -127,6 +140,7 @@ async def analyze_user_prompt(prompt: str, user_id: int = 0) -> dict:
         except Exception as e:
             logger.warning(f"Google Gemini ishlamadi ({e}). Groq zaxirasiga o'tilmoqda...")
 
+    # 2. Zaxirada Groq API orqali urinish
     if groq_key:
         try:
             result = await _call_groq(prompt, groq_key, system_instruction)
@@ -136,4 +150,4 @@ async def analyze_user_prompt(prompt: str, user_id: int = 0) -> dict:
             logger.error(f"Groq API xatosi: {e}")
             return {"error": f"AI xizmatlarida xatolik yuz berdi: {e}"}
 
-    return {"error": "AI API kalitlari topilmadi yoki barchasi band."}
+    return {"error": "AI API kalitlari topilmadi yoki ularning barchasida limit tugagan."}
