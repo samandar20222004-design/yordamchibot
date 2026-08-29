@@ -7,7 +7,6 @@ import database as db
 from keyboards.default import (
     BTN_ALL_CHANNELS_TARGET, BTN_MAIN_MENU, BTN_SKIP_BUTTON,
     BTN_NO_REACT,
-    BTN_DEL_NEVER, BTN_DEL_12H, BTN_DEL_24H, BTN_DEL_48H, BTN_DEL_72H,
     BTN_T_5MIN, BTN_T_15MIN, BTN_T_1H, BTN_T_DAILY, BTN_T_WEEKLY,
     BTN_DUR_1M, BTN_DUR_3M, BTN_DUR_6M, BTN_DUR_1Y, BTN_DUR_INF,
     WEEKDAY_MAP, WEEKDAY_LABELS,
@@ -19,7 +18,6 @@ from utils.helpers import html_escape
 
 tashkent_tz = pytz.timezone("Asia/Tashkent")
 
-# Holatlar raqamlari
 CHOOSE_CHANNEL = 100
 GET_CONTENT = 101
 GET_BTN_TITLE = 102
@@ -75,7 +73,7 @@ async def channel_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         f"✅ Tanlandi: <b>{html_escape(context.user_data['selected_channel_title'])}</b>\n\n"
         f"📝 <b>Post uchun kontentni yuboring:</b>\n"
-        f"(Matn, rasm, video, audio, premium stikerlar yoki boshqa kanaldan forward qilingan xabar)",
+        f"(Matn, rasm, video, audio, ovozli xabar yoki stiker)",
         reply_markup=get_cancel_keyboard(),
         parse_mode="HTML"
     )
@@ -83,10 +81,38 @@ async def channel_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def content_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = update.message
-    # Premium elementlar va stikerlarni 100% asl holida saqlab qolish uchun message_id ni saqlaymiz
-    context.user_data["post_type"] = "original_message"
-    context.user_data["file_id"] = str(msg.message_id)
-    context.user_data["content"] = msg.caption or msg.text or ""
+    if msg.photo:
+        context.user_data["post_type"] = "photo"
+        context.user_data["file_id"] = msg.photo[-1].file_id
+        context.user_data["content"] = msg.caption or ""
+    elif msg.video:
+        context.user_data["post_type"] = "video"
+        context.user_data["file_id"] = msg.video.file_id
+        context.user_data["content"] = msg.caption or ""
+    elif msg.document:
+        context.user_data["post_type"] = "document"
+        context.user_data["file_id"] = msg.document.file_id
+        context.user_data["content"] = msg.caption or ""
+    elif msg.audio:
+        context.user_data["post_type"] = "audio"
+        context.user_data["file_id"] = msg.audio.file_id
+        context.user_data["content"] = msg.caption or ""
+    elif msg.voice:
+        context.user_data["post_type"] = "voice"
+        context.user_data["file_id"] = msg.voice.file_id
+        context.user_data["content"] = msg.caption or ""
+    elif msg.animation:
+        context.user_data["post_type"] = "animation"
+        context.user_data["file_id"] = msg.animation.file_id
+        context.user_data["content"] = msg.caption or ""
+    elif msg.sticker:
+        context.user_data["post_type"] = "sticker"
+        context.user_data["file_id"] = msg.sticker.file_id
+        context.user_data["content"] = ""
+    else:
+        context.user_data["post_type"] = "text"
+        context.user_data["file_id"] = None
+        context.user_data["content"] = msg.text or ""
 
     await msg.reply_text(
         "🔘 <b>Post ostiga havola tugma qo'shilsinmi?</b>\n\n"
@@ -247,7 +273,7 @@ async def time_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("⚠️ Kelajakdagi vaqtni kiriting:")
             return GET_TIME
     except Exception:
-        await update.message.reply_text("⚠️ Format xato! Masalan: <code>2026-08-28 18:00</code> shaklida yuboring.", parse_mode="HTML")
+        await update.message.reply_text("⚠️ Format xato! Masalan: <code>2026-08-30 18:00</code> shaklida yuboring.", parse_mode="HTML")
         return GET_TIME
         
     await _save_and_finish(update, context, post_time, recurrence_type='none')
