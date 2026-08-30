@@ -5,7 +5,8 @@ from aiohttp import web
 logger = logging.getLogger(__name__)
 
 async def health_check_handler(request):
-    return web.Response(text="OK - PostAssist Bot is running!", status=200)
+    # Render/UptimeRobot uchun yengil, tashqi servisga bog'liq bo'lmagan health-check.
+    return web.json_response({"status": "ok", "service": "PostAssist Bot"}, status=200)
 
 async def start_web_server():
     app = web.Application()

@@ -40,7 +40,7 @@ async def main():
     )
 
     register_all_handlers(application)
-    await start_web_server()
+    web_runner = await start_web_server()
 
     scheduler = AsyncIOScheduler()
     scheduler.add_job(check_and_send_posts, 'interval', minutes=1, args=[application.bot], id="check_and_send_posts")
@@ -64,6 +64,7 @@ async def main():
         await application.updater.stop()
         await application.stop()
         await application.shutdown()
+        await web_runner.cleanup()
 
 if __name__ == "__main__":
     try:

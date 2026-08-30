@@ -249,7 +249,7 @@ async def user_invite_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     is_admin = (user.id == ADMIN_ID)
     bot_obj = await context.bot.get_me()
     stats = db.get_referral_stats(user.id)
-    ref_link = f"[https://t.me/](https://t.me/){bot_obj.username}?start=ref_{user.id}"
+    ref_link = f"https://t.me/{bot_obj.username}?start=ref_{user.id}"
     
     credits_text = "♾ Cheksiz (Super Admin)" if is_admin else f"<b>{stats['ai_credits']} ta</b>"
     

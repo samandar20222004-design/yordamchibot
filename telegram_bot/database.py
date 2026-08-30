@@ -107,6 +107,17 @@ def init_db():
                 UNIQUE(post_id, user_id)
             );
         """)
+        # Har bir recurring yuborishni alohida saqlaymiz: eski xabarlar ham o'chadi.
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS sent_post_messages (
+                id SERIAL PRIMARY KEY,
+                post_id INTEGER NOT NULL,
+                channel_id VARCHAR(255) NOT NULL,
+                message_id BIGINT NOT NULL,
+                delete_at TIMESTAMP WITH TIME ZONE,
+                deleted_at TIMESTAMP WITH TIME ZONE
+            );
+        """)
 
         migrations = [
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS full_name VARCHAR(255);",
@@ -129,13 +140,28 @@ def init_db():
             "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS recurrence_time TIME;",
             "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS end_date TIMESTAMP WITH TIME ZONE;",
             "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;",
+            "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS processing_started_at TIMESTAMP WITH TIME ZONE;",
         ]
-        for m in migrations:
+        for index, migration in enumerate(migrations):
+            # Bitta migration xatosi qolgan migrationlarni transaction aborted
+            # holatiga tushirib qo'ymasligi uchun har birini savepoint bilan bajarish.
+            savepoint = f"migration_{index}"
             try:
-                cur.execute(m)
+                cur.execute(f"SAVEPOINT {savepoint}")
+                cur.execute(migration)
+                cur.execute(f"RELEASE SAVEPOINT {savepoint}")
             except Exception as e:
+                cur.execute(f"ROLLBACK TO SAVEPOINT {savepoint}")
+                cur.execute(f"RELEASE SAVEPOINT {savepoint}")
                 logger.warning(f"Migratsiya eslatmasi: {e}")
 
+        # Server crash paytida processing holatida qolgan postlarni qayta navbatga qaytaramiz.
+        cur.execute("""
+            UPDATE scheduled_posts
+            SET status = 'pending', processing_started_at = NULL
+            WHERE status = 'processing'
+              AND processing_started_at < NOW() - INTERVAL '10 minutes'
+        """)
         cur.execute("CREATE INDEX IF NOT EXISTS idx_scheduled_posts_status_time ON scheduled_posts (status, scheduled_time);")
     logger.info("Baza jadvallari tayyor.")
 
@@ -357,6 +383,15 @@ def consume_ad_free_post(user_id: int) -> bool:
         logger.error(f"Litsenziya sarflash xatosi: {e}")
         return False
 
+def add_user_credit(user_id: int, amount: int = 1) -> bool:
+    try:
+        with db_cursor(commit=True) as cur:
+            cur.execute("UPDATE users SET ai_credits = ai_credits + %s WHERE user_id = %s", (amount, user_id))
+            return cur.rowcount > 0
+    except Exception as e:
+        logger.error(f"Ball qaytarish xatosi: {e}")
+        return False
+
 def get_user_credits(user_id: int) -> int:
     try:
         with db_cursor() as cur:
@@ -368,14 +403,15 @@ def get_user_credits(user_id: int) -> int:
         return 0
 
 def use_user_credit(user_id: int) -> bool:
+    """Atomically spend one credit; prevents double-spending on concurrent updates."""
     try:
         with db_cursor(commit=True) as cur:
-            cur.execute("SELECT ai_credits FROM users WHERE user_id = %s", (user_id,))
-            row = cur.fetchone()
-            if row and row[0] > 0:
-                cur.execute("UPDATE users SET ai_credits = ai_credits - 1 WHERE user_id = %s", (user_id,))
-                return True
-            return False
+            cur.execute(
+                "UPDATE users SET ai_credits = ai_credits - 1 "
+                "WHERE user_id = %s AND ai_credits > 0 RETURNING user_id",
+                (user_id,),
+            )
+            return cur.fetchone() is not None
     except Exception as e:
         logger.error(f"Ball ayirish xatosi: {e}")
         return False
@@ -576,13 +612,18 @@ def get_post_by_id(post_id: int):
         logger.error(f"Post olish xatosi: {e}")
         return None
 
-def update_post_time(post_id: int, new_time, recurrence_time=None) -> bool:
+def update_post_time(post_id: int, new_time, recurrence_time=None, user_id: int = None, is_admin: bool = False) -> bool:
     try:
         with db_cursor(commit=True) as cur:
+            owner_clause = "" if is_admin else " AND user_id = %s"
+            params = [new_time]
             if recurrence_time:
-                cur.execute("UPDATE scheduled_posts SET scheduled_time = %s, recurrence_time = %s WHERE id = %s", (new_time, recurrence_time, post_id))
+                query = "UPDATE scheduled_posts SET scheduled_time = %s, recurrence_time = %s WHERE id = %s"; params = [new_time, recurrence_time, post_id]
             else:
-                cur.execute("UPDATE scheduled_posts SET scheduled_time = %s WHERE id = %s", (new_time, post_id))
+                query = "UPDATE scheduled_posts SET scheduled_time = %s WHERE id = %s"; params = [new_time, post_id]
+            query += owner_clause
+            if not is_admin: params.append(user_id)
+            cur.execute(query, tuple(params))
             return cur.rowcount > 0
     except Exception as e:
         logger.error(f"Post vaqtini yangilash xatosi: {e}")
@@ -601,14 +642,24 @@ def cancel_post(post_id: int, user_id: int, is_admin: bool = False) -> bool:
         return False
 
 def get_due_posts(now) -> list:
+    """Atomically claim due posts so concurrent scheduler runs cannot duplicate them."""
     try:
-        with db_cursor() as cur:
+        with db_cursor(commit=True) as cur:
             cur.execute("""
-                SELECT id, user_id, channel_id, post_type, content, file_id,
-                       inline_button_text, inline_button_url, enable_reactions, scheduled_time,
-                       recurrence_type, recurrence_day, recurrence_time, end_date, delete_after_hours
-                FROM scheduled_posts
-                WHERE status = 'pending' AND scheduled_time <= %s
+                WITH due AS (
+                    SELECT id FROM scheduled_posts
+                    WHERE status = 'pending' AND scheduled_time <= %s
+                    ORDER BY scheduled_time
+                    FOR UPDATE SKIP LOCKED
+                )
+                UPDATE scheduled_posts sp
+                SET status = 'processing', processing_started_at = NOW()
+                FROM due
+                WHERE sp.id = due.id
+                RETURNING sp.id, sp.user_id, sp.channel_id, sp.post_type, sp.content, sp.file_id,
+                          sp.inline_button_text, sp.inline_button_url, sp.enable_reactions,
+                          sp.scheduled_time, sp.recurrence_type, sp.recurrence_day,
+                          sp.recurrence_time, sp.end_date, sp.delete_after_hours
             """, (now,))
             return cur.fetchall()
     except Exception as e:
@@ -622,10 +673,15 @@ def mark_post_status(post_id: int, status: str):
     except Exception as e:
         logger.error(f"Post status xatosi: {e}")
 
-def mark_post_as_sent(post_id: int, sent_message_id: int):
+def mark_post_as_sent(post_id: int, sent_message_id: int, channel_id: str = None, delete_after_hours: int = 0):
     try:
         with db_cursor(commit=True) as cur:
             cur.execute("UPDATE scheduled_posts SET status = 'posted', sent_message_id = %s WHERE id = %s", (sent_message_id, post_id))
+            if channel_id is not None:
+                cur.execute("""
+                    INSERT INTO sent_post_messages (post_id, channel_id, message_id, delete_at)
+                    VALUES (%s, %s, %s, CASE WHEN %s > 0 THEN NOW() + (%s || ' hours')::INTERVAL ELSE NULL END)
+                """, (post_id, str(channel_id), sent_message_id, delete_after_hours, delete_after_hours))
     except Exception as e:
         logger.error(f"Post yuborilganini belgilash xatosi: {e}")
 
@@ -633,22 +689,19 @@ def get_posts_to_delete(now) -> list:
     try:
         with db_cursor() as cur:
             cur.execute("""
-                SELECT id, channel_id, sent_message_id 
-                FROM scheduled_posts 
-                WHERE status = 'posted' 
-                  AND delete_after_hours > 0 
-                  AND sent_message_id IS NOT NULL 
-                  AND (scheduled_time + (delete_after_hours || ' hours')::INTERVAL) <= %s
+                SELECT id, channel_id, message_id
+                FROM sent_post_messages
+                WHERE deleted_at IS NULL AND delete_at IS NOT NULL AND delete_at <= %s
             """, (now,))
             return cur.fetchall()
     except Exception as e:
         logger.error(f"O'chiriladigan postlar xatosi: {e}")
         return []
 
-def mark_post_as_deleted(post_id: int):
+def mark_post_as_deleted(message_row_id: int):
     try:
         with db_cursor(commit=True) as cur:
-            cur.execute("UPDATE scheduled_posts SET status = 'deleted' WHERE id = %s", (post_id,))
+            cur.execute("UPDATE sent_post_messages SET deleted_at = NOW() WHERE id = %s", (message_row_id,))
     except Exception as e:
         logger.error(f"Post o'chirish xatosi: {e}")
 

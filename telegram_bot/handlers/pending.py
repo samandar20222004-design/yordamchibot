@@ -71,6 +71,9 @@ async def edit_post_time_received(update: Update, context: ContextTypes.DEFAULT_
     text = update.message.text.strip()
     post_id = context.user_data.get("editing_post_id")
     post = db.get_post_by_id(post_id)
+    if post and post[1] != query.from_user.id:
+        await query.answer("❌ Bu post sizga tegishli emas.", show_alert=True)
+        return ConversationHandler.END
     
     if not post:
         await update.message.reply_text("❌ Post topilmadi.", reply_markup=get_main_keyboard())
@@ -83,14 +86,14 @@ async def edit_post_time_received(update: Update, context: ContextTypes.DEFAULT_
             new_run = now.replace(hour=hh, minute=mm, second=0, microsecond=0)
             if new_run <= now:
                 new_run += timedelta(days=1)
-            db.update_post_time(post_id, new_run, f"{hh:02d}:{mm:02d}:00")
+            db.update_post_time(post_id, new_run, f"{hh:02d}:{mm:02d}:00", user_id=update.effective_user.id)
         else:
             naive_time = datetime.strptime(text, "%Y-%m-%d %H:%M")
             new_time = tashkent_tz.localize(naive_time)
             if new_time <= now:
                 await update.message.reply_text("⚠️ Kelajakdagi vaqtni kiriting:")
                 return EDIT_POST_TIME
-            db.update_post_time(post_id, new_time)
+            db.update_post_time(post_id, new_time, user_id=update.effective_user.id)
             
         await update.message.reply_text("✅ <b>Post vaqti muvaffaqiyatli yangilandi!</b>", reply_markup=get_main_keyboard(), parse_mode="HTML")
         context.user_data.clear()

@@ -12,10 +12,10 @@ telegram_bot/
 ├── database.py          # SQLite baza bilan ishlash
 ├── scheduler.py         # Vaqt bo'yicha jo'natish logikasi
 ├── handlers/
-│   ├── start.py         # /start, /yordam
-│   ├── new_post.py      # /yangi — yangi xabar qo'shish
-│   ├── list_posts.py    # /royxat — ro'yxatni ko'rish
-│   └── delete_post.py   # /ochir — xabarni o'chirish
+│   ├── start.py         # /start, /help, profil va bonuslar
+│   ├── new_post.py      # /newpost — yangi xabar qo'shish
+│   ├── pending.py       # Kutilayotgan postlar va bekor qilish
+│   └── channels.py      # Kanal/guruh ulash
 ├── requirements.txt
 └── .env.example
 ```
@@ -85,11 +85,11 @@ yozuvni ko'rasiz. Endi Telegram'da botingizga `/start` yozing.
 | Buyruq | Vazifasi |
 |---|---|
 | `/start` | Botni tanishtirish |
-| `/yangi` | Yangi rejalashtirilgan xabar qo'shish |
-| `/royxat` | Barcha rejalashtirilgan xabarlarni ko'rish |
-| `/ochir <ID>` | Xabarni o'chirish (ID `/royxat` da ko'rinadi) |
-| `/bekor` | Joriy amalni bekor qilish |
-| `/yordam` | Yordam matni |
+| `/newpost` | Yangi rejalashtirilgan xabar qo'shish |
+| `/profile` | Kabinet va sozlamalar |
+| `/help` | Yordam matni |
+| `/cancel` | Joriy amalni bekor qilish |
+| `/admin` | Admin paneli (faqat admin) |
 
 `/yangi` bosilganda bot ketma-ket so'raydi: xabar (matn, YOKI rasm/video/fayl
 — xohlasangiz izoh bilan) → bir marta yoki har kuni → sana/vaqt yoki muddat
@@ -104,6 +104,14 @@ saqlaydi — bu bir necha o'nlab belgidan iborat matn, xolos. Fayl o'zi
 Telegram serverlarida qoladi. Shuning uchun 10MB rasm ham, 100MB video ham
 bazangizni og'irlashtirmaydi, va jo'natish vaqti kelganda bot shu ishora
 orqali qayta jo'natadi — hech qanday hajm cheklovisiz.
+
+## Render va UptimeRobot sozlamalari
+
+Render'da **Root Directory** ni `telegram_bot`, Build Command'ni `pip install -r requirements.txt`, Start Command'ni `python main.py` qilib qo'ying. Environment Variables ichida `BOT_TOKEN`, `ADMIN_ID` va Render PostgreSQL bergan `DATABASE_URL` bo'lishi kerak. `PORT` ni qo'lda berish shart emas: kod Render bergan portni o'zi oladi.
+
+UptimeRobot monitor turi **HTTP(s)** bo'lsin va URL quyidagicha berilsin:
+`https://sizning-render-service.onrender.com/health`
+Health endpoint `200` va JSON qaytaradi. UptimeRobot bot polling'ini emas, Render web-service'ni uyg'oq saqlaydi.
 
 ## Bot "doim ishlashi" uchun
 
