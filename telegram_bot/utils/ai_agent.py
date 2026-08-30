@@ -6,7 +6,10 @@ import time as _time
 from datetime import datetime
 import pytz
 import aiohttp
-from config import GEMINI_API_KEY, GROQ_API_KEY, OPENROUTER_API_KEY
+from config import (
+    GEMINI_API_KEY, GROQ_API_KEY, OPENROUTER_API_KEY,
+    MISTRAL_API_KEY, CEREBRAS_API_KEY,
+)
 
 logger = logging.getLogger(__name__)
 tashkent_tz = pytz.timezone("Asia/Tashkent")
@@ -14,6 +17,8 @@ tashkent_tz = pytz.timezone("Asia/Tashkent")
 GROQ_ENDPOINT = os.getenv("GROQ_ENDPOINT", "https://api.groq.com/openai/v1/chat/completions")
 GEMINI_BASE = os.getenv("GEMINI_BASE", "https://generativelanguage.googleapis.com/v1beta/models")
 OPENROUTER_ENDPOINT = os.getenv("OPENROUTER_ENDPOINT", "https://openrouter.ai/api/v1/chat/completions")
+MISTRAL_ENDPOINT = os.getenv("MISTRAL_ENDPOINT", "https://api.mistral.ai/v1/chat/completions")
+CEREBRAS_ENDPOINT = os.getenv("CEREBRAS_ENDPOINT", "https://api.cerebras.ai/v1/chat/completions")
 # Kalitsiz bepul zaxira (Pollinations) — oxirgi chora sifatida
 POLLINATIONS_ENDPOINT = os.getenv("POLLINATIONS_ENDPOINT", "https://text.pollinations.ai/openai")
 
@@ -24,6 +29,13 @@ OPENROUTER_MODELS_ENDPOINT = os.getenv("OPENROUTER_MODELS_ENDPOINT", "https://op
 
 REQUEST_TIMEOUT = 30
 MAX_429_RETRIES = 2
+# Foydalanuvchi promptining maksimal uzunligi (token byudjetini himoya qiladi)
+MAX_PROMPT_CHARS = 3000
+# Bir vaqtda ko'pi bilan 2 ta AI so'rovi ishlaydi (bepul RPM limitlarini himoya qiladi)
+MAX_CONCURRENT_AI = max(1, int(os.getenv("MAX_CONCURRENT_AI", "2")))
+# Provayder 3 marta ketma-ket xato bersa — shuncha daqiqaga o'tkazib yuboriladi
+BREAKER_THRESHOLD = 3
+BREAKER_COOLDOWN = 600  # 10 daqiqa
 
 # Modellarni runtime'da aniqlash (yoqilgan bo'lsa). Provayderlar modellarni
 # tez-tez almashtiradi (decommission), shuning uchun qo'lda yozilgan ro'yxat
@@ -53,11 +65,23 @@ OPENROUTER_PREFERRED = [
     "qwen/qwen-2.5-7b-instruct:free",
     "google/gemma-2-9b-it:free",
 ]
+MISTRAL_PREFERRED = [
+    "mistral-small-latest",
+    "open-mistral-nemo",
+    "ministral-8b-latest",
+]
+CEREBRAS_PREFERRED = [
+    "gpt-oss-120b",
+    "llama3.1-8b",
+    "llama-3.3-70b",
+]
 
-# Discovery ishlagan taqdirda ishlatiladigan zaxira ro'yxatlar
+# Discovery ishlamasa ishlatiladigan zaxira ro'yxatlar
 GEMINI_MODELS = list(GEMINI_PREFERRED)
 GROQ_MODELS = list(GROQ_PREFERRED)
 OPENROUTER_MODELS = list(OPENROUTER_PREFERRED)
+MISTRAL_MODELS = list(MISTRAL_PREFERRED)
+CEREBRAS_MODELS = list(CEREBRAS_PREFERRED)
 
 # Bitta umumiy aiohttp sessiya — har so'rovda yangi sessiya ochish o'rniga
 # qayta ishlatiladi (TCP ulanishlar soni va xotira kamayadi).
@@ -66,6 +90,12 @@ _session_lock = asyncio.Lock()
 
 # Discovery natijalari keshida: key -> (timestamp, [model_id, ...])
 _model_cache: dict = {}
+
+# Circuit breaker: provider_name -> {"fails": int, "until": float}
+_BREAKERS: dict = {}
+
+# Bir vaqtda 2 tadan ortiq AI so'rovi ishlamasligi uchun semafor
+_AI_SEMAPHORE = asyncio.Semaphore(MAX_CONCURRENT_AI)
 
 
 async def _get_session() -> aiohttp.ClientSession:
@@ -84,6 +114,36 @@ async def close_ai_session():
     if _session is not None and not _session.closed:
         await _session.close()
     _session = None
+
+
+# ---------------- Circuit breaker ----------------
+
+def _breaker_open(name: str) -> bool:
+    entry = _BREAKERS.get(name)
+    # until=0 → cooldown yo'q (ochiq emas); faqat kelajakdagi vaqt bo'lsa ochiq
+    return bool(entry and entry.get("until") and _time.time() < entry["until"])
+
+
+def _breaker_fail(name: str):
+    now = _time.time()
+    entry = _BREAKERS.get(name)
+    if entry is None:
+        _BREAKERS[name] = {"fails": 1, "until": 0}
+        return
+    if entry.get("until") and now > entry["until"]:
+        # Cooldown tugagan — qaytadan hisoblashni boshlaymiz
+        _BREAKERS[name] = {"fails": 1, "until": 0}
+        return
+    entry["fails"] = entry.get("fails", 0) + 1
+    if entry["fails"] >= BREAKER_THRESHOLD:
+        entry["until"] = now + BREAKER_COOLDOWN
+        entry["fails"] = 0
+        logger.warning("Provayder %s %ds ga o'tkazib yuborildi (3 marta ketma-ket xato)",
+                       name, BREAKER_COOLDOWN)
+
+
+def _breaker_success(name: str):
+    _BREAKERS.pop(name, None)
 
 
 # ---------------- Model discovery ----------------
@@ -431,11 +491,82 @@ async def _call_openrouter(prompt: str, api_key: str, system_instruction: str) -
     raise RuntimeError(last_err or "OpenRouter noma'lum xato")
 
 
-async def _call_pollinations(prompt: str, system_instruction: str) -> dict:
-    """Kalitsiz bepul zaxira (Pollinations) — oxirgi chora.
+async def _call_mistral(prompt: str, api_key: str, system_instruction: str) -> dict:
+    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+    last_err = ""
 
-    Agar bu ham ishlamasa, faqat log yoziladi va xato hisobotga qo'shiladi.
-    """
+    for model in MISTRAL_MODELS:
+        payload = {
+            "model": model,
+            "messages": [
+                {"role": "system", "content": system_instruction},
+                {"role": "user", "content": f"{prompt}\n\nJavobni FAQAT JSON formatida qaytaring."},
+            ],
+            "temperature": 0.2,
+            "safe_prompt": False,
+        }
+        try:
+            result = await _post_chat_completion(MISTRAL_ENDPOINT, headers, payload)
+            return _extract_json(result["content"])
+        except ProviderError as e:
+            msg = (e.message or "").lower()
+            if e.status == 400 and any(k in msg for k in (
+                "decommissioned", "does not exist", "not found", "deprecated",
+            )):
+                last_err = f"Mistral ({model}): {e.message}"
+                continue
+            if e.status == 400 and "safe_prompt" in msg:
+                # safe_prompt parametri qo'llab-quvvatlanmasa — unsiz qayta urinamiz
+                try:
+                    payload_no_safe = {k: v for k, v in payload.items() if k != "safe_prompt"}
+                    result = await _post_chat_completion(MISTRAL_ENDPOINT, headers, payload_no_safe)
+                    return _extract_json(result["content"])
+                except Exception as e2:
+                    last_err = f"Mistral ({model}): {e2}"
+                    continue
+            last_err = f"Mistral ({model}): {e.message}"
+            continue
+        except Exception as e:
+            last_err = f"Mistral ({model}): {e}"
+            continue
+
+    raise RuntimeError(last_err or "Mistral noma'lum xato")
+
+
+async def _call_cerebras(prompt: str, api_key: str, system_instruction: str) -> dict:
+    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+    last_err = ""
+
+    for model in CEREBRAS_MODELS:
+        payload = {
+            "model": model,
+            "messages": [
+                {"role": "system", "content": system_instruction},
+                {"role": "user", "content": f"{prompt}\n\nJavobni FAQAT JSON formatida qaytaring."},
+            ],
+            "temperature": 0.2,
+        }
+        try:
+            result = await _post_chat_completion(CEREBRAS_ENDPOINT, headers, payload)
+            return _extract_json(result["content"])
+        except ProviderError as e:
+            msg = (e.message or "").lower()
+            if e.status == 400 and any(k in msg for k in (
+                "decommissioned", "does not exist", "not found", "deprecated", "no such model",
+            )):
+                last_err = f"Cerebras ({model}): {e.message}"
+                continue
+            last_err = f"Cerebras ({model}): {e.message}"
+            continue
+        except Exception as e:
+            last_err = f"Cerebras ({model}): {e}"
+            continue
+
+    raise RuntimeError(last_err or "Cerebras noma'lum xato")
+
+
+async def _call_pollinations(prompt: str, system_instruction: str) -> dict:
+    """Kalitsiz bepul zaxira (Pollinations) — oxirgi chora."""
     payload = {
         "model": "openai",
         "messages": [
@@ -453,70 +584,140 @@ def _clean_key(value: str) -> str:
 
 
 async def analyze_user_prompt(prompt: str, user_id: int = 0) -> dict:
+    """6 ta provayderni navbat bilan sinaydi: Gemini → Groq → OpenRouter →
+    Mistral → Cerebras → Pollinations (kalitsiz).
+
+    - Har bir provayder 3 marta ketma-ket xato bersa, 10 daqiqaga o'tkazib
+      yuboriladi (circuit breaker) — o'lik provayderga vaqt sarflanmaydi.
+    - Bir vaqtda ko'pi bilan MAX_CONCURRENT_AI (2) ta so'rov ishlaydi.
+    - Prompt MAX_PROMPT_CHARS (3000) belgidan oshsa kesiladi.
+    """
+    # Prompt uzunligini cheklash (bepul token byudjetini himoya qilish)
+    prompt = (prompt or "").strip()
+    if len(prompt) > MAX_PROMPT_CHARS:
+        prompt = prompt[:MAX_PROMPT_CHARS] + "\n…(matn juda uzun edi, kesildi)"
+
     gemini_key = _clean_key(GEMINI_API_KEY)
     groq_key = _clean_key(GROQ_API_KEY)
     openrouter_key = _clean_key(OPENROUTER_API_KEY)
+    mistral_key = _clean_key(MISTRAL_API_KEY)
+    cerebras_key = _clean_key(CEREBRAS_API_KEY)
 
     system_instruction = _get_system_instruction()
     errors = []
 
-    # 1. Gemini (bepul, eng keng limitlar)
-    if gemini_key:
-        try:
-            result = await _call_gemini(prompt, gemini_key, system_instruction)
-            if isinstance(result, dict) and "post_text" in result:
-                return result
-            errors.append("Gemini: javob formati noto'g'ri")
-        except Exception as e:
-            errors.append(f"Gemini: {e}")
-            logger.warning("Gemini ishlamadi (%s). Keyingi zaxiraga o'tilmoqda...", e)
-    else:
-        errors.append("Gemini: kalit topilmadi")
+    async with _AI_SEMAPHORE:
+        # 1. Gemini (bepul, eng keng limitlar)
+        if _breaker_open("Gemini"):
+            errors.append("Gemini: vaqtincha o'tkazib yuborildi")
+        elif gemini_key:
+            try:
+                result = await _call_gemini(prompt, gemini_key, system_instruction)
+                if isinstance(result, dict) and "post_text" in result:
+                    _breaker_success("Gemini")
+                    return result
+                errors.append("Gemini: javob formati noto'g'ri")
+            except Exception as e:
+                errors.append(f"Gemini: {e}")
+                _breaker_fail("Gemini")
+                logger.warning("Gemini ishlamadi (%s). Keyingi zaxiraga o'tilmoqda...", e)
+        else:
+            errors.append("Gemini: kalit topilmadi")
 
-    # 2. Groq (bepul, tez)
-    if groq_key:
-        try:
-            result = await _call_groq(prompt, groq_key, system_instruction)
-            if isinstance(result, dict) and "post_text" in result:
-                return result
-            errors.append("Groq: javob formati noto'g'ri")
-        except Exception as e:
-            errors.append(f"Groq: {e}")
-            logger.warning("Groq ishlamadi (%s). Keyingi zaxiraga o'tilmoqda...", e)
-    else:
-        errors.append("Groq: kalit topilmadi")
+        # 2. Groq (bepul, tez)
+        if _breaker_open("Groq"):
+            errors.append("Groq: vaqtincha o'tkazib yuborildi")
+        elif groq_key:
+            try:
+                result = await _call_groq(prompt, groq_key, system_instruction)
+                if isinstance(result, dict) and "post_text" in result:
+                    _breaker_success("Groq")
+                    return result
+                errors.append("Groq: javob formati noto'g'ri")
+            except Exception as e:
+                errors.append(f"Groq: {e}")
+                _breaker_fail("Groq")
+                logger.warning("Groq ishlamadi (%s). Keyingi zaxiraga o'tilmoqda...", e)
+        else:
+            errors.append("Groq: kalit topilmadi")
 
-    # 3. OpenRouter (ixtiyoriy, :free modellar)
-    if openrouter_key:
-        try:
-            result = await _call_openrouter(prompt, openrouter_key, system_instruction)
-            if isinstance(result, dict) and "post_text" in result:
-                return result
-            errors.append("OpenRouter: javob formati noto'g'ri")
-        except Exception as e:
-            errors.append(f"OpenRouter: {e}")
-            logger.warning("OpenRouter ishlamadi (%s). Keyingi zaxiraga o'tilmoqda...", e)
-    else:
-        errors.append("OpenRouter: kalit topilmadi (ixtiyoriy)")
+        # 3. OpenRouter (ixtiyoriy, :free modellar)
+        if _breaker_open("OpenRouter"):
+            errors.append("OpenRouter: vaqtincha o'tkazib yuborildi")
+        elif openrouter_key:
+            try:
+                result = await _call_openrouter(prompt, openrouter_key, system_instruction)
+                if isinstance(result, dict) and "post_text" in result:
+                    _breaker_success("OpenRouter")
+                    return result
+                errors.append("OpenRouter: javob formati noto'g'ri")
+            except Exception as e:
+                errors.append(f"OpenRouter: {e}")
+                _breaker_fail("OpenRouter")
+                logger.warning("OpenRouter ishlamadi (%s). Keyingi zaxiraga o'tilmoqda...", e)
+        else:
+            errors.append("OpenRouter: kalit topilmadi (ixtiyoriy)")
 
-    # 4. Kalitsiz bepul zaxira — Pollinations (oxirgi chora)
-    try:
-        result = await _call_pollinations(prompt, system_instruction)
-        if isinstance(result, dict) and "post_text" in result:
-            return result
-        errors.append("Pollinations: javob formati noto'g'ri")
-    except Exception as e:
-        errors.append(f"Pollinations: {e}")
-        logger.warning("Pollinations ishlamadi (%s)", e)
+        # 4. Mistral (bepul, ~1B token/oy)
+        if _breaker_open("Mistral"):
+            errors.append("Mistral: vaqtincha o'tkazib yuborildi")
+        elif mistral_key:
+            try:
+                result = await _call_mistral(prompt, mistral_key, system_instruction)
+                if isinstance(result, dict) and "post_text" in result:
+                    _breaker_success("Mistral")
+                    return result
+                errors.append("Mistral: javob formati noto'g'ri")
+            except Exception as e:
+                errors.append(f"Mistral: {e}")
+                _breaker_fail("Mistral")
+                logger.warning("Mistral ishlamadi (%s). Keyingi zaxiraga o'tilmoqda...", e)
+        else:
+            errors.append("Mistral: kalit topilmadi (ixtiyoriy)")
+
+        # 5. Cerebras (bepul, kuniga 1M token)
+        if _breaker_open("Cerebras"):
+            errors.append("Cerebras: vaqtincha o'tkazib yuborildi")
+        elif cerebras_key:
+            try:
+                result = await _call_cerebras(prompt, cerebras_key, system_instruction)
+                if isinstance(result, dict) and "post_text" in result:
+                    _breaker_success("Cerebras")
+                    return result
+                errors.append("Cerebras: javob formati noto'g'ri")
+            except Exception as e:
+                errors.append(f"Cerebras: {e}")
+                _breaker_fail("Cerebras")
+                logger.warning("Cerebras ishlamadi (%s). Keyingi zaxiraga o'tilmoqda...", e)
+        else:
+            errors.append("Cerebras: kalit topilmadi (ixtiyoriy)")
+
+        # 6. Kalitsiz bepul zaxira — Pollinations (oxirgi chora)
+        if _breaker_open("Pollinations"):
+            errors.append("Pollinations: vaqtincha o'tkazib yuborildi")
+        else:
+            try:
+                result = await _call_pollinations(prompt, system_instruction)
+                if isinstance(result, dict) and "post_text" in result:
+                    _breaker_success("Pollinations")
+                    return result
+                errors.append("Pollinations: javob formati noto'g'ri")
+            except Exception as e:
+                errors.append(f"Pollinations: {e}")
+                _breaker_fail("Pollinations")
+                logger.warning("Pollinations ishlamadi (%s)", e)
 
     detail = "\n".join(f"• {e}" for e in errors if e)
     return {
         "error": (
             "⚠️ AI xizmatlarining hech biri javob bermadi:\n"
             f"{detail}\n\n"
-            "💡 <b>Bepul kalit olish:</b>\n"
-            "• Gemini: aistudio.google.com → API key (kuniga 1500 so'rov bepul)\n"
-            "• Groq: console.groq.com → API key (kuniga 1000 so'rov bepul)\n"
-            "Kalitni Render → Environment → GEMINI_API_KEY / GROQ_API_KEY ga qo'shing."
+            "💡 <b>Bepul kalit olish (kamida bittasi kifoya):</b>\n"
+            "• Gemini → GEMINI_API_KEY: aistudio.google.com (kuniga 1500 so'rov)\n"
+            "• Groq → GROQ_API_KEY: console.groq.com (kuniga 1000 so'rov)\n"
+            "• Mistral → MISTRAL_API_KEY: console.mistral.ai (oyiga ~1 mlrd token)\n"
+            "• Cerebras → CEREBRAS_API_KEY: cloud.cerebras.ai (kuniga 1M token)\n"
+            "• OpenRouter → OPENROUTER_API_KEY: openrouter.ai (:free modellar)\n"
+            "Kalitlarni Render → Environment bo'limiga qo'shing va botni qayta ishga tushiring."
         )
     }

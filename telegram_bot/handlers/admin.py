@@ -25,6 +25,9 @@ SET_BOT_REPLY_AD = 804
 BROADCAST_BATCH_SIZE = 20
 BROADCAST_BATCH_DELAY = 0.7
 
+# Bir vaqtda faqat bitta broadcast ishlashi uchun qulf
+_broadcast_lock = asyncio.Lock()
+
 def is_admin(user_id: int) -> bool:
     return user_id == ADMIN_ID
 
@@ -216,6 +219,15 @@ async def broadcast_send(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id):
         return ConversationHandler.END
 
+    # Avvalgi broadcast hali davom etayotgan bo'lsa — takroriy ishga tushirmaymiz
+    if _broadcast_lock.locked():
+        await update.message.reply_text(
+            "⏳ <b>Avvalgi xabar yuborilishi hali davom etmoqda.</b>\n"
+            "Iltimos, yakunlanishini kuting (natija haqida xabar keladi).",
+            parse_mode="HTML"
+        )
+        return ConversationHandler.END
+
     text = update.message.text
     # DB chaqiruvini event loop'ni bloklamasdan thread'da bajarish
     user_ids = await asyncio.to_thread(db.get_all_user_ids)
@@ -228,9 +240,11 @@ async def broadcast_send(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Broadcast fon vazifasi sifatida ishlaydi — admin boshqa buyruqlarni
     # bemalol ishlatishi mumkin, Telegram esa rate-limitga tushmaydi.
-    asyncio.create_task(
-        _run_broadcast(context.bot, user_ids, text, update.effective_user.id)
-    )
+    async def _broadcast_task():
+        async with _broadcast_lock:
+            await _run_broadcast(context.bot, user_ids, text, update.effective_user.id)
+
+    asyncio.create_task(_broadcast_task())
     return ConversationHandler.END
 
 

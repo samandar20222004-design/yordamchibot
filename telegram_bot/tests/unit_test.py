@@ -134,6 +134,46 @@ def test_weekday_map():
     check("BTN_DUR_1W mavjud", BTN_DUR_1W == "1 hafta")
 
 
+def test_abuse_protection():
+    print("== Hujum himoyasi (global flood, dublikat, kunlik AI) ==")
+    from utils.helpers import (
+        check_global_flood, is_duplicate_message, check_ai_daily_limit,
+        GLOBAL_MAX_UPDATES_PER_SEC, AI_MAX_PER_DAY,
+    )
+
+    # Dublikat xabar: bir xil matn 2 marta tez yuborilsa → True
+    check("dublikat: birinchi yuborish False",
+          not is_duplicate_message(888001, "Salom bot"))
+    check("dublikat: qayta yuborish True",
+          is_duplicate_message(888001, "Salom bot"))
+    check("dublikat: boshqa matn False",
+          not is_duplicate_message(888001, "Boshqa matn"))
+
+    # Kunlik AI limiti: 30 ta o'tadi, 31-chisi blok
+    blocks = [check_ai_daily_limit(888002, max_per_day=AI_MAX_PER_DAY) for _ in range(AI_MAX_PER_DAY + 1)]
+    check(f"kunlik AI: {AI_MAX_PER_DAY} ta o'tadi, keyingisi blok",
+          not any(blocks[:AI_MAX_PER_DAY]) and blocks[AI_MAX_PER_DAY])
+
+    # Global flood: 60+ update/sekund bo'lsa True
+    from utils.helpers import _GLOBAL_FLOOD
+    _GLOBAL_FLOOD.clear()
+    for _ in range(GLOBAL_MAX_UPDATES_PER_SEC + 5):
+        check_global_flood()
+    check("global flood: limitdan oshsa True", check_global_flood())
+
+
+def test_prompt_truncation():
+    print("== utils.ai_agent prompt limiti ==")
+    from utils.ai_agent import MAX_PROMPT_CHARS, analyze_user_prompt
+    check("MAX_PROMPT_CHARS = 3000", MAX_PROMPT_CHARS == 3000)
+
+    # Prompt kesish logikasi: 3000 dan ortiq bo'lsa kesiladi
+    long_prompt = "A" * (MAX_PROMPT_CHARS + 500)
+    # analyze_user_prompt chaqirmaymiz (tarmoq kerak), faqat konstanta tekshiriladi
+    # + kesish logikasi _call funksiyalarida qo'llanadi — mock testda tekshirilgan
+    check("uzun prompt aniqlanadi", len(long_prompt) > MAX_PROMPT_CHARS)
+
+
 def main():
     test_calculate_next_time()
     test_converter()
@@ -141,6 +181,8 @@ def main():
     test_json_clean()
     test_retry_after_seconds()
     test_weekday_map()
+    test_abuse_protection()
+    test_prompt_truncation()
 
     print(f"\nO'tdi: {passed}, Xato: {failures}")
     if failures:

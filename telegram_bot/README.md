@@ -121,13 +121,21 @@ Health endpoint `200` va JSON qaytaradi. UptimeRobot bot polling'ini emas, Rende
 | `/health/ready` | Bot ishlashga tayyormi — baza bilan aloqa tekshiradi (`200` yoki `503`) |
 | `/health`, `/` | `/health/live` bilan bir xil (eski havolalar ishlashda davom etadi) |
 
-### AI sozlamalari (kamida bitta bepul kalit)
+### AI sozlamalari (kamida bitta bepul kalit; 6 ta provayder navbatma-navbat ishlaydi)
 
-| Kalit | Qayerdan olinadi | Bepul limiti |
-|---|---|---|
-| `GEMINI_API_KEY` | [aistudio.google.com](https://aistudio.google.com) | kuniga ~1500 so'rov |
-| `GROQ_API_KEY` | [console.groq.com](https://console.groq.com) | kuniga ~1000 so'rov |
-| `OPENROUTER_API_KEY` (ixtiyoriy) | [openrouter.ai](https://openrouter.ai) | `:free` modellar |
+| # | Kalit | Qayerdan olinadi | Bepul limiti |
+|---|---|---|---|
+| 1 | `GEMINI_API_KEY` | [aistudio.google.com](https://aistudio.google.com) | kuniga ~1500 so'rov |
+| 2 | `GROQ_API_KEY` | [console.groq.com](https://console.groq.com) | kuniga ~1000 so'rov |
+| 3 | `OPENROUTER_API_KEY` (ixtiyoriy) | [openrouter.ai](https://openrouter.ai) | `:free` modellar |
+| 4 | `MISTRAL_API_KEY` (ixtiyoriy) | [console.mistral.ai](https://console.mistral.ai) | oyiga ~1 mlrd token |
+| 5 | `CEREBRAS_API_KEY` (ixtiyoriy) | [cloud.cerebras.ai](https://cloud.cerebras.ai) | kuniga 1M token |
+| 6 | — (kalit shart emas) | Pollinations | cheklangan |
+
+AI so'rovi ketma-ketlikda sinab ko'riladi: **Gemini → Groq → OpenRouter →
+Mistral → Cerebras → Pollinations**. Birinchisi ishlasa — shu javob qaytadi,
+ishlamasa keyingisiga o'tadi. Har bir provayder 3 marta ketma-ket xato bersa,
+10 daqiqaga vaqtincha o'tkazib yuboriladi (tezroq javob uchun).
 
 > 💡 **Model avto-diskoveri:** Bot ishga tushganda (va har 6 soatda) provayderning
 > jonli model ro'yxatini o'zi oladi va faqat mavjud modellarni ishlatadi. AI
@@ -135,10 +143,16 @@ Health endpoint `200` va JSON qaytaradi. UptimeRobot bot polling'ini emas, Rende
 > `llama-3.1-8b-instant`, `llama-3.3-70b-versatile` va `gemma2-9b-it` yopildi) —
 > avto-diskoveri tufayli bunday holatda ham bot yangi modelga o'zi o'tadi.
 
-Kalit bo'lmasa ham AI bo'limi ishlaydi — oxirgi zaxira sifatida kalitsiz bepul
-Pollinations xizmati ishlatiladi (lekin u barqaror emas, shuning uchun bepul
-kalit qo'yish tavsiya etiladi). Kalitlarni Render → Environment bo'limiga
-qo'shing va botni qayta ishga tushiring.
+Kalitlarni Render → Environment bo'limiga qo'shing va botni qayta ishga tushiring.
+
+### Hujum / ortiqcha yuklama himoyasi
+
+- **Global flood** — butun bot 1 soniyada 60 tadan ortiq xabar olganda avtomatik sekinlashadi.
+- **Foydalanuvchi burst** — bitta foydalanuvchi 2 soniyada 20 tadan ortiq xabar yuborsa, qolganlari tashlab yuboriladi.
+- **Dublikat xabar** — bir xil xabar 1.5 soniya ichida qayta yuborilsa, e'tiborga olinmaydi.
+- **AI limitlar** — daqiqasiga 4 ta, kuniga 30 ta (foydalanuvchi uchun); bir vaqtda 2 tadan ortiq AI so'rovi ishlamaydi.
+- **Broadcast qulfi** — bir vaqtda faqat bitta xabar tarqatilishi mumkin.
+- **Prompt limiti** — AI'ga yuboriladigan matn 3000 belgidan oshsa kesiladi.
 
 ### Render Free uchun optimallashtirish
 

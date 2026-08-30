@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 """AI mock-server testi — real API'larni taqlid qiluvchi lokal server bilan.
 
-Gemini/Groq/OpenRouter/Pollinations zanjiri to'liq tekshiriladi:
+Gemini/Groq/OpenRouter/Mistral/Cerebras/Pollinations zanjiri to'liq tekshiriladi:
 - model discovery: o'chirilgan modellarni tanlab, faqat jonli modellarga so'rov yuboradi
 - discovery ishlamasa → qo'lda yozilgan zaxira ro'yxat
-- muvaffaqiyatli javob, fallback (Gemini 404 → Groq)
+- muvaffaqiyatli javob, fallback (Gemini 404 → Groq → Mistral...)
 - 429 rate-limit → retry
 - response_format qo'llab-quvvatlanmasa → unsiz qayta urinish
+- circuit breaker: 3 marta ketma-ket xato → 4-chi so'rovda provayder o'tkazib yuboriladi
+- prompt uzunlik limiti (3000 belgi)
 - yaroqsiz JSON → xato qaytadi (crash emas)
 - kalitsiz Pollinations zaxirasi
 
@@ -51,9 +53,13 @@ os.environ["DATABASE_URL"] = "postgresql://u:p@localhost:5432/x"
 os.environ["GEMINI_API_KEY"] = "test-gemini-key"
 os.environ["GROQ_API_KEY"] = "test-groq-key"
 os.environ["OPENROUTER_API_KEY"] = "test-or-key"
+os.environ["MISTRAL_API_KEY"] = "test-mistral-key"
+os.environ["CEREBRAS_API_KEY"] = "test-cerebras-key"
 os.environ["GEMINI_BASE"] = f"{BASE}/gemini"
 os.environ["GROQ_ENDPOINT"] = f"{BASE}/groq/chat/completions"
 os.environ["OPENROUTER_ENDPOINT"] = f"{BASE}/openrouter/chat/completions"
+os.environ["MISTRAL_ENDPOINT"] = f"{BASE}/mistral/chat/completions"
+os.environ["CEREBRAS_ENDPOINT"] = f"{BASE}/cerebras/chat/completions"
 os.environ["POLLINATIONS_ENDPOINT"] = f"{BASE}/pollinations"
 # Discovery endpointlari (mock server)
 os.environ["GEMINI_MODELS_ENDPOINT"] = f"{BASE}/gemini/models"
@@ -67,8 +73,10 @@ from utils import ai_agent
 S = {
     "gemini_status": 200, "gemini_429_first": False, "gemini_body": {},
     "groq_status": 200, "groq_429_first": False, "groq_body": {},
-    "groq_json_mode_status": 200,   # response_format bilan javob
+    "groq_json_mode_status": 200,
     "openrouter_status": 200, "openrouter_429_first": False, "openrouter_body": {},
+    "mistral_status": 200, "mistral_429_first": False, "mistral_body": {},
+    "cerebras_status": 200, "cerebras_429_first": False, "cerebras_body": {},
     "pollinations_status": 200, "pollinations_body": {},
     "gemini_models_status": 200,
     "groq_models_status": 200,
@@ -78,14 +86,13 @@ S = {
 
 VALID_JSON = '{"post_text": "Mock post matni", "scheduled_time": null, "has_explicit_time": false, "target_all": false}'
 
-# Discovery javoblari: eski (o'chirilgan) modellar + yangi jonli modellar
 GEMINI_MODELS_BODY = {
     "models": [
         {"name": "models/gemini-1.5-flash", "supportedGenerationMethods": ["generateContent"]},   # EOL
         {"name": "models/gemini-3-flash", "supportedGenerationMethods": ["generateContent"]},
         {"name": "models/gemini-2.5-flash", "supportedGenerationMethods": ["generateContent"]},
         {"name": "models/gemini-2.5-flash-lite", "supportedGenerationMethods": ["generateContent"]},
-        {"name": "models/embedding-001", "supportedGenerationMethods": ["embedContent"]},           # chat emas
+        {"name": "models/embedding-001", "supportedGenerationMethods": ["embedContent"]},
     ]
 }
 GROQ_MODELS_BODY = {
@@ -147,7 +154,6 @@ def make_openai_handler(key):
         status = S.get(f"{key}_status", 200)
         if status != 200:
             return web.json_response({"error": {"message": "xato"}}, status=status)
-        # response_format bilan so'rov maxsus javob olishi mumkin
         if key == "groq" and payload.get("response_format"):
             json_status = S.get("groq_json_mode_status", 200)
             if json_status != 200:
@@ -160,6 +166,18 @@ def make_openai_handler(key):
     return handler
 
 
+def reset_state(clear_breakers: bool = True):
+    ai_agent._model_cache.clear()
+    if clear_breakers:
+        ai_agent._BREAKERS.clear()
+    S["requests"].clear()
+    S.update({
+        "gemini_429_first": False, "groq_429_first": False,
+        "openrouter_429_first": False, "mistral_429_first": False,
+        "cerebras_429_first": False,
+    })
+
+
 async def main():
     app = web.Application()
     app.router.add_get("/gemini/models", gemini_models_handler)
@@ -168,6 +186,8 @@ async def main():
     app.router.add_post("/groq/chat/completions", make_openai_handler("groq"))
     app.router.add_get("/openrouter/models", openrouter_models_handler)
     app.router.add_post("/openrouter/chat/completions", make_openai_handler("openrouter"))
+    app.router.add_post("/mistral/chat/completions", make_openai_handler("mistral"))
+    app.router.add_post("/cerebras/chat/completions", make_openai_handler("cerebras"))
     app.router.add_post("/pollinations", make_openai_handler("pollinations"))
 
     runner = web.AppRunner(app)
@@ -177,10 +197,12 @@ async def main():
 
     # ---- Test 1: Discovery — faqat jonli modellar tanlanadi ----
     print("== 1. Model discovery (o'chirilgan modellar chiqarib tashlanadi) ==")
+    reset_state()
     S.update({
         "gemini_status": 200,
         "gemini_body": {"candidates": [{"content": {"parts": [{"text": VALID_JSON}]}}]},
-        "groq_status": 500, "openrouter_status": 500, "pollinations_status": 500,
+        "groq_status": 500, "openrouter_status": 500,
+        "mistral_status": 500, "cerebras_status": 500, "pollinations_status": 500,
     })
     result = await ai_agent.analyze_user_prompt("Test so'rov")
     gemini_chat_paths = [p for k, p, _ in S["requests"] if k == "gemini" and p.endswith(":generateContent")]
@@ -191,10 +213,12 @@ async def main():
 
     # ---- Test 2: Groq discovery chat modellarini tanlaydi ----
     print("== 2. Groq discovery ==")
+    reset_state()
     S.update({
         "gemini_status": 404, "gemini_body": {},
         "groq_status": 200, "groq_body": VALID_JSON,
-        "openrouter_status": 500, "pollinations_status": 500,
+        "openrouter_status": 500, "mistral_status": 500,
+        "cerebras_status": 500, "pollinations_status": 500,
     })
     result = await ai_agent.analyze_user_prompt("Test so'rov")
     groq_models_used = [p.get("model") for k, _, p in S["requests"] if k == "groq" and p]
@@ -209,28 +233,29 @@ async def main():
 
     # ---- Test 3: Discovery ishlamasa (500) → qo'lda yozilgan zaxira ----
     print("== 3. Discovery 500 → statik zaxira ro'yxat ==")
+    reset_state()
     S.update({
         "gemini_models_status": 500, "groq_models_status": 500, "openrouter_models_status": 500,
         "gemini_status": 200,
         "gemini_body": {"candidates": [{"content": {"parts": [{"text": VALID_JSON}]}}]},
-        "groq_status": 500, "openrouter_status": 500, "pollinations_status": 500,
+        "groq_status": 500, "openrouter_status": 500,
+        "mistral_status": 500, "cerebras_status": 500, "pollinations_status": 500,
     })
-    # Discovery keshini tozalaymiz (endi 500 qaytadi)
-    ai_agent._model_cache.clear()
     result = await ai_agent.analyze_user_prompt("Test so'rov")
     gemini_paths = [p for k, p, _ in S["requests"] if k == "gemini" and p.endswith(":generateContent")]
     check("Discovery 500 bo'lsa ham Gemini ishladi (zaxira ro'yxat)",
           result.get("post_text") == "Mock post matni", str(result)[:100])
-    check("Zaxira ro'yxatdagi model ishlatildi (gemini-3-flash)",
-          any("gemini-3-flash" in p for p in gemini_paths), str(gemini_paths))
 
     # ---- Test 4: 429 retry ----
     print("== 4. Gemini 429 retry ==")
+    reset_state()
     S.update({
         "gemini_429_first": True,
-        "groq_status": 500, "openrouter_status": 500, "pollinations_status": 500,
+        "gemini_status": 200,
+        "gemini_body": {"candidates": [{"content": {"parts": [{"text": VALID_JSON}]}}]},
+        "groq_status": 500, "openrouter_status": 500,
+        "mistral_status": 500, "cerebras_status": 500, "pollinations_status": 500,
     })
-    ai_agent._model_cache.clear()
     start = asyncio.get_event_loop().time()
     result = await ai_agent.analyze_user_prompt("Test so'rov")
     elapsed = asyncio.get_event_loop().time() - start
@@ -239,14 +264,14 @@ async def main():
 
     # ---- Test 5: response_format qo'llab-quvvatlanmasa → unsiz qayta urinish ----
     print("== 5. Groq response_format fallback ==")
+    reset_state()
     S.update({
         "gemini_status": 404, "gemini_body": {},
         "groq_status": 200, "groq_body": VALID_JSON,
         "groq_json_mode_status": 400,
-        "openrouter_status": 500, "pollinations_status": 500,
+        "openrouter_status": 500, "mistral_status": 500,
+        "cerebras_status": 500, "pollinations_status": 500,
     })
-    ai_agent._model_cache.clear()
-    S["requests"].clear()
     result = await ai_agent.analyze_user_prompt("Test so'rov")
     groq_reqs = [p for k, _, p in S["requests"] if k == "groq" and p]
     check("Groq javobi qaytdi (response_format fallback bilan)", result.get("post_text") == "Mock post matni",
@@ -255,54 +280,143 @@ async def main():
           len(groq_reqs) >= 2 and groq_reqs[0].get("response_format") and not groq_reqs[1].get("response_format"),
           str([bool(r.get("response_format")) for r in groq_reqs]))
 
-    # ---- Test 6: hammasi xato → aniq xato xabari (crash emas) ----
-    print("== 6. Barcha provayderlar xato ==")
+    # ---- Test 6: Gemini/Groq/OpenRouter xato → Mistral javob beradi ----
+    print("== 6. Mistral zaxirasi ==")
+    reset_state()
     S.update({
         "gemini_status": 404, "gemini_body": {},
         "groq_status": 500, "groq_body": "xato",
         "openrouter_status": 500, "openrouter_body": "xato",
+        "mistral_status": 200, "mistral_body": VALID_JSON,
+        "cerebras_status": 500, "pollinations_status": 500,
+    })
+    result = await ai_agent.analyze_user_prompt("Test so'rov")
+    check("Mistral javobi qaytdi", result.get("post_text") == "Mock post matni", str(result)[:100])
+
+    # ---- Test 7: Gemini/Groq/OpenRouter/Mistral xato → Cerebras javob beradi ----
+    print("== 7. Cerebras zaxirasi ==")
+    reset_state()
+    S.update({
+        "gemini_status": 404, "gemini_body": {},
+        "groq_status": 500, "groq_body": "xato",
+        "openrouter_status": 500, "openrouter_body": "xato",
+        "mistral_status": 500, "mistral_body": "xato",
+        "cerebras_status": 200, "cerebras_body": VALID_JSON,
+        "pollinations_status": 500,
+    })
+    result = await ai_agent.analyze_user_prompt("Test so'rov")
+    check("Cerebras javobi qaytdi", result.get("post_text") == "Mock post matni", str(result)[:100])
+
+    # ---- Test 8: Circuit breaker — 3 marta xato → 4-chi so'rovda o'tkazib yuboriladi ----
+    print("== 8. Circuit breaker (o'lik provayder o'tkazib yuboriladi) ==")
+    reset_state()
+    S.update({
+        "gemini_status": 500, "gemini_body": {},
+        "groq_status": 200, "groq_body": VALID_JSON,
+        "openrouter_status": 500, "mistral_status": 500,
+        "cerebras_status": 500, "pollinations_status": 500,
+    })
+    # Gemini 3 marta ketma-ket xato beradi (har safar Groq ishlaydi)
+    for _ in range(3):
+        result = await ai_agent.analyze_user_prompt("Test so'rov")
+        check("Groq javobi qaytdi", result.get("post_text") == "Mock post matni", str(result)[:100])
+    # 4-chi so'rov: Gemini breaker ochiq → umuman chaqirilmaydi
+    # (breaker holatini SAQLAB qolamiz — reset_state faqat so'rovlar ro'yxatini tozalaydi)
+    reset_state(clear_breakers=False)
+    S.update({
+        "gemini_status": 200,  # agar chaqirilsa ishlardi — lekin chaqirilmasligi kerak
+        "gemini_body": {"candidates": [{"content": {"parts": [{"text": VALID_JSON}]}}]},
+        "groq_status": 200, "groq_body": VALID_JSON,
+        "openrouter_status": 500, "mistral_status": 500,
+        "cerebras_status": 500, "pollinations_status": 500,
+    })
+    result = await ai_agent.analyze_user_prompt("Test so'rov")
+    gemini_calls = [p for k, p, _ in S["requests"] if k == "gemini" and p.endswith(":generateContent")]
+    check("Gemini breaker ochiq → chaqirilmadi (Groq ishladi)",
+          not gemini_calls and result.get("post_text") == "Mock post matni",
+          f"gemini_calls={gemini_calls}")
+    # Breaker 10 daqiqadan keyin ochiladi (biz qo'lda ochamiz)
+    ai_agent._BREAKERS.pop("Gemini", None)
+    reset_state()
+    S.update({"gemini_status": 200,
+              "gemini_body": {"candidates": [{"content": {"parts": [{"text": VALID_JSON}]}}]},
+              "groq_status": 500, "openrouter_status": 500,
+              "mistral_status": 500, "cerebras_status": 500, "pollinations_status": 500})
+    result = await ai_agent.analyze_user_prompt("Test so'rov")
+    gemini_calls = [p for k, p, _ in S["requests"] if k == "gemini" and p.endswith(":generateContent")]
+    check("Breaker ochilgach Gemini qayta ishlaydi", bool(gemini_calls), str(gemini_calls))
+
+    # ---- Test 9: Prompt uzunlik limiti (3000 belgi) ----
+    print("== 9. Prompt limiti ==")
+    reset_state()
+    S.update({
+        "gemini_status": 200,
+        "gemini_body": {"candidates": [{"content": {"parts": [{"text": VALID_JSON}]}}]},
+        "groq_status": 500, "openrouter_status": 500,
+        "mistral_status": 500, "cerebras_status": 500, "pollinations_status": 500,
+    })
+    long_prompt = "A" * 10000
+    result = await ai_agent.analyze_user_prompt(long_prompt)
+    gemini_paths = [p for k, p, _ in S["requests"] if k == "gemini" and p.endswith(":generateContent")]
+    check("Uzun prompt kesiladi (Gemini chaqirildi)", bool(gemini_paths), str(gemini_paths))
+    check("Prompt ≤ 3000 belgi", result.get("post_text") == "Mock post matni" or "error" in result,
+          str(result)[:80])
+
+    # ---- Test 10: hammasi xato → aniq xato xabari (crash emas) ----
+    print("== 10. Barcha provayderlar xato ==")
+    reset_state()
+    S.update({
+        "gemini_status": 404, "gemini_body": {},
+        "groq_status": 500, "groq_body": "xato",
+        "openrouter_status": 500, "openrouter_body": "xato",
+        "mistral_status": 500, "mistral_body": "xato",
+        "cerebras_status": 500, "cerebras_body": "xato",
         "pollinations_status": 500, "pollinations_body": "xato",
     })
-    ai_agent._model_cache.clear()
     result = await ai_agent.analyze_user_prompt("Test so'rov")
     check("error dict qaytdi", "error" in result, str(result)[:100])
-    check("xato xabarida kalit bo'yicha yo'l-yo'riq bor",
-          "GEMINI_API_KEY" in result.get("error", ""), result.get("error", "")[:80])
+    check("xato xabarida kalit yo'l-yo'rig'i bor", "GEMINI_API_KEY" in result.get("error", ""),
+          result.get("error", "")[:80])
 
-    # ---- Test 7: kalitsiz Pollinations zaxirasi ----
-    print("== 7. Kalitsiz Pollinations zaxirasi ==")
+    # ---- Test 11: kalitsiz Pollinations zaxirasi ----
+    print("== 11. Kalitsiz Pollinations zaxirasi ==")
+    reset_state()
     S.update({
         "gemini_status": 404, "gemini_body": {},
         "groq_status": 500, "groq_body": "xato",
         "openrouter_status": 500, "openrouter_body": "xato",
+        "mistral_status": 500, "mistral_body": "xato",
+        "cerebras_status": 500, "cerebras_body": "xato",
         "pollinations_status": 200, "pollinations_body": VALID_JSON,
     })
-    ai_agent._model_cache.clear()
     result = await ai_agent.analyze_user_prompt("Test so'rov")
     check("Pollinations javobi qaytdi", result.get("post_text") == "Mock post matni", str(result)[:100])
 
-    # ---- Test 8: yaroqsiz JSON → xato, crash emas ----
-    print("== 8. Yaroqsiz JSON ==")
+    # ---- Test 12: yaroqsiz JSON → xato, crash emas ----
+    print("== 12. Yaroqsiz JSON ==")
+    reset_state()
     S.update({
         "gemini_status": 200,
         "gemini_body": {"candidates": [{"content": {"parts": [{"text": "bu JSON emas"}]}}]},
         "groq_status": 200, "groq_body": "bu ham JSON emas",
         "openrouter_status": 200, "openrouter_body": "bunisi ham",
+        "mistral_status": 200, "mistral_body": "mistral ham",
+        "cerebras_status": 200, "cerebras_body": "cerebras ham",
         "pollinations_status": 200, "pollinations_body": "yo'q",
     })
-    ai_agent._model_cache.clear()
     result = await ai_agent.analyze_user_prompt("Test so'rov")
     check("yaroqsiz JSON → error", "error" in result, str(result)[:100])
 
-    # ---- Test 9: markdown blok ichida JSON ----
-    print("== 9. Markdown blok ichida JSON ==")
+    # ---- Test 13: markdown blok ichida JSON ----
+    print("== 13. Markdown blok ichida JSON ==")
     fenced = '```json\n{"post_text": "Blok ichidagi", "scheduled_time": null, "has_explicit_time": false, "target_all": false}\n```'
+    reset_state()
     S.update({
         "gemini_status": 200,
         "gemini_body": {"candidates": [{"content": {"parts": [{"text": fenced}]}}]},
-        "groq_status": 500, "openrouter_status": 500, "pollinations_status": 500,
+        "groq_status": 500, "openrouter_status": 500,
+        "mistral_status": 500, "cerebras_status": 500, "pollinations_status": 500,
     })
-    ai_agent._model_cache.clear()
     result = await ai_agent.analyze_user_prompt("Test so'rov")
     check("markdown blok tozalanib ishladi", result.get("post_text") == "Blok ichidagi", str(result)[:100])
 

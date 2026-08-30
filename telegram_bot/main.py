@@ -3,7 +3,7 @@ import logging
 from datetime import datetime
 import pytz
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from telegram.ext import ApplicationBuilder
+from telegram.ext import ApplicationBuilder, Application
 from telegram import BotCommand
 from config import BOT_TOKEN
 import database as db
@@ -15,6 +15,7 @@ from scheduler import (
 )
 from utils.web_server import start_web_server
 from utils.ai_agent import close_ai_session
+from utils.helpers import check_global_flood, check_rate_limit, is_duplicate_message
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -22,6 +23,39 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 tashkent_tz = pytz.timezone("Asia/Tashkent")
+
+
+class GuardedApplication(Application):
+    """Hujum/ortiqcha yuklama himoyasi qo'shilgan Application.
+
+    Har bir update process_update() orqali o'tadi:
+    1. Global flood bo'lsa — qisqa pauza (backpressure) bilan sekinlashtiramiz.
+    2. Bitta foydalanuvchi 2 soniyada 20 tadan ortiq update yuborsa — tashlab yuboramiz.
+    3. Bir xil xabarni 1.5 soniya ichida qayta yuborsa — tashlab yuboramiz.
+    """
+
+    async def process_update(self, update):
+        try:
+            # 1) Global flood — botni to'xtatib qo'ymasdan, yukni sekinlashtiramiz
+            if check_global_flood():
+                await asyncio.sleep(0.4)
+
+            # 2) Foydalanuvchi bo'yicha burst (hujum/flood)
+            user = getattr(update, "effective_user", None)
+            if user is not None:
+                blocked, _ = check_rate_limit(user.id, max_requests=20, window_seconds=2.0)
+                if blocked:
+                    return None  # jim tashlab yuboriladi (abuser javob olmaydi)
+
+                # 3) Dublikat xabar (avtomatik qayta yuborish hujumi)
+                msg = getattr(update, "effective_message", None)
+                text = getattr(msg, "text", None) if msg else None
+                if text and is_duplicate_message(user.id, text):
+                    return None
+        except Exception:
+            logger.exception("Guard himoyasida xatolik — update davom ettirilmoqda")
+
+        return await super().process_update(update)
 
 
 async def error_handler(update, context):
@@ -50,6 +84,7 @@ async def main():
     application = (
         ApplicationBuilder()
         .token(BOT_TOKEN)
+        .application_class(GuardedApplication)
         .concurrent_updates(True)
         # Telegram API so'rovlari uchun aniq timeout'lar (Render Free'da
         # tarmoq sekinlashganda bot osilib qolmasligi uchun).
