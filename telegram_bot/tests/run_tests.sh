@@ -13,6 +13,10 @@ echo "==================== UNIT TEST ======================"
 "$PY" tests/unit_test.py || exit 1
 
 echo
+echo "==================== AI MOCK TEST ==================="
+"$PY" tests/ai_mock_test.py || exit 1
+
+echo
 echo "==================== LOAD TEST ======================"
 if "$PY" -c "import pgserver" 2>/dev/null; then
     "$PY" tests/load_test.py || exit 1

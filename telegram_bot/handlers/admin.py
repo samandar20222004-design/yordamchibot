@@ -9,7 +9,6 @@ from keyboards.default import (
     get_admin_panel_keyboard,
     get_sponsors_keyboard,
     get_cancel_keyboard,
-    get_main_keyboard,
 )
 from keyboards.inline import get_sponsors_delete_keyboard
 from utils.helpers import html_escape, format_post_type_label

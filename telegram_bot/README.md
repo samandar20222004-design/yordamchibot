@@ -121,6 +121,19 @@ Health endpoint `200` va JSON qaytaradi. UptimeRobot bot polling'ini emas, Rende
 | `/health/ready` | Bot ishlashga tayyormi — baza bilan aloqa tekshiradi (`200` yoki `503`) |
 | `/health`, `/` | `/health/live` bilan bir xil (eski havolalar ishlashda davom etadi) |
 
+### AI sozlamalari (kamida bitta bepul kalit)
+
+| Kalit | Qayerdan olinadi | Bepul limiti |
+|---|---|---|
+| `GEMINI_API_KEY` | [aistudio.google.com](https://aistudio.google.com) | kuniga ~1500 so'rov |
+| `GROQ_API_KEY` | [console.groq.com](https://console.groq.com) | kuniga ~1000 so'rov |
+| `OPENROUTER_API_KEY` (ixtiyoriy) | [openrouter.ai](https://openrouter.ai) | `:free` modellar |
+
+Kalit bo'lmasa ham AI bo'limi ishlaydi — oxirgi zaxira sifatida kalitsiz bepul
+Pollinations xizmati ishlatiladi (lekin u barqaror emas, shuning uchun bepul
+kalit qo'yish tavsiya etiladi). Kalitlarni Render → Environment bo'limiga
+qo'shing va botni qayta ishga tushiring.
+
 ### Render Free uchun optimallashtirish
 
 - **PostgreSQL connection pool** — har bir so'rovda yangi ulanish ochilmaydi; ulanishlar qayta ishlatiladi (`DB_POOL_MAX=5`).

@@ -1,4 +1,3 @@
-import asyncio
 from datetime import datetime, timedelta
 import pytz
 from telegram import Update, ReplyKeyboardMarkup

@@ -15,6 +15,7 @@ except ValueError as exc:
     raise RuntimeError("PORT raqam bo'lishi kerak") from exc
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
 
 if not BOT_TOKEN:
     raise RuntimeError("BOT_TOKEN topilmadi! Render Environment bo'limida BOT_TOKEN ni kiriting.")
