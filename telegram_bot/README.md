@@ -129,6 +129,12 @@ Health endpoint `200` va JSON qaytaradi. UptimeRobot bot polling'ini emas, Rende
 | `GROQ_API_KEY` | [console.groq.com](https://console.groq.com) | kuniga ~1000 so'rov |
 | `OPENROUTER_API_KEY` (ixtiyoriy) | [openrouter.ai](https://openrouter.ai) | `:free` modellar |
 
+> 💡 **Model avto-diskoveri:** Bot ishga tushganda (va har 6 soatda) provayderning
+> jonli model ro'yxatini o'zi oladi va faqat mavjud modellarni ishlatadi. AI
+> kompaniyalari modellarni tez-tez o'chiradi (masalan, 2026-yil avgustda Groq'da
+> `llama-3.1-8b-instant`, `llama-3.3-70b-versatile` va `gemma2-9b-it` yopildi) —
+> avto-diskoveri tufayli bunday holatda ham bot yangi modelga o'zi o'tadi.
+
 Kalit bo'lmasa ham AI bo'limi ishlaydi — oxirgi zaxira sifatida kalitsiz bepul
 Pollinations xizmati ishlatiladi (lekin u barqaror emas, shuning uchun bepul
 kalit qo'yish tavsiya etiladi). Kalitlarni Render → Environment bo'limiga
