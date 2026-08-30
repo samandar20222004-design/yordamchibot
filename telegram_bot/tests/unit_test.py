@@ -189,10 +189,44 @@ def test_compose_post_text():
     print("== scheduler.compose_post_text (majburiy reklama olib tashlangan) ==")
     from scheduler import compose_post_text
     check("litsenziya: matn o'zgarmaydi", compose_post_text("Salom", True, "REKLAMA") == "Salom")
-    check("watermark yo'q", "@PostAssistrobot" not in compose_post_text("Salom", False, "REKLAMA"))
+    check("watermark yo'q (default)", "@PostAssistrobot" not in compose_post_text("Salom", False, "REKLAMA"))
     check("admin reklamasi qo'shiladi", compose_post_text("Salom", False, "REKLAMA") == "Salom\n\nREKLAMA")
     check("bo'sh reklama: o'zgarmaydi", compose_post_text("Salom", False, "  ") == "Salom")
     check("faqat reklama", compose_post_text("", False, "REKLAMA") == "REKLAMA")
+    # Ongli ravishda yoqilgan nishon (watermark) admin tomonidan qo'shiladi.
+    check("nishon qo'shiladi", compose_post_text(
+        "Salom", False, "REKLAMA", "@PostAssistrobot") == "Salom\n\nREKLAMA\n\n@PostAssistrobot")
+    check("litsenziya bilan ham nishon qo'shiladi", compose_post_text(
+        "Salom", True, "", "@PostAssistrobot") == "Salom\n\n@PostAssistrobot")
+    check("nishon bo'sh: o'zgarmaydi", compose_post_text("Salom", False, "REKLAMA", "") == "Salom\n\nREKLAMA")
+
+
+def test_ai_runtime_params():
+    print("== utils.ai_agent runtime parametrlar ==")
+    from utils import ai_agent
+    p = ai_agent.get_runtime_params()
+    for key in ("temperature", "max_tokens", "top_p", "max_prompt_chars", "context_messages", "context_chars"):
+        check(f"runtime: {key} mavjud", key in p, str(p))
+    raise_no = []
+    ai_agent._RUNTIME_PARAMS["temperature"] = 0.2
+    ai_agent._set_runtime_param("temperature", "0.7")
+    check("temperature yangilanadi", ai_agent.get_runtime_params()["temperature"] == 0.7)
+    ai_agent._set_runtime_param("temperature", "8")
+    check("temperature 0..2 oralig'ida", ai_agent.get_runtime_params()["temperature"] == 2.0)
+    ai_agent._RUNTIME_PARAMS["temperature"] = 0.2
+
+
+def test_admin_new_buttons():
+    print("== admin yangi tugmalari ==")
+    from keyboards.default import get_admin_panel_keyboard, BTN_POST_TAG, BTN_AI_SETTINGS, BTN_CACHE_DB
+    kb = get_admin_panel_keyboard()
+    texts = [b.text for row in kb.keyboard for b in row]
+    check("Post nishoni tugmasi", BTN_POST_TAG in texts, str(texts))
+    check("AI parametrlar tugmasi", BTN_AI_SETTINGS in texts, str(texts))
+    check("DB/Kesh tugmasi", BTN_CACHE_DB in texts, str(texts))
+    from keyboards.inline import get_cache_actions_keyboard
+    cbs = [b.callback_data for row in get_cache_actions_keyboard().inline_keyboard for b in row]
+    check("Kesh tozalash callback", "cache_clear" in cbs and "close_msg" in cbs, str(cbs))
 
 
 def test_parse_album_items():
@@ -350,12 +384,14 @@ def main():
     test_tashkent_date()
     test_prompt_truncation()
     test_compose_post_text()
+    test_ai_runtime_params()
     test_parse_album_items()
     test_album_label()
     test_referral_share_url_encoding()
     test_natural_time_parser()
     test_ai_intent_normalization()
     test_new_inline_keyboards()
+    test_admin_new_buttons()
     test_admin_channels_text_limit()
 
     print(f"\nO'tdi: {passed}, Xato: {failures}")

@@ -9,8 +9,11 @@ from keyboards.default import (
     get_admin_panel_keyboard,
     get_sponsors_keyboard,
     get_cancel_keyboard,
+    BTN_MAIN_MENU,
+    BTN_AI_SETTINGS, BTN_CACHE_DB,
 )
-from keyboards.inline import get_sponsors_delete_keyboard
+from keyboards.inline import get_sponsors_delete_keyboard, get_cache_actions_keyboard
+from utils import ai_agent
 from utils.helpers import html_escape, format_post_type_label
 
 logger = logging.getLogger(__name__)
@@ -19,6 +22,8 @@ BROADCAST_MESSAGE = 801
 ADD_SPONSOR_CHANNEL = 802
 SET_CHANNEL_AD = 803
 SET_BOT_REPLY_AD = 804
+AI_SETTINGS = 805
+SET_POST_TAG = 806
 
 # Broadcast har 20 xabardan keyin shuncha kutadi (Telegram ~30 msg/s limiti).
 # 20 xabar / 0.7 s ≈ 28 msg/s — limitdan xavfsiz past.
@@ -76,6 +81,204 @@ def format_admin_channels_list(channels: list) -> str:
             return text
         # Eng yangi kanallar yuqorida qoladi; faqat sig'magan eski qatorni olamiz.
         visible_entries.pop()
+
+
+# Admin panelda ko'rsatiladigan AI parametrlari (kalit -> (DB key, UI belgi, tavsif))
+AI_SETTINGS_KEYS = {
+    "temperature": ("ai_temperature", "🌡 temperature", "0.0–2.0 (0.2 = aniq)"),
+    "max_tokens": ("ai_max_tokens", "📄 max_tokens", "128–8192 (1024)"),
+    "top_p": ("ai_top_p", "🎯 top_p", "0.0–1.0 (1.0)"),
+    "max_prompt_chars": ("ai_max_prompt_chars", "🧩 prompt limiti", "500–12000 belgi (3000)"),
+    "context_chars": ("ai_context_chars", "💬 kontekst hajmi", "500–20000 belgi (4000)"),
+    "context_messages": ("ai_context_messages", "🧠 kontekst xabarlari", "0–20 dona (6)"),
+    "extra_context": ("ai_extra_context", "📌 qo'shimcha ko'rsatma", "matn (bo'sh qoldirsangiz o'chadi)"),
+}
+
+
+def _ai_settings_text() -> str:
+    params = ai_agent.get_runtime_params()
+    lines = []
+    for key, (db_key, label, hint) in AI_SETTINGS_KEYS.items():
+        value = params.get(key)
+        value_text = "-" if value in (None, "") else str(value)
+        lines.append(f"   • <b>{label}</b> = <code>{html_escape(value_text)}</code>  <i>({hint})</i>")
+    return "\n".join(lines)
+
+
+async def ai_settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_admin(update.effective_user.id):
+        return ConversationHandler.END
+    await update.message.reply_text(
+        "⚙️ <b>AI parametrlarni boshqarish:</b>\n\n"
+        f"{_ai_settings_text()}\n\n"
+        "O'zgartirish uchun quyidagi formatda satrlarni yuboring:\n"
+        "<code>kalit=qiymat</code>\n\n"
+        "Masalan:\n"
+        "<code>temperature=0.4</code>\n"
+        "<code>max_tokens=2048</code>\n"
+        "<code>context_messages=8</code>\n\n"
+        "👉 Hammasini defaultga qaytarish uchun <code>reset</code> deb yozing.\n"
+        "Bekor qilish uchun asosiy menyu tugmasini bosing.",
+        reply_markup=get_cancel_keyboard(),
+        parse_mode="HTML",
+    )
+    return AI_SETTINGS
+
+
+async def ai_settings_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_admin(update.effective_user.id):
+        return ConversationHandler.END
+    text = update.message.text.strip()
+    if text == BTN_MAIN_MENU:
+        return ConversationHandler.END
+
+    if text.lower() == "reset":
+        for db_key, *_ in AI_SETTINGS_KEYS.values():
+            await db.run_db(db.set_setting, db_key, "")
+        await ai_agent.reload_runtime_params()
+        await update.message.reply_text(
+            "✅ <b>Barcha AI parametrlar default holatga qaytarildi.</b>\n\n"
+            f"{_ai_settings_text()}",
+            reply_markup=get_cancel_keyboard(),
+            parse_mode="HTML",
+        )
+        return AI_SETTINGS
+
+    updates = {}
+    errors = []
+    for line in text.splitlines():
+        line = line.strip()
+        if not line or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        key = key.strip().lower()
+        value = value.strip()
+        if key not in AI_SETTINGS_KEYS:
+            errors.append(f"<code>{html_escape(key)}</code> — noma'lum kalit")
+            continue
+        import utils.ai_agent as _agent
+        valid = _agent._set_runtime_param(key, value)
+        if not valid:
+            errors.append(f"<code>{html_escape(key)}</code> = <code>{html_escape(value)}</code> — noto'g'ri qiymat")
+            continue
+        updates[AI_SETTINGS_KEYS[key][0]] = value.strip()
+        updates["__ui_key__"] = key
+
+    if errors:
+        await update.message.reply_text(
+            "⚠️ <b>Quyidagi kalitlarni o'zgartirib bo'lmadi:</b>\n" + "\n".join(errors),
+            reply_markup=get_cancel_keyboard(),
+            parse_mode="HTML",
+        )
+
+    applied = [(k, v) for k, v in updates.items() if k != "__ui_key__"]
+    if applied:
+        for db_key, value in applied:
+            await db.run_db(db.set_setting, db_key, value)
+        # Runtime parametrlarni DB value'lar asosida yangilaymiz.
+        await ai_agent.reload_runtime_params()
+        await update.message.reply_text(
+            "✅ <b>AI parametrlar yangilandi:</b>\n\n"
+            f"{_ai_settings_text()}",
+            reply_markup=get_cancel_keyboard(),
+            parse_mode="HTML",
+        )
+    elif not errors:
+        await update.message.reply_text(
+            "⚠️ Hech qanday kalit kiritilmadi. <code>kalit=qiymat</code> formatida yuboring.",
+            reply_markup=get_cancel_keyboard(),
+            parse_mode="HTML",
+        )
+    return AI_SETTINGS
+
+
+async def cache_db_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_admin(update.effective_user.id):
+        return ConversationHandler.END
+    status = await db.run_db(db.get_db_pool_status)
+    collapsed_label = "yo'q" if status.get("collapsed") else "ha"
+    cache_label = "yoqilgan" if status.get("cache_enabled") else "o'chirilgan"
+    pool_label = "✅ ishlayapti" if status.get("ready") else "⏳ hali ochilmagan"
+    text = (
+        "🗄️ <b>DB Pool va Kesh holati:</b>\n\n"
+        f"   • Pool: <b>{pool_label}</b> ({status.get('message', '')})\n"
+        f"   • Min/Maks: <b>{status.get('min')} / {status.get('max')}</b>\n"
+        f"   • Band: <b>{status.get('used')}</b> | Bo'sh: <b>{status.get('available')}</b>"
+        f" | Yopiq: <b>{collapsed_label}</b>\n"
+        f"   • Kesh: <b>{cache_label}</b> — <b>{status.get('cache_entries')} ta</b> yozuv\n\n"
+        "Kesh TTL o'zgarishlarsiz avtomatik eskiradi. Tozalash kerak bo'lsa pastdagi tugmani bosing."
+    )
+    await update.message.reply_text(
+        text,
+        reply_markup=get_cache_actions_keyboard(),
+        parse_mode="HTML",
+    )
+    return ConversationHandler.END
+
+
+async def cache_clear_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    if not is_admin(query.from_user.id):
+        await query.answer("Ruxsat yo'q.", show_alert=True)
+        return
+    await db.run_db(db.cache_clear)
+    status = await db.run_db(db.get_db_pool_status)
+    await query.answer("✅ Kesh tozalandi.")
+    collapsed_label = "yo'q" if status.get("collapsed") else "ha"
+    cache_label = "yoqilgan" if status.get("cache_enabled") else "o'chirilgan"
+    pool_label = "✅ ishlayapti" if status.get("ready") else "⏳ hali ochilmagan"
+    try:
+        await query.edit_message_text(
+            "🗄️ <b>DB Pool va Kesh holati:</b>\n\n"
+            f"   • Pool: <b>{pool_label}</b>\n"
+            f"   • Min/Maks: <b>{status.get('min')} / {status.get('max')}</b>\n"
+            f"   • Band: <b>{status.get('used')}</b> | Bo'sh: <b>{status.get('available')}</b>"
+            f" | Yopiq: <b>{collapsed_label}</b>\n"
+            f"   • Kesh: <b>{cache_label}</b> — <b>{status.get('cache_entries')} ta</b> yozuv\n\n"
+            "✅ <b>Kesh tozalandi.</b>",
+            reply_markup=get_cache_actions_keyboard(),
+            parse_mode="HTML",
+        )
+    except TelegramError:
+        pass
+
+
+async def start_set_post_tag(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_admin(update.effective_user.id):
+        return ConversationHandler.END
+    current_tag = await db.run_db(db.get_setting, "post_tag_text", "")
+    await update.message.reply_text(
+        "🏷 <b>Post nishoni (watermark):</b>\n\n"
+        "Hozirgi qiymat: <code>" + html_escape(current_tag or "(bo'sh — nishon yo'q)") + "</code>\n\n"
+        "Postlar oxiriga qo'shiladigan matnni yuboring.\n"
+        "Masalan: <code>@PostAssistrobot</code>\n"
+        "O'chirish uchun <code>clear</code> deb yozing.",
+        reply_markup=get_cancel_keyboard(),
+        parse_mode="HTML",
+    )
+    return SET_POST_TAG
+
+
+async def post_tag_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_admin(update.effective_user.id):
+        return ConversationHandler.END
+    text = update.message.text.strip()
+    if text.lower() == "clear":
+        await db.run_db(db.set_setting, "post_tag_text", "")
+        await update.message.reply_text(
+            "✅ <b>Post nishoni o'chirildi</b> — postlar toza chiqadi.",
+            reply_markup=get_admin_panel_keyboard(),
+            parse_mode="HTML",
+        )
+    else:
+        # HTML matn buzilmasligi uchun nishonni xavfsiz saqlaymiz.
+        await db.run_db(db.set_setting, "post_tag_text", text)
+        await update.message.reply_text(
+            f"✅ <b>Post nishoni saqlandi:</b>\n\n<code>{html_escape(text)}</code>",
+            reply_markup=get_admin_panel_keyboard(),
+            parse_mode="HTML",
+        )
+    return ConversationHandler.END
 
 
 def is_admin(user_id: int) -> bool:

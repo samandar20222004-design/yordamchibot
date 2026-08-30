@@ -38,19 +38,22 @@ def calculate_next_time(recurrence_type, recurrence_day, recurrence_time, curren
     return None
 
 
-def compose_post_text(content: str, has_ad_free: bool, channel_ad: str) -> str:
-    """Post matniga (ixtiyoriy) admin reklamasi qo'shadi.
+def compose_post_text(content: str, has_ad_free: bool, channel_ad: str, brand_text: str = "") -> str:
+    """Post matniga (ixtiyoriy) admin reklamasi va nishonni qo'shadi.
 
-    Majburiy @PostAssistrobot watermark YO'Q — litsenziyasiz post ham
-    toza chiqadi; faqat admin belgilagan channel_ad_text qo'shiladi.
+    ``brand_text`` — admin belgilagan so'z/watermark (masalan ``@PostAssistrobot``).
+    Standart qiymati bo'sh, ya'ni majburiy watermark YO'Q — litsenziyasiz post ham
+    toza chiqadi; nishon faqat admin yoqsa qo'shiladi.
     """
     text = content or ""
-    if has_ad_free:
-        return text
     ad = (channel_ad or "").strip()
-    if not ad:
-        return text
-    return f"{text}\n\n{ad}" if text else ad
+    if not has_ad_free and ad:
+        text = f"{text}\n\n{ad}" if text else ad
+
+    brand = (brand_text or "").strip()
+    if brand:
+        text = f"{text}\n\n{brand}" if text else brand
+    return text
 
 
 def parse_album_items(file_id) -> list:
@@ -146,7 +149,9 @@ async def _execute_send(bot, post):
     channel_ad = ""
     if not has_ad_free:
         channel_ad = (await db.run_db(db.get_setting, "channel_ad_text", "")).strip()
-    final_content = compose_post_text(content, has_ad_free, channel_ad)
+    # Admin tomonidan yoqilgan nishon (masalan @PostAssistrobot) — bo'sh bo'lsa qo'shilmaydi.
+    brand_text = (await db.run_db(db.get_setting, "post_tag_text", "")).strip()
+    final_content = compose_post_text(content, has_ad_free, channel_ad, brand_text)
 
     sent_msg = None
     extra_ids = []
