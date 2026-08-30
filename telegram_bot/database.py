@@ -5,11 +5,14 @@ import random
 import string
 import threading
 import time as _time
-from datetime import datetime, date, timedelta
+from datetime import datetime, timedelta
 from contextlib import contextmanager
 import psycopg2
 from psycopg2.pool import ThreadedConnectionPool
+import pytz
 from config import DATABASE_URL
+
+tashkent_tz = pytz.timezone("Asia/Tashkent")
 
 logger = logging.getLogger(__name__)
 
@@ -420,8 +423,14 @@ def save_user(user_id: int, username: str, full_name: str = "", referrer_id: int
         logger.error(f"User saqlash xatosi: {e}")
         return False
 
+def _today_tashkent():
+    """Toshkent vaqtidagi bugungi sana (Render serveri UTC da bo'lgani uchun
+    `date.today()` noto'g'ri kun ko'rsatishi mumkin edi)."""
+    return datetime.now(tashkent_tz).date()
+
+
 def claim_daily_streak_bonus(user_id: int) -> dict:
-    today = date.today()
+    today = _today_tashkent()
     reward_map = {1: 1, 2: 1, 3: 2, 4: 1, 5: 2, 6: 2, 7: 4}
 
     try:

@@ -122,10 +122,14 @@ def get_smart_reply_ad(user_id: int) -> str:
     ad_text = db.get_setting("bot_reply_ad_text", "").strip()
     if not ad_text:
         return ""
-        
+
     count = _USER_MSG_COUNT.get(user_id, 0) + 1
     _USER_MSG_COUNT[user_id] = count
-    
+
+    # Xotira o'sishini cheklash: 10 000 dan oshsa eski yozuvlarni tozalaymiz
+    if len(_USER_MSG_COUNT) > 10000:
+        _USER_MSG_COUNT.clear()
+
     if count % 3 == 0:
         return f"\n\n🏷 <i>({html_escape(ad_text)})</i>"
     return ""

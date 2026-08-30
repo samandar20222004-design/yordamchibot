@@ -81,6 +81,8 @@ async def set_bot_commands(application):
 async def main():
     db.init_db()
 
+    web_runner = None
+    scheduler = None
     application = (
         ApplicationBuilder()
         .token(BOT_TOKEN)
@@ -142,11 +144,21 @@ async def main():
     except (KeyboardInterrupt, SystemExit):
         logger.info("Bot to'xtatilmoqda...")
     finally:
-        scheduler.shutdown(wait=False)
-        await application.updater.stop()
-        await application.stop()
-        await application.shutdown()
-        await web_runner.cleanup()
+        # Ishga tushirish bosqichida xatolik bo'lgan taqdirda ham
+        # ochilgan resurslar yopilishi kerak (shuning uchun None-tekshiruv).
+        # Yopilish xatosi asl xatoni yashirmasligi uchun try/except ichida.
+        try:
+            if scheduler is not None:
+                scheduler.shutdown(wait=False)
+            updater = getattr(application, "updater", None)
+            if updater is not None:
+                await updater.stop()
+            await application.stop()
+            await application.shutdown()
+            if web_runner is not None:
+                await web_runner.cleanup()
+        except Exception:
+            logger.exception("Botni to'xtatishda xatolik yuz berdi")
         db.close_pool()
         await close_ai_session()
         logger.info("Bot to'liq to'xtatildi va barcha resurslar yopildi.")

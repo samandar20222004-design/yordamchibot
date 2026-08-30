@@ -255,10 +255,12 @@ async def _run_broadcast(bot, user_ids, text, admin_id):
     parse_mode = "HTML"
 
     for i, uid in enumerate(user_ids):
+        delivered = False
         for attempt in range(3):
             try:
                 await bot.send_message(chat_id=uid, text=text, parse_mode=parse_mode)
                 sent += 1
+                delivered = True
                 break
             except RetryAfter as e:
                 # Telegram aytgan vaqtgacha kutamiz va qayta urinamiz
@@ -271,16 +273,23 @@ async def _run_broadcast(bot, user_ids, text, admin_id):
                     sent += 1
                 except TelegramError:
                     failed += 1
+                delivered = True
                 break
             except (TimedOut, NetworkError):
                 if attempt == 2:
                     failed += 1
+                    delivered = True  # 3 ta urinish ham tugadi
                 else:
                     await asyncio.sleep(1 + attempt)
             except TelegramError:
                 # Bot bloklangan / xabar qabul qilinmagan
                 failed += 1
+                delivered = True
                 break
+        # Barcha 3 urinish RetryAfter bilan tugasa ham foydalanuvchi
+        # "yuborilmagan" hisobiga kiritilishi kerak (jim o'tib ketmasligi uchun).
+        if not delivered:
+            failed += 1
 
         # Har batch'da qisqa pauza — Telegram'ning 30 msg/s limitidan oshmaymiz
         if i and i % BROADCAST_BATCH_SIZE == 0:

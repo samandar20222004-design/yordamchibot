@@ -244,6 +244,39 @@ def test_broadcast_batching(db):
     check("broadcast tezligi oqilona", elapsed < 10, f"{elapsed:.2f}s")
 
 
+def test_broadcast_retryafter_exhausted(db):
+    """RetryAfter 3 marta takrorlansa ham foydalanuvchi 'yuborilmagan' hisobga olinishi kerak."""
+    print("== _run_broadcast: RetryAfter tugagan urinishlar ==")
+    from handlers.admin import _run_broadcast
+
+    user_ids = [f"r{i}" for i in range(5)]
+
+    class AlwaysRetryBot(FakeBot):
+        def __init__(self):
+            super().__init__()
+            self.calls = 0
+            self.admin_calls = 0
+
+        async def send_message(self, chat_id=None, text=None, reply_markup=None, parse_mode=None):
+            if chat_id == 777000:
+                # Admin'ga yuboriladigan yakuniy hisobot normal ishlaydi
+                self.admin_calls += 1
+                return await super().send_message(chat_id=chat_id, text=text, reply_markup=reply_markup, parse_mode=parse_mode)
+            self.calls += 1
+            from telegram.error import RetryAfter
+            raise RetryAfter(retry_after=0)  # 0 → min(max(0,1),30)=1s kutish
+
+    bot = AlwaysRetryBot()
+    asyncio.run(_run_broadcast(bot, user_ids, "xabar", 777000))
+
+    # Har bir foydalanuvchi 3 marta urinildi (5 × 3 = 15), hech biri yuborilmadi
+    check("barcha urinishlar RetryAfter (15 ta)", bot.calls == 15, f"calls={bot.calls}")
+    # 5 tasi ham 'failed' hisobiga kiritilishi kerak — admin xabari: Yetib bordi 0/5, Yuborilmagan 5
+    admin_msg = [t for c, t in bot.sent if c == 777000]
+    check("admin hisobotida yuborilmagan=5", bool(admin_msg) and "0 / 5" in admin_msg[0],
+          str(admin_msg)[:120])
+
+
 def test_cleanup(db):
     print("== DB cleanup (eski ma'lumotlar) ==")
     from datetime import datetime, timedelta
@@ -338,6 +371,9 @@ def main():
 
     # 8) Cleanup
     test_cleanup(db)
+
+    # 9) Broadcast RetryAfter tugashi (xato hisobga olinishi)
+    test_broadcast_retryafter_exhausted(db)
 
     db.close_pool()
     server.cleanup()

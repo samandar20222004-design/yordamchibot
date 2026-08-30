@@ -162,6 +162,17 @@ def test_abuse_protection():
     check("global flood: limitdan oshsa True", check_global_flood())
 
 
+def test_tashkent_date():
+    print("== database._today_tashkent (kunlik bonus vaqti) ==")
+    from database import _today_tashkent
+    from datetime import date, timedelta
+    today = _today_tashkent()
+    check("Toshkent sanasi qaytadi", isinstance(today, date), str(today))
+    # Toshkent UTC+5 — server UTC dan ko'pi bilan 1 kunga farq qilishi mumkin
+    diff = abs((today - date.today()).days)
+    check("sana UTC dan ≤1 kun farq qiladi", diff <= 1, f"diff={diff} tashkent={today} utc={date.today()}")
+
+
 def test_prompt_truncation():
     print("== utils.ai_agent prompt limiti ==")
     from utils.ai_agent import MAX_PROMPT_CHARS, analyze_user_prompt
@@ -182,6 +193,7 @@ def main():
     test_retry_after_seconds()
     test_weekday_map()
     test_abuse_protection()
+    test_tashkent_date()
     test_prompt_truncation()
 
     print(f"\nO'tdi: {passed}, Xato: {failures}")
