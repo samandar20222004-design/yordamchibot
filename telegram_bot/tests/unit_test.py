@@ -185,6 +185,35 @@ def test_prompt_truncation():
     check("uzun prompt aniqlanadi", len(long_prompt) > MAX_PROMPT_CHARS)
 
 
+def test_compose_post_text():
+    print("== scheduler.compose_post_text (majburiy reklama olib tashlangan) ==")
+    from scheduler import compose_post_text
+    check("litsenziya: matn o'zgarmaydi", compose_post_text("Salom", True, "REKLAMA") == "Salom")
+    check("watermark yo'q", "@PostAssistrobot" not in compose_post_text("Salom", False, "REKLAMA"))
+    check("admin reklamasi qo'shiladi", compose_post_text("Salom", False, "REKLAMA") == "Salom\n\nREKLAMA")
+    check("bo'sh reklama: o'zgarmaydi", compose_post_text("Salom", False, "  ") == "Salom")
+    check("faqat reklama", compose_post_text("", False, "REKLAMA") == "REKLAMA")
+
+
+def test_parse_album_items():
+    print("== scheduler.parse_album_items ==")
+    from scheduler import parse_album_items
+    raw = '[{"type":"photo","file_id":"aa"},{"type":"video","file_id":"bb","caption":"x"}]'
+    items = parse_album_items(raw)
+    check("2 ta element", len(items) == 2, str(items))
+    check("birinchi photo", items[0]["type"] == "photo" and items[0]["file_id"] == "aa")
+    check("bo'sh/xato → []", parse_album_items("not-json") == [] and parse_album_items(None) == [])
+    too_many = [{"type": "photo", "file_id": str(i)} for i in range(15)]
+    import json as _json
+    check("maks 10 ta", len(parse_album_items(_json.dumps(too_many))) == 10)
+
+
+def test_album_label():
+    print("== format_post_type_label albom ==")
+    from utils.helpers import format_post_type_label
+    check("album → Albom", format_post_type_label("album") == "Albom")
+
+
 def main():
     test_calculate_next_time()
     test_converter()
@@ -195,6 +224,9 @@ def main():
     test_abuse_protection()
     test_tashkent_date()
     test_prompt_truncation()
+    test_compose_post_text()
+    test_parse_album_items()
+    test_album_label()
 
     print(f"\nO'tdi: {passed}, Xato: {failures}")
     if failures:

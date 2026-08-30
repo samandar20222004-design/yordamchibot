@@ -149,7 +149,8 @@ def format_post_type_label(post_type: str) -> str:
         "audio": "Audio",
         "voice": "Ovozli xabar",
         "sticker": "Stiker",
-        "text": "Matn"
+        "text": "Matn",
+        "album": "Albom",
     }
     return mapping.get(pt, "Xabar")
 

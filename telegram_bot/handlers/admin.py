@@ -103,6 +103,12 @@ async def sponsors_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id):
         return
     sponsors = db.get_active_sponsors()
+    if sponsors is None:
+        await update.message.reply_text(
+            "⚠️ Homiy kanallarni bazadan o'qib bo'lmadi. Keyinroq urinib ko'ring.",
+            reply_markup=get_admin_panel_keyboard(),
+        )
+        return
     text = f"📢 <b>Majburiy a'zolik (Homiy) kanallari ({len(sponsors)} ta):</b>\n\n"
     if sponsors:
         for s in sponsors:

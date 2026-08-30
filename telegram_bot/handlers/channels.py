@@ -12,10 +12,11 @@ logger = logging.getLogger(__name__)
 
 ADD_CHANNEL = 301
 
+
 async def channels_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
-    channels = db.get_user_channels(user_id)
-    
+    channels = await db.run_db(db.get_user_channels, user_id)
+
     if not channels:
         await update.message.reply_text(
             "📢 <b>Sizda hali ulangan kanallar mavjud emas.</b>\n\n"
@@ -32,6 +33,7 @@ async def channels_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     return ConversationHandler.END
 
+
 async def start_add_channel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     bot_obj = await context.bot.get_me()
     await update.message.reply_text(
@@ -44,55 +46,110 @@ async def start_add_channel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     return ADD_CHANNEL
 
+
+async def _verify_channel_permissions(bot, chat_id, user_id: int, is_admin_user: bool):
+    """Bot va foydalanuvchi huquqlarini fail-closed tekshiradi.
+
+    Qaytadi: (ok, error_html, real_channel_id, title)
+    """
+    try:
+        chat = await bot.get_chat(chat_id)
+    except TelegramError as e:
+        logger.warning("Kanal topilmadi (%s): %s", chat_id, e)
+        return False, "❌ Kanal yoki guruh topilmadi. Forward qiling yoki to'g'ri ID yuboring.", None, None
+
+    real_id = str(chat.id)
+    title = chat.title or "Telegram Kanal"
+
+    try:
+        bot_member = await bot.get_chat_member(chat.id, bot.id)
+    except TelegramError as e:
+        logger.warning("Bot a'zoligini tekshirib bo'lmadi (%s): %s", real_id, e)
+        return False, (
+            "⚠️ <b>Bot ushbu kanalda emas yoki huquqlarni tekshirib bo'lmadi.</b>\n\n"
+            "Avval botni administrator qiling (xabar yuborish ruxsati bilan)."
+        ), None, None
+
+    if bot_member.status not in ("administrator", "creator"):
+        return False, (
+            "⚠️ <b>Bot ushbu kanalda administrator emas!</b>\n\n"
+            "Iltimos, avval botga kanalda xabar yuborish ruxsatini bering."
+        ), None, None
+
+    if chat.type == "channel" and bot_member.status == "administrator":
+        if not getattr(bot_member, "can_post_messages", False):
+            return False, (
+                "⚠️ <b>Botga kanalda xabar yuborish ruxsati berilmagan.</b>\n\n"
+                "Administrator sozlamalarida <b>Post Messages</b> huquqini yoqing."
+            ), None, None
+
+    if not is_admin_user:
+        try:
+            user_member = await bot.get_chat_member(chat.id, user_id)
+        except TelegramError as e:
+            logger.warning("Foydalanuvchi huquqini tekshirib bo'lmadi (%s / %s): %s", real_id, user_id, e)
+            return False, (
+                "⚠️ <b>Sizning ushbu kanaldagi huquqingizni tekshirib bo'lmadi.</b>\n\n"
+                "Faqat kanal/guruh administratori botga kanal ulashi mumkin."
+            ), None, None
+        if user_member.status not in ("administrator", "creator"):
+            return False, (
+                "🚫 <b>Ruxsat yo'q.</b>\n\n"
+                "Faqat kanal yoki guruh <b>administratori</b> ushbu botga kanal ulashi mumkin."
+            ), None, None
+
+    return True, "", real_id, title
+
+
 async def channel_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = update.message
     user_id = update.effective_user.id
     is_admin = (user_id == ADMIN_ID)
-    
-    channel_id = None
-    channel_title = None
 
+    raw_target = None
     if msg.forward_from_chat:
-        channel_id = str(msg.forward_from_chat.id)
-        channel_title = msg.forward_from_chat.title or "Telegram Kanal"
+        raw_target = msg.forward_from_chat.id
     elif msg.text:
         text = msg.text.strip()
-        channel_id = text
-        try:
-            target_chat = int(text) if text.lstrip('-').isdigit() else text
-            chat_obj = await context.bot.get_chat(target_chat)
-            channel_id = str(chat_obj.id)
-            channel_title = chat_obj.title or "Telegram Kanal"
-        except TelegramError:
-            channel_title = "Telegram Kanal"
-
-    if not channel_id:
+        if text.lstrip("-").isdigit() or text.startswith("@"):
+            raw_target = int(text) if text.lstrip("-").isdigit() else text
+        else:
+            await update.message.reply_text(
+                "❌ Kanal ma'lumotlari aniqlanmadi. Iltimos, kanaldan xabarni <b>forward</b> qiling "
+                "yoki ID ni yuboring (masalan: <code>-1001234567890</code>).",
+                parse_mode="HTML",
+            )
+            return ADD_CHANNEL
+    else:
         await update.message.reply_text("❌ Kanal ma'lumotlari aniqlanmadi. Iltimos, kanaldan xabarni forward qiling:")
         return ADD_CHANNEL
 
-    try:
-        target_chat = int(channel_id) if str(channel_id).lstrip('-').isdigit() else channel_id
-        member = await context.bot.get_chat_member(chat_id=target_chat, user_id=context.bot.id)
-        if member.status not in ("administrator", "creator"):
-            await update.message.reply_text(
-                "⚠️ <b>Bot ushbu kanalda administrator emas!</b>\n\nIltimos, avval botga kanalda xabar yuborish ruxsatini bering.",
-                parse_mode="HTML"
-            )
-            return ADD_CHANNEL
-    except TelegramError as e:
-        logger.warning(f"Kanal tekshirishda xato: {e}")
+    ok, err, channel_id, channel_title = await _verify_channel_permissions(
+        context.bot, raw_target, user_id, is_admin
+    )
+    if not ok:
+        await update.message.reply_text(err, parse_mode="HTML")
+        return ADD_CHANNEL
 
-    success = db.save_channel(user_id, channel_id, channel_title)
+    success, reason = await db.run_db(db.save_channel, user_id, channel_id, channel_title, is_admin)
     if success:
         await update.message.reply_text(
             f"✅ <b>Kanal muvaffaqiyatli ulandi!</b>\n\n📢 Nomi: <b>{html_escape(channel_title)}</b>\n🆔 ID: <code>{channel_id}</code>",
             reply_markup=get_main_keyboard(is_admin),
             parse_mode="HTML"
         )
+    elif reason == "taken":
+        await update.message.reply_text(
+            "🚫 <b>Bu kanal allaqachon boshqa foydalanuvchiga ulangan.</b>\n\n"
+            "O'g'irlab bo'lmaydi. Agar bu sizning kanalingiz bo'lsa, avval egasi botdan o'chirishi kerak.",
+            reply_markup=get_main_keyboard(is_admin),
+            parse_mode="HTML",
+        )
     else:
         await update.message.reply_text("❌ Kanalni saqlashda xatolik yuz berdi.", reply_markup=get_main_keyboard(is_admin))
-        
+
     return ConversationHandler.END
+
 
 async def remove_channel_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -100,9 +157,13 @@ async def remove_channel_callback(update: Update, context: ContextTypes.DEFAULT_
     channel_id = query.data.split(":")[1]
     user_id = query.from_user.id
     is_admin = (user_id == ADMIN_ID)
-    
-    db.remove_channel(user_id, channel_id, is_admin=is_admin)
-    await query.edit_message_text("✅ Kanal muvaffaqiyatli o'chirildi.")
+
+    removed = await db.run_db(db.remove_channel, user_id, channel_id, is_admin)
+    if removed:
+        await query.edit_message_text("✅ Kanal muvaffaqiyatli o'chirildi.")
+    else:
+        await query.edit_message_text("❌ Kanal topilmadi yoki sizga tegishli emas.")
+
 
 async def on_bot_chat_member_update(update: Update, context: ContextTypes.DEFAULT_TYPE):
     result = update.my_chat_member
@@ -111,6 +172,30 @@ async def on_bot_chat_member_update(update: Update, context: ContextTypes.DEFAUL
     chat = result.chat
     new_status = result.new_chat_member.status
     user_id = result.from_user.id
-    
-    if new_status in ("administrator", "creator") and chat.type in ("channel", "supergroup", "group"):
-        db.save_channel(user_id, str(chat.id), chat.title or "Telegram Kanal")
+
+    if chat.type not in ("channel", "supergroup", "group"):
+        return
+
+    if new_status in ("administrator", "creator"):
+        is_admin = (user_id == ADMIN_ID)
+        success, reason = await db.run_db(
+            db.save_channel, user_id, str(chat.id), chat.title or "Telegram Kanal", is_admin
+        )
+        if success:
+            try:
+                await context.bot.send_message(
+                    chat_id=user_id,
+                    text=(
+                        f"✅ <b>Kanal avtomatik ulandi:</b> {html_escape(chat.title or 'Kanal')}\n"
+                        f"🆔 <code>{chat.id}</code>"
+                    ),
+                    parse_mode="HTML",
+                )
+            except TelegramError:
+                pass
+        elif reason == "taken":
+            logger.info("Kanal %s boshqa foydalanuvchiga tegishli — avto-ulash o'tkazib yuborildi", chat.id)
+        return
+
+    if new_status in ("left", "kicked", "member", "restricted"):
+        await db.run_db(db.deactivate_channel_by_id, str(chat.id))

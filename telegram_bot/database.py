@@ -144,13 +144,17 @@ def db_cursor(commit: bool = False):
         raise
 
 
-async def run_in_thread(func, *args, **kwargs):
+async def run_db(func, *args, **kwargs):
     """Sync DB funksiyasini alohida thread'da bajaradi — event loop bloklanmaydi.
 
-    Scheduler va og'ir operatsiyalarda DB chaqiruvlarini shu orqali qiling:
-        result = await db.run_in_thread(db.get_due_posts, now)
+    Async handler/scheduler ichida to'g'ridan-to'g'ri sync DB chaqirmang:
+        result = await db.run_db(db.get_due_posts, now)
     """
     return await asyncio.to_thread(func, *args, **kwargs)
+
+
+# Eski nom — mavjud chaqiruvlar ishlashi uchun
+run_in_thread = run_db
 
 
 def ping_db() -> bool:
@@ -231,7 +235,7 @@ def _init_db_once():
                 channel_id VARCHAR(255) NOT NULL,
                 post_type VARCHAR(50) NOT NULL,
                 content TEXT,
-                file_id VARCHAR(255),
+                file_id TEXT,
                 inline_button_text VARCHAR(255),
                 inline_button_url TEXT,
                 enable_reactions BOOLEAN DEFAULT FALSE,
@@ -292,6 +296,7 @@ def _init_db_once():
             "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS end_date TIMESTAMP WITH TIME ZONE;",
             "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;",
             "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS processing_started_at TIMESTAMP WITH TIME ZONE;",
+            "ALTER TABLE scheduled_posts ALTER COLUMN file_id TYPE TEXT;",
         ]
         for index, migration in enumerate(migrations):
             # Bitta migration xatosi qolgan migrationlarni transaction aborted
@@ -352,14 +357,19 @@ def add_sponsor_channel(channel_id: str, channel_title: str, channel_url: str) -
         logger.error(f"Sponsor xatosi: {e}")
         return False
 
-def get_active_sponsors() -> list:
+def get_active_sponsors():
+    """Faol homiy kanallar.
+
+    Muvaffaqiyat: list (bo'sh bo'lishi mumkin).
+    Xatolik: None — chaqiruvchi fail-closed ishlashi kerak (obunani o'tkazib yubormaslik).
+    """
     try:
         with db_cursor() as cur:
             cur.execute("SELECT id, channel_id, channel_title, channel_url FROM sponsor_channels WHERE is_active = TRUE ORDER BY id ASC")
             return cur.fetchall()
     except Exception as e:
         logger.error(f"Sponsorlar olish xatosi: {e}")
-        return []
+        return None
 
 def remove_sponsor_channel(sponsor_id: int) -> bool:
     try:
@@ -692,18 +702,54 @@ def get_all_channels() -> list:
         logger.error(f"Barcha kanallar xatosi: {e}")
         return []
 
-def save_channel(user_id: int, channel_id: str, channel_title: str) -> bool:
+def save_channel(user_id: int, channel_id: str, channel_title: str, is_admin: bool = False) -> tuple[bool, str]:
+    """Kanalni foydalanuvchiga ulash.
+
+    Qaytadi: (True, 'ok') yoki (False, 'taken'|'error').
+    Faol kanalni boshqa foydalanuvchi o'g'irlay olmaydi — faqat o'chirilgan
+    (nofaol) kanalni qayta ulash yoki admin qayta biriktirishi mumkin.
+    """
     try:
         with db_cursor(commit=True) as cur:
-            cur.execute("""
+            cur.execute(
+                """
                 INSERT INTO channels (user_id, channel_id, channel_title, is_active)
                 VALUES (%s, %s, %s, TRUE)
                 ON CONFLICT (channel_id) DO UPDATE
-                SET is_active = TRUE, channel_title = EXCLUDED.channel_title, user_id = EXCLUDED.user_id
-            """, (user_id, str(channel_id), channel_title))
-        return True
+                SET is_active = TRUE,
+                    channel_title = EXCLUDED.channel_title,
+                    user_id = CASE
+                        WHEN channels.is_active = FALSE THEN EXCLUDED.user_id
+                        WHEN channels.user_id = EXCLUDED.user_id THEN EXCLUDED.user_id
+                        WHEN EXCLUDED.user_id = %s THEN EXCLUDED.user_id
+                        ELSE channels.user_id
+                    END
+                RETURNING user_id
+                """,
+                (user_id, str(channel_id), channel_title, user_id if is_admin else -1),
+            )
+            row = cur.fetchone()
+            if not row:
+                return False, "error"
+            if row[0] != user_id:
+                return False, "taken"
+        return True, "ok"
     except Exception as e:
         logger.error(f"Kanal saqlash xatosi: {e}")
+        return False, "error"
+
+
+def deactivate_channel_by_id(channel_id: str) -> bool:
+    """Bot kanal/guruhdan chiqarilganda yozuvni nofaol qilish."""
+    try:
+        with db_cursor(commit=True) as cur:
+            cur.execute(
+                "UPDATE channels SET is_active = FALSE WHERE channel_id = %s AND is_active = TRUE",
+                (str(channel_id),),
+            )
+            return cur.rowcount > 0
+    except Exception as e:
+        logger.error(f"Kanalni nofaol qilish xatosi: {e}")
         return False
 
 def remove_channel(user_id: int, channel_id: str, is_admin: bool = False) -> bool:
@@ -850,15 +896,21 @@ def mark_post_status(post_id: int, status: str):
     except Exception as e:
         logger.error(f"Post status xatosi: {e}")
 
-def mark_post_as_sent(post_id: int, sent_message_id: int, channel_id: str = None, delete_after_hours: int = 0):
+def mark_post_as_sent(post_id: int, sent_message_id: int, channel_id: str = None, delete_after_hours: int = 0, extra_message_ids: list = None):
     try:
         with db_cursor(commit=True) as cur:
             cur.execute("UPDATE scheduled_posts SET status = 'posted', sent_message_id = %s WHERE id = %s", (sent_message_id, post_id))
             if channel_id is not None:
-                cur.execute("""
-                    INSERT INTO sent_post_messages (post_id, channel_id, message_id, delete_at)
-                    VALUES (%s, %s, %s, CASE WHEN %s > 0 THEN NOW() + (%s || ' hours')::INTERVAL ELSE NULL END)
-                """, (post_id, str(channel_id), sent_message_id, delete_after_hours, delete_after_hours))
+                ids = [sent_message_id]
+                if extra_message_ids:
+                    for mid in extra_message_ids:
+                        if mid and mid not in ids:
+                            ids.append(mid)
+                for mid in ids:
+                    cur.execute("""
+                        INSERT INTO sent_post_messages (post_id, channel_id, message_id, delete_at)
+                        VALUES (%s, %s, %s, CASE WHEN %s > 0 THEN NOW() + (%s || ' hours')::INTERVAL ELSE NULL END)
+                    """, (post_id, str(channel_id), mid, delete_after_hours, delete_after_hours))
     except Exception as e:
         logger.error(f"Post yuborilganini belgilash xatosi: {e}")
 
