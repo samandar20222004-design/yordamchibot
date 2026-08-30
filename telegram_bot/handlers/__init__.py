@@ -15,15 +15,16 @@ from keyboards.default import (
     BTN_BROADCAST, BTN_MAIN_MENU, BTN_SPONSORS, BTN_ADD_SPONSOR,
     BTN_CHANNEL_AD, BTN_BOT_REPLY_AD
 )
+from keyboards.inline import get_subscription_check_keyboard
 from handlers.start import (
     start, user_cabinet_menu, user_invite_menu, daily_bonus_handler, buy_ad_free_handler,
     ad_free_callback, start_transfer_credits, transfer_target_received, transfer_amount_received,
-    help_command, cancel_handler, subscription_check_callback,
+    help_command, cancel_handler, subscription_check_callback, check_user_subscribed,
     TRANSFER_TARGET, TRANSFER_AMOUNT
 )
 from handlers.new_post import (
     start_new_post, channel_chosen, content_received, btn_title_received,
-    btn_url_received, reactions_received, auto_delete_received, time_received, 
+    btn_url_received, reactions_received, auto_delete_received, time_received,
     daily_time_received, recur_day_chosen, recur_time_received, duration_chosen,
     CHOOSE_CHANNEL, GET_CONTENT, GET_BTN_TITLE, GET_BTN_URL,
     GET_REACTIONS, GET_AUTO_DELETE, GET_TIME, DAILY_TIME, RECUR_DAY, RECUR_TIME, GET_DURATION
@@ -55,6 +56,29 @@ from utils.helpers import check_rate_limit
 
 logger = logging.getLogger(__name__)
 
+
+async def _deny_if_unsubscribed(update, context) -> bool:
+    """True qaytsa — foydalanuvchi homiy obunasisiz, jarayon to'xtatiladi (fail-closed)."""
+    user = update.effective_user
+    if not user or not update.message:
+        return False
+    is_sub, unsubs = await check_user_subscribed(context.bot, user.id)
+    if unsubs is None:
+        await update.message.reply_text(
+            "⚠️ <b>Tizim vaqtincha band.</b>\nIltimos, birozdan so'ng /start bosing.",
+            parse_mode="HTML",
+        )
+        return True
+    if not is_sub:
+        await update.message.reply_text(
+            "📢 <b>Botdan to'liq foydalanish uchun quyidagi homiy kanallarga obuna bo'ling:</b>",
+            reply_markup=get_subscription_check_keyboard(unsubs),
+            parse_mode="HTML",
+        )
+        return True
+    return False
+
+
 async def guard_entry(update, context, fn):
     user = update.effective_user
     if user:
@@ -63,7 +87,10 @@ async def guard_entry(update, context, fn):
             if should_warn and update.message:
                 await update.message.reply_text("⚠️ <i>Juda ko'p so'rov yubordingiz! Iltimos, 3 soniya kuting...</i>", parse_mode="HTML")
             return ConversationHandler.END
-            
+
+    if await _deny_if_unsubscribed(update, context):
+        return ConversationHandler.END
+
     context.user_data.clear()
     return await fn(update, context)
 
@@ -75,7 +102,10 @@ async def guard_menu(update, context, fn):
             if should_warn and update.message:
                 await update.message.reply_text("⚠️ <i>Juda ko'p so'rov yubordingiz! Iltimos, 3 soniya kuting...</i>", parse_mode="HTML")
             return ConversationHandler.END
-            
+
+    if await _deny_if_unsubscribed(update, context):
+        return ConversationHandler.END
+
     context.user_data.clear()
     await fn(update, context)
     return ConversationHandler.END
@@ -83,18 +113,18 @@ async def guard_menu(update, context, fn):
 async def reaction_callback(update, context):
     query = update.callback_query
     user_id = query.from_user.id
-    
+
     is_blocked, _ = check_rate_limit(user_id, max_requests=3, window_seconds=2.0)
     if is_blocked:
         await query.answer("Iltimos, shoshilmang...", show_alert=False)
         return
-        
+
     try:
         await query.answer()
         _, pid_str, emoji = query.data.split(":")
         post_id = int(pid_str)
-        counts = db.toggle_reaction(post_id, user_id, emoji)
-        
+        counts = await db.run_db(db.toggle_reaction, post_id, user_id, emoji)
+
         keyboard = []
         for row in query.message.reply_markup.inline_keyboard:
             new_row = []
@@ -191,7 +221,7 @@ def register_all_handlers(app):
     app.add_handler(CommandHandler("admin", admin_panel_menu))
     app.add_handler(CommandHandler("stats", show_statistics))
     app.add_handler(main_conv)
-    
+
     app.add_handler(MessageHandler(exact(BTN_CABINET), lambda u, c: guard_menu(u, c, user_cabinet_menu)))
     app.add_handler(MessageHandler(exact(BTN_DAILY_BONUS), lambda u, c: guard_menu(u, c, daily_bonus_handler)))
     app.add_handler(MessageHandler(exact(BTN_BUY_AD_FREE), lambda u, c: guard_menu(u, c, buy_ad_free_handler)))
@@ -205,7 +235,7 @@ def register_all_handlers(app):
     app.add_handler(MessageHandler(exact(BTN_ALL_POSTS), lambda u, c: guard_menu(u, c, admin_all_posts)))
     app.add_handler(MessageHandler(exact(BTN_ALL_CHANNELS), lambda u, c: guard_menu(u, c, admin_all_channels)))
     app.add_handler(MessageHandler(exact(BTN_SPONSORS), lambda u, c: guard_menu(u, c, sponsors_menu)))
-    
+
     app.add_handler(CallbackQueryHandler(ad_free_callback, pattern=r"^adfree_"))
     app.add_handler(CallbackQueryHandler(converter_callback, pattern=r"^conv_show:"))
     app.add_handler(CallbackQueryHandler(subscription_check_callback, pattern=r"^check_subscription$"))

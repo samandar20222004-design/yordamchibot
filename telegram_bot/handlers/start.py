@@ -1,7 +1,7 @@
 import logging
 import time
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.error import TelegramError
+from telegram.error import TelegramError, Forbidden
 from telegram.ext import ContextTypes, ConversationHandler
 from config import ADMIN_ID
 import database as db
@@ -21,10 +21,19 @@ _membership_cache = {}
 MEMBERSHIP_CACHE_TTL = 60
 MEMBERSHIP_CACHE_MAX = 20000
 
-async def check_user_subscribed(bot, user_id: int) -> tuple[bool, list]:
+async def check_user_subscribed(bot, user_id: int) -> tuple[bool, list | None]:
+    """Homiy obunasini tekshiradi (fail-closed).
+
+    Qaytadi:
+      (True, [])            — ruxsat (admin yoki homiy yo'q yoki hammaga obuna)
+      (False, [sponsors])   — obuna yo'q, ro'yxatni ko'rsatish
+      (False, None)         — tizim xatosi (bazaga ulanib bo'lmadi) — o'tkazib yuborilmaydi
+    """
     if user_id == ADMIN_ID:
         return True, []
-    sponsors = db.get_active_sponsors()
+    sponsors = await db.run_db(db.get_active_sponsors)
+    if sponsors is None:
+        return False, None
     if not sponsors:
         return True, []
 
@@ -42,8 +51,20 @@ async def check_user_subscribed(bot, user_id: int) -> tuple[bool, list]:
             target_chat = int(ch_id) if str(ch_id).lstrip('-').isdigit() else ch_id
             member = await bot.get_chat_member(chat_id=target_chat, user_id=user_id)
             is_member = member.status in ("creator", "administrator", "member", "restricted")
-        except TelegramError:
-            is_member = True  # holatni aniqlab bo'lmasa — bloklamaymiz
+        except Forbidden:
+            # Bot homiy kanalga kira olmaydi (noto'g'ri sozlama) — bu sponsorni o'tkazib yuboramiz,
+            # aks holda butun bot yopilib qoladi. Foydalanuvchi tekshiruvi emas.
+            logger.error("Bot homiy kanalga kira olmaydi, o'tkazib yuborildi: %s", ch_id)
+            is_member = True
+        except TelegramError as e:
+            err = str(e).lower()
+            if "chat not found" in err or "bot was kicked" in err:
+                logger.error("Homiy kanal noto'g'ri sozlangan (%s): %s", ch_id, e)
+                is_member = True
+            else:
+                # Foydalanuvchi holatini aniqlab bo'lmasa — fail-closed (obuna emas).
+                logger.warning("Obuna tekshiruvi fail-closed (%s / %s): %s", ch_id, user_id, e)
+                is_member = False
         _membership_cache[cache_key] = (now, is_member)
         if not is_member:
             unsubscribed.append(s)
@@ -69,7 +90,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             except ValueError:
                 referrer_id = None
     
-    is_new = db.save_user(user.id, user.username or "", user.full_name or "", referrer_id=referrer_id)
+    is_new = await db.run_db(db.save_user, user.id, user.username or "", user.full_name or "", referrer_id=referrer_id)
     
     if is_new and referrer_id:
         try:
@@ -82,6 +103,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             pass
             
     is_sub, unsubs = await check_user_subscribed(context.bot, user.id)
+    if unsubs is None:
+        await update.message.reply_text(
+            "⚠️ <b>Tizim vaqtincha band.</b>\nIltimos, birozdan so'ng /start bosing.",
+            parse_mode="HTML",
+        )
+        return ConversationHandler.END
     if not is_sub:
         await update.message.reply_text(
             "📢 <b>Botdan to'liq foydalanish uchun quyidagi homiy kanallarga obuna bo'ling:</b>",
@@ -130,9 +157,9 @@ async def user_cabinet_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
     user = update.effective_user
     is_admin = (user.id == ADMIN_ID)
-    stats = db.get_referral_stats(user.id)
-    channels = db.get_user_channels(user.id)
-    user_code = db.get_user_code(user.id)
+    stats = await db.run_db(db.get_referral_stats, user.id)
+    channels = await db.run_db(db.get_user_channels, user.id)
+    user_code = await db.run_db(db.get_user_code, user.id)
     
     credits_text = "♾ Cheksiz (Super Admin)" if is_admin else f"<b>{stats['ai_credits']} ta</b>"
     
@@ -167,7 +194,7 @@ async def daily_bonus_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
         await update.message.reply_text("👑 <b>Siz Super Adminsiz</b> — hisobingizda cheksiz so'rov mavjud!", parse_mode="HTML")
         return
         
-    res = db.claim_daily_streak_bonus(user.id)
+    res = await db.run_db(db.claim_daily_streak_bonus, user.id)
     if res.get("success"):
         streak = res["streak"]
         bonus = res["bonus_amount"]
@@ -201,7 +228,7 @@ async def buy_ad_free_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
         await update.message.reply_text("👑 Siz Super Adminsiz — barcha postlaringiz doim reklamasiz chiqadi!", parse_mode="HTML")
         return
         
-    stats = db.get_referral_stats(user.id)
+    stats = await db.run_db(db.get_referral_stats, user.id)
     posts_count = stats['ad_free_posts']
     is_active = stats.get('ad_free_active', True)
     
@@ -236,8 +263,8 @@ async def ad_free_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if data == "adfree_toggle":
-        success, new_status = db.toggle_ad_free_status(user_id)
-        stats = db.get_referral_stats(user_id)
+        success, new_status = await db.run_db(db.toggle_ad_free_status, user_id)
+        stats = await db.run_db(db.get_referral_stats, user_id)
         posts_count = stats['ad_free_posts']
         status_label = "🟢 Yoqilgan (Ishlatilmoqda)" if new_status else "🔴 O'chirilgan (Saqlanmoqda)"
         toggle_btn_text = "🔴 O'chirish (Tejash)" if new_status else "🟢 Yoqish (Ishlatish)"
@@ -261,12 +288,12 @@ async def ad_free_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if data == "adfree_confirm":
-        success, msg = db.buy_ad_free_posts(user_id)
+        success, msg = await db.run_db(db.buy_ad_free_posts, user_id)
         await query.edit_message_text(msg, parse_mode="HTML")
         return
 
     if data == "adfree_refund":
-        success, msg = db.refund_ad_free_posts(user_id)
+        success, msg = await db.run_db(db.refund_ad_free_posts, user_id)
         await query.edit_message_text(msg, parse_mode="HTML")
         return
 
@@ -275,7 +302,7 @@ async def user_invite_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     is_admin = (user.id == ADMIN_ID)
     bot_obj = await context.bot.get_me()
-    stats = db.get_referral_stats(user.id)
+    stats = await db.run_db(db.get_referral_stats, user.id)
     ref_link = f"https://t.me/{bot_obj.username}?start=ref_{user.id}"
     
     credits_text = "♾ Cheksiz (Super Admin)" if is_admin else f"<b>{stats['ai_credits']} ta</b>"
@@ -296,7 +323,7 @@ async def user_invite_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def start_transfer_credits(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
     user_id = update.effective_user.id
-    my_credits = db.get_user_credits(user_id)
+    my_credits = await db.run_db(db.get_user_credits, user_id)
     
     if my_credits < 3 and user_id != ADMIN_ID:
         await update.message.reply_text(
@@ -364,7 +391,7 @@ async def transfer_amount_received(update: Update, context: ContextTypes.DEFAULT
     to_id = context.user_data.get("transfer_to_id")
     to_name = context.user_data.get("transfer_to_name", "Do'stingiz")
     
-    success, msg = db.transfer_user_credits(from_id, to_id, amount)
+    success, msg = await db.run_db(db.transfer_user_credits, from_id, to_id, amount)
     
     if success:
         await update.message.reply_text(
@@ -394,7 +421,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = (
         "📖 <b>PostAssistrobot — To'liq Qo'llanma:</b>\n\n"
         "🔹 <b>1. Yangi post rejalashtirish:</b>\n"
-        "• Matn, rasm, video yoki audio postlarni istalgan sanaga rejalashtirish.\n"
+        "• Matn, rasm, video, audio yoki <b>albom</b> (bir nechta rasm/video) postlarni istalgan sanaga rejalashtirish.\n"
         "• Havola tugmalar (URL button), reaksiyalar va avto-o'chirish (12, 24, 48, 72 soat).\n"
         "• <i>Litsenziya bo'lsa reklamasiz toza post chiqadi!</i>\n\n"
         "🔹 <b>2. AI Post Yordamchi:</b>\n"

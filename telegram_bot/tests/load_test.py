@@ -66,6 +66,34 @@ class FakeBot:
             self.sent.append((chat_id, text))
         return SimpleNamespace(message_id=len(self.sent))
 
+    async def send_photo(self, chat_id, photo=None, caption=None, reply_markup=None, parse_mode=None):
+        return await self.send_message(chat_id, text=caption, reply_markup=reply_markup, parse_mode=parse_mode)
+
+    async def send_video(self, chat_id, video=None, caption=None, reply_markup=None, parse_mode=None):
+        return await self.send_message(chat_id, text=caption, reply_markup=reply_markup, parse_mode=parse_mode)
+
+    async def send_animation(self, chat_id, animation=None, caption=None, reply_markup=None, parse_mode=None):
+        return await self.send_message(chat_id, text=caption, reply_markup=reply_markup, parse_mode=parse_mode)
+
+    async def send_document(self, chat_id, document=None, caption=None, reply_markup=None, parse_mode=None):
+        return await self.send_message(chat_id, text=caption, reply_markup=reply_markup, parse_mode=parse_mode)
+
+    async def send_audio(self, chat_id, audio=None, caption=None, reply_markup=None, parse_mode=None):
+        return await self.send_message(chat_id, text=caption, reply_markup=reply_markup, parse_mode=parse_mode)
+
+    async def send_voice(self, chat_id, voice=None, caption=None, reply_markup=None, parse_mode=None):
+        return await self.send_message(chat_id, text=caption, reply_markup=reply_markup, parse_mode=parse_mode)
+
+    async def send_sticker(self, chat_id, sticker=None):
+        return await self.send_message(chat_id, text="sticker")
+
+    async def send_media_group(self, chat_id, media):
+        msgs = []
+        for m in media:
+            cap = getattr(m, "caption", None)
+            msgs.append(await self.send_message(chat_id, text=cap))
+        return msgs
+
     async def delete_message(self, chat_id=None, message_id=None):
         with self.lock:
             self.deleted.append((chat_id, message_id))
@@ -306,6 +334,56 @@ def test_cleanup(db):
     check("yangi postlar o'chirilmadi", True)  # sanity
 
 
+def test_channel_ownership(db):
+    print("== kanal xavfsizligi: o'g'irlash mumkin emas ==")
+    ok, reason = db.save_channel(1, "-100888001", "Kanal A")
+    check("birinchi ulash ok", ok and reason == "ok", f"{ok} {reason}")
+    ok2, reason2 = db.save_channel(2, "-100888001", "O'g'irlangan")
+    check("boshqa user o'g'irlay olmaydi", (not ok2) and reason2 == "taken", f"{ok2} {reason2}")
+    ok3, reason3 = db.save_channel(1, "-100888001", "Kanal A yangi nom")
+    check("egasi yangilay oladi", ok3 and reason3 == "ok", f"{ok3} {reason3}")
+    db.remove_channel(1, "-100888001")
+    ok4, reason4 = db.save_channel(2, "-100888001", "Endi user2")
+    check("nofaol kanalni boshqasi olishi mumkin", ok4 and reason4 == "ok", f"{ok4} {reason4}")
+    db.save_channel(1, "-100888002", "Kick testi")
+    deactivated = db.deactivate_channel_by_id("-100888002")
+    check("bot chiqarilsa nofaol", deactivated is True)
+    chans = db.get_user_channels(1)
+    check("nofaol kanal ro'yxatda yo'q", all(c[0] != "-100888002" for c in chans))
+
+
+def test_sponsors_fail_closed_empty(db):
+    print("== get_active_sponsors: DB ishlasa list (None emas) ==")
+    sponsors = db.get_active_sponsors()
+    check("homiylar list", isinstance(sponsors, list), str(type(sponsors)))
+    check("bo'sh homiy None emas", sponsors is not None)
+
+
+def test_album_and_no_watermark(db):
+    print("== albom yuborish + majburiy watermark yo'q ==")
+    import json
+    from scheduler import check_and_send_posts
+    from datetime import datetime, timedelta
+    import pytz
+    tz = pytz.timezone("Asia/Tashkent")
+    items = json.dumps([
+        {"type": "photo", "file_id": "ph1", "caption": "Birinchi"},
+        {"type": "photo", "file_id": "ph2"},
+    ])
+    pid = db.add_post(
+        user_id=1, channel_id="-100444", post_type="album",
+        content="Albom matni", file_id=items,
+        scheduled_time=datetime.now(tz) - timedelta(minutes=1),
+    )
+    check("albom post saqlandi", pid > 0)
+    bot = FakeBot()
+    asyncio.run(check_and_send_posts(bot))
+    texts = [t or "" for _, t in bot.sent]
+    check("albom kamida 2 ta media", len(bot.sent) >= 2, f"sent={len(bot.sent)}")
+    check("watermark yo'q", all("@PostAssistrobot" not in t for t in texts), str(texts)[:200])
+    check("albom matni chiqdi", any("Albom matni" in t for t in texts), str(texts)[:200])
+
+
 def main():
     import pgserver
 
@@ -374,6 +452,11 @@ def main():
 
     # 9) Broadcast RetryAfter tugashi (xato hisobga olinishi)
     test_broadcast_retryafter_exhausted(db)
+
+    # 10) Kanal xavfsizligi, homiylar, albom
+    test_channel_ownership(db)
+    test_sponsors_fail_closed_empty(db)
+    test_album_and_no_watermark(db)
 
     db.close_pool()
     server.cleanup()

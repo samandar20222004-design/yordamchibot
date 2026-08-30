@@ -105,6 +105,13 @@ Telegram serverlarida qoladi. Shuning uchun 10MB rasm ham, 100MB video ham
 bazangizni og'irlashtirmaydi, va jo'natish vaqti kelganda bot shu ishora
 orqali qayta jo'natadi — hech qanday hajm cheklovisiz.
 
+**Albom:** bir nechta rasm/videoni birga yuborsangiz, bot ularni albom
+sifatida saqlaydi va kanalga `sendMediaGroup` orqali chiqaradi (10 tagacha).
+
+**Kanal xavfsizligi:** kanalni faqat o'sha kanal/guruh administratori ulay
+oladi. Faol kanalni boshqa foydalanuvchi o'g'irlay olmaydi. Bot kanaldan
+chiqarilsa, ulanish avtomatik nofaol bo'ladi.
+
 ## Render va UptimeRobot sozlamalari
 
 Render'da **Root Directory** ni `telegram_bot`, Build Command'ni `pip install -r requirements.txt`, Start Command'ni `python main.py` qilib qo'ying. Environment Variables ichida `BOT_TOKEN`, `ADMIN_ID` va Render PostgreSQL bergan `DATABASE_URL` bo'lishi kerak. `PORT` ni qo'lda berish shart emas: kod Render bergan portni o'zi oladi.

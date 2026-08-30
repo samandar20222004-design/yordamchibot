@@ -10,9 +10,9 @@ from utils.helpers import format_post_type_label, format_schedule_line, html_esc
 tashkent_tz = pytz.timezone("Asia/Tashkent")
 EDIT_POST_TIME = 201
 
-def _build_pending_view(user_id: int):
-    user_code = db.get_user_code(user_id)
-    posts = db.get_pending_posts(user_id)
+async def _build_pending_view(user_id: int):
+    user_code = await db.run_db(db.get_user_code, user_id)
+    posts = await db.run_db(db.get_pending_posts, user_id)
     if not posts:
         return "⏳ <b>Sizda kutilayotgan faol postlar mavjud emas.</b>", None
     
@@ -33,7 +33,7 @@ def _build_pending_view(user_id: int):
 async def list_pending_posts(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
     user_id = update.effective_user.id
-    text, markup = _build_pending_view(user_id)
+    text, markup = await _build_pending_view(user_id)
     await update.message.reply_text(text, reply_markup=markup, parse_mode="HTML")
 
 async def cancel_post_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -42,10 +42,10 @@ async def cancel_post_callback(update: Update, context: ContextTypes.DEFAULT_TYP
     try:
         parts = query.data.split(":")
         post_id = int(parts[1])
-        db.cancel_post(post_id, user_id)
+        await db.run_db(db.cancel_post, post_id, user_id)
         await query.answer("✅ Post bekor qilindi.")
         
-        text, markup = _build_pending_view(user_id)
+        text, markup = await _build_pending_view(user_id)
         await query.edit_message_text(text, reply_markup=markup, parse_mode="HTML")
     except Exception as e:
         await query.answer(f"Xatolik: {e}", show_alert=True)
@@ -88,14 +88,14 @@ async def edit_post_time_received(update: Update, context: ContextTypes.DEFAULT_
             new_run = now.replace(hour=hh, minute=mm, second=0, microsecond=0)
             if new_run <= now:
                 new_run += timedelta(days=1)
-            db.update_post_time(post_id, new_run, f"{hh:02d}:{mm:02d}:00", user_id=update.effective_user.id)
+            await db.run_db(db.update_post_time, post_id, new_run, f"{hh:02d}:{mm:02d}:00", user_id=update.effective_user.id)
         else:
             naive_time = datetime.strptime(text, "%Y-%m-%d %H:%M")
             new_time = tashkent_tz.localize(naive_time)
             if new_time <= now:
                 await update.message.reply_text("⚠️ Kelajakdagi vaqtni kiriting:")
                 return EDIT_POST_TIME
-            db.update_post_time(post_id, new_time, user_id=update.effective_user.id)
+            await db.run_db(db.update_post_time, post_id, new_time, user_id=update.effective_user.id)
             
         await update.message.reply_text("✅ <b>Post vaqti muvaffaqiyatli yangilandi!</b>", reply_markup=get_main_keyboard(), parse_mode="HTML")
         context.user_data.clear()

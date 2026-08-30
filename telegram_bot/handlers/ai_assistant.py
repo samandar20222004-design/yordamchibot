@@ -23,7 +23,7 @@ async def start_ai_assistant(update: Update, context: ContextTypes.DEFAULT_TYPE)
     context.user_data.clear()
     user_id = update.effective_user.id
     is_admin = (user_id == ADMIN_ID)
-    credits = db.get_user_credits(user_id)
+    credits = await db.run_db(db.get_user_credits, user_id)
     
     if not is_admin and credits <= 0:
         bot_obj = await context.bot.get_me()
@@ -107,7 +107,7 @@ async def ai_input_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # So'rov boshlanishidan oldin ballni atomik band qilamiz.
     # Aks holda bir nechta parallel AI so'rovi mavjud balansdan oshib ketishi mumkin.
-    if not is_admin and not db.use_user_credit(user_id):
+    if not is_admin and not await db.run_db(db.use_user_credit, user_id):
         await msg.reply_text("⚠️ AI so'rovlari uchun ballaringiz yetarli emas.", reply_markup=get_main_keyboard(is_admin))
         return ConversationHandler.END
 
@@ -121,7 +121,7 @@ async def ai_input_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     if "error" in result:
         if not is_admin:
-            db.add_user_credit(user_id)
+            await db.run_db(db.add_user_credit, user_id)
         await msg.reply_text(
             f"⚠️ {result['error']}",
             reply_markup=get_main_keyboard(is_admin),
@@ -242,7 +242,7 @@ async def ai_confirm_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
     file_id = context.user_data.get("ai_file_id")
     target_all = context.user_data.get("ai_target_all", False)
     
-    channels = db.get_user_channels(user_id)
+    channels = await db.run_db(db.get_user_channels, user_id)
     if not channels:
         await query.message.reply_text(
             "⚠️ Sizda ulangan kanallar topilmadi. Avval 'Kanal/Guruhlar' bo'limidan kanal ulang.",
@@ -265,7 +265,8 @@ async def ai_confirm_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
     ok_count = 0
     
     for ch_id, ch_title in target_channels:
-        pid = db.add_post(
+        pid = await db.run_db(
+            db.add_post,
             user_id=user_id,
             channel_id=ch_id,
             post_type=post_type,
