@@ -144,6 +144,27 @@ Mistral → Cerebras → Pollinations**. Birinchisi ishlasa — shu javob qaytad
 ishlamasa keyingisiga o'tadi. Har bir provayder 3 marta ketma-ket xato bersa,
 10 daqiqaga vaqtincha o'tkazib yuboriladi (tezroq javob uchun).
 
+### AI Intent Routing (aqlli yo'naltirish)
+
+AI yordamchisi har qanday kiruvchi xabarni (matn, rasm, forward, savol) tahlil
+qilib, 3 yo'nalishdan biriga ajratadi:
+
+- **❓ Savol-javob (FAQ):** bot imkoniyatlari, ballar, kanallar haqidagi
+  savollarga to'g'ridan-to'g'ri javob beradi. Bot mavzusiga aloqador bo'lmagan
+  savollarga muloyimlik bilan yo'naltiradi.
+- **📝 Post yaratish/tahrir:** tayyor post/forward yuborilsa — matnini saqlab
+  vaqt tanlashni so'raydi (postni qayta-qayta takrorlamaydi); "oxiriga telefon
+  raqam qo'sh" kabi tahrir buyruqlarini bajaradi.
+- **🕒 Erkin buyruq:** "ertaga ertalab 9 ga hamma kanalga", "1 soatdan keyin",
+  "bugun 15:45 ga" kabi iboralarni tushunadi (lokal natural-time parser + AI
+  zaxira sifatida) va Toshkent vaqti bo'yicha rejalashtiradi.
+
+Foydalanuvchi hech qanday tugma bosmasdan, suhbatning istalgan joyida shunchaki
+xabar yozsa ham — bot AI orqali javob beradi (eski "qat'iy vaqt kutish" holati
+yo'q: vaqt ekranida ham savol berilsa javob qaytadi). AI postlari uchun alohida
+bekor qilish/tahrirlash tugmalari mavjud; kunlik/haftalik takrorlanuvchi postlar
+oddiy "➕ Yangi post rejalashtirish" oqimi orqali ishlaydi.
+
 > 💡 **Model avto-diskoveri:** Bot ishga tushganda (va har 6 soatda) provayderning
 > jonli model ro'yxatini o'zi oladi va faqat mavjud modellarni ishlatadi. AI
 > kompaniyalari modellarni tez-tez o'chiradi (masalan, 2026-yil avgustda Groq'da

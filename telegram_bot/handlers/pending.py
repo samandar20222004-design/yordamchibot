@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime, timedelta
 import pytz
 from telegram import Update
@@ -5,7 +6,11 @@ from telegram.ext import ContextTypes, ConversationHandler
 import database as db
 from keyboards.inline import render_pending_list
 from keyboards.default import get_cancel_keyboard, get_main_keyboard
-from utils.helpers import format_post_type_label, format_schedule_line, html_escape
+from utils.helpers import (
+    format_post_type_label, format_schedule_line, html_escape, check_rate_limit,
+)
+
+logger = logging.getLogger(__name__)
 
 tashkent_tz = pytz.timezone("Asia/Tashkent")
 EDIT_POST_TIME = 201
@@ -44,11 +49,28 @@ async def cancel_post_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         post_id = int(parts[1])
         await db.run_db(db.cancel_post, post_id, user_id)
         await query.answer("✅ Post bekor qilindi.")
-        
+
         text, markup = await _build_pending_view(user_id)
         await query.edit_message_text(text, reply_markup=markup, parse_mode="HTML")
     except Exception as e:
         await query.answer(f"Xatolik: {e}", show_alert=True)
+
+
+async def refresh_pending_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Ro'yxatni qayta chizadi (🔄 Yangilash tugmasi)."""
+    query = update.callback_query
+    user_id = query.from_user.id
+    is_blocked, _ = check_rate_limit(user_id, max_requests=6, window_seconds=3.0)
+    if is_blocked:
+        await query.answer("Iltimos, shoshilmang...", show_alert=False)
+        return
+    try:
+        text, markup = await _build_pending_view(user_id)
+        await query.answer("✅ Yangilandi")
+        await query.edit_message_text(text, reply_markup=markup, parse_mode="HTML")
+    except Exception as e:
+        await query.answer("Yangilab bo'lmadi", show_alert=False)
+        logger.warning("Pending yangilash xatosi: %s", e)
 
 async def edit_post_time_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -70,7 +92,9 @@ async def edit_post_time_start(update: Update, context: ContextTypes.DEFAULT_TYP
 async def edit_post_time_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip()
     post_id = context.user_data.get("editing_post_id")
-    post = db.get_post_by_id(post_id)
+    # Tuzatildi: db.get_post_by_id sinxron funksiya bo'lib, event loop'ni bloklab
+    # qo'ymasligi uchun run_db orqali alohida thread'da chaqiriladi.
+    post = await db.run_db(db.get_post_by_id, post_id)
     # Tuzatildi: avval bu yerda mavjud bo'lmagan `query` o'zgaruvchisi ishlatilgan edi
     # (NameError yuz berardi). Endi to'g'ridan-to'g'ri foydalanuvchi ID'si tekshiriladi.
     if post and post[1] != update.effective_user.id:

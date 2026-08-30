@@ -1,5 +1,5 @@
 import logging
-from telegram import Update
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.error import TelegramError
 from telegram.ext import ContextTypes, ConversationHandler
 from config import ADMIN_ID
@@ -13,6 +13,14 @@ logger = logging.getLogger(__name__)
 ADD_CHANNEL = 301
 
 
+def _empty_channels_keyboard() -> InlineKeyboardMarkup:
+    """Kanal yo'q paytda ko'rsatiladigan tugmalar (qo'shish + yopish)."""
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("➕ Kanal/Guruh ulash", callback_data="add_channel_start")],
+        [InlineKeyboardButton("❌ Yopish", callback_data="close_msg")],
+    ])
+
+
 async def channels_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     channels = await db.run_db(db.get_user_channels, user_id)
@@ -20,30 +28,54 @@ async def channels_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not channels:
         await update.message.reply_text(
             "📢 <b>Sizda hali ulangan kanallar mavjud emas.</b>\n\n"
-            "Kanal ulash uchun botni kanalingizga administrator qiling va <b>➕ Kanal/Guruh qo'shish</b> tugmasini bosing.",
+            "Kanal ulash uchun quyidagi tugmani bosing 👇\n\n"
+            "<i>Botni kanalingizga administrator qilib (xabar yuborish ruxsati bilan) "
+            "qo'shish kerak bo'ladi.</i>",
+            reply_markup=_empty_channels_keyboard(),
             parse_mode="HTML"
         )
         return ConversationHandler.END
 
     await update.message.reply_text(
         f"📢 <b>Sizning ulangan kanallaringiz ({len(channels)} ta):</b>\n\n"
-        "Kanalni o'chirish uchun '❌ O'chirish' tugmasini bosing 👇",
+        "Kanalni o'chirish uchun '❌ O'chirish' tugmasini bosing yoki yangi kanal ulang 👇",
         reply_markup=render_channels_list(channels),
         parse_mode="HTML"
     )
     return ConversationHandler.END
 
 
-async def start_add_channel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    bot_obj = await context.bot.get_me()
-    await update.message.reply_text(
-        f"➕ <b>Yangi kanal yoki guruh ulash:</b>\n\n"
-        f"1. Botni (<code>@{bot_obj.username}</code>) kanalingizga yoki guruhingizga <b>Administrator</b> qilib qo'shing (xabar yuborish ruxsati bilan).\n"
-        f"2. So'ngra o'sha kanaldan istalgan bir xabarni menga <b>Forward (Uzatish)</b> qiling yoki kanal ID raqamini (masalan: <code>-1001234567890</code>) yozib yuboring:\n\n"
-        f"<i>Bekor qilish uchun '🔙 Asosiy menyu' tugmasini bosing.</i>",
+async def _send_add_channel_instructions(bot, chat_id: int):
+    bot_obj = await bot.get_me()
+    await bot.send_message(
+        chat_id=chat_id,
+        text=(
+            "➕ <b>Yangi kanal yoki guruh ulash:</b>\n\n"
+            f"1. Botni (<code>@{bot_obj.username}</code>) kanalingizga yoki guruhingizga "
+            "<b>Administrator</b> qilib qo'shing (xabar yuborish ruxsati bilan).\n"
+            "2. So'ngra o'sha kanaldan istalgan bir xabarni menga <b>Forward (Uzatish)</b> "
+            "qiling yoki kanal ID raqamini (masalan: <code>-1001234567890</code>) yozib yuboring.\n\n"
+            "<i>Bekor qilish uchun '🔙 Asosiy menyu' tugmasini bosing.</i>"
+        ),
         reply_markup=get_cancel_keyboard(),
-        parse_mode="HTML"
+        parse_mode="HTML",
     )
+
+
+async def start_add_channel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await _send_add_channel_instructions(context.bot, update.effective_chat.id)
+    return ADD_CHANNEL
+
+
+async def add_channel_inline_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Inline tugma orqali kanal ulash oqimini boshlash (ro'yxat/bo'sh ekran)."""
+    query = update.callback_query
+    await query.answer()
+    try:
+        await query.edit_message_reply_markup(reply_markup=None)
+    except Exception:
+        pass
+    await _send_add_channel_instructions(context.bot, query.from_user.id)
     return ADD_CHANNEL
 
 
@@ -153,16 +185,34 @@ async def channel_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def remove_channel_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    await query.answer()
     channel_id = query.data.split(":")[1]
     user_id = query.from_user.id
     is_admin = (user_id == ADMIN_ID)
 
     removed = await db.run_db(db.remove_channel, user_id, channel_id, is_admin)
+    channels = await db.run_db(db.get_user_channels, user_id)
     if removed:
-        await query.edit_message_text("✅ Kanal muvaffaqiyatli o'chirildi.")
+        await query.answer("✅ Kanal o'chirildi.")
     else:
-        await query.edit_message_text("❌ Kanal topilmadi yoki sizga tegishli emas.")
+        await query.answer("❌ Kanal topilmadi yoki sizga tegishli emas.", show_alert=True)
+
+    # Ro'yxatni qayta chizamiz — qolgan kanallar va tugmalar ko'rinib tursin
+    try:
+        if channels:
+            await query.edit_message_text(
+                f"📢 <b>Sizning ulangan kanallaringiz ({len(channels)} ta):</b>\n\n"
+                "Kanalni o'chirish uchun '❌ O'chirish' tugmasini bosing yoki yangi kanal ulang 👇",
+                reply_markup=render_channels_list(channels),
+                parse_mode="HTML",
+            )
+        else:
+            await query.edit_message_text(
+                "📢 <b>Barcha kanallar o'chirildi.</b>\n\nYangi kanal ulash uchun quyidagi tugmani bosing 👇",
+                reply_markup=_empty_channels_keyboard(),
+                parse_mode="HTML",
+            )
+    except TelegramError:
+        pass
 
 
 async def on_bot_chat_member_update(update: Update, context: ContextTypes.DEFAULT_TYPE):

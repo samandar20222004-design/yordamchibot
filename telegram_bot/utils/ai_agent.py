@@ -288,27 +288,81 @@ def _extract_json(text: str) -> dict:
     return json.loads(cleaned[start:end + 1])
 
 
-def _get_system_instruction() -> str:
+def _get_router_system_instruction() -> str:
+    """Intent routing: har qanday xabarni 3 yo'nalishdan biriga ajratadi."""
     now_dt = datetime.now(tashkent_tz)
     now_str = now_dt.strftime("%Y-%m-%d %H:%M")
     current_year = now_dt.year
 
     return (
-        f"Siz Telegram kanallar uchun professional, aqlli SMM yordamchisiz. "
+        f"Siz Telegram kanallarni boshqarish va postlarni rejalashtirish bo'yicha professional, "
+        f"xushmuomala, o'zbek tilida javob beradigan aqlli yordamchisiz. "
         f"Hozirgi Toshkent vaqti: {now_str}, joriy yil: {current_year}.\n\n"
-        f"Vazifangiz:\n"
-        f"1. Foydalanuvchi yuborgan kontentni (matn, rasm izohi yoki forward post) tahlil qiling.\n"
-        f"2. Agar tayyor post yoki yangilik forward qilingan bo'lsa, uning matnini buzmasdan, to'liq va asl holicha saqlang.\n"
-        f"3. Agar yangi post yoki she'r yozish buyurilgan bo'lsa, jozibador post tayyorlang.\n"
-        f"4. VAQTNI ANIQLASH: Agar xabarda aniq chiqish vaqti aytilgan bo'lsa (masalan: 'bugun 13:00 ga', 'ertaga 10:00 da', '15 daqiqadan keyin'), "
-        f"uni Toshkent vaqti bo'yicha 'YYYY-MM-DD HH:MM' formatida yozing va has_explicit_time qiymatini true qiling.\n"
-        f"5. Agar xabarda aniq vaqt aytilmagan bo'lsa, scheduled_time qiymatini null qiling va has_explicit_time qiymatini false qiling.\n"
-        f"6. Agar xabarda 'barcha kanallarga' yoki 'hamma guruhlarga' deyilgan bo'lsa, target_all qiymatini true qiling, aks holda false.\n"
-        f"7. MUHIM: Javobni FAQAT quyidagi JSON formatida qaytaring, boshqa hech narsa yozmang:\n"
+        f"Vazifangiz — foydalanuvchining xabarini tahlil qilib, UNING NIYATINI aniqlash. "
+        f"Javobni FAQAT bitta JSON obyekti sifatida qaytaring. Niyat turlari:\n\n"
+        f'1) "faq" — SAVOL-JAVOB / SUHBAT:\n'
+        f"   • Foydalanuvchi bot imkoniyatlari, post rejalashtirish, ballar (AI so'rovlari), "
+        f"kanal ulash, reaksiyalar, avto-o'chirish, kunlik bonus, ball ulashish yoki botning "
+        f"boshqa funksiyalari haqida so'rasa, salomlashsa yoki yordam so'rasa — to'g'ridan-to'g'ri "
+        f"aniq, foydali va muloyim javob bering. Javobni \"reply\" maydoniga yozing.\n"
+        f"   • Mavzu botga mutlaqo aloqador bo'lmasa (siyosat, ob-havo, dasturlash, shaxsiy "
+        f"suhbat va h.k.) — \"reply\" maydoniga quyidagicha yozing: "
+        f"\"Kechirasiz, men faqat Telegram kanallarni boshqarish va postlarni rejalashtirish "
+        f"bo'yicha yordam bera olaman. Post rejalashtirish uchun menga post matnini yoki "
+        f"rasm/forward xabarni yuboring yoki savolingizni bering.\"\n\n"
+        f'2) "post" — YANGI POST YARATISH yoki TAYYOR POST QABUL QILISH:\n'
+        f"   • Yangi post/tabrik/she'r/e'lon yozish so'ralsa — jozibador, professional post tayyorlang. "
+        f"Matnni \"post_text\" maydoniga yozing.\n"
+        f"   • Tayyor post, yangilik yoki e'lon forward qilingan / yuborilgan bo'lsa — uning "
+        f"matnini BUZMASDAN, to'liq, asl ko'rinishida \"post_text\" ga ko'chiring.\n"
+        f"   • Aniq chiqish vaqti aytilgan bo'lsa ('bugun 15:45 ga', 'ertaga ertalab 9 da', "
+        f"'10 daqiqadan keyin') — uni Toshkent vaqti bo'yicha 'YYYY-MM-DD HH:MM' formatida "
+        f'"scheduled_time" ga yozing va "has_explicit_time" ni true qiling. Vaqt aniq '
+        f"ko'rsatilmagan bo'lsa — scheduled_time: null, has_explicit_time: false.\n"
+        f"   • 'Barcha kanallarga', 'hamma guruhlarga', 'hamma kanalga' deyilgan bo'lsa — "
+        f'"target_all": true, aks holda false.\n\n'
+        f'3) "edit" — MAVJUD POSTNI TAHRIRLASH:\n'
+        f"   • Foydalanuvchi oldin yuborgan postni o'zgartirishni so'rasa (masalan: 'oxiriga "
+        f"telefon raqam qo'sh', 'sarlavhasini o'zgartir', 'matnni qisqartir', 'emoji qo'sh') — "
+        f"tahrirlangan, TAYYOR post matnini \"post_text\" ga yozing. Vaqt ma'lumoti saqlanadi.\n\n"
+        f"QOIDALAR:\n"
+        f"• Vaqt hisobini faqat Toshkent vaqti (UTC+5) bo'yicha qiling.\n"
+        f"• Niyat faqat bitta bo'ladi. Savol va post aralash kelsa, asosiy niyatni tanlang.\n"
+        f"• JSON dan boshqa hech narsa yozmang. Majburiy format:\n"
         f"{{\n"
-        f'  "post_text": "Post matni...",\n'
+        f'  "intent": "faq | post | edit",\n'
+        f'  "reply": "faq niyatidagi javob matni (boshqa hollarda bo\'sh satr)",\n'
+        f'  "post_text": "post/edit niyatidagi post matni (boshqa hollarda bo\'sh satr)",\n'
         f'  "scheduled_time": "YYYY-MM-DD HH:MM yoki null",\n'
-        f'  "has_explicit_time": true,\n'
+        f'  "has_explicit_time": false,\n'
+        f'  "target_all": false\n'
+        f"}}"
+    )
+
+
+def _get_time_system_instruction() -> str:
+    """Yengil rejim: faqat erkin tildagi vaqtni yoki savolni ajratadi."""
+    now_dt = datetime.now(tashkent_tz)
+    now_str = now_dt.strftime("%Y-%m-%d %H:%M")
+    current_year = now_dt.year
+    return (
+        f"Siz Telegram post rejalashtiruvchi botning yordamchisisiz. Hozirgi Toshkent vaqti: "
+        f"{now_str}, joriy yil: {current_year}.\n\n"
+        f"Foydalanuvchining xabarini tahlil qiling va FAQAT bitta JSON qaytaring:\n"
+        f"• Agar xabarda post chiqish VAQTI ko'rsatilgan bo'lsa (masalan: '15:45 ga', 'ertaga "
+        f"ertalab 9 da', 'bugun kechqurun 20:00', '1 soatdan keyin', '5 daqiqadan keyin', "
+        f"'2-sentyabr 10:00') — vaqtni Toshkent vaqti bo'yicha hisoblab 'YYYY-MM-DD HH:MM' "
+        f'formatida "scheduled_time" ga yozing, "has_explicit_time": true.\n'
+        f"• Agar xabar vaqt emas, balki savol yoki boshqa gap bo'lsa — "
+        f'"has_explicit_time": false, "scheduled_time": null, "reply" maydoniga qisqa, '
+        f"muloyim javob yozing.\n"
+        f"• 'Barcha kanallarga' deyilgan bo'lsa \"target_all\": true.\n\n"
+        f"JSON formati:\n"
+        f"{{\n"
+        f'  "intent": "faq | post",\n'
+        f'  "reply": "savol bo\'lsa javob, aks holda bo\'sh satr",\n'
+        f'  "scheduled_time": "YYYY-MM-DD HH:MM yoki null",\n'
+        f'  "has_explicit_time": false,\n'
         f'  "target_all": false\n'
         f"}}"
     )
@@ -583,7 +637,7 @@ def _clean_key(value: str) -> str:
     return (value or "").strip().replace('"', '').replace("'", "")
 
 
-async def analyze_user_prompt(prompt: str, user_id: int = 0) -> dict:
+async def _run_ai_chain(prompt: str, system_instruction: str) -> dict:
     """6 ta provayderni navbat bilan sinaydi: Gemini → Groq → OpenRouter →
     Mistral → Cerebras → Pollinations (kalitsiz).
 
@@ -591,6 +645,7 @@ async def analyze_user_prompt(prompt: str, user_id: int = 0) -> dict:
       yuboriladi (circuit breaker) — o'lik provayderga vaqt sarflanmaydi.
     - Bir vaqtda ko'pi bilan MAX_CONCURRENT_AI (2) ta so'rov ishlaydi.
     - Prompt MAX_PROMPT_CHARS (3000) belgidan oshsa kesiladi.
+    Muvaffaqiyatda provayder qaytargan JSON dict qaytadi; xatolikda {"error": ...}.
     """
     # Prompt uzunligini cheklash (bepul token byudjetini himoya qilish)
     prompt = (prompt or "").strip()
@@ -603,109 +658,34 @@ async def analyze_user_prompt(prompt: str, user_id: int = 0) -> dict:
     mistral_key = _clean_key(MISTRAL_API_KEY)
     cerebras_key = _clean_key(CEREBRAS_API_KEY)
 
-    system_instruction = _get_system_instruction()
+    providers = [
+        ("Gemini", _call_gemini, (prompt, gemini_key, system_instruction), bool(gemini_key)),
+        ("Groq", _call_groq, (prompt, groq_key, system_instruction), bool(groq_key)),
+        ("OpenRouter", _call_openrouter, (prompt, openrouter_key, system_instruction), bool(openrouter_key)),
+        ("Mistral", _call_mistral, (prompt, mistral_key, system_instruction), bool(mistral_key)),
+        ("Cerebras", _call_cerebras, (prompt, cerebras_key, system_instruction), bool(cerebras_key)),
+        ("Pollinations", _call_pollinations, (prompt, system_instruction), True),
+    ]
+
     errors = []
-
     async with _AI_SEMAPHORE:
-        # 1. Gemini (bepul, eng keng limitlar)
-        if _breaker_open("Gemini"):
-            errors.append("Gemini: vaqtincha o'tkazib yuborildi")
-        elif gemini_key:
+        for name, func, args, has_key in providers:
+            if _breaker_open(name):
+                errors.append(f"{name}: vaqtincha o'tkazib yuborildi")
+                continue
+            if not has_key:
+                errors.append(f"{name}: kalit topilmadi" + (" (ixtiyoriy)" if name != "Gemini" else ""))
+                continue
             try:
-                result = await _call_gemini(prompt, gemini_key, system_instruction)
-                if isinstance(result, dict) and "post_text" in result:
-                    _breaker_success("Gemini")
+                result = await func(*args)
+                if isinstance(result, dict):
+                    _breaker_success(name)
                     return result
-                errors.append("Gemini: javob formati noto'g'ri")
+                errors.append(f"{name}: javob formati noto'g'ri")
             except Exception as e:
-                errors.append(f"Gemini: {e}")
-                _breaker_fail("Gemini")
-                logger.warning("Gemini ishlamadi (%s). Keyingi zaxiraga o'tilmoqda...", e)
-        else:
-            errors.append("Gemini: kalit topilmadi")
-
-        # 2. Groq (bepul, tez)
-        if _breaker_open("Groq"):
-            errors.append("Groq: vaqtincha o'tkazib yuborildi")
-        elif groq_key:
-            try:
-                result = await _call_groq(prompt, groq_key, system_instruction)
-                if isinstance(result, dict) and "post_text" in result:
-                    _breaker_success("Groq")
-                    return result
-                errors.append("Groq: javob formati noto'g'ri")
-            except Exception as e:
-                errors.append(f"Groq: {e}")
-                _breaker_fail("Groq")
-                logger.warning("Groq ishlamadi (%s). Keyingi zaxiraga o'tilmoqda...", e)
-        else:
-            errors.append("Groq: kalit topilmadi")
-
-        # 3. OpenRouter (ixtiyoriy, :free modellar)
-        if _breaker_open("OpenRouter"):
-            errors.append("OpenRouter: vaqtincha o'tkazib yuborildi")
-        elif openrouter_key:
-            try:
-                result = await _call_openrouter(prompt, openrouter_key, system_instruction)
-                if isinstance(result, dict) and "post_text" in result:
-                    _breaker_success("OpenRouter")
-                    return result
-                errors.append("OpenRouter: javob formati noto'g'ri")
-            except Exception as e:
-                errors.append(f"OpenRouter: {e}")
-                _breaker_fail("OpenRouter")
-                logger.warning("OpenRouter ishlamadi (%s). Keyingi zaxiraga o'tilmoqda...", e)
-        else:
-            errors.append("OpenRouter: kalit topilmadi (ixtiyoriy)")
-
-        # 4. Mistral (bepul, ~1B token/oy)
-        if _breaker_open("Mistral"):
-            errors.append("Mistral: vaqtincha o'tkazib yuborildi")
-        elif mistral_key:
-            try:
-                result = await _call_mistral(prompt, mistral_key, system_instruction)
-                if isinstance(result, dict) and "post_text" in result:
-                    _breaker_success("Mistral")
-                    return result
-                errors.append("Mistral: javob formati noto'g'ri")
-            except Exception as e:
-                errors.append(f"Mistral: {e}")
-                _breaker_fail("Mistral")
-                logger.warning("Mistral ishlamadi (%s). Keyingi zaxiraga o'tilmoqda...", e)
-        else:
-            errors.append("Mistral: kalit topilmadi (ixtiyoriy)")
-
-        # 5. Cerebras (bepul, kuniga 1M token)
-        if _breaker_open("Cerebras"):
-            errors.append("Cerebras: vaqtincha o'tkazib yuborildi")
-        elif cerebras_key:
-            try:
-                result = await _call_cerebras(prompt, cerebras_key, system_instruction)
-                if isinstance(result, dict) and "post_text" in result:
-                    _breaker_success("Cerebras")
-                    return result
-                errors.append("Cerebras: javob formati noto'g'ri")
-            except Exception as e:
-                errors.append(f"Cerebras: {e}")
-                _breaker_fail("Cerebras")
-                logger.warning("Cerebras ishlamadi (%s). Keyingi zaxiraga o'tilmoqda...", e)
-        else:
-            errors.append("Cerebras: kalit topilmadi (ixtiyoriy)")
-
-        # 6. Kalitsiz bepul zaxira — Pollinations (oxirgi chora)
-        if _breaker_open("Pollinations"):
-            errors.append("Pollinations: vaqtincha o'tkazib yuborildi")
-        else:
-            try:
-                result = await _call_pollinations(prompt, system_instruction)
-                if isinstance(result, dict) and "post_text" in result:
-                    _breaker_success("Pollinations")
-                    return result
-                errors.append("Pollinations: javob formati noto'g'ri")
-            except Exception as e:
-                errors.append(f"Pollinations: {e}")
-                _breaker_fail("Pollinations")
-                logger.warning("Pollinations ishlamadi (%s)", e)
+                errors.append(f"{name}: {e}")
+                _breaker_fail(name)
+                logger.warning("%s ishlamadi (%s). Keyingi zaxiraga o'tilmoqda...", name, e)
 
     detail = "\n".join(f"• {e}" for e in errors if e)
     return {
@@ -721,3 +701,73 @@ async def analyze_user_prompt(prompt: str, user_id: int = 0) -> dict:
             "Kalitlarni Render → Environment bo'limiga qo'shing va botni qayta ishga tushiring."
         )
     }
+
+
+def _normalize_router_result(result: dict) -> dict:
+    """AI javobidagi turli maydonlarni yagona shaklga keltiradi va
+    backward-compatibility uchun eski 'post_text' sxemasini saqlaydi."""
+    if not isinstance(result, dict):
+        return {"error": "Javob formati noto'g'ri"}
+    if "error" in result:
+        return result
+
+    raw_intent = str(result.get("intent", "")).strip().lower()
+    reply = str(result.get("reply", "") or "").strip()
+    post_text = str(result.get("post_text", "") or "").strip()
+    sched_time = result.get("scheduled_time")
+    if sched_time in ("null", "None", "", 0):
+        sched_time = None
+    if sched_time:
+        sched_time = str(sched_time).strip()
+    has_explicit = bool(result.get("has_explicit_time", False))
+    target_all = bool(result.get("target_all", False))
+
+    # Intent ko'rsatilmagan bo'lsa — mavjud maydonlardan aniqlaymiz
+    if not raw_intent:
+        raw_intent = "faq" if (reply and not post_text) else "post"
+
+    # Eski schema bilan muvofiqlik: intent post/edit + post_text bo'lsa ham
+    # 'post_text' maydoni saqlanadi (testlar va eski kod uchun).
+    return {
+        "intent": raw_intent if raw_intent in ("faq", "post", "edit") else "post",
+        "reply": reply,
+        "post_text": post_text,
+        "scheduled_time": sched_time,
+        "has_explicit_time": has_explicit and bool(sched_time),
+        "target_all": target_all,
+    }
+
+
+async def analyze_user_prompt(prompt: str, user_id: int = 0) -> dict:
+    """Asosiy intent router: xabarni tahlil qilib yo'naltiradi.
+
+    Qaytargan maydonlar:
+      - intent: "faq" (savol-javob), "post" (yangi post), "edit" (tahrir)
+      - reply: FAQ rejimidagi javob matni
+      - post_text: post rejimida tayyorlangan post
+      - scheduled_time: 'YYYY-MM-DD HH:MM' yoki None
+      - has_explicit_time: bool
+      - target_all: bool
+    Eski kod bilan muvofiqlik uchun post_text/scheduled_time maydonlari saqlanadi.
+    """
+    result = await _run_ai_chain(prompt, _get_router_system_instruction())
+    if "error" in result:
+        return result
+    return _normalize_router_result(result)
+
+
+async def extract_schedule_time(prompt: str, user_id: int = 0) -> dict:
+    """Yengil AI rejimi — faqat erkin tildagi vaqtni (yoki savolni) ajratadi.
+
+    Postni qaytadan tahlil qilmaydi, kam token sarflaydi. Qaytargan maydonlar:
+      - has_explicit_time: True bo'lsa scheduled_time mavjud
+      - scheduled_time: 'YYYY-MM-DD HH:MM' yoki None
+      - reply: foydalanuvchi savol bergan bo'lsa, qisqa javob
+      - target_all: bool
+    """
+    result = await _run_ai_chain(prompt, _get_time_system_instruction())
+    if "error" in result:
+        return result
+    norm = _normalize_router_result(result)
+    norm["intent"] = "time"
+    return norm
