@@ -10,7 +10,7 @@ from keyboards.default import (
     get_cancel_keyboard, get_main_keyboard, get_time_keyboard
 )
 from utils.ai_agent import analyze_user_prompt
-from utils.helpers import html_escape
+from utils.helpers import html_escape, check_ai_rate_limit, check_ai_daily_limit
 
 logger = logging.getLogger(__name__)
 tashkent_tz = pytz.timezone("Asia/Tashkent")
@@ -86,6 +86,24 @@ async def ai_input_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await msg.reply_text("Iltimos, post matni yoki mavzusini yuboring:")
         return AI_INPUT
+
+    # AI so'rovlariga alohida rate-limit: daqiqasiga 4 tadan oshsa —
+    # AI API'ga ortiqcha so'rov yubormaymiz (bepul balans va API limitlari saqlanadi).
+    if not is_admin and check_ai_rate_limit(user_id, max_per_minute=4):
+        await msg.reply_text(
+            "⏳ <i>AI so'rovlarini juda tez-tez yuboryapsiz. Iltimos, 1 daqiqa kuting...</i>",
+            parse_mode="HTML"
+        )
+        return AI_INPUT
+
+    # Kunlik AI limiti (24 soatda 30 ta) — bitta foydalanuvchi botning
+    # AI byudjetini yeb qo'ymasligi uchun.
+    if not is_admin and check_ai_daily_limit(user_id, max_per_day=30):
+        await msg.reply_text(
+            "⚠️ <i>Kunlik AI so'rovlar limiti tugadi (30 ta/kun). Ertaga qayta urinib ko'ring.</i>",
+            parse_mode="HTML"
+        )
+        return ConversationHandler.END
 
     # So'rov boshlanishidan oldin ballni atomik band qilamiz.
     # Aks holda bir nechta parallel AI so'rovi mavjud balansdan oshib ketishi mumkin.

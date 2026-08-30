@@ -1,4 +1,3 @@
-import asyncio
 from datetime import datetime, timedelta
 import pytz
 from telegram import Update, ReplyKeyboardMarkup
@@ -7,9 +6,9 @@ from config import ADMIN_ID
 import database as db
 from keyboards.default import (
     BTN_ALL_CHANNELS_TARGET, BTN_MAIN_MENU, BTN_SKIP_BUTTON,
-    BTN_NO_REACT,
+    BTN_REACT_DEFAULT, BTN_NO_REACT,
     BTN_T_5MIN, BTN_T_15MIN, BTN_T_1H, BTN_T_DAILY, BTN_T_WEEKLY,
-    BTN_DUR_1M, BTN_DUR_3M, BTN_DUR_6M, BTN_DUR_1Y, BTN_DUR_INF,
+    BTN_DUR_1W, BTN_DUR_1M, BTN_DUR_3M, BTN_DUR_6M, BTN_DUR_1Y, BTN_DUR_INF,
     WEEKDAY_MAP, WEEKDAY_LABELS,
     get_main_keyboard, get_cancel_keyboard, get_button_prompt_keyboard,
     get_reactions_keyboard, get_auto_delete_keyboard, get_time_keyboard, 
@@ -45,12 +44,21 @@ async def start_new_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return ConversationHandler.END
     
-    keyboard = [[ch[1]] for ch in channels]
+    # Bir xil nomli kanallar bo'lsa, nomga ID qo'shib farqlaymiz —
+    # aks holda ikkita kanal bir xil nomda bo'lsa, biri ikkinchisini yopib qo'yardi.
+    channels_map = {}
+    keyboard = []
+    for ch_id, ch_title in channels:
+        label = ch_title
+        if label in channels_map:
+            label = f"{ch_title} ({ch_id})"
+        channels_map[label] = ch_id
+        keyboard.append([label])
     if len(channels) > 1:
         keyboard.append([BTN_ALL_CHANNELS_TARGET])
     keyboard.append([BTN_MAIN_MENU])
     
-    context.user_data["channels_map"] = {ch[1]: ch[0] for ch in channels}
+    context.user_data["channels_map"] = channels_map
     await update.message.reply_text(
         "📢 <b>Qaysi kanal yoki guruhga post rejalashtiramiz?</b>\nRo'yxatdan tanlang 👇",
         reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True),
@@ -172,8 +180,22 @@ async def btn_url_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def reactions_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip()
-    context.user_data["enable_reactions"] = (text != BTN_NO_REACT)
-    
+    # Qat'iy tekshiruv: reaksiyalar FAQAT "👍 ❤️ 🔥 👏" tugmasi bosilganda qo'shiladi.
+    # Boshqa har qanday matn (xato bosish, yozilgan so'z) reaksiya qo'shmaydi.
+    if text == BTN_REACT_DEFAULT:
+        context.user_data["enable_reactions"] = True
+    elif text == BTN_NO_REACT:
+        context.user_data["enable_reactions"] = False
+    else:
+        await update.message.reply_text(
+            "⚠️ <b>Iltimos, quyidagi tugmalardan birini tanlang:</b>\n"
+            "• <code>👍 ❤️ 🔥 👏</code> — reaksiya tugmalari bilan\n"
+            "• <code>➡️ Reaksiyasiz davom etish</code> — reaksiyasiz",
+            reply_markup=get_reactions_keyboard(),
+            parse_mode="HTML"
+        )
+        return GET_REACTIONS
+
     await update.message.reply_text(
         "🗑️ <b>Post kanalda qancha vaqt tursin?</b>\n\n"
         "Belgilangan vaqt o'tgach, bot uni kanaldan avtomatik o'chirib tashlaydi:",
@@ -348,7 +370,10 @@ async def duration_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE):
     now = datetime.now(tashkent_tz)
     end_date = None
     
-    if text == BTN_DUR_1M:
+    if text == BTN_DUR_1W:
+        # Yangi: post har kuni roppa-rosa 1 hafta (7 kun) davomida chiqadi
+        end_date = now + timedelta(days=7)
+    elif text == BTN_DUR_1M:
         end_date = now + timedelta(days=30)
     elif text == BTN_DUR_3M:
         end_date = now + timedelta(days=90)

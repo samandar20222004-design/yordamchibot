@@ -1,6 +1,6 @@
 import logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ContextTypes, ConversationHandler
+from telegram.ext import ContextTypes
 from keyboards.default import get_cancel_keyboard
 from utils.converter import to_cyrillic, to_latin
 from utils.helpers import html_escape

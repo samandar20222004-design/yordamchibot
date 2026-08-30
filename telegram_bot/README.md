@@ -110,8 +110,59 @@ orqali qayta jo'natadi — hech qanday hajm cheklovisiz.
 Render'da **Root Directory** ni `telegram_bot`, Build Command'ni `pip install -r requirements.txt`, Start Command'ni `python main.py` qilib qo'ying. Environment Variables ichida `BOT_TOKEN`, `ADMIN_ID` va Render PostgreSQL bergan `DATABASE_URL` bo'lishi kerak. `PORT` ni qo'lda berish shart emas: kod Render bergan portni o'zi oladi.
 
 UptimeRobot monitor turi **HTTP(s)** bo'lsin va URL quyidagicha berilsin:
-`https://sizning-render-service.onrender.com/health`
+`https://sizning-render-service.onrender.com/health/live`
 Health endpoint `200` va JSON qaytaradi. UptimeRobot bot polling'ini emas, Render web-service'ni uyg'oq saqlaydi.
+
+### Health endpointlar
+
+| Endpoint | Vazifasi |
+|---|---|
+| `/health/live` | Bot jarayoni ishlayaptimi — doim `200` (UptimeRobot shu yerga qaraydi) |
+| `/health/ready` | Bot ishlashga tayyormi — baza bilan aloqa tekshiradi (`200` yoki `503`) |
+| `/health`, `/` | `/health/live` bilan bir xil (eski havolalar ishlashda davom etadi) |
+
+### AI sozlamalari (kamida bitta bepul kalit; 6 ta provayder navbatma-navbat ishlaydi)
+
+| # | Kalit | Qayerdan olinadi | Bepul limiti |
+|---|---|---|---|
+| 1 | `GEMINI_API_KEY` | [aistudio.google.com](https://aistudio.google.com) | kuniga ~1500 so'rov |
+| 2 | `GROQ_API_KEY` | [console.groq.com](https://console.groq.com) | kuniga ~1000 so'rov |
+| 3 | `OPENROUTER_API_KEY` (ixtiyoriy) | [openrouter.ai](https://openrouter.ai) | `:free` modellar |
+| 4 | `MISTRAL_API_KEY` (ixtiyoriy) | [console.mistral.ai](https://console.mistral.ai) | oyiga ~1 mlrd token |
+| 5 | `CEREBRAS_API_KEY` (ixtiyoriy) | [cloud.cerebras.ai](https://cloud.cerebras.ai) | kuniga 1M token |
+| 6 | — (kalit shart emas) | Pollinations | cheklangan |
+
+AI so'rovi ketma-ketlikda sinab ko'riladi: **Gemini → Groq → OpenRouter →
+Mistral → Cerebras → Pollinations**. Birinchisi ishlasa — shu javob qaytadi,
+ishlamasa keyingisiga o'tadi. Har bir provayder 3 marta ketma-ket xato bersa,
+10 daqiqaga vaqtincha o'tkazib yuboriladi (tezroq javob uchun).
+
+> 💡 **Model avto-diskoveri:** Bot ishga tushganda (va har 6 soatda) provayderning
+> jonli model ro'yxatini o'zi oladi va faqat mavjud modellarni ishlatadi. AI
+> kompaniyalari modellarni tez-tez o'chiradi (masalan, 2026-yil avgustda Groq'da
+> `llama-3.1-8b-instant`, `llama-3.3-70b-versatile` va `gemma2-9b-it` yopildi) —
+> avto-diskoveri tufayli bunday holatda ham bot yangi modelga o'zi o'tadi.
+
+Kalitlarni Render → Environment bo'limiga qo'shing va botni qayta ishga tushiring.
+
+### Hujum / ortiqcha yuklama himoyasi
+
+- **Global flood** — butun bot 1 soniyada 60 tadan ortiq xabar olganda avtomatik sekinlashadi.
+- **Foydalanuvchi burst** — bitta foydalanuvchi 2 soniyada 20 tadan ortiq xabar yuborsa, qolganlari tashlab yuboriladi.
+- **Dublikat xabar** — bir xil xabar 1.5 soniya ichida qayta yuborilsa, e'tiborga olinmaydi.
+- **AI limitlar** — daqiqasiga 4 ta, kuniga 30 ta (foydalanuvchi uchun); bir vaqtda 2 tadan ortiq AI so'rovi ishlamaydi.
+- **Broadcast qulfi** — bir vaqtda faqat bitta xabar tarqatilishi mumkin.
+- **Prompt limiti** — AI'ga yuboriladigan matn 3000 belgidan oshsa kesiladi.
+
+### Render Free uchun optimallashtirish
+
+- **PostgreSQL connection pool** — har bir so'rovda yangi ulanish ochilmaydi; ulanishlar qayta ishlatiladi (`DB_POOL_MAX=5`).
+- **Event loop bloklanmaydi** — scheduler va og'ir DB operatsiyalari alohida thread'da bajariladi.
+- **Telegram timeout/retry** — rate-limit va tarmoq xatolarida postlar yo'qolmaydi, keyingi urinish uchun navbatga qaytadi.
+- **AI rate-limit** — har bir foydalanuvchi daqiqasiga ko'pi bilan 4 ta AI so'rovi yuborishi mumkin.
+- **Broadcast batch** — xabar barcha foydalanuvchilarga fon rejimida, batch'lar bilan yuboriladi (Telegram rate-limit buzilmaydi).
+- **DB cleanup** — eski ma'lumotlar har 6 soatda avtomatik tozalanadi.
+- **1 hafta tugmasi** — "Har kuni" postlari uchun endi "1 hafta" muddati ham bor (7 kun).
 
 ## Bot "doim ishlashi" uchun
 

@@ -1,4 +1,5 @@
 import logging
+import time
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.error import TelegramError
 from telegram.ext import ContextTypes, ConversationHandler
@@ -13,23 +14,46 @@ logger = logging.getLogger(__name__)
 TRANSFER_TARGET = 501
 TRANSFER_AMOUNT = 502
 
+# Obuna holati keshi: (channel_id, user_id) -> (vaqt, a'zo_mi)
+# Har /start da Telegram API'ga qayta-qayta so'rov yubormaslik uchun
+# natija 60 soniya eslab qolinadi (ortiqcha yuklama kamayadi).
+_membership_cache = {}
+MEMBERSHIP_CACHE_TTL = 60
+MEMBERSHIP_CACHE_MAX = 20000
+
 async def check_user_subscribed(bot, user_id: int) -> tuple[bool, list]:
     if user_id == ADMIN_ID:
         return True, []
     sponsors = db.get_active_sponsors()
     if not sponsors:
         return True, []
-        
+
     unsubscribed = []
+    now = time.time()
     for s in sponsors:
         s_id, ch_id, ch_title, ch_url = s
+        cache_key = (str(ch_id), user_id)
+        cached = _membership_cache.get(cache_key)
+        if cached and now - cached[0] < MEMBERSHIP_CACHE_TTL:
+            if not cached[1]:
+                unsubscribed.append(s)
+            continue
         try:
             target_chat = int(ch_id) if str(ch_id).lstrip('-').isdigit() else ch_id
             member = await bot.get_chat_member(chat_id=target_chat, user_id=user_id)
-            if member.status not in ("creator", "administrator", "member", "restricted"):
-                unsubscribed.append(s)
+            is_member = member.status in ("creator", "administrator", "member", "restricted")
         except TelegramError:
-            pass
+            is_member = True  # holatni aniqlab bo'lmasa — bloklamaymiz
+        _membership_cache[cache_key] = (now, is_member)
+        if not is_member:
+            unsubscribed.append(s)
+
+    # Kesh o'sishini cheklash
+    if len(_membership_cache) > MEMBERSHIP_CACHE_MAX:
+        cutoff = now - MEMBERSHIP_CACHE_TTL
+        for k in [k for k, v in _membership_cache.items() if v[0] < cutoff]:
+            _membership_cache.pop(k, None)
+
     return (len(unsubscribed) == 0), unsubscribed
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -84,7 +108,10 @@ async def subscription_check_callback(update: Update, context: ContextTypes.DEFA
     
     if is_sub:
         await query.answer("✅ Obuna tasdiqlandi!")
-        await query.message.delete()
+        try:
+            await query.message.delete()
+        except TelegramError:
+            pass  # xabar allaqachon o'chirilgan bo'lishi mumkin
         is_admin = (user.id == ADMIN_ID)
         await context.bot.send_message(
             chat_id=user.id,
