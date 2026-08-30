@@ -28,6 +28,56 @@ BROADCAST_BATCH_DELAY = 0.7
 # Bir vaqtda faqat bitta broadcast ishlashi uchun qulf
 _broadcast_lock = asyncio.Lock()
 
+# Telegram matnining ruxsat etilgan maksimal hajmi. UTF-16 birliklarini
+# sanaymiz va HTML teglarini ham hisobga olamiz — bu API chegarasidan
+# ehtiyotkorlik bilan pastda qoladi.
+TELEGRAM_TEXT_LIMIT = 4096
+ADMIN_CHANNELS_LIMIT = 20
+
+
+def _short_text(value, max_length: int) -> str:
+    """Ro'yxat qatori haddan tashqari uzun bo'lmasligi uchun qisqartiradi."""
+    value = str(value or "")
+    if len(value) <= max_length:
+        return value
+    return f"{value[:max_length - 1]}…"
+
+
+def _telegram_text_length(text: str) -> int:
+    """Telegram amalda ishlatadigan UTF-16 belgilar sonini qaytaradi."""
+    return len(text.encode("utf-16-le")) // 2
+
+
+def format_admin_channels_list(channels: list) -> str:
+    """Eng so'nggi kanallar uchun HTML-xavfsiz, 4096 dan oshmaydigan matn."""
+    header = (
+        f"📋 <b>Eng so'nggi {len(channels)} ta ulangan kanal "
+        f"(ko'pi bilan {ADMIN_CHANNELS_LIMIT}):</b>\n\n"
+    )
+    entries = []
+    for channel_id, title, user_id, username in channels:
+        title = _short_text(title or "Kanal", 160)
+        channel_id = _short_text(channel_id, 64)
+        owner = f"@{_short_text(username, 64)}" if username else f"ID:{user_id}"
+        entries.append(
+            f"📢 <b>{html_escape(title)}</b> (<code>{html_escape(channel_id)}</code>)\n"
+            f"   👤 Egasi: {html_escape(owner)}\n\n"
+        )
+
+    visible_entries = entries[:]
+    while True:
+        omitted = len(entries) - len(visible_entries)
+        footer = (
+            f"… {omitted} ta kanal Telegramning 4096 belgilik limiti sabab ko'rsatilmagan."
+            if omitted else ""
+        )
+        text = header + "".join(visible_entries) + footer
+        if _telegram_text_length(text) <= TELEGRAM_TEXT_LIMIT or not visible_entries:
+            return text
+        # Eng yangi kanallar yuqorida qoladi; faqat sig'magan eski qatorni olamiz.
+        visible_entries.pop()
+
+
 def is_admin(user_id: int) -> bool:
     return user_id == ADMIN_ID
 
@@ -45,7 +95,7 @@ async def admin_panel_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def show_statistics(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id):
         return
-    stats = db.get_system_stats()
+    stats = await db.run_db(db.get_system_stats)
     text = (
         "📊 <b>Bot Statistikasi:</b>\n\n"
         f"👥 Jami foydalanuvchilar: <b>{stats['users']} ta</b>\n"
@@ -61,14 +111,7 @@ async def show_statistics(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def admin_all_posts(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id):
         return
-    with db.db_cursor() as cur:
-        cur.execute("""
-            SELECT sp.id, sp.user_id, c.channel_title, sp.post_type, sp.scheduled_time, sp.status
-            FROM scheduled_posts sp
-            LEFT JOIN channels c ON sp.channel_id = c.channel_id
-            ORDER BY sp.id DESC LIMIT 15
-        """)
-        recent_posts = cur.fetchall()
+    recent_posts = await db.run_db(db.get_recent_posts, 15)
 
     if not recent_posts:
         await update.message.reply_text("Hozircha hech qanday post mavjud emas.", reply_markup=get_admin_panel_keyboard())
@@ -86,23 +129,18 @@ async def admin_all_posts(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def admin_all_channels(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id):
         return
-    channels = db.get_all_channels()
+    channels = await db.run_db(db.get_all_channels, ADMIN_CHANNELS_LIMIT)
     if not channels:
         await update.message.reply_text("Hozircha ulangan kanallar yo'q.", reply_markup=get_admin_panel_keyboard())
         return
 
-    text = f"📋 <b>Barcha ulangan kanallar ({len(channels)} ta):</b>\n\n"
-    for c in channels:
-        chid, title, uid, uname = c
-        uname_str = f"@{uname}" if uname else f"ID:{uid}"
-        text += f"📢 <b>{html_escape(title or 'Kanal')}</b> (<code>{chid}</code>)\n   👤 Egasi: {uname_str}\n\n"
-
+    text = format_admin_channels_list(channels)
     await update.message.reply_text(text, reply_markup=get_admin_panel_keyboard(), parse_mode="HTML")
 
 async def sponsors_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id):
         return
-    sponsors = db.get_active_sponsors()
+    sponsors = await db.run_db(db.get_active_sponsors)
     if sponsors is None:
         await update.message.reply_text(
             "⚠️ Homiy kanallarni bazadan o'qib bo'lmadi. Keyinroq urinib ko'ring.",
@@ -145,7 +183,7 @@ async def sponsor_channel_received(update: Update, context: ContextTypes.DEFAULT
         return ADD_SPONSOR_CHANNEL
 
     ch_id, title, url = parts[0].strip(), parts[1].strip(), parts[2].strip()
-    success = db.add_sponsor_channel(ch_id, title, url)
+    success = await db.run_db(db.add_sponsor_channel, ch_id, title, url)
     if success:
         await update.message.reply_text(f"✅ Homiy kanal qo'shildi: <b>{html_escape(title)}</b>", reply_markup=get_admin_panel_keyboard(), parse_mode="HTML")
     else:
@@ -158,13 +196,16 @@ async def del_sponsor_callback(update: Update, context: ContextTypes.DEFAULT_TYP
     if not is_admin(query.from_user.id):
         return
     s_id = int(query.data.split(":")[1])
-    db.remove_sponsor_channel(s_id)
-    await query.edit_message_text("✅ Homiy kanal ro'yxatdan o'chirildi.")
+    removed = await db.run_db(db.remove_sponsor_channel, s_id)
+    if removed:
+        await query.edit_message_text("✅ Homiy kanal ro'yxatdan o'chirildi.")
+    else:
+        await query.edit_message_text("⚠️ Homiy kanalni o'chirib bo'lmadi.")
 
 async def start_set_channel_ad(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id):
         return ConversationHandler.END
-    current_ad = db.get_setting("channel_ad_text", "Mavjud emas")
+    current_ad = await db.run_db(db.get_setting, "channel_ad_text", "Mavjud emas")
     await update.message.reply_text(
         f"📢 <b>Kanal postlari ostiga chiquvchi reklama:</b>\n\n"
         f"Hozirgi matn:\n<i>{html_escape(current_ad)}</i>\n\n"
@@ -179,17 +220,17 @@ async def channel_ad_received(update: Update, context: ContextTypes.DEFAULT_TYPE
         return ConversationHandler.END
     text = update.message.text.strip()
     if text.lower() == "clear":
-        db.set_setting("channel_ad_text", "")
+        await db.run_db(db.set_setting, "channel_ad_text", "")
         await update.message.reply_text("✅ Kanal postlari reklamasi o'chirildi.", reply_markup=get_admin_panel_keyboard())
     else:
-        db.set_setting("channel_ad_text", text)
+        await db.run_db(db.set_setting, "channel_ad_text", text)
         await update.message.reply_text("✅ Kanal postlari reklamasi muvaffaqiyatli saqlandi!", reply_markup=get_admin_panel_keyboard())
     return ConversationHandler.END
 
 async def start_set_bot_reply_ad(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id):
         return ConversationHandler.END
-    current_ad = db.get_setting("bot_reply_ad_text", "Mavjud emas")
+    current_ad = await db.run_db(db.get_setting, "bot_reply_ad_text", "Mavjud emas")
     await update.message.reply_text(
         f"🤖 <b>Bot javoblari ostiga chiquvchi reklama:</b>\n\n"
         f"Hozirgi matn:\n<i>{html_escape(current_ad)}</i>\n\n"
@@ -204,10 +245,10 @@ async def bot_reply_ad_received(update: Update, context: ContextTypes.DEFAULT_TY
         return ConversationHandler.END
     text = update.message.text.strip()
     if text.lower() == "clear":
-        db.set_setting("bot_reply_ad_text", "")
+        await db.run_db(db.set_setting, "bot_reply_ad_text", "")
         await update.message.reply_text("✅ Bot javoblari reklamasi o'chirildi.", reply_markup=get_admin_panel_keyboard())
     else:
-        db.set_setting("bot_reply_ad_text", text)
+        await db.run_db(db.set_setting, "bot_reply_ad_text", text)
         await update.message.reply_text("✅ Bot javoblari reklamasi muvaffaqiyatli saqlandi!", reply_markup=get_admin_panel_keyboard())
     return ConversationHandler.END
 
@@ -236,7 +277,7 @@ async def broadcast_send(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     text = update.message.text
     # DB chaqiruvini event loop'ni bloklamasdan thread'da bajarish
-    user_ids = await asyncio.to_thread(db.get_all_user_ids)
+    user_ids = await db.run_db(db.get_all_user_ids)
 
     await update.message.reply_text(
         f"⏳ Xabar <b>{len(user_ids)} ta</b> foydalanuvchiga yuborilmoqda...\n"

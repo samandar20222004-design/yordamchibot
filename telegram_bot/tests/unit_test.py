@@ -214,6 +214,42 @@ def test_album_label():
     check("album → Albom", format_post_type_label("album") == "Albom")
 
 
+def test_referral_share_url_encoding():
+    print("== referral share URL encode ==")
+    from urllib.parse import parse_qs, urlparse
+    from keyboards.inline import get_referral_share_keyboard
+
+    referral_link = "https://t.me/My_Bot?start=ref_1&source=invite"
+    markup = get_referral_share_keyboard(referral_link)
+    share_url = markup.inline_keyboard[0][0].url
+    query = parse_qs(urlparse(share_url).query)
+
+    check("referral havolasi to'liq encode/decode bo'ladi", query.get("url") == [referral_link], share_url)
+    check("share URL da maxsus belgilar percent-encode", "%3A%2F%2F" in share_url and "%26" in share_url, share_url)
+    check("share matni query parametrida", bool(query.get("text")), share_url)
+
+
+def test_admin_channels_text_limit():
+    print("== admin kanal ro'yxati limiti ==")
+    from handlers.admin import (
+        ADMIN_CHANNELS_LIMIT,
+        TELEGRAM_TEXT_LIMIT,
+        _telegram_text_length,
+        format_admin_channels_list,
+    )
+
+    channels = [
+        (f"-100{i}", "<&>" * 100, i, "owner<&>" * 30)
+        for i in range(ADMIN_CHANNELS_LIMIT)
+    ]
+    text = format_admin_channels_list(channels)
+    check("faqat oxirgi 20 ta uchun format", f"{ADMIN_CHANNELS_LIMIT} ta" in text, text[:120])
+    check("kanal nomi HTML-escape", "&lt;" in text and "&amp;" in text, text[:250])
+    check("Telegram 4096 limiti oshmaydi", _telegram_text_length(text) <= TELEGRAM_TEXT_LIMIT,
+          str(_telegram_text_length(text)))
+    check("sig'magan kanallar haqida eslatma", "ko'rsatilmagan" in text, text[-160:])
+
+
 def main():
     test_calculate_next_time()
     test_converter()
@@ -227,6 +263,8 @@ def main():
     test_compose_post_text()
     test_parse_album_items()
     test_album_label()
+    test_referral_share_url_encoding()
+    test_admin_channels_text_limit()
 
     print(f"\nO'tdi: {passed}, Xato: {failures}")
     if failures:

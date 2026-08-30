@@ -1,8 +1,16 @@
+from urllib.parse import quote
+
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+
 
 def get_referral_share_keyboard(referral_link: str) -> InlineKeyboardMarkup:
     share_text = "Salom! Ushbu bot orqali Telegram kanallaringizga postlarni avtomatik va qulay rejalashtiring:"
-    share_url = f"https://t.me/share/url?url={referral_link}&text={share_text}"
+    # Ikkala query-parametrni ham encode qilamiz: bo'sh joy, apostrof va
+    # maxsus belgilar Telegram share URL'ini buzib qo'ymasligi kerak.
+    share_url = (
+        "https://t.me/share/url?"
+        f"url={quote(referral_link, safe='')}&text={quote(share_text, safe='')}"
+    )
     return InlineKeyboardMarkup([[InlineKeyboardButton("🚀 Do'stlarga ulashish", url=share_url)]])
 
 def get_subscription_check_keyboard(unsubscribed_channels: list) -> InlineKeyboardMarkup:

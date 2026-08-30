@@ -124,6 +124,80 @@ def test_pool_and_ping(db):
     check("20 ta parallel DB so'rov xatosiz", not errors, str(errors[:2]))
 
 
+def test_parallel_post_numbering_and_indexes(db):
+    print("== parallel post saqlash + indekslar ==")
+    from datetime import datetime, timedelta
+    import pytz
+
+    user_id = 990001
+    workers = 24
+    barrier = threading.Barrier(workers)
+    result_lock = threading.Lock()
+    post_ids = []
+    errors = []
+    future_time = datetime.now(pytz.timezone("Asia/Tashkent")) + timedelta(days=365)
+
+    def save_post(i):
+        try:
+            barrier.wait()
+            post_id = db.add_post(
+                user_id=user_id,
+                channel_id=f"-100parallel{i}",
+                post_type="text",
+                content=f"Parallel post {i}",
+                file_id=None,
+                scheduled_time=future_time,
+            )
+            with result_lock:
+                post_ids.append(post_id)
+        except Exception as e:
+            with result_lock:
+                errors.append(e)
+
+    threads = [threading.Thread(target=save_post, args=(i,)) for i in range(workers)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    check("parallel saqlash xatosiz", not errors and len(post_ids) == workers, str(errors[:2]))
+    check("har bir parallel post saqlandi", all(post_id > 0 for post_id in post_ids), str(post_ids))
+
+    with db.db_cursor() as cur:
+        cur.execute(
+            "SELECT user_post_number FROM scheduled_posts WHERE user_id = %s ORDER BY user_post_number",
+            (user_id,),
+        )
+        numbers = [row[0] for row in cur.fetchall()]
+        cur.execute("SELECT indexname FROM pg_indexes WHERE schemaname = current_schema()")
+        indexes = {row[0] for row in cur.fetchall()}
+
+    check("parallel post raqamlari dublikatsiz", numbers == list(range(1, workers + 1)), str(numbers))
+    check("scheduled_posts.user_id indeksi", "idx_scheduled_posts_user_id" in indexes, str(indexes))
+    check("channels.user_id indeksi", "idx_channels_user_id" in indexes, str(indexes))
+    check("post_reactions.post_id indeksi", "idx_post_reactions_post_id" in indexes, str(indexes))
+
+
+def test_recent_channels_limit(db):
+    print("== admin uchun oxirgi 20 ta kanal ==")
+    user_id = 990002
+    all_ids = []
+    for i in range(25):
+        channel_id = f"-100recent{i}"
+        ok, reason = db.save_channel(user_id, channel_id, f"Recent {i}")
+        all_ids.append(channel_id)
+        if not ok:
+            check("test kanali saqlandi", False, reason)
+            return
+
+    recent = db.get_all_channels(20)
+    recent_ids = [row[0] for row in recent]
+    expected_ids = list(reversed(all_ids[-20:]))
+    check("ro'yxat ko'pi bilan 20 ta", len(recent) == 20, str(len(recent)))
+    check("eng so'nggi 20 ta kanal qaytadi", recent_ids == expected_ids,
+          f"actual={recent_ids[:3]}... expected={expected_ids[:3]}...")
+
+
 def test_due_posts_batching(db):
     print("== get_due_posts batch chegarasi ==")
     from database import POST_BATCH_SIZE
@@ -437,6 +511,11 @@ def main():
 
     # 4) Scheduler barcha postlarni yuboradi (3-4 tick)
     test_scheduler_ticks(db, total)
+
+    # Parallel saqlashdagi post raqami ham serializatsiyalangan bo'lishi kerak.
+    # Postlar uzoq kelajak vaqtiga qo'yiladi, shuning uchun scheduler testlariga aralashmaydi.
+    test_parallel_post_numbering_and_indexes(db)
+    test_recent_channels_limit(db)
 
     # 5) Kunlik takrorlanuvchi post
     test_recurring_daily(db)

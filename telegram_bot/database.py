@@ -319,6 +319,11 @@ def _init_db_once():
               AND processing_started_at < NOW() - INTERVAL '10 minutes'
         """)
         cur.execute("CREATE INDEX IF NOT EXISTS idx_scheduled_posts_status_time ON scheduled_posts (status, scheduled_time);")
+        # Eng ko'p ishlatiladigan foydalanuvchi/post qidiruvlari uchun indekslar.
+        # users.user_id PRIMARY KEY bo'lgani uchun u yerda indeks avtomatik mavjud.
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_scheduled_posts_user_id ON scheduled_posts (user_id);")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_channels_user_id ON channels (user_id);")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_post_reactions_post_id ON post_reactions (post_id);")
 
 # --- SETTINGS ---
 def set_setting(key: str, value: str):
@@ -687,16 +692,30 @@ def get_user_channels(user_id: int) -> list:
         logger.error(f"Kanallar olish xatosi: {e}")
         return []
 
-def get_all_channels() -> list:
+def get_all_channels(limit: int = None) -> list:
+    """Faol kanallarni qaytaradi.
+
+    ``limit`` berilsa, eng so'nggi qo'shilgan kanallar birinchi qaytadi.
+    Admin ro'yxati shu yo'l bilan katta bazada ham bitta Telegram xabari
+    chegarasidan oshib ketmaydi.
+    """
     try:
         with db_cursor() as cur:
-            cur.execute("""
+            query = """
                 SELECT c.channel_id, c.channel_title, c.user_id, u.username
                 FROM channels c
                 LEFT JOIN users u ON u.user_id = c.user_id
                 WHERE c.is_active = TRUE
-                ORDER BY c.id ASC
-            """)
+                ORDER BY c.id DESC
+            """
+            params = ()
+            if limit is not None:
+                # LIMIT parametr sifatida beriladi; manfiy yoki nol qiymat
+                # kutilmagan katta ro'yxat qaytarmasligi uchun 1 ga tenglanadi.
+                limit = max(1, int(limit))
+                query += " LIMIT %s"
+                params = (limit,)
+            cur.execute(query, params)
             return cur.fetchall()
     except Exception as e:
         logger.error(f"Barcha kanallar xatosi: {e}")
@@ -783,6 +802,11 @@ def add_post(
 ) -> int:
     try:
         with db_cursor(commit=True) as cur:
+            # Bir foydalanuvchining post raqami MAX(...)+1 bilan tuziladi.
+            # Parallel kelgan ikkita saqlash so'rovi bir xil raqam olmasligi
+            # uchun transaction darajasidagi advisory qulf ishlatiladi.
+            # Qulf commit/rollback bilan avtomatik bo'shaydi.
+            cur.execute("SELECT pg_advisory_xact_lock(%s)", (int(user_id),))
             cur.execute("SELECT COALESCE(MAX(user_post_number), 0) + 1 FROM scheduled_posts WHERE user_id = %s", (user_id,))
             next_num = cur.fetchone()[0]
             cur.execute("""
@@ -801,6 +825,25 @@ def add_post(
     except Exception as e:
         logger.error(f"Post saqlash xatosi: {e}")
         return 0
+
+
+def get_recent_posts(limit: int = 15) -> list:
+    """Admin panel uchun eng so'nggi postlarni qaytaradi."""
+    try:
+        with db_cursor() as cur:
+            limit = max(1, int(limit))
+            cur.execute("""
+                SELECT sp.id, sp.user_id, c.channel_title, sp.post_type, sp.scheduled_time, sp.status
+                FROM scheduled_posts sp
+                LEFT JOIN channels c ON sp.channel_id = c.channel_id
+                ORDER BY sp.id DESC
+                LIMIT %s
+            """, (limit,))
+            return cur.fetchall()
+    except Exception as e:
+        logger.error(f"Oxirgi postlarni olish xatosi: {e}")
+        return []
+
 
 def get_pending_posts(user_id: int) -> list:
     try:
