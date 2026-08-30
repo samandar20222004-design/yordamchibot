@@ -9,7 +9,7 @@ from keyboards.default import (
     BTN_ALL_CHANNELS_TARGET, BTN_MAIN_MENU, BTN_SKIP_BUTTON,
     BTN_NO_REACT,
     BTN_T_5MIN, BTN_T_15MIN, BTN_T_1H, BTN_T_DAILY, BTN_T_WEEKLY,
-    BTN_DUR_1M, BTN_DUR_3M, BTN_DUR_6M, BTN_DUR_1Y, BTN_DUR_INF,
+    BTN_DUR_1W, BTN_DUR_1M, BTN_DUR_3M, BTN_DUR_6M, BTN_DUR_1Y, BTN_DUR_INF,
     WEEKDAY_MAP, WEEKDAY_LABELS,
     get_main_keyboard, get_cancel_keyboard, get_button_prompt_keyboard,
     get_reactions_keyboard, get_auto_delete_keyboard, get_time_keyboard, 
@@ -348,7 +348,10 @@ async def duration_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE):
     now = datetime.now(tashkent_tz)
     end_date = None
     
-    if text == BTN_DUR_1M:
+    if text == BTN_DUR_1W:
+        # Yangi: post har kuni roppa-rosa 1 hafta (7 kun) davomida chiqadi
+        end_date = now + timedelta(days=7)
+    elif text == BTN_DUR_1M:
         end_date = now + timedelta(days=30)
     elif text == BTN_DUR_3M:
         end_date = now + timedelta(days=90)

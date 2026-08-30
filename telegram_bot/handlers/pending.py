@@ -71,8 +71,10 @@ async def edit_post_time_received(update: Update, context: ContextTypes.DEFAULT_
     text = update.message.text.strip()
     post_id = context.user_data.get("editing_post_id")
     post = db.get_post_by_id(post_id)
-    if post and post[1] != query.from_user.id:
-        await query.answer("❌ Bu post sizga tegishli emas.", show_alert=True)
+    # Tuzatildi: avval bu yerda mavjud bo'lmagan `query` o'zgaruvchisi ishlatilgan edi
+    # (NameError yuz berardi). Endi to'g'ridan-to'g'ri foydalanuvchi ID'si tekshiriladi.
+    if post and post[1] != update.effective_user.id:
+        await update.message.reply_text("❌ Bu post sizga tegishli emas.")
         return ConversationHandler.END
     
     if not post:

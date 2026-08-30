@@ -1,32 +1,180 @@
 import os
+import asyncio
 import logging
 import random
 import string
+import threading
+import time as _time
 from datetime import datetime, date, timedelta
 from contextlib import contextmanager
 import psycopg2
+from psycopg2.pool import ThreadedConnectionPool
 from config import DATABASE_URL
 
 logger = logging.getLogger(__name__)
 
-def get_connection():
-    return psycopg2.connect(DATABASE_URL)
+# Render Free PostgreSQL uchun ulanishlar soni cheklangan (odatda 5 ta).
+# DB_POOL_MAX ni oshirishdan oldin Render'da Postgres ulanish limitini tekshiring.
+DB_POOL_MIN = max(0, int(os.getenv("DB_POOL_MIN", "0")))
+DB_POOL_MAX = max(DB_POOL_MIN + 1, int(os.getenv("DB_POOL_MAX", "5")))
+# Har bir scheduler ishlashida ko'pi bilan shuncha post yuboriladi
+# (ulkan navbat bitta tick'ni to'sib qo'ymasligi uchun).
+POST_BATCH_SIZE = max(1, int(os.getenv("POST_BATCH_SIZE", "100")))
+DB_CONNECT_TIMEOUT = int(os.getenv("DB_CONNECT_TIMEOUT", "20"))
+
+_pool = None
+_pool_lock = threading.Lock()
+_pool_sem = None
+
+
+def _get_pool() -> ThreadedConnectionPool:
+    """Pool'ni yaratib beradi (bir marta, keyin qayta ishlatiladi)."""
+    global _pool
+    if _pool is None:
+        with _pool_lock:
+            if _pool is None:
+                _pool = ThreadedConnectionPool(
+                    DB_POOL_MIN, DB_POOL_MAX, DATABASE_URL,
+                    connect_timeout=DB_CONNECT_TIMEOUT,
+                )
+    return _pool
+
+
+def _get_semaphore() -> threading.BoundedSemaphore:
+    """Pool'dagi ulanishlar sonini qat'iy cheklaydigan semafor.
+
+    psycopg2 ning ThreadedConnectionPool.getconn() ixtiyoriy vaqt cheklovisiz
+    bloklanishi mumkin, shuning uchun ulanishlar sonini semafor orqali
+    boshqaramiz — bu ham pool to'lib qolganda botni osib qo'ymaydi.
+    """
+    global _pool_sem
+    if _pool_sem is None:
+        with _pool_lock:
+            if _pool_sem is None:
+                _pool_sem = threading.BoundedSemaphore(DB_POOL_MAX)
+    return _pool_sem
+
+
+def _reset_pool():
+    global _pool, _pool_sem
+    with _pool_lock:
+        if _pool is not None:
+            try:
+                _pool.closeall()
+            except Exception:
+                pass
+            _pool = None
+        _pool_sem = None
+
+
+def close_pool():
+    """Bot to'xtatilganda barcha DB ulanishlarini yopish."""
+    _reset_pool()
+    logger.info("DB pool yopildi.")
+
+
+def _acquire_connection():
+    """Pool'dan ulanish olish (maks. 15 soniya kutish). Xatolikda qayta urinadi."""
+    sem = _get_semaphore()
+    if not sem.acquire(timeout=15):
+        raise TimeoutError("DB pool band: 15 soniya ichida bo'sh ulanish topilmadi")
+    try:
+        try:
+            return _get_pool().getconn()
+        except Exception as e:
+            logger.warning("DB pool xatosi (%s); pool qayta qurilmoqda...", e)
+            _reset_pool()
+            return _get_pool().getconn()
+    except Exception:
+        sem.release()
+        raise
+
+
+def _release_connection(conn):
+    """Ulanishni pool'ga qaytarish (yana ishlatilishi mumkin)."""
+    sem = _get_semaphore()
+    try:
+        try:
+            _get_pool().putconn(conn)
+        except Exception:
+            conn.close()
+    finally:
+        sem.release()
+
+
+def _discard_connection(conn):
+    """Buzilgan ulanishni pool'dan butunlay o'chirish."""
+    sem = _get_semaphore()
+    try:
+        try:
+            _get_pool().putconn(conn, close=True)
+        except Exception:
+            try:
+                conn.close()
+            except Exception:
+                pass
+    finally:
+        sem.release()
+
 
 @contextmanager
 def db_cursor(commit: bool = False):
-    conn = get_connection()
+    conn = None
     try:
+        conn = _acquire_connection()
         cur = conn.cursor()
-        yield cur
-        if commit:
-            conn.commit()
+        try:
+            yield cur
+            if commit:
+                conn.commit()
+        except psycopg2.OperationalError:
+            # Server ulanishni uzgan bo'lsa (masalan, Render DB uyquda) —
+            # buzilgan ulanishni tashlab, xatoni chaqiruvchiga uzatamiz.
+            _discard_connection(conn)
+            conn = None
+            raise
+        _release_connection(conn)
+        conn = None
     except Exception:
-        conn.rollback()
+        if conn is not None:
+            _discard_connection(conn)
         raise
-    finally:
-        conn.close()
+
+
+async def run_in_thread(func, *args, **kwargs):
+    """Sync DB funksiyasini alohida thread'da bajaradi — event loop bloklanmaydi.
+
+    Scheduler va og'ir operatsiyalarda DB chaqiruvlarini shu orqali qiling:
+        result = await db.run_in_thread(db.get_due_posts, now)
+    """
+    return await asyncio.to_thread(func, *args, **kwargs)
+
+
+def ping_db() -> bool:
+    """Health-check uchun baza bilan tez aloqa tekshiruvi."""
+    try:
+        with db_cursor() as cur:
+            cur.execute("SELECT 1")
+            return cur.fetchone()[0] == 1
+    except Exception as e:
+        logger.warning(f"DB ping xatosi: {e}")
+        return False
 
 def init_db():
+    last_err = None
+    for attempt in range(3):
+        try:
+            _init_db_once()
+            logger.info("Baza jadvallari tayyor.")
+            return
+        except psycopg2.OperationalError as e:
+            last_err = e
+            logger.warning(f"DB ishga tushirishda xatolik ({attempt + 1}/3 urinish): {e}")
+            _time.sleep(3)
+    raise last_err
+
+
+def _init_db_once():
     with db_cursor(commit=True) as cur:
         cur.execute("""
             CREATE TABLE IF NOT EXISTS users (
@@ -163,7 +311,6 @@ def init_db():
               AND processing_started_at < NOW() - INTERVAL '10 minutes'
         """)
         cur.execute("CREATE INDEX IF NOT EXISTS idx_scheduled_posts_status_time ON scheduled_posts (status, scheduled_time);")
-    logger.info("Baza jadvallari tayyor.")
 
 # --- SETTINGS ---
 def set_setting(key: str, value: str):
@@ -381,6 +528,22 @@ def consume_ad_free_post(user_id: int) -> bool:
             return False
     except Exception as e:
         logger.error(f"Litsenziya sarflash xatosi: {e}")
+        return False
+
+
+def peek_ad_free_post(user_id: int) -> bool:
+    """Litsenziya mavjudligini tekshiradi, lekin SARCHFAMAYDI.
+
+    Scheduler postni yuborishdan oldin shu orqali tekshiradi va faqat
+    muvaffaqiyatli yuborilgandan keyin consume_ad_free_post() bilan sarflaydi.
+    """
+    try:
+        with db_cursor() as cur:
+            cur.execute("SELECT ad_free_posts, ad_free_active FROM users WHERE user_id = %s", (user_id,))
+            row = cur.fetchone()
+            return bool(row and row[0] is not None and row[0] > 0 and (row[1] is True or row[1] is None))
+    except Exception as e:
+        logger.error(f"Litsenziya tekshirish xatosi: {e}")
         return False
 
 def add_user_credit(user_id: int, amount: int = 1) -> bool:
@@ -642,7 +805,11 @@ def cancel_post(post_id: int, user_id: int, is_admin: bool = False) -> bool:
         return False
 
 def get_due_posts(now) -> list:
-    """Atomically claim due posts so concurrent scheduler runs cannot duplicate them."""
+    """Atomically claim due posts so concurrent scheduler runs cannot duplicate them.
+
+    Bir tick'da ko'pi bilan POST_BATCH_SIZE ta post olinadi — qolganlari
+    keyingi tick'da yuboriladi (ulkan navbat bitta ishlashni to'sib qo'ymaydi).
+    """
     try:
         with db_cursor(commit=True) as cur:
             cur.execute("""
@@ -650,6 +817,7 @@ def get_due_posts(now) -> list:
                     SELECT id FROM scheduled_posts
                     WHERE status = 'pending' AND scheduled_time <= %s
                     ORDER BY scheduled_time
+                    LIMIT %s
                     FOR UPDATE SKIP LOCKED
                 )
                 UPDATE scheduled_posts sp
@@ -660,7 +828,7 @@ def get_due_posts(now) -> list:
                           sp.inline_button_text, sp.inline_button_url, sp.enable_reactions,
                           sp.scheduled_time, sp.recurrence_type, sp.recurrence_day,
                           sp.recurrence_time, sp.end_date, sp.delete_after_hours
-            """, (now,))
+            """, (now, POST_BATCH_SIZE))
             return cur.fetchall()
     except Exception as e:
         logger.error(f"Due posts xatosi: {e}")
@@ -711,6 +879,52 @@ def reschedule_recurring_post(post_id: int, next_time):
             cur.execute("UPDATE scheduled_posts SET scheduled_time = %s WHERE id = %s", (next_time, post_id))
     except Exception as e:
         logger.error(f"Qayta rejalashtirish xatosi: {e}")
+
+
+def retry_post(post_id: int, retry_at):
+    """Telegram vaqtinchalik xatosi (rate-limit/tarmoq) tufayli postni qayta navbatga qo'yish."""
+    try:
+        with db_cursor(commit=True) as cur:
+            cur.execute(
+                "UPDATE scheduled_posts SET scheduled_time = %s, status = 'pending', processing_started_at = NULL WHERE id = %s",
+                (retry_at, post_id),
+            )
+    except Exception as e:
+        logger.error(f"Post qayta navbatlash xatosi: {e}")
+
+
+def cleanup_old_data() -> dict:
+    """Eski, keraksiz ma'lumotlarni o'chirish (scheduler har 6 soatda chaqiradi).
+
+    Baza o'sib ketmasligi uchun: yuborilgan/ochilgan xabarlar, 30 kundan eski
+    yakunlangan postlar va boshqa qoldiqlar tozalanadi.
+    """
+    deleted = {"sent_post_messages": 0, "scheduled_posts": 0, "post_reactions": 0, "channels": 0}
+    try:
+        with db_cursor(commit=True) as cur:
+            cur.execute("""
+                DELETE FROM sent_post_messages
+                WHERE (deleted_at IS NOT NULL AND deleted_at < NOW() - INTERVAL '30 days')
+                   OR (delete_at IS NOT NULL AND delete_at < NOW() - INTERVAL '90 days')
+            """)
+            deleted["sent_post_messages"] = cur.rowcount
+
+            cur.execute("""
+                DELETE FROM scheduled_posts
+                WHERE status IN ('posted', 'cancelled', 'failed', 'completed')
+                  AND created_at < NOW() - INTERVAL '30 days'
+            """)
+            deleted["scheduled_posts"] = cur.rowcount
+
+            cur.execute("DELETE FROM post_reactions WHERE post_id NOT IN (SELECT id FROM scheduled_posts)")
+            deleted["post_reactions"] = cur.rowcount
+
+            cur.execute("DELETE FROM channels WHERE is_active = FALSE AND created_at < NOW() - INTERVAL '90 days'")
+            deleted["channels"] = cur.rowcount
+        return deleted
+    except Exception as e:
+        logger.error(f"DB tozalash xatosi: {e}")
+        return deleted
 
 # --- STATS ---
 def get_system_stats() -> dict:

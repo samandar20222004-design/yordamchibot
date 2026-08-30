@@ -110,8 +110,26 @@ orqali qayta jo'natadi — hech qanday hajm cheklovisiz.
 Render'da **Root Directory** ni `telegram_bot`, Build Command'ni `pip install -r requirements.txt`, Start Command'ni `python main.py` qilib qo'ying. Environment Variables ichida `BOT_TOKEN`, `ADMIN_ID` va Render PostgreSQL bergan `DATABASE_URL` bo'lishi kerak. `PORT` ni qo'lda berish shart emas: kod Render bergan portni o'zi oladi.
 
 UptimeRobot monitor turi **HTTP(s)** bo'lsin va URL quyidagicha berilsin:
-`https://sizning-render-service.onrender.com/health`
+`https://sizning-render-service.onrender.com/health/live`
 Health endpoint `200` va JSON qaytaradi. UptimeRobot bot polling'ini emas, Render web-service'ni uyg'oq saqlaydi.
+
+### Health endpointlar
+
+| Endpoint | Vazifasi |
+|---|---|
+| `/health/live` | Bot jarayoni ishlayaptimi — doim `200` (UptimeRobot shu yerga qaraydi) |
+| `/health/ready` | Bot ishlashga tayyormi — baza bilan aloqa tekshiradi (`200` yoki `503`) |
+| `/health`, `/` | `/health/live` bilan bir xil (eski havolalar ishlashda davom etadi) |
+
+### Render Free uchun optimallashtirish
+
+- **PostgreSQL connection pool** — har bir so'rovda yangi ulanish ochilmaydi; ulanishlar qayta ishlatiladi (`DB_POOL_MAX=5`).
+- **Event loop bloklanmaydi** — scheduler va og'ir DB operatsiyalari alohida thread'da bajariladi.
+- **Telegram timeout/retry** — rate-limit va tarmoq xatolarida postlar yo'qolmaydi, keyingi urinish uchun navbatga qaytadi.
+- **AI rate-limit** — har bir foydalanuvchi daqiqasiga ko'pi bilan 4 ta AI so'rovi yuborishi mumkin.
+- **Broadcast batch** — xabar barcha foydalanuvchilarga fon rejimida, batch'lar bilan yuboriladi (Telegram rate-limit buzilmaydi).
+- **DB cleanup** — eski ma'lumotlar har 6 soatda avtomatik tozalanadi.
+- **1 hafta tugmasi** — "Har kuni" postlari uchun endi "1 hafta" muddati ham bor (7 kun).
 
 ## Bot "doim ishlashi" uchun
 

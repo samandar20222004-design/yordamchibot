@@ -8,6 +8,7 @@ tashkent_tz = pytz.timezone("Asia/Tashkent")
 _USER_HISTORY = {}
 _USER_WARNED = {}
 _USER_MSG_COUNT = {}
+_AI_HISTORY = {}
 
 def check_rate_limit(user_id: int, max_requests: int = 3, window_seconds: float = 3.0) -> tuple[bool, bool]:
     now = time.time()
@@ -29,6 +30,26 @@ def check_rate_limit(user_id: int, max_requests: int = 3, window_seconds: float 
     history.append(now)
     _USER_HISTORY[user_id] = history
     return False, False
+
+
+def check_ai_rate_limit(user_id: int, max_per_minute: int = 4) -> bool:
+    """AI so'rovlari uchun alohida rate-limit (daqiqasiga maks. N ta).
+
+    True qaytsa — foydalanuvchi bloklangan (AI API'ga ortiqcha so'rov
+    yubormaslik va bepul balansni tejash uchun).
+    """
+    now = time.time()
+    if len(_AI_HISTORY) > 5000:
+        _AI_HISTORY.clear()
+
+    history = [t for t in _AI_HISTORY.get(user_id, []) if now - t < 60]
+    if len(history) >= max_per_minute:
+        _AI_HISTORY[user_id] = history
+        return True
+
+    history.append(now)
+    _AI_HISTORY[user_id] = history
+    return False
 
 def get_smart_reply_ad(user_id: int) -> str:
     ad_text = db.get_setting("bot_reply_ad_text", "").strip()

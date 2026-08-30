@@ -51,6 +51,7 @@ BTN_T_DAILY = "🔁 Har kuni (bir vaqtda)"
 BTN_T_WEEKLY = "📅 Har hafta (ma'lum kuni)"
 
 # Muddatlar
+BTN_DUR_1W = "1 hafta"
 BTN_DUR_1M = "1 oy"
 BTN_DUR_3M = "3 oy"
 BTN_DUR_6M = "6 oy"
@@ -146,8 +147,8 @@ def get_time_keyboard():
 def get_duration_keyboard():
     return ReplyKeyboardMarkup(
         [
-            [BTN_DUR_1M, BTN_DUR_3M, BTN_DUR_6M],
-            [BTN_DUR_1Y, BTN_DUR_INF],
+            [BTN_DUR_1W, BTN_DUR_1M, BTN_DUR_3M],
+            [BTN_DUR_6M, BTN_DUR_1Y, BTN_DUR_INF],
             [BTN_MAIN_MENU]
         ],
         resize_keyboard=True
