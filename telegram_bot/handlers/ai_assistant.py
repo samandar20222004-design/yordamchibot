@@ -9,7 +9,7 @@ from keyboards.default import (
     BTN_T_5MIN, BTN_T_15MIN, BTN_T_1H, BTN_T_DAILY, BTN_T_WEEKLY,
     get_cancel_keyboard, get_main_keyboard, get_ai_time_keyboard,
 )
-from utils.ai_agent import analyze_user_prompt, extract_schedule_time
+from utils.ai_agent import analyze_user_prompt, extract_schedule_time, clear_ai_context
 from utils.helpers import (
     html_escape, check_ai_rate_limit, check_ai_daily_limit, parse_future_time,
 )
@@ -44,6 +44,7 @@ async def start_ai_assistant(update: Update, context: ContextTypes.DEFAULT_TYPE)
     """AI yordamchisi: suhbat, savol-javob VA post rejalashtirish (intent routing)."""
     context.user_data.clear()
     user_id = update.effective_user.id
+    clear_ai_context(user_id)
     is_admin = (user_id == ADMIN_ID)
     credits = await db.run_db(db.get_user_credits, user_id)
 
@@ -417,6 +418,7 @@ async def ai_confirm_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     if data == "ai_post_cancel":
         await query.answer("Bekor qilindi")
+        clear_ai_context(user_id)
         context.user_data.clear()
         try:
             await query.edit_message_reply_markup(reply_markup=None)

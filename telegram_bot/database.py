@@ -25,9 +25,23 @@ DB_POOL_MAX = max(DB_POOL_MIN + 1, int(os.getenv("DB_POOL_MAX", "5")))
 POST_BATCH_SIZE = max(1, int(os.getenv("POST_BATCH_SIZE", "100")))
 DB_CONNECT_TIMEOUT = int(os.getenv("DB_CONNECT_TIMEOUT", "20"))
 
+# Tez-tez o'qiladigan (va kam o'zgaradigan) ma'lumotlar uchun kichik TTL kesh.
+# Render Free'da har bir Telegram click DB so'rovini kamaytirish jiddiy
+# yuklama pasaytiradi. Yozish funksiyalarida tegishli kesh avtomatik tozalanadi.
+DB_CACHE_ENABLED = os.getenv("DB_CACHE_ENABLED", "1") == "1"
+DB_SETTINGS_CACHE_TTL = max(1, int(os.getenv("DB_SETTINGS_CACHE_TTL", "60")))
+DB_SPONSORS_CACHE_TTL = max(1, int(os.getenv("DB_SPONSORS_CACHE_TTL", "30")))
+DB_USER_CACHE_TTL = max(1, int(os.getenv("DB_USER_CACHE_TTL", "15")))
+DB_STATS_CACHE_TTL = max(1, int(os.getenv("DB_STATS_CACHE_TTL", "30")))
+
 _pool = None
 _pool_lock = threading.Lock()
 _pool_sem = None
+
+# Kesh holati. ``_CACHE[key] = (expiry_timestamp, value)``
+_CACHE = {}
+_CACHE_LOCK = threading.Lock()
+_MISS = object()
 
 
 def _get_pool() -> ThreadedConnectionPool:
@@ -74,6 +88,104 @@ def close_pool():
     """Bot to'xtatilganda barcha DB ulanishlarini yopish."""
     _reset_pool()
     logger.info("DB pool yopildi.")
+
+
+# ---------------- Kichik TTL kesh ----------------
+
+def _cache_get(key):
+    """TTL keshidan qiymat olish; topilmasa ``_MISS`` qaytaradi."""
+    if not DB_CACHE_ENABLED:
+        return _MISS
+    with _CACHE_LOCK:
+        item = _CACHE.get(key)
+        if item is not None:
+            expires_at, value = item
+            if _time.time() < expires_at:
+                return value
+            _CACHE.pop(key, None)
+    return _MISS
+
+
+def _cache_set(key, value, ttl):
+    if not DB_CACHE_ENABLED:
+        return
+    with _CACHE_LOCK:
+        _CACHE[key] = (_time.time() + max(1, int(ttl)), value)
+
+
+def _cache_clear(prefix=None):
+    """Keshni tozalash. ``prefix`` berilsa faqat shu old qo'shimchali kalitlar o'chadi."""
+    with _CACHE_LOCK:
+        if prefix is None:
+            _CACHE.clear()
+            return
+        for k in [k for k in _CACHE if k.startswith(prefix)]:
+            _CACHE.pop(k, None)
+
+
+def _cache_size() -> int:
+    with _CACHE_LOCK:
+        return len(_CACHE)
+
+
+def cache_clear():
+    """Admin panel uchun: barcha TTL keshini qo'lda tozalash."""
+    _cache_clear()
+    logger.info("DB kesh tozalandi.")
+
+
+def _invalidate_user(user_id: int):
+    """Bitta foydalanuvchiga tegishli kesh yozuvlarini tozalash."""
+    for prefix in ("user_credits", "user_code", "user_channels", "user_stats"):
+        _cache_clear(f"{prefix}:{user_id}")
+
+
+def _invalidate_stats():
+    _cache_clear("system_stats")
+
+
+def get_db_pool_status() -> dict:
+    """Admin/health uchun DB pool va kesh holati."""
+    pool = _pool
+    if pool is None:
+        return {
+            "ready": False,
+            "message": "DB pool hali yaratilmagan",
+            "max": DB_POOL_MAX,
+            "min": DB_POOL_MIN,
+            "used": 0,
+            "available": 0,
+            "collapsed": False,
+            "cache_enabled": DB_CACHE_ENABLED,
+            "cache_entries": _cache_size(),
+        }
+    try:
+        used = len(getattr(pool, "_used", {}))
+        available = len(getattr(pool, "_pool", []))
+        return {
+            "ready": True,
+            "message": "OK",
+            "max": getattr(pool, "maxconn", DB_POOL_MAX),
+            "min": getattr(pool, "minconn", DB_POOL_MIN),
+            "used": used,
+            "available": available,
+            "collapsed": bool(getattr(pool, "closed", False)),
+            "cache_enabled": DB_CACHE_ENABLED,
+            "cache_entries": _cache_size(),
+        }
+    except Exception as e:
+        logger.warning("DB pool holatini o'qishda xato: %s", e)
+        return {
+            "ready": True,
+            "message": f"o'qish xatosi: {e}",
+            "max": DB_POOL_MAX,
+            "min": DB_POOL_MIN,
+            "used": 0,
+            "available": 0,
+            "collapsed": False,
+            "cache_enabled": DB_CACHE_ENABLED,
+            "cache_entries": _cache_size(),
+        }
 
 
 def _acquire_connection():
@@ -334,15 +446,23 @@ def set_setting(key: str, value: str):
                 VALUES (%s, %s)
                 ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
             """, (key, value))
+        _cache_clear("setting:")
+        _cache_clear("system_stats")
     except Exception as e:
         logger.error(f"Sozlama xatosi: {e}")
 
 def get_setting(key: str, default: str = "") -> str:
+    cache_key = f"setting:{key}"
+    cached = _cache_get(cache_key)
+    if cached is not _MISS:
+        return cached
     try:
         with db_cursor() as cur:
             cur.execute("SELECT value FROM system_settings WHERE key = %s", (key,))
             row = cur.fetchone()
-            return row[0] if row else default
+            value = row[0] if row else default
+            _cache_set(cache_key, value, DB_SETTINGS_CACHE_TTL)
+            return value
     except Exception as e:
         logger.error(f"Sozlama olish xatosi: {e}")
         return default
@@ -357,6 +477,8 @@ def add_sponsor_channel(channel_id: str, channel_title: str, channel_url: str) -
                 ON CONFLICT (channel_id) DO UPDATE
                 SET is_active = TRUE, channel_title = EXCLUDED.channel_title, channel_url = EXCLUDED.channel_url
             """, (str(channel_id), channel_title, channel_url))
+        _cache_clear("sponsors")
+        _cache_clear("system_stats")
         return True
     except Exception as e:
         logger.error(f"Sponsor xatosi: {e}")
@@ -368,10 +490,15 @@ def get_active_sponsors():
     Muvaffaqiyat: list (bo'sh bo'lishi mumkin).
     Xatolik: None — chaqiruvchi fail-closed ishlashi kerak (obunani o'tkazib yubormaslik).
     """
+    cached = _cache_get("sponsors")
+    if cached is not _MISS:
+        return cached
     try:
         with db_cursor() as cur:
             cur.execute("SELECT id, channel_id, channel_title, channel_url FROM sponsor_channels WHERE is_active = TRUE ORDER BY id ASC")
-            return cur.fetchall()
+            rows = cur.fetchall()
+            _cache_set("sponsors", rows, DB_SPONSORS_CACHE_TTL)
+            return rows
     except Exception as e:
         logger.error(f"Sponsorlar olish xatosi: {e}")
         return None
@@ -380,7 +507,10 @@ def remove_sponsor_channel(sponsor_id: int) -> bool:
     try:
         with db_cursor(commit=True) as cur:
             cur.execute("DELETE FROM sponsor_channels WHERE id = %s", (sponsor_id,))
-            return cur.rowcount > 0
+            removed = cur.rowcount > 0
+        _cache_clear("sponsors")
+        _cache_clear("system_stats")
+        return removed
     except Exception as e:
         logger.error(f"Sponsor o'chirish xatosi: {e}")
         return False
@@ -422,6 +552,7 @@ def save_user(user_id: int, username: str, full_name: str = "", referrer_id: int
             row = cur.fetchone()
             if row:
                 cur.execute("UPDATE users SET username = %s, full_name = %s WHERE user_id = %s", (username, full_name, user_id))
+                _invalidate_user(user_id)
                 return False
             else:
                 code = _generate_user_code(cur)
@@ -433,6 +564,9 @@ def save_user(user_id: int, username: str, full_name: str = "", referrer_id: int
                 
                 if valid_ref:
                     cur.execute("UPDATE users SET ai_credits = ai_credits + 3 WHERE user_id = %s", (valid_ref,))
+                    _invalidate_user(valid_ref)
+                _invalidate_user(user_id)
+                _cache_clear("system_stats")
                 return True
     except Exception as e:
         logger.error(f"User saqlash xatosi: {e}")
@@ -479,6 +613,8 @@ def claim_daily_streak_bonus(user_id: int) -> dict:
                 SET ai_credits = %s, streak_days = %s, last_bonus_date = %s 
                 WHERE user_id = %s
             """, (new_credits, streak, today, user_id))
+            _invalidate_user(user_id)
+            _cache_clear("system_stats")
 
             return {
                 "success": True,
@@ -500,6 +636,8 @@ def buy_ad_free_posts(user_id: int) -> tuple[bool, str]:
                 return False, "Hisobingizda yetarli ball mavjud emas."
             
             cur.execute("UPDATE users SET ai_credits = ai_credits - 1, ad_free_posts = ad_free_posts + 5, ad_free_active = TRUE WHERE user_id = %s", (user_id,))
+            _invalidate_user(user_id)
+            _cache_clear("system_stats")
             return True, "✅ <b>5 ta reklamasiz toza post</b> litsenziyasi qo'shildi!"
     except Exception as e:
         logger.error(f"Xarid xatosi: {e}")
@@ -521,6 +659,8 @@ def refund_ad_free_posts(user_id: int) -> tuple[bool, str]:
                 SET ai_credits = ai_credits + %s, ad_free_posts = %s 
                 WHERE user_id = %s
             """, (refund_credits, remaining_posts, user_id))
+            _invalidate_user(user_id)
+            _cache_clear("system_stats")
             
             return True, f"✅ <b>{refund_credits * 5} ta post litsenziyasi</b> bekor qilindi va hisobingizga <b>+{refund_credits} ta AI ball</b> qaytarildi!"
     except Exception as e:
@@ -536,6 +676,7 @@ def toggle_ad_free_status(user_id: int) -> tuple[bool, bool]:
                 return False, False
             new_status = not (row[0] if row[0] is not None else True)
             cur.execute("UPDATE users SET ad_free_active = %s WHERE user_id = %s", (new_status, user_id))
+            _invalidate_user(user_id)
             return True, new_status
     except Exception as e:
         logger.error(f"Status o'zgartirish xatosi: {e}")
@@ -548,6 +689,7 @@ def consume_ad_free_post(user_id: int) -> bool:
             row = cur.fetchone()
             if row and row[0] > 0 and (row[1] is True or row[1] is None):
                 cur.execute("UPDATE users SET ad_free_posts = ad_free_posts - 1 WHERE user_id = %s", (user_id,))
+                _invalidate_user(user_id)
                 return True
             return False
     except Exception as e:
@@ -574,17 +716,26 @@ def add_user_credit(user_id: int, amount: int = 1) -> bool:
     try:
         with db_cursor(commit=True) as cur:
             cur.execute("UPDATE users SET ai_credits = ai_credits + %s WHERE user_id = %s", (amount, user_id))
-            return cur.rowcount > 0
+            changed = cur.rowcount > 0
+        _invalidate_user(user_id)
+        _cache_clear("system_stats")
+        return changed
     except Exception as e:
         logger.error(f"Ball qaytarish xatosi: {e}")
         return False
 
 def get_user_credits(user_id: int) -> int:
+    cache_key = f"user_credits:{user_id}"
+    cached = _cache_get(cache_key)
+    if cached is not _MISS:
+        return cached
     try:
         with db_cursor() as cur:
             cur.execute("SELECT ai_credits FROM users WHERE user_id = %s", (user_id,))
             row = cur.fetchone()
-            return row[0] if row and row[0] is not None else 0
+            credits = row[0] if row and row[0] is not None else 0
+            _cache_set(cache_key, credits, DB_USER_CACHE_TTL)
+            return credits
     except Exception as e:
         logger.error(f"Ball olish xatosi: {e}")
         return 0
@@ -598,7 +749,10 @@ def use_user_credit(user_id: int) -> bool:
                 "WHERE user_id = %s AND ai_credits > 0 RETURNING user_id",
                 (user_id,),
             )
-            return cur.fetchone() is not None
+            spent = cur.fetchone() is not None
+        _invalidate_user(user_id)
+        _cache_clear("system_stats")
+        return spent
     except Exception as e:
         logger.error(f"Ball ayirish xatosi: {e}")
         return False
@@ -642,12 +796,19 @@ def transfer_user_credits(from_user_id: int, to_user_id: int, amount: int) -> tu
 
             cur.execute("UPDATE users SET ai_credits = ai_credits - %s WHERE user_id = %s", (amount, from_user_id))
             cur.execute("UPDATE users SET ai_credits = ai_credits + %s WHERE user_id = %s", (amount, to_user_id))
+            _invalidate_user(from_user_id)
+            _invalidate_user(to_user_id)
+            _cache_clear("system_stats")
             return True, "Ballar muvaffaqiyatli o'tkazildi!"
     except Exception as e:
         logger.error(f"Ball o'tkazish xatosi: {e}")
         return False, f"Tizim xatoligi: {e}"
 
 def get_referral_stats(user_id: int) -> dict:
+    cache_key = f"user_stats:{user_id}"
+    cached = _cache_get(cache_key)
+    if cached is not _MISS:
+        return cached
     try:
         with db_cursor() as cur:
             cur.execute("SELECT COUNT(*) FROM users WHERE referrer_id = %s", (user_id,))
@@ -658,7 +819,9 @@ def get_referral_stats(user_id: int) -> dict:
             ad_free = row[1] if row and len(row) > 1 and row[1] is not None else 0
             streak = row[2] if row and len(row) > 2 and row[2] is not None else 0
             active = row[3] if row and len(row) > 3 and row[3] is not None else True
-            return {"referrals_count": ref_count, "ai_credits": credits, "ad_free_posts": ad_free, "streak": streak, "ad_free_active": active}
+            data = {"referrals_count": ref_count, "ai_credits": credits, "ad_free_posts": ad_free, "streak": streak, "ad_free_active": active}
+            _cache_set(cache_key, data, DB_USER_CACHE_TTL)
+            return data
     except Exception as e:
         logger.error(f"Referral xatosi: {e}")
         return {"referrals_count": 0, "ai_credits": 0, "ad_free_posts": 0, "streak": 0, "ad_free_active": True}
@@ -673,21 +836,33 @@ def get_all_user_ids() -> list:
         return []
 
 def get_user_code(user_id: int) -> str:
+    cache_key = f"user_code:{user_id}"
+    cached = _cache_get(cache_key)
+    if cached is not _MISS:
+        return cached
     try:
         with db_cursor() as cur:
             cur.execute("SELECT user_code FROM users WHERE user_id = %s", (user_id,))
             row = cur.fetchone()
-            return row[0] if row and row[0] else str(user_id)
+            code = row[0] if row and row[0] else str(user_id)
+            _cache_set(cache_key, code, DB_USER_CACHE_TTL)
+            return code
     except Exception as e:
         logger.error(f"User kod xatosi: {e}")
         return str(user_id)
 
 # --- CHANNELS ---
 def get_user_channels(user_id: int) -> list:
+    cache_key = f"user_channels:{user_id}"
+    cached = _cache_get(cache_key)
+    if cached is not _MISS:
+        return cached
     try:
         with db_cursor() as cur:
             cur.execute("SELECT channel_id, channel_title FROM channels WHERE user_id = %s AND is_active = TRUE ORDER BY id ASC", (user_id,))
-            return cur.fetchall()
+            channels = cur.fetchall()
+            _cache_set(cache_key, channels, DB_USER_CACHE_TTL)
+            return channels
     except Exception as e:
         logger.error(f"Kanallar olish xatosi: {e}")
         return []
@@ -752,6 +927,8 @@ def save_channel(user_id: int, channel_id: str, channel_title: str, is_admin: bo
                 return False, "error"
             if row[0] != user_id:
                 return False, "taken"
+        _invalidate_user(user_id)
+        _cache_clear("system_stats")
         return True, "ok"
     except Exception as e:
         logger.error(f"Kanal saqlash xatosi: {e}")
@@ -766,7 +943,10 @@ def deactivate_channel_by_id(channel_id: str) -> bool:
                 "UPDATE channels SET is_active = FALSE WHERE channel_id = %s AND is_active = TRUE",
                 (str(channel_id),),
             )
-            return cur.rowcount > 0
+            changed = cur.rowcount > 0
+        _cache_clear("user_channels:")
+        _cache_clear("system_stats")
+        return changed
     except Exception as e:
         logger.error(f"Kanalni nofaol qilish xatosi: {e}")
         return False
@@ -778,7 +958,10 @@ def remove_channel(user_id: int, channel_id: str, is_admin: bool = False) -> boo
                 cur.execute("UPDATE channels SET is_active = FALSE WHERE channel_id = %s", (str(channel_id),))
             else:
                 cur.execute("UPDATE channels SET is_active = FALSE WHERE channel_id = %s AND user_id = %s", (str(channel_id), user_id))
-            return cur.rowcount > 0
+            changed = cur.rowcount > 0
+        _invalidate_user(user_id)
+        _cache_clear("system_stats")
+        return changed
     except Exception as e:
         logger.error(f"Kanal o'chirish xatosi: {e}")
         return False
@@ -821,7 +1004,10 @@ def add_post(
                 enable_reactions, delete_after_hours, scheduled_time, next_num,
                 recurrence_type, recurrence_day, recurrence_time, end_date
             ))
-            return cur.fetchone()[0]
+            post_id = cur.fetchone()[0]
+        _invalidate_user(user_id)
+        _cache_clear("system_stats")
+        return post_id
     except Exception as e:
         logger.error(f"Post saqlash xatosi: {e}")
         return 0
@@ -897,7 +1083,10 @@ def cancel_post(post_id: int, user_id: int, is_admin: bool = False) -> bool:
                 cur.execute("UPDATE scheduled_posts SET status = 'cancelled' WHERE id = %s AND status = 'pending'", (post_id,))
             else:
                 cur.execute("UPDATE scheduled_posts SET status = 'cancelled' WHERE id = %s AND user_id = %s AND status = 'pending'", (post_id, user_id))
-            return cur.rowcount > 0
+            cancelled = cur.rowcount > 0
+        _invalidate_user(user_id)
+        _cache_clear("system_stats")
+        return cancelled
     except Exception as e:
         logger.error(f"Post bekor qilish xatosi: {e}")
         return False
@@ -927,7 +1116,9 @@ def get_due_posts(now) -> list:
                           sp.scheduled_time, sp.recurrence_type, sp.recurrence_day,
                           sp.recurrence_time, sp.end_date, sp.delete_after_hours
             """, (now, POST_BATCH_SIZE))
-            return cur.fetchall()
+            rows = cur.fetchall()
+        _cache_clear("system_stats")
+        return rows
     except Exception as e:
         logger.error(f"Due posts xatosi: {e}")
         return []
@@ -936,6 +1127,7 @@ def mark_post_status(post_id: int, status: str):
     try:
         with db_cursor(commit=True) as cur:
             cur.execute("UPDATE scheduled_posts SET status = %s WHERE id = %s", (status, post_id))
+        _cache_clear("system_stats")
     except Exception as e:
         logger.error(f"Post status xatosi: {e}")
 
@@ -954,6 +1146,7 @@ def mark_post_as_sent(post_id: int, sent_message_id: int, channel_id: str = None
                         INSERT INTO sent_post_messages (post_id, channel_id, message_id, delete_at)
                         VALUES (%s, %s, %s, CASE WHEN %s > 0 THEN NOW() + (%s || ' hours')::INTERVAL ELSE NULL END)
                     """, (post_id, str(channel_id), mid, delete_after_hours, delete_after_hours))
+        _cache_clear("system_stats")
     except Exception as e:
         logger.error(f"Post yuborilganini belgilash xatosi: {e}")
 
@@ -974,6 +1167,7 @@ def mark_post_as_deleted(message_row_id: int):
     try:
         with db_cursor(commit=True) as cur:
             cur.execute("UPDATE sent_post_messages SET deleted_at = NOW() WHERE id = %s", (message_row_id,))
+        _cache_clear("system_stats")
     except Exception as e:
         logger.error(f"Post o'chirish xatosi: {e}")
 
@@ -981,6 +1175,7 @@ def reschedule_recurring_post(post_id: int, next_time):
     try:
         with db_cursor(commit=True) as cur:
             cur.execute("UPDATE scheduled_posts SET scheduled_time = %s WHERE id = %s", (next_time, post_id))
+        _cache_clear("system_stats")
     except Exception as e:
         logger.error(f"Qayta rejalashtirish xatosi: {e}")
 
@@ -993,6 +1188,7 @@ def retry_post(post_id: int, retry_at):
                 "UPDATE scheduled_posts SET scheduled_time = %s, status = 'pending', processing_started_at = NULL WHERE id = %s",
                 (retry_at, post_id),
             )
+        _cache_clear("system_stats")
     except Exception as e:
         logger.error(f"Post qayta navbatlash xatosi: {e}")
 
@@ -1025,6 +1221,7 @@ def cleanup_old_data() -> dict:
 
             cur.execute("DELETE FROM channels WHERE is_active = FALSE AND created_at < NOW() - INTERVAL '90 days'")
             deleted["channels"] = cur.rowcount
+        _cache_clear()
         return deleted
     except Exception as e:
         logger.error(f"DB tozalash xatosi: {e}")
@@ -1032,6 +1229,10 @@ def cleanup_old_data() -> dict:
 
 # --- STATS ---
 def get_system_stats() -> dict:
+    cache_key = "system_stats"
+    cached = _cache_get(cache_key)
+    if cached is not _MISS:
+        return cached
     stats = {"users": 0, "channels": 0, "pending": 0, "sent": 0, "cancelled": 0, "failed": 0, "sponsors": 0}
     try:
         with db_cursor() as cur:
@@ -1049,6 +1250,7 @@ def get_system_stats() -> dict:
             stats["cancelled"] = cur.fetchone()[0]
             cur.execute("SELECT COUNT(*) FROM scheduled_posts WHERE status = 'failed'")
             stats["failed"] = cur.fetchone()[0]
+        _cache_set(cache_key, stats, DB_STATS_CACHE_TTL)
     except Exception as e:
         logger.error(f"Statistika xatosi: {e}")
     return stats

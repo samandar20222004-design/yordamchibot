@@ -26,6 +26,14 @@ def get_subscription_check_keyboard(unsubscribed_channels: list) -> InlineKeyboa
     keyboard.append([InlineKeyboardButton("✅ Obunani tekshirish", callback_data="check_subscription")])
     return InlineKeyboardMarkup(keyboard)
 
+def get_cache_actions_keyboard() -> InlineKeyboardMarkup:
+    """DB/kesh holati oynasi uchun tugmalar."""
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("🗑 Keshlarni tozalash", callback_data="cache_clear")],
+        [InlineKeyboardButton("❌ Yopish", callback_data="close_msg")],
+    ])
+
+
 def get_sponsors_delete_keyboard(sponsors: list) -> InlineKeyboardMarkup:
     keyboard = []
     for sponsor in sponsors:

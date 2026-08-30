@@ -171,6 +171,30 @@ oddiy "➕ Yangi post rejalashtirish" oqimi orqali ishlaydi.
 > `llama-3.1-8b-instant`, `llama-3.3-70b-versatile` va `gemma2-9b-it` yopildi) —
 > avto-diskoveri tufayli bunday holatda ham bot yangi modelga o'zi o'tadi.
 
+### AI kontekst va parametrlar
+
+- **Suhbat konteksti** — har bir foydalanuvchi uchun so'nggi 6 ta AI xabari
+  eslab qolinadi va keyingi so'rovga qo'shiladi. "Qisqartir", "vaqtini
+  o'zgartir", "oxiriga qo'sh" kabi ergash buyruqlar oldingi mazmunni eslab
+  ishlaydi (`AI_CONTEXT_MESSAGES`, `AI_MAX_CONTEXT_CHARS` orqali sozlanadi).
+- **Javob parametrlari** — `AI_TEMPERATURE`, `AI_MAX_TOKENS`, `AI_TOP_P`,
+  `AI_MAX_PROMPT_CHARS` environment o'zgaruvchilari barcha provayderlarga
+  uzatiladi. Admin panel **⚙️ AI parametrlar** bo'limida ularni qayta ishga
+  tushirmasdan o'zgartirish mumkin.
+- **AI Extra Context** — `AI_EXTRA_CONTEXT` bilan botning umumiy ko'rsatmasiga
+  qo'shimcha kontekst qo'shish mumkin.
+
+### Admin panel: qo'shimcha boshqaruv
+
+Admin boshqaruv paneldan quyidagilar ham bajariladi:
+
+- **🏷 Post nishoni** — post oxiriga qo'shiladigan ixtiyoriy watermark/nishon
+  (masalan `@PostAssistrobot`). Bo'sh qoldirilsa postlar toza chiqadi.
+- **⚙️ AI parametrlar** — temperature, max_tokens, top_p, prompt limit,
+  kontekst hajmi va xabarlar sonini runtime'da o'zgartirish.
+- **🗄️ DB/Kesh holati** — PostgreSQL pool holati va TTL kesh yozuvlari sonini
+  ko'rish, kerak bo'lganda keshni tozalash.
+
 Kalitlarni Render → Environment bo'limiga qo'shing va botni qayta ishga tushiring.
 
 ### Hujum / ortiqcha yuklama himoyasi
@@ -180,11 +204,12 @@ Kalitlarni Render → Environment bo'limiga qo'shing va botni qayta ishga tushir
 - **Dublikat xabar** — bir xil xabar 1.5 soniya ichida qayta yuborilsa, e'tiborga olinmaydi.
 - **AI limitlar** — daqiqasiga 4 ta, kuniga 30 ta (foydalanuvchi uchun); bir vaqtda 2 tadan ortiq AI so'rovi ishlamaydi.
 - **Broadcast qulfi** — bir vaqtda faqat bitta xabar tarqatilishi mumkin.
-- **Prompt limiti** — AI'ga yuboriladigan matn 3000 belgidan oshsa kesiladi.
+- **Prompt limiti** — AI'ga yuboriladigan matn `AI_MAX_PROMPT_CHARS` (default 3000) belgidan oshsa kesiladi; admin paneldan sozlanadi.
 
 ### Render Free uchun optimallashtirish
 
 - **PostgreSQL connection pool** — har bir so'rovda yangi ulanish ochilmaydi; ulanishlar qayta ishlatiladi (`DB_POOL_MAX=5`).
+- **TTL kesh** — tez-tez so'raladigan sozlamalar, homiy kanallar, foydalanuvchi ballari/kanallari va statistika kichik TTL keshida saqlanadi (`DB_CACHE_ENABLED=1`, `DB_SETTINGS_CACHE_TTL`, `DB_USER_CACHE_TTL`, `DB_STATS_CACHE_TTL`). Yozishlar keshlarni avtomatik tozalaydi.
 - **Event loop bloklanmaydi** — scheduler va og'ir DB operatsiyalari alohida thread'da bajariladi.
 - **Telegram timeout/retry** — rate-limit va tarmoq xatolarida postlar yo'qolmaydi, keyingi urinish uchun navbatga qaytadi.
 - **AI rate-limit** — har bir foydalanuvchi daqiqasiga ko'pi bilan 4 ta AI so'rovi yuborishi mumkin.

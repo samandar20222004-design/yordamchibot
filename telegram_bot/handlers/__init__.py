@@ -13,7 +13,7 @@ from keyboards.default import (
     BTN_TRANSFER, BTN_HELP, BTN_ADD_CHANNEL, BTN_CHANNELS, BTN_PENDING, BTN_CONVERTER,
     BTN_ADMIN_PANEL, BTN_STATS, BTN_ALL_POSTS, BTN_ALL_CHANNELS,
     BTN_BROADCAST, BTN_MAIN_MENU, BTN_SPONSORS, BTN_ADD_SPONSOR,
-    BTN_CHANNEL_AD, BTN_BOT_REPLY_AD,
+    BTN_CHANNEL_AD, BTN_BOT_REPLY_AD, BTN_POST_TAG, BTN_AI_SETTINGS, BTN_CACHE_DB,
 )
 from keyboards.inline import get_subscription_check_keyboard
 from handlers.start import (
@@ -49,7 +49,10 @@ from handlers.admin import (
     broadcast_start, broadcast_send, sponsors_menu, start_add_sponsor,
     sponsor_channel_received, del_sponsor_callback,
     start_set_channel_ad, channel_ad_received, start_set_bot_reply_ad, bot_reply_ad_received,
-    BROADCAST_MESSAGE, ADD_SPONSOR_CHANNEL, SET_CHANNEL_AD, SET_BOT_REPLY_AD
+    ai_settings_menu, ai_settings_received, cache_db_menu, cache_clear_callback,
+    start_set_post_tag, post_tag_received,
+    BROADCAST_MESSAGE, ADD_SPONSOR_CHANNEL, SET_CHANNEL_AD, SET_BOT_REPLY_AD,
+    AI_SETTINGS, SET_POST_TAG
 )
 import database as db
 from utils.helpers import check_rate_limit
@@ -63,7 +66,7 @@ _MENU_BUTTON_TEXTS = (
     BTN_ADMIN_PANEL, BTN_MAIN_MENU, BTN_CHANNELS, BTN_CONVERTER, BTN_DAILY_BONUS,
     BTN_BUY_AD_FREE, BTN_INVITE, BTN_TRANSFER, BTN_ADD_CHANNEL, BTN_STATS,
     BTN_BROADCAST, BTN_ALL_POSTS, BTN_ALL_CHANNELS, BTN_SPONSORS, BTN_ADD_SPONSOR,
-    BTN_CHANNEL_AD, BTN_BOT_REPLY_AD,
+    BTN_CHANNEL_AD, BTN_BOT_REPLY_AD, BTN_POST_TAG, BTN_AI_SETTINGS, BTN_CACHE_DB,
 )
 
 
@@ -243,6 +246,9 @@ def register_all_handlers(app):
         MessageHandler(exact(BTN_ADD_SPONSOR), lambda u, c: guard_entry(u, c, start_add_sponsor)),
         MessageHandler(exact(BTN_CHANNEL_AD), lambda u, c: guard_entry(u, c, start_set_channel_ad)),
         MessageHandler(exact(BTN_BOT_REPLY_AD), lambda u, c: guard_entry(u, c, start_set_bot_reply_ad)),
+        MessageHandler(exact(BTN_POST_TAG), lambda u, c: guard_entry(u, c, start_set_post_tag)),
+        MessageHandler(exact(BTN_AI_SETTINGS), lambda u, c: guard_entry(u, c, ai_settings_menu)),
+        MessageHandler(exact(BTN_CACHE_DB), lambda u, c: guard_entry(u, c, cache_db_menu)),
     ]
 
     # Erkin yozilgan xabarlar (menyu tugmalari va buyruqlardan tashqari) AI'ga yo'naltiriladi.
@@ -270,6 +276,9 @@ def register_all_handlers(app):
             MessageHandler(exact(BTN_ADD_SPONSOR), lambda u, c: guard_entry(u, c, start_add_sponsor)),
             MessageHandler(exact(BTN_CHANNEL_AD), lambda u, c: guard_entry(u, c, start_set_channel_ad)),
             MessageHandler(exact(BTN_BOT_REPLY_AD), lambda u, c: guard_entry(u, c, start_set_bot_reply_ad)),
+            MessageHandler(exact(BTN_POST_TAG), lambda u, c: guard_entry(u, c, start_set_post_tag)),
+            MessageHandler(exact(BTN_AI_SETTINGS), lambda u, c: guard_entry(u, c, ai_settings_menu)),
+            MessageHandler(exact(BTN_CACHE_DB), lambda u, c: guard_entry(u, c, cache_db_menu)),
             CallbackQueryHandler(edit_post_time_start, pattern=r"^edit_time:"),
             CallbackQueryHandler(add_channel_inline_entry, pattern=r"^add_channel_start$"),
             CommandHandler("newpost", lambda u, c: guard_entry(u, c, start_new_post)),
@@ -307,6 +316,8 @@ def register_all_handlers(app):
             ADD_SPONSOR_CHANNEL: global_jump_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, sponsor_channel_received)],
             SET_CHANNEL_AD: global_jump_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, channel_ad_received)],
             SET_BOT_REPLY_AD: global_jump_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, bot_reply_ad_received)],
+            SET_POST_TAG: global_jump_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, post_tag_received)],
+            AI_SETTINGS: global_jump_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, ai_settings_received)],
             EDIT_POST_TIME: global_jump_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, edit_post_time_received)],
         },
         fallbacks=[
@@ -337,6 +348,9 @@ def register_all_handlers(app):
     app.add_handler(MessageHandler(exact(BTN_ALL_POSTS), lambda u, c: guard_menu(u, c, admin_all_posts)))
     app.add_handler(MessageHandler(exact(BTN_ALL_CHANNELS), lambda u, c: guard_menu(u, c, admin_all_channels)))
     app.add_handler(MessageHandler(exact(BTN_SPONSORS), lambda u, c: guard_menu(u, c, sponsors_menu)))
+    app.add_handler(MessageHandler(exact(BTN_POST_TAG), lambda u, c: guard_entry(u, c, start_set_post_tag)))
+    app.add_handler(MessageHandler(exact(BTN_AI_SETTINGS), lambda u, c: guard_entry(u, c, ai_settings_menu)))
+    app.add_handler(MessageHandler(exact(BTN_CACHE_DB), lambda u, c: guard_entry(u, c, cache_db_menu)))
 
     app.add_handler(CallbackQueryHandler(ad_free_callback, pattern=r"^adfree_"))
     app.add_handler(CallbackQueryHandler(converter_callback, pattern=r"^conv_show:"))
@@ -349,6 +363,7 @@ def register_all_handlers(app):
     app.add_handler(CallbackQueryHandler(remove_channel_callback, pattern=r"^remove_channel:"))
     app.add_handler(CallbackQueryHandler(close_msg_callback, pattern=r"^close_msg$"))
     app.add_handler(CallbackQueryHandler(noop_callback, pattern=r"^noop$"))
+    app.add_handler(CallbackQueryHandler(cache_clear_callback, pattern=r"^cache_clear$"))
     app.add_handler(ChatMemberHandler(on_bot_chat_member_update, ChatMemberHandler.MY_CHAT_MEMBER))
     # Eski (tugatilgan suhbatdan qolgan) inline tugmalar — ENG OXIRIDA:
     app.add_handler(CallbackQueryHandler(expired_session_callback))

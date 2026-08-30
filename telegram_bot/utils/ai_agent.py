@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import time as _time
+from collections import deque
 from datetime import datetime
 import pytz
 import aiohttp
@@ -30,12 +31,41 @@ OPENROUTER_MODELS_ENDPOINT = os.getenv("OPENROUTER_MODELS_ENDPOINT", "https://op
 REQUEST_TIMEOUT = 30
 MAX_429_RETRIES = 2
 # Foydalanuvchi promptining maksimal uzunligi (token byudjetini himoya qiladi)
-MAX_PROMPT_CHARS = 3000
+MAX_PROMPT_CHARS = max(500, int(os.getenv("AI_MAX_PROMPT_CHARS", "3000")))
 # Bir vaqtda ko'pi bilan 2 ta AI so'rovi ishlaydi (bepul RPM limitlarini himoya qiladi)
 MAX_CONCURRENT_AI = max(1, int(os.getenv("MAX_CONCURRENT_AI", "2")))
 # Provayder 3 marta ketma-ket xato bersa — shuncha daqiqaga o'tkazib yuboriladi
 BREAKER_THRESHOLD = 3
 BREAKER_COOLDOWN = 600  # 10 daqiqa
+
+# AI javob/parametr sozlamalari (env orqali, admin DB setting orqali runtime'da yangilanadi)
+AI_TEMPERATURE = max(0.0, min(2.0, float(os.getenv("AI_TEMPERATURE", "0.2"))))
+AI_MAX_TOKENS = max(128, int(os.getenv("AI_MAX_TOKENS", "1024")))
+AI_TOP_P = max(0.0, min(1.0, float(os.getenv("AI_TOP_P", "1.0"))))
+AI_CONTEXT_MESSAGES = max(0, int(os.getenv("AI_CONTEXT_MESSAGES", "6")))
+AI_MAX_CONTEXT_CHARS = max(500, int(os.getenv("AI_MAX_CONTEXT_CHARS", "4000")))
+AI_EXTRA_CONTEXT = os.getenv("AI_EXTRA_CONTEXT", "").strip()
+
+# Runtime'da o'zgaradigan AI parametrlar. Admin panel ularni DB'dan o'qib,
+# ai_agent.reload_runtime_params() bilan shu yerda yangilaydi — bot qayta
+# ishga tushirilmasa ham darhol kuchga kiradi.
+_RUNTIME_PARAMS = {
+    "temperature": AI_TEMPERATURE,
+    "max_tokens": AI_MAX_TOKENS,
+    "top_p": AI_TOP_P,
+    "max_prompt_chars": MAX_PROMPT_CHARS,
+    "context_messages": AI_CONTEXT_MESSAGES,
+    "context_chars": AI_MAX_CONTEXT_CHARS,
+    "extra_context": AI_EXTRA_CONTEXT,
+}
+# Admin "reset" qilganda / qiymat bo'sh bo'lganda qaytadigan defaultlar.
+_RUNTIME_DEFAULTS = dict(_RUNTIME_PARAMS)
+
+# Har bir foydalanuvchi uchun so'nggi AI suhbati konteksti (qisqa).
+# Bu "qisqartir", "vaqtni o'zgartir", "oxiriga qo'sh" kabi ergash buyruqlarda
+# modelga oldingi xabar mazmunini eslatish uchun ishlatiladi.
+_AI_CONTEXT: dict = {}
+_AI_CONTEXT_MAX_USERS = 5000
 
 # Modellarni runtime'da aniqlash (yoqilgan bo'lsa). Provayderlar modellarni
 # tez-tez almashtiradi (decommission), shuning uchun qo'lda yozilgan ro'yxat
@@ -114,6 +144,114 @@ async def close_ai_session():
     if _session is not None and not _session.closed:
         await _session.close()
     _session = None
+
+
+# ---------------- Runtime AI parametrlar ----------------
+
+def get_runtime_params() -> dict:
+    """Hozirgi AI parametrlar nusxasini qaytaradi."""
+    return dict(_RUNTIME_PARAMS)
+
+
+def _set_runtime_param(key: str, raw_value) -> bool:
+    """``raw_value`` str berilgan key validatsiya bilan queyamiz.
+
+    True qaytsa qiymat qo'yildi, False — noma'lum kalit yoki noto'g'ri qiymat.
+    """
+    key = (key or "").strip().lower()
+    raw = (raw_value or "").strip()
+    if key not in _RUNTIME_PARAMS:
+        return False
+    if not raw:
+        _RUNTIME_PARAMS[key] = _RUNTIME_DEFAULTS.get(key)
+        return True
+    try:
+        if key == "temperature":
+            _RUNTIME_PARAMS[key] = max(0.0, min(2.0, float(raw)))
+        elif key == "max_tokens":
+            _RUNTIME_PARAMS[key] = max(128, int(raw))
+        elif key == "top_p":
+            _RUNTIME_PARAMS[key] = max(0.0, min(1.0, float(raw)))
+        elif key == "max_prompt_chars":
+            _RUNTIME_PARAMS[key] = max(500, int(raw))
+        elif key == "context_chars":
+            _RUNTIME_PARAMS[key] = max(500, int(raw))
+        elif key == "context_messages":
+            _RUNTIME_PARAMS[key] = max(0, int(raw))
+        else:
+            _RUNTIME_PARAMS[key] = raw
+        return True
+    except (TypeError, ValueError):
+        logger.warning("AI parametr noto'g'ri: %s=%r", key, raw)
+        return False
+
+
+_SETTINGS_TO_PARAMS = {
+    "ai_temperature": "temperature",
+    "ai_max_tokens": "max_tokens",
+    "ai_top_p": "top_p",
+    "ai_max_prompt_chars": "max_prompt_chars",
+    "ai_context_chars": "context_chars",
+    "ai_context_messages": "context_messages",
+    "ai_extra_context": "extra_context",
+}
+
+
+def load_runtime_params_from_db():
+    """DB'dagi admin sozlamalarini runtime paramlarga yuklaydi.
+
+    This is synchronous (DB keshli o'qish) — main bot startida `to_thread`
+    bilan ichidan chaqiriladi yoki admin o'zgarishidan keyin.
+    """
+    from database import get_setting
+    for setting_key, param_key in _SETTINGS_TO_PARAMS.items():
+        value = get_setting(setting_key, "")
+        _set_runtime_param(param_key, value)
+
+
+async def reload_runtime_params():
+    """AI parametrlarni DB'dan qayta yuklash (async wrapper)."""
+    await asyncio.to_thread(load_runtime_params_from_db)
+
+
+# ---------------- Qisqa suhbat konteksti ----------------
+
+def clear_ai_context(user_id: int):
+    """Yangi AI sessiyada u/agar so'ralsa, suhbat kontekstini tozalash."""
+    if user_id is not None:
+        _AI_CONTEXT.pop(user_id, None)
+
+
+def _store_ai_context(user_id: int, text: str):
+    if not user_id:
+        return
+    max_len = int(_RUNTIME_PARAMS.get("context_messages", 6) or 0)
+    if max_len <= 0:
+        return
+    text = (text or "").strip()
+    if not text:
+        return
+    # Xotirani cheklash uchun har bitta eslatilgan xabarni qisqartiramiz.
+    text = text[:1500]
+    if len(_AI_CONTEXT) > _AI_CONTEXT_MAX_USERS:
+        # Qadimgi foydalanuvchilardan tozalash
+        for uid in list(_AI_CONTEXT.keys())[:_AI_CONTEXT_MAX_USERS // 10]:
+            _AI_CONTEXT.pop(uid, None)
+    entries = _AI_CONTEXT.setdefault(user_id, deque(maxlen=max_len))
+    if not entries or entries[-1] != text:
+        entries.append(text)
+
+
+def _get_ai_context_text(user_id: int, budget: int) -> str:
+    """So'nggi xabarlarni budget belgidan oshirmasdan qaytaradi."""
+    if int(_RUNTIME_PARAMS.get("context_messages", 6) or 0) <= 0:
+        return ""
+    entries = _AI_CONTEXT.get(user_id)
+    if not entries:
+        return ""
+    lines = [f"• {e}" for e in entries]
+    block = "💬 <b>So'nggi suhbat (AI konteksti):</b>\n" + "\n".join(lines)
+    return block[:max(0, int(budget))]
 
 
 # ---------------- Circuit breaker ----------------
@@ -294,10 +432,12 @@ def _get_router_system_instruction() -> str:
     now_str = now_dt.strftime("%Y-%m-%d %H:%M")
     current_year = now_dt.year
 
+    extra = (_RUNTIME_PARAMS.get("extra_context") or "").strip()
+    extra_block = f"\n\nQo'shimcha ko'rsatma: {extra}" if extra else ""
     return (
         f"Siz Telegram kanallarni boshqarish va postlarni rejalashtirish bo'yicha professional, "
         f"xushmuomala, o'zbek tilida javob beradigan aqlli yordamchisiz. "
-        f"Hozirgi Toshkent vaqti: {now_str}, joriy yil: {current_year}.\n\n"
+        f"Hozirgi Toshkent vaqti: {now_str}, joriy yil: {current_year}.{extra_block}\n\n"
         f"Vazifangiz — foydalanuvchining xabarini tahlil qilib, UNING NIYATINI aniqlash. "
         f"Javobni FAQAT bitta JSON obyekti sifatida qaytaring. Niyat turlari:\n\n"
         f'1) "faq" — SAVOL-JAVOB / SUHBAT:\n'
@@ -423,13 +563,19 @@ async def _post_chat_completion(endpoint: str, headers: dict | None, payload: di
             raise
 
 
-async def _call_gemini(prompt: str, api_key: str, system_instruction: str) -> dict:
+async def _call_gemini(prompt: str, api_key: str, system_instruction: str, params: dict = None) -> dict:
     session = await _get_session()
     models = await _discover_gemini_models(api_key) or GEMINI_MODELS
+    params = params or get_runtime_params()
     last_err = ""
 
     for model in models:
         url = f"{GEMINI_BASE}/{model}:generateContent?key={api_key}"
+        generation_config = {"temperature": params.get("temperature", 0.2)}
+        if params.get("max_tokens"):
+            generation_config["maxOutputTokens"] = params["max_tokens"]
+        if params.get("top_p") is not None:
+            generation_config["topP"] = params["top_p"]
         payload = {
             "contents": [
                 {
@@ -438,7 +584,7 @@ async def _call_gemini(prompt: str, api_key: str, system_instruction: str) -> di
                     ]
                 }
             ],
-            "generationConfig": {"temperature": 0.2},
+            "generationConfig": generation_config,
         }
 
         for attempt in range(MAX_429_RETRIES + 1):
@@ -465,9 +611,10 @@ async def _call_gemini(prompt: str, api_key: str, system_instruction: str) -> di
     raise RuntimeError(last_err or "Gemini noma'lum xato")
 
 
-async def _call_groq(prompt: str, api_key: str, system_instruction: str) -> dict:
+async def _call_groq(prompt: str, api_key: str, system_instruction: str, params: dict = None) -> dict:
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
     models = await _discover_groq_models(api_key) or GROQ_MODELS
+    params = params or get_runtime_params()
     last_err = ""
 
     for model in models:
@@ -478,8 +625,12 @@ async def _call_groq(prompt: str, api_key: str, system_instruction: str) -> dict
                 {"role": "user", "content": f"{prompt}\n\nJavobni JSON formatida qaytaring."}
             ],
             "response_format": {"type": "json_object"},
-            "temperature": 0.2,
+            "temperature": params.get("temperature", 0.2),
         }
+        if params.get("top_p") is not None:
+            payload["top_p"] = params["top_p"]
+        if params.get("max_tokens") is not None:
+            payload["max_tokens"] = params["max_tokens"]
         try:
             result = await _post_chat_completion(GROQ_ENDPOINT, headers, payload)
             return _extract_json(result["content"])
@@ -509,12 +660,13 @@ async def _call_groq(prompt: str, api_key: str, system_instruction: str) -> dict
     raise RuntimeError(last_err or "Groq noma'lum xato")
 
 
-async def _call_openrouter(prompt: str, api_key: str, system_instruction: str) -> dict:
+async def _call_openrouter(prompt: str, api_key: str, system_instruction: str, params: dict = None) -> dict:
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
     }
     models = await _discover_openrouter_models(api_key) or OPENROUTER_MODELS
+    params = params or get_runtime_params()
     last_err = ""
 
     for model in models:
@@ -524,8 +676,12 @@ async def _call_openrouter(prompt: str, api_key: str, system_instruction: str) -
                 {"role": "system", "content": system_instruction},
                 {"role": "user", "content": f"{prompt}\n\nJavobni FAQAT quyidagi JSON formatida qaytaring:\n{{\"post_text\": \"...\", \"scheduled_time\": \"YYYY-MM-DD HH:MM yoki null\", \"has_explicit_time\": true, \"target_all\": false}}"},
             ],
-            "temperature": 0.2,
+            "temperature": params.get("temperature", 0.2),
         }
+        if params.get("top_p") is not None:
+            payload["top_p"] = params["top_p"]
+        if params.get("max_tokens") is not None:
+            payload["max_tokens"] = params["max_tokens"]
         try:
             result = await _post_chat_completion(OPENROUTER_ENDPOINT, headers, payload)
             return _extract_json(result["content"])
@@ -545,8 +701,9 @@ async def _call_openrouter(prompt: str, api_key: str, system_instruction: str) -
     raise RuntimeError(last_err or "OpenRouter noma'lum xato")
 
 
-async def _call_mistral(prompt: str, api_key: str, system_instruction: str) -> dict:
+async def _call_mistral(prompt: str, api_key: str, system_instruction: str, params: dict = None) -> dict:
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+    params = params or get_runtime_params()
     last_err = ""
 
     for model in MISTRAL_MODELS:
@@ -556,9 +713,13 @@ async def _call_mistral(prompt: str, api_key: str, system_instruction: str) -> d
                 {"role": "system", "content": system_instruction},
                 {"role": "user", "content": f"{prompt}\n\nJavobni FAQAT JSON formatida qaytaring."},
             ],
-            "temperature": 0.2,
+            "temperature": params.get("temperature", 0.2),
             "safe_prompt": False,
         }
+        if params.get("top_p") is not None:
+            payload["top_p"] = params["top_p"]
+        if params.get("max_tokens") is not None:
+            payload["max_tokens"] = params["max_tokens"]
         try:
             result = await _post_chat_completion(MISTRAL_ENDPOINT, headers, payload)
             return _extract_json(result["content"])
@@ -587,8 +748,9 @@ async def _call_mistral(prompt: str, api_key: str, system_instruction: str) -> d
     raise RuntimeError(last_err or "Mistral noma'lum xato")
 
 
-async def _call_cerebras(prompt: str, api_key: str, system_instruction: str) -> dict:
+async def _call_cerebras(prompt: str, api_key: str, system_instruction: str, params: dict = None) -> dict:
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+    params = params or get_runtime_params()
     last_err = ""
 
     for model in CEREBRAS_MODELS:
@@ -598,8 +760,12 @@ async def _call_cerebras(prompt: str, api_key: str, system_instruction: str) -> 
                 {"role": "system", "content": system_instruction},
                 {"role": "user", "content": f"{prompt}\n\nJavobni FAQAT JSON formatida qaytaring."},
             ],
-            "temperature": 0.2,
+            "temperature": params.get("temperature", 0.2),
         }
+        if params.get("top_p") is not None:
+            payload["top_p"] = params["top_p"]
+        if params.get("max_tokens") is not None:
+            payload["max_tokens"] = params["max_tokens"]
         try:
             result = await _post_chat_completion(CEREBRAS_ENDPOINT, headers, payload)
             return _extract_json(result["content"])
@@ -619,16 +785,23 @@ async def _call_cerebras(prompt: str, api_key: str, system_instruction: str) -> 
     raise RuntimeError(last_err or "Cerebras noma'lum xato")
 
 
-async def _call_pollinations(prompt: str, system_instruction: str) -> dict:
+async def _call_pollinations(prompt: str, system_instruction: str, params: dict = None) -> dict:
     """Kalitsiz bepul zaxira (Pollinations) — oxirgi chora."""
+    params = params or get_runtime_params()
     payload = {
         "model": "openai",
         "messages": [
             {"role": "system", "content": system_instruction},
             {"role": "user", "content": f"{prompt}\n\nJavobni FAQAT JSON formatida qaytaring."},
         ],
-        "temperature": 0.2,
+        "temperature": params.get("temperature", 0.2),
+        "top_p": params.get("top_p"),
+        "max_tokens": params.get("max_tokens"),
     }
+    if params.get("top_p") is not None:
+        payload["top_p"] = params["top_p"]
+    if params.get("max_tokens") is not None:
+        payload["max_tokens"] = params["max_tokens"]
     result = await _post_chat_completion(POLLINATIONS_ENDPOINT, None, payload)
     return _extract_json(result["content"])
 
@@ -644,13 +817,16 @@ async def _run_ai_chain(prompt: str, system_instruction: str) -> dict:
     - Har bir provayder 3 marta ketma-ket xato bersa, 10 daqiqaga o'tkazib
       yuboriladi (circuit breaker) — o'lik provayderga vaqt sarflanmaydi.
     - Bir vaqtda ko'pi bilan MAX_CONCURRENT_AI (2) ta so'rov ishlaydi.
-    - Prompt MAX_PROMPT_CHARS (3000) belgidan oshsa kesiladi.
+    - Prompt max_prompt_chars belgidan oshsa kesiladi (admin sozlashi mumkin).
     Muvaffaqiyatda provayder qaytargan JSON dict qaytadi; xatolikda {"error": ...}.
     """
+    params = get_runtime_params()
+    max_prompt_chars = int(params.get("max_prompt_chars") or MAX_PROMPT_CHARS)
+
     # Prompt uzunligini cheklash (bepul token byudjetini himoya qilish)
     prompt = (prompt or "").strip()
-    if len(prompt) > MAX_PROMPT_CHARS:
-        prompt = prompt[:MAX_PROMPT_CHARS] + "\n…(matn juda uzun edi, kesildi)"
+    if len(prompt) > max_prompt_chars:
+        prompt = prompt[:max_prompt_chars] + "\n…(matn juda uzun edi, kesildi)"
 
     gemini_key = _clean_key(GEMINI_API_KEY)
     groq_key = _clean_key(GROQ_API_KEY)
@@ -659,12 +835,12 @@ async def _run_ai_chain(prompt: str, system_instruction: str) -> dict:
     cerebras_key = _clean_key(CEREBRAS_API_KEY)
 
     providers = [
-        ("Gemini", _call_gemini, (prompt, gemini_key, system_instruction), bool(gemini_key)),
-        ("Groq", _call_groq, (prompt, groq_key, system_instruction), bool(groq_key)),
-        ("OpenRouter", _call_openrouter, (prompt, openrouter_key, system_instruction), bool(openrouter_key)),
-        ("Mistral", _call_mistral, (prompt, mistral_key, system_instruction), bool(mistral_key)),
-        ("Cerebras", _call_cerebras, (prompt, cerebras_key, system_instruction), bool(cerebras_key)),
-        ("Pollinations", _call_pollinations, (prompt, system_instruction), True),
+        ("Gemini", _call_gemini, (prompt, gemini_key, system_instruction, params), bool(gemini_key)),
+        ("Groq", _call_groq, (prompt, groq_key, system_instruction, params), bool(groq_key)),
+        ("OpenRouter", _call_openrouter, (prompt, openrouter_key, system_instruction, params), bool(openrouter_key)),
+        ("Mistral", _call_mistral, (prompt, mistral_key, system_instruction, params), bool(mistral_key)),
+        ("Cerebras", _call_cerebras, (prompt, cerebras_key, system_instruction, params), bool(cerebras_key)),
+        ("Pollinations", _call_pollinations, (prompt, system_instruction, params), True),
     ]
 
     errors = []
@@ -750,6 +926,18 @@ async def analyze_user_prompt(prompt: str, user_id: int = 0) -> dict:
       - target_all: bool
     Eski kod bilan muvofiqlik uchun post_text/scheduled_time maydonlari saqlanadi.
     """
+    params = get_runtime_params()
+    raw_prompt = (prompt or "").strip()
+    _store_ai_context(user_id, raw_prompt)
+
+    # Suhbat kontekstini joriy xabarga qo'shamiz. Byudjetni shunday hisoblaymiz:
+    # kontekst joriy xabarni kesib tashlamasligi kerak.
+    max_chars = int(params.get("max_prompt_chars") or MAX_PROMPT_CHARS)
+    budget = max(200, max_chars - len(raw_prompt) - 300)
+    ctx_text = _get_ai_context_text(user_id, budget)
+    if ctx_text:
+        prompt = f"{ctx_text}\n\nHozirgi xabar:\n{raw_prompt}"
+
     result = await _run_ai_chain(prompt, _get_router_system_instruction())
     if "error" in result:
         return result

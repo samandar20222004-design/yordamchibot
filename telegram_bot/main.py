@@ -14,7 +14,7 @@ from scheduler import (
     cleanup_old_data_job,
 )
 from utils.web_server import start_web_server
-from utils.ai_agent import close_ai_session
+from utils.ai_agent import close_ai_session, reload_runtime_params
 from utils.helpers import check_global_flood, check_rate_limit, is_duplicate_message
 
 logging.basicConfig(
@@ -80,6 +80,12 @@ async def set_bot_commands(application):
 
 async def main():
     db.init_db()
+
+    # Admin panelda o'zgartirilgan AI parametrlarini ishga tushirishda yuklaymiz.
+    try:
+        await reload_runtime_params()
+    except Exception:
+        logger.exception("AI runtime parametrlarni yuklashda xatolik (defaultlar ishlatiladi)")
 
     web_runner = None
     scheduler = None
