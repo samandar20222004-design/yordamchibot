@@ -144,6 +144,21 @@ def get_time_keyboard():
         resize_keyboard=True,
     )
 
+def get_ai_time_keyboard():
+    """AI oqimi uchun vaqt klaviaturasi — faqat bir martalik tezkor variantlar.
+
+    AI yordamchida kunlik/haftalik takrorlanuvchi postlar qo'llanmaydi
+    (buning uchun '➕ Yangi post rejalashtirish' oqimi mavjud), shuning uchun
+    bu yerda ortiqcha tugmalar ko'rsatilmaydi.
+    """
+    return ReplyKeyboardMarkup(
+        [
+            [BTN_T_5MIN, BTN_T_15MIN, BTN_T_1H],
+            [BTN_MAIN_MENU],
+        ],
+        resize_keyboard=True,
+    )
+
 def get_duration_keyboard():
     return ReplyKeyboardMarkup(
         [

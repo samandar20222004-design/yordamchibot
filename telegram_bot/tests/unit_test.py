@@ -229,6 +229,95 @@ def test_referral_share_url_encoding():
     check("share matni query parametrida", bool(query.get("text")), share_url)
 
 
+def test_natural_time_parser():
+    print("== utils.helpers parse_future_time (erkin til vaqti) ==")
+    from utils.helpers import parse_future_time
+    tz = pytz.timezone("Asia/Tashkent")
+    now = tz.localize(datetime(2026, 8, 30, 12, 0))
+
+    def r(s):
+        dt = parse_future_time(s, now)
+        return dt.strftime("%Y-%m-%d %H:%M") if dt else None
+
+    check("'5 daqiqadan keyin' -> +5 min", r("5 daqiqadan keyin") == "2026-08-30 12:05", r("5 daqiqadan keyin"))
+    check("'1 soatdan keyin' -> +1 soat", r("1 soatdan keyin") == "2026-08-30 13:00", r("1 soatdan keyin"))
+    check("'bugun 15:45 ga'", r("bugun 15:45 ga") == "2026-08-30 15:45", r("bugun 15:45 ga"))
+    check("'15:45 ga' (bugun, kelajak)", r("15:45 ga") == "2026-08-30 15:45", r("15:45 ga"))
+    check("'ertaga ertalab 9 ga'", r("ertaga ertalab 9 ga") == "2026-08-31 09:00", r("ertaga ertalab 9 ga"))
+    check("'ertaga 18:00 da'", r("ertaga 18:00 da") == "2026-08-31 18:00", r("ertaga 18:00 da"))
+    check("'kechqurun 8 ga' -> 20:00", r("kechqurun 8 ga") == "2026-08-30 20:00", r("kechqurun 8 ga"))
+    check("'2026-09-02 10:30'", r("2026-09-02 10:30") == "2026-09-02 10:30", r("2026-09-02 10:30"))
+    check("'02.09.2026 10:30' (DD.MM.YYYY)", r("02.09.2026 10:30") == "2026-09-02 10:30", r("02.09.2026 10:30"))
+    check("'2-sentyabr 10:30'", r("2-sentyabr 10:30") == "2026-09-02 10:30", r("2-sentyabr 10:30"))
+    check("'30.08 20:00' (DD.MM)", r("30.08 20:00") == "2026-08-30 20:00", r("30.08 20:00"))
+    check("to'liq buyruq gapida vaqt",
+          r("bugun soat 15:45 ga rejalashtir hamma kanalga") == "2026-08-30 15:45",
+          r("bugun soat 15:45 ga rejalashtir hamma kanalga"))
+    check("savol matni -> None", parse_future_time("salom, qalaysiz?", now) is None, "")
+    check("o'tib ketgan vaqt -> None", r("2020-01-01 10:00") is None, r("2020-01-01 10:00"))
+
+
+def test_ai_intent_normalization():
+    print("== utils.ai_agent intent normalization ==")
+    from utils.ai_agent import _normalize_router_result
+
+    r = _normalize_router_result({
+        "intent": "faq", "reply": "Men yordam beraman.", "post_text": "",
+        "scheduled_time": None, "has_explicit_time": False, "target_all": False,
+    })
+    check("faq intent", r["intent"] == "faq" and r["reply"] == "Men yordam beraman.", str(r))
+
+    r = _normalize_router_result({
+        "intent": "post", "reply": "", "post_text": "Post",
+        "scheduled_time": "2026-09-02 10:00", "has_explicit_time": True, "target_all": True,
+    })
+    check("post intent + vaqt + target_all",
+          r["intent"] == "post" and r["has_explicit_time"] and r["target_all"] and r["scheduled_time"], str(r))
+
+    # Eski sxema (intent yo'q) — post sifatida ishlanishi kerak
+    r = _normalize_router_result({"post_text": "Eski post", "scheduled_time": None,
+                                  "has_explicit_time": False, "target_all": False})
+    check("eski sxema muvofiqligi (post_text)", r["intent"] == "post" and r["post_text"] == "Eski post", str(r))
+
+    # "null" satri -> None
+    r = _normalize_router_result({"intent": "post", "post_text": "x", "scheduled_time": "null",
+                                  "has_explicit_time": False})
+    check("scheduled_time 'null' -> None", r["scheduled_time"] is None and not r["has_explicit_time"], str(r))
+
+    # error saqlanadi
+    r = _normalize_router_result({"error": "xato"})
+    check("error o'zgarmasdan o'tadi", r.get("error") == "xato", str(r))
+
+
+def test_new_inline_keyboards():
+    print("== yangi inline tugmalar (qo'shish/o'chirish/yopish) ==")
+    from keyboards.inline import (
+        render_channels_list, render_pending_list, get_sponsors_delete_keyboard,
+    )
+    from keyboards.default import get_ai_time_keyboard
+
+    ch_cbs = [b.callback_data for row in render_channels_list([("-1001", "K")]).inline_keyboard for b in row]
+    check("kanallar: ulash + yopish tugmasi",
+          "add_channel_start" in ch_cbs and "close_msg" in ch_cbs, str(ch_cbs))
+
+    p_cbs = [b.callback_data for row in render_pending_list(
+        [(5, "K", "text", None, 3, "none", None, None)], "ab1").inline_keyboard for b in row]
+    check("pending: yangilash + yopish",
+          "pending_refresh" in p_cbs and "close_msg" in p_cbs, str(p_cbs))
+
+    s_cbs = [b.callback_data for row in get_sponsors_delete_keyboard(
+        [(1, "-100", "S", "t.me/x")]).inline_keyboard for b in row]
+    check("sponsorlar: yopish tugmasi", "close_msg" in s_cbs, str(s_cbs))
+
+    ai_kb = [b.text for row in get_ai_time_keyboard().keyboard for b in row]
+    check("AI vaqt klaviaturasida takroriy (kunlik/haftalik) yo'q",
+          not any("Har kuni" in t or "Hafta" in t for t in ai_kb), str(ai_kb))
+
+    from handlers.ai_assistant import AI_CONFIRM_KEYBOARD
+    ac = [b.callback_data for row in AI_CONFIRM_KEYBOARD.inline_keyboard for b in row]
+    check("AI confirm: bekor qilish tugmasi", "ai_post_cancel" in ac, str(ac))
+
+
 def test_admin_channels_text_limit():
     print("== admin kanal ro'yxati limiti ==")
     from handlers.admin import (
@@ -264,6 +353,9 @@ def main():
     test_parse_album_items()
     test_album_label()
     test_referral_share_url_encoding()
+    test_natural_time_parser()
+    test_ai_intent_normalization()
+    test_new_inline_keyboards()
     test_admin_channels_text_limit()
 
     print(f"\nO'tdi: {passed}, Xato: {failures}")

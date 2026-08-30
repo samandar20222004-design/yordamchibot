@@ -70,9 +70,10 @@ async def converter_received(update: Update, context: ContextTypes.DEFAULT_TYPE)
     
     keyboard = [
         [InlineKeyboardButton("🔤 Kirillcha nusxasi", callback_data="conv_show:cyr")],
-        [InlineKeyboardButton("🔤 Lotincha nusxasi", callback_data="conv_show:lat")]
+        [InlineKeyboardButton("🔤 Lotincha nusxasi", callback_data="conv_show:lat")],
+        [InlineKeyboardButton("❌ Yopish", callback_data="conv_close")],
     ]
-    
+
     await msg.reply_text(
         "📝 <b>Matn qabul qilindi!</b>\n\n"
         "Qaysi alifboga o'girmoqchisiz? Quyidagi tugmalardan birini tanlang 👇",
@@ -80,6 +81,19 @@ async def converter_received(update: Update, context: ContextTypes.DEFAULT_TYPE)
         parse_mode="HTML"
     )
     return CONVERT_INPUT
+
+
+async def converter_close_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Konverter inline oynasini yopadi."""
+    query = update.callback_query
+    await query.answer()
+    try:
+        await query.message.delete()
+    except Exception:
+        try:
+            await query.edit_message_text("✅ Yopildi.", reply_markup=None)
+        except Exception:
+            pass
 
 def _split_smartly(text: str, max_first_len: int = 950) -> tuple[str, str]:
     if len(text) <= max_first_len:

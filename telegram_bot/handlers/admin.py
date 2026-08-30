@@ -192,15 +192,25 @@ async def sponsor_channel_received(update: Update, context: ContextTypes.DEFAULT
 
 async def del_sponsor_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    await query.answer()
     if not is_admin(query.from_user.id):
+        await query.answer("Ruxsat yo'q.", show_alert=True)
         return
     s_id = int(query.data.split(":")[1])
     removed = await db.run_db(db.remove_sponsor_channel, s_id)
+    # Yangilangan ro'yxatni qayta chizamiz (qolgan homiylar ko'rinib tursin)
+    sponsors = await db.run_db(db.get_active_sponsors)
     if removed:
-        await query.edit_message_text("✅ Homiy kanal ro'yxatdan o'chirildi.")
+        await query.answer("✅ Homiy kanal o'chirildi.")
     else:
-        await query.edit_message_text("⚠️ Homiy kanalni o'chirib bo'lmadi.")
+        await query.answer("⚠️ O'chirib bo'lmadi.", show_alert=True)
+    try:
+        if sponsors:
+            from keyboards.inline import get_sponsors_delete_keyboard
+            await query.edit_message_reply_markup(reply_markup=get_sponsors_delete_keyboard(sponsors))
+        else:
+            await query.edit_message_text("📭 Barcha homiy kanallar o'chirildi. Yangi qo'shish uchun '➕ Homiy kanal qo'shish' tugmasini bosing.")
+    except TelegramError:
+        pass
 
 async def start_set_channel_ad(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id):

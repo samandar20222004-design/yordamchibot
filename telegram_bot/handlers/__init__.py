@@ -13,7 +13,7 @@ from keyboards.default import (
     BTN_TRANSFER, BTN_HELP, BTN_ADD_CHANNEL, BTN_CHANNELS, BTN_PENDING, BTN_CONVERTER,
     BTN_ADMIN_PANEL, BTN_STATS, BTN_ALL_POSTS, BTN_ALL_CHANNELS,
     BTN_BROADCAST, BTN_MAIN_MENU, BTN_SPONSORS, BTN_ADD_SPONSOR,
-    BTN_CHANNEL_AD, BTN_BOT_REPLY_AD
+    BTN_CHANNEL_AD, BTN_BOT_REPLY_AD,
 )
 from keyboards.inline import get_subscription_check_keyboard
 from handlers.start import (
@@ -31,17 +31,17 @@ from handlers.new_post import (
 )
 from handlers.channels import (
     channels_menu, start_add_channel, channel_received,
-    remove_channel_callback, on_bot_chat_member_update, ADD_CHANNEL
+    remove_channel_callback, on_bot_chat_member_update, add_channel_inline_entry, ADD_CHANNEL
 )
 from handlers.converter import (
-    start_converter, converter_received, converter_callback, CONVERT_INPUT
+    start_converter, converter_received, converter_callback, converter_close_callback, CONVERT_INPUT
 )
 from handlers.ai_assistant import (
     start_ai_assistant, ai_input_received, ai_confirm_callback, ai_time_received,
     AI_INPUT, AI_CONFIRM, AI_GET_TIME
 )
 from handlers.pending import (
-    list_pending_posts, cancel_post_callback,
+    list_pending_posts, cancel_post_callback, refresh_pending_callback,
     edit_post_time_start, edit_post_time_received, EDIT_POST_TIME
 )
 from handlers.admin import (
@@ -55,6 +55,16 @@ import database as db
 from utils.helpers import check_rate_limit
 
 logger = logging.getLogger(__name__)
+
+# Free-chat (intent routing) menyusi uchun ma'lum reply-tugmalar — bu tugmalar
+# bosilganda AI suhbatiga tushib qolmasligi uchun ular filtrlanadi.
+_MENU_BUTTON_TEXTS = (
+    BTN_NEW_POST, BTN_AI_ASSISTANT, BTN_PENDING, BTN_CABINET, BTN_HELP,
+    BTN_ADMIN_PANEL, BTN_MAIN_MENU, BTN_CHANNELS, BTN_CONVERTER, BTN_DAILY_BONUS,
+    BTN_BUY_AD_FREE, BTN_INVITE, BTN_TRANSFER, BTN_ADD_CHANNEL, BTN_STATS,
+    BTN_BROADCAST, BTN_ALL_POSTS, BTN_ALL_CHANNELS, BTN_SPONSORS, BTN_ADD_SPONSOR,
+    BTN_CHANNEL_AD, BTN_BOT_REPLY_AD,
+)
 
 
 async def _deny_if_unsubscribed(update, context) -> bool:
@@ -141,6 +151,74 @@ async def reaction_callback(update, context):
     except Exception:
         pass
 
+
+async def close_msg_callback(update, context):
+    """Universal '❌ Yopish' inline tugmasi."""
+    query = update.callback_query
+    await query.answer()
+    try:
+        await query.message.delete()
+    except Exception:
+        try:
+            await query.edit_message_text("✅ Yopildi.", reply_markup=None)
+        except Exception:
+            pass
+
+
+async def noop_callback(update, context):
+    """Ro'yxatdagi ma'lumot tugmasi bosilganda (hech narsa qilmaydi)."""
+    await update.callback_query.answer(
+        "Bu ma'lumot tugmasi. Kanalni o'chirish uchun yonidagi ❌ tugmasini bosing.",
+        show_alert=True,
+    )
+
+
+async def expired_session_callback(update, context):
+    """Suhbat tugagandan keyin eski inline tugma bosilsa — tushunarli javob."""
+    query = update.callback_query
+    await query.answer()
+    await query.message.reply_text(
+        "ℹ️ Bu amal allaqachon tugatilgan. Iltimos, menyudan kerakli bo'limni qayta tanlang yoki /start bosing.",
+    )
+
+
+async def free_chat_entry(update, context):
+    """Suhbat tashqarisida kelgan har qanday matn/media — AI intent routing'ga.
+
+    Foydalanuvchi hech qanday tugma bosmasdan savol bersa, buyruq yozsa
+    ("ertaga 9 ga hamma kanalga") yoki post tashlasa — AI yordamchisi ishlaydi.
+    """
+    user = update.effective_user
+    msg = update.message
+    if not user or not msg or msg.chat.type != "private":
+        return ConversationHandler.END
+
+    is_blocked, should_warn = check_rate_limit(user.id, max_requests=3, window_seconds=3.0)
+    if is_blocked:
+        if should_warn:
+            await msg.reply_text("⚠️ <i>Juda ko'p so'rov yubordingiz! Iltimos, 3 soniya kuting...</i>", parse_mode="HTML")
+        return ConversationHandler.END
+
+    if await _deny_if_unsubscribed(update, context):
+        return ConversationHandler.END
+
+    # E'tibor: context.user_data.clear() QILINMAYDI — erkin suhbatda ko'p
+    # burilishli muloqot (post → tahrir → vaqt) saqlanib turishi kerak.
+    is_admin = (user.id == int(__import__("config").ADMIN_ID))
+    if not is_admin:
+        credits = await db.run_db(db.get_user_credits, user.id)
+        if credits <= 0:
+            bot_obj = await context.bot.get_me()
+            from handlers.ai_assistant import _no_credits_text
+            await msg.reply_text(
+                _no_credits_text(bot_obj.username, user.id),
+                parse_mode="HTML",
+            )
+            return ConversationHandler.END
+
+    return await ai_input_received(update, context)
+
+
 def register_all_handlers(app):
     global_jump_handlers = [
         MessageHandler(exact(BTN_MAIN_MENU), lambda u, c: guard_menu(u, c, start)),
@@ -167,6 +245,20 @@ def register_all_handlers(app):
         MessageHandler(exact(BTN_BOT_REPLY_AD), lambda u, c: guard_entry(u, c, start_set_bot_reply_ad)),
     ]
 
+    # Erkin yozilgan xabarlar (menyu tugmalari va buyruqlardan tashqari) AI'ga yo'naltiriladi.
+    # Bu entry EN OXIRIDA turadi — boshqa entry point'lar va state handler'lar
+    # birinchi navbatda tekshiriladi (ConversationHandler o'z state'ida tutadi).
+    free_chat_entries = [
+        MessageHandler(
+            filters.ChatType.PRIVATE
+            & ~filters.COMMAND
+            & ~exact(*_MENU_BUTTON_TEXTS)
+            & (filters.TEXT | filters.PHOTO | filters.VIDEO | filters.Document.ALL
+               | filters.AUDIO | filters.VOICE | filters.ANIMATION | filters.FORWARDED),
+            free_chat_entry,
+        ),
+    ]
+
     main_conv = ConversationHandler(
         entry_points=[
             MessageHandler(exact(BTN_NEW_POST), lambda u, c: guard_entry(u, c, start_new_post)),
@@ -179,9 +271,10 @@ def register_all_handlers(app):
             MessageHandler(exact(BTN_CHANNEL_AD), lambda u, c: guard_entry(u, c, start_set_channel_ad)),
             MessageHandler(exact(BTN_BOT_REPLY_AD), lambda u, c: guard_entry(u, c, start_set_bot_reply_ad)),
             CallbackQueryHandler(edit_post_time_start, pattern=r"^edit_time:"),
+            CallbackQueryHandler(add_channel_inline_entry, pattern=r"^add_channel_start$"),
             CommandHandler("newpost", lambda u, c: guard_entry(u, c, start_new_post)),
             CommandHandler("broadcast", lambda u, c: guard_entry(u, c, broadcast_start)),
-        ],
+        ] + free_chat_entries,
         states={
             CHOOSE_CHANNEL: global_jump_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, channel_chosen)],
             GET_CONTENT: global_jump_handlers + [MessageHandler(filters.ALL & ~filters.COMMAND, content_received)],
@@ -196,9 +289,18 @@ def register_all_handlers(app):
             GET_DURATION: global_jump_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, duration_chosen)],
             ADD_CHANNEL: global_jump_handlers + [MessageHandler(filters.ALL & ~filters.COMMAND, channel_received)],
             CONVERT_INPUT: global_jump_handlers + [MessageHandler(filters.ALL & ~filters.COMMAND, converter_received)],
+            # AI_INPUT: matn, rasm, forward, media — barchasi AI intent routing'ga
             AI_INPUT: global_jump_handlers + [MessageHandler(filters.ALL & ~filters.COMMAND, ai_input_received)],
-            AI_CONFIRM: global_jump_handlers + [CallbackQueryHandler(ai_confirm_callback, pattern=r"^ai_post_")],
-            AI_GET_TIME: global_jump_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, ai_time_received)],
+            AI_CONFIRM: global_jump_handlers + [
+                CallbackQueryHandler(ai_confirm_callback, pattern=r"^ai_post_"),
+                # Tugmalar o'rniga erkin yozilsa (tahrir/savol/vaqt) — AI yana tahlil qiladi
+                MessageHandler(filters.ALL & ~filters.COMMAND, ai_input_received),
+            ],
+            # AI_GET_TIME: vaqt erkin tilda ham yozilishi mumkin; savol ham e'tiborsiz qolmaydi
+            AI_GET_TIME: global_jump_handlers + [
+                MessageHandler(filters.ALL & ~filters.COMMAND, ai_time_received),
+                CallbackQueryHandler(ai_confirm_callback, pattern=r"^ai_post_"),
+            ],
             TRANSFER_TARGET: global_jump_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, transfer_target_received)],
             TRANSFER_AMOUNT: global_jump_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, transfer_amount_received)],
             BROADCAST_MESSAGE: global_jump_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, broadcast_send)],
@@ -238,9 +340,15 @@ def register_all_handlers(app):
 
     app.add_handler(CallbackQueryHandler(ad_free_callback, pattern=r"^adfree_"))
     app.add_handler(CallbackQueryHandler(converter_callback, pattern=r"^conv_show:"))
+    app.add_handler(CallbackQueryHandler(converter_close_callback, pattern=r"^conv_close$"))
     app.add_handler(CallbackQueryHandler(subscription_check_callback, pattern=r"^check_subscription$"))
     app.add_handler(CallbackQueryHandler(del_sponsor_callback, pattern=r"^del_sponsor:"))
     app.add_handler(CallbackQueryHandler(reaction_callback, pattern=r"^react:"))
     app.add_handler(CallbackQueryHandler(cancel_post_callback, pattern=r"^cancel_post:"))
+    app.add_handler(CallbackQueryHandler(refresh_pending_callback, pattern=r"^pending_refresh$"))
     app.add_handler(CallbackQueryHandler(remove_channel_callback, pattern=r"^remove_channel:"))
+    app.add_handler(CallbackQueryHandler(close_msg_callback, pattern=r"^close_msg$"))
+    app.add_handler(CallbackQueryHandler(noop_callback, pattern=r"^noop$"))
     app.add_handler(ChatMemberHandler(on_bot_chat_member_update, ChatMemberHandler.MY_CHAT_MEMBER))
+    # Eski (tugatilgan suhbatdan qolgan) inline tugmalar — ENG OXIRIDA:
+    app.add_handler(CallbackQueryHandler(expired_session_callback))
