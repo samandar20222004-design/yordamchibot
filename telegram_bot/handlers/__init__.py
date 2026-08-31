@@ -35,6 +35,7 @@ from handlers.new_post import (
     daily_time_received, recur_day_chosen, recur_time_received, duration_chosen,
     confirm_post_callback, edit_confirm_field_callback, edit_confirm_message_received,
     edit_confirm_media_received,
+    ai_action_menu_callback, ai_action_callback, ai_result_callback,
     CHOOSE_CHANNEL, GET_CONTENT, GET_BTN_TITLE, GET_BTN_URL,
     GET_REACTIONS, GET_AUTO_DELETE, GET_TIME, DAILY_TIME, RECUR_DAY, RECUR_TIME,
     GET_DURATION, CONFIRM_POST, EDIT_CONFIRM_FIELD
@@ -317,7 +318,12 @@ def register_all_handlers(app):
             # 2. Yangi post holatlari
             CHOOSE_CHANNEL: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, channel_chosen)],
             GET_CONTENT: all_menu_jumps + [MessageHandler(filters.ALL & ~filters.COMMAND, content_received)],
-            GET_BTN_TITLE: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, btn_title_received)],
+            GET_BTN_TITLE: all_menu_jumps + [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, btn_title_received),
+                CallbackQueryHandler(ai_action_menu_callback, pattern=r"^ai_menu$"),
+                CallbackQueryHandler(ai_action_callback, pattern=r"^ai_act:"),
+                CallbackQueryHandler(ai_result_callback, pattern=r"^ai_res:"),
+            ],
             GET_BTN_URL: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, btn_url_received)],
             GET_REACTIONS: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, reactions_received)],
             GET_AUTO_DELETE: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, auto_delete_received)],

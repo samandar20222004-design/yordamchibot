@@ -320,6 +320,28 @@ async def content_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def btn_title_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip()
+
+    # AI Yordamchi tugmasi
+    if text == "✨ AI Yordamchi":
+        content = context.user_data.get("content", "")
+        if not content:
+            await update.message.reply_text(
+                "⚠️ <b>Post matni bo'sh.</b>\nAvval matn kiriting.",
+                parse_mode="HTML",
+            )
+            return GET_BTN_TITLE
+        preview = content[:200]
+        if len(content) > 200:
+            preview += "…"
+        await update.message.reply_text(
+            f"✨ <b>AI Yordamchi</b>\n\n"
+            f"📋 Joriy matn:\n<i>{html_escape(preview)}</i>\n\n"
+            f"Qaysi amalni bajaramiz?",
+            reply_markup=_get_ai_action_keyboard(),
+            parse_mode="HTML",
+        )
+        return GET_BTN_TITLE
+
     if text == BTN_SKIP_BUTTON:
         context.user_data["btn_text"], context.user_data["btn_url"] = None, None
         await update.message.reply_text(
@@ -792,6 +814,9 @@ async def confirm_post_callback(update: Update, context: ContextTypes.DEFAULT_TY
     return ConversationHandler.END
 
 
+    return CONFIRM_POST
+
+
 async def edit_confirm_field_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Tahrirlash sub-menyusi."""
     query = update.callback_query
@@ -925,3 +950,176 @@ async def edit_confirm_media_received(update: Update, context: ContextTypes.DEFA
         _apply_single_media(context, item)
     await _show_confirmation(msg, context)
     return CONFIRM_POST
+
+
+# ============================================================
+# AI FORMATTING ACTIONS
+# ============================================================
+# ============================================================
+# AI FORMATTING ACTIONS
+# ============================================================
+
+def _get_ai_action_keyboard():
+    """AI harakatlari keyboard."""
+    return InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("✍️ Imlo va uslub", callback_data="ai_act:grammar"),
+            InlineKeyboardButton("🎨 Emojilar", callback_data="ai_act:emoji"),
+        ],
+        [
+            InlineKeyboardButton("🏷 Hashtaglar", callback_data="ai_act:hashtags"),
+            InlineKeyboardButton("✂️ Qisqartirish", callback_data="ai_act:tldr"),
+        ],
+        [InlineKeyboardButton("⬅️ Orqaga", callback_data="ai_act:back")],
+    ])
+
+
+def _get_ai_result_keyboard():
+    """AI natijasidan keyin tasdiqlash keyboard."""
+    return InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("✅ Qabul qilish", callback_data="ai_res:accept"),
+            InlineKeyboardButton("🔄 Qayta urinish", callback_data="ai_res:retry"),
+        ],
+        [InlineKeyboardButton("❌ Asl holatga qaytarish", callback_data="ai_res:revert")],
+    ])
+
+
+async def ai_action_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """AI harakatlari menyusini ko'rsatadi."""
+    query = update.callback_query
+    await query.answer()
+    content = context.user_data.get("content", "")
+    if not content:
+        await query.message.reply_text(
+            "⚠️ <b>Post matni bo'sh.</b>\nAvval matn kiriting.",
+            parse_mode="HTML",
+        )
+        return GET_BTN_TITLE
+
+    preview = content[:200]
+    if len(content) > 200:
+        preview += "…"
+    await query.message.reply_text(
+        f"✨ <b>AI Yordamchi</b>\n\n"
+        f"📋 Joriy matn:\n<i>{html_escape(preview)}</i>\n\n"
+        f"Qaysi amalni bajaramiz?",
+        reply_markup=_get_ai_action_keyboard(),
+        parse_mode="HTML",
+    )
+    return GET_BTN_TITLE
+
+
+async def ai_action_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """AI harakati tugmasi bosilganda."""
+    query = update.callback_query
+    data = query.data
+    action = data.split(":", 1)[1] if ":" in data else ""
+
+    if action == "back":
+        await query.answer()
+        return GET_BTN_TITLE
+
+    content = context.user_data.get("content", "")
+    if not content:
+        await query.answer("⚠️ Matn bo'sh!", show_alert=True)
+        return GET_BTN_TITLE
+
+    await query.answer("⏳ AI ishlayapti...")
+
+    # Asl matnni saqlab qolish (revert uchun)
+    context.user_data["ai_original_content"] = content
+
+    from utils.ai_agent import format_post_text
+    result = await format_post_text(content, action)
+
+    if "error" in result:
+        await query.message.reply_text(result["error"], parse_mode="HTML")
+        return GET_BTN_TITLE
+
+    formatted = result.get("formatted", "")
+    if not formatted:
+        await query.message.reply_text("⚠️ AI javobi bo'sh. Asl matn saqlab qolindi.", parse_mode="HTML")
+        return GET_BTN_TITLE
+
+    context.user_data["ai_proposed_content"] = formatted
+    context.user_data["ai_last_action"] = action
+
+    old_preview = content[:150]
+    if len(content) > 150:
+        old_preview += "…"
+    new_preview = formatted[:300]
+    if len(formatted) > 300:
+        new_preview += "…"
+
+    await query.message.reply_text(
+        f"✨ <b>AI taklifi:</b>\n\n{html_escape(new_preview)}\n\n"
+        f"📝 Asl: <i>{html_escape(old_preview)}</i>",
+        reply_markup=_get_ai_result_keyboard(),
+        parse_mode="HTML",
+    )
+    return GET_BTN_TITLE
+
+
+async def ai_result_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """AI natijasini qabul qilish / rad etish."""
+    query = update.callback_query
+    data = query.data
+    action = data.split(":", 1)[1] if ":" in data else ""
+
+    if action == "accept":
+        proposed = context.user_data.get("ai_proposed_content", "")
+        if proposed:
+            context.user_data["content"] = proposed
+            context.user_data["post_type"] = "text"
+            context.user_data["file_id"] = None
+        context.user_data.pop("ai_original_content", None)
+        context.user_data.pop("ai_proposed_content", None)
+        context.user_data.pop("ai_last_action", None)
+        await query.answer("✅ Qabul qilindi!")
+        await query.message.reply_text(
+            f"✅ <b>Yangi matn qabul qilindi!</b>\n\n{html_escape(proposed[:300])}",
+            parse_mode="HTML",
+        )
+        return GET_BTN_TITLE
+
+    if action == "revert":
+        original = context.user_data.get("ai_original_content", "")
+        if original:
+            context.user_data["content"] = original
+        context.user_data.pop("ai_original_content", None)
+        context.user_data.pop("ai_proposed_content", None)
+        context.user_data.pop("ai_last_action", None)
+        await query.answer("❌ Asl holatga qaytarildi!")
+        await query.message.reply_text(
+            "❌ <b>Asl matn qaytarildi.</b>",
+            parse_mode="HTML",
+        )
+        return GET_BTN_TITLE
+
+    if action == "retry":
+        await query.answer("🔄 Qayta urinilmoqda...")
+        content = context.user_data.get("ai_original_content", context.user_data.get("content", ""))
+        last_action = context.user_data.get("ai_last_action", "grammar")
+
+        from utils.ai_agent import format_post_text
+        result = await format_post_text(content, last_action)
+
+        if "error" in result:
+            await query.message.reply_text(result["error"], parse_mode="HTML")
+            return GET_BTN_TITLE
+
+        formatted = result.get("formatted", "")
+        if formatted:
+            context.user_data["ai_proposed_content"] = formatted
+            new_preview = formatted[:300]
+            if len(formatted) > 300:
+                new_preview += "…"
+            await query.message.reply_text(
+                f"✨ <b>AI taklifi (qayta):</b>\n\n{html_escape(new_preview)}",
+                reply_markup=_get_ai_result_keyboard(),
+                parse_mode="HTML",
+            )
+        return GET_BTN_TITLE
+
+    return GET_BTN_TITLE

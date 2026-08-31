@@ -1071,3 +1071,90 @@ async def extract_schedule_time(prompt: str, user_id: int = 0) -> dict:
     norm = _normalize_router_result(result)
     norm["intent"] = "time"
     return norm
+
+
+# ============================================================
+# AI POST FORMATTING ACTIONS
+# ============================================================
+
+_FORMAT_ACTION_PROMPTS = {
+    "grammar": (
+        "Siz professional O'zbek tili muharririsiz. Quyidagi post matnini imlo, "
+        "grammatika va tinish belgilari jihatidan tuzating. MA'NONI O'ZGARTIRMANG, "
+        "faqat xatolarni to'g'irlang. Matn strukturasini (paragraflar, emoji) saqlab "
+        "qoling. Javobni FAQAT to'g'irilgan matnni qaytaring, hech qanday izoh yozmang."
+    ),
+    "emoji": (
+        "Siz professional Telegram post dizaynerisiz. Quyidagi post matniga mos "
+        "emojilar qo'shing va chiroyli formatlang. Paragraflarga ajrating, har bir "
+        "asosiy fikrga mos emoji qo'ying. Matn mazmunini O'ZGARTIRMANG. "
+        "Telegram HTML formatlash ishlating: <b>qalin</b>, <i>kursiv</i>. "
+        "Javobni FAQAT formatlangan matnni qaytaring."
+    ),
+    "hashtags": (
+        "Siz professional SMM mutaxassisisiz. Quyidagi post matniga: "
+        "1) Diqqat tortuvchi sarlavha (emoji bilan) qo'shing. "
+        "2) Matnga mos 3-5 ta hashtag yarating (oxiriga). "
+        "3) Sarlavha va hashtaglar O'zbek tilida bo'lsin. "
+        "Matn mazmunini O'ZGARTIRMANG. Javobni FAQAT to'liq postni qaytaring."
+    ),
+    "tldr": (
+        "Siz matn qisqartirish mutaxassisisiz. Quyidagi post matnini asosiy "
+        "mazmunini saqlab, qisqa va lo'nda qilib qisqartiring. Eng muhim "
+        "ma'lumotlarni qoldiring, takroriy gaplarni olib tashlang. "
+        "Javobni FAQAT qisqartirilgan matnni qaytaring."
+    ),
+}
+
+
+async def format_post_text(text: str, action: str) -> dict:
+    """Post matnini AI yordamida formatlaydi.
+
+    Args:
+        text: formatlanadigan post matni
+        action: "grammar" | "emoji" | "hashtags" | "tldr"
+
+    Returns:
+        {"formatted": "..."} yoki {"error": "..."}
+    """
+    if not text or not text.strip():
+        return {"error": "Matn bo'sh."}
+
+    if action not in _FORMAT_ACTION_PROMPTS:
+        return {"error": f"Noma'lum harakat: {action}"}
+
+    system_instruction = _FORMAT_ACTION_PROMPTS[action]
+    prompt = f"Post matni:\n\n{text}"
+
+    try:
+        result = await _run_ai_chain(prompt, system_instruction)
+    except Exception as e:
+        logger.warning("AI format xatosi (%s): %s", action, e)
+        return {"error": f"⚠️ AI xizmatida vaqtinchalik uzilish. Asl matningiz saqlab qolindi.\n\n{e}"}
+
+    if "error" in result:
+        return {"error": result["error"]}
+
+    # AI javobidan matnni ajratib olish
+    formatted = ""
+    if isinstance(result, dict):
+        # JSON javob bo'lsa — turli maydonlardan qidiramiz
+        formatted = (
+            result.get("formatted")
+            or result.get("text")
+            or result.get("post_text")
+            or result.get("reply")
+            or result.get("content")
+            or ""
+        )
+        # Agar hech narsa topilmasa — barcha string qiymatlarni birlashtiramiz
+        if not formatted:
+            for v in result.values():
+                if isinstance(v, str) and len(v) > 10:
+                    formatted = v
+                    break
+
+    if not formatted or not formatted.strip():
+        return {"error": "⚠️ AI javobi bo'sh qaytdi. Asl matningiz saqlab qolindi."}
+
+    return {"formatted": formatted.strip()}

@@ -524,6 +524,87 @@ def test_smart_reply_ad_async():
     check("reklama bo'sh bo'lsa satr ham bo'sh", result == "", result)
 
 
+def test_ai_format_prompts():
+    """AI format action promptlari to'g'ri shakllanishi."""
+    print("== AI format action prompts ==")
+    from utils.ai_agent import _FORMAT_ACTION_PROMPTS, format_post_text
+    import asyncio
+
+    # 1. Barcha action lar uchun promptlar mavjud
+    check("grammar prompt mavjud", "grammar" in _FORMAT_ACTION_PROMPTS)
+    check("emoji prompt mavjud", "emoji" in _FORMAT_ACTION_PROMPTS)
+    check("hashtags prompt mavjud", "hashtags" in _FORMAT_ACTION_PROMPTS)
+    check("tldr prompt mavjud", "tldr" in _FORMAT_ACTION_PROMPTS)
+
+    # 2. Promptlar O'zbek tilida (grammar va hashtags da aniq ko'rsatilgan)
+    check("grammar: O'zbek tilida", "O'zbek" in _FORMAT_ACTION_PROMPTS["grammar"])
+    check("hashtags: O'zbek tilida", "O'zbek" in _FORMAT_ACTION_PROMPTS["hashtags"])
+
+    # 3. Bo'sh matn → xatolik
+    result = asyncio.run(format_post_text("", "grammar"))
+    check("bo'sh matn → error", "error" in result, str(result))
+
+    result2 = asyncio.run(format_post_text(None, "grammar"))
+    check("None matn → error", "error" in result2, str(result2))
+
+    # 4. Noma'lum action → xatolik
+    result3 = asyncio.run(format_post_text("Salom", "unknown_action"))
+    check("noma'lum action → error", "error" in result3, str(result3))
+
+    # 5. Promptlar matn mazmunini o'zgartirmaslikni talab qiladi
+    check("grammar: ma'noni saqlash", "O'ZGARTIRMANG" in _FORMAT_ACTION_PROMPTS["grammar"])
+    check("emoji: mazmun saqlash", "O'ZGARTIRMANG" in _FORMAT_ACTION_PROMPTS["emoji"])
+
+    # 6. Promptlar qisqa va aniq
+    for action, prompt in _FORMAT_ACTION_PROMPTS.items():
+        check(f"{action}: prompt < 500 belgi", len(prompt) < 500, str(len(prompt)))
+
+
+def test_ai_action_keyboards():
+    """AI action keyboardlari to'g'ri shakllanishi."""
+    print("== AI action keyboards ==")
+    from handlers.new_post import _get_ai_action_keyboard, _get_ai_result_keyboard
+
+    # 1. Action keyboard
+    kb = _get_ai_action_keyboard()
+    cbs = [b.callback_data for row in kb.inline_keyboard for b in row]
+    labels = [b.text for row in kb.inline_keyboard for b in row]
+    check("action kb: grammar", "ai_act:grammar" in cbs)
+    check("action kb: emoji", "ai_act:emoji" in cbs)
+    check("action kb: hashtags", "ai_act:hashtags" in cbs)
+    check("action kb: tldr", "ai_act:tldr" in cbs)
+    check("action kb: back", "ai_act:back" in cbs)
+    check("action kb: 5 ta tugma", len(cbs) == 5)
+
+    # 2. Result keyboard
+    rkb = _get_ai_result_keyboard()
+    rcbs = [b.callback_data for row in rkb.inline_keyboard for b in row]
+    check("result kb: accept", "ai_res:accept" in rcbs)
+    check("result kb: retry", "ai_res:retry" in rcbs)
+    check("result kb: revert", "ai_res:revert" in rcbs)
+    check("result kb: 3 ta tugma", len(rcbs) == 3)
+
+    # 3. Label matnlari
+    check("accept label", any("Qabul" in t for t in [b.text for row in rkb.inline_keyboard for b in row]))
+    check("revert label", any("Asl" in t for t in [b.text for row in rkb.inline_keyboard for b in row]))
+
+
+def test_ai_format_fallback():
+    """AI xatolik berganda graceful fallback."""
+    print("== AI format fallback ==")
+    from utils.ai_agent import format_post_text
+    import asyncio
+
+    # Noma'lum action — asl matn buzilmaydi
+    result = asyncio.run(format_post_text("Salom dunyo", "xyz"))
+    check("fallback: error qaytaradi", "error" in result)
+    check("fallback: error xabari bor", len(str(result.get("error", ""))) > 5)
+
+    # Bo'sh matn
+    result2 = asyncio.run(format_post_text("", "emoji"))
+    check("fallback: bo'sh matn error", "error" in result2)
+
+
 def test_channel_cache_invalidation():
     print("== database kesh invalidatsiyasi (kanal egasi almashganda) ==")
     from contextlib import contextmanager
@@ -882,6 +963,9 @@ def main():
     test_queue_ui_helpers()
     test_queue_main_keyboard()
     test_confirmation_queue_integration()
+    test_ai_format_prompts()
+    test_ai_action_keyboards()
+    test_ai_format_fallback()
 
     print(f"\nO'tdi: {passed}, Xato: {failures}")
     if failures:

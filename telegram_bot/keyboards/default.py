@@ -107,6 +107,7 @@ def get_cancel_keyboard():
 def get_button_prompt_keyboard():
     return ReplyKeyboardMarkup(
         [
+            ["✨ AI Yordamchi"],
             ["Batafsil", "Kanalga a'zo bo'lish"],
             ["Saytga o'tish", "Bog'lanish"],
             [BTN_SKIP_BUTTON],
