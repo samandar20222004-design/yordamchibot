@@ -199,6 +199,7 @@ async def expired_session_callback(update, context):
 
 
 async def conversation_timeout_handler(update, context):
+    from keyboards.default import get_main_keyboard
     is_admin = update.effective_user.id in ADMIN_IDS_SET if update.effective_user else False
     context.user_data.clear()
     if update.effective_message:
@@ -206,7 +207,7 @@ async def conversation_timeout_handler(update, context):
             await update.effective_message.reply_text(
                 "⏰ <b>Suhbat muddat tugash sababli yakunlandi.</b>\n"
                 "Asosiy menyuga qaytdingiz. Kerakli bo'limni qaytadan tanlang 👇",
-                reply_markup=__import__("keyboards.default", fromlist=["get_main_keyboard"]).get_main_keyboard(is_admin),
+                reply_markup=get_main_keyboard(is_admin),
                 parse_mode="HTML",
             )
         except Exception:

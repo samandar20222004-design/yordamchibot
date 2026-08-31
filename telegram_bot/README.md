@@ -9,7 +9,7 @@ har kuni, istalgan muddatgacha — masalan 1 yil) xabarlarni avtomatik jo'natadi
 telegram_bot/
 ├── main.py              # Botni ishga tushiruvchi asosiy fayl
 ├── config.py            # Sozlamalar (token, admin id, kanal)
-├── database.py          # SQLite baza bilan ishlash
+├── database.py          # PostgreSQL baza bilan ishlash
 ├── scheduler.py         # Vaqt bo'yicha jo'natish logikasi
 ├── handlers/
 │   ├── start.py         # /start, /help, profil va bonuslar
@@ -248,6 +248,6 @@ quyidagilardan birini tanlang:
 
 - Bot faqat `ADMIN_ID` da ko'rsatilgan siz uchun ishlaydi — boshqa hech kim
   botga buyruq bera olmaydi.
-- Barcha rejalashtirilgan xabarlar `bot_database.db` faylida saqlanadi —
+- Barcha rejalashtirilgan xabarlar PostgreSQL bazasida saqlanadi —
   bot qayta ishga tushirilganda ular avtomatik qayta yuklanadi (yo'qolmaydi).
 - Bir martalik xabar yuborilgach, ro'yxatdan avtomatik olib tashlanadi.

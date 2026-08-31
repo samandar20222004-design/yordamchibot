@@ -1135,10 +1135,10 @@ def update_post_content(post_id: int, user_id: int,
             sets.append("content = %s")
             params.append(content)
         if btn_text is not None:
-            sets.append("btn_text = %s")
+            sets.append("inline_button_text = %s")
             params.append(btn_text if btn_text else None)
         if btn_url is not None:
-            sets.append("btn_url = %s")
+            sets.append("inline_button_url = %s")
             params.append(btn_url if btn_url else None)
         if enable_reactions is not None:
             sets.append("enable_reactions = %s")
