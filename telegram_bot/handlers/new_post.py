@@ -17,7 +17,7 @@ from keyboards.default import (
     get_reactions_keyboard, get_auto_delete_keyboard, get_time_keyboard,
     get_duration_keyboard, get_weekday_keyboard
 )
-from utils.helpers import html_escape
+from utils.helpers import html_escape, parse_future_time
 
 tashkent_tz = pytz.timezone("Asia/Tashkent")
 
@@ -350,14 +350,16 @@ async def time_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
         elif text == BTN_T_1H:
             post_time = now + timedelta(hours=1)
         else:
-            naive_time = datetime.strptime(text.strip(), "%Y-%m-%d %H:%M")
-            post_time = tashkent_tz.localize(naive_time)
+            post_time = parse_future_time(text.strip(), now)
+            if post_time is None:
+                naive_time = datetime.strptime(text.strip(), "%Y-%m-%d %H:%M")
+                post_time = tashkent_tz.localize(naive_time)
 
-        if post_time <= now:
+        if post_time is None or post_time <= now:
             await update.message.reply_text("⚠️ Kelajakdagi vaqtni kiriting:")
             return GET_TIME
     except Exception:
-        await update.message.reply_text("⚠️ Format xato! Masalan: <code>2026-08-30 18:00</code> shaklida yuboring.", parse_mode="HTML")
+        await update.message.reply_text("⚠️ Format xato! Masalan: <code>2026-08-30 18:00</code> yoki <code>18:00</code> shaklida yuboring.", parse_mode="HTML")
         return GET_TIME
 
     await _save_and_finish(update, context, post_time, recurrence_type='none')
