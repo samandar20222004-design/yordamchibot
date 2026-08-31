@@ -28,7 +28,11 @@ GROQ_MODELS_ENDPOINT = os.getenv("GROQ_MODELS_ENDPOINT", GROQ_ENDPOINT.replace("
 GEMINI_MODELS_ENDPOINT = os.getenv("GEMINI_MODELS_ENDPOINT", GEMINI_BASE)
 OPENROUTER_MODELS_ENDPOINT = os.getenv("OPENROUTER_MODELS_ENDPOINT", "https://openrouter.ai/api/v1/models")
 
-REQUEST_TIMEOUT = 30
+# Timeout sozlamalari:
+# - connect: birinchi ulanish uchun
+# - sock_read: javob oqimini o'qish uchun (sekin modellar ham shu muddat ichida kelishi kerak)
+REQUEST_TIMEOUT = max(30, int(os.getenv("AI_REQUEST_TIMEOUT", "45")))
+CONNECT_TIMEOUT = max(5, int(os.getenv("AI_CONNECT_TIMEOUT", "10")))
 MAX_429_RETRIES = 2
 # Foydalanuvchi promptining maksimal uzunligi (token byudjetini himoya qiladi)
 MAX_PROMPT_CHARS = max(500, int(os.getenv("AI_MAX_PROMPT_CHARS", "3000")))
@@ -38,10 +42,10 @@ MAX_CONCURRENT_AI = max(1, int(os.getenv("MAX_CONCURRENT_AI", "2")))
 BREAKER_THRESHOLD = 3
 BREAKER_COOLDOWN = 600  # 10 daqiqa
 
-# AI javob/parametr sozlamalari (env orqali, admin DB setting orqali runtime'da yangilanadi)
-AI_TEMPERATURE = max(0.0, min(2.0, float(os.getenv("AI_TEMPERATURE", "0.2"))))
-AI_MAX_TOKENS = max(128, int(os.getenv("AI_MAX_TOKENS", "1024")))
-AI_TOP_P = max(0.0, min(1.0, float(os.getenv("AI_TOP_P", "1.0"))))
+# === AI parametr defaultlari ===
+AI_TEMPERATURE = max(0.0, min(2.0, float(os.getenv("AI_TEMPERATURE", "0.7"))))
+AI_MAX_TOKENS = max(128, int(os.getenv("AI_MAX_TOKENS", "2048")))
+AI_TOP_P = max(0.0, min(1.0, float(os.getenv("AI_TOP_P", "0.95"))))
 AI_CONTEXT_MESSAGES = max(0, int(os.getenv("AI_CONTEXT_MESSAGES", "6")))
 AI_MAX_CONTEXT_CHARS = max(500, int(os.getenv("AI_MAX_CONTEXT_CHARS", "4000")))
 AI_EXTRA_CONTEXT = os.getenv("AI_EXTRA_CONTEXT", "").strip()
@@ -73,37 +77,42 @@ _AI_CONTEXT_MAX_USERS = 5000
 AI_MODEL_DISCOVERY = os.getenv("AI_MODEL_DISCOVERY", "1") == "1"
 MODEL_CACHE_TTL = 6 * 3600  # aniqlangan ro'yxat 6 soat eslab qolinadi
 
-# Afzal (preferred) modellar — discovery ishlamasa yoki aniqlanmasa ishlatiladi.
-# 2026-08 holatiga ko'ra bepul (free tier) modellar.
+# === Afzal (preferred) modellar — yuqori sifat uchun ===
+# Birinchi model eng muhim (asosiy), qolganlar zaxira.
+# Gemini: gemini-2.5-flash — 2026-yil eng yaxshi bepul model (o'zbek tilini yaxshi tushunadi)
 GEMINI_PREFERRED = [
-    "gemini-3-flash",
-    "gemini-2.5-flash",
-    "gemini-2.5-flash-lite",
-    "gemini-2.0-flash",
+    "gemini-2.5-flash",           # 1M kontekst, eng kuchli bepul model
+    "gemini-2.5-flash-lite",      # Tez va bepul
+    "gemini-2.0-flash",           # Tez ishora modeli
+    "gemini-2.5-pro",             # Pro versiya (limit bor, lekin sifat yuqori)
+    "gemini-1.5-flash",           # Zaxira (keng mavjud)
 ]
+# Groq: Llama 3.3 70B (eng kuchli, tez va aniq), LLaMA 4 va gemma modellari
 GROQ_PREFERRED = [
-    "openai/gpt-oss-120b",
-    "openai/gpt-oss-20b",
-    "qwen/qwen3.6-27b",
-    "moonshotai/kimi-k2-instruct",
-    "minimaxai/minimax-m2.7",
-    "groq/compound",
-    "groq/compound-mini",
+    "llama-3.3-70b-versatile",                    # Llama 3.3 70B — eng sifatli va bepul
+    "llama3-70b-8192",                            # Llama 3 70B tezkor
+    "meta-llama/llama-4-scout-17b-16e-instruct",  # LLaMA 4
+    "meta-llama/llama-4-maverick-17b-128e-instruct",
+    "gemma2-9b-it",                               # Kichik va tez
+    "llama3-8b-8192",                             # Zaxira
 ]
+# OpenRouter: bepul (:free) kuchli modellar
 OPENROUTER_PREFERRED = [
     "meta-llama/llama-3.3-70b-instruct:free",
-    "qwen/qwen-2.5-7b-instruct:free",
-    "google/gemma-2-9b-it:free",
+    "meta-llama/llama-4-scout:free",
+    "google/gemma-3-27b-it:free",
+    "qwen/qwen3-14b:free",
+    "mistralai/mistral-7b-instruct:free",
 ]
 MISTRAL_PREFERRED = [
-    "mistral-small-latest",
-    "open-mistral-nemo",
+    "mistral-small-latest",    # Bepul tier, ko'p tilli
+    "open-mistral-nemo",       # 128k kontekst
     "ministral-8b-latest",
 ]
 CEREBRAS_PREFERRED = [
-    "gpt-oss-120b",
+    "llama-3.3-70b",           # Eng tez inference (Cerebras chip)
+    "llama3.1-70b",
     "llama3.1-8b",
-    "llama-3.3-70b",
 ]
 
 # Discovery ishlamasa ishlatiladigan zaxira ro'yxatlar
@@ -113,8 +122,9 @@ OPENROUTER_MODELS = list(OPENROUTER_PREFERRED)
 MISTRAL_MODELS = list(MISTRAL_PREFERRED)
 CEREBRAS_MODELS = list(CEREBRAS_PREFERRED)
 
-# Bitta umumiy aiohttp sessiya — har so'rovda yangi sessiya ochish o'rniga
-# qayta ishlatiladi (TCP ulanishlar soni va xotira kamayadi).
+# === Bitta umumiy aiohttp sessiya (singleton) ===
+# Har so'rovda yangi sessiya ochish +300-800ms kechikish va TCP socket isrof qiladi.
+# Singleton: ulanish qayta ishlatiladi, DNS keshlanadi, TCP handshake bir marta bo'ladi.
 _session: aiohttp.ClientSession | None = None
 _session_lock = asyncio.Lock()
 
@@ -129,12 +139,26 @@ _AI_SEMAPHORE = asyncio.Semaphore(MAX_CONCURRENT_AI)
 
 
 async def _get_session() -> aiohttp.ClientSession:
+    """Singleton aiohttp sessiyasi — har so'rovda yangi sessiya ochilmaydi."""
     global _session
     if _session is None or _session.closed:
         async with _session_lock:
             if _session is None or _session.closed:
-                timeout = aiohttp.ClientTimeout(total=REQUEST_TIMEOUT, connect=10)
-                _session = aiohttp.ClientSession(timeout=timeout)
+                timeout = aiohttp.ClientTimeout(
+                    total=REQUEST_TIMEOUT,
+                    connect=CONNECT_TIMEOUT,
+                    sock_read=REQUEST_TIMEOUT,
+                )
+                connector = aiohttp.TCPConnector(
+                    limit=20,           # maksimal parallel ulanishlar
+                    ttl_dns_cache=300,  # DNS keshi — har so'rovda DNS so'rovi yo'q
+                    enable_cleanup_closed=True,
+                )
+                _session = aiohttp.ClientSession(
+                    timeout=timeout,
+                    connector=connector,
+                    headers={"User-Agent": "PostAssistBot/2.0"},
+                )
     return _session
 
 
@@ -225,14 +249,14 @@ def clear_ai_context(user_id: int):
 def _store_ai_context(user_id: int, text: str):
     if not user_id:
         return
-    max_len = int(_RUNTIME_PARAMS.get("context_messages", 6) or 0)
+    max_len = int(_RUNTIME_PARAMS.get("context_messages", 8) or 0)
     if max_len <= 0:
         return
     text = (text or "").strip()
     if not text:
         return
-    # Xotirani cheklash uchun har bitta eslatilgan xabarni qisqartiramiz.
-    text = text[:1500]
+    # Xotirani cheklash: har bitta eslatilgan xabarni qisqartiramiz
+    text = text[:2000]
     if len(_AI_CONTEXT) > _AI_CONTEXT_MAX_USERS:
         # Qadimgi foydalanuvchilardan tozalash
         for uid in list(_AI_CONTEXT.keys())[:_AI_CONTEXT_MAX_USERS // 10]:
@@ -244,7 +268,7 @@ def _store_ai_context(user_id: int, text: str):
 
 def _get_ai_context_text(user_id: int, budget: int) -> str:
     """So'nggi xabarlarni budget belgidan oshirmasdan qaytaradi."""
-    if int(_RUNTIME_PARAMS.get("context_messages", 6) or 0) <= 0:
+    if int(_RUNTIME_PARAMS.get("context_messages", 8) or 0) <= 0:
         return ""
     entries = _AI_CONTEXT.get(user_id)
     if not entries:
@@ -427,52 +451,53 @@ def _extract_json(text: str) -> dict:
 
 
 def _get_router_system_instruction() -> str:
-    """Intent routing: har qanday xabarni 3 yo'nalishdan biriga ajratadi."""
+    """Intent routing: har qanday xabarni 3 yo'nalishdan biriga ajratadi.
+
+    Sifat oshirildi:
+    - O'zbek tili uchun aniq ko'rsatmalar va uslub talablari
+    - Post yaratishda professional, jozibador til talab qilinadi
+    - Kontekst (avvalgi xabarlar) to'g'ri ishlatiladi
+    """
     now_dt = datetime.now(tashkent_tz)
     now_str = now_dt.strftime("%Y-%m-%d %H:%M")
     current_year = now_dt.year
+    current_day = now_dt.strftime("%A")  # hafta kuni
 
     extra = (_RUNTIME_PARAMS.get("extra_context") or "").strip()
     extra_block = f"\n\nQo'shimcha ko'rsatma: {extra}" if extra else ""
     return (
-        f"Siz Telegram kanallarni boshqarish va postlarni rejalashtirish bo'yicha professional, "
-        f"xushmuomala, o'zbek tilida javob beradigan aqlli yordamchisiz. "
-        f"Hozirgi Toshkent vaqti: {now_str}, joriy yil: {current_year}.{extra_block}\n\n"
+        f"Siz PostAssist — professional Telegram kanallar boshqaruvchisi va post muharriri botisiz.\n"
+        f"Hozirgi vaqt: {now_str} (Toshkent, UTC+5), {current_day}, {current_year}-yil.{extra_block}\n\n"
+        f"TIL VA USLUB TALABLARI (juda muhim):\n"
+        f"• Barcha javoblar O'ZBEK tilida bo'lishi SHART. Ruscha, inglizcha aralashtirilmasin.\n"
+        f"• Post yaratishda: jonli, jozibador, emotsional O'zbek tili ishlating.\n"
+        f"• Emoji'lardan oqilona foydalaning (har gapga emas, asosiy nuqtalarga).\n"
+        f"• Telegram HTML formatlash: <b>qalin</b>, <i>kursiv</i>, <code>kod</code>.\n"
+        f"• Post matni kamida 3-5 qator, mazmunan to'liq bo'lsin.\n\n"
         f"Vazifangiz — foydalanuvchining xabarini tahlil qilib, UNING NIYATINI aniqlash. "
         f"Javobni FAQAT bitta JSON obyekti sifatida qaytaring. Niyat turlari:\n\n"
         f'1) "faq" — SAVOL-JAVOB / SUHBAT:\n'
-        f"   • Foydalanuvchi bot imkoniyatlari, post rejalashtirish, ballar (AI so'rovlari), "
-        f"kanal ulash, reaksiyalar, avto-o'chirish, kunlik bonus, ball ulashish yoki botning "
-        f"boshqa funksiyalari haqida so'rasa, salomlashsa yoki yordam so'rasa — to'g'ridan-to'g'ri "
-        f"aniq, foydali va muloyim javob bering. Javobni \"reply\" maydoniga yozing.\n"
-        f"   • Mavzu botga mutlaqo aloqador bo'lmasa (siyosat, ob-havo, dasturlash, shaxsiy "
-        f"suhbat va h.k.) — \"reply\" maydoniga quyidagicha yozing: "
-        f"\"Kechirasiz, men faqat Telegram kanallarni boshqarish va postlarni rejalashtirish "
-        f"bo'yicha yordam bera olaman. Post rejalashtirish uchun menga post matnini yoki "
-        f"rasm/forward xabarni yuboring yoki savolingizni bering.\"\n\n"
+        f"   • Bot imkoniyatlari, post rejalashtirish, ballar, kanal ulash, reaksiyalar, "
+        f"avto-o'chirish, kunlik bonus haqida savol bo'lsa — aniq, foydali, do'stona javob bering.\n"
+        f"   • Salomlashsa — iliq javob bering va yordam taklif qiling.\n"
+        f"   • Mavzu botga mutlaqo aloqasiz bo'lsa — qisqa, muloyim rad qiling va postga o'tishni taklif qiling.\n"
+        f"   • Javobni 'reply' maydoniga yozing. HTML formatlash mumkin.\n\n"
         f'2) "post" — YANGI POST YARATISH yoki TAYYOR POST QABUL QILISH:\n'
-        f"   • Yangi post/tabrik/she'r/e'lon yozish so'ralsa — jozibador, professional post tayyorlang. "
-        f"Matnni \"post_text\" maydoniga yozing.\n"
-        f"   • Tayyor post, yangilik yoki e'lon forward qilingan / yuborilgan bo'lsa — uning "
-        f"matnini BUZMASDAN, to'liq, asl ko'rinishida \"post_text\" ga ko'chiring.\n"
-        f"   • Aniq chiqish vaqti aytilgan bo'lsa ('bugun 15:45 ga', 'ertaga ertalab 9 da', "
-        f"'10 daqiqadan keyin') — uni Toshkent vaqti bo'yicha 'YYYY-MM-DD HH:MM' formatida "
-        f'"scheduled_time" ga yozing va "has_explicit_time" ni true qiling. Vaqt aniq '
-        f"ko'rsatilmagan bo'lsa — scheduled_time: null, has_explicit_time: false.\n"
-        f"   • 'Barcha kanallarga', 'hamma guruhlarga', 'hamma kanalga' deyilgan bo'lsa — "
-        f'"target_all": true, aks holda false.\n\n'
+        f"   • Mavzu/sarlavha berilsa — PROFESSIONAL, JOZIBADOR, TO'LIQ post tayyorlang.\n"
+        f"     Aniq faktlar, chaqiriq (CTA), kerakli hashtaglar qo'shing.\n"
+        f"   • Tayyor post/forward/e'lon yuborilsa — matnni BUZMASDAN, to'liq ko'chiring.\n"
+        f"   • Vaqt ko'rsatilsa ('bugun 15:45', 'ertaga 9 da') — Toshkent bo'yicha 'YYYY-MM-DD HH:MM' da yozing.\n"
+        f"   • 'Barcha kanallarga' deyilsa — target_all: true.\n\n"
         f'3) "edit" — MAVJUD POSTNI TAHRIRLASH:\n'
-        f"   • Foydalanuvchi oldin yuborgan postni o'zgartirishni so'rasa (masalan: 'oxiriga "
-        f"telefon raqam qo'sh', 'sarlavhasini o'zgartir', 'matnni qisqartir', 'emoji qo'sh') — "
-        f"tahrirlangan, TAYYOR post matnini \"post_text\" ga yozing. Vaqt ma'lumoti saqlanadi.\n\n"
-        f"QOIDALAR:\n"
-        f"• Vaqt hisobini faqat Toshkent vaqti (UTC+5) bo'yicha qiling.\n"
-        f"• Niyat faqat bitta bo'ladi. Savol va post aralash kelsa, asosiy niyatni tanlang.\n"
-        f"• JSON dan boshqa hech narsa yozmang. Majburiy format:\n"
+        f"   • Foydalanuvchi oldingi postni o'zgartirishni so'rasa — TAHRIRLANGAN to'liq postni yozing.\n"
+        f"   • Faqat so'ralgan o'zgarishni qiling, qolganini saqlab qoldiring.\n\n"
+        f"MUHIM QOIDALAR:\n"
+        f"• Vaqt hisobini FAQAT Toshkent vaqti (UTC+5) bo'yicha qiling.\n"
+        f"• JSON dan boshqa hech narsa yozmang. Toza JSON formati:\n"
         f"{{\n"
         f'  "intent": "faq | post | edit",\n'
-        f'  "reply": "faq niyatidagi javob matni (boshqa hollarda bo\'sh satr)",\n'
-        f'  "post_text": "post/edit niyatidagi post matni (boshqa hollarda bo\'sh satr)",\n'
+        f'  "reply": "faq niyatida to\'liq, HTML formatlangan javob (boshqa hollarda bo\'sh satr)",\n'
+        f'  "post_text": "post/edit niyatida tayyor post matni (faqat post matni, boshqa narsa yo\'q)",\n'
         f'  "scheduled_time": "YYYY-MM-DD HH:MM yoki null",\n'
         f'  "has_explicit_time": false,\n'
         f'  "target_all": false\n'
@@ -486,8 +511,8 @@ def _get_time_system_instruction() -> str:
     now_str = now_dt.strftime("%Y-%m-%d %H:%M")
     current_year = now_dt.year
     return (
-        f"Siz Telegram post rejalashtiruvchi botning yordamchisisiz. Hozirgi Toshkent vaqti: "
-        f"{now_str}, joriy yil: {current_year}.\n\n"
+        f"Siz Telegram post rejalashtiruvchi botning yordamchisisiz. "
+        f"Hozirgi Toshkent vaqti: {now_str}, joriy yil: {current_year}.\n\n"
         f"Foydalanuvchining xabarini tahlil qiling va FAQAT bitta JSON qaytaring:\n"
         f"• Agar xabarda post chiqish VAQTI ko'rsatilgan bo'lsa (masalan: '15:45 ga', 'ertaga "
         f"ertalab 9 da', 'bugun kechqurun 20:00', '1 soatdan keyin', '5 daqiqadan keyin', "
@@ -495,12 +520,12 @@ def _get_time_system_instruction() -> str:
         f'formatida "scheduled_time" ga yozing, "has_explicit_time": true.\n'
         f"• Agar xabar vaqt emas, balki savol yoki boshqa gap bo'lsa — "
         f'"has_explicit_time": false, "scheduled_time": null, "reply" maydoniga qisqa, '
-        f"muloyim javob yozing.\n"
+        f"muloyim O'ZBEK tilida javob yozing.\n"
         f"• 'Barcha kanallarga' deyilgan bo'lsa \"target_all\": true.\n\n"
         f"JSON formati:\n"
         f"{{\n"
         f'  "intent": "faq | post",\n'
-        f'  "reply": "savol bo\'lsa javob, aks holda bo\'sh satr",\n'
+        f'  "reply": "savol bo\'lsa O\'zbek tilida javob, aks holda bo\'sh satr",\n'
         f'  "scheduled_time": "YYYY-MM-DD HH:MM yoki null",\n'
         f'  "has_explicit_time": false,\n'
         f'  "target_all": false\n'
@@ -571,17 +596,22 @@ async def _call_gemini(prompt: str, api_key: str, system_instruction: str, param
 
     for model in models:
         url = f"{GEMINI_BASE}/{model}:generateContent?key={api_key}"
-        generation_config = {"temperature": params.get("temperature", 0.2)}
+        generation_config = {
+            "temperature": params.get("temperature", 0.7),
+            "topP": params.get("top_p", 0.95),
+        }
         if params.get("max_tokens"):
             generation_config["maxOutputTokens"] = params["max_tokens"]
-        if params.get("top_p") is not None:
-            generation_config["topP"] = params["top_p"]
+
+        # Gemini API: system instruction alohida, content foydalanuvchi matni
         payload = {
+            "systemInstruction": {
+                "parts": [{"text": system_instruction}]
+            },
             "contents": [
                 {
-                    "parts": [
-                        {"text": f"{system_instruction}\n\nFoydalanuvchi so'rovi va kontent:\n{prompt}\n\nJavobni FAQAT toza JSON formatida yozing."}
-                    ]
+                    "role": "user",
+                    "parts": [{"text": f"{prompt}\n\nJavobni FAQAT toza JSON formatida yozing."}]
                 }
             ],
             "generationConfig": generation_config,
@@ -599,6 +629,11 @@ async def _call_gemini(prompt: str, api_key: str, system_instruction: str, param
                         logger.warning("Gemini rate-limit (429); %ss dan keyin qayta uriniladi", wait)
                         await asyncio.sleep(wait)
                         continue
+                    if resp.status in (400, 404):
+                        # Bu model mavjud emas yoki yaroqsiz — keyingisiga o'tamiz
+                        resp_txt = await resp.text()
+                        last_err = f"Gemini ({model}) HTTP {resp.status}: {resp_txt[:100]}"
+                        break
                     resp_txt = await resp.text()
                     last_err = f"Gemini ({model}) HTTP {resp.status}: {resp_txt[:100]}"
             except asyncio.TimeoutError:
@@ -625,7 +660,7 @@ async def _call_groq(prompt: str, api_key: str, system_instruction: str, params:
                 {"role": "user", "content": f"{prompt}\n\nJavobni JSON formatida qaytaring."}
             ],
             "response_format": {"type": "json_object"},
-            "temperature": params.get("temperature", 0.2),
+            "temperature": params.get("temperature", 0.7),
         }
         if params.get("top_p") is not None:
             payload["top_p"] = params["top_p"]
@@ -664,6 +699,8 @@ async def _call_openrouter(prompt: str, api_key: str, system_instruction: str, p
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
+        "HTTP-Referer": "https://t.me/postassistrobot",  # OpenRouter ranking uchun
+        "X-Title": "PostAssist Telegram Bot",
     }
     models = await _discover_openrouter_models(api_key) or OPENROUTER_MODELS
     params = params or get_runtime_params()
@@ -674,9 +711,9 @@ async def _call_openrouter(prompt: str, api_key: str, system_instruction: str, p
             "model": model,
             "messages": [
                 {"role": "system", "content": system_instruction},
-                {"role": "user", "content": f"{prompt}\n\nJavobni FAQAT quyidagi JSON formatida qaytaring:\n{{\"post_text\": \"...\", \"scheduled_time\": \"YYYY-MM-DD HH:MM yoki null\", \"has_explicit_time\": true, \"target_all\": false}}"},
+                {"role": "user", "content": f"{prompt}\n\nJavobni FAQAT quyidagi JSON formatida qaytaring:\n{{\"intent\": \"...\", \"reply\": \"...\", \"post_text\": \"...\", \"scheduled_time\": null, \"has_explicit_time\": false, \"target_all\": false}}"},
             ],
-            "temperature": params.get("temperature", 0.2),
+            "temperature": params.get("temperature", 0.7),
         }
         if params.get("top_p") is not None:
             payload["top_p"] = params["top_p"]
@@ -713,7 +750,7 @@ async def _call_mistral(prompt: str, api_key: str, system_instruction: str, para
                 {"role": "system", "content": system_instruction},
                 {"role": "user", "content": f"{prompt}\n\nJavobni FAQAT JSON formatida qaytaring."},
             ],
-            "temperature": params.get("temperature", 0.2),
+            "temperature": params.get("temperature", 0.7),
             "safe_prompt": False,
         }
         if params.get("top_p") is not None:
@@ -760,7 +797,7 @@ async def _call_cerebras(prompt: str, api_key: str, system_instruction: str, par
                 {"role": "system", "content": system_instruction},
                 {"role": "user", "content": f"{prompt}\n\nJavobni FAQAT JSON formatida qaytaring."},
             ],
-            "temperature": params.get("temperature", 0.2),
+            "temperature": params.get("temperature", 0.7),
         }
         if params.get("top_p") is not None:
             payload["top_p"] = params["top_p"]
@@ -789,14 +826,12 @@ async def _call_pollinations(prompt: str, system_instruction: str, params: dict 
     """Kalitsiz bepul zaxira (Pollinations) — oxirgi chora."""
     params = params or get_runtime_params()
     payload = {
-        "model": "openai",
+        "model": "openai-large",   # openai → openai-large (sifat yaxshilandi)
         "messages": [
             {"role": "system", "content": system_instruction},
             {"role": "user", "content": f"{prompt}\n\nJavobni FAQAT JSON formatida qaytaring."},
         ],
-        "temperature": params.get("temperature", 0.2),
-        "top_p": params.get("top_p"),
-        "max_tokens": params.get("max_tokens"),
+        "temperature": params.get("temperature", 0.7),
     }
     if params.get("top_p") is not None:
         payload["top_p"] = params["top_p"]
