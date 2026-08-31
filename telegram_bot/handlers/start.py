@@ -122,8 +122,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ad_line = await get_smart_reply_ad_async(user.id)
     await update.message.reply_text(
         f"Salom, <b>{html_escape(user.first_name)}</b>! 👋\n\n"
-        f"🤖 <b>PostAssistrobot</b> — Telegram kanallaringizga postlarni rejalashtirib joylovchi aqlli yordamchingiz.\n\n"
-        f"Quyidagi menyudan kerakli bo'limni tanlang 👇{ad_line}",
+        f"🤖 @PostAssistrobot — kanallarga postlarni vaqtida joylash, AI yordamida matnlar va kontent-reja tuzish bo'yicha aqlli yordamchingiz.\n\n"
+        f"Kerakli bo'limni tanlang 👇{ad_line}",
         reply_markup=get_main_keyboard(is_admin),
         parse_mode="HTML"
     )
