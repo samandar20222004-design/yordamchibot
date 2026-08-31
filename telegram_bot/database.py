@@ -1095,6 +1095,52 @@ def update_post_time(post_id: int, new_time, recurrence_time=None, user_id: int 
         logger.error(f"Post vaqtini yangilash xatosi: {e}")
         return False
 
+
+def update_post_content(post_id: int, user_id: int,
+                        content: str = None,
+                        btn_text: str = None, btn_url: str = None,
+                        enable_reactions: bool = None,
+                        is_admin: bool = False) -> bool:
+    """Kutilayotgan postning matn, tugma va reaksiyalarini yangilash.
+
+    Faqat o'zgartirish kerak bo'lgan maydonlar uzatiladi (None bo'lsa o'zgartirilmaydi).
+    is_admin=True bo'lsa foydalanuvchi tekshiruvi (user_id) o'tkazib yuboriladi.
+    """
+    try:
+        sets = []
+        params = []
+        if content is not None:
+            sets.append("content = %s")
+            params.append(content)
+        if btn_text is not None:
+            sets.append("btn_text = %s")
+            params.append(btn_text if btn_text else None)
+        if btn_url is not None:
+            sets.append("btn_url = %s")
+            params.append(btn_url if btn_url else None)
+        if enable_reactions is not None:
+            sets.append("enable_reactions = %s")
+            params.append(enable_reactions)
+        if not sets:
+            return False
+
+        query = f"UPDATE scheduled_posts SET {', '.join(sets)} WHERE id = %s AND status = 'pending'"
+        params.append(post_id)
+        if not is_admin:
+            query += " AND user_id = %s"
+            params.append(user_id)
+
+        with db_cursor(commit=True) as cur:
+            cur.execute(query, tuple(params))
+            updated = cur.rowcount > 0
+        if updated:
+            _cache_clear(f"pending_posts:{user_id}")
+        return updated
+    except Exception as e:
+        logger.error(f"Post kontentini yangilash xatosi: {e}")
+        return False
+
+
 def cancel_post(post_id: int, user_id: int, is_admin: bool = False) -> bool:
     try:
         with db_cursor(commit=True) as cur:
