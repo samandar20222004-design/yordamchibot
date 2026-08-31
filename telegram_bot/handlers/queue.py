@@ -263,9 +263,19 @@ async def queue_push_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
     user_id = query.from_user.id
     post_id = int(query.data.split(":")[1])
 
+    # Darhol javob — bir nechta DB so'rovi bajarilguniga qadar tugma muzlab
+    # qolmasligi uchun (surish jarayoni bir necha marta DB'ga murojaat qiladi).
+    try:
+        await query.answer()
+    except Exception:
+        pass
+
     post = await db.run_db(db.get_queue_post_detail, post_id, user_id)
     if not post:
-        await query.answer("⚠️ Post topilmadi!", show_alert=True)
+        try:
+            await query.message.reply_text("⚠️ Post topilmadi!", parse_mode="HTML")
+        except Exception:
+            pass
         return QUEUE_MENU
 
     ch_id = post[2]
@@ -289,13 +299,15 @@ async def queue_push_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
         slot_dt, label = db.find_next_queue_slot(slots, occ_tom, tomorrow_start)
 
     if not slot_dt:
-        await query.answer("⚠️ Bo'sh slot topilmadi!", show_alert=True)
+        try:
+            await query.message.reply_text("⚠️ Bo'sh slot topilmadi!", parse_mode="HTML")
+        except Exception:
+            pass
         return QUEUE_MENU
 
     await db.run_db(db.update_post_time, post_id, slot_dt, user_id=user_id)
-    await query.answer(f"⏩ {label} {slot_dt.strftime('%H:%M')} ga surildi!")
 
-    # Ro'yxatni yangilash
+    # Ro'yxatni yangilash (surilgan vaqt ro'yxatda ko'rinadi — natija shu orqali bildiriladi)
     total = await db.run_db(db.get_queue_post_count, user_id)
     posts = await db.run_db(db.get_queue_posts, user_id, 0, QUEUE_PAGE_SIZE)
     text_lines = [f"📚 <b>Navbatdagi postlar</b> ({total} ta):\n"]

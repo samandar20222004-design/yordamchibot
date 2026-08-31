@@ -139,17 +139,17 @@ async def start_subscription(update: Update, context: ContextTypes.DEFAULT_TYPE)
 async def subscription_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Obuna sahifasi tugmalari."""
     query = update.callback_query
-    data = query.data
-    user_id = query.from_user.id
-    is_admin = user_id in ADMIN_IDS_SET
-
-    # Har bir callback BOSHIDA answer() chaqiriladi — aks holda Telegram
-    # tugmani "yuklanmoqda" holatida qoldiradi (tugma qotib qoladi), ayniqsa
-    # send_invoice sekin ishlasa yoki xatolik bersa.
+    # ENG BIRINCHI QATORDI — har bir callback darhol answer() oladi, aks holda
+    # Telegram tugmani "yuklanmoqda" holatida qoldiradi (tugma qotib qoladi),
+    # ayniqsa send_invoice sekin ishlasa yoki xatolik bersa.
     try:
         await query.answer()
     except Exception:
         pass
+
+    data = query.data
+    user_id = query.from_user.id
+    is_admin = user_id in ADMIN_IDS_SET
 
     if query.message is None:
         return SUBSCRIPTION_VIEW
@@ -176,31 +176,33 @@ async def subscription_callback(update: Update, context: ContextTypes.DEFAULT_TY
 
     if data.startswith("sub_pay:"):
         plan_key = data.split(":", 1)[1]
-        plan_info = STARS_PLANS.get(plan_key)
-        if not plan_info:
+        # Telegram Stars (XTR) invoice ma'lumotlari: (miqdor, sarlavha, tavsif)
+        plan_map = {
+            "stars_1m": (75, "⭐️ PostAssist PRO (1 oy)", "1 oylik to'liq PRO imkoniyatlar"),
+            "stars_3m": (175, "⭐️ PostAssist PRO (3 oy)", "3 oylik to'liq PRO imkoniyatlar"),
+            "stars_1y": (550, "⭐️ PostAssist PRO (1 yil)", "1 yillik to'liq PRO imkoniyatlar (chegirma bilan)"),
+        }
+        if plan_key not in plan_map:
             await query.message.reply_text("❌ Noto'g'ri tarif tanlandi.")
             return SUBSCRIPTION_VIEW
 
-        # Plan-specific titles for Telegram Stars invoice
-        plan_titles = {
-            "stars_1m": ("⭐️ PostAssist PRO (1 oy)", "1 oylik PRO obuna. Cheksiz kanallar, AI yordamchi va analitika."),
-            "stars_3m": ("⭐️ PostAssist PRO (3 oy)", "3 oylik PRO obuna. Cheksiz kanallar, AI yordamchi va analitika."),
-            "stars_1y": ("⭐️ PostAssist PRO (1 yil)", "1 yillik PRO obuna (-40% chegirma). Cheksiz kanallar, AI yordamchi va analitika."),
-        }
-        title, desc = plan_titles.get(plan_key, (f"⭐️ PostAssist PRO", "PRO obuna."))
+        amount, title, desc = plan_map[plan_key]
+        prices = [LabeledPrice(label=title, amount=amount)]
 
         try:
-            # Telegram Stars (XTR) invoicelari uchun provider_token kerak emas.
-            # PTB 21.x da provider_token majburiy argument bo'lgani uchun
-            # bo'sh string uzatamiz — Telegram XTR uchun uni e'tiborsiz qoldiradi.
+            # Telegram Stars (XTR) uchun provider_token talab qilinmaydi.
+            # provider_token=None uzatamiz — PTB so'rovdan None qiymatlarni
+            # o'zi o'chiradi, ya'ni sendInvoice'ga provider_token umuman
+            # yuborilmaydi (Telegram Stars standarti).
             await context.bot.send_invoice(
                 chat_id=update.effective_chat.id,
                 title=title,
                 description=desc,
                 payload=f"sub_{plan_key}_{user_id}",
-                provider_token="",
+                provider_token=None,
                 currency="XTR",
-                prices=[LabeledPrice(label=title, amount=int(plan_info["stars"]))],
+                prices=prices,
+                start_parameter="pro-sub",
             )
         except Exception as e:
             logger.warning("Invoice yaratish xatosi: %s", e)
@@ -352,18 +354,19 @@ async def grant_pro_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ============================================================
 
 async def precheckout_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """PreCheckoutQuery — Telegram to'lovni tasdiqlashdan oldin so'raydi."""
+    """PreCheckoutQuery — Telegram to'lovni tasdiqlashdan oldin so'raydi.
+
+    Eng birinchi ish — darhol javob berish (ok=True/False). Payload tekshiruvi
+    sinxron, ya'ni answer() dan oldin hech qanday await yo'q.
+    """
     query = update.pre_checkout_query
     if not query:
         return
 
     # Payload tekshirish — sub_stars_1m_USERID, sub_stars_3m_USERID, sub_stars_1y_USERID
     payload = query.invoice_payload or ""
-    if payload.startswith("sub_stars_"):
-        # To'lovni tasdiqlaymiz
-        await query.answer(ok=True)
-    else:
-        await query.answer(ok=False, error_message="Noto'g'ri to'lov so'rovi.")
+    ok = payload.startswith("sub_stars_")
+    await query.answer(ok=ok, error_message=None if ok else "Noto'g'ri to'lov so'rovi.")
 
 
 async def create_promo_command(update: Update, context: ContextTypes.DEFAULT_TYPE):

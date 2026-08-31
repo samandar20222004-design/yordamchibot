@@ -209,16 +209,26 @@ async def channel_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def remove_channel_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
+    # Darhol javob — DB so'rovlaridan oldin, tugma muzlab qolmasligi uchun.
+    try:
+        await query.answer()
+    except Exception:
+        pass
+
     channel_id = query.data.split(":")[1]
     user_id = query.from_user.id
     is_admin = (user_id in ADMIN_IDS_SET)
 
     removed = await db.run_db(db.remove_channel, user_id, channel_id, is_admin)
     channels = await db.run_db(db.get_user_channels, user_id)
-    if removed:
-        await query.answer("✅ Kanal o'chirildi.")
-    else:
-        await query.answer("❌ Kanal topilmadi yoki sizga tegishli emas.", show_alert=True)
+    if not removed:
+        try:
+            await query.message.reply_text(
+                "❌ Kanal topilmadi yoki sizga tegishli emas.",
+                parse_mode="HTML",
+            )
+        except Exception:
+            pass
 
     # Ro'yxatni qayta chizamiz — qolgan kanallar va tugmalar ko'rinib tursin
     try:

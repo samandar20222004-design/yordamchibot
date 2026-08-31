@@ -720,17 +720,27 @@ async def sponsor_channel_received(update: Update, context: ContextTypes.DEFAULT
 
 async def del_sponsor_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
+    # Darhol javob — DB so'rovlaridan oldin, tugma muzlab qolmasligi uchun.
+    try:
+        await query.answer()
+    except Exception:
+        pass
+
     if not is_admin(query.from_user.id):
-        await query.answer("Ruxsat yo'q.", show_alert=True)
+        try:
+            await query.message.reply_text("🚫 Ruxsat yo'q.")
+        except Exception:
+            pass
         return
     s_id = int(query.data.split(":")[1])
     removed = await db.run_db(db.remove_sponsor_channel, s_id)
+    if not removed:
+        try:
+            await query.message.reply_text("⚠️ Homiy kanal o'chirilmadi. Qayta urinib ko'ring.")
+        except Exception:
+            pass
     # Yangilangan ro'yxatni qayta chizamiz (qolgan homiylar ko'rinib tursin)
     sponsors = await db.run_db(db.get_active_sponsors)
-    if removed:
-        await query.answer("✅ Homiy kanal o'chirildi.")
-    else:
-        await query.answer("⚠️ O'chirib bo'lmadi.", show_alert=True)
     try:
         if sponsors:
             from keyboards.inline import get_sponsors_delete_keyboard
