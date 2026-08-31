@@ -16,7 +16,7 @@ from keyboards.default import (
     BTN_ADMIN_PANEL, BTN_STATS, BTN_ALL_POSTS, BTN_ALL_CHANNELS,
     BTN_BROADCAST, BTN_SPONSORS, BTN_ADD_SPONSOR,
     BTN_CHANNEL_AD, BTN_BOT_REPLY_AD, BTN_POST_TAG, BTN_AI_SETTINGS, BTN_CACHE_DB,
-    BTN_ADD_CHANNEL,
+    BTN_ADD_CHANNEL, BTN_QUEUE,
 )
 from keyboards.inline import get_subscription_check_keyboard
 
@@ -74,6 +74,14 @@ from handlers.admin import (
 from handlers.ai_assistant import (
     start_ai_assistant, ai_input_received, ai_confirm_callback, ai_time_received,
     AI_INPUT, AI_CONFIRM, AI_GET_TIME
+)
+
+# 8. QUEUE MODULI
+from handlers.queue import (
+    queue_menu, queue_page_callback, queue_view_callback,
+    queue_delete_callback, queue_push_callback, queue_close_callback,
+    queue_slots_callback, slot_add_message,
+    QUEUE_MENU, SLOT_ADD,
 )
 
 import database as db
@@ -271,6 +279,11 @@ def register_all_handlers(app):
         MessageHandler(exact(BTN_AI, BTN_AI_ASSISTANT), lambda u, c: guard_entry(u, c, start_ai_assistant)),
     ]
 
+    # 8. Queue
+    queue_handlers = [
+        MessageHandler(exact(BTN_QUEUE), lambda u, c: guard_menu(u, c, queue_menu)),
+    ]
+
     # Barcha menyu sakrashlari
     all_menu_jumps = (
         start_handlers +
@@ -279,7 +292,8 @@ def register_all_handlers(app):
         pending_handlers +
         converter_handlers +
         admin_handlers +
-        ai_handlers
+        ai_handlers +
+        queue_handlers
     )
 
     # ============================================================
@@ -294,6 +308,7 @@ def register_all_handlers(app):
             CallbackQueryHandler(add_channel_inline_entry, pattern=r"^add_channel_start$"),
             CommandHandler("newpost", lambda u, c: guard_entry(u, c, start_new_post)),
             CommandHandler("broadcast", lambda u, c: guard_entry(u, c, broadcast_start)),
+            CommandHandler("queue", lambda u, c: guard_menu(u, c, queue_menu)),
         ],
         states={
             # 2. Yangi post holatlari
@@ -340,6 +355,23 @@ def register_all_handlers(app):
             AI_GET_TIME: all_menu_jumps + [
                 MessageHandler(filters.ALL & ~filters.COMMAND, ai_time_received),
                 CallbackQueryHandler(ai_confirm_callback, pattern=r"^ai_post_"),
+            ],
+
+            # 8. Queue holatlari
+            QUEUE_MENU: all_menu_jumps + [
+                CallbackQueryHandler(queue_page_callback, pattern=r"^qpage:"),
+                CallbackQueryHandler(queue_view_callback, pattern=r"^qview:"),
+                CallbackQueryHandler(queue_delete_callback, pattern=r"^qdel:"),
+                CallbackQueryHandler(queue_push_callback, pattern=r"^qpush:"),
+                CallbackQueryHandler(queue_slots_callback, pattern=r"^qslots:"),
+                CallbackQueryHandler(queue_close_callback, pattern=r"^qclose$"),
+                MessageHandler(filters.TEXT & ~filters.COMMAND, slot_add_message),
+            ],
+            SLOT_ADD: all_menu_jumps + [
+                CallbackQueryHandler(queue_slots_callback, pattern=r"^qslots:"),
+                CallbackQueryHandler(queue_page_callback, pattern=r"^qpage:"),
+                CallbackQueryHandler(queue_close_callback, pattern=r"^qclose$"),
+                MessageHandler(filters.TEXT & ~filters.COMMAND, slot_add_message),
             ],
 
             ConversationHandler.TIMEOUT: [MessageHandler(filters.ALL, conversation_timeout_handler)],

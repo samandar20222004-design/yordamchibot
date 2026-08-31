@@ -41,6 +41,7 @@ BTN_CACHE_DB = "🗄️ DB / Kesh holati"
 
 # --- Kanal & Post yaratish tugmalari ---
 BTN_ADD_CHANNEL = "➕ Kanal/Guruh qo'shish"
+BTN_QUEUE = "📚 Navbat (Queue)"
 BTN_ALL_CHANNELS_TARGET = "🌐 Barchasiga birdaniga"
 BTN_SKIP_BUTTON = "➡️ Tugmasiz davom etish"
 BTN_REACT_DEFAULT = "👍 ❤️ 🔥 👏"
@@ -81,8 +82,8 @@ def exact(*texts):
 def get_main_keyboard(is_admin=False):
     keyboard = [
         [BTN_NEW_POST, BTN_AI],
-        [BTN_PENDING, BTN_SETTINGS],
-        [BTN_CONVERTER, BTN_HELP]
+        [BTN_PENDING, BTN_QUEUE],
+        [BTN_SETTINGS, BTN_HELP],
     ]
     if is_admin:
         keyboard.append([BTN_ADMIN_PANEL])

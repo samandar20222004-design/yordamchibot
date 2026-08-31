@@ -583,6 +583,150 @@ def test_channel_cache_invalidation():
     db_mod._cache_clear()
 
 
+def test_queue_slot_algorithm():
+    """Queue slot topish algoritmi testlari."""
+    print("== queue: find_next_queue_slot algoritmi ==")
+    from database import find_next_queue_slot, DEFAULT_QUEUE_SLOTS
+
+    tz = pytz.timezone("Asia/Tashkent")
+
+    # 1. Default slotlar
+    check("default slotlar 3 ta", len(DEFAULT_QUEUE_SLOTS) == 3, str(DEFAULT_QUEUE_SLOTS))
+    check("default: 09:00", "09:00" in DEFAULT_QUEUE_SLOTS)
+    check("default: 14:00", "14:00" in DEFAULT_QUEUE_SLOTS)
+    check("default: 19:00", "19:00" in DEFAULT_QUEUE_SLOTS)
+
+    # 2. Hozir 08:00 — barcha slotlar bo'sh → birinchi slot 09:00
+    now = tz.localize(datetime(2026, 9, 1, 8, 0))
+    slot_dt, label = find_next_queue_slot(DEFAULT_QUEUE_SLOTS, [], now)
+    check("08:00 da → 09:00 slot", slot_dt is not None and slot_dt.hour == 9 and slot_dt.minute == 0, str(slot_dt))
+    check("08:00 da → Bugun", label == "Bugun", str(label))
+
+    # 3. Hozir 10:00 — 09:00 o'tib ketgan → keyingi 14:00
+    now = tz.localize(datetime(2026, 9, 1, 10, 0))
+    slot_dt, label = find_next_queue_slot(DEFAULT_QUEUE_SLOTS, [], now)
+    check("10:00 da → 14:00 slot", slot_dt is not None and slot_dt.hour == 14, str(slot_dt))
+
+    # 4. Hozir 15:00 — 09:00 va 14:00 o'tib ketgan → 19:00
+    now = tz.localize(datetime(2026, 9, 1, 15, 0))
+    slot_dt, label = find_next_queue_slot(DEFAULT_QUEUE_SLOTS, [], now)
+    check("15:00 da → 19:00 slot", slot_dt is not None and slot_dt.hour == 19, str(slot_dt))
+
+    # 5. Hozir 20:00 — barcha bugungi slotlar o'tib ketgan → ertaga 09:00
+    now = tz.localize(datetime(2026, 9, 1, 20, 0))
+    slot_dt, label = find_next_queue_slot(DEFAULT_QUEUE_SLOTS, [], now)
+    check("20:00 da → ertaga 09:00", slot_dt is not None and slot_dt.day == 2 and slot_dt.hour == 9, str(slot_dt))
+    check("20:00 da → Ertaga", label == "Ertaga", str(label))
+
+    # 6. 09:00 band → keyingi 14:00
+    now = tz.localize(datetime(2026, 9, 1, 8, 0))
+    occupied = [(9, 0)]
+    slot_dt, label = find_next_queue_slot(DEFAULT_QUEUE_SLOTS, occupied, now)
+    check("09:00 band → 14:00", slot_dt is not None and slot_dt.hour == 14, str(slot_dt))
+
+    # 7. 09:00 va 14:00 band → 19:00
+    occupied = [(9, 0), (14, 0)]
+    slot_dt, label = find_next_queue_slot(DEFAULT_QUEUE_SLOTS, occupied, now)
+    check("09:00+14:00 band → 19:00", slot_dt is not None and slot_dt.hour == 19, str(slot_dt))
+
+    # 8. Barcha bugungi slotlar band → ertaga 09:00
+    occupied = [(9, 0), (14, 0), (19, 0)]
+    slot_dt, label = find_next_queue_slot(DEFAULT_QUEUE_SLOTS, occupied, now)
+    check("barcha band → ertaga", slot_dt is not None and slot_dt.day == 2, str(slot_dt))
+
+    # 9. Bo'sh slotlar ro'yxati → None
+    slot_dt, label = find_next_queue_slot([], [], now)
+    check("bo'sh slotlar → None", slot_dt is None)
+
+    # 10. Noto'g'ri format slotlar → None
+    slot_dt, label = find_next_queue_slot(["abc", "xyz"], [], now)
+    check("noto'g'ri slotlar → None", slot_dt is None)
+
+    # 11. Bitta slot bilan ishlaydi
+    slot_dt, label = find_next_queue_slot(["12:00"], [], now)
+    check("bitta slot 12:00", slot_dt is not None and slot_dt.hour == 12, str(slot_dt))
+
+    # 12. Slot tartibi muhim emas (sort qilinadi)
+    slot_dt, label = find_next_queue_slot(["19:00", "09:00", "14:00"], [], now)
+    check("tartibsiz slotlar → 09:00", slot_dt is not None and slot_dt.hour == 9, str(slot_dt))
+
+    # 13. max_days=0 → None
+    slot_dt, label = find_next_queue_slot(DEFAULT_QUEUE_SLOTS, [], now, max_days=0)
+    check("max_days=0 → None", slot_dt is None)
+
+
+def test_queue_ui_helpers():
+    """Queue UI helper funksiyalari."""
+    print("== queue: UI helpers ==")
+    from handlers.queue import (
+        _post_type_icon, _content_preview, _format_queue_item,
+        _get_queue_list_keyboard, _get_slots_keyboard,
+        QUEUE_PAGE_SIZE,
+    )
+    from database import DEFAULT_QUEUE_SLOTS
+
+    # Post type icons
+    check("icon: text → 📝", _post_type_icon("text") == "📝")
+    check("icon: photo → 🖼", _post_type_icon("photo") == "🖼")
+    check("icon: video → 🎬", _post_type_icon("video") == "🎬")
+    check("icon: unknown → 📝", _post_type_icon("xyz") == "📝")
+
+    # Content preview
+    check("preview: bo'sh", _content_preview("") == "")
+    check("preview: None", _content_preview(None) == "")
+    check("preview: qisqa", _content_preview("Salom") == "Salom")
+    check("preview: uzun kesiladi", len(_content_preview("A" * 100, 40)) <= 41)
+
+    # Format queue item
+    tz = pytz.timezone("Asia/Tashkent")
+    row = (1, "Test Kanal", "text", "Salom dunyo", tz.localize(datetime(2026, 9, 1, 10, 0)), 1, "-1001")
+    item = _format_queue_item(row, 1)
+    check("format: raqam", item.startswith("1."), item[:20])
+    check("format: vaqt", "01-Sep 10:00" in item or "10:00" in item, item)
+    check("format: kanal", "Test Kanal" in item, item)
+
+    # Queue keyboard
+    posts = [row]
+    kb = _get_queue_list_keyboard(posts, 0, 1)
+    cbs = [b.callback_data for row in kb.inline_keyboard for b in row]
+    check("kb: view tugmasi", "qview:1" in cbs, str(cbs))
+    check("kb: delete tugmasi", "qdel:1" in cbs, str(cbs))
+    check("kb: push tugmasi", "qpush:1" in cbs, str(cbs))
+    check("kb: slots tugmasi", "qslots:show" in cbs, str(cbs))
+    check("kb: close tugmasi", "qclose" in cbs, str(cbs))
+
+    # Pagination: 2-sahifa bo'lsa nav tugmalari bor
+    posts_2 = [(i, "K", "text", "x", tz.localize(datetime(2026, 9, 1, 10, 0)), i, "-100") for i in range(10)]
+    kb2 = _get_queue_list_keyboard(posts_2[:5], 0, 10)
+    cbs2 = [b.callback_data for row in kb2.inline_keyboard for b in row]
+    check("pagination: keyingi bor", "qpage:5" in cbs2, str(cbs2))
+
+    kb3 = _get_queue_list_keyboard(posts_2[5:], 5, 10)
+    cbs3 = [b.callback_data for row in kb3.inline_keyboard for b in row]
+    check("pagination: oldingi bor", "qpage:0" in cbs3, str(cbs3))
+
+    # Slots keyboard
+    slots_kb = _get_slots_keyboard(DEFAULT_QUEUE_SLOTS)
+    scbs = [b.callback_data for row in slots_kb.inline_keyboard for b in row]
+    check("slots kb: rm tugmalari", "qslots:rm:0" in scbs, str(scbs))
+    check("slots kb: add tugmasi", "qslots:add" in scbs, str(scbs))
+    check("slots kb: reset tugmasi", "qslots:reset" in scbs, str(scbs))
+
+    # PAGE_SIZE
+    check("PAGE_SIZE = 5", QUEUE_PAGE_SIZE == 5)
+
+
+def test_queue_main_keyboard():
+    """Queue tugmasi asosiy menyuda borligini tekshiradi."""
+    print("== queue: main keyboard ==")
+    from keyboards.default import get_main_keyboard, BTN_QUEUE
+
+    kb = get_main_keyboard(is_admin=False)
+    texts = [b.text for row in kb.keyboard for b in row]
+    check("queue tugmasi asosiy menyuda", BTN_QUEUE in texts, str(texts))
+    check("BTN_QUEUE matni", BTN_QUEUE == "📚 Navbat (Queue)")
+
+
 def main():
     test_calculate_next_time()
     test_converter()
@@ -609,6 +753,9 @@ def main():
     test_button_labels()
     test_smart_reply_ad_async()
     test_channel_cache_invalidation()
+    test_queue_slot_algorithm()
+    test_queue_ui_helpers()
+    test_queue_main_keyboard()
 
     print(f"\nO'tdi: {passed}, Xato: {failures}")
     if failures:
