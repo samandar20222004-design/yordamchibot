@@ -1,30 +1,37 @@
 import logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ContextTypes
-from keyboards.default import get_cancel_keyboard
+from telegram.ext import ContextTypes, ConversationHandler
+from keyboards.default import get_cancel_keyboard, get_main_keyboard, BTN_BACK, BTN_MAIN_MENU
+from config import ADMIN_IDS_SET
 from utils.converter import to_cyrillic, to_latin
 from utils.helpers import html_escape
 
 logger = logging.getLogger(__name__)
 
+# State (Holat): Matn yoki media kutish
 CONVERT_INPUT = 601
 
+
 async def start_converter(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Konverter holatini boshlaydi (waiting_for_text)."""
     context.user_data.clear()
     await update.message.reply_text(
         "🔤 <b>Lotin ⇄ Kirill Matn O'girgich:</b>\n\n"
-        "Istalgan matnni yoki <b>rasm/video/fayl</b> (tagida yozuvi bilan) yuboring:",
+        "O'girmoqchi bo'lgan <b>matnni</b> yoki <b>rasm/video/fayl</b> (tagida yozuvi bilan) yuboring:\n\n"
+        "<i>Bekor qilish uchun '🔙 Asosiy menyu' tugmasini bosing.</i>",
         reply_markup=get_cancel_keyboard(),
         parse_mode="HTML"
     )
     return CONVERT_INPUT
 
+
 async def converter_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Faqat CONVERT_INPUT holatida kelgan xabarlarni o'giradi."""
     msg = update.message
     text = ""
     media_type = "text"
     file_id = None
-    
+
     if msg.text:
         text = msg.text
         media_type = "text"
@@ -52,22 +59,23 @@ async def converter_received(update: Update, context: ContextTypes.DEFAULT_TYPE)
         text = msg.caption or ""
         media_type = "animation"
         file_id = msg.animation.file_id
-        
+
     if not text:
         await msg.reply_text(
             "⚠️ Ushbu fayl tagida hech qanday yozuv (matn) topilmadi.\n"
-            "Iltimos, matn yuboring yoki fayl tagiga izoh yozib qaytadan yuboring:"
+            "Iltimos, matn yuboring yoki fayl tagiga izoh yozib qaytadan yuboring:",
+            reply_markup=get_cancel_keyboard()
         )
         return CONVERT_INPUT
 
     cyr = to_cyrillic(text)
     lat = to_latin(text)
-    
+
     context.user_data["media_type"] = media_type
     context.user_data["file_id"] = file_id
     context.user_data["cyr_text"] = cyr
     context.user_data["lat_text"] = lat
-    
+
     keyboard = [
         [InlineKeyboardButton("🔤 Kirillcha nusxasi", callback_data="conv_show:cyr")],
         [InlineKeyboardButton("🔤 Lotincha nusxasi", callback_data="conv_show:lat")],
@@ -95,6 +103,7 @@ async def converter_close_callback(update: Update, context: ContextTypes.DEFAULT
         except Exception:
             pass
 
+
 def _split_smartly(text: str, max_first_len: int = 950) -> tuple[str, str]:
     if len(text) <= max_first_len:
         return text, ""
@@ -112,22 +121,23 @@ def _split_smartly(text: str, max_first_len: int = 950) -> tuple[str, str]:
     part2 = text[split_index:].strip()
     return part1, part2
 
+
 async def converter_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    
+
     choice = query.data.split(":")[1]
     res_text = context.user_data.get("cyr_text", "") if choice == "cyr" else context.user_data.get("lat_text", "")
     media_type = context.user_data.get("media_type", "text")
     file_id = context.user_data.get("file_id")
-    
+
     if not res_text:
         await query.message.reply_text("⚠️ Matn topilmadi, iltimos qaytadan yuboring.")
         return
-        
+
     chat_id = query.from_user.id
     bot = context.bot
-    
+
     try:
         if media_type == "text":
             if len(res_text) <= 4000:
@@ -157,7 +167,7 @@ async def converter_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 await bot.send_voice(chat_id=chat_id, voice=file_id, caption=part1)
             elif media_type == "animation":
                 await bot.send_animation(chat_id=chat_id, animation=file_id, caption=part1)
-                
+
             if part2:
                 notice = f"ℹ️ <i>Matn davomi:</i>\n\n<code>{html_escape(part2)}</code>"
                 await bot.send_message(chat_id=chat_id, text=notice, parse_mode="HTML")
@@ -174,7 +184,7 @@ async def converter_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 await bot.send_voice(chat_id=chat_id, voice=file_id, caption=res_text)
             elif media_type == "animation":
                 await bot.send_animation(chat_id=chat_id, animation=file_id, caption=res_text)
-                
+
     except Exception as e:
         logger.error(f"Konverter xatosi: {e}")
         await bot.send_message(chat_id=chat_id, text=f"⚠️ Xatolik yuz berdi: {e}")
