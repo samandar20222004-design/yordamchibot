@@ -64,13 +64,10 @@ from utils.helpers import check_rate_limit
 
 logger = logging.getLogger(__name__)
 
-# Suhbat 10 daqiqa faolsiz qolsa — avtomatik tugatiladi (soniyada ifodalangan).
-# Bu AI "goh ishlab, goh ishlamay" muammosini hal qiladi: yarim-yo'lda tashlab
-# ketilgan holatlar keyingi sessiyani bloklab qo'ymasligini ta'minlaydi.
 CONVERSATION_TIMEOUT_SEC = 600
 
-# Free-chat (intent routing) menyusi uchun ma'lum reply-tugmalar — bu tugmalar
-# bosilganda AI suhbatiga tushib qolmasligi uchun ular filtrlanadi.
+# Barcha asosiy menyu va navigatsiya tugmalari — AI suhbatiga tushib ketmasligi
+# va har doim birinchi navbatda o'z vazifasini bajarishi uchun to'liq ro'yxat.
 _MENU_BUTTON_TEXTS = (
     BTN_NEW_POST, BTN_AI_ASSISTANT, BTN_PENDING, BTN_CABINET, BTN_HELP,
     BTN_ADMIN_PANEL, BTN_MAIN_MENU, BTN_CHANNELS, BTN_CONVERTER, BTN_DAILY_BONUS,
@@ -103,12 +100,13 @@ async def _deny_if_unsubscribed(update, context) -> bool:
 
 
 async def guard_entry(update, context, fn):
+    """ConversationHandler state'iga kiruvchi funksiyalar uchun tekshiruv."""
     user = update.effective_user
     if user:
-        is_blocked, should_warn = check_rate_limit(user.id, max_requests=3, window_seconds=3.0)
+        is_blocked, should_warn = check_rate_limit(user.id, max_requests=4, window_seconds=2.0)
         if is_blocked:
             if should_warn and update.message:
-                await update.message.reply_text("⚠️ <i>Juda ko'p so'rov yubordingiz! Iltimos, 3 soniya kuting...</i>", parse_mode="HTML")
+                await update.message.reply_text("⚠️ <i>Juda ko'p so'rov yubordingiz! Iltimos, 2 soniya kuting...</i>", parse_mode="HTML")
             return ConversationHandler.END
 
     if await _deny_if_unsubscribed(update, context):
@@ -117,13 +115,15 @@ async def guard_entry(update, context, fn):
     context.user_data.clear()
     return await fn(update, context)
 
+
 async def guard_menu(update, context, fn):
+    """Oddiy menyu sahifalarini ko'rsatuvchi funksiyalar uchun tekshiruv."""
     user = update.effective_user
     if user:
-        is_blocked, should_warn = check_rate_limit(user.id, max_requests=3, window_seconds=3.0)
+        is_blocked, should_warn = check_rate_limit(user.id, max_requests=4, window_seconds=2.0)
         if is_blocked:
             if should_warn and update.message:
-                await update.message.reply_text("⚠️ <i>Juda ko'p so'rov yubordingiz! Iltimos, 3 soniya kuting...</i>", parse_mode="HTML")
+                await update.message.reply_text("⚠️ <i>Juda ko'p so'rov yubordingiz! Iltimos, 2 soniya kuting...</i>", parse_mode="HTML")
             return ConversationHandler.END
 
     if await _deny_if_unsubscribed(update, context):
@@ -132,6 +132,7 @@ async def guard_menu(update, context, fn):
     context.user_data.clear()
     await fn(update, context)
     return ConversationHandler.END
+
 
 async def reaction_callback(update, context):
     query = update.callback_query
@@ -196,12 +197,7 @@ async def expired_session_callback(update, context):
 
 
 async def conversation_timeout_handler(update, context):
-    """10 daqiqa faolsizlikdan keyin suhbat avtomatik tugaydi.
-
-    Foydalanuvchi biror oqimni (yangi post, kanal ulash, transfer...) boshlab,
-    keyin tashlab ketsa — bu holat abadiy «band» bo'lib qolmasligini ta'minlaydi.
-    Shundan keyin keyingi xabar to'g'ri AI'ga yo'naladi.
-    """
+    """10 daqiqa faolsizlikdan keyin suhbat avtomatik tugaydi."""
     is_admin = update.effective_user.id in ADMIN_IDS_SET if update.effective_user else False
     context.user_data.clear()
     if update.effective_message:
@@ -219,8 +215,8 @@ async def conversation_timeout_handler(update, context):
 async def free_chat_entry(update, context):
     """Suhbat tashqarisida kelgan har qanday matn/media — AI intent routing'ga.
 
-    Foydalanuvchi hech qanday tugma bosmasdan savol bersa, buyruq yozsa
-    ("ertaga 9 ga hamma kanalga") yoki post tashlasa — AI yordamchisi ishlaydi.
+    Faqatgina hech qanday menyu tugmasiga to'g'ri kelmagan erkin xabarlar
+    uchun ishlaydi.
     """
     user = update.effective_user
     msg = update.message
@@ -236,8 +232,6 @@ async def free_chat_entry(update, context):
     if await _deny_if_unsubscribed(update, context):
         return ConversationHandler.END
 
-    # E'tibor: context.user_data.clear() QILINMAYDI — erkin suhbatda ko'p
-    # burilishli muloqot (post → tahrir → vaqt) saqlanib turishi kerak.
     is_admin = (user.id in ADMIN_IDS_SET)
     if not is_admin:
         credits = await db.run_db(db.get_user_credits, user.id)
@@ -254,20 +248,21 @@ async def free_chat_entry(update, context):
 
 
 def register_all_handlers(app):
-    global_jump_handlers = [
+    # 1. Barcha asosiy menyu navigatsiya handlerlari (bosh menyu va kabinet)
+    menu_handlers = [
         MessageHandler(exact(BTN_MAIN_MENU), lambda u, c: guard_menu(u, c, start)),
         MessageHandler(exact(BTN_NEW_POST), lambda u, c: guard_entry(u, c, start_new_post)),
         MessageHandler(exact(BTN_AI_ASSISTANT), lambda u, c: guard_entry(u, c, start_ai_assistant)),
+        MessageHandler(exact(BTN_PENDING), lambda u, c: guard_menu(u, c, list_pending_posts)),
         MessageHandler(exact(BTN_CABINET), lambda u, c: guard_menu(u, c, user_cabinet_menu)),
+        MessageHandler(exact(BTN_HELP), lambda u, c: guard_menu(u, c, help_command)),
+        MessageHandler(exact(BTN_CHANNELS), lambda u, c: guard_menu(u, c, channels_menu)),
+        MessageHandler(exact(BTN_ADD_CHANNEL), lambda u, c: guard_entry(u, c, start_add_channel)),
+        MessageHandler(exact(BTN_CONVERTER), lambda u, c: guard_entry(u, c, start_converter)),
         MessageHandler(exact(BTN_DAILY_BONUS), lambda u, c: guard_menu(u, c, daily_bonus_handler)),
         MessageHandler(exact(BTN_BUY_AD_FREE), lambda u, c: guard_menu(u, c, buy_ad_free_handler)),
         MessageHandler(exact(BTN_INVITE), lambda u, c: guard_menu(u, c, user_invite_menu)),
         MessageHandler(exact(BTN_TRANSFER), lambda u, c: guard_entry(u, c, start_transfer_credits)),
-        MessageHandler(exact(BTN_HELP), lambda u, c: guard_menu(u, c, help_command)),
-        MessageHandler(exact(BTN_ADD_CHANNEL), lambda u, c: guard_entry(u, c, start_add_channel)),
-        MessageHandler(exact(BTN_CHANNELS), lambda u, c: guard_menu(u, c, channels_menu)),
-        MessageHandler(exact(BTN_CONVERTER), lambda u, c: guard_entry(u, c, start_converter)),
-        MessageHandler(exact(BTN_PENDING), lambda u, c: guard_menu(u, c, list_pending_posts)),
         MessageHandler(exact(BTN_ADMIN_PANEL), lambda u, c: guard_menu(u, c, admin_panel_menu)),
         MessageHandler(exact(BTN_STATS), lambda u, c: guard_menu(u, c, show_statistics)),
         MessageHandler(exact(BTN_ALL_POSTS), lambda u, c: guard_menu(u, c, admin_all_posts)),
@@ -282,9 +277,7 @@ def register_all_handlers(app):
         MessageHandler(exact(BTN_CACHE_DB), lambda u, c: guard_entry(u, c, cache_db_menu)),
     ]
 
-    # Erkin yozilgan xabarlar (menyu tugmalari va buyruqlardan tashqari) AI'ga yo'naltiriladi.
-    # Bu entry EN OXIRIDA turadi — boshqa entry point'lar va state handler'lar
-    # birinchi navbatda tekshiriladi (ConversationHandler o'z state'ida tutadi).
+    # 2. Erkin xabarlar — faqat menyu tugmasi bo'lmagan xabarlar uchun ENG OXIRGI filtr
     free_chat_entries = [
         MessageHandler(
             filters.ChatType.PRIVATE
@@ -296,20 +289,9 @@ def register_all_handlers(app):
         ),
     ]
 
+    # 3. Asosiy ConversationHandler
     main_conv = ConversationHandler(
-        entry_points=[
-            MessageHandler(exact(BTN_NEW_POST), lambda u, c: guard_entry(u, c, start_new_post)),
-            MessageHandler(exact(BTN_AI_ASSISTANT), lambda u, c: guard_entry(u, c, start_ai_assistant)),
-            MessageHandler(exact(BTN_TRANSFER), lambda u, c: guard_entry(u, c, start_transfer_credits)),
-            MessageHandler(exact(BTN_ADD_CHANNEL), lambda u, c: guard_entry(u, c, start_add_channel)),
-            MessageHandler(exact(BTN_CONVERTER), lambda u, c: guard_entry(u, c, start_converter)),
-            MessageHandler(exact(BTN_BROADCAST), lambda u, c: guard_entry(u, c, broadcast_start)),
-            MessageHandler(exact(BTN_ADD_SPONSOR), lambda u, c: guard_entry(u, c, start_add_sponsor)),
-            MessageHandler(exact(BTN_CHANNEL_AD), lambda u, c: guard_entry(u, c, start_set_channel_ad)),
-            MessageHandler(exact(BTN_BOT_REPLY_AD), lambda u, c: guard_entry(u, c, start_set_bot_reply_ad)),
-            MessageHandler(exact(BTN_POST_TAG), lambda u, c: guard_entry(u, c, start_set_post_tag)),
-            MessageHandler(exact(BTN_AI_SETTINGS), lambda u, c: guard_entry(u, c, ai_settings_menu)),
-            MessageHandler(exact(BTN_CACHE_DB), lambda u, c: guard_entry(u, c, cache_db_menu)),
+        entry_points=menu_handlers + [
             CallbackQueryHandler(edit_post_time_start, pattern=r"^edit_time:"),
             CallbackQueryHandler(edit_post_content_start, pattern=r"^edit_content:"),
             CallbackQueryHandler(edit_post_btn_start, pattern=r"^edit_btn:"),
@@ -319,44 +301,40 @@ def register_all_handlers(app):
             CommandHandler("broadcast", lambda u, c: guard_entry(u, c, broadcast_start)),
         ] + free_chat_entries,
         states={
-            CHOOSE_CHANNEL: global_jump_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, channel_chosen)],
-            GET_CONTENT: global_jump_handlers + [MessageHandler(filters.ALL & ~filters.COMMAND, content_received)],
-            GET_BTN_TITLE: global_jump_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, btn_title_received)],
-            GET_BTN_URL: global_jump_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, btn_url_received)],
-            GET_REACTIONS: global_jump_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, reactions_received)],
-            GET_AUTO_DELETE: global_jump_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, auto_delete_received)],
-            GET_TIME: global_jump_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, time_received)],
-            DAILY_TIME: global_jump_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, daily_time_received)],
-            RECUR_DAY: global_jump_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, recur_day_chosen)],
-            RECUR_TIME: global_jump_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, recur_time_received)],
-            GET_DURATION: global_jump_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, duration_chosen)],
-            ADD_CHANNEL: global_jump_handlers + [MessageHandler(filters.ALL & ~filters.COMMAND, channel_received)],
-            CONVERT_INPUT: global_jump_handlers + [MessageHandler(filters.ALL & ~filters.COMMAND, converter_received)],
-            # AI_INPUT: matn, rasm, forward, media — barchasi AI intent routing'ga
-            AI_INPUT: global_jump_handlers + [MessageHandler(filters.ALL & ~filters.COMMAND, ai_input_received)],
-            AI_CONFIRM: global_jump_handlers + [
+            CHOOSE_CHANNEL: menu_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, channel_chosen)],
+            GET_CONTENT: menu_handlers + [MessageHandler(filters.ALL & ~filters.COMMAND, content_received)],
+            GET_BTN_TITLE: menu_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, btn_title_received)],
+            GET_BTN_URL: menu_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, btn_url_received)],
+            GET_REACTIONS: menu_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, reactions_received)],
+            GET_AUTO_DELETE: menu_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, auto_delete_received)],
+            GET_TIME: menu_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, time_received)],
+            DAILY_TIME: menu_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, daily_time_received)],
+            RECUR_DAY: menu_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, recur_day_chosen)],
+            RECUR_TIME: menu_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, recur_time_received)],
+            GET_DURATION: menu_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, duration_chosen)],
+            ADD_CHANNEL: menu_handlers + [MessageHandler(filters.ALL & ~filters.COMMAND, channel_received)],
+            CONVERT_INPUT: menu_handlers + [MessageHandler(filters.ALL & ~filters.COMMAND, converter_received)],
+            AI_INPUT: menu_handlers + [MessageHandler(filters.ALL & ~filters.COMMAND, ai_input_received)],
+            AI_CONFIRM: menu_handlers + [
                 CallbackQueryHandler(ai_confirm_callback, pattern=r"^ai_post_"),
-                # Tugmalar o'rniga erkin yozilsa (tahrir/savol/vaqt) — AI yana tahlil qiladi
                 MessageHandler(filters.ALL & ~filters.COMMAND, ai_input_received),
             ],
-            # AI_GET_TIME: vaqt erkin tilda ham yozilishi mumkin; savol ham e'tiborsiz qolmaydi
-            AI_GET_TIME: global_jump_handlers + [
+            AI_GET_TIME: menu_handlers + [
                 MessageHandler(filters.ALL & ~filters.COMMAND, ai_time_received),
                 CallbackQueryHandler(ai_confirm_callback, pattern=r"^ai_post_"),
             ],
-            TRANSFER_TARGET: global_jump_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, transfer_target_received)],
-            TRANSFER_AMOUNT: global_jump_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, transfer_amount_received)],
-            BROADCAST_MESSAGE: global_jump_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, broadcast_send)],
-            ADD_SPONSOR_CHANNEL: global_jump_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, sponsor_channel_received)],
-            SET_CHANNEL_AD: global_jump_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, channel_ad_received)],
-            SET_BOT_REPLY_AD: global_jump_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, bot_reply_ad_received)],
-            SET_POST_TAG: global_jump_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, post_tag_received)],
-            AI_SETTINGS: global_jump_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, ai_settings_received)],
-            EDIT_POST_TIME: global_jump_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, edit_post_time_received)],
-            EDIT_POST_CONTENT: global_jump_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, edit_post_content_received)],
-            EDIT_POST_BTN: global_jump_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, edit_post_btn_received)],
-            EDIT_POST_REACT: global_jump_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, edit_post_react_received)],
-            # conversation_timeout holati: 10 daqiqa faolsizlikda ishga tushadi
+            TRANSFER_TARGET: menu_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, transfer_target_received)],
+            TRANSFER_AMOUNT: menu_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, transfer_amount_received)],
+            BROADCAST_MESSAGE: menu_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, broadcast_send)],
+            ADD_SPONSOR_CHANNEL: menu_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, sponsor_channel_received)],
+            SET_CHANNEL_AD: menu_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, channel_ad_received)],
+            SET_BOT_REPLY_AD: menu_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, bot_reply_ad_received)],
+            SET_POST_TAG: menu_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, post_tag_received)],
+            AI_SETTINGS: menu_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, ai_settings_received)],
+            EDIT_POST_TIME: menu_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, edit_post_time_received)],
+            EDIT_POST_CONTENT: menu_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, edit_post_content_received)],
+            EDIT_POST_BTN: menu_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, edit_post_btn_received)],
+            EDIT_POST_REACT: menu_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, edit_post_react_received)],
             ConversationHandler.TIMEOUT: [MessageHandler(filters.ALL, conversation_timeout_handler)],
         },
         fallbacks=[
@@ -365,20 +343,25 @@ def register_all_handlers(app):
             MessageHandler(exact(BTN_MAIN_MENU), lambda u, c: guard_menu(u, c, start)),
         ],
         allow_reentry=True,
-        # === Asosiy tuzatish: 10 daqiqa faolsizlikda suhbat avtomatik tugaydi ===
-        # Bu "AI goh ishlab, goh ishlamay" muammosini hal qiladi.
         conversation_timeout=CONVERSATION_TIMEOUT_SEC,
     )
 
-    # Global buyruqlar (ConversationHandler dan tashqari)
+    # 4. Global Command Handlerlar
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("profile", user_cabinet_menu))
     app.add_handler(CommandHandler("help", help_command))
     app.add_handler(CommandHandler("admin", admin_panel_menu))
     app.add_handler(CommandHandler("stats", show_statistics))
+    app.add_handler(CommandHandler("cancel", cancel_handler))
+
+    # 5. ConversationHandler ro'yxatdan o'tadi
     app.add_handler(main_conv)
 
-    # Callback handler'lar
+    # 6. Global menyu handlerlari (ConversationHandler dan tashqari holatlar uchun)
+    for mh in menu_handlers:
+        app.add_handler(mh)
+
+    # 7. CallbackQuery Handlerlar
     app.add_handler(CallbackQueryHandler(ad_free_callback, pattern=r"^adfree_"))
     app.add_handler(CallbackQueryHandler(converter_callback, pattern=r"^conv_show:"))
     app.add_handler(CallbackQueryHandler(converter_close_callback, pattern=r"^conv_close$"))
@@ -395,5 +378,4 @@ def register_all_handlers(app):
     app.add_handler(CallbackQueryHandler(noop_callback, pattern=r"^noop$"))
     app.add_handler(CallbackQueryHandler(cache_clear_callback, pattern=r"^cache_clear$"))
     app.add_handler(ChatMemberHandler(on_bot_chat_member_update, ChatMemberHandler.MY_CHAT_MEMBER))
-    # Eski (tugatilgan suhbatdan qolgan) inline tugmalar — ENG OXIRIDA:
     app.add_handler(CallbackQueryHandler(expired_session_callback))
