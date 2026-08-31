@@ -5,6 +5,7 @@ from telegram.ext import (
     CallbackQueryHandler,
     ConversationHandler,
     ChatMemberHandler,
+    PreCheckoutQueryHandler,
     filters,
 )
 from config import ADMIN_ID, ADMIN_IDS_SET
@@ -580,8 +581,9 @@ def register_all_handlers(app):
     app.add_handler(CommandHandler("create_promo", create_promo_command))
     app.add_handler(CommandHandler("admin_stats", admin_stats_command))
 
-    # Stars to'lov handlerlari
-    from telegram.ext import PreCheckoutQueryHandler
+    # Stars to'lov handlerlari — Telegram Stars (XTR) to'lovlari uchun.
+    # PreCheckoutQuery: foydalanuvchi to'lovni tasdiqlashidan oldin so'raladi.
+    # SuccessfulPayment: to'lov muvaffaqiyatli o'tgach PRO tarifni faollashtiramiz.
     app.add_handler(PreCheckoutQueryHandler(precheckout_callback))
     app.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_callback))
 
@@ -593,6 +595,10 @@ def register_all_handlers(app):
         app.add_handler(mh)
 
     # 4. Inline Callback Handlerlar
+    # Subscription (Premium) tugmalari — conversation faol bo'lmasa ham (masalan,
+    # suhbat muddati tugagach eski karta tugmalari bosilsa) Stars invoice ochilishi
+    # uchun global reyestr. Faol conversation bo'lsa main_conv birinchi ishlaydi.
+    app.add_handler(CallbackQueryHandler(subscription_callback, pattern=r"^sub_"))
     app.add_handler(CallbackQueryHandler(ad_free_callback, pattern=r"^adfree_"))
     app.add_handler(CallbackQueryHandler(converter_callback, pattern=r"^conv_show:"))
     app.add_handler(CallbackQueryHandler(converter_close_callback, pattern=r"^conv_close$"))

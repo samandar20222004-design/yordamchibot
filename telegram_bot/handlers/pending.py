@@ -13,7 +13,8 @@ from utils.helpers import (
 logger = logging.getLogger(__name__)
 
 tashkent_tz = pytz.timezone("Asia/Tashkent")
-EDIT_POST_TIME    = 201
+# Eslatma: 201 SLOT_ADD (Queue) bilan to'qnashgan edi — endi 205 unikal.
+EDIT_POST_TIME    = 205
 EDIT_POST_CONTENT = 202  # Matnni tahrirlash
 EDIT_POST_BTN     = 203  # Tugma havolasini o'zgartirish
 EDIT_POST_REACT   = 204  # Reaksiyalarni o'zgartirish

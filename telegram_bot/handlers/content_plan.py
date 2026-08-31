@@ -11,9 +11,10 @@ from utils.helpers import html_escape, safe_html
 logger = logging.getLogger(__name__)
 
 # States
-PLAN_CHOOSE_CHANNEL = 401
-PLAN_GET_TOPIC = 402
-PLAN_VIEW = 403
+# Eslatma: 401-403 AI_ASSISTANT bilan to'qnashgan edi — endi 411-413 unikal.
+PLAN_CHOOSE_CHANNEL = 411
+PLAN_GET_TOPIC = 412
+PLAN_VIEW = 413
 
 
 def _get_plan_channel_keyboard(channels: list) -> InlineKeyboardMarkup:
