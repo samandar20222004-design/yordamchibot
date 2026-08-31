@@ -1,11 +1,11 @@
 import logging
 from datetime import datetime, timedelta
 import pytz
-from telegram import Update
+from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import ContextTypes, ConversationHandler
 import database as db
 from keyboards.inline import render_pending_list
-from keyboards.default import get_cancel_keyboard, get_main_keyboard
+from keyboards.default import get_cancel_keyboard, get_main_keyboard, get_reactions_keyboard
 from utils.helpers import (
     format_post_type_label, format_schedule_line, html_escape, check_rate_limit, parse_future_time,
 )
@@ -13,14 +13,18 @@ from utils.helpers import (
 logger = logging.getLogger(__name__)
 
 tashkent_tz = pytz.timezone("Asia/Tashkent")
-EDIT_POST_TIME = 201
+EDIT_POST_TIME    = 201
+EDIT_POST_CONTENT = 202  # Matnni tahrirlash
+EDIT_POST_BTN     = 203  # Tugma havolasini o'zgartirish
+EDIT_POST_REACT   = 204  # Reaksiyalarni o'zgartirish
+
 
 async def _build_pending_view(user_id: int):
     user_code = await db.run_db(db.get_user_code, user_id)
     posts = await db.run_db(db.get_pending_posts, user_id)
     if not posts:
         return "⏳ <b>Sizda kutilayotgan faol postlar mavjud emas.</b>", None
-    
+
     text = f"⏳ <b>Kutilayotgan postlaringiz ({len(posts)} ta):</b>\n\n"
     for p in posts:
         pid, ch_title, p_type, s_time, p_num, r_type, r_day, r_time = p
@@ -35,11 +39,13 @@ async def _build_pending_view(user_id: int):
     markup = render_pending_list(posts, user_code)
     return text, markup
 
+
 async def list_pending_posts(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
     user_id = update.effective_user.id
     text, markup = await _build_pending_view(user_id)
     await update.message.reply_text(text, reply_markup=markup, parse_mode="HTML")
+
 
 async def cancel_post_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -72,37 +78,51 @@ async def refresh_pending_callback(update: Update, context: ContextTypes.DEFAULT
         await query.answer("Yangilab bo'lmadi", show_alert=False)
         logger.warning("Pending yangilash xatosi: %s", e)
 
+
+# ============================================================
+# Postni tahrirlash oqimlari
+# ============================================================
+
+async def _get_owned_post(post_id: int, user_id: int, update: Update):
+    """Post mavjudligi va egasini tekshiradi. Muvaffaqiyatsiz bo'lsa None qaytadi."""
+    post = await db.run_db(db.get_post_by_id, post_id)
+    if not post:
+        await update.message.reply_text("❌ Post topilmadi.", reply_markup=get_main_keyboard())
+        return None
+    # post[1] = user_id (get_post_by_id jadvalida 2-ustun)
+    if post[1] != user_id:
+        await update.message.reply_text("❌ Bu post sizga tegishli emas.")
+        return None
+    return post
+
+
+# ------ Vaqt tahrirlash ------
+
 async def edit_post_time_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     parts = query.data.split(":")
     post_id = int(parts[1])
-    
+
     context.user_data["editing_post_id"] = post_id
+    context.user_data["edit_mode"] = "time"
     await query.answer()
     await context.bot.send_message(
         chat_id=query.from_user.id,
         text="🕒 <b>Post uchun yangi chiqish vaqtini yuboring:</b>\n\n"
              "• Bir martalik post bo'lsa: <code>2026-08-30 20:00</code>\n"
+             "• Erkin format ham ishlaydi: <code>ertaga 18:00</code>, <code>bugun 10:00</code>\n"
              "• Har kunlik post bo'lsa faqat soat: <code>10:00</code>",
         reply_markup=get_cancel_keyboard(),
         parse_mode="HTML"
     )
     return EDIT_POST_TIME
 
+
 async def edit_post_time_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip()
     post_id = context.user_data.get("editing_post_id")
-    # Tuzatildi: db.get_post_by_id sinxron funksiya bo'lib, event loop'ni bloklab
-    # qo'ymasligi uchun run_db orqali alohida thread'da chaqiriladi.
-    post = await db.run_db(db.get_post_by_id, post_id)
-    # Tuzatildi: avval bu yerda mavjud bo'lmagan `query` o'zgaruvchisi ishlatilgan edi
-    # (NameError yuz berardi). Endi to'g'ridan-to'g'ri foydalanuvchi ID'si tekshiriladi.
-    if post and post[1] != update.effective_user.id:
-        await update.message.reply_text("❌ Bu post sizga tegishli emas.")
-        return ConversationHandler.END
-    
+    post = await _get_owned_post(post_id, update.effective_user.id, update)
     if not post:
-        await update.message.reply_text("❌ Post topilmadi.", reply_markup=get_main_keyboard())
         return ConversationHandler.END
 
     now = datetime.now(tashkent_tz)
@@ -122,10 +142,150 @@ async def edit_post_time_received(update: Update, context: ContextTypes.DEFAULT_
                 await update.message.reply_text("⚠️ Kelajakdagi vaqtni kiriting:")
                 return EDIT_POST_TIME
             await db.run_db(db.update_post_time, post_id, new_time, user_id=update.effective_user.id)
-            
+
         await update.message.reply_text("✅ <b>Post vaqti muvaffaqiyatli yangilandi!</b>", reply_markup=get_main_keyboard(), parse_mode="HTML")
         context.user_data.clear()
         return ConversationHandler.END
     except Exception:
         await update.message.reply_text("⚠️ Format xato! Masalan: <code>2026-08-30 20:00</code> yoki <code>10:00</code>", parse_mode="HTML")
         return EDIT_POST_TIME
+
+
+# ------ Matn tahrirlash ------
+
+async def edit_post_content_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Inline tugma orqali post matnini tahrirlash boshlash."""
+    query = update.callback_query
+    parts = query.data.split(":")
+    post_id = int(parts[1])
+
+    context.user_data["editing_post_id"] = post_id
+    context.user_data["edit_mode"] = "content"
+    await query.answer()
+    await context.bot.send_message(
+        chat_id=query.from_user.id,
+        text="✏️ <b>Post uchun yangi matnni yuboring:</b>\n\n"
+             "HTML teglar (<b>bold</b>, <i>italic</i>, <code>code</code>) qo'llab-quvvatlanadi.",
+        reply_markup=get_cancel_keyboard(),
+        parse_mode="HTML",
+    )
+    return EDIT_POST_CONTENT
+
+
+async def edit_post_content_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    new_content = update.message.text
+    post_id = context.user_data.get("editing_post_id")
+    post = await _get_owned_post(post_id, update.effective_user.id, update)
+    if not post:
+        return ConversationHandler.END
+
+    updated = await db.run_db(db.update_post_content, post_id, update.effective_user.id, content=new_content)
+    if updated:
+        await update.message.reply_text("✅ <b>Post matni yangilandi!</b>", reply_markup=get_main_keyboard(), parse_mode="HTML")
+    else:
+        await update.message.reply_text("❌ O'zgartirib bo'lmadi.", reply_markup=get_main_keyboard())
+    context.user_data.clear()
+    return ConversationHandler.END
+
+
+# ------ Tugma URL tahrirlash ------
+
+async def edit_post_btn_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Inline tugma orqali post tugmasini tahrirlash."""
+    query = update.callback_query
+    parts = query.data.split(":")
+    post_id = int(parts[1])
+
+    context.user_data["editing_post_id"] = post_id
+    context.user_data["edit_mode"] = "btn"
+    await query.answer()
+    await context.bot.send_message(
+        chat_id=query.from_user.id,
+        text="🔗 <b>Yangi tugma matnini yuboring:</b>\n\n"
+             "Format: <code>Tugma matni | https://havola.uz</code>\n"
+             "Tugmani o'chirish uchun: <code>yo'q</code> deb yozing.",
+        reply_markup=get_cancel_keyboard(),
+        parse_mode="HTML",
+    )
+    return EDIT_POST_BTN
+
+
+async def edit_post_btn_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = update.message.text.strip()
+    post_id = context.user_data.get("editing_post_id")
+    post = await _get_owned_post(post_id, update.effective_user.id, update)
+    if not post:
+        return ConversationHandler.END
+
+    if text.lower() in ("yo'q", "yoq", "none", "-", "o'chir"):
+        updated = await db.run_db(db.update_post_content, post_id, update.effective_user.id, btn_text="", btn_url="")
+        msg = "✅ <b>Tugma o'chirildi!</b>"
+    elif "|" in text:
+        parts = text.split("|", 1)
+        btn_title = parts[0].strip()
+        btn_link = parts[1].strip()
+        if btn_link.startswith("@"):
+            btn_link = f"https://t.me/{btn_link.lstrip('@')}"
+        elif not btn_link.startswith(("http://", "https://", "t.me/")):
+            btn_link = "https://" + btn_link
+        updated = await db.run_db(db.update_post_content, post_id, update.effective_user.id, btn_text=btn_title, btn_url=btn_link)
+        msg = f"✅ <b>Tugma yangilandi:</b> <code>{html_escape(btn_title)}</code>"
+    else:
+        await update.message.reply_text(
+            "⚠️ Format xato!\nMasalan: <code>Batafsil | https://sayt.uz</code>\nYoki o'chirish: <code>yo'q</code>",
+            parse_mode="HTML",
+        )
+        return EDIT_POST_BTN
+
+    if updated:
+        await update.message.reply_text(msg, reply_markup=get_main_keyboard(), parse_mode="HTML")
+    else:
+        await update.message.reply_text("❌ O'zgartirib bo'lmadi.", reply_markup=get_main_keyboard())
+    context.user_data.clear()
+    return ConversationHandler.END
+
+
+# ------ Reaksiya tahrirlash ------
+
+async def edit_post_react_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Inline tugma orqali post reaksiyalarini yoqish/o'chirish."""
+    query = update.callback_query
+    parts = query.data.split(":")
+    post_id = int(parts[1])
+
+    context.user_data["editing_post_id"] = post_id
+    context.user_data["edit_mode"] = "react"
+    await query.answer()
+    await context.bot.send_message(
+        chat_id=query.from_user.id,
+        text="👍 <b>Post reaksiyalarini o'zgartirish:</b>\n\nQuyidagidan birini tanlang:",
+        reply_markup=get_reactions_keyboard(),
+        parse_mode="HTML",
+    )
+    return EDIT_POST_REACT
+
+
+async def edit_post_react_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    from keyboards.default import BTN_REACT_DEFAULT, BTN_NO_REACT
+    text = update.message.text.strip()
+    post_id = context.user_data.get("editing_post_id")
+    post = await _get_owned_post(post_id, update.effective_user.id, update)
+    if not post:
+        return ConversationHandler.END
+
+    if text == BTN_REACT_DEFAULT:
+        enable = True
+    elif text == BTN_NO_REACT:
+        enable = False
+    else:
+        await update.message.reply_text("⚠️ Tugmalardan birini tanlang:", reply_markup=get_reactions_keyboard())
+        return EDIT_POST_REACT
+
+    updated = await db.run_db(db.update_post_content, post_id, update.effective_user.id, enable_reactions=enable)
+    msg = "✅ <b>Reaksiyalar yoqildi!</b>" if enable else "✅ <b>Reaksiyalar o'chirildi!</b>"
+    if updated:
+        await update.message.reply_text(msg, reply_markup=get_main_keyboard(), parse_mode="HTML")
+    else:
+        await update.message.reply_text("❌ O'zgartirib bo'lmadi.", reply_markup=get_main_keyboard())
+    context.user_data.clear()
+    return ConversationHandler.END
