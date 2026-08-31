@@ -2,7 +2,7 @@ import logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.error import TelegramError
 from telegram.ext import ContextTypes, ConversationHandler
-from config import ADMIN_ID
+from config import ADMIN_ID, ADMIN_IDS_SET
 import database as db
 from keyboards.default import get_cancel_keyboard, get_main_keyboard
 from keyboards.inline import render_channels_list
@@ -136,7 +136,7 @@ async def _verify_channel_permissions(bot, chat_id, user_id: int, is_admin_user:
 async def channel_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = update.message
     user_id = update.effective_user.id
-    is_admin = (user_id == ADMIN_ID)
+    is_admin = (user_id in ADMIN_IDS_SET)
 
     raw_target = None
     if msg.forward_from_chat:
@@ -187,7 +187,7 @@ async def remove_channel_callback(update: Update, context: ContextTypes.DEFAULT_
     query = update.callback_query
     channel_id = query.data.split(":")[1]
     user_id = query.from_user.id
-    is_admin = (user_id == ADMIN_ID)
+    is_admin = (user_id in ADMIN_IDS_SET)
 
     removed = await db.run_db(db.remove_channel, user_id, channel_id, is_admin)
     channels = await db.run_db(db.get_user_channels, user_id)
@@ -227,7 +227,7 @@ async def on_bot_chat_member_update(update: Update, context: ContextTypes.DEFAUL
         return
 
     if new_status in ("administrator", "creator"):
-        is_admin = (user_id == ADMIN_ID)
+        is_admin = (user_id in ADMIN_IDS_SET)
         success, reason = await db.run_db(
             db.save_channel, user_id, str(chat.id), chat.title or "Telegram Kanal", is_admin
         )
