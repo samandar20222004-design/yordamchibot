@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 import pytz
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import ContextTypes, ConversationHandler
-from config import ADMIN_ID
+from config import ADMIN_ID, ADMIN_IDS_SET
 import database as db
 from keyboards.default import (
     BTN_ALL_CHANNELS_TARGET, BTN_MAIN_MENU, BTN_SKIP_BUTTON,
@@ -42,7 +42,7 @@ GET_DURATION = 110
 async def start_new_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
     user_id = update.effective_user.id
-    is_admin = (user_id == ADMIN_ID)
+    is_admin = (user_id in ADMIN_IDS_SET)
     channels = await db.run_db(db.get_user_channels, user_id)
     if not channels:
         await update.message.reply_text(
@@ -278,7 +278,7 @@ async def auto_delete_received(update: Update, context: ContextTypes.DEFAULT_TYP
     return GET_TIME
 
 async def _save_and_finish(update, context, post_time, recurrence_type='none', recurrence_day=None, recurrence_time_str=None, end_date=None):
-    is_admin = (update.effective_user.id == ADMIN_ID)
+    is_admin = (update.effective_user.id in ADMIN_IDS_SET)
     user_id = update.effective_user.id
     selected_channel_id = context.user_data["selected_channel_id"]
     channel_title = context.user_data.get("selected_channel_title", "Kanal")
