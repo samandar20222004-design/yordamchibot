@@ -233,10 +233,9 @@ async def noop_callback(update, context):
 
 async def expired_session_callback(update, context):
     query = update.callback_query
+    # Silent answer — no chat message to avoid phantom "Bu amal allaqachon tugatilgan"
+    # when user switches menus and presses stale inline buttons.
     await query.answer()
-    await query.message.reply_text(
-        "ℹ️ Bu amal allaqachon tugatilgan. Iltimos, menyudan kerakli bo'limni qayta tanlang yoki /start bosing.",
-    )
 
 
 async def conversation_timeout_handler(update, context):

@@ -15,8 +15,9 @@ PROMO_INPUT = 602
 
 # Stars to'lov paketlari
 STARS_PLANS = {
-    "stars_1m": {"label": "⭐️ 1 oylik PRO — 75 Stars", "stars": 75, "days": 30, "description": "~$1.5"},
-    "stars_3m": {"label": "⭐️ 3 oylik PRO — 175 Stars", "stars": 175, "days": 90, "description": "~$3.5"},
+    "stars_1m": {"label": "⭐️ 1 oylik (75 Stars)", "stars": 75, "days": 30, "description": "~$1.5"},
+    "stars_3m": {"label": "⭐️ 3 oylik (175 Stars)", "stars": 175, "days": 90, "description": "~$3.5"},
+    "stars_1y": {"label": "⭐️ 1 yillik (550 Stars)", "stars": 550, "days": 365, "description": "~$11.0 / -40% chegirma"},
 }
 
 # Limit xabarlari
@@ -78,6 +79,13 @@ def _build_subscription_card(plan_info: dict) -> str:
             "• Cheksiz Queue (Navbat) postlari",
             "• To'liq analitika",
             "• Ustuvor yordam",
+            "",
+            "💳 <b>PRO Tarif narxlari:</b>",
+            "• 1 oy — ⭐️ 75 Stars (~$1.5)",
+            "• 3 oy — ⭐️ 175 Stars (~$3.5)",
+            "• 1 yil — ⭐️ 550 Stars (~$11.0 / -40% chegirma)",
+            "",
+            "👥 Referal: 3 ta do'stingizni taklif qiling va 1 oy bepul PRO oling!",
         ])
 
     return "\n".join(lines)
@@ -95,12 +103,15 @@ def _get_subscription_keyboard(plan: str) -> InlineKeyboardMarkup:
 
 def _get_stars_keyboard() -> InlineKeyboardMarkup:
     """Stars to'lov tanlash keyboard."""
-    keyboard = []
-    for plan_key, plan_info in STARS_PLANS.items():
-        keyboard.append([
-            InlineKeyboardButton(plan_info["label"], callback_data=f"sub_pay:{plan_key}")
-        ])
-    keyboard.append([InlineKeyboardButton("⬅️ Orqaga", callback_data="sub_back")])
+    keyboard = [
+        [
+            InlineKeyboardButton("⭐️ 1 oylik (75 Stars)", callback_data="sub_pay:stars_1m"),
+            InlineKeyboardButton("⭐️ 3 oylik (175 Stars)", callback_data="sub_pay:stars_3m"),
+        ],
+        [InlineKeyboardButton("⭐️ 1 yillik (550 Stars)", callback_data="sub_pay:stars_1y")],
+        [InlineKeyboardButton("🎁 Promo-kod kiritish", callback_data="sub_promo")],
+        [InlineKeyboardButton("⬅️ Orqaga", callback_data="sub_back")],
+    ]
     return InlineKeyboardMarkup(keyboard)
 
 
@@ -140,7 +151,8 @@ async def subscription_callback(update: Update, context: ContextTypes.DEFAULT_TY
             "💳 <b>Obuna bo'lish</b>\n\n"
             "Telegram Stars orqali to'lov qiling:\n\n"
             "⭐️ 1 oylik PRO — 75 Stars (~$1.5)\n"
-            "⭐️ 3 oylik PRO — 175 Stars (~$3.5)\n\n"
+            "⭐️ 3 oylik PRO — 175 Stars (~$3.5)\n"
+            "⭐️ 1 yillik PRO — 550 Stars (~$11.0 / -40% chegirma)\n\n"
             "Quyidagi tugmalardan birini tanlang:",
             reply_markup=_get_stars_keyboard(),
             parse_mode="HTML",
@@ -397,7 +409,9 @@ async def successful_payment_callback(update: Update, context: ContextTypes.DEFA
     payload = payment.invoice_payload or ""
 
     # PRO muddatini aniqlash
-    if total_stars >= 175:
+    if total_stars >= 550:
+        days = 365  # 1 yillik
+    elif total_stars >= 175:
         days = 90  # 3 oylik
     else:
         days = 30  # 1 oylik
