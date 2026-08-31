@@ -3,7 +3,7 @@ import logging
 from telegram import Update
 from telegram.error import TelegramError, RetryAfter, TimedOut, NetworkError, BadRequest
 from telegram.ext import ContextTypes, ConversationHandler
-from config import ADMIN_ID
+from config import ADMIN_IDS_SET
 import database as db
 from keyboards.default import (
     get_admin_panel_keyboard,
@@ -282,7 +282,8 @@ async def post_tag_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 def is_admin(user_id: int) -> bool:
-    return user_id == ADMIN_ID
+    """Ko'p adminli tekshiruv: ADMIN_ID va ADMIN_IDS ichidan birida bo'lsa admin."""
+    return user_id in ADMIN_IDS_SET
 
 async def admin_panel_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id):
@@ -370,7 +371,7 @@ async def start_add_sponsor(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "➕ <b>Homiy kanal qo'shish:</b>\n\n"
         "Kanal ma'lumotlarini quyidagi formatda yuboring:\n"
         "<code>KANAL_ID|KANAL_NOMI|HAVOLA</code>\n\n"
-        "👉 <i>Masalan: -1001234567890|Mening Kanalim|[https://t.me/mening_kanalim](https://t.me/mening_kanalim)</i>",
+        "👉 <i>Masalan: -1001234567890|Mening Kanalim|https://t.me/mening_kanalim</i>",
         reply_markup=get_cancel_keyboard(),
         parse_mode="HTML"
     )
