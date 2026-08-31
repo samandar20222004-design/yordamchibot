@@ -62,9 +62,17 @@ def render_pending_list(posts: list, user_code: str) -> InlineKeyboardMarkup:
     for p in posts:
         pid, ch_title, p_type, s_time, p_num, r_type, r_day, r_time = p
         code_label = f"{user_code}-{p_num}" if p_num else f"#{pid}"
+        # Har bir post uchun 2 qator tugma:
+        # 1-qator: vaqt o'zgartirish, matn tahrirlash
+        # 2-qator: tugma URL, reaksiya, bekor qilish
         keyboard.append([
-            InlineKeyboardButton(f"✏️ {code_label} vaqtini o'zgartirish", callback_data=f"edit_time:{pid}"),
-            InlineKeyboardButton(f"❌ {code_label} bekor qilish", callback_data=f"cancel_post:{pid}")
+            InlineKeyboardButton(f"🕒 {code_label} vaqt", callback_data=f"edit_time:{pid}"),
+            InlineKeyboardButton(f"✏️ {code_label} matn", callback_data=f"edit_content:{pid}"),
+        ])
+        keyboard.append([
+            InlineKeyboardButton(f"🔗 Tugma", callback_data=f"edit_btn:{pid}"),
+            InlineKeyboardButton(f"👍 Reaksiya", callback_data=f"edit_react:{pid}"),
+            InlineKeyboardButton(f"❌ Bekor", callback_data=f"cancel_post:{pid}"),
         ])
     # Ro'yxatni yangilash (amal bajargandan keyin holatni ko'rish) va yopish tugmalari
     keyboard.append([
