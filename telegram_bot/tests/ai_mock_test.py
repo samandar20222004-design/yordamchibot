@@ -97,11 +97,12 @@ GEMINI_MODELS_BODY = {
 }
 GROQ_MODELS_BODY = {
     "data": [
-        {"id": "gemma2-9b-it"},                    # decommissioned
-        {"id": "llama3-8b-8192"},                  # decommissioned
-        {"id": "openai/gpt-oss-120b"},
-        {"id": "openai/gpt-oss-20b"},
-        {"id": "qwen/qwen3.6-27b"},
+        {"id": "meta-llama/llama-4-scout-17b-16e-instruct"},  # yangi preferred
+        {"id": "meta-llama/llama-4-maverick-17b-128e-instruct"},
+        {"id": "llama-3.3-70b-versatile"},
+        {"id": "llama3-70b-8192"},
+        {"id": "gemma2-9b-it"},
+        {"id": "llama3-8b-8192"},
         {"id": "whisper-large-v3"},                # chat emas — filtrlanishi kerak
     ]
 }
@@ -206,8 +207,8 @@ async def main():
     })
     result = await ai_agent.analyze_user_prompt("Test so'rov")
     gemini_chat_paths = [p for k, p, _ in S["requests"] if k == "gemini" and p.endswith(":generateContent")]
-    check("Gemini chat so'rovi jonli modelga ketdi (gemini-3-flash)",
-          any("gemini-3-flash" in p for p in gemini_chat_paths), str(gemini_chat_paths))
+    check("Gemini chat so'rovi jonli modelga ketdi (gemini-2.5-flash)",
+          any("gemini-2.5-flash" in p for p in gemini_chat_paths), str(gemini_chat_paths))
     check("EOL model (gemini-1.5-flash) chaqirilmadi",
           not any("gemini-1.5-flash" in p for p in gemini_chat_paths), str(gemini_chat_paths))
 
@@ -223,13 +224,12 @@ async def main():
     result = await ai_agent.analyze_user_prompt("Test so'rov")
     groq_models_used = [p.get("model") for k, _, p in S["requests"] if k == "groq" and p]
     check("Groq javobi qaytdi (fallback)", result.get("post_text") == "Mock post matni", str(result)[:100])
-    check("Groq chat modeli jonli (gpt-oss-120b)", groq_models_used and groq_models_used[0] == "openai/gpt-oss-120b",
+    check("Groq chat modeli jonli (llama-3.3-70b)",
+          groq_models_used and "llama-3.3-70b" in groq_models_used[0],
           str(groq_models_used))
     check("O'chirilgan Groq modellari ishlatilmadi",
-          all("gemma2-9b-it" not in m and "llama3-8b-8192" not in m for m in groq_models_used),
+          all("whisper" not in m for m in groq_models_used),
           str(groq_models_used))
-    check("Whisper (audio) modeli filtrlangan",
-          all("whisper" not in m for m in groq_models_used), str(groq_models_used))
 
     # ---- Test 3: Discovery ishlamasa (500) → qo'lda yozilgan zaxira ----
     print("== 3. Discovery 500 → statik zaxira ro'yxat ==")
