@@ -10,7 +10,7 @@ from telegram.ext import (
 from config import ADMIN_ID, ADMIN_IDS_SET
 from keyboards.default import (
     exact,
-    BTN_NEW_POST, BTN_AI, BTN_AI_ASSISTANT, BTN_PENDING, BTN_SETTINGS, BTN_CABINET,
+    BTN_NEW_POST, BTN_AI, BTN_AI_ASSISTANT, BTN_AI_STUDIO, BTN_PENDING, BTN_SETTINGS, BTN_CABINET,
     BTN_HELP, BTN_CONVERTER, BTN_BACK, BTN_MAIN_MENU,
     BTN_CHANNELS, BTN_DAILY_BONUS, BTN_BUY_AD_FREE, BTN_INVITE, BTN_TRANSFER,
     BTN_ADMIN_PANEL, BTN_STATS, BTN_ALL_POSTS, BTN_ALL_CHANNELS,
@@ -19,7 +19,7 @@ from keyboards.default import (
     BTN_ADD_CHANNEL, BTN_QUEUE, BTN_CONTENT_PLAN, BTN_ANALYTICS, BTN_PREMIUM,
     BTN_CHANNEL_EXTRACT,
 )
-from keyboards.inline import get_subscription_check_keyboard
+from keyboards.inline import get_subscription_check_keyboard, get_ai_studio_keyboard
 
 # 1. START & ASOSIY MODUL
 from handlers.start import (
@@ -239,6 +239,80 @@ async def expired_session_callback(update, context):
     await query.answer()
 
 
+async def ai_studio_menu(update, context):
+    """AI Studio sub-menu — inline tugmalar bilan."""
+    await update.message.reply_text(
+        "🤖 <b>PostAssist AI Studio</b>\n\n"
+        "Kanal kontentini yaratish uchun kerakli vositani tanlang:",
+        reply_markup=get_ai_studio_keyboard(),
+        parse_mode="HTML",
+    )
+    return ConversationHandler.END
+
+
+async def ai_studio_callback(update, context):
+    """AI Studio inline tugmalari."""
+    query = update.callback_query
+    data = query.data
+
+    if data == "studio_ai_post":
+        await query.answer()
+        try:
+            await query.message.delete()
+        except Exception:
+            pass
+        await query.message.reply_text(
+            "✍️ <b>AI Post yaratish</b>\n\n"
+            "Post mavzusini yozing yoki rasm/fayl yuboring.\n"
+            "<i>Chiqish uchun '🔙 Asosiy menyu' tugmasini bosing.</i>",
+            reply_markup=get_cancel_keyboard(),
+            parse_mode="HTML",
+        )
+        return
+
+    if data == "studio_extract":
+        await query.answer()
+        try:
+            await query.message.delete()
+        except Exception:
+            pass
+        await query.message.reply_text(
+            "📢 <b>Ochiq kanaldan olish</b>\n\n"
+            "Ochiq kanal nikini yozing (masalan: @channel_name):",
+            reply_markup=get_cancel_keyboard(),
+            parse_mode="HTML",
+        )
+        return
+
+    if data == "studio_content_plan":
+        await query.answer()
+        try:
+            await query.message.delete()
+        except Exception:
+            pass
+        await query.message.reply_text(
+            "🧠 <b>Kontent-reja</b>\n\n"
+            "Kontent-reja yaratish uchun kanal mavzusini yozing:",
+            reply_markup=get_cancel_keyboard(),
+            parse_mode="HTML",
+        )
+        return
+
+    if data == "studio_close":
+        await query.answer()
+        try:
+            await query.message.delete()
+        except Exception:
+            pass
+        user_id = query.from_user.id
+        is_admin = user_id in ADMIN_IDS_SET
+        await query.message.reply_text(
+            "🏠 Asosiy menyu.",
+            reply_markup=get_main_keyboard(is_admin),
+        )
+        return
+
+
 async def conversation_timeout_handler(update, context):
     is_admin = update.effective_user.id in ADMIN_IDS_SET if update.effective_user else False
     context.user_data.clear()
@@ -307,8 +381,9 @@ def register_all_handlers(app):
         MessageHandler(exact(BTN_CACHE_DB), lambda u, c: guard_entry(u, c, cache_db_menu)),
     ]
 
-    # 7. AI Post Yordamchi (Faqat shu tugma bosilganda o'tadi)
+    # 7. AI Studio (sub-menu ko'rsatadi)
     ai_handlers = [
+        MessageHandler(exact(BTN_AI_STUDIO), lambda u, c: guard_menu(u, c, ai_studio_menu)),
         MessageHandler(exact(BTN_AI, BTN_AI_ASSISTANT), lambda u, c: guard_entry(u, c, start_ai_assistant)),
     ]
 
@@ -535,5 +610,6 @@ def register_all_handlers(app):
     app.add_handler(CallbackQueryHandler(noop_callback, pattern=r"^noop$"))
     app.add_handler(CallbackQueryHandler(cache_clear_callback, pattern=r"^cache_clear$"))
     app.add_handler(CallbackQueryHandler(admin_dashboard_callback, pattern=r"^adm_"))
+    app.add_handler(CallbackQueryHandler(ai_studio_callback, pattern=r"^studio_"))
     app.add_handler(ChatMemberHandler(on_bot_chat_member_update, ChatMemberHandler.MY_CHAT_MEMBER))
     app.add_handler(CallbackQueryHandler(expired_session_callback))

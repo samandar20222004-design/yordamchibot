@@ -7,6 +7,7 @@ from telegram.ext import filters
 # ============================================================
 BTN_NEW_POST = "➕ Yangi post rejalashtirish"
 BTN_AI = "🤖 AI Post Yordamchi"
+BTN_AI_STUDIO = "✨ AI Studio"
 BTN_PENDING = "⏳ Kutilayotgan postlar"
 BTN_SETTINGS = "👤 Kabinet & Sozlamalar"
 BTN_CONVERTER = "🔤 Krill-Lotin konverter"
@@ -85,11 +86,9 @@ def exact(*texts):
 
 def get_main_keyboard(is_admin=False):
     keyboard = [
-        [BTN_NEW_POST, BTN_AI],
-        [BTN_CHANNEL_EXTRACT, BTN_QUEUE],
-        [BTN_CONTENT_PLAN, BTN_ANALYTICS],
+        [BTN_NEW_POST, BTN_AI_STUDIO],
+        [BTN_QUEUE, BTN_ANALYTICS],
         [BTN_PREMIUM, BTN_SETTINGS],
-        [BTN_HELP],
     ]
     if is_admin:
         keyboard.append([BTN_ADMIN_PANEL])

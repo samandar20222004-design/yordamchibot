@@ -744,19 +744,17 @@ def test_tone_migration_sql():
 
 
 def test_main_keyboard_content_plan():
-    """Asosiy menyuda Kontent-reja tugmasi bor."""
+    """Kontent-reja tugmasi mavjud (AI Studio sub-menuda)."""
     print("== Main keyboard content plan ==")
-    from keyboards.default import get_main_keyboard, BTN_CONTENT_PLAN
+    from keyboards.default import get_main_keyboard, BTN_CONTENT_PLAN, BTN_AI_STUDIO
 
     check("BTN_CONTENT_PLAN mavjud", BTN_CONTENT_PLAN == "🧠 Kontent-reja")
 
+    # Content Plan endi AI Studio sub-menuda, asosiy menyuda emas
     kb = get_main_keyboard(False)
     all_texts = [b.text for row in kb.keyboard for b in row]
-    check("main kb: Kontent-reja bor", BTN_CONTENT_PLAN in all_texts)
-
-    kb_admin = get_main_keyboard(True)
-    all_texts_admin = [b.text for row in kb_admin.keyboard for b in row]
-    check("admin kb: Kontent-reja bor", BTN_CONTENT_PLAN in all_texts_admin)
+    check("main kb: Kontent-reja yo'q (AI Studio ichida)", BTN_CONTENT_PLAN not in all_texts)
+    check("main kb: AI Studio bor", BTN_AI_STUDIO in all_texts)
 
 
 def test_channels_list_with_tone():
@@ -1360,15 +1358,17 @@ def test_channel_reader_error_handling():
 
 
 def test_main_keyboard_extract():
-    """Asosiy menyuda Ochiq kanaldan olish tugmasi bor."""
+    """Ochiq kanaldan olish tugmasi mavjud (AI Studio sub-menuda)."""
     print("== Main keyboard extract ==")
-    from keyboards.default import get_main_keyboard, BTN_CHANNEL_EXTRACT
+    from keyboards.default import get_main_keyboard, BTN_CHANNEL_EXTRACT, BTN_AI_STUDIO
 
     check("BTN_CHANNEL_EXTRACT mavjud", BTN_CHANNEL_EXTRACT == "📢 Ochiq kanaldan olish")
 
+    # Extract endi AI Studio sub-menuda, asosiy menyuda emas
     kb = get_main_keyboard(False)
     all_texts = [b.text for row in kb.keyboard for b in row]
-    check("main kb: Extract bor", BTN_CHANNEL_EXTRACT in all_texts)
+    check("main kb: Extract yo'q (AI Studio ichida)", BTN_CHANNEL_EXTRACT not in all_texts)
+    check("main kb: AI Studio bor", BTN_AI_STUDIO in all_texts)
 
 
 def test_admin_dashboard():
@@ -1445,6 +1445,40 @@ def test_admin_dashboard_stats_db():
 
     check("get_admin_dashboard_stats mavjud", hasattr(db_mod, "get_admin_dashboard_stats"))
     check("get_admin_dashboard_stats callable", callable(db_mod.get_admin_dashboard_stats))
+
+
+def test_ai_studio_keyboard():
+    """AI Studio inline keyboard to'g'ri shakllanishi."""
+    print("== AI Studio keyboard ==")
+    from keyboards.inline import get_ai_studio_keyboard
+    from keyboards.default import get_main_keyboard, BTN_AI_STUDIO, BTN_NEW_POST, BTN_QUEUE, BTN_ANALYTICS, BTN_PREMIUM, BTN_SETTINGS
+
+    kb = get_ai_studio_keyboard()
+    cbs = [b.callback_data for row in kb.inline_keyboard for b in row]
+    labels = [b.text for row in kb.inline_keyboard for b in row]
+    check("studio kb: ai_post", "studio_ai_post" in cbs)
+    check("studio kb: extract", "studio_extract" in cbs)
+    check("studio kb: content_plan", "studio_content_plan" in cbs)
+    check("studio kb: close", "studio_close" in cbs)
+    check("studio kb: 4 ta tugma", len(cbs) == 4)
+    check("studio kb: AI Post label", any("AI Post" in t for t in labels))
+    check("studio kb: Kontent-reja label", any("Kontent-reja" in t for t in labels))
+
+    # Main keyboard — 6 tugma (3x2 grid)
+    kb_main = get_main_keyboard(False)
+    main_texts = [b.text for row in kb_main.keyboard for b in row]
+    check("main kb: 6 ta tugma (free)", len(main_texts) == 6)
+    check("main kb: Yangi post", BTN_NEW_POST in main_texts)
+    check("main kb: AI Studio", BTN_AI_STUDIO in main_texts)
+    check("main kb: Queue", BTN_QUEUE in main_texts)
+    check("main kb: Analitika", BTN_ANALYTICS in main_texts)
+    check("main kb: Premium", BTN_PREMIUM in main_texts)
+    check("main kb: Kabinet", BTN_SETTINGS in main_texts)
+
+    # Admin keyboard — 7 ta tugma (6 + admin)
+    kb_admin = get_main_keyboard(True)
+    admin_texts = [b.text for row in kb_admin.keyboard for b in row]
+    check("main kb: 7 ta tugma (admin)", len(admin_texts) == 7)
 
 
 def test_subscription_functions_exist():
@@ -1977,6 +2011,7 @@ def main():
     test_admin_dashboard()
     test_admin_handlers_exist()
     test_admin_dashboard_stats_db()
+    test_ai_studio_keyboard()
 
     print(f"\nO'tdi: {passed}, Xato: {failures}")
     if failures:
