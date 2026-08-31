@@ -89,6 +89,21 @@ def get_admin_back_keyboard() -> InlineKeyboardMarkup:
     ]
     return InlineKeyboardMarkup(keyboard)
 
+
+def get_ai_studio_keyboard() -> InlineKeyboardMarkup:
+    """AI Studio sub-menu inline keyboard."""
+    keyboard = [
+        [
+            InlineKeyboardButton("✍️ AI Post yaratish", callback_data="studio_ai_post"),
+            InlineKeyboardButton("📢 Ochiq kanaldan olish", callback_data="studio_extract"),
+        ],
+        [
+            InlineKeyboardButton("🧠 Kontent-reja", callback_data="studio_content_plan"),
+            InlineKeyboardButton("⬅️ Asosiy menyu", callback_data="studio_close"),
+        ],
+    ]
+    return InlineKeyboardMarkup(keyboard)
+
 def render_channels_list(channels: list) -> InlineKeyboardMarkup:
     keyboard = []
     for ch in channels:
