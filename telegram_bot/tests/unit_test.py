@@ -727,6 +727,131 @@ def test_queue_main_keyboard():
     check("BTN_QUEUE matni", BTN_QUEUE == "📚 Navbat (Queue)")
 
 
+def test_confirmation_queue_integration():
+    """Confirmation + Queue integratsion test."""
+    print("== integration: confirmation + queue ==")
+    from handlers.new_post import (
+        _build_preview_text, _get_confirm_keyboard, _get_edit_confirm_keyboard,
+        CONFIRM_POST, EDIT_CONFIRM_FIELD,
+        build_channel_labels, _media_item_from_message, _apply_single_media,
+        CHOOSE_CHANNEL, GET_CONTENT, GET_BTN_TITLE, GET_BTN_URL,
+        GET_REACTIONS, GET_AUTO_DELETE, GET_TIME, DAILY_TIME, RECUR_DAY, RECUR_TIME, GET_DURATION,
+    )
+    from database import find_next_queue_slot, DEFAULT_QUEUE_SLOTS
+
+    tz = pytz.timezone("Asia/Tashkent")
+
+    # 1. State constants
+    check("integ: CONFIRM_POST=111", CONFIRM_POST == 111)
+    check("integ: EDIT_CONFIRM_FIELD=112", EDIT_CONFIRM_FIELD == 112)
+
+    # 2. Confirm keyboard has queue button
+    kb = _get_confirm_keyboard()
+    cbs = [b.callback_data for row in kb.inline_keyboard for b in row]
+    labels = [b.text for row in kb.inline_keyboard for b in row]
+    check("integ: queue tugmasi callback", "confirm_post:queue" in cbs, str(cbs))
+    check("integ: queue tugmasi matni", any("Navbatga" in t for t in labels), str(labels))
+    check("integ: ok tugmasi", "confirm_post:ok" in cbs)
+    check("integ: edit tugmasi", "confirm_post:edit" in cbs)
+    check("integ: cancel tugmasi", "confirm_post:cancel" in cbs)
+
+    # 3. Edit keyboard
+    ekb = _get_edit_confirm_keyboard()
+    ecbs = [b.callback_data for row in ekb.inline_keyboard for b in row]
+    check("integ: edit kb content", "edit_field:content" in ecbs)
+    check("integ: edit kb channel", "edit_field:channel" in ecbs)
+    check("integ: edit kb time", "edit_field:time" in ecbs)
+    check("integ: edit kb btn", "edit_field:btn" in ecbs)
+    check("integ: edit kb back", "edit_field:back" in ecbs)
+
+    # 4. Preview matn
+    class FakeCtx:
+        def __init__(self):
+            self.user_data = {}
+    ctx = FakeCtx()
+    ctx.user_data = {
+        "selected_channel_title": "Tech Kanal",
+        "post_type": "text",
+        "content": "Yangi mahsulot!",
+        "btn_text": "Batafsil",
+        "btn_url": "https://example.com",
+        "enable_reactions": True,
+        "delete_after_hours": 24,
+        "confirm_post_time": tz.localize(datetime(2026, 9, 5, 14, 0)),
+        "confirm_recurrence_type": "none",
+        "confirm_recurrence_day": None,
+        "confirm_recurrence_time_str": None,
+    }
+    preview = _build_preview_text(ctx)
+    check("integ: preview kanal", "Tech Kanal" in preview, preview[:100])
+    check("integ: preview vaqt", "2026-09-05 14:00" in preview, preview[:100])
+    check("integ: preview tugma", "Batafsil" in preview, preview[:200])
+    check("integ: preview reaksiya", "Yoqilgan" in preview, preview[:200])
+    check("integ: preview auto-delete", "24 soat" in preview, preview[:200])
+
+    # 5. Queue slot algorithm integration
+    now = tz.localize(datetime(2026, 9, 1, 8, 0))
+    slot_dt, label = find_next_queue_slot(DEFAULT_QUEUE_SLOTS, [], now)
+    check("integ: slot 08:00 → 09:00", slot_dt is not None and slot_dt.hour == 9, str(slot_dt))
+    check("integ: slot label Bugun", label == "Bugun", str(label))
+
+    # 6. Band slotlar bilan
+    occupied = [(9, 0)]
+    slot_dt, label = find_next_queue_slot(DEFAULT_QUEUE_SLOTS, occupied, now)
+    check("integ: 09:00 band → 14:00", slot_dt is not None and slot_dt.hour == 14, str(slot_dt))
+
+    # 7. Barcha band → ertaga
+    occupied = [(9, 0), (14, 0), (19, 0)]
+    slot_dt, label = find_next_queue_slot(DEFAULT_QUEUE_SLOTS, occupied, now)
+    check("integ: barcha band → ertaga", slot_dt is not None and slot_dt.day == 2, str(slot_dt))
+    check("integ: ertaga label", label == "Ertaga", str(label))
+
+    # 8. Channel labels
+    channels = [("-1001", "Kanal A"), ("-1002", "Kanal A"), ("-1003", "")]
+    labels = build_channel_labels(channels)
+    check("integ: 3 ta kanal", len(labels) == 3)
+
+    # 9. Media parsing
+    class FakeMsg:
+        def __init__(self, **kw):
+            self.photo = kw.get("photo")
+            self.video = kw.get("video")
+            self.document = kw.get("document")
+            self.audio = kw.get("audio")
+            self.animation = kw.get("animation")
+            self.voice = kw.get("voice")
+            self.sticker = kw.get("sticker")
+            self.caption = kw.get("caption", "")
+            self.text = kw.get("text")
+
+    photo_msg = FakeMsg(photo=[type("P", (), {"file_id": "photo_123"})()])
+    item = _media_item_from_message(photo_msg)
+    check("integ: photo aniqlanadi", item is not None and item["type"] == "photo")
+
+    # 10. Daily recurrence preview
+    ctx.user_data["confirm_recurrence_type"] = "daily"
+    ctx.user_data["confirm_recurrence_time_str"] = "09:00:00"
+    preview_daily = _build_preview_text(ctx)
+    check("integ: daily preview", "Har kuni" in preview_daily and "09:00" in preview_daily)
+
+    # 11. Weekly recurrence preview
+    ctx.user_data["confirm_recurrence_type"] = "weekly"
+    ctx.user_data["confirm_recurrence_day"] = 4
+    ctx.user_data["confirm_recurrence_time_str"] = "13:00:00"
+    preview_weekly = _build_preview_text(ctx)
+    check("integ: weekly preview", "Har Juma" in preview_weekly and "13:00" in preview_weekly)
+
+    # 12. HTML escape
+    from utils.helpers import html_escape
+    check("integ: HTML escape", "&lt;b&gt;" in html_escape("<b>test</b>"))
+
+    # 13. parse_future_time
+    from utils.helpers import parse_future_time
+    now2 = tz.localize(datetime(2026, 9, 1, 12, 0))
+    t1 = parse_future_time("ertaga 10:00", now2)
+    check("integ: ertaga 10:00", t1 is not None and t1.day == 2 and t1.hour == 10, str(t1))
+
+
 def main():
     test_calculate_next_time()
     test_converter()
@@ -756,6 +881,7 @@ def main():
     test_queue_slot_algorithm()
     test_queue_ui_helpers()
     test_queue_main_keyboard()
+    test_confirmation_queue_integration()
 
     print(f"\nO'tdi: {passed}, Xato: {failures}")
     if failures:
