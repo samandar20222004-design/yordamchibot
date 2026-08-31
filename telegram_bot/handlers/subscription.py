@@ -166,27 +166,33 @@ async def subscription_callback(update: Update, context: ContextTypes.DEFAULT_TY
             await query.answer("❌ Noto'g'ri tarif.", show_alert=True)
             return SUBSCRIPTION_VIEW
 
-        await query.answer()
+        # Plan-specific titles for Telegram Stars invoice
+        plan_titles = {
+            "stars_1m": ("⭐️ PostAssist PRO (1 oy)", "1 oylik PRO obuna. Cheksiz kanallar, AI yordamchi va analitika."),
+            "stars_3m": ("⭐️ PostAssist PRO (3 oy)", "3 oylik PRO obuna. Cheksiz kanallar, AI yordamchi va analitika."),
+            "stars_1y": ("⭐️ PostAssist PRO (1 yil)", "1 yillik PRO obuna (-40% chegirma). Cheksiz kanallar, AI yordamchi va analitika."),
+        }
+        title, desc = plan_titles.get(plan_key, (f"⭐️ PostAssist PRO", "PRO obuna."))
+
         try:
             await context.bot.send_invoice(
-                chat_id=user_id,
-                title=f"⭐️ PostAssist PRO ({plan_info['days']} kun)",
-                description=(
-                    f"{plan_info['days']} kunlik PRO obuna. "
-                    f"Cheksiz kanallar, AI yordamchi va analitika."
-                ),
-                payload=f"pro_{plan_key}_{user_id}",
+                chat_id=update.effective_chat.id,
+                title=title,
+                description=desc,
+                payload=f"sub_{plan_key}_{update.effective_user.id}",
                 provider_token="",
                 currency="XTR",
-                prices=[LabeledPrice(label="PRO Obuna", amount=plan_info["stars"])],
-                start_parameter="pro-subscription",
+                prices=[LabeledPrice(label=title, amount=plan_info["stars"])],
+                start_parameter="pro-sub",
+                need_name=False,
+                need_email=False,
+                need_phone_number=False,
+                need_shipping_address=False,
             )
+            await query.answer()
         except Exception as e:
             logger.warning("Invoice yaratish xatosi: %s", e)
-            await query.message.reply_text(
-                "⚠️ To'lov yaratishda xatolik. Qaytadan urinib ko'ring.",
-                parse_mode="HTML",
-            )
+            await query.answer("⚠️ Xatolik yuz berdi.", show_alert=True)
         return SUBSCRIPTION_VIEW
 
     if data == "sub_back":
@@ -337,9 +343,9 @@ async def precheckout_callback(update: Update, context: ContextTypes.DEFAULT_TYP
     if not query:
         return
 
-    # Payload tekshirish
+    # Payload tekshirish — sub_stars_1m_USERID, sub_stars_3m_USERID, sub_stars_1y_USERID
     payload = query.invoice_payload or ""
-    if payload.startswith("pro_stars_"):
+    if payload.startswith("sub_stars_"):
         # To'lovni tasdiqlaymiz
         await query.answer(ok=True)
     else:
