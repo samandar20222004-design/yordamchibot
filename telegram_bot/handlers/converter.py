@@ -9,7 +9,9 @@ from utils.helpers import html_escape
 logger = logging.getLogger(__name__)
 
 # State (Holat): Matn yoki media kutish
-CONVERT_INPUT = 601
+# Eslatma: 601 SUBSCRIPTION_VIEW bilan to'qnashgan edi (states dict'da
+# biri ikkinchisini o'chirib yuborardi) — endi unikal qiymat.
+CONVERT_INPUT = 300
 
 
 async def start_converter(update: Update, context: ContextTypes.DEFAULT_TYPE):

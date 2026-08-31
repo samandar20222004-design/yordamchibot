@@ -143,8 +143,18 @@ async def subscription_callback(update: Update, context: ContextTypes.DEFAULT_TY
     user_id = query.from_user.id
     is_admin = user_id in ADMIN_IDS_SET
 
-    if data == "sub_close":
+    # Har bir callback BOSHIDA answer() chaqiriladi — aks holda Telegram
+    # tugmani "yuklanmoqda" holatida qoldiradi (tugma qotib qoladi), ayniqsa
+    # send_invoice sekin ishlasa yoki xatolik bersa.
+    try:
         await query.answer()
+    except Exception:
+        pass
+
+    if query.message is None:
+        return SUBSCRIPTION_VIEW
+
+    if data == "sub_close":
         await query.message.reply_text(
             "✅ Yopildi.",
             reply_markup=get_main_keyboard(is_admin),
@@ -152,9 +162,14 @@ async def subscription_callback(update: Update, context: ContextTypes.DEFAULT_TY
         return ConversationHandler.END
 
     if data == "sub_back_main":
-        await query.answer()
-        await query.message.reply_text(
-            "🏠 Asosiy menyu.",
+        # Xabarni o'chirib, asosiy menyuni yuboramiz
+        try:
+            await query.message.delete()
+        except Exception:
+            pass
+        await context.bot.send_message(
+            chat_id=query.message.chat_id,
+            text="🏠 Asosiy menyu.",
             reply_markup=get_main_keyboard(is_admin),
         )
         return ConversationHandler.END
@@ -163,7 +178,7 @@ async def subscription_callback(update: Update, context: ContextTypes.DEFAULT_TY
         plan_key = data.split(":", 1)[1]
         plan_info = STARS_PLANS.get(plan_key)
         if not plan_info:
-            await query.answer("❌ Noto'g'ri tarif.", show_alert=True)
+            await query.message.reply_text("❌ Noto'g'ri tarif tanlandi.")
             return SUBSCRIPTION_VIEW
 
         # Plan-specific titles for Telegram Stars invoice
@@ -175,28 +190,29 @@ async def subscription_callback(update: Update, context: ContextTypes.DEFAULT_TY
         title, desc = plan_titles.get(plan_key, (f"⭐️ PostAssist PRO", "PRO obuna."))
 
         try:
+            # Telegram Stars (XTR) invoicelari uchun provider_token kerak emas.
+            # PTB 21.x da provider_token majburiy argument bo'lgani uchun
+            # bo'sh string uzatamiz — Telegram XTR uchun uni e'tiborsiz qoldiradi.
             await context.bot.send_invoice(
                 chat_id=update.effective_chat.id,
                 title=title,
                 description=desc,
-                payload=f"sub_{plan_key}_{update.effective_user.id}",
+                payload=f"sub_{plan_key}_{user_id}",
                 provider_token="",
                 currency="XTR",
-                prices=[LabeledPrice(label=title, amount=plan_info["stars"])],
-                start_parameter="pro-sub",
-                need_name=False,
-                need_email=False,
-                need_phone_number=False,
-                need_shipping_address=False,
+                prices=[LabeledPrice(label=title, amount=int(plan_info["stars"]))],
             )
-            await query.answer()
         except Exception as e:
             logger.warning("Invoice yaratish xatosi: %s", e)
-            await query.answer("⚠️ Xatolik yuz berdi.", show_alert=True)
+            try:
+                await query.message.reply_text(
+                    "⚠️ To'lov oynasini ochishda xatolik yuz berdi. Iltimos, qayta urinib ko'ring."
+                )
+            except Exception:
+                pass
         return SUBSCRIPTION_VIEW
 
     if data == "sub_back":
-        await query.answer()
         plan_info = await db.run_db(db.get_user_plan, user_id)
         card = _build_subscription_card(plan_info)
         plan = plan_info.get("plan_type", "free")
@@ -215,7 +231,6 @@ async def subscription_callback(update: Update, context: ContextTypes.DEFAULT_TY
         return SUBSCRIPTION_VIEW
 
     if data == "sub_promo":
-        await query.answer()
         await query.message.reply_text(
             "🎁 <b>Promo-kodni kiriting:</b>\n\n"
             "Promo-kodni yozing yoki '🔙 Orqaga' tugmasini bosing.",
@@ -224,7 +239,6 @@ async def subscription_callback(update: Update, context: ContextTypes.DEFAULT_TY
         return PROMO_INPUT
 
     if data == "sub_refresh":
-        await query.answer("🔄 Yangilanmoqda...")
         plan_info = await db.run_db(db.get_user_plan, user_id)
         card = _build_subscription_card(plan_info)
         plan = plan_info.get("plan_type", "free")

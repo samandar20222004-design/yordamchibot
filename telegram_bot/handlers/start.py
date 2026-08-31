@@ -11,8 +11,9 @@ from utils.helpers import html_escape, get_smart_reply_ad_async
 
 logger = logging.getLogger(__name__)
 
-TRANSFER_TARGET = 501
-TRANSFER_AMOUNT = 502
+# Eslatma: 501-502 ANALYTICS bilan to'qnashgan edi — endi 511-512 unikal.
+TRANSFER_TARGET = 511
+TRANSFER_AMOUNT = 512
 
 # Obuna holati keshi: (channel_id, user_id) -> (vaqt, a'zo_mi)
 # Har /start da Telegram API'ga qayta-qayta so'rov yubormaslik uchun
