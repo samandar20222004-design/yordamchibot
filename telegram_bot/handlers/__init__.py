@@ -7,6 +7,7 @@ from telegram.ext import (
     ChatMemberHandler,
     filters,
 )
+from config import ADMIN_ID
 from keyboards.default import (
     exact,
     BTN_NEW_POST, BTN_AI_ASSISTANT, BTN_CABINET, BTN_INVITE, BTN_DAILY_BONUS, BTN_BUY_AD_FREE,
@@ -207,7 +208,7 @@ async def free_chat_entry(update, context):
 
     # E'tibor: context.user_data.clear() QILINMAYDI — erkin suhbatda ko'p
     # burilishli muloqot (post → tahrir → vaqt) saqlanib turishi kerak.
-    is_admin = (user.id == int(__import__("config").ADMIN_ID))
+    is_admin = (user.id == ADMIN_ID)
     if not is_admin:
         credits = await db.run_db(db.get_user_credits, user.id)
         if credits <= 0:
