@@ -4,13 +4,14 @@ from telegram.error import TelegramError
 from telegram.ext import ContextTypes, ConversationHandler
 from config import ADMIN_ID, ADMIN_IDS_SET
 import database as db
-from keyboards.default import get_cancel_keyboard, get_main_keyboard
+from keyboards.default import get_cancel_keyboard, get_main_keyboard, get_tone_keyboard, TONE_LABELS
 from keyboards.inline import render_channels_list
 from utils.helpers import html_escape
 
 logger = logging.getLogger(__name__)
 
 ADD_CHANNEL = 301
+SET_TONE = 302
 
 
 def _empty_channels_keyboard() -> InlineKeyboardMarkup:
@@ -23,7 +24,7 @@ def _empty_channels_keyboard() -> InlineKeyboardMarkup:
 
 async def channels_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
-    channels = await db.run_db(db.get_user_channels, user_id)
+    channels = await db.run_db(db.get_user_channels_with_tone, user_id)
 
     if not channels:
         await update.message.reply_text(
@@ -249,3 +250,72 @@ async def on_bot_chat_member_update(update: Update, context: ContextTypes.DEFAUL
 
     if new_status in ("left", "kicked", "member", "restricted"):
         await db.run_db(db.deactivate_channel_by_id, str(chat.id))
+
+
+# ============================================================
+# CHANNEL TONE OF VOICE
+# ============================================================
+
+async def tone_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Inline 'Uslub' tugmasi bosilganda — uslub tanlash menyusini ko'rsatadi."""
+    query = update.callback_query
+    await query.answer()
+    channel_id = query.data.split(":", 1)[1] if ":" in query.data else ""
+    if not channel_id:
+        return ConversationHandler.END
+
+    context.user_data["tone_channel_id"] = channel_id
+    current_tone = await db.run_db(db.get_channel_tone, channel_id)
+    current_label = TONE_LABELS.get(current_tone, TONE_LABELS["friendly"])
+
+    await query.message.reply_text(
+        f"🎭 <b>Kanal uslubini tanlang:</b>\n\n"
+        f"Joriy uslub: <b>{current_label}</b>\n\n"
+        f"Uslub postlarning ohangi va uslubini belgilaydi:",
+        reply_markup=get_tone_keyboard(),
+        parse_mode="HTML",
+    )
+    return SET_TONE
+
+
+async def tone_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Foydalanuvchi uslub tugmasini bosganda."""
+    text = update.message.text.strip()
+    channel_id = context.user_data.get("tone_channel_id", "")
+    is_admin = update.effective_user.id in ADMIN_IDS_SET
+
+    # Ters mapping: label -> tone key
+    label_to_tone = {v: k for k, v in TONE_LABELS.items()}
+
+    if text in ("🔙 Asosiy menyu", "🔙 Orqaga"):
+        await update.message.reply_text(
+            "✅ Uslub o'zgartirish bekor qilindi.",
+            reply_markup=get_main_keyboard(is_admin),
+        )
+        return ConversationHandler.END
+
+    tone = label_to_tone.get(text)
+    if not tone:
+        await update.message.reply_text(
+            "❌ Noto'g'ri uslub. Iltimos, tugmalardan birini bosing.",
+            reply_markup=get_tone_keyboard(),
+        )
+        return SET_TONE
+
+    success = await db.run_db(db.set_channel_tone, channel_id, tone)
+    if success:
+        await update.message.reply_text(
+            f"✅ <b>Kanal uslubi yangilandi!</b>\n\n"
+            f"🎭 Yangi uslub: <b>{TONE_LABELS[tone]}</b>\n\n"
+            f"Endi AI postlarni shu uslubda tayyorlaydi.",
+            reply_markup=get_main_keyboard(is_admin),
+            parse_mode="HTML",
+        )
+    else:
+        await update.message.reply_text(
+            "❌ Uslubni saqlashda xatolik. Qaytadan urinib ko'ring.",
+            reply_markup=get_main_keyboard(is_admin),
+        )
+
+    context.user_data.pop("tone_channel_id", None)
+    return ConversationHandler.END

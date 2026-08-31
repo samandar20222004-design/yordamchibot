@@ -16,7 +16,7 @@ from keyboards.default import (
     BTN_ADMIN_PANEL, BTN_STATS, BTN_ALL_POSTS, BTN_ALL_CHANNELS,
     BTN_BROADCAST, BTN_SPONSORS, BTN_ADD_SPONSOR,
     BTN_CHANNEL_AD, BTN_BOT_REPLY_AD, BTN_POST_TAG, BTN_AI_SETTINGS, BTN_CACHE_DB,
-    BTN_ADD_CHANNEL, BTN_QUEUE,
+    BTN_ADD_CHANNEL, BTN_QUEUE, BTN_CONTENT_PLAN,
 )
 from keyboards.inline import get_subscription_check_keyboard
 
@@ -44,7 +44,9 @@ from handlers.new_post import (
 # 3. CHANNELS MODULI
 from handlers.channels import (
     channels_menu, start_add_channel, channel_received,
-    remove_channel_callback, on_bot_chat_member_update, add_channel_inline_entry, ADD_CHANNEL
+    remove_channel_callback, on_bot_chat_member_update, add_channel_inline_entry,
+    tone_menu_callback, tone_chosen,
+    ADD_CHANNEL, SET_TONE
 )
 
 # 4. PENDING POSTS MODULI
@@ -80,7 +82,13 @@ from handlers.ai_assistant import (
     AI_INPUT, AI_CONFIRM, AI_GET_TIME
 )
 
-# 8. QUEUE MODULI
+# 8. CONTENT PLAN MODULI
+from handlers.content_plan import (
+    start_content_plan, plan_channel_chosen, plan_topic_received, plan_view_callback,
+    PLAN_CHOOSE_CHANNEL, PLAN_GET_TOPIC, PLAN_VIEW
+)
+
+# 9. QUEUE MODULI
 from handlers.queue import (
     queue_menu, queue_page_callback, queue_view_callback,
     queue_delete_callback, queue_push_callback, queue_close_callback,
@@ -283,7 +291,12 @@ def register_all_handlers(app):
         MessageHandler(exact(BTN_AI, BTN_AI_ASSISTANT), lambda u, c: guard_entry(u, c, start_ai_assistant)),
     ]
 
-    # 8. Queue
+    # 8. Content Plan
+    content_plan_handlers = [
+        MessageHandler(exact(BTN_CONTENT_PLAN), lambda u, c: guard_entry(u, c, start_content_plan)),
+    ]
+
+    # 9. Queue
     queue_handlers = [
         MessageHandler(exact(BTN_QUEUE), lambda u, c: guard_menu(u, c, queue_menu)),
     ]
@@ -297,6 +310,7 @@ def register_all_handlers(app):
         converter_handlers +
         admin_handlers +
         ai_handlers +
+        content_plan_handlers +
         queue_handlers
     )
 
@@ -346,6 +360,17 @@ def register_all_handlers(app):
 
             # 3. Kanal holatlari
             ADD_CHANNEL: all_menu_jumps + [MessageHandler(filters.ALL & ~filters.COMMAND, channel_received)],
+            SET_TONE: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, tone_chosen)],
+
+            # 8. Content Plan holatlari
+            PLAN_CHOOSE_CHANNEL: all_menu_jumps + [
+                CallbackQueryHandler(plan_channel_chosen, pattern=r"^plan_ch:"),
+                CallbackQueryHandler(plan_view_callback, pattern=r"^plan_cancel$"),
+            ],
+            PLAN_GET_TOPIC: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, plan_topic_received)],
+            PLAN_VIEW: all_menu_jumps + [
+                CallbackQueryHandler(plan_view_callback, pattern=r"^plan_"),
+            ],
 
             # 4. Kutilayotgan postlarni tahrirlash holatlari
             EDIT_POST_TIME: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, edit_post_time_received)],
@@ -433,6 +458,7 @@ def register_all_handlers(app):
     app.add_handler(CallbackQueryHandler(edit_post_btn_start, pattern=r"^edit_btn:"))
     app.add_handler(CallbackQueryHandler(edit_post_react_start, pattern=r"^edit_react:"))
     app.add_handler(CallbackQueryHandler(remove_channel_callback, pattern=r"^remove_channel:"))
+    app.add_handler(CallbackQueryHandler(tone_menu_callback, pattern=r"^tone_menu:"))
     app.add_handler(CallbackQueryHandler(close_msg_callback, pattern=r"^close_msg$"))
     app.add_handler(CallbackQueryHandler(noop_callback, pattern=r"^noop$"))
     app.add_handler(CallbackQueryHandler(cache_clear_callback, pattern=r"^cache_clear$"))

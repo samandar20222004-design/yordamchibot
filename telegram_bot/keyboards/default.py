@@ -42,6 +42,7 @@ BTN_CACHE_DB = "🗄️ DB / Kesh holati"
 # --- Kanal & Post yaratish tugmalari ---
 BTN_ADD_CHANNEL = "➕ Kanal/Guruh qo'shish"
 BTN_QUEUE = "📚 Navbat (Queue)"
+BTN_CONTENT_PLAN = "🧠 Kontent-reja"
 BTN_ALL_CHANNELS_TARGET = "🌐 Barchasiga birdaniga"
 BTN_SKIP_BUTTON = "➡️ Tugmasiz davom etish"
 BTN_REACT_DEFAULT = "👍 ❤️ 🔥 👏"
@@ -83,7 +84,8 @@ def get_main_keyboard(is_admin=False):
     keyboard = [
         [BTN_NEW_POST, BTN_AI],
         [BTN_PENDING, BTN_QUEUE],
-        [BTN_SETTINGS, BTN_HELP],
+        [BTN_CONTENT_PLAN, BTN_SETTINGS],
+        [BTN_HELP],
     ]
     if is_admin:
         keyboard.append([BTN_ADMIN_PANEL])
@@ -186,6 +188,31 @@ def get_duration_keyboard():
             [BTN_BACK]
         ],
         resize_keyboard=True
+    )
+
+
+# --- Kanal uslubi (Tone of Voice) ---
+TONE_LABELS = {
+    "formal": "👔 Rasmiy / Biznes",
+    "friendly": "😊 Do'stona / Samimiy",
+    "concise": "⚡️ Qisqa / Yangiliklar",
+    "engaging": "🎉 Ko'ngilochar / Emotsional",
+}
+
+BTN_TONE_FORMAL = TONE_LABELS["formal"]
+BTN_TONE_FRIENDLY = TONE_LABELS["friendly"]
+BTN_TONE_CONCISE = TONE_LABELS["concise"]
+BTN_TONE_ENGAGING = TONE_LABELS["engaging"]
+
+
+def get_tone_keyboard():
+    return ReplyKeyboardMarkup(
+        [
+            [BTN_TONE_FORMAL, BTN_TONE_FRIENDLY],
+            [BTN_TONE_CONCISE, BTN_TONE_ENGAGING],
+            [BTN_BACK],
+        ],
+        resize_keyboard=True,
     )
 
 

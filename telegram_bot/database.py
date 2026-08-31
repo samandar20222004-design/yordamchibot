@@ -425,6 +425,7 @@ def _init_db_once():
             "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;",
             "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS processing_started_at TIMESTAMP WITH TIME ZONE;",
             "ALTER TABLE scheduled_posts ALTER COLUMN file_id TYPE TEXT;",
+            "ALTER TABLE channels ADD COLUMN IF NOT EXISTS tone_of_voice VARCHAR(30) DEFAULT 'friendly';",
         ]
         for index, migration in enumerate(migrations):
             # Bitta migration xatosi qolgan migrationlarni transaction aborted
@@ -1006,6 +1007,57 @@ def remove_channel(user_id: int, channel_id: str, is_admin: bool = False) -> boo
     except Exception as e:
         logger.error(f"Kanal o'chirish xatosi: {e}")
         return False
+
+# --- CHANNEL TONE OF VOICE ---
+VALID_TONES = ("formal", "friendly", "concise", "engaging")
+
+
+def get_channel_tone(channel_id: str) -> str:
+    """Kanalning tone_of_voice qiymatini qaytaradi (default: 'friendly')."""
+    try:
+        with db_cursor() as cur:
+            cur.execute(
+                "SELECT tone_of_voice FROM channels WHERE channel_id = %s AND is_active = TRUE",
+                (str(channel_id),),
+            )
+            row = cur.fetchone()
+            if row and row[0]:
+                return row[0]
+    except Exception as e:
+        logger.error(f"Kanal tone olish xatosi: {e}")
+    return "friendly"
+
+
+def set_channel_tone(channel_id: str, tone: str) -> bool:
+    """Kanalning tone_of_voice qiymatini yangilaydi."""
+    if tone not in VALID_TONES:
+        return False
+    try:
+        with db_cursor(commit=True) as cur:
+            cur.execute(
+                "UPDATE channels SET tone_of_voice = %s WHERE channel_id = %s AND is_active = TRUE",
+                (tone, str(channel_id)),
+            )
+            return cur.rowcount > 0
+    except Exception as e:
+        logger.error(f"Kanal tone yangilash xatosi: {e}")
+        return False
+
+
+def get_user_channels_with_tone(user_id: int) -> list:
+    """Foydalanuvchi kanallarini tone_of_voice bilan qaytaradi."""
+    try:
+        with db_cursor() as cur:
+            cur.execute(
+                "SELECT channel_id, channel_title, tone_of_voice FROM channels "
+                "WHERE user_id = %s AND is_active = TRUE ORDER BY id ASC",
+                (user_id,),
+            )
+            return cur.fetchall()
+    except Exception as e:
+        logger.error(f"Kanallar (tone) olish xatosi: {e}")
+        return []
+
 
 # --- POSTS ---
 def add_post(

@@ -1158,3 +1158,202 @@ async def format_post_text(text: str, action: str) -> dict:
         return {"error": "⚠️ AI javobi bo'sh qaytdi. Asl matningiz saqlab qolindi."}
 
     return {"formatted": formatted.strip()}
+
+
+# ============================================================
+# TONE OF VOICE INTEGRATION
+# ============================================================
+
+_TONE_DESCRIPTIONS = {
+    "formal": "Rasmiy, professional va biznes uslubida. Qisqa, aniq va hurmatli ohangda yozing. Emoji kamroq ishlating.",
+    "friendly": "Do'stona, samimiy va iliq ohangda yozing. O'quvchiga murojaat qiling, emoji oqilona ishlating.",
+    "concise": "Qisqa, yangiliklar uslubida. Har bir jumlada aniq ma'lumot bering. Sarlavha va sub-sarlavhalar bilan ajrating.",
+    "engaging": "Ko'ngilochar, emotsional va diqqat tortuvchi uslubda. Savollar bering, emoji ko'proq ishlating, CTA qo'shing.",
+}
+
+
+def get_tone_instruction(tone: str) -> str:
+    """Kanal uslubiga mos system instruction qaytaradi."""
+    desc = _TONE_DESCRIPTIONS.get(tone, _TONE_DESCRIPTIONS["friendly"])
+    return f"\n\nKANAL USLUBI (Tone of Voice): {desc}"
+
+
+def _inject_tone(system_instruction: str, tone: str) -> str:
+    """System instructionga kanal uslubini qo'shadi."""
+    if tone and tone != "friendly":
+        return system_instruction + get_tone_instruction(tone)
+    return system_instruction
+
+
+async def format_post_text_with_tone(text: str, action: str, tone: str = "friendly") -> dict:
+    """Post matnini kanal uslubini hisobga olgan holda formatlaydi.
+
+    Args:
+        text: formatlanadigan post matni
+        action: "grammar" | "emoji" | "hashtags" | "tldr"
+        tone: kanal uslubi ("formal" | "friendly" | "concise" | "engaging")
+
+    Returns:
+        {"formatted": "..."} yoki {"error": "..."}
+    """
+    if not text or not text.strip():
+        return {"error": "Matn bo'sh."}
+
+    if action not in _FORMAT_ACTION_PROMPTS:
+        return {"error": f"Noma'lum harakat: {action}"}
+
+    system_instruction = _inject_tone(_FORMAT_ACTION_PROMPTS[action], tone)
+    prompt = f"Post matni:\n\n{text}"
+
+    try:
+        result = await _run_ai_chain(prompt, system_instruction)
+    except Exception as e:
+        logger.warning("AI format xatosi (%s, tone=%s): %s", action, tone, e)
+        return {"error": f"⚠️ AI xizmatida vaqtinchalik uzilish. Asl matningiz saqlab qolindi.\n\n{e}"}
+
+    if "error" in result:
+        return {"error": result["error"]}
+
+    formatted = ""
+    if isinstance(result, dict):
+        formatted = (
+            result.get("formatted")
+            or result.get("text")
+            or result.get("post_text")
+            or result.get("reply")
+            or result.get("content")
+            or ""
+        )
+        if not formatted:
+            for v in result.values():
+                if isinstance(v, str) and len(v) > 10:
+                    formatted = v
+                    break
+
+    if not formatted or not formatted.strip():
+        return {"error": "⚠️ AI javobi bo'sh qaytdi. Asl matningiz saqlab qolindi."}
+
+    return {"formatted": formatted.strip()}
+
+
+# ============================================================
+# CONTENT PLAN GENERATOR
+# ============================================================
+
+_CONTENT_PLAN_SYSTEM = (
+    "Siz professional SMM va kontent-strategiya mutaxassisisiz. "
+    "Telegram kanali uchun 7 kunlik kontent-reja tuzasiz.\n\n"
+    "QOIDALAR:\n"
+    "- Barcha javoblar O'ZBEK tilida bo'lishi SHART.\n"
+    "- Har bir kun uchun: kun nomi, format (Maslahat/Keys/Savol-Javob/Aksiya/Yangilik), "
+    "qisqa sarlavha va g'oya tavsifi.\n"
+    "- Kunlarni Dushanbadan Yakshanbagacha tartiblang.\n"
+    "- Formatlarni har xil qiling (barchasi bir xil bo'lmasin).\n"
+    "- Har bir g'oya amaliy va qiziqarli bo'lsin.\n\n"
+    "Javobni FAQAT quyidagi JSON formatida qaytaring:\n"
+    "{\n"
+    '  "plan": [\n'
+    '    {"day": "Dushanba", "format": "Maslahat", "title": "sarlavha", "idea": "g\'oya tavsifi"},\n'
+    '    {"day": "Seshanba", "format": "Keys/Fakt", "title": "sarlavha", "idea": "g\'oya tavsifi"},\n'
+    "    ... 7 ta kun\n"
+    "  ]\n"
+    "}"
+)
+
+
+async def generate_content_plan(topic: str, channel_title: str, tone: str = "friendly") -> dict:
+    """7 kunlik kontent-reja generatsiya qiladi.
+
+    Args:
+        topic: kanal mavzusi (masalan: "Ingliz tili noldan")
+        channel_title: kanal nomi
+        tone: kanal uslubi
+
+    Returns:
+        {"plan": [...]} yoki {"error": "..."}
+    """
+    if not topic or not topic.strip():
+        return {"error": "⚠️ Mavzu kiritilmadi."}
+
+    system_instruction = _inject_tone(_CONTENT_PLAN_SYSTEM, tone)
+    prompt = (
+        f"Kanal nomi: {channel_title}\n"
+        f"Mavzu: {topic}\n\n"
+        f"7 kunlik kontent-reja tuzing."
+    )
+
+    try:
+        result = await _run_ai_chain(prompt, system_instruction)
+    except Exception as e:
+        logger.warning("Content plan AI xatosi: %s", e)
+        return {"error": f"⚠️ AI xizmatida vaqtinchalik uzilish.\n\n{e}"}
+
+    if "error" in result:
+        return result
+
+    plan = result.get("plan", [])
+    if not plan or not isinstance(plan, list):
+        return {"error": "⚠️ AI reja tuza olmadi. Qaytadan urinib ko'ring."}
+
+    return {"plan": plan}
+
+
+_POST_FROM_PLAN_SYSTEM = (
+    "Siz professional Telegram post muharririsiz. "
+    "Berilgan g'oya asosida to'liq, tayyor Telegram post matni yozasiz.\n\n"
+    "QOIDALAR:\n"
+    "- O'zbek tilida, jonli va jozibador yozing.\n"
+    "- Telegram HTML formatlash: <b>qalin</b>, <i>kursiv</i>.\n"
+    "- Emoji oqilona ishlating.\n"
+    "- Kamida 3-5 qator, mazmunan to'liq.\n"
+    "- CTA (chaqiriq) qo'shing.\n\n"
+    "Javobni FAQAT quyidagi JSON formatida qaytaring:\n"
+    '{"post_text": "tayyor post matni"}'
+)
+
+
+async def generate_post_from_plan(topic: str, title: str, idea: str, tone: str = "friendly") -> dict:
+    """Kontent-reja g'oyasidan to'liq post yaratadi.
+
+    Args:
+        topic: umumiy mavzu
+        title: post sarlavhasi
+        idea: g'oya tavsifi
+        tone: kanal uslubi
+
+    Returns:
+        {"post_text": "..."} yoki {"error": "..."}
+    """
+    system_instruction = _inject_tone(_POST_FROM_PLAN_SYSTEM, tone)
+    prompt = (
+        f"Umumiy mavzu: {topic}\n"
+        f"Post sarlavhasi: {title}\n"
+        f"G'oya: {idea}\n\n"
+        f"Shu g'oya asosida to'liq Telegram post yozing."
+    )
+
+    try:
+        result = await _run_ai_chain(prompt, system_instruction)
+    except Exception as e:
+        logger.warning("Post from plan AI xatosi: %s", e)
+        return {"error": f"⚠️ AI xizmatida vaqtinchalik uzilish.\n\n{e}"}
+
+    if "error" in result:
+        return result
+
+    post_text = (
+        result.get("post_text")
+        or result.get("text")
+        or result.get("reply")
+        or ""
+    )
+    if not post_text:
+        for v in result.values():
+            if isinstance(v, str) and len(v) > 20:
+                post_text = v
+                break
+
+    if not post_text:
+        return {"error": "⚠️ AI post matni tayyorlay olmadi."}
+
+    return {"post_text": post_text.strip()}

@@ -65,10 +65,15 @@ def get_sponsors_delete_keyboard(sponsors: list) -> InlineKeyboardMarkup:
 def render_channels_list(channels: list) -> InlineKeyboardMarkup:
     keyboard = []
     for ch in channels:
-        ch_id, ch_title = ch
+        ch_id, ch_title = ch[:2]
+        tone = ch[2] if len(ch) > 2 else "friendly"
+        tone_emoji = {"formal": "👔", "friendly": "😊", "concise": "⚡️", "engaging": "🎉"}.get(tone, "😊")
         keyboard.append([
             InlineKeyboardButton(f"📢 {btn_label(ch_title)}", callback_data="noop"),
-            InlineKeyboardButton("❌ O'chirish", callback_data=f"remove_channel:{ch_id}")
+            InlineKeyboardButton("❌ O'chirish", callback_data=f"remove_channel:{ch_id}"),
+        ])
+        keyboard.append([
+            InlineKeyboardButton(f"{tone_emoji} Uslub", callback_data=f"tone_menu:{ch_id}"),
         ])
     # "Qo'shish bor, lekin bekor qilish/chiqish yo'q" kamchiligini tuzatish:
     # ro'yxat ostida yangi kanal ulash va oynani yopish tugmalari bo'ladi.

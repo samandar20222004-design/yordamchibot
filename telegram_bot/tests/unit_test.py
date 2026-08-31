@@ -605,6 +605,180 @@ def test_ai_format_fallback():
     check("fallback: bo'sh matn error", "error" in result2)
 
 
+def test_tone_of_voice_constants():
+    """Tone of voice konstantalari va keyboardlar."""
+    print("== Tone of Voice konstantalari ==")
+    from keyboards.default import TONE_LABELS, get_tone_keyboard
+    from database import VALID_TONES
+
+    # 1. Barcha tone lar mavjud
+    check("formal mavjud", "formal" in TONE_LABELS)
+    check("friendly mavjud", "friendly" in TONE_LABELS)
+    check("concise mavjud", "concise" in TONE_LABELS)
+    check("engaging mavjud", "engaging" in TONE_LABELS)
+
+    # 2. Label matnlari O'zbek tilida
+    check("formal label O'zbek", "Rasmiy" in TONE_LABELS["formal"])
+    check("friendly label O'zbek", "Do'stona" in TONE_LABELS["friendly"])
+    check("concise label O'zbek", "Qisqa" in TONE_LABELS["concise"])
+    check("engaging label O'zbek", "Ko'ngilochar" in TONE_LABELS["engaging"])
+
+    # 3. DB VALID_TONES to'g'ri
+    check("DB VALID_TONES: 4 ta", len(VALID_TONES) == 4)
+    check("DB: formal", "formal" in VALID_TONES)
+    check("DB: friendly", "friendly" in VALID_TONES)
+    check("DB: concise", "concise" in VALID_TONES)
+    check("DB: engaging", "engaging" in VALID_TONES)
+
+    # 4. Tone keyboard
+    kb = get_tone_keyboard()
+    labels = [b.text for row in kb.inline_keyboard for b in row] if hasattr(kb, 'inline_keyboard') else []
+    # ReplyKeyboardMarkup — keyboard attribute
+    labels = [b for row in kb.keyboard for b in row]
+    check("tone keyboard mavjud", kb is not None)
+
+
+def test_tone_descriptions():
+    """Tone descriptionlari va inject ishlashi."""
+    print("== Tone descriptions ==")
+    from utils.ai_agent import _TONE_DESCRIPTIONS, get_tone_instruction, _inject_tone
+
+    # 1. Barcha tone lar uchun description mavjud
+    for tone in ("formal", "friendly", "concise", "engaging"):
+        check(f"{tone} description mavjud", tone in _TONE_DESCRIPTIONS)
+        check(f"{tone} description uzun", len(_TONE_DESCRIPTIONS[tone]) > 20)
+
+    # 2. get_tone_instruction
+    inst = get_tone_instruction("formal")
+    check("formal instruction: Rasmiy", "Rasmiy" in inst)
+    check("formal instruction: professional", "professional" in inst)
+
+    inst2 = get_tone_instruction("engaging")
+    check("engaging instruction: Emotsional", "Emotsional" in inst2 or "emotsional" in inst2.lower())
+
+    # 3. _inject_tone: friendly — o'zgarmaydi
+    base = "Siz post muharririsiz."
+    result_friendly = _inject_tone(base, "friendly")
+    check("friendly: inject yo'q", result_friendly == base)
+
+    # 4. _inject_tone: formal — qo'shiladi
+    result_formal = _inject_tone(base, "formal")
+    check("formal: inject bor", "KANAL USLUBI" in result_formal)
+    check("formal: asl matn saqlanadi", base in result_formal)
+
+    # 5. _inject_tone: bo'sh tone — o'zgarmaydi
+    result_empty = _inject_tone(base, "")
+    check("bo'sh tone: inject yo'q", result_empty == base)
+
+
+def test_content_plan_prompt():
+    """Content plan prompt strukturasini tekshirish."""
+    print("== Content plan prompt ==")
+    from utils.ai_agent import _CONTENT_PLAN_SYSTEM, _POST_FROM_PLAN_SYSTEM, generate_content_plan, generate_post_from_plan
+    import asyncio
+
+    # 1. Content plan system prompt O'zbek tilida
+    check("plan prompt: O'zbek", "O'ZBEK" in _CONTENT_PLAN_SYSTEM)
+    check("plan prompt: JSON format", "JSON" in _CONTENT_PLAN_SYSTEM)
+    check("plan prompt: 7 kunlik", "7" in _CONTENT_PLAN_SYSTEM)
+    check("plan prompt: Dushanba", "Dushanba" in _CONTENT_PLAN_SYSTEM)
+
+    # 2. Post from plan system prompt
+    check("post prompt: O'zbek", "O'zbek" in _POST_FROM_PLAN_SYSTEM)
+    check("post prompt: HTML", "HTML" in _POST_FROM_PLAN_SYSTEM)
+    check("post prompt: CTA", "CTA" in _POST_FROM_PLAN_SYSTEM)
+
+    # 3. Bo'sh mavzu → xatolik
+    result = asyncio.run(generate_content_plan("", "Kanal"))
+    check("bo'sh mavzu → error", "error" in result)
+
+    result2 = asyncio.run(generate_content_plan(None, "Kanal"))
+    check("None mavzu → error", "error" in result2)
+
+    # 4. generate_post_from_plan — bo'sh g'oya bilan ham ishlaydi
+    # (AI chaqiruvi bo'lmaydi, faqat prompt tuzilishini tekshiramiz)
+
+
+def test_content_plan_keyboards():
+    """Content plan keyboardlari."""
+    print("== Content plan keyboards ==")
+    from handlers.content_plan import _get_plan_channel_keyboard, _get_plan_result_keyboard, _get_plan_day_keyboard
+
+    # 1. Channel keyboard
+    channels = [("-1001", "Test Kanal"), ("-1002", "Ikkinchi Kanal")]
+    kb = _get_plan_channel_keyboard(channels)
+    cbs = [b.callback_data for row in kb.inline_keyboard for b in row]
+    check("channel kb: kanal 1", "plan_ch:-1001" in cbs)
+    check("channel kb: kanal 2", "plan_ch:-1002" in cbs)
+    check("channel kb: cancel", "plan_cancel" in cbs)
+
+    # 2. Result keyboard
+    rkb = _get_plan_result_keyboard()
+    rcbs = [b.callback_data for row in rkb.inline_keyboard for b in row]
+    check("result kb: create", "plan_create_post" in rcbs)
+    check("result kb: regenerate", "plan_regenerate" in rcbs)
+    check("result kb: cancel", "plan_cancel" in rcbs)
+
+    # 3. Day keyboard
+    plan_items = [
+        {"day": "Dushanba", "format": "Maslahat", "title": "Birinchi g'oya", "idea": "Tavsif"},
+        {"day": "Seshanba", "format": "Keys", "title": "Ikkinchi g'oya", "idea": "Tavsif 2"},
+    ]
+    dkb = _get_plan_day_keyboard(plan_items)
+    dcbs = [b.callback_data for row in dkb.inline_keyboard for b in row]
+    check("day kb: kun 0", "plan_day:0" in dcbs)
+    check("day kb: kun 1", "plan_day:1" in dcbs)
+    check("day kb: back", "plan_back" in dcbs)
+    check("day kb: 3 ta tugma", len(dcbs) == 3)
+
+
+def test_tone_migration_sql():
+    """Tone of voice migration SQL to'g'ri."""
+    print("== Tone migration SQL ==")
+    import database as db_mod
+    # init_db ichidagi migrationlarni tekshiramiz
+    source = open(db_mod.__file__).read()
+    check("migration: tone_of_voice", "tone_of_voice" in source)
+    check("migration: ADD COLUMN IF NOT EXISTS", "ADD COLUMN IF NOT EXISTS tone_of_voice" in source)
+    check("migration: default friendly", "'friendly'" in source)
+
+
+def test_main_keyboard_content_plan():
+    """Asosiy menyuda Kontent-reja tugmasi bor."""
+    print("== Main keyboard content plan ==")
+    from keyboards.default import get_main_keyboard, BTN_CONTENT_PLAN
+
+    check("BTN_CONTENT_PLAN mavjud", BTN_CONTENT_PLAN == "🧠 Kontent-reja")
+
+    kb = get_main_keyboard(False)
+    all_texts = [b.text for row in kb.keyboard for b in row]
+    check("main kb: Kontent-reja bor", BTN_CONTENT_PLAN in all_texts)
+
+    kb_admin = get_main_keyboard(True)
+    all_texts_admin = [b.text for row in kb_admin.keyboard for b in row]
+    check("admin kb: Kontent-reja bor", BTN_CONTENT_PLAN in all_texts_admin)
+
+
+def test_channels_list_with_tone():
+    """Kanallar ro'yxatida tone tugmasi bor."""
+    print("== Channels list with tone ==")
+    from keyboards.inline import render_channels_list
+
+    # 2 elementli tuple (eski format)
+    channels_old = [("-1001", "Eski Kanal")]
+    kb_old = render_channels_list(channels_old)
+    cbs_old = [b.callback_data for row in kb_old.inline_keyboard for b in row]
+    check("eski format: tone_menu bor", any("tone_menu:" in c for c in cbs_old))
+
+    # 3 elementli tuple (yangi format: id, title, tone)
+    channels_new = [("-1001", "Yangi Kanal", "formal")]
+    kb_new = render_channels_list(channels_new)
+    cbs_new = [b.callback_data for row in kb_new.inline_keyboard for b in row]
+    labels_new = [b.text for row in kb_new.inline_keyboard for b in row]
+    check("yangi format: tone_menu bor", any("tone_menu:" in c for c in cbs_new))
+    check("yangi format: formal emoji", any("👔" in t for t in labels_new))
+
+
 def test_channel_cache_invalidation():
     print("== database kesh invalidatsiyasi (kanal egasi almashganda) ==")
     from contextlib import contextmanager
@@ -966,6 +1140,13 @@ def main():
     test_ai_format_prompts()
     test_ai_action_keyboards()
     test_ai_format_fallback()
+    test_tone_of_voice_constants()
+    test_tone_descriptions()
+    test_content_plan_prompt()
+    test_content_plan_keyboards()
+    test_tone_migration_sql()
+    test_main_keyboard_content_plan()
+    test_channels_list_with_tone()
 
     print(f"\nO'tdi: {passed}, Xato: {failures}")
     if failures:
