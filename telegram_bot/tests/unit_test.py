@@ -779,6 +779,167 @@ def test_channels_list_with_tone():
     check("yangi format: formal emoji", any("👔" in t for t in labels_new))
 
 
+def test_analytics_dashboard_format():
+    """Dashboard formatlash funksiyasi to'g'ri ishlashi."""
+    print("== Analytics dashboard format ==")
+    from handlers.analytics import _build_dashboard, _format_hour, _TYPE_EMOJI, _TYPE_LABEL
+
+    # 1. Bo'sh statistika — empty state
+    empty_stats = {
+        "sent_7d": 0, "sent_30d": 0, "sent_all": 0,
+        "pending": 0, "peak_hours": [], "type_distribution": {},
+    }
+    dash_empty = _build_dashboard(empty_stats, "Test Kanal")
+    check("empty: Hali post yo'q", "Hali post chiqarilmagan" in dash_empty)
+    check("empty: kanal nomi", "Test Kanal" in dash_empty)
+    check("empty: separator", "━━━" in dash_empty)
+
+    # 2. To'ldirilgan statistika
+    full_stats = {
+        "sent_7d": 14, "sent_30d": 58, "sent_all": 120,
+        "pending": 6,
+        "peak_hours": [(9, 20), (18, 15), (21, 10)],
+        "type_distribution": {"photo": 72, "text": 36, "video": 12},
+    }
+    dash_full = _build_dashboard(full_stats, "@test_channel")
+    check("full: 7 kun", "14" in dash_full)
+    check("full: 30 kun", "58" in dash_full)
+    check("full: jami", "120" in dash_full)
+    check("full: pending", "6" in dash_full)
+    check("full: peak 09:00", "09:00" in dash_full)
+    check("full: peak 18:00", "18:00" in dash_full)
+    check("full: Rasm", "Rasm" in dash_full)
+    check("full: Matn", "Matn" in dash_full)
+    check("full: Video", "Video" in dash_full)
+    check("full: separator", "━━━" in dash_full)
+
+    # 3. _format_hour
+    check("hour 0", _format_hour(0) == "00:00")
+    check("hour 9", _format_hour(9) == "09:00")
+    check("hour 23", _format_hour(23) == "23:00")
+
+    # 4. Type emoji/label mapping
+    check("text emoji", _TYPE_EMOJI.get("text") == "📝")
+    check("photo emoji", _TYPE_EMOJI.get("photo") == "🖼")
+    check("video emoji", _TYPE_EMOJI.get("video") == "🎥")
+    check("text label", _TYPE_LABEL.get("text") == "Matn")
+    check("photo label", _TYPE_LABEL.get("photo") == "Rasm")
+
+
+def test_analytics_keyboards():
+    """Analytics keyboardlari to'g'ri shakllanishi."""
+    print("== Analytics keyboards ==")
+    from handlers.analytics import (
+        _get_analytics_channel_keyboard,
+        _get_analytics_view_keyboard,
+    )
+
+    # 1. Channel keyboard
+    channels = [("-1001", "Kanal A"), ("-1002", "Kanal B")]
+    kb = _get_analytics_channel_keyboard(channels)
+    cbs = [b.callback_data for row in kb.inline_keyboard for b in row]
+    labels = [b.text for row in kb.inline_keyboard for b in row]
+    check("ch kb: Barcha kanallar", "an_ch:all" in cbs)
+    check("ch kb: Kanal A", "an_ch:-1001" in cbs)
+    check("ch kb: Kanal B", "an_ch:-1002" in cbs)
+    check("ch kb: close", "an_close" in cbs)
+    check("ch kb: 4 ta tugma", len(cbs) == 4)
+
+    # 2. View keyboard
+    vkb = _get_analytics_view_keyboard()
+    vcbs = [b.callback_data for row in vkb.inline_keyboard for b in row]
+    check("view kb: refresh", "an_refresh" in vcbs)
+    check("view kb: other", "an_other" in vcbs)
+    check("view kb: close", "an_close" in vcbs)
+
+    # 3. Bo'sh kanallar ro'yxati
+    kb_empty = _get_analytics_channel_keyboard([])
+    ecbs = [b.callback_data for row in kb_empty.inline_keyboard for b in row]
+    check("empty kb: all bor", "an_ch:all" in ecbs)
+    check("empty kb: close bor", "an_close" in ecbs)
+
+
+def test_analytics_db_functions_exist():
+    """Database analytics funksiyalari mavjud."""
+    print("== Analytics DB functions ==")
+    import database as db_mod
+
+    check("get_channel_post_stats mavjud", hasattr(db_mod, "get_channel_post_stats"))
+    check("get_user_channel_list_for_analytics mavjud", hasattr(db_mod, "get_user_channel_list_for_analytics"))
+
+    # Funksiyalar callable
+    check("get_channel_post_stats callable", callable(db_mod.get_channel_post_stats))
+    check("get_user_channel_list_for_analytics callable", callable(db_mod.get_user_channel_list_for_analytics))
+
+
+def test_analytics_empty_state():
+    """Bo'sh kanal uchun empty state xabari."""
+    print("== Analytics empty state ==")
+    from handlers.analytics import _build_dashboard
+
+    # Faqat pending bor, sent yo'q — empty state (pending ham 0 bo'lsa)
+    # pending > 0 bo'lsa — dashboard ko'rsatiladi (navbatda kutayotganlar bor)
+    stats_pending_only = {
+        "sent_7d": 0, "sent_30d": 0, "sent_all": 0,
+        "pending": 3, "peak_hours": [], "type_distribution": {},
+    }
+    dash = _build_dashboard(stats_pending_only, "Yangi Kanal")
+    # sent_all=0 lekin pending>0 → dashboard (pending ko'rsatiladi)
+    check("pending>0: Navbatda", "Navbatda" in dash)
+    check("pending>0: kanal nomi", "Yangi Kanal" in dash)
+
+    # Barcha qiymatlar 0
+    stats_zero = {
+        "sent_7d": 0, "sent_30d": 0, "sent_all": 0,
+        "pending": 0, "peak_hours": [], "type_distribution": {},
+    }
+    dash2 = _build_dashboard(stats_zero, "Bo'sh")
+    check("zero: empty state", "Hali post chiqarilmagan" in dash2)
+
+
+def test_analytics_type_distribution_format():
+    """Post turlari taqsimoti formati."""
+    print("== Analytics type distribution ==")
+    from handlers.analytics import _build_dashboard
+
+    # Faqat matn
+    stats_text_only = {
+        "sent_7d": 5, "sent_30d": 5, "sent_all": 5,
+        "pending": 0, "peak_hours": [(10, 5)],
+        "type_distribution": {"text": 5},
+    }
+    dash = _build_dashboard(stats_text_only, "Matn Kanal")
+    check("text only: 100% Matn", "100%" in dash and "Matn" in dash)
+
+    # Aralash
+    stats_mixed = {
+        "sent_7d": 10, "sent_30d": 10, "sent_all": 10,
+        "pending": 0, "peak_hours": [(9, 5), (18, 3), (21, 2)],
+        "type_distribution": {"photo": 5, "text": 3, "video": 2},
+    }
+    dash2 = _build_dashboard(stats_mixed, "Aralash Kanal")
+    check("mixed: Rasm bor", "Rasm" in dash2)
+    check("mixed: Matn bor", "Matn" in dash2)
+    check("mixed: Video bor", "Video" in dash2)
+    check("mixed: 50% Rasm", "50%" in dash2)
+
+
+def test_analytics_main_keyboard():
+    """Asosiy menyuda Analitika tugmasi bor."""
+    print("== Analytics main keyboard ==")
+    from keyboards.default import get_main_keyboard, BTN_ANALYTICS
+
+    check("BTN_ANALYTICS mavjud", BTN_ANALYTICS == "📊 Analitika")
+
+    kb = get_main_keyboard(False)
+    all_texts = [b.text for row in kb.keyboard for b in row]
+    check("main kb: Analitika bor", BTN_ANALYTICS in all_texts)
+
+    kb_admin = get_main_keyboard(True)
+    all_admin = [b.text for row in kb_admin.keyboard for b in row]
+    check("admin kb: Analitika bor", BTN_ANALYTICS in all_admin)
+
+
 def test_channel_cache_invalidation():
     print("== database kesh invalidatsiyasi (kanal egasi almashganda) ==")
     from contextlib import contextmanager
@@ -1147,6 +1308,12 @@ def main():
     test_tone_migration_sql()
     test_main_keyboard_content_plan()
     test_channels_list_with_tone()
+    test_analytics_dashboard_format()
+    test_analytics_keyboards()
+    test_analytics_db_functions_exist()
+    test_analytics_empty_state()
+    test_analytics_type_distribution_format()
+    test_analytics_main_keyboard()
 
     print(f"\nO'tdi: {passed}, Xato: {failures}")
     if failures:

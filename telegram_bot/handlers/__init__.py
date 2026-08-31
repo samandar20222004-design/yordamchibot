@@ -16,7 +16,7 @@ from keyboards.default import (
     BTN_ADMIN_PANEL, BTN_STATS, BTN_ALL_POSTS, BTN_ALL_CHANNELS,
     BTN_BROADCAST, BTN_SPONSORS, BTN_ADD_SPONSOR,
     BTN_CHANNEL_AD, BTN_BOT_REPLY_AD, BTN_POST_TAG, BTN_AI_SETTINGS, BTN_CACHE_DB,
-    BTN_ADD_CHANNEL, BTN_QUEUE, BTN_CONTENT_PLAN,
+    BTN_ADD_CHANNEL, BTN_QUEUE, BTN_CONTENT_PLAN, BTN_ANALYTICS,
 )
 from keyboards.inline import get_subscription_check_keyboard
 
@@ -88,7 +88,13 @@ from handlers.content_plan import (
     PLAN_CHOOSE_CHANNEL, PLAN_GET_TOPIC, PLAN_VIEW
 )
 
-# 9. QUEUE MODULI
+# 9. ANALYTICS MODULI
+from handlers.analytics import (
+    start_analytics, analytics_channel_chosen, analytics_view_callback,
+    ANALYTICS_CHOOSE, ANALYTICS_VIEW
+)
+
+# 10. QUEUE MODULI
 from handlers.queue import (
     queue_menu, queue_page_callback, queue_view_callback,
     queue_delete_callback, queue_push_callback, queue_close_callback,
@@ -296,7 +302,12 @@ def register_all_handlers(app):
         MessageHandler(exact(BTN_CONTENT_PLAN), lambda u, c: guard_entry(u, c, start_content_plan)),
     ]
 
-    # 9. Queue
+    # 9. Analytics
+    analytics_handlers = [
+        MessageHandler(exact(BTN_ANALYTICS), lambda u, c: guard_entry(u, c, start_analytics)),
+    ]
+
+    # 10. Queue
     queue_handlers = [
         MessageHandler(exact(BTN_QUEUE), lambda u, c: guard_menu(u, c, queue_menu)),
     ]
@@ -311,6 +322,7 @@ def register_all_handlers(app):
         admin_handlers +
         ai_handlers +
         content_plan_handlers +
+        analytics_handlers +
         queue_handlers
     )
 
@@ -370,6 +382,15 @@ def register_all_handlers(app):
             PLAN_GET_TOPIC: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, plan_topic_received)],
             PLAN_VIEW: all_menu_jumps + [
                 CallbackQueryHandler(plan_view_callback, pattern=r"^plan_"),
+            ],
+
+            # 9. Analytics holatlari
+            ANALYTICS_CHOOSE: all_menu_jumps + [
+                CallbackQueryHandler(analytics_channel_chosen, pattern=r"^an_ch:"),
+                CallbackQueryHandler(analytics_view_callback, pattern=r"^an_close$"),
+            ],
+            ANALYTICS_VIEW: all_menu_jumps + [
+                CallbackQueryHandler(analytics_view_callback, pattern=r"^an_"),
             ],
 
             # 4. Kutilayotgan postlarni tahrirlash holatlari
