@@ -583,6 +583,104 @@ def test_channel_cache_invalidation():
     db_mod._cache_clear()
 
 
+def test_confirmation_preview():
+    print("== confirmation preview & keyboards ==")
+    from handlers.new_post import (
+        _build_preview_text, _get_confirm_keyboard, _get_edit_confirm_keyboard,
+        CONFIRM_POST, EDIT_CONFIRM_FIELD,
+    )
+    from telegram import InlineKeyboardMarkup
+
+    # Mock context with user_data
+    class FakeContext:
+        def __init__(self):
+            self.user_data = {}
+
+    ctx = FakeContext()
+    ctx.user_data = {
+        "selected_channel_title": "Test Kanal",
+        "post_type": "text",
+        "content": "Salom dunyo!",
+        "btn_text": "Bosing",
+        "btn_url": "https://t.me/test",
+        "enable_reactions": True,
+        "delete_after_hours": 24,
+        "confirm_post_time": pytz.timezone("Asia/Tashkent").localize(datetime(2026, 9, 1, 10, 0)),
+        "confirm_recurrence_type": "none",
+        "confirm_recurrence_day": None,
+        "confirm_recurrence_time_str": None,
+    }
+
+    preview = _build_preview_text(ctx)
+    check("preview: kanal nomi", "Test Kanal" in preview, preview[:100])
+    check("preview: matn turi", "📝 Matn" in preview, preview[:100])
+    check("preview: vaqt", "2026-09-01 10:00" in preview, preview[:100])
+    check("preview: kontent", "Salom dunyo!" in preview, preview[:200])
+    check("preview: tugma", "Bosing" in preview, preview[:300])
+    check("preview: reaksiya", "Yoqilgan" in preview, preview[:300])
+    check("preview: auto-delete", "24 soat" in preview, preview[:300])
+    check("preview: tasdiqlash sarlavhasi", "Postni tasdiqlang" in preview, preview[:100])
+
+    # Takroriy (daily) post preview
+    ctx.user_data["confirm_recurrence_type"] = "daily"
+    ctx.user_data["confirm_recurrence_time_str"] = "10:00:00"
+    preview2 = _build_preview_text(ctx)
+    check("preview: daily takroriy", "Har kuni" in preview2 and "10:00" in preview2, preview2[:200])
+
+    # Takroriy (weekly) post preview
+    ctx.user_data["confirm_recurrence_type"] = "weekly"
+    ctx.user_data["confirm_recurrence_day"] = 0  # Dushanba
+    ctx.user_data["confirm_recurrence_time_str"] = "18:30:00"
+    preview3 = _build_preview_text(ctx)
+    check("preview: weekly takroriy", "Har Dushanba" in preview3 and "18:30" in preview3, preview3[:200])
+
+    # Confirm keyboard tugmalari
+    kb = _get_confirm_keyboard()
+    cbs = [b.callback_data for row in kb.inline_keyboard for b in row]
+    check("confirm kb: ok tugmasi", "confirm_post:ok" in cbs, str(cbs))
+    check("confirm kb: edit tugmasi", "confirm_post:edit" in cbs, str(cbs))
+    check("confirm kb: cancel tugmasi", "confirm_post:cancel" in cbs, str(cbs))
+
+    # Edit keyboard tugmalari
+    ekb = _get_edit_confirm_keyboard()
+    ecbs = [b.callback_data for row in ekb.inline_keyboard for b in row]
+    check("edit kb: content", "edit_field:content" in ecbs, str(ecbs))
+    check("edit kb: channel", "edit_field:channel" in ecbs, str(ecbs))
+    check("edit kb: time", "edit_field:time" in ecbs, str(ecbs))
+    check("edit kb: btn", "edit_field:btn" in ecbs, str(ecbs))
+    check("edit kb: back", "edit_field:back" in ecbs, str(ecbs))
+
+    # State qiymatlari
+    check("CONFIRM_POST = 111", CONFIRM_POST == 111)
+    check("EDIT_CONFIRM_FIELD = 112", EDIT_CONFIRM_FIELD == 112)
+
+    # Media preview (photo)
+    ctx.user_data["post_type"] = "photo"
+    ctx.user_data["file_id"] = "AgACAgIAAxkBAAI"
+    ctx.user_data["confirm_recurrence_type"] = "none"
+    ctx.user_data["confirm_recurrence_day"] = None
+    ctx.user_data["confirm_recurrence_time_str"] = None
+    preview4 = _build_preview_text(ctx)
+    check("preview: photo turi", "🖼 Rasm" in preview4, preview4[:200])
+
+    # Bo'sh kontent
+    ctx.user_data["content"] = ""
+    ctx.user_data["post_type"] = "text"
+    ctx.user_data["file_id"] = None
+    preview5 = _build_preview_text(ctx)
+    check("preview: bo'sh kontent", "Postni tasdiqlang" in preview5, preview5[:100])
+
+    # Tugmasiz post
+    ctx.user_data["btn_text"] = None
+    ctx.user_data["btn_url"] = None
+    ctx.user_data["enable_reactions"] = False
+    ctx.user_data["delete_after_hours"] = 0
+    preview6 = _build_preview_text(ctx)
+    check("preview: tugmasiz", "Tugma" not in preview6, preview6[:300])
+    check("preview: reaksiyasiz", "Reaksiyalar" not in preview6, preview6[:300])
+    check("preview: auto-delete yo'q", "Avto-o'chirish" not in preview6, preview6[:300])
+
+
 def main():
     test_calculate_next_time()
     test_converter()
@@ -609,6 +707,7 @@ def main():
     test_button_labels()
     test_smart_reply_ad_async()
     test_channel_cache_invalidation()
+    test_confirmation_preview()
 
     print(f"\nO'tdi: {passed}, Xato: {failures}")
     if failures:

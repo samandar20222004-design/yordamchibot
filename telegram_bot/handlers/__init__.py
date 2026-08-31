@@ -33,8 +33,11 @@ from handlers.new_post import (
     start_new_post, channel_chosen, content_received, btn_title_received,
     btn_url_received, reactions_received, auto_delete_received, time_received,
     daily_time_received, recur_day_chosen, recur_time_received, duration_chosen,
+    confirm_post_callback, edit_confirm_field_callback, edit_confirm_message_received,
+    edit_confirm_media_received,
     CHOOSE_CHANNEL, GET_CONTENT, GET_BTN_TITLE, GET_BTN_URL,
-    GET_REACTIONS, GET_AUTO_DELETE, GET_TIME, DAILY_TIME, RECUR_DAY, RECUR_TIME, GET_DURATION
+    GET_REACTIONS, GET_AUTO_DELETE, GET_TIME, DAILY_TIME, RECUR_DAY, RECUR_TIME,
+    GET_DURATION, CONFIRM_POST, EDIT_CONFIRM_FIELD
 )
 
 # 3. CHANNELS MODULI
@@ -309,6 +312,17 @@ def register_all_handlers(app):
             RECUR_DAY: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, recur_day_chosen)],
             RECUR_TIME: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, recur_time_received)],
             GET_DURATION: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, duration_chosen)],
+
+            # Confirmation ekran holatlari
+            CONFIRM_POST: all_menu_jumps + [
+                CallbackQueryHandler(confirm_post_callback, pattern=r"^confirm_post:"),
+                MessageHandler(filters.ALL & ~filters.COMMAND, edit_confirm_message_received),
+            ],
+            EDIT_CONFIRM_FIELD: all_menu_jumps + [
+                CallbackQueryHandler(edit_confirm_field_callback, pattern=r"^edit_field:"),
+                MessageHandler(filters.PHOTO | filters.VIDEO | filters.Document.ALL | filters.AUDIO | filters.ANIMATION, edit_confirm_media_received),
+                MessageHandler(filters.TEXT & ~filters.COMMAND, edit_confirm_message_received),
+            ],
 
             # 3. Kanal holatlari
             ADD_CHANNEL: all_menu_jumps + [MessageHandler(filters.ALL & ~filters.COMMAND, channel_received)],
