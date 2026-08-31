@@ -62,6 +62,33 @@ def get_sponsors_delete_keyboard(sponsors: list) -> InlineKeyboardMarkup:
     keyboard.append([InlineKeyboardButton("❌ Yopish", callback_data="close_msg")])
     return InlineKeyboardMarkup(keyboard)
 
+
+def get_admin_dashboard_keyboard() -> InlineKeyboardMarkup:
+    """Admin panel inline keyboard — dashboard tugmalari."""
+    keyboard = [
+        [
+            InlineKeyboardButton("📊 To'liq statistika", callback_data="adm_stats"),
+            InlineKeyboardButton("🎁 Promo-kod yaratish", callback_data="adm_promo"),
+        ],
+        [
+            InlineKeyboardButton("⭐️ Foydalanuvchiga PRO berish", callback_data="adm_grant_pro"),
+            InlineKeyboardButton("📢 Broadcast", callback_data="adm_broadcast"),
+        ],
+        [InlineKeyboardButton("❌ Yopish", callback_data="close_msg")],
+    ]
+    return InlineKeyboardMarkup(keyboard)
+
+
+def get_admin_back_keyboard() -> InlineKeyboardMarkup:
+    """Admin ichki bo'limlarida Orqaga + Yopish tugmalari."""
+    keyboard = [
+        [
+            InlineKeyboardButton("⬅️ Orqaga", callback_data="adm_back"),
+            InlineKeyboardButton("❌ Yopish", callback_data="close_msg"),
+        ],
+    ]
+    return InlineKeyboardMarkup(keyboard)
+
 def render_channels_list(channels: list) -> InlineKeyboardMarkup:
     keyboard = []
     for ch in channels:

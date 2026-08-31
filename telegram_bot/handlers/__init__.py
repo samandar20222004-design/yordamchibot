@@ -73,8 +73,9 @@ from handlers.admin import (
     start_set_channel_ad, channel_ad_received, start_set_bot_reply_ad, bot_reply_ad_received,
     ai_settings_menu, ai_settings_received, cache_db_menu, cache_clear_callback,
     start_set_post_tag, post_tag_received,
+    admin_stats_command, admin_dashboard_callback, admin_inline_text_handler,
     BROADCAST_MESSAGE, ADD_SPONSOR_CHANNEL, SET_CHANNEL_AD, SET_BOT_REPLY_AD,
-    AI_SETTINGS, SET_POST_TAG
+    AI_SETTINGS, SET_POST_TAG, ADMIN_GRANT_PRO, ADMIN_PROMO_CREATE,
 )
 
 # 7. AI ASSISTANT MODULI (ENG OXIRIDA)
@@ -450,6 +451,10 @@ def register_all_handlers(app):
             SET_POST_TAG: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, post_tag_received)],
             AI_SETTINGS: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, ai_settings_received)],
 
+            # Admin inline flow holatlari
+            ADMIN_GRANT_PRO: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, admin_inline_text_handler)],
+            ADMIN_PROMO_CREATE: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, admin_inline_text_handler)],
+
             # 7. AI Assistant holatlari (Faqat foydalanuvchi AI ga kirganda ishlaydi!)
             AI_INPUT: all_menu_jumps + [MessageHandler(filters.ALL & ~filters.COMMAND, ai_input_received)],
             AI_CONFIRM: all_menu_jumps + [
@@ -498,6 +503,7 @@ def register_all_handlers(app):
     app.add_handler(CommandHandler("cancel", cancel_handler))
     app.add_handler(CommandHandler("grant_pro", grant_pro_command))
     app.add_handler(CommandHandler("create_promo", create_promo_command))
+    app.add_handler(CommandHandler("admin_stats", admin_stats_command))
 
     # Stars to'lov handlerlari
     from telegram.ext import PreCheckoutQueryHandler
@@ -528,5 +534,6 @@ def register_all_handlers(app):
     app.add_handler(CallbackQueryHandler(close_msg_callback, pattern=r"^close_msg$"))
     app.add_handler(CallbackQueryHandler(noop_callback, pattern=r"^noop$"))
     app.add_handler(CallbackQueryHandler(cache_clear_callback, pattern=r"^cache_clear$"))
+    app.add_handler(CallbackQueryHandler(admin_dashboard_callback, pattern=r"^adm_"))
     app.add_handler(ChatMemberHandler(on_bot_chat_member_update, ChatMemberHandler.MY_CHAT_MEMBER))
     app.add_handler(CallbackQueryHandler(expired_session_callback))

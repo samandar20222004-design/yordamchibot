@@ -1,9 +1,9 @@
 import asyncio
 import logging
-from telegram import Update
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.error import TelegramError, RetryAfter, TimedOut, NetworkError, BadRequest
 from telegram.ext import ContextTypes, ConversationHandler
-from config import ADMIN_IDS_SET
+from config import ADMIN_ID, ADMIN_IDS_SET
 import database as db
 from keyboards.default import (
     get_admin_panel_keyboard,
@@ -12,7 +12,10 @@ from keyboards.default import (
     BTN_MAIN_MENU,
     BTN_AI_SETTINGS, BTN_CACHE_DB,
 )
-from keyboards.inline import get_sponsors_delete_keyboard, get_cache_actions_keyboard
+from keyboards.inline import (
+    get_sponsors_delete_keyboard, get_cache_actions_keyboard,
+    get_admin_dashboard_keyboard, get_admin_back_keyboard,
+)
 from utils import ai_agent
 from utils.helpers import html_escape, format_post_type_label
 
@@ -24,6 +27,8 @@ SET_CHANNEL_AD = 803
 SET_BOT_REPLY_AD = 804
 AI_SETTINGS = 805
 SET_POST_TAG = 806
+ADMIN_GRANT_PRO = 807
+ADMIN_PROMO_CREATE = 808
 
 # Broadcast har 20 xabardan keyin shuncha kutadi (Telegram ~30 msg/s limiti).
 # 20 xabar / 0.7 s ≈ 28 msg/s — limitdan xavfsiz past.
@@ -104,6 +109,333 @@ def _ai_settings_text() -> str:
         lines.append(f"   • <b>{label}</b> = <code>{html_escape(value_text)}</code>  <i>({hint})</i>")
     return "\n".join(lines)
 
+
+def _build_dashboard_text(stats: dict) -> str:
+    """Admin dashboard matnini yaratadi."""
+    return (
+        "👑 <b>Admin Boshqaruv Paneli</b>\n"
+        "━━━━━━━━━━━━━━━━━\n"
+        f"👥 Jami foydalanuvchilar: <b>{stats['users']} ta</b>\n"
+        f"⭐️ PRO obunachilar: <b>{stats['pro_subscribers']} ta</b>\n"
+        f"📢 Ulangan faol kanallar: <b>{stats['channels']} ta</b>\n"
+        f"📝 Bugun chiqarilgan postlar: <b>{stats['posts_today']} ta</b>\n"
+        f"⏳ Navbatdagi postlar: <b>{stats['pending_posts']} ta</b>\n"
+        f"⭐️ Telegram Stars tushumi: <b>{stats['stars_revenue']} XTR</b>\n"
+        "━━━━━━━━━━━━━━━━━\n\n"
+        "Kerakli bo'limni tanlang 👇"
+    )
+
+
+def is_admin(user_id: int) -> bool:
+    """Ko'p adminli tekshiruv: ADMIN_ID va ADMIN_IDS ichidan birida bo'lsa admin."""
+    return user_id in ADMIN_IDS_SET
+
+
+# ============================================================
+# ADMIN PANEL DASHBOARD
+# ============================================================
+
+async def admin_panel_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_admin(update.effective_user.id):
+        return ConversationHandler.END
+    context.user_data.clear()
+    stats = await db.run_db(db.get_admin_dashboard_stats)
+    text = _build_dashboard_text(stats)
+    await update.message.reply_text(
+        text,
+        reply_markup=get_admin_dashboard_keyboard(),
+        parse_mode="HTML",
+    )
+    return ConversationHandler.END
+
+
+async def admin_stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """`/admin_stats` — qisqa umumiy statistika."""
+    if not is_admin(update.effective_user.id):
+        return
+    stats = await db.run_db(db.get_system_stats)
+    text = (
+        "📊 <b>Bot Statistikasi:</b>\n\n"
+        f"👥 Jami foydalanuvchilar: <b>{stats['users']} ta</b>\n"
+        f"📢 Ulangan kanallar: <b>{stats['channels']} ta</b>\n"
+        f"📢 Homiy kanallar: <b>{stats['sponsors']} ta</b>\n"
+        f"⏳ Kutilayotgan postlar: <b>{stats['pending']} ta</b>\n"
+        f"✅ Yuborilgan postlar: <b>{stats['sent']} ta</b>\n"
+        f"🚫 Bekor qilingan postlar: <b>{stats['cancelled']} ta</b>\n"
+        f"⚠️ Xatolik bilan tugagan: <b>{stats['failed']} ta</b>"
+    )
+    await update.message.reply_text(
+        text,
+        reply_markup=get_admin_back_keyboard(),
+        parse_mode="HTML",
+    )
+
+
+# ============================================================
+# ADMIN INLINE CALLBACK HANDLERS
+# ============================================================
+
+async def admin_dashboard_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Admin dashboard inline tugmalari."""
+    query = update.callback_query
+    if not is_admin(query.from_user.id):
+        await query.answer("Ruxsat yo'q.", show_alert=True)
+        return
+    data = query.data
+
+    if data == "adm_stats":
+        await query.answer()
+        stats = await db.run_db(db.get_system_stats)
+        text = (
+            "📊 <b>To'liq Statistika:</b>\n\n"
+            f"👥 Jami foydalanuvchilar: <b>{stats['users']} ta</b>\n"
+            f"📢 Ulangan kanallar: <b>{stats['channels']} ta</b>\n"
+            f"📢 Homiy kanallar: <b>{stats['sponsors']} ta</b>\n"
+            f"⏳ Kutilayotgan postlar: <b>{stats['pending']} ta</b>\n"
+            f"✅ Yuborilgan postlar: <b>{stats['sent']} ta</b>\n"
+            f"🚫 Bekor qilingan: <b>{stats['cancelled']} ta</b>\n"
+            f"⚠️ Xatolik: <b>{stats['failed']} ta</b>"
+        )
+        try:
+            await query.edit_message_text(
+                text,
+                reply_markup=get_admin_back_keyboard(),
+                parse_mode="HTML",
+            )
+        except TelegramError:
+            await query.message.reply_text(
+                text,
+                reply_markup=get_admin_back_keyboard(),
+                parse_mode="HTML",
+            )
+        return
+
+    if data == "adm_promo":
+        await query.answer()
+        try:
+            await query.edit_message_text(
+                "🎁 <b>Promo-kod yaratish:</b>\n\n"
+                "Format: <code>KOD KUNLAR [MAKS_ISHLATISH]</code>\n\n"
+                "Masalan:\n"
+                "• <code>MAXSUS30 30 50</code> — 30 kun PRO, 50 marta\n"
+                "• <code>YANGI2026 30</code> — 30 kun PRO, cheksiz\n\n"
+                "Promo-kodni yozing:",
+                reply_markup=get_admin_back_keyboard(),
+                parse_mode="HTML",
+            )
+        except TelegramError:
+            await query.message.reply_text(
+                "🎁 <b>Promo-kod yaratish:</b>\n\n"
+                "Format: <code>KOD KUNLAR [MAKS_ISHLATISH]</code>\n\n"
+                "Promo-kodni yozing:",
+                reply_markup=get_admin_back_keyboard(),
+                parse_mode="HTML",
+            )
+        context.user_data["admin_flow"] = "promo_create"
+        return
+
+    if data == "adm_grant_pro":
+        await query.answer()
+        try:
+            await query.edit_message_text(
+                "⭐️ <b>Foydalanuvchiga PRO berish:</b>\n\n"
+                "Format: <code>USER_ID KUNLAR</code>\n\n"
+                "Masalan: <code>123456789 30</code>\n\n"
+                "User ID va kunlar sonini yozing:",
+                reply_markup=get_admin_back_keyboard(),
+                parse_mode="HTML",
+            )
+        except TelegramError:
+            await query.message.reply_text(
+                "⭐️ <b>Foydalanuvchiga PRO berish:</b>\n\n"
+                "Format: <code>USER_ID KUNLAR</code>\n\n"
+                "User ID va kunlar sonini yozing:",
+                reply_markup=get_admin_back_keyboard(),
+                parse_mode="HTML",
+            )
+        context.user_data["admin_flow"] = "grant_pro"
+        return
+
+    if data == "adm_broadcast":
+        await query.answer()
+        try:
+            await query.edit_message_text(
+                "✉️ <b>Barcha foydalanuvchilarga xabar yuborish:</b>\n\n"
+                "Yuboriladigan xabar matnini yozing:",
+                reply_markup=get_admin_back_keyboard(),
+                parse_mode="HTML",
+            )
+        except TelegramError:
+            await query.message.reply_text(
+                "✉️ <b>Barcha foydalanuvchilarga xabar yuborish:</b>\n\n"
+                "Yuboriladigan xabar matnini yozing:",
+                reply_markup=get_admin_back_keyboard(),
+                parse_mode="HTML",
+            )
+        context.user_data["admin_flow"] = "broadcast"
+        return
+
+    if data == "adm_back":
+        await query.answer()
+        stats = await db.run_db(db.get_admin_dashboard_stats)
+        text = _build_dashboard_text(stats)
+        try:
+            await query.edit_message_text(
+                text,
+                reply_markup=get_admin_dashboard_keyboard(),
+                parse_mode="HTML",
+            )
+        except TelegramError:
+            await query.message.reply_text(
+                text,
+                reply_markup=get_admin_dashboard_keyboard(),
+                parse_mode="HTML",
+            )
+        context.user_data.pop("admin_flow", None)
+        return
+
+
+async def admin_inline_text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Admin inline flow'dan kelgan matnlarni qayta ishlash."""
+    if not is_admin(update.effective_user.id):
+        return ConversationHandler.END
+
+    flow = context.user_data.get("admin_flow")
+    text = update.message.text.strip()
+
+    if flow == "grant_pro":
+        parts = text.split()
+        if len(parts) < 2:
+            await update.message.reply_text(
+                "❌ Noto'g'ri format. <code>USER_ID KUNLAR</code> deb yozing.",
+                reply_markup=get_admin_back_keyboard(),
+                parse_mode="HTML",
+            )
+            return ADMIN_GRANT_PRO
+        try:
+            target_id = int(parts[0])
+            days = int(parts[1])
+        except ValueError:
+            await update.message.reply_text(
+                "❌ Raqamlar noto'g'ri. <code>USER_ID KUNLAR</code> deb yozing.",
+                reply_markup=get_admin_back_keyboard(),
+                parse_mode="HTML",
+            )
+            return ADMIN_GRANT_PRO
+        if days <= 0:
+            await update.message.reply_text(
+                "❌ Kunlar soni 0 dan katta bo'lishi kerak.",
+                reply_markup=get_admin_back_keyboard(),
+                parse_mode="HTML",
+            )
+            return ADMIN_GRANT_PRO
+        success = await db.run_db(db.set_user_plan, target_id, "pro", days)
+        if success:
+            await update.message.reply_text(
+                f"✅ <b>PRO tarif berildi!</b>\n\n"
+                f"👤 Foydalanuvchi: <code>{target_id}</code>\n"
+                f"📅 Muddat: <b>{days} kun</b>",
+                reply_markup=get_admin_back_keyboard(),
+                parse_mode="HTML",
+            )
+            try:
+                await context.bot.send_message(
+                    chat_id=target_id,
+                    text=(
+                        f"🎉 <b>Tabriklaymiz!</b>\n\n"
+                        f"Sizga <b>{days} kunlik PRO tarif</b> berildi!\n"
+                        f"Barcha PRO imkoniyatlardan foydalanishingiz mumkin."
+                    ),
+                    parse_mode="HTML",
+                )
+            except Exception:
+                pass
+        else:
+            await update.message.reply_text(
+                "❌ Xatolik yuz berdi. User ID to'g'riligini tekshiring.",
+                reply_markup=get_admin_back_keyboard(),
+                parse_mode="HTML",
+            )
+        context.user_data.pop("admin_flow", None)
+        return ADMIN_GRANT_PRO
+
+    if flow == "promo_create":
+        parts = text.split()
+        if len(parts) < 2:
+            await update.message.reply_text(
+                "❌ Noto'g'ri format. <code>KOD KUNLAR [MAKS]</code> deb yozing.",
+                reply_markup=get_admin_back_keyboard(),
+                parse_mode="HTML",
+            )
+            return ADMIN_PROMO_CREATE
+        code = parts[0].upper()
+        try:
+            days = int(parts[1])
+        except ValueError:
+            await update.message.reply_text(
+                "❌ Kunlar soni raqam bo'lishi kerak.",
+                reply_markup=get_admin_back_keyboard(),
+                parse_mode="HTML",
+            )
+            return ADMIN_PROMO_CREATE
+        max_uses = None
+        if len(parts) >= 3:
+            try:
+                max_uses = int(parts[2])
+            except ValueError:
+                await update.message.reply_text(
+                    "❌ Maks ishlatish soni raqam bo'lishi kerak.",
+                    reply_markup=get_admin_back_keyboard(),
+                    parse_mode="HTML",
+                )
+                return ADMIN_PROMO_CREATE
+        if days <= 0:
+            await update.message.reply_text(
+                "❌ Kunlar soni 0 dan katta bo'lishi kerak.",
+                reply_markup=get_admin_back_keyboard(),
+                parse_mode="HTML",
+            )
+            return ADMIN_PROMO_CREATE
+        success = await db.run_db(db.create_promo_code, code, "pro", days, max_uses)
+        if success:
+            max_str = f"{max_uses} marta" if max_uses else "cheksiz"
+            await update.message.reply_text(
+                f"✅ <b>Promo-kod yaratildi!</b>\n\n"
+                f"🏷 Kod: <code>{code}</code>\n"
+                f"📅 Muddat: <b>{days} kun</b> PRO\n"
+                f"🔢 Maks ishlatish: <b>{max_str}</b>",
+                reply_markup=get_admin_back_keyboard(),
+                parse_mode="HTML",
+            )
+        else:
+            await update.message.reply_text(
+                "❌ Promo-kod yaratishda xatolik. Bu kod allaqachon mavjud bo'lishi mumkin.",
+                reply_markup=get_admin_back_keyboard(),
+                parse_mode="HTML",
+            )
+        context.user_data.pop("admin_flow", None)
+        return ADMIN_PROMO_CREATE
+
+    if flow == "broadcast":
+        user_ids = await db.run_db(db.get_all_user_ids)
+        await update.message.reply_text(
+            f"⏳ Xabar <b>{len(user_ids)} ta</b> foydalanuvchiga yuborilmoqda...\n"
+            f"<i>Bu fon rejimida, batch'lar bilan yuboriladi.</i>",
+            parse_mode="HTML",
+        )
+        async def _broadcast_task():
+            async with _broadcast_lock:
+                await _run_broadcast(context.bot, user_ids, text, update.effective_user.id)
+        asyncio.create_task(_broadcast_task())
+        context.user_data.pop("admin_flow", None)
+        return ConversationHandler.END
+
+    return ConversationHandler.END
+
+
+# ============================================================
+# LEGACY ADMIN HANDLERS (ReplyKeyboard bilan ishlaydi)
+# ============================================================
 
 async def ai_settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id):
@@ -282,21 +614,6 @@ async def post_tag_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 
-def is_admin(user_id: int) -> bool:
-    """Ko'p adminli tekshiruv: ADMIN_ID va ADMIN_IDS ichidan birida bo'lsa admin."""
-    return user_id in ADMIN_IDS_SET
-
-async def admin_panel_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not is_admin(update.effective_user.id):
-        return ConversationHandler.END
-    context.user_data.clear()
-    await update.message.reply_text(
-        "⚙️ <b>Admin Boshqaruv Paneli:</b>\n\nKerakli bo'limni tanlang 👇",
-        reply_markup=get_admin_panel_keyboard(),
-        parse_mode="HTML",
-    )
-    return ConversationHandler.END
-
 async def show_statistics(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id):
         return
@@ -312,6 +629,7 @@ async def show_statistics(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"⚠️ Xatolik bilan tugagan: <b>{stats['failed']} ta</b>"
     )
     await update.message.reply_text(text, reply_markup=get_admin_panel_keyboard(), parse_mode="HTML")
+
 
 async def admin_all_posts(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id):
@@ -331,6 +649,7 @@ async def admin_all_posts(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(text, reply_markup=get_admin_panel_keyboard(), parse_mode="HTML")
 
+
 async def admin_all_channels(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id):
         return
@@ -341,6 +660,7 @@ async def admin_all_channels(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     text = format_admin_channels_list(channels)
     await update.message.reply_text(text, reply_markup=get_admin_panel_keyboard(), parse_mode="HTML")
+
 
 async def sponsors_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id):
@@ -365,6 +685,7 @@ async def sponsors_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if sponsors:
         await update.message.reply_text("O'chirish uchun tanlang:", reply_markup=get_sponsors_delete_keyboard(sponsors))
 
+
 async def start_add_sponsor(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id):
         return ConversationHandler.END
@@ -377,6 +698,7 @@ async def start_add_sponsor(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode="HTML"
     )
     return ADD_SPONSOR_CHANNEL
+
 
 async def sponsor_channel_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id):
@@ -394,6 +716,7 @@ async def sponsor_channel_received(update: Update, context: ContextTypes.DEFAULT
     else:
         await update.message.reply_text("❌ Saqlashda xatolik yuz berdi.", reply_markup=get_admin_panel_keyboard())
     return ConversationHandler.END
+
 
 async def del_sponsor_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -417,6 +740,7 @@ async def del_sponsor_callback(update: Update, context: ContextTypes.DEFAULT_TYP
     except TelegramError:
         pass
 
+
 async def start_set_channel_ad(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id):
         return ConversationHandler.END
@@ -430,6 +754,7 @@ async def start_set_channel_ad(update: Update, context: ContextTypes.DEFAULT_TYP
     )
     return SET_CHANNEL_AD
 
+
 async def channel_ad_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id):
         return ConversationHandler.END
@@ -441,6 +766,7 @@ async def channel_ad_received(update: Update, context: ContextTypes.DEFAULT_TYPE
         await db.run_db(db.set_setting, "channel_ad_text", text)
         await update.message.reply_text("✅ Kanal postlari reklamasi muvaffaqiyatli saqlandi!", reply_markup=get_admin_panel_keyboard())
     return ConversationHandler.END
+
 
 async def start_set_bot_reply_ad(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id):
@@ -455,6 +781,7 @@ async def start_set_bot_reply_ad(update: Update, context: ContextTypes.DEFAULT_T
     )
     return SET_BOT_REPLY_AD
 
+
 async def bot_reply_ad_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id):
         return ConversationHandler.END
@@ -467,6 +794,7 @@ async def bot_reply_ad_received(update: Update, context: ContextTypes.DEFAULT_TY
         await update.message.reply_text("✅ Bot javoblari reklamasi muvaffaqiyatli saqlandi!", reply_markup=get_admin_panel_keyboard())
     return ConversationHandler.END
 
+
 async def broadcast_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id):
         return ConversationHandler.END
@@ -476,6 +804,7 @@ async def broadcast_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode="HTML"
     )
     return BROADCAST_MESSAGE
+
 
 async def broadcast_send(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id):

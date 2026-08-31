@@ -1562,6 +1562,46 @@ def get_system_stats() -> dict:
     return stats
 
 
+def get_admin_dashboard_stats() -> dict:
+    """Admin panel dashboard uchun kengaytirilgan statistika."""
+    cache_key = "admin_dashboard_stats"
+    cached = _cache_get(cache_key)
+    if cached is not _MISS:
+        return cached
+    stats = {
+        "users": 0, "pro_subscribers": 0, "channels": 0,
+        "posts_today": 0, "pending_posts": 0, "stars_revenue": 0,
+    }
+    try:
+        with db_cursor() as cur:
+            cur.execute("SELECT COUNT(*) FROM users")
+            stats["users"] = cur.fetchone()[0]
+            cur.execute(
+                "SELECT COUNT(*) FROM users WHERE plan_type IN ('pro', 'enterprise') "
+                "AND (subscription_expires_at IS NULL OR subscription_expires_at > NOW())"
+            )
+            stats["pro_subscribers"] = cur.fetchone()[0]
+            cur.execute("SELECT COUNT(*) FROM channels WHERE is_active = TRUE")
+            stats["channels"] = cur.fetchone()[0]
+            cur.execute(
+                "SELECT COUNT(*) FROM scheduled_posts "
+                "WHERE status = 'posted' AND scheduled_time >= CURRENT_DATE"
+            )
+            stats["posts_today"] = cur.fetchone()[0]
+            cur.execute("SELECT COUNT(*) FROM scheduled_posts WHERE status = 'pending'")
+            stats["pending_posts"] = cur.fetchone()[0]
+            # Stars revenue: promo_codes jadvalidagi STARS_ bilan boshlanuvchi yozuvlar
+            cur.execute(
+                "SELECT COALESCE(SUM(duration_days), 0) FROM promo_codes "
+                "WHERE code LIKE 'STARS_%'"
+            )
+            stats["stars_revenue"] = cur.fetchone()[0]
+        _cache_set(cache_key, stats, DB_STATS_CACHE_TTL)
+    except Exception as e:
+        logger.error(f"Admin dashboard stats xatosi: {e}")
+    return stats
+
+
 # ============================================================
 # ANALYTICS & POST PERFORMANCE
 # ============================================================
