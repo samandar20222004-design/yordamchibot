@@ -459,11 +459,15 @@ def test_album_and_no_watermark(db):
 
 
 def main():
-    import pgserver
+    try:
+        import pgserver
+    except ImportError:
+        print("ℹ️ pgserver kutubxonasi o'rnatilmagan (pip install pgserver). Load-test o'tkazib yuborildi.")
+        return
 
     print("Lokal PostgreSQL ishga tushirilmoqda (pgserver)...")
-    # Har safar toza baza bilan boshlaymiz (oldingi run ma'lumotlari qolmasligi uchun)
-    server_dir = "/tmp/yordamchi_pg_load"
+    import tempfile
+    server_dir = os.path.join(tempfile.gettempdir(), "yordamchi_pg_load")
     shutil.rmtree(server_dir, ignore_errors=True)
     server = pgserver.get_server(server_dir)
     uri = server.get_uri()
