@@ -51,16 +51,24 @@ async def list_pending_posts(update: Update, context: ContextTypes.DEFAULT_TYPE)
 async def cancel_post_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     user_id = query.from_user.id
+    # Darhol javob — DB ishi tugaguncha tugma muzlab qolmasligi uchun.
+    try:
+        await query.answer()
+    except Exception:
+        pass
+
     try:
         parts = query.data.split(":")
         post_id = int(parts[1])
         await db.run_db(db.cancel_post, post_id, user_id)
-        await query.answer("✅ Post bekor qilindi.")
 
         text, markup = await _build_pending_view(user_id)
         await query.edit_message_text(text, reply_markup=markup, parse_mode="HTML")
     except Exception as e:
-        await query.answer(f"Xatolik: {e}", show_alert=True)
+        try:
+            await query.message.reply_text(f"⚠️ Xatolik: {e}")
+        except Exception:
+            pass
 
 
 async def refresh_pending_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):

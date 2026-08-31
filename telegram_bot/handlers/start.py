@@ -132,10 +132,17 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def subscription_check_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     user = query.from_user
+    # Darhol javob — kanallar holatini tekshirish Telegram API'ga bir nechta
+    # sekin so'rov yuboradi, tugma "yuklanmoqda" holatida qolib ketmasligi
+    # uchun answer() eng birinchi qatorda chaqiriladi.
+    try:
+        await query.answer()
+    except Exception:
+        pass
+
     is_sub, unsubs = await check_user_subscribed(context.bot, user.id)
-    
+
     if is_sub:
-        await query.answer("✅ Obuna tasdiqlandi!")
         try:
             await query.message.delete()
         except TelegramError:
@@ -148,10 +155,16 @@ async def subscription_check_callback(update: Update, context: ContextTypes.DEFA
             parse_mode="HTML"
         )
     else:
-        await query.answer("⚠️ Hali barcha kanallarga a'zo bo'lmadingiz!", show_alert=True)
         try:
             await query.edit_message_reply_markup(reply_markup=get_subscription_check_keyboard(unsubs))
         except TelegramError:
+            pass
+        try:
+            await query.message.reply_text(
+                "⚠️ Hali barcha kanallarga a'zo bo'lmadingiz! Pastdagi tugmalar orqali obuna bo'ling.",
+                parse_mode="HTML",
+            )
+        except Exception:
             pass
 
 async def user_cabinet_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
