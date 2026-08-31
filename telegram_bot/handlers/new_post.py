@@ -287,10 +287,16 @@ async def auto_delete_received(update: Update, context: ContextTypes.DEFAULT_TYP
 
     now = datetime.now(tashkent_tz)
     example = (now + timedelta(days=1)).strftime("%Y-%m-%d %H:%M")
+    from keyboards.default import get_time_presets_inline_keyboard
     await update.message.reply_text(
         "🕒 <b>Post qaysi vaqtda chiqsin?</b>\n\n"
-        "Tayyor tugmalardan tanlang yoki aniq vaqtni yozing:\n"
-        f"Namuna: <code>{example}</code>",
+        "Quyidagi tugmalardan tanlang yoki aniq vaqtni yozing:\n"
+        f"Namuna: <code>{example}</code> yoki <code>ertaga 09:00</code>",
+        reply_markup=get_time_presets_inline_keyboard(),
+        parse_mode="HTML"
+    )
+    await update.message.reply_text(
+        "✏️ <i>Yoki vaqtni matn sifatida yozing (masalan: <code>bugun 20:00</code>)</i>",
         reply_markup=get_time_keyboard(),
         parse_mode="HTML"
     )
@@ -375,13 +381,114 @@ async def time_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 post_time = tashkent_tz.localize(naive_time)
 
         if post_time is None or post_time <= now:
-            await update.message.reply_text("⚠️ Kelajakdagi vaqtni kiriting:")
+            await update.message.reply_text(
+                "⚠️ <b>Vaqtni aniqlab bo'lmadi.</b>\n\n"
+                "Quyidagicha yozing:\n"
+                "• <i>\"bugun 20:00\"</i>\n"
+                "• <i>\"ertaga 09:00\"</i>\n"
+                "• <i>\"15 daqiqadan keyin\"</i>\n"
+                "• <i>\"2026-09-01 18:00\"</i>",
+                reply_markup=get_time_keyboard(),
+                parse_mode="HTML"
+            )
             return GET_TIME
     except Exception:
-        await update.message.reply_text("⚠️ Format xato! Masalan: <code>2026-08-30 18:00</code> yoki <code>18:00</code> shaklida yuboring.", parse_mode="HTML")
+        await update.message.reply_text(
+            "⚠️ <b>Format xato!</b>\n\n"
+            "Quyidagicha yozing:\n"
+            "• <code>2026-08-30 18:00</code>\n"
+            "• <code>18:00</code> (bugun yoki ertaga)\n"
+            "• <code>ertaga 09:00</code>",
+            reply_markup=get_time_keyboard(),
+            parse_mode="HTML"
+        )
         return GET_TIME
 
     await _save_and_finish(update, context, post_time, recurrence_type='none')
+    return ConversationHandler.END
+
+
+async def time_preset_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Inline vaqt preset tugmalari bosilganda."""
+    query = update.callback_query
+    await query.answer()
+    data = query.data
+    now = datetime.now(tashkent_tz)
+    user_id = query.from_user.id
+
+    preset = data.split(":", 1)[1] if ":" in data else ""
+
+    if preset == "custom":
+        return GET_TIME
+
+    post_time = None
+    if preset == "now":
+        post_time = now + timedelta(seconds=30)
+    elif preset == "+1h":
+        post_time = now + timedelta(hours=1)
+    elif preset == "+3h":
+        post_time = now + timedelta(hours=3)
+    elif preset == "today_18":
+        post_time = now.replace(hour=18, minute=0, second=0, microsecond=0)
+        if post_time <= now:
+            post_time += timedelta(days=1)
+    elif preset == "today_21":
+        post_time = now.replace(hour=21, minute=0, second=0, microsecond=0)
+        if post_time <= now:
+            post_time += timedelta(days=1)
+    elif preset == "tomorrow_09":
+        post_time = (now + timedelta(days=1)).replace(hour=9, minute=0, second=0, microsecond=0)
+
+    if post_time is None:
+        await query.message.reply_text("⚠️ Noma'lum tugma. Qaytadan tanlang.")
+        return GET_TIME
+
+    is_admin = (user_id in ADMIN_IDS_SET)
+    selected_channel_id = context.user_data.get("selected_channel_id")
+    channel_title = context.user_data.get("selected_channel_title", "Kanal")
+    post_type = context.user_data.get("post_type")
+    content = context.user_data.get("content")
+    file_id = context.user_data.get("file_id")
+    btn_text = context.user_data.get("btn_text")
+    btn_url = context.user_data.get("btn_url")
+    enable_reactions = context.user_data.get("enable_reactions", False)
+    delete_after_hours = context.user_data.get("delete_after_hours", 0)
+
+    post_time_tz = post_time.astimezone(tashkent_tz)
+    channels = (
+        await db.run_db(db.get_user_channels, user_id)
+        if selected_channel_id == "ALL"
+        else [(selected_channel_id, channel_title)]
+    )
+    ok_count = 0
+    for ch_id, _ in channels:
+        pid = await db.run_db(
+            db.add_post,
+            user_id=user_id, channel_id=ch_id, post_type=post_type, content=content,
+            file_id=file_id, scheduled_time=post_time_tz, recurrence_type='none',
+            btn_text=btn_text, btn_url=btn_url, enable_reactions=enable_reactions,
+            delete_after_hours=delete_after_hours
+        )
+        if pid:
+            ok_count += 1
+
+    if ok_count:
+        when_text = f"⏰ {post_time_tz.strftime('%Y-%m-%d %H:%M')} (Toshkent vaqti)"
+        del_info = f"\n⏳ Kanalda turish muddati: <b>{delete_after_hours} soat</b>" if delete_after_hours > 0 else ""
+        await query.message.reply_text(
+            f"✅ <b>Post muvaffaqiyatli rejalashtirildi!</b>\n\n"
+            f"📢 Joylash: <b>{html_escape(channel_title)}</b>\n"
+            f"{when_text}{del_info}",
+            reply_markup=get_main_keyboard(is_admin),
+            parse_mode="HTML"
+        )
+    else:
+        await query.message.reply_text(
+            "❌ Saqlashda xatolik yuz berdi.",
+            reply_markup=get_main_keyboard(is_admin),
+            parse_mode="HTML"
+        )
+    context.user_data.clear()
     return ConversationHandler.END
 
 async def daily_time_received(update: Update, context: ContextTypes.DEFAULT_TYPE):

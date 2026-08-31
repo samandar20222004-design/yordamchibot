@@ -219,7 +219,7 @@ def parse_future_time(text: str, now: datetime = None) -> datetime | None:
         now = tz.localize(now)
     t = _norm_time_text(text)
 
-    # 1) Nisbiy vaqt: "N daqiqa/soat/kun ... keyin"
+    # 1) Nisbiy vaqt: "N daqiqa/soat/kun ... keyin" + Ruscha "через N ..."
     rel = re.search(
         r"(\d{1,3})\s*(daqiqa|minut|минут|мин|soat|час|kun|день|дня|сут)",
         t,
@@ -234,12 +234,29 @@ def parse_future_time(text: str, now: datetime = None) -> datetime | None:
         if unit.startswith(("kun", "день", "дня", "сут")):
             return now + timedelta(days=amount)
 
-    # 2) Kun ofseti: bugun / ertaga / indinga
+    # Ruscha "через N минут/часов/дней"
+    rel_ru = re.search(
+        r"через\s+(\d{1,3})\s*(минут[уы]?|час[аов]?|дн[яейь]?)",
+        t,
+    )
+    if rel_ru:
+        amount = int(rel_ru.group(1))
+        unit = rel_ru.group(2)
+        if unit.startswith("минут"):
+            return now + timedelta(minutes=amount)
+        if unit.startswith("час"):
+            return now + timedelta(hours=amount)
+        if unit.startswith("дн"):
+            return now + timedelta(days=amount)
+
+    # 2) Kun ofseti: bugun / ertaga / indinga + Ruscha
     day_offset = 0
     if re.search(r"\b(ertaga|erta ga|эртага|завтра|ertasiga)\b", t):
         day_offset = 1
     elif re.search(r"\b(indinga|indini|послезавтра)\b", t):
         day_offset = 2
+    # "bugun" / "сегодня" → day_offset = 0 (default), faqat so'z mavjudligini belgilaymiz
+    # bu "bugun 20:00" da parsed_date bo'lmasa ham to'g'ri ishlashi uchun
 
     month_names = {
         "yanvar": 1, "fevral": 2, "mart": 3, "aprel": 4, "may": 5, "iyun": 6,
@@ -314,7 +331,7 @@ def parse_future_time(text: str, now: datetime = None) -> datetime | None:
         mh = re.search(r"(\d{1,2})", t_time)
         if mh:
             hour = int(mh.group(1))
-    elif re.search(r"(tushda|tush payt|tushlik|обед|в обед)", t_time):
+    elif re.search(r"(tushda|tush payt|tushlik|обед|в обед|днём|днем)", t_time):
         mh = re.search(r"(\d{1,2})", t_time)
         hour = int(mh.group(1)) if mh else 12
     elif re.search(r"(kechqurun|kechasi|kechki|вечером|ночью|окшом|oqshom)", t_time):

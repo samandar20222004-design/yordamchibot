@@ -32,6 +32,7 @@ from handlers.start import (
 from handlers.new_post import (
     start_new_post, channel_chosen, content_received, btn_title_received,
     btn_url_received, reactions_received, auto_delete_received, time_received,
+    time_preset_callback,
     daily_time_received, recur_day_chosen, recur_time_received, duration_chosen,
     CHOOSE_CHANNEL, GET_CONTENT, GET_BTN_TITLE, GET_BTN_URL,
     GET_REACTIONS, GET_AUTO_DELETE, GET_TIME, DAILY_TIME, RECUR_DAY, RECUR_TIME, GET_DURATION
@@ -304,7 +305,10 @@ def register_all_handlers(app):
             GET_BTN_URL: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, btn_url_received)],
             GET_REACTIONS: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, reactions_received)],
             GET_AUTO_DELETE: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, auto_delete_received)],
-            GET_TIME: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, time_received)],
+            GET_TIME: all_menu_jumps + [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, time_received),
+                CallbackQueryHandler(time_preset_callback, pattern=r"^tpreset:"),
+            ],
             DAILY_TIME: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, daily_time_received)],
             RECUR_DAY: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, recur_day_chosen)],
             RECUR_TIME: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, recur_time_received)],
@@ -371,6 +375,7 @@ def register_all_handlers(app):
 
     # 4. Inline Callback Handlerlar
     app.add_handler(CallbackQueryHandler(ad_free_callback, pattern=r"^adfree_"))
+    app.add_handler(CallbackQueryHandler(time_preset_callback, pattern=r"^tpreset:"))
     app.add_handler(CallbackQueryHandler(converter_callback, pattern=r"^conv_show:"))
     app.add_handler(CallbackQueryHandler(converter_close_callback, pattern=r"^conv_close$"))
     app.add_handler(CallbackQueryHandler(subscription_check_callback, pattern=r"^check_subscription$"))

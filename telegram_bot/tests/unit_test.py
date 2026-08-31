@@ -583,6 +583,107 @@ def test_channel_cache_invalidation():
     db_mod._cache_clear()
 
 
+def test_time_presets_inline_keyboard():
+    print("== inline time presets keyboard ==")
+    from keyboards.default import get_time_presets_inline_keyboard
+    kb = get_time_presets_inline_keyboard()
+    cbs = [b.callback_data for row in kb.inline_keyboard for b in row]
+    labels = [b.text for row in kb.inline_keyboard for b in row]
+    check("Hozir chiqarish tugmasi", "tpreset:now" in cbs, str(cbs))
+    check("+1 soat tugmasi", "tpreset:+1h" in cbs, str(cbs))
+    check("+3 soat tugmasi", "tpreset:+3h" in cbs, str(cbs))
+    check("Ertaga 09:00 tugmasi", "tpreset:tomorrow_09" in cbs, str(cbs))
+    check("Boshqa vaqt tugmasi", "tpreset:custom" in cbs, str(cbs))
+    check("Hozir chiqarish label", any("Hozir" in l for l in labels), str(labels))
+    check("Ertaga label", any("Ertaga" in l for l in labels), str(labels))
+
+
+def test_russian_natural_time():
+    print("== Ruscha natural language vaqt ==")
+    from utils.helpers import parse_future_time
+    tz = pytz.timezone("Asia/Tashkent")
+    now = tz.localize(datetime(2026, 8, 31, 12, 0))
+
+    def r(s):
+        dt = parse_future_time(s, now)
+        return dt.strftime("%Y-%m-%d %H:%M") if dt else None
+
+    # Ruscha nisbiy vaqt
+    check("через 30 минут", r("через 30 минут") == "2026-08-31 12:30", r("через 30 минут"))
+    check("через 2 часа", r("через 2 часа") == "2026-08-31 14:00", r("через 2 часа"))
+    check("через 1 день", r("через 1 день") == "2026-09-01 12:00", r("через 1 день"))
+
+    # Ruscha kun + vaqt
+    check("сегодня в 20:00", r("сегодня в 20:00") == "2026-08-31 20:00", r("сегодня в 20:00"))
+    check("завтра в 09:00", r("завтра в 09:00") == "2026-09-01 09:00", r("завтра в 09:00"))
+    check("послезавтра в 12:00", r("послезавтра в 12:00") == "2026-09-02 12:00", r("послезавтра в 12:00"))
+
+    # Ruscha vaqt kun qismisiz
+    check("в 18:00", r("в 18:00") == "2026-08-31 18:00", r("в 18:00"))
+
+    # Ruscha kun vaqti so'zlari
+    check("утром в 9", r("утром в 9") == "2026-09-01 09:00", r("утром в 9"))
+    check("вечером в 8", r("вечером в 8") == "2026-08-31 20:00", r("вечером в 8"))
+
+
+def test_enhanced_uzbek_time():
+    print("== Kuchaytirilgan o'zbek vaqt testlari ==")
+    from utils.helpers import parse_future_time
+    tz = pytz.timezone("Asia/Tashkent")
+    now = tz.localize(datetime(2026, 8, 31, 12, 0))
+
+    def r(s):
+        dt = parse_future_time(s, now)
+        return dt.strftime("%Y-%m-%d %H:%M") if dt else None
+
+    # "bugun" so'zi bilan
+    check("bugun 20:00", r("bugun 20:00") == "2026-08-31 20:00", r("bugun 20:00"))
+    check("bugun kechqurun 8", r("bugun kechqurun 8") == "2026-08-31 20:00", r("bugun kechqurun 8"))
+
+    # To'liq buyruq gaplari
+    check("bugun soat 20:00 da kanalga chiqar",
+          r("bugun soat 20:00 da kanalga chiqar") == "2026-08-31 20:00",
+          r("bugun soat 20:00 da kanalga chiqar"))
+    check("ertaga ertalab 9 da shu postni chiqar",
+          r("ertaga ertalab 9 da shu postni chiqar") == "2026-09-01 09:00",
+          r("ertaga ertalab 9 da shu postni chiqar"))
+
+    # Noto'g'ri / tushunarsiz
+    check("tushunarsiz matn → None", parse_future_time("salom dunyo", now) is None, "")
+    check("faqat raqam → None", parse_future_time("123", now) is None, "")
+    check("bo'sh matn → None", parse_future_time("", now) is None, "")
+
+
+def test_timezone_edge_cases():
+    print("== Timezone edge case'lar ==")
+    from utils.helpers import parse_future_time
+    tz = pytz.timezone("Asia/Tashkent")
+
+    # UTC+5: Toshkent 23:30 da "bugun 20:00" → ertaga 20:00
+    now_late = tz.localize(datetime(2026, 8, 31, 23, 30))
+    dt = parse_future_time("bugun 20:00", now_late)
+    check("kechki vaqt: bugun 20:00 → ertaga",
+          dt is not None and dt.day == 1 and dt.hour == 20,
+          str(dt))
+
+    # Toshkent 00:05 da "ertaga 09:00" → bugun emas, ertaga 09:00
+    now_midnight = tz.localize(datetime(2026, 9, 1, 0, 5))
+    dt2 = parse_future_time("ertaga 09:00", now_midnight)
+    check("yarim tunda: ertaga 09:00 → 2-sentabr",
+          dt2 is not None and dt2.day == 2 and dt2.hour == 9,
+          str(dt2))
+
+    # Timezone-aware now parameter
+    now_aware = tz.localize(datetime(2026, 8, 31, 15, 0))
+    dt3 = parse_future_time("18:00", now_aware)
+    check("timezone-aware now bilan", dt3 is not None and dt3.hour == 18, str(dt3))
+
+    # Naive now parameter (timezone qo'shilmagan)
+    now_naive = datetime(2026, 8, 31, 15, 0)
+    dt4 = parse_future_time("18:00", now_naive)
+    check("naive now bilan", dt4 is not None and dt4.hour == 18, str(dt4))
+
+
 def main():
     test_calculate_next_time()
     test_converter()
@@ -609,6 +710,10 @@ def main():
     test_button_labels()
     test_smart_reply_ad_async()
     test_channel_cache_invalidation()
+    test_time_presets_inline_keyboard()
+    test_russian_natural_time()
+    test_enhanced_uzbek_time()
+    test_timezone_edge_cases()
 
     print(f"\nO'tdi: {passed}, Xato: {failures}")
     if failures:

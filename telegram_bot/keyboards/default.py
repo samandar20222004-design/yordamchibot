@@ -166,6 +166,33 @@ def get_time_keyboard():
     )
 
 
+def get_time_presets_inline_keyboard():
+    """Tezkor vaqt tugmalari (inline) — GET_TIME bosqichida ko'rsatiladi."""
+    from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+    from datetime import datetime
+    import pytz
+    tz = pytz.timezone("Asia/Tashkent")
+    now = datetime.now(tz)
+    buttons = [
+        [InlineKeyboardButton("⚡️ Hozir chiqarish", callback_data="tpreset:now")],
+        [
+            InlineKeyboardButton("⏱ +1 soat", callback_data="tpreset:+1h"),
+            InlineKeyboardButton("⏱ +3 soat", callback_data="tpreset:+3h"),
+        ],
+    ]
+    # Faqat kelajakdagi tugmalarni ko'rsatamiz
+    row2 = []
+    if now.hour < 18:
+        row2.append(InlineKeyboardButton("🌇 Bugun 18:00", callback_data="tpreset:today_18"))
+    if now.hour < 21:
+        row2.append(InlineKeyboardButton("🌙 Bugun 21:00", callback_data="tpreset:today_21"))
+    if row2:
+        buttons.append(row2)
+    buttons.append([InlineKeyboardButton("☀️ Ertaga 09:00", callback_data="tpreset:tomorrow_09")])
+    buttons.append([InlineKeyboardButton("📅 Boshqa vaqt (matn yuboring)", callback_data="tpreset:custom")])
+    return InlineKeyboardMarkup(buttons)
+
+
 def get_ai_time_keyboard():
     return ReplyKeyboardMarkup(
         [
