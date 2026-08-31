@@ -17,6 +17,7 @@ from keyboards.default import (
     BTN_BROADCAST, BTN_SPONSORS, BTN_ADD_SPONSOR,
     BTN_CHANNEL_AD, BTN_BOT_REPLY_AD, BTN_POST_TAG, BTN_AI_SETTINGS, BTN_CACHE_DB,
     BTN_ADD_CHANNEL, BTN_QUEUE, BTN_CONTENT_PLAN, BTN_ANALYTICS, BTN_PREMIUM,
+    BTN_CHANNEL_EXTRACT,
 )
 from keyboards.inline import get_subscription_check_keyboard
 
@@ -102,7 +103,13 @@ from handlers.subscription import (
     SUBSCRIPTION_VIEW, PROMO_INPUT
 )
 
-# 11. QUEUE MODULI
+# 11. CHANNEL EXTRACT MODULI
+from handlers.channel_extract import (
+    start_extract, extract_username_received, extract_post_chosen,
+    EXTRACT_USERNAME, EXTRACT_CHOOSE_POST
+)
+
+# 12. QUEUE MODULI
 from handlers.queue import (
     queue_menu, queue_page_callback, queue_view_callback,
     queue_delete_callback, queue_push_callback, queue_close_callback,
@@ -320,7 +327,12 @@ def register_all_handlers(app):
         MessageHandler(exact(BTN_PREMIUM), lambda u, c: guard_entry(u, c, start_subscription)),
     ]
 
-    # 11. Queue
+    # 11. Channel Extract
+    extract_handlers = [
+        MessageHandler(exact(BTN_CHANNEL_EXTRACT), lambda u, c: guard_entry(u, c, start_extract)),
+    ]
+
+    # 12. Queue
     queue_handlers = [
         MessageHandler(exact(BTN_QUEUE), lambda u, c: guard_menu(u, c, queue_menu)),
     ]
@@ -337,6 +349,7 @@ def register_all_handlers(app):
         content_plan_handlers +
         analytics_handlers +
         subscription_handlers +
+        extract_handlers +
         queue_handlers
     )
 
@@ -412,6 +425,12 @@ def register_all_handlers(app):
                 CallbackQueryHandler(subscription_callback, pattern=r"^sub_"),
             ],
             PROMO_INPUT: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, promo_code_received)],
+
+            # 11. Channel Extract holatlari
+            EXTRACT_USERNAME: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, extract_username_received)],
+            EXTRACT_CHOOSE_POST: all_menu_jumps + [
+                CallbackQueryHandler(extract_post_chosen, pattern=r"^ext_"),
+            ],
 
             # 4. Kutilayotgan postlarni tahrirlash holatlari
             EDIT_POST_TIME: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, edit_post_time_received)],

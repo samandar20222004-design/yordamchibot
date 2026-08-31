@@ -1357,3 +1357,87 @@ async def generate_post_from_plan(topic: str, title: str, idea: str, tone: str =
         return {"error": "⚠️ AI post matni tayyorlay olmadi."}
 
     return {"post_text": post_text.strip()}
+
+
+# ============================================================
+# PUBLIC CHANNEL POST RE-WRITER
+# ============================================================
+
+_REWRITE_SYSTEM = (
+    "Siz professional Telegram post muharririsiz. Berilgan yangilik matnini "
+    "qayta yozasiz (re-write). QAT'IY QOIDALAR:\n"
+    "1. Yangi yolg'on fakt QO'SHMANG — faqat asl matndagi ma'lumotga tayaning.\n"
+    "2. Faktlarni o'zgartirmang, qisqartirmasdan to'liq saqlang.\n"
+    "3. O'zbek tilida, jonli va jozibador yozing.\n"
+    "4. Telegram HTML formatlash: <b>qalin</b>, <i>kursiv</i>.\n"
+    "5. Emoji oqilona ishlating.\n"
+    "6. Post oxiriga MANBA havolasini qo'shing (foydalanuvchi beradi).\n"
+    "7. Post kamida 3-5 qator bo'lsin.\n\n"
+    "Javobni FAQAT quyidagi JSON formatida qaytaring:\n"
+    '{"post_text": "qayta yozilgan to\'liq post matni"}'
+)
+
+
+async def rewrite_channel_post(
+    original_text: str,
+    channel_username: str,
+    post_link: str = "",
+    tone: str = "friendly",
+) -> dict:
+    """Ochiq kanal postini AI orqali qayta yozadi.
+
+    Args:
+        original_text: asl post matni
+        channel_username: kanal niki (manba uchun)
+        post_link: asl post havolasi
+        tone: kanal uslubi
+
+    Returns:
+        {"post_text": "..."} yoki {"error": "..."}
+    """
+    if not original_text or not original_text.strip():
+        return {"error": "⚠️ Post matni bo'sh."}
+
+    system_instruction = _inject_tone(_REWRITE_SYSTEM, tone)
+
+    source_line = f"📌 Manba: @{channel_username}"
+    if post_link:
+        source_line += f"\n🔗 {post_link}"
+
+    prompt = (
+        f"Asl post matni:\n\n{original_text}\n\n"
+        f"Manba: @{channel_username}\n"
+        f"Post havolasi: {post_link}\n\n"
+        f"Post oxiriga quyidagi manba qatorini QO'SHING:\n{source_line}\n\n"
+        f"Matnni qayta yozing."
+    )
+
+    try:
+        result = await _run_ai_chain(prompt, system_instruction)
+    except Exception as e:
+        logger.warning("Rewrite AI xatosi: %s", e)
+        return {"error": f"⚠️ AI xizmatida vaqtinchalik uzilish.\n\n{e}"}
+
+    if "error" in result:
+        return result
+
+    post_text = (
+        result.get("post_text")
+        or result.get("text")
+        or result.get("reply")
+        or ""
+    )
+    if not post_text:
+        for v in result.values():
+            if isinstance(v, str) and len(v) > 20:
+                post_text = v
+                break
+
+    if not post_text:
+        return {"error": "⚠️ AI post matni tayyorlay olmadi."}
+
+    # Manba qatorini tekshirish — agar AI qo'shmagan bo'lsa, biz qo'shamiz
+    if f"@{channel_username}" not in post_text:
+        post_text = post_text.rstrip() + f"\n\n{source_line}"
+
+    return {"post_text": post_text.strip()}

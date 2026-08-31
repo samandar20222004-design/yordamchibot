@@ -1162,6 +1162,199 @@ def test_subscription_keyboard_stars():
     check("pro kb: subscribe yo'q", "sub_subscribe" not in cbs_pro)
 
 
+def test_channel_reader_parser():
+    """Channel reader HTML parser to'g'ri ishlashi."""
+    print("== Channel reader parser ==")
+    from utils.channel_reader import _strip_html_tags, _parse_channel_page
+
+    # 1. _strip_html_tags
+    check("strip: oddiy matn", _strip_html_tags("Salom") == "Salom")
+    check("strip: <b> olib tashlash", _strip_html_tags("<b>Salom</b>") == "Salom")
+    check("strip: <br> → newline", "\n" in _strip_html_tags("Salom<br>Dunyo"))
+    check("strip: &amp; → &", _strip_html_tags("a &amp; b") == "a & b")
+    check("strip: &lt; → <", _strip_html_tags("&lt;") == "<")
+    check("strip: bo'sh", _strip_html_tags("") == "")
+    check("strip: None", _strip_html_tags(None) == "")
+    check("strip: <a href> matni", _strip_html_tags('<a href="t.me">Link</a>') == "Link")
+
+    # 2. _parse_channel_page — bo'sh HTML
+    posts_empty = _parse_channel_page("", "test")
+    check("empty HTML → bo'sh", len(posts_empty) == 0)
+
+    # 3. _parse_channel_page — mock HTML with post
+    mock_html = '''
+    <div class="tgme_widget_message_wrap">
+        <div class="tgme_widget_message">
+            <div class="tgme_widget_message_text">Salom dunyo! Bu test post.</div>
+            <time datetime="2026-08-30T10:00:00+00:00"></time>
+            <a class="tgme_widget_message_date" href="https://t.me/test/123"></a>
+        </div>
+    </div>
+    '''
+    posts_mock = _parse_channel_page(mock_html, "test")
+    check("mock: 1 ta post", len(posts_mock) == 1)
+    if posts_mock:
+        check("mock: matn to'g'ri", "Salom dunyo" in posts_mock[0]["text"])
+        check("mock: sana bor", posts_mock[0]["date"] != "")
+        check("mock: link bor", "test/123" in posts_mock[0]["post_link"])
+
+    # 4. _parse_channel_page — multiple posts
+    mock_multi = '''
+    <div class="tgme_widget_message_wrap">
+        <div class="tgme_widget_message">
+            <div class="tgme_widget_message_text">Birinchi post</div>
+            <time datetime="2026-08-30T10:00:00+00:00"></time>
+            <a class="tgme_widget_message_date" href="https://t.me/ch/1"></a>
+        </div>
+    </div>
+    <div class="tgme_widget_message_wrap">
+        <div class="tgme_widget_message">
+            <div class="tgme_widget_message_text">Ikkinchi post</div>
+            <time datetime="2026-08-30T11:00:00+00:00"></time>
+            <a class="tgme_widget_message_date" href="https://t.me/ch/2"></a>
+        </div>
+    </div>
+    '''
+    posts_multi = _parse_channel_page(mock_multi, "ch")
+    check("multi: 2 ta post", len(posts_multi) == 2)
+
+    # 5. _parse_channel_page — rasm post (matnsiz)
+    mock_img = '''
+    <div class="tgme_widget_message_wrap">
+        <div class="tgme_widget_message">
+            <img class="tgme_widget_message_photo" src="https://cdn.t.me/img.jpg">
+            <time datetime="2026-08-30T12:00:00+00:00"></time>
+            <a class="tgme_widget_message_date" href="https://t.me/ch/3"></a>
+        </div>
+    </div>
+    '''
+    posts_img = _parse_channel_page(mock_img, "ch")
+    check("img: rasm post topildi", len(posts_img) == 1)
+    if posts_img:
+        check("img: media_url bor", "img.jpg" in posts_img[0]["media_url"])
+
+
+def test_channel_reader_functions():
+    """Channel reader funksiyalari mavjud va callable."""
+    print("== Channel reader functions ==")
+    from utils.channel_reader import fetch_latest_channel_posts, format_post_list
+
+    check("fetch_latest_channel_posts mavjud", callable(fetch_latest_channel_posts))
+    check("format_post_list mavjud", callable(format_post_list))
+
+
+def test_format_post_list():
+    """format_post_list to'g'ri formatlash."""
+    print("== format_post_list ==")
+    from utils.channel_reader import format_post_list
+
+    # 1. Bo'sh ro'yxat
+    check("bo'sh → bo'sh", format_post_list([], "test") == "")
+
+    # 2. Oddiy postlar
+    posts = [
+        {"text": "Birinchi yangilik haqida matn", "date": "2026-08-30T10:00:00+00:00", "media_url": "", "post_link": "https://t.me/ch/1"},
+        {"text": "Ikkinchi yangilik", "date": "2026-08-30T11:00:00+00:00", "media_url": "", "post_link": "https://t.me/ch/2"},
+    ]
+    result = format_post_list(posts, "testkanal")
+    check("format: kanal nomi", "testkanal" in result)
+    check("format: 1-post", "1." in result)
+    check("format: 2-post", "2." in result)
+    check("format: matn", "Birinchi yangilik" in result)
+    check("format: sana", "30.08.2026" in result)
+    check("format: tanlash taklifi", "tanlang" in result.lower())
+
+    # 3. Uzun matn qisqaradi
+    long_post = [{"text": "A" * 300, "date": "", "media_url": "", "post_link": ""}]
+    result_long = format_post_list(long_post, "ch")
+    check("uzun: qisqaradi", "…" in result_long)
+
+    # 4. Matnsiz post (rasm)
+    img_post = [{"text": "", "date": "2026-08-30", "media_url": "img.jpg", "post_link": ""}]
+    result_img = format_post_list(img_post, "ch")
+    check("rasm: rasm/video label", "rasm/video" in result_img.lower())
+
+
+def test_channel_extract_keyboards():
+    """Channel extract keyboardlari."""
+    print("== Channel extract keyboards ==")
+    from handlers.channel_extract import _get_post_list_keyboard, _get_rewrite_result_keyboard
+
+    # 1. Post list keyboard
+    posts = [
+        {"text": "Salom dunyo", "date": "", "media_url": "", "post_link": ""},
+        {"text": "Ikkinchi post", "date": "", "media_url": "", "post_link": ""},
+    ]
+    kb = _get_post_list_keyboard(posts, "test")
+    cbs = [b.callback_data for row in kb.inline_keyboard for b in row]
+    labels = [b.text for row in kb.inline_keyboard for b in row]
+    check("list kb: post 0", "ext_post:0" in cbs)
+    check("list kb: post 1", "ext_post:1" in cbs)
+    check("list kb: refresh", "ext_refresh" in cbs)
+    check("list kb: cancel", "ext_cancel" in cbs)
+    check("list kb: 4 ta tugma", len(cbs) == 4)
+    check("list kb: preview", any("Salom" in t for t in labels))
+
+    # 2. Rewrite result keyboard
+    rkb = _get_rewrite_result_keyboard()
+    rcbs = [b.callback_data for row in rkb.inline_keyboard for b in row]
+    check("result kb: schedule", "ext_schedule" in rcbs)
+    check("result kb: rewrite", "ext_rewrite" in rcbs)
+    check("result kb: back", "ext_back" in rcbs)
+    check("result kb: cancel", "ext_cancel" in rcbs)
+
+
+def test_rewrite_function_exists():
+    """AI re-write funksiyasi mavjud."""
+    print("== Rewrite function ==")
+    from utils.ai_agent import rewrite_channel_post, _REWRITE_SYSTEM
+
+    check("rewrite_channel_post mavjud", callable(rewrite_channel_post))
+    check("_REWRITE_SYSTEM mavjud", len(_REWRITE_SYSTEM) > 50)
+    check("rewrite: O'zbek tili", "O'zbek" in _REWRITE_SYSTEM)
+    check("rewrite: fakt qo'shmaslik", "yolg'on" in _REWRITE_SYSTEM.lower() or "fakt" in _REWRITE_SYSTEM.lower())
+    check("rewrite: manba", "MANBA" in _REWRITE_SYSTEM or "manba" in _REWRITE_SYSTEM.lower())
+
+
+def test_channel_reader_error_handling():
+    """Xato kanal nomlari uchun test."""
+    print("== Channel reader error handling ==")
+    from utils.channel_reader import fetch_latest_channel_posts, _parse_channel_page
+    import asyncio
+
+    # 1. Bo'sh kanal niki
+    result = asyncio.run(fetch_latest_channel_posts(""))
+    check("bo'sh niki → bo'sh", len(result) == 0)
+
+    # 2. None kanal niki
+    result2 = asyncio.run(fetch_latest_channel_posts(None))
+    check("None niki → bo'sh", len(result2) == 0)
+
+    # 3. @ belgisi tozalanadi
+    result3 = asyncio.run(fetch_latest_channel_posts("@test"))
+    check("@ bilan ishlaydi", isinstance(result3, list))
+
+    # 4. Yopiq kanal simulyatsiyasi — "tgme_widget_message" yo'q
+    posts_no_widget = _parse_channel_page("<html><body>Channel not found</body></html>", "none")
+    check("yopiq kanal → bo'sh", len(posts_no_widget) == 0)
+
+    # 5. Noto'g'ri HTML — parser xato bermaydi
+    posts_bad = _parse_channel_page("<not>valid<html>", "bad")
+    check("noto'g'ri HTML → xato yo'q", isinstance(posts_bad, list))
+
+
+def test_main_keyboard_extract():
+    """Asosiy menyuda Ochiq kanaldan olish tugmasi bor."""
+    print("== Main keyboard extract ==")
+    from keyboards.default import get_main_keyboard, BTN_CHANNEL_EXTRACT
+
+    check("BTN_CHANNEL_EXTRACT mavjud", BTN_CHANNEL_EXTRACT == "📢 Ochiq kanaldan olish")
+
+    kb = get_main_keyboard(False)
+    all_texts = [b.text for row in kb.keyboard for b in row]
+    check("main kb: Extract bor", BTN_CHANNEL_EXTRACT in all_texts)
+
+
 def test_subscription_functions_exist():
     """Database subscription funksiyalari mavjud."""
     print("== Subscription DB functions ==")
@@ -1680,6 +1873,13 @@ def main():
     test_create_promo_command()
     test_promo_code_create_and_redeem()
     test_subscription_keyboard_stars()
+    test_channel_reader_parser()
+    test_channel_reader_functions()
+    test_format_post_list()
+    test_channel_extract_keyboards()
+    test_rewrite_function_exists()
+    test_channel_reader_error_handling()
+    test_main_keyboard_extract()
 
     print(f"\nO'tdi: {passed}, Xato: {failures}")
     if failures:

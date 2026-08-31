@@ -45,6 +45,7 @@ BTN_QUEUE = "📚 Navbat (Queue)"
 BTN_CONTENT_PLAN = "🧠 Kontent-reja"
 BTN_ANALYTICS = "📊 Analitika"
 BTN_PREMIUM = "⭐️ Premium"
+BTN_CHANNEL_EXTRACT = "📢 Ochiq kanaldan olish"
 BTN_ALL_CHANNELS_TARGET = "🌐 Barchasiga birdaniga"
 BTN_SKIP_BUTTON = "➡️ Tugmasiz davom etish"
 BTN_REACT_DEFAULT = "👍 ❤️ 🔥 👏"
@@ -85,7 +86,7 @@ def exact(*texts):
 def get_main_keyboard(is_admin=False):
     keyboard = [
         [BTN_NEW_POST, BTN_AI],
-        [BTN_PENDING, BTN_QUEUE],
+        [BTN_CHANNEL_EXTRACT, BTN_QUEUE],
         [BTN_CONTENT_PLAN, BTN_ANALYTICS],
         [BTN_PREMIUM, BTN_SETTINGS],
         [BTN_HELP],
