@@ -92,12 +92,18 @@ def _build_subscription_card(plan_info: dict) -> str:
 
 
 def _get_subscription_keyboard(plan: str) -> InlineKeyboardMarkup:
-    """Obuna sahifasi tugmalari."""
+    """Obuna sahifasi tugmalari — Stars to'lov tugmalari to'g'ridan-to'g'ri ko'rsatiladi."""
     keyboard = []
     if plan == "free":
-        keyboard.append([InlineKeyboardButton("💳 Obuna bo'lish", callback_data="sub_subscribe")])
+        keyboard.append([
+            InlineKeyboardButton("⭐️ 1 oy (75 Stars)", callback_data="sub_pay:stars_1m"),
+            InlineKeyboardButton("⭐️ 3 oy (175 Stars)", callback_data="sub_pay:stars_3m"),
+        ])
+        keyboard.append([
+            InlineKeyboardButton("⭐️ 1 yil (550 Stars)", callback_data="sub_pay:stars_1y"),
+        ])
     keyboard.append([InlineKeyboardButton("🎁 Promo-kod kiritish", callback_data="sub_promo")])
-    keyboard.append([InlineKeyboardButton("⬅️ Orqaga", callback_data="sub_close")])
+    keyboard.append([InlineKeyboardButton("⬅️ Orqaga", callback_data="sub_back_main")])
     return InlineKeyboardMarkup(keyboard)
 
 
@@ -145,19 +151,13 @@ async def subscription_callback(update: Update, context: ContextTypes.DEFAULT_TY
         )
         return ConversationHandler.END
 
-    if data == "sub_subscribe":
+    if data == "sub_back_main":
         await query.answer()
         await query.message.reply_text(
-            "💳 <b>Obuna bo'lish</b>\n\n"
-            "Telegram Stars orqali to'lov qiling:\n\n"
-            "⭐️ 1 oylik PRO — 75 Stars (~$1.5)\n"
-            "⭐️ 3 oylik PRO — 175 Stars (~$3.5)\n"
-            "⭐️ 1 yillik PRO — 550 Stars (~$11.0 / -40% chegirma)\n\n"
-            "Quyidagi tugmalardan birini tanlang:",
-            reply_markup=_get_stars_keyboard(),
-            parse_mode="HTML",
+            "🏠 Asosiy menyu.",
+            reply_markup=get_main_keyboard(is_admin),
         )
-        return SUBSCRIPTION_VIEW
+        return ConversationHandler.END
 
     if data.startswith("sub_pay:"):
         plan_key = data.split(":", 1)[1]

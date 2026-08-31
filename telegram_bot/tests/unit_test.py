@@ -1160,14 +1160,22 @@ def test_subscription_keyboard_stars():
 
     kb = _get_subscription_keyboard("free")
     cbs = [b.callback_data for row in kb.inline_keyboard for b in row]
-    check("free kb: subscribe bor", "sub_subscribe" in cbs)
+    labels = [b.text for row in kb.inline_keyboard for b in row]
+    check("free kb: stars_1m bor", "sub_pay:stars_1m" in cbs)
+    check("free kb: stars_3m bor", "sub_pay:stars_3m" in cbs)
+    check("free kb: stars_1y bor", "sub_pay:stars_1y" in cbs)
     check("free kb: promo bor", "sub_promo" in cbs)
-    check("free kb: close bor", "sub_close" in cbs)
+    check("free kb: back_main bor", "sub_back_main" in cbs)
+    check("free kb: 75 Stars label", any("75 Stars" in t for t in labels))
+    check("free kb: 175 Stars label", any("175 Stars" in t for t in labels))
+    check("free kb: 550 Stars label", any("550 Stars" in t for t in labels))
 
-    # PRO da subscribe yo'q
+    # PRO da Stars yo'q
     kb_pro = _get_subscription_keyboard("pro")
     cbs_pro = [b.callback_data for row in kb_pro.inline_keyboard for b in row]
-    check("pro kb: subscribe yo'q", "sub_subscribe" not in cbs_pro)
+    check("pro kb: stars_1m yo'q", "sub_pay:stars_1m" not in cbs_pro)
+    check("pro kb: promo bor", "sub_promo" in cbs_pro)
+    check("pro kb: back_main bor", "sub_back_main" in cbs_pro)
 
 
 def test_channel_reader_parser():
@@ -1492,19 +1500,21 @@ def test_subscription_keyboards():
     print("== Subscription keyboards ==")
     from handlers.subscription import _get_subscription_keyboard
 
-    # 1. Free foydalanuvchi — obuna bo'lish tugmasi bor
+    # 1. Free foydalanuvchi — Stars to'lov tugmalari to'g'ridan-to'g'ri
     kb_free = _get_subscription_keyboard("free")
     cbs_free = [b.callback_data for row in kb_free.inline_keyboard for b in row]
-    check("free kb: subscribe", "sub_subscribe" in cbs_free)
+    check("free kb: stars_1m", "sub_pay:stars_1m" in cbs_free)
+    check("free kb: stars_3m", "sub_pay:stars_3m" in cbs_free)
+    check("free kb: stars_1y", "sub_pay:stars_1y" in cbs_free)
     check("free kb: promo", "sub_promo" in cbs_free)
-    check("free kb: close", "sub_close" in cbs_free)
+    check("free kb: back_main", "sub_back_main" in cbs_free)
 
-    # 2. PRO foydalanuvchi — obuna bo'lish yo'q
+    # 2. PRO foydalanuvchi — Stars yo'q, promo va back bor
     kb_pro = _get_subscription_keyboard("pro")
     cbs_pro = [b.callback_data for row in kb_pro.inline_keyboard for b in row]
-    check("pro kb: subscribe yo'q", "sub_subscribe" not in cbs_pro)
+    check("pro kb: stars_1m yo'q", "sub_pay:stars_1m" not in cbs_pro)
     check("pro kb: promo bor", "sub_promo" in cbs_pro)
-    check("pro kb: close bor", "sub_close" in cbs_pro)
+    check("pro kb: back_main bor", "sub_back_main" in cbs_pro)
 
 
 def test_limit_messages():
