@@ -1051,7 +1051,13 @@ def test_stars_payment_plans():
     check("3m: days = 90", STARS_PLANS["stars_3m"]["days"] == 90)
     check("3m: label bor", "175 Stars" in STARS_PLANS["stars_3m"]["label"])
 
-    # 3. XTR valyutasi
+    # 3. 1 yillik paket
+    check("1y: mavjud", "stars_1y" in STARS_PLANS)
+    check("1y: stars = 550", STARS_PLANS["stars_1y"]["stars"] == 550)
+    check("1y: days = 365", STARS_PLANS["stars_1y"]["days"] == 365)
+    check("1y: label bor", "550 Stars" in STARS_PLANS["stars_1y"]["label"])
+
+    # 4. XTR valyutasi
     check("1m: XTR valyutasi", True)  # Invoice da currency="XTR" ishlatiladi
     check("3m: XTR valyutasi", True)
 
@@ -1067,10 +1073,12 @@ def test_stars_keyboard():
 
     check("stars kb: 1m bor", "sub_pay:stars_1m" in cbs)
     check("stars kb: 3m bor", "sub_pay:stars_3m" in cbs)
+    check("stars kb: 1y bor", "sub_pay:stars_1y" in cbs)
     check("stars kb: back bor", "sub_back" in cbs)
-    check("stars kb: 3 ta tugma", len(cbs) == 3)
+    check("stars kb: 5 ta tugma", len(cbs) == 5)
     check("stars kb: 75 Stars label", any("75 Stars" in t for t in labels))
     check("stars kb: 175 Stars label", any("175 Stars" in t for t in labels))
+    check("stars kb: 550 Stars label", any("550 Stars" in t for t in labels))
 
 
 def test_referral_pro_functions():
