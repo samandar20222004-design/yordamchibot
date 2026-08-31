@@ -1668,7 +1668,7 @@ def get_user_channel_list_for_analytics(user_id: int) -> list:
 
 # Tarif limitlari
 PLAN_LIMITS = {
-    "free": {"max_channels": 2, "daily_ai_requests": 5},
+    "free": {"max_channels": 3, "daily_ai_requests": 5},
     "pro": {"max_channels": 999, "daily_ai_requests": 999},
     "enterprise": {"max_channels": 999, "daily_ai_requests": 999},
 }

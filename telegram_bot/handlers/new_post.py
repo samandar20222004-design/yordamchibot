@@ -18,7 +18,7 @@ from keyboards.default import (
     get_duration_keyboard, get_weekday_keyboard
 )
 from keyboards.inline import btn_label
-from utils.helpers import html_escape, parse_future_time
+from utils.helpers import html_escape, parse_future_time, safe_html
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
 tashkent_tz = pytz.timezone("Asia/Tashkent")
@@ -200,7 +200,7 @@ def _build_preview_text(context) -> str:
         preview = content[:300]
         if len(content) > 300:
             preview += "…"
-        content_preview = f"\n\n📋 <b>Matn:</b>\n{html_escape(preview)}"
+        content_preview = f"\n\n📋 <b>Matn:</b>\n{safe_html(preview)}"
 
     btn_info = ""
     if btn_text and btn_url:
@@ -1053,7 +1053,7 @@ async def ai_action_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
         new_preview += "…"
 
     await query.message.reply_text(
-        f"✨ <b>AI taklifi:</b>\n\n{html_escape(new_preview)}\n\n"
+        f"✨ <b>AI taklifi:</b>\n\n{safe_html(new_preview)}\n\n"
         f"📝 Asl: <i>{html_escape(old_preview)}</i>",
         reply_markup=_get_ai_result_keyboard(),
         parse_mode="HTML",
@@ -1078,7 +1078,7 @@ async def ai_result_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
         context.user_data.pop("ai_last_action", None)
         await query.answer("✅ Qabul qilindi!")
         await query.message.reply_text(
-            f"✅ <b>Yangi matn qabul qilindi!</b>\n\n{html_escape(proposed[:300])}",
+            f"✅ <b>Yangi matn qabul qilindi!</b>\n\n{safe_html(proposed[:300])}",
             parse_mode="HTML",
         )
         return GET_BTN_TITLE
@@ -1116,7 +1116,7 @@ async def ai_result_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
             if len(formatted) > 300:
                 new_preview += "…"
             await query.message.reply_text(
-                f"✨ <b>AI taklifi (qayta):</b>\n\n{html_escape(new_preview)}",
+                f"✨ <b>AI taklifi (qayta):</b>\n\n{safe_html(new_preview)}",
                 reply_markup=_get_ai_result_keyboard(),
                 parse_mode="HTML",
             )

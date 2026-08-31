@@ -6,7 +6,7 @@ from config import ADMIN_IDS_SET
 import database as db
 from keyboards.default import get_cancel_keyboard, get_main_keyboard
 from keyboards.inline import btn_label
-from utils.helpers import html_escape
+from utils.helpers import html_escape, safe_html
 
 logger = logging.getLogger(__name__)
 
@@ -347,7 +347,7 @@ async def plan_view_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
             preview += "…"
 
         await query.message.reply_text(
-            f"✅ <b>Tayyor post:</b>\n\n{html_escape(preview)}\n\n"
+            f"✅ <b>Tayyor post:</b>\n\n{safe_html(preview)}\n\n"
             f"📢 Kanal: <b>{html_escape(channel_title)}</b>\n\n"
             f"Endi tugma, vaqt va boshqa sozlamalarni kiriting.",
             parse_mode="HTML",

@@ -946,7 +946,7 @@ def test_plan_limits():
     from database import PLAN_LIMITS
 
     # 1. Free limitlari
-    check("free: max_channels = 2", PLAN_LIMITS["free"]["max_channels"] == 2)
+    check("free: max_channels = 3", PLAN_LIMITS["free"]["max_channels"] == 3)
     check("free: daily_ai = 5", PLAN_LIMITS["free"]["daily_ai_requests"] == 5)
 
     # 2. PRO limitlari
@@ -961,6 +961,77 @@ def test_plan_limits():
     check("free mavjud", "free" in PLAN_LIMITS)
     check("pro mavjud", "pro" in PLAN_LIMITS)
     check("enterprise mavjud", "enterprise" in PLAN_LIMITS)
+
+    # Free limit = 3 (yangilangan)
+    check("free: max_channels = 3 (yangi)", PLAN_LIMITS["free"]["max_channels"] == 3)
+
+
+def test_safe_html():
+    """safe_html funksiyasi Telegram HTML uchun xavfsiz formatlash."""
+    print("== safe_html ==")
+    from utils.helpers import safe_html
+
+    # 1. Bo'sh matn
+    check("bo'sh → bo'sh", safe_html("") == "")
+    check("None → bo'sh", safe_html(None) == "")
+
+    # 2. Ruxs etilgan teglar saqlanadi
+    check("<b> saqlanadi", safe_html("<b>Salom</b>") == "<b>Salom</b>")
+    check("<i> saqlanadi", safe_html("<i>Kursiv</i>") == "<i>Kursiv</i>")
+    check("<code> saqlanadi", safe_html("<code>test</code>") == "<code>test</code>")
+    check("<a> saqlanadi", "<a href" in safe_html('<a href="https://t.me">Link</a>'))
+
+    # 3. Ruxs etilmagan teglar olib tashlanadi
+    check("<script> olib tashlanadi", "<script>" not in safe_html("<script>alert(1)</script>"))
+    check("<div> olib tashlanadi", "<div>" not in safe_html("<div>Matn</div>"))
+    check("<span> olib tashlanadi", "<span>" not in safe_html("<span>Matn</span>"))
+    # Matn saqlanadi
+    check("<div> matni saqlanadi", "Matn" in safe_html("<div>Matn</div>"))
+
+    # 4. Yopilmagan teglar avtomatik yopiladi
+    result = safe_html("<b>Salom")
+    check("yopilmagan <b> yopiladi", result.endswith("</b>"))
+    check("yopilmagan <b> matni", "Salom" in result)
+
+    # 5. Telegram teglari ichki teglar bilan
+    result2 = safe_html("<b><i>Ikkita teg</i></b>")
+    check("ichki teglar", "<b><i>" in result2 and "</i></b>" in result2)
+
+    # 6. Oddiy matn o'zgarmaydi
+    check("oddily matn", safe_html("Salom dunyo") == "Salom dunyo")
+
+    # 7. Emoji va maxsus belgilar
+    check("emoji saqlanadi", "👋" in safe_html("👋 Salom"))
+
+    # 8. AI content simulation — broken HTML
+    broken = "<b>Salom</b> <i>dunyo</i> <unclosed>"
+    result3 = safe_html(broken)
+    check("broken: <b> saqlanadi", "<b>" in result3)
+    check("broken: <i> saqlanadi", "<i>" in result3)
+    check("broken: <unclosed> yo'q", "<unclosed>" not in result3)
+
+
+def test_free_channel_limit_enforcement():
+    """Free foydalanuvchi 3 ta kanal ulay oladi, 4-ta limit."""
+    print("== Free channel limit enforcement ==")
+    from database import PLAN_LIMITS, check_channel_limit
+
+    # 1. Free limit = 3
+    check("free limit = 3", PLAN_LIMITS["free"]["max_channels"] == 3)
+
+    # 2. check_channel_limit funksiyasi mavjud
+    check("check_channel_limit callable", callable(check_channel_limit))
+
+    # 3. Return format to'g'ri (tuple: bool, int, int)
+    # (haqiqiy DB bo'lmasdan faqat format tekshiramiz)
+    result = check_channel_limit(0)  # non-existent user
+    check("return tuple", isinstance(result, tuple) and len(result) == 3)
+    check("return[0] bool", isinstance(result[0], bool))
+    check("return[1] int", isinstance(result[1], int))
+    check("return[2] int", isinstance(result[2], int))
+
+    # 4. Non-existent user → can_add=True (default)
+    check("non-existent user can add", result[0] is True)
 
 
 def test_subscription_functions_exist():

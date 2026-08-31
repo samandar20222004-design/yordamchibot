@@ -55,9 +55,9 @@ def _get_queue_list_keyboard(posts, offset: int, total: int) -> InlineKeyboardMa
     for post in posts:
         pid = post[0]
         rows.append([
-            InlineKeyboardButton(f"👁 #{pid}", callback_data=f"qview:{pid}"),
-            InlineKeyboardButton("🗑", callback_data=f"qdel:{pid}"),
-            InlineKeyboardButton("⏩", callback_data=f"qpush:{pid}"),
+            InlineKeyboardButton(f"👁 Ko'rish #{pid}", callback_data=f"qview:{pid}"),
+            InlineKeyboardButton(f"🗑 O'chirish", callback_data=f"qdel:{pid}"),
+            InlineKeyboardButton(f"⏩ Surish", callback_data=f"qpush:{pid}"),
         ])
 
     # Pagination tugmalari

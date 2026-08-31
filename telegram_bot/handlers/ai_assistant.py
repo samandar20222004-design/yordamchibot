@@ -13,7 +13,7 @@ from keyboards.default import (
 )
 from utils.ai_agent import analyze_user_prompt, extract_schedule_time, clear_ai_context
 from utils.helpers import (
-    html_escape, check_ai_rate_limit, check_ai_daily_limit, parse_future_time,
+    html_escape, safe_html, check_ai_rate_limit, check_ai_daily_limit, parse_future_time,
 )
 
 logger = logging.getLogger(__name__)
@@ -153,7 +153,7 @@ async def _show_time_prompt(msg, post_text: str, file_id, post_type: str):
     """Vaqt tanlash oynasini ko'rsatadi."""
     header = (
         "✨ <b>Post qabul qilindi!</b>\n\n"
-        f"{html_escape(post_text[:1500])}\n\n"
+        f"{safe_html(post_text[:1500])}\n\n"
         "🕒 <b>Ushbu post qachon kanalga chiqsin?</b>\n"
         "Quyidagi tugmalardan tanlang yoki erkin yozing:\n"
         "• <i>“ertaga ertalab 9 ga”</i>\n"
@@ -268,7 +268,7 @@ async def ai_input_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "rejalashtirish bo'yicha yordam bera olaman."
         )
         await msg.reply_text(
-            f"🤖 {html_escape(reply)}\n\n<i>Yana savol bering yoki post mavzusini yuboring 👇</i>",
+            f"🤖 {safe_html(reply)}\n\n<i>Yana savol bering yoki post mavzusini yuboring 👇</i>",
             reply_markup=get_cancel_keyboard(),
             parse_mode="HTML",
         )
@@ -278,7 +278,7 @@ async def ai_input_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     post_text = result.get("post_text", "") or ""
     if not post_text:
         reply = result.get("reply", "") or "Post matnini aniqlab bo'lmadi. Iltimos, qaytadan yuboring."
-        await msg.reply_text(html_escape(reply), reply_markup=get_cancel_keyboard(), parse_mode="HTML")
+        await msg.reply_text(safe_html(reply), reply_markup=get_cancel_keyboard(), parse_mode="HTML")
         return AI_INPUT
 
     sched_time = result.get("scheduled_time")
@@ -304,7 +304,7 @@ async def ai_input_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     target_info = "\n🌐 <b>Kanal:</b> Barcha ulangan kanallarga" if target_all else ""
     preview = (
         "✨ <b>Tayyorlangan post:</b>\n\n"
-        f"{html_escape(post_text[:3000])}\n\n"
+        f"{safe_html(post_text[:3000])}\n\n"
         f"🕒 <b>Chiqish vaqti:</b> <code>{sched_time}</code>{target_info}\n\n"
         "Ushbu postni rejalashtiramizmi?"
     )
@@ -392,7 +392,7 @@ async def ai_time_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         context.user_data["ai_target_all"] = True
                 elif ai_res.get("reply"):
                     await update.message.reply_text(
-                        f"🤖 {html_escape(ai_res['reply'])}\n\n"
+                        f"🤖 {safe_html(ai_res['reply'])}\n\n"
                         "Post vaqtini esa quyidagicha yozing: <i>“ertaga 10:00 ga”</i> yoki tugmani tanlang:",
                         reply_markup=get_ai_time_keyboard(),
                         parse_mode="HTML",
@@ -429,7 +429,7 @@ async def ai_time_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     target_info = "\n🌐 <b>Kanal:</b> Barcha ulangan kanallarga" if target_all else ""
     await update.message.reply_text(
         "✨ <b>Post tayyor!</b>\n\n"
-        f"{html_escape(post_text[:2500])}\n\n"
+        f"{safe_html(post_text[:2500])}\n\n"
         f"🕒 <b>Chiqish vaqti:</b> <code>{time_str}</code>{target_info}\n\n"
         "Rejalashtiramizmi?",
         reply_markup=AI_CONFIRM_KEYBOARD,

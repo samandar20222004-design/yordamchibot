@@ -154,6 +154,82 @@ def html_escape(text) -> str:
         return ""
     return html.escape(str(text))
 
+
+# Telegram qo'llab-quvvatlaydigan HTML teglar
+_TELEGRAM_TAGS = {"b", "strong", "i", "em", "u", "ins", "s", "strike", "del",
+                  "code", "pre", "a", "tg-spoiler", "blockquote", "tg-emoji"}
+
+
+def safe_html(text: str) -> str:
+    """AI yoki tashqi matnni Telegram HTML uchun xavfsiz formatlaydi.
+
+    - Faqat Telegram qo'llab-quvvatlaydigan teglar saqlanadi
+    - Noto'g'ri yopilmagan teglar avtomatik yopiladi
+    - Boshqa barcha HTML teglar olib tashlanadi
+    - '&' belgisi teglar ichida escape qilinmaydi (Telegram API talabi)
+    """
+    if not text:
+        return ""
+    text = str(text)
+
+    # Noto'g'ri teglarni tozalash: ruxs etilmagan teglarni olib tashlash
+    import re as _re
+
+    # Yopilgan teglarni tekshirish va tuzatish
+    open_tags = []
+    result = []
+    i = 0
+    while i < len(text):
+        if text[i] == '<':
+            # Tegni topish
+            end = text.find('>', i)
+            if end == -1:
+                # Yopilmagan < — escape qilamiz
+                result.append('&lt;')
+                i += 1
+                continue
+
+            tag_content = text[i+1:end].strip()
+
+            # Self-closing yoki closing teg
+            if tag_content.startswith('/'):
+                tag_name = tag_content[1:].split()[0].lower().rstrip('/')
+                if tag_name in _TELEGRAM_TAGS and tag_name in open_tags:
+                    # To'g'ri yopilgan teg
+                    while open_tags and open_tags[-1] != tag_name:
+                        # Oraliq teglarni avtomatik yopamiz
+                        result.append(f'</{open_tags.pop()}>')
+                    if open_tags:
+                        open_tags.pop()
+                    result.append(f'</{tag_name}>')
+                # Noto'g'ri yoki ortiqcha yopilgan teg — o'tkazib yuboramiz
+                i = end + 1
+                continue
+
+            # Ochiq teg
+            tag_name = tag_content.split()[0].lower().rstrip('/')
+            if tag_name in _TELEGRAM_TAGS:
+                # Tegni saqlaymiz
+                attrs = tag_content[len(tag_name):].strip()
+                if attrs.endswith('/'):
+                    # Self-closing
+                    result.append(f'<{tag_name}{attrs}')
+                else:
+                    result.append(f'<{tag_name}{attrs}>')
+                    open_tags.append(tag_name)
+            # Ruxs etilmagan teg — o'tkazib yuboramiz (matnini saqlaymiz)
+            i = end + 1
+            continue
+
+        result.append(text[i])
+        i += 1
+
+    # Ochiq qolgan teglarni yopamiz
+    while open_tags:
+        result.append(f'</{open_tags.pop()}>')
+
+    return ''.join(result)
+
 def format_post_type_label(post_type: str) -> str:
     pt = str(post_type).lower()
     mapping = {
