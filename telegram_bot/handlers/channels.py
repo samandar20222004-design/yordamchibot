@@ -171,6 +171,29 @@ async def channel_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=get_main_keyboard(is_admin),
             parse_mode="HTML"
         )
+
+        # Referal PRO mukofotini tekshirish (taklif qilgan foydalanuvchiga)
+        referrer_row = await db.run_db(
+            lambda cur: cur.execute(
+                "SELECT referrer_id FROM users WHERE user_id = %s", (user_id,)
+            ) or cur.fetchone()
+        )
+        if referrer_row and referrer_row[0]:
+            referrer_id = referrer_row[0]
+            pro_granted = await db.run_db(db.check_and_grant_referral_pro, referrer_id)
+            if pro_granted:
+                try:
+                    await context.bot.send_message(
+                        chat_id=referrer_id,
+                        text=(
+                            "🎉 <b>Tabriklaymiz!</b>\n\n"
+                            "3 ta do'stingiz kanal uladi va sizga <b>30 kunlik PRO tarif</b> berildi!\n\n"
+                            "Barcha PRO imkoniyatlardan foydalaning: Cheksiz kanallar, AI va analitika."
+                        ),
+                        parse_mode="HTML",
+                    )
+                except Exception:
+                    pass
     elif reason == "taken":
         await update.message.reply_text(
             "🚫 <b>Bu kanal allaqachon boshqa foydalanuvchiga ulangan.</b>\n\n"

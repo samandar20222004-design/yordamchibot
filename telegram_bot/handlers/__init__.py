@@ -96,7 +96,9 @@ from handlers.analytics import (
 
 # 10. SUBSCRIPTION MODULI
 from handlers.subscription import (
-    start_subscription, subscription_callback, promo_code_received, grant_pro_command,
+    start_subscription, subscription_callback, promo_code_received,
+    grant_pro_command, create_promo_command,
+    precheckout_callback, successful_payment_callback,
     SUBSCRIPTION_VIEW, PROMO_INPUT
 )
 
@@ -477,6 +479,12 @@ def register_all_handlers(app):
     app.add_handler(CommandHandler("stats", show_statistics))
     app.add_handler(CommandHandler("cancel", cancel_handler))
     app.add_handler(CommandHandler("grant_pro", grant_pro_command))
+    app.add_handler(CommandHandler("create_promo", create_promo_command))
+
+    # Stars to'lov handlerlari
+    from telegram.ext import PreCheckoutQueryHandler
+    app.add_handler(PreCheckoutQueryHandler(precheckout_callback))
+    app.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_callback))
 
     # 2. Asosiy ConversationHandler
     app.add_handler(main_conv)

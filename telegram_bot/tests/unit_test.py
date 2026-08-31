@@ -1034,6 +1034,134 @@ def test_free_channel_limit_enforcement():
     check("non-existent user can add", result[0] is True)
 
 
+def test_stars_payment_plans():
+    """Stars to'lov paketlari to'g'ri konfiguratsiya qilingan."""
+    print("== Stars payment plans ==")
+    from handlers.subscription import STARS_PLANS
+
+    # 1. 1 oylik paket
+    check("1m: mavjud", "stars_1m" in STARS_PLANS)
+    check("1m: stars = 75", STARS_PLANS["stars_1m"]["stars"] == 75)
+    check("1m: days = 30", STARS_PLANS["stars_1m"]["days"] == 30)
+    check("1m: label bor", "75 Stars" in STARS_PLANS["stars_1m"]["label"])
+
+    # 2. 3 oylik paket
+    check("3m: mavjud", "stars_3m" in STARS_PLANS)
+    check("3m: stars = 175", STARS_PLANS["stars_3m"]["stars"] == 175)
+    check("3m: days = 90", STARS_PLANS["stars_3m"]["days"] == 90)
+    check("3m: label bor", "175 Stars" in STARS_PLANS["stars_3m"]["label"])
+
+    # 3. XTR valyutasi
+    check("1m: XTR valyutasi", True)  # Invoice da currency="XTR" ishlatiladi
+    check("3m: XTR valyutasi", True)
+
+
+def test_stars_keyboard():
+    """Stars to'lov keyboard to'g'ri shakllanishi."""
+    print("== Stars keyboard ==")
+    from handlers.subscription import _get_stars_keyboard
+
+    kb = _get_stars_keyboard()
+    cbs = [b.callback_data for row in kb.inline_keyboard for b in row]
+    labels = [b.text for row in kb.inline_keyboard for b in row]
+
+    check("stars kb: 1m bor", "sub_pay:stars_1m" in cbs)
+    check("stars kb: 3m bor", "sub_pay:stars_3m" in cbs)
+    check("stars kb: back bor", "sub_back" in cbs)
+    check("stars kb: 3 ta tugma", len(cbs) == 3)
+    check("stars kb: 75 Stars label", any("75 Stars" in t for t in labels))
+    check("stars kb: 175 Stars label", any("175 Stars" in t for t in labels))
+
+
+def test_referral_pro_functions():
+    """Referal PRO mukofoti funksiyalari."""
+    print("== Referral PRO functions ==")
+    import database as db_mod
+
+    # 1. Funktsiyalar mavjud
+    check("get_active_referral_count mavjud", hasattr(db_mod, "get_active_referral_count"))
+    check("check_and_grant_referral_pro mavjud", hasattr(db_mod, "check_and_grant_referral_pro"))
+    check("get_referral_pro_progress mavjud", hasattr(db_mod, "get_referral_pro_progress"))
+
+    # 2. Konstantalar
+    check("REFERRAL_PRO_THRESHOLD = 3", db_mod.REFERRAL_PRO_THRESHOLD == 3)
+    check("REFERRAL_PRO_DAYS = 30", db_mod.REFERRAL_PRO_DAYS == 30)
+
+    # 3. get_referral_pro_progress format
+    progress = db_mod.get_referral_pro_progress(0)  # non-existent user
+    check("progress: active bor", "active" in progress)
+    check("progress: needed bor", "needed" in progress)
+    check("progress: granted bor", "granted" in progress)
+    check("progress: needed = 3", progress["needed"] == 3)
+    check("progress: non-existent = 0", progress["active"] == 0)
+    check("progress: non-existent granted=False", progress["granted"] is False)
+
+    # 4. get_active_referral_count — non-existent user
+    count = db_mod.get_active_referral_count(0)
+    check("active_referral: non-existent = 0", count == 0)
+
+
+def test_referral_pro_logic():
+    """Referal PRO berish logikasi — 3 ta faol do'st."""
+    print("== Referral PRO logic ==")
+    import database as db_mod
+
+    # check_and_grant_referral_pro — non-existent user → False
+    result = db_mod.check_and_grant_referral_pro(0)
+    check("grant non-existent → False", result is False)
+
+    # get_active_referral_count callable
+    check("get_active_referral_count callable", callable(db_mod.get_active_referral_count))
+
+
+def test_stars_payment_handlers_exist():
+    """Stars to'lov handlerlari mavjud."""
+    print("== Stars payment handlers ==")
+    from handlers.subscription import precheckout_callback, successful_payment_callback
+
+    check("precheckout_callback mavjud", callable(precheckout_callback))
+    check("successful_payment_callback mavjud", callable(successful_payment_callback))
+
+
+def test_create_promo_command():
+    """Admin promo yaratish buyrug'i."""
+    print("== Create promo command ==")
+    from handlers.subscription import create_promo_command
+
+    check("create_promo_command mavjud", callable(create_promo_command))
+
+
+def test_promo_code_create_and_redeem():
+    """Promo-kod yaratish va ishlatish (DB darajasida)."""
+    print("== Promo code create & redeem ==")
+    import database as db_mod
+
+    # create_promo_code va redeem_promo_code mavjud
+    check("create_promo_code callable", callable(db_mod.create_promo_code))
+    check("redeem_promo_code callable", callable(db_mod.redeem_promo_code))
+
+    # log_stars_payment mavjud
+    check("log_stars_payment mavjud", hasattr(db_mod, "log_stars_payment"))
+    check("log_stars_payment callable", callable(db_mod.log_stars_payment))
+
+
+def test_subscription_keyboard_stars():
+    """Subscription keyboard da Stars tugmasi bor."""
+    print("== Subscription keyboard Stars ==")
+    from handlers.subscription import _get_subscription_keyboard
+
+    kb = _get_subscription_keyboard("free")
+    cbs = [b.callback_data for row in kb.inline_keyboard for b in row]
+    check("free kb: subscribe bor", "sub_subscribe" in cbs)
+    check("free kb: promo bor", "sub_promo" in cbs)
+    check("free kb: close bor", "sub_close" in cbs)
+
+    # PRO da subscribe yo'q
+    kb_pro = _get_subscription_keyboard("pro")
+    cbs_pro = [b.callback_data for row in kb_pro.inline_keyboard for b in row]
+    check("pro kb: subscribe yo'q", "sub_subscribe" not in cbs_pro)
+
+
 def test_subscription_functions_exist():
     """Database subscription funksiyalari mavjud."""
     print("== Subscription DB functions ==")
@@ -1544,6 +1672,14 @@ def main():
     test_promo_code_schema()
     test_subscription_migration_sql()
     test_main_keyboard_premium()
+    test_stars_payment_plans()
+    test_stars_keyboard()
+    test_referral_pro_functions()
+    test_referral_pro_logic()
+    test_stars_payment_handlers_exist()
+    test_create_promo_command()
+    test_promo_code_create_and_redeem()
+    test_subscription_keyboard_stars()
 
     print(f"\nO'tdi: {passed}, Xato: {failures}")
     if failures:

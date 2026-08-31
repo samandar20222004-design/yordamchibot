@@ -1,6 +1,6 @@
 """Subscriptions, Limits & Monetization — tariflar va obuna boshqaruvi."""
 import logging
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice
 from telegram.ext import ContextTypes, ConversationHandler
 from config import ADMIN_ID, ADMIN_IDS_SET
 import database as db
@@ -12,6 +12,12 @@ logger = logging.getLogger(__name__)
 # States
 SUBSCRIPTION_VIEW = 601
 PROMO_INPUT = 602
+
+# Stars to'lov paketlari
+STARS_PLANS = {
+    "stars_1m": {"label": "⭐️ 1 oylik PRO — 75 Stars", "stars": 75, "days": 30, "description": "~$1.5"},
+    "stars_3m": {"label": "⭐️ 3 oylik PRO — 175 Stars", "stars": 175, "days": 90, "description": "~$3.5"},
+}
 
 # Limit xabarlari
 LIMIT_CHANNEL_MSG = (
@@ -87,6 +93,17 @@ def _get_subscription_keyboard(plan: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(keyboard)
 
 
+def _get_stars_keyboard() -> InlineKeyboardMarkup:
+    """Stars to'lov tanlash keyboard."""
+    keyboard = []
+    for plan_key, plan_info in STARS_PLANS.items():
+        keyboard.append([
+            InlineKeyboardButton(plan_info["label"], callback_data=f"sub_pay:{plan_key}")
+        ])
+    keyboard.append([InlineKeyboardButton("⬅️ Orqaga", callback_data="sub_back")])
+    return InlineKeyboardMarkup(keyboard)
+
+
 async def start_subscription(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Premium / Tariflar bo'limini boshlash."""
     user_id = update.effective_user.id
@@ -121,11 +138,59 @@ async def subscription_callback(update: Update, context: ContextTypes.DEFAULT_TY
         await query.answer()
         await query.message.reply_text(
             "💳 <b>Obuna bo'lish</b>\n\n"
-            "Hozircha obuna to'lov tizimi orqali amalga oshiriladi.\n"
-            "To'lov havolasi tez orada qo'shiladi.\n\n"
-            "🎁 Agar promo-kodingiz bo'lsa, 'Promo-kod kiritish' tugmasini bosing.",
+            "Telegram Stars orqali to'lov qiling:\n\n"
+            "⭐️ 1 oylik PRO — 75 Stars (~$1.5)\n"
+            "⭐️ 3 oylik PRO — 175 Stars (~$3.5)\n\n"
+            "Quyidagi tugmalardan birini tanlang:",
+            reply_markup=_get_stars_keyboard(),
             parse_mode="HTML",
         )
+        return SUBSCRIPTION_VIEW
+
+    if data.startswith("sub_pay:"):
+        plan_key = data.split(":", 1)[1]
+        plan_info = STARS_PLANS.get(plan_key)
+        if not plan_info:
+            await query.answer("❌ Noto'g'ri tarif.", show_alert=True)
+            return SUBSCRIPTION_VIEW
+
+        await query.answer()
+        try:
+            await context.bot.send_invoice(
+                chat_id=user_id,
+                title=f"PRO Tarif — {plan_info['days']} kun",
+                description=f"{plan_info['days']} kunlik PRO obuna. "
+                            f"Cheksiz kanallar, AI va analitika.",
+                payload=f"pro_{plan_key}_{user_id}",
+                currency="XTR",
+                prices=[LabeledPrice(label="PRO Obuna", amount=plan_info["stars"])],
+                # provider_token bo'sh — Telegram Stars uchun shart
+            )
+        except Exception as e:
+            logger.warning("Invoice yaratish xatosi: %s", e)
+            await query.message.reply_text(
+                "⚠️ To'lov yaratishda xatolik. Qaytadan urinib ko'ring.",
+                parse_mode="HTML",
+            )
+        return SUBSCRIPTION_VIEW
+
+    if data == "sub_back":
+        await query.answer()
+        plan_info = await db.run_db(db.get_user_plan, user_id)
+        card = _build_subscription_card(plan_info)
+        plan = plan_info.get("plan_type", "free")
+        try:
+            await query.edit_message_text(
+                card,
+                reply_markup=_get_subscription_keyboard(plan),
+                parse_mode="HTML",
+            )
+        except Exception:
+            await query.message.reply_text(
+                card,
+                reply_markup=_get_subscription_keyboard(plan),
+                parse_mode="HTML",
+            )
         return SUBSCRIPTION_VIEW
 
     if data == "sub_promo":
@@ -245,3 +310,122 @@ async def grant_pro_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             pass
     else:
         await update.message.reply_text("❌ Xatolik yuz berdi. User ID to'g'riligini tekshiring.")
+
+
+# ============================================================
+# TELEGRAM STARS PAYMENT HANDLERS
+# ============================================================
+
+async def precheckout_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """PreCheckoutQuery — Telegram to'lovni tasdiqlashdan oldin so'raydi."""
+    query = update.pre_checkout_query
+    if not query:
+        return
+
+    # Payload tekshirish
+    payload = query.invoice_payload or ""
+    if payload.startswith("pro_stars_"):
+        # To'lovni tasdiqlaymiz
+        await query.answer(ok=True)
+    else:
+        await query.answer(ok=False, error_message="Noto'g'ri to'lov so'rovi.")
+
+
+async def create_promo_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """SuperAdmin: /create_promo <KOD> <KUNLAR> <MAKS_ISHLATISH> — promo-kod yaratish."""
+    user_id = update.effective_user.id
+    if user_id != ADMIN_ID:
+        await update.message.reply_text("❌ Faqat admin bu buyruqni ishlatishi mumkin.")
+        return
+
+    args = context.args
+    if len(args) < 2:
+        await update.message.reply_text(
+            "📝 Foydalanish: /create_promo <KOD_NOMI> <KUNLAR> [MAKS_ISHLATISH]\n\n"
+            "Masalan:\n"
+            "• /create_promo MAXSUS30 30 50\n"
+            "• /create_promo YANGI2026 30\n\n"
+            "KUNLAR — obuna muddati (kun)\n"
+            "MAKS_ISHLATISH — necha marta ishlatilishi mumkin (ixtiyoriy, cheksiz)"
+        )
+        return
+
+    code = args[0].upper()
+    try:
+        days = int(args[1])
+    except (ValueError, IndexError):
+        await update.message.reply_text("❌ Kunlar soni raqam bo'lishi kerak.")
+        return
+
+    max_uses = None
+    if len(args) >= 3:
+        try:
+            max_uses = int(args[2])
+        except ValueError:
+            await update.message.reply_text("❌ Maks ishlatish soni raqam bo'lishi kerak.")
+            return
+
+    if days <= 0:
+        await update.message.reply_text("❌ Kunlar soni 0 dan katta bo'lishi kerak.")
+        return
+
+    success = await db.run_db(db.create_promo_code, code, "pro", days, max_uses)
+    if success:
+        max_str = f"{max_uses} marta" if max_uses else "cheksiz"
+        await update.message.reply_text(
+            f"✅ <b>Promo-kod yaratildi!</b>\n\n"
+            f"🏷 Kod: <code>{code}</code>\n"
+            f"📅 Muddat: <b>{days} kun</b> PRO\n"
+            f"🔢 Maks ishlatish: <b>{max_str}</b>\n\n"
+            f"Foydalanuvchilar '🎁 Promo-kod kiritish' orqali faollashtirishi mumkin.",
+            parse_mode="HTML",
+        )
+    else:
+        await update.message.reply_text(
+            "❌ Promo-kod yaratishda xatolik. Bu kod allaqachon mavjud bo'lishi mumkin."
+        )
+
+
+async def successful_payment_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """SuccessfulPayment — to'lov muvaffaqiyatli o'tganda."""
+    payment = update.message.successful_payment
+    if not payment:
+        return
+
+    user_id = update.effective_user.id
+    total_stars = payment.total_amount
+    payload = payment.invoice_payload or ""
+
+    # PRO muddatini aniqlash
+    if total_stars >= 175:
+        days = 90  # 3 oylik
+    else:
+        days = 30  # 1 oylik
+
+    # PRO berish
+    success = await db.run_db(db.set_user_plan, user_id, "pro", days)
+
+    # To'lovni log qilash
+    await db.run_db(
+        db.log_stars_payment, user_id, total_stars, "XTR",
+        payload, payment.telegram_payment_charge_id or ""
+    )
+
+    if success:
+        await update.message.reply_text(
+            f"🎉 <b>To'lov muvaffaqiyatli!</b>\n\n"
+            f"⭐️ {total_stars} Stars qabul qilindi.\n"
+            f"📅 <b>{days} kunlik PRO tarif</b> faollashtirildi!\n\n"
+            f"Barcha PRO imkoniyatlardan foydalanishingiz mumkin:\n"
+            f"• Cheksiz kanallar\n"
+            f"• Cheksiz AI\n"
+            f"• To'liq analitika",
+            reply_markup=get_main_keyboard(update.effective_user.id in ADMIN_IDS_SET),
+            parse_mode="HTML",
+        )
+    else:
+        await update.message.reply_text(
+            "⚠️ To'lov qabul qilindi, lekin tarifni faollashtirishda xatolik.\n"
+            "Iltimos, admin bilan bog'laning.",
+            parse_mode="HTML",
+        )
