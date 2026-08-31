@@ -1,9 +1,10 @@
+import asyncio
 import logging
 from datetime import datetime, timedelta
 import pytz
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes, ConversationHandler
-from config import ADMIN_ID
+from config import ADMIN_ID, ADMIN_IDS_SET
 import database as db
 from keyboards.default import (
     BTN_T_5MIN, BTN_T_15MIN, BTN_T_1H, BTN_T_DAILY, BTN_T_WEEKLY,
@@ -28,6 +29,29 @@ AI_CONFIRM_KEYBOARD = InlineKeyboardMarkup([
     [InlineKeyboardButton("🚫 Bekor qilish", callback_data="ai_post_cancel")],
 ])
 
+# Typing animatsiyasi davomiyligi (soniya) — AI javob kelgunicha takrorlanadi
+_TYPING_INTERVAL = 4.0
+
+
+async def _keep_typing(bot, chat_id: int, stop_event: asyncio.Event):
+    """Foydalanuvchiga 'yozmoqda...' animatsiyasini AI javob kelgunicha davom ettiradi.
+
+    Har _TYPING_INTERVAL soniyada send_chat_action yuboriladi.
+    Telegram'da typing ko'rinishi 5 soniya saqlanadi — shuning uchun 4 soniyada yangilanadi.
+    stop_event set bo'lsa — animatsiya to'xtatiladi.
+    """
+    while not stop_event.is_set():
+        try:
+            await bot.send_chat_action(chat_id=chat_id, action="typing")
+        except Exception:
+            break  # xatolikda animatsiyani to'xtatamiz, asosiy oqimga ta'sir yo'q
+        try:
+            await asyncio.wait_for(asyncio.shield(stop_event.wait()), timeout=_TYPING_INTERVAL)
+        except asyncio.TimeoutError:
+            pass  # vaqt tugadi, yana aylanamiz
+        except Exception:
+            break
+
 
 def _no_credits_text(bot_username: str, user_id: int) -> str:
     ref_link = f"https://t.me/{bot_username}?start=ref_{user_id}"
@@ -45,7 +69,7 @@ async def start_ai_assistant(update: Update, context: ContextTypes.DEFAULT_TYPE)
     context.user_data.clear()
     user_id = update.effective_user.id
     clear_ai_context(user_id)
-    is_admin = (user_id == ADMIN_ID)
+    is_admin = (user_id in ADMIN_IDS_SET)
     credits = await db.run_db(db.get_user_credits, user_id)
 
     if not is_admin and credits <= 0:
@@ -143,7 +167,7 @@ async def _show_time_prompt(msg, post_text: str, file_id, post_type: str):
 async def ai_input_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = update.message
     user_id = update.effective_user.id
-    is_admin = (user_id == ADMIN_ID)
+    is_admin = (user_id in ADMIN_IDS_SET)
 
     # Albom (media_group) dublikatlarini bitta ishlov bilan cheklaymiz
     if msg.media_group_id:
@@ -212,13 +236,21 @@ async def ai_input_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return ConversationHandler.END
 
-    msg_wait = await msg.reply_text("⏳ <i>AI tahlil qilmoqda, iltimos kuting...</i>", parse_mode="HTML")
-    result = await analyze_user_prompt(prompt, user_id)
+    msg_wait = await msg.reply_text("🤖 <i>AI tahlil qilmoqda...</i>", parse_mode="HTML")
+
+    # Typing animatsiyasini fonda ishga tushiramiz (stop_event orqali to'xtatiladi)
+    stop_typing = asyncio.Event()
+    typing_task = asyncio.create_task(_keep_typing(context.bot, msg.chat_id, stop_typing))
 
     try:
-        await msg_wait.delete()
-    except Exception:
-        pass
+        result = await analyze_user_prompt(prompt, user_id)
+    finally:
+        stop_typing.set()
+        typing_task.cancel()
+        try:
+            await msg_wait.delete()
+        except Exception:
+            pass
 
     if "error" in result:
         # Xato bo'lsa — sarflangan ballni qaytaramiz
@@ -311,7 +343,7 @@ async def ai_time_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = (update.message.text or "").strip()
     now = datetime.now(tashkent_tz)
     user_id = update.effective_user.id
-    is_admin = (user_id == ADMIN_ID)
+    is_admin = (user_id in ADMIN_IDS_SET)
 
     # Takrorlanuvchi post tugmalari AI oqimida qo'llanmaydi
     if text in (BTN_T_DAILY, BTN_T_WEEKLY):
@@ -346,14 +378,23 @@ async def ai_time_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 )
                 return AI_GET_TIME
 
-            msg_wait = await update.message.reply_text("⏳ <i>Vaqt aniqlanmoqda...</i>", parse_mode="HTML")
-            ai_res = await extract_schedule_time(
-                f"Foydalanuvchining vaqt haqidagi xabari: {text}", user_id
+            msg_wait = await update.message.reply_text("🤖 <i>Vaqt aniqlanmoqda...</i>", parse_mode="HTML")
+
+            stop_typing2 = asyncio.Event()
+            typing_task2 = asyncio.create_task(
+                _keep_typing(context.bot, update.message.chat_id, stop_typing2)
             )
             try:
-                await msg_wait.delete()
-            except Exception:
-                pass
+                ai_res = await extract_schedule_time(
+                    f"Foydalanuvchining vaqt haqidagi xabari: {text}", user_id
+                )
+            finally:
+                stop_typing2.set()
+                typing_task2.cancel()
+                try:
+                    await msg_wait.delete()
+                except Exception:
+                    pass
 
             if "error" not in ai_res:
                 if ai_res.get("has_explicit_time") and ai_res.get("scheduled_time"):
@@ -414,7 +455,7 @@ async def ai_confirm_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
     query = update.callback_query
     data = query.data
     user_id = query.from_user.id
-    is_admin = (user_id == ADMIN_ID)
+    is_admin = (user_id in ADMIN_IDS_SET)
 
     if data == "ai_post_cancel":
         await query.answer("Bekor qilindi")
