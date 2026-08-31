@@ -419,9 +419,18 @@ async def auto_delete_received(update: Update, context: ContextTypes.DEFAULT_TYP
 async def _save_and_finish(update, context, post_time, recurrence_type='none', recurrence_day=None, recurrence_time_str=None, end_date=None):
     is_admin = (update.effective_user.id in ADMIN_IDS_SET)
     user_id = update.effective_user.id
-    selected_channel_id = context.user_data["selected_channel_id"]
+    selected_channel_id = context.user_data.get("selected_channel_id")
+    if not selected_channel_id:
+        await update.message.reply_text(
+            "⚠️ <b>Kanal tanlanmagan.</b>\nIltimos, qaytadan post yarating.",
+            reply_markup=get_main_keyboard(is_admin),
+            parse_mode="HTML",
+        )
+        context.user_data.clear()
+        return
+
     channel_title = context.user_data.get("selected_channel_title", "Kanal")
-    post_type = context.user_data["post_type"]
+    post_type = context.user_data.get("post_type")
     content = context.user_data.get("content")
     file_id = context.user_data.get("file_id")
     btn_text = context.user_data.get("btn_text")
@@ -430,24 +439,36 @@ async def _save_and_finish(update, context, post_time, recurrence_type='none', r
     delete_after_hours = context.user_data.get("delete_after_hours", 0)
 
     post_time_tz = post_time.astimezone(tashkent_tz)
-    channels = (
-        await db.run_db(db.get_user_channels, user_id)
-        if selected_channel_id == "ALL"
-        else [(selected_channel_id, channel_title)]
-    )
-    ok_count = 0
-
-    for ch_id, _ in channels:
-        pid = await db.run_db(
-            db.add_post,
-            user_id=user_id, channel_id=ch_id, post_type=post_type, content=content,
-            file_id=file_id, scheduled_time=post_time_tz, recurrence_type=recurrence_type,
-            recurrence_day=recurrence_day, recurrence_time=recurrence_time_str, end_date=end_date,
-            btn_text=btn_text, btn_url=btn_url, enable_reactions=enable_reactions,
-            delete_after_hours=delete_after_hours
+    try:
+        channels = (
+            await db.run_db(db.get_user_channels, user_id)
+            if selected_channel_id == "ALL"
+            else [(selected_channel_id, channel_title)]
         )
-        if pid:
-            ok_count += 1
+    except Exception:
+        await update.message.reply_text(
+            "❌ <b>Kanal ma'lumotlarini olishda xatolik.</b>",
+            reply_markup=get_main_keyboard(is_admin),
+            parse_mode="HTML",
+        )
+        context.user_data.clear()
+        return
+
+    ok_count = 0
+    for ch_id, _ in channels:
+        try:
+            pid = await db.run_db(
+                db.add_post,
+                user_id=user_id, channel_id=ch_id, post_type=post_type, content=content,
+                file_id=file_id, scheduled_time=post_time_tz, recurrence_type=recurrence_type,
+                recurrence_day=recurrence_day, recurrence_time=recurrence_time_str, end_date=end_date,
+                btn_text=btn_text, btn_url=btn_url, enable_reactions=enable_reactions,
+                delete_after_hours=delete_after_hours
+            )
+            if pid:
+                ok_count += 1
+        except Exception:
+            pass
 
     if ok_count:
         if recurrence_type == 'daily':
@@ -639,10 +660,24 @@ async def confirm_post_callback(update: Update, context: ContextTypes.DEFAULT_TY
     end_date = context.user_data.get("confirm_end_date")
 
     if not post_time:
-        await query.message.reply_text("⚠️ Vaqt belgilanmagan. Qaytadan urinib ko'ring.")
+        await query.message.reply_text(
+            "⚠️ <b>Vaqt belgilanmagan.</b>\nIltimos, qaytadan post yarating.",
+            reply_markup=get_main_keyboard(is_admin),
+            parse_mode="HTML",
+        )
+        context.user_data.clear()
         return ConversationHandler.END
 
     selected_channel_id = context.user_data.get("selected_channel_id")
+    if not selected_channel_id:
+        await query.message.reply_text(
+            "⚠️ <b>Kanal tanlanmagan.</b>\nIltimos, qaytadan post yarating.",
+            reply_markup=get_main_keyboard(is_admin),
+            parse_mode="HTML",
+        )
+        context.user_data.clear()
+        return ConversationHandler.END
+
     channel_title = context.user_data.get("selected_channel_title", "Kanal")
     post_type = context.user_data.get("post_type")
     content = context.user_data.get("content")
@@ -653,23 +688,48 @@ async def confirm_post_callback(update: Update, context: ContextTypes.DEFAULT_TY
     delete_after_hours = context.user_data.get("delete_after_hours", 0)
 
     post_time_tz = post_time.astimezone(tashkent_tz)
-    channels = (
-        await db.run_db(db.get_user_channels, user_id)
-        if selected_channel_id == "ALL"
-        else [(selected_channel_id, channel_title)]
-    )
-    ok_count = 0
-    for ch_id, _ in channels:
-        pid = await db.run_db(
-            db.add_post,
-            user_id=user_id, channel_id=ch_id, post_type=post_type, content=content,
-            file_id=file_id, scheduled_time=post_time_tz, recurrence_type=recurrence_type,
-            recurrence_day=recurrence_day, recurrence_time=recurrence_time_str, end_date=end_date,
-            btn_text=btn_text, btn_url=btn_url, enable_reactions=enable_reactions,
-            delete_after_hours=delete_after_hours
+    try:
+        channels = (
+            await db.run_db(db.get_user_channels, user_id)
+            if selected_channel_id == "ALL"
+            else [(selected_channel_id, channel_title)]
         )
-        if pid:
-            ok_count += 1
+    except Exception:
+        await query.message.reply_text(
+            "❌ <b>Kanal ma'lumotlarini olishda xatolik.</b>\nIltimos, qaytadan urinib ko'ring.",
+            reply_markup=get_main_keyboard(is_admin),
+            parse_mode="HTML",
+        )
+        context.user_data.clear()
+        return ConversationHandler.END
+
+    if not channels:
+        await query.message.reply_text(
+            "❌ <b>Hech qanday kanal topilmadi.</b>\nKanalni qaytadan ulang.",
+            reply_markup=get_main_keyboard(is_admin),
+            parse_mode="HTML",
+        )
+        context.user_data.clear()
+        return ConversationHandler.END
+
+    ok_count = 0
+    error_msgs = []
+    for ch_id, ch_name in channels:
+        try:
+            pid = await db.run_db(
+                db.add_post,
+                user_id=user_id, channel_id=ch_id, post_type=post_type, content=content,
+                file_id=file_id, scheduled_time=post_time_tz, recurrence_type=recurrence_type,
+                recurrence_day=recurrence_day, recurrence_time=recurrence_time_str, end_date=end_date,
+                btn_text=btn_text, btn_url=btn_url, enable_reactions=enable_reactions,
+                delete_after_hours=delete_after_hours
+            )
+            if pid:
+                ok_count += 1
+            else:
+                error_msgs.append(f"• {ch_name}: saqlashda xatolik")
+        except Exception:
+            error_msgs.append(f"• {ch_name}: tizim xatoligi")
 
     try:
         await query.edit_message_reply_markup(reply_markup=None)
@@ -686,16 +746,21 @@ async def confirm_post_callback(update: Update, context: ContextTypes.DEFAULT_TY
             when_text = f"⏰ {post_time_tz.strftime('%Y-%m-%d %H:%M')}"
 
         del_info = f"\n⏳ Kanalda turish muddati: <b>{delete_after_hours} soat</b>" if delete_after_hours > 0 else ""
+        err_info = ""
+        if error_msgs:
+            err_info = "\n\n⚠️ <b>Ba'zi kanallarda xatolik:</b>\n" + "\n".join(error_msgs)
         await query.message.reply_text(
             f"✅ <b>Post muvaffaqiyatli rejalashtirildi!</b>\n\n"
             f"📢 Joylash: <b>{html_escape(channel_title)}</b>\n"
-            f"{when_text}{del_info}",
+            f"{when_text}{del_info}{err_info}",
             reply_markup=get_main_keyboard(is_admin),
             parse_mode="HTML"
         )
     else:
+        err_detail = "\n".join(error_msgs) if error_msgs else "Noma'lum xatolik"
         await query.message.reply_text(
-            "❌ Saqlashda xatolik yuz berdi.",
+            f"❌ <b>Saqlashda xatolik yuz berdi.</b>\n\n{err_detail}\n\n"
+            f"Iltimos, qaytadan post yarating.",
             reply_markup=get_main_keyboard(is_admin),
             parse_mode="HTML"
         )

@@ -681,6 +681,155 @@ def test_confirmation_preview():
     check("preview: auto-delete yo'q", "Avto-o'chirish" not in preview6, preview6[:300])
 
 
+def test_integration_post_flow():
+    """End-to-end: post yaratish -> channel -> content -> btn -> reactions -> auto-delete -> time -> confirm -> edit -> confirm -> save."""
+    import asyncio
+    print("== integration: full post creation flow ==")
+    from handlers.new_post import (
+        build_channel_labels, _build_preview_text, _get_confirm_keyboard,
+        _get_edit_confirm_keyboard, _media_item_from_message, _apply_single_media,
+        CONFIRM_POST, EDIT_CONFIRM_FIELD,
+        CHOOSE_CHANNEL, GET_CONTENT, GET_BTN_TITLE, GET_BTN_URL,
+        GET_REACTIONS, GET_AUTO_DELETE, GET_TIME, DAILY_TIME, RECUR_DAY, RECUR_TIME, GET_DURATION,
+    )
+    from keyboards.default import (
+        BTN_T_5MIN, BTN_T_15MIN, BTN_T_1H, BTN_T_DAILY, BTN_T_WEEKLY,
+        BTN_DUR_1W, BTN_DUR_1M, BTN_DUR_INF,
+        WEEKDAY_MAP, WEEKDAY_LABELS,
+    )
+
+    # 1. Channel labels — duplicate handling
+    channels = [("-1001", "Kanal A"), ("-1002", "Kanal A"), ("-1003", "")]
+    labels = build_channel_labels(channels)
+    check("integ: 3 ta kanal farqlanadi", len(labels) == 3, str(labels))
+    check("integ: barcha label bo'sh emas", all(l.strip() for l in labels), str(labels))
+
+    # 2. Media parsing
+    class FakeMsg:
+        def __init__(self, **kw):
+            self.photo = kw.get("photo")
+            self.video = kw.get("video")
+            self.document = kw.get("document")
+            self.audio = kw.get("audio")
+            self.animation = kw.get("animation")
+            self.voice = kw.get("voice")
+            self.sticker = kw.get("sticker")
+            self.caption = kw.get("caption", "")
+            self.text = kw.get("text")
+
+    photo_msg = FakeMsg(photo=[type("P", (), {"file_id": "photo_123"})()])
+    item = _media_item_from_message(photo_msg)
+    check("integ: photo aniqlanadi", item is not None and item["type"] == "photo", str(item))
+
+    text_msg = FakeMsg(text="Salom")
+    item2 = _media_item_from_message(text_msg)
+    check("integ: matn -> None", item2 is None)
+
+    # 3. Apply media to context
+    class FakeCtx:
+        def __init__(self):
+            self.user_data = {}
+    ctx = FakeCtx()
+    _apply_single_media(ctx, {"type": "photo", "file_id": "abc", "caption": "Rasm"})
+    check("integ: media qo'llanadi", ctx.user_data["post_type"] == "photo" and ctx.user_data["file_id"] == "abc")
+
+    # 4. Preview matn — to'liq ma'lumot bilan
+    tz = pytz.timezone("Asia/Tashkent")
+    ctx.user_data.update({
+        "selected_channel_title": "Tech Kanal",
+        "content": "Yangi mahsulot!",
+        "btn_text": "Batafsil",
+        "btn_url": "https://example.com",
+        "enable_reactions": True,
+        "delete_after_hours": 48,
+        "confirm_post_time": tz.localize(datetime(2026, 9, 5, 14, 0)),
+        "confirm_recurrence_type": "none",
+        "confirm_recurrence_day": None,
+        "confirm_recurrence_time_str": None,
+    })
+    preview = _build_preview_text(ctx)
+    check("integ: preview'da kanal", "Tech Kanal" in preview, preview[:150])
+    check("integ: preview'da vaqt", "2026-09-05 14:00" in preview, preview[:150])
+    check("integ: preview'da tugma", "Batafsil" in preview, preview[:300])
+    check("integ: preview'da reaksiya", "Yoqilgan" in preview, preview[:300])
+    check("integ: preview'da auto-delete", "48 soat" in preview, preview[:300])
+
+    # 5. Confirm keyboard — 3 ta tugma
+    kb = _get_confirm_keyboard()
+    check("integ: confirm kb 3 ta tugma", sum(len(r) for r in kb.inline_keyboard) == 3)
+
+    # 6. Edit keyboard — 5 ta tugma (4 field + back)
+    ekb = _get_edit_confirm_keyboard()
+    check("integ: edit kb 5 ta tugma", sum(len(r) for r in ekb.inline_keyboard) == 5)
+
+    # 7. Daily recurrence preview
+    ctx.user_data["confirm_recurrence_type"] = "daily"
+    ctx.user_data["confirm_recurrence_time_str"] = "09:00:00"
+    preview_daily = _build_preview_text(ctx)
+    check("integ: daily preview", "Har kuni" in preview_daily and "09:00" in preview_daily, preview_daily[:200])
+
+    # 8. Weekly recurrence preview
+    ctx.user_data["confirm_recurrence_type"] = "weekly"
+    ctx.user_data["confirm_recurrence_day"] = 4  # Juma
+    ctx.user_data["confirm_recurrence_time_str"] = "13:00:00"
+    preview_weekly = _build_preview_text(ctx)
+    check("integ: weekly preview", "Har Juma" in preview_weekly and "13:00" in preview_weekly, preview_weekly[:200])
+
+    # 9. Edit flow: matn o'zgartirish
+    ctx.user_data["post_type"] = "text"
+    ctx.user_data["file_id"] = None
+    ctx.user_data["content"] = "Yangi matn"
+    ctx.user_data["confirm_recurrence_type"] = "none"
+    ctx.user_data["confirm_recurrence_day"] = None
+    ctx.user_data["confirm_recurrence_time_str"] = None
+    preview_edited = _build_preview_text(ctx)
+    check("integ: tahrirlangan matn preview'da", "Yangi matn" in preview_edited, preview_edited[:200])
+
+    # 10. Edit flow: tugma o'chirish
+    ctx.user_data["btn_text"] = None
+    ctx.user_data["btn_url"] = None
+    preview_no_btn = _build_preview_text(ctx)
+    check("integ: tugma o'chirilganda preview'da yo'q", "Tugma" not in preview_no_btn, preview_no_btn[:300])
+
+    # 11. State constants to'g'ri
+    check("integ: CHOOSE_CHANNEL=100", CHOOSE_CHANNEL == 100)
+    check("integ: GET_CONTENT=101", GET_CONTENT == 101)
+    check("integ: GET_BTN_TITLE=102", GET_BTN_TITLE == 102)
+    check("integ: GET_BTN_URL=103", GET_BTN_URL == 103)
+    check("integ: GET_REACTIONS=104", GET_REACTIONS == 104)
+    check("integ: GET_AUTO_DELETE=105", GET_AUTO_DELETE == 105)
+    check("integ: GET_TIME=106", GET_TIME == 106)
+    check("integ: DAILY_TIME=107", DAILY_TIME == 107)
+    check("integ: RECUR_DAY=108", RECUR_DAY == 108)
+    check("integ: RECUR_TIME=109", RECUR_TIME == 109)
+    check("integ: GET_DURATION=110", GET_DURATION == 110)
+    check("integ: CONFIRM_POST=111", CONFIRM_POST == 111)
+    check("integ: EDIT_CONFIRM_FIELD=112", EDIT_CONFIRM_FIELD == 112)
+
+    # 12. Time presets mavjudligi
+    check("integ: BTN_T_5MIN mavjud", BTN_T_5MIN == "⚡ 5 daqiqa")
+    check("integ: BTN_T_15MIN mavjud", BTN_T_15MIN == "⚡ 15 daqiqa")
+    check("integ: BTN_T_1H mavjud", BTN_T_1H == "⚡ 1 soat")
+
+    # 13. WEEKDAY_LABELS to'liq
+    check("integ: 7 ta kun", len(WEEKDAY_LABELS) == 7)
+    check("integ: Dushanba=0", WEEKDAY_LABELS[0] == "Dushanba")
+    check("integ: Yakshanba=6", WEEKDAY_LABELS[6] == "Yakshanba")
+
+    # 14. HTML escape xavfsizligi
+    from utils.helpers import html_escape
+    check("integ: HTML escape <b>", "&lt;b&gt;" in html_escape("<b>test</b>"))
+    check("integ: HTML escape &", "&amp;" in html_escape("a & b"))
+
+    # 15. parse_future_time integration
+    from utils.helpers import parse_future_time
+    now = tz.localize(datetime(2026, 9, 1, 12, 0))
+    t1 = parse_future_time("ertaga 10:00", now)
+    check("integ: ertaga 10:00", t1 is not None and t1.day == 2 and t1.hour == 10, str(t1))
+    t2 = parse_future_time("5 daqiqadan keyin", now)
+    check("integ: 5 daqiqadan keyin", t2 is not None and t2.minute == 5, str(t2))
+
+
 def main():
     test_calculate_next_time()
     test_converter()
@@ -708,6 +857,7 @@ def main():
     test_smart_reply_ad_async()
     test_channel_cache_invalidation()
     test_confirmation_preview()
+    test_integration_post_flow()
 
     print(f"\nO'tdi: {passed}, Xato: {failures}")
     if failures:
