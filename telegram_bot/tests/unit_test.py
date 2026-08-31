@@ -583,6 +583,124 @@ def test_channel_cache_invalidation():
     db_mod._cache_clear()
 
 
+def test_default_channel_db():
+    print("== database default channel funksiyalari ==")
+    from contextlib import contextmanager
+    import database as db_mod
+
+    # --- FakeCursor: default_channel_id bilan ishlash ---
+    class FakeCursor:
+        def __init__(self):
+            self._row = None
+            self.rowcount = 1
+            self._store = {}
+
+        def execute(self, query, params=None):
+            q = " ".join(query.split()).lower()
+            if "select default_channel_id from users" in q:
+                uid = params[0] if params else None
+                self._row = self._store.get(f"default:{uid}")
+            elif "update users set default_channel_id" in q:
+                self._store[f"default:{params[1]}"] = (params[0],)
+                self.rowcount = 1
+            elif "select channel_id, channel_title from channels" in q:
+                # user_id, channel_id, is_active check
+                key = f"ch:{params[0]}:{params[1]}"
+                self._row = self._store.get(key)
+            else:
+                self._row = None
+
+        def fetchone(self):
+            return self._row
+
+    cursor_instance = FakeCursor()
+
+    @contextmanager
+    def fake_db_cursor(commit=False):
+        yield cursor_instance
+
+    original = db_mod.db_cursor
+    db_mod.db_cursor = fake_db_cursor
+    try:
+        # 1) Default yo'q → None
+        cursor_instance._store["default:100"] = None
+        result = db_mod.get_default_channel_id(100)
+        check("default yo'q → None", result is None, str(result))
+
+        # 2) Default saqlash
+        db_mod.set_default_channel_id(100, "-1001")
+        result = db_mod.get_default_channel_id(100)
+        check("default saqlandi", result == "-1001", str(result))
+
+        # 3) Default kanal faol → qaytadi
+        cursor_instance._store["ch:100:-1001"] = ("-1001", "My Channel")
+        result = db_mod.get_user_default_channel(100)
+        check("faol default kanal qaytadi", result == ("-1001", "My Channel"), str(result))
+
+        # 4) Default kanal nofaol → None + tozalanadi
+        cursor_instance._store["ch:100:-1001"] = None
+        cursor_instance._store["default:100"] = ("-1001",)
+        result = db_mod.get_user_default_channel(100)
+        check("nofaol default → None", result is None, str(result))
+
+        # 5) Default tozalash
+        db_mod.set_default_channel_id(100, None)
+        result = db_mod.get_default_channel_id(100)
+        check("default tozalandi", result is None or result == (None,), str(result))
+    finally:
+        db_mod.db_cursor = original
+        db_mod._cache_clear()
+
+
+def test_default_channel_inline_keyboard():
+    print("== inline keyboard: default channel tugmalari ==")
+    from keyboards.inline import render_channels_list
+
+    channels = [("-1001", "Kanal A"), ("-1002", "Kanal B")]
+
+    # Default yo'q — barcha "Qilish" tugmasi
+    kb = render_channels_list(channels, default_ch_id=None)
+    star_btns = [b for row in kb.inline_keyboard for b in row
+                 if "⭐" in (b.text or "")]
+    check("default yo'q — 2 ta 'Qilish' tugmasi",
+          len(star_btns) == 2 and all("Qilish" in b.text for b in star_btns),
+          str([b.text for b in star_btns]))
+
+    # Kanal A default — u "Asosiy", B "Qilish"
+    kb2 = render_channels_list(channels, default_ch_id="-1001")
+    star_btns2 = [b for row in kb2.inline_keyboard for b in row
+                  if "⭐" in (b.text or "")]
+    check("default Kanal A — 'Asosiy' + 'Qilish'",
+          any("Asosiy" in b.text for b in star_btns2) and any("Qilish" in b.text for b in star_btns2),
+          str([b.text for b in star_btns2]))
+
+    # Default callback_data
+    default_btn = [b for b in star_btns2 if "Asosiy" in b.text][0]
+    non_default_btn = [b for b in star_btns2 if "Qilish" in b.text][0]
+    check("asosiy kanal tugmasi noop", default_btn.callback_data == "noop",
+          default_btn.callback_data)
+    check("qilish tugmasi set_default_ch callback",
+          "set_default_ch:" in non_default_btn.callback_data,
+          non_default_btn.callback_data)
+
+
+def test_new_post_flow_logic():
+    print("== new_post flow: auto-skip channel selection ==")
+    from handlers.new_post import build_channel_labels
+
+    # 1 kanal — build_channel_labels 1 ta yorliq qaytaradi
+    labels = build_channel_labels([("-1001", "My Channel")])
+    check("1 kanal — 1 ta yorliq", len(labels) == 1, str(labels))
+
+    # 2 kanal — 2 ta yorliq
+    labels2 = build_channel_labels([("-1001", "A"), ("-1002", "B")])
+    check("2 kanal — 2 ta yorliq", len(labels2) == 2, str(labels2))
+
+    # Bo'sh sarlavhali kanal — fallback "Kanal"
+    labels3 = build_channel_labels([("-1001", ""), ("-1002", None)])
+    check("bo'sh sarlavha — fallback", all(l.strip() for l in labels3), str(labels3))
+
+
 def main():
     test_calculate_next_time()
     test_converter()
@@ -609,6 +727,9 @@ def main():
     test_button_labels()
     test_smart_reply_ad_async()
     test_channel_cache_invalidation()
+    test_default_channel_db()
+    test_default_channel_inline_keyboard()
+    test_new_post_flow_logic()
 
     print(f"\nO'tdi: {passed}, Xato: {failures}")
     if failures:

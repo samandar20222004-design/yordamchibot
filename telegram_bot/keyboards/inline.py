@@ -62,13 +62,19 @@ def get_sponsors_delete_keyboard(sponsors: list) -> InlineKeyboardMarkup:
     keyboard.append([InlineKeyboardButton("❌ Yopish", callback_data="close_msg")])
     return InlineKeyboardMarkup(keyboard)
 
-def render_channels_list(channels: list) -> InlineKeyboardMarkup:
+def render_channels_list(channels: list, default_ch_id: str = None) -> InlineKeyboardMarkup:
     keyboard = []
     for ch in channels:
         ch_id, ch_title = ch
+        is_default = (str(ch_id) == str(default_ch_id)) if default_ch_id else False
+        star_btn = InlineKeyboardButton(
+            "⭐ Asosiy" if is_default else "⭐ Qilish",
+            callback_data=f"noop" if is_default else f"set_default_ch:{ch_id}",
+        )
         keyboard.append([
             InlineKeyboardButton(f"📢 {btn_label(ch_title)}", callback_data="noop"),
-            InlineKeyboardButton("❌ O'chirish", callback_data=f"remove_channel:{ch_id}")
+            star_btn,
+            InlineKeyboardButton("❌ O'chirish", callback_data=f"remove_channel:{ch_id}"),
         ])
     # "Qo'shish bor, lekin bekor qilish/chiqish yo'q" kamchiligini tuzatish:
     # ro'yxat ostida yangi kanal ulash va oynani yopish tugmalari bo'ladi.

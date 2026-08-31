@@ -76,10 +76,37 @@ async def start_new_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return ConversationHandler.END
 
-    # Bir xil nomli kanallar bo'lsa, nomga ID qo'shib farqlaymiz —
-    # aks holda ikkita kanal bir xil nomda bo'lsa, biri ikkinchisini yopib qo'yardi.
-    # Nomsiz (bo'sh sarlavhali) kanal ham yaroqli yorliq oladi: Telegram bo'sh
-    # tugma matnini qabul qilmaydi.
+    # --- Auto-skip channel selection ---
+    # 1) Default kanal mavjud va faol bo'lsa — uni tanlaymiz
+    default_ch = await db.run_db(db.get_user_default_channel, user_id)
+    if default_ch:
+        ch_id, ch_title = default_ch
+        context.user_data["selected_channel_id"] = ch_id
+        context.user_data["selected_channel_title"] = ch_title
+        await update.message.reply_text(
+            f"✅ Tanlandi: <b>{html_escape(ch_title)}</b>  ⭐\n\n"
+            f"📝 <b>Post uchun kontentni yuboring:</b>\n"
+            f"(Matn, rasm, video, albom, hujjat, audio, ovozli xabar yoki stiker)",
+            reply_markup=get_cancel_keyboard(),
+            parse_mode="HTML"
+        )
+        return GET_CONTENT
+
+    # 2) Faqat 1 ta kanal bo'lsa — avtomatik tanlaymiz
+    if len(channels) == 1:
+        ch_id, ch_title = channels[0]
+        context.user_data["selected_channel_id"] = ch_id
+        context.user_data["selected_channel_title"] = ch_title or "Kanal"
+        await update.message.reply_text(
+            f"✅ Tanlandi: <b>{html_escape(ch_title or 'Kanal')}</b>\n\n"
+            f"📝 <b>Post uchun kontentni yuboring:</b>\n"
+            f"(Matn, rasm, video, albom, hujjat, audio, ovozli xabar yoki stiker)",
+            reply_markup=get_cancel_keyboard(),
+            parse_mode="HTML"
+        )
+        return GET_CONTENT
+
+    # 3) Bir nechta kanal — foydalanuvchi tanlashi kerak
     channels_map = build_channel_labels(channels)
     keyboard = [[label] for label in channels_map]
     if len(channels) > 1:

@@ -40,7 +40,8 @@ from handlers.new_post import (
 # 3. CHANNELS MODULI
 from handlers.channels import (
     channels_menu, start_add_channel, channel_received,
-    remove_channel_callback, on_bot_chat_member_update, add_channel_inline_entry, ADD_CHANNEL
+    remove_channel_callback, on_bot_chat_member_update, add_channel_inline_entry,
+    set_default_channel_callback, ADD_CHANNEL
 )
 
 # 4. PENDING POSTS MODULI
@@ -382,6 +383,7 @@ def register_all_handlers(app):
     app.add_handler(CallbackQueryHandler(edit_post_btn_start, pattern=r"^edit_btn:"))
     app.add_handler(CallbackQueryHandler(edit_post_react_start, pattern=r"^edit_react:"))
     app.add_handler(CallbackQueryHandler(remove_channel_callback, pattern=r"^remove_channel:"))
+    app.add_handler(CallbackQueryHandler(set_default_channel_callback, pattern=r"^set_default_ch:"))
     app.add_handler(CallbackQueryHandler(close_msg_callback, pattern=r"^close_msg$"))
     app.add_handler(CallbackQueryHandler(noop_callback, pattern=r"^noop$"))
     app.add_handler(CallbackQueryHandler(cache_clear_callback, pattern=r"^cache_clear$"))

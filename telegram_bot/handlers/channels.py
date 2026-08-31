@@ -24,6 +24,7 @@ def _empty_channels_keyboard() -> InlineKeyboardMarkup:
 async def channels_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     channels = await db.run_db(db.get_user_channels, user_id)
+    default_ch_id = await db.run_db(db.get_default_channel_id, user_id)
 
     if not channels:
         await update.message.reply_text(
@@ -38,8 +39,9 @@ async def channels_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(
         f"📢 <b>Sizning ulangan kanallaringiz ({len(channels)} ta):</b>\n\n"
-        "Kanalni o'chirish uchun '❌ O'chirish' tugmasini bosing yoki yangi kanal ulang 👇",
-        reply_markup=render_channels_list(channels),
+        "Kanalni o'chirish uchun '❌ O'chirish' tugmasini bosing.\n"
+        "Asosiy kanal belgilash uchun '⭐' tugmasini bosing 👇",
+        reply_markup=render_channels_list(channels, default_ch_id),
         parse_mode="HTML"
     )
     return ConversationHandler.END
@@ -190,7 +192,13 @@ async def remove_channel_callback(update: Update, context: ContextTypes.DEFAULT_
     is_admin = (user_id in ADMIN_IDS_SET)
 
     removed = await db.run_db(db.remove_channel, user_id, channel_id, is_admin)
+    # Agar o'chirilgan kanal default bo'lsa — defaultni ham tozalaymiz
+    if removed:
+        current_default = await db.run_db(db.get_default_channel_id, user_id)
+        if current_default and str(current_default) == str(channel_id):
+            await db.run_db(db.set_default_channel_id, user_id, None)
     channels = await db.run_db(db.get_user_channels, user_id)
+    default_ch_id = await db.run_db(db.get_default_channel_id, user_id)
     if removed:
         await query.answer("✅ Kanal o'chirildi.")
     else:
@@ -201,8 +209,9 @@ async def remove_channel_callback(update: Update, context: ContextTypes.DEFAULT_
         if channels:
             await query.edit_message_text(
                 f"📢 <b>Sizning ulangan kanallaringiz ({len(channels)} ta):</b>\n\n"
-                "Kanalni o'chirish uchun '❌ O'chirish' tugmasini bosing yoki yangi kanal ulang 👇",
-                reply_markup=render_channels_list(channels),
+                "Kanalni o'chirish uchun '❌ O'chirish' tugmasini bosing.\n"
+                "Asosiy kanal belgilash uchun '⭐' tugmasini bosing 👇",
+                reply_markup=render_channels_list(channels, default_ch_id),
                 parse_mode="HTML",
             )
         else:
@@ -211,6 +220,29 @@ async def remove_channel_callback(update: Update, context: ContextTypes.DEFAULT_
                 reply_markup=_empty_channels_keyboard(),
                 parse_mode="HTML",
             )
+    except TelegramError:
+        pass
+
+
+async def set_default_channel_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Foydalanuvchi kanalni 'asosiy' qilib belgilaydi."""
+    query = update.callback_query
+    channel_id = query.data.split(":")[1]
+    user_id = query.from_user.id
+
+    await db.run_db(db.set_default_channel_id, user_id, channel_id)
+    await query.answer("⭐ Asosiy kanal belgilandi!")
+
+    channels = await db.run_db(db.get_user_channels, user_id)
+    default_ch_id = channel_id
+    try:
+        await query.edit_message_text(
+            f"📢 <b>Sizning ulangan kanallaringiz ({len(channels)} ta):</b>\n\n"
+            "Kanalni o'chirish uchun '❌ O'chirish' tugmasini bosing.\n"
+            "Asosiy kanal belgilash uchun '⭐' tugmasini bosing 👇",
+            reply_markup=render_channels_list(channels, default_ch_id),
+            parse_mode="HTML",
+        )
     except TelegramError:
         pass
 

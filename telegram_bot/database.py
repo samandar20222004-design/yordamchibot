@@ -425,6 +425,7 @@ def _init_db_once():
             "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;",
             "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS processing_started_at TIMESTAMP WITH TIME ZONE;",
             "ALTER TABLE scheduled_posts ALTER COLUMN file_id TYPE TEXT;",
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS default_channel_id VARCHAR(255);",
         ]
         for index, migration in enumerate(migrations):
             # Bitta migration xatosi qolgan migrationlarni transaction aborted
@@ -869,6 +870,66 @@ def get_user_code(user_id: int) -> str:
     except Exception as e:
         logger.error(f"User kod xatosi: {e}")
         return str(user_id)
+
+# --- DEFAULT CHANNEL ---
+def get_default_channel_id(user_id: int) -> str | None:
+    """Foydalanuvchining default kanal ID'sini qaytaradi (yoki None)."""
+    cache_key = f"user_default_ch:{user_id}"
+    cached = _cache_get(cache_key)
+    if cached is not _MISS:
+        return cached
+    try:
+        with db_cursor() as cur:
+            cur.execute("SELECT default_channel_id FROM users WHERE user_id = %s", (user_id,))
+            row = cur.fetchone()
+            val = row[0] if row and row[0] else None
+            _cache_set(cache_key, val, DB_USER_CACHE_TTL)
+            return val
+    except Exception as e:
+        logger.error(f"Default kanal olish xatosi: {e}")
+        return None
+
+def set_default_channel_id(user_id: int, channel_id: str | None) -> bool:
+    """Foydalanuvchining default kanalini saqlash yoki tozalash (None)."""
+    try:
+        with db_cursor(commit=True) as cur:
+            cur.execute(
+                "UPDATE users SET default_channel_id = %s WHERE user_id = %s",
+                (channel_id, user_id),
+            )
+            changed = cur.rowcount > 0
+        _cache_clear(f"user_default_ch:{user_id}")
+        _invalidate_user(user_id)
+        return changed
+    except Exception as e:
+        logger.error(f"Default kanal saqlash xatosi: {e}")
+        return False
+
+def get_user_default_channel(user_id: int):
+    """Default kanal mavjudligini va faol ekanligini tekshiradi.
+
+    Qaytadi: (channel_id, channel_title) yoki None.
+    Agar default kanal o'chirilgan (nofaol) bo'lsa — None + avtomatik tozalaydi.
+    """
+    default_id = get_default_channel_id(user_id)
+    if not default_id:
+        return None
+    try:
+        with db_cursor() as cur:
+            cur.execute(
+                "SELECT channel_id, channel_title FROM channels "
+                "WHERE user_id = %s AND channel_id = %s AND is_active = TRUE",
+                (user_id, str(default_id)),
+            )
+            row = cur.fetchone()
+            if row:
+                return row
+            # Default kanal endi faol emas — tozalaymiz
+            set_default_channel_id(user_id, None)
+            return None
+    except Exception as e:
+        logger.error(f"Default kanal tekshirish xatosi: {e}")
+        return None
 
 # --- CHANNELS ---
 def get_user_channels(user_id: int) -> list:
