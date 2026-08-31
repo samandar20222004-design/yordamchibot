@@ -754,9 +754,9 @@ def test_integration_post_flow():
     check("integ: preview'da reaksiya", "Yoqilgan" in preview, preview[:300])
     check("integ: preview'da auto-delete", "48 soat" in preview, preview[:300])
 
-    # 5. Confirm keyboard — 3 ta tugma
+    # 5. Confirm keyboard — 4 ta tugma (ok, queue, edit, cancel)
     kb = _get_confirm_keyboard()
-    check("integ: confirm kb 3 ta tugma", sum(len(r) for r in kb.inline_keyboard) == 3)
+    check("integ: confirm kb 4 ta tugma", sum(len(r) for r in kb.inline_keyboard) == 4)
 
     # 6. Edit keyboard — 5 ta tugma (4 field + back)
     ekb = _get_edit_confirm_keyboard()
@@ -830,6 +830,116 @@ def test_integration_post_flow():
     check("integ: 5 daqiqadan keyin", t2 is not None and t2.minute == 5, str(t2))
 
 
+def test_queue_slot_algorithm():
+    """Queue slot topish algoritmi testlari."""
+    print("== queue: find_next_queue_slot algoritmi ==")
+    from database import find_next_queue_slot, DEFAULT_QUEUE_SLOTS
+
+    tz = pytz.timezone("Asia/Tashkent")
+
+    # 1. Default slotlar
+    check("default slotlar 3 ta", len(DEFAULT_QUEUE_SLOTS) == 3, str(DEFAULT_QUEUE_SLOTS))
+    check("default: 09:00", "09:00" in DEFAULT_QUEUE_SLOTS)
+    check("default: 14:00", "14:00" in DEFAULT_QUEUE_SLOTS)
+    check("default: 19:00", "19:00" in DEFAULT_QUEUE_SLOTS)
+
+    # 2. Hozir 08:00 — barcha slotlar bo'sh → birinchi slot 09:00
+    now = tz.localize(datetime(2026, 9, 1, 8, 0))
+    slot_dt, label = find_next_queue_slot(DEFAULT_QUEUE_SLOTS, [], now)
+    check("08:00 da → 09:00 slot", slot_dt is not None and slot_dt.hour == 9 and slot_dt.minute == 0, str(slot_dt))
+    check("08:00 da → Bugun", label == "Bugun", str(label))
+
+    # 3. Hozir 10:00 — 09:00 o'tib ketgan → keyingi 14:00
+    now = tz.localize(datetime(2026, 9, 1, 10, 0))
+    slot_dt, label = find_next_queue_slot(DEFAULT_QUEUE_SLOTS, [], now)
+    check("10:00 da → 14:00 slot", slot_dt is not None and slot_dt.hour == 14, str(slot_dt))
+
+    # 4. Hozir 15:00 — 09:00 va 14:00 o'tib ketgan → 19:00
+    now = tz.localize(datetime(2026, 9, 1, 15, 0))
+    slot_dt, label = find_next_queue_slot(DEFAULT_QUEUE_SLOTS, [], now)
+    check("15:00 da → 19:00 slot", slot_dt is not None and slot_dt.hour == 19, str(slot_dt))
+
+    # 5. Hozir 20:00 — barcha bugungi slotlar o'tib ketgan → ertaga 09:00
+    now = tz.localize(datetime(2026, 9, 1, 20, 0))
+    slot_dt, label = find_next_queue_slot(DEFAULT_QUEUE_SLOTS, [], now)
+    check("20:00 da → ertaga 09:00", slot_dt is not None and slot_dt.day == 2 and slot_dt.hour == 9, str(slot_dt))
+    check("20:00 da → Ertaga", label == "Ertaga", str(label))
+
+    # 6. 09:00 band → keyingi 14:00
+    now = tz.localize(datetime(2026, 9, 1, 8, 0))
+    occupied = [(9, 0)]
+    slot_dt, label = find_next_queue_slot(DEFAULT_QUEUE_SLOTS, occupied, now)
+    check("09:00 band → 14:00", slot_dt is not None and slot_dt.hour == 14, str(slot_dt))
+
+    # 7. 09:00 va 14:00 band → 19:00
+    occupied = [(9, 0), (14, 0)]
+    slot_dt, label = find_next_queue_slot(DEFAULT_QUEUE_SLOTS, occupied, now)
+    check("09:00+14:00 band → 19:00", slot_dt is not None and slot_dt.hour == 19, str(slot_dt))
+
+    # 8. Barcha bugungi slotlar band → ertaga 09:00
+    occupied = [(9, 0), (14, 0), (19, 0)]
+    slot_dt, label = find_next_queue_slot(DEFAULT_QUEUE_SLOTS, occupied, now)
+    check("barcha band → ertaga", slot_dt is not None and slot_dt.day == 2, str(slot_dt))
+
+    # 9. Bo'sh slotlar ro'yxati → None
+    slot_dt, label = find_next_queue_slot([], [], now)
+    check("bo'sh slotlar → None", slot_dt is None)
+
+    # 10. Noto'g'ri format slotlar → None
+    slot_dt, label = find_next_queue_slot(["abc", "xyz"], [], now)
+    check("noto'g'ri slotlar → None", slot_dt is None)
+
+    # 11. Bitta slot bilan ishlaydi
+    slot_dt, label = find_next_queue_slot(["12:00"], [], now)
+    check("bitta slot 12:00", slot_dt is not None and slot_dt.hour == 12, str(slot_dt))
+
+    # 12. Slot tartibi muhim emas (sort qilinadi)
+    slot_dt, label = find_next_queue_slot(["19:00", "09:00", "14:00"], [], now)
+    check("tartibsiz slotlar → 09:00", slot_dt is not None and slot_dt.hour == 9, str(slot_dt))
+
+    # 13. Kelajakdagi kun uchun label
+    now = tz.localize(datetime(2026, 9, 1, 20, 0))
+    occupied_all = [(9, 0), (14, 0), (19, 0)]
+    # ertaga ham band
+    # find_next_queue_slot faqat bitta kunlik occupied oladi, shuning uchun
+    # ertaga uchun alohida chaqiriladi (handler shunday qiladi)
+    slot_dt, label = find_next_queue_slot(DEFAULT_QUEUE_SLOTS, occupied_all, now)
+    check("keyingi kun", slot_dt is not None and slot_dt.day == 2, str(slot_dt))
+
+    # 14. max_days=0 → None
+    slot_dt, label = find_next_queue_slot(DEFAULT_QUEUE_SLOTS, [], now, max_days=0)
+    check("max_days=0 → None", slot_dt is None)
+
+
+def test_queue_confirm_keyboard():
+    """Queue tugmasi confirmation keyboard'da borligini tekshiradi."""
+    print("== queue: confirmation keyboard ==")
+    from handlers.new_post import _get_confirm_keyboard
+
+    kb = _get_confirm_keyboard()
+    cbs = [b.callback_data for row in kb.inline_keyboard for b in row]
+    labels = [b.text for row in kb.inline_keyboard for b in row]
+
+    check("queue tugmasi callback", "confirm_post:queue" in cbs, str(cbs))
+    check("queue tugmasi matni", any("Navbatga" in t for t in labels), str(labels))
+    check("ok tugmasi saqlanib qolgan", "confirm_post:ok" in cbs)
+    check("edit tugmasi saqlanib qolgan", "confirm_post:edit" in cbs)
+    check("cancel tugmasi saqlanib qolgan", "confirm_post:cancel" in cbs)
+
+
+def test_queue_default_slots():
+    """Default slotlar JSON formatida to'g'ri saqlanadi."""
+    print("== queue: default slots format ==")
+    import json
+    from database import DEFAULT_QUEUE_SLOTS
+
+    # JSON serializatsiya
+    raw = json.dumps(DEFAULT_QUEUE_SLOTS)
+    parsed = json.loads(raw)
+    check("JSON roundtrip", parsed == DEFAULT_QUEUE_SLOTS)
+    check("slotlar HH:MM formatida", all(len(s) == 5 and s[2] == ":" for s in DEFAULT_QUEUE_SLOTS))
+
+
 def main():
     test_calculate_next_time()
     test_converter()
@@ -858,6 +968,9 @@ def main():
     test_channel_cache_invalidation()
     test_confirmation_preview()
     test_integration_post_flow()
+    test_queue_slot_algorithm()
+    test_queue_confirm_keyboard()
+    test_queue_default_slots()
 
     print(f"\nO'tdi: {passed}, Xato: {failures}")
     if failures:

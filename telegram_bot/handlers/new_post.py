@@ -230,6 +230,7 @@ def _get_confirm_keyboard():
     """Tasdiqlash ekranidagi inline tugmalar."""
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("✅ Tasdiqlash va rejalashtirish", callback_data="confirm_post:ok")],
+        [InlineKeyboardButton("⚡️ Navbatga qo'yish (Queue)", callback_data="confirm_post:queue")],
         [
             InlineKeyboardButton("✏️ Tahrirlash", callback_data="confirm_post:edit"),
             InlineKeyboardButton("❌ Bekor qilish", callback_data="confirm_post:cancel"),
@@ -651,6 +652,112 @@ async def confirm_post_callback(update: Update, context: ContextTypes.DEFAULT_TY
             parse_mode="HTML",
         )
         return EDIT_CONFIRM_FIELD
+
+    if action == "queue":
+        # Queue: eng yaqin bo'sh slotni topib, avtomatik rejalashtirish
+        selected_channel_id = context.user_data.get("selected_channel_id")
+        if not selected_channel_id:
+            await query.message.reply_text(
+                "⚠️ <b>Kanal tanlanmagan.</b>",
+                reply_markup=get_main_keyboard(is_admin),
+                parse_mode="HTML",
+            )
+            context.user_data.clear()
+            return ConversationHandler.END
+
+        now = datetime.now(tashkent_tz)
+        slots = await db.run_db(db.get_queue_slots, user_id)
+
+        # occupied times — faqat shu kanal uchun
+        ch_id_for_q = selected_channel_id if selected_channel_id != "ALL" else "ALL"
+        occupied = await db.run_db(db.get_queue_occupied_times, user_id, ch_id_for_q, now.date())
+        # Ertangi kun uchun ham tekshiramiz
+        occupied_tomorrow = await db.run_db(db.get_queue_occupied_times, user_id, ch_id_for_q, now.date() + timedelta(days=1))
+
+        # Bugun uchun topish
+        slot_dt, label = db.find_next_queue_slot(slots, occupied, now)
+        if slot_dt is None:
+            # Bugun topilmadi — ertaga
+            tomorrow = now + timedelta(days=1)
+            tomorrow_start = tashkent_tz.localize(
+                datetime(tomorrow.year, tomorrow.month, tomorrow.day, 0, 0)
+            )
+            slot_dt, label = db.find_next_queue_slot(slots, occupied_tomorrow, tomorrow_start)
+            if slot_dt is None:
+                # ertaga ham topilmadi — 7 kun oldinga
+                for day_off in range(2, 8):
+                    future_date = now.date() + timedelta(days=day_off)
+                    occ = await db.run_db(db.get_queue_occupied_times, user_id, ch_id_for_q, future_date)
+                    future_start = tashkent_tz.localize(
+                        datetime(future_date.year, future_date.month, future_date.day, 0, 0)
+                    )
+                    slot_dt, label = db.find_next_queue_slot(slots, occ, future_start)
+                    if slot_dt:
+                        break
+
+        if not slot_dt:
+            await query.message.reply_text(
+                "⚠️ <b>Bo'sh slot topilmadi.</b>\n\n"
+                "7 kun ichida barcha slotlar band. Iltimos, slotlarni sozlang yoki vaqtni qo'lda tanlang.",
+                reply_markup=get_main_keyboard(is_admin),
+                parse_mode="HTML",
+            )
+            context.user_data.clear()
+            return ConversationHandler.END
+
+        # Postni shu slotga saqlash
+        post_type = context.user_data.get("post_type")
+        content = context.user_data.get("content")
+        file_id = context.user_data.get("file_id")
+        btn_text = context.user_data.get("btn_text")
+        btn_url = context.user_data.get("btn_url")
+        enable_reactions = context.user_data.get("enable_reactions", False)
+        delete_after_hours = context.user_data.get("delete_after_hours", 0)
+        channel_title = context.user_data.get("selected_channel_title", "Kanal")
+
+        channels = (
+            await db.run_db(db.get_user_channels, user_id)
+            if selected_channel_id == "ALL"
+            else [(selected_channel_id, channel_title)]
+        )
+        ok_count = 0
+        for ch_id, _ in channels:
+            try:
+                pid = await db.run_db(
+                    db.add_post,
+                    user_id=user_id, channel_id=ch_id, post_type=post_type, content=content,
+                    file_id=file_id, scheduled_time=slot_dt, recurrence_type='none',
+                    recurrence_day=None, recurrence_time=None, end_date=None,
+                    btn_text=btn_text, btn_url=btn_url, enable_reactions=enable_reactions,
+                    delete_after_hours=delete_after_hours
+                )
+                if pid:
+                    ok_count += 1
+            except Exception:
+                pass
+
+        try:
+            await query.edit_message_reply_markup(reply_markup=None)
+        except Exception:
+            pass
+
+        if ok_count:
+            time_str = slot_dt.strftime("%H:%M")
+            await query.message.reply_text(
+                f"⚡️ <b>Post navbatga qo'yildi!</b>\n\n"
+                f"📅 {label}, soat {time_str}\n"
+                f"📢 Kanal: <b>{html_escape(channel_title)}</b>",
+                reply_markup=get_main_keyboard(is_admin),
+                parse_mode="HTML",
+            )
+        else:
+            await query.message.reply_text(
+                "❌ <b>Navbatga qo'yishda xatolik.</b>",
+                reply_markup=get_main_keyboard(is_admin),
+                parse_mode="HTML",
+            )
+        context.user_data.clear()
+        return ConversationHandler.END
 
     # action == "ok"
     post_time = context.user_data.get("confirm_post_time")

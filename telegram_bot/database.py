@@ -1314,6 +1314,149 @@ def cleanup_old_data() -> dict:
         logger.error(f"DB tozalash xatosi: {e}")
         return deleted
 
+# --- QUEUE SLOTS ---
+DEFAULT_QUEUE_SLOTS = ["09:00", "14:00", "19:00"]
+
+
+def get_queue_slots(user_id: int) -> list:
+    """Foydalanuvchining kanal uchun queue slotlarini qaytaradi.
+
+    system_settings jadvalida ``queue_slots:<user_id>`` kalitida JSON
+    massiv sifatida saqlanadi. Agar sozlanmagan bo'lsa default qaytadi.
+    """
+    import json as _json
+    raw = get_setting(f"queue_slots:{user_id}", "")
+    if not raw:
+        return list(DEFAULT_QUEUE_SLOTS)
+    try:
+        slots = _json.loads(raw)
+        if isinstance(slots, list) and all(isinstance(s, str) for s in slots):
+            return slots
+    except Exception:
+        pass
+    return list(DEFAULT_QUEUE_SLOTS)
+
+
+def set_queue_slots(user_id: int, slots: list) -> bool:
+    """Foydalanuvchining queue slotlarini saqlaydi."""
+    import json as _json
+    try:
+        set_setting(f"queue_slots:{user_id}", _json.dumps(slots))
+        return True
+    except Exception:
+        return False
+
+
+def get_queue_occupied_times(user_id: int, channel_id: str, target_date) -> list:
+    """Berilgan sana uchun band qilingan vaqtlarni qaytaradi (pending postlar).
+
+    ``target_date`` — ``datetime.date`` obyekti.
+    Qaytadi: soat va daqiqalar ro'yxati [(hh, mm), ...].
+    """
+    try:
+        with db_cursor() as cur:
+            cur.execute("""
+                SELECT EXTRACT(HOUR FROM scheduled_time AT TIME ZONE 'Asia/Tashkent')::int,
+                       EXTRACT(MINUTE FROM scheduled_time AT TIME ZONE 'Asia/Tashkent')::int
+                FROM scheduled_posts
+                WHERE user_id = %s
+                  AND status = 'pending'
+                  AND (channel_id = %s OR channel_id = 'ALL')
+                  AND (scheduled_time AT TIME ZONE 'Asia/Tashkent')::date = %s
+            """, (user_id, str(channel_id), target_date))
+            return [(row[0], row[1]) for row in cur.fetchall()]
+    except Exception as e:
+        logger.error(f"Queue occupied times xatosi: {e}")
+        return []
+
+
+def find_next_queue_slot(
+    slots: list,
+    occupied: list,
+    now,
+    max_days: int = 7,
+) -> tuple:
+    """Eng yaqin bo'sh slotni topadi.
+
+    Args:
+        slots: slot vaqtlari ["09:00", "14:00", "19:00"]
+        occupied: band qilingan vaqtlar [(hh, mm), ...]
+        now: hozirgi vaqt (timezone-aware datetime)
+        max_days: necha kun oldinga qarash (default 7)
+
+    Returns:
+        (datetime, date_label) yoki (None, None) agar topilmasa.
+        date_label: "Bugun" yoki "Ertaga" yoki "DD.MM.YYYY"
+    """
+    from datetime import time as dtime
+
+    parsed_slots = []
+    for s in slots:
+        try:
+            hh, mm = s.split(":")
+            parsed_slots.append((int(hh), int(mm)))
+        except Exception:
+            continue
+    if not parsed_slots:
+        return None, None
+
+    parsed_slots.sort()
+    occupied_set = set(occupied)
+    today = now.date()
+
+    for day_offset in range(max_days):
+        target_date = today + timedelta(days=day_offset)
+        is_today = (day_offset == 0)
+
+        for hh, mm in parsed_slots:
+            # Bugun: faqat kelajakdagi vaqtlar
+            if is_today:
+                slot_dt = now.replace(hour=hh, minute=mm, second=0, microsecond=0)
+                if slot_dt <= now:
+                    continue
+            else:
+                slot_dt = tashkent_tz.localize(
+                    datetime(target_date.year, target_date.month, target_date.day, hh, mm)
+                )
+
+            if (hh, mm) not in occupied_set:
+                if day_offset == 0:
+                    label = "Bugun"
+                elif day_offset == 1:
+                    label = "Ertaga"
+                else:
+                    label = target_date.strftime("%d.%m.%Y")
+                return slot_dt, label
+
+        # Keyingi kun uchun occupied tozalaymiz (boshqa kun)
+        occupied_set = set()
+
+    return None, None
+
+
+def get_queue_posts(user_id: int) -> list:
+    """Foydalanuvchining navbatdagi (queue) postlarini qaytaradi.
+
+    ``is_queue`` ustuni yo'qligi uchun, recurrence_type='none' va
+    status='pending' bo'lgan postlarni vaqt bo'yicha saralab qaytaramiz.
+    """
+    try:
+        with db_cursor() as cur:
+            cur.execute("""
+                SELECT sp.id, c.channel_title, sp.post_type, sp.content,
+                       sp.scheduled_time, sp.user_post_number
+                FROM scheduled_posts sp
+                LEFT JOIN channels c ON sp.channel_id = c.channel_id
+                WHERE sp.user_id = %s AND sp.status = 'pending'
+                ORDER BY sp.scheduled_time ASC
+                LIMIT 20
+            """, (user_id,))
+            return cur.fetchall()
+    except Exception as e:
+        logger.error(f"Queue posts xatosi: {e}")
+        return []
+
+
 # --- STATS ---
 def get_system_stats() -> dict:
     cache_key = "system_stats"
