@@ -8,6 +8,7 @@ from config import ADMIN_ID, ADMIN_IDS_SET
 import database as db
 from keyboards.default import (
     BTN_T_5MIN, BTN_T_15MIN, BTN_T_1H, BTN_T_DAILY, BTN_T_WEEKLY,
+    BTN_BACK, BTN_MAIN_MENU,
     get_cancel_keyboard, get_main_keyboard, get_ai_time_keyboard,
 )
 from utils.ai_agent import analyze_user_prompt, extract_schedule_time, clear_ai_context
@@ -18,6 +19,9 @@ from utils.helpers import (
 logger = logging.getLogger(__name__)
 tashkent_tz = pytz.timezone("Asia/Tashkent")
 
+# ============================================================
+# AI YORDAMCHI HOLATLARI (FSM States)
+# ============================================================
 AI_INPUT = 401
 AI_CONFIRM = 402
 AI_GET_TIME = 403
@@ -34,21 +38,16 @@ _TYPING_INTERVAL = 4.0
 
 
 async def _keep_typing(bot, chat_id: int, stop_event: asyncio.Event):
-    """Foydalanuvchiga 'yozmoqda...' animatsiyasini AI javob kelgunicha davom ettiradi.
-
-    Har _TYPING_INTERVAL soniyada send_chat_action yuboriladi.
-    Telegram'da typing ko'rinishi 5 soniya saqlanadi — shuning uchun 4 soniyada yangilanadi.
-    stop_event set bo'lsa — animatsiya to'xtatiladi.
-    """
+    """Foydalanuvchiga 'yozmoqda...' animatsiyasini AI javob kelgunicha davom ettiradi."""
     while not stop_event.is_set():
         try:
             await bot.send_chat_action(chat_id=chat_id, action="typing")
         except Exception:
-            break  # xatolikda animatsiyani to'xtatamiz, asosiy oqimga ta'sir yo'q
+            break
         try:
             await asyncio.wait_for(asyncio.shield(stop_event.wait()), timeout=_TYPING_INTERVAL)
         except asyncio.TimeoutError:
-            pass  # vaqt tugadi, yana aylanamiz
+            pass
         except Exception:
             break
 
@@ -65,7 +64,7 @@ def _no_credits_text(bot_username: str, user_id: int) -> str:
 
 
 async def start_ai_assistant(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """AI yordamchisi: suhbat, savol-javob VA post rejalashtirish (intent routing)."""
+    """AI yordamchisi holatini (AI_INPUT) boshlaydi."""
     context.user_data.clear()
     user_id = update.effective_user.id
     clear_ai_context(user_id)
@@ -86,11 +85,12 @@ async def start_ai_assistant(update: Update, context: ContextTypes.DEFAULT_TYPE)
     await update.message.reply_text(
         "🤖 <b>AI Yordamchiga xush kelibsiz!</b>\n\n"
         f"💎 Mavjud AI so'rovlari: {limit_info}\n\n"
-        "Men sizga 3 xil yordam bera olaman:\n"
-        "❓ <b>Savol-javob</b> — bot, postlar, ballar, kanallar haqida istalgan savol bering.\n"
-        "📝 <b>Post yaratish</b> — post mavzusini yozing yoki tayyor post/forward/rasm yuboring.\n"
-        "🕒 <b>Erkin buyruq</b> — masalan: <i>“bugun 15:45 ga hamma kanalga rejalashtir”</i>.\n\n"
-        "👉 Post yuboring, savol bering yoki buyruq yozing. Bekor qilish uchun pastdagi tugmani bosing.",
+        "Men sizga quyidagi ishlarda yordam bera olaman:\n"
+        "❓ <b>Savol-javob</b> — bot, postlar, ballar, kanallar haqida savol bering.\n"
+        "📝 <b>Post yaratish</b> — post mavzusini yozing yoki tayyor post/rasm yuboring.\n"
+        "🕒 <b>Erkin rejalashtirish</b> — masalan: <i>“bugun 15:45 ga hamma kanalga post tayyorla”</i>.\n\n"
+        "👉 Post mavzusini yoki savolingizni yozing.\n"
+        "<i>Chiqish uchun '🔙 Asosiy menyu' tugmasini bosing.</i>",
         reply_markup=get_cancel_keyboard(),
         parse_mode="HTML",
     )
@@ -133,7 +133,6 @@ async def _send_preview(target_msg, text, file_id, post_type, reply_markup):
     """Postni (media bilan yoki matn) preview sifatida ko'rsatadi."""
     caption_note = "\n\n⬆️ Yuqoridagi media ushbu postga biriktiriladi."
     if file_id and post_type in ("photo", "video", "document"):
-        # Caption limiti 1024 — qisqartiriladi, to'liq matn alohida yuboriladi
         cap = text[:900]
         if len(text) > 900:
             cap = cap[:880] + "…"
@@ -151,7 +150,7 @@ async def _send_preview(target_msg, text, file_id, post_type, reply_markup):
 
 
 async def _show_time_prompt(msg, post_text: str, file_id, post_type: str):
-    """Vaqt tanlash oynasini ko'rsatadi (post qayta yuborilmaydi)."""
+    """Vaqt tanlash oynasini ko'rsatadi."""
     header = (
         "✨ <b>Post qabul qilindi!</b>\n\n"
         f"{html_escape(post_text[:1500])}\n\n"
@@ -165,6 +164,7 @@ async def _show_time_prompt(msg, post_text: str, file_id, post_type: str):
 
 
 async def ai_input_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Faqat AI_INPUT holatida kelgan xabarlarni qayta ishlaydi."""
     msg = update.message
     user_id = update.effective_user.id
     is_admin = (user_id in ADMIN_IDS_SET)
@@ -178,7 +178,6 @@ async def ai_input_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text_input = (msg.text or msg.caption or "").strip()
     file_id, post_type = _extract_media(msg)
 
-    # Yangi media yuborilsa — eskisini almashtiramiz
     if file_id:
         context.user_data["ai_file_id"] = file_id
         context.user_data["ai_post_type"] = post_type
@@ -188,7 +187,7 @@ async def ai_input_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     prompt = _build_prompt(text_input, context)
 
-    # Rate-limitlar (faqat AI API'ga murojaat qilinganda)
+    # Rate-limitlar
     if not is_admin and check_ai_rate_limit(user_id, max_per_minute=4):
         await msg.reply_text(
             "⏳ <i>AI so'rovlarini juda tez-tez yuboryapsiz. Iltimos, 1 daqiqa kuting...</i>",
@@ -196,8 +195,6 @@ async def ai_input_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return AI_INPUT
 
-    # Media-only (matnsiz rasm/hujjat) va o'zi post bo'lishi mumkin bo'lgan xabar:
-    # AI'ga so'rov yubormasdan vaqt so'rash (ball tejaladi, post takrorlanmaydi).
     if file_id and not text_input:
         existing_post = context.user_data.get("ai_generated_post", "")
         if existing_post:
@@ -226,7 +223,7 @@ async def ai_input_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return AI_INPUT
 
-    # Ballni atomik band qilamiz (parallel so'rovlar balansdan oshib ketmasligi uchun)
+    # Ballni atomik band qilamiz
     if not is_admin and not await db.run_db(db.use_user_credit, user_id):
         bot_obj = await context.bot.get_me()
         await msg.reply_text(
@@ -238,7 +235,7 @@ async def ai_input_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     msg_wait = await msg.reply_text("🤖 <i>AI tahlil qilmoqda...</i>", parse_mode="HTML")
 
-    # Typing animatsiyasini fonda ishga tushiramiz (stop_event orqali to'xtatiladi)
+    # Typing animatsiyasini fonda ishga tushiramiz
     stop_typing = asyncio.Event()
     typing_task = asyncio.create_task(_keep_typing(context.bot, msg.chat_id, stop_typing))
 
@@ -253,7 +250,6 @@ async def ai_input_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
             pass
 
     if "error" in result:
-        # Xato bo'lsa — sarflangan ballni qaytaramiz
         if not is_admin:
             await db.run_db(db.add_user_credit, user_id)
         await msg.reply_text(
@@ -272,7 +268,7 @@ async def ai_input_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "rejalashtirish bo'yicha yordam bera olaman."
         )
         await msg.reply_text(
-            f"🤖 {html_escape(reply)}\n\n<i>Yana savol bering yoki post yuboring 👇</i>",
+            f"🤖 {html_escape(reply)}\n\n<i>Yana savol bering yoki post mavzusini yuboring 👇</i>",
             reply_markup=get_cancel_keyboard(),
             parse_mode="HTML",
         )
@@ -281,7 +277,6 @@ async def ai_input_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # B/C) POST yoki EDIT
     post_text = result.get("post_text", "") or ""
     if not post_text:
-        # Model post matnini bermasa — javob sifatida ko'rsatamiz
         reply = result.get("reply", "") or "Post matnini aniqlab bo'lmadi. Iltimos, qaytadan yuboring."
         await msg.reply_text(html_escape(reply), reply_markup=get_cancel_keyboard(), parse_mode="HTML")
         return AI_INPUT
@@ -294,7 +289,6 @@ async def ai_input_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["ai_scheduled_time"] = sched_time
     context.user_data["ai_target_all"] = target_all
 
-    # Vaqt tekshiruvi: o'tib ketgan bo'lsa — qaytadan so'raymiz
     valid_time = None
     if has_explicit and sched_time:
         valid_time = parse_future_time(sched_time)
@@ -319,8 +313,7 @@ async def ai_input_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def ai_time_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Vaqt kutish holati: erkin til ham, tugmalar ham, savollar ham qabul qilinadi."""
-    # Matnsiz media (rasm/fayl) yuborilsa — postga biriktiramiz va vaqtni so'rashda davom etamiz
+    """Vaqt kutish holati (AI_GET_TIME)."""
     if update.message and not update.message.text:
         file_id, post_type = _extract_media(update.message)
         if file_id:
@@ -345,7 +338,6 @@ async def ai_time_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     is_admin = (user_id in ADMIN_IDS_SET)
 
-    # Takrorlanuvchi post tugmalari AI oqimida qo'llanmaydi
     if text in (BTN_T_DAILY, BTN_T_WEEKLY):
         await update.message.reply_text(
             "ℹ️ <i>AI yordamchisi orqali faqat bir martalik post rejalashtiriladi.</i>\n"
@@ -356,7 +348,6 @@ async def ai_time_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return AI_GET_TIME
 
-    # Tezkor tugmalar
     post_time = None
     if text == BTN_T_5MIN:
         post_time = now + timedelta(minutes=5)
@@ -365,10 +356,8 @@ async def ai_time_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif text == BTN_T_1H:
         post_time = now + timedelta(hours=1)
     else:
-        # 1) Avval lokal parser (tekin, bir zumda)
         post_time = parse_future_time(text)
 
-        # 2) Lokal parser aniqlay olmasa — AI orqali (savol bo'lsa javob ham qaytishi mumkin)
         if post_time is None and text:
             if not is_admin and check_ai_rate_limit(user_id, max_per_minute=4):
                 await update.message.reply_text(
@@ -402,7 +391,6 @@ async def ai_time_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     if ai_res.get("target_all"):
                         context.user_data["ai_target_all"] = True
                 elif ai_res.get("reply"):
-                    # Foydalanuvchi savol bergan — AI javobini ko'rsatamiz va vaqtni yana so'raymiz
                     await update.message.reply_text(
                         f"🤖 {html_escape(ai_res['reply'])}\n\n"
                         "Post vaqtini esa quyidagicha yozing: <i>“ertaga 10:00 ga”</i> yoki tugmani tanlang:",
@@ -411,7 +399,6 @@ async def ai_time_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     )
                     return AI_GET_TIME
 
-        # 3) Aniq format (oxirgi zaxira)
         if post_time is None:
             try:
                 naive = datetime.strptime(text, "%Y-%m-%d %H:%M")
@@ -452,6 +439,7 @@ async def ai_time_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def ai_confirm_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """AI tasdiqlash tugmalari (AI_CONFIRM)."""
     query = update.callback_query
     data = query.data
     user_id = query.from_user.id
@@ -544,7 +532,7 @@ async def ai_confirm_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
             "✅ <b>AI Posti muvaffaqiyatli rejalashtirildi!</b>\n\n"
             f"📢 Joylash: <b>{html_escape(target_name)}</b>\n"
             f"⏰ Chiqish vaqti: <b>{post_time.strftime('%Y-%m-%d %H:%M')}</b>\n\n"
-            "Yana post yaratish uchun <b>🤖 AI Yordamchi</b> ni bosing yoki menyuga qayting.",
+            "Yana post yaratish uchun <b>🤖 AI Post Yordamchi</b> ni bosing yoki menyuga qayting.",
             reply_markup=get_main_keyboard(is_admin),
             parse_mode="HTML",
         )
