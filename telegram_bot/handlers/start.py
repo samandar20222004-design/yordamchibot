@@ -117,7 +117,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return ConversationHandler.END
 
-    is_admin = (user.id == ADMIN_ID)
+    is_admin = (user.id in ADMIN_IDS_SET)
     ad_line = get_smart_reply_ad(user.id)
     await update.message.reply_text(
         f"Salom, <b>{html_escape(user.first_name)}</b>! 👋\n\n"
@@ -139,7 +139,7 @@ async def subscription_check_callback(update: Update, context: ContextTypes.DEFA
             await query.message.delete()
         except TelegramError:
             pass  # xabar allaqachon o'chirilgan bo'lishi mumkin
-        is_admin = (user.id == ADMIN_ID)
+        is_admin = (user.id in ADMIN_IDS_SET)
         await context.bot.send_message(
             chat_id=user.id,
             text=f"Xush kelibsiz, <b>{html_escape(user.first_name)}</b>! Barcha imkoniyatlar siz uchun ochiq.",
@@ -156,7 +156,7 @@ async def subscription_check_callback(update: Update, context: ContextTypes.DEFA
 async def user_cabinet_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
     user = update.effective_user
-    is_admin = (user.id == ADMIN_ID)
+    is_admin = (user.id in ADMIN_IDS_SET)
     stats = await db.run_db(db.get_referral_stats, user.id)
     channels = await db.run_db(db.get_user_channels, user.id)
     user_code = await db.run_db(db.get_user_code, user.id)
@@ -416,7 +416,7 @@ async def transfer_amount_received(update: Update, context: ContextTypes.DEFAULT
     return ConversationHandler.END
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    is_admin = (update.effective_user.id == ADMIN_ID)
+    is_admin = (update.effective_user.id in ADMIN_IDS_SET)
     ad_line = get_smart_reply_ad(update.effective_user.id)
     text = (
         "📖 <b>PostAssistrobot — To'liq Qo'llanma:</b>\n\n"
