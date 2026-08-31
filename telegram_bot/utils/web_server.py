@@ -4,6 +4,7 @@ import logging
 from datetime import datetime
 import pytz
 from aiohttp import web
+from config import PORT
 import database as db
 
 logger = logging.getLogger(__name__)
@@ -37,7 +38,7 @@ async def start_web_server():
     app.router.add_get("/health/live", health_live_handler)
     app.router.add_get("/health/ready", health_ready_handler)
 
-    port = int(os.environ.get("PORT", 10000))
+    port = PORT
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, "0.0.0.0", port)
