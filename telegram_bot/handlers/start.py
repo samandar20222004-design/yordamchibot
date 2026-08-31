@@ -346,7 +346,7 @@ async def start_transfer_credits(update: Update, context: ContextTypes.DEFAULT_T
 
 async def transfer_target_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     target_input = update.message.text
-    target_user = db.find_user_by_target(target_input)
+    target_user = await db.run_db(db.find_user_by_target, target_input)
     
     # Ro'yxatdan o'tmagan foydalanuvchini qat'iy tekshirish
     if not target_user:
