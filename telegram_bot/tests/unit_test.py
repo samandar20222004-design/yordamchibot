@@ -1363,6 +1363,82 @@ def test_main_keyboard_extract():
     check("main kb: Extract bor", BTN_CHANNEL_EXTRACT in all_texts)
 
 
+def test_admin_dashboard():
+    """Admin panel dashboard va inline keyboard."""
+    print("== Admin dashboard ==")
+    from handlers.admin import _build_dashboard_text, is_admin, ADMIN_GRANT_PRO, ADMIN_PROMO_CREATE
+    from keyboards.inline import get_admin_dashboard_keyboard, get_admin_back_keyboard
+
+    # 1. Dashboard text format
+    stats = {
+        "users": 100, "pro_subscribers": 15, "channels": 42,
+        "posts_today": 8, "pending_posts": 3, "stars_revenue": 500,
+    }
+    text = _build_dashboard_text(stats)
+    check("dashboard: title", "Admin Boshqaruv Paneli" in text)
+    check("dashboard: users", "100" in text)
+    check("dashboard: pro", "15" in text)
+    check("dashboard: channels", "42" in text)
+    check("dashboard: posts_today", "8" in text)
+    check("dashboard: pending", "3" in text)
+    check("dashboard: stars", "500" in text)
+    check("dashboard: separator", "━━━" in text)
+
+    # 2. Dashboard keyboard
+    kb = get_admin_dashboard_keyboard()
+    cbs = [b.callback_data for row in kb.inline_keyboard for b in row]
+    labels = [b.text for row in kb.inline_keyboard for b in row]
+    check("dash kb: stats", "adm_stats" in cbs)
+    check("dash kb: promo", "adm_promo" in cbs)
+    check("dash kb: grant_pro", "adm_grant_pro" in cbs)
+    check("dash kb: broadcast", "adm_broadcast" in cbs)
+    check("dash kb: close", "close_msg" in cbs)
+    check("dash kb: stats label", any("statistika" in t.lower() for t in labels))
+    check("dash kb: promo label", any("Promo" in t for t in labels))
+
+    # 3. Back keyboard
+    bkb = get_admin_back_keyboard()
+    bcbs = [b.callback_data for row in bkb.inline_keyboard for b in row]
+    check("back kb: adm_back", "adm_back" in bcbs)
+    check("back kb: close_msg", "close_msg" in bcbs)
+
+    # 4. is_admin function
+    check("is_admin: non-admin", not is_admin(0))
+    check("is_admin: callable", callable(is_admin))
+
+    # 5. State constants
+    check("ADMIN_GRANT_PRO = 807", ADMIN_GRANT_PRO == 807)
+    check("ADMIN_PROMO_CREATE = 808", ADMIN_PROMO_CREATE == 808)
+
+
+def test_admin_handlers_exist():
+    """Admin handler funksiyalari mavjud."""
+    print("== Admin handlers exist ==")
+    from handlers.admin import (
+        admin_panel_menu, admin_stats_command, admin_dashboard_callback,
+        admin_inline_text_handler, show_statistics,
+        broadcast_start, broadcast_send, ai_settings_menu,
+    )
+
+    check("admin_panel_menu callable", callable(admin_panel_menu))
+    check("admin_stats_command callable", callable(admin_stats_command))
+    check("admin_dashboard_callback callable", callable(admin_dashboard_callback))
+    check("admin_inline_text_handler callable", callable(admin_inline_text_handler))
+    check("show_statistics callable", callable(show_statistics))
+    check("broadcast_start callable", callable(broadcast_start))
+    check("broadcast_send callable", callable(broadcast_send))
+    check("ai_settings_menu callable", callable(ai_settings_menu))
+
+
+def test_admin_dashboard_stats_db():
+    """Database get_admin_dashboard_stats funksiyasi mavjud."""
+    print("== Admin dashboard stats DB ==")
+    import database as db_mod
+
+    check("get_admin_dashboard_stats mavjud", hasattr(db_mod, "get_admin_dashboard_stats"))
+    check("get_admin_dashboard_stats callable", callable(db_mod.get_admin_dashboard_stats))
+
+
 def test_subscription_functions_exist():
     """Database subscription funksiyalari mavjud."""
     print("== Subscription DB functions ==")
@@ -1888,6 +1964,9 @@ def main():
     test_rewrite_function_exists()
     test_channel_reader_error_handling()
     test_main_keyboard_extract()
+    test_admin_dashboard()
+    test_admin_handlers_exist()
+    test_admin_dashboard_stats_db()
 
     print(f"\nO'tdi: {passed}, Xato: {failures}")
     if failures:
