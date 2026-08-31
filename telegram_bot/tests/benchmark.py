@@ -25,8 +25,14 @@ sys.path.insert(0, str(ROOT))
 
 
 def main():
-    import pgserver
-    server_dir = "/tmp/yordamchi_pg_bench"
+    try:
+        import pgserver
+    except ImportError:
+        print("ℹ️ pgserver kutubxonasi o'rnatilmagan (pip install pgserver). Benchmark o'tkazib yuborildi.")
+        return
+
+    import tempfile
+    server_dir = os.path.join(tempfile.gettempdir(), "yordamchi_pg_bench")
     shutil.rmtree(server_dir, ignore_errors=True)
     server = pgserver.get_server(server_dir)
     os.environ["DATABASE_URL"] = server.get_uri()
