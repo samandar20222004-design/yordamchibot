@@ -924,6 +924,15 @@ def save_channel(user_id: int, channel_id: str, channel_title: str, is_admin: bo
     """
     try:
         with db_cursor(commit=True) as cur:
+            # Kanal avval kimga tegishli bo'lganini bilib olamiz — admin uni
+            # boshqa foydalanuvchiga biriktirsa, ESKI EGASINING keshi ham
+            # bekor qilinishi kerak (aks holda unda kanal ko'rinib turadi).
+            cur.execute(
+                "SELECT user_id FROM channels WHERE channel_id = %s",
+                (str(channel_id),),
+            )
+            prev_row = cur.fetchone()
+            prev_owner = prev_row[0] if prev_row else None
             cur.execute(
                 """
                 INSERT INTO channels (user_id, channel_id, channel_title, is_active)
@@ -947,6 +956,8 @@ def save_channel(user_id: int, channel_id: str, channel_title: str, is_admin: bo
             if row[0] != user_id:
                 return False, "taken"
         _invalidate_user(user_id)
+        if prev_owner is not None and prev_owner != user_id:
+            _invalidate_user(prev_owner)
         _cache_clear("system_stats")
         return True, "ok"
     except Exception as e:
@@ -972,13 +983,24 @@ def deactivate_channel_by_id(channel_id: str) -> bool:
 
 def remove_channel(user_id: int, channel_id: str, is_admin: bool = False) -> bool:
     try:
+        owner_id = None
         with db_cursor(commit=True) as cur:
             if is_admin:
+                # Admin boshqa foydalanuvchining kanalini olib tashlashi mumkin —
+                # o'sha egasining keshi ham bekor qilinishi shart.
+                cur.execute(
+                    "SELECT user_id FROM channels WHERE channel_id = %s",
+                    (str(channel_id),),
+                )
+                row = cur.fetchone()
+                owner_id = row[0] if row else None
                 cur.execute("UPDATE channels SET is_active = FALSE WHERE channel_id = %s", (str(channel_id),))
             else:
                 cur.execute("UPDATE channels SET is_active = FALSE WHERE channel_id = %s AND user_id = %s", (str(channel_id), user_id))
             changed = cur.rowcount > 0
         _invalidate_user(user_id)
+        if owner_id is not None and owner_id != user_id:
+            _invalidate_user(owner_id)
         _cache_clear("system_stats")
         return changed
     except Exception as e:

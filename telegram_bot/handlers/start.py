@@ -7,7 +7,7 @@ from config import ADMIN_ID, ADMIN_IDS_SET
 import database as db
 from keyboards.default import get_main_keyboard, get_cabinet_keyboard, get_cancel_keyboard
 from keyboards.inline import get_referral_share_keyboard, get_subscription_check_keyboard
-from utils.helpers import html_escape, get_smart_reply_ad
+from utils.helpers import html_escape, get_smart_reply_ad_async
 
 logger = logging.getLogger(__name__)
 
@@ -118,7 +118,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return ConversationHandler.END
 
     is_admin = (user.id in ADMIN_IDS_SET)
-    ad_line = get_smart_reply_ad(user.id)
+    ad_line = await get_smart_reply_ad_async(user.id)
     await update.message.reply_text(
         f"Salom, <b>{html_escape(user.first_name)}</b>! 👋\n\n"
         f"🤖 <b>PostAssistrobot</b> — Telegram kanallaringizga postlarni rejalashtirib joylovchi aqlli yordamchingiz.\n\n"
@@ -171,7 +171,7 @@ async def user_cabinet_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
     streak_val = stats.get('streak', 0)
     streak_text = f"🔥 <b>{streak_val}/7 kun</b>"
-    ad_line = get_smart_reply_ad(user.id)
+    ad_line = await get_smart_reply_ad_async(user.id)
     
     text = (
         f"👤 <b>Shaxsiy Kabinet:</b>\n\n"
@@ -417,7 +417,7 @@ async def transfer_amount_received(update: Update, context: ContextTypes.DEFAULT
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     is_admin = (update.effective_user.id in ADMIN_IDS_SET)
-    ad_line = get_smart_reply_ad(update.effective_user.id)
+    ad_line = await get_smart_reply_ad_async(update.effective_user.id)
     text = (
         "📖 <b>PostAssistrobot — To'liq Qo'llanma:</b>\n\n"
         "🔹 <b>1. Yangi post rejalashtirish:</b>\n"

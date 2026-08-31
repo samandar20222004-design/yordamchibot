@@ -2,6 +2,20 @@ from urllib.parse import quote
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
+# Telegram tugma matni bo'sh bo'lishi mumkin emas (BadRequest) va juda uzun
+# nom tugmani buzadi — shuning uchun barcha yorliqlar shu yerdan o'tkaziladi.
+BUTTON_LABEL_MAX = 40
+
+
+def btn_label(value, fallback: str = "Kanal", max_length: int = BUTTON_LABEL_MAX) -> str:
+    """Tugma uchun xavfsiz yorliq: bo'sh/None bo'lsa fallback, uzun bo'lsa kesiladi."""
+    text = str(value or "").strip()
+    if not text or text.lower() in ("none", "null"):
+        text = fallback
+    if len(text) > max_length:
+        text = f"{text[:max_length - 1]}…"
+    return text
+
 
 def get_close_keyboard() -> InlineKeyboardMarkup:
     """Inline oynani yopish uchun universal tugma."""
@@ -22,7 +36,9 @@ def get_subscription_check_keyboard(unsubscribed_channels: list) -> InlineKeyboa
     keyboard = []
     for sponsor in unsubscribed_channels:
         s_id, ch_id, ch_title, ch_url = sponsor
-        keyboard.append([InlineKeyboardButton(f"➕ {ch_title}", url=ch_url)])
+        keyboard.append([
+            InlineKeyboardButton(f"➕ {btn_label(ch_title, 'Homiy kanal')}", url=ch_url)
+        ])
     keyboard.append([InlineKeyboardButton("✅ Obunani tekshirish", callback_data="check_subscription")])
     return InlineKeyboardMarkup(keyboard)
 
@@ -38,7 +54,10 @@ def get_sponsors_delete_keyboard(sponsors: list) -> InlineKeyboardMarkup:
     keyboard = []
     for sponsor in sponsors:
         s_id, ch_id, ch_title, ch_url = sponsor
-        keyboard.append([InlineKeyboardButton(f"❌ {ch_title} (O'chirish)", callback_data=f"del_sponsor:{s_id}")])
+        label = btn_label(ch_title, "Homiy kanal", max_length=28)
+        keyboard.append([
+            InlineKeyboardButton(f"❌ {label} (O'chirish)", callback_data=f"del_sponsor:{s_id}")
+        ])
     # Ro'yxat oynasini yopish tugmasi — admin ekranda keraksiz xabar qolib ketmasligi uchun
     keyboard.append([InlineKeyboardButton("❌ Yopish", callback_data="close_msg")])
     return InlineKeyboardMarkup(keyboard)
@@ -48,7 +67,7 @@ def render_channels_list(channels: list) -> InlineKeyboardMarkup:
     for ch in channels:
         ch_id, ch_title = ch
         keyboard.append([
-            InlineKeyboardButton(f"📢 {ch_title}", callback_data="noop"),
+            InlineKeyboardButton(f"📢 {btn_label(ch_title)}", callback_data="noop"),
             InlineKeyboardButton("❌ O'chirish", callback_data=f"remove_channel:{ch_id}")
         ])
     # "Qo'shish bor, lekin bekor qilish/chiqish yo'q" kamchiligini tuzatish:

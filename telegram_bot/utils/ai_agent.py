@@ -1,7 +1,9 @@
 import asyncio
+import html as _html
 import json
 import logging
 import os
+import re
 import time as _time
 from collections import deque
 from datetime import datetime
@@ -64,6 +66,28 @@ _RUNTIME_PARAMS = {
 }
 # Admin "reset" qilganda / qiymat bo'sh bo'lganda qaytadigan defaultlar.
 _RUNTIME_DEFAULTS = dict(_RUNTIME_PARAMS)
+
+# Ixtiyoriy (o'chirib qo'yish mumkin bo'lgan) parametrlar. Admin ularni
+# "off"/"none"/"-" deb belgilasa, so'rov payload'iga UMUMAN qo'shilmaydi —
+# ba'zi provayderlar `null` qiymatga 400 xatosi qaytaradi.
+_OPTIONAL_PARAMS = ("max_tokens", "top_p", "temperature")
+_UNSET_WORDS = ("off", "none", "null", "-", "yo'q", "yoq", "o'chir", "ochir")
+
+
+def _optional_param(params: dict, key: str):
+    """Ixtiyoriy parametr qiymati; o'chirilgan (None) bo'lsa — None."""
+    value = (params or {}).get(key, _RUNTIME_DEFAULTS.get(key))
+    return value
+
+
+def _apply_optional_params(payload: dict, params: dict, keys=_OPTIONAL_PARAMS) -> dict:
+    """`None` bo'lmagan parametrlarnigina payload'ga qo'shadi (null yubormaydi)."""
+    for key in keys:
+        value = _optional_param(params, key)
+        if value is not None:
+            payload[key] = value
+    return payload
+
 
 # Har bir foydalanuvchi uchun so'nggi AI suhbati konteksti (qisqa).
 # Bu "qisqartir", "vaqtni o'zgartir", "oxiriga qo'sh" kabi ergash buyruqlarda
@@ -189,6 +213,10 @@ def _set_runtime_param(key: str, raw_value) -> bool:
     if not raw:
         _RUNTIME_PARAMS[key] = _RUNTIME_DEFAULTS.get(key)
         return True
+    # Ixtiyoriy parametrlarni butunlay o'chirish (provayderga umuman yuborilmaydi).
+    if key in _OPTIONAL_PARAMS and raw.lower() in _UNSET_WORDS:
+        _RUNTIME_PARAMS[key] = None
+        return True
     try:
         if key == "temperature":
             _RUNTIME_PARAMS[key] = max(0.0, min(2.0, float(raw)))
@@ -240,42 +268,97 @@ async def reload_runtime_params():
 
 # ---------------- Qisqa suhbat konteksti ----------------
 
+_HTML_TAG_RE = re.compile(r"<[^>]{1,200}>")
+# Kontekstda saqlanadigan bitta xabarning maksimal uzunligi
+_CONTEXT_ENTRY_MAX_CHARS = 1000
+
+
 def clear_ai_context(user_id: int):
     """Yangi AI sessiyada u/agar so'ralsa, suhbat kontekstini tozalash."""
     if user_id is not None:
         _AI_CONTEXT.pop(user_id, None)
 
 
-def _store_ai_context(user_id: int, text: str):
+def _plain_text(text: str) -> str:
+    """Kontekstga HTML teglari tushmasligi uchun tozalaydi.
+
+    Model bilan suhbat tarixida <b>, <i>, <code> kabi teglar faqat tokenni
+    yeydi va javob sifatini pasaytiradi — shuning uchun olib tashlanadi.
+    """
+    if not text:
+        return ""
+    cleaned = _HTML_TAG_RE.sub("", str(text))
+    cleaned = _html.unescape(cleaned)
+    return re.sub(r"[ \t]+", " ", cleaned).strip()
+
+
+def _context_limit() -> int:
+    return int(_RUNTIME_PARAMS.get("context_messages", 0) or 0)
+
+
+def _store_ai_context(user_id: int, text: str, role: str = "user"):
+    """Suhbat tarixiga bitta xabar qo'shadi.
+
+    ``role`` — "user" (foydalanuvchi) yoki "bot" (AI javobi). Bot javoblari ham
+    saqlanadi, aks holda "qisqartir", "oxiriga qo'sh" kabi ergash buyruqlarda
+    model o'zi nima yozganini bilmay qoladi.
+    """
     if not user_id:
         return
-    max_len = int(_RUNTIME_PARAMS.get("context_messages", 8) or 0)
+    max_len = _context_limit()
     if max_len <= 0:
         return
-    text = (text or "").strip()
+    text = _plain_text(text)
     if not text:
         return
     # Xotirani cheklash: har bitta eslatilgan xabarni qisqartiramiz
-    text = text[:2000]
+    text = text[:_CONTEXT_ENTRY_MAX_CHARS]
+    label = "Bot" if role == "bot" else "Foydalanuvchi"
+    entry = f"{label}: {text}"
     if len(_AI_CONTEXT) > _AI_CONTEXT_MAX_USERS:
         # Qadimgi foydalanuvchilardan tozalash
         for uid in list(_AI_CONTEXT.keys())[:_AI_CONTEXT_MAX_USERS // 10]:
             _AI_CONTEXT.pop(uid, None)
-    entries = _AI_CONTEXT.setdefault(user_id, deque(maxlen=max_len))
-    if not entries or entries[-1] != text:
-        entries.append(text)
+    entries = _AI_CONTEXT.get(user_id)
+    if entries is None or entries.maxlen != max_len:
+        # context_messages admin tomonidan o'zgargan bo'lsa — deque'ni moslaymiz
+        old = list(entries) if entries else []
+        entries = deque(old[-max_len:], maxlen=max_len)
+        _AI_CONTEXT[user_id] = entries
+    if not entries or entries[-1] != entry:
+        entries.append(entry)
 
 
 def _get_ai_context_text(user_id: int, budget: int) -> str:
-    """So'nggi xabarlarni budget belgidan oshirmasdan qaytaradi."""
-    if int(_RUNTIME_PARAMS.get("context_messages", 8) or 0) <= 0:
+    """So'nggi xabarlarni budget belgidan oshirmasdan qaytaradi.
+
+    Byudjet ``context_chars`` admin sozlamasi bilan ham cheklanadi va eng
+    so'nggi xabarlar ustuvor bo'ladi (eskilari sig'masa tushib qoladi).
+    """
+    if _context_limit() <= 0:
         return ""
     entries = _AI_CONTEXT.get(user_id)
     if not entries:
         return ""
-    lines = [f"• {e}" for e in entries]
-    block = "💬 <b>So'nggi suhbat (AI konteksti):</b>\n" + "\n".join(lines)
-    return block[:max(0, int(budget))]
+    ctx_chars = int(_RUNTIME_PARAMS.get("context_chars") or AI_MAX_CONTEXT_CHARS)
+    budget = min(int(budget or 0), ctx_chars)
+    if budget <= 0:
+        return ""
+
+    header = "So'nggi suhbat (AI konteksti):"
+    lines = []
+    used = len(header)
+    # Oxirgi xabardan boshlab to'ldiramiz — eng muhim (yangi) kontekst saqlanadi
+    for entry in reversed(list(entries)):
+        line = f"- {entry}"
+        if used + len(line) + 1 > budget:
+            continue
+        lines.append(line)
+        used += len(line) + 1
+    if not lines:
+        return ""
+    lines.reverse()
+    return header + "\n" + "\n".join(lines)
 
 
 # ---------------- Circuit breaker ----------------
@@ -596,12 +679,18 @@ async def _call_gemini(prompt: str, api_key: str, system_instruction: str, param
 
     for model in models:
         url = f"{GEMINI_BASE}/{model}:generateContent?key={api_key}"
-        generation_config = {
-            "temperature": params.get("temperature", 0.7),
-            "topP": params.get("top_p", 0.95),
-        }
-        if params.get("max_tokens"):
-            generation_config["maxOutputTokens"] = params["max_tokens"]
+        # Faqat o'chirilmagan (None bo'lmagan) parametrlar yuboriladi —
+        # `null` qiymat ba'zi provayderlarda 400 xatosiga olib keladi.
+        generation_config = {}
+        _gem_temp = _optional_param(params, "temperature")
+        if _gem_temp is not None:
+            generation_config["temperature"] = _gem_temp
+        _gem_top_p = _optional_param(params, "top_p")
+        if _gem_top_p is not None:
+            generation_config["topP"] = _gem_top_p
+        _gem_max_tokens = _optional_param(params, "max_tokens")
+        if _gem_max_tokens is not None:
+            generation_config["maxOutputTokens"] = _gem_max_tokens
 
         # Gemini API: system instruction alohida, content foydalanuvchi matni
         payload = {
@@ -660,12 +749,8 @@ async def _call_groq(prompt: str, api_key: str, system_instruction: str, params:
                 {"role": "user", "content": f"{prompt}\n\nJavobni JSON formatida qaytaring."}
             ],
             "response_format": {"type": "json_object"},
-            "temperature": params.get("temperature", 0.7),
         }
-        if params.get("top_p") is not None:
-            payload["top_p"] = params["top_p"]
-        if params.get("max_tokens") is not None:
-            payload["max_tokens"] = params["max_tokens"]
+        _apply_optional_params(payload, params)
         try:
             result = await _post_chat_completion(GROQ_ENDPOINT, headers, payload)
             return _extract_json(result["content"])
@@ -713,12 +798,8 @@ async def _call_openrouter(prompt: str, api_key: str, system_instruction: str, p
                 {"role": "system", "content": system_instruction},
                 {"role": "user", "content": f"{prompt}\n\nJavobni FAQAT quyidagi JSON formatida qaytaring:\n{{\"intent\": \"...\", \"reply\": \"...\", \"post_text\": \"...\", \"scheduled_time\": null, \"has_explicit_time\": false, \"target_all\": false}}"},
             ],
-            "temperature": params.get("temperature", 0.7),
         }
-        if params.get("top_p") is not None:
-            payload["top_p"] = params["top_p"]
-        if params.get("max_tokens") is not None:
-            payload["max_tokens"] = params["max_tokens"]
+        _apply_optional_params(payload, params)
         try:
             result = await _post_chat_completion(OPENROUTER_ENDPOINT, headers, payload)
             return _extract_json(result["content"])
@@ -750,13 +831,9 @@ async def _call_mistral(prompt: str, api_key: str, system_instruction: str, para
                 {"role": "system", "content": system_instruction},
                 {"role": "user", "content": f"{prompt}\n\nJavobni FAQAT JSON formatida qaytaring."},
             ],
-            "temperature": params.get("temperature", 0.7),
             "safe_prompt": False,
         }
-        if params.get("top_p") is not None:
-            payload["top_p"] = params["top_p"]
-        if params.get("max_tokens") is not None:
-            payload["max_tokens"] = params["max_tokens"]
+        _apply_optional_params(payload, params)
         try:
             result = await _post_chat_completion(MISTRAL_ENDPOINT, headers, payload)
             return _extract_json(result["content"])
@@ -797,12 +874,8 @@ async def _call_cerebras(prompt: str, api_key: str, system_instruction: str, par
                 {"role": "system", "content": system_instruction},
                 {"role": "user", "content": f"{prompt}\n\nJavobni FAQAT JSON formatida qaytaring."},
             ],
-            "temperature": params.get("temperature", 0.7),
         }
-        if params.get("top_p") is not None:
-            payload["top_p"] = params["top_p"]
-        if params.get("max_tokens") is not None:
-            payload["max_tokens"] = params["max_tokens"]
+        _apply_optional_params(payload, params)
         try:
             result = await _post_chat_completion(CEREBRAS_ENDPOINT, headers, payload)
             return _extract_json(result["content"])
@@ -831,12 +904,8 @@ async def _call_pollinations(prompt: str, system_instruction: str, params: dict 
             {"role": "system", "content": system_instruction},
             {"role": "user", "content": f"{prompt}\n\nJavobni FAQAT JSON formatida qaytaring."},
         ],
-        "temperature": params.get("temperature", 0.7),
     }
-    if params.get("top_p") is not None:
-        payload["top_p"] = params["top_p"]
-    if params.get("max_tokens") is not None:
-        payload["max_tokens"] = params["max_tokens"]
+    _apply_optional_params(payload, params)
     result = await _post_chat_completion(POLLINATIONS_ENDPOINT, None, payload)
     return _extract_json(result["content"])
 
@@ -963,10 +1032,10 @@ async def analyze_user_prompt(prompt: str, user_id: int = 0) -> dict:
     """
     params = get_runtime_params()
     raw_prompt = (prompt or "").strip()
-    _store_ai_context(user_id, raw_prompt)
 
-    # Suhbat kontekstini joriy xabarga qo'shamiz. Byudjetni shunday hisoblaymiz:
-    # kontekst joriy xabarni kesib tashlamasligi kerak.
+    # MUHIM: kontekst joriy xabar SAQLANISHIDAN OLDIN olinadi — aks holda
+    # joriy xabar promptga ikki marta (kontekstda ham, "Hozirgi xabar" da ham)
+    # tushib, model uni takroriy buyruq deb tushunardi.
     max_chars = int(params.get("max_prompt_chars") or MAX_PROMPT_CHARS)
     budget = max(200, max_chars - len(raw_prompt) - 300)
     ctx_text = _get_ai_context_text(user_id, budget)
@@ -975,8 +1044,16 @@ async def analyze_user_prompt(prompt: str, user_id: int = 0) -> dict:
 
     result = await _run_ai_chain(prompt, _get_router_system_instruction())
     if "error" in result:
+        # Muvaffaqiyatsiz chaqiruv kontekstga yozilmaydi — aks holda keyingi
+        # so'rovda javobsiz qolgan xabar takrorlanib, sifatni pasaytiradi.
         return result
-    return _normalize_router_result(result)
+
+    normalized = _normalize_router_result(result)
+    # Muvaffaqiyatli suhbatgina eslab qolinadi: foydalanuvchi xabari + bot javobi.
+    _store_ai_context(user_id, raw_prompt, role="user")
+    bot_answer = normalized.get("post_text") or normalized.get("reply") or ""
+    _store_ai_context(user_id, bot_answer, role="bot")
+    return normalized
 
 
 async def extract_schedule_time(prompt: str, user_id: int = 0) -> dict:

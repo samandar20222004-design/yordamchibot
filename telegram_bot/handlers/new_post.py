@@ -17,6 +17,7 @@ from keyboards.default import (
     get_reactions_keyboard, get_auto_delete_keyboard, get_time_keyboard,
     get_duration_keyboard, get_weekday_keyboard
 )
+from keyboards.inline import btn_label
 from utils.helpers import html_escape, parse_future_time
 
 tashkent_tz = pytz.timezone("Asia/Tashkent")
@@ -39,6 +40,28 @@ RECUR_DAY = 108
 RECUR_TIME = 109
 GET_DURATION = 110
 
+def build_channel_labels(channels) -> dict:
+    """Kanal ro'yxatidan tugma yorliqlari xaritasini tuzadi ({label: channel_id}).
+
+    - Bo'sh/None sarlavhali kanal ham yaroqli yorliq oladi (Telegram bo'sh
+      tugma matnini rad etadi).
+    - Bir xil nomli kanallar bir-birini yopib qo'ymaydi: nomga ID, kerak
+      bo'lsa tartib raqami qo'shiladi.
+    """
+    channels_map = {}
+    for ch_id, ch_title in channels:
+        label = btn_label(ch_title, "Kanal", max_length=48)
+        if label in channels_map:
+            label = f"{label} ({ch_id})"
+        base_label = label
+        suffix = 2
+        while label in channels_map:
+            label = f"{base_label} #{suffix}"
+            suffix += 1
+        channels_map[label] = ch_id
+    return channels_map
+
+
 async def start_new_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
     user_id = update.effective_user.id
@@ -55,14 +78,10 @@ async def start_new_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Bir xil nomli kanallar bo'lsa, nomga ID qo'shib farqlaymiz —
     # aks holda ikkita kanal bir xil nomda bo'lsa, biri ikkinchisini yopib qo'yardi.
-    channels_map = {}
-    keyboard = []
-    for ch_id, ch_title in channels:
-        label = ch_title
-        if label in channels_map:
-            label = f"{ch_title} ({ch_id})"
-        channels_map[label] = ch_id
-        keyboard.append([label])
+    # Nomsiz (bo'sh sarlavhali) kanal ham yaroqli yorliq oladi: Telegram bo'sh
+    # tugma matnini qabul qilmaydi.
+    channels_map = build_channel_labels(channels)
+    keyboard = [[label] for label in channels_map]
     if len(channels) > 1:
         keyboard.append([BTN_ALL_CHANNELS_TARGET])
     keyboard.append([BTN_MAIN_MENU])

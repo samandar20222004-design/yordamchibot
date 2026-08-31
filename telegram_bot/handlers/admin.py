@@ -86,8 +86,8 @@ def format_admin_channels_list(channels: list) -> str:
 # Admin panelda ko'rsatiladigan AI parametrlari (kalit -> (DB key, UI belgi, tavsif))
 AI_SETTINGS_KEYS = {
     "temperature": ("ai_temperature", "🌡 temperature", "0.0–2.0 (0.2 = aniq)"),
-    "max_tokens": ("ai_max_tokens", "📄 max_tokens", "128–8192 (1024)"),
-    "top_p": ("ai_top_p", "🎯 top_p", "0.0–1.0 (1.0)"),
+    "max_tokens": ("ai_max_tokens", "📄 max_tokens", "128–8192 (1024) yoki off"),
+    "top_p": ("ai_top_p", "🎯 top_p", "0.0–1.0 (1.0) yoki off"),
     "max_prompt_chars": ("ai_max_prompt_chars", "🧩 prompt limiti", "500–12000 belgi (3000)"),
     "context_chars": ("ai_context_chars", "💬 kontekst hajmi", "500–20000 belgi (4000)"),
     "context_messages": ("ai_context_messages", "🧠 kontekst xabarlari", "0–20 dona (6)"),
@@ -116,7 +116,8 @@ async def ai_settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Masalan:\n"
         "<code>temperature=0.4</code>\n"
         "<code>max_tokens=2048</code>\n"
-        "<code>context_messages=8</code>\n\n"
+        "<code>context_messages=8</code>\n"
+        "<code>max_tokens=off</code>  <i>(parametr umuman yuborilmaydi)</i>\n\n"
         "👉 Hammasini defaultga qaytarish uchun <code>reset</code> deb yozing.\n"
         "Bekor qilish uchun asosiy menyu tugmasini bosing.",
         reply_markup=get_cancel_keyboard(),
