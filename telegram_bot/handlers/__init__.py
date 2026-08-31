@@ -7,7 +7,7 @@ from telegram.ext import (
     ChatMemberHandler,
     filters,
 )
-from config import ADMIN_ID
+from config import ADMIN_ID, ADMIN_IDS_SET
 from keyboards.default import (
     exact,
     BTN_NEW_POST, BTN_AI_ASSISTANT, BTN_CABINET, BTN_INVITE, BTN_DAILY_BONUS, BTN_BUY_AD_FREE,
@@ -43,7 +43,11 @@ from handlers.ai_assistant import (
 )
 from handlers.pending import (
     list_pending_posts, cancel_post_callback, refresh_pending_callback,
-    edit_post_time_start, edit_post_time_received, EDIT_POST_TIME
+    edit_post_time_start, edit_post_time_received,
+    edit_post_content_start, edit_post_content_received,
+    edit_post_btn_start, edit_post_btn_received,
+    edit_post_react_start, edit_post_react_received,
+    EDIT_POST_TIME, EDIT_POST_CONTENT, EDIT_POST_BTN, EDIT_POST_REACT
 )
 from handlers.admin import (
     admin_panel_menu, show_statistics, admin_all_posts, admin_all_channels,
@@ -59,6 +63,11 @@ import database as db
 from utils.helpers import check_rate_limit
 
 logger = logging.getLogger(__name__)
+
+# Suhbat 10 daqiqa faolsiz qolsa — avtomatik tugatiladi (soniyada ifodalangan).
+# Bu AI "goh ishlab, goh ishlamay" muammosini hal qiladi: yarim-yo'lda tashlab
+# ketilgan holatlar keyingi sessiyani bloklab qo'ymasligini ta'minlaydi.
+CONVERSATION_TIMEOUT_SEC = 600
 
 # Free-chat (intent routing) menyusi uchun ma'lum reply-tugmalar — bu tugmalar
 # bosilganda AI suhbatiga tushib qolmasligi uchun ular filtrlanadi.
@@ -186,6 +195,27 @@ async def expired_session_callback(update, context):
     )
 
 
+async def conversation_timeout_handler(update, context):
+    """10 daqiqa faolsizlikdan keyin suhbat avtomatik tugaydi.
+
+    Foydalanuvchi biror oqimni (yangi post, kanal ulash, transfer...) boshlab,
+    keyin tashlab ketsa — bu holat abadiy «band» bo'lib qolmasligini ta'minlaydi.
+    Shundan keyin keyingi xabar to'g'ri AI'ga yo'naladi.
+    """
+    is_admin = update.effective_user.id in ADMIN_IDS_SET if update.effective_user else False
+    context.user_data.clear()
+    if update.effective_message:
+        try:
+            await update.effective_message.reply_text(
+                "⏰ <b>Suhbat muddat tugash sababli yakunlandi.</b>\n"
+                "Asosiy menyuga qaytdingiz. Kerakli bo'limni qaytadan tanlang 👇",
+                reply_markup=__import__("keyboards.default", fromlist=["get_main_keyboard"]).get_main_keyboard(is_admin),
+                parse_mode="HTML",
+            )
+        except Exception:
+            pass
+
+
 async def free_chat_entry(update, context):
     """Suhbat tashqarisida kelgan har qanday matn/media — AI intent routing'ga.
 
@@ -208,7 +238,7 @@ async def free_chat_entry(update, context):
 
     # E'tibor: context.user_data.clear() QILINMAYDI — erkin suhbatda ko'p
     # burilishli muloqot (post → tahrir → vaqt) saqlanib turishi kerak.
-    is_admin = (user.id == ADMIN_ID)
+    is_admin = (user.id in ADMIN_IDS_SET)
     if not is_admin:
         credits = await db.run_db(db.get_user_credits, user.id)
         if credits <= 0:
@@ -281,6 +311,9 @@ def register_all_handlers(app):
             MessageHandler(exact(BTN_AI_SETTINGS), lambda u, c: guard_entry(u, c, ai_settings_menu)),
             MessageHandler(exact(BTN_CACHE_DB), lambda u, c: guard_entry(u, c, cache_db_menu)),
             CallbackQueryHandler(edit_post_time_start, pattern=r"^edit_time:"),
+            CallbackQueryHandler(edit_post_content_start, pattern=r"^edit_content:"),
+            CallbackQueryHandler(edit_post_btn_start, pattern=r"^edit_btn:"),
+            CallbackQueryHandler(edit_post_react_start, pattern=r"^edit_react:"),
             CallbackQueryHandler(add_channel_inline_entry, pattern=r"^add_channel_start$"),
             CommandHandler("newpost", lambda u, c: guard_entry(u, c, start_new_post)),
             CommandHandler("broadcast", lambda u, c: guard_entry(u, c, broadcast_start)),
@@ -320,6 +353,11 @@ def register_all_handlers(app):
             SET_POST_TAG: global_jump_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, post_tag_received)],
             AI_SETTINGS: global_jump_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, ai_settings_received)],
             EDIT_POST_TIME: global_jump_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, edit_post_time_received)],
+            EDIT_POST_CONTENT: global_jump_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, edit_post_content_received)],
+            EDIT_POST_BTN: global_jump_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, edit_post_btn_received)],
+            EDIT_POST_REACT: global_jump_handlers + [MessageHandler(filters.TEXT & ~filters.COMMAND, edit_post_react_received)],
+            # conversation_timeout holati: 10 daqiqa faolsizlikda ishga tushadi
+            ConversationHandler.TIMEOUT: [MessageHandler(filters.ALL, conversation_timeout_handler)],
         },
         fallbacks=[
             CommandHandler("start", start),
@@ -327,8 +365,12 @@ def register_all_handlers(app):
             MessageHandler(exact(BTN_MAIN_MENU), lambda u, c: guard_menu(u, c, start)),
         ],
         allow_reentry=True,
+        # === Asosiy tuzatish: 10 daqiqa faolsizlikda suhbat avtomatik tugaydi ===
+        # Bu "AI goh ishlab, goh ishlamay" muammosini hal qiladi.
+        conversation_timeout=CONVERSATION_TIMEOUT_SEC,
     )
 
+    # Global buyruqlar (ConversationHandler dan tashqari)
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("profile", user_cabinet_menu))
     app.add_handler(CommandHandler("help", help_command))
@@ -336,23 +378,7 @@ def register_all_handlers(app):
     app.add_handler(CommandHandler("stats", show_statistics))
     app.add_handler(main_conv)
 
-    app.add_handler(MessageHandler(exact(BTN_CABINET), lambda u, c: guard_menu(u, c, user_cabinet_menu)))
-    app.add_handler(MessageHandler(exact(BTN_DAILY_BONUS), lambda u, c: guard_menu(u, c, daily_bonus_handler)))
-    app.add_handler(MessageHandler(exact(BTN_BUY_AD_FREE), lambda u, c: guard_menu(u, c, buy_ad_free_handler)))
-    app.add_handler(MessageHandler(exact(BTN_INVITE), lambda u, c: guard_menu(u, c, user_invite_menu)))
-    app.add_handler(MessageHandler(exact(BTN_HELP), lambda u, c: guard_menu(u, c, help_command)))
-    app.add_handler(MessageHandler(exact(BTN_CHANNELS), lambda u, c: guard_menu(u, c, channels_menu)))
-    app.add_handler(MessageHandler(exact(BTN_PENDING), lambda u, c: guard_menu(u, c, list_pending_posts)))
-    app.add_handler(MessageHandler(exact(BTN_MAIN_MENU), lambda u, c: guard_menu(u, c, start)))
-    app.add_handler(MessageHandler(exact(BTN_ADMIN_PANEL), lambda u, c: guard_menu(u, c, admin_panel_menu)))
-    app.add_handler(MessageHandler(exact(BTN_STATS), lambda u, c: guard_menu(u, c, show_statistics)))
-    app.add_handler(MessageHandler(exact(BTN_ALL_POSTS), lambda u, c: guard_menu(u, c, admin_all_posts)))
-    app.add_handler(MessageHandler(exact(BTN_ALL_CHANNELS), lambda u, c: guard_menu(u, c, admin_all_channels)))
-    app.add_handler(MessageHandler(exact(BTN_SPONSORS), lambda u, c: guard_menu(u, c, sponsors_menu)))
-    app.add_handler(MessageHandler(exact(BTN_POST_TAG), lambda u, c: guard_entry(u, c, start_set_post_tag)))
-    app.add_handler(MessageHandler(exact(BTN_AI_SETTINGS), lambda u, c: guard_entry(u, c, ai_settings_menu)))
-    app.add_handler(MessageHandler(exact(BTN_CACHE_DB), lambda u, c: guard_entry(u, c, cache_db_menu)))
-
+    # Callback handler'lar
     app.add_handler(CallbackQueryHandler(ad_free_callback, pattern=r"^adfree_"))
     app.add_handler(CallbackQueryHandler(converter_callback, pattern=r"^conv_show:"))
     app.add_handler(CallbackQueryHandler(converter_close_callback, pattern=r"^conv_close$"))
@@ -361,6 +387,9 @@ def register_all_handlers(app):
     app.add_handler(CallbackQueryHandler(reaction_callback, pattern=r"^react:"))
     app.add_handler(CallbackQueryHandler(cancel_post_callback, pattern=r"^cancel_post:"))
     app.add_handler(CallbackQueryHandler(refresh_pending_callback, pattern=r"^pending_refresh$"))
+    app.add_handler(CallbackQueryHandler(edit_post_content_start, pattern=r"^edit_content:"))
+    app.add_handler(CallbackQueryHandler(edit_post_btn_start, pattern=r"^edit_btn:"))
+    app.add_handler(CallbackQueryHandler(edit_post_react_start, pattern=r"^edit_react:"))
     app.add_handler(CallbackQueryHandler(remove_channel_callback, pattern=r"^remove_channel:"))
     app.add_handler(CallbackQueryHandler(close_msg_callback, pattern=r"^close_msg$"))
     app.add_handler(CallbackQueryHandler(noop_callback, pattern=r"^noop$"))
