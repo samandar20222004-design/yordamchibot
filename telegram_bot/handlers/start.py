@@ -3,7 +3,7 @@ import time
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.error import TelegramError, Forbidden
 from telegram.ext import ContextTypes, ConversationHandler
-from config import ADMIN_ID
+from config import ADMIN_ID, ADMIN_IDS_SET
 import database as db
 from keyboards.default import get_main_keyboard, get_cabinet_keyboard, get_cancel_keyboard
 from keyboards.inline import get_referral_share_keyboard, get_subscription_check_keyboard
@@ -29,7 +29,7 @@ async def check_user_subscribed(bot, user_id: int) -> tuple[bool, list | None]:
       (False, [sponsors])   — obuna yo'q, ro'yxatni ko'rsatish
       (False, None)         — tizim xatosi (bazaga ulanib bo'lmadi) — o'tkazib yuborilmaydi
     """
-    if user_id == ADMIN_ID:
+    if user_id in ADMIN_IDS_SET:
         return True, []
     sponsors = await db.run_db(db.get_active_sponsors)
     if sponsors is None:
@@ -447,7 +447,13 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(f"{text}{ad_line}", reply_markup=get_main_keyboard(is_admin), parse_mode="HTML")
 
 async def cancel_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    is_admin = (update.effective_user.id == ADMIN_ID)
+    """Foydalanuvchi band holatda /cancel bosganda yoki tugma bosganda — aniq xabar."""
+    is_admin = (update.effective_user.id in ADMIN_IDS_SET)
     context.user_data.clear()
-    await update.message.reply_text("🚫 Jarayon bekor qilindi.", reply_markup=get_main_keyboard(is_admin), parse_mode="HTML")
+    await update.message.reply_text(
+        "🚫 <b>Jarayon bekor qilindi.</b>\n"
+        "Asosiy menyuga qaytdingiz. Kerakli bo'limni tanlang 👇",
+        reply_markup=get_main_keyboard(is_admin),
+        parse_mode="HTML",
+    )
     return ConversationHandler.END
