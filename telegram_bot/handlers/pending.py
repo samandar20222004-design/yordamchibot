@@ -7,7 +7,7 @@ import database as db
 from keyboards.inline import render_pending_list
 from keyboards.default import get_cancel_keyboard, get_main_keyboard
 from utils.helpers import (
-    format_post_type_label, format_schedule_line, html_escape, check_rate_limit,
+    format_post_type_label, format_schedule_line, html_escape, check_rate_limit, parse_future_time,
 )
 
 logger = logging.getLogger(__name__)
@@ -114,8 +114,10 @@ async def edit_post_time_received(update: Update, context: ContextTypes.DEFAULT_
                 new_run += timedelta(days=1)
             await db.run_db(db.update_post_time, post_id, new_run, f"{hh:02d}:{mm:02d}:00", user_id=update.effective_user.id)
         else:
-            naive_time = datetime.strptime(text, "%Y-%m-%d %H:%M")
-            new_time = tashkent_tz.localize(naive_time)
+            new_time = parse_future_time(text, now)
+            if new_time is None:
+                naive_time = datetime.strptime(text, "%Y-%m-%d %H:%M")
+                new_time = tashkent_tz.localize(naive_time)
             if new_time <= now:
                 await update.message.reply_text("⚠️ Kelajakdagi vaqtni kiriting:")
                 return EDIT_POST_TIME
