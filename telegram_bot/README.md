@@ -174,13 +174,18 @@ oddiy "➕ Yangi post rejalashtirish" oqimi orqali ishlaydi.
 ### AI kontekst va parametrlar
 
 - **Suhbat konteksti** — har bir foydalanuvchi uchun so'nggi 6 ta AI xabari
-  eslab qolinadi va keyingi so'rovga qo'shiladi. "Qisqartir", "vaqtini
-  o'zgartir", "oxiriga qo'sh" kabi ergash buyruqlar oldingi mazmunni eslab
-  ishlaydi (`AI_CONTEXT_MESSAGES`, `AI_MAX_CONTEXT_CHARS` orqali sozlanadi).
+  (foydalanuvchi savoli **va** bot javobi) eslab qolinadi va keyingi so'rovga
+  qo'shiladi. "Qisqartir", "vaqtini o'zgartir", "oxiriga qo'sh" kabi ergash
+  buyruqlar oldingi mazmunni eslab ishlaydi (`AI_CONTEXT_MESSAGES`,
+  `AI_MAX_CONTEXT_CHARS` orqali sozlanadi). Kontekst HTML teglarisiz, toza
+  matn ko'rinishida saqlanadi; joriy xabar promptga faqat bir marta tushadi
+  va muvaffaqiyatsiz (xato qaytgan) so'rovlar umuman eslab qolinmaydi.
 - **Javob parametrlari** — `AI_TEMPERATURE`, `AI_MAX_TOKENS`, `AI_TOP_P`,
   `AI_MAX_PROMPT_CHARS` environment o'zgaruvchilari barcha provayderlarga
   uzatiladi. Admin panel **⚙️ AI parametrlar** bo'limida ularni qayta ishga
-  tushirmasdan o'zgartirish mumkin.
+  tushirmasdan o'zgartirish mumkin. `max_tokens=off` / `top_p=off` deb
+  belgilansa, parametr so'rovga umuman qo'shilmaydi (`null` yuborilmaydi —
+  ba'zi provayderlar bunga 400 xatosi qaytaradi).
 - **AI Extra Context** — `AI_EXTRA_CONTEXT` bilan botning umumiy ko'rsatmasiga
   qo'shimcha kontekst qo'shish mumkin.
 
@@ -189,7 +194,9 @@ oddiy "➕ Yangi post rejalashtirish" oqimi orqali ishlaydi.
 Admin boshqaruv paneldan quyidagilar ham bajariladi:
 
 - **🏷 Post nishoni** — post oxiriga qo'shiladigan ixtiyoriy watermark/nishon
-  (masalan `@PostAssistrobot`). Bo'sh qoldirilsa postlar toza chiqadi.
+  (masalan `@PostAssistrobot`). Bo'sh qoldirilsa postlar toza chiqadi. Nishon
+  matn Telegram limitiga (caption 1024, matn 4096) kesilgandan **keyin**
+  qo'shiladi — shuning uchun uzun postlarda ham yo'qolib qolmaydi.
 - **⚙️ AI parametrlar** — temperature, max_tokens, top_p, prompt limit,
   kontekst hajmi va xabarlar sonini runtime'da o'zgartirish.
 - **🗄️ DB/Kesh holati** — PostgreSQL pool holati va TTL kesh yozuvlari sonini

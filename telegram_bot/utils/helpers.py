@@ -121,7 +121,20 @@ def is_duplicate_message(user_id: int, text: str) -> bool:
     return False
 
 def get_smart_reply_ad(user_id: int) -> str:
+    """Sinxron variant (test/skript uchun). Handlerlarda
+    ``get_smart_reply_ad_async`` ishlatiladi — u DB'ni event loopdan tashqarida
+    o'qiydi."""
     ad_text = db.get_setting("bot_reply_ad_text", "").strip()
+    return _format_reply_ad(user_id, ad_text)
+
+
+async def get_smart_reply_ad_async(user_id: int) -> str:
+    """Reklama satri; DB o'qish alohida thread'da (event loop bloklanmaydi)."""
+    ad_text = (await db.run_db(db.get_setting, "bot_reply_ad_text", "")).strip()
+    return _format_reply_ad(user_id, ad_text)
+
+
+def _format_reply_ad(user_id: int, ad_text: str) -> str:
     if not ad_text:
         return ""
 

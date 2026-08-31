@@ -491,6 +491,8 @@ async def ai_confirm_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
             reply_markup=get_main_keyboard(is_admin),
             parse_mode="HTML",
         )
+        # AI sessiyasi shu yerda tugaydi — kontekst ham tozalanadi
+        clear_ai_context(user_id)
         context.user_data.clear()
         return ConversationHandler.END
 
@@ -523,7 +525,8 @@ async def ai_confirm_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
             ok_count += 1
 
     if ok_count > 0:
-        target_name = "Barcha ulangan kanallarga" if target_all else channels[0][1]
+        first_title = (channels[0][1] or "").strip() or "Kanal"
+        target_name = "Barcha ulangan kanallarga" if target_all else first_title
         try:
             await query.edit_message_reply_markup(reply_markup=None)
         except Exception:
@@ -542,5 +545,7 @@ async def ai_confirm_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
             reply_markup=get_main_keyboard(is_admin),
         )
 
+    # Post rejalashtirilgach yoki xato bo'lgach AI sessiyasi yopiladi
+    clear_ai_context(user_id)
     context.user_data.clear()
     return ConversationHandler.END

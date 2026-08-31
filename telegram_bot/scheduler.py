@@ -38,12 +38,17 @@ def calculate_next_time(recurrence_type, recurrence_day, recurrence_time, curren
     return None
 
 
-def compose_post_text(content: str, has_ad_free: bool, channel_ad: str, brand_text: str = "") -> str:
+def compose_post_text(content: str, has_ad_free: bool, channel_ad: str,
+                      brand_text: str = "", limit: int = None) -> str:
     """Post matniga (ixtiyoriy) admin reklamasi va nishonni qo'shadi.
 
     ``brand_text`` — admin belgilagan so'z/watermark (masalan ``@PostAssistrobot``).
     Standart qiymati bo'sh, ya'ni majburiy watermark YO'Q — litsenziyasiz post ham
     toza chiqadi; nishon faqat admin yoqsa qo'shiladi.
+
+    ``limit`` berilsa (Telegram: caption 1024, oddiy matn 4096), asosiy matn
+    nishonga joy qoldirib kesiladi va nishon KESISHDAN KEYIN qo'shiladi — shu
+    sababli u chegara tufayli hech qachon yo'qolib qolmaydi.
     """
     text = content or ""
     ad = (channel_ad or "").strip()
@@ -51,8 +56,24 @@ def compose_post_text(content: str, has_ad_free: bool, channel_ad: str, brand_te
         text = f"{text}\n\n{ad}" if text else ad
 
     brand = (brand_text or "").strip()
+    limit = int(limit) if limit else 0
+
+    if limit > 0:
+        if brand:
+            # Nishon va uni ajratuvchi ikki qator uchun joy zaxiraga olinadi
+            reserved = len(brand) + 2
+            allowed = max(0, limit - reserved)
+            if len(text) > allowed:
+                text = text[:allowed].rstrip()
+        elif len(text) > limit:
+            text = text[:limit]
+
     if brand:
         text = f"{text}\n\n{brand}" if text else brand
+
+    if limit > 0 and len(text) > limit:
+        # Nishonning o'zi limitdan uzun bo'lgan chekka holat
+        text = text[:limit]
     return text
 
 
@@ -151,17 +172,22 @@ async def _execute_send(bot, post):
         channel_ad = (await db.run_db(db.get_setting, "channel_ad_text", "")).strip()
     # Admin tomonidan yoqilgan nishon (masalan @PostAssistrobot) — bo'sh bo'lsa qo'shilmaydi.
     brand_text = (await db.run_db(db.get_setting, "post_tag_text", "")).strip()
-    final_content = compose_post_text(content, has_ad_free, channel_ad, brand_text)
 
     sent_msg = None
     extra_ids = []
     try:
         # Telegram caption limiti 1024, oddiy matn limiti 4096 belgidan iborat.
+        # Limit compose_post_text ichida qo'llanadi — nishon kesishdan KEYIN
+        # qo'shiladi, shuning uchun u hech qachon kesilib ketmaydi.
         pt_for_limit = str(post_type).lower()
-        if pt_for_limit in ("photo", "video", "animation", "document", "audio", "voice", "album"):
-            final_content = final_content[:1024]
-        else:
-            final_content = final_content[:4096]
+        text_limit = (
+            1024 if pt_for_limit in
+            ("photo", "video", "animation", "document", "audio", "voice", "album")
+            else 4096
+        )
+        final_content = compose_post_text(
+            content, has_ad_free, channel_ad, brand_text, limit=text_limit
+        )
     except Exception:
         logger.exception("Post matnini tayyorlashda xatolik (Post ID: %s)", post_id)
         await db.run_db(db.mark_post_status, post_id, "failed")

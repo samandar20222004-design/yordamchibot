@@ -80,6 +80,14 @@ def test_converter():
     back = to_latin(cyr)
     check("kirill→lotin teskari", "Salom dunyo" in back, back)
 
+    # Щ/щ ilgari xato ravishda "Ch/ch" ga o'girilardi (Ч bilan aralashib ketardi)
+    check("kirill→lotin: 'Щ' → 'Sh'", to_latin("Щ") == "Sh", to_latin("Щ"))
+    check("kirill→lotin: 'щ' → 'sh'", to_latin("щ") == "sh", to_latin("щ"))
+    check("kirill→lotin: 'Ч' → 'Ch'", to_latin("Ч") == "Ch", to_latin("Ч"))
+    check("kirill→lotin: 'ч' → 'ch'", to_latin("ч") == "ch", to_latin("ч"))
+    check("kirill→lotin: 'щётка' ichida 'sh'", to_latin("щётка").lower().startswith("sh"),
+          to_latin("щётка"))
+
 
 def test_rate_limits():
     print("== utils.helpers rate-limit ==")
@@ -199,6 +207,32 @@ def test_compose_post_text():
     check("litsenziya bilan ham nishon qo'shiladi", compose_post_text(
         "Salom", True, "", "@PostAssistrobot") == "Salom\n\n@PostAssistrobot")
     check("nishon bo'sh: o'zgarmaydi", compose_post_text("Salom", False, "REKLAMA", "") == "Salom\n\nREKLAMA")
+
+
+def test_compose_post_text_limit():
+    print("== scheduler.compose_post_text limit (nishon kesilmaydi) ==")
+    from scheduler import compose_post_text
+
+    brand = "@PostAssistrobot"
+    long_text = "A" * 5000
+
+    caption = compose_post_text(long_text, True, "", brand, limit=1024)
+    check("caption 1024 dan oshmaydi", len(caption) <= 1024, str(len(caption)))
+    check("caption oxirida nishon saqlanadi", caption.endswith(brand), caption[-40:])
+
+    body = compose_post_text(long_text, True, "", brand, limit=4096)
+    check("matn 4096 dan oshmaydi", len(body) <= 4096, str(len(body)))
+    check("matn oxirida nishon saqlanadi", body.endswith(brand), body[-40:])
+
+    with_ad = compose_post_text(long_text, False, "REKLAMA", brand, limit=1024)
+    check("reklama + nishon ham limitga sig'adi",
+          len(with_ad) <= 1024 and with_ad.endswith(brand), str(len(with_ad)))
+
+    short = compose_post_text("Salom", True, "", brand, limit=1024)
+    check("qisqa matn kesilmaydi", short == f"Salom\n\n{brand}", short)
+    check("limitsiz eski xatti-harakat saqlanadi",
+          compose_post_text("Salom", True, "", brand) == f"Salom\n\n{brand}")
+
 
 
 def test_ai_runtime_params():
@@ -373,6 +407,182 @@ def test_admin_channels_text_limit():
     check("sig'magan kanallar haqida eslatma", "ko'rsatilmagan" in text, text[-160:])
 
 
+def test_ai_context_memory():
+    print("== utils.ai_agent suhbat konteksti ==")
+    from utils import ai_agent
+
+    uid = 777001
+    ai_agent.clear_ai_context(uid)
+    ai_agent._RUNTIME_PARAMS["context_messages"] = 6
+    ai_agent._RUNTIME_PARAMS["context_chars"] = 4000
+
+    ai_agent._store_ai_context(uid, "Salom, post tayyorla", role="user")
+    ai_agent._store_ai_context(uid, "<b>Tayyor post</b> matni", role="bot")
+    ctx = ai_agent._get_ai_context_text(uid, 4000)
+
+    check("kontekstda foydalanuvchi xabari bor", "Salom, post tayyorla" in ctx, ctx)
+    check("kontekstda bot javobi ham bor", "Tayyor post" in ctx, ctx)
+    check("kontekstda HTML teglari yo'q", "<b>" not in ctx and "</b>" not in ctx, ctx)
+    check("kontekst roli belgilanadi", "Foydalanuvchi:" in ctx and "Bot:" in ctx, ctx)
+
+    # context_chars byudjeti amalda ishlaydi
+    ai_agent._RUNTIME_PARAMS["context_chars"] = 60
+    small_ctx = ai_agent._get_ai_context_text(uid, 4000)
+    check("context_chars byudjeti qo'llanadi", len(small_ctx) <= 60, f"{len(small_ctx)}: {small_ctx}")
+    ai_agent._RUNTIME_PARAMS["context_chars"] = 4000
+
+    # context_messages = 0 → kontekst umuman ishlatilmaydi
+    ai_agent._RUNTIME_PARAMS["context_messages"] = 0
+    check("context_messages=0 → kontekst yo'q", ai_agent._get_ai_context_text(uid, 4000) == "")
+    ai_agent._RUNTIME_PARAMS["context_messages"] = 6
+
+    # clear_ai_context sessiyani tozalaydi
+    ai_agent.clear_ai_context(uid)
+    check("clear_ai_context tozalaydi", ai_agent._get_ai_context_text(uid, 4000) == "")
+    ai_agent._RUNTIME_PARAMS["context_messages"] = ai_agent._RUNTIME_DEFAULTS["context_messages"]
+    ai_agent._RUNTIME_PARAMS["context_chars"] = ai_agent._RUNTIME_DEFAULTS["context_chars"]
+
+
+def test_ai_optional_params():
+    print("== utils.ai_agent ixtiyoriy parametrlar (null yuborilmaydi) ==")
+    from utils import ai_agent
+
+    # "off" → parametr butunlay o'chadi
+    ai_agent._set_runtime_param("max_tokens", "off")
+    ai_agent._set_runtime_param("top_p", "none")
+    params = ai_agent.get_runtime_params()
+    check("max_tokens o'chirilgan (None)", params["max_tokens"] is None, str(params["max_tokens"]))
+    check("top_p o'chirilgan (None)", params["top_p"] is None, str(params["top_p"]))
+
+    payload = {"model": "x"}
+    ai_agent._apply_optional_params(payload, params)
+    check("payload'da max_tokens yo'q", "max_tokens" not in payload, str(payload))
+    check("payload'da top_p yo'q", "top_p" not in payload, str(payload))
+    check("temperature esa yuboriladi", payload.get("temperature") is not None, str(payload))
+
+    # Qiymat qaytarilsa yana yuboriladi
+    ai_agent._set_runtime_param("max_tokens", "1024")
+    ai_agent._set_runtime_param("top_p", "0.9")
+    payload2 = {}
+    ai_agent._apply_optional_params(payload2, ai_agent.get_runtime_params())
+    check("qayta yoqilgan max_tokens yuboriladi", payload2.get("max_tokens") == 1024, str(payload2))
+    check("qayta yoqilgan top_p yuboriladi", payload2.get("top_p") == 0.9, str(payload2))
+
+    # Bo'sh qiymat → default
+    ai_agent._set_runtime_param("max_tokens", "")
+    check("bo'sh qiymat → default", ai_agent.get_runtime_params()["max_tokens"]
+          == ai_agent._RUNTIME_DEFAULTS["max_tokens"])
+    ai_agent._set_runtime_param("top_p", "")
+
+
+def test_button_labels():
+    print("== bo'sh/takroriy tugma nomlari ==")
+    from keyboards.inline import btn_label, render_channels_list
+    from handlers.new_post import build_channel_labels
+
+    check("bo'sh nom → fallback", btn_label("") == "Kanal", btn_label(""))
+    check("None → fallback", btn_label(None) == "Kanal", str(btn_label(None)))
+    check("'None' satri → fallback", btn_label("None") == "Kanal", btn_label("None"))
+    check("uzun nom kesiladi", len(btn_label("A" * 200)) <= 40, str(len(btn_label("A" * 200))))
+    check("oddiy nom o'zgarmaydi", btn_label("Mening kanalim") == "Mening kanalim")
+
+    texts = [b.text for row in render_channels_list([("-1001", ""), ("-1002", None)]).inline_keyboard
+             for b in row]
+    check("bo'sh sarlavhali kanal tugmasi bo'sh emas",
+          all(t.strip() for t in texts) and "📢 Kanal" in texts, str(texts))
+
+    labels = build_channel_labels([("-1001", "Kanal A"), ("-1002", "Kanal A"), ("-1003", "")])
+    check("takroriy nomlar farqlanadi", len(labels) == 3, str(labels))
+    check("barcha yorliqlar bo'sh emas", all(l.strip() for l in labels), str(labels))
+    check("takroriy nomga ID qo'shiladi", any("-1002" in l for l in labels), str(labels))
+
+
+def test_smart_reply_ad_async():
+    print("== utils.helpers reklama satri (async DB) ==")
+    import asyncio
+    import inspect
+    import database as db_mod
+    from utils import helpers
+
+    check("get_smart_reply_ad_async coroutine",
+          inspect.iscoroutinefunction(helpers.get_smart_reply_ad_async))
+
+    calls = []
+    original_run_db = db_mod.run_db
+
+    async def fake_run_db(func, *args, **kwargs):
+        calls.append(func.__name__)
+        return ""
+
+    db_mod.run_db = fake_run_db
+    try:
+        result = asyncio.run(helpers.get_smart_reply_ad_async(777002))
+    finally:
+        db_mod.run_db = original_run_db
+
+    check("DB o'qish run_db (thread) orqali ketadi", calls == ["get_setting"], str(calls))
+    check("reklama bo'sh bo'lsa satr ham bo'sh", result == "", result)
+
+
+def test_channel_cache_invalidation():
+    print("== database kesh invalidatsiyasi (kanal egasi almashganda) ==")
+    from contextlib import contextmanager
+    import database as db_mod
+
+    class FakeCursor:
+        def __init__(self, script):
+            self.script = script
+            self.rowcount = 1
+            self._row = None
+
+        def execute(self, query, params=None):
+            q = " ".join(query.split()).lower()
+            if q.startswith("select user_id from channels"):
+                self._row = self.script["prev_owner"]
+            elif "insert into channels" in q:
+                self._row = self.script["returning"]
+            else:
+                self._row = None
+
+        def fetchone(self):
+            return self._row
+
+    def patched(script):
+        @contextmanager
+        def _db_cursor(commit=False):
+            yield FakeCursor(script)
+        return _db_cursor
+
+    original = db_mod.db_cursor
+
+    # 1) Admin kanalni eski egadan yangi egaga biriktiradi
+    db_mod.db_cursor = patched({"prev_owner": (111,), "returning": (222,)})
+    db_mod._cache_set("user_channels:111", [("-100", "K")], 60)
+    db_mod._cache_set("user_channels:222", [], 60)
+    try:
+        ok, reason = db_mod.save_channel(222, "-100", "K", is_admin=True)
+    finally:
+        db_mod.db_cursor = original
+    check("save_channel muvaffaqiyatli", ok and reason == "ok", f"{ok}/{reason}")
+    check("eski eganing keshi bekor qilindi",
+          db_mod._cache_get("user_channels:111") is db_mod._MISS)
+    check("yangi eganing keshi bekor qilindi",
+          db_mod._cache_get("user_channels:222") is db_mod._MISS)
+
+    # 2) Admin boshqa foydalanuvchining kanalini o'chiradi
+    db_mod.db_cursor = patched({"prev_owner": (111,), "returning": None})
+    db_mod._cache_set("user_channels:111", [("-100", "K")], 60)
+    db_mod._cache_set("user_channels:999", [], 60)
+    try:
+        removed = db_mod.remove_channel(999, "-100", is_admin=True)
+    finally:
+        db_mod.db_cursor = original
+    check("remove_channel ishladi", removed)
+    check("admin o'chirganda eski eganing keshi bekor qilinadi",
+          db_mod._cache_get("user_channels:111") is db_mod._MISS)
+    db_mod._cache_clear()
+
+
 def main():
     test_calculate_next_time()
     test_converter()
@@ -393,6 +603,12 @@ def main():
     test_new_inline_keyboards()
     test_admin_new_buttons()
     test_admin_channels_text_limit()
+    test_compose_post_text_limit()
+    test_ai_context_memory()
+    test_ai_optional_params()
+    test_button_labels()
+    test_smart_reply_ad_async()
+    test_channel_cache_invalidation()
 
     print(f"\nO'tdi: {passed}, Xato: {failures}")
     if failures:

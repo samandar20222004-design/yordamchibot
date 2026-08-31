@@ -135,7 +135,11 @@ async def openrouter_models_handler(request):
 
 async def gemini_handler(request):
     path = request.rel_url.path
-    S["requests"].append(("gemini", path, None))
+    try:
+        payload = await request.json()
+    except Exception:
+        payload = None
+    S["requests"].append(("gemini", path, payload))
     if S.get("gemini_429_first"):
         S["gemini_429_first"] = False
         return web.json_response({"error": {"code": 429}}, status=429, headers={"Retry-After": "1"})
@@ -419,6 +423,96 @@ async def main():
     })
     result = await ai_agent.analyze_user_prompt("Test so'rov")
     check("markdown blok tozalanib ishladi", result.get("post_text") == "Blok ichidagi", str(result)[:100])
+
+    # ---- Test 14: suhbat konteksti (takror yo'q, bot javobi eslab qolinadi) ----
+    print("== 14. Suhbat konteksti ==")
+    reset_state()
+    uid = 555001
+    ai_agent.clear_ai_context(uid)
+    ai_agent._RUNTIME_PARAMS["context_messages"] = 6
+    S.update({
+        "gemini_status": 200,
+        "gemini_body": {"candidates": [{"content": {"parts": [{"text": VALID_JSON}]}}]},
+        "groq_status": 500, "openrouter_status": 500,
+        "mistral_status": 500, "cerebras_status": 500, "pollinations_status": 500,
+    })
+    await ai_agent.analyze_user_prompt("Birinchi xabar", uid)
+    first_payload = [p for k, _, p in S["requests"] if k == "gemini" and p][0]
+    first_text = first_payload["contents"][0]["parts"][0]["text"]
+    check("birinchi so'rovda kontekst bloki yo'q",
+          "So'nggi suhbat" not in first_text, first_text[:120])
+    check("birinchi so'rovda xabar bir marta",
+          first_text.count("Birinchi xabar") == 1, first_text[:200])
+
+    reset_state()
+    S.update({
+        "gemini_status": 200,
+        "gemini_body": {"candidates": [{"content": {"parts": [{"text": VALID_JSON}]}}]},
+    })
+    await ai_agent.analyze_user_prompt("Ikkinchi xabar", uid)
+    second_payload = [p for k, _, p in S["requests"] if k == "gemini" and p][0]
+    second_text = second_payload["contents"][0]["parts"][0]["text"]
+    check("ikkinchi so'rovda oldingi xabar konteksti bor",
+          "Birinchi xabar" in second_text, second_text[:200])
+    check("joriy xabar ikki marta yuborilmaydi",
+          second_text.count("Ikkinchi xabar") == 1, second_text[:300])
+    check("bot javobi ham kontekstda saqlanadi",
+          "Mock post matni" in second_text, second_text[:300])
+    check("kontekstda HTML teglari yo'q",
+          "<b>" not in second_text, second_text[:200])
+
+    # Xato chaqiruv kontekstga yozilmaydi
+    reset_state()
+    S.update({
+        "gemini_status": 500, "gemini_body": {},
+        "groq_status": 500, "openrouter_status": 500,
+        "mistral_status": 500, "cerebras_status": 500, "pollinations_status": 500,
+    })
+    err_res = await ai_agent.analyze_user_prompt("Xatolik xabari", uid)
+    check("barcha provayderlar yiqilsa error", "error" in err_res, str(err_res)[:80])
+    ctx_after_error = ai_agent._get_ai_context_text(uid, 4000)
+    check("muvaffaqiyatsiz so'rov kontekstga yozilmaydi",
+          "Xatolik xabari" not in ctx_after_error, ctx_after_error[:200])
+    ai_agent.clear_ai_context(uid)
+    ai_agent._RUNTIME_PARAMS["context_messages"] = ai_agent._RUNTIME_DEFAULTS["context_messages"]
+
+    # ---- Test 15: o'chirilgan ixtiyoriy parametrlar payloadga tushmaydi ----
+    print("== 15. Ixtiyoriy parametrlar (null yuborilmaydi) ==")
+    reset_state()
+    ai_agent._set_runtime_param("max_tokens", "off")
+    ai_agent._set_runtime_param("top_p", "off")
+    S.update({
+        "gemini_status": 404, "gemini_body": {},
+        "groq_status": 200, "groq_body": VALID_JSON,
+        "openrouter_status": 500, "mistral_status": 500,
+        "cerebras_status": 500, "pollinations_status": 500,
+    })
+    await ai_agent.analyze_user_prompt("Parametr testi")
+    groq_payloads = [p for k, _, p in S["requests"] if k == "groq" and p]
+    gemini_payloads = [p for k, _, p in S["requests"] if k == "gemini" and p]
+    check("Groq payloadida max_tokens yo'q",
+          all("max_tokens" not in p for p in groq_payloads), str(groq_payloads[:1])[:200])
+    check("Groq payloadida top_p yo'q",
+          all("top_p" not in p for p in groq_payloads), str(groq_payloads[:1])[:200])
+    check("Groq payloadida null qiymat yo'q",
+          all(v is not None for p in groq_payloads for v in p.values()), str(groq_payloads[:1])[:200])
+    gem_cfgs = [p.get("generationConfig", {}) for p in gemini_payloads]
+    check("Gemini generationConfig'da maxOutputTokens/topP yo'q",
+          all("maxOutputTokens" not in c and "topP" not in c for c in gem_cfgs), str(gem_cfgs[:1]))
+
+    ai_agent._set_runtime_param("max_tokens", "")
+    ai_agent._set_runtime_param("top_p", "")
+    reset_state()
+    S.update({
+        "gemini_status": 404, "gemini_body": {},
+        "groq_status": 200, "groq_body": VALID_JSON,
+    })
+    await ai_agent.analyze_user_prompt("Parametr testi 2")
+    groq_payloads = [p for k, _, p in S["requests"] if k == "groq" and p]
+    check("default holatda max_tokens yuboriladi",
+          any(p.get("max_tokens") for p in groq_payloads), str(groq_payloads[:1])[:200])
+    check("default holatda top_p yuboriladi",
+          any(p.get("top_p") is not None for p in groq_payloads), str(groq_payloads[:1])[:200])
 
     await ai_agent.close_ai_session()
     await runner.cleanup()

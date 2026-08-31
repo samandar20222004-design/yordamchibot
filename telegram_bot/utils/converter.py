@@ -46,7 +46,8 @@ LAT_TO_CYR_RULES = [
 ]
 
 CYR_TO_LAT_RULES = [
-    ("Щ", "Ch"), ("щ", "ch"),
+    # Щ/щ — o'zbek lotin alifbosida "Sh/sh" bilan beriladi (avval xato "Ch" edi)
+    ("Щ", "Sh"), ("щ", "sh"),
     ("Ц", "Ts"), ("ц", "ts"),
     ("Ч", "Ch"), ("ч", "ch"),
     ("Ш", "Sh"), ("ш", "sh"),
