@@ -2,24 +2,31 @@ import re
 from telegram import ReplyKeyboardMarkup
 from telegram.ext import filters
 
-# --- Bosh menyu tugmalari ---
+# ============================================================
+# STANDART MENYU TUGMALARI (Constants)
+# ============================================================
 BTN_NEW_POST = "➕ Yangi post rejalashtirish"
-BTN_AI_ASSISTANT = "🤖 AI Post Yordamchi"
+BTN_AI = "🤖 AI Post Yordamchi"
 BTN_PENDING = "⏳ Kutilayotgan postlar"
-BTN_CABINET = "👤 Kabinet & Sozlamalar"
+BTN_SETTINGS = "👤 Kabinet & Sozlamalar"
+BTN_CONVERTER = "🔤 Krill-Lotin konverter"
 BTN_HELP = "📖 Yordam & Qo'llanma"
-BTN_ADMIN_PANEL = "⚙️ Admin Panel"
-BTN_MAIN_MENU = "🔙 Asosiy menyu"
+BTN_BACK = "🔙 Asosiy menyu"
+
+# Orqaga moslik (Aliases)
+BTN_AI_ASSISTANT = BTN_AI
+BTN_CABINET = BTN_SETTINGS
+BTN_MAIN_MENU = BTN_BACK
 
 # --- Kabinet ichidagi tugmalar ---
 BTN_CHANNELS = "📢 Kanal/Guruhlar"
-BTN_CONVERTER = "🔤 Matn o'girgich (Lotin ⇄ Kirill)"
 BTN_DAILY_BONUS = "🎁 Kunlik bonus"
 BTN_BUY_AD_FREE = "💎 Reklamasiz postlar"
 BTN_INVITE = "🚀 Do'stlarni taklif qilish"
 BTN_TRANSFER = "🔄 Ballarni ulashish"
 
 # --- Admin tugmalari ---
+BTN_ADMIN_PANEL = "⚙️ Admin Panel"
 BTN_STATS = "📊 Statistika"
 BTN_BROADCAST = "✉️ Xabar yuborish"
 BTN_ALL_POSTS = "📋 Barcha postlar"
@@ -65,31 +72,36 @@ WEEKDAY_BUTTONS = ["Dushanba", "Seshanba", "Chorshanba", "Payshanba", "Juma", "S
 WEEKDAY_MAP = {name: idx for idx, name in enumerate(WEEKDAY_BUTTONS)}
 WEEKDAY_LABELS = {idx: name for name, idx in WEEKDAY_MAP.items()}
 
+
 def exact(*texts):
     pattern = "^(" + "|".join(re.escape(t) for t in texts) + ")$"
     return filters.Regex(pattern)
 
+
 def get_main_keyboard(is_admin=False):
     keyboard = [
-        [BTN_NEW_POST, BTN_AI_ASSISTANT],
-        [BTN_PENDING, BTN_CABINET],
-        [BTN_HELP]
+        [BTN_NEW_POST, BTN_AI],
+        [BTN_PENDING, BTN_SETTINGS],
+        [BTN_CONVERTER, BTN_HELP]
     ]
     if is_admin:
         keyboard.append([BTN_ADMIN_PANEL])
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+
 
 def get_cabinet_keyboard():
     keyboard = [
         [BTN_CHANNELS, BTN_CONVERTER],
         [BTN_DAILY_BONUS, BTN_BUY_AD_FREE],
         [BTN_INVITE, BTN_TRANSFER],
-        [BTN_MAIN_MENU]
+        [BTN_BACK]
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
+
 def get_cancel_keyboard():
-    return ReplyKeyboardMarkup([[BTN_MAIN_MENU]], resize_keyboard=True)
+    return ReplyKeyboardMarkup([[BTN_BACK]], resize_keyboard=True)
+
 
 def get_button_prompt_keyboard():
     return ReplyKeyboardMarkup(
@@ -97,16 +109,18 @@ def get_button_prompt_keyboard():
             ["Batafsil", "Kanalga a'zo bo'lish"],
             ["Saytga o'tish", "Bog'lanish"],
             [BTN_SKIP_BUTTON],
-            [BTN_MAIN_MENU]
+            [BTN_BACK]
         ],
         resize_keyboard=True
     )
 
+
 def get_reactions_keyboard():
     return ReplyKeyboardMarkup(
-        [[BTN_REACT_DEFAULT], [BTN_NO_REACT], [BTN_MAIN_MENU]],
+        [[BTN_REACT_DEFAULT], [BTN_NO_REACT], [BTN_BACK]],
         resize_keyboard=True
     )
+
 
 def get_auto_delete_keyboard():
     return ReplyKeyboardMarkup(
@@ -114,10 +128,11 @@ def get_auto_delete_keyboard():
             [BTN_DEL_NEVER],
             [BTN_DEL_12H, BTN_DEL_24H],
             [BTN_DEL_48H, BTN_DEL_72H],
-            [BTN_MAIN_MENU]
+            [BTN_BACK]
         ],
         resize_keyboard=True
     )
+
 
 def get_admin_panel_keyboard():
     return ReplyKeyboardMarkup(
@@ -126,16 +141,18 @@ def get_admin_panel_keyboard():
             [BTN_CHANNEL_AD, BTN_BOT_REPLY_AD, BTN_POST_TAG],
             [BTN_AI_SETTINGS, BTN_CACHE_DB],
             [BTN_BROADCAST, BTN_ALL_POSTS],
-            [BTN_ALL_CHANNELS, BTN_MAIN_MENU],
+            [BTN_ALL_CHANNELS, BTN_BACK],
         ],
         resize_keyboard=True,
     )
 
+
 def get_sponsors_keyboard():
     return ReplyKeyboardMarkup(
-        [[BTN_ADD_SPONSOR], [BTN_ADMIN_PANEL, BTN_MAIN_MENU]],
+        [[BTN_ADD_SPONSOR], [BTN_ADMIN_PANEL, BTN_BACK]],
         resize_keyboard=True
     )
+
 
 def get_time_keyboard():
     return ReplyKeyboardMarkup(
@@ -143,38 +160,35 @@ def get_time_keyboard():
             [BTN_T_5MIN, BTN_T_15MIN, BTN_T_1H],
             [BTN_T_DAILY],
             [BTN_T_WEEKLY],
-            [BTN_MAIN_MENU],
+            [BTN_BACK],
         ],
         resize_keyboard=True,
     )
 
-def get_ai_time_keyboard():
-    """AI oqimi uchun vaqt klaviaturasi — faqat bir martalik tezkor variantlar.
 
-    AI yordamchida kunlik/haftalik takrorlanuvchi postlar qo'llanmaydi
-    (buning uchun '➕ Yangi post rejalashtirish' oqimi mavjud), shuning uchun
-    bu yerda ortiqcha tugmalar ko'rsatilmaydi.
-    """
+def get_ai_time_keyboard():
     return ReplyKeyboardMarkup(
         [
             [BTN_T_5MIN, BTN_T_15MIN, BTN_T_1H],
-            [BTN_MAIN_MENU],
+            [BTN_BACK],
         ],
         resize_keyboard=True,
     )
+
 
 def get_duration_keyboard():
     return ReplyKeyboardMarkup(
         [
             [BTN_DUR_1W, BTN_DUR_1M, BTN_DUR_3M],
             [BTN_DUR_6M, BTN_DUR_1Y, BTN_DUR_INF],
-            [BTN_MAIN_MENU]
+            [BTN_BACK]
         ],
         resize_keyboard=True
     )
 
+
 def get_weekday_keyboard():
     rows = [[WEEKDAY_BUTTONS[i], WEEKDAY_BUTTONS[i + 1]] for i in range(0, 6, 2)]
     rows.append([WEEKDAY_BUTTONS[6]])
-    rows.append([BTN_MAIN_MENU])
+    rows.append([BTN_BACK])
     return ReplyKeyboardMarkup(rows, resize_keyboard=True)
