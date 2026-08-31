@@ -170,13 +170,16 @@ async def subscription_callback(update: Update, context: ContextTypes.DEFAULT_TY
         try:
             await context.bot.send_invoice(
                 chat_id=user_id,
-                title=f"PRO Tarif — {plan_info['days']} kun",
-                description=f"{plan_info['days']} kunlik PRO obuna. "
-                            f"Cheksiz kanallar, AI va analitika.",
+                title=f"⭐️ PostAssist PRO ({plan_info['days']} kun)",
+                description=(
+                    f"{plan_info['days']} kunlik PRO obuna. "
+                    f"Cheksiz kanallar, AI yordamchi va analitika."
+                ),
                 payload=f"pro_{plan_key}_{user_id}",
+                provider_token="",
                 currency="XTR",
                 prices=[LabeledPrice(label="PRO Obuna", amount=plan_info["stars"])],
-                # provider_token bo'sh — Telegram Stars uchun shart
+                start_parameter="pro-subscription",
             )
         except Exception as e:
             logger.warning("Invoice yaratish xatosi: %s", e)
