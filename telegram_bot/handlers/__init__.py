@@ -16,7 +16,7 @@ from keyboards.default import (
     BTN_ADMIN_PANEL, BTN_STATS, BTN_ALL_POSTS, BTN_ALL_CHANNELS,
     BTN_BROADCAST, BTN_SPONSORS, BTN_ADD_SPONSOR,
     BTN_CHANNEL_AD, BTN_BOT_REPLY_AD, BTN_POST_TAG, BTN_AI_SETTINGS, BTN_CACHE_DB,
-    BTN_ADD_CHANNEL, BTN_QUEUE, BTN_CONTENT_PLAN, BTN_ANALYTICS,
+    BTN_ADD_CHANNEL, BTN_QUEUE, BTN_CONTENT_PLAN, BTN_ANALYTICS, BTN_PREMIUM,
 )
 from keyboards.inline import get_subscription_check_keyboard
 
@@ -94,7 +94,13 @@ from handlers.analytics import (
     ANALYTICS_CHOOSE, ANALYTICS_VIEW
 )
 
-# 10. QUEUE MODULI
+# 10. SUBSCRIPTION MODULI
+from handlers.subscription import (
+    start_subscription, subscription_callback, promo_code_received, grant_pro_command,
+    SUBSCRIPTION_VIEW, PROMO_INPUT
+)
+
+# 11. QUEUE MODULI
 from handlers.queue import (
     queue_menu, queue_page_callback, queue_view_callback,
     queue_delete_callback, queue_push_callback, queue_close_callback,
@@ -307,7 +313,12 @@ def register_all_handlers(app):
         MessageHandler(exact(BTN_ANALYTICS), lambda u, c: guard_entry(u, c, start_analytics)),
     ]
 
-    # 10. Queue
+    # 10. Subscription
+    subscription_handlers = [
+        MessageHandler(exact(BTN_PREMIUM), lambda u, c: guard_entry(u, c, start_subscription)),
+    ]
+
+    # 11. Queue
     queue_handlers = [
         MessageHandler(exact(BTN_QUEUE), lambda u, c: guard_menu(u, c, queue_menu)),
     ]
@@ -323,6 +334,7 @@ def register_all_handlers(app):
         ai_handlers +
         content_plan_handlers +
         analytics_handlers +
+        subscription_handlers +
         queue_handlers
     )
 
@@ -393,6 +405,12 @@ def register_all_handlers(app):
                 CallbackQueryHandler(analytics_view_callback, pattern=r"^an_"),
             ],
 
+            # 10. Subscription holatlari
+            SUBSCRIPTION_VIEW: all_menu_jumps + [
+                CallbackQueryHandler(subscription_callback, pattern=r"^sub_"),
+            ],
+            PROMO_INPUT: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, promo_code_received)],
+
             # 4. Kutilayotgan postlarni tahrirlash holatlari
             EDIT_POST_TIME: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, edit_post_time_received)],
             EDIT_POST_CONTENT: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, edit_post_content_received)],
@@ -458,6 +476,7 @@ def register_all_handlers(app):
     app.add_handler(CommandHandler("admin", admin_panel_menu))
     app.add_handler(CommandHandler("stats", show_statistics))
     app.add_handler(CommandHandler("cancel", cancel_handler))
+    app.add_handler(CommandHandler("grant_pro", grant_pro_command))
 
     # 2. Asosiy ConversationHandler
     app.add_handler(main_conv)

@@ -402,6 +402,19 @@ def _init_db_once():
             );
         """)
 
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS promo_codes (
+                id SERIAL PRIMARY KEY,
+                code VARCHAR(50) UNIQUE NOT NULL,
+                plan_type VARCHAR(20) NOT NULL DEFAULT 'pro',
+                duration_days INTEGER NOT NULL DEFAULT 30,
+                max_uses INTEGER DEFAULT NULL,
+                current_uses INTEGER DEFAULT 0,
+                is_active BOOLEAN DEFAULT TRUE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        """)
+
         migrations = [
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS full_name VARCHAR(255);",
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS user_code VARCHAR(8) UNIQUE;",
@@ -426,6 +439,10 @@ def _init_db_once():
             "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS processing_started_at TIMESTAMP WITH TIME ZONE;",
             "ALTER TABLE scheduled_posts ALTER COLUMN file_id TYPE TEXT;",
             "ALTER TABLE channels ADD COLUMN IF NOT EXISTS tone_of_voice VARCHAR(30) DEFAULT 'friendly';",
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS plan_type VARCHAR(20) DEFAULT 'free';",
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_expires_at TIMESTAMP WITH TIME ZONE;",
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS ai_requests_today INTEGER DEFAULT 0;",
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS last_limit_reset DATE DEFAULT CURRENT_DATE;",
         ]
         for index, migration in enumerate(migrations):
             # Bitta migration xatosi qolgan migrationlarni transaction aborted
@@ -1643,3 +1660,212 @@ def get_user_channel_list_for_analytics(user_id: int) -> list:
     except Exception as e:
         logger.error(f"Analytics channel list xatosi: {e}")
         return []
+
+
+# ============================================================
+# SUBSCRIPTIONS, LIMITS & MONETIZATION
+# ============================================================
+
+# Tarif limitlari
+PLAN_LIMITS = {
+    "free": {"max_channels": 2, "daily_ai_requests": 5},
+    "pro": {"max_channels": 999, "daily_ai_requests": 999},
+    "enterprise": {"max_channels": 999, "daily_ai_requests": 999},
+}
+
+
+def _ensure_limit_reset(cur, user_id: int):
+    """Kunlik AI sanagichini yangilash (agar kun o'tgan bo'lsa)."""
+    cur.execute(
+        "UPDATE users SET ai_requests_today = 0, last_limit_reset = CURRENT_DATE "
+        "WHERE user_id = %s AND last_limit_reset < CURRENT_DATE",
+        (user_id,),
+    )
+
+
+def is_premium(user_id: int) -> bool:
+    """Foydalanuvchi PRO yoki Enterprise ekanligini tekshiradi."""
+    try:
+        with db_cursor() as cur:
+            cur.execute(
+                "SELECT plan_type, subscription_expires_at FROM users WHERE user_id = %s",
+                (user_id,),
+            )
+            row = cur.fetchone()
+            if not row:
+                return False
+            plan_type, expires_at = row
+            if plan_type in ("pro", "enterprise"):
+                if expires_at is None:
+                    return True
+                from datetime import datetime, timezone
+                now = datetime.now(timezone.utc)
+                if expires_at > now:
+                    return True
+                try:
+                    with db_cursor(commit=True) as wcur:
+                        wcur.execute(
+                            "UPDATE users SET plan_type = 'free' WHERE user_id = %s",
+                            (user_id,),
+                        )
+                except Exception:
+                    pass
+                return False
+            return False
+    except Exception as e:
+        logger.error(f"is_premium xatosi: {e}")
+        return False
+
+
+def get_user_plan(user_id: int) -> dict:
+    """Foydalanuvchi obuna ma'lumotlarini qaytaradi."""
+    try:
+        with db_cursor() as cur:
+            _ensure_limit_reset(cur, user_id)
+            cur.execute(
+                "SELECT plan_type, subscription_expires_at, ai_requests_today "
+                "FROM users WHERE user_id = %s",
+                (user_id,),
+            )
+            row = cur.fetchone()
+            if not row:
+                return {"plan_type": "free", "expires_at": None, "ai_used": 0}
+            plan_type, expires_at, ai_used = row
+            return {
+                "plan_type": plan_type or "free",
+                "expires_at": expires_at,
+                "ai_used": ai_used or 0,
+            }
+    except Exception as e:
+        logger.error(f"get_user_plan xatosi: {e}")
+        return {"plan_type": "free", "expires_at": None, "ai_used": 0}
+
+
+def check_channel_limit(user_id: int) -> tuple[bool, int, int]:
+    """Kanal limitini tekshiradi. Returns: (can_add, current, max)."""
+    try:
+        with db_cursor() as cur:
+            cur.execute("SELECT plan_type FROM users WHERE user_id = %s", (user_id,))
+            row = cur.fetchone()
+            plan = (row[0] if row else "free") or "free"
+            cur.execute(
+                "SELECT COUNT(*) FROM channels WHERE user_id = %s AND is_active = TRUE",
+                (user_id,),
+            )
+            count = cur.fetchone()[0]
+            max_ch = PLAN_LIMITS.get(plan, PLAN_LIMITS["free"])["max_channels"]
+            return (count < max_ch, count, max_ch)
+    except Exception as e:
+        logger.error(f"check_channel_limit xatosi: {e}")
+        return (True, 0, 2)
+
+
+def check_ai_limit(user_id: int) -> tuple[bool, int, int]:
+    """Kunlik AI so'rov limitini tekshiradi. Returns: (can_use, used, max)."""
+    try:
+        with db_cursor(commit=True) as cur:
+            _ensure_limit_reset(cur, user_id)
+            cur.execute(
+                "SELECT plan_type, ai_requests_today FROM users WHERE user_id = %s",
+                (user_id,),
+            )
+            row = cur.fetchone()
+            if not row:
+                return (True, 0, 5)
+            plan, ai_used = row
+            plan = plan or "free"
+            ai_used = ai_used or 0
+            max_ai = PLAN_LIMITS.get(plan, PLAN_LIMITS["free"])["daily_ai_requests"]
+            return (ai_used < max_ai, ai_used, max_ai)
+    except Exception as e:
+        logger.error(f"check_ai_limit xatosi: {e}")
+        return (True, 0, 5)
+
+
+def increment_ai_usage(user_id: int):
+    """AI so'rov sanagichini oshiradi."""
+    try:
+        with db_cursor(commit=True) as cur:
+            _ensure_limit_reset(cur, user_id)
+            cur.execute(
+                "UPDATE users SET ai_requests_today = ai_requests_today + 1 WHERE user_id = %s",
+                (user_id,),
+            )
+    except Exception as e:
+        logger.error(f"increment_ai_usage xatosi: {e}")
+
+
+def set_user_plan(user_id: int, plan: str, days: int = None) -> bool:
+    """Foydalanuvchi tarifini o'zgartiradi."""
+    if plan not in PLAN_LIMITS:
+        return False
+    try:
+        with db_cursor(commit=True) as cur:
+            if days and days > 0:
+                cur.execute(
+                    "UPDATE users SET plan_type = %s, "
+                    "subscription_expires_at = NOW() + (%s || ' days')::INTERVAL "
+                    "WHERE user_id = %s",
+                    (plan, str(days), user_id),
+                )
+            else:
+                cur.execute(
+                    "UPDATE users SET plan_type = %s, subscription_expires_at = NULL "
+                    "WHERE user_id = %s",
+                    (plan, user_id),
+                )
+            return cur.rowcount > 0
+    except Exception as e:
+        logger.error(f"set_user_plan xatosi: {e}")
+        return False
+
+
+def create_promo_code(code: str, plan_type: str = "pro", duration_days: int = 30, max_uses: int = None) -> bool:
+    """Promo-kod yaratadi (admin)."""
+    try:
+        with db_cursor(commit=True) as cur:
+            cur.execute(
+                "INSERT INTO promo_codes (code, plan_type, duration_days, max_uses) "
+                "VALUES (%s, %s, %s, %s) ON CONFLICT (code) DO NOTHING",
+                (code.upper(), plan_type, duration_days, max_uses),
+            )
+            return cur.rowcount > 0
+    except Exception as e:
+        logger.error(f"create_promo_code xatosi: {e}")
+        return False
+
+
+def redeem_promo_code(user_id: int, code: str) -> tuple[bool, str]:
+    """Promo-kodni faollashtiradi. Returns: (success, message)."""
+    code = (code or "").strip().upper()
+    if not code:
+        return False, "Promo-kod kiritilmadi."
+    try:
+        with db_cursor(commit=True) as cur:
+            cur.execute(
+                "SELECT id, plan_type, duration_days, max_uses, current_uses, is_active "
+                "FROM promo_codes WHERE code = %s",
+                (code,),
+            )
+            row = cur.fetchone()
+            if not row:
+                return False, "Promo-kod topilmadi."
+            promo_id, plan_type, duration_days, max_uses, current_uses, is_active = row
+            if not is_active:
+                return False, "Bu promo-kod o'chirilgan."
+            if max_uses is not None and current_uses >= max_uses:
+                return False, "Bu promo-kod ishlatib bo'lingan."
+            cur.execute(
+                "UPDATE users SET plan_type = %s, "
+                "subscription_expires_at = NOW() + (%s || ' days')::INTERVAL "
+                "WHERE user_id = %s",
+                (plan_type, str(duration_days), user_id),
+            )
+            cur.execute(
+                "UPDATE promo_codes SET current_uses = current_uses + 1 WHERE id = %s",
+                (promo_id,),
+            )
+            return True, f"Promo-kod faollashtirildi! {duration_days} kunlik {plan_type.upper()} tarif yoqildi."
+    except Exception as e:
+        logger.error(f"redeem_promo_code xatosi: {e}")
+        return False, "Xatolik yuz berdi."

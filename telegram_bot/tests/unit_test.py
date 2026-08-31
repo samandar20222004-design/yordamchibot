@@ -940,6 +940,157 @@ def test_analytics_main_keyboard():
     check("admin kb: Analitika bor", BTN_ANALYTICS in all_admin)
 
 
+def test_plan_limits():
+    """Tarif limitlari to'g'ri belgilangan."""
+    print("== Plan limits ==")
+    from database import PLAN_LIMITS
+
+    # 1. Free limitlari
+    check("free: max_channels = 2", PLAN_LIMITS["free"]["max_channels"] == 2)
+    check("free: daily_ai = 5", PLAN_LIMITS["free"]["daily_ai_requests"] == 5)
+
+    # 2. PRO limitlari
+    check("pro: max_channels = 999", PLAN_LIMITS["pro"]["max_channels"] == 999)
+    check("pro: daily_ai = 999", PLAN_LIMITS["pro"]["daily_ai_requests"] == 999)
+
+    # 3. Enterprise limitlari
+    check("enterprise: max_channels = 999", PLAN_LIMITS["enterprise"]["max_channels"] == 999)
+    check("enterprise: daily_ai = 999", PLAN_LIMITS["enterprise"]["daily_ai_requests"] == 999)
+
+    # 4. Barcha tariflar mavjud
+    check("free mavjud", "free" in PLAN_LIMITS)
+    check("pro mavjud", "pro" in PLAN_LIMITS)
+    check("enterprise mavjud", "enterprise" in PLAN_LIMITS)
+
+
+def test_subscription_functions_exist():
+    """Database subscription funksiyalari mavjud."""
+    print("== Subscription DB functions ==")
+    import database as db_mod
+
+    funcs = [
+        "is_premium", "get_user_plan", "check_channel_limit",
+        "check_ai_limit", "increment_ai_usage", "set_user_plan",
+        "create_promo_code", "redeem_promo_code",
+    ]
+    for fname in funcs:
+        check(f"{fname} mavjud", hasattr(db_mod, fname))
+        check(f"{fname} callable", callable(getattr(db_mod, fname)))
+
+
+def test_subscription_card_format():
+    """Obuna holati kartasi formatlash."""
+    print("== Subscription card format ==")
+    from handlers.subscription import _build_subscription_card, _format_expires
+
+    # 1. Free foydalanuvchi
+    free_info = {"plan_type": "free", "expires_at": None, "ai_used": 2}
+    card_free = _build_subscription_card(free_info)
+    check("free card: Free tarif", "Free" in card_free)
+    check("free card: PRO taklif", "PRO Tarif" in card_free)
+    check("free card: kanal limiti", "2" in card_free)
+    check("free card: AI limiti", "5" in card_free)
+    check("free card: separator", "━━━" in card_free)
+
+    # 2. PRO foydalanuvchi
+    from datetime import datetime, timezone
+    future = datetime(2027, 12, 31, tzinfo=timezone.utc)
+    pro_info = {"plan_type": "pro", "expires_at": future, "ai_used": 10}
+    card_pro = _build_subscription_card(pro_info)
+    check("pro card: PRO tarif", "PRO" in card_pro)
+    check("pro card: Cheksiz kanal", "Cheksiz" in card_pro)
+    check("pro card: muddat", "31.12.2027" in card_pro)
+
+    # 3. Enterprise
+    ent_info = {"plan_type": "enterprise", "expires_at": None, "ai_used": 0}
+    card_ent = _build_subscription_card(ent_info)
+    check("ent card: Enterprise", "Enterprise" in card_ent)
+
+    # 4. _format_expires
+    check("expires None", _format_expires(None) == "♾ Cheksiz")
+    check("expires date", "31.12.2027" in _format_expires(future))
+
+
+def test_subscription_keyboards():
+    """Subscription keyboardlari."""
+    print("== Subscription keyboards ==")
+    from handlers.subscription import _get_subscription_keyboard
+
+    # 1. Free foydalanuvchi — obuna bo'lish tugmasi bor
+    kb_free = _get_subscription_keyboard("free")
+    cbs_free = [b.callback_data for row in kb_free.inline_keyboard for b in row]
+    check("free kb: subscribe", "sub_subscribe" in cbs_free)
+    check("free kb: promo", "sub_promo" in cbs_free)
+    check("free kb: close", "sub_close" in cbs_free)
+
+    # 2. PRO foydalanuvchi — obuna bo'lish yo'q
+    kb_pro = _get_subscription_keyboard("pro")
+    cbs_pro = [b.callback_data for row in kb_pro.inline_keyboard for b in row]
+    check("pro kb: subscribe yo'q", "sub_subscribe" not in cbs_pro)
+    check("pro kb: promo bor", "sub_promo" in cbs_pro)
+    check("pro kb: close bor", "sub_close" in cbs_pro)
+
+
+def test_limit_messages():
+    """Limit xabarlari formati."""
+    print("== Limit messages ==")
+    from handlers.subscription import LIMIT_CHANNEL_MSG, LIMIT_AI_MSG
+
+    # 1. Channel limit xabari
+    ch_msg = LIMIT_CHANNEL_MSG.format(current=2, max=2)
+    check("ch limit: current", "2/2" in ch_msg)
+    check("ch limit: PRO taklif", "PRO" in ch_msg)
+
+    # 2. AI limit xabari
+    ai_msg = LIMIT_AI_MSG.format(used=5, max=5)
+    check("ai limit: used", "5/5" in ai_msg)
+    check("ai limit: PRO taklif", "PRO" in ai_msg)
+
+
+def test_promo_code_schema():
+    """Promo-kod jadvali SQL."""
+    print("== Promo code schema ==")
+    import database as db_mod
+    source = open(db_mod.__file__).read()
+
+    check("promo_codes table", "CREATE TABLE IF NOT EXISTS promo_codes" in source)
+    check("promo: code column", "code VARCHAR" in source)
+    check("promo: plan_type", "plan_type VARCHAR" in source)
+    check("promo: duration_days", "duration_days INTEGER" in source)
+    check("promo: max_uses", "max_uses INTEGER" in source)
+    check("promo: current_uses", "current_uses INTEGER" in source)
+    check("promo: is_active", "is_active BOOLEAN" in source)
+
+
+def test_subscription_migration_sql():
+    """Subscription migration SQL to'g'ri."""
+    print("== Subscription migration SQL ==")
+    import database as db_mod
+    source = open(db_mod.__file__).read()
+
+    check("migration: plan_type", "plan_type" in source)
+    check("migration: subscription_expires_at", "subscription_expires_at" in source)
+    check("migration: ai_requests_today", "ai_requests_today" in source)
+    check("migration: last_limit_reset", "last_limit_reset" in source)
+    check("migration: default free", "'free'" in source)
+
+
+def test_main_keyboard_premium():
+    """Asosiy menyuda Premium tugmasi bor."""
+    print("== Main keyboard premium ==")
+    from keyboards.default import get_main_keyboard, BTN_PREMIUM
+
+    check("BTN_PREMIUM mavjud", BTN_PREMIUM == "⭐️ Premium")
+
+    kb = get_main_keyboard(False)
+    all_texts = [b.text for row in kb.keyboard for b in row]
+    check("main kb: Premium bor", BTN_PREMIUM in all_texts)
+
+    kb_admin = get_main_keyboard(True)
+    all_admin = [b.text for row in kb_admin.keyboard for b in row]
+    check("admin kb: Premium bor", BTN_PREMIUM in all_admin)
+
+
 def test_channel_cache_invalidation():
     print("== database kesh invalidatsiyasi (kanal egasi almashganda) ==")
     from contextlib import contextmanager
@@ -1314,6 +1465,14 @@ def main():
     test_analytics_empty_state()
     test_analytics_type_distribution_format()
     test_analytics_main_keyboard()
+    test_plan_limits()
+    test_subscription_functions_exist()
+    test_subscription_card_format()
+    test_subscription_keyboards()
+    test_limit_messages()
+    test_promo_code_schema()
+    test_subscription_migration_sql()
+    test_main_keyboard_premium()
 
     print(f"\nO'tdi: {passed}, Xato: {failures}")
     if failures:
