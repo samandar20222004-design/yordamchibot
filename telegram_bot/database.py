@@ -242,14 +242,30 @@ def db_cursor(commit: bool = False):
             yield cur
             if commit:
                 conn.commit()
-        except psycopg2.OperationalError:
+        except (psycopg2.OperationalError, psycopg2.InterfaceError):
             # Server ulanishni uzgan bo'lsa (masalan, Render DB uyquda) —
             # buzilgan ulanishni tashlab, xatoni chaqiruvchiga uzatamiz.
             _discard_connection(conn)
             conn = None
             raise
-        _release_connection(conn)
-        conn = None
+        except Exception:
+            # Oddiy so'rov/mantiqiy xatolik bo'lsa — tranzaksiyani bekor qilib (rollback),
+            # butun ulanishni buzmasdan pool'ga qaytaramiz.
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+            _release_connection(conn)
+            conn = None
+            raise
+        finally:
+            try:
+                cur.close()
+            except Exception:
+                pass
+        if conn is not None:
+            _release_connection(conn)
+            conn = None
     except Exception:
         if conn is not None:
             _discard_connection(conn)
@@ -784,8 +800,11 @@ def transfer_user_credits(from_user_id: int, to_user_id: int, amount: int) -> tu
                 return False, "Foydalanuvchi topilmadi."
             
             credits, created_at = row_from
-            if created_at and (datetime.now() - created_at).days < 3:
-                return False, "⚠️ <b>Xavfsizlik qoidasi:</b> Yangi ro'yxatdan o'tgan foydalanuvchilar ballarni <b>3 kun o'tgach</b> boshqalarga ulasha oladi."
+            if created_at:
+                now_tz = datetime.now(tashkent_tz)
+                created_tz = tashkent_tz.localize(created_at) if created_at.tzinfo is None else created_at.astimezone(tashkent_tz)
+                if (now_tz - created_tz).days < 3:
+                    return False, "⚠️ <b>Xavfsizlik qoidasi:</b> Yangi ro'yxatdan o'tgan foydalanuvchilar ballarni <b>3 kun o'tgach</b> boshqalarga ulasha oladi."
                 
             if credits < amount:
                 return False, "Hisobingizda yetarli ball mavjud emas."
