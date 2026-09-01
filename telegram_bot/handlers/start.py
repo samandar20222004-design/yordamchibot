@@ -6,7 +6,7 @@ from telegram.ext import ContextTypes, ConversationHandler
 from config import ADMIN_ID, ADMIN_IDS_SET
 import database as db
 from keyboards.default import get_main_keyboard, get_cabinet_keyboard, get_cancel_keyboard
-from keyboards.inline import get_referral_share_keyboard, get_subscription_check_keyboard
+from keyboards.inline import get_referral_share_keyboard, get_subscription_check_keyboard, get_cabinet_inline_keyboard, get_cabinet_back_keyboard
 from utils.helpers import html_escape, get_smart_reply_ad_async
 
 logger = logging.getLogger(__name__)
@@ -198,7 +198,7 @@ async def user_cabinet_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"👥 Taklif qilgan do'stlaringiz: <b>{stats['referrals_count']} ta</b>\n\n"
         f"Quyidagi bo'limlardan birini tanlang 👇{ad_line}"
     )
-    await update.message.reply_text(text, reply_markup=get_cabinet_keyboard(), parse_mode="HTML")
+    await update.message.reply_text(text, reply_markup=get_cabinet_inline_keyboard(), parse_mode="HTML")
 
 async def daily_bonus_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
@@ -471,3 +471,190 @@ async def cancel_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode="HTML",
     )
     return ConversationHandler.END
+
+
+async def cabinet_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Kabinet inline tugmalari — barcha ichki bo'limlar inline bilan."""
+    query = update.callback_query
+    data = query.data
+    user_id = query.from_user.id
+    is_admin = user_id in ADMIN_IDS_SET
+
+    if data == "close_cabinet":
+        await query.answer()
+        try:
+            await query.message.delete()
+        except Exception:
+            pass
+        await query.message.reply_text(
+            "✅ Yopildi.",
+            reply_markup=get_main_keyboard(is_admin),
+        )
+        return
+
+    if data == "cab_main":
+        await query.answer()
+        stats = await db.run_db(db.get_referral_stats, user_id)
+        channels = await db.run_db(db.get_user_channels, user_id)
+        user_code = await db.run_db(db.get_user_code, user_id)
+
+        credits_text = "♾ Cheksiz (Super Admin)" if is_admin else f"<b>{stats['ai_credits']} ta</b>"
+        if is_admin:
+            ad_free_text = "♾ Cheksiz (Super Admin)"
+        else:
+            status_badge = "🟢 Yoqilgan" if stats.get('ad_free_active', True) else "🔴 O'chirilgan"
+            ad_free_text = f"<b>{stats['ad_free_posts']} ta</b> ({status_badge})"
+
+        streak_val = stats.get('streak', 0)
+        streak_text = f"🔥 <b>{streak_val}/7 kun</b>"
+
+        text = (
+            f"👤 <b>Shaxsiy Kabinet:</b>\n\n"
+            f"🆔 Sizning ID: <code>{user_id}</code>\n"
+            f"🔑 Maxsus kodingiz: <code>{user_code}</code>\n"
+            f"💎 Mavjud AI so'rovlar soni: {credits_text}\n"
+            f"🔥 Ketma-ket kunlik seriya: {streak_text}\n"
+            f"✨ Reklamasiz postlar litsenziyasi: {ad_free_text}\n"
+            f"📢 Ulangan kanallar: <b>{len(channels)} ta</b>\n"
+            f"👥 Taklif qilgan do'stlaringiz: <b>{stats['referrals_count']} ta</b>\n\n"
+            f"Quyidagi bo'limlardan birini tanlang 👇"
+        )
+        try:
+            await query.edit_message_text(text, reply_markup=get_cabinet_inline_keyboard(), parse_mode="HTML")
+        except Exception:
+            await query.message.reply_text(text, reply_markup=get_cabinet_inline_keyboard(), parse_mode="HTML")
+        return
+
+    if data == "cab_channels":
+        await query.answer()
+        channels = await db.run_db(db.get_user_channels, user_id)
+        if not channels:
+            text = "📢 <b>Mening kanallarim:</b>\n\nHozircha hech qanday kanal ulanmagan.\n\n➕ Yangi kanal ulash uchun menyudan '➕ Yangi post rejalashtirish' bo'limini tanlang."
+        else:
+            text = f"📢 <b>Mening kanallarim ({len(channels)} ta):</b>\n\n"
+            for i, ch in enumerate(channels, 1):
+                ch_id, ch_title = ch[:2]
+                text += f"{i}. <b>{html_escape(ch_title or 'Kanal')}</b> (<code>{ch_id}</code>)\n"
+        try:
+            await query.edit_message_text(text, reply_markup=get_cabinet_back_keyboard(), parse_mode="HTML")
+        except Exception:
+            await query.message.reply_text(text, reply_markup=get_cabinet_back_keyboard(), parse_mode="HTML")
+        return
+
+    if data == "cab_converter":
+        await query.answer()
+        text = (
+            "🔤 <b>Krill-Lotin konverter:</b>\n\n"
+            "Lotin yoki Kirill matn yuboring — men uni avtomatik o'girib beraman.\n\n"
+            "<i>Masalan: Salom dunyo → Салом дунё</i>"
+        )
+        try:
+            await query.edit_message_text(text, reply_markup=get_cabinet_back_keyboard(), parse_mode="HTML")
+        except Exception:
+            await query.message.reply_text(text, reply_markup=get_cabinet_back_keyboard(), parse_mode="HTML")
+        return
+
+    if data == "cab_bonus":
+        await query.answer()
+        if is_admin:
+            text = "👑 <b>Siz Super Adminsiz</b> — hisobingizda cheksiz so'rov mavjud!"
+            try:
+                await query.edit_message_text(text, reply_markup=get_cabinet_back_keyboard(), parse_mode="HTML")
+            except Exception:
+                await query.message.reply_text(text, reply_markup=get_cabinet_back_keyboard(), parse_mode="HTML")
+            return
+
+        res = await db.run_db(db.claim_daily_streak_bonus, user_id)
+        if res.get("success"):
+            streak = res["streak"]
+            bonus = res["bonus_amount"]
+            credits = res["credits"]
+            progress_bar = "".join(["🟩" if i <= streak else "⬜" for i in range(1, 8)])
+            reset_notice = "\n⚠️ <i>Orada kun o'tkazib yuborilgani sababli seriya 1-kundan qayta boshlandi.</i>\n" if res.get("is_reset") else ""
+            text = (
+                f"🎉 <b>Kunlik bonus qabul qilindi!</b>\n\n"
+                f"{reset_notice}"
+                f"🔥 Sizning ketma-ketlik seriyangiz: <b>{streak}/7 kun</b>\n"
+                f"{progress_bar}\n\n"
+                f"🎁 Bugungi sovg'a: <b>+{bonus} ta AI so'rovi</b>\n"
+                f"💎 Jami balansingiz: <b>{credits} ta</b>\n\n"
+                f"📌 <i>Eslatma: Ertaga ham botga kiring va 7-kunda <b>+4 ta super-bonus</b> oling!</i>"
+            )
+        else:
+            text = f"ℹ️ {res.get('msg')}\n\n💎 Sizdagi jami ballar: <b>{res.get('credits', 0)} ta</b>"
+        try:
+            await query.edit_message_text(text, reply_markup=get_cabinet_back_keyboard(), parse_mode="HTML")
+        except Exception:
+            await query.message.reply_text(text, reply_markup=get_cabinet_back_keyboard(), parse_mode="HTML")
+        return
+
+    if data == "cab_referral":
+        await query.answer()
+        bot_obj = await context.bot.get_me()
+        stats = await db.run_db(db.get_referral_stats, user_id)
+        ref_link = f"https://t.me/{bot_obj.username}?start=ref_{user_id}"
+        credits_text = "♾ Cheksiz (Super Admin)" if is_admin else f"<b>{stats['ai_credits']} ta</b>"
+        text = (
+            f"🚀 <b>Do'stlarni taklif qiling va bepul AI so'rovlar oling:</b>\n\n"
+            f"🎁 <i>Har bir yangi do'stingiz uchun hisobingizga <b>+3 ta bepul AI so'rovi</b> qo'shiladi!</i>\n\n"
+            f"💎 Sizdagi mavjud AI so'rovlar soni: {credits_text}\n"
+            f"👥 Taklif qilingan do'stlaringiz: <b>{stats['referrals_count']} ta</b>\n\n"
+            f"🔗 <b>Sizning taklif havolangiz:</b>\n<code>{ref_link}</code>"
+        )
+        share_kb = get_referral_share_keyboard(ref_link)
+        combined_kb = InlineKeyboardMarkup(
+            share_kb.inline_keyboard + get_cabinet_back_keyboard().inline_keyboard
+        )
+        try:
+            await query.edit_message_text(text, reply_markup=combined_kb, parse_mode="HTML")
+        except Exception:
+            await query.message.reply_text(text, reply_markup=combined_kb, parse_mode="HTML")
+        return
+
+    if data == "cab_balance":
+        await query.answer()
+        stats = await db.run_db(db.get_referral_stats, user_id)
+        credits_text = "♾ Cheksiz (Super Admin)" if is_admin else f"<b>{stats['ai_credits']} ta</b>"
+        if is_admin:
+            ad_free_text = "♾ Cheksiz (Super Admin)"
+        else:
+            status_badge = "🟢 Yoqilgan" if stats.get('ad_free_active', True) else "🔴 O'chirilgan"
+            ad_free_text = f"<b>{stats['ad_free_posts']} ta</b> ({status_badge})"
+        text = (
+            f"💎 <b>Ballar & Litsenziya:</b>\n\n"
+            f"🤖 AI so'rovlar: {credits_text}\n"
+            f"✨ Reklamasiz postlar: {ad_free_text}\n\n"
+            f"Ballarni ko'paytirish uchun:\n"
+            f"• 🎁 Kunlik bonus oling\n"
+            f"• 👥 Do'stlarni taklif qiling (+3 ball)\n"
+            f"• ⭐️ PRO tarifga o'ting (cheksiz AI)"
+        )
+        try:
+            await query.edit_message_text(text, reply_markup=get_cabinet_back_keyboard(), parse_mode="HTML")
+        except Exception:
+            await query.message.reply_text(text, reply_markup=get_cabinet_back_keyboard(), parse_mode="HTML")
+        return
+
+    if data == "cab_guide":
+        await query.answer()
+        text = (
+            "📖 <b>PostAssistrobot — To'liq Qo'llanma:</b>\n\n"
+            "🔹 <b>1. Yangi post rejalashtirish:</b>\n"
+            "• Matn, rasm, video, audio yoki <b>albom</b> postlarni istalgan sanaga rejalashtirish.\n"
+            "• Havola tugmalar, reaksiyalar va avto-o'chirish.\n\n"
+            "🔹 <b>2. AI Yordamchi:</b>\n"
+            "• Savol bering yoki matn/rasm yuboring — professional post tayyorlaydi.\n"
+            "• Erkin tilda: <i>\"ertaga ertalab 9 ga hamma kanalga\"</i>.\n\n"
+            "🔹 <b>3. Ballar va Kunlik Seriya:</b>\n"
+            "• Har kuni botga kiring va bonus oling (7-kunda +4 ball).\n\n"
+            "⚙️ <b>Tezkor buyruqlar:</b>\n"
+            "/start — Bosh menyu\n"
+            "/profile — Kabinet\n"
+            "/help — Qo'llanma\n"
+            "/cancel — Bekor qilish"
+        )
+        try:
+            await query.edit_message_text(text, reply_markup=get_cabinet_back_keyboard(), parse_mode="HTML")
+        except Exception:
+            await query.message.reply_text(text, reply_markup=get_cabinet_back_keyboard(), parse_mode="HTML")
+        return
