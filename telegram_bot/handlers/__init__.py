@@ -79,6 +79,7 @@ from handlers.admin import (
     ad_pool_callback,
     BROADCAST_MESSAGE, ADD_SPONSOR_CHANNEL, SET_CHANNEL_AD, SET_BOT_REPLY_AD,
     AI_SETTINGS, SET_POST_TAG, ADMIN_GRANT_PRO, ADMIN_PROMO_CREATE,
+    ADMIN_SPONSOR_ADD, ADMIN_AD_EDIT, ADMIN_AD_INTERVAL,
 )
 
 # 7. AI ASSISTANT MODULI (ENG OXIRIDA)
@@ -148,7 +149,7 @@ async def _deny_if_unsubscribed(update, context) -> bool:
         return True
     if not is_sub:
         await update.message.reply_text(
-            "📢 <b>Botdan to'liq foydalanish uchun quyidagi homiy kanallarga obuna bo'ling:</b>",
+            "⚠️ <b>Botdan to'liq foydalanish uchun quyidagi rasmiy kanallarga a'zo bo'ling:</b>",
             reply_markup=get_subscription_check_keyboard(unsubs),
             parse_mode="HTML",
         )
@@ -547,6 +548,9 @@ def register_all_handlers(app):
             # Admin inline flow holatlari
             ADMIN_GRANT_PRO: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, admin_inline_text_handler)],
             ADMIN_PROMO_CREATE: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, admin_inline_text_handler)],
+            ADMIN_SPONSOR_ADD: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, admin_inline_text_handler)],
+            ADMIN_AD_EDIT: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, admin_inline_text_handler)],
+            ADMIN_AD_INTERVAL: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, admin_inline_text_handler)],
 
             # 7. AI Assistant holatlari (Faqat foydalanuvchi AI ga kirganda ishlaydi!)
             AI_INPUT: all_menu_jumps + [MessageHandler(filters.ALL & ~filters.COMMAND, ai_input_received)],
@@ -619,7 +623,7 @@ def register_all_handlers(app):
     app.add_handler(CallbackQueryHandler(ad_free_callback, pattern=r"^adfree_"))
     app.add_handler(CallbackQueryHandler(converter_callback, pattern=r"^conv_show:"))
     app.add_handler(CallbackQueryHandler(converter_close_callback, pattern=r"^conv_close$"))
-    app.add_handler(CallbackQueryHandler(subscription_check_callback, pattern=r"^check_subscription$"))
+    app.add_handler(CallbackQueryHandler(subscription_check_callback, pattern=r"^(check_sub_status|check_subscription)$"))
     app.add_handler(CallbackQueryHandler(del_sponsor_callback, pattern=r"^del_sponsor:"))
     app.add_handler(CallbackQueryHandler(reaction_callback, pattern=r"^react:"))
     app.add_handler(CallbackQueryHandler(cancel_post_callback, pattern=r"^cancel_post:"))

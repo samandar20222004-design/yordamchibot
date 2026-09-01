@@ -4,6 +4,7 @@ import threading
 import time
 from datetime import datetime, timedelta
 import pytz
+from config import ADMIN_IDS_SET
 import database as db
 
 tashkent_tz = pytz.timezone("Asia/Tashkent")
@@ -248,6 +249,116 @@ def is_duplicate_message(user_id: int, text: str) -> bool:
         for k in [k for k, v in _DUP_HISTORY.items() if v < cutoff]:
             _DUP_HISTORY.pop(k, None)
     return False
+
+# --- Auto-Ad Injector (Har 3-5 ta so'rovda reklama) ---
+_USER_INTERACTION_COUNT = {}
+_USER_INTERACTION_LOCK = threading.Lock()
+
+
+def get_user_interaction_count(user_id: int) -> int:
+    with _USER_INTERACTION_LOCK:
+        return _USER_INTERACTION_COUNT.get(user_id, 0)
+
+
+def reset_user_interaction_count(user_id: int):
+    with _USER_INTERACTION_LOCK:
+        _USER_INTERACTION_COUNT.pop(user_id, None)
+
+
+async def get_auto_ad_injection_async(user_id: int) -> str:
+    """Har 3-5 ta so'rovda bot javobiga avtomatik reklama qo'shish (async).
+
+    Qoidalar:
+      1. Adminlarga va PRO foydalanuvchilarga reklama ko'rsatilmaydi.
+      2. auto_ad_status FALSE bo'lsa yoki matn bo'sh bo'lsa reklama chiqmaydi.
+      3. Foydalanuvchi hisoblagichi har N (interval, standart 4) marta yetganda reklama qo'shiladi.
+    """
+    if user_id in ADMIN_IDS_SET:
+        return ""
+    try:
+        is_pro = await db.run_db(db.is_premium, user_id)
+        if is_pro:
+            return ""
+    except Exception:
+        pass
+
+    try:
+        settings = await db.run_db(db.get_ad_settings)
+    except Exception:
+        return ""
+
+    if not settings.get("auto_ad_status"):
+        return ""
+
+    ad_text = (settings.get("auto_ad_text") or "").strip()
+    if not ad_text:
+        return ""
+
+    interval = max(1, int(settings.get("auto_ad_interval", 4)))
+
+    with _USER_INTERACTION_LOCK:
+        count = _USER_INTERACTION_COUNT.get(user_id, 0) + 1
+        _USER_INTERACTION_COUNT[user_id] = count
+        if len(_USER_INTERACTION_COUNT) > 25000:
+            _USER_INTERACTION_COUNT.clear()
+            _USER_INTERACTION_COUNT[user_id] = count
+
+    if count % interval == 0:
+        return f"\n\n📢 <b>Homiy:</b> {html_escape(ad_text)}"
+    return ""
+
+
+def get_auto_ad_injection(user_id: int) -> str:
+    """Sinxron variant (testlar va skriptlar uchun)."""
+    if user_id in ADMIN_IDS_SET:
+        return ""
+    try:
+        if db.is_premium(user_id):
+            return ""
+    except Exception:
+        pass
+    try:
+        settings = db.get_ad_settings()
+    except Exception:
+        return ""
+
+    if not settings.get("auto_ad_status"):
+        return ""
+
+    ad_text = (settings.get("auto_ad_text") or "").strip()
+    if not ad_text:
+        return ""
+
+    interval = max(1, int(settings.get("auto_ad_interval", 4)))
+
+    with _USER_INTERACTION_LOCK:
+        count = _USER_INTERACTION_COUNT.get(user_id, 0) + 1
+        _USER_INTERACTION_COUNT[user_id] = count
+        if len(_USER_INTERACTION_COUNT) > 25000:
+            _USER_INTERACTION_COUNT.clear()
+            _USER_INTERACTION_COUNT[user_id] = count
+
+    if count % interval == 0:
+        return f"\n\n📢 <b>Homiy:</b> {html_escape(ad_text)}"
+    return ""
+
+
+async def inject_auto_ad_async(user_id: int, base_text: str) -> str:
+    """Matn oxiriga avtomatik reklamani qo'shib beradi."""
+    ad = await get_auto_ad_injection_async(user_id)
+    return f"{base_text}{ad}" if ad else base_text
+
+
+def inject_auto_ad(user_id: int, base_text: str) -> str:
+    ad = get_auto_ad_injection(user_id)
+    return f"{base_text}{ad}" if ad else base_text
+
+
+async def check_user_sponsorship(bot, user_id: int):
+    """Foydalanuvchining majburiy homiy kanallarga obunasini tekshiradi."""
+    from handlers.start import check_user_subscribed
+    return await check_user_subscribed(bot, user_id)
+
 
 def get_smart_reply_ad(user_id: int) -> str:
     """Sinxron variant (test/skript uchun). Handlerlarda

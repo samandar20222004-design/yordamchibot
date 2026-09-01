@@ -2269,6 +2269,171 @@ def test_guard_feedback_and_silent_blocking_fix():
     check("new_post: parse_reactions_input ishlatiladi", "parse_reactions_input" in src_np)
 
 
+def test_sponsor_channels_suite():
+    """Majburiy obuna (Sponsor kanallar) tizimi testlari."""
+    print("== Majburiy obuna (Sponsor channels) ==")
+    import database as db_mod
+    from keyboards.inline import (
+        unpack_sponsor,
+        get_subscription_check_keyboard,
+        get_admin_sponsors_keyboard,
+        get_sponsors_delete_keyboard,
+    )
+    from handlers.start import check_user_subscribed, check_user_sponsorship
+
+    # DB funksiyalari mavjudligi
+    check("db.add_sponsor_channel mavjud", hasattr(db_mod, "add_sponsor_channel"))
+    check("db.remove_sponsor_channel mavjud", hasattr(db_mod, "remove_sponsor_channel"))
+    check("db.get_sponsor_channels mavjud", hasattr(db_mod, "get_sponsor_channels"))
+    check("db.get_active_sponsors mavjud", hasattr(db_mod, "get_active_sponsors"))
+
+    # unpack_sponsor turli formatlarni xavfsiz ajratadi
+    s_tuple4 = (101, "-100123", "Kanal 1", "https://t.me/k1")
+    u4 = unpack_sponsor(s_tuple4)
+    check("unpack 4-tuple id", u4[0] == 101)
+    check("unpack 4-tuple title", u4[2] == "Kanal 1")
+    check("unpack 4-tuple url", u4[4] == "https://t.me/k1")
+
+    s_tuple5 = (102, -100456, "Kanal 2", "kanal2", "https://t.me/kanal2")
+    u5 = unpack_sponsor(s_tuple5)
+    check("unpack 5-tuple id", u5[0] == 102)
+    check("unpack 5-tuple username", u5[3] == "kanal2")
+    check("unpack 5-tuple url", u5[4] == "https://t.me/kanal2")
+
+    s_dict = {"id": 103, "channel_id": -100789, "title": "Kanal 3", "username": "k3", "invite_link": "https://t.me/+join"}
+    ud = unpack_sponsor(s_dict)
+    check("unpack dict id", ud[0] == 103)
+    check("unpack dict title", ud[2] == "Kanal 3")
+    check("unpack dict url", ud[4] == "https://t.me/+join")
+
+    # Subscription check keyboard
+    sponsors = [(1, "-1001", "Kanal A", "https://t.me/ka")]
+    kb_sub = get_subscription_check_keyboard(sponsors)
+    sub_cbs = [b.callback_data for row in kb_sub.inline_keyboard for b in row if b.callback_data]
+    sub_urls = [b.url for row in kb_sub.inline_keyboard for b in row if b.url]
+    check("sub check callback data check_sub_status", "check_sub_status" in sub_cbs, str(sub_cbs))
+    check("sub check channel url mavjud", "https://t.me/ka" in sub_urls, str(sub_urls))
+
+    # Admin sponsors keyboard
+    adm_s_kb = get_admin_sponsors_keyboard(sponsors)
+    adm_s_cbs = [b.callback_data for row in adm_s_kb.inline_keyboard for b in row]
+    check("admin sponsors delete button", "del_sponsor:1" in adm_s_cbs, str(adm_s_cbs))
+    check("admin sponsors add button", "adm_add_sponsor" in adm_s_cbs, str(adm_s_cbs))
+    check("admin sponsors back button", "adm_back" in adm_s_cbs, str(adm_s_cbs))
+    check("admin sponsors close button", "close_msg" in adm_s_cbs, str(adm_s_cbs))
+
+
+def test_auto_ad_injector_suite():
+    """Har 3-5 javobda avtomatik reklama (Auto-Ad Injector) tizimi testlari."""
+    print("== Auto-Ad Injector (Har 3-5 ta javob reklamasi) ==")
+    import database as db_mod
+    from utils import helpers
+    from keyboards.inline import (
+        get_admin_auto_ad_keyboard,
+        get_admin_ad_interval_keyboard,
+    )
+
+    # DB funksiyalari mavjudligi
+    check("db.get_ad_settings mavjud", hasattr(db_mod, "get_ad_settings"))
+    check("db.update_ad_text mavjud", hasattr(db_mod, "update_ad_text"))
+    check("db.set_ad_status mavjud", hasattr(db_mod, "set_ad_status"))
+    check("db.set_ad_interval mavjud", hasattr(db_mod, "set_ad_interval"))
+
+    # Admin auto-ad keyboard
+    ad_kb = get_admin_auto_ad_keyboard(status=True)
+    ad_cbs = [b.callback_data for row in ad_kb.inline_keyboard for b in row]
+    check("ad kb: edit text button", "adm_ad_edit_text" in ad_cbs, str(ad_cbs))
+    check("ad kb: toggle button", "adm_ad_toggle" in ad_cbs, str(ad_cbs))
+    check("ad kb: interval button", "adm_ad_set_interval" in ad_cbs, str(ad_cbs))
+    check("ad kb: back button", "adm_back" in ad_cbs, str(ad_cbs))
+
+    # Interval tanlash keyboard
+    int_kb = get_admin_ad_interval_keyboard()
+    int_cbs = [b.callback_data for row in int_kb.inline_keyboard for b in row]
+    check("int kb: 3 ta so'rov", "adm_ad_int:3" in int_cbs, str(int_cbs))
+    check("int kb: 4 ta so'rov", "adm_ad_int:4" in int_cbs, str(int_cbs))
+    check("int kb: 5 ta so'rov", "adm_ad_int:5" in int_cbs, str(int_cbs))
+
+    # Auto-ad injection logikasi (Mock DB bilan)
+    original_get_ad_settings = db_mod.get_ad_settings
+    original_is_premium = db_mod.is_premium
+
+    # 1) Reklama o'chiq bo'lsa -> bo'sh satr
+    db_mod.get_ad_settings = lambda: {"auto_ad_text": "HOMIY REKLAMA", "auto_ad_interval": 4, "auto_ad_status": False}
+    db_mod.is_premium = lambda uid: False
+    helpers.reset_user_interaction_count(999001)
+
+    ad_off = helpers.get_auto_ad_injection(999001)
+    check("auto-ad OFF bo'lsa bo'sh", ad_off == "")
+
+    # 2) Reklama yoqiq va interval 4 bo'lsa -> 4-so'rovda chiqadi
+    db_mod.get_ad_settings = lambda: {"auto_ad_text": "HOMIY REKLAMA", "auto_ad_interval": 4, "auto_ad_status": True}
+    helpers.reset_user_interaction_count(999001)
+
+    r1 = helpers.get_auto_ad_injection(999001)
+    r2 = helpers.get_auto_ad_injection(999001)
+    r3 = helpers.get_auto_ad_injection(999001)
+    r4 = helpers.get_auto_ad_injection(999001)
+    check("1-so'rov: reklama yo'q", r1 == "")
+    check("2-so'rov: reklama yo'q", r2 == "")
+    check("3-so'rov: reklama yo'q", r3 == "")
+    check("4-so'rov: reklama qo'shiladi", "HOMIY REKLAMA" in r4, r4)
+
+    # 3) PRO foydalanuvchiga reklama umuman chiqmaydi
+    db_mod.is_premium = lambda uid: True
+    helpers.reset_user_interaction_count(999002)
+    for _ in range(10):
+        pro_ad = helpers.get_auto_ad_injection(999002)
+        check("PRO foydalanuvchiga reklama chiqmaydi", pro_ad == "")
+
+    # 4) Matnga biriktirish (inject_auto_ad)
+    db_mod.is_premium = lambda uid: False
+    helpers.reset_user_interaction_count(999003)
+    helpers.get_auto_ad_injection(999003) # 1
+    helpers.get_auto_ad_injection(999003) # 2
+    helpers.get_auto_ad_injection(999003) # 3
+    injected = helpers.inject_auto_ad(999003, "Asosiy natija matni")
+    check("inject_auto_ad: natija ostiga reklama qo'shildi", "Asosiy natija matni" in injected and "HOMIY REKLAMA" in injected, injected)
+
+    # Tiklash
+    db_mod.get_ad_settings = original_get_ad_settings
+    db_mod.is_premium = original_is_premium
+
+
+def test_admin_dashboard_layout_suite():
+    """Admin dashboard to'liq 7-tugmali layout testi."""
+    print("== Admin Dashboard Layout (7 ta tugma) ==")
+    from keyboards.inline import get_admin_dashboard_keyboard
+
+    kb = get_admin_dashboard_keyboard()
+    rows = kb.inline_keyboard
+    check("dashboard qatorlar soni = 4", len(rows) == 4, str(len(rows)))
+
+    # Qator 1: Statistika & Broadcast
+    check("row 0 btn 0: adm_stats", rows[0][0].callback_data == "adm_stats")
+    check("row 0 btn 1: adm_broadcast", rows[0][1].callback_data == "adm_broadcast")
+
+    # Qator 2: Majburiy obuna & Auto-ad
+    check("row 1 btn 0: adm_sponsors", rows[1][0].callback_data == "adm_sponsors")
+    check("row 1 btn 1: adm_auto_ad", rows[1][1].callback_data == "adm_auto_ad")
+
+    # Qator 3: Promo & PRO
+    check("row 2 btn 0: adm_promo", rows[2][0].callback_data == "adm_promo")
+    check("row 2 btn 1: adm_grant_pro", rows[2][1].callback_data == "adm_grant_pro")
+
+    # Qator 4: Yopish
+    check("row 3 btn 0: close_msg", rows[3][0].callback_data == "close_msg")
+
+    labels = [b.text for row in rows for b in row]
+    check("label: To'liq statistika", any("statistika" in t.lower() for t in labels))
+    check("label: Broadcast", any("broadcast" in t.lower() or "ommaviy" in t.lower() for t in labels))
+    check("label: Majburiy obuna", any("majburiy obuna" in t.lower() for t in labels))
+    check("label: Har 3-5 javob reklamasi", any("3-5" in t for t in labels))
+    check("label: Promo-kod", any("promo" in t.lower() for t in labels))
+    check("label: PRO obuna", any("pro" in t.lower() for t in labels))
+    check("label: Yopish", any("yopish" in t.lower() for t in labels))
+
+
 def main():
     test_calculate_next_time()
     test_converter()
@@ -2352,6 +2517,9 @@ def main():
     test_reaction_keyboard_buttons()
     test_flexible_reaction_parser()
     test_guard_feedback_and_silent_blocking_fix()
+    test_sponsor_channels_suite()
+    test_auto_ad_injector_suite()
+    test_admin_dashboard_layout_suite()
 
     print(f"\nO'tdi: {passed}, Xato: {failures}")
     if failures:

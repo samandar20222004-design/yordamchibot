@@ -14,6 +14,7 @@ from keyboards.default import (
 from utils.ai_agent import analyze_user_prompt, extract_schedule_time, clear_ai_context
 from utils.helpers import (
     html_escape, safe_html, check_ai_rate_limit, check_ai_daily_limit, parse_future_time,
+    get_auto_ad_injection_async,
 )
 
 logger = logging.getLogger(__name__)
@@ -304,8 +305,9 @@ async def ai_input_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "Kechirasiz, men faqat Telegram kanallarni boshqarish va postlarni "
             "rejalashtirish bo'yicha yordam bera olaman."
         )
+        ad_line = await get_auto_ad_injection_async(user_id)
         await msg.reply_text(
-            f"🤖 {safe_html(reply)}\n\n<i>Yana savol bering yoki post mavzusini yuboring 👇</i>",
+            f"🤖 {safe_html(reply)}\n\n<i>Yana savol bering yoki post mavzusini yuboring 👇</i>{ad_line}",
             reply_markup=get_cancel_keyboard(),
             parse_mode="HTML",
         )
@@ -571,6 +573,7 @@ async def ai_confirm_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
             await db.run_db(db.increment_ai_usage, user_id)
         first_title = (channels[0][1] or "").strip() or "Kanal"
         target_name = "Barcha ulangan kanallarga" if target_all else first_title
+        ad_line = await get_auto_ad_injection_async(user_id)
         try:
             await query.edit_message_reply_markup(reply_markup=None)
         except Exception:
@@ -579,7 +582,7 @@ async def ai_confirm_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
             "✅ <b>AI Posti muvaffaqiyatli rejalashtirildi!</b>\n\n"
             f"📢 Joylash: <b>{html_escape(target_name)}</b>\n"
             f"⏰ Chiqish vaqti: <b>{post_time.strftime('%Y-%m-%d %H:%M')}</b>\n\n"
-            "Yana post yaratish uchun <b>🤖 AI Post Yordamchi</b> ni bosing yoki menyuga qayting.",
+            f"Yana post yaratish uchun <b>🤖 AI Post Yordamchi</b> ni bosing yoki menyuga qayting.{ad_line}",
             reply_markup=get_main_keyboard(is_admin),
             parse_mode="HTML",
         )

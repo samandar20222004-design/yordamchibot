@@ -6,7 +6,11 @@ from telegram.ext import ContextTypes, ConversationHandler
 from config import ADMIN_IDS_SET
 import database as db
 from keyboards.default import get_main_keyboard, get_cabinet_keyboard, get_cancel_keyboard
-from keyboards.inline import get_referral_share_keyboard, get_subscription_check_keyboard, get_cabinet_inline_keyboard, get_cabinet_back_keyboard
+from keyboards.inline import (
+    get_referral_share_keyboard, get_subscription_check_keyboard,
+    get_cabinet_inline_keyboard, get_cabinet_back_keyboard,
+    unpack_sponsor,
+)
 from utils.helpers import html_escape, get_smart_reply_ad_async
 
 logger = logging.getLogger(__name__)
@@ -32,7 +36,7 @@ async def check_user_subscribed(bot, user_id: int) -> tuple[bool, list | None]:
     """
     if user_id in ADMIN_IDS_SET:
         return True, []
-    sponsors = await db.run_db(db.get_active_sponsors)
+    sponsors = await db.run_db(db.get_sponsor_channels)
     if sponsors is None:
         return False, None
     if not sponsors:
@@ -41,7 +45,7 @@ async def check_user_subscribed(bot, user_id: int) -> tuple[bool, list | None]:
     unsubscribed = []
     now = time.time()
     for s in sponsors:
-        s_id, ch_id, ch_title, ch_url = s
+        s_id, ch_id, ch_title, username, ch_url = unpack_sponsor(s)
         cache_key = (str(ch_id), user_id)
         cached = _membership_cache.get(cache_key)
         if cached and now - cached[0] < MEMBERSHIP_CACHE_TTL:
@@ -78,10 +82,15 @@ async def check_user_subscribed(bot, user_id: int) -> tuple[bool, list | None]:
 
     return (len(unsubscribed) == 0), unsubscribed
 
+
+# Alias
+check_user_sponsorship = check_user_subscribed
+
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
     user = update.effective_user
-    
+
     referrer_id = None
     if context.args and len(context.args) > 0:
         arg = context.args[0]
@@ -90,9 +99,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 referrer_id = int(arg.replace("ref_", ""))
             except ValueError:
                 referrer_id = None
-    
+
     is_new = await db.run_db(db.save_user, user.id, user.username or "", user.full_name or "", referrer_id=referrer_id)
-    
+
     if is_new and referrer_id:
         try:
             await context.bot.send_message(
@@ -102,7 +111,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
         except Exception:
             pass
-            
+
     is_sub, unsubs = await check_user_subscribed(context.bot, user.id)
     if unsubs is None:
         await update.message.reply_text(
@@ -112,7 +121,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return ConversationHandler.END
     if not is_sub:
         await update.message.reply_text(
-            "📢 <b>Botdan to'liq foydalanish uchun quyidagi homiy kanallarga obuna bo'ling:</b>",
+            "⚠️ <b>Botdan to'liq foydalanish uchun quyidagi rasmiy kanallarga a'zo bo'ling:</b>",
             reply_markup=get_subscription_check_keyboard(unsubs),
             parse_mode="HTML"
         )
@@ -132,9 +141,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def subscription_check_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     user = query.from_user
-    # Darhol javob — kanallar holatini tekshirish Telegram API'ga bir nechta
-    # sekin so'rov yuboradi, tugma "yuklanmoqda" holatida qolib ketmasligi
-    # uchun answer() eng birinchi qatorda chaqiriladi.
+    # Darhol javob
     try:
         await query.answer()
     except Exception:
@@ -146,15 +153,19 @@ async def subscription_check_callback(update: Update, context: ContextTypes.DEFA
         try:
             await query.message.delete()
         except TelegramError:
-            pass  # xabar allaqachon o'chirilgan bo'lishi mumkin
+            pass
         is_admin = (user.id in ADMIN_IDS_SET)
         await context.bot.send_message(
             chat_id=user.id,
-            text=f"Xush kelibsiz, <b>{html_escape(user.first_name)}</b>! Barcha imkoniyatlar siz uchun ochiq.",
+            text=f"✅ Obuna tasdiqlandi!\n\nXush kelibsiz, <b>{html_escape(user.first_name)}</b>! Barcha imkoniyatlar siz uchun ochiq.",
             reply_markup=get_main_keyboard(is_admin),
             parse_mode="HTML"
         )
     else:
+        try:
+            await query.answer("⚠️ Hali barcha kanallarga a'zo bo'lmadingiz! Iltimos, barcha kanallarga a'zo bo'ling.", show_alert=True)
+        except Exception:
+            pass
         try:
             await query.edit_message_reply_markup(reply_markup=get_subscription_check_keyboard(unsubs))
         except TelegramError:

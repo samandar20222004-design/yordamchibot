@@ -4,7 +4,7 @@ from telegram.ext import ContextTypes, ConversationHandler
 from keyboards.default import get_cancel_keyboard, get_main_keyboard, BTN_BACK, BTN_MAIN_MENU
 from config import ADMIN_IDS_SET
 from utils.converter import to_cyrillic, to_latin
-from utils.helpers import html_escape
+from utils.helpers import html_escape, get_auto_ad_injection_async
 
 logger = logging.getLogger(__name__)
 
@@ -139,20 +139,21 @@ async def converter_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     chat_id = query.from_user.id
     bot = context.bot
+    ad_line = await get_auto_ad_injection_async(chat_id)
 
     try:
         if media_type == "text":
             if len(res_text) <= 4000:
                 await bot.send_message(
                     chat_id=chat_id,
-                    text=f"📋 <b>Natija:</b>\n\n<code>{html_escape(res_text)}</code>\n\n<i>(Nusxalash uchun matn ustiga bosing)</i>",
+                    text=f"📋 <b>Natija:</b>\n\n<code>{html_escape(res_text)}</code>\n\n<i>(Nusxalash uchun matn ustiga bosing)</i>{ad_line}",
                     parse_mode="HTML"
                 )
             else:
                 part1, part2 = _split_smartly(res_text, max_first_len=3800)
                 await bot.send_message(chat_id=chat_id, text=f"📋 <b>Natija (1-qism):</b>\n\n<code>{html_escape(part1)}</code>", parse_mode="HTML")
                 if part2:
-                    await bot.send_message(chat_id=chat_id, text=f"📋 <b>Natija (2-qism):</b>\n\n<code>{html_escape(part2)}</code>", parse_mode="HTML")
+                    await bot.send_message(chat_id=chat_id, text=f"📋 <b>Natija (2-qism):</b>\n\n<code>{html_escape(part2)}</code>{ad_line}", parse_mode="HTML")
             return
 
         if len(res_text) > 1000:
@@ -171,7 +172,7 @@ async def converter_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 await bot.send_animation(chat_id=chat_id, animation=file_id, caption=part1)
 
             if part2:
-                notice = f"ℹ️ <i>Matn davomi:</i>\n\n<code>{html_escape(part2)}</code>"
+                notice = f"ℹ️ <i>Matn davomi:</i>\n\n<code>{html_escape(part2)}</code>{ad_line}"
                 await bot.send_message(chat_id=chat_id, text=notice, parse_mode="HTML")
         else:
             if media_type == "photo":
@@ -186,6 +187,8 @@ async def converter_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 await bot.send_voice(chat_id=chat_id, voice=file_id, caption=res_text)
             elif media_type == "animation":
                 await bot.send_animation(chat_id=chat_id, animation=file_id, caption=res_text)
+            if ad_line:
+                await bot.send_message(chat_id=chat_id, text=ad_line.strip(), parse_mode="HTML")
 
     except Exception as e:
         logger.error(f"Konverter xatosi: {e}")
