@@ -2,6 +2,7 @@
 
 Bu bot sizning Telegram kanalingizga siz belgilagan vaqtda (bir marta yoki
 har kuni, istalgan muddatgacha — masalan 1 yil) xabarlarni avtomatik jo'natadi.
+Bot **AI Studio** (doimiy inline navigatsiya va zamonaviy AI prompt tizimi) orqali matn yaratish, kanal postlarini qayta ishlash va kontent-reja tuzish imkoniyatlarini taqdim etadi.
 
 ## Loyiha tuzilishi
 
