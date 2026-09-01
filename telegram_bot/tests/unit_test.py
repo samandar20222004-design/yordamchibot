@@ -2013,6 +2013,117 @@ def test_confirmation_queue_integration():
     check("integ: ertaga 10:00", t1 is not None and t1.day == 2 and t1.hour == 10, str(t1))
 
 
+def test_payments_audit_table():
+    """To'lovlar uchun alohida payments jadvali va log_stars_payment."""
+    print("== payments audit table + log_stars_payment ==")
+    import database as db_mod
+    source = open(db_mod.__file__).read()
+
+    check("payments table e'lon qilingan", "CREATE TABLE IF NOT EXISTS payments" in source)
+    check("payments: id SERIAL PRIMARY KEY", "id SERIAL PRIMARY KEY" in source)
+    check("payments: user_id BIGINT", "user_id BIGINT" in source)
+    check("payments: amount INT", "amount INT" in source)
+    check("payments: currency VARCHAR", "currency VARCHAR" in source)
+    check("payments: payload TEXT", "payload TEXT" in source)
+    check("payments: telegram_payment_charge_id", "telegram_payment_charge_id" in source)
+    check("payments: created_at TIMESTAMP", "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP" in source)
+
+    check("log_stars_payment callable", callable(db_mod.log_stars_payment))
+    check("log_stars_payment -> payments jadvaliga yozadi", "INSERT INTO payments" in source)
+    # log_stars_payment endi promo_codes ga yozmaydi (STARS_ yozuvlari olib tashlandi)
+    fn_body = source.split("def log_stars_payment", 1)[1].split("\n\n", 1)[0]
+    check("log_stars_payment promo_codes dan ajratildi", "promo_codes" not in fn_body)
+    # Admin dashboard stars_revenue endi payments dan olinadi
+    check("admin dashboard: stars_revenue payments dan", "SUM(amount), 0) FROM payments" in source)
+
+
+def test_stars_invoice_provider_token():
+    """Stars invoice provider_token=\"\" (None emas)."""
+    print("== Stars invoice provider_token ==")
+    from handlers.subscription import subscription_callback
+    source = open(__import__("handlers.subscription", fromlist=["subscription_callback"]).__file__).read()
+
+    check("provider_token=\"\" ishlatiladi", 'provider_token=""' in source)
+    check("provider_token=None yo'q", "provider_token=None" not in source)
+
+    # Precheckout va successful payment handlerlari mavjud
+    from handlers.subscription import precheckout_callback, successful_payment_callback
+    check("precheckout_callback callable", callable(precheckout_callback))
+    check("successful_payment_callback callable", callable(successful_payment_callback))
+    check("successful_payment PRO beradi (set_user_plan)", "set_user_plan" in source)
+    check("successful_payment to'lovni log qiladi", "log_stars_payment" in source)
+
+
+def test_multi_admin_checks():
+    """Yagona ADMIN_ID taqqoslashlari ADMIN_IDS_SET ga moslandi."""
+    print("== Multi-admin (ADMIN_IDS_SET) ==")
+    import importlib
+    import handlers.subscription as sub
+    st = importlib.import_module("handlers.start")
+
+    # subscription.py da `user_id != ADMIN_ID` emas
+    sub_src = open(sub.__file__).read()
+    check("subscription: ADMIN_IDS_SET import", "ADMIN_IDS_SET" in sub_src)
+    check("subscription: == ADMIN_ID yo'q", "ADMIN_ID)" not in sub_src)
+    check("subscription: user_id not in ADMIN_IDS_SET", "user_id not in ADMIN_IDS_SET" in sub_src)
+
+    start_src = open(st.__file__).read()
+    check("start: == ADMIN_ID yo'q", "== ADMIN_ID)" not in start_src)
+    check("start: user.id in ADMIN_IDS_SET", "user.id in ADMIN_IDS_SET" in start_src)
+    check("start: user_id not in ADMIN_IDS_SET", "user_id not in ADMIN_IDS_SET" in start_src)
+
+    # config.ADMIN_IDS_SET mavjud va frozenset
+    from config import ADMIN_IDS_SET
+    check("config: ADMIN_IDS_SET mavjud", isinstance(ADMIN_IDS_SET, frozenset))
+
+
+def test_queue_limit_function():
+    """Navbat limiti funksiyasi mavjud va to'g'ri formatda."""
+    print("== check_queue_limit ==")
+    import database as db_mod
+    from config import ADMIN_IDS_SET
+
+    check("FREE_QUEUE_MAX_POSTS mavjud", hasattr(db_mod, "FREE_QUEUE_MAX_POSTS"))
+    check("FREE_QUEUE_MAX_POSTS = 5", db_mod.FREE_QUEUE_MAX_POSTS == 5)
+    check("check_queue_limit callable", callable(db_mod.check_queue_limit))
+
+    result = db_mod.check_queue_limit(0)  # non-existent user (DB xato → default)
+    check("return tuple", isinstance(result, tuple) and len(result) == 3)
+    check("return[0] bool", isinstance(result[0], bool))
+    check("return[1] int", isinstance(result[1], int))
+    check("return[2] int", isinstance(result[2], int))
+
+
+def test_tier_limit_handler_constants():
+    """Tier limitlari handlerlarda e'lon qilingan va PRO tugmasi mavjud."""
+    print("== Tier limit handler constants ==")
+    from handlers.channels import CHANNEL_LIMIT_MSG, PRO_UPGRADE_KEYBOARD as CH_PRO_KB
+    from handlers.queue import QUEUE_LIMIT_MSG, PRO_UPGRADE_KEYBOARD as Q_PRO_KB
+    from handlers.ai_assistant import AI_LIMIT_MSG, PRO_UPGRADE_KEYBOARD as AI_PRO_KB
+    from handlers.analytics import ANALYTICS_FREE_HINT
+
+    check("channels: CHANNEL_LIMIT_MSG mavjud", "PRO" in CHANNEL_LIMIT_MSG)
+    check("channels: PRO tugmasi (sub_open)", any(
+        b.callback_data == "sub_open" for row in CH_PRO_KB.inline_keyboard for b in row))
+    check("queue: QUEUE_LIMIT_MSG mavjud", "PRO" in QUEUE_LIMIT_MSG)
+    check("queue: PRO tugmasi (sub_open)", any(
+        b.callback_data == "sub_open" for row in Q_PRO_KB.inline_keyboard for b in row))
+    check("ai_assistant: AI_LIMIT_MSG mavjud", "PRO" in AI_LIMIT_MSG)
+    check("ai_assistant: PRO tugmasi (sub_open)", any(
+        b.callback_data == "sub_open" for row in AI_PRO_KB.inline_keyboard for b in row))
+    check("analytics: ANALYTICS_FREE_HINT mavjud", "PRO" in ANALYTICS_FREE_HINT)
+
+    # Handlerlar database limit funksiyalarini chaqiradi
+    import handlers.channels as ch
+    src_ch = open(ch.__file__).read()
+    check("channels: check_channel_limit chaqiriladi", "check_channel_limit" in src_ch)
+
+    import handlers.ai_assistant as ai
+    src_ai = open(ai.__file__).read()
+    check("ai_assistant: check_ai_limit chaqiriladi", "check_ai_limit" in src_ai)
+    check("ai_assistant: increment_ai_usage chaqiriladi", "increment_ai_usage" in src_ai)
+
+
 def main():
     test_calculate_next_time()
     test_converter()
@@ -2087,6 +2198,11 @@ def main():
     test_admin_handlers_exist()
     test_admin_dashboard_stats_db()
     test_ai_studio_keyboard()
+    test_payments_audit_table()
+    test_stars_invoice_provider_token()
+    test_multi_admin_checks()
+    test_queue_limit_function()
+    test_tier_limit_handler_constants()
 
     print(f"\nO'tdi: {passed}, Xato: {failures}")
     if failures:

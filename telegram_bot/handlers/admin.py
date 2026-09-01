@@ -3,7 +3,7 @@ import logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.error import TelegramError, RetryAfter, TimedOut, NetworkError, BadRequest
 from telegram.ext import ContextTypes, ConversationHandler
-from config import ADMIN_ID, ADMIN_IDS_SET
+from config import ADMIN_IDS_SET
 import database as db
 from keyboards.default import (
     get_admin_panel_keyboard,

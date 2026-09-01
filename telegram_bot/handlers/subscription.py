@@ -2,7 +2,7 @@
 import logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice
 from telegram.ext import ContextTypes, ConversationHandler
-from config import ADMIN_ID, ADMIN_IDS_SET
+from config import ADMIN_IDS_SET
 import database as db
 from keyboards.default import get_main_keyboard
 from utils.helpers import html_escape
@@ -174,6 +174,22 @@ async def subscription_callback(update: Update, context: ContextTypes.DEFAULT_TY
         )
         return ConversationHandler.END
 
+    if data == "sub_open":
+        # Tarif limiti / reklama tugmasi orqali '⭐️ PRO tarifga o'tish' —
+        # obuna kartasini ko'rsatadi.
+        plan_info = await db.run_db(db.get_user_plan, user_id)
+        card = _build_subscription_card(plan_info)
+        plan = plan_info.get("plan_type", "free")
+        try:
+            await query.message.reply_text(
+                card,
+                reply_markup=_get_subscription_keyboard(plan),
+                parse_mode="HTML",
+            )
+        except Exception:
+            pass
+        return SUBSCRIPTION_VIEW
+
     if data.startswith("sub_pay:"):
         plan_key = data.split(":", 1)[1]
         # Telegram Stars (XTR) invoice ma'lumotlari: (miqdor, sarlavha, tavsif)
@@ -190,16 +206,16 @@ async def subscription_callback(update: Update, context: ContextTypes.DEFAULT_TY
         prices = [LabeledPrice(label=title, amount=amount)]
 
         try:
-            # Telegram Stars (XTR) uchun provider_token talab qilinmaydi.
-            # provider_token=None uzatamiz — PTB so'rovdan None qiymatlarni
-            # o'zi o'chiradi, ya'ni sendInvoice'ga provider_token umuman
-            # yuborilmaydi (Telegram Stars standarti).
+            # Telegram Stars (XTR) uchun provider_token talab qilinmaydi,
+            # lekin PTB 21.x da bo'sh satr (provider_token="") uzatilishi
+            # talab etiladi — None qiymat ba'zi PTB versiyalarida so'rovdan
+            # tashlab qo'yilib, Telegram Stars invoice'ni ocholmay qoladi.
             await context.bot.send_invoice(
                 chat_id=update.effective_chat.id,
                 title=title,
                 description=desc,
                 payload=f"sub_{plan_key}_{user_id}",
-                provider_token=None,
+                provider_token="",
                 currency="XTR",
                 prices=prices,
                 start_parameter="pro-sub",
@@ -301,7 +317,7 @@ async def promo_code_received(update: Update, context: ContextTypes.DEFAULT_TYPE
 async def grant_pro_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Admin: /grant_pro <user_id> <days> — foydalanuvchiga PRO berish."""
     user_id = update.effective_user.id
-    if user_id != ADMIN_ID:
+    if user_id not in ADMIN_IDS_SET:
         await update.message.reply_text("❌ Faqat admin bu buyruqni ishlatishi mumkin.")
         return
 
@@ -372,7 +388,7 @@ async def precheckout_callback(update: Update, context: ContextTypes.DEFAULT_TYP
 async def create_promo_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """SuperAdmin: /create_promo <KOD> <KUNLAR> <MAKS_ISHLATISH> — promo-kod yaratish."""
     user_id = update.effective_user.id
-    if user_id != ADMIN_ID:
+    if user_id not in ADMIN_IDS_SET:
         await update.message.reply_text("❌ Faqat admin bu buyruqni ishlatishi mumkin.")
         return
 

@@ -2,7 +2,7 @@ import logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.error import TelegramError
 from telegram.ext import ContextTypes, ConversationHandler
-from config import ADMIN_ID, ADMIN_IDS_SET
+from config import ADMIN_IDS_SET
 import database as db
 from keyboards.default import get_cancel_keyboard, get_main_keyboard, get_tone_keyboard, TONE_LABELS
 from keyboards.inline import render_channels_list
@@ -12,6 +12,18 @@ logger = logging.getLogger(__name__)
 
 ADD_CHANNEL = 301
 SET_TONE = 302
+
+# Tarif limiti (FREE vs PRO) tugaganda ko'rsatiladigan xabar va PRO tugmasi.
+CHANNEL_LIMIT_MSG = (
+    "🚫 <b>Kanal limiti tugadi!</b>\n\n"
+    "Sizda hozir <b>{current}/{max}</b> ta kanal ulangan.\n"
+    "Free tarifida maksimal <b>{max}</b> ta kanal ulash mumkin.\n\n"
+    "⭐️ Ushbu imkoniyatdan cheksiz foydalanish uchun PRO tarifiga o'ting."
+)
+
+PRO_UPGRADE_KEYBOARD = InlineKeyboardMarkup([
+    [InlineKeyboardButton("⭐️ PRO tarifga o'tish", callback_data="sub_open")],
+])
 
 
 def _empty_channels_keyboard() -> InlineKeyboardMarkup:
@@ -164,6 +176,19 @@ async def channel_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(err, parse_mode="HTML")
         return ADD_CHANNEL
 
+    # Tarif bo'yicha kanal limiti (FREE vs PRO) — yangi kanal qo'shishdan
+    # oldin tekshiriladi. Limit to'lgan bo'lsa xushmuomala xabar va PRO
+    # tarifga o'tish tugmasi ko'rsatiladi.
+    if not is_admin:
+        can_add, current, max_ch = await db.run_db(db.check_channel_limit, user_id)
+        if not can_add:
+            await update.message.reply_text(
+                CHANNEL_LIMIT_MSG.format(current=current, max=max_ch),
+                reply_markup=PRO_UPGRADE_KEYBOARD,
+                parse_mode="HTML",
+            )
+            return ADD_CHANNEL
+
     success, reason = await db.run_db(db.save_channel, user_id, channel_id, channel_title, is_admin)
     if success:
         await update.message.reply_text(
@@ -262,6 +287,21 @@ async def on_bot_chat_member_update(update: Update, context: ContextTypes.DEFAUL
 
     if new_status in ("administrator", "creator"):
         is_admin = (user_id in ADMIN_IDS_SET)
+        # Avtomatik ulashda ham tarif limiti tekshiriladi — free foydalanuvchi
+        # maksimal kanal sonidan oshsa, kanal ulab bo'lmaydi.
+        if not is_admin:
+            can_add, current, max_ch = await db.run_db(db.check_channel_limit, user_id)
+            if not can_add:
+                try:
+                    await context.bot.send_message(
+                        chat_id=user_id,
+                        text=CHANNEL_LIMIT_MSG.format(current=current, max=max_ch),
+                        reply_markup=PRO_UPGRADE_KEYBOARD,
+                        parse_mode="HTML",
+                    )
+                except TelegramError:
+                    pass
+                return
         success, reason = await db.run_db(
             db.save_channel, user_id, str(chat.id), chat.title or "Telegram Kanal", is_admin
         )

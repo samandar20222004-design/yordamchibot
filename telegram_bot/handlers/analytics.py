@@ -14,6 +14,17 @@ logger = logging.getLogger(__name__)
 ANALYTICS_CHOOSE = 501
 ANALYTICS_VIEW = 502
 
+# PRO tarifga o'tish tugmasi (free foydalanuvchilar analitikani to'liq ko'rmaydi).
+PRO_UPGRADE_KEYBOARD = InlineKeyboardMarkup([
+    [InlineKeyboardButton("⭐️ PRO tarifga o'tish", callback_data="sub_open")],
+])
+
+ANALYTICS_FREE_HINT = (
+    "📊 <b>Analitika</b>\n\n"
+    "📌 Free tarifida oxirgi <b>7 kunlik</b> statistika ko'rsatiladi.\n"
+    "⭐️ <b>PRO</b> tarifida to'liq analitika (30 kun, barcha postlar, eng faol soatlar) ochiladi!"
+)
+
 # Post type emoji mapping
 _TYPE_EMOJI = {
     "text": "📝",
@@ -94,7 +105,7 @@ def _build_dashboard(stats: dict, channel_title: str = "Barcha kanallar") -> str
     return "\n".join(lines)
 
 
-def _get_analytics_channel_keyboard(channels: list) -> InlineKeyboardMarkup:
+def _get_analytics_channel_keyboard(channels: list, show_pro: bool = False) -> InlineKeyboardMarkup:
     """Analitika uchun kanal tanlash keyboard."""
     keyboard = []
     keyboard.append([
@@ -108,19 +119,24 @@ def _get_analytics_channel_keyboard(channels: list) -> InlineKeyboardMarkup:
                 callback_data=f"an_ch:{ch_id}",
             )
         ])
+    if show_pro:
+        keyboard.append([InlineKeyboardButton("⭐️ PRO tarifga o'tish", callback_data="sub_open")])
     keyboard.append([InlineKeyboardButton("❌ Yopish", callback_data="an_close")])
     return InlineKeyboardMarkup(keyboard)
 
 
-def _get_analytics_view_keyboard() -> InlineKeyboardMarkup:
+def _get_analytics_view_keyboard(show_pro: bool = False) -> InlineKeyboardMarkup:
     """Statistika ko'rish tugmalari."""
-    return InlineKeyboardMarkup([
+    rows = [
         [
             InlineKeyboardButton("🔄 Yangilash", callback_data="an_refresh"),
             InlineKeyboardButton("📢 Boshqa kanal", callback_data="an_other"),
         ],
-        [InlineKeyboardButton("⬅️ Orqaga", callback_data="an_close")],
-    ])
+    ]
+    if show_pro:
+        rows.append([InlineKeyboardButton("⭐️ PRO tarifga o'tish", callback_data="sub_open")])
+    rows.append([InlineKeyboardButton("⬅️ Orqaga", callback_data="an_close")])
+    return InlineKeyboardMarkup(rows)
 
 
 async def start_analytics(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -137,11 +153,20 @@ async def start_analytics(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return ConversationHandler.END
 
+    is_admin = user_id in ADMIN_IDS_SET
+    is_pro = await db.run_db(db.is_premium, user_id)
+    show_pro = (not is_admin and not is_pro)
+
     context.user_data["analytics_channels"] = channels
-    await update.message.reply_text(
+    text = (
         "📊 <b>Analitika va Statistika</b>\n\n"
-        "Qaysi kanal statistikasini ko'rasiz?",
-        reply_markup=_get_analytics_channel_keyboard(channels),
+        "Qaysi kanal statistikasini ko'rasiz?"
+    )
+    if show_pro:
+        text = ANALYTICS_FREE_HINT + "\n\n" + text
+    await update.message.reply_text(
+        text,
+        reply_markup=_get_analytics_channel_keyboard(channels, show_pro=show_pro),
         parse_mode="HTML",
     )
     return ANALYTICS_CHOOSE
@@ -154,6 +179,8 @@ async def analytics_channel_chosen(update: Update, context: ContextTypes.DEFAULT
     data = query.data
     user_id = query.from_user.id
     is_admin = user_id in ADMIN_IDS_SET
+    is_pro = await db.run_db(db.is_premium, user_id)
+    show_pro = (not is_admin and not is_pro)
 
     if data == "an_close":
         await query.message.reply_text(
@@ -187,7 +214,7 @@ async def analytics_channel_chosen(update: Update, context: ContextTypes.DEFAULT
 
     await query.message.reply_text(
         dashboard,
-        reply_markup=_get_analytics_view_keyboard(),
+        reply_markup=_get_analytics_view_keyboard(show_pro=show_pro),
         parse_mode="HTML",
     )
     return ANALYTICS_VIEW
@@ -199,6 +226,8 @@ async def analytics_view_callback(update: Update, context: ContextTypes.DEFAULT_
     data = query.data
     user_id = query.from_user.id
     is_admin = user_id in ADMIN_IDS_SET
+    is_pro = await db.run_db(db.is_premium, user_id)
+    show_pro = (not is_admin and not is_pro)
 
     if data == "an_close":
         await query.answer()
@@ -216,7 +245,7 @@ async def analytics_view_callback(update: Update, context: ContextTypes.DEFAULT_
             context.user_data["analytics_channels"] = channels
         await query.message.reply_text(
             "📊 <b>Qaysi kanal statistikasini ko'rasiz?</b>",
-            reply_markup=_get_analytics_channel_keyboard(channels),
+            reply_markup=_get_analytics_channel_keyboard(channels, show_pro=show_pro),
             parse_mode="HTML",
         )
         return ANALYTICS_CHOOSE
@@ -232,13 +261,13 @@ async def analytics_view_callback(update: Update, context: ContextTypes.DEFAULT_
         try:
             await query.edit_message_text(
                 dashboard,
-                reply_markup=_get_analytics_view_keyboard(),
+                reply_markup=_get_analytics_view_keyboard(show_pro=show_pro),
                 parse_mode="HTML",
             )
         except Exception:
             await query.message.reply_text(
                 dashboard,
-                reply_markup=_get_analytics_view_keyboard(),
+                reply_markup=_get_analytics_view_keyboard(show_pro=show_pro),
                 parse_mode="HTML",
             )
         return ANALYTICS_VIEW

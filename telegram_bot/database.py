@@ -429,6 +429,22 @@ def _init_db_once():
             );
         """)
 
+        # Stars to'lovlari uchun alohida audit jadvali.
+        # To'lovlar promo_codes jadvaliga yozilmaydi — har bir to'lov o'z
+        # qatori bilan audit qilinadi (summa, valyuta, payload, charge_id).
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS payments (
+                id SERIAL PRIMARY KEY,
+                user_id BIGINT,
+                amount INT,
+                currency VARCHAR(10),
+                payload TEXT,
+                telegram_payment_charge_id TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        """)
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_payments_user_id ON payments (user_id);")
+
         migrations = [
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS full_name VARCHAR(255);",
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS user_code VARCHAR(8) UNIQUE;",
@@ -1689,10 +1705,10 @@ def get_admin_dashboard_stats() -> dict:
             stats["posts_today"] = cur.fetchone()[0]
             cur.execute("SELECT COUNT(*) FROM scheduled_posts WHERE status = 'pending'")
             stats["pending_posts"] = cur.fetchone()[0]
-            # Stars revenue: promo_codes jadvalidagi STARS_ bilan boshlanuvchi yozuvlar
+            # Stars revenue: endi alohida payments jadvalidan yig'iladi
+            # (promo_codes jadvalidagi STARS_ yozuvlari bilan emas).
             cur.execute(
-                "SELECT COALESCE(SUM(duration_days), 0) FROM promo_codes "
-                "WHERE code LIKE 'STARS_%'"
+                "SELECT COALESCE(SUM(amount), 0) FROM payments WHERE currency = 'XTR'"
             )
             stats["stars_revenue"] = cur.fetchone()[0]
         _cache_set(cache_key, stats, DB_STATS_CACHE_TTL)
@@ -1811,6 +1827,10 @@ PLAN_LIMITS = {
     "pro": {"max_channels": 999, "daily_ai_requests": 999},
     "enterprise": {"max_channels": 999, "daily_ai_requests": 999},
 }
+
+# Navbatda turishi mumkin bo'lgan postlar soni (free uchun).
+# PRO/Enterprise — cheksiz (999).
+FREE_QUEUE_MAX_POSTS = 5
 
 
 def _ensure_limit_reset(cur, user_id: int):
@@ -1932,6 +1952,28 @@ def increment_ai_usage(user_id: int):
             )
     except Exception as e:
         logger.error(f"increment_ai_usage xatosi: {e}")
+
+
+def check_queue_limit(user_id: int) -> tuple[bool, int, int]:
+    """Navbatdagi postlar soni limitini tekshiradi.
+
+    Returns: (can_add, current, max).
+    """
+    try:
+        with db_cursor() as cur:
+            cur.execute("SELECT plan_type FROM users WHERE user_id = %s", (user_id,))
+            row = cur.fetchone()
+            plan = (row[0] if row else "free") or "free"
+            cur.execute(
+                "SELECT COUNT(*) FROM scheduled_posts WHERE user_id = %s AND status = 'pending'",
+                (user_id,),
+            )
+            count = cur.fetchone()[0]
+            max_q = FREE_QUEUE_MAX_POSTS if plan == "free" else 999
+            return (count < max_q, count, max_q)
+    except Exception as e:
+        logger.error(f"check_queue_limit xatosi: {e}")
+        return (True, 0, FREE_QUEUE_MAX_POSTS)
 
 
 def set_user_plan(user_id: int, plan: str, days: int = None) -> bool:
@@ -2068,18 +2110,24 @@ def get_referral_pro_progress(user_id: int) -> dict:
 # ============================================================
 
 def log_stars_payment(user_id: int, amount: int, currency: str, payload: str, telegram_payment_id: str = "") -> bool:
-    """Stars to'lovini log qiladi."""
+    """Stars to'lovini alohida ``payments`` jadvaliga yozadi.
+
+    To'lovlar endi promo_codes jadvali bilan aralashmaydi — har bir to'lov
+    o'z qatori sifatida audit qilinadi (user_id, amount, currency, payload,
+    telegram_payment_charge_id, created_at).
+    """
     try:
         with db_cursor(commit=True) as cur:
             cur.execute(
-                "INSERT INTO promo_codes (code, plan_type, duration_days, max_uses, current_uses, is_active) "
-                "VALUES (%s, %s, %s, %s, %s, %s) ON CONFLICT (code) DO NOTHING",
-                (f"STARS_{telegram_payment_id or user_id}_{amount}", "pro",
-                 30 if amount < 100 else 90, 1, 1, False),
+                """
+                INSERT INTO payments (user_id, amount, currency, payload, telegram_payment_charge_id)
+                VALUES (%s, %s, %s, %s, %s)
+                """,
+                (user_id, amount, currency, payload, telegram_payment_id or ""),
             )
-            # Asosiy log — users jadvaliga yozamiz (ad_free_posts maydoni orqali)
-            # Haqiqiy loyihada alohida payments jadvali bo'lishi mumkin
-            return True
+        _cache_clear("system_stats")
+        _cache_clear("admin_dashboard_stats")
+        return True
     except Exception as e:
         logger.error(f"Stars payment log xatosi: {e}")
         return False

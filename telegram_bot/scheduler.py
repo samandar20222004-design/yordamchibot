@@ -12,7 +12,7 @@ from telegram import (
     InputMediaAudio,
 )
 from telegram.error import TelegramError, RetryAfter, TimedOut, NetworkError
-from config import ADMIN_ID
+from config import ADMIN_IDS_SET
 import database as db
 from utils.helpers import get_channel_ad_next_async
 
@@ -163,7 +163,7 @@ async def _execute_send(bot, post):
         buttons.append(reactions_row)
     reply_markup = InlineKeyboardMarkup(buttons) if buttons else None
 
-    is_admin = (user_id == ADMIN_ID)
+    is_admin = (user_id in ADMIN_IDS_SET)
 
     # Litsenziyani yuborishdan OLDIN tekshiramiz; sarflash faqat
     # muvaffaqiyatli yuborilgandan keyin amalga oshiriladi.

@@ -8,7 +8,7 @@ from telegram.ext import (
     PreCheckoutQueryHandler,
     filters,
 )
-from config import ADMIN_ID, ADMIN_IDS_SET
+from config import ADMIN_IDS_SET
 from keyboards.default import (
     exact,
     BTN_NEW_POST, BTN_AI, BTN_AI_ASSISTANT, BTN_AI_STUDIO, BTN_PENDING, BTN_SETTINGS, BTN_CABINET,

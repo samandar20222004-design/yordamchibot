@@ -15,6 +15,18 @@ tashkent_tz = pytz.timezone("Asia/Tashkent")
 
 QUEUE_PAGE_SIZE = 5
 
+# Tarif limiti (FREE vs PRO) tugaganda ko'rsatiladigan xabar va PRO tugmasi.
+QUEUE_LIMIT_MSG = (
+    "🚫 <b>Navbat limiti tugadi!</b>\n\n"
+    "Sizda <b>{current}/{max}</b> ta navbatdagi post bor.\n"
+    "Free tarifida maksimal <b>{max}</b> ta post navbatda turishi mumkin.\n\n"
+    "⭐️ Cheksiz navbat uchun PRO tarifiga o'ting."
+)
+
+PRO_UPGRADE_KEYBOARD = InlineKeyboardMarkup([
+    [InlineKeyboardButton("⭐️ PRO tarifga o'tish", callback_data="sub_open")],
+])
+
 # States
 QUEUE_MENU = 200
 SLOT_ADD = 201
@@ -111,6 +123,13 @@ async def queue_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     is_admin = (user_id in ADMIN_IDS_SET)
     total = await db.run_db(db.get_queue_post_count, user_id)
 
+    # Free foydalanuvchi navbat limitiga yetganda PRO taklifi ko'rsatiladi.
+    show_upsell = False
+    if not is_admin:
+        can_add, current, max_q = await db.run_db(db.check_queue_limit, user_id)
+        if not can_add:
+            show_upsell = True
+
     if total == 0:
         await update.message.reply_text(
             "📚 <b>Navbat (Queue)</b>\n\n"
@@ -127,7 +146,18 @@ async def queue_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text_lines.append(_format_queue_item(post, i))
     text = "\n".join(text_lines)
 
+    # Limit to'lgan bo'lsa — banner + PRO tugmasi (navbat ko'rish qoladi).
+    if show_upsell:
+        text = QUEUE_LIMIT_MSG.format(current=total, max=max_q) + "\n\n" + text
+
     keyboard = _get_queue_list_keyboard(posts, 0, total)
+    if show_upsell:
+        existing = keyboard.inline_keyboard
+        existing = [row for row in existing if not any(
+            b.callback_data == "sub_open" for b in row
+        )]
+        existing.append([InlineKeyboardButton("⭐️ PRO tarifga o'tish", callback_data="sub_open")])
+        keyboard = InlineKeyboardMarkup(existing)
     await update.message.reply_text(text, reply_markup=keyboard, parse_mode="HTML")
     return QUEUE_MENU
 
