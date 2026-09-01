@@ -1618,8 +1618,9 @@ def test_ai_studio_keyboard():
     check("studio kb: ai_post", "studio_ai_post" in cbs)
     check("studio kb: extract", "studio_extract" in cbs)
     check("studio kb: content_plan", "studio_content_plan" in cbs)
+    check("studio kb: audit", "studio_ai_audit" in cbs)
     check("studio kb: close", "studio_close" in cbs)
-    check("studio kb: 4 ta tugma", len(cbs) == 4)
+    check("studio kb: 5 ta tugma", len(cbs) == 5)
     check("studio kb: AI Post label", any("AI Post" in t for t in labels))
     check("studio kb: Kontent-reja label", any("Kontent-reja" in t for t in labels))
 
@@ -1638,6 +1639,80 @@ def test_ai_studio_keyboard():
     kb_admin = get_main_keyboard(True)
     admin_texts = [b.text for row in kb_admin.keyboard for b in row]
     check("main kb: 7 ta tugma (admin)", len(admin_texts) == 7)
+
+
+def test_ai_studio_hardening():
+    """AI Studio hardening: FSM holatlari, doimiy nav-tugmalar, 25s hard timeout."""
+    print("== AI Studio hardening ==")
+    import asyncio
+    import handlers.ai_assistant as ai
+
+    # 1) Yangi FSM holatlari mavjud va unikal
+    states = (ai.AI_MENU_STATE, ai.AI_PROMPT_INPUT, ai.AI_TONE_SELECT, ai.AI_AUDIT_INPUT)
+    check("studio: AI_MENU_STATE mavjud", ai.AI_MENU_STATE == 404)
+    check("studio: AI_PROMPT_INPUT mavjud", ai.AI_PROMPT_INPUT == 405)
+    check("studio: AI_TONE_SELECT mavjud", ai.AI_TONE_SELECT == 406)
+    check("studio: AI_AUDIT_INPUT mavjud", ai.AI_AUDIT_INPUT == 407)
+    check("studio: holatlar unikal", len(set(states)) == 4)
+    check("studio: eski holatlar bilan to'qnashmaydi",
+          not set(states) & {ai.AI_INPUT, ai.AI_CONFIRM, ai.AI_GET_TIME})
+
+    # 2) Callback handlerlar mavjud va coroutine
+    import inspect
+    for fn_name in (
+        "ai_studio_menu_entry", "ai_studio_nav_callback", "ai_prompt_received",
+        "ai_tone_callback", "ai_studio_schedule_callback", "ai_audit_received",
+        "ai_back_to_menu", "ai_close",
+    ):
+        fn = getattr(ai, fn_name, None)
+        check(f"studio: {fn_name} coroutine", fn is not None and inspect.iscoroutinefunction(fn))
+
+    # 3) Har bir callback handler BOSHIDA query.answer() chaqiradi (speks)
+    src = open(ai.__file__, encoding="utf-8").read()
+    for fn_name in ("ai_studio_nav_callback", "ai_tone_callback",
+                    "ai_studio_schedule_callback", "ai_back_to_menu", "ai_close"):
+        start = src.index(f"async def {fn_name}")
+        chunk = src[start:start + 400]
+        check(f"studio: {fn_name} boshida query.answer()", "await query.answer(" in chunk)
+
+    # 4) Doimiy navigatsiya klaviaturalari
+    from keyboards.inline import get_ai_back_keyboard, get_ai_tone_keyboard
+    back_cbs = [b.callback_data for row in get_ai_back_keyboard().inline_keyboard for b in row]
+    check("studio: back kb [orqaga]", "ai_back_to_menu" in back_cbs)
+    check("studio: back kb [bekor]", "ai_close" in back_cbs)
+
+    tone_kb = get_ai_tone_keyboard("friendly")
+    tone_cbs = [b.callback_data for row in tone_kb.inline_keyboard for b in row]
+    check("studio: tone kb 4 uslub", all(f"ai_tone:{t}" in tone_cbs for t in
+          ("formal", "friendly", "concise", "engaging")), str(tone_cbs))
+    check("studio: tone kb rejalashtirish", "ai_studio_sched" in tone_cbs)
+    check("studio: tone kb orqaga/bekor", "ai_back_to_menu" in tone_cbs and "ai_close" in tone_cbs)
+    tone_labels = [b.text for row in tone_kb.inline_keyboard for b in row]
+    check("studio: tanlangan uslub ✅", any(t.endswith("✅") for t in tone_labels), str(tone_labels))
+
+    # 5) AI chaqiruvga 25 soniyalik QAT'IY timeout
+    from utils import ai_agent
+    check("ai_agent: AI_HARD_TIMEOUT = 25", ai_agent.AI_HARD_TIMEOUT == 25)
+    check("ai_agent: generate_ai_response mavjud",
+          callable(getattr(ai_agent, "generate_ai_response", None)))
+
+    async def _slow_chain(prompt, system_instruction):
+        await asyncio.sleep(5)
+        return {"intent": "faq", "reply": "kech"}
+
+    orig_chain = ai_agent._run_ai_chain
+    ai_agent._run_ai_chain = _slow_chain
+    try:
+        res = asyncio.run(ai_agent.generate_ai_response("test mavzu", timeout=0.05))
+        check("ai_agent: hard timeout → error dict", "error" in res, str(res))
+        check("ai_agent: timeout xabari foydalanuvchiga mos", "soniyada kelmadi" in res["error"])
+    finally:
+        ai_agent._run_ai_chain = orig_chain
+
+    # 6) Xato holatida doimiy back keyboard bilan AI_MENU_STATE qaytariladi
+    check("studio: AI_UNAVAILABLE_MSG mavjud", "qayta urinib" in ai.AI_UNAVAILABLE_MSG)
+    check("studio: error handlerda get_ai_back_keyboard", "get_ai_back_keyboard()" in src)
+    check("studio: AI Generation Error log", "AI Generation Error" in src)
 
 
 def test_subscription_functions_exist():
@@ -2812,6 +2887,7 @@ def main():
     test_admin_handlers_exist()
     test_admin_dashboard_stats_db()
     test_ai_studio_keyboard()
+    test_ai_studio_hardening()
     test_payments_audit_table()
     test_stars_invoice_provider_token()
     test_multi_admin_checks()

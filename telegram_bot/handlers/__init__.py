@@ -20,7 +20,7 @@ from keyboards.default import (
     BTN_ADD_CHANNEL, BTN_QUEUE, BTN_CONTENT_PLAN, BTN_ANALYTICS, BTN_PREMIUM,
     BTN_CHANNEL_EXTRACT,
 )
-from keyboards.inline import get_subscription_check_keyboard, get_ai_studio_keyboard
+from keyboards.inline import get_subscription_check_keyboard
 
 # 1. START & ASOSIY MODUL
 from handlers.start import (
@@ -85,10 +85,14 @@ from handlers.admin import (
     ADMIN_SPONSOR_ADD, ADMIN_AD_EDIT, ADMIN_AD_INTERVAL,
 )
 
-# 7. AI ASSISTANT MODULI (ENG OXIRIDA)
+# 7. AI ASSISTANT + AI STUDIO MODULI (ENG OXIRIDA)
 from handlers.ai_assistant import (
     start_ai_assistant, ai_input_received, ai_confirm_callback, ai_time_received,
-    AI_INPUT, AI_CONFIRM, AI_GET_TIME
+    ai_studio_menu_entry, ai_studio_nav_callback, ai_prompt_received,
+    ai_tone_callback, ai_studio_schedule_callback, ai_audit_received,
+    ai_back_to_menu, ai_close,
+    AI_INPUT, AI_CONFIRM, AI_GET_TIME,
+    AI_MENU_STATE, AI_PROMPT_INPUT, AI_TONE_SELECT, AI_AUDIT_INPUT,
 )
 
 # 8. CONTENT PLAN MODULI
@@ -261,78 +265,25 @@ async def expired_session_callback(update, context):
     await query.answer()
 
 
-async def ai_studio_menu(update, context):
-    """AI Studio sub-menu — inline tugmalar bilan."""
-    await update.message.reply_text(
-        "🤖 <b>PostAssist AI Studio</b>\n\n"
-        "Kanal kontentini yaratish uchun kerakli vositani tanlang:",
-        reply_markup=get_ai_studio_keyboard(),
-        parse_mode="HTML",
-    )
-    return ConversationHandler.END
-
-
 async def ai_studio_callback(update, context):
-    """AI Studio inline tugmalari."""
+    """AI Studio tugmalari uchun GLOBAL ZAXIRA handler (stale presses).
+
+    Asosiy ishlov main_conv ichida (AI_MENU_STATE holati) bajariladi. Bu yerga
+    faqat sessiya boshqa oqimda faol bo'lgan eski (stale) studio tugmasi bosilganda
+    tushadi. HARDENING: xabar hech qachon O'CHIRILMAYDI — faqat eskirgani haqida
+    edit qilinadi.
+    """
     query = update.callback_query
-    data = query.data
-
-    if data == "studio_ai_post":
-        await query.answer()
-        try:
-            await query.message.delete()
-        except Exception:
-            pass
-        await query.message.reply_text(
-            "✍️ <b>AI Post yaratish</b>\n\n"
-            "Post mavzusini yozing yoki rasm/fayl yuboring.\n"
-            "<i>Chiqish uchun '🔙 Asosiy menyu' tugmasini bosing.</i>",
-            reply_markup=get_cancel_keyboard(),
+    await query.answer()  # speks: har callback boshida darhol answer
+    try:
+        await query.edit_message_text(
+            "⚠️ <b>Bu menyu eskirgan.</b>\n"
+            "Davom etish uchun ✨ AI Studio tugmasini qaytadan bosing.",
+            reply_markup=None,
             parse_mode="HTML",
         )
-        return
-
-    if data == "studio_extract":
-        await query.answer()
-        try:
-            await query.message.delete()
-        except Exception:
-            pass
-        await query.message.reply_text(
-            "📢 <b>Ochiq kanaldan olish</b>\n\n"
-            "Ochiq kanal nikini yozing (masalan: @channel_name):",
-            reply_markup=get_cancel_keyboard(),
-            parse_mode="HTML",
-        )
-        return
-
-    if data == "studio_content_plan":
-        await query.answer()
-        try:
-            await query.message.delete()
-        except Exception:
-            pass
-        await query.message.reply_text(
-            "🧠 <b>Kontent-reja</b>\n\n"
-            "Kontent-reja yaratish uchun kanal mavzusini yozing:",
-            reply_markup=get_cancel_keyboard(),
-            parse_mode="HTML",
-        )
-        return
-
-    if data == "studio_close":
-        await query.answer()
-        try:
-            await query.message.delete()
-        except Exception:
-            pass
-        user_id = query.from_user.id
-        is_admin = user_id in ADMIN_IDS_SET
-        await query.message.reply_text(
-            "🏠 Asosiy menyu.",
-            reply_markup=get_main_keyboard(is_admin),
-        )
-        return
+    except Exception:
+        pass
 
 
 async def conversation_timeout_handler(update, context):
@@ -404,9 +355,9 @@ def register_all_handlers(app):
         MessageHandler(exact(BTN_CACHE_DB), lambda u, c: guard_entry(u, c, cache_db_menu)),
     ]
 
-    # 7. AI Studio (sub-menu ko'rsatadi)
+    # 7. AI Studio (inline sub-menu — conversation ICHIDA doimiy navigatsiya)
     ai_handlers = [
-        MessageHandler(exact(BTN_AI_STUDIO), lambda u, c: guard_menu(u, c, ai_studio_menu)),
+        MessageHandler(exact(BTN_AI_STUDIO), lambda u, c: guard_entry(u, c, ai_studio_menu_entry)),
     ]
 
     # 8. Content Plan
@@ -462,6 +413,16 @@ def register_all_handlers(app):
             CallbackQueryHandler(add_channel_inline_entry, pattern=r"^add_channel_start$"),
             CallbackQueryHandler(converter_inline_entry, pattern=r"^extra_converter$"),
             CallbackQueryHandler(quick_button_post_start, pattern=r"^extra_quick_btn$"),
+            # ✨ AI Studio inline entry'lar — sessiya tugagach eski tugma bossa ham
+            # conversation qayta ochiladi (menu xabari o'chirilmaydi, edit qilinadi)
+            CallbackQueryHandler(
+                lambda u, c: guard_entry(u, c, ai_studio_nav_callback),
+                pattern=r"^studio_(ai_post|ai_audit|extract|content_plan)$",
+            ),
+            CallbackQueryHandler(
+                lambda u, c: guard_entry(u, c, ai_back_to_menu),
+                pattern=r"^ai_back_to_menu$",
+            ),
             CommandHandler("newpost", lambda u, c: guard_entry(u, c, start_new_post)),
             CommandHandler("broadcast", lambda u, c: guard_entry(u, c, broadcast_start)),
             CommandHandler("queue", lambda u, c: guard_menu(u, c, queue_menu)),
@@ -514,10 +475,18 @@ def register_all_handlers(app):
             PLAN_CHOOSE_CHANNEL: all_menu_jumps + [
                 CallbackQueryHandler(plan_channel_chosen, pattern=r"^plan_ch:"),
                 CallbackQueryHandler(plan_view_callback, pattern=r"^plan_cancel$"),
+                CallbackQueryHandler(ai_back_to_menu, pattern=r"^ai_back_to_menu$"),
+                CallbackQueryHandler(ai_close, pattern=r"^ai_close$"),
             ],
-            PLAN_GET_TOPIC: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, plan_topic_received)],
+            PLAN_GET_TOPIC: all_menu_jumps + [
+                CallbackQueryHandler(ai_back_to_menu, pattern=r"^ai_back_to_menu$"),
+                CallbackQueryHandler(ai_close, pattern=r"^ai_close$"),
+                MessageHandler(filters.TEXT & ~filters.COMMAND, plan_topic_received),
+            ],
             PLAN_VIEW: all_menu_jumps + [
                 CallbackQueryHandler(plan_view_callback, pattern=r"^plan_"),
+                CallbackQueryHandler(ai_back_to_menu, pattern=r"^ai_back_to_menu$"),
+                CallbackQueryHandler(ai_close, pattern=r"^ai_close$"),
             ],
 
             # 9. Analytics holatlari
@@ -536,9 +505,15 @@ def register_all_handlers(app):
             PROMO_INPUT: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, promo_code_received)],
 
             # 11. Channel Extract holatlari
-            EXTRACT_USERNAME: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, extract_username_received)],
+            EXTRACT_USERNAME: all_menu_jumps + [
+                CallbackQueryHandler(ai_back_to_menu, pattern=r"^ai_back_to_menu$"),
+                CallbackQueryHandler(ai_close, pattern=r"^ai_close$"),
+                MessageHandler(filters.TEXT & ~filters.COMMAND, extract_username_received),
+            ],
             EXTRACT_CHOOSE_POST: all_menu_jumps + [
                 CallbackQueryHandler(extract_post_chosen, pattern=r"^ext_"),
+                CallbackQueryHandler(ai_back_to_menu, pattern=r"^ai_back_to_menu$"),
+                CallbackQueryHandler(ai_close, pattern=r"^ai_close$"),
             ],
 
             # 4. Kutilayotgan postlarni tahrirlash holatlari
@@ -571,11 +546,43 @@ def register_all_handlers(app):
             AI_INPUT: all_menu_jumps + [MessageHandler(filters.ALL & ~filters.COMMAND, ai_input_received)],
             AI_CONFIRM: all_menu_jumps + [
                 CallbackQueryHandler(ai_confirm_callback, pattern=r"^ai_post_"),
+                CallbackQueryHandler(ai_back_to_menu, pattern=r"^ai_back_to_menu$"),
+                CallbackQueryHandler(ai_close, pattern=r"^ai_close$"),
                 MessageHandler(filters.ALL & ~filters.COMMAND, ai_input_received),
             ],
             AI_GET_TIME: all_menu_jumps + [
                 MessageHandler(filters.ALL & ~filters.COMMAND, ai_time_received),
                 CallbackQueryHandler(ai_confirm_callback, pattern=r"^ai_post_"),
+                CallbackQueryHandler(ai_back_to_menu, pattern=r"^ai_back_to_menu$"),
+                CallbackQueryHandler(ai_close, pattern=r"^ai_close$"),
+            ],
+
+            # 7b. ✨ AI STUDIO inline oqimi (hardering: xabar edit, doimiy nav-tugmalar)
+            AI_MENU_STATE: all_menu_jumps + [
+                CallbackQueryHandler(ai_studio_nav_callback, pattern=r"^studio_"),
+                CallbackQueryHandler(ai_back_to_menu, pattern=r"^ai_back_to_menu$"),
+                CallbackQueryHandler(ai_close, pattern=r"^ai_close$"),
+            ],
+            AI_PROMPT_INPUT: all_menu_jumps + [
+                CallbackQueryHandler(ai_studio_nav_callback, pattern=r"^studio_"),
+                CallbackQueryHandler(ai_back_to_menu, pattern=r"^ai_back_to_menu$"),
+                CallbackQueryHandler(ai_close, pattern=r"^ai_close$"),
+                MessageHandler(filters.ALL & ~filters.COMMAND, ai_prompt_received),
+            ],
+            AI_TONE_SELECT: all_menu_jumps + [
+                CallbackQueryHandler(ai_tone_callback, pattern=r"^ai_tone:"),
+                CallbackQueryHandler(ai_studio_schedule_callback, pattern=r"^ai_studio_sched$"),
+                CallbackQueryHandler(ai_studio_nav_callback, pattern=r"^studio_"),
+                CallbackQueryHandler(ai_back_to_menu, pattern=r"^ai_back_to_menu$"),
+                CallbackQueryHandler(ai_close, pattern=r"^ai_close$"),
+                # Yangi mavzu yozilsa — qayta generatsiya
+                MessageHandler(filters.ALL & ~filters.COMMAND, ai_prompt_received),
+            ],
+            AI_AUDIT_INPUT: all_menu_jumps + [
+                CallbackQueryHandler(ai_studio_nav_callback, pattern=r"^studio_"),
+                CallbackQueryHandler(ai_back_to_menu, pattern=r"^ai_back_to_menu$"),
+                CallbackQueryHandler(ai_close, pattern=r"^ai_close$"),
+                MessageHandler(filters.ALL & ~filters.COMMAND, ai_audit_received),
             ],
 
             # 8. Queue holatlari
@@ -654,6 +661,8 @@ def register_all_handlers(app):
     app.add_handler(CallbackQueryHandler(admin_dashboard_callback, pattern=r"^adm_"))
     app.add_handler(CallbackQueryHandler(ad_pool_callback, pattern=r"^adp:"))
     app.add_handler(CallbackQueryHandler(ai_studio_callback, pattern=r"^studio_"))
+    # AI Studio stale ❌ tugmasi: conversation tashqarisida ham xabar edit qilinadi
+    app.add_handler(CallbackQueryHandler(ai_close, pattern=r"^ai_close$"))
     app.add_handler(CallbackQueryHandler(cabinet_callback, pattern=r"^cab_|^close_cabinet"))
     app.add_handler(CallbackQueryHandler(extras_close_callback, pattern=r"^extra_close$"))
     app.add_handler(ChatMemberHandler(on_bot_chat_member_update, ChatMemberHandler.MY_CHAT_MEMBER))
