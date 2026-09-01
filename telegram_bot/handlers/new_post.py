@@ -9,7 +9,7 @@ from telegram.ext import ContextTypes, ConversationHandler
 from config import ADMIN_IDS_SET
 import database as db
 from keyboards.default import (
-    BTN_ALL_CHANNELS_TARGET, BTN_MAIN_MENU, BTN_SKIP_BUTTON,
+    BTN_ALL_CHANNELS_TARGET, BTN_MAIN_MENU, BTN_BACK, BTN_SKIP_BUTTON,
     BTN_ADD_URL_BUTTON, BTN_SKIP_URL_BUTTON,
     BTN_T_5MIN, BTN_T_15MIN, BTN_T_1H, BTN_T_DAILY, BTN_T_WEEKLY,
     BTN_DUR_1W, BTN_DUR_1M, BTN_DUR_3M, BTN_DUR_6M, BTN_DUR_1Y, BTN_DUR_INF,

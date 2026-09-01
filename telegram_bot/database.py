@@ -1490,6 +1490,7 @@ def update_post_content(post_id: int, user_id: int,
                         content: str = None,
                         btn_text: str = None, btn_url: str = None,
                         enable_reactions: bool = None,
+                        reaction_emojis=None,
                         is_admin: bool = False) -> bool:
     """Kutilayotgan postning matn, tugma va reaksiyalarini yangilash.
 
@@ -1503,14 +1504,22 @@ def update_post_content(post_id: int, user_id: int,
             sets.append("content = %s")
             params.append(content)
         if btn_text is not None:
-            sets.append("btn_text = %s")
+            # Jadvaldagi ustun nomlari: inline_button_text / inline_button_url.
+            sets.append("inline_button_text = %s")
             params.append(btn_text if btn_text else None)
         if btn_url is not None:
-            sets.append("btn_url = %s")
+            sets.append("inline_button_url = %s")
             params.append(btn_url if btn_url else None)
         if enable_reactions is not None:
             sets.append("enable_reactions = %s")
             params.append(enable_reactions)
+        if reaction_emojis is not None:
+            if isinstance(reaction_emojis, (list, tuple, set)):
+                reaction_emojis = " ".join(str(e) for e in reaction_emojis if e)
+            else:
+                reaction_emojis = " ".join(str(reaction_emojis).split())
+            sets.append("reaction_emojis = %s")
+            params.append(reaction_emojis or None)
         if not sets:
             return False
 
