@@ -90,6 +90,50 @@ def get_admin_back_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(keyboard)
 
 
+# ============================================================
+# AVTOMATIK REKLAMA ROTATSIYA (ad_pool) TUGMALARI
+# ============================================================
+def get_ad_pool_menu_keyboard(scope: str) -> InlineKeyboardMarkup:
+    """Reklama rotatsiya puli boshqaruv menyusi (scope: 'channel' | 'reply')."""
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("➕ Yangi reklama qo'shish", callback_data=f"adp:{scope}:add")],
+        [
+            InlineKeyboardButton("🗑 Reklama o'chirish", callback_data=f"adp:{scope}:del"),
+            InlineKeyboardButton("🧹 Hammasini tozalash", callback_data=f"adp:{scope}:clear"),
+        ],
+        [InlineKeyboardButton("ℹ️ Rotatsiya haqida", callback_data=f"adp:{scope}:info")],
+        [
+            InlineKeyboardButton("⬅️ Orqaga", callback_data="adm_back"),
+            InlineKeyboardButton("❌ Yopish", callback_data="close_msg"),
+        ],
+    ])
+
+
+def get_ad_pool_delete_keyboard(ads: list, scope: str) -> InlineKeyboardMarkup:
+    """Har bir reklamani o'chirish tugmasi bilan ko'rsatadi."""
+    keyboard = []
+    for ad_id, text in ads:
+        label = btn_label(text, "Reklama", max_length=28)
+        keyboard.append([
+            InlineKeyboardButton(f"❌ {label}", callback_data=f"adp:{scope}:rm:{ad_id}")
+        ])
+    keyboard.append([
+        InlineKeyboardButton("⬅️ Orqaga", callback_data=f"adp:{scope}:back"),
+        InlineKeyboardButton("❌ Yopish", callback_data="close_msg"),
+    ])
+    return InlineKeyboardMarkup(keyboard)
+
+
+def get_ad_pool_back_keyboard(scope: str) -> InlineKeyboardMarkup:
+    """Qo'shish/ma'lumot ekranidan reklama menyusiga qaytish."""
+    return InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("⬅️ Menyuga", callback_data=f"adp:{scope}:back"),
+            InlineKeyboardButton("❌ Yopish", callback_data="close_msg"),
+        ],
+    ])
+
+
 def get_ai_studio_keyboard() -> InlineKeyboardMarkup:
     """AI Studio sub-menu inline keyboard."""
     keyboard = [

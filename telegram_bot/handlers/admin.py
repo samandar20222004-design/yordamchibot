@@ -15,6 +15,8 @@ from keyboards.default import (
 from keyboards.inline import (
     get_sponsors_delete_keyboard, get_cache_actions_keyboard,
     get_admin_dashboard_keyboard, get_admin_back_keyboard,
+    get_ad_pool_menu_keyboard, get_ad_pool_delete_keyboard,
+    get_ad_pool_back_keyboard,
 )
 from utils import ai_agent
 from utils.helpers import html_escape, format_post_type_label
@@ -751,16 +753,59 @@ async def del_sponsor_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         pass
 
 
+# --- AVTOMATIK REKLAMA ROTATSIYA (ad_pool) ---
+# Har bir "joy" (kanal posti / bot javobi) uchun mustaqil pul. Admin panelda
+# bitta emas, bir nechta reklama saqlanadi va bot ularni navbatma-navbat
+# (round-robin) qo'shadi. Pul bo'sh bo'lsa eski yagona sozlama ishlayveradi.
+AD_SCOPE_META = {
+    "channel": {
+        "title": "📢 Kanal postlari",
+        "state": SET_CHANNEL_AD,
+    },
+    "reply": {
+        "title": "🤖 Bot javoblari",
+        "state": SET_BOT_REPLY_AD,
+    },
+}
+
+
+def _format_ad_pool(ads) -> str:
+    """Rotatsiya puli ro'yxatini HTML-xavfsiz matn ko'rinishida chiqaradi."""
+    if not ads:
+        return "   <i>(Hozircha hech qanday reklama yo'q)</i>"
+    lines = []
+    for ad_id, text in ads:
+        lines.append(f"   {ad_id}. {html_escape(_short_text(text, 80))}")
+    return "\n".join(lines)
+
+
+async def _ad_pool_menu_text(scope: str) -> str:
+    """Reklama puli menyusi uchun matn (sarlavha + ro'yxat + yo'riqnoma)."""
+    ads = await db.run_db(db.get_ads, scope)
+    meta = AD_SCOPE_META.get(scope, {})
+    title = meta.get("title", scope)
+    return (
+        f"{title} — <b>avto-rotatsiya</b>\n\n"
+        f"<b>Reklama puli:</b>\n{_format_ad_pool(ads)}\n\n"
+        "Bot puldagi reklamalarni navbatma-navbat qo'shadi. "
+        "<b>➕ Yangi reklama qo'shish</b> ni bosing va matnni yozing; "
+        "o'chirish uchun <b>🗑</b>, hammasini tozalash uchun <b>🧹</b>."
+    )
+
+
 async def start_set_channel_ad(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id):
         return ConversationHandler.END
-    current_ad = await db.run_db(db.get_setting, "channel_ad_text", "Mavjud emas")
+    text = await _ad_pool_menu_text("channel")
     await update.message.reply_text(
-        f"📢 <b>Kanal postlari ostiga chiquvchi reklama:</b>\n\n"
-        f"Hozirgi matn:\n<i>{html_escape(current_ad)}</i>\n\n"
-        f"Yangi reklama matnini yuboring (o'chirish uchun <code>clear</code> deb yozing):",
+        text,
+        reply_markup=get_ad_pool_menu_keyboard("channel"),
+        parse_mode="HTML",
+    )
+    await update.message.reply_text(
+        "Reklama matnini yozib yuborishingiz ham mumkin (pulga qo'shiladi). "
+        "Menyudan chiqish uchun 🔙.",
         reply_markup=get_cancel_keyboard(),
-        parse_mode="HTML"
     )
     return SET_CHANNEL_AD
 
@@ -770,24 +815,43 @@ async def channel_ad_received(update: Update, context: ContextTypes.DEFAULT_TYPE
         return ConversationHandler.END
     text = update.message.text.strip()
     if text.lower() == "clear":
-        await db.run_db(db.set_setting, "channel_ad_text", "")
-        await update.message.reply_text("✅ Kanal postlari reklamasi o'chirildi.", reply_markup=get_admin_panel_keyboard())
+        removed = await db.run_db(db.clear_ads, "channel")
+        await update.message.reply_text(
+            f"🧹 Kanal posti reklamalari tozalandi ({removed} ta).",
+            reply_markup=get_admin_panel_keyboard(),
+        )
+        return ConversationHandler.END
+    if len(text) > 1024:
+        await update.message.reply_text("❌ Reklama juda uzun (maksimal 1024 belgi).")
     else:
-        await db.run_db(db.set_setting, "channel_ad_text", text)
-        await update.message.reply_text("✅ Kanal postlari reklamasi muvaffaqiyatli saqlandi!", reply_markup=get_admin_panel_keyboard())
-    return ConversationHandler.END
+        ad_id = await db.run_db(db.add_ad, "channel", text)
+        if ad_id > 0:
+            await update.message.reply_text("✅ Reklama rotatsiya puliga qo'shildi!")
+        else:
+            await update.message.reply_text("❌ Saqlashda xatolik yuz berdi.")
+    # Yana qo'shish imkoni uchun yangilangan menyuni ko'rsatamiz.
+    menu = await _ad_pool_menu_text("channel")
+    await update.message.reply_text(
+        menu,
+        reply_markup=get_ad_pool_menu_keyboard("channel"),
+        parse_mode="HTML",
+    )
+    return SET_CHANNEL_AD
 
 
 async def start_set_bot_reply_ad(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id):
         return ConversationHandler.END
-    current_ad = await db.run_db(db.get_setting, "bot_reply_ad_text", "Mavjud emas")
+    text = await _ad_pool_menu_text("reply")
     await update.message.reply_text(
-        f"🤖 <b>Bot javoblari ostiga chiquvchi reklama:</b>\n\n"
-        f"Hozirgi matn:\n<i>{html_escape(current_ad)}</i>\n\n"
-        f"Yangi reklama matnini yuboring (o'chirish uchun <code>clear</code> deb yozing):",
+        text,
+        reply_markup=get_ad_pool_menu_keyboard("reply"),
+        parse_mode="HTML",
+    )
+    await update.message.reply_text(
+        "Reklama matnini yozib yuborishingiz ham mumkin (pulga qo'shiladi). "
+        "Menyudan chiqish uchun 🔙.",
         reply_markup=get_cancel_keyboard(),
-        parse_mode="HTML"
     )
     return SET_BOT_REPLY_AD
 
@@ -797,12 +861,125 @@ async def bot_reply_ad_received(update: Update, context: ContextTypes.DEFAULT_TY
         return ConversationHandler.END
     text = update.message.text.strip()
     if text.lower() == "clear":
-        await db.run_db(db.set_setting, "bot_reply_ad_text", "")
-        await update.message.reply_text("✅ Bot javoblari reklamasi o'chirildi.", reply_markup=get_admin_panel_keyboard())
+        removed = await db.run_db(db.clear_ads, "reply")
+        await update.message.reply_text(
+            f"🧹 Bot javoblari reklamalari tozalandi ({removed} ta).",
+            reply_markup=get_admin_panel_keyboard(),
+        )
+        return ConversationHandler.END
+    if len(text) > 1024:
+        await update.message.reply_text("❌ Reklama juda uzun (maksimal 1024 belgi).")
     else:
-        await db.run_db(db.set_setting, "bot_reply_ad_text", text)
-        await update.message.reply_text("✅ Bot javoblari reklamasi muvaffaqiyatli saqlandi!", reply_markup=get_admin_panel_keyboard())
-    return ConversationHandler.END
+        ad_id = await db.run_db(db.add_ad, "reply", text)
+        if ad_id > 0:
+            await update.message.reply_text("✅ Reklama rotatsiya puliga qo'shildi!")
+        else:
+            await update.message.reply_text("❌ Saqlashda xatolik yuz berdi.")
+    menu = await _ad_pool_menu_text("reply")
+    await update.message.reply_text(
+        menu,
+        reply_markup=get_ad_pool_menu_keyboard("reply"),
+        parse_mode="HTML",
+    )
+    return SET_BOT_REPLY_AD
+
+
+async def ad_pool_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Reklama rotatsiya puli inline tugmalari (``adp:...``)."""
+    query = update.callback_query
+    try:
+        await query.answer()
+    except Exception:
+        pass
+    if not is_admin(query.from_user.id):
+        return
+
+    parts = query.data.split(":")
+    if len(parts) < 3 or parts[0] != "adp":
+        return
+    scope = parts[1]
+    action = parts[2]
+    meta = AD_SCOPE_META.get(scope)
+    if not meta:
+        return
+    title = meta["title"]
+
+    if action == "add":
+        text = (
+            f"✍️ <b>{title}</b> — yangi reklama matnini yozing.\n"
+            "(o'chirish uchun <code>clear</code> deb yozing)"
+        )
+        try:
+            await query.edit_message_text(
+                text, reply_markup=get_ad_pool_back_keyboard(scope), parse_mode="HTML")
+        except TelegramError:
+            await query.message.reply_text(
+                text, reply_markup=get_ad_pool_back_keyboard(scope), parse_mode="HTML")
+        return
+
+    if action == "del":
+        ads = await db.run_db(db.get_ads, scope)
+        text = f"🗑 <b>{title}</b> — o'chiriladigan reklamani tanlang:\n\n{_format_ad_pool(ads)}"
+        try:
+            await query.edit_message_text(
+                text, reply_markup=get_ad_pool_delete_keyboard(ads, scope), parse_mode="HTML")
+        except TelegramError:
+            await query.message.reply_text(
+                text, reply_markup=get_ad_pool_delete_keyboard(ads, scope), parse_mode="HTML")
+        return
+
+    if action == "rm":
+        if len(parts) >= 4:
+            await db.run_db(db.delete_ad, int(parts[3]))
+        ads = await db.run_db(db.get_ads, scope)
+        text = f"🗑 <b>{title}</b> — o'chiriladigan reklamani tanlang:\n\n{_format_ad_pool(ads)}"
+        try:
+            await query.edit_message_text(
+                text, reply_markup=get_ad_pool_delete_keyboard(ads, scope), parse_mode="HTML")
+        except TelegramError:
+            pass
+        return
+
+    if action == "clear":
+        removed = await db.run_db(db.clear_ads, scope)
+        text = (
+            f"🧹 <b>{removed} ta</b> reklama tozalandi.\n\n"
+            f"<b>Reklama puli:</b>\n{_format_ad_pool([])}"
+        )
+        try:
+            await query.edit_message_text(
+                text, reply_markup=get_ad_pool_menu_keyboard(scope), parse_mode="HTML")
+        except TelegramError:
+            await query.message.reply_text(
+                text, reply_markup=get_ad_pool_menu_keyboard(scope), parse_mode="HTML")
+        return
+
+    if action == "info":
+        text = (
+            f"ℹ️ <b>{title} — avto-rotatsiya</b>\n\n"
+            "Pulga bir nechta reklama qo'shsangiz, bot ularni navbatma-navbat "
+            "(round-robin) qo'shadi.\n"
+            "• Kanal postlari: har postga bitta reklama.\n"
+            "• Bot javoblari: har 3-xabarga bitta reklama.\n\n"
+            "Pul bo'sh bo'lsa eski yagona reklama ishlashda davom etadi."
+        )
+        try:
+            await query.edit_message_text(
+                text, reply_markup=get_ad_pool_menu_keyboard(scope), parse_mode="HTML")
+        except TelegramError:
+            await query.message.reply_text(
+                text, reply_markup=get_ad_pool_menu_keyboard(scope), parse_mode="HTML")
+        return
+
+    if action == "back":
+        text = await _ad_pool_menu_text(scope)
+        try:
+            await query.edit_message_text(
+                text, reply_markup=get_ad_pool_menu_keyboard(scope), parse_mode="HTML")
+        except TelegramError:
+            await query.message.reply_text(
+                text, reply_markup=get_ad_pool_menu_keyboard(scope), parse_mode="HTML")
+        return
 
 
 async def broadcast_start(update: Update, context: ContextTypes.DEFAULT_TYPE):

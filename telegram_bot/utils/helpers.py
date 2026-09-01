@@ -1,5 +1,6 @@
 import html
 import re
+import threading
 import time
 from datetime import datetime, timedelta
 import pytz
@@ -14,6 +15,44 @@ _AI_HISTORY = {}
 _AI_DAILY = {}
 _DUP_HISTORY = {}
 _GLOBAL_FLOOD = []  # so'nggi 1 soniyadagi barcha update'lar vaqtlari
+
+# --- Avtomatik reklama rotatsiya holati ---
+# Har bir scope ('channel' / 'reply') uchun navbatdagi reklama indeksi.
+# Bot postlar va javoblarga puldagi reklamalarni navbatma-navbat qo'shadi.
+_AD_ROTATION_INDEX = {}
+_AD_ROTATION_LOCK = threading.Lock()
+
+
+def _next_ad_text(ads, scope: str) -> str:
+    """Round-robin: puldagi keyingi reklama matnini qaytaradi (bo'sh bo'lsa '').
+
+    ``ads`` — [(id, text), ...] ko'rinishidagi faol reklamalar. Scheduler
+    thread'da, javoblar esa event loop'da ishlagani uchun thread-xavfsizlik
+    Lock orqali ta'minlanadi.
+    """
+    if not ads:
+        return ""
+    with _AD_ROTATION_LOCK:
+        idx = _AD_ROTATION_INDEX.get(scope, 0) % len(ads)
+        _AD_ROTATION_INDEX[scope] = idx + 1
+    return ads[idx][1]
+
+
+def get_channel_ad_next() -> str:
+    """Sinxron: kanal posti uchun navbatdagi reklama. Pul bo'sh bo'lsa eski
+    ``channel_ad_text`` sozlamasiga (orqaga moslik) qaytadi."""
+    ads = db.get_ads(db.AD_SCOPE_CHANNEL) or []
+    if ads:
+        return _next_ad_text(ads, db.AD_SCOPE_CHANNEL)
+    return db.get_setting("channel_ad_text", "").strip()
+
+
+async def get_channel_ad_next_async() -> str:
+    """Async: kanal posti uchun navbatdagi reklama (DB thread'da o'qiladi)."""
+    ads = (await db.run_db(db.get_ads, db.AD_SCOPE_CHANNEL)) or []
+    if ads:
+        return _next_ad_text(ads, db.AD_SCOPE_CHANNEL)
+    return (await db.run_db(db.get_setting, "channel_ad_text", "")).strip()
 
 # Hujum / ortiqcha yuklama himoyasi chegaralari
 GLOBAL_MAX_UPDATES_PER_SEC = 60     # butun bot bo'yicha 1 soniyada 60 tadan ortiq update
@@ -123,14 +162,25 @@ def is_duplicate_message(user_id: int, text: str) -> bool:
 def get_smart_reply_ad(user_id: int) -> str:
     """Sinxron variant (test/skript uchun). Handlerlarda
     ``get_smart_reply_ad_async`` ishlatiladi — u DB'ni event loopdan tashqarida
-    o'qiydi."""
-    ad_text = db.get_setting("bot_reply_ad_text", "").strip()
+    o'qiydi. Rotatsiya pulidan navbatdagi reklamani oladi."""
+    ads = db.get_ads(db.AD_SCOPE_REPLY) or []
+    if ads:
+        ad_text = _next_ad_text(ads, db.AD_SCOPE_REPLY)
+    else:
+        # Orqaga moslik: eski bitta reklama sozlamasi.
+        ad_text = db.get_setting("bot_reply_ad_text", "").strip()
     return _format_reply_ad(user_id, ad_text)
 
 
 async def get_smart_reply_ad_async(user_id: int) -> str:
-    """Reklama satri; DB o'qish alohida thread'da (event loop bloklanmaydi)."""
-    ad_text = (await db.run_db(db.get_setting, "bot_reply_ad_text", "")).strip()
+    """Reklama satri; DB o'qish alohida thread'da (event loop bloklanmaydi).
+    Rotatsiya pulidan navbatdagi reklamani oladi; pul bo'sh bo'lsa eski
+    ``bot_reply_ad_text`` sozlamasiga qaytadi."""
+    ads = (await db.run_db(db.get_ads, db.AD_SCOPE_REPLY)) or []
+    if ads:
+        ad_text = _next_ad_text(ads, db.AD_SCOPE_REPLY)
+    else:
+        ad_text = (await db.run_db(db.get_setting, "bot_reply_ad_text", "")).strip()
     return _format_reply_ad(user_id, ad_text)
 
 

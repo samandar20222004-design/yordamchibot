@@ -520,8 +520,80 @@ def test_smart_reply_ad_async():
     finally:
         db_mod.run_db = original_run_db
 
-    check("DB o'qish run_db (thread) orqali ketadi", calls == ["get_setting"], str(calls))
+    check("DB o'qish run_db (thread) orqali ketadi", calls == ["get_ads", "get_setting"], str(calls))
     check("reklama bo'sh bo'lsa satr ham bo'sh", result == "", result)
+
+
+def test_ad_pool_rotation():
+    """Avtomatik reklama rotatsiya: round-robin + eski sozlamaga qaytish."""
+    print("== utils.helpers avto-rotatsiya reklama ==")
+    import asyncio
+    from utils import helpers
+    import database as db_mod
+
+    # Round-robin aylanish
+    ads = [(1, "REKLAMA-A"), (2, "REKLAMA-B"), (3, "REKLAMA-C")]
+    first = helpers._next_ad_text(ads, "channel")
+    second = helpers._next_ad_text(ads, "channel")
+    third = helpers._next_ad_text(ads, "channel")
+    fourth = helpers._next_ad_text(ads, "channel")
+    check("round-robin: 1-chi", first == "REKLAMA-A", first)
+    check("round-robin: 2-chi", second == "REKLAMA-B", second)
+    check("round-robin: 3-chi", third == "REKLAMA-C", third)
+    check("round-robin: qaytadan aylanadi", fourth == "REKLAMA-A", fourth)
+    check("bo'sh pul: bo'sh satr", helpers._next_ad_text([], "channel") == "")
+
+    # Har bir scope alohida aylanadi
+    helpers._AD_ROTATION_INDEX.clear()
+    ch1 = helpers._next_ad_text(ads, "channel")
+    rp1 = helpers._next_ad_text(ads, "reply")
+    check("scope'lar alohida aylanadi", ch1 == "REKLAMA-A" and rp1 == "REKLAMA-A", (ch1, rp1))
+    helpers._AD_ROTATION_INDEX.clear()
+
+    # Pul bo'sh bo'lganda eski yagona sozlamaga qaytish (async, kanal)
+    calls = []
+    original_run_db = db_mod.run_db
+
+    async def fake_empty(func, *args, **kwargs):
+        calls.append(func.__name__)
+        # get_ads bo'sh ro'yxat, get_setting esa eski matn qaytaradi
+        return [] if func.__name__ == "get_ads" else "LEGACY-AD"
+
+    db_mod.run_db = fake_empty
+    try:
+        legacy = asyncio.run(helpers.get_channel_ad_next_async())
+    finally:
+        db_mod.run_db = original_run_db
+    check("pul bo'sh: eski sozlamaga qaytadi", legacy == "LEGACY-AD", legacy)
+    check("pul bo'sh: get_ads keyin get_setting", calls == ["get_ads", "get_setting"], str(calls))
+
+    # Pul bor bo'lganda navbatdagi reklama qaytadi (async, reply)
+    calls = []
+    async def fake_pool(func, *args, **kwargs):
+        calls.append(func.__name__)
+        return [(7, "POOL-AD")] if func.__name__ == "get_ads" else ""
+
+    db_mod.run_db = fake_pool
+    # Bot javoblari reklamasi har 3-xabarga chiqadi — sanagichni 2 ga qo'yib,
+    # navbatdagi chaqiruv (3-chi) reklamani chiqarishini ta'minlaymiz.
+    helpers._USER_MSG_COUNT[777003] = 2
+    try:
+        pooled = asyncio.run(helpers.get_smart_reply_ad_async(777003))
+    finally:
+        db_mod.run_db = original_run_db
+    check("pul bor: navbatdagi reklama (har 3-xabarga)", "POOL-AD" in pooled, pooled)
+    check("pul bor: faqat get_ads chaqiriladi", calls == ["get_ads"], str(calls))
+    helpers._AD_ROTATION_INDEX.clear()
+
+    # DB funktsiyalari mavjudligi
+    for fname in ("add_ad", "get_ads", "delete_ad", "clear_ads", "count_ads",
+                  "AD_SCOPE_CHANNEL", "AD_SCOPE_REPLY"):
+        check(f"db.{fname} mavjud", hasattr(db_mod, fname))
+
+    # Noto'g'ri scope / bo'sh matn DB'ga urilmaydi (xavfsiz -1)
+    check("noto'g'ri scope add_ad -> -1", db_mod.add_ad("bogus", "X") == -1)
+    check("bo'sh matn add_ad -> -1", db_mod.add_ad("channel", "   ") == -1)
+    check("noto'g'ri scope get_ads -> []", db_mod.get_ads("bogus") == [])
 
 
 def test_ai_format_prompts():
@@ -1426,6 +1498,7 @@ def test_admin_handlers_exist():
         admin_panel_menu, admin_stats_command, admin_dashboard_callback,
         admin_inline_text_handler, show_statistics,
         broadcast_start, broadcast_send, ai_settings_menu,
+        ad_pool_callback,
     )
 
     check("admin_panel_menu callable", callable(admin_panel_menu))
@@ -1436,6 +1509,7 @@ def test_admin_handlers_exist():
     check("broadcast_start callable", callable(broadcast_start))
     check("broadcast_send callable", callable(broadcast_send))
     check("ai_settings_menu callable", callable(ai_settings_menu))
+    check("ad_pool_callback callable", callable(ad_pool_callback))
 
 
 def test_admin_dashboard_stats_db():
@@ -1964,6 +2038,7 @@ def main():
     test_ai_optional_params()
     test_button_labels()
     test_smart_reply_ad_async()
+    test_ad_pool_rotation()
     test_channel_cache_invalidation()
     test_queue_slot_algorithm()
     test_queue_ui_helpers()

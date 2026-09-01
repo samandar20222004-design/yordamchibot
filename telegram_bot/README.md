@@ -197,6 +197,26 @@ Admin boshqaruv paneldan quyidagilar ham bajariladi:
   (masalan `@PostAssistrobot`). Bo'sh qoldirilsa postlar toza chiqadi. Nishon
   matn Telegram limitiga (caption 1024, matn 4096) kesilgandan **keyin**
   qo'shiladi — shuning uchun uzun postlarda ham yo'qolib qolmaydi.
+
+### Avtomatik reklama rotatsiyasi (ad-pool)
+
+Admin panelda **📢 Kanal posti reklamasi** va **🤖 Bot xabari reklamasi** endi
+bitta matn emas, **reklamalar puli** (pool) saqlaydi. Pulga bir nechta reklama
+qo'shasiz, bot ularni navbatma-navbat (round-robin) ishlatadi:
+
+- **Kanal postlari** — har postga puldagi navbatdagi reklama qo'shiladi.
+- **Bot javoblari** — har 3-xabarga puldagi navbatdagi reklama qo'shiladi.
+
+Pul menyusida quyidagilar bor:
+
+- **➕ Yangi reklama qo'shish** — matn yozasiz, pulga qo'shiladi (yoki to'g'ridan-to'g'ri matn yozib yuborishingiz mumkin).
+- **🗑 Reklama o'chirish** — puldagi reklamalardan birini tanlab o'chirasiz.
+- **🧹 Hammasini tozalash** — butun pulni tozalaydi (`clear` deb yozsangiz ham bo'ladi).
+- **ℹ️ Rotatsiya haqida** — bu funksiya qanday ishlashini tushuntiradi.
+
+> Orqaga moslik: pul **bo'sh** bo'lganda bot eski yagona reklama
+> sozlamasidan (`channel_ad_text` / `bot_reply_ad_text`) foydalanishda davom
+> etadi — shuning uchun mavjud konfiguratsiya buzilmaydi.
 - **⚙️ AI parametrlar** — temperature, max_tokens, top_p, prompt limit,
   kontekst hajmi va xabarlar sonini runtime'da o'zgartirish.
 - **🗄️ DB/Kesh holati** — PostgreSQL pool holati va TTL kesh yozuvlari sonini
