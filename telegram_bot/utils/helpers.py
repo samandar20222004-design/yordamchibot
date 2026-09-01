@@ -9,6 +9,42 @@ import database as db
 
 tashkent_tz = pytz.timezone("Asia/Tashkent")
 
+
+async def apply_post_watermark(text: str, user_id: int, bot_username: str) -> str:
+    """Bepul foydalanuvchilar postlariga bot username'ini avtomatik qo'shadi.
+
+    Qoidalar:
+      - PRO foydalanuvchilar va adminlar uchun matn o'zgarmaydi.
+      - Bepul foydalanuvchilar uchun matn boshiga @username qo'shiladi.
+      - Agar matn allaqachon username bilan boshlangan bo'lsa, takrorlanmaydi.
+    """
+    from config import ADMIN_IDS_SET
+
+    # Admin va PRO foydalanuvchilarga watermark qo'yilmaydi
+    if user_id in ADMIN_IDS_SET:
+        return text
+
+    try:
+        is_pro = await db.run_db(db.is_premium, user_id)
+        if is_pro:
+            return text
+    except Exception:
+        pass
+
+    # Username'ni tozalash va formatlash
+    clean_username = bot_username if bot_username.startswith("@") else f"@{bot_username}"
+
+    # Bo'sh matn bo'lsa, faqat username qaytariladi
+    if not text:
+        return clean_username
+
+    # Agar matn allaqachon username bilan boshlangan bo'lsa, o'zgartirilmaydi
+    if not text.startswith(clean_username):
+        return f"{clean_username}\n\n{text}"
+
+    return text
+
+
 _USER_HISTORY = {}
 _USER_WARNED = {}
 _USER_MSG_COUNT = {}

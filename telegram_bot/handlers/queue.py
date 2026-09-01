@@ -117,10 +117,8 @@ def _get_slots_keyboard(slots: list) -> InlineKeyboardMarkup:
 # HANDLERS
 # ============================================================
 
-async def queue_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Queue ro'yxatini ko'rsatadi."""
-    user_id = update.effective_user.id
-    is_admin = (user_id in ADMIN_IDS_SET)
+async def _build_queue_view(user_id: int, is_admin: bool) -> tuple:
+    """Queue view matni va markup'ni tuzadi (cabinet'dan ham chaqiriladi)."""
     total = await db.run_db(db.get_queue_post_count, user_id)
 
     # Free foydalanuvchi navbat limitiga yetganda PRO taklifi ko'rsatiladi.
@@ -131,14 +129,14 @@ async def queue_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
             show_upsell = True
 
     if total == 0:
-        await update.message.reply_text(
+        from keyboards.default import get_cabinet_back_keyboard
+        text = (
             "📚 <b>Navbat (Queue)</b>\n\n"
             "Hozircha navbatda postlar yo'q.\n"
-            "Yangi post yaratib, <b>⚡️ Navbatga qo'yish</b> tugmasini bosing.",
-            reply_markup=get_main_keyboard(is_admin),
-            parse_mode="HTML",
+            "Yangi post yaratib, <b>⚡️ Navbatga qo'yish</b> tugmasini bosing."
         )
-        return ConversationHandler.END
+        markup = get_cabinet_back_keyboard()
+        return text, markup
 
     posts = await db.run_db(db.get_queue_posts, user_id, 0, QUEUE_PAGE_SIZE)
     text_lines = [f"📚 <b>Navbatdagi postlar</b> ({total} ta):\n"]
@@ -158,7 +156,15 @@ async def queue_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )]
         existing.append([InlineKeyboardButton("⭐️ PRO tarifga o'tish", callback_data="sub_open")])
         keyboard = InlineKeyboardMarkup(existing)
-    await update.message.reply_text(text, reply_markup=keyboard, parse_mode="HTML")
+    return text, keyboard
+
+
+async def queue_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Queue ro'yxatini ko'rsatadi."""
+    user_id = update.effective_user.id
+    is_admin = (user_id in ADMIN_IDS_SET)
+    text, markup = await _build_queue_view(user_id, is_admin)
+    await update.message.reply_text(text, reply_markup=markup, parse_mode="HTML")
     return QUEUE_MENU
 
 

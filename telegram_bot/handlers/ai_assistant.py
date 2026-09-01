@@ -582,7 +582,7 @@ async def ai_confirm_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
             "✅ <b>AI Posti muvaffaqiyatli rejalashtirildi!</b>\n\n"
             f"📢 Joylash: <b>{html_escape(target_name)}</b>\n"
             f"⏰ Chiqish vaqti: <b>{post_time.strftime('%Y-%m-%d %H:%M')}</b>\n\n"
-            f"Yana post yaratish uchun <b>🤖 AI Post Yordamchi</b> ni bosing yoki menyuga qayting.{ad_line}",
+            f"Yana post yaratish uchun <b>🤖 AI Yordamchi</b> ni bosing yoki menyuga qayting.{ad_line}",
             reply_markup=get_main_keyboard(is_admin),
             parse_mode="HTML",
         )
