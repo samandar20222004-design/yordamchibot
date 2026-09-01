@@ -2124,6 +2124,151 @@ def test_tier_limit_handler_constants():
     check("ai_assistant: increment_ai_usage chaqiriladi", "increment_ai_usage" in src_ai)
 
 
+def test_tiered_rate_limit_constants():
+    """Qatlamli rate limit konstantalari va ularning ishlashi."""
+    print("== Tiered rate limits (NAV, ENTRY, REACTION) ==")
+    from utils.helpers import (
+        check_rate_limit,
+        NAV_RATE_LIMIT_MAX,
+        ENTRY_RATE_LIMIT_MAX,
+        REACTION_RATE_LIMIT_MAX,
+    )
+
+    check("NAV_RATE_LIMIT_MAX mavjud", NAV_RATE_LIMIT_MAX is not None)
+    check("NAV_RATE_LIMIT_MAX = 20", NAV_RATE_LIMIT_MAX == 20)
+    check("ENTRY_RATE_LIMIT_MAX mavjud", ENTRY_RATE_LIMIT_MAX is not None)
+    check("ENTRY_RATE_LIMIT_MAX = 12", ENTRY_RATE_LIMIT_MAX == 12)
+    check("REACTION_RATE_LIMIT_MAX mavjud", REACTION_RATE_LIMIT_MAX is not None)
+    check("REACTION_RATE_LIMIT_MAX = 10", REACTION_RATE_LIMIT_MAX == 10)
+
+    # Navigatsiya limiti: 20 ta o'tadi, 21-chisi blok
+    uid_nav = 999101
+    nav_res = [check_rate_limit(uid_nav, max_requests=NAV_RATE_LIMIT_MAX, window_seconds=2.0) for _ in range(21)]
+    check("NAV: 20 ta so'rov o'tadi", all(not r[0] for r in nav_res[:20]))
+    check("NAV: 21-chi so'rov bloklanadi", nav_res[20][0] is True)
+
+    # Entry limiti: 12 ta o'tadi, 13-chisi blok
+    uid_entry = 999102
+    entry_res = [check_rate_limit(uid_entry, max_requests=ENTRY_RATE_LIMIT_MAX, window_seconds=2.0) for _ in range(13)]
+    check("ENTRY: 12 ta so'rov o'tadi", all(not r[0] for r in entry_res[:12]))
+    check("ENTRY: 13-chi so'rov bloklanadi", entry_res[12][0] is True)
+
+    # Reaksiya limiti: 10 ta o'tadi, 11-chisi blok
+    uid_react = 999103
+    react_res = [check_rate_limit(uid_react, max_requests=REACTION_RATE_LIMIT_MAX, window_seconds=2.0) for _ in range(11)]
+    check("REACTION: 10 ta so'rov o'tadi", all(not r[0] for r in react_res[:10]))
+    check("REACTION: 11-chi so'rov bloklanadi", react_res[10][0] is True)
+
+
+def test_reaction_keyboard_buttons():
+    """Alohida reaksiya tugmalari va klaviatura strukturasi."""
+    print("== Individual reaction buttons & keyboard ==")
+    from keyboards.default import (
+        BTN_REACT_THUMBS_UP,
+        BTN_REACT_HEART,
+        BTN_REACT_FIRE,
+        BTN_REACT_CLAP,
+        BTN_REACT_DEFAULT,
+        BTN_NO_REACT,
+        BTN_BACK,
+        get_reactions_keyboard,
+    )
+
+    check("BTN_REACT_THUMBS_UP = '👍'", BTN_REACT_THUMBS_UP == "👍")
+    check("BTN_REACT_HEART = '❤️'", "❤" in BTN_REACT_HEART)
+    check("BTN_REACT_FIRE = '🔥'", BTN_REACT_FIRE == "🔥")
+    check("BTN_REACT_CLAP = '👏'", BTN_REACT_CLAP == "👏")
+    check("BTN_REACT_DEFAULT = '👍 ❤️ 🔥 👏'", BTN_REACT_DEFAULT == "👍 ❤️ 🔥 👏")
+    check("BTN_NO_REACT mavjud", BTN_NO_REACT == "➡️ Reaksiyasiz davom etish")
+
+    kb = get_reactions_keyboard()
+    row0_texts = [getattr(b, "text", b) for b in kb.keyboard[0]]
+    row1_texts = [getattr(b, "text", b) for b in kb.keyboard[1]]
+    row2_texts = [getattr(b, "text", b) for b in kb.keyboard[2]]
+
+    check("get_reactions_keyboard rows = 3", len(kb.keyboard) == 3)
+    check("Row 0: 4 ta emoji tugmasi", len(row0_texts) == 4)
+    check("Row 0 contains 👍", "👍" in row0_texts)
+    check("Row 0 contains ❤️", any("❤" in str(t) for t in row0_texts))
+    check("Row 0 contains 🔥", "🔥" in row0_texts)
+    check("Row 0 contains 👏", "👏" in row0_texts)
+    check("Row 1: BTN_NO_REACT", row1_texts == [BTN_NO_REACT])
+    check("Row 2: BTN_BACK", row2_texts == [BTN_BACK])
+
+
+def test_flexible_reaction_parser():
+    """Moslashuvchan reaksiya parseri (parse_reactions_input)."""
+    print("== parse_reactions_input matcher ==")
+    from utils.helpers import parse_reactions_input
+
+    # Yakka emojilar
+    check("emoji 👍 -> True", parse_reactions_input("👍") is True)
+    check("emoji ❤️ -> True", parse_reactions_input("❤️") is True)
+    check("emoji \\u2764\\ufe0f (VS16) -> True", parse_reactions_input("\u2764\ufe0f") is True)
+    check("emoji \\u2764 (no VS) -> True", parse_reactions_input("\u2764") is True)
+    check("emoji 🔥 -> True", parse_reactions_input("🔥") is True)
+    check("emoji 👏 -> True", parse_reactions_input("👏") is True)
+    check("emoji 🎉 -> True", parse_reactions_input("🎉") is True)
+    check("emoji 💯 -> True", parse_reactions_input("💯") is True)
+    check("emoji ✨ -> True", parse_reactions_input("✨") is True)
+    check("emoji ⭐ -> True", parse_reactions_input("⭐") is True)
+
+    # Emoji kombinatsiyalari
+    check("combo '👍 ❤️ 🔥 👏' -> True", parse_reactions_input("👍 ❤️ 🔥 👏") is True)
+    check("combo '👍❤️🔥👏' -> True", parse_reactions_input("👍❤️🔥👏") is True)
+    check("combo '👍, ❤️, 🔥' -> True", parse_reactions_input("👍, ❤️, 🔥") is True)
+    check("combo '🔥 👏' -> True", parse_reactions_input("🔥 👏") is True)
+
+    # Matnli tasdiqlash
+    check("text 'ha' -> True", parse_reactions_input("ha") is True)
+    check("text 'yoqish' -> True", parse_reactions_input("yoqish") is True)
+    check("text 'reaksiya' -> True", parse_reactions_input("reaksiya") is True)
+    check("text 'reaksiyalar' -> True", parse_reactions_input("reaksiyalar") is True)
+    check("text 'yes' -> True", parse_reactions_input("yes") is True)
+
+    # Reaksiyasiz / o'chirish
+    check("BTN_NO_REACT -> False", parse_reactions_input("➡️ Reaksiyasiz davom etish") is False)
+    check("text 'reaksiyasiz' -> False", parse_reactions_input("reaksiyasiz") is False)
+    check("text 'yo\\'q' -> False", parse_reactions_input("yo'q") is False)
+    check("text 'yoq' -> False", parse_reactions_input("yoq") is False)
+    check("text 'o\\'chirish' -> False", parse_reactions_input("o'chirish") is False)
+    check("text 'no' -> False", parse_reactions_input("no") is False)
+    check("text 'none' -> False", parse_reactions_input("none") is False)
+    check("text '-' -> False", parse_reactions_input("-") is False)
+    check("text 'skip' -> False", parse_reactions_input("skip") is False)
+
+    # Noto'g'ri / begona matn
+    check("text 'random string' -> None", parse_reactions_input("random string") is None)
+    check("text 'salom dunyo' -> None", parse_reactions_input("salom dunyo") is None)
+    check("text '12345' -> None", parse_reactions_input("12345") is None)
+    check("empty '' -> None", parse_reactions_input("") is None)
+    check("None -> None", parse_reactions_input(None) is None)
+
+
+def test_guard_feedback_and_silent_blocking_fix():
+    """Guard va callbacklarda bildirishnoma mavjudligi (silent blocking fix)."""
+    print("== Non-silent rate-limit feedback in guards ==")
+    import handlers as h_mod
+    import handlers.pending as p_mod
+    import handlers.new_post as np_mod
+
+    src_h = open(h_mod.__file__).read()
+    check("handlers: ENTRY_RATE_LIMIT_MAX import", "ENTRY_RATE_LIMIT_MAX" in src_h)
+    check("handlers: NAV_RATE_LIMIT_MAX import", "NAV_RATE_LIMIT_MAX" in src_h)
+    check("handlers: REACTION_RATE_LIMIT_MAX import", "REACTION_RATE_LIMIT_MAX" in src_h)
+    check("handlers: guard_entry notice text", "⏳ Iltimos, biroz kuting..." in src_h)
+    check("handlers: guard_menu notice text", "⏳ Iltimos, biroz kuting..." in src_h)
+    check("handlers: reaction_callback alert text", "⏳ Iltimos, biroz kuting..." in src_h)
+
+    src_p = open(p_mod.__file__).read()
+    check("pending: NAV_RATE_LIMIT_MAX import", "NAV_RATE_LIMIT_MAX" in src_p)
+    check("pending: refresh_pending alert text", "⏳ Iltimos, biroz kuting..." in src_p)
+    check("pending: parse_reactions_input ishlatiladi", "parse_reactions_input" in src_p)
+
+    src_np = open(np_mod.__file__).read()
+    check("new_post: parse_reactions_input ishlatiladi", "parse_reactions_input" in src_np)
+
+
 def main():
     test_calculate_next_time()
     test_converter()
@@ -2203,6 +2348,10 @@ def main():
     test_multi_admin_checks()
     test_queue_limit_function()
     test_tier_limit_handler_constants()
+    test_tiered_rate_limit_constants()
+    test_reaction_keyboard_buttons()
+    test_flexible_reaction_parser()
+    test_guard_feedback_and_silent_blocking_fix()
 
     print(f"\nO'tdi: {passed}, Xato: {failures}")
     if failures:

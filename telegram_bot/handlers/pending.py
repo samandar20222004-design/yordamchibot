@@ -8,6 +8,7 @@ from keyboards.inline import render_pending_list
 from keyboards.default import get_cancel_keyboard, get_main_keyboard, get_reactions_keyboard
 from utils.helpers import (
     format_post_type_label, format_schedule_line, html_escape, check_rate_limit, parse_future_time,
+    NAV_RATE_LIMIT_MAX, parse_reactions_input,
 )
 
 logger = logging.getLogger(__name__)
@@ -75,9 +76,9 @@ async def refresh_pending_callback(update: Update, context: ContextTypes.DEFAULT
     """Ro'yxatni qayta chizadi (🔄 Yangilash tugmasi)."""
     query = update.callback_query
     user_id = query.from_user.id
-    is_blocked, _ = check_rate_limit(user_id, max_requests=6, window_seconds=3.0)
+    is_blocked, _ = check_rate_limit(user_id, max_requests=NAV_RATE_LIMIT_MAX, window_seconds=2.0)
     if is_blocked:
-        await query.answer("Iltimos, shoshilmang...", show_alert=False)
+        await query.answer("⏳ Iltimos, biroz kuting...", show_alert=False)
         return
     try:
         text, markup = await _build_pending_view(user_id)
@@ -275,21 +276,18 @@ async def edit_post_react_start(update: Update, context: ContextTypes.DEFAULT_TY
 
 
 async def edit_post_react_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    from keyboards.default import BTN_REACT_DEFAULT, BTN_NO_REACT
-    text = update.message.text.strip()
+    text = update.message.text
     post_id = context.user_data.get("editing_post_id")
     post = await _get_owned_post(post_id, update.effective_user.id, update)
     if not post:
         return ConversationHandler.END
 
-    if text == BTN_REACT_DEFAULT:
-        enable = True
-    elif text == BTN_NO_REACT:
-        enable = False
-    else:
+    parsed = parse_reactions_input(text)
+    if parsed is None:
         await update.message.reply_text("⚠️ Tugmalardan birini tanlang:", reply_markup=get_reactions_keyboard())
         return EDIT_POST_REACT
 
+    enable = parsed
     updated = await db.run_db(db.update_post_content, post_id, update.effective_user.id, enable_reactions=enable)
     msg = "✅ <b>Reaksiyalar yoqildi!</b>" if enable else "✅ <b>Reaksiyalar o'chirildi!</b>"
     if updated:

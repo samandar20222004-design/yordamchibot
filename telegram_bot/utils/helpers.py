@@ -61,6 +61,96 @@ DUP_WINDOW_SECONDS = 1.5            # bir xil xabar shu vaqt ichida qayta yubori
 AI_MAX_PER_MINUTE = 4               # AI: daqiqasiga 4 ta
 AI_MAX_PER_DAY = 30                 # AI: kuniga 30 ta (bepul limitlarni tejash)
 
+# Qatlamli rate-limit konstantalari (2 soniyalik oyna bo'yicha)
+NAV_RATE_LIMIT_MAX = 20             # 20 req/2s: Kabinet, AI Studio, Premium, Asosiy menyu navigatsiyasi
+ENTRY_RATE_LIMIT_MAX = 12           # 12 req/2s: Yangi oqimlarga kirish (entry points)
+REACTION_RATE_LIMIT_MAX = 10        # 10 req/2s: Reaksiya bosishlar (reaction taps)
+
+
+def parse_reactions_input(text: str) -> bool | None:
+    """Post reaksiyalari bo'yicha kiritilgan matn/emojini moslashuvchan tahlil qiladi.
+
+    Qo'llab-quvvatlanadi:
+      • Alohida emojilar: '👍', '❤️' (\ufe0f bilan/siz), '🔥', '👏' va boshqa emojilar
+      • Emoji kombinatsiyalari: '👍 ❤️ 🔥 👏', '👍❤️🔥👏', '👍, ❤️'
+      • Matnli tasdiqlash: 'ha', 'yoqish', 'reaksiya', 'reaksiyalar', 'yes'
+      • Reaksiyasiz / o'chirish: '➡️ Reaksiyasiz davom etish', 'yo'q', 'yoq', 'o'chirish', 'no', '-'
+      • Noto'g'ri / begona matn: None (foydalanuvchiga qayta taklif)
+    """
+    if text is None:
+        return None
+    raw = str(text).strip()
+    if not raw:
+        return None
+
+    # Variation selector va ko'rinmas belgilarni tozalash (\ufe0f = VS16, \ufe0e = VS15)
+    cleaned = raw.replace("\ufe0f", "").replace("\ufe0e", "").strip()
+    lower = cleaned.lower()
+
+    # 1) Reaksiyasiz / o'chirish variantlari -> False
+    no_react_keywords = {
+        "➡️ reaksiyasiz davom etish",
+        "reaksiyasiz davom etish",
+        "reaksiyasiz",
+        "reaksiya kerakmas",
+        "reaksiyasiz bo'lsin",
+        "yo'q",
+        "yoq",
+        "yo'qsin",
+        "kerakmas",
+        "kerak emas",
+        "o'chirish",
+        "o'chir",
+        "ochirish",
+        "ochir",
+        "no",
+        "none",
+        "off",
+        "disable",
+        "-",
+        "0",
+        "skip",
+    }
+    if lower in no_react_keywords or lower.startswith("➡️ reaksiyasiz") or "reaksiyasiz" in lower:
+        return False
+
+    # 2) Aniq matnli tasdiqlash variantlari -> True
+    yes_react_keywords = {
+        "ha",
+        "ha albatta",
+        "ha, albatta",
+        "ha bo'lsin",
+        "reaksiya",
+        "reaksiyalar",
+        "reaksiyali",
+        "reaksiyalar bilan",
+        "yoqish",
+        "yoqilsin",
+        "yes",
+        "on",
+        "enable",
+        "1",
+        "albatta",
+        "mayli",
+    }
+    if lower in yes_react_keywords:
+        return True
+
+    # 3) Emojilar va emoji kombinatsiyalari (yakka yoki guruh)
+    import unicodedata
+    emoji_stripped = re.sub(r"[\s,|+/.\-_]+", "", cleaned)
+    if emoji_stripped:
+        is_all_emoji = True
+        for ch in emoji_stripped:
+            cat = unicodedata.category(ch)
+            if cat not in ("So", "Sm", "Sk", "Mn", "Mc", "Me", "Cf", "No"):
+                is_all_emoji = False
+                break
+        if is_all_emoji:
+            return True
+
+    return None
+
 
 def check_rate_limit(user_id: int, max_requests: int = 3, window_seconds: float = 3.0) -> tuple[bool, bool]:
     now = time.time()

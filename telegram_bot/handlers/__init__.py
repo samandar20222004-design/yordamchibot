@@ -122,7 +122,12 @@ from handlers.queue import (
 )
 
 import database as db
-from utils.helpers import check_rate_limit
+from utils.helpers import (
+    check_rate_limit,
+    NAV_RATE_LIMIT_MAX,
+    ENTRY_RATE_LIMIT_MAX,
+    REACTION_RATE_LIMIT_MAX,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -154,10 +159,15 @@ async def _deny_if_unsubscribed(update, context) -> bool:
 async def guard_entry(update, context, fn):
     user = update.effective_user
     if user:
-        is_blocked, should_warn = check_rate_limit(user.id, max_requests=4, window_seconds=2.0)
+        is_blocked, _ = check_rate_limit(user.id, max_requests=ENTRY_RATE_LIMIT_MAX, window_seconds=2.0)
         if is_blocked:
-            if should_warn and update.message:
-                await update.message.reply_text("⚠️ <i>Juda ko'p so'rov yubordingiz! Iltimos, 2 soniya kuting...</i>", parse_mode="HTML")
+            if update.message:
+                await update.message.reply_text("⏳ Iltimos, biroz kuting...", parse_mode="HTML")
+            elif update.callback_query:
+                try:
+                    await update.callback_query.answer("⏳ Iltimos, biroz kuting...", show_alert=False)
+                except Exception:
+                    pass
             return ConversationHandler.END
 
     if await _deny_if_unsubscribed(update, context):
@@ -170,10 +180,15 @@ async def guard_entry(update, context, fn):
 async def guard_menu(update, context, fn):
     user = update.effective_user
     if user:
-        is_blocked, should_warn = check_rate_limit(user.id, max_requests=4, window_seconds=2.0)
+        is_blocked, _ = check_rate_limit(user.id, max_requests=NAV_RATE_LIMIT_MAX, window_seconds=2.0)
         if is_blocked:
-            if should_warn and update.message:
-                await update.message.reply_text("⚠️ <i>Juda ko'p so'rov yubordingiz! Iltimos, 2 soniya kuting...</i>", parse_mode="HTML")
+            if update.message:
+                await update.message.reply_text("⏳ Iltimos, biroz kuting...", parse_mode="HTML")
+            elif update.callback_query:
+                try:
+                    await update.callback_query.answer("⏳ Iltimos, biroz kuting...", show_alert=False)
+                except Exception:
+                    pass
             return ConversationHandler.END
 
     if await _deny_if_unsubscribed(update, context):
@@ -188,9 +203,9 @@ async def reaction_callback(update, context):
     query = update.callback_query
     user_id = query.from_user.id
 
-    is_blocked, _ = check_rate_limit(user_id, max_requests=3, window_seconds=2.0)
+    is_blocked, _ = check_rate_limit(user_id, max_requests=REACTION_RATE_LIMIT_MAX, window_seconds=2.0)
     if is_blocked:
-        await query.answer("Iltimos, shoshilmang...", show_alert=False)
+        await query.answer("⏳ Iltimos, biroz kuting...", show_alert=False)
         return
 
     try:

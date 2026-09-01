@@ -49,6 +49,10 @@ BTN_PREMIUM = "⭐️ Premium"
 BTN_CHANNEL_EXTRACT = "📢 Ochiq kanaldan olish"
 BTN_ALL_CHANNELS_TARGET = "🌐 Barchasiga birdaniga"
 BTN_SKIP_BUTTON = "➡️ Tugmasiz davom etish"
+BTN_REACT_THUMBS_UP = "👍"
+BTN_REACT_HEART = "❤️"
+BTN_REACT_FIRE = "🔥"
+BTN_REACT_CLAP = "👏"
 BTN_REACT_DEFAULT = "👍 ❤️ 🔥 👏"
 BTN_NO_REACT = "➡️ Reaksiyasiz davom etish"
 
@@ -124,7 +128,11 @@ def get_button_prompt_keyboard():
 
 def get_reactions_keyboard():
     return ReplyKeyboardMarkup(
-        [[BTN_REACT_DEFAULT], [BTN_NO_REACT], [BTN_BACK]],
+        [
+            [BTN_REACT_THUMBS_UP, BTN_REACT_HEART, BTN_REACT_FIRE, BTN_REACT_CLAP],
+            [BTN_NO_REACT],
+            [BTN_BACK]
+        ],
         resize_keyboard=True
     )
 
