@@ -646,6 +646,30 @@ async def cabinet_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.message.reply_text(text, reply_markup=get_cabinet_back_keyboard(), parse_mode="HTML")
         return
 
+    if data == "cab_pending":
+        await query.answer()
+        # Kabinet xabarini o'chirib, pending posts view'ni yangi xabar sifatida yuboramiz
+        try:
+            await query.message.delete()
+        except Exception:
+            pass
+        from handlers.pending import _build_pending_view
+        text, markup = await _build_pending_view(user_id)
+        await query.message.reply_text(text, reply_markup=markup, parse_mode="HTML")
+        return
+
+    if data == "cab_queue":
+        await query.answer()
+        # Kabinet xabarini o'chirib, queue view'ni yangi xabar sifatida yuboramiz
+        try:
+            await query.message.delete()
+        except Exception:
+            pass
+        from handlers.queue import _build_queue_view
+        text, markup = await _build_queue_view(user_id, is_admin)
+        await query.message.reply_text(text, reply_markup=markup, parse_mode="HTML")
+        return
+
     if data == "cab_guide":
         await query.answer()
         text = (

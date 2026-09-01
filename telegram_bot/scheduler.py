@@ -12,9 +12,9 @@ from telegram import (
     InputMediaAudio,
 )
 from telegram.error import TelegramError, RetryAfter, TimedOut, NetworkError
-from config import ADMIN_IDS_SET
+from config import ADMIN_IDS_SET, BOT_USERNAME
 import database as db
-from utils.helpers import get_channel_ad_next_async
+from utils.helpers import get_channel_ad_next_async, apply_post_watermark
 
 logger = logging.getLogger(__name__)
 tashkent_tz = pytz.timezone("Asia/Tashkent")
@@ -50,15 +50,22 @@ def compose_post_text(content: str, has_ad_free: bool, channel_ad: str,
     ``limit`` berilsa (Telegram: caption 1024, oddiy matn 4096), asosiy matn
     nishonga joy qoldirib kesiladi va nishon KESISHDAN KEYIN qo'shiladi — shu
     sababli u chegara tufayli hech qachon yo'qolib qolmaydi.
+
+    Eslatma: Watermark (@username) endi ``apply_post_watermark`` orqali content'ga
+    oldindan qo'shiladi (bepul foydalanuvchilar uchun). Bu funksiya faqat channel_ad
+    va brand_text'ni qo'shadi.
     """
     text = content or ""
     ad = (channel_ad or "").strip()
+
+    # Channel ad'ni qo'shish (faqat ad-free litsenziyasi yo'q foydalanuvchilar uchun)
     if not has_ad_free and ad:
         text = f"{text}\n\n{ad}" if text else ad
 
     brand = (brand_text or "").strip()
     limit = int(limit) if limit else 0
 
+    # Limit bo'yicha kesish (brand_text uchun joy zaxiralash)
     if limit > 0:
         if brand:
             # Nishon va uni ajratuvchi ikki qator uchun joy zaxiraga olinadi
@@ -69,9 +76,11 @@ def compose_post_text(content: str, has_ad_free: bool, channel_ad: str,
         elif len(text) > limit:
             text = text[:limit]
 
+    # Brand text'ni qo'shish (admin tomonidan sozlangan bo'lsa)
     if brand:
         text = f"{text}\n\n{brand}" if text else brand
 
+    # Yakuniy limit tekshiruvi
     if limit > 0 and len(text) > limit:
         # Nishonning o'zi limitdan uzun bo'lgan chekka holat
         text = text[:limit]
@@ -176,6 +185,9 @@ async def _execute_send(bot, post):
     # Admin tomonidan yoqilgan nishon (masalan @PostAssistrobot) — bo'sh bo'lsa qo'shilmaydi.
     brand_text = (await db.run_db(db.get_setting, "post_tag_text", "")).strip()
 
+    # WATERMARK: Bepul foydalanuvchilar postlariga bot username qo'shish
+    watermarked_content = await apply_post_watermark(content or "", user_id, BOT_USERNAME)
+
     sent_msg = None
     extra_ids = []
     try:
@@ -189,7 +201,7 @@ async def _execute_send(bot, post):
             else 4096
         )
         final_content = compose_post_text(
-            content, has_ad_free, channel_ad, brand_text, limit=text_limit
+            watermarked_content, has_ad_free, channel_ad, brand_text, limit=text_limit
         )
     except Exception:
         logger.exception("Post matnini tayyorlashda xatolik (Post ID: %s)", post_id)

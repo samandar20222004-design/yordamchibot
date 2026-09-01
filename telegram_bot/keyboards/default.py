@@ -5,17 +5,18 @@ from telegram.ext import filters
 # ============================================================
 # STANDART MENYU TUGMALARI (Constants)
 # ============================================================
-BTN_NEW_POST = "➕ Yangi post rejalashtirish"
-BTN_AI = "🤖 AI Post Yordamchi"
+BTN_NEW_POST = "➕ Yangi post"
+BTN_AI = "🤖 AI Yordamchi"
 BTN_AI_STUDIO = "✨ AI Studio"
 BTN_PENDING = "⏳ Kutilayotgan postlar"
-BTN_SETTINGS = "👤 Kabinet & Sozlamalar"
+BTN_SETTINGS = "👤 Kabinet"
 BTN_CONVERTER = "🔤 Krill-Lotin konverter"
 BTN_HELP = "📖 Yordam & Qo'llanma"
 BTN_BACK = "🔙 Asosiy menyu"
 
 # Orqaga moslik (Aliases)
 BTN_AI_ASSISTANT = BTN_AI
+BTN_AI_POST = "🤖 AI Post Yordamchi"
 BTN_CABINET = BTN_SETTINGS
 BTN_MAIN_MENU = BTN_BACK
 
@@ -90,9 +91,8 @@ def exact(*texts):
 
 def get_main_keyboard(is_admin=False):
     keyboard = [
-        [BTN_NEW_POST, BTN_AI_STUDIO],
-        [BTN_QUEUE, BTN_ANALYTICS],
-        [BTN_PREMIUM, BTN_SETTINGS],
+        [BTN_NEW_POST, BTN_AI],
+        [BTN_AI_STUDIO, BTN_SETTINGS],
     ]
     if is_admin:
         keyboard.append([BTN_ADMIN_PANEL])

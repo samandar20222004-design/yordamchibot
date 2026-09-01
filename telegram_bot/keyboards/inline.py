@@ -273,10 +273,14 @@ def render_pending_list(posts: list, user_code: str) -> InlineKeyboardMarkup:
 
 
 def get_cabinet_inline_keyboard() -> InlineKeyboardMarkup:
-    """Kabinet asosiy menyusi — inline tugmalar (6 tugma, 2x3 grid)."""
+    """Kabinet asosiy menyusi — inline tugmalar (8 tugma, 4x2 grid)."""
     keyboard = [
         [
-            InlineKeyboardButton("📢 Mening kanallarim", callback_data="cab_channels"),
+            InlineKeyboardButton("📢 Kanallarim", callback_data="cab_channels"),
+            InlineKeyboardButton("⏳ Kutilayotgan postlar", callback_data="cab_pending"),
+        ],
+        [
+            InlineKeyboardButton("📚 Navbat (Queue)", callback_data="cab_queue"),
             InlineKeyboardButton("🔤 Krill-Lotin", callback_data="cab_converter"),
         ],
         [
