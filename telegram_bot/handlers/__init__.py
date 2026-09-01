@@ -38,10 +38,12 @@ from handlers.new_post import (
     daily_time_received, recur_day_chosen, recur_time_received, duration_chosen,
     confirm_post_callback, edit_confirm_field_callback, edit_confirm_message_received,
     edit_confirm_media_received,
+    reaction_toggle_callback, reactions_done_callback, reactions_skip_callback,
+    quick_button_post_start, quick_btn_content_received,
     ai_action_menu_callback, ai_action_callback, ai_result_callback,
     CHOOSE_CHANNEL, GET_CONTENT, GET_BTN_TITLE, GET_BTN_URL,
     GET_REACTIONS, GET_AUTO_DELETE, GET_TIME, DAILY_TIME, RECUR_DAY, RECUR_TIME,
-    GET_DURATION, CONFIRM_POST, EDIT_CONFIRM_FIELD
+    GET_DURATION, CONFIRM_POST, EDIT_CONFIRM_FIELD, QUICK_BTN_CONTENT
 )
 
 # 3. CHANNELS MODULI
@@ -459,6 +461,7 @@ def register_all_handlers(app):
             CallbackQueryHandler(edit_post_react_start, pattern=r"^edit_react:"),
             CallbackQueryHandler(add_channel_inline_entry, pattern=r"^add_channel_start$"),
             CallbackQueryHandler(converter_inline_entry, pattern=r"^extra_converter$"),
+            CallbackQueryHandler(quick_button_post_start, pattern=r"^extra_quick_btn$"),
             CommandHandler("newpost", lambda u, c: guard_entry(u, c, start_new_post)),
             CommandHandler("broadcast", lambda u, c: guard_entry(u, c, broadcast_start)),
             CommandHandler("queue", lambda u, c: guard_menu(u, c, queue_menu)),
@@ -474,7 +477,17 @@ def register_all_handlers(app):
                 CallbackQueryHandler(ai_result_callback, pattern=r"^ai_res:"),
             ],
             GET_BTN_URL: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, btn_url_received)],
-            GET_REACTIONS: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, reactions_received)],
+            GET_REACTIONS: all_menu_jumps + [
+                # Multi-select reaksiya (toggle): emoji tanlash + Davom etish / O'tkazib yuborish
+                CallbackQueryHandler(reaction_toggle_callback, pattern=r"^npreact:tgl:"),
+                CallbackQueryHandler(reactions_done_callback, pattern=r"^npreact:done$"),
+                CallbackQueryHandler(reactions_skip_callback, pattern=r"^npreact:skip$"),
+                MessageHandler(filters.TEXT & ~filters.COMMAND, reactions_received),
+            ],
+            QUICK_BTN_CONTENT: all_menu_jumps + [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, quick_btn_content_received),
+                MessageHandler(filters.ALL & ~filters.COMMAND, content_received),
+            ],
             GET_AUTO_DELETE: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, auto_delete_received)],
             GET_TIME: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, time_received)],
             DAILY_TIME: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, daily_time_received)],

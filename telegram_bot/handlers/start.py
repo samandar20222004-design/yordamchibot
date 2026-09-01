@@ -477,6 +477,8 @@ async def extras_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
     await update.message.reply_text(
         "⚙️ <b>Qo'shimcha funksiyalar</b>\n\n"
+        "🔤 <b>Krill-Lotin konvertor</b> — matnlarni ikki alifbo orasida o'girish\n"
+        "🔗 <b>Tezkor tugmali post</b> — bir xabarda matn + URL tugma bilan post yaratish\n\n"
         "Kerakli vositani tanlang 👇",
         reply_markup=get_extras_inline_keyboard(),
         parse_mode="HTML",
