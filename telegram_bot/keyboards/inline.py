@@ -273,27 +273,33 @@ def render_pending_list(posts: list, user_code: str) -> InlineKeyboardMarkup:
 
 
 def get_cabinet_inline_keyboard() -> InlineKeyboardMarkup:
-    """Kabinet asosiy menyusi — inline tugmalar (8 tugma, 4x2 grid)."""
+    """Kabinet & Sozlamalar asosiy menyusi — inline tugmalar (4x2 grid)."""
     keyboard = [
         [
-            InlineKeyboardButton("📢 Kanallarim", callback_data="cab_channels"),
-            InlineKeyboardButton("⏳ Kutilayotgan postlar", callback_data="cab_pending"),
+            InlineKeyboardButton("📢 Mening kanallarim", callback_data="cab_channels"),
+            InlineKeyboardButton("📊 Kanallar analitikasi", callback_data="cab_analytics"),
         ],
         [
-            InlineKeyboardButton("📚 Navbat (Queue)", callback_data="cab_queue"),
-            InlineKeyboardButton("🔤 Krill-Lotin", callback_data="cab_converter"),
-        ],
-        [
-            InlineKeyboardButton("🎁 Kunlik bonus", callback_data="cab_bonus"),
-            InlineKeyboardButton("👥 Do'stlarni taklif", callback_data="cab_referral"),
+            InlineKeyboardButton("📅 Kutilayotgan postlar", callback_data="cab_pending"),
+            InlineKeyboardButton("⏳ Postlar navbati (Queue)", callback_data="cab_queue"),
         ],
         [
             InlineKeyboardButton("💎 Ballar & Litsenziya", callback_data="cab_balance"),
-            InlineKeyboardButton("📖 Qo'llanma", callback_data="cab_guide"),
+            InlineKeyboardButton("🎁 Kunlik bonus", callback_data="cab_bonus"),
         ],
         [
+            InlineKeyboardButton("👥 Do'stlarni taklif", callback_data="cab_referral"),
             InlineKeyboardButton("❌ Yopish", callback_data="close_cabinet"),
         ],
+    ]
+    return InlineKeyboardMarkup(keyboard)
+
+
+def get_extras_inline_keyboard() -> InlineKeyboardMarkup:
+    """⚙️ Qo'shimcha funksiyalar — inline menyu."""
+    keyboard = [
+        [InlineKeyboardButton("🔤 Krill-Lotin konvertor", callback_data="extra_converter")],
+        [InlineKeyboardButton("❌ Yopish", callback_data="extra_close")],
     ]
     return InlineKeyboardMarkup(keyboard)
 
