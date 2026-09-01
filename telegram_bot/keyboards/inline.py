@@ -146,3 +146,36 @@ def render_pending_list(posts: list, user_code: str) -> InlineKeyboardMarkup:
         InlineKeyboardButton("❌ Yopish", callback_data="close_msg"),
     ])
     return InlineKeyboardMarkup(keyboard)
+
+
+def get_cabinet_inline_keyboard() -> InlineKeyboardMarkup:
+    """Kabinet asosiy menyusi — inline tugmalar (6 tugma, 2x3 grid)."""
+    keyboard = [
+        [
+            InlineKeyboardButton("📢 Mening kanallarim", callback_data="cab_channels"),
+            InlineKeyboardButton("🔤 Krill-Lotin", callback_data="cab_converter"),
+        ],
+        [
+            InlineKeyboardButton("🎁 Kunlik bonus", callback_data="cab_bonus"),
+            InlineKeyboardButton("👥 Do'stlarni taklif", callback_data="cab_referral"),
+        ],
+        [
+            InlineKeyboardButton("💎 Ballar & Litsenziya", callback_data="cab_balance"),
+            InlineKeyboardButton("📖 Qo'llanma", callback_data="cab_guide"),
+        ],
+        [
+            InlineKeyboardButton("❌ Yopish", callback_data="close_cabinet"),
+        ],
+    ]
+    return InlineKeyboardMarkup(keyboard)
+
+
+def get_cabinet_back_keyboard() -> InlineKeyboardMarkup:
+    """Kabinet ichki sahifalari — Orqaga + Yopish."""
+    keyboard = [
+        [
+            InlineKeyboardButton("⬅️ Orqaga", callback_data="cab_main"),
+            InlineKeyboardButton("❌ Yopish", callback_data="close_cabinet"),
+        ],
+    ]
+    return InlineKeyboardMarkup(keyboard)

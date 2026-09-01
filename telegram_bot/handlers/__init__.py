@@ -27,6 +27,7 @@ from handlers.start import (
     start, user_cabinet_menu, user_invite_menu, daily_bonus_handler, buy_ad_free_handler,
     ad_free_callback, start_transfer_credits, transfer_target_received, transfer_amount_received,
     help_command, cancel_handler, subscription_check_callback, check_user_subscribed,
+    cabinet_callback,
     TRANSFER_TARGET, TRANSFER_AMOUNT
 )
 
@@ -617,5 +618,6 @@ def register_all_handlers(app):
     app.add_handler(CallbackQueryHandler(cache_clear_callback, pattern=r"^cache_clear$"))
     app.add_handler(CallbackQueryHandler(admin_dashboard_callback, pattern=r"^adm_"))
     app.add_handler(CallbackQueryHandler(ai_studio_callback, pattern=r"^studio_"))
+    app.add_handler(CallbackQueryHandler(cabinet_callback, pattern=r"^cab_|^close_cabinet"))
     app.add_handler(ChatMemberHandler(on_bot_chat_member_update, ChatMemberHandler.MY_CHAT_MEMBER))
     app.add_handler(CallbackQueryHandler(expired_session_callback))
