@@ -76,6 +76,7 @@ from handlers.admin import (
     ai_settings_menu, ai_settings_received, cache_db_menu, cache_clear_callback,
     start_set_post_tag, post_tag_received,
     admin_stats_command, admin_dashboard_callback, admin_inline_text_handler,
+    ad_pool_callback,
     BROADCAST_MESSAGE, ADD_SPONSOR_CHANNEL, SET_CHANNEL_AD, SET_BOT_REPLY_AD,
     AI_SETTINGS, SET_POST_TAG, ADMIN_GRANT_PRO, ADMIN_PROMO_CREATE,
 )
@@ -617,6 +618,7 @@ def register_all_handlers(app):
     app.add_handler(CallbackQueryHandler(noop_callback, pattern=r"^noop$"))
     app.add_handler(CallbackQueryHandler(cache_clear_callback, pattern=r"^cache_clear$"))
     app.add_handler(CallbackQueryHandler(admin_dashboard_callback, pattern=r"^adm_"))
+    app.add_handler(CallbackQueryHandler(ad_pool_callback, pattern=r"^adp:"))
     app.add_handler(CallbackQueryHandler(ai_studio_callback, pattern=r"^studio_"))
     app.add_handler(CallbackQueryHandler(cabinet_callback, pattern=r"^cab_|^close_cabinet"))
     app.add_handler(ChatMemberHandler(on_bot_chat_member_update, ChatMemberHandler.MY_CHAT_MEMBER))

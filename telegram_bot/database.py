@@ -355,6 +355,20 @@ def _init_db_once():
                 value TEXT
             );
         """)
+
+        # Avtomatik reklama rotatsiya puli. Har bir reklama (kanal posti yoki
+        # bot javobi uchun) alohida qator; bot navbatma-navbat (round-robin)
+        # ishlatadi. scope: 'channel' | 'reply'.
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS ad_pool (
+                id SERIAL PRIMARY KEY,
+                scope VARCHAR(20) NOT NULL,
+                text TEXT NOT NULL,
+                is_active BOOLEAN DEFAULT TRUE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        """)
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_ad_pool_scope ON ad_pool (scope, is_active);")
         
         cur.execute("""
             CREATE TABLE IF NOT EXISTS scheduled_posts (
@@ -472,6 +486,91 @@ def _init_db_once():
         cur.execute("CREATE INDEX IF NOT EXISTS idx_post_reactions_post_id ON post_reactions (post_id);")
 
 # --- SETTINGS ---
+# Reklama rotatsiya pullarini aniqlovchi doimiy qadriyatlar
+AD_SCOPE_CHANNEL = "channel"
+AD_SCOPE_REPLY = "reply"
+AD_SCOPES = (AD_SCOPE_CHANNEL, AD_SCOPE_REPLY)
+
+
+def add_ad(scope: str, text: str) -> int:
+    """Rotatsiya puliga yangi reklama qo'shadi. Id qaytaradi (xato: -1)."""
+    if scope not in AD_SCOPES:
+        return -1
+    text = (text or "").strip()
+    if not text:
+        return -1
+    try:
+        with db_cursor(commit=True) as cur:
+            cur.execute(
+                "INSERT INTO ad_pool (scope, text) VALUES (%s, %s) RETURNING id",
+                (scope, text),
+            )
+            row = cur.fetchone()
+        _cache_clear("ad_pool:")
+        return int(row[0]) if row else -1
+    except Exception as e:
+        logger.error(f"Reklama qo'shish xatosi: {e}")
+        return -1
+
+
+def get_ads(scope: str) -> list:
+    """Faol reklamalar ro'yxati: [(id, text), ...]. Bo'sh bo'lsa []."""
+    if scope not in AD_SCOPES:
+        return []
+    cache_key = f"ad_pool:{scope}"
+    cached = _cache_get(cache_key)
+    if cached is not _MISS:
+        return cached
+    try:
+        with db_cursor() as cur:
+            cur.execute(
+                "SELECT id, text FROM ad_pool WHERE scope = %s AND is_active = TRUE "
+                "ORDER BY id ASC",
+                (scope,),
+            )
+            rows = cur.fetchall()
+            _cache_set(cache_key, rows, DB_SETTINGS_CACHE_TTL)
+            return rows
+    except Exception as e:
+        logger.error(f"Reklamalar olish xatosi: {e}")
+        return []
+
+
+def count_ads(scope: str) -> int:
+    """Berilgan scope uchun faol reklamalar soni."""
+    return len(get_ads(scope) or [])
+
+
+def delete_ad(ad_id: int) -> bool:
+    """Reklamani o'chiradi (is_active -> FALSE)."""
+    try:
+        with db_cursor(commit=True) as cur:
+            cur.execute("UPDATE ad_pool SET is_active = FALSE WHERE id = %s", (int(ad_id),))
+        _cache_clear("ad_pool:")
+        return True
+    except Exception as e:
+        logger.error(f"Reklama o'chirish xatosi: {e}")
+        return False
+
+
+def clear_ads(scope: str) -> int:
+    """Scope bo'yicha barcha reklamalarni o'chiradi. O'chirilgan soni."""
+    if scope not in AD_SCOPES:
+        return 0
+    try:
+        with db_cursor(commit=True) as cur:
+            cur.execute(
+                "UPDATE ad_pool SET is_active = FALSE WHERE scope = %s AND is_active = TRUE",
+                (scope,),
+            )
+            removed = cur.rowcount
+        _cache_clear("ad_pool:")
+        return int(removed or 0)
+    except Exception as e:
+        logger.error(f"Reklamalarni tozalash xatosi: {e}")
+        return 0
+
+
 def set_setting(key: str, value: str):
     try:
         with db_cursor(commit=True) as cur:

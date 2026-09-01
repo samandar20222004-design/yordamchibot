@@ -14,6 +14,7 @@ from telegram import (
 from telegram.error import TelegramError, RetryAfter, TimedOut, NetworkError
 from config import ADMIN_ID
 import database as db
+from utils.helpers import get_channel_ad_next_async
 
 logger = logging.getLogger(__name__)
 tashkent_tz = pytz.timezone("Asia/Tashkent")
@@ -169,7 +170,9 @@ async def _execute_send(bot, post):
     has_ad_free = True if is_admin else await db.run_db(db.peek_ad_free_post, user_id)
     channel_ad = ""
     if not has_ad_free:
-        channel_ad = (await db.run_db(db.get_setting, "channel_ad_text", "")).strip()
+        # Navbatdagi (round-robin) reklama — rotatsiya puli; pul bo'sh bo'lsa
+        # eski channel_ad_text sozlamasiga qaytadi.
+        channel_ad = await get_channel_ad_next_async()
     # Admin tomonidan yoqilgan nishon (masalan @PostAssistrobot) — bo'sh bo'lsa qo'shilmaydi.
     brand_text = (await db.run_db(db.get_setting, "post_tag_text", "")).strip()
 
