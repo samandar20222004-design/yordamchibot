@@ -209,6 +209,44 @@ def test_compose_post_text():
     check("nishon bo'sh: o'zgarmaydi", compose_post_text("Salom", False, "REKLAMA", "") == "Salom\n\nREKLAMA")
 
 
+def test_apply_post_watermark():
+    """Bepul foydalanuvchi postiga @PostAssistrobot qo'shiladi, PRO/adminga yo'q."""
+    print("== watermark: free vs pro vs admin ==")
+    import asyncio
+    import database as db_mod
+    from config import ADMIN_IDS_SET
+    from utils.helpers import apply_post_watermark
+
+    orig_run_db = db_mod.run_db
+    pro_users = {777}
+
+    async def fake_run_db(fn, *args, **kwargs):
+        if getattr(fn, "__name__", "") == "is_premium":
+            return args[0] in pro_users
+        return await orig_run_db(fn, *args, **kwargs)
+
+    db_mod.run_db = fake_run_db
+    admin_id = next(iter(ADMIN_IDS_SET), None)
+    try:
+        free = asyncio.run(apply_post_watermark("Salom", 555, "PostAssistrobot"))
+        check("free: watermark boshiga qo'shildi", free == "@PostAssistrobot\n\nSalom", free)
+
+        empty = asyncio.run(apply_post_watermark("", 555, "@PostAssistrobot"))
+        check("free: bo'sh matn -> faqat username", empty == "@PostAssistrobot", empty)
+
+        twice = asyncio.run(apply_post_watermark(free, 555, "PostAssistrobot"))
+        check("free: takrorlanmaydi", twice == free, twice)
+
+        pro = asyncio.run(apply_post_watermark("Salom", 777, "PostAssistrobot"))
+        check("PRO: toza post", pro == "Salom", pro)
+
+        if admin_id is not None:
+            adm = asyncio.run(apply_post_watermark("Salom", admin_id, "PostAssistrobot"))
+            check("admin: toza post", adm == "Salom", adm)
+    finally:
+        db_mod.run_db = orig_run_db
+
+
 def test_compose_post_text_limit():
     print("== scheduler.compose_post_text limit (nishon kesilmaydi) ==")
     from scheduler import compose_post_text
@@ -994,6 +1032,47 @@ def test_analytics_type_distribution_format():
     check("mixed: 50% Rasm", "50%" in dash2)
 
 
+def test_main_menu_layout_v2():
+    """Yangi asosiy menyu tartibi va inline sub-menyular."""
+    print("== Main menu layout v2 ==")
+    from keyboards.default import (
+        get_main_keyboard, BTN_NEW_POST, BTN_AI_STUDIO, BTN_SETTINGS,
+        BTN_PREMIUM, BTN_HELP, BTN_EXTRAS, BTN_ADMIN_PANEL,
+    )
+    from keyboards.inline import get_cabinet_inline_keyboard, get_extras_inline_keyboard
+    import keyboards.default as kd
+
+    check("AI Yordamchi olib tashlangan", not hasattr(kd, "BTN_AI"))
+    check("BTN_SETTINGS matni", BTN_SETTINGS == "👤 Kabinet & Sozlamalar")
+    check("BTN_HELP matni", BTN_HELP == "📖 Qo'llanma / Bot haqida")
+    check("BTN_EXTRAS matni", BTN_EXTRAS == "⚙️ Qo'shimcha funksiyalar")
+
+    rows = [[b.text for b in row] for row in get_main_keyboard(False).keyboard]
+    check("user: 3 qator", len(rows) == 3, str(rows))
+    check("user row1", rows[0] == [BTN_NEW_POST, BTN_AI_STUDIO], str(rows[0]))
+    check("user row2", rows[1] == [BTN_SETTINGS, BTN_PREMIUM], str(rows[1]))
+    check("user row3", rows[2] == [BTN_HELP, BTN_EXTRAS], str(rows[2]))
+
+    arows = [[b.text for b in row] for row in get_main_keyboard(True).keyboard]
+    check("admin: 4 qator", len(arows) == 4, str(arows))
+    check("admin row4", arows[3] == [BTN_ADMIN_PANEL], str(arows[3]))
+
+    ex = [[(b.text, b.callback_data) for b in row] for row in get_extras_inline_keyboard().inline_keyboard]
+    check("extras: 2 qator", len(ex) == 2, str(ex))
+    check("extras: konvertor", ex[0][0] == ("🔤 Krill-Lotin konvertor", "extra_converter"), str(ex[0]))
+    check("extras: yopish", ex[1][0] == ("❌ Yopish", "extra_close"), str(ex[1]))
+
+    cab = [[(b.text, b.callback_data) for b in row] for row in get_cabinet_inline_keyboard().inline_keyboard]
+    check("kabinet: 4 qator", len(cab) == 4, str(cab))
+    expected = [
+        [("📢 Mening kanallarim", "cab_channels"), ("📊 Kanallar analitikasi", "cab_analytics")],
+        [("📅 Kutilayotgan postlar", "cab_pending"), ("⏳ Postlar navbati (Queue)", "cab_queue")],
+        [("💎 Ballar & Litsenziya", "cab_balance"), ("🎁 Kunlik bonus", "cab_bonus")],
+        [("👥 Do'stlarni taklif", "cab_referral"), ("❌ Yopish", "close_cabinet")],
+    ]
+    check("kabinet tartibi", cab == expected, str(cab))
+
+
 def test_analytics_main_keyboard():
     """Asosiy menyuda Analitika tugmasi bor."""
     print("== Analytics main keyboard ==")
@@ -1001,13 +1080,14 @@ def test_analytics_main_keyboard():
 
     check("BTN_ANALYTICS mavjud", BTN_ANALYTICS == "📊 Analitika")
 
+    # Analitika endi Kabinet & Sozlamalar inline menyusida
+    from keyboards.inline import get_cabinet_inline_keyboard
+    cab_cbs = [b.callback_data for row in get_cabinet_inline_keyboard().inline_keyboard for b in row]
+    check("kabinet kb: analitika bor", "cab_analytics" in cab_cbs)
+
     kb = get_main_keyboard(False)
     all_texts = [b.text for row in kb.keyboard for b in row]
-    check("main kb: Analitika bor", BTN_ANALYTICS in all_texts)
-
-    kb_admin = get_main_keyboard(True)
-    all_admin = [b.text for row in kb_admin.keyboard for b in row]
-    check("admin kb: Analitika bor", BTN_ANALYTICS in all_admin)
+    check("main kb: Analitika yo'q (Kabinet ichida)", BTN_ANALYTICS not in all_texts)
 
 
 def test_plan_limits():
@@ -1544,8 +1624,8 @@ def test_ai_studio_keyboard():
     check("main kb: 6 ta tugma (free)", len(main_texts) == 6)
     check("main kb: Yangi post", BTN_NEW_POST in main_texts)
     check("main kb: AI Studio", BTN_AI_STUDIO in main_texts)
-    check("main kb: Queue", BTN_QUEUE in main_texts)
-    check("main kb: Analitika", BTN_ANALYTICS in main_texts)
+    check("main kb: Queue yo'q (Kabinet ichida)", BTN_QUEUE not in main_texts)
+    check("main kb: Analitika yo'q (Kabinet ichida)", BTN_ANALYTICS not in main_texts)
     check("main kb: Premium", BTN_PREMIUM in main_texts)
     check("main kb: Kabinet", BTN_SETTINGS in main_texts)
 
@@ -1882,9 +1962,12 @@ def test_queue_main_keyboard():
     print("== queue: main keyboard ==")
     from keyboards.default import get_main_keyboard, BTN_QUEUE
 
+    from keyboards.inline import get_cabinet_inline_keyboard
     kb = get_main_keyboard(is_admin=False)
     texts = [b.text for row in kb.keyboard for b in row]
-    check("queue tugmasi asosiy menyuda", BTN_QUEUE in texts, str(texts))
+    cab_cbs = [b.callback_data for row in get_cabinet_inline_keyboard().inline_keyboard for b in row]
+    check("queue tugmasi kabinetda", "cab_queue" in cab_cbs, str(cab_cbs))
+    check("queue tugmasi asosiy menyuda yo'q", BTN_QUEUE not in texts, str(texts))
     check("BTN_QUEUE matni", BTN_QUEUE == "📚 Navbat (Queue)")
 
 
@@ -2454,6 +2537,7 @@ def main():
     test_new_inline_keyboards()
     test_admin_new_buttons()
     test_admin_channels_text_limit()
+    test_apply_post_watermark()
     test_compose_post_text_limit()
     test_ai_context_memory()
     test_ai_optional_params()
@@ -2480,6 +2564,7 @@ def main():
     test_analytics_db_functions_exist()
     test_analytics_empty_state()
     test_analytics_type_distribution_format()
+    test_main_menu_layout_v2()
     test_analytics_main_keyboard()
     test_plan_limits()
     test_subscription_functions_exist()

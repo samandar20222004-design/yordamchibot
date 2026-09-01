@@ -9,6 +9,7 @@ from keyboards.default import get_main_keyboard, get_cabinet_keyboard, get_cance
 from keyboards.inline import (
     get_referral_share_keyboard, get_subscription_check_keyboard,
     get_cabinet_inline_keyboard, get_cabinet_back_keyboard,
+    get_extras_inline_keyboard,
     unpack_sponsor,
 )
 from utils.helpers import html_escape, get_smart_reply_ad_async
@@ -471,6 +472,30 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text += "\n\n👑 <b>Admin buyruqlari:</b>\n/admin — Boshqaruv paneli\n/broadcast — Xabar yuborish\n/stats — Statistika"
     await update.message.reply_text(f"{text}{ad_line}", reply_markup=get_main_keyboard(is_admin), parse_mode="HTML")
 
+async def extras_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """⚙️ Qo'shimcha funksiyalar — inline menyu ko'rsatadi."""
+    context.user_data.clear()
+    await update.message.reply_text(
+        "⚙️ <b>Qo'shimcha funksiyalar</b>\n\n"
+        "Kerakli vositani tanlang 👇",
+        reply_markup=get_extras_inline_keyboard(),
+        parse_mode="HTML",
+    )
+    return ConversationHandler.END
+
+
+async def extras_close_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Qo'shimcha funksiyalar oynasini yopadi."""
+    query = update.callback_query
+    await query.answer()
+    is_admin = query.from_user.id in ADMIN_IDS_SET
+    try:
+        await query.message.delete()
+    except Exception:
+        pass
+    await query.message.reply_text("✅ Yopildi.", reply_markup=get_main_keyboard(is_admin))
+
+
 async def cancel_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Foydalanuvchi band holatda /cancel bosganda yoki tugma bosganda — aniq xabar."""
     is_admin = (update.effective_user.id in ADMIN_IDS_SET)
@@ -546,6 +571,17 @@ async def cabinet_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             for i, ch in enumerate(channels, 1):
                 ch_id, ch_title = ch[:2]
                 text += f"{i}. <b>{html_escape(ch_title or 'Kanal')}</b> (<code>{ch_id}</code>)\n"
+        try:
+            await query.edit_message_text(text, reply_markup=get_cabinet_back_keyboard(), parse_mode="HTML")
+        except Exception:
+            await query.message.reply_text(text, reply_markup=get_cabinet_back_keyboard(), parse_mode="HTML")
+        return
+
+    if data == "cab_analytics":
+        await query.answer()
+        from handlers.analytics import _build_dashboard
+        stats = await db.run_db(db.get_channel_post_stats, user_id, None)
+        text = _build_dashboard(stats, "Barcha kanallar")
         try:
             await query.edit_message_text(text, reply_markup=get_cabinet_back_keyboard(), parse_mode="HTML")
         except Exception:

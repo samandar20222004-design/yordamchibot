@@ -27,6 +27,25 @@ async def start_converter(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return CONVERT_INPUT
 
 
+async def converter_inline_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """'⚙️ Qo'shimcha funksiyalar' inline menyusidan konverterni ochish."""
+    query = update.callback_query
+    await query.answer()
+    context.user_data.clear()
+    try:
+        await query.message.delete()
+    except Exception:
+        pass
+    await query.message.reply_text(
+        "🔤 <b>Lotin ⇄ Kirill Matn O'girgich:</b>\n\n"
+        "O'girmoqchi bo'lgan <b>matnni</b> yoki <b>rasm/video/fayl</b> (tagida yozuvi bilan) yuboring:\n\n"
+        "<i>Bekor qilish uchun '🔙 Asosiy menyu' tugmasini bosing.</i>",
+        reply_markup=get_cancel_keyboard(),
+        parse_mode="HTML",
+    )
+    return CONVERT_INPUT
+
+
 async def converter_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Faqat CONVERT_INPUT holatida kelgan xabarlarni o'giradi."""
     msg = update.message

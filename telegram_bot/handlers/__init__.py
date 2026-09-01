@@ -11,8 +11,8 @@ from telegram.ext import (
 from config import ADMIN_IDS_SET
 from keyboards.default import (
     exact,
-    BTN_NEW_POST, BTN_AI, BTN_AI_ASSISTANT, BTN_AI_STUDIO, BTN_PENDING, BTN_SETTINGS, BTN_CABINET,
-    BTN_HELP, BTN_CONVERTER, BTN_BACK, BTN_MAIN_MENU,
+    BTN_NEW_POST, BTN_AI_STUDIO, BTN_PENDING, BTN_SETTINGS, BTN_CABINET,
+    BTN_HELP, BTN_CONVERTER, BTN_EXTRAS, BTN_BACK, BTN_MAIN_MENU,
     BTN_CHANNELS, BTN_DAILY_BONUS, BTN_BUY_AD_FREE, BTN_INVITE, BTN_TRANSFER,
     BTN_ADMIN_PANEL, BTN_STATS, BTN_ALL_POSTS, BTN_ALL_CHANNELS,
     BTN_BROADCAST, BTN_SPONSORS, BTN_ADD_SPONSOR,
@@ -27,7 +27,7 @@ from handlers.start import (
     start, user_cabinet_menu, user_invite_menu, daily_bonus_handler, buy_ad_free_handler,
     ad_free_callback, start_transfer_credits, transfer_target_received, transfer_amount_received,
     help_command, cancel_handler, subscription_check_callback, check_user_subscribed,
-    cabinet_callback,
+    cabinet_callback, extras_menu, extras_close_callback,
     TRANSFER_TARGET, TRANSFER_AMOUNT
 )
 
@@ -64,7 +64,8 @@ from handlers.pending import (
 
 # 5. CONVERTER MODULI
 from handlers.converter import (
-    start_converter, converter_received, converter_callback, converter_close_callback, CONVERT_INPUT
+    start_converter, converter_received, converter_callback, converter_close_callback,
+    converter_inline_entry, CONVERT_INPUT
 )
 
 # 6. ADMIN MODULI
@@ -357,6 +358,7 @@ def register_all_handlers(app):
         MessageHandler(exact(BTN_BACK, BTN_MAIN_MENU), lambda u, c: guard_menu(u, c, start)),
         MessageHandler(exact(BTN_SETTINGS, BTN_CABINET), lambda u, c: guard_menu(u, c, user_cabinet_menu)),
         MessageHandler(exact(BTN_HELP), lambda u, c: guard_menu(u, c, help_command)),
+        MessageHandler(exact(BTN_EXTRAS), lambda u, c: guard_menu(u, c, extras_menu)),
         MessageHandler(exact(BTN_DAILY_BONUS), lambda u, c: guard_menu(u, c, daily_bonus_handler)),
         MessageHandler(exact(BTN_BUY_AD_FREE), lambda u, c: guard_menu(u, c, buy_ad_free_handler)),
         MessageHandler(exact(BTN_INVITE), lambda u, c: guard_menu(u, c, user_invite_menu)),
@@ -403,7 +405,6 @@ def register_all_handlers(app):
     # 7. AI Studio (sub-menu ko'rsatadi)
     ai_handlers = [
         MessageHandler(exact(BTN_AI_STUDIO), lambda u, c: guard_menu(u, c, ai_studio_menu)),
-        MessageHandler(exact(BTN_AI, BTN_AI_ASSISTANT), lambda u, c: guard_entry(u, c, start_ai_assistant)),
     ]
 
     # 8. Content Plan
@@ -457,6 +458,7 @@ def register_all_handlers(app):
             CallbackQueryHandler(edit_post_btn_start, pattern=r"^edit_btn:"),
             CallbackQueryHandler(edit_post_react_start, pattern=r"^edit_react:"),
             CallbackQueryHandler(add_channel_inline_entry, pattern=r"^add_channel_start$"),
+            CallbackQueryHandler(converter_inline_entry, pattern=r"^extra_converter$"),
             CommandHandler("newpost", lambda u, c: guard_entry(u, c, start_new_post)),
             CommandHandler("broadcast", lambda u, c: guard_entry(u, c, broadcast_start)),
             CommandHandler("queue", lambda u, c: guard_menu(u, c, queue_menu)),
@@ -640,5 +642,6 @@ def register_all_handlers(app):
     app.add_handler(CallbackQueryHandler(ad_pool_callback, pattern=r"^adp:"))
     app.add_handler(CallbackQueryHandler(ai_studio_callback, pattern=r"^studio_"))
     app.add_handler(CallbackQueryHandler(cabinet_callback, pattern=r"^cab_|^close_cabinet"))
+    app.add_handler(CallbackQueryHandler(extras_close_callback, pattern=r"^extra_close$"))
     app.add_handler(ChatMemberHandler(on_bot_chat_member_update, ChatMemberHandler.MY_CHAT_MEMBER))
     app.add_handler(CallbackQueryHandler(expired_session_callback))
