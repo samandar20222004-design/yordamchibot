@@ -477,9 +477,10 @@ async def extras_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
     await update.message.reply_text(
         "⚙️ <b>Qo'shimcha funksiyalar</b>\n\n"
-        "🛠 <b>Post kuchaytirgich</b> — tayyor postni (matn, rasm, video, albom "
-        "yoki forward) yuboring: asl matnga tegilmaydi, 10 tagacha reaksiya va "
-        "10 tagacha URL tugma qo'shib, istalgan kanalga bir zumda yuboriladi\n"
+        "✨ <b>Postga Tugma & Reaksiya qo'shish</b> — tayyor postni (matn, rasm, "
+        "video, albom yoki forward) yuboring: asl matnga tegilmaydi, 10 tagacha "
+        "reaksiya va 10 tagacha URL tugma qo'shib, istalgan kanalga bir zumda "
+        "yuboriladi\n"
         "🔤 <b>Krill-Lotin konvertor</b> — matnlarni ikki alifbo orasida o'girish\n"
         "🔗 <b>Tezkor tugmali post</b> — bir xabarda matn + URL tugma bilan post yaratish\n\n"
         "Kerakli vositani tanlang 👇",

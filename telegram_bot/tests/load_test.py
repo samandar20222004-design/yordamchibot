@@ -434,7 +434,7 @@ def test_sponsors_fail_closed_empty(db):
 
 
 def test_album_and_no_watermark(db):
-    print("== albom yuborish + majburiy watermark yo'q ==")
+    print("== albom yuborish + majburiy brand nishoni yo'q ==")
     import json
     from scheduler import check_and_send_posts
     from datetime import datetime, timedelta
@@ -452,10 +452,22 @@ def test_album_and_no_watermark(db):
     check("albom post saqlandi", pid > 0)
     bot = FakeBot()
     asyncio.run(check_and_send_posts(bot))
+    # Oldingi testlardan qolgan (qayta rejalashtirilgan) postlar ham yuborilishi
+    # mumkin — shuning uchun FAQAT shu albom matnini tekshiramiz.
     texts = [t or "" for _, t in bot.sent]
+    album_texts = [t for t in texts if "Albom matni" in t]
     check("albom kamida 2 ta media", len(bot.sent) >= 2, f"sent={len(bot.sent)}")
-    check("watermark yo'q", all("@PostAssistrobot" not in t for t in texts), str(texts)[:200])
-    check("albom matni chiqdi", any("Albom matni" in t for t in texts), str(texts)[:200])
+    check("albom matni chiqdi", bool(album_texts), str(texts)[:200])
+    # user_id=1 — bepul foydalanuvchi: scheduler qoidasiga ko'ra post boshiga
+    # @PostAssistrobot (via/watermark) QO'SHILADI. Admin belgilagan majburiy
+    # nishon (post_tag_text) bo'sh — shuning uchun matn oxirida ikkinchi
+    # belgi paydo bo'lmasligi kerak.
+    check("free foydalanuvchi → @PostAssistrobot belgisi bor",
+          all(t.startswith("@PostAssistrobot") for t in album_texts), str(album_texts)[:200])
+    check("majburiy brand nishoni yo'q (bitta belgi, oxirida qo'shimcha yo'q)",
+          all(t.count("@PostAssistrobot") == 1 and t.endswith("Albom matni") for t in album_texts),
+          str(album_texts)[:200])
+
 
 
 def main():
