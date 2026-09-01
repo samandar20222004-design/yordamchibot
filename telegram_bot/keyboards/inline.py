@@ -215,7 +215,11 @@ def get_ad_pool_back_keyboard(scope: str) -> InlineKeyboardMarkup:
 
 
 def get_ai_studio_keyboard() -> InlineKeyboardMarkup:
-    """AI Studio sub-menu inline keyboard."""
+    """AI Studio sub-menu inline keyboard.
+
+    "🔍 AI Post auditi" — foydalanuvchi tayyor postini AI'ga tahlil qildiradi
+    (imlo, jozibadorlik, CTA, 1-10 baho).
+    """
     keyboard = [
         [
             InlineKeyboardButton("✍️ AI Post yaratish", callback_data="studio_ai_post"),
@@ -223,7 +227,48 @@ def get_ai_studio_keyboard() -> InlineKeyboardMarkup:
         ],
         [
             InlineKeyboardButton("🧠 Kontent-reja", callback_data="studio_content_plan"),
+            InlineKeyboardButton("🔍 AI Post auditi", callback_data="studio_ai_audit"),
+        ],
+        [
             InlineKeyboardButton("⬅️ Asosiy menyu", callback_data="studio_close"),
+        ],
+    ]
+    return InlineKeyboardMarkup(keyboard)
+
+
+# ============================================================
+# AI STUDIO — DOIMIY INLINE NAVIGATSIYA
+# ============================================================
+# Barcha AI Studio ekranlarida pasda shu ikki tugma turadi: xabar hech qachon
+# "yo'qolib" ketmaydi, foydalanuvchi har doim menyuga qaytishi yoki sessiyani
+# yopishi mumkin.
+def get_ai_back_keyboard() -> InlineKeyboardMarkup:
+    """AI Studio ichki ekranlari: ⬅️ Orqaga + ❌ Bekor qilish."""
+    return InlineKeyboardMarkup([[
+        InlineKeyboardButton("⬅️ Orqaga", callback_data="ai_back_to_menu"),
+        InlineKeyboardButton("❌ Bekor qilish", callback_data="ai_close"),
+    ]])
+
+
+def get_ai_tone_keyboard(selected: str = None) -> InlineKeyboardMarkup:
+    """AI post uslubini tanlash — tanlangan uslub ✅ bilan belgilanadi."""
+    tones = [
+        ("formal", "👔 Rasmiy"),
+        ("friendly", "😊 Do'stona"),
+        ("concise", "⚡️ Qisqa"),
+        ("engaging", "🎉 Jozibali"),
+    ]
+    buttons = []
+    for key, label in tones:
+        mark = " ✅" if key == selected else ""
+        buttons.append(InlineKeyboardButton(f"{label}{mark}", callback_data=f"ai_tone:{key}"))
+    keyboard = [
+        buttons[:2],
+        buttons[2:],
+        [InlineKeyboardButton("➡️ Rejalashtirishga o'tish", callback_data="ai_studio_sched")],
+        [
+            InlineKeyboardButton("⬅️ Orqaga", callback_data="ai_back_to_menu"),
+            InlineKeyboardButton("❌ Bekor qilish", callback_data="ai_close"),
         ],
     ]
     return InlineKeyboardMarkup(keyboard)
