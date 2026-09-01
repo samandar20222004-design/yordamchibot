@@ -18,7 +18,7 @@ from keyboards.default import (
     get_duration_keyboard, get_weekday_keyboard
 )
 from keyboards.inline import btn_label
-from utils.helpers import html_escape, parse_future_time, safe_html
+from utils.helpers import html_escape, parse_future_time, safe_html, parse_reactions_input
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
 tashkent_tz = pytz.timezone("Asia/Tashkent")
@@ -380,22 +380,19 @@ async def btn_url_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return GET_REACTIONS
 
 async def reactions_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = update.message.text.strip()
-    # Qat'iy tekshiruv: reaksiyalar FAQAT "👍 ❤️ 🔥 👏" tugmasi bosilganda qo'shiladi.
-    # Boshqa har qanday matn (xato bosish, yozilgan so'z) reaksiya qo'shmaydi.
-    if text == BTN_REACT_DEFAULT:
-        context.user_data["enable_reactions"] = True
-    elif text == BTN_NO_REACT:
-        context.user_data["enable_reactions"] = False
-    else:
+    text = update.message.text
+    parsed = parse_reactions_input(text)
+    if parsed is None:
         await update.message.reply_text(
             "⚠️ <b>Iltimos, quyidagi tugmalardan birini tanlang:</b>\n"
-            "• <code>👍 ❤️ 🔥 👏</code> — reaksiya tugmalari bilan\n"
+            "• Reaksiya emojilari: <code>👍</code> <code>❤️</code> <code>🔥</code> <code>👏</code>\n"
             "• <code>➡️ Reaksiyasiz davom etish</code> — reaksiyasiz",
             reply_markup=get_reactions_keyboard(),
             parse_mode="HTML"
         )
         return GET_REACTIONS
+
+    context.user_data["enable_reactions"] = parsed
 
     await update.message.reply_text(
         "🗑️ <b>Post kanalda qancha vaqt tursin?</b>\n\n"
