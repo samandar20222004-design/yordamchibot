@@ -391,6 +391,7 @@ def _init_db_once():
                 inline_button_text VARCHAR(255),
                 inline_button_url TEXT,
                 enable_reactions BOOLEAN DEFAULT FALSE,
+                reaction_emojis TEXT,
                 delete_after_hours INTEGER DEFAULT 0,
                 sent_message_id BIGINT,
                 scheduled_time TIMESTAMP WITH TIME ZONE NOT NULL,
@@ -468,6 +469,7 @@ def _init_db_once():
             "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS inline_button_text VARCHAR(255);",
             "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS inline_button_url TEXT;",
             "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS enable_reactions BOOLEAN DEFAULT FALSE;",
+            "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS reaction_emojis TEXT;",
             "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS delete_after_hours INTEGER DEFAULT 0;",
             "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS sent_message_id BIGINT;",
             "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS user_post_number INTEGER;",
@@ -1376,8 +1378,20 @@ def add_post(
     btn_text: str = None,
     btn_url: str = None,
     enable_reactions: bool = False,
-    delete_after_hours: int = 0
+    delete_after_hours: int = 0,
+    reaction_emojis=None
 ) -> int:
+    # reaction_emojis: ro'yxat yoki bo'sh joy bilan ajratilgan satr — DB'da
+    # bo'sh joy bilan ajratilgan satr ko'rinishida saqlanadi ("👍 ❤️ 🔥").
+    if reaction_emojis:
+        if isinstance(reaction_emojis, (list, tuple, set)):
+            reaction_emojis = " ".join(str(e) for e in reaction_emojis if e)
+        else:
+            reaction_emojis = " ".join(str(reaction_emojis).split())
+        if not reaction_emojis:
+            reaction_emojis = None
+    else:
+        reaction_emojis = None
     try:
         with db_cursor(commit=True) as cur:
             # Bir foydalanuvchining post raqami MAX(...)+1 bilan tuziladi.
@@ -1390,13 +1404,13 @@ def add_post(
             cur.execute("""
                 INSERT INTO scheduled_posts
                     (user_id, channel_id, post_type, content, file_id, inline_button_text, inline_button_url,
-                     enable_reactions, delete_after_hours, scheduled_time, status, user_post_number, 
+                     enable_reactions, reaction_emojis, delete_after_hours, scheduled_time, status, user_post_number,
                      recurrence_type, recurrence_day, recurrence_time, end_date)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'pending', %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'pending', %s, %s, %s, %s, %s)
                 RETURNING id
             """, (
                 user_id, str(channel_id), post_type, content, file_id, btn_text, btn_url,
-                enable_reactions, delete_after_hours, scheduled_time, next_num,
+                enable_reactions, reaction_emojis, delete_after_hours, scheduled_time, next_num,
                 recurrence_type, recurrence_day, recurrence_time, end_date
             ))
             post_id = cur.fetchone()[0]
@@ -1555,7 +1569,7 @@ def get_due_posts(now) -> list:
                 RETURNING sp.id, sp.user_id, sp.channel_id, sp.post_type, sp.content, sp.file_id,
                           sp.inline_button_text, sp.inline_button_url, sp.enable_reactions,
                           sp.scheduled_time, sp.recurrence_type, sp.recurrence_day,
-                          sp.recurrence_time, sp.end_date, sp.delete_after_hours
+                          sp.recurrence_time, sp.end_date, sp.delete_after_hours, sp.reaction_emojis
             """, (now, POST_BATCH_SIZE))
             rows = cur.fetchall()
         _cache_clear("system_stats")

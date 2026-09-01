@@ -1,5 +1,6 @@
 import asyncio
 import json
+import re
 import time
 from datetime import datetime, timedelta
 import pytz
@@ -9,6 +10,7 @@ from config import ADMIN_IDS_SET
 import database as db
 from keyboards.default import (
     BTN_ALL_CHANNELS_TARGET, BTN_MAIN_MENU, BTN_SKIP_BUTTON,
+    BTN_ADD_URL_BUTTON, BTN_SKIP_URL_BUTTON,
     BTN_T_5MIN, BTN_T_15MIN, BTN_T_1H, BTN_T_DAILY, BTN_T_WEEKLY,
     BTN_DUR_1W, BTN_DUR_1M, BTN_DUR_3M, BTN_DUR_6M, BTN_DUR_1Y, BTN_DUR_INF,
     WEEKDAY_MAP, WEEKDAY_LABELS,
@@ -16,7 +18,10 @@ from keyboards.default import (
     get_reactions_keyboard, get_auto_delete_keyboard, get_time_keyboard,
     get_duration_keyboard, get_weekday_keyboard
 )
-from keyboards.inline import btn_label
+from keyboards.inline import (
+    btn_label, get_reaction_toggle_keyboard, normalize_reaction_emojis,
+    REACTION_EMOJIS,
+)
 from utils.helpers import html_escape, parse_future_time, safe_html, parse_reactions_input, get_auto_ad_injection_async
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
@@ -41,6 +46,7 @@ RECUR_TIME = 109
 GET_DURATION = 110
 CONFIRM_POST = 111       # Tasdiqlash ekrani
 EDIT_CONFIRM_FIELD = 112  # Confirmation'dan tahrirlash
+QUICK_BTN_CONTENT = 113  # 🔗 Tezkor tugmali post — matn + "Button - URL" bir xabarda
 
 def build_channel_labels(channels) -> dict:
     """Kanal ro'yxatidan tugma yorliqlari xaritasini tuzadi ({label: channel_id}).
@@ -62,6 +68,165 @@ def build_channel_labels(channels) -> dict:
             suffix += 1
         channels_map[label] = ch_id
     return channels_map
+
+
+# ============================================================
+# INLINE URL TUGMA QURUVCHI (tezkor format: "Button Text - https://link.com")
+# ============================================================
+_URL_BUTTON_SEPARATORS = (" - ", " — ", " – ", "|", "=")
+
+
+def normalize_button_url(link: str) -> str | None:
+    """Havolani InlineKeyboardButton(url=...) uchun normalize qiladi.
+
+    '@kanal' → https://t.me/kanal; 'example.uz' → https://example.uz;
+    't.me/kanal' → https://t.me/kanal. URL ko'rinishiga kelmagan
+    matn uchun None qaytaradi.
+    """
+    if not link:
+        return None
+    link = str(link).strip()
+    if not link or " " in link:
+        return None
+    if link.startswith(("http://", "https://", "tg://")):
+        return link
+    if link.startswith("t.me/"):
+        return "https://" + link
+    if link.startswith("@"):
+        username = link.lstrip("@")
+        return f"https://t.me/{username}" if re.fullmatch(r"[A-Za-z0-9_]{3,32}", username) else None
+    if "." in link:  # example.uz ko'rinishidagi domen
+        return "https://" + link
+    return None
+
+
+def parse_url_button_line(text: str) -> "tuple[str, str] | None":
+    """'Button Text - https://link.com' formatidagi qatorni (matn, havola) ga ajratadi.
+
+    Qo'llab-quvvatlanadi:
+      • "Batafsil - https://sayt.uz"
+      • "Kanalim - @kanalim"
+      • "Sayt - example.uz"
+      • "A'zo bo'lish | https://t.me/kanal"
+
+    Havola qismi oxirgi so'z bo'lishi va URL/@username/t.me ko'rinishida
+    bo'lishi kerak — aks holda None qaytadi (oddiy matn sanaladi).
+    """
+    if not text:
+        return None
+    raw = str(text).strip()
+    if "\n" in raw or len(raw) < 3:
+        return None
+    for sep in _URL_BUTTON_SEPARATORS:
+        if sep not in raw:
+            continue
+        parts = raw.rsplit(sep, 1)
+        if len(parts) != 2:
+            continue
+        title, link = parts[0].strip(), parts[1].strip()
+        # Havola qismi bitta so'z bo'lishi kerak (ichida bo'sh joy bo'lmasin)
+        if not title or not link or " " in link:
+            continue
+        normalized = normalize_button_url(link)
+        if normalized:
+            return title, normalized
+    return None
+
+
+async def quick_button_post_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """⚙️ Qo'shimcha funksiyalar → 🔗 Tezkor tugmali post (kirish nuqtasi).
+
+    Bir xabarda post matni + (ixtiyoriy) URL tugma yaratiladi:
+      "<post matni>\\nButton Text - https://link.com"
+    """
+    context.user_data.clear()
+    query = update.callback_query
+    if query is not None:
+        try:
+            await query.answer()
+        except Exception:
+            pass
+        msg = query.message
+        try:
+            await msg.delete()
+        except Exception:
+            pass
+    else:
+        msg = update.message
+
+    user_id = update.effective_user.id
+    is_admin = (user_id in ADMIN_IDS_SET)
+    channels = await db.run_db(db.get_user_channels, user_id)
+    if not channels:
+        await msg.reply_text(
+            "⚠️ <b>Ulangan kanal yoki guruh topilmadi!</b>\n\n"
+            "Avval '📢 Kanal/Guruhlar' bo'limidan kanal yoki guruhingizni ulang.",
+            reply_markup=get_main_keyboard(is_admin),
+            parse_mode="HTML",
+        )
+        return ConversationHandler.END
+
+    channels_map = build_channel_labels(channels)
+    keyboard = [[label] for label in channels_map]
+    if len(channels) > 1:
+        keyboard.append([BTN_ALL_CHANNELS_TARGET])
+    keyboard.append([BTN_MAIN_MENU])
+
+    context.user_data["channels_map"] = channels_map
+    context.user_data["quick_btn_mode"] = True
+    await msg.reply_text(
+        "🔗 <b>Tezkor tugmali post</b>\n\n"
+        "📢 Qaysi kanal yoki guruhga joylaymiz? Ro'yxatdan tanlang 👇",
+        reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True),
+        parse_mode="HTML",
+    )
+    return CHOOSE_CHANNEL
+
+
+async def quick_btn_content_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Tezkor tugmali post: matn + oxirgi qatordagi 'Button - URL' ni ajratadi."""
+    context.user_data.pop("quick_btn_mode", None)
+    msg = update.message
+    text = (msg.text or "").strip()
+    if not text:
+        await msg.reply_text(
+            "⚠️ Matn bo'sh. Post matnini yuboring (ixtiyoriy: oxiriga "
+            "\"<code>Button Text - https://link.com</code>\" qatorini qo'shing):",
+            parse_mode="HTML",
+        )
+        return QUICK_BTN_CONTENT
+
+    lines = text.splitlines()
+    btn_text = btn_url = None
+    content = text
+    if len(lines) > 1:
+        one_liner = parse_url_button_line(lines[-1].strip())
+        if one_liner:
+            btn_text, btn_url = one_liner
+            content = "\n".join(lines[:-1]).strip()
+
+    if not content:
+        await msg.reply_text(
+            "⚠️ Tugmadan tashqari <b>post matni</b> ham kerak. Qaytadan yuboring:\n"
+            "<code>Post matni...\nButton Text - https://link.com</code>",
+            parse_mode="HTML",
+        )
+        return QUICK_BTN_CONTENT
+
+    context.user_data["post_type"] = "text"
+    context.user_data["file_id"] = None
+    context.user_data["content"] = content
+    context.user_data["btn_text"] = btn_text
+    context.user_data["btn_url"] = btn_url
+
+    if btn_text and btn_url:
+        await msg.reply_text(
+            f"✅ <b>Inline tugma aniqlandi:</b>\n"
+            f"🔘 Yozuv: <b>{html_escape(btn_text)}</b>\n"
+            f"🔗 Havola: <code>{html_escape(btn_url)}</code>",
+            parse_mode="HTML",
+        )
+    return await _ask_reactions_step(msg, context)
 
 
 async def start_new_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -109,6 +274,20 @@ async def channel_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data["selected_channel_id"] = channels_map[text]
         context.user_data["selected_channel_title"] = text
 
+    # 🔗 Tezkor tugmali post rejimi: matn + "Button - URL" bir xabarda yuboriladi
+    if context.user_data.get("quick_btn_mode"):
+        await update.message.reply_text(
+            f"✅ Tanlandi: <b>{html_escape(context.user_data['selected_channel_title'])}</b>\n\n"
+            "⚡️ <b>Tezkor format:</b> post matnini yuboring va oxirgi qatorga "
+            "tugmani shu ko'rinishda yozing:\n"
+            "<code>Post matni shu yerda...\nButton Text - https://link.com</code>\n\n"
+            "<i>Tugma ixtiyoriy — oxirgi qatorda \" - \" bilan ajratilgan havola "
+            "bo'lmasa, oddiy tugmasiz post yaratiladi.</i>",
+            reply_markup=get_cancel_keyboard(),
+            parse_mode="HTML",
+        )
+        return QUICK_BTN_CONTENT
+
     await update.message.reply_text(
         f"✅ Tanlandi: <b>{html_escape(context.user_data['selected_channel_title'])}</b>\n\n"
         f"📝 <b>Post uchun kontentni yuboring:</b>\n"
@@ -154,13 +333,48 @@ def _apply_single_media(context, item):
 
 async def _ask_button_prompt(msg):
     await msg.reply_text(
-        "🔘 <b>Post ostiga havola tugma qo'shilsinmi?</b>\n\n"
-        "Tugma ustidagi yozuvni tanlang yoki o'zingiz yozing:\n"
-        "Kerak bo'lmasa, '➡️ Tugmasiz davom etish' ni bosing:",
+        "🔘 <b>Post ostiga havola tugma qo'shilsinmi?</b> (ixtiyoriy)\n\n"
+        "⚡️ <b>Tezkor usul:</b> tugma yozuvi va havolani bir qatorda yuboring:\n"
+        "<code>Button Text - https://link.com</code>\n\n"
+        "Yoki tayyor yozuvlardan tanlang / o'z yozuvingizni yuboring "
+        "(so'ng havola so'raladi).\n\n"
+        "Kerak bo'lmasa, <b>⏭ O'tkazib yuborish</b> tugmasini bosing:",
         reply_markup=get_button_prompt_keyboard(),
         parse_mode="HTML"
     )
     return GET_BTN_TITLE
+
+
+async def _ask_reactions_step(msg, context):
+    """Multi-select reaksiya tanlash qadami (inline toggle klaviatura).
+
+    Keyingi qadamga faqat "[➡️ Davom etish]" yoki "[⏭ Reaksiyasiz o'tish]"
+    bosilganda o'tiladi (callback handlerlar orqali).
+    """
+    selected = context.user_data.setdefault("selected_reactions", [])
+    await msg.reply_text(
+        "👍 <b>Post ostiga qaysi reaksiya tugmalari qo'shilsin?</b>\n\n"
+        "Kerakli emojilarni bosing — ✅ belgilanadi (qayta bossangiz bekor bo'ladi).\n"
+        "Tanlab bo'lgach, <b>➡️ Davom etish</b> tugmasini bosing.\n"
+        "Reaksiya kerak bo'lmasa — <b>⏭ Reaksiyasiz o'tish</b>.",
+        reply_markup=get_reaction_toggle_keyboard(selected),
+        parse_mode="HTML"
+    )
+    return GET_REACTIONS
+
+
+async def _proceed_after_reactions(msg, context, selected_emojis):
+    """Reaksiya tanlovidan yakunlanganidan keyingi qadam (avto-o'chirish)."""
+    ordered = normalize_reaction_emojis(selected_emojis)
+    context.user_data["enable_reactions"] = bool(ordered)
+    context.user_data["reaction_emojis"] = ordered
+    await msg.reply_text(
+        "🗑️ <b>Post kanalda qancha vaqt tursin?</b>\n\n"
+        "Belgilangan vaqt o'tgach, bot uni kanaldan avtomatik o'chirib tashlaydi:",
+        reply_markup=get_auto_delete_keyboard(),
+        parse_mode="HTML"
+    )
+    return GET_AUTO_DELETE
 
 
 def _build_preview_text(context) -> str:
@@ -204,7 +418,10 @@ def _build_preview_text(context) -> str:
     btn_info = ""
     if btn_text and btn_url:
         btn_info = f"\n🔘 Tugma: <b>{html_escape(btn_text)}</b>"
-    react_info = "\n👍 Reaksiyalar: Yoqilgan" if enable_reactions else ""
+    react_info = ""
+    if enable_reactions:
+        chosen_emojis = normalize_reaction_emojis(context.user_data.get("reaction_emojis"))
+        react_info = f"\n👍 Reaksiyalar: {' '.join(chosen_emojis) if chosen_emojis else 'Yoqilgan'}"
     del_info = f"\n⏳ Avto-o'chirish: {delete_after_hours} soat" if delete_after_hours > 0 else ""
 
     return (
@@ -341,19 +558,43 @@ async def btn_title_received(update: Update, context: ContextTypes.DEFAULT_TYPE)
         )
         return GET_BTN_TITLE
 
-    if text == BTN_SKIP_BUTTON:
+    # Tugmasiz o'tish (eski va yangi "skip" tugmalari bir xil ishlaydi)
+    if text in (BTN_SKIP_BUTTON, BTN_SKIP_URL_BUTTON):
         context.user_data["btn_text"], context.user_data["btn_url"] = None, None
+        return await _ask_reactions_step(update.message, context)
+
+    # "🔗 URL tugma qo'shish" — bir qatorli tezkor formatga yo'naltirish
+    if text == BTN_ADD_URL_BUTTON:
         await update.message.reply_text(
-            "👍 <b>Post ostiga reaksiya tugmalari qo'shilsinmi?</b>",
-            reply_markup=get_reactions_keyboard(),
-            parse_mode="HTML"
+            "🔗 <b>URL tugma qo'shish</b>\n\n"
+            "Tugma yozuvi va havolani <b>bir qatorda, \" - \" bilan ajratib</b> yuboring:\n"
+            "<code>Button Text - https://link.com</code>\n\n"
+            "<i>Masalan:</i> <code>Saytga o'tish - https://sayt.uz</code> yoki\n"
+            "<code>Kanalim - @kanalim</code>",
+            reply_markup=get_cancel_keyboard(),
+            parse_mode="HTML",
         )
-        return GET_REACTIONS
+        return GET_BTN_TITLE
+
+    # Tezkor format: "Button Text - https://link.com" — bir xabarda tugma tayyor
+    one_liner = parse_url_button_line(text)
+    if one_liner:
+        btn_text, btn_url = one_liner
+        context.user_data["btn_text"] = btn_text
+        context.user_data["btn_url"] = btn_url
+        await update.message.reply_text(
+            f"✅ <b>Inline tugma tayyor:</b>\n"
+            f"🔘 Yozuv: <b>{html_escape(btn_text)}</b>\n"
+            f"🔗 Havola: <code>{html_escape(btn_url)}</code>",
+            parse_mode="HTML",
+        )
+        return await _ask_reactions_step(update.message, context)
 
     context.user_data["btn_text"] = text
     await update.message.reply_text(
         f"🔗 <b>'{html_escape(text)}'</b> tugmasi bosilganda ochiladigan havola yoki kanal username'ini yuboring:\n\n"
-        f"Masalan: <code>@kanalim</code> yoki <code>https://sayt.uz</code>",
+        f"Masalan: <code>@kanalim</code> yoki <code>https://sayt.uz</code>\n\n"
+        f"<i>Yoki bir qatorda yuboring: <code>{html_escape(text)} - https://link.com</code></i>",
         reply_markup=get_cancel_keyboard(),
         parse_mode="HTML"
     )
@@ -361,6 +602,23 @@ async def btn_title_received(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 async def btn_url_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip()
+
+    # GET_BTN_URL holatida ham tezkor format ishlashi mumkin
+    if text in (BTN_SKIP_BUTTON, BTN_SKIP_URL_BUTTON) or text == BTN_ADD_URL_BUTTON:
+        return await btn_title_received(update, context)
+    one_liner = parse_url_button_line(text)
+    if one_liner:
+        btn_text, btn_url = one_liner
+        context.user_data["btn_text"] = btn_text
+        context.user_data["btn_url"] = btn_url
+        await update.message.reply_text(
+            f"✅ <b>Inline tugma tayyor:</b>\n"
+            f"🔘 Yozuv: <b>{html_escape(btn_text)}</b>\n"
+            f"🔗 Havola: <code>{html_escape(btn_url)}</code>",
+            parse_mode="HTML",
+        )
+        return await _ask_reactions_step(update.message, context)
+
     btn_link = text
     if btn_link.startswith("@"):
         btn_link = f"https://t.me/{btn_link.lstrip('@')}"
@@ -371,35 +629,94 @@ async def btn_url_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
             btn_link = f"https://t.me/{btn_link.lstrip('@')}"
 
     context.user_data["btn_url"] = btn_link
-    await update.message.reply_text(
-        "👍 <b>Post ostiga reaksiya tugmalari qo'shilsinmi?</b>",
-        reply_markup=get_reactions_keyboard(),
-        parse_mode="HTML"
+    return await _ask_reactions_step(update.message, context)
+
+async def reactions_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """GET_REACTIONS uchun matnli zaxira handler (asosiy yo'l — inline toggle).
+
+    - Emoji matn sifatida yuborilsa — tanlovga qo'shiladi va klaviatura yangilanadi.
+    - "reaksiyasiz/yo'q/skip" — reaksiyasiz davom etiladi.
+    - Boshqa matn — inline tugmalarni ishlatish eslatiladi.
+    """
+    msg = update.message
+    text = msg.text
+    parsed = parse_reactions_input(text)
+
+    if parsed is False:
+        return await _proceed_after_reactions(msg, context, [])
+
+    if parsed is True:
+        # Emoji(yorliq) matn sifatida yuborilgan bo'lsa — multi-select tanlovga qo'shamiz
+        typed = normalize_reaction_emojis(text)
+        if typed and len(text) <= 30:
+            selected = context.user_data.setdefault("selected_reactions", [])
+            for emoji in typed:
+                if emoji not in selected:
+                    selected.append(emoji)
+            await msg.reply_text(
+                f"✅ Tanlanganlar: {' '.join(selected)}\n"
+                f"Yana emoji qo'shishingiz yoki <b>➡️ Davom etish</b> ni bosishingiz mumkin:",
+                reply_markup=get_reaction_toggle_keyboard(selected),
+                parse_mode="HTML",
+            )
+            return GET_REACTIONS
+        # "ha/reaksiya/yes" kabi matnli tasdiqlash — mavjud tanlov yoki standart to'plam bilan davom etamiz
+        selected = context.user_data.get("selected_reactions") or normalize_reaction_emojis(None)
+        return await _proceed_after_reactions(msg, context, selected)
+
+    await msg.reply_text(
+        "⚠️ <b>Iltimos, pastdagi inline tugmalardan foydalaning:</b>\n"
+        "• Emojilarni bosib tanlang (✅ belgilanadi)\n"
+        "• <b>➡️ Davom etish</b> — tanlanganlar bilan keyingi qadam\n"
+        "• <b>⏭ Reaksiyasiz o'tish</b> — reaksiyasiz",
+        reply_markup=get_reaction_toggle_keyboard(context.user_data.get("selected_reactions", [])),
+        parse_mode="HTML",
     )
     return GET_REACTIONS
 
-async def reactions_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = update.message.text
-    parsed = parse_reactions_input(text)
-    if parsed is None:
-        await update.message.reply_text(
-            "⚠️ <b>Iltimos, quyidagi tugmalardan birini tanlang:</b>\n"
-            "• Reaksiya emojilari: <code>👍</code> <code>❤️</code> <code>🔥</code> <code>👏</code>\n"
-            "• <code>➡️ Reaksiyasiz davom etish</code> — reaksiyasiz",
-            reply_markup=get_reactions_keyboard(),
-            parse_mode="HTML"
-        )
+
+async def reaction_toggle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Multi-select: emoji tugma bosilganda tanlovga qo'shadi yoki olib tashlaydi."""
+    query = update.callback_query
+    await query.answer()
+    data = query.data or ""
+    parts = data.split(":", 2)
+    emoji = parts[2] if len(parts) == 3 else ""
+    if emoji not in REACTION_EMOJIS:
         return GET_REACTIONS
 
-    context.user_data["enable_reactions"] = parsed
+    selected = context.user_data.setdefault("selected_reactions", [])
+    if emoji in selected:
+        selected.remove(emoji)
+    else:
+        selected.append(emoji)
 
-    await update.message.reply_text(
-        "🗑️ <b>Post kanalda qancha vaqt tursin?</b>\n\n"
-        "Belgilangan vaqt o'tgach, bot uni kanaldan avtomatik o'chirib tashlaydi:",
-        reply_markup=get_auto_delete_keyboard(),
-        parse_mode="HTML"
-    )
-    return GET_AUTO_DELETE
+    try:
+        await query.edit_message_reply_markup(reply_markup=get_reaction_toggle_keyboard(selected))
+    except Exception:
+        pass
+    return GET_REACTIONS
+
+
+async def reactions_done_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """"➡️ Davom etish" — tanlangan reaksiyalar bilan keyingi qadamga o'tadi."""
+    query = update.callback_query
+    await query.answer()
+    selected = normalize_reaction_emojis(context.user_data.get("selected_reactions"))
+    if not selected:
+        await query.message.reply_text(
+            "ℹ️ Hech qanday reaksiya tanlanmadi — post reaksiyalarsiz chiqadi.",
+            parse_mode="HTML",
+        )
+    return await _proceed_after_reactions(query.message, context, selected)
+
+
+async def reactions_skip_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """"⏭ Reaksiyasiz o'tish" — reaksiyalarsiz keyingi qadamga o'tadi."""
+    query = update.callback_query
+    await query.answer()
+    context.user_data["selected_reactions"] = []
+    return await _proceed_after_reactions(query.message, context, [])
 
 async def auto_delete_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip()
@@ -437,6 +754,7 @@ async def _save_and_finish(update, context, post_time, recurrence_type='none', r
     btn_text = context.user_data.get("btn_text")
     btn_url = context.user_data.get("btn_url")
     enable_reactions = context.user_data.get("enable_reactions", False)
+    reaction_emojis = context.user_data.get("reaction_emojis")
     delete_after_hours = context.user_data.get("delete_after_hours", 0)
 
     post_time_tz = post_time.astimezone(tashkent_tz)
@@ -454,6 +772,7 @@ async def _save_and_finish(update, context, post_time, recurrence_type='none', r
             file_id=file_id, scheduled_time=post_time_tz, recurrence_type=recurrence_type,
             recurrence_day=recurrence_day, recurrence_time=recurrence_time_str, end_date=end_date,
             btn_text=btn_text, btn_url=btn_url, enable_reactions=enable_reactions,
+                    reaction_emojis=reaction_emojis,
             delete_after_hours=delete_after_hours
         )
         if pid:
@@ -692,6 +1011,7 @@ async def confirm_post_callback(update: Update, context: ContextTypes.DEFAULT_TY
         btn_text = context.user_data.get("btn_text")
         btn_url = context.user_data.get("btn_url")
         enable_reactions = context.user_data.get("enable_reactions", False)
+        reaction_emojis = context.user_data.get("reaction_emojis")
         delete_after_hours = context.user_data.get("delete_after_hours", 0)
         channel_title = context.user_data.get("selected_channel_title", "Kanal")
 
@@ -709,6 +1029,7 @@ async def confirm_post_callback(update: Update, context: ContextTypes.DEFAULT_TY
                     file_id=file_id, scheduled_time=slot_dt, recurrence_type='none',
                     recurrence_day=None, recurrence_time=None, end_date=None,
                     btn_text=btn_text, btn_url=btn_url, enable_reactions=enable_reactions,
+                    reaction_emojis=reaction_emojis,
                     delete_after_hours=delete_after_hours
                 )
                 if pid:
@@ -760,6 +1081,7 @@ async def confirm_post_callback(update: Update, context: ContextTypes.DEFAULT_TY
     btn_text = context.user_data.get("btn_text")
     btn_url = context.user_data.get("btn_url")
     enable_reactions = context.user_data.get("enable_reactions", False)
+    reaction_emojis = context.user_data.get("reaction_emojis")
     delete_after_hours = context.user_data.get("delete_after_hours", 0)
 
     post_time_tz = post_time.astimezone(tashkent_tz)
@@ -777,6 +1099,7 @@ async def confirm_post_callback(update: Update, context: ContextTypes.DEFAULT_TY
                 file_id=file_id, scheduled_time=post_time_tz, recurrence_type=recurrence_type,
                 recurrence_day=recurrence_day, recurrence_time=recurrence_time_str, end_date=end_date,
                 btn_text=btn_text, btn_url=btn_url, enable_reactions=enable_reactions,
+                    reaction_emojis=reaction_emojis,
                 delete_after_hours=delete_after_hours
             )
             if pid:

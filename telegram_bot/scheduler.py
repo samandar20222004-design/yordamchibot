@@ -14,6 +14,7 @@ from telegram import (
 from telegram.error import TelegramError, RetryAfter, TimedOut, NetworkError
 from config import ADMIN_IDS_SET, BOT_USERNAME
 import database as db
+from keyboards.inline import normalize_reaction_emojis, DEFAULT_REACTION_EMOJIS
 from utils.helpers import get_channel_ad_next_async, apply_post_watermark
 
 logger = logging.getLogger(__name__)
@@ -108,6 +109,22 @@ def parse_album_items(file_id) -> list:
     return cleaned
 
 
+def build_reaction_buttons(post_id: int, enable_reactions: bool, reaction_emojis=None) -> list:
+    """Post ostidagi reaksiya tugmalari qatorini tuzadi.
+
+    - ``reaction_emojis`` (DB'dagi saqlangan tanlov) bo'lsa — shu emojilar ishlatiladi.
+    - Aks holda (eski postlar) standart to'plam (👍 ❤️ 🔥 👏) ishlatiladi.
+    - Reaksiya o'chiq bo'lsa yoki emoji topilmasa — bo'sh ro'yxat (tugmasiz).
+    """
+    if not enable_reactions:
+        return []
+    emojis = normalize_reaction_emojis(reaction_emojis) or list(DEFAULT_REACTION_EMOJIS)
+    return [
+        InlineKeyboardButton(emoji, callback_data=f"react:{post_id}:{emoji}")
+        for emoji in emojis
+    ]
+
+
 def _build_album_media(items: list, caption: str):
     media = []
     for i, item in enumerate(items):
@@ -156,19 +173,17 @@ async def _execute_send(bot, post):
     (
         post_id, user_id, channel_id, post_type, content, file_id,
         btn_text, btn_url, enable_reactions, scheduled_time,
-        recurrence_type, recurrence_day, recurrence_time, end_date, delete_after_hours
+        recurrence_type, recurrence_day, recurrence_time, end_date,
+        delete_after_hours, reaction_emojis
     ) = post
 
     buttons = []
     if btn_text and btn_url:
         buttons.append([InlineKeyboardButton(text=btn_text, url=btn_url)])
-    if enable_reactions:
-        reactions_row = [
-            InlineKeyboardButton("👍", callback_data=f"react:{post_id}:👍"),
-            InlineKeyboardButton("❤️", callback_data=f"react:{post_id}:❤️"),
-            InlineKeyboardButton("🔥", callback_data=f"react:{post_id}:🔥"),
-            InlineKeyboardButton("👏", callback_data=f"react:{post_id}:👏"),
-        ]
+    # Multi-select reaksiyalar: foydalanuvchi tanlagan emojilar ishlatiladi
+    # (eski postlarda reaction_emojis NULL bo'lsa — standart to'plam).
+    reactions_row = build_reaction_buttons(post_id, enable_reactions, reaction_emojis)
+    if reactions_row:
         buttons.append(reactions_row)
     reply_markup = InlineKeyboardMarkup(buttons) if buttons else None
 

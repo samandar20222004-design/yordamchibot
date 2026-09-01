@@ -1050,17 +1050,22 @@ def test_main_menu_layout_v2():
     rows = [[b.text for b in row] for row in get_main_keyboard(False).keyboard]
     check("user: 3 qator", len(rows) == 3, str(rows))
     check("user row1", rows[0] == [BTN_NEW_POST, BTN_AI_STUDIO], str(rows[0]))
-    check("user row2", rows[1] == [BTN_SETTINGS, BTN_PREMIUM], str(rows[1]))
+    # Yangi tartib: ⭐️ Premium chapda, 👤 Kabinet o'ngda (almashtirildi)
+    check("user row2", rows[1] == [BTN_PREMIUM, BTN_SETTINGS], str(rows[1]))
     check("user row3", rows[2] == [BTN_HELP, BTN_EXTRAS], str(rows[2]))
 
     arows = [[b.text for b in row] for row in get_main_keyboard(True).keyboard]
     check("admin: 4 qator", len(arows) == 4, str(arows))
+    check("admin row1", arows[0] == [BTN_NEW_POST, BTN_AI_STUDIO], str(arows[0]))
+    check("admin row2", arows[1] == [BTN_PREMIUM, BTN_SETTINGS], str(arows[1]))
+    check("admin row3", arows[2] == [BTN_HELP, BTN_EXTRAS], str(arows[2]))
     check("admin row4", arows[3] == [BTN_ADMIN_PANEL], str(arows[3]))
 
     ex = [[(b.text, b.callback_data) for b in row] for row in get_extras_inline_keyboard().inline_keyboard]
-    check("extras: 2 qator", len(ex) == 2, str(ex))
+    check("extras: 3 qator", len(ex) == 3, str(ex))
     check("extras: konvertor", ex[0][0] == ("🔤 Krill-Lotin konvertor", "extra_converter"), str(ex[0]))
-    check("extras: yopish", ex[1][0] == ("❌ Yopish", "extra_close"), str(ex[1]))
+    check("extras: tezkor tugmali post", ex[1][0] == ("🔗 Tezkor tugmali post", "extra_quick_btn"), str(ex[1]))
+    check("extras: yopish", ex[2][0] == ("❌ Yopish", "extra_close"), str(ex[2]))
 
     cab = [[(b.text, b.callback_data) for b in row] for row in get_cabinet_inline_keyboard().inline_keyboard]
     check("kabinet: 4 qator", len(cab) == 4, str(cab))
@@ -2328,6 +2333,220 @@ def test_flexible_reaction_parser():
     check("None -> None", parse_reactions_input(None) is None)
 
 
+def test_reaction_toggle_keyboard_and_normalize():
+    """Multi-select reaksiya: toggle klaviatura, normalizatsiya va konstanta testlari."""
+    print("== multi-select reaction toggle keyboard ==")
+    from keyboards.inline import (
+        REACTION_EMOJIS, DEFAULT_REACTION_EMOJIS,
+        get_reaction_toggle_keyboard, normalize_reaction_emojis,
+        CB_REACT_TOGGLE, CB_REACT_DONE, CB_REACT_SKIP,
+    )
+
+    # 1. Konstantalar: 6 ta ruxsat etilgan emoji (yangi 🎉 va 🤔 bilan)
+    check("REACTION_EMOJIS: 6 ta", len(REACTION_EMOJIS) == 6, str(REACTION_EMOJIS))
+    for emoji in ("👍", "❤️", "🔥", "👏", "🎉", "🤔"):
+        check(f"REACTION_EMOJIS: {emoji} bor", emoji in REACTION_EMOJIS)
+    check("DEFAULT_REACTION_EMOJIS: eski 4 ta", DEFAULT_REACTION_EMOJIS == ("👍", "❤️", "🔥", "👏"))
+    check("callback prefiks: kanal reaksiyasidan farqli", CB_REACT_TOGGLE.startswith("npreact:"))
+    check("done/skip callback", CB_REACT_DONE == "npreact:done" and CB_REACT_SKIP == "npreact:skip")
+
+    # 2. Toggle klaviatura strukturasi (bo'sh tanlov)
+    kb = get_reaction_toggle_keyboard()
+    rows = kb.inline_keyboard
+    check("toggle kb: 4 qator (2 emoji + done + skip)", len(rows) == 4, str(len(rows)))
+    check("toggle kb: 1-emoji qator 3 ta", len(rows[0]) == 3)
+    check("toggle kb: 2-emoji qator 3 ta", len(rows[1]) == 3)
+    labels = [b.text for row in rows for b in row]
+    check("toggle kb: barcha 6 emoji bor", all(any(str(l).startswith(e) for l in labels) for e in REACTION_EMOJIS), str(labels))
+    cbs = [b.callback_data for row in rows for b in row]
+    for emoji in REACTION_EMOJIS:
+        check(f"toggle cb: {emoji}", f"{CB_REACT_TOGGLE}{emoji}" in cbs)
+    check("done tugmasi", CB_REACT_DONE in cbs)
+    check("skip tugmasi", CB_REACT_SKIP in cbs)
+    check("done label", any("Davom etish" in str(t) for t in labels))
+    check("skip label", any("Reaksiyasiz" in str(t) for t in labels))
+    check("bo'sh tanlovda ✅ yo'q", not any("✅" in str(t) for t in labels))
+
+    # 3. Tanlangan emojilarda ✅ belgisi va hisoblagich
+    kb2 = get_reaction_toggle_keyboard(["👍", "🤔"])
+    labels2 = [b.text for row in kb2.inline_keyboard for b in row]
+    check("tanlangan 👍 ✅", any(str(t) == "👍 ✅" for t in labels2), str(labels2))
+    check("tanlangan 🤔 ✅", any(str(t) == "🤔 ✅" for t in labels2), str(labels2))
+    check("tanlanmagan 🔥 ✅ yo'q", not any(str(t) == "🔥 ✅" for t in labels2), str(labels2))
+    check("done label hisoblagich (2 ta)", any("Davom etish (2 ta)" in str(t) for t in labels2), str(labels2))
+
+    # 4. normalize_reaction_emojis
+    check("normalize: satr", normalize_reaction_emojis("👍 ❤️ 🔥") == ["👍", "❤️", "🔥"])
+    check("normalize: ro'yxat", normalize_reaction_emojis(["🔥", "🎉", "🔥"]) == ["🔥", "🎉"])
+    check("normalize: VS16siz ❤ ham topiladi", "❤️" in normalize_reaction_emojis("❤"))
+    check("normalize: kanonik tartib", normalize_reaction_emojis("🤔 👍") == ["👍", "🤔"])
+    check("normalize: None → []", normalize_reaction_emojis(None) == [])
+    check("normalize: bo'sh satr → []", normalize_reaction_emojis("") == [])
+    check("normalize: begona matn → []", normalize_reaction_emojis("salom dunyo") == [])
+    check("normalize: set ham qabul qiladi", normalize_reaction_emojis({"🎉"}) == ["🎉"])
+
+
+def test_url_button_builder():
+    """Inline URL tugma quruvchi: 'Button Text - https://link.com' parser testlari."""
+    print("== inline URL tugma quruvchi ==")
+    from handlers.new_post import parse_url_button_line, normalize_button_url
+    from keyboards.default import (
+        get_button_prompt_keyboard, BTN_ADD_URL_BUTTON, BTN_SKIP_URL_BUTTON, BTN_SKIP_BUTTON,
+    )
+
+    # 1. Yangi tugma konstantalari
+    check("BTN_ADD_URL_BUTTON", BTN_ADD_URL_BUTTON == "🔗 URL tugma qo'shish")
+    check("BTN_SKIP_URL_BUTTON", BTN_SKIP_URL_BUTTON == "⏭ O'tkazib yuborish")
+
+    # 2. Prompt klaviaturasida yangi tugmalar bor
+    kb = get_button_prompt_keyboard()
+    texts = [getattr(b, "text", b) for row in kb.keyboard for b in row]
+    check("prompt kb: URL tugma qo'shish bor", BTN_ADD_URL_BUTTON in texts, str(texts))
+    check("prompt kb: O'tkazib yuborish bor", BTN_SKIP_URL_BUTTON in texts, str(texts))
+    check("prompt kb: AI Yordamchi saqlangan", "✨ AI Yordamchi" in texts)
+
+    # 3. normalize_button_url
+    check("url: https saqlanadi", normalize_button_url("https://sayt.uz/x") == "https://sayt.uz/x")
+    check("url: http saqlanadi", normalize_button_url("http://a.uz") == "http://a.uz")
+    check("url: @username → t.me", normalize_button_url("@kanalim") == "https://t.me/kanalim")
+    check("url: t.me/ → https", normalize_button_url("t.me/kanalim") == "https://t.me/kanalim")
+    check("url: domen → https", normalize_button_url("example.uz") == "https://example.uz")
+    check("url: oddiy so'z → None", normalize_button_url("salom") is None)
+    check("url: bo'sh joy bilan → None", normalize_button_url("a b.uz") is None)
+    check("url: bo'sh → None", normalize_button_url("") is None and normalize_button_url(None) is None)
+
+    # 4. parse_url_button_line — asosiy format
+    r = parse_url_button_line("Button Text - https://link.com")
+    check("parse: asosiy format", r == ("Button Text", "https://link.com"), str(r))
+    r2 = parse_url_button_line("Saytga o'tish - example.uz")
+    check("parse: domen", r2 == ("Saytga o'tish", "https://example.uz"), str(r2))
+    r3 = parse_url_button_line("Kanalim - @kanalim")
+    check("parse: @username", r3 == ("Kanalim", "https://t.me/kanalim"), str(r3))
+    r4 = parse_url_button_line("A'zo bo'lish | https://t.me/kanal")
+    check("parse: | ajratgich", r4 == ("A'zo bo'lish", "https://t.me/kanal"), str(r4))
+    r5 = parse_url_button_line("Batafsil ma'lumot - https://uz.wikipedia.org/wiki/Toshkent")
+    check("parse: matnda tire bo'lsa oxirgi ' - ' bo'yicha ajratiladi",
+          r5 == ("Batafsil ma'lumot", "https://uz.wikipedia.org/wiki/Toshkent"), str(r5))
+
+    # 5. Noto'g'ri kiritmalar → None
+    check("parse: oddiy matn → None", parse_url_button_line("Batafsil") is None)
+    check("parse: 'hello - world' → None", parse_url_button_line("hello - world") is None)
+    check("parse: faqat URL → None", parse_url_button_line("https://link.com") is None)
+    check("parse: matnsiz ' - ' → None", parse_url_button_line("Matn - ") is None)
+    check("parse: bo'sh → None", parse_url_button_line("") is None)
+    check("parse: None → None", parse_url_button_line(None) is None)
+    check("parse: ko'p qatorli → None", parse_url_button_line("a - b.uz\nkeyingi qator") is None)
+
+
+def test_scheduler_custom_reactions():
+    """Scheduler: saqlangan multi-select reaksiyalar kanalga shu ko'rinishda chiqadi."""
+    print("== scheduler custom reaction buttons ==")
+    from scheduler import build_reaction_buttons
+
+    # 1. Reaksiya o'chiq → tugma yo'q
+    check("o'chiq: bo'sh ro'yxat", build_reaction_buttons(5, False) == [])
+    check("o'chiq (emoji bilan ham): bo'sh", build_reaction_buttons(5, False, "👍") == [])
+
+    # 2. Eski post (reaction_emojis=None) → standart 4 emoji
+    default_row = build_reaction_buttons(7, True, None)
+    check("default: 4 tugma", len(default_row) == 4, str(len(default_row)))
+    check("default: 👍 callback", default_row[0].callback_data == "react:7:👍")
+    check("default: ❤️ callback", default_row[1].callback_data == "react:7:❤️")
+    check("default: 🔥 callback", default_row[2].callback_data == "react:7:🔥")
+    check("default: 👏 callback", default_row[3].callback_data == "react:7:👏")
+
+    # 3. Multi-select: foydalanuvchi tanlagan emojilar
+    custom_row = build_reaction_buttons(9, True, "👍 🔥 🤔")
+    check("custom: 3 tugma", len(custom_row) == 3, str(len(custom_row)))
+    check("custom: 👍", custom_row[0].callback_data == "react:9:👍")
+    check("custom: 🔥", custom_row[1].callback_data == "react:9:🔥")
+    check("custom: 🤔", custom_row[2].callback_data == "react:9:🤔")
+    check("custom: ❤️ yo'q", not any("❤" in (b.callback_data or "") for b in custom_row))
+
+    # 4. 🎉 va 🤔 (yangi emojilar) ham ishlatiladi
+    party_row = build_reaction_buttons(1, True, ["🎉", "🤔"])
+    check("yangi emojilar: 🎉", party_row[0].callback_data == "react:1:🎉")
+    check("yangi emojilar: 🤔", party_row[1].callback_data == "react:1:🤔")
+
+    # 5. Buzilgan/noma'lum qiymat → standart to'plamga qaytish
+    fallback_row = build_reaction_buttons(3, True, "salom dunyo")
+    check("fallback: 4 tugma", len(fallback_row) == 4)
+
+    # 6. Callback tugmalari URL tugmasidan mustaqil (InlineKeyboardButton)
+    from telegram import InlineKeyboardButton
+    check("button tipi to'g'ri", isinstance(custom_row[0], InlineKeyboardButton))
+
+
+def test_reaction_emojis_db_schema():
+    """DB: reaction_emojis ustuni — sxema, migratsiya va add_post imzosi."""
+    print("== reaction_emojis DB schema ==")
+    import inspect
+    import database as db_mod
+
+    source = open(db_mod.__file__, encoding="utf-8").read()
+    check("schema: reaction_emojis TEXT", "reaction_emojis TEXT" in source)
+    check("migration: ADD COLUMN IF NOT EXISTS reaction_emojis",
+          "ADD COLUMN IF NOT EXISTS reaction_emojis" in source)
+    check("get_due_posts: reaction_emojis qaytaradi",
+          "sp.delete_after_hours, sp.reaction_emojis" in source)
+
+    sig = inspect.signature(db_mod.add_post)
+    check("add_post: reaction_emojis parametri", "reaction_emojis" in sig.parameters)
+    check("add_post: default None", sig.parameters["reaction_emojis"].default is None)
+
+
+def test_quick_button_flow():
+    """🔗 Tezkor tugmali post: extras menyusi, holat konstantasi va handlerlar."""
+    print("== tezkor tugmali post (quick button flow) ==")
+    import handlers.new_post as np_mod
+    import handlers as h_mod
+    from keyboards.inline import get_extras_inline_keyboard
+
+    # 1. Extras menyusida kirish tugmasi
+    cbs = [b.callback_data for row in get_extras_inline_keyboard().inline_keyboard for b in row]
+    check("extras: extra_quick_btn callback", "extra_quick_btn" in cbs, str(cbs))
+
+    # 2. Yangi FSM holati konstantasi (to'qnashuvsiz)
+    check("QUICK_BTN_CONTENT = 113", np_mod.QUICK_BTN_CONTENT == 113)
+    states = {
+        np_mod.CHOOSE_CHANNEL, np_mod.GET_CONTENT, np_mod.GET_BTN_TITLE, np_mod.GET_BTN_URL,
+        np_mod.GET_REACTIONS, np_mod.GET_AUTO_DELETE, np_mod.GET_TIME, np_mod.DAILY_TIME,
+        np_mod.RECUR_DAY, np_mod.RECUR_TIME, np_mod.GET_DURATION, np_mod.CONFIRM_POST,
+        np_mod.EDIT_CONFIRM_FIELD, np_mod.QUICK_BTN_CONTENT,
+    }
+    check("holatlar unikal", len(states) == 14, str(len(states)))
+
+    # 3. Handler funksiyalari mavjud
+    check("quick_button_post_start callable", callable(np_mod.quick_button_post_start))
+    check("quick_btn_content_received callable", callable(np_mod.quick_btn_content_received))
+    check("reaction_toggle_callback callable", callable(np_mod.reaction_toggle_callback))
+    check("reactions_done_callback callable", callable(np_mod.reactions_done_callback))
+    check("reactions_skip_callback callable", callable(np_mod.reactions_skip_callback))
+
+    # 4. Handler registratsiyasi (source darajasida)
+    h_src = open(h_mod.__file__, encoding="utf-8").read()
+    check("register: extra_quick_btn entry", 'pattern=r"^extra_quick_btn$"' in h_src)
+    check("register: npreact:tgl handler", 'pattern=r"^npreact:tgl:"' in h_src)
+    check("register: npreact:done handler", 'pattern=r"^npreact:done$"' in h_src)
+    check("register: npreact:skip handler", 'pattern=r"^npreact:skip$"' in h_src)
+    check("register: QUICK_BTN_CONTENT holati", "QUICK_BTN_CONTENT:" in h_src)
+
+    # 5. Tezkor content parser (oxirgi qatordagi 'Button - URL')
+    parse = np_mod.parse_url_button_line
+    sample_text = "Yangi mahsulot!\nNarxlarni ko'ring - https://shop.uz"
+    lines = sample_text.splitlines()
+    btn = parse(lines[-1].strip())
+    check("tezkor: oxirgi qator ajratiladi",
+          btn == ("Narxlarni ko'ring", "https://shop.uz"), str(btn))
+    content = "\n".join(lines[:-1]).strip()
+    check("tezkor: kontent qolgan qatorlar", content == "Yangi mahsulot!", content)
+
+    # 6. Tugmasiz tezkor post: oxirgi qator oddiy matn — hech narsa ajratilmaydi
+    plain = "Oddiy yangilik matni\nIkkinchi qator"
+    check("tezkor: tugmasiz postda oxirgi qator ajratilmaydi",
+          parse(plain.splitlines()[-1]) is None)
+
+
 def test_guard_feedback_and_silent_blocking_fix():
     """Guard va callbacklarda bildirishnoma mavjudligi (silent blocking fix)."""
     print("== Non-silent rate-limit feedback in guards ==")
@@ -2601,6 +2820,11 @@ def main():
     test_tiered_rate_limit_constants()
     test_reaction_keyboard_buttons()
     test_flexible_reaction_parser()
+    test_reaction_toggle_keyboard_and_normalize()
+    test_url_button_builder()
+    test_scheduler_custom_reactions()
+    test_reaction_emojis_db_schema()
+    test_quick_button_flow()
     test_guard_feedback_and_silent_blocking_fix()
     test_sponsor_channels_suite()
     test_auto_ad_injector_suite()

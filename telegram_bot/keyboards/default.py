@@ -49,6 +49,9 @@ BTN_PREMIUM = "⭐️ Premium"
 BTN_CHANNEL_EXTRACT = "📢 Ochiq kanaldan olish"
 BTN_ALL_CHANNELS_TARGET = "🌐 Barchasiga birdaniga"
 BTN_SKIP_BUTTON = "➡️ Tugmasiz davom etish"
+# Inline URL tugma quruvchi (yangi ixtiyoriy qadam)
+BTN_ADD_URL_BUTTON = "🔗 URL tugma qo'shish"
+BTN_SKIP_URL_BUTTON = "⏭ O'tkazib yuborish"
 BTN_REACT_THUMBS_UP = "👍"
 BTN_REACT_HEART = "❤️"
 BTN_REACT_FIRE = "🔥"
@@ -89,9 +92,10 @@ def exact(*texts):
 
 
 def get_main_keyboard(is_admin=False):
+    # Yangi tartib: ⭐️ Premium chapda, 👤 Kabinet & Sozlamalar o'ngda (2-qator).
     keyboard = [
         [BTN_NEW_POST, BTN_AI_STUDIO],
-        [BTN_SETTINGS, BTN_PREMIUM],
+        [BTN_PREMIUM, BTN_SETTINGS],
         [BTN_HELP, BTN_EXTRAS],
     ]
     if is_admin:
@@ -114,12 +118,18 @@ def get_cancel_keyboard():
 
 
 def get_button_prompt_keyboard():
+    """Postga havola tugma qo'shish — ixtiyoriy qadam.
+
+    Yangi: "[🔗 URL tugma qo'shish]" / "[⏭ O'tkazib yuborish]" tugmalari.
+    Tezkor sarlavhalar va AI yordamchi tugmasi saqlab qolingan.
+    """
     return ReplyKeyboardMarkup(
         [
             ["✨ AI Yordamchi"],
             ["Batafsil", "Kanalga a'zo bo'lish"],
             ["Saytga o'tish", "Bog'lanish"],
-            [BTN_SKIP_BUTTON],
+            [BTN_ADD_URL_BUTTON],
+            [BTN_SKIP_URL_BUTTON],
             [BTN_BACK]
         ],
         resize_keyboard=True

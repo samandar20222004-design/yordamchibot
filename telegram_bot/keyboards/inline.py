@@ -299,7 +299,77 @@ def get_extras_inline_keyboard() -> InlineKeyboardMarkup:
     """⚙️ Qo'shimcha funksiyalar — inline menyu."""
     keyboard = [
         [InlineKeyboardButton("🔤 Krill-Lotin konvertor", callback_data="extra_converter")],
+        [InlineKeyboardButton("🔗 Tezkor tugmali post", callback_data="extra_quick_btn")],
         [InlineKeyboardButton("❌ Yopish", callback_data="extra_close")],
+    ]
+    return InlineKeyboardMarkup(keyboard)
+
+
+# ============================================================
+# MULTI-SELECT REAKSIYALAR (TOGGLE)
+# ============================================================
+# Post yaratishda reaksiya tanlash uchun ruxsat etilgan emojilar.
+REACTION_EMOJIS = ("👍", "❤️", "🔥", "👏", "🎉", "🤔")
+# Eski postlar (reaction_emojis saqlanmagan) uchun standart to'plam.
+DEFAULT_REACTION_EMOJIS = ("👍", "❤️", "🔥", "👏")
+
+# Callback prefikslari: kanal postidagi reaksiya hisoblagich "react:" bilan
+# aralashmasligi uchun "npreact:" (new-post reaction) ishlatiladi.
+CB_REACT_TOGGLE = "npreact:tgl:"
+CB_REACT_DONE = "npreact:done"
+CB_REACT_SKIP = "npreact:skip"
+
+
+def _strip_vs16(value: str) -> str:
+    """Variation Selector (\ufe0f/\ufe0e) ni olib tashlaydi — emoji taqqoslash uchun.
+
+    \u2764\ufe0f (VS16 bilan ❤️) va \u2764 (VS16 siz) bir xil reaksiya deb hisoblanadi.
+    """
+    return (value or "").replace("\ufe0f", "").replace("\ufe0e", "")
+
+
+def normalize_reaction_emojis(value) -> list:
+    """Saqlangan reaksiya to'plamini toza ro'yxatga aylantiradi.
+
+    Kirish: ro'yxat/tuple yoki bo'sh joy bilan ajratilgan satr (DB'dagi ko'rinish).
+    Chiqish: REACTION_EMOJIS tartibiga moslangan, takrorlarsiz ro'yxat.
+    Noma'lum/bo'm-bo'sh qiymatlar uchun bo'sh ro'yxat qaytadi.
+    """
+    if not value:
+        return []
+    if isinstance(value, (list, tuple, set)):
+        raw_items = [str(v) for v in value]
+    else:
+        raw_items = str(value).split()
+    selected = {_strip_vs16(v) for v in raw_items if v and v.strip()}
+    # Tanlangan emojilarni doimiy (kanonik) tartibda qaytaramiz
+    return [e for e in REACTION_EMOJIS if _strip_vs16(e) in selected]
+
+
+def get_reaction_toggle_keyboard(selected=None) -> InlineKeyboardMarkup:
+    """Multi-select reaksiya klaviaturasi — emoji bosilganda ✅ belgilanadi/olib tashlanadi.
+
+    Keyingi qadamga faqat "[➡️ Davom etish]" yoki "[⏭ Reaksiyasiz o'tish]"
+    tugmasi bosilganda o'tiladi.
+    """
+    sel = set(normalize_reaction_emojis(selected)) if selected else set()
+    emoji_row_1 = []
+    emoji_row_2 = []
+    for idx, emoji in enumerate(REACTION_EMOJIS):
+        mark = "✅" if emoji in sel else ""
+        button = InlineKeyboardButton(f"{emoji} {mark}".strip(), callback_data=f"{CB_REACT_TOGGLE}{emoji}")
+        if idx < 3:
+            emoji_row_1.append(button)
+        else:
+            emoji_row_2.append(button)
+
+    count = len(sel)
+    done_label = f"➡️ Davom etish ({count} ta)" if count else "➡️ Davom etish"
+    keyboard = [
+        emoji_row_1,
+        emoji_row_2,
+        [InlineKeyboardButton(done_label, callback_data=CB_REACT_DONE)],
+        [InlineKeyboardButton("⏭ Reaksiyasiz o'tish", callback_data=CB_REACT_SKIP)],
     ]
     return InlineKeyboardMarkup(keyboard)
 
