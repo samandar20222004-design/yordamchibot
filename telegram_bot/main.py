@@ -45,17 +45,34 @@ class GuardedApplication(Application):
             if user is not None:
                 blocked, _ = check_rate_limit(user.id, max_requests=20, window_seconds=2.0)
                 if blocked:
-                    return None  # jim tashlab yuboriladi (abuser javob olmaydi)
+                    # Update tashlab yuboriladi, lekin callback bo'lsa tugma
+                    # "yuklanmoqda" holatida muzlab qolmasligi uchun darhol
+                    # javob beramiz (jim chiqish — tugmalarni qotiradi).
+                    await self._answer_rate_limited(update)
+                    return None
 
                 # 3) Dublikat xabar (avtomatik qayta yuborish hujumi)
                 msg = getattr(update, "effective_message", None)
                 text = getattr(msg, "text", None) if msg else None
                 if text and is_duplicate_message(user.id, text):
+                    await self._answer_rate_limited(update)
                     return None
         except Exception:
             logger.exception("Guard himoyasida xatolik — update davom ettirilmoqda")
 
         return await super().process_update(update)
+
+    @staticmethod
+    async def _answer_rate_limited(update):
+        """Rate-limit/dublikat tufayli tashlab yuborilgan callback'ga darhol
+        javob beradi — aks holda Telegram tugmani 'yuklanmoqda' holatida
+        qoldiradi (tugma qotib qoladi)."""
+        query = getattr(update, "callback_query", None)
+        if query is not None:
+            try:
+                await query.answer("⏳ Iltimos, biroz kuting...", show_alert=False)
+            except Exception:
+                pass
 
 
 async def error_handler(update, context):
