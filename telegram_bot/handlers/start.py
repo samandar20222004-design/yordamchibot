@@ -3,7 +3,7 @@ import time
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.error import TelegramError, Forbidden
 from telegram.ext import ContextTypes, ConversationHandler
-from config import ADMIN_ID, ADMIN_IDS_SET
+from config import ADMIN_IDS_SET
 import database as db
 from keyboards.default import get_main_keyboard, get_cabinet_keyboard, get_cancel_keyboard
 from keyboards.inline import get_referral_share_keyboard, get_subscription_check_keyboard, get_cabinet_inline_keyboard, get_cabinet_back_keyboard
@@ -202,7 +202,7 @@ async def user_cabinet_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def daily_bonus_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
-    is_admin = (user.id == ADMIN_ID)
+    is_admin = (user.id in ADMIN_IDS_SET)
     
     if is_admin:
         await update.message.reply_text("👑 <b>Siz Super Adminsiz</b> — hisobingizda cheksiz so'rov mavjud!", parse_mode="HTML")
@@ -236,7 +236,7 @@ async def daily_bonus_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 async def buy_ad_free_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
-    is_admin = (user.id == ADMIN_ID)
+    is_admin = (user.id in ADMIN_IDS_SET)
     
     if is_admin:
         await update.message.reply_text("👑 Siz Super Adminsiz — barcha postlaringiz doim reklamasiz chiqadi!", parse_mode="HTML")
@@ -314,7 +314,7 @@ async def ad_free_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def user_invite_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
     user = update.effective_user
-    is_admin = (user.id == ADMIN_ID)
+    is_admin = (user.id in ADMIN_IDS_SET)
     bot_obj = await context.bot.get_me()
     stats = await db.run_db(db.get_referral_stats, user.id)
     ref_link = f"https://t.me/{bot_obj.username}?start=ref_{user.id}"
@@ -339,7 +339,7 @@ async def start_transfer_credits(update: Update, context: ContextTypes.DEFAULT_T
     user_id = update.effective_user.id
     my_credits = await db.run_db(db.get_user_credits, user_id)
     
-    if my_credits < 3 and user_id != ADMIN_ID:
+    if my_credits < 3 and user_id not in ADMIN_IDS_SET:
         await update.message.reply_text(
             f"⚠️ <b>Hisobingizda yetarli ball yo'q!</b>\n\n"
             f"Ball o'tkazish uchun kamida <b>3 ta ball</b> kerak. Sizda esa: <b>{my_credits} ta</b>.\n"

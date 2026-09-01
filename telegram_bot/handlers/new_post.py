@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 import pytz
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import ContextTypes, ConversationHandler
-from config import ADMIN_ID, ADMIN_IDS_SET
+from config import ADMIN_IDS_SET
 import database as db
 from keyboards.default import (
     BTN_ALL_CHANNELS_TARGET, BTN_MAIN_MENU, BTN_SKIP_BUTTON,

@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 import pytz
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes, ConversationHandler
-from config import ADMIN_ID, ADMIN_IDS_SET
+from config import ADMIN_IDS_SET
 import database as db
 from keyboards.default import (
     BTN_T_5MIN, BTN_T_15MIN, BTN_T_1H, BTN_T_DAILY, BTN_T_WEEKLY,
@@ -32,6 +32,19 @@ AI_CONFIRM_KEYBOARD = InlineKeyboardMarkup([
     [InlineKeyboardButton("📝 Matnni tahrirlash", callback_data="ai_post_retry")],
     [InlineKeyboardButton("🚫 Bekor qilish", callback_data="ai_post_cancel")],
 ])
+
+# Tarif limiti (FREE vs PRO) tugaganda ko'rsatiladigan PRO tugmasi.
+PRO_UPGRADE_KEYBOARD = InlineKeyboardMarkup([
+    [InlineKeyboardButton("⭐️ PRO tarifga o'tish", callback_data="sub_open")],
+])
+
+# Tarif asosidagi kunlik AI limiti xabari (database.PLAN_LIMITS).
+AI_LIMIT_MSG = (
+    "🚫 <b>Kunlik AI limiti tugadi!</b>\n\n"
+    "Bugun <b>{used}/{max}</b> ta AI so'rovi ishlatildi.\n"
+    "Free tarifida kuniga maksimal <b>{max}</b> ta AI so'rovi.\n\n"
+    "⭐️ Cheksiz AI uchun PRO tarifiga o'ting."
+)
 
 # Typing animatsiyasi davomiyligi (soniya) — AI javob kelgunicha takrorlanadi
 _TYPING_INTERVAL = 4.0
@@ -69,9 +82,11 @@ async def start_ai_assistant(update: Update, context: ContextTypes.DEFAULT_TYPE)
     user_id = update.effective_user.id
     clear_ai_context(user_id)
     is_admin = (user_id in ADMIN_IDS_SET)
+    is_pro = await db.run_db(db.is_premium, user_id)
     credits = await db.run_db(db.get_user_credits, user_id)
 
-    if not is_admin and credits <= 0:
+    # PRO/Enterprise foydalanuvchi cheksiz AI oladi — ball talab qilinmaydi.
+    if not is_admin and not is_pro and credits <= 0:
         bot_obj = await context.bot.get_me()
         await update.message.reply_text(
             _no_credits_text(bot_obj.username, user_id),
@@ -80,7 +95,10 @@ async def start_ai_assistant(update: Update, context: ContextTypes.DEFAULT_TYPE)
         )
         return ConversationHandler.END
 
-    limit_info = "♾ Cheksiz (Super Admin)" if is_admin else f"<b>{credits} ta</b>"
+    limit_info = (
+        "♾ Cheksiz (Super Admin)" if is_admin else
+        ("♾ Cheksiz (PRO)" if is_pro else f"<b>{credits} ta</b>")
+    )
 
     await update.message.reply_text(
         "🤖 <b>AI Yordamchiga xush kelibsiz!</b>\n\n"
@@ -215,16 +233,35 @@ async def ai_input_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return AI_INPUT
 
-    # Kunlik limit
-    if not is_admin and check_ai_daily_limit(user_id, max_per_day=30):
+    # PRO/Enterprise foydalanuvchi cheksiz AI oladi — kunlik limit va ball
+    # cheklovlari ularga qo'llanilmaydi.
+    is_pro = False
+    if not is_admin:
+        is_pro = await db.run_db(db.is_premium, user_id)
+
+    # Kunlik limit (in-memory, tezkor himoya) — faqat free uchun.
+    if not is_admin and not is_pro and check_ai_daily_limit(user_id, max_per_day=30):
         await msg.reply_text(
             "⚠️ <i>Kunlik AI so'rovlar limiti tugadi (30 ta/kun). Ertaga qayta urinib ko'ring.</i>",
             parse_mode="HTML",
         )
         return AI_INPUT
 
-    # Ballni atomik band qilamiz
-    if not is_admin and not await db.run_db(db.use_user_credit, user_id):
+    # Tarif bo'yicha kunlik AI limiti (FREE vs PRO) — database.PLAN_LIMITS asosida.
+    # Har bir AI so'rovidan oldin tekshiriladi; limit tugasa foydalanuvchiga
+    # xabar va PRO tarifga o'tish tugmasi ko'rsatiladi.
+    if not is_admin and not is_pro:
+        can_use, used, max_ai = await db.run_db(db.check_ai_limit, user_id)
+        if not can_use:
+            await msg.reply_text(
+                AI_LIMIT_MSG.format(used=used, max=max_ai),
+                reply_markup=PRO_UPGRADE_KEYBOARD,
+                parse_mode="HTML",
+            )
+            return AI_INPUT
+
+    # Ballni atomik band qilamiz (faqat free uchun; PRO cheksiz).
+    if not is_admin and not is_pro and not await db.run_db(db.use_user_credit, user_id):
         bot_obj = await context.bot.get_me()
         await msg.reply_text(
             _no_credits_text(bot_obj.username, user_id),
@@ -444,6 +481,7 @@ async def ai_confirm_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
     data = query.data
     user_id = query.from_user.id
     is_admin = (user_id in ADMIN_IDS_SET)
+    is_pro = await db.run_db(db.is_premium, user_id)
 
     if data == "ai_post_cancel":
         await query.answer("Bekor qilindi")
@@ -525,6 +563,12 @@ async def ai_confirm_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
             ok_count += 1
 
     if ok_count > 0:
+        # Muvaffaqiyatli post yaratilgach kunlik AI sanagichini oshiramiz
+        # (FREE tarif kunlik limitini yangilash uchun). PRO/Admin cheksiz —
+        # ular uchun sanagich shart emas. Faqat muvaffaqiyatli yaratilganda
+        # chaqiriladi.
+        if not is_admin and not is_pro:
+            await db.run_db(db.increment_ai_usage, user_id)
         first_title = (channels[0][1] or "").strip() or "Kanal"
         target_name = "Barcha ulangan kanallarga" if target_all else first_title
         try:
