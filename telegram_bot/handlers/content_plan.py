@@ -6,7 +6,7 @@ from config import ADMIN_IDS_SET
 import database as db
 from keyboards.default import get_cancel_keyboard, get_main_keyboard
 from keyboards.inline import btn_label
-from utils.helpers import html_escape, safe_html
+from utils.helpers import html_escape, safe_html, get_auto_ad_injection_async
 
 logger = logging.getLogger(__name__)
 
@@ -185,7 +185,8 @@ async def plan_topic_received(update: Update, context: ContextTypes.DEFAULT_TYPE
             plan_text += f"  <i>{html_escape(idea[:150])}</i>\n"
         plan_text += "\n"
 
-    plan_text += "\nKunni tanlab, to'g'ridan-to'g'ri post yarating 👇"
+    ad_line = await get_auto_ad_injection_async(update.effective_user.id)
+    plan_text += f"{ad_line}\n\nKunni tanlab, to'g'ridan-to'g'ri post yarating 👇"
 
     await update.message.reply_text(
         plan_text,

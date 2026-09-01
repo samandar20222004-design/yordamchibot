@@ -6,7 +6,7 @@ from config import ADMIN_IDS_SET
 import database as db
 from keyboards.default import get_cancel_keyboard, get_main_keyboard, get_button_prompt_keyboard
 from keyboards.inline import btn_label
-from utils.helpers import html_escape, safe_html
+from utils.helpers import html_escape, safe_html, get_auto_ad_injection_async
 from utils.channel_reader import fetch_latest_channel_posts, format_post_list
 
 logger = logging.getLogger(__name__)
@@ -214,8 +214,9 @@ async def extract_post_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE
         if len(rewritten) > 500:
             preview += "…"
 
+        ad_line = await get_auto_ad_injection_async(user_id)
         await query.message.reply_text(
-            f"✨ <b>AI taklifi:</b>\n\n{safe_html(preview)}",
+            f"✨ <b>AI taklifi:</b>\n\n{safe_html(preview)}{ad_line}",
             reply_markup=_get_rewrite_result_keyboard(),
             parse_mode="HTML",
         )

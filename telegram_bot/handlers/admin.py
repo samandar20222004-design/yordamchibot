@@ -16,7 +16,9 @@ from keyboards.inline import (
     get_sponsors_delete_keyboard, get_cache_actions_keyboard,
     get_admin_dashboard_keyboard, get_admin_back_keyboard,
     get_ad_pool_menu_keyboard, get_ad_pool_delete_keyboard,
-    get_ad_pool_back_keyboard,
+    get_ad_pool_back_keyboard, get_admin_sponsors_keyboard,
+    get_admin_auto_ad_keyboard, get_admin_ad_interval_keyboard,
+    unpack_sponsor,
 )
 from utils import ai_agent
 from utils.helpers import html_escape, format_post_type_label
@@ -31,6 +33,9 @@ AI_SETTINGS = 805
 SET_POST_TAG = 806
 ADMIN_GRANT_PRO = 807
 ADMIN_PROMO_CREATE = 808
+ADMIN_SPONSOR_ADD = 809
+ADMIN_AD_EDIT = 810
+ADMIN_AD_INTERVAL = 811
 
 # Broadcast har 20 xabardan keyin shuncha kutadi (Telegram ~30 msg/s limiti).
 # 20 xabar / 0.7 s ≈ 28 msg/s — limitdan xavfsiz past.
@@ -277,6 +282,204 @@ async def admin_dashboard_callback(update: Update, context: ContextTypes.DEFAULT
         context.user_data["admin_flow"] = "broadcast"
         return
 
+    if data == "adm_sponsors":
+        await query.answer()
+        sponsors = await db.run_db(db.get_sponsor_channels) or []
+        count = len(sponsors)
+        text = (
+            "📢 <b>Majburiy obuna (Sponsor kanallar) boshqaruvi:</b>\n"
+            "━━━━━━━━━━━━━━━━━\n"
+            f"Ulangan kanallar soni: <b>{count} ta</b>\n\n"
+        )
+        if sponsors:
+            for idx, s in enumerate(sponsors, 1):
+                s_id, ch_id, ch_title, username, ch_url = unpack_sponsor(s)
+                u_info = f" (@{username})" if username else ""
+                link_info = f"\n   🔗 {ch_url}" if ch_url else ""
+                text += f"{idx}. <b>{html_escape(ch_title)}</b>{u_info} (<code>{ch_id}</code>){link_info}\n\n"
+        else:
+            text += "<i>Hozircha hech qanday sponsor kanal ulanmagan.</i>\n\n"
+        text += "━━━━━━━━━━━━━━━━━\nKanalni o'chirish uchun tegishli tugmani bosing yoki yangi kanal qo'shing 👇"
+        try:
+            await query.edit_message_text(
+                text,
+                reply_markup=get_admin_sponsors_keyboard(sponsors),
+                parse_mode="HTML",
+            )
+        except TelegramError:
+            await query.message.reply_text(
+                text,
+                reply_markup=get_admin_sponsors_keyboard(sponsors),
+                parse_mode="HTML",
+            )
+        return
+
+    if data == "adm_add_sponsor":
+        await query.answer()
+        text = (
+            "➕ <b>Yangi majburiy obuna kanali qo'shish:</b>\n\n"
+            "Kanalning <code>@username</code>ini yoki kanal ID sini (masalan: <code>-1001234567890</code>) yuboring.\n\n"
+            "⚠️ <b>Muhim shartlar:</b>\n"
+            "1. Bot ushbu kanalda <b>administrator</b> bo'lishi shart.\n"
+            "2. Botga kanal a'zolarini ko'rish huquqi berilgan bo'lishi kerak.\n\n"
+            "Bekor qilish uchun ⬅️ Orqaga tugmasini bosing."
+        )
+        try:
+            await query.edit_message_text(
+                text,
+                reply_markup=get_admin_back_keyboard(),
+                parse_mode="HTML",
+            )
+        except TelegramError:
+            await query.message.reply_text(
+                text,
+                reply_markup=get_admin_back_keyboard(),
+                parse_mode="HTML",
+            )
+        context.user_data["admin_flow"] = "add_sponsor"
+        return
+
+    if data == "adm_auto_ad":
+        await query.answer()
+        ad_settings = await db.run_db(db.get_ad_settings)
+        status = ad_settings.get("auto_ad_status", False)
+        status_badge = "✅ Faol (Yoqilgan)" if status else "❌ O'chirilgan"
+        interval = ad_settings.get("auto_ad_interval", 4)
+        ad_text = (ad_settings.get("auto_ad_text") or "").strip()
+        ad_preview = f"<code>{html_escape(ad_text)}</code>" if ad_text else "<i>(Reklama matni kiritilmagan)</i>"
+
+        text = (
+            "🎯 <b>Har 3-5 ta javobda avtomatik reklama sozlamalari:</b>\n"
+            "━━━━━━━━━━━━━━━━━\n"
+            f"📊 <b>Hozirgi holat:</b> {status_badge}\n"
+            f"⏱ <b>Interval:</b> Har <b>{interval}</b> ta so'rovda\n"
+            f"📝 <b>Hozirgi reklama matni:</b>\n{ad_preview}\n"
+            "━━━━━━━━━━━━━━━━━\n\n"
+            "Quyidagi tugmalar orqali sozlang 👇"
+        )
+        try:
+            await query.edit_message_text(
+                text,
+                reply_markup=get_admin_auto_ad_keyboard(status=status),
+                parse_mode="HTML",
+            )
+        except TelegramError:
+            await query.message.reply_text(
+                text,
+                reply_markup=get_admin_auto_ad_keyboard(status=status),
+                parse_mode="HTML",
+            )
+        return
+
+    if data == "adm_ad_toggle":
+        ad_settings = await db.run_db(db.get_ad_settings)
+        new_status = not ad_settings.get("auto_ad_status", False)
+        await db.run_db(db.set_ad_status, new_status)
+        status_msg = "Reklama yoqildi ✅" if new_status else "Reklama o'chirildi ❌"
+        await query.answer(status_msg)
+
+        ad_settings["auto_ad_status"] = new_status
+        status_badge = "✅ Faol (Yoqilgan)" if new_status else "❌ O'chirilgan"
+        interval = ad_settings.get("auto_ad_interval", 4)
+        ad_text = (ad_settings.get("auto_ad_text") or "").strip()
+        ad_preview = f"<code>{html_escape(ad_text)}</code>" if ad_text else "<i>(Reklama matni kiritilmagan)</i>"
+
+        text = (
+            "🎯 <b>Har 3-5 ta javobda avtomatik reklama sozlamalari:</b>\n"
+            "━━━━━━━━━━━━━━━━━\n"
+            f"📊 <b>Hozirgi holat:</b> {status_badge}\n"
+            f"⏱ <b>Interval:</b> Har <b>{interval}</b> ta so'rovda\n"
+            f"📝 <b>Hozirgi reklama matni:</b>\n{ad_preview}\n"
+            "━━━━━━━━━━━━━━━━━\n\n"
+            "Quyidagi tugmalar orqali sozlang 👇"
+        )
+        try:
+            await query.edit_message_text(
+                text,
+                reply_markup=get_admin_auto_ad_keyboard(status=new_status),
+                parse_mode="HTML",
+            )
+        except TelegramError:
+            pass
+        return
+
+    if data == "adm_ad_edit_text":
+        await query.answer()
+        text = (
+            "✏️ <b>Yangi reklama matnini kiriting:</b>\n\n"
+            "Reklama matni, havola yoki kanal nomini yozing.\n"
+            "<i>Masalan: 🚀 Bizning rasmiy homiymiz: @kanal — obuna bo'ling!</i>\n\n"
+            "Bekor qilish uchun ⬅️ Orqaga tugmasini bosing."
+        )
+        try:
+            await query.edit_message_text(
+                text,
+                reply_markup=get_admin_back_keyboard(),
+                parse_mode="HTML",
+            )
+        except TelegramError:
+            await query.message.reply_text(
+                text,
+                reply_markup=get_admin_back_keyboard(),
+                parse_mode="HTML",
+            )
+        context.user_data["admin_flow"] = "edit_ad_text"
+        return
+
+    if data == "adm_ad_set_interval":
+        await query.answer()
+        text = (
+            "⏱ <b>Reklama intervalini sozlash:</b>\n\n"
+            "Bot har nechta natijaviy so'rovda reklama qo'shsin?\n"
+            "Standart qiymat: <b>4</b> (har 3-5 ta so'rovda).\n\n"
+            "Quyidagi tugmalardan tanlang yoki istalgan butun sonni yozib yuboring:"
+        )
+        try:
+            await query.edit_message_text(
+                text,
+                reply_markup=get_admin_ad_interval_keyboard(),
+                parse_mode="HTML",
+            )
+        except TelegramError:
+            await query.message.reply_text(
+                text,
+                reply_markup=get_admin_ad_interval_keyboard(),
+                parse_mode="HTML",
+            )
+        context.user_data["admin_flow"] = "set_ad_interval"
+        return
+
+    if data.startswith("adm_ad_int:"):
+        val = int(data.split(":")[1])
+        await db.run_db(db.set_ad_interval, val)
+        await query.answer(f"Interval {val} ta so'rov qilib belgilandi ✅")
+
+        ad_settings = await db.run_db(db.get_ad_settings)
+        status = ad_settings.get("auto_ad_status", False)
+        status_badge = "✅ Faol (Yoqilgan)" if status else "❌ O'chirilgan"
+        ad_text = (ad_settings.get("auto_ad_text") or "").strip()
+        ad_preview = f"<code>{html_escape(ad_text)}</code>" if ad_text else "<i>(Reklama matni kiritilmagan)</i>"
+
+        text = (
+            "🎯 <b>Har 3-5 ta javobda avtomatik reklama sozlamalari:</b>\n"
+            "━━━━━━━━━━━━━━━━━\n"
+            f"📊 <b>Hozirgi holat:</b> {status_badge}\n"
+            f"⏱ <b>Interval:</b> Har <b>{val}</b> ta so'rovda\n"
+            f"📝 <b>Hozirgi reklama matni:</b>\n{ad_preview}\n"
+            "━━━━━━━━━━━━━━━━━\n\n"
+            "Quyidagi tugmalar orqali sozlang 👇"
+        )
+        try:
+            await query.edit_message_text(
+                text,
+                reply_markup=get_admin_auto_ad_keyboard(status=status),
+                parse_mode="HTML",
+            )
+        except TelegramError:
+            pass
+        context.user_data.pop("admin_flow", None)
+        return
+
     if data == "adm_back":
         await query.answer()
         stats = await db.run_db(db.get_admin_dashboard_stats)
@@ -429,6 +632,163 @@ async def admin_inline_text_handler(update: Update, context: ContextTypes.DEFAUL
             async with _broadcast_lock:
                 await _run_broadcast(context.bot, user_ids, text, update.effective_user.id)
         asyncio.create_task(_broadcast_task())
+        context.user_data.pop("admin_flow", None)
+        return ConversationHandler.END
+
+    if flow == "add_sponsor":
+        # 1. Format: ID|TITLE|URL (legacy manual format)
+        if "|" in text:
+            parts = text.split("|")
+            if len(parts) >= 3:
+                ch_id, title, url = parts[0].strip(), parts[1].strip(), parts[2].strip()
+                success = await db.run_db(db.add_sponsor_channel, ch_id, title=title, invite_link=url)
+                if success:
+                    await update.message.reply_text(
+                        f"✅ <b>Homiy kanal muvaffaqiyatli qo'shildi!</b>\n\n"
+                        f"📢 <b>{html_escape(title)}</b> (<code>{ch_id}</code>)\n"
+                        f"🔗 {url}",
+                        reply_markup=get_admin_back_keyboard(),
+                        parse_mode="HTML",
+                    )
+                    context.user_data.pop("admin_flow", None)
+                    return ConversationHandler.END
+                else:
+                    await update.message.reply_text(
+                        "❌ Saqlashda xatolik yuz berdi.",
+                        reply_markup=get_admin_back_keyboard(),
+                    )
+                    return ADMIN_SPONSOR_ADD
+
+        # 2. Avtomatik tekshiruv: @username yoki ID
+        raw_target = text.strip()
+        if raw_target.startswith("https://t.me/"):
+            raw_target = "@" + raw_target.replace("https://t.me/", "").strip("/").split("/")[0]
+
+        chat_target = raw_target
+        if raw_target.lstrip("-").isdigit():
+            try:
+                chat_target = int(raw_target)
+            except ValueError:
+                chat_target = raw_target
+
+        try:
+            chat = await context.bot.get_chat(chat_id=chat_target)
+            bot_member = await context.bot.get_chat_member(chat_id=chat.id, user_id=context.bot.id)
+            if bot_member.status not in ("administrator", "creator"):
+                await update.message.reply_text(
+                    f"❌ <b>Bot bu kanalda admin emas!</b>\n\n"
+                    f"Kanal: <b>{html_escape(chat.title or '')}</b> (<code>{chat.id}</code>)\n\n"
+                    "Iltimos, avval botni ushbu kanalga <b>admin</b> qilib qo'shing va qaytadan yuboring:",
+                    reply_markup=get_admin_back_keyboard(),
+                    parse_mode="HTML",
+                )
+                return ADMIN_SPONSOR_ADD
+
+            invite_link = chat.invite_link or ""
+            if not invite_link and chat.username:
+                invite_link = f"https://t.me/{chat.username}"
+            if not invite_link:
+                try:
+                    invite_link = await context.bot.export_chat_invite_link(chat_id=chat.id)
+                except Exception:
+                    pass
+            if not invite_link and chat.username:
+                invite_link = f"https://t.me/{chat.username}"
+            if not invite_link:
+                invite_link = f"https://t.me/c/{str(chat.id).replace('-100', '')}"
+
+            title = chat.title or "Sponsor Kanal"
+            username = chat.username or ""
+
+            success = await db.run_db(
+                db.add_sponsor_channel,
+                channel_id=chat.id,
+                title=title,
+                username=username,
+                invite_link=invite_link
+            )
+            if success:
+                user_line = f"👤 @{username}\n" if username else ""
+                await update.message.reply_text(
+                    f"✅ <b>Sponsor kanal muvaffaqiyatli qo'shildi!</b>\n\n"
+                    f"📢 <b>{html_escape(title)}</b>\n"
+                    f"🆔 <code>{chat.id}</code>\n"
+                    f"{user_line}"
+                    f"🔗 {invite_link}",
+                    reply_markup=get_admin_back_keyboard(),
+                    parse_mode="HTML",
+                )
+                context.user_data.pop("admin_flow", None)
+                return ConversationHandler.END
+            else:
+                await update.message.reply_text(
+                    "❌ Bazaga saqlashda xatolik yuz berdi.",
+                    reply_markup=get_admin_back_keyboard(),
+                )
+                return ADMIN_SPONSOR_ADD
+        except Exception as e:
+            logger.error(f"Sponsor kanal tekshirish xatosi: {e}")
+            await update.message.reply_text(
+                f"❌ <b>Kanal topilmadi yoki bot u yerda admin emas!</b>\n\n"
+                f"Xatolik tafsiloti: <i>{html_escape(str(e))}</i>\n\n"
+                "Iltimos, botni kanalga admin qilganingizga ishonch hosil qilib, @username yoki ID sini qayta yuboring:",
+                reply_markup=get_admin_back_keyboard(),
+                parse_mode="HTML",
+            )
+            return ADMIN_SPONSOR_ADD
+
+    if flow == "edit_ad_text":
+        if not text:
+            await update.message.reply_text(
+                "❌ Reklama matni bo'sh bo'lishi mumkin emas.",
+                reply_markup=get_admin_back_keyboard(),
+            )
+            return ADMIN_AD_EDIT
+        if len(text) > 1000:
+            await update.message.reply_text(
+                "❌ Reklama matni juda uzun (maksimal 1000 belgi).",
+                reply_markup=get_admin_back_keyboard(),
+            )
+            return ADMIN_AD_EDIT
+        success = await db.run_db(db.update_ad_text, text)
+        if success:
+            await update.message.reply_text(
+                f"✅ <b>Reklama matni muvaffaqiyatli saqlandi!</b>\n\n<code>{html_escape(text)}</code>",
+                reply_markup=get_admin_back_keyboard(),
+                parse_mode="HTML",
+            )
+        else:
+            await update.message.reply_text(
+                "❌ Saqlashda xatolik yuz berdi.",
+                reply_markup=get_admin_back_keyboard(),
+            )
+        context.user_data.pop("admin_flow", None)
+        return ConversationHandler.END
+
+    if flow == "set_ad_interval":
+        try:
+            val = int(text)
+            if val < 1:
+                raise ValueError
+        except ValueError:
+            await update.message.reply_text(
+                "❌ Noto'g'ri raqam. Iltimos, 1 yoki undan katta butun son kiriting (masalan: 3, 4, 5):",
+                reply_markup=get_admin_back_keyboard(),
+            )
+            return ADMIN_AD_INTERVAL
+        success = await db.run_db(db.set_ad_interval, val)
+        if success:
+            await update.message.reply_text(
+                f"✅ <b>Reklama intervali yangilandi!</b>\n\n"
+                f"Endi bot har <b>{val}</b> ta so'rovda reklama qo'shadi.",
+                reply_markup=get_admin_back_keyboard(),
+                parse_mode="HTML",
+            )
+        else:
+            await update.message.reply_text(
+                "❌ Saqlashda xatolik yuz berdi.",
+                reply_markup=get_admin_back_keyboard(),
+            )
         context.user_data.pop("admin_flow", None)
         return ConversationHandler.END
 
@@ -667,25 +1027,25 @@ async def admin_all_channels(update: Update, context: ContextTypes.DEFAULT_TYPE)
 async def sponsors_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id):
         return
-    sponsors = await db.run_db(db.get_active_sponsors)
+    sponsors = await db.run_db(db.get_sponsor_channels)
     if sponsors is None:
         await update.message.reply_text(
             "⚠️ Homiy kanallarni bazadan o'qib bo'lmadi. Keyinroq urinib ko'ring.",
             reply_markup=get_admin_panel_keyboard(),
         )
         return
-    text = f"📢 <b>Majburiy a'zolik (Homiy) kanallari ({len(sponsors)} ta):</b>\n\n"
+    count = len(sponsors)
+    text = f"📢 <b>Majburiy a'zolik (Homiy) kanallari ({count} ta):</b>\n━━━━━━━━━━━━━━━━━\n"
     if sponsors:
-        for s in sponsors:
-            s_id, ch_id, ch_title, ch_url = s
-            text += f"🔹 <b>{html_escape(ch_title)}</b> (<code>{ch_id}</code>)\n   🔗 Havola: {ch_url}\n\n"
+        for idx, s in enumerate(sponsors, 1):
+            s_id, ch_id, ch_title, username, ch_url = unpack_sponsor(s)
+            u_info = f" (@{username})" if username else ""
+            text += f"{idx}. 🔹 <b>{html_escape(ch_title)}</b>{u_info} (<code>{ch_id}</code>)\n   🔗 Havola: {ch_url}\n\n"
     else:
         text += "Hozircha hech qanday homiy kanal qo'shilmagan.\n\n"
 
-    text += "O'chirish uchun pastdagi ro'yxatdan tanlang yoki yangi kanal qo'shing 👇"
-    await update.message.reply_text(text, reply_markup=get_sponsors_keyboard(), parse_mode="HTML")
-    if sponsors:
-        await update.message.reply_text("O'chirish uchun tanlang:", reply_markup=get_sponsors_delete_keyboard(sponsors))
+    text += "━━━━━━━━━━━━━━━━━\nO'chirish uchun pastdagi ro'yxatdan tanlang yoki yangi kanal qo'shing 👇"
+    await update.message.reply_text(text, reply_markup=get_admin_sponsors_keyboard(sponsors), parse_mode="HTML")
 
 
 async def start_add_sponsor(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -693,9 +1053,9 @@ async def start_add_sponsor(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return ConversationHandler.END
     await update.message.reply_text(
         "➕ <b>Homiy kanal qo'shish:</b>\n\n"
-        "Kanal ma'lumotlarini quyidagi formatda yuboring:\n"
+        "Kanalning <code>@username</code>ini, ID sini (masalan: <code>-1001234567890</code>) yoki formatda yuboring:\n"
         "<code>KANAL_ID|KANAL_NOMI|HAVOLA</code>\n\n"
-        "👉 <i>Masalan: -1001234567890|Mening Kanalim|https://t.me/mening_kanalim</i>",
+        "⚠️ <i>Bot ushbu kanalda administrator bo'lishi shart.</i>",
         reply_markup=get_cancel_keyboard(),
         parse_mode="HTML"
     )
@@ -706,23 +1066,90 @@ async def sponsor_channel_received(update: Update, context: ContextTypes.DEFAULT
     if not is_admin(update.effective_user.id):
         return ConversationHandler.END
     text = update.message.text.strip()
-    parts = text.split("|")
-    if len(parts) != 3:
-        await update.message.reply_text("❌ Noto'g'ri format. Qaytadan kiriting (KANAL_ID|KANAL_NOMI|HAVOLA):")
+
+    if "|" in text:
+        parts = text.split("|")
+        if len(parts) >= 3:
+            ch_id, title, url = parts[0].strip(), parts[1].strip(), parts[2].strip()
+            success = await db.run_db(db.add_sponsor_channel, ch_id, title=title, invite_link=url)
+            if success:
+                await update.message.reply_text(
+                    f"✅ Homiy kanal qo'shildi: <b>{html_escape(title)}</b>",
+                    reply_markup=get_admin_panel_keyboard(),
+                    parse_mode="HTML",
+                )
+            else:
+                await update.message.reply_text("❌ Saqlashda xatolik yuz berdi.", reply_markup=get_admin_panel_keyboard())
+            return ConversationHandler.END
+
+    raw_target = text
+    if raw_target.startswith("https://t.me/"):
+        raw_target = "@" + raw_target.replace("https://t.me/", "").strip("/").split("/")[0]
+
+    chat_target = raw_target
+    if raw_target.lstrip("-").isdigit():
+        try:
+            chat_target = int(raw_target)
+        except ValueError:
+            chat_target = raw_target
+
+    try:
+        chat = await context.bot.get_chat(chat_id=chat_target)
+        bot_member = await context.bot.get_chat_member(chat_id=chat.id, user_id=context.bot.id)
+        if bot_member.status not in ("administrator", "creator"):
+            await update.message.reply_text(
+                f"❌ <b>Bot bu kanalda admin emas!</b>\n\n"
+                f"Kanal: <b>{html_escape(chat.title or '')}</b> (<code>{chat.id}</code>)\n\n"
+                "Iltimos, avval botni ushbu kanalga <b>admin</b> qiling va qayta yuboring:",
+                reply_markup=get_cancel_keyboard(),
+                parse_mode="HTML",
+            )
+            return ADD_SPONSOR_CHANNEL
+
+        invite_link = chat.invite_link or ""
+        if not invite_link and chat.username:
+            invite_link = f"https://t.me/{chat.username}"
+        if not invite_link:
+            try:
+                invite_link = await context.bot.export_chat_invite_link(chat_id=chat.id)
+            except Exception:
+                pass
+        if not invite_link and chat.username:
+            invite_link = f"https://t.me/{chat.username}"
+        if not invite_link:
+            invite_link = f"https://t.me/c/{str(chat.id).replace('-100', '')}"
+
+        title = chat.title or "Sponsor Kanal"
+        username = chat.username or ""
+
+        success = await db.run_db(
+            db.add_sponsor_channel,
+            channel_id=chat.id,
+            title=title,
+            username=username,
+            invite_link=invite_link
+        )
+        if success:
+            await update.message.reply_text(
+                f"✅ Homiy kanal muvaffaqiyatli qo'shildi: <b>{html_escape(title)}</b>",
+                reply_markup=get_admin_panel_keyboard(),
+                parse_mode="HTML",
+            )
+        else:
+            await update.message.reply_text("❌ Saqlashda xatolik yuz berdi.", reply_markup=get_admin_panel_keyboard())
+    except Exception as e:
+        logger.error(f"Sponsor kanal tekshirish xatosi: {e}")
+        await update.message.reply_text(
+            f"❌ Kanal topilmadi yoki bot u yerda admin emas ({html_escape(str(e))}). Qaytadan kiriting:",
+            reply_markup=get_cancel_keyboard(),
+        )
         return ADD_SPONSOR_CHANNEL
 
-    ch_id, title, url = parts[0].strip(), parts[1].strip(), parts[2].strip()
-    success = await db.run_db(db.add_sponsor_channel, ch_id, title, url)
-    if success:
-        await update.message.reply_text(f"✅ Homiy kanal qo'shildi: <b>{html_escape(title)}</b>", reply_markup=get_admin_panel_keyboard(), parse_mode="HTML")
-    else:
-        await update.message.reply_text("❌ Saqlashda xatolik yuz berdi.", reply_markup=get_admin_panel_keyboard())
     return ConversationHandler.END
 
 
 async def del_sponsor_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    # Darhol javob — DB so'rovlaridan oldin, tugma muzlab qolmasligi uchun.
     try:
         await query.answer()
     except Exception:
@@ -734,21 +1161,37 @@ async def del_sponsor_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         except Exception:
             pass
         return
-    s_id = int(query.data.split(":")[1])
+    s_id = query.data.split(":")[1]
     removed = await db.run_db(db.remove_sponsor_channel, s_id)
     if not removed:
         try:
             await query.message.reply_text("⚠️ Homiy kanal o'chirilmadi. Qayta urinib ko'ring.")
         except Exception:
             pass
-    # Yangilangan ro'yxatni qayta chizamiz (qolgan homiylar ko'rinib tursin)
-    sponsors = await db.run_db(db.get_active_sponsors)
+    # Yangilangan ro'yxatni qayta chizamiz
+    sponsors = await db.run_db(db.get_sponsor_channels) or []
+    count = len(sponsors)
+    text = (
+        "📢 <b>Majburiy obuna (Sponsor kanallar) boshqaruvi:</b>\n"
+        "━━━━━━━━━━━━━━━━━\n"
+        f"Ulangan kanallar soni: <b>{count} ta</b>\n\n"
+    )
+    if sponsors:
+        for idx, s in enumerate(sponsors, 1):
+            s_id_item, ch_id, ch_title, username, ch_url = unpack_sponsor(s)
+            u_info = f" (@{username})" if username else ""
+            link_info = f"\n   🔗 {ch_url}" if ch_url else ""
+            text += f"{idx}. <b>{html_escape(ch_title)}</b>{u_info} (<code>{ch_id}</code>){link_info}\n\n"
+    else:
+        text += "<i>Hozircha hech qanday sponsor kanal ulanmagan.</i>\n\n"
+    text += "━━━━━━━━━━━━━━━━━\nKanalni o'chirish uchun tegishli tugmani bosing yoki yangi kanal qo'shing 👇"
+
     try:
-        if sponsors:
-            from keyboards.inline import get_sponsors_delete_keyboard
-            await query.edit_message_reply_markup(reply_markup=get_sponsors_delete_keyboard(sponsors))
-        else:
-            await query.edit_message_text("📭 Barcha homiy kanallar o'chirildi. Yangi qo'shish uchun '➕ Homiy kanal qo'shish' tugmasini bosing.")
+        await query.edit_message_text(
+            text,
+            reply_markup=get_admin_sponsors_keyboard(sponsors),
+            parse_mode="HTML",
+        )
     except TelegramError:
         pass
 

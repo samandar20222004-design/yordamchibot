@@ -341,16 +341,26 @@ def _init_db_once():
         cur.execute("""
             CREATE TABLE IF NOT EXISTS sponsor_channels (
                 id SERIAL PRIMARY KEY,
-                channel_id VARCHAR(255) UNIQUE NOT NULL,
+                channel_id BIGINT UNIQUE,
+                title TEXT,
+                username TEXT,
+                invite_link TEXT,
                 channel_title VARCHAR(255),
-                channel_url VARCHAR(255) NOT NULL,
+                channel_url VARCHAR(255),
                 is_active BOOLEAN DEFAULT TRUE,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
         """)
-
+        
         cur.execute("""
             CREATE TABLE IF NOT EXISTS system_settings (
+                key VARCHAR(100) PRIMARY KEY,
+                value TEXT
+            );
+        """)
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS bot_settings (
                 key VARCHAR(100) PRIMARY KEY,
                 value TEXT
             );
@@ -473,6 +483,12 @@ def _init_db_once():
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_expires_at TIMESTAMP WITH TIME ZONE;",
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS ai_requests_today INTEGER DEFAULT 0;",
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS last_limit_reset DATE DEFAULT CURRENT_DATE;",
+            "ALTER TABLE sponsor_channels ADD COLUMN IF NOT EXISTS title TEXT;",
+            "ALTER TABLE sponsor_channels ADD COLUMN IF NOT EXISTS username TEXT;",
+            "ALTER TABLE sponsor_channels ADD COLUMN IF NOT EXISTS invite_link TEXT;",
+            "ALTER TABLE sponsor_channels ADD COLUMN IF NOT EXISTS channel_title VARCHAR(255);",
+            "ALTER TABLE sponsor_channels ADD COLUMN IF NOT EXISTS channel_url VARCHAR(255);",
+            "ALTER TABLE sponsor_channels ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;",
         ]
         for index, migration in enumerate(migrations):
             # Bitta migration xatosi qolgan migrationlarni transaction aborted
@@ -617,15 +633,58 @@ def get_setting(key: str, default: str = "") -> str:
         return default
 
 # --- SPONSORS ---
-def add_sponsor_channel(channel_id: str, channel_title: str, channel_url: str) -> bool:
+def add_sponsor_channel(
+    channel_id: int | str,
+    title: str = "",
+    username: str = "",
+    invite_link: str = "",
+    **kwargs
+) -> bool:
+    """Yangi sponsor kanal qo'shadi yoki mavjudini yangilaydi.
+
+    Qo'llab-quvvatlaydi:
+      - add_sponsor_channel(channel_id, title, username, invite_link)
+      - add_sponsor_channel(channel_id, channel_title, channel_url)
+    """
+    # Orqaga moslik: agar 3 ta argument berilgan bo'lsa (channel_id, title, url)
+    if not invite_link and username and (username.startswith("http://") or username.startswith("https://") or username.startswith("t.me")):
+        invite_link = username
+        username = ""
+
+    title = (title or kwargs.get("channel_title") or "").strip()
+    invite_link = (invite_link or kwargs.get("channel_url") or "").strip()
+    username = (username or "").strip()
+    if username.startswith("@"):
+        username = username[1:]
+    if not invite_link and username:
+        invite_link = f"https://t.me/{username}"
+
+    ch_id_str = str(channel_id).strip()
+    try:
+        ch_id_bigint = int(ch_id_str)
+    except ValueError:
+        ch_id_bigint = None
+
     try:
         with db_cursor(commit=True) as cur:
             cur.execute("""
-                INSERT INTO sponsor_channels (channel_id, channel_title, channel_url, is_active)
-                VALUES (%s, %s, %s, TRUE)
+                INSERT INTO sponsor_channels (channel_id, title, username, invite_link, channel_title, channel_url, is_active)
+                VALUES (%s, %s, %s, %s, %s, %s, TRUE)
                 ON CONFLICT (channel_id) DO UPDATE
-                SET is_active = TRUE, channel_title = EXCLUDED.channel_title, channel_url = EXCLUDED.channel_url
-            """, (str(channel_id), channel_title, channel_url))
+                SET title = COALESCE(NULLIF(EXCLUDED.title, ''), sponsor_channels.title, EXCLUDED.channel_title),
+                    username = COALESCE(NULLIF(EXCLUDED.username, ''), sponsor_channels.username),
+                    invite_link = COALESCE(NULLIF(EXCLUDED.invite_link, ''), sponsor_channels.invite_link, EXCLUDED.channel_url),
+                    channel_title = COALESCE(NULLIF(EXCLUDED.channel_title, ''), sponsor_channels.channel_title, EXCLUDED.title),
+                    channel_url = COALESCE(NULLIF(EXCLUDED.channel_url, ''), sponsor_channels.channel_url, EXCLUDED.invite_link),
+                    is_active = TRUE
+            """, (
+                ch_id_bigint if ch_id_bigint is not None else ch_id_str,
+                title,
+                username,
+                invite_link,
+                title,
+                invite_link
+            ))
         _cache_clear("sponsors")
         _cache_clear("system_stats")
         return True
@@ -633,18 +692,26 @@ def add_sponsor_channel(channel_id: str, channel_title: str, channel_url: str) -
         logger.error(f"Sponsor xatosi: {e}")
         return False
 
-def get_active_sponsors():
-    """Faol homiy kanallar.
 
-    Muvaffaqiyat: list (bo'sh bo'lishi mumkin).
-    Xatolik: None — chaqiruvchi fail-closed ishlashi kerak (obunani o'tkazib yubormaslik).
+def get_sponsor_channels() -> list:
+    """Faol sponsor kanallar ro'yxatini qaytaradi (fail-closed: xatoda None).
+
+    Har bir qator: (id, channel_id, title, username, invite_link)
     """
     cached = _cache_get("sponsors")
     if cached is not _MISS:
         return cached
     try:
         with db_cursor() as cur:
-            cur.execute("SELECT id, channel_id, channel_title, channel_url FROM sponsor_channels WHERE is_active = TRUE ORDER BY id ASC")
+            cur.execute("""
+                SELECT id, channel_id,
+                       COALESCE(title, channel_title, '') AS title,
+                       COALESCE(username, '') AS username,
+                       COALESCE(invite_link, channel_url, '') AS invite_link
+                FROM sponsor_channels
+                WHERE is_active = TRUE
+                ORDER BY id ASC
+            """)
             rows = cur.fetchall()
             _cache_set("sponsors", rows, DB_SPONSORS_CACHE_TTL)
             return rows
@@ -652,16 +719,119 @@ def get_active_sponsors():
         logger.error(f"Sponsorlar olish xatosi: {e}")
         return None
 
-def remove_sponsor_channel(sponsor_id: int) -> bool:
+
+def get_active_sponsors():
+    """Faol homiy kanallar (get_sponsor_channels aliasi)."""
+    return get_sponsor_channels()
+
+
+def remove_sponsor_channel(sponsor_id: int | str) -> bool:
+    """Sponsor kanalni o'chiradi (id yoki channel_id bo'yicha)."""
     try:
+        s_id_str = str(sponsor_id).strip()
+        try:
+            s_id_int = int(s_id_str)
+        except ValueError:
+            s_id_int = -999999999
         with db_cursor(commit=True) as cur:
-            cur.execute("DELETE FROM sponsor_channels WHERE id = %s", (sponsor_id,))
+            cur.execute(
+                "DELETE FROM sponsor_channels WHERE id = %s OR channel_id = %s OR CAST(channel_id AS TEXT) = %s",
+                (s_id_int, s_id_int, s_id_str),
+            )
             removed = cur.rowcount > 0
         _cache_clear("sponsors")
         _cache_clear("system_stats")
         return removed
     except Exception as e:
         logger.error(f"Sponsor o'chirish xatosi: {e}")
+        return False
+
+
+# --- AUTO-AD INJECTOR SETTINGS ---
+def get_ad_settings() -> dict:
+    """Auto-ad sozlamalarini qaytaradi: auto_ad_text, auto_ad_interval, auto_ad_status."""
+    cached = _cache_get("ad_settings")
+    if cached is not _MISS:
+        return cached
+    settings = {
+        "auto_ad_text": "",
+        "auto_ad_interval": 4,
+        "auto_ad_status": False,
+    }
+    try:
+        with db_cursor() as cur:
+            cur.execute("""
+                SELECT key, value FROM bot_settings
+                WHERE key IN ('auto_ad_text', 'auto_ad_interval', 'auto_ad_status')
+            """)
+            rows = cur.fetchall()
+            for k, v in rows:
+                if k == "auto_ad_text":
+                    settings["auto_ad_text"] = v or ""
+                elif k == "auto_ad_interval":
+                    try:
+                        settings["auto_ad_interval"] = int(v) if v else 4
+                    except ValueError:
+                        settings["auto_ad_interval"] = 4
+                elif k == "auto_ad_status":
+                    settings["auto_ad_status"] = str(v).lower() in ("true", "1", "yes", "on")
+        _cache_set("ad_settings", settings, DB_SETTINGS_CACHE_TTL)
+        return settings
+    except Exception as e:
+        logger.error(f"get_ad_settings xatosi: {e}")
+        return settings
+
+
+def update_ad_text(text: str) -> bool:
+    """Auto-ad matnini yangilaydi."""
+    try:
+        with db_cursor(commit=True) as cur:
+            cur.execute("""
+                INSERT INTO bot_settings (key, value)
+                VALUES ('auto_ad_text', %s)
+                ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
+            """, (str(text or ""),))
+        _cache_clear("ad_settings")
+        _cache_clear("setting:")
+        return True
+    except Exception as e:
+        logger.error(f"update_ad_text xatosi: {e}")
+        return False
+
+
+def set_ad_status(status: bool) -> bool:
+    """Auto-ad faollik holatini o'zgartiradi (True/False)."""
+    val = "true" if status else "false"
+    try:
+        with db_cursor(commit=True) as cur:
+            cur.execute("""
+                INSERT INTO bot_settings (key, value)
+                VALUES ('auto_ad_status', %s)
+                ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
+            """, (val,))
+        _cache_clear("ad_settings")
+        _cache_clear("setting:")
+        return True
+    except Exception as e:
+        logger.error(f"set_ad_status xatosi: {e}")
+        return False
+
+
+def set_ad_interval(interval: int) -> bool:
+    """Auto-ad ko'rsatish intervalini o'zgartiradi (standart: 4, ya'ni har 3-5 ta so'rovda)."""
+    try:
+        val = str(max(1, int(interval)))
+        with db_cursor(commit=True) as cur:
+            cur.execute("""
+                INSERT INTO bot_settings (key, value)
+                VALUES ('auto_ad_interval', %s)
+                ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
+            """, (val,))
+        _cache_clear("ad_settings")
+        _cache_clear("setting:")
+        return True
+    except Exception as e:
+        logger.error(f"set_ad_interval xatosi: {e}")
         return False
 
 # --- REACTIONS ---

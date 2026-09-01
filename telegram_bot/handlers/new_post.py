@@ -17,7 +17,7 @@ from keyboards.default import (
     get_duration_keyboard, get_weekday_keyboard
 )
 from keyboards.inline import btn_label
-from utils.helpers import html_escape, parse_future_time, safe_html, parse_reactions_input
+from utils.helpers import html_escape, parse_future_time, safe_html, parse_reactions_input, get_auto_ad_injection_async
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
 tashkent_tz = pytz.timezone("Asia/Tashkent")
@@ -723,10 +723,11 @@ async def confirm_post_callback(update: Update, context: ContextTypes.DEFAULT_TY
 
         if ok_count:
             time_str = slot_dt.strftime("%H:%M")
+            ad_line = await get_auto_ad_injection_async(user_id)
             await query.message.reply_text(
                 f"⚡️ <b>Post navbatga qo'yildi!</b>\n\n"
                 f"📅 {label}, soat {time_str}\n"
-                f"📢 Kanal: <b>{html_escape(channel_title)}</b>",
+                f"📢 Kanal: <b>{html_escape(channel_title)}</b>{ad_line}",
                 reply_markup=get_main_keyboard(is_admin),
                 parse_mode="HTML",
             )
@@ -797,10 +798,11 @@ async def confirm_post_callback(update: Update, context: ContextTypes.DEFAULT_TY
         else:
             when_text = f"⏰ {post_time_tz.strftime('%Y-%m-%d %H:%M')}"
         del_info = f"\n⏳ Kanalda turish muddati: <b>{delete_after_hours} soat</b>" if delete_after_hours > 0 else ""
+        ad_line = await get_auto_ad_injection_async(user_id)
         await query.message.reply_text(
             f"✅ <b>Post muvaffaqiyatli rejalashtirildi!</b>\n\n"
             f"📢 Joylash: <b>{html_escape(channel_title)}</b>\n"
-            f"{when_text}{del_info}",
+            f"{when_text}{del_info}{ad_line}",
             reply_markup=get_main_keyboard(is_admin),
             parse_mode="HTML"
         )

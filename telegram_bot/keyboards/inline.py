@@ -32,14 +32,36 @@ def get_referral_share_keyboard(referral_link: str) -> InlineKeyboardMarkup:
     )
     return InlineKeyboardMarkup([[InlineKeyboardButton("🚀 Do'stlarga ulashish", url=share_url)]])
 
+def unpack_sponsor(sponsor):
+    """Sponsor ma'lumotlarini tuple yoki dict'dan xavfsiz ajratib beradi."""
+    if isinstance(sponsor, dict):
+        return (
+            sponsor.get("id"),
+            sponsor.get("channel_id"),
+            sponsor.get("title") or sponsor.get("channel_title") or "Kanal",
+            sponsor.get("username", ""),
+            sponsor.get("invite_link") or sponsor.get("channel_url") or "",
+        )
+    if isinstance(sponsor, (list, tuple)):
+        if len(sponsor) == 4:
+            s_id, ch_id, ch_title, ch_url = sponsor
+            return (s_id, ch_id, ch_title, "", ch_url)
+        elif len(sponsor) >= 5:
+            s_id, ch_id, ch_title, username, invite_link = sponsor[:5]
+            ch_url = invite_link or (f"https://t.me/{username}" if username else "")
+            return (s_id, ch_id, ch_title, username, ch_url)
+    return (0, "", "Kanal", "", "")
+
+
 def get_subscription_check_keyboard(unsubscribed_channels: list) -> InlineKeyboardMarkup:
     keyboard = []
-    for sponsor in unsubscribed_channels:
-        s_id, ch_id, ch_title, ch_url = sponsor
+    for sponsor in (unsubscribed_channels or []):
+        s_id, ch_id, ch_title, username, ch_url = unpack_sponsor(sponsor)
+        url = ch_url or (f"https://t.me/{username}" if username else "")
         keyboard.append([
-            InlineKeyboardButton(f"➕ {btn_label(ch_title, 'Homiy kanal')}", url=ch_url)
+            InlineKeyboardButton(f"➕ {btn_label(ch_title, 'Homiy kanal')}", url=url)
         ])
-    keyboard.append([InlineKeyboardButton("✅ Obunani tekshirish", callback_data="check_subscription")])
+    keyboard.append([InlineKeyboardButton("✅ Obunani tekshirish", callback_data="check_sub_status")])
     return InlineKeyboardMarkup(keyboard)
 
 def get_cache_actions_keyboard() -> InlineKeyboardMarkup:
@@ -52,8 +74,8 @@ def get_cache_actions_keyboard() -> InlineKeyboardMarkup:
 
 def get_sponsors_delete_keyboard(sponsors: list) -> InlineKeyboardMarkup:
     keyboard = []
-    for sponsor in sponsors:
-        s_id, ch_id, ch_title, ch_url = sponsor
+    for sponsor in (sponsors or []):
+        s_id, ch_id, ch_title, username, ch_url = unpack_sponsor(sponsor)
         label = btn_label(ch_title, "Homiy kanal", max_length=28)
         keyboard.append([
             InlineKeyboardButton(f"❌ {label} (O'chirish)", callback_data=f"del_sponsor:{s_id}")
@@ -63,16 +85,74 @@ def get_sponsors_delete_keyboard(sponsors: list) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(keyboard)
 
 
+def get_admin_sponsors_keyboard(sponsors: list) -> InlineKeyboardMarkup:
+    """Admin panel: Majburiy obuna kanallari boshqaruv klaviaturasi."""
+    keyboard = []
+    for sponsor in (sponsors or []):
+        s_id, ch_id, ch_title, username, ch_url = unpack_sponsor(sponsor)
+        label = btn_label(ch_title, "Kanal", max_length=24)
+        keyboard.append([
+            InlineKeyboardButton(f"🗑 {label} (O'chirish)", callback_data=f"del_sponsor:{s_id}")
+        ])
+    keyboard.append([
+        InlineKeyboardButton("➕ Yangi kanal qo'shish", callback_data="adm_add_sponsor")
+    ])
+    keyboard.append([
+        InlineKeyboardButton("⬅️ Orqaga", callback_data="adm_back"),
+        InlineKeyboardButton("❌ Yopish", callback_data="close_msg"),
+    ])
+    return InlineKeyboardMarkup(keyboard)
+
+
+def get_admin_auto_ad_keyboard(status: bool = False) -> InlineKeyboardMarkup:
+    """Admin panel: Har 3-5 javob reklamasi boshqaruv klaviaturasi."""
+    toggle_label = "🔴 O'chirish" if status else "🟢 Yoqish"
+    keyboard = [
+        [
+            InlineKeyboardButton("✏️ Matnni o'zgartirish", callback_data="adm_ad_edit_text"),
+            InlineKeyboardButton(f"🔄 {toggle_label}", callback_data="adm_ad_toggle"),
+        ],
+        [
+            InlineKeyboardButton("⏱ Intervalni sozlash (3-5)", callback_data="adm_ad_set_interval"),
+        ],
+        [
+            InlineKeyboardButton("⬅️ Orqaga", callback_data="adm_back"),
+            InlineKeyboardButton("❌ Yopish", callback_data="close_msg"),
+        ],
+    ]
+    return InlineKeyboardMarkup(keyboard)
+
+
+def get_admin_ad_interval_keyboard() -> InlineKeyboardMarkup:
+    """Reklama intervalini tezkor tanlash klaviaturasi."""
+    keyboard = [
+        [
+            InlineKeyboardButton("3 ta so'rov", callback_data="adm_ad_int:3"),
+            InlineKeyboardButton("4 ta so'rov", callback_data="adm_ad_int:4"),
+            InlineKeyboardButton("5 ta so'rov", callback_data="adm_ad_int:5"),
+        ],
+        [
+            InlineKeyboardButton("⬅️ Orqaga", callback_data="adm_auto_ad"),
+            InlineKeyboardButton("❌ Yopish", callback_data="close_msg"),
+        ],
+    ]
+    return InlineKeyboardMarkup(keyboard)
+
+
 def get_admin_dashboard_keyboard() -> InlineKeyboardMarkup:
-    """Admin panel inline keyboard — dashboard tugmalari."""
+    """Admin panel inline keyboard — dashboard tugmalari layout."""
     keyboard = [
         [
             InlineKeyboardButton("📊 To'liq statistika", callback_data="adm_stats"),
-            InlineKeyboardButton("🎁 Promo-kod yaratish", callback_data="adm_promo"),
+            InlineKeyboardButton("📣 Ommaviy xabar (Broadcast)", callback_data="adm_broadcast"),
         ],
         [
-            InlineKeyboardButton("⭐️ Foydalanuvchiga PRO berish", callback_data="adm_grant_pro"),
-            InlineKeyboardButton("📢 Broadcast", callback_data="adm_broadcast"),
+            InlineKeyboardButton("📢 Majburiy obuna", callback_data="adm_sponsors"),
+            InlineKeyboardButton("🎯 Har 3-5 javob reklamasi", callback_data="adm_auto_ad"),
+        ],
+        [
+            InlineKeyboardButton("🎁 Promo-kod yaratish", callback_data="adm_promo"),
+            InlineKeyboardButton("⭐️ PRO obuna berish", callback_data="adm_grant_pro"),
         ],
         [InlineKeyboardButton("❌ Yopish", callback_data="close_msg")],
     ]
