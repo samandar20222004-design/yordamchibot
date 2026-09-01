@@ -43,6 +43,10 @@ MAX_CONCURRENT_AI = max(1, int(os.getenv("MAX_CONCURRENT_AI", "2")))
 # Provayder 3 marta ketma-ket xato bersa — shuncha daqiqaga o'tkazib yuboriladi
 BREAKER_THRESHOLD = 3
 BREAKER_COOLDOWN = 600  # 10 daqiqa
+# AI chaqiruvlarining QAT'IY umumiy muddati (soniya): butun provayder zanjiri
+# shu vaqt ichida javob berishi shart — aks holda asyncio.wait_for bekor qiladi.
+# Har bir alohida HTTP urinish uchun REQUEST_TIMEOUT (45s) alohida ishlaydi.
+AI_HARD_TIMEOUT = max(5.0, float(os.getenv("AI_HARD_TIMEOUT", "25")))
 
 # === AI parametr defaultlari ===
 AI_TEMPERATURE = max(0.0, min(2.0, float(os.getenv("AI_TEMPERATURE", "0.7"))))
@@ -983,6 +987,57 @@ async def _run_ai_chain(prompt: str, system_instruction: str) -> dict:
     }
 
 
+async def _run_with_hard_timeout(coro, timeout: float = None) -> dict:
+    """AI zanjirini QAT'IY vaqt chegarasi (default 25s) bilan ishga tushiradi.
+
+    Provayderlar zanjiri (Gemini → Groq → ...) eng yomon holatda daqiqalar
+    olishi mumkin — foydalanuvchi cheksiz "AI yozmoqda..." holatida qolib
+    ketmasligi uchun butun zanjir ``asyncio.wait_for`` bilan cheklanadi.
+    Timeout bo'lsa {"error": ...} qaytaradi (handler doimiy nav-tugma ko'rsatadi).
+    """
+    hard = float(timeout or AI_HARD_TIMEOUT)
+    try:
+        return await asyncio.wait_for(coro, timeout=hard)
+    except asyncio.TimeoutError:
+        logger.warning("AI javobi %.0fs ichida kelmadi (hard timeout)", hard)
+        return {
+            "error": (
+                f"⚠️ AI javobi {hard:.0f} soniyada kelmadi. "
+                "Iltimos, qayta urinib ko'ring."
+            )
+        }
+
+
+async def generate_ai_response(
+    prompt: str,
+    system_instruction: str = None,
+    timeout: float = None,
+    tone: str = None,
+) -> dict:
+    """Umumiy AI chaqiruv (AI Studio) — 25 soniyalik qat'iy timeout bilan.
+
+    Args:
+        prompt: foydalanuvchi xabari/mavzusi
+        system_instruction: None bo'lsa standart intent-router prompt ishlatiladi
+        timeout: qat'iy timeout (None → AI_HARD_TIMEOUT, default 25s)
+        tone: kanal uslubi ("formal" | "friendly" | "concise" | "engaging")
+
+    Returns:
+        Provayder qaytargan JSON dict; xato/timeout bo'lsa {"error": "..."}.
+    """
+    if system_instruction is None:
+        system_instruction = _get_router_system_instruction()
+    if tone:
+        system_instruction = _inject_tone(system_instruction, tone)
+    try:
+        return await _run_with_hard_timeout(
+            _run_ai_chain(prompt, system_instruction), timeout
+        )
+    except Exception as e:
+        logger.warning("AI chaqiruv xatosi: %s", e)
+        return {"error": f"⚠️ AI xizmatida xatolik yuz berdi: {e}"}
+
+
 def _normalize_router_result(result: dict) -> dict:
     """AI javobidagi turli maydonlarni yagona shaklga keltiradi va
     backward-compatibility uchun eski 'post_text' sxemasini saqlaydi."""
@@ -1042,7 +1097,10 @@ async def analyze_user_prompt(prompt: str, user_id: int = 0) -> dict:
     if ctx_text:
         prompt = f"{ctx_text}\n\nHozirgi xabar:\n{raw_prompt}"
 
-    result = await _run_ai_chain(prompt, _get_router_system_instruction())
+    # 25 soniyalik QAT'IY timeout — foydalanuvchi cheksiz kutib qolmaydi.
+    result = await _run_with_hard_timeout(
+        _run_ai_chain(prompt, _get_router_system_instruction())
+    )
     if "error" in result:
         # Muvaffaqiyatsiz chaqiruv kontekstga yozilmaydi — aks holda keyingi
         # so'rovda javobsiz qolgan xabar takrorlanib, sifatni pasaytiradi.
@@ -1065,7 +1123,10 @@ async def extract_schedule_time(prompt: str, user_id: int = 0) -> dict:
       - reply: foydalanuvchi savol bergan bo'lsa, qisqa javob
       - target_all: bool
     """
-    result = await _run_ai_chain(prompt, _get_time_system_instruction())
+    # 25 soniyalik QAT'IY timeout — vaqt aniqlash ham yopishib qolmaydi.
+    result = await _run_with_hard_timeout(
+        _run_ai_chain(prompt, _get_time_system_instruction())
+    )
     if "error" in result:
         return result
     norm = _normalize_router_result(result)
