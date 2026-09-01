@@ -1062,10 +1062,11 @@ def test_main_menu_layout_v2():
     check("admin row4", arows[3] == [BTN_ADMIN_PANEL], str(arows[3]))
 
     ex = [[(b.text, b.callback_data) for b in row] for row in get_extras_inline_keyboard().inline_keyboard]
-    check("extras: 3 qator", len(ex) == 3, str(ex))
-    check("extras: konvertor", ex[0][0] == ("🔤 Krill-Lotin konvertor", "extra_converter"), str(ex[0]))
-    check("extras: tezkor tugmali post", ex[1][0] == ("🔗 Tezkor tugmali post", "extra_quick_btn"), str(ex[1]))
-    check("extras: yopish", ex[2][0] == ("❌ Yopish", "extra_close"), str(ex[2]))
+    check("extras: 4 qator", len(ex) == 4, str(ex))
+    check("extras: post kuchaytirgich", ex[0][0] == ("🛠 Post kuchaytirgich (Reaksiya + Tugmalar)", "extra_enhancer"), str(ex[0]))
+    check("extras: konvertor", ex[1][0] == ("🔤 Krill-Lotin konvertor", "extra_converter"), str(ex[1]))
+    check("extras: tezkor tugmali post", ex[2][0] == ("🔗 Tezkor tugmali post", "extra_quick_btn"), str(ex[2]))
+    check("extras: yopish", ex[3][0] == ("❌ Yopish", "extra_close"), str(ex[3]))
 
     cab = [[(b.text, b.callback_data) for b in row] for row in get_cabinet_inline_keyboard().inline_keyboard]
     check("kabinet: 4 qator", len(cab) == 4, str(cab))
@@ -2811,6 +2812,110 @@ def test_admin_dashboard_layout_suite():
     check("label: Yopish", any("yopish" in t.lower() for t in labels))
 
 
+def test_post_enhancer_flow():
+    """🛠 Post kuchaytirgich: keyboard, parser, layout va handler registratsiyasi."""
+    print("== post enhancer (🛠 Qo'shimcha funksiyalar overhaul) ==")
+    import handlers.post_enhancer as pe
+    import handlers as h_mod
+    from keyboards.inline import get_extras_inline_keyboard, extract_emoji_tokens, REACTION_POOL
+
+    # 1. Kirish nuqtasi
+    cbs = [b.callback_data for row in get_extras_inline_keyboard().inline_keyboard for b in row]
+    check("extras: extra_enhancer", "extra_enhancer" in cbs, str(cbs))
+    check("state ENH_POST = 121", pe.ENH_POST == 121)
+    check("MAX_ENH_REACTIONS = 10", pe.MAX_ENH_REACTIONS == 10)
+    check("MAX_ENH_BUTTONS = 10", pe.MAX_ENH_BUTTONS == 10)
+
+    # 2. Handler funksiyalari
+    for fn in ("post_enhancer_start", "enh_message_received", "enh_callback", "enh_stale_callback"):
+        check(f"handler: {fn}", callable(getattr(pe, fn)))
+
+    # 3. Registratsiya (source darajasida)
+    h_src = open(h_mod.__file__, encoding="utf-8").read()
+    check("register: extra_enhancer entry", 'pattern=r"^extra_enhancer$"' in h_src)
+    check("register: ^enh: callback", 'pattern=r"^enh:"' in h_src)
+    check("register: stale ^enh: global", 'enh_stale_callback' in h_src)
+
+    # 4. parse_button_line — ko'p formatlarni qo'llab-quvvatlash
+    p = pe.parse_button_line
+    check("btn: 'Text - url'", p("Sayt - https://sayt.uz") == {"text": "Sayt", "url": "https://sayt.uz"}, str(p("Sayt - https://sayt.uz")))
+    check("btn: 'Text | @kanal'", p("Kanalim | @kanalim") == {"text": "Kanalim", "url": "https://t.me/kanalim"}, str(p("Kanalim | @kanalim")))
+    only = p("https://t.me/durov")
+    check("btn: faqat URL (label avtomatik)", only and only["url"] == "https://t.me/durov" and only["text"] == "@durov", str(only))
+    check("btn: oddiy matn → None", p("salom dunyo") is None)
+
+    # 5. Reaksiya layouti — 10 tugma + 10 reaksiya 10 qatordan oshmasin
+    btns = [{"text": f"B{i}", "url": f"https://x.uz/{i}"} for i in range(10)]
+    reacts = list(REACTION_POOL[:10])
+    rows = pe.build_enhancer_rows(btns, reacts, post_id=7)
+    check("layout: <=10 qator", len(rows) <= 10, str(len(rows)))
+    url_rows = [r for r in rows if all(b.url for b in r)]
+    react_rows = [r for r in rows if all(getattr(b, "callback_data", None) for b in r)]
+    check("layout: URL tugmalar bor", len(url_rows) >= 1)
+    check("layout: reaksiya qatori react: bilan", all(b.callback_data.startswith("react:7:") for r in react_rows for b in r), str(react_rows))
+    prev_rows = pe.build_enhancer_rows(btns, reacts, post_id=None, preview=True)
+    check("layout: preview reaksiyalari noop", all(getattr(b, "callback_data", "") == "enh:noop" for r in prev_rows for b in r if not b.url), "preview")
+
+    # 6. add_unique_emoji — takror yo'q, limit bor
+    res, n = pe.add_unique_emoji(["👍"], ["👍", "❤️"], max_count=2)
+    check("emoji: dedup + qo'shish", res == ["👍", "❤️"] and n == 1, str((res, n)))
+    res2, n2 = pe.add_unique_emoji(["👍", "❤️"], ["🔥"], max_count=2)
+    check("emoji: limit to'lgan", res2 == ["👍", "❤️"] and n2 == 0, str((res2, n2)))
+
+    # 7. extract_emoji_tokens — faqat emojilarni oladi
+    got = extract_emoji_tokens("👍 ❤️ 🔥 salom 👍")
+    check("extract_emoji: faqat emoji + dedup", got == ["👍", "❤️", "🔥"], str(got))
+
+    # 7b. summarize_selection — haqiqiy satr almashinuvi (escape regressiyasi)
+    summ = pe.summarize_selection({"reactions": ["👍"], "buttons": [{"text": "X", "url": "u"}]})
+    check("summary: real newline (literal '\\n' yo'q)", "\n" in summ and "\\n" not in summ, repr(summ))
+
+    # 8. Birga tuzatilgan regressiyalar
+    np_src = open(pe.__file__.replace("post_enhancer.py", "new_post.py"), encoding="utf-8").read()
+    check("new_post: BTN_BACK import (NameError fix)", "BTN_ALL_CHANNELS_TARGET, BTN_MAIN_MENU, BTN_BACK" in np_src)
+    db_src = open(__import__("database").__file__, encoding="utf-8").read()
+    check("db: update_post_content inline_button_text ustuni", "inline_button_text = %s" in db_src)
+    check("db: update_post_content inline_button_url ustuni", "inline_button_url = %s" in db_src)
+    check("db: update_post_content reaction_emojis parametri",
+          "reaction_emojis = %s" in db_src.split("def update_post_content")[1].split("def cancel_post")[0])
+    import inspect
+    check("db: update_post_content sig reaction_emojis",
+          "reaction_emojis" in inspect.signature(__import__("database").update_post_content).parameters)
+
+
+def test_post_enhancer_text_and_channels():
+    """🛠 Post kuchaytirgich: safar matnini tayyorlash (watermark/reklama/limit)."""
+    print("== post enhancer text & channel view ==")
+    import handlers.post_enhancer as pe
+    from telegram import InlineKeyboardMarkup
+
+    # Channel view markup bo'sh ro'yxatda ham qulay bo'lishi kerak
+    class _Ctx:
+        def __init__(self, data): self.user_data = data
+    enh = {
+        "step": "channel", "post": {"type": "photo", "file_id": "F", "content": "Salom <b>World</b> & co"},
+        "reactions": ["👍"], "buttons": [{"text": "Sayt", "url": "https://sayt.uz"}],
+        "channels": [("c1", "Kanal Bitta"), ("c2", "Kanal Ikkita")], "ch_idx": None,
+        "hub_msg_id": None, "btn_edit": None,
+    }
+    ctx = _Ctx({"enh": enh})
+    text, kb = pe._channel_view(ctx)
+    flat = [b for row in kb.inline_keyboard for b in row]
+    send = [b for b in flat if (b.callback_data or "").startswith("enh:send:")]
+    check("channel: har kanal uchun tugma", len(send) == 2, str([b.callback_data for b in flat]))
+    check("channel: yuborishda index", send[0].callback_data == "enh:send:0", str(send[0].callback_data))
+
+    # _post_line safe_html bilan xavfsiz
+    line = pe._post_line(enh)
+    check("post_line: turi bor", "🖼 Rasm" in line, line)
+    check("post_line: & escape", "&amp;" in line or "&" in line)
+
+    # build_enhancer_markup bo'sh bo'lsa None
+    check("markup: bo'sh → None", pe.build_enhancer_markup([], []) is None)
+    m = pe.build_enhancer_markup([{"text": "X", "url": "https://x.uz"}], ["👍"], post_id=3)
+    check("markup: InlineKeyboardMarkup", isinstance(m, InlineKeyboardMarkup))
+
+
 def main():
     test_calculate_next_time()
     test_converter()
@@ -2905,6 +3010,8 @@ def main():
     test_sponsor_channels_suite()
     test_auto_ad_injector_suite()
     test_admin_dashboard_layout_suite()
+    test_post_enhancer_flow()
+    test_post_enhancer_text_and_channels()
 
     print(f"\nO'tdi: {passed}, Xato: {failures}")
     if failures:

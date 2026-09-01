@@ -1,3 +1,4 @@
+import unicodedata
 from urllib.parse import quote
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
@@ -341,8 +342,15 @@ def get_cabinet_inline_keyboard() -> InlineKeyboardMarkup:
 
 
 def get_extras_inline_keyboard() -> InlineKeyboardMarkup:
-    """⚙️ Qo'shimcha funksiyalar — inline menyu."""
+    """⚙️ Qo'shimcha funksiyalar — inline menyu.
+
+    Birinchi qator — 🛠 Post kuchaytirgich (Post Enhancer): tayyor postga
+    10 tagacha reaksiya va 10 tagacha URL tugma qo'shib, kanalga bir zumda
+    yuborish. Konvertor va Tezkor tugmali post o'z o'rnida saqlanadi.
+    """
     keyboard = [
+        [InlineKeyboardButton("🛠 Post kuchaytirgich (Reaksiya + Tugmalar)",
+                              callback_data="extra_enhancer")],
         [InlineKeyboardButton("🔤 Krill-Lotin konvertor", callback_data="extra_converter")],
         [InlineKeyboardButton("🔗 Tezkor tugmali post", callback_data="extra_quick_btn")],
         [InlineKeyboardButton("❌ Yopish", callback_data="extra_close")],
@@ -357,6 +365,18 @@ def get_extras_inline_keyboard() -> InlineKeyboardMarkup:
 REACTION_EMOJIS = ("👍", "❤️", "🔥", "👏", "🎉", "🤔")
 # Eski postlar (reaction_emojis saqlanmagan) uchun standart to'plam.
 DEFAULT_REACTION_EMOJIS = ("👍", "❤️", "🔥", "👏")
+
+# 🛠 Post kuchaytirgich uchun kengaytirilgan havza (pool): 20 ta emoji.
+# Foydalanuvchi shundan 10 tasigachanini tanlaydi yoki istalgan emojini
+# xabar qilib yubora oladi (extract_emoji_tokens). REACTION_EMOJIS boshida
+# turadi — eski oqimlar (npreact:) faqat 6 tasini ko'rsatishda davom etadi.
+REACTION_POOL = REACTION_EMOJIS + (
+    "😍", "🤩", "😮", "😂",
+    "🙏", "💯", "✅", "⭐️",
+    "👀", "💪", "🎯", "🤝",
+    "😢", "👎",
+)
+
 
 # Callback prefikslari: kanal postidagi reaksiya hisoblagich "react:" bilan
 # aralashmasligi uchun "npreact:" (new-post reaction) ishlatiladi.
@@ -389,6 +409,33 @@ def normalize_reaction_emojis(value) -> list:
     selected = {_strip_vs16(v) for v in raw_items if v and v.strip()}
     # Tanlangan emojilarni doimiy (kanonik) tartibda qaytaramiz
     return [e for e in REACTION_EMOJIS if _strip_vs16(e) in selected]
+
+
+def extract_emoji_tokens(text, max_count: int = 10) -> list:
+    """Matndan faqat emoji token'larini ajratib oladi (Post kuchaytirgich kiritishi).
+
+    \"👍 ❤️ 🔥\" → ['👍', '❤️', '🔥']; aralash matndan ham faqat emojilar
+    olinadi; takrorlanishlar olib tashlanadi; soni ``max_count`` bilan
+    chegaralanadi. Harflar/so'zlar e'tiborga olinmaydi.
+    """
+    if not text:
+        return []
+    raw = str(text).replace(",", " ").replace(";", " ").strip()
+    out = []
+    for token in raw.split():
+        # Bitta emoji (ZWJ/terkibiy ketma-ketliklar ham) 8 belgidan oshmaydi.
+        if not token or len(token) > 8:
+            continue
+        is_emoji = True
+        for ch in token:
+            if _strip_vs16(ch) and unicodedata.category(ch) not in ("So", "Sm", "Sk", "Mn", "Mc", "Me", "Cf"):
+                is_emoji = False
+                break
+        if is_emoji and token not in out:
+            out.append(token)
+        if len(out) >= max_count:
+            break
+    return out
 
 
 def get_reaction_toggle_keyboard(selected=None) -> InlineKeyboardMarkup:

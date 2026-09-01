@@ -46,6 +46,12 @@ from handlers.new_post import (
     GET_DURATION, CONFIRM_POST, EDIT_CONFIRM_FIELD, QUICK_BTN_CONTENT
 )
 
+# 2b. 🛠 POST KUCHAYTIRGICH (Post Enhancer — qo'shimcha funksiyalar)
+from handlers.post_enhancer import (
+    post_enhancer_start, enh_message_received, enh_callback, enh_stale_callback,
+    ENH_POST,
+)
+
 # 3. CHANNELS MODULI
 from handlers.channels import (
     channels_menu, start_add_channel, channel_received,
@@ -413,6 +419,8 @@ def register_all_handlers(app):
             CallbackQueryHandler(add_channel_inline_entry, pattern=r"^add_channel_start$"),
             CallbackQueryHandler(converter_inline_entry, pattern=r"^extra_converter$"),
             CallbackQueryHandler(quick_button_post_start, pattern=r"^extra_quick_btn$"),
+            # 🛠 Post kuchaytirgich — ⚙️ Qo'shimcha funksiyalar menyusidan
+            CallbackQueryHandler(post_enhancer_start, pattern=r"^extra_enhancer$"),
             # ✨ AI Studio inline entry'lar — sessiya tugagach eski tugma bossa ham
             # conversation qayta ochiladi (menu xabari o'chirilmaydi, edit qilinadi)
             CallbackQueryHandler(
@@ -448,6 +456,13 @@ def register_all_handlers(app):
             QUICK_BTN_CONTENT: all_menu_jumps + [
                 MessageHandler(filters.TEXT & ~filters.COMMAND, quick_btn_content_received),
                 MessageHandler(filters.ALL & ~filters.COMMAND, content_received),
+            ],
+
+            # 2b. 🛠 Post kuchaytirgich: post qabul qilish + inline ekranlar
+            # (reaksiya/tugma/kanal/tasdiq) — bitta holat, qadamlar user_data'da.
+            ENH_POST: all_menu_jumps + [
+                CallbackQueryHandler(enh_callback, pattern=r"^enh:"),
+                MessageHandler(filters.ALL & ~filters.COMMAND, enh_message_received),
             ],
             GET_AUTO_DELETE: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, auto_delete_received)],
             GET_TIME: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, time_received)],
@@ -665,5 +680,8 @@ def register_all_handlers(app):
     app.add_handler(CallbackQueryHandler(ai_close, pattern=r"^ai_close$"))
     app.add_handler(CallbackQueryHandler(cabinet_callback, pattern=r"^cab_|^close_cabinet"))
     app.add_handler(CallbackQueryHandler(extras_close_callback, pattern=r"^extra_close$"))
+    # 🛠 Post kuchaytirgich: sessiya tugagach eski prevyu/hub tugmalari bosilsa —
+    # xabarni buzmasdan jim javob (edit qilinmaydi).
+    app.add_handler(CallbackQueryHandler(enh_stale_callback, pattern=r"^enh:"))
     app.add_handler(ChatMemberHandler(on_bot_chat_member_update, ChatMemberHandler.MY_CHAT_MEMBER))
     app.add_handler(CallbackQueryHandler(expired_session_callback))

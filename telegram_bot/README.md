@@ -15,6 +15,7 @@ telegram_bot/
 ├── handlers/
 │   ├── start.py         # /start, /help, profil va bonuslar
 │   ├── new_post.py      # /newpost — yangi xabar qo'shish
+│   ├── post_enhancer.py # 🛠 Post kuchaytirgich (qo'shimcha funksiyalar)
 │   ├── pending.py       # Kutilayotgan postlar va bekor qilish
 │   └── channels.py      # Kanal/guruh ulash
 ├── requirements.txt
@@ -112,6 +113,23 @@ sifatida saqlaydi va kanalga `sendMediaGroup` orqali chiqaradi (10 tagacha).
 **Kanal xavfsizligi:** kanalni faqat o'sha kanal/guruh administratori ulay
 oladi. Faol kanalni boshqa foydalanuvchi o'g'irlay olmaydi. Bot kanaldan
 chiqarilsa, ulanish avtomatik nofaol bo'ladi.
+
+### 🛠 Post kuchaytirgich (⚙️ Qo'shimcha funksiyalar)
+
+"⚙️ Qo'shimcha funksiyalar" menyusidagi **Post kuchaytirgich** professional
+post-generator: tayyor postni (matn, rasm, video, albom yoki forward) yuborasiz —
+**asl matnga tegilmaydi**. So'ng inline interfeysda:
+
+- 👍 **10 tagacha reaksiya** tugmasini tanlaysiz (emoji-toggle + erkin emoji kiritish);
+- 🔗 **10 tagacha URL inline tugma** qo'shasiz (`Tugma yozuvi - https://havola`,
+  `Matn | @kanal` yoki faqat havola — yozuv avtomatik tanlanadi);
+- 👁 **prevyu**ni ko'rasiz va 📢 ro'yxatdagi kanallardan birini tanlab, tasdiq
+  bilan **to'g'ridan-to'g'ri kanalga** yuborasiz.
+
+Bepul foydalanuvchilar uchun `scheduler`'dagi **via/watermark qoidalari**
+to'liq qo'llanadi (post boshiga `@bot_username`), PRO/admin — toza chiqadi.
+Reklama litsenziyasi (ad-free) saqlangan postlar soni shu yuborish uchun ham
+sarflanadi. Telegram cheklovi tufayli inline klaviatura 10 qatordan oshmaydi.
 
 ## Render va UptimeRobot sozlamalari
 
