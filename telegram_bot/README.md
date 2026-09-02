@@ -10,7 +10,8 @@ Bot **AI Studio** (doimiy inline navigatsiya va zamonaviy AI prompt tizimi) orqa
 telegram_bot/
 ├── main.py              # Botni ishga tushiruvchi asosiy fayl
 ├── config.py            # Sozlamalar (token, admin id, kanal)
-├── database.py          # SQLite baza bilan ishlash
+├── database.py          # PostgreSQL (Neon/Render) bilan ishlash
+├── schema.sql           # To'liq PostgreSQL sxemasi (idempotent, ishga tushishda qo'llanadi)
 ├── scheduler.py         # Vaqt bo'yicha jo'natish logikasi
 ├── handlers/
 │   ├── start.py         # /start, /help, profil va bonuslar
@@ -157,6 +158,22 @@ sarflanadi. Telegram cheklovi tufayli inline klaviatura 10 qatordan oshmaydi.
 ## Render va UptimeRobot sozlamalari
 
 Render'da **Root Directory** ni `telegram_bot`, Build Command'ni `pip install -r requirements.txt`, Start Command'ni `python main.py` qilib qo'ying. Environment Variables ichida `BOT_TOKEN`, `ADMIN_ID` va Render PostgreSQL bergan `DATABASE_URL` bo'lishi kerak. `PORT` ni qo'lda berish shart emas: kod Render bergan portni o'zi oladi.
+
+### Neon PostgreSQL sozlamalari
+
+Bot [Neon](https://neon.tech) serverless PostgreSQL bilan ham ishlaydi:
+
+1. Neon'da project yarating va **Connection string**ni nusxalang (pooler uchun `-pooler` suffiksli host tavsiya etiladi):
+   ```
+   postgresql://user:pass@ep-xxx-pooler.region.aws.neon.tech/dbname?sslmode=require
+   ```
+2. Bu URL'ni Render → Environment'dagi `DATABASE_URL` ga qo'ying.
+3. SSL avtomatik: URL'da `sslmode=` bo'lsa o'sha ishlatiladi, bo'lmasa kod masofaviy host uchun `require` ni o'zi qo'yadi (`DB_SSLMODE` env bilan qo'lda boshqarish ham mumkin: `disable|allow|prefer|require`).
+4. Neon bepul rejada ulanishlar soni cheklangan — `DB_POOL_MAX=5` (default) qoldirilsa yetarli.
+5. Sxema (`telegram_bot/schema.sql`) bot har ishga tushganda avtomatik qo'llanadi — barcha operatorlar `IF NOT EXISTS` bilan idempotent, mavjud ma'lumotlar buzilmaydi. Bo'sh bazani qo'lda to'ldirish kerak bo'lsa:
+   ```bash
+   psql "$DATABASE_URL" -f telegram_bot/schema.sql
+   ```
 
 UptimeRobot monitor turi **HTTP(s)** bo'lsin va URL quyidagicha berilsin:
 `https://sizning-render-service.onrender.com/health/live`
@@ -310,6 +327,6 @@ quyidagilardan birini tanlang:
 
 - Bot faqat `ADMIN_ID` da ko'rsatilgan siz uchun ishlaydi — boshqa hech kim
   botga buyruq bera olmaydi.
-- Barcha rejalashtirilgan xabarlar `bot_database.db` faylida saqlanadi —
+- Barcha rejalashtirilgan xabarlar PostgreSQL (Neon/Render) bazasida saqlanadi —
   bot qayta ishga tushirilganda ular avtomatik qayta yuklanadi (yo'qolmaydi).
 - Bir martalik xabar yuborilgach, ro'yxatdan avtomatik olib tashlanadi.

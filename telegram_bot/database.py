@@ -25,6 +25,75 @@ DB_POOL_MAX = max(DB_POOL_MIN + 1, int(os.getenv("DB_POOL_MAX", "5")))
 POST_BATCH_SIZE = max(1, int(os.getenv("POST_BATCH_SIZE", "100")))
 DB_CONNECT_TIMEOUT = int(os.getenv("DB_CONNECT_TIMEOUT", "20"))
 
+# Kanonik sxema fayli (database.py bilan bir katalogda yuradi).
+SCHEMA_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "schema.sql")
+
+# Startup schema check: bot ishga tushganda mavjudligi tasdiqlanadigan
+# jadvallar va indekslar (schema.sql bilan bir xil bo'lishi shart —
+# tests/schema_test.py buni tekshirib turadi).
+EXPECTED_TABLES = (
+    "users", "channels", "sponsor_channels", "system_settings",
+    "bot_settings", "ad_pool", "scheduled_posts", "post_reactions",
+    "sent_post_messages", "promo_codes", "payments",
+)
+EXPECTED_INDEXES = (
+    "idx_ad_pool_scope",
+    "idx_payments_user_id",
+    "idx_scheduled_posts_status_time",
+    "idx_scheduled_posts_user_id",
+    "idx_channels_user_id",
+    "idx_post_reactions_post_id",
+)
+
+
+def resolve_sslmode(url: str = None) -> str:
+    """Ulanish uchun sslmode'ni aniqlaydi (bo'sh satr = aralashmaslik).
+
+    Tartib:
+      1) URL ichida ``sslmode=`` bo'lsa — hech narsa qo'shmaymiz (URL g'olib).
+      2) ``DB_SSLMODE`` env berilgan bo'lsa — aynan shu ishlatiladi
+         (masalan: disable | allow | prefer | require | verify-full).
+      3) Aks holda avtomatik: lokal host (localhost/127.0.0.1/::1) uchun
+         ``prefer``, masofaviy host (Neon, Render va h.k.) uchun ``require`` —
+         Neon TLS'siz ulanishni umuman qabul qilmaydi.
+    """
+    url = DATABASE_URL if url is None else url
+    url = url or ""
+    if "sslmode=" in url:
+        return ""
+    env_mode = os.getenv("DB_SSLMODE", "").strip().lower()
+    if env_mode:
+        return env_mode
+    host = ""
+    try:
+        from urllib.parse import urlparse
+        host = (urlparse(url).hostname or "").lower()
+    except Exception:
+        pass
+    if host in ("", "localhost", "127.0.0.1", "::1"):
+        return "prefer"
+    return "require"
+
+
+def _connect_kwargs() -> dict:
+    """psycopg2.connect()/ThreadedConnectionPool uchun umumiy parametrlar.
+
+    SSL (Neon talab qiladi) va TCP keepalive'lar (serverless bazalar bo'sh
+    turuvchi ulanishlarni o'chirib qo'yadi — keepalive buni yumshatadi).
+    """
+    kwargs = {
+        "connect_timeout": DB_CONNECT_TIMEOUT,
+        "application_name": "yordamchibot",
+        "keepalives": 1,
+        "keepalives_idle": 45,
+        "keepalives_interval": 10,
+        "keepalives_count": 5,
+    }
+    sslmode = resolve_sslmode()
+    if sslmode:
+        kwargs["sslmode"] = sslmode
+    return kwargs
+
 # Tez-tez o'qiladigan (va kam o'zgaradigan) ma'lumotlar uchun kichik TTL kesh.
 # Render Free'da har bir Telegram click DB so'rovini kamaytirish jiddiy
 # yuklama pasaytiradi. Yozish funksiyalarida tegishli kesh avtomatik tozalanadi.
@@ -52,7 +121,7 @@ def _get_pool() -> ThreadedConnectionPool:
             if _pool is None:
                 _pool = ThreadedConnectionPool(
                     DB_POOL_MIN, DB_POOL_MAX, DATABASE_URL,
-                    connect_timeout=DB_CONNECT_TIMEOUT,
+                    **_connect_kwargs(),
                 )
     return _pool
 
@@ -158,6 +227,7 @@ def get_db_pool_status() -> dict:
             "collapsed": False,
             "cache_enabled": DB_CACHE_ENABLED,
             "cache_entries": _cache_size(),
+            "sslmode": resolve_sslmode() or "url",
         }
     try:
         used = len(getattr(pool, "_used", {}))
@@ -172,6 +242,7 @@ def get_db_pool_status() -> dict:
             "collapsed": bool(getattr(pool, "closed", False)),
             "cache_enabled": DB_CACHE_ENABLED,
             "cache_entries": _cache_size(),
+            "sslmode": resolve_sslmode() or "url",
         }
     except Exception as e:
         logger.warning("DB pool holatini o'qishda xato: %s", e)
@@ -309,8 +380,82 @@ def init_db():
     raise last_err
 
 
+def _apply_schema_file(cur) -> bool:
+    """Kanonik ``schema.sql`` faylini bajaradi (idempotent).
+
+    Fayl topilmasa (masalan, deploy'da nusxalanmagan bo'lsa) ogohlantirib
+    ``False`` qaytaradi — eski ichki DDL zaxira sifatida ishlashda davom etadi.
+    """
+    if not os.path.exists(SCHEMA_FILE):
+        logger.warning("schema.sql topilmadi (%s) — ichki DDL ishlatiladi.", SCHEMA_FILE)
+        return False
+    with open(SCHEMA_FILE, "r", encoding="utf-8") as f:
+        cur.execute(f.read())
+    return True
+
+
+def _verify_schema(cur) -> None:
+    """Startup schema check: server versiyasi va barcha kutilgan jadvallar
+    hamda indekslarning mavjudligi tekshiriladi.
+
+    Jadvallar topilmasa — schema.sql qayta qo'llanadi (o'z-o'zini tiklash) va
+    baribir topilmasa RuntimeError: bot yarmi ishlagan holda xato yig'ishidan
+    ko'ra, aniq sabab bilan tez o'chishi yaxshi.
+    """
+    cur.execute("SELECT version()")
+    server = str((cur.fetchone() or [""])[0])
+    provider = "Neon" if "Neon" in server else server.split(",")[0]
+    logger.info("DB server: %s", provider)
+
+    cur.execute(
+        "SELECT table_name FROM information_schema.tables "
+        "WHERE table_schema = current_schema()"
+    )
+    tables = {row[0] for row in cur.fetchall()}
+    missing_tables = [t for t in EXPECTED_TABLES if t not in tables]
+
+    cur.execute(
+        "SELECT indexname FROM pg_indexes WHERE schemaname = current_schema()"
+    )
+    indexes = {row[0] for row in cur.fetchall()}
+    missing_indexes = [i for i in EXPECTED_INDEXES if i not in indexes]
+
+    if missing_indexes:
+        logger.warning("Sxema tekshiruvi: indekslar topilmadi: %s (schema.sql ularni yaratadi)",
+                       ", ".join(missing_indexes))
+
+    if missing_tables:
+        logger.warning("Sxema tekshiruvi: jadvallar topilmadi: %s — schema.sql qayta qo'llanadi...",
+                       ", ".join(missing_tables))
+        _apply_schema_file(cur)
+        cur.execute(
+            "SELECT table_name FROM information_schema.tables "
+            "WHERE table_schema = current_schema()"
+        )
+        tables = {row[0] for row in cur.fetchall()}
+        missing_tables = [t for t in EXPECTED_TABLES if t not in tables]
+        if missing_tables:
+            raise RuntimeError(
+                "DB sxemasi to'liq emas, jadvallar yaratilmadi: "
+                + ", ".join(missing_tables)
+                + ". Deploy'da telegram_bot/schema.sql fayli kod bilan birga "
+                  "yuborilganini tekshiring."
+            )
+
+    logger.info(
+        "Sxema tekshiruvi OK: %d/%d jadval, %d/%d indeks.",
+        len(EXPECTED_TABLES) - len(missing_tables), len(EXPECTED_TABLES),
+        len(EXPECTED_INDEXES) - len(missing_indexes), len(EXPECTED_INDEXES),
+    )
+
+
 def _init_db_once():
     with db_cursor(commit=True) as cur:
+        # 1) Kanonik sxema — schema.sql (barcha operatorlar idempotent).
+        _apply_schema_file(cur)
+
+        # 2) Zaxira ichki DDL: schema.sql fayli topilmasa yoki buzilgan bo'lsa
+        # ham baza ishlayverishi uchun saqlanadi.
         cur.execute("""
             CREATE TABLE IF NOT EXISTS users (
                 user_id BIGINT PRIMARY KEY,
@@ -518,6 +663,9 @@ def _init_db_once():
         cur.execute("CREATE INDEX IF NOT EXISTS idx_scheduled_posts_user_id ON scheduled_posts (user_id);")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_channels_user_id ON channels (user_id);")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_post_reactions_post_id ON post_reactions (post_id);")
+
+        # 3) Startup schema check: server versiyasi, jadvallar va indekslar.
+        _verify_schema(cur)
 
 # --- SETTINGS ---
 # Reklama rotatsiya pullarini aniqlovchi doimiy qadriyatlar
