@@ -239,6 +239,27 @@ oddiy "➕ Yangi post rejalashtirish" oqimi orqali ishlaydi.
 > `llama-3.1-8b-instant`, `llama-3.3-70b-versatile` va `gemma2-9b-it` yopildi) —
 > avto-diskoveri tufayli bunday holatda ham bot yangi modelga o'zi o'tadi.
 
+### 🖼 Rasmdan post yaratish (Vision / Photo-to-Post)
+
+**✨ AI Studio → 🖼 Rasmdan post yaratish** bo'limida rasm yuborilsa (yoki `/ai`
+buyrug'idan keyin rasm yuborilsa), bot rasmni **Gemini vision** modeliga
+(`inline_data` + base64) yuboradi va Telegram kanali uchun professional SMM
+post yozadi: `<b>...</b>` sarlavha, sotuvchi matn, emojilar, bandlar, CTA va
+mos hashtaglar. Natija inline tugmalar bilan chiqadi:
+
+- **📅 Kanalga rejalashtirish** — mavjud vaqt tanlash va rejalashtirish oqimiga
+  o'tadi (rasm postga biriktiriladi).
+- **🔄 Qayta yozish** — rasmni qayta tahlil qilib, boshqa uslubda yangi post
+  yozadi.
+- **✏️ Tahrirlash** — "sarlavhani o'zgartir", "qisqartir" kabi matn talabi
+  bilan postni tahrirlaydi.
+
+Xotira himoyasi: rasm RAM'da ushlab turilmaydi — Telegram CDN'dan diskka
+**stream** qilinadi (64KB chunk), API so'rovidan keyin temp fayl o'chiriladi
+(`VISION_MAX_FILE_BYTES` = 10MB limit, `VISION_HARD_TIMEOUT` = 45s qat'iy
+chegara). Rate-limit, noo'rin rasm yoki kvota xatolarida foydalanuvchiga
+tushunarli o'zbekcha xabar qaytariladi.
+
 ### AI kontekst va parametrlar
 
 - **Suhbat konteksti** — har bir foydalanuvchi uchun so'nggi 6 ta AI xabari

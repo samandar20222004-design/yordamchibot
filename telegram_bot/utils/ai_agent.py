@@ -1,15 +1,18 @@
 import asyncio
+import base64
 import html as _html
 import json
 import logging
 import os
 import re
+import tempfile
 import time as _time
 from collections import deque
 from datetime import datetime
 import pytz
 import aiohttp
 from config import (
+    BOT_TOKEN,
     GEMINI_API_KEY, GROQ_API_KEY, OPENROUTER_API_KEY,
     MISTRAL_API_KEY, CEREBRAS_API_KEY,
 )
@@ -1502,3 +1505,457 @@ async def rewrite_channel_post(
         post_text = post_text.rstrip() + f"\n\n{source_line}"
 
     return {"post_text": post_text.strip()}
+
+
+# ============================================================
+# 🖼 VISION — RASMDAN POST YARATISH (Photo-to-Post)
+# ============================================================
+# Gemini vision orqali rasm chuqur tahlil qilinib, Telegram kanallari uchun
+# professional SMM posti tayyorlanadi.
+#
+# XOTIRA HIMOYASI (Render xotirasi to'lib qolmasligi uchun):
+# - Rasm hech qachon RAM'da USHLAB TURILMAYDI: Telegram CDN'dan diskka
+#   STREAM (64KB chunk) qilinadi — vaqtinchalik temp fayl.
+# - Faqat API so'rovi paytida base64 (zarur) zanjirli quriladi va ish
+#   tugagach temp fayl `cleanup_temp_media()` bilan o'chiriladi.
+# - Yuklanish hajmi VISION_MAX_FILE_BYTES bilan cheklanadi.
+VISION_MAX_FILE_BYTES = max(
+    1024 * 1024, int(os.getenv("VISION_MAX_FILE_BYTES", str(10 * 1024 * 1024)))
+)
+VISION_HARD_TIMEOUT = max(10.0, float(os.getenv("VISION_HARD_TIMEOUT", "45")))
+VISION_TEMP_PREFIX = "postassist_vision_"
+
+# Gemini vision uchun afzal modellar (barchasi image input qo'llab-quvvatlaydi)
+VISION_GEMINI_PREFERRED = [
+    "gemini-2.5-flash",       # 1M kontekst, eng kuchli bepul model
+    "gemini-2.5-flash-lite",  # Tez va bepul
+    "gemini-2.0-flash",       # Tez ishora modeli
+    "gemini-2.5-pro",         # Pro versiya (sifat yuqori)
+]
+
+VISION_SAFETY_ERROR = (
+    "🚫 Kechirasiz, bu rasm kontent xavfsizligi talablariga mos kelmaydi. "
+    "Iltimos, boshqa rasm yuboring."
+)
+VISION_EMPTY_ERROR = (
+    "⚠️ AI rasmni tahlil qila olmadi (bo'sh javob). "
+    "Iltimos, qayta urinib ko'ring."
+)
+
+
+class VisionError(RuntimeError):
+    """Rasm tahlilidagi foydalanuvchiga tushunarli o'zbekcha xato."""
+
+
+_VISION_SYSTEM = (
+    "Siz professional SMM-mutaxassis va Telegram kanallar uchun kontent yozuvchisisiz. "
+    "Sizga yuborilgan rasmni CHUQUR tahlil qilasiz va shu rasm asosida Telegram "
+    "kanali uchun professional, sotuvchi post yozasiz.\n\n"
+    "QAT'IY TALABLAR:\n"
+    "- Barcha matn O'ZBEK tilida bo'lsin (ruscha/inglizcha aralashmasin).\n"
+    "- Birinchi qator: diqqat tortuvchi sarlavha — <b>...</b> HTML bilan qalin.\n"
+    "- Rasm mazmunini chuqur tahlil qiling: nima tasvirlangan, kimga mo'ljallangan, "
+    "qanday his-tuyg'u yoki aksiya uyg'otadi.\n"
+    "- Qiziqarli/sotuvchi matn: kamida 3-6 qator, qisqa bandlar (•) bilan.\n"
+    "- Mos emojilarni oqilona ishlating (3-6 dona, har gapga emas).\n"
+    "- Oxirida aniq harakatga chaqiruv (CTA) qo'shing (masalan: '👉 ...').\n"
+    "- Eng oxirida 3-5 ta mos xeshteg (#...).\n"
+    "- Telegram HTML: faqat <b> va <i> ruxsat etiladi — boshqa teglar YO'Q.\n"
+    "- Yolg'on fakt QO'SHMANG: faqat rasmda ko'rinadigan yoki asosli xulosa "
+    "qilish mumkin bo'lgan narsalarga tayaning.\n\n"
+    "Javobni FAQAT quyidagi JSON formatida qaytaring:\n"
+    '{"post_text": "to\'liq tayyor post matni"}'
+)
+
+_VISION_REWRITE_SYSTEM = (
+    "Siz professional SMM-mutaxassis va Telegram post muharririsiz. Berilgan "
+    "rasmni YANA BIR BOR chuqur tahlil qilib, avvalgi postni butunlay BOSHQA "
+    "uslubda qayta yozasiz (yangi sarlavha, yangi CTA va yangi hashtaglar bilan).\n\n"
+    "QAT'IY TALABLAR:\n"
+    "- O'ZBEK tilida, <b>...</b> sarlavha bilan, (•) bandlar va mos emojilar bilan.\n"
+    "- Faktlarni saqlang, yolg'on ma'lumot QO'SHMANG.\n"
+    "- Oxirida harakatga chaqiruv (CTA) va 3-5 ta mos hashtag.\n"
+    "- Telegram HTML: faqat <b> va <i>.\n\n"
+    "Javobni FAQAT quyidagi JSON formatida qaytaring:\n"
+    '{"post_text": "qayta yozilgan to\'liq post"}'
+)
+
+
+def detect_image_mime(path: str) -> str | None:
+    """Fayl boshidagi magic-bytes orqali rasm MIME turini aniqlaydi.
+
+    JPG / PNG / GIF / WEBP / BMP qo'llab-quvvatlanadi; rasm bo'lmasa None.
+    """
+    try:
+        with open(path, "rb") as fh:
+            head = fh.read(16)
+    except (OSError, IOError):
+        return None
+    if head.startswith(b"\xff\xd8\xff"):
+        return "image/jpeg"
+    if head.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "image/png"
+    if head[:6] in (b"GIF87a", b"GIF89a"):
+        return "image/gif"
+    if head[:4] == b"RIFF" and head[8:12] == b"WEBP":
+        return "image/webp"
+    if head[:2] == b"BM":
+        return "image/bmp"
+    return None
+
+
+def _encode_image_base64(path: str) -> str:
+    """Faylni RAM'ga butunlay yuklamasdan, zanjirli base64 ga o'tkazadi.
+
+    Har bir 3MB chunk alohida kodlanadi — xom (raw) tasvir hech qachon to'liq
+    xotiraga olinmaydi (faqat API uchun zarur base64 matn quriladi).
+    """
+    chunks = []
+    with open(path, "rb") as fh:
+        while True:
+            chunk = fh.read(3 * 1024 * 1024)
+            if not chunk:
+                break
+            chunks.append(base64.b64encode(chunk))
+    return b"".join(chunks).decode("ascii")
+
+
+def vision_friendly_error(status: int = None, message: str = "") -> str:
+    """Gemini API xatolari uchun foydalanuvchiga tushunarli o'zbekcha xabar."""
+    low = (message or "").lower()
+    if status in (401, 403) and any(k in low for k in (
+        "api key", "invalid key", "unauthorized", "permission",
+    )):
+        return (
+            "🔑 Gemini API kaliti noto'g'ri yoki yaroqsiz. "
+            "Iltimos, admin bilan bog'laning."
+        )
+    if status in (400, 403) and any(k in low for k in (
+        "safety", "blocked", "harmful", "sexual", "violent", "policy",
+    )):
+        return VISION_SAFETY_ERROR
+    if status == 429 or any(k in low for k in (
+        "rate limit", "quota", "resource exhausted", "429",
+    )):
+        return (
+            "⏳ Gemini API hozircha band (rate limit / kvota). "
+            "Iltimos, 1-2 daqiqa kuting va qayta urinib ko'ring."
+        )
+    if status == 404 or "not found" in low or "does not exist" in low:
+        return (
+            "🤖 Gemini vision modeli hozircha mavjud emas. "
+            "Iltimos, birozdan so'ng qayta urinib ko'ring."
+        )
+    if status == 413 or ("payload" in low and "large" in low) or "too large" in low:
+        return "📦 Rasm hajmi juda katta. Iltimos, kichikroq rasm yuboring."
+    if (status == 400 or status == 422) and any(k in low for k in (
+        "mime", "inline", "image", "format",
+    )):
+        return (
+            "🖼 Rasm formati qo'llab-quvvatlanmaydi. "
+            "JPG, PNG yoki WEBP formatidagi rasm yuboring."
+        )
+    if status == 0 or "timeout" in low:
+        return (
+            "⏱ AI rasmni tahlil qilishda vaqt tugadi. "
+            "Tarmoq holatini tekshirib, qayta urinib ko'ring."
+        )
+    return (
+        f"⚠️ AI rasmni tahlil qila olmadi (Gemini: HTTP {status or 'xato'}). "
+        "Iltimos, birozdan so'ng qayta urinib ko'ring."
+    )
+
+
+def _parse_vision_text(raw_text: str) -> dict:
+    """Gemini vision javobidan post matnini ishonchli ajratib oladi."""
+    text = (raw_text or "").strip()
+    if not text:
+        return {"error": VISION_EMPTY_ERROR}
+    try:
+        obj = _extract_json(text)
+        if isinstance(obj, dict):
+            post = (
+                obj.get("post_text")
+                or obj.get("text")
+                or obj.get("reply")
+                or obj.get("content")
+                or ""
+            )
+            if post and str(post).strip():
+                return {"post_text": str(post).strip()}
+    except Exception:
+        pass
+    # JSON bo'lmagan to'g'ri matn — to'g'ridan-to'g'ri qaytaramiz
+    return {"post_text": text}
+
+
+def _gemini_parts_text(content: dict) -> str:
+    parts = (content or {}).get("parts", []) or []
+    return "\n".join(
+        p.get("text", "") for p in parts if isinstance(p, dict)
+    ).strip()
+
+
+async def _call_gemini_vision(
+    image_b64: str,
+    mime_type: str,
+    prompt: str,
+    system_instruction: str,
+    api_key: str,
+    params: dict = None,
+) -> dict:
+    """Gemini `generateContent` ga rasm (inline_data) bilan so'rov yuboradi.
+
+    1) Model discovery → afzal vision modellar zanjiri.
+    2) 429 → MAX_429_RETRIES marta Retry-After bilan qayta urinish.
+    3) Model 400/404 → keyingi modelga o'tish.
+    Xatolikda foydalanuvchiga mos {"error": ...} qaytaradi (crash emas).
+    """
+    session = await _get_session()
+    models = await _discover_gemini_models(api_key) or GEMINI_MODELS
+    params = params or get_runtime_params()
+    last_status = None
+    last_text = ""
+    rate_limited = False
+
+    for model in models:
+        url = f"{GEMINI_BASE}/{model}:generateContent?key={api_key}"
+        generation_config = {}
+        _v_temp = _optional_param(params, "temperature")
+        if _v_temp is not None:
+            generation_config["temperature"] = _v_temp
+        _v_top_p = _optional_param(params, "top_p")
+        if _v_top_p is not None:
+            generation_config["topP"] = _v_top_p
+        _v_max_tokens = _optional_param(params, "max_tokens")
+        if _v_max_tokens is not None:
+            generation_config["maxOutputTokens"] = _v_max_tokens
+
+        payload = {
+            "systemInstruction": {"parts": [{"text": system_instruction}]},
+            "contents": [
+                {
+                    "role": "user",
+                    "parts": [
+                        {"text": prompt},
+                        {"inline_data": {"mime_type": mime_type, "data": image_b64}},
+                    ],
+                }
+            ],
+            "generationConfig": generation_config,
+        }
+
+        for attempt in range(MAX_429_RETRIES + 1):
+            try:
+                async with session.post(url, json=payload) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        feedback = data.get("promptFeedback") or {}
+                        if feedback.get("blockReason"):
+                            return {"error": VISION_SAFETY_ERROR}
+                        candidates = data.get("candidates") or []
+                        if not candidates:
+                            return {"error": VISION_EMPTY_ERROR}
+                        raw_text = _gemini_parts_text(candidates[0].get("content") or {})
+                        return _parse_vision_text(raw_text)
+                    if resp.status == 429 and attempt < MAX_429_RETRIES:
+                        wait = _retry_after_seconds(resp)
+                        logger.warning(
+                            "Gemini vision rate-limit (429); %ss dan keyin qayta uriniladi",
+                            wait,
+                        )
+                        await asyncio.sleep(wait)
+                        continue
+                    last_status = resp.status
+                    last_text = (await resp.text())[:400]
+                    if resp.status == 429:
+                        rate_limited = True
+                        break
+                    if resp.status in (400, 404):
+                        break  # bu model yaroqsiz — keyingisiga o'tamiz
+            except asyncio.TimeoutError:
+                last_status = 0
+                last_text = "timeout"
+                break
+            except aiohttp.ClientError as e:
+                last_status = 0
+                last_text = str(e)
+                break
+            except Exception as e:
+                last_status = 0
+                last_text = str(e)
+                break
+        if rate_limited:
+            break  # barcha provayderda kvota — zanjirni uzamiz
+
+    return {"error": vision_friendly_error(last_status, last_text)}
+
+
+async def download_telegram_media_to_temp(
+    file_id: str,
+    max_bytes: int = None,
+    bot_token: str = None,
+) -> str:
+    """Telegram faylini RAM'ga yuklamasdan vaqtinchalik diskka stream qiladi.
+
+    - `getFile` orqali file_path olinadi (kichik JSON).
+    - Fayl 64KB chunklarda diskka yoziladi (xotira deyarli ishlatilmaydi).
+    - Hajm `max_bytes` (default VISION_MAX_FILE_BYTES) dan oshsa `VisionError`.
+    Qaytargan yo'l ishlatilgach `cleanup_temp_media()` bilan o'chiriladi.
+    """
+    token = (bot_token or BOT_TOKEN or "").strip()
+    if not token:
+        raise VisionError("⚠️ BOT_TOKEN topilmadi — rasmni yuklab bo'lmadi.")
+    limit = int(max_bytes or VISION_MAX_FILE_BYTES)
+    session = await _get_session()
+
+    get_url = f"https://api.telegram.org/bot{token}/getFile"
+    try:
+        async with session.get(get_url, params={"file_id": file_id}) as resp:
+            if resp.status != 200:
+                raise VisionError("⚠️ Rasmni yuklab bo'lmadi. Iltimos, qayta urinib ko'ring.")
+            data = await resp.json()
+    except VisionError:
+        raise
+    except Exception as e:
+        raise VisionError("⚠️ Rasmni yuklab bo'lmadi. Iltimos, qayta urinib ko'ring.") from e
+
+    result = data.get("result") or {}
+    file_path = result.get("file_path")
+    if not data.get("ok") or not file_path:
+        raise VisionError("⚠️ Rasmni yuklab bo'lmadi. Iltimos, qayta urinib ko'ring.")
+
+    tmp_dir = tempfile.mkdtemp(prefix=VISION_TEMP_PREFIX)
+    ext = os.path.splitext(file_path)[1] or ".media"
+    tmp_path = os.path.join(tmp_dir, f"media{ext}")
+    url = f"https://api.telegram.org/file/bot{token}/{file_path}"
+    size = 0
+    try:
+        async with session.get(url) as resp:
+            if resp.status != 200:
+                raise VisionError(
+                    f"⚠️ Rasmni yuklab bo'lmadi (server HTTP {resp.status})."
+                )
+            with open(tmp_path, "wb") as fh:
+                async for chunk in resp.content.iter_chunked(64 * 1024):
+                    size += len(chunk)
+                    if size > limit:
+                        raise VisionError(
+                            f"📦 Rasm hajmi {limit // (1024 * 1024)} MB dan oshib ketdi. "
+                            "Iltimos, kichikroq rasm yuboring."
+                        )
+                    fh.write(chunk)
+        if size == 0:
+            raise VisionError("⚠️ Rasm fayli bo'sh. Boshqa rasm yuboring.")
+    except VisionError:
+        cleanup_temp_media(tmp_path)
+        raise
+    except Exception as e:
+        cleanup_temp_media(tmp_path)
+        raise VisionError("⚠️ Rasmni yuklab bo'lmadi. Iltimos, qayta urinib ko'ring.") from e
+    return tmp_path
+
+
+def cleanup_temp_media(path: str):
+    """Vaqtinchalik rasm faylini va uning katalogini xavfsiz o'chiradi."""
+    if not path:
+        return
+    try:
+        if os.path.exists(path):
+            os.remove(path)
+        parent = os.path.dirname(os.path.abspath(path))
+        if (
+            os.path.basename(parent).startswith(VISION_TEMP_PREFIX)
+            and os.path.isdir(parent)
+        ):
+            os.rmdir(parent)
+    except Exception:
+        pass
+
+
+async def generate_vision_post(
+    image_path: str,
+    extra_prompt: str = "",
+    tone: str = None,
+    rewrite_context: str = "",
+    timeout: float = None,
+) -> dict:
+    """Rasmni Gemini vision bilan chuqur tahlil qilib professional post yozadi.
+
+    Args:
+        image_path: vaqtinchalik diskdagi rasm yo'li
+        extra_prompt: foydalanuvchining qo'shimcha izohi (ixtiyoriy)
+        tone: kanal uslubi ("formal" | "friendly" | ...)
+        rewrite_context: "Qayta yozish" rejimida oldingi post matni
+        timeout: qat'iy vaqt chegarasi (default VISION_HARD_TIMEOUT=45s)
+
+    Returns:
+        {"post_text": "..."} yoki {"error": "o'zbekcha tushunarli xabar"}
+    """
+    if not image_path or not os.path.exists(image_path):
+        return {"error": "⚠️ Rasm faylini topib bo'lmadi. Rasmni qaytadan yuboring."}
+    try:
+        size = os.path.getsize(image_path)
+    except OSError:
+        return {"error": "⚠️ Rasm faylini o'qib bo'lmadi. Rasmni qaytadan yuboring."}
+    if size > VISION_MAX_FILE_BYTES:
+        mb = VISION_MAX_FILE_BYTES // (1024 * 1024)
+        return {
+            "error": f"📦 Rasm hajmi {mb} MB dan oshib ketdi — kichikroq rasm yuboring."
+        }
+
+    mime_type = detect_image_mime(image_path)
+    if not mime_type:
+        return {
+            "error": "🖼 Bu fayl rasm emas yoki formati qo'llab-quvvatlanmaydi. "
+            "JPG, PNG yoki WEBP yuboring."
+        }
+
+    gemini_key = _clean_key(GEMINI_API_KEY)
+    if not gemini_key:
+        return {
+            "error": (
+                "🔑 Rasm tahlili uchun Gemini API kaliti kerak: <b>GEMINI_API_KEY</b> "
+                "o'rnatilmagan. Iltimos, keyinroq qayta urinib ko'ring."
+            )
+        }
+
+    if rewrite_context:
+        system_instruction = _inject_tone(_VISION_REWRITE_SYSTEM, tone or "friendly")
+        prompt_parts = [
+            "Quyidagi rasm asosida tayyorlangan postni qayta yozing:",
+            rewrite_context,
+        ]
+        if extra_prompt:
+            prompt_parts.append(f"Qo'shimcha talab: {extra_prompt}")
+        prompt = "\n\n".join(prompt_parts)
+    else:
+        system_instruction = _inject_tone(_VISION_SYSTEM, tone or "friendly")
+        prompt = (
+            f"Qo'shimcha ko'rsatma: {extra_prompt}"
+            if extra_prompt
+            else "Rasmni chuqur tahlil qiling va professional Telegram post tayyorlang."
+        )
+
+    try:
+        image_b64 = _encode_image_base64(image_path)
+        return await asyncio.wait_for(
+            _call_gemini_vision(
+                image_b64, mime_type, prompt, system_instruction, gemini_key
+            ),
+            timeout=float(timeout or VISION_HARD_TIMEOUT),
+        )
+    except asyncio.TimeoutError:
+        logger.warning("Vision javobi %.0fs ichida kelmadi (hard timeout)", VISION_HARD_TIMEOUT)
+        return {
+            "error": "⏱ AI rasmni tahlil qilishda kechikish yuz berdi. "
+            "Iltimos, birozdan so'ng qayta urinib ko'ring."
+        }
+    except VisionError as e:
+        return {"error": str(e)}
+    except Exception as e:
+        logger.warning("Vision xatosi: %s", e)
+        return {
+            "error": "⚠️ AI rasmni tahlil qila olmadi. "
+            "Iltimos, birozdan so'ng qayta urinib ko'ring."
+        }

@@ -1629,9 +1629,11 @@ def test_ai_studio_keyboard():
     check("studio kb: extract", "studio_extract" in cbs)
     check("studio kb: content_plan", "studio_content_plan" in cbs)
     check("studio kb: audit", "studio_ai_audit" in cbs)
+    check("studio kb: photo", "studio_ai_photo" in cbs)
     check("studio kb: close", "studio_close" in cbs)
-    check("studio kb: 5 ta tugma", len(cbs) == 5)
+    check("studio kb: 6 ta tugma", len(cbs) == 6)
     check("studio kb: AI Post label", any("AI Post" in t for t in labels))
+    check("studio kb: Rasmdan post label", any("Rasmdan post" in t for t in labels))
     check("studio kb: Kontent-reja label", any("Kontent-reja" in t for t in labels))
 
     # Main keyboard — 6 tugma (3x2 grid)
@@ -1723,6 +1725,333 @@ def test_ai_studio_hardening():
     check("studio: AI_UNAVAILABLE_MSG mavjud", "qayta urinib" in ai.AI_UNAVAILABLE_MSG)
     check("studio: error handlerda get_ai_back_keyboard", "get_ai_back_keyboard()" in src)
     check("studio: AI Generation Error log", "AI Generation Error" in src)
+
+
+def test_vision_agent_utils():
+    """🖼 Vision: MIME aniqlash, base64 zanjiri, hajm limiti, xato mapping, tozalash."""
+    print("== Vision agent yordamchilari ==")
+    import asyncio
+    import base64 as _b64
+    import os
+    import tempfile
+    from utils import ai_agent
+
+    def _tmp_file(data: bytes = b"", suffix: str = ".bin") -> str:
+        f = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
+        f.write(data)
+        f.close()
+        return f.name
+
+    # 1) MIME aniqlash (magic-bytes)
+    png = _tmp_file(b"\x89PNG\r\n\x1a\n" + b"\x00" * 16, ".png")
+    check("vision: PNG mime", ai_agent.detect_image_mime(png) == "image/png")
+    os.remove(png)
+
+    jpg = _tmp_file(b"\xff\xd8\xff\xe0" + b"\x00" * 16, ".jpg")
+    check("vision: JPEG mime", ai_agent.detect_image_mime(jpg) == "image/jpeg")
+    os.remove(jpg)
+
+    webp = _tmp_file(b"RIFF\x00\x00\x00\x00WEBPVP8 " + b"\x00" * 8, ".webp")
+    check("vision: WEBP mime", ai_agent.detect_image_mime(webp) == "image/webp")
+    os.remove(webp)
+
+    gif = _tmp_file(b"GIF89a" + b"\x00" * 8, ".gif")
+    check("vision: GIF mime", ai_agent.detect_image_mime(gif) == "image/gif")
+    os.remove(gif)
+
+    not_img = _tmp_file(b"hello bu rasm emas", ".txt")
+    check("vision: rasm bo'lmagan fayl → None",
+          ai_agent.detect_image_mime(not_img) is None)
+    os.remove(not_img)
+
+    # 2) Base64 zanjirli kodlash roundtrip
+    raw = os.urandom(200_000)
+    img = _tmp_file(raw, ".png")
+    b64 = ai_agent._encode_image_base64(img)
+    check("vision: base64 roundtrip", _b64.b64decode(b64) == raw)
+    os.remove(img)
+
+    # 3) Hajm limiti
+    big = _tmp_file(b"", ".png")
+    with open(big, "wb") as fh:
+        fh.truncate(ai_agent.VISION_MAX_FILE_BYTES + 1)
+    res = asyncio.run(ai_agent.generate_vision_post(big))
+    check("vision: juda katta rasm rad etiladi",
+          "error" in res and "MB dan oshib" in res["error"], str(res))
+    os.remove(big)
+
+    # 4) Rasm bo'lmagan fayl
+    junk = _tmp_file(b"not an image at all", ".dat")
+    res = asyncio.run(ai_agent.generate_vision_post(junk))
+    check("vision: noo'rin fayl xabari",
+          "error" in res and "rasm" in res["error"].lower(), str(res))
+    os.remove(junk)
+
+    # 5) Kalit yo'q bo'lsa — aniq o'zbekcha xabar
+    png2 = _tmp_file(b"\x89PNG\r\n\x1a\n" + b"\x00" * 16, ".png")
+    orig_key = ai_agent.GEMINI_API_KEY
+    ai_agent.GEMINI_API_KEY = ""
+    try:
+        res = asyncio.run(ai_agent.generate_vision_post(png2))
+        check("vision: kalitsiz xabar",
+              "error" in res and "GEMINI_API_KEY" in res["error"], str(res))
+    finally:
+        ai_agent.GEMINI_API_KEY = orig_key
+        os.remove(png2)
+
+    # 6) Xato mapping: 429 / safety / 401 / 413 / timeout
+    check("vision: 429 → band xabari",
+          "kuting" in ai_agent.vision_friendly_error(429, "rate limit"))
+    check("vision: safety → mos kelmaydi",
+          "mos kelmaydi" in ai_agent.vision_friendly_error(400, "SAFETY blocked"))
+    check("vision: 401 → kalit xabari",
+          "kalit" in ai_agent.vision_friendly_error(401, "invalid api key"))
+    check("vision: 413 → hajm xabari",
+          "hajm" in ai_agent.vision_friendly_error(413, "file too large"))
+    check("vision: timeout → vaqt xabari",
+          "vaqt" in ai_agent.vision_friendly_error(0, "timeout"))
+
+    # 7) Temp fayl/katalog tozalash
+    d = tempfile.mkdtemp(prefix=ai_agent.VISION_TEMP_PREFIX)
+    p = os.path.join(d, "media.jpg")
+    with open(p, "wb") as fh:
+        fh.write(b"x")
+    ai_agent.cleanup_temp_media(p)
+    check("vision: temp fayl va katalog o'chirildi",
+          not os.path.exists(p) and not os.path.exists(d))
+
+
+def test_photo_to_post_flow():
+    """🖼 Vision oqimi: FSM, handlerlar, natija tugmalari va 3 ta branch."""
+    print("== 🖼 Rasmdan post yaratish (Vision) oqimi ==")
+    import asyncio
+    import inspect
+    import handlers.ai_assistant as ai
+    import database as db_mod
+    from keyboards.inline import get_ai_photo_keyboard, get_ai_studio_keyboard
+
+    # 1) FSM holatlari unikal va to'g'ri
+    studio_states = (
+        ai.AI_MENU_STATE, ai.AI_PROMPT_INPUT, ai.AI_TONE_SELECT, ai.AI_AUDIT_INPUT,
+    )
+    photo_states = (ai.AI_PHOTO_INPUT, ai.AI_PHOTO_RESULT, ai.AI_PHOTO_EDIT_INPUT)
+    check("photo: AI_PHOTO_INPUT mavjud", ai.AI_PHOTO_INPUT == 408)
+    check("photo: AI_PHOTO_RESULT mavjud", ai.AI_PHOTO_RESULT == 409)
+    check("photo: AI_PHOTO_EDIT_INPUT mavjud", ai.AI_PHOTO_EDIT_INPUT == 410)
+    check("photo: holatlar unikal", len(set(photo_states)) == 3)
+    check("photo: mavjud holatlar bilan to'qnashmaydi",
+          not set(photo_states) & set(studio_states + (ai.AI_INPUT, ai.AI_CONFIRM, ai.AI_GET_TIME)))
+
+    # 2) Handlerlar coroutine
+    for fn_name in ("ai_photo_received", "ai_photo_result_callback", "ai_photo_edit_received"):
+        fn = getattr(ai, fn_name, None)
+        check(f"photo: {fn_name} coroutine",
+              fn is not None and inspect.iscoroutinefunction(fn))
+
+    # 2b) Caption izohini ajratish
+    check("photo: caption izoh", ai._photo_extra_from_caption("mahsulotni sot") == "mahsulotni sot")
+    check("photo: /ai caption → bo'sh", ai._photo_extra_from_caption("/ai") == "")
+    check("photo: /ai@bot caption → bo'sh",
+          ai._photo_extra_from_caption("/ai@PostAssistrobot") == "")
+    check("photo: /ai + izoh → izoh qoladi",
+          ai._photo_extra_from_caption("/ai mahsulotni sotish") == "mahsulotni sotish")
+    check("photo: boshqa buyruq → bo'sh", ai._photo_extra_from_caption("/start") == "")
+
+    # 3) Natija klaviaturasi: [Kanalga rejalashtirish] [Qayta yozish] [Tahrirlash]
+    pk = get_ai_photo_keyboard()
+    pcbs = [b.callback_data for row in pk.inline_keyboard for b in row]
+    check("photo: [Kanalga rejalashtirish]", "photo_schedule" in pcbs)
+    check("photo: [Qayta yozish]", "photo_rewrite" in pcbs)
+    check("photo: [Tahrirlash]", "photo_edit" in pcbs)
+    check("photo: doimiy nav (orqaga/bekor)",
+          "ai_back_to_menu" in pcbs and "ai_close" in pcbs)
+    plabels = [b.text for row in pk.inline_keyboard for b in row]
+    check("photo: [Kanalga rejalashtirish] label",
+          any("Kanalga rejalashtirish" in t for t in plabels))
+    check("photo: studio menyuda tugma bor",
+          "studio_ai_photo" in [
+              b.callback_data for row in get_ai_studio_keyboard().inline_keyboard for b in row
+          ])
+
+    # 4) Menyu: studio_ai_photo → AI_PHOTO_INPUT (edit, o'chirish yo'q)
+    class _QUpd:
+        def __init__(self, q):
+            self.callback_query = q
+
+    q = _FakeQuery("studio_ai_photo", _FakeMsg(1))
+    ctx = _FakeCtx(_FakeBot())
+    state = asyncio.run(ai.ai_studio_nav_callback(_QUpd(q), ctx))
+    check("photo: nav → AI_PHOTO_INPUT", state == ai.AI_PHOTO_INPUT, str(state))
+    check("photo: nav yo'riqnoma edit qilinadi",
+          any("Rasmdan post" in e[0] for e in q.edits), str(q.edits))
+    check("photo: nav eski natija tozalanadi", "studio_post_text" not in ctx.user_data)
+
+    # 5-10) Mock DB + Mock AI bilan to'liq oqim
+    calls = []
+
+    async def _fake_run_db(func, *args, **kwargs):
+        name = getattr(func, "__name__", "")
+        if name == "is_premium":
+            return False
+        if name == "check_ai_limit":
+            return (True, 0, 30)
+        if name == "use_user_credit":
+            return True
+        if name == "increment_ai_usage":
+            calls.append("increment_ai_usage")
+            return None
+        if name == "add_user_credit":
+            calls.append("add_user_credit")
+            return None
+        raise AssertionError(f"kutilmagan db chaqiruvi: {name}")
+
+    orig_run_db = db_mod.run_db
+    db_mod.run_db = _fake_run_db
+    orig_dl = ai.download_telegram_media_to_temp
+    orig_vision = ai.generate_vision_post
+    orig_edit = ai.generate_ai_response
+    try:
+        async def fake_dl(file_id, **kw):
+            calls.append(("dl", file_id))
+            return "/tmp/fake_vision.png"
+
+        ai.download_telegram_media_to_temp = fake_dl
+
+        async def fake_vision(path, extra_prompt="", tone=None, timeout=None, rewrite_context=""):
+            calls.append(("vision", path, extra_prompt, bool(rewrite_context)))
+            return {"post_text": "<b>Buyuk taklif!</b>\n\n• Mahsulot\n\n👉 Sotib oling\n\n#smm"}
+
+        ai.generate_vision_post = fake_vision
+
+        # 5) Rasm qabul qilish → vision → natija ekrani
+        uid = 999777000
+        msg = _FakeMsg(1, chat_id=111, caption="mahsulotni sot")
+        msg.photo = [type("P", (), {"file_id": "file123"})()]
+        upd = type("U", (), {"message": msg, "effective_user": _FakeUser(uid)})()
+        ctx2 = _FakeCtx(_FakeBot(), user_data={})
+        state2 = asyncio.run(ai.ai_photo_received(upd, ctx2))
+        check("photo: vision natijasi → AI_PHOTO_RESULT",
+              state2 == ai.AI_PHOTO_RESULT, str(state2))
+        check("photo: post saqlandi",
+              ctx2.user_data.get("studio_post_text", "").startswith("<b>"))
+        check("photo: file_id saqlandi", ctx2.user_data.get("studio_file_id") == "file123")
+        check("photo: post_type=photo", ctx2.user_data.get("studio_post_type") == "photo")
+        check("photo: izoh saqlandi",
+              ctx2.user_data.get("studio_photo_extra") == "mahsulotni sot")
+        check("photo: rasm temp download qilindi", any(c[0] == "dl" for c in calls))
+        check("photo: AI chaqiruv bitta", len([c for c in calls if c[0] == "vision"]) == 1)
+        check("photo: muvaffaqiyat → ai_usage+1", "increment_ai_usage" in calls)
+
+        # 6) [Kanalga rejalashtirish] → AI_GET_TIME (mavjud oqimga uzatiladi)
+        class _PhotoMsg(_FakeMsg):
+            async def reply_photo(self, photo, caption=None, reply_markup=None,
+                                  parse_mode=None, **kw):
+                bot = _FakeMsg.registry.get("bot")
+                if bot:
+                    bot._rec("send_photo", self.chat_id, caption, reply_markup)
+                return _FakeMsg(3)
+
+        q2 = _FakeQuery("photo_schedule", _PhotoMsg(2, chat_id=111))
+        ctx3 = _FakeCtx(_FakeBot(), user_data={
+            "studio_post_text": "Post matni",
+            "studio_file_id": "file123",
+            "studio_post_type": "photo",
+        })
+        state3 = asyncio.run(ai.ai_photo_result_callback(_QUpd(q2), ctx3))
+        check("photo: schedule → AI_GET_TIME", state3 == ai.AI_GET_TIME, str(state3))
+        check("photo: ai_generated_post uzatildi",
+              ctx3.user_data.get("ai_generated_post") == "Post matni")
+        check("photo: ai_file_id uzatildi",
+              ctx3.user_data.get("ai_file_id") == "file123")
+        check("photo: ai_post_type uzatildi",
+              ctx3.user_data.get("ai_post_type") == "photo")
+
+        # 7) [Tahrirlash] → AI_PHOTO_EDIT_INPUT
+        q4 = _FakeQuery("photo_edit", _FakeMsg(4, chat_id=111))
+        ctx4 = _FakeCtx(_FakeBot(), user_data={
+            "studio_post_text": "Post matni", "studio_file_id": "file123",
+        })
+        state4 = asyncio.run(ai.ai_photo_result_callback(_QUpd(q4), ctx4))
+        check("photo: edit → AI_PHOTO_EDIT_INPUT",
+              state4 == ai.AI_PHOTO_EDIT_INPUT, str(state4))
+
+        # 8) [Qayta yozish] → rasm qayta tahlil → yangi post
+        q5 = _FakeQuery("photo_rewrite", _FakeMsg(5, chat_id=111))
+        ctx5 = _FakeCtx(_FakeBot(), user_data={
+            "studio_post_text": "Eski post",
+            "studio_file_id": "file123",
+            "studio_photo_extra": "izoh",
+        })
+
+        async def fake_vision2(path, extra_prompt="", tone=None, timeout=None, rewrite_context=""):
+            calls.append(("vision2", extra_prompt, bool(rewrite_context)))
+            return {"post_text": "Yangi post"}
+
+        ai.generate_vision_post = fake_vision2
+        state5 = asyncio.run(ai.ai_photo_result_callback(_QUpd(q5), ctx5))
+        check("photo: rewrite → AI_PHOTO_RESULT",
+              state5 == ai.AI_PHOTO_RESULT, str(state5))
+        check("photo: rewrite yangi post saqlandi",
+              ctx5.user_data.get("studio_post_text") == "Yangi post")
+        check("photo: rewrite kontekst uzatiladi",
+              any(c[0] == "vision2" and c[2] for c in calls), str(calls))
+
+        # 9) Tahrirlash matni → AI orqali yangilangan post
+        async def fake_edit(prompt, system_instruction=None, **kw):
+            return {"post_text": "Tahrirlangan post"}
+
+        ai.generate_ai_response = fake_edit
+        msg6 = _FakeMsg(6, chat_id=111, text="sarlavhani qisqartir")
+        upd6 = type("U", (), {"message": msg6, "effective_user": _FakeUser(uid)})()
+        ctx6 = _FakeCtx(_FakeBot(), user_data={"studio_post_text": "Eski post"})
+        state6 = asyncio.run(ai.ai_photo_edit_received(upd6, ctx6))
+        check("photo: edit matni → AI_PHOTO_RESULT",
+              state6 == ai.AI_PHOTO_RESULT, str(state6))
+        check("photo: tahrirlangan post saqlandi",
+              ctx6.user_data.get("studio_post_text") == "Tahrirlangan post")
+
+        # 10) Vision xatosi → ball qaytariladi + AI_PHOTO_INPUT
+        calls.clear()
+
+        async def fake_vision_err(path, extra_prompt="", tone=None, timeout=None, rewrite_context=""):
+            return {"error": "⏳ Gemini API hozircha band."}
+
+        ai.generate_vision_post = fake_vision_err
+        msg7 = _FakeMsg(7, chat_id=111)
+        msg7.photo = [type("P", (), {"file_id": "file123"})()]
+        upd7 = type("U", (), {"message": msg7, "effective_user": _FakeUser(uid)})()
+        ctx7 = _FakeCtx(_FakeBot(), user_data={})
+        state7 = asyncio.run(ai.ai_photo_received(upd7, ctx7))
+        check("photo: xato → AI_PHOTO_INPUT", state7 == ai.AI_PHOTO_INPUT, str(state7))
+        check("photo: xato → ball qaytariladi", "add_user_credit" in calls)
+    finally:
+        db_mod.run_db = orig_run_db
+        ai.download_telegram_media_to_temp = orig_dl
+        ai.generate_vision_post = orig_vision
+        ai.generate_ai_response = orig_edit
+
+    # 11) Global registration (handlers/__init__.py)
+    import handlers as h
+    src = open(h.__file__, encoding="utf-8").read()
+    check("photo: /ai command ro'yxatda", 'CommandHandler("ai"' in src)
+    check("photo: photo_ global stale handler",
+          "ai_photo_stale_callback" in src and 'pattern=r"^photo_"' in src)
+    check("photo: AI_PHOTO_INPUT state ro'yxatda", "AI_PHOTO_INPUT:" in src)
+    check("photo: AI_PHOTO_RESULT state ro'yxatda", "AI_PHOTO_RESULT:" in src)
+    check("photo: AI_PHOTO_EDIT_INPUT state ro'yxatda", "AI_PHOTO_EDIT_INPUT:" in src)
+
+    # 12) Rasm + /ai caption → global photo handler
+    check("photo: _is_ai_photo_command mavjud", callable(getattr(h, "_is_ai_photo_command", None)))
+    check("photo: /ai caption taniladi", h._is_ai_photo_command(type("M", (), {"caption": "/ai"})()))
+    check("photo: /ai@bot caption taniladi",
+          h._is_ai_photo_command(type("M", (), {"caption": "/ai@PostAssistrobot"})()))
+    check("photo: oddiy caption — yo'q",
+          not h._is_ai_photo_command(type("M", (), {"caption": "rasm haqida"})()))
+    check("photo: caption'siz — yo'q",
+          not h._is_ai_photo_command(type("M", (), {"caption": ""})()))
+    check("photo: global photo handler ro'yxatda",
+          "ai_photo_command_callback" in src and
+          "filters.PHOTO | filters.Document.ALL" in src)
 
 
 def test_subscription_functions_exist():
@@ -4783,6 +5112,8 @@ def main():
     test_admin_dashboard_stats_db()
     test_ai_studio_keyboard()
     test_ai_studio_hardening()
+    test_vision_agent_utils()
+    test_photo_to_post_flow()
     test_payments_audit_table()
     test_stars_invoice_provider_token()
     test_multi_admin_checks()

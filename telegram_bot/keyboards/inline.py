@@ -331,23 +331,44 @@ def get_ad_pool_back_keyboard(scope: str) -> InlineKeyboardMarkup:
 def get_ai_studio_keyboard() -> InlineKeyboardMarkup:
     """AI Studio sub-menu inline keyboard.
 
+    "🖼 Rasmdan post yaratish" — rasmni Gemini vision bilan tahlil qilib,
+    professional Telegram SMM posti tayyorlanadi (Photo-to-Post).
     "🔍 AI Post auditi" — foydalanuvchi tayyor postini AI'ga tahlil qildiradi
     (imlo, jozibadorlik, CTA, 1-10 baho).
     """
     keyboard = [
         [
             InlineKeyboardButton("✍️ AI Post yaratish", callback_data="studio_ai_post"),
+            InlineKeyboardButton("🖼 Rasmdan post yaratish", callback_data="studio_ai_photo"),
+        ],
+        [
             InlineKeyboardButton("📢 Ochiq kanaldan olish", callback_data="studio_extract"),
+            InlineKeyboardButton("🔍 AI Post auditi", callback_data="studio_ai_audit"),
         ],
         [
             InlineKeyboardButton("🧠 Kontent-reja", callback_data="studio_content_plan"),
-            InlineKeyboardButton("🔍 AI Post auditi", callback_data="studio_ai_audit"),
         ],
         [
             InlineKeyboardButton("⬅️ Asosiy menyu", callback_data="studio_close"),
         ],
     ]
     return InlineKeyboardMarkup(keyboard)
+
+
+def get_ai_photo_keyboard() -> InlineKeyboardMarkup:
+    """🖼 Vision (Photo-to-Post) natijasi uchun inline tugmalar.
+
+    [Kanalga rejalashtirish] [Qayta yozish] [Tahrirlash] + doimiy navigatsiya.
+    """
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("📅 Kanalga rejalashtirish", callback_data="photo_schedule")],
+        [InlineKeyboardButton("🔄 Qayta yozish", callback_data="photo_rewrite")],
+        [InlineKeyboardButton("✏️ Tahrirlash", callback_data="photo_edit")],
+        [
+            InlineKeyboardButton("⬅️ Orqaga", callback_data="ai_back_to_menu"),
+            InlineKeyboardButton("❌ Bekor qilish", callback_data="ai_close"),
+        ],
+    ])
 
 
 # ============================================================

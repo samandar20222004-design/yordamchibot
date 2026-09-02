@@ -13,10 +13,13 @@ from keyboards.default import (
 )
 from keyboards.inline import (
     get_ai_studio_keyboard, get_ai_back_keyboard, get_ai_tone_keyboard,
+    get_ai_photo_keyboard,
 )
 from utils.ai_agent import (
     analyze_user_prompt, extract_schedule_time, clear_ai_context,
     generate_ai_response,
+    VisionError, download_telegram_media_to_temp, cleanup_temp_media,
+    generate_vision_post,
 )
 from utils.helpers import (
     html_escape, safe_html, check_ai_rate_limit, check_ai_daily_limit, parse_future_time,
@@ -41,10 +44,48 @@ AI_PROMPT_INPUT = 405    # Foydalanuvchi post mavzusini/matnini kiritadi
 AI_TONE_SELECT = 406     # Generatsiya qilingan post uchun uslub tanlash
 AI_AUDIT_INPUT = 407     # Foydalanuvchi audit uchun post matnini yuboradi
 
+# 🖼 VISION (Photo-to-Post) holatlari
+AI_PHOTO_INPUT = 408     # Foydalanuvchi rasmdan post yaratish uchun rasm yuboradi
+AI_PHOTO_RESULT = 409    # Vision natijasi: rejalashtirish / qayta yozish / tahrirlash
+AI_PHOTO_EDIT_INPUT = 410  # Foydalanuvchi tahrirlash talabini matn sifatida yuboradi
+
 # AI Studio menyusi matni (⬅️ Orqaga shu xabarga qaytadi)
 AI_STUDIO_MENU_TEXT = (
     "🤖 <b>PostAssist AI Studio</b>\n\n"
     "Kanal kontentini yaratish uchun kerakli vositani tanlang:"
+)
+
+# 🖼 Rasmdan post yaratish (Vision) — yo'riqnoma ekrani
+AI_PHOTO_INSTRUCTION = (
+    "🖼 <b>Rasmdan post yaratish</b>\n\n"
+    "Rasm yuboring — AI uni chuqur tahlil qilib, Telegram kanalingiz uchun "
+    "professional SMM post yozadi:\n"
+    "• ✨ Chiroyli formatlangan sarlavha (<b>...</b>)\n"
+    "• 📝 Qiziqarli / sotuvchi matn\n"
+    "• 😎 Emojilar va bandlar\n"
+    "• 👉 Harakatga chaqiruv (CTA) va xeshteglar\n\n"
+    "<i>Xohlasangiz rasm bilan birga izoh ham yuboring — masalan: "
+    "«rasmdagi mahsulotni sotishga urg'u ber».</i>"
+)
+
+# Vision xizmati mavjud bo'lmaganda ko'rsatiladigan xabar
+AI_PHOTO_UNAVAILABLE_MSG = (
+    "⚠️ AI rasmni tahlil qila olmadi. "
+    "Iltimos, birozdan so'ng qayta urinib ko'ring."
+)
+
+# ✏️ Tahrirlash (matn orqali) uchun system instruction — Vision natijasini
+# bosqichsiz, faqat talab bo'yicha o'zgartiradi.
+PHOTO_EDIT_SYSTEM = (
+    "Siz professional Telegram post muharririsiz. AI rasm tahlili asosida "
+    "tayyorlangan postni foydalanuvchi talabiga moslab tahrirlaysiz.\n\n"
+    "QOIDALAR:\n"
+    "- O'zbek tilida yozing.\n"
+    "- Faqat SO'RALGAN o'zgarishni qiling; qolgan matn va faktlarni saqlang.\n"
+    "- Sarlavha <b>...</b> HTML bilan qalin, bandlar (•) va emojilar saqlansin.\n"
+    "- Oxirida harakatga chaqiruv (CTA) va hashtaglar saqlansin.\n"
+    "Javobni FAQAT quyidagi JSON formatida qaytaring:\n"
+    '{"post_text": "tahrirlangan to\'liq post matni"}'
 )
 
 # AI chaqiruv muvaffaqiyatsiz bo'lganda ko'rsatiladigan YAGONA xabar.
@@ -776,6 +817,16 @@ async def ai_studio_nav_callback(update: Update, context: ContextTypes.DEFAULT_T
         )
         return AI_PROMPT_INPUT
 
+    if data == "studio_ai_photo":
+        # 🖼 Vision: yangi sessiya — eski natija tozalanadi
+        for key in (
+            "studio_topic", "studio_post_text", "studio_tone",
+            "studio_file_id", "studio_post_type", "studio_photo_extra",
+        ):
+            context.user_data.pop(key, None)
+        await _safe_edit(query, AI_PHOTO_INSTRUCTION, get_ai_back_keyboard())
+        return AI_PHOTO_INPUT
+
     if data == "studio_ai_audit":
         await _safe_edit(
             query,
@@ -1137,3 +1188,344 @@ async def ai_close(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=get_main_keyboard(query.from_user.id in ADMIN_IDS_SET),
     )
     return ConversationHandler.END
+
+
+# ============================================================
+# 🖼 VISION — RASMDAN POST YARATISH (Photo-to-Post)
+# ============================================================
+# Oqim: AI Studio → "🖼 Rasmdan post yaratish" → rasm yuborish →
+# Gemini vision tahlil → natija ([Kanalga rejalashtirish] / [Qayta yozish] /
+# [Tahrirlash]) → mavjud AI_GET_TIME/AI_CONFIRM oqimi orqali rejalashtirish.
+
+
+def _extract_photo_file(msg):
+    """Xabardan rasm (photo/document) file_id ni ajratadi.
+
+    Faqat statik rasm qabul qilinadi (video/voice/audio — yo'q, aniq xabar).
+    Qaytaradi: (file_id yoki None, extra mantiq bilan ishlatiladigan tur).
+    """
+    if getattr(msg, "photo", None):
+        return msg.photo[-1].file_id, "photo"
+    doc = getattr(msg, "document", None)
+    if doc is not None:
+        mime = (getattr(doc, "mime_type", "") or "").lower()
+        # MIME ko'rsatilmagan hollarda ham rasm sifatida qabul qilamiz —
+        # `generate_vision_post` magic-bytes bilan yakuniy tekshiradi.
+        if not mime or mime.startswith("image/"):
+            return doc.file_id, "photo"
+    return None, None
+
+
+def _photo_extra_from_caption(raw) -> str:
+    """Rasm captioni'dan AI izohini ajratadi.
+
+    - `"/ai"` yoki `"/ai@Bot"` captioni — izoh emas (buyruq).
+    - `"/ai mahsulotni sot"` — qolgan qism izoh sifatida ishlatiladi.
+    - Oddiy caption — to'g'ridan-to'g'ri izoh.
+    """
+    text = (raw or "").strip()
+    if not text:
+        return ""
+    if text.startswith("/ai"):
+        parts = text.split(None, 1)
+        cmd = parts[0].split("@")[0]
+        if cmd == "/ai":
+            return (parts[1] if len(parts) > 1 else "").strip()[:500]
+    if text.startswith("/") and "\n" not in text:
+        return ""
+    return text[:500]
+
+
+def _photo_result_text(post_text: str) -> str:
+    """Vision natijasi — to'liq post + keyingi qadam tugmalari."""
+    return (
+        "🖼 <b>Rasmdan tayyorlangan post:</b>\n\n"
+        f"{safe_html(post_text[:3500])}\n\n"
+        "🖼 <i>Yuborilgan rasm ushbu postga biriktiriladi.</i>\n\n"
+        "Keyingi qadamni tanlang 👇"
+    )
+
+
+async def _vision_run(file_id: str, extra_prompt: str, rewrite_context="") -> dict:
+    """Rasmni temp diskka stream qilib, Gemini vision orqali tahlil qiladi.
+
+    RAM himoyasi: rasm hech qachon user_data'da/handler xotirasida saqlanmaydi —
+    temp fayl ish tugagach `finally` blokida o'chiriladi.
+    """
+    tmp_path = None
+    try:
+        tmp_path = await download_telegram_media_to_temp(file_id)
+        return await generate_vision_post(
+            tmp_path,
+            extra_prompt=extra_prompt,
+            rewrite_context=rewrite_context,
+        )
+    except VisionError as e:
+        return {"error": str(e)}
+    except Exception as e:
+        logger.error("Vision xatosi: %s", e)
+        return {"error": AI_PHOTO_UNAVAILABLE_MSG}
+    finally:
+        if tmp_path:
+            cleanup_temp_media(tmp_path)
+
+
+async def ai_photo_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """AI_PHOTO_INPUT / AI_MENU_STATE: rasm qabul qiladi va vision post yozadi."""
+    msg = update.message
+    if msg is None:
+        return AI_PHOTO_INPUT
+    user_id = update.effective_user.id
+
+    # Albom (media_group) dublikatlarini bitta ishlov bilan cheklaymiz
+    if getattr(msg, "media_group_id", None):
+        if context.user_data.get("last_studio_photo_group_id") == msg.media_group_id:
+            return AI_PHOTO_INPUT
+        context.user_data["last_studio_photo_group_id"] = msg.media_group_id
+
+    # Caption'dagi "/ai" kabi buyruq shaklidagi matn izoh emas — o'tkazib yuboramiz
+    text_input = (msg.caption or msg.text or "").strip()
+    extra_prompt = _photo_extra_from_caption(text_input)
+
+    file_id, _post_type = _extract_photo_file(msg)
+    if not file_id:
+        await msg.reply_text(
+            "🖼 Iltimos, rasm (JPG/PNG/WEBP) yuboring:\n"
+            "• <i>Rasm bilan birga izoh yuborish mumkin</i>",
+            reply_markup=get_ai_back_keyboard(),
+            parse_mode="HTML",
+        )
+        return AI_PHOTO_INPUT
+
+    ok, is_admin, is_pro = await _studio_ai_preflight(update, context)
+    if not ok:
+        return AI_MENU_STATE
+
+    msg_wait = await msg.reply_text("🖼 <i>AI rasmni tahlil qilmoqda...</i>", parse_mode="HTML")
+    stop_typing = asyncio.Event()
+    typing_task = asyncio.create_task(_keep_typing(context.bot, msg.chat_id, stop_typing))
+    try:
+        result = await _vision_run(file_id, extra_prompt)
+    finally:
+        stop_typing.set()
+        typing_task.cancel()
+        try:
+            await msg_wait.delete()
+        except Exception:
+            pass
+
+    if "error" in result:
+        await _studio_ai_refund(user_id, is_admin, is_pro)
+        await msg.reply_text(
+            f"{result['error']}\n\n"
+            "🖼 Yana rasm yuboring yoki menyuga qayting 👇",
+            reply_markup=get_ai_back_keyboard(),
+            parse_mode="HTML",
+        )
+        return AI_PHOTO_INPUT
+
+    post_text = (result.get("post_text") or "").strip()
+    if not post_text:
+        await _studio_ai_refund(user_id, is_admin, is_pro)
+        await msg.reply_text(
+            "⚠️ AI post matnini tayyorlay olmadi. Rasmni qaytadan yuboring.",
+            reply_markup=get_ai_back_keyboard(),
+            parse_mode="HTML",
+        )
+        return AI_PHOTO_INPUT
+
+    context.user_data["studio_post_text"] = post_text
+    context.user_data["studio_file_id"] = file_id
+    context.user_data["studio_post_type"] = "photo"
+    context.user_data["studio_tone"] = "friendly"
+    context.user_data["studio_photo_extra"] = extra_prompt
+
+    # Muvaffaqiyatli vision so'rovi kunlik AI sanagichiga qo'shiladi (faqat free)
+    if not is_admin and not is_pro:
+        await db.run_db(db.increment_ai_usage, user_id)
+
+    await msg.reply_text(
+        _photo_result_text(post_text),
+        reply_markup=get_ai_photo_keyboard(),
+        parse_mode="HTML",
+    )
+    return AI_PHOTO_RESULT
+
+
+async def ai_photo_result_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """AI_PHOTO_RESULT: [Kanalga rejalashtirish] / [Qayta yozish] / [Tahrirlash]."""
+    query = update.callback_query
+    await query.answer()
+    data = query.data or ""
+    user_id = query.from_user.id
+    is_admin = (user_id in ADMIN_IDS_SET)
+
+    post_text = context.user_data.get("studio_post_text", "")
+    file_id = context.user_data.get("studio_file_id")
+    if not post_text or not file_id:
+        await _safe_edit(
+            query,
+            "⚠️ Sessiya eskirgan. Rasmni qaytadan yuboring.",
+            get_ai_back_keyboard(),
+        )
+        return AI_PHOTO_INPUT
+
+    # --- 1) Kanalga rejalashtirish → mavjud AI_GET_TIME → AI_CONFIRM oqimi ---
+    if data == "photo_schedule":
+        context.user_data["ai_generated_post"] = post_text
+        context.user_data["ai_file_id"] = file_id
+        context.user_data["ai_post_type"] = "photo"
+        context.user_data.pop("ai_scheduled_time", None)
+        context.user_data.pop("ai_target_all", None)
+        try:
+            await query.edit_message_reply_markup(reply_markup=None)
+        except Exception:
+            pass
+        await _show_time_prompt(query.message, post_text, file_id, "photo")
+        return AI_GET_TIME
+
+    # --- 2) Tahrirlash → matn talabi holatiga o'tamiz ---
+    if data == "photo_edit":
+        await _safe_edit(
+            query,
+            "✏️ <b>Postni tahrirlash</b>\n\n"
+            "Qanday o'zgarish kerak? Matn yuboring:\n"
+            "<i>Masalan: «sarlavhani boshqacha yoz», «qisqartir», "
+            "«narxni qo'sh»</i>",
+            get_ai_back_keyboard(),
+        )
+        return AI_PHOTO_EDIT_INPUT
+
+    # --- 3) Qayta yozish → rasmni qayta tahlil qilib boshqa uslubda yozadi ---
+    if data == "photo_rewrite":
+        # Uslub almashtirish kabi qo'shimcha bal YEMAYDI (rate-limit saqlanadi)
+        if not is_admin and check_ai_rate_limit(user_id, max_per_minute=4):
+            await query.answer("⏳ Juda tez-tez so'rov. Iltimos, 1 daqiqa kuting.", show_alert=True)
+            return AI_PHOTO_RESULT
+
+        extra = context.user_data.get("studio_photo_extra", "")
+        rewrite_ctx = (
+            "Quyidagi tayyor postni RASMNI QAYTA TAHLIL QILIB, butunlay boshqacha "
+            "uslubda (yangi sarlavha, yangi CTA va yangi hashtaglar bilan) qayta yozing:\n\n"
+            f"{post_text}"
+        )
+        try:
+            await query.edit_message_text(
+                "🔄 <i>AI rasmni qayta tahlil qilmoqda...</i>",
+                parse_mode="HTML",
+            )
+        except Exception:
+            pass
+        result = await _vision_run(file_id, extra, rewrite_context=rewrite_ctx)
+        if "error" in result:
+            await _safe_edit(query, _photo_result_text(post_text), get_ai_photo_keyboard())
+            await query.message.reply_text(
+                f"⚠️ {result['error']}",
+                reply_markup=get_ai_back_keyboard(),
+                parse_mode="HTML",
+            )
+            return AI_PHOTO_RESULT
+
+        new_text = (result.get("post_text") or "").strip()
+        if not new_text:
+            await _safe_edit(query, _photo_result_text(post_text), get_ai_photo_keyboard())
+            await query.message.reply_text(
+                "⚠️ AI qayta yozishda post tayyorlay olmadi. Asl post saqlanib qoldi.",
+                reply_markup=get_ai_back_keyboard(),
+            )
+            return AI_PHOTO_RESULT
+
+        context.user_data["studio_post_text"] = new_text
+        await _safe_edit(query, _photo_result_text(new_text), get_ai_photo_keyboard())
+        return AI_PHOTO_RESULT
+
+    return AI_PHOTO_RESULT
+
+
+async def ai_photo_edit_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """AI_PHOTO_EDIT_INPUT: tahrirlash talabini qabul qilib AI orqali qo'llaydi."""
+    msg = update.message
+    if msg is None:
+        return AI_PHOTO_EDIT_INPUT
+    user_id = update.effective_user.id
+
+    text = (msg.text or msg.caption or "").strip()
+    if not text:
+        await msg.reply_text(
+            "✏️ Tahrirlash uchun matn yuboring:",
+            reply_markup=get_ai_back_keyboard(),
+        )
+        return AI_PHOTO_EDIT_INPUT
+
+    post_text = context.user_data.get("studio_post_text", "")
+    if not post_text:
+        await msg.reply_text(
+            "⚠️ Sessiya eskirgan. Rasmni qaytadan yuboring.",
+            reply_markup=get_ai_back_keyboard(),
+        )
+        return AI_PHOTO_INPUT
+
+    # Tahrirlash ham yangi AI chaqiruv — preflight (ball/limit) qo'llaniladi
+    ok, is_admin, is_pro = await _studio_ai_preflight(update, context)
+    if not ok:
+        return AI_MENU_STATE
+
+    msg_wait = await msg.reply_text("✏️ <i>AI postni tahrirlamoqda...</i>", parse_mode="HTML")
+    stop_typing = asyncio.Event()
+    typing_task = asyncio.create_task(_keep_typing(context.bot, msg.chat_id, stop_typing))
+    try:
+        result = await generate_ai_response(
+            f"Tahrirlanadigan post:\n\n{post_text}\n\n"
+            f"Foydalanuvchi talabi:\n{text}",
+            system_instruction=PHOTO_EDIT_SYSTEM,
+        )
+    except Exception as e:
+        logger.error("Vision edit xatosi: %s", e)
+        result = {"error": AI_PHOTO_UNAVAILABLE_MSG}
+    finally:
+        stop_typing.set()
+        typing_task.cancel()
+        try:
+            await msg_wait.delete()
+        except Exception:
+            pass
+
+    if "error" in result:
+        await _studio_ai_refund(user_id, is_admin, is_pro)
+        await msg.reply_text(
+            f"⚠️ {result['error']}",
+            reply_markup=get_ai_back_keyboard(),
+            parse_mode="HTML",
+        )
+        return AI_PHOTO_EDIT_INPUT
+
+    new_text = (
+        result.get("post_text")
+        or result.get("text")
+        or result.get("reply")
+        or ""
+    ).strip()
+    if not new_text:
+        for v in result.values():
+            if isinstance(v, str) and len(v) > 20:
+                new_text = v.strip()
+                break
+
+    if not new_text:
+        await _studio_ai_refund(user_id, is_admin, is_pro)
+        await msg.reply_text(
+            "⚠️ AI tahrirlangan matnni qaytara olmadi. Qaytadan urinib ko'ring.",
+            reply_markup=get_ai_back_keyboard(),
+        )
+        return AI_PHOTO_EDIT_INPUT
+
+    context.user_data["studio_post_text"] = new_text
+    if not is_admin and not is_pro:
+        await db.run_db(db.increment_ai_usage, user_id)
+
+    await msg.reply_text(
+        _photo_result_text(new_text),
+        reply_markup=get_ai_photo_keyboard(),
+        parse_mode="HTML",
+    )
+    return AI_PHOTO_RESULT
