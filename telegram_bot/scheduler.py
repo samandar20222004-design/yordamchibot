@@ -15,7 +15,12 @@ from telegram.error import TelegramError, RetryAfter, TimedOut, NetworkError
 from config import ADMIN_IDS_SET, BOT_USERNAME
 import database as db
 from keyboards.inline import normalize_reaction_emojis, DEFAULT_REACTION_EMOJIS
-from utils.helpers import get_channel_ad_next_async, apply_post_watermark
+from utils.helpers import (
+    get_channel_ad_next_async,
+    get_channel_ad_next_full_async,
+    should_show_channel_ad,
+    apply_post_watermark,
+)
 
 logger = logging.getLogger(__name__)
 tashkent_tz = pytz.timezone("Asia/Tashkent")
@@ -143,6 +148,61 @@ def _build_album_media(items: list, caption: str):
     return media
 
 
+def build_ad_button_row(ad) -> list:
+    """Reklamaning inline URL tugmasi qatorini tuzadi (bo'lmasa bo'sh ro'yxat).
+
+    ``ad`` — ``{"button_text": ..., "button_url": ...}`` ko'rinishidagi dict.
+    Tugma matni ham, havolasi ham bo'lgandagina tugma yasaladi.
+    """
+    if not isinstance(ad, dict):
+        return []
+    btn_text = (ad.get("button_text") or "").strip()
+    btn_url = (ad.get("button_url") or "").strip()
+    if not btn_text or not btn_url:
+        return []
+    return [InlineKeyboardButton(text=btn_text[:64], url=btn_url)]
+
+
+async def resolve_channel_ad(channel_id, has_ad_free: bool) -> dict:
+    """Kanal uchun shu postda reklama chiqishi kerakligini hal qiladi.
+
+    Har bir kanalning post sanagichi ALOHIDA oshiriladi va admin panelda
+    belgilangan oraliq (masalan har 3-, 4- yoki 5-post) bo'yicha tekshiriladi.
+    Reklama chiqmasa bo'sh dict qaytadi.
+    """
+    empty = {"text": "", "button_text": "", "button_url": "", "post_number": 0}
+    # Sanagich reklamasiz (ad-free litsenziyali) postlarda ham oshadi —
+    # kanal bo'yicha post tartibi uzluksiz bo'lishi kerak.
+    try:
+        post_number = await db.run_db(db.bump_channel_post_count, channel_id)
+    except Exception:
+        logger.exception("Kanal post sanagichini oshirishda xato: %s", channel_id)
+        post_number = 0
+    empty["post_number"] = post_number
+
+    if has_ad_free:
+        return empty
+
+    try:
+        interval = await db.run_db(db.get_channel_ad_interval)
+    except Exception:
+        interval = db.CHANNEL_AD_INTERVAL_DEFAULT
+
+    if not should_show_channel_ad(post_number, interval):
+        return empty
+
+    ad = await get_channel_ad_next_full_async()
+    if not (ad.get("text") or "").strip():
+        return empty
+
+    ad["post_number"] = post_number
+    try:
+        await db.run_db(db.mark_channel_ad_shown, channel_id, post_number)
+    except Exception:
+        logger.debug("Reklama belgisini yozib bo'lmadi (kanal: %s)", channel_id)
+    return ad
+
+
 async def check_and_send_posts(bot):
     """Muddati yetgan postlarni yuborish (har 1 daqiqada scheduler orqali).
 
@@ -180,6 +240,22 @@ async def _execute_send(bot, post):
     buttons = []
     if btn_text and btn_url:
         buttons.append([InlineKeyboardButton(text=btn_text, url=btn_url)])
+
+    is_admin = (user_id in ADMIN_IDS_SET)
+
+    # Litsenziyani yuborishdan OLDIN tekshiramiz; sarflash faqat
+    # muvaffaqiyatli yuborilgandan keyin amalga oshiriladi.
+    has_ad_free = True if is_admin else await db.run_db(db.peek_ad_free_post, user_id)
+
+    # Reklama: har bir KANAL uchun alohida post sanagichi + admin belgilagan
+    # oraliq (har 3-, 4- yoki 5-post). Reklama chiqsa uning inline URL tugmasi
+    # ham postga qo'shiladi.
+    ad = await resolve_channel_ad(channel_id, has_ad_free)
+    channel_ad = (ad.get("text") or "").strip()
+    ad_button_row = build_ad_button_row(ad)
+    if ad_button_row:
+        buttons.append(ad_button_row)
+
     # Multi-select reaksiyalar: foydalanuvchi tanlagan emojilar ishlatiladi
     # (eski postlarda reaction_emojis NULL bo'lsa — standart to'plam).
     reactions_row = build_reaction_buttons(post_id, enable_reactions, reaction_emojis)
@@ -187,16 +263,6 @@ async def _execute_send(bot, post):
         buttons.append(reactions_row)
     reply_markup = InlineKeyboardMarkup(buttons) if buttons else None
 
-    is_admin = (user_id in ADMIN_IDS_SET)
-
-    # Litsenziyani yuborishdan OLDIN tekshiramiz; sarflash faqat
-    # muvaffaqiyatli yuborilgandan keyin amalga oshiriladi.
-    has_ad_free = True if is_admin else await db.run_db(db.peek_ad_free_post, user_id)
-    channel_ad = ""
-    if not has_ad_free:
-        # Navbatdagi (round-robin) reklama — rotatsiya puli; pul bo'sh bo'lsa
-        # eski channel_ad_text sozlamasiga qaytadi.
-        channel_ad = await get_channel_ad_next_async()
     # Admin tomonidan yoqilgan nishon (masalan @PostAssistrobot) — bo'sh bo'lsa qo'shilmaydi.
     brand_text = (await db.run_db(db.get_setting, "post_tag_text", "")).strip()
 

@@ -263,15 +263,38 @@ Admin panelda **📢 Kanal posti reklamasi** va **🤖 Bot xabari reklamasi** en
 bitta matn emas, **reklamalar puli** (pool) saqlaydi. Pulga bir nechta reklama
 qo'shasiz, bot ularni navbatma-navbat (round-robin) ishlatadi:
 
-- **Kanal postlari** — har postga puldagi navbatdagi reklama qo'shiladi.
+- **Kanal postlari** — reklama **har N-postda** chiqadi (standart: har 3-post).
+  Sanagich **har bir kanal uchun alohida** yuritiladi (`channel_post_counters`
+  jadvali), shuning uchun bir kanaldagi postlar boshqasining hisobiga
+  ta'sir qilmaydi.
 - **Bot javoblari** — har 3-xabarga puldagi navbatdagi reklama qo'shiladi.
 
 Pul menyusida quyidagilar bor:
 
-- **➕ Yangi reklama qo'shish** — matn yozasiz, pulga qo'shiladi (yoki to'g'ridan-to'g'ri matn yozib yuborishingiz mumkin).
-- **🗑 Reklama o'chirish** — puldagi reklamalardan birini tanlab o'chirasiz.
+- **➕ Yangi reklama qo'shish** — matn yozasiz, pulga qo'shiladi (yoki
+  to'g'ridan-to'g'ri matn yozib yuborishingiz mumkin).
+- **🟢/🔴 Reklama ustiga bosish** — tahrirlash kartochkasi ochiladi.
+- **⏱ Reklama oralig'i** — reklama har nechanchi postda chiqishini tanlaysiz
+  (har 3-, 4- yoki 5-post; yoki istalgan sonni yozib yuborasiz).
 - **🧹 Hammasini tozalash** — butun pulni tozalaydi (`clear` deb yozsangiz ham bo'ladi).
 - **ℹ️ Rotatsiya haqida** — bu funksiya qanday ishlashini tushuntiradi.
+
+**Reklamani to'liq tahrirlash** (kartochka ichida):
+
+- **✏️ Matnni tahrirlash** — HTML formatlash qo'llab-quvvatlanadi:
+  `<b>qalin</b>`, `<i>kursiv</i>`, `<u>tagchiziq</u>`,
+  `<a href="https://t.me/kanal">havola</a>`. Matn saqlashdan oldin
+  tekshiriladi (ruxsat etilmagan teg, yopilmagan teg yoki yaroqsiz havola
+  rad etiladi).
+- **🔗 Inline URL tugma** — `Tugma matni | https://havola` ko'rinishida
+  kiritiladi. Kanal postlarida haqiqiy inline tugma sifatida, bot
+  javoblarida esa havola sifatida chiqadi. `clear` — tugmani olib tashlaydi.
+- **🟢/🔴 Toggle Active/Inactive** — reklamani o'chirmasdan vaqtincha
+  rotatsiyadan chiqarish/qaytarish.
+- **🗑 Reklamani o'chirish** — puldan butunlay o'chiradi.
+
+Har bir ekranda **❌ Bekor qilish** tugmasi bor — u FSM holatini to'liq
+tozalaydi va admin panelga qaytaradi.
 
 > Orqaga moslik: pul **bo'sh** bo'lganda bot eski yagona reklama
 > sozlamasidan (`channel_ad_text` / `bot_reply_ad_text`) foydalanishda davom
@@ -280,6 +303,10 @@ Pul menyusida quyidagilar bor:
   kontekst hajmi va xabarlar sonini runtime'da o'zgartirish.
 - **🗄️ DB/Kesh holati** — PostgreSQL pool holati va TTL kesh yozuvlari sonini
   ko'rish, kerak bo'lganda keshni tozalash.
+- **📋 Kanallar ro'yxati** — eng so'nggi ulangan kanallar va ularning egalari
+  (Telegramning 4096 belgilik limitiga moslab kesiladi).
+- **🛠 Tizim sozlamalari** — `system_settings` kalitlari, reklama oraliqlari va
+  kanallar bo'yicha post/reklama sanagichlari bir ekranda.
 
 Kalitlarni Render → Environment bo'limiga qo'shing va botni qayta ishga tushiring.
 

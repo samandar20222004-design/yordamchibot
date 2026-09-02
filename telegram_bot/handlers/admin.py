@@ -9,7 +9,7 @@ from keyboards.default import (
     get_admin_panel_keyboard,
     get_sponsors_keyboard,
     get_cancel_keyboard,
-    BTN_MAIN_MENU,
+    BTN_MAIN_MENU, BTN_CANCEL,
     BTN_AI_SETTINGS, BTN_CACHE_DB,
 )
 from keyboards.inline import (
@@ -18,10 +18,15 @@ from keyboards.inline import (
     get_ad_pool_menu_keyboard, get_ad_pool_delete_keyboard,
     get_ad_pool_back_keyboard, get_admin_sponsors_keyboard,
     get_admin_auto_ad_keyboard, get_admin_ad_interval_keyboard,
+    get_ad_edit_keyboard, get_ad_interval_keyboard,
     unpack_sponsor,
 )
 from utils import ai_agent
-from utils.helpers import html_escape, format_post_type_label
+from utils.helpers import (
+    html_escape, safe_html, format_post_type_label,
+    validate_ad_html, validate_button_text, validate_button_url,
+    parse_button_input,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -182,13 +187,102 @@ async def admin_stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE
 # ADMIN INLINE CALLBACK HANDLERS
 # ============================================================
 
+async def _admin_edit(query, text: str, reply_markup=None):
+    """Admin ekranini tahrirlaydi; imkoni bo'lmasa yangi xabar yuboradi."""
+    try:
+        await query.edit_message_text(text, reply_markup=reply_markup, parse_mode="HTML")
+    except TelegramError:
+        try:
+            await query.message.reply_text(text, reply_markup=reply_markup, parse_mode="HTML")
+        except TelegramError:
+            logger.debug("Admin ekranini ko'rsatib bo'lmadi")
+
+
+def _auto_ad_text(settings: dict) -> str:
+    """Bot javoblari uchun auto-reklama sozlamalari ekrani matni."""
+    status = bool(settings.get("auto_ad_status", False))
+    status_badge = "✅ Faol (Yoqilgan)" if status else "❌ O'chirilgan"
+    interval = settings.get("auto_ad_interval", 4)
+    ad_text = (settings.get("auto_ad_text") or "").strip()
+    ad_preview = (
+        f"<code>{html_escape(ad_text)}</code>" if ad_text
+        else "<i>(Reklama matni kiritilmagan)</i>"
+    )
+    return (
+        "🎯 <b>Har 3-5 ta javobda avtomatik reklama sozlamalari:</b>\n"
+        "━━━━━━━━━━━━━━━━━\n"
+        f"📊 <b>Hozirgi holat:</b> {status_badge}\n"
+        f"⏱ <b>Interval:</b> Har <b>{interval}</b> ta so'rovda\n"
+        f"📝 <b>Hozirgi reklama matni:</b>\n{ad_preview}\n"
+        "━━━━━━━━━━━━━━━━━\n\n"
+        "Quyidagi tugmalar orqali sozlang 👇"
+    )
+
+
+# Admin panelda ko'rsatiladigan tizim sozlamalari (system_settings kalitlari).
+SYSTEM_SETTINGS_KEYS = (
+    ("post_tag_text", "🏷 Post nishoni"),
+    ("channel_ad_text", "📢 Eski kanal reklamasi"),
+    ("bot_reply_ad_text", "🤖 Eski javob reklamasi"),
+)
+
+
+def _format_system_settings(settings: dict, ad_settings: dict, interval: int,
+                            counters: list) -> str:
+    """Tizim sozlamalari ekrani: system_settings + reklama sozlamalari."""
+    lines = [
+        "🛠 <b>Tizim sozlamalari</b>",
+        "━━━━━━━━━━━━━━━━━",
+        "<b>system_settings:</b>",
+    ]
+    for key, label in SYSTEM_SETTINGS_KEYS:
+        value = (settings.get(key) or "").strip()
+        shown = f"<code>{html_escape(_short_text(value, 60))}</code>" if value else "<i>(bo'sh)</i>"
+        lines.append(f"   • {label} (<code>{key}</code>): {shown}")
+
+    status = "🟢 yoqilgan" if ad_settings.get("auto_ad_status") else "🔴 o'chirilgan"
+    lines += [
+        "",
+        "<b>Reklama sozlamalari:</b>",
+        f"   • Kanal postlari oralig'i: <b>har {interval}-post</b>",
+        f"   • Bot javoblari oralig'i: <b>har {ad_settings.get('auto_ad_interval', 4)} so'rov</b>",
+        f"   • Bot javoblari reklamasi: {status}",
+    ]
+
+    lines += ["", "<b>Kanal post sanagichlari:</b>"]
+    if counters:
+        for channel_id, title, post_count, ad_count in counters:
+            name = html_escape(_short_text(title or channel_id, 28))
+            lines.append(
+                f"   • {name}: <b>{post_count}</b> post / <b>{ad_count}</b> reklama"
+            )
+    else:
+        lines.append("   <i>(hozircha post yuborilmagan)</i>")
+
+    lines += ["━━━━━━━━━━━━━━━━━", "", "Sozlamalarni tegishli bo'limlar orqali o'zgartiring 👇"]
+    return "\n".join(lines)
+
+
 async def admin_dashboard_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Admin dashboard inline tugmalari."""
+    """Admin dashboard inline tugmalari.
+
+    Har bir matn kutuvchi bo'lim tegishli FSM holatini QAYTARADI — shu sababli
+    admin yozgan javob to'g'ri handlerga tushadi (avval holat qaytarilmagani
+    uchun matnli oqimlar ishlamay qolardi).
+    """
     query = update.callback_query
     if not is_admin(query.from_user.id):
         await query.answer("Ruxsat yo'q.", show_alert=True)
-        return
+        return ConversationHandler.END
     data = query.data
+
+    if data == "adm_cancel":
+        # Universal "Bekor qilish": FSM tozalanadi va dashboard qaytariladi.
+        await query.answer("🚫 Bekor qilindi")
+        context.user_data.clear()
+        stats = await db.run_db(db.get_admin_dashboard_stats)
+        await _admin_edit(query, _build_dashboard_text(stats), get_admin_dashboard_keyboard())
+        return ConversationHandler.END
 
     if data == "adm_stats":
         await query.answer()
@@ -203,84 +297,71 @@ async def admin_dashboard_callback(update: Update, context: ContextTypes.DEFAULT
             f"🚫 Bekor qilingan: <b>{stats['cancelled']} ta</b>\n"
             f"⚠️ Xatolik: <b>{stats['failed']} ta</b>"
         )
-        try:
-            await query.edit_message_text(
-                text,
-                reply_markup=get_admin_back_keyboard(),
-                parse_mode="HTML",
-            )
-        except TelegramError:
-            await query.message.reply_text(
-                text,
-                reply_markup=get_admin_back_keyboard(),
-                parse_mode="HTML",
-            )
-        return
+        await _admin_edit(query, text, get_admin_back_keyboard())
+        context.user_data.pop("admin_flow", None)
+        return ConversationHandler.END
+
+    if data == "adm_channels":
+        await query.answer()
+        channels = await db.run_db(db.get_all_channels, ADMIN_CHANNELS_LIMIT)
+        if channels:
+            text = format_admin_channels_list(channels)
+        else:
+            text = "📋 <b>Ulangan kanallar</b>\n\n<i>Hozircha hech qanday kanal ulanmagan.</i>"
+        await _admin_edit(query, text, get_admin_back_keyboard())
+        context.user_data.pop("admin_flow", None)
+        return ConversationHandler.END
+
+    if data == "adm_settings":
+        await query.answer()
+        settings = await db.run_db(db.get_settings_map,
+                                   [key for key, _ in SYSTEM_SETTINGS_KEYS])
+        ad_settings = await db.run_db(db.get_ad_settings)
+        interval = await db.run_db(db.get_channel_ad_interval)
+        counters = await db.run_db(db.get_channel_post_counters, 10)
+        text = _format_system_settings(settings, ad_settings, interval, counters)
+        await _admin_edit(query, text, get_admin_back_keyboard())
+        context.user_data.pop("admin_flow", None)
+        return ConversationHandler.END
 
     if data == "adm_promo":
         await query.answer()
-        try:
-            await query.edit_message_text(
-                "🎁 <b>Promo-kod yaratish:</b>\n\n"
-                "Format: <code>KOD KUNLAR [MAKS_ISHLATISH]</code>\n\n"
-                "Masalan:\n"
-                "• <code>MAXSUS30 30 50</code> — 30 kun PRO, 50 marta\n"
-                "• <code>YANGI2026 30</code> — 30 kun PRO, cheksiz\n\n"
-                "Promo-kodni yozing:",
-                reply_markup=get_admin_back_keyboard(),
-                parse_mode="HTML",
-            )
-        except TelegramError:
-            await query.message.reply_text(
-                "🎁 <b>Promo-kod yaratish:</b>\n\n"
-                "Format: <code>KOD KUNLAR [MAKS_ISHLATISH]</code>\n\n"
-                "Promo-kodni yozing:",
-                reply_markup=get_admin_back_keyboard(),
-                parse_mode="HTML",
-            )
+        await _admin_edit(
+            query,
+            "🎁 <b>Promo-kod yaratish:</b>\n\n"
+            "Format: <code>KOD KUNLAR [MAKS_ISHLATISH]</code>\n\n"
+            "Masalan:\n"
+            "• <code>MAXSUS30 30 50</code> — 30 kun PRO, 50 marta\n"
+            "• <code>YANGI2026 30</code> — 30 kun PRO, cheksiz\n\n"
+            "Promo-kodni yozing:",
+            get_admin_back_keyboard(),
+        )
         context.user_data["admin_flow"] = "promo_create"
-        return
+        return ADMIN_PROMO_CREATE
 
     if data == "adm_grant_pro":
         await query.answer()
-        try:
-            await query.edit_message_text(
-                "⭐️ <b>Foydalanuvchiga PRO berish:</b>\n\n"
-                "Format: <code>USER_ID KUNLAR</code>\n\n"
-                "Masalan: <code>123456789 30</code>\n\n"
-                "User ID va kunlar sonini yozing:",
-                reply_markup=get_admin_back_keyboard(),
-                parse_mode="HTML",
-            )
-        except TelegramError:
-            await query.message.reply_text(
-                "⭐️ <b>Foydalanuvchiga PRO berish:</b>\n\n"
-                "Format: <code>USER_ID KUNLAR</code>\n\n"
-                "User ID va kunlar sonini yozing:",
-                reply_markup=get_admin_back_keyboard(),
-                parse_mode="HTML",
-            )
+        await _admin_edit(
+            query,
+            "⭐️ <b>Foydalanuvchiga PRO berish:</b>\n\n"
+            "Format: <code>USER_ID KUNLAR</code>\n\n"
+            "Masalan: <code>123456789 30</code>\n\n"
+            "User ID va kunlar sonini yozing:",
+            get_admin_back_keyboard(),
+        )
         context.user_data["admin_flow"] = "grant_pro"
-        return
+        return ADMIN_GRANT_PRO
 
     if data == "adm_broadcast":
         await query.answer()
-        try:
-            await query.edit_message_text(
-                "✉️ <b>Barcha foydalanuvchilarga xabar yuborish:</b>\n\n"
-                "Yuboriladigan xabar matnini yozing:",
-                reply_markup=get_admin_back_keyboard(),
-                parse_mode="HTML",
-            )
-        except TelegramError:
-            await query.message.reply_text(
-                "✉️ <b>Barcha foydalanuvchilarga xabar yuborish:</b>\n\n"
-                "Yuboriladigan xabar matnini yozing:",
-                reply_markup=get_admin_back_keyboard(),
-                parse_mode="HTML",
-            )
+        await _admin_edit(
+            query,
+            "✉️ <b>Barcha foydalanuvchilarga xabar yuborish:</b>\n\n"
+            "Yuboriladigan xabar matnini yozing:",
+            get_admin_back_keyboard(),
+        )
         context.user_data["admin_flow"] = "broadcast"
-        return
+        return BROADCAST_MESSAGE
 
     if data == "adm_sponsors":
         await query.answer()
@@ -300,204 +381,100 @@ async def admin_dashboard_callback(update: Update, context: ContextTypes.DEFAULT
         else:
             text += "<i>Hozircha hech qanday sponsor kanal ulanmagan.</i>\n\n"
         text += "━━━━━━━━━━━━━━━━━\nKanalni o'chirish uchun tegishli tugmani bosing yoki yangi kanal qo'shing 👇"
-        try:
-            await query.edit_message_text(
-                text,
-                reply_markup=get_admin_sponsors_keyboard(sponsors),
-                parse_mode="HTML",
-            )
-        except TelegramError:
-            await query.message.reply_text(
-                text,
-                reply_markup=get_admin_sponsors_keyboard(sponsors),
-                parse_mode="HTML",
-            )
-        return
+        await _admin_edit(query, text, get_admin_sponsors_keyboard(sponsors))
+        context.user_data.pop("admin_flow", None)
+        return ConversationHandler.END
 
     if data == "adm_add_sponsor":
         await query.answer()
-        text = (
+        await _admin_edit(
+            query,
             "➕ <b>Yangi majburiy obuna kanali qo'shish:</b>\n\n"
-            "Kanalning <code>@username</code>ini yoki kanal ID sini (masalan: <code>-1001234567890</code>) yuboring.\n\n"
+            "Kanalning <code>@username</code>ini yoki kanal ID sini "
+            "(masalan: <code>-1001234567890</code>) yuboring.\n\n"
             "⚠️ <b>Muhim shartlar:</b>\n"
             "1. Bot ushbu kanalda <b>administrator</b> bo'lishi shart.\n"
             "2. Botga kanal a'zolarini ko'rish huquqi berilgan bo'lishi kerak.\n\n"
-            "Bekor qilish uchun ⬅️ Orqaga tugmasini bosing."
+            "Bekor qilish uchun ❌ Bekor qilish tugmasini bosing.",
+            get_admin_back_keyboard(),
         )
-        try:
-            await query.edit_message_text(
-                text,
-                reply_markup=get_admin_back_keyboard(),
-                parse_mode="HTML",
-            )
-        except TelegramError:
-            await query.message.reply_text(
-                text,
-                reply_markup=get_admin_back_keyboard(),
-                parse_mode="HTML",
-            )
         context.user_data["admin_flow"] = "add_sponsor"
-        return
+        return ADMIN_SPONSOR_ADD
 
     if data == "adm_auto_ad":
         await query.answer()
         ad_settings = await db.run_db(db.get_ad_settings)
-        status = ad_settings.get("auto_ad_status", False)
-        status_badge = "✅ Faol (Yoqilgan)" if status else "❌ O'chirilgan"
-        interval = ad_settings.get("auto_ad_interval", 4)
-        ad_text = (ad_settings.get("auto_ad_text") or "").strip()
-        ad_preview = f"<code>{html_escape(ad_text)}</code>" if ad_text else "<i>(Reklama matni kiritilmagan)</i>"
-
-        text = (
-            "🎯 <b>Har 3-5 ta javobda avtomatik reklama sozlamalari:</b>\n"
-            "━━━━━━━━━━━━━━━━━\n"
-            f"📊 <b>Hozirgi holat:</b> {status_badge}\n"
-            f"⏱ <b>Interval:</b> Har <b>{interval}</b> ta so'rovda\n"
-            f"📝 <b>Hozirgi reklama matni:</b>\n{ad_preview}\n"
-            "━━━━━━━━━━━━━━━━━\n\n"
-            "Quyidagi tugmalar orqali sozlang 👇"
+        await _admin_edit(
+            query,
+            _auto_ad_text(ad_settings),
+            get_admin_auto_ad_keyboard(status=ad_settings.get("auto_ad_status", False)),
         )
-        try:
-            await query.edit_message_text(
-                text,
-                reply_markup=get_admin_auto_ad_keyboard(status=status),
-                parse_mode="HTML",
-            )
-        except TelegramError:
-            await query.message.reply_text(
-                text,
-                reply_markup=get_admin_auto_ad_keyboard(status=status),
-                parse_mode="HTML",
-            )
-        return
+        context.user_data.pop("admin_flow", None)
+        return ConversationHandler.END
 
     if data == "adm_ad_toggle":
         ad_settings = await db.run_db(db.get_ad_settings)
         new_status = not ad_settings.get("auto_ad_status", False)
         await db.run_db(db.set_ad_status, new_status)
-        status_msg = "Reklama yoqildi ✅" if new_status else "Reklama o'chirildi ❌"
-        await query.answer(status_msg)
-
+        await query.answer("Reklama yoqildi ✅" if new_status else "Reklama o'chirildi ❌")
+        ad_settings = dict(ad_settings)
         ad_settings["auto_ad_status"] = new_status
-        status_badge = "✅ Faol (Yoqilgan)" if new_status else "❌ O'chirilgan"
-        interval = ad_settings.get("auto_ad_interval", 4)
-        ad_text = (ad_settings.get("auto_ad_text") or "").strip()
-        ad_preview = f"<code>{html_escape(ad_text)}</code>" if ad_text else "<i>(Reklama matni kiritilmagan)</i>"
-
-        text = (
-            "🎯 <b>Har 3-5 ta javobda avtomatik reklama sozlamalari:</b>\n"
-            "━━━━━━━━━━━━━━━━━\n"
-            f"📊 <b>Hozirgi holat:</b> {status_badge}\n"
-            f"⏱ <b>Interval:</b> Har <b>{interval}</b> ta so'rovda\n"
-            f"📝 <b>Hozirgi reklama matni:</b>\n{ad_preview}\n"
-            "━━━━━━━━━━━━━━━━━\n\n"
-            "Quyidagi tugmalar orqali sozlang 👇"
+        await _admin_edit(
+            query,
+            _auto_ad_text(ad_settings),
+            get_admin_auto_ad_keyboard(status=new_status),
         )
-        try:
-            await query.edit_message_text(
-                text,
-                reply_markup=get_admin_auto_ad_keyboard(status=new_status),
-                parse_mode="HTML",
-            )
-        except TelegramError:
-            pass
-        return
+        return ConversationHandler.END
 
     if data == "adm_ad_edit_text":
         await query.answer()
-        text = (
+        await _admin_edit(
+            query,
             "✏️ <b>Yangi reklama matnini kiriting:</b>\n\n"
             "Reklama matni, havola yoki kanal nomini yozing.\n"
-            "<i>Masalan: 🚀 Bizning rasmiy homiymiz: @kanal — obuna bo'ling!</i>\n\n"
-            "Bekor qilish uchun ⬅️ Orqaga tugmasini bosing."
+            f"{AD_HTML_HINT}\n\n"
+            "Bekor qilish uchun ❌ Bekor qilish tugmasini bosing.",
+            get_admin_back_keyboard(),
         )
-        try:
-            await query.edit_message_text(
-                text,
-                reply_markup=get_admin_back_keyboard(),
-                parse_mode="HTML",
-            )
-        except TelegramError:
-            await query.message.reply_text(
-                text,
-                reply_markup=get_admin_back_keyboard(),
-                parse_mode="HTML",
-            )
         context.user_data["admin_flow"] = "edit_ad_text"
-        return
+        return ADMIN_AD_EDIT
 
     if data == "adm_ad_set_interval":
         await query.answer()
-        text = (
+        await _admin_edit(
+            query,
             "⏱ <b>Reklama intervalini sozlash:</b>\n\n"
             "Bot har nechta natijaviy so'rovda reklama qo'shsin?\n"
             "Standart qiymat: <b>4</b> (har 3-5 ta so'rovda).\n\n"
-            "Quyidagi tugmalardan tanlang yoki istalgan butun sonni yozib yuboring:"
+            "Quyidagi tugmalardan tanlang yoki istalgan butun sonni yozib yuboring:",
+            get_admin_ad_interval_keyboard(),
         )
-        try:
-            await query.edit_message_text(
-                text,
-                reply_markup=get_admin_ad_interval_keyboard(),
-                parse_mode="HTML",
-            )
-        except TelegramError:
-            await query.message.reply_text(
-                text,
-                reply_markup=get_admin_ad_interval_keyboard(),
-                parse_mode="HTML",
-            )
         context.user_data["admin_flow"] = "set_ad_interval"
-        return
+        return ADMIN_AD_INTERVAL
 
     if data.startswith("adm_ad_int:"):
-        val = int(data.split(":")[1])
+        val = db.clamp_ad_interval(data.split(":")[1], 4)
         await db.run_db(db.set_ad_interval, val)
         await query.answer(f"Interval {val} ta so'rov qilib belgilandi ✅")
-
         ad_settings = await db.run_db(db.get_ad_settings)
-        status = ad_settings.get("auto_ad_status", False)
-        status_badge = "✅ Faol (Yoqilgan)" if status else "❌ O'chirilgan"
-        ad_text = (ad_settings.get("auto_ad_text") or "").strip()
-        ad_preview = f"<code>{html_escape(ad_text)}</code>" if ad_text else "<i>(Reklama matni kiritilmagan)</i>"
-
-        text = (
-            "🎯 <b>Har 3-5 ta javobda avtomatik reklama sozlamalari:</b>\n"
-            "━━━━━━━━━━━━━━━━━\n"
-            f"📊 <b>Hozirgi holat:</b> {status_badge}\n"
-            f"⏱ <b>Interval:</b> Har <b>{val}</b> ta so'rovda\n"
-            f"📝 <b>Hozirgi reklama matni:</b>\n{ad_preview}\n"
-            "━━━━━━━━━━━━━━━━━\n\n"
-            "Quyidagi tugmalar orqali sozlang 👇"
+        await _admin_edit(
+            query,
+            _auto_ad_text(ad_settings),
+            get_admin_auto_ad_keyboard(status=ad_settings.get("auto_ad_status", False)),
         )
-        try:
-            await query.edit_message_text(
-                text,
-                reply_markup=get_admin_auto_ad_keyboard(status=status),
-                parse_mode="HTML",
-            )
-        except TelegramError:
-            pass
         context.user_data.pop("admin_flow", None)
-        return
+        return ConversationHandler.END
 
     if data == "adm_back":
         await query.answer()
         stats = await db.run_db(db.get_admin_dashboard_stats)
-        text = _build_dashboard_text(stats)
-        try:
-            await query.edit_message_text(
-                text,
-                reply_markup=get_admin_dashboard_keyboard(),
-                parse_mode="HTML",
-            )
-        except TelegramError:
-            await query.message.reply_text(
-                text,
-                reply_markup=get_admin_dashboard_keyboard(),
-                parse_mode="HTML",
-            )
+        await _admin_edit(query, _build_dashboard_text(stats), get_admin_dashboard_keyboard())
         context.user_data.pop("admin_flow", None)
-        return
+        context.user_data.pop("ad_edit", None)
+        return ConversationHandler.END
+
+    await query.answer()
+    return ConversationHandler.END
 
 
 async def admin_inline_text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -507,6 +484,20 @@ async def admin_inline_text_handler(update: Update, context: ContextTypes.DEFAUL
 
     flow = context.user_data.get("admin_flow")
     text = update.message.text.strip()
+
+    # "Bekor qilish" har qanday admin oqimida ishlashi kerak.
+    if text in (BTN_CANCEL, BTN_MAIN_MENU):
+        context.user_data.clear()
+        await update.message.reply_text(
+            "🚫 <b>Jarayon bekor qilindi.</b>",
+            reply_markup=get_admin_panel_keyboard(),
+            parse_mode="HTML",
+        )
+        return ConversationHandler.END
+
+    if not flow:
+        # Holat bor, lekin oqim yo'q — foydalanuvchini band qoldirmaymiz.
+        return ConversationHandler.END
 
     if flow == "grant_pro":
         parts = text.split()
@@ -738,16 +729,12 @@ async def admin_inline_text_handler(update: Update, context: ContextTypes.DEFAUL
             return ADMIN_SPONSOR_ADD
 
     if flow == "edit_ad_text":
-        if not text:
+        ok, err = validate_ad_html(text, max_len=1000)
+        if not ok:
             await update.message.reply_text(
-                "❌ Reklama matni bo'sh bo'lishi mumkin emas.",
+                f"❌ {err}\n\n{AD_HTML_HINT}",
                 reply_markup=get_admin_back_keyboard(),
-            )
-            return ADMIN_AD_EDIT
-        if len(text) > 1000:
-            await update.message.reply_text(
-                "❌ Reklama matni juda uzun (maksimal 1000 belgi).",
-                reply_markup=get_admin_back_keyboard(),
+                parse_mode="HTML",
             )
             return ADMIN_AD_EDIT
         success = await db.run_db(db.update_ad_text, text)
@@ -768,11 +755,12 @@ async def admin_inline_text_handler(update: Update, context: ContextTypes.DEFAUL
     if flow == "set_ad_interval":
         try:
             val = int(text)
-            if val < 1:
+            if val < db.AD_INTERVAL_MIN or val > db.AD_INTERVAL_MAX:
                 raise ValueError
         except ValueError:
             await update.message.reply_text(
-                "❌ Noto'g'ri raqam. Iltimos, 1 yoki undan katta butun son kiriting (masalan: 3, 4, 5):",
+                f"❌ Noto'g'ri raqam. {db.AD_INTERVAL_MIN}–{db.AD_INTERVAL_MAX} "
+                "oralig'ida butun son kiriting (masalan: 3, 4, 5):",
                 reply_markup=get_admin_back_keyboard(),
             )
             return ADMIN_AD_INTERVAL
@@ -1196,10 +1184,18 @@ async def del_sponsor_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         pass
 
 
-# --- AVTOMATIK REKLAMA ROTATSIYA (ad_pool) ---
+# ============================================================
+# AVTOMATIK REKLAMA ROTATSIYA (ad_pool) — TO'LIQ BOSHQARUV
+# ============================================================
 # Har bir "joy" (kanal posti / bot javobi) uchun mustaqil pul. Admin panelda
-# bitta emas, bir nechta reklama saqlanadi va bot ularni navbatma-navbat
-# (round-robin) qo'shadi. Pul bo'sh bo'lsa eski yagona sozlama ishlayveradi.
+# bir nechta reklama saqlanadi, bot ularni navbatma-navbat (round-robin)
+# qo'shadi. Har bir reklamani alohida tahrirlash mumkin:
+#   • matn (HTML formatlash: <b>, <i>, <a href="...">),
+#   • inline URL tugma (tugma matni + havolasi),
+#   • faollik holati (Toggle Active/Inactive),
+#   • o'chirish.
+# Kanal postlarida reklama har nechanchi postda chiqishi ham shu yerda
+# sozlanadi (har 3-, 4- yoki 5-post) — sanagich HAR BIR KANAL uchun alohida.
 AD_SCOPE_META = {
     "channel": {
         "title": "📢 Kanal postlari",
@@ -1211,72 +1207,134 @@ AD_SCOPE_META = {
     },
 }
 
+AD_HTML_HINT = (
+    "💡 <b>HTML formatlash mumkin:</b>\n"
+    "<code>&lt;b&gt;qalin&lt;/b&gt;</code>, <code>&lt;i&gt;kursiv&lt;/i&gt;</code>, "
+    "<code>&lt;u&gt;tagchiziq&lt;/u&gt;</code>, "
+    "<code>&lt;a href=\"https://t.me/kanal\"&gt;havola&lt;/a&gt;</code>"
+)
+
+
+def _ad_scope_state(scope: str):
+    """Scope uchun FSM holati (matn kutilayotgan holat)."""
+    return AD_SCOPE_META.get(scope, {}).get("state", SET_CHANNEL_AD)
+
 
 def _format_ad_pool(ads) -> str:
     """Rotatsiya puli ro'yxatini HTML-xavfsiz matn ko'rinishida chiqaradi."""
     if not ads:
         return "   <i>(Hozircha hech qanday reklama yo'q)</i>"
     lines = []
-    for ad_id, text in ads:
-        lines.append(f"   {ad_id}. {html_escape(_short_text(text, 80))}")
+    for ad in ads:
+        if isinstance(ad, dict):
+            ad_id = ad.get("id")
+            text = ad.get("text") or ""
+            badge = "🟢" if ad.get("is_active", True) else "🔴"
+            btn = ""
+            if (ad.get("button_text") or "").strip() and (ad.get("button_url") or "").strip():
+                btn = f"\n      🔗 <b>{html_escape(_short_text(ad['button_text'], 32))}</b> → {html_escape(_short_text(ad['button_url'], 48))}"
+        else:
+            ad_id, text = ad[0], ad[1]
+            badge, btn = "🟢", ""
+        lines.append(f"   {badge} <b>#{ad_id}</b>. {html_escape(_short_text(text, 80))}{btn}")
     return "\n".join(lines)
+
+
+def _format_ad_card(ad: dict, scope: str) -> str:
+    """Bitta reklama kartochkasi (tahrirlash ekrani uchun)."""
+    ad = ad or {}
+    title = AD_SCOPE_META.get(scope, {}).get("title", scope)
+    status = "🟢 Faol (Active)" if ad.get("is_active", True) else "🔴 O'chirilgan (Inactive)"
+    btn_text = (ad.get("button_text") or "").strip()
+    btn_url = (ad.get("button_url") or "").strip()
+    if btn_text and btn_url:
+        button_line = f"<b>{html_escape(btn_text)}</b> → {html_escape(btn_url)}"
+    else:
+        button_line = "<i>(tugma yo'q)</i>"
+    return (
+        f"✏️ <b>Reklamani tahrirlash</b> — {title}\n"
+        "━━━━━━━━━━━━━━━━━\n"
+        f"🆔 ID: <code>{ad.get('id', 0)}</code>\n"
+        f"📊 Holat: {status}\n"
+        f"🔗 Inline tugma: {button_line}\n"
+        "━━━━━━━━━━━━━━━━━\n"
+        f"📝 <b>Matn (HTML):</b>\n<code>{html_escape(ad.get('text') or '')}</code>\n\n"
+        "👁 <b>Ko'rinishi:</b>\n"
+        f"{safe_html(ad.get('text') or '')}\n\n"
+        "Quyidagi tugmalar orqali tahrirlang 👇"
+    )
 
 
 async def _ad_pool_menu_text(scope: str) -> str:
     """Reklama puli menyusi uchun matn (sarlavha + ro'yxat + yo'riqnoma)."""
-    ads = await db.run_db(db.get_ads, scope)
+    ads = await db.run_db(db.get_ads_full, scope, True)
     meta = AD_SCOPE_META.get(scope, {})
     title = meta.get("title", scope)
-    return (
-        f"{title} — <b>avto-rotatsiya</b>\n\n"
-        f"<b>Reklama puli:</b>\n{_format_ad_pool(ads)}\n\n"
-        "Bot puldagi reklamalarni navbatma-navbat qo'shadi. "
-        "<b>➕ Yangi reklama qo'shish</b> ni bosing va matnni yozing; "
-        "o'chirish uchun <b>🗑</b>, hammasini tozalash uchun <b>🧹</b>."
+    active = sum(1 for a in ads if a.get("is_active", True))
+    text = (
+        f"{title} — <b>avto-rotatsiya</b>\n"
+        "━━━━━━━━━━━━━━━━━\n"
+        f"📦 Jami: <b>{len(ads)} ta</b>  |  🟢 Faol: <b>{active} ta</b>\n"
     )
+    if scope == "channel":
+        interval = await db.run_db(db.get_channel_ad_interval)
+        text += f"⏱ Reklama oralig'i: <b>har {interval}-post</b> (kanal bo'yicha alohida)\n"
+    text += (
+        "━━━━━━━━━━━━━━━━━\n"
+        f"<b>Reklama puli:</b>\n{_format_ad_pool(ads)}\n\n"
+        "Reklamani tahrirlash uchun uning ustiga bosing. "
+        "Bot faqat 🟢 <b>faol</b> reklamalarni navbatma-navbat qo'shadi."
+    )
+    return text
+
+
+async def _ad_pool_menu_markup(scope: str):
+    """Reklama puli menyusi klaviaturasi (ro'yxat + interval bilan)."""
+    ads = await db.run_db(db.get_ads_full, scope, True)
+    interval = await db.run_db(db.get_channel_ad_interval) if scope == "channel" else None
+    return get_ad_pool_menu_keyboard(scope, ads=ads, interval=interval)
+
+
+async def _show_ad_pool_menu(query, scope: str):
+    """Reklama puli menyusini (matn + klaviatura) qayta chizadi."""
+    text = await _ad_pool_menu_text(scope)
+    markup = await _ad_pool_menu_markup(scope)
+    await _edit_or_send(query, text, markup)
+
+
+async def _edit_or_send(query, text: str, reply_markup=None):
+    """Xabarni tahrirlaydi; imkoni bo'lmasa yangisini yuboradi."""
+    try:
+        await query.edit_message_text(text, reply_markup=reply_markup, parse_mode="HTML")
+    except TelegramError:
+        try:
+            await query.message.reply_text(text, reply_markup=reply_markup, parse_mode="HTML")
+        except TelegramError:
+            logger.debug("Reklama menyusini ko'rsatib bo'lmadi")
+
+
+async def _show_ad_card(query, scope: str, ad_id: int) -> bool:
+    """Bitta reklama kartochkasini ko'rsatadi. Topilmasa False."""
+    ad = await db.run_db(db.get_ad, ad_id)
+    if not ad:
+        await _show_ad_pool_menu(query, scope)
+        return False
+    await _edit_or_send(query, _format_ad_card(ad, scope), get_ad_edit_keyboard(ad, scope))
+    return True
 
 
 async def start_set_channel_ad(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id):
         return ConversationHandler.END
+    context.user_data.pop("ad_edit", None)
     text = await _ad_pool_menu_text("channel")
+    markup = await _ad_pool_menu_markup("channel")
+    await update.message.reply_text(text, reply_markup=markup, parse_mode="HTML")
     await update.message.reply_text(
-        text,
-        reply_markup=get_ad_pool_menu_keyboard("channel"),
-        parse_mode="HTML",
-    )
-    await update.message.reply_text(
-        "Reklama matnini yozib yuborishingiz ham mumkin (pulga qo'shiladi). "
-        "Menyudan chiqish uchun 🔙.",
+        "Yangi reklama matnini shu yerga yozib yuborishingiz mumkin (pulga qo'shiladi).\n"
+        f"{AD_HTML_HINT}\n\n"
+        "Bekor qilish uchun ❌ Bekor qilish tugmasini bosing.",
         reply_markup=get_cancel_keyboard(),
-    )
-    return SET_CHANNEL_AD
-
-
-async def channel_ad_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not is_admin(update.effective_user.id):
-        return ConversationHandler.END
-    text = update.message.text.strip()
-    if text.lower() == "clear":
-        removed = await db.run_db(db.clear_ads, "channel")
-        await update.message.reply_text(
-            f"🧹 Kanal posti reklamalari tozalandi ({removed} ta).",
-            reply_markup=get_admin_panel_keyboard(),
-        )
-        return ConversationHandler.END
-    if len(text) > 1024:
-        await update.message.reply_text("❌ Reklama juda uzun (maksimal 1024 belgi).")
-    else:
-        ad_id = await db.run_db(db.add_ad, "channel", text)
-        if ad_id > 0:
-            await update.message.reply_text("✅ Reklama rotatsiya puliga qo'shildi!")
-        else:
-            await update.message.reply_text("❌ Saqlashda xatolik yuz berdi.")
-    # Yana qo'shish imkoni uchun yangilangan menyuni ko'rsatamiz.
-    menu = await _ad_pool_menu_text("channel")
-    await update.message.reply_text(
-        menu,
-        reply_markup=get_ad_pool_menu_keyboard("channel"),
         parse_mode="HTML",
     )
     return SET_CHANNEL_AD
@@ -1285,144 +1343,390 @@ async def channel_ad_received(update: Update, context: ContextTypes.DEFAULT_TYPE
 async def start_set_bot_reply_ad(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id):
         return ConversationHandler.END
+    context.user_data.pop("ad_edit", None)
     text = await _ad_pool_menu_text("reply")
+    markup = await _ad_pool_menu_markup("reply")
+    await update.message.reply_text(text, reply_markup=markup, parse_mode="HTML")
     await update.message.reply_text(
-        text,
-        reply_markup=get_ad_pool_menu_keyboard("reply"),
+        "Yangi reklama matnini shu yerga yozib yuborishingiz mumkin (pulga qo'shiladi).\n"
+        f"{AD_HTML_HINT}\n\n"
+        "Bekor qilish uchun ❌ Bekor qilish tugmasini bosing.",
+        reply_markup=get_cancel_keyboard(),
         parse_mode="HTML",
     )
-    await update.message.reply_text(
-        "Reklama matnini yozib yuborishingiz ham mumkin (pulga qo'shiladi). "
-        "Menyudan chiqish uchun 🔙.",
-        reply_markup=get_cancel_keyboard(),
-    )
     return SET_BOT_REPLY_AD
+
+
+async def _ad_text_received(update, context, scope: str):
+    """Reklama matni kiritildi: yangi qo'shish YOKI mavjudini tahrirlash.
+
+    Tahrirlash rejimi ``context.user_data["ad_edit"]`` orqali aniqlanadi
+    (``{"id": ..., "field": "text"|"button", "scope": ...}``).
+    """
+    state = _ad_scope_state(scope)
+    text = (update.message.text or "").strip()
+    pending = context.user_data.get("ad_edit") or {}
+
+    # --- 1. Mavjud reklamaning inline URL tugmasini tahrirlash ---
+    if pending.get("field") == "button" and pending.get("scope") == scope:
+        if text.lower() in ("clear", "-", "yo'q", "yoq"):
+            await db.run_db(db.update_ad, pending["id"], None, "", "")
+            context.user_data.pop("ad_edit", None)
+            await update.message.reply_text(
+                "🚫 <b>Inline tugma olib tashlandi.</b>",
+                reply_markup=get_admin_panel_keyboard(),
+                parse_mode="HTML",
+            )
+            await _send_ad_card(update, context, scope, pending["id"])
+            return state
+
+        btn_text, btn_url = parse_button_input(text)
+        if not btn_text or not btn_url:
+            await update.message.reply_text(
+                "❌ Noto'g'ri format. <code>Tugma matni | https://havola</code> ko'rinishida yuboring.\n"
+                "Tugmani olib tashlash uchun <code>clear</code> deb yozing.",
+                reply_markup=get_cancel_keyboard(),
+                parse_mode="HTML",
+            )
+            return state
+        ok, err = validate_button_text(btn_text)
+        if not ok:
+            await update.message.reply_text(f"❌ {err}", reply_markup=get_cancel_keyboard(), parse_mode="HTML")
+            return state
+        ok, err = validate_button_url(btn_url)
+        if not ok:
+            await update.message.reply_text(f"❌ {err}", reply_markup=get_cancel_keyboard(), parse_mode="HTML")
+            return state
+
+        saved = await db.run_db(db.update_ad, pending["id"], None, btn_text, btn_url)
+        context.user_data.pop("ad_edit", None)
+        if saved:
+            await update.message.reply_text(
+                f"✅ <b>Inline tugma saqlandi:</b> {html_escape(btn_text)} → {html_escape(btn_url)}",
+                reply_markup=get_admin_panel_keyboard(),
+                parse_mode="HTML",
+            )
+        else:
+            await update.message.reply_text("❌ Saqlashda xatolik yuz berdi.",
+                                            reply_markup=get_admin_panel_keyboard())
+        await _send_ad_card(update, context, scope, pending["id"])
+        return state
+
+    # --- 2. Mavjud reklama matnini tahrirlash ---
+    if pending.get("field") == "text" and pending.get("scope") == scope:
+        ok, err = validate_ad_html(text, max_len=db.AD_TEXT_MAX_LEN)
+        if not ok:
+            await update.message.reply_text(
+                f"❌ {err}\n\n{AD_HTML_HINT}",
+                reply_markup=get_cancel_keyboard(),
+                parse_mode="HTML",
+            )
+            return state
+        saved = await db.run_db(db.update_ad, pending["id"], text)
+        context.user_data.pop("ad_edit", None)
+        if saved:
+            await update.message.reply_text(
+                "✅ <b>Reklama matni yangilandi!</b>",
+                reply_markup=get_admin_panel_keyboard(),
+                parse_mode="HTML",
+            )
+        else:
+            await update.message.reply_text("❌ Saqlashda xatolik yuz berdi.",
+                                            reply_markup=get_admin_panel_keyboard())
+        await _send_ad_card(update, context, scope, pending["id"])
+        return state
+
+    # --- 3. Kanal reklama oralig'ini qo'lda kiritish ---
+    if pending.get("field") == "interval" and pending.get("scope") == scope:
+        try:
+            value = int(text)
+        except ValueError:
+            await update.message.reply_text(
+                "❌ Faqat butun son kiriting (masalan: 3, 4 yoki 5).",
+                reply_markup=get_cancel_keyboard(),
+            )
+            return state
+        if value < db.AD_INTERVAL_MIN or value > db.AD_INTERVAL_MAX:
+            await update.message.reply_text(
+                f"❌ Oraliq {db.AD_INTERVAL_MIN} va {db.AD_INTERVAL_MAX} orasida bo'lishi kerak.",
+                reply_markup=get_cancel_keyboard(),
+            )
+            return state
+        await db.run_db(db.set_channel_ad_interval, value)
+        context.user_data.pop("ad_edit", None)
+        await update.message.reply_text(
+            f"✅ <b>Reklama oralig'i yangilandi:</b> endi har <b>{value}-postda</b> reklama chiqadi.\n"
+            "<i>Sanagich har bir kanal uchun alohida yuritiladi.</i>",
+            reply_markup=get_admin_panel_keyboard(),
+            parse_mode="HTML",
+        )
+        await _send_ad_menu(update, context, scope)
+        return state
+
+    # --- 4. Yangi reklama qo'shish ---
+    if text.lower() == "clear":
+        removed = await db.run_db(db.clear_ads, scope)
+        await update.message.reply_text(
+            f"🧹 Reklamalar tozalandi ({removed} ta).",
+            reply_markup=get_admin_panel_keyboard(),
+        )
+        return ConversationHandler.END
+
+    ok, err = validate_ad_html(text, max_len=db.AD_TEXT_MAX_LEN)
+    if not ok:
+        await update.message.reply_text(
+            f"❌ {err}\n\n{AD_HTML_HINT}",
+            reply_markup=get_cancel_keyboard(),
+            parse_mode="HTML",
+        )
+        return state
+
+    ad_id = await db.run_db(db.add_ad, scope, text)
+    if ad_id > 0:
+        await update.message.reply_text(
+            "✅ <b>Reklama rotatsiya puliga qo'shildi!</b>\n"
+            "Inline URL tugma qo'shish uchun ro'yxatdan uni tanlang.",
+            reply_markup=get_admin_panel_keyboard(),
+            parse_mode="HTML",
+        )
+    else:
+        await update.message.reply_text("❌ Saqlashda xatolik yuz berdi.",
+                                        reply_markup=get_admin_panel_keyboard())
+    await _send_ad_menu(update, context, scope)
+    return state
+
+
+async def _send_ad_menu(update, context, scope: str):
+    """Yangilangan reklama menyusini yangi xabar sifatida yuboradi."""
+    menu = await _ad_pool_menu_text(scope)
+    markup = await _ad_pool_menu_markup(scope)
+    await update.message.reply_text(menu, reply_markup=markup, parse_mode="HTML")
+
+
+async def _send_ad_card(update, context, scope: str, ad_id: int):
+    """Tahrirlangan reklama kartochkasini yangi xabar sifatida yuboradi."""
+    ad = await db.run_db(db.get_ad, ad_id)
+    if not ad:
+        await _send_ad_menu(update, context, scope)
+        return
+    await update.message.reply_text(
+        _format_ad_card(ad, scope),
+        reply_markup=get_ad_edit_keyboard(ad, scope),
+        parse_mode="HTML",
+    )
+
+
+async def channel_ad_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_admin(update.effective_user.id):
+        return ConversationHandler.END
+    return await _ad_text_received(update, context, "channel")
 
 
 async def bot_reply_ad_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id):
         return ConversationHandler.END
-    text = update.message.text.strip()
-    if text.lower() == "clear":
-        removed = await db.run_db(db.clear_ads, "reply")
-        await update.message.reply_text(
-            f"🧹 Bot javoblari reklamalari tozalandi ({removed} ta).",
-            reply_markup=get_admin_panel_keyboard(),
-        )
-        return ConversationHandler.END
-    if len(text) > 1024:
-        await update.message.reply_text("❌ Reklama juda uzun (maksimal 1024 belgi).")
-    else:
-        ad_id = await db.run_db(db.add_ad, "reply", text)
-        if ad_id > 0:
-            await update.message.reply_text("✅ Reklama rotatsiya puliga qo'shildi!")
-        else:
-            await update.message.reply_text("❌ Saqlashda xatolik yuz berdi.")
-    menu = await _ad_pool_menu_text("reply")
-    await update.message.reply_text(
-        menu,
-        reply_markup=get_ad_pool_menu_keyboard("reply"),
-        parse_mode="HTML",
-    )
-    return SET_BOT_REPLY_AD
+    return await _ad_text_received(update, context, "reply")
 
 
 async def ad_pool_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Reklama rotatsiya puli inline tugmalari (``adp:...``)."""
+    """Reklama rotatsiya puli inline tugmalari (``adp:...``).
+
+    Qo'llab-quvvatlanadigan amallar:
+      ``add`` yangi, ``e`` kartochka, ``et`` matn, ``eb`` tugma, ``bx`` tugmani
+      o'chirish, ``tg`` faollik toggle, ``rm`` o'chirish, ``clear`` tozalash,
+      ``iv`` reklama oralig'i, ``info`` yordam, ``back`` menyu.
+    """
     query = update.callback_query
     try:
         await query.answer()
     except Exception:
         pass
     if not is_admin(query.from_user.id):
-        return
+        return ConversationHandler.END
 
     parts = query.data.split(":")
     if len(parts) < 3 or parts[0] != "adp":
-        return
+        return ConversationHandler.END
     scope = parts[1]
     action = parts[2]
+    arg = parts[3] if len(parts) >= 4 else None
     meta = AD_SCOPE_META.get(scope)
     if not meta:
-        return
+        return ConversationHandler.END
     title = meta["title"]
+    state = meta["state"]
+
+    def _ad_id():
+        try:
+            return int(arg)
+        except (TypeError, ValueError):
+            return None
 
     if action == "add":
+        context.user_data.pop("ad_edit", None)
         text = (
-            f"✍️ <b>{title}</b> — yangi reklama matnini yozing.\n"
-            "(o'chirish uchun <code>clear</code> deb yozing)"
+            f"✍️ <b>{title}</b> — yangi reklama matnini yozing.\n\n"
+            f"{AD_HTML_HINT}\n\n"
+            "<i>Barcha reklamalarni o'chirish uchun</i> <code>clear</code> <i>deb yozing.</i>"
         )
-        try:
-            await query.edit_message_text(
-                text, reply_markup=get_ad_pool_back_keyboard(scope), parse_mode="HTML")
-        except TelegramError:
-            await query.message.reply_text(
-                text, reply_markup=get_ad_pool_back_keyboard(scope), parse_mode="HTML")
-        return
+        await _edit_or_send(query, text, get_ad_pool_back_keyboard(scope))
+        return state
 
-    if action == "del":
-        ads = await db.run_db(db.get_ads, scope)
-        text = f"🗑 <b>{title}</b> — o'chiriladigan reklamani tanlang:\n\n{_format_ad_pool(ads)}"
+    if action == "e":
+        ad_id = _ad_id()
+        context.user_data.pop("ad_edit", None)
+        if ad_id is None:
+            await _show_ad_pool_menu(query, scope)
+            return state
+        await _show_ad_card(query, scope, ad_id)
+        return state
+
+    if action == "et":
+        ad_id = _ad_id()
+        if ad_id is None:
+            await _show_ad_pool_menu(query, scope)
+            return state
+        ad = await db.run_db(db.get_ad, ad_id)
+        if not ad:
+            await _show_ad_pool_menu(query, scope)
+            return state
+        context.user_data["ad_edit"] = {"id": ad_id, "field": "text", "scope": scope}
+        text = (
+            f"✏️ <b>#{ad_id} — yangi matnni yuboring:</b>\n\n"
+            f"<b>Hozirgi matn:</b>\n<code>{html_escape(ad.get('text') or '')}</code>\n\n"
+            f"{AD_HTML_HINT}"
+        )
+        await _edit_or_send(query, text, get_ad_pool_back_keyboard(scope))
+        return state
+
+    if action == "eb":
+        ad_id = _ad_id()
+        if ad_id is None:
+            await _show_ad_pool_menu(query, scope)
+            return state
+        ad = await db.run_db(db.get_ad, ad_id)
+        if not ad:
+            await _show_ad_pool_menu(query, scope)
+            return state
+        context.user_data["ad_edit"] = {"id": ad_id, "field": "button", "scope": scope}
+        current = ""
+        if (ad.get("button_text") or "").strip():
+            current = (
+                f"<b>Hozirgi tugma:</b> {html_escape(ad['button_text'])} → "
+                f"{html_escape(ad.get('button_url') or '')}\n\n"
+            )
+        text = (
+            f"🔗 <b>#{ad_id} — inline URL tugma:</b>\n\n"
+            f"{current}"
+            "Quyidagi formatda yuboring:\n"
+            "<code>Tugma matni | https://t.me/kanal</code>\n\n"
+            "Tugmani olib tashlash uchun <code>clear</code> deb yozing."
+        )
+        await _edit_or_send(query, text, get_ad_pool_back_keyboard(scope))
+        return state
+
+    if action == "bx":
+        ad_id = _ad_id()
+        if ad_id is not None:
+            await db.run_db(db.update_ad, ad_id, None, "", "")
+            context.user_data.pop("ad_edit", None)
+            await _show_ad_card(query, scope, ad_id)
+        return state
+
+    if action == "tg":
+        ad_id = _ad_id()
+        if ad_id is None:
+            await _show_ad_pool_menu(query, scope)
+            return state
+        new_status = await db.run_db(db.toggle_ad_active, ad_id)
+        if new_status is None:
+            await _show_ad_pool_menu(query, scope)
+            return state
         try:
-            await query.edit_message_text(
-                text, reply_markup=get_ad_pool_delete_keyboard(ads, scope), parse_mode="HTML")
-        except TelegramError:
-            await query.message.reply_text(
-                text, reply_markup=get_ad_pool_delete_keyboard(ads, scope), parse_mode="HTML")
-        return
+            await query.answer("🟢 Reklama faollashtirildi" if new_status else "🔴 Reklama o'chirildi")
+        except Exception:
+            pass
+        await _show_ad_card(query, scope, ad_id)
+        return state
 
     if action == "rm":
-        if len(parts) >= 4:
-            await db.run_db(db.delete_ad, int(parts[3]))
-        ads = await db.run_db(db.get_ads, scope)
+        ad_id = _ad_id()
+        if ad_id is not None:
+            await db.run_db(db.delete_ad, ad_id)
+            context.user_data.pop("ad_edit", None)
+        await _show_ad_pool_menu(query, scope)
+        return state
+
+    if action == "del":
+        ads = await db.run_db(db.get_ads_full, scope, True)
         text = f"🗑 <b>{title}</b> — o'chiriladigan reklamani tanlang:\n\n{_format_ad_pool(ads)}"
-        try:
-            await query.edit_message_text(
-                text, reply_markup=get_ad_pool_delete_keyboard(ads, scope), parse_mode="HTML")
-        except TelegramError:
-            pass
-        return
+        await _edit_or_send(query, text, get_ad_pool_delete_keyboard(ads, scope))
+        return state
 
     if action == "clear":
         removed = await db.run_db(db.clear_ads, scope)
-        text = (
-            f"🧹 <b>{removed} ta</b> reklama tozalandi.\n\n"
-            f"<b>Reklama puli:</b>\n{_format_ad_pool([])}"
-        )
+        context.user_data.pop("ad_edit", None)
         try:
-            await query.edit_message_text(
-                text, reply_markup=get_ad_pool_menu_keyboard(scope), parse_mode="HTML")
-        except TelegramError:
-            await query.message.reply_text(
-                text, reply_markup=get_ad_pool_menu_keyboard(scope), parse_mode="HTML")
-        return
+            await query.answer(f"🧹 {removed} ta reklama o'chirildi")
+        except Exception:
+            pass
+        await _show_ad_pool_menu(query, scope)
+        return state
+
+    if action == "iv":
+        # Kanal postlari uchun reklama oralig'i (har nechanchi postda).
+        if arg is not None:
+            value = db.clamp_ad_interval(arg)
+            await db.run_db(db.set_channel_ad_interval, value)
+            context.user_data.pop("ad_edit", None)
+            try:
+                await query.answer(f"✅ Endi har {value}-postda reklama chiqadi")
+            except Exception:
+                pass
+            await _show_ad_pool_menu(query, scope)
+            return state
+
+        current = await db.run_db(db.get_channel_ad_interval)
+        context.user_data["ad_edit"] = {"id": 0, "field": "interval", "scope": scope}
+        text = (
+            "⏱ <b>Reklama oralig'ini sozlash</b>\n"
+            "━━━━━━━━━━━━━━━━━\n"
+            f"Hozirgi qiymat: <b>har {current}-post</b>\n\n"
+            "Bot har nechanchi postda reklama qo'shsin? Sanagich <b>har bir kanal "
+            "uchun alohida</b> yuritiladi — bir kanaldagi postlar boshqasiga ta'sir qilmaydi.\n\n"
+            f"Tugmalardan tanlang yoki {db.AD_INTERVAL_MIN}–{db.AD_INTERVAL_MAX} "
+            "oralig'idagi sonni yozib yuboring."
+        )
+        await _edit_or_send(query, text, get_ad_interval_keyboard(scope, current))
+        return state
 
     if action == "info":
+        interval_line = ""
+        if scope == "channel":
+            interval = await db.run_db(db.get_channel_ad_interval)
+            interval_line = (
+                f"• Kanal postlari: har <b>{interval}-postda</b> bitta reklama "
+                "(sanagich har bir kanal uchun alohida).\n"
+            )
         text = (
             f"ℹ️ <b>{title} — avto-rotatsiya</b>\n\n"
             "Pulga bir nechta reklama qo'shsangiz, bot ularni navbatma-navbat "
             "(round-robin) qo'shadi.\n"
-            "• Kanal postlari: har postga bitta reklama.\n"
-            "• Bot javoblari: har 3-xabarga bitta reklama.\n\n"
+            f"{interval_line}"
+            "• Bot javoblari: har 3-xabarga bitta reklama.\n"
+            "• 🔴 holatdagi reklamalar rotatsiyada qatnashmaydi.\n"
+            "• Har bir reklamaga inline URL tugma biriktirish mumkin.\n\n"
             "Pul bo'sh bo'lsa eski yagona reklama ishlashda davom etadi."
         )
-        try:
-            await query.edit_message_text(
-                text, reply_markup=get_ad_pool_menu_keyboard(scope), parse_mode="HTML")
-        except TelegramError:
-            await query.message.reply_text(
-                text, reply_markup=get_ad_pool_menu_keyboard(scope), parse_mode="HTML")
-        return
+        await _edit_or_send(query, text, get_ad_pool_back_keyboard(scope))
+        return state
 
     if action == "back":
-        text = await _ad_pool_menu_text(scope)
-        try:
-            await query.edit_message_text(
-                text, reply_markup=get_ad_pool_menu_keyboard(scope), parse_mode="HTML")
-        except TelegramError:
-            await query.message.reply_text(
-                text, reply_markup=get_ad_pool_menu_keyboard(scope), parse_mode="HTML")
-        return
+        context.user_data.pop("ad_edit", None)
+        await _show_ad_pool_menu(query, scope)
+        return state
+
+    return state
 
 
 async def broadcast_start(update: Update, context: ContextTypes.DEFAULT_TYPE):

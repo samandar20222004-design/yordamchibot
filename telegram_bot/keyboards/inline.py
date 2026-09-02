@@ -118,7 +118,7 @@ def get_admin_auto_ad_keyboard(status: bool = False) -> InlineKeyboardMarkup:
         ],
         [
             InlineKeyboardButton("⬅️ Orqaga", callback_data="adm_back"),
-            InlineKeyboardButton("❌ Yopish", callback_data="close_msg"),
+            InlineKeyboardButton("❌ Bekor qilish", callback_data="adm_cancel"),
         ],
     ]
     return InlineKeyboardMarkup(keyboard)
@@ -134,7 +134,7 @@ def get_admin_ad_interval_keyboard() -> InlineKeyboardMarkup:
         ],
         [
             InlineKeyboardButton("⬅️ Orqaga", callback_data="adm_auto_ad"),
-            InlineKeyboardButton("❌ Yopish", callback_data="close_msg"),
+            InlineKeyboardButton("❌ Bekor qilish", callback_data="adm_cancel"),
         ],
     ]
     return InlineKeyboardMarkup(keyboard)
@@ -152,6 +152,10 @@ def get_admin_dashboard_keyboard() -> InlineKeyboardMarkup:
             InlineKeyboardButton("🎯 Har 3-5 javob reklamasi", callback_data="adm_auto_ad"),
         ],
         [
+            InlineKeyboardButton("📋 Kanallar ro'yxati", callback_data="adm_channels"),
+            InlineKeyboardButton("🛠 Tizim sozlamalari", callback_data="adm_settings"),
+        ],
+        [
             InlineKeyboardButton("🎁 Promo-kod yaratish", callback_data="adm_promo"),
             InlineKeyboardButton("⭐️ PRO obuna berish", callback_data="adm_grant_pro"),
         ],
@@ -160,32 +164,101 @@ def get_admin_dashboard_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(keyboard)
 
 
-def get_admin_back_keyboard() -> InlineKeyboardMarkup:
-    """Admin ichki bo'limlarida Orqaga + Yopish tugmalari."""
-    keyboard = [
-        [
-            InlineKeyboardButton("⬅️ Orqaga", callback_data="adm_back"),
-            InlineKeyboardButton("❌ Yopish", callback_data="close_msg"),
-        ],
-    ]
-    return InlineKeyboardMarkup(keyboard)
+def get_admin_back_keyboard(cancel: bool = True) -> InlineKeyboardMarkup:
+    """Admin ichki bo'limlarida Orqaga + Bekor qilish tugmalari.
+
+    ``adm_cancel`` — jarayonni (FSM holatini) to'liq bekor qiladi va admin
+    panelga qaytaradi. Shu sababli har bir tahrirlash ekranida mavjud.
+    """
+    row = [InlineKeyboardButton("⬅️ Orqaga", callback_data="adm_back")]
+    if cancel:
+        row.append(InlineKeyboardButton("❌ Bekor qilish", callback_data="adm_cancel"))
+    else:
+        row.append(InlineKeyboardButton("❌ Yopish", callback_data="close_msg"))
+    return InlineKeyboardMarkup([row])
 
 
 # ============================================================
 # AVTOMATIK REKLAMA ROTATSIYA (ad_pool) TUGMALARI
 # ============================================================
-def get_ad_pool_menu_keyboard(scope: str) -> InlineKeyboardMarkup:
-    """Reklama rotatsiya puli boshqaruv menyusi (scope: 'channel' | 'reply')."""
+def get_ad_pool_menu_keyboard(scope: str, ads: list = None,
+                              interval: int = None) -> InlineKeyboardMarkup:
+    """Reklama rotatsiya puli boshqaruv menyusi (scope: 'channel' | 'reply').
+
+    ``ads`` berilsa har bir reklama uchun alohida "tahrirlash" tugmasi va
+    holat belgisi (🟢/🔴) chiqadi. ``interval`` faqat kanal postlari uchun —
+    reklama har nechanchi postda chiqishini ko'rsatadi.
+    """
+    keyboard = []
+    for ad in (ads or []):
+        ad_id = ad.get("id") if isinstance(ad, dict) else ad[0]
+        ad_text = ad.get("text") if isinstance(ad, dict) else ad[1]
+        is_active = ad.get("is_active", True) if isinstance(ad, dict) else True
+        badge = "🟢" if is_active else "🔴"
+        label = btn_label(ad_text, "Reklama", max_length=24)
+        keyboard.append([
+            InlineKeyboardButton(f"{badge} {label}", callback_data=f"adp:{scope}:e:{ad_id}")
+        ])
+
+    keyboard.append([InlineKeyboardButton("➕ Yangi reklama qo'shish", callback_data=f"adp:{scope}:add")])
+    if scope == "channel":
+        label = (
+            f"⏱ Reklama oralig'i: har {interval}-post"
+            if interval else "⏱ Reklama oralig'ini sozlash"
+        )
+        keyboard.append([InlineKeyboardButton(label, callback_data=f"adp:{scope}:iv")])
+    keyboard.append([
+        InlineKeyboardButton("🧹 Hammasini tozalash", callback_data=f"adp:{scope}:clear"),
+        InlineKeyboardButton("ℹ️ Rotatsiya haqida", callback_data=f"adp:{scope}:info"),
+    ])
+    keyboard.append([
+        InlineKeyboardButton("⬅️ Orqaga", callback_data="adm_back"),
+        InlineKeyboardButton("❌ Bekor qilish", callback_data="adm_cancel"),
+    ])
+    return InlineKeyboardMarkup(keyboard)
+
+
+def get_ad_edit_keyboard(ad: dict, scope: str) -> InlineKeyboardMarkup:
+    """Bitta reklamani to'liq tahrirlash menyusi.
+
+    Matn, inline URL tugma, faollik holati (Toggle Active/Inactive) va
+    o'chirish tugmalari.
+    """
+    ad = ad or {}
+    ad_id = ad.get("id", 0)
+    is_active = bool(ad.get("is_active", True))
+    has_button = bool((ad.get("button_text") or "").strip() and (ad.get("button_url") or "").strip())
+    toggle_label = "🔴 O'chirish (Inactive)" if is_active else "🟢 Faollashtirish (Active)"
+    button_label = "🔗 Tugmani tahrirlash" if has_button else "🔗 Inline tugma qo'shish"
+
+    keyboard = [
+        [InlineKeyboardButton("✏️ Matnni tahrirlash", callback_data=f"adp:{scope}:et:{ad_id}")],
+        [InlineKeyboardButton(button_label, callback_data=f"adp:{scope}:eb:{ad_id}")],
+    ]
+    if has_button:
+        keyboard.append([
+            InlineKeyboardButton("🚫 Tugmani olib tashlash", callback_data=f"adp:{scope}:bx:{ad_id}")
+        ])
+    keyboard.append([InlineKeyboardButton(toggle_label, callback_data=f"adp:{scope}:tg:{ad_id}")])
+    keyboard.append([InlineKeyboardButton("🗑 Reklamani o'chirish", callback_data=f"adp:{scope}:rm:{ad_id}")])
+    keyboard.append([
+        InlineKeyboardButton("⬅️ Menyuga", callback_data=f"adp:{scope}:back"),
+        InlineKeyboardButton("❌ Bekor qilish", callback_data="adm_cancel"),
+    ])
+    return InlineKeyboardMarkup(keyboard)
+
+
+def get_ad_interval_keyboard(scope: str = "channel", current: int = None) -> InlineKeyboardMarkup:
+    """Reklama oralig'ini tanlash: har 3-, 4- yoki 5-postda (yoki qo'lda)."""
+    row = []
+    for value in (3, 4, 5):
+        mark = "✅ " if current == value else ""
+        row.append(InlineKeyboardButton(f"{mark}Har {value}-post", callback_data=f"adp:{scope}:iv:{value}"))
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("➕ Yangi reklama qo'shish", callback_data=f"adp:{scope}:add")],
+        row,
         [
-            InlineKeyboardButton("🗑 Reklama o'chirish", callback_data=f"adp:{scope}:del"),
-            InlineKeyboardButton("🧹 Hammasini tozalash", callback_data=f"adp:{scope}:clear"),
-        ],
-        [InlineKeyboardButton("ℹ️ Rotatsiya haqida", callback_data=f"adp:{scope}:info")],
-        [
-            InlineKeyboardButton("⬅️ Orqaga", callback_data="adm_back"),
-            InlineKeyboardButton("❌ Yopish", callback_data="close_msg"),
+            InlineKeyboardButton("⬅️ Menyuga", callback_data=f"adp:{scope}:back"),
+            InlineKeyboardButton("❌ Bekor qilish", callback_data="adm_cancel"),
         ],
     ])
 
@@ -193,14 +266,18 @@ def get_ad_pool_menu_keyboard(scope: str) -> InlineKeyboardMarkup:
 def get_ad_pool_delete_keyboard(ads: list, scope: str) -> InlineKeyboardMarkup:
     """Har bir reklamani o'chirish tugmasi bilan ko'rsatadi."""
     keyboard = []
-    for ad_id, text in ads:
+    for ad in (ads or []):
+        if isinstance(ad, dict):
+            ad_id, text = ad.get("id"), ad.get("text")
+        else:
+            ad_id, text = ad[0], ad[1]
         label = btn_label(text, "Reklama", max_length=28)
         keyboard.append([
             InlineKeyboardButton(f"❌ {label}", callback_data=f"adp:{scope}:rm:{ad_id}")
         ])
     keyboard.append([
         InlineKeyboardButton("⬅️ Orqaga", callback_data=f"adp:{scope}:back"),
-        InlineKeyboardButton("❌ Yopish", callback_data="close_msg"),
+        InlineKeyboardButton("❌ Bekor qilish", callback_data="adm_cancel"),
     ])
     return InlineKeyboardMarkup(keyboard)
 
@@ -210,7 +287,7 @@ def get_ad_pool_back_keyboard(scope: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
         [
             InlineKeyboardButton("⬅️ Menyuga", callback_data=f"adp:{scope}:back"),
-            InlineKeyboardButton("❌ Yopish", callback_data="close_msg"),
+            InlineKeyboardButton("❌ Bekor qilish", callback_data="adm_cancel"),
         ],
     ])
 

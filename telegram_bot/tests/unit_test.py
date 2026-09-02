@@ -558,7 +558,8 @@ def test_smart_reply_ad_async():
     finally:
         db_mod.run_db = original_run_db
 
-    check("DB o'qish run_db (thread) orqali ketadi", calls == ["get_ads", "get_setting"], str(calls))
+    check("DB o'qish run_db (thread) orqali ketadi",
+          calls == ["get_ads_full", "get_setting"], str(calls))
     check("reklama bo'sh bo'lsa satr ham bo'sh", result == "", result)
 
 
@@ -609,7 +610,10 @@ def test_ad_pool_rotation():
     calls = []
     async def fake_pool(func, *args, **kwargs):
         calls.append(func.__name__)
-        return [(7, "POOL-AD")] if func.__name__ == "get_ads" else ""
+        if func.__name__ == "get_ads_full":
+            return [{"id": 7, "text": "POOL-AD", "button_text": "Bos",
+                     "button_url": "https://t.me/pool", "is_active": True}]
+        return ""
 
     db_mod.run_db = fake_pool
     # Bot javoblari reklamasi har 3-xabarga chiqadi — sanagichni 2 ga qo'yib,
@@ -620,7 +624,9 @@ def test_ad_pool_rotation():
     finally:
         db_mod.run_db = original_run_db
     check("pul bor: navbatdagi reklama (har 3-xabarga)", "POOL-AD" in pooled, pooled)
-    check("pul bor: faqat get_ads chaqiriladi", calls == ["get_ads"], str(calls))
+    check("pul bor: reklama tugmasi havola sifatida qo'shildi",
+          'href="https://t.me/pool"' in pooled and "Bos" in pooled, pooled)
+    check("pul bor: faqat get_ads_full chaqiriladi", calls == ["get_ads_full"], str(calls))
     helpers._AD_ROTATION_INDEX.clear()
 
     # DB funktsiyalari mavjudligi
@@ -1566,7 +1572,10 @@ def test_admin_dashboard():
     bkb = get_admin_back_keyboard()
     bcbs = [b.callback_data for row in bkb.inline_keyboard for b in row]
     check("back kb: adm_back", "adm_back" in bcbs)
-    check("back kb: close_msg", "close_msg" in bcbs)
+    check("back kb: adm_cancel (Bekor qilish)", "adm_cancel" in bcbs)
+    check("back kb: close rejimi", "close_msg" in
+          [b.callback_data for row in get_admin_back_keyboard(cancel=False).inline_keyboard
+           for b in row])
 
     # 4. is_admin function
     check("is_admin: non-admin", not is_admin(0))
@@ -2779,13 +2788,13 @@ def test_auto_ad_injector_suite():
 
 
 def test_admin_dashboard_layout_suite():
-    """Admin dashboard to'liq 7-tugmali layout testi."""
-    print("== Admin Dashboard Layout (7 ta tugma) ==")
+    """Admin dashboard to'liq 9-tugmali layout testi."""
+    print("== Admin Dashboard Layout (9 ta tugma) ==")
     from keyboards.inline import get_admin_dashboard_keyboard
 
     kb = get_admin_dashboard_keyboard()
     rows = kb.inline_keyboard
-    check("dashboard qatorlar soni = 4", len(rows) == 4, str(len(rows)))
+    check("dashboard qatorlar soni = 5", len(rows) == 5, str(len(rows)))
 
     # Qator 1: Statistika & Broadcast
     check("row 0 btn 0: adm_stats", rows[0][0].callback_data == "adm_stats")
@@ -2795,12 +2804,16 @@ def test_admin_dashboard_layout_suite():
     check("row 1 btn 0: adm_sponsors", rows[1][0].callback_data == "adm_sponsors")
     check("row 1 btn 1: adm_auto_ad", rows[1][1].callback_data == "adm_auto_ad")
 
-    # Qator 3: Promo & PRO
-    check("row 2 btn 0: adm_promo", rows[2][0].callback_data == "adm_promo")
-    check("row 2 btn 1: adm_grant_pro", rows[2][1].callback_data == "adm_grant_pro")
+    # Qator 3: Kanallar ro'yxati & Tizim sozlamalari
+    check("row 2 btn 0: adm_channels", rows[2][0].callback_data == "adm_channels")
+    check("row 2 btn 1: adm_settings", rows[2][1].callback_data == "adm_settings")
 
-    # Qator 4: Yopish
-    check("row 3 btn 0: close_msg", rows[3][0].callback_data == "close_msg")
+    # Qator 4: Promo & PRO
+    check("row 3 btn 0: adm_promo", rows[3][0].callback_data == "adm_promo")
+    check("row 3 btn 1: adm_grant_pro", rows[3][1].callback_data == "adm_grant_pro")
+
+    # Qator 5: Yopish
+    check("row 4 btn 0: close_msg", rows[4][0].callback_data == "close_msg")
 
     labels = [b.text for row in rows for b in row]
     check("label: To'liq statistika", any("statistika" in t.lower() for t in labels))
@@ -3042,7 +3055,8 @@ class _FakeQuery:
         return True
 
 
-def _fake_db(premium=False, ad_free=False, sink=None):
+def _fake_db(premium=False, ad_free=False, sink=None, post_number=1,
+             ad_interval=3, ads=None):
     """database.run_db o'rnini bosuvchi async funksiya."""
     async def _run_db(func, *args, **kwargs):
         name = getattr(func, "__name__", str(func))
@@ -3054,6 +3068,14 @@ def _fake_db(premium=False, ad_free=False, sink=None):
             return ad_free
         if name == "is_premium":
             return premium
+        if name == "bump_channel_post_count":
+            return post_number
+        if name == "get_channel_ad_interval":
+            return ad_interval
+        if name == "mark_channel_ad_shown":
+            return True
+        if name == "get_ads_full":
+            return list(ads or [])
         if name == "get_ads":
             return []
         if name == "get_setting":
@@ -3584,6 +3606,943 @@ def test_post_enhancer_callback_router():
         db_mod.run_db = orig
 
 
+# ============================================================
+# REKLAMA BOSHQARUVI (ad pool / post promo) — YANGI TESTLAR
+# ============================================================
+
+def test_channel_ad_interval_logic():
+    """Kanal post sanagichi va reklama oralig'i (har 3-5 postda)."""
+    print("== Reklama oralig'i: should_show_channel_ad ==")
+    from utils.helpers import should_show_channel_ad
+    import database as db_mod
+
+    # Har 3-postda
+    shown = [n for n in range(1, 13) if should_show_channel_ad(n, 3)]
+    check("interval 3 → 3,6,9,12", shown == [3, 6, 9, 12], str(shown))
+    shown = [n for n in range(1, 13) if should_show_channel_ad(n, 4)]
+    check("interval 4 → 4,8,12", shown == [4, 8, 12], str(shown))
+    shown = [n for n in range(1, 13) if should_show_channel_ad(n, 5)]
+    check("interval 5 → 5,10", shown == [5, 10], str(shown))
+    check("interval 1 → har postda", all(should_show_channel_ad(n, 1) for n in range(1, 6)))
+
+    # Chegaraviy holatlar
+    check("0-post → reklama yo'q", not should_show_channel_ad(0, 3))
+    check("manfiy post → reklama yo'q", not should_show_channel_ad(-3, 3))
+    check("interval 0 → reklama yo'q", not should_show_channel_ad(3, 0))
+    check("None → reklama yo'q", not should_show_channel_ad(None, 3))
+    check("matn → reklama yo'q", not should_show_channel_ad("x", 3))
+    check("son-satr ham ishlaydi", should_show_channel_ad("6", "3"))
+
+    # clamp_ad_interval
+    check("clamp: 4 → 4", db_mod.clamp_ad_interval(4) == 4)
+    check("clamp: '5' → 5", db_mod.clamp_ad_interval("5") == 5)
+    check("clamp: 0 → 1 (min)", db_mod.clamp_ad_interval(0) == db_mod.AD_INTERVAL_MIN)
+    check("clamp: 9999 → maks", db_mod.clamp_ad_interval(9999) == db_mod.AD_INTERVAL_MAX)
+    check("clamp: bo'sh → default", db_mod.clamp_ad_interval("") == db_mod.CHANNEL_AD_INTERVAL_DEFAULT)
+    check("clamp: None → default", db_mod.clamp_ad_interval(None) == db_mod.CHANNEL_AD_INTERVAL_DEFAULT)
+    check("clamp: default parametri", db_mod.clamp_ad_interval("abc", 4) == 4)
+    check("standart oraliq 3", db_mod.CHANNEL_AD_INTERVAL_DEFAULT == 3)
+
+    # DB funksiyalari mavjudligi
+    for fname in ("bump_channel_post_count", "get_channel_post_count",
+                  "reset_channel_post_count", "get_channel_post_counters",
+                  "get_channel_ad_interval", "set_channel_ad_interval",
+                  "mark_channel_ad_shown"):
+        check(f"db.{fname} mavjud", hasattr(db_mod, fname))
+
+
+def test_per_channel_counter_isolation():
+    """Har bir kanal sanagichi ALOHIDA hisoblanadi (scheduler.resolve_channel_ad)."""
+    print("== Kanal sanagichlari mustaqilligi ==")
+    import asyncio
+    import database as db_mod
+    import scheduler
+
+    counters = {}
+    ad_marks = []
+
+    async def fake_run_db(func, *args, **kwargs):
+        name = getattr(func, "__name__", str(func))
+        if name == "bump_channel_post_count":
+            ch = args[0]
+            counters[ch] = counters.get(ch, 0) + 1
+            return counters[ch]
+        if name == "get_channel_ad_interval":
+            return 3
+        if name == "get_ads_full":
+            return [{"id": 1, "text": "AD-1", "button_text": "Bosing",
+                     "button_url": "https://t.me/x", "is_active": True}]
+        if name == "mark_channel_ad_shown":
+            ad_marks.append(args)
+            return True
+        if name == "get_setting":
+            return ""
+        raise AssertionError(f"kutilmagan db chaqiruvi: {name}")
+
+    original = db_mod.run_db
+    db_mod.run_db = fake_run_db
+    try:
+        # A kanaliga 2 ta post — reklama yo'q
+        r1 = asyncio.run(scheduler.resolve_channel_ad("A", False))
+        r2 = asyncio.run(scheduler.resolve_channel_ad("A", False))
+        check("A: 1-post reklamasiz", r1["text"] == "" and r1["post_number"] == 1)
+        check("A: 2-post reklamasiz", r2["text"] == "" and r2["post_number"] == 2)
+
+        # B kanaliga 1 ta post — A ning sanagichiga ta'sir qilmaydi
+        b1 = asyncio.run(scheduler.resolve_channel_ad("B", False))
+        check("B: sanagich mustaqil (1)", b1["post_number"] == 1 and b1["text"] == "")
+
+        # A kanaliga 3-post — reklama chiqadi
+        r3 = asyncio.run(scheduler.resolve_channel_ad("A", False))
+        check("A: 3-postda reklama chiqdi", r3["text"] == "AD-1", str(r3))
+        check("A: reklama tugmasi ham keldi", r3["button_text"] == "Bosing")
+        check("A: sanagich 3", r3["post_number"] == 3)
+        check("mark_channel_ad_shown chaqirildi", ad_marks and ad_marks[-1][0] == "A", str(ad_marks))
+
+        # B hali 2-postda — reklama yo'q
+        b2 = asyncio.run(scheduler.resolve_channel_ad("B", False))
+        check("B: 2-post hali reklamasiz", b2["text"] == "" and b2["post_number"] == 2)
+
+        # ad-free litsenziya: sanagich oshadi, lekin reklama chiqmaydi
+        counters["C"] = 2
+        c3 = asyncio.run(scheduler.resolve_channel_ad("C", True))
+        check("ad-free: reklama chiqmaydi", c3["text"] == "")
+        check("ad-free: sanagich baribir oshdi", c3["post_number"] == 3)
+    finally:
+        db_mod.run_db = original
+
+
+def test_ad_html_and_button_validation():
+    """Reklama matni HTML formatlash va inline URL tugma validatsiyasi."""
+    print("== Reklama HTML / tugma validatsiyasi ==")
+    from utils.helpers import (
+        validate_ad_html, validate_button_url, validate_button_text,
+        parse_button_input,
+    )
+
+    # --- HTML matn ---
+    ok, err = validate_ad_html("Oddiy reklama matni")
+    check("oddiy matn to'g'ri", ok, err)
+    ok, err = validate_ad_html("<b>Qalin</b> va <i>kursiv</i>")
+    check("b/i teglari ruxsat etiladi", ok, err)
+    ok, err = validate_ad_html('<a href="https://t.me/kanal">Kanalga o\'ting</a>')
+    check("havola tegi ruxsat etiladi", ok, err)
+    ok, err = validate_ad_html("<u>tag</u> <s>chizilgan</s> <code>kod</code>")
+    check("u/s/code ruxsat etiladi", ok, err)
+
+    ok, err = validate_ad_html("")
+    check("bo'sh matn rad etiladi", not ok and "bo'sh" in err.lower(), err)
+    ok, err = validate_ad_html("   ")
+    check("faqat probel rad etiladi", not ok)
+    ok, err = validate_ad_html("A" * 1100)
+    check("juda uzun matn rad etiladi", not ok and "uzun" in err.lower(), err)
+    ok, err = validate_ad_html("<b>Yopilmagan")
+    check("yopilmagan teg rad etiladi", not ok and "yopilmagan" in err.lower(), err)
+    ok, err = validate_ad_html("<script>alert(1)</script>")
+    check("script tegi rad etiladi", not ok, err)
+    ok, err = validate_ad_html("<a>havolasiz</a>")
+    check("href'siz <a> rad etiladi", not ok and "href" in err, err)
+    ok, err = validate_ad_html('<a href="javascript:alert(1)">x</a>')
+    check("javascript: havola rad etiladi", not ok, err)
+    ok, err = validate_ad_html("<b><i>ichma-ich</i></b>")
+    check("ichma-ich teglar to'g'ri", ok, err)
+    ok, err = validate_ad_html("</b>ortiqcha yopilgan")
+    check("ortiqcha yopuvchi teg rad etiladi", not ok, err)
+    ok, err = validate_ad_html("A" * 200, max_len=100)
+    check("max_len parametri ishlaydi", not ok)
+
+    # --- Tugma matni ---
+    ok, err = validate_button_text("Batafsil")
+    check("tugma matni to'g'ri", ok, err)
+    ok, _ = validate_button_text("")
+    check("bo'sh tugma matni rad etiladi", not ok)
+    ok, err = validate_button_text("X" * 70)
+    check("64 belgidan uzun tugma matni rad etiladi", not ok, err)
+
+    # --- Tugma havolasi ---
+    for url in ("https://t.me/kanal", "http://example.com/a?b=1", "tg://resolve?domain=x"):
+        ok, err = validate_button_url(url)
+        check(f"havola to'g'ri: {url}", ok, err)
+    for url in ("", "t.me/kanal", "javascript:alert(1)", "https://", "https://a b"):
+        ok, _ = validate_button_url(url)
+        shown = url or "(bosh)"
+        check(f"havola rad etiladi: {shown}", not ok)
+
+    # --- Tugma kiritmasini ajratish ---
+    check("parse: 'Matn | URL'",
+          parse_button_input("Batafsil | https://t.me/x") == ("Batafsil", "https://t.me/x"))
+    check("parse: probellar tozalanadi",
+          parse_button_input("  Batafsil  |  https://t.me/x  ") == ("Batafsil", "https://t.me/x"))
+    check("parse: ' - ' ajratgichi",
+          parse_button_input("Batafsil - https://t.me/x") == ("Batafsil", "https://t.me/x"))
+    check("parse: ajratgichsiz → bo'sh", parse_button_input("Batafsil") == ("", ""))
+    check("parse: bo'sh kiritma", parse_button_input("") == ("", ""))
+
+
+def test_ad_pool_full_crud_api():
+    """ad_pool: to'liq CRUD API (matn, tugma, faollik) mavjudligi va xavfsizligi."""
+    print("== ad_pool CRUD API ==")
+    import database as db_mod
+    from utils.helpers import _next_ad_full, EMPTY_AD
+
+    for fname in ("add_ad", "get_ads", "get_ads_full", "get_ad", "update_ad",
+                  "set_ad_active", "toggle_ad_active", "delete_ad", "clear_ads",
+                  "count_ads"):
+        check(f"db.{fname} mavjud", hasattr(db_mod, fname))
+
+    # Noto'g'ri kiritma DB'ga umuman urilmaydi
+    check("noto'g'ri scope add_ad → -1", db_mod.add_ad("bogus", "X") == -1)
+    check("bo'sh matn add_ad → -1", db_mod.add_ad("channel", "  ") == -1)
+    check("noto'g'ri scope get_ads_full → []", db_mod.get_ads_full("bogus") == [])
+    check("noto'g'ri scope clear_ads → 0", db_mod.clear_ads("bogus") == 0)
+    check("update_ad maydonsiz → False", db_mod.update_ad(1) is False)
+    check("update_ad bo'sh matn → False", db_mod.update_ad(1, "   ") is False)
+
+    # Tugma normalizatsiyasi: ikkalasi ham bo'lishi shart
+    check("tugma: matn+URL saqlanadi",
+          db_mod._normalize_ad_button("Bos", "https://t.me/x") == ("Bos", "https://t.me/x"))
+    check("tugma: URL'siz → yo'q", db_mod._normalize_ad_button("Bos", "") == (None, None))
+    check("tugma: matnsiz → yo'q", db_mod._normalize_ad_button("", "https://t.me/x") == (None, None))
+    check("tugma matni 64 belgigacha kesiladi",
+          len(db_mod._normalize_ad_button("X" * 200, "https://t.me/x")[0]) == 64)
+
+    # Qatorni dictga o'girish
+    row = (7, "channel", "Matn", "Bos", "https://t.me/x", False)
+    ad = db_mod._ad_row_to_dict(row)
+    check("_ad_row_to_dict: id", ad["id"] == 7)
+    check("_ad_row_to_dict: text", ad["text"] == "Matn")
+    check("_ad_row_to_dict: button", ad["button_text"] == "Bos" and ad["button_url"] == "https://t.me/x")
+    check("_ad_row_to_dict: is_active", ad["is_active"] is False)
+    empty_ad = db_mod._ad_row_to_dict((8, "reply", None, None, None, True))
+    check("_ad_row_to_dict: NULL → bo'sh satr",
+          empty_ad["text"] == "" and empty_ad["button_text"] == "")
+
+    # To'liq rotatsiya (matn + tugma)
+    from utils import helpers
+    helpers._AD_ROTATION_INDEX.clear()
+    ads = [
+        {"id": 1, "text": "A", "button_text": "b1", "button_url": "https://t.me/1", "is_active": True},
+        {"id": 2, "text": "B", "button_text": "", "button_url": "", "is_active": True},
+    ]
+    first = _next_ad_full(ads, "channel")
+    second = _next_ad_full(ads, "channel")
+    third = _next_ad_full(ads, "channel")
+    check("full rotatsiya: 1-chi", first["text"] == "A" and first["button_url"] == "https://t.me/1")
+    check("full rotatsiya: 2-chi (tugmasiz)", second["text"] == "B" and second["button_text"] == "")
+    check("full rotatsiya: aylanadi", third["text"] == "A")
+    check("bo'sh pul → bo'sh reklama", _next_ad_full([], "channel")["text"] == "")
+    check("EMPTY_AD tuzilishi", set(EMPTY_AD) >= {"text", "button_text", "button_url"})
+    helpers._AD_ROTATION_INDEX.clear()
+
+    # get_channel_ad_next_full_async: pul bo'sh bo'lsa eski sozlamaga qaytadi
+    import asyncio
+    calls = []
+    original_run_db = db_mod.run_db
+
+    async def fake_empty(func, *args, **kwargs):
+        calls.append(func.__name__)
+        return [] if func.__name__ == "get_ads_full" else "LEGACY"
+
+    db_mod.run_db = fake_empty
+    try:
+        legacy = asyncio.run(helpers.get_channel_ad_next_full_async())
+    finally:
+        db_mod.run_db = original_run_db
+    check("full: pul bo'sh → eski sozlama", legacy["text"] == "LEGACY", str(legacy))
+    check("full: tugmasiz qaytadi", legacy["button_text"] == "")
+    check("full: get_ads_full keyin get_setting",
+          calls == ["get_ads_full", "get_setting"], str(calls))
+    helpers._AD_ROTATION_INDEX.clear()
+
+
+def test_scheduler_ad_inline_button():
+    """Reklamaning inline URL tugmasi post ostiga qo'shiladi."""
+    print("== Scheduler: reklama inline tugmasi ==")
+    from scheduler import build_ad_button_row
+
+    row = build_ad_button_row({"button_text": "Batafsil", "button_url": "https://t.me/x"})
+    check("tugma yaratildi", len(row) == 1)
+    check("tugma matni", row[0].text == "Batafsil")
+    check("tugma havolasi", row[0].url == "https://t.me/x")
+    check("tugmasiz reklama → bo'sh", build_ad_button_row({"text": "faqat matn"}) == [])
+    check("URL'siz → bo'sh", build_ad_button_row({"button_text": "X", "button_url": ""}) == [])
+    check("matnsiz → bo'sh", build_ad_button_row({"button_text": "", "button_url": "https://t.me/x"}) == [])
+    check("None → bo'sh", build_ad_button_row(None) == [])
+    long_row = build_ad_button_row({"button_text": "Y" * 120, "button_url": "https://t.me/x"})
+    check("uzun tugma matni 64 belgiga kesiladi", len(long_row[0].text) == 64)
+
+
+def test_ad_pool_keyboards():
+    """Reklama boshqaruvi klaviaturalari: ro'yxat, tahrirlash, interval."""
+    print("== Reklama klaviaturalari ==")
+    from keyboards.inline import (
+        get_ad_pool_menu_keyboard, get_ad_edit_keyboard,
+        get_ad_interval_keyboard, get_ad_pool_delete_keyboard,
+        get_ad_pool_back_keyboard,
+    )
+
+    ads = [
+        {"id": 1, "text": "Birinchi reklama", "button_text": "", "button_url": "", "is_active": True},
+        {"id": 2, "text": "Ikkinchi reklama", "button_text": "B", "button_url": "https://t.me/x", "is_active": False},
+    ]
+
+    kb = get_ad_pool_menu_keyboard("channel", ads=ads, interval=4)
+    cbs = [b.callback_data for row in kb.inline_keyboard for b in row]
+    labels = [b.text for row in kb.inline_keyboard for b in row]
+    check("menyu: har bir reklama tugmasi bor", "adp:channel:e:1" in cbs and "adp:channel:e:2" in cbs, str(cbs))
+    check("menyu: faol reklama 🟢", any(t.startswith("🟢") for t in labels), str(labels))
+    check("menyu: nofaol reklama 🔴", any(t.startswith("🔴") for t in labels), str(labels))
+    check("menyu: qo'shish tugmasi", "adp:channel:add" in cbs)
+    check("menyu: interval tugmasi", "adp:channel:iv" in cbs)
+    check("menyu: intervalda joriy qiymat", any("har 4-post" in t for t in labels), str(labels))
+    check("menyu: tozalash", "adp:channel:clear" in cbs)
+    check("menyu: bekor qilish", "adm_cancel" in cbs)
+
+    kb_reply = get_ad_pool_menu_keyboard("reply", ads=ads)
+    cbs_reply = [b.callback_data for row in kb_reply.inline_keyboard for b in row]
+    check("bot javoblarida interval tugmasi yo'q", "adp:reply:iv" not in cbs_reply, str(cbs_reply))
+    check("bo'sh pul menyusi ham ishlaydi",
+          len(get_ad_pool_menu_keyboard("channel", ads=[]).inline_keyboard) >= 3)
+
+    # Tahrirlash kartochkasi (tugmasiz reklama)
+    edit_kb = get_ad_edit_keyboard(ads[0], "channel")
+    ecbs = [b.callback_data for row in edit_kb.inline_keyboard for b in row]
+    elabels = [b.text for row in edit_kb.inline_keyboard for b in row]
+    check("tahrir: matn tugmasi", "adp:channel:et:1" in ecbs)
+    check("tahrir: tugma qo'shish", "adp:channel:eb:1" in ecbs)
+    check("tahrir: tugmasi yo'q reklamada 'olib tashlash' ko'rinmaydi", "adp:channel:bx:1" not in ecbs)
+    check("tahrir: toggle", "adp:channel:tg:1" in ecbs)
+    check("tahrir: o'chirish", "adp:channel:rm:1" in ecbs)
+    check("tahrir: bekor qilish", "adm_cancel" in ecbs)
+    check("tahrir: faol reklamada 'O'chirish' yozuvi",
+          any("Inactive" in t for t in elabels), str(elabels))
+
+    # Nofaol + tugmali reklama
+    edit_kb2 = get_ad_edit_keyboard(ads[1], "reply")
+    ecbs2 = [b.callback_data for row in edit_kb2.inline_keyboard for b in row]
+    elabels2 = [b.text for row in edit_kb2.inline_keyboard for b in row]
+    check("tahrir: tugmani olib tashlash bor", "adp:reply:bx:2" in ecbs2)
+    check("tahrir: nofaol reklamada 'Faollashtirish'",
+          any("Active" in t and "Inactive" not in t for t in elabels2), str(elabels2))
+
+    # Interval klaviaturasi
+    ikb = get_ad_interval_keyboard("channel", current=4)
+    icbs = [b.callback_data for row in ikb.inline_keyboard for b in row]
+    ilabels = [b.text for row in ikb.inline_keyboard for b in row]
+    check("interval: 3/4/5 variantlari",
+          all(f"adp:channel:iv:{n}" in icbs for n in (3, 4, 5)), str(icbs))
+    check("interval: joriy qiymat belgilangan", any(t.startswith("✅") for t in ilabels), str(ilabels))
+
+    # O'chirish va orqaga klaviaturalari dict bilan ham ishlaydi
+    dkb = get_ad_pool_delete_keyboard(ads, "channel")
+    dcbs = [b.callback_data for row in dkb.inline_keyboard for b in row]
+    check("o'chirish kb: dict qabul qiladi", "adp:channel:rm:1" in dcbs and "adp:channel:rm:2" in dcbs)
+    dkb_tuple = get_ad_pool_delete_keyboard([(9, "Eski format")], "reply")
+    check("o'chirish kb: tuple ham ishlaydi",
+          "adp:reply:rm:9" in [b.callback_data for row in dkb_tuple.inline_keyboard for b in row])
+    bcbs = [b.callback_data for row in get_ad_pool_back_keyboard("channel").inline_keyboard for b in row]
+    check("orqaga kb: menyu + bekor qilish",
+          "adp:channel:back" in bcbs and "adm_cancel" in bcbs)
+
+
+def _make_admin_ctx():
+    class _Ctx:
+        def __init__(self):
+            self.user_data = {}
+    return _Ctx()
+
+
+class _AdQuery:
+    """Admin inline tugmasi uchun soxta CallbackQuery."""
+
+    def __init__(self, data, uid=123456789):
+        self.data = data
+        self.answers = []
+        self.edits = []
+        self.from_user = type("U", (), {"id": uid})()
+        self.message = type("M", (), {
+            "reply_text": self._reply,
+        })()
+
+    async def _reply(self, text, reply_markup=None, parse_mode=None, **kw):
+        self.edits.append((text, reply_markup))
+        return True
+
+    async def answer(self, text=None, show_alert=False):
+        self.answers.append(text)
+
+    async def edit_message_text(self, text, reply_markup=None, parse_mode=None, **kw):
+        self.edits.append((text, reply_markup))
+        return True
+
+
+def test_ad_pool_callback_flow():
+    """Reklama tahrirlash oqimi: kartochka, matn, tugma, toggle, interval."""
+    print("== Reklama tahrirlash oqimi (ad_pool_callback) ==")
+    import asyncio
+    import database as db_mod
+    import handlers.admin as admin
+    from telegram.ext import ConversationHandler
+
+    store = {
+        1: {"id": 1, "scope": "channel", "text": "Reklama A",
+            "button_text": "", "button_url": "", "is_active": True},
+    }
+    saved = []
+
+    async def fake_run_db(func, *args, **kwargs):
+        name = getattr(func, "__name__", str(func))
+        if name == "get_ad":
+            return store.get(int(args[0]))
+        if name == "get_ads_full":
+            return list(store.values())
+        if name == "get_channel_ad_interval":
+            return 3
+        if name == "set_channel_ad_interval":
+            saved.append(("interval", args[0]))
+            return True
+        if name == "toggle_ad_active":
+            ad = store.get(int(args[0]))
+            ad["is_active"] = not ad["is_active"]
+            return ad["is_active"]
+        if name == "update_ad":
+            saved.append(("update", args))
+            return True
+        if name == "delete_ad":
+            store.pop(int(args[0]), None)
+            return True
+        if name == "clear_ads":
+            n = len(store)
+            store.clear()
+            return n
+        raise AssertionError(f"kutilmagan db chaqiruvi: {name}")
+
+    original = db_mod.run_db
+    db_mod.run_db = fake_run_db
+    try:
+        # 1. Kartochkani ochish
+        ctx = _make_admin_ctx()
+        q = _AdQuery("adp:channel:e:1")
+        state = asyncio.run(admin.ad_pool_callback(type("U", (), {"callback_query": q})(), ctx))
+        check("kartochka: SET_CHANNEL_AD holati qaytadi", state == admin.SET_CHANNEL_AD, str(state))
+        check("kartochka: matn ko'rsatildi", "Reklama A" in q.edits[-1][0], q.edits[-1][0][:80])
+        check("kartochka: holat ko'rsatildi", "Faol" in q.edits[-1][0])
+
+        # 2. Matnni tahrirlashni boshlash → FSM belgisi qo'yiladi
+        q = _AdQuery("adp:channel:et:1")
+        state = asyncio.run(admin.ad_pool_callback(type("U", (), {"callback_query": q})(), ctx))
+        check("matn tahriri: holat SET_CHANNEL_AD", state == admin.SET_CHANNEL_AD)
+        check("matn tahriri: ad_edit belgisi",
+              ctx.user_data.get("ad_edit") == {"id": 1, "field": "text", "scope": "channel"},
+              str(ctx.user_data))
+        check("matn tahriri: HTML yo'riqnomasi", "HTML" in q.edits[-1][0])
+
+        # 3. Tugma tahriri
+        q = _AdQuery("adp:channel:eb:1")
+        asyncio.run(admin.ad_pool_callback(type("U", (), {"callback_query": q})(), ctx))
+        check("tugma tahriri: ad_edit field=button",
+              ctx.user_data["ad_edit"]["field"] == "button", str(ctx.user_data))
+        check("tugma tahriri: format ko'rsatilgan", "|" in q.edits[-1][0])
+
+        # 4. Toggle Active/Inactive
+        q = _AdQuery("adp:channel:tg:1")
+        asyncio.run(admin.ad_pool_callback(type("U", (), {"callback_query": q})(), ctx))
+        check("toggle: reklama o'chirildi", store[1]["is_active"] is False)
+        check("toggle: xabar berildi", any("o'chirildi" in (a or "") for a in q.answers), str(q.answers))
+        q = _AdQuery("adp:channel:tg:1")
+        asyncio.run(admin.ad_pool_callback(type("U", (), {"callback_query": q})(), ctx))
+        check("toggle: qayta faollashtirildi", store[1]["is_active"] is True)
+
+        # 5. Tugmani olib tashlash
+        q = _AdQuery("adp:channel:bx:1")
+        asyncio.run(admin.ad_pool_callback(type("U", (), {"callback_query": q})(), ctx))
+        check("tugma olib tashlandi", ("update", (1, None, "", "")) in saved, str(saved))
+
+        # 6. Interval ekrani va tanlash
+        q = _AdQuery("adp:channel:iv")
+        asyncio.run(admin.ad_pool_callback(type("U", (), {"callback_query": q})(), ctx))
+        check("interval ekrani: ad_edit field=interval",
+              ctx.user_data["ad_edit"]["field"] == "interval", str(ctx.user_data))
+        q = _AdQuery("adp:channel:iv:5")
+        asyncio.run(admin.ad_pool_callback(type("U", (), {"callback_query": q})(), ctx))
+        check("interval 5 saqlandi", ("interval", 5) in saved, str(saved))
+        check("interval tanlangach ad_edit tozalandi", "ad_edit" not in ctx.user_data)
+
+        # 7. Ma'lumot va orqaga
+        q = _AdQuery("adp:channel:info")
+        asyncio.run(admin.ad_pool_callback(type("U", (), {"callback_query": q})(), ctx))
+        check("info: oraliq tushuntirilgan", "post" in q.edits[-1][0].lower())
+        q = _AdQuery("adp:channel:back")
+        state = asyncio.run(admin.ad_pool_callback(type("U", (), {"callback_query": q})(), ctx))
+        check("back: menyuga qaytadi", state == admin.SET_CHANNEL_AD)
+
+        # 8. O'chirish
+        q = _AdQuery("adp:channel:rm:1")
+        asyncio.run(admin.ad_pool_callback(type("U", (), {"callback_query": q})(), ctx))
+        check("reklama o'chirildi", 1 not in store)
+
+        # 9. Admin bo'lmagan foydalanuvchi
+        q = _AdQuery("adp:channel:e:1", uid=999)
+        state = asyncio.run(admin.ad_pool_callback(type("U", (), {"callback_query": q})(), ctx))
+        check("admin emas → END", state == ConversationHandler.END)
+
+        # 10. Noto'g'ri scope
+        q = _AdQuery("adp:bogus:e:1")
+        state = asyncio.run(admin.ad_pool_callback(type("U", (), {"callback_query": q})(), ctx))
+        check("noto'g'ri scope → END", state == ConversationHandler.END)
+    finally:
+        db_mod.run_db = original
+
+
+def test_admin_fsm_states_and_cancel():
+    """Admin inline tugmalari FSM holatini qaytaradi va Bekor qilish ishlaydi."""
+    print("== Admin FSM holatlari va Bekor qilish ==")
+    import asyncio
+    import database as db_mod
+    import handlers.admin as admin
+    from telegram.ext import ConversationHandler
+    from keyboards.default import BTN_CANCEL, get_cancel_keyboard
+
+    async def fake_run_db(func, *args, **kwargs):
+        name = getattr(func, "__name__", str(func))
+        if name == "get_admin_dashboard_stats":
+            return {"users": 1, "pro_subscribers": 0, "channels": 2,
+                    "posts_today": 3, "pending_posts": 4, "stars_revenue": 5}
+        if name == "get_system_stats":
+            return {"users": 1, "channels": 2, "sponsors": 0, "pending": 0,
+                    "sent": 0, "cancelled": 0, "failed": 0}
+        if name == "get_all_channels":
+            return [("-100123", "Kanal", 7, "user")]
+        if name == "get_settings_map":
+            return {"post_tag_text": "@bot"}
+        if name == "get_ad_settings":
+            return {"auto_ad_text": "Reklama", "auto_ad_interval": 4,
+                    "auto_ad_status": True, "channel_ad_interval": 3}
+        if name == "get_channel_ad_interval":
+            return 3
+        if name == "get_channel_post_counters":
+            return [("-100123", "Kanal", 9, 3)]
+        if name == "get_sponsor_channels":
+            return []
+        raise AssertionError(f"kutilmagan db chaqiruvi: {name}")
+
+    original = db_mod.run_db
+    db_mod.run_db = fake_run_db
+    try:
+        # Matn kutuvchi bo'limlar TO'G'RI FSM holatini qaytaradi
+        expected = {
+            "adm_promo": admin.ADMIN_PROMO_CREATE,
+            "adm_grant_pro": admin.ADMIN_GRANT_PRO,
+            "adm_broadcast": admin.BROADCAST_MESSAGE,
+            "adm_add_sponsor": admin.ADMIN_SPONSOR_ADD,
+            "adm_ad_edit_text": admin.ADMIN_AD_EDIT,
+            "adm_ad_set_interval": admin.ADMIN_AD_INTERVAL,
+        }
+        for data, state in expected.items():
+            ctx = _make_admin_ctx()
+            q = _AdQuery(data)
+            got = asyncio.run(admin.admin_dashboard_callback(
+                type("U", (), {"callback_query": q})(), ctx))
+            check(f"{data} → holat {state}", got == state, str(got))
+            check(f"{data}: admin_flow belgilandi", ctx.user_data.get("admin_flow"))
+            cbs = [b.callback_data for row in q.edits[-1][1].inline_keyboard for b in row]
+            check(f"{data}: Bekor qilish tugmasi bor", "adm_cancel" in cbs, str(cbs))
+
+        # Ma'lumot ekranlari FSM'ni ochmaydi
+        for data in ("adm_stats", "adm_channels", "adm_settings", "adm_sponsors", "adm_auto_ad"):
+            ctx = _make_admin_ctx()
+            q = _AdQuery(data)
+            got = asyncio.run(admin.admin_dashboard_callback(
+                type("U", (), {"callback_query": q})(), ctx))
+            check(f"{data} → END", got == ConversationHandler.END, str(got))
+            check(f"{data}: xabar chizildi", bool(q.edits))
+
+        # Kanallar ro'yxati va tizim sozlamalari mazmuni
+        ctx = _make_admin_ctx()
+        q = _AdQuery("adm_channels")
+        asyncio.run(admin.admin_dashboard_callback(type("U", (), {"callback_query": q})(), ctx))
+        check("kanallar ro'yxati o'qildi", "Kanal" in q.edits[-1][0], q.edits[-1][0][:80])
+
+        ctx = _make_admin_ctx()
+        q = _AdQuery("adm_settings")
+        asyncio.run(admin.admin_dashboard_callback(type("U", (), {"callback_query": q})(), ctx))
+        body = q.edits[-1][0]
+        check("sozlamalar: system_settings ko'rsatildi", "system_settings" in body, body[:120])
+        check("sozlamalar: post_tag_text qiymati", "@bot" in body)
+        check("sozlamalar: kanal oralig'i", "har 3-post" in body, body)
+        check("sozlamalar: sanagichlar ko'rsatildi", "9" in body and "Kanal" in body)
+
+        # ❌ Bekor qilish: FSM to'liq tozalanadi
+        ctx = _make_admin_ctx()
+        ctx.user_data["admin_flow"] = "promo_create"
+        ctx.user_data["ad_edit"] = {"id": 1}
+        q = _AdQuery("adm_cancel")
+        got = asyncio.run(admin.admin_dashboard_callback(
+            type("U", (), {"callback_query": q})(), ctx))
+        check("adm_cancel → END", got == ConversationHandler.END)
+        check("adm_cancel: user_data tozalandi", ctx.user_data == {}, str(ctx.user_data))
+        check("adm_cancel: dashboard qaytdi", "Admin Boshqaruv Paneli" in q.edits[-1][0])
+
+        # adm_back ham FSM belgilarini tozalaydi
+        ctx = _make_admin_ctx()
+        ctx.user_data["admin_flow"] = "grant_pro"
+        ctx.user_data["ad_edit"] = {"id": 2}
+        q = _AdQuery("adm_back")
+        asyncio.run(admin.admin_dashboard_callback(type("U", (), {"callback_query": q})(), ctx))
+        check("adm_back: admin_flow tozalandi", "admin_flow" not in ctx.user_data)
+        check("adm_back: ad_edit tozalandi", "ad_edit" not in ctx.user_data)
+
+        # Admin bo'lmaganlar rad etiladi
+        ctx = _make_admin_ctx()
+        q = _AdQuery("adm_stats", uid=999)
+        got = asyncio.run(admin.admin_dashboard_callback(
+            type("U", (), {"callback_query": q})(), ctx))
+        check("admin emas → END", got == ConversationHandler.END)
+    finally:
+        db_mod.run_db = original
+
+    # Bekor qilish tugmasi klaviaturada mavjud
+    rows = get_cancel_keyboard().keyboard
+    labels = [b.text if hasattr(b, "text") else str(b) for row in rows for b in row]
+    check("cancel kb: ❌ Bekor qilish bor", BTN_CANCEL in labels, str(labels))
+    check("cancel kb: 🔙 Asosiy menyu ham bor", any("Asosiy menyu" in t for t in labels))
+
+
+def test_admin_cancel_registration():
+    """Bekor qilish tugmasi barcha holatlarda ro'yxatdan o'tgan (FSM)."""
+    print("== Bekor qilish tugmasi ro'yxatdan o'tishi ==")
+    from pathlib import Path
+    src = (Path(__file__).resolve().parent.parent / "handlers" / "__init__.py").read_text(encoding="utf-8")
+
+    check("BTN_CANCEL import qilingan", "BTN_CANCEL" in src)
+    check("BTN_CANCEL menyu sakrashlarida", "exact(BTN_CANCEL), cancel_handler" in src)
+    check("BTN_CANCEL fallback'da", src.count("exact(BTN_CANCEL)") >= 2)
+    check("adm_ callbacklari entry point",
+          'CallbackQueryHandler(admin_dashboard_callback, pattern=r"^adm_")' in src)
+    check("adp: callbacklari entry point",
+          'CallbackQueryHandler(ad_pool_callback, pattern=r"^adp:")' in src)
+    check("_admin_flow_state yordamchisi bor", "def _admin_flow_state(" in src)
+    check("reklama holatlarida adp: handler bor",
+          src.count('CallbackQueryHandler(ad_pool_callback, pattern=r"^adp:")') >= 3)
+
+    # Admin matn handleri bekor qilishni tushunadi
+    admin_src = (Path(__file__).resolve().parent.parent / "handlers" / "admin.py").read_text(encoding="utf-8")
+    check("admin_inline_text_handler BTN_CANCEL ni tekshiradi",
+          "text in (BTN_CANCEL, BTN_MAIN_MENU)" in admin_src)
+    check("oqimsiz matn FSM'ni band qoldirmaydi", "if not flow:" in admin_src)
+
+
+def test_ad_text_received_flow():
+    """Matn kiritish oqimi: yangi qo'shish, matn/tugma tahriri, validatsiya."""
+    print("== Reklama matnini qabul qilish oqimi ==")
+    import asyncio
+    import database as db_mod
+    import handlers.admin as admin
+
+    class _Msg:
+        def __init__(self, text):
+            self.text = text
+            self.replies = []
+
+        async def reply_text(self, text, reply_markup=None, parse_mode=None, **kw):
+            self.replies.append(text)
+            return True
+
+    class _Upd:
+        def __init__(self, text, uid=123456789):
+            self.message = _Msg(text)
+            self.effective_user = type("U", (), {"id": uid})()
+
+    store = {
+        1: {"id": 1, "scope": "channel", "text": "Eski", "button_text": "",
+            "button_url": "", "is_active": True},
+    }
+    calls = []
+
+    async def fake_run_db(func, *args, **kwargs):
+        name = getattr(func, "__name__", str(func))
+        calls.append((name, args))
+        if name == "get_ad":
+            return store.get(int(args[0]))
+        if name == "get_ads_full":
+            return list(store.values())
+        if name == "get_channel_ad_interval":
+            return 3
+        if name == "set_channel_ad_interval":
+            return True
+        if name == "add_ad":
+            return 42
+        if name == "update_ad":
+            return True
+        if name == "clear_ads":
+            return 2
+        raise AssertionError(f"kutilmagan db chaqiruvi: {name}")
+
+    original = db_mod.run_db
+    db_mod.run_db = fake_run_db
+    try:
+        # 1. Yangi reklama qo'shish (HTML bilan)
+        ctx = _make_admin_ctx()
+        upd = _Upd("<b>Yangi</b> reklama")
+        state = asyncio.run(admin.channel_ad_received(upd, ctx))
+        check("yangi reklama: SET_CHANNEL_AD", state == admin.SET_CHANNEL_AD, str(state))
+        check("yangi reklama: add_ad chaqirildi", any(c[0] == "add_ad" for c in calls))
+        check("yangi reklama: tasdiq xabari", any("qo'shildi" in r for r in upd.message.replies))
+
+        # 2. Noto'g'ri HTML rad etiladi
+        calls.clear()
+        upd = _Upd("<b>Yopilmagan")
+        state = asyncio.run(admin.channel_ad_received(upd, ctx))
+        check("noto'g'ri HTML: saqlanmaydi", not any(c[0] == "add_ad" for c in calls), str(calls))
+        check("noto'g'ri HTML: xato xabari", any("❌" in r for r in upd.message.replies))
+        check("noto'g'ri HTML: holat saqlanadi", state == admin.SET_CHANNEL_AD)
+
+        # 3. Matnni tahrirlash
+        ctx.user_data["ad_edit"] = {"id": 1, "field": "text", "scope": "channel"}
+        calls.clear()
+        upd = _Upd("<i>Yangilangan matn</i>")
+        asyncio.run(admin.channel_ad_received(upd, ctx))
+        update_calls = [c for c in calls if c[0] == "update_ad"]
+        check("matn tahriri: update_ad chaqirildi", update_calls, str(calls))
+        check("matn tahriri: to'g'ri matn yuborildi",
+              update_calls[0][1][1] == "<i>Yangilangan matn</i>", str(update_calls))
+        check("matn tahriri: ad_edit tozalandi", "ad_edit" not in ctx.user_data)
+
+        # 4. Inline tugma qo'shish
+        ctx.user_data["ad_edit"] = {"id": 1, "field": "button", "scope": "channel"}
+        calls.clear()
+        upd = _Upd("Batafsil | https://t.me/kanal")
+        asyncio.run(admin.channel_ad_received(upd, ctx))
+        update_calls = [c for c in calls if c[0] == "update_ad"]
+        check("tugma: update_ad chaqirildi", update_calls, str(calls))
+        check("tugma: matn va URL saqlandi",
+              update_calls[0][1][2] == "Batafsil" and update_calls[0][1][3] == "https://t.me/kanal",
+              str(update_calls))
+
+        # 5. Noto'g'ri tugma formati
+        ctx.user_data["ad_edit"] = {"id": 1, "field": "button", "scope": "channel"}
+        calls.clear()
+        upd = _Upd("faqat matn")
+        state = asyncio.run(admin.channel_ad_received(upd, ctx))
+        check("noto'g'ri tugma: saqlanmaydi", not any(c[0] == "update_ad" for c in calls))
+        check("noto'g'ri tugma: holat saqlanadi (qayta kiritish)", state == admin.SET_CHANNEL_AD)
+        check("noto'g'ri tugma: ad_edit saqlanib qoladi", ctx.user_data.get("ad_edit"))
+
+        # 6. Yaroqsiz havola
+        calls.clear()
+        upd = _Upd("Bos | javascript:alert(1)")
+        asyncio.run(admin.channel_ad_received(upd, ctx))
+        check("yaroqsiz havola: saqlanmaydi", not any(c[0] == "update_ad" for c in calls))
+
+        # 7. Tugmani olib tashlash (clear)
+        calls.clear()
+        upd = _Upd("clear")
+        asyncio.run(admin.channel_ad_received(upd, ctx))
+        update_calls = [c for c in calls if c[0] == "update_ad"]
+        check("tugma clear: bo'sh qiymat yuborildi",
+              update_calls and update_calls[0][1][2] == "", str(update_calls))
+
+        # 8. Intervalni qo'lda kiritish
+        ctx.user_data["ad_edit"] = {"id": 0, "field": "interval", "scope": "channel"}
+        calls.clear()
+        upd = _Upd("5")
+        asyncio.run(admin.channel_ad_received(upd, ctx))
+        check("interval: saqlandi",
+              any(c[0] == "set_channel_ad_interval" and c[1][0] == 5 for c in calls), str(calls))
+        check("interval: ad_edit tozalandi", "ad_edit" not in ctx.user_data)
+
+        # 9. Interval uchun noto'g'ri qiymat
+        ctx.user_data["ad_edit"] = {"id": 0, "field": "interval", "scope": "channel"}
+        calls.clear()
+        upd = _Upd("nol")
+        asyncio.run(admin.channel_ad_received(upd, ctx))
+        check("interval: matn rad etildi",
+              not any(c[0] == "set_channel_ad_interval" for c in calls))
+        check("interval: qayta so'raladi", ctx.user_data.get("ad_edit"))
+
+        # 10. Bot javoblari uchun ham xuddi shu oqim
+        ctx2 = _make_admin_ctx()
+        calls.clear()
+        upd = _Upd("Reply reklama")
+        state = asyncio.run(admin.bot_reply_ad_received(upd, ctx2))
+        check("reply: SET_BOT_REPLY_AD holati", state == admin.SET_BOT_REPLY_AD, str(state))
+        check("reply: scope to'g'ri",
+              any(c[0] == "add_ad" and c[1][0] == "reply" for c in calls), str(calls))
+
+        # 11. Admin bo'lmagan foydalanuvchi
+        from telegram.ext import ConversationHandler
+        state = asyncio.run(admin.channel_ad_received(_Upd("x", uid=999), _make_admin_ctx()))
+        check("admin emas → END", state == ConversationHandler.END)
+    finally:
+        db_mod.run_db = original
+
+
+def test_system_settings_read_write():
+    """system_settings to'g'ri o'qiladi/saqlanadi (default keshlanmaydi)."""
+    print("== system_settings o'qish/saqlash ==")
+    import contextlib
+    import database as db_mod
+
+    rows = {}
+
+    class _Cur:
+        def __init__(self):
+            self.result = None
+
+        def execute(self, query, params=()):
+            q = " ".join(query.split())
+            if q.startswith("INSERT INTO system_settings"):
+                rows[params[0]] = params[1]
+            elif q.startswith("SELECT value FROM system_settings"):
+                self.result = (rows[params[0]],) if params[0] in rows else None
+            elif "SELECT key, value FROM system_settings" in q:
+                if params:
+                    self.result = [(k, rows[k]) for k in params[0] if k in rows]
+                else:
+                    self.result = sorted(rows.items())
+            elif q.startswith("DELETE FROM system_settings"):
+                self.rowcount = 1 if rows.pop(params[0], None) is not None else 0
+
+        def fetchone(self):
+            return self.result
+
+        def fetchall(self):
+            return self.result or []
+
+    @contextlib.contextmanager
+    def fake_cursor(commit=False):
+        yield _Cur()
+
+    original_cursor = db_mod.db_cursor
+    db_mod.db_cursor = fake_cursor
+    db_mod._cache_clear()
+    try:
+        check("saqlash True qaytaradi", db_mod.set_setting("post_tag_text", "@bot") is True)
+        check("saqlangan qiymat o'qiladi", db_mod.get_setting("post_tag_text") == "@bot")
+        check("bo'sh kalit saqlanmaydi", db_mod.set_setting("", "x") is False)
+
+        # DEFAULT KESHLANMASLIGI (avvalgi xatolik): mavjud bo'lmagan kalit
+        first = db_mod.get_setting("yoq_kalit", "A")
+        second = db_mod.get_setting("yoq_kalit", "B")
+        check("default keshlanmaydi: 1-chi", first == "A", first)
+        check("default keshlanmaydi: 2-chi boshqa default", second == "B", second)
+
+        # Saqlangandan keyin kesh yangilanadi
+        db_mod.set_setting("yoq_kalit", "C")
+        check("saqlangach yangi qiymat", db_mod.get_setting("yoq_kalit", "A") == "C")
+
+        # Ko'p kalitni bir so'rovda o'qish
+        db_mod.set_setting("channel_ad_text", "reklama")
+        mapping = db_mod.get_settings_map(["post_tag_text", "channel_ad_text", "yoq"])
+        check("get_settings_map: ikkala kalit", mapping.get("post_tag_text") == "@bot"
+              and mapping.get("channel_ad_text") == "reklama", str(mapping))
+        check("get_settings_map: yo'q kalit qaytmaydi", "yoq" not in mapping)
+        check("get_settings_map: bo'sh ro'yxat → {}", db_mod.get_settings_map([]) == {})
+
+        # O'chirish
+        check("delete_setting ishlaydi", db_mod.delete_setting("channel_ad_text") is True)
+        check("o'chirilgach default qaytadi",
+              db_mod.get_setting("channel_ad_text", "yo'q") == "yo'q")
+    finally:
+        db_mod.db_cursor = original_cursor
+        db_mod._cache_clear()
+
+
+def test_ad_settings_include_channel_interval():
+    """get_ad_settings kanal reklama oralig'ini ham qaytaradi."""
+    print("== get_ad_settings: channel_ad_interval ==")
+    import contextlib
+    import database as db_mod
+
+    stored = [
+        ("auto_ad_text", "Homiy"),
+        ("auto_ad_interval", "4"),
+        ("auto_ad_status", "true"),
+        ("channel_ad_interval", "5"),
+    ]
+
+    class _Cur:
+        def execute(self, query, params=()):
+            pass
+
+        def fetchall(self):
+            return stored
+
+    @contextlib.contextmanager
+    def fake_cursor(commit=False):
+        yield _Cur()
+
+    original_cursor = db_mod.db_cursor
+    db_mod.db_cursor = fake_cursor
+    db_mod._cache_clear()
+    try:
+        s = db_mod.get_ad_settings()
+        check("auto_ad_text o'qildi", s["auto_ad_text"] == "Homiy")
+        check("auto_ad_interval o'qildi", s["auto_ad_interval"] == 4)
+        check("auto_ad_status o'qildi", s["auto_ad_status"] is True)
+        check("channel_ad_interval o'qildi", s["channel_ad_interval"] == 5, str(s))
+
+        # Yaroqsiz qiymat → default
+        db_mod._cache_clear()
+        stored[3] = ("channel_ad_interval", "xato")
+        s = db_mod.get_ad_settings()
+        check("yaroqsiz oraliq → default",
+              s["channel_ad_interval"] == db_mod.CHANNEL_AD_INTERVAL_DEFAULT, str(s))
+    finally:
+        db_mod.db_cursor = original_cursor
+        db_mod._cache_clear()
+
+
+def test_enhancer_channel_ad_interval():
+    """Enhancer orqali yuborishda ham reklama oralig'i va tugmasi ishlaydi."""
+    print("== Enhancer: reklama oralig'i va inline tugmasi ==")
+    import asyncio
+    import handlers.post_enhancer as pe
+    import database as db_mod
+
+    pool = [{"id": 1, "text": "ENH-REKLAMA", "button_text": "Homiy",
+             "button_url": "https://t.me/homiy", "is_active": True}]
+
+    async def send(post_number, ad_free=False):
+        bot = _FakeBot()
+        ctx = _FakeCtx(bot, {})
+        enh = {
+            **pe._fresh_enh(), "step": "confirm", "ch_idx": 0,
+            "channels": [("-1001234567890", "Mening Kanalim")],
+            "post": {"type": "text", "file_id": None, "content": "Enhancer matni"},
+            "reactions": [], "buttons": [],
+        }
+        ctx.user_data["enh"] = enh
+        query = _FakeQuery("enh:confirm_send", _FakeMsg(900, 111), uid=424242)
+        orig = db_mod.run_db
+        db_mod.run_db = _fake_db(ad_free=ad_free, post_number=post_number,
+                                 ad_interval=3, ads=pool)
+        try:
+            await pe._execute_send(None, ctx, query, enh)
+        finally:
+            db_mod.run_db = orig
+        sent = bot.sent_of("send_message")
+        return sent[0][2], sent[0][3]
+
+    async def run():
+        # 2-post: reklama chiqmaydi
+        text, markup = await send(2)
+        check("enh: 2-postda reklama yo'q", "ENH-REKLAMA" not in text, text)
+
+        # 3-post: reklama matni va tugmasi qo'shiladi
+        text, markup = await send(3)
+        check("enh: 3-postda reklama matni bor", "ENH-REKLAMA" in text, text)
+        urls = [b.url for row in (markup.inline_keyboard if markup else []) for b in row
+                if getattr(b, "url", None)]
+        check("enh: reklama tugmasi qo'shildi", "https://t.me/homiy" in urls, str(urls))
+
+        # ad-free litsenziya: reklama umuman chiqmaydi
+        text, markup = await send(3, ad_free=True)
+        check("enh: ad-free → reklama yo'q", "ENH-REKLAMA" not in text, text)
+
+    asyncio.run(run())
+
+
 def main():
     test_calculate_next_time()
     test_converter()
@@ -3684,6 +4643,21 @@ def main():
     test_post_enhancer_batch_and_preview_runtime()
     test_post_enhancer_channel_dispatch()
     test_post_enhancer_callback_router()
+
+    # --- Reklama boshqaruvi (ad pool / post promo) ---
+    test_channel_ad_interval_logic()
+    test_per_channel_counter_isolation()
+    test_ad_html_and_button_validation()
+    test_ad_pool_full_crud_api()
+    test_scheduler_ad_inline_button()
+    test_ad_pool_keyboards()
+    test_ad_pool_callback_flow()
+    test_admin_fsm_states_and_cancel()
+    test_admin_cancel_registration()
+    test_ad_text_received_flow()
+    test_system_settings_read_write()
+    test_ad_settings_include_channel_interval()
+    test_enhancer_channel_ad_interval()
 
     print(f"\nO'tdi: {passed}, Xato: {failures}")
     if failures:

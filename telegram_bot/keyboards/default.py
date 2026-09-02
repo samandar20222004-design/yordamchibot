@@ -13,6 +13,8 @@ BTN_CONVERTER = "🔤 Krill-Lotin konvertor"
 BTN_HELP = "📖 Qo'llanma / Bot haqida"
 BTN_EXTRAS = "⚙️ Qo'shimcha funksiyalar"
 BTN_BACK = "🔙 Asosiy menyu"
+# Har qanday ko'p bosqichli jarayonni (FSM) to'xtatuvchi umumiy tugma.
+BTN_CANCEL = "❌ Bekor qilish"
 
 # Orqaga moslik (Aliases)
 BTN_AI_POST = "🤖 AI Post Yordamchi"
@@ -114,7 +116,12 @@ def get_cabinet_keyboard():
 
 
 def get_cancel_keyboard():
-    return ReplyKeyboardMarkup([[BTN_BACK]], resize_keyboard=True)
+    """Jarayonni to'xtatish klaviaturasi: Bekor qilish + Asosiy menyu.
+
+    Ikkala tugma ham FSM holatini tozalaydi — foydalanuvchi hech qachon
+    "band" holatda qolib ketmaydi.
+    """
+    return ReplyKeyboardMarkup([[BTN_CANCEL, BTN_BACK]], resize_keyboard=True)
 
 
 def get_button_prompt_keyboard():

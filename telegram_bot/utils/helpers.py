@@ -91,6 +91,167 @@ async def get_channel_ad_next_async() -> str:
         return _next_ad_text(ads, db.AD_SCOPE_CHANNEL)
     return (await db.run_db(db.get_setting, "channel_ad_text", "")).strip()
 
+
+# --- Reklama oralig'i (har N-postda) va to'liq reklama (matn + tugma) ---
+
+EMPTY_AD = {"id": 0, "text": "", "button_text": "", "button_url": ""}
+
+
+def should_show_channel_ad(post_count, interval) -> bool:
+    """Kanalning ``post_count``-posti reklama posti bo'ladimi?
+
+    Reklama har ``interval`` postda bir marta chiqadi: interval 3 bo'lsa
+    3-, 6-, 9-... postlarda. Sanagich har bir kanal uchun ALOHIDA yuritilgani
+    uchun kanallar bir-biriga ta'sir qilmaydi.
+    """
+    try:
+        count = int(post_count)
+        step = int(interval)
+    except (TypeError, ValueError):
+        return False
+    if count <= 0 or step <= 0:
+        return False
+    return count % step == 0
+
+
+def _next_ad_full(ads, scope: str) -> dict:
+    """Round-robin: puldagi keyingi reklama (matn + inline tugma).
+
+    ``ads`` — ``db.get_ads_full`` qaytargan dict ro'yxati.
+    """
+    if not ads:
+        return dict(EMPTY_AD)
+    with _AD_ROTATION_LOCK:
+        idx = _AD_ROTATION_INDEX.get(scope, 0) % len(ads)
+        _AD_ROTATION_INDEX[scope] = idx + 1
+    ad = ads[idx] or {}
+    return {
+        "id": ad.get("id", 0),
+        "text": (ad.get("text") or "").strip(),
+        "button_text": (ad.get("button_text") or "").strip(),
+        "button_url": (ad.get("button_url") or "").strip(),
+    }
+
+
+async def get_channel_ad_next_full_async() -> dict:
+    """Kanal posti uchun navbatdagi to'liq reklama: matn + inline URL tugma.
+
+    Pul bo'sh bo'lsa eski yagona ``channel_ad_text`` sozlamasiga qaytadi
+    (u holda tugma bo'lmaydi).
+    """
+    ads = (await db.run_db(db.get_ads_full, db.AD_SCOPE_CHANNEL)) or []
+    if ads:
+        return _next_ad_full(ads, db.AD_SCOPE_CHANNEL)
+    legacy = (await db.run_db(db.get_setting, "channel_ad_text", "") or "").strip()
+    ad = dict(EMPTY_AD)
+    ad["text"] = legacy
+    return ad
+
+
+# --- Reklama matni va inline tugmasini tekshirish (validatsiya) ---
+
+# Reklamada ruxsat etilgan HTML teglar (Telegram Bot API qo'llaydiganlari).
+AD_ALLOWED_TAGS = {
+    "b", "strong", "i", "em", "u", "ins", "s", "strike", "del",
+    "a", "code", "pre", "tg-spoiler", "blockquote", "span",
+}
+_TAG_RE = re.compile(r"<\s*(/?)\s*([a-zA-Z0-9-]+)([^>]*)>")
+_HREF_RE = re.compile(r"""href\s*=\s*["']([^"']*)["']""", re.IGNORECASE)
+
+
+def validate_ad_html(text: str, max_len: int = 1024) -> tuple[bool, str]:
+    """Reklama matnini Telegram HTML qoidalari bo'yicha tekshiradi.
+
+    Qaytadi: ``(ok, xato_xabari)``. Tekshiriladi:
+      • matn bo'sh emasligi va uzunlik chegarasi,
+      • faqat ruxsat etilgan teglar (``b``, ``i``, ``a`` va h.k.),
+      • teglar to'g'ri yopilgani (ochiq qolgan teg yo'q),
+      • ``<a>`` tegida to'g'ri ``href`` borligi.
+    """
+    raw = (text or "").strip()
+    if not raw:
+        return False, "Reklama matni bo'sh bo'lishi mumkin emas."
+    if len(raw) > max_len:
+        return False, f"Reklama matni juda uzun (maksimal {max_len} belgi)."
+
+    stack = []
+    for match in _TAG_RE.finditer(raw):
+        closing, name, attrs = match.group(1), match.group(2).lower(), match.group(3)
+        if name not in AD_ALLOWED_TAGS:
+            return False, (
+                f"&lt;{html_escape(name)}&gt; tegi qo'llab-quvvatlanmaydi. "
+                "Ruxsat etilgan teglar: b, i, u, s, a, code, pre, blockquote."
+            )
+        if closing:
+            if not stack or stack[-1] != name:
+                return False, f"&lt;/{html_escape(name)}&gt; tegi noto'g'ri yopilgan."
+            stack.pop()
+            continue
+        if attrs.strip().endswith("/"):
+            continue
+        if name == "a":
+            href = _HREF_RE.search(attrs or "")
+            if not href or not href.group(1).strip():
+                return False, "Havola tegida <code>href=\"...\"</code> ko'rsatilishi shart."
+            ok, err = validate_button_url(href.group(1).strip())
+            if not ok:
+                return False, err
+        stack.append(name)
+
+    if stack:
+        return False, f"&lt;{html_escape(stack[-1])}&gt; tegi yopilmagan."
+    return True, ""
+
+
+def validate_button_url(url: str) -> tuple[bool, str]:
+    """Inline tugma havolasini tekshiradi. Qaytadi: ``(ok, xato_xabari)``."""
+    value = (url or "").strip()
+    if not value:
+        return False, "Havola bo'sh bo'lishi mumkin emas."
+    if len(value) > 2048:
+        return False, "Havola juda uzun (maksimal 2048 belgi)."
+    if " " in value:
+        return False, "Havolada bo'sh joy bo'lishi mumkin emas."
+    lowered = value.lower()
+    allowed_prefixes = ("http://", "https://", "tg://")
+    if not lowered.startswith(allowed_prefixes):
+        return False, (
+            "Havola <code>https://</code>, <code>http://</code> yoki "
+            "<code>tg://</code> bilan boshlanishi kerak."
+        )
+    if lowered.startswith(("http://", "https://")):
+        rest = value.split("//", 1)[1]
+        host = rest.split("/", 1)[0]
+        if not host or "." not in host:
+            return False, "Havola domeni noto'g'ri (masalan: https://t.me/kanal)."
+    return True, ""
+
+
+def validate_button_text(text: str) -> tuple[bool, str]:
+    """Inline tugma matnini tekshiradi. Qaytadi: ``(ok, xato_xabari)``."""
+    value = (text or "").strip()
+    if not value:
+        return False, "Tugma matni bo'sh bo'lishi mumkin emas."
+    if len(value) > 64:
+        return False, "Tugma matni juda uzun (maksimal 64 belgi)."
+    return True, ""
+
+
+def parse_button_input(text: str) -> tuple[str, str]:
+    """``Tugma matni | https://havola`` ko'rinishidagi kiritmani ajratadi.
+
+    Ajratgich sifatida ``|`` yoki ``-`` ishlatilishi mumkin; topilmasa
+    ``("", "")`` qaytadi.
+    """
+    raw = (text or "").strip()
+    if not raw:
+        return "", ""
+    for sep in ("|", " - ", "—"):
+        if sep in raw:
+            left, _, right = raw.partition(sep)
+            return left.strip(), right.strip()
+    return "", ""
+
 # Hujum / ortiqcha yuklama himoyasi chegaralari
 GLOBAL_MAX_UPDATES_PER_SEC = 60     # butun bot bo'yicha 1 soniyada 60 tadan ortiq update
 USER_MAX_UPDATES_PER_2SEC = 20      # bitta foydalanuvchi 2 soniyada 20 tadan ortiq
@@ -396,16 +557,31 @@ async def check_user_sponsorship(bot, user_id: int):
     return await check_user_subscribed(bot, user_id)
 
 
+def ad_link_suffix(ad) -> str:
+    """Reklamaning inline tugmasini HTML havola ko'rinishida qaytaradi.
+
+    Bot javoblariga inline klaviatura biriktirilmaydi, shuning uchun tugma
+    matn ichida havola sifatida ko'rsatiladi.
+    """
+    if not isinstance(ad, dict):
+        return ""
+    btn_text = (ad.get("button_text") or "").strip()
+    btn_url = (ad.get("button_url") or "").strip()
+    if not btn_text or not btn_url:
+        return ""
+    return f' <a href="{html_escape(btn_url)}">{html_escape(btn_text)}</a>'
+
+
 def get_smart_reply_ad(user_id: int) -> str:
     """Sinxron variant (test/skript uchun). Handlerlarda
     ``get_smart_reply_ad_async`` ishlatiladi — u DB'ni event loopdan tashqarida
     o'qiydi. Rotatsiya pulidan navbatdagi reklamani oladi."""
-    ads = db.get_ads(db.AD_SCOPE_REPLY) or []
+    ads = db.get_ads_full(db.AD_SCOPE_REPLY) or []
     if ads:
-        ad_text = _next_ad_text(ads, db.AD_SCOPE_REPLY)
-    else:
-        # Orqaga moslik: eski bitta reklama sozlamasi.
-        ad_text = db.get_setting("bot_reply_ad_text", "").strip()
+        ad = _next_ad_full(ads, db.AD_SCOPE_REPLY)
+        return _format_reply_ad(user_id, ad["text"], ad_link_suffix(ad))
+    # Orqaga moslik: eski bitta reklama sozlamasi.
+    ad_text = db.get_setting("bot_reply_ad_text", "").strip()
     return _format_reply_ad(user_id, ad_text)
 
 
@@ -413,15 +589,15 @@ async def get_smart_reply_ad_async(user_id: int) -> str:
     """Reklama satri; DB o'qish alohida thread'da (event loop bloklanmaydi).
     Rotatsiya pulidan navbatdagi reklamani oladi; pul bo'sh bo'lsa eski
     ``bot_reply_ad_text`` sozlamasiga qaytadi."""
-    ads = (await db.run_db(db.get_ads, db.AD_SCOPE_REPLY)) or []
+    ads = (await db.run_db(db.get_ads_full, db.AD_SCOPE_REPLY)) or []
     if ads:
-        ad_text = _next_ad_text(ads, db.AD_SCOPE_REPLY)
-    else:
-        ad_text = (await db.run_db(db.get_setting, "bot_reply_ad_text", "")).strip()
+        ad = _next_ad_full(ads, db.AD_SCOPE_REPLY)
+        return _format_reply_ad(user_id, ad["text"], ad_link_suffix(ad))
+    ad_text = (await db.run_db(db.get_setting, "bot_reply_ad_text", "")).strip()
     return _format_reply_ad(user_id, ad_text)
 
 
-def _format_reply_ad(user_id: int, ad_text: str) -> str:
+def _format_reply_ad(user_id: int, ad_text: str, link_suffix: str = "") -> str:
     if not ad_text:
         return ""
 
@@ -433,7 +609,7 @@ def _format_reply_ad(user_id: int, ad_text: str) -> str:
         _USER_MSG_COUNT.clear()
 
     if count % 3 == 0:
-        return f"\n\n🏷 <i>({html_escape(ad_text)})</i>"
+        return f"\n\n🏷 <i>({html_escape(ad_text)})</i>{link_suffix}"
     return ""
 
 def html_escape(text) -> str:

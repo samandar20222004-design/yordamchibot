@@ -65,10 +65,26 @@ CREATE TABLE IF NOT EXISTS ad_pool (
     id SERIAL PRIMARY KEY,
     scope VARCHAR(20) NOT NULL,
     text TEXT NOT NULL,
+    button_text VARCHAR(64),
+    button_url TEXT,
     is_active BOOLEAN DEFAULT TRUE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_ad_pool_scope ON ad_pool (scope, is_active);
+
+-- Har bir kanal uchun yuborilgan postlar sanagichi. Reklama oralig'i
+-- (masalan har 3-, 4- yoki 5-postda) shu sanagich asosida hisoblanadi,
+-- shuning uchun kanallar bir-birining hisobiga ta'sir qilmaydi.
+CREATE TABLE IF NOT EXISTS channel_post_counters (
+    channel_id VARCHAR(255) PRIMARY KEY,
+    post_count INTEGER NOT NULL DEFAULT 0,
+    ad_count INTEGER NOT NULL DEFAULT 0,
+    last_ad_post_number INTEGER NOT NULL DEFAULT 0,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_channel_post_counters_updated
+    ON channel_post_counters (updated_at DESC);
 
 CREATE TABLE IF NOT EXISTS scheduled_posts (
     id SERIAL PRIMARY KEY,
@@ -177,6 +193,11 @@ ALTER TABLE sponsor_channels ADD COLUMN IF NOT EXISTS invite_link TEXT;
 ALTER TABLE sponsor_channels ADD COLUMN IF NOT EXISTS channel_title VARCHAR(255);
 ALTER TABLE sponsor_channels ADD COLUMN IF NOT EXISTS channel_url VARCHAR(255);
 ALTER TABLE sponsor_channels ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
+
+-- Reklama puli: HTML matn + inline URL tugma (tugma matni va havolasi).
+ALTER TABLE ad_pool ADD COLUMN IF NOT EXISTS button_text VARCHAR(64);
+ALTER TABLE ad_pool ADD COLUMN IF NOT EXISTS button_url TEXT;
+ALTER TABLE ad_pool ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
 
 -- --- INDEKSLAR (eng ko'p ishlatiladigan qidiruvlar uchun) ---
 -- users.user_id PRIMARY KEY bo'lgani uchun u yerda indeks avtomatik mavjud.
