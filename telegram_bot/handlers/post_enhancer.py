@@ -383,7 +383,8 @@ def _fresh_enh() -> dict:
         "step": "content", "post": None, "reactions": [], "buttons": [],
         "hub_msg_id": None, "btn_edit": None, "channels": [], "ch_idx": None,
         "btn_preset": None, "_btn_pending_idx": None, "sent_channel": "",
-        "preview_msg_id": None, "preview_type": None, "preview_extra_ids": [],
+        "success_msg_id": None, "preview_msg_id": None, "preview_type": None,
+        "preview_extra_ids": [],
     }
 
 
@@ -596,7 +597,10 @@ def _channel_view(context, watermark_note: str = "") -> tuple:
         rows.append([InlineKeyboardButton(
             f"…va yana {len(channels) - len(visible)} ta (kanal qo'shish bo'limi orqali tanlang)",
             callback_data="enh:noop")])
-    rows.append(nav_row("enh:screen:hub"))
+    # Post allaqachon yuborilgan bo'lsa, "Orqaga" muvaffaqiyat ekraniga qaytadi
+    # (editor hubga emas) — muvaffaqiyat xabari asosiy holat bo'lib qoladi.
+    back = "enh:screen:sent" if enh.get("sent_channel") else "enh:screen:hub"
+    rows.append(nav_row(back))
     return text, InlineKeyboardMarkup(rows[:MAX_KEYBOARD_ROWS])
 
 
@@ -673,6 +677,10 @@ async def _render(context, chat_id: int, target_msg=None, watermark_note: str = 
     Panelni o'chirib, oddiy yangi xabar sifatida yuborish uni doim eng pastga
     qo'yadi. ``target_msg`` faqat eski API bilan moslik uchun qoldirilgan —
     panel foydalanuvchi xabariga reply qilinmaydi.
+
+    ``success_msg_id`` — kanalga yuborilgandan keyingi muvaffaqiyat xabari.
+    U hech qachon panel sifatida O'CHIRILMAYDI: foydalanuvchi boshqa kanalga
+    yoki boshqa amalga o'tsa ham post yuklangani haqidagi tasdiq saqlanib qoladi.
     """
     enh = _payload(context)
     step = enh.get("step", "hub")
@@ -680,6 +688,10 @@ async def _render(context, chat_id: int, target_msg=None, watermark_note: str = 
     text, markup = view(context, watermark_note)
 
     old_id = enh.get("hub_msg_id")
+    if old_id and old_id == enh.get("success_msg_id"):
+        # Eski sessiyalarda muvaffaqiyat xabari hub_msg_id'da saqlanib qolgan
+        # bo'lishi mumkin — uni panel yangilashda o'chirmaymiz.
+        old_id = None
     if old_id:
         try:
             await context.bot.delete_message(chat_id=chat_id, message_id=old_id)
@@ -1000,6 +1012,17 @@ async def enh_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if action == "screen":
         await _answer(query)
+        if arg == "sent":
+            # Muvaffaqiyat xabari allaqachon saqlab qo'yilgan — faqat joriy
+            # pastki panelni yopamiz, yangi takroriy success xabari chiqarmaymiz.
+            old_id = enh.get("hub_msg_id")
+            if old_id and old_id != enh.get("success_msg_id"):
+                try:
+                    await context.bot.delete_message(chat_id=chat_id, message_id=old_id)
+                except Exception:
+                    pass
+            enh["hub_msg_id"] = None
+            return ENH_POST
         enh["step"] = arg if arg in _VIEWS else "hub"
         if enh["step"] == "channel":
             channels = await db.run_db(db.get_user_channels, user_id)
@@ -1055,8 +1078,11 @@ async def enh_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await _answer(query)
         # Post faqat foydalanuvchi Preview ni so'raganda chiqadi.
         await _send_preview(context, chat_id, enh, create=True)
-        enh["step"] = "hub"
-        await _render(context, chat_id, watermark_note=await _plan_note(user_id))
+        if not enh.get("sent_channel"):
+            enh["step"] = "hub"
+            await _render(context, chat_id, watermark_note=await _plan_note(user_id))
+        # Post yuborilgandan keyin biz muvaffaqiyat xabarini saqlaymiz: preview
+        # faqat uning ustiga chiqadi va success ekrani o'chirilmaydi.
         return ENH_POST
 
     if action == "replace":
@@ -1509,10 +1535,14 @@ async def _execute_send(update, context, query, enh):
     text, markup_done = _success_view(ch_title or "")
     try:
         await query.edit_message_text(text, reply_markup=markup_done, parse_mode="HTML")
-        enh["hub_msg_id"] = query.message.message_id
+        enh["success_msg_id"] = query.message.message_id
     except Exception:
-        await context.bot.send_message(chat_id=user_id, text=text, reply_markup=markup_done,
-                                       parse_mode="HTML")
+        # Muvaffaqiyat xabari alohida yuboriladi; eski panel hub_msg_id
+        # sifatida saqlanmaydi, shuning uchun keyingi ekranlar uni o'chirmaydi.
+        success = await context.bot.send_message(chat_id=user_id, text=text,
+                                                 reply_markup=markup_done, parse_mode="HTML")
+        enh["success_msg_id"] = getattr(success, "message_id", None)
+    enh["hub_msg_id"] = None
     return ENH_POST
 
 
