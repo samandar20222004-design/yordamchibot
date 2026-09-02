@@ -3246,8 +3246,9 @@ def test_post_enhancer_ux_overhaul():
 
     # --- 4b. Muvaffaqiyat ekrani ---
     stext, skb = pe._success_view("Mening Kanalim")
-    check("success: '✅ Post kanalingizga muvaffaqiyatli joylandi!'",
-          "✅ <b>Post kanalingizga muvaffaqiyatli joylandi!</b>" in stext, stext)
+    check("success: '✅ Post yuklandi!' va 'Post kanalingizga muvaffaqiyatli joylandi!'",
+          "✅ <b>Post yuklandi!</b>" in stext
+          and "Post kanalingizga muvaffaqiyatli joylandi!" in stext, stext)
     sflat = [b for row in skb.inline_keyboard for b in row]
     home = [b for b in sflat if b.callback_data == "enh:home"]
     check("success: [🏠 Asosiy menyu]", home and home[0].text == "🏠 Asosiy menyu",
@@ -3280,30 +3281,30 @@ def test_post_enhancer_batch_and_preview_runtime():
         check("runtime: '✅ Reaksiyalar saqlandi: 👍 ❤️ 🔥' javobi",
               msg.replies and "Reaksiyalar saqlandi:</b> 👍 ❤️ 🔥" in msg.replies[0],
               str(msg.replies))
-        previews = bot.sent_of("send_message")
-        check("runtime: prevyu darhol yuborildi",
-              len(previews) == 1 and enh["preview_msg_id"] is not None,
-              str([c[2][:20] for c in previews]))
-        prev_markup = previews[-1][3]
-        check("runtime: prevyu markup'ida reaksiyalar bor",
-              prev_markup is not None
-              and any(b.callback_data == "enh:noop" for row in prev_markup.inline_keyboard for b in row))
+        # Prevyu endi faqat foydalanuvchi "👁️ Prevyu" bosganda chiqadi.
+        panels = bot.sent_of("send_message")
+        check("runtime: prevyu darhol YUBORILMAYDI",
+              enh["preview_msg_id"] is None, str(enh.get("preview_msg_id")))
+        check("runtime: panel yangilandi (eski hub o'chirildi)",
+              any(c[0] == "delete_message" and c[2] == 555 for c in bot.calls)
+              and len(panels) == 1 and "Reaksiyalar" in (panels[0][2] or ""),
+              str([c[2][:30] for c in panels]))
         check("runtime: ekran react qadamida qoldi", enh["step"] == "react", enh["step"])
-        check("runtime: hub xabari tahrirlandi",
-              any(c[0] == "edit_message_text" and c[2] == 555 for c in bot.calls), str(bot.calls[-2:]))
 
-        # 2) Ikkinchi marta — prevyu YANGI xabar emas, tahrirlanadi (doimiy prevyu)
+        # 2) Ikkinchi marta — prevyu hali ham yuborilmaydi; faqat panel yangilanadi
         before = len(bot.sent_of("send_message"))
         first_preview_id = enh["preview_msg_id"]
+        old_hub_id = enh["hub_msg_id"]
         msg2 = _FakeMsg(2, chat, text="👏 🎉")
         await pe._emoji_text_step(None, ctx, msg2, enh, chat)
         check("runtime: 5 ta reaksiya bo'ldi", enh["reactions"] == ["👍", "❤️", "🔥", "👏", "🎉"],
               str(enh["reactions"]))
-        check("runtime: yangi prevyu xabari YUBORILMADI (tahrirlandi)",
-              len(bot.sent_of("send_message")) == before, str(len(bot.sent_of("send_message"))))
-        check("runtime: prevyu id o'zgarmadi", enh["preview_msg_id"] == first_preview_id)
-        check("runtime: prevyu caption/text tahrirlandi",
-              any(c[0] == "edit_message_text" and c[2] == first_preview_id for c in bot.calls))
+        check("runtime: yangi prevyu xabari YUBORILMADI",
+              enh["preview_msg_id"] == first_preview_id == None, str(enh["preview_msg_id"]))
+        check("runtime: panel qayta render qilinadi",
+              len(bot.sent_of("send_message")) == before + 1
+              and any(c[0] == "delete_message" and c[2] == old_hub_id for c in bot.calls),
+              str((len(bot.sent_of("send_message")), old_hub_id)))
 
         # 3) Takroriy emoji — hisobga olinmaydi
         msg3 = _FakeMsg(3, chat, text="👍 👍")
@@ -3405,6 +3406,51 @@ def test_post_enhancer_channel_dispatch():
               and any(b.text == "🏠 Asosiy menyu"
                       for row in query.edits[0][1].inline_keyboard for b in row),
               str(query.edits[:1]))
+
+        # --- Muvaffaqiyat xabari SAQLANIB QOLADI: boshqa kanalga o'tish ---
+        check("dispatch: success msg hub_msg_id'da emas",
+              enh["success_msg_id"] == 900 and enh["hub_msg_id"] is None,
+              str((enh["success_msg_id"], enh["hub_msg_id"])))
+        ctx_free = _FakeCtx(bot, {"enh": enh})
+
+        class _Upd:
+            def __init__(self, query):
+                self.callback_query = query
+
+        def _tap(data, msg_id=900):
+            return _Upd(_FakeQuery(data, _FakeMsg(msg_id, 111), uid=424242))
+
+        orig = db_mod.run_db
+        db_mod.run_db = _fake_db()
+        try:
+            await pe.enh_callback(_tap("enh:screen:channel"), ctx_free)
+        finally:
+            db_mod.run_db = orig
+        deleted = [c[2] for c in bot.calls if c[0] == "delete_message"]
+        check("dispatch: success xabari o'chirilmaydi (900)",
+              900 not in deleted, str((enh["hub_msg_id"], deleted)))
+        channel_msgs = [c for c in bot.sent_of("send_message")
+                        if "Qaysi kanalga" in (c[2] or "")]
+        check("dispatch: boshqa kanal paneli success ostida ochiladi",
+              len(channel_msgs) == 1, str([c[2][:30] for c in channel_msgs]))
+        channel_panel_id = enh["hub_msg_id"]
+        check("dispatch: orqaga tugmasi success ekraniga qaytaradi",
+              channel_panel_id is not None and enh.get("sent_channel") == "Mening Kanalim",
+              str((channel_panel_id, enh.get("sent_channel"))))
+        # "Orqaga" success ekraniga qaytaradi — success o'chirilmaydi,
+        # takroriy success xabari ham chiqmaydi.
+        before = len(bot.sent_of("send_message"))
+        orig = db_mod.run_db
+        db_mod.run_db = _fake_db()
+        try:
+            await pe.enh_callback(_tap("enh:screen:sent"), ctx_free)
+        finally:
+            db_mod.run_db = orig
+        deleted2 = [c[2] for c in bot.calls if c[0] == "delete_message"]
+        check("dispatch: orqaga — success xabari saqlanadi",
+              900 not in deleted2, str(deleted2))
+        check("dispatch: orqaga — yangi success xabari YUBORILMAYDI",
+              len(bot.sent_of("send_message")) == before, str(len(bot.sent_of("send_message"))))
 
         # --- PRO foydalanuvchi: post TOZA chiqadi ---
         bot2, _, _, sink2, _ = await send_once(premium=True, uid=424301)
