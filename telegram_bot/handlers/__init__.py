@@ -419,7 +419,7 @@ def register_all_handlers(app):
             CallbackQueryHandler(add_channel_inline_entry, pattern=r"^add_channel_start$"),
             CallbackQueryHandler(converter_inline_entry, pattern=r"^extra_converter$"),
             CallbackQueryHandler(quick_button_post_start, pattern=r"^extra_quick_btn$"),
-            # 🛠 Post kuchaytirgich — ⚙️ Qo'shimcha funksiyalar menyusidan
+            # ✨ Postga Tugma & Reaksiya qo'shish — ⚙️ Qo'shimcha funksiyalar menyusidan
             CallbackQueryHandler(post_enhancer_start, pattern=r"^extra_enhancer$"),
             # ✨ AI Studio inline entry'lar — sessiya tugagach eski tugma bossa ham
             # conversation qayta ochiladi (menu xabari o'chirilmaydi, edit qilinadi)
@@ -458,7 +458,7 @@ def register_all_handlers(app):
                 MessageHandler(filters.ALL & ~filters.COMMAND, content_received),
             ],
 
-            # 2b. 🛠 Post kuchaytirgich: post qabul qilish + inline ekranlar
+            # 2b. ✨ Postga Tugma & Reaksiya qo'shish: post qabul qilish + inline ekranlar
             # (reaksiya/tugma/kanal/tasdiq) — bitta holat, qadamlar user_data'da.
             ENH_POST: all_menu_jumps + [
                 CallbackQueryHandler(enh_callback, pattern=r"^enh:"),
@@ -680,7 +680,7 @@ def register_all_handlers(app):
     app.add_handler(CallbackQueryHandler(ai_close, pattern=r"^ai_close$"))
     app.add_handler(CallbackQueryHandler(cabinet_callback, pattern=r"^cab_|^close_cabinet"))
     app.add_handler(CallbackQueryHandler(extras_close_callback, pattern=r"^extra_close$"))
-    # 🛠 Post kuchaytirgich: sessiya tugagach eski prevyu/hub tugmalari bosilsa —
+    # ✨ Postga Tugma & Reaksiya: sessiya tugagach eski prevyu/hub tugmalari bosilsa —
     # xabarni buzmasdan jim javob (edit qilinmaydi).
     app.add_handler(CallbackQueryHandler(enh_stale_callback, pattern=r"^enh:"))
     app.add_handler(ChatMemberHandler(on_bot_chat_member_update, ChatMemberHandler.MY_CHAT_MEMBER))

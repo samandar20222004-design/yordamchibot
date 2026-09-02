@@ -1063,7 +1063,7 @@ def test_main_menu_layout_v2():
 
     ex = [[(b.text, b.callback_data) for b in row] for row in get_extras_inline_keyboard().inline_keyboard]
     check("extras: 4 qator", len(ex) == 4, str(ex))
-    check("extras: post kuchaytirgich", ex[0][0] == ("🛠 Post kuchaytirgich (Reaksiya + Tugmalar)", "extra_enhancer"), str(ex[0]))
+    check("extras: post kuchaytirgich", ex[0][0] == ("✨ Postga Tugma & Reaksiya qo'shish", "extra_enhancer"), str(ex[0]))
     check("extras: konvertor", ex[1][0] == ("🔤 Krill-Lotin konvertor", "extra_converter"), str(ex[1]))
     check("extras: tezkor tugmali post", ex[2][0] == ("🔗 Tezkor tugmali post", "extra_quick_btn"), str(ex[2]))
     check("extras: yopish", ex[3][0] == ("❌ Yopish", "extra_close"), str(ex[3]))
@@ -2813,8 +2813,8 @@ def test_admin_dashboard_layout_suite():
 
 
 def test_post_enhancer_flow():
-    """🛠 Post kuchaytirgich: keyboard, parser, layout va handler registratsiyasi."""
-    print("== post enhancer (🛠 Qo'shimcha funksiyalar overhaul) ==")
+    """✨ Postga Tugma & Reaksiya: keyboard, parser, layout va handler registratsiyasi."""
+    print("== post enhancer (✨ Qo'shimcha funksiyalar) ==")
     import handlers.post_enhancer as pe
     import handlers as h_mod
     from keyboards.inline import get_extras_inline_keyboard, extract_emoji_tokens, REACTION_POOL
@@ -2884,7 +2884,7 @@ def test_post_enhancer_flow():
 
 
 def test_post_enhancer_text_and_channels():
-    """🛠 Post kuchaytirgich: safar matnini tayyorlash (watermark/reklama/limit)."""
+    """✨ Postga Tugma & Reaksiya: safar matnini tayyorlash (watermark/reklama/limit)."""
     print("== post enhancer text & channel view ==")
     import handlers.post_enhancer as pe
     from telegram import InlineKeyboardMarkup
@@ -2914,6 +2914,628 @@ def test_post_enhancer_text_and_channels():
     check("markup: bo'sh → None", pe.build_enhancer_markup([], []) is None)
     m = pe.build_enhancer_markup([{"text": "X", "url": "https://x.uz"}], ["👍"], post_id=3)
     check("markup: InlineKeyboardMarkup", isinstance(m, InlineKeyboardMarkup))
+
+
+# ============================================================
+# ✨ POST ENHANCER — UX OVERHAUL (sinfli soxta ob'ektlar bilan)
+# ============================================================
+
+class _FakeMsg:
+    """Telegram Message o'rnini bosuvchi minimal ob'ekt."""
+
+    def __init__(self, message_id=1, chat_id=111, text=None, caption=None):
+        self.message_id = message_id
+        self.chat_id = chat_id
+        self.text = text
+        self.caption = caption
+        self.replies = []
+
+    async def delete(self, **kw):
+        bot = _FakeMsg.registry.get("bot")
+        if bot is not None:
+            bot._rec("delete_message", self.chat_id, self.message_id, None, None)
+        return True
+
+    async def reply_text(self, text, reply_markup=None, parse_mode=None, **kw):
+        """Javob xabari — bot.send_message'dan ALOHIDA yoziladi (hisob aniq bo'lishi uchun)."""
+        self.replies.append(text)
+        bot = _FakeMsg.registry.get("bot")
+        if bot is not None:
+            bot._rec("reply_text", self.chat_id, text, reply_markup)
+            return bot._next()
+        return _FakeMsg(2)
+
+
+class _FakeBot:
+    """context.bot o'rnini bosadi — barcha chaqiruvlar yozib boriladi."""
+
+    def __init__(self):
+        self.calls = []
+        self._mid = 1000
+        _FakeMsg.registry = {"bot": self}
+
+    def _next(self):
+        self._mid += 1
+        return _FakeMsg(self._mid)
+
+    def _rec(self, kind, *args):
+        self.calls.append((kind,) + args)
+
+    def sent_of(self, kind):
+        return [c for c in self.calls if c[0] == kind]
+
+    async def send_message(self, chat_id, text, reply_markup=None, parse_mode=None, **kw):
+        self._rec("send_message", chat_id, text, reply_markup)
+        return self._next()
+
+    async def send_photo(self, chat_id, photo, caption=None, reply_markup=None, parse_mode=None, **kw):
+        self._rec("send_photo", chat_id, caption, reply_markup)
+        return self._next()
+
+    async def send_video(self, chat_id, video, caption=None, reply_markup=None, parse_mode=None, **kw):
+        self._rec("send_video", chat_id, caption, reply_markup)
+        return self._next()
+
+    async def send_animation(self, chat_id, animation, caption=None, reply_markup=None, parse_mode=None, **kw):
+        self._rec("send_animation", chat_id, caption, reply_markup)
+        return self._next()
+
+    async def send_document(self, chat_id, document, caption=None, reply_markup=None, parse_mode=None, **kw):
+        self._rec("send_document", chat_id, caption, reply_markup)
+        return self._next()
+
+    async def send_audio(self, chat_id, audio, caption=None, reply_markup=None, parse_mode=None, **kw):
+        self._rec("send_audio", chat_id, caption, reply_markup)
+        return self._next()
+
+    async def send_voice(self, chat_id, voice, caption=None, reply_markup=None, parse_mode=None, **kw):
+        self._rec("send_voice", chat_id, caption, reply_markup)
+        return self._next()
+
+    async def send_sticker(self, chat_id, sticker, **kw):
+        self._rec("send_sticker", chat_id, sticker, None)
+        return self._next()
+
+    async def send_media_group(self, chat_id, media, **kw):
+        self._rec("send_media_group", chat_id, media, None)
+        return [self._next(), self._next()]
+
+    async def edit_message_text(self, chat_id=None, message_id=None, text=None,
+                                reply_markup=None, parse_mode=None, **kw):
+        self._rec("edit_message_text", chat_id, message_id, text, reply_markup)
+        return True
+
+    async def edit_message_caption(self, chat_id=None, message_id=None, caption=None,
+                                   reply_markup=None, parse_mode=None, **kw):
+        self._rec("edit_message_caption", chat_id, message_id, caption, reply_markup)
+        return True
+
+    async def delete_message(self, chat_id, message_id, **kw):
+        self._rec("delete_message", chat_id, message_id, None, None)
+        return True
+
+
+class _FakeCtx:
+    def __init__(self, bot, user_data=None):
+        self.bot = bot
+        self.user_data = user_data if user_data is not None else {}
+
+
+class _FakeUser:
+    def __init__(self, uid):
+        self.id = uid
+
+
+class _FakeQuery:
+    def __init__(self, data, message, uid=4242):
+        self.data = data
+        self.message = message
+        self.from_user = _FakeUser(uid)
+        self.answers = []
+        self.edits = []
+
+    async def answer(self, text=None, show_alert=False):
+        self.answers.append((text, show_alert))
+
+    async def edit_message_text(self, text, reply_markup=None, parse_mode=None, **kw):
+        self.edits.append((text, reply_markup))
+        return True
+
+
+def _fake_db(premium=False, ad_free=False, sink=None):
+    """database.run_db o'rnini bosuvchi async funksiya."""
+    async def _run_db(func, *args, **kwargs):
+        name = getattr(func, "__name__", str(func))
+        if sink is not None:
+            sink.append((name, args, kwargs))
+        if name == "get_user_channels":
+            return [("-1001234567890", "Mening Kanalim")]
+        if name == "peek_ad_free_post":
+            return ad_free
+        if name == "is_premium":
+            return premium
+        if name == "get_ads":
+            return []
+        if name == "get_setting":
+            return args[1] if len(args) > 1 else ""
+        if name == "add_post":
+            return 777
+        if name in ("mark_post_as_sent", "mark_post_status", "consume_ad_free_post"):
+            return None
+        raise AssertionError(f"kutilmagan db chaqiruvi: {name}")
+    return _run_db
+
+
+def test_post_enhancer_ux_overhaul():
+    """✨ UX overhaul: admin eslatmasi, batch reaksiya, URL shablonlar, ekranlar."""
+    print("== post enhancer UX overhaul (notice / batch / presets / screens) ==")
+    import handlers.post_enhancer as pe
+    from keyboards.inline import get_extras_inline_keyboard
+
+    class _Ctx:
+        def __init__(self, data):
+            self.user_data = data
+
+    # --- 1. Kirishda darhol admin eslatmasi ---
+    intro = pe.intro_text()
+    check("intro: eslatma ENG BIRINCHI keladi", intro.startswith("💡 <b>Eslatma:</b>"), intro[:40])
+    check("intro: Admin talabi aytiladi", "Admin" in intro and "kanalingizga" in intro)
+    check("intro: post so'raladi",
+          "Kanalga joylamoqchi bo'lgan postingizni yuboring" in intro, intro)
+    check("intro: Matn/Rasm/Video/Forward sanab o'tiladi",
+          all(w in intro for w in ("Matn", "Rasm", "Video", "Forward")), intro)
+    check("intro: eslatma post so'rovidan OLDIN",
+          intro.index("Eslatma:") < intro.index("Kanalga joylamoqchi"))
+    check("ADMIN_NOTICE konstanta", pe.ADMIN_NOTICE.startswith("💡") and "Admin" in pe.ADMIN_NOTICE)
+    ex = [[(b.text, b.callback_data) for b in row]
+          for row in get_extras_inline_keyboard().inline_keyboard]
+    check("extras menyu yozuvi yangilandi",
+          ex[0][0] == ("✨ Postga Tugma & Reaksiya qo'shish", "extra_enhancer"), str(ex[0]))
+
+    # --- 2. Reaksiyalarni probel bilan BATCH kiritish ---
+    r = pe.apply_reaction_batch([], "👍 ❤️ 🔥 👏 🎉")
+    check("batch: 5 emoji ajratildi",
+          r["tokens"] == ["👍", "❤️", "🔥", "👏", "🎉"], str(r["tokens"]))
+    check("batch: barchasi qo'shildi", r["added"] == 5 and len(r["reactions"]) == 5, str(r))
+    check("batch: takror/chegara bo'sh", not r["duplicates"] and not r["overflow"])
+
+    r2 = pe.apply_reaction_batch(["👍", "❤️"], "👍 🔥 ❤️")
+    check("batch: takrorlar qo'shilmaydi",
+          r2["reactions"] == ["👍", "❤️", "🔥"] and r2["added"] == 1, str(r2))
+    check("batch: duplicates qaytariladi", r2["duplicates"] == ["👍", "❤️"], str(r2["duplicates"]))
+
+    r3 = pe.apply_reaction_batch(["👍", "❤️"], "🔥 😍 💯", max_count=3)
+    check("batch: chegara → overflow hisoboti",
+          r3["reactions"] == ["👍", "❤️", "🔥"] and r3["overflow"] == ["😍", "💯"], str(r3))
+
+    r4 = pe.apply_reaction_batch([], "Salom! Bugun 👍 kun")
+    check("batch: aralash matndan faqat emoji", r4["tokens"] == ["👍"], str(r4["tokens"]))
+
+    r5 = pe.apply_reaction_batch(["❤️"], "❤")
+    check("batch: VS16 farqi yo'q (❤ == ❤️)",
+          r5["added"] == 0 and r5["reactions"] == ["❤️"], str(r5))
+
+    r6 = pe.apply_reaction_batch([], "salom dunyo")
+    check("batch: emoji yo'q → bo'sh", r6["tokens"] == [] and r6["added"] == 0)
+
+    lst, n = pe.add_unique_emoji(["❤️"], ["❤", "🔥"], max_count=10)
+    check("add_unique_emoji: VS16 dedup", lst == ["❤️", "🔥"] and n == 1, str((lst, n)))
+
+    # --- 2b. Reaksiya ekrani: davom/orqaga/bekor tugmalari ---
+    enh = {**pe._fresh_enh(), "step": "react",
+           "post": {"type": "text", "file_id": None, "content": "Salom"},
+           "reactions": ["👍", "❤️"]}
+    rtext, rkb = pe._react_view(_Ctx({"enh": enh}))
+    rflat = [b for row in rkb.inline_keyboard for b in row]
+    check("react: <=10 qator", len(rkb.inline_keyboard) <= 10, str(len(rkb.inline_keyboard)))
+    done = [b for b in rflat if b.callback_data == "enh:react:done"]
+    check("react: [➡️ Davom etish / URL tugmaga o'tish]",
+          done and "Davom etish / URL tugmaga o'tish" in done[0].text, str([b.text for b in done]))
+    check("react: [⬅️ Orqaga]", any((b.text or "").startswith("⬅️") for b in rflat))
+    check("react: [❌ Bekor qilish]", any(b.callback_data == "enh:cancel" for b in rflat))
+    check("react: tanlangan emoji ✅ bilan", any(b.text == "👍 ✅" for b in rflat),
+          str([b.text for b in rflat][:6]))
+    check("react: batch kiritish maslahati", "probel bilan" in rtext, rtext[:120])
+
+    # --- 3. URL tugma shablonlari (3 ta tayyor + qo'lda kiritish) ---
+    check("presets: 3 ta shablon", len(pe.URL_PRESETS) == 3, str(pe.URL_PRESETS))
+    titles = [f"{p['icon']} {p['num']}. {p['title']}" for p in pe.URL_PRESETS]
+    check("preset 1", titles[0] == "📢 1. Kanalga a'zo bo'lish", str(titles))
+    check("preset 2", titles[1] == "💬 2. Guruhga qo'shilish", str(titles))
+    check("preset 3", titles[2] == "🤖 3. Botga o'tish", str(titles))
+    check("get_url_preset: str indeks", pe.get_url_preset("1")["id"] == "join_group")
+    check("get_url_preset: tashqari indeks → None", pe.get_url_preset(9) is None)
+    check("get_url_preset: harf → None", pe.get_url_preset("x") is None)
+
+    b1 = pe.build_preset_button(0, "@kanalim")
+    check("preset btn: @username → t.me",
+          b1 == {"text": "📢 Kanalga a'zo bo'lish", "url": "https://t.me/kanalim"}, str(b1))
+    b2 = pe.build_preset_button(1, "https://t.me/guruhim")
+    check("preset btn: to'liq URL",
+          b2 == {"text": "💬 Guruhga qo'shilish", "url": "https://t.me/guruhim"}, str(b2))
+    b3 = pe.build_preset_button(2, "t.me/bot_ismi/start")
+    check("preset btn: t.me/... prefiksi", b3 and b3["url"] == "https://t.me/bot_ismi/start", str(b3))
+    check("preset btn: yaroqsiz havola → None", pe.build_preset_button(2, "salom") is None)
+    check("preset btn: yo'q shablon → None", pe.build_preset_button(7, "https://t.me/x") is None)
+
+    check("input: shablon + havola",
+          pe.parse_button_input("https://t.me/kanalim", 0) ==
+          {"text": "📢 Kanalga a'zo bo'lish", "url": "https://t.me/kanalim"})
+    check("input: shablon rejimida to'liq format ustun",
+          pe.parse_button_input("Bizning sayt - https://sayt.uz", 0) ==
+          {"text": "Bizning sayt", "url": "https://sayt.uz"})
+    check("input: qo'lda 'Nom - url'",
+          pe.parse_button_input("Tugma nomi - https://havola.uz") ==
+          {"text": "Tugma nomi", "url": "https://havola.uz"})
+    check("input: qo'lda 'Nom | @kanalim'",
+          pe.parse_button_input("Tugma nomi | @kanalim") ==
+          {"text": "Tugma nomi", "url": "https://t.me/kanalim"})
+    check("input: yaroqsiz matn → None", pe.parse_button_input("bu havola emas") is None)
+    check("input: uzun yozuv 64 belgiga kesiladi",
+          len(pe.parse_button_input("X" * 90 + " - https://a.uz")["text"]) <= pe.BTN_TEXT_MAX)
+    check("input: 256+ URL rad etiladi",
+          pe.parse_button_input("T - https://a.uz/" + "p" * 300) is None)
+
+    # --- 3b. URL tugmalar ekrani ---
+    enh2 = {**pe._fresh_enh(), "step": "btns",
+            "post": {"type": "text", "file_id": None, "content": "Post"},
+            "buttons": [{"text": "📢 Kanalga a'zo bo'lish", "url": "https://t.me/kanalim"}]}
+    btext, bkb = pe._btns_view(_Ctx({"enh": enh2}))
+    bflat = [b for row in bkb.inline_keyboard for b in row]
+    preset_cbs = sorted(b.callback_data for b in bflat
+                        if (b.callback_data or "").startswith("enh:preset:"))
+    check("btns: 3 ta shablon tugmasi",
+          preset_cbs == ["enh:preset:0", "enh:preset:1", "enh:preset:2"], str(preset_cbs))
+    check("btns: shablon yozuvlari ko'rinadi",
+          any(b.text == "📢 1. Kanalga a'zo bo'lish" for b in bflat))
+    check("btns: qo'lda kiritish varianti",
+          any("Qo'lda kiritish" in (b.text or "") and b.callback_data == "enh:btn:manual"
+              for b in bflat))
+    check("btns: '➕ Yangi tugma' shablon ekranini ochadi",
+          any(b.callback_data == "enh:btn:add" for b in bflat))
+    cont = [b for b in bflat if b.callback_data == "enh:screen:channel"]
+    check("btns: [➡️ Tasdiqlash va Kanalga yuborish]",
+          cont and "Tasdiqlash va Kanalga yuborish" in cont[0].text, str([b.text for b in cont]))
+    check("btns: Orqaga/Bekor qatori",
+          any(b.callback_data == "enh:cancel" for b in bflat)
+          and any((b.text or "").startswith("⬅️") for b in bflat))
+
+    over_rows = True
+    for cnt in range(0, 11):
+        e = {**pe._fresh_enh(), "step": "btns",
+             "post": {"type": "text", "file_id": None, "content": "P"},
+             "buttons": [{"text": f"T{i}", "url": f"https://a.uz/{i}"} for i in range(cnt)]}
+        _, k = pe._btns_view(_Ctx({"enh": e}))
+        if len(k.inline_keyboard) > 10:
+            over_rows = False
+    check("btns: 0..10 tugmada ham <=10 qator", over_rows)
+
+    _, akb = pe._btn_add_view(_Ctx({"enh": {**pe._fresh_enh(), "step": "btn_add"}}))
+    arows = akb.inline_keyboard
+    check("btn_add: 3 shablon alohida qatorlarda",
+          [r[0].callback_data for r in arows[:3]] == ["enh:preset:0", "enh:preset:1", "enh:preset:2"],
+          str([[b.callback_data for b in r] for r in arows]))
+    check("btn_add: qo'lda kiritish qatori", arows[3][0].callback_data == "enh:btn:manual")
+    check("btn_add: orqaga/bekor",
+          arows[-1][0].callback_data == "enh:screen:btns" and arows[-1][1].callback_data == "enh:cancel")
+
+    # --- 4. Kanal tanlash + tasdiqlash ---
+    enh4 = {**pe._fresh_enh(), "step": "channel",
+            "channels": [("-1001", "Birinchi"), ("-1002", "Ikkinchi")]}
+    ctext, ckb = pe._channel_view(_Ctx({"enh": enh4}))
+    cflat = [b for row in ckb.inline_keyboard for b in row]
+    check("channel: har kanal uchun tugma",
+          len([b for b in cflat if (b.callback_data or "").startswith("enh:send:")]) == 2)
+    check("channel: admin eslatmasi eslatiladi", "Admin" in ctext, ctext[:80])
+    check("channel: Orqaga/Bekor qatori", any(b.callback_data == "enh:cancel" for b in cflat))
+
+    enh5 = {**enh4, "step": "confirm", "ch_idx": 0,
+            "post": {"type": "photo", "file_id": "F", "content": "Salom"},
+            "reactions": ["👍"], "buttons": [{"text": "Kanal", "url": "https://t.me/x"}]}
+    qtext, qkb = pe._confirm_view(_Ctx({"enh": enh5}))
+    check("confirm: 'Ushbu post ...ga yuborilsinmi?'",
+          "Ushbu post <b>Birinchi</b>ga yuborilsinmi?" in qtext, qtext)
+    qflat = [b for row in qkb.inline_keyboard for b in row]
+    yes = [b for b in qflat if b.callback_data == "enh:confirm_send"]
+    check("confirm: [✅ Ha, yuborilsin]", yes and yes[0].text == "✅ Ha, yuborilsin",
+          str([b.text for b in yes]))
+    check("confirm: [❌ Bekor qilish]", any(b.callback_data == "enh:cancel" for b in qflat))
+    check("confirm: prevyu tugmasi", any(b.callback_data == "enh:preview" for b in qflat))
+    btext2, _ = pe._confirm_view(_Ctx({"enh": {**enh5, "ch_idx": None}}))
+    check("confirm: kanal tanlanmasa crash yo'q", "tanlanmagan" in btext2.lower(), btext2)
+
+    # --- 4b. Muvaffaqiyat ekrani ---
+    stext, skb = pe._success_view("Mening Kanalim")
+    check("success: '✅ Post kanalingizga muvaffaqiyatli joylandi!'",
+          "✅ <b>Post kanalingizga muvaffaqiyatli joylandi!</b>" in stext, stext)
+    sflat = [b for row in skb.inline_keyboard for b in row]
+    home = [b for b in sflat if b.callback_data == "enh:home"]
+    check("success: [🏠 Asosiy menyu]", home and home[0].text == "🏠 Asosiy menyu",
+          str([b.text for b in sflat]))
+    sv = pe._sent_view(_Ctx({"enh": {**pe._fresh_enh(), "sent_channel": "Kanal X"}}))
+    check("sent view: kanal nomi bilan", "Kanal X" in sv[0], sv[0])
+
+
+def test_post_enhancer_batch_and_preview_runtime():
+    """✨ Reaksiya batch kiritish + tugma shabloni + doimiy prevyu (runtime)."""
+    print("== post enhancer runtime (batch input, preset button, live preview) ==")
+    import asyncio
+    import handlers.post_enhancer as pe
+    import database as db_mod
+
+    async def run():
+        bot = _FakeBot()
+        ctx = _FakeCtx(bot, {})
+        enh = {**pe._fresh_enh(), "step": "react", "hub_msg_id": 555,
+               "post": {"type": "text", "file_id": None, "content": "Salom dunyo"},
+               "reactions": [], "buttons": []}
+        ctx.user_data["enh"] = enh
+        chat = 111
+
+        # 1) Batch reaksiya kiritish
+        msg = _FakeMsg(1, chat, text="👍 ❤️ 🔥")
+        await pe._emoji_text_step(None, ctx, msg, enh, chat)
+        check("runtime: reaksiyalar saqlandi", enh["reactions"] == ["👍", "❤️", "🔥"],
+              str(enh["reactions"]))
+        check("runtime: '✅ Reaksiyalar saqlandi: 👍 ❤️ 🔥' javobi",
+              msg.replies and "Reaksiyalar saqlandi:</b> 👍 ❤️ 🔥" in msg.replies[0],
+              str(msg.replies))
+        previews = bot.sent_of("send_message")
+        check("runtime: prevyu darhol yuborildi",
+              len(previews) == 1 and enh["preview_msg_id"] is not None,
+              str([c[2][:20] for c in previews]))
+        prev_markup = previews[-1][3]
+        check("runtime: prevyu markup'ida reaksiyalar bor",
+              prev_markup is not None
+              and any(b.callback_data == "enh:noop" for row in prev_markup.inline_keyboard for b in row))
+        check("runtime: ekran react qadamida qoldi", enh["step"] == "react", enh["step"])
+        check("runtime: hub xabari tahrirlandi",
+              any(c[0] == "edit_message_text" and c[2] == 555 for c in bot.calls), str(bot.calls[-2:]))
+
+        # 2) Ikkinchi marta — prevyu YANGI xabar emas, tahrirlanadi (doimiy prevyu)
+        before = len(bot.sent_of("send_message"))
+        first_preview_id = enh["preview_msg_id"]
+        msg2 = _FakeMsg(2, chat, text="👏 🎉")
+        await pe._emoji_text_step(None, ctx, msg2, enh, chat)
+        check("runtime: 5 ta reaksiya bo'ldi", enh["reactions"] == ["👍", "❤️", "🔥", "👏", "🎉"],
+              str(enh["reactions"]))
+        check("runtime: yangi prevyu xabari YUBORILMADI (tahrirlandi)",
+              len(bot.sent_of("send_message")) == before, str(len(bot.sent_of("send_message"))))
+        check("runtime: prevyu id o'zgarmadi", enh["preview_msg_id"] == first_preview_id)
+        check("runtime: prevyu caption/text tahrirlandi",
+              any(c[0] == "edit_message_text" and c[2] == first_preview_id for c in bot.calls))
+
+        # 3) Takroriy emoji — hisobga olinmaydi
+        msg3 = _FakeMsg(3, chat, text="👍 👍")
+        await pe._emoji_text_step(None, ctx, msg3, enh, chat)
+        check("runtime: takror emoji qo'shilmadi", len(enh["reactions"]) == 5, str(enh["reactions"]))
+        check("runtime: takror haqida xabar",
+              msg3.replies and "allaqachon tanlangan" in msg3.replies[0], str(msg3.replies))
+
+        # 4) URL tugma — tayyor shablon (faqat havola yuboriladi)
+        enh["step"] = "btn_input"
+        enh["btn_preset"] = 0
+        msg4 = _FakeMsg(4, chat, text="@kanalim")
+        await pe._button_text_step(None, ctx, msg4, enh, chat)
+        check("runtime: shablon tugmasi saqlandi",
+              enh["buttons"] == [{"text": "📢 Kanalga a'zo bo'lish", "url": "https://t.me/kanalim"}],
+              str(enh["buttons"]))
+        check("runtime: shablon rejimi tozalandi", enh["btn_preset"] is None)
+        check("runtime: 'Tugma saqlandi' javobi",
+              msg4.replies and "Tugma saqlandi" in msg4.replies[0], str(msg4.replies))
+        check("runtime: tugma qadamiga qaytdi", enh["step"] == "btns", enh["step"])
+
+        # 5) Yaroqsiz havola — shablon saqlanmaydi
+        enh["step"] = "btn_input"
+        enh["btn_preset"] = 2
+        msg5 = _FakeMsg(5, chat, text="bu havola emas")
+        await pe._button_text_step(None, ctx, msg5, enh, chat)
+        check("runtime: yaroqsiz havola rad etildi", len(enh["buttons"]) == 1, str(enh["buttons"]))
+        check("runtime: xato maslahati ko'rsatildi",
+              msg5.replies and "Havola noto'g'ri" in msg5.replies[0], str(msg5.replies))
+        check("runtime: shablon rejimi saqlanadi (qayta urinish)", enh["btn_preset"] == 2)
+
+    orig = db_mod.run_db
+    db_mod.run_db = _fake_db()
+    try:
+        asyncio.run(run())
+    finally:
+        db_mod.run_db = orig
+
+
+def test_post_enhancer_channel_dispatch():
+    """🚀 Kanalga yuborish: free watermark, PRO/admin toza, markup va tasdiq."""
+    print("== post enhancer channel dispatch (free vs pro/admin) ==")
+    import asyncio
+    import handlers.post_enhancer as pe
+    import database as db_mod
+
+    async def send_once(premium=False, admin=False, ad_free=False, uid=424242):
+        bot = _FakeBot()
+        if admin:
+            uid = 123456789  # test muhitidagi ADMIN_ID
+        ctx = _FakeCtx(bot, {})
+        enh = {
+            **pe._fresh_enh(), "step": "confirm", "ch_idx": 0,
+            "channels": [("-1001234567890", "Mening Kanalim")],
+            "post": {"type": "text", "file_id": None, "content": "Asl post matni"},
+            "reactions": ["👍", "🔥"],
+            "buttons": [{"text": "📢 Kanalga a'zo bo'lish", "url": "https://t.me/kanalim"}],
+        }
+        ctx.user_data["enh"] = enh
+        msg = _FakeMsg(900, 111)
+        query = _FakeQuery("enh:confirm_send", msg, uid=uid)
+        sink = []
+        orig = db_mod.run_db
+        db_mod.run_db = _fake_db(premium=premium, ad_free=ad_free, sink=sink)
+        try:
+            out = await pe._execute_send(None, ctx, query, enh)
+        finally:
+            db_mod.run_db = orig
+        return bot, query, enh, sink, out
+
+    async def run():
+        # --- Bepul foydalanuvchi: @PostAssistrobot belgisi SAQLANADI ---
+        bot, query, enh, sink, out = await send_once(premium=False)
+        check("dispatch: ENH_POST holatida qoldi", out == pe.ENH_POST, str(out))
+        sent = bot.sent_of("send_message")
+        check("dispatch: kanalga xabar yuborildi", len(sent) == 1, str([c[1] for c in sent]))
+        chat_id, text, markup = sent[0][1], sent[0][2], sent[0][3]
+        check("dispatch: to'g'ri kanalga (-1001234567890)", chat_id == -1001234567890, str(chat_id))
+        check("dispatch: free → @PostAssistrobot belgisi bor",
+              text.startswith("@PostAssistrobot"), text)
+        check("dispatch: asl matn buzilmadi", "Asl post matni" in text, text)
+        flat = [b for row in markup.inline_keyboard for b in row] if markup else []
+        check("dispatch: URL tugma kanalga chiqdi",
+              any(b.url == "https://t.me/kanalim" and "Kanalga a'zo bo'lish" in b.text for b in flat),
+              str([(b.text, b.url) for b in flat]))
+        check("dispatch: reaksiya hisoblagichlari react:777:",
+              sorted(b.callback_data for b in flat if b.callback_data) ==
+              ["react:777:👍", "react:777:🔥"], str([b.callback_data for b in flat]))
+        names = [c[0] for c in sink]
+        check("dispatch: add_post chaqirildi", "add_post" in names, str(names))
+        check("dispatch: mark_post_as_sent chaqirildi", "mark_post_as_sent" in names, str(names))
+        check("dispatch: free uchun ad-free sarflanmadi", "consume_ad_free_post" not in names,
+              str(names))
+        check("dispatch: step='sent'", enh["step"] == "sent", enh["step"])
+        check("dispatch: kanal nomi saqlandi", enh["sent_channel"] == "Mening Kanalim",
+              str(enh["sent_channel"]))
+        check("dispatch: muvaffaqiyat xabari + 🏠 Asosiy menyu",
+              query.edits and "muvaffaqiyatli joylandi" in query.edits[0][0]
+              and any(b.text == "🏠 Asosiy menyu"
+                      for row in query.edits[0][1].inline_keyboard for b in row),
+              str(query.edits[:1]))
+
+        # --- PRO foydalanuvchi: post TOZA chiqadi ---
+        bot2, _, _, sink2, _ = await send_once(premium=True, uid=424301)
+        text2 = bot2.sent_of("send_message")[0][2]
+        check("dispatch: PRO → watermark yo'q", "@PostAssistrobot" not in text2, text2)
+        check("dispatch: PRO → matn aynan asl matn", text2 == "Asl post matni", text2)
+        check("dispatch: PRO (litsenziyasiz) → ad-free sarflanmadi",
+              "consume_ad_free_post" not in [c[0] for c in sink2], str([c[0] for c in sink2]))
+
+        # --- Reklama litsenziyasi (ad-free) bor foydalanuvchi: litsenziya sarflanadi ---
+        _, _, _, sink3, _ = await send_once(premium=True, ad_free=True, uid=424303)
+        check("dispatch: ad-free litsenziya sarflandi",
+              "consume_ad_free_post" in [c[0] for c in sink3], str([c[0] for c in sink3]))
+
+        # --- Admin: post TOZA chiqadi ---
+        bot3, _, _, _, _ = await send_once(premium=False, admin=True)
+        text3 = bot3.sent_of("send_message")[0][2]
+        check("dispatch: admin → watermark yo'q", "@PostAssistrobot" not in text3, text3)
+        check("dispatch: admin → matn aynan asl matn", text3 == "Asl post matni", text3)
+
+        # --- Kanal tanlanmagan bo'lsa: xato ogohlantirishi, yuborilmaydi ---
+        bot4 = _FakeBot()
+        ctx4 = _FakeCtx(bot4, {})
+        enh4 = {**pe._fresh_enh(), "step": "confirm", "ch_idx": None,
+                "post": {"type": "text", "file_id": None, "content": "X"}}
+        ctx4.user_data["enh"] = enh4
+        q4 = _FakeQuery("enh:confirm_send", _FakeMsg(901, 111), uid=424302)
+        orig = db_mod.run_db
+        db_mod.run_db = _fake_db()
+        try:
+            await pe._execute_send(None, ctx4, q4, enh4)
+        finally:
+            db_mod.run_db = orig
+        check("dispatch: kanal tanlanmasa yuborilmaydi", not bot4.sent_of("send_message"),
+              str(bot4.calls))
+        check("dispatch: kanal tanlanmasa alert", q4.answers and q4.answers[-1][1] is True,
+              str(q4.answers))
+
+    asyncio.run(run())
+
+
+def test_post_enhancer_callback_router():
+    """🧭 enh_callback routeri: ekranlar, emoji toggle, shablon, kanal, 🏠 home."""
+    print("== post enhancer callback router (enh:* navigatsiya) ==")
+    import asyncio
+    from telegram.ext import ConversationHandler
+    import handlers.post_enhancer as pe
+    import database as db_mod
+
+    class _Upd:
+        def __init__(self, query):
+            self.callback_query = query
+
+    async def run():
+        bot = _FakeBot()
+        enh = {**pe._fresh_enh(), "step": "hub", "hub_msg_id": 500,
+               "post": {"type": "text", "file_id": None, "content": "Salom"}}
+        ctx = _FakeCtx(bot, {"enh": enh})
+        chat = 111
+        msg = _FakeMsg(500, chat)
+
+        async def tap(data, uid=424400):
+            q = _FakeQuery(data, msg, uid=uid)
+            return q, await pe.enh_callback(_Upd(q), ctx)
+
+        # 1) Reaksiya ekraniga o'tish
+        _, out = await tap("enh:screen:react")
+        check("router: reaksiya ekrani ochildi", enh["step"] == "react" and out == pe.ENH_POST,
+              str((enh["step"], out)))
+
+        # 2) Emoji toggle (bosish/qayta bosish)
+        await tap("enh:rtgl:👍")
+        check("router: toggle emoji qo'shdi", enh["reactions"] == ["👍"], str(enh["reactions"]))
+        await tap("enh:rtgl:👍")
+        check("router: qayta bosish olib tashladi", enh["reactions"] == [], str(enh["reactions"]))
+        await tap("enh:rtgl:❤️")
+
+        # 3) ➡️ Davom etish → URL tugmalar ekrani
+        _, out = await tap("enh:react:done")
+        check("router: Davom etish → btns", enh["step"] == "btns", enh["step"])
+
+        # 4) "➕ Yangi tugma" → shablon ekrani → shablon → faqat havola so'raladi
+        _, out = await tap("enh:btn:add")
+        check("router: ➕ Yangi tugma → shablon ekrani", enh["step"] == "btn_add", enh["step"])
+        _, out = await tap("enh:btn:manual")
+        check("router: ✍️ Qo'lda kiritish → matn kiritish", enh["step"] == "btn_input", enh["step"])
+        _, out = await tap("enh:preset:0")
+        check("router: shablon rejimi yoqildi",
+              enh["btn_preset"] == 0 and enh["step"] == "btn_input", str(enh["step"]))
+        check("router: shablon so'rovi yuborildi",
+              any("Faqat" in (c[2] or "") and "havolani" in (c[2] or "")
+                  for c in bot.sent_of("reply_text")), str([c[2][:40] for c in bot.sent_of("reply_text")]))
+        await pe._button_text_step(None, ctx, _FakeMsg(600, chat, text="@kanalim"), enh, chat)
+        check("router: shablon tugmasi saqlandi",
+              enh["buttons"] and enh["buttons"][0]["url"] == "https://t.me/kanalim",
+              str(enh["buttons"]))
+
+        # 5) Kanal ro'yxati → tasdiq ekrani
+        _, out = await tap("enh:screen:channel")
+        check("router: kanallar yuklandi",
+              enh["step"] == "channel" and len(enh["channels"]) == 1, str(enh["channels"]))
+        _, out = await tap("enh:send:0")
+        check("router: tasdiq ekrani ochildi", enh["step"] == "confirm" and enh["ch_idx"] == 0,
+              str((enh["step"], enh["ch_idx"])))
+
+        # 6) Prevyu
+        _, out = await tap("enh:preview")
+        preview_id = enh["preview_msg_id"]
+        check("router: prevyu yaratildi", preview_id is not None, str(preview_id))
+
+        # 7) 🏠 Asosiy menyu — sessiya yopiladi, prevyu tozalanadi
+        _, out = await tap("enh:home")
+        check("router: home → ConversationHandler.END", out == ConversationHandler.END, str(out))
+        check("router: user_data tozalandi", ctx.user_data == {}, str(ctx.user_data))
+        deleted = [c[2] for c in bot.calls if c[0] == "delete_message"]
+        check("router: eski prevyu xabari o'chirildi", preview_id in deleted,
+              str((preview_id, deleted)))
+        home = [c for c in bot.sent_of("send_message") if "Asosiy menyu" in (c[2] or "")]
+        check("router: asosiy menyu xabari yuborildi", len(home) == 1,
+              str([c[2][:30] for c in bot.sent_of("send_message")]))
+
+        # 8) Sessiya tugagan — eski tugma bosilsa END qaytadi (crash yo'q)
+        _, out = await tap("enh:screen:hub")
+        check("router: sessiyasiz callback → END", out == ConversationHandler.END, str(out))
+
+    orig = db_mod.run_db
+    db_mod.run_db = _fake_db()
+    try:
+        asyncio.run(run())
+    finally:
+        db_mod.run_db = orig
 
 
 def main():
@@ -3012,6 +3634,10 @@ def main():
     test_admin_dashboard_layout_suite()
     test_post_enhancer_flow()
     test_post_enhancer_text_and_channels()
+    test_post_enhancer_ux_overhaul()
+    test_post_enhancer_batch_and_preview_runtime()
+    test_post_enhancer_channel_dispatch()
+    test_post_enhancer_callback_router()
 
     print(f"\nO'tdi: {passed}, Xato: {failures}")
     if failures:

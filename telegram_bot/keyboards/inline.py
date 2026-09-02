@@ -344,12 +344,13 @@ def get_cabinet_inline_keyboard() -> InlineKeyboardMarkup:
 def get_extras_inline_keyboard() -> InlineKeyboardMarkup:
     """⚙️ Qo'shimcha funksiyalar — inline menyu.
 
-    Birinchi qator — 🛠 Post kuchaytirgich (Post Enhancer): tayyor postga
-    10 tagacha reaksiya va 10 tagacha URL tugma qo'shib, kanalga bir zumda
-    yuborish. Konvertor va Tezkor tugmali post o'z o'rnida saqlanadi.
+    Birinchi qator — ✨ Postga Tugma & Reaksiya qo'shish (Post Enhancer):
+    tayyor postga 10 tagacha reaksiya va 10 tagacha URL tugma qo'shib,
+    kanalga bir zumda yuborish. Konvertor va Tezkor tugmali post o'z
+    o'rnida saqlanadi.
     """
     keyboard = [
-        [InlineKeyboardButton("🛠 Post kuchaytirgich (Reaksiya + Tugmalar)",
+        [InlineKeyboardButton("✨ Postga Tugma & Reaksiya qo'shish",
                               callback_data="extra_enhancer")],
         [InlineKeyboardButton("🔤 Krill-Lotin konvertor", callback_data="extra_converter")],
         [InlineKeyboardButton("🔗 Tezkor tugmali post", callback_data="extra_quick_btn")],
@@ -366,7 +367,7 @@ REACTION_EMOJIS = ("👍", "❤️", "🔥", "👏", "🎉", "🤔")
 # Eski postlar (reaction_emojis saqlanmagan) uchun standart to'plam.
 DEFAULT_REACTION_EMOJIS = ("👍", "❤️", "🔥", "👏")
 
-# 🛠 Post kuchaytirgich uchun kengaytirilgan havza (pool): 20 ta emoji.
+# ✨ Postga Tugma & Reaksiya qo'shish uchun kengaytirilgan havza (pool): 20 ta emoji.
 # Foydalanuvchi shundan 10 tasigachanini tanlaydi yoki istalgan emojini
 # xabar qilib yubora oladi (extract_emoji_tokens). REACTION_EMOJIS boshida
 # turadi — eski oqimlar (npreact:) faqat 6 tasini ko'rsatishda davom etadi.
@@ -385,12 +386,17 @@ CB_REACT_DONE = "npreact:done"
 CB_REACT_SKIP = "npreact:skip"
 
 
-def _strip_vs16(value: str) -> str:
+def strip_variation_selector(value: str) -> str:
     """Variation Selector (\ufe0f/\ufe0e) ni olib tashlaydi — emoji taqqoslash uchun.
 
     \u2764\ufe0f (VS16 bilan ❤️) va \u2764 (VS16 siz) bir xil reaksiya deb hisoblanadi.
+    Emoji ro'yxatlarida takrorlanishni oldini olish uchun "kalit" sifatida ishlatiladi.
     """
     return (value or "").replace("\ufe0f", "").replace("\ufe0e", "")
+
+
+# Eski nom (modul ichida ishlatiladi) — orqaga moslik uchun saqlanadi.
+_strip_vs16 = strip_variation_selector
 
 
 def normalize_reaction_emojis(value) -> list:
@@ -412,7 +418,7 @@ def normalize_reaction_emojis(value) -> list:
 
 
 def extract_emoji_tokens(text, max_count: int = 10) -> list:
-    """Matndan faqat emoji token'larini ajratib oladi (Post kuchaytirgich kiritishi).
+    """Matndan faqat emoji token'larini ajratib oladi (reaksiya batch kiritishi).
 
     \"👍 ❤️ 🔥\" → ['👍', '❤️', '🔥']; aralash matndan ham faqat emojilar
     olinadi; takrorlanishlar olib tashlanadi; soni ``max_count`` bilan

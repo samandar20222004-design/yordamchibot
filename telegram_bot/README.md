@@ -15,7 +15,7 @@ telegram_bot/
 ├── handlers/
 │   ├── start.py         # /start, /help, profil va bonuslar
 │   ├── new_post.py      # /newpost — yangi xabar qo'shish
-│   ├── post_enhancer.py # 🛠 Post kuchaytirgich (qo'shimcha funksiyalar)
+│   ├── post_enhancer.py # ✨ Postga Tugma & Reaksiya qo'shish
 │   ├── pending.py       # Kutilayotgan postlar va bekor qilish
 │   └── channels.py      # Kanal/guruh ulash
 ├── requirements.txt
@@ -114,20 +114,43 @@ sifatida saqlaydi va kanalga `sendMediaGroup` orqali chiqaradi (10 tagacha).
 oladi. Faol kanalni boshqa foydalanuvchi o'g'irlay olmaydi. Bot kanaldan
 chiqarilsa, ulanish avtomatik nofaol bo'ladi.
 
-### 🛠 Post kuchaytirgich (⚙️ Qo'shimcha funksiyalar)
+### ✨ Postga Tugma & Reaksiya qo'shish (⚙️ Qo'shimcha funksiyalar)
 
-"⚙️ Qo'shimcha funksiyalar" menyusidagi **Post kuchaytirgich** professional
-post-generator: tayyor postni (matn, rasm, video, albom yoki forward) yuborasiz —
-**asl matnga tegilmaydi**. So'ng inline interfeysda:
+"⚙️ Qo'shimcha funksiyalar" menyusidagi **Postga Tugma & Reaksiya qo'shish**
+(post enhancer) bosqichma-bosqich ishlaydigan post-generator: tayyor postni
+(matn, rasm, video, albom yoki forward) yuborasiz — **asl matnga tegilmaydi**.
 
-- 👍 **10 tagacha reaksiya** tugmasini tanlaysiz (emoji-toggle + erkin emoji kiritish);
-- 🔗 **10 tagacha URL inline tugma** qo'shasiz (`Tugma yozuvi - https://havola`,
-  `Matn | @kanal` yoki faqat havola — yozuv avtomatik tanlanadi);
-- 👁 **prevyu**ni ko'rasiz va 📢 ro'yxatdagi kanallardan birini tanlab, tasdiq
-  bilan **to'g'ridan-to'g'ri kanalga** yuborasiz.
+**0. Kirish.** Birinchi xabardayoq eslatma chiqadi: *"💡 Eslatma: Bot postni
+kanalingizga joylashi uchun avval uni kanalingizga **Admin** qilib
+qo'shganingizga ishonch hosil qiling."* — keyin post so'raladi.
+
+**1. 👍 Reaksiyalar (10 tagacha).** Emoji tugmalarini bosasiz yoki bir nechta
+emojini **probel bilan bitta xabarda** yuborasiz (`👍 ❤️ 🔥 👏 🎉`) — bot barcha
+emojilarni ajratib oladi, `✅ Reaksiyalar saqlandi: 👍 ❤️ 🔥` deb javob beradi va
+o'sha zahoti postning yangilangan prevyusini ko'rsatadi. Takrorlar va
+Variation Selector farqi (`❤` / `❤️`) hisobga olinmaydi. Har doim
+`[➡️ Davom etish / URL tugmaga o'tish]`, `[⬅️ Orqaga]` va `[❌ Bekor qilish]`
+tugmalari turadi.
+
+**2. 🔗 URL tugmalar (10 tagacha).** 3 ta tayyor shablon bor —
+`📢 1. Kanalga a'zo bo'lish`, `💬 2. Guruhga qo'shilish`, `🤖 3. Botga o'tish`.
+Shablon tanlansa bot **faqat havolani** so'raydi (`https://t.me/kanalim`).
+Qo'lda kiritish ham mumkin: `Tugma nomi - https://havola.uz`,
+`Tugma nomi | @kanalim` yoki faqat havola (yozuv avtomatik tanlanadi).
+Tugma saqlangach u darhol prevyuda ko'rinadi va
+`[➡️ Tasdiqlash va Kanalga yuborish]` taklif qilinadi.
+
+**3. 👁 Doimiy prevyu.** Har o'zgarishdan keyin postning to'liq ko'rinishi
+(matn/rasm/video + URL tugmalar + reaksiyalar) bitta xabarda **yangilanib**
+turadi — yangi xabar spam qilinmaydi.
+
+**4. 🚀 Kanalga yuborish.** Ulangan kanallar ro'yxati → *"Ushbu post
+**[Kanal nomi]**ga yuborilsinmi?"* → `[✅ Ha, yuborilsin]` /
+`[❌ Bekor qilish]` → *"✅ Post kanalingizga muvaffaqiyatli joylandi!"* va
+`[🏠 Asosiy menyu]`.
 
 Bepul foydalanuvchilar uchun `scheduler`'dagi **via/watermark qoidalari**
-to'liq qo'llanadi (post boshiga `@bot_username`), PRO/admin — toza chiqadi.
+to'liq qo'llanadi (post boshiga `@PostAssistrobot`), PRO/admin — toza chiqadi.
 Reklama litsenziyasi (ad-free) saqlangan postlar soni shu yuborish uchun ham
 sarflanadi. Telegram cheklovi tufayli inline klaviatura 10 qatordan oshmaydi.
 
