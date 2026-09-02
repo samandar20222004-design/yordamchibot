@@ -129,7 +129,10 @@ async def _build_queue_view(user_id: int, is_admin: bool) -> tuple:
             show_upsell = True
 
     if total == 0:
-        from keyboards.default import get_cabinet_back_keyboard
+        # get_cabinet_back_keyboard keyboards.INLINE'da (default'da emas) —
+        # noto'g'ri import tufayli tugma bosilganda ImportError chiqar va
+        # foydalanuvchi hech qanday javob olmasdi ("qotib qolish").
+        from keyboards.inline import get_cabinet_back_keyboard
         text = (
             "📚 <b>Navbat (Queue)</b>\n\n"
             "Hozircha navbatda postlar yo'q.\n"

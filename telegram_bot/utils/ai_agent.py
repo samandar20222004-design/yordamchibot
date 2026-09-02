@@ -110,14 +110,38 @@ MODEL_CACHE_TTL = 6 * 3600  # aniqlangan ro'yxat 6 soat eslab qolinadi
 
 # === Afzal (preferred) modellar — yuqori sifat uchun ===
 # Birinchi model eng muhim (asosiy), qolganlar zaxira.
-# Gemini: gemini-2.5-flash — 2026-yil eng yaxshi bepul model (o'zbek tilini yaxshi tushunadi)
+# Gemini: gemini-2.5-flash — hozirgi barqaror (GA) model, rasm kirishini
+# qo'llab-quvvatlaydi va o'zbek tilini yaxshi tushunadi.
 GEMINI_PREFERRED = [
-    "gemini-2.5-flash",           # 1M kontekst, eng kuchli bepul model
-    "gemini-2.5-flash-lite",      # Tez va bepul
-    "gemini-2.0-flash",           # Tez ishora modeli
+    "gemini-2.5-flash",           # 1M kontekst, eng kuchli barqaror model
+    "gemini-flash-latest",        # Flash'ning doim yangilanib turadigan aliasi
+    "gemini-2.5-flash-lite",      # Tez va arzon
     "gemini-2.5-pro",             # Pro versiya (limit bor, lekin sifat yuqori)
-    "gemini-1.5-flash",           # Zaxira (keng mavjud)
+    "gemini-flash-lite-latest",   # Flash-Lite aliasi (zaxira)
 ]
+
+# === Google O'CHIRIB QO'YGAN (retired) modellar ===
+# Bunday modelga so'rov yuborilsa API 404 qaytaradi va foydalanuvchi
+# "modeli mavjud emas" xatosini ko'radi. Shu sababli ular ro'yxatlardan
+# avtomatik chiqarib tashlanadi (admin GEMINI_VISION_MODEL bilan qo'lda
+# belgilamaguncha).
+#   • gemini-1.5-* → 2025-09-29 da o'chirildi
+#   • gemini-2.0-flash / -lite → 2026-06-01 da o'chirildi
+GEMINI_RETIRED = frozenset({
+    "gemini-1.5-flash", "gemini-1.5-flash-001", "gemini-1.5-flash-002",
+    "gemini-1.5-flash-8b", "gemini-1.5-flash-8b-001", "gemini-1.5-flash-latest",
+    "gemini-1.5-pro", "gemini-1.5-pro-001", "gemini-1.5-pro-002",
+    "gemini-1.5-pro-latest", "gemini-pro", "gemini-pro-vision",
+    "gemini-1.0-pro", "gemini-1.0-pro-vision-latest",
+    "gemini-2.0-flash", "gemini-2.0-flash-001", "gemini-2.0-flash-lite",
+    "gemini-2.0-flash-lite-001", "gemini-2.0-flash-thinking-exp",
+    "gemini-2.0-flash-thinking-exp-1219", "gemini-2.0-flash-exp",
+})
+
+
+def _is_retired_gemini(model: str) -> bool:
+    """Model Google tomonidan o'chirilganmi (404 qaytaradimi)?"""
+    return (model or "").strip().lower() in GEMINI_RETIRED
 # Groq: Llama 3.3 70B (eng kuchli, tez va aniq), LLaMA 4 va gemma modellari
 GROQ_PREFERRED = [
     "llama-3.3-70b-versatile",                    # Llama 3.3 70B — eng sifatli va bepul
@@ -414,16 +438,21 @@ def _set_cached_models(key: str, models: list):
 def _pick_models(available: list, preferred: list, chat_only: bool = False) -> list | None:
     """Mavjud modellardan afzal ro'yxat bo'yicha tanlab oladi.
 
-    chat_only=True bo'lsa, chat uchun yaroqsiz modellar (audio, guard va h.k.)
-    filtrlangan holda afzal ro'yxatga kirmagan faol modellar ham qo'shiladi.
+    Google o'chirib qo'ygan (404 qaytaradigan) modellar hech qachon
+    tanlanmaydi. chat_only=True bo'lsa, chat uchun yaroqsiz modellar (audio,
+    guard va h.k.) filtrlangan holda afzal ro'yxatga kirmagan faol modellar
+    ham qo'shiladi.
     """
     avail_set = set(available)
-    picked = [m for m in preferred if m in avail_set]
+    picked = [
+        m for m in preferred
+        if m in avail_set and not _is_retired_gemini(m)
+    ]
     if chat_only:
         for m in available:
             if len(picked) >= 6:
                 break
-            if m in picked:
+            if m in picked or _is_retired_gemini(m):
                 continue
             low = m.lower()
             if any(x in low for x in (
@@ -1525,13 +1554,87 @@ VISION_MAX_FILE_BYTES = max(
 VISION_HARD_TIMEOUT = max(10.0, float(os.getenv("VISION_HARD_TIMEOUT", "45")))
 VISION_TEMP_PREFIX = "postassist_vision_"
 
-# Gemini vision uchun afzal modellar (barchasi image input qo'llab-quvvatlaydi)
+# === VISION MODELI ===
+# Rasm tahlili uchun BARQAROR (stable/GA) Gemini modeli. Ilgari bu oqim
+# chat-modellar ro'yxatini (model discovery) ishlatar edi — natijada rasmni
+# qabul qilmaydigan yoki Google o'chirib qo'ygan model tanlanib, foydalanuvchi
+# "Gemini vision modeli hozircha mavjud emas" (HTTP 404) xatosini ko'rardi.
+#
+# Endi vision oqimi O'Z modelini qat'iy belgilaydi:
+#   • GEMINI_VISION_MODEL — admin xohlagan modelni shu yerda almashtiradi;
+#   • agar u javob bermasa, quyidagi barqaror zaxira zanjiri sinaladi.
+# Eslatma: `gemini-1.5-flash` Google tomonidan 2025-09-29 da o'chirilgan va
+# unga yuborilgan har qanday so'rov 404 qaytaradi, shuning uchun standart
+# qiymat sifatida amaldagi barqaror model olingan.
+GEMINI_VISION_MODEL = (os.getenv("GEMINI_VISION_MODEL") or "").strip() or "gemini-2.5-flash"
+
+# Gemini vision uchun afzal modellar (barchasi image input qo'llab-quvvatlaydi).
+# Birinchi element — admin belgilagan model (GEMINI_VISION_MODEL).
 VISION_GEMINI_PREFERRED = [
-    "gemini-2.5-flash",       # 1M kontekst, eng kuchli bepul model
-    "gemini-2.5-flash-lite",  # Tez va bepul
-    "gemini-2.0-flash",       # Tez ishora modeli
-    "gemini-2.5-pro",         # Pro versiya (sifat yuqori)
+    GEMINI_VISION_MODEL,         # admin belgilagan barqaror model
+    "gemini-2.5-flash",          # barqaror, rasm kirishini qo'llaydi
+    "gemini-flash-latest",       # Flash aliasi — o'chirilsa ham yangisi keladi
+    "gemini-2.5-flash-lite",     # tez va arzon
+    "gemini-flash-lite-latest",  # Flash-Lite aliasi
+    "gemini-2.5-pro",            # eng yuqori sifat (limit bor)
 ]
+
+# Rasm tahliliga YAROQSIZ model oilalari (discovery ro'yxatidan filtrlanadi).
+_VISION_UNSUPPORTED_HINTS = (
+    "embedding", "tts", "speech", "audio", "live", "imagen", "veo",
+    "aqa", "learnlm", "guard", "safeguard", "transcribe", "robotics",
+    "omni", "banana", "gemma", "lite-translate",
+)
+
+
+def _is_vision_capable(model: str) -> bool:
+    """Model rasm kirishini qabul qila oladimi (generativ matn modeli)?"""
+    low = (model or "").strip().lower()
+    if not low or _is_retired_gemini(model):
+        return False
+    if "gemini" not in low:
+        return False
+    return not any(hint in low for hint in _VISION_UNSUPPORTED_HINTS)
+
+
+def _vision_model_chain(discovered: list = None) -> list:
+    """Rasm tahlili uchun sinab chiqiladigan modellar zanjiri.
+
+    Tartib: admin belgilagan model → barqaror afzallar → discovery'dan
+    topilgan vision-yaroqli modellar. Takrorlanishlar va Google o'chirib
+    qo'ygan modellar chiqarib tashlanadi (admin qo'lda belgilagani bundan
+    mustasno — u doim birinchi sinovdan o'tkaziladi).
+    """
+    chain: list[str] = []
+    explicit = (GEMINI_VISION_MODEL or "").strip()
+    if explicit:
+        chain.append(explicit)
+    for model in VISION_GEMINI_PREFERRED:
+        model = (model or "").strip()
+        if not model or model in chain:
+            continue
+        if _is_retired_gemini(model):
+            continue
+        chain.append(model)
+    for model in (discovered or []):
+        model = (model or "").strip()
+        if not model or model in chain:
+            continue
+        if not _is_vision_capable(model):
+            continue
+        chain.append(model)
+    return chain
+
+
+async def _discover_vision_models(api_key: str) -> list:
+    """Vision oqimi uchun model zanjiri (discovery bilan birgalikda)."""
+    discovered = None
+    try:
+        discovered = await _discover_gemini_models(api_key)
+    except Exception as e:  # discovery ishlamasa — barqaror zanjir yetarli
+        logger.warning("Vision model discovery xatosi: %s", e)
+    return _vision_model_chain(discovered)
+
 
 VISION_SAFETY_ERROR = (
     "🚫 Kechirasiz, bu rasm kontent xavfsizligi talablariga mos kelmaydi. "
@@ -1550,19 +1653,24 @@ class VisionError(RuntimeError):
 _VISION_SYSTEM = (
     "Siz professional SMM-mutaxassis va Telegram kanallar uchun kontent yozuvchisisiz. "
     "Sizga yuborilgan rasmni CHUQUR tahlil qilasiz va shu rasm asosida Telegram "
-    "kanali uchun professional, sotuvchi post yozasiz.\n\n"
+    "kanali uchun TO'LIQ TAYYOR post yozasiz (faqat rasm tahlil qilinadi — "
+    "video tahlil qilinmaydi).\n\n"
     "QAT'IY TALABLAR:\n"
     "- Barcha matn O'ZBEK tilida bo'lsin (ruscha/inglizcha aralashmasin).\n"
-    "- Birinchi qator: diqqat tortuvchi sarlavha — <b>...</b> HTML bilan qalin.\n"
+    "- 1-QATOR — SARLAVHA: diqqat tortuvchi, qisqa sarlavha <b>...</b> HTML "
+    "bilan qalin qilib yozilsin.\n"
     "- Rasm mazmunini chuqur tahlil qiling: nima tasvirlangan, kimga mo'ljallangan, "
     "qanday his-tuyg'u yoki aksiya uyg'otadi.\n"
-    "- Qiziqarli/sotuvchi matn: kamida 3-6 qator, qisqa bandlar (•) bilan.\n"
-    "- Mos emojilarni oqilona ishlating (3-6 dona, har gapga emas).\n"
+    "- JOZIBADOR MATN: kamida 3-6 qator, qisqa bandlar (•) bilan, o'quvchini "
+    "ushlab turadigan sodda va ta'sirli uslubda.\n"
+    "- EMOJILAR: mos emojilarni oqilona ishlating (3-6 dona, har gapga emas).\n"
     "- Oxirida aniq harakatga chaqiruv (CTA) qo'shing (masalan: '👉 ...').\n"
-    "- Eng oxirida 3-5 ta mos xeshteg (#...).\n"
+    "- Eng oxirida ALOHIDA qatorda 3-5 ta mos XESHTEG (#... bilan).\n"
     "- Telegram HTML: faqat <b> va <i> ruxsat etiladi — boshqa teglar YO'Q.\n"
     "- Yolg'on fakt QO'SHMANG: faqat rasmda ko'rinadigan yoki asosli xulosa "
-    "qilish mumkin bo'lgan narsalarga tayaning.\n\n"
+    "qilish mumkin bo'lgan narsalarga tayaning.\n"
+    "- Izoh/tushuntirish YOZMANG — javob bevosita kanalga joylanadigan tayyor "
+    "post bo'lsin.\n\n"
     "Javobni FAQAT quyidagi JSON formatida qaytaring:\n"
     '{"post_text": "to\'liq tayyor post matni"}'
 )
@@ -1642,9 +1750,13 @@ def vision_friendly_error(status: int = None, message: str = "") -> str:
             "Iltimos, 1-2 daqiqa kuting va qayta urinib ko'ring."
         )
     if status == 404 or "not found" in low or "does not exist" in low:
+        # Bu xatoning sababi — so'ralgan model Google tomonidan o'chirilgan.
+        # Vision zanjiri barqaror modellar bilan qayta qurilgani uchun bu holat
+        # amalda uchramaydi; uchrasa admin uchun aniq ko'rsatma beriladi.
         return (
-            "🤖 Gemini vision modeli hozircha mavjud emas. "
-            "Iltimos, birozdan so'ng qayta urinib ko'ring."
+            "🤖 Rasm tahlili modeli yangilanishi kerak (server sozlamasi). "
+            "Iltimos, birozdan so'ng qayta urinib ko'ring yoki admin bilan "
+            "bog'laning."
         )
     if status == 413 or ("payload" in low and "large" in low) or "too large" in low:
         return "📦 Rasm hajmi juda katta. Iltimos, kichikroq rasm yuboring."
@@ -1706,45 +1818,48 @@ async def _call_gemini_vision(
 ) -> dict:
     """Gemini `generateContent` ga rasm (inline_data) bilan so'rov yuboradi.
 
-    1) Model discovery → afzal vision modellar zanjiri.
+    1) Vision uchun BARQAROR model zanjiri (GEMINI_VISION_MODEL → afzallar →
+       discovery'dan topilgan vision-yaroqli modellar).
     2) 429 → MAX_429_RETRIES marta Retry-After bilan qayta urinish.
-    3) Model 400/404 → keyingi modelga o'tish.
+    3) Model 400/404 → keyingi modelga o'tish (o'chirilgan model zanjirni
+       to'xtatmaydi).
+    4) Barcha modellar 404 bersa — barqaror model GA (`v1`) endpointida
+       bir marta qayta sinaladi (ba'zi kalitlarda `v1beta` 404 qaytaradi).
     Xatolikda foydalanuvchiga mos {"error": ...} qaytaradi (crash emas).
     """
     session = await _get_session()
-    models = await _discover_gemini_models(api_key) or GEMINI_MODELS
+    models = await _discover_vision_models(api_key)
     params = params or get_runtime_params()
-    last_status = None
-    last_text = ""
-    rate_limited = False
+    state = {"status": None, "text": "", "rate_limited": False}
 
-    for model in models:
-        url = f"{GEMINI_BASE}/{model}:generateContent?key={api_key}"
-        generation_config = {}
-        _v_temp = _optional_param(params, "temperature")
-        if _v_temp is not None:
-            generation_config["temperature"] = _v_temp
-        _v_top_p = _optional_param(params, "top_p")
-        if _v_top_p is not None:
-            generation_config["topP"] = _v_top_p
-        _v_max_tokens = _optional_param(params, "max_tokens")
-        if _v_max_tokens is not None:
-            generation_config["maxOutputTokens"] = _v_max_tokens
+    generation_config = {}
+    _v_temp = _optional_param(params, "temperature")
+    if _v_temp is not None:
+        generation_config["temperature"] = _v_temp
+    _v_top_p = _optional_param(params, "top_p")
+    if _v_top_p is not None:
+        generation_config["topP"] = _v_top_p
+    _v_max_tokens = _optional_param(params, "max_tokens")
+    if _v_max_tokens is not None:
+        generation_config["maxOutputTokens"] = _v_max_tokens
 
-        payload = {
-            "systemInstruction": {"parts": [{"text": system_instruction}]},
-            "contents": [
-                {
-                    "role": "user",
-                    "parts": [
-                        {"text": prompt},
-                        {"inline_data": {"mime_type": mime_type, "data": image_b64}},
-                    ],
-                }
-            ],
-            "generationConfig": generation_config,
-        }
+    payload = {
+        "systemInstruction": {"parts": [{"text": system_instruction}]},
+        "contents": [
+            {
+                "role": "user",
+                "parts": [
+                    {"text": prompt},
+                    {"inline_data": {"mime_type": mime_type, "data": image_b64}},
+                ],
+            }
+        ],
+        "generationConfig": generation_config,
+    }
 
+    async def _try_model(model: str, base_url: str):
+        """Bitta modelga so'rov: natija dict yoki None (keyingi modelga o'tish)."""
+        url = f"{base_url}/{model}:generateContent?key={api_key}"
         for attempt in range(MAX_429_RETRIES + 1):
             try:
                 async with session.post(url, json=payload) as resp:
@@ -1766,29 +1881,55 @@ async def _call_gemini_vision(
                         )
                         await asyncio.sleep(wait)
                         continue
-                    last_status = resp.status
-                    last_text = (await resp.text())[:400]
+                    state["status"] = resp.status
+                    state["text"] = (await resp.text())[:400]
                     if resp.status == 429:
-                        rate_limited = True
-                        break
-                    if resp.status in (400, 404):
-                        break  # bu model yaroqsiz — keyingisiga o'tamiz
+                        state["rate_limited"] = True
+                        return None
+                    # 400/404 → bu model yaroqsiz, keyingisiga o'tamiz
+                    return None
             except asyncio.TimeoutError:
-                last_status = 0
-                last_text = "timeout"
-                break
+                state["status"] = 0
+                state["text"] = "timeout"
+                return None
             except aiohttp.ClientError as e:
-                last_status = 0
-                last_text = str(e)
-                break
+                state["status"] = 0
+                state["text"] = str(e)
+                return None
             except Exception as e:
-                last_status = 0
-                last_text = str(e)
-                break
-        if rate_limited:
-            break  # barcha provayderda kvota — zanjirni uzamiz
+                state["status"] = 0
+                state["text"] = str(e)
+                return None
+        return None
 
-    return {"error": vision_friendly_error(last_status, last_text)}
+    for model in models:
+        result = await _try_model(model, GEMINI_BASE)
+        if result is not None:
+            return result
+        if state["rate_limited"]:
+            break  # kvota tugadi — zanjirni uzamiz
+
+    # Barcha modellar 404 qaytardi: ba'zi API kalitlarida model `v1beta` da
+    # ko'rinmaydi, lekin barqaror `v1` da ishlaydi — shu yerda bir marta
+    # asosiy (barqaror) model qayta sinaladi.
+    if state["status"] == 404 and models and "/v1beta/" in GEMINI_BASE:
+        ga_base = GEMINI_BASE.replace("/v1beta/", "/v1/", 1)
+        logger.warning(
+            "Gemini vision: barcha modellar 404 berdi (%s) — GA endpoint sinatiladi",
+            models[:3],
+        )
+        result = await _try_model(models[0], ga_base)
+        if result is not None:
+            return result
+
+    if state["status"] == 404:
+        logger.error(
+            "Gemini vision modellari topilmadi (404). Sinovdan o'tganlar: %s. "
+            "GEMINI_VISION_MODEL ni amaldagi barqaror modelga o'zgartiring.",
+            models,
+        )
+    return {"error": vision_friendly_error(state["status"], state["text"])}
+
 
 
 async def download_telegram_media_to_temp(

@@ -624,6 +624,41 @@ def test_channel_ad_interval_end_to_end(db):
     check("nofaol reklama chiqmaydi",
           texts2 and all("REKLAMA-MATNI" not in t for t in texts2), str(texts2))
 
+    # Bo'lim butunlay O'CHIRILGAN bo'lsa reklama umuman chiqmaydi
+    db.set_ad_active(ad_id, True)
+    db.set_channel_ad_status(False)
+    db._cache_clear("ad_settings")
+    check("channel_ad_status=False saqlandi",
+          db.get_ad_settings().get("channel_ad_status") is False)
+    db.reset_channel_post_count()
+    for i in range(3):
+        db.add_post(user_id=555001, channel_id=ch_x, post_type="text",
+                    content=f"X3-post-{i}", file_id=None,
+                    scheduled_time=datetime.now(tz) - timedelta(minutes=1))
+    bot3 = FakeBot()
+    asyncio.run(check_and_send_posts(bot3))
+    texts3 = [t or "" for _, t in bot3.sent if "X3-post" in (t or "")]
+    check("bo'lim o'chirilganda reklama chiqmaydi",
+          len(texts3) == 3 and all("REKLAMA-MATNI" not in t for t in texts3), str(texts3))
+    check("sanagich o'sishda davom etadi (tartib buzilmaydi)",
+          db.get_channel_post_count(ch_x) == 3, str(db.get_channel_post_count(ch_x)))
+
+    # Qayta yoqilganda reklama yana chiqadi
+    db.set_channel_ad_status(True)
+    db._cache_clear("ad_settings")
+    check("channel_ad_status=True saqlandi",
+          db.get_ad_settings().get("channel_ad_status") is True)
+    db.reset_channel_post_count()
+    for i in range(3):
+        db.add_post(user_id=555001, channel_id=ch_x, post_type="text",
+                    content=f"X4-post-{i}", file_id=None,
+                    scheduled_time=datetime.now(tz) - timedelta(minutes=1))
+    bot4 = FakeBot()
+    asyncio.run(check_and_send_posts(bot4))
+    texts4 = [t or "" for _, t in bot4.sent if "X4-post" in (t or "")]
+    check("qayta yoqilgach reklama chiqadi",
+          any("REKLAMA-MATNI" in t for t in texts4), str(texts4))
+
     db.clear_ads("channel")
     db.reset_channel_post_count()
 
