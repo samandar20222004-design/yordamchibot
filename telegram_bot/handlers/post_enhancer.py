@@ -55,10 +55,12 @@ from utils.helpers import (
     html_escape,
     safe_html,
     apply_post_watermark,
-    get_channel_ad_next_async,
     check_rate_limit,
 )
-from scheduler import compose_post_text, parse_album_items
+from scheduler import (
+    compose_post_text, parse_album_items,
+    resolve_channel_ad, build_ad_button_row,
+)
 # Albom (media_group) yig'ish logikasi new_post bilan umumiy — buffer'lar ham.
 from handlers.new_post import (
     _media_item_from_message,
@@ -357,8 +359,12 @@ def build_enhancer_rows(buttons: list, reactions: list, post_id: int = None,
 
 
 def build_enhancer_markup(buttons: list, reactions: list, post_id: int = None,
-                         preview: bool = False):
+                         preview: bool = False, extra_rows: list = None):
+    """Enhancer tugmalari; ``extra_rows`` — masalan reklamaning URL tugmasi."""
     rows = build_enhancer_rows(buttons, reactions, post_id=post_id, preview=preview)
+    for row in (extra_rows or []):
+        if row and len(rows) < MAX_KEYBOARD_ROWS:
+            rows.append(row)
     return InlineKeyboardMarkup(rows) if rows else None
 
 
@@ -1476,9 +1482,11 @@ async def _execute_send(update, context, query, enh):
     # scheduler bilan bir xil qoidalar: watermark → reklama → nishon) ---
     try:
         has_ad_free = True if is_admin else await db.run_db(db.peek_ad_free_post, user_id)
-        channel_ad = ""
-        if not has_ad_free:
-            channel_ad = await get_channel_ad_next_async()
+        # Reklama scheduler bilan bir xil qoida bo'yicha qo'shiladi: har bir
+        # kanalning ALOHIDA post sanagichi + admin belgilagan oraliq.
+        ad_info = await resolve_channel_ad(str(ch_id), has_ad_free)
+        channel_ad = (ad_info.get("text") or "").strip()
+        ad_button = build_ad_button_row(ad_info)
         brand_text = (await db.run_db(db.get_setting, "post_tag_text", "") or "").strip()
         watermarked = await apply_post_watermark(content, user_id, BOT_USERNAME)
         text_limit = 4096 if ptype == "text" else 1024
@@ -1501,7 +1509,8 @@ async def _execute_send(update, context, query, enh):
         enable_reactions=bool(reactions), reaction_emojis=" ".join(reactions) or None,
         delete_after_hours=0,
     )
-    markup = build_enhancer_markup(buttons, reactions, post_id=pid or None)
+    markup = build_enhancer_markup(buttons, reactions, post_id=pid or None,
+                                   extra_rows=[ad_button] if ad_button else None)
 
     target_chat = int(ch_id) if str(ch_id).lstrip("-").isdigit() else ch_id
     try:

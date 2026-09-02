@@ -470,6 +470,181 @@ def test_album_and_no_watermark(db):
 
 
 
+def test_ad_pool_crud_real_db(db):
+    """ad_pool: matn, inline tugma, toggle va o'chirish — haqiqiy PostgreSQL."""
+    print("== ad_pool CRUD (real DB) ==")
+    db.clear_ads("channel")
+    db.clear_ads("reply")
+
+    ad_id = db.add_ad("channel", "<b>Birinchi</b> reklama")
+    check("reklama qo'shildi", ad_id > 0, str(ad_id))
+    ad = db.get_ad(ad_id)
+    check("get_ad: matn", ad and ad["text"] == "<b>Birinchi</b> reklama", str(ad))
+    check("get_ad: standart holat faol", ad["is_active"] is True)
+    check("get_ad: tugma bo'sh", ad["button_text"] == "" and ad["button_url"] == "")
+
+    # Tugma bilan qo'shish
+    ad2 = db.add_ad("channel", "Ikkinchi", "Batafsil", "https://t.me/kanal")
+    row2 = db.get_ad(ad2)
+    check("tugma bilan qo'shildi",
+          row2["button_text"] == "Batafsil" and row2["button_url"] == "https://t.me/kanal", str(row2))
+
+    # Yarim tugma saqlanmaydi
+    ad3 = db.add_ad("reply", "Uchinchi", "Faqat matn", "")
+    row3 = db.get_ad(ad3)
+    check("URL'siz tugma saqlanmaydi", row3["button_text"] == "", str(row3))
+
+    # Matnni tahrirlash
+    check("update_ad: matn", db.update_ad(ad_id, "<i>Yangilangan</i>") is True)
+    check("matn yangilandi", db.get_ad(ad_id)["text"] == "<i>Yangilangan</i>")
+
+    # Tugmani tahrirlash (matn o'zgarmaydi)
+    check("update_ad: tugma", db.update_ad(ad_id, None, "Bosing", "https://t.me/x") is True)
+    updated = db.get_ad(ad_id)
+    check("tugma saqlandi", updated["button_text"] == "Bosing" and updated["button_url"] == "https://t.me/x")
+    check("matn o'zgarmadi", updated["text"] == "<i>Yangilangan</i>")
+
+    # Tugmani olib tashlash
+    db.update_ad(ad_id, None, "", "")
+    check("tugma olib tashlandi", db.get_ad(ad_id)["button_text"] == "")
+
+    # Toggle Active/Inactive
+    new_state = db.toggle_ad_active(ad_id)
+    check("toggle: nofaol bo'ldi", new_state is False, str(new_state))
+    active_ids = [a["id"] for a in db.get_ads_full("channel")]
+    check("nofaol reklama faol ro'yxatda yo'q", ad_id not in active_ids, str(active_ids))
+    all_ids = [a["id"] for a in db.get_ads_full("channel", include_inactive=True)]
+    check("nofaol reklama to'liq ro'yxatda bor", ad_id in all_ids, str(all_ids))
+    check("toggle: qayta faol", db.toggle_ad_active(ad_id) is True)
+    check("set_ad_active(False)", db.set_ad_active(ad_id, False) is True)
+    check("set_ad_active natijasi", db.get_ad(ad_id)["is_active"] is False)
+    db.set_ad_active(ad_id, True)
+
+    # Orqaga moslik: get_ads faqat (id, text) juftliklari
+    pairs = db.get_ads("channel")
+    check("get_ads: (id, text) juftliklari",
+          all(isinstance(x, tuple) and len(x) == 2 for x in pairs), str(pairs))
+    check("count_ads faol sonini beradi", db.count_ads("channel") == len(pairs))
+
+    # O'chirish
+    check("delete_ad ishlaydi", db.delete_ad(ad2) is True)
+    check("o'chirilgan reklama yo'q", db.get_ad(ad2) is None)
+    removed = db.clear_ads("channel")
+    check("clear_ads soni", removed >= 1, str(removed))
+    check("pul bo'shadi", db.get_ads_full("channel", include_inactive=True) == [])
+    db.clear_ads("reply")
+
+
+def test_channel_counters_real_db(db):
+    """Kanal post sanagichlari va reklama oralig'i — haqiqiy PostgreSQL."""
+    print("== kanal post sanagichlari (real DB) ==")
+    db.reset_channel_post_count()
+
+    # Har bir kanal alohida sanaladi
+    for _ in range(4):
+        db.bump_channel_post_count("-100AAA")
+    for _ in range(2):
+        db.bump_channel_post_count("-100BBB")
+    check("A kanal sanagichi = 4", db.get_channel_post_count("-100AAA") == 4,
+          str(db.get_channel_post_count("-100AAA")))
+    check("B kanal sanagichi = 2", db.get_channel_post_count("-100BBB") == 2)
+    check("noma'lum kanal → 0", db.get_channel_post_count("-100ZZZ") == 0)
+    check("bo'sh kanal id → 0", db.bump_channel_post_count("") == 0)
+
+    # Reklama belgisi
+    check("mark_channel_ad_shown", db.mark_channel_ad_shown("-100AAA", 3) is True)
+    counters = {row[0]: row for row in db.get_channel_post_counters(10)}
+    check("sanagichlar ro'yxatida A bor", "-100AAA" in counters, str(counters))
+    check("A uchun reklama soni 1", counters["-100AAA"][3] == 1, str(counters["-100AAA"]))
+
+    # Interval saqlash/o'qish
+    check("interval saqlandi", db.set_channel_ad_interval(5) is True)
+    check("interval o'qildi", db.get_channel_ad_interval() == 5)
+    db.set_channel_ad_interval(0)
+    check("interval min chegarada", db.get_channel_ad_interval() == db.AD_INTERVAL_MIN)
+    db.set_channel_ad_interval(3)
+    check("interval 3 ga qaytdi", db.get_channel_ad_interval() == 3)
+    check("get_ad_settings ichida ham bor",
+          db.get_ad_settings()["channel_ad_interval"] == 3, str(db.get_ad_settings()))
+
+    # Nolga qaytarish
+    db.reset_channel_post_count("-100AAA")
+    check("A sanagichi nolga qaytdi", db.get_channel_post_count("-100AAA") == 0)
+    check("B sanagichi tegilmadi", db.get_channel_post_count("-100BBB") == 2)
+    db.reset_channel_post_count()
+    check("hammasi nolga qaytdi", db.get_channel_post_count("-100BBB") == 0)
+
+
+def test_channel_ad_interval_end_to_end(db):
+    """Har 3-postda reklama + inline tugma — scheduler orqali to'liq sinov."""
+    print("== reklama oralig'i: uchdan-uchiga (real DB) ==")
+    from scheduler import check_and_send_posts
+    from datetime import datetime, timedelta
+    import pytz
+    tz = pytz.timezone("Asia/Tashkent")
+
+    db.clear_ads("channel")
+    db.reset_channel_post_count()
+    db.set_channel_ad_interval(3)
+    ad_id = db.add_ad("channel", "REKLAMA-MATNI", "Havola", "https://t.me/reklama")
+    check("reklama tayyor", ad_id > 0)
+
+    ch_x, ch_y = "-100XXX", "-100YYY"
+    for i in range(3):
+        db.add_post(user_id=555001, channel_id=ch_x, post_type="text",
+                    content=f"X-post-{i}", file_id=None,
+                    scheduled_time=datetime.now(tz) - timedelta(minutes=1))
+    db.add_post(user_id=555001, channel_id=ch_y, post_type="text",
+                content="Y-post-0", file_id=None,
+                scheduled_time=datetime.now(tz) - timedelta(minutes=1))
+
+    bot = FakeBot()
+    asyncio.run(check_and_send_posts(bot))
+
+    x_texts = [t or "" for c, t in bot.sent if str(c) == ch_x]
+    y_texts = [t or "" for c, t in bot.sent if str(c) == ch_y]
+    with_ad = [t for t in x_texts if "REKLAMA-MATNI" in t]
+    check("X kanaliga 3 ta post yetdi", len(x_texts) == 3, str(x_texts))
+    check("X: faqat 3-postda reklama", len(with_ad) == 1, str(x_texts))
+    check("Y: 1-postda reklama yo'q",
+          y_texts and all("REKLAMA-MATNI" not in t for t in y_texts), str(y_texts))
+    check("X sanagichi 3", db.get_channel_post_count(ch_x) == 3)
+    check("Y sanagichi 1", db.get_channel_post_count(ch_y) == 1)
+
+    # Reklama nofaol bo'lsa umuman chiqmaydi
+    db.set_ad_active(ad_id, False)
+    db.reset_channel_post_count()
+    for i in range(3):
+        db.add_post(user_id=555001, channel_id=ch_x, post_type="text",
+                    content=f"X2-post-{i}", file_id=None,
+                    scheduled_time=datetime.now(tz) - timedelta(minutes=1))
+    bot2 = FakeBot()
+    asyncio.run(check_and_send_posts(bot2))
+    texts2 = [t or "" for _, t in bot2.sent if "X2-post" in (t or "")]
+    check("nofaol reklama chiqmaydi",
+          texts2 and all("REKLAMA-MATNI" not in t for t in texts2), str(texts2))
+
+    db.clear_ads("channel")
+    db.reset_channel_post_count()
+
+
+def test_system_settings_real_db(db):
+    """system_settings o'qish/saqlash — haqiqiy PostgreSQL."""
+    print("== system_settings (real DB) ==")
+    check("saqlash True", db.set_setting("load_test_key", "qiymat") is True)
+    check("o'qish", db.get_setting("load_test_key") == "qiymat")
+    check("mavjud bo'lmagan kalit → default",
+          db.get_setting("yoq_bunday_kalit", "default-1") == "default-1")
+    check("boshqa default ham to'g'ri (kesh xatosi yo'q)",
+          db.get_setting("yoq_bunday_kalit", "default-2") == "default-2")
+    db.set_setting("load_test_key2", "ikki")
+    mapping = db.get_settings_map(["load_test_key", "load_test_key2"])
+    check("get_settings_map ikkalasini qaytardi",
+          mapping == {"load_test_key": "qiymat", "load_test_key2": "ikki"}, str(mapping))
+    check("delete_setting", db.delete_setting("load_test_key2") is True)
+    check("o'chirilgach default", db.get_setting("load_test_key2", "yo'q") == "yo'q")
+
+
 def main():
     try:
         import pgserver
@@ -552,6 +727,12 @@ def main():
     test_channel_ownership(db)
     test_sponsors_fail_closed_empty(db)
     test_album_and_no_watermark(db)
+
+    # 11) Reklama boshqaruvi: ad_pool CRUD, kanal sanagichlari, oraliq
+    test_ad_pool_crud_real_db(db)
+    test_channel_counters_real_db(db)
+    test_channel_ad_interval_end_to_end(db)
+    test_system_settings_real_db(db)
 
     db.close_pool()
     server.cleanup()

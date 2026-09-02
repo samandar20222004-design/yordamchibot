@@ -12,7 +12,7 @@ from config import ADMIN_IDS_SET
 from keyboards.default import (
     exact,
     BTN_NEW_POST, BTN_AI_STUDIO, BTN_PENDING, BTN_SETTINGS, BTN_CABINET,
-    BTN_HELP, BTN_CONVERTER, BTN_EXTRAS, BTN_BACK, BTN_MAIN_MENU,
+    BTN_HELP, BTN_CONVERTER, BTN_EXTRAS, BTN_BACK, BTN_MAIN_MENU, BTN_CANCEL,
     BTN_CHANNELS, BTN_DAILY_BONUS, BTN_BUY_AD_FREE, BTN_INVITE, BTN_TRANSFER,
     BTN_ADMIN_PANEL, BTN_STATS, BTN_ALL_POSTS, BTN_ALL_CHANNELS,
     BTN_BROADCAST, BTN_SPONSORS, BTN_ADD_SPONSOR,
@@ -307,6 +307,19 @@ async def conversation_timeout_handler(update, context):
             pass
 
 
+def _admin_flow_state(text_handler, menu_jumps):
+    """Admin inline oqimi uchun standart holat ro'yxati.
+
+    Har bir holatda: menyu sakrashlari, admin inline tugmalari
+    (⬅️ Orqaga / ❌ Bekor qilish) va matn qabul qiluvchi handler.
+    """
+    return menu_jumps + [
+        CallbackQueryHandler(admin_dashboard_callback, pattern=r"^adm_"),
+        CallbackQueryHandler(ad_pool_callback, pattern=r"^adp:"),
+        MessageHandler(filters.TEXT & ~filters.COMMAND, text_handler),
+    ]
+
+
 def register_all_handlers(app):
     # ============================================================
     # QAT'IY NAVIGATSIYA HANDLERLARI RO'YXATI
@@ -314,6 +327,9 @@ def register_all_handlers(app):
 
     # 1. Start & Navigatsiya
     start_handlers = [
+        # ❌ Bekor qilish — HAR QANDAY holatda FSM'ni to'xtatadi (all_menu_jumps
+        # har bir state ro'yxatining boshida turgani uchun hamma joyda ishlaydi).
+        MessageHandler(exact(BTN_CANCEL), cancel_handler),
         MessageHandler(exact(BTN_BACK, BTN_MAIN_MENU), lambda u, c: guard_menu(u, c, start)),
         MessageHandler(exact(BTN_SETTINGS, BTN_CABINET), lambda u, c: guard_menu(u, c, user_cabinet_menu)),
         MessageHandler(exact(BTN_HELP), lambda u, c: guard_menu(u, c, help_command)),
@@ -417,6 +433,10 @@ def register_all_handlers(app):
             CallbackQueryHandler(edit_post_btn_start, pattern=r"^edit_btn:"),
             CallbackQueryHandler(edit_post_react_start, pattern=r"^edit_react:"),
             CallbackQueryHandler(add_channel_inline_entry, pattern=r"^add_channel_start$"),
+            # Admin panel inline tugmalari: matn kutuvchi bo'limlar FSM holatini
+            # qaytaradi, shuning uchun ular entry point sifatida ro'yxatdan o'tadi.
+            CallbackQueryHandler(admin_dashboard_callback, pattern=r"^adm_"),
+            CallbackQueryHandler(ad_pool_callback, pattern=r"^adp:"),
             CallbackQueryHandler(converter_inline_entry, pattern=r"^extra_converter$"),
             CallbackQueryHandler(quick_button_post_start, pattern=r"^extra_quick_btn$"),
             # ✨ Postga Tugma & Reaksiya qo'shish — ⚙️ Qo'shimcha funksiyalar menyusidan
@@ -543,19 +563,33 @@ def register_all_handlers(app):
             # 6. Admin holatlari
             TRANSFER_TARGET: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, transfer_target_received)],
             TRANSFER_AMOUNT: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, transfer_amount_received)],
-            BROADCAST_MESSAGE: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, broadcast_send)],
-            ADD_SPONSOR_CHANNEL: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, sponsor_channel_received)],
-            SET_CHANNEL_AD: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, channel_ad_received)],
-            SET_BOT_REPLY_AD: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, bot_reply_ad_received)],
+            BROADCAST_MESSAGE: all_menu_jumps + [
+                CallbackQueryHandler(admin_dashboard_callback, pattern=r"^adm_"),
+                MessageHandler(filters.TEXT & ~filters.COMMAND, broadcast_send),
+            ],
+            ADD_SPONSOR_CHANNEL: all_menu_jumps + [
+                CallbackQueryHandler(admin_dashboard_callback, pattern=r"^adm_"),
+                MessageHandler(filters.TEXT & ~filters.COMMAND, sponsor_channel_received),
+            ],
+            SET_CHANNEL_AD: all_menu_jumps + [
+                CallbackQueryHandler(ad_pool_callback, pattern=r"^adp:"),
+                CallbackQueryHandler(admin_dashboard_callback, pattern=r"^adm_"),
+                MessageHandler(filters.TEXT & ~filters.COMMAND, channel_ad_received),
+            ],
+            SET_BOT_REPLY_AD: all_menu_jumps + [
+                CallbackQueryHandler(ad_pool_callback, pattern=r"^adp:"),
+                CallbackQueryHandler(admin_dashboard_callback, pattern=r"^adm_"),
+                MessageHandler(filters.TEXT & ~filters.COMMAND, bot_reply_ad_received),
+            ],
             SET_POST_TAG: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, post_tag_received)],
             AI_SETTINGS: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, ai_settings_received)],
 
             # Admin inline flow holatlari
-            ADMIN_GRANT_PRO: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, admin_inline_text_handler)],
-            ADMIN_PROMO_CREATE: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, admin_inline_text_handler)],
-            ADMIN_SPONSOR_ADD: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, admin_inline_text_handler)],
-            ADMIN_AD_EDIT: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, admin_inline_text_handler)],
-            ADMIN_AD_INTERVAL: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, admin_inline_text_handler)],
+            ADMIN_GRANT_PRO: _admin_flow_state(admin_inline_text_handler, all_menu_jumps),
+            ADMIN_PROMO_CREATE: _admin_flow_state(admin_inline_text_handler, all_menu_jumps),
+            ADMIN_SPONSOR_ADD: _admin_flow_state(admin_inline_text_handler, all_menu_jumps),
+            ADMIN_AD_EDIT: _admin_flow_state(admin_inline_text_handler, all_menu_jumps),
+            ADMIN_AD_INTERVAL: _admin_flow_state(admin_inline_text_handler, all_menu_jumps),
 
             # 7. AI Assistant holatlari (Faqat foydalanuvchi AI ga kirganda ishlaydi!)
             AI_INPUT: all_menu_jumps + [MessageHandler(filters.ALL & ~filters.COMMAND, ai_input_received)],
@@ -622,6 +656,7 @@ def register_all_handlers(app):
         fallbacks=[
             CommandHandler("start", start),
             CommandHandler("cancel", cancel_handler),
+            MessageHandler(exact(BTN_CANCEL), cancel_handler),
             MessageHandler(exact(BTN_BACK, BTN_MAIN_MENU), lambda u, c: guard_menu(u, c, start)),
         ],
         allow_reentry=True,

@@ -33,11 +33,12 @@ SCHEMA_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "schema.s
 # tests/schema_test.py buni tekshirib turadi).
 EXPECTED_TABLES = (
     "users", "channels", "sponsor_channels", "system_settings",
-    "bot_settings", "ad_pool", "scheduled_posts", "post_reactions",
-    "sent_post_messages", "promo_codes", "payments",
+    "bot_settings", "ad_pool", "channel_post_counters", "scheduled_posts",
+    "post_reactions", "sent_post_messages", "promo_codes", "payments",
 )
 EXPECTED_INDEXES = (
     "idx_ad_pool_scope",
+    "idx_channel_post_counters_updated",
     "idx_payments_user_id",
     "idx_scheduled_posts_status_time",
     "idx_scheduled_posts_user_id",
@@ -519,12 +520,31 @@ def _init_db_once():
                 id SERIAL PRIMARY KEY,
                 scope VARCHAR(20) NOT NULL,
                 text TEXT NOT NULL,
+                button_text VARCHAR(64),
+                button_url TEXT,
                 is_active BOOLEAN DEFAULT TRUE,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
         """)
         cur.execute("CREATE INDEX IF NOT EXISTS idx_ad_pool_scope ON ad_pool (scope, is_active);")
-        
+
+        # Har bir kanal uchun yuborilgan postlar sanagichi (reklama oralig'i
+        # shu sanagich bo'yicha hisoblanadi — kanallar bir-biriga ta'sir qilmaydi).
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS channel_post_counters (
+                channel_id VARCHAR(255) PRIMARY KEY,
+                post_count INTEGER NOT NULL DEFAULT 0,
+                ad_count INTEGER NOT NULL DEFAULT 0,
+                last_ad_post_number INTEGER NOT NULL DEFAULT 0,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        """)
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_channel_post_counters_updated "
+            "ON channel_post_counters (updated_at DESC);"
+        )
+
         cur.execute("""
             CREATE TABLE IF NOT EXISTS scheduled_posts (
                 id SERIAL PRIMARY KEY,
@@ -636,6 +656,10 @@ def _init_db_once():
             "ALTER TABLE sponsor_channels ADD COLUMN IF NOT EXISTS channel_title VARCHAR(255);",
             "ALTER TABLE sponsor_channels ADD COLUMN IF NOT EXISTS channel_url VARCHAR(255);",
             "ALTER TABLE sponsor_channels ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;",
+            # Reklama puli: HTML matn + inline URL tugma (matn va havola).
+            "ALTER TABLE ad_pool ADD COLUMN IF NOT EXISTS button_text VARCHAR(64);",
+            "ALTER TABLE ad_pool ADD COLUMN IF NOT EXISTS button_url TEXT;",
+            "ALTER TABLE ad_pool ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;",
         ]
         for index, migration in enumerate(migrations):
             # Bitta migration xatosi qolgan migrationlarni transaction aborted
@@ -673,19 +697,52 @@ AD_SCOPE_CHANNEL = "channel"
 AD_SCOPE_REPLY = "reply"
 AD_SCOPES = (AD_SCOPE_CHANNEL, AD_SCOPE_REPLY)
 
+# Reklama matni/tugmasi uchun chegaralar (Telegram limitlariga mos).
+AD_TEXT_MAX_LEN = 1024
+AD_BUTTON_TEXT_MAX_LEN = 64
+AD_BUTTON_URL_MAX_LEN = 2048
 
-def add_ad(scope: str, text: str) -> int:
+
+def _normalize_ad_button(button_text: str = "", button_url: str = "") -> tuple:
+    """Tugma matni/havolasini normallashtiradi.
+
+    Ikkalasi ham to'liq bo'lmasa tugma saqlanmaydi (``(None, None)``) —
+    Telegram matnsiz yoki havolasiz inline tugmani qabul qilmaydi.
+    """
+    btn_text = (button_text or "").strip()[:AD_BUTTON_TEXT_MAX_LEN]
+    btn_url = (button_url or "").strip()[:AD_BUTTON_URL_MAX_LEN]
+    if not btn_text or not btn_url:
+        return None, None
+    return btn_text, btn_url
+
+
+def _ad_row_to_dict(row) -> dict:
+    """``ad_pool`` qatorini qulay dict ko'rinishiga o'giradi."""
+    ad_id, scope, text, btn_text, btn_url, is_active = row[:6]
+    return {
+        "id": int(ad_id),
+        "scope": scope,
+        "text": text or "",
+        "button_text": btn_text or "",
+        "button_url": btn_url or "",
+        "is_active": bool(is_active),
+    }
+
+
+def add_ad(scope: str, text: str, button_text: str = "", button_url: str = "") -> int:
     """Rotatsiya puliga yangi reklama qo'shadi. Id qaytaradi (xato: -1)."""
     if scope not in AD_SCOPES:
         return -1
     text = (text or "").strip()
     if not text:
         return -1
+    btn_text, btn_url = _normalize_ad_button(button_text, button_url)
     try:
         with db_cursor(commit=True) as cur:
             cur.execute(
-                "INSERT INTO ad_pool (scope, text) VALUES (%s, %s) RETURNING id",
-                (scope, text),
+                "INSERT INTO ad_pool (scope, text, button_text, button_url) "
+                "VALUES (%s, %s, %s, %s) RETURNING id",
+                (scope, text, btn_text, btn_url),
             )
             row = cur.fetchone()
         _cache_clear("ad_pool:")
@@ -696,21 +753,37 @@ def add_ad(scope: str, text: str) -> int:
 
 
 def get_ads(scope: str) -> list:
-    """Faol reklamalar ro'yxati: [(id, text), ...]. Bo'sh bo'lsa []."""
+    """Faol reklamalar ro'yxati: [(id, text), ...]. Bo'sh bo'lsa [].
+
+    Orqaga moslik uchun soddalashtirilgan ko'rinish saqlanadi; tugma bilan
+    to'liq ma'lumot kerak bo'lsa ``get_ads_full`` ishlatiladi.
+    """
+    return [(ad["id"], ad["text"]) for ad in get_ads_full(scope)]
+
+
+def get_ads_full(scope: str, include_inactive: bool = False) -> list:
+    """Reklamalarning to'liq ro'yxati (matn + inline tugma + holat).
+
+    Har bir element: ``{"id", "scope", "text", "button_text",
+    "button_url", "is_active"}``.
+    """
     if scope not in AD_SCOPES:
         return []
-    cache_key = f"ad_pool:{scope}"
+    cache_key = f"ad_pool:{scope}:{'all' if include_inactive else 'active'}"
     cached = _cache_get(cache_key)
     if cached is not _MISS:
         return cached
     try:
         with db_cursor() as cur:
-            cur.execute(
-                "SELECT id, text FROM ad_pool WHERE scope = %s AND is_active = TRUE "
-                "ORDER BY id ASC",
-                (scope,),
+            query = (
+                "SELECT id, scope, text, button_text, button_url, is_active "
+                "FROM ad_pool WHERE scope = %s"
             )
-            rows = cur.fetchall()
+            if not include_inactive:
+                query += " AND is_active = TRUE"
+            query += " ORDER BY id ASC"
+            cur.execute(query, (scope,))
+            rows = [_ad_row_to_dict(r) for r in cur.fetchall()]
             _cache_set(cache_key, rows, DB_SETTINGS_CACHE_TTL)
             return rows
     except Exception as e:
@@ -718,18 +791,119 @@ def get_ads(scope: str) -> list:
         return []
 
 
+def get_ad(ad_id: int) -> dict | None:
+    """Bitta reklamani id bo'yicha qaytaradi (topilmasa None)."""
+    try:
+        with db_cursor() as cur:
+            cur.execute(
+                "SELECT id, scope, text, button_text, button_url, is_active "
+                "FROM ad_pool WHERE id = %s",
+                (int(ad_id),),
+            )
+            row = cur.fetchone()
+        return _ad_row_to_dict(row) if row else None
+    except Exception as e:
+        logger.error(f"Reklama olish xatosi: {e}")
+        return None
+
+
 def count_ads(scope: str) -> int:
     """Berilgan scope uchun faol reklamalar soni."""
-    return len(get_ads(scope) or [])
+    return len(get_ads_full(scope) or [])
+
+
+def update_ad(ad_id: int, text: str = None, button_text: str = None,
+              button_url: str = None) -> bool:
+    """Reklamani tahrirlaydi. Faqat berilgan (None bo'lmagan) maydonlar yangilanadi.
+
+    ``button_text``/``button_url`` ga bo'sh satr berilsa tugma o'chiriladi.
+    """
+    fields = []
+    params = []
+
+    if text is not None:
+        text = str(text).strip()
+        if not text:
+            return False
+        fields.append("text = %s")
+        params.append(text[:AD_TEXT_MAX_LEN])
+
+    if button_text is not None or button_url is not None:
+        # Tugma butunlay yangilanadi: ikkalasi ham berilishi kerak,
+        # aks holda mavjud qiymat asos qilib olinadi.
+        current = get_ad(ad_id) if (button_text is None or button_url is None) else None
+        new_text = button_text if button_text is not None else (current or {}).get("button_text", "")
+        new_url = button_url if button_url is not None else (current or {}).get("button_url", "")
+        btn_text, btn_url = _normalize_ad_button(new_text, new_url)
+        fields.append("button_text = %s")
+        params.append(btn_text)
+        fields.append("button_url = %s")
+        params.append(btn_url)
+
+    if not fields:
+        return False
+
+    fields.append("updated_at = CURRENT_TIMESTAMP")
+    params.append(int(ad_id))
+    try:
+        with db_cursor(commit=True) as cur:
+            cur.execute(
+                f"UPDATE ad_pool SET {', '.join(fields)} WHERE id = %s",
+                tuple(params),
+            )
+            updated = cur.rowcount > 0
+        _cache_clear("ad_pool:")
+        return updated
+    except Exception as e:
+        logger.error(f"Reklama tahrirlash xatosi: {e}")
+        return False
+
+
+def set_ad_active(ad_id: int, is_active: bool) -> bool:
+    """Reklamani faollashtiradi yoki o'chiradi (Toggle Active/Inactive)."""
+    try:
+        with db_cursor(commit=True) as cur:
+            cur.execute(
+                "UPDATE ad_pool SET is_active = %s, updated_at = CURRENT_TIMESTAMP "
+                "WHERE id = %s",
+                (bool(is_active), int(ad_id)),
+            )
+            updated = cur.rowcount > 0
+        _cache_clear("ad_pool:")
+        return updated
+    except Exception as e:
+        logger.error(f"Reklama holatini o'zgartirish xatosi: {e}")
+        return False
+
+
+def toggle_ad_active(ad_id: int):
+    """Reklama holatini teskarisiga o'giradi. Yangi holat (bool) yoki None."""
+    try:
+        with db_cursor(commit=True) as cur:
+            cur.execute(
+                "UPDATE ad_pool SET is_active = NOT COALESCE(is_active, FALSE), "
+                "updated_at = CURRENT_TIMESTAMP WHERE id = %s RETURNING is_active",
+                (int(ad_id),),
+            )
+            row = cur.fetchone()
+        _cache_clear("ad_pool:")
+        return bool(row[0]) if row else None
+    except Exception as e:
+        logger.error(f"Reklama toggle xatosi: {e}")
+        return None
 
 
 def delete_ad(ad_id: int) -> bool:
-    """Reklamani o'chiradi (is_active -> FALSE)."""
+    """Reklamani puldan butunlay o'chiradi.
+
+    Vaqtincha o'chirish uchun ``set_ad_active(ad_id, False)`` ishlatiladi.
+    """
     try:
         with db_cursor(commit=True) as cur:
-            cur.execute("UPDATE ad_pool SET is_active = FALSE WHERE id = %s", (int(ad_id),))
+            cur.execute("DELETE FROM ad_pool WHERE id = %s", (int(ad_id),))
+            removed = cur.rowcount > 0
         _cache_clear("ad_pool:")
-        return True
+        return removed
     except Exception as e:
         logger.error(f"Reklama o'chirish xatosi: {e}")
         return False
@@ -741,10 +915,7 @@ def clear_ads(scope: str) -> int:
         return 0
     try:
         with db_cursor(commit=True) as cur:
-            cur.execute(
-                "UPDATE ad_pool SET is_active = FALSE WHERE scope = %s AND is_active = TRUE",
-                (scope,),
-            )
+            cur.execute("DELETE FROM ad_pool WHERE scope = %s", (scope,))
             removed = cur.rowcount
         _cache_clear("ad_pool:")
         return int(removed or 0)
@@ -753,34 +924,271 @@ def clear_ads(scope: str) -> int:
         return 0
 
 
-def set_setting(key: str, value: str):
+# --- KANAL POST SANAGICHLARI (reklama oralig'i uchun) ---
+# Reklama har nechanchi postda chiqishi admin panelda sozlanadi (3-5 ta post).
+CHANNEL_AD_INTERVAL_KEY = "channel_ad_interval"
+CHANNEL_AD_INTERVAL_DEFAULT = 3
+AD_INTERVAL_MIN = 1
+AD_INTERVAL_MAX = 100
+
+
+def clamp_ad_interval(value, default: int = CHANNEL_AD_INTERVAL_DEFAULT) -> int:
+    """Interval qiymatini xavfsiz butun songa keltiradi (1..100)."""
+    try:
+        interval = int(str(value).strip())
+    except (TypeError, ValueError):
+        return default
+    return max(AD_INTERVAL_MIN, min(AD_INTERVAL_MAX, interval))
+
+
+def bump_channel_post_count(channel_id) -> int:
+    """Kanal post sanagichini 1 ga oshiradi va YANGI qiymatni qaytaradi.
+
+    Sanagich har bir kanal uchun ALOHIDA yuritiladi. Atomik UPSERT bo'lgani
+    uchun bir nechta scheduler tick'i parallel ishlasa ham qiymat buzilmaydi.
+    Xatoda 0 qaytadi (0 hech qachon reklama chiqarmaydi).
+    """
+    ch = str(channel_id or "").strip()
+    if not ch:
+        return 0
+    try:
+        with db_cursor(commit=True) as cur:
+            cur.execute(
+                """
+                INSERT INTO channel_post_counters (channel_id, post_count, updated_at)
+                VALUES (%s, 1, CURRENT_TIMESTAMP)
+                ON CONFLICT (channel_id) DO UPDATE
+                SET post_count = channel_post_counters.post_count + 1,
+                    updated_at = CURRENT_TIMESTAMP
+                RETURNING post_count
+                """,
+                (ch,),
+            )
+            row = cur.fetchone()
+        _cache_clear("channel_counter:")
+        return int(row[0]) if row else 0
+    except Exception as e:
+        logger.error(f"Kanal post sanagichi xatosi: {e}")
+        return 0
+
+
+def mark_channel_ad_shown(channel_id, post_number: int) -> bool:
+    """Kanalga reklama chiqarilganini belgilaydi (statistika/audit uchun)."""
+    ch = str(channel_id or "").strip()
+    if not ch:
+        return False
+    try:
+        with db_cursor(commit=True) as cur:
+            cur.execute(
+                """
+                INSERT INTO channel_post_counters
+                    (channel_id, post_count, ad_count, last_ad_post_number, updated_at)
+                VALUES (%s, %s, 1, %s, CURRENT_TIMESTAMP)
+                ON CONFLICT (channel_id) DO UPDATE
+                SET ad_count = channel_post_counters.ad_count + 1,
+                    last_ad_post_number = EXCLUDED.last_ad_post_number,
+                    updated_at = CURRENT_TIMESTAMP
+                """,
+                (ch, int(post_number or 0), int(post_number or 0)),
+            )
+        _cache_clear("channel_counter:")
+        return True
+    except Exception as e:
+        logger.error(f"Kanal reklama belgisi xatosi: {e}")
+        return False
+
+
+def get_channel_post_count(channel_id) -> int:
+    """Kanalning joriy post sanagichi (yo'q bo'lsa 0)."""
+    ch = str(channel_id or "").strip()
+    if not ch:
+        return 0
+    try:
+        with db_cursor() as cur:
+            cur.execute(
+                "SELECT post_count FROM channel_post_counters WHERE channel_id = %s",
+                (ch,),
+            )
+            row = cur.fetchone()
+        return int(row[0]) if row else 0
+    except Exception as e:
+        logger.error(f"Kanal sanagichini olish xatosi: {e}")
+        return 0
+
+
+def reset_channel_post_count(channel_id=None) -> bool:
+    """Bitta kanal (yoki hammasi) uchun post sanagichini nolga qaytaradi."""
+    try:
+        with db_cursor(commit=True) as cur:
+            if channel_id is None:
+                cur.execute(
+                    "UPDATE channel_post_counters SET post_count = 0, "
+                    "last_ad_post_number = 0, updated_at = CURRENT_TIMESTAMP"
+                )
+            else:
+                cur.execute(
+                    "UPDATE channel_post_counters SET post_count = 0, "
+                    "last_ad_post_number = 0, updated_at = CURRENT_TIMESTAMP "
+                    "WHERE channel_id = %s",
+                    (str(channel_id),),
+                )
+        _cache_clear("channel_counter:")
+        return True
+    except Exception as e:
+        logger.error(f"Kanal sanagichini tozalash xatosi: {e}")
+        return False
+
+
+def get_channel_post_counters(limit: int = 10) -> list:
+    """Eng faol kanallar sanagichi: [(channel_id, title, post_count, ad_count), ...]."""
+    try:
+        limit = max(1, int(limit))
+        with db_cursor() as cur:
+            cur.execute(
+                """
+                SELECT cpc.channel_id,
+                       COALESCE(c.channel_title, '') AS title,
+                       cpc.post_count, cpc.ad_count
+                FROM channel_post_counters cpc
+                LEFT JOIN channels c ON c.channel_id = cpc.channel_id
+                ORDER BY cpc.updated_at DESC
+                LIMIT %s
+                """,
+                (limit,),
+            )
+            return cur.fetchall()
+    except Exception as e:
+        logger.error(f"Kanal sanagichlari ro'yxati xatosi: {e}")
+        return []
+
+
+def get_channel_ad_interval() -> int:
+    """Kanal postlarida reklama har nechanchi postda chiqishi (standart 3)."""
+    cached = _cache_get("channel_ad_interval")
+    if cached is not _MISS:
+        return cached
+    try:
+        with db_cursor() as cur:
+            cur.execute(
+                "SELECT value FROM bot_settings WHERE key = %s",
+                (CHANNEL_AD_INTERVAL_KEY,),
+            )
+            row = cur.fetchone()
+        interval = clamp_ad_interval(row[0] if row else None)
+        _cache_set("channel_ad_interval", interval, DB_SETTINGS_CACHE_TTL)
+        return interval
+    except Exception as e:
+        logger.error(f"Kanal reklama oralig'ini olish xatosi: {e}")
+        return CHANNEL_AD_INTERVAL_DEFAULT
+
+
+def set_channel_ad_interval(interval) -> bool:
+    """Kanal postlari reklama oralig'ini saqlaydi (masalan 3, 4 yoki 5)."""
+    value = clamp_ad_interval(interval)
+    try:
+        with db_cursor(commit=True) as cur:
+            cur.execute(
+                """
+                INSERT INTO bot_settings (key, value)
+                VALUES (%s, %s)
+                ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
+                """,
+                (CHANNEL_AD_INTERVAL_KEY, str(value)),
+            )
+        _cache_clear("channel_ad_interval")
+        _cache_clear("ad_settings")
+        return True
+    except Exception as e:
+        logger.error(f"Kanal reklama oralig'ini saqlash xatosi: {e}")
+        return False
+
+
+def set_setting(key: str, value: str) -> bool:
+    """``system_settings`` jadvaliga sozlamani yozadi (upsert).
+
+    Muvaffaqiyatda True qaytadi — chaqiruvchi saqlanganini tekshira oladi.
+    """
+    key = str(key or "").strip()
+    if not key:
+        return False
     try:
         with db_cursor(commit=True) as cur:
             cur.execute("""
                 INSERT INTO system_settings (key, value)
                 VALUES (%s, %s)
                 ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
-            """, (key, value))
+            """, (key, "" if value is None else str(value)))
         _cache_clear("setting:")
         _cache_clear("system_stats")
+        return True
     except Exception as e:
         logger.error(f"Sozlama xatosi: {e}")
+        return False
+
 
 def get_setting(key: str, default: str = "") -> str:
+    """``system_settings`` dan qiymat o'qiydi.
+
+    Kesh faqat BAZADAGI qiymatni saqlaydi — ``default`` keshlanmaydi, shuning
+    uchun turli default bilan chaqirilganda ham to'g'ri natija qaytadi.
+    """
+    key = str(key or "").strip()
+    if not key:
+        return default
     cache_key = f"setting:{key}"
     cached = _cache_get(cache_key)
     if cached is not _MISS:
-        return cached
+        return default if cached is None else cached
     try:
         with db_cursor() as cur:
             cur.execute("SELECT value FROM system_settings WHERE key = %s", (key,))
             row = cur.fetchone()
-            value = row[0] if row else default
+            value = row[0] if row else None
             _cache_set(cache_key, value, DB_SETTINGS_CACHE_TTL)
-            return value
+            return default if value is None else value
     except Exception as e:
         logger.error(f"Sozlama olish xatosi: {e}")
         return default
+
+
+def get_settings_map(keys=None) -> dict:
+    """Bir nechta sozlamani bitta so'rovda o'qiydi: ``{key: value}``.
+
+    ``keys`` berilmasa — barcha sozlamalar qaytadi. Admin paneldagi
+    "tizim sozlamalari" ekrani shu funksiyadan foydalanadi.
+    """
+    try:
+        with db_cursor() as cur:
+            if keys is not None:
+                keys = [str(k) for k in keys if str(k).strip()]
+                if not keys:
+                    return {}
+                cur.execute(
+                    "SELECT key, value FROM system_settings WHERE key = ANY(%s) ORDER BY key",
+                    (keys,),
+                )
+            else:
+                cur.execute("SELECT key, value FROM system_settings ORDER BY key")
+            return {k: (v or "") for k, v in cur.fetchall()}
+    except Exception as e:
+        logger.error(f"Sozlamalarni olish xatosi: {e}")
+        return {}
+
+
+def delete_setting(key: str) -> bool:
+    """Sozlamani o'chiradi (default qiymatga qaytarish uchun)."""
+    key = str(key or "").strip()
+    if not key:
+        return False
+    try:
+        with db_cursor(commit=True) as cur:
+            cur.execute("DELETE FROM system_settings WHERE key = %s", (key,))
+            removed = cur.rowcount > 0
+        _cache_clear("setting:")
+        return removed
+    except Exception as e:
+        logger.error(f"Sozlamani o'chirish xatosi: {e}")
+        return False
 
 # --- SPONSORS ---
 def add_sponsor_channel(
@@ -899,7 +1307,12 @@ def remove_sponsor_channel(sponsor_id: int | str) -> bool:
 
 # --- AUTO-AD INJECTOR SETTINGS ---
 def get_ad_settings() -> dict:
-    """Auto-ad sozlamalarini qaytaradi: auto_ad_text, auto_ad_interval, auto_ad_status."""
+    """Reklama sozlamalari.
+
+    Qaytadi: ``auto_ad_text``, ``auto_ad_interval`` (bot javoblari uchun),
+    ``auto_ad_status`` va ``channel_ad_interval`` (kanal postlari uchun —
+    reklama har nechanchi postda chiqishi).
+    """
     cached = _cache_get("ad_settings")
     if cached is not _MISS:
         return cached
@@ -907,22 +1320,24 @@ def get_ad_settings() -> dict:
         "auto_ad_text": "",
         "auto_ad_interval": 4,
         "auto_ad_status": False,
+        "channel_ad_interval": CHANNEL_AD_INTERVAL_DEFAULT,
     }
     try:
         with db_cursor() as cur:
             cur.execute("""
                 SELECT key, value FROM bot_settings
-                WHERE key IN ('auto_ad_text', 'auto_ad_interval', 'auto_ad_status')
+                WHERE key IN ('auto_ad_text', 'auto_ad_interval', 'auto_ad_status',
+                              'channel_ad_interval')
             """)
             rows = cur.fetchall()
             for k, v in rows:
                 if k == "auto_ad_text":
                     settings["auto_ad_text"] = v or ""
                 elif k == "auto_ad_interval":
-                    try:
-                        settings["auto_ad_interval"] = int(v) if v else 4
-                    except ValueError:
-                        settings["auto_ad_interval"] = 4
+                    settings["auto_ad_interval"] = clamp_ad_interval(v, 4)
+                elif k == "channel_ad_interval":
+                    settings["channel_ad_interval"] = clamp_ad_interval(
+                        v, CHANNEL_AD_INTERVAL_DEFAULT)
                 elif k == "auto_ad_status":
                     settings["auto_ad_status"] = str(v).lower() in ("true", "1", "yes", "on")
         _cache_set("ad_settings", settings, DB_SETTINGS_CACHE_TTL)
@@ -968,9 +1383,9 @@ def set_ad_status(status: bool) -> bool:
 
 
 def set_ad_interval(interval: int) -> bool:
-    """Auto-ad ko'rsatish intervalini o'zgartiradi (standart: 4, ya'ni har 3-5 ta so'rovda)."""
+    """Bot javoblari reklama intervalini o'zgartiradi (standart: 4)."""
     try:
-        val = str(max(1, int(interval)))
+        val = str(clamp_ad_interval(interval, 4))
         with db_cursor(commit=True) as cur:
             cur.execute("""
                 INSERT INTO bot_settings (key, value)
