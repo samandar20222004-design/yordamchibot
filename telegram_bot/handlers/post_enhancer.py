@@ -13,8 +13,8 @@ Bosqichma-bosqich oqim (har bir qadamda "⬅️ Orqaga" va "❌ Bekor qilish" bo
   3. 🔗 URL tugmalar: 3 ta tayyor shablon (Kanalga a'zo bo'lish / Guruhga
      qo'shilish / Botga o'tish) yoki qo'lda kiritish
      (``Tugma nomi - https://havola.uz``).
-  4. 👁 Doimiy prevyu: har o'zgarishdan keyin postning to'liq ko'rinishi
-     (media + tugmalar + reaksiyalar) bitta xabarda YANGILANIB turadi.
+  4. 👁 Prevyu: faqat foydalanuvchi so'raganda post (media + tugmalar +
+     reaksiyalar) ko'rsatiladi; tahrirlash qadamlarida post chiqarilmaydi.
   5. 🚀 Kanalga yuborish: kanal ro'yxati → "Ushbu post **Kanal**ga
      yuborilsinmi?" → ✅ tasdiq → "✅ Post kanalingizga muvaffaqiyatli
      joylandi!" + [🏠 Asosiy menyu].
@@ -142,7 +142,7 @@ def intro_text() -> str:
         "✅ Asl matnga tegilmaydi — faqat:\n"
         "• 👍 10 tagacha reaksiya (probel bilan batch kiritish mumkin),\n"
         "• 🔗 10 tagacha URL tugma (tayyor shablonlar bilan),\n"
-        "• 👁 doimiy prevyu va 🚀 kanalga bir zumda yuborish."
+        "• 👁 so'ralganda prevyu va 🚀 kanalga bir zumda yuborish."
     )
 
 
@@ -457,7 +457,7 @@ def _react_view(context, watermark_note: str = "") -> tuple:
         "• Yoki bir nechta emojini <b>probel bilan</b> bir xabarda yuboring "
         "(masalan: <code>👍 ❤️ 🔥 👏 🎉</code>);\n"
         f"• Yana <b>{left}</b> ta reaksiya qo'shsa bo'ladi.\n\n"
-        "<i>Har o'zgarishdan keyin postning yangilangan prevyusi ko'rsatiladi.</i>"
+        "<i>Post faqat yakuniy prevyu/tasdiqlash bosqichida ko'rsatiladi.</i>"
     )
     rows = []
     row = []
@@ -632,7 +632,8 @@ def _confirm_view(context, watermark_note: str = "") -> tuple:
 def _success_view(ch_title: str = "") -> tuple:
     where = f"\n📢 <b>Kanal:</b> {html_escape(ch_title)}" if ch_title else ""
     text = (
-        "✅ <b>Post kanalingizga muvaffaqiyatli joylandi!</b>"
+        "✅ <b>Post yuklandi!</b>\n"
+        "Post kanalingizga muvaffaqiyatli joylandi!"
         f"{where}\n\n"
         "Xohlasangiz shu postni boshqa kanalga ham yuborishingiz yoki yangi "
         "post kuchaytirishingiz mumkin 👇"
@@ -664,33 +665,36 @@ _VIEWS = {
 
 
 async def _render(context, chat_id: int, target_msg=None, watermark_note: str = ""):
-    """Joriy qadam ekranini ko'rsatadi: hub xabari bo'lsa EDIT qilinadi."""
+    """Boshqaruv panelini har safar chatning eng pastiga chiqaradi.
+
+    Avvalgi versiyada hub xabari ``edit_message_text`` bilan o'zgartirilardi.
+    Telegram xabarni tahrirlashda uning joylashuvi o'zgarmaydi, shu sababli
+    foydalanuvchi yangi reaksiya/tugma qo'shganda panel tepada qolib ketardi.
+    Panelni o'chirib, oddiy yangi xabar sifatida yuborish uni doim eng pastga
+    qo'yadi. ``target_msg`` faqat eski API bilan moslik uchun qoldirilgan —
+    panel foydalanuvchi xabariga reply qilinmaydi.
+    """
     enh = _payload(context)
     step = enh.get("step", "hub")
     view = _VIEWS.get(step, _hub_view)
     text, markup = view(context, watermark_note)
-    hub_id = enh.get("hub_msg_id")
-    if hub_id:
+
+    old_id = enh.get("hub_msg_id")
+    if old_id:
         try:
-            await context.bot.edit_message_text(
-                chat_id=chat_id, message_id=hub_id, text=text[:4090],
-                reply_markup=markup, parse_mode="HTML",
-            )
-            return
-        except BadRequest as e:
-            if "not modified" not in str(e).lower():
-                enh["hub_msg_id"] = None
+            await context.bot.delete_message(chat_id=chat_id, message_id=old_id)
         except TelegramError:
+            # Xabar o'chirilgan yoki muddati o'tgan bo'lishi mumkin.
+            pass
+        finally:
             enh["hub_msg_id"] = None
-    msg = None
-    if target_msg is not None:
-        try:
-            msg = await target_msg.reply_text(text, reply_markup=markup, parse_mode="HTML")
-        except TelegramError:
-            msg = None
-    if msg is None:
-        msg = await context.bot.send_message(chat_id=chat_id, text=text[:4090],
-                                             reply_markup=markup, parse_mode="HTML")
+
+    msg = await context.bot.send_message(
+        chat_id=chat_id,
+        text=text[:4090],
+        reply_markup=markup,
+        parse_mode="HTML",
+    )
     enh["hub_msg_id"] = msg.message_id
 
 
@@ -821,13 +825,12 @@ async def _capture_post(update, context, msg, enh):
     await _drop_preview(context, chat_id, enh)  # eski post prevyusi eskirgan
     note = await _plan_note(user_id)
     await _render(context, chat_id, target_msg=msg, watermark_note=note)
-    # Doimiy prevyu: foydalanuvchi darhol postning to'liq ko'rinishini ko'radi.
-    await _send_preview(context, chat_id, enh, create=True)
+    # Tahrirlash vaqtida post ko'rsatilmaydi; preview alohida tugma bilan ochiladi.
     return ENH_POST
 
 
 async def _emoji_text_step(update, context, msg, enh, chat_id):
-    """Reaksiya qadami: emojilarni probel bilan BATCH qabul qiladi."""
+    """Reaksiya matnini qabul qiladi; post previewsi bu bosqichda yuborilmaydi."""
     raw_text = msg.text or msg.caption or ""
     res = apply_reaction_batch(enh.get("reactions"), raw_text)
     if res["tokens"]:
@@ -843,23 +846,15 @@ async def _emoji_text_step(update, context, msg, enh, chat_id):
                 extra += "\nℹ️ Takrorlangan emojilar hisobga olinmadi."
             await msg.reply_text(
                 f"✅ <b>Reaksiyalar saqlandi:</b> {sel_line}\n"
-                f"Jami: <b>{total}/{MAX_ENH_REACTIONS}</b>{extra}",
-                parse_mode="HTML",
-            )
+                f"Jami: <b>{total}/{MAX_ENH_REACTIONS}</b>{extra}", parse_mode="HTML")
         elif res["duplicates"] and not res["overflow"]:
             await msg.reply_text(
                 f"ℹ️ Bu emojilar allaqachon tanlangan: {' '.join(res['duplicates'])}\n"
-                f"Jami: <b>{total}/{MAX_ENH_REACTIONS}</b>",
-                parse_mode="HTML",
-            )
+                f"Jami: <b>{total}/{MAX_ENH_REACTIONS}</b>", parse_mode="HTML")
         else:
             await msg.reply_text(
                 f"⚠️ <b>Reaksiyalar chegarasi to'ldi</b> (maks. {MAX_ENH_REACTIONS} ta). "
-                "Avval birortasini olib tashlang.",
-                parse_mode="HTML",
-            )
-        # O'zgarishdan keyin darhol yangilangan prevyu.
-        await _send_preview(context, chat_id, enh, create=True)
+                "Avval birortasini olib tashlang.", parse_mode="HTML")
     else:
         low = raw_text.strip().lower()
         if low in ("done", "tayyor", "✅", "davom", "keyingisi"):
@@ -871,8 +866,7 @@ async def _emoji_text_step(update, context, msg, enh, chat_id):
             await msg.reply_text(
                 "ℹ️ Faqat <b>emoji</b> yuboring — bir nechta bo'lsa <b>probel bilan</b> "
                 "(masalan: <code>👍 ❤️ 🔥 👏 🎉</code>) yoki pastdagi tugmalardan foydalaning.",
-                parse_mode="HTML",
-            )
+                parse_mode="HTML")
     await _render(context, chat_id)
     return ENH_POST
 
@@ -932,8 +926,6 @@ async def _button_text_step(update, context, msg, enh, chat_id):
         f"<code>{html_escape(parsed['url'])}</code>",
         parse_mode="HTML",
     )
-    # Tugma darhol prevyuda ko'rinadi.
-    await _send_preview(context, chat_id, enh, create=True)
     await _render(context, chat_id)
     return ENH_POST
 
@@ -1041,7 +1033,6 @@ async def enh_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             selected.append(emoji)
         enh["reactions"] = selected
-        await _send_preview(context, chat_id, enh, create=False)
         await _render(context, chat_id)
         return ENH_POST
 
@@ -1049,7 +1040,6 @@ async def enh_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await _answer(query)
         if arg == "clear":
             enh["reactions"] = []
-            await _send_preview(context, chat_id, enh, create=False)
         # "➡️ Davom etish / URL tugmaga o'tish" — keyingi qadam.
         enh["step"] = "btns" if arg == "done" else "hub"
         await _render(context, chat_id)
@@ -1063,7 +1053,10 @@ async def enh_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if action == "preview":
         await _answer(query)
+        # Post faqat foydalanuvchi Preview ni so'raganda chiqadi.
         await _send_preview(context, chat_id, enh, create=True)
+        enh["step"] = "hub"
+        await _render(context, chat_id, watermark_note=await _plan_note(user_id))
         return ENH_POST
 
     if action == "replace":
@@ -1090,6 +1083,9 @@ async def enh_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return ENH_POST
         enh["ch_idx"] = idx
         enh["step"] = "confirm"
+        # Tasdiqlash ekranida post ham albatta ko'rinsin. Agar foydalanuvchi
+        # oldin Preview bosgan bo'lsa, mavjud preview qayta ishlatiladi.
+        await _send_preview(context, chat_id, enh, create=True)
         await _render(context, chat_id, watermark_note=await _plan_note(user_id))
         return ENH_POST
 
@@ -1130,7 +1126,6 @@ async def _preset_action(update, context, query, arg, enh):
 async def _btn_action(update, context, query, arg, arg2, enh, chat_id):
     user_id = query.from_user.id
     if arg == "add":
-        # "➕ Yangi tugma qo'shish" → avval 3 ta tayyor shablon ko'rsatiladi.
         await _answer(query)
         if len(enh.get("buttons") or []) >= MAX_ENH_BUTTONS:
             await _answer(query, f"⚠️ Maksimum {MAX_ENH_BUTTONS} ta tugma!", alert=True)
@@ -1154,13 +1149,10 @@ async def _btn_action(update, context, query, arg, arg2, enh, chat_id):
             "Bir qatorda yuboring:\n"
             "<code>Tugma nomi - https://havola.uz</code>\n"
             "<code>Tugma nomi | @kanalim</code>\n"
-            "<code>Botim - t.me/bot_ismi/start</code>\n\n"
-            "<i>Faqat havola yuborsangiz — yozuv avtomatik tanlanadi.</i>",
+            "<code>Botim - t.me/bot_ismi/start</code>",
             reply_markup=InlineKeyboardMarkup(
-                [[InlineKeyboardButton("⬅️ Bekor qilish", callback_data="enh:screen:btns")]]
-            ),
-            parse_mode="HTML",
-        )
+                [[InlineKeyboardButton("⬅️ Bekor qilish", callback_data="enh:screen:btns")]]),
+            parse_mode="HTML")
         return ENH_POST
 
     if arg in ("edit", "del"):
@@ -1170,17 +1162,15 @@ async def _btn_action(update, context, query, arg, arg2, enh, chat_id):
             return ENH_POST
         buttons = list(enh.get("buttons") or [])
         if not (0 <= idx < len(buttons)):
-            await _answer(query, "⚠️ Tugma topilmadi (ro'yxat o'zgargan).", alert=True)
+            await _answer(query, "⚠️ Tugma topilmadi.", alert=True)
             enh["step"] = "btns"
             await _render(context, chat_id)
             return ENH_POST
-
         if arg == "del":
             await _answer(query)
             removed = buttons.pop(idx)
             enh["buttons"] = buttons
             enh["step"] = "btns"
-            await _send_preview(context, chat_id, enh, create=False)
             await _render(context, chat_id)
             logger.info("Enhancer: tugma o'chirildi (%s → %s)", user_id, removed.get("url"))
             return ENH_POST
@@ -1196,25 +1186,20 @@ async def _btn_action(update, context, query, arg, arg2, enh, chat_id):
             "Yangi qiymatni bir qatorda yuboring:\n"
             "<code>Yangi yozuv - https://yangi-havola.uz</code>",
             reply_markup=InlineKeyboardMarkup(
-                [[InlineKeyboardButton("⬅️ Bekor qilish", callback_data="enh:screen:btns")]]
-            ),
-            parse_mode="HTML",
-        )
+                [[InlineKeyboardButton("⬅️ Bekor qilish", callback_data="enh:screen:btns")]]),
+            parse_mode="HTML")
         return ENH_POST
 
     if arg == "clear":
         await _answer(query)
         enh["buttons"] = []
         enh["step"] = "btns"
-        await _send_preview(context, chat_id, enh, create=False)
         await _render(context, chat_id)
-        return ENH_POST
-
     return ENH_POST
 
 
 # ============================================================
-# DOIMIY PREVYU (bitta xabar — har o'zgarishda YANGILANADI)
+# PREVYU (faqat foydalanuvchi so'raganda yuboriladi)
 # ============================================================
 
 # Tahrirlab bo'ladigan turlar (albom/ovozli/stiker bundan mustasno).
@@ -1281,10 +1266,11 @@ def _preview_content(post: dict) -> str:
 
 
 async def _send_preview(context, chat_id: int, enh: dict, create: bool = True):
-    """Postni bot chatida haqiqiy tugmalar bilan ko'rsatadi/YANGILAYDI.
+    """Postni faqat Preview/tasdiqlash bosqichida tugmalari bilan ko'rsatadi.
 
-    ``create=False`` bo'lsa va prevyu hali yuborilmagan bo'lsa — hech narsa
-    qilinmaydi (ortiqcha xabar spam qilmaslik uchun).
+    ``create=False`` bo'lsa va preview hali yuborilmagan bo'lsa — hech narsa
+    qilinmaydi. Bu tahrirlash qadamlarida postning ortiqcha ko'rinishini
+    chiqarib yubormaslik uchun muhim.
     """
     post = enh.get("post") or {}
     if not post:
