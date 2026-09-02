@@ -97,8 +97,10 @@ from handlers.ai_assistant import (
     ai_studio_menu_entry, ai_studio_nav_callback, ai_prompt_received,
     ai_tone_callback, ai_studio_schedule_callback, ai_audit_received,
     ai_back_to_menu, ai_close,
+    ai_photo_received, ai_photo_result_callback, ai_photo_edit_received,
     AI_INPUT, AI_CONFIRM, AI_GET_TIME,
     AI_MENU_STATE, AI_PROMPT_INPUT, AI_TONE_SELECT, AI_AUDIT_INPUT,
+    AI_PHOTO_INPUT, AI_PHOTO_RESULT, AI_PHOTO_EDIT_INPUT,
 )
 
 # 8. CONTENT PLAN MODULI
@@ -292,6 +294,51 @@ async def ai_studio_callback(update, context):
         pass
 
 
+async def ai_photo_stale_callback(update, context):
+    """🖼 Vision natijasi tugmalari uchun GLOBAL ZAXIRA handler (stale presses).
+
+    Sessiya tugagach eski [Rejalashtirish]/[Qayta yozish]/[Tahrirlash] tugmasi
+    bosilsa — xabar o'chirilmaydi, yo'riqnoma bilan almashtiriladi.
+    """
+    query = update.callback_query
+    await query.answer()
+    try:
+        await query.edit_message_text(
+            "⚠️ <b>Bu menyu eskirgan.</b>\n"
+            "Rasmdan post yaratish uchun ✨ AI Studio → 🖼 Rasmdan post yaratish "
+            "bo'limini qaytadan tanlang.",
+            reply_markup=None,
+            parse_mode="HTML",
+        )
+    except Exception:
+        pass
+
+
+def _is_ai_photo_command(msg) -> bool:
+    """Rasm captioni `/ai` (yoki `/ai@Bot`) buyrug'i ekanini aniqlaydi.
+
+    PTB'ning CommandHandler'i faqat `message.text` dagi buyruqlarni taniydi —
+    rasm captioni bilan yuborilgan `/ai` ni global photo handler ushlaydi.
+    """
+    caption = (getattr(msg, "caption", "") or "").strip().lower().split()
+    if not caption:
+        return False
+    cmd = caption[0].split("@")[0]
+    return cmd == "/ai"
+
+
+async def ai_photo_command_callback(update, context):
+    """Rasm bilan birga `/ai` buyrug'i yuborilsa — Vision darhol ishlaydi.
+
+    Sho'ng'ish nuqtasi: ConversationHandler boshqa holatda bu rasmni ushlamay
+    qolsa, shu yerda vision oqimiga (ai_photo_received) yo'naltiriladi.
+    """
+    msg = getattr(update, "effective_message", None) or getattr(update, "message", None)
+    if msg is None or not _is_ai_photo_command(msg):
+        return
+    await guard_entry(update, context, ai_photo_received)
+
+
 async def conversation_timeout_handler(update, context):
     is_admin = update.effective_user.id in ADMIN_IDS_SET if update.effective_user else False
     context.user_data.clear()
@@ -451,7 +498,7 @@ def register_all_handlers(app):
             # conversation qayta ochiladi (menu xabari o'chirilmaydi, edit qilinadi)
             CallbackQueryHandler(
                 lambda u, c: guard_entry(u, c, ai_studio_nav_callback),
-                pattern=r"^studio_(ai_post|ai_audit|extract|content_plan)$",
+                pattern=r"^studio_(ai_post|ai_audit|extract|content_plan|ai_photo)$",
             ),
             CallbackQueryHandler(
                 lambda u, c: guard_entry(u, c, ai_back_to_menu),
@@ -616,10 +663,12 @@ def register_all_handlers(app):
             ],
 
             # 7b. ✨ AI STUDIO inline oqimi (hardering: xabar edit, doimiy nav-tugmalar)
+            # AI_MENU_STATE da rasm yuborilsa — Vision (rasmdan post) darhol ishlaydi
             AI_MENU_STATE: all_menu_jumps + [
                 CallbackQueryHandler(ai_studio_nav_callback, pattern=r"^studio_"),
                 CallbackQueryHandler(ai_back_to_menu, pattern=r"^ai_back_to_menu$"),
                 CallbackQueryHandler(ai_close, pattern=r"^ai_close$"),
+                MessageHandler(filters.PHOTO | filters.Document.ALL, ai_photo_received),
             ],
             AI_PROMPT_INPUT: all_menu_jumps + [
                 CallbackQueryHandler(ai_studio_nav_callback, pattern=r"^studio_"),
@@ -641,6 +690,30 @@ def register_all_handlers(app):
                 CallbackQueryHandler(ai_back_to_menu, pattern=r"^ai_back_to_menu$"),
                 CallbackQueryHandler(ai_close, pattern=r"^ai_close$"),
                 MessageHandler(filters.ALL & ~filters.COMMAND, ai_audit_received),
+            ],
+
+            # 7c. 🖼 AI STUDIO — RASMDAN POST YARATISH (Vision oqimi)
+            # AI_MENU_STATE da rasm yuborilsa ham vision darhol ishlaydi
+            # (foydalanuvchi /ai dan keyin rasm yuborsa ham).
+            AI_PHOTO_INPUT: all_menu_jumps + [
+                CallbackQueryHandler(ai_studio_nav_callback, pattern=r"^studio_"),
+                CallbackQueryHandler(ai_back_to_menu, pattern=r"^ai_back_to_menu$"),
+                CallbackQueryHandler(ai_close, pattern=r"^ai_close$"),
+                MessageHandler(filters.ALL & ~filters.COMMAND, ai_photo_received),
+            ],
+            AI_PHOTO_RESULT: all_menu_jumps + [
+                CallbackQueryHandler(ai_photo_result_callback, pattern=r"^photo_"),
+                CallbackQueryHandler(ai_studio_nav_callback, pattern=r"^studio_"),
+                CallbackQueryHandler(ai_back_to_menu, pattern=r"^ai_back_to_menu$"),
+                CallbackQueryHandler(ai_close, pattern=r"^ai_close$"),
+                MessageHandler(filters.ALL & ~filters.COMMAND, ai_photo_received),
+            ],
+            AI_PHOTO_EDIT_INPUT: all_menu_jumps + [
+                CallbackQueryHandler(ai_studio_nav_callback, pattern=r"^studio_"),
+                CallbackQueryHandler(ai_back_to_menu, pattern=r"^ai_back_to_menu$"),
+                CallbackQueryHandler(ai_close, pattern=r"^ai_close$"),
+                MessageHandler(filters.PHOTO | filters.Document.ALL, ai_photo_received),
+                MessageHandler(filters.TEXT & ~filters.COMMAND, ai_photo_edit_received),
             ],
 
             # 8. Queue holatlari
@@ -682,6 +755,8 @@ def register_all_handlers(app):
     app.add_handler(CommandHandler("grant_pro", grant_pro_command))
     app.add_handler(CommandHandler("create_promo", create_promo_command))
     app.add_handler(CommandHandler("admin_stats", admin_stats_command))
+    # 🖼 /ai — AI Studio'ni ochadi; shundan keyin rasm yuborilsa Vision ishlaydi
+    app.add_handler(CommandHandler("ai", lambda u, c: guard_entry(u, c, ai_studio_menu_entry)))
 
     # Stars to'lov handlerlari — Telegram Stars (XTR) to'lovlari uchun.
     # PreCheckoutQuery: foydalanuvchi to'lovni tasdiqlashidan oldin so'raladi.
@@ -722,6 +797,13 @@ def register_all_handlers(app):
     app.add_handler(CallbackQueryHandler(ai_studio_callback, pattern=r"^studio_"))
     # AI Studio stale ❌ tugmasi: conversation tashqarisida ham xabar edit qilinadi
     app.add_handler(CallbackQueryHandler(ai_close, pattern=r"^ai_close$"))
+    # 🖼 Vision natijasi stale tugmalari: sessiya tugagach ham yo'riqnoma ko'rsatadi
+    app.add_handler(CallbackQueryHandler(ai_photo_stale_callback, pattern=r"^photo_"))
+    # 🖼 Rasm + `/ai` caption: CommandHandler caption'larni tanimaydi — shu yerda
+    # rasm bilan birga yuborilgan /ai buyrug'i Vision oqimini ochadi
+    app.add_handler(MessageHandler(
+        filters.PHOTO | filters.Document.ALL, ai_photo_command_callback
+    ))
     app.add_handler(CallbackQueryHandler(cabinet_callback, pattern=r"^cab_|^close_cabinet"))
     app.add_handler(CallbackQueryHandler(extras_close_callback, pattern=r"^extra_close$"))
     # ✨ Postga Tugma & Reaksiya: sessiya tugagach eski prevyu/hub tugmalari bosilsa —
