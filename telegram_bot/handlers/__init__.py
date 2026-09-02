@@ -39,11 +39,10 @@ from handlers.new_post import (
     confirm_post_callback, edit_confirm_field_callback, edit_confirm_message_received,
     edit_confirm_media_received,
     reaction_toggle_callback, reactions_done_callback, reactions_skip_callback,
-    quick_button_post_start, quick_btn_content_received,
     ai_action_menu_callback, ai_action_callback, ai_result_callback,
     CHOOSE_CHANNEL, GET_CONTENT, GET_BTN_TITLE, GET_BTN_URL,
     GET_REACTIONS, GET_AUTO_DELETE, GET_TIME, DAILY_TIME, RECUR_DAY, RECUR_TIME,
-    GET_DURATION, CONFIRM_POST, EDIT_CONFIRM_FIELD, QUICK_BTN_CONTENT
+    GET_DURATION, CONFIRM_POST, EDIT_CONFIRM_FIELD
 )
 
 # 2b. 🛠 POST KUCHAYTIRGICH (Post Enhancer — qo'shimcha funksiyalar)
@@ -88,7 +87,7 @@ from handlers.admin import (
     ad_pool_callback,
     BROADCAST_MESSAGE, ADD_SPONSOR_CHANNEL, SET_CHANNEL_AD, SET_BOT_REPLY_AD,
     AI_SETTINGS, SET_POST_TAG, ADMIN_GRANT_PRO, ADMIN_PROMO_CREATE,
-    ADMIN_SPONSOR_ADD, ADMIN_AD_EDIT, ADMIN_AD_INTERVAL,
+    ADMIN_SPONSOR_ADD,
 )
 
 # 7. AI ASSISTANT + AI STUDIO MODULI (ENG OXIRIDA)
@@ -491,7 +490,6 @@ def register_all_handlers(app):
             CallbackQueryHandler(admin_dashboard_callback, pattern=r"^adm_"),
             CallbackQueryHandler(ad_pool_callback, pattern=r"^adp:"),
             CallbackQueryHandler(converter_inline_entry, pattern=r"^extra_converter$"),
-            CallbackQueryHandler(quick_button_post_start, pattern=r"^extra_quick_btn$"),
             # ✨ Postga Tugma & Reaksiya qo'shish — ⚙️ Qo'shimcha funksiyalar menyusidan
             CallbackQueryHandler(post_enhancer_start, pattern=r"^extra_enhancer$"),
             # ✨ AI Studio inline entry'lar — sessiya tugagach eski tugma bossa ham
@@ -526,11 +524,6 @@ def register_all_handlers(app):
                 CallbackQueryHandler(reactions_skip_callback, pattern=r"^npreact:skip$"),
                 MessageHandler(filters.TEXT & ~filters.COMMAND, reactions_received),
             ],
-            QUICK_BTN_CONTENT: all_menu_jumps + [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, quick_btn_content_received),
-                MessageHandler(filters.ALL & ~filters.COMMAND, content_received),
-            ],
-
             # 2b. ✨ Postga Tugma & Reaksiya qo'shish: post qabul qilish + inline ekranlar
             # (reaksiya/tugma/kanal/tasdiq) — bitta holat, qadamlar user_data'da.
             ENH_POST: all_menu_jumps + [
@@ -644,8 +637,6 @@ def register_all_handlers(app):
             ADMIN_GRANT_PRO: _admin_flow_state(admin_inline_text_handler, all_menu_jumps),
             ADMIN_PROMO_CREATE: _admin_flow_state(admin_inline_text_handler, all_menu_jumps),
             ADMIN_SPONSOR_ADD: _admin_flow_state(admin_inline_text_handler, all_menu_jumps),
-            ADMIN_AD_EDIT: _admin_flow_state(admin_inline_text_handler, all_menu_jumps),
-            ADMIN_AD_INTERVAL: _admin_flow_state(admin_inline_text_handler, all_menu_jumps),
 
             # 7. AI Assistant holatlari (Faqat foydalanuvchi AI ga kirganda ishlaydi!)
             AI_INPUT: all_menu_jumps + [MessageHandler(filters.ALL & ~filters.COMMAND, ai_input_received)],

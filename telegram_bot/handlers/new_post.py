@@ -46,7 +46,6 @@ RECUR_TIME = 109
 GET_DURATION = 110
 CONFIRM_POST = 111       # Tasdiqlash ekrani
 EDIT_CONFIRM_FIELD = 112  # Confirmation'dan tahrirlash
-QUICK_BTN_CONTENT = 113  # 🔗 Tezkor tugmali post — matn + "Button - URL" bir xabarda
 
 def build_channel_labels(channels) -> dict:
     """Kanal ro'yxatidan tugma yorliqlari xaritasini tuzadi ({label: channel_id}).
@@ -133,102 +132,6 @@ def parse_url_button_line(text: str) -> "tuple[str, str] | None":
     return None
 
 
-async def quick_button_post_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """⚙️ Qo'shimcha funksiyalar → 🔗 Tezkor tugmali post (kirish nuqtasi).
-
-    Bir xabarda post matni + (ixtiyoriy) URL tugma yaratiladi:
-      "<post matni>\\nButton Text - https://link.com"
-    """
-    context.user_data.clear()
-    query = update.callback_query
-    if query is not None:
-        try:
-            await query.answer()
-        except Exception:
-            pass
-        msg = query.message
-        try:
-            await msg.delete()
-        except Exception:
-            pass
-    else:
-        msg = update.message
-
-    user_id = update.effective_user.id
-    is_admin = (user_id in ADMIN_IDS_SET)
-    channels = await db.run_db(db.get_user_channels, user_id)
-    if not channels:
-        await msg.reply_text(
-            "⚠️ <b>Ulangan kanal yoki guruh topilmadi!</b>\n\n"
-            "Avval '📢 Kanal/Guruhlar' bo'limidan kanal yoki guruhingizni ulang.",
-            reply_markup=get_main_keyboard(is_admin),
-            parse_mode="HTML",
-        )
-        return ConversationHandler.END
-
-    channels_map = build_channel_labels(channels)
-    keyboard = [[label] for label in channels_map]
-    if len(channels) > 1:
-        keyboard.append([BTN_ALL_CHANNELS_TARGET])
-    keyboard.append([BTN_MAIN_MENU])
-
-    context.user_data["channels_map"] = channels_map
-    context.user_data["quick_btn_mode"] = True
-    await msg.reply_text(
-        "🔗 <b>Tezkor tugmali post</b>\n\n"
-        "📢 Qaysi kanal yoki guruhga joylaymiz? Ro'yxatdan tanlang 👇",
-        reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True),
-        parse_mode="HTML",
-    )
-    return CHOOSE_CHANNEL
-
-
-async def quick_btn_content_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Tezkor tugmali post: matn + oxirgi qatordagi 'Button - URL' ni ajratadi."""
-    context.user_data.pop("quick_btn_mode", None)
-    msg = update.message
-    text = (msg.text or "").strip()
-    if not text:
-        await msg.reply_text(
-            "⚠️ Matn bo'sh. Post matnini yuboring (ixtiyoriy: oxiriga "
-            "\"<code>Button Text - https://link.com</code>\" qatorini qo'shing):",
-            parse_mode="HTML",
-        )
-        return QUICK_BTN_CONTENT
-
-    lines = text.splitlines()
-    btn_text = btn_url = None
-    content = text
-    if len(lines) > 1:
-        one_liner = parse_url_button_line(lines[-1].strip())
-        if one_liner:
-            btn_text, btn_url = one_liner
-            content = "\n".join(lines[:-1]).strip()
-
-    if not content:
-        await msg.reply_text(
-            "⚠️ Tugmadan tashqari <b>post matni</b> ham kerak. Qaytadan yuboring:\n"
-            "<code>Post matni...\nButton Text - https://link.com</code>",
-            parse_mode="HTML",
-        )
-        return QUICK_BTN_CONTENT
-
-    context.user_data["post_type"] = "text"
-    context.user_data["file_id"] = None
-    context.user_data["content"] = content
-    context.user_data["btn_text"] = btn_text
-    context.user_data["btn_url"] = btn_url
-
-    if btn_text and btn_url:
-        await msg.reply_text(
-            f"✅ <b>Inline tugma aniqlandi:</b>\n"
-            f"🔘 Yozuv: <b>{html_escape(btn_text)}</b>\n"
-            f"🔗 Havola: <code>{html_escape(btn_url)}</code>",
-            parse_mode="HTML",
-        )
-    return await _ask_reactions_step(msg, context)
-
-
 async def start_new_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
     user_id = update.effective_user.id
@@ -273,20 +176,6 @@ async def channel_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return CHOOSE_CHANNEL
         context.user_data["selected_channel_id"] = channels_map[text]
         context.user_data["selected_channel_title"] = text
-
-    # 🔗 Tezkor tugmali post rejimi: matn + "Button - URL" bir xabarda yuboriladi
-    if context.user_data.get("quick_btn_mode"):
-        await update.message.reply_text(
-            f"✅ Tanlandi: <b>{html_escape(context.user_data['selected_channel_title'])}</b>\n\n"
-            "⚡️ <b>Tezkor format:</b> post matnini yuboring va oxirgi qatorga "
-            "tugmani shu ko'rinishda yozing:\n"
-            "<code>Post matni shu yerda...\nButton Text - https://link.com</code>\n\n"
-            "<i>Tugma ixtiyoriy — oxirgi qatorda \" - \" bilan ajratilgan havola "
-            "bo'lmasa, oddiy tugmasiz post yaratiladi.</i>",
-            reply_markup=get_cancel_keyboard(),
-            parse_mode="HTML",
-        )
-        return QUICK_BTN_CONTENT
 
     await update.message.reply_text(
         f"✅ Tanlandi: <b>{html_escape(context.user_data['selected_channel_title'])}</b>\n\n"

@@ -1310,8 +1310,9 @@ def get_ad_settings() -> dict:
     """Reklama sozlamalari.
 
     Qaytadi: ``auto_ad_text``, ``auto_ad_interval`` (bot javoblari uchun),
-    ``auto_ad_status`` va ``channel_ad_interval`` (kanal postlari uchun —
-    reklama har nechanchi postda chiqishi).
+    ``auto_ad_status``, ``channel_ad_interval`` (kanal postlari uchun —
+    reklama har nechanchi postda chiqishi) va ``channel_ad_status``
+    (kanal postlari reklamasi yoqilgan/o'chirilgan).
     """
     cached = _cache_get("ad_settings")
     if cached is not _MISS:
@@ -1321,13 +1322,16 @@ def get_ad_settings() -> dict:
         "auto_ad_interval": 4,
         "auto_ad_status": False,
         "channel_ad_interval": CHANNEL_AD_INTERVAL_DEFAULT,
+        # Kanal postlari reklamasi standart HOLATDA YOQILGAN — mavjud bot
+        # xatti-harakati o'zgarmasligi uchun (orqaga moslik).
+        "channel_ad_status": True,
     }
     try:
         with db_cursor() as cur:
             cur.execute("""
                 SELECT key, value FROM bot_settings
                 WHERE key IN ('auto_ad_text', 'auto_ad_interval', 'auto_ad_status',
-                              'channel_ad_interval')
+                              'channel_ad_interval', 'channel_ad_status')
             """)
             rows = cur.fetchall()
             for k, v in rows:
@@ -1340,6 +1344,8 @@ def get_ad_settings() -> dict:
                         v, CHANNEL_AD_INTERVAL_DEFAULT)
                 elif k == "auto_ad_status":
                     settings["auto_ad_status"] = str(v).lower() in ("true", "1", "yes", "on")
+                elif k == "channel_ad_status":
+                    settings["channel_ad_status"] = str(v).lower() in ("true", "1", "yes", "on")
         _cache_set("ad_settings", settings, DB_SETTINGS_CACHE_TTL)
         return settings
     except Exception as e:
@@ -1379,6 +1385,24 @@ def set_ad_status(status: bool) -> bool:
         return True
     except Exception as e:
         logger.error(f"set_ad_status xatosi: {e}")
+        return False
+
+
+def set_channel_ad_status(status: bool) -> bool:
+    """Kanal postlari reklamasini yoqish/o'chirish (True/False)."""
+    val = "true" if status else "false"
+    try:
+        with db_cursor(commit=True) as cur:
+            cur.execute("""
+                INSERT INTO bot_settings (key, value)
+                VALUES ('channel_ad_status', %s)
+                ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
+            """, (val,))
+        _cache_clear("ad_settings")
+        _cache_clear("channel_ad_interval")
+        return True
+    except Exception as e:
+        logger.error(f"set_channel_ad_status xatosi: {e}")
         return False
 
 

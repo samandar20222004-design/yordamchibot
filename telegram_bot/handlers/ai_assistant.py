@@ -1201,7 +1201,8 @@ async def ai_close(update: Update, context: ContextTypes.DEFAULT_TYPE):
 def _extract_photo_file(msg):
     """Xabardan rasm (photo/document) file_id ni ajratadi.
 
-    Faqat statik rasm qabul qilinadi (video/voice/audio — yo'q, aniq xabar).
+    Faqat statik rasm qabul qilinadi — VIDEO tahlil QILINMAYDI (server
+    resursini tejash uchun video/voice/audio/sticker rad etiladi).
     Qaytaradi: (file_id yoki None, extra mantiq bilan ishlatiladigan tur).
     """
     if getattr(msg, "photo", None):
@@ -1209,11 +1210,30 @@ def _extract_photo_file(msg):
     doc = getattr(msg, "document", None)
     if doc is not None:
         mime = (getattr(doc, "mime_type", "") or "").lower()
+        if mime.startswith("video/"):
+            return None, None
         # MIME ko'rsatilmagan hollarda ham rasm sifatida qabul qilamiz —
         # `generate_vision_post` magic-bytes bilan yakuniy tekshiradi.
         if not mime or mime.startswith("image/"):
             return doc.file_id, "photo"
     return None, None
+
+
+def _is_non_image_media(msg) -> bool:
+    """Xabar rasm bo'lmagan media (video/audio/voice/sticker) ekanini aniqlaydi.
+
+    Foydalanuvchiga aniq izoh berish uchun: bot faqat rasmni tahlil qiladi.
+    """
+    for attr in ("video", "animation", "audio", "voice", "video_note", "sticker"):
+        if getattr(msg, attr, None):
+            return True
+    doc = getattr(msg, "document", None)
+    if doc is not None:
+        mime = (getattr(doc, "mime_type", "") or "").lower()
+        if mime.startswith(("video/", "audio/")):
+            return True
+    return False
+
 
 
 def _photo_extra_from_caption(raw) -> str:
@@ -1289,12 +1309,23 @@ async def ai_photo_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     file_id, _post_type = _extract_photo_file(msg)
     if not file_id:
-        await msg.reply_text(
-            "🖼 Iltimos, rasm (JPG/PNG/WEBP) yuboring:\n"
-            "• <i>Rasm bilan birga izoh yuborish mumkin</i>",
-            reply_markup=get_ai_back_keyboard(),
-            parse_mode="HTML",
-        )
+        if _is_non_image_media(msg):
+            await msg.reply_text(
+                "🎬 <b>Video tahlil qilinmaydi.</b>\n\n"
+                "Server resursini tejash uchun faqat <b>rasm</b> tahlil qilinadi.\n"
+                "Iltimos, tahlil qilinishi kerak bo'lgan <b>rasmni</b> "
+                "(JPG/PNG/WEBP) yuboring.",
+                reply_markup=get_ai_back_keyboard(),
+                parse_mode="HTML",
+            )
+        else:
+            await msg.reply_text(
+                "🖼 Iltimos, rasm (JPG/PNG/WEBP) yuboring:\n"
+                "• <i>Rasm bilan birga izoh yuborish mumkin</i>\n"
+                "• <i>Video tahlil qilinmaydi — faqat rasm</i>",
+                reply_markup=get_ai_back_keyboard(),
+                parse_mode="HTML",
+            )
         return AI_PHOTO_INPUT
 
     ok, is_admin, is_pro = await _studio_ai_preflight(update, context)

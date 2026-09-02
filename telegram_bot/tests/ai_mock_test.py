@@ -86,6 +86,7 @@ S = {
     "gemini_vision_429_first": False,
     "gemini_vision_body": {},
     "gemini_vision_error_body": {"error": {"message": "xato"}},
+    "gemini_vision_404_models": set(),
     "requests": [],  # (key, path, payload_dict)
     "vision_requests": [],  # faqat inline_data (rasm) payloadlari
 }
@@ -159,6 +160,13 @@ async def gemini_handler(request):
                     break
     if is_vision:
         S["vision_requests"].append(payload)
+        # Ma'lum modellarga 404 (Google o'chirib qo'ygan model taqlidi)
+        _model = path.rstrip("/").rsplit("/", 1)[-1].split(":")[0]
+        if _model in (S.get("gemini_vision_404_models") or ()):
+            return web.json_response(
+                {"error": {"message": f"models/{_model} is not found for API version v1beta"}},
+                status=404,
+            )
         if S.get("gemini_vision_429_first"):
             S["gemini_vision_429_first"] = False
             return web.json_response(
@@ -611,7 +619,23 @@ async def main():
         check("vision: noo'rin rasm xabari",
               "error" in vres and "mos kelmaydi" in vres["error"], str(vres)[:120])
 
-        # 16.4) Doimiy 429 → rate limit xabari
+        # 16.4) Asosiy model 404 bersa → zanjir keyingi modelga o'tadi
+        # (foydalanuvchi "modeli mavjud emas" xatosini KO'RMaydi)
+        reset_state()
+        S.update({
+            "gemini_vision_status": 200,
+            "gemini_vision_body": {"candidates": [{"content": {"parts": [{"text": VISION_JSON}]}}]},
+            "gemini_vision_404_models": {ai_agent.GEMINI_VISION_MODEL},
+        })
+        vres = await ai_agent.generate_vision_post(tmp.name)
+        check("vision: asosiy model 404 → zaxira model ishlaydi",
+              "post_text" in vres, str(vres)[:140])
+        check("vision: 404 holatda 'mavjud emas' xatosi chiqmaydi",
+              "error" not in vres, str(vres)[:140])
+        check("vision: kamida 2 ta model sinaldi",
+              len(S["vision_requests"]) >= 2, str(len(S["vision_requests"])))
+
+        # 16.5) Doimiy 429 → rate limit xabari
         reset_state()
         S.update({
             "gemini_vision_status": 429,

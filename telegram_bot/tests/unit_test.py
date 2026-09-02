@@ -1068,11 +1068,12 @@ def test_main_menu_layout_v2():
     check("admin row4", arows[3] == [BTN_ADMIN_PANEL], str(arows[3]))
 
     ex = [[(b.text, b.callback_data) for b in row] for row in get_extras_inline_keyboard().inline_keyboard]
-    check("extras: 4 qator", len(ex) == 4, str(ex))
+    ex_cbs = [c for row in ex for _, c in row]
+    check("extras: 3 qator (tezkor tugmali post olib tashlangan)", len(ex) == 3, str(ex))
     check("extras: post kuchaytirgich", ex[0][0] == ("✨ Postga Tugma & Reaksiya qo'shish", "extra_enhancer"), str(ex[0]))
     check("extras: konvertor", ex[1][0] == ("🔤 Krill-Lotin konvertor", "extra_converter"), str(ex[1]))
-    check("extras: tezkor tugmali post", ex[2][0] == ("🔗 Tezkor tugmali post", "extra_quick_btn"), str(ex[2]))
-    check("extras: yopish", ex[3][0] == ("❌ Yopish", "extra_close"), str(ex[3]))
+    check("extras: tezkor tugmali post YO'Q", "extra_quick_btn" not in ex_cbs, str(ex_cbs))
+    check("extras: yopish", ex[2][0] == ("❌ Yopish", "extra_close"), str(ex[2]))
 
     cab = [[(b.text, b.callback_data) for b in row] for row in get_cabinet_inline_keyboard().inline_keyboard]
     check("kabinet: 4 qator", len(cab) == 4, str(cab))
@@ -2910,55 +2911,214 @@ def test_reaction_emojis_db_schema():
 
 
 def test_quick_button_flow():
-    """🔗 Tezkor tugmali post: extras menyusi, holat konstantasi va handlerlar."""
-    print("== tezkor tugmali post (quick button flow) ==")
+    """🔗 Tezkor tugmali post BUTUNLAY olib tashlangan (tugma + tavsif + oqim)."""
+    print("== tezkor tugmali post olib tashlangani ==")
+    import sys as _sys
     import handlers.new_post as np_mod
     import handlers as h_mod
+    import handlers.start  # noqa: F401  (paket atributi funksiya bilan soyalanadi)
+    start_mod = _sys.modules["handlers.start"]
     from keyboards.inline import get_extras_inline_keyboard
 
-    # 1. Extras menyusida kirish tugmasi
+    # 1. Extras menyusida kirish tugmasi YO'Q
     cbs = [b.callback_data for row in get_extras_inline_keyboard().inline_keyboard for b in row]
-    check("extras: extra_quick_btn callback", "extra_quick_btn" in cbs, str(cbs))
+    check("extras: extra_quick_btn tugmasi yo'q", "extra_quick_btn" not in cbs, str(cbs))
 
-    # 2. Yangi FSM holati konstantasi (to'qnashuvsiz)
-    check("QUICK_BTN_CONTENT = 113", np_mod.QUICK_BTN_CONTENT == 113)
+    # 2. Menyudagi tavsif matni ham olib tashlangan
+    start_src = open(start_mod.__file__, encoding="utf-8").read()
+    check("start: 'Tezkor tugmali post' tavsifi yo'q",
+          "Tezkor tugmali post" not in start_src)
+
+    # 3. FSM holati va handlerlari o'chirilgan
+    check("QUICK_BTN_CONTENT holati yo'q", not hasattr(np_mod, "QUICK_BTN_CONTENT"))
+    check("quick_button_post_start yo'q", not hasattr(np_mod, "quick_button_post_start"))
+    check("quick_btn_content_received yo'q", not hasattr(np_mod, "quick_btn_content_received"))
+
+    # 4. Handler registratsiyasi ham tozalangan
+    h_src = open(h_mod.__file__, encoding="utf-8").read()
+    check("register: extra_quick_btn entry yo'q", "extra_quick_btn" not in h_src)
+    check("register: QUICK_BTN_CONTENT holati yo'q", "QUICK_BTN_CONTENT" not in h_src)
+
+    # 5. Qolgan new-post holatlari buzilmagan va unikal
     states = {
         np_mod.CHOOSE_CHANNEL, np_mod.GET_CONTENT, np_mod.GET_BTN_TITLE, np_mod.GET_BTN_URL,
         np_mod.GET_REACTIONS, np_mod.GET_AUTO_DELETE, np_mod.GET_TIME, np_mod.DAILY_TIME,
         np_mod.RECUR_DAY, np_mod.RECUR_TIME, np_mod.GET_DURATION, np_mod.CONFIRM_POST,
-        np_mod.EDIT_CONFIRM_FIELD, np_mod.QUICK_BTN_CONTENT,
+        np_mod.EDIT_CONFIRM_FIELD,
     }
-    check("holatlar unikal", len(states) == 14, str(len(states)))
+    check("qolgan holatlar unikal (13 ta)", len(states) == 13, str(len(states)))
 
-    # 3. Handler funksiyalari mavjud
-    check("quick_button_post_start callable", callable(np_mod.quick_button_post_start))
-    check("quick_btn_content_received callable", callable(np_mod.quick_btn_content_received))
+    # 6. Reaksiya oqimi handlerlari saqlangan
     check("reaction_toggle_callback callable", callable(np_mod.reaction_toggle_callback))
     check("reactions_done_callback callable", callable(np_mod.reactions_done_callback))
     check("reactions_skip_callback callable", callable(np_mod.reactions_skip_callback))
-
-    # 4. Handler registratsiyasi (source darajasida)
-    h_src = open(h_mod.__file__, encoding="utf-8").read()
-    check("register: extra_quick_btn entry", 'pattern=r"^extra_quick_btn$"' in h_src)
     check("register: npreact:tgl handler", 'pattern=r"^npreact:tgl:"' in h_src)
     check("register: npreact:done handler", 'pattern=r"^npreact:done$"' in h_src)
     check("register: npreact:skip handler", 'pattern=r"^npreact:skip$"' in h_src)
-    check("register: QUICK_BTN_CONTENT holati", "QUICK_BTN_CONTENT:" in h_src)
 
-    # 5. Tezkor content parser (oxirgi qatordagi 'Button - URL')
+    # 7. parse_url_button_line boshqa oqimlarda (Post Enhancer) ishlatilgani
+    #    uchun SAQLANADI — u tezkor post oqimiga tegishli emas edi.
     parse = np_mod.parse_url_button_line
-    sample_text = "Yangi mahsulot!\nNarxlarni ko'ring - https://shop.uz"
-    lines = sample_text.splitlines()
-    btn = parse(lines[-1].strip())
-    check("tezkor: oxirgi qator ajratiladi",
-          btn == ("Narxlarni ko'ring", "https://shop.uz"), str(btn))
-    content = "\n".join(lines[:-1]).strip()
-    check("tezkor: kontent qolgan qatorlar", content == "Yangi mahsulot!", content)
+    check("parse_url_button_line saqlangan",
+          parse("Narxlarni ko'ring - https://shop.uz") == ("Narxlarni ko'ring", "https://shop.uz"))
+    check("parse: oddiy matn → None", parse("Batafsil") is None)
 
-    # 6. Tugmasiz tezkor post: oxirgi qator oddiy matn — hech narsa ajratilmaydi
-    plain = "Oddiy yangilik matni\nIkkinchi qator"
-    check("tezkor: tugmasiz postda oxirgi qator ajratilmaydi",
-          parse(plain.splitlines()[-1]) is None)
+
+def test_five_fixes_suite():
+    """5 ta aniq vazifa: vision modeli, kanal ulash, tezkor post, navbat, admin."""
+    print("== 5 ta vazifa bo'yicha yakuniy tekshiruv ==")
+    import asyncio
+    import sys as _sys
+    import database as db_mod
+    from utils import ai_agent
+    from keyboards.inline import (
+        get_channels_manage_keyboard, NO_CHANNELS_HINT,
+        get_extras_inline_keyboard, get_cabinet_back_keyboard,
+    )
+    import handlers.queue as queue_mod
+    import handlers.start  # noqa: F401
+    start_mod = _sys.modules["handlers.start"]
+
+    # ---------- 1) VISION: barqaror model + "mavjud emas" xatosi yo'q ----------
+    check("vision: barqaror model belgilangan",
+          bool(ai_agent.GEMINI_VISION_MODEL), ai_agent.GEMINI_VISION_MODEL)
+    chain = ai_agent._vision_model_chain(None)
+    check("vision: zanjir belgilangan modeldan boshlanadi",
+          chain and chain[0] == ai_agent.GEMINI_VISION_MODEL, str(chain))
+    check("vision: zanjirda takror yo'q", len(chain) == len(set(chain)), str(chain))
+    check("vision: o'chirilgan model zanjirda yo'q",
+          not any(ai_agent._is_retired_gemini(m) for m in chain), str(chain))
+    check("vision: gemini-1.5-flash retired deb taniladi",
+          ai_agent._is_retired_gemini("gemini-1.5-flash"))
+    check("vision: gemini-2.0-flash retired deb taniladi",
+          ai_agent._is_retired_gemini("gemini-2.0-flash"))
+    # Discovery ro'yxatidan faqat rasm qabul qiladigan modellar olinadi
+    mixed = ["gemini-1.5-flash", "gemini-3-flash", "embedding-001",
+             "gemini-2.5-flash-tts", "imagen-4.0", "gemini-2.5-flash"]
+    filtered = ai_agent._vision_model_chain(mixed)
+    check("vision: discovery'dan vision-yaroqli model qo'shildi",
+          "gemini-3-flash" in filtered, str(filtered))
+    check("vision: embedding/tts/imagen filtrlanadi",
+          not any(m in filtered for m in ("embedding-001", "gemini-2.5-flash-tts", "imagen-4.0")),
+          str(filtered))
+    check("vision: retired discovery modeli olinmaydi",
+          "gemini-1.5-flash" not in filtered, str(filtered))
+    # Xato xabari: eski "modeli hozircha mavjud emas" matni yo'q
+    err_404 = ai_agent.vision_friendly_error(404, "models/x is not found")
+    check("vision 404: eski 'hozircha mavjud emas' matni yo'q",
+          "hozircha mavjud emas" not in err_404, err_404)
+    check("vision 404: foydalanuvchiga tushunarli xabar", "qayta urinib" in err_404, err_404)
+    # Post talablari: sarlavha, emojilar, xeshteglar
+    check("vision prompt: sarlavha talabi", "SARLAVHA" in ai_agent._VISION_SYSTEM)
+    check("vision prompt: jozibador matn talabi", "JOZIBADOR MATN" in ai_agent._VISION_SYSTEM)
+    check("vision prompt: emoji talabi", "EMOJILAR" in ai_agent._VISION_SYSTEM)
+    check("vision prompt: xeshteg talabi", "XESHTEG" in ai_agent._VISION_SYSTEM)
+    check("vision prompt: o'zbek tili talabi", "O'ZBEK" in ai_agent._VISION_SYSTEM)
+    check("vision prompt: video tahlil qilinmasligi aytilgan",
+          "video tahlil qilinmaydi" in ai_agent._VISION_SYSTEM.lower())
+
+    # ---------- 1b) Faqat rasm: video rad etiladi ----------
+    import handlers.ai_assistant as ai_mod
+    msg_video = type("M", (), {
+        "photo": None, "document": None, "video": object(),
+        "animation": None, "audio": None, "voice": None,
+        "video_note": None, "sticker": None,
+    })()
+    check("video: rasm sifatida qabul qilinmaydi",
+          ai_mod._extract_photo_file(msg_video) == (None, None))
+    check("video: aniq 'video emas' xabari beriladi", ai_mod._is_non_image_media(msg_video))
+    doc_pdf = type("D", (), {"file_id": "doc1", "mime_type": "application/pdf"})()
+    msg_pdf = type("M", (), {
+        "photo": None, "document": doc_pdf, "video": None, "animation": None,
+        "audio": None, "voice": None, "video_note": None, "sticker": None,
+    })()
+    check("pdf: rasm emas", ai_mod._extract_photo_file(msg_pdf) == (None, None))
+    doc_png = type("D", (), {"file_id": "img1", "mime_type": "image/png"})()
+    msg_png = type("M", (), {
+        "photo": None, "document": doc_png, "video": None, "animation": None,
+        "audio": None, "voice": None, "video_note": None, "sticker": None,
+    })()
+    check("png hujjat: rasm sifatida olinadi",
+          ai_mod._extract_photo_file(msg_png) == ("img1", "photo"))
+
+    # ---------- 2) KANAL ULASH: matn + 2 ta tugma ----------
+    kb = get_channels_manage_keyboard()
+    kb_cbs = [b.callback_data for row in kb.inline_keyboard for b in row]
+    kb_labels = [b.text for row in kb.inline_keyboard for b in row]
+    check("kanal: '➕ Kanal qo'shish' tugmasi bor", "add_channel_start" in kb_cbs, str(kb_cbs))
+    check("kanal: '🗑 Kanalni o'chirish' tugmasi bor",
+          "cab_channels_delete" in kb_cbs, str(kb_cbs))
+    check("kanal: tugma yorliqlari to'g'ri",
+          "➕ Kanal qo'shish" in kb_labels and "🗑 Kanalni o'chirish" in kb_labels,
+          str(kb_labels))
+    check("kanal: yo'naltiruvchi matn to'g'ri",
+          "Mening kanallarim" in NO_CHANNELS_HINT, NO_CHANNELS_HINT)
+    src_start = open(start_mod.__file__, encoding="utf-8").read()
+    check("kanal: eski xato yo'naltiruv matn olib tashlangan",
+          "Yangi post rejalashtirish' bo'limini tanlang" not in src_start)
+    check("kanal: yangi matn ishlatiladi", "NO_CHANNELS_HINT" in src_start)
+    check("kanal: cab_channels_delete handleri bor", 'data == "cab_channels_delete"' in src_start)
+    # add_channel_start ConversationHandler entry point sifatida ro'yxatdan o'tgan
+    import handlers as h_mod
+    h_src = open(h_mod.__file__, encoding="utf-8").read()
+    check("kanal: add_channel_start conversation entry point",
+          'CallbackQueryHandler(add_channel_inline_entry, pattern=r"^add_channel_start$")' in h_src)
+    import handlers.channels as ch_mod
+    check("kanal: add_channel_inline_entry ADD_CHANNEL holatini qaytaradi",
+          "return ADD_CHANNEL" in open(ch_mod.__file__, encoding="utf-8").read())
+
+    # ---------- 3) TEZKOR TUGMALI POST: tugma va tavsif yo'q ----------
+    ex_cbs = [b.callback_data for row in get_extras_inline_keyboard().inline_keyboard
+              for b in row]
+    check("tezkor: extras menyusida tugma yo'q", "extra_quick_btn" not in ex_cbs, str(ex_cbs))
+    check("tezkor: tavsif matni olib tashlangan", "Tezkor tugmali post" not in src_start)
+
+    # ---------- 4) POST NAVBATI: qotib qolmaydi ----------
+    async def fake_run_db(func, *args, **kwargs):
+        name = getattr(func, "__name__", str(func))
+        if name == "get_queue_post_count":
+            return 0
+        if name == "check_queue_limit":
+            return (True, 0, 5)
+        if name == "get_queue_posts":
+            return []
+        raise AssertionError(f"kutilmagan db chaqiruvi: {name}")
+
+    original = db_mod.run_db
+    db_mod.run_db = fake_run_db
+    try:
+        text, markup = asyncio.run(queue_mod._build_queue_view(555001, False))
+    finally:
+        db_mod.run_db = original
+    check("navbat: bo'sh holatda ham javob qaytadi (ImportError yo'q)", bool(text))
+    check("navbat: bo'sh holatda klaviatura bor", markup is not None)
+    check("navbat: orqaga tugmasi bor",
+          "cab_main" in [b.callback_data for row in markup.inline_keyboard for b in row])
+    check("navbat: get_cabinet_back_keyboard inline'dan olinadi",
+          "from keyboards.inline import get_cabinet_back_keyboard"
+          in open(queue_mod.__file__, encoding="utf-8").read())
+    check("navbat: cabinet handleri xatoni ushlaydi (qotmaydi)",
+          "Post navbati ekranini qurishda xato" in src_start)
+    # scheduled_posts jadvalidan o'qiladi
+    db_src = open(db_mod.__file__, encoding="utf-8").read()
+    check("navbat: scheduled_posts jadvalidan o'qiladi",
+          "FROM scheduled_posts sp" in db_src and "def get_queue_posts" in db_src)
+    check("navbat: faqat pending postlar", "status = 'pending'" in db_src)
+
+    # ---------- 5) ADMIN: 3 ta asosiy bo'lim ----------
+    import handlers.admin as admin
+    admin_src = open(admin.__file__, encoding="utf-8").read()
+    check("admin: eski javob matni bo'limi o'chirilgan", "adm_ad_edit_text" not in admin_src)
+    check("admin: dublikat oraliq (adm_ad_set_interval) o'chirilgan",
+          "adm_ad_set_interval" not in admin_src)
+    check("admin: dublikat oraliq (adm_ad_int:) o'chirilgan", "adm_ad_int:" not in admin_src)
+    check("admin: kanal reklamasi toggle qo'shilgan", "adm_channel_ad_toggle" in admin_src)
+    check("admin: 3 bo'lim hub matnida",
+          all(m in admin_src for m in (
+              "Majburiy obuna (Sponsor kanallar)",
+              "3-5 ta javobda chiqadigan reklama",
+              "Kanal postlariga reklama qo'shish")))
+    check("admin: channel_ad_status DB'da mavjud", hasattr(db_mod, "set_channel_ad_status"))
 
 
 def test_guard_feedback_and_silent_blocking_fix():
@@ -3040,13 +3200,14 @@ def test_sponsor_channels_suite():
 
 
 def test_auto_ad_injector_suite():
-    """Auto-Ad Injector — endi yagona Reklama markazi (hub) ichida."""
-    print("== Auto-Ad Injector (Reklama markazi hub) ==")
+    """Reklama boshqaruvi — FAQAT 3 ta asosiy bo'lim (ixcham admin panel)."""
+    print("== Reklama boshqaruvi: 3 ta asosiy bo'lim ==")
     import database as db_mod
     from utils import helpers
+    import keyboards.inline as ki
     from keyboards.inline import (
         get_ad_hub_keyboard,
-        get_admin_ad_interval_keyboard,
+        get_ad_interval_keyboard,
     )
 
     # DB funksiyalari mavjudligi
@@ -3054,33 +3215,53 @@ def test_auto_ad_injector_suite():
     check("db.update_ad_text mavjud", hasattr(db_mod, "update_ad_text"))
     check("db.set_ad_status mavjud", hasattr(db_mod, "set_ad_status"))
     check("db.set_ad_interval mavjud", hasattr(db_mod, "set_ad_interval"))
+    check("db.set_channel_ad_status mavjud (kanal reklamasi toggle)",
+          hasattr(db_mod, "set_channel_ad_status"))
 
-    # Reklama hub klaviaturasi: hamma boshqaruv BITTA menyuda
+    # Hub klaviaturasi: 3 ta bo'lim — har birida matn, oraliq, tugma, yoqish/o'chirish
     ad_kb = get_ad_hub_keyboard(channel_total=2, channel_active=1,
                                 reply_total=3, reply_active=3,
                                 auto_status=True, auto_interval=4,
-                                channel_interval=3)
+                                channel_interval=3, channel_status=True,
+                                sponsors_count=2)
     ad_cbs = [b.callback_data for row in ad_kb.inline_keyboard for b in row]
     labels = [b.text for row in ad_kb.inline_keyboard for b in row]
-    check("hub kb: kanal puli bo'limi", "adp:channel:back" in ad_cbs, str(ad_cbs))
-    check("hub kb: javoblar puli bo'limi", "adp:reply:back" in ad_cbs, str(ad_cbs))
-    check("hub kb: kanal oralig'i", "adp:channel:iv" in ad_cbs, str(ad_cbs))
-    check("hub kb: javob intervali", "adm_ad_set_interval" in ad_cbs, str(ad_cbs))
-    check("hub kb: toggle", "adm_ad_toggle" in ad_cbs, str(ad_cbs))
-    check("hub kb: eski javob matni", "adm_ad_edit_text" in ad_cbs, str(ad_cbs))
+
+    # 1-bo'lim: Majburiy obuna
+    check("1-bo'lim: majburiy obuna", "adm_sponsors" in ad_cbs, str(ad_cbs))
+    check("1-bo'lim: sponsorlar soni ko'rsatilgan",
+          any("Majburiy obuna (2 ta kanal)" in t for t in labels), str(labels))
+    # 2-bo'lim: javoblar reklamasi (matn + oraliq + yoqish/o'chirish)
+    check("2-bo'lim: javoblar matni (pul)", "adp:reply:back" in ad_cbs, str(ad_cbs))
+    check("2-bo'lim: javoblar oralig'i", "adp:reply:iv" in ad_cbs, str(ad_cbs))
+    check("2-bo'lim: javoblar yoqish/o'chirish", "adm_ad_toggle" in ad_cbs, str(ad_cbs))
+    # 3-bo'lim: kanal postlari reklamasi (matn + oraliq + yoqish/o'chirish)
+    check("3-bo'lim: kanal matni (pul)", "adp:channel:back" in ad_cbs, str(ad_cbs))
+    check("3-bo'lim: kanal oralig'i", "adp:channel:iv" in ad_cbs, str(ad_cbs))
+    check("3-bo'lim: kanal yoqish/o'chirish", "adm_channel_ad_toggle" in ad_cbs, str(ad_cbs))
+
     check("hub kb: dashboard'ga orqaga", "adm_back" in ad_cbs, str(ad_cbs))
     check("hub kb: sonlar ko'rsatilgan",
           any("1/2" in t for t in labels) and any("3/3" in t for t in labels), str(labels))
-    check("hub kb: alohida 'auto_ad' ekrani yo'qoldi",
-          "adm_auto_ad" not in ad_cbs, str(ad_cbs))
 
-    # Interval tanlash keyboard — orqaga endi hub'ga qaytadi
-    int_kb = get_admin_ad_interval_keyboard()
-    int_cbs = [b.callback_data for row in int_kb.inline_keyboard for b in row]
-    check("int kb: 3 ta so'rov", "adm_ad_int:3" in int_cbs, str(int_cbs))
-    check("int kb: 4 ta so'rov", "adm_ad_int:4" in int_cbs, str(int_cbs))
-    check("int kb: 5 ta so'rov", "adm_ad_int:5" in int_cbs, str(int_cbs))
-    check("int kb: orqaga → hub", "adm_adhub" in int_cbs, str(int_cbs))
+    # Chalkash/dublikat tugmalar olib tashlangan
+    check("eski javob matni tugmasi yo'q", "adm_ad_edit_text" not in ad_cbs, str(ad_cbs))
+    check("dublikat oraliq (adm_ad_set_interval) yo'q",
+          "adm_ad_set_interval" not in ad_cbs, str(ad_cbs))
+    check("dublikat oraliq (adm_ad_int:*) yo'q",
+          not any(c.startswith("adm_ad_int:") for c in ad_cbs), str(ad_cbs))
+    check("get_admin_ad_interval_keyboard o'chirilgan",
+          not hasattr(ki, "get_admin_ad_interval_keyboard"))
+    check("aloqada 'auto_ad' ekrani yo'q", "adm_auto_ad" not in ad_cbs, str(ad_cbs))
+
+    # Oraliq endi YAGONA klaviatura orqali (har scope uchun 3/4/5)
+    for scope in ("channel", "reply"):
+        int_kb = get_ad_interval_keyboard(scope, current=3)
+        int_cbs = [b.callback_data for row in int_kb.inline_keyboard for b in row]
+        for value in (3, 4, 5):
+            check(f"{scope}: har {value} tanlovi bor",
+                  f"adp:{scope}:iv:{value}" in int_cbs, str(int_cbs))
+        check(f"{scope}: orqaga o'z menyusiga", f"adp:{scope}:back" in int_cbs, str(int_cbs))
 
     # Auto-ad injection logikasi (Mock DB bilan)
     original_get_ad_settings = db_mod.get_ad_settings
@@ -4240,9 +4421,12 @@ def test_ad_pool_keyboards():
     check("menyu: bekor qilish", "adm_cancel" in cbs)
     check("menyu: orqaga → Reklama markazi (hub)", "adm_adhub" in cbs, str(cbs))
 
-    kb_reply = get_ad_pool_menu_keyboard("reply", ads=ads)
+    kb_reply = get_ad_pool_menu_keyboard("reply", ads=ads, interval=4)
     cbs_reply = [b.callback_data for row in kb_reply.inline_keyboard for b in row]
-    check("bot javoblarida interval tugmasi yo'q", "adp:reply:iv" not in cbs_reply, str(cbs_reply))
+    labels_reply = [b.text for row in kb_reply.inline_keyboard for b in row]
+    check("bot javoblarida ham oraliq tugmasi bor", "adp:reply:iv" in cbs_reply, str(cbs_reply))
+    check("bot javoblari oralig'i javobda o'lchanadi",
+          any("har 4 javob" in t for t in labels_reply), str(labels_reply))
     check("bo'sh pul menyusi ham ishlaydi",
           len(get_ad_pool_menu_keyboard("channel", ads=[]).inline_keyboard) >= 3)
 
@@ -4483,9 +4667,10 @@ def test_admin_fsm_states_and_cancel():
             "adm_grant_pro": admin.ADMIN_GRANT_PRO,
             "adm_broadcast": admin.BROADCAST_MESSAGE,
             "adm_add_sponsor": admin.ADMIN_SPONSOR_ADD,
-            "adm_ad_edit_text": admin.ADMIN_AD_EDIT,
-            "adm_ad_set_interval": admin.ADMIN_AD_INTERVAL,
         }
+        # Olib tashlangan (chalkash/dublikat) bo'limlar endi FSM ochmaydi
+        check("ADMIN_AD_EDIT holati o'chirilgan", not hasattr(admin, "ADMIN_AD_EDIT"))
+        check("ADMIN_AD_INTERVAL holati o'chirilgan", not hasattr(admin, "ADMIN_AD_INTERVAL"))
         for data, state in expected.items():
             ctx = _make_admin_ctx()
             q = _AdQuery(data)
@@ -4513,20 +4698,33 @@ def test_admin_fsm_states_and_cancel():
             type("U", (), {"callback_query": q})(), ctx))
         body = q.edits[-1][0]
         hub_cbs = [b.callback_data for row in q.edits[-1][1].inline_keyboard for b in row]
-        check("hub: sarlavha", "Reklama markazi" in body, body[:80])
+        check("hub: sarlavha", "Reklama boshqaruvi" in body, body[:80])
+        check("hub: 3 ta asosiy bo'lim sanab o'tilgan",
+              all(m in body for m in (
+                  "1) 📢 Majburiy obuna",
+                  "2) 🤖 3-5 ta javobda chiqadigan reklama",
+                  "3) 📢 Kanal postlariga reklama qo'shish")), body)
         check("hub: kanal puli hisobi", "<b>1</b>/1" in body, body)
         check("hub: javoblar puli bo'sh hisobi", "<b>0</b>/0" in body, body)
         check("hub: kanal oralig'i", "har <b>3</b>-postda" in body, body)
-        check("hub: javob intervali", "har <b>4</b> ta so'rovda" in body, body)
-        check("hub: eski matn eslatmasi", "eski yagona matn" in body.lower(), body)
+        check("hub: javob oralig'i", "har <b>4</b> ta javobda" in body, body)
+        check("hub: kanal reklamasi holati ko'rsatilgan", "Holat:" in body, body)
         check("hub: pul bo'limlari bor",
               "adp:channel:back" in hub_cbs and "adp:reply:back" in hub_cbs, str(hub_cbs))
+        check("hub: har bo'limda yoqish/o'chirish",
+              "adm_ad_toggle" in hub_cbs and "adm_channel_ad_toggle" in hub_cbs, str(hub_cbs))
+        check("hub: har bo'limda oraliq",
+              "adp:reply:iv" in hub_cbs and "adp:channel:iv" in hub_cbs, str(hub_cbs))
+        check("hub: eski javob matni tugmasi yo'q", "adm_ad_edit_text" not in hub_cbs, str(hub_cbs))
+        check("hub: dublikat oraliq tugmalari yo'q",
+              "adm_ad_set_interval" not in hub_cbs
+              and not any(c.startswith("adm_ad_int:") for c in hub_cbs), str(hub_cbs))
         # Eski alohida "auto_ad" ekrani endi hub'ni ko'rsatadi (alias)
         ctx = _make_admin_ctx()
         q = _AdQuery("adm_auto_ad")
         asyncio.run(admin.admin_dashboard_callback(
             type("U", (), {"callback_query": q})(), ctx))
-        check("adm_auto_ad → hub chiziladi", "Reklama markazi" in q.edits[-1][0])
+        check("adm_auto_ad → hub chiziladi", "Reklama boshqaruvi" in q.edits[-1][0])
 
         # Toggle holat o'zgach ham hub qayta chiziladi
         saved_status = []
@@ -4546,7 +4744,7 @@ def test_admin_fsm_states_and_cancel():
                 type("U", (), {"callback_query": q})(), ctx))
             check("toggle: holat o'zgardi", saved_status == [False], str(saved_status))
             check("toggle → END", got == ConversationHandler.END)
-            check("toggle: hub qayta chizildi", "Reklama markazi" in q.edits[-1][0],
+            check("toggle: hub qayta chizildi", "Reklama boshqaruvi" in q.edits[-1][0],
                   q.edits[-1][0][:60])
         finally:
             db_mod.run_db = fake_run_db
@@ -4663,6 +4861,11 @@ def test_ad_text_received_flow():
         if name == "get_channel_ad_interval":
             return 3
         if name == "set_channel_ad_interval":
+            return True
+        if name == "get_ad_settings":
+            return {"auto_ad_text": "", "auto_ad_interval": 4, "auto_ad_status": True,
+                    "channel_ad_interval": 3, "channel_ad_status": True}
+        if name == "set_ad_interval":
             return True
         if name == "add_ad":
             return 42
@@ -5153,6 +5356,7 @@ def main():
     test_ad_settings_include_channel_interval()
     test_enhancer_channel_ad_interval()
     test_ad_hub_unification_suite()
+    test_five_fixes_suite()
     test_add_channel_flow_suite()
 
     print(f"\nO'tdi: {passed}, Xato: {failures}")

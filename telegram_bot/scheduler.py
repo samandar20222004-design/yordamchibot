@@ -183,6 +183,16 @@ async def resolve_channel_ad(channel_id, has_ad_free: bool) -> dict:
     if has_ad_free:
         return empty
 
+    # Admin paneldagi "📢 Kanal postlariga reklama qo'shish" bo'limi
+    # o'chirilgan bo'lsa reklama umuman chiqmaydi. Sanagich o'sishda davom
+    # etadi — bo'lim qayta yoqilganda post tartibi buzilmaydi.
+    try:
+        ad_settings = await db.run_db(db.get_ad_settings)
+        if not ad_settings.get("channel_ad_status", True):
+            return empty
+    except Exception:
+        logger.debug("Kanal reklama holatini o'qib bo'lmadi — standart yoqilgan")
+
     try:
         interval = await db.run_db(db.get_channel_ad_interval)
     except Exception:

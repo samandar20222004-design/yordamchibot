@@ -17,8 +17,8 @@ from keyboards.inline import (
     get_admin_dashboard_keyboard, get_admin_back_keyboard,
     get_ad_pool_menu_keyboard, get_ad_pool_delete_keyboard,
     get_ad_pool_back_keyboard, get_admin_sponsors_keyboard,
-    get_ad_hub_keyboard, get_admin_ad_interval_keyboard,
-    get_ad_edit_keyboard, get_ad_interval_keyboard, get_hub_back_keyboard,
+    get_ad_hub_keyboard,
+    get_ad_edit_keyboard, get_ad_interval_keyboard,
     unpack_sponsor,
 )
 from utils import ai_agent
@@ -39,8 +39,6 @@ SET_POST_TAG = 806
 ADMIN_GRANT_PRO = 807
 ADMIN_PROMO_CREATE = 808
 ADMIN_SPONSOR_ADD = 809
-ADMIN_AD_EDIT = 810
-ADMIN_AD_INTERVAL = 811
 
 # Broadcast har 20 xabardan keyin shuncha kutadi (Telegram ~30 msg/s limiti).
 # 20 xabar / 0.7 s ≈ 28 msg/s — limitdan xavfsiz past.
@@ -199,56 +197,63 @@ async def _admin_edit(query, text: str, reply_markup=None):
 
 
 async def _ad_hub_render() -> tuple[str, InlineKeyboardMarkup]:
-    """Reklama markazi (hub) ekranini chizadi: matn + klaviatura.
+    """Reklama boshqaruvi ekrani — FAQAT 3 ta asosiy bo'lim.
 
-    Barcha reklama sozlamalari — kanal postlari puli va oralig'i, bot
-    javoblari puli, javoblar reklamasi holati va interval — endi BITTA
-    ekranda. Avval ular uch xil joyga (dashboard ekrani, reply-klaviatura
-    tugmalari) sochilgan edi.
+    1) 📢 Majburiy obuna (Sponsor kanallar)
+    2) 🤖 3-5 ta javobda chiqadigan reklama
+    3) 📢 Kanal postlariga reklama qo'shish
+
+    Har bir bo'limda: matn (reklama puli), oraliq, tugma va yoqish/o'chirish.
     """
     settings = await db.run_db(db.get_ad_settings)
     interval = await db.run_db(db.get_channel_ad_interval)
     channel_ads = await db.run_db(db.get_ads_full, "channel", True)
     reply_ads = await db.run_db(db.get_ads_full, "reply", True)
+    sponsors = await db.run_db(db.get_sponsor_channels) or []
     ch_active = sum(1 for a in channel_ads if a.get("is_active", True))
     rp_active = sum(1 for a in reply_ads if a.get("is_active", True))
-    status = bool(settings.get("auto_ad_status", False))
+    reply_status = bool(settings.get("auto_ad_status", False))
+    channel_status = bool(settings.get("channel_ad_status", True))
     reply_interval = settings.get("auto_ad_interval", 4)
-    legacy_text = (settings.get("auto_ad_text") or "").strip()
 
-    status_label = "✅ Faol" if status else "❌ O'chirilgan"
+    def _mark(on: bool) -> str:
+        return "✅ Yoqilgan" if on else "❌ O'chirilgan"
+
     lines = [
-        "🎯 <b>Reklama markazi</b> — hamma sozlama shu yerda",
+        "🎯 <b>Reklama boshqaruvi</b> — 3 ta asosiy bo'lim",
         "━━━━━━━━━━━━━━━━━",
-        f"📢 <b>Kanal postlari:</b> pulda <b>{ch_active}</b>/{len(channel_ads)} ta faol, "
-        f"reklama har <b>{interval}</b>-postda chiqadi (sanagich har kanal uchun alohida).",
-        f"🤖 <b>Bot javoblari:</b> pulda <b>{rp_active}</b>/{len(reply_ads)} ta faol, "
-        f"holat: {status_label}, "
-        f"interval: har <b>{reply_interval}</b> ta so'rovda.",
-    ]
-    if not reply_ads:
-        lines.append(
-            "   <i>Javoblar puli bo'sh — bot hozircha eski yagona matnni ishlatadi: "
-            f"{html_escape(_short_text(legacy_text, 60)) if legacy_text else '(kiritilmagan)'}</i>"
-        )
-    lines += [
+        f"<b>1) 📢 Majburiy obuna (Sponsor kanallar)</b>\n"
+        f"   Ulangan kanallar: <b>{len(sponsors)} ta</b> — "
+        "matn/tugma va o'chirish bo'lim ichida.",
+        "━━━━━━━━━━━━━━━━━",
+        f"<b>2) 🤖 3-5 ta javobda chiqadigan reklama</b>\n"
+        f"   Matn: pulda <b>{rp_active}</b>/{len(reply_ads)} ta faol\n"
+        f"   Oraliq: har <b>{reply_interval}</b> ta javobda\n"
+        f"   Holat: {_mark(reply_status)}",
+        "━━━━━━━━━━━━━━━━━",
+        f"<b>3) 📢 Kanal postlariga reklama qo'shish</b>\n"
+        f"   Matn: pulda <b>{ch_active}</b>/{len(channel_ads)} ta faol\n"
+        f"   Oraliq: har <b>{interval}</b>-postda (har kanal uchun alohida)\n"
+        f"   Holat: {_mark(channel_status)}",
         "━━━━━━━━━━━━━━━━━",
         "Bo'limni tanlang 👇 Matn yuborsangiz 📢 Kanal posti puliga qo'shiladi.",
     ]
     markup = get_ad_hub_keyboard(
         channel_total=len(channel_ads), channel_active=ch_active,
         reply_total=len(reply_ads), reply_active=rp_active,
-        auto_status=status, auto_interval=reply_interval,
-        channel_interval=interval,
+        auto_status=reply_status, auto_interval=reply_interval,
+        channel_interval=interval, channel_status=channel_status,
+        sponsors_count=len(sponsors),
     )
     return "\n".join(lines), markup
 
 
 # Admin panelda ko'rsatiladigan tizim sozlamalari (system_settings kalitlari).
+# Eski yagona reklama matnlari (channel_ad_text / bot_reply_ad_text) panelda
+# ko'rsatilmaydi — reklama endi faqat "🎯 Reklama boshqaruvi"dagi 3 ta bo'lim
+# orqali boshqariladi (bir-biriga o'xshash dublikat sozlamalar olib tashlandi).
 SYSTEM_SETTINGS_KEYS = (
     ("post_tag_text", "🏷 Post nishoni"),
-    ("channel_ad_text", "📢 Eski kanal reklamasi"),
-    ("bot_reply_ad_text", "🤖 Eski javob reklamasi"),
 )
 
 
@@ -265,13 +270,16 @@ def _format_system_settings(settings: dict, ad_settings: dict, interval: int,
         shown = f"<code>{html_escape(_short_text(value, 60))}</code>" if value else "<i>(bo'sh)</i>"
         lines.append(f"   • {label} (<code>{key}</code>): {shown}")
 
-    status = "🟢 yoqilgan" if ad_settings.get("auto_ad_status") else "🔴 o'chirilgan"
+    reply_status = "🟢 yoqilgan" if ad_settings.get("auto_ad_status") else "🔴 o'chirilgan"
+    ch_status = (
+        "🟢 yoqilgan" if ad_settings.get("channel_ad_status", True) else "🔴 o'chirilgan"
+    )
     lines += [
         "",
-        "<b>Reklama sozlamalari:</b>",
-        f"   • Kanal postlari oralig'i: <b>har {interval}-post</b>",
-        f"   • Bot javoblari oralig'i: <b>har {ad_settings.get('auto_ad_interval', 4)} so'rov</b>",
-        f"   • Bot javoblari reklamasi: {status}",
+        "<b>Reklama holati (faqat ko'rish):</b>",
+        f"   • Kanal postlari: har {interval}-postda, {ch_status}",
+        f"   • Bot javoblari: har {ad_settings.get('auto_ad_interval', 4)} javobda, {reply_status}",
+        "   <i>O'zgartirish uchun «🎯 Reklama boshqaruvi» bo'limidan foydalaning.</i>",
     ]
 
     lines += ["", "<b>Kanal post sanagichlari:</b>"]
@@ -439,47 +447,27 @@ async def admin_dashboard_callback(update: Update, context: ContextTypes.DEFAULT
         ad_settings = await db.run_db(db.get_ad_settings)
         new_status = not ad_settings.get("auto_ad_status", False)
         await db.run_db(db.set_ad_status, new_status)
-        await query.answer("Reklama yoqildi ✅" if new_status else "Reklama o'chirildi ❌")
+        await query.answer(
+            "Javoblar reklamasi yoqildi ✅" if new_status
+            else "Javoblar reklamasi o'chirildi ❌"
+        )
         # Holat o'zgach to'liq hub qayta chiziladi — eski alohida ekran
         # (Har 3-5 javob reklamasi) endi mavjud emas.
         text, markup = await _ad_hub_render()
         await _admin_edit(query, text, markup)
         return ConversationHandler.END
 
-    if data == "adm_ad_edit_text":
-        await query.answer()
-        await _admin_edit(
-            query,
-            "✏️ <b>Eski yagona javob reklamasi matni:</b>\n\n"
-            "Bot javoblari reklama puli bo'sh bo'lgana shu matn ishlatiladi.\n"
-            f"{AD_HTML_HINT}\n\n"
-            "Reklama matni, havola yoki kanal nomini yozing.",
-            get_hub_back_keyboard(),
+    if data == "adm_channel_ad_toggle":
+        # 3-bo'lim: 📢 Kanal postlariga reklama qo'shish — yoqish/o'chirish.
+        ad_settings = await db.run_db(db.get_ad_settings)
+        new_status = not ad_settings.get("channel_ad_status", True)
+        await db.run_db(db.set_channel_ad_status, new_status)
+        await query.answer(
+            "Kanal posti reklamasi yoqildi ✅" if new_status
+            else "Kanal posti reklamasi o'chirildi ❌"
         )
-        context.user_data["admin_flow"] = "edit_ad_text"
-        return ADMIN_AD_EDIT
-
-    if data == "adm_ad_set_interval":
-        await query.answer()
-        await _admin_edit(
-            query,
-            "⏱ <b>Reklama intervalini sozlash:</b>\n\n"
-            "Bot har nechta natijaviy so'rovda reklama qo'shsin?\n"
-            "Standart qiymat: <b>4</b> (har 3-5 ta so'rovda).\n\n"
-            "Quyidagi tugmalardan tanlang yoki istalgan butun sonni yozib yuboring:",
-            get_admin_ad_interval_keyboard(),
-        )
-        context.user_data["admin_flow"] = "set_ad_interval"
-        return ADMIN_AD_INTERVAL
-
-    if data.startswith("adm_ad_int:"):
-        val = db.clamp_ad_interval(data.split(":")[1], 4)
-        await db.run_db(db.set_ad_interval, val)
-        await query.answer(f"Interval {val} ta so'rov qilib belgilandi ✅")
-        # Tezkor tanlashdan so'ng darhol hub'ga qaytamiz (alohida ekran yo'q).
         text, markup = await _ad_hub_render()
         await _admin_edit(query, text, markup)
-        context.user_data.pop("admin_flow", None)
         return ConversationHandler.END
 
     if data == "adm_back":
@@ -744,58 +732,6 @@ async def admin_inline_text_handler(update: Update, context: ContextTypes.DEFAUL
                 parse_mode="HTML",
             )
             return ADMIN_SPONSOR_ADD
-
-    if flow == "edit_ad_text":
-        ok, err = validate_ad_html(text, max_len=1000)
-        if not ok:
-            await update.message.reply_text(
-                f"❌ {err}\n\n{AD_HTML_HINT}",
-                reply_markup=get_hub_back_keyboard(),
-                parse_mode="HTML",
-            )
-            return ADMIN_AD_EDIT
-        success = await db.run_db(db.update_ad_text, text)
-        if success:
-            await update.message.reply_text(
-                f"✅ <b>Reklama matni muvaffaqiyatli saqlandi!</b>\n\n<code>{html_escape(text)}</code>",
-                reply_markup=get_hub_back_keyboard(),
-                parse_mode="HTML",
-            )
-        else:
-            await update.message.reply_text(
-                "❌ Saqlashda xatolik yuz berdi.",
-                reply_markup=get_hub_back_keyboard(),
-            )
-        context.user_data.pop("admin_flow", None)
-        return ConversationHandler.END
-
-    if flow == "set_ad_interval":
-        try:
-            val = int(text)
-            if val < db.AD_INTERVAL_MIN or val > db.AD_INTERVAL_MAX:
-                raise ValueError
-        except ValueError:
-            await update.message.reply_text(
-                f"❌ Noto'g'ri raqam. {db.AD_INTERVAL_MIN}–{db.AD_INTERVAL_MAX} "
-                "oralig'ida butun son kiriting (masalan: 3, 4, 5):",
-                reply_markup=get_hub_back_keyboard(),
-            )
-            return ADMIN_AD_INTERVAL
-        success = await db.run_db(db.set_ad_interval, val)
-        if success:
-            await update.message.reply_text(
-                f"✅ <b>Reklama intervali yangilandi!</b>\n\n"
-                f"Endi bot har <b>{val}</b> ta so'rovda reklama qo'shadi.",
-                reply_markup=get_hub_back_keyboard(),
-                parse_mode="HTML",
-            )
-        else:
-            await update.message.reply_text(
-                "❌ Saqlashda xatolik yuz berdi.",
-                reply_markup=get_hub_back_keyboard(),
-            )
-        context.user_data.pop("admin_flow", None)
-        return ConversationHandler.END
 
     return ConversationHandler.END
 
@@ -1296,6 +1232,10 @@ async def _ad_pool_menu_text(scope: str) -> str:
     if scope == "channel":
         interval = await db.run_db(db.get_channel_ad_interval)
         text += f"⏱ Reklama oralig'i: <b>har {interval}-post</b> (kanal bo'yicha alohida)\n"
+    else:
+        settings = await db.run_db(db.get_ad_settings)
+        interval = settings.get("auto_ad_interval", 4)
+        text += f"⏱ Reklama oralig'i: <b>har {interval} javob</b>\n"
     text += (
         "━━━━━━━━━━━━━━━━━\n"
         f"<b>Reklama puli:</b>\n{_format_ad_pool(ads)}\n\n"
@@ -1308,7 +1248,11 @@ async def _ad_pool_menu_text(scope: str) -> str:
 async def _ad_pool_menu_markup(scope: str):
     """Reklama puli menyusi klaviaturasi (ro'yxat + interval bilan)."""
     ads = await db.run_db(db.get_ads_full, scope, True)
-    interval = await db.run_db(db.get_channel_ad_interval) if scope == "channel" else None
+    if scope == "channel":
+        interval = await db.run_db(db.get_channel_ad_interval)
+    else:
+        settings = await db.run_db(db.get_ad_settings)
+        interval = settings.get("auto_ad_interval", 4)
     return get_ad_pool_menu_keyboard(scope, ads=ads, interval=interval)
 
 
@@ -1489,11 +1433,17 @@ async def _ad_text_received(update, context, scope: str):
                 reply_markup=get_cancel_keyboard(),
             )
             return state
-        await db.run_db(db.set_channel_ad_interval, value)
+        if scope == "channel":
+            await db.run_db(db.set_channel_ad_interval, value)
+            unit = "post"
+        else:
+            await db.run_db(db.set_ad_interval, value)
+            unit = "javob"
         context.user_data.pop("ad_edit", None)
         await update.message.reply_text(
-            f"✅ <b>Reklama oralig'i yangilandi:</b> endi har <b>{value}-postda</b> reklama chiqadi.\n"
-            "<i>Sanagich har bir kanal uchun alohida yuritiladi.</i>",
+            f"✅ <b>Reklama oralig'i yangilandi:</b> endi har <b>{value}-{unit}da</b> reklama chiqadi.\n"
+            + ("<i>Sanagich har bir kanal uchun alohida yuritiladi.</i>"
+               if scope == "channel" else "<i>Har bir foydalanuvchi uchun alohida hisoblanadi.</i>"),
             reply_markup=get_admin_panel_keyboard(),
             parse_mode="HTML",
         )
@@ -1711,26 +1661,46 @@ async def ad_pool_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return state
 
     if action == "iv":
-        # Kanal postlari uchun reklama oralig'i (har nechanchi postda).
+        # Reklama oralig'i — HAR BIR BO'LIM uchun o'z sozlamasi:
+        #   channel → har nechanchi POSTDA,  reply → har nechta JAVOBDA.
+        is_channel = (scope == "channel")
+        unit = "post" if is_channel else "javob"
         if arg is not None:
-            value = db.clamp_ad_interval(arg)
-            await db.run_db(db.set_channel_ad_interval, value)
+            value = db.clamp_ad_interval(arg, 3 if is_channel else 4)
+            if is_channel:
+                await db.run_db(db.set_channel_ad_interval, value)
+            else:
+                await db.run_db(db.set_ad_interval, value)
             context.user_data.pop("ad_edit", None)
             try:
-                await query.answer(f"✅ Endi har {value}-postda reklama chiqadi")
+                await query.answer(f"✅ Endi har {value}-{unit}da reklama chiqadi")
             except Exception:
                 pass
             await _show_ad_pool_menu(query, scope)
             return state
 
-        current = await db.run_db(db.get_channel_ad_interval)
+        if is_channel:
+            current = await db.run_db(db.get_channel_ad_interval)
+        else:
+            settings = await db.run_db(db.get_ad_settings)
+            current = settings.get("auto_ad_interval", 4)
         context.user_data["ad_edit"] = {"id": 0, "field": "interval", "scope": scope}
+        if is_channel:
+            explain = (
+                "Bot har nechanchi postda reklama qo'shsin? Sanagich <b>har bir "
+                "kanal uchun alohida</b> yuritiladi — bir kanaldagi postlar "
+                "boshqasiga ta'sir qilmaydi."
+            )
+        else:
+            explain = (
+                "Bot har nechta javobda reklama qo'shsin? Standart qiymat: "
+                "<b>4</b> (ya'ni har 3-5 ta javobda)."
+            )
         text = (
             "⏱ <b>Reklama oralig'ini sozlash</b>\n"
             "━━━━━━━━━━━━━━━━━\n"
-            f"Hozirgi qiymat: <b>har {current}-post</b>\n\n"
-            "Bot har nechanchi postda reklama qo'shsin? Sanagich <b>har bir kanal "
-            "uchun alohida</b> yuritiladi — bir kanaldagi postlar boshqasiga ta'sir qilmaydi.\n\n"
+            f"Hozirgi qiymat: <b>har {current}-{unit}</b>\n\n"
+            f"{explain}\n\n"
             f"Tugmalardan tanlang yoki {db.AD_INTERVAL_MIN}–{db.AD_INTERVAL_MAX} "
             "oralig'idagi sonni yozib yuboring."
         )

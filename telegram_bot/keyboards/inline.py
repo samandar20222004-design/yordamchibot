@@ -108,35 +108,44 @@ def get_admin_sponsors_keyboard(sponsors: list) -> InlineKeyboardMarkup:
 def get_ad_hub_keyboard(channel_total: int = 0, channel_active: int = 0,
                         reply_total: int = 0, reply_active: int = 0,
                         auto_status: bool = False, auto_interval: int = 4,
-                        channel_interval: int = 3) -> InlineKeyboardMarkup:
-    """Admin panel: YAGONA reklama boshqaruv markazi (hub) klaviaturasi.
+                        channel_interval: int = 3,
+                        channel_status: bool = True,
+                        sponsors_count: int = 0) -> InlineKeyboardMarkup:
+    """Admin panel: reklama boshqaruvi — FAQAT 3 ta asosiy bo'lim.
 
-    Avvallari uch alohida joyga sochilgan (dashboard'dagi "Har 3-5 javob
-    reklamasi" ekrani, reply-klaviaturadagi "Kanal posti reklamasi" va "Bot
-    xabari reklamasi" tugmalari) — endi hammasi shu bitta menyuda:
+    Har bir bo'lim o'z ichiga oladi: <b>matn</b> (reklama puli),
+    <b>oraliq</b> (har nechanchi post/so'rovda), <b>tugma</b> va
+    <b>yoqish/o'chirish</b>.
 
-    • ikkala reklama puli (kanal postlari / bot javoblari) shu yerda ochiladi;
-    • kanal postlari oralig'i (har nechanchi postda) — ``adp:channel:iv``;
-    • bot javoblari holati (toggle) va javob intervali — ``adm_ad_*``.
+    1) 📢 Majburiy obuna (Sponsor kanallar)      → ``adm_sponsors``
+    2) 🤖 3-5 ta javobda chiqadigan reklama      → ``adp:reply:*`` + ``adm_ad_toggle``
+    3) 📢 Kanal postlariga reklama qo'shish      → ``adp:channel:*`` + ``adm_channel_ad_toggle``
+
+    Bir-biriga o'xshash/eskirgan tugmalar («✏️ Eski javob matni»,
+    ``adm_ad_set_interval`` va ``adm_ad_int:*`` dublikat oraliqlari)
+    olib tashlangan — oraliq endi faqat o'z bo'limida sozlanadi.
     """
-    status_label = "✅ Faol" if auto_status else "❌ O'chirilgan"
+    reply_status = "✅ Yoqilgan" if auto_status else "❌ O'chirilgan"
+    ch_status = "✅ Yoqilgan" if channel_status else "❌ O'chirilgan"
     keyboard = [
+        # --- 1) Majburiy obuna ---
+        [InlineKeyboardButton(f"📢 Majburiy obuna ({sponsors_count} ta kanal)",
+                              callback_data="adm_sponsors")],
+        # --- 2) Bot javoblari reklamasi ---
+        [InlineKeyboardButton(f"🤖 Javoblar reklamasi: matn ({reply_active}/{reply_total})",
+                              callback_data="adp:reply:back")],
         [
-            InlineKeyboardButton(f"📢 Kanal posti puli ({channel_active}/{channel_total})",
-                                 callback_data="adp:channel:back"),
-            InlineKeyboardButton(f"🤖 Javoblar puli ({reply_active}/{reply_total})",
-                                 callback_data="adp:reply:back"),
+            InlineKeyboardButton(f"⏱ Oraliq: har {auto_interval} javob",
+                                 callback_data="adp:reply:iv"),
+            InlineKeyboardButton(f"🔘 {reply_status}", callback_data="adm_ad_toggle"),
         ],
+        # --- 3) Kanal postlari reklamasi ---
+        [InlineKeyboardButton(f"📢 Kanal posti reklamasi: matn ({channel_active}/{channel_total})",
+                              callback_data="adp:channel:back")],
         [
-            InlineKeyboardButton(f"⏱ Kanal: har {channel_interval}-post",
+            InlineKeyboardButton(f"⏱ Oraliq: har {channel_interval}-post",
                                  callback_data="adp:channel:iv"),
-            InlineKeyboardButton(f"⏱ Javob: har {auto_interval} so'rov",
-                                 callback_data="adm_ad_set_interval"),
-        ],
-        [
-            InlineKeyboardButton(f"🔄 Bot javoblari reklamasi: {status_label}",
-                                 callback_data="adm_ad_toggle"),
-            InlineKeyboardButton("✏️ Eski javob matni", callback_data="adm_ad_edit_text"),
+            InlineKeyboardButton(f"🔘 {ch_status}", callback_data="adm_channel_ad_toggle"),
         ],
         [
             InlineKeyboardButton("⬅️ Orqaga", callback_data="adm_back"),
@@ -152,22 +161,6 @@ def get_hub_back_keyboard() -> InlineKeyboardMarkup:
         InlineKeyboardButton("🎯 Markazga", callback_data="adm_adhub"),
         InlineKeyboardButton("❌ Bekor qilish", callback_data="adm_cancel"),
     ]])
-
-
-def get_admin_ad_interval_keyboard() -> InlineKeyboardMarkup:
-    """Reklama intervalini tezkor tanlash klaviaturasi (orqaga — reklama hub'iga)."""
-    keyboard = [
-        [
-            InlineKeyboardButton("3 ta so'rov", callback_data="adm_ad_int:3"),
-            InlineKeyboardButton("4 ta so'rov", callback_data="adm_ad_int:4"),
-            InlineKeyboardButton("5 ta so'rov", callback_data="adm_ad_int:5"),
-        ],
-        [
-            InlineKeyboardButton("⬅️ Orqaga", callback_data="adm_adhub"),
-            InlineKeyboardButton("❌ Bekor qilish", callback_data="adm_cancel"),
-        ],
-    ]
-    return InlineKeyboardMarkup(keyboard)
 
 
 def get_admin_dashboard_keyboard() -> InlineKeyboardMarkup:
@@ -235,12 +228,18 @@ def get_ad_pool_menu_keyboard(scope: str, ads: list = None,
         ])
 
     keyboard.append([InlineKeyboardButton("➕ Yangi reklama qo'shish", callback_data=f"adp:{scope}:add")])
+    # Oraliq har ikkala bo'limda ham shu yerdan sozlanadi (yagona joy).
     if scope == "channel":
         label = (
             f"⏱ Reklama oralig'i: har {interval}-post"
             if interval else "⏱ Reklama oralig'ini sozlash"
         )
-        keyboard.append([InlineKeyboardButton(label, callback_data=f"adp:{scope}:iv")])
+    else:
+        label = (
+            f"⏱ Reklama oralig'i: har {interval} javob"
+            if interval else "⏱ Reklama oralig'ini sozlash"
+        )
+    keyboard.append([InlineKeyboardButton(label, callback_data=f"adp:{scope}:iv")])
     keyboard.append([
         InlineKeyboardButton("🧹 Hammasini tozalash", callback_data=f"adp:{scope}:clear"),
         InlineKeyboardButton("ℹ️ Rotatsiya haqida", callback_data=f"adp:{scope}:info"),
@@ -480,14 +479,12 @@ def get_extras_inline_keyboard() -> InlineKeyboardMarkup:
 
     Birinchi qator — ✨ Postga Tugma & Reaksiya qo'shish (Post Enhancer):
     tayyor postga 10 tagacha reaksiya va 10 tagacha URL tugma qo'shib,
-    kanalga bir zumda yuborish. Konvertor va Tezkor tugmali post o'z
-    o'rnida saqlanadi.
+    kanalga bir zumda yuborish. Konvertor o'z o'rnida saqlanadi.
     """
     keyboard = [
         [InlineKeyboardButton("✨ Postga Tugma & Reaksiya qo'shish",
                               callback_data="extra_enhancer")],
         [InlineKeyboardButton("🔤 Krill-Lotin konvertor", callback_data="extra_converter")],
-        [InlineKeyboardButton("🔗 Tezkor tugmali post", callback_data="extra_quick_btn")],
         [InlineKeyboardButton("❌ Yopish", callback_data="extra_close")],
     ]
     return InlineKeyboardMarkup(keyboard)
@@ -615,3 +612,30 @@ def get_cabinet_back_keyboard() -> InlineKeyboardMarkup:
         ],
     ]
     return InlineKeyboardMarkup(keyboard)
+
+
+def get_channels_manage_keyboard() -> InlineKeyboardMarkup:
+    """📢 Mening kanallarim ekrani tugmalari — kanal qo'shish va o'chirish.
+
+    ``add_channel_start`` — kanal ulash ConversationHandler'ini ISHGA
+    TUSHIRADI (botni admin qilish → forward/ID yuborish oqimi).
+    ``cab_channels_delete`` — o'chirish uchun kanal ro'yxatini ochadi
+    (kanal bo'lmasa tushunarli xabar qaytadi).
+    """
+    keyboard = [
+        [InlineKeyboardButton("➕ Kanal qo'shish", callback_data="add_channel_start")],
+        [InlineKeyboardButton("🗑 Kanalni o'chirish", callback_data="cab_channels_delete")],
+        [
+            InlineKeyboardButton("⬅️ Orqaga", callback_data="cab_main"),
+            InlineKeyboardButton("❌ Yopish", callback_data="close_cabinet"),
+        ],
+    ]
+    return InlineKeyboardMarkup(keyboard)
+
+
+# Kanal ulanmaganida ko'rsatiladigan yo'naltiruvchi matn (bir xil matn
+# "Mening kanallarim" ekranida ham, kanal talab qilinadigan joylarda ham).
+NO_CHANNELS_HINT = (
+    "Avval <b>«Mening kanallarim»</b> bo'limidan kanal yoki guruhingizni ulang."
+)
+

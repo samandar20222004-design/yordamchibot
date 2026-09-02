@@ -10,6 +10,7 @@ from keyboards.inline import (
     get_referral_share_keyboard, get_subscription_check_keyboard,
     get_cabinet_inline_keyboard, get_cabinet_back_keyboard,
     get_extras_inline_keyboard,
+    get_channels_manage_keyboard, render_channels_list, NO_CHANNELS_HINT,
     unpack_sponsor,
 )
 from utils.helpers import html_escape, get_smart_reply_ad_async
@@ -481,8 +482,7 @@ async def extras_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "video, albom yoki forward) yuboring: asl matnga tegilmaydi, 10 tagacha "
         "reaksiya va 10 tagacha URL tugma qo'shib, istalgan kanalga bir zumda "
         "yuboriladi\n"
-        "🔤 <b>Krill-Lotin konvertor</b> — matnlarni ikki alifbo orasida o'girish\n"
-        "🔗 <b>Tezkor tugmali post</b> — bir xabarda matn + URL tugma bilan post yaratish\n\n"
+        "🔤 <b>Krill-Lotin konvertor</b> — matnlarni ikki alifbo orasida o'girish\n\n"
         "Kerakli vositani tanlang 👇",
         reply_markup=get_extras_inline_keyboard(),
         parse_mode="HTML",
@@ -571,16 +571,49 @@ async def cabinet_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.answer()
         channels = await db.run_db(db.get_user_channels, user_id)
         if not channels:
-            text = "📢 <b>Mening kanallarim:</b>\n\nHozircha hech qanday kanal ulanmagan.\n\n➕ Yangi kanal ulash uchun menyudan '➕ Yangi post rejalashtirish' bo'limini tanlang."
+            text = (
+                "📢 <b>Mening kanallarim:</b>\n\n"
+                "Hozircha hech qanday kanal ulanmagan.\n\n"
+                f"{NO_CHANNELS_HINT}\n\n"
+                "⚠️ <i>Botni kanal/guruhingizga administrator qilib (xabar "
+                "yuborish ruxsati bilan) qo'shing, so'ng pastdagi "
+                "<b>➕ Kanal qo'shish</b> tugmasini bosing.</i>"
+            )
+            markup = get_channels_manage_keyboard()
         else:
             text = f"📢 <b>Mening kanallarim ({len(channels)} ta):</b>\n\n"
             for i, ch in enumerate(channels, 1):
                 ch_id, ch_title = ch[:2]
                 text += f"{i}. <b>{html_escape(ch_title or 'Kanal')}</b> (<code>{ch_id}</code>)\n"
+            text += "\nYangi kanal ulash yoki mavjudini o'chirish uchun 👇"
+            markup = get_channels_manage_keyboard()
         try:
-            await query.edit_message_text(text, reply_markup=get_cabinet_back_keyboard(), parse_mode="HTML")
+            await query.edit_message_text(text, reply_markup=markup, parse_mode="HTML")
         except Exception:
-            await query.message.reply_text(text, reply_markup=get_cabinet_back_keyboard(), parse_mode="HTML")
+            await query.message.reply_text(text, reply_markup=markup, parse_mode="HTML")
+        return
+
+    if data == "cab_channels_delete":
+        await query.answer()
+        channels = await db.run_db(db.get_user_channels, user_id)
+        if not channels:
+            text = (
+                "📢 <b>Mening kanallarim:</b>\n\n"
+                "Hozircha o'chirish uchun kanal yo'q.\n\n"
+                f"{NO_CHANNELS_HINT}"
+            )
+            markup = get_channels_manage_keyboard()
+        else:
+            text = (
+                f"🗑 <b>Kanalni o'chirish</b> ({len(channels)} ta)\n\n"
+                "O'chirmoqchi bo'lgan kanalingiz yonidagi <b>❌ O'chirish</b> "
+                "tugmasini bosing 👇"
+            )
+            markup = render_channels_list(channels)
+        try:
+            await query.edit_message_text(text, reply_markup=markup, parse_mode="HTML")
+        except Exception:
+            await query.message.reply_text(text, reply_markup=markup, parse_mode="HTML")
         return
 
     if data == "cab_analytics":
@@ -708,7 +741,19 @@ async def cabinet_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception:
             pass
         from handlers.queue import _build_queue_view
-        text, markup = await _build_queue_view(user_id, is_admin)
+        try:
+            text, markup = await _build_queue_view(user_id, is_admin)
+        except Exception:
+            # Baza xatosi bo'lsa ham foydalanuvchi JAVOB olishi shart —
+            # aks holda tugma "qotib qolgan" bo'lib ko'rinadi.
+            logger.exception("Post navbati ekranini qurishda xato (user=%s)", user_id)
+            text = (
+                "📚 <b>Navbat (Queue)</b>\n\n"
+                "⚠️ Rejalashtirilgan postlarni hozircha o'qib bo'lmadi "
+                "(baza bilan aloqa xatosi).\n"
+                "Iltimos, birozdan so'ng qayta urinib ko'ring."
+            )
+            markup = get_cabinet_back_keyboard()
         await query.message.reply_text(text, reply_markup=markup, parse_mode="HTML")
         return
 
