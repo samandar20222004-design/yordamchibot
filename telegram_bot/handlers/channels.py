@@ -1,4 +1,5 @@
 import logging
+import re
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.error import TelegramError
 from telegram.ext import ContextTypes, ConversationHandler
@@ -12,6 +13,61 @@ logger = logging.getLogger(__name__)
 
 ADD_CHANNEL = 301
 SET_TONE = 302
+
+# Kanal manbasini aniqlash: foydalanuvchi forward, @username, raqamli ID
+# yoki t.me/havola yuborishi mumkin — oqim shu to'rt formatning birini
+# qabul qiladi (avval faqat forward/ID/@username ishlagan).
+_T_ME_LINK_RE = re.compile(
+    r"^(?:https?://)?(?:www\.)?t\.me/([A-Za-z][A-Za-z0-9_]{3,31})/?$", re.IGNORECASE
+)
+_T_ME_INVITE_RE = re.compile(
+    r"^(?:https?://)?(?:www\.)?t\.me/(?:\+|joinchat/)", re.IGNORECASE
+)
+
+
+def parse_channel_target(text: str):
+    """Matndan kanal manbasini ajratadi: (target, xato_html|None).
+
+    Qaytadi:
+      * ``(-1001234567890, None)`` — raqamli ID;
+      * ``("@kanal", None)`` — username (t.me/kanal ham shunga aylantiriladi);
+      * ``(None, xato)`` — tushunarsiz yoki yopiq (invite) havola.
+    """
+    text = (text or "").strip()
+    if not text:
+        return None, (
+            "❌ Bo'sh xabar qabul qilindi. Kanalni <b>forward</b> qiling, "
+            "<code>@username</code>, ID yoki <code>t.me/kanal</code> havolasini yuboring."
+        )
+    if _T_ME_INVITE_RE.match(text):
+        return None, (
+            "🔒 <b>Yopiq kanal (invite) havolasi orqali ulab bo'lmaydi.</b>\n\n"
+            "Bot kanalda administrator bo'lgani uchun <code>@username</code> "
+            "yoki kanaldan istalgan xabarni <b>forward</b> qiling — shunda "
+            "kanalni aniqlaymiz."
+        )
+    m = _T_ME_LINK_RE.match(text)
+    if m:
+        return f"@{m.group(1)}", None
+    if text.startswith("@") and len(text) > 1:
+        return text, None
+    if text.lstrip("-").isdigit():
+        return int(text), None
+    return None, None  # noma'lum format — chaqiruvchi o'zi yo'naltiradi
+
+
+def _retry_verify_keyboard() -> InlineKeyboardMarkup:
+    """Tekshiruvdan o'tmagan kanal uchun 'qayta urinish' tugmasi.
+
+    Foydalanuvchi botni admin qilgach xabarni qayta forward qilmasdan,
+    shu tugmani bosish bilan tekshiruvni yangilaydi.
+    """
+    return InlineKeyboardMarkup([[
+        InlineKeyboardButton(
+            "🔁 Botni admin qildim — qayta tekshirish",
+            callback_data="add_channel_retry",
+        ),
+    ]])
 
 # Tarif limiti (FREE vs PRO) tugaganda ko'rsatiladigan xabar va PRO tugmasi.
 CHANNEL_LIMIT_MSG = (
@@ -66,8 +122,11 @@ async def _send_add_channel_instructions(bot, chat_id: int):
             "➕ <b>Yangi kanal yoki guruh ulash:</b>\n\n"
             f"1. Botni (<code>@{bot_obj.username}</code>) kanalingizga yoki guruhingizga "
             "<b>Administrator</b> qilib qo'shing (xabar yuborish ruxsati bilan).\n"
-            "2. So'ngra o'sha kanaldan istalgan bir xabarni menga <b>Forward (Uzatish)</b> "
-            "qiling yoki kanal ID raqamini (masalan: <code>-1001234567890</code>) yozib yuboring.\n\n"
+            "2. So'ngra kanal manbasini yuboring — to'rt formatning birida:\n"
+            "   • kanaldan istalgan xabarni <b>Forward (Uzatish)</b>;\n"
+            "   • <code>@kanal_nomi</code>;\n"
+            "   • <code>t.me/kanal_nomi</code> yoki <code>https://t.me/kanal_nomi</code>;\n"
+            "   • kanal ID raqami (masalan: <code>-1001234567890</code>).\n\n"
             "<i>Bekor qilish uchun '🔙 Asosiy menyu' tugmasini bosing.</i>"
         ),
         reply_markup=get_cancel_keyboard(),
@@ -76,6 +135,9 @@ async def _send_add_channel_instructions(bot, chat_id: int):
 
 
 async def start_add_channel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # Yangi oqim: oldingi urinishdan qolgan "kutilayotgan kanal"ni tozalaymiz,
+    # shunda 🔁 tugma eskirgan manzilni qayta tekshirmaydi.
+    context.user_data.pop("add_channel_pending", None)
     await _send_add_channel_instructions(context.bot, update.effective_chat.id)
     return ADD_CHANNEL
 
@@ -88,6 +150,7 @@ async def add_channel_inline_entry(update: Update, context: ContextTypes.DEFAULT
         await query.edit_message_reply_markup(reply_markup=None)
     except Exception:
         pass
+    context.user_data.pop("add_channel_pending", None)
     await _send_add_channel_instructions(context.bot, query.from_user.id)
     return ADD_CHANNEL
 
@@ -147,33 +210,83 @@ async def _verify_channel_permissions(bot, chat_id, user_id: int, is_admin_user:
 
 
 async def channel_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    msg = update.message
-    user_id = update.effective_user.id
-    is_admin = (user_id in ADMIN_IDS_SET)
-
+    """Kanal manba xabari: forward, @username, t.me/havola yoki ID."""
+    msg = update.effective_message
     raw_target = None
     if msg.forward_from_chat:
         raw_target = msg.forward_from_chat.id
     elif msg.text:
-        text = msg.text.strip()
-        if text.lstrip("-").isdigit() or text.startswith("@"):
-            raw_target = int(text) if text.lstrip("-").isdigit() else text
-        else:
-            await update.message.reply_text(
-                "❌ Kanal ma'lumotlari aniqlanmadi. Iltimos, kanaldan xabarni <b>forward</b> qiling "
-                "yoki ID ni yuboring (masalan: <code>-1001234567890</code>).",
+        target, err = parse_channel_target(msg.text)
+        if err:
+            await msg.reply_text(
+                err, reply_markup=get_cancel_keyboard(), parse_mode="HTML",
+            )
+            return ADD_CHANNEL
+        if target is None:
+            await msg.reply_text(
+                "❌ Kanal ma'lumotlari aniqlanmadi. Iltimos, kanaldan xabarni "
+                "<b>forward</b> qiling yoki <code>@username</code>, "
+                "<code>t.me/kanal_nomi</code> havolasi, ID raqamini "
+                "(masalan: <code>-1001234567890</code>) yuboring.",
+                reply_markup=get_cancel_keyboard(),
                 parse_mode="HTML",
             )
             return ADD_CHANNEL
+        raw_target = target
     else:
-        await update.message.reply_text("❌ Kanal ma'lumotlari aniqlanmadi. Iltimos, kanaldan xabarni forward qiling:")
+        await msg.reply_text(
+            "❌ Kanal ma'lumotlari aniqlanmadi. Iltimos, kanaldan xabarni forward qiling:",
+            reply_markup=get_cancel_keyboard(),
+        )
         return ADD_CHANNEL
+
+    return await _link_channel(update, context, raw_target)
+
+
+async def add_channel_retry(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """🔁 «Botni admin qildim — qayta tekshirish» tugmasi.
+
+    Foydalanuvchi botni kanalda administrator qilgach, xabarni qaytadan
+    forward qilmasdan shu tugma bilan tekshiruvni yangilaydi.
+    """
+    query = update.callback_query
+    try:
+        await query.answer()
+    except Exception:
+        pass
+    raw_target = context.user_data.get("add_channel_pending")
+    if raw_target is None:
+        # Kutilayotgan manzil yo'q (masalan, sessiya muddati tugagan) —
+        # oqimni boshidan so'raymiz.
+        await _send_add_channel_instructions(context.bot, query.from_user.id)
+        return ADD_CHANNEL
+    return await _link_channel(update, context, raw_target)
+
+
+async def _link_channel(update: Update, context: ContextTypes.DEFAULT_TYPE, raw_target):
+    """Umumiy ulash oqimi: tekshirish → limit → saqlash → natija ro'yxati.
+
+    ``channel_received`` (yangi manba) va ``add_channel_retry`` (qayta
+    tekshirish) shu bitta funksiyadan foydalanadi — ikkala yo'l bir xil
+    xatolik/omad xabarlarini beradi.
+    """
+    msg = update.effective_message
+    user_id = update.effective_user.id
+    is_admin = (user_id in ADMIN_IDS_SET)
 
     ok, err, channel_id, channel_title = await _verify_channel_permissions(
         context.bot, raw_target, user_id, is_admin
     )
     if not ok:
-        await update.message.reply_text(err, parse_mode="HTML")
+        # Manzilni saqlab qo'yamiz: botga ruxsat berilgach 🔁 tugmasi bilan
+        # tekshirish mumkin (xabarni qayta yuborish shart emas).
+        context.user_data["add_channel_pending"] = raw_target
+        await msg.reply_text(
+            f"{err}\n\nBotga ruxsat berganingizdan so'ng quyidagi tugmani bosing "
+            "yoki kanal manbasini qayta yuboring 👇",
+            reply_markup=_retry_verify_keyboard(),
+            parse_mode="HTML",
+        )
         return ADD_CHANNEL
 
     # Tarif bo'yicha kanal limiti (FREE vs PRO) — yangi kanal qo'shishdan
@@ -182,7 +295,7 @@ async def channel_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin:
         can_add, current, max_ch = await db.run_db(db.check_channel_limit, user_id)
         if not can_add:
-            await update.message.reply_text(
+            await msg.reply_text(
                 CHANNEL_LIMIT_MSG.format(current=current, max=max_ch),
                 reply_markup=PRO_UPGRADE_KEYBOARD,
                 parse_mode="HTML",
@@ -191,10 +304,20 @@ async def channel_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     success, reason = await db.run_db(db.save_channel, user_id, channel_id, channel_title, is_admin)
     if success:
-        await update.message.reply_text(
-            f"✅ <b>Kanal muvaffaqiyatli ulandi!</b>\n\n📢 Nomi: <b>{html_escape(channel_title)}</b>\n🆔 ID: <code>{channel_id}</code>",
+        context.user_data.pop("add_channel_pending", None)
+        # Omad: darhol yangilangan kanal ro'yxatini ko'rsatamiz — foydalanuvchi
+        # "ulandi, endi qayerda?" deb qidir maydi; ro'yxatdan qo'shimcha
+        # kanal ulash yoki uslub/o'chirish ham mumkin.
+        channels = await db.run_db(db.get_user_channels, user_id)
+        list_markup = render_channels_list(channels) if channels else None
+        await msg.reply_text(
+            "✅ <b>Kanal muvaffaqiyatli ulandi!</b>\n\n"
+            f"📢 Nomi: <b>{html_escape(channel_title)}</b>\n"
+            f"🆔 ID: <code>{channel_id}</code>\n\n"
+            f"📋 <b>Sizning kanallaringiz ({len(channels or [])} ta):</b>",
             reply_markup=get_main_keyboard(is_admin),
-            parse_mode="HTML"
+            inline_keyboard=list_markup,
+            parse_mode="HTML",
         )
 
         # Referal PRO mukofotini tekshirish (taklif qilgan foydalanuvchiga)
@@ -220,14 +343,18 @@ async def channel_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 except Exception:
                     pass
     elif reason == "taken":
-        await update.message.reply_text(
+        context.user_data.pop("add_channel_pending", None)
+        await msg.reply_text(
             "🚫 <b>Bu kanal allaqachon boshqa foydalanuvchiga ulangan.</b>\n\n"
             "O'g'irlab bo'lmaydi. Agar bu sizning kanalingiz bo'lsa, avval egasi botdan o'chirishi kerak.",
             reply_markup=get_main_keyboard(is_admin),
             parse_mode="HTML",
         )
     else:
-        await update.message.reply_text("❌ Kanalni saqlashda xatolik yuz berdi.", reply_markup=get_main_keyboard(is_admin))
+        await msg.reply_text(
+            "❌ Kanalni saqlashda xatolik yuz berdi.",
+            reply_markup=get_main_keyboard(is_admin),
+        )
 
     return ConversationHandler.END
 

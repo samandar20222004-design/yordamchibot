@@ -2711,12 +2711,12 @@ def test_sponsor_channels_suite():
 
 
 def test_auto_ad_injector_suite():
-    """Har 3-5 javobda avtomatik reklama (Auto-Ad Injector) tizimi testlari."""
-    print("== Auto-Ad Injector (Har 3-5 ta javob reklamasi) ==")
+    """Auto-Ad Injector — endi yagona Reklama markazi (hub) ichida."""
+    print("== Auto-Ad Injector (Reklama markazi hub) ==")
     import database as db_mod
     from utils import helpers
     from keyboards.inline import (
-        get_admin_auto_ad_keyboard,
+        get_ad_hub_keyboard,
         get_admin_ad_interval_keyboard,
     )
 
@@ -2726,20 +2726,32 @@ def test_auto_ad_injector_suite():
     check("db.set_ad_status mavjud", hasattr(db_mod, "set_ad_status"))
     check("db.set_ad_interval mavjud", hasattr(db_mod, "set_ad_interval"))
 
-    # Admin auto-ad keyboard
-    ad_kb = get_admin_auto_ad_keyboard(status=True)
+    # Reklama hub klaviaturasi: hamma boshqaruv BITTA menyuda
+    ad_kb = get_ad_hub_keyboard(channel_total=2, channel_active=1,
+                                reply_total=3, reply_active=3,
+                                auto_status=True, auto_interval=4,
+                                channel_interval=3)
     ad_cbs = [b.callback_data for row in ad_kb.inline_keyboard for b in row]
-    check("ad kb: edit text button", "adm_ad_edit_text" in ad_cbs, str(ad_cbs))
-    check("ad kb: toggle button", "adm_ad_toggle" in ad_cbs, str(ad_cbs))
-    check("ad kb: interval button", "adm_ad_set_interval" in ad_cbs, str(ad_cbs))
-    check("ad kb: back button", "adm_back" in ad_cbs, str(ad_cbs))
+    labels = [b.text for row in ad_kb.inline_keyboard for b in row]
+    check("hub kb: kanal puli bo'limi", "adp:channel:back" in ad_cbs, str(ad_cbs))
+    check("hub kb: javoblar puli bo'limi", "adp:reply:back" in ad_cbs, str(ad_cbs))
+    check("hub kb: kanal oralig'i", "adp:channel:iv" in ad_cbs, str(ad_cbs))
+    check("hub kb: javob intervali", "adm_ad_set_interval" in ad_cbs, str(ad_cbs))
+    check("hub kb: toggle", "adm_ad_toggle" in ad_cbs, str(ad_cbs))
+    check("hub kb: eski javob matni", "adm_ad_edit_text" in ad_cbs, str(ad_cbs))
+    check("hub kb: dashboard'ga orqaga", "adm_back" in ad_cbs, str(ad_cbs))
+    check("hub kb: sonlar ko'rsatilgan",
+          any("1/2" in t for t in labels) and any("3/3" in t for t in labels), str(labels))
+    check("hub kb: alohida 'auto_ad' ekrani yo'qoldi",
+          "adm_auto_ad" not in ad_cbs, str(ad_cbs))
 
-    # Interval tanlash keyboard
+    # Interval tanlash keyboard — orqaga endi hub'ga qaytadi
     int_kb = get_admin_ad_interval_keyboard()
     int_cbs = [b.callback_data for row in int_kb.inline_keyboard for b in row]
     check("int kb: 3 ta so'rov", "adm_ad_int:3" in int_cbs, str(int_cbs))
     check("int kb: 4 ta so'rov", "adm_ad_int:4" in int_cbs, str(int_cbs))
     check("int kb: 5 ta so'rov", "adm_ad_int:5" in int_cbs, str(int_cbs))
+    check("int kb: orqaga → hub", "adm_adhub" in int_cbs, str(int_cbs))
 
     # Auto-ad injection logikasi (Mock DB bilan)
     original_get_ad_settings = db_mod.get_ad_settings
@@ -2800,9 +2812,9 @@ def test_admin_dashboard_layout_suite():
     check("row 0 btn 0: adm_stats", rows[0][0].callback_data == "adm_stats")
     check("row 0 btn 1: adm_broadcast", rows[0][1].callback_data == "adm_broadcast")
 
-    # Qator 2: Majburiy obuna & Auto-ad
+    # Qator 2: Majburiy obuna & Reklama markazi (birlashtirilgan hub)
     check("row 1 btn 0: adm_sponsors", rows[1][0].callback_data == "adm_sponsors")
-    check("row 1 btn 1: adm_auto_ad", rows[1][1].callback_data == "adm_auto_ad")
+    check("row 1 btn 1: adm_adhub", rows[1][1].callback_data == "adm_adhub")
 
     # Qator 3: Kanallar ro'yxati & Tizim sozlamalari
     check("row 2 btn 0: adm_channels", rows[2][0].callback_data == "adm_channels")
@@ -2819,7 +2831,7 @@ def test_admin_dashboard_layout_suite():
     check("label: To'liq statistika", any("statistika" in t.lower() for t in labels))
     check("label: Broadcast", any("broadcast" in t.lower() or "ommaviy" in t.lower() for t in labels))
     check("label: Majburiy obuna", any("majburiy obuna" in t.lower() for t in labels))
-    check("label: Har 3-5 javob reklamasi", any("3-5" in t for t in labels))
+    check("label: Reklama markazi", any("reklama markazi" in t.lower() for t in labels), str(labels))
     check("label: Promo-kod", any("promo" in t.lower() for t in labels))
     check("label: PRO obuna", any("pro" in t.lower() for t in labels))
     check("label: Yopish", any("yopish" in t.lower() for t in labels))
@@ -3897,6 +3909,7 @@ def test_ad_pool_keyboards():
     check("menyu: intervalda joriy qiymat", any("har 4-post" in t for t in labels), str(labels))
     check("menyu: tozalash", "adp:channel:clear" in cbs)
     check("menyu: bekor qilish", "adm_cancel" in cbs)
+    check("menyu: orqaga → Reklama markazi (hub)", "adm_adhub" in cbs, str(cbs))
 
     kb_reply = get_ad_pool_menu_keyboard("reply", ads=ads)
     cbs_reply = [b.callback_data for row in kb_reply.inline_keyboard for b in row]
@@ -4124,6 +4137,12 @@ def test_admin_fsm_states_and_cancel():
             return [("-100123", "Kanal", 9, 3)]
         if name == "get_sponsor_channels":
             return []
+        if name == "get_ads_full":
+            scope = args[0]
+            if scope == "channel":
+                return [{"id": 1, "text": "Kanal reklamasi", "button_text": "",
+                         "button_url": "", "is_active": True}]
+            return []
         raise AssertionError(f"kutilmagan db chaqiruvi: {name}")
 
     original = db_mod.run_db
@@ -4149,13 +4168,59 @@ def test_admin_fsm_states_and_cancel():
             check(f"{data}: Bekor qilish tugmasi bor", "adm_cancel" in cbs, str(cbs))
 
         # Ma'lumot ekranlari FSM'ni ochmaydi
-        for data in ("adm_stats", "adm_channels", "adm_settings", "adm_sponsors", "adm_auto_ad"):
+        for data in ("adm_stats", "adm_channels", "adm_settings", "adm_sponsors",
+                     "adm_adhub", "adm_auto_ad"):
             ctx = _make_admin_ctx()
             q = _AdQuery(data)
             got = asyncio.run(admin.admin_dashboard_callback(
                 type("U", (), {"callback_query": q})(), ctx))
             check(f"{data} → END", got == ConversationHandler.END, str(got))
             check(f"{data}: xabar chizildi", bool(q.edits))
+
+        # Reklama markazi — hamma bo'lim BITTA ekranda (birlashtirilgan UX)
+        ctx = _make_admin_ctx()
+        q = _AdQuery("adm_adhub")
+        asyncio.run(admin.admin_dashboard_callback(
+            type("U", (), {"callback_query": q})(), ctx))
+        body = q.edits[-1][0]
+        hub_cbs = [b.callback_data for row in q.edits[-1][1].inline_keyboard for b in row]
+        check("hub: sarlavha", "Reklama markazi" in body, body[:80])
+        check("hub: kanal puli hisobi", "<b>1</b>/1" in body, body)
+        check("hub: javoblar puli bo'sh hisobi", "<b>0</b>/0" in body, body)
+        check("hub: kanal oralig'i", "har <b>3</b>-postda" in body, body)
+        check("hub: javob intervali", "har <b>4</b> ta so'rovda" in body, body)
+        check("hub: eski matn eslatmasi", "eski yagona matn" in body.lower(), body)
+        check("hub: pul bo'limlari bor",
+              "adp:channel:back" in hub_cbs and "adp:reply:back" in hub_cbs, str(hub_cbs))
+        # Eski alohida "auto_ad" ekrani endi hub'ni ko'rsatadi (alias)
+        ctx = _make_admin_ctx()
+        q = _AdQuery("adm_auto_ad")
+        asyncio.run(admin.admin_dashboard_callback(
+            type("U", (), {"callback_query": q})(), ctx))
+        check("adm_auto_ad → hub chiziladi", "Reklama markazi" in q.edits[-1][0])
+
+        # Toggle holat o'zgach ham hub qayta chiziladi
+        saved_status = []
+
+        async def fake_run_db_toggle(func, *args, **kwargs):
+            name = getattr(func, "__name__", str(func))
+            if name == "set_ad_status":
+                saved_status.append(args[0])
+                return True
+            return await fake_run_db(func, *args, **kwargs)
+
+        db_mod.run_db = fake_run_db_toggle
+        try:
+            ctx = _make_admin_ctx()
+            q = _AdQuery("adm_ad_toggle")
+            got = asyncio.run(admin.admin_dashboard_callback(
+                type("U", (), {"callback_query": q})(), ctx))
+            check("toggle: holat o'zgardi", saved_status == [False], str(saved_status))
+            check("toggle → END", got == ConversationHandler.END)
+            check("toggle: hub qayta chizildi", "Reklama markazi" in q.edits[-1][0],
+                  q.edits[-1][0][:60])
+        finally:
+            db_mod.run_db = fake_run_db
 
         # Kanallar ro'yxati va tizim sozlamalari mazmuni
         ctx = _make_admin_ctx()
@@ -4543,6 +4608,104 @@ def test_enhancer_channel_ad_interval():
     asyncio.run(run())
 
 
+def test_ad_hub_unification_suite():
+    """UX: reklama menyusini birlashtirish — yagona Reklama markazi."""
+    print("== Reklama markazi (hub) birlashtiruvi ==")
+    from pathlib import Path
+    from keyboards.default import (
+        get_admin_panel_keyboard, BTN_ADS, BTN_CHANNEL_AD, BTN_BOT_REPLY_AD,
+        BTN_POST_TAG,
+    )
+
+    check("BTN_ADS matni", BTN_ADS == "🎯 Reklama markazi", BTN_ADS)
+
+    kb_rows = [[b.text for b in row] for row in get_admin_panel_keyboard().keyboard]
+    check("admin kb: reklama qatorida bitta hub tugmasi",
+          [BTN_ADS, BTN_POST_TAG] in kb_rows, str(kb_rows))
+    flat = [t for row in kb_rows for t in row]
+    check("admin kb: eski ikki alohida tugma yo'q",
+          BTN_CHANNEL_AD not in flat and BTN_BOT_REPLY_AD not in flat, str(flat))
+    check("admin kb: qatorlar soni 5", len(kb_rows) == 5, str(kb_rows))
+
+    root = Path(__file__).resolve().parent.parent
+    init_src = (root / "handlers" / "__init__.py").read_text(encoding="utf-8")
+    check("eski tugmalar ham hub'ga aliaslangan",
+          "exact(BTN_ADS, BTN_CHANNEL_AD, BTN_BOT_REPLY_AD)" in init_src)
+    check("hub entry ro'yxatdan o'tgan", "admin_ad_hub_entry" in init_src)
+
+    admin_src = (root / "handlers" / "admin.py").read_text(encoding="utf-8")
+    check("alohida 'Har 3-5 javob reklamasi' ekrani olib tashlandi",
+          "_auto_ad_text" not in admin_src)
+    check("adm_auto_ad eski xabarlar uchun hub aliasi",
+          '"adm_adhub", "adm_auto_ad"' in admin_src)
+    check("toggle hub'ni qayta chizadi", "_ad_hub_render" in admin_src)
+
+    inline_src = (root / "keyboards" / "inline.py").read_text(encoding="utf-8")
+    check("eski auto-ad klaviaturasi o'chirildi",
+          "def get_admin_auto_ad_keyboard" not in inline_src)
+
+    import keyboards.inline as ki
+    check("get_admin_auto_ad_keyboard mavjud emas",
+          not hasattr(ki, "get_admin_auto_ad_keyboard"))
+    check("get_ad_hub_keyboard mavjud", hasattr(ki, "get_ad_hub_keyboard"))
+    check("get_hub_back_keyboard mavjud", hasattr(ki, "get_hub_back_keyboard"))
+
+    # Hub'dan chiqiladigan barcha ekranlar orqaga hub'ga qaytadi:
+    # 1) pul menyusi: "🎯 Markazga" (adm_adhub)
+    from keyboards.inline import get_ad_pool_menu_keyboard
+    pm_cbs = [b.callback_data for row in
+              get_ad_pool_menu_keyboard("channel", ads=[]).inline_keyboard for b in row]
+    check("pul menyusi: dashboard'ga emas, hub'ga qaytadi",
+          "adm_adhub" in pm_cbs and "adm_back" not in pm_cbs, str(pm_cbs))
+    # 2) eski javob matni tahriri: 🎯 Markazga + ❌ Bekor
+    from keyboards.inline import get_hub_back_keyboard
+    hb_cbs = [b.callback_data for row in get_hub_back_keyboard().inline_keyboard for b in row]
+    check("hub back kb: markazga + bekor", hb_cbs == ["adm_adhub", "adm_cancel"], str(hb_cbs))
+
+
+def test_add_channel_flow_suite():
+    """UX: kanal qo'shish oqimi — formatlar, 🔁 qayta tekshirish, natija ro'yxati."""
+    print("== Kanal qo'shish oqimi ==")
+    from pathlib import Path
+    from handlers.channels import parse_channel_target, _retry_verify_keyboard
+
+    # To'rt xil format qabul qilinadi
+    t, err = parse_channel_target("-1001234567890")
+    check("raqamli ID", t == -1001234567890 and err is None, str((t, err)))
+    t, err = parse_channel_target("@mychannel")
+    check("@username", t == "@mychannel" and err is None, str((t, err)))
+    t, err = parse_channel_target("t.me/mychannel")
+    check("t.me havolasi → @username", t == "@mychannel" and err is None, str((t, err)))
+    t, err = parse_channel_target("https://t.me/mychannel/")
+    check("https + slash bilan ham", t == "@mychannel" and err is None, str((t, err)))
+    t, err = parse_channel_target("https://t.me/joinchat/AAAAAE")
+    check("invite havolasi rad etiladi", t is None and err and "Yopiq" in err, str((t, err)))
+    t, err = parse_channel_target("salom do'stlar")
+    check("noma'lum matn → None (chaqiruvchi yo'naltiradi)", t is None and err is None)
+    t, err = parse_channel_target("   ")
+    check("bo'sh matn → xato", t is None and err is not None)
+    t, err = parse_channel_target("@a")
+    check("qisqa @ leniency: manzil sifatida o'tadi (tekshiruv API'da)",
+          t == "@a" and err is None, str((t, err)))
+
+    # 🔁 tugma va API
+    kb = _retry_verify_keyboard()
+    cbs = [b.callback_data for row in kb.inline_keyboard for b in row]
+    check("retry tugma callback", cbs == ["add_channel_retry"], str(cbs))
+
+    root = Path(__file__).resolve().parent.parent
+    ch_src = (root / "handlers" / "channels.py").read_text(encoding="utf-8")
+    check("yagona oqim funksiyasi bor", "async def _link_channel(" in ch_src)
+    check("retry handler bor", "async def add_channel_retry(" in ch_src)
+    check("omadda kanallar ro'yxati ko'rsatiladi", "inline_keyboard=list_markup" in ch_src)
+    check("xatoda manzil saqlanadi (retry uchun)", 'user_data["add_channel_pending"]' in ch_src)
+
+    init_src = (root / "handlers" / "__init__.py").read_text(encoding="utf-8")
+    check("retry ADD_CHANNEL holatida ro'yxatdan o'tgan",
+          'add_channel_retry, pattern=r"^add_channel_retry$"' in init_src)
+    check("retry import qilingan", "add_channel_retry," in init_src)
+
+
 def main():
     test_calculate_next_time()
     test_converter()
@@ -4658,6 +4821,8 @@ def main():
     test_system_settings_read_write()
     test_ad_settings_include_channel_interval()
     test_enhancer_channel_ad_interval()
+    test_ad_hub_unification_suite()
+    test_add_channel_flow_suite()
 
     print(f"\nO'tdi: {passed}, Xato: {failures}")
     if failures:

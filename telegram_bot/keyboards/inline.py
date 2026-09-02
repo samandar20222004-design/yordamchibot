@@ -105,16 +105,38 @@ def get_admin_sponsors_keyboard(sponsors: list) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(keyboard)
 
 
-def get_admin_auto_ad_keyboard(status: bool = False) -> InlineKeyboardMarkup:
-    """Admin panel: Har 3-5 javob reklamasi boshqaruv klaviaturasi."""
-    toggle_label = "🔴 O'chirish" if status else "🟢 Yoqish"
+def get_ad_hub_keyboard(channel_total: int = 0, channel_active: int = 0,
+                        reply_total: int = 0, reply_active: int = 0,
+                        auto_status: bool = False, auto_interval: int = 4,
+                        channel_interval: int = 3) -> InlineKeyboardMarkup:
+    """Admin panel: YAGONA reklama boshqaruv markazi (hub) klaviaturasi.
+
+    Avvallari uch alohida joyga sochilgan (dashboard'dagi "Har 3-5 javob
+    reklamasi" ekrani, reply-klaviaturadagi "Kanal posti reklamasi" va "Bot
+    xabari reklamasi" tugmalari) — endi hammasi shu bitta menyuda:
+
+    • ikkala reklama puli (kanal postlari / bot javoblari) shu yerda ochiladi;
+    • kanal postlari oralig'i (har nechanchi postda) — ``adp:channel:iv``;
+    • bot javoblari holati (toggle) va javob intervali — ``adm_ad_*``.
+    """
+    status_label = "✅ Faol" if auto_status else "❌ O'chirilgan"
     keyboard = [
         [
-            InlineKeyboardButton("✏️ Matnni o'zgartirish", callback_data="adm_ad_edit_text"),
-            InlineKeyboardButton(f"🔄 {toggle_label}", callback_data="adm_ad_toggle"),
+            InlineKeyboardButton(f"📢 Kanal posti puli ({channel_active}/{channel_total})",
+                                 callback_data="adp:channel:back"),
+            InlineKeyboardButton(f"🤖 Javoblar puli ({reply_active}/{reply_total})",
+                                 callback_data="adp:reply:back"),
         ],
         [
-            InlineKeyboardButton("⏱ Intervalni sozlash (3-5)", callback_data="adm_ad_set_interval"),
+            InlineKeyboardButton(f"⏱ Kanal: har {channel_interval}-post",
+                                 callback_data="adp:channel:iv"),
+            InlineKeyboardButton(f"⏱ Javob: har {auto_interval} so'rov",
+                                 callback_data="adm_ad_set_interval"),
+        ],
+        [
+            InlineKeyboardButton(f"🔄 Bot javoblari reklamasi: {status_label}",
+                                 callback_data="adm_ad_toggle"),
+            InlineKeyboardButton("✏️ Eski javob matni", callback_data="adm_ad_edit_text"),
         ],
         [
             InlineKeyboardButton("⬅️ Orqaga", callback_data="adm_back"),
@@ -124,8 +146,16 @@ def get_admin_auto_ad_keyboard(status: bool = False) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(keyboard)
 
 
+def get_hub_back_keyboard() -> InlineKeyboardMarkup:
+    """Reklama hub'iga qaytish + bekor qilish (matn kutish ekranlari uchun)."""
+    return InlineKeyboardMarkup([[
+        InlineKeyboardButton("🎯 Markazga", callback_data="adm_adhub"),
+        InlineKeyboardButton("❌ Bekor qilish", callback_data="adm_cancel"),
+    ]])
+
+
 def get_admin_ad_interval_keyboard() -> InlineKeyboardMarkup:
-    """Reklama intervalini tezkor tanlash klaviaturasi."""
+    """Reklama intervalini tezkor tanlash klaviaturasi (orqaga — reklama hub'iga)."""
     keyboard = [
         [
             InlineKeyboardButton("3 ta so'rov", callback_data="adm_ad_int:3"),
@@ -133,7 +163,7 @@ def get_admin_ad_interval_keyboard() -> InlineKeyboardMarkup:
             InlineKeyboardButton("5 ta so'rov", callback_data="adm_ad_int:5"),
         ],
         [
-            InlineKeyboardButton("⬅️ Orqaga", callback_data="adm_auto_ad"),
+            InlineKeyboardButton("⬅️ Orqaga", callback_data="adm_adhub"),
             InlineKeyboardButton("❌ Bekor qilish", callback_data="adm_cancel"),
         ],
     ]
@@ -141,7 +171,11 @@ def get_admin_ad_interval_keyboard() -> InlineKeyboardMarkup:
 
 
 def get_admin_dashboard_keyboard() -> InlineKeyboardMarkup:
-    """Admin panel inline keyboard — dashboard tugmalari layout."""
+    """Admin panel inline keyboard — dashboard tugmalari layout.
+
+    Reklama bilan bog'liq BARCHA boshqaruv endi bitta tugada —
+    "🎯 Reklama markazi" (``adm_adhub``) hub menyuga olib kiradi.
+    """
     keyboard = [
         [
             InlineKeyboardButton("📊 To'liq statistika", callback_data="adm_stats"),
@@ -149,7 +183,7 @@ def get_admin_dashboard_keyboard() -> InlineKeyboardMarkup:
         ],
         [
             InlineKeyboardButton("📢 Majburiy obuna", callback_data="adm_sponsors"),
-            InlineKeyboardButton("🎯 Har 3-5 javob reklamasi", callback_data="adm_auto_ad"),
+            InlineKeyboardButton("🎯 Reklama markazi", callback_data="adm_adhub"),
         ],
         [
             InlineKeyboardButton("📋 Kanallar ro'yxati", callback_data="adm_channels"),
@@ -211,8 +245,10 @@ def get_ad_pool_menu_keyboard(scope: str, ads: list = None,
         InlineKeyboardButton("🧹 Hammasini tozalash", callback_data=f"adp:{scope}:clear"),
         InlineKeyboardButton("ℹ️ Rotatsiya haqida", callback_data=f"adp:{scope}:info"),
     ])
+    # Barcha reklama ekranlari endi yagona hub ostida ishlaydi: "Orqaga"
+    # dashboard'ga emas, Reklama markaziga qaytadi (bitta yagona oqim).
     keyboard.append([
-        InlineKeyboardButton("⬅️ Orqaga", callback_data="adm_back"),
+        InlineKeyboardButton("🎯 Markazga", callback_data="adm_adhub"),
         InlineKeyboardButton("❌ Bekor qilish", callback_data="adm_cancel"),
     ])
     return InlineKeyboardMarkup(keyboard)
