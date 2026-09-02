@@ -16,7 +16,7 @@ from keyboards.default import (
     BTN_CHANNELS, BTN_DAILY_BONUS, BTN_BUY_AD_FREE, BTN_INVITE, BTN_TRANSFER,
     BTN_ADMIN_PANEL, BTN_STATS, BTN_ALL_POSTS, BTN_ALL_CHANNELS,
     BTN_BROADCAST, BTN_SPONSORS, BTN_ADD_SPONSOR,
-    BTN_CHANNEL_AD, BTN_BOT_REPLY_AD, BTN_POST_TAG, BTN_AI_SETTINGS, BTN_CACHE_DB,
+    BTN_ADS, BTN_CHANNEL_AD, BTN_BOT_REPLY_AD, BTN_POST_TAG, BTN_AI_SETTINGS, BTN_CACHE_DB,
     BTN_ADD_CHANNEL, BTN_QUEUE, BTN_CONTENT_PLAN, BTN_ANALYTICS, BTN_PREMIUM,
     BTN_CHANNEL_EXTRACT,
 )
@@ -54,7 +54,7 @@ from handlers.post_enhancer import (
 
 # 3. CHANNELS MODULI
 from handlers.channels import (
-    channels_menu, start_add_channel, channel_received,
+    channels_menu, start_add_channel, channel_received, add_channel_retry,
     remove_channel_callback, on_bot_chat_member_update, add_channel_inline_entry,
     tone_menu_callback, tone_chosen,
     ADD_CHANNEL, SET_TONE
@@ -81,7 +81,7 @@ from handlers.admin import (
     admin_panel_menu, show_statistics, admin_all_posts, admin_all_channels,
     broadcast_start, broadcast_send, sponsors_menu, start_add_sponsor,
     sponsor_channel_received, del_sponsor_callback,
-    start_set_channel_ad, channel_ad_received, start_set_bot_reply_ad, bot_reply_ad_received,
+    admin_ad_hub_entry, channel_ad_received, bot_reply_ad_received,
     ai_settings_menu, ai_settings_received, cache_db_menu, cache_clear_callback,
     start_set_post_tag, post_tag_received,
     admin_stats_command, admin_dashboard_callback, admin_inline_text_handler,
@@ -370,8 +370,11 @@ def register_all_handlers(app):
         MessageHandler(exact(BTN_BROADCAST), lambda u, c: guard_entry(u, c, broadcast_start)),
         MessageHandler(exact(BTN_SPONSORS), lambda u, c: guard_menu(u, c, sponsors_menu)),
         MessageHandler(exact(BTN_ADD_SPONSOR), lambda u, c: guard_entry(u, c, start_add_sponsor)),
-        MessageHandler(exact(BTN_CHANNEL_AD), lambda u, c: guard_entry(u, c, start_set_channel_ad)),
-        MessageHandler(exact(BTN_BOT_REPLY_AD), lambda u, c: guard_entry(u, c, start_set_bot_reply_ad)),
+        # UX: ikki alohida reklama tugmasi bitta "🎯 Reklama markazi" hub'iga
+        # birlashtirildi. Eski tugma nomlari ham shu yerga tushadi — chat
+        # tarixidagi eski klaviatura xabarlari buzilmasligi uchun.
+        MessageHandler(exact(BTN_ADS, BTN_CHANNEL_AD, BTN_BOT_REPLY_AD),
+                       lambda u, c: guard_entry(u, c, admin_ad_hub_entry)),
         MessageHandler(exact(BTN_POST_TAG), lambda u, c: guard_entry(u, c, start_set_post_tag)),
         MessageHandler(exact(BTN_AI_SETTINGS), lambda u, c: guard_entry(u, c, ai_settings_menu)),
         MessageHandler(exact(BTN_CACHE_DB), lambda u, c: guard_entry(u, c, cache_db_menu)),
@@ -433,6 +436,9 @@ def register_all_handlers(app):
             CallbackQueryHandler(edit_post_btn_start, pattern=r"^edit_btn:"),
             CallbackQueryHandler(edit_post_react_start, pattern=r"^edit_react:"),
             CallbackQueryHandler(add_channel_inline_entry, pattern=r"^add_channel_start$"),
+            # 🔁 Qayta tekshirish: sessiya tugagan bo'lsa ham eski tugma
+            # ishlasin — conversation qayta ochiladi yoki yo'riqnoma qaytariladi.
+            CallbackQueryHandler(add_channel_retry, pattern=r"^add_channel_retry$"),
             # Admin panel inline tugmalari: matn kutuvchi bo'limlar FSM holatini
             # qaytaradi, shuning uchun ular entry point sifatida ro'yxatdan o'tadi.
             CallbackQueryHandler(admin_dashboard_callback, pattern=r"^adm_"),
@@ -503,7 +509,10 @@ def register_all_handlers(app):
             ],
 
             # 3. Kanal holatlari
-            ADD_CHANNEL: all_menu_jumps + [MessageHandler(filters.ALL & ~filters.COMMAND, channel_received)],
+            ADD_CHANNEL: all_menu_jumps + [
+                CallbackQueryHandler(add_channel_retry, pattern=r"^add_channel_retry$"),
+                MessageHandler(filters.ALL & ~filters.COMMAND, channel_received),
+            ],
             SET_TONE: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, tone_chosen)],
 
             # 8. Content Plan holatlari

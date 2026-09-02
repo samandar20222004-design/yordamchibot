@@ -111,6 +111,15 @@ orqali qayta jo'natadi — hech qanday hajm cheklovisiz.
 **Albom:** bir nechta rasm/videoni birga yuborsangiz, bot ularni albom
 sifatida saqlaydi va kanalga `sendMediaGroup` orqali chiqaradi (10 tagacha).
 
+**Kanal ulash oqimi:** "➕ Kanal/Guruh qo'shish" bosilgach kanal manbasini
+to'rt formatning birida yuborish mumkin: kanaldan **forward**, `@username`,
+`t.me/kanal_nomi` havolasi yoki raqamli ID (`-1001234567890`). Yopiq
+(invite/joinchat) havolalar rad etiladi. Bot admin qilinmagani uchun
+tekshiruvdan o'tmasa, botga ruxsat berilgach **🔁 "Botni admin qildim — qayta
+tekshirish"** tugmasi bosiladi — xabarni qayta yuborish shart emas. Muvaffaqiyatli
+ulashdan so'ng darhol yangilangan kanal ro'yxati ko'rsatiladi (ushlab turish,
+o'chirish va qo'shimcha kanal ulash shu yerda).
+
 **Kanal xavfsizligi:** kanalni faqat o'sha kanal/guruh administratori ulay
 oladi. Faol kanalni boshqa foydalanuvchi o'g'irlay olmaydi. Bot kanaldan
 chiqarilsa, ulanish avtomatik nofaol bo'ladi.
@@ -257,11 +266,29 @@ Admin boshqaruv paneldan quyidagilar ham bajariladi:
   matn Telegram limitiga (caption 1024, matn 4096) kesilgandan **keyin**
   qo'shiladi — shuning uchun uzun postlarda ham yo'qolib qolmaydi.
 
+### 🎯 Reklama markazi — yagona reklama menyusi
+
+Barcha reklama boshqaruvi endi BITTA menyuda: admin panel reply-klaviaturasidagi
+**🎯 Reklama markazi** tugmasi yoki dashboard'dagi shu nomli inline tugma
+orqali ochiladi. Ekrandan birida:
+
+- **📢 Kanal posti puli** va **🤖 Javoblar puli** — ikkala reklama ro'yxati
+  (nechta faol / jami) shu yerda ochiladi;
+- **⏱ Kanal: har N-post** — kanal postlari oralig'i;
+- **⏱ Javob: har N so'rov** — bot javoblari intervallari;
+- **🔄 Bot javoblari reklamasi: ✅/❌** — yoqish/o'chirish;
+- **✏️ Eski javob matni** — pul bo'sh bo'lganda ishlatiladigan yagona matn.
+
+Har bir qaytarish ekranidan **🎯 Markazga** tugmasi shu hub'ga qaytaradi,
+hub'dan **⬅️ Orqaga** — admin dashboard'ga. Avval ishlatilgan alohida
+"Har 3-5 javob reklamasi" ekrani va ikki xil reklama tugmasi shu menyuga
+birlashtirilgan (eski tugma nomlari bosilsa ham shu hub ochiladi).
+
 ### Avtomatik reklama rotatsiyasi (ad-pool)
 
-Admin panelda **📢 Kanal posti reklamasi** va **🤖 Bot xabari reklamasi** endi
-bitta matn emas, **reklamalar puli** (pool) saqlaydi. Pulga bir nechta reklama
-qo'shasiz, bot ularni navbatma-navbat (round-robin) ishlatadi:
+Reklama puli (pool) bir nechta reklamani saqlaydi. Pulga reklama
+qo'shasiz, bot ularni
+navbatma-navbat (round-robin) ishlatadi:
 
 - **Kanal postlari** — reklama **har N-postda** chiqadi (standart: har 3-post).
   Sanagich **har bir kanal uchun alohida** yuritiladi (`channel_post_counters`

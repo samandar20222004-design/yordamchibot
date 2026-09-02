@@ -36,6 +36,11 @@ BTN_ALL_POSTS = "📋 Barcha postlar"
 BTN_ALL_CHANNELS = "📋 Barcha kanal/guruhlar"
 BTN_SPONSORS = "📢 Majburiy obuna"
 BTN_ADD_SPONSOR = "➕ Homiy kanal qo'shish"
+# Yagona Reklama markazi: avvalgi "📢 Kanal posti reklamasi" va
+# "🤖 Bot xabari reklamasi" tugmalari bitta hub menyusiga birlashtirildi.
+# Ikkala eski nom routing'da alias sifatida qabul qilinadi (eski klaviatura
+# bilan yozilgan xabarlar buzilmasligi uchun).
+BTN_ADS = "🎯 Reklama markazi"
 BTN_CHANNEL_AD = "📢 Kanal posti reklamasi"
 BTN_BOT_REPLY_AD = "🤖 Bot xabari reklamasi"
 BTN_POST_TAG = "🏷 Post nishoni"
@@ -167,10 +172,16 @@ def get_auto_delete_keyboard():
 
 
 def get_admin_panel_keyboard():
+    """Admin panel reply-klaviaturasi.
+
+    UX: reklama boshqaruvi endi BITTA tugada — "🎯 Reklama markazi".
+    Avval shu qatorda kanallar/obotlar uchun alohida reklama tugmalari
+    bor edi; ular hub menyusidagi bo'limlarga birlashtirildi.
+    """
     return ReplyKeyboardMarkup(
         [
             [BTN_SPONSORS, BTN_STATS],
-            [BTN_CHANNEL_AD, BTN_BOT_REPLY_AD, BTN_POST_TAG],
+            [BTN_ADS, BTN_POST_TAG],
             [BTN_AI_SETTINGS, BTN_CACHE_DB],
             [BTN_BROADCAST, BTN_ALL_POSTS],
             [BTN_ALL_CHANNELS, BTN_BACK],
