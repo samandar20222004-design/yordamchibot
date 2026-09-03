@@ -78,6 +78,8 @@ def test_schema_file_columns():
         "recurrence_type VARCHAR(20) DEFAULT 'none'",
         "ALTER TABLE scheduled_posts ALTER COLUMN file_id TYPE TEXT",
         "subscription_expires_at TIMESTAMP WITH TIME ZONE",
+        "language_code VARCHAR(10) DEFAULT 'uz'",
+        "ADD COLUMN IF NOT EXISTS language_code VARCHAR(10) DEFAULT 'uz'",
     )
     for snippet in must_have:
         check(f"satr: {snippet[:52]}", snippet in SCHEMA)

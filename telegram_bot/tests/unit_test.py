@@ -1077,12 +1077,13 @@ def test_main_menu_layout_v2():
     check("extras: yopish", ex[2][0] == ("❌ Yopish", "extra_close"), str(ex[2]))
 
     cab = [[(b.text, b.callback_data) for b in row] for row in get_cabinet_inline_keyboard().inline_keyboard]
-    check("kabinet: 4 qator", len(cab) == 4, str(cab))
+    check("kabinet: 5 qator", len(cab) == 5, str(cab))
     expected = [
         [("📢 Mening kanallarim", "cab_channels"), ("📊 Kanallar analitikasi", "cab_analytics")],
         [("📅 Kutilayotgan postlar", "cab_pending"), ("⏳ Postlar navbati (Queue)", "cab_queue")],
         [("💎 Ballar & Litsenziya", "cab_balance"), ("🎁 Kunlik bonus", "cab_bonus")],
         [("👥 Do'stlarni taklif", "cab_referral"), ("❌ Yopish", "close_cabinet")],
+        [("🌐 Til / Язык", "cab_lang")],
     ]
     check("kabinet tartibi", cab == expected, str(cab))
 
@@ -5796,6 +5797,98 @@ def test_referrer_id_and_new_providers_suite():
           "Cloudflare" not in order, str(order))
 
 
+def test_i18n_uz_ru():
+    """uz/ru i18n: lug'at, til aniqlash, klaviatura, handler filtrlari."""
+    print("== i18n uz/ru ==")
+    from locales.translations import (
+        get_text, detect_language, normalize_lang, clear_fsm_data,
+        SUPPORTED_LANGS, DEFAULT_LANG,
+    )
+    from keyboards.default import (
+        get_main_keyboard, exact, exact_i18n,
+        BTN_NEW_POST, BTN_NEW_POST_RU, BTN_AI_STUDIO, BTN_AI_STUDIO_RU,
+        BTN_PREMIUM, BTN_PREMIUM_RU, BTN_SETTINGS, BTN_SETTINGS_RU,
+        BTN_HELP, BTN_HELP_RU, BTN_EXTRAS, BTN_EXTRAS_RU,
+    )
+    from keyboards.inline import get_language_keyboard
+    import database as db_mod
+    from pathlib import Path
+
+    check("SUPPORTED_LANGS", SUPPORTED_LANGS == ("uz", "ru"))
+    check("DEFAULT_LANG uz", DEFAULT_LANG == "uz")
+    check("detect ru", detect_language("ru") == "ru")
+    check("detect ru-RU", detect_language("ru-RU") == "ru")
+    check("detect uz", detect_language("uz") == "uz")
+    check("detect en -> uz", detect_language("en") == "uz")
+    check("detect None -> uz", detect_language(None) == "uz")
+    check("normalize ru-uz", normalize_lang("RU") == "ru")
+
+    check("uz btn_new_post", get_text("btn_new_post", "uz") == "➕ Yangi post")
+    check("ru btn_new_post", get_text("btn_new_post", "ru") == "➕ Новый пост")
+    check("uz btn_settings", get_text("btn_settings", "uz") == BTN_SETTINGS)
+    check("ru btn_settings", get_text("btn_settings", "ru") == BTN_SETTINGS_RU)
+    check("start_hello uz name", "Ali" in get_text("start_hello", "uz", name="Ali"))
+    check("start_hello ru name", "Ivan" in get_text("start_hello", "ru", name="Ivan"))
+    check("new_post_no_channels uz", "Ulangan kanal" in get_text("new_post_no_channels", "uz"))
+    check("new_post_no_channels ru", "не найден" in get_text("new_post_no_channels", "ru"))
+    check("unknown key fallback", get_text("no_such_key", "ru") == "no_such_key")
+    check("unknown lang -> uz", get_text("btn_new_post", "en") == get_text("btn_new_post", "uz"))
+
+    ru_rows = [[b.text for b in row] for row in get_main_keyboard(False, lang="ru").keyboard]
+    check("ru row1", ru_rows[0] == [BTN_NEW_POST_RU, BTN_AI_STUDIO_RU], str(ru_rows[0]))
+    check("ru row2", ru_rows[1] == [BTN_PREMIUM_RU, BTN_SETTINGS_RU], str(ru_rows[1]))
+    check("ru row3", ru_rows[2] == [BTN_HELP_RU, BTN_EXTRAS_RU], str(ru_rows[2]))
+    uz_rows = [[b.text for b in row] for row in get_main_keyboard(False).keyboard]
+    check("uz default row1", uz_rows[0] == [BTN_NEW_POST, BTN_AI_STUDIO], str(uz_rows[0]))
+
+    class _Ctx:
+        def __init__(self, data):
+            self.user_data = data
+    ctx = _Ctx({"foo": 1, "lang": "ru"})
+    clear_fsm_data(ctx)
+    check("clear_fsm lang saqlanadi", ctx.user_data == {"lang": "ru"}, str(ctx.user_data))
+    ctx2 = _Ctx({"foo": 1})
+    clear_fsm_data(ctx2)
+    check("clear_fsm langsiz -> bosh", ctx2.user_data == {}, str(ctx2.user_data))
+
+    def _regex_plain(flt) -> str:
+        """re.escape ba'zi Pythonlarda probelni ham qochiradi — tekshiruv uchun olib tashlaymiz."""
+        pat = getattr(flt, "pattern", None)
+        src = pat.pattern if hasattr(pat, "pattern") else str(pat)
+        return src.replace("\\", "")
+
+    flt = exact(BTN_NEW_POST, BTN_NEW_POST_RU)
+    pat_s = _regex_plain(flt)
+    check("exact dual uz", "Yangi post" in pat_s, pat_s)
+    check("exact dual ru", "Новый пост" in pat_s, pat_s)
+    flt2 = exact_i18n("btn_ai_studio")
+    pat2_s = _regex_plain(flt2)
+    check("exact_i18n AI Studio", "AI Studio" in pat2_s, pat2_s)
+
+    lk_cbs = [b.callback_data for row in get_language_keyboard().inline_keyboard for b in row]
+    check("lang kb: uz", "cab_lang_uz" in lk_cbs, str(lk_cbs))
+    check("lang kb: ru", "cab_lang_ru" in lk_cbs, str(lk_cbs))
+
+    check("db._normalize ru", db_mod._normalize_language_code("ru-RU") == "ru")
+    check("db._normalize en", db_mod._normalize_language_code("en") == "uz")
+    check("db.get_user_language", callable(db_mod.get_user_language))
+    check("db.set_user_language", callable(db_mod.set_user_language))
+    check("save_user language_code param",
+          "language_code" in db_mod.save_user.__code__.co_varnames)
+
+    init_src = (Path(__file__).resolve().parent.parent / "handlers" / "__init__.py").read_text(encoding="utf-8")
+    check("handler: NEW_POST dual", "exact(BTN_NEW_POST, BTN_NEW_POST_RU)" in init_src)
+    check("handler: AI_STUDIO dual", "exact(BTN_AI_STUDIO, BTN_AI_STUDIO_RU)" in init_src)
+    check("handler: SETTINGS dual", "BTN_SETTINGS_RU" in init_src)
+    check("handler: PREMIUM dual", "BTN_PREMIUM_RU" in init_src)
+    check("handler: HELP dual", "BTN_HELP_RU" in init_src)
+    check("handler: EXTRAS dual", "BTN_EXTRAS_RU" in init_src)
+
+    start_src = (Path(__file__).resolve().parent.parent / "handlers" / "start.py").read_text(encoding="utf-8")
+    check("start: detect_language", "detect_language" in start_src)
+    check("start: cab_lang", "cab_lang" in start_src)
+    check("start: set_user_language", "set_user_language" in start_src)
+
 def main():
     test_calculate_next_time()
     test_converter()
@@ -5920,6 +6013,7 @@ def main():
     test_channel_add_autodetect_no_hang_suite()
     test_my_chat_member_autoconnect_suite()
     test_referrer_id_and_new_providers_suite()
+    test_i18n_uz_ru()
 
     print(f"\nO'tdi: {passed}, Xato: {failures}")
     if failures:

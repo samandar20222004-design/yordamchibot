@@ -5,6 +5,7 @@ from keyboards.default import get_cancel_keyboard, get_main_keyboard, BTN_BACK, 
 from config import ADMIN_IDS_SET
 from utils.converter import to_cyrillic, to_latin
 from utils.helpers import html_escape, get_auto_ad_injection_async
+from locales.translations import clear_fsm_data, get_lang, get_text
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +17,7 @@ CONVERT_INPUT = 300
 
 async def start_converter(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Konverter holatini boshlaydi (waiting_for_text)."""
-    context.user_data.clear()
+    clear_fsm_data(context)
     await update.message.reply_text(
         "🔤 <b>Lotin ⇄ Kirill Matn O'girgich:</b>\n\n"
         "O'girmoqchi bo'lgan <b>matnni</b> yoki <b>rasm/video/fayl</b> (tagida yozuvi bilan) yuboring:\n\n"
@@ -31,7 +32,7 @@ async def converter_inline_entry(update: Update, context: ContextTypes.DEFAULT_T
     """'⚙️ Qo'shimcha funksiyalar' inline menyusidan konverterni ochish."""
     query = update.callback_query
     await query.answer()
-    context.user_data.clear()
+    clear_fsm_data(context)
     try:
         await query.message.delete()
     except Exception:

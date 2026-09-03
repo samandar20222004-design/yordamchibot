@@ -455,7 +455,7 @@ def render_pending_list(posts: list, user_code: str) -> InlineKeyboardMarkup:
 
 
 def get_cabinet_inline_keyboard() -> InlineKeyboardMarkup:
-    """Kabinet & Sozlamalar asosiy menyusi — inline tugmalar (4x2 grid)."""
+    """Kabinet & Sozlamalar asosiy menyusi — inline tugmalar (4x2 + til)."""
     keyboard = [
         [
             InlineKeyboardButton("📢 Mening kanallarim", callback_data="cab_channels"),
@@ -473,8 +473,24 @@ def get_cabinet_inline_keyboard() -> InlineKeyboardMarkup:
             InlineKeyboardButton("👥 Do'stlarni taklif", callback_data="cab_referral"),
             InlineKeyboardButton("❌ Yopish", callback_data="close_cabinet"),
         ],
+        [
+            InlineKeyboardButton("🌐 Til / Язык", callback_data="cab_lang"),
+        ],
     ]
     return InlineKeyboardMarkup(keyboard)
+
+
+def get_language_keyboard() -> InlineKeyboardMarkup:
+    """Til tanlash: O'zbekcha / Русский."""
+    return InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("🇺🇿 O'zbekcha", callback_data="cab_lang_uz"),
+            InlineKeyboardButton("🇷🇺 Русский", callback_data="cab_lang_ru"),
+        ],
+        [
+            InlineKeyboardButton("⬅️ Orqaga", callback_data="cab_main"),
+        ],
+    ])
 
 
 def get_extras_inline_keyboard() -> InlineKeyboardMarkup:

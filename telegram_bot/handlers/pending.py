@@ -6,6 +6,7 @@ from telegram.ext import ContextTypes, ConversationHandler
 import database as db
 from keyboards.inline import render_pending_list
 from keyboards.default import get_cancel_keyboard, get_main_keyboard, get_reactions_keyboard
+from locales.translations import clear_fsm_data, get_lang, get_text
 from utils.helpers import (
     format_post_type_label, format_schedule_line, html_escape, check_rate_limit, parse_future_time,
     NAV_RATE_LIMIT_MAX, parse_reactions_input,
@@ -43,7 +44,7 @@ async def _build_pending_view(user_id: int):
 
 
 async def list_pending_posts(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data.clear()
+    clear_fsm_data(context)
     user_id = update.effective_user.id
     text, markup = await _build_pending_view(user_id)
     await update.message.reply_text(text, reply_markup=markup, parse_mode="HTML")
@@ -154,7 +155,7 @@ async def edit_post_time_received(update: Update, context: ContextTypes.DEFAULT_
             await db.run_db(db.update_post_time, post_id, new_time, user_id=update.effective_user.id)
 
         await update.message.reply_text("✅ <b>Post vaqti muvaffaqiyatli yangilandi!</b>", reply_markup=get_main_keyboard(), parse_mode="HTML")
-        context.user_data.clear()
+        clear_fsm_data(context)
         return ConversationHandler.END
     except Exception:
         await update.message.reply_text("⚠️ Format xato! Masalan: <code>2026-08-30 20:00</code> yoki <code>10:00</code>", parse_mode="HTML")
@@ -194,7 +195,7 @@ async def edit_post_content_received(update: Update, context: ContextTypes.DEFAU
         await update.message.reply_text("✅ <b>Post matni yangilandi!</b>", reply_markup=get_main_keyboard(), parse_mode="HTML")
     else:
         await update.message.reply_text("❌ O'zgartirib bo'lmadi.", reply_markup=get_main_keyboard())
-    context.user_data.clear()
+    clear_fsm_data(context)
     return ConversationHandler.END
 
 
@@ -251,7 +252,7 @@ async def edit_post_btn_received(update: Update, context: ContextTypes.DEFAULT_T
         await update.message.reply_text(msg, reply_markup=get_main_keyboard(), parse_mode="HTML")
     else:
         await update.message.reply_text("❌ O'zgartirib bo'lmadi.", reply_markup=get_main_keyboard())
-    context.user_data.clear()
+    clear_fsm_data(context)
     return ConversationHandler.END
 
 
@@ -294,5 +295,5 @@ async def edit_post_react_received(update: Update, context: ContextTypes.DEFAULT
         await update.message.reply_text(msg, reply_markup=get_main_keyboard(), parse_mode="HTML")
     else:
         await update.message.reply_text("❌ O'zgartirib bo'lmadi.", reply_markup=get_main_keyboard())
-    context.user_data.clear()
+    clear_fsm_data(context)
     return ConversationHandler.END

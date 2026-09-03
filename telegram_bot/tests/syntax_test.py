@@ -41,6 +41,8 @@ def main():
         "main",
         "keyboards.default",
         "keyboards.inline",
+        "locales",
+        "locales.translations",
         "utils.helpers",
         "utils.converter",
         "utils.ai_agent",

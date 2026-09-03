@@ -11,15 +11,18 @@ from telegram.ext import (
 from config import ADMIN_IDS_SET
 from keyboards.default import (
     exact,
-    BTN_NEW_POST, BTN_AI_STUDIO, BTN_PENDING, BTN_SETTINGS, BTN_CABINET,
-    BTN_HELP, BTN_CONVERTER, BTN_EXTRAS, BTN_BACK, BTN_MAIN_MENU, BTN_CANCEL,
+    BTN_NEW_POST, BTN_NEW_POST_RU, BTN_AI_STUDIO, BTN_AI_STUDIO_RU,
+    BTN_PENDING, BTN_SETTINGS, BTN_SETTINGS_RU, BTN_CABINET,
+    BTN_HELP, BTN_HELP_RU, BTN_CONVERTER, BTN_EXTRAS, BTN_EXTRAS_RU,
+    BTN_BACK, BTN_MAIN_MENU, BTN_CANCEL,
     BTN_CHANNELS, BTN_DAILY_BONUS, BTN_BUY_AD_FREE, BTN_INVITE, BTN_TRANSFER,
     BTN_ADMIN_PANEL, BTN_STATS, BTN_ALL_POSTS, BTN_ALL_CHANNELS,
     BTN_BROADCAST, BTN_SPONSORS, BTN_ADD_SPONSOR,
     BTN_ADS, BTN_CHANNEL_AD, BTN_BOT_REPLY_AD, BTN_POST_TAG, BTN_AI_SETTINGS, BTN_CACHE_DB,
-    BTN_ADD_CHANNEL, BTN_QUEUE, BTN_CONTENT_PLAN, BTN_ANALYTICS, BTN_PREMIUM,
+    BTN_ADD_CHANNEL, BTN_QUEUE, BTN_CONTENT_PLAN, BTN_ANALYTICS, BTN_PREMIUM, BTN_PREMIUM_RU,
     BTN_CHANNEL_EXTRACT,
 )
+from locales.translations import clear_fsm_data, get_lang
 from keyboards.inline import get_subscription_check_keyboard
 
 # 1. START & ASOSIY MODUL
@@ -188,7 +191,7 @@ async def guard_entry(update, context, fn):
     if await _deny_if_unsubscribed(update, context):
         return ConversationHandler.END
 
-    context.user_data.clear()
+    clear_fsm_data(context)
     return await fn(update, context)
 
 
@@ -209,7 +212,7 @@ async def guard_menu(update, context, fn):
     if await _deny_if_unsubscribed(update, context):
         return ConversationHandler.END
 
-    context.user_data.clear()
+    clear_fsm_data(context)
     await fn(update, context)
     return ConversationHandler.END
 
@@ -340,13 +343,14 @@ async def ai_photo_command_callback(update, context):
 
 async def conversation_timeout_handler(update, context):
     is_admin = update.effective_user.id in ADMIN_IDS_SET if update.effective_user else False
-    context.user_data.clear()
+    lang = get_lang(context)
+    clear_fsm_data(context)
     if update.effective_message:
         try:
             await update.effective_message.reply_text(
                 "⏰ <b>Suhbat muddat tugash sababli yakunlandi.</b>\n"
                 "Asosiy menyuga qaytdingiz. Kerakli bo'limni qaytadan tanlang 👇",
-                reply_markup=__import__("keyboards.default", fromlist=["get_main_keyboard"]).get_main_keyboard(is_admin),
+                reply_markup=__import__("keyboards.default", fromlist=["get_main_keyboard"]).get_main_keyboard(is_admin, lang=lang),
                 parse_mode="HTML",
             )
         except Exception:
@@ -377,9 +381,9 @@ def register_all_handlers(app):
         # har bir state ro'yxatining boshida turgani uchun hamma joyda ishlaydi).
         MessageHandler(exact(BTN_CANCEL), cancel_handler),
         MessageHandler(exact(BTN_BACK, BTN_MAIN_MENU), lambda u, c: guard_menu(u, c, start)),
-        MessageHandler(exact(BTN_SETTINGS, BTN_CABINET), lambda u, c: guard_menu(u, c, user_cabinet_menu)),
-        MessageHandler(exact(BTN_HELP), lambda u, c: guard_menu(u, c, help_command)),
-        MessageHandler(exact(BTN_EXTRAS), lambda u, c: guard_menu(u, c, extras_menu)),
+        MessageHandler(exact(BTN_SETTINGS, BTN_CABINET, BTN_SETTINGS_RU), lambda u, c: guard_menu(u, c, user_cabinet_menu)),
+        MessageHandler(exact(BTN_HELP, BTN_HELP_RU), lambda u, c: guard_menu(u, c, help_command)),
+        MessageHandler(exact(BTN_EXTRAS, BTN_EXTRAS_RU), lambda u, c: guard_menu(u, c, extras_menu)),
         MessageHandler(exact(BTN_DAILY_BONUS), lambda u, c: guard_menu(u, c, daily_bonus_handler)),
         MessageHandler(exact(BTN_BUY_AD_FREE), lambda u, c: guard_menu(u, c, buy_ad_free_handler)),
         MessageHandler(exact(BTN_INVITE), lambda u, c: guard_menu(u, c, user_invite_menu)),
@@ -388,7 +392,7 @@ def register_all_handlers(app):
 
     # 2. Yangi post
     new_post_handlers = [
-        MessageHandler(exact(BTN_NEW_POST), lambda u, c: guard_entry(u, c, start_new_post)),
+        MessageHandler(exact(BTN_NEW_POST, BTN_NEW_POST_RU), lambda u, c: guard_entry(u, c, start_new_post)),
     ]
 
     # 3. Kanallar
@@ -428,7 +432,7 @@ def register_all_handlers(app):
 
     # 7. AI Studio (inline sub-menu — conversation ICHIDA doimiy navigatsiya)
     ai_handlers = [
-        MessageHandler(exact(BTN_AI_STUDIO), lambda u, c: guard_entry(u, c, ai_studio_menu_entry)),
+        MessageHandler(exact(BTN_AI_STUDIO, BTN_AI_STUDIO_RU), lambda u, c: guard_entry(u, c, ai_studio_menu_entry)),
     ]
 
     # 8. Content Plan
@@ -443,7 +447,7 @@ def register_all_handlers(app):
 
     # 10. Subscription
     subscription_handlers = [
-        MessageHandler(exact(BTN_PREMIUM), lambda u, c: guard_entry(u, c, start_subscription)),
+        MessageHandler(exact(BTN_PREMIUM, BTN_PREMIUM_RU), lambda u, c: guard_entry(u, c, start_subscription)),
     ]
 
     # 11. Channel Extract
