@@ -1482,7 +1482,7 @@ async def _execute_send(update, context, query, enh):
     # --- Kanal ko'rinishidagi yakuniy matn (asl matn O'ZGARMAYDI, faqat
     # scheduler bilan bir xil qoidalar: watermark → reklama → nishon) ---
     try:
-        has_ad_free = True if is_admin else await db.run_db(db.peek_ad_free_post, user_id)
+        has_ad_free = True if is_admin else await db.run_db(db.is_premium, user_id)
         # Reklama scheduler bilan bir xil qoida bo'yicha qo'shiladi: har bir
         # kanalning ALOHIDA post sanagichi + admin belgilagan oraliq.
         ad_info = await resolve_channel_ad(str(ch_id), has_ad_free)
@@ -1533,11 +1533,6 @@ async def _execute_send(update, context, query, enh):
         extra = getattr(result, "extra_ids", None)
         await db.run_db(db.mark_post_as_sent, pid, getattr(result, "message_id", None),
                         str(ch_id), 0, extra)
-    if has_ad_free and not is_admin:
-        try:
-            await db.run_db(db.consume_ad_free_post, user_id)
-        except Exception:
-            pass
 
     logger.info("Enhancer: post kanalga yuborildi (%s → %s)", user_id, ch_id)
     enh["step"] = "sent"

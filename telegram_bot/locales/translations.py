@@ -44,6 +44,21 @@ TRANSLATIONS = {
         "lang_prompt": "🌐 <b>Tilni tanlang / Выберите язык:</b>",
         "lang_changed": "✅ Til o'zbekchaga o'zgartirildi.",
         "lang_button": "🌐 Til / Язык",
+        "referral_reward_notice": (
+            "🎉 <b>Yangi do'st taklif qilindi!</b>\n\n"
+            "Hisobingizga <b>+{reward} ta AI ball</b> qo'shildi. "
+            "Birinchi 3 do'st uchun +3 tadan, keyingilar uchun +1 tadan beriladi. 🚀"
+        ),
+        "referral_menu": (
+            "🚀 <b>Do'stlarni taklif qiling va AI ball oling:</b>\n\n"
+            "🎁 <i>1-, 2- va 3-do'st uchun +3 tadan; 4-do'stdan boshlab har biri uchun +1 AI ball.</i>\n\n"
+            "💎 Mavjud AI ballaringiz: {credits}\n👥 Takliflar: <b>{count} ta</b>\n\n"
+            "🔗 <b>Taklif havolangiz:</b>\n<code>{link}</code>"
+        ),
+        "daily_bonus_guide": (
+            "🎁 Kunlik bepul AI ballaringizni olish uchun "
+            "'Kabinet & Sozlamalar' → '🎁 Kunlik bonus' bo'limiga kiring."
+        ),
     },
     "ru": {
         "btn_new_post": "➕ Новый пост",
@@ -80,6 +95,21 @@ TRANSLATIONS = {
         "lang_prompt": "🌐 <b>Tilni tanlang / Выберите язык:</b>",
         "lang_changed": "✅ Язык изменён на русский.",
         "lang_button": "🌐 Til / Язык",
+        "referral_reward_notice": (
+            "🎉 <b>Приглашён новый друг!</b>\n\n"
+            "На ваш счёт начислено <b>+{reward} ИИ-балла</b>. "
+            "За первых 3 друзей начисляется по +3, за каждого следующего — +1. 🚀"
+        ),
+        "referral_menu": (
+            "🚀 <b>Приглашайте друзей и получайте ИИ-баллы:</b>\n\n"
+            "🎁 <i>За 1-го, 2-го и 3-го друга — по +3; начиная с 4-го — по +1 ИИ-баллу.</i>\n\n"
+            "💎 Ваши ИИ-баллы: {credits}\n👥 Приглашено: <b>{count}</b>\n\n"
+            "🔗 <b>Ваша реферальная ссылка:</b>\n<code>{link}</code>"
+        ),
+        "daily_bonus_guide": (
+            "🎁 Чтобы получить ежедневные бесплатные ИИ-баллы, откройте "
+            "«Кабинет & Настройки» → «🎁 Ежедневный бонус»."
+        ),
     },
 }
 

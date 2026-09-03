@@ -255,7 +255,7 @@ async def _execute_send(bot, post):
 
     # Litsenziyani yuborishdan OLDIN tekshiramiz; sarflash faqat
     # muvaffaqiyatli yuborilgandan keyin amalga oshiriladi.
-    has_ad_free = True if is_admin else await db.run_db(db.peek_ad_free_post, user_id)
+    has_ad_free = True if is_admin else await db.run_db(db.is_premium, user_id)
 
     # Reklama: har bir KANAL uchun alohida post sanagichi + admin belgilagan
     # oraliq (har 3-, 4- yoki 5-post). Reklama chiqsa uning inline URL tugmasi
@@ -349,8 +349,6 @@ async def _execute_send(bot, post):
             db.mark_post_as_sent, post_id, sent_msg_id, channel_id, delete_after_hours, extra_ids or None
         )
         # Post muvaffaqiyatli chiqqachgina litsenziya sarflanadi
-        if has_ad_free and not is_admin:
-            await db.run_db(db.consume_ad_free_post, user_id)
 
     except RetryAfter as e:
         # Telegram rate-limit vaqtinchalik: postni yo'qotmasdan,

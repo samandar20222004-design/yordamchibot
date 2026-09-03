@@ -118,9 +118,13 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if is_new and referrer_id:
         try:
+            ref_stats = await db.run_db(db.get_referral_stats, referrer_id)
+            ref_count = int((ref_stats or {}).get("referrals_count", 0))
+            reward = 3 if ref_count <= 3 else 1
+            ref_lang = await db.run_db(db.get_user_language, referrer_id)
             await context.bot.send_message(
                 chat_id=referrer_id,
-                text="🎉 <b>Yangi do'st taklif qilindi!</b>\n\nSizning taklif havolangiz orqali yangi foydalanuvchi qo'shildi va hisobingizga <b>+3 ta bepul AI so'rovi</b> qo'shildi! 🚀",
+                text=get_text("referral_reward_notice", ref_lang, reward=reward),
                 parse_mode="HTML"
             )
         except Exception:
@@ -218,7 +222,6 @@ async def user_cabinet_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"🔑 Maxsus kodingiz: <code>{user_code}</code>\n"
         f"💎 Mavjud AI so'rovlar soni: {credits_text}\n"
         f"🔥 Ketma-ket kunlik seriya: {streak_text}\n"
-        f"✨ Reklamasiz postlar litsenziyasi: {ad_free_text}\n"
         f"📢 Ulangan kanallar: <b>{len(channels)} ta</b>\n"
         f"👥 Taklif qilgan do'stlaringiz: <b>{stats['referrals_count']} ta</b>\n\n"
         f"Quyidagi bo'limlardan birini tanlang 👇{ad_line}"
@@ -346,12 +349,9 @@ async def user_invite_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     credits_text = "♾ Cheksiz (Super Admin)" if is_admin else f"<b>{stats['ai_credits']} ta</b>"
     
-    text = (
-        f"🚀 <b>Do'stlarni taklif qiling va bepul AI so'rovlar oling:</b>\n\n"
-        f"🎁 <i>Har bir yangi do'stingiz uchun hisobingizga <b>+3 ta bepul AI so'rovi</b> qo'shiladi!</i>\n\n"
-        f"💎 Sizdagi mavjud AI so'rovlar soni: {credits_text}\n"
-        f"👥 Taklif qilingan do'stlaringiz: <b>{stats['referrals_count']} ta</b>\n\n"
-        f"🔗 <b>Sizning taklif havolangiz:</b>\n<code>{ref_link}</code>"
+    text = get_text(
+        "referral_menu", get_lang(context), credits=credits_text,
+        count=stats["referrals_count"], link=ref_link,
     )
     await update.message.reply_text(
         text,
@@ -606,7 +606,6 @@ async def cabinet_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"🔑 Maxsus kodingiz: <code>{user_code}</code>\n"
             f"💎 Mavjud AI so'rovlar soni: {credits_text}\n"
             f"🔥 Ketma-ket kunlik seriya: {streak_text}\n"
-            f"✨ Reklamasiz postlar litsenziyasi: {ad_free_text}\n"
             f"📢 Ulangan kanallar: <b>{len(channels)} ta</b>\n"
             f"👥 Taklif qilgan do'stlaringiz: <b>{stats['referrals_count']} ta</b>\n\n"
             f"Quyidagi bo'limlardan birini tanlang 👇"
@@ -753,7 +752,6 @@ async def cabinet_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text = (
             f"💎 <b>Ballar & Litsenziya:</b>\n\n"
             f"🤖 AI so'rovlar: {credits_text}\n"
-            f"✨ Reklamasiz postlar: {ad_free_text}\n\n"
             f"Ballarni ko'paytirish uchun:\n"
             f"• 🎁 Kunlik bonus oling\n"
             f"• 👥 Do'stlarni taklif qiling (+3 ball)\n"

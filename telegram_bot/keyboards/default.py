@@ -135,7 +135,7 @@ def get_main_keyboard(is_admin=False, lang="uz", context=None):
 def get_cabinet_keyboard():
     keyboard = [
         [BTN_CHANNELS, BTN_CONVERTER],
-        [BTN_DAILY_BONUS, BTN_BUY_AD_FREE],
+        [BTN_DAILY_BONUS],
         [BTN_INVITE, BTN_TRANSFER],
         [BTN_BACK]
     ]

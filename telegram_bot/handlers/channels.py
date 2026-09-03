@@ -381,23 +381,6 @@ async def _link_channel(update: Update, context: ContextTypes.DEFAULT_TYPE, raw_
             except TelegramError:
                 pass
 
-        # Referal PRO mukofotini tekshirish (taklif qilgan foydalanuvchiga)
-        referrer_id = await db.run_db(db.get_referrer_id, user_id)
-        if referrer_id:
-            pro_granted = await db.run_db(db.check_and_grant_referral_pro, referrer_id)
-            if pro_granted:
-                try:
-                    await context.bot.send_message(
-                        chat_id=referrer_id,
-                        text=(
-                            "🎉 <b>Tabriklaymiz!</b>\n\n"
-                            "3 ta do'stingiz kanal uladi va sizga <b>30 kunlik PRO tarif</b> berildi!\n\n"
-                            "Barcha PRO imkoniyatlardan foydalaning: Cheksiz kanallar, AI va analitika."
-                        ),
-                        parse_mode="HTML",
-                    )
-                except Exception:
-                    pass
     elif reason == "taken":
         context.user_data.pop("add_channel_pending", None)
         await msg.reply_text(

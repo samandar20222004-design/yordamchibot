@@ -27,8 +27,7 @@ from keyboards.inline import get_subscription_check_keyboard
 
 # 1. START & ASOSIY MODUL
 from handlers.start import (
-    start, user_cabinet_menu, user_invite_menu, daily_bonus_handler, buy_ad_free_handler,
-    ad_free_callback, start_transfer_credits, transfer_target_received, transfer_amount_received,
+    start, user_cabinet_menu, user_invite_menu, daily_bonus_handler, start_transfer_credits, transfer_target_received, transfer_amount_received,
     help_command, cancel_handler, subscription_check_callback, check_user_subscribed,
     cabinet_callback, extras_menu, extras_close_callback,
     TRANSFER_TARGET, TRANSFER_AMOUNT
@@ -385,7 +384,6 @@ def register_all_handlers(app):
         MessageHandler(exact(BTN_HELP, BTN_HELP_RU), lambda u, c: guard_menu(u, c, help_command)),
         MessageHandler(exact(BTN_EXTRAS, BTN_EXTRAS_RU), lambda u, c: guard_menu(u, c, extras_menu)),
         MessageHandler(exact(BTN_DAILY_BONUS), lambda u, c: guard_menu(u, c, daily_bonus_handler)),
-        MessageHandler(exact(BTN_BUY_AD_FREE), lambda u, c: guard_menu(u, c, buy_ad_free_handler)),
         MessageHandler(exact(BTN_INVITE), lambda u, c: guard_menu(u, c, user_invite_menu)),
         MessageHandler(exact(BTN_TRANSFER), lambda u, c: guard_entry(u, c, start_transfer_credits)),
     ]
@@ -771,7 +769,6 @@ def register_all_handlers(app):
     # suhbat muddati tugagach eski karta tugmalari bosilsa) Stars invoice ochilishi
     # uchun global reyestr. Faol conversation bo'lsa main_conv birinchi ishlaydi.
     app.add_handler(CallbackQueryHandler(subscription_callback, pattern=r"^sub_"))
-    app.add_handler(CallbackQueryHandler(ad_free_callback, pattern=r"^adfree_"))
     app.add_handler(CallbackQueryHandler(converter_callback, pattern=r"^conv_show:"))
     app.add_handler(CallbackQueryHandler(converter_close_callback, pattern=r"^conv_close$"))
     app.add_handler(CallbackQueryHandler(subscription_check_callback, pattern=r"^(check_sub_status|check_subscription)$"))

@@ -1508,7 +1508,13 @@ def save_user(user_id: int, username: str, full_name: str = "", referrer_id: int
                 """, (user_id, username, full_name, code, valid_ref, lang))
                 
                 if valid_ref:
-                    cur.execute("UPDATE users SET ai_credits = ai_credits + 3 WHERE user_id = %s", (valid_ref,))
+                    # Referral rewards are credits only: first three friends earn
+                    # 3 each, every subsequent friend earns 1.  Count and update
+                    # in this transaction so concurrent /start calls cannot race.
+                    cur.execute("SELECT COUNT(*) FROM users WHERE referrer_id = %s", (valid_ref,))
+                    referral_count = int((cur.fetchone() or (0,))[0] or 0)
+                    reward = 3 if referral_count <= 3 else 1
+                    cur.execute("UPDATE users SET ai_credits = ai_credits + %s WHERE user_id = %s", (reward, valid_ref))
                     _invalidate_user(valid_ref)
                 _invalidate_user(user_id)
                 _cache_clear("system_stats")
