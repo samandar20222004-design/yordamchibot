@@ -4,7 +4,11 @@ import pytz
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import ContextTypes, ConversationHandler
 import database as db
-from keyboards.inline import render_pending_list
+from keyboards.inline import (
+    render_pending_list,
+    normalize_custom_reaction_emojis,
+    DEFAULT_REACTION_EMOJIS,
+)
 from keyboards.default import get_cancel_keyboard, get_main_keyboard, get_reactions_keyboard
 from locales.translations import clear_fsm_data, get_lang, get_text
 from utils.helpers import (
@@ -288,9 +292,32 @@ async def edit_post_react_received(update: Update, context: ContextTypes.DEFAULT
         await update.message.reply_text("⚠️ Tugmalardan birini tanlang:", reply_markup=get_reactions_keyboard())
         return EDIT_POST_REACT
 
-    enable = parsed
-    updated = await db.run_db(db.update_post_content, post_id, update.effective_user.id, enable_reactions=enable)
-    msg = "✅ <b>Reaksiyalar yoqildi!</b>" if enable else "✅ <b>Reaksiyalar o'chirildi!</b>"
+    # Foydalanuvchi emojilarni QO'LDA kiritgan bo'lsa (masalan "👍 ❤️ 🔥") —
+    # o'sha emojilar saqlanib, kanal postida tugma sifatida chiqishi shart.
+    # Faqat "ha/yoqish" kabi matnli tasdiq bo'lsa — standart to'plam yoqiladi.
+    custom = normalize_custom_reaction_emojis(text) if parsed else []
+    if not parsed:
+        # Reaksiyalar o'chirildi.
+        updated = await db.run_db(
+            db.update_post_content, post_id, update.effective_user.id,
+            enable_reactions=False,
+        )
+        msg = "✅ <b>Reaksiyalar o'chirildi!</b>"
+    elif custom:
+        # Qo'lda kiritilgan aniq emojilar saqlanadi (kanonik + boshqa emojilar).
+        updated = await db.run_db(
+            db.update_post_content, post_id, update.effective_user.id,
+            enable_reactions=True, reaction_emojis=" ".join(custom),
+        )
+        msg = f"✅ <b>Reaksiyalar yangilandi:</b> {' '.join(custom)}"
+    else:
+        # "ha/yoqish/yes" — standart to'plam (👍 ❤️ 🔥 👏) yoqiladi.
+        updated = await db.run_db(
+            db.update_post_content, post_id, update.effective_user.id,
+            enable_reactions=True,
+            reaction_emojis=" ".join(DEFAULT_REACTION_EMOJIS),
+        )
+        msg = "✅ <b>Reaksiyalar yoqildi!</b>"
     if updated:
         await update.message.reply_text(msg, reply_markup=get_main_keyboard(), parse_mode="HTML")
     else:

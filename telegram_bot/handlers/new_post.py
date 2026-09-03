@@ -20,6 +20,7 @@ from keyboards.default import (
 )
 from keyboards.inline import (
     btn_label, get_reaction_toggle_keyboard, normalize_reaction_emojis,
+    normalize_custom_reaction_emojis, strip_variation_selector,
     REACTION_EMOJIS,
 )
 from utils.helpers import html_escape, parse_future_time, safe_html, parse_reactions_input, get_auto_ad_injection_async
@@ -254,8 +255,14 @@ async def _ask_reactions_step(msg, context):
 
 
 async def _proceed_after_reactions(msg, context, selected_emojis):
-    """Reaksiya tanlovidan yakunlanganidan keyingi qadam (avto-o'chirish)."""
-    ordered = normalize_reaction_emojis(selected_emojis)
+    """Reaksiya tanlovidan yakunlanganidan keyingi qadam (avto-o'chirish).
+
+    ``normalize_custom_reaction_emojis``: foydalanuvchi QO'LDA kiritgan
+    kanondan tashqari emojilar (😍, 💯, 🙏 ...) ham saqlanib qoladi va
+    kanal postida tugma sifatida chiqadi (faqat 6 ta standart emoji bilan
+    chegaralanib qolmaydi).
+    """
+    ordered = normalize_custom_reaction_emojis(selected_emojis)
     context.user_data["enable_reactions"] = bool(ordered)
     context.user_data["reaction_emojis"] = ordered
     await msg.reply_text(
@@ -310,7 +317,8 @@ def _build_preview_text(context) -> str:
         btn_info = f"\n🔘 Tugma: <b>{html_escape(btn_text)}</b>"
     react_info = ""
     if enable_reactions:
-        chosen_emojis = normalize_reaction_emojis(context.user_data.get("reaction_emojis"))
+        # Qo'lda kiritilgan (kanondan tashqari) emojilar ham ko'rsatiladi.
+        chosen_emojis = normalize_custom_reaction_emojis(context.user_data.get("reaction_emojis"))
         react_info = f"\n👍 Reaksiyalar: {' '.join(chosen_emojis) if chosen_emojis else 'Yoqilgan'}"
     del_info = f"\n⏳ Avto-o'chirish: {delete_after_hours} soat" if delete_after_hours > 0 else ""
 
@@ -351,32 +359,119 @@ def _get_edit_confirm_keyboard():
     ])
 
 
+# Tasdiqlash kartasi sifatida IN-PLACE tahrirlanadigan media turlari.
+# sticker/voice/album uchun karta matn (text) ko'rinishida ko'rsatiladi.
+_CONFIRM_MEDIA_TYPES = ("photo", "video", "document", "audio", "animation")
+
+
+async def _edit_confirm_card(bot, chat_id, msg_id, card_type, preview, keyboard):
+    """Mavjud tasdiqlash kartasini joyida (in-place) tahrirlaydi.
+
+    - Media karta (photo/video/...) uchun ``edit_message_caption`` chaqiriladi
+      — rasm/video file_id QAYTA YUKLANMAYDI (tez ishlaydi va media yo'qolmaydi).
+    - Matn karta uchun ``edit_message_text`` chaqiriladi.
+    Muvaffaqiyatli bo'lsa True qaytadi.
+    """
+    try:
+        if card_type == "text":
+            await bot.edit_message_text(
+                chat_id=chat_id, message_id=msg_id,
+                text=preview[:4096], reply_markup=keyboard, parse_mode="HTML",
+            )
+        else:
+            await bot.edit_message_caption(
+                chat_id=chat_id, message_id=msg_id,
+                caption=preview[:1024], reply_markup=keyboard, parse_mode="HTML",
+            )
+        return True
+    except Exception:
+        # HTML parse xatosi bo'lsa — oddiy matn bilan bir marta qayta urinamiz.
+        try:
+            if card_type == "text":
+                await bot.edit_message_text(
+                    chat_id=chat_id, message_id=msg_id,
+                    text=preview[:4096], reply_markup=keyboard, parse_mode=None,
+                )
+            else:
+                await bot.edit_message_caption(
+                    chat_id=chat_id, message_id=msg_id,
+                    caption=preview[:1024], reply_markup=keyboard, parse_mode=None,
+                )
+            return True
+        except Exception:
+            return False
+
+
+async def _send_confirm_card(target_msg, context, preview, keyboard, post_type, file_id):
+    """Yangi tasdiqlash kartasini yuboradi (media karta yoki matn karta)."""
+    bot = context.bot if getattr(context, "bot", None) is not None else target_msg
+    chat_id = target_msg.chat_id
+    if file_id and post_type in _CONFIRM_MEDIA_TYPES:
+        cap = preview[:1024]
+        try:
+            if post_type == "photo":
+                sent = await bot.send_photo(chat_id=chat_id, photo=file_id, caption=cap, reply_markup=keyboard, parse_mode="HTML")
+            elif post_type == "video":
+                sent = await bot.send_video(chat_id=chat_id, video=file_id, caption=cap, reply_markup=keyboard, parse_mode="HTML")
+            elif post_type == "document":
+                sent = await bot.send_document(chat_id=chat_id, document=file_id, caption=cap, reply_markup=keyboard, parse_mode="HTML")
+            elif post_type == "audio":
+                sent = await bot.send_audio(chat_id=chat_id, audio=file_id, caption=cap, reply_markup=keyboard, parse_mode="HTML")
+            else:
+                sent = await bot.send_animation(chat_id=chat_id, animation=file_id, caption=cap, reply_markup=keyboard, parse_mode="HTML")
+            return sent.message_id, post_type
+        except Exception:
+            pass
+    sent = await bot.send_message(chat_id=chat_id, text=preview[:4096], reply_markup=keyboard, parse_mode="HTML")
+    return sent.message_id, "text"
+
+
 async def _show_confirmation(target_msg, context):
-    """Preview kartasini ko'rsatadi va CONFIRM_POST holatiga qaytadi."""
+    """Preview kartasini ko'rsatadi va CONFIRM_POST holatiga qaytadi.
+
+    TEZLIK VA MEDIA SAQLASH: tahrirlash (matn/tugma/vaqt o'zgartirish)
+    paytida har safar YANGI media xabar yuborilmasligi uchun avvalgi karta
+    JOYIDA tahrirlanadi:
+      • media post (photo/video/document/audio/animation) → edit_message_caption
+        — file_id saqlanib qoladi, rasm/video qayta yuklanmaydi;
+      • faqat matnli post → edit_message_text.
+    Tur o'zgargan yoki xabar tahrirlab bo'lmaydigan hollarda eskisi
+    o'chirilib, yangi karta yuboriladi (ortiqcha kutishlarsiz).
+    """
     preview = _build_preview_text(context)
     post_type = context.user_data.get("post_type", "text")
     file_id = context.user_data.get("file_id")
     keyboard = _get_confirm_keyboard()
 
-    if file_id and post_type in ("photo", "video", "document", "audio", "animation"):
-        cap = preview[:1024]
+    bot = context.bot if getattr(context, "bot", None) is not None else target_msg
+    chat_id = target_msg.chat_id
+    new_card_type = post_type if (file_id and post_type in _CONFIRM_MEDIA_TYPES) else "text"
+
+    old_id = context.user_data.get("confirm_msg_id")
+    old_type = context.user_data.get("confirm_msg_type") or "text"
+
+    # 1) Bir xil turdagi kartani joyida tahrirlaymiz (eng tez yo'l).
+    if old_id and old_type == new_card_type:
+        if await _edit_confirm_card(bot, chat_id, old_id, old_type, preview, keyboard):
+            return
+        # Tahrirlab bo'lmadi (xabar o'chirilgan va h.k.) — eskisini tozalab, yangi yuboramiz.
         try:
-            if post_type == "photo":
-                await target_msg.reply_photo(photo=file_id, caption=cap, reply_markup=keyboard, parse_mode="HTML")
-            elif post_type == "video":
-                await target_msg.reply_video(video=file_id, caption=cap, reply_markup=keyboard, parse_mode="HTML")
-            elif post_type == "document":
-                await target_msg.reply_document(document=file_id, caption=cap, reply_markup=keyboard, parse_mode="HTML")
-            elif post_type == "audio":
-                await target_msg.reply_audio(audio=file_id, caption=cap, reply_markup=keyboard, parse_mode="HTML")
-            elif post_type == "animation":
-                await target_msg.reply_animation(animation=file_id, caption=cap, reply_markup=keyboard, parse_mode="HTML")
-            else:
-                await target_msg.reply_text(preview[:4096], reply_markup=keyboard, parse_mode="HTML")
+            await bot.delete_message(chat_id=chat_id, message_id=old_id)
         except Exception:
-            await target_msg.reply_text(preview[:4096], reply_markup=keyboard, parse_mode="HTML")
-    else:
-        await target_msg.reply_text(preview[:4096], reply_markup=keyboard, parse_mode="HTML")
+            pass
+        context.user_data["confirm_msg_id"] = None
+
+    # 2) Tur o'zgargan (matn↔media) yoki karta yo'q — yangi karta yuboramiz.
+    if old_id and old_type != new_card_type:
+        try:
+            await bot.delete_message(chat_id=chat_id, message_id=old_id)
+        except Exception:
+            pass
+        context.user_data["confirm_msg_id"] = None
+
+    new_id, sent_type = await _send_confirm_card(target_msg, context, preview, keyboard, post_type, file_id)
+    context.user_data["confirm_msg_id"] = new_id
+    context.user_data["confirm_msg_type"] = sent_type
 
 
 async def content_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -536,13 +631,20 @@ async def reactions_received(update: Update, context: ContextTypes.DEFAULT_TYPE)
         return await _proceed_after_reactions(msg, context, [])
 
     if parsed is True:
-        # Emoji(yorliq) matn sifatida yuborilgan bo'lsa — multi-select tanlovga qo'shamiz
-        typed = normalize_reaction_emojis(text)
-        if typed and len(text) <= 30:
+        # Emoji(yorliq) matn sifatida yuborilgan bo'lsa — multi-select tanlovga qo'shamiz.
+        # normalize_custom_reaction_emojis: kanonik 6 ta emoji BILAN BIRGA
+        # foydalanuvchi qo'lda kiritgan boshqa emojilar (😍, 💯, 🙏 ...) ham
+        # saqlanib qoladi va kanal postida tugma bo'lib chiqadi.
+        typed = normalize_custom_reaction_emojis(text)
+        if typed and len(text) <= 60:
             selected = context.user_data.setdefault("selected_reactions", [])
+            existing_keys = {strip_variation_selector(e) for e in selected}
             for emoji in typed:
-                if emoji not in selected:
+                if strip_variation_selector(emoji) not in existing_keys:
                     selected.append(emoji)
+                    existing_keys.add(strip_variation_selector(emoji))
+            # Foydalanuvchiga aniq emoji ko'rsatish uchun kanonik normalizatsiyani
+            # qo'shimcha bajarib qo'yamiz (toggle ✅ belgilari uchun).
             await msg.reply_text(
                 f"✅ Tanlanganlar: {' '.join(selected)}\n"
                 f"Yana emoji qo'shishingiz yoki <b>➡️ Davom etish</b> ni bosishingiz mumkin:",
@@ -592,7 +694,8 @@ async def reactions_done_callback(update: Update, context: ContextTypes.DEFAULT_
     """"➡️ Davom etish" — tanlangan reaksiyalar bilan keyingi qadamga o'tadi."""
     query = update.callback_query
     await query.answer()
-    selected = normalize_reaction_emojis(context.user_data.get("selected_reactions"))
+    # Qo'lda kiritilgan (kanondan tashqari) emojilar ham saqlanib qoladi.
+    selected = normalize_custom_reaction_emojis(context.user_data.get("selected_reactions"))
     if not selected:
         await query.message.reply_text(
             "ℹ️ Hech qanday reaksiya tanlanmadi — post reaksiyalarsiz chiqadi.",
@@ -1281,9 +1384,11 @@ async def ai_result_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
     if action == "accept":
         proposed = context.user_data.get("ai_proposed_content", "")
         if proposed:
+            # AI FAQAT matnni o'zgartiradi — media (rasm/video/file_id) HECH
+            # QACHON o'chirilmaydi. Avvalgi xato: post_type="text", file_id=None
+            # qilinardi, natijada rasm/video post matn postiga aylanib, media
+            # yo'qolib qolardi.
             context.user_data["content"] = proposed
-            context.user_data["post_type"] = "text"
-            context.user_data["file_id"] = None
         context.user_data.pop("ai_original_content", None)
         context.user_data.pop("ai_proposed_content", None)
         context.user_data.pop("ai_last_action", None)

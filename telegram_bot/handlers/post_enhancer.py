@@ -345,16 +345,17 @@ def build_enhancer_rows(buttons: list, reactions: list, post_id: int = None,
     for i in range(0, len(url_buttons), per_row):
         rows.append(url_buttons[i:i + per_row])
 
-    react_buttons = []
-    for emoji in (reactions or [])[:MAX_ENH_REACTIONS]:
-        if not emoji:
-            continue
-        if preview or not post_id:
-            react_buttons.append(InlineKeyboardButton(emoji, callback_data="enh:noop"))
-        else:
-            react_buttons.append(InlineKeyboardButton(emoji, callback_data=f"react:{post_id}:{emoji}"))
-    for i in range(0, len(react_buttons), REACTIONS_PER_ROW):
-        rows.append(react_buttons[i:i + REACTIONS_PER_ROW])
+    # Reaksiya tugmalari (scheduler bilan bir xil logika — kanondan
+    # tashqari qo'lda kiritilgan emojilar ham ishlaydi, 5 tadan qatorlarga
+    # bo'linadi). Umumiy yordamchi keyboards.inline.build_reaction_button_rows.
+    from keyboards.inline import build_reaction_button_rows
+    react_rows = build_reaction_button_rows(
+        post_id,
+        (reactions or [])[:MAX_ENH_REACTIONS],
+        per_row=REACTIONS_PER_ROW,
+        preview=(preview or not post_id),
+    )
+    rows.extend(react_rows)
 
     return rows[:MAX_KEYBOARD_ROWS]
 
