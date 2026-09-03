@@ -208,7 +208,7 @@ def cache_clear():
 
 def _invalidate_user(user_id: int):
     """Bitta foydalanuvchiga tegishli kesh yozuvlarini tozalash."""
-    for prefix in ("user_credits", "user_code", "user_channels", "user_stats"):
+    for prefix in ("user_credits", "user_code", "user_channels", "user_stats", "user_lang"):
         _cache_clear(f"{prefix}:{user_id}")
 
 
@@ -669,6 +669,7 @@ def _init_db_once():
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_expires_at TIMESTAMP WITH TIME ZONE;",
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS ai_requests_today INTEGER DEFAULT 0;",
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS last_limit_reset DATE DEFAULT CURRENT_DATE;",
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS language_code VARCHAR(10) DEFAULT 'uz';",
             "ALTER TABLE sponsor_channels ADD COLUMN IF NOT EXISTS title TEXT;",
             "ALTER TABLE sponsor_channels ADD COLUMN IF NOT EXISTS username TEXT;",
             "ALTER TABLE sponsor_channels ADD COLUMN IF NOT EXISTS invite_link TEXT;",
@@ -1470,6 +1471,14 @@ def toggle_reaction(post_id: int, user_id: int, reaction: str) -> dict:
         return {}
 
 # --- USERS & CREDITS ---
+def _normalize_language_code(language_code) -> str:
+    """Telegram language_code → 'ru' yoki 'uz'."""
+    raw = str(language_code or "").strip().lower()
+    if raw.startswith("ru"):
+        return "ru"
+    return "uz"
+
+
 def _generate_user_code(cur) -> str:
     letters = string.ascii_lowercase
     for _ in range(50):
@@ -1479,7 +1488,8 @@ def _generate_user_code(cur) -> str:
             return code
     return "".join(random.choice(letters) for _ in range(3)) + "".join(random.choice(string.digits) for _ in range(2))
 
-def save_user(user_id: int, username: str, full_name: str = "", referrer_id: int = None) -> bool:
+def save_user(user_id: int, username: str, full_name: str = "", referrer_id: int = None,
+              language_code: str = None) -> bool:
     try:
         with db_cursor(commit=True) as cur:
             cur.execute("SELECT user_id FROM users WHERE user_id = %s", (user_id,))
@@ -1491,10 +1501,11 @@ def save_user(user_id: int, username: str, full_name: str = "", referrer_id: int
             else:
                 code = _generate_user_code(cur)
                 valid_ref = referrer_id if referrer_id and referrer_id != user_id else None
+                lang = _normalize_language_code(language_code)
                 cur.execute("""
-                    INSERT INTO users (user_id, username, full_name, user_code, referrer_id, ai_credits, ad_free_posts, ad_free_active, streak_days, created_at)
-                    VALUES (%s, %s, %s, %s, %s, 5, 0, TRUE, 0, NOW())
-                """, (user_id, username, full_name, code, valid_ref))
+                    INSERT INTO users (user_id, username, full_name, user_code, referrer_id, ai_credits, ad_free_posts, ad_free_active, streak_days, created_at, language_code)
+                    VALUES (%s, %s, %s, %s, %s, 5, 0, TRUE, 0, NOW(), %s)
+                """, (user_id, username, full_name, code, valid_ref, lang))
                 
                 if valid_ref:
                     cur.execute("UPDATE users SET ai_credits = ai_credits + 3 WHERE user_id = %s", (valid_ref,))
@@ -1771,6 +1782,41 @@ def get_all_user_ids() -> list:
     except Exception as e:
         logger.error(f"Foydalanuvchilar xatosi: {e}")
         return []
+
+def get_user_language(user_id: int) -> str:
+    """Foydalanuvchi tilini qaytaradi ('uz' yoki 'ru'). Topilmasa 'uz'."""
+    cache_key = f"user_lang:{user_id}"
+    cached = _cache_get(cache_key)
+    if cached is not _MISS:
+        return cached
+    try:
+        with db_cursor() as cur:
+            cur.execute("SELECT language_code FROM users WHERE user_id = %s", (user_id,))
+            row = cur.fetchone()
+            lang = _normalize_language_code(row[0] if row else None)
+            _cache_set(cache_key, lang, DB_USER_CACHE_TTL)
+            return lang
+    except Exception as e:
+        logger.error(f"User tilini olish xatosi: {e}")
+        return "uz"
+
+
+def set_user_language(user_id: int, language_code: str) -> bool:
+    """Foydalanuvchi tilini yangilaydi ('uz' | 'ru')."""
+    lang = _normalize_language_code(language_code)
+    try:
+        with db_cursor(commit=True) as cur:
+            cur.execute(
+                "UPDATE users SET language_code = %s WHERE user_id = %s",
+                (lang, user_id),
+            )
+            updated = cur.rowcount > 0
+        _cache_clear(f"user_lang:{user_id}")
+        return updated
+    except Exception as e:
+        logger.error(f"User tilini saqlash xatosi: {e}")
+        return False
+
 
 def get_user_code(user_id: int) -> str:
     cache_key = f"user_code:{user_id}"

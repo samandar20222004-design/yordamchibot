@@ -62,6 +62,7 @@ from scheduler import (
     resolve_channel_ad, build_ad_button_row,
 )
 # Albom (media_group) yig'ish logikasi new_post bilan umumiy — buffer'lar ham.
+from locales.translations import clear_fsm_data, get_lang, get_text
 from handlers.new_post import (
     _media_item_from_message,
     _apply_single_media,
@@ -750,7 +751,7 @@ async def post_enhancer_start(update: Update, context: ContextTypes.DEFAULT_TYPE
     else:
         msg = update.message
 
-    context.user_data.clear()
+    clear_fsm_data(context)
     enh = _payload(context)
     enh.update(_fresh_enh())
     # ENG BIRINCHI xabar: admin eslatmasi + postni so'rash.
@@ -987,7 +988,7 @@ async def enh_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if action in ("cancel", "home"):
         await _answer(query)
         await _drop_preview(context, chat_id, enh)
-        context.user_data.clear()
+        clear_fsm_data(context)
         try:
             await query.message.delete()
         except Exception:

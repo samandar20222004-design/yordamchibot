@@ -24,6 +24,7 @@ from keyboards.inline import (
 )
 from utils.helpers import html_escape, parse_future_time, safe_html, parse_reactions_input, get_auto_ad_injection_async
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+from locales.translations import clear_fsm_data, get_lang, get_text
 
 tashkent_tz = pytz.timezone("Asia/Tashkent")
 
@@ -133,15 +134,15 @@ def parse_url_button_line(text: str) -> "tuple[str, str] | None":
 
 
 async def start_new_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data.clear()
+    clear_fsm_data(context)
     user_id = update.effective_user.id
     is_admin = (user_id in ADMIN_IDS_SET)
+    lang = get_lang(context)
     channels = await db.run_db(db.get_user_channels, user_id)
     if not channels:
         await update.message.reply_text(
-            "⚠️ <b>Ulangan kanal yoki guruh topilmadi!</b>\n\n"
-            "Avval '📢 Kanal/Guruhlar' bo'limidan kanal yoki guruhingizni ulang.",
-            reply_markup=get_main_keyboard(is_admin),
+            get_text("new_post_no_channels", lang),
+            reply_markup=get_main_keyboard(is_admin, lang=lang),
             parse_mode="HTML"
         )
         return ConversationHandler.END
@@ -158,7 +159,7 @@ async def start_new_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     context.user_data["channels_map"] = channels_map
     await update.message.reply_text(
-        "📢 <b>Qaysi kanal yoki guruhga post rejalashtiramiz?</b>\nRo'yxatdan tanlang 👇",
+        get_text("new_post_choose_channel", lang),
         reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True),
         parse_mode="HTML"
     )
@@ -680,12 +681,12 @@ async def _save_and_finish(update, context, post_time, recurrence_type='none', r
             f"✅ <b>Post muvaffaqiyatli rejalashtirildi!</b>\n\n"
             f"📢 Joylash: <b>{html_escape(channel_title)}</b>\n"
             f"{when_text}{del_info}",
-            reply_markup=get_main_keyboard(is_admin),
+            reply_markup=get_main_keyboard(is_admin, context=context),
             parse_mode="HTML"
         )
     else:
-        await update.message.reply_text("❌ Saqlashda xatolik yuz berdi.", reply_markup=get_main_keyboard(is_admin), parse_mode="HTML")
-    context.user_data.clear()
+        await update.message.reply_text("❌ Saqlashda xatolik yuz berdi.", reply_markup=get_main_keyboard(is_admin, context=context), parse_mode="HTML")
+    clear_fsm_data(context)
 
 async def time_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
@@ -829,14 +830,14 @@ async def confirm_post_callback(update: Update, context: ContextTypes.DEFAULT_TY
     is_admin = (user_id in ADMIN_IDS_SET)
 
     if action == "cancel":
-        context.user_data.clear()
+        clear_fsm_data(context)
         try:
             await query.edit_message_reply_markup(reply_markup=None)
         except Exception:
             pass
         await query.message.reply_text(
             "🚫 <b>Post bekor qilindi.</b>\nAsosiy menyuga qaytdingiz 👇",
-            reply_markup=get_main_keyboard(is_admin),
+            reply_markup=get_main_keyboard(is_admin, context=context),
             parse_mode="HTML",
         )
         return ConversationHandler.END
@@ -854,10 +855,10 @@ async def confirm_post_callback(update: Update, context: ContextTypes.DEFAULT_TY
         if not selected_channel_id:
             await query.message.reply_text(
                 "⚠️ <b>Kanal tanlanmagan.</b>",
-                reply_markup=get_main_keyboard(is_admin),
+                reply_markup=get_main_keyboard(is_admin, context=context),
                 parse_mode="HTML",
             )
-            context.user_data.clear()
+            clear_fsm_data(context)
             return ConversationHandler.END
 
         now = datetime.now(tashkent_tz)
@@ -888,10 +889,10 @@ async def confirm_post_callback(update: Update, context: ContextTypes.DEFAULT_TY
         if not slot_dt:
             await query.message.reply_text(
                 "⚠️ <b>Bo'sh slot topilmadi.</b>\n7 kun ichida barcha slotlar band.",
-                reply_markup=get_main_keyboard(is_admin),
+                reply_markup=get_main_keyboard(is_admin, context=context),
                 parse_mode="HTML",
             )
-            context.user_data.clear()
+            clear_fsm_data(context)
             return ConversationHandler.END
 
         post_type = context.user_data.get("post_type")
@@ -938,16 +939,16 @@ async def confirm_post_callback(update: Update, context: ContextTypes.DEFAULT_TY
                 f"⚡️ <b>Post navbatga qo'yildi!</b>\n\n"
                 f"📅 {label}, soat {time_str}\n"
                 f"📢 Kanal: <b>{html_escape(channel_title)}</b>{ad_line}",
-                reply_markup=get_main_keyboard(is_admin),
+                reply_markup=get_main_keyboard(is_admin, context=context),
                 parse_mode="HTML",
             )
         else:
             await query.message.reply_text(
                 "❌ <b>Navbatga qo'yishda xatolik.</b>",
-                reply_markup=get_main_keyboard(is_admin),
+                reply_markup=get_main_keyboard(is_admin, context=context),
                 parse_mode="HTML",
             )
-        context.user_data.clear()
+        clear_fsm_data(context)
         return ConversationHandler.END
 
     # action == "ok"
@@ -958,8 +959,8 @@ async def confirm_post_callback(update: Update, context: ContextTypes.DEFAULT_TY
     end_date = context.user_data.get("confirm_end_date")
 
     if not post_time:
-        await query.message.reply_text("⚠️ <b>Vaqt belgilanmagan.</b>", reply_markup=get_main_keyboard(is_admin), parse_mode="HTML")
-        context.user_data.clear()
+        await query.message.reply_text("⚠️ <b>Vaqt belgilanmagan.</b>", reply_markup=get_main_keyboard(is_admin, context=context), parse_mode="HTML")
+        clear_fsm_data(context)
         return ConversationHandler.END
 
     selected_channel_id = context.user_data.get("selected_channel_id")
@@ -1015,12 +1016,12 @@ async def confirm_post_callback(update: Update, context: ContextTypes.DEFAULT_TY
             f"✅ <b>Post muvaffaqiyatli rejalashtirildi!</b>\n\n"
             f"📢 Joylash: <b>{html_escape(channel_title)}</b>\n"
             f"{when_text}{del_info}{ad_line}",
-            reply_markup=get_main_keyboard(is_admin),
+            reply_markup=get_main_keyboard(is_admin, context=context),
             parse_mode="HTML"
         )
     else:
-        await query.message.reply_text("❌ <b>Saqlashda xatolik.</b>", reply_markup=get_main_keyboard(is_admin), parse_mode="HTML")
-    context.user_data.clear()
+        await query.message.reply_text("❌ <b>Saqlashda xatolik.</b>", reply_markup=get_main_keyboard(is_admin, context=context), parse_mode="HTML")
+    clear_fsm_data(context)
     return ConversationHandler.END
 
 

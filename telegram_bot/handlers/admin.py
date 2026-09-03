@@ -22,6 +22,7 @@ from keyboards.inline import (
     unpack_sponsor,
 )
 from utils import ai_agent
+from locales.translations import clear_fsm_data, get_lang, get_text
 from utils.helpers import (
     html_escape, safe_html, format_post_type_label,
     validate_ad_html, validate_button_text, validate_button_url,
@@ -148,7 +149,7 @@ def is_admin(user_id: int) -> bool:
 async def admin_panel_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id):
         return ConversationHandler.END
-    context.user_data.clear()
+    clear_fsm_data(context)
     stats = await db.run_db(db.get_admin_dashboard_stats)
     text = _build_dashboard_text(stats)
     await update.message.reply_text(
@@ -272,7 +273,7 @@ async def admin_dashboard_callback(update: Update, context: ContextTypes.DEFAULT
     if data == "adm_cancel":
         # Universal "Bekor qilish": FSM tozalanadi va dashboard qaytariladi.
         await query.answer("🚫 Bekor qilindi")
-        context.user_data.clear()
+        clear_fsm_data(context)
         stats = await db.run_db(db.get_admin_dashboard_stats)
         await _admin_edit(query, _build_dashboard_text(stats), get_admin_dashboard_keyboard())
         return ConversationHandler.END
@@ -440,7 +441,7 @@ async def admin_inline_text_handler(update: Update, context: ContextTypes.DEFAUL
 
     # "Bekor qilish" har qanday admin oqimida ishlashi kerak.
     if text in (BTN_CANCEL, BTN_MAIN_MENU):
-        context.user_data.clear()
+        clear_fsm_data(context)
         await update.message.reply_text(
             "🚫 <b>Jarayon bekor qilindi.</b>",
             reply_markup=get_admin_panel_keyboard(),

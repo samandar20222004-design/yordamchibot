@@ -21,6 +21,7 @@ from utils.ai_agent import (
     VisionError, download_telegram_media_to_temp, cleanup_temp_media,
     generate_vision_post,
 )
+from locales.translations import clear_fsm_data, get_lang, get_text
 from utils.helpers import (
     html_escape, safe_html, check_ai_rate_limit, check_ai_daily_limit, parse_future_time,
     get_auto_ad_injection_async,
@@ -166,7 +167,7 @@ def _no_credits_text(bot_username: str, user_id: int) -> str:
 
 async def start_ai_assistant(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """AI yordamchisi holatini (AI_INPUT) boshlaydi."""
-    context.user_data.clear()
+    clear_fsm_data(context)
     user_id = update.effective_user.id
     clear_ai_context(user_id)
     is_admin = (user_id in ADMIN_IDS_SET)
@@ -575,7 +576,7 @@ async def ai_confirm_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
     if data == "ai_post_cancel":
         await query.answer("Bekor qilindi")
         clear_ai_context(user_id)
-        context.user_data.clear()
+        clear_fsm_data(context)
         try:
             await query.edit_message_reply_markup(reply_markup=None)
         except Exception:
@@ -620,7 +621,7 @@ async def ai_confirm_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
         )
         # AI sessiyasi shu yerda tugaydi — kontekst ham tozalanadi
         clear_ai_context(user_id)
-        context.user_data.clear()
+        clear_fsm_data(context)
         return ConversationHandler.END
 
     now = datetime.now(tashkent_tz)
@@ -681,7 +682,7 @@ async def ai_confirm_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     # Post rejalashtirilgach yoki xato bo'lgach AI sessiyasi yopiladi
     clear_ai_context(user_id)
-    context.user_data.clear()
+    clear_fsm_data(context)
     return ConversationHandler.END
 
 
@@ -1182,7 +1183,7 @@ async def ai_close(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception:
         pass
     clear_ai_context(query.from_user.id)
-    context.user_data.clear()
+    clear_fsm_data(context)
     await query.message.reply_text(
         "🏠 Asosiy menyu.",
         reply_markup=get_main_keyboard(query.from_user.id in ADMIN_IDS_SET),

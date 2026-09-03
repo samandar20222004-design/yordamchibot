@@ -1,18 +1,27 @@
 import re
 from telegram import ReplyKeyboardMarkup
 from telegram.ext import filters
+from locales.translations import get_text, get_lang
 
 # ============================================================
 # STANDART MENYU TUGMALARI (Constants)
 # ============================================================
-BTN_NEW_POST = "➕ Yangi post"
-BTN_AI_STUDIO = "✨ AI Studio"
+BTN_NEW_POST = get_text("btn_new_post", "uz")
+BTN_AI_STUDIO = get_text("btn_ai_studio", "uz")
 BTN_PENDING = "⏳ Kutilayotgan postlar"
-BTN_SETTINGS = "👤 Kabinet & Sozlamalar"
+BTN_SETTINGS = get_text("btn_settings", "uz")
 BTN_CONVERTER = "🔤 Krill-Lotin konvertor"
-BTN_HELP = "📖 Qo'llanma / Bot haqida"
-BTN_EXTRAS = "⚙️ Qo'shimcha funksiyalar"
+BTN_HELP = get_text("btn_help", "uz")
+BTN_EXTRAS = get_text("btn_extras", "uz")
 BTN_BACK = "🔙 Asosiy menyu"
+
+# Rus tilidagi asosiy menyu (MessageHandler Regex ikkala tilni tanishi uchun)
+BTN_NEW_POST_RU = get_text("btn_new_post", "ru")
+BTN_AI_STUDIO_RU = get_text("btn_ai_studio", "ru")
+BTN_SETTINGS_RU = get_text("btn_settings", "ru")
+BTN_HELP_RU = get_text("btn_help", "ru")
+BTN_EXTRAS_RU = get_text("btn_extras", "ru")
+BTN_PREMIUM_RU = get_text("btn_premium", "ru")
 # Har qanday ko'p bosqichli jarayonni (FSM) to'xtatuvchi umumiy tugma.
 BTN_CANCEL = "❌ Bekor qilish"
 
@@ -52,7 +61,7 @@ BTN_ADD_CHANNEL = "➕ Kanal/Guruh qo'shish"
 BTN_QUEUE = "📚 Navbat (Queue)"
 BTN_CONTENT_PLAN = "🧠 Kontent-reja"
 BTN_ANALYTICS = "📊 Analitika"
-BTN_PREMIUM = "⭐️ Premium"
+BTN_PREMIUM = get_text("btn_premium", "uz")
 BTN_CHANNEL_EXTRACT = "📢 Ochiq kanaldan olish"
 BTN_ALL_CHANNELS_TARGET = "🌐 Barchasiga birdaniga"
 BTN_SKIP_BUTTON = "➡️ Tugmasiz davom etish"
@@ -98,12 +107,25 @@ def exact(*texts):
     return filters.Regex(pattern)
 
 
-def get_main_keyboard(is_admin=False):
+def exact_i18n(*keys):
+    """Asosiy menyu tugmalarini uz/ru tillarida taniydigan Regex filter."""
+    texts = []
+    for key in keys:
+        for lang in ("uz", "ru"):
+            t = get_text(key, lang)
+            if t not in texts:
+                texts.append(t)
+    return exact(*texts)
+
+
+def get_main_keyboard(is_admin=False, lang="uz", context=None):
     # Yangi tartib: ⭐️ Premium chapda, 👤 Kabinet & Sozlamalar o'ngda (2-qator).
+    if context is not None:
+        lang = get_lang(context, lang)
     keyboard = [
-        [BTN_NEW_POST, BTN_AI_STUDIO],
-        [BTN_PREMIUM, BTN_SETTINGS],
-        [BTN_HELP, BTN_EXTRAS],
+        [get_text("btn_new_post", lang), get_text("btn_ai_studio", lang)],
+        [get_text("btn_premium", lang), get_text("btn_settings", lang)],
+        [get_text("btn_help", lang), get_text("btn_extras", lang)],
     ]
     if is_admin:
         keyboard.append([BTN_ADMIN_PANEL])

@@ -9,9 +9,12 @@ from keyboards.default import get_main_keyboard, get_cabinet_keyboard, get_cance
 from keyboards.inline import (
     get_referral_share_keyboard, get_subscription_check_keyboard,
     get_cabinet_inline_keyboard, get_cabinet_back_keyboard,
-    get_extras_inline_keyboard,
+    get_extras_inline_keyboard, get_language_keyboard,
     get_channels_manage_keyboard, render_channels_list, NO_CHANNELS_HINT,
     unpack_sponsor,
+)
+from locales.translations import (
+    get_text, detect_language, get_lang, set_lang_cache, clear_fsm_data,
 )
 from utils.helpers import html_escape, get_smart_reply_ad_async
 
@@ -90,8 +93,9 @@ check_user_sponsorship = check_user_subscribed
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data.clear()
+    clear_fsm_data(context)
     user = update.effective_user
+    detected = detect_language(getattr(user, "language_code", None))
 
     referrer_id = None
     if context.args and len(context.args) > 0:
@@ -102,7 +106,15 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             except ValueError:
                 referrer_id = None
 
-    is_new = await db.run_db(db.save_user, user.id, user.username or "", user.full_name or "", referrer_id=referrer_id)
+    is_new = await db.run_db(
+        db.save_user, user.id, user.username or "", user.full_name or "",
+        referrer_id=referrer_id, language_code=detected,
+    )
+    if is_new:
+        lang = detected
+    else:
+        lang = await db.run_db(db.get_user_language, user.id)
+    set_lang_cache(context, lang)
 
     if is_new and referrer_id:
         try:
@@ -131,11 +143,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     is_admin = (user.id in ADMIN_IDS_SET)
     ad_line = await get_smart_reply_ad_async(user.id)
+    hello = get_text("start_hello", lang, name=html_escape(user.first_name))
     await update.message.reply_text(
-        f"Salom, <b>{html_escape(user.first_name)}</b>! 👋\n\n"
-        f"🤖 @PostAssistrobot — kanallarga postlarni vaqtida joylash, AI yordamida matnlar va kontent-reja tuzish bo'yicha aqlli yordamchingiz.\n\n"
-        f"Kerakli bo'limni tanlang 👇{ad_line}",
-        reply_markup=get_main_keyboard(is_admin),
+        f"{hello}{ad_line}",
+        reply_markup=get_main_keyboard(is_admin, lang=lang),
         parse_mode="HTML"
     )
     return ConversationHandler.END
@@ -157,10 +168,11 @@ async def subscription_check_callback(update: Update, context: ContextTypes.DEFA
         except TelegramError:
             pass
         is_admin = (user.id in ADMIN_IDS_SET)
+        lang = get_lang(context)
         await context.bot.send_message(
             chat_id=user.id,
             text=f"✅ Obuna tasdiqlandi!\n\nXush kelibsiz, <b>{html_escape(user.first_name)}</b>! Barcha imkoniyatlar siz uchun ochiq.",
-            reply_markup=get_main_keyboard(is_admin),
+            reply_markup=get_main_keyboard(is_admin, lang=lang),
             parse_mode="HTML"
         )
     else:
@@ -181,7 +193,7 @@ async def subscription_check_callback(update: Update, context: ContextTypes.DEFA
             pass
 
 async def user_cabinet_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data.clear()
+    clear_fsm_data(context)
     user = update.effective_user
     is_admin = (user.id in ADMIN_IDS_SET)
     stats = await db.run_db(db.get_referral_stats, user.id)
@@ -325,7 +337,7 @@ async def ad_free_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
 async def user_invite_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data.clear()
+    clear_fsm_data(context)
     user = update.effective_user
     is_admin = (user.id in ADMIN_IDS_SET)
     bot_obj = await context.bot.get_me()
@@ -348,7 +360,7 @@ async def user_invite_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def start_transfer_credits(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data.clear()
+    clear_fsm_data(context)
     user_id = update.effective_user.id
     my_credits = await db.run_db(db.get_user_credits, user_id)
     
@@ -439,7 +451,7 @@ async def transfer_amount_received(update: Update, context: ContextTypes.DEFAULT
     else:
         await update.message.reply_text(f"❌ <b>Xatolik:</b> {msg}", reply_markup=get_cabinet_keyboard(), parse_mode="HTML")
         
-    context.user_data.clear()
+    clear_fsm_data(context)
     return ConversationHandler.END
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -471,11 +483,11 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     if is_admin:
         text += "\n\n👑 <b>Admin buyruqlari:</b>\n/admin — Boshqaruv paneli\n/broadcast — Xabar yuborish\n/stats — Statistika"
-    await update.message.reply_text(f"{text}{ad_line}", reply_markup=get_main_keyboard(is_admin), parse_mode="HTML")
+    await update.message.reply_text(f"{text}{ad_line}", reply_markup=get_main_keyboard(is_admin, lang=get_lang(context)), parse_mode="HTML")
 
 async def extras_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """⚙️ Qo'shimcha funksiyalar — inline menyu ko'rsatadi."""
-    context.user_data.clear()
+    clear_fsm_data(context)
     await update.message.reply_text(
         "⚙️ <b>Qo'shimcha funksiyalar</b>\n\n"
         "✨ <b>Postga Tugma & Reaksiya qo'shish</b> — tayyor postni (matn, rasm, "
@@ -499,17 +511,18 @@ async def extras_close_callback(update: Update, context: ContextTypes.DEFAULT_TY
         await query.message.delete()
     except Exception:
         pass
-    await query.message.reply_text("✅ Yopildi.", reply_markup=get_main_keyboard(is_admin))
+    await query.message.reply_text("✅ Yopildi.", reply_markup=get_main_keyboard(is_admin, lang=get_lang(context)))
 
 
 async def cancel_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Foydalanuvchi band holatda /cancel bosganda yoki tugma bosganda — aniq xabar."""
     is_admin = (update.effective_user.id in ADMIN_IDS_SET)
-    context.user_data.clear()
+    lang = get_lang(context)
+    clear_fsm_data(context)
     await update.message.reply_text(
         "🚫 <b>Jarayon bekor qilindi.</b>\n"
         "Asosiy menyuga qaytdingiz. Kerakli bo'limni tanlang 👇",
-        reply_markup=get_main_keyboard(is_admin),
+        reply_markup=get_main_keyboard(is_admin, lang=lang),
         parse_mode="HTML",
     )
     return ConversationHandler.END
@@ -530,7 +543,44 @@ async def cabinet_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             pass
         await query.message.reply_text(
             "✅ Yopildi.",
-            reply_markup=get_main_keyboard(is_admin),
+            reply_markup=get_main_keyboard(is_admin, lang=get_lang(context)),
+        )
+        return
+
+    if data == "cab_lang":
+        await query.answer()
+        lang = get_lang(context)
+        try:
+            await query.edit_message_text(
+                get_text("lang_prompt", lang),
+                reply_markup=get_language_keyboard(),
+                parse_mode="HTML",
+            )
+        except Exception:
+            await query.message.reply_text(
+                get_text("lang_prompt", lang),
+                reply_markup=get_language_keyboard(),
+                parse_mode="HTML",
+            )
+        return
+
+    if data in ("cab_lang_uz", "cab_lang_ru"):
+        lang = "ru" if data.endswith("_ru") else "uz"
+        await query.answer()
+        await db.run_db(db.set_user_language, user_id, lang)
+        set_lang_cache(context, lang)
+        try:
+            await query.edit_message_text(
+                get_text("lang_changed", lang),
+                reply_markup=get_language_keyboard(),
+                parse_mode="HTML",
+            )
+        except Exception:
+            pass
+        await query.message.reply_text(
+            get_text("lang_changed", lang),
+            reply_markup=get_main_keyboard(is_admin, lang=lang),
+            parse_mode="HTML",
         )
         return
 
@@ -569,23 +619,17 @@ async def cabinet_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if data == "cab_channels":
         await query.answer()
+        lang = get_lang(context)
         channels = await db.run_db(db.get_user_channels, user_id)
         if not channels:
-            text = (
-                "📢 <b>Mening kanallarim:</b>\n\n"
-                "Hozircha hech qanday kanal ulanmagan.\n\n"
-                f"{NO_CHANNELS_HINT}\n\n"
-                "⚠️ <i>Botni kanal/guruhingizga administrator qilib (xabar "
-                "yuborish ruxsati bilan) qo'shing, so'ng pastdagi "
-                "<b>➕ Kanal qo'shish</b> tugmasini bosing.</i>"
-            )
+            text = get_text("my_channels_empty", lang, hint=NO_CHANNELS_HINT)
             markup = get_channels_manage_keyboard()
         else:
-            text = f"📢 <b>Mening kanallarim ({len(channels)} ta):</b>\n\n"
+            text = get_text("my_channels_list", lang, count=len(channels))
             for i, ch in enumerate(channels, 1):
                 ch_id, ch_title = ch[:2]
                 text += f"{i}. <b>{html_escape(ch_title or 'Kanal')}</b> (<code>{ch_id}</code>)\n"
-            text += "\nYangi kanal ulash yoki mavjudini o'chirish uchun 👇"
+            text += get_text("my_channels_footer", lang)
             markup = get_channels_manage_keyboard()
         try:
             await query.edit_message_text(text, reply_markup=markup, parse_mode="HTML")
