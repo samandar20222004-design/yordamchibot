@@ -14,7 +14,10 @@ from telegram import (
 from telegram.error import TelegramError, RetryAfter, TimedOut, NetworkError
 from config import ADMIN_IDS_SET, BOT_USERNAME
 import database as db
-from keyboards.inline import normalize_reaction_emojis, DEFAULT_REACTION_EMOJIS
+from keyboards.inline import (
+    normalize_custom_reaction_emojis,
+    DEFAULT_REACTION_EMOJIS,
+)
 from utils.helpers import (
     get_channel_ad_next_async,
     get_channel_ad_next_full_async,
@@ -115,18 +118,31 @@ def parse_album_items(file_id) -> list:
 
 
 def build_reaction_buttons(post_id: int, enable_reactions: bool, reaction_emojis=None) -> list:
-    """Post ostidagi reaksiya tugmalari qatorini tuzadi.
+    """Post ostidagi reaksiya tugmalari (BITTA QATOR, yassi ro'yxat).
 
-    - ``reaction_emojis`` (DB'dagi saqlangan tanlov) bo'lsa — shu emojilar ishlatiladi.
+    - ``reaction_emojis`` (DB'dagi saqlangan tanlov) bo'lsa — shu emojilar
+      ishlatiladi. Foydalanuvchi QO'LDA kiritgan kanondan tashqari emojilar
+      (😍, 💯, 🙏 ...) ham saqlanib qoladi va kanal postida tugma bo'ladi.
     - Aks holda (eski postlar) standart to'plam (👍 ❤️ 🔥 👏) ishlatiladi.
     - Reaksiya o'chiq bo'lsa yoki emoji topilmasa — bo'sh ro'yxat (tugmasiz).
+
+    Qaytarilgan qiymat — ``InlineKeyboardButton`` larning yassi ro'yxati
+    (bitta qator); chaqiruv nuqtasida ``buttons.append(reactions_row)``
+    bilan ishlatiladi. Telegram bir qatorga 5 tadan ko'p emoji tugmani
+    sig'dira olmasligi mumkin, shuning uchun 5 ta bilan chegaralanadi
+    (qolgan tanlovlar post_enhancer oqimida ko'p qatorli ko'rinishda
+    to'liq chiqadi).
     """
     if not enable_reactions:
         return []
-    emojis = normalize_reaction_emojis(reaction_emojis) or list(DEFAULT_REACTION_EMOJIS)
+    # Avval foydalanuvchi tanlagan emojilar (kanonik + qo'lda kiritilganlar).
+    emojis = normalize_custom_reaction_emojis(reaction_emojis, max_count=5)
+    if not emojis:
+        # Eski postlar (reaction_emojis NULL/buzilgan) — standart to'plam.
+        emojis = list(DEFAULT_REACTION_EMOJIS)
     return [
         InlineKeyboardButton(emoji, callback_data=f"react:{post_id}:{emoji}")
-        for emoji in emojis
+        for emoji in emojis[:5]
     ]
 
 
@@ -268,6 +284,7 @@ async def _execute_send(bot, post):
 
     # Multi-select reaksiyalar: foydalanuvchi tanlagan emojilar ishlatiladi
     # (eski postlarda reaction_emojis NULL bo'lsa — standart to'plam).
+    # Qo'lda kiritilgan kanondan tashqari emojilar ham shu yerda saqlanadi.
     reactions_row = build_reaction_buttons(post_id, enable_reactions, reaction_emojis)
     if reactions_row:
         buttons.append(reactions_row)

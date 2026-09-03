@@ -555,6 +555,12 @@ def normalize_reaction_emojis(value) -> list:
     Kirish: ro'yxat/tuple yoki bo'sh joy bilan ajratilgan satr (DB'dagi ko'rinish).
     Chiqish: REACTION_EMOJIS tartibiga moslangan, takrorlarsiz ro'yxat.
     Noma'lum/bo'm-bo'sh qiymatlar uchun bo'sh ro'yxat qaytadi.
+
+    DIQQAT: Bu funksiya FAQAT tugma bilan taklif qilinadigan kanonik
+    (REACTION_EMOJIS) emojilarni taniydi — toggle klaviatura shu 6 emoji
+    bilan ishlaydi. Foydalanuvchi QO'LDA kiritgan boshqa emojilar
+    (😍, 💯, 🙏 ...) bu yerdan o'tmaydi; ular uchun
+    ``normalize_custom_reaction_emojis`` ishlatiladi.
     """
     if not value:
         return []
@@ -565,6 +571,103 @@ def normalize_reaction_emojis(value) -> list:
     selected = {_strip_vs16(v) for v in raw_items if v and v.strip()}
     # Tanlangan emojilarni doimiy (kanonik) tartibda qaytaramiz
     return [e for e in REACTION_EMOJIS if _strip_vs16(e) in selected]
+
+
+# Foydalanuvchi qo'lda kiritishi mumkin bo'lgan reaksiya emojilari uchun
+# yuqori chegara (Telegram bitta xabarga 100 tagacha inline tugma ruxsat
+# beradi, lekin bir qatorga 8 tadan ko'p emoji sig'dirish noqulay).
+CUSTOM_REACTION_MAX = 10
+
+# Emoji bo'lishi mumkin bo'lmagan belgilar (harflar, raqamlar, tinish).
+_EMOJI_TEXT_CATEGORIES = frozenset(("L", "N", "P", "Z", "C"))
+
+
+def is_emoji_token(token: str) -> bool:
+    """Bitta token haqiqiy emoji ekanini tekshiradi (harf/raqam/tinish emas).
+
+    ZWJ (\\u200d), Variation Selector'lar va skin-tone modifier'lar
+    (Cf/Mn/Sk kategoriyalari) ham ruxsat etiladi — tarkibiy emojilar
+    (masalan 👨‍💻, 👍🏽) ham ishlaydi.
+    """
+    if not token:
+        return False
+    for ch in str(token):
+        cat = unicodedata.category(ch)
+        # Harf, raqam, tinish belgisi, bo'sh joy/boshqaruv — emoji emas
+        if cat and cat[0] in _EMOJI_TEXT_CATEGORIES:
+            return False
+    return True
+
+
+def normalize_custom_reaction_emojis(value, max_count: int = CUSTOM_REACTION_MAX) -> list:
+    """Qo'lda kiritilgan reaksiya emojilarini saqlash uchun normallashtiradi.
+
+    ``normalize_reaction_emojis``'dan farqi: kanonik ro'yxatga kirmaydigan
+    emojilar (😍, 💯, 🙏, ⭐ ...) ham SAQLANIB QOLADI va kanal postida
+    tugma sifatida chiqadi. Foydalanuvchi kiritgan TARTIB saqlanadi
+    (kanonik emojilar boshida, qolganlari kiritish tartibida).
+
+    Kirish: ro'yxat/tuple/set yoki bo'sh joy/vergul bilan ajratilgan satr.
+    Chiqish: takrorlarsiz (Variation Selector hisobga olinmaydi), belgilangan
+    sondan oshmaydigan emoji ro'yxati. Emoji bo'lmagan belgilar tashlanadi.
+    """
+    if not value:
+        return []
+    if isinstance(value, (list, tuple, set)):
+        raw_items = [str(v) for v in value if v]
+    else:
+        import re as _re
+        raw_items = [t for t in _re.split(r"[\s,;|/]+", str(value)) if t]
+
+    result = []
+    seen = set()
+    # 1) Avval kanonik emojilar (doimiy tartibda) — eski xatti-harakat saqlanadi
+    canonical = normalize_reaction_emojis(raw_items)
+    for e in canonical:
+        key = _strip_vs16(e)
+        if key not in seen:
+            seen.add(key)
+            result.append(e)
+    # 2) Qolgan (qo'lda kiritilgan) emojilar — kiritish tartibida
+    for item in raw_items:
+        if len(result) >= max_count:
+            break
+        key = _strip_vs16(item)
+        if not key or key in seen:
+            continue
+        if not is_emoji_token(item):
+            continue
+        seen.add(key)
+        result.append(item)
+    return result[:max_count]
+
+
+def build_reaction_button_rows(post_id: int, emojis: list,
+                               per_row: int = 5, preview: bool = False) -> list:
+    """Reaksiya emoji tugmalarini qatorlarga bo'lib beradi (scheduler/enhancer umumiy).
+
+    - ``preview=True`` bo'lsa callback_data neytral (``enh:noop``) bo'ladi —
+      tugma bosilganda hech narsa sodir bo'lmaydi (faqat ko'rinish).
+    - Aks holda har tugma ``react:{post_id}:{emoji}`` hisoblagich callback'iga
+      ega bo'ladi — bosilganda reaksiya sanaladi.
+    - Emojilar ``per_row`` tadan qatorlarga joylanadi (bitta uzun qator
+      Telegramda sig'masligi mumkin).
+    """
+    rows = []
+    row = []
+    for emoji in (emojis or []):
+        if not emoji:
+            continue
+        if preview or not post_id:
+            row.append(InlineKeyboardButton(emoji, callback_data="enh:noop"))
+        else:
+            row.append(InlineKeyboardButton(emoji, callback_data=f"react:{post_id}:{emoji}"))
+        if len(row) >= per_row:
+            rows.append(row)
+            row = []
+    if row:
+        rows.append(row)
+    return rows
 
 
 def extract_emoji_tokens(text, max_count: int = 10) -> list:
