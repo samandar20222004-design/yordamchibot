@@ -209,38 +209,84 @@ async def _verify_channel_permissions(bot, chat_id, user_id: int, is_admin_user:
     return True, "", real_id, title
 
 
+def _extract_forward_chat_id(msg):
+    """Forward qilingan xabardan manba kanal/chat ID sini xavfsiz ajratadi.
+
+    Bot API 7.0+ / python-telegram-bot 20+ da ``Message.forward_from_chat``
+    olib tashlangan (o'rniga ``forward_origin`` keldi) — eski atributga
+    to'g'ridan-to'g'ri murojaat qilish ``AttributeError`` bilan tugaydi va
+    butun ``ADD_CHANNEL`` holati "qotib" qoladi (foydalanuvchiga javob
+    yubormay handler ichida yiqiladi). Shu sababli ikkala API'ni ham
+    ``getattr`` bilan, xatosiz tekshiramiz.
+    """
+    origin = getattr(msg, "forward_origin", None)
+    if origin is not None:
+        chat = getattr(origin, "chat", None)
+        if chat is not None:
+            return chat.id
+        sender_chat = getattr(origin, "sender_chat", None)
+        if sender_chat is not None:
+            return sender_chat.id
+    # Orqaga moslik: juda eski python-telegram-bot versiyalari uchun.
+    legacy_chat = getattr(msg, "forward_from_chat", None)
+    if legacy_chat is not None:
+        return legacy_chat.id
+    return None
+
+
 async def channel_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Kanal manba xabari: forward, @username, t.me/havola yoki ID."""
+    """Kanal manba xabari: forward, @username, t.me/havola yoki ID.
+
+    HARDENING: butun tanasi try/except bilan o'ralgan — kutilmagan xatolik
+    (masalan, Telegram API'dagi kelajakdagi o'zgarish) botni "qotirmasligi",
+    balki foydalanuvchiga tushunarli xabar bilan qayta urinishni taklif
+    qilishi kerak (jim qolib ketish — eng yomon UX).
+    """
     msg = update.effective_message
-    raw_target = None
-    if msg.forward_from_chat:
-        raw_target = msg.forward_from_chat.id
-    elif msg.text:
-        target, err = parse_channel_target(msg.text)
-        if err:
+    try:
+        raw_target = None
+        forward_chat_id = _extract_forward_chat_id(msg)
+        if forward_chat_id is not None:
+            raw_target = forward_chat_id
+        elif msg.text:
+            target, err = parse_channel_target(msg.text)
+            if err:
+                await msg.reply_text(
+                    err, reply_markup=get_cancel_keyboard(), parse_mode="HTML",
+                )
+                return ADD_CHANNEL
+            if target is None:
+                await msg.reply_text(
+                    "❌ Kanal ma'lumotlari aniqlanmadi. Iltimos, kanaldan xabarni "
+                    "<b>forward</b> qiling yoki <code>@username</code>, "
+                    "<code>t.me/kanal_nomi</code> havolasi, ID raqamini "
+                    "(masalan: <code>-1001234567890</code>) yuboring.",
+                    reply_markup=get_cancel_keyboard(),
+                    parse_mode="HTML",
+                )
+                return ADD_CHANNEL
+            raw_target = target
+        else:
             await msg.reply_text(
-                err, reply_markup=get_cancel_keyboard(), parse_mode="HTML",
+                "❌ Kanal ma'lumotlari aniqlanmadi. Iltimos, kanaldan xabarni forward qiling:",
+                reply_markup=get_cancel_keyboard(),
             )
             return ADD_CHANNEL
-        if target is None:
+
+        return await _link_channel(update, context, raw_target)
+    except Exception:
+        logger.exception("channel_received: kutilmagan xatolik — foydalanuvchi qayta urinishga yo'naltirilmoqda")
+        try:
             await msg.reply_text(
-                "❌ Kanal ma'lumotlari aniqlanmadi. Iltimos, kanaldan xabarni "
-                "<b>forward</b> qiling yoki <code>@username</code>, "
-                "<code>t.me/kanal_nomi</code> havolasi, ID raqamini "
-                "(masalan: <code>-1001234567890</code>) yuboring.",
+                "⚠️ <b>Kutilmagan xatolik yuz berdi.</b>\n\n"
+                "Iltimos, kanalni qaytadan forward qiling yoki "
+                "<code>@username</code> / <code>t.me/kanal</code> havolasini yuboring.",
                 reply_markup=get_cancel_keyboard(),
                 parse_mode="HTML",
             )
-            return ADD_CHANNEL
-        raw_target = target
-    else:
-        await msg.reply_text(
-            "❌ Kanal ma'lumotlari aniqlanmadi. Iltimos, kanaldan xabarni forward qiling:",
-            reply_markup=get_cancel_keyboard(),
-        )
+        except Exception:
+            pass
         return ADD_CHANNEL
-
-    return await _link_channel(update, context, raw_target)
 
 
 async def add_channel_retry(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -310,15 +356,30 @@ async def _link_channel(update: Update, context: ContextTypes.DEFAULT_TYPE, raw_
         # kanal ulash yoki uslub/o'chirish ham mumkin.
         channels = await db.run_db(db.get_user_channels, user_id)
         list_markup = render_channels_list(channels) if channels else None
+        # HARDENING: python-telegram-bot'ning Message.reply_text() metodi
+        # "inline_keyboard" kalit-argumentini QABUL QILMAYDI (faqat bitta
+        # reply_markup bo'ladi — u reply yoki inline klaviatura). Avval shu
+        # yerda noto'g'ri kwarg TypeError bilan yiqilib, foydalanuvchiga
+        # "✅ ulandi" xabari HECH QACHON yetib bormas edi (bot "qotib"
+        # qolganday ko'rinardi). Endi ikkita alohida xabar yuboriladi:
+        # 1) reply-klaviatura bilan tasdiq, 2) inline ro'yxat (agar bo'lsa).
         await msg.reply_text(
             "✅ <b>Kanal muvaffaqiyatli ulandi!</b>\n\n"
             f"📢 Nomi: <b>{html_escape(channel_title)}</b>\n"
             f"🆔 ID: <code>{channel_id}</code>\n\n"
             f"📋 <b>Sizning kanallaringiz ({len(channels or [])} ta):</b>",
             reply_markup=get_main_keyboard(is_admin),
-            inline_keyboard=list_markup,
             parse_mode="HTML",
         )
+        if list_markup:
+            try:
+                await msg.reply_text(
+                    "Kanalni o'chirish yoki uslubini o'zgartirish uchun 👇",
+                    reply_markup=list_markup,
+                    parse_mode="HTML",
+                )
+            except TelegramError:
+                pass
 
         # Referal PRO mukofotini tekshirish (taklif qilgan foydalanuvchiga)
         referrer_row = await db.run_db(
@@ -402,17 +463,48 @@ async def remove_channel_callback(update: Update, context: ContextTypes.DEFAULT_
 
 
 async def on_bot_chat_member_update(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Avtomatik aniqlash (Auto-detect): botni kanal/guruhga admin qilib
+    qo'shish/olib tashlashni ``my_chat_member`` orqali kuzatadi.
+
+    Foydalanuvchi botni o'z kanaliga ADMIN qilib qo'shishi bilan (xabar
+    yuborish — ``can_post_messages`` — huquqi bilan) bot buni darhol
+    aniqlaydi va kanal egasiga shaxsiy chatda tabrik xabarini yuboradi —
+    forward/username yuborishga hojat qolmaydi.
+    """
     result = update.my_chat_member
     if not result:
         return
     chat = result.chat
-    new_status = result.new_chat_member.status
+    new_member = result.new_chat_member
+    new_status = new_member.status
     user_id = result.from_user.id
 
     if chat.type not in ("channel", "supergroup", "group"):
         return
 
     if new_status in ("administrator", "creator"):
+        # Kanallarda xabar yuborish uchun aniq ruxsat (can_post_messages)
+        # shart — ``result.new_chat_member`` allaqachon ``get_chat_member``
+        # bilan bir xil ma'lumotni o'z ichiga oladi (Telegram shu update'da
+        # yuboradi), shuning uchun qo'shimcha API chaqiruvisiz tekshiramiz.
+        if chat.type == "channel" and new_status == "administrator":
+            if not getattr(new_member, "can_post_messages", False):
+                try:
+                    await context.bot.send_message(
+                        chat_id=user_id,
+                        text=(
+                            "⚠️ <b>Bot administrator qilindi, lekin xabar yuborish "
+                            "ruxsati (Post Messages) berilmagan!</b>\n\n"
+                            f"📢 Kanal: <b>{html_escape(chat.title or 'Kanal')}</b>\n\n"
+                            "Iltimos, kanal sozlamalarida botga <b>Post Messages</b> "
+                            "huquqini yoqing — shundan so'ng kanal avtomatik ulanadi."
+                        ),
+                        parse_mode="HTML",
+                    )
+                except TelegramError:
+                    pass
+                return
+
         is_admin = (user_id in ADMIN_IDS_SET)
         # Avtomatik ulashda ham tarif limiti tekshiriladi — free foydalanuvchi
         # maksimal kanal sonidan oshsa, kanal ulab bo'lmaydi.
@@ -437,8 +529,10 @@ async def on_bot_chat_member_update(update: Update, context: ContextTypes.DEFAUL
                 await context.bot.send_message(
                     chat_id=user_id,
                     text=(
-                        f"✅ <b>Kanal avtomatik ulandi:</b> {html_escape(chat.title or 'Kanal')}\n"
-                        f"🆔 <code>{chat.id}</code>"
+                        f"🎉 <b>Siz botni {html_escape(chat.title or 'Kanal')} kanaliga "
+                        f"admin qildingiz va kanal ulandi!</b>\n\n"
+                        f"🆔 <code>{chat.id}</code>\n\n"
+                        "Endi ushbu kanalga postlarni rejalashtirishingiz mumkin 👇"
                     ),
                     parse_mode="HTML",
                 )

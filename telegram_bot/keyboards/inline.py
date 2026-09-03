@@ -164,23 +164,26 @@ def get_hub_back_keyboard() -> InlineKeyboardMarkup:
 
 
 def get_admin_dashboard_keyboard() -> InlineKeyboardMarkup:
-    """Admin panel inline keyboard — dashboard tugmalari layout.
+    """Admin panel inline keyboard — ixchamlashtirilgan dashboard layout.
 
-    Reklama bilan bog'liq BARCHA boshqaruv endi bitta tugada —
-    "🎯 Reklama markazi" (``adm_adhub``) hub menyuga olib kiradi.
+    Faqat 6 ta asosiy tugma + Yopish qoladi:
+        [📊 To'liq statistika]      [📢 Ommaviy xabar]
+        [🎯 Reklama markazi]         [📋 Kanallar ro'yxati]
+        [🎁 Promo-kod yaratish]     [⭐ PRO obuna berish]
+        [❌ Yopish]
+
+    "🛠 Tizim sozlamalari" panel dan butunlay olib tashlangan, "📢 Majburiy
+    obuna" esa endi mustaqil tugma emas — "🎯 Reklama markazi" (``adm_adhub``)
+    hub ichidagi 1-bo'lim sifatida ko'rsatiladi (``_ad_hub_render``).
     """
     keyboard = [
         [
             InlineKeyboardButton("📊 To'liq statistika", callback_data="adm_stats"),
-            InlineKeyboardButton("📣 Ommaviy xabar (Broadcast)", callback_data="adm_broadcast"),
+            InlineKeyboardButton("📢 Ommaviy xabar", callback_data="adm_broadcast"),
         ],
         [
-            InlineKeyboardButton("📢 Majburiy obuna", callback_data="adm_sponsors"),
             InlineKeyboardButton("🎯 Reklama markazi", callback_data="adm_adhub"),
-        ],
-        [
             InlineKeyboardButton("📋 Kanallar ro'yxati", callback_data="adm_channels"),
-            InlineKeyboardButton("🛠 Tizim sozlamalari", callback_data="adm_settings"),
         ],
         [
             InlineKeyboardButton("🎁 Promo-kod yaratish", callback_data="adm_promo"),

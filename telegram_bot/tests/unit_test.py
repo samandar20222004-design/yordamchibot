@@ -18,6 +18,7 @@ sys.path.insert(0, str(ROOT))
 
 from datetime import datetime, timedelta
 import pytz
+from telegram.error import TelegramError
 
 failures = 0
 passed = 0
@@ -3310,38 +3311,48 @@ def test_auto_ad_injector_suite():
 
 
 def test_admin_dashboard_layout_suite():
-    """Admin dashboard to'liq 9-tugmali layout testi."""
-    print("== Admin Dashboard Layout (9 ta tugma) ==")
+    """Admin dashboard ixchamlashtirilgan 6-tugmali layout testi.
+
+    Talab: faqat 6 ta asosiy tugma + Yopish qoladi. "🛠 Tizim sozlamalari"
+    panelda BUTUNLAY yo'q, "📢 Majburiy obuna" mustaqil tugma sifatida
+    yo'q — u endi "🎯 Reklama markazi" hub ichida.
+    """
+    print("== Admin Dashboard Layout (ixcham, 6 ta tugma) ==")
     from keyboards.inline import get_admin_dashboard_keyboard
 
     kb = get_admin_dashboard_keyboard()
     rows = kb.inline_keyboard
-    check("dashboard qatorlar soni = 5", len(rows) == 5, str(len(rows)))
+    check("dashboard qatorlar soni = 4", len(rows) == 4, str(len(rows)))
 
-    # Qator 1: Statistika & Broadcast
+    # Qator 1: To'liq statistika & Ommaviy xabar
     check("row 0 btn 0: adm_stats", rows[0][0].callback_data == "adm_stats")
     check("row 0 btn 1: adm_broadcast", rows[0][1].callback_data == "adm_broadcast")
 
-    # Qator 2: Majburiy obuna & Reklama markazi (birlashtirilgan hub)
-    check("row 1 btn 0: adm_sponsors", rows[1][0].callback_data == "adm_sponsors")
-    check("row 1 btn 1: adm_adhub", rows[1][1].callback_data == "adm_adhub")
+    # Qator 2: Reklama markazi & Kanallar ro'yxati
+    check("row 1 btn 0: adm_adhub", rows[1][0].callback_data == "adm_adhub")
+    check("row 1 btn 1: adm_channels", rows[1][1].callback_data == "adm_channels")
 
-    # Qator 3: Kanallar ro'yxati & Tizim sozlamalari
-    check("row 2 btn 0: adm_channels", rows[2][0].callback_data == "adm_channels")
-    check("row 2 btn 1: adm_settings", rows[2][1].callback_data == "adm_settings")
+    # Qator 3: Promo & PRO
+    check("row 2 btn 0: adm_promo", rows[2][0].callback_data == "adm_promo")
+    check("row 2 btn 1: adm_grant_pro", rows[2][1].callback_data == "adm_grant_pro")
 
-    # Qator 4: Promo & PRO
-    check("row 3 btn 0: adm_promo", rows[3][0].callback_data == "adm_promo")
-    check("row 3 btn 1: adm_grant_pro", rows[3][1].callback_data == "adm_grant_pro")
+    # Qator 4: Yopish
+    check("row 3 btn 0: close_msg", rows[3][0].callback_data == "close_msg")
 
-    # Qator 5: Yopish
-    check("row 4 btn 0: close_msg", rows[4][0].callback_data == "close_msg")
+    cbs = [b.callback_data for row in rows for b in row]
+    check("faqat 6 ta amaliy tugma + yopish", len(cbs) == 7, str(cbs))
+    check("adm_sponsors mustaqil tugma sifatida yo'q", "adm_sponsors" not in cbs, str(cbs))
+    check("adm_settings (Tizim sozlamalari) butunlay yo'q", "adm_settings" not in cbs, str(cbs))
 
     labels = [b.text for row in rows for b in row]
     check("label: To'liq statistika", any("statistika" in t.lower() for t in labels))
-    check("label: Broadcast", any("broadcast" in t.lower() or "ommaviy" in t.lower() for t in labels))
-    check("label: Majburiy obuna", any("majburiy obuna" in t.lower() for t in labels))
+    check("label: Ommaviy xabar", any("ommaviy" in t.lower() for t in labels))
+    check("label: Majburiy obuna mustaqil tugma sifatida yo'q",
+          not any("majburiy obuna" in t.lower() for t in labels), str(labels))
+    check("label: Tizim sozlamalari yo'q",
+          not any("tizim sozlamalari" in t.lower() for t in labels), str(labels))
     check("label: Reklama markazi", any("reklama markazi" in t.lower() for t in labels), str(labels))
+    check("label: Kanallar ro'yxati", any("kanallar ro'yxati" in t.lower() for t in labels), str(labels))
     check("label: Promo-kod", any("promo" in t.lower() for t in labels))
     check("label: PRO obuna", any("pro" in t.lower() for t in labels))
     check("label: Yopish", any("yopish" in t.lower() for t in labels))
@@ -4682,7 +4693,7 @@ def test_admin_fsm_states_and_cancel():
             check(f"{data}: Bekor qilish tugmasi bor", "adm_cancel" in cbs, str(cbs))
 
         # Ma'lumot ekranlari FSM'ni ochmaydi
-        for data in ("adm_stats", "adm_channels", "adm_settings", "adm_sponsors",
+        for data in ("adm_stats", "adm_channels", "adm_sponsors",
                      "adm_adhub", "adm_auto_ad"):
             ctx = _make_admin_ctx()
             q = _AdQuery(data)
@@ -4749,20 +4760,18 @@ def test_admin_fsm_states_and_cancel():
         finally:
             db_mod.run_db = fake_run_db
 
-        # Kanallar ro'yxati va tizim sozlamalari mazmuni
+        # Kanallar ro'yxati mazmuni
         ctx = _make_admin_ctx()
         q = _AdQuery("adm_channels")
         asyncio.run(admin.admin_dashboard_callback(type("U", (), {"callback_query": q})(), ctx))
         check("kanallar ro'yxati o'qildi", "Kanal" in q.edits[-1][0], q.edits[-1][0][:80])
 
+        # "🛠 Tizim sozlamalari" (adm_settings) butunlay olib tashlangan —
+        # bosilsa ham FSM ochilmaydi va admin panel/hub ga qaytariladi.
         ctx = _make_admin_ctx()
         q = _AdQuery("adm_settings")
-        asyncio.run(admin.admin_dashboard_callback(type("U", (), {"callback_query": q})(), ctx))
-        body = q.edits[-1][0]
-        check("sozlamalar: system_settings ko'rsatildi", "system_settings" in body, body[:120])
-        check("sozlamalar: post_tag_text qiymati", "@bot" in body)
-        check("sozlamalar: kanal oralig'i", "har 3-post" in body, body)
-        check("sozlamalar: sanagichlar ko'rsatildi", "9" in body and "Kanal" in body)
+        got = asyncio.run(admin.admin_dashboard_callback(type("U", (), {"callback_query": q})(), ctx))
+        check("adm_settings endi noma'lum callback (END)", got == ConversationHandler.END)
 
         # ❌ Bekor qilish: FSM to'liq tozalanadi
         ctx = _make_admin_ctx()
@@ -5229,7 +5238,9 @@ def test_add_channel_flow_suite():
     ch_src = (root / "handlers" / "channels.py").read_text(encoding="utf-8")
     check("yagona oqim funksiyasi bor", "async def _link_channel(" in ch_src)
     check("retry handler bor", "async def add_channel_retry(" in ch_src)
-    check("omadda kanallar ro'yxati ko'rsatiladi", "inline_keyboard=list_markup" in ch_src)
+    check("omadda kanallar ro'yxati ko'rsatiladi", "reply_markup=list_markup" in ch_src)
+    check("reply_text ga noto'g'ri 'inline_keyboard' kwarg yuborilmaydi",
+          "inline_keyboard=list_markup" not in ch_src)
     check("xatoda manzil saqlanadi (retry uchun)", 'user_data["add_channel_pending"]' in ch_src)
 
     init_src = (root / "handlers" / "__init__.py").read_text(encoding="utf-8")
@@ -5330,6 +5341,338 @@ def test_channel_posts_history_suite():
     cr_src = (root / "utils" / "channel_reader.py").read_text(encoding="utf-8")
     check("channel_reader.py: get_channel_posts_history dan foydalanadi",
           "get_channel_posts_history" in cr_src)
+
+
+def test_channel_add_autodetect_no_hang_suite():
+    """➕ Kanal qo'shish: forward/link/@username avto-aniqlash — bot 'qotib' qolmasligi."""
+    print("== Kanal qo'shish: avto-aniqlash (forward/link/@username) va no-hang ==")
+    import asyncio
+    import database as db_mod
+    from handlers.channels import (
+        _extract_forward_chat_id, channel_received, ADD_CHANNEL,
+    )
+
+    # 1) _extract_forward_chat_id: forward_origin (yangi API) ustuvor
+    class _OriginChat:
+        def __init__(self, cid):
+            self.id = cid
+
+    class _OriginWithChat:
+        def __init__(self, cid):
+            self.chat = _OriginChat(cid)
+
+    class _OriginWithSenderChat:
+        def __init__(self, cid):
+            self.chat = None
+            self.sender_chat = _OriginChat(cid)
+
+    class _MsgWithOrigin:
+        def __init__(self, origin):
+            self.forward_origin = origin
+
+    check("forward_origin.chat dan ID olinadi",
+          _extract_forward_chat_id(_MsgWithOrigin(_OriginWithChat(-1009876543210))) == -1009876543210)
+    check("forward_origin.sender_chat dan ID olinadi (fallback)",
+          _extract_forward_chat_id(_MsgWithOrigin(_OriginWithSenderChat(-1001112223334))) == -1001112223334)
+
+    class _MsgNoOrigin:
+        pass
+
+    check("forward ma'lumoti yo'q -> None (AttributeError emas)",
+          _extract_forward_chat_id(_MsgNoOrigin()) is None)
+
+    class _MsgLegacyForward:
+        forward_origin = None
+        forward_from_chat = _OriginChat(-1005556667778)
+
+    check("eski forward_from_chat bilan ham ishlaydi (orqaga moslik)",
+          _extract_forward_chat_id(_MsgLegacyForward()) == -1005556667778)
+
+    # 2) channel_received: forward/username/link/ID — hech biri hang qilmaydi,
+    #    doim biror javob (reply_text) qaytaradi va ADD_CHANNEL yoki END bilan tugaydi.
+    class _FakeChat:
+        def __init__(self, cid, title="Test Kanal", ctype="channel"):
+            self.id = cid
+            self.title = title
+            self.type = ctype
+
+    class _FakeMember:
+        def __init__(self, status, can_post=True):
+            self.status = status
+            self.can_post_messages = can_post
+
+    class _FakeBotAPI:
+        def __init__(self, chat, bot_member, user_member=None, bot_id=999):
+            self.id = bot_id
+            self._chat = chat
+            self._bot_member = bot_member
+            self._user_member = user_member or bot_member
+
+        async def get_chat(self, chat_id):
+            return self._chat
+
+        async def get_chat_member(self, chat_id, uid):
+            if uid == self.id:
+                return self._bot_member
+            return self._user_member
+
+        async def get_me(self):
+            class _Me:
+                username = "test_bot"
+            return _Me()
+
+    class _FakeUpdMsg:
+        def __init__(self, text=None, forward_origin=None):
+            self.text = text
+            self.forward_origin = forward_origin
+            self.replies = []
+
+        async def reply_text(self, text, reply_markup=None, parse_mode=None, **kw):
+            self.replies.append(text)
+            return _FakeMsg(2)
+
+    class _FakeUser:
+        id = 555
+
+    class _FakeUpdate:
+        def __init__(self, msg, user_id=555):
+            self.effective_message = msg
+            self.effective_user = _FakeUser()
+            self.effective_user.id = user_id
+
+    orig_run_db = db_mod.run_db
+
+    async def _run_db_ok(func, *args, **kwargs):
+        name = getattr(func, "__name__", "")
+        if name == "check_channel_limit":
+            return (True, 0, 3)
+        if name == "save_channel":
+            return (True, None)
+        if name == "get_user_channels":
+            return [("-1009876543210", "Test Kanal")]
+        return None
+
+    async def run_all():
+        results = []
+        for label, msg in (
+            ("forward", _FakeUpdMsg(forward_origin=_OriginWithChat(-1009876543210))),
+            ("@username", _FakeUpdMsg(text="@mychannel")),
+            ("t.me link", _FakeUpdMsg(text="https://t.me/mychannel")),
+            ("raqamli ID", _FakeUpdMsg(text="-1001234567890")),
+        ):
+            bot_member = _FakeMember("administrator", can_post=True)
+            bot_api = _FakeBotAPI(_FakeChat(-1009876543210), bot_member)
+            ctx = _FakeCtx(bot_api, {})
+            upd = _FakeUpdate(msg)
+            db_mod.run_db = _run_db_ok
+            try:
+                state = await asyncio.wait_for(channel_received(upd, ctx), timeout=5)
+            except asyncio.TimeoutError:
+                state = "TIMEOUT"
+            results.append((label, state, list(msg.replies)))
+        return results
+
+    try:
+        results = asyncio.run(run_all())
+    finally:
+        db_mod.run_db = orig_run_db
+
+    for label, state, replies in results:
+        check(f"{label}: hang bo'lmaydi (timeout emas)", state != "TIMEOUT", str(state))
+        check(f"{label}: foydalanuvchiga javob yuboriladi", len(replies) >= 1, str(replies))
+
+    # Muvaffaqiyatli ulanishda aniq matn: "✅ Kanal muvaffaqiyatli ulandi!"
+    fwd_replies = [r for (l, s, r) in results if l == "forward"][0]
+    check("forward: '✅ Kanal muvaffaqiyatli ulandi!' xabari",
+          any("Kanal muvaffaqiyatli ulandi" in r for r in fwd_replies), str(fwd_replies))
+
+    # 3) Admin bo'lmagan holatda aniq ogohlantirish (can_post_messages=False)
+    async def run_not_admin_capable():
+        bot_member = _FakeMember("administrator", can_post=False)
+        bot_api = _FakeBotAPI(_FakeChat(-1009876543210), bot_member)
+        ctx = _FakeCtx(bot_api, {})
+        msg = _FakeUpdMsg(forward_origin=_OriginWithChat(-1009876543210))
+        upd = _FakeUpdate(msg)
+        state = await channel_received(upd, ctx)
+        return state, list(msg.replies)
+
+    db_mod.run_db = _run_db_ok
+    try:
+        state, replies = asyncio.run(run_not_admin_capable())
+    finally:
+        db_mod.run_db = orig_run_db
+    check("can_post_messages yo'q bo'lsa ADD_CHANNEL holatida qoladi (qayta urinish)",
+          state == ADD_CHANNEL, str(state))
+    check("can_post_messages yo'q bo'lsa ogohlantirish beriladi",
+          replies and "xabar yuborish ruxsati" in replies[0], str(replies))
+
+    # 4) Bot hali kanalga qo'shilmagan holatda ham xatosiz javob beriladi
+    class _FakeBotAPIError:
+        id = 999
+
+        async def get_chat(self, chat_id):
+            raise TelegramError("chat not found")
+
+        async def get_me(self):
+            class _Me:
+                username = "test_bot"
+            return _Me()
+
+    async def run_error():
+        ctx = _FakeCtx(_FakeBotAPIError(), {})
+        msg = _FakeUpdMsg(text="@nosuchchannel")
+        upd = _FakeUpdate(msg)
+        state = await asyncio.wait_for(channel_received(upd, ctx), timeout=5)
+        return state, list(msg.replies)
+
+    db_mod.run_db = _run_db_ok
+    try:
+        state, replies = asyncio.run(run_error())
+    finally:
+        db_mod.run_db = orig_run_db
+    check("kanal topilmasa ham hang bo'lmaydi, ADD_CHANNEL bilan javob qaytadi",
+          state == ADD_CHANNEL, str(state))
+    check("kanal topilmasa foydalanuvchiga xabar boradi", len(replies) >= 1, str(replies))
+
+
+def test_my_chat_member_autoconnect_suite():
+    """🎉 my_chat_member orqali avtomatik ulash — DM matni va can_post_messages tekshiruvi."""
+    print("== my_chat_member avto-ulash (ChatMemberHandler) ==")
+    import asyncio
+    from pathlib import Path
+    import database as db_mod
+    from handlers.channels import on_bot_chat_member_update
+
+    root = Path(__file__).resolve().parent.parent
+    ch_src = (root / "handlers" / "channels.py").read_text(encoding="utf-8")
+    check("on_bot_chat_member_update funksiyasi mavjud",
+          "async def on_bot_chat_member_update(" in ch_src)
+
+    init_src = (root / "handlers" / "__init__.py").read_text(encoding="utf-8")
+    check("handlers/__init__.py: ChatMemberHandler ro'yxatga olingan",
+          "ChatMemberHandler" in init_src and "on_bot_chat_member_update" in init_src)
+
+    class _FakeChat:
+        def __init__(self, cid, title, ctype="channel"):
+            self.id = cid
+            self.title = title
+            self.type = ctype
+
+    class _FakeUser:
+        def __init__(self, uid):
+            self.id = uid
+
+    class _FakeMember:
+        def __init__(self, status, can_post=True):
+            self.status = status
+            self.can_post_messages = can_post
+
+    class _FakeMyChatMember:
+        def __init__(self, chat, new_member, from_user):
+            self.chat = chat
+            self.new_chat_member = new_member
+            self.from_user = from_user
+
+    class _FakeBotAPI:
+        def __init__(self):
+            self.calls = []
+
+        async def send_message(self, chat_id, text, reply_markup=None, parse_mode=None, **kw):
+            self.calls.append((chat_id, text))
+            return _FakeMsg(1)
+
+    class _FakeUpdate:
+        def __init__(self, my_chat_member):
+            self.my_chat_member = my_chat_member
+
+    orig_run_db = db_mod.run_db
+
+    async def _run_db_ok(func, *args, **kwargs):
+        name = getattr(func, "__name__", "")
+        if name == "check_channel_limit":
+            return (True, 0, 3)
+        if name == "save_channel":
+            return (True, None)
+        return None
+
+    # 1) Bot admin + can_post_messages=True -> DM yuboriladi, muvaffaqiyat matni to'g'ri
+    async def run_success():
+        bot = _FakeBotAPI()
+        ctx = _FakeCtx(bot, {})
+        chat = _FakeChat(-1007778889990, "Mening Ajoyib Kanalim")
+        member = _FakeMember("administrator", can_post=True)
+        mcm = _FakeMyChatMember(chat, member, _FakeUser(777))
+        upd = _FakeUpdate(mcm)
+        await on_bot_chat_member_update(upd, ctx)
+        return bot.calls
+
+    db_mod.run_db = _run_db_ok
+    try:
+        calls = asyncio.run(run_success())
+    finally:
+        db_mod.run_db = orig_run_db
+
+    check("my_chat_member (admin+can_post): DM yuboriladi", len(calls) == 1, str(calls))
+    if calls:
+        dm_chat_id, dm_text = calls[0]
+        check("DM kanal egasiga (from_user.id) yuboriladi", dm_chat_id == 777, str(dm_chat_id))
+        check("DM matni: 'Siz botni ... kanaliga admin qildingiz va kanal ulandi!'",
+              "Siz botni Mening Ajoyib Kanalim kanaliga admin qildingiz va kanal ulandi!" in dm_text,
+              dm_text)
+
+    # 2) Bot admin lekin can_post_messages=False -> ogohlantirish, save_channel chaqirilmaydi
+    saved_calls = []
+
+    async def _run_db_track(func, *args, **kwargs):
+        name = getattr(func, "__name__", "")
+        saved_calls.append(name)
+        if name == "check_channel_limit":
+            return (True, 0, 3)
+        if name == "save_channel":
+            return (True, None)
+        return None
+
+    async def run_no_post_perm():
+        bot = _FakeBotAPI()
+        ctx = _FakeCtx(bot, {})
+        chat = _FakeChat(-1007778889991, "Ikkinchi Kanal")
+        member = _FakeMember("administrator", can_post=False)
+        mcm = _FakeMyChatMember(chat, member, _FakeUser(778))
+        upd = _FakeUpdate(mcm)
+        await on_bot_chat_member_update(upd, ctx)
+        return bot.calls
+
+    db_mod.run_db = _run_db_track
+    try:
+        calls2 = asyncio.run(run_no_post_perm())
+    finally:
+        db_mod.run_db = orig_run_db
+
+    check("can_post_messages=False bo'lsa ogohlantirish yuboriladi", len(calls2) == 1, str(calls2))
+    if calls2:
+        check("ogohlantirish matnida 'Post Messages' eslatiladi",
+              "Post Messages" in calls2[0][1], calls2[0][1])
+    check("can_post_messages=False bo'lsa save_channel chaqirilmaydi",
+          "save_channel" not in saved_calls, str(saved_calls))
+
+    # 3) Guruh (channel emas) uchun can_post_messages tekshiruvi shart emas — to'g'ridan-to'g'ri ulanadi
+    async def run_group_admin():
+        bot = _FakeBotAPI()
+        ctx = _FakeCtx(bot, {})
+        chat = _FakeChat(-1007778889992, "Test Guruh", ctype="supergroup")
+        member = _FakeMember("administrator", can_post=False)  # guruhda bu maydon relevant emas
+        mcm = _FakeMyChatMember(chat, member, _FakeUser(779))
+        upd = _FakeUpdate(mcm)
+        await on_bot_chat_member_update(upd, ctx)
+        return bot.calls
+
+    db_mod.run_db = _run_db_ok
+    try:
+        calls3 = asyncio.run(run_group_admin())
+    finally:
+        db_mod.run_db = orig_run_db
+    check("supergroup: DM baribir yuboriladi (can_post_messages faqat channel uchun tekshiriladi)",
+          len(calls3) == 1, str(calls3))
 
 
 def main():
@@ -5453,6 +5796,8 @@ def main():
     test_five_fixes_suite()
     test_add_channel_flow_suite()
     test_channel_posts_history_suite()
+    test_channel_add_autodetect_no_hang_suite()
+    test_my_chat_member_autoconnect_suite()
 
     print(f"\nO'tdi: {passed}, Xato: {failures}")
     if failures:
