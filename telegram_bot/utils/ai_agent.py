@@ -1354,13 +1354,14 @@ _CONTENT_PLAN_SYSTEM = (
 )
 
 
-async def generate_content_plan(topic: str, channel_title: str, tone: str = "friendly") -> dict:
+async def generate_content_plan(topic: str, channel_title: str, tone: str = "friendly", recent_posts: list = None) -> dict:
     """7 kunlik kontent-reja generatsiya qiladi.
 
     Args:
         topic: kanal mavzusi (masalan: "Ingliz tili noldan")
         channel_title: kanal nomi
         tone: kanal uslubi
+        recent_posts: kanalning oxirgi postlari tarixi (kontekst uchun)
 
     Returns:
         {"plan": [...]} yoki {"error": "..."}
@@ -1371,9 +1372,13 @@ async def generate_content_plan(topic: str, channel_title: str, tone: str = "fri
     system_instruction = _inject_tone(_CONTENT_PLAN_SYSTEM, tone)
     prompt = (
         f"Kanal nomi: {channel_title}\n"
-        f"Mavzu: {topic}\n\n"
-        f"7 kunlik kontent-reja tuzing."
+        f"Mavzu: {topic}\n"
     )
+    if recent_posts:
+        posts_context = "\n".join(f"- {p[:150]}" for p in recent_posts[:3] if p)
+        if posts_context:
+            prompt += f"\nKanalning so'nggi postlari (kontekst va uslub uchun):\n{posts_context}\n"
+    prompt += "\n7 kunlik kontent-reja tuzing."
 
     try:
         result = await _run_ai_chain(prompt, system_instruction)

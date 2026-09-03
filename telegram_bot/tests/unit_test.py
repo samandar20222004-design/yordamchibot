@@ -5238,6 +5238,100 @@ def test_add_channel_flow_suite():
     check("retry import qilingan", "add_channel_retry," in init_src)
 
 
+def test_channel_posts_history_suite():
+    """Real-time kanal postlari tarixi, handler, DB va AI/analitika integratsiyasi."""
+    print("== Real-time kanal postlari tarixi va AI tahlil ==")
+    from pathlib import Path
+    import asyncio
+    import database as db_mod
+    from handlers.channels import on_channel_post
+    from utils.channel_reader import fetch_latest_channel_posts
+
+    # 1. DB funksiyalari mavjudligi
+    check("db.save_channel_post_history mavjud", hasattr(db_mod, "save_channel_post_history"))
+    check("db.save_channel_post_history callable", callable(db_mod.save_channel_post_history))
+    check("db.get_channel_posts_history mavjud", hasattr(db_mod, "get_channel_posts_history"))
+    check("db.get_channel_posts_history callable", callable(db_mod.get_channel_posts_history))
+    check("db.is_channel_connected mavjud", hasattr(db_mod, "is_channel_connected"))
+    check("db.is_channel_connected callable", callable(db_mod.is_channel_connected))
+    check("db.get_channel_posts_history_stats mavjud", hasattr(db_mod, "get_channel_posts_history_stats"))
+    check("db.get_channel_posts_history_stats callable", callable(db_mod.get_channel_posts_history_stats))
+
+    # 2. Xavfsiz xatolik/chegara holatlari
+    check("save: bo'sh channel_id -> -1", db_mod.save_channel_post_history("") == -1)
+    check("save: None channel_id -> -1", db_mod.save_channel_post_history(None) == -1)
+    check("get: bo'sh channel_id -> []", db_mod.get_channel_posts_history("") == [])
+    check("get: None channel_id -> []", db_mod.get_channel_posts_history(None) == [])
+    check("is_connected: bo'sh -> False", db_mod.is_channel_connected("") is False)
+    check("is_connected: None -> False", db_mod.is_channel_connected(None) is False)
+
+    # 3. Stats tuzilishi
+    stats = db_mod.get_channel_posts_history_stats("test_nonexistent")
+    check("stats: history_count bor", "history_count" in stats)
+    check("stats: total_views bor", "total_views" in stats)
+    check("stats: avg_views bor", "avg_views" in stats)
+
+    # 4. Handler mavjudligi va asinxronligi
+    check("on_channel_post callable", callable(on_channel_post))
+    check("on_channel_post coroutine", asyncio.iscoroutinefunction(on_channel_post))
+
+    # 5. Handler mock update bilan ishlashi
+    class _MockChat:
+        id = -1001999999999
+        title = "Test Realtime Channel"
+        type = "channel"
+
+    class _MockChannelMsg:
+        chat = _MockChat()
+        message_id = 12345
+        text = "Real-time AI post content"
+        caption = None
+        views = 42
+        date = datetime.now(pytz.UTC)
+        photo = None
+        video = None
+        document = None
+        audio = None
+        animation = None
+
+    class _MockUpdate:
+        channel_post = _MockChannelMsg()
+        edited_channel_post = None
+        effective_message = _MockChannelMsg()
+
+    class _MockContext:
+        pass
+
+    # DB ga ulanmagan muhitda xatolik chiqarmasdan xavfsiz o'tishi
+    try:
+        asyncio.run(on_channel_post(_MockUpdate(), _MockContext()))
+        check("on_channel_post xatosiz ishlaydi", True)
+    except Exception as e:
+        check("on_channel_post xatosiz ishlaydi", False, str(e))
+
+    # 6. handlers/__init__.py da CHANNEL_POST handleri ro'yxatga olingani
+    root = Path(__file__).resolve().parent.parent
+    init_src = (root / "handlers" / "__init__.py").read_text(encoding="utf-8")
+    check("handlers/__init__.py: on_channel_post import qilingan", "on_channel_post" in init_src)
+    check("handlers/__init__.py: filters.UpdateType.CHANNEL_POST tinglovchisi bor",
+          "filters.UpdateType.CHANNEL_POST" in init_src)
+
+    # 7. Content Plan va AI agent integratsiyasi
+    from utils.ai_agent import generate_content_plan
+    import inspect
+    sig = inspect.signature(generate_content_plan)
+    check("generate_content_plan: recent_posts parametri bor", "recent_posts" in sig.parameters)
+
+    cp_src = (root / "handlers" / "content_plan.py").read_text(encoding="utf-8")
+    check("content_plan.py: get_channel_posts_history dan foydalanadi",
+          "get_channel_posts_history" in cp_src)
+
+    # 8. Channel Reader hybrid mexanizmi (DB -> scraping fallback)
+    cr_src = (root / "utils" / "channel_reader.py").read_text(encoding="utf-8")
+    check("channel_reader.py: get_channel_posts_history dan foydalanadi",
+          "get_channel_posts_history" in cr_src)
+
+
 def main():
     test_calculate_next_time()
     test_converter()
@@ -5358,6 +5452,7 @@ def main():
     test_ad_hub_unification_suite()
     test_five_fixes_suite()
     test_add_channel_flow_suite()
+    test_channel_posts_history_suite()
 
     print(f"\nO'tdi: {passed}, Xato: {failures}")
     if failures:

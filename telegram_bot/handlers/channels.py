@@ -519,3 +519,48 @@ async def tone_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     context.user_data.pop("tone_channel_id", None)
     return ConversationHandler.END
+
+
+# ============================================================
+# REAL-TIME CHANNEL POST LISTENER
+# ============================================================
+
+async def on_channel_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Bot admin bo'lgan ulangan kanallarga yangi post kelganda channel_posts_history ga yozish."""
+    msg = update.channel_post or update.edited_channel_post or update.effective_message
+    if not msg or not msg.chat:
+        return
+
+    channel_id = str(msg.chat.id)
+    message_id = getattr(msg, "message_id", None)
+    text = (msg.text or msg.caption or "").strip()
+    views = getattr(msg, "views", 0) or 0
+    post_date = getattr(msg, "date", None)
+
+    content = text
+    if not content:
+        if getattr(msg, "photo", None):
+            content = "[Rasm]"
+        elif getattr(msg, "video", None):
+            content = "[Video]"
+        elif getattr(msg, "document", None):
+            content = "[Hujjat]"
+        elif getattr(msg, "audio", None):
+            content = "[Audio]"
+        elif getattr(msg, "animation", None):
+            content = "[GIF]"
+
+    if not content:
+        content = ""
+
+    try:
+        await db.run_db(
+            db.save_channel_post_history,
+            channel_id=channel_id,
+            message_id=message_id,
+            content=content,
+            views=views,
+            post_date=post_date,
+        )
+    except Exception as e:
+        logger.warning("on_channel_post saqlashda xato (%s): %s", channel_id, e)
