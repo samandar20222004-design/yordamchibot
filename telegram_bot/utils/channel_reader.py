@@ -116,16 +116,17 @@ def _parse_channel_page(html: str, channel_username: str) -> list[dict]:
 
 
 async def fetch_latest_channel_posts(channel_username: str, limit: int = 3) -> list[dict]:
-    """Ochiq Telegram kanalidan eng so'nggi postlarni oladi.
+    """Ochiq Telegram kanalidan yoki bazadagi postlar tarixidan eng so'nggi postlarni oladi.
 
     Args:
-        channel_username: kanal niki (masalan: "kunuzofficial" yoki "@kunuzofficial")
+        channel_username: kanal niki yoki ID raqami (masalan: "kunuzofficial", "@kunuzofficial", "-100123...")
         limit: nechta post olish (default 3, max 10)
 
     Returns:
-        list[dict]: [{"text": ..., "date": ..., "media_url": ..., "post_link": ...}, ...]
+        list[dict]: [{"text": ..., "date": ..., "media_url": ..., "post_link": ..., "views": ...}, ...]
 
-    Xatolikda: bo'sh ro'yxat qaytaradi (logger orqali xabar beriladi).
+    1. Avval real vaqtli channel_posts_history jadvalidan tekshiradi.
+    2. Topilmasa yoki bo'sh bo'lsa — t.me/s/ scraping orqali o'qiydi (fallback).
     """
     # Username tozalash
     username = (channel_username or "").strip().lstrip("@").strip("/")
@@ -135,6 +136,39 @@ async def fetch_latest_channel_posts(channel_username: str, limit: int = 3) -> l
 
     limit = max(1, min(limit, 10))
 
+    # 1. Real vaqtli baza (channel_posts_history) dan tekshirish
+    try:
+        import database as db
+        history = await db.run_db(db.get_channel_posts_history, str(channel_username), limit)
+        if not history and username != str(channel_username):
+            history = await db.run_db(db.get_channel_posts_history, username, limit)
+        if not history and username.isdigit():
+            history = await db.run_db(db.get_channel_posts_history, f"-100{username}", limit)
+
+        if history:
+            posts = []
+            for h in history:
+                text = h.get("text") or h.get("content") or ""
+                p_date = h.get("post_date") or h.get("date") or ""
+                msg_id = h.get("message_id")
+                post_link = (
+                    f"https://t.me/{username}/{msg_id}"
+                    if msg_id and not username.startswith("-")
+                    else f"https://t.me/{username}"
+                )
+                posts.append({
+                    "text": text,
+                    "date": p_date,
+                    "media_url": "",
+                    "post_link": post_link,
+                    "views": h.get("views", 0),
+                })
+            if posts:
+                return posts[:limit]
+    except Exception as e:
+        logger.debug("DB dan kanal postlarini olishda xato (scraping fallback ishlaydi): %s", e)
+
+    # 2. Veb scraping fallback (t.me/s/username)
     url = f"https://t.me/s/{username}"
 
     try:

@@ -55,7 +55,7 @@ from handlers.post_enhancer import (
 from handlers.channels import (
     channels_menu, start_add_channel, channel_received, add_channel_retry,
     remove_channel_callback, on_bot_chat_member_update, add_channel_inline_entry,
-    tone_menu_callback, tone_chosen,
+    tone_menu_callback, tone_chosen, on_channel_post,
     ADD_CHANNEL, SET_TONE
 )
 
@@ -800,5 +800,10 @@ def register_all_handlers(app):
     # ✨ Postga Tugma & Reaksiya: sessiya tugagach eski prevyu/hub tugmalari bosilsa —
     # xabarni buzmasdan jim javob (edit qilinmaydi).
     app.add_handler(CallbackQueryHandler(enh_stale_callback, pattern=r"^enh:"))
+    # 📢 Ulangan kanallardan yangi postlarni real vaqtda bazaga yozib borish
+    app.add_handler(MessageHandler(
+        filters.UpdateType.CHANNEL_POST | filters.UpdateType.EDITED_CHANNEL_POST,
+        on_channel_post,
+    ))
     app.add_handler(ChatMemberHandler(on_bot_chat_member_update, ChatMemberHandler.MY_CHAT_MEMBER))
     app.add_handler(CallbackQueryHandler(expired_session_callback))

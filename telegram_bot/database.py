@@ -35,6 +35,7 @@ EXPECTED_TABLES = (
     "users", "channels", "sponsor_channels", "system_settings",
     "bot_settings", "ad_pool", "channel_post_counters", "scheduled_posts",
     "post_reactions", "sent_post_messages", "promo_codes", "payments",
+    "channel_posts_history",
 )
 EXPECTED_INDEXES = (
     "idx_ad_pool_scope",
@@ -44,6 +45,7 @@ EXPECTED_INDEXES = (
     "idx_scheduled_posts_user_id",
     "idx_channels_user_id",
     "idx_post_reactions_post_id",
+    "idx_channel_posts_history_channel_date",
 )
 
 
@@ -605,6 +607,23 @@ def _init_db_once():
             );
         """)
 
+        # Real vaqtli kanal postlari tarixi
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS channel_posts_history (
+                id SERIAL PRIMARY KEY,
+                channel_id VARCHAR(255) NOT NULL,
+                message_id BIGINT,
+                content TEXT,
+                views INTEGER DEFAULT 0,
+                post_date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            );
+        """)
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_channel_posts_history_channel_date "
+            "ON channel_posts_history (channel_id, post_date DESC);"
+        )
+
         # Stars to'lovlari uchun alohida audit jadvali.
         # To'lovlar promo_codes jadvaliga yozilmaydi — har bir to'lov o'z
         # qatori bilan audit qilinadi (summa, valyuta, payload, charge_id).
@@ -660,6 +679,12 @@ def _init_db_once():
             "ALTER TABLE ad_pool ADD COLUMN IF NOT EXISTS button_text VARCHAR(64);",
             "ALTER TABLE ad_pool ADD COLUMN IF NOT EXISTS button_url TEXT;",
             "ALTER TABLE ad_pool ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;",
+            # Kanal postlari tarixi migratsiyalari
+            "ALTER TABLE channel_posts_history ADD COLUMN IF NOT EXISTS message_id BIGINT;",
+            "ALTER TABLE channel_posts_history ADD COLUMN IF NOT EXISTS content TEXT;",
+            "ALTER TABLE channel_posts_history ADD COLUMN IF NOT EXISTS views INTEGER DEFAULT 0;",
+            "ALTER TABLE channel_posts_history ADD COLUMN IF NOT EXISTS post_date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;",
+            "ALTER TABLE channel_posts_history ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;",
         ]
         for index, migration in enumerate(migrations):
             # Bitta migration xatosi qolgan migrationlarni transaction aborted
@@ -687,6 +712,7 @@ def _init_db_once():
         cur.execute("CREATE INDEX IF NOT EXISTS idx_scheduled_posts_user_id ON scheduled_posts (user_id);")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_channels_user_id ON channels (user_id);")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_post_reactions_post_id ON post_reactions (post_id);")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_channel_posts_history_channel_date ON channel_posts_history (channel_id, post_date DESC);")
 
         # 3) Startup schema check: server versiyasi, jadvallar va indekslar.
         _verify_schema(cur)
@@ -2272,6 +2298,9 @@ def cleanup_old_data() -> dict:
 
             cur.execute("DELETE FROM channels WHERE is_active = FALSE AND created_at < NOW() - INTERVAL '90 days'")
             deleted["channels"] = cur.rowcount
+
+            cur.execute("DELETE FROM channel_posts_history WHERE created_at < NOW() - INTERVAL '90 days'")
+            deleted["channel_posts_history"] = cur.rowcount
         _cache_clear()
         return deleted
     except Exception as e:
@@ -2573,6 +2602,30 @@ def get_channel_post_stats(user_id: int, channel_id: str = None) -> dict:
             )
             cur.execute(q, params_base)
             result["type_distribution"] = {row[0]: row[1] for row in cur.fetchall()}
+
+            # Real vaqtli kanal postlari tarixi statistikasi (views, count)
+            try:
+                if channel_id:
+                    cur.execute(
+                        "SELECT COUNT(*), COALESCE(SUM(views), 0), COALESCE(AVG(views), 0) "
+                        "FROM channel_posts_history WHERE channel_id = %s",
+                        (str(channel_id),)
+                    )
+                else:
+                    cur.execute(
+                        "SELECT COUNT(*), COALESCE(SUM(cph.views), 0), COALESCE(AVG(cph.views), 0) "
+                        "FROM channel_posts_history cph "
+                        "INNER JOIN channels c ON c.channel_id = cph.channel_id "
+                        "WHERE c.user_id = %s AND c.is_active = TRUE",
+                        (user_id,)
+                    )
+                h_row = cur.fetchone()
+                if h_row:
+                    result["history_count"] = int(h_row[0] or 0)
+                    result["total_views"] = int(h_row[1] or 0)
+                    result["avg_views"] = round(float(h_row[2] or 0), 1)
+            except Exception:
+                pass
 
     except Exception as e:
         logger.error(f"Channel post stats xatosi: {e}")
@@ -2911,3 +2964,148 @@ def log_stars_payment(user_id: int, amount: int, currency: str, payload: str, te
     except Exception as e:
         logger.error(f"Stars payment log xatosi: {e}")
         return False
+
+
+# ============================================================
+# CHANNEL POSTS HISTORY (Real-time Post History & AI Analytics)
+# ============================================================
+
+def save_channel_post_history(
+    channel_id: str | int,
+    message_id: int = None,
+    content: str = "",
+    views: int = 0,
+    post_date=None
+) -> int:
+    """Yangi kelgan kanal postini channel_posts_history jadvaliga saqlaydi yoki yangilaydi."""
+    ch_id = str(channel_id or "").strip()
+    if not ch_id:
+        return -1
+    text = str(content or "").strip()
+    v_count = max(0, int(views or 0))
+    if post_date is None:
+        post_date = datetime.now(pytz.UTC)
+    try:
+        with db_cursor(commit=True) as cur:
+            if message_id is not None:
+                cur.execute(
+                    "SELECT id FROM channel_posts_history WHERE channel_id = %s AND message_id = %s",
+                    (ch_id, int(message_id))
+                )
+                row = cur.fetchone()
+                if row:
+                    cur.execute(
+                        """
+                        UPDATE channel_posts_history
+                        SET content = COALESCE(NULLIF(%s, ''), content),
+                            views = GREATEST(views, %s),
+                            post_date = COALESCE(%s, post_date)
+                        WHERE id = %s
+                        RETURNING id
+                        """,
+                        (text, v_count, post_date, row[0])
+                    )
+                    res = cur.fetchone()
+                    return int(res[0]) if res else row[0]
+            cur.execute(
+                """
+                INSERT INTO channel_posts_history (channel_id, message_id, content, views, post_date)
+                VALUES (%s, %s, %s, %s, %s)
+                RETURNING id
+                """,
+                (ch_id, message_id, text, v_count, post_date)
+            )
+            row = cur.fetchone()
+            return int(row[0]) if row else -1
+    except Exception as e:
+        logger.error(f"Kanal post tarixini saqlashda xato: {e}")
+        return -1
+
+
+def get_channel_posts_history(channel_id: str | int, limit: int = 5) -> list[dict]:
+    """Kanalning bazadagi oxirgi postlari tarixini qaytaradi."""
+    ch_id = str(channel_id or "").strip()
+    if not ch_id:
+        return []
+    try:
+        limit = max(1, min(int(limit), 50))
+        with db_cursor() as cur:
+            cur.execute(
+                """
+                SELECT id, channel_id, message_id, content, views, post_date, created_at
+                FROM channel_posts_history
+                WHERE channel_id = %s
+                ORDER BY post_date DESC, id DESC
+                LIMIT %s
+                """,
+                (ch_id, limit)
+            )
+            rows = cur.fetchall()
+            return [
+                {
+                    "id": r[0],
+                    "channel_id": r[1],
+                    "message_id": r[2],
+                    "text": r[3] or "",
+                    "content": r[3] or "",
+                    "views": r[4] or 0,
+                    "post_date": r[5].isoformat() if r[5] else "",
+                    "date": r[5].isoformat() if r[5] else "",
+                    "created_at": r[6].isoformat() if r[6] else "",
+                }
+                for r in rows
+            ]
+    except Exception as e:
+        logger.error(f"Kanal postlari tarixini olishda xato: {e}")
+        return []
+
+
+def is_channel_connected(channel_id: str | int) -> bool:
+    """Kanal botga ulangan va faol ekanini tekshiradi."""
+    ch_id = str(channel_id or "").strip()
+    if not ch_id:
+        return False
+    try:
+        with db_cursor() as cur:
+            cur.execute(
+                "SELECT 1 FROM channels WHERE channel_id = %s AND is_active = TRUE",
+                (ch_id,)
+            )
+            return cur.fetchone() is not None
+    except Exception as e:
+        logger.error(f"Kanal ulanganligini tekshirish xatosi: {e}")
+        return False
+
+
+def get_channel_posts_history_stats(channel_id: str | int = None) -> dict:
+    """Kanal postlari tarixi bo'yicha umumiy statistika (soni, ko'rishlar)."""
+    stats = {"history_count": 0, "total_views": 0, "avg_views": 0}
+    try:
+        with db_cursor() as cur:
+            if channel_id:
+                cur.execute(
+                    """
+                    SELECT COUNT(*), COALESCE(SUM(views), 0), COALESCE(AVG(views), 0)
+                    FROM channel_posts_history
+                    WHERE channel_id = %s
+                    """,
+                    (str(channel_id),)
+                )
+            else:
+                cur.execute(
+                    """
+                    SELECT COUNT(*), COALESCE(SUM(views), 0), COALESCE(AVG(views), 0)
+                    FROM channel_posts_history
+                    """
+                )
+            row = cur.fetchone()
+            if row:
+                count = int(row[0] or 0)
+                total_v = int(row[1] or 0)
+                avg_v = round(float(row[2] or 0), 1)
+                stats["history_count"] = count
+                stats["total_views"] = total_v
+                stats["avg_views"] = avg_v
+    except Exception as e:
+        logger.error(f"Kanal tarixi statistikasini olishda xato: {e}")
+    return stats

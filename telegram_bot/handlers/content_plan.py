@@ -145,10 +145,16 @@ async def plan_topic_received(update: Update, context: ContextTypes.DEFAULT_TYPE
     channel_title = context.user_data.get("plan_channel_title", "Kanal")
     tone = await db.run_db(db.get_channel_tone, channel_id) if channel_id else "friendly"
 
+    # Kanalning real vaqtdagi postlar tarixini olamiz
+    recent_posts = []
+    if channel_id:
+        history = await db.run_db(db.get_channel_posts_history, channel_id, 5)
+        recent_posts = [p.get("text") for p in history if p.get("text") and not p.get("text").startswith("[")]
+
     await update.message.reply_text("⏳ AI kontent-reja tuzmoqda...")
 
     from utils.ai_agent import generate_content_plan
-    result = await generate_content_plan(text, channel_title, tone)
+    result = await generate_content_plan(text, channel_title, tone, recent_posts=recent_posts)
 
     if "error" in result:
         await update.message.reply_text(
@@ -227,8 +233,14 @@ async def plan_view_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
         channel_title = context.user_data.get("plan_channel_title", "Kanal")
         tone = await db.run_db(db.get_channel_tone, channel_id) if channel_id else "friendly"
 
+        # Kanalning postlar tarixini olamiz
+        recent_posts = []
+        if channel_id:
+            history = await db.run_db(db.get_channel_posts_history, channel_id, 5)
+            recent_posts = [p.get("text") for p in history if p.get("text") and not p.get("text").startswith("[")]
+
         from utils.ai_agent import generate_content_plan
-        result = await generate_content_plan(topic, channel_title, tone)
+        result = await generate_content_plan(topic, channel_title, tone, recent_posts=recent_posts)
 
         if "error" in result:
             await query.message.reply_text(result["error"], parse_mode="HTML")

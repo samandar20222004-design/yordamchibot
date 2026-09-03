@@ -139,6 +139,19 @@ CREATE TABLE IF NOT EXISTS promo_codes (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Real vaqtli kanal postlari tarixi (AI tahlil, kontent-reja va analitika uchun)
+CREATE TABLE IF NOT EXISTS channel_posts_history (
+    id SERIAL PRIMARY KEY,
+    channel_id VARCHAR(255) NOT NULL,
+    message_id BIGINT,
+    content TEXT,
+    views INTEGER DEFAULT 0,
+    post_date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_channel_posts_history_channel_date
+    ON channel_posts_history (channel_id, post_date DESC);
+
 -- Stars to'lovlari uchun alohida audit jadvali.
 -- To'lovlar promo_codes jadvaliga yozilmaydi — har bir to'lov o'z
 -- qatori bilan audit qilinadi (summa, valyuta, payload, charge_id).
@@ -198,6 +211,13 @@ ALTER TABLE sponsor_channels ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT 
 ALTER TABLE ad_pool ADD COLUMN IF NOT EXISTS button_text VARCHAR(64);
 ALTER TABLE ad_pool ADD COLUMN IF NOT EXISTS button_url TEXT;
 ALTER TABLE ad_pool ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+
+-- Kanal postlari tarixi migratsiyalari
+ALTER TABLE channel_posts_history ADD COLUMN IF NOT EXISTS message_id BIGINT;
+ALTER TABLE channel_posts_history ADD COLUMN IF NOT EXISTS content TEXT;
+ALTER TABLE channel_posts_history ADD COLUMN IF NOT EXISTS views INTEGER DEFAULT 0;
+ALTER TABLE channel_posts_history ADD COLUMN IF NOT EXISTS post_date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
+ALTER TABLE channel_posts_history ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
 
 -- --- INDEKSLAR (eng ko'p ishlatiladigan qidiruvlar uchun) ---
 -- users.user_id PRIMARY KEY bo'lgani uchun u yerda indeks avtomatik mavjud.
