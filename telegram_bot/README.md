@@ -161,8 +161,9 @@ turadi — yangi xabar spam qilinmaydi.
 
 Bepul foydalanuvchilar uchun `scheduler`'dagi **via/watermark qoidalari**
 to'liq qo'llanadi (post boshiga `@PostAssistrobot`), PRO/admin — toza chiqadi.
-Reklama litsenziyasi (ad-free) saqlangan postlar soni shu yuborish uchun ham
-sarflanadi. Telegram cheklovi tufayli inline klaviatura 10 qatordan oshmaydi.
+Reklamasiz rejim avtomatik: PRO/admin — reklama umuman qo'shilmaydi, oddiy
+foydalanuvchi — admin belgilagan reklama oralig'i (ad_pool) qo'llanadi.
+Telegram cheklovi tufayli inline klaviatura 10 qatordan oshmaydi.
 
 ## Render va UptimeRobot sozlamalari
 

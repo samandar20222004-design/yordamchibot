@@ -10,6 +10,34 @@ import database as db
 tashkent_tz = pytz.timezone("Asia/Tashkent")
 
 
+def is_user_ad_free(user_id: int) -> bool:
+    """Reklamasiz rejim AVTOMATIK aniqlanadi (qo'lda yoqish/o'chirish yo'q).
+
+    Qoida:
+      * admin yoki PRO/Enterprise (``db.is_premium`` → True) → reklama UMUMAN
+        qo'shilmaydi (100% toza) — kanal postlariga ham, bot javoblariga ham;
+      * oddiy foydalanuvchi → False, ya'ni admin belgilagan reklama oralig'i
+        (ad_pool) bo'yicha reklama ko'rsatiladi.
+    DB xatosi bo'lsa xavfsiz tomon — reklamali (False) deb olinadi.
+    """
+    if user_id in ADMIN_IDS_SET:
+        return True
+    try:
+        return bool(db.is_premium(user_id))
+    except Exception:
+        return False
+
+
+async def is_user_ad_free_async(user_id: int) -> bool:
+    """``is_user_ad_free`` ning async varianti — DB event loopdan tashqarida o'qiladi."""
+    if user_id in ADMIN_IDS_SET:
+        return True
+    try:
+        return bool(await db.run_db(db.is_premium, user_id))
+    except Exception:
+        return False
+
+
 async def apply_post_watermark(text: str, user_id: int, bot_username: str) -> str:
     """Bepul foydalanuvchilar postlariga bot username'ini avtomatik qo'shadi.
 
@@ -575,7 +603,15 @@ def ad_link_suffix(ad) -> str:
 def get_smart_reply_ad(user_id: int) -> str:
     """Sinxron variant (test/skript uchun). Handlerlarda
     ``get_smart_reply_ad_async`` ishlatiladi — u DB'ni event loopdan tashqarida
-    o'qiydi. Rotatsiya pulidan navbatdagi reklamani oladi."""
+    o'qiydi. Rotatsiya pulidan navbatdagi reklamani oladi.
+    PRO va adminlarga reklama chiqmaydi."""
+    if user_id in ADMIN_IDS_SET:
+        return ""
+    try:
+        if db.is_premium(user_id):
+            return ""
+    except Exception:
+        pass
     ads = db.get_ads_full(db.AD_SCOPE_REPLY) or []
     if ads:
         ad = _next_ad_full(ads, db.AD_SCOPE_REPLY)
@@ -588,7 +624,17 @@ def get_smart_reply_ad(user_id: int) -> str:
 async def get_smart_reply_ad_async(user_id: int) -> str:
     """Reklama satri; DB o'qish alohida thread'da (event loop bloklanmaydi).
     Rotatsiya pulidan navbatdagi reklamani oladi; pul bo'sh bo'lsa eski
-    ``bot_reply_ad_text`` sozlamasiga qaytadi."""
+    ``bot_reply_ad_text`` sozlamasiga qaytadi.
+
+    PRO va adminlar uchun HECH QACHON reklama qaytarilmaydi (avtomatik
+    reklamasiz rejim)."""
+    if user_id in ADMIN_IDS_SET:
+        return ""
+    try:
+        if await db.run_db(db.is_premium, user_id):
+            return ""
+    except Exception:
+        pass
     ads = (await db.run_db(db.get_ads_full, db.AD_SCOPE_REPLY)) or []
     if ads:
         ad = _next_ad_full(ads, db.AD_SCOPE_REPLY)

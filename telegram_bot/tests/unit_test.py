@@ -559,8 +559,9 @@ def test_smart_reply_ad_async():
     finally:
         db_mod.run_db = original_run_db
 
+    # Avval PRO tekshiruvi (avtomatik reklamasiz rejim), keyin reklama puli
     check("DB o'qish run_db (thread) orqali ketadi",
-          calls == ["get_ads_full", "get_setting"], str(calls))
+          calls == ["is_premium", "get_ads_full", "get_setting"], str(calls))
     check("reklama bo'sh bo'lsa satr ham bo'sh", result == "", result)
 
 
@@ -627,7 +628,8 @@ def test_ad_pool_rotation():
     check("pul bor: navbatdagi reklama (har 3-xabarga)", "POOL-AD" in pooled, pooled)
     check("pul bor: reklama tugmasi havola sifatida qo'shildi",
           'href="https://t.me/pool"' in pooled and "Bos" in pooled, pooled)
-    check("pul bor: faqat get_ads_full chaqiriladi", calls == ["get_ads_full"], str(calls))
+    check("pul bor: is_premium + get_ads_full chaqiriladi (get_setting emas)",
+          calls == ["is_premium", "get_ads_full"], str(calls))
     helpers._AD_ROTATION_INDEX.clear()
 
     # DB funktsiyalari mavjudligi
@@ -1081,7 +1083,7 @@ def test_main_menu_layout_v2():
     expected = [
         [("📢 Mening kanallarim", "cab_channels"), ("📊 Kanallar analitikasi", "cab_analytics")],
         [("📅 Kutilayotgan postlar", "cab_pending"), ("⏳ Postlar navbati (Queue)", "cab_queue")],
-        [("💎 Ballar & Litsenziya", "cab_balance"), ("🎁 Kunlik bonus", "cab_bonus")],
+        [("💎 Ballar & Reklama rejimi", "cab_balance"), ("🎁 Kunlik bonus", "cab_bonus")],
         [("👥 Do'stlarni taklif", "cab_referral"), ("❌ Yopish", "close_cabinet")],
         [("🌐 Til / Язык", "cab_lang")],
     ]
@@ -1247,44 +1249,39 @@ def test_stars_keyboard():
 
 
 def test_referral_pro_functions():
-    """Referal PRO mukofoti funksiyalari."""
-    print("== Referral PRO functions ==")
+    """Referal PRO mukofoti OLIB TASHLANGAN — faqat AI ball beriladi."""
+    print("== Referral: PRO removed, credits only ==")
     import database as db_mod
 
-    # 1. Funktsiyalar mavjud
-    check("get_active_referral_count mavjud", hasattr(db_mod, "get_active_referral_count"))
-    check("check_and_grant_referral_pro mavjud", hasattr(db_mod, "check_and_grant_referral_pro"))
-    check("get_referral_pro_progress mavjud", hasattr(db_mod, "get_referral_pro_progress"))
+    for name in ("check_and_grant_referral_pro", "get_referral_pro_progress",
+                 "get_active_referral_count", "REFERRAL_PRO_THRESHOLD", "REFERRAL_PRO_DAYS"):
+        check(f"{name} olib tashlangan", not hasattr(db_mod, name))
 
-    # 2. Konstantalar
-    check("REFERRAL_PRO_THRESHOLD = 3", db_mod.REFERRAL_PRO_THRESHOLD == 3)
-    check("REFERRAL_PRO_DAYS = 30", db_mod.REFERRAL_PRO_DAYS == 30)
-
-    # 3. get_referral_pro_progress format
-    progress = db_mod.get_referral_pro_progress(0)  # non-existent user
-    check("progress: active bor", "active" in progress)
-    check("progress: needed bor", "needed" in progress)
-    check("progress: granted bor", "granted" in progress)
-    check("progress: needed = 3", progress["needed"] == 3)
-    check("progress: non-existent = 0", progress["active"] == 0)
-    check("progress: non-existent granted=False", progress["granted"] is False)
-
-    # 4. get_active_referral_count — non-existent user
-    count = db_mod.get_active_referral_count(0)
-    check("active_referral: non-existent = 0", count == 0)
+    check("referral_reward_for mavjud", callable(getattr(db_mod, "referral_reward_for", None)))
+    check("total_referral_reward mavjud", callable(getattr(db_mod, "total_referral_reward", None)))
+    check("1-do'st +3", db_mod.referral_reward_for(1) == 3)
+    check("2-do'st +3", db_mod.referral_reward_for(2) == 3)
+    check("3-do'st +3", db_mod.referral_reward_for(3) == 3)
+    check("4-do'st +1", db_mod.referral_reward_for(4) == 1)
+    check("5-do'st +1", db_mod.referral_reward_for(5) == 1)
+    check("100-do'st +1", db_mod.referral_reward_for(100) == 1)
+    check("0 → 1-do'st sifatida (+3)", db_mod.referral_reward_for(0) == 3)
+    check("noto'g'ri qiymat → +3", db_mod.referral_reward_for("x") == 3)
+    check("jami: 3 do'st = 9", db_mod.total_referral_reward(3) == 9)
+    check("jami: 5 do'st = 11", db_mod.total_referral_reward(5) == 11)
+    check("jami: 0 do'st = 0", db_mod.total_referral_reward(0) == 0)
 
 
 def test_referral_pro_logic():
-    """Referal PRO berish logikasi — 3 ta faol do'st."""
-    print("== Referral PRO logic ==")
+    """Referal ball mantiqi save_user ichida ishlatiladi; set_user_plan chaqirilmaydi."""
+    print("== Referral logic in save_user ==")
+    import inspect
     import database as db_mod
 
-    # check_and_grant_referral_pro — non-existent user → False
-    result = db_mod.check_and_grant_referral_pro(0)
-    check("grant non-existent → False", result is False)
-
-    # get_active_referral_count callable
-    check("get_active_referral_count callable", callable(db_mod.get_active_referral_count))
+    src = inspect.getsource(db_mod.save_user)
+    check("save_user referral_reward_for ishlatadi", "referral_reward_for(" in src)
+    check("save_user PRO bermaydi", "set_user_plan" not in src and "'pro'" not in src)
+    check("save_user ad_free ustunlarini yozmaydi", "ad_free" not in src)
 
 
 def test_stars_payment_handlers_exist():

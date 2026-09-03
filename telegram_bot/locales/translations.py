@@ -59,6 +59,45 @@ TRANSLATIONS = {
             "🎁 Kunlik bepul AI ballaringizni olish uchun "
             "'Kabinet & Sozlamalar' → '🎁 Kunlik bonus' bo'limiga kiring."
         ),
+        "no_credits": (
+            "⚠️ <b>Sizda bepul AI so'rovlari soni tugadi!</b>\n\n"
+            "Ko'proq so'rov olish uchun do'stlaringizni taklif qiling.\n"
+            "🎁 <i>1-, 2- va 3-do'st uchun +3 tadan, 4-do'stdan boshlab har biri uchun +1 AI ball beriladi.</i>\n"
+            "{guide}\n\n"
+            "🔗 Sizning taklif havolangiz:\n<code>{link}</code>"
+        ),
+        "balance_card": (
+            "💎 <b>Ballar & Reklama rejimi:</b>\n\n"
+            "🤖 AI so'rovlar: {credits}\n"
+            "📢 Reklama rejimi: {ad_mode}\n\n"
+            "Ballarni ko'paytirish uchun:\n"
+            "• 🎁 Kunlik bonus oling\n"
+            "• 👥 Do'stlarni taklif qiling (1–3-do'st: +3, keyingilar: +1)\n"
+            "• ⭐️ PRO tarifga o'ting (cheksiz AI, 100% reklamasiz postlar)"
+        ),
+        "ad_mode_admin": "👑 <b>Admin</b> — reklamasiz",
+        "ad_mode_pro": "✨ <b>PRO</b> — postlar va bot javoblari avtomatik 100% reklamasiz",
+        "ad_mode_free": "🆓 <b>Bepul</b> — belgilangan oraliqda reklama chiqadi (PRO'da avtomatik o'chadi)",
+        "btn_card_payment": "💳 Karta orqali to'lov (Uzcard / Humo)",
+        "btn_back": "⬅️ Orqaga",
+        "card_payment_title": "💳 <b>Karta orqali to'lov (Uzcard / Humo)</b>",
+        "card_payment_prices": (
+            "💰 <b>To'lov summasi:</b>\n"
+            "• 1 oy — <b>{p1m} so'm</b>\n"
+            "• 3 oy — <b>{p3m} so'm</b>\n"
+            "• 1 yil — <b>{p1y} so'm</b>"
+        ),
+        "card_payment_card": "💳 <b>Karta raqami:</b> <code>{card}</code>\n👤 <b>Karta egasi:</b> {holder}",
+        "card_payment_no_card": "ℹ️ Karta rekvizitlarini olish uchun adminga murojaat qiling.",
+        "card_payment_steps": (
+            "📝 <b>Yo'riqnoma:</b>\n"
+            "1️⃣ Tanlagan tarif summasini yuqoridagi kartaga o'tkazing.\n"
+            "2️⃣ To'lov chekini (skrinshot) adminga yuboring: {admin}\n"
+            "3️⃣ Xabarda o'z ID raqamingizni ko'rsating: <code>{user_id}</code>\n"
+            "4️⃣ Admin tekshirgach PRO tarif 24 soat ichida faollashtiriladi.\n\n"
+            "⚡️ Tezroq bo'lishi uchun ⭐️ Stars orqali to'lasangiz PRO darhol yoqiladi."
+        ),
+        "card_payment_admin_missing": "admin (Bot haqida bo'limidagi aloqa orqali)",
     },
     "ru": {
         "btn_new_post": "➕ Новый пост",
@@ -110,6 +149,45 @@ TRANSLATIONS = {
             "🎁 Чтобы получить ежедневные бесплатные ИИ-баллы, откройте "
             "«Кабинет & Настройки» → «🎁 Ежедневный бонус»."
         ),
+        "no_credits": (
+            "⚠️ <b>У вас закончились бесплатные ИИ-запросы!</b>\n\n"
+            "Чтобы получить больше, приглашайте друзей.\n"
+            "🎁 <i>За 1-го, 2-го и 3-го друга — по +3, начиная с 4-го — по +1 ИИ-баллу.</i>\n"
+            "{guide}\n\n"
+            "🔗 Ваша реферальная ссылка:\n<code>{link}</code>"
+        ),
+        "balance_card": (
+            "💎 <b>Баллы & Режим рекламы:</b>\n\n"
+            "🤖 ИИ-запросы: {credits}\n"
+            "📢 Режим рекламы: {ad_mode}\n\n"
+            "Чтобы получить больше баллов:\n"
+            "• 🎁 Забирайте ежедневный бонус\n"
+            "• 👥 Приглашайте друзей (1–3-й друг: +3, далее: +1)\n"
+            "• ⭐️ Перейдите на PRO (безлимитный ИИ, посты 100% без рекламы)"
+        ),
+        "ad_mode_admin": "👑 <b>Админ</b> — без рекламы",
+        "ad_mode_pro": "✨ <b>PRO</b> — посты и ответы бота автоматически 100% без рекламы",
+        "ad_mode_free": "🆓 <b>Бесплатный</b> — реклама показывается с заданным интервалом (в PRO отключается автоматически)",
+        "btn_card_payment": "💳 Оплата картой (Uzcard / Humo)",
+        "btn_back": "⬅️ Назад",
+        "card_payment_title": "💳 <b>Оплата картой (Uzcard / Humo)</b>",
+        "card_payment_prices": (
+            "💰 <b>Сумма оплаты:</b>\n"
+            "• 1 месяц — <b>{p1m} сум</b>\n"
+            "• 3 месяца — <b>{p3m} сум</b>\n"
+            "• 1 год — <b>{p1y} сум</b>"
+        ),
+        "card_payment_card": "💳 <b>Номер карты:</b> <code>{card}</code>\n👤 <b>Владелец:</b> {holder}",
+        "card_payment_no_card": "ℹ️ Чтобы получить реквизиты карты, обратитесь к администратору.",
+        "card_payment_steps": (
+            "📝 <b>Инструкция:</b>\n"
+            "1️⃣ Переведите сумму выбранного тарифа на карту выше.\n"
+            "2️⃣ Отправьте чек (скриншот) администратору: {admin}\n"
+            "3️⃣ Укажите в сообщении свой ID: <code>{user_id}</code>\n"
+            "4️⃣ После проверки PRO активируется в течение 24 часов.\n\n"
+            "⚡️ Для мгновенной активации оплатите через ⭐️ Stars."
+        ),
+        "card_payment_admin_missing": "администратор (контакты в разделе «О боте»)",
     },
 }
 

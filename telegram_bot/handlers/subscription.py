@@ -2,9 +2,14 @@
 import logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice
 from telegram.ext import ContextTypes, ConversationHandler
-from config import ADMIN_IDS_SET
+from config import (
+    ADMIN_IDS_SET,
+    PAYMENT_CARD_NUMBER, PAYMENT_CARD_HOLDER, PAYMENT_ADMIN_USERNAME,
+    PAYMENT_PRICE_1M_UZS, PAYMENT_PRICE_3M_UZS, PAYMENT_PRICE_1Y_UZS,
+)
 import database as db
 from keyboards.default import get_main_keyboard
+from locales.translations import get_text, get_lang
 from utils.helpers import html_escape
 
 logger = logging.getLogger(__name__)
@@ -84,15 +89,21 @@ def _build_subscription_card(plan_info: dict) -> str:
             "• 1 oy — ⭐️ 75 Stars (~$1.5)",
             "• 3 oy — ⭐️ 175 Stars (~$3.5)",
             "• 1 yil — ⭐️ 550 Stars (~$11.0 / -40% chegirma)",
+            "• 💳 Karta orqali (Uzcard / Humo) — pastdagi tugma",
             "",
-            "👥 Referal: 3 ta do'stingizni taklif qiling va 1 oy bepul PRO oling!",
+            "🚫 PRO'da postlaringiz va bot javoblari avtomatik 100% reklamasiz.",
+            "👥 Referal: 1–3-do'st uchun +3 tadan, keyingilar uchun +1 AI ball.",
         ])
 
     return "\n".join(lines)
 
 
-def _get_subscription_keyboard(plan: str) -> InlineKeyboardMarkup:
-    """Obuna sahifasi tugmalari — Stars to'lov tugmalari to'g'ridan-to'g'ri ko'rsatiladi."""
+def _get_subscription_keyboard(plan: str, lang: str = "uz") -> InlineKeyboardMarkup:
+    """Obuna sahifasi tugmalari — Stars to'lov tugmalari to'g'ridan-to'g'ri ko'rsatiladi.
+
+    Free tarifda Stars yoniga 💳 Karta orqali to'lov (Uzcard / Humo) tugmasi
+    ham qo'shiladi — O'zbekiston foydalanuvchilari uchun qulaylik.
+    """
     keyboard = []
     if plan == "free":
         keyboard.append([
@@ -102,8 +113,61 @@ def _get_subscription_keyboard(plan: str) -> InlineKeyboardMarkup:
         keyboard.append([
             InlineKeyboardButton("⭐️ 1 yil (550 Stars)", callback_data="sub_pay:stars_1y"),
         ])
+        keyboard.append([
+            InlineKeyboardButton(get_text("btn_card_payment", lang), callback_data="sub_card_pay"),
+        ])
     keyboard.append([InlineKeyboardButton("🎁 Promo-kod kiritish", callback_data="sub_promo")])
     keyboard.append([InlineKeyboardButton("⬅️ Orqaga", callback_data="sub_back_main")])
+    return InlineKeyboardMarkup(keyboard)
+
+
+def _fmt_uzs(amount: int) -> str:
+    """19000 → '19 000' (so'm formatida)."""
+    try:
+        return f"{int(amount):,}".replace(",", " ")
+    except (TypeError, ValueError):
+        return str(amount)
+
+
+def _build_card_payment_text(user_id: int, lang: str = "uz") -> str:
+    """💳 Karta orqali to'lov yo'riqnomasi: summa, karta rekvizitlari (yoki
+    adminga bog'lanish) va chekni adminga yuborish tartibi."""
+    parts = [
+        get_text("card_payment_title", lang),
+        "",
+        get_text(
+            "card_payment_prices", lang,
+            p1m=_fmt_uzs(PAYMENT_PRICE_1M_UZS),
+            p3m=_fmt_uzs(PAYMENT_PRICE_3M_UZS),
+            p1y=_fmt_uzs(PAYMENT_PRICE_1Y_UZS),
+        ),
+        "",
+    ]
+    if PAYMENT_CARD_NUMBER:
+        parts.append(get_text(
+            "card_payment_card", lang,
+            card=html_escape(PAYMENT_CARD_NUMBER),
+            holder=html_escape(PAYMENT_CARD_HOLDER or "—"),
+        ))
+    else:
+        parts.append(get_text("card_payment_no_card", lang))
+    parts.append("")
+    admin_ref = (
+        f"@{html_escape(PAYMENT_ADMIN_USERNAME)}" if PAYMENT_ADMIN_USERNAME
+        else get_text("card_payment_admin_missing", lang)
+    )
+    parts.append(get_text("card_payment_steps", lang, admin=admin_ref, user_id=user_id))
+    return "\n".join(parts)
+
+
+def _get_card_payment_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
+    keyboard = []
+    if PAYMENT_ADMIN_USERNAME:
+        keyboard.append([InlineKeyboardButton(
+            "✉️ Adminga chek yuborish" if lang != "ru" else "✉️ Отправить чек администратору",
+            url=f"https://t.me/{PAYMENT_ADMIN_USERNAME}",
+        )])
+    keyboard.append([InlineKeyboardButton(get_text("btn_back", lang), callback_data="sub_back")])
     return InlineKeyboardMarkup(keyboard)
 
 
@@ -130,7 +194,7 @@ async def start_subscription(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     await update.message.reply_text(
         card,
-        reply_markup=_get_subscription_keyboard(plan),
+        reply_markup=_get_subscription_keyboard(plan, get_lang(context)),
         parse_mode="HTML",
     )
     return SUBSCRIPTION_VIEW
@@ -183,7 +247,7 @@ async def subscription_callback(update: Update, context: ContextTypes.DEFAULT_TY
         try:
             await query.message.reply_text(
                 card,
-                reply_markup=_get_subscription_keyboard(plan),
+                reply_markup=_get_subscription_keyboard(plan, get_lang(context)),
                 parse_mode="HTML",
             )
         except Exception:
@@ -230,6 +294,16 @@ async def subscription_callback(update: Update, context: ContextTypes.DEFAULT_TY
                 pass
         return SUBSCRIPTION_VIEW
 
+    if data == "sub_card_pay":
+        lang = get_lang(context)
+        text = _build_card_payment_text(user_id, lang)
+        markup = _get_card_payment_keyboard(lang)
+        try:
+            await query.edit_message_text(text, reply_markup=markup, parse_mode="HTML")
+        except Exception:
+            await query.message.reply_text(text, reply_markup=markup, parse_mode="HTML")
+        return SUBSCRIPTION_VIEW
+
     if data == "sub_back":
         plan_info = await db.run_db(db.get_user_plan, user_id)
         card = _build_subscription_card(plan_info)
@@ -237,13 +311,13 @@ async def subscription_callback(update: Update, context: ContextTypes.DEFAULT_TY
         try:
             await query.edit_message_text(
                 card,
-                reply_markup=_get_subscription_keyboard(plan),
+                reply_markup=_get_subscription_keyboard(plan, get_lang(context)),
                 parse_mode="HTML",
             )
         except Exception:
             await query.message.reply_text(
                 card,
-                reply_markup=_get_subscription_keyboard(plan),
+                reply_markup=_get_subscription_keyboard(plan, get_lang(context)),
                 parse_mode="HTML",
             )
         return SUBSCRIPTION_VIEW
@@ -263,13 +337,13 @@ async def subscription_callback(update: Update, context: ContextTypes.DEFAULT_TY
         try:
             await query.edit_message_text(
                 card,
-                reply_markup=_get_subscription_keyboard(plan),
+                reply_markup=_get_subscription_keyboard(plan, get_lang(context)),
                 parse_mode="HTML",
             )
         except Exception:
             await query.message.reply_text(
                 card,
-                reply_markup=_get_subscription_keyboard(plan),
+                reply_markup=_get_subscription_keyboard(plan, get_lang(context)),
                 parse_mode="HTML",
             )
         return SUBSCRIPTION_VIEW
@@ -290,7 +364,7 @@ async def promo_code_received(update: Update, context: ContextTypes.DEFAULT_TYPE
         plan = plan_info.get("plan_type", "free")
         await update.message.reply_text(
             card,
-            reply_markup=_get_subscription_keyboard(plan),
+            reply_markup=_get_subscription_keyboard(plan, get_lang(context)),
             parse_mode="HTML",
         )
         return SUBSCRIPTION_VIEW

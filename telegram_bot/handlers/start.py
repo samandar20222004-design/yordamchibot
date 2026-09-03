@@ -120,7 +120,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         try:
             ref_stats = await db.run_db(db.get_referral_stats, referrer_id)
             ref_count = int((ref_stats or {}).get("referrals_count", 0))
-            reward = 3 if ref_count <= 3 else 1
+            reward = db.referral_reward_for(ref_count)
             ref_lang = await db.run_db(db.get_user_language, referrer_id)
             await context.bot.send_message(
                 chat_id=referrer_id,
@@ -205,13 +205,7 @@ async def user_cabinet_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_code = await db.run_db(db.get_user_code, user.id)
     
     credits_text = "♾ Cheksiz (Super Admin)" if is_admin else f"<b>{stats['ai_credits']} ta</b>"
-    
-    if is_admin:
-        ad_free_text = "♾ Cheksiz (Super Admin)"
-    else:
-        status_badge = "🟢 Yoqilgan" if stats.get('ad_free_active', True) else "🔴 O'chirilgan"
-        ad_free_text = f"<b>{stats['ad_free_posts']} ta</b> ({status_badge})"
-        
+
     streak_val = stats.get('streak', 0)
     streak_text = f"🔥 <b>{streak_val}/7 kun</b>"
     ad_line = await get_smart_reply_ad_async(user.id)
@@ -262,83 +256,6 @@ async def daily_bonus_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
             parse_mode="HTML"
         )
 
-async def buy_ad_free_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = update.effective_user
-    is_admin = (user.id in ADMIN_IDS_SET)
-    
-    if is_admin:
-        await update.message.reply_text("👑 Siz Super Adminsiz — barcha postlaringiz doim reklamasiz chiqadi!", parse_mode="HTML")
-        return
-        
-    stats = await db.run_db(db.get_referral_stats, user.id)
-    posts_count = stats['ad_free_posts']
-    is_active = stats.get('ad_free_active', True)
-    
-    status_label = "🟢 Yoqilgan (Ishlatilmoqda)" if is_active else "🔴 O'chirilgan (Saqlanmoqda)"
-    toggle_btn_text = "🔴 O'chirish (Tejash)" if is_active else "🟢 Yoqish (Ishlatish)"
-    
-    keyboard = [
-        [InlineKeyboardButton(f"Holat: {toggle_btn_text}", callback_data="adfree_toggle")],
-        [InlineKeyboardButton("➕ 5 ta post xarid qilish (1 ball)", callback_data="adfree_confirm")],
-    ]
-    if posts_count >= 5:
-        keyboard.append([InlineKeyboardButton("🔄 Ballga qaytarish (5 post = 1 ball)", callback_data="adfree_refund")])
-    keyboard.append([InlineKeyboardButton("❌ Yopish", callback_data="adfree_close")])
-    
-    await update.message.reply_text(
-        f"💎 <b>Reklamasiz Toza Postlar Boshqaruvi:</b>\n\n"
-        f"📊 Sizdagi mavjud toza postlar soni: <b>{posts_count} ta</b>\n"
-        f"⚙️ Hozirgi holat: <b>{status_label}</b>\n\n"
-        f"<i>Kerakli amalni tanlang:</i>",
-        reply_markup=InlineKeyboardMarkup(keyboard),
-        parse_mode="HTML"
-    )
-
-async def ad_free_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    data = query.data
-    user_id = query.from_user.id
-    
-    if data == "adfree_close":
-        await query.message.delete()
-        return
-
-    if data == "adfree_toggle":
-        success, new_status = await db.run_db(db.toggle_ad_free_status, user_id)
-        stats = await db.run_db(db.get_referral_stats, user_id)
-        posts_count = stats['ad_free_posts']
-        status_label = "🟢 Yoqilgan (Ishlatilmoqda)" if new_status else "🔴 O'chirilgan (Saqlanmoqda)"
-        toggle_btn_text = "🔴 O'chirish (Tejash)" if new_status else "🟢 Yoqish (Ishlatish)"
-        
-        keyboard = [
-            [InlineKeyboardButton(f"Holat: {toggle_btn_text}", callback_data="adfree_toggle")],
-            [InlineKeyboardButton("➕ 5 ta post xarid qilish (1 ball)", callback_data="adfree_confirm")],
-        ]
-        if posts_count >= 5:
-            keyboard.append([InlineKeyboardButton("🔄 Ballga qaytarish (5 post = 1 ball)", callback_data="adfree_refund")])
-        keyboard.append([InlineKeyboardButton("❌ Yopish", callback_data="adfree_close")])
-
-        await query.edit_message_text(
-            f"💎 <b>Reklamasiz Toza Postlar Boshqaruvi:</b>\n\n"
-            f"📊 Sizdagi mavjud toza postlar soni: <b>{posts_count} ta</b>\n"
-            f"⚙️ Hozirgi holat: <b>{status_label}</b>\n\n"
-            f"<i>Holat muvaffaqiyatli yangilandi!</i>",
-            reply_markup=InlineKeyboardMarkup(keyboard),
-            parse_mode="HTML"
-        )
-        return
-
-    if data == "adfree_confirm":
-        success, msg = await db.run_db(db.buy_ad_free_posts, user_id)
-        await query.edit_message_text(msg, parse_mode="HTML")
-        return
-
-    if data == "adfree_refund":
-        success, msg = await db.run_db(db.refund_ad_free_posts, user_id)
-        await query.edit_message_text(msg, parse_mode="HTML")
-        return
-
 async def user_invite_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     clear_fsm_data(context)
     user = update.effective_user
@@ -368,7 +285,8 @@ async def start_transfer_credits(update: Update, context: ContextTypes.DEFAULT_T
         await update.message.reply_text(
             f"⚠️ <b>Hisobingizda yetarli ball yo'q!</b>\n\n"
             f"Ball o'tkazish uchun kamida <b>3 ta ball</b> kerak. Sizda esa: <b>{my_credits} ta</b>.\n"
-            f"Kunlik bonus yoki taklif havolasi orqali ball to'plashingiz mumkin!",
+            f"{get_text('daily_bonus_guide', get_lang(context))}\n"
+            f"Yoki taklif havolasi orqali ball to'plashingiz mumkin!",
             reply_markup=get_cabinet_keyboard(),
             parse_mode="HTML"
         )
@@ -462,7 +380,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "🔹 <b>1. Yangi post rejalashtirish:</b>\n"
         "• Matn, rasm, video, audio yoki <b>albom</b> (bir nechta rasm/video) postlarni istalgan sanaga rejalashtirish.\n"
         "• Havola tugmalar (URL button), reaksiyalar va avto-o'chirish (12, 24, 48, 72 soat).\n"
-        "• <i>Litsenziya bo'lsa reklamasiz toza post chiqadi!</i>\n\n"
+        "• <i>PRO tarifda postlar avtomatik reklamasiz (100% toza) chiqadi!</i>\n\n"
         "🔹 <b>2. AI Yordamchi (savol-javob + postlar):</b>\n"
         "• Savol bering — bot imkoniyatlari, ballar, kanallar bo'yicha javob olasiz.\n"
         "• Matn yoki rasm/forward yuborib, professional post va she'rlar tayyorlash.\n"
@@ -591,11 +509,6 @@ async def cabinet_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_code = await db.run_db(db.get_user_code, user_id)
 
         credits_text = "♾ Cheksiz (Super Admin)" if is_admin else f"<b>{stats['ai_credits']} ta</b>"
-        if is_admin:
-            ad_free_text = "♾ Cheksiz (Super Admin)"
-        else:
-            status_badge = "🟢 Yoqilgan" if stats.get('ad_free_active', True) else "🔴 O'chirilgan"
-            ad_free_text = f"<b>{stats['ad_free_posts']} ta</b> ({status_badge})"
 
         streak_val = stats.get('streak', 0)
         streak_text = f"🔥 <b>{streak_val}/7 kun</b>"
@@ -723,12 +636,9 @@ async def cabinet_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         stats = await db.run_db(db.get_referral_stats, user_id)
         ref_link = f"https://t.me/{bot_obj.username}?start=ref_{user_id}"
         credits_text = "♾ Cheksiz (Super Admin)" if is_admin else f"<b>{stats['ai_credits']} ta</b>"
-        text = (
-            f"🚀 <b>Do'stlarni taklif qiling va bepul AI so'rovlar oling:</b>\n\n"
-            f"🎁 <i>Har bir yangi do'stingiz uchun hisobingizga <b>+3 ta bepul AI so'rovi</b> qo'shiladi!</i>\n\n"
-            f"💎 Sizdagi mavjud AI so'rovlar soni: {credits_text}\n"
-            f"👥 Taklif qilingan do'stlaringiz: <b>{stats['referrals_count']} ta</b>\n\n"
-            f"🔗 <b>Sizning taklif havolangiz:</b>\n<code>{ref_link}</code>"
+        text = get_text(
+            "referral_menu", get_lang(context), credits=credits_text,
+            count=stats["referrals_count"], link=ref_link,
         )
         share_kb = get_referral_share_keyboard(ref_link)
         combined_kb = InlineKeyboardMarkup(
@@ -744,19 +654,14 @@ async def cabinet_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.answer()
         stats = await db.run_db(db.get_referral_stats, user_id)
         credits_text = "♾ Cheksiz (Super Admin)" if is_admin else f"<b>{stats['ai_credits']} ta</b>"
+        lang = get_lang(context)
         if is_admin:
-            ad_free_text = "♾ Cheksiz (Super Admin)"
+            ad_mode = get_text("ad_mode_admin", lang)
+        elif await db.run_db(db.is_premium, user_id):
+            ad_mode = get_text("ad_mode_pro", lang)
         else:
-            status_badge = "🟢 Yoqilgan" if stats.get('ad_free_active', True) else "🔴 O'chirilgan"
-            ad_free_text = f"<b>{stats['ad_free_posts']} ta</b> ({status_badge})"
-        text = (
-            f"💎 <b>Ballar & Litsenziya:</b>\n\n"
-            f"🤖 AI so'rovlar: {credits_text}\n"
-            f"Ballarni ko'paytirish uchun:\n"
-            f"• 🎁 Kunlik bonus oling\n"
-            f"• 👥 Do'stlarni taklif qiling (+3 ball)\n"
-            f"• ⭐️ PRO tarifga o'ting (cheksiz AI)"
-        )
+            ad_mode = get_text("ad_mode_free", lang)
+        text = get_text("balance_card", lang, credits=credits_text, ad_mode=ad_mode)
         try:
             await query.edit_message_text(text, reply_markup=get_cabinet_back_keyboard(), parse_mode="HTML")
         except Exception:
