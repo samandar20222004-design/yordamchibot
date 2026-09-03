@@ -2105,23 +2105,38 @@ def test_subscription_card_format():
 def test_subscription_keyboards():
     """Subscription keyboardlari."""
     print("== Subscription keyboards ==")
-    from handlers.subscription import _get_subscription_keyboard
+    from handlers.subscription import (
+        _get_subscription_keyboard,
+        _build_card_payment_text,
+        _get_card_payment_keyboard,
+    )
 
-    # 1. Free foydalanuvchi — Stars to'lov tugmalari to'g'ridan-to'g'ri
+    # 1. Free foydalanuvchi — Stars to'lov tugmalari va Uzcard/Humo karta to'lovi tugmasi
     kb_free = _get_subscription_keyboard("free")
     cbs_free = [b.callback_data for row in kb_free.inline_keyboard for b in row]
     check("free kb: stars_1m", "sub_pay:stars_1m" in cbs_free)
     check("free kb: stars_3m", "sub_pay:stars_3m" in cbs_free)
     check("free kb: stars_1y", "sub_pay:stars_1y" in cbs_free)
+    check("free kb: sub_card_pay bor", "sub_card_pay" in cbs_free)
     check("free kb: promo", "sub_promo" in cbs_free)
     check("free kb: back_main", "sub_back_main" in cbs_free)
 
-    # 2. PRO foydalanuvchi — Stars yo'q, promo va back bor
+    # 2. PRO foydalanuvchi — Stars va Karta to'lovi yo'q, promo va back bor
     kb_pro = _get_subscription_keyboard("pro")
     cbs_pro = [b.callback_data for row in kb_pro.inline_keyboard for b in row]
     check("pro kb: stars_1m yo'q", "sub_pay:stars_1m" not in cbs_pro)
+    check("pro kb: sub_card_pay yo'q", "sub_card_pay" not in cbs_pro)
     check("pro kb: promo bor", "sub_promo" in cbs_pro)
     check("pro kb: back_main bor", "sub_back_main" in cbs_pro)
+
+    # 3. Karta to'lovi yo'riqnomasi va klaviaturasi (uz & ru)
+    for lang in ("uz", "ru"):
+        card_text = _build_card_payment_text(123456, lang=lang)
+        check(f"card text ({lang}): Uzcard ko'rsatilgan", "Uzcard" in card_text)
+        check(f"card text ({lang}): user ID bor", "123456" in card_text)
+        card_kb = _get_card_payment_keyboard(lang=lang)
+        card_cbs = [b.callback_data for row in card_kb.inline_keyboard for b in row]
+        check(f"card kb ({lang}): sub_back bor", "sub_back" in card_cbs)
 
 
 def test_limit_messages():
