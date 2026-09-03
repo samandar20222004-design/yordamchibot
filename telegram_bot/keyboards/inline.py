@@ -3,6 +3,8 @@ from urllib.parse import quote
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
+from locales.translations import get_text
+
 # Telegram tugma matni bo'sh bo'lishi mumkin emas (BadRequest) va juda uzun
 # nom tugmani buzadi — shuning uchun barcha yorliqlar shu yerdan o'tkaziladi.
 BUTTON_LABEL_MAX = 40
@@ -410,7 +412,7 @@ def get_ai_tone_keyboard(selected: str = None) -> InlineKeyboardMarkup:
     ]
     return InlineKeyboardMarkup(keyboard)
 
-def render_channels_list(channels: list) -> InlineKeyboardMarkup:
+def render_channels_list(channels: list, lang: str = "uz") -> InlineKeyboardMarkup:
     keyboard = []
     for ch in channels:
         ch_id, ch_title = ch[:2]
@@ -418,15 +420,15 @@ def render_channels_list(channels: list) -> InlineKeyboardMarkup:
         tone_emoji = {"formal": "👔", "friendly": "😊", "concise": "⚡️", "engaging": "🎉"}.get(tone, "😊")
         keyboard.append([
             InlineKeyboardButton(f"📢 {btn_label(ch_title)}", callback_data="noop"),
-            InlineKeyboardButton("❌ O'chirish", callback_data=f"remove_channel:{ch_id}"),
+            InlineKeyboardButton(get_text("cab_remove_channel", lang), callback_data=f"remove_channel:{ch_id}"),
         ])
         keyboard.append([
-            InlineKeyboardButton(f"{tone_emoji} Uslub", callback_data=f"tone_menu:{ch_id}"),
+            InlineKeyboardButton(f"{tone_emoji} {get_text('cab_tone', lang)}", callback_data=f"tone_menu:{ch_id}"),
         ])
     # "Qo'shish bor, lekin bekor qilish/chiqish yo'q" kamchiligini tuzatish:
     # ro'yxat ostida yangi kanal ulash va oynani yopish tugmalari bo'ladi.
-    keyboard.append([InlineKeyboardButton("➕ Yangi kanal/guruh ulash", callback_data="add_channel_start")])
-    keyboard.append([InlineKeyboardButton("❌ Yopish", callback_data="close_msg")])
+    keyboard.append([InlineKeyboardButton(get_text("cab_add_channel_alt", lang), callback_data="add_channel_start")])
+    keyboard.append([InlineKeyboardButton(get_text("cab_close", lang), callback_data="close_msg")])
     return InlineKeyboardMarkup(keyboard)
 
 def render_pending_list(posts: list, user_code: str) -> InlineKeyboardMarkup:
@@ -454,27 +456,31 @@ def render_pending_list(posts: list, user_code: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(keyboard)
 
 
-def get_cabinet_inline_keyboard() -> InlineKeyboardMarkup:
-    """Kabinet & Sozlamalar asosiy menyusi — inline tugmalar (4x2 + til)."""
+def get_cabinet_inline_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
+    """Kabinet & Sozlamalar asosiy menyusi — inline tugmalar (4x2 + til).
+
+    ``lang`` foydalanuvchi tili (uz/ru). Tugma matni tarjima qilinadi,
+    ``callback_data`` o'zgarishsiz qoladi (routing tilga bog'liq emas).
+    """
     keyboard = [
         [
-            InlineKeyboardButton("📢 Mening kanallarim", callback_data="cab_channels"),
-            InlineKeyboardButton("📊 Kanallar analitikasi", callback_data="cab_analytics"),
+            InlineKeyboardButton(get_text("cab_my_channels", lang), callback_data="cab_channels"),
+            InlineKeyboardButton(get_text("cab_analytics", lang), callback_data="cab_analytics"),
         ],
         [
-            InlineKeyboardButton("📅 Kutilayotgan postlar", callback_data="cab_pending"),
-            InlineKeyboardButton("⏳ Postlar navbati (Queue)", callback_data="cab_queue"),
+            InlineKeyboardButton(get_text("cab_pending", lang), callback_data="cab_pending"),
+            InlineKeyboardButton(get_text("cab_queue", lang), callback_data="cab_queue"),
         ],
         [
-            InlineKeyboardButton("💎 Ballar & Reklama rejimi", callback_data="cab_balance"),
-            InlineKeyboardButton("🎁 Kunlik bonus", callback_data="cab_bonus"),
+            InlineKeyboardButton(get_text("cab_balance", lang), callback_data="cab_balance"),
+            InlineKeyboardButton(get_text("cab_btn_daily_bonus", lang), callback_data="cab_bonus"),
         ],
         [
-            InlineKeyboardButton("👥 Do'stlarni taklif", callback_data="cab_referral"),
-            InlineKeyboardButton("❌ Yopish", callback_data="close_cabinet"),
+            InlineKeyboardButton(get_text("cab_referral", lang), callback_data="cab_referral"),
+            InlineKeyboardButton(get_text("cab_close", lang), callback_data="close_cabinet"),
         ],
         [
-            InlineKeyboardButton("🌐 Til / Язык", callback_data="cab_lang"),
+            InlineKeyboardButton(get_text("lang_button", lang), callback_data="cab_lang"),
         ],
     ]
     return InlineKeyboardMarkup(keyboard)
@@ -725,18 +731,18 @@ def get_reaction_toggle_keyboard(selected=None) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(keyboard)
 
 
-def get_cabinet_back_keyboard() -> InlineKeyboardMarkup:
-    """Kabinet ichki sahifalari — Orqaga + Yopish."""
+def get_cabinet_back_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
+    """Kabinet ichki sahifalari — Orqaga + Yopish (uz/ru)."""
     keyboard = [
         [
-            InlineKeyboardButton("⬅️ Orqaga", callback_data="cab_main"),
-            InlineKeyboardButton("❌ Yopish", callback_data="close_cabinet"),
+            InlineKeyboardButton(get_text("btn_back", lang), callback_data="cab_main"),
+            InlineKeyboardButton(get_text("cab_close", lang), callback_data="close_cabinet"),
         ],
     ]
     return InlineKeyboardMarkup(keyboard)
 
 
-def get_channels_manage_keyboard() -> InlineKeyboardMarkup:
+def get_channels_manage_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
     """📢 Mening kanallarim ekrani tugmalari — kanal qo'shish va o'chirish.
 
     ``add_channel_start`` — kanal ulash ConversationHandler'ini ISHGA
@@ -745,19 +751,25 @@ def get_channels_manage_keyboard() -> InlineKeyboardMarkup:
     (kanal bo'lmasa tushunarli xabar qaytadi).
     """
     keyboard = [
-        [InlineKeyboardButton("➕ Kanal qo'shish", callback_data="add_channel_start")],
-        [InlineKeyboardButton("🗑 Kanalni o'chirish", callback_data="cab_channels_delete")],
+        [InlineKeyboardButton(get_text("cab_add_channel", lang), callback_data="add_channel_start")],
+        [InlineKeyboardButton(get_text("cab_del_channel", lang), callback_data="cab_channels_delete")],
         [
-            InlineKeyboardButton("⬅️ Orqaga", callback_data="cab_main"),
-            InlineKeyboardButton("❌ Yopish", callback_data="close_cabinet"),
+            InlineKeyboardButton(get_text("btn_back", lang), callback_data="cab_main"),
+            InlineKeyboardButton(get_text("cab_close", lang), callback_data="close_cabinet"),
         ],
     ]
     return InlineKeyboardMarkup(keyboard)
 
 
-# Kanal ulanmaganida ko'rsatiladigan yo'naltiruvchi matn (bir xil matn
-# "Mening kanallarim" ekranida ham, kanal talab qilinadigan joylarda ham).
-NO_CHANNELS_HINT = (
-    "Avval <b>«Mening kanallarim»</b> bo'limidan kanal yoki guruhingizni ulang."
-)
+def no_channels_hint(lang: str = "uz") -> str:
+    """Kanal ulanmaganida ko'rsatiladigan yo'naltiruvchi matn (uz/ru).
+
+    Bir xil matn "Mening kanallarim" ekranida ham, kanal talab qilinadigan
+    joylarda ham ishlatiladi.
+    """
+    return get_text("no_channels_hint", lang)
+
+
+# Orqaga moslik: avvalgi importlar buzilmasligi uchun o'zbekcha matn saqlanadi.
+NO_CHANNELS_HINT = no_channels_hint("uz")
 

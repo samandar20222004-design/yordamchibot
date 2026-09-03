@@ -10,10 +10,10 @@ BTN_NEW_POST = get_text("btn_new_post", "uz")
 BTN_AI_STUDIO = get_text("btn_ai_studio", "uz")
 BTN_PENDING = "⏳ Kutilayotgan postlar"
 BTN_SETTINGS = get_text("btn_settings", "uz")
-BTN_CONVERTER = "🔤 Krill-Lotin konvertor"
+BTN_CONVERTER = get_text("cab_btn_converter", "uz")
 BTN_HELP = get_text("btn_help", "uz")
 BTN_EXTRAS = get_text("btn_extras", "uz")
-BTN_BACK = "🔙 Asosiy menyu"
+BTN_BACK = get_text("btn_main_menu", "uz")
 
 # Rus tilidagi asosiy menyu (MessageHandler Regex ikkala tilni tanishi uchun)
 BTN_NEW_POST_RU = get_text("btn_new_post", "ru")
@@ -23,18 +23,27 @@ BTN_HELP_RU = get_text("btn_help", "ru")
 BTN_EXTRAS_RU = get_text("btn_extras", "ru")
 BTN_PREMIUM_RU = get_text("btn_premium", "ru")
 # Har qanday ko'p bosqichli jarayonni (FSM) to'xtatuvchi umumiy tugma.
-BTN_CANCEL = "❌ Bekor qilish"
+BTN_CANCEL = get_text("btn_cancel", "uz")
+BTN_BACK_RU = get_text("btn_main_menu", "ru")
+BTN_CANCEL_RU = get_text("btn_cancel", "ru")
+BTN_CONVERTER_RU = get_text("cab_btn_converter", "ru")
 
 # Orqaga moslik (Aliases)
 BTN_AI_POST = "🤖 AI Post Yordamchi"
 BTN_CABINET = BTN_SETTINGS
 BTN_MAIN_MENU = BTN_BACK
 
-# --- Kabinet ichidagi tugmalar ---
-BTN_CHANNELS = "📢 Kanal/Guruhlar"
-BTN_DAILY_BONUS = "🎁 Kunlik bonus"
-BTN_INVITE = "🚀 Do'stlarni taklif qilish"
-BTN_TRANSFER = "🔄 Ballarni ulashish"
+# --- Kabinet ichidagi tugmalar (uz) ---
+BTN_CHANNELS = get_text("cab_btn_channels", "uz")
+BTN_DAILY_BONUS = get_text("cab_btn_daily_bonus", "uz")
+BTN_INVITE = get_text("cab_btn_invite", "uz")
+BTN_TRANSFER = get_text("cab_btn_transfer", "uz")
+
+# --- Kabinet ichidagi tugmalar (ru) — Regex filter ikkala tilni tanishi uchun ---
+BTN_CHANNELS_RU = get_text("cab_btn_channels", "ru")
+BTN_DAILY_BONUS_RU = get_text("cab_btn_daily_bonus", "ru")
+BTN_INVITE_RU = get_text("cab_btn_invite", "ru")
+BTN_TRANSFER_RU = get_text("cab_btn_transfer", "ru")
 
 # --- Admin tugmalari ---
 BTN_ADMIN_PANEL = "⚙️ Admin Panel"
@@ -131,23 +140,36 @@ def get_main_keyboard(is_admin=False, lang="uz", context=None):
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
 
-def get_cabinet_keyboard():
+def get_cabinet_keyboard(lang="uz", context=None):
+    """Kabinet reply-klaviaturasi — foydalanuvchi tilida (uz/ru).
+
+    ``context`` berilsa, til ``context.user_data['lang']`` dan olinadi
+    (xuddi :func:`get_main_keyboard` kabi).
+    """
+    if context is not None:
+        lang = get_lang(context, lang)
     keyboard = [
-        [BTN_CHANNELS, BTN_CONVERTER],
-        [BTN_DAILY_BONUS],
-        [BTN_INVITE, BTN_TRANSFER],
-        [BTN_BACK]
+        [get_text("cab_btn_channels", lang), get_text("cab_btn_converter", lang)],
+        [get_text("cab_btn_daily_bonus", lang)],
+        [get_text("cab_btn_invite", lang), get_text("cab_btn_transfer", lang)],
+        [get_text("btn_main_menu", lang)]
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
 
-def get_cancel_keyboard():
+def get_cancel_keyboard(lang="uz", context=None):
     """Jarayonni to'xtatish klaviaturasi: Bekor qilish + Asosiy menyu.
 
     Ikkala tugma ham FSM holatini tozalaydi — foydalanuvchi hech qachon
-    "band" holatda qolib ketmaydi.
+    "band" holatda qolib ketmaydi. Til berilmasa o'zbekcha (eski chaqiruvlar
+    uchun moslik saqlanadi).
     """
-    return ReplyKeyboardMarkup([[BTN_CANCEL, BTN_BACK]], resize_keyboard=True)
+    if context is not None:
+        lang = get_lang(context, lang)
+    return ReplyKeyboardMarkup(
+        [[get_text("btn_cancel", lang), get_text("btn_main_menu", lang)]],
+        resize_keyboard=True,
+    )
 
 
 def get_button_prompt_keyboard():
