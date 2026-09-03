@@ -196,7 +196,7 @@ Health endpoint `200` va JSON qaytaradi. UptimeRobot bot polling'ini emas, Rende
 | `/health/ready` | Bot ishlashga tayyormi — baza bilan aloqa tekshiradi (`200` yoki `503`) |
 | `/health`, `/` | `/health/live` bilan bir xil (eski havolalar ishlashda davom etadi) |
 
-### AI sozlamalari (kamida bitta bepul kalit; 6 ta provayder navbatma-navbat ishlaydi)
+### AI sozlamalari (kamida bitta bepul kalit; 8 ta provayder navbatma-navbat ishlaydi)
 
 | # | Kalit | Qayerdan olinadi | Bepul limiti |
 |---|---|---|---|
@@ -205,12 +205,15 @@ Health endpoint `200` va JSON qaytaradi. UptimeRobot bot polling'ini emas, Rende
 | 3 | `OPENROUTER_API_KEY` (ixtiyoriy) | [openrouter.ai](https://openrouter.ai) | `:free` modellar |
 | 4 | `MISTRAL_API_KEY` (ixtiyoriy) | [console.mistral.ai](https://console.mistral.ai) | oyiga ~1 mlrd token |
 | 5 | `CEREBRAS_API_KEY` (ixtiyoriy) | [cloud.cerebras.ai](https://cloud.cerebras.ai) | kuniga 1M token |
-| 6 | — (kalit shart emas) | Pollinations | cheklangan |
+| 6 | `SAMBANOVA_API_KEY` (ixtiyoriy) | [cloud.sambanova.ai](https://cloud.sambanova.ai) | 10–30 RPM |
+| 7 | `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID` (ixtiyoriy) | [dash.cloudflare.com](https://dash.cloudflare.com) → Workers AI | kunlik 10K neuron |
+| 8 | — (kalit shart emas) | Pollinations | cheklangan |
 
 AI so'rovi ketma-ketlikda sinab ko'riladi: **Gemini → Groq → OpenRouter →
-Mistral → Cerebras → Pollinations**. Birinchisi ishlasa — shu javob qaytadi,
-ishlamasa keyingisiga o'tadi. Har bir provayder 3 marta ketma-ket xato bersa,
-10 daqiqaga vaqtincha o'tkazib yuboriladi (tezroq javob uchun).
+Mistral → Cerebras → SambaNova → Cloudflare → Pollinations**. Birinchisi
+ishlasa — shu javob qaytadi, ishlamasa keyingisiga o'tadi. Har bir provayder
+3 marta ketma-ket xato bersa, 10 daqiqaga vaqtincha o'tkazib yuboriladi
+(tezroq javob uchun).
 
 ### AI Intent Routing (aqlli yo'naltirish)
 

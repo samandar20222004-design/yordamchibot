@@ -15,6 +15,7 @@ from config import (
     BOT_TOKEN,
     GEMINI_API_KEY, GROQ_API_KEY, OPENROUTER_API_KEY,
     MISTRAL_API_KEY, CEREBRAS_API_KEY,
+    SAMBANOVA_API_KEY, CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID,
 )
 
 logger = logging.getLogger(__name__)
@@ -25,6 +26,14 @@ GEMINI_BASE = os.getenv("GEMINI_BASE", "https://generativelanguage.googleapis.co
 OPENROUTER_ENDPOINT = os.getenv("OPENROUTER_ENDPOINT", "https://openrouter.ai/api/v1/chat/completions")
 MISTRAL_ENDPOINT = os.getenv("MISTRAL_ENDPOINT", "https://api.mistral.ai/v1/chat/completions")
 CEREBRAS_ENDPOINT = os.getenv("CEREBRAS_ENDPOINT", "https://api.cerebras.ai/v1/chat/completions")
+# SambaNova Cloud (OpenAI-mos) — RDU chiplarida tez inference
+SAMBANOVA_ENDPOINT = os.getenv("SAMBANOVA_ENDPOINT", "https://api.sambanova.ai/v1/chat/completions")
+# Cloudflare Workers AI (OpenAI-mos) — account_id URL ichida ketadi,
+# shuning uchun endpoint shu yerda yig'iladi (env bilan to'liq almashtirish mumkin).
+CLOUDFLARE_ENDPOINT = os.getenv(
+    "CLOUDFLARE_ENDPOINT",
+    f"https://api.cloudflare.com/client/v4/accounts/{CLOUDFLARE_ACCOUNT_ID}/ai/v1/chat/completions",
+)
 # Kalitsiz bepul zaxira (Pollinations) — oxirgi chora sifatida
 POLLINATIONS_ENDPOINT = os.getenv("POLLINATIONS_ENDPOINT", "https://text.pollinations.ai/openai")
 
@@ -169,6 +178,22 @@ CEREBRAS_PREFERRED = [
     "llama3.1-70b",
     "llama3.1-8b",
 ]
+# SambaNova Cloud: katta ochiq modellar (RDU'da tez ishlaydi)
+SAMBANOVA_PREFERRED = [
+    "Meta-Llama-3.3-70B-Instruct",          # Eng barqaror, ko'p tilli
+    "Qwen3-32B",                            # Yangi avlod, sifatli
+    "Llama-4-Maverick-17B-128E-Instruct",   # Katta MoE model
+    "DeepSeek-V3-0324",                     # Zaxira (kuchli, lekin sekinroq)
+    "Meta-Llama-3.1-8B-Instruct",           # Eng tez zaxira
+]
+# Cloudflare Workers AI: model id'lari '@cf/...' ko'rinishida bo'ladi
+CLOUDFLARE_PREFERRED = [
+    "@cf/meta/llama-3.3-70b-instruct-fp8-fast",   # fp8 — tez va arzon
+    "@cf/meta/llama-4-scout-17b-16e-instruct",    # LLaMA 4 (kontekst katta)
+    "@cf/meta/llama-3.1-8b-instruct",             # Eng tez zaxira
+    "@cf/mistral/mistral-7b-instruct-v0.1",
+    "@cf/qwen/qwq-32b",                           # Zaxira
+]
 
 # Discovery ishlamasa ishlatiladigan zaxira ro'yxatlar
 GEMINI_MODELS = list(GEMINI_PREFERRED)
@@ -176,6 +201,8 @@ GROQ_MODELS = list(GROQ_PREFERRED)
 OPENROUTER_MODELS = list(OPENROUTER_PREFERRED)
 MISTRAL_MODELS = list(MISTRAL_PREFERRED)
 CEREBRAS_MODELS = list(CEREBRAS_PREFERRED)
+SAMBANOVA_MODELS = list(SAMBANOVA_PREFERRED)
+CLOUDFLARE_MODELS = list(CLOUDFLARE_PREFERRED)
 
 # === Bitta umumiy aiohttp sessiya (singleton) ===
 # Har so'rovda yangi sessiya ochish +300-800ms kechikish va TCP socket isrof qiladi.
@@ -931,6 +958,83 @@ async def _call_cerebras(prompt: str, api_key: str, system_instruction: str, par
     raise RuntimeError(last_err or "Cerebras noma'lum xato")
 
 
+async def _call_sambanova(prompt: str, api_key: str, system_instruction: str, params: dict = None) -> dict:
+    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+    params = params or get_runtime_params()
+    last_err = ""
+
+    for model in SAMBANOVA_MODELS:
+        payload = {
+            "model": model,
+            "messages": [
+                {"role": "system", "content": system_instruction},
+                {"role": "user", "content": f"{prompt}\n\nJavobni FAQAT JSON formatida qaytaring."},
+            ],
+        }
+        _apply_optional_params(payload, params)
+        try:
+            result = await _post_chat_completion(SAMBANOVA_ENDPOINT, headers, payload)
+            return _extract_json(result["content"])
+        except ProviderError as e:
+            msg = (e.message or "").lower()
+            if e.status == 400 and any(k in msg for k in (
+                "decommissioned", "does not exist", "not found", "deprecated", "no such model",
+            )):
+                # Bu model mavjud emas — keyingi modelga o'tamiz
+                last_err = f"SambaNova ({model}): {e.message}"
+                continue
+            last_err = f"SambaNova ({model}): {e.message}"
+            continue
+        except Exception as e:
+            last_err = f"SambaNova ({model}): {e}"
+            continue
+
+    raise RuntimeError(last_err or "SambaNova noma'lum xato")
+
+
+async def _call_cloudflare(prompt: str, api_key: str, system_instruction: str, params: dict = None) -> dict:
+    """Cloudflare Workers AI (OpenAI-mos /v1/chat/completions).
+
+    Endpoint ichida CLOUDFLARE_ACCOUNT_ID bo'lishi shart — bo'lmasa darhol
+    xato qaytaramiz (zanjir keyingi provayderga o'tadi).
+    """
+    if not CLOUDFLARE_ACCOUNT_ID:
+        raise RuntimeError("Cloudflare: CLOUDFLARE_ACCOUNT_ID sozlanmagan")
+
+    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+    params = params or get_runtime_params()
+    last_err = ""
+
+    for model in CLOUDFLARE_MODELS:
+        payload = {
+            "model": model,
+            "messages": [
+                {"role": "system", "content": system_instruction},
+                {"role": "user", "content": f"{prompt}\n\nJavobni FAQAT JSON formatida qaytaring."},
+            ],
+        }
+        _apply_optional_params(payload, params)
+        try:
+            result = await _post_chat_completion(CLOUDFLARE_ENDPOINT, headers, payload)
+            return _extract_json(result["content"])
+        except ProviderError as e:
+            msg = (e.message or "").lower()
+            if e.status in (400, 404) and any(k in msg for k in (
+                "decommissioned", "does not exist", "not found", "deprecated",
+                "no such model", "unknown model", "unsupported model",
+            )):
+                # Bu model mavjud emas — keyingi modelga o'tamiz
+                last_err = f"Cloudflare ({model}): {e.message}"
+                continue
+            last_err = f"Cloudflare ({model}): {e.message}"
+            continue
+        except Exception as e:
+            last_err = f"Cloudflare ({model}): {e}"
+            continue
+
+    raise RuntimeError(last_err or "Cloudflare noma'lum xato")
+
+
 async def _call_pollinations(prompt: str, system_instruction: str, params: dict = None) -> dict:
     """Kalitsiz bepul zaxira (Pollinations) — oxirgi chora."""
     params = params or get_runtime_params()
@@ -951,8 +1055,8 @@ def _clean_key(value: str) -> str:
 
 
 async def _run_ai_chain(prompt: str, system_instruction: str) -> dict:
-    """6 ta provayderni navbat bilan sinaydi: Gemini → Groq → OpenRouter →
-    Mistral → Cerebras → Pollinations (kalitsiz).
+    """8 ta provayderni navbat bilan sinaydi: Gemini → Groq → OpenRouter →
+    Mistral → Cerebras → SambaNova → Cloudflare → Pollinations (kalitsiz).
 
     - Har bir provayder 3 marta ketma-ket xato bersa, 10 daqiqaga o'tkazib
       yuboriladi (circuit breaker) — o'lik provayderga vaqt sarflanmaydi.
@@ -973,6 +1077,8 @@ async def _run_ai_chain(prompt: str, system_instruction: str) -> dict:
     openrouter_key = _clean_key(OPENROUTER_API_KEY)
     mistral_key = _clean_key(MISTRAL_API_KEY)
     cerebras_key = _clean_key(CEREBRAS_API_KEY)
+    sambanova_key = _clean_key(SAMBANOVA_API_KEY)
+    cloudflare_key = _clean_key(CLOUDFLARE_API_TOKEN)
 
     providers = [
         ("Gemini", _call_gemini, (prompt, gemini_key, system_instruction, params), bool(gemini_key)),
@@ -980,6 +1086,10 @@ async def _run_ai_chain(prompt: str, system_instruction: str) -> dict:
         ("OpenRouter", _call_openrouter, (prompt, openrouter_key, system_instruction, params), bool(openrouter_key)),
         ("Mistral", _call_mistral, (prompt, mistral_key, system_instruction, params), bool(mistral_key)),
         ("Cerebras", _call_cerebras, (prompt, cerebras_key, system_instruction, params), bool(cerebras_key)),
+        ("SambaNova", _call_sambanova, (prompt, sambanova_key, system_instruction, params), bool(sambanova_key)),
+        # Cloudflare: kalit + account_id ikkalasi ham kerak (endpoint shu ikkisidan yig'iladi)
+        ("Cloudflare", _call_cloudflare, (prompt, cloudflare_key, system_instruction, params),
+         bool(cloudflare_key and CLOUDFLARE_ACCOUNT_ID)),
         ("Pollinations", _call_pollinations, (prompt, system_instruction, params), True),
     ]
 
@@ -1014,6 +1124,9 @@ async def _run_ai_chain(prompt: str, system_instruction: str) -> dict:
             "• Mistral → MISTRAL_API_KEY: console.mistral.ai (oyiga ~1 mlrd token)\n"
             "• Cerebras → CEREBRAS_API_KEY: cloud.cerebras.ai (kuniga 1M token)\n"
             "• OpenRouter → OPENROUTER_API_KEY: openrouter.ai (:free modellar)\n"
+            "• SambaNova → SAMBANOVA_API_KEY: cloud.sambanova.ai (10–30 RPM)\n"
+            "• Cloudflare → CLOUDFLARE_API_TOKEN + CLOUDFLARE_ACCOUNT_ID: "
+            "dash.cloudflare.com → Workers AI (kunlik 10K neuron)\n"
             "Kalitlarni Render → Environment bo'limiga qo'shing va botni qayta ishga tushiring."
         )
     }
