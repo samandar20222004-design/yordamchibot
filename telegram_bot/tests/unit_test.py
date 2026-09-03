@@ -5675,6 +5675,127 @@ def test_my_chat_member_autoconnect_suite():
           len(calls3) == 1, str(calls3))
 
 
+def test_referrer_id_and_new_providers_suite():
+    """Referal referrer_id tuzatishi + SambaNova/Cloudflare zanjirga qo'shilishi.
+
+    1) handlers/channels.py endi `run_db(lambda cur: ...)` CHAQIRMAYDI — bunday
+       lambda kursor olmagani uchun har safar TypeError berardi.
+    2) AI provayder zanjiri: Gemini → Groq → OpenRouter → Mistral → Cerebras →
+       SambaNova → Cloudflare → Pollinations (tartib saqlangan).
+    """
+    import asyncio
+    import inspect
+    import database as db_mod
+
+    print("== VAZIFA 1: referrer_id (kursor o'rniga tayyor DB funksiyasi) ==")
+    check("database.get_referrer_id mavjud", callable(getattr(db_mod, "get_referrer_id", None)))
+    params = list(inspect.signature(db_mod.get_referrer_id).parameters)
+    check("get_referrer_id faqat user_id oladi (kursor emas)", params == ["user_id"], str(params))
+
+    channels_src = (ROOT / "handlers" / "channels.py").read_text(encoding="utf-8")
+    check("channels.py: db.run_db(db.get_referrer_id, user_id) chaqiriladi",
+          "db.run_db(db.get_referrer_id, user_id)" in channels_src)
+    check("channels.py: 'lambda cur' butunlay olib tashlandi", "lambda cur" not in channels_src)
+    check("channels.py: referal PRO mukofoti qismi saqlangan",
+          "check_and_grant_referral_pro" in channels_src)
+
+    print("== VAZIFA 2: SambaNova + Cloudflare zanjirda ==")
+    from utils import ai_agent
+
+    check("ai_agent: _call_sambanova mavjud", callable(getattr(ai_agent, "_call_sambanova", None)))
+    check("ai_agent: _call_cloudflare mavjud", callable(getattr(ai_agent, "_call_cloudflare", None)))
+    check("SAMBANOVA_MODELS to'ldirilgan", len(ai_agent.SAMBANOVA_MODELS) >= 3,
+          str(ai_agent.SAMBANOVA_MODELS))
+    check("CLOUDFLARE_MODELS '@cf/' prefiksli",
+          bool(ai_agent.CLOUDFLARE_MODELS) and all(m.startswith("@cf/") for m in ai_agent.CLOUDFLARE_MODELS),
+          str(ai_agent.CLOUDFLARE_MODELS))
+    check("SambaNova endpoint to'g'ri",
+          ai_agent.SAMBANOVA_ENDPOINT == "https://api.sambanova.ai/v1/chat/completions",
+          ai_agent.SAMBANOVA_ENDPOINT)
+    check("Cloudflare endpoint account_id dan yig'iladi",
+          ai_agent.CLOUDFLARE_ENDPOINT.startswith("https://api.cloudflare.com/client/v4/accounts/")
+          and ai_agent.CLOUDFLARE_ENDPOINT.endswith("/ai/v1/chat/completions"),
+          ai_agent.CLOUDFLARE_ENDPOINT)
+
+    chain_src = inspect.getsource(ai_agent._run_ai_chain)
+    for name in ("Gemini", "Groq", "OpenRouter", "Mistral", "Cerebras",
+                 "SambaNova", "Cloudflare", "Pollinations"):
+        check(f"zanjirda {name} bor", f'"{name}"' in chain_src)
+    pos = {n: chain_src.find(f'"{n}"') for n in
+           ("Gemini", "Groq", "OpenRouter", "Mistral", "Cerebras", "SambaNova", "Cloudflare")}
+    check("tartib saqlangan (SambaNova va Cloudflare oxirga qo'shildi)",
+          pos["Gemini"] < pos["Groq"] < pos["OpenRouter"] < pos["Mistral"]
+          < pos["Cerebras"] < pos["SambaNova"] < pos["Cloudflare"], str(pos))
+
+    # Haqiqiy chaqiruv tartibi — barcha _call_* funksiyalar stub bilan almashtiriladi
+    order = []
+
+    def _stub(name):
+        async def _fake(prompt, *args, **kwargs):
+            order.append(name)
+            raise RuntimeError(f"{name}: stub (ataylab xato)")
+        return _fake
+
+    provider_funcs = {
+        "_call_gemini": "Gemini",
+        "_call_groq": "Groq",
+        "_call_openrouter": "OpenRouter",
+        "_call_mistral": "Mistral",
+        "_call_cerebras": "Cerebras",
+        "_call_sambanova": "SambaNova",
+        "_call_cloudflare": "Cloudflare",
+        "_call_pollinations": "Pollinations",
+    }
+    saved_funcs = {k: getattr(ai_agent, k) for k in provider_funcs}
+    saved_keys = {k: getattr(ai_agent, k) for k in
+                  ("GEMINI_API_KEY", "GROQ_API_KEY", "OPENROUTER_API_KEY", "MISTRAL_API_KEY",
+                   "CEREBRAS_API_KEY", "SAMBANOVA_API_KEY", "CLOUDFLARE_API_TOKEN")}
+    saved_account = ai_agent.CLOUDFLARE_ACCOUNT_ID
+    saved_breakers = dict(ai_agent._BREAKERS)
+    try:
+        for attr, name in provider_funcs.items():
+            setattr(ai_agent, attr, _stub(name))
+        for attr in saved_keys:
+            setattr(ai_agent, attr, "test-key")
+        ai_agent.CLOUDFLARE_ACCOUNT_ID = "test-account"
+        ai_agent._BREAKERS.clear()
+        asyncio.run(ai_agent._run_ai_chain("test prompt", "sen yordamchisan"))
+    finally:
+        for attr, fn in saved_funcs.items():
+            setattr(ai_agent, attr, fn)
+        for attr, val in saved_keys.items():
+            setattr(ai_agent, attr, val)
+        ai_agent.CLOUDFLARE_ACCOUNT_ID = saved_account
+        ai_agent._BREAKERS.clear()
+        ai_agent._BREAKERS.update(saved_breakers)
+
+    expected = ["Gemini", "Groq", "OpenRouter", "Mistral", "Cerebras",
+                "SambaNova", "Cloudflare", "Pollinations"]
+    check("chaqiruv tartibi to'liq va buzilmagan", order == expected, str(order))
+
+    # Account ID bo'lmasa Cloudflare zanjirdan chiqib ketadi (kalit bo'lsa ham)
+    order.clear()
+    saved_funcs = {k: getattr(ai_agent, k) for k in provider_funcs}
+    try:
+        for attr, name in provider_funcs.items():
+            setattr(ai_agent, attr, _stub(name))
+        ai_agent.SAMBANOVA_API_KEY = "test-key"
+        ai_agent.CLOUDFLARE_API_TOKEN = "test-key"
+        ai_agent.CLOUDFLARE_ACCOUNT_ID = ""
+        ai_agent._BREAKERS.clear()
+        asyncio.run(ai_agent._run_ai_chain("test prompt", "sen yordamchisan"))
+    finally:
+        for attr, fn in saved_funcs.items():
+            setattr(ai_agent, attr, fn)
+        ai_agent.SAMBANOVA_API_KEY = saved_keys["SAMBANOVA_API_KEY"]
+        ai_agent.CLOUDFLARE_API_TOKEN = saved_keys["CLOUDFLARE_API_TOKEN"]
+        ai_agent.CLOUDFLARE_ACCOUNT_ID = saved_account
+        ai_agent._BREAKERS.clear()
+        ai_agent._BREAKERS.update(saved_breakers)
+    check("CLOUDFLARE_ACCOUNT_ID yo'q → Cloudflare chaqirilmaydi",
+          "Cloudflare" not in order, str(order))
+
+
 def main():
     test_calculate_next_time()
     test_converter()
@@ -5798,6 +5919,7 @@ def main():
     test_channel_posts_history_suite()
     test_channel_add_autodetect_no_hang_suite()
     test_my_chat_member_autoconnect_suite()
+    test_referrer_id_and_new_providers_suite()
 
     print(f"\nO'tdi: {passed}, Xato: {failures}")
     if failures:

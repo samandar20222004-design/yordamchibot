@@ -49,6 +49,11 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
 MISTRAL_API_KEY = os.getenv("MISTRAL_API_KEY", "")
 CEREBRAS_API_KEY = os.getenv("CEREBRAS_API_KEY", "")
+# SambaNova Cloud — cloud.sambanova.ai (bepul tier, 10–30 RPM)
+SAMBANOVA_API_KEY = os.getenv("SAMBANOVA_API_KEY", "")
+# Cloudflare Workers AI — account id + API token (kunlik 10K neuron bepul)
+CLOUDFLARE_ACCOUNT_ID = os.getenv("CLOUDFLARE_ACCOUNT_ID", "").strip()
+CLOUDFLARE_API_TOKEN = os.getenv("CLOUDFLARE_API_TOKEN", "")
 
 # --- Sentry monitoring (ixtiyoriy) ---
 # Render'da SENTRY_DSN o'zgaruvchisini qo'shsangiz, barcha xatolar avtomatik yig'iladi.

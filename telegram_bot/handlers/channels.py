@@ -382,13 +382,8 @@ async def _link_channel(update: Update, context: ContextTypes.DEFAULT_TYPE, raw_
                 pass
 
         # Referal PRO mukofotini tekshirish (taklif qilgan foydalanuvchiga)
-        referrer_row = await db.run_db(
-            lambda cur: cur.execute(
-                "SELECT referrer_id FROM users WHERE user_id = %s", (user_id,)
-            ) or cur.fetchone()
-        )
-        if referrer_row and referrer_row[0]:
-            referrer_id = referrer_row[0]
+        referrer_id = await db.run_db(db.get_referrer_id, user_id)
+        if referrer_id:
             pro_granted = await db.run_db(db.check_and_grant_referral_pro, referrer_id)
             if pro_granted:
                 try:

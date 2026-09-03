@@ -2909,6 +2909,29 @@ def get_active_referral_count(user_id: int) -> int:
         return 0
 
 
+def get_referrer_id(user_id: int) -> int | None:
+    """Foydalanuvchini taklif qilgan (referrer) foydalanuvchi ID'si.
+
+    Hech kim taklif qilmagan bo'lsa (ustun NULL) yoki baza xato bersa — None.
+
+    Eslatma: ``run_db`` orqali chaqiriladi (``await db.run_db(db.get_referrer_id, user_id)``) —
+    ichida kursor O'ZI ochiladi, tashqaridan kursor uzatilmaydi.
+    """
+    try:
+        with db_cursor() as cur:
+            cur.execute(
+                "SELECT referrer_id FROM users WHERE user_id = %s",
+                (user_id,),
+            )
+            row = cur.fetchone()
+            if row and row[0]:
+                return int(row[0])
+            return None
+    except Exception as e:
+        logger.error(f"get_referrer_id xatosi: {e}")
+        return None
+
+
 def check_and_grant_referral_pro(user_id: int) -> bool:
     """3 ta faol do'st yig'ilganda 30 kunlik PRO beradi.
 
