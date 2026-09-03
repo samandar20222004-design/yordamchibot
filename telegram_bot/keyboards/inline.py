@@ -466,7 +466,7 @@ def get_cabinet_inline_keyboard() -> InlineKeyboardMarkup:
             InlineKeyboardButton("⏳ Postlar navbati (Queue)", callback_data="cab_queue"),
         ],
         [
-            InlineKeyboardButton("💎 Ballar & Litsenziya", callback_data="cab_balance"),
+            InlineKeyboardButton("💎 Ballar & Reklama rejimi", callback_data="cab_balance"),
             InlineKeyboardButton("🎁 Kunlik bonus", callback_data="cab_bonus"),
         ],
         [

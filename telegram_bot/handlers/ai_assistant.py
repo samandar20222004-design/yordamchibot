@@ -156,13 +156,7 @@ async def _keep_typing(bot, chat_id: int, stop_event: asyncio.Event):
 
 def _no_credits_text(bot_username: str, user_id: int, lang: str = "uz") -> str:
     ref_link = f"https://t.me/{bot_username}?start=ref_{user_id}"
-    return (
-        "⚠️ <b>Sizda bepul AI so'rovlari soni tugadi!</b>\n\n"
-        "Ko'proq so'rov olish uchun do'stlaringizni taklif qiling.\n"
-        "🎁 <i>Birinchi 3 do'st uchun +3 tadan, keyingilar uchun +1 AI ball beriladi.</i>\n"
-        f"{get_text('daily_bonus_guide', lang)}\n\n"
-        f"🔗 Sizning taklif havolangiz:\n<code>{ref_link}</code>"
-    )
+    return get_text("no_credits", lang, guide=get_text("daily_bonus_guide", lang), link=ref_link)
 
 
 async def start_ai_assistant(update: Update, context: ContextTypes.DEFAULT_TYPE):

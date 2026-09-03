@@ -33,7 +33,6 @@ BTN_MAIN_MENU = BTN_BACK
 # --- Kabinet ichidagi tugmalar ---
 BTN_CHANNELS = "📢 Kanal/Guruhlar"
 BTN_DAILY_BONUS = "🎁 Kunlik bonus"
-BTN_BUY_AD_FREE = "💎 Reklamasiz postlar"
 BTN_INVITE = "🚀 Do'stlarni taklif qilish"
 BTN_TRANSFER = "🔄 Ballarni ulashish"
 

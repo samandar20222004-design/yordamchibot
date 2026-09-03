@@ -55,6 +55,24 @@ SAMBANOVA_API_KEY = os.getenv("SAMBANOVA_API_KEY", "")
 CLOUDFLARE_ACCOUNT_ID = os.getenv("CLOUDFLARE_ACCOUNT_ID", "").strip()
 CLOUDFLARE_API_TOKEN = os.getenv("CLOUDFLARE_API_TOKEN", "")
 
+# --- Karta orqali to'lov (Uzcard / Humo) — O'zbekiston uchun qulaylik ---
+# Bo'sh qoldirilsa foydalanuvchiga "adminga bog'laning" yo'riqnomasi chiqadi.
+PAYMENT_CARD_NUMBER = os.getenv("PAYMENT_CARD_NUMBER", "").strip()
+PAYMENT_CARD_HOLDER = os.getenv("PAYMENT_CARD_HOLDER", "").strip()
+# Chek yuboriladigan admin username (@ belgisisiz ham bo'lishi mumkin)
+PAYMENT_ADMIN_USERNAME = os.getenv("PAYMENT_ADMIN_USERNAME", "").strip().lstrip("@")
+# Tariflar narxi so'mda (Stars narxiga taxminan mos)
+def _int_env(name: str, default: int) -> int:
+    raw = os.getenv(name, "").strip()
+    try:
+        return int(raw) if raw else default
+    except ValueError:
+        logger.warning("%s noto'g'ri qiymatga ega: %r. %s deb olindi.", name, raw, default)
+        return default
+PAYMENT_PRICE_1M_UZS = _int_env("PAYMENT_PRICE_1M_UZS", 19000)
+PAYMENT_PRICE_3M_UZS = _int_env("PAYMENT_PRICE_3M_UZS", 45000)
+PAYMENT_PRICE_1Y_UZS = _int_env("PAYMENT_PRICE_1Y_UZS", 140000)
+
 # --- Sentry monitoring (ixtiyoriy) ---
 # Render'da SENTRY_DSN o'zgaruvchisini qo'shsangiz, barcha xatolar avtomatik yig'iladi.
 SENTRY_DSN = os.getenv("SENTRY_DSN", "")

@@ -1488,6 +1488,39 @@ def _generate_user_code(cur) -> str:
             return code
     return "".join(random.choice(letters) for _ in range(3)) + "".join(random.choice(string.digits) for _ in range(2))
 
+# ============================================================
+# REFERAL MUKOFOTI — FAQAT AI BALL (PRO berilmaydi)
+# ============================================================
+REFERRAL_TOP_TIER_FRIENDS = 3   # dastlabki nechta do'st "katta" mukofot oladi
+REFERRAL_TOP_TIER_REWARD = 3    # 1-, 2-, 3-do'st uchun har biriga
+REFERRAL_BASE_REWARD = 1        # 4-do'st va undan keyingilar uchun har biriga
+
+
+def referral_reward_for(friend_number: int) -> int:
+    """N-chi taklif qilingan do'st uchun beriladigan AI ball miqdori.
+
+    ``friend_number`` — bu do'st referrer uchun nechanchi ekani (1 dan boshlab).
+    1, 2, 3 → +3; 4 va undan keyingi barchasi → +1. Noto'g'ri (0 yoki manfiy)
+    qiymat 1-do'st sifatida qaraladi.
+    """
+    try:
+        n = int(friend_number)
+    except (TypeError, ValueError):
+        n = 1
+    if n < 1:
+        n = 1
+    return REFERRAL_TOP_TIER_REWARD if n <= REFERRAL_TOP_TIER_FRIENDS else REFERRAL_BASE_REWARD
+
+
+def total_referral_reward(friends_count: int) -> int:
+    """``friends_count`` ta do'st uchun jami beriladigan AI ball (yig'indi)."""
+    try:
+        n = max(0, int(friends_count))
+    except (TypeError, ValueError):
+        n = 0
+    return sum(referral_reward_for(i) for i in range(1, n + 1))
+
+
 def save_user(user_id: int, username: str, full_name: str = "", referrer_id: int = None,
               language_code: str = None) -> bool:
     try:
@@ -1503,17 +1536,18 @@ def save_user(user_id: int, username: str, full_name: str = "", referrer_id: int
                 valid_ref = referrer_id if referrer_id and referrer_id != user_id else None
                 lang = _normalize_language_code(language_code)
                 cur.execute("""
-                    INSERT INTO users (user_id, username, full_name, user_code, referrer_id, ai_credits, ad_free_posts, ad_free_active, streak_days, created_at, language_code)
-                    VALUES (%s, %s, %s, %s, %s, 5, 0, TRUE, 0, NOW(), %s)
+                    INSERT INTO users (user_id, username, full_name, user_code, referrer_id, ai_credits, streak_days, created_at, language_code)
+                    VALUES (%s, %s, %s, %s, %s, 5, 0, NOW(), %s)
                 """, (user_id, username, full_name, code, valid_ref, lang))
-                
+
                 if valid_ref:
-                    # Referral rewards are credits only: first three friends earn
-                    # 3 each, every subsequent friend earns 1.  Count and update
-                    # in this transaction so concurrent /start calls cannot race.
+                    # Referal mukofoti FAQAT AI ball: 1-, 2-, 3-do'st uchun +3 tadan,
+                    # 4-do'stdan boshlab har biri uchun +1. PRO berilmaydi.
+                    # Hisoblash va yozish bitta tranzaksiyada — parallel /start
+                    # chaqiruvlari poyga (race) hosil qilmaydi.
                     cur.execute("SELECT COUNT(*) FROM users WHERE referrer_id = %s", (valid_ref,))
                     referral_count = int((cur.fetchone() or (0,))[0] or 0)
-                    reward = 3 if referral_count <= 3 else 1
+                    reward = referral_reward_for(referral_count)
                     cur.execute("UPDATE users SET ai_credits = ai_credits + %s WHERE user_id = %s", (reward, valid_ref))
                     _invalidate_user(valid_ref)
                 _invalidate_user(user_id)
@@ -1578,90 +1612,13 @@ def claim_daily_streak_bonus(user_id: int) -> dict:
         logger.error(f"Streak bonus xatosi: {e}")
         return {"success": False, "msg": "Tizim xatoligi yuz berdi."}
 
-def buy_ad_free_posts(user_id: int) -> tuple[bool, str]:
-    try:
-        with db_cursor(commit=True) as cur:
-            cur.execute("SELECT ai_credits FROM users WHERE user_id = %s FOR UPDATE", (user_id,))
-            row = cur.fetchone()
-            if not row or row[0] < 1:
-                return False, "Hisobingizda yetarli ball mavjud emas."
-            
-            cur.execute("UPDATE users SET ai_credits = ai_credits - 1, ad_free_posts = ad_free_posts + 5, ad_free_active = TRUE WHERE user_id = %s", (user_id,))
-            _invalidate_user(user_id)
-            _cache_clear("system_stats")
-            return True, "✅ <b>5 ta reklamasiz toza post</b> litsenziyasi qo'shildi!"
-    except Exception as e:
-        logger.error(f"Xarid xatosi: {e}")
-        return False, f"Xatolik: {e}"
+# Eslatma: avvalgi "reklamasiz postlar litsenziyasi" (buy/refund/toggle/
+# consume/peek_ad_free_*) funksiyalari OLIB TASHLANDI. Reklamasiz rejim endi
+# to'liq avtomatik: PRO (is_premium) yoki admin → reklama umuman qo'shilmaydi,
+# oddiy foydalanuvchi → admin belgilagan reklama oralig'i (ad_pool) qo'llanadi.
+# ``users.ad_free_posts`` / ``users.ad_free_active`` ustunlari mavjud bazani
+# buzmaslik uchun saqlanadi, lekin endi o'qilmaydi/yozilmaydi.
 
-def refund_ad_free_posts(user_id: int) -> tuple[bool, str]:
-    try:
-        with db_cursor(commit=True) as cur:
-            cur.execute("SELECT ad_free_posts FROM users WHERE user_id = %s FOR UPDATE", (user_id,))
-            row = cur.fetchone()
-            if not row or row[0] < 5:
-                return False, "Ballni qaytarish uchun kamida <b>5 ta</b> ishlatilmagan post litsenziyasi bo'lishi kerak."
-            
-            refund_credits = row[0] // 5
-            remaining_posts = row[0] % 5
-            
-            cur.execute("""
-                UPDATE users 
-                SET ai_credits = ai_credits + %s, ad_free_posts = %s 
-                WHERE user_id = %s
-            """, (refund_credits, remaining_posts, user_id))
-            _invalidate_user(user_id)
-            _cache_clear("system_stats")
-            
-            return True, f"✅ <b>{refund_credits * 5} ta post litsenziyasi</b> bekor qilindi va hisobingizga <b>+{refund_credits} ta AI ball</b> qaytarildi!"
-    except Exception as e:
-        logger.error(f"Qaytarish xatosi: {e}")
-        return False, f"Xatolik: {e}"
-
-def toggle_ad_free_status(user_id: int) -> tuple[bool, bool]:
-    try:
-        with db_cursor(commit=True) as cur:
-            cur.execute("SELECT ad_free_active, ad_free_posts FROM users WHERE user_id = %s FOR UPDATE", (user_id,))
-            row = cur.fetchone()
-            if not row:
-                return False, False
-            new_status = not (row[0] if row[0] is not None else True)
-            cur.execute("UPDATE users SET ad_free_active = %s WHERE user_id = %s", (new_status, user_id))
-            _invalidate_user(user_id)
-            return True, new_status
-    except Exception as e:
-        logger.error(f"Status o'zgartirish xatosi: {e}")
-        return False, False
-
-def consume_ad_free_post(user_id: int) -> bool:
-    try:
-        with db_cursor(commit=True) as cur:
-            cur.execute("SELECT ad_free_posts, ad_free_active FROM users WHERE user_id = %s FOR UPDATE", (user_id,))
-            row = cur.fetchone()
-            if row and row[0] > 0 and (row[1] is True or row[1] is None):
-                cur.execute("UPDATE users SET ad_free_posts = ad_free_posts - 1 WHERE user_id = %s", (user_id,))
-                _invalidate_user(user_id)
-                return True
-            return False
-    except Exception as e:
-        logger.error(f"Litsenziya sarflash xatosi: {e}")
-        return False
-
-
-def peek_ad_free_post(user_id: int) -> bool:
-    """Litsenziya mavjudligini tekshiradi, lekin SARCHFAMAYDI.
-
-    Scheduler postni yuborishdan oldin shu orqali tekshiradi va faqat
-    muvaffaqiyatli yuborilgandan keyin consume_ad_free_post() bilan sarflaydi.
-    """
-    try:
-        with db_cursor() as cur:
-            cur.execute("SELECT ad_free_posts, ad_free_active FROM users WHERE user_id = %s", (user_id,))
-            row = cur.fetchone()
-            return bool(row and row[0] is not None and row[0] > 0 and (row[1] is True or row[1] is None))
-    except Exception as e:
-        logger.error(f"Litsenziya tekshirish xatosi: {e}")
-        return False
 
 def add_user_credit(user_id: int, amount: int = 1) -> bool:
     try:
@@ -1767,18 +1724,16 @@ def get_referral_stats(user_id: int) -> dict:
         with db_cursor() as cur:
             cur.execute("SELECT COUNT(*) FROM users WHERE referrer_id = %s", (user_id,))
             ref_count = cur.fetchone()[0]
-            cur.execute("SELECT ai_credits, ad_free_posts, streak_days, ad_free_active FROM users WHERE user_id = %s", (user_id,))
+            cur.execute("SELECT ai_credits, streak_days FROM users WHERE user_id = %s", (user_id,))
             row = cur.fetchone()
             credits = row[0] if row and row[0] is not None else 0
-            ad_free = row[1] if row and len(row) > 1 and row[1] is not None else 0
-            streak = row[2] if row and len(row) > 2 and row[2] is not None else 0
-            active = row[3] if row and len(row) > 3 and row[3] is not None else True
-            data = {"referrals_count": ref_count, "ai_credits": credits, "ad_free_posts": ad_free, "streak": streak, "ad_free_active": active}
+            streak = row[1] if row and len(row) > 1 and row[1] is not None else 0
+            data = {"referrals_count": ref_count, "ai_credits": credits, "streak": streak}
             _cache_set(cache_key, data, DB_USER_CACHE_TTL)
             return data
     except Exception as e:
         logger.error(f"Referral xatosi: {e}")
-        return {"referrals_count": 0, "ai_credits": 0, "ad_free_posts": 0, "streak": 0, "ad_free_active": True}
+        return {"referrals_count": 0, "ai_credits": 0, "streak": 0}
 
 def get_all_user_ids() -> list:
     try:
@@ -2938,27 +2893,12 @@ def redeem_promo_code(user_id: int, code: str) -> tuple[bool, str]:
 
 
 # ============================================================
-# REFERRAL PRO REWARD (3 DO'ST = 30 KUN PRO)
+# REFERAL — faqat ma'lumot funksiyalari (PRO mukofoti OLIB TASHLANGAN)
 # ============================================================
-
-REFERRAL_PRO_THRESHOLD = 3
-REFERRAL_PRO_DAYS = 30
-
-
-def get_active_referral_count(user_id: int) -> int:
-    """Taklif qilingan va kamida 1 ta kanal ulagan do'stlar soni."""
-    try:
-        with db_cursor() as cur:
-            cur.execute(
-                "SELECT COUNT(DISTINCT u.user_id) FROM users u "
-                "INNER JOIN channels c ON c.user_id = u.user_id AND c.is_active = TRUE "
-                "WHERE u.referrer_id = %s",
-                (user_id,),
-            )
-            return cur.fetchone()[0]
-    except Exception as e:
-        logger.error(f"Active referral count xatosi: {e}")
-        return 0
+# Avvalgi "3 ta faol do'st = 30 kun PRO" mantiqi (REFERRAL_PRO_THRESHOLD,
+# get_active_referral_count, check_and_grant_referral_pro,
+# get_referral_pro_progress) butunlay olib tashlandi. Do'st taklif qilish
+# endi faqat AI ball beradi — qarang: ``referral_reward_for``.
 
 
 def get_referrer_id(user_id: int) -> int | None:
@@ -2982,35 +2922,6 @@ def get_referrer_id(user_id: int) -> int | None:
     except Exception as e:
         logger.error(f"get_referrer_id xatosi: {e}")
         return None
-
-
-def check_and_grant_referral_pro(user_id: int) -> bool:
-    """3 ta faol do'st yig'ilganda 30 kunlik PRO beradi.
-
-    Returns: True agar PRO berildi (yangi).
-    """
-    active_count = get_active_referral_count(user_id)
-    if active_count < REFERRAL_PRO_THRESHOLD:
-        return False
-
-    # Allaqachon PRO bo'lsa — qayta bermaymiz
-    if is_premium(user_id):
-        return False
-
-    return set_user_plan(user_id, "pro", REFERRAL_PRO_DAYS)
-
-
-def get_referral_pro_progress(user_id: int) -> dict:
-    """Referal PRO mukofoti holati.
-
-    Returns: {"active": int, "needed": int, "granted": bool}
-    """
-    active = get_active_referral_count(user_id)
-    return {
-        "active": active,
-        "needed": REFERRAL_PRO_THRESHOLD,
-        "granted": active >= REFERRAL_PRO_THRESHOLD,
-    }
 
 
 # ============================================================
