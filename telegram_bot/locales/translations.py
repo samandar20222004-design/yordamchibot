@@ -98,6 +98,137 @@ TRANSLATIONS = {
             "⚡️ Tezroq bo'lishi uchun ⭐️ Stars orqali to'lasangiz PRO darhol yoqiladi."
         ),
         "card_payment_admin_missing": "admin (Bot haqida bo'limidagi aloqa orqali)",
+        # --- 1-QISM: Asosiy klaviatura & Kabinet (i18n) ---
+        # Umumiy tugmalar (kabinet va jarayon klaviaturalarida ishlatiladi)
+        "btn_main_menu": "🔙 Asosiy menyu",
+        "btn_cancel": "❌ Bekor qilish",
+
+        # Kabinet reply-klaviaturasi tugmalari
+        "cab_btn_channels": "📢 Kanal/Guruhlar",
+        "cab_btn_converter": "🔤 Krill-Lotin konvertor",
+        "cab_btn_daily_bonus": "🎁 Kunlik bonus",
+        "cab_btn_invite": "🚀 Do'stlarni taklif qilish",
+        "cab_btn_transfer": "🔄 Ballarni ulashish",
+
+        # Kabinet inline-klaviaturasi tugmalari
+        "cab_my_channels": "📢 Mening kanallarim",
+        "cab_analytics": "📊 Kanallar analitikasi",
+        "cab_pending": "📅 Kutilayotgan postlar",
+        "cab_queue": "⏳ Postlar navbati (Queue)",
+        "cab_balance": "💎 Ballar & Reklama rejimi",
+        "cab_referral": "👥 Do'stlarni taklif",
+        "cab_close": "❌ Yopish",
+        "cab_add_channel": "➕ Kanal qo'shish",
+        "cab_del_channel": "🗑 Kanalni o'chirish",
+        "cab_del_channel": "🗑 Kanalni o'chirish",
+        "cab_remove_channel": "❌ O'chirish",
+        "cab_tone": "Uslub",
+        "cab_add_channel_alt": "➕ Yangi kanal/guruh ulash",
+        "cab_channels_delete_empty": (
+            "📢 <b>Mening kanallarim:</b>\n\n"
+            "Hozircha o'chirish uchun kanal yo'q.\n\n"
+            "{hint}"
+        ),
+        "cab_channels_delete_title": (
+            "🗑 <b>Kanalni o'chirish</b> ({count} ta)\n\n"
+            "O'chirmoqchi bo'lgan kanalingiz yonidagi <b>❌ O'chirish</b> "
+            "tugmasini bosing 👇"
+        ),
+
+        "no_channels_hint": (
+            "Avval <b>«Mening kanallarim»</b> bo'limidan kanal yoki "
+            "guruhingizni ulang."
+        ),
+
+        # Kabinet ekrani matnlari
+        "credits_value": "<b>{n} ta</b>",
+        "cabinet_credits_admin": "♾ Cheksiz (Super Admin)",
+        "cabinet_streak": "🔥 <b>{streak}/7 kun</b>",
+        "cabinet_title": (
+            "👤 <b>Shaxsiy Kabinet:</b>\n\n"
+            "🆔 Sizning ID: <code>{user_id}</code>\n"
+            "🔑 Maxsus kodingiz: <code>{user_code}</code>\n"
+            "💎 Mavjud AI so'rovlar soni: {credits}\n"
+            "🔥 Ketma-ket kunlik seriya: {streak}\n"
+            "📢 Ulangan kanallar: <b>{channels} ta</b>\n"
+            "👥 Taklif qilgan do'stlaringiz: <b>{referrals} ta</b>\n\n"
+            "Quyidagi bo'limlardan birini tanlang 👇{ad_line}"
+        ),
+
+        # Kunlik bonus
+        "daily_bonus_admin": (
+            "👑 <b>Siz Super Adminsiz</b> — hisobingizda cheksiz so'rov mavjud!"
+        ),
+        "daily_bonus_claimed": (
+            "🎉 <b>Kunlik bonus qabul qilindi!</b>\n\n"
+            "{reset_notice}"
+            "🔥 Sizning ketma-ketlik seriyangiz: <b>{streak}/7 kun</b>\n"
+            "{bar}\n\n"
+            "🎁 Bugungi sovg'a: <b>+{bonus} ta AI so'rovi</b>\n"
+            "💎 Jami balansingiz: <b>{credits} ta</b>\n\n"
+            "📌 <i>Eslatma: Ertaga ham botga kiring va 7-kunda "
+            "<b>+4 ta super-bonus</b> oling!</i>"
+        ),
+        "daily_bonus_reset_notice": (
+            "\n⚠️ <i>Orada kun o'tkazib yuborilgani sababli seriya 1-kundan "
+            "qayta boshlandi.</i>\n"
+        ),
+        "daily_bonus_already": (
+            "ℹ️ {msg}\n\n💎 Sizdagi jami ballar: <b>{credits} ta</b>"
+        ),
+
+        # Ballarni ulashish (transfer)
+        "transfer_intro": (
+            "🔄 <b>Ballarni (AI so'rovlarni) ulashish:</b>\n\n"
+            "Do'stingizning <b>ID raqamini</b>, "
+            "<b>Telegram usernamesini (@...)</b> yoki botdagi "
+            "<b>maxsus kodini</b> yuboring:\n"
+            "<i>(Eslatma: Faqat botdan ro'yxatdan o'tgan faol "
+            "foydalanuvchilarga ball o'tkazish mumkin)</i>"
+        ),
+        "transfer_insufficient": (
+            "⚠️ <b>Hisobingizda yetarli ball yo'q!</b>\n\n"
+            "Ball o'tkazish uchun kamida <b>3 ta ball</b> kerak. "
+            "Sizda esa: <b>{credits} ta</b>.\n"
+            "{guide}\n"
+            "Yoki taklif havolasi orqali ball to'plashingiz mumkin!"
+        ),
+        "transfer_user_not_found": (
+            "❌ <b>Foydalanuvchi topilmadi!</b>\n\n"
+            "Ushbu foydalanuvchi hali botdan ro'yxatdan o'tmagan yoki "
+            "ma'lumot xato kiritildi.\n"
+            "Do'stingiz avval botga kirib <b>/start</b> bosishi kerak.\n\n"
+            "Qaytadan to'g'ri ID raqam yoki kodni kiriting:"
+        ),
+        "transfer_self": (
+            "⚠️ O'zingizga ball o'tkaza olmaysiz! "
+            "Boshqa do'stingiz ma'lumotini kiriting:"
+        ),
+        "transfer_target_ok": (
+            "✅ <b>Qabul qiluvchi:</b> <b>{name}</b> "
+            "(ID: <code>{user_id}</code>)\n\n"
+            "Nechta ball yubormoqchisiz? <i>(Kamida <b>3 ta</b>, "
+            "ko'pi bilan <b>20 ta</b>)</i>:"
+        ),
+        "transfer_amount_nan": (
+            "Iltimos, miqdorni faqat raqamlarda yozing (masalan: 5):"
+        ),
+        "transfer_amount_range": (
+            "⚠️ O'tkazish miqdori kamida <b>3 ta</b> va ko'pi bilan "
+            "<b>20 ta</b> bo'lishi kerak. Qaytadan kiriting:"
+        ),
+        "transfer_success": (
+            "🎉 <b>Muvaffaqiyatli!</b>\n\n"
+            "<b>{name}</b> hisobiga <b>+{amount} ta AI so'rovi</b> "
+            "o'tkazildi! 🚀"
+        ),
+        "transfer_gift_notice": (
+            "🎁 <b>Sizga sovg'a!</b>\n\n"
+            "<b>{name}</b> sizga <b>+{amount} ta AI so'rovi</b> yubordi! 🎉"
+        ),
+        "transfer_error": "❌ <b>Xatolik:</b> {msg}",
+        "transfer_default_name": "Do'stingiz",
+
     },
     "ru": {
         "btn_new_post": "➕ Новый пост",
@@ -188,6 +319,137 @@ TRANSLATIONS = {
             "⚡️ Для мгновенной активации оплатите через ⭐️ Stars."
         ),
         "card_payment_admin_missing": "администратор (контакты в разделе «О боте»)",
+
+        # --- 1-QISM: Asosiy klaviatura & Kabinet (i18n) ---
+        # Umumiy tugmalar (kabinet va jarayon klaviaturalarida ishlatiladi)
+        "btn_main_menu": "🔙 Главное меню",
+        "btn_cancel": "❌ Отмена",
+
+        # Kabinet reply-klaviaturasi tugmalari
+        "cab_btn_channels": "📢 Каналы/Группы",
+        "cab_btn_converter": "🔤 Кирилл-Латиница",
+        "cab_btn_daily_bonus": "🎁 Ежедневный бонус",
+        "cab_btn_invite": "🚀 Пригласить друзей",
+        "cab_btn_transfer": "🔄 Передать баллы",
+
+        # Kabinet inline-klaviaturasi tugmalari
+        "cab_my_channels": "📢 Мои каналы",
+        "cab_analytics": "📊 Аналитика каналов",
+        "cab_pending": "📅 Ожидающие посты",
+        "cab_queue": "⏳ Очередь постов (Queue)",
+        "cab_balance": "💎 Баллы & Режим рекламы",
+        "cab_referral": "👥 Пригласить друзей",
+        "cab_close": "❌ Закрыть",
+        "cab_add_channel": "➕ Добавить канал",
+        "cab_del_channel": "🗑 Удалить канал",
+        "cab_del_channel": "🗑 Удалить канал",
+        "cab_remove_channel": "❌ Удалить",
+        "cab_tone": "Стиль",
+        "cab_add_channel_alt": "➕ Подключить канал/группу",
+        "cab_channels_delete_empty": (
+            "📢 <b>Мои каналы:</b>\n\n"
+            "Пока нет каналов для удаления.\n\n"
+            "{hint}"
+        ),
+        "cab_channels_delete_title": (
+            "🗑 <b>Удаление канала</b> ({count} шт.)\n\n"
+            "Нажмите <b>❌ Удалить</b> рядом с нужным каналом 👇"
+        ),
+
+        "no_channels_hint": (
+            "Сначала подключите канал или группу в разделе "
+            "<b>«Мои каналы»</b>."
+        ),
+
+        # Kabinet ekrani matnlari
+        "credits_value": "<b>{n} шт.</b>",
+        "cabinet_credits_admin": "♾ Безлимитно (Супер-админ)",
+        "cabinet_streak": "🔥 <b>{streak}/7 дней</b>",
+        "cabinet_title": (
+            "👤 <b>Личный кабинет:</b>\n\n"
+            "🆔 Ваш ID: <code>{user_id}</code>\n"
+            "🔑 Ваш код: <code>{user_code}</code>\n"
+            "💎 Доступно ИИ-запросов: {credits}\n"
+            "🔥 Серия дней подряд: {streak}\n"
+            "📢 Подключено каналов: <b>{channels} шт.</b>\n"
+            "👥 Приглашено друзей: <b>{referrals} шт.</b>\n\n"
+            "Выберите нужный раздел 👇{ad_line}"
+        ),
+
+        # Kunlik bonus
+        "daily_bonus_admin": (
+            "👑 <b>Вы супер-админ</b> — у вас безлимитные запросы!"
+        ),
+        "daily_bonus_claimed": (
+            "🎉 <b>Ежедневный бонус получен!</b>\n\n"
+            "{reset_notice}"
+            "🔥 Ваша серия: <b>{streak}/7 дней</b>\n"
+            "{bar}\n\n"
+            "🎁 Подарок на сегодня: <b>+{bonus} ИИ-запросов</b>\n"
+            "💎 Общий баланс: <b>{credits} шт.</b>\n\n"
+            "📌 <i>Заходите и завтра — на 7-й день получите "
+            "<b>+4 супер-бонуса</b>!</i>"
+        ),
+        "daily_bonus_reset_notice": (
+            "\n⚠️ <i>Был пропущен день, поэтому серия началась заново "
+            "с 1-го дня.</i>\n"
+        ),
+        "daily_bonus_already": (
+            "ℹ️ {msg}\n\n💎 Всего баллов: <b>{credits} шт.</b>"
+        ),
+
+        # Ballarni ulashish (transfer)
+        "transfer_intro": (
+            "🔄 <b>Передача баллов (ИИ-запросов):</b>\n\n"
+            "Отправьте <b>ID</b> друга, его "
+            "<b>Telegram username (@...)</b> или <b>специальный код</b> "
+            "в боте:\n"
+            "<i>(Примечание: передавать баллы можно только активным "
+            "пользователям, зарегистрированным в боте)</i>"
+        ),
+        "transfer_insufficient": (
+            "⚠️ <b>На вашем счету недостаточно баллов!</b>\n\n"
+            "Для передачи нужно минимум <b>3 балла</b>. "
+            "У вас: <b>{credits} шт.</b>.\n"
+            "{guide}\n"
+            "Или пригласите друзей по реферальной ссылке!"
+        ),
+        "transfer_user_not_found": (
+            "❌ <b>Пользователь не найден!</b>\n\n"
+            "Этот пользователь ещё не зарегистрирован в боте или данные "
+            "введены неверно.\n"
+            "Друг должен сначала зайти в бот и нажать <b>/start</b>.\n\n"
+            "Введите правильный ID или код:"
+        ),
+        "transfer_self": (
+            "⚠️ Нельзя передавать баллы самому себе! "
+            "Введите данные другого друга:"
+        ),
+        "transfer_target_ok": (
+            "✅ <b>Получатель:</b> <b>{name}</b> "
+            "(ID: <code>{user_id}</code>)\n\n"
+            "Сколько баллов отправить? <i>(Минимум <b>3</b>, "
+            "максимум <b>20</b>)</i>:"
+        ),
+        "transfer_amount_nan": (
+            "Пожалуйста, введите количество только цифрами "
+            "(например: 5):"
+        ),
+        "transfer_amount_range": (
+            "⚠️ Сумма перевода должна быть минимум <b>3</b> и максимум "
+            "<b>20 баллов</b>. Введите заново:"
+        ),
+        "transfer_success": (
+            "🎉 <b>Успешно!</b>\n\n"
+            "На счёт <b>{name}</b> переведено "
+            "<b>+{amount} ИИ-запросов</b>! 🚀"
+        ),
+        "transfer_gift_notice": (
+            "🎁 <b>Вам подарок!</b>\n\n"
+            "<b>{name}</b> отправил(а) вам <b>+{amount} ИИ-запросов</b>! 🎉"
+        ),
+        "transfer_error": "❌ <b>Ошибка:</b> {msg}",
+        "transfer_default_name": "Ваш друг",
     },
 }
 
@@ -256,3 +518,52 @@ def clear_fsm_data(context) -> None:
     ud.clear()
     if lang in SUPPORTED_LANGS:
         ud[LANG_KEY] = lang
+
+
+# --- Ma'lumotlar bazasidan qaytadigan tayyor matnlar (uz) tarjimalari ---
+# ``database.py`` dagi ayrim funksiyalar (kunlik bonus, ball o'tkazish)
+# foydalanuvchiga ko'rsatiladigan matnni o'zbekchada qaytaradi. Bu lug'at
+# ularni rus tiliga o'giradi; topilmasa asl (o'zbekcha) matn qaytariladi —
+# ya'ni hech qanday xabar yo'qolmaydi.
+DB_MESSAGE_TRANSLATIONS = {
+    "ru": {
+        "Foydalanuvchi topilmadi.": "Пользователь не найден.",
+        "Siz bugungi bonusingizni olgansiz! Ertaga yana kiring.": (
+            "Вы уже получили сегодняшний бонус! Заходите завтра."
+        ),
+        "Tizim xatoligi yuz berdi.": "Произошла системная ошибка.",
+        "O'zingizga ball o'tkaza olmaysiz.": (
+            "Нельзя переводить баллы самому себе."
+        ),
+        "O'tkazish miqdori kamida 3 ta, ko'pi bilan 20 ta bo'lishi kerak.": (
+            "Сумма перевода — минимум 3, максимум 20 баллов."
+        ),
+        "Hisobingizda yetarli ball mavjud emas.": (
+            "На вашем счету недостаточно баллов."
+        ),
+        "Qabul qiluvchi foydalanuvchi topilmadi.": "Получатель не найден.",
+        "Ballar muvaffaqiyatli o'tkazildi!": "Баллы успешно переведены!",
+        (
+            "⚠️ <b>Xavfsizlik qoidasi:</b> Yangi ro'yxatdan o'tgan "
+            "foydalanuvchilar ballarni <b>3 kun o'tgach</b> boshqalarga "
+            "ulasha oladi."
+        ): (
+            "⚠️ <b>Правило безопасности:</b> новые пользователи могут "
+            "переводить баллы другим <b>через 3 дня</b> после регистрации."
+        ),
+    },
+}
+
+
+def localize_db_message(message, lang="uz") -> str:
+    """DB dan kelgan tayyor xabarni foydalanuvchi tiliga o'giradi.
+
+    Tarjima topilmasa (yoki til o'zbekcha bo'lsa) asl matn qaytariladi.
+    """
+    if message is None:
+        return ""
+    text = str(message)
+    if normalize_lang(lang) == DEFAULT_LANG:
+        return text
+    table = DB_MESSAGE_TRANSLATIONS.get(normalize_lang(lang)) or {}
+    return table.get(text.strip(), text)

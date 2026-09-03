@@ -3070,7 +3070,7 @@ def test_five_fixes_suite():
     src_start = open(start_mod.__file__, encoding="utf-8").read()
     check("kanal: eski xato yo'naltiruv matn olib tashlangan",
           "Yangi post rejalashtirish' bo'limini tanlang" not in src_start)
-    check("kanal: yangi matn ishlatiladi", "NO_CHANNELS_HINT" in src_start)
+    check("kanal: yangi matn ishlatiladi", "no_channels_hint(" in src_start)
     check("kanal: cab_channels_delete handleri bor", 'data == "cab_channels_delete"' in src_start)
     # add_channel_start ConversationHandler entry point sifatida ro'yxatdan o'tgan
     import handlers as h_mod
@@ -4829,8 +4829,9 @@ def test_admin_cancel_registration():
     src = (Path(__file__).resolve().parent.parent / "handlers" / "__init__.py").read_text(encoding="utf-8")
 
     check("BTN_CANCEL import qilingan", "BTN_CANCEL" in src)
-    check("BTN_CANCEL menyu sakrashlarida", "exact(BTN_CANCEL), cancel_handler" in src)
-    check("BTN_CANCEL fallback'da", src.count("exact(BTN_CANCEL)") >= 2)
+    check("BTN_CANCEL menyu sakrashlarida (uz/ru)",
+          "exact(BTN_CANCEL, BTN_CANCEL_RU), cancel_handler" in src)
+    check("BTN_CANCEL fallback'da (uz/ru)", src.count("exact(BTN_CANCEL, BTN_CANCEL_RU)") >= 2)
     check("adm_ callbacklari entry point",
           'CallbackQueryHandler(admin_dashboard_callback, pattern=r"^adm_")' in src)
     check("adp: callbacklari entry point",
@@ -5809,6 +5810,248 @@ def test_referrer_id_and_new_providers_suite():
           "Cloudflare" not in order, str(order))
 
 
+def test_cabinet_i18n_suite():
+    """1-QISM: Kabinet va asosiy klaviatura i18n (uz/ru).
+
+    Kabinet reply/inline klaviaturalari va kabinet ekrani matnlari
+    (shaxsiy kabinet, kunlik bonus, ball o'tkazish, xatoliklar) ikki tilda.
+    """
+    print("== Kabinet & asosiy klaviatura i18n (uz/ru) ==")
+    import sys as _sys
+    from pathlib import Path
+    from locales.translations import get_text, localize_db_message, TRANSLATIONS
+    from keyboards.default import (
+        get_main_keyboard, get_cabinet_keyboard, get_cancel_keyboard, exact,
+        BTN_CHANNELS, BTN_CHANNELS_RU, BTN_CONVERTER, BTN_CONVERTER_RU,
+        BTN_DAILY_BONUS, BTN_DAILY_BONUS_RU, BTN_INVITE, BTN_INVITE_RU,
+        BTN_TRANSFER, BTN_TRANSFER_RU, BTN_BACK, BTN_BACK_RU,
+        BTN_CANCEL, BTN_CANCEL_RU, BTN_SETTINGS, BTN_SETTINGS_RU,
+    )
+    from keyboards.inline import (
+        get_cabinet_inline_keyboard, get_cabinet_back_keyboard,
+        get_channels_manage_keyboard, render_channels_list, no_channels_hint,
+    )
+    import handlers.start  # noqa: F401
+    start_mod = _sys.modules["handlers.start"]
+
+    # ---------- 1) Lug'at: barcha yangi kalitlar ikki tilda ----------
+    new_keys = [
+        "btn_main_menu", "btn_cancel",
+        "cab_btn_channels", "cab_btn_converter", "cab_btn_daily_bonus",
+        "cab_btn_invite", "cab_btn_transfer",
+        "cab_my_channels", "cab_analytics", "cab_pending", "cab_queue",
+        "cab_balance", "cab_referral", "cab_close", "cab_add_channel",
+        "cab_del_channel", "cab_remove_channel", "cab_tone",
+        "cab_add_channel_alt", "cab_channels_delete_empty",
+        "cab_channels_delete_title", "no_channels_hint",
+        "credits_value", "cabinet_credits_admin", "cabinet_streak",
+        "cabinet_title", "daily_bonus_admin", "daily_bonus_claimed",
+        "daily_bonus_reset_notice", "daily_bonus_already",
+        "transfer_intro", "transfer_insufficient", "transfer_user_not_found",
+        "transfer_self", "transfer_target_ok", "transfer_amount_nan",
+        "transfer_amount_range", "transfer_success", "transfer_gift_notice",
+        "transfer_error", "transfer_default_name",
+    ]
+    uz_table, ru_table = TRANSLATIONS["uz"], TRANSLATIONS["ru"]
+    check("lug'at: barcha yangi kalitlar uz'da bor",
+          all(k in uz_table for k in new_keys))
+    check("lug'at: barcha yangi kalitlar ru'da bor",
+          all(k in ru_table for k in new_keys))
+    check("lug'at: yangi kalitlar tarjima qilingan",
+          all(uz_table.get(k) != ru_table.get(k) for k in new_keys)
+          and all(uz_table.get(k) not in (None, k) for k in new_keys))
+
+    # ---------- 2) Kabinet reply-klaviaturasi ----------
+    def _rows(kb):
+        return [[b.text for b in row] for row in kb.keyboard]
+
+    check("kabinet kb uz", _rows(get_cabinet_keyboard("uz")) == [
+        [BTN_CHANNELS, BTN_CONVERTER],
+        [BTN_DAILY_BONUS],
+        [BTN_INVITE, BTN_TRANSFER],
+        [BTN_BACK],
+    ], str(_rows(get_cabinet_keyboard("uz"))))
+    check("kabinet kb ru", _rows(get_cabinet_keyboard("ru")) == [
+        [BTN_CHANNELS_RU, BTN_CONVERTER_RU],
+        [BTN_DAILY_BONUS_RU],
+        [BTN_INVITE_RU, BTN_TRANSFER_RU],
+        [BTN_BACK_RU],
+    ], str(_rows(get_cabinet_keyboard("ru"))))
+    check("kabinet kb: default uz (eski chaqiruvlar buzilmaydi)",
+          _rows(get_cabinet_keyboard()) == _rows(get_cabinet_keyboard("uz")))
+
+    class _Ctx:
+        def __init__(self, data):
+            self.user_data = data
+
+    check("kabinet kb: context.user_data['lang'] hurmat qilinadi",
+          _rows(get_cabinet_keyboard(context=_Ctx({"lang": "ru"})))
+          == _rows(get_cabinet_keyboard("ru")))
+
+    cancel_ru = [b.text for row in get_cancel_keyboard("ru").keyboard for b in row]
+    check("bekor qilish kb ru", cancel_ru == [BTN_CANCEL_RU, BTN_BACK_RU], str(cancel_ru))
+    check("bekor qilish kb default uz",
+          [b.text for row in get_cancel_keyboard().keyboard for b in row]
+          == [BTN_CANCEL, BTN_BACK])
+
+    # Asosiy klaviatura ham kabinet tugmasi bilan bir tilda
+    main_ru_rows = _rows(get_main_keyboard(False, lang="ru"))
+    check("asosiy menyu ru: kabinet tugmasi tarjimasi",
+          BTN_SETTINGS_RU in main_ru_rows[1], str(main_ru_rows))
+
+    # ---------- 3) Kabinet inline-klaviaturasi ----------
+    cab = get_cabinet_inline_keyboard("ru")
+    cab_texts = [b.text for row in cab.inline_keyboard for b in row]
+    cab_cbs = [b.callback_data for row in cab.inline_keyboard for b in row]
+    check("kabinet inline ru: yorliqlar tarjimasi",
+          get_text("cab_my_channels", "ru") in cab_texts
+          and get_text("cab_close", "ru") in cab_texts, str(cab_texts))
+    check("kabinet inline ru: callback_data o'zgarmagan",
+          cab_cbs == ["cab_channels", "cab_analytics", "cab_pending",
+                      "cab_queue", "cab_balance", "cab_bonus", "cab_referral",
+                      "close_cabinet", "cab_lang"], str(cab_cbs))
+    check("kabinet inline uz: default",
+          [b.text for row in get_cabinet_inline_keyboard().inline_keyboard for b in row][0]
+          == get_text("cab_my_channels", "uz"))
+
+    back = get_cabinet_back_keyboard("ru")
+    check("kabinet orqaga kb ru",
+          [b.text for b in back.inline_keyboard[0]]
+          == [get_text("btn_back", "ru"), get_text("cab_close", "ru")])
+    check("kabinet orqaga kb: callback_data o'zgarmagan",
+          [b.callback_data for b in back.inline_keyboard[0]]
+          == ["cab_main", "close_cabinet"])
+
+    mgr = get_channels_manage_keyboard("ru")
+    check("kanallar boshqaruvi kb ru",
+          [b.text for row in mgr.inline_keyboard for b in row][0]
+          == get_text("cab_add_channel", "ru"))
+    check("kanallar boshqaruvi kb: callback_data o'zgarmagan",
+          [b.callback_data for row in mgr.inline_keyboard for b in row]
+          == ["add_channel_start", "cab_channels_delete", "cab_main",
+              "close_cabinet"])
+
+    ch_list = render_channels_list([("-1001", "Kanal 1", "formal")], "ru")
+    ch_texts = [b.text for row in ch_list.inline_keyboard for b in row]
+    check("kanallar ro'yxati kb ru",
+          get_text("cab_remove_channel", "ru") in ch_texts
+          and get_text("cab_close", "ru") in ch_texts, str(ch_texts))
+    check("no_channels_hint ru", "Мои каналы" in no_channels_hint("ru"),
+          no_channels_hint("ru"))
+    check("no_channels_hint default uz",
+          no_channels_hint() == get_text("no_channels_hint", "uz"))
+
+    # ---------- 4) Kabinet matnlari ----------
+    credits_admin = start_mod.cabinet_credits_text(True, 0, "ru")
+    credits_user = start_mod.cabinet_credits_text(False, 12, "ru")
+    check("ballar: admin ru", credits_admin == get_text("cabinet_credits_admin", "ru"))
+    check("ballar: foydalanuvchi ru", "12" in credits_user and "шт." in credits_user,
+          credits_user)
+    check("ballar: foydalanuvchi uz",
+          start_mod.cabinet_credits_text(False, 12, "uz")
+          == get_text("credits_value", "uz", n=12))
+
+    text_ru = start_mod.build_cabinet_text(
+        555001, "ABC123", credits_user,
+        get_text("cabinet_streak", "ru", streak=3), 2, 4, "ru",
+    )
+    text_uz = start_mod.build_cabinet_text(
+        555001, "ABC123", get_text("credits_value", "uz", n=12),
+        get_text("cabinet_streak", "uz", streak=3), 2, 4, "uz", "",
+    )
+    check("kabinet matni ru",
+          "Личный кабинет" in text_ru and "<code>555001</code>" in text_ru
+          and "<code>ABC123</code>" in text_ru, text_ru[:80])
+    check("kabinet matni uz",
+          "Shaxsiy Kabinet" in text_uz and "<code>555001</code>" in text_uz
+          and "Ulangan kanallar: <b>2 ta</b>" in text_uz, text_uz[:80])
+    check("kabinet matni: ad_line qo'shiladi",
+          start_mod.build_cabinet_text(
+              1, "X", "c", "s", 0, 0, "ru", "\n[reklama]").endswith("[reklama]"))
+
+    # ---------- 5) Kunlik bonus ----------
+    bonus_res = {"success": True, "streak": 3, "bonus_amount": 2,
+                 "credits": 10, "is_reset": True}
+    bonus_ru = start_mod.build_daily_bonus_text(bonus_res, "ru")
+    bonus_uz = start_mod.build_daily_bonus_text(bonus_res, "uz")
+    check("kunlik bonus ru",
+          "Ежедневный бонус получен" in bonus_ru
+          and "<b>3/7 дней</b>" in bonus_ru and "серия началась заново" in bonus_ru,
+          bonus_ru[:80])
+    check("kunlik bonus uz",
+          "Kunlik bonus qabul qilindi" in bonus_uz
+          and "<b>3/7 kun</b>" in bonus_uz
+          and "seriya 1-kundan" in bonus_uz, bonus_uz[:80])
+    check("kunlik bonus: progress-bar 7 katak",
+          bonus_ru.count("🟩") + bonus_ru.count("⬜") == 7)
+    check("kunlik bonus: reset bo'lmasa ogohlantirish yo'q",
+          "серия началась заново" not in
+          start_mod.build_daily_bonus_text(
+              {"success": True, "streak": 2, "bonus_amount": 1, "credits": 5}, "ru"))
+
+    # ---------- 6) Ball o'tkazish (transfer) ----------
+    tr_ru = get_text("transfer_success", "ru", name="Ali", amount=5)
+    tr_uz = get_text("transfer_success", "uz", name="Ali", amount=5)
+    check("transfer: muvaffaqiyat ru/uz", "ИИ-запросов" in tr_ru
+          and "AI so'rovi" in tr_uz, tr_ru)
+    check("transfer: yetarli emas ru",
+          "недостаточно баллов" in
+          get_text("transfer_insufficient", "ru", credits=1, guide="guide"))
+    check("transfer: xato ru",
+          get_text("transfer_error", "ru", msg="Пользователь не найден.").startswith("❌"))
+
+    # ---------- 7) DB xabarlari tarjimasi ----------
+    db_msg = "Siz bugungi bonusingizni olgansiz! Ertaga yana kiring."
+    check("db xabari ru'ga o'giriladi",
+          localize_db_message(db_msg, "ru") != db_msg
+          and "бонус" in localize_db_message(db_msg, "ru"),
+          localize_db_message(db_msg, "ru"))
+    check("db xabari uz'da asl matn",
+          localize_db_message(db_msg, "uz") == db_msg)
+    check("db xabari: noma'lum matn yo'qolmaydi",
+          localize_db_message("Noma'lum xato", "ru") == "Noma'lum xato")
+
+    # ---------- 8) Routing: kabinet tugmalari ikki tilda ----------
+    def _pattern(flt) -> str:
+        pat = getattr(flt, "pattern", None)
+        src = pat.pattern if hasattr(pat, "pattern") else str(pat)
+        return src.replace("\\", "")
+
+    for uz_btn, ru_btn, label in (
+        (BTN_CHANNELS, BTN_CHANNELS_RU, "Kanal/Guruhlar"),
+        (BTN_DAILY_BONUS, BTN_DAILY_BONUS_RU, "Kunlik bonus"),
+        (BTN_INVITE, BTN_INVITE_RU, "Do'stlarni taklif"),
+        (BTN_TRANSFER, BTN_TRANSFER_RU, "Ballarni ulashish"),
+        (BTN_CONVERTER, BTN_CONVERTER_RU, "Konvertor"),
+        (BTN_BACK, BTN_BACK_RU, "Asosiy menyu"),
+        (BTN_CANCEL, BTN_CANCEL_RU, "Bekor qilish"),
+    ):
+        pat = _pattern(exact(uz_btn, ru_btn))
+        check(f"router: {label} uz+ru", uz_btn in pat and ru_btn in pat, pat)
+
+    init_src = (Path(__file__).resolve().parent.parent / "handlers" / "__init__.py").read_text(encoding="utf-8")
+    for pair in (
+        "BTN_CHANNELS, BTN_CHANNELS_RU",
+        "BTN_DAILY_BONUS, BTN_DAILY_BONUS_RU",
+        "BTN_INVITE, BTN_INVITE_RU",
+        "BTN_TRANSFER, BTN_TRANSFER_RU",
+        "BTN_CONVERTER, BTN_CONVERTER_RU",
+        "BTN_CANCEL, BTN_CANCEL_RU",
+    ):
+        check(f"handlers/__init__.py: exact({pair})",
+              f"exact({pair})" in init_src)
+    check("handlers/__init__.py: asosiy menyu uz+ru",
+          "exact(BTN_BACK, BTN_MAIN_MENU, BTN_BACK_RU)" in init_src)
+
+    start_src = (Path(__file__).resolve().parent.parent / "handlers" / "start.py").read_text(encoding="utf-8")
+    check("start.py: kabinet matnlari lug'atdan olinadi",
+          '"cabinet_title"' in start_src
+          and 'get_text("daily_bonus_admin"' in start_src
+          and 'get_text("transfer_success"' in start_src)
+    check("start.py: qotirilgan kabinet matni qolmagan",
+          'f"👤 <b>Shaxsiy Kabinet:</b>' not in start_src)
+
+
 def test_i18n_uz_ru():
     """uz/ru i18n: lug'at, til aniqlash, klaviatura, handler filtrlari."""
     print("== i18n uz/ru ==")
@@ -6026,6 +6269,7 @@ def main():
     test_my_chat_member_autoconnect_suite()
     test_referrer_id_and_new_providers_suite()
     test_i18n_uz_ru()
+    test_cabinet_i18n_suite()
 
     print(f"\nO'tdi: {passed}, Xato: {failures}")
     if failures:

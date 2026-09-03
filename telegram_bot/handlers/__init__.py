@@ -13,9 +13,13 @@ from keyboards.default import (
     exact,
     BTN_NEW_POST, BTN_NEW_POST_RU, BTN_AI_STUDIO, BTN_AI_STUDIO_RU,
     BTN_PENDING, BTN_SETTINGS, BTN_SETTINGS_RU, BTN_CABINET,
-    BTN_HELP, BTN_HELP_RU, BTN_CONVERTER, BTN_EXTRAS, BTN_EXTRAS_RU,
-    BTN_BACK, BTN_MAIN_MENU, BTN_CANCEL,
-    BTN_CHANNELS, BTN_DAILY_BONUS, BTN_INVITE, BTN_TRANSFER,
+    BTN_HELP, BTN_HELP_RU, BTN_CONVERTER, BTN_CONVERTER_RU,
+    BTN_EXTRAS, BTN_EXTRAS_RU,
+    BTN_BACK, BTN_BACK_RU, BTN_MAIN_MENU, BTN_CANCEL, BTN_CANCEL_RU,
+    BTN_CHANNELS, BTN_CHANNELS_RU,
+    BTN_DAILY_BONUS, BTN_DAILY_BONUS_RU,
+    BTN_INVITE, BTN_INVITE_RU,
+    BTN_TRANSFER, BTN_TRANSFER_RU,
     BTN_ADMIN_PANEL, BTN_STATS, BTN_ALL_POSTS, BTN_ALL_CHANNELS,
     BTN_BROADCAST, BTN_SPONSORS, BTN_ADD_SPONSOR,
     BTN_ADS, BTN_CHANNEL_AD, BTN_BOT_REPLY_AD, BTN_POST_TAG, BTN_AI_SETTINGS, BTN_CACHE_DB,
@@ -378,14 +382,17 @@ def register_all_handlers(app):
     start_handlers = [
         # ❌ Bekor qilish — HAR QANDAY holatda FSM'ni to'xtatadi (all_menu_jumps
         # har bir state ro'yxatining boshida turgani uchun hamma joyda ishlaydi).
-        MessageHandler(exact(BTN_CANCEL), cancel_handler),
-        MessageHandler(exact(BTN_BACK, BTN_MAIN_MENU), lambda u, c: guard_menu(u, c, start)),
+        # ❌ Bekor qilish / 🔙 Asosiy menyu — ikkala tilda ham ishlaydi
+        # (klaviatura foydalanuvchi tilida chiziladi).
+        MessageHandler(exact(BTN_CANCEL, BTN_CANCEL_RU), cancel_handler),
+        MessageHandler(exact(BTN_BACK, BTN_MAIN_MENU, BTN_BACK_RU), lambda u, c: guard_menu(u, c, start)),
         MessageHandler(exact(BTN_SETTINGS, BTN_CABINET, BTN_SETTINGS_RU), lambda u, c: guard_menu(u, c, user_cabinet_menu)),
         MessageHandler(exact(BTN_HELP, BTN_HELP_RU), lambda u, c: guard_menu(u, c, help_command)),
         MessageHandler(exact(BTN_EXTRAS, BTN_EXTRAS_RU), lambda u, c: guard_menu(u, c, extras_menu)),
-        MessageHandler(exact(BTN_DAILY_BONUS), lambda u, c: guard_menu(u, c, daily_bonus_handler)),
-        MessageHandler(exact(BTN_INVITE), lambda u, c: guard_menu(u, c, user_invite_menu)),
-        MessageHandler(exact(BTN_TRANSFER), lambda u, c: guard_entry(u, c, start_transfer_credits)),
+        # --- Kabinet ichki tugmalari (uz/ru) ---
+        MessageHandler(exact(BTN_DAILY_BONUS, BTN_DAILY_BONUS_RU), lambda u, c: guard_menu(u, c, daily_bonus_handler)),
+        MessageHandler(exact(BTN_INVITE, BTN_INVITE_RU), lambda u, c: guard_menu(u, c, user_invite_menu)),
+        MessageHandler(exact(BTN_TRANSFER, BTN_TRANSFER_RU), lambda u, c: guard_entry(u, c, start_transfer_credits)),
     ]
 
     # 2. Yangi post
@@ -395,7 +402,7 @@ def register_all_handlers(app):
 
     # 3. Kanallar
     channels_handlers = [
-        MessageHandler(exact(BTN_CHANNELS), lambda u, c: guard_menu(u, c, channels_menu)),
+        MessageHandler(exact(BTN_CHANNELS, BTN_CHANNELS_RU), lambda u, c: guard_menu(u, c, channels_menu)),
         MessageHandler(exact(BTN_ADD_CHANNEL), lambda u, c: guard_entry(u, c, start_add_channel)),
     ]
 
@@ -406,7 +413,7 @@ def register_all_handlers(app):
 
     # 5. Konverter
     converter_handlers = [
-        MessageHandler(exact(BTN_CONVERTER), lambda u, c: guard_entry(u, c, start_converter)),
+        MessageHandler(exact(BTN_CONVERTER, BTN_CONVERTER_RU), lambda u, c: guard_entry(u, c, start_converter)),
     ]
 
     # 6. Admin
@@ -731,8 +738,8 @@ def register_all_handlers(app):
         fallbacks=[
             CommandHandler("start", start),
             CommandHandler("cancel", cancel_handler),
-            MessageHandler(exact(BTN_CANCEL), cancel_handler),
-            MessageHandler(exact(BTN_BACK, BTN_MAIN_MENU), lambda u, c: guard_menu(u, c, start)),
+            MessageHandler(exact(BTN_CANCEL, BTN_CANCEL_RU), cancel_handler),
+            MessageHandler(exact(BTN_BACK, BTN_MAIN_MENU, BTN_BACK_RU), lambda u, c: guard_menu(u, c, start)),
         ],
         allow_reentry=True,
         conversation_timeout=CONVERSATION_TIMEOUT_SEC,
