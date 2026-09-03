@@ -1143,8 +1143,8 @@ async def edit_confirm_message_received(update: Update, context: ContextTypes.DE
         return CONFIRM_POST
 
     if text and text not in (BTN_T_DAILY, BTN_T_WEEKLY, BTN_BACK, BTN_MAIN_MENU):
-        context.user_data["post_type"] = "text"
-        context.user_data["file_id"] = None
+        # Caption/text editing must never discard the original media.  Only a
+        # newly uploaded media message is allowed to replace type/file_id.
         context.user_data["content"] = text
         await _show_confirmation(update.message, context)
         return CONFIRM_POST

@@ -154,13 +154,13 @@ async def _keep_typing(bot, chat_id: int, stop_event: asyncio.Event):
             break
 
 
-def _no_credits_text(bot_username: str, user_id: int) -> str:
+def _no_credits_text(bot_username: str, user_id: int, lang: str = "uz") -> str:
     ref_link = f"https://t.me/{bot_username}?start=ref_{user_id}"
     return (
         "⚠️ <b>Sizda bepul AI so'rovlari soni tugadi!</b>\n\n"
         "Ko'proq so'rov olish uchun do'stlaringizni taklif qiling.\n"
-        "🎁 <i>Har bir do'stingiz uchun sizga <b>+3 ta bepul AI so'rovi</b> beriladi!</i>\n"
-        "Yoki kabinetdan <b>🎁 Kunlik bonus</b> ni oling.\n\n"
+        "🎁 <i>Birinchi 3 do'st uchun +3 tadan, keyingilar uchun +1 AI ball beriladi.</i>\n"
+        f"{get_text('daily_bonus_guide', lang)}\n\n"
         f"🔗 Sizning taklif havolangiz:\n<code>{ref_link}</code>"
     )
 
@@ -178,7 +178,7 @@ async def start_ai_assistant(update: Update, context: ContextTypes.DEFAULT_TYPE)
     if not is_admin and not is_pro and credits <= 0:
         bot_obj = await context.bot.get_me()
         await update.message.reply_text(
-            _no_credits_text(bot_obj.username, user_id),
+            _no_credits_text(bot_obj.username, user_id, get_lang(context)),
             reply_markup=get_main_keyboard(is_admin),
             parse_mode="HTML",
         )
@@ -353,7 +353,7 @@ async def ai_input_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin and not is_pro and not await db.run_db(db.use_user_credit, user_id):
         bot_obj = await context.bot.get_me()
         await msg.reply_text(
-            _no_credits_text(bot_obj.username, user_id),
+            _no_credits_text(bot_obj.username, user_id, get_lang(context)),
             reply_markup=get_main_keyboard(is_admin),
             parse_mode="HTML",
         )
@@ -763,7 +763,7 @@ async def _studio_ai_preflight(update: Update, context: ContextTypes.DEFAULT_TYP
     if not is_admin and not is_pro and not await db.run_db(db.use_user_credit, user_id):
         bot_obj = await context.bot.get_me()
         await msg.reply_text(
-            _no_credits_text(bot_obj.username, user_id),
+            _no_credits_text(bot_obj.username, user_id, get_lang(context)),
             reply_markup=get_ai_back_keyboard(),
             parse_mode="HTML",
         )

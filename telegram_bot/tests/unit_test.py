@@ -4016,10 +4016,10 @@ def test_post_enhancer_channel_dispatch():
         check("dispatch: PRO (litsenziyasiz) → ad-free sarflanmadi",
               "consume_ad_free_post" not in [c[0] for c in sink2], str([c[0] for c in sink2]))
 
-        # --- Reklama litsenziyasi (ad-free) bor foydalanuvchi: litsenziya sarflanadi ---
+        # PRO is automatically ad-free; legacy post credits are never consumed.
         _, _, _, sink3, _ = await send_once(premium=True, ad_free=True, uid=424303)
-        check("dispatch: ad-free litsenziya sarflandi",
-              "consume_ad_free_post" in [c[0] for c in sink3], str([c[0] for c in sink3]))
+        check("dispatch: PRO reklamasiz va litsenziya sarflanmaydi",
+              "consume_ad_free_post" not in [c[0] for c in sink3], str([c[0] for c in sink3]))
 
         # --- Admin: post TOZA chiqadi ---
         bot3, _, _, _, _ = await send_once(premium=False, admin=True)
@@ -5110,7 +5110,7 @@ def test_enhancer_channel_ad_interval():
     pool = [{"id": 1, "text": "ENH-REKLAMA", "button_text": "Homiy",
              "button_url": "https://t.me/homiy", "is_active": True}]
 
-    async def send(post_number, ad_free=False):
+    async def send(post_number, premium=False):
         bot = _FakeBot()
         ctx = _FakeCtx(bot, {})
         enh = {
@@ -5122,7 +5122,7 @@ def test_enhancer_channel_ad_interval():
         ctx.user_data["enh"] = enh
         query = _FakeQuery("enh:confirm_send", _FakeMsg(900, 111), uid=424242)
         orig = db_mod.run_db
-        db_mod.run_db = _fake_db(ad_free=ad_free, post_number=post_number,
+        db_mod.run_db = _fake_db(premium=premium, post_number=post_number,
                                  ad_interval=3, ads=pool)
         try:
             await pe._execute_send(None, ctx, query, enh)
@@ -5143,9 +5143,9 @@ def test_enhancer_channel_ad_interval():
                 if getattr(b, "url", None)]
         check("enh: reklama tugmasi qo'shildi", "https://t.me/homiy" in urls, str(urls))
 
-        # ad-free litsenziya: reklama umuman chiqmaydi
-        text, markup = await send(3, ad_free=True)
-        check("enh: ad-free → reklama yo'q", "ENH-REKLAMA" not in text, text)
+        # PRO: reklama umuman chiqmaydi
+        text, markup = await send(3, premium=True)
+        check("enh: PRO → reklama yo'q", "ENH-REKLAMA" not in text, text)
 
     asyncio.run(run())
 
@@ -5694,11 +5694,11 @@ def test_referrer_id_and_new_providers_suite():
     check("get_referrer_id faqat user_id oladi (kursor emas)", params == ["user_id"], str(params))
 
     channels_src = (ROOT / "handlers" / "channels.py").read_text(encoding="utf-8")
-    check("channels.py: db.run_db(db.get_referrer_id, user_id) chaqiriladi",
-          "db.run_db(db.get_referrer_id, user_id)" in channels_src)
+    check("channels.py: referral PRO tekshiruvi olib tashlangan",
+          "db.run_db(db.get_referrer_id, user_id)" not in channels_src)
     check("channels.py: 'lambda cur' butunlay olib tashlandi", "lambda cur" not in channels_src)
-    check("channels.py: referal PRO mukofoti qismi saqlangan",
-          "check_and_grant_referral_pro" in channels_src)
+    check("channels.py: referal PRO mukofoti olib tashlangan",
+          "check_and_grant_referral_pro" not in channels_src)
 
     print("== VAZIFA 2: SambaNova + Cloudflare zanjirda ==")
     from utils import ai_agent
