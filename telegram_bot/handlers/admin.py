@@ -248,52 +248,12 @@ async def _ad_hub_render() -> tuple[str, InlineKeyboardMarkup]:
     return "\n".join(lines), markup
 
 
-# Admin panelda ko'rsatiladigan tizim sozlamalari (system_settings kalitlari).
-# Eski yagona reklama matnlari (channel_ad_text / bot_reply_ad_text) panelda
-# ko'rsatilmaydi — reklama endi faqat "🎯 Reklama boshqaruvi"dagi 3 ta bo'lim
-# orqali boshqariladi (bir-biriga o'xshash dublikat sozlamalar olib tashlandi).
-SYSTEM_SETTINGS_KEYS = (
-    ("post_tag_text", "🏷 Post nishoni"),
-)
-
-
-def _format_system_settings(settings: dict, ad_settings: dict, interval: int,
-                            counters: list) -> str:
-    """Tizim sozlamalari ekrani: system_settings + reklama sozlamalari."""
-    lines = [
-        "🛠 <b>Tizim sozlamalari</b>",
-        "━━━━━━━━━━━━━━━━━",
-        "<b>system_settings:</b>",
-    ]
-    for key, label in SYSTEM_SETTINGS_KEYS:
-        value = (settings.get(key) or "").strip()
-        shown = f"<code>{html_escape(_short_text(value, 60))}</code>" if value else "<i>(bo'sh)</i>"
-        lines.append(f"   • {label} (<code>{key}</code>): {shown}")
-
-    reply_status = "🟢 yoqilgan" if ad_settings.get("auto_ad_status") else "🔴 o'chirilgan"
-    ch_status = (
-        "🟢 yoqilgan" if ad_settings.get("channel_ad_status", True) else "🔴 o'chirilgan"
-    )
-    lines += [
-        "",
-        "<b>Reklama holati (faqat ko'rish):</b>",
-        f"   • Kanal postlari: har {interval}-postda, {ch_status}",
-        f"   • Bot javoblari: har {ad_settings.get('auto_ad_interval', 4)} javobda, {reply_status}",
-        "   <i>O'zgartirish uchun «🎯 Reklama boshqaruvi» bo'limidan foydalaning.</i>",
-    ]
-
-    lines += ["", "<b>Kanal post sanagichlari:</b>"]
-    if counters:
-        for channel_id, title, post_count, ad_count in counters:
-            name = html_escape(_short_text(title or channel_id, 28))
-            lines.append(
-                f"   • {name}: <b>{post_count}</b> post / <b>{ad_count}</b> reklama"
-            )
-    else:
-        lines.append("   <i>(hozircha post yuborilmagan)</i>")
-
-    lines += ["━━━━━━━━━━━━━━━━━", "", "Sozlamalarni tegishli bo'limlar orqali o'zgartiring 👇"]
-    return "\n".join(lines)
+# ESLATMA: "🛠 Tizim sozlamalari" (``adm_settings``) bo'limi admin paneldan
+# BUTUNLAY olib tashlandi (ixchamlashtirish talabi). Post nishoni (watermark)
+# sozlamasi hamon "🏷 Post nishoni" reply-tugmasi orqali (start_set_post_tag /
+# post_tag_received) o'zgartiriladi — faqat inline dashboard'dagi alohida
+# "Tizim sozlamalari" ko'rish ekrani va uning dublikat statistikasi
+# (kanal post sanagichlari, reklama holati) olib tashlandi.
 
 
 async def admin_dashboard_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -341,18 +301,6 @@ async def admin_dashboard_callback(update: Update, context: ContextTypes.DEFAULT
             text = format_admin_channels_list(channels)
         else:
             text = "📋 <b>Ulangan kanallar</b>\n\n<i>Hozircha hech qanday kanal ulanmagan.</i>"
-        await _admin_edit(query, text, get_admin_back_keyboard())
-        context.user_data.pop("admin_flow", None)
-        return ConversationHandler.END
-
-    if data == "adm_settings":
-        await query.answer()
-        settings = await db.run_db(db.get_settings_map,
-                                   [key for key, _ in SYSTEM_SETTINGS_KEYS])
-        ad_settings = await db.run_db(db.get_ad_settings)
-        interval = await db.run_db(db.get_channel_ad_interval)
-        counters = await db.run_db(db.get_channel_post_counters, 10)
-        text = _format_system_settings(settings, ad_settings, interval, counters)
         await _admin_edit(query, text, get_admin_back_keyboard())
         context.user_data.pop("admin_flow", None)
         return ConversationHandler.END
