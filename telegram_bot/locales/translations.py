@@ -928,6 +928,352 @@ TRANSLATIONS = {
         "btn_pending": "⏳ Kutilayotgan postlar",
         "btn_queue": "📚 Navbat (Queue)",
 
+        # --- 4-QISM: ⚙️ Qo'shimcha funksiyalar, 📖 Qo'llanma va tizim xabarlari (i18n) ---
+
+        # ⚙️ Qo'shimcha funksiyalar — inline menyu matni va tugmalari
+        "extras_menu_body": (
+            "⚙️ <b>Qo'shimcha funksiyalar</b>\n\n"
+            "✨ <b>Postga Tugma & Reaksiya qo'shish</b> — tayyor postni (matn, rasm, "
+            "video, albom yoki forward) yuboring: asl matnga tegilmaydi, 10 tagacha "
+            "reaksiya va 10 tagacha URL tugma qo'shib, istalgan kanalga bir zumda "
+            "yuboriladi\n"
+            "🔤 <b>Krill-Lotin konvertor</b> — matnlarni ikki alifbo orasida o'girish\n\n"
+            "Kerakli vositani tanlang 👇"
+        ),
+        "extras_btn_enhancer": "✨ Postga Tugma & Reaksiya qo'shish",
+        "extras_btn_converter": "🔤 Krill-Lotin konvertor",
+        "extras_closed": "✅ <b>Qo'shimcha funksiyalar</b> bo'limi yopildi.",
+
+        # 🔤 Lotin ⇄ Kirill matn konvertori oqimi
+        "conv_intro": (
+            "🔤 <b>Lotin ⇄ Kirill Matn O'girgich:</b>\n\n"
+            "O'girmoqchi bo'lgan <b>matnni</b> yoki <b>rasm/video/fayl</b> (tagida yozuvi bilan) yuboring:\n\n"
+            "<i>Bekor qilish uchun '🔙 Asosiy menyu' tugmasini bosing.</i>"
+        ),
+        "conv_no_text": (
+            "⚠️ Ushbu fayl tagida hech qanday yozuv (matn) topilmadi.\n"
+            "Iltimos, matn yuboring yoki fayl tagiga izoh yozib qaytadan yuboring:"
+        ),
+        "conv_received": (
+            "📝 <b>Matn qabul qilindi!</b>\n\n"
+            "Qaysi alifboga o'girmoqchisiz? Quyidagi tugmalardan birini tanlang 👇"
+        ),
+        "conv_btn_cyr": "🔤 Kirillcha nusxasi",
+        "conv_btn_lat": "🔤 Lotincha nusxasi",
+        "conv_no_saved_text": "⚠️ Matn topilmadi, iltimos qaytadan yuboring.",
+        "conv_result_title": "📋 <b>Natija:</b>",
+        "conv_result_part1": "📋 <b>Natija (1-qism):</b>",
+        "conv_result_part2": "📋 <b>Natija (2-qism):</b>",
+        "conv_copy_hint": "<i>(Nusxalash uchun matn ustiga bosing)</i>",
+        "conv_cont_title": "ℹ️ <i>Matn davomi:</i>",
+        "conv_error": "⚠️ Xatolik yuz berdi: {error}",
+        "cab_converter_info": (
+            "🔤 <b>Krill-Lotin konverter:</b>\n\n"
+            "Lotin yoki Kirill matn yuboring — men uni avtomatik o'girib beraman.\n\n"
+            "<i>Masalan: Salom dunyo → Салом дунё</i>"
+        ),
+
+        # ✨ Postga Tugma & Reaksiya qo'shish (Post Enhancer)
+        "enh_notice_admin": (
+            "💡 <b>Eslatma:</b> Bot postni kanalingizga joylashi uchun avval uni "
+            "kanalingizga <b>Admin</b> qilib qo'shganingizga ishonch hosil qiling."
+        ),
+        "enh_post_request": (
+            "Kanalga joylamoqchi bo'lgan postingizni yuboring "
+            "(Matn, Rasm, Video yoki boshqa kanaldan Forward):"
+        ),
+        "enh_intro_features": (
+            "✅ Asl matnga tegilmaydi — faqat:\n"
+            "• 👍 10 tagacha reaksiya (probel bilan batch kiritish mumkin),\n"
+            "• 🔗 10 tagacha URL tugma (tayyor shablonlar bilan),\n"
+            "• 👁 so'ralganda prevyu va 🚀 kanalga bir zumda yuborish."
+        ),
+        "enh_preset1_title": "Kanalga a'zo bo'lish",
+        "enh_preset1_text": "📢 Kanalga a'zo bo'lish",
+        "enh_preset2_title": "Guruhga qo'shilish",
+        "enh_preset2_text": "💬 Guruhga qo'shilish",
+        "enh_preset3_title": "Botga o'tish",
+        "enh_preset3_text": "🤖 Botga o'tish",
+        "enh_summary": (
+            "👍 Reaksiyalar: <b>{rn}/{maxr}</b>{emojis}\n"
+            "🔗 URL tugmalar: <b>{bn}/{maxb}</b>"
+        ),
+        "enh_post_line_type": "📦 <b>Turi:</b> {type}",
+        "enh_post_line_album_count": " ({n} ta media)",
+        "enh_post_line_text": "\n📝 <b>Matn:</b> <i>{preview}</i>",
+        "enh_post_line_no_text": "\n📝 <b>Matn:</b> <i>(yozuv yo'q — faqat media)</i>",
+        "enh_hub_title": (
+            "✨ <b>Postga Tugma & Reaksiya qo'shish</b>\n\n"
+            "{post}\n\n"
+            "{summary}\n"
+            "{note}"
+            "{notice}\n\n"
+            "Kerakli qadamni tanlang 👇"
+        ),
+        "enh_hub_btn_reacts": "👍 1. Reaksiyalar ({n}/{max})",
+        "enh_hub_btn_buttons": "🔗 2. URL tugmalar ({n}/{max})",
+        "enh_btn_preview": "👁️ Prevyu",
+        "enh_btn_send_channel": "🚀 Kanalga yuborish",
+        "enh_btn_replace": "🔁 Postni almashtirish",
+        "enh_react_title": (
+            "👍 <b>1-qadam. Reaksiyalar</b> (<b>{n}/{max}</b>)\n\n"
+            "Tanlangan: {sel}\n\n"
+            "• Emoji tugmasini bosing — ✅ belgilanadi, qayta bossangiz olib tashlanadi;\n"
+            "• Yoki bir nechta emojini <b>probel bilan</b> bir xabarda yuboring "
+            "(masalan: <code>👍 ❤️ 🔥 👏 🎉</code>);\n"
+            "• Yana <b>{left}</b> ta reaksiya qo'shsa bo'ladi.\n\n"
+            "<i>Post faqat yakuniy prevyu/tasdiqlash bosqichida ko'rsatiladi.</i>"
+        ),
+        "enh_react_none": "— (hech narsa tanlanmagan)",
+        "enh_react_done": "➡️ Davom etish / URL tugmaga o'tish",
+        "enh_react_done_count": "➡️ Davom etish / URL tugmaga o'tish ({n})",
+        "enh_btn_clear": "🗑 Tozalash",
+        "enh_btns_title": (
+            "🔗 <b>2-qadam. URL tugmalar</b> (<b>{n}/{max}</b>)\n\n"
+            "{body}\n\n"
+            "Tayyor shablonni tanlang — bot faqat havolani so'raydi.\n"
+            "Qo'lda kiritish: <code>Tugma nomi - https://havola.uz</code> yoki "
+            "<code>Tugma nomi | @kanalim</code>"
+        ),
+        "enh_btns_empty": "<i>Hozircha tugmalar yo'q — shablon tanlang yoki qo'lda kiriting.</i>",
+        "enh_btns_line": "{mark} <b>{text}</b> → <code>{url}</code>",
+        "enh_btn_fallback": "Tugma",
+        "enh_btn_add_new": "➕ Yangi tugma qo'shish",
+        "enh_btn_manual": "✍️ Qo'lda kiritish",
+        "enh_btn_confirm_send": "➡️ Tasdiqlash va Kanalga yuborish",
+        "enh_btn_entry_edit": "✏️ {num}. {text}",
+        "enh_btn_add_title": (
+            "➕ <b>Yangi URL tugma</b> (<b>{n}/{max}</b>)\n\n"
+            "Tayyor shablonlardan birini tanlang — bot <b>faqat havolani</b> so'raydi.\n\n"
+            "Yoki <b>✍️ Qo'lda kiritish</b> orqali bir qatorda yuboring:\n"
+            "<code>Tugma nomi - https://havola.uz</code>\n"
+            "<code>Tugma nomi | @kanalim</code>"
+        ),
+        "enh_channel_title": (
+            "📢 <b>Qaysi kanalga yuborilsin?</b> ({n} ta)\n\n"
+            "<i>Post tanlangan kanalga to'g'ridan-to'g'ri chiqadi "
+            "(rejalashtirishsiz). Oxirida tasdiq so'raladi.</i>\n\n"
+            "{notice}"
+        ),
+        "enh_channel_fallback": "Kanal",
+        "enh_channels_more": "…va yana {n} ta (kanal qo'shish bo'limi orqali tanlang)",
+        "enh_confirm_no_channel": "⚠️ <b>Kanal tanlanmagan.</b>\n\nRo'yxatdan kanalni tanlang.",
+        "enh_btn_channel_list": "📢 Kanallar ro'yxati",
+        "enh_confirm_title": (
+            "📢 <b>Yuborishni tasdiqlang</b>\n\n"
+            "Ushbu post <b>{channel}</b>ga yuborilsinmi?\n\n"
+            "{post}\n\n"
+            "{summary}\n"
+            "{note}"
+            "\n<i>Yuborilgandan keyin postni o'zgartirib bo'lmaydi.</i>"
+        ),
+        "enh_btn_confirm_yes": "✅ Ha, yuborilsin",
+        "enh_btn_preview_first": "👁️ Avval prevyu",
+        "enh_success_text": (
+            "✅ <b>Post yuklandi!</b>\n"
+            "Post kanalingizga muvaffaqiyatli joylandi!{where}\n\n"
+            "Xohlasangiz shu postni boshqa kanalga ham yuborishingiz yoki yangi "
+            "post kuchaytirishingiz mumkin 👇"
+        ),
+        "enh_success_where": "\n📢 <b>Kanal:</b> {channel}",
+        "enh_btn_home": "🏠 Asosiy menyu",
+        "enh_btn_other_channel": "📢 Boshqa kanalga",
+        "enh_btn_new_post": "🚀 Yangi post",
+        "enh_btn_finish": "❌ Tugatish",
+        "enh_note_admin": "👑 <i>Admin — post toza chiqadi.</i>\n",
+        "enh_note_pro": "✨ <i>PRO — via/watermark qo'shilmaydi, post toza chiqadi.</i>\n",
+        "enh_note_free": "🆓 <i>Bepul reja: kanalga yuborilganda post boshiga {bot} qo'shiladi.</i>\n",
+        "enh_use_buttons": (
+            "👇 <b>Postni kuchaytirish uchun pastdagi tugmalardan birini tanlang.</b>\n"
+            "Postni almashtirmoqchimisiz — <b>🔁 Postni almashtirish</b> tugmasini bosing."
+        ),
+        "enh_album_reject": "⚠️ Bu turdagi media albomga qo'shib bo'lmaydi — yakka yuboring:",
+        "enh_empty_msg": "⚠️ Bo'sh xabar qabul qilinmadi. Post matnini yoki mediani yuboring:",
+        "enh_react_saved": "✅ <b>Reaksiyalar saqlandi:</b> {sel}\nJami: <b>{total}/{max}</b>{extra}",
+        "enh_react_overflow_part": "\n⚠️ Chegara <b>{max}</b> ta — {items} sig'madi.",
+        "enh_react_dups_part": "\nℹ️ Takrorlangan emojilar hisobga olinmadi.",
+        "enh_react_dups": "ℹ️ Bu emojilar allaqachon tanlangan: {items}\nJami: <b>{total}/{max}</b>",
+        "enh_react_full": (
+            "⚠️ <b>Reaksiyalar chegarasi to'ldi</b> (maks. {max} ta). "
+            "Avval birortasini olib tashlang."
+        ),
+        "enh_react_hint_msg": (
+            "ℹ️ Faqat <b>emoji</b> yuboring — bir nechta bo'lsa <b>probel bilan</b> "
+            "(masalan: <code>👍 ❤️ 🔥 👏 🎉</code>) yoki pastdagi tugmalardan foydalaning."
+        ),
+        "enh_bad_link": (
+            "⚠️ <b>Havola noto'g'ri.</b>\n\n"
+            "Faqat havolani yuboring, masalan: <code>{hint}</code>\n"
+            "yoki <code>@kanal_ismi</code>"
+        ),
+        "enh_bad_format": (
+            "⚠️ <b>Tugma formati noto'g'ri.</b>\n\n"
+            "Qaytadan yuboring:\n"
+            "<code>Saytga o'tish - https://sayt.uz</code>\n"
+            "<code>Kanalim | @kanalim</code>\n"
+            "<code>https://t.me/bot_ism/start</code> (yozuv avtomatik tanlanadi)"
+        ),
+        "enh_btn_limit_reached": (
+            "⚠️ <b>Maksimum {max} ta URL tugma</b> qo'shish mumkin. "
+            "Avval bittasini o'chiring."
+        ),
+        "enh_btn_verb_saved": "saqlandi",
+        "enh_btn_verb_updated": "yangilandi",
+        "enh_btn_saved": "✅ <b>Tugma {verb}:</b> {text} → <code>{url}</code>",
+        "enh_session_expired": "⚠️ Sessiya tugagan — menyuni qaytadan oching.",
+        "enh_home_msg": "🏠 <b>Asosiy menyu</b> — kerakli bo'limni tanlang 👇",
+        "enh_again_prompt": (
+            "{notice}\n\n"
+            "🚀 <b>Yangi post</b> — kuchaytirmoqchi bo'lgan postingizni yuboring "
+            "(matn, rasm, video, albom yoki forward):"
+        ),
+        "enh_no_channels_alert": (
+            "⚠️ Ulangan kanal yo'q — avval kanal ulang va botni "
+            "kanalga Admin qilib qo'shing."
+        ),
+        "enh_react_limit_alert": "⚠️ Maksimum {max} ta reaksiya!",
+        "enh_replace_prompt": (
+            "🔁 <b>Yangi postni yuboring</b> — joriy post (matn/media) almashtiriladi. "
+            "Reaksiyalar va tugmalar saqlanadi 👇"
+        ),
+        "enh_channel_gone_alert": "⚠️ Bu kanal endi ro'yxatda yo'q.",
+        "enh_preset_missing": "⚠️ Shablon topilmadi.",
+        "enh_btn_limit_alert": "⚠️ Maksimum {max} ta tugma!",
+        "enh_preset_prompt": (
+            "{icon} <b>{num}. {title}</b>\n\n"
+            "Faqat <b>havolani</b> yuboring (masalan: <code>{hint}</code>) — "
+            "tugma yozuvi avtomatik qo'yiladi.\n\n"
+            "<i>To'liq formatda ham mumkin: <code>Yozuv - https://havola.uz</code></i>"
+        ),
+        "enh_btn_back_cancel": "⬅️ Bekor qilish",
+        "enh_manual_prompt": (
+            "✍️ <b>Yangi URL tugma (qo'lda kiritish)</b>\n\n"
+            "Bir qatorda yuboring:\n"
+            "<code>Tugma nomi - https://havola.uz</code>\n"
+            "<code>Tugma nomi | @kanalim</code>\n"
+            "<code>Botim - t.me/bot_ismi/start</code>"
+        ),
+        "enh_btn_missing_alert": "⚠️ Tugma topilmadi.",
+        "enh_edit_prompt": (
+            "✏️ <b>{num}-tugmani tahrirlash</b>\n\n"
+            "Hozir: <b>{text}</b> → <code>{url}</code>\n\n"
+            "Yangi qiymatni bir qatorda yuboring:\n"
+            "<code>Yangi yozuv - https://yangi-havola.uz</code>"
+        ),
+        "enh_preview_follow_note": (
+            "👆 <i>Yuqorida — prevyu. Tugmalar kanalda shu post ostida chiqadi.</i>"
+        ),
+        "enh_preview_failed": "⚠️ Prevyu yasab bo'lmadi (media fayli yaroqsiz).",
+        "enh_preview_error": "⚠️ Prevyu ko'rsatib bo'lmadi.",
+        "enh_too_fast": "⏳ Juda tez — birozdan so'ng qayta urinib ko'ring.",
+        "enh_no_channel_sel": "⚠️ Kanal tanlanmagan.",
+        "enh_channel_not_owned": "⚠️ Bu kanal endi sizning ro'yxatingizda yo'q.",
+        "enh_prepare_failed": "⚠️ Postni tayyorlab bo'lmadi. Qaytadan urinib ko'ring.",
+        "enh_send_no_rights": (
+            "⚠️ Bot kanalda admin emas (yoki ruxsati yo'q). "
+            "Kanalga admin qilib qo'shing."
+        ),
+        "enh_send_failed": "⚠️ Yuborib bo'lmadi: {error}",
+        "enh_stale_notice": (
+            "⚠️ Bu menyuning muddati tugagan — ⚙️ Qo'shimcha funksiyalarni qaytadan oching."
+        ),
+
+        # 📖 Qo'llanma / Bot haqida (/help)
+        "help_guide": (
+            "📖 <b>PostAssistrobot — To'liq Qo'llanma:</b>\n\n"
+            "🔹 <b>1. Kanal/Guruh ulash:</b>\n"
+            "• Botni kanalingizga <b>administrator</b> qilib (xabar yuborish ruxsati bilan) qo'shing.\n"
+            "• «👤 Kabinet & Sozlamalar» → «📢 Mening kanallarim» orqali kanaldan istalgan xabarni botga forward qiling yoki @username yuboring.\n\n"
+            "🔹 <b>2. Yangi post rejalashtirish:</b>\n"
+            "• Matn, rasm, video, audio yoki <b>albom</b> (bir nechta rasm/video) postlarni istalgan sanaga rejalashtirish.\n"
+            "• Havola tugmalar (URL button), reaksiyalar va avto-o'chirish (12, 24, 48, 72 soat).\n"
+            "• <i>PRO tarifda postlar avtomatik reklamasiz (100% toza) chiqadi!</i>\n\n"
+            "🔹 <b>3. ✨ AI Studio:</b>\n"
+            "• AI Post yaratish, rasmdan post (Vision), AI post auditi va kontent-reja.\n"
+            "• Savol bering yoki matn/rasm/forward yuboring — professional post va she'rlar tayyorlanadi.\n"
+            "• Erkin tilda buyruq: <i>«ertaga ertalab 9 ga hamma kanalga rejalashtir»</i>.\n"
+            "• Postni tahrirlash: <i>«oxiriga telefon raqam qo'sh»</i>.\n\n"
+            "🔹 <b>4. Ballar va Kunlik Seriya (Streak):</b>\n"
+            "• Har kuni botga kiring va <b>'🎁 Kunlik bonus'</b> tugmasini bosing.\n"
+            "• 1-kun (+1), 2-kun (+1), 3-kun (+2), ..., 7-kun (+4 ball) olasiz!\n\n"
+            "🔹 <b>5. ⚙️ Qo'shimcha funksiyalar:</b>\n"
+            "• ✨ Postga Tugma & Reaksiya qo'shish — tayyor postni bir zumda kuchaytirish.\n"
+            "• 🔤 Lotin ⇄ Kirill matn o'girgich.\n\n"
+            "⚙️ <b>Tezkor buyruqlar:</b>\n"
+            "/start — Bosh menyu\n"
+            "/newpost — Yangi post\n"
+            "/profile — Kabinet\n"
+            "/help — Qo'llanma\n"
+            "/cancel — Bekor qilish\n\n"
+            "{support}"
+        ),
+        "help_guide_admin": (
+            "\n\n👑 <b>Admin buyruqlari:</b>\n"
+            "/admin — Boshqaruv paneli\n"
+            "/broadcast — Xabar yuborish\n"
+            "/stats — Statistika"
+        ),
+        "help_faq": (
+            "❓ <b>Tez-tez beriladigan savollar (FAQ)</b>\n\n"
+            "<b>1. Postim kanalga chiqmadi — nima qilaman?</b>\n"
+            "Bot kanal/guruhingizda <b>administrator</b> va «xabar yuborish» huquqiga ega ekanini tekshiring — "
+            "keyin uni «📢 Mening kanallarim» ro'yxatiga ulang.\n\n"
+            "<b>2. AI so'rovlar (ballar) qanday olinadi?</b>\n"
+            "Har kuni «🎁 Kunlik bonus» tugmasini bosing, do'stlaringizni taklif qiling "
+            "(1–3-do'st: +3, keyingilar: +1) yoki ⭐️ PRO tarifga o'ting — PRO'da AI cheksiz.\n\n"
+            "<b>3. Rejalashtirilgan postni tahrirlash mumkinmi?</b>\n"
+            "Ha — «👤 Kabinet & Sozlamalar» → «📅 Kutilayotgan postlar» bo'limida vaqt, matn, "
+            "tugma va reaksiyalarni alohida o'zgartirasiz.\n\n"
+            "<b>4. Reklama qanday o'chadi?</b>\n"
+            "⭐️ PRO tarif postlarni va bot javoblarini 100% reklamasiz qiladi (belgi avtomatik o'chadi).\n\n"
+            "<b>5. Bot qaysi tillarda ishlaydi?</b>\n"
+            "O'zbek va rus tillarida. Tilni «👤 Kabinet & Sozlamalar» → «🌐 Til / Язык» orqali almashtirasiz.\n\n"
+            "{support}"
+        ),
+        "help_btn_faq": "❓ Tez-tez beriladigan savollar",
+        "help_btn_support": "💬 Bog'lanish",
+        "help_support_line": "👨‍💻 <b>Yordam kerakmi?</b> {admin} bilan bog'laning.",
+        "help_admin_fallback": "bot administratori",
+        "cab_guide_text": (
+            "📖 <b>PostAssistrobot — To'liq Qo'llanma:</b>\n\n"
+            "🔹 <b>1. Yangi post rejalashtirish:</b>\n"
+            "• Matn, rasm, video, audio yoki <b>albom</b> postlarni istalgan sanaga rejalashtirish.\n"
+            "• Havola tugmalar, reaksiyalar va avto-o'chirish.\n\n"
+            "🔹 <b>2. AI Yordamchi:</b>\n"
+            "• Savol bering yoki matn/rasm yuboring — professional post tayyorlaydi.\n"
+            "• Erkin tilda: <i>\"ertaga ertalab 9 ga hamma kanalga\"</i>.\n\n"
+            "🔹 <b>3. Ballar va Kunlik Seriya:</b>\n"
+            "• Har kuni botga kiring va bonus oling (7-kunda +4 ball).\n\n"
+            "⚙️ <b>Tezkor buyruqlar:</b>\n"
+            "/start — Bosh menyu\n"
+            "/profile — Kabinet\n"
+            "/help — Qo'llanma\n"
+            "/cancel — Bekor qilish"
+        ),
+
+        # ⚠️ Xatoliklar va tizimli xabarlar
+        "sys_busy": (
+            "⚠️ <b>Tizim vaqtincha band.</b>\n"
+            "Iltimos, birozdan so'ng /start bosing."
+        ),
+        "sys_stale_button": (
+            "♻️ Bu tugma eskirgan (bot qayta ishga tushirilgan). "
+            "Menyuni qaytadan oching: /start"
+        ),
+        "sys_unexpected_error": (
+            "⚠️ <b>Kutilmagan xatolik yuz berdi.</b>\n"
+            "Iltimos, birozdan so'ng qayta urinib ko'ring yoki /start bosing."
+        ),
+        "conv_timeout_msg": (
+            "⏰ <b>Suhbat muddat tugash sababli yakunlandi.</b>\n"
+            "Asosiy menyuga qaytdingiz. Kerakli bo'limni qaytadan tanlang 👇"
+        ),
+        "msg_closed": "✅ Yopildi.",
+        "cancel_done": (
+            "🚫 <b>Jarayon bekor qilindi.</b>\n"
+            "Asosiy menyuga qaytdingiz. Kerakli bo'limni tanlang 👇"
+        ),
+
     },
     "ru": {
         "btn_new_post": "➕ Новый пост",
@@ -1844,6 +2190,368 @@ TRANSLATIONS = {
         "queue_slot_reset_alert": "🔄 Слоты по умолчанию возвращены!",
         "btn_pending": "⏳ Ожидающие посты",
         "btn_queue": "📚 Очередь (Queue)",
+
+        # --- 4-ЧАСТЬ: ⚙️ Дополнительные функции, 📖 Руководство и системные сообщения (i18n) ---
+
+        # ⚙️ Дополнительные функции — текст и кнопки inline-меню
+        "extras_menu_body": (
+            "⚙️ <b>Дополнительные функции</b>\n\n"
+            "✨ <b>Кнопки и реакции к посту</b> — отправьте готовый пост (текст, "
+            "фото, видео, альбом или репост): исходный текст не меняется, "
+            "добавляются до 10 реакций и до 10 URL-кнопок, и пост мгновенно "
+            "публикуется в нужный канал\n"
+            "🔤 <b>Конвертер Кириллица-Латиница</b> — конвертация текстов между "
+            "двумя алфавитами\n\n"
+            "Выберите нужный инструмент 👇"
+        ),
+        "extras_btn_enhancer": "✨ Кнопки и реакции к посту",
+        "extras_btn_converter": "🔤 Конвертер Кириллица-Латиница",
+        "extras_closed": "✅ Раздел <b>«Дополнительные функции»</b> закрыт.",
+
+        # 🔤 Конвертер Латиница ⇄ Кириллица
+        "conv_intro": (
+            "🔤 <b>Конвертер Латиница ⇄ Кириллица:</b>\n\n"
+            "Отправьте <b>текст</b> или <b>фото/видео/файл</b> (с подписью), "
+            "который нужно конвертировать:\n\n"
+            "<i>Для отмены нажмите '🔙 Главное меню'.</i>"
+        ),
+        "conv_no_text": (
+            "⚠️ В этом файле текст (подпись) не найден.\n"
+            "Пожалуйста, отправьте текст или файл с подписью ещё раз:"
+        ),
+        "conv_received": (
+            "📝 <b>Текст получен!</b>\n\n"
+            "В какой алфавит конвертировать? Выберите одну из кнопок ниже 👇"
+        ),
+        "conv_btn_cyr": "🔤 Кириллическая версия",
+        "conv_btn_lat": "🔤 Латинская версия",
+        "conv_no_saved_text": "⚠️ Текст не найден, отправьте его ещё раз.",
+        "conv_result_title": "📋 <b>Результат:</b>",
+        "conv_result_part1": "📋 <b>Результат (часть 1):</b>",
+        "conv_result_part2": "📋 <b>Результат (часть 2):</b>",
+        "conv_copy_hint": "<i>(Нажмите на текст, чтобы скопировать)</i>",
+        "conv_cont_title": "ℹ️ <i>Продолжение текста:</i>",
+        "conv_error": "⚠️ Произошла ошибка: {error}",
+        "cab_converter_info": (
+            "🔤 <b>Конвертер Кириллица-Латиница:</b>\n\n"
+            "Отправьте текст на латинице или кириллице — я автоматически "
+            "сконвертирую его.\n\n"
+            "<i>Например: Salom dunyo → Салом дунё</i>"
+        ),
+
+        # ✨ Кнопки и реакции к посту (Post Enhancer)
+        "enh_notice_admin": (
+            "💡 <b>Примечание:</b> чтобы бот мог опубликовать пост в вашем "
+            "канале, сначала убедитесь, что вы добавили его в канал как "
+            "<b>Администратора</b>."
+        ),
+        "enh_post_request": (
+            "Отправьте пост, который хотите опубликовать в канале "
+            "(Текст, Фото, Видео или репост из другого канала):"
+        ),
+        "enh_intro_features": (
+            "✅ Исходный текст не меняется — только:\n"
+            "• 👍 до 10 реакций (можно вводить пакетом через пробел),\n"
+            "• 🔗 до 10 URL-кнопок (с готовыми шаблонами),\n"
+            "• 👁 предпросмотр по запросу и 🚀 мгновенная отправка в канал."
+        ),
+        "enh_preset1_title": "Подписаться на канал",
+        "enh_preset1_text": "📢 Подписаться на канал",
+        "enh_preset2_title": "Вступить в группу",
+        "enh_preset2_text": "💬 Вступить в группу",
+        "enh_preset3_title": "Перейти к боту",
+        "enh_preset3_text": "🤖 Перейти к боту",
+        "enh_summary": (
+            "👍 Реакции: <b>{rn}/{maxr}</b>{emojis}\n"
+            "🔗 URL-кнопки: <b>{bn}/{maxb}</b>"
+        ),
+        "enh_post_line_type": "📦 <b>Тип:</b> {type}",
+        "enh_post_line_album_count": " (медиа: {n})",
+        "enh_post_line_text": "\n📝 <b>Текст:</b> <i>{preview}</i>",
+        "enh_post_line_no_text": "\n📝 <b>Текст:</b> <i>(без текста — только медиа)</i>",
+        "enh_hub_title": (
+            "✨ <b>Кнопки и реакции к посту</b>\n\n"
+            "{post}\n\n"
+            "{summary}\n"
+            "{note}"
+            "{notice}\n\n"
+            "Выберите нужный шаг 👇"
+        ),
+        "enh_hub_btn_reacts": "👍 1. Реакции ({n}/{max})",
+        "enh_hub_btn_buttons": "🔗 2. URL-кнопки ({n}/{max})",
+        "enh_btn_preview": "👁️ Превью",
+        "enh_btn_send_channel": "🚀 Отправить в канал",
+        "enh_btn_replace": "🔁 Заменить пост",
+        "enh_react_title": (
+            "👍 <b>Шаг 1. Реакции</b> (<b>{n}/{max}</b>)\n\n"
+            "Выбрано: {sel}\n\n"
+            "• Нажмите на эмодзи — ✅ отметится, повторное нажатие уберёт его;\n"
+            "• Или отправьте несколько эмодзи <b>через пробел</b> одним "
+            "сообщением (например: <code>👍 ❤️ 🔥 👏 🎉</code>);\n"
+            "• Можно добавить ещё <b>{left}</b> реакций.\n\n"
+            "<i>Пост показывается только на этапе финального превью/"
+            "подтверждения.</i>"
+        ),
+        "enh_react_none": "— (ничего не выбрано)",
+        "enh_react_done": "➡️ Продолжить / К URL-кнопкам",
+        "enh_react_done_count": "➡️ Продолжить / К URL-кнопкам ({n})",
+        "enh_btn_clear": "🗑 Очистить",
+        "enh_btns_title": (
+            "🔗 <b>Шаг 2. URL-кнопки</b> (<b>{n}/{max}</b>)\n\n"
+            "{body}\n\n"
+            "Выберите готовый шаблон — бот запросит только ссылку.\n"
+            "Ручной ввод: <code>Название кнопки - https://sayt.uz</code> или "
+            "<code>Название кнопки | @kanalim</code>"
+        ),
+        "enh_btns_empty": "<i>Пока кнопок нет — выберите шаблон или введите вручную.</i>",
+        "enh_btns_line": "{mark} <b>{text}</b> → <code>{url}</code>",
+        "enh_btn_fallback": "Кнопка",
+        "enh_btn_add_new": "➕ Добавить новую кнопку",
+        "enh_btn_manual": "✍️ Ввести вручную",
+        "enh_btn_confirm_send": "➡️ Подтвердить и отправить в канал",
+        "enh_btn_entry_edit": "✏️ {num}. {text}",
+        "enh_btn_add_title": (
+            "➕ <b>Новая URL-кнопка</b> (<b>{n}/{max}</b>)\n\n"
+            "Выберите один из готовых шаблонов — бот запросит <b>только "
+            "ссылку</b>.\n\n"
+            "Или отправьте одной строкой через <b>✍️ Ввести вручную</b>:\n"
+            "<code>Название кнопки - https://sayt.uz</code>\n"
+            "<code>Название кнопки | @kanalim</code>"
+        ),
+        "enh_channel_title": (
+            "📢 <b>В какой канал отправить?</b> ({n} шт.)\n\n"
+            "<i>Пост выйдет сразу в выбранном канале (без планирования). "
+            "В конце будет запрошено подтверждение.</i>\n\n"
+            "{notice}"
+        ),
+        "enh_channel_fallback": "Канал",
+        "enh_channels_more": "…и ещё {n} шт. (выберите через раздел добавления каналов)",
+        "enh_confirm_no_channel": "⚠️ <b>Канал не выбран.</b>\n\nВыберите канал из списка.",
+        "enh_btn_channel_list": "📢 Список каналов",
+        "enh_confirm_title": (
+            "📢 <b>Подтвердите отправку</b>\n\n"
+            "Отправить этот пост в <b>{channel}</b>?\n\n"
+            "{post}\n\n"
+            "{summary}\n"
+            "{note}"
+            "\n<i>После отправки пост изменить нельзя.</i>"
+        ),
+        "enh_btn_confirm_yes": "✅ Да, отправить",
+        "enh_btn_preview_first": "👁️ Сначала превью",
+        "enh_success_text": (
+            "✅ <b>Пост опубликован!</b>\n"
+            "Пост успешно опубликован в вашем канале!{where}\n\n"
+            "При желании вы можете отправить этот пост и в другой канал или "
+            "усилить новый пост 👇"
+        ),
+        "enh_success_where": "\n📢 <b>Канал:</b> {channel}",
+        "enh_btn_home": "🏠 Главное меню",
+        "enh_btn_other_channel": "📢 В другой канал",
+        "enh_btn_new_post": "🚀 Новый пост",
+        "enh_btn_finish": "❌ Завершить",
+        "enh_note_admin": "👑 <i>Админ — пост выйдет чистым.</i>\n",
+        "enh_note_pro": "✨ <i>PRO — без via/водяного знака, пост выйдет чистым.</i>\n",
+        "enh_note_free": (
+            "🆓 <i>Бесплатный план: при отправке в канал в начало поста "
+            "добавится {bot}.</i>\n"
+        ),
+        "enh_use_buttons": (
+            "👇 <b>Чтобы усилить пост, выберите одну из кнопок ниже.</b>\n"
+            "Хотите заменить пост — нажмите <b>🔁 Заменить пост</b>."
+        ),
+        "enh_album_reject": "⚠️ Этот тип медиа нельзя добавить в альбом — отправьте отдельно:",
+        "enh_empty_msg": "⚠️ Пустое сообщение не принято. Отправьте текст поста или медиа:",
+        "enh_react_saved": "✅ <b>Реакции сохранены:</b> {sel}\nВсего: <b>{total}/{max}</b>{extra}",
+        "enh_react_overflow_part": "\n⚠️ Лимит — <b>{max}</b> шт. — {items} не поместились.",
+        "enh_react_dups_part": "\nℹ️ Повторяющиеся эмодзи не учтены.",
+        "enh_react_dups": "ℹ️ Эти эмодзи уже выбраны: {items}\nВсего: <b>{total}/{max}</b>",
+        "enh_react_full": (
+            "⚠️ <b>Лимит реакций исчерпан</b> (макс. {max} шт.). "
+            "Сначала уберите одну из них."
+        ),
+        "enh_react_hint_msg": (
+            "ℹ️ Отправляйте только <b>эмодзи</b> — если их несколько, то "
+            "<b>через пробел</b> (например: <code>👍 ❤️ 🔥 👏 🎉</code>) или "
+            "используйте кнопки ниже."
+        ),
+        "enh_bad_link": (
+            "⚠️ <b>Неверная ссылка.</b>\n\n"
+            "Отправьте только ссылку, например: <code>{hint}</code>\n"
+            "или <code>@kanal_ismi</code>"
+        ),
+        "enh_bad_format": (
+            "⚠️ <b>Неверный формат кнопки.</b>\n\n"
+            "Отправьте ещё раз:\n"
+            "<code>Перейти на сайт - https://sayt.uz</code>\n"
+            "<code>Мой канал | @kanalim</code>\n"
+            "<code>https://t.me/bot_ism/start</code> (название выберется автоматически)"
+        ),
+        "enh_btn_limit_reached": (
+            "⚠️ Можно добавить <b>не более {max} URL-кнопок</b>. "
+            "Сначала удалите одну из них."
+        ),
+        "enh_btn_verb_saved": "сохранена",
+        "enh_btn_verb_updated": "обновлена",
+        "enh_btn_saved": "✅ <b>Кнопка {verb}:</b> {text} → <code>{url}</code>",
+        "enh_session_expired": "⚠️ Сессия истекла — откройте меню заново.",
+        "enh_home_msg": "🏠 <b>Главное меню</b> — выберите нужный раздел 👇",
+        "enh_again_prompt": (
+            "{notice}\n\n"
+            "🚀 <b>Новый пост</b> — отправьте пост, который хотите усилить "
+            "(текст, фото, видео, альбом или репост):"
+        ),
+        "enh_no_channels_alert": (
+            "⚠️ Подключённых каналов нет — сначала подключите канал и "
+            "добавьте бота в него как Администратора."
+        ),
+        "enh_react_limit_alert": "⚠️ Максимум {max} реакций!",
+        "enh_replace_prompt": (
+            "🔁 <b>Отправьте новый пост</b> — текущий пост (текст/медиа) будет "
+            "заменён. Реакции и кнопки сохранятся 👇"
+        ),
+        "enh_channel_gone_alert": "⚠️ Этого канала больше нет в списке.",
+        "enh_preset_missing": "⚠️ Шаблон не найден.",
+        "enh_btn_limit_alert": "⚠️ Максимум {max} кнопок!",
+        "enh_preset_prompt": (
+            "{icon} <b>{num}. {title}</b>\n\n"
+            "Отправьте <b>только ссылку</b> (например: <code>{hint}</code>) — "
+            "название кнопки подставится автоматически.\n\n"
+            "<i>Можно и полным форматом: <code>Название - https://sayt.uz</code></i>"
+        ),
+        "enh_btn_back_cancel": "⬅️ Отмена",
+        "enh_manual_prompt": (
+            "✍️ <b>Новая URL-кнопка (ручной ввод)</b>\n\n"
+            "Отправьте одной строкой:\n"
+            "<code>Название кнопки - https://sayt.uz</code>\n"
+            "<code>Название кнопки | @kanalim</code>\n"
+            "<code>Мой бот - t.me/bot_ismi/start</code>"
+        ),
+        "enh_btn_missing_alert": "⚠️ Кнопка не найдена.",
+        "enh_edit_prompt": (
+            "✏️ <b>Редактирование кнопки {num}</b>\n\n"
+            "Сейчас: <b>{text}</b> → <code>{url}</code>\n\n"
+            "Отправьте новое значение одной строкой:\n"
+            "<code>Новое название - https://novaya-ssylka.uz</code>"
+        ),
+        "enh_preview_follow_note": (
+            "👆 <i>Выше — превью. Кнопки появятся под этим постом в канале.</i>"
+        ),
+        "enh_preview_failed": "⚠️ Не удалось создать превью (медиафайл недействителен).",
+        "enh_preview_error": "⚠️ Не удалось показать превью.",
+        "enh_too_fast": "⏳ Слишком быстро — попробуйте ещё раз чуть позже.",
+        "enh_no_channel_sel": "⚠️ Канал не выбран.",
+        "enh_channel_not_owned": "⚠️ Этого канала больше нет в вашем списке.",
+        "enh_prepare_failed": "⚠️ Не удалось подготовить пост. Попробуйте ещё раз.",
+        "enh_send_no_rights": (
+            "⚠️ Бот не администратор канала (или нет прав). "
+            "Добавьте бота в канал как администратора."
+        ),
+        "enh_send_failed": "⚠️ Не удалось отправить: {error}",
+        "enh_stale_notice": (
+            "⚠️ Срок действия этого меню истёк — откройте раздел "
+            "«⚙️ Дополнительные функции» заново."
+        ),
+
+        # 📖 Руководство / О боте (/help)
+        "help_guide": (
+            "📖 <b>PostAssistrobot — Полное руководство:</b>\n\n"
+            "🔹 <b>1. Подключение канала/группы:</b>\n"
+            "• Добавьте бота <b>администратором</b> канала (с правом отправки сообщений).\n"
+            "• Через «👤 Кабинет & Настройки» → «📢 Мои каналы» перешлите боту любое "
+            "сообщение из канала или отправьте @username.\n\n"
+            "🔹 <b>2. Планирование нового поста:</b>\n"
+            "• Текст, фото, видео, аудио или <b>альбом</b> (несколько фото/видео) "
+            "на любую дату.\n"
+            "• URL-кнопки, реакции и авто-удаление (12, 24, 48, 72 часа).\n"
+            "• <i>На тарифе PRO посты автоматически выходят без рекламы (100% чистые)!</i>\n\n"
+            "🔹 <b>3. ✨ AI Studio:</b>\n"
+            "• Создание AI-поста, пост из фото (Vision), AI-аудит поста и контент-план.\n"
+            "• Задайте вопрос или отправьте текст/фото/репост — получите "
+            "профессиональный пост и стихи.\n"
+            "• Команда свободным текстом: <i>«запланируй всем каналам на завтра "
+            "утром в 9»</i>.\n"
+            "• Редактирование поста: <i>«добавь номер телефона в конец»</i>.\n\n"
+            "🔹 <b>4. Баллы и ежедневная серия (Streak):</b>\n"
+            "• Заходите в бот каждый день и нажимайте <b>«🎁 Ежедневный бонус»</b>.\n"
+            "• 1-й день (+1), 2-й (+1), 3-й (+2), ..., 7-й день (+4 балла)!\n\n"
+            "🔹 <b>5. ⚙️ Дополнительные функции:</b>\n"
+            "• ✨ Кнопки и реакции к посту — мгновенное усиление готового поста.\n"
+            "• 🔤 Конвертер Латиница ⇄ Кириллица.\n\n"
+            "⚙️ <b>Быстрые команды:</b>\n"
+            "/start — Главное меню\n"
+            "/newpost — Новый пост\n"
+            "/profile — Кабинет\n"
+            "/help — Руководство\n"
+            "/cancel — Отмена\n\n"
+            "{support}"
+        ),
+        "help_guide_admin": (
+            "\n\n👑 <b>Команды администратора:</b>\n"
+            "/admin — Панель управления\n"
+            "/broadcast — Рассылка\n"
+            "/stats — Статистика"
+        ),
+        "help_faq": (
+            "❓ <b>Часто задаваемые вопросы (FAQ)</b>\n\n"
+            "<b>1. Мой пост не вышел в канал — что делать?</b>\n"
+            "Убедитесь, что бот — <b>администратор</b> вашего канала/группы с правом "
+            "«Отправка сообщений», затем подключите его в «📢 Мои каналы».\n\n"
+            "<b>2. Как получить AI-запросы (баллы)?</b>\n"
+            "Нажимайте «🎁 Ежедневный бонус» каждый день, приглашайте друзей "
+            "(за 1–3-го: +3, далее: +1) или перейдите на ⭐️ PRO — там AI безлимитный.\n\n"
+            "<b>3. Можно ли отредактировать запланированный пост?</b>\n"
+            "Да — в разделе «👤 Кабинет & Настройки» → «📅 Ожидающие посты» время, "
+            "текст, кнопку и реакции меняются отдельно.\n\n"
+            "<b>4. Как отключить рекламу?</b>\n"
+            "⭐️ Тариф PRO делает посты и ответы бота 100% без рекламы (автоматически).\n\n"
+            "<b>5. На каких языках работает бот?</b>\n"
+            "На узбекском и русском. Язык меняется через "
+            "«👤 Кабинет & Настройки» → «🌐 Til / Язык».\n\n"
+            "{support}"
+        ),
+        "help_btn_faq": "❓ Частые вопросы (FAQ)",
+        "help_btn_support": "💬 Связаться с поддержкой",
+        "help_support_line": "👨‍💻 <b>Нужна помощь?</b> Напишите: {admin}",
+        "help_admin_fallback": "администратору бота",
+        "cab_guide_text": (
+            "📖 <b>PostAssistrobot — Полное руководство:</b>\n\n"
+            "🔹 <b>1. Планирование нового поста:</b>\n"
+            "• Текст, фото, видео, аудио или <b>альбом</b> на любую дату.\n"
+            "• URL-кнопки, реакции и авто-удаление.\n\n"
+            "🔹 <b>2. AI-помощник:</b>\n"
+            "• Задайте вопрос или отправьте текст/фото — получите профессиональный пост.\n"
+            "• Свободным текстом: <i>«завтра в 9 утра — во все каналы»</i>.\n\n"
+            "🔹 <b>3. Баллы и ежедневная серия:</b>\n"
+            "• Заходите каждый день и получайте бонус (на 7-й день +4 балла).\n\n"
+            "⚙️ <b>Быстрые команды:</b>\n"
+            "/start — Главное меню\n"
+            "/profile — Кабинет\n"
+            "/help — Руководство\n"
+            "/cancel — Отмена"
+        ),
+
+        # ⚠️ Ошибки и системные сообщения
+        "sys_busy": (
+            "⚠️ <b>Система временно занята.</b>\n"
+            "Пожалуйста, нажмите /start чуть позже."
+        ),
+        "sys_stale_button": (
+            "♻️ Эта кнопка устарела (бот был перезапущен). "
+            "Откройте меню заново: /start"
+        ),
+        "sys_unexpected_error": (
+            "⚠️ <b>Произошла непредвиденная ошибка.</b>\n"
+            "Пожалуйста, попробуйте ещё раз чуть позже или нажмите /start."
+        ),
+        "conv_timeout_msg": (
+            "⏰ <b>Диалог завершён по истечении времени.</b>\n"
+            "Вы вернулись в главное меню. Выберите нужный раздел заново 👇"
+        ),
+        "msg_closed": "✅ Закрыто.",
+        "cancel_done": (
+            "🚫 <b>Действие отменено.</b>\n"
+            "Вы вернулись в главное меню. Выберите нужный раздел 👇"
+        ),
     },
 }
 

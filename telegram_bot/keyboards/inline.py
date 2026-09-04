@@ -523,20 +523,52 @@ def get_language_keyboard() -> InlineKeyboardMarkup:
     ])
 
 
-def get_extras_inline_keyboard() -> InlineKeyboardMarkup:
-    """⚙️ Qo'shimcha funksiyalar — inline menyu.
+def get_extras_inline_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
+    """⚙️ Qo'shimcha funksiyalar — inline menyu (uz/ru).
 
     Birinchi qator — ✨ Postga Tugma & Reaksiya qo'shish (Post Enhancer):
     tayyor postga 10 tagacha reaksiya va 10 tagacha URL tugma qo'shib,
     kanalga bir zumda yuborish. Konvertor o'z o'rnida saqlanadi.
+
+    Yorliqlar foydalanuvchi tilida (``lang``) chiziladi; ``callback_data``
+    tilga bog'liq emas — ikkala tilda ham bir xil qoladi.
     """
     keyboard = [
-        [InlineKeyboardButton("✨ Postga Tugma & Reaksiya qo'shish",
+        [InlineKeyboardButton(get_text("extras_btn_enhancer", lang),
                               callback_data="extra_enhancer")],
-        [InlineKeyboardButton("🔤 Krill-Lotin konvertor", callback_data="extra_converter")],
-        [InlineKeyboardButton("❌ Yopish", callback_data="extra_close")],
+        [InlineKeyboardButton(get_text("extras_btn_converter", lang),
+                              callback_data="extra_converter")],
+        [InlineKeyboardButton(get_text("cab_close", lang), callback_data="extra_close")],
     ]
     return InlineKeyboardMarkup(keyboard)
+
+
+def get_help_keyboard(support_username: str = "", lang: str = "uz") -> InlineKeyboardMarkup:
+    """📖 Qo'llanma / Bot haqida — FAQ va qo'llab-quvvatlash tugmalari (uz/ru).
+
+    - ``help_btn_support`` — admin/qo'llab-quvvatlash bilan bog'lanish
+      (``support_username`` bosh bo'lmasa ``t.me`` havolasi chiqadi);
+    - ``help_btn_faq`` — tez-tez beriladigan savollar sahifasiga o'tadi
+      (``help:faq`` callback).
+    """
+    keyboard = []
+    if support_username:
+        username = str(support_username).strip().lstrip("@")
+        if username:
+            keyboard.append([InlineKeyboardButton(
+                get_text("help_btn_support", lang), url=f"https://t.me/{username}"
+            )])
+    keyboard.append([InlineKeyboardButton(
+        get_text("help_btn_faq", lang), callback_data="help:faq"
+    )])
+    return InlineKeyboardMarkup(keyboard)
+
+
+def get_help_back_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
+    """📖 FAQ sahifasidan qo'llanmaga qaytish (⬅️ Orqaga / ⬅️ Назад)."""
+    return InlineKeyboardMarkup([[
+        InlineKeyboardButton(get_text("btn_back", lang), callback_data="help:guide")
+    ]])
 
 
 # ============================================================

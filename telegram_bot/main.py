@@ -76,8 +76,25 @@ class GuardedApplication(Application):
 
 
 async def error_handler(update, context):
-    """Hech qanday xatolik botni o'chirib yubormasligi uchun global ushlagich."""
+    """Hech qanday xatolik botni o'chirib yubormasligi uchun global ushlagich.
+
+    Foydalanuvchiga esa uning tilida (uz/ru) qisqa, xavfsiz xabar yuboriladi —
+    ichki xatolik tafsilotlari (traceback) hech qachon ko'rsatilmaydi.
+    """
     logger.error("Xatolik yuz berdi (update=%s): %s", update, context.error, exc_info=context.error)
+    # Kutilmagan xatolik haqida foydalanuvchiga o'z tilida xabar (best-effort).
+    try:
+        from locales.translations import get_text, get_lang
+        message = getattr(update, "effective_message", None) if update is not None else None
+        if message is not None:
+            await message.reply_text(
+                get_text("sys_unexpected_error", get_lang(context)),
+                parse_mode="HTML",
+            )
+    except Exception:
+        # Xabar yuborishning o'zi ham xato berishi mumkin — jim o'tamiz,
+        # bot uchun muhimi — error_handler hech qachon tashlanmasligi.
+        pass
 
 
 async def set_bot_commands(application):
