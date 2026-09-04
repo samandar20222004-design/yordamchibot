@@ -229,6 +229,207 @@ TRANSLATIONS = {
         "transfer_error": "❌ <b>Xatolik:</b> {msg}",
         "transfer_default_name": "Do'stingiz",
 
+        # --- 2-QISM: ✨ AI Studio i18n ---
+        "ai_studio_menu": (
+            "🤖 <b>PostAssist AI Studio</b>\n\n"
+            "💎 Mavjud AI so'rovlari: {credits}\n\n"
+            "Kanal kontentini yaratish uchun kerakli vositani tanlang 👇"
+        ),
+        "ai_studio_post": "✍️ AI Post yaratish",
+        "ai_studio_photo": "🖼 Rasmdan post yaratish",
+        "ai_studio_extract": "📢 Ochiq kanaldan olish",
+        "ai_studio_audit": "🔍 AI Post auditi",
+        "ai_studio_content_plan": "🧠 Kontent-reja",
+        "ai_studio_post_intro": (
+            "✍️ <b>AI Post yaratish</b>\n\n"
+            "Post mavzusini yozing yoki rasm/fayl yuboring.\n"
+            "<i>Masalan: «Sog'lom turmush tarzi haqida motivatsion post»</i>"
+        ),
+        "ai_studio_photo_intro": (
+            "🖼 <b>Rasmdan post yaratish</b>\n\n"
+            "Rasm yuboring — AI uni chuqur tahlil qilib, Telegram kanalingiz uchun "
+            "professional SMM post yozadi:\n"
+            "• ✨ Chiroyli formatlangan sarlavha (<b>...</b>)\n"
+            "• 📝 Qiziqarli / sotuvchi matn\n"
+            "• 😎 Emojilar va bandlar\n"
+            "• 👉 Harakatga chaqiruv (CTA) va xeshteglar\n\n"
+            "<i>Xohlasangiz rasm bilan birga izoh ham yuboring — masalan: "
+            "«rasmdagi mahsulotni sotishga urg'u ber».</i>"
+        ),
+        "ai_studio_audit_intro": (
+            "🔍 <b>AI Post auditi</b>\n\n"
+            "Tayyor post matningizni yuboring — AI uni tahlil qiladi:\n"
+            "• ✍️ Imlo va grammatika\n"
+            "• 🎯 Jozibadorlik va CTA\n"
+            "• 🧩 Struktura tavsiyalari\n"
+            "• ⭐️ Umumiy baho (1-10)"
+        ),
+        "ai_studio_extract_intro": (
+            "📢 <b>Ochiq kanaldan olish</b>\n\n"
+            "Kanal nikini kiriting (masalan: <code>@kunuzofficial</code> yoki <code>daryo</code>):\n\n"
+            "<i>Faqat ochiq kanallar uchun ishlaydi.</i>"
+        ),
+        "ai_studio_content_plan_intro": (
+            "🧠 <b>Kontent-reja generatori</b>\n\nQaysi kanal uchun kontent-reja tuzamiz?"
+        ),
+        "ai_studio_no_channel": (
+            "⚠️ <b>Avval kanal ulang.</b>\n\n"
+            "Kontent-reja tuzish uchun kamida bitta kanal bo'lishi kerak.\n"
+            "📢 Kanallar bo'limidan kanal ulang."
+        ),
+        "ai_tone_formal": "👔 Rasmiy",
+        "ai_tone_friendly": "😊 Do'stona",
+        "ai_tone_concise": "⚡️ Qisqa",
+        "ai_tone_engaging": "🎉 Jozibali",
+        "ai_tone_schedule": "➡️ Rejalashtirishga o'tish",
+        "ai_photo_schedule": "📅 Kanalga rejalashtirish",
+        "ai_photo_rewrite": "🔄 Qayta yozish",
+        "ai_photo_edit": "✏️ Tahrirlash",
+        "ai_photo_result_title": "🖼 <b>Rasmdan tayyorlangan post:</b>\n\n",
+        "ai_photo_result_foot": (
+            "\n\n🖼 <i>Yuborilgan rasm ushbu postga biriktiriladi.</i>\n\n"
+            "Keyingi qadamni tanlang 👇"
+        ),
+        "ai_btn_back": "⬅️ Orqaga",
+        "ai_btn_close": "❌ Bekor qilish",
+        "ai_btn_main_menu": "⬅️ Asosiy menyu",
+        "ai_confirm_schedule": "✅ Kanalga rejalashtirish",
+        "ai_confirm_edit": "📝 Matnni tahrirlash",
+        "ai_preview_title": "✨ <b>AI Post tayyor!</b>\n\n",
+        "ai_preview_foot": (
+            "\n\n🎨 <b>Uslub:</b> {tone}{media}\n\n"
+            "Uslubni almashtiring yoki rejalashtirishga o'ting 👇"
+        ),
+        "ai_preview_media_note": "\n🖼 <i>Media postga biriktiriladi.</i>",
+        "ai_thinking": "🤖 <i>AI javob tayyorlamoqda...</i>",
+        "ai_saving": "💾 Saqlanmoqda...",
+        "ai_wait_post": "🤖 <i>AI post yozmoqda...</i>",
+        "ai_wait_audit": "🔍 <i>AI audit qilmoqda...</i>",
+        "ai_wait_photo": "🖼 <i>AI rasmni tahlil qilmoqda...</i>",
+        "ai_wait_edit": "✏️ <i>AI postni tahrirlamoqda...</i>",
+        "ai_unavailable": (
+            "⚠️ AI xizmatida vaqtinchalik uzilish yuz berdi. "
+            "Iltimos, birozdan so'ng qayta urinib ko'ring."
+        ),
+        "ai_rate_limit": (
+            "⏳ <i>AI so'rovlarini juda tez-tez yuboryapsiz. Iltimos, 1 daqiqa kuting...</i>"
+        ),
+        "ai_daily_limit": (
+            "⚠️ <i>Kunlik AI so'rovlar limiti tugadi (30 ta/kun). Ertaga qayta urinib ko'ring.</i>"
+        ),
+        "ai_limit_msg": (
+            "🚫 <b>Kunlik AI limiti tugadi!</b>\n\n"
+            "Bugun <b>{used}/{max}</b> ta AI so'rovi ishlatildi.\n"
+            "Free tarifida kuniga maksimal <b>{max}</b> ta AI so'rovi.\n\n"
+            "⭐️ Cheksiz AI uchun PRO tarifiga o'ting."
+        ),
+        "ai_credits_unlimited": "♾ Cheksiz",
+        "ai_credits_unlimited_pro": "♾ Cheksiz (PRO)",
+        "ai_media_received": (
+            "🖼 <b>Media qabul qilindi!</b>\n\nEndi post mavzusini yoki matnini yozing."
+        ),
+        "ai_prompt_hint": "✍️ Post mavzusini yozing yoki rasm/fayl yuboring:",
+        "ai_faq_footer": "\n\n<i>Yana mavzu yozing yoki orqaga qayting 👇</i>",
+        "ai_no_post_text": "⚠️ Post matnini aniqlab bo'lmadi. Mavzuni boshqacharoq yozib ko'ring.",
+        "ai_session_expired": "⚠️ Sessiya eskirgan. Mavzuni qaytadan yuboring.",
+        "ai_audit_prompt_hint": "🔍 Auditlash uchun post matnini yuboring:",
+        "ai_audit_result_title": "🔍 <b>AI Audit natijasi:</b>\n\n",
+        "ai_audit_no_result": "⚠️ AI audit natijasini qaytara olmadi. Qaytadan urinib ko'ring.",
+        "ai_photo_only": (
+            "🖼 Iltimos, rasm (JPG/PNG/WEBP) yuboring:\n"
+            "• <i>Rasm bilan birga izoh yuborish mumkin</i>\n"
+            "• <i>Video tahlil qilinmaydi — faqat rasm</i>"
+        ),
+        "ai_video_rejected": (
+            "🎬 <b>Video tahlil qilinmaydi.</b>\n\n"
+            "Server resursini tejash uchun faqat <b>rasm</b> tahlil qilinadi.\n"
+            "Iltimos, tahlil qilinishi kerak bo'lgan <b>rasmni</b> (JPG/PNG/WEBP) yuboring."
+        ),
+        "ai_photo_no_text": "⚠️ AI post matnini tayyorlay olmadi. Rasmni qaytadan yuboring.",
+        "ai_photo_retry_hint": "🖼 Yana rasm yuboring yoki menyuga qayting 👇",
+        "ai_photo_edit_intro": (
+            "✏️ <b>Postni tahrirlash</b>\n\n"
+            "Qanday o'zgarish kerak? Matn yuboring:\n"
+            "<i>Masalan: «sarlavhani boshqacha yoz», «qisqartir», «narxni qo'sh»</i>"
+        ),
+        "ai_photo_edit_hint": "✏️ Tahrirlash uchun matn yuboring:",
+        "ai_photo_edit_no_result": "⚠️ AI tahrirlangan matnni qaytara olmadi. Qaytadan urinib ko'ring.",
+        "ai_photo_rewrite_wait": "🔄 <i>AI rasmni qayta tahlil qilmoqda...</i>",
+        "ai_photo_rewrite_keep": "⚠️ AI qayta yozishda post tayyorlay olmadi. Asl post saqlanib qoldi.",
+        "ai_tone_applying": "🎨 <i>{tone} uslubi qo'llanmoqda...</i>",
+        "ai_schedule_need_post": "⚠️ Avval post yarating. Mavzuni yozing:",
+        "ai_close_session": "❌ AI Studio sessiyasi yakunlandi.",
+        "ai_close_main_menu": "🏠 Asosiy menyu.",
+        "ai_not_found": "Kechirasiz, javob topa olmadim.",
+        "ai_tone_unknown": "⚠️ Sessiya eskirgan. Mavzuni qaytadan yuboring.",
+        "ai_rate_limit_alert": "⏳ Juda tez-tez so'rov. Iltimos, 1 daqiqa kuting.",
+        "ai_schedule_header": "✨ <b>Post qabul qilindi!</b>\n\n",
+        "ai_schedule_foot": (
+            "🕒 <b>Ushbu post qachon kanalga chiqsin?</b>\n"
+            "Quyidagi tugmalardan tanlang yoki erkin yozing:\n"
+            "• <i>“ertaga ertalab 9 ga”</i>\n"
+            "• <i>“bugun 15:45 ga hamma kanalga”</i>\n"
+            "• <i>“1 soatdan keyin”</i>"
+        ),
+        "ai_media_caption_note": "\n\n⬆️ Yuqoridagi media ushbu postga biriktiriladi.",
+        "ai_confirm_title": (
+            "✨ <b>Tayyorlangan post:</b>\n\n"
+            "{post}\n\n"
+            "🕒 <b>Chiqish vaqti:</b> <code>{time}</code>{target}\n\n"
+            "Ushbu postni rejalashtiramizmi?"
+        ),
+        "ai_media_received_scheduled": (
+            "🖼 <b>Media qabul qilindi va postga biriktirildi!</b>\n\n"
+            "Endi chiqish vaqtini yozing (masalan: <i>“bugun 18:00 ga”</i>) yoki tugmani tanlang:"
+        ),
+        "ai_time_prompt_hint": "Iltimos, chiqish vaqtini yozing (masalan: <i>“ertaga 10:00 ga”</i>):",
+        "ai_only_one_time": (
+            "ℹ️ <i>AI yordamchisi orqali faqat bir martalik post rejalashtiriladi.</i>\n"
+            "Har kunlik/haftalik takrorlanuvchi postlar uchun <b>➕ Yangi post rejalashtirish</b> bo'limidan foydalaning.\n\n"
+            "Vaqtni yozing (masalan: <i>“ertaga 10:00 ga”</i>) yoki tezkor tugmani tanlang:"
+        ),
+        "ai_time_fast": (
+            "⏳ <i>Juda tez-tez so'rov yuboryapsiz. 1 daqiqa kuting yoki vaqtni "
+            "aniq formatda yozing: <code>2026-08-30 18:00</code></i>"
+        ),
+        "ai_time_ask": (
+            "🤖 {reply}\n\n"
+            "Post vaqtini esa quyidagicha yozing: <i>“ertaga 10:00 ga”</i> yoki tugmani tanlang:"
+        ),
+        "ai_time_unparsed": (
+            "⚠️ <b>Vaqtni aniqlab bo'lmadi yoki u o'tib ketgan.</b>\n\n"
+            "Quyidagicha yozing:\n"
+            "• <i>“bugun 18:00 ga”</i>\n"
+            "• <i>“ertaga ertalab 9 ga”</i>\n"
+            "• <i>“30 daqiqadan keyin”</i>\n"
+            "Yoki aniq format: <code>2026-08-30 18:00</code>"
+        ),
+        "ai_post_ready": "✨ <b>Post tayyor!</b>\n\n",
+        "ai_post_ready_foot": (
+            "\n\n🕒 <b>Chiqish vaqti:</b> <code>{time}</code>{target}\n\n"
+            "Rejalashtiramizmi?"
+        ),
+        "ai_post_cancelled": "🚫 Post bekor qilindi. Menyudan kerakli bo'limni tanlang.",
+        "ai_post_retry": (
+            "📝 <b>Postni qanday o'zgartiramiz?</b>\n\n"
+            "Masalan: <i>“oxiriga telefon raqam qo'sh”</i>, <i>“matnni qisqartir”</i>, "
+            "<i>“sarlavhani o'zgartir”</i> — yoki yangi post yuboring."
+        ),
+        "ai_no_channel_schedule": (
+            "⚠️ <b>Sizda ulangan kanallar topilmadi.</b>\n\n"
+            "Avval '📢 Kanal/Guruhlar' bo'limidan kanal ulang, keyin postni qayta rejalashtiring."
+        ),
+        "ai_scheduled_ok": (
+            "✅ <b>AI Posti muvaffaqiyatli rejalashtirildi!</b>\n\n"
+            "📢 Joylash: <b>{channel}</b>\n"
+            "⏰ Chiqish vaqti: <b>{time}</b>\n\n"
+            "Yana post yaratish uchun <b>🤖 AI Yordamchi</b> ni bosing yoki menyuga qayting."
+        ),
+        "ai_schedule_error": "❌ Saqlashda xatolik yuz berdi. Iltimos, keyinroq urinib ko'ring.",
+        "ai_photo_media_received": (
+            "🖼 <b>Media qabul qilindi!</b>\n\nEndi post mavzusini yoki matnini yozing."
+        ),
+
     },
     "ru": {
         "btn_new_post": "➕ Новый пост",
@@ -450,6 +651,208 @@ TRANSLATIONS = {
         ),
         "transfer_error": "❌ <b>Ошибка:</b> {msg}",
         "transfer_default_name": "Ваш друг",
+
+        # --- 2-QISM: ✨ AI Studio i18n (RU) ---
+        "ai_studio_menu": (
+            "🤖 <b>PostAssist AI Studio</b>\n\n"
+            "💎 Доступно ИИ-запросов: {credits}\n\n"
+            "Выберите нужный инструмент для создания контента канала 👇"
+        ),
+        "ai_studio_post": "✍️ Написать пост (AI)",
+        "ai_studio_photo": "🖼 Создать пост из фото",
+        "ai_studio_extract": "📢 Из открытого канала",
+        "ai_studio_audit": "🔍 Аудит поста (ИИ)",
+        "ai_studio_content_plan": "💡 Контент-план",
+        "ai_studio_post_intro": (
+            "✍️ <b>Написать пост (AI)</b>\n\n"
+            "Напишите тему поста или отправьте фото/файл.\n"
+            "<i>Например: «Мотивационный пост о здоровом образе жизни»</i>"
+        ),
+        "ai_studio_photo_intro": (
+            "🖼 <b>Создать пост из фото</b>\n\n"
+            "Отправьте фото — ИИ глубоко проанализирует его и напишет "
+            "профессиональный SMM-пост для вашего канала:\n"
+            "• ✨ Красиво оформленный заголовок (<b>...</b>)\n"
+            "• 📝 Интересный / продающий текст\n"
+            "• 😎 Эмодзи и списки\n"
+            "• 👉 Призыв к действию (CTA) и хештеги\n\n"
+            "<i>При желании отправьте подпись к фото — например: "
+            "«сделай акцент на продаже товара на фото».</i>"
+        ),
+        "ai_studio_audit_intro": (
+            "🔍 <b>Аудит поста (ИИ)</b>\n\n"
+            "Отправьте готовый текст поста — ИИ проведёт аудит:\n"
+            "• ✍️ Орфография и грамматика\n"
+            "• 🎯 Привлекательность и CTA\n"
+            "• 🧩 Рекомендации по структуре\n"
+            "• ⭐️ Общая оценка (1-10)"
+        ),
+        "ai_studio_extract_intro": (
+            "📢 <b>Взять из открытого канала</b>\n\n"
+            "Введите @ник канала (например: <code>@kunuzofficial</code> или <code>daryo</code>):\n\n"
+            "<i>Работает только для открытых каналов.</i>"
+        ),
+        "ai_studio_content_plan_intro": (
+            "💡 <b>Генератор контент-плана</b>\n\nДля какого канала составим контент-план?"
+        ),
+        "ai_studio_no_channel": (
+            "⚠️ <b>Сначала подключите канал.</b>\n\n"
+            "Для составления контент-плана нужен хотя бы один канал.\n"
+            "Подключите канал в разделе «Каналы»."
+        ),
+        "ai_tone_formal": "👔 Официальный",
+        "ai_tone_friendly": "😊 Дружелюбный",
+        "ai_tone_concise": "⚡️ Кратко",
+        "ai_tone_engaging": "🎉 Привлекательный",
+        "ai_tone_schedule": "➡️ Перейти к планированию",
+        "ai_photo_schedule": "📅 Запланировать в канал",
+        "ai_photo_rewrite": "🔄 Переписать",
+        "ai_photo_edit": "✏️ Редактировать",
+        "ai_photo_result_title": "🖼 <b>Пост, подготовленный по фото:</b>\n\n",
+        "ai_photo_result_foot": (
+            "\n\n🖼 <i>Отправленное фото будет прикреплено к посту.</i>\n\n"
+            "Выберите следующий шаг 👇"
+        ),
+        "ai_btn_back": "⬅️ Назад",
+        "ai_btn_close": "❌ Закрыть",
+        "ai_btn_main_menu": "⬅️ Главное меню",
+        "ai_confirm_schedule": "✅ Запланировать в канал",
+        "ai_confirm_edit": "📝 Редактировать текст",
+        "ai_preview_title": "✨ <b>ИИ-пост готов!</b>\n\n",
+        "ai_preview_foot": (
+            "\n\n🎨 <b>Стиль:</b> {tone}{media}\n\n"
+            "Смените стиль или перейдите к планированию 👇"
+        ),
+        "ai_preview_media_note": "\n🖼 <i>Будет прикреплено к медиа-посту.</i>",
+        "ai_thinking": "🤖 <i>ИИ готовит ответ...</i>",
+        "ai_saving": "💾 Сохранение...",
+        "ai_wait_post": "🤖 <i>ИИ пишет пост...</i>",
+        "ai_wait_audit": "🔍 <i>ИИ проводит аудит...</i>",
+        "ai_wait_photo": "🖼 <i>ИИ анализирует изображение...</i>",
+        "ai_wait_edit": "✏️ <i>ИИ редактирует пост...</i>",
+        "ai_unavailable": (
+            "⚠️ Временный сбой в сервисе ИИ. "
+            "Пожалуйста, попробуйте ещё раз чуть позже."
+        ),
+        "ai_rate_limit": (
+            "⏳ <i>Вы отправляете ИИ-запросы слишком часто. Подождите 1 минуту...</i>"
+        ),
+        "ai_daily_limit": (
+            "⚠️ <i>Дневной лимит ИИ-запросов исчерпан (30/день). Попробуйте завтра.</i>"
+        ),
+        "ai_limit_msg": (
+            "🚫 <b>Дневной лимит ИИ исчерпан!</b>\n\n"
+            "Сегодня использовано <b>{used}/{max}</b> ИИ-запросов.\n"
+            "На бесплатном тарифе максимум <b>{max}</b> ИИ-запросов в день.\n\n"
+            "⭐️ Перейдите на PRO для безлимитного ИИ."
+        ),
+        "ai_credits_unlimited": "♾ Безлимит",
+        "ai_credits_unlimited_pro": "♾ Безлимит (PRO)",
+        "ai_media_received": (
+            "🖼 <b>Медиа получено!</b>\n\nТеперь напишите тему поста или текст."
+        ),
+        "ai_prompt_hint": "✍️ Напишите тему поста или отправьте фото/файл:",
+        "ai_faq_footer": "\n\n<i>Напишите ещё тему или вернитесь назад 👇</i>",
+        "ai_no_post_text": "⚠️ Не удалось определить текст поста. Попробуйте иначе сформулировать тему.",
+        "ai_session_expired": "⚠️ Сессия устарела. Отправьте тему заново.",
+        "ai_audit_prompt_hint": "🔍 Отправьте текст поста для аудита:",
+        "ai_audit_result_title": "🔍 <b>Результат аудита ИИ:</b>\n\n",
+        "ai_audit_no_result": "⚠️ ИИ не смог вернуть результат аудита. Попробуйте ещё раз.",
+        "ai_photo_only": (
+            "🖼 Отправьте, пожалуйста, фото (JPG/PNG/WEBP):\n"
+            "• <i>К фото можно добавить подпись</i>\n"
+            "• <i>Видео не анализируется — только фото</i>"
+        ),
+        "ai_video_rejected": (
+            "🎬 <b>Видео не анализируется.</b>\n\n"
+            "Для экономии ресурсов анализируется только <b>фото</b>.\n"
+            "Отправьте, пожалуйста, <b>фото</b> для анализа (JPG/PNG/WEBP)."
+        ),
+        "ai_photo_no_text": "⚠️ ИИ не смог подготовить текст поста. Отправьте фото ещё раз.",
+        "ai_photo_retry_hint": "🖼 Отправьте фото ещё раз или вернитесь в меню 👇",
+        "ai_photo_edit_intro": (
+            "✏️ <b>Редактировать пост</b>\n\n"
+            "Какие изменения нужны? Отправьте текст:\n"
+            "<i>Например: «перепиши заголовок иначе», «сократи», «добавь цену»</i>"
+        ),
+        "ai_photo_edit_hint": "✏️ Отправьте текст для редактирования:",
+        "ai_photo_edit_no_result": "⚠️ ИИ не смог вернуть отредактированный текст. Попробуйте ещё раз.",
+        "ai_photo_rewrite_wait": "🔄 <i>ИИ заново анализирует фото...</i>",
+        "ai_photo_rewrite_keep": "⚠️ ИИ не смог переписать пост. Исходный пост сохранён.",
+        "ai_tone_applying": "🎨 <i>Применяется стиль: {tone}...</i>",
+        "ai_schedule_need_post": "⚠️ Сначала создайте пост. Напишите тему:",
+        "ai_close_session": "❌ Сессия AI Studio завершена.",
+        "ai_close_main_menu": "🏠 Главное меню.",
+        "ai_not_found": "Извините, не смог найти ответ.",
+        "ai_tone_unknown": "⚠️ Сессия устарела. Отправьте тему заново.",
+        "ai_rate_limit_alert": "⏳ Слишком частые запросы. Подождите 1 минуту.",
+        "ai_schedule_header": "✨ <b>Пост получен!</b>\n\n",
+        "ai_schedule_foot": (
+            "🕒 <b>Когда этот пост должен выйти в канале?</b>\n"
+            "Выберите из кнопок ниже или напишите свободно:\n"
+            "• <i>«завтра утром в 9»</i>\n"
+            "• <i>«сегодня в 15:45 во все каналы»</i>\n"
+            "• <i>«через 1 час»</i>"
+        ),
+        "ai_media_caption_note": "\n\n⬆️ Прикреплённое выше медиа будет добавлено к посту.",
+        "ai_confirm_title": (
+            "✨ <b>Подготовленный пост:</b>\n\n"
+            "{post}\n\n"
+            "🕒 <b>Время выхода:</b> <code>{time}</code>{target}\n\n"
+            "Запланировать этот пост?"
+        ),
+        "ai_media_received_scheduled": (
+            "🖼 <b>Медиа получено и прикреплено к посту!</b>\n\n"
+            "Теперь напишите время выхода (например: <i>«сегодня в 18:00»</i>) или нажмите кнопку:"
+        ),
+        "ai_time_prompt_hint": "Пожалуйста, напишите время выхода (например: <i>«завтра в 10:00»</i>):",
+        "ai_only_one_time": (
+            "ℹ️ <i>Через ИИ-помощника планируется только одноразовый пост.</i>\n"
+            "Для ежедневных/еженедельных повторяющихся постов используйте раздел "
+            "<b>➕ Запланировать новый пост</b>.\n\n"
+            "Напишите время (например: <i>«завтра в 10:00»</i>) или нажмите быструю кнопку:"
+        ),
+        "ai_time_fast": (
+            "⏳ <i>Вы отправляете запросы слишком часто. Подождите 1 минуту или "
+            "напишите время в точном формате: <code>2026-08-30 18:00</code></i>"
+        ),
+        "ai_time_ask": (
+            "🤖 {reply}\n\n"
+            "Время поста напишите так: <i>«завтра в 10:00»</i> или нажмите кнопку:"
+        ),
+        "ai_time_unparsed": (
+            "⚠️ <b>Не удалось определить время или оно уже прошло.</b>\n\n"
+            "Напишите так:\n"
+            "• <i>«сегодня в 18:00»</i>\n"
+            "• <i>«завтра утром в 9»</i>\n"
+            "• <i>«через 30 минут»</i>\n"
+            "Или точный формат: <code>2026-08-30 18:00</code>"
+        ),
+        "ai_post_ready": "✨ <b>Пост готов!</b>\n\n",
+        "ai_post_ready_foot": (
+            "\n\n🕒 <b>Время выхода:</b> <code>{time}</code>{target}\n\n"
+            "Запланировать?"
+        ),
+        "ai_post_cancelled": "🚫 Пост отменён. Выберите нужный раздел в меню.",
+        "ai_post_retry": (
+            "📝 <b>Как изменим пост?</b>\n\n"
+            "Например: <i>«добавь в конец номер телефона»</i>, <i>«сократи текст»</i>, "
+            "<i>«измени заголовок»</i> — или отправьте новый пост."
+        ),
+        "ai_no_channel_schedule": (
+            "⚠️ <b>Подключённые каналы не найдены.</b>\n\n"
+            "Сначала подключите канал в разделе «Каналы/Группы», затем запланируйте пост заново."
+        ),
+        "ai_scheduled_ok": (
+            "✅ <b>ИИ-пост успешно запланирован!</b>\n\n"
+            "📢 Размещение: <b>{channel}</b>\n"
+            "⏰ Время выхода: <b>{time}</b>\n\n"
+            "Нажмите <b>🤖 ИИ-помощник</b>, чтобы создать ещё пост, или вернитесь в меню."
+        ),
+        "ai_schedule_error": "❌ Ошибка при сохранении. Пожалуйста, попробуйте позже.",
+        "ai_photo_media_received": (
+            "🖼 <b>Медиа получено!</b>\n\nТеперь напишите тему поста или текст."
+        ),
     },
 }
 

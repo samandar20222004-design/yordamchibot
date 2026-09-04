@@ -332,45 +332,57 @@ def get_ad_pool_back_keyboard(scope: str) -> InlineKeyboardMarkup:
     ])
 
 
-def get_ai_studio_keyboard() -> InlineKeyboardMarkup:
+# AI Studio — Tone of Voice (AI post uslublari) tarjima kalitlari.
+# Har bir uslub translations.py dagi kalitga bog'lanadi (i18n uchun).
+AI_TONE_KEYS = {
+    "formal": "ai_tone_formal",
+    "friendly": "ai_tone_friendly",
+    "concise": "ai_tone_concise",
+    "engaging": "ai_tone_engaging",
+}
+
+
+def get_ai_studio_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
     """AI Studio sub-menu inline keyboard.
 
     "🖼 Rasmdan post yaratish" — rasmni Gemini vision bilan tahlil qilib,
     professional Telegram SMM posti tayyorlanadi (Photo-to-Post).
     "🔍 AI Post auditi" — foydalanuvchi tayyor postini AI'ga tahlil qildiradi
     (imlo, jozibadorlik, CTA, 1-10 baho).
+
+    Barcha yorliqlar foydalanuvchi tiliga (lang) mos tarjima qilinadi.
     """
     keyboard = [
         [
-            InlineKeyboardButton("✍️ AI Post yaratish", callback_data="studio_ai_post"),
-            InlineKeyboardButton("🖼 Rasmdan post yaratish", callback_data="studio_ai_photo"),
+            InlineKeyboardButton(get_text("ai_studio_post", lang), callback_data="studio_ai_post"),
+            InlineKeyboardButton(get_text("ai_studio_photo", lang), callback_data="studio_ai_photo"),
         ],
         [
-            InlineKeyboardButton("📢 Ochiq kanaldan olish", callback_data="studio_extract"),
-            InlineKeyboardButton("🔍 AI Post auditi", callback_data="studio_ai_audit"),
+            InlineKeyboardButton(get_text("ai_studio_extract", lang), callback_data="studio_extract"),
+            InlineKeyboardButton(get_text("ai_studio_audit", lang), callback_data="studio_ai_audit"),
         ],
         [
-            InlineKeyboardButton("🧠 Kontent-reja", callback_data="studio_content_plan"),
+            InlineKeyboardButton(get_text("ai_studio_content_plan", lang), callback_data="studio_content_plan"),
         ],
         [
-            InlineKeyboardButton("⬅️ Asosiy menyu", callback_data="studio_close"),
+            InlineKeyboardButton(get_text("ai_btn_main_menu", lang), callback_data="studio_close"),
         ],
     ]
     return InlineKeyboardMarkup(keyboard)
 
 
-def get_ai_photo_keyboard() -> InlineKeyboardMarkup:
+def get_ai_photo_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
     """🖼 Vision (Photo-to-Post) natijasi uchun inline tugmalar.
 
     [Kanalga rejalashtirish] [Qayta yozish] [Tahrirlash] + doimiy navigatsiya.
     """
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("📅 Kanalga rejalashtirish", callback_data="photo_schedule")],
-        [InlineKeyboardButton("🔄 Qayta yozish", callback_data="photo_rewrite")],
-        [InlineKeyboardButton("✏️ Tahrirlash", callback_data="photo_edit")],
+        [InlineKeyboardButton(get_text("ai_photo_schedule", lang), callback_data="photo_schedule")],
+        [InlineKeyboardButton(get_text("ai_photo_rewrite", lang), callback_data="photo_rewrite")],
+        [InlineKeyboardButton(get_text("ai_photo_edit", lang), callback_data="photo_edit")],
         [
-            InlineKeyboardButton("⬅️ Orqaga", callback_data="ai_back_to_menu"),
-            InlineKeyboardButton("❌ Bekor qilish", callback_data="ai_close"),
+            InlineKeyboardButton(get_text("ai_btn_back", lang), callback_data="ai_back_to_menu"),
+            InlineKeyboardButton(get_text("ai_btn_close", lang), callback_data="ai_close"),
         ],
     ])
 
@@ -381,36 +393,42 @@ def get_ai_photo_keyboard() -> InlineKeyboardMarkup:
 # Barcha AI Studio ekranlarida pasda shu ikki tugma turadi: xabar hech qachon
 # "yo'qolib" ketmaydi, foydalanuvchi har doim menyuga qaytishi yoki sessiyani
 # yopishi mumkin.
-def get_ai_back_keyboard() -> InlineKeyboardMarkup:
+def get_ai_back_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
     """AI Studio ichki ekranlari: ⬅️ Orqaga + ❌ Bekor qilish."""
     return InlineKeyboardMarkup([[
-        InlineKeyboardButton("⬅️ Orqaga", callback_data="ai_back_to_menu"),
-        InlineKeyboardButton("❌ Bekor qilish", callback_data="ai_close"),
+        InlineKeyboardButton(get_text("ai_btn_back", lang), callback_data="ai_back_to_menu"),
+        InlineKeyboardButton(get_text("ai_btn_close", lang), callback_data="ai_close"),
     ]])
 
 
-def get_ai_tone_keyboard(selected: str = None) -> InlineKeyboardMarkup:
+def get_ai_tone_keyboard(selected: str = None, lang: str = "uz") -> InlineKeyboardMarkup:
     """AI post uslubini tanlash — tanlangan uslub ✅ bilan belgilanadi."""
-    tones = [
-        ("formal", "👔 Rasmiy"),
-        ("friendly", "😊 Do'stona"),
-        ("concise", "⚡️ Qisqa"),
-        ("engaging", "🎉 Jozibali"),
-    ]
     buttons = []
-    for key, label in tones:
+    for key, tone_key in AI_TONE_KEYS.items():
         mark = " ✅" if key == selected else ""
-        buttons.append(InlineKeyboardButton(f"{label}{mark}", callback_data=f"ai_tone:{key}"))
+        buttons.append(InlineKeyboardButton(f"{get_text(tone_key, lang)}{mark}", callback_data=f"ai_tone:{key}"))
     keyboard = [
         buttons[:2],
         buttons[2:],
-        [InlineKeyboardButton("➡️ Rejalashtirishga o'tish", callback_data="ai_studio_sched")],
+        [InlineKeyboardButton(get_text("ai_tone_schedule", lang), callback_data="ai_studio_sched")],
         [
-            InlineKeyboardButton("⬅️ Orqaga", callback_data="ai_back_to_menu"),
-            InlineKeyboardButton("❌ Bekor qilish", callback_data="ai_close"),
+            InlineKeyboardButton(get_text("ai_btn_back", lang), callback_data="ai_back_to_menu"),
+            InlineKeyboardButton(get_text("ai_btn_close", lang), callback_data="ai_close"),
         ],
     ]
     return InlineKeyboardMarkup(keyboard)
+
+def get_ai_confirm_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
+    """AI post tasdiqlash klaviaturasi (Kanalga rejalashtirish / Tahrirlash / Bekor).
+
+    „Yana post yaratish“ oqimi uchun ishlatiladi; tilga mos tarjima qilinadi.
+    """
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton(get_text("ai_confirm_schedule", lang), callback_data="ai_post_schedule")],
+        [InlineKeyboardButton(get_text("ai_confirm_edit", lang), callback_data="ai_post_retry")],
+        [InlineKeyboardButton(get_text("ai_btn_close", lang), callback_data="ai_post_cancel")],
+    ])
+
 
 def render_channels_list(channels: list, lang: str = "uz") -> InlineKeyboardMarkup:
     keyboard = []

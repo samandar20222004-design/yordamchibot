@@ -6144,6 +6144,118 @@ def test_i18n_uz_ru():
     check("start: cab_lang", "cab_lang" in start_src)
     check("start: set_user_language", "set_user_language" in start_src)
 
+def test_ai_studio_i18n_suite():
+    """2-QISM: ✨ AI Studio i18n (uz/ru) — klaviaturalar va matnlar ikki tilda."""
+    print("== AI Studio i18n (uz/ru) ==")
+    from keyboards.inline import (
+        get_ai_studio_keyboard, get_ai_tone_keyboard, get_ai_back_keyboard,
+        get_ai_confirm_keyboard, get_ai_photo_keyboard, AI_TONE_KEYS,
+    )
+    from locales.translations import get_text, TRANSLATIONS
+    import handlers.ai_assistant as ai
+    import inspect
+
+    uz, ru = TRANSLATIONS["uz"], TRANSLATIONS["ru"]
+
+    # 1) Barcha ai_* kalitlar ikki tilda mavjud va tarjima qilingan
+    ai_keys = [k for k in uz if k.startswith("ai_")]
+    check("ai i18n: barcha kalitlar uz'da", all(k in uz for k in ai_keys))
+    check("ai i18n: barcha kalitlar ru'da", all(k in ru for k in ai_keys))
+    check("ai i18n: kalitlar tarjima qilingan (uz != ru)",
+          all(uz.get(k) != ru.get(k) for k in ai_keys),
+          str([k for k in ai_keys if uz.get(k) == ru.get(k)]))
+
+    # 2) AI Studio menyu klaviaturasi — UZ va RU bir xil callback_data, turlicha matn
+    kb_uz = get_ai_studio_keyboard("uz")
+    kb_ru = get_ai_studio_keyboard("ru")
+    uz_labels = [b.text for row in kb_uz.inline_keyboard for b in row]
+    ru_labels = [b.text for row in kb_ru.inline_keyboard for b in row]
+    uz_cbs = [b.callback_data for row in kb_uz.inline_keyboard for b in row]
+    ru_cbs = [b.callback_data for row in kb_ru.inline_keyboard for b in row]
+    check("studio kb: 6 ta tugma (uz)", len(uz_labels) == 6, str(len(uz_labels)))
+    check("studio kb: 6 ta tugma (ru)", len(ru_labels) == 6, str(len(ru_labels)))
+    check("studio kb: callback_data bir xil (uz==ru)", uz_cbs == ru_cbs, str((uz_cbs, ru_cbs)))
+    check("studio kb: callback_data to'g'ri",
+          uz_cbs == ["studio_ai_post", "studio_ai_photo", "studio_extract",
+                     "studio_ai_audit", "studio_content_plan", "studio_close"])
+    check("studio kb uz: ai_studio_post label",
+          uz_labels[0] == get_text("ai_studio_post", "uz"))
+    check("studio kb ru: ai_studio_post label",
+          ru_labels[0] == get_text("ai_studio_post", "ru"))
+    check("studio kb ru: label tarjimasi (rus)", "Написать" in ru_labels[0], ru_labels[0])
+
+    # 3) Tone of Voice klaviaturasi — RU tarjimasi
+    tk_ru = get_ai_tone_keyboard("friendly", "ru")
+    tk_ru_labels = [b.text for row in tk_ru.inline_keyboard for b in row]
+    tk_ru_cbs = [b.callback_data for row in tk_ru.inline_keyboard for b in row]
+    check("tone kb ru: 4 uslub + rejalashtirish + 2 nav = 7 tugma",
+          len(tk_ru_cbs) == 7, str(tk_ru_cbs))
+    check("tone kb ru: ai_tone callback",
+          all(f"ai_tone:{t}" in tk_ru_cbs for t in AI_TONE_KEYS), str(tk_ru_cbs))
+    check("tone kb ru: friendly tarjimasi",
+          any(get_text("ai_tone_friendly", "ru") in t for t in tk_ru_labels),
+          str(tk_ru_labels))
+    check("tone kb ru: tanlangan uslub ✅",
+          any(t.endswith("✅") for t in tk_ru_labels))
+    check("tone kb: AI_TONE_KEYS mavjud", set(AI_TONE_KEYS) == {
+        "formal", "friendly", "concise", "engaging"})
+
+    # 4) Doimiy navigatsiya (back) klaviaturasi — RU
+    bk_ru = get_ai_back_keyboard("ru")
+    bk_ru_labels = [b.text for row in bk_ru.inline_keyboard for b in row]
+    bk_ru_cbs = [b.callback_data for row in bk_ru.inline_keyboard for b in row]
+    check("back kb ru: orqaga/bekor callback",
+          bk_ru_cbs == ["ai_back_to_menu", "ai_close"])
+    check("back kb ru: matnlar tarjimasi",
+          get_text("ai_btn_back", "ru") in bk_ru_labels
+          and get_text("ai_btn_close", "ru") in bk_ru_labels, str(bk_ru_labels))
+
+    # 5) Tasdiqlash (confirm) klaviaturasi — RU
+    ck_ru = get_ai_confirm_keyboard("ru")
+    ck_ru_labels = [b.text for row in ck_ru.inline_keyboard for b in row]
+    ck_ru_cbs = [b.callback_data for row in ck_ru.inline_keyboard for b in row]
+    check("confirm kb ru: 3 tugma", ck_ru_cbs == [
+        "ai_post_schedule", "ai_post_retry", "ai_post_cancel"], str(ck_ru_cbs))
+    check("confirm kb ru: schedule tarjimasi",
+          get_text("ai_confirm_schedule", "ru") in ck_ru_labels, str(ck_ru_labels))
+    check("confirm kb ru: edit tarjimasi",
+          get_text("ai_confirm_edit", "ru") in ck_ru_labels)
+
+    # 6) Vision natija klaviaturasi — RU
+    pk_ru = get_ai_photo_keyboard("ru")
+    pk_ru_labels = [b.text for row in pk_ru.inline_keyboard for b in row]
+    pk_ru_cbs = [b.callback_data for row in pk_ru.inline_keyboard for b in row]
+    check("photo kb ru: 5 tugma (3 + nav)", pk_ru_cbs == [
+        "photo_schedule", "photo_rewrite", "photo_edit",
+        "ai_back_to_menu", "ai_close"], str(pk_ru_cbs))
+    check("photo kb ru: schedule tarjimasi",
+          get_text("ai_photo_schedule", "ru") in pk_ru_labels, str(pk_ru_labels))
+    check("photo kb ru: rewrite tarjimasi",
+          get_text("ai_photo_rewrite", "ru") in pk_ru_labels)
+    check("photo kb ru: edit tarjimasi",
+          get_text("ai_photo_edit", "ru") in pk_ru_labels)
+
+    # 7) Matn yordamchilari (sync) — tilga mos
+    prev = ai._studio_preview_text("Salom post", "friendly", None, "ru")
+    check("preview ru: title", get_text("ai_preview_title", "ru") in prev, prev[:40])
+    check("preview ru: tone label", get_text("ai_tone_friendly", "ru") in prev, prev[:120])
+    photo_txt = ai._photo_result_text("Rasm post", "ru")
+    check("photo result ru: title", get_text("ai_photo_result_title", "ru") in photo_txt, photo_txt[:40])
+    check("photo result ru: foot", get_text("ai_photo_result_foot", "ru") in photo_txt, photo_txt[:200])
+
+    # 8) ai_studio_menu_entry — AI_MENU_STATE qaytaradi (coroutine mavjud)
+    check("ai_studio_menu_entry coroutine",
+          inspect.iscoroutinefunction(ai.ai_studio_menu_entry))
+    check("AI_MENU_STATE holati mavjud", ai.AI_MENU_STATE == 404)
+
+    # 9) Xato/xabar matnlari ikkala tilda mavjud va farqli
+    for key in ("ai_unavailable", "ai_media_received", "ai_no_post_text",
+                "ai_photo_no_text", "ai_schedule_need_post", "ai_scheduled_ok",
+                "ai_post_cancelled", "ai_photo_only", "ai_time_unparsed"):
+        check(f"i18n: {key} uz+ru mavjud", key in uz and key in ru)
+        check(f"i18n: {key} tarjima qilingan", uz.get(key) != ru.get(key) and bool(uz.get(key)))
+
+
 def main():
     test_calculate_next_time()
     test_converter()
@@ -6270,6 +6382,7 @@ def main():
     test_referrer_id_and_new_providers_suite()
     test_i18n_uz_ru()
     test_cabinet_i18n_suite()
+    test_ai_studio_i18n_suite()
 
     print(f"\nO'tdi: {passed}, Xato: {failures}")
     if failures:

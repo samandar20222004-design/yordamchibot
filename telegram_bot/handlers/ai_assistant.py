@@ -13,7 +13,7 @@ from keyboards.default import (
 )
 from keyboards.inline import (
     get_ai_studio_keyboard, get_ai_back_keyboard, get_ai_tone_keyboard,
-    get_ai_photo_keyboard,
+    get_ai_photo_keyboard, get_ai_confirm_keyboard, AI_TONE_KEYS,
 )
 from utils.ai_agent import (
     analyze_user_prompt, extract_schedule_time, clear_ai_context,
@@ -159,6 +159,31 @@ def _no_credits_text(bot_username: str, user_id: int, lang: str = "uz") -> str:
     return get_text("no_credits", lang, guide=get_text("daily_bonus_guide", lang), link=ref_link)
 
 
+def _ai_tone_label(tone: str, lang: str = "uz") -> str:
+    """Tanlangan Tone of Voice (AI post uslubi) tarjimasini qaytaradi."""
+    tone_key = AI_TONE_KEYS.get(tone, "ai_tone_friendly")
+    return get_text(tone_key, lang)
+
+
+async def _studio_menu_text(user_id: int, lang: str) -> str:
+    """AI Studio asosiy menyu matni (kirish yo'riqnomasi + AI ball ko'rsatkichi).
+
+    Foydalanuvchi tiliga (lang) mos tarjima qilinadi; admin/PRO uchun
+    „♾ Cheksiz“, oddiy foydalanuvchi uchun mavjud ballar ko'rsatiladi.
+    """
+    is_admin = user_id in ADMIN_IDS_SET
+    if is_admin:
+        credits_label = get_text("ai_credits_unlimited", lang)
+    else:
+        is_pro = await db.run_db(db.is_premium, user_id)
+        if is_pro:
+            credits_label = get_text("ai_credits_unlimited_pro", lang)
+        else:
+            credits = await db.run_db(db.get_user_credits, user_id)
+            credits_label = get_text("credits_value", lang, n=credits)
+    return get_text("ai_studio_menu", lang, credits=credits_label)
+
+
 async def start_ai_assistant(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """AI yordamchisi holatini (AI_INPUT) boshlaydi."""
     clear_fsm_data(context)
@@ -230,9 +255,9 @@ def _build_prompt(text_input: str, context) -> str:
     return "(Foydalanuvchi rasm/media yubordi)"
 
 
-async def _send_preview(target_msg, text, file_id, post_type, reply_markup):
+async def _send_preview(target_msg, text, file_id, post_type, reply_markup, lang: str = "uz"):
     """Postni (media bilan yoki matn) preview sifatida ko'rsatadi."""
-    caption_note = "\n\n⬆️ Yuqoridagi media ushbu postga biriktiriladi."
+    caption_note = get_text("ai_media_caption_note", lang)
     if file_id and post_type in ("photo", "video", "document"):
         cap = text[:900]
         if len(text) > 900:
@@ -250,18 +275,14 @@ async def _send_preview(target_msg, text, file_id, post_type, reply_markup):
     await target_msg.reply_text(body[:4000], reply_markup=reply_markup, parse_mode="HTML")
 
 
-async def _show_time_prompt(msg, post_text: str, file_id, post_type: str):
-    """Vaqt tanlash oynasini ko'rsatadi."""
+async def _show_time_prompt(msg, post_text: str, file_id, post_type: str, lang: str = "uz"):
+    """Vaqt tanlash oynasini ko'rsatadi (tilga mos)."""
     header = (
-        "✨ <b>Post qabul qilindi!</b>\n\n"
-        f"{safe_html(post_text[:1500])}\n\n"
-        "🕒 <b>Ushbu post qachon kanalga chiqsin?</b>\n"
-        "Quyidagi tugmalardan tanlang yoki erkin yozing:\n"
-        "• <i>“ertaga ertalab 9 ga”</i>\n"
-        "• <i>“bugun 15:45 ga hamma kanalga”</i>\n"
-        "• <i>“1 soatdan keyin”</i>"
+        get_text("ai_schedule_header", lang)
+        + safe_html(post_text[:1500])
+        + get_text("ai_schedule_foot", lang)
     )
-    await _send_preview(msg, header, file_id, post_type, get_ai_time_keyboard())
+    await _send_preview(msg, header, file_id, post_type, get_ai_time_keyboard(), lang)
 
 
 async def ai_input_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -542,6 +563,7 @@ async def ai_time_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return AI_GET_TIME
 
+    lang = get_lang(context)
     time_str = post_time.strftime("%Y-%m-%d %H:%M")
     context.user_data["ai_scheduled_time"] = time_str
 
@@ -549,11 +571,10 @@ async def ai_time_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     target_all = context.user_data.get("ai_target_all", False)
     target_info = "\n🌐 <b>Kanal:</b> Barcha ulangan kanallarga" if target_all else ""
     await update.message.reply_text(
-        "✨ <b>Post tayyor!</b>\n\n"
-        f"{safe_html(post_text[:2500])}\n\n"
-        f"🕒 <b>Chiqish vaqti:</b> <code>{time_str}</code>{target_info}\n\n"
-        "Rejalashtiramizmi?",
-        reply_markup=AI_CONFIRM_KEYBOARD,
+        get_text("ai_post_ready", lang)
+        + safe_html(post_text[:2500])
+        + get_text("ai_post_ready_foot", lang, time=time_str, target=target_info),
+        reply_markup=get_ai_confirm_keyboard(lang),
         parse_mode="HTML",
     )
     return AI_CONFIRM
@@ -566,9 +587,10 @@ async def ai_confirm_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
     user_id = query.from_user.id
     is_admin = (user_id in ADMIN_IDS_SET)
     is_pro = await db.run_db(db.is_premium, user_id)
+    lang = get_lang(context)
 
     if data == "ai_post_cancel":
-        await query.answer("Bekor qilindi")
+        await query.answer(get_text("ai_close_session", lang))
         clear_ai_context(user_id)
         clear_fsm_data(context)
         try:
@@ -576,8 +598,8 @@ async def ai_confirm_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
         except Exception:
             pass
         await query.message.reply_text(
-            "🚫 Post bekor qilindi. Menyudan kerakli bo'limni tanlang.",
-            reply_markup=get_main_keyboard(is_admin),
+            get_text("ai_post_cancelled", lang),
+            reply_markup=get_main_keyboard(is_admin, lang),
         )
         return ConversationHandler.END
 
@@ -588,16 +610,14 @@ async def ai_confirm_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
         except Exception:
             pass
         await query.message.reply_text(
-            "📝 <b>Postni qanday o'zgartiramiz?</b>\n\n"
-            "Masalan: <i>“oxiriga telefon raqam qo'sh”</i>, <i>“matnni qisqartir”</i>, "
-            "<i>“sarlavhani o'zgartir”</i> — yoki yangi post yuboring.",
-            reply_markup=get_cancel_keyboard(),
+            get_text("ai_post_retry", lang),
+            reply_markup=get_cancel_keyboard(lang),
             parse_mode="HTML",
         )
         return AI_INPUT
 
     # data == "ai_post_schedule"
-    await query.answer("Post saqlanmoqda...")
+    await query.answer(get_text("ai_saving", lang))
 
     post_text = context.user_data.get("ai_generated_post", "")
     sched_time_str = context.user_data.get("ai_scheduled_time")
@@ -608,9 +628,8 @@ async def ai_confirm_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
     channels = await db.run_db(db.get_user_channels, user_id)
     if not channels:
         await query.message.reply_text(
-            "⚠️ <b>Sizda ulangan kanallar topilmadi.</b>\n\n"
-            "Avval '📢 Kanal/Guruhlar' bo'limidan kanal ulang, keyin postni qayta rejalashtiring.",
-            reply_markup=get_main_keyboard(is_admin),
+            get_text("ai_no_channel_schedule", lang),
+            reply_markup=get_main_keyboard(is_admin, lang),
             parse_mode="HTML",
         )
         # AI sessiyasi shu yerda tugaydi — kontekst ham tozalanadi
@@ -661,17 +680,18 @@ async def ai_confirm_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
         except Exception:
             pass
         await query.message.reply_text(
-            "✅ <b>AI Posti muvaffaqiyatli rejalashtirildi!</b>\n\n"
-            f"📢 Joylash: <b>{html_escape(target_name)}</b>\n"
-            f"⏰ Chiqish vaqti: <b>{post_time.strftime('%Y-%m-%d %H:%M')}</b>\n\n"
-            f"Yana post yaratish uchun <b>🤖 AI Yordamchi</b> ni bosing yoki menyuga qayting.{ad_line}",
-            reply_markup=get_main_keyboard(is_admin),
+            get_text(
+                "ai_scheduled_ok", lang,
+                channel=html_escape(target_name),
+                time=post_time.strftime("%Y-%m-%d %H:%M"),
+            ) + ad_line,
+            reply_markup=get_main_keyboard(is_admin, lang),
             parse_mode="HTML",
         )
     else:
         await query.message.reply_text(
-            "❌ Saqlashda xatolik yuz berdi. Iltimos, keyinroq urinib ko'ring.",
-            reply_markup=get_main_keyboard(is_admin),
+            get_text("ai_schedule_error", lang),
+            reply_markup=get_main_keyboard(is_admin, lang),
         )
 
     # Post rejalashtirilgach yoki xato bo'lgach AI sessiyasi yopiladi
@@ -689,6 +709,8 @@ async def ai_confirm_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
 #    va har doim [⬅️ Orqaga]/[❌ Bekor qilish] tugmalari biriktiriladi.
 # 3) Holatlar jarayon tugamaguncha ConversationHandler.END ga tushmaydi —
 #    xatolikda ham foydalanuvchi AI_MENU_STATE ga qaytadi.
+# 4) Xato holatida AI_MENU_STATE qaytariladi va get_ai_back_keyboard() doimiy
+#    navigatsiya tugmasi sifatida foydalanuvchiga biriktiriladi.
 
 
 async def _safe_edit(query, text: str, reply_markup=None, parse_mode: str = "HTML"):
@@ -716,15 +738,17 @@ async def _studio_ai_preflight(update: Update, context: ContextTypes.DEFAULT_TYP
     Qaytaradi: (ruxsat: bool, is_admin: bool, is_pro: bool).
     Ruxsat True bo'lsa — free foydalanuvchi balansi ATOMIK BAND QILINGAN;
     AI xato qilsa `_studio_ai_refund()` bilan qaytarish SHART.
+    Barcha xabarlar/klaviaturalar foydalanuvchi tiliga (lang) mos.
     """
     msg = update.message
     user_id = update.effective_user.id
     is_admin = (user_id in ADMIN_IDS_SET)
+    lang = get_lang(context)
 
     if not is_admin and check_ai_rate_limit(user_id, max_per_minute=4):
         await msg.reply_text(
-            "⏳ <i>AI so'rovlarini juda tez-tez yuboryapsiz. Iltimos, 1 daqiqa kuting...</i>",
-            reply_markup=get_ai_back_keyboard(),
+            get_text("ai_rate_limit", lang),
+            reply_markup=get_ai_back_keyboard(lang),
             parse_mode="HTML",
         )
         return False, is_admin, False
@@ -736,8 +760,8 @@ async def _studio_ai_preflight(update: Update, context: ContextTypes.DEFAULT_TYP
     # Kunlik limit (in-memory, tezkor himoya) — faqat free uchun.
     if not is_admin and not is_pro and check_ai_daily_limit(user_id, max_per_day=30):
         await msg.reply_text(
-            "⚠️ <i>Kunlik AI so'rovlar limiti tugadi (30 ta/kun). Ertaga qayta urinib ko'ring.</i>",
-            reply_markup=get_ai_back_keyboard(),
+            get_text("ai_daily_limit", lang),
+            reply_markup=get_ai_back_keyboard(lang),
             parse_mode="HTML",
         )
         return False, is_admin, is_pro
@@ -747,7 +771,7 @@ async def _studio_ai_preflight(update: Update, context: ContextTypes.DEFAULT_TYP
         can_use, used, max_ai = await db.run_db(db.check_ai_limit, user_id)
         if not can_use:
             await msg.reply_text(
-                AI_LIMIT_MSG.format(used=used, max=max_ai),
+                get_text("ai_limit_msg", lang, used=used, max=max_ai),
                 reply_markup=PRO_UPGRADE_KEYBOARD,
                 parse_mode="HTML",
             )
@@ -757,8 +781,8 @@ async def _studio_ai_preflight(update: Update, context: ContextTypes.DEFAULT_TYP
     if not is_admin and not is_pro and not await db.run_db(db.use_user_credit, user_id):
         bot_obj = await context.bot.get_me()
         await msg.reply_text(
-            _no_credits_text(bot_obj.username, user_id, get_lang(context)),
-            reply_markup=get_ai_back_keyboard(),
+            _no_credits_text(bot_obj.username, user_id, lang),
+            reply_markup=get_ai_back_keyboard(lang),
             parse_mode="HTML",
         )
         return False, is_admin, is_pro
@@ -772,22 +796,23 @@ async def _studio_ai_refund(user_id: int, is_admin: bool, is_pro: bool):
         await db.run_db(db.add_user_credit, user_id)
 
 
-def _studio_preview_text(post_text: str, tone: str, file_id=None) -> str:
-    """AI_TONE_SELECT ekranidagi post preview matni."""
-    media_note = "\n🖼 <i>Media postga biriktiriladi.</i>" if file_id else ""
+def _studio_preview_text(post_text: str, tone: str, file_id=None, lang: str = "uz") -> str:
+    """AI_TONE_SELECT ekranidagi post preview matni (tilga mos)."""
+    media_note = get_text("ai_preview_media_note", lang) if file_id else ""
     return (
-        "✨ <b>AI Post tayyor!</b>\n\n"
-        f"{safe_html(post_text[:2400])}\n\n"
-        f"🎨 <b>Uslub:</b> {AI_TONE_LABELS.get(tone, AI_TONE_LABELS['friendly'])}{media_note}\n\n"
-        "Uslubni almashtiring yoki rejalashtirishga o'ting 👇"
+        get_text("ai_preview_title", lang)
+        + safe_html(post_text[:2400])
+        + get_text("ai_preview_foot", lang, tone=_ai_tone_label(tone, lang), media=media_note)
     )
 
 
 async def ai_studio_menu_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """✨ AI Studio — asosiy menyu (message entry). AI_MENU_STATE holatida qoladi."""
+    lang = get_lang(context)
+    user_id = update.effective_user.id
     await update.message.reply_text(
-        AI_STUDIO_MENU_TEXT,
-        reply_markup=get_ai_studio_keyboard(),
+        await _studio_menu_text(user_id, lang),
+        reply_markup=get_ai_studio_keyboard(lang),
         parse_mode="HTML",
     )
     return AI_MENU_STATE
@@ -798,6 +823,7 @@ async def ai_studio_nav_callback(update: Update, context: ContextTypes.DEFAULT_T
     query = update.callback_query
     await query.answer()  # SPEKS: har callback boshida darhol answer
     data = query.data
+    lang = get_lang(context)
 
     if data == "studio_ai_post":
         # Yangi generatsiya — eski studio natijasini tozalaymiz
@@ -805,10 +831,8 @@ async def ai_studio_nav_callback(update: Update, context: ContextTypes.DEFAULT_T
             context.user_data.pop(key, None)
         await _safe_edit(
             query,
-            "✍️ <b>AI Post yaratish</b>\n\n"
-            "Post mavzusini yozing yoki rasm/fayl yuboring.\n"
-            "<i>Masalan: «Sog'lom turmush tarzi haqida motivatsion post»</i>",
-            get_ai_back_keyboard(),
+            get_text("ai_studio_post_intro", lang),
+            get_ai_back_keyboard(lang),
         )
         return AI_PROMPT_INPUT
 
@@ -819,29 +843,22 @@ async def ai_studio_nav_callback(update: Update, context: ContextTypes.DEFAULT_T
             "studio_file_id", "studio_post_type", "studio_photo_extra",
         ):
             context.user_data.pop(key, None)
-        await _safe_edit(query, AI_PHOTO_INSTRUCTION, get_ai_back_keyboard())
+        await _safe_edit(query, get_text("ai_studio_photo_intro", lang), get_ai_back_keyboard(lang))
         return AI_PHOTO_INPUT
 
     if data == "studio_ai_audit":
         await _safe_edit(
             query,
-            "🔍 <b>AI Post auditi</b>\n\n"
-            "Tayyor post matningizni yuboring — AI uni tahlil qiladi:\n"
-            "• ✍️ Imlo va grammatika\n"
-            "• 🎯 Jozibadorlik va CTA\n"
-            "• 🧩 Struktura tavsiyalari\n"
-            "• ⭐️ Umumiy baho (1-10)",
-            get_ai_back_keyboard(),
+            get_text("ai_studio_audit_intro", lang),
+            get_ai_back_keyboard(lang),
         )
         return AI_AUDIT_INPUT
 
     if data == "studio_extract":
         await _safe_edit(
             query,
-            "📢 <b>Ochiq kanaldan olish</b>\n\n"
-            "Kanal nikini kiriting (masalan: <code>@kunuzofficial</code> yoki <code>daryo</code>):\n\n"
-            "<i>Faqat ochiq kanallar uchun ishlaydi.</i>",
-            get_ai_back_keyboard(),
+            get_text("ai_studio_extract_intro", lang),
+            get_ai_back_keyboard(lang),
         )
         # Lazy import (circular import himoyasi) — mavjud koduslubga mos
         from handlers.channel_extract import EXTRACT_USERNAME
@@ -853,22 +870,20 @@ async def ai_studio_nav_callback(update: Update, context: ContextTypes.DEFAULT_T
         if not channels:
             await _safe_edit(
                 query,
-                "⚠️ <b>Avval kanal ulang.</b>\n\n"
-                "Kontent-reja tuzish uchun kamida bitta kanal bo'lishi kerak.\n"
-                "📢 Kanallar bo'limidan kanal ulang.",
-                get_ai_back_keyboard(),
+                get_text("ai_studio_no_channel", lang),
+                get_ai_back_keyboard(lang),
             )
             return AI_MENU_STATE
         context.user_data["plan_channels"] = channels
         plan_kb = _get_plan_channel_keyboard(channels)
         rows = [list(row) for row in plan_kb.inline_keyboard]
         rows.append([
-            InlineKeyboardButton("⬅️ Orqaga", callback_data="ai_back_to_menu"),
-            InlineKeyboardButton("❌ Bekor qilish", callback_data="ai_close"),
+            InlineKeyboardButton(get_text("ai_btn_back", lang), callback_data="ai_back_to_menu"),
+            InlineKeyboardButton(get_text("ai_btn_close", lang), callback_data="ai_close"),
         ])
         await _safe_edit(
             query,
-            "🧠 <b>Kontent-reja generatori</b>\n\nQaysi kanal uchun kontent-reja tuzamiz?",
+            get_text("ai_studio_content_plan_intro", lang),
             InlineKeyboardMarkup(rows),
         )
         return PLAN_CHOOSE_CHANNEL
@@ -885,6 +900,7 @@ async def ai_prompt_received(update: Update, context: ContextTypes.DEFAULT_TYPE)
     if msg is None:
         return AI_PROMPT_INPUT
     user_id = update.effective_user.id
+    lang = get_lang(context)
 
     # Albom (media_group) dublikatlarini bitta ishlov bilan cheklaymiz
     if msg.media_group_id:
@@ -901,14 +917,14 @@ async def ai_prompt_received(update: Update, context: ContextTypes.DEFAULT_TYPE)
     if not text_input:
         if file_id:
             await msg.reply_text(
-                "🖼 <b>Media qabul qilindi!</b>\n\nEndi post mavzusini yoki matnini yozing.",
-                reply_markup=get_ai_back_keyboard(),
+                get_text("ai_media_received", lang),
+                reply_markup=get_ai_back_keyboard(lang),
                 parse_mode="HTML",
             )
         else:
             await msg.reply_text(
-                "✍️ Post mavzusini yozing yoki rasm/fayl yuboring:",
-                reply_markup=get_ai_back_keyboard(),
+                get_text("ai_prompt_hint", lang),
+                reply_markup=get_ai_back_keyboard(lang),
             )
         return AI_PROMPT_INPUT
 
@@ -917,7 +933,7 @@ async def ai_prompt_received(update: Update, context: ContextTypes.DEFAULT_TYPE)
         # Limit/blok xabari allaqachon yuborildi — foydalanuvchi menyuga qaytadi
         return AI_MENU_STATE
 
-    msg_wait = await msg.reply_text("🤖 <i>AI post yozmoqda...</i>", parse_mode="HTML")
+    msg_wait = await msg.reply_text(get_text("ai_wait_post", lang), parse_mode="HTML")
     stop_typing = asyncio.Event()
     typing_task = asyncio.create_task(_keep_typing(context.bot, msg.chat_id, stop_typing))
     try:
@@ -937,8 +953,8 @@ async def ai_prompt_received(update: Update, context: ContextTypes.DEFAULT_TYPE)
     if "error" in result:
         await _studio_ai_refund(user_id, is_admin, is_pro)
         await msg.reply_text(
-            AI_UNAVAILABLE_MSG,
-            reply_markup=get_ai_back_keyboard(),
+            get_text("ai_unavailable", lang),
+            reply_markup=get_ai_back_keyboard(lang),
             parse_mode="HTML",
         )
         return AI_MENU_STATE
@@ -947,10 +963,10 @@ async def ai_prompt_received(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     # Savol-javob — javobni ko'rsatib, menyuga qaytaramiz (flow uzilmaydi)
     if intent == "faq":
-        reply = result.get("reply", "") or "Kechirasiz, javob topa olmadim."
+        reply = result.get("reply", "") or get_text("ai_not_found", lang)
         await msg.reply_text(
-            f"🤖 {safe_html(reply)}\n\n<i>Yana mavzu yozing yoki orqaga qayting 👇</i>",
-            reply_markup=get_ai_back_keyboard(),
+            f"🤖 {safe_html(reply)}{get_text('ai_faq_footer', lang)}",
+            reply_markup=get_ai_back_keyboard(lang),
             parse_mode="HTML",
         )
         return AI_MENU_STATE
@@ -959,8 +975,8 @@ async def ai_prompt_received(update: Update, context: ContextTypes.DEFAULT_TYPE)
     if not post_text:
         await _studio_ai_refund(user_id, is_admin, is_pro)
         await msg.reply_text(
-            "⚠️ Post matnini aniqlab bo'lmadi. Mavzuni boshqacharoq yozib ko'ring.",
-            reply_markup=get_ai_back_keyboard(),
+            get_text("ai_no_post_text", lang),
+            reply_markup=get_ai_back_keyboard(lang),
         )
         return AI_MENU_STATE
 
@@ -969,8 +985,8 @@ async def ai_prompt_received(update: Update, context: ContextTypes.DEFAULT_TYPE)
     context.user_data["studio_tone"] = "friendly"
 
     await msg.reply_text(
-        _studio_preview_text(post_text, "friendly", context.user_data.get("studio_file_id")),
-        reply_markup=get_ai_tone_keyboard("friendly"),
+        _studio_preview_text(post_text, "friendly", context.user_data.get("studio_file_id"), lang),
+        reply_markup=get_ai_tone_keyboard("friendly", lang),
         parse_mode="HTML",
     )
     return AI_TONE_SELECT
@@ -982,9 +998,10 @@ async def ai_tone_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()  # SPEKS: darhol answer — tugma "yopishib" qolmaydi
     user_id = query.from_user.id
     is_admin = (user_id in ADMIN_IDS_SET)
+    lang = get_lang(context)
 
     tone = (query.data or "").split(":", 1)[-1]
-    if tone not in AI_TONE_LABELS:
+    if tone not in AI_TONE_KEYS:
         return AI_TONE_SELECT
 
     base_prompt = context.user_data.get("studio_topic") or ""
@@ -992,14 +1009,14 @@ async def ai_tone_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not base_prompt and not current_post:
         await _safe_edit(
             query,
-            "⚠️ Sessiya eskirgan. Mavzuni qaytadan yuboring.",
-            get_ai_back_keyboard(),
+            get_text("ai_tone_unknown", lang),
+            get_ai_back_keyboard(lang),
         )
         return AI_PROMPT_INPUT
 
     # Uslub almashtirish qo'shimcha ball YEMAYDI, lekin rate-limit bilan himoyalangan
     if not is_admin and check_ai_rate_limit(user_id, max_per_minute=4):
-        await query.answer("⏳ Juda tez-tez so'rov. Iltimos, 1 daqiqa kuting.", show_alert=True)
+        await query.answer(get_text("ai_rate_limit_alert", lang), show_alert=True)
         return AI_TONE_SELECT
 
     prompt = base_prompt or (
@@ -1009,7 +1026,7 @@ async def ai_tone_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     try:
         await query.edit_message_text(
-            f"🎨 <i>{AI_TONE_LABELS[tone]} uslubi qo'llanmoqda...</i>",
+            get_text("ai_tone_applying", lang, tone=_ai_tone_label(tone, lang)),
             parse_mode="HTML",
         )
     except Exception:
@@ -1028,8 +1045,8 @@ async def ai_tone_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception:
             pass
         await query.message.reply_text(
-            AI_UNAVAILABLE_MSG,
-            reply_markup=get_ai_back_keyboard(),
+            get_text("ai_unavailable", lang),
+            reply_markup=get_ai_back_keyboard(lang),
             parse_mode="HTML",
         )
         return AI_MENU_STATE
@@ -1038,8 +1055,8 @@ async def ai_tone_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["studio_post_text"] = post_text
     await _safe_edit(
         query,
-        _studio_preview_text(post_text, tone, context.user_data.get("studio_file_id")),
-        get_ai_tone_keyboard(tone),
+        _studio_preview_text(post_text, tone, context.user_data.get("studio_file_id"), lang),
+        get_ai_tone_keyboard(tone, lang),
     )
     return AI_TONE_SELECT
 
@@ -1048,13 +1065,14 @@ async def ai_studio_schedule_callback(update: Update, context: ContextTypes.DEFA
     """AI_TONE_SELECT → vaqt tanlash (AI_GET_TIME) ga o'tkazadi."""
     query = update.callback_query
     await query.answer()  # SPEKS: darhol answer
+    lang = get_lang(context)
 
     post_text = context.user_data.get("studio_post_text", "")
     if not post_text:
         await _safe_edit(
             query,
-            "⚠️ Avval post yarating. Mavzuni yozing:",
-            get_ai_back_keyboard(),
+            get_text("ai_schedule_need_post", lang),
+            get_ai_back_keyboard(lang),
         )
         return AI_PROMPT_INPUT
 
@@ -1076,6 +1094,7 @@ async def ai_studio_schedule_callback(update: Update, context: ContextTypes.DEFA
         post_text,
         context.user_data["ai_file_id"],
         context.user_data["ai_post_type"],
+        lang,
     )
     return AI_GET_TIME
 
@@ -1085,11 +1104,12 @@ async def ai_audit_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = update.message
     if msg is None:
         return AI_AUDIT_INPUT
+    lang = get_lang(context)
     text = (msg.text or msg.caption or "").strip()
     if not text:
         await msg.reply_text(
-            "🔍 Auditlash uchun post matnini yuboring:",
-            reply_markup=get_ai_back_keyboard(),
+            get_text("ai_audit_prompt_hint", lang),
+            reply_markup=get_ai_back_keyboard(lang),
         )
         return AI_AUDIT_INPUT
 
@@ -1098,7 +1118,7 @@ async def ai_audit_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not ok:
         return AI_MENU_STATE
 
-    msg_wait = await msg.reply_text("🔍 <i>AI audit qilmoqda...</i>", parse_mode="HTML")
+    msg_wait = await msg.reply_text(get_text("ai_wait_audit", lang), parse_mode="HTML")
     stop_typing = asyncio.Event()
     typing_task = asyncio.create_task(_keep_typing(context.bot, msg.chat_id, stop_typing))
     try:
@@ -1120,8 +1140,8 @@ async def ai_audit_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if "error" in result:
         await _studio_ai_refund(user_id, is_admin, is_pro)
         await msg.reply_text(
-            AI_UNAVAILABLE_MSG,
-            reply_markup=get_ai_back_keyboard(),
+            get_text("ai_unavailable", lang),
+            reply_markup=get_ai_back_keyboard(lang),
             parse_mode="HTML",
         )
         return AI_MENU_STATE
@@ -1142,8 +1162,8 @@ async def ai_audit_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not audit:
         await _studio_ai_refund(user_id, is_admin, is_pro)
         await msg.reply_text(
-            "⚠️ AI audit natijasini qaytara olmadi. Qaytadan urinib ko'ring.",
-            reply_markup=get_ai_back_keyboard(),
+            get_text("ai_audit_no_result", lang),
+            reply_markup=get_ai_back_keyboard(lang),
         )
         return AI_MENU_STATE
 
@@ -1153,8 +1173,8 @@ async def ai_audit_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     ad_line = await get_auto_ad_injection_async(user_id)
     await msg.reply_text(
-        f"🔍 <b>AI Audit natijasi:</b>\n\n{safe_html(audit[:3500])}{ad_line}",
-        reply_markup=get_ai_back_keyboard(),
+        get_text("ai_audit_result_title", lang) + safe_html(audit[:3500]) + ad_line,
+        reply_markup=get_ai_back_keyboard(lang),
         parse_mode="HTML",
     )
     return AI_MENU_STATE
@@ -1164,23 +1184,29 @@ async def ai_back_to_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """⬅️ Orqaga — AI Studio menyusiga qaytaradi (xabar EDIT, o'chirish YO'Q)."""
     query = update.callback_query
     await query.answer()  # SPEKS: darhol answer
-    await _safe_edit(query, AI_STUDIO_MENU_TEXT, get_ai_studio_keyboard())
+    lang = get_lang(context)
+    await _safe_edit(
+        query,
+        await _studio_menu_text(query.from_user.id, lang),
+        get_ai_studio_keyboard(lang),
+    )
     return AI_MENU_STATE
 
 
 async def ai_close(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """❌ Bekor qilish — faqat SHU yerda sessiya ataylab yakunlanadi (END)."""
     query = update.callback_query
-    await query.answer("Bekor qilindi")  # SPEKS: darhol answer
+    lang = get_lang(context)
+    await query.answer(get_text("ai_close_session", lang))  # SPEKS: darhol answer
     try:
-        await query.edit_message_text("❌ AI Studio sessiyasi yakunlandi.", reply_markup=None)
+        await query.edit_message_text(get_text("ai_close_session", lang), reply_markup=None)
     except Exception:
         pass
     clear_ai_context(query.from_user.id)
     clear_fsm_data(context)
     await query.message.reply_text(
-        "🏠 Asosiy menyu.",
-        reply_markup=get_main_keyboard(query.from_user.id in ADMIN_IDS_SET),
+        get_text("ai_close_main_menu", lang),
+        reply_markup=get_main_keyboard(query.from_user.id in ADMIN_IDS_SET, lang),
     )
     return ConversationHandler.END
 
@@ -1251,13 +1277,12 @@ def _photo_extra_from_caption(raw) -> str:
     return text[:500]
 
 
-def _photo_result_text(post_text: str) -> str:
-    """Vision natijasi — to'liq post + keyingi qadam tugmalari."""
+def _photo_result_text(post_text: str, lang: str = "uz") -> str:
+    """Vision natijasi — to'liq post + keyingi qadam tugmalari (tilga mos)."""
     return (
-        "🖼 <b>Rasmdan tayyorlangan post:</b>\n\n"
-        f"{safe_html(post_text[:3500])}\n\n"
-        "🖼 <i>Yuborilgan rasm ushbu postga biriktiriladi.</i>\n\n"
-        "Keyingi qadamni tanlang 👇"
+        get_text("ai_photo_result_title", lang)
+        + safe_html(post_text[:3500])
+        + get_text("ai_photo_result_foot", lang)
     )
 
 
@@ -1291,6 +1316,7 @@ async def ai_photo_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if msg is None:
         return AI_PHOTO_INPUT
     user_id = update.effective_user.id
+    lang = get_lang(context)
 
     # Albom (media_group) dublikatlarini bitta ishlov bilan cheklaymiz
     if getattr(msg, "media_group_id", None):
@@ -1306,19 +1332,14 @@ async def ai_photo_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not file_id:
         if _is_non_image_media(msg):
             await msg.reply_text(
-                "🎬 <b>Video tahlil qilinmaydi.</b>\n\n"
-                "Server resursini tejash uchun faqat <b>rasm</b> tahlil qilinadi.\n"
-                "Iltimos, tahlil qilinishi kerak bo'lgan <b>rasmni</b> "
-                "(JPG/PNG/WEBP) yuboring.",
-                reply_markup=get_ai_back_keyboard(),
+                get_text("ai_video_rejected", lang),
+                reply_markup=get_ai_back_keyboard(lang),
                 parse_mode="HTML",
             )
         else:
             await msg.reply_text(
-                "🖼 Iltimos, rasm (JPG/PNG/WEBP) yuboring:\n"
-                "• <i>Rasm bilan birga izoh yuborish mumkin</i>\n"
-                "• <i>Video tahlil qilinmaydi — faqat rasm</i>",
-                reply_markup=get_ai_back_keyboard(),
+                get_text("ai_photo_only", lang),
+                reply_markup=get_ai_back_keyboard(lang),
                 parse_mode="HTML",
             )
         return AI_PHOTO_INPUT
@@ -1327,7 +1348,7 @@ async def ai_photo_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not ok:
         return AI_MENU_STATE
 
-    msg_wait = await msg.reply_text("🖼 <i>AI rasmni tahlil qilmoqda...</i>", parse_mode="HTML")
+    msg_wait = await msg.reply_text(get_text("ai_wait_photo", lang), parse_mode="HTML")
     stop_typing = asyncio.Event()
     typing_task = asyncio.create_task(_keep_typing(context.bot, msg.chat_id, stop_typing))
     try:
@@ -1344,8 +1365,8 @@ async def ai_photo_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await _studio_ai_refund(user_id, is_admin, is_pro)
         await msg.reply_text(
             f"{result['error']}\n\n"
-            "🖼 Yana rasm yuboring yoki menyuga qayting 👇",
-            reply_markup=get_ai_back_keyboard(),
+            f"{get_text('ai_photo_retry_hint', lang)}",
+            reply_markup=get_ai_back_keyboard(lang),
             parse_mode="HTML",
         )
         return AI_PHOTO_INPUT
@@ -1354,8 +1375,8 @@ async def ai_photo_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not post_text:
         await _studio_ai_refund(user_id, is_admin, is_pro)
         await msg.reply_text(
-            "⚠️ AI post matnini tayyorlay olmadi. Rasmni qaytadan yuboring.",
-            reply_markup=get_ai_back_keyboard(),
+            get_text("ai_photo_no_text", lang),
+            reply_markup=get_ai_back_keyboard(lang),
             parse_mode="HTML",
         )
         return AI_PHOTO_INPUT
@@ -1371,8 +1392,8 @@ async def ai_photo_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await db.run_db(db.increment_ai_usage, user_id)
 
     await msg.reply_text(
-        _photo_result_text(post_text),
-        reply_markup=get_ai_photo_keyboard(),
+        _photo_result_text(post_text, lang),
+        reply_markup=get_ai_photo_keyboard(lang),
         parse_mode="HTML",
     )
     return AI_PHOTO_RESULT
@@ -1385,14 +1406,15 @@ async def ai_photo_result_callback(update: Update, context: ContextTypes.DEFAULT
     data = query.data or ""
     user_id = query.from_user.id
     is_admin = (user_id in ADMIN_IDS_SET)
+    lang = get_lang(context)
 
     post_text = context.user_data.get("studio_post_text", "")
     file_id = context.user_data.get("studio_file_id")
     if not post_text or not file_id:
         await _safe_edit(
             query,
-            "⚠️ Sessiya eskirgan. Rasmni qaytadan yuboring.",
-            get_ai_back_keyboard(),
+            get_text("ai_session_expired", lang),
+            get_ai_back_keyboard(lang),
         )
         return AI_PHOTO_INPUT
 
@@ -1407,18 +1429,15 @@ async def ai_photo_result_callback(update: Update, context: ContextTypes.DEFAULT
             await query.edit_message_reply_markup(reply_markup=None)
         except Exception:
             pass
-        await _show_time_prompt(query.message, post_text, file_id, "photo")
+        await _show_time_prompt(query.message, post_text, file_id, "photo", lang)
         return AI_GET_TIME
 
     # --- 2) Tahrirlash → matn talabi holatiga o'tamiz ---
     if data == "photo_edit":
         await _safe_edit(
             query,
-            "✏️ <b>Postni tahrirlash</b>\n\n"
-            "Qanday o'zgarish kerak? Matn yuboring:\n"
-            "<i>Masalan: «sarlavhani boshqacha yoz», «qisqartir», "
-            "«narxni qo'sh»</i>",
-            get_ai_back_keyboard(),
+            get_text("ai_photo_edit_intro", lang),
+            get_ai_back_keyboard(lang),
         )
         return AI_PHOTO_EDIT_INPUT
 
@@ -1426,7 +1445,7 @@ async def ai_photo_result_callback(update: Update, context: ContextTypes.DEFAULT
     if data == "photo_rewrite":
         # Uslub almashtirish kabi qo'shimcha bal YEMAYDI (rate-limit saqlanadi)
         if not is_admin and check_ai_rate_limit(user_id, max_per_minute=4):
-            await query.answer("⏳ Juda tez-tez so'rov. Iltimos, 1 daqiqa kuting.", show_alert=True)
+            await query.answer(get_text("ai_rate_limit_alert", lang), show_alert=True)
             return AI_PHOTO_RESULT
 
         extra = context.user_data.get("studio_photo_extra", "")
@@ -1437,32 +1456,32 @@ async def ai_photo_result_callback(update: Update, context: ContextTypes.DEFAULT
         )
         try:
             await query.edit_message_text(
-                "🔄 <i>AI rasmni qayta tahlil qilmoqda...</i>",
+                get_text("ai_photo_rewrite_wait", lang),
                 parse_mode="HTML",
             )
         except Exception:
             pass
         result = await _vision_run(file_id, extra, rewrite_context=rewrite_ctx)
         if "error" in result:
-            await _safe_edit(query, _photo_result_text(post_text), get_ai_photo_keyboard())
+            await _safe_edit(query, _photo_result_text(post_text, lang), get_ai_photo_keyboard(lang))
             await query.message.reply_text(
                 f"⚠️ {result['error']}",
-                reply_markup=get_ai_back_keyboard(),
+                reply_markup=get_ai_back_keyboard(lang),
                 parse_mode="HTML",
             )
             return AI_PHOTO_RESULT
 
         new_text = (result.get("post_text") or "").strip()
         if not new_text:
-            await _safe_edit(query, _photo_result_text(post_text), get_ai_photo_keyboard())
+            await _safe_edit(query, _photo_result_text(post_text, lang), get_ai_photo_keyboard(lang))
             await query.message.reply_text(
-                "⚠️ AI qayta yozishda post tayyorlay olmadi. Asl post saqlanib qoldi.",
-                reply_markup=get_ai_back_keyboard(),
+                get_text("ai_photo_rewrite_keep", lang),
+                reply_markup=get_ai_back_keyboard(lang),
             )
             return AI_PHOTO_RESULT
 
         context.user_data["studio_post_text"] = new_text
-        await _safe_edit(query, _photo_result_text(new_text), get_ai_photo_keyboard())
+        await _safe_edit(query, _photo_result_text(new_text, lang), get_ai_photo_keyboard(lang))
         return AI_PHOTO_RESULT
 
     return AI_PHOTO_RESULT
@@ -1474,20 +1493,21 @@ async def ai_photo_edit_received(update: Update, context: ContextTypes.DEFAULT_T
     if msg is None:
         return AI_PHOTO_EDIT_INPUT
     user_id = update.effective_user.id
+    lang = get_lang(context)
 
     text = (msg.text or msg.caption or "").strip()
     if not text:
         await msg.reply_text(
-            "✏️ Tahrirlash uchun matn yuboring:",
-            reply_markup=get_ai_back_keyboard(),
+            get_text("ai_photo_edit_hint", lang),
+            reply_markup=get_ai_back_keyboard(lang),
         )
         return AI_PHOTO_EDIT_INPUT
 
     post_text = context.user_data.get("studio_post_text", "")
     if not post_text:
         await msg.reply_text(
-            "⚠️ Sessiya eskirgan. Rasmni qaytadan yuboring.",
-            reply_markup=get_ai_back_keyboard(),
+            get_text("ai_session_expired", lang),
+            reply_markup=get_ai_back_keyboard(lang),
         )
         return AI_PHOTO_INPUT
 
@@ -1496,7 +1516,7 @@ async def ai_photo_edit_received(update: Update, context: ContextTypes.DEFAULT_T
     if not ok:
         return AI_MENU_STATE
 
-    msg_wait = await msg.reply_text("✏️ <i>AI postni tahrirlamoqda...</i>", parse_mode="HTML")
+    msg_wait = await msg.reply_text(get_text("ai_wait_edit", lang), parse_mode="HTML")
     stop_typing = asyncio.Event()
     typing_task = asyncio.create_task(_keep_typing(context.bot, msg.chat_id, stop_typing))
     try:
@@ -1520,7 +1540,7 @@ async def ai_photo_edit_received(update: Update, context: ContextTypes.DEFAULT_T
         await _studio_ai_refund(user_id, is_admin, is_pro)
         await msg.reply_text(
             f"⚠️ {result['error']}",
-            reply_markup=get_ai_back_keyboard(),
+            reply_markup=get_ai_back_keyboard(lang),
             parse_mode="HTML",
         )
         return AI_PHOTO_EDIT_INPUT
@@ -1540,8 +1560,8 @@ async def ai_photo_edit_received(update: Update, context: ContextTypes.DEFAULT_T
     if not new_text:
         await _studio_ai_refund(user_id, is_admin, is_pro)
         await msg.reply_text(
-            "⚠️ AI tahrirlangan matnni qaytara olmadi. Qaytadan urinib ko'ring.",
-            reply_markup=get_ai_back_keyboard(),
+            get_text("ai_photo_edit_no_result", lang),
+            reply_markup=get_ai_back_keyboard(lang),
         )
         return AI_PHOTO_EDIT_INPUT
 
@@ -1550,8 +1570,8 @@ async def ai_photo_edit_received(update: Update, context: ContextTypes.DEFAULT_T
         await db.run_db(db.increment_ai_usage, user_id)
 
     await msg.reply_text(
-        _photo_result_text(new_text),
-        reply_markup=get_ai_photo_keyboard(),
+        _photo_result_text(new_text, lang),
+        reply_markup=get_ai_photo_keyboard(lang),
         parse_mode="HTML",
     )
     return AI_PHOTO_RESULT
