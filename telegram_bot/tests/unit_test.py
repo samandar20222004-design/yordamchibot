@@ -6256,6 +6256,330 @@ def test_ai_studio_i18n_suite():
         check(f"i18n: {key} tarjima qilingan", uz.get(key) != ru.get(key) and bool(uz.get(key)))
 
 
+def test_new_post_i18n_suite():
+    """3-QISM: Yangi post oqimi i18n (uz/ru) — tugmalar, preview, image kalitlar."""
+    print("== Yangi post i18n (uz/ru) ==")
+    from locales.translations import TRANSLATIONS, get_text
+    from handlers.new_post import (
+        _build_preview_text, _get_confirm_keyboard, _get_edit_confirm_keyboard,
+        _get_ai_action_keyboard, _get_ai_result_keyboard,
+    )
+    uz, ru = TRANSLATIONS["uz"], TRANSLATIONS["ru"]
+
+    # 1) Barcha np_* kalitlari ikki tilda mavjud va tarjima qilingan
+    np_keys = [k for k in uz if k.startswith("np_")]
+    check("np_* kalitlari ru'da ham bor",
+          all(k in ru for k in np_keys), str([k for k in np_keys if k not in ru][:5]))
+    untranslated = [k for k in np_keys if uz.get(k) == ru.get(k)]
+    # Emoji-only kalitlar (np_type_animation) bundan mustasno
+    allowed_same = {"np_type_animation", "np_scheduled_when_single"}
+    check("np_* kalitlari tarjima qilingan",
+          all(k in allowed_same for k in untranslated),
+          str(untranslated))
+
+    # 2) Confirm / Edit keyboard — RU yorliqlar va o'zgarmas callback_data
+    ck_ru = _get_confirm_keyboard("ru")
+    ck_uz = _get_confirm_keyboard("uz")
+    ru_labels = [b.text for row in ck_ru.inline_keyboard for b in row]
+    ru_cbs = [b.callback_data for row in ck_ru.inline_keyboard for b in row]
+    uz_cbs = [b.callback_data for row in ck_uz.inline_keyboard for b in row]
+    check("confirm kb ru/callback bir xil", ru_cbs == uz_cbs, str((ru_cbs, uz_cbs)))
+    check("confirm kb ru: ok tugmasi",
+          get_text("np_confirm_ok_btn", "ru") in ru_labels, str(ru_labels))
+    check("confirm kb ru: queue tugmasi",
+          get_text("np_confirm_queue_btn", "ru") in ru_labels)
+    check("confirm kb ru: edit/cancel",
+          get_text("np_confirm_edit_btn", "ru") in ru_labels
+          and get_text("np_confirm_cancel_btn", "ru") in ru_labels)
+
+    ekb_ru = _get_edit_confirm_keyboard("ru")
+    ekb_uz = _get_edit_confirm_keyboard("uz")
+    e_ru_labels = [b.text for row in ekb_ru.inline_keyboard for b in row]
+    e_ru_cbs = [b.callback_data for row in ekb_ru.inline_keyboard for b in row]
+    e_uz_cbs = [b.callback_data for row in ekb_uz.inline_keyboard for b in row]
+    check("edit kb ru/callback bir xil", e_ru_cbs == e_uz_cbs)
+    check("edit kb ru: matn tahrirlash",
+          get_text("np_edit_content_btn", "ru") in e_ru_labels, str(e_ru_labels))
+    check("edit kb ru: kanal/vaqt/tugma/back",
+          all(t in e_ru_labels for t in (
+              get_text("np_edit_channel_btn", "ru"), get_text("np_edit_time_btn", "ru"),
+              get_text("np_edit_button_btn", "ru"), get_text("np_edit_back_btn", "ru"))))
+
+    # 3) Preview matni RU
+    tz = pytz.timezone("Asia/Tashkent")
+    class _Ctx:
+        def __init__(self, data):
+            self.user_data = data
+    ctx = _Ctx({
+        "lang": "ru", "selected_channel_title": "Мой канал",
+        "post_type": "text", "content": "Привет",
+        "btn_text": "Сайт", "btn_url": "https://x.uz",
+        "enable_reactions": True, "reaction_emojis": ["👍"],
+        "delete_after_hours": 24,
+        "confirm_post_time": tz.localize(datetime(2026, 9, 5, 14, 0)),
+        "confirm_recurrence_type": "none",
+        "confirm_recurrence_day": None, "confirm_recurrence_time_str": None,
+    })
+    preview = _build_preview_text(ctx)
+    check("preview ru: sarlavha",
+          get_text("np_confirm_title", "ru") in preview, preview[:60])
+    check("preview ru: kanal", "Мой канал" in preview)
+    check("preview ru: vaqt", "2026-09-05 14:00" in preview)
+    check("preview ru: tugma", "Сайт" in preview)
+    check("preview ru: avto-o'chirish", "24" in preview and "ч" in preview)
+
+    # daily recurrence RU
+    ctx.user_data["confirm_recurrence_type"] = "daily"
+    ctx.user_data["confirm_recurrence_time_str"] = "09:00:00"
+    preview_d = _build_preview_text(ctx)
+    check("preview ru: daily", "каждый день" in preview_d.lower() or "Ежедневно" in preview_d,
+          preview_d[:120])
+    # weekly RU
+    ctx.user_data["confirm_recurrence_type"] = "weekly"
+    ctx.user_data["confirm_recurrence_day"] = 4
+    ctx.user_data["confirm_recurrence_time_str"] = "13:00:00"
+    preview_w = _build_preview_text(ctx)
+    check("preview ru: weekly (Juma)",
+          any(d in preview_w for d in ("Пятница", "Пятн")), preview_w[:160])
+
+    # 4) AI klaviaturalari RU
+    ak_ru = _get_ai_action_keyboard("ru")
+    ak_ru_labels = [b.text for row in ak_ru.inline_keyboard for b in row]
+    ak_uz_cbs = [b.callback_data for row in _get_ai_action_keyboard("uz").inline_keyboard for b in row]
+    ak_ru_cbs = [b.callback_data for row in ak_ru.inline_keyboard for b in row]
+    check("ai action kb: callback bir xil", ak_ru_cbs == ak_uz_cbs)
+    check("ai action kb ru: grammar",
+          get_text("np_ai_action_grammar", "ru") in ak_ru_labels, str(ak_ru_labels))
+    rk_ru = _get_ai_result_keyboard("ru")
+    rk_ru_labels = [b.text for row in rk_ru.inline_keyboard for b in row]
+    check("ai result kb ru: accept/retry/revert",
+          all(t in rk_ru_labels for t in (
+              get_text("np_ai_btn_accept", "ru"), get_text("np_ai_btn_retry", "ru"),
+              get_text("np_ai_btn_revert", "ru"))))
+
+    # 5) Keyboard default — turlar RU
+    from keyboards.default import (
+        get_button_prompt_keyboard, get_reactions_keyboard, get_auto_delete_keyboard,
+        get_time_keyboard, get_duration_keyboard, get_weekday_keyboard,
+    )
+    def _labels(kb):
+        return [b.text for row in kb.keyboard for b in row]
+    check("button prompt kb ru: AI yordamchi",
+          get_text("np_btn_ai_assistant", "ru") in _labels(get_button_prompt_keyboard("ru")))
+    check("button prompt kb ru: skip",
+          get_text("np_btn_skip_url", "ru") in _labels(get_button_prompt_keyboard("ru")))
+    check("reactions kb ru: skip",
+          get_text("np_btn_no_reactions", "ru") in _labels(get_reactions_keyboard("ru")))
+    check("auto-delete kb ru: 12/24",
+          get_text("np_btn_del_12h", "ru") in _labels(get_auto_delete_keyboard("ru"))
+          and get_text("np_btn_del_24h", "ru") in _labels(get_auto_delete_keyboard("ru")))
+    check("time kb ru: 5 min/daily/weekly",
+          all(t in _labels(get_time_keyboard("ru")) for t in (
+              get_text("np_btn_time_5m", "ru"), get_text("np_btn_time_daily", "ru"),
+              get_text("np_btn_time_weekly", "ru"))))
+    check("duration kb ru: 1 hafta/cheksiz",
+          get_text("np_btn_dur_1w", "ru") in _labels(get_duration_keyboard("ru"))
+          and get_text("np_btn_dur_inf", "ru") in _labels(get_duration_keyboard("ru")))
+    wk_labels = _labels(get_weekday_keyboard("ru"))
+    check("weekday kb ru: Dushanba",
+          get_text("np_weekday_0", "ru") in wk_labels, str(wk_labels))
+
+    # 6) Reaction toggle — RU (callback data o'zgarmaydi)
+    from keyboards.inline import get_reaction_toggle_keyboard, CB_REACT_DONE, CB_REACT_SKIP
+    rt_ru = get_reaction_toggle_keyboard(["👍"], "ru")
+    rt_ru_labels = [b.text for row in rt_ru.inline_keyboard for b in row]
+    rt_ru_cbs = [b.callback_data for row in rt_ru.inline_keyboard for b in row]
+    check("react toggle ru: done label",
+          get_text("np_react_done_count", "ru", count=1) in rt_ru_labels, str(rt_ru_labels))
+    check("react toggle ru: skip label",
+          get_text("np_react_skip", "ru") in rt_ru_labels)
+    check("react toggle ru: callback bir xil",
+          CB_REACT_DONE in rt_ru_cbs and CB_REACT_SKIP in rt_ru_cbs)
+
+    # 7) Route: "➕ Новый пост" ikki tilda
+    from keyboards.default import BTN_NEW_POST, BTN_NEW_POST_RU
+    check("routing: yangi post uz", BTN_NEW_POST == "➕ Yangi post")
+    check("routing: yangi post ru", BTN_NEW_POST_RU == "➕ Новый пост")
+
+
+def test_channels_i18n_suite():
+    """3-QISM: Kanallar (channels) i18n (uz/ru)."""
+    print("== Kanallar i18n (uz/ru) ==")
+    from locales.translations import TRANSLATIONS, get_text
+    from handlers.channels import (
+        _retry_verify_keyboard, _empty_channels_keyboard,
+        _channel_limit_text, _pro_upgrade_keyboard,
+    )
+    uz, ru = TRANSLATIONS["uz"], TRANSLATIONS["ru"]
+
+    ch_keys = [k for k in uz if k.startswith("ch_")]
+    check("ch_* kalitlari ru'da ham bor",
+          all(k in ru for k in ch_keys), str([k for k in ch_keys if k not in ru][:5]))
+    check("ch_* kalitlari tarjima qilingan",
+          all(uz.get(k) != ru.get(k) for k in ch_keys),
+          str([k for k in ch_keys if uz.get(k) == ru.get(k)][:5]))
+
+    # Retry keyboard — RU label, bir xil callback
+    rk = _retry_verify_keyboard("ru")
+    rku = _retry_verify_keyboard("uz")
+    check("retry kb ru: label",
+          rk.inline_keyboard[0][0].text == get_text("ch_retry_btn", "ru"),
+          rk.inline_keyboard[0][0].text)
+    check("retry kb: callback o'zgarmagan",
+          rk.inline_keyboard[0][0].callback_data == "add_channel_retry"
+          and rku.inline_keyboard[0][0].callback_data == "add_channel_retry")
+
+    # Empty channels keyboard
+    ek = _empty_channels_keyboard("ru")
+    ek_labels = [b.text for row in ek.inline_keyboard for b in row]
+    ek_cbs = [b.callback_data for row in ek.inline_keyboard for b in row]
+    check("empty kb ru: qo'shish",
+          get_text("ch_add_btn", "ru") in ek_labels, str(ek_labels))
+    check("empty kb ru: yopish",
+          get_text("pend_close_btn", "ru") in ek_labels)
+    check("empty kb: callback o'zgarmagan",
+          ek_cbs == ["add_channel_start", "close_msg"], str(ek_cbs))
+
+    # Limit text
+    lim_ru = _channel_limit_text("ru", 5, 3)
+    lim_uz = _channel_limit_text("uz", 5, 3)
+    check("limit ru: ruscha", "Лимит" in lim_ru and "5/3" in lim_ru, lim_ru[:60])
+    check("limit uz: o'zbekcha", "Kanal limiti" in lim_uz and "5/3" in lim_uz)
+
+    # PRO keyboard
+    pk = _pro_upgrade_keyboard("ru")
+    check("pro kb ru: label",
+          pk.inline_keyboard[0][0].text == get_text("ch_pro_btn", "ru"))
+    check("pro kb: callback o'zgarmagan",
+          pk.inline_keyboard[0][0].callback_data == "sub_open")
+
+    # render_channels_list — RU
+    from keyboards.inline import render_channels_list
+    ch = render_channels_list([("-1001", "Kanal 1", "formal")], "ru")
+    ch_labels = [b.text for row in ch.inline_keyboard for b in row]
+    check("kanallar ro'yxati ru: o'chirish",
+          get_text("cab_remove_channel", "ru") in ch_labels)
+    check("kanallar ro'yxati ru: qo'shish",
+          get_text("cab_add_channel_alt", "ru") in ch_labels)
+
+
+def test_pending_i18n_suite():
+    """3-QISM: Kutilayotgan postlar (pending) i18n (uz/ru)."""
+    print("== Pending i18n (uz/ru) ==")
+    from locales.translations import TRANSLATIONS, get_text
+    from keyboards.inline import render_pending_list
+    from utils.helpers import format_post_type_label, format_schedule_line
+    uz, ru = TRANSLATIONS["uz"], TRANSLATIONS["ru"]
+
+    pend_keys = [k for k in uz if k.startswith("pend_")]
+    check("pend_* kalitlari ru'da ham bor",
+          all(k in ru for k in pend_keys), str([k for k in pend_keys if k not in ru][:5]))
+    check("pend_* kalitlari tarjima qilingan",
+          all(uz.get(k) != ru.get(k) for k in pend_keys),
+          str([k for k in pend_keys if uz.get(k) == ru.get(k)][:5]))
+
+    # Pending list buttons — RU label, bir xil callback
+    tz = pytz.timezone("Asia/Tashkent")
+    posts = [(101, "Kanal A", "text", tz.localize(datetime(2026, 9, 10, 12, 0)), 3, "none", None, None)]
+    ru_kb = render_pending_list(posts, "ABC", "ru")
+    uz_kb = render_pending_list(posts, "ABC", "uz")
+    ru_labels = [b.text for row in ru_kb.inline_keyboard for b in row]
+    ru_cbs = [b.callback_data for row in ru_kb.inline_keyboard for b in row]
+    uz_cbs = [b.callback_data for row in uz_kb.inline_keyboard for b in row]
+    check("pending kb: callback bir xil", ru_cbs == uz_cbs, str((ru_cbs, uz_cbs)))
+    check("pending kb ru: vaqt/matn tahrirlash",
+          get_text("pend_edit_time_btn", "ru", code="ABC-3") in ru_labels
+          and get_text("pend_edit_content_btn", "ru", code="ABC-3") in ru_labels,
+          str(ru_labels))
+    check("pending kb ru: bekor/yangilash/yopish",
+          all(t in ru_labels for t in (
+              get_text("pend_cancel_btn", "ru"), get_text("pend_refresh_btn", "ru"),
+              get_text("pend_close_btn", "ru"))))
+
+    # format_post_type_label — RU
+    check("post_type ru: video", format_post_type_label("video", "ru") == "Видео",
+          format_post_type_label("video", "ru"))
+    check("post_type uz: video", format_post_type_label("video") == "Video")
+    check("post_type ru: unknown", format_post_type_label("xyz", "ru") == "Сообщение")
+
+    # format_schedule_line — RU (daily/weekly/once)
+    s_line_daily = format_schedule_line(None, "daily", None, "10:00:00", "ru")
+    check("schedule ru: daily", "каждый день" in s_line_daily.lower() or "Ежедневно" in s_line_daily,
+          s_line_daily)
+    s_line_weekly = format_schedule_line(None, "weekly", 4, "13:00:00", "ru")
+    check("schedule ru: weekly Juma", any(d in s_line_weekly for d in ("Пятница", "Пятн")),
+          s_line_weekly)
+    s_line_once = format_schedule_line(tz.localize(datetime(2026, 9, 10, 12, 0)),
+                                       "none", None, None, "ru")
+    check("schedule ru: once", "2026-09-10 12:00" in s_line_once, s_line_once)
+
+
+def test_queue_i18n_suite():
+    """3-QISM: Navbat (queue) i18n (uz/ru)."""
+    print("== Queue i18n (uz/ru) ==")
+    from locales.translations import TRANSLATIONS, get_text
+    from handlers.queue import (
+        _get_queue_list_keyboard, _get_slots_keyboard, _get_post_detail_keyboard,
+        _format_queue_item,
+    )
+    uz, ru = TRANSLATIONS["uz"], TRANSLATIONS["ru"]
+
+    queue_keys = [k for k in uz if k.startswith("queue_")]
+    check("queue_* kalitlari ru'da ham bor",
+          all(k in ru for k in queue_keys), str([k for k in queue_keys if k not in ru][:5]))
+    check("queue_* kalitlari tarjima qilingan",
+          all(uz.get(k) != ru.get(k) for k in queue_keys),
+          str([k for k in queue_keys if uz.get(k) == ru.get(k)][:5]))
+
+    # Queue list keyboard — RU label, bir xil callback
+    tz = pytz.timezone("Asia/Tashkent")
+    row = (1, "Kanal", "text", "x", tz.localize(datetime(2026, 9, 1, 10, 0)), 1, "-100")
+    kb_ru = _get_queue_list_keyboard([row], 0, 1, "ru")
+    kb_uz = _get_queue_list_keyboard([row], 0, 1, "uz")
+    ru_labels = [b.text for r in kb_ru.inline_keyboard for b in r]
+    ru_cbs = [b.callback_data for r in kb_ru.inline_keyboard for b in r]
+    uz_cbs = [b.callback_data for r in kb_uz.inline_keyboard for b in r]
+    check("queue list kb: callback bir xil", ru_cbs == uz_cbs, str((ru_cbs, uz_cbs)))
+    check("queue list kb ru: ko'rish/o'chirish/surish",
+          get_text("queue_btn_view", "ru", id=1) in ru_labels
+          and get_text("queue_btn_delete", "ru") in ru_labels
+          and get_text("queue_btn_push", "ru") in ru_labels, str(ru_labels))
+    check("queue list kb ru: slotlar/yopish",
+          get_text("queue_btn_slots", "ru") in ru_labels
+          and get_text("queue_btn_close", "ru") in ru_labels)
+
+    # Detail keyboard
+    dk_ru = _get_post_detail_keyboard(5, "ru")
+    dk_ru_labels = [b.text for r in dk_ru.inline_keyboard for b in r]
+    dk_ru_cbs = [b.callback_data for r in dk_ru.inline_keyboard for b in r]
+    check("queue detail ru: orqaga",
+          get_text("queue_btn_back", "ru") in dk_ru_labels)
+    check("queue detail ru: callback o'zgarmagan",
+          dk_ru_cbs == ["qdel:5", "qpush:5", "qpage:0"], str(dk_ru_cbs))
+
+    # Slots keyboard
+    sk_ru = _get_slots_keyboard(["09:00", "19:00"], "ru")
+    sk_ru_labels = [b.text for r in sk_ru.inline_keyboard for b in r]
+    sk_ru_cbs = [b.callback_data for r in sk_ru.inline_keyboard for b in r]
+    check("slots kb ru: qo'shish/default",
+          get_text("queue_btn_add_slot", "ru") in sk_ru_labels
+          and get_text("queue_btn_reset_slots", "ru") in sk_ru_labels)
+    check("slots kb ru: callback o'zgarmagan",
+          "qslots:rm:0" in sk_ru_cbs and "qslots:reset" in sk_ru_cbs
+          and "qslots:add" in sk_ru_cbs and "qpage:0" in sk_ru_cbs, str(sk_ru_cbs))
+
+    # _format_queue_item tilda o'zgarmaydigan qism (raqam/vaqt)
+    item = _format_queue_item(row, 1, "ru")
+    check("queue item ru: kanal saqlanadi", "Kanal" in item and item.startswith("1."), item)
+
+    # Routing: queue/pending RU tugmalari
+    from keyboards.default import BTN_QUEUE, BTN_QUEUE_RU, BTN_PENDING, BTN_PENDING_RU
+    check("routing: queue uz", "Navbat" in BTN_QUEUE)
+    check("routing: queue ru", "Очередь" in BTN_QUEUE_RU)
+    check("routing: pending uz", "Kutilayotgan" in BTN_PENDING)
+    check("routing: pending ru", "Ожидающие" in BTN_PENDING_RU)
+
+
 def main():
     test_calculate_next_time()
     test_converter()
@@ -6383,6 +6707,10 @@ def main():
     test_i18n_uz_ru()
     test_cabinet_i18n_suite()
     test_ai_studio_i18n_suite()
+    test_new_post_i18n_suite()
+    test_channels_i18n_suite()
+    test_pending_i18n_suite()
+    test_queue_i18n_suite()
 
     print(f"\nO'tdi: {passed}, Xato: {failures}")
     if failures:

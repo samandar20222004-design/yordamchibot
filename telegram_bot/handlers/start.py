@@ -697,7 +697,7 @@ async def cabinet_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception:
             pass
         from handlers.pending import _build_pending_view
-        text, markup = await _build_pending_view(user_id)
+        text, markup = await _build_pending_view(user_id, lang)
         await query.message.reply_text(text, reply_markup=markup, parse_mode="HTML")
         return
 
@@ -711,17 +711,12 @@ async def cabinet_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             pass
         from handlers.queue import _build_queue_view
         try:
-            text, markup = await _build_queue_view(user_id, is_admin)
+            text, markup = await _build_queue_view(user_id, is_admin, lang)
         except Exception:
             # Baza xatosi bo'lsa ham foydalanuvchi JAVOB olishi shart —
             # aks holda tugma "qotib qolgan" bo'lib ko'rinadi.
             logger.exception("Post navbati ekranini qurishda xato (user=%s)", user_id)
-            text = (
-                "📚 <b>Navbat (Queue)</b>\n\n"
-                "⚠️ Rejalashtirilgan postlarni hozircha o'qib bo'lmadi "
-                "(baza bilan aloqa xatosi).\n"
-                "Iltimos, birozdan so'ng qayta urinib ko'ring."
-            )
+            text = get_text("queue_db_error", lang)
             markup = get_cabinet_back_keyboard(lang)
         await query.message.reply_text(text, reply_markup=markup, parse_mode="HTML")
         return

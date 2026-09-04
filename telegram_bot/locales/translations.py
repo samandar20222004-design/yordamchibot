@@ -430,6 +430,504 @@ TRANSLATIONS = {
             "🖼 <b>Media qabul qilindi!</b>\n\nEndi post mavzusini yoki matnini yozing."
         ),
 
+        # --- 3-QISM: ➕ Yangi post i18n (UZ) ---
+        # Tugma yorliqlari (reply klaviatura)
+        "np_btn_skip": "➡️ Tugmasiz davom etish",
+        "np_btn_skip_url": "⏭ O'tkazib yuborish",
+        "np_btn_url_add": "🔗 URL tugma qo'shish",
+        "np_btn_ai_assistant": "✨ AI Yordamchi",
+        "np_btn_title_details": "Batafsil",
+        "np_btn_title_join": "Kanalga a'zo bo'lish",
+        "np_btn_title_site": "Saytga o'tish",
+        "np_btn_title_contact": "Bog'lanish",
+        "np_btn_no_reactions": "➡️ Reaksiyasiz davom etish",
+        "np_btn_del_never": "❌ O'chirilmasin (Doimiy)",
+        "np_btn_del_12h": "⏳ 12 soat",
+        "np_btn_del_24h": "⏳ 24 soat (1 kun)",
+        "np_btn_del_48h": "⏳ 48 soat (2 kun)",
+        "np_btn_del_72h": "⏳ 72 soat (3 kun)",
+        "np_btn_time_5m": "⚡ 5 daqiqa",
+        "np_btn_time_15m": "⚡ 15 daqiqa",
+        "np_btn_time_1h": "⚡ 1 soat",
+        "np_btn_time_daily": "🔁 Har kuni (bir vaqtda)",
+        "np_btn_time_weekly": "📅 Har hafta (ma'lum kuni)",
+        "np_btn_dur_1w": "1 hafta",
+        "np_btn_dur_1m": "1 oy",
+        "np_btn_dur_3m": "3 oy",
+        "np_btn_dur_6m": "6 oy",
+        "np_btn_dur_1y": "1 yil",
+        "np_btn_dur_inf": "♾ Cheksiz",
+        "np_weekday_0": "Dushanba",
+        "np_weekday_1": "Seshanba",
+        "np_weekday_2": "Chorshanba",
+        "np_weekday_3": "Payshanba",
+        "np_weekday_4": "Juma",
+        "np_weekday_5": "Shanba",
+        "np_weekday_6": "Yakshanba",
+        "np_btn_back_confirm": "🔙 Orqaga",
+        "np_btn_all_channels": "🌐 Barchasiga birdaniga",
+        "np_label_today": "Bugun",
+        "np_label_tomorrow": "Ertaga",
+
+        # Yangi post jarayoni matnlari
+        "np_channel_selected": (
+            "✅ Tanlandi: <b>{channel}</b>\n\n"
+            "📝 <b>Post uchun kontentni yuboring:</b>\n"
+            "(Matn, rasm, video, albom, hujjat, audio, ovozli xabar yoki stiker)"
+        ),
+        "np_channel_not_found": "⚠️ Bunday kanal topilmadi. Qaytadan tanlang:",
+        "np_all_channel_title": "🌐 Barchasi",
+        "np_button_ask": (
+            "🔘 <b>Post ostiga havola tugma qo'shilsinmi?</b> (ixtiyoriy)\n\n"
+            "⚡️ <b>Tezkor usul:</b> tugma yozuvi va havolani bir qatorda yuboring:\n"
+            "<code>Button Text - https://link.com</code>\n\n"
+            "Yoki tayyor yozuvlardan tanlang / o'z yozuvingizni yuboring "
+            "(so'ng havola so'raladi).\n\n"
+            "Kerak bo'lmasa, <b>⏭ O'tkazib yuborish</b> tugmasini bosing:"
+        ),
+        "np_button_ready": (
+            "✅ <b>Inline tugma tayyor:</b>\n"
+            "🔘 Yozuv: <b>{title}</b>\n"
+            "🔗 Havola: <code>{url}</code>"
+        ),
+        "np_button_url_ask": (
+            "🔗 <b>'{title}'</b> tugmasi bosilganda ochiladigan havola yoki "
+            "kanal username'ini yuboring:\n\n"
+            "Masalan: <code>@kanalim</code> yoki <code>https://sayt.uz</code>\n\n"
+            "<i>Yoki bir qatorda yuboring: <code>{title} - https://link.com</code></i>"
+        ),
+        "np_button_url_add_ask": (
+            "🔗 <b>URL tugma qo'shish</b>\n\n"
+            "Tugma yozuvi va havolani <b>bir qatorda, \" - \" bilan ajratib</b> yuboring:\n"
+            "<code>Button Text - https://link.com</code>\n\n"
+            "<i>Masalan:</i> <code>Saytga o'tish - https://sayt.uz</code> yoki\n"
+            "<code>Kanalim - @kanalim</code>"
+        ),
+        "np_reactions_ask": (
+            "👍 <b>Post ostiga qaysi reaksiya tugmalari qo'shilsin?</b>\n\n"
+            "Kerakli emojilarni bosing — ✅ belgilanadi (qayta bossangiz bekor bo'ladi).\n"
+            "Tanlab bo'lgach, <b>➡️ Davom etish</b> tugmasini bosing.\n"
+            "Reaksiya kerak bo'lmasa — <b>⏭ Reaksiyasiz o'tish</b>."
+        ),
+        "np_reactions_selected": (
+            "✅ Tanlanganlar: {emojis}\n"
+            "Yana emoji qo'shishingiz yoki <b>➡️ Davom etish</b> ni bosishingiz mumkin:"
+        ),
+        "np_reactions_use_inline": (
+            "⚠️ <b>Iltimos, pastdagi inline tugmalardan foydalaning:</b>\n"
+            "• Emojilarni bosib tanlang (✅ belgilanadi)\n"
+            "• <b>➡️ Davom etish</b> — tanlanganlar bilan keyingi qadam\n"
+            "• <b>⏭ Reaksiyasiz o'tish</b> — reaksiyasiz"
+        ),
+        "np_reactions_none": (
+            "ℹ️ Hech qanday reaksiya tanlanmadi — post reaksiyalarsiz chiqadi."
+        ),
+        "np_react_done": "➡️ Davom etish",
+        "np_react_done_count": "➡️ Davom etish ({count} ta)",
+        "np_react_skip": "⏭ Reaksiyasiz o'tish",
+        "np_auto_delete_ask": (
+            "🗑️ <b>Post kanalda qancha vaqt tursin?</b>\n\n"
+            "Belgilangan vaqt o'tgach, bot uni kanaldan avtomatik o'chirib tashlaydi:"
+        ),
+        "np_time_ask": (
+            "🕒 <b>Post qaysi vaqtda chiqsin?</b>\n\n"
+            "Tayyor tugmalardan tanlang yoki aniq vaqtni yozing:\n"
+            "Namuna: <code>{example}</code>"
+        ),
+        "np_time_future": "⚠️ Kelajakdagi vaqtni kiriting:",
+        "np_time_format_error": (
+            "⚠️ Format xato! Masalan: <code>2026-08-30 18:00</code> yoki "
+            "<code>18:00</code> shaklida yuboring."
+        ),
+        "np_daily_time_ask": (
+            "🔁 <b>Har kuni soat nechida chiqsin?</b>\n"
+            "Masalan: <code>10:00</code> yoki <code>18:30</code>"
+        ),
+        "np_daily_time_format": (
+            "⚠️ Noto'g'ri vaqt formati. Masalan: <code>10:00</code>"
+        ),
+        "np_weekday_ask": "📅 <b>Haftaning qaysi kuni chiqsin?</b>",
+        "np_weekday_invalid": "⚠️ Kunlardan birini tanlang:",
+        "np_recur_time_ask": (
+            "🕒 <b>Har {day} soat nechida chiqsin?</b>\n"
+            "Masalan: <code>10:00</code>"
+        ),
+        "np_recur_time_format": "⚠️ Noto'g'ri format! Masalan: <code>10:00</code>",
+        "np_duration_ask_daily": (
+            "⏳ <b>Post qancha muddat davomida har kuni chiqsin?</b>"
+        ),
+        "np_duration_ask_weekly": (
+            "⏳ <b>Ushbu post qancha muddat davomida chiqsin?</b>"
+        ),
+        "np_duration_invalid": "⚠️ Variantlardan birini tanlang:",
+
+        # Tasdiqlash (confirmation) ekrani
+        "np_confirm_title": "📋 <b>Postni tasdiqlang:</b>",
+        "np_confirm_channel": "📢 <b>Kanal:</b> {channel}",
+        "np_confirm_type": "📦 <b>Turi:</b> {type}",
+        "np_type_text": "📝 Matn",
+        "np_type_photo": "🖼 Rasm",
+        "np_type_video": "🎬 Video",
+        "np_type_document": "📄 Hujjat",
+        "np_type_audio": "🎵 Audio",
+        "np_type_voice": "🎙 Ovozli",
+        "np_type_sticker": "😀 Stiker",
+        "np_type_album": "🖼 Albom",
+        "np_type_animation": "🎞 GIF",
+        "np_type_unknown": "📝 Xabar",
+        "np_confirm_time_none": "⏰ Vaqt belgilanmagan",
+        "np_confirm_time_single": "⏰ {time} (Toshkent vaqti)",
+        "np_confirm_time_daily": "🔁 Har kuni, soat {time} da",
+        "np_confirm_time_weekly": "📅 Har {day}, soat {time} da",
+        "np_confirm_content": "📋 <b>Matn:</b>\n{content}",
+        "np_confirm_button": "🔘 Tugma: <b>{text}</b>",
+        "np_confirm_reactions": "👍 Reaksiyalar: {emojis}",
+        "np_confirm_reactions_on": "👍 Reaksiyalar: Yoqilgan",
+        "np_confirm_auto_delete": "⏳ Avto-o'chirish: {hours} soat",
+        "np_confirm_ok_btn": "✅ Tasdiqlash va rejalashtirish",
+        "np_confirm_queue_btn": "⏳ Navbatga qo'shish",
+        "np_confirm_edit_btn": "✏️ Tahrirlash",
+        "np_confirm_cancel_btn": "❌ Bekor qilish",
+
+        # Tahrirlash sub-menyusi
+        "np_edit_menu_title": "✏️ <b>Qaysi qismini tahrirlash kerak?</b>",
+        "np_edit_content_btn": "📝 Matn",
+        "np_edit_channel_btn": "📢 Kanal",
+        "np_edit_time_btn": "⏰ Vaqt",
+        "np_edit_button_btn": "🔘 Tugma",
+        "np_edit_back_btn": "⬅️ Orqaga (tasdiqlashga)",
+        "np_edit_content_ask": "📝 <b>Yangi matn yuboring:</b>",
+        "np_edit_channel_ask": "📢 <b>Qaysi kanal?</b>",
+        "np_edit_time_ask": "🕒 <b>Yangi vaqt:</b> <code>{example}</code>",
+        "np_edit_button_ask": (
+            "🔘 <b>Tugma:</b> <code>Matn | https://havola.uz</code>\n"
+            "O'chirish: <code>yo'q</code>"
+        ),
+        "np_edit_channel_not_found": "⚠️ Kanal topilmadi.",
+
+        # Yakuniy xabarlar
+        "np_cancelled": "🚫 <b>Post bekor qilindi.</b>\nAsosiy menyuga qaytdingiz 👇",
+        "np_no_time": "⚠️ <b>Vaqt belgilanmagan.</b>",
+        "np_no_channel": "⚠️ <b>Kanal tanlanmagan.</b>",
+        "np_no_slot": (
+            "⚠️ <b>Bo'sh slot topilmadi.</b>\n7 kun ichida barcha slotlar band."
+        ),
+        "np_scheduled_ok": (
+            "✅ <b>Post muvaffaqiyatli rejalashtirildi!</b>\n\n"
+            "📢 Joylash: <b>{channel}</b>\n"
+            "{when}{del_info}"
+        ),
+        "np_scheduled_when_single": "⏰ {time}",
+        "np_scheduled_when_daily": "🔁 Har kuni, soat {time} da",
+        "np_scheduled_when_weekly": "📅 Har {day}, soat {time} da",
+        "np_scheduled_del": "\n⏳ Kanalda turish muddati: <b>{hours} soat</b>",
+        "np_queue_added": (
+            "⚡️ <b>Post navbatga qo'yildi!</b>\n\n"
+            "📅 {label}, soat {time}\n"
+            "📢 Kanal: <b>{channel}</b>{ad_line}"
+        ),
+        "np_queue_error": "❌ <b>Navbatga qo'yishda xatolik.</b>",
+        "np_save_error": "❌ Saqlashda xatolik yuz berdi.",
+        "np_save_error_bold": "❌ <b>Saqlashda xatolik.</b>",
+
+        # AI Yordamchi (post tahrirlashda)
+        "np_ai_menu_title": (
+            "✨ <b>AI Yordamchi</b>\n\n"
+            "📋 Joriy matn:\n<i>{preview}</i>\n\n"
+            "Qaysi amalni bajaramiz?"
+        ),
+        "np_ai_empty_content": "⚠️ <b>Post matni bo'sh.</b>\nAvval matn kiriting.",
+        "np_ai_empty_alert": "⚠️ Matn bo'sh!",
+        "np_ai_working": "⏳ AI ishlayapti...",
+        "np_ai_empty_result": "⚠️ AI javobi bo'sh. Asl matn saqlab qolindi.",
+        "np_ai_proposal": (
+            "✨ <b>AI taklifi:</b>\n\n{new}\n\n"
+            "📝 Asl: <i>{old}</i>"
+        ),
+        "np_ai_retry_proposal": "✨ <b>AI taklifi (qayta):</b>\n\n{new}",
+        "np_ai_accepted_alert": "✅ Qabul qilindi!",
+        "np_ai_accept_msg": "✅ <b>Yangi matn qabul qilindi!</b>\n\n{content}",
+        "np_ai_reverted_alert": "❌ Asl holatga qaytarildi!",
+        "np_ai_revert_msg": "❌ <b>Asl matn qaytarildi.</b>",
+        "np_ai_retrying": "🔄 Qayta urinilmoqda...",
+        "np_ai_action_grammar": "✍️ Imlo va uslub",
+        "np_ai_action_emoji": "🎨 Emojilar",
+        "np_ai_action_hashtags": "🏷 Hashtaglar",
+        "np_ai_action_tldr": "✂️ Qisqartirish",
+        "np_ai_btn_back": "⬅️ Orqaga",
+        "np_ai_btn_accept": "✅ Qabul qilish",
+        "np_ai_btn_retry": "🔄 Qayta urinish",
+        "np_ai_btn_revert": "❌ Asl holatga qaytarish",
+
+        # --- 3-QISM: 📢 Mening kanallarim i18n (UZ) ---
+        "ch_empty_title": (
+            "📢 <b>Sizda hali ulangan kanallar mavjud emas.</b>\n\n"
+            "Kanal ulash uchun quyidagi tugmani bosing 👇\n\n"
+            "<i>Botni kanalingizga administrator qilib (xabar yuborish ruxsati "
+            "bilan) qo'shish kerak bo'ladi.</i>"
+        ),
+        "ch_list_title": (
+            "📢 <b>Sizning ulangan kanallaringiz ({count} ta):</b>\n\n"
+            "Kanalni o'chirish uchun '❌ O'chirish' tugmasini bosing yoki "
+            "yangi kanal ulang 👇"
+        ),
+        "ch_all_removed": (
+            "📢 <b>Barcha kanallar o'chirildi.</b>\n\n"
+            "Yangi kanal ulash uchun quyidagi tugmani bosing 👇"
+        ),
+        "ch_add_btn": "➕ Kanal/Guruh ulash",
+        "ch_add_instructions": (
+            "➕ <b>Yangi kanal yoki guruh ulash:</b>\n\n"
+            "1. Botni (<code>@{bot}</code>) kanalingizga yoki guruhingizga "
+            "<b>Administrator</b> qilib qo'shing (xabar yuborish ruxsati bilan).\n"
+            "2. So'ngra kanal manbasini yuboring — to'rt formatning birida:\n"
+            "   • kanaldan istalgan xabarni <b>Forward (Uzatish)</b>;\n"
+            "   • <code>@kanal_nomi</code>;\n"
+            "   • <code>t.me/kanal_nomi</code> yoki <code>https://t.me/kanal_nomi</code>;\n"
+            "   • kanal ID raqami (masalan: <code>-1001234567890</code>).\n\n"
+            "<i>Bekor qilish uchun '🔙 Asosiy menyu' tugmasini bosing.</i>"
+        ),
+        "ch_retry_btn": "🔁 Botni admin qildim — qayta tekshirish",
+        "ch_empty_target": (
+            "❌ Bo'sh xabar qabul qilindi. Kanalni <b>forward</b> qiling, "
+            "<code>@username</code>, ID yoki <code>t.me/kanal</code> havolasini yuboring."
+        ),
+        "ch_invite_blocked": (
+            "🔒 <b>Yopiq kanal (invite) havolasi orqali ulab bo'lmaydi.</b>\n\n"
+            "Bot kanalda administrator bo'lgani uchun <code>@username</code> "
+            "yoki kanaldan istalgan xabarni <b>forward</b> qiling — shunda "
+            "kanalni aniqlaymiz."
+        ),
+        "ch_not_found": (
+            "❌ Kanal yoki guruh topilmadi. Forward qiling yoki to'g'ri ID yuboring."
+        ),
+        "ch_cannot_verify": (
+            "⚠️ <b>Bot ushbu kanalda emas yoki huquqlarni tekshirib bo'lmadi.</b>\n\n"
+            "Avval botni administrator qiling (xabar yuborish ruxsati bilan)."
+        ),
+        "ch_not_admin": (
+            "⚠️ <b>Bot ushbu kanalda administrator emas!</b>\n\n"
+            "Iltimos, avval botga kanalda xabar yuborish ruxsatini bering."
+        ),
+        "ch_no_post_permission": (
+            "⚠️ <b>Botga kanalda xabar yuborish ruxsati berilmagan.</b>\n\n"
+            "Administrator sozlamalarida <b>Post Messages</b> huquqini yoqing."
+        ),
+        "ch_user_verify_fail": (
+            "⚠️ <b>Sizning ushbu kanaldagi huquqingizni tekshirib bo'lmadi.</b>\n\n"
+            "Faqat kanal/guruh administratori botga kanal ulashi mumkin."
+        ),
+        "ch_forbidden": (
+            "🚫 <b>Ruxsat yo'q.</b>\n\n"
+            "Faqat kanal yoki guruh <b>administratori</b> ushbu botga kanal ulashi mumkin."
+        ),
+        "ch_unknown_target": (
+            "❌ Kanal ma'lumotlari aniqlanmadi. Iltimos, kanaldan xabarni "
+            "<b>forward</b> qiling yoki <code>@username</code>, "
+            "<code>t.me/kanal_nomi</code> havolasi, ID raqamini "
+            "(masalan: <code>-1001234567890</code>) yuboring."
+        ),
+        "ch_empty_target_short": (
+            "❌ Kanal ma'lumotlari aniqlanmadi. Iltimos, kanaldan xabarni forward qiling:"
+        ),
+        "ch_unexpected_error": (
+            "⚠️ <b>Kutilmagan xatolik yuz berdi.</b>\n\n"
+            "Iltimos, kanalni qaytadan forward qiling yoki "
+            "<code>@username</code> / <code>t.me/kanal</code> havolasini yuboring."
+        ),
+        "ch_retry_after": (
+            "{error}\n\nBotga ruxsat berganingizdan so'ng quyidagi tugmani bosing "
+            "yoki kanal manbasini qayta yuboring 👇"
+        ),
+        "ch_limit_msg": (
+            "🚫 <b>Kanal limiti tugadi!</b>\n\n"
+            "Sizda hozir <b>{current}/{max}</b> ta kanal ulangan.\n"
+            "Free tarifida maksimal <b>{max}</b> ta kanal ulash mumkin.\n\n"
+            "⭐️ Ushbu imkoniyatdan cheksiz foydalanish uchun PRO tarifiga o'ting."
+        ),
+        "ch_pro_btn": "⭐️ PRO tarifga o'tish",
+        "ch_success": (
+            "✅ <b>Kanal muvaffaqiyatli ulandi!</b>\n\n"
+            "📢 Nomi: <b>{title}</b>\n"
+            "🆔 ID: <code>{channel_id}</code>\n\n"
+            "📋 <b>Sizning kanallaringiz ({count} ta):</b>"
+        ),
+        "ch_success_footer": "Kanalni o'chirish yoki uslubini o'zgartirish uchun 👇",
+        "ch_taken": (
+            "🚫 <b>Bu kanal allaqachon boshqa foydalanuvchiga ulangan.</b>\n\n"
+            "O'g'irlab bo'lmaydi. Agar bu sizning kanalingiz bo'lsa, avval egasi "
+            "botdan o'chirishi kerak."
+        ),
+        "ch_save_error": "❌ Kanalni saqlashda xatolik yuz berdi.",
+        "ch_remove_not_found": "❌ Kanal topilmadi yoki sizga tegishli emas.",
+        "ch_no_perm_dm": (
+            "⚠️ <b>Bot administrator qilindi, lekin xabar yuborish "
+            "ruxsati (Post Messages) berilmagan!</b>\n\n"
+            "📢 Kanal: <b>{channel}</b>\n\n"
+            "Iltimos, kanal sozlamalarida botga <b>Post Messages</b> "
+            "huquqini yoqing — shundan so'ng kanal avtomatik ulanadi."
+        ),
+        "ch_autoconnect_success": (
+            "🎉 <b>Siz botni {channel} kanaliga admin qildingiz va kanal ulandi!</b>\n\n"
+            "🆔 <code>{channel_id}</code>\n\n"
+            "Endi ushbu kanalga postlarni rejalashtirishingiz mumkin 👇"
+        ),
+        "ch_default_title": "Telegram Kanal",
+        "ch_tone_title": (
+            "🎭 <b>Kanal uslubini tanlang:</b>\n\n"
+            "Joriy uslub: <b>{current}</b>\n\n"
+            "Uslub postlarning ohangi va uslubini belgilaydi:"
+        ),
+        "ch_tone_formal": "👔 Rasmiy / Biznes",
+        "ch_tone_friendly": "😊 Do'stona / Samimiy",
+        "ch_tone_concise": "⚡️ Qisqa / Yangiliklar",
+        "ch_tone_engaging": "🎉 Ko'ngilochar / Emotsional",
+        "ch_tone_cancelled": "✅ Uslub o'zgartirish bekor qilindi.",
+        "ch_tone_invalid": "❌ Noto'g'ri uslub. Iltimos, tugmalardan birini bosing.",
+        "ch_tone_success": (
+            "✅ <b>Kanal uslubi yangilandi!</b>\n\n"
+            "🎭 Yangi uslub: <b>{tone}</b>\n\n"
+            "Endi AI postlarni shu uslubda tayyorlaydi."
+        ),
+        "ch_tone_error": "❌ Uslubni saqlashda xatolik. Qaytadan urinib ko'ring.",
+
+        # --- 3-QISM: 📅 Kutilayotgan postlar i18n (UZ) ---
+        "pend_empty": "⏳ <b>Sizda kutilayotgan faol postlar mavjud emas.</b>",
+        "pend_list_title": "⏳ <b>Kutilayotgan postlaringiz ({count} ta):</b>",
+        "pend_item": (
+            "🔹 <b>Post: {code}</b>\n"
+            "📢 Kanal: <b>{channel}</b>\n"
+            "📦 Turi: <b>{type}</b>\n"
+            "{time}\n\n"
+        ),
+        "pend_channel_fallback": "Kanal",
+        "pend_edit_time_btn": "🕒 {code} vaqt",
+        "pend_edit_content_btn": "✏️ {code} matn",
+        "pend_edit_btn_btn": "🔗 Tugma",
+        "pend_edit_react_btn": "👍 Reaksiya",
+        "pend_cancel_btn": "❌ Bekor",
+        "pend_refresh_btn": "🔄 Yangilash",
+        "pend_close_btn": "❌ Yopish",
+        "pend_refreshed": "✅ Yangilandi",
+        "pend_refresh_fail": "Yangilab bo'lmadi",
+        "pend_rate_limited": "⏳ Iltimos, biroz kuting...",
+        "pend_error": "⚠️ Xatolik: {error}",
+        "pend_not_found": "❌ Post topilmadi.",
+        "pend_not_owned": "❌ Bu post sizga tegishli emas.",
+        "pend_time_ask": (
+            "🕒 <b>Post uchun yangi chiqish vaqtini yuboring:</b>\n\n"
+            "• Bir martalik post bo'lsa: <code>2026-08-30 20:00</code>\n"
+            "• Erkin format ham ishlaydi: <code>ertaga 18:00</code>, <code>bugun 10:00</code>\n"
+            "• Har kunlik post bo'lsa faqat soat: <code>10:00</code>"
+        ),
+        "pend_time_success": "✅ <b>Post vaqti muvaffaqiyatli yangilandi!</b>",
+        "pend_time_format": (
+            "⚠️ Format xato! Masalan: <code>2026-08-30 20:00</code> yoki <code>10:00</code>"
+        ),
+        "pend_content_ask": (
+            "✏️ <b>Post uchun yangi matnni yuboring:</b>\n\n"
+            "HTML teglar (<b>bold</b>, <i>italic</i>, <code>code</code>) qo'llab-quvvatlanadi."
+        ),
+        "pend_content_success": "✅ <b>Post matni yangilandi!</b>",
+        "pend_btn_ask": (
+            "🔗 <b>Yangi tugma matnini yuboring:</b>\n\n"
+            "Format: <code>Tugma matni | https://havola.uz</code>\n"
+            "Tugmani o'chirish uchun: <code>yo'q</code> deb yozing."
+        ),
+        "pend_btn_removed": "✅ <b>Tugma o'chirildi!</b>",
+        "pend_btn_updated": "✅ <b>Tugma yangilandi:</b> <code>{text}</code>",
+        "pend_btn_format": (
+            "⚠️ Format xato!\nMasalan: <code>Batafsil | https://sayt.uz</code>\n"
+            "Yoki o'chirish: <code>yo'q</code>"
+        ),
+        "pend_react_ask": (
+            "👍 <b>Post reaksiyalarini o'zgartirish:</b>\n\n"
+            "Quyidagidan birini tanlang:"
+        ),
+        "pend_react_invalid": "⚠️ Tugmalardan birini tanlang:",
+        "pend_react_off": "✅ <b>Reaksiyalar o'chirildi!</b>",
+        "pend_react_updated": "✅ <b>Reaksiyalar yangilandi:</b> {emojis}",
+        "pend_react_on": "✅ <b>Reaksiyalar yoqildi!</b>",
+        "pend_update_fail": "❌ O'zgartirib bo'lmadi.",
+        "pend_schedule_daily": "🔁 <b>Har kuni</b>, soat <b>{time}</b> da",
+        "pend_schedule_weekly": "📅 <b>Har {day}</b>, soat <b>{time}</b> da",
+        "pend_schedule_once": "⏰ Vaqti: <b>{time}</b>",
+        "pend_schedule_unknown": "⏰ Vaqti: Noma'lum",
+
+        # --- 3-QISM: ⏳ Navbat va slotlar i18n (UZ) ---
+        "queue_db_error": (
+            "📚 <b>Navbat (Queue)</b>\n\n"
+            "⚠️ Rejalashtirilgan postlarni hozircha o'qib bo'lmadi "
+            "(baza bilan aloqa xatosi).\n"
+            "Iltimos, birozdan so'ng qayta urinib ko'ring."
+        ),
+        "queue_title": "📚 <b>Navbatdagi postlar</b> ({count} ta):",
+        "queue_title_range": "📚 <b>Navbatdagi postlar</b> ({count} ta, {start}-{end}):",
+        "queue_empty": (
+            "📚 <b>Navbat (Queue)</b>\n\n"
+            "Hozircha navbatda postlar yo'q.\n"
+            "Yangi post yaratib, <b>⏳ Navbatga qo'shish</b> tugmasini bosing."
+        ),
+        "queue_empty_short": "📚 <b>Navbat (Queue)</b>\n\nNavbatda postlar yo'q.",
+        "queue_limit_msg": (
+            "🚫 <b>Navbat limiti tugadi!</b>\n\n"
+            "Sizda <b>{current}/{max}</b> ta navbatdagi post bor.\n"
+            "Free tarifida maksimal <b>{max}</b> ta post navbatda turishi mumkin.\n\n"
+            "⭐️ Cheksiz navbat uchun PRO tarifiga o'ting."
+        ),
+        "queue_not_found": "⚠️ Post topilmadi yoki allaqachon o'chirilgan.",
+        "queue_not_found_short": "⚠️ Post topilmadi!",
+        "queue_no_slot": "⚠️ Bo'sh slot topilmadi!",
+        "queue_deleted_alert": "🗑 O'chirildi!",
+        "queue_view_title": "👁 <b>Post #{id}</b>",
+        "queue_view_channel": "📢 Kanal: {channel}",
+        "queue_view_type": "📦 Turi: {type}",
+        "queue_view_time": "⏰ Vaqt: {time}",
+        "queue_view_content": "📋 Matn:\n{content}",
+        "queue_view_button": "🔘 Tugma: {text}",
+        "queue_view_reactions": "👍 Reaksiyalar: Yoqilgan",
+        "queue_view_auto_delete": "⏳ Auto-o'chirish: {hours} soat",
+        "queue_btn_view": "👁 Ko'rish #{id}",
+        "queue_btn_delete": "🗑 O'chirish",
+        "queue_btn_push": "⏩ Surish",
+        "queue_btn_prev": "⬅️ Oldingi",
+        "queue_btn_next": "Keyingi ➡️",
+        "queue_btn_slots": "⚙️ Slotlarni sozlash",
+        "queue_btn_close": "❌ Yopish",
+        "queue_btn_back": "⬅️ Ro'yxatga qaytish",
+        "queue_btn_add_slot": "➕ Yangi slot qo'shish",
+        "queue_btn_reset_slots": "🔄 Default slotlar",
+        "queue_slots_title": (
+            "⚙️ <b>Slot sozlamalari</b>\n\n"
+            "Mavjud slotlar: <code>{slots}</code>\n\n"
+            "Har kuni shu vaqtlarda postlar avtomatik rejalashtiriladi."
+        ),
+        "queue_slots_reset": (
+            "⚙️ <b>Slot sozlamalari</b>\n\n"
+            "Mavjud slotlar: <code>{slots}</code>\n\n"
+            "Default slotlar qaytarildi."
+        ),
+        "queue_slot_add_ask": (
+            "➕ <b>Yangi slot qo'shish</b>\n\n"
+            "Vaqt formati: <code>HH:MM</code>\n"
+            "Masalan: <code>22:00</code>"
+        ),
+        "queue_slot_added": (
+            "✅ Slot qo'shildi: <code>{slot}</code>\n\n"
+            "⚙️ <b>Slot sozlamalari</b>\n\n"
+            "Mavjud slotlar: <code>{slots}</code>"
+        ),
+        "queue_slot_exists": "⚠️ <code>{slot}</code> allaqachon mavjud!",
+        "queue_slot_max": "⚠️ Maksimal 10 ta slot qo'shish mumkin!",
+        "queue_slot_format": (
+            "⚠️ Noto'g'ri format! <code>HH:MM</code> shaklida yozing.\n"
+            "Masalan: <code>22:00</code>"
+        ),
+        "queue_slot_min": "⚠️ Kamida bitta slot bo'lishi kerak!",
+        "queue_slot_reset_alert": "🔄 Default slotlar qaytarildi!",
+        "btn_pending": "⏳ Kutilayotgan postlar",
+        "btn_queue": "📚 Navbat (Queue)",
+
     },
     "ru": {
         "btn_new_post": "➕ Новый пост",
@@ -853,6 +1351,499 @@ TRANSLATIONS = {
         "ai_photo_media_received": (
             "🖼 <b>Медиа получено!</b>\n\nТеперь напишите тему поста или текст."
         ),
+
+        # --- 3-QISM: ➕ Новый пост i18n (RU) ---
+        "np_btn_skip": "➡️ Продолжить без кнопки",
+        "np_btn_skip_url": "⏭ Пропустить",
+        "np_btn_url_add": "🔗 Добавить URL-кнопку",
+        "np_btn_ai_assistant": "✨ ИИ-помощник",
+        "np_btn_title_details": "Подробнее",
+        "np_btn_title_join": "Подписаться на канал",
+        "np_btn_title_site": "Перейти на сайт",
+        "np_btn_title_contact": "Связаться",
+        "np_btn_no_reactions": "➡️ Продолжить без реакций",
+        "np_btn_del_never": "❌ Не удалять (постоянно)",
+        "np_btn_del_12h": "⏳ 12 часов",
+        "np_btn_del_24h": "⏳ 24 часа (1 день)",
+        "np_btn_del_48h": "⏳ 48 часов (2 дня)",
+        "np_btn_del_72h": "⏳ 72 часа (3 дня)",
+        "np_btn_time_5m": "⚡ 5 минут",
+        "np_btn_time_15m": "⚡ 15 минут",
+        "np_btn_time_1h": "⚡ 1 час",
+        "np_btn_time_daily": "🔁 Ежедневно (в одно время)",
+        "np_btn_time_weekly": "📅 Еженедельно (в определённый день)",
+        "np_btn_dur_1w": "1 неделя",
+        "np_btn_dur_1m": "1 месяц",
+        "np_btn_dur_3m": "3 месяца",
+        "np_btn_dur_6m": "6 месяцев",
+        "np_btn_dur_1y": "1 год",
+        "np_btn_dur_inf": "♾ Бессрочно",
+        "np_weekday_0": "Понедельник",
+        "np_weekday_1": "Вторник",
+        "np_weekday_2": "Среда",
+        "np_weekday_3": "Четверг",
+        "np_weekday_4": "Пятница",
+        "np_weekday_5": "Суббота",
+        "np_weekday_6": "Воскресенье",
+        "np_btn_back_confirm": "🔙 Назад",
+        "np_btn_all_channels": "🌐 Сразу во все",
+        "np_label_today": "Сегодня",
+        "np_label_tomorrow": "Завтра",
+
+        # Новый пост: тексты процесса
+        "np_channel_selected": (
+            "✅ Выбрано: <b>{channel}</b>\n\n"
+            "📝 <b>Отправьте контент для поста:</b>\n"
+            "(Текст, фото, видео, альбом, документ, аудио, голосовое сообщение или стикер)"
+        ),
+        "np_channel_not_found": "⚠️ Такой канал не найден. Выберите ещё раз:",
+        "np_all_channel_title": "🌐 Все сразу",
+        "np_button_ask": (
+            "🔘 <b>Добавить кнопку-ссылку под пост?</b> (необязательно)\n\n"
+            "⚡️ <b>Быстрый способ:</b> отправьте текст кнопки и ссылку в одной строке:\n"
+            "<code>Button Text - https://link.com</code>\n\n"
+            "Или выберите готовый вариант / отправьте свой текст "
+            "(затем уточним ссылку).\n\n"
+            "Если не нужно — нажмите <b>⏭ Пропустить</b>:"
+        ),
+        "np_button_ready": (
+            "✅ <b>Инлайн-кнопка готова:</b>\n"
+            "🔘 Текст: <b>{title}</b>\n"
+            "🔗 Ссылка: <code>{url}</code>"
+        ),
+        "np_button_url_ask": (
+            "🔗 <b>Отправьте ссылку или @username канала, который откроется "
+            "по кнопке '{title}':</b>\n\n"
+            "Например: <code>@kanalim</code> или <code>https://sayt.uz</code>\n\n"
+            "<i>Или одной строкой: <code>{title} - https://link.com</code></i>"
+        ),
+        "np_button_url_add_ask": (
+            "🔗 <b>Добавление URL-кнопки</b>\n\n"
+            "Отправьте текст кнопки и ссылку <b>в одной строке, разделив \" - \"</b>:\n"
+            "<code>Button Text - https://link.com</code>\n\n"
+            "<i>Например:</i> <code>Перейти на сайт - https://sayt.uz</code> или\n"
+            "<code>Мой канал - @kanalim</code>"
+        ),
+        "np_reactions_ask": (
+            "👍 <b>Какие кнопки-реакции добавить под пост?</b>\n\n"
+            "Нажимайте нужные эмодзи — отметятся ✅ (повторное нажатие отменяет).\n"
+            "Выбрав, нажмите <b>➡️ Продолжить</b>.\n"
+            "Если реакции не нужны — <b>⏭ Пропустить реакции</b>."
+        ),
+        "np_reactions_selected": (
+            "✅ Выбрано: {emojis}\n"
+            "Можно добавить ещё эмодзи или нажать <b>➡️ Продолжить</b>:"
+        ),
+        "np_reactions_use_inline": (
+            "⚠️ <b>Пожалуйста, используйте инлайн-кнопки ниже:</b>\n"
+            "• Нажмите эмодзи, чтобы выбрать (отметятся ✅)\n"
+            "• <b>➡️ Продолжить</b> — перейти с выбранными\n"
+            "• <b>⏭ Пропустить реакции</b> — без реакций"
+        ),
+        "np_reactions_none": (
+            "ℹ️ Реакции не выбраны — пост выйдет без кнопок-реакций."
+        ),
+        "np_react_done": "➡️ Продолжить",
+        "np_react_done_count": "➡️ Продолжить ({count} шт.)",
+        "np_react_skip": "⏭ Пропустить реакции",
+        "np_auto_delete_ask": (
+            "🗑️ <b>Сколько времени пост должен оставаться в канале?</b>\n\n"
+            "По истечении времени бот автоматически удалит его из канала:"
+        ),
+        "np_time_ask": (
+            "🕒 <b>Когда должен выйти пост?</b>\n\n"
+            "Выберите готовую кнопку или напишите точное время:\n"
+            "Пример: <code>{example}</code>"
+        ),
+        "np_time_future": "⚠️ Введите время в будущем:",
+        "np_time_format_error": (
+            "⚠️ Ошибка формата! Например: <code>2026-08-30 18:00</code> или "
+            "<code>18:00</code>."
+        ),
+        "np_daily_time_ask": (
+            "🔁 <b>Во сколько выходить ежедневно?</b>\n"
+            "Например: <code>10:00</code> или <code>18:30</code>"
+        ),
+        "np_daily_time_format": (
+            "⚠️ Неверный формат времени. Например: <code>10:00</code>"
+        ),
+        "np_weekday_ask": "📅 <b>В какой день недели выходить?</b>",
+        "np_weekday_invalid": "⚠️ Выберите один из дней:",
+        "np_recur_time_ask": (
+            "🕒 <b>Во сколько выходить каждый {day}?</b>\n"
+            "Например: <code>10:00</code>"
+        ),
+        "np_recur_time_format": "⚠️ Неверный формат! Например: <code>10:00</code>",
+        "np_duration_ask_daily": (
+            "⏳ <b>Как долго пост должен выходить ежедневно?</b>"
+        ),
+        "np_duration_ask_weekly": (
+            "⏳ <b>Как долго должен выходить этот пост?</b>"
+        ),
+        "np_duration_invalid": "⚠️ Выберите один из вариантов:",
+
+        # Подтверждение
+        "np_confirm_title": "📋 <b>Подтвердите пост:</b>",
+        "np_confirm_channel": "📢 <b>Канал:</b> {channel}",
+        "np_confirm_type": "📦 <b>Тип:</b> {type}",
+        "np_type_text": "📝 Текст",
+        "np_type_photo": "🖼 Фото",
+        "np_type_video": "🎬 Видео",
+        "np_type_document": "📄 Документ",
+        "np_type_audio": "🎵 Аудио",
+        "np_type_voice": "🎙 Голосовое",
+        "np_type_sticker": "😀 Стикер",
+        "np_type_album": "🖼 Альбом",
+        "np_type_animation": "🎞 GIF",
+        "np_type_unknown": "📝 Сообщение",
+        "np_confirm_time_none": "⏰ Время не указано",
+        "np_confirm_time_single": "⏰ {time} (время Ташкента)",
+        "np_confirm_time_daily": "🔁 Ежедневно, в {time}",
+        "np_confirm_time_weekly": "📅 Каждый {day}, в {time}",
+        "np_confirm_content": "📋 <b>Текст:</b>\n{content}",
+        "np_confirm_button": "🔘 Кнопка: <b>{text}</b>",
+        "np_confirm_reactions": "👍 Реакции: {emojis}",
+        "np_confirm_reactions_on": "👍 Реакции: Включены",
+        "np_confirm_auto_delete": "⏳ Авто-удаление: {hours} ч.",
+        "np_confirm_ok_btn": "✅ Подтвердить и запланировать",
+        "np_confirm_queue_btn": "⏳ Добавить в очередь",
+        "np_confirm_edit_btn": "✏️ Редактировать",
+        "np_confirm_cancel_btn": "❌ Отмена",
+
+        # Меню редактирования
+        "np_edit_menu_title": "✏️ <b>Что нужно отредактировать?</b>",
+        "np_edit_content_btn": "📝 Текст",
+        "np_edit_channel_btn": "📢 Канал",
+        "np_edit_time_btn": "⏰ Время",
+        "np_edit_button_btn": "🔘 Кнопка",
+        "np_edit_back_btn": "⬅️ Назад (к подтверждению)",
+        "np_edit_content_ask": "📝 <b>Отправьте новый текст:</b>",
+        "np_edit_channel_ask": "📢 <b>Какой канал?</b>",
+        "np_edit_time_ask": "🕒 <b>Новое время:</b> <code>{example}</code>",
+        "np_edit_button_ask": (
+            "🔘 <b>Кнопка:</b> <code>Текст | https://ссылка.uz</code>\n"
+            "Удаление: <code>нет</code>"
+        ),
+        "np_edit_channel_not_found": "⚠️ Канал не найден.",
+
+        # Итоговые сообщения
+        "np_cancelled": "🚫 <b>Пост отменён.</b>\nВы вернулись в главное меню 👇",
+        "np_no_time": "⚠️ <b>Время не указано.</b>",
+        "np_no_channel": "⚠️ <b>Канал не выбран.</b>",
+        "np_no_slot": (
+            "⚠️ <b>Свободный слот не найден.</b>\nВсе слоты на 7 дней заняты."
+        ),
+        "np_scheduled_ok": (
+            "✅ <b>Пост успешно запланирован!</b>\n\n"
+            "📢 Размещение: <b>{channel}</b>\n"
+            "{when}{del_info}"
+        ),
+        "np_scheduled_when_single": "⏰ {time}",
+        "np_scheduled_when_daily": "🔁 Ежедневно, в {time}",
+        "np_scheduled_when_weekly": "📅 Каждый {day}, в {time}",
+        "np_scheduled_del": "\n⏳ Время в канале: <b>{hours} ч.</b>",
+        "np_queue_added": (
+            "⚡️ <b>Пост добавлен в очередь!</b>\n\n"
+            "📅 {label}, в {time}\n"
+            "📢 Канал: <b>{channel}</b>{ad_line}"
+        ),
+        "np_queue_error": "❌ <b>Ошибка при добавлении в очередь.</b>",
+        "np_save_error": "❌ Ошибка при сохранении.",
+        "np_save_error_bold": "❌ <b>Ошибка при сохранении.</b>",
+
+        # ИИ-помощник (редактирование поста)
+        "np_ai_menu_title": (
+            "✨ <b>ИИ-помощник</b>\n\n"
+            "📋 Текущий текст:\n<i>{preview}</i>\n\n"
+            "Какое действие выполним?"
+        ),
+        "np_ai_empty_content": "⚠️ <b>Текст поста пуст.</b>\nСначала введите текст.",
+        "np_ai_empty_alert": "⚠️ Текст пуст!",
+        "np_ai_working": "⏳ ИИ работает...",
+        "np_ai_empty_result": "⚠️ Ответ ИИ пуст. Исходный текст сохранён.",
+        "np_ai_proposal": (
+            "✨ <b>Предложение ИИ:</b>\n\n{new}\n\n"
+            "📝 Исходный: <i>{old}</i>"
+        ),
+        "np_ai_retry_proposal": "✨ <b>Предложение ИИ (повторно):</b>\n\n{new}",
+        "np_ai_accepted_alert": "✅ Принято!",
+        "np_ai_accept_msg": "✅ <b>Новый текст принят!</b>\n\n{content}",
+        "np_ai_reverted_alert": "❌ Возвращён исходный текст!",
+        "np_ai_revert_msg": "❌ <b>Исходный текст возвращён.</b>",
+        "np_ai_retrying": "🔄 Повторная попытка...",
+        "np_ai_action_grammar": "✍️ Орфография и стиль",
+        "np_ai_action_emoji": "🎨 Эмодзи",
+        "np_ai_action_hashtags": "🏷 Хештеги",
+        "np_ai_action_tldr": "✂️ Сократить",
+        "np_ai_btn_back": "⬅️ Назад",
+        "np_ai_btn_accept": "✅ Принять",
+        "np_ai_btn_retry": "🔄 Повторить",
+        "np_ai_btn_revert": "❌ Вернуть исходный",
+
+        # --- 3-QISM: 📢 Мои каналы i18n (RU) ---
+        "ch_empty_title": (
+            "📢 <b>У вас пока нет подключённых каналов.</b>\n\n"
+            "Нажмите кнопку ниже, чтобы подключить канал 👇\n\n"
+            "<i>Сначала добавьте бота администратором вашего канала "
+            "(с правом отправки сообщений).</i>"
+        ),
+        "ch_list_title": (
+            "📢 <b>Ваши подключённые каналы ({count} шт.):</b>\n\n"
+            "Чтобы удалить канал, нажмите '❌ Удалить' или подключите новый 👇"
+        ),
+        "ch_all_removed": (
+            "📢 <b>Все каналы удалены.</b>\n\n"
+            "Чтобы подключить новый канал, нажмите кнопку ниже 👇"
+        ),
+        "ch_add_btn": "➕ Подключить канал/группу",
+        "ch_add_instructions": (
+            "➕ <b>Подключение нового канала или группы:</b>\n\n"
+            "1. Добавьте бота (<code>@{bot}</code>) в свой канал или группу "
+            "<b>Администратором</b> (с правом отправки сообщений).\n"
+            "2. Затем отправьте источник канала в одном из четырёх форматов:\n"
+            "   • <b>Перешлите (Forward)</b> любое сообщение из канала;\n"
+            "   • <code>@имя_канала</code>;\n"
+            "   • <code>t.me/имя_канала</code> или <code>https://t.me/имя_канала</code>;\n"
+            "   • ID канала (например: <code>-1001234567890</code>).\n\n"
+            "<i>Для отмены нажмите '🔙 Главное меню'.</i>"
+        ),
+        "ch_retry_btn": "🔁 Я сделал бота админом — проверить снова",
+        "ch_empty_target": (
+            "❌ Получено пустое сообщение. <b>Перешлите</b> сообщение из канала, "
+            "отправьте <code>@username</code>, ID или ссылку <code>t.me/kanal</code>."
+        ),
+        "ch_invite_blocked": (
+            "🔒 <b>Закрытый канал (по invite-ссылке) подключить нельзя.</b>\n\n"
+            "Раз бот уже администратор канала, отправьте <code>@username</code> "
+            "или <b>перешлите</b> любое сообщение из канала — мы его определим."
+        ),
+        "ch_not_found": (
+            "❌ Канал или группа не найдены. Перешлите сообщение или отправьте правильный ID."
+        ),
+        "ch_cannot_verify": (
+            "⚠️ <b>Бот отсутствует в канале или не удалось проверить права.</b>\n\n"
+            "Сначала добавьте бота администратором (с правом отправки сообщений)."
+        ),
+        "ch_not_admin": (
+            "⚠️ <b>Бот не является администратором этого канала!</b>\n\n"
+            "Пожалуйста, сначала дайте боту право отправлять сообщения в канале."
+        ),
+        "ch_no_post_permission": (
+            "⚠️ <b>Боту не выдано право отправки сообщений в канале.</b>\n\n"
+            "Включите право <b>Post Messages</b> в настройках администратора."
+        ),
+        "ch_user_verify_fail": (
+            "⚠️ <b>Не удалось проверить ваши права в этом канале.</b>\n\n"
+            "Подключить канал к боту может только администратор канала/группы."
+        ),
+        "ch_forbidden": (
+            "🚫 <b>Нет доступа.</b>\n\n"
+            "Подключить канал к боту может только <b>администратор</b> канала или группы."
+        ),
+        "ch_unknown_target": (
+            "❌ Данные канала не определены. Пожалуйста, <b>перешлите</b> сообщение "
+            "из канала или отправьте <code>@username</code>, "
+            "<code>t.me/имя_канала</code>, ID (например: <code>-1001234567890</code>)."
+        ),
+        "ch_empty_target_short": (
+            "❌ Данные канала не определены. Пожалуйста, перешлите сообщение из канала:"
+        ),
+        "ch_unexpected_error": (
+            "⚠️ <b>Произошла непредвиденная ошибка.</b>\n\n"
+            "Пожалуйста, перешлите сообщение из канала ещё раз или отправьте "
+            "<code>@username</code> / <code>t.me/kanal</code>."
+        ),
+        "ch_retry_after": (
+            "{error}\n\nПосле выдачи прав боту нажмите кнопку ниже "
+            "или отправьте источник канала ещё раз 👇"
+        ),
+        "ch_limit_msg": (
+            "🚫 <b>Лимит каналов исчерпан!</b>\n\n"
+            "Сейчас подключено <b>{current}/{max}</b> каналов.\n"
+            "На бесплатном тарифе можно подключить максимум <b>{max}</b> каналов.\n\n"
+            "⭐️ Перейдите на PRO, чтобы использовать без ограничений."
+        ),
+        "ch_pro_btn": "⭐️ Перейти на PRO",
+        "ch_success": (
+            "✅ <b>Канал успешно подключён!</b>\n\n"
+            "📢 Название: <b>{title}</b>\n"
+            "🆔 ID: <code>{channel_id}</code>\n\n"
+            "📋 <b>Ваши каналы ({count} шт.):</b>"
+        ),
+        "ch_success_footer": "Чтобы удалить канал или изменить стиль 👇",
+        "ch_taken": (
+            "🚫 <b>Этот канал уже подключён к другому пользователю.</b>\n\n"
+            "Присвоить его нельзя. Если это ваш канал — сначала владелец "
+            "должен удалить его из бота."
+        ),
+        "ch_save_error": "❌ Ошибка при сохранении канала.",
+        "ch_remove_not_found": "❌ Канал не найден или не принадлежит вам.",
+        "ch_no_perm_dm": (
+            "⚠️ <b>Бот добавлен администратором, но право отправки сообщений "
+            "(Post Messages) не выдано!</b>\n\n"
+            "📢 Канал: <b>{channel}</b>\n\n"
+            "Включите для бота право <b>Post Messages</b> в настройках канала — "
+            "после этого канал подключится автоматически."
+        ),
+        "ch_autoconnect_success": (
+            "🎉 <b>Вы назначили бота администратором канала {channel} — канал подключён!</b>\n\n"
+            "🆔 <code>{channel_id}</code>\n\n"
+            "Теперь вы можете планировать посты в этот канал 👇"
+        ),
+        "ch_default_title": "Telegram Канал",
+        "ch_tone_title": (
+            "🎭 <b>Выберите стиль канала:</b>\n\n"
+            "Текущий стиль: <b>{current}</b>\n\n"
+            "Стиль определяет тон и оформление постов:"
+        ),
+        "ch_tone_formal": "👔 Официальный / Бизнес",
+        "ch_tone_friendly": "😊 Дружелюбный / Тёплый",
+        "ch_tone_concise": "⚡️ Кратко / Новости",
+        "ch_tone_engaging": "🎉 Развлекательный / Эмоциональный",
+        "ch_tone_cancelled": "✅ Изменение стиля отменено.",
+        "ch_tone_invalid": "❌ Неверный стиль. Пожалуйста, нажмите одну из кнопок.",
+        "ch_tone_success": (
+            "✅ <b>Стиль канала обновлён!</b>\n\n"
+            "🎭 Новый стиль: <b>{tone}</b>\n\n"
+            "Теперь ИИ будет готовить посты в этом стиле."
+        ),
+        "ch_tone_error": "❌ Ошибка при сохранении стиля. Попробуйте ещё раз.",
+
+        # --- 3-QISM: 📅 Ожидающие посты i18n (RU) ---
+        "pend_empty": "⏳ <b>У вас нет ожидающих активных постов.</b>",
+        "pend_list_title": "⏳ <b>Ваши ожидающие посты ({count} шт.):</b>",
+        "pend_item": (
+            "🔹 <b>Пост: {code}</b>\n"
+            "📢 Канал: <b>{channel}</b>\n"
+            "📦 Тип: <b>{type}</b>\n"
+            "{time}\n\n"
+        ),
+        "pend_channel_fallback": "Канал",
+        "pend_edit_time_btn": "🕒 {code} время",
+        "pend_edit_content_btn": "✏️ {code} текст",
+        "pend_edit_btn_btn": "🔗 Кнопка",
+        "pend_edit_react_btn": "👍 Реакции",
+        "pend_cancel_btn": "❌ Отмена",
+        "pend_refresh_btn": "🔄 Обновить",
+        "pend_close_btn": "❌ Закрыть",
+        "pend_refreshed": "✅ Обновлено",
+        "pend_refresh_fail": "Не удалось обновить",
+        "pend_rate_limited": "⏳ Пожалуйста, подождите немного...",
+        "pend_error": "⚠️ Ошибка: {error}",
+        "pend_not_found": "❌ Пост не найден.",
+        "pend_not_owned": "❌ Этот пост не принадлежит вам.",
+        "pend_time_ask": (
+            "🕒 <b>Отправьте новое время выхода поста:</b>\n\n"
+            "• Для одноразового поста: <code>2026-08-30 20:00</code>\n"
+            "• Работает свободный формат: <code>завтра 18:00</code>, <code>сегодня 10:00</code>\n"
+            "• Для ежедневного поста только время: <code>10:00</code>"
+        ),
+        "pend_time_success": "✅ <b>Время поста успешно обновлено!</b>",
+        "pend_time_format": (
+            "⚠️ Ошибка формата! Например: <code>2026-08-30 20:00</code> или <code>10:00</code>"
+        ),
+        "pend_content_ask": (
+            "✏️ <b>Отправьте новый текст поста:</b>\n\n"
+            "Поддерживаются HTML-теги (<b>bold</b>, <i>italic</i>, <code>code</code>)."
+        ),
+        "pend_content_success": "✅ <b>Текст поста обновлён!</b>",
+        "pend_btn_ask": (
+            "🔗 <b>Отправьте новый текст кнопки:</b>\n\n"
+            "Формат: <code>Текст кнопки | https://ссылка.uz</code>\n"
+            "Чтобы удалить кнопку, напишите: <code>нет</code>."
+        ),
+        "pend_btn_removed": "✅ <b>Кнопка удалена!</b>",
+        "pend_btn_updated": "✅ <b>Кнопка обновлена:</b> <code>{text}</code>",
+        "pend_btn_format": (
+            "⚠️ Ошибка формата!\nНапример: <code>Подробнее | https://sayt.uz</code>\n"
+            "Или удалить: <code>нет</code>"
+        ),
+        "pend_react_ask": (
+            "👍 <b>Изменить реакции поста:</b>\n\nВыберите один из вариантов:"
+        ),
+        "pend_react_invalid": "⚠️ Выберите одну из кнопок:",
+        "pend_react_off": "✅ <b>Реакции отключены!</b>",
+        "pend_react_updated": "✅ <b>Реакции обновлены:</b> {emojis}",
+        "pend_react_on": "✅ <b>Реакции включены!</b>",
+        "pend_update_fail": "❌ Не удалось изменить.",
+        "pend_schedule_daily": "🔁 <b>Ежедневно</b>, в <b>{time}</b>",
+        "pend_schedule_weekly": "📅 <b>Каждый {day}</b>, в <b>{time}</b>",
+        "pend_schedule_once": "⏰ Время: <b>{time}</b>",
+        "pend_schedule_unknown": "⏰ Время: не указано",
+
+        # --- 3-QISM: ⏳ Очередь и слоты i18n (RU) ---
+        "queue_title": "📚 <b>Посты в очереди</b> ({count} шт.):",
+        "queue_title_range": "📚 <b>Посты в очереди</b> ({count} шт., {start}-{end}):",
+        "queue_empty": (
+            "📚 <b>Очередь (Queue)</b>\n\n"
+            "Пока в очереди нет постов.\n"
+            "Создайте пост и нажмите <b>⏳ Добавить в очередь</b>."
+        ),
+        "queue_empty_short": "📚 <b>Очередь (Queue)</b>\n\nВ очереди нет постов.",
+        "queue_limit_msg": (
+            "🚫 <b>Лимит очереди исчерпан!</b>\n\n"
+            "У вас <b>{current}/{max}</b> постов в очереди.\n"
+            "На бесплатном тарифе максимум <b>{max}</b> постов в очереди.\n\n"
+            "⭐️ Перейдите на PRO для безлимитной очереди."
+        ),
+        "queue_not_found": "⚠️ Пост не найден или уже удалён.",
+        "queue_not_found_short": "⚠️ Пост не найден!",
+        "queue_no_slot": "⚠️ Свободный слот не найден!",
+        "queue_deleted_alert": "🗑 Удалено!",
+        "queue_view_title": "👁 <b>Пост #{id}</b>",
+        "queue_view_channel": "📢 Канал: {channel}",
+        "queue_view_type": "📦 Тип: {type}",
+        "queue_view_time": "⏰ Время: {time}",
+        "queue_view_content": "📋 Текст:\n{content}",
+        "queue_view_button": "🔘 Кнопка: {text}",
+        "queue_view_reactions": "👍 Реакции: Включены",
+        "queue_view_auto_delete": "⏳ Авто-удаление: {hours} ч.",
+        "queue_btn_view": "👁 Смотреть #{id}",
+        "queue_btn_delete": "🗑 Удалить",
+        "queue_btn_push": "⏩ Сдвинуть",
+        "queue_btn_prev": "⬅️ Назад",
+        "queue_btn_next": "Вперёд ➡️",
+        "queue_btn_slots": "⚙️ Настроить слоты",
+        "queue_btn_close": "❌ Закрыть",
+        "queue_btn_back": "⬅️ Вернуться к списку",
+        "queue_btn_add_slot": "➕ Добавить слот",
+        "queue_btn_reset_slots": "🔄 Слоты по умолчанию",
+        "queue_slots_title": (
+            "⚙️ <b>Настройки слотов</b>\n\n"
+            "Текущие слоты: <code>{slots}</code>\n\n"
+            "Посты автоматически планируются на это время каждый день."
+        ),
+        "queue_slots_reset": (
+            "⚙️ <b>Настройки слотов</b>\n\n"
+            "Текущие слоты: <code>{slots}</code>\n\n"
+            "Слоты по умолчанию возвращены."
+        ),
+        "queue_slot_add_ask": (
+            "➕ <b>Добавление нового слота</b>\n\n"
+            "Формат времени: <code>HH:MM</code>\n"
+            "Например: <code>22:00</code>"
+        ),
+        "queue_slot_added": (
+            "✅ Слот добавлен: <code>{slot}</code>\n\n"
+            "⚙️ <b>Настройки слотов</b>\n\n"
+            "Текущие слоты: <code>{slots}</code>"
+        ),
+        "queue_slot_exists": "⚠️ <code>{slot}</code> уже существует!",
+        "queue_slot_max": "⚠️ Можно добавить максимум 10 слотов!",
+        "queue_slot_format": (
+            "⚠️ Неверный формат! Пишите в виде <code>HH:MM</code>.\n"
+            "Например: <code>22:00</code>"
+        ),
+        "queue_slot_min": "⚠️ Должен остаться хотя бы один слот!",
+        "queue_db_error": (
+            "📚 <b>Очередь (Queue)</b>\n\n"
+            "⚠️ Пока не удалось загрузить запланированные посты "
+            "(ошибка соединения с базой).\n"
+            "Пожалуйста, попробуйте ещё раз чуть позже."
+        ),
+        "queue_slot_reset_alert": "🔄 Слоты по умолчанию возвращены!",
+        "btn_pending": "⏳ Ожидающие посты",
+        "btn_queue": "📚 Очередь (Queue)",
     },
 }
 

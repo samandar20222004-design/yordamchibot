@@ -14,6 +14,11 @@ from keyboards.default import (
     BTN_T_5MIN, BTN_T_15MIN, BTN_T_1H, BTN_T_DAILY, BTN_T_WEEKLY,
     BTN_DUR_1W, BTN_DUR_1M, BTN_DUR_3M, BTN_DUR_6M, BTN_DUR_1Y, BTN_DUR_INF,
     WEEKDAY_MAP, WEEKDAY_LABELS,
+    BTN_ALL_CHANNELS_TARGET_RU, BTN_SKIP_BUTTON_RU, BTN_ADD_URL_BUTTON_RU,
+    BTN_SKIP_URL_BUTTON_RU, BTN_NO_REACT_RU, BTN_BACK_RU, BTN_BACK_TO_CONFIRM_RU,
+    BTN_T_5MIN_RU, BTN_T_15MIN_RU, BTN_T_1H_RU, BTN_T_DAILY_RU, BTN_T_WEEKLY_RU,
+    BTN_DUR_1W_RU, BTN_DUR_1M_RU, BTN_DUR_3M_RU, BTN_DUR_6M_RU, BTN_DUR_1Y_RU,
+    BTN_DUR_INF_RU, WEEKDAY_MAP_RU, WEEKDAY_LABELS_RU,
     get_main_keyboard, get_cancel_keyboard, get_button_prompt_keyboard,
     get_reactions_keyboard, get_auto_delete_keyboard, get_time_keyboard,
     get_duration_keyboard, get_weekday_keyboard
@@ -155,8 +160,8 @@ async def start_new_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
     channels_map = build_channel_labels(channels)
     keyboard = [[label] for label in channels_map]
     if len(channels) > 1:
-        keyboard.append([BTN_ALL_CHANNELS_TARGET])
-    keyboard.append([BTN_MAIN_MENU])
+        keyboard.append([get_text("np_btn_all_channels", lang)])
+    keyboard.append([get_text("btn_main_menu", lang)])
 
     context.user_data["channels_map"] = channels_map
     await update.message.reply_text(
@@ -167,23 +172,23 @@ async def start_new_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return CHOOSE_CHANNEL
 
 async def channel_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    lang = get_lang(context)
     text = update.message.text
-    if text == BTN_ALL_CHANNELS_TARGET:
+    if text in (BTN_ALL_CHANNELS_TARGET, BTN_ALL_CHANNELS_TARGET_RU):
         context.user_data["selected_channel_id"] = "ALL"
-        context.user_data["selected_channel_title"] = "🌐 Barchasi"
+        context.user_data["selected_channel_title"] = get_text("np_all_channel_title", lang)
     else:
         channels_map = context.user_data.get("channels_map", {})
         if text not in channels_map:
-            await update.message.reply_text("⚠️ Bunday kanal topilmadi. Qaytadan tanlang:")
+            await update.message.reply_text(get_text("np_channel_not_found", lang))
             return CHOOSE_CHANNEL
         context.user_data["selected_channel_id"] = channels_map[text]
         context.user_data["selected_channel_title"] = text
 
     await update.message.reply_text(
-        f"✅ Tanlandi: <b>{html_escape(context.user_data['selected_channel_title'])}</b>\n\n"
-        f"📝 <b>Post uchun kontentni yuboring:</b>\n"
-        f"(Matn, rasm, video, albom, hujjat, audio, ovozli xabar yoki stiker)",
-        reply_markup=get_cancel_keyboard(),
+        get_text("np_channel_selected", lang,
+                 channel=html_escape(context.user_data["selected_channel_title"])),
+        reply_markup=get_cancel_keyboard(lang),
         parse_mode="HTML"
     )
     return GET_CONTENT
@@ -222,15 +227,10 @@ def _apply_single_media(context, item):
     context.user_data["content"] = item.get("caption") or ""
 
 
-async def _ask_button_prompt(msg):
+async def _ask_button_prompt(msg, lang="uz"):
     await msg.reply_text(
-        "🔘 <b>Post ostiga havola tugma qo'shilsinmi?</b> (ixtiyoriy)\n\n"
-        "⚡️ <b>Tezkor usul:</b> tugma yozuvi va havolani bir qatorda yuboring:\n"
-        "<code>Button Text - https://link.com</code>\n\n"
-        "Yoki tayyor yozuvlardan tanlang / o'z yozuvingizni yuboring "
-        "(so'ng havola so'raladi).\n\n"
-        "Kerak bo'lmasa, <b>⏭ O'tkazib yuborish</b> tugmasini bosing:",
-        reply_markup=get_button_prompt_keyboard(),
+        get_text("np_button_ask", lang),
+        reply_markup=get_button_prompt_keyboard(lang),
         parse_mode="HTML"
     )
     return GET_BTN_TITLE
@@ -242,13 +242,11 @@ async def _ask_reactions_step(msg, context):
     Keyingi qadamga faqat "[➡️ Davom etish]" yoki "[⏭ Reaksiyasiz o'tish]"
     bosilganda o'tiladi (callback handlerlar orqali).
     """
+    lang = get_lang(context)
     selected = context.user_data.setdefault("selected_reactions", [])
     await msg.reply_text(
-        "👍 <b>Post ostiga qaysi reaksiya tugmalari qo'shilsin?</b>\n\n"
-        "Kerakli emojilarni bosing — ✅ belgilanadi (qayta bossangiz bekor bo'ladi).\n"
-        "Tanlab bo'lgach, <b>➡️ Davom etish</b> tugmasini bosing.\n"
-        "Reaksiya kerak bo'lmasa — <b>⏭ Reaksiyasiz o'tish</b>.",
-        reply_markup=get_reaction_toggle_keyboard(selected),
+        get_text("np_reactions_ask", lang),
+        reply_markup=get_reaction_toggle_keyboard(selected, lang),
         parse_mode="HTML"
     )
     return GET_REACTIONS
@@ -262,20 +260,21 @@ async def _proceed_after_reactions(msg, context, selected_emojis):
     kanal postida tugma sifatida chiqadi (faqat 6 ta standart emoji bilan
     chegaralanib qolmaydi).
     """
+    lang = get_lang(context)
     ordered = normalize_custom_reaction_emojis(selected_emojis)
     context.user_data["enable_reactions"] = bool(ordered)
     context.user_data["reaction_emojis"] = ordered
     await msg.reply_text(
-        "🗑️ <b>Post kanalda qancha vaqt tursin?</b>\n\n"
-        "Belgilangan vaqt o'tgach, bot uni kanaldan avtomatik o'chirib tashlaydi:",
-        reply_markup=get_auto_delete_keyboard(),
+        get_text("np_auto_delete_ask", lang),
+        reply_markup=get_auto_delete_keyboard(lang),
         parse_mode="HTML"
     )
     return GET_AUTO_DELETE
 
 
 def _build_preview_text(context) -> str:
-    """Confirmation ekrani uchun post preview matnini tuzadi."""
+    """Confirmation ekrani uchun post preview matnini tuzadi (uz/ru)."""
+    lang = get_lang(context)
     channel_title = context.user_data.get("selected_channel_title", "Kanal")
     post_type = context.user_data.get("post_type", "text")
     content = context.user_data.get("content", "")
@@ -289,73 +288,81 @@ def _build_preview_text(context) -> str:
     recurrence_day = context.user_data.get("confirm_recurrence_day")
 
     if recurrence_type == "daily" and recurrence_time_str:
-        when_text = f"🔁 Har kuni, soat {recurrence_time_str[:5]} da"
+        when_text = get_text("np_confirm_time_daily", lang, time=recurrence_time_str[:5])
     elif recurrence_type == "weekly" and recurrence_time_str:
-        day_label = WEEKDAY_LABELS.get(recurrence_day, "?")
-        when_text = f"📅 Har {day_label}, soat {recurrence_time_str[:5]} da"
+        day_label = (WEEKDAY_LABELS_RU if lang == "ru" else WEEKDAY_LABELS).get(recurrence_day, "?")
+        when_text = get_text("np_confirm_time_weekly", lang, day=day_label, time=recurrence_time_str[:5])
     elif post_time:
-        when_text = f"⏰ {post_time.strftime('%Y-%m-%d %H:%M')} (Toshkent vaqti)"
+        when_text = get_text("np_confirm_time_single", lang,
+                             time=post_time.strftime("%Y-%m-%d %H:%M"))
     else:
-        when_text = "⏰ Vaqt belgilanmagan"
+        when_text = get_text("np_confirm_time_none", lang)
 
     type_labels = {
-        "text": "📝 Matn", "photo": "🖼 Rasm", "video": "🎬 Video",
-        "document": "📄 Hujjat", "audio": "🎵 Audio", "voice": "🎙 Ovozli",
-        "sticker": "😀 Stiker", "album": "🖼 Albom", "animation": "🎞 GIF",
+        "text": "np_type_text", "photo": "np_type_photo", "video": "np_type_video",
+        "document": "np_type_document", "audio": "np_type_audio",
+        "voice": "np_type_voice", "sticker": "np_type_sticker",
+        "album": "np_type_album", "animation": "np_type_animation",
     }
-    type_text = type_labels.get(post_type, "📝 Xabar")
+    type_text = get_text(type_labels.get(post_type, "np_type_unknown"), lang)
 
     content_preview = ""
     if content:
         preview = content[:300]
         if len(content) > 300:
             preview += "…"
-        content_preview = f"\n\n📋 <b>Matn:</b>\n{safe_html(preview)}"
+        content_preview = "\n\n" + get_text("np_confirm_content", lang, content=safe_html(preview))
 
     btn_info = ""
     if btn_text and btn_url:
-        btn_info = f"\n🔘 Tugma: <b>{html_escape(btn_text)}</b>"
+        btn_info = "\n" + get_text("np_confirm_button", lang, text=html_escape(btn_text))
     react_info = ""
     if enable_reactions:
         # Qo'lda kiritilgan (kanondan tashqari) emojilar ham ko'rsatiladi.
         chosen_emojis = normalize_custom_reaction_emojis(context.user_data.get("reaction_emojis"))
-        react_info = f"\n👍 Reaksiyalar: {' '.join(chosen_emojis) if chosen_emojis else 'Yoqilgan'}"
-    del_info = f"\n⏳ Avto-o'chirish: {delete_after_hours} soat" if delete_after_hours > 0 else ""
+        react_info = "\n" + (
+            get_text("np_confirm_reactions", lang, emojis=" ".join(chosen_emojis))
+            if chosen_emojis else get_text("np_confirm_reactions_on", lang)
+        )
+    del_info = (
+        "\n" + get_text("np_confirm_auto_delete", lang, hours=delete_after_hours)
+        if delete_after_hours > 0 else ""
+    )
 
     return (
-        f"📋 <b>Postni tasdiqlang:</b>\n\n"
-        f"📢 <b>Kanal:</b> {html_escape(channel_title)}\n"
-        f"📦 <b>Turi:</b> {type_text}\n"
+        f"{get_text('np_confirm_title', lang)}\n\n"
+        f"{get_text('np_confirm_channel', lang, channel=html_escape(channel_title))}\n"
+        f"{get_text('np_confirm_type', lang, type=type_text)}\n"
         f"{when_text}"
         f"{content_preview}"
         f"{btn_info}{react_info}{del_info}"
     )
 
 
-def _get_confirm_keyboard():
-    """Tasdiqlash ekranidagi inline tugmalar."""
+def _get_confirm_keyboard(lang="uz"):
+    """Tasdiqlash ekranidagi inline tugmalar (uz/ru)."""
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("✅ Tasdiqlash va rejalashtirish", callback_data="confirm_post:ok")],
-        [InlineKeyboardButton("⚡️ Navbatga qo'yish (Queue)", callback_data="confirm_post:queue")],
+        [InlineKeyboardButton(get_text("np_confirm_ok_btn", lang), callback_data="confirm_post:ok")],
+        [InlineKeyboardButton(get_text("np_confirm_queue_btn", lang), callback_data="confirm_post:queue")],
         [
-            InlineKeyboardButton("✏️ Tahrirlash", callback_data="confirm_post:edit"),
-            InlineKeyboardButton("❌ Bekor qilish", callback_data="confirm_post:cancel"),
+            InlineKeyboardButton(get_text("np_confirm_edit_btn", lang), callback_data="confirm_post:edit"),
+            InlineKeyboardButton(get_text("np_confirm_cancel_btn", lang), callback_data="confirm_post:cancel"),
         ],
     ])
 
 
-def _get_edit_confirm_keyboard():
-    """Tahrirlash sub-menyusi tugmalari."""
+def _get_edit_confirm_keyboard(lang="uz"):
+    """Tahrirlash sub-menyusi tugmalari (uz/ru)."""
     return InlineKeyboardMarkup([
         [
-            InlineKeyboardButton("📝 Matn", callback_data="edit_field:content"),
-            InlineKeyboardButton("📢 Kanal", callback_data="edit_field:channel"),
+            InlineKeyboardButton(get_text("np_edit_content_btn", lang), callback_data="edit_field:content"),
+            InlineKeyboardButton(get_text("np_edit_channel_btn", lang), callback_data="edit_field:channel"),
         ],
         [
-            InlineKeyboardButton("⏰ Vaqt", callback_data="edit_field:time"),
-            InlineKeyboardButton("🔘 Tugma", callback_data="edit_field:btn"),
+            InlineKeyboardButton(get_text("np_edit_time_btn", lang), callback_data="edit_field:time"),
+            InlineKeyboardButton(get_text("np_edit_button_btn", lang), callback_data="edit_field:btn"),
         ],
-        [InlineKeyboardButton("⬅️ Orqaga (tasdiqlashga)", callback_data="edit_field:back")],
+        [InlineKeyboardButton(get_text("np_edit_back_btn", lang), callback_data="edit_field:back")],
     ])
 
 
@@ -441,7 +448,7 @@ async def _show_confirmation(target_msg, context):
     preview = _build_preview_text(context)
     post_type = context.user_data.get("post_type", "text")
     file_id = context.user_data.get("file_id")
-    keyboard = _get_confirm_keyboard()
+    keyboard = _get_confirm_keyboard(get_lang(context))
 
     bot = context.bot if getattr(context, "bot", None) is not None else target_msg
     chat_id = target_msg.chat_id
@@ -507,7 +514,7 @@ async def content_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
             context.user_data["post_type"] = "album"
             context.user_data["file_id"] = json.dumps(items, ensure_ascii=False)
             context.user_data["content"] = caption
-        return await _ask_button_prompt(msg)
+        return await _ask_button_prompt(msg, get_lang(context))
 
     item = _media_item_from_message(msg)
     if item:
@@ -517,17 +524,18 @@ async def content_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data["file_id"] = None
         context.user_data["content"] = msg.text or ""
 
-    return await _ask_button_prompt(msg)
+    return await _ask_button_prompt(msg, get_lang(context))
 
 async def btn_title_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    lang = get_lang(context)
     text = update.message.text.strip()
 
-    # AI Yordamchi tugmasi
-    if text == "✨ AI Yordamchi":
+    # AI Yordamchi tugmasi (uz/ru)
+    if text in (get_text("np_btn_ai_assistant", "uz"), get_text("np_btn_ai_assistant", "ru")):
         content = context.user_data.get("content", "")
         if not content:
             await update.message.reply_text(
-                "⚠️ <b>Post matni bo'sh.</b>\nAvval matn kiriting.",
+                get_text("np_ai_empty_content", lang),
                 parse_mode="HTML",
             )
             return GET_BTN_TITLE
@@ -535,28 +543,23 @@ async def btn_title_received(update: Update, context: ContextTypes.DEFAULT_TYPE)
         if len(content) > 200:
             preview += "…"
         await update.message.reply_text(
-            f"✨ <b>AI Yordamchi</b>\n\n"
-            f"📋 Joriy matn:\n<i>{html_escape(preview)}</i>\n\n"
-            f"Qaysi amalni bajaramiz?",
-            reply_markup=_get_ai_action_keyboard(),
+            get_text("np_ai_menu_title", lang, preview=html_escape(preview)),
+            reply_markup=_get_ai_action_keyboard(lang),
             parse_mode="HTML",
         )
         return GET_BTN_TITLE
 
     # Tugmasiz o'tish (eski va yangi "skip" tugmalari bir xil ishlaydi)
-    if text in (BTN_SKIP_BUTTON, BTN_SKIP_URL_BUTTON):
+    if text in (BTN_SKIP_BUTTON, BTN_SKIP_URL_BUTTON,
+                BTN_SKIP_BUTTON_RU, BTN_SKIP_URL_BUTTON_RU):
         context.user_data["btn_text"], context.user_data["btn_url"] = None, None
         return await _ask_reactions_step(update.message, context)
 
     # "🔗 URL tugma qo'shish" — bir qatorli tezkor formatga yo'naltirish
-    if text == BTN_ADD_URL_BUTTON:
+    if text in (BTN_ADD_URL_BUTTON, BTN_ADD_URL_BUTTON_RU):
         await update.message.reply_text(
-            "🔗 <b>URL tugma qo'shish</b>\n\n"
-            "Tugma yozuvi va havolani <b>bir qatorda, \" - \" bilan ajratib</b> yuboring:\n"
-            "<code>Button Text - https://link.com</code>\n\n"
-            "<i>Masalan:</i> <code>Saytga o'tish - https://sayt.uz</code> yoki\n"
-            "<code>Kanalim - @kanalim</code>",
-            reply_markup=get_cancel_keyboard(),
+            get_text("np_button_url_add_ask", lang),
+            reply_markup=get_cancel_keyboard(lang),
             parse_mode="HTML",
         )
         return GET_BTN_TITLE
@@ -568,28 +571,28 @@ async def btn_title_received(update: Update, context: ContextTypes.DEFAULT_TYPE)
         context.user_data["btn_text"] = btn_text
         context.user_data["btn_url"] = btn_url
         await update.message.reply_text(
-            f"✅ <b>Inline tugma tayyor:</b>\n"
-            f"🔘 Yozuv: <b>{html_escape(btn_text)}</b>\n"
-            f"🔗 Havola: <code>{html_escape(btn_url)}</code>",
+            get_text("np_button_ready", lang,
+                     title=html_escape(btn_text), url=html_escape(btn_url)),
             parse_mode="HTML",
         )
         return await _ask_reactions_step(update.message, context)
 
     context.user_data["btn_text"] = text
     await update.message.reply_text(
-        f"🔗 <b>'{html_escape(text)}'</b> tugmasi bosilganda ochiladigan havola yoki kanal username'ini yuboring:\n\n"
-        f"Masalan: <code>@kanalim</code> yoki <code>https://sayt.uz</code>\n\n"
-        f"<i>Yoki bir qatorda yuboring: <code>{html_escape(text)} - https://link.com</code></i>",
-        reply_markup=get_cancel_keyboard(),
+        get_text("np_button_url_ask", lang, title=html_escape(text)),
+        reply_markup=get_cancel_keyboard(lang),
         parse_mode="HTML"
     )
     return GET_BTN_URL
 
 async def btn_url_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    lang = get_lang(context)
     text = update.message.text.strip()
 
     # GET_BTN_URL holatida ham tezkor format ishlashi mumkin
-    if text in (BTN_SKIP_BUTTON, BTN_SKIP_URL_BUTTON) or text == BTN_ADD_URL_BUTTON:
+    if text in (BTN_SKIP_BUTTON, BTN_SKIP_URL_BUTTON,
+                BTN_SKIP_BUTTON_RU, BTN_SKIP_URL_BUTTON_RU,
+                BTN_ADD_URL_BUTTON, BTN_ADD_URL_BUTTON_RU):
         return await btn_title_received(update, context)
     one_liner = parse_url_button_line(text)
     if one_liner:
@@ -597,9 +600,8 @@ async def btn_url_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data["btn_text"] = btn_text
         context.user_data["btn_url"] = btn_url
         await update.message.reply_text(
-            f"✅ <b>Inline tugma tayyor:</b>\n"
-            f"🔘 Yozuv: <b>{html_escape(btn_text)}</b>\n"
-            f"🔗 Havola: <code>{html_escape(btn_url)}</code>",
+            get_text("np_button_ready", lang,
+                     title=html_escape(btn_text), url=html_escape(btn_url)),
             parse_mode="HTML",
         )
         return await _ask_reactions_step(update.message, context)
@@ -623,11 +625,15 @@ async def reactions_received(update: Update, context: ContextTypes.DEFAULT_TYPE)
     - "reaksiyasiz/yo'q/skip" — reaksiyasiz davom etiladi.
     - Boshqa matn — inline tugmalarni ishlatish eslatiladi.
     """
+    lang = get_lang(context)
     msg = update.message
     text = msg.text
     parsed = parse_reactions_input(text)
 
-    if parsed is False:
+    # Rus tilidagi "reaksiyasiz" tugma/so'zlar ham reaksiyasiz davom ettiradi.
+    ru_skip_words = ("без реакций", "нет", "пропустить", "отключить", "не надо")
+    if parsed is False or text in (BTN_NO_REACT, BTN_NO_REACT_RU) \
+            or (text or "").strip().lower() in ru_skip_words:
         return await _proceed_after_reactions(msg, context, [])
 
     if parsed is True:
@@ -646,9 +652,8 @@ async def reactions_received(update: Update, context: ContextTypes.DEFAULT_TYPE)
             # Foydalanuvchiga aniq emoji ko'rsatish uchun kanonik normalizatsiyani
             # qo'shimcha bajarib qo'yamiz (toggle ✅ belgilari uchun).
             await msg.reply_text(
-                f"✅ Tanlanganlar: {' '.join(selected)}\n"
-                f"Yana emoji qo'shishingiz yoki <b>➡️ Davom etish</b> ni bosishingiz mumkin:",
-                reply_markup=get_reaction_toggle_keyboard(selected),
+                get_text("np_reactions_selected", lang, emojis=" ".join(selected)),
+                reply_markup=get_reaction_toggle_keyboard(selected, lang),
                 parse_mode="HTML",
             )
             return GET_REACTIONS
@@ -657,11 +662,8 @@ async def reactions_received(update: Update, context: ContextTypes.DEFAULT_TYPE)
         return await _proceed_after_reactions(msg, context, selected)
 
     await msg.reply_text(
-        "⚠️ <b>Iltimos, pastdagi inline tugmalardan foydalaning:</b>\n"
-        "• Emojilarni bosib tanlang (✅ belgilanadi)\n"
-        "• <b>➡️ Davom etish</b> — tanlanganlar bilan keyingi qadam\n"
-        "• <b>⏭ Reaksiyasiz o'tish</b> — reaksiyasiz",
-        reply_markup=get_reaction_toggle_keyboard(context.user_data.get("selected_reactions", [])),
+        get_text("np_reactions_use_inline", lang),
+        reply_markup=get_reaction_toggle_keyboard(context.user_data.get("selected_reactions", []), lang),
         parse_mode="HTML",
     )
     return GET_REACTIONS
@@ -684,7 +686,9 @@ async def reaction_toggle_callback(update: Update, context: ContextTypes.DEFAULT
         selected.append(emoji)
 
     try:
-        await query.edit_message_reply_markup(reply_markup=get_reaction_toggle_keyboard(selected))
+        await query.edit_message_reply_markup(
+            reply_markup=get_reaction_toggle_keyboard(selected, get_lang(context))
+        )
     except Exception:
         pass
     return GET_REACTIONS
@@ -698,7 +702,7 @@ async def reactions_done_callback(update: Update, context: ContextTypes.DEFAULT_
     selected = normalize_custom_reaction_emojis(context.user_data.get("selected_reactions"))
     if not selected:
         await query.message.reply_text(
-            "ℹ️ Hech qanday reaksiya tanlanmadi — post reaksiyalarsiz chiqadi.",
+            get_text("np_reactions_none", get_lang(context)),
             parse_mode="HTML",
         )
     return await _proceed_after_reactions(query.message, context, selected)
@@ -725,13 +729,12 @@ async def auto_delete_received(update: Update, context: ContextTypes.DEFAULT_TYP
 
     context.user_data["delete_after_hours"] = hours
 
+    lang = get_lang(context)
     now = datetime.now(tashkent_tz)
     example = (now + timedelta(days=1)).strftime("%Y-%m-%d %H:%M")
     await update.message.reply_text(
-        "🕒 <b>Post qaysi vaqtda chiqsin?</b>\n\n"
-        "Tayyor tugmalardan tanlang yoki aniq vaqtni yozing:\n"
-        f"Namuna: <code>{example}</code>",
-        reply_markup=get_time_keyboard(),
+        get_text("np_time_ask", lang, example=example),
+        reply_markup=get_time_keyboard(lang),
         parse_mode="HTML"
     )
     return GET_TIME
@@ -771,44 +774,53 @@ async def _save_and_finish(update, context, post_time, recurrence_type='none', r
         if pid:
             ok_count += 1
 
+    lang = get_lang(context)
     if ok_count:
         if recurrence_type == 'daily':
-            when_text = f"🔁 Har kuni, soat {recurrence_time_str[:5]} da"
+            when_text = get_text("np_scheduled_when_daily", lang, time=recurrence_time_str[:5])
         elif recurrence_type == 'weekly':
-            when_text = f"📅 Har {WEEKDAY_LABELS.get(recurrence_day)}, soat {recurrence_time_str[:5]} da"
+            day_label = (WEEKDAY_LABELS_RU if lang == "ru" else WEEKDAY_LABELS).get(recurrence_day, "?")
+            when_text = get_text("np_scheduled_when_weekly", lang, day=day_label, time=recurrence_time_str[:5])
         else:
-            when_text = f"⏰ {post_time_tz.strftime('%Y-%m-%d %H:%M')}"
+            when_text = get_text("np_scheduled_when_single", lang,
+                                 time=post_time_tz.strftime("%Y-%m-%d %H:%M"))
 
-        del_info = f"\n⏳ Kanalda turish muddati: <b>{delete_after_hours} soat</b>" if delete_after_hours > 0 else ""
+        del_info = get_text("np_scheduled_del", lang, hours=delete_after_hours) if delete_after_hours > 0 else ""
         await update.message.reply_text(
-            f"✅ <b>Post muvaffaqiyatli rejalashtirildi!</b>\n\n"
-            f"📢 Joylash: <b>{html_escape(channel_title)}</b>\n"
-            f"{when_text}{del_info}",
+            get_text("np_scheduled_ok", lang,
+                     channel=html_escape(channel_title), when=when_text, del_info=del_info),
             reply_markup=get_main_keyboard(is_admin, context=context),
             parse_mode="HTML"
         )
     else:
-        await update.message.reply_text("❌ Saqlashda xatolik yuz berdi.", reply_markup=get_main_keyboard(is_admin, context=context), parse_mode="HTML")
+        await update.message.reply_text(
+            get_text("np_save_error", lang),
+            reply_markup=get_main_keyboard(is_admin, context=context),
+            parse_mode="HTML"
+        )
     clear_fsm_data(context)
 
 async def time_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    lang = get_lang(context)
     text = update.message.text
     now = datetime.now(tashkent_tz)
 
-    if text == BTN_T_DAILY:
-        await update.message.reply_text("🔁 <b>Har kuni soat nechida chiqsin?</b>\nMasalan: <code>10:00</code> yoki <code>18:30</code>", reply_markup=get_cancel_keyboard(), parse_mode="HTML")
+    if text in (BTN_T_DAILY, BTN_T_DAILY_RU):
+        await update.message.reply_text(
+            get_text("np_daily_time_ask", lang), reply_markup=get_cancel_keyboard(lang), parse_mode="HTML")
         return DAILY_TIME
-    elif text == BTN_T_WEEKLY:
-        await update.message.reply_text("📅 <b>Haftaning qaysi kuni chiqsin?</b>", reply_markup=get_weekday_keyboard(), parse_mode="HTML")
+    elif text in (BTN_T_WEEKLY, BTN_T_WEEKLY_RU):
+        await update.message.reply_text(
+            get_text("np_weekday_ask", lang), reply_markup=get_weekday_keyboard(lang), parse_mode="HTML")
         return RECUR_DAY
 
     post_time = None
     try:
-        if text == BTN_T_5MIN:
+        if text in (BTN_T_5MIN, BTN_T_5MIN_RU):
             post_time = now + timedelta(minutes=5)
-        elif text == BTN_T_15MIN:
+        elif text in (BTN_T_15MIN, BTN_T_15MIN_RU):
             post_time = now + timedelta(minutes=15)
-        elif text == BTN_T_1H:
+        elif text in (BTN_T_1H, BTN_T_1H_RU):
             post_time = now + timedelta(hours=1)
         else:
             post_time = parse_future_time(text.strip(), now)
@@ -817,10 +829,10 @@ async def time_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 post_time = tashkent_tz.localize(naive_time)
 
         if post_time is None or post_time <= now:
-            await update.message.reply_text("⚠️ Kelajakdagi vaqtni kiriting:")
+            await update.message.reply_text(get_text("np_time_future", lang))
             return GET_TIME
     except Exception:
-        await update.message.reply_text("⚠️ Format xato! Masalan: <code>2026-08-30 18:00</code> yoki <code>18:00</code> shaklida yuboring.", parse_mode="HTML")
+        await update.message.reply_text(get_text("np_time_format_error", lang), parse_mode="HTML")
         return GET_TIME
 
     # Confirmation ekranini ko'rsatish
@@ -833,12 +845,14 @@ async def time_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return CONFIRM_POST
 
 async def daily_time_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    lang = get_lang(context)
     text = update.message.text.strip()
     try:
         hh, mm = map(int, text.split(":"))
         assert 0 <= hh < 24 and 0 <= mm < 60
     except Exception:
-        await update.message.reply_text("⚠️ Noto'g'ri vaqt formati. Masalan: <code>10:00</code>", parse_mode="HTML")
+        await update.message.reply_text(
+            get_text("np_daily_time_format", lang), parse_mode="HTML")
         return DAILY_TIME
 
     now = datetime.now(tashkent_tz)
@@ -851,26 +865,38 @@ async def daily_time_received(update: Update, context: ContextTypes.DEFAULT_TYPE
     context.user_data["rec_time_str"] = f"{hh:02d}:{mm:02d}:00"
     context.user_data["rec_day"] = None
 
-    await update.message.reply_text("⏳ <b>Post qancha muddat davomida har kuni chiqsin?</b>", reply_markup=get_duration_keyboard(), parse_mode="HTML")
+    await update.message.reply_text(
+        get_text("np_duration_ask_daily", lang),
+        reply_markup=get_duration_keyboard(lang),
+        parse_mode="HTML"
+    )
     return GET_DURATION
 
 async def recur_day_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    lang = get_lang(context)
     text = update.message.text
-    if text not in WEEKDAY_MAP:
-        await update.message.reply_text("⚠️ Kunlardan birini tanlang:")
+    day_idx = WEEKDAY_MAP_RU.get(text) if text in WEEKDAY_MAP_RU else WEEKDAY_MAP.get(text)
+    if day_idx is None:
+        await update.message.reply_text(get_text("np_weekday_invalid", lang))
         return RECUR_DAY
 
-    context.user_data["rec_day"] = WEEKDAY_MAP[text]
-    await update.message.reply_text(f"🕒 <b>Har {text} soat nechida chiqsin?</b>\nMasalan: <code>10:00</code>", reply_markup=get_cancel_keyboard(), parse_mode="HTML")
+    context.user_data["rec_day"] = day_idx
+    await update.message.reply_text(
+        get_text("np_recur_time_ask", lang, day=text),
+        reply_markup=get_cancel_keyboard(lang),
+        parse_mode="HTML"
+    )
     return RECUR_TIME
 
 async def recur_time_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    lang = get_lang(context)
     text = update.message.text.strip()
     try:
         hh, mm = map(int, text.split(":"))
         assert 0 <= hh < 24 and 0 <= mm < 60
     except Exception:
-        await update.message.reply_text("⚠️ Noto'g'ri format! Masalan: <code>10:00</code>", parse_mode="HTML")
+        await update.message.reply_text(
+            get_text("np_recur_time_format", lang), parse_mode="HTML")
         return RECUR_TIME
 
     now = datetime.now(tashkent_tz)
@@ -884,29 +910,34 @@ async def recur_time_received(update: Update, context: ContextTypes.DEFAULT_TYPE
     context.user_data["rec_type"] = "weekly"
     context.user_data["rec_time_str"] = f"{hh:02d}:{mm:02d}:00"
 
-    await update.message.reply_text("⏳ <b>Ushbu post qancha muddat davomida chiqsin?</b>", reply_markup=get_duration_keyboard(), parse_mode="HTML")
+    await update.message.reply_text(
+        get_text("np_duration_ask_weekly", lang),
+        reply_markup=get_duration_keyboard(lang),
+        parse_mode="HTML"
+    )
     return GET_DURATION
 
 async def duration_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    lang = get_lang(context)
     text = update.message.text
     now = datetime.now(tashkent_tz)
     end_date = None
 
-    if text == BTN_DUR_1W:
+    if text in (BTN_DUR_1W, BTN_DUR_1W_RU):
         # Yangi: post har kuni roppa-rosa 1 hafta (7 kun) davomida chiqadi
         end_date = now + timedelta(days=7)
-    elif text == BTN_DUR_1M:
+    elif text in (BTN_DUR_1M, BTN_DUR_1M_RU):
         end_date = now + timedelta(days=30)
-    elif text == BTN_DUR_3M:
+    elif text in (BTN_DUR_3M, BTN_DUR_3M_RU):
         end_date = now + timedelta(days=90)
-    elif text == BTN_DUR_6M:
+    elif text in (BTN_DUR_6M, BTN_DUR_6M_RU):
         end_date = now + timedelta(days=180)
-    elif text == BTN_DUR_1Y:
+    elif text in (BTN_DUR_1Y, BTN_DUR_1Y_RU):
         end_date = now + timedelta(days=365)
-    elif text == BTN_DUR_INF:
+    elif text in (BTN_DUR_INF, BTN_DUR_INF_RU):
         end_date = None
     else:
-        await update.message.reply_text("⚠️ Variantlardan birini tanlang:")
+        await update.message.reply_text(get_text("np_duration_invalid", lang))
         return GET_DURATION
 
     # Confirmation ekranini ko'rsatish
@@ -932,6 +963,8 @@ async def confirm_post_callback(update: Update, context: ContextTypes.DEFAULT_TY
     user_id = query.from_user.id
     is_admin = (user_id in ADMIN_IDS_SET)
 
+    lang = get_lang(context)
+
     if action == "cancel":
         clear_fsm_data(context)
         try:
@@ -939,7 +972,7 @@ async def confirm_post_callback(update: Update, context: ContextTypes.DEFAULT_TY
         except Exception:
             pass
         await query.message.reply_text(
-            "🚫 <b>Post bekor qilindi.</b>\nAsosiy menyuga qaytdingiz 👇",
+            get_text("np_cancelled", lang),
             reply_markup=get_main_keyboard(is_admin, context=context),
             parse_mode="HTML",
         )
@@ -947,8 +980,8 @@ async def confirm_post_callback(update: Update, context: ContextTypes.DEFAULT_TY
 
     if action == "edit":
         await query.message.reply_text(
-            "✏️ <b>Qaysi qismini tahrirlash kerak?</b>",
-            reply_markup=_get_edit_confirm_keyboard(),
+            get_text("np_edit_menu_title", lang),
+            reply_markup=_get_edit_confirm_keyboard(lang),
             parse_mode="HTML",
         )
         return EDIT_CONFIRM_FIELD
@@ -957,7 +990,7 @@ async def confirm_post_callback(update: Update, context: ContextTypes.DEFAULT_TY
         selected_channel_id = context.user_data.get("selected_channel_id")
         if not selected_channel_id:
             await query.message.reply_text(
-                "⚠️ <b>Kanal tanlanmagan.</b>",
+                get_text("np_no_channel", lang),
                 reply_markup=get_main_keyboard(is_admin, context=context),
                 parse_mode="HTML",
             )
@@ -991,7 +1024,7 @@ async def confirm_post_callback(update: Update, context: ContextTypes.DEFAULT_TY
 
         if not slot_dt:
             await query.message.reply_text(
-                "⚠️ <b>Bo'sh slot topilmadi.</b>\n7 kun ichida barcha slotlar band.",
+                get_text("np_no_slot", lang),
                 reply_markup=get_main_keyboard(is_admin, context=context),
                 parse_mode="HTML",
             )
@@ -1038,16 +1071,21 @@ async def confirm_post_callback(update: Update, context: ContextTypes.DEFAULT_TY
         if ok_count:
             time_str = slot_dt.strftime("%H:%M")
             ad_line = await get_auto_ad_injection_async(user_id)
+            # db.find_next_queue_slot "Bugun"/"Ertaga" qaytaradi — RU'ga o'giramiz.
+            label_ru = {"Bugun": get_text("np_label_today", "ru"),
+                        "Ertaga": get_text("np_label_tomorrow", "ru")}.get(label, label)
+            label_uz = {"Bugun": get_text("np_label_today", "uz"),
+                        "Ertaga": get_text("np_label_tomorrow", "uz")}.get(label, label)
+            label_i18n = label_ru if lang == "ru" else label_uz
             await query.message.reply_text(
-                f"⚡️ <b>Post navbatga qo'yildi!</b>\n\n"
-                f"📅 {label}, soat {time_str}\n"
-                f"📢 Kanal: <b>{html_escape(channel_title)}</b>{ad_line}",
+                get_text("np_queue_added", lang, label=label_i18n, time=time_str,
+                         channel=html_escape(channel_title), ad_line=ad_line or ""),
                 reply_markup=get_main_keyboard(is_admin, context=context),
                 parse_mode="HTML",
             )
         else:
             await query.message.reply_text(
-                "❌ <b>Navbatga qo'yishda xatolik.</b>",
+                get_text("np_queue_error", lang),
                 reply_markup=get_main_keyboard(is_admin, context=context),
                 parse_mode="HTML",
             )
@@ -1062,7 +1100,11 @@ async def confirm_post_callback(update: Update, context: ContextTypes.DEFAULT_TY
     end_date = context.user_data.get("confirm_end_date")
 
     if not post_time:
-        await query.message.reply_text("⚠️ <b>Vaqt belgilanmagan.</b>", reply_markup=get_main_keyboard(is_admin, context=context), parse_mode="HTML")
+        await query.message.reply_text(
+            get_text("np_no_time", lang),
+            reply_markup=get_main_keyboard(is_admin, context=context),
+            parse_mode="HTML"
+        )
         clear_fsm_data(context)
         return ConversationHandler.END
 
@@ -1107,23 +1149,28 @@ async def confirm_post_callback(update: Update, context: ContextTypes.DEFAULT_TY
 
     if ok_count:
         if recurrence_type == "daily" and recurrence_time_str:
-            when_text = f"🔁 Har kuni, soat {recurrence_time_str[:5]} da"
+            when_text = get_text("np_scheduled_when_daily", lang, time=recurrence_time_str[:5])
         elif recurrence_type == "weekly" and recurrence_time_str:
-            day_label = WEEKDAY_LABELS.get(recurrence_day, "?")
-            when_text = f"📅 Har {day_label}, soat {recurrence_time_str[:5]} da"
+            day_label = (WEEKDAY_LABELS_RU if lang == "ru" else WEEKDAY_LABELS).get(recurrence_day, "?")
+            when_text = get_text("np_scheduled_when_weekly", lang, day=day_label, time=recurrence_time_str[:5])
         else:
-            when_text = f"⏰ {post_time_tz.strftime('%Y-%m-%d %H:%M')}"
-        del_info = f"\n⏳ Kanalda turish muddati: <b>{delete_after_hours} soat</b>" if delete_after_hours > 0 else ""
+            when_text = get_text("np_scheduled_when_single", lang,
+                                 time=post_time_tz.strftime("%Y-%m-%d %H:%M"))
+        del_info = get_text("np_scheduled_del", lang, hours=delete_after_hours) if delete_after_hours > 0 else ""
         ad_line = await get_auto_ad_injection_async(user_id)
         await query.message.reply_text(
-            f"✅ <b>Post muvaffaqiyatli rejalashtirildi!</b>\n\n"
-            f"📢 Joylash: <b>{html_escape(channel_title)}</b>\n"
-            f"{when_text}{del_info}{ad_line}",
+            get_text("np_scheduled_ok", lang,
+                     channel=html_escape(channel_title), when=when_text,
+                     del_info=del_info) + (ad_line or ""),
             reply_markup=get_main_keyboard(is_admin, context=context),
             parse_mode="HTML"
         )
     else:
-        await query.message.reply_text("❌ <b>Saqlashda xatolik.</b>", reply_markup=get_main_keyboard(is_admin, context=context), parse_mode="HTML")
+        await query.message.reply_text(
+            get_text("np_save_error_bold", lang),
+            reply_markup=get_main_keyboard(is_admin, context=context),
+            parse_mode="HTML"
+        )
     clear_fsm_data(context)
     return ConversationHandler.END
 
@@ -1142,33 +1189,51 @@ async def edit_confirm_field_callback(update: Update, context: ContextTypes.DEFA
         await _show_confirmation(query.message, context)
         return CONFIRM_POST
 
+    lang = get_lang(context)
+
     if field == "content":
-        await query.message.reply_text("📝 <b>Yangi matn yuboring:</b>", reply_markup=get_cancel_keyboard(), parse_mode="HTML")
+        await query.message.reply_text(
+            get_text("np_edit_content_ask", lang),
+            reply_markup=get_cancel_keyboard(lang),
+            parse_mode="HTML"
+        )
         return EDIT_CONFIRM_FIELD
 
     if field == "channel":
         user_id = query.from_user.id
         channels = await db.run_db(db.get_user_channels, user_id)
         if not channels:
-            await query.message.reply_text("⚠️ Kanal topilmadi.")
+            await query.message.reply_text(get_text("np_edit_channel_not_found", lang))
             return EDIT_CONFIRM_FIELD
         channels_map = build_channel_labels(channels)
         keyboard = [[label] for label in channels_map]
         if len(channels) > 1:
-            keyboard.append([BTN_ALL_CHANNELS_TARGET])
-        keyboard.append(["🔙 Orqaga"])
+            keyboard.append([get_text("np_btn_all_channels", lang)])
+        keyboard.append([get_text("np_btn_back_confirm", lang)])
         context.user_data["edit_channels_map"] = channels_map
-        await query.message.reply_text("📢 <b>Qaysi kanal?</b>", reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True), parse_mode="HTML")
+        await query.message.reply_text(
+            get_text("np_edit_channel_ask", lang),
+            reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True),
+            parse_mode="HTML"
+        )
         return EDIT_CONFIRM_FIELD
 
     if field == "time":
         now = datetime.now(tashkent_tz)
         example = (now + timedelta(days=1)).strftime("%Y-%m-%d %H:%M")
-        await query.message.reply_text(f"🕒 <b>Yangi vaqt:</b> <code>{example}</code>", reply_markup=get_time_keyboard(), parse_mode="HTML")
+        await query.message.reply_text(
+            get_text("np_edit_time_ask", lang, example=example),
+            reply_markup=get_time_keyboard(lang),
+            parse_mode="HTML"
+        )
         return EDIT_CONFIRM_FIELD
 
     if field == "btn":
-        await query.message.reply_text("🔘 <b>Tugma:</b> <code>Matn | https://havola.uz</code>\nO'chirish: <code>yo'q</code>", reply_markup=get_cancel_keyboard(), parse_mode="HTML")
+        await query.message.reply_text(
+            get_text("np_edit_button_ask", lang),
+            reply_markup=get_cancel_keyboard(lang),
+            parse_mode="HTML"
+        )
         return EDIT_CONFIRM_FIELD
 
     return EDIT_CONFIRM_FIELD
@@ -1176,17 +1241,20 @@ async def edit_confirm_field_callback(update: Update, context: ContextTypes.DEFA
 
 async def edit_confirm_message_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """EDIT_CONFIRM_FIELD holatida matn qabul qilish."""
+    lang = get_lang(context)
     text = (update.message.text or "").strip()
 
-    if text in ("🔙 Orqaga", BTN_BACK, BTN_MAIN_MENU):
+    if text in (get_text("np_btn_back_confirm", "uz"), BTN_BACK, BTN_MAIN_MENU,
+                get_text("np_btn_back_confirm", "ru"), BTN_BACK_RU,
+                BTN_BACK_TO_CONFIRM_RU):
         await _show_confirmation(update.message, context)
         return CONFIRM_POST
 
     edit_channels_map = context.user_data.get("edit_channels_map")
     if edit_channels_map:
-        if text == BTN_ALL_CHANNELS_TARGET:
+        if text in (get_text("np_btn_all_channels", "uz"), get_text("np_btn_all_channels", "ru")):
             context.user_data["selected_channel_id"] = "ALL"
-            context.user_data["selected_channel_title"] = "🌐 Barchasi"
+            context.user_data["selected_channel_title"] = get_text("np_all_channel_title", lang)
             context.user_data.pop("edit_channels_map", None)
             await _show_confirmation(update.message, context)
             return CONFIRM_POST
@@ -1200,11 +1268,11 @@ async def edit_confirm_message_received(update: Update, context: ContextTypes.DE
     now = datetime.now(tashkent_tz)
     new_time = None
     try:
-        if text == BTN_T_5MIN:
+        if text in (BTN_T_5MIN, BTN_T_5MIN_RU):
             new_time = now + timedelta(minutes=5)
-        elif text == BTN_T_15MIN:
+        elif text in (BTN_T_15MIN, BTN_T_15MIN_RU):
             new_time = now + timedelta(minutes=15)
-        elif text == BTN_T_1H:
+        elif text in (BTN_T_1H, BTN_T_1H_RU):
             new_time = now + timedelta(hours=1)
         else:
             new_time = parse_future_time(text, now)
@@ -1239,13 +1307,14 @@ async def edit_confirm_message_received(update: Update, context: ContextTypes.DE
         await _show_confirmation(update.message, context)
         return CONFIRM_POST
 
-    if text.lower() in ("yo'q", "yoq", "none", "-", "o'chir"):
+    if text.lower() in ("yo'q", "yoq", "none", "-", "o'chir", "нет", "удалить"):
         context.user_data["btn_text"] = None
         context.user_data["btn_url"] = None
         await _show_confirmation(update.message, context)
         return CONFIRM_POST
 
-    if text and text not in (BTN_T_DAILY, BTN_T_WEEKLY, BTN_BACK, BTN_MAIN_MENU):
+    if text and text not in (BTN_T_DAILY, BTN_T_WEEKLY, BTN_T_DAILY_RU, BTN_T_WEEKLY_RU,
+                             BTN_BACK, BTN_MAIN_MENU, BTN_BACK_RU):
         # Caption/text editing must never discard the original media.  Only a
         # newly uploaded media message is allowed to replace type/file_id.
         context.user_data["content"] = text
@@ -1273,29 +1342,29 @@ async def edit_confirm_media_received(update: Update, context: ContextTypes.DEFA
 # AI FORMATTING ACTIONS
 # ============================================================
 
-def _get_ai_action_keyboard():
-    """AI harakatlari keyboard."""
+def _get_ai_action_keyboard(lang="uz"):
+    """AI harakatlari keyboard (uz/ru)."""
     return InlineKeyboardMarkup([
         [
-            InlineKeyboardButton("✍️ Imlo va uslub", callback_data="ai_act:grammar"),
-            InlineKeyboardButton("🎨 Emojilar", callback_data="ai_act:emoji"),
+            InlineKeyboardButton(get_text("np_ai_action_grammar", lang), callback_data="ai_act:grammar"),
+            InlineKeyboardButton(get_text("np_ai_action_emoji", lang), callback_data="ai_act:emoji"),
         ],
         [
-            InlineKeyboardButton("🏷 Hashtaglar", callback_data="ai_act:hashtags"),
-            InlineKeyboardButton("✂️ Qisqartirish", callback_data="ai_act:tldr"),
+            InlineKeyboardButton(get_text("np_ai_action_hashtags", lang), callback_data="ai_act:hashtags"),
+            InlineKeyboardButton(get_text("np_ai_action_tldr", lang), callback_data="ai_act:tldr"),
         ],
-        [InlineKeyboardButton("⬅️ Orqaga", callback_data="ai_act:back")],
+        [InlineKeyboardButton(get_text("np_ai_btn_back", lang), callback_data="ai_act:back")],
     ])
 
 
-def _get_ai_result_keyboard():
-    """AI natijasidan keyin tasdiqlash keyboard."""
+def _get_ai_result_keyboard(lang="uz"):
+    """AI natijasidan keyin tasdiqlash keyboard (uz/ru)."""
     return InlineKeyboardMarkup([
         [
-            InlineKeyboardButton("✅ Qabul qilish", callback_data="ai_res:accept"),
-            InlineKeyboardButton("🔄 Qayta urinish", callback_data="ai_res:retry"),
+            InlineKeyboardButton(get_text("np_ai_btn_accept", lang), callback_data="ai_res:accept"),
+            InlineKeyboardButton(get_text("np_ai_btn_retry", lang), callback_data="ai_res:retry"),
         ],
-        [InlineKeyboardButton("❌ Asl holatga qaytarish", callback_data="ai_res:revert")],
+        [InlineKeyboardButton(get_text("np_ai_btn_revert", lang), callback_data="ai_res:revert")],
     ])
 
 
@@ -1303,10 +1372,11 @@ async def ai_action_menu_callback(update: Update, context: ContextTypes.DEFAULT_
     """AI harakatlari menyusini ko'rsatadi."""
     query = update.callback_query
     await query.answer()
+    lang = get_lang(context)
     content = context.user_data.get("content", "")
     if not content:
         await query.message.reply_text(
-            "⚠️ <b>Post matni bo'sh.</b>\nAvval matn kiriting.",
+            get_text("np_ai_empty_content", lang),
             parse_mode="HTML",
         )
         return GET_BTN_TITLE
@@ -1315,10 +1385,8 @@ async def ai_action_menu_callback(update: Update, context: ContextTypes.DEFAULT_
     if len(content) > 200:
         preview += "…"
     await query.message.reply_text(
-        f"✨ <b>AI Yordamchi</b>\n\n"
-        f"📋 Joriy matn:\n<i>{html_escape(preview)}</i>\n\n"
-        f"Qaysi amalni bajaramiz?",
-        reply_markup=_get_ai_action_keyboard(),
+        get_text("np_ai_menu_title", lang, preview=html_escape(preview)),
+        reply_markup=_get_ai_action_keyboard(lang),
         parse_mode="HTML",
     )
     return GET_BTN_TITLE
@@ -1328,6 +1396,7 @@ async def ai_action_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
     """AI harakati tugmasi bosilganda."""
     query = update.callback_query
     data = query.data
+    lang = get_lang(context)
     action = data.split(":", 1)[1] if ":" in data else ""
 
     if action == "back":
@@ -1336,10 +1405,10 @@ async def ai_action_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     content = context.user_data.get("content", "")
     if not content:
-        await query.answer("⚠️ Matn bo'sh!", show_alert=True)
+        await query.answer(get_text("np_ai_empty_alert", lang), show_alert=True)
         return GET_BTN_TITLE
 
-    await query.answer("⏳ AI ishlayapti...")
+    await query.answer(get_text("np_ai_working", lang))
 
     # Asl matnni saqlab qolish (revert uchun)
     context.user_data["ai_original_content"] = content
@@ -1353,7 +1422,8 @@ async def ai_action_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     formatted = result.get("formatted", "")
     if not formatted:
-        await query.message.reply_text("⚠️ AI javobi bo'sh. Asl matn saqlab qolindi.", parse_mode="HTML")
+        await query.message.reply_text(
+            get_text("np_ai_empty_result", lang), parse_mode="HTML")
         return GET_BTN_TITLE
 
     context.user_data["ai_proposed_content"] = formatted
@@ -1367,9 +1437,9 @@ async def ai_action_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
         new_preview += "…"
 
     await query.message.reply_text(
-        f"✨ <b>AI taklifi:</b>\n\n{safe_html(new_preview)}\n\n"
-        f"📝 Asl: <i>{html_escape(old_preview)}</i>",
-        reply_markup=_get_ai_result_keyboard(),
+        get_text("np_ai_proposal", lang, new=safe_html(new_preview),
+                 old=html_escape(old_preview)),
+        reply_markup=_get_ai_result_keyboard(lang),
         parse_mode="HTML",
     )
     return GET_BTN_TITLE
@@ -1379,6 +1449,7 @@ async def ai_result_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
     """AI natijasini qabul qilish / rad etish."""
     query = update.callback_query
     data = query.data
+    lang = get_lang(context)
     action = data.split(":", 1)[1] if ":" in data else ""
 
     if action == "accept":
@@ -1392,9 +1463,9 @@ async def ai_result_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
         context.user_data.pop("ai_original_content", None)
         context.user_data.pop("ai_proposed_content", None)
         context.user_data.pop("ai_last_action", None)
-        await query.answer("✅ Qabul qilindi!")
+        await query.answer(get_text("np_ai_accepted_alert", lang))
         await query.message.reply_text(
-            f"✅ <b>Yangi matn qabul qilindi!</b>\n\n{safe_html(proposed[:300])}",
+            get_text("np_ai_accept_msg", lang, content=safe_html(proposed[:300])),
             parse_mode="HTML",
         )
         return GET_BTN_TITLE
@@ -1406,15 +1477,15 @@ async def ai_result_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
         context.user_data.pop("ai_original_content", None)
         context.user_data.pop("ai_proposed_content", None)
         context.user_data.pop("ai_last_action", None)
-        await query.answer("❌ Asl holatga qaytarildi!")
+        await query.answer(get_text("np_ai_reverted_alert", lang))
         await query.message.reply_text(
-            "❌ <b>Asl matn qaytarildi.</b>",
+            get_text("np_ai_revert_msg", lang),
             parse_mode="HTML",
         )
         return GET_BTN_TITLE
 
     if action == "retry":
-        await query.answer("🔄 Qayta urinilmoqda...")
+        await query.answer(get_text("np_ai_retrying", lang))
         content = context.user_data.get("ai_original_content", context.user_data.get("content", ""))
         last_action = context.user_data.get("ai_last_action", "grammar")
 
@@ -1432,8 +1503,8 @@ async def ai_result_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
             if len(formatted) > 300:
                 new_preview += "…"
             await query.message.reply_text(
-                f"✨ <b>AI taklifi (qayta):</b>\n\n{safe_html(new_preview)}",
-                reply_markup=_get_ai_result_keyboard(),
+                get_text("np_ai_retry_proposal", lang, new=safe_html(new_preview)),
+                reply_markup=_get_ai_result_keyboard(lang),
                 parse_mode="HTML",
             )
         return GET_BTN_TITLE

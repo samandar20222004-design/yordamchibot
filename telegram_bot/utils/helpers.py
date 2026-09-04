@@ -739,38 +739,46 @@ def safe_html(text: str) -> str:
 
     return ''.join(result)
 
-def format_post_type_label(post_type: str) -> str:
+def format_post_type_label(post_type: str, lang: str = "uz") -> str:
+    """Post turi yorlig'i — foydalanuvchi tilida (uz/ru).
+
+    ``lang`` berilmasa o'zbekcha (eski chaqiruvlar uchun moslik).
+    """
+    from locales.translations import get_text, normalize_lang
+    lang = normalize_lang(lang)
     pt = str(post_type).lower()
     mapping = {
-        "photo": "Rasm",
-        "video": "Video",
-        "animation": "GIF",
-        "document": "Hujjat",
-        "audio": "Audio",
-        "voice": "Ovozli xabar",
-        "sticker": "Stiker",
-        "text": "Matn",
-        "album": "Albom",
+        "photo": "np_type_photo", "video": "np_type_video",
+        "animation": "np_type_animation", "document": "np_type_document",
+        "audio": "np_type_audio", "voice": "np_type_voice",
+        "sticker": "np_type_sticker", "text": "np_type_text",
+        "album": "np_type_album",
     }
-    return mapping.get(pt, "Xabar")
+    key = mapping.get(pt, "np_type_unknown")
+    # "🖼 Rasm" → "Rasm"; "🎬 Video" → "Video"; emoji qismi olib tashlanadi.
+    return get_text(key, lang).split(" ", 1)[-1] if " " in get_text(key, lang) else get_text(key, lang)
 
-def format_schedule_line(s_time, recurrence_type, recurrence_day, recurrence_time):
-    from keyboards.default import WEEKDAY_LABELS
+def format_schedule_line(s_time, recurrence_type, recurrence_day, recurrence_time, lang: str = "uz"):
+    """Post chiqish vaqtini foydalanuvchi tilida (uz/ru) formatlaydi."""
+    from locales.translations import get_text, normalize_lang
+    from keyboards.default import WEEKDAY_LABELS, WEEKDAY_LABELS_RU
+    lang = normalize_lang(lang)
     if recurrence_type == 'daily':
         time_str = recurrence_time.strftime("%H:%M") if hasattr(recurrence_time, 'strftime') else str(recurrence_time)[:5]
-        return f"🔁 <b>Har kuni</b>, soat <b>{time_str}</b> da"
+        return get_text("pend_schedule_daily", lang, time=time_str)
     elif recurrence_type == 'weekly':
-        day_label = WEEKDAY_LABELS.get(recurrence_day, "?")
+        labels = WEEKDAY_LABELS_RU if lang == "ru" else WEEKDAY_LABELS
+        day_label = labels.get(recurrence_day, "?")
         time_str = recurrence_time.strftime("%H:%M") if hasattr(recurrence_time, 'strftime') else str(recurrence_time)[:5]
-        return f"📅 <b>Har {day_label}</b>, soat <b>{time_str}</b> da"
+        return get_text("pend_schedule_weekly", lang, day=day_label, time=time_str)
 
     if s_time:
         if s_time.tzinfo is None:
             s_time = pytz.utc.localize(s_time).astimezone(tashkent_tz)
         else:
             s_time = s_time.astimezone(tashkent_tz)
-        return f"⏰ Vaqti: <b>{s_time.strftime('%Y-%m-%d %H:%M')}</b>"
-    return "⏰ Vaqti: Noma'lum"
+        return get_text("pend_schedule_once", lang, time=s_time.strftime("%Y-%m-%d %H:%M"))
+    return get_text("pend_schedule_unknown", lang)
 
 
 # ---------------- Erkin tildagi vaqtni aniqlash (natural language) ----------------
