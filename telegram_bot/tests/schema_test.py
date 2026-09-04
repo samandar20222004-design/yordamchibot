@@ -41,12 +41,13 @@ EXPECTED_TABLES = (
     "users", "channels", "sponsor_channels", "system_settings",
     "bot_settings", "ad_pool", "channel_post_counters", "scheduled_posts",
     "post_reactions", "sent_post_messages", "promo_codes", "payments",
-    "channel_posts_history",
+    "payment_receipts", "channel_posts_history",
 )
 EXPECTED_INDEXES = (
     "idx_ad_pool_scope",
     "idx_channel_post_counters_updated",
     "idx_payments_user_id",
+    "idx_payment_receipts_status",
     "idx_scheduled_posts_status_time",
     "idx_scheduled_posts_user_id",
     "idx_channels_user_id",
@@ -59,8 +60,8 @@ def test_schema_file_tables():
     print("== schema.sql: jadvallar ==")
     for table in EXPECTED_TABLES:
         check(f"jadval: {table}", f"CREATE TABLE IF NOT EXISTS {table} (" in SCHEMA)
-    check("jadvallar soni 13",
-          SCHEMA.count("CREATE TABLE IF NOT EXISTS") == 13,
+    check("jadvallar soni 14",
+          SCHEMA.count("CREATE TABLE IF NOT EXISTS") == 14,
           f"topildi: {SCHEMA.count('CREATE TABLE IF NOT EXISTS')}")
 
 
@@ -92,8 +93,8 @@ def test_schema_file_indexes():
     print("== schema.sql: indekslar ==")
     for index in EXPECTED_INDEXES:
         check(f"indeks: {index}", f"CREATE INDEX IF NOT EXISTS {index}" in SCHEMA)
-    check("indekslar soni 8",
-          SCHEMA.count("CREATE INDEX IF NOT EXISTS") == 8,
+    check("indekslar soni 9",
+          SCHEMA.count("CREATE INDEX IF NOT EXISTS") == 9,
           f"topildi: {SCHEMA.count('CREATE INDEX IF NOT EXISTS')}")
 
 

@@ -269,7 +269,7 @@ async def _send_preview(target_msg, text, file_id, post_type, reply_markup, lang
         else:
             await target_msg.reply_document(document=file_id, caption=cap, reply_markup=reply_markup, parse_mode="HTML")
         if len(text) > 900:
-            await target_msg.reply_text(f"📝 <b>Post matni (to'liq):</b>\n\n{text[:3500]}", parse_mode="HTML")
+            await target_msg.reply_text(get_text("ai_full_post_text", lang, text=text[:3500]), parse_mode="HTML")
         return
     body = f"{text}{caption_note}" if file_id else text
     await target_msg.reply_text(body[:4000], reply_markup=reply_markup, parse_mode="HTML")
@@ -455,21 +455,21 @@ async def ai_input_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def ai_time_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Vaqt kutish holati (AI_GET_TIME)."""
+    """Vaqt kutish holati (AI_GET_TIME) — barcha javoblar foydalanuvchi tiliga mos."""
+    lang = get_lang(context)
     if update.message and not update.message.text:
         file_id, post_type = _extract_media(update.message)
         if file_id:
             context.user_data["ai_file_id"] = file_id
             context.user_data["ai_post_type"] = post_type
             await update.message.reply_text(
-                "🖼 <b>Media qabul qilindi va postga biriktirildi!</b>\n\n"
-                "Endi chiqish vaqtini yozing (masalan: <i>“bugun 18:00 ga”</i>) yoki tugmani tanlang:",
+                get_text("ai_media_received_scheduled", lang),
                 reply_markup=get_ai_time_keyboard(),
                 parse_mode="HTML",
             )
         else:
             await update.message.reply_text(
-                "Iltimos, chiqish vaqtini yozing (masalan: <i>“ertaga 10:00 ga”</i>):",
+                get_text("ai_time_prompt_hint", lang),
                 reply_markup=get_ai_time_keyboard(),
                 parse_mode="HTML",
             )
@@ -482,9 +482,7 @@ async def ai_time_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if text in (BTN_T_DAILY, BTN_T_WEEKLY):
         await update.message.reply_text(
-            "ℹ️ <i>AI yordamchisi orqali faqat bir martalik post rejalashtiriladi.</i>\n"
-            "Har kunlik/haftalik takrorlanuvchi postlar uchun <b>➕ Yangi post rejalashtirish</b> bo'limidan foydalaning.\n\n"
-            "Vaqtni yozing (masalan: <i>“ertaga 10:00 ga”</i>) yoki tezkor tugmani tanlang:",
+            get_text("ai_only_one_time", lang),
             reply_markup=get_ai_time_keyboard(),
             parse_mode="HTML",
         )
@@ -503,13 +501,14 @@ async def ai_time_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if post_time is None and text:
             if not is_admin and check_ai_rate_limit(user_id, max_per_minute=4):
                 await update.message.reply_text(
-                    "⏳ <i>Juda tez-tez so'rov yuboryapsiz. 1 daqiqa kuting yoki vaqtni "
-                    "aniq formatda yozing: <code>2026-08-30 18:00</code></i>",
+                    get_text("ai_time_fast", lang),
                     parse_mode="HTML",
                 )
                 return AI_GET_TIME
 
-            msg_wait = await update.message.reply_text("🤖 <i>Vaqt aniqlanmoqda...</i>", parse_mode="HTML")
+            msg_wait = await update.message.reply_text(
+                get_text("ai_time_detecting", lang), parse_mode="HTML"
+            )
 
             stop_typing2 = asyncio.Event()
             typing_task2 = asyncio.create_task(
@@ -534,8 +533,7 @@ async def ai_time_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         context.user_data["ai_target_all"] = True
                 elif ai_res.get("reply"):
                     await update.message.reply_text(
-                        f"🤖 {safe_html(ai_res['reply'])}\n\n"
-                        "Post vaqtini esa quyidagicha yozing: <i>“ertaga 10:00 ga”</i> yoki tugmani tanlang:",
+                        get_text("ai_time_ask", lang, reply=safe_html(ai_res["reply"])),
                         reply_markup=get_ai_time_keyboard(),
                         parse_mode="HTML",
                     )
@@ -552,18 +550,12 @@ async def ai_time_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if post_time is None or post_time <= now:
         await update.message.reply_text(
-            "⚠️ <b>Vaqtni aniqlab bo'lmadi yoki u o'tib ketgan.</b>\n\n"
-            "Quyidagicha yozing:\n"
-            "• <i>“bugun 18:00 ga”</i>\n"
-            "• <i>“ertaga ertalab 9 ga”</i>\n"
-            "• <i>“30 daqiqadan keyin”</i>\n"
-            "Yoki aniq format: <code>2026-08-30 18:00</code>",
+            get_text("ai_time_unparsed", lang),
             reply_markup=get_ai_time_keyboard(),
             parse_mode="HTML",
         )
         return AI_GET_TIME
 
-    lang = get_lang(context)
     time_str = post_time.strftime("%Y-%m-%d %H:%M")
     context.user_data["ai_scheduled_time"] = time_str
 
@@ -578,7 +570,6 @@ async def ai_time_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode="HTML",
     )
     return AI_CONFIRM
-
 
 async def ai_confirm_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """AI tasdiqlash tugmalari (AI_CONFIRM)."""
@@ -1181,13 +1172,17 @@ async def ai_audit_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def ai_back_to_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """⬅️ Orqaga — AI Studio menyusiga qaytaradi (xabar EDIT, o'chirish YO'Q)."""
+    """⬅️ Orqaga — AI Studio menyusiga qaytadi (xabar EDIT; AI xotira tozalanadi)."""
     query = update.callback_query
     await query.answer()  # SPEKS: darhol answer
+    user_id = query.from_user.id
+    # 🔄 Avval barcha AI/studio post kontekstini tozalaymiz
+    clear_ai_context(user_id)
+    clear_fsm_data(context)
     lang = get_lang(context)
     await _safe_edit(
         query,
-        await _studio_menu_text(query.from_user.id, lang),
+        await _studio_menu_text(user_id, lang),
         get_ai_studio_keyboard(lang),
     )
     return AI_MENU_STATE

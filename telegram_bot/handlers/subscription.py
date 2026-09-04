@@ -17,6 +17,8 @@ logger = logging.getLogger(__name__)
 # States
 SUBSCRIPTION_VIEW = 601
 PROMO_INPUT = 602
+# 💳 Karta to'lov chekini (rasm/PDF) kutuvchi holat — Admin Approval Flow
+RECEIPT_WAIT = 603
 
 # Stars to'lov paketlari
 STARS_PLANS = {
@@ -162,6 +164,11 @@ def _build_card_payment_text(user_id: int, lang: str = "uz") -> str:
 
 def _get_card_payment_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
     keyboard = []
+    # 📸 Bot tugmasi: foydalanuvchi chekni to'g'ridan-to'g'ri botga yuboradi va
+    # u Admin Approval Flow orqali barcha adminlarga yetkaziladi.
+    keyboard.append([
+        InlineKeyboardButton(get_text("btn_send_receipt", lang), callback_data="sub_send_receipt")
+    ])
     if PAYMENT_ADMIN_USERNAME:
         keyboard.append([InlineKeyboardButton(
             "✉️ Adminga chek yuborish" if lang != "ru" else "✉️ Отправить чек администратору",
@@ -303,6 +310,18 @@ async def subscription_callback(update: Update, context: ContextTypes.DEFAULT_TY
         except Exception:
             await query.message.reply_text(text, reply_markup=markup, parse_mode="HTML")
         return SUBSCRIPTION_VIEW
+
+    if data == "sub_send_receipt":
+        # 💳 Admin Approval Flow: chek (rasm/PDF) kutuvchi holatga o'tamiz.
+        lang = get_lang(context)
+        try:
+            await query.message.reply_text(
+                get_text("receipt_prompt", lang, user_id=user_id),
+                parse_mode="HTML",
+            )
+        except Exception:
+            pass
+        return RECEIPT_WAIT
 
     if data == "sub_back":
         plan_info = await db.run_db(db.get_user_plan, user_id)
