@@ -143,6 +143,7 @@ from handlers.queue import (
 )
 
 import database as db
+from handlers.photo_check import register as register_photo_check
 from utils.helpers import (
     check_rate_limit,
     NAV_RATE_LIMIT_MAX,
@@ -825,3 +826,4 @@ def register_all_handlers(app):
     ))
     app.add_handler(ChatMemberHandler(on_bot_chat_member_update, ChatMemberHandler.MY_CHAT_MEMBER))
     app.add_handler(CallbackQueryHandler(expired_session_callback))
+    register_photo_check(app)
