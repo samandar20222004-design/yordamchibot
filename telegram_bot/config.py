@@ -56,9 +56,15 @@ CLOUDFLARE_ACCOUNT_ID = os.getenv("CLOUDFLARE_ACCOUNT_ID", "").strip()
 CLOUDFLARE_API_TOKEN = os.getenv("CLOUDFLARE_API_TOKEN", "")
 
 # --- Karta orqali to'lov (Uzcard / Humo) — O'zbekiston uchun qulaylik ---
-# Bo'sh qoldirilsa foydalanuvchiga "adminga bog'laning" yo'riqnomasi chiqadi.
-PAYMENT_CARD_NUMBER = os.getenv("PAYMENT_CARD_NUMBER", "").strip()
-PAYMENT_CARD_HOLDER = os.getenv("PAYMENT_CARD_HOLDER", "").strip()
+# Default: joriy qabul kartasi (8600 0609 5082 5589 / Sayitqulov S.).
+# Muhit o'zgaruvchilari orqali bemalol almashtiriladi; bo'sh qoldirilsa
+# quyidagi qiymatlar ishlatiladi.
+def _str_env(name: str, default: str) -> str:
+    raw = (os.getenv(name, "") or "").strip()
+    return raw if raw else default
+
+PAYMENT_CARD_NUMBER = _str_env("PAYMENT_CARD_NUMBER", "8600060950825589")
+PAYMENT_CARD_HOLDER = _str_env("PAYMENT_CARD_HOLDER", "Sayitqulov S.")
 # Chek yuboriladigan admin username (@ belgisisiz ham bo'lishi mumkin)
 PAYMENT_ADMIN_USERNAME = os.getenv("PAYMENT_ADMIN_USERNAME", "").strip().lstrip("@")
 
