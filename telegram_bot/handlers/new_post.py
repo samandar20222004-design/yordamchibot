@@ -485,6 +485,27 @@ async def content_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = update.message
     user_id = update.effective_user.id
 
+    # 🚫 Stiker va qo'llab-quvvatlanmaydigan media — post sifatida qabul
+    # qilinmaydi. Bot OSILIB QOLMASLIGI uchun foydalanuvchiga aniq (uz/ru)
+    # xabar yuborib, GET_CONTENT holatida qaytamiz (post yaratish davom etadi).
+    item0 = _media_item_from_message(msg)
+    unsupported = bool(getattr(msg, "sticker", None)) or (
+        item0 is not None and item0["type"] in ("sticker", "voice", "video_note")
+    )
+    # Rasm/video/hujjat/audio/animation yoki matn yo'q bo'lgan (masalan,
+    # kontakt, joylashuv, o'yincha) xabarlar ham post bo'lolmaydi.
+    if unsupported or (
+        item0 is None
+        and not getattr(msg, "photo", None)
+        and not getattr(msg, "text", None)
+        and not (msg.caption or "")
+    ):
+        await msg.reply_text(
+            get_text("np_media_not_allowed", get_lang(context)),
+            parse_mode="HTML",
+        )
+        return GET_CONTENT
+
     if msg.media_group_id:
         item = _media_item_from_message(msg)
         if not item or item["type"] in ("voice", "sticker"):

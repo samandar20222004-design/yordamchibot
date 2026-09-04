@@ -167,6 +167,28 @@ CREATE TABLE IF NOT EXISTS payments (
 );
 CREATE INDEX IF NOT EXISTS idx_payments_user_id ON payments (user_id);
 
+-- 💳 Karta orqali to'lov cheklari — Admin Approval Flow.
+-- Foydalanuvchi chek (rasm/PDF) yuborganida pending holatida saqlanadi va
+-- barcha adminlarga yuboriladi. Admin ✅ Tasdiqlash bosganda status='approved'
+-- bo'lib, PRO muddati uzaytiriladi (atomik); ❌ Rad etishda 'rejected'.
+CREATE TABLE IF NOT EXISTS payment_receipts (
+    id SERIAL PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    username VARCHAR(255),
+    full_name VARCHAR(255),
+    language_code VARCHAR(10) DEFAULT 'uz',
+    media_type VARCHAR(20) DEFAULT 'photo',
+    file_id TEXT,
+    caption TEXT,
+    status VARCHAR(20) DEFAULT 'pending',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    reviewed_at TIMESTAMP WITH TIME ZONE,
+    decided_by BIGINT,
+    days_granted INTEGER DEFAULT 30
+);
+CREATE INDEX IF NOT EXISTS idx_payment_receipts_status
+    ON payment_receipts (status, created_at);
+
 -- --- MIGRATSIYALAR (eski bazalar uchun; yangi bazada allaqachon bor) ---
 -- Eslatma: ADD COLUMN IF NOT EXISTS tufayli takroriy bajarish xavfsiz.
 

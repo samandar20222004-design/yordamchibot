@@ -98,6 +98,42 @@ TRANSLATIONS = {
             "⚡️ Tezroq bo'lishi uchun ⭐️ Stars orqali to'lasangiz PRO darhol yoqiladi."
         ),
         "card_payment_admin_missing": "admin (Bot haqida bo'limidagi aloqa orqali)",
+        "btn_send_receipt": "📸 Chek yuborish",
+        "receipt_prompt": (
+            "📸 <b>To'lov chekini yuboring:</b>\n\n"
+            "Chekni (skrinshot yoki PDF) <b>rasm yoki hujjat</b> ko'rinishida yuboring. "
+            "Bot chekni adminlarga yuboradi.\n"
+            "🆔 Sizning ID: <code>{user_id}</code>\n\n"
+            "Admin tasdiqlagach <b>PRO tarif</b> avtomatik faollashtiriladi."
+        ),
+        "receipt_bad_media": (
+            "⚠️ Iltimos, to'lov chekini <b>rasm (foto)</b> yoki <b>PDF hujjat</b> "
+            "sifatida yuboring. Boshqa fayllar chek sifatida qabul qilinmaydi."
+        ),
+        "receipt_saved": (
+            "✅ <b>Chekingiz qabul qilindi!</b>\n\n"
+            "Adminlarimiz uni tekshirishmoqda. Tasdiqlangach <b>PRO tarif</b> "
+            "avtomatik faollashtiriladi."
+        ),
+        "receipt_admin_title": "💳 <b>Yangi to'lov cheki</b>",
+        "receipt_admin_user_line": "👤 Foydalanuvchi: <code>{user_id}</code>\n",
+        "receipt_admin_username_line": "🆔 Username: @{username}\n",
+        "receipt_admin_ask": "📝 Chekni tekshirib, pastdagi tugmalardan birini bosing:",
+        "receipt_btn_approve": "✅ Tasdiqlash",
+        "receipt_btn_reject": "❌ Rad etish",
+        "receipt_admin_done_ok": "✅ Tasdiqlandi. Foydalanuvchiga PRO berildi.",
+        "receipt_admin_done_reject": "❌ Rad etildi.",
+        "receipt_admin_already": "Bu chek allaqachon ko'rib chiqilgan.",
+        "receipt_approved_user": (
+            "🎉 <b>Tabriklaymiz!</b>\n\n"
+            "To'lov chekingiz tasdiqlandi va <b>{days} kunlik PRO tarif</b> "
+            "faollashtirildi!\nBarcha PRO imkoniyatlardan foydalanishingiz mumkin. 🚀"
+        ),
+        "receipt_rejected_user": (
+            "❌ <b>Chek rad etildi</b>\n\n"
+            "Afsuski, to'lov chekingiz tasdiqlanmadi. Iltimos, qayta urinib "
+            "ko'ring yoki '⭐️ Premium' bo'limidan adminga murojaat qiling."
+        ),
         # --- 1-QISM: Asosiy klaviatura & Kabinet (i18n) ---
         # Umumiy tugmalar (kabinet va jarayon klaviaturalarida ishlatiladi)
         "btn_main_menu": "🔙 Asosiy menyu",
@@ -404,6 +440,8 @@ TRANSLATIONS = {
             "• <i>“30 daqiqadan keyin”</i>\n"
             "Yoki aniq format: <code>2026-08-30 18:00</code>"
         ),
+        "ai_time_detecting": "🤖 <i>Vaqt aniqlanmoqda...</i>",
+        "ai_full_post_text": "📝 <b>Post matni (to'liq):</b>\n\n{text}",
         "ai_post_ready": "✨ <b>Post tayyor!</b>\n\n",
         "ai_post_ready_foot": (
             "\n\n🕒 <b>Chiqish vaqti:</b> <code>{time}</code>{target}\n\n"
@@ -476,6 +514,10 @@ TRANSLATIONS = {
             "(Matn, rasm, video, albom, hujjat, audio, ovozli xabar yoki stiker)"
         ),
         "np_channel_not_found": "⚠️ Bunday kanal topilmadi. Qaytadan tanlang:",
+        "np_media_not_allowed": (
+            "Kechirasiz, stikerlar post sifatida qabul qilinmaydi. Iltimos, "
+            "rasm, video yoki matn yuboring"
+        ),
         "np_all_channel_title": "🌐 Barchasi",
         "np_button_ask": (
             "🔘 <b>Post ostiga havola tugma qo'shilsinmi?</b> (ixtiyoriy)\n\n"
@@ -1364,7 +1406,44 @@ TRANSLATIONS = {
             "⚡️ Для мгновенной активации оплатите через ⭐️ Stars."
         ),
         "card_payment_admin_missing": "администратор (контакты в разделе «О боте»)",
-
+        "btn_send_receipt": "📸 Отправить чек",
+        "receipt_prompt": (
+            "📸 <b>Отправьте чек об оплате:</b>\n\n"
+            "Отправьте чек (скриншот или PDF) в виде <b>фото или документа</b>. "
+            "Бот отправит чек администраторам.\n"
+            "🆔 Ваш ID: <code>{user_id}</code>\n\n"
+            "После подтверждения администратором тариф <b>PRO</b> "
+            "активируется автоматически."
+        ),
+        "receipt_bad_media": (
+            "⚠️ Пожалуйста, отправьте чек в виде <b>фото</b> или "
+            "<b>PDF-документа</b>. Другие файлы не принимаются как чек."
+        ),
+        "receipt_saved": (
+            "✅ <b>Ваш чек получен!</b>\n\n"
+            "Наши администраторы проверяют его. После подтверждения тариф "
+            "<b>PRO</b> активируется автоматически."
+        ),
+        "receipt_admin_title": "💳 <b>Новый платёжный чек</b>",
+        "receipt_admin_user_line": "👤 Пользователь: <code>{user_id}</code>\n",
+        "receipt_admin_username_line": "🆔 Username: @{username}\n",
+        "receipt_admin_ask": "📝 Проверьте чек и нажмите одну из кнопок ниже:",
+        "receipt_btn_approve": "✅ Подтвердить",
+        "receipt_btn_reject": "❌ Отклонить",
+        "receipt_admin_done_ok": "✅ Подтверждено. Пользователю выдан PRO.",
+        "receipt_admin_done_reject": "❌ Отклонено.",
+        "receipt_admin_already": "Этот чек уже был рассмотрен.",
+        "receipt_approved_user": (
+            "🎉 <b>Поздравляем!</b>\n\n"
+            "Ваш платёжный чек подтверждён, и тариф <b>PRO на {days} дней</b> "
+            "активирован!\nВы можете пользоваться всеми возможностями PRO. 🚀"
+        ),
+        "receipt_rejected_user": (
+            "❌ <b>Чек отклонён</b>\n\n"
+            "К сожалению, ваш платёжный чек не был подтверждён. Пожалуйста, "
+            "попробуйте ещё раз или свяжитесь с администратором в разделе "
+            "'⭐️ Premium'."
+        ),
         # --- 1-QISM: Asosiy klaviatura & Kabinet (i18n) ---
         # Umumiy tugmalar (kabinet va jarayon klaviaturalarida ishlatiladi)
         "btn_main_menu": "🔙 Главное меню",
@@ -1672,6 +1751,8 @@ TRANSLATIONS = {
             "• <i>«через 30 минут»</i>\n"
             "Или точный формат: <code>2026-08-30 18:00</code>"
         ),
+        "ai_time_detecting": "🤖 <i>Время определяется...</i>",
+        "ai_full_post_text": "📝 <b>Полный текст поста:</b>\n\n{text}",
         "ai_post_ready": "✨ <b>Пост готов!</b>\n\n",
         "ai_post_ready_foot": (
             "\n\n🕒 <b>Время выхода:</b> <code>{time}</code>{target}\n\n"
@@ -1743,6 +1824,10 @@ TRANSLATIONS = {
             "(Текст, фото, видео, альбом, документ, аудио, голосовое сообщение или стикер)"
         ),
         "np_channel_not_found": "⚠️ Такой канал не найден. Выберите ещё раз:",
+        "np_media_not_allowed": (
+            "Извините, стикеры не принимаются в качестве поста. Пожалуйста, "
+            "отправьте фото, видео или текст"
+        ),
         "np_all_channel_title": "🌐 Все сразу",
         "np_button_ask": (
             "🔘 <b>Добавить кнопку-ссылку под пост?</b> (необязательно)\n\n"

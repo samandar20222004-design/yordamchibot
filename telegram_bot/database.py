@@ -35,12 +35,13 @@ EXPECTED_TABLES = (
     "users", "channels", "sponsor_channels", "system_settings",
     "bot_settings", "ad_pool", "channel_post_counters", "scheduled_posts",
     "post_reactions", "sent_post_messages", "promo_codes", "payments",
-    "channel_posts_history",
+    "payment_receipts", "channel_posts_history",
 )
 EXPECTED_INDEXES = (
     "idx_ad_pool_scope",
     "idx_channel_post_counters_updated",
     "idx_payments_user_id",
+    "idx_payment_receipts_status",
     "idx_scheduled_posts_status_time",
     "idx_scheduled_posts_user_id",
     "idx_channels_user_id",
@@ -639,6 +640,31 @@ def _init_db_once():
             );
         """)
         cur.execute("CREATE INDEX IF NOT EXISTS idx_payments_user_id ON payments (user_id);")
+
+        # 💳 Karta orqali to'lov cheklari — Admin Approval Flow.
+        # Foydalanuvchi chek yuborganida pending holatida saqlanadi, adminlarga
+        # yuboriladi. Admin tasdiqlaganda status='approved' + PRO uzaytiriladi.
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS payment_receipts (
+                id SERIAL PRIMARY KEY,
+                user_id BIGINT NOT NULL,
+                username VARCHAR(255),
+                full_name VARCHAR(255),
+                language_code VARCHAR(10) DEFAULT 'uz',
+                media_type VARCHAR(20) DEFAULT 'photo',
+                file_id TEXT,
+                caption TEXT,
+                status VARCHAR(20) DEFAULT 'pending',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                reviewed_at TIMESTAMP WITH TIME ZONE,
+                decided_by BIGINT,
+                days_granted INTEGER DEFAULT 30
+            );
+        """)
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_payment_receipts_status "
+            "ON payment_receipts (status, created_at);"
+        )
 
         migrations = [
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS full_name VARCHAR(255);",
@@ -2950,6 +2976,214 @@ def log_stars_payment(user_id: int, amount: int, currency: str, payload: str, te
     except Exception as e:
         logger.error(f"Stars payment log xatosi: {e}")
         return False
+
+
+# ============================================================
+# CARD PAYMENT RECEIPTS — Admin Approval Flow
+# ============================================================
+# Foydalanuvchi karta orqali to'lagach chek (rasm/PDF) yuboradi. U
+# ``payment_receipts`` jadvaliga ``pending`` holatida yoziladi va barcha
+# adminlarga yuboriladi. Admin ✅ Tasdiqlash bosganda status ``approved``
+# bo'lib, PRO muddati ATOMIK uzaytiriladi (bitta tranzaksiyada). ❌ Rad etishda
+# ``rejected`` deb belgilanadi.
+
+RECEIPT_STATUS_PENDING = "pending"
+RECEIPT_STATUS_APPROVED = "approved"
+RECEIPT_STATUS_REJECTED = "rejected"
+
+
+def save_payment_receipt(
+    user_id: int,
+    media_type: str = "photo",
+    file_id: str = "",
+    caption: str = "",
+    username: str = "",
+    full_name: str = "",
+    language_code: str = "uz",
+    days_granted: int = 30,
+) -> int:
+    """Yangi karta chekini ``pending`` holatida saqlaydi.
+
+    Returns: receipt id (xato: 0). ``media_type`` — 'photo' | 'document'.
+    """
+    if not file_id:
+        return 0
+    try:
+        with db_cursor(commit=True) as cur:
+            cur.execute(
+                """
+                INSERT INTO payment_receipts
+                    (user_id, username, full_name, language_code, media_type,
+                     file_id, caption, status, days_granted)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, 'pending', %s)
+                RETURNING id
+                """,
+                (int(user_id), username or "", full_name or "",
+                 _normalize_language_code(language_code) or "uz",
+                 media_type if media_type in ("photo", "document") else "photo",
+                 file_id, caption or "", int(days_granted) if days_granted else 30),
+            )
+            row = cur.fetchone()
+            return int(row[0]) if row else 0
+    except Exception as e:
+        logger.error(f"payment_receipt saqlash xatosi: {e}")
+        return 0
+
+
+def _payment_receipt_row_to_dict(row) -> dict:
+    return {
+        "id": int(row[0]),
+        "user_id": int(row[1]),
+        "username": row[2] or "",
+        "full_name": row[3] or "",
+        "language_code": row[4] or "uz",
+        "media_type": row[5] or "photo",
+        "file_id": row[6] or "",
+        "caption": row[7] or "",
+        "status": row[8] or "pending",
+        "created_at": row[9],
+        "reviewed_at": row[10],
+        "decided_by": row[11],
+        "days_granted": int(row[12]) if row[12] else 30,
+    }
+
+
+def get_payment_receipt(receipt_id: int):
+    """Bitta chekni id bo'yicha qaytaradi (topilmasa None)."""
+    try:
+        with db_cursor() as cur:
+            cur.execute(
+                "SELECT id, user_id, username, full_name, language_code, "
+                "media_type, file_id, caption, status, created_at, reviewed_at, "
+                "decided_by, days_granted "
+                "FROM payment_receipts WHERE id = %s",
+                (int(receipt_id),),
+            )
+            row = cur.fetchone()
+        return _payment_receipt_row_to_dict(row) if row else None
+    except Exception as e:
+        logger.error(f"payment_receipt olish xatosi: {e}")
+        return None
+
+
+def list_payment_receipts(status: str = "pending", limit: int = 20) -> list:
+    """Berilgan holatdagi cheklarni (yangi birinchi) qaytaradi."""
+    try:
+        limit = max(1, min(int(limit), 100))
+        with db_cursor() as cur:
+            cur.execute(
+                "SELECT id, user_id, username, full_name, language_code, "
+                "media_type, file_id, caption, status, created_at, reviewed_at, "
+                "decided_by, days_granted "
+                "FROM payment_receipts WHERE status = %s "
+                "ORDER BY id DESC LIMIT %s",
+                (status, limit),
+            )
+            return [_payment_receipt_row_to_dict(r) for r in cur.fetchall()]
+    except Exception as e:
+        logger.error(f"payment_receiptlar ro'yxati xatosi: {e}")
+        return []
+
+
+def list_pending_payment_receipts(limit: int = 20) -> list:
+    """Kutayotgan (tasdiqlanmagan) cheklar."""
+    return list_payment_receipts(RECEIPT_STATUS_PENDING, limit)
+
+
+def approve_payment_receipt(receipt_id: int, admin_id: int, days: int = None) -> dict:
+    """Chekni tasdiqlaydi va PRO muddatini ATOMIK uzaytiradi.
+
+    Bitta tranzaksiyada: ``payment_receipts.status='approved'`` va
+    ``users.plan_type='pro'`` + obuna muddati ``days`` ga uzaytiriladi.
+    Returns:
+        {"ok": True, "receipt": {...}, "days": N, "language_code": "uz"}
+        yoki {"ok": False, "reason": "..."}. Allaqachon ko'rib chiqilgan bo'lsa
+        ham ``ok=True`` (idempotent — foydalanuvchiga qayta xabar ketmaydi).
+    """
+    try:
+        with db_cursor(commit=True) as cur:
+            cur.execute(
+                "SELECT status, user_id, days_granted FROM payment_receipts "
+                "WHERE id = %s FOR UPDATE",
+                (int(receipt_id),),
+            )
+            row = cur.fetchone()
+            if not row:
+                return {"ok": False, "reason": "not_found"}
+            status, user_id, default_days = row
+            if status == RECEIPT_STATUS_APPROVED:
+                return {"ok": False, "reason": "already_approved"}
+            grant_days = int(days) if days else int(default_days or 30)
+            if grant_days <= 0:
+                grant_days = 30
+
+            cur.execute(
+                "UPDATE users SET plan_type = 'pro', "
+                "subscription_expires_at = GREATEST("
+                "   COALESCE(subscription_expires_at, NOW()), NOW())"
+                "   + (%s || ' days')::INTERVAL "
+                "WHERE user_id = %s",
+                (str(grant_days), int(user_id)),
+            )
+            cur.execute(
+                "UPDATE payment_receipts SET status = 'approved', "
+                "decided_by = %s, reviewed_at = NOW(), days_granted = %s "
+                "WHERE id = %s",
+                (int(admin_id), grant_days, int(receipt_id)),
+            )
+            lang = "uz"
+            cur.execute(
+                "SELECT language_code FROM users WHERE user_id = %s", (int(user_id),)
+            )
+            lrow = cur.fetchone()
+            lang = _normalize_language_code(lrow[0] if lrow else "uz")
+        _invalidate_user(int(user_id))
+        _cache_clear("system_stats")
+        _cache_clear("admin_dashboard_stats")
+        receipt = get_payment_receipt(int(receipt_id)) or {}
+        return {"ok": True, "receipt": receipt, "days": grant_days,
+                "user_id": int(user_id), "language_code": lang}
+    except Exception as e:
+        logger.error(f"payment_receipt tasdiqlash xatosi: {e}")
+        return {"ok": False, "reason": "error"}
+
+
+def reject_payment_receipt(receipt_id: int, admin_id: int) -> dict:
+    """Chekni rad etadi (faqat hali ko'rib chiqilmagan bo'lsa)."""
+    try:
+        with db_cursor(commit=True) as cur:
+            cur.execute(
+                "SELECT status, user_id FROM payment_receipts WHERE id = %s FOR UPDATE",
+                (int(receipt_id),),
+            )
+            row = cur.fetchone()
+            if not row:
+                return {"ok": False, "reason": "not_found"}
+            status, user_id = row
+            if status != RECEIPT_STATUS_PENDING:
+                return {"ok": False, "reason": "already_reviewed"}
+            cur.execute(
+                "UPDATE payment_receipts SET status = 'rejected', "
+                "decided_by = %s, reviewed_at = NOW() WHERE id = %s",
+                (int(admin_id), int(receipt_id)),
+            )
+        return {"ok": True, "user_id": int(user_id)}
+    except Exception as e:
+        logger.error(f"payment_receipt rad etish xatosi: {e}")
+        return {"ok": False, "reason": "error"}
+
+
+def get_pending_receipts_count() -> int:
+    """Admin panel ko'rsatkichi uchun kutayotgan cheklar soni."""
+    try:
+        with db_cursor() as cur:
+            cur.execute(
+                "SELECT COUNT(*) FROM payment_receipts WHERE status = 'pending'"
+            )
+            return int(cur.fetchone()[0])
+    except Exception as e:
+        logger.error(f"pending receipts count xatosi: {e}")
+        return 0
 
 
 # ============================================================

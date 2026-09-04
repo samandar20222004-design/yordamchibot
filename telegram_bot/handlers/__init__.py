@@ -125,7 +125,12 @@ from handlers.subscription import (
     start_subscription, subscription_callback, promo_code_received,
     grant_pro_command, create_promo_command,
     precheckout_callback, successful_payment_callback,
-    SUBSCRIPTION_VIEW, PROMO_INPUT
+    SUBSCRIPTION_VIEW, PROMO_INPUT, RECEIPT_WAIT
+)
+
+# 10b. 💳 KARTA CHEKLARI — Admin Approval Flow
+from handlers.payment_receipt import (
+    receipt_received, receipt_admin_callback,
 )
 
 # 11. CHANNEL EXTRACT MODULI
@@ -605,6 +610,11 @@ def register_all_handlers(app):
                 CallbackQueryHandler(subscription_callback, pattern=r"^sub_"),
             ],
             PROMO_INPUT: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, promo_code_received)],
+            # 💳 Karta cheki (rasm/PDF) kutish — Admin Approval Flow
+            RECEIPT_WAIT: all_menu_jumps + [
+                CallbackQueryHandler(subscription_callback, pattern=r"^sub_"),
+                MessageHandler(filters.ALL & ~filters.COMMAND, receipt_received),
+            ],
 
             # 11. Channel Extract holatlari
             EXTRACT_USERNAME: all_menu_jumps + [
@@ -826,4 +836,11 @@ def register_all_handlers(app):
     ))
     app.add_handler(ChatMemberHandler(on_bot_chat_member_update, ChatMemberHandler.MY_CHAT_MEMBER))
     app.add_handler(CallbackQueryHandler(expired_session_callback))
+
+    # 💳 Karta cheki Admin Approval Flow — admin ✅/❌ tugmalari. Conversation
+    # faol bo'lmasa ham ishlashi uchun global reyestrda (eng oxirida).
+    app.add_handler(CallbackQueryHandler(
+        receipt_admin_callback,
+        pattern=r"^(receipt_appr|receipt_rej):",
+    ))
     register_photo_check(app)
