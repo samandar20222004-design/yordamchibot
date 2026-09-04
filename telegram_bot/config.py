@@ -61,6 +61,14 @@ PAYMENT_CARD_NUMBER = os.getenv("PAYMENT_CARD_NUMBER", "").strip()
 PAYMENT_CARD_HOLDER = os.getenv("PAYMENT_CARD_HOLDER", "").strip()
 # Chek yuboriladigan admin username (@ belgisisiz ham bo'lishi mumkin)
 PAYMENT_ADMIN_USERNAME = os.getenv("PAYMENT_ADMIN_USERNAME", "").strip().lstrip("@")
+
+# --- Yordam / Qo'llab-quvvatlash aloqasi (📖 Qo'llanma bo'limi) ---
+# /help va FAQ oxiridagi "💬 Bog'lanish / Связаться с поддержкой" tugmasi
+# shu username'ga (t.me/<username>) yo'naltiriladi. Bo'sh qoldirilsa
+# PAYMENT_ADMIN_USERNAME ishlatiladi; u ham bo'sh bo'lsa tugma ko'rsatilmaydi.
+SUPPORT_USERNAME = (
+    os.getenv("SUPPORT_USERNAME", "").strip().lstrip("@") or PAYMENT_ADMIN_USERNAME
+)
 # Tariflar narxi so'mda (Stars narxiga taxminan mos)
 def _int_env(name: str, default: int) -> int:
     raw = os.getenv(name, "").strip()

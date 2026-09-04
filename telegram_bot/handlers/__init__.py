@@ -26,13 +26,13 @@ from keyboards.default import (
     BTN_ADD_CHANNEL, BTN_QUEUE, BTN_QUEUE_RU, BTN_CONTENT_PLAN, BTN_ANALYTICS, BTN_PREMIUM, BTN_PREMIUM_RU,
     BTN_CHANNEL_EXTRACT,
 )
-from locales.translations import clear_fsm_data, get_lang
+from locales.translations import clear_fsm_data, get_lang, get_text
 from keyboards.inline import get_subscription_check_keyboard
 
 # 1. START & ASOSIY MODUL
 from handlers.start import (
     start, user_cabinet_menu, user_invite_menu, daily_bonus_handler, start_transfer_credits, transfer_target_received, transfer_amount_received,
-    help_command, cancel_handler, subscription_check_callback, check_user_subscribed,
+    help_command, help_menu_callback, cancel_handler, subscription_check_callback, check_user_subscribed,
     cabinet_callback, extras_menu, extras_close_callback,
     TRANSFER_TARGET, TRANSFER_AMOUNT
 )
@@ -163,7 +163,7 @@ async def _deny_if_unsubscribed(update, context) -> bool:
     is_sub, unsubs = await check_user_subscribed(context.bot, user.id)
     if unsubs is None:
         await update.message.reply_text(
-            "⚠️ <b>Tizim vaqtincha band.</b>\nIltimos, birozdan so'ng /start bosing.",
+            get_text("sys_busy", get_lang(context)),
             parse_mode="HTML",
         )
         return True
@@ -259,7 +259,9 @@ async def close_msg_callback(update, context):
         await query.message.delete()
     except Exception:
         try:
-            await query.edit_message_text("✅ Yopildi.", reply_markup=None)
+            await query.edit_message_text(
+                get_text("msg_closed", get_lang(context)), reply_markup=None
+            )
         except Exception:
             pass
 
@@ -272,10 +274,17 @@ async def noop_callback(update, context):
 
 
 async def expired_session_callback(update, context):
+    """Fallback: har qanday eskirgan (masalan, bot qayta ishga tushgandan keyingi)
+    inline tugma — foydalanuvchi tilida (uz/ru) qisqa toast ko'rsatiladi.
+
+    Chatda yangi xabar yuborILMAYDI: menyular orasida eski tugma bosilganda
+    phantom xabarlar paydo bo'lmasligi uchun faqat callback toast.
+    """
     query = update.callback_query
-    # Silent answer — no chat message to avoid phantom "Bu amal allaqachon tugatilgan"
-    # when user switches menus and presses stale inline buttons.
-    await query.answer()
+    try:
+        await query.answer(get_text("sys_stale_button", get_lang(context)))
+    except Exception:
+        pass
 
 
 async def ai_studio_callback(update, context):
@@ -351,8 +360,7 @@ async def conversation_timeout_handler(update, context):
     if update.effective_message:
         try:
             await update.effective_message.reply_text(
-                "⏰ <b>Suhbat muddat tugash sababli yakunlandi.</b>\n"
-                "Asosiy menyuga qaytdingiz. Kerakli bo'limni qaytadan tanlang 👇",
+                get_text("conv_timeout_msg", lang),
                 reply_markup=__import__("keyboards.default", fromlist=["get_main_keyboard"]).get_main_keyboard(is_admin, lang=lang),
                 parse_mode="HTML",
             )
@@ -805,6 +813,8 @@ def register_all_handlers(app):
     ))
     app.add_handler(CallbackQueryHandler(cabinet_callback, pattern=r"^cab_|^close_cabinet"))
     app.add_handler(CallbackQueryHandler(extras_close_callback, pattern=r"^extra_close$"))
+    # 📖 Qo'llanma ichki navigatsiyasi: FAQ ↔ Qo'llanma (uz/ru)
+    app.add_handler(CallbackQueryHandler(help_menu_callback, pattern=r"^help:"))
     # ✨ Postga Tugma & Reaksiya: sessiya tugagach eski prevyu/hub tugmalari bosilsa —
     # xabarni buzmasdan jim javob (edit qilinmaydi).
     app.add_handler(CallbackQueryHandler(enh_stale_callback, pattern=r"^enh:"))

@@ -6580,6 +6580,461 @@ def test_queue_i18n_suite():
     check("routing: pending ru", "Ожидающие" in BTN_PENDING_RU)
 
 
+
+# ============================================================
+# 4-QISM: EXTRAS / HELP / CONVERTER / TIZIM XABARLARI i18n (UZ/RU)
+# ============================================================
+
+def test_extras_help_i18n_suite():
+    """4-QISM: ⚙️ Qo'shimcha funksiyalar, 📖 Qo'llanma va tizim xabarlari (uz/ru)."""
+    print("== Extras/Help/Converter/System i18n (uz/ru) ==")
+    import asyncio
+    from locales.translations import TRANSLATIONS, get_text
+    from keyboards.inline import (
+        get_extras_inline_keyboard, get_help_keyboard, get_help_back_keyboard,
+    )
+    uz, ru = TRANSLATIONS["uz"], TRANSLATIONS["ru"]
+
+    # --- 1. Lug'at kalitlari: ikkala tilda ham mavjud va tarjima qilingan ---
+    prefixes = ("extras_", "conv_", "enh_", "help_", "sys_", "cab_guide_",
+                "cab_converter_info")
+    part4_keys = sorted({
+        k for k in set(uz) | set(ru)
+        if k.startswith(prefixes) or k in ("msg_closed", "cancel_done")
+    })
+    check("4-qism kalitlari uz'da mavjud",
+          all(k in uz for k in part4_keys),
+          str([k for k in part4_keys if k not in uz][:5]))
+    check("4-qism kalitlari ru'da mavjud",
+          all(k in ru for k in part4_keys),
+          str([k for k in part4_keys if k not in ru][:5]))
+    # Faqat-shablon kalitlari (tildan mustaqil formatlar) — teng bo'lishi mumkin
+    lang_neutral = {"enh_btns_line", "enh_btn_entry_edit"}
+    diff_keys = [k for k in part4_keys if k not in lang_neutral]
+    check("4-qism kalitlari tarjima qilingan (uz != ru)",
+          all(uz[k] != ru[k] for k in diff_keys),
+          str([k for k in diff_keys if uz[k] == ru[k]][:5]))
+    check("4-qism: kamida 100 ta yangi kalit", len(part4_keys) >= 100, str(len(part4_keys)))
+
+    # --- 2. ⚙️ Extras inline klaviatura: uz/ru yorliqlar, bir xil callback ---
+    kb_uz = get_extras_inline_keyboard()            # default uz (orqaga moslik)
+    kb_ru = get_extras_inline_keyboard("ru")
+    uz_rows = [[(b.text, b.callback_data) for b in row] for row in kb_uz.inline_keyboard]
+    ru_rows = [[(b.text, b.callback_data) for b in row] for row in kb_ru.inline_keyboard]
+    check("extras kb uz: 3 qator, uz yorliqlar",
+          uz_rows == [
+              [("✨ Postga Tugma & Reaksiya qo'shish", "extra_enhancer")],
+              [("🔤 Krill-Lotin konvertor", "extra_converter")],
+              [("❌ Yopish", "extra_close")],
+          ], str(uz_rows))
+    check("extras kb ru: callback'lar bir xil",
+          [c for row in ru_rows for _, c in row]
+          == ["extra_enhancer", "extra_converter", "extra_close"], str(ru_rows))
+    check("extras kb ru: yorliqlar ru lug'atdan",
+          ru_rows[0][0][0] == get_text("extras_btn_enhancer", "ru")
+          and ru_rows[1][0][0] == get_text("extras_btn_converter", "ru")
+          and ru_rows[2][0][0] == get_text("cab_close", "ru"), str(ru_rows))
+    check("extras kb: ru yorliqlar uz'dan farq qiladi",
+          ru_rows[0][0][0] != uz_rows[0][0][0] and ru_rows[2][0][0] != uz_rows[2][0][0])
+    check("extras menyu matni ru",
+          "Дополнительные функции" in get_text("extras_menu_body", "ru"))
+
+    # --- 3. 🔤 Konverter: kalitlar uz/ru ---
+    check("conv: kirish matni uz/ru",
+          "O'girgich" in get_text("conv_intro", "uz")
+          and "Конвертер" in get_text("conv_intro", "ru"))
+    check("conv: tugma yorliqlari",
+          get_text("conv_btn_cyr", "uz") == "🔤 Kirillcha nusxasi"
+          and get_text("conv_btn_lat", "uz") == "🔤 Lotincha nusxasi"
+          and get_text("conv_btn_cyr", "ru") == "🔤 Кириллическая версия"
+          and get_text("conv_btn_lat", "ru") == "🔤 Латинская версия")
+    check("conv: natija/matn topilmadi/xato",
+          "Natija" in get_text("conv_result_title", "uz")
+          and "Результат" in get_text("conv_result_title", "ru")
+          and "topilmadi" in get_text("conv_no_saved_text", "uz")
+          and "не найден" in get_text("conv_no_saved_text", "ru")
+          and "{error}" not in get_text("conv_error", "uz", error="X")
+          and "ошибка" in get_text("conv_error", "ru", error="X").lower())
+
+    # --- 4. 📖 Qo'llanma: guide + FAQ + support havolasi ---
+    for lg in ("uz", "ru"):
+        guide = get_text("help_guide", lg, support="SUP_TAG")
+        check(f"help_guide {lg}: support almashtirilgan",
+              "SUP_TAG" in guide and "{support}" not in guide, guide[-80:])
+    guide_uz = get_text("help_guide", "uz", support="")
+    check("help_guide uz: kanal/rejalashtirish/AI Studio/extras",
+          all(w in guide_uz for w in ("Kanal", "rejalashtirish", "AI Studio",
+                                      "Qo'shimcha funksiyalar", "Kunlik bonus")))
+    guide_ru = get_text("help_guide", "ru", support="")
+    check("help_guide ru: канал/планирование/AI Studio/extras",
+          all(w in guide_ru for w in ("канал", "Планирование", "AI Studio",
+                                      "Дополнительные функции", "Ежедневный бонус")))
+    check("help_guide_admin uz/ru",
+          "Admin buyruqlari" in get_text("help_guide_admin", "uz")
+          and "администратора" in get_text("help_guide_admin", "ru"))
+    faq_uz = get_text("help_faq", "uz", support="")
+    faq_ru = get_text("help_faq", "ru", support="")
+    check("help_faq uz: sarlavha va 5 savol",
+          "Tez-tez beriladigan savollar" in faq_uz and faq_uz.count("<b>") >= 6, faq_uz[:60])
+    check("help_faq ru: sarlavha",
+          "Часто задаваемые вопросы" in faq_ru)
+    check("support tugma yorliqlari (Bog'lanish / Связаться с поддержкой)",
+          get_text("help_btn_support", "uz") == "💬 Bog'lanish"
+          and get_text("help_btn_support", "ru") == "💬 Связаться с поддержкой")
+    check("support line uz/ru",
+          "{admin}" not in get_text("help_support_line", "uz", admin="@x")
+          and "@x" in get_text("help_support_line", "ru", admin="@x"))
+
+    hk = get_help_keyboard("support_user", "ru")
+    hk_flat = [b for row in hk.inline_keyboard for b in row]
+    check("help kb: support URL tugmasi (ru)",
+          any(b.url == "https://t.me/support_user"
+              and b.text == get_text("help_btn_support", "ru") for b in hk_flat),
+          str([(b.text, b.url, b.callback_data) for b in hk_flat]))
+    check("help kb: FAQ tugmasi (ru)",
+          any(b.callback_data == "help:faq"
+              and b.text == get_text("help_btn_faq", "ru") for b in hk_flat))
+    hk_no = get_help_keyboard("", "uz")
+    check("help kb: usernamesiz — faqat FAQ tugmasi",
+          len(hk_no.inline_keyboard) == 1
+          and hk_no.inline_keyboard[0][0].callback_data == "help:faq")
+    hb = get_help_back_keyboard("ru")
+    check("help back kb: ⬅️ Назад → help:guide",
+          hb.inline_keyboard[0][0].text == get_text("btn_back", "ru")
+          and hb.inline_keyboard[0][0].callback_data == "help:guide")
+
+    # --- 5. Xatoliklar/tizim xabarlari uz/ru ---
+    check("sys: tizim band (uz/ru)",
+          "Tizim vaqtincha band" in get_text("sys_busy", "uz")
+          and "временно занята" in get_text("sys_busy", "ru"))
+    check("sys: bot qayta ishga tushgan (uz/ru)",
+          "qayta ishga tushirilgan" in get_text("sys_stale_button", "uz")
+          and "перезапущен" in get_text("sys_stale_button", "ru"))
+    check("sys: kutilmagan xatolik (uz/ru)",
+          "Kutilmagan xatolik" in get_text("sys_unexpected_error", "uz")
+          and "непредвиденная ошибка" in get_text("sys_unexpected_error", "ru"))
+    check("sys: suhbat muddati + yopish + bekor (uz/ru)",
+          "Suhbat muddat" in get_text("conv_timeout_msg", "uz")
+          and "истечении времени" in get_text("conv_timeout_msg", "ru")
+          and get_text("msg_closed", "uz") == "✅ Yopildi."
+          and get_text("msg_closed", "ru") == "✅ Закрыто."
+          and "bekor qilindi" in get_text("cancel_done", "uz")
+          and "отменено" in get_text("cancel_done", "ru"))
+    check("sys: tizim matnlari uz/ru da real yangi qator bor",
+          "\n" in get_text("sys_busy", "uz") and "\n" in get_text("sys_busy", "ru"))
+
+    # --- 6. Konverter handlerlari: foydalanuvchi tilida chiqishi ---
+    import handlers.converter as conv_mod
+
+    class _UpdMsg:
+        def __init__(self, message):
+            self.message = message
+
+    class _AdStub:
+        """get_auto_ad_injection_async o'rniga — reklamasiz."""
+
+    async def _no_ad(_chat_id):
+        return ""
+
+    async def _conv_run():
+        # converter_received — RU matn, RU tugmalar, bir xil callback'lar
+        orig_ad = conv_mod.get_auto_ad_injection_async
+        conv_mod.get_auto_ad_injection_async = _no_ad
+        try:
+            bot = _FakeBot()
+            ctx = _FakeCtx(bot, {"lang": "ru"})
+            msg = _FakeMsg(1, 111, text="Salom dunyo")
+            out = await conv_mod.converter_received(_UpdMsg(msg), ctx)
+            check("conv handler: CONVERT_INPUT qaytdi", out == conv_mod.CONVERT_INPUT, str(out))
+            replies = [c for c in bot.sent_of("reply_text")]
+            check("conv handler: RU 'Текст получен' + inline kb",
+                  replies and "Текст получен" in (replies[0][2] or "")
+                  and replies[0][3] is not None,
+                  str([c[2] for c in replies]))
+            flat = [b for row in replies[0][3].inline_keyboard for b in row]
+            check("conv handler: RU tugma yorliqlari + bir xil callback",
+                  [b.callback_data for b in flat] == ["conv_show:cyr", "conv_show:lat", "conv_close"]
+                  and flat[0].text == get_text("conv_btn_cyr", "ru")
+                  and flat[1].text == get_text("conv_btn_lat", "ru")
+                  and flat[2].text == get_text("cab_close", "ru"),
+                  str([(b.text, b.callback_data) for b in flat]))
+
+            # converter_callback — RU natija sarlavhasi
+            ctx2 = _FakeCtx(bot, {
+                "lang": "ru", "media_type": "text", "file_id": None,
+                "cyr_text": "Салом дунё", "lat_text": "Salom dunyo",
+            })
+            q = _FakeQuery("conv_show:cyr", _FakeMsg(2, 111))
+            await conv_mod.converter_callback(_UpdQ(q), ctx2)
+            sent = bot.sent_of("send_message")
+            check("conv callback: RU 'Результат' sarlavhasi",
+                  sent and "Результат" in (sent[0][2] or "")
+                  and "скопировать" in (sent[0][2] or ""),
+                  str([c[2] for c in sent]))
+
+            # converter_callback — matn yo'q bo'lsa RU ogohlantirish
+            ctx3 = _FakeCtx(_FakeBot(), {"lang": "ru"})
+            q2 = _FakeQuery("conv_show:cyr", _FakeMsg(3, 111))
+            await conv_mod.converter_callback(_UpdQ(q2), ctx3)
+            check("conv callback: matn yo'q — RU xabar",
+                  q2.message.replies and "не найден" in q2.message.replies[-1],
+                  str(q2.message.replies))
+
+            # source: konverter get_lang/get_text asosida ishlaydi
+            csrc = open(conv_mod.__file__, encoding="utf-8").read()
+            for token in ('get_lang(context)', 'get_text("conv_intro"',
+                          'get_text("conv_received"', 'get_text("msg_closed"',
+                          'get_text("conv_error"'):
+                check(f"conv source: {token}", token in csrc)
+        finally:
+            conv_mod.get_auto_ad_injection_async = orig_ad
+
+    class _UpdQ:
+        def __init__(self, query):
+            self.callback_query = query
+
+    asyncio.run(_conv_run())
+
+    # --- 7. extras_menu / help_command / help_menu_callback runtime (uz/ru) ---
+    # handlers.start atributi paketdagi `start()` funksiyasi bilan soyalanadi —
+    # shuning uchun modul implisit import qilinadi (sys.modules dagi module obyekt).
+    import importlib as _importlib
+    st_mod = _importlib.import_module("handlers.start")
+    from telegram.ext import ConversationHandler
+
+    async def _start_run():
+        orig_ad = st_mod.get_smart_reply_ad_async
+        orig_support = st_mod.SUPPORT_USERNAME
+        st_mod.get_smart_reply_ad_async = lambda uid: _no_ad(uid)
+        st_mod.SUPPORT_USERNAME = "test_admin"
+        try:
+            # extras_menu — RU matn + RU klaviatura
+            bot = _FakeBot()
+            ctx = _FakeCtx(bot, {"lang": "ru"})
+            msg = _FakeMsg(10, 111)
+            out = await st_mod.extras_menu(_UpdMsg(msg), ctx)
+            check("extras_menu: END qaytdi", out == ConversationHandler.END, str(out))
+            rr = [c for c in bot.sent_of("reply_text")]
+            check("extras_menu: RU matn + RU klaviatura",
+                  rr and "Дополнительные функции" in (rr[0][2] or "")
+                  and rr[0][3] is not None
+                  and rr[0][3].inline_keyboard[2][0].text == get_text("cab_close", "ru"),
+                  str([c[2][:60] for c in rr]))
+
+            # help_command — RU guide + FAQ/support tugmalari
+            class _UpdUser(_UpdMsg):
+                def __init__(self, message, uid=999888777):
+                    super().__init__(message)
+                    self.effective_user = _FakeUser(uid)
+
+            ctx2 = _FakeCtx(bot, {"lang": "ru"})
+            msg2 = _FakeMsg(11, 111)
+            await st_mod.help_command(_UpdUser(msg2), ctx2)
+            hr = [c for c in bot.sent_of("reply_text")][-1]
+            check("help_command ru: Полное руководство matni",
+                  hr and "Полное руководство" in (hr[2] or "")
+                  and "@test_admin" in (hr[2] or ""),
+                  str((hr[2] or "")[:80]))
+            hflat = [b for row in hr[3].inline_keyboard for b in row]
+            check("help_command ru: support URL + FAQ tugmalar",
+                  any(b.url == "https://t.me/test_admin" for b in hflat)
+                  and any(b.callback_data == "help:faq" for b in hflat),
+                  str([(b.text, b.url, b.callback_data) for b in hflat]))
+
+            # help_command — uz foydalanuvchi, admin qo'shimchasi YO'Q
+            ctx3 = _FakeCtx(bot, {"lang": "uz"})
+            msg3 = _FakeMsg(12, 111)
+            await st_mod.help_command(_UpdUser(msg3), ctx3)
+            hr2 = [c for c in bot.sent_of("reply_text")][-1]
+            check("help_command uz: To'liq Qo'llanma, admin qo'shimchasiz",
+                  hr2 and "To'liq Qo'llanma" in (hr2[2] or "")
+                  and "Admin buyruqlari" not in (hr2[2] or ""), str((hr2[2] or "")[:80]))
+
+            # help_menu_callback — FAQ ↔ guide
+            ctx4 = _FakeCtx(bot, {"lang": "ru"})
+            q_faq = _FakeQuery("help:faq", _FakeMsg(13, 111))
+            await st_mod.help_menu_callback(_UpdQ(q_faq), ctx4)
+            check("help:faq — RU FAQ matni + orqaga tugmasi",
+                  q_faq.edits and "Часто задаваемые вопросы" in q_faq.edits[0][0]
+                  and q_faq.edits[0][1].inline_keyboard[0][0].callback_data == "help:guide",
+                  str(q_faq.edits[:1]))
+            q_guide = _FakeQuery("help:guide", _FakeMsg(14, 111))
+            await st_mod.help_menu_callback(_UpdQ(q_guide), ctx4)
+            check("help:guide — RU guide qaytadi",
+                  q_guide.edits and "Полное руководство" in q_guide.edits[0][0],
+                  str(q_guide.edits[:1]))
+
+            # extras_close_callback — xabar o'chiradi; '✅ Закрыто. (msg_closed)'
+            # o'chirish ishlamaganda fallback matni sifatida uz/ru tilida yuboriladi
+            ctx5 = _FakeCtx(bot, {"lang": "ru"})
+            q_close = _FakeQuery("extra_close", _FakeMsg(15, 111))
+            await st_mod.extras_close_callback(_UpdQ(q_close), ctx5)
+            dels = bot.sent_of("delete_message")
+            check("extras_close: xabar o'chirildi (RU ctx)",
+                  any(d[1] == 111 and d[2] == 15 for d in dels), str(dels))
+            s_src = open(st_mod.__file__, encoding="utf-8").read()
+            check("extras_close: msg_closed fallback get_text'da",
+                  'get_text("msg_closed"' in s_src
+                  and 'get_text("cancel_done"' in s_src
+                  and 'get_text("cab_guide_text"' in s_src
+                  and 'get_text("cab_converter_info"' in s_src)
+        finally:
+            st_mod.get_smart_reply_ad_async = orig_ad
+            st_mod.SUPPORT_USERNAME = orig_support
+
+    asyncio.run(_start_run())
+
+    # --- 8. ✨ Post kuchaytirgich: RU lokalizatsiya nuqtalari ---
+    import handlers.post_enhancer as pe
+    import database as db_mod
+
+    check("enh: intro RU admin eslatmasi bilan",
+          pe.intro_text("ru").startswith("💡 <b>")
+          and "Администратор" in pe.intro_text("ru")
+          and "Отправьте пост" in pe.intro_text("ru"),
+          pe.intro_text("ru")[:80])
+    check("enh: ADMIN_NOTICE alias saqlangan (uz)",
+          pe.ADMIN_NOTICE == get_text("enh_notice_admin", "uz")
+          and "Admin" in pe.ADMIN_NOTICE)
+    check("enh: URL_PRESETS uz default saqlangan",
+          [dict(p) for p in pe.get_url_presets("uz")]
+          == [dict(p) for p in pe.URL_PRESETS])
+    ru_presets = pe.get_url_presets("ru")
+    check("enh: presets RU",
+          ru_presets[0]["text"] == "📢 Подписаться на канал"
+          and ru_presets[1]["title"] == "Вступить в группу"
+          and ru_presets[2]["text"] == "🤖 Перейти к боту", str(ru_presets))
+    check("enh: build_preset_button RU",
+          pe.build_preset_button(0, "@kanalim", "ru")
+          == {"text": "📢 Подписаться на канал", "url": "https://t.me/kanalim"})
+    check("enh: nav_row RU (Назад/Отмена)",
+          [b.text for b in pe.nav_row("x", "ru")] == ["⬅️ Назад", "❌ Отмена"])
+    summ_ru = pe.summarize_selection({"reactions": ["👍"], "buttons": []}, "ru")
+    check("enh: summary RU + real newline",
+          "Реакции" in summ_ru and "\n" in summ_ru and "\\n" not in summ_ru, repr(summ_ru))
+    check("enh: summary uz regression",
+          pe.summarize_selection({"reactions": ["👍"], "buttons": [{"text": "X", "url": "u"}]})
+          == "👍 Reaksiyalar: <b>1/10</b> — 👍\n🔗 URL tugmalar: <b>1/10</b>")
+
+    class _Ctx2:
+        def __init__(self, data):
+            self.user_data = data
+
+    # hub/react/channel/confirm/success viewlar RU
+    enh = {**pe._fresh_enh(), "step": "hub",
+           "post": {"type": "text", "file_id": None, "content": "Salom"},
+           "reactions": ["👍"], "buttons": [{"text": "Sayt", "url": "https://a.uz"}]}
+    ctx_ru = _Ctx2({"enh": enh, "lang": "ru"})
+    htext, hkb = pe._hub_view(ctx_ru)
+    hflat = [b for row in hkb.inline_keyboard for b in row]
+    check("enh hub ru: RU yorliqlar + bir xil callback",
+          htext.startswith("✨ <b>")
+          and any(b.callback_data == "enh:screen:react" and "Реакции" in b.text for b in hflat)
+          and any(b.callback_data == "enh:preview" for b in hflat)
+          and any(b.callback_data == "enh:cancel" and b.text == "❌ Отмена" for b in hflat),
+          str([(b.text, b.callback_data) for b in hflat]))
+    rtext, _ = pe._react_view(ctx_ru)
+    check("enh react ru: batch maslahat RU",
+          "через пробел" in rtext and "Шаг 1" in rtext, rtext[:90])
+    enh2 = {**enh, "step": "btns"}
+    btext, bkb = pe._btns_view(_Ctx2({"enh": enh2, "lang": "ru"}))
+    bflat = [b for row in bkb.inline_keyboard for b in row]
+    check("enh btns ru: shablonlar RU, callback o'zgarmagan",
+          any(b.text == "📢 1. Подписаться на канал" for b in bflat)
+          and any(b.callback_data == "enh:preset:0" for b in bflat), str(btext[:60]))
+    enh3 = {**enh, "step": "channel", "channels": [("-1001", "Kanal X")]}
+    ctext, ckb = pe._channel_view(_Ctx2({"enh": enh3, "lang": "ru"}))
+    cflat = [b for row in ckb.inline_keyboard for b in row]
+    check("enh channel ru: 'В какой канал' + eslatma",
+          "В какой канал отправить?" in ctext and "Администратор" in ctext
+          and any(b.callback_data == "enh:send:0" for b in cflat), ctext[:70])
+    enh4 = {**enh3, "step": "confirm", "ch_idx": 0}
+    qtext, qkb = pe._confirm_view(_Ctx2({"enh": enh4, "lang": "ru"}))
+    qflat = [b for row in qkb.inline_keyboard for b in row]
+    check("enh confirm ru: 'Отправить этот пост' + tugma",
+          "Отправить этот пост" in qtext
+          and any(b.text == get_text("enh_btn_confirm_yes", "ru") for b in qflat), qtext[:70])
+    stext, skb = pe._success_view("Kanal X", "ru")
+    sflat = [b for row in skb.inline_keyboard for b in row]
+    check("enh success ru: 'успешно опубликован' + 🏠 Главное меню",
+          "успешно опубликован" in stext
+          and any(b.callback_data == "enh:home" and b.text == "🏠 Главное меню" for b in sflat),
+          str(stext[:70]))
+    check("enh success uz regression (🏠 Asosiy menyu)",
+          pe._success_view("K")[0].split("\n")[0] == "✅ <b>Post yuklandi!</b>"
+          and any(b.text == "🏠 Asosiy menyu"
+                  for row in pe._success_view("K")[1].inline_keyboard for b in row))
+
+    # _plan_note uz/ru (bepul foydalanuvchi)
+    async def _plan_run():
+        orig = db_mod.run_db
+        db_mod.run_db = _fake_db()
+        try:
+            note_ru = await pe._plan_note(111, "ru")
+            note_uz = await pe._plan_note(111, "uz")
+            return note_ru, note_uz
+        finally:
+            db_mod.run_db = orig
+
+    note_ru, note_uz = asyncio.run(_plan_run())
+    check("enh plan_note: bepul RU ogohlantirish",
+          "Бесплатный план" in note_ru and "@PostAssistrobot" in note_ru, note_ru)
+    check("enh plan_note: uz regression",
+          "Bepul reja" in note_uz and "@PostAssistrobot" in note_uz, note_uz)
+
+    # enh_stale_callback — RU javob
+    async def _stale_run():
+        q = _FakeQuery("enh:noop", _FakeMsg(50, 111))
+        await pe.enh_stale_callback(_UpdQ(q), _FakeCtx(_FakeBot(), {"lang": "ru"}))
+        return q
+
+    q_stale = asyncio.run(_stale_run())
+    check("enh stale: RU eslatma",
+          q_stale.answers and "Дополнительные функции" in (q_stale.answers[0][0] or ""),
+          str(q_stale.answers))
+
+    # --- 9. Registration + tizim darajasidagi handlerlar ---
+    import handlers as h_mod
+    import main as main_mod
+
+    h_src = open(h_mod.__file__, encoding="utf-8").read()
+    check("register: ^help: callback", 'pattern=r"^help:"' in h_src)
+    check("register: help_menu_callback importlangan", "help_menu_callback" in h_src)
+    check("register: expired session RU/UZ get_text", 'get_text("sys_stale_button"' in h_src)
+    check("register: conversation timeout get_text", 'get_text("conv_timeout_msg"' in h_src)
+    check("register: close_msg get_text", 'get_text("msg_closed"' in h_src)
+    check("register: sys_busy get_text", 'get_text("sys_busy"' in h_src)
+
+    m_src = open(main_mod.__file__, encoding="utf-8").read()
+    check("main: error_handler lokalize qilingan", "sys_unexpected_error" in m_src)
+
+    # expired_session_callback — tilga mos toast
+    async def _expired_run():
+        q = _FakeQuery("some:stale", _FakeMsg(60, 111))
+        await h_mod.expired_session_callback(_UpdQ(q), _FakeCtx(_FakeBot(), {"lang": "ru"}))
+        return q
+
+    q_exp = asyncio.run(_expired_run())
+    check("expired session: RU toast (bot qayta yuklangan)",
+          q_exp.answers and "перезапущен" in (q_exp.answers[0][0] or ""), str(q_exp.answers))
+
+    # main.error_handler — foydalanuvchiga RU xabar
+    class _UpdEH:
+        def __init__(self, message):
+            self.effective_message = message
+
+    async def _eh_run():
+        msg = _FakeMsg(70, 111)
+        ctx = _FakeCtx(_FakeBot(), {"lang": "ru"})
+        ctx.error = ValueError("boom")
+        await main_mod.error_handler(_UpdEH(msg), ctx)
+        return msg
+
+    msg_eh = asyncio.run(_eh_run())
+    check("error_handler: foydalanuvchiga RU kutilmagan xatolik xabari",
+          msg_eh.replies and "непредвиденная ошибка" in msg_eh.replies[-1],
+          str(msg_eh.replies))
+
 def main():
     test_calculate_next_time()
     test_converter()
@@ -6711,6 +7166,7 @@ def main():
     test_channels_i18n_suite()
     test_pending_i18n_suite()
     test_queue_i18n_suite()
+    test_extras_help_i18n_suite()
 
     print(f"\nO'tdi: {passed}, Xato: {failures}")
     if failures:

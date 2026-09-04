@@ -100,20 +100,23 @@ TYPE_LABELS = {
 
 # Kirishdagi majburiy eslatma — bot kanalda admin bo'lmasa post chiqmaydi.
 # Bu matn foydalanuvchiga ENG BIRINCHI xabarda ko'rsatiladi.
-ADMIN_NOTICE = (
-    "💡 <b>Eslatma:</b> Bot postni kanalingizga joylashi uchun avval uni "
-    "kanalingizga <b>Admin</b> qilib qo'shganingizga ishonch hosil qiling."
-)
-POST_REQUEST_LINE = (
-    "Kanalga joylamoqchi bo'lgan postingizni yuboring "
-    "(Matn, Rasm, Video yoki boshqa kanaldan Forward):"
-)
+# Haqiqiy matnlar locales/translations.py da (uz/ru); quyidagi o'zgaruvchilar
+# faqat orqaga moslik (eski importlar) uchun o'zbekcha nusxada saqlanadi.
+def _view_lang(context, lang: str | None = None) -> str:
+    """View ichki til origini: aniq berilmasa ``get_lang(context)`` dan olinadi."""
+    return lang if lang else get_lang(context)
+
+
+ADMIN_NOTICE = get_text("enh_notice_admin", "uz")
+POST_REQUEST_LINE = get_text("enh_post_request", "uz")
 
 # ============================================================
 # TAYYOR URL TUGMA SHABLONLARI (presets)
 # ============================================================
 # Foydalanuvchi shablonni tanlasa, bot FAQAT havolani so'raydi — tugma
 # yozuvi shablondan avtomatik olinadi.
+# Matnlar translations.py dagi enh_preset{1..3}_title/text kalitlaridan
+# olinadi (uz/ru); URL_PRESETS — o'zbekcha (orqaga moslik) kanonik ro'yxat.
 URL_PRESETS = (
     {
         "id": "join_channel", "icon": "📢", "num": "1",
@@ -133,27 +136,45 @@ URL_PRESETS = (
 )
 
 
+def get_url_presets(lang: str = "uz") -> tuple:
+    """Shablonlarni foydalanuvchi tilida qaytaradi (sarlavha/yozuv tarjima (uz/ru)).
+
+    ``hint``/``icon``/``num`` tilga bog'liq emas. ``lang="uz"`` da
+    :data:`URL_PRESETS` bilan bir xil qiymat qaytariladi.
+    """
+    presets = []
+    for i, p in enumerate(URL_PRESETS, 1):
+        presets.append({
+            "id": p["id"], "icon": p["icon"], "num": p["num"],
+            "title": get_text(f"enh_preset{i}_title", lang),
+            "text": get_text(f"enh_preset{i}_text", lang),
+            "hint": p["hint"],
+        })
+    return tuple(presets)
+
+
 # ============================================================
 # YORDAMCHI FUNKSIYALAR (sof logika — unit-testlanadigan)
 # ============================================================
 
-def intro_text() -> str:
-    """Kirish xabari: AVVAL admin eslatmasi, keyin postni so'rash."""
+def intro_text(lang: str = "uz") -> str:
+    """Kirish xabari: AVVAL admin eslatmasi, keyin postni so'rash (uz/ru)."""
     return (
-        f"{ADMIN_NOTICE}\n\n"
-        f"{POST_REQUEST_LINE}\n\n"
-        "✅ Asl matnga tegilmaydi — faqat:\n"
-        "• 👍 10 tagacha reaksiya (probel bilan batch kiritish mumkin),\n"
-        "• 🔗 10 tagacha URL tugma (tayyor shablonlar bilan),\n"
-        "• 👁 so'ralganda prevyu va 🚀 kanalga bir zumda yuborish."
+        f"{get_text('enh_notice_admin', lang)}\n\n"
+        f"{get_text('enh_post_request', lang)}\n\n"
+        f"{get_text('enh_intro_features', lang)}"
     )
 
 
-def nav_row(back_callback: str = "enh:screen:hub") -> list:
-    """Har ekranda doim turadigan navigatsiya qatori: Orqaga + Bekor qilish."""
+def nav_row(back_callback: str = "enh:screen:hub", lang: str = "uz") -> list:
+    """Har ekranda doim turadigan navigatsiya qatori: Orqaga + Bekor qilish (uz/ru).
+
+    "⬅️ Orqaga" / "⬅️ Назад" va "❌ Bekor qilish" / "❌ Отмена" —
+    translations dagi umumiy btn_back/btn_cancel kalitlaridan.
+    """
     return [
-        InlineKeyboardButton("⬅️ Orqaga", callback_data=back_callback),
-        InlineKeyboardButton("❌ Bekor qilish", callback_data="enh:cancel"),
+        InlineKeyboardButton(get_text("btn_back", lang), callback_data=back_callback),
+        InlineKeyboardButton(get_text("btn_cancel", lang), callback_data="enh:cancel"),
     ]
 
 
@@ -219,24 +240,28 @@ def _label_from_url(url: str) -> str:
     return "🔗 Havola"
 
 
-def get_url_preset(index) -> "dict | None":
-    """Shablon indeksini (int/str) shablon dict'iga aylantiradi; yo'q bo'lsa None."""
+def get_url_preset(index, lang: str = "uz") -> "dict | None":
+    """Shablon indeksini (int/str) shablon dict'iga aylantiradi; yo'q bo'lsa None.
+
+    ``lang`` — shablon sarlavhasi/yozuvining tili (uz/ru).
+    """
     try:
         idx = int(index)
     except (TypeError, ValueError):
         return None
-    if 0 <= idx < len(URL_PRESETS):
-        return URL_PRESETS[idx]
+    presets = get_url_presets(lang)
+    if 0 <= idx < len(presets):
+        return presets[idx]
     return None
 
 
-def build_preset_button(index, link: str) -> "dict | None":
+def build_preset_button(index, link: str, lang: str = "uz") -> "dict | None":
     """Tayyor shablon + havola → URL tugma. Havola/shablon yaroqsiz bo'lsa None.
 
     >>> build_preset_button(0, "@kanalim")
     {'text': '📢 Kanalga a'zo bo'lish', 'url': 'https://t.me/kanalim'}
     """
-    preset = get_url_preset(index)
+    preset = get_url_preset(index, lang)
     if not preset:
         return None
     url = normalize_button_url((link or "").strip())
@@ -245,7 +270,7 @@ def build_preset_button(index, link: str) -> "dict | None":
     return sanitize_button({"text": preset["text"], "url": url})
 
 
-def parse_button_input(text: str, preset_index=None) -> "dict | None":
+def parse_button_input(text: str, preset_index=None, lang: str = "uz") -> "dict | None":
     """Foydalanuvchi kiritgan qatorni tugmaga aylantiradi.
 
     Shablon tanlangan bo'lsa AVVAL faqat havola sifatida urilib ko'riladi
@@ -256,7 +281,7 @@ def parse_button_input(text: str, preset_index=None) -> "dict | None":
     if not raw:
         return None
     if preset_index is not None:
-        preset = build_preset_button(preset_index, raw)
+        preset = build_preset_button(preset_index, raw, lang)
         if preset:
             return preset
     return sanitize_button(parse_button_line(raw))
@@ -370,14 +395,15 @@ def build_enhancer_markup(buttons: list, reactions: list, post_id: int = None,
     return InlineKeyboardMarkup(rows) if rows else None
 
 
-def summarize_selection(enh: dict) -> str:
-    """Hub kartasi uchun tanlovlar satri (reaksiyalar/tugmalar soni)."""
+def summarize_selection(enh: dict, lang: str = "uz") -> str:
+    """Hub kartasi uchun tanlovlar satri (reaksiyalar/tugmalar soni) (uz/ru)."""
     reactions = enh.get("reactions") or []
     buttons = enh.get("buttons") or []
-    return (
-        f"👍 Reaksiyalar: <b>{len(reactions)}/{MAX_ENH_REACTIONS}</b>"
-        f"{' — ' + ' '.join(reactions) if reactions else ''}\n"
-        f"🔗 URL tugmalar: <b>{len(buttons)}/{MAX_ENH_BUTTONS}</b>"
+    return get_text(
+        "enh_summary", lang,
+        rn=len(reactions), maxr=MAX_ENH_REACTIONS,
+        emojis=(" — " + " ".join(reactions)) if reactions else "",
+        bn=len(buttons), maxb=MAX_ENH_BUTTONS,
     )
 
 
@@ -408,65 +434,68 @@ def _payload(context) -> dict:
     return enh
 
 
-def _post_line(enh: dict) -> str:
+def _post_line(enh: dict, lang: str = "uz") -> str:
+    """Post turi/matni qisqacha satri (uz/ru). Turlar np_type_* kalitlaridan."""
     post = enh.get("post") or {}
     ptype = post.get("type") or "text"
     content = post.get("content") or ""
-    line = f"📦 <b>Turi:</b> {TYPE_LABELS.get(ptype, '📝 Xabar')}"
+    type_key = f"np_type_{ptype}"
+    type_label = get_text(type_key, lang)
+    if type_label == type_key:  # noma'lum tur — universal fallback
+        type_label = get_text("np_type_unknown", lang)
+    line = get_text("enh_post_line_type", lang, type=type_label)
     if ptype == "album":
         items = parse_album_items(post.get("file_id"))
         if items:
-            line += f" ({len(items)} ta media)"
+            line += get_text("enh_post_line_album_count", lang, n=len(items))
     if content:
         preview = content[:220] + ("…" if len(content) > 220 else "")
-        line += f"\n📝 <b>Matn:</b> <i>{safe_html(preview)}</i>"
+        line += get_text("enh_post_line_text", lang, preview=safe_html(preview))
     else:
-        line += "\n📝 <b>Matn:</b> <i>(yozuv yo'q — faqat media)</i>"
+        line += get_text("enh_post_line_no_text", lang)
     return line
 
 
-def _hub_view(context, watermark_note: str = "") -> tuple:
+def _hub_view(context, watermark_note: str = "", lang: str | None = None) -> tuple:
     enh = _payload(context)
-    text = (
-        "✨ <b>Postga Tugma & Reaksiya qo'shish</b>\n\n"
-        f"{_post_line(enh)}\n\n"
-        f"{summarize_selection(enh)}\n"
-        f"{watermark_note}"
-        f"{ADMIN_NOTICE}\n\n"
-        "Kerakli qadamni tanlang 👇"
+    lang = _view_lang(context, lang)
+    text = get_text(
+        "enh_hub_title", lang,
+        post=_post_line(enh, lang),
+        summary=summarize_selection(enh, lang),
+        note=watermark_note,
+        notice=get_text("enh_notice_admin", lang),
     )
     r_n = len(enh.get("reactions") or [])
     b_n = len(enh.get("buttons") or [])
     keyboard = [
-        [InlineKeyboardButton(f"👍 1. Reaksiyalar ({r_n}/{MAX_ENH_REACTIONS})",
-                              callback_data="enh:screen:react")],
-        [InlineKeyboardButton(f"🔗 2. URL tugmalar ({b_n}/{MAX_ENH_BUTTONS})",
-                              callback_data="enh:screen:btns")],
+        [InlineKeyboardButton(
+            get_text("enh_hub_btn_reacts", lang, n=r_n, max=MAX_ENH_REACTIONS),
+            callback_data="enh:screen:react")],
+        [InlineKeyboardButton(
+            get_text("enh_hub_btn_buttons", lang, n=b_n, max=MAX_ENH_BUTTONS),
+            callback_data="enh:screen:btns")],
         [
-            InlineKeyboardButton("👁️ Prevyu", callback_data="enh:preview"),
-            InlineKeyboardButton("🚀 Kanalga yuborish", callback_data="enh:screen:channel"),
+            InlineKeyboardButton(get_text("enh_btn_preview", lang), callback_data="enh:preview"),
+            InlineKeyboardButton(get_text("enh_btn_send_channel", lang), callback_data="enh:screen:channel"),
         ],
         [
-            InlineKeyboardButton("🔁 Postni almashtirish", callback_data="enh:replace"),
-            InlineKeyboardButton("❌ Bekor qilish", callback_data="enh:cancel"),
+            InlineKeyboardButton(get_text("enh_btn_replace", lang), callback_data="enh:replace"),
+            InlineKeyboardButton(get_text("btn_cancel", lang), callback_data="enh:cancel"),
         ],
     ]
     return text, InlineKeyboardMarkup(keyboard)
 
 
-def _react_view(context, watermark_note: str = "") -> tuple:
+def _react_view(context, watermark_note: str = "", lang: str | None = None) -> tuple:
     enh = _payload(context)
+    lang = _view_lang(context, lang)
     selected = enh.get("reactions") or []
-    sel_line = " ".join(selected) if selected else "— (hech narsa tanlanmagan)"
+    sel_line = " ".join(selected) if selected else get_text("enh_react_none", lang)
     left = max(0, MAX_ENH_REACTIONS - len(selected))
-    text = (
-        f"👍 <b>1-qadam. Reaksiyalar</b> (<b>{len(selected)}/{MAX_ENH_REACTIONS}</b>)\n\n"
-        f"Tanlangan: {sel_line}\n\n"
-        "• Emoji tugmasini bosing — ✅ belgilanadi, qayta bossangiz olib tashlanadi;\n"
-        "• Yoki bir nechta emojini <b>probel bilan</b> bir xabarda yuboring "
-        "(masalan: <code>👍 ❤️ 🔥 👏 🎉</code>);\n"
-        f"• Yana <b>{left}</b> ta reaksiya qo'shsa bo'ladi.\n\n"
-        "<i>Post faqat yakuniy prevyu/tasdiqlash bosqichida ko'rsatiladi.</i>"
+    text = get_text(
+        "enh_react_title", lang,
+        n=len(selected), max=MAX_ENH_REACTIONS, sel=sel_line, left=left,
     )
     rows = []
     row = []
@@ -478,24 +507,30 @@ def _react_view(context, watermark_note: str = "") -> tuple:
             row = []
     if row:
         rows.append(row)
-    done_label = (f"➡️ Davom etish / URL tugmaga o'tish ({len(selected)})"
-                  if selected else "➡️ Davom etish / URL tugmaga o'tish")
+    done_label = (
+        get_text("enh_react_done_count", lang, n=len(selected))
+        if selected else get_text("enh_react_done", lang)
+    )
     rows.append([InlineKeyboardButton(done_label, callback_data="enh:react:done")])
-    extra_row = [InlineKeyboardButton("👁️ Prevyu", callback_data="enh:preview")]
+    extra_row = [InlineKeyboardButton(get_text("enh_btn_preview", lang), callback_data="enh:preview")]
     if selected:
-        extra_row.append(InlineKeyboardButton("🗑 Tozalash", callback_data="enh:react:clear"))
+        extra_row.append(InlineKeyboardButton(
+            get_text("enh_btn_clear", lang), callback_data="enh:react:clear"))
     rows.append(extra_row)
-    rows.append(nav_row("enh:screen:hub"))
+    rows.append(nav_row("enh:screen:hub", lang))
     return text, InlineKeyboardMarkup(rows[:MAX_KEYBOARD_ROWS])
 
 
-def _btn_entry_rows(buttons: list) -> list:
+def _btn_entry_rows(buttons: list, lang: str = "uz") -> list:
     """Mavjud URL tugmalar ro'yxati (10 qator chegarasiga sig'adigan tartibda)."""
 
     def entry(i, b):
+        label = get_text(
+            "enh_btn_entry_edit", lang, num=i + 1,
+            text=btn_label(b.get('text'), get_text("enh_btn_fallback", lang), max_length=20),
+        )
         return [
-            InlineKeyboardButton(f"✏️ {i + 1}. {btn_label(b.get('text'), 'Tugma', max_length=20)}",
-                                 callback_data=f"enh:btn:edit:{i}"),
+            InlineKeyboardButton(label, callback_data=f"enh:btn:edit:{i}"),
             InlineKeyboardButton("❌", callback_data=f"enh:btn:del:{i}"),
         ]
 
@@ -513,89 +548,88 @@ def _btn_entry_rows(buttons: list) -> list:
     return rows
 
 
-def _preset_rows(per_row: int = 2) -> list:
-    """Tayyor URL tugma shablonlari qatorlari."""
+def _preset_rows(per_row: int = 2, lang: str = "uz") -> list:
+    """Tayyor URL tugma shablonlari qatorlari (uz/ru)."""
     buttons = [
         InlineKeyboardButton(f"{p['icon']} {p['num']}. {p['title']}", callback_data=f"enh:preset:{i}")
-        for i, p in enumerate(URL_PRESETS)
+        for i, p in enumerate(get_url_presets(lang))
     ]
     return [buttons[i:i + per_row] for i in range(0, len(buttons), per_row)]
 
 
-def _btns_view(context, watermark_note: str = "") -> tuple:
+def _btns_view(context, watermark_note: str = "", lang: str | None = None) -> tuple:
     enh = _payload(context)
+    lang = _view_lang(context, lang)
     buttons = enh.get("buttons") or []
     if buttons:
         marks = "1️⃣2️⃣3️⃣4️⃣5️⃣6️⃣7️⃣8️⃣9️⃣🔟"
+        fallback = get_text("enh_btn_fallback", lang)
         lines = [
-            f"{marks[i]} <b>{html_escape(b.get('text') or 'Tugma')}</b> → "
-            f"<code>{html_escape(b.get('url') or '')}</code>"
+            get_text(
+                "enh_btns_line", lang, mark=marks[i],
+                text=html_escape(b.get('text') or fallback),
+                url=html_escape(b.get('url') or ''),
+            )
             for i, b in enumerate(buttons)
         ]
         body = "\n".join(lines)
     else:
-        body = "<i>Hozircha tugmalar yo'q — shablon tanlang yoki qo'lda kiriting.</i>"
-    text = (
-        f"🔗 <b>2-qadam. URL tugmalar</b> (<b>{len(buttons)}/{MAX_ENH_BUTTONS}</b>)\n\n"
-        f"{body}\n\n"
-        "Tayyor shablonni tanlang — bot faqat havolani so'raydi.\n"
-        "Qo'lda kiritish: <code>Tugma nomi - https://havola.uz</code> yoki "
-        "<code>Tugma nomi | @kanalim</code>"
+        body = get_text("enh_btns_empty", lang)
+    text = get_text(
+        "enh_btns_title", lang, n=len(buttons), max=MAX_ENH_BUTTONS, body=body,
     )
-    entry_rows = _btn_entry_rows(buttons)
+    entry_rows = _btn_entry_rows(buttons, lang)
     rows = list(entry_rows)
 
-    add_row = [InlineKeyboardButton("➕ Yangi tugma qo'shish", callback_data="enh:btn:add")]
+    add_row = [InlineKeyboardButton(get_text("enh_btn_add_new", lang), callback_data="enh:btn:add")]
     if buttons:
-        add_row.append(InlineKeyboardButton("🗑 Tozalash", callback_data="enh:btn:clear"))
+        add_row.append(InlineKeyboardButton(
+            get_text("enh_btn_clear", lang), callback_data="enh:btn:clear"))
     rows.append(add_row)
 
     # Shablonlar: ro'yxat qisqa bo'lganda to'g'ridan-to'g'ri shu ekranda,
     # aks holda "➕ Yangi tugma qo'shish" ekranida (10 qator chegarasi uchun).
     if len(buttons) < MAX_ENH_BUTTONS and len(entry_rows) <= 3:
-        rows.extend(_preset_rows(per_row=2))
-        rows[-1].append(InlineKeyboardButton("✍️ Qo'lda kiritish", callback_data="enh:btn:manual"))
+        rows.extend(_preset_rows(per_row=2, lang=lang))
+        rows[-1].append(InlineKeyboardButton(
+            get_text("enh_btn_manual", lang), callback_data="enh:btn:manual"))
 
-    rows.append([InlineKeyboardButton("➡️ Tasdiqlash va Kanalga yuborish",
-                                      callback_data="enh:screen:channel")])
-    rows.append(nav_row("enh:screen:hub"))
+    rows.append([InlineKeyboardButton(
+        get_text("enh_btn_confirm_send", lang), callback_data="enh:screen:channel")])
+    rows.append(nav_row("enh:screen:hub", lang))
     return text, InlineKeyboardMarkup(rows[:MAX_KEYBOARD_ROWS])
 
 
-def _btn_add_view(context, watermark_note: str = "") -> tuple:
+def _btn_add_view(context, watermark_note: str = "", lang: str | None = None) -> tuple:
     enh = _payload(context)
+    lang = _view_lang(context, lang)
     n = len(enh.get("buttons") or [])
-    text = (
-        "➕ <b>Yangi URL tugma</b> "
-        f"(<b>{n}/{MAX_ENH_BUTTONS}</b>)\n\n"
-        "Tayyor shablonlardan birini tanlang — bot <b>faqat havolani</b> so'raydi.\n\n"
-        "Yoki <b>✍️ Qo'lda kiritish</b> orqali bir qatorda yuboring:\n"
-        "<code>Tugma nomi - https://havola.uz</code>\n"
-        "<code>Tugma nomi | @kanalim</code>"
-    )
+    text = get_text("enh_btn_add_title", lang, n=n, max=MAX_ENH_BUTTONS)
     rows = [[InlineKeyboardButton(f"{p['icon']} {p['num']}. {p['title']}",
                                   callback_data=f"enh:preset:{i}")]
-            for i, p in enumerate(URL_PRESETS)]
-    rows.append([InlineKeyboardButton("✍️ Qo'lda kiritish", callback_data="enh:btn:manual")])
-    rows.append(nav_row("enh:screen:btns"))
+            for i, p in enumerate(get_url_presets(lang))]
+    rows.append([InlineKeyboardButton(
+        get_text("enh_btn_manual", lang), callback_data="enh:btn:manual")])
+    rows.append(nav_row("enh:screen:btns", lang))
     return text, InlineKeyboardMarkup(rows)
 
 
-def _channel_view(context, watermark_note: str = "") -> tuple:
+def _channel_view(context, watermark_note: str = "", lang: str | None = None) -> tuple:
     enh = _payload(context)
+    lang = _view_lang(context, lang)
     channels = enh.get("channels") or []
-    text = (
-        f"📢 <b>Qaysi kanalga yuborilsin?</b> ({len(channels)} ta)\n\n"
-        "<i>Post tanlangan kanalga to'g'ridan-to'g'ri chiqadi "
-        "(rejalashtirishsiz). Oxirida tasdiq so'raladi.</i>\n\n"
-        f"{ADMIN_NOTICE}"
+    text = get_text(
+        "enh_channel_title", lang, n=len(channels),
+        notice=get_text("enh_notice_admin", lang),
     )
     rows = []
     visible = channels[:16]
     row = []
+    ch_fallback = get_text("enh_channel_fallback", lang)
     for idx, (ch_id, ch_title) in enumerate(visible):
-        row.append(InlineKeyboardButton(f"📢 {btn_label(ch_title, 'Kanal', max_length=24)}",
-                                        callback_data=f"enh:send:{idx}"))
+        row.append(InlineKeyboardButton(
+            f"📢 {btn_label(ch_title, ch_fallback, max_length=24)}",
+            callback_data=f"enh:send:{idx}"))
         if len(row) == 2:
             rows.append(row)
             row = []
@@ -603,70 +637,72 @@ def _channel_view(context, watermark_note: str = "") -> tuple:
         rows.append(row)
     if len(channels) > len(visible):
         rows.append([InlineKeyboardButton(
-            f"…va yana {len(channels) - len(visible)} ta (kanal qo'shish bo'limi orqali tanlang)",
+            get_text("enh_channels_more", lang, n=len(channels) - len(visible)),
             callback_data="enh:noop")])
     # Post allaqachon yuborilgan bo'lsa, "Orqaga" muvaffaqiyat ekraniga qaytadi
     # (editor hubga emas) — muvaffaqiyat xabari asosiy holat bo'lib qoladi.
     back = "enh:screen:sent" if enh.get("sent_channel") else "enh:screen:hub"
-    rows.append(nav_row(back))
+    rows.append(nav_row(back, lang))
     return text, InlineKeyboardMarkup(rows[:MAX_KEYBOARD_ROWS])
 
 
-def _confirm_view(context, watermark_note: str = "") -> tuple:
+def _confirm_view(context, watermark_note: str = "", lang: str | None = None) -> tuple:
     enh = _payload(context)
+    lang = _view_lang(context, lang)
     channels = enh.get("channels") or []
     idx = enh.get("ch_idx")
     if not isinstance(idx, int) or not (0 <= idx < len(channels)):
         return (
-            "⚠️ <b>Kanal tanlanmagan.</b>\n\nRo'yxatdan kanalni tanlang.",
+            get_text("enh_confirm_no_channel", lang),
             InlineKeyboardMarkup([
-                [InlineKeyboardButton("📢 Kanallar ro'yxati", callback_data="enh:screen:channel")],
-                nav_row("enh:screen:hub"),
+                [InlineKeyboardButton(
+                    get_text("enh_btn_channel_list", lang),
+                    callback_data="enh:screen:channel")],
+                nav_row("enh:screen:hub", lang),
             ]),
         )
     ch_id, ch_title = channels[idx][:2]
-    text = (
-        "📢 <b>Yuborishni tasdiqlang</b>\n\n"
-        f"Ushbu post <b>{html_escape(ch_title or 'Kanal')}</b>ga yuborilsinmi?\n\n"
-        f"{_post_line(enh)}\n\n"
-        f"{summarize_selection(enh)}\n"
-        f"{watermark_note}"
-        "\n<i>Yuborilgandan keyin postni o'zgartirib bo'lmaydi.</i>"
+    ch_name = html_escape(ch_title or get_text("enh_channel_fallback", lang))
+    text = get_text(
+        "enh_confirm_title", lang,
+        channel=ch_name,
+        post=_post_line(enh, lang),
+        summary=summarize_selection(enh, lang),
+        note=watermark_note,
     )
     keyboard = [
-        [InlineKeyboardButton("✅ Ha, yuborilsin", callback_data="enh:confirm_send")],
-        [InlineKeyboardButton("👁️ Avval prevyu", callback_data="enh:preview")],
-        nav_row("enh:screen:channel"),
+        [InlineKeyboardButton(get_text("enh_btn_confirm_yes", lang), callback_data="enh:confirm_send")],
+        [InlineKeyboardButton(get_text("enh_btn_preview_first", lang), callback_data="enh:preview")],
+        nav_row("enh:screen:channel", lang),
     ]
     return text, InlineKeyboardMarkup(keyboard)
 
 
-def _success_view(ch_title: str = "") -> tuple:
-    where = f"\n📢 <b>Kanal:</b> {html_escape(ch_title)}" if ch_title else ""
-    text = (
-        "✅ <b>Post yuklandi!</b>\n"
-        "Post kanalingizga muvaffaqiyatli joylandi!"
-        f"{where}\n\n"
-        "Xohlasangiz shu postni boshqa kanalga ham yuborishingiz yoki yangi "
-        "post kuchaytirishingiz mumkin 👇"
+def _success_view(ch_title: str = "", lang: str = "uz") -> tuple:
+    """Muvaffaqiyat ekrani (uz/ru): [🏠 Asosiy menyu / 🏠 Главное меню] ..."""
+    where = (
+        get_text("enh_success_where", lang, channel=html_escape(ch_title))
+        if ch_title else ""
     )
+    text = get_text("enh_success_text", lang, where=where)
     keyboard = [
-        [InlineKeyboardButton("🏠 Asosiy menyu", callback_data="enh:home")],
+        [InlineKeyboardButton(get_text("enh_btn_home", lang), callback_data="enh:home")],
         [
-            InlineKeyboardButton("📢 Boshqa kanalga", callback_data="enh:screen:channel"),
-            InlineKeyboardButton("👁️ Prevyu", callback_data="enh:preview"),
+            InlineKeyboardButton(get_text("enh_btn_other_channel", lang), callback_data="enh:screen:channel"),
+            InlineKeyboardButton(get_text("enh_btn_preview", lang), callback_data="enh:preview"),
         ],
         [
-            InlineKeyboardButton("🚀 Yangi post", callback_data="enh:again"),
-            InlineKeyboardButton("❌ Tugatish", callback_data="enh:cancel"),
+            InlineKeyboardButton(get_text("enh_btn_new_post", lang), callback_data="enh:again"),
+            InlineKeyboardButton(get_text("enh_btn_finish", lang), callback_data="enh:cancel"),
         ],
     ]
     return text, InlineKeyboardMarkup(keyboard)
 
 
-def _sent_view(context, watermark_note: str = "") -> tuple:
+def _sent_view(context, watermark_note: str = "", lang: str | None = None) -> tuple:
     enh = _payload(context)
-    return _success_view(enh.get("sent_channel") or "")
+    lang = _view_lang(context, lang)
+    return _success_view(enh.get("sent_channel") or "", lang)
 
 
 _VIEWS = {
@@ -691,9 +727,10 @@ async def _render(context, chat_id: int, target_msg=None, watermark_note: str = 
     yoki boshqa amalga o'tsa ham post yuklangani haqidagi tasdiq saqlanib qoladi.
     """
     enh = _payload(context)
+    lang = get_lang(context)
     step = enh.get("step", "hub")
     view = _VIEWS.get(step, _hub_view)
-    text, markup = view(context, watermark_note)
+    text, markup = view(context, watermark_note, lang)
 
     old_id = enh.get("hub_msg_id")
     if old_id and old_id == enh.get("success_msg_id"):
@@ -718,18 +755,18 @@ async def _render(context, chat_id: int, target_msg=None, watermark_note: str = 
     enh["hub_msg_id"] = msg.message_id
 
 
-async def _plan_note(user_id: int) -> str:
-    """Watermark/via holati haqida qator (bepul foydalanuvchiga ogohlantirish)."""
+async def _plan_note(user_id: int, lang: str = "uz") -> str:
+    """Watermark/via holati haqida qator (bepul foydalanuvchiga ogohlantirish) (uz/ru)."""
     if user_id in ADMIN_IDS_SET:
-        return "👑 <i>Admin — post toza chiqadi.</i>\n"
+        return get_text("enh_note_admin", lang)
     try:
         is_pro = await db.run_db(db.is_premium, user_id)
     except Exception:
         is_pro = False
     if is_pro:
-        return "✨ <i>PRO — via/watermark qo'shilmaydi, post toza chiqadi.</i>\n"
+        return get_text("enh_note_pro", lang)
     clean = BOT_USERNAME if str(BOT_USERNAME).startswith("@") else f"@{BOT_USERNAME}"
-    return f"🆓 <i>Bepul reja: kanalga yuborilganda post boshiga {clean} qo'shiladi.</i>\n"
+    return get_text("enh_note_free", lang, bot=clean)
 
 
 # ============================================================
@@ -753,12 +790,13 @@ async def post_enhancer_start(update: Update, context: ContextTypes.DEFAULT_TYPE
         msg = update.message
 
     clear_fsm_data(context)
+    lang = get_lang(context)
     enh = _payload(context)
     enh.update(_fresh_enh())
-    # ENG BIRINCHI xabar: admin eslatmasi + postni so'rash.
+    # ENG BIRINCHI xabar: admin eslatmasi + postni so'rash (foydalanuvchi tilida).
     await msg.reply_text(
-        intro_text(),
-        reply_markup=get_cancel_keyboard(),
+        intro_text(lang),
+        reply_markup=get_cancel_keyboard(lang),
         parse_mode="HTML",
     )
     return ENH_POST
@@ -783,8 +821,7 @@ async def enh_message_received(update: Update, context: ContextTypes.DEFAULT_TYP
 
     # Hub/boshqa ekranlarda matn yuborilsa — yo'nalish eslatib turiladi.
     await msg.reply_text(
-        "👇 <b>Postni kuchaytirish uchun pastdagi tugmalardan birini tanlang.</b>\n"
-        "Postni almashtirmoqchimisiz — <b>🔁 Postni almashtirish</b> tugmasini bosing.",
+        get_text("enh_use_buttons", get_lang(context)),
         parse_mode="HTML",
     )
     return ENH_POST
@@ -793,10 +830,11 @@ async def enh_message_received(update: Update, context: ContextTypes.DEFAULT_TYP
 async def _capture_post(update, context, msg, enh):
     user_id = update.effective_user.id
     chat_id = msg.chat_id
+    lang = get_lang(context)
     if msg.media_group_id:
         item = _media_item_from_message(msg)
         if not item or item["type"] in ("voice", "sticker"):
-            await msg.reply_text("⚠️ Bu turdagi media albomga qo'shib bo'lmaydi — yakka yuboring:")
+            await msg.reply_text(get_text("enh_album_reject", lang))
             return ENH_POST
         _purge_stale_albums()
         key = (user_id, msg.media_group_id)
@@ -836,21 +874,22 @@ async def _capture_post(update, context, msg, enh):
         else:
             text = (msg.text or "").strip()
             if not text:
-                await msg.reply_text("⚠️ Bo'sh xabar qabul qilinmadi. Post matnini yoki mediani yuboring:")
+                await msg.reply_text(get_text("enh_empty_msg", lang))
                 return ENH_POST
             enh["post"] = {"type": "text", "file_id": None, "content": msg.text or ""}
 
     enh["step"] = "hub"
     enh["hub_msg_id"] = None  # yangi hub xabari (post bilan bog'liq)
     await _drop_preview(context, chat_id, enh)  # eski post prevyusi eskirgan
-    note = await _plan_note(user_id)
+    note = await _plan_note(user_id, lang)
     await _render(context, chat_id, target_msg=msg, watermark_note=note)
     # Tahrirlash vaqtida post ko'rsatilmaydi; preview alohida tugma bilan ochiladi.
     return ENH_POST
 
 
 async def _emoji_text_step(update, context, msg, enh, chat_id):
-    """Reaksiya matnini qabul qiladi; post previewsi bu bosqichda yuborilmaydi."""
+    """Reaksiya matnini qabul qiladi; post previewsi bu bosqichda yuborilmaydi (uz/ru)."""
+    lang = get_lang(context)
     raw_text = msg.text or msg.caption or ""
     res = apply_reaction_batch(enh.get("reactions"), raw_text)
     if res["tokens"]:
@@ -860,64 +899,75 @@ async def _emoji_text_step(update, context, msg, enh, chat_id):
         if res["added"]:
             extra = ""
             if res["overflow"]:
-                extra += (f"\n⚠️ Chegara <b>{MAX_ENH_REACTIONS}</b> ta — "
-                          f"{' '.join(res['overflow'])} sig'madi.")
+                extra += get_text(
+                    "enh_react_overflow_part", lang,
+                    max=MAX_ENH_REACTIONS, items=" ".join(res['overflow']),
+                )
             if res["duplicates"]:
-                extra += "\nℹ️ Takrorlangan emojilar hisobga olinmadi."
+                extra += get_text("enh_react_dups_part", lang)
             await msg.reply_text(
-                f"✅ <b>Reaksiyalar saqlandi:</b> {sel_line}\n"
-                f"Jami: <b>{total}/{MAX_ENH_REACTIONS}</b>{extra}", parse_mode="HTML")
+                get_text(
+                    "enh_react_saved", lang,
+                    sel=sel_line, total=total, max=MAX_ENH_REACTIONS, extra=extra,
+                ),
+                parse_mode="HTML",
+            )
         elif res["duplicates"] and not res["overflow"]:
             await msg.reply_text(
-                f"ℹ️ Bu emojilar allaqachon tanlangan: {' '.join(res['duplicates'])}\n"
-                f"Jami: <b>{total}/{MAX_ENH_REACTIONS}</b>", parse_mode="HTML")
+                get_text(
+                    "enh_react_dups", lang,
+                    items=" ".join(res['duplicates']),
+                    total=total, max=MAX_ENH_REACTIONS,
+                ),
+                parse_mode="HTML",
+            )
         else:
             await msg.reply_text(
-                f"⚠️ <b>Reaksiyalar chegarasi to'ldi</b> (maks. {MAX_ENH_REACTIONS} ta). "
-                "Avval birortasini olib tashlang.", parse_mode="HTML")
+                get_text("enh_react_full", lang, max=MAX_ENH_REACTIONS),
+                parse_mode="HTML",
+            )
     else:
         low = raw_text.strip().lower()
-        if low in ("done", "tayyor", "✅", "davom", "keyingisi"):
+        # "Davom etish" / "Tozalash" — uz/ru matnli buyruqlar sirf qulaylik uchun.
+        if low in ("done", "tayyor", "✅", "davom", "keyingisi",
+                   "готово", "дальше", "следующий", "продолжить"):
             enh["step"] = "btns"
-        elif low in ("yo'q", "yoq", "bekor", "tozalash"):
+        elif low in ("yo'q", "yoq", "bekor", "tozalash",
+                     "нет", "отмена", "очистить"):
             enh["reactions"] = []
             enh["step"] = "hub"
         else:
             await msg.reply_text(
-                "ℹ️ Faqat <b>emoji</b> yuboring — bir nechta bo'lsa <b>probel bilan</b> "
-                "(masalan: <code>👍 ❤️ 🔥 👏 🎉</code>) yoki pastdagi tugmalardan foydalaning.",
-                parse_mode="HTML")
+                get_text("enh_react_hint_msg", lang),
+                parse_mode="HTML",
+            )
     await _render(context, chat_id)
     return ENH_POST
 
 
 async def _button_text_step(update, context, msg, enh, chat_id):
-    """URL tugma qadami: shablon (faqat havola) yoki qo'lda kiritish."""
+    """URL tugma qadami: shablon (faqat havola) yoki qo'lda kiritish (uz/ru)."""
+    lang = get_lang(context)
     text = (msg.text or msg.caption or "").strip()
     preset_idx = enh.get("btn_preset")
-    if not text or text.lower() in ("yo'q", "yoq", "bekor", "orqaga"):
+    if not text or text.lower() in ("yo'q", "yoq", "bekor", "orqaga",
+                                    "нет", "отмена", "назад"):
         enh["btn_preset"] = None
         enh["step"] = "btns"
         await _render(context, chat_id)
         return ENH_POST
 
-    parsed = parse_button_input(text, preset_idx)
+    parsed = parse_button_input(text, preset_idx, lang)
     if not parsed:
-        preset = get_url_preset(preset_idx)
+        preset = get_url_preset(preset_idx, lang)
         if preset:
             await msg.reply_text(
-                "⚠️ <b>Havola noto'g'ri.</b>\n\n"
-                f"Faqat havolani yuboring, masalan: <code>{preset['hint']}</code>\n"
-                "yoki <code>@kanal_ismi</code>",
+                get_text("enh_bad_link", lang, hint=preset['hint']),
                 parse_mode="HTML",
             )
         else:
             await msg.reply_text(
-                "⚠️ <b>Tugma formati noto'g'ri.</b>\n\n"
-                "Qaytadan yuboring:\n"
-                "<code>Saytga o'tish - https://sayt.uz</code>\n"
-                "<code>Kanalim | @kanalim</code>\n"
-                "<code>https://t.me/bot_ism/start</code> (yozuv avtomatik tanlanadi)",
+                get_text("enh_bad_format", lang),
                 parse_mode="HTML",
             )
         return ENH_POST
@@ -930,8 +980,7 @@ async def _button_text_step(update, context, msg, enh, chat_id):
     else:
         if len(buttons) >= MAX_ENH_BUTTONS:
             await msg.reply_text(
-                f"⚠️ <b>Maksimum {MAX_ENH_BUTTONS} ta URL tugma</b> qo'shish mumkin. "
-                "Avval bittasini o'chiring.",
+                get_text("enh_btn_limit_reached", lang, max=MAX_ENH_BUTTONS),
                 parse_mode="HTML",
             )
             return ENH_POST
@@ -940,10 +989,12 @@ async def _button_text_step(update, context, msg, enh, chat_id):
     enh["step"] = "btns"
     enh["btn_preset"] = None
     enh.pop("_btn_pending_idx", None)
-    verb = "yangilandi" if editing else "saqlandi"
+    verb = get_text("enh_btn_verb_updated" if editing else "enh_btn_verb_saved", lang)
     await msg.reply_text(
-        f"✅ <b>Tugma {verb}:</b> {html_escape(parsed['text'])} → "
-        f"<code>{html_escape(parsed['url'])}</code>",
+        get_text(
+            "enh_btn_saved", lang, verb=verb,
+            text=html_escape(parsed['text']), url=html_escape(parsed['url']),
+        ),
         parse_mode="HTML",
     )
     await _render(context, chat_id)
@@ -983,24 +1034,25 @@ async def enh_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not isinstance(enh, dict) or (
         not enh.get("post") and action not in ("cancel", "home", "again")
     ):
-        await _answer(query, "⚠️ Sessiya tugagan — menyuni qaytadan oching.", alert=True)
+        await _answer(query, get_text("enh_session_expired", get_lang(context)), alert=True)
         return ConversationHandler.END
 
     if action in ("cancel", "home"):
         await _answer(query)
         await _drop_preview(context, chat_id, enh)
+        lang = get_lang(context)
         clear_fsm_data(context)
         try:
             await query.message.delete()
         except Exception:
             pass
-        text = ("🏠 <b>Asosiy menyu</b> — kerakli bo'limni tanlang 👇"
+        text = (get_text("enh_home_msg", lang)
                 if action == "home"
-                else "✅ <b>Qo'shimcha funksiyalar</b> bo'limi yopildi.")
+                else get_text("extras_closed", lang))
         await context.bot.send_message(
             chat_id=user_id,
             text=text,
-            reply_markup=get_main_keyboard(user_id in ADMIN_IDS_SET),
+            reply_markup=get_main_keyboard(user_id in ADMIN_IDS_SET, lang=lang),
             parse_mode="HTML",
         )
         return ConversationHandler.END
@@ -1008,12 +1060,14 @@ async def enh_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if action == "again":
         await _answer(query)
         await _drop_preview(context, chat_id, enh)
+        lang = get_lang(context)
         enh.update(_fresh_enh())
         await query.message.reply_text(
-            f"{ADMIN_NOTICE}\n\n"
-            "🚀 <b>Yangi post</b> — kuchaytirmoqchi bo'lgan postingizni yuboring "
-            "(matn, rasm, video, albom yoki forward):",
-            reply_markup=get_cancel_keyboard(),
+            get_text(
+                "enh_again_prompt", lang,
+                notice=get_text("enh_notice_admin", lang),
+            ),
+            reply_markup=get_cancel_keyboard(lang),
             parse_mode="HTML",
         )
         return ENH_POST
@@ -1037,15 +1091,14 @@ async def enh_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if not channels:
                 await _answer(
                     query,
-                    "⚠️ Ulangan kanal yo'q — avval kanal ulang va botni "
-                    "kanalga Admin qilib qo'shing.",
+                    get_text("enh_no_channels_alert", get_lang(context)),
                     alert=True,
                 )
                 enh["step"] = "hub"
             else:
                 enh["channels"] = channels
         await _render(context, chat_id, target_msg=query.message,
-                      watermark_note=await _plan_note(user_id))
+                      watermark_note=await _plan_note(user_id, get_lang(context)))
         return ENH_POST
 
     if action == "rtgl":
@@ -1059,7 +1112,11 @@ async def enh_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if hit is not None:
             selected.remove(hit)
         elif len(selected) >= MAX_ENH_REACTIONS:
-            await _answer(query, f"⚠️ Maksimum {MAX_ENH_REACTIONS} ta reaksiya!", alert=True)
+            await _answer(
+                query,
+                get_text("enh_react_limit_alert", get_lang(context), max=MAX_ENH_REACTIONS),
+                alert=True,
+            )
             return ENH_POST
         else:
             selected.append(emoji)
@@ -1088,7 +1145,10 @@ async def enh_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await _send_preview(context, chat_id, enh, create=True)
         if not enh.get("sent_channel"):
             enh["step"] = "hub"
-            await _render(context, chat_id, watermark_note=await _plan_note(user_id))
+            await _render(
+                context, chat_id,
+                watermark_note=await _plan_note(user_id, get_lang(context)),
+            )
         # Post yuborilgandan keyin biz muvaffaqiyat xabarini saqlaymiz: preview
         # faqat uning ustiga chiqadi va success ekrani o'chirilmaydi.
         return ENH_POST
@@ -1096,11 +1156,11 @@ async def enh_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if action == "replace":
         await _answer(query)
         await _drop_preview(context, chat_id, enh)
+        lang = get_lang(context)
         enh["step"] = "content"
         await query.message.reply_text(
-            "🔁 <b>Yangi postni yuboring</b> — joriy post (matn/media) almashtiriladi. "
-            "Reaksiyalar va tugmalar saqlanadi 👇",
-            reply_markup=get_cancel_keyboard(),
+            get_text("enh_replace_prompt", lang),
+            reply_markup=get_cancel_keyboard(lang),
             parse_mode="HTML",
         )
         return ENH_POST
@@ -1113,14 +1173,18 @@ async def enh_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return ENH_POST
         channels = enh.get("channels") or []
         if not (0 <= idx < len(channels)):
-            await _answer(query, "⚠️ Bu kanal endi ro'yxatda yo'q.", alert=True)
+            await _answer(
+                query,
+                get_text("enh_channel_gone_alert", get_lang(context)),
+                alert=True,
+            )
             return ENH_POST
         enh["ch_idx"] = idx
         enh["step"] = "confirm"
         # Tasdiqlash ekranida post ham albatta ko'rinsin. Agar foydalanuvchi
         # oldin Preview bosgan bo'lsa, mavjud preview qayta ishlatiladi.
         await _send_preview(context, chat_id, enh, create=True)
-        await _render(context, chat_id, watermark_note=await _plan_note(user_id))
+        await _render(context, chat_id, watermark_note=await _plan_note(user_id, get_lang(context)))
         return ENH_POST
 
     if action == "confirm_send":
@@ -1131,26 +1195,31 @@ async def enh_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def _preset_action(update, context, query, arg, enh):
-    """Tayyor shablon tanlandi — endi faqat havola so'raladi."""
+    """Tayyor shablon tanlandi — endi faqat havola so'raladi (uz/ru)."""
     chat_id = query.message.chat_id if query.message else query.from_user.id
-    preset = get_url_preset(arg)
+    lang = get_lang(context)
+    preset = get_url_preset(arg, lang)
     if not preset:
-        await _answer(query, "⚠️ Shablon topilmadi.", alert=True)
+        await _answer(query, get_text("enh_preset_missing", lang), alert=True)
         return ENH_POST
     if len(enh.get("buttons") or []) >= MAX_ENH_BUTTONS:
-        await _answer(query, f"⚠️ Maksimum {MAX_ENH_BUTTONS} ta tugma!", alert=True)
+        await _answer(
+            query, get_text("enh_btn_limit_alert", lang, max=MAX_ENH_BUTTONS), alert=True,
+        )
         return ENH_POST
     await _answer(query)
     enh["btn_preset"] = int(arg)
     enh.pop("_btn_pending_idx", None)
     enh["step"] = "btn_input"
     await query.message.reply_text(
-        f"{preset['icon']} <b>{preset['num']}. {preset['title']}</b>\n\n"
-        f"Faqat <b>havolani</b> yuboring (masalan: <code>{preset['hint']}</code>) — "
-        "tugma yozuvi avtomatik qo'yiladi.\n\n"
-        "<i>To'liq formatda ham mumkin: <code>Yozuv - https://havola.uz</code></i>",
+        get_text(
+            "enh_preset_prompt", lang,
+            icon=preset['icon'], num=preset['num'],
+            title=preset['title'], hint=preset['hint'],
+        ),
         reply_markup=InlineKeyboardMarkup([
-            [InlineKeyboardButton("⬅️ Bekor qilish", callback_data="enh:screen:btns")]
+            [InlineKeyboardButton(
+                get_text("enh_btn_back_cancel", lang), callback_data="enh:screen:btns")]
         ]),
         parse_mode="HTML",
     )
@@ -1159,10 +1228,13 @@ async def _preset_action(update, context, query, arg, enh):
 
 async def _btn_action(update, context, query, arg, arg2, enh, chat_id):
     user_id = query.from_user.id
+    lang = get_lang(context)
     if arg == "add":
         await _answer(query)
         if len(enh.get("buttons") or []) >= MAX_ENH_BUTTONS:
-            await _answer(query, f"⚠️ Maksimum {MAX_ENH_BUTTONS} ta tugma!", alert=True)
+            await _answer(
+                query, get_text("enh_btn_limit_alert", lang, max=MAX_ENH_BUTTONS), alert=True,
+            )
             return ENH_POST
         enh["btn_preset"] = None
         enh["_btn_pending_idx"] = None
@@ -1173,19 +1245,18 @@ async def _btn_action(update, context, query, arg, arg2, enh, chat_id):
     if arg == "manual":
         await _answer(query)
         if len(enh.get("buttons") or []) >= MAX_ENH_BUTTONS:
-            await _answer(query, f"⚠️ Maksimum {MAX_ENH_BUTTONS} ta tugma!", alert=True)
+            await _answer(
+                query, get_text("enh_btn_limit_alert", lang, max=MAX_ENH_BUTTONS), alert=True,
+            )
             return ENH_POST
         enh["btn_preset"] = None
         enh["_btn_pending_idx"] = None
         enh["step"] = "btn_input"
         await query.message.reply_text(
-            "✍️ <b>Yangi URL tugma (qo'lda kiritish)</b>\n\n"
-            "Bir qatorda yuboring:\n"
-            "<code>Tugma nomi - https://havola.uz</code>\n"
-            "<code>Tugma nomi | @kanalim</code>\n"
-            "<code>Botim - t.me/bot_ismi/start</code>",
+            get_text("enh_manual_prompt", lang),
             reply_markup=InlineKeyboardMarkup(
-                [[InlineKeyboardButton("⬅️ Bekor qilish", callback_data="enh:screen:btns")]]),
+                [[InlineKeyboardButton(
+                    get_text("enh_btn_back_cancel", lang), callback_data="enh:screen:btns")]]),
             parse_mode="HTML")
         return ENH_POST
 
@@ -1196,7 +1267,7 @@ async def _btn_action(update, context, query, arg, arg2, enh, chat_id):
             return ENH_POST
         buttons = list(enh.get("buttons") or [])
         if not (0 <= idx < len(buttons)):
-            await _answer(query, "⚠️ Tugma topilmadi.", alert=True)
+            await _answer(query, get_text("enh_btn_missing_alert", lang), alert=True)
             enh["step"] = "btns"
             await _render(context, chat_id)
             return ENH_POST
@@ -1215,12 +1286,13 @@ async def _btn_action(update, context, query, arg, arg2, enh, chat_id):
         enh["step"] = "btn_input"
         current = buttons[idx]
         await query.message.reply_text(
-            f"✏️ <b>{idx + 1}-tugmani tahrirlash</b>\n\n"
-            f"Hozir: <b>{html_escape(current['text'])}</b> → <code>{html_escape(current['url'])}</code>\n\n"
-            "Yangi qiymatni bir qatorda yuboring:\n"
-            "<code>Yangi yozuv - https://yangi-havola.uz</code>",
+            get_text(
+                "enh_edit_prompt", lang, num=idx + 1,
+                text=html_escape(current['text']), url=html_escape(current['url']),
+            ),
             reply_markup=InlineKeyboardMarkup(
-                [[InlineKeyboardButton("⬅️ Bekor qilish", callback_data="enh:screen:btns")]]),
+                [[InlineKeyboardButton(
+                    get_text("enh_btn_back_cancel", lang), callback_data="enh:screen:btns")]]),
             parse_mode="HTML")
         return ENH_POST
 
@@ -1345,8 +1417,7 @@ async def _send_preview(context, chat_id: int, enh: dict, create: bool = True):
                 try:
                     follow = await bot.send_message(
                         chat_id=chat_id,
-                        text="👆 <i>Yuqorida — prevyu. Tugmalar kanalda shu post "
-                             "ostida chiqadi.</i>",
+                        text=get_text("enh_preview_follow_note", get_lang(context)),
                         reply_markup=markup, parse_mode="HTML",
                     )
                     extra = [follow.message_id]
@@ -1359,7 +1430,10 @@ async def _send_preview(context, chat_id: int, enh: dict, create: bool = True):
 
         sent = await _dispatch_message(bot, chat_id, ptype, file_id, content, markup, html=True)
         if sent is None:
-            await bot.send_message(chat_id=chat_id, text="⚠️ Prevyu yasab bo'lmadi (media fayli yaroqsiz).")
+            await bot.send_message(
+                chat_id=chat_id,
+                text=get_text("enh_preview_failed", get_lang(context)),
+            )
             return None
         enh["preview_msg_id"] = getattr(sent, "message_id", None)
         enh["preview_type"] = ptype
@@ -1368,7 +1442,10 @@ async def _send_preview(context, chat_id: int, enh: dict, create: bool = True):
     except Exception:
         logger.exception("Enhancer prevyu xatosi")
         try:
-            await bot.send_message(chat_id=chat_id, text="⚠️ Prevyu ko'rsatib bo'lmadi.")
+            await bot.send_message(
+                chat_id=chat_id,
+                text=get_text("enh_preview_error", get_lang(context)),
+            )
         except Exception:
             pass
         return None
@@ -1448,24 +1525,25 @@ async def _execute_send(update, context, query, enh):
     user_id = query.from_user.id
     is_admin = user_id in ADMIN_IDS_SET
     chat_id = query.message.chat_id if query.message else user_id
+    lang = get_lang(context)
 
     # Spam-himoya: ketma-ket yuborishlarni cheklash.
     blocked, _ = check_rate_limit(user_id, max_requests=6, window_seconds=30)
     if blocked:
-        await _answer(query, "⏳ Juda tez — birozdan so'ng qayta urinib ko'ring.", alert=True)
+        await _answer(query, get_text("enh_too_fast", lang), alert=True)
         return ENH_POST
 
     channels = enh.get("channels") or []
     idx = enh.get("ch_idx")
     if not isinstance(idx, int) or not (0 <= idx < len(channels)):
-        await _answer(query, "⚠️ Kanal tanlanmagan.", alert=True)
+        await _answer(query, get_text("enh_no_channel_sel", lang), alert=True)
         return ENH_POST
     ch_id, ch_title = channels[idx][:2]
 
     # Kanal hali ham foydalanuvchiga tegishli mi? (egallik tekshiruvi)
     owned = await db.run_db(db.get_user_channels, user_id)
     if not any(str(c[0]) == str(ch_id) for c in (owned or [])):
-        await _answer(query, "⚠️ Bu kanal endi sizning ro'yxatingizda yo'q.", alert=True)
+        await _answer(query, get_text("enh_channel_not_owned", lang), alert=True)
         enh["step"] = "channel"
         enh["channels"] = owned or []
         await _render(context, chat_id)
@@ -1496,7 +1574,7 @@ async def _execute_send(update, context, query, enh):
                                           limit=text_limit)
     except Exception:
         logger.exception("Enhancer: matnni tayyorlashda xato")
-        await _answer(query, "⚠️ Postni tayyorlab bo'lmadi. Qaytadan urinib ko'ring.", alert=True)
+        await _answer(query, get_text("enh_prepare_failed", lang), alert=True)
         return ENH_POST
 
     # --- Reaksiya hisoblagichi uchun yozuv (tarix + react: callback ID) ---
@@ -1523,10 +1601,9 @@ async def _execute_send(update, context, query, enh):
             await db.run_db(db.mark_post_status, pid, "cancelled")
         err = str(e).lower()
         if "bot was kicked" in err or "chat not found" in err or "not enough rights" in err:
-            tip = ("⚠️ Bot kanalda admin emas (yoki ruxsati yo'q). "
-                   "Kanalga admin qilib qo'shing.")
+            tip = get_text("enh_send_no_rights", lang)
         else:
-            tip = f"⚠️ Yuborib bo'lmadi: {html_escape(str(e))[:200]}"
+            tip = get_text("enh_send_failed", lang, error=html_escape(str(e))[:200])
         await _answer(query, tip, alert=True)
         return ENH_POST
 
@@ -1538,7 +1615,7 @@ async def _execute_send(update, context, query, enh):
     logger.info("Enhancer: post kanalga yuborildi (%s → %s)", user_id, ch_id)
     enh["step"] = "sent"
     enh["sent_channel"] = ch_title or ""
-    text, markup_done = _success_view(ch_title or "")
+    text, markup_done = _success_view(ch_title or "", lang)
     try:
         await query.edit_message_text(text, reply_markup=markup_done, parse_mode="HTML")
         enh["success_msg_id"] = query.message.message_id
@@ -1557,11 +1634,13 @@ async def _execute_send(update, context, query, enh):
 # ============================================================
 
 async def enh_stale_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Conversation tugagach eski enhancer/prevyu tugmalari bosilsa — jim javob.
+    """Conversation tugagach eski enhancer/prevyu tugmalari bosilsa — jim javob (uz/ru).
 
     Prevyu xabari buzilmasligi uchun edit QILINMAYDI.
     """
     try:
-        await update.callback_query.answer("⚠️ Bu menyuning muddati tugagan — ⚙️ Qo'shimcha funksiyalarni qaytadan oching.")
+        await update.callback_query.answer(
+            get_text("enh_stale_notice", get_lang(context))
+        )
     except Exception:
         pass

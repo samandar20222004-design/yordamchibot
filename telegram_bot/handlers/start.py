@@ -3,7 +3,7 @@ import time
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.error import TelegramError, Forbidden
 from telegram.ext import ContextTypes, ConversationHandler
-from config import ADMIN_IDS_SET
+from config import ADMIN_IDS_SET, SUPPORT_USERNAME
 import database as db
 from keyboards.default import get_main_keyboard, get_cabinet_keyboard, get_cancel_keyboard
 from keyboards.inline import (
@@ -11,6 +11,7 @@ from keyboards.inline import (
     get_cabinet_inline_keyboard, get_cabinet_back_keyboard,
     get_extras_inline_keyboard, get_language_keyboard,
     get_channels_manage_keyboard, render_channels_list, no_channels_hint,
+    get_help_keyboard, get_help_back_keyboard,
     unpack_sponsor,
 )
 from locales.translations import (
@@ -134,7 +135,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     is_sub, unsubs = await check_user_subscribed(context.bot, user.id)
     if unsubs is None:
         await update.message.reply_text(
-            "⚠️ <b>Tizim vaqtincha band.</b>\nIltimos, birozdan so'ng /start bosing.",
+            get_text("sys_busy", lang),
             parse_mode="HTML",
         )
         return ConversationHandler.END
@@ -410,74 +411,83 @@ async def transfer_amount_received(update: Update, context: ContextTypes.DEFAULT
     clear_fsm_data(context)
     return ConversationHandler.END
 
+def _help_support_line(lang: str = "uz") -> str:
+    """Qo'llanma/FAQ oxiridagi qo'llab-quvvatlash aloqasi qatori (uz/ru).
+
+    SUPPORT_USERNAME sozlansa "… @username bilan bog'laning" ko'rinishida,
+    aks holda umumiy "bot administratori bilan bog'laning" matni chiqadi.
+    """
+    admin = f"@{SUPPORT_USERNAME}" if SUPPORT_USERNAME else get_text("help_admin_fallback", lang)
+    return get_text("help_support_line", lang, admin=admin)
+
+
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """📖 Qo'llanma / Bot haqida — to'liq yo'riqnoma + FAQ + qo'llab-quvvatlash (uz/ru)."""
     is_admin = (update.effective_user.id in ADMIN_IDS_SET)
+    lang = get_lang(context)
     ad_line = await get_smart_reply_ad_async(update.effective_user.id)
-    text = (
-        "📖 <b>PostAssistrobot — To'liq Qo'llanma:</b>\n\n"
-        "🔹 <b>1. Yangi post rejalashtirish:</b>\n"
-        "• Matn, rasm, video, audio yoki <b>albom</b> (bir nechta rasm/video) postlarni istalgan sanaga rejalashtirish.\n"
-        "• Havola tugmalar (URL button), reaksiyalar va avto-o'chirish (12, 24, 48, 72 soat).\n"
-        "• <i>PRO tarifda postlar avtomatik reklamasiz (100% toza) chiqadi!</i>\n\n"
-        "🔹 <b>2. AI Yordamchi (savol-javob + postlar):</b>\n"
-        "• Savol bering — bot imkoniyatlari, ballar, kanallar bo'yicha javob olasiz.\n"
-        "• Matn yoki rasm/forward yuborib, professional post va she'rlar tayyorlash.\n"
-        "• Erkin tilda buyruq: <i>“ertaga ertalab 9 ga hamma kanalga rejalashtir”</i>.\n"
-        "• Postni tahrirlash: <i>“oxiriga telefon raqam qo'sh”</i>.\n"
-        "• Tugma bosmasdan, istalgan vaqtda shunchaki xabar yozsangiz — AI javob beradi.\n\n"
-        "🔹 <b>3. Ballar va Kunlik Seriya (Streak):</b>\n"
-        "• Har kuni botga kiring va <b>'🎁 Kunlik bonus'</b> tugmasini bosing.\n"
-        "• 1-kun (+1), 2-kun (+1), 3-kun (+2), ..., 7-kun (+4 ball) olasiz!\n\n"
-        "🔹 <b>4. Matn O'girgich:</b>\n"
-        "• Lotin ⇄ Kirill alifbolariga tezkor o'girish.\n\n"
-        "⚙️ <b>Tezkor buyruqlar:</b>\n"
-        "/start — Bosh menyu\n"
-        "/newpost — Yangi post\n"
-        "/profile — Kabinet\n"
-        "/help — Qo'llanma\n"
-        "/cancel — Bekor qilish"
-    )
+    text = get_text("help_guide", lang, support=_help_support_line(lang))
     if is_admin:
-        text += "\n\n👑 <b>Admin buyruqlari:</b>\n/admin — Boshqaruv paneli\n/broadcast — Xabar yuborish\n/stats — Statistika"
-    await update.message.reply_text(f"{text}{ad_line}", reply_markup=get_main_keyboard(is_admin, lang=get_lang(context)), parse_mode="HTML")
+        text += get_text("help_guide_admin", lang)
+    await update.message.reply_text(
+        f"{text}{ad_line}",
+        reply_markup=get_help_keyboard(SUPPORT_USERNAME, lang),
+        parse_mode="HTML",
+    )
+
+
+async def help_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """📖 Qo'llanma ichki tugmalari: help:faq ↔ help:guide (uz/ru)."""
+    query = update.callback_query
+    await query.answer()
+    lang = get_lang(context)
+    if (query.data or "") == "help:faq":
+        text = get_text("help_faq", lang, support=_help_support_line(lang))
+        markup = get_help_back_keyboard(lang)
+    else:  # "help:guide" — asosiy qo'llanma sahifasi
+        text = get_text("help_guide", lang, support=_help_support_line(lang))
+        markup = get_help_keyboard(SUPPORT_USERNAME, lang)
+    try:
+        await query.edit_message_text(text, reply_markup=markup, parse_mode="HTML")
+    except Exception:
+        await query.message.reply_text(text, reply_markup=markup, parse_mode="HTML")
+
 
 async def extras_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """⚙️ Qo'shimcha funksiyalar — inline menyu ko'rsatadi."""
+    """⚙️ Qo'shimcha funksiyalar — inline menyu ko'rsatadi (uz/ru)."""
     clear_fsm_data(context)
+    lang = get_lang(context)
     await update.message.reply_text(
-        "⚙️ <b>Qo'shimcha funksiyalar</b>\n\n"
-        "✨ <b>Postga Tugma & Reaksiya qo'shish</b> — tayyor postni (matn, rasm, "
-        "video, albom yoki forward) yuboring: asl matnga tegilmaydi, 10 tagacha "
-        "reaksiya va 10 tagacha URL tugma qo'shib, istalgan kanalga bir zumda "
-        "yuboriladi\n"
-        "🔤 <b>Krill-Lotin konvertor</b> — matnlarni ikki alifbo orasida o'girish\n\n"
-        "Kerakli vositani tanlang 👇",
-        reply_markup=get_extras_inline_keyboard(),
+        get_text("extras_menu_body", lang),
+        reply_markup=get_extras_inline_keyboard(lang),
         parse_mode="HTML",
     )
     return ConversationHandler.END
 
 
 async def extras_close_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Qo'shimcha funksiyalar oynasini yopadi."""
+    """Qo'shimcha funksiyalar oynasini yopadi (✅ Yopildi. / ✅ Закрыто.)."""
     query = update.callback_query
     await query.answer()
     is_admin = query.from_user.id in ADMIN_IDS_SET
+    lang = get_lang(context)
     try:
         await query.message.delete()
     except Exception:
         pass
-    await query.message.reply_text("✅ Yopildi.", reply_markup=get_main_keyboard(is_admin, lang=get_lang(context)))
+    await query.message.reply_text(
+        get_text("msg_closed", lang),
+        reply_markup=get_main_keyboard(is_admin, lang=lang),
+    )
 
 
 async def cancel_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Foydalanuvchi band holatda /cancel bosganda yoki tugma bosganda — aniq xabar."""
+    """Foydalanuvchi band holatda /cancel bosganda yoki tugma bosganda — aniq xabar (uz/ru)."""
     is_admin = (update.effective_user.id in ADMIN_IDS_SET)
     lang = get_lang(context)
     clear_fsm_data(context)
     await update.message.reply_text(
-        "🚫 <b>Jarayon bekor qilindi.</b>\n"
-        "Asosiy menyuga qaytdingiz. Kerakli bo'limni tanlang 👇",
+        get_text("cancel_done", lang),
         reply_markup=get_main_keyboard(is_admin, lang=lang),
         parse_mode="HTML",
     )
@@ -498,7 +508,7 @@ async def cabinet_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception:
             pass
         await query.message.reply_text(
-            "✅ Yopildi.",
+            get_text("msg_closed", get_lang(context)),
             reply_markup=get_main_keyboard(is_admin, lang=get_lang(context)),
         )
         return
@@ -613,11 +623,7 @@ async def cabinet_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if data == "cab_converter":
         await query.answer()
         lang = get_lang(context)
-        text = (
-            "🔤 <b>Krill-Lotin konverter:</b>\n\n"
-            "Lotin yoki Kirill matn yuboring — men uni avtomatik o'girib beraman.\n\n"
-            "<i>Masalan: Salom dunyo → Салом дунё</i>"
-        )
+        text = get_text("cab_converter_info", lang)
         try:
             await query.edit_message_text(text, reply_markup=get_cabinet_back_keyboard(lang), parse_mode="HTML")
         except Exception:
@@ -724,22 +730,7 @@ async def cabinet_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if data == "cab_guide":
         await query.answer()
         lang = get_lang(context)
-        text = (
-            "📖 <b>PostAssistrobot — To'liq Qo'llanma:</b>\n\n"
-            "🔹 <b>1. Yangi post rejalashtirish:</b>\n"
-            "• Matn, rasm, video, audio yoki <b>albom</b> postlarni istalgan sanaga rejalashtirish.\n"
-            "• Havola tugmalar, reaksiyalar va avto-o'chirish.\n\n"
-            "🔹 <b>2. AI Yordamchi:</b>\n"
-            "• Savol bering yoki matn/rasm yuboring — professional post tayyorlaydi.\n"
-            "• Erkin tilda: <i>\"ertaga ertalab 9 ga hamma kanalga\"</i>.\n\n"
-            "🔹 <b>3. Ballar va Kunlik Seriya:</b>\n"
-            "• Har kuni botga kiring va bonus oling (7-kunda +4 ball).\n\n"
-            "⚙️ <b>Tezkor buyruqlar:</b>\n"
-            "/start — Bosh menyu\n"
-            "/profile — Kabinet\n"
-            "/help — Qo'llanma\n"
-            "/cancel — Bekor qilish"
-        )
+        text = get_text("cab_guide_text", lang, support=_help_support_line(lang))
         try:
             await query.edit_message_text(text, reply_markup=get_cabinet_back_keyboard(lang), parse_mode="HTML")
         except Exception:

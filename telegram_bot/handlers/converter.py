@@ -16,40 +16,39 @@ CONVERT_INPUT = 300
 
 
 async def start_converter(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Konverter holatini boshlaydi (waiting_for_text)."""
+    """Konverter holatini boshlaydi (waiting_for_text) — foydalanuvchi tilida."""
     clear_fsm_data(context)
+    lang = get_lang(context)
     await update.message.reply_text(
-        "🔤 <b>Lotin ⇄ Kirill Matn O'girgich:</b>\n\n"
-        "O'girmoqchi bo'lgan <b>matnni</b> yoki <b>rasm/video/fayl</b> (tagida yozuvi bilan) yuboring:\n\n"
-        "<i>Bekor qilish uchun '🔙 Asosiy menyu' tugmasini bosing.</i>",
-        reply_markup=get_cancel_keyboard(),
+        get_text("conv_intro", lang),
+        reply_markup=get_cancel_keyboard(lang),
         parse_mode="HTML"
     )
     return CONVERT_INPUT
 
 
 async def converter_inline_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """'⚙️ Qo'shimcha funksiyalar' inline menyusidan konverterni ochish."""
+    """'⚙️ Qo'shimcha funksiyalar' inline menyusidan konverterni ochish (uz/ru)."""
     query = update.callback_query
     await query.answer()
     clear_fsm_data(context)
+    lang = get_lang(context)
     try:
         await query.message.delete()
     except Exception:
         pass
     await query.message.reply_text(
-        "🔤 <b>Lotin ⇄ Kirill Matn O'girgich:</b>\n\n"
-        "O'girmoqchi bo'lgan <b>matnni</b> yoki <b>rasm/video/fayl</b> (tagida yozuvi bilan) yuboring:\n\n"
-        "<i>Bekor qilish uchun '🔙 Asosiy menyu' tugmasini bosing.</i>",
-        reply_markup=get_cancel_keyboard(),
+        get_text("conv_intro", lang),
+        reply_markup=get_cancel_keyboard(lang),
         parse_mode="HTML",
     )
     return CONVERT_INPUT
 
 
 async def converter_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Faqat CONVERT_INPUT holatida kelgan xabarlarni o'giradi."""
+    """Faqat CONVERT_INPUT holatida kelgan xabarlarni o'giradi (uz/ru)."""
     msg = update.message
+    lang = get_lang(context)
     text = ""
     media_type = "text"
     file_id = None
@@ -84,9 +83,8 @@ async def converter_received(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     if not text:
         await msg.reply_text(
-            "⚠️ Ushbu fayl tagida hech qanday yozuv (matn) topilmadi.\n"
-            "Iltimos, matn yuboring yoki fayl tagiga izoh yozib qaytadan yuboring:",
-            reply_markup=get_cancel_keyboard()
+            get_text("conv_no_text", lang),
+            reply_markup=get_cancel_keyboard(lang)
         )
         return CONVERT_INPUT
 
@@ -99,14 +97,13 @@ async def converter_received(update: Update, context: ContextTypes.DEFAULT_TYPE)
     context.user_data["lat_text"] = lat
 
     keyboard = [
-        [InlineKeyboardButton("🔤 Kirillcha nusxasi", callback_data="conv_show:cyr")],
-        [InlineKeyboardButton("🔤 Lotincha nusxasi", callback_data="conv_show:lat")],
-        [InlineKeyboardButton("❌ Yopish", callback_data="conv_close")],
+        [InlineKeyboardButton(get_text("conv_btn_cyr", lang), callback_data="conv_show:cyr")],
+        [InlineKeyboardButton(get_text("conv_btn_lat", lang), callback_data="conv_show:lat")],
+        [InlineKeyboardButton(get_text("cab_close", lang), callback_data="conv_close")],
     ]
 
     await msg.reply_text(
-        "📝 <b>Matn qabul qilindi!</b>\n\n"
-        "Qaysi alifboga o'girmoqchisiz? Quyidagi tugmalardan birini tanlang 👇",
+        get_text("conv_received", lang),
         reply_markup=InlineKeyboardMarkup(keyboard),
         parse_mode="HTML"
     )
@@ -114,14 +111,16 @@ async def converter_received(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 
 async def converter_close_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Konverter inline oynasini yopadi."""
+    """Konverter inline oynasini yopadi (✅ Yopildi. / ✅ Закрыто.)."""
     query = update.callback_query
     await query.answer()
     try:
         await query.message.delete()
     except Exception:
         try:
-            await query.edit_message_text("✅ Yopildi.", reply_markup=None)
+            await query.edit_message_text(
+                get_text("msg_closed", get_lang(context)), reply_markup=None
+            )
         except Exception:
             pass
 
@@ -145,8 +144,10 @@ def _split_smartly(text: str, max_first_len: int = 950) -> tuple[str, str]:
 
 
 async def converter_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """conv_show:cyr / conv_show:lat — natijani foydalanuvchi tilida chiqaradi."""
     query = update.callback_query
     await query.answer()
+    lang = get_lang(context)
 
     choice = query.data.split(":")[1]
     res_text = context.user_data.get("cyr_text", "") if choice == "cyr" else context.user_data.get("lat_text", "")
@@ -154,7 +155,7 @@ async def converter_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
     file_id = context.user_data.get("file_id")
 
     if not res_text:
-        await query.message.reply_text("⚠️ Matn topilmadi, iltimos qaytadan yuboring.")
+        await query.message.reply_text(get_text("conv_no_saved_text", lang))
         return
 
     chat_id = query.from_user.id
@@ -166,14 +167,26 @@ async def converter_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
             if len(res_text) <= 4000:
                 await bot.send_message(
                     chat_id=chat_id,
-                    text=f"📋 <b>Natija:</b>\n\n<code>{html_escape(res_text)}</code>\n\n<i>(Nusxalash uchun matn ustiga bosing)</i>{ad_line}",
+                    text=(
+                        f"{get_text('conv_result_title', lang)}\n\n"
+                        f"<code>{html_escape(res_text)}</code>\n\n"
+                        f"{get_text('conv_copy_hint', lang)}{ad_line}"
+                    ),
                     parse_mode="HTML"
                 )
             else:
                 part1, part2 = _split_smartly(res_text, max_first_len=3800)
-                await bot.send_message(chat_id=chat_id, text=f"📋 <b>Natija (1-qism):</b>\n\n<code>{html_escape(part1)}</code>", parse_mode="HTML")
+                await bot.send_message(
+                    chat_id=chat_id,
+                    text=f"{get_text('conv_result_part1', lang)}\n\n<code>{html_escape(part1)}</code>",
+                    parse_mode="HTML",
+                )
                 if part2:
-                    await bot.send_message(chat_id=chat_id, text=f"📋 <b>Natija (2-qism):</b>\n\n<code>{html_escape(part2)}</code>{ad_line}", parse_mode="HTML")
+                    await bot.send_message(
+                        chat_id=chat_id,
+                        text=f"{get_text('conv_result_part2', lang)}\n\n<code>{html_escape(part2)}</code>{ad_line}",
+                        parse_mode="HTML",
+                    )
             return
 
         if len(res_text) > 1000:
@@ -192,7 +205,10 @@ async def converter_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 await bot.send_animation(chat_id=chat_id, animation=file_id, caption=part1)
 
             if part2:
-                notice = f"ℹ️ <i>Matn davomi:</i>\n\n<code>{html_escape(part2)}</code>{ad_line}"
+                notice = (
+                    f"{get_text('conv_cont_title', lang)}\n\n"
+                    f"<code>{html_escape(part2)}</code>{ad_line}"
+                )
                 await bot.send_message(chat_id=chat_id, text=notice, parse_mode="HTML")
         else:
             if media_type == "photo":
@@ -212,4 +228,7 @@ async def converter_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     except Exception as e:
         logger.error(f"Konverter xatosi: {e}")
-        await bot.send_message(chat_id=chat_id, text=f"⚠️ Xatolik yuz berdi: {e}")
+        await bot.send_message(
+            chat_id=chat_id,
+            text=get_text("conv_error", lang, error=e),
+        )
