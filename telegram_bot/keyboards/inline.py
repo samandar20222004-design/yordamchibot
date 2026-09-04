@@ -20,9 +20,11 @@ def btn_label(value, fallback: str = "Kanal", max_length: int = BUTTON_LABEL_MAX
     return text
 
 
-def get_close_keyboard() -> InlineKeyboardMarkup:
-    """Inline oynani yopish uchun universal tugma."""
-    return InlineKeyboardMarkup([[InlineKeyboardButton("❌ Yopish", callback_data="close_msg")]])
+def get_close_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
+    """Inline oynani yopish uchun universal tugma (uz/ru)."""
+    return InlineKeyboardMarkup([[
+        InlineKeyboardButton(get_text("pend_close_btn", lang), callback_data="close_msg")
+    ]])
 
 
 def get_referral_share_keyboard(referral_link: str) -> InlineKeyboardMarkup:
@@ -449,7 +451,11 @@ def render_channels_list(channels: list, lang: str = "uz") -> InlineKeyboardMark
     keyboard.append([InlineKeyboardButton(get_text("cab_close", lang), callback_data="close_msg")])
     return InlineKeyboardMarkup(keyboard)
 
-def render_pending_list(posts: list, user_code: str) -> InlineKeyboardMarkup:
+def render_pending_list(posts: list, user_code: str, lang: str = "uz") -> InlineKeyboardMarkup:
+    """Kutilayotgan postlar ro'yxati tugmalari (uz/ru).
+
+    ``callback_data`` tilga bog'liq emas — hamma joyda bir xil qoladi.
+    """
     keyboard = []
     for p in posts:
         pid, ch_title, p_type, s_time, p_num, r_type, r_day, r_time = p
@@ -458,18 +464,18 @@ def render_pending_list(posts: list, user_code: str) -> InlineKeyboardMarkup:
         # 1-qator: vaqt o'zgartirish, matn tahrirlash
         # 2-qator: tugma URL, reaksiya, bekor qilish
         keyboard.append([
-            InlineKeyboardButton(f"🕒 {code_label} vaqt", callback_data=f"edit_time:{pid}"),
-            InlineKeyboardButton(f"✏️ {code_label} matn", callback_data=f"edit_content:{pid}"),
+            InlineKeyboardButton(get_text("pend_edit_time_btn", lang, code=code_label), callback_data=f"edit_time:{pid}"),
+            InlineKeyboardButton(get_text("pend_edit_content_btn", lang, code=code_label), callback_data=f"edit_content:{pid}"),
         ])
         keyboard.append([
-            InlineKeyboardButton(f"🔗 Tugma", callback_data=f"edit_btn:{pid}"),
-            InlineKeyboardButton(f"👍 Reaksiya", callback_data=f"edit_react:{pid}"),
-            InlineKeyboardButton(f"❌ Bekor", callback_data=f"cancel_post:{pid}"),
+            InlineKeyboardButton(get_text("pend_edit_btn_btn", lang), callback_data=f"edit_btn:{pid}"),
+            InlineKeyboardButton(get_text("pend_edit_react_btn", lang), callback_data=f"edit_react:{pid}"),
+            InlineKeyboardButton(get_text("pend_cancel_btn", lang), callback_data=f"cancel_post:{pid}"),
         ])
     # Ro'yxatni yangilash (amal bajargandan keyin holatni ko'rish) va yopish tugmalari
     keyboard.append([
-        InlineKeyboardButton("🔄 Yangilash", callback_data="pending_refresh"),
-        InlineKeyboardButton("❌ Yopish", callback_data="close_msg"),
+        InlineKeyboardButton(get_text("pend_refresh_btn", lang), callback_data="pending_refresh"),
+        InlineKeyboardButton(get_text("pend_close_btn", lang), callback_data="close_msg"),
     ])
     return InlineKeyboardMarkup(keyboard)
 
@@ -721,11 +727,11 @@ def extract_emoji_tokens(text, max_count: int = 10) -> list:
     return out
 
 
-def get_reaction_toggle_keyboard(selected=None) -> InlineKeyboardMarkup:
+def get_reaction_toggle_keyboard(selected=None, lang: str = "uz") -> InlineKeyboardMarkup:
     """Multi-select reaksiya klaviaturasi — emoji bosilganda ✅ belgilanadi/olib tashlanadi.
 
     Keyingi qadamga faqat "[➡️ Davom etish]" yoki "[⏭ Reaksiyasiz o'tish]"
-    tugmasi bosilganda o'tiladi.
+    tugmasi bosilganda o'tiladi. Yorliqlar ``lang`` ga mos tarjima qilinadi.
     """
     sel = set(normalize_reaction_emojis(selected)) if selected else set()
     emoji_row_1 = []
@@ -739,12 +745,15 @@ def get_reaction_toggle_keyboard(selected=None) -> InlineKeyboardMarkup:
             emoji_row_2.append(button)
 
     count = len(sel)
-    done_label = f"➡️ Davom etish ({count} ta)" if count else "➡️ Davom etish"
+    done_label = (
+        get_text("np_react_done_count", lang, count=count)
+        if count else get_text("np_react_done", lang)
+    )
     keyboard = [
         emoji_row_1,
         emoji_row_2,
         [InlineKeyboardButton(done_label, callback_data=CB_REACT_DONE)],
-        [InlineKeyboardButton("⏭ Reaksiyasiz o'tish", callback_data=CB_REACT_SKIP)],
+        [InlineKeyboardButton(get_text("np_react_skip", lang), callback_data=CB_REACT_SKIP)],
     ]
     return InlineKeyboardMarkup(keyboard)
 

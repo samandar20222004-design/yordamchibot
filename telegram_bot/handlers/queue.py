@@ -8,6 +8,7 @@ from telegram.ext import ContextTypes, ConversationHandler
 from config import ADMIN_IDS_SET
 import database as db
 from keyboards.default import get_main_keyboard, get_cancel_keyboard
+from locales.translations import get_lang, get_text, normalize_lang
 from utils.helpers import html_escape
 
 logger = logging.getLogger(__name__)
@@ -16,6 +17,7 @@ tashkent_tz = pytz.timezone("Asia/Tashkent")
 QUEUE_PAGE_SIZE = 5
 
 # Tarif limiti (FREE vs PRO) tugaganda ko'rsatiladigan xabar va PRO tugmasi.
+# (eski chaqiruvlar uchun o'zbekcha konstanta saqlanadi)
 QUEUE_LIMIT_MSG = (
     "🚫 <b>Navbat limiti tugadi!</b>\n\n"
     "Sizda <b>{current}/{max}</b> ta navbatdagi post bor.\n"
@@ -30,6 +32,13 @@ PRO_UPGRADE_KEYBOARD = InlineKeyboardMarkup([
 # States
 QUEUE_MENU = 200
 SLOT_ADD = 201
+
+# Post turlari uchun tarjima kalitlari (queue_view_callback'da ishlatiladi).
+_KNOWN_TYPE_KEYS = {
+    "np_type_text", "np_type_photo", "np_type_video", "np_type_document",
+    "np_type_audio", "np_type_voice", "np_type_sticker", "np_type_album",
+    "np_type_animation", "np_type_unknown",
+}
 
 
 def _post_type_icon(post_type: str) -> str:
@@ -50,7 +59,7 @@ def _content_preview(content: str, max_len: int = 40) -> str:
     return text
 
 
-def _format_queue_item(row, index: int) -> str:
+def _format_queue_item(row, index: int, lang: str = "uz") -> str:
     """Bitta queue postni formatlaydi."""
     post_id, ch_title, post_type, content, sched_time, post_num, ch_id = row
     icon = _post_type_icon(post_type)
@@ -61,45 +70,45 @@ def _format_queue_item(row, index: int) -> str:
     return f"{index}. 🗓 {time_str} | 📢 {ch_display} | {icon}{preview_part}"
 
 
-def _get_queue_list_keyboard(posts, offset: int, total: int) -> InlineKeyboardMarkup:
+def _get_queue_list_keyboard(posts, offset: int, total: int, lang: str = "uz") -> InlineKeyboardMarkup:
     """Queue ro'yxati uchun inline keyboard."""
     rows = []
     for post in posts:
         pid = post[0]
         rows.append([
-            InlineKeyboardButton(f"👁 Ko'rish #{pid}", callback_data=f"qview:{pid}"),
-            InlineKeyboardButton(f"🗑 O'chirish", callback_data=f"qdel:{pid}"),
-            InlineKeyboardButton(f"⏩ Surish", callback_data=f"qpush:{pid}"),
+            InlineKeyboardButton(get_text("queue_btn_view", lang, id=pid), callback_data=f"qview:{pid}"),
+            InlineKeyboardButton(get_text("queue_btn_delete", lang), callback_data=f"qdel:{pid}"),
+            InlineKeyboardButton(get_text("queue_btn_push", lang), callback_data=f"qpush:{pid}"),
         ])
 
     # Pagination tugmalari
     nav = []
     if offset > 0:
         prev_off = max(0, offset - QUEUE_PAGE_SIZE)
-        nav.append(InlineKeyboardButton("⬅️ Oldingi", callback_data=f"qpage:{prev_off}"))
+        nav.append(InlineKeyboardButton(get_text("queue_btn_prev", lang), callback_data=f"qpage:{prev_off}"))
     if offset + QUEUE_PAGE_SIZE < total:
         next_off = offset + QUEUE_PAGE_SIZE
-        nav.append(InlineKeyboardButton("Keyingi ➡️", callback_data=f"qpage:{next_off}"))
+        nav.append(InlineKeyboardButton(get_text("queue_btn_next", lang), callback_data=f"qpage:{next_off}"))
     if nav:
         rows.append(nav)
 
-    rows.append([InlineKeyboardButton("⚙️ Slotlarni sozlash", callback_data="qslots:show")])
-    rows.append([InlineKeyboardButton("❌ Yopish", callback_data="qclose")])
+    rows.append([InlineKeyboardButton(get_text("queue_btn_slots", lang), callback_data="qslots:show")])
+    rows.append([InlineKeyboardButton(get_text("queue_btn_close", lang), callback_data="qclose")])
     return InlineKeyboardMarkup(rows)
 
 
-def _get_post_detail_keyboard(post_id: int) -> InlineKeyboardMarkup:
+def _get_post_detail_keyboard(post_id: int, lang: str = "uz") -> InlineKeyboardMarkup:
     """Bitta postni ko'rish uchun keyboard."""
     return InlineKeyboardMarkup([
         [
-            InlineKeyboardButton("🗑 O'chirish", callback_data=f"qdel:{post_id}"),
-            InlineKeyboardButton("⏩ Keyingi slot", callback_data=f"qpush:{post_id}"),
+            InlineKeyboardButton(get_text("queue_btn_delete", lang), callback_data=f"qdel:{post_id}"),
+            InlineKeyboardButton(get_text("queue_btn_push", lang), callback_data=f"qpush:{post_id}"),
         ],
-        [InlineKeyboardButton("⬅️ Ro'yxatga qaytish", callback_data="qpage:0")],
+        [InlineKeyboardButton(get_text("queue_btn_back", lang), callback_data="qpage:0")],
     ])
 
 
-def _get_slots_keyboard(slots: list) -> InlineKeyboardMarkup:
+def _get_slots_keyboard(slots: list, lang: str = "uz") -> InlineKeyboardMarkup:
     """Slot sozlamalari keyboard."""
     rows = []
     for i, slot in enumerate(slots):
@@ -107,9 +116,9 @@ def _get_slots_keyboard(slots: list) -> InlineKeyboardMarkup:
             InlineKeyboardButton(f"🕐 {slot}", callback_data="qslots:noop"),
             InlineKeyboardButton("❌", callback_data=f"qslots:rm:{i}"),
         ])
-    rows.append([InlineKeyboardButton("➕ Yangi slot qo'shish", callback_data="qslots:add")])
-    rows.append([InlineKeyboardButton("🔄 Default slotlar", callback_data="qslots:reset")])
-    rows.append([InlineKeyboardButton("⬅️ Orqaga", callback_data="qpage:0")])
+    rows.append([InlineKeyboardButton(get_text("queue_btn_add_slot", lang), callback_data="qslots:add")])
+    rows.append([InlineKeyboardButton(get_text("queue_btn_reset_slots", lang), callback_data="qslots:reset")])
+    rows.append([InlineKeyboardButton(get_text("queue_btn_back", lang), callback_data="qpage:0")])
     return InlineKeyboardMarkup(rows)
 
 
@@ -117,7 +126,7 @@ def _get_slots_keyboard(slots: list) -> InlineKeyboardMarkup:
 # HANDLERS
 # ============================================================
 
-async def _build_queue_view(user_id: int, is_admin: bool) -> tuple:
+async def _build_queue_view(user_id: int, is_admin: bool, lang: str = "uz") -> tuple:
     """Queue view matni va markup'ni tuzadi (cabinet'dan ham chaqiriladi)."""
     total = await db.run_db(db.get_queue_post_count, user_id)
 
@@ -133,31 +142,27 @@ async def _build_queue_view(user_id: int, is_admin: bool) -> tuple:
         # noto'g'ri import tufayli tugma bosilganda ImportError chiqar va
         # foydalanuvchi hech qanday javob olmasdi ("qotib qolish").
         from keyboards.inline import get_cabinet_back_keyboard
-        text = (
-            "📚 <b>Navbat (Queue)</b>\n\n"
-            "Hozircha navbatda postlar yo'q.\n"
-            "Yangi post yaratib, <b>⚡️ Navbatga qo'yish</b> tugmasini bosing."
-        )
-        markup = get_cabinet_back_keyboard()
+        text = get_text("queue_empty", lang)
+        markup = get_cabinet_back_keyboard(lang)
         return text, markup
 
     posts = await db.run_db(db.get_queue_posts, user_id, 0, QUEUE_PAGE_SIZE)
-    text_lines = [f"📚 <b>Navbatdagi postlar</b> ({total} ta):\n"]
+    text_lines = [get_text("queue_title", lang, count=total) + "\n"]
     for i, post in enumerate(posts, 1):
-        text_lines.append(_format_queue_item(post, i))
+        text_lines.append(_format_queue_item(post, i, lang))
     text = "\n".join(text_lines)
 
     # Limit to'lgan bo'lsa — banner + PRO tugmasi (navbat ko'rish qoladi).
     if show_upsell:
-        text = QUEUE_LIMIT_MSG.format(current=total, max=max_q) + "\n\n" + text
+        text = get_text("queue_limit_msg", lang, current=total, max=max_q) + "\n\n" + text
 
-    keyboard = _get_queue_list_keyboard(posts, 0, total)
+    keyboard = _get_queue_list_keyboard(posts, 0, total, lang)
     if show_upsell:
         existing = keyboard.inline_keyboard
         existing = [row for row in existing if not any(
             b.callback_data == "sub_open" for b in row
         )]
-        existing.append([InlineKeyboardButton("⭐️ PRO tarifga o'tish", callback_data="sub_open")])
+        existing.append([InlineKeyboardButton(get_text("ch_pro_btn", lang), callback_data="sub_open")])
         keyboard = InlineKeyboardMarkup(existing)
     return text, keyboard
 
@@ -166,7 +171,7 @@ async def queue_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Queue ro'yxatini ko'rsatadi."""
     user_id = update.effective_user.id
     is_admin = (user_id in ADMIN_IDS_SET)
-    text, markup = await _build_queue_view(user_id, is_admin)
+    text, markup = await _build_queue_view(user_id, is_admin, get_lang(context))
     await update.message.reply_text(text, reply_markup=markup, parse_mode="HTML")
     return QUEUE_MENU
 
@@ -175,6 +180,7 @@ async def queue_page_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
     """Sahifalash tugmasi."""
     query = update.callback_query
     await query.answer()
+    lang = get_lang(context)
     user_id = query.from_user.id
     offset = int(query.data.split(":")[1])
 
@@ -182,8 +188,9 @@ async def queue_page_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
     if total == 0:
         try:
             await query.edit_message_text(
-                "📚 <b>Navbat (Queue)</b>\n\nNavbatda postlar yo'q.",
-                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ Yopish", callback_data="qclose")]]),
+                get_text("queue_empty_short", lang),
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(
+                    get_text("queue_btn_close", lang), callback_data="qclose")]]),
                 parse_mode="HTML",
             )
         except Exception:
@@ -191,12 +198,14 @@ async def queue_page_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
         return QUEUE_MENU
 
     posts = await db.run_db(db.get_queue_posts, user_id, offset, QUEUE_PAGE_SIZE)
-    text_lines = [f"📚 <b>Navbatdagi postlar</b> ({total} ta, {offset + 1}-{min(offset + QUEUE_PAGE_SIZE, total)}):\n"]
+    text_lines = [get_text("queue_title_range", lang, count=total,
+                           start=offset + 1,
+                           end=min(offset + QUEUE_PAGE_SIZE, total)) + "\n"]
     for i, post in enumerate(posts, offset + 1):
-        text_lines.append(_format_queue_item(post, i))
+        text_lines.append(_format_queue_item(post, i, lang))
     text = "\n".join(text_lines)
 
-    keyboard = _get_queue_list_keyboard(posts, offset, total)
+    keyboard = _get_queue_list_keyboard(posts, offset, total, lang)
     try:
         await query.edit_message_text(text, reply_markup=keyboard, parse_mode="HTML")
     except Exception:
@@ -208,13 +217,14 @@ async def queue_view_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
     """Bitta postni ko'rish."""
     query = update.callback_query
     await query.answer()
+    lang = get_lang(context)
     user_id = query.from_user.id
     post_id = int(query.data.split(":")[1])
 
     post = await db.run_db(db.get_queue_post_detail, post_id, user_id)
     if not post:
         try:
-            await query.edit_message_text("⚠️ Post topilmadi yoki allaqachon o'chirilgan.")
+            await query.edit_message_text(get_text("queue_not_found", lang))
         except Exception:
             pass
         return QUEUE_MENU
@@ -225,32 +235,26 @@ async def queue_view_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     time_str = sched_time.astimezone(tashkent_tz).strftime("%Y-%m-%d %H:%M")
     ch_display = html_escape(ch_title or ch_id or "?")
-    type_labels = {
-        "text": "📝 Matn", "photo": "🖼 Rasm", "video": "🎬 Video",
-        "document": "📄 Hujjat", "audio": "🎵 Audio", "voice": "🎙 Ovozli",
-        "sticker": "😀 Stiker", "album": "🖼 Albom", "animation": "🎞 GIF",
-    }
-    type_text = type_labels.get(post_type, "📝 Xabar")
+    type_key = "np_type_" + post_type if ("np_type_" + post_type) in _KNOWN_TYPE_KEYS else "np_type_unknown"
+    type_text = get_text(type_key, lang)
 
-    text = (
-        f"👁 <b>Post #{pid}</b>\n\n"
-        f"📢 Kanal: {ch_display}\n"
-        f"📦 Turi: {type_text}\n"
-        f"⏰ Vaqt: {time_str}\n"
-    )
+    text = get_text("queue_view_title", lang, id=pid) + "\n\n"
+    text += get_text("queue_view_channel", lang, channel=ch_display) + "\n"
+    text += get_text("queue_view_type", lang, type=type_text) + "\n"
+    text += get_text("queue_view_time", lang, time=time_str) + "\n"
     if content:
         preview = content[:300]
         if len(content) > 300:
             preview += "…"
-        text += f"\n📋 Matn:\n{html_escape(preview)}"
+        text += "\n" + get_text("queue_view_content", lang, content=html_escape(preview))
     if btn_text and btn_url:
-        text += f"\n🔘 Tugma: {html_escape(btn_text)}"
+        text += "\n" + get_text("queue_view_button", lang, text=html_escape(btn_text))
     if enable_reactions:
-        text += "\n👍 Reaksiyalar: Yoqilgan"
+        text += "\n" + get_text("queue_view_reactions", lang)
     if delete_after_hours > 0:
-        text += f"\n⏳ Auto-o'chirish: {delete_after_hours} soat"
+        text += "\n" + get_text("queue_view_auto_delete", lang, hours=delete_after_hours)
 
-    keyboard = _get_post_detail_keyboard(pid)
+    keyboard = _get_post_detail_keyboard(pid, lang)
     try:
         await query.edit_message_text(text[:4096], reply_markup=keyboard, parse_mode="HTML")
     except Exception:
@@ -261,7 +265,8 @@ async def queue_view_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
 async def queue_delete_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Postni navbatdan o'chirish."""
     query = update.callback_query
-    await query.answer("🗑 O'chirildi!")
+    lang = get_lang(context)
+    await query.answer(get_text("queue_deleted_alert", lang))
     user_id = query.from_user.id
     post_id = int(query.data.split(":")[1])
 
@@ -272,10 +277,9 @@ async def queue_delete_callback(update: Update, context: ContextTypes.DEFAULT_TY
     if total == 0:
         try:
             await query.edit_message_text(
-                "📚 <b>Navbat (Queue)</b>\n\n"
-                "Navbatda postlar yo'q.\n"
-                "Yangi post yaratib, <b>⚡️ Navbatga qo'yish</b> tugmasini bosing.",
-                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ Yopish", callback_data="qclose")]]),
+                get_text("queue_empty", lang),
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(
+                    get_text("queue_btn_close", lang), callback_data="qclose")]]),
                 parse_mode="HTML",
             )
         except Exception:
@@ -283,12 +287,12 @@ async def queue_delete_callback(update: Update, context: ContextTypes.DEFAULT_TY
         return QUEUE_MENU
 
     posts = await db.run_db(db.get_queue_posts, user_id, 0, QUEUE_PAGE_SIZE)
-    text_lines = [f"📚 <b>Navbatdagi postlar</b> ({total} ta):\n"]
+    text_lines = [get_text("queue_title", lang, count=total) + "\n"]
     for i, post in enumerate(posts, 1):
-        text_lines.append(_format_queue_item(post, i))
+        text_lines.append(_format_queue_item(post, i, lang))
     text = "\n".join(text_lines)
 
-    keyboard = _get_queue_list_keyboard(posts, 0, total)
+    keyboard = _get_queue_list_keyboard(posts, 0, total, lang)
     try:
         await query.edit_message_text(text, reply_markup=keyboard, parse_mode="HTML")
     except Exception:
@@ -299,6 +303,7 @@ async def queue_delete_callback(update: Update, context: ContextTypes.DEFAULT_TY
 async def queue_push_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Postni keyingi slotga surish."""
     query = update.callback_query
+    lang = get_lang(context)
     user_id = query.from_user.id
     post_id = int(query.data.split(":")[1])
 
@@ -312,7 +317,8 @@ async def queue_push_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
     post = await db.run_db(db.get_queue_post_detail, post_id, user_id)
     if not post:
         try:
-            await query.message.reply_text("⚠️ Post topilmadi!", parse_mode="HTML")
+            await query.message.reply_text(
+                get_text("queue_not_found_short", lang), parse_mode="HTML")
         except Exception:
             pass
         return QUEUE_MENU
@@ -339,7 +345,8 @@ async def queue_push_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     if not slot_dt:
         try:
-            await query.message.reply_text("⚠️ Bo'sh slot topilmadi!", parse_mode="HTML")
+            await query.message.reply_text(
+                get_text("queue_no_slot", lang), parse_mode="HTML")
         except Exception:
             pass
         return QUEUE_MENU
@@ -349,12 +356,12 @@ async def queue_push_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
     # Ro'yxatni yangilash (surilgan vaqt ro'yxatda ko'rinadi — natija shu orqali bildiriladi)
     total = await db.run_db(db.get_queue_post_count, user_id)
     posts = await db.run_db(db.get_queue_posts, user_id, 0, QUEUE_PAGE_SIZE)
-    text_lines = [f"📚 <b>Navbatdagi postlar</b> ({total} ta):\n"]
+    text_lines = [get_text("queue_title", lang, count=total) + "\n"]
     for i, p in enumerate(posts, 1):
-        text_lines.append(_format_queue_item(p, i))
+        text_lines.append(_format_queue_item(p, i, lang))
     text = "\n".join(text_lines)
 
-    keyboard = _get_queue_list_keyboard(posts, 0, total)
+    keyboard = _get_queue_list_keyboard(posts, 0, total, lang)
     try:
         await query.edit_message_text(text, reply_markup=keyboard, parse_mode="HTML")
     except Exception:
@@ -380,6 +387,7 @@ async def queue_close_callback(update: Update, context: ContextTypes.DEFAULT_TYP
 async def queue_slots_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Slot sozlamalari: ko'rish, qo'shish, o'chirish, reset."""
     query = update.callback_query
+    lang = get_lang(context)
     data = query.data  # "qslots:show", "qslots:add", "qslots:rm:2", "qslots:reset", "qslots:noop"
     parts = data.split(":")
     action = parts[1] if len(parts) > 1 else "show"
@@ -392,12 +400,8 @@ async def queue_slots_callback(update: Update, context: ContextTypes.DEFAULT_TYP
     if action == "show":
         await query.answer()
         slots = await db.run_db(db.get_queue_slots, user_id)
-        text = (
-            f"⚙️ <b>Slot sozlamalari</b>\n\n"
-            f"Mavjud slotlar: <code>{', '.join(slots)}</code>\n\n"
-            f"Har kuni shu vaqtlarda postlar avtomatik rejalashtiriladi."
-        )
-        keyboard = _get_slots_keyboard(slots)
+        text = get_text("queue_slots_title", lang, slots=", ".join(slots))
+        keyboard = _get_slots_keyboard(slots, lang)
         try:
             await query.edit_message_text(text, reply_markup=keyboard, parse_mode="HTML")
         except Exception:
@@ -405,7 +409,7 @@ async def queue_slots_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         return SLOT_ADD
 
     if action == "rm":
-        await query.answer("❌ O'chirildi!")
+        await query.answer(get_text("queue_deleted_alert", lang))
         idx = int(parts[2])
         slots = await db.run_db(db.get_queue_slots, user_id)
         if 0 <= idx < len(slots):
@@ -414,15 +418,11 @@ async def queue_slots_callback(update: Update, context: ContextTypes.DEFAULT_TYP
                 await db.run_db(db.set_queue_slots, user_id, slots)
             else:
                 # Oxirgi slotni o'chirib bo'lmaydi — default qaytaramiz
-                await query.answer("⚠️ Kamida bitta slot bo'lishi kerak!", show_alert=True)
+                await query.answer(get_text("queue_slot_min", lang), show_alert=True)
                 slots = await db.run_db(db.get_queue_slots, user_id)
 
-        text = (
-            f"⚙️ <b>Slot sozlamalari</b>\n\n"
-            f"Mavjud slotlar: <code>{', '.join(slots)}</code>\n\n"
-            f"Har kuni shu vaqtlarda postlar avtomatik rejalashtiriladi."
-        )
-        keyboard = _get_slots_keyboard(slots)
+        text = get_text("queue_slots_title", lang, slots=", ".join(slots))
+        keyboard = _get_slots_keyboard(slots, lang)
         try:
             await query.edit_message_text(text, reply_markup=keyboard, parse_mode="HTML")
         except Exception:
@@ -432,25 +432,19 @@ async def queue_slots_callback(update: Update, context: ContextTypes.DEFAULT_TYP
     if action == "add":
         await query.answer()
         await query.message.reply_text(
-            "➕ <b>Yangi slot qo'shish</b>\n\n"
-            "Vaqt formati: <code>HH:MM</code>\n"
-            "Masalan: <code>22:00</code>",
-            reply_markup=get_cancel_keyboard(),
+            get_text("queue_slot_add_ask", lang),
+            reply_markup=get_cancel_keyboard(lang),
             parse_mode="HTML",
         )
         context.user_data["slot_add_pending"] = True
         return SLOT_ADD
 
     if action == "reset":
-        await query.answer("🔄 Default slotlar qaytarildi!")
+        await query.answer(get_text("queue_slot_reset_alert", lang))
         await db.run_db(db.set_queue_slots, user_id, list(db.DEFAULT_QUEUE_SLOTS))
         slots = list(db.DEFAULT_QUEUE_SLOTS)
-        text = (
-            f"⚙️ <b>Slot sozlamalari</b>\n\n"
-            f"Mavjud slotlar: <code>{', '.join(slots)}</code>\n\n"
-            f"Default slotlar qaytarildi."
-        )
-        keyboard = _get_slots_keyboard(slots)
+        text = get_text("queue_slots_reset", lang, slots=", ".join(slots))
+        keyboard = _get_slots_keyboard(slots, lang)
         try:
             await query.edit_message_text(text, reply_markup=keyboard, parse_mode="HTML")
         except Exception:
@@ -462,17 +456,17 @@ async def queue_slots_callback(update: Update, context: ContextTypes.DEFAULT_TYP
 
 async def slot_add_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Yangi slot qo'shish uchun matn qabul qilish."""
+    lang = get_lang(context)
     text = (update.message.text or "").strip()
     user_id = update.effective_user.id
 
-    if text in ("🔙 Orqaga", "🏠 Bosh menyu"):
+    if text in (get_text("btn_back", lang), get_text("btn_main_menu", lang),
+                get_text("btn_back", "uz"), get_text("btn_main_menu", "uz"),
+                get_text("btn_back", "ru"), get_text("btn_main_menu", "ru")):
         context.user_data.pop("slot_add_pending", None)
         slots = await db.run_db(db.get_queue_slots, user_id)
-        slot_text = (
-            f"⚙️ <b>Slot sozlamalari</b>\n\n"
-            f"Mavjud slotlar: <code>{', '.join(slots)}</code>"
-        )
-        keyboard = _get_slots_keyboard(slots)
+        slot_text = get_text("queue_slots_title", lang, slots=", ".join(slots))
+        keyboard = _get_slots_keyboard(slots, lang)
         await update.message.reply_text(slot_text, reply_markup=keyboard, parse_mode="HTML")
         return SLOT_ADD
 
@@ -483,7 +477,7 @@ async def slot_add_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         assert 0 <= hh < 24 and 0 <= mm < 60
     except Exception:
         await update.message.reply_text(
-            "⚠️ Noto'g'ri format! <code>HH:MM</code> shaklida yozing.\nMasalan: <code>22:00</code>",
+            get_text("queue_slot_format", lang),
             parse_mode="HTML",
         )
         return SLOT_ADD
@@ -492,11 +486,13 @@ async def slot_add_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     slots = await db.run_db(db.get_queue_slots, user_id)
 
     if new_slot in slots:
-        await update.message.reply_text(f"⚠️ <code>{new_slot}</code> allaqachon mavjud!", parse_mode="HTML")
+        await update.message.reply_text(
+            get_text("queue_slot_exists", lang, slot=new_slot), parse_mode="HTML")
         return SLOT_ADD
 
     if len(slots) >= 10:
-        await update.message.reply_text("⚠️ Maksimal 10 ta slot qo'shish mumkin!", parse_mode="HTML")
+        await update.message.reply_text(
+            get_text("queue_slot_max", lang), parse_mode="HTML")
         return SLOT_ADD
 
     slots.append(new_slot)
@@ -504,11 +500,7 @@ async def slot_add_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await db.run_db(db.set_queue_slots, user_id, slots)
     context.user_data.pop("slot_add_pending", None)
 
-    slot_text = (
-        f"✅ Slot qo'shildi: <code>{new_slot}</code>\n\n"
-        f"⚙️ <b>Slot sozlamalari</b>\n\n"
-        f"Mavjud slotlar: <code>{', '.join(slots)}</code>"
-    )
-    keyboard = _get_slots_keyboard(slots)
+    slot_text = get_text("queue_slot_added", lang, slot=new_slot, slots=", ".join(slots))
+    keyboard = _get_slots_keyboard(slots, lang)
     await update.message.reply_text(slot_text, reply_markup=keyboard, parse_mode="HTML")
     return SLOT_ADD

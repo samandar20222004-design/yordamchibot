@@ -1,14 +1,15 @@
 import re
 from telegram import ReplyKeyboardMarkup
 from telegram.ext import filters
-from locales.translations import get_text, get_lang
+from locales.translations import get_text, get_lang, normalize_lang
 
 # ============================================================
 # STANDART MENYU TUGMALARI (Constants)
 # ============================================================
 BTN_NEW_POST = get_text("btn_new_post", "uz")
 BTN_AI_STUDIO = get_text("btn_ai_studio", "uz")
-BTN_PENDING = "⏳ Kutilayotgan postlar"
+BTN_PENDING = get_text("btn_pending", "uz")
+BTN_PENDING_RU = get_text("btn_pending", "ru")
 BTN_SETTINGS = get_text("btn_settings", "uz")
 BTN_CONVERTER = get_text("cab_btn_converter", "uz")
 BTN_HELP = get_text("btn_help", "uz")
@@ -66,48 +67,76 @@ BTN_CACHE_DB = "🗄️ DB / Kesh holati"
 
 # --- Kanal & Post yaratish tugmalari ---
 BTN_ADD_CHANNEL = "➕ Kanal/Guruh qo'shish"
-BTN_QUEUE = "📚 Navbat (Queue)"
+BTN_QUEUE = get_text("btn_queue", "uz")
+BTN_QUEUE_RU = get_text("btn_queue", "ru")
 BTN_CONTENT_PLAN = "🧠 Kontent-reja"
 BTN_ANALYTICS = "📊 Analitika"
 BTN_PREMIUM = get_text("btn_premium", "uz")
 BTN_CHANNEL_EXTRACT = "📢 Ochiq kanaldan olish"
-BTN_ALL_CHANNELS_TARGET = "🌐 Barchasiga birdaniga"
-BTN_SKIP_BUTTON = "➡️ Tugmasiz davom etish"
+BTN_ALL_CHANNELS_TARGET = get_text("np_btn_all_channels", "uz")
+BTN_SKIP_BUTTON = get_text("np_btn_skip", "uz")
 # Inline URL tugma quruvchi (yangi ixtiyoriy qadam)
-BTN_ADD_URL_BUTTON = "🔗 URL tugma qo'shish"
-BTN_SKIP_URL_BUTTON = "⏭ O'tkazib yuborish"
+BTN_ADD_URL_BUTTON = get_text("np_btn_url_add", "uz")
+BTN_SKIP_URL_BUTTON = get_text("np_btn_skip_url", "uz")
 BTN_REACT_THUMBS_UP = "👍"
 BTN_REACT_HEART = "❤️"
 BTN_REACT_FIRE = "🔥"
 BTN_REACT_CLAP = "👏"
 BTN_REACT_DEFAULT = "👍 ❤️ 🔥 👏"
-BTN_NO_REACT = "➡️ Reaksiyasiz davom etish"
+BTN_NO_REACT = get_text("np_btn_no_reactions", "uz")
 
 # Auto-delete
-BTN_DEL_NEVER = "❌ O'chirilmasin (Doimiy)"
-BTN_DEL_12H = "⏳ 12 soat"
-BTN_DEL_24H = "⏳ 24 soat (1 kun)"
-BTN_DEL_48H = "⏳ 48 soat (2 kun)"
-BTN_DEL_72H = "⏳ 72 soat (3 kun)"
+BTN_DEL_NEVER = get_text("np_btn_del_never", "uz")
+BTN_DEL_12H = get_text("np_btn_del_12h", "uz")
+BTN_DEL_24H = get_text("np_btn_del_24h", "uz")
+BTN_DEL_48H = get_text("np_btn_del_48h", "uz")
+BTN_DEL_72H = get_text("np_btn_del_72h", "uz")
 
 # Vaqt turlari
-BTN_T_5MIN = "⚡ 5 daqiqa"
-BTN_T_15MIN = "⚡ 15 daqiqa"
-BTN_T_1H = "⚡ 1 soat"
-BTN_T_DAILY = "🔁 Har kuni (bir vaqtda)"
-BTN_T_WEEKLY = "📅 Har hafta (ma'lum kuni)"
+BTN_T_5MIN = get_text("np_btn_time_5m", "uz")
+BTN_T_15MIN = get_text("np_btn_time_15m", "uz")
+BTN_T_1H = get_text("np_btn_time_1h", "uz")
+BTN_T_DAILY = get_text("np_btn_time_daily", "uz")
+BTN_T_WEEKLY = get_text("np_btn_time_weekly", "uz")
 
 # Muddatlar
-BTN_DUR_1W = "1 hafta"
-BTN_DUR_1M = "1 oy"
-BTN_DUR_3M = "3 oy"
-BTN_DUR_6M = "6 oy"
-BTN_DUR_1Y = "1 yil"
-BTN_DUR_INF = "♾ Cheksiz"
+BTN_DUR_1W = get_text("np_btn_dur_1w", "uz")
+BTN_DUR_1M = get_text("np_btn_dur_1m", "uz")
+BTN_DUR_3M = get_text("np_btn_dur_3m", "uz")
+BTN_DUR_6M = get_text("np_btn_dur_6m", "uz")
+BTN_DUR_1Y = get_text("np_btn_dur_1y", "uz")
+BTN_DUR_INF = get_text("np_btn_dur_inf", "uz")
 
-WEEKDAY_BUTTONS = ["Dushanba", "Seshanba", "Chorshanba", "Payshanba", "Juma", "Shanba", "Yakshanba"]
+# --- Rus tilidagi variantlar (3-QISM i18n) ---
+BTN_ALL_CHANNELS_TARGET_RU = get_text("np_btn_all_channels", "ru")
+BTN_SKIP_BUTTON_RU = get_text("np_btn_skip", "ru")
+BTN_ADD_URL_BUTTON_RU = get_text("np_btn_url_add", "ru")
+BTN_SKIP_URL_BUTTON_RU = get_text("np_btn_skip_url", "ru")
+BTN_NO_REACT_RU = get_text("np_btn_no_reactions", "ru")
+BTN_DEL_NEVER_RU = get_text("np_btn_del_never", "ru")
+BTN_DEL_12H_RU = get_text("np_btn_del_12h", "ru")
+BTN_DEL_24H_RU = get_text("np_btn_del_24h", "ru")
+BTN_DEL_48H_RU = get_text("np_btn_del_48h", "ru")
+BTN_DEL_72H_RU = get_text("np_btn_del_72h", "ru")
+BTN_T_5MIN_RU = get_text("np_btn_time_5m", "ru")
+BTN_T_15MIN_RU = get_text("np_btn_time_15m", "ru")
+BTN_T_1H_RU = get_text("np_btn_time_1h", "ru")
+BTN_T_DAILY_RU = get_text("np_btn_time_daily", "ru")
+BTN_T_WEEKLY_RU = get_text("np_btn_time_weekly", "ru")
+BTN_DUR_1W_RU = get_text("np_btn_dur_1w", "ru")
+BTN_DUR_1M_RU = get_text("np_btn_dur_1m", "ru")
+BTN_DUR_3M_RU = get_text("np_btn_dur_3m", "ru")
+BTN_DUR_6M_RU = get_text("np_btn_dur_6m", "ru")
+BTN_DUR_1Y_RU = get_text("np_btn_dur_1y", "ru")
+BTN_DUR_INF_RU = get_text("np_btn_dur_inf", "ru")
+BTN_BACK_TO_CONFIRM_RU = get_text("np_btn_back_confirm", "ru")
+
+WEEKDAY_BUTTONS = [get_text(f"np_weekday_{i}", "uz") for i in range(7)]
+WEEKDAY_BUTTONS_RU = [get_text(f"np_weekday_{i}", "ru") for i in range(7)]
 WEEKDAY_MAP = {name: idx for idx, name in enumerate(WEEKDAY_BUTTONS)}
+WEEKDAY_MAP_RU = {name: idx for idx, name in enumerate(WEEKDAY_BUTTONS_RU)}
 WEEKDAY_LABELS = {idx: name for name, idx in WEEKDAY_MAP.items()}
+WEEKDAY_LABELS_RU = {idx: name for name, idx in WEEKDAY_MAP_RU.items()}
 
 
 def exact(*texts):
@@ -172,43 +201,44 @@ def get_cancel_keyboard(lang="uz", context=None):
     )
 
 
-def get_button_prompt_keyboard():
+def get_button_prompt_keyboard(lang="uz"):
     """Postga havola tugma qo'shish — ixtiyoriy qadam.
 
     Yangi: "[🔗 URL tugma qo'shish]" / "[⏭ O'tkazib yuborish]" tugmalari.
     Tezkor sarlavhalar va AI yordamchi tugmasi saqlab qolingan.
+    Barcha yorliqlar foydalanuvchi tilida (``lang``) chiqadi.
     """
     return ReplyKeyboardMarkup(
         [
-            ["✨ AI Yordamchi"],
-            ["Batafsil", "Kanalga a'zo bo'lish"],
-            ["Saytga o'tish", "Bog'lanish"],
-            [BTN_ADD_URL_BUTTON],
-            [BTN_SKIP_URL_BUTTON],
-            [BTN_BACK]
+            [get_text("np_btn_ai_assistant", lang)],
+            [get_text("np_btn_title_details", lang), get_text("np_btn_title_join", lang)],
+            [get_text("np_btn_title_site", lang), get_text("np_btn_title_contact", lang)],
+            [get_text("np_btn_url_add", lang)],
+            [get_text("np_btn_skip_url", lang)],
+            [get_text("btn_main_menu", lang)]
         ],
         resize_keyboard=True
     )
 
 
-def get_reactions_keyboard():
+def get_reactions_keyboard(lang="uz"):
     return ReplyKeyboardMarkup(
         [
             [BTN_REACT_THUMBS_UP, BTN_REACT_HEART, BTN_REACT_FIRE, BTN_REACT_CLAP],
-            [BTN_NO_REACT],
-            [BTN_BACK]
+            [get_text("np_btn_no_reactions", lang)],
+            [get_text("btn_main_menu", lang)]
         ],
         resize_keyboard=True
     )
 
 
-def get_auto_delete_keyboard():
+def get_auto_delete_keyboard(lang="uz"):
     return ReplyKeyboardMarkup(
         [
-            [BTN_DEL_NEVER],
-            [BTN_DEL_12H, BTN_DEL_24H],
-            [BTN_DEL_48H, BTN_DEL_72H],
-            [BTN_BACK]
+            [get_text("np_btn_del_never", lang)],
+            [get_text("np_btn_del_12h", lang), get_text("np_btn_del_24h", lang)],
+            [get_text("np_btn_del_48h", lang), get_text("np_btn_del_72h", lang)],
+            [get_text("btn_main_menu", lang)]
         ],
         resize_keyboard=True
     )
@@ -240,13 +270,13 @@ def get_sponsors_keyboard():
     )
 
 
-def get_time_keyboard():
+def get_time_keyboard(lang="uz"):
     return ReplyKeyboardMarkup(
         [
-            [BTN_T_5MIN, BTN_T_15MIN, BTN_T_1H],
-            [BTN_T_DAILY],
-            [BTN_T_WEEKLY],
-            [BTN_BACK],
+            [get_text("np_btn_time_5m", lang), get_text("np_btn_time_15m", lang), get_text("np_btn_time_1h", lang)],
+            [get_text("np_btn_time_daily", lang)],
+            [get_text("np_btn_time_weekly", lang)],
+            [get_text("btn_main_menu", lang)],
         ],
         resize_keyboard=True,
     )
@@ -262,12 +292,12 @@ def get_ai_time_keyboard():
     )
 
 
-def get_duration_keyboard():
+def get_duration_keyboard(lang="uz"):
     return ReplyKeyboardMarkup(
         [
-            [BTN_DUR_1W, BTN_DUR_1M, BTN_DUR_3M],
-            [BTN_DUR_6M, BTN_DUR_1Y, BTN_DUR_INF],
-            [BTN_BACK]
+            [get_text("np_btn_dur_1w", lang), get_text("np_btn_dur_1m", lang), get_text("np_btn_dur_3m", lang)],
+            [get_text("np_btn_dur_6m", lang), get_text("np_btn_dur_1y", lang), get_text("np_btn_dur_inf", lang)],
+            [get_text("btn_main_menu", lang)]
         ],
         resize_keyboard=True
     )
@@ -275,10 +305,16 @@ def get_duration_keyboard():
 
 # --- Kanal uslubi (Tone of Voice) ---
 TONE_LABELS = {
-    "formal": "👔 Rasmiy / Biznes",
-    "friendly": "😊 Do'stona / Samimiy",
-    "concise": "⚡️ Qisqa / Yangiliklar",
-    "engaging": "🎉 Ko'ngilochar / Emotsional",
+    "formal": get_text("ch_tone_formal", "uz"),
+    "friendly": get_text("ch_tone_friendly", "uz"),
+    "concise": get_text("ch_tone_concise", "uz"),
+    "engaging": get_text("ch_tone_engaging", "uz"),
+}
+TONE_LABELS_RU = {
+    "formal": get_text("ch_tone_formal", "ru"),
+    "friendly": get_text("ch_tone_friendly", "ru"),
+    "concise": get_text("ch_tone_concise", "ru"),
+    "engaging": get_text("ch_tone_engaging", "ru"),
 }
 
 BTN_TONE_FORMAL = TONE_LABELS["formal"]
@@ -287,19 +323,21 @@ BTN_TONE_CONCISE = TONE_LABELS["concise"]
 BTN_TONE_ENGAGING = TONE_LABELS["engaging"]
 
 
-def get_tone_keyboard():
+def get_tone_keyboard(lang="uz"):
+    labels = TONE_LABELS_RU if normalize_lang(lang) == "ru" else TONE_LABELS
     return ReplyKeyboardMarkup(
         [
-            [BTN_TONE_FORMAL, BTN_TONE_FRIENDLY],
-            [BTN_TONE_CONCISE, BTN_TONE_ENGAGING],
-            [BTN_BACK],
+            [labels["formal"], labels["friendly"]],
+            [labels["concise"], labels["engaging"]],
+            [get_text("btn_main_menu", lang)],
         ],
         resize_keyboard=True,
     )
 
 
-def get_weekday_keyboard():
-    rows = [[WEEKDAY_BUTTONS[i], WEEKDAY_BUTTONS[i + 1]] for i in range(0, 6, 2)]
-    rows.append([WEEKDAY_BUTTONS[6]])
-    rows.append([BTN_BACK])
+def get_weekday_keyboard(lang="uz"):
+    buttons = WEEKDAY_BUTTONS_RU if normalize_lang(lang) == "ru" else WEEKDAY_BUTTONS
+    rows = [[buttons[i], buttons[i + 1]] for i in range(0, 6, 2)]
+    rows.append([buttons[6]])
+    rows.append([get_text("btn_main_menu", lang)])
     return ReplyKeyboardMarkup(rows, resize_keyboard=True)
