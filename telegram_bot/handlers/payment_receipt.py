@@ -13,12 +13,17 @@ import logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes, ConversationHandler
 
+from datetime import datetime
+
 from config import ADMIN_IDS_SET
 import database as db
 from keyboards.default import get_main_keyboard
 from locales.translations import get_text, get_lang
 from utils.helpers import html_escape
-from handlers.subscription import RECEIPT_WAIT
+from handlers.subscription import (
+    RECEIPT_WAIT, CARD_TARIFFS, _card_tariff_name, _fmt_uzs,
+)
+from handlers.start import ensure_user_lang
 
 logger = logging.getLogger(__name__)
 
@@ -80,15 +85,61 @@ def _get_admin_receipt_keyboard(receipt_id: int, lang: str) -> InlineKeyboardMar
     ])
 
 
-def _build_receipt_caption(user_id: int, username: str, lang: str) -> str:
-    """Adminga yuboriladigan chek xabari matni (admin tilida)."""
+def _fmt_receipt_time() -> str:
+    """Chek vaqti — Toshkent vaqti bilan 'DD.MM.YYYY HH:MM' (xato bo'lsa UTC)."""
+    try:
+        from utils.helpers import tashkent_tz
+        return datetime.now(tashkent_tz).strftime("%d.%m.%Y %H:%M")
+    except Exception:
+        return datetime.now().strftime("%d.%m.%Y %H:%M")
+
+
+def _receipt_plan_for(context) -> tuple:
+    """Chek uchun tanlangan tarif: (plan_key, days).
+
+    ``context.user_data['card_plan']`` da foydalanuvchi '💳 Karta orqali to'lov'
+    oqimida tanlagan tarif saqlanadi ('1m'|'3m'|'1y'); topilmasa — '1m'.
+    """
+    ud = getattr(context, "user_data", None) or {}
+    plan_key = ud.get("card_plan") or "1m"
+    plan = CARD_TARIFFS.get(plan_key) or CARD_TARIFFS["1m"]
+    return plan_key, plan["days"]
+
+
+def _build_receipt_caption(
+    user_id: int,
+    full_name: str,
+    username: str,
+    lang: str,
+    tarif_name: str = "",
+    tarif_sum: str = "",
+    sana: str = "",
+) -> str:
+    """Adminga yuboriladigan chek xabari matni (admin tilida).
+
+    Format: foydalanuvchi (ismi + @username), ID, tanlangan tarif + summa,
+    yuborilgan vaqt.
+    """
     parts = [get_text("receipt_admin_title", lang), ""]
+    name = html_escape(full_name or "")
     if username:
-        parts.append(get_text("receipt_admin_username_line", lang,
-                              username=html_escape(username)))
-    parts.append(get_text("receipt_admin_user_line", lang, user_id=user_id))
-    parts.append("")
-    parts.append(get_text("receipt_admin_ask", lang))
+        parts.append(get_text(
+            "receipt_admin_user_line", lang,
+            name=name or html_escape(str(user_id)),
+            username=html_escape(username),
+        ))
+    elif name:
+        parts.append(get_text("receipt_admin_user_nick_line", lang, name=name))
+    else:
+        parts.append(get_text("receipt_admin_user_nick_line", lang,
+                              name=html_escape(str(user_id))))
+    parts.append(get_text("receipt_admin_user_id_line", lang, user_id=user_id))
+    if tarif_name:
+        parts.append(get_text(
+            "receipt_admin_tarif_line", lang,
+            tarif=html_escape(tarif_name), summa=tarif_sum,
+        ))
+    parts.append(get_text("receipt_admin_time_line", lang, sana=sana))
     return "\n".join(parts)
 
 
@@ -101,7 +152,7 @@ async def receipt_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = update.message
     user = update.effective_user
     user_id = user.id if user else 0
-    lang = get_lang(context)
+    lang = await ensure_user_lang(context, user_id)
 
     media = _pick_receipt_media(msg)
     if media is None:
@@ -111,10 +162,18 @@ async def receipt_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     media_type, file_id, caption = media
     username = (user.username or "") if user else ""
     full_name = (user.full_name or "") if user else ""
+    # Admin caption'ida talab qilinganidek ism (first_name) ko'rsatiladi;
+    # first_name bo'lmasa full_name zaxira bo'ladi.
+    display_name = ((user.first_name or "") if user else "") or full_name
+
+    # 💳 Foydalanuvchi tanlagan tarif ('sub_tarif:1m/3m/1y' → user_data).
+    # Chek DB'ga shu tarifning muddati bilan saqlanadi — admin ✅ bosganda
+    # PRO aynan shu muddatga (30/90/365 kun) uzaytiriladi.
+    plan_key, plan_days = _receipt_plan_for(context)
 
     receipt_id = await db.run_db(
         db.save_payment_receipt, user_id, media_type, file_id, caption,
-        username, full_name, lang,
+        username, full_name, lang, plan_days,
     )
 
     if not receipt_id:
@@ -124,14 +183,22 @@ async def receipt_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return RECEIPT_WAIT
 
-    # 📣 Barcha adminlarga yuboramiz (o'zini chetlab).
+    # 📣 Barcha adminlarga yuboramiz (o'zini chetlab). Caption'da foydalanuvchi
+    # (ism + @username), ID, tanlangan tarif + summa va vaqt ko'rsatiladi.
+    tarif_sum = _fmt_uzs(CARD_TARIFFS[plan_key]["amount"])
+    sana = _fmt_receipt_time()
     for admin_id in ADMIN_IDS_SET:
         if admin_id == user_id:
             continue
         try:
             admin_lang = await db.run_db(db.get_user_language, admin_id)
-            cap = _build_receipt_caption(user_id, username, admin_lang)
-            markup = _get_admin_receipt_keyboard(receipt_id, admin_lang)
+            cap = _build_receipt_caption(
+                user_id, display_name, username, admin_lang,
+                tarif_name=_card_tariff_name(plan_key, admin_lang or "uz"),
+                tarif_sum=tarif_sum,
+                sana=sana,
+            )
+            markup = _get_admin_receipt_keyboard(receipt_id, admin_lang or "uz")
             if media_type == "photo":
                 await context.bot.send_photo(
                     chat_id=admin_id, photo=file_id, caption=cap,
@@ -145,10 +212,16 @@ async def receipt_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception as e:
             logger.warning("Chekni adminga (%s) yuborishda xato: %s", admin_id, e)
 
+    # Foydalanilgan tarif tanlovini tozalaymiz — keyingi chek yangi tanlovdan
+    # boshlansin (eski tarif yopishib qolmasin).
+    ud = getattr(context, "user_data", None)
+    if ud is not None:
+        ud.pop("card_plan", None)
+
     is_admin = user_id in ADMIN_IDS_SET
     await msg.reply_text(
         get_text("receipt_saved", lang),
-        reply_markup=get_main_keyboard(is_admin),
+        reply_markup=get_main_keyboard(is_admin, lang=lang),
         parse_mode="HTML",
     )
     return ConversationHandler.END

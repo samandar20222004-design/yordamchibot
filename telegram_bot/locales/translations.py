@@ -87,20 +87,37 @@ TRANSLATIONS = {
             "• 3 oy — <b>{p3m} so'm</b>\n"
             "• 1 yil — <b>{p1y} so'm</b>"
         ),
+        "card_tariff_title": (
+            "💳 <b>Karta orqali to'lov</b>\n\n"
+            "📌 Qaysi tarifga to'laysiz? Tarifni tanlang 👇"
+        ),
+        "card_plan_1m": "1 oy",
+        "card_plan_3m": "3 oy",
+        "card_plan_1y": "1 yil",
+        "card_tariff_1m": "1 oy — {price} so'm",
+        "card_tariff_3m": "3 oy — {price} so'm",
+        "card_tariff_1y": "1 yil — {price} so'm",
+        "card_payment_selected": (
+            "🎫 Tanlangan tarif: <b>{tarif}</b>\n"
+            "💰 To'lov summasi: <b>{summa} so'm</b>"
+        ),
         "card_payment_card": "💳 <b>Karta raqami:</b> <code>{card}</code>\n👤 <b>Karta egasi:</b> {holder}",
         "card_payment_no_card": "ℹ️ Karta rekvizitlarini olish uchun adminga murojaat qiling.",
         "card_payment_steps": (
             "📝 <b>Yo'riqnoma:</b>\n"
-            "1️⃣ Tanlagan tarif summasini yuqoridagi kartaga o'tkazing.\n"
-            "2️⃣ To'lov chekini (skrinshot) adminga yuboring: {admin}\n"
-            "3️⃣ Xabarda o'z ID raqamingizni ko'rsating: <code>{user_id}</code>\n"
-            "4️⃣ Admin tekshirgach PRO tarif 24 soat ichida faollashtiriladi.\n\n"
-            "⚡️ Tezroq bo'lishi uchun ⭐️ Stars orqali to'lasangiz PRO darhol yoqiladi."
+            "1️⃣ Tanlangan summani yuqoridagi kartaga o'tkazing.\n"
+            "2️⃣ To'lov chekini (skrinshot yoki PDF) oling.\n"
+            "3️⃣ Pastdagi <b>\"📸 Chek yuborish\"</b> tugmasini bosing va chekni shu yerga yuboring.\n"
+            "4️⃣ Sizning ID: <code>{user_id}</code> — chek tekshiruvida ishlatiladi.\n\n"
+            "Admin tasdiqlagach <b>PRO tarif</b> faollashtiriladi.\n"
+            "⚡️ Tezroq bo'lishi uchun ⭐️ Stars orqali to'lasangiz PRO darhol yoqiladi.\n"
+            "Savol bo'lsa: {admin}"
         ),
         "card_payment_admin_missing": "admin (Bot haqida bo'limidagi aloqa orqali)",
         "btn_send_receipt": "📸 Chek yuborish",
         "receipt_prompt": (
             "📸 <b>To'lov chekini yuboring:</b>\n\n"
+            "🎫 Tanlangan tarif: {tarif} ({summa} so'm)\n\n"
             "Chekni (skrinshot yoki PDF) <b>rasm yoki hujjat</b> ko'rinishida yuboring. "
             "Bot chekni adminlarga yuboradi.\n"
             "🆔 Sizning ID: <code>{user_id}</code>\n\n"
@@ -111,13 +128,15 @@ TRANSLATIONS = {
             "sifatida yuboring. Boshqa fayllar chek sifatida qabul qilinmaydi."
         ),
         "receipt_saved": (
-            "✅ <b>Chekingiz qabul qilindi!</b>\n\n"
-            "Adminlarimiz uni tekshirishmoqda. Tasdiqlangach <b>PRO tarif</b> "
-            "avtomatik faollashtiriladi."
+            "✅ Chekingiz qabul qilindi va adminga yuborildi. "
+            "Tez orada tekshirib PRO faollashtiriladi."
         ),
-        "receipt_admin_title": "💳 <b>Yangi to'lov cheki</b>",
-        "receipt_admin_user_line": "👤 Foydalanuvchi: <code>{user_id}</code>\n",
-        "receipt_admin_username_line": "🆔 Username: @{username}\n",
+        "receipt_admin_title": "💳 <b>Yangi to'lov cheki!</b>",
+        "receipt_admin_user_line": "👤 Foydalanuvchi: {name} (@{username})",
+        "receipt_admin_user_nick_line": "👤 Foydalanuvchi: {name}",
+        "receipt_admin_user_id_line": "🆔 ID: {user_id}",
+        "receipt_admin_tarif_line": "🎫 Tanlangan tarif: {tarif} ({summa} so'm)",
+        "receipt_admin_time_line": "🕐 Vaqti: {sana}",
         "receipt_admin_ask": "📝 Chekni tekshirib, pastdagi tugmalardan birini bosing:",
         "receipt_btn_approve": "✅ Tasdiqlash",
         "receipt_btn_reject": "❌ Rad etish",
@@ -1395,20 +1414,37 @@ TRANSLATIONS = {
             "• 3 месяца — <b>{p3m} сум</b>\n"
             "• 1 год — <b>{p1y} сум</b>"
         ),
+        "card_tariff_title": (
+            "💳 <b>Оплата картой</b>\n\n"
+            "📌 За какой тариф платите? Выберите тариф 👇"
+        ),
+        "card_plan_1m": "1 месяц",
+        "card_plan_3m": "3 месяца",
+        "card_plan_1y": "1 год",
+        "card_tariff_1m": "1 месяц — {price} сум",
+        "card_tariff_3m": "3 месяца — {price} сум",
+        "card_tariff_1y": "1 год — {price} сум",
+        "card_payment_selected": (
+            "🎫 Выбранный тариф: <b>{tarif}</b>\n"
+            "💰 Сумма оплаты: <b>{summa} сум</b>"
+        ),
         "card_payment_card": "💳 <b>Номер карты:</b> <code>{card}</code>\n👤 <b>Владелец:</b> {holder}",
         "card_payment_no_card": "ℹ️ Чтобы получить реквизиты карты, обратитесь к администратору.",
         "card_payment_steps": (
             "📝 <b>Инструкция:</b>\n"
-            "1️⃣ Переведите сумму выбранного тарифа на карту выше.\n"
-            "2️⃣ Отправьте чек (скриншот) администратору: {admin}\n"
-            "3️⃣ Укажите в сообщении свой ID: <code>{user_id}</code>\n"
-            "4️⃣ После проверки PRO активируется в течение 24 часов.\n\n"
-            "⚡️ Для мгновенной активации оплатите через ⭐️ Stars."
+            "1️⃣ Переведите выбранную сумму на карту выше.\n"
+            "2️⃣ Получите чек (скриншот или PDF).\n"
+            "3️⃣ Нажмите кнопку <b>\"📸 Отправить чек\"</b> ниже и отправьте чек сюда.\n"
+            "4️⃣ Ваш ID: <code>{user_id}</code> — используется при проверке чека.\n\n"
+            "После подтверждения администратором тариф <b>PRO</b> будет активирован.\n"
+            "⚡️ Для мгновенной активации оплатите через ⭐️ Stars.\n"
+            "Вопросы: {admin}"
         ),
         "card_payment_admin_missing": "администратор (контакты в разделе «О боте»)",
         "btn_send_receipt": "📸 Отправить чек",
         "receipt_prompt": (
             "📸 <b>Отправьте чек об оплате:</b>\n\n"
+            "🎫 Выбранный тариф: {tarif} ({summa} сум)\n\n"
             "Отправьте чек (скриншот или PDF) в виде <b>фото или документа</b>. "
             "Бот отправит чек администраторам.\n"
             "🆔 Ваш ID: <code>{user_id}</code>\n\n"
@@ -1420,13 +1456,15 @@ TRANSLATIONS = {
             "<b>PDF-документа</b>. Другие файлы не принимаются как чек."
         ),
         "receipt_saved": (
-            "✅ <b>Ваш чек получен!</b>\n\n"
-            "Наши администраторы проверяют его. После подтверждения тариф "
-            "<b>PRO</b> активируется автоматически."
+            "✅ Ваш чек получен и отправлен администратору. "
+            "Вскоре мы проверим его и активируем PRO."
         ),
-        "receipt_admin_title": "💳 <b>Новый платёжный чек</b>",
-        "receipt_admin_user_line": "👤 Пользователь: <code>{user_id}</code>\n",
-        "receipt_admin_username_line": "🆔 Username: @{username}\n",
+        "receipt_admin_title": "💳 <b>Новый платёжный чек!</b>",
+        "receipt_admin_user_line": "👤 Пользователь: {name} (@{username})",
+        "receipt_admin_user_nick_line": "👤 Пользователь: {name}",
+        "receipt_admin_user_id_line": "🆔 ID: {user_id}",
+        "receipt_admin_tarif_line": "🎫 Выбранный тариф: {tarif} ({summa} сум)",
+        "receipt_admin_time_line": "🕐 Время: {sana}",
         "receipt_admin_ask": "📝 Проверьте чек и нажмите одну из кнопок ниже:",
         "receipt_btn_approve": "✅ Подтвердить",
         "receipt_btn_reject": "❌ Отклонить",
@@ -2660,17 +2698,32 @@ def detect_language(telegram_language_code) -> str:
 
 
 def get_text(key, lang="uz", **kwargs) -> str:
-    """Lug'atdan matn olish. Noma'lum kalit/til uchun o'zbekcha fallback."""
+    """Lug'atdan matn olish. Noma'lum kalit/til uchun o'zbekcha fallback.
+
+    Xavfsizlik: hech qanday formatlash xatosi (shu jumladan ``TypeError`` —
+    masalan ``{x}`` qiymatga mos kelmaydigan format ko'rsatkichi yoki RU
+    kalit shabloni UZ bilan mos kelmasa) handler'ni qulatmaydi. Birinchi
+    urinish muvaffaqiyatsiz bo'lsa — boshqa til varianti bilan qayta
+    formatlanadi; u ham ishlamasa asl matn qaytariladi (crash YO'Q).
+    """
     lang = normalize_lang(lang)
     table = TRANSLATIONS.get(lang) or TRANSLATIONS[DEFAULT_LANG]
     text = table.get(key)
     if text is None:
         text = TRANSLATIONS[DEFAULT_LANG].get(key, key)
-    if kwargs:
+    if kwargs and isinstance(text, str):
         try:
-            text = text.format(**kwargs)
-        except (KeyError, IndexError, ValueError):
-            pass
+            return text.format(**kwargs)
+        except (KeyError, IndexError, ValueError, TypeError):
+            # RU shablon UZ bilan mos kelmasa (yoki format ko'rsatkichi
+            # qiymat turiga mos bo'lmasa) — boshqa til varianti sinanadi.
+            if lang != DEFAULT_LANG:
+                alt = TRANSLATIONS[DEFAULT_LANG].get(key)
+                if isinstance(alt, str) and alt != text:
+                    try:
+                        return alt.format(**kwargs)
+                    except (KeyError, IndexError, ValueError, TypeError):
+                        pass
     return text
 
 

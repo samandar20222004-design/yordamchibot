@@ -124,6 +124,370 @@ def test_i18n_new_keys():
     assert "Kunlik bonus" in get_text("daily_bonus_guide", "uz")
 
 
+def test_ru_cabinet_after_switch_no_crash():
+    """Regression: RU foydalanuvchi '👤 Кабинет & Настройки' bossa — kabinet RU.
+
+    Bot qayta ishga tushgach ``context.user_data`` bo'sh bo'ladi; til DB'dan
+    yuklanadi ('ru') va kabinet rus tilida chiqadi. Kabinet ichidagi har bir
+    tugma (shu jumladan '📅 Ожидающие посты' → ``cab_pending``) xatosiz
+    ishlaydi — oldin ``UnboundLocalError: lang`` bilan '⚠️ Произошла
+    непредвиденная ошибка' chiqardi.
+    """
+    import asyncio
+    import importlib
+    import database as db_mod
+
+    st_mod = importlib.import_module("handlers.start")
+
+    calls = []
+
+    async def fake_run_db(func, *args, **kwargs):
+        name = getattr(func, "__name__", str(func))
+        calls.append((name, args, kwargs))
+        if name == "get_user_language":
+            return "ru"  # Neon DB: foydalanuvchi rus tilini tanlagan
+        if name == "get_referral_stats":
+            return {"referrals_count": 1, "ai_credits": 7, "streak": 2}
+        if name == "get_user_channels":
+            return []
+        if name == "get_user_code":
+            return "RUTEST"
+        if name == "get_queue_post_count":
+            return 0
+        if name == "get_user_plan":
+            return {"plan_type": "free", "expires_at": None, "ai_used": 0}
+        return None
+
+    class _Bot:
+        def __init__(self):
+            self.sent = []
+
+        async def send_message(self, chat_id, text=None, reply_markup=None, **kw):
+            self.sent.append(("send_message", text, reply_markup))
+            return None
+
+    class _Msg:
+        def __init__(self):
+            self.replies = []
+
+        async def reply_text(self, text, reply_markup=None, parse_mode=None, **kw):
+            self.replies.append((text, reply_markup))
+            return None
+
+    class _User:
+        id = 777001
+        username = "ru_user"
+        first_name = "Ruslan"
+
+    class _Query:
+        def __init__(self, data):
+            self.data = data
+            self.answers = []
+            self.message = _Msg()
+            self.from_user = _User()
+
+        async def answer(self, *a, **kw):
+            self.answers.append((a, kw))
+
+        async def edit_message_text(self, *a, **kw):
+            pass
+
+    class _Ctx:
+        def __init__(self, bot):
+            self.bot = bot
+            self.user_data = {}  # bot restart — kesh bo'sh!
+
+    class _Upd:
+        def __init__(self, msg, user):
+            self.message = msg
+            self.effective_user = user
+
+    class _UpdQ:
+        def __init__(self, query):
+            self.callback_query = query
+
+    async def run():
+        async def _no_ad():
+            return ""
+
+        orig_ad = st_mod.get_smart_reply_ad_async
+        orig_run_db = db_mod.run_db
+        db_mod.run_db = fake_run_db
+        st_mod.get_smart_reply_ad_async = lambda uid: _no_ad()
+        try:
+            # 1) Reply-tugma '👤 Кабинет & Настройки' → user_cabinet_menu
+            bot = _Bot()
+            ctx = _Ctx(bot)
+            msg = _Msg()
+            await st_mod.user_cabinet_menu(_Upd(msg, _User()), ctx)
+            assert msg.replies, "kabinet javob bermadi"
+            text, markup = msg.replies[0]
+            assert "Личный кабинет" in text, text[:120]
+            assert ctx.user_data.get("lang") == "ru", ctx.user_data  # DB'dan hydrate
+            labels = [b.text for row in markup.inline_keyboard for b in row]
+            assert get_text("cab_my_channels", "ru") in labels, labels
+
+            # 2) Kabinet ichidagi tugma 'cab_pending' — oldin UnboundLocalError
+            q = _Query("cab_pending")
+            await st_mod.cabinet_callback(_UpdQ(q), ctx)
+            got = q.message.replies
+            assert got, "cab_pending javob bermadi"
+            assert "нет ожидающих" in got[-1][0], got[-1][0][:120]
+            return True
+        finally:
+            db_mod.run_db = orig_run_db
+            st_mod.get_smart_reply_ad_async = orig_ad
+
+    assert asyncio.run(run())
+
+
+def test_ru_cabinet_keys_format_without_missing_key():
+    """RU kabinet matnlari: barcha kalitlar mavjud va format xatolari yo'q."""
+    from locales.translations import TRANSLATIONS, get_text
+    uz, ru = TRANSLATIONS["uz"], TRANSLATIONS["ru"]
+    # Kabinet + karta to'lov + chek kalitlari ikkala tilda to'liq bo'lishi kerak.
+    keys = [
+        "btn_settings", "btn_main_menu", "btn_cancel", "msg_closed",
+        "cab_my_channels", "cab_analytics", "cab_pending", "cab_queue",
+        "cab_balance", "cab_btn_daily_bonus", "cab_referral", "cab_close",
+        "cabinet_title", "cabinet_streak", "cabinet_credits_admin",
+        "credits_value", "lang_prompt", "lang_changed",
+        "card_tariff_title", "card_plan_1m", "card_plan_3m", "card_plan_1y",
+        "card_tariff_1m", "card_tariff_3m", "card_tariff_1y",
+        "card_payment_selected", "card_payment_card", "card_payment_steps",
+        "btn_send_receipt", "receipt_prompt", "receipt_saved",
+        "receipt_admin_title", "receipt_admin_user_line",
+        "receipt_admin_user_nick_line", "receipt_admin_user_id_line",
+        "receipt_admin_tarif_line", "receipt_admin_time_line",
+        "receipt_btn_approve", "receipt_btn_reject",
+    ]
+    # lang_prompt atayin ikki tilda bitta matn (tilni tanlash ekrani);
+    # 'ID:' qatori ham talab bo'yicha ikkala tilda bir xil yoziladi.
+    lang_neutral = {"lang_prompt", "receipt_admin_user_id_line"}
+    for key in keys:
+        assert key in uz and key in ru, key
+        if key not in lang_neutral:
+            assert uz[key] != ru[key], (key, uz[key], ru[key])
+    # Formatlash hech qachon MissingKey/TypeError bermaydi va qavs qoldirmaydi
+    samples = {
+        "cabinet_streak": {"streak": 3},
+        "credits_value": {"n": 12},
+        "card_tariff_1m": {"price": "19 000"},
+        "card_tariff_3m": {"price": "45 000"},
+        "card_tariff_1y": {"price": "140 000"},
+        "card_payment_selected": {"tarif": "1 oy", "summa": "19 000"},
+        "card_payment_card": {"card": "8600 0609 5082 5589", "holder": "Sayitqulov S."},
+        "card_payment_steps": {"user_id": 42, "admin": "@admin"},
+        "receipt_prompt": {"user_id": 42, "tarif": "1 oy", "summa": "19 000"},
+        "receipt_admin_user_line": {"name": "Ali", "username": "ali"},
+        "receipt_admin_user_nick_line": {"name": "Ali"},
+        "receipt_admin_user_id_line": {"user_id": 42},
+        "receipt_admin_tarif_line": {"tarif": "3 oy", "summa": "45 000"},
+        "receipt_admin_time_line": {"sana": "01.01.2026 12:00"},
+    }
+    for lang in ("uz", "ru"):
+        for key, kw in samples.items():
+            out = get_text(key, lang, **kw)
+            assert "{" not in out and "}" not in out, (lang, key, out)
+    # Kabinet RU sarlavhasi rus tilida
+    assert "Личный кабинет" in get_text("cabinet_title", "ru")
+
+
+def test_card_payment_tariff_and_receipt_flow():
+    """💳 Karta orqali to'lov: tarif tanlash → karta rekvizitlari → chek yuborish
+    → admin tasdiqlash (PRO tanlangan muddatga) / rad etish."""
+    import asyncio
+    import importlib
+    import os as _os
+    import config as cfg
+    import database as db_mod
+
+    # Fixed karta rekvizitlari (env bo'sh bo'lsa ham default ishlaydi)
+    expected_number = _os.getenv("PAYMENT_CARD_NUMBER", "8600060950825589")
+    expected_holder = _os.getenv("PAYMENT_CARD_HOLDER", "Sayitqulov S.")
+    assert cfg.PAYMENT_CARD_NUMBER == expected_number
+    assert cfg.PAYMENT_CARD_HOLDER == expected_holder
+
+    sub = importlib.import_module("handlers.subscription")
+    pr = importlib.import_module("handlers.payment_receipt")
+
+    # --- 1) Karta raqami/summa formatlash ---
+    assert sub._fmt_card_number(cfg.PAYMENT_CARD_NUMBER) == "8600 0609 5082 5589"
+    assert sub._fmt_uzs(sub.CARD_TARIFFS["1m"]["amount"]) == "19 000"
+    assert sub._fmt_uzs(sub.CARD_TARIFFS["3m"]["amount"]) == "45 000"
+    assert sub._fmt_uzs(sub.CARD_TARIFFS["1y"]["amount"]) == "140 000"
+    assert [sub._plan_key_for_days(d) for d in (30, 90, 365)] == ["1m", "3m", "1y"]
+
+    # --- 2) Tarif tanlash klaviaturasi: 1m/3m/1y + orqaga (uz va ru) ---
+    for lang in ("uz", "ru"):
+        kb = sub._get_card_tariffs_keyboard(lang)
+        flat = [(b.text, b.callback_data) for row in kb.inline_keyboard for b in row]
+        assert [cb for _, cb in flat] == ["sub_tarif:1m", "sub_tarif:3m", "sub_tarif:1y", "sub_back"], flat
+        assert flat[0][0] == get_text("card_tariff_1m", lang, price="19 000"), flat[0]
+        assert flat[1][0] == get_text("card_tariff_3m", lang, price="45 000"), flat[1]
+        assert flat[2][0] == get_text("card_tariff_1y", lang, price="140 000"), flat[2]
+
+    # --- 3) Tanlangan tarif bo'yicha karta ekrani (summa, karta, egasi, ID) ---
+    for lang, plan_word in (("uz", "3 oy"), ("ru", "3 месяца")):
+        text = sub._build_card_payment_text(42, lang, "3m")
+        assert plan_word in text and "45 000" in text, text[:200]
+        assert "8600 0609 5082 5589" in text and "Sayitqulov S." in text, text[:200]
+        assert "42" in text  # foydalanuvchi ID yo'riqnomada ko'rsatiladi
+
+    # --- 4) Chek qabul qilish: user_data'dagi tarif → 90 kun DB'ga, admin caption ---
+    calls = []
+
+    async def fake_run_db(func, *args, **kwargs):
+        name = getattr(func, "__name__", str(func))
+        calls.append((name, args, kwargs))
+        if name == "get_user_language":
+            return "ru"
+        if name == "save_payment_receipt":
+            return 55
+        if name == "approve_payment_receipt":
+            return {"ok": True, "user_id": 777001, "days": 90, "language_code": "ru"}
+        if name == "reject_payment_receipt":
+            return {"ok": True, "user_id": 777001}
+        if name == "get_user_plan":
+            return {"plan_type": "free", "expires_at": None, "ai_used": 0}
+        return None
+
+    class _Bot:
+        def __init__(self):
+            self.messages = []
+            self.photos = []
+            self.documents = []
+            self.answers = []
+
+        async def send_message(self, chat_id, text=None, **kw):
+            self.messages.append((chat_id, text, kw))
+            return None
+
+        async def send_photo(self, chat_id, photo, caption=None, reply_markup=None, **kw):
+            self.photos.append((chat_id, caption, reply_markup))
+            return None
+
+        async def send_document(self, chat_id, document, caption=None, reply_markup=None, **kw):
+            self.documents.append((chat_id, caption, reply_markup))
+            return None
+
+        async def answer_callback_query(self, *a, **kw):
+            self.answers.append((a, kw))
+            return None
+
+        async def edit_message_reply_markup(self, *a, **kw):
+            return None
+
+    class _Photo:
+        file_id = "PHOTO_RECEIPT_1"
+
+    class _Msg:
+        def __init__(self):
+            self.replies = []
+            self.photo = [_Photo()]
+            self.caption = ""
+
+        async def reply_text(self, text, reply_markup=None, parse_mode=None, **kw):
+            self.replies.append((text, reply_markup))
+            return None
+
+    class _User:
+        id = 777001
+        username = "purchaser"
+        full_name = "Aziz Karimov"
+        first_name = "Aziz"
+
+    class _Ctx:
+        def __init__(self, bot):
+            self.bot = bot
+            self.user_data = {"lang": "ru", "card_plan": "3m"}
+
+    class _AdminUser(_User):
+        id = 123456789
+        username = "the_admin"
+
+    class _AdminQuery:
+        def __init__(self, data):
+            self.data = data
+            self.from_user = _AdminUser()
+            self.answers = []
+            self.message = _Msg()
+
+        async def answer(self, *a, **kw):
+            self.answers.append((a, kw))
+            return None
+
+        async def edit_message_reply_markup(self, *a, **kw):
+            return None
+
+    class _UpdMsg:
+        def __init__(self, msg, user):
+            self.message = msg
+            self.effective_user = user
+
+    class _UpdQ:
+        def __init__(self, query):
+            self.callback_query = query
+
+    orig_run_db = db_mod.run_db
+    db_mod.run_db = fake_run_db
+    try:
+        async def run():
+            # Foydalanuvchi chek yuboradi (photo)
+            bot = _Bot()
+            ctx = _Ctx(bot)
+            msg = _Msg()
+            await pr.receipt_received(_UpdMsg(msg, _User()), ctx)
+            # DB'ga tarif bo'yicha 90 kun yozildi
+            save_calls = [c for c in calls if c[0] == "save_payment_receipt"]
+            assert save_calls and save_calls[0][1][-1] == 90, save_calls
+            # Foydalanuvchi: 'Chekingiz qabul qilindi va adminga yuborildi...' (RU)
+            assert msg.replies, "user javob olmadi"
+            assert "получен и отправлен администратору" in msg.replies[-1][0], msg.replies[-1][0]
+            assert "card_plan" not in ctx.user_data  # foydalanilgan tanlov tozalandi
+            # Admin: rasm + caption (ism, @username, ID, tarif, summa, vaqt) + tugmalar
+            assert bot.photos, "adminga rasm yuborilmadi"
+            cap = bot.photos[0][1]
+            assert "Aziz (@purchaser)" in cap, cap
+            assert "ID: 777001" in cap, cap
+            assert "3 месяца (45 000 сум)" in cap, cap
+            assert "Время: " in cap, cap
+            kb = bot.photos[0][2]
+            flat = [b for row in kb.inline_keyboard for b in row]
+            assert [b.callback_data for b in flat] == ["receipt_appr:55", "receipt_rej:55"], flat
+
+            # Admin ✅ Tasdiqlash → user'ga tabrik (90 kunlik PRO)
+            bot2 = _Bot()
+            q = _AdminQuery("receipt_appr:55")
+            await pr.receipt_admin_callback(_UpdQ(q), _Ctx(bot2))
+            user_msgs = [m for m in bot2.messages if m[0] == 777001]
+            assert user_msgs, "tasdiqlash xabari yo'q"
+            assert "PRO на 90 дней" in user_msgs[-1][1], user_msgs[-1][1]
+
+            # Admin ❌ Rad etish → user'ga bildirishnoma
+            bot3 = _Bot()
+            q3 = _AdminQuery("receipt_rej:55")
+            await pr.receipt_admin_callback(_UpdQ(q3), _Ctx(bot3))
+            rej = [m for m in bot3.messages if m[0] == 777001]
+            assert rej and "не был подтверждён" in rej[-1][1], rej
+            return True
+        assert asyncio.run(run())
+    finally:
+        db_mod.run_db = orig_run_db
+
+
+def test_receipt_admin_handler_registered_before_stale_fallback():
+    """Chek ✅/❌ tugmalari 'expired session' catch-all'ga yutilib ketmasligi
+    uchun global reyestrda OLDINDAN ro'yxatdan o'tgan bo'lishi shart."""
+    src = (ROOT / "handlers/__init__.py").read_text(encoding="utf-8")
+    i_receipt = src.find("receipt_admin_callback,")
+    i_stale = src.find("CallbackQueryHandler(expired_session_callback)")
+    assert i_receipt != -1 and i_stale != -1
+    assert i_receipt < i_stale, (
+        "receipt_admin_callback expired_session_callback'dan keyin ro'yxatdan o'tgan — "
+        "admin ✅/❌ tugmalari ishlamaydi")
+
+
 if __name__ == "__main__":
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     for test in tests:

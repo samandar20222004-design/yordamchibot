@@ -16,11 +16,40 @@ from keyboards.inline import (
 )
 from locales.translations import (
     get_text, detect_language, get_lang, set_lang_cache, clear_fsm_data,
-    localize_db_message,
+    localize_db_message, normalize_lang, LANG_KEY,
 )
 from utils.helpers import html_escape, get_smart_reply_ad_async
 
 logger = logging.getLogger(__name__)
+
+
+async def ensure_user_lang(context, user_id: int) -> str:
+    """Reply-tugma/inline orqali kelgan so'rovda foydalanuvchi tilini bazadan
+    keshga yuklab oladi (``context.user_data['lang']``).
+
+    Nima uchun kerak: bot qayta ishga tushganda PTBning ``user_data`` keshi
+    bo'shab qoladi. Agar foydalanuvchi shu payt rus tilidagi reply-tugmani
+    bossa, ``get_lang(context)`` hali hech narsa bilmaydi va default ``uz``
+    qaytaradi — natijada RU foydalanuvchi kabinetini oʻzbekcha koʻradi (yoki
+    notoʻgʻri tildagi kalitlar bilan ishlashga urinadi). Bu funksiya tilni
+    Neon bazadan oʻqib, keshga yozadi va har doim toʻgʻri ``'uz'/'ru'``
+    qiymatini qaytaradi.
+
+    Returns: 'uz' | 'ru' (keshga ham yoziladi).
+    """
+    ud = getattr(context, "user_data", None)
+    if ud is not None and ud.get(LANG_KEY):
+        return normalize_lang(ud[LANG_KEY])
+    if not user_id:
+        # Update'da foydalanuvchi bo'lmasa (odatda test-fake'lar) — DB so'rovsiz
+        # keshdagi/default til qaytadi.
+        return set_lang_cache(context, get_lang(context))
+    try:
+        lang = await db.run_db(db.get_user_language, int(user_id))
+    except Exception:
+        logger.exception("Foydalanuvchi tilini olishda xato (user=%s)", user_id)
+        lang = None
+    return set_lang_cache(context, lang or "uz")
 
 # Eslatma: 501-502 ANALYTICS bilan to'qnashgan edi — endi 511-512 unikal.
 TRANSFER_TARGET = 511
@@ -174,7 +203,7 @@ async def subscription_check_callback(update: Update, context: ContextTypes.DEFA
         except TelegramError:
             pass
         is_admin = (user.id in ADMIN_IDS_SET)
-        lang = get_lang(context)
+        lang = await ensure_user_lang(context, user.id)
         await context.bot.send_message(
             chat_id=user.id,
             text=f"✅ Obuna tasdiqlandi!\n\nXush kelibsiz, <b>{html_escape(user.first_name)}</b>! Barcha imkoniyatlar siz uchun ochiq.",
@@ -243,8 +272,11 @@ def build_daily_bonus_text(res: dict, lang: str = "uz") -> str:
 
 async def user_cabinet_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     clear_fsm_data(context)
-    lang = get_lang(context)
     user = update.effective_user
+    # Reply-tugma orqali kelgan so'rovda til keshda bo'lmasa (masalan, bot
+    # qayta ishga tushgach) — foydalanuvchi tilini DB'dan yuklaymiz. Aks holda
+    # rus foydalanuvchi kabinetni o'zbekchada ko'rib qolardi (get_lang uz).
+    lang = await ensure_user_lang(context, user.id)
     is_admin = (user.id in ADMIN_IDS_SET)
     stats = await db.run_db(db.get_referral_stats, user.id)
     channels = await db.run_db(db.get_user_channels, user.id)
@@ -263,7 +295,7 @@ async def user_cabinet_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def daily_bonus_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     is_admin = (user.id in ADMIN_IDS_SET)
-    lang = get_lang(context)
+    lang = await ensure_user_lang(context, user.id)
 
     if is_admin:
         await update.message.reply_text(get_text("daily_bonus_admin", lang), parse_mode="HTML")
@@ -288,14 +320,15 @@ async def user_invite_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     clear_fsm_data(context)
     user = update.effective_user
     is_admin = (user.id in ADMIN_IDS_SET)
+    lang = await ensure_user_lang(context, user.id)
     bot_obj = await context.bot.get_me()
     stats = await db.run_db(db.get_referral_stats, user.id)
     ref_link = f"https://t.me/{bot_obj.username}?start=ref_{user.id}"
     
-    credits_text = cabinet_credits_text(is_admin, stats['ai_credits'], get_lang(context))
+    credits_text = cabinet_credits_text(is_admin, stats['ai_credits'], lang)
 
     text = get_text(
-        "referral_menu", get_lang(context), credits=credits_text,
+        "referral_menu", lang, credits=credits_text,
         count=stats["referrals_count"], link=ref_link,
     )
     await update.message.reply_text(
@@ -306,8 +339,8 @@ async def user_invite_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def start_transfer_credits(update: Update, context: ContextTypes.DEFAULT_TYPE):
     clear_fsm_data(context)
-    lang = get_lang(context)
     user_id = update.effective_user.id
+    lang = await ensure_user_lang(context, user_id)
     my_credits = await db.run_db(db.get_user_credits, user_id)
 
     if my_credits < 3 and user_id not in ADMIN_IDS_SET:
@@ -423,9 +456,10 @@ def _help_support_line(lang: str = "uz") -> str:
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """📖 Qo'llanma / Bot haqida — to'liq yo'riqnoma + FAQ + qo'llab-quvvatlash (uz/ru)."""
-    is_admin = (update.effective_user.id in ADMIN_IDS_SET)
-    lang = get_lang(context)
-    ad_line = await get_smart_reply_ad_async(update.effective_user.id)
+    user_id = update.effective_user.id
+    is_admin = (user_id in ADMIN_IDS_SET)
+    lang = await ensure_user_lang(context, user_id)
+    ad_line = await get_smart_reply_ad_async(user_id)
     text = get_text("help_guide", lang, support=_help_support_line(lang))
     if is_admin:
         text += get_text("help_guide_admin", lang)
@@ -440,7 +474,7 @@ async def help_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
     """📖 Qo'llanma ichki tugmalari: help:faq ↔ help:guide (uz/ru)."""
     query = update.callback_query
     await query.answer()
-    lang = get_lang(context)
+    lang = await ensure_user_lang(context, query.from_user.id)
     if (query.data or "") == "help:faq":
         text = get_text("help_faq", lang, support=_help_support_line(lang))
         markup = get_help_back_keyboard(lang)
@@ -456,7 +490,9 @@ async def help_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
 async def extras_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """⚙️ Qo'shimcha funksiyalar — inline menyu ko'rsatadi (uz/ru)."""
     clear_fsm_data(context)
-    lang = get_lang(context)
+    user = getattr(update, "effective_user", None)
+    user_id = user.id if user is not None else None
+    lang = await ensure_user_lang(context, user_id)
     await update.message.reply_text(
         get_text("extras_menu_body", lang),
         reply_markup=get_extras_inline_keyboard(lang),
@@ -470,7 +506,7 @@ async def extras_close_callback(update: Update, context: ContextTypes.DEFAULT_TY
     query = update.callback_query
     await query.answer()
     is_admin = query.from_user.id in ADMIN_IDS_SET
-    lang = get_lang(context)
+    lang = await ensure_user_lang(context, query.from_user.id)
     try:
         await query.message.delete()
     except Exception:
@@ -483,8 +519,9 @@ async def extras_close_callback(update: Update, context: ContextTypes.DEFAULT_TY
 
 async def cancel_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Foydalanuvchi band holatda /cancel bosganda yoki tugma bosganda — aniq xabar (uz/ru)."""
-    is_admin = (update.effective_user.id in ADMIN_IDS_SET)
-    lang = get_lang(context)
+    user_id = update.effective_user.id
+    is_admin = (user_id in ADMIN_IDS_SET)
+    lang = await ensure_user_lang(context, user_id)
     clear_fsm_data(context)
     await update.message.reply_text(
         get_text("cancel_done", lang),
@@ -500,6 +537,10 @@ async def cabinet_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = query.data
     user_id = query.from_user.id
     is_admin = user_id in ADMIN_IDS_SET
+    # Tilni doim bazadan keshlangan holda olamiz: bot qayta ishga tushgach
+    # eski kabinet tugmasi bosilsa ham foydalanuvchi tili (uz/ru) to'g'ri
+    # aniqlanadi. Bu o'zgaruvchi quyidagi barcha bo'limlarda ishlatiladi.
+    lang = await ensure_user_lang(context, user_id)
 
     if data == "close_cabinet":
         await query.answer()
@@ -508,8 +549,8 @@ async def cabinet_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception:
             pass
         await query.message.reply_text(
-            get_text("msg_closed", get_lang(context)),
-            reply_markup=get_main_keyboard(is_admin, lang=get_lang(context)),
+            get_text("msg_closed", lang),
+            reply_markup=get_main_keyboard(is_admin, lang=lang),
         )
         return
 
