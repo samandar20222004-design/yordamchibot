@@ -357,7 +357,9 @@ async def _execute_send(bot, post):
         elif pt == "voice":
             sent_msg = await bot.send_voice(chat_id=target_chat, voice=file_id, caption=final_content, reply_markup=reply_markup, parse_mode="HTML")
         elif pt == "sticker":
-            sent_msg = await bot.send_sticker(chat_id=target_chat, sticker=file_id)
+            sent_msg = await bot.send_sticker(
+                chat_id=target_chat, sticker=file_id, reply_markup=reply_markup
+            )
         else:
             sent_msg = await bot.send_message(chat_id=target_chat, text=final_content or " ", reply_markup=reply_markup, parse_mode="HTML")
 
