@@ -9,6 +9,7 @@ from config import (
 )
 import database as db
 from keyboards.default import get_main_keyboard
+from keyboards.callback_data import cb
 from handlers.start import ensure_user_lang
 from locales.translations import get_text, get_lang
 from utils.helpers import html_escape
@@ -211,7 +212,7 @@ def _get_card_tariffs_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
     for key in CARD_TARIFF_ORDER:
         keyboard.append([
             InlineKeyboardButton(
-                _card_tariff_label(key, lang), callback_data=f"sub_tarif:{key}"
+                _card_tariff_label(key, lang), callback_data=cb(f"sub_tarif:{key}")
             )
         ])
     keyboard.append([

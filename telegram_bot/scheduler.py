@@ -18,6 +18,7 @@ from keyboards.inline import (
     normalize_custom_reaction_emojis,
     DEFAULT_REACTION_EMOJIS,
 )
+from keyboards.callback_data import CB_REACTION, cb
 from utils.helpers import (
     get_channel_ad_next_async,
     get_channel_ad_next_full_async,
@@ -26,26 +27,102 @@ from utils.helpers import (
 )
 
 logger = logging.getLogger(__name__)
-tashkent_tz = pytz.timezone("Asia/Tashkent")
+
+# ⏰ BUTUN BOT UCHUN YAGONA VAQT ZONASI — Toshkent (UTC+5).
+# Barcha sana/vaqt hisob-kitoblari, APScheduler triggerlari va DB'ga
+# yoziladigan `scheduled_time` qiymatlari SHU zonaga bog'lanadi.
+TIMEZONE_NAME = "Asia/Tashkent"
+tashkent_tz = pytz.timezone(TIMEZONE_NAME)
 
 # Tarmoq xatosidan keyin qayta urinishdan oldin kutish (soniya)
 NETWORK_RETRY_DELAY = 30
 
+# --- Telegram FloodWait (429) himoyasi -------------------------------------
+# Postlar orasidagi mikro-kechikish: Telegram bir xil botdan ketma-ket
+# kelayotgan yuborishlarni 429 (Too Many Requests) bilan bloklab qo'ymasligi
+# uchun har post orasiga juda kichik pauza qo'yiladi.
+SEND_MICRO_DELAY_MIN = 0.05
+SEND_MICRO_DELAY_MAX = 0.1
+SEND_MICRO_DELAY = 0.08  # soniya — 0.05..0.1 oralig'ida
+
+# FloodWait kutishining yuqori chegarasi: Telegram juda katta `retry_after`
+# qaytarsa (masalan 900s) scheduler ishini butunlay muzlatib qo'ymaymiz —
+# shu chegaragacha kutamiz, qolganini `retry_post` orqali DB'ga ko'chiramiz.
+FLOOD_WAIT_SLEEP_MAX = 60.0
+
+
+def flood_wait_seconds(error, default: float = 5.0) -> float:
+    """``RetryAfter`` xatosidan xavfsiz kutish muddatini (soniya) chiqaradi.
+
+    Telegram ba'zan ``retry_after`` ni ``None``/``0``/``str`` ko'rinishida
+    qaytaradi — hech qanday holatda ``TypeError`` bo'lmasligi kerak.
+    Natija ``[1.0, FLOOD_WAIT_SLEEP_MAX]`` oralig'ida cheklanadi.
+    """
+    raw = getattr(error, "retry_after", None)
+    try:
+        value = float(raw) if raw is not None else float(default)
+    except (TypeError, ValueError):
+        value = float(default)
+    if value <= 0:
+        value = float(default)
+    return max(1.0, min(value, FLOOD_WAIT_SLEEP_MAX))
+
 
 def calculate_next_time(recurrence_type, recurrence_day, recurrence_time, current_time):
-    now = current_time
+    """Takrorlanuvchi postning keyingi chiqish vaqti (Toshkent vaqtida).
+
+    ``current_time`` timezone'siz (naive) berilsa — Toshkent zonasiga
+    bog'lanadi, boshqa zonada berilsa Toshkentga o'giriladi. Shu sababli
+    natija HAR DOIM ``Asia/Tashkent`` da bo'ladi (server UTC'da ishlasa ham).
+    """
+    now = _as_tashkent(current_time)
+    if now is None:
+        return None
+    if recurrence_time is None:
+        return None
     if recurrence_type == 'daily':
-        next_dt = now.replace(hour=recurrence_time.hour, minute=recurrence_time.minute, second=0, microsecond=0)
+        next_dt = _replace_tashkent(now, recurrence_time.hour, recurrence_time.minute)
         if next_dt <= now:
-            next_dt += timedelta(days=1)
+            next_dt = _shift_tashkent(next_dt, days=1)
         return next_dt
     elif recurrence_type == 'weekly':
-        days_ahead = (recurrence_day - now.weekday() + 7) % 7
+        if recurrence_day is None:
+            return None
+        days_ahead = (int(recurrence_day) - now.weekday() + 7) % 7
         if days_ahead == 0:
             days_ahead = 7
-        next_dt = now.replace(hour=recurrence_time.hour, minute=recurrence_time.minute, second=0, microsecond=0) + timedelta(days=days_ahead)
-        return next_dt
+        next_dt = _replace_tashkent(now, recurrence_time.hour, recurrence_time.minute)
+        return _shift_tashkent(next_dt, days=days_ahead)
     return None
+
+
+def _as_tashkent(value):
+    """Istalgan datetime'ni Toshkent vaqtiga keltiradi (naive → localize)."""
+    if value is None:
+        return None
+    if getattr(value, "tzinfo", None) is None:
+        return tashkent_tz.localize(value)
+    return value.astimezone(tashkent_tz)
+
+
+def _replace_tashkent(moment, hour: int, minute: int):
+    """Soat/daqiqani almashtiradi va DST/UTC-ofsetni qayta normallashtiradi.
+
+    ``datetime.replace()`` pytz obyektida eski ofsetni saqlab qoladi —
+    shuning uchun natija ``normalize()`` orqali qayta hisoblanadi.
+    """
+    naive = moment.replace(tzinfo=None, hour=hour, minute=minute, second=0, microsecond=0)
+    return tashkent_tz.localize(naive)
+
+
+def _shift_tashkent(moment, **delta):
+    """Toshkent vaqtida kun/soat qo'shadi (ofset qayta normallashtiriladi)."""
+    return tashkent_tz.normalize(moment + timedelta(**delta))
+
+
+def now_tashkent():
+    """Hozirgi Toshkent vaqti — kodning barcha nuqtalari uchun yagona manba."""
+    return datetime.now(tashkent_tz)
 
 
 def compose_post_text(content: str, has_ad_free: bool, channel_ad: str,
@@ -141,7 +218,7 @@ def build_reaction_buttons(post_id: int, enable_reactions: bool, reaction_emojis
         # Eski postlar (reaction_emojis NULL/buzilgan) — standart to'plam.
         emojis = list(DEFAULT_REACTION_EMOJIS)
     return [
-        InlineKeyboardButton(emoji, callback_data=f"react:{post_id}:{emoji}")
+        InlineKeyboardButton(emoji, callback_data=cb(CB_REACTION, post_id, emoji))
         for emoji in emojis[:5]
     ]
 
@@ -235,24 +312,51 @@ async def check_and_send_posts(bot):
     Barcha DB chaqiruvlari alohida thread'da bajariladi (db.run_db),
     shuning uchun Telegram polling event loop'ini bloklamaydi. Postlar atomik
     ravishda 'processing' holatiga o'tkaziladi — takroriy yuborish bo'lmaydi.
+
+    FloodWait (429) himoyasi:
+      * har post orasida ``SEND_MICRO_DELAY`` (0.05–0.1s) mikro-kechikish —
+        Telegram ketma-ket yuborishlarni rate-limit qilmasligi uchun;
+      * ``telegram.error.RetryAfter`` ushlanadi va ``asyncio.sleep(retry_after)``
+        bilan kutiladi — navbat to'xtamaydi, post yo'qolmaydi.
     """
     try:
-        now = datetime.now(tashkent_tz)
+        now = now_tashkent()
         due_posts = await db.run_db(db.get_due_posts, now)
         if due_posts:
             logger.info("Yuboriladigan postlar soni: %d", len(due_posts))
-        for post in due_posts:
+        for index, post in enumerate(due_posts):
+            # 1) Mikro-kechikish — birinchi postdan keyin har safar.
+            if index:
+                await asyncio.sleep(SEND_MICRO_DELAY)
             try:
                 await _execute_send(bot, post)
+            except RetryAfter as e:
+                # 2) Telegram FloodWait (429): ko'rsatilgan muddat kutiladi va
+                # navbat XAVFSIZ davom ettiriladi (post qayta navbatga qo'yiladi).
+                wait_seconds = flood_wait_seconds(e)
+                logger.warning(
+                    "Telegram FloodWait (429): %.0fs kutilmoqda (Post ID: %s)",
+                    wait_seconds, post[0] if post else "?",
+                )
+                await asyncio.sleep(wait_seconds)
+                await _requeue_post(post, wait_seconds)
             except Exception:
                 logger.exception("Post yuborishda kutilmagan xato (Post ID: %s)", post[0] if post else "?")
                 # Xatolik yuz berganda post 'processing' da qolib ketmasligi uchun qayta navbatga qo'yamiz.
-                try:
-                    await db.run_db(db.retry_post, post[0], datetime.now(tashkent_tz) + timedelta(minutes=1))
-                except Exception:
-                    logger.exception("Postni qayta navbatlashda xato (Post ID: %s)", post[0] if post else "?")
+                await _requeue_post(post, 60)
     except Exception:
         logger.exception("Scheduler ishida kutilmagan xato")
+
+
+async def _requeue_post(post, delay_seconds: float) -> None:
+    """Postni ``delay_seconds`` dan keyin qayta navbatga qo'yadi (xatosiz)."""
+    if not post:
+        return
+    try:
+        retry_at = now_tashkent() + timedelta(seconds=max(1.0, float(delay_seconds)))
+        await db.run_db(db.retry_post, post[0], retry_at)
+    except Exception:
+        logger.exception("Postni qayta navbatlashda xato (Post ID: %s)", post[0])
 
 
 async def _execute_send(bot, post):
@@ -370,16 +474,22 @@ async def _execute_send(bot, post):
         # Post muvaffaqiyatli chiqqachgina litsenziya sarflanadi
 
     except RetryAfter as e:
-        # Telegram rate-limit vaqtinchalik: postni yo'qotmasdan,
-        # Telegram ko'rsatgan vaqtdan keyin qayta navbatga qo'yamiz.
-        wait_seconds = max(5, int(getattr(e, "retry_after", 5) or 5))
-        logger.warning(f"Telegram rate limit (Post ID: {post_id}), {wait_seconds}s dan keyin qayta uriniladi")
-        retry_at = datetime.now(tashkent_tz) + timedelta(seconds=wait_seconds)
+        # Telegram rate-limit (FloodWait, 429) — vaqtinchalik holat.
+        # 1) Telegram ko'rsatgan muddat davomida JIM turamiz (aks holda
+        #    keyingi so'rovlar ham 429 bilan qaytadi va limit uzayadi).
+        # 2) Post yo'qolmasligi uchun qayta navbatga qo'yamiz.
+        wait_seconds = flood_wait_seconds(e)
+        logger.warning(
+            "Telegram FloodWait (Post ID: %s), %.0fs kutiladi va qayta uriniladi",
+            post_id, wait_seconds,
+        )
+        await asyncio.sleep(wait_seconds)
+        retry_at = now_tashkent() + timedelta(seconds=wait_seconds)
         await db.run_db(db.retry_post, post_id, retry_at)
         return
     except (TimedOut, NetworkError) as e:
         logger.warning(f"Telegram tarmoq xatosi (Post ID: {post_id}): {e}; qayta uriniladi")
-        retry_at = datetime.now(tashkent_tz) + timedelta(seconds=NETWORK_RETRY_DELAY)
+        retry_at = now_tashkent() + timedelta(seconds=NETWORK_RETRY_DELAY)
         await db.run_db(db.retry_post, post_id, retry_at)
         return
     except TelegramError as e:
@@ -388,8 +498,8 @@ async def _execute_send(bot, post):
         return
 
     if recurrence_type in ('daily', 'weekly'):
-        now = datetime.now(tashkent_tz)
-        if end_date and now >= end_date:
+        now = now_tashkent()
+        if end_date and _as_tashkent(end_date) and now >= _as_tashkent(end_date):
             await db.run_db(db.mark_post_status, post_id, "completed")
         else:
             next_time = calculate_next_time(recurrence_type, recurrence_day, recurrence_time, now)
@@ -414,7 +524,7 @@ async def _send_single_media(bot, target_chat, kind, file_id, caption, reply_mar
 async def check_and_delete_expired_posts(bot):
     """Avto-o'chirish muddati yetgan xabarlarni kanaldan o'chirish (har 1 daqiqada)."""
     try:
-        now = datetime.now(tashkent_tz)
+        now = now_tashkent()
         to_delete = await db.run_db(db.get_posts_to_delete, now)
         for item in to_delete:
             pid, ch_id, msg_id = item

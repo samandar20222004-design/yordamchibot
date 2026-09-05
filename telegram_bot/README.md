@@ -382,6 +382,96 @@ Kalitlarni Render → Environment bo'limiga qo'shing va botni qayta ishga tushir
 - **DB cleanup** — eski ma'lumotlar har 6 soatda avtomatik tozalanadi.
 - **1 hafta tugmasi** — "Har kuni" postlari uchun endi "1 hafta" muddati ham bor (7 kun).
 
+## 🚀 Ommaviy reliz: 4 ta arxitekturaviy himoya
+
+Bot ko'p foydalanuvchili ommaviy ishlatishga tayyorlangan. Quyidagi 4 ta
+himoya qatlami mavjud DB (Neon), apscheduler va testlarni buzmasdan qo'shilgan.
+
+### 1. Inline tugmalar xavfsizligi — 64 baytlik `callback_data` limiti
+
+Telegram `callback_data` uchun **qat'iy 64 baytlik** chegara qo'yadi; undan
+oshsa `BadRequest: BUTTON_DATA_INVALID` bilan butun klaviatura yiqiladi.
+
+- Barcha prefikslar yagona manbada: `keyboards/callback_data.py`
+  (`CB_CHANNEL_DELETE="ch_del:"`, `CB_CHANNEL_SETTINGS="ch_set:"`,
+  `CB_POST_TIME="p_time:"`, `CB_POST_EDIT="p_edit:"`, `CB_POST_BUTTON="p_btn:"`,
+  `CB_POST_REACTION="p_react:"`, `CB_POST_CANCEL="p_cancel:"` va h.k.).
+- `cb(prefix, *parts)` helperi qiymatni yig'adi, **UTF-8 chegarasi bo'yicha**
+  xavfsiz kesadi (emoji yarmidan bo'linmaydi) va ogohlantirish yozadi.
+- `is_callback_safe()`, `callback_byte_len()`, `truncate_callback_data()`,
+  `pattern()` — audit va handler ro'yxatga olish uchun.
+- Butun repoda birorta ham "yalang'och" dinamik `callback_data=f"..."` qolmagan:
+  hammasi `cb()` orqali o'tadi. Statik audit testi buni har run'da tekshiradi.
+
+### 2. UZ/RU i18n xavfsiz fallback
+
+`get_text(key, lang)` **hech qachon `KeyError` bermaydi** — 3 bosqichli zanjir:
+
+1. tanlangan til → 2. `uz` (default) → 3. kalit nomining o'zi (crash o'rniga).
+
+Format placeholderlari yetishmasa ham (`{name}` berilmagan) xom matn
+qaytariladi, `.format()` xatosi foydalanuvchiga chiqmaydi.
+
+Parity nazorati: `translation_parity_report()` → `{"uz_only": [], "ru_only": [],
+"total": 552, "in_sync": True}`, `missing_keys(lang)`, `has_key(key, lang)`.
+Test suite UZ/RU kalitlari **to'liq mos** ekanini har run'da tasdiqlaydi.
+
+### 3. Scheduler va vaqt zonasi (Asia/Tashkent, UTC+5)
+
+- `scheduler.TIMEZONE_NAME` / `tashkent_tz` / `now_tashkent()` — butun bot
+  uchun **yagona vaqt manbai**; `main.py` dagi `AsyncIOScheduler` va uning
+  barcha triggerlari ham shu zonaga pinlangan (server UTC'da ishlasa ham).
+- `calculate_next_time()` naive datetime'ni localize qiladi, `replace()` dan
+  keyin ofsetni `normalize()` bilan qayta hisoblaydi (DST-xavfsiz).
+- Foydalanuvchi kiritgan vaqt **yagona parser** orqali o'tadi:
+  `utils/helpers.parse_schedule_input(text) -> (datetime | None, reason)`.
+  `reason` — `"empty"` / `"format"` / `"past"`.
+  - Tabiiy til ham tushuniladi: `ertaga 5 da`, `2 soatdan keyin`, `завтра 18:00`.
+  - **Mavjud bo'lmagan sana/soat jimgina "bugun"ga tushib qolmaydi**:
+    `32.13.2026 18:00`, `30.02.2026 10:00`, `25:99` → format xatosi.
+  - Xatoda foydalanuvchiga **o'z tilida** aniq namuna ko'rsatiladi:
+    `DD.MM.YYYY HH:MM` (masalan `31.12.2026 18:00`, Toshkent vaqti UTC+5).
+    Hech qanday holatda handler `ValueError` bilan yiqilmaydi.
+
+### 4. FloodWait (429) + AI timeout himoyasi
+
+**Telegram FloodWait:**
+
+- `check_and_send_posts()` har post orasiga `SEND_MICRO_DELAY = 0.08s`
+  (0.05–0.1 oralig'ida) mikro-kechikish qo'yadi.
+- `telegram.error.RetryAfter` ushlanadi → `await asyncio.sleep(retry_after)` →
+  post `retry_post` orqali qayta navbatga qo'yiladi. **Navbat to'xtamaydi,
+  post yo'qolmaydi.** `flood_wait_seconds()` qiymatni `[1s, 60s]` ga cheklaydi,
+  shuning uchun ulkan `retry_after` scheduler'ni muzlatib qo'ymaydi.
+
+**AI timeout:**
+
+- Barcha tashqi AI so'rovlari (Gemini, Groq, OpenRouter, Mistral, Cerebras,
+  SambaNova, Cloudflare, Pollinations + model discovery) `AI_HTTP_TIMEOUT =
+  ClientTimeout(total=35, connect=10, sock_connect=10, sock_read=35)` bilan
+  yuboriladi — timeout **har bir so'rovga alohida** uzatiladi, faqat sessiya
+  sozlamasiga tayanilmaydi.
+- Timeout bo'lsa texnik xato o'rniga **xushmuomala xabar** qaytadi
+  (`ai_timeout_message(lang)`, uz/ru), javob esa `{"error": ..., "timeout": True}`
+  ko'rinishida bo'ladi — API kalit yo'riqnomasi foydalanuvchiga ko'rsatilmaydi.
+- Sozlamalar: `AI_TOTAL_TIMEOUT` (default 35), `AI_CONNECT_TIMEOUT` (10),
+  `AI_HARD_TIMEOUT` (butun provayder zanjiri uchun).
+
+### Testlar
+
+```bash
+cd telegram_bot
+bash tests/run_tests.sh
+```
+
+| Suite | Testlar |
+|---|---|
+| `unit_test.py` | 2082 |
+| `new_requirements_test.py` | 12 |
+| `schema_test.py` | 62 |
+| `ai_mock_test.py` | 52 |
+| `load_test.py` (real PostgreSQL) | 100 |
+
 ## Bot "doim ishlashi" uchun
 
 Yuqoridagi `python main.py` faqat siz uni ishga tushirib turgan vaqtda

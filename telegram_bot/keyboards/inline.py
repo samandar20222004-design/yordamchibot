@@ -4,6 +4,24 @@ from urllib.parse import quote
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
 from locales.translations import get_text
+from keyboards.callback_data import (  # noqa: F401 — re-export (eski importlar uchun)
+    CALLBACK_DATA_MAX_BYTES,
+    CB_CHANNEL_DELETE,
+    CB_CHANNEL_SETTINGS,
+    CB_POST_BTN,
+    CB_POST_CANCEL,
+    CB_POST_EDIT,
+    CB_POST_REACT,
+    CB_POST_TIME,
+    CB_REACTION,
+    CB_REACT_DONE,
+    CB_REACT_SKIP,
+    CB_REACT_TOGGLE,
+    CB_SPONSOR_DELETE,
+    callback_byte_len,
+    cb,
+    is_callback_safe,
+)
 
 # Telegram tugma matni bo'sh bo'lishi mumkin emas (BadRequest) va juda uzun
 # nom tugmani buzadi — shuning uchun barcha yorliqlar shu yerdan o'tkaziladi.
@@ -83,7 +101,7 @@ def get_sponsors_delete_keyboard(sponsors: list) -> InlineKeyboardMarkup:
         s_id, ch_id, ch_title, username, ch_url = unpack_sponsor(sponsor)
         label = btn_label(ch_title, "Homiy kanal", max_length=28)
         keyboard.append([
-            InlineKeyboardButton(f"❌ {label} (O'chirish)", callback_data=f"del_sponsor:{s_id}")
+            InlineKeyboardButton(f"❌ {label} (O'chirish)", callback_data=cb(CB_SPONSOR_DELETE, s_id))
         ])
     # Ro'yxat oynasini yopish tugmasi — admin ekranda keraksiz xabar qolib ketmasligi uchun
     keyboard.append([InlineKeyboardButton("❌ Yopish", callback_data="close_msg")])
@@ -97,7 +115,7 @@ def get_admin_sponsors_keyboard(sponsors: list) -> InlineKeyboardMarkup:
         s_id, ch_id, ch_title, username, ch_url = unpack_sponsor(sponsor)
         label = btn_label(ch_title, "Kanal", max_length=24)
         keyboard.append([
-            InlineKeyboardButton(f"🗑 {label} (O'chirish)", callback_data=f"del_sponsor:{s_id}")
+            InlineKeyboardButton(f"🗑 {label} (O'chirish)", callback_data=cb(CB_SPONSOR_DELETE, s_id))
         ])
     keyboard.append([
         InlineKeyboardButton("➕ Yangi kanal qo'shish", callback_data="adm_add_sponsor")
@@ -231,10 +249,10 @@ def get_ad_pool_menu_keyboard(scope: str, ads: list = None,
         badge = "🟢" if is_active else "🔴"
         label = btn_label(ad_text, "Reklama", max_length=24)
         keyboard.append([
-            InlineKeyboardButton(f"{badge} {label}", callback_data=f"adp:{scope}:e:{ad_id}")
+            InlineKeyboardButton(f"{badge} {label}", callback_data=cb(f"adp:{scope}:e:{ad_id}"))
         ])
 
-    keyboard.append([InlineKeyboardButton("➕ Yangi reklama qo'shish", callback_data=f"adp:{scope}:add")])
+    keyboard.append([InlineKeyboardButton("➕ Yangi reklama qo'shish", callback_data=cb(f"adp:{scope}:add"))])
     # Oraliq har ikkala bo'limda ham shu yerdan sozlanadi (yagona joy).
     if scope == "channel":
         label = (
@@ -246,10 +264,10 @@ def get_ad_pool_menu_keyboard(scope: str, ads: list = None,
             f"⏱ Reklama oralig'i: har {interval} javob"
             if interval else "⏱ Reklama oralig'ini sozlash"
         )
-    keyboard.append([InlineKeyboardButton(label, callback_data=f"adp:{scope}:iv")])
+    keyboard.append([InlineKeyboardButton(label, callback_data=cb(f"adp:{scope}:iv"))])
     keyboard.append([
-        InlineKeyboardButton("🧹 Hammasini tozalash", callback_data=f"adp:{scope}:clear"),
-        InlineKeyboardButton("ℹ️ Rotatsiya haqida", callback_data=f"adp:{scope}:info"),
+        InlineKeyboardButton("🧹 Hammasini tozalash", callback_data=cb(f"adp:{scope}:clear")),
+        InlineKeyboardButton("ℹ️ Rotatsiya haqida", callback_data=cb(f"adp:{scope}:info")),
     ])
     # Barcha reklama ekranlari endi yagona hub ostida ishlaydi: "Orqaga"
     # dashboard'ga emas, Reklama markaziga qaytadi (bitta yagona oqim).
@@ -274,17 +292,17 @@ def get_ad_edit_keyboard(ad: dict, scope: str) -> InlineKeyboardMarkup:
     button_label = "🔗 Tugmani tahrirlash" if has_button else "🔗 Inline tugma qo'shish"
 
     keyboard = [
-        [InlineKeyboardButton("✏️ Matnni tahrirlash", callback_data=f"adp:{scope}:et:{ad_id}")],
-        [InlineKeyboardButton(button_label, callback_data=f"adp:{scope}:eb:{ad_id}")],
+        [InlineKeyboardButton("✏️ Matnni tahrirlash", callback_data=cb(f"adp:{scope}:et:{ad_id}"))],
+        [InlineKeyboardButton(button_label, callback_data=cb(f"adp:{scope}:eb:{ad_id}"))],
     ]
     if has_button:
         keyboard.append([
-            InlineKeyboardButton("🚫 Tugmani olib tashlash", callback_data=f"adp:{scope}:bx:{ad_id}")
+            InlineKeyboardButton("🚫 Tugmani olib tashlash", callback_data=cb(f"adp:{scope}:bx:{ad_id}"))
         ])
-    keyboard.append([InlineKeyboardButton(toggle_label, callback_data=f"adp:{scope}:tg:{ad_id}")])
-    keyboard.append([InlineKeyboardButton("🗑 Reklamani o'chirish", callback_data=f"adp:{scope}:rm:{ad_id}")])
+    keyboard.append([InlineKeyboardButton(toggle_label, callback_data=cb(f"adp:{scope}:tg:{ad_id}"))])
+    keyboard.append([InlineKeyboardButton("🗑 Reklamani o'chirish", callback_data=cb(f"adp:{scope}:rm:{ad_id}"))])
     keyboard.append([
-        InlineKeyboardButton("⬅️ Menyuga", callback_data=f"adp:{scope}:back"),
+        InlineKeyboardButton("⬅️ Menyuga", callback_data=cb(f"adp:{scope}:back")),
         InlineKeyboardButton("❌ Bekor qilish", callback_data="adm_cancel"),
     ])
     return InlineKeyboardMarkup(keyboard)
@@ -295,11 +313,11 @@ def get_ad_interval_keyboard(scope: str = "channel", current: int = None) -> Inl
     row = []
     for value in (3, 4, 5):
         mark = "✅ " if current == value else ""
-        row.append(InlineKeyboardButton(f"{mark}Har {value}-post", callback_data=f"adp:{scope}:iv:{value}"))
+        row.append(InlineKeyboardButton(f"{mark}Har {value}-post", callback_data=cb(f"adp:{scope}:iv:{value}")))
     return InlineKeyboardMarkup([
         row,
         [
-            InlineKeyboardButton("⬅️ Menyuga", callback_data=f"adp:{scope}:back"),
+            InlineKeyboardButton("⬅️ Menyuga", callback_data=cb(f"adp:{scope}:back")),
             InlineKeyboardButton("❌ Bekor qilish", callback_data="adm_cancel"),
         ],
     ])
@@ -315,10 +333,10 @@ def get_ad_pool_delete_keyboard(ads: list, scope: str) -> InlineKeyboardMarkup:
             ad_id, text = ad[0], ad[1]
         label = btn_label(text, "Reklama", max_length=28)
         keyboard.append([
-            InlineKeyboardButton(f"❌ {label}", callback_data=f"adp:{scope}:rm:{ad_id}")
+            InlineKeyboardButton(f"❌ {label}", callback_data=cb(f"adp:{scope}:rm:{ad_id}"))
         ])
     keyboard.append([
-        InlineKeyboardButton("⬅️ Orqaga", callback_data=f"adp:{scope}:back"),
+        InlineKeyboardButton("⬅️ Orqaga", callback_data=cb(f"adp:{scope}:back")),
         InlineKeyboardButton("❌ Bekor qilish", callback_data="adm_cancel"),
     ])
     return InlineKeyboardMarkup(keyboard)
@@ -328,7 +346,7 @@ def get_ad_pool_back_keyboard(scope: str) -> InlineKeyboardMarkup:
     """Qo'shish/ma'lumot ekranidan reklama menyusiga qaytish."""
     return InlineKeyboardMarkup([
         [
-            InlineKeyboardButton("⬅️ Menyuga", callback_data=f"adp:{scope}:back"),
+            InlineKeyboardButton("⬅️ Menyuga", callback_data=cb(f"adp:{scope}:back")),
             InlineKeyboardButton("❌ Bekor qilish", callback_data="adm_cancel"),
         ],
     ])
@@ -408,7 +426,7 @@ def get_ai_tone_keyboard(selected: str = None, lang: str = "uz") -> InlineKeyboa
     buttons = []
     for key, tone_key in AI_TONE_KEYS.items():
         mark = " ✅" if key == selected else ""
-        buttons.append(InlineKeyboardButton(f"{get_text(tone_key, lang)}{mark}", callback_data=f"ai_tone:{key}"))
+        buttons.append(InlineKeyboardButton(f"{get_text(tone_key, lang)}{mark}", callback_data=cb(f"ai_tone:{key}")))
     keyboard = [
         buttons[:2],
         buttons[2:],
@@ -440,10 +458,10 @@ def render_channels_list(channels: list, lang: str = "uz") -> InlineKeyboardMark
         tone_emoji = {"formal": "👔", "friendly": "😊", "concise": "⚡️", "engaging": "🎉"}.get(tone, "😊")
         keyboard.append([
             InlineKeyboardButton(f"📢 {btn_label(ch_title)}", callback_data="noop"),
-            InlineKeyboardButton(get_text("cab_remove_channel", lang), callback_data=f"remove_channel:{ch_id}"),
+            InlineKeyboardButton(get_text("cab_remove_channel", lang), callback_data=cb(CB_CHANNEL_DELETE, ch_id)),
         ])
         keyboard.append([
-            InlineKeyboardButton(f"{tone_emoji} {get_text('cab_tone', lang)}", callback_data=f"tone_menu:{ch_id}"),
+            InlineKeyboardButton(f"{tone_emoji} {get_text('cab_tone', lang)}", callback_data=cb(CB_CHANNEL_SETTINGS, ch_id)),
         ])
     # "Qo'shish bor, lekin bekor qilish/chiqish yo'q" kamchiligini tuzatish:
     # ro'yxat ostida yangi kanal ulash va oynani yopish tugmalari bo'ladi.
@@ -464,13 +482,13 @@ def render_pending_list(posts: list, user_code: str, lang: str = "uz") -> Inline
         # 1-qator: vaqt o'zgartirish, matn tahrirlash
         # 2-qator: tugma URL, reaksiya, bekor qilish
         keyboard.append([
-            InlineKeyboardButton(get_text("pend_edit_time_btn", lang, code=code_label), callback_data=f"edit_time:{pid}"),
-            InlineKeyboardButton(get_text("pend_edit_content_btn", lang, code=code_label), callback_data=f"edit_content:{pid}"),
+            InlineKeyboardButton(get_text("pend_edit_time_btn", lang, code=code_label), callback_data=cb(CB_POST_TIME, pid)),
+            InlineKeyboardButton(get_text("pend_edit_content_btn", lang, code=code_label), callback_data=cb(CB_POST_EDIT, pid)),
         ])
         keyboard.append([
-            InlineKeyboardButton(get_text("pend_edit_btn_btn", lang), callback_data=f"edit_btn:{pid}"),
-            InlineKeyboardButton(get_text("pend_edit_react_btn", lang), callback_data=f"edit_react:{pid}"),
-            InlineKeyboardButton(get_text("pend_cancel_btn", lang), callback_data=f"cancel_post:{pid}"),
+            InlineKeyboardButton(get_text("pend_edit_btn_btn", lang), callback_data=cb(CB_POST_BTN, pid)),
+            InlineKeyboardButton(get_text("pend_edit_react_btn", lang), callback_data=cb(CB_POST_REACT, pid)),
+            InlineKeyboardButton(get_text("pend_cancel_btn", lang), callback_data=cb(CB_POST_CANCEL, pid)),
         ])
     # Ro'yxatni yangilash (amal bajargandan keyin holatni ko'rish) va yopish tugmalari
     keyboard.append([
@@ -582,7 +600,7 @@ DEFAULT_REACTION_EMOJIS = ("👍", "❤️", "🔥", "👏")
 # ✨ Postga Tugma & Reaksiya qo'shish uchun kengaytirilgan havza (pool): 20 ta emoji.
 # Foydalanuvchi shundan 10 tasigachanini tanlaydi yoki istalgan emojini
 # xabar qilib yubora oladi (extract_emoji_tokens). REACTION_EMOJIS boshida
-# turadi — eski oqimlar (npreact:) faqat 6 tasini ko'rsatishda davom etadi.
+# turadi — eski oqimlar (nprt:) faqat 6 tasini ko'rsatishda davom etadi.
 REACTION_POOL = REACTION_EMOJIS + (
     "😍", "🤩", "😮", "😂",
     "🙏", "💯", "✅", "⭐️",
@@ -591,11 +609,12 @@ REACTION_POOL = REACTION_EMOJIS + (
 )
 
 
-# Callback prefikslari: kanal postidagi reaksiya hisoblagich "react:" bilan
-# aralashmasligi uchun "npreact:" (new-post reaction) ishlatiladi.
-CB_REACT_TOGGLE = "npreact:tgl:"
-CB_REACT_DONE = "npreact:done"
-CB_REACT_SKIP = "npreact:skip"
+# Callback prefikslari kanonik ravishda ``keyboards/callback_data.py`` da
+# saqlanadi (64-bayt kafolati bilan) va shu modulga import qilinadi:
+#   CB_REACT_TOGGLE = "nprt:t:"  |  CB_REACT_DONE = "nprt:done"
+#   CB_REACT_SKIP   = "nprt:skip"
+# Kanal postidagi reaksiya hisoblagichi esa "react:" (CB_REACTION) — u
+# allaqachon yuborilgan postlarda yashagani uchun ATAYLAB o'zgarmaydi.
 
 
 def strip_variation_selector(value: str) -> str:
@@ -723,7 +742,7 @@ def build_reaction_button_rows(post_id: int, emojis: list,
         if preview or not post_id:
             row.append(InlineKeyboardButton(emoji, callback_data="enh:noop"))
         else:
-            row.append(InlineKeyboardButton(emoji, callback_data=f"react:{post_id}:{emoji}"))
+            row.append(InlineKeyboardButton(emoji, callback_data=cb(CB_REACTION, post_id, emoji)))
         if len(row) >= per_row:
             rows.append(row)
             row = []
@@ -770,7 +789,7 @@ def get_reaction_toggle_keyboard(selected=None, lang: str = "uz") -> InlineKeybo
     emoji_row_2 = []
     for idx, emoji in enumerate(REACTION_EMOJIS):
         mark = "✅" if emoji in sel else ""
-        button = InlineKeyboardButton(f"{emoji} {mark}".strip(), callback_data=f"{CB_REACT_TOGGLE}{emoji}")
+        button = InlineKeyboardButton(f"{emoji} {mark}".strip(), callback_data=cb(CB_REACT_TOGGLE, emoji))
         if idx < 3:
             emoji_row_1.append(button)
         else:

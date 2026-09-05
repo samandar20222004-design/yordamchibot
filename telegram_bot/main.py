@@ -1,7 +1,6 @@
 import asyncio
 import logging
-from datetime import datetime
-import pytz
+import pytz  # noqa: F401 — vaqt zonasi bilan ishlovchi modullar uchun saqlanadi
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from telegram.ext import ApplicationBuilder, Application
 from telegram import BotCommand
@@ -12,6 +11,9 @@ from scheduler import (
     check_and_send_posts,
     check_and_delete_expired_posts,
     cleanup_old_data_job,
+    tashkent_tz,
+    TIMEZONE_NAME,
+    now_tashkent,
 )
 from utils.web_server import start_web_server
 from utils.ai_agent import close_ai_session, reload_runtime_params
@@ -22,7 +24,8 @@ logging.basicConfig(
     level=logging.INFO
 )
 logger = logging.getLogger(__name__)
-tashkent_tz = pytz.timezone("Asia/Tashkent")
+# ⏰ Vaqt zonasi YAGONA manbadan (scheduler.tashkent_tz) olinadi — bot,
+# APScheduler va DB hisob-kitoblari hech qachon ajralib ketmasligi uchun.
 
 
 class GuardedApplication(Application):
@@ -148,22 +151,28 @@ async def main():
     # Scheduler: har bir ish (job) maks. 1 marta parallel ishlaydi (max_instances=1),
     # o'tkazib yuborilgan ishlar birlashtiriladi (coalesce), va bot qayta
     # ishga tushganda kechikkan postlar darhol tekshiriladi (next_run_time).
-    scheduler = AsyncIOScheduler(timezone=tashkent_tz)
+    # MUHIM: timezone HAR JOYDA aniq ko'rsatiladi — scheduler darajasida ham,
+    # har bir trigger darajasida ham. Render/Docker server UTC'da ishlaganda
+    # ham cron/interval triggerlari Toshkent vaqti (UTC+5) bo'yicha hisoblanadi.
+    scheduler = AsyncIOScheduler(
+        timezone=tashkent_tz,
+        job_defaults={"max_instances": 1, "coalesce": True, "misfire_grace_time": 300},
+    )
     scheduler.add_job(
         check_and_send_posts, 'interval', minutes=1, args=[application.bot],
-        id="check_and_send_posts",
+        id="check_and_send_posts", timezone=tashkent_tz,
         max_instances=1, coalesce=True, misfire_grace_time=300,
-        next_run_time=datetime.now(tashkent_tz),
+        next_run_time=now_tashkent(),
     )
     scheduler.add_job(
         check_and_delete_expired_posts, 'interval', minutes=1, args=[application.bot],
-        id="check_and_delete_expired_posts",
+        id="check_and_delete_expired_posts", timezone=tashkent_tz,
         max_instances=1, coalesce=True, misfire_grace_time=300,
-        next_run_time=datetime.now(tashkent_tz),
+        next_run_time=now_tashkent(),
     )
     scheduler.add_job(
-        cleanup_old_data_job, 'interval', hours=6,
-        id="cleanup_old_data",
+        cleanup_old_data_job, 'cron', hour="*/6", minute=0,
+        id="cleanup_old_data", timezone=tashkent_tz,
         max_instances=1, coalesce=True, misfire_grace_time=3600,
     )
 
@@ -175,7 +184,10 @@ async def main():
     # Scheduler'ni app to'liq ishga tushgandan keyin boshlaymiz —
     # shunda birinchi ishlash ham to'liq tayyor muhitda bo'ladi.
     scheduler.start()
-    logger.info("Scheduler started: postlar har 1 daqiqada, DB tozalash har 6 soatda.")
+    logger.info(
+        "Scheduler started (TZ=%s): postlar har 1 daqiqada, DB tozalash har 6 soatda.",
+        TIMEZONE_NAME,
+    )
     logger.info("Bot muvaffaqiyatli ishga tushdi.")
 
     try:

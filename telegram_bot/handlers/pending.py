@@ -14,6 +14,7 @@ from locales.translations import clear_fsm_data, get_lang, get_text
 from utils.helpers import (
     format_post_type_label, format_schedule_line, html_escape, check_rate_limit, parse_future_time,
     NAV_RATE_LIMIT_MAX, parse_reactions_input,
+    parse_schedule_input, schedule_time_example, SCHEDULE_ERR_PAST,
 )
 
 logger = logging.getLogger(__name__)
@@ -141,40 +142,42 @@ async def edit_post_time_start(update: Update, context: ContextTypes.DEFAULT_TYP
 
 async def edit_post_time_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     lang = get_lang(context)
-    text = update.message.text.strip()
+    text = getattr(update.message, "text", None)
     post_id = context.user_data.get("editing_post_id")
     post = await _get_owned_post(post_id, update.effective_user.id, update, lang)
     if not post:
         return ConversationHandler.END
 
     now = datetime.now(tashkent_tz)
-    try:
-        if ":" in text and len(text) == 5:
-            hh, mm = map(int, text.split(":"))
-            new_run = now.replace(hour=hh, minute=mm, second=0, microsecond=0)
-            if new_run <= now:
-                new_run += timedelta(days=1)
-            await db.run_db(db.update_post_time, post_id, new_run, f"{hh:02d}:{mm:02d}:00", user_id=update.effective_user.id)
-        else:
-            new_time = parse_future_time(text, now)
-            if new_time is None:
-                naive_time = datetime.strptime(text, "%Y-%m-%d %H:%M")
-                new_time = tashkent_tz.localize(naive_time)
-            if new_time <= now:
-                await update.message.reply_text(get_text("np_time_future", lang))
-                return EDIT_POST_TIME
-            await db.run_db(db.update_post_time, post_id, new_time, user_id=update.effective_user.id)
-
+    # Yagona, crash-proof parser: "31.12.2026 18:00", "18:00", "ertaga 5 da"...
+    new_time, reason = parse_schedule_input(text, now)
+    if new_time is None:
+        example = schedule_time_example(now)
+        key = "np_time_future" if reason == SCHEDULE_ERR_PAST else "pend_time_format"
         await update.message.reply_text(
-            get_text("pend_time_success", lang),
-            reply_markup=get_main_keyboard(lang=lang),
-            parse_mode="HTML"
+            get_text(key, lang, example=example, now=now.strftime("%d.%m.%Y %H:%M")),
+            parse_mode="HTML",
         )
-        clear_fsm_data(context)
-        return ConversationHandler.END
-    except Exception:
-        await update.message.reply_text(get_text("pend_time_format", lang), parse_mode="HTML")
         return EDIT_POST_TIME
+
+    try:
+        await db.run_db(
+            db.update_post_time, post_id, new_time, user_id=update.effective_user.id
+        )
+    except Exception:
+        logger.exception("Post vaqtini yangilashda xato (Post ID: %s)", post_id)
+        await update.message.reply_text(get_text("pend_time_format", lang,
+                                                 example=schedule_time_example(now)),
+                                        parse_mode="HTML")
+        return EDIT_POST_TIME
+
+    await update.message.reply_text(
+        get_text("pend_time_success", lang),
+        reply_markup=get_main_keyboard(lang=lang),
+        parse_mode="HTML"
+    )
+    clear_fsm_data(context)
+    return ConversationHandler.END
 
 
 # ------ Matn tahrirlash ------

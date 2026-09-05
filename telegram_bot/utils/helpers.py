@@ -951,6 +951,215 @@ def parse_future_time(text: str, now: datetime = None) -> datetime | None:
     return candidate
 
 
+# === Post rejalashtirish: xavfsiz vaqt kiritish oqimi =====================
+# Foydalanuvchi vaqtni ISTALGAN ko'rinishda yozishi mumkin ("ertaga 5 da",
+# "31.12.2026 18:00", "25:99", "salom"...). Bot HECH QACHON yiqilmasligi va
+# har doim tushunarli, foydalanuvchi tilidagi format namunasini ko'rsatishi
+# kerak. Shu sababli barcha oqimlar (yangi post, post tahriri, AI Studio)
+# quyidagi YAGONA parser orqali o'tadi.
+
+#: Foydalanuvchiga ko'rsatiladigan asosiy format.
+SCHEDULE_INPUT_FORMAT = "DD.MM.YYYY HH:MM"
+
+#: ``datetime.strptime`` uchun aniq qo'llab-quvvatlanadigan qat'iy formatlar.
+SCHEDULE_STRICT_FORMATS = (
+    "%d.%m.%Y %H:%M",   # 31.12.2026 18:00  (asosiy namuna)
+    "%d.%m.%y %H:%M",   # 31.12.26 18:00
+    "%d/%m/%Y %H:%M",   # 31/12/2026 18:00
+    "%d-%m-%Y %H:%M",   # 31-12-2026 18:00
+    "%Y-%m-%d %H:%M",   # 2026-12-31 18:00 (ISO — eski oqimlar bilan mos)
+    "%Y.%m.%d %H:%M",
+    "%d.%m.%Y %H:%M:%S",
+    "%Y-%m-%d %H:%M:%S",
+)
+
+#: Parser qaytaradigan xato sabablari (i18n kalitlariga moslanadi).
+SCHEDULE_ERR_EMPTY = "empty"
+SCHEDULE_ERR_FORMAT = "format"
+SCHEDULE_ERR_PAST = "past"
+
+
+def schedule_time_example(now: datetime = None) -> str:
+    """Foydalanuvchiga ko'rsatiladigan JONLI namuna: ertangi kun, 18:00.
+
+    Namuna har doim Toshkent vaqtida va kelajakda bo'ladi — foydalanuvchi
+    uni ko'chirib qo'ysa ham xato bo'lmaydi.
+    """
+    base = now if isinstance(now, datetime) else datetime.now(tashkent_tz)
+    if base.tzinfo is None:
+        base = tashkent_tz.localize(base)
+    else:
+        base = base.astimezone(tashkent_tz)
+    return (base + timedelta(days=1)).strftime("%d.%m.%Y 18:00")
+
+
+def parse_schedule_input(text, now: datetime = None):
+    """Foydalanuvchi kiritgan vaqtni xavfsiz o'qiydi — HECH QACHON tashlamaydi.
+
+    Qaytaradi ``(datetime | None, reason)``:
+      * ``(dt, "")``               — muvaffaqiyat, ``dt`` Toshkent vaqtida
+        (``Asia/Tashkent``) va kelajakda;
+      * ``(None, "empty")``        — matn bo'sh / matn emas (rasm, stiker...);
+      * ``(None, "format")``       — format tanilmadi ("salom", "25:99",
+        "32.13.2026 18:00" kabi noto'g'ri sonlar);
+      * ``(None, "past")``         — format to'g'ri, lekin vaqt o'tib ketgan.
+
+    Erkin tildagi ko'rinishlar ham qo'llab-quvvatlanadi ("ertaga 5 da",
+    "2 soatdan keyin", "kechqurun 8") — ular ``parse_future_time`` orqali
+    o'tadi. Faqat shu funksiya ishlamagandagina qat'iy formatlar sinaladi.
+    """
+    if now is None:
+        now = datetime.now(tashkent_tz)
+    elif now.tzinfo is None:
+        now = tashkent_tz.localize(now)
+    else:
+        now = now.astimezone(tashkent_tz)
+
+    if not isinstance(text, str):
+        return None, SCHEDULE_ERR_EMPTY
+    raw = text.strip()
+    if not raw:
+        return None, SCHEDULE_ERR_EMPTY
+
+    # 0) Oldindan validatsiya: matnda sana/soatga o'xshash, lekin MAVJUD BO'LMAGAN
+    #    sonlar bo'lsa ("32.13.2026", "25:99") — jim "bugun"ga tushib qolmaymiz,
+    #    balki foydalanuvchiga format namunasini ko'rsatamiz.
+    if _has_impossible_datetime_token(raw):
+        return None, SCHEDULE_ERR_FORMAT
+
+    # 1) Erkin til (relativ va tabiiy ifodalar). Ichkarida xato bo'lsa ham
+    #    butun oqim yiqilmasligi kerak.
+    try:
+        candidate = parse_future_time(raw, now)
+    except Exception:
+        candidate = None
+    if candidate is not None:
+        return _finalize_schedule(candidate, now)
+
+    # 2) Qat'iy formatlar (DD.MM.YYYY HH:MM va boshqalar).
+    for fmt in SCHEDULE_STRICT_FORMATS:
+        try:
+            naive = datetime.strptime(raw, fmt)
+        except (ValueError, TypeError, OverflowError):
+            continue
+        try:
+            candidate = tashkent_tz.localize(naive)
+        except Exception:
+            continue
+        return _finalize_schedule(candidate, now)
+
+    # 3) Faqat soat ("18:00" / "18.00" / "18-00") → bugun, o'tgan bo'lsa ertaga.
+    only_time = re.fullmatch(r"(\d{1,2})[:.\-](\d{2})", raw)
+    if only_time:
+        hour, minute = int(only_time.group(1)), int(only_time.group(2))
+        if 0 <= hour <= 23 and 0 <= minute <= 59:
+            candidate = tashkent_tz.localize(
+                datetime(now.year, now.month, now.day, hour, minute)
+            )
+            if candidate <= now:
+                candidate = tashkent_tz.normalize(candidate + timedelta(days=1))
+            return _finalize_schedule(candidate, now)
+        # "25:99" kabi noto'g'ri sonlar — format xatosi (crash emas).
+        return None, SCHEDULE_ERR_FORMAT
+
+    return None, SCHEDULE_ERR_FORMAT
+
+
+def _has_impossible_datetime_token(raw: str) -> bool:
+    """Matnda MAVJUD BO'LMAGAN sana yoki soat bormi (masalan 32.13.2026, 25:99).
+
+    Bunday hollarda ``parse_future_time`` sana qismini tanimay, jimgina
+    "bugun"ga tushib qoladi — foydalanuvchi esa post noto'g'ri kunga
+    rejalashtirilganini bilmay qoladi. Shu sababli aniq NOTO'G'RI sonlar
+    format xatosi sifatida ushlanadi.
+    """
+    text = str(raw or "")
+
+    # --- Soat:daqiqa (25:99, 31:00 ...) ---
+    for hh, mm in re.findall(r"(?<![\d.])(\d{1,2})\s*[:hн]\s*(\d{2})(?!\d)", text):
+        if int(hh) > 23 or int(mm) > 59:
+            return True
+
+    # --- ISO sana: YYYY-MM-DD ---
+    for y, mo, d in re.findall(r"(\d{4})-(\d{1,2})-(\d{1,2})", text):
+        if _safe_calendar_date(int(y), int(mo), int(d)) is None:
+            return True
+
+    # --- DD.MM.YYYY / DD/MM/YYYY / DD-MM-YYYY ---
+    for a, b, c in re.findall(r"(?<!\d)(\d{1,2})[./\-](\d{1,2})[./\-](\d{2,4})(?!\d)", text):
+        year = int(c) + 2000 if len(c) <= 2 else int(c)
+        # Ikkala tartib ham (DD.MM va MM.DD) yaroqsiz bo'lsa — aniq xato.
+        if (_safe_calendar_date(year, int(b), int(a)) is None
+                and _safe_calendar_date(year, int(a), int(b)) is None):
+            return True
+
+    # --- DD.MM (yilsiz) ---
+    for a, b in re.findall(r"(?<![\d.:/-])(\d{1,2})[./](\d{1,2})(?![\d.:/-])", text):
+        ref_year = datetime.now(tashkent_tz).year
+        if (_safe_calendar_date(ref_year, int(b), int(a)) is None
+                and _safe_calendar_date(ref_year, int(a), int(b)) is None):
+            return True
+
+    return False
+
+
+def _safe_calendar_date(year: int, month: int, day: int):
+    """Kalendarda mavjud sana bo'lsa ``date``, aks holda ``None``."""
+    if not (1 <= month <= 12 and 1 <= day <= 31 and 1970 <= year <= 2999):
+        return None
+    try:
+        return datetime(year, month, day).date()
+    except ValueError:
+        return None
+
+
+def _finalize_schedule(candidate: datetime, now: datetime):
+    """Natijani Toshkent zonasiga keltiradi va kelajakdaligini tekshiradi."""
+    if candidate is None:
+        return None, SCHEDULE_ERR_FORMAT
+    if candidate.tzinfo is None:
+        try:
+            candidate = tashkent_tz.localize(candidate)
+        except Exception:
+            return None, SCHEDULE_ERR_FORMAT
+    else:
+        candidate = candidate.astimezone(tashkent_tz)
+    if candidate <= now:
+        return None, SCHEDULE_ERR_PAST
+    return candidate, ""
+
+
+def schedule_error_key(reason: str) -> str:
+    """Parser sababini i18n kalitiga moslaydi (default: format xatosi)."""
+    if reason == SCHEDULE_ERR_PAST:
+        return "np_time_future"
+    return "np_time_format_error"
+
+
+def parse_daily_time_input(text):
+    """Kunlik/haftalik takror uchun ``HH:MM`` ni xavfsiz o'qiydi.
+
+    Qaytaradi ``(hour, minute)`` yoki xato bo'lsa ``None`` — hech qachon
+    ``ValueError``/``AttributeError`` tashlamaydi ("salom", "25:99", None...).
+    """
+    if not isinstance(text, str):
+        return None
+    raw = text.strip()
+    m = re.fullmatch(r"(\d{1,2})\s*[:.\-hн]\s*(\d{1,2})", raw)
+    if not m:
+        # "18" → 18:00 ko'rinishini ham qabul qilamiz.
+        m_hour = re.fullmatch(r"(\d{1,2})", raw)
+        if not m_hour:
+            return None
+        hour, minute = int(m_hour.group(1)), 0
+    else:
+        hour, minute = int(m.group(1)), int(m.group(2))
+    if 0 <= hour <= 23 and 0 <= minute <= 59:
+        return hour, minute
+    return None
+
+
+
 # === Uzluksiz "typing" (yozmoqda...) indikatori ============================
 # Telegram "typing..." holatini ~5 soniyadan keyin avtomatik o'chiradi.
 # AI so'rovlari 10-30 soniya davom etishi mumkinligi sababli holatni doimiy

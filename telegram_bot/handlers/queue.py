@@ -8,6 +8,7 @@ from telegram.ext import ContextTypes, ConversationHandler
 from config import ADMIN_IDS_SET
 import database as db
 from keyboards.default import get_main_keyboard, get_cancel_keyboard
+from keyboards.callback_data import CB_POST_VIEW, cb
 from locales.translations import get_lang, get_text, normalize_lang
 from utils.helpers import html_escape
 
@@ -76,19 +77,19 @@ def _get_queue_list_keyboard(posts, offset: int, total: int, lang: str = "uz") -
     for post in posts:
         pid = post[0]
         rows.append([
-            InlineKeyboardButton(get_text("queue_btn_view", lang, id=pid), callback_data=f"qview:{pid}"),
-            InlineKeyboardButton(get_text("queue_btn_delete", lang), callback_data=f"qdel:{pid}"),
-            InlineKeyboardButton(get_text("queue_btn_push", lang), callback_data=f"qpush:{pid}"),
+            InlineKeyboardButton(get_text("queue_btn_view", lang, id=pid), callback_data=cb(CB_POST_VIEW, pid)),
+            InlineKeyboardButton(get_text("queue_btn_delete", lang), callback_data=cb(f"qdel:{pid}")),
+            InlineKeyboardButton(get_text("queue_btn_push", lang), callback_data=cb(f"qpush:{pid}")),
         ])
 
     # Pagination tugmalari
     nav = []
     if offset > 0:
         prev_off = max(0, offset - QUEUE_PAGE_SIZE)
-        nav.append(InlineKeyboardButton(get_text("queue_btn_prev", lang), callback_data=f"qpage:{prev_off}"))
+        nav.append(InlineKeyboardButton(get_text("queue_btn_prev", lang), callback_data=cb(f"qpage:{prev_off}")))
     if offset + QUEUE_PAGE_SIZE < total:
         next_off = offset + QUEUE_PAGE_SIZE
-        nav.append(InlineKeyboardButton(get_text("queue_btn_next", lang), callback_data=f"qpage:{next_off}"))
+        nav.append(InlineKeyboardButton(get_text("queue_btn_next", lang), callback_data=cb(f"qpage:{next_off}")))
     if nav:
         rows.append(nav)
 
@@ -101,8 +102,8 @@ def _get_post_detail_keyboard(post_id: int, lang: str = "uz") -> InlineKeyboardM
     """Bitta postni ko'rish uchun keyboard."""
     return InlineKeyboardMarkup([
         [
-            InlineKeyboardButton(get_text("queue_btn_delete", lang), callback_data=f"qdel:{post_id}"),
-            InlineKeyboardButton(get_text("queue_btn_push", lang), callback_data=f"qpush:{post_id}"),
+            InlineKeyboardButton(get_text("queue_btn_delete", lang), callback_data=cb(f"qdel:{post_id}")),
+            InlineKeyboardButton(get_text("queue_btn_push", lang), callback_data=cb(f"qpush:{post_id}")),
         ],
         [InlineKeyboardButton(get_text("queue_btn_back", lang), callback_data="qpage:0")],
     ])
@@ -114,7 +115,7 @@ def _get_slots_keyboard(slots: list, lang: str = "uz") -> InlineKeyboardMarkup:
     for i, slot in enumerate(slots):
         rows.append([
             InlineKeyboardButton(f"🕐 {slot}", callback_data="qslots:noop"),
-            InlineKeyboardButton("❌", callback_data=f"qslots:rm:{i}"),
+            InlineKeyboardButton("❌", callback_data=cb(f"qslots:rm:{i}")),
         ])
     rows.append([InlineKeyboardButton(get_text("queue_btn_add_slot", lang), callback_data="qslots:add")])
     rows.append([InlineKeyboardButton(get_text("queue_btn_reset_slots", lang), callback_data="qslots:reset")])

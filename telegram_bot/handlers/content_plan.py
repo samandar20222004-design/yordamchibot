@@ -6,6 +6,7 @@ from config import ADMIN_IDS_SET
 import database as db
 from keyboards.default import get_cancel_keyboard, get_main_keyboard
 from keyboards.inline import btn_label
+from keyboards.callback_data import cb
 from utils.helpers import html_escape, safe_html, get_auto_ad_injection_async, keep_typing
 
 logger = logging.getLogger(__name__)
@@ -25,7 +26,7 @@ def _get_plan_channel_keyboard(channels: list) -> InlineKeyboardMarkup:
         keyboard.append([
             InlineKeyboardButton(
                 f"📢 {btn_label(ch_title)}",
-                callback_data=f"plan_ch:{ch_id}",
+                callback_data=cb(f"plan_ch:{ch_id}"),
             )
         ])
     keyboard.append([InlineKeyboardButton("❌ Bekor qilish", callback_data="plan_cancel")])
@@ -50,7 +51,7 @@ def _get_plan_day_keyboard(plan_items: list) -> InlineKeyboardMarkup:
         keyboard.append([
             InlineKeyboardButton(
                 f"📅 {day}: {title}",
-                callback_data=f"plan_day:{i}",
+                callback_data=cb(f"plan_day:{i}"),
             )
         ])
     keyboard.append([InlineKeyboardButton("🔙 Orqaga", callback_data="plan_back")])

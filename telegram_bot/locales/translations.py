@@ -457,7 +457,9 @@ TRANSLATIONS = {
             "• <i>“bugun 18:00 ga”</i>\n"
             "• <i>“ertaga ertalab 9 ga”</i>\n"
             "• <i>“30 daqiqadan keyin”</i>\n"
-            "Yoki aniq format: <code>2026-08-30 18:00</code>"
+            "Yoki aniq format: <code>DD.MM.YYYY HH:MM</code> "
+            "(masalan <code>30.08.2026 18:00</code>)\n\n"
+            "🕒 <i>Toshkent vaqti (UTC+5).</i>"
         ),
         "ai_time_detecting": "🤖 <i>Vaqt aniqlanmoqda...</i>",
         "ai_full_post_text": "📝 <b>Post matni (to'liq):</b>\n\n{text}",
@@ -592,20 +594,36 @@ TRANSLATIONS = {
         ),
         "np_time_ask": (
             "🕒 <b>Post qaysi vaqtda chiqsin?</b>\n\n"
-            "Tayyor tugmalardan tanlang yoki aniq vaqtni yozing:\n"
-            "Namuna: <code>{example}</code>"
+            "Tayyor tugmalardan tanlang yoki aniq vaqtni yozing.\n"
+            "Format: <code>DD.MM.YYYY HH:MM</code>\n"
+            "Namuna: <code>{example}</code>\n\n"
+            "🕒 <i>Toshkent vaqti (UTC+5).</i>"
         ),
-        "np_time_future": "⚠️ Kelajakdagi vaqtni kiriting:",
+        "np_time_future": (
+            "⚠️ <b>Bu vaqt allaqachon o'tib ketgan.</b>\n\n"
+            "Iltimos, KELAJAKDAGI vaqtni kiriting.\n"
+            "Namuna: <code>{example}</code>\n\n"
+            "🕒 <i>Hozir Toshkentda: {now}</i>"
+        ),
         "np_time_format_error": (
-            "⚠️ Format xato! Masalan: <code>2026-08-30 18:00</code> yoki "
-            "<code>18:00</code> shaklida yuboring."
+            "⚠️ <b>Vaqt formati tushunarsiz.</b>\n\n"
+            "To'g'ri format: <code>DD.MM.YYYY HH:MM</code>\n"
+            "Namuna: <code>{example}</code>\n\n"
+            "Yoki quyidagilardan birini yozing:\n"
+            "• faqat soat — <code>18:00</code> (bugun, o'tgan bo'lsa ertaga)\n"
+            "• <code>ertaga 18:00</code>\n"
+            "• <code>2 soatdan keyin</code>\n\n"
+            "🕒 <i>Barcha vaqtlar Toshkent vaqti (UTC+5) bo'yicha.</i>"
         ),
         "np_daily_time_ask": (
             "🔁 <b>Har kuni soat nechida chiqsin?</b>\n"
             "Masalan: <code>10:00</code> yoki <code>18:30</code>"
         ),
         "np_daily_time_format": (
-            "⚠️ Noto'g'ri vaqt formati. Masalan: <code>10:00</code>"
+            "⚠️ <b>Noto'g'ri vaqt formati.</b>\n\n"
+            "Faqat soatni <code>HH:MM</code> ko'rinishida yozing.\n"
+            "Namuna: <code>10:00</code> yoki <code>18:30</code>\n\n"
+            "🕒 <i>Toshkent vaqti (UTC+5).</i>"
         ),
         "np_weekday_ask": "📅 <b>Haftaning qaysi kuni chiqsin?</b>",
         "np_weekday_invalid": "⚠️ Kunlardan birini tanlang:",
@@ -613,7 +631,10 @@ TRANSLATIONS = {
             "🕒 <b>Har {day} soat nechida chiqsin?</b>\n"
             "Masalan: <code>10:00</code>"
         ),
-        "np_recur_time_format": "⚠️ Noto'g'ri format! Masalan: <code>10:00</code>",
+        "np_recur_time_format": (
+            "⚠️ <b>Noto'g'ri format!</b> Soatni <code>HH:MM</code> ko'rinishida "
+            "yozing. Namuna: <code>10:00</code> 🕒 <i>(Toshkent vaqti, UTC+5)</i>"
+        ),
         "np_duration_ask_daily": (
             "⏳ <b>Post qancha muddat davomida har kuni chiqsin?</b>"
         ),
@@ -877,13 +898,17 @@ TRANSLATIONS = {
         "pend_not_owned": "❌ Bu post sizga tegishli emas.",
         "pend_time_ask": (
             "🕒 <b>Post uchun yangi chiqish vaqtini yuboring:</b>\n\n"
-            "• Bir martalik post bo'lsa: <code>2026-08-30 20:00</code>\n"
+            "• Bir martalik post bo'lsa: <code>DD.MM.YYYY HH:MM</code> "
+            "(masalan <code>30.08.2026 20:00</code>)\n"
             "• Erkin format ham ishlaydi: <code>ertaga 18:00</code>, <code>bugun 10:00</code>\n"
             "• Har kunlik post bo'lsa faqat soat: <code>10:00</code>"
         ),
         "pend_time_success": "✅ <b>Post vaqti muvaffaqiyatli yangilandi!</b>",
         "pend_time_format": (
-            "⚠️ Format xato! Masalan: <code>2026-08-30 20:00</code> yoki <code>10:00</code>"
+            "⚠️ <b>Vaqt formati tushunarsiz.</b>\n\n"
+            "To'g'ri format: <code>DD.MM.YYYY HH:MM</code>\n"
+            "Namuna: <code>{example}</code> yoki faqat soat — <code>18:00</code>\n\n"
+            "🕒 <i>Toshkent vaqti (UTC+5).</i>"
         ),
         "pend_content_ask": (
             "✏️ <b>Post uchun yangi matnni yuboring:</b>\n\n"
@@ -1787,7 +1812,9 @@ TRANSLATIONS = {
             "• <i>«сегодня в 18:00»</i>\n"
             "• <i>«завтра утром в 9»</i>\n"
             "• <i>«через 30 минут»</i>\n"
-            "Или точный формат: <code>2026-08-30 18:00</code>"
+            "Или точный формат: <code>DD.MM.YYYY HH:MM</code> "
+            "(например <code>30.08.2026 18:00</code>)\n\n"
+            "🕒 <i>Время по Ташкенту (UTC+5).</i>"
         ),
         "ai_time_detecting": "🤖 <i>Время определяется...</i>",
         "ai_full_post_text": "📝 <b>Полный текст поста:</b>\n\n{text}",
@@ -1921,20 +1948,36 @@ TRANSLATIONS = {
         ),
         "np_time_ask": (
             "🕒 <b>Когда должен выйти пост?</b>\n\n"
-            "Выберите готовую кнопку или напишите точное время:\n"
-            "Пример: <code>{example}</code>"
+            "Выберите готовую кнопку или напишите точное время.\n"
+            "Формат: <code>DD.MM.YYYY HH:MM</code>\n"
+            "Пример: <code>{example}</code>\n\n"
+            "🕒 <i>Время по Ташкенту (UTC+5).</i>"
         ),
-        "np_time_future": "⚠️ Введите время в будущем:",
+        "np_time_future": (
+            "⚠️ <b>Это время уже прошло.</b>\n\n"
+            "Пожалуйста, укажите время в БУДУЩЕМ.\n"
+            "Пример: <code>{example}</code>\n\n"
+            "🕒 <i>Сейчас в Ташкенте: {now}</i>"
+        ),
         "np_time_format_error": (
-            "⚠️ Ошибка формата! Например: <code>2026-08-30 18:00</code> или "
-            "<code>18:00</code>."
+            "⚠️ <b>Формат времени не распознан.</b>\n\n"
+            "Правильный формат: <code>DD.MM.YYYY HH:MM</code>\n"
+            "Пример: <code>{example}</code>\n\n"
+            "Или напишите одно из следующего:\n"
+            "• только время — <code>18:00</code> (сегодня, если прошло — завтра)\n"
+            "• <code>завтра 18:00</code>\n"
+            "• <code>через 2 часа</code>\n\n"
+            "🕒 <i>Всё время указывается по Ташкенту (UTC+5).</i>"
         ),
         "np_daily_time_ask": (
             "🔁 <b>Во сколько выходить ежедневно?</b>\n"
             "Например: <code>10:00</code> или <code>18:30</code>"
         ),
         "np_daily_time_format": (
-            "⚠️ Неверный формат времени. Например: <code>10:00</code>"
+            "⚠️ <b>Неверный формат времени.</b>\n\n"
+            "Укажите только время в виде <code>HH:MM</code>.\n"
+            "Пример: <code>10:00</code> или <code>18:30</code>\n\n"
+            "🕒 <i>Время по Ташкенту (UTC+5).</i>"
         ),
         "np_weekday_ask": "📅 <b>В какой день недели выходить?</b>",
         "np_weekday_invalid": "⚠️ Выберите один из дней:",
@@ -1942,7 +1985,10 @@ TRANSLATIONS = {
             "🕒 <b>Во сколько выходить каждый {day}?</b>\n"
             "Например: <code>10:00</code>"
         ),
-        "np_recur_time_format": "⚠️ Неверный формат! Например: <code>10:00</code>",
+        "np_recur_time_format": (
+            "⚠️ <b>Неверный формат!</b> Укажите время как <code>HH:MM</code>. "
+            "Пример: <code>10:00</code> 🕒 <i>(время по Ташкенту, UTC+5)</i>"
+        ),
         "np_duration_ask_daily": (
             "⏳ <b>Как долго пост должен выходить ежедневно?</b>"
         ),
@@ -2203,13 +2249,17 @@ TRANSLATIONS = {
         "pend_not_owned": "❌ Этот пост не принадлежит вам.",
         "pend_time_ask": (
             "🕒 <b>Отправьте новое время выхода поста:</b>\n\n"
-            "• Для одноразового поста: <code>2026-08-30 20:00</code>\n"
+            "• Для одноразового поста: <code>DD.MM.YYYY HH:MM</code> "
+            "(например <code>30.08.2026 20:00</code>)\n"
             "• Работает свободный формат: <code>завтра 18:00</code>, <code>сегодня 10:00</code>\n"
             "• Для ежедневного поста только время: <code>10:00</code>"
         ),
         "pend_time_success": "✅ <b>Время поста успешно обновлено!</b>",
         "pend_time_format": (
-            "⚠️ Ошибка формата! Например: <code>2026-08-30 20:00</code> или <code>10:00</code>"
+            "⚠️ <b>Формат времени не распознан.</b>\n\n"
+            "Правильный формат: <code>DD.MM.YYYY HH:MM</code>\n"
+            "Пример: <code>{example}</code> или только время — <code>18:00</code>\n\n"
+            "🕒 <i>Время по Ташкенту (UTC+5).</i>"
         ),
         "pend_content_ask": (
             "✏️ <b>Отправьте новый текст поста:</b>\n\n"
@@ -2697,34 +2747,109 @@ def detect_language(telegram_language_code) -> str:
     return normalize_lang(telegram_language_code)
 
 
-def get_text(key, lang="uz", **kwargs) -> str:
-    """Lug'atdan matn olish. Noma'lum kalit/til uchun o'zbekcha fallback.
+def get_text(key, lang=DEFAULT_LANG, **kwargs) -> str:
+    """Lug'atdan matn olish — HECH QACHON ``KeyError`` bermaydi.
 
-    Xavfsizlik: hech qanday formatlash xatosi (shu jumladan ``TypeError`` —
-    masalan ``{x}`` qiymatga mos kelmaydigan format ko'rsatkichi yoki RU
-    kalit shabloni UZ bilan mos kelmasa) handler'ni qulatmaydi. Birinchi
-    urinish muvaffaqiyatsiz bo'lsa — boshqa til varianti bilan qayta
-    formatlanadi; u ham ishlamasa asl matn qaytariladi (crash YO'Q).
+    Fallback zanjiri (3 pog'ona):
+      1. Foydalanuvchi tanlagan til (masalan ``ru``);
+      2. Kalit u tilda YO'Q bo'lsa — avtomatik ``uz`` (``DEFAULT_LANG``);
+      3. Kalit IKKALA tilda ham yo'q bo'lsa — kalit nomining o'zi
+         (``"no_such_key"``), bot crash bo'lmaydi. Kalit ham bo'sh/None
+         bo'lsa — bo'sh satr.
+
+    Formatlash xavfsizligi: ``{name}`` kabi ko'rsatkich uchun qiymat
+    berilmasa yoki RU shabloni UZ bilan mos kelmasa, ``KeyError`` /
+    ``IndexError`` / ``ValueError`` / ``TypeError`` handler'ni qulatmaydi —
+    avval boshqa til varianti sinaladi, u ham ishlamasa formatlanmagan
+    asl matn qaytariladi.
     """
+    # 0) Kalit va til normallashtiriladi (None/bo'sh ham xavfsiz).
+    if key is None:
+        return ""
+    if not isinstance(key, str):
+        key = str(key)
+    if not key:
+        return ""
+
     lang = normalize_lang(lang)
-    table = TRANSLATIONS.get(lang) or TRANSLATIONS[DEFAULT_LANG]
+
+    # 1) Tanlangan til → 2) DEFAULT_LANG → 3) kalitning o'zi.
+    table = TRANSLATIONS.get(lang)
+    if not isinstance(table, dict):
+        table = {}
+    fallback_table = TRANSLATIONS.get(DEFAULT_LANG)
+    if not isinstance(fallback_table, dict):
+        fallback_table = {}
+
     text = table.get(key)
     if text is None:
-        text = TRANSLATIONS[DEFAULT_LANG].get(key, key)
-    if kwargs and isinstance(text, str):
+        text = fallback_table.get(key)
+    if text is None:
+        # Har ikkala tilda ham topilmadi — crash o'rniga kalitning o'zi.
+        return key
+    if not isinstance(text, str):
+        # Lug'atga xato tur tushib qolgan bo'lsa ham yiqilmaymiz.
+        text = str(text)
+
+    if kwargs:
         try:
             return text.format(**kwargs)
-        except (KeyError, IndexError, ValueError, TypeError):
+        except (KeyError, IndexError, ValueError, TypeError, AttributeError):
             # RU shablon UZ bilan mos kelmasa (yoki format ko'rsatkichi
             # qiymat turiga mos bo'lmasa) — boshqa til varianti sinanadi.
             if lang != DEFAULT_LANG:
-                alt = TRANSLATIONS[DEFAULT_LANG].get(key)
+                alt = fallback_table.get(key)
                 if isinstance(alt, str) and alt != text:
                     try:
                         return alt.format(**kwargs)
-                    except (KeyError, IndexError, ValueError, TypeError):
+                    except (KeyError, IndexError, ValueError, TypeError, AttributeError):
                         pass
     return text
+
+
+# ---------------------------------------------------------------------------
+# Lug'at paritetini (UZ ↔ RU) tekshirish yordamchilari
+# ---------------------------------------------------------------------------
+
+def missing_keys(lang: str, reference: str = DEFAULT_LANG) -> list:
+    """``reference`` tilida bor, lekin ``lang`` da YO'Q kalitlar ro'yxati."""
+    ref = TRANSLATIONS.get(reference) or {}
+    target = TRANSLATIONS.get(normalize_lang(lang)) or {}
+    return sorted(set(ref) - set(target))
+
+
+def translation_parity_report() -> dict:
+    """UZ va RU bo'limlari orasidagi to'liq paritet hisoboti.
+
+    Qaytaradi::
+
+        {
+            "uz_only": [...],   # faqat UZ'da bor kalitlar
+            "ru_only": [...],   # faqat RU'da bor kalitlar
+            "total": 552,       # umumiy noyob kalitlar soni
+            "in_sync": True,    # to'liq paritet bormi
+        }
+    """
+    uz_keys = set(TRANSLATIONS.get("uz") or {})
+    ru_keys = set(TRANSLATIONS.get("ru") or {})
+    uz_only = sorted(uz_keys - ru_keys)
+    ru_only = sorted(ru_keys - uz_keys)
+    return {
+        "uz_only": uz_only,
+        "ru_only": ru_only,
+        "total": len(uz_keys | ru_keys),
+        "in_sync": not uz_only and not ru_only,
+    }
+
+
+def has_key(key, lang: str = None) -> bool:
+    """Kalit lug'atda mavjudmi (``lang`` berilmasa — istalgan tilda)."""
+    if not key:
+        return False
+    if lang is None:
+        return any(key in (TRANSLATIONS.get(code) or {}) for code in SUPPORTED_LANGS)
+    return key in (TRANSLATIONS.get(normalize_lang(lang)) or {})
+
 
 
 def get_lang(context, default=DEFAULT_LANG) -> str:
