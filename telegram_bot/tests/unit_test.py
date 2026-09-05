@@ -7358,6 +7358,24 @@ def test_i18n_safe_fallback_and_parity():
                 bad_values.append((lang, key))
     check("paritet: barcha qiymatlar nobo'sh satr", not bad_values, str(bad_values[:5]))
 
+    # --- a2) Kodda get_text("literal_key") bilan chaqirilgan HAR BIR kalit
+    #        lug'atda bo'lishi shart (aks holda foydalanuvchiga xom kalit chiqadi,
+    #        masalan "main_menu_hint" regressiyasi) ---
+    import glob as _glob
+    import re as _re
+    _root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    _pattern = _re.compile(r"""get_text\(\s*["']([A-Za-z0-9_]+)["']""")
+    _used = set()
+    for _f in _glob.glob(os.path.join(_root, "handlers", "**", "*.py"), recursive=True) + \
+              _glob.glob(os.path.join(_root, "*.py")):
+        with open(_f, encoding="utf-8") as _fh:
+            _used.update(_pattern.findall(_fh.read()))
+    _unknown = sorted(k for k in _used if k not in TRANSLATIONS["uz"] or k not in TRANSLATIONS["ru"])
+    check("kodda ishlatilgan barcha get_text kalitlari lug'atda bor",
+          not _unknown, str(_unknown[:10]))
+    check("main_menu_hint uz", get_text("main_menu_hint", "uz") == "Quyidagi menyudan kerakli bo‘limni tanlang 👇")
+    check("main_menu_hint ru", get_text("main_menu_hint", "ru") == "Выберите нужный раздел из меню ниже 👇")
+
     # UZ va RU shablonlaridagi {placeholder}'lar bir xil bo'lishi kerak
     import re as _re
     ph_mismatch = []

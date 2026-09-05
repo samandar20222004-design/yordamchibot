@@ -1359,7 +1359,7 @@ TRANSLATIONS = {
             "🚫 <b>Jarayon bekor qilindi.</b>\n"
             "Asosiy menyuga qaytdingiz. Kerakli bo'limni tanlang 👇"
         ),
-
+        "main_menu_hint": "Quyidagi menyudan kerakli bo‘limni tanlang 👇",
     },
     "ru": {
         "btn_new_post": "➕ Новый пост",
@@ -2725,6 +2725,7 @@ TRANSLATIONS = {
             "🚫 <b>Действие отменено.</b>\n"
             "Вы вернулись в главное меню. Выберите нужный раздел 👇"
         ),
+        "main_menu_hint": "Выберите нужный раздел из меню ниже 👇",
     },
 }
 
