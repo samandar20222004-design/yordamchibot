@@ -4,6 +4,7 @@ from telegram.ext import ContextTypes, MessageHandler, filters, CallbackQueryHan
 
 from config import ADMIN_IDS_SET
 import database as db
+from keyboards.callback_data import CB_PHOTO_APPROVE, CB_PHOTO_REJECT, cb
 
 logger = logging.getLogger(__name__)
 
@@ -42,8 +43,8 @@ async def handle_user_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     keyboard = [
         [
-            InlineKeyboardButton("✅ Tasdiqlash", callback_data=f"check_photo:app:{user_id}"),
-            InlineKeyboardButton("❌ Rad etish", callback_data=f"check_photo:rej:{user_id}"),
+            InlineKeyboardButton("✅ Tasdiqlash", callback_data=cb(CB_PHOTO_APPROVE, user_id)),
+            InlineKeyboardButton("❌ Rad etish", callback_data=cb(CB_PHOTO_REJECT, user_id)),
         ]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -73,20 +74,20 @@ async def handle_admin_check_photo_callback(update: Update, context: ContextType
         await query.answer("Ruxsat yo'q.", show_alert=True)
         return
 
-    data = query.data  # format: "check_photo:app:{user_id}" or "check_photo:rej:{user_id}"
+    data = query.data  # format: "cph:a:{user_id}" yoki "cph:r:{user_id}"
     parts = data.split(":")
     if len(parts) != 3:
         await query.answer("Noto'g'ri callback data.", show_alert=True)
         return
 
-    action = parts[1]  # 'app' or 'rej'
+    action = parts[1]  # 'a' (tasdiq) yoki 'r' (rad)
     try:
         target_user_id = int(parts[2])
     except ValueError:
         await query.answer("User ID xatosi.", show_alert=True)
         return
 
-    if action == "app":
+    if action == "a":
         # Activate PRO for user (30 days)
         success = await db.run_db(db.set_user_plan, target_user_id, "pro", days=30)
         if success:
@@ -111,7 +112,7 @@ async def handle_admin_check_photo_callback(update: Update, context: ContextType
             )
         else:
             await query.answer("Xatolik yuz berdi.", show_alert=True)
-    elif action == "rej":
+    elif action == "r":
         # Reject: just inform admin, optionally notify user
         await query.edit_message_text(
             text="❌ <b>Rad etildi.</b>\n\n"
@@ -133,6 +134,6 @@ def register(app):
     app.add_handler(
         CallbackQueryHandler(
             handle_admin_check_photo_callback,
-            pattern=r"^check_photo:app:|^check_photo:rej:",
+            pattern=r"^cph:a:|^cph:r:",
         )
     )

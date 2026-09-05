@@ -6,6 +6,7 @@ from config import ADMIN_IDS_SET
 import database as db
 from keyboards.default import get_cancel_keyboard, get_main_keyboard, get_button_prompt_keyboard
 from keyboards.inline import btn_label
+from keyboards.callback_data import cb
 from utils.helpers import html_escape, safe_html, get_auto_ad_injection_async, keep_typing
 from utils.channel_reader import fetch_latest_channel_posts, format_post_list
 
@@ -27,7 +28,7 @@ def _get_post_list_keyboard(posts: list[dict], channel: str) -> InlineKeyboardMa
         keyboard.append([
             InlineKeyboardButton(
                 f"📄 {i+1}. {preview}",
-                callback_data=f"ext_post:{i}",
+                callback_data=cb(f"ext_post:{i}"),
             )
         ])
     keyboard.append([InlineKeyboardButton("🔄 Yangilash", callback_data="ext_refresh")])

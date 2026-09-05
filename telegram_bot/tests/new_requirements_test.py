@@ -454,11 +454,11 @@ def test_card_payment_tariff_and_receipt_flow():
             assert "Время: " in cap, cap
             kb = bot.photos[0][2]
             flat = [b for row in kb.inline_keyboard for b in row]
-            assert [b.callback_data for b in flat] == ["receipt_appr:55", "receipt_rej:55"], flat
+            assert [b.callback_data for b in flat] == ["rc_ok:55", "rc_no:55"], flat
 
             # Admin ✅ Tasdiqlash → user'ga tabrik (90 kunlik PRO)
             bot2 = _Bot()
-            q = _AdminQuery("receipt_appr:55")
+            q = _AdminQuery("rc_ok:55")
             await pr.receipt_admin_callback(_UpdQ(q), _Ctx(bot2))
             user_msgs = [m for m in bot2.messages if m[0] == 777001]
             assert user_msgs, "tasdiqlash xabari yo'q"
@@ -466,7 +466,7 @@ def test_card_payment_tariff_and_receipt_flow():
 
             # Admin ❌ Rad etish → user'ga bildirishnoma
             bot3 = _Bot()
-            q3 = _AdminQuery("receipt_rej:55")
+            q3 = _AdminQuery("rc_no:55")
             await pr.receipt_admin_callback(_UpdQ(q3), _Ctx(bot3))
             rej = [m for m in bot3.messages if m[0] == 777001]
             assert rej and "не был подтверждён" in rej[-1][1], rej

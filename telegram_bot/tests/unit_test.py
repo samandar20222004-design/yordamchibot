@@ -885,14 +885,14 @@ def test_channels_list_with_tone():
     channels_old = [("-1001", "Eski Kanal")]
     kb_old = render_channels_list(channels_old)
     cbs_old = [b.callback_data for row in kb_old.inline_keyboard for b in row]
-    check("eski format: tone_menu bor", any("tone_menu:" in c for c in cbs_old))
+    check("eski format: ch_set (tone) bor", any("ch_set:" in c for c in cbs_old))
 
     # 3 elementli tuple (yangi format: id, title, tone)
     channels_new = [("-1001", "Yangi Kanal", "formal")]
     kb_new = render_channels_list(channels_new)
     cbs_new = [b.callback_data for row in kb_new.inline_keyboard for b in row]
     labels_new = [b.text for row in kb_new.inline_keyboard for b in row]
-    check("yangi format: tone_menu bor", any("tone_menu:" in c for c in cbs_new))
+    check("yangi format: ch_set (tone) bor", any("ch_set:" in c for c in cbs_new))
     check("yangi format: formal emoji", any("👔" in t for t in labels_new))
 
 
@@ -1717,7 +1717,12 @@ def test_ai_studio_hardening():
     try:
         res = asyncio.run(ai_agent.generate_ai_response("test mavzu", timeout=0.05))
         check("ai_agent: hard timeout → error dict", "error" in res, str(res))
-        check("ai_agent: timeout xabari foydalanuvchiga mos", "soniyada kelmadi" in res["error"])
+        check("ai_agent: timeout xabari foydalanuvchiga mos",
+              res["error"] == ai_agent.AI_TIMEOUT_USER_MESSAGE and res.get("timeout") is True,
+              str(res))
+        check("ai_agent: timeout xabari xushmuomala (aybdor izlanmaydi)",
+              "qayta urinib ko'ring" in res["error"] and "🙏" in res["error"],
+              res["error"])
     finally:
         ai_agent._run_ai_chain = orig_chain
 
@@ -2776,8 +2781,8 @@ def test_reaction_toggle_keyboard_and_normalize():
     for emoji in ("👍", "❤️", "🔥", "👏", "🎉", "🤔"):
         check(f"REACTION_EMOJIS: {emoji} bor", emoji in REACTION_EMOJIS)
     check("DEFAULT_REACTION_EMOJIS: eski 4 ta", DEFAULT_REACTION_EMOJIS == ("👍", "❤️", "🔥", "👏"))
-    check("callback prefiks: kanal reaksiyasidan farqli", CB_REACT_TOGGLE.startswith("npreact:"))
-    check("done/skip callback", CB_REACT_DONE == "npreact:done" and CB_REACT_SKIP == "npreact:skip")
+    check("callback prefiks: kanal reaksiyasidan farqli", CB_REACT_TOGGLE.startswith("nprt:"))
+    check("done/skip callback", CB_REACT_DONE == "nprt:done" and CB_REACT_SKIP == "nprt:skip")
 
     # 2. Toggle klaviatura strukturasi (bo'sh tanlov)
     kb = get_reaction_toggle_keyboard()
@@ -2966,9 +2971,9 @@ def test_quick_button_flow():
     check("reaction_toggle_callback callable", callable(np_mod.reaction_toggle_callback))
     check("reactions_done_callback callable", callable(np_mod.reactions_done_callback))
     check("reactions_skip_callback callable", callable(np_mod.reactions_skip_callback))
-    check("register: npreact:tgl handler", 'pattern=r"^npreact:tgl:"' in h_src)
-    check("register: npreact:done handler", 'pattern=r"^npreact:done$"' in h_src)
-    check("register: npreact:skip handler", 'pattern=r"^npreact:skip$"' in h_src)
+    check("register: nprt:t handler", 'pattern=r"^nprt:t:"' in h_src)
+    check("register: nprt:done handler", 'pattern=r"^nprt:done$"' in h_src)
+    check("register: nprt:skip handler", 'pattern=r"^nprt:skip$"' in h_src)
 
     # 7. parse_url_button_line boshqa oqimlarda (Post Enhancer) ishlatilgani
     #    uchun SAQLANADI — u tezkor post oqimiga tegishli emas edi.
@@ -3207,7 +3212,7 @@ def test_sponsor_channels_suite():
     # Admin sponsors keyboard
     adm_s_kb = get_admin_sponsors_keyboard(sponsors)
     adm_s_cbs = [b.callback_data for row in adm_s_kb.inline_keyboard for b in row]
-    check("admin sponsors delete button", "del_sponsor:1" in adm_s_cbs, str(adm_s_cbs))
+    check("admin sponsors delete button", "sp_del:1" in adm_s_cbs, str(adm_s_cbs))
     check("admin sponsors add button", "adm_add_sponsor" in adm_s_cbs, str(adm_s_cbs))
     check("admin sponsors back button", "adm_back" in adm_s_cbs, str(adm_s_cbs))
     check("admin sponsors close button", "close_msg" in adm_s_cbs, str(adm_s_cbs))
@@ -7121,6 +7126,667 @@ def test_keep_typing():
     check("typing: xato botda ham kontekst ishladi", bot4.attempts == 1, str(bot4.attempts))
 
 
+# ==========================================================================
+# 🚀 OMMAVIY RELIZ: 4 ta arxitekturaviy himoya
+# ==========================================================================
+
+def test_callback_data_64byte_safety():
+    """1️⃣ Inline tugmalar: callback_data HECH QACHON 64 baytdan oshmaydi."""
+    print("== 1. Inline callback_data 64-bayt xavfsizligi ==")
+    import ast
+    from keyboards.callback_data import (
+        CALLBACK_DATA_MAX_BYTES, CALLBACK_PREFIX_MAX_BYTES, CANONICAL_PREFIXES,
+        cb, callback_byte_len, is_callback_safe, truncate_callback_data,
+        safe_callback_data, pattern as cb_pattern,
+        CB_CHANNEL_DELETE, CB_CHANNEL_SETTINGS, CB_POST_TIME, CB_POST_EDIT,
+        CB_POST_BTN, CB_POST_REACT, CB_POST_CANCEL, CB_SPONSOR_DELETE,
+        CB_RECEIPT_APPROVE, CB_RECEIPT_REJECT, CB_PHOTO_APPROVE, CB_PHOTO_REJECT,
+        CB_REACT_TOGGLE, CB_REACT_DONE, CB_REACT_SKIP, CB_REACTION,
+    )
+
+    # --- a) Konstantalar: limit va qisqa kanonik prefikslar ---
+    check("limit 64 bayt", CALLBACK_DATA_MAX_BYTES == 64)
+    for prefix in CANONICAL_PREFIXES:
+        check(f"prefiks qisqa: {prefix}",
+              callback_byte_len(prefix) <= CALLBACK_PREFIX_MAX_BYTES,
+              f"{prefix} = {callback_byte_len(prefix)} bayt")
+
+    # Foydalanuvchi so'ragan qisqartirilgan format (ch_del:, p_*:, ch_set:)
+    check("ch_del: prefiksi", CB_CHANNEL_DELETE == "ch_del:")
+    check("ch_set: prefiksi", CB_CHANNEL_SETTINGS == "ch_set:")
+    check("p_time: prefiksi", CB_POST_TIME == "p_time:")
+    check("p_edit: prefiksi", CB_POST_EDIT == "p_edit:")
+    check("p_btn: prefiksi", CB_POST_BTN == "p_btn:")
+    check("p_react: prefiksi", CB_POST_REACT == "p_react:")
+    check("p_cancel: prefiksi", CB_POST_CANCEL == "p_cancel:")
+    check("sp_del: prefiksi", CB_SPONSOR_DELETE == "sp_del:")
+    check("rc_ok:/rc_no: prefikslari",
+          CB_RECEIPT_APPROVE == "rc_ok:" and CB_RECEIPT_REJECT == "rc_no:")
+    check("cph:a:/cph:r: prefikslari",
+          CB_PHOTO_APPROVE == "cph:a:" and CB_PHOTO_REJECT == "cph:r:")
+    # `react:` ATAYLAB o'zgarmaydi — yuborilgan postlardagi tugmalar tirik qolsin
+    check("react: prefiksi saqlangan (eski postlar)", CB_REACTION == "react:")
+
+    # --- b) cb() quruvchisi: har doim <=64 bayt ---
+    check("cb: oddiy", cb(CB_CHANNEL_DELETE, -1001234567890) == "ch_del:-1001234567890")
+    check("cb: ko'p bo'lak", cb(CB_REACTION, 42, "👍") == "react:42:👍")
+    check("cb: bo'sh → noop", cb("") == "noop")
+    check("cb: None bo'laklar tashlanadi", cb(CB_POST_TIME, None, 7) == "p_time:7")
+    check("cb: prefiksda ':' bo'lmasa qo'shiladi", cb("qview", 9) == "qview:9")
+
+    import logging as _logging
+    _cb_logger = _logging.getLogger("keyboards.callback_data")
+    _cb_logger.setLevel(_logging.CRITICAL)  # kutilgan ogohlantirishlar log'ni to'ldirmasin
+
+    huge = cb(CB_CHANNEL_DELETE, "x" * 500)
+    check("cb: uzun payload kesiladi", callback_byte_len(huge) <= 64, str(len(huge)))
+    emoji_huge = cb(CB_REACTION, 1, "👨‍👩‍👧‍👦" * 20)
+    check("cb: emoji payload kesiladi", callback_byte_len(emoji_huge) <= 64)
+    # Kesish UTF-8 chegarasini buzmaydi (decode xatosi bo'lmaydi)
+    check("cb: kesilgan qiymat to'g'ri UTF-8",
+          emoji_huge.encode("utf-8").decode("utf-8") == emoji_huge)
+    check("truncate: ko'p baytli belgi o'rtasidan kesilmaydi",
+          truncate_callback_data("👍" * 30, 10) == "👍👍")
+    check("safe_callback_data: limitga tushiradi",
+          callback_byte_len(safe_callback_data("z" * 200)) == 64)
+    check("is_callback_safe: bo'sh → False", is_callback_safe("") is False)
+    check("is_callback_safe: normal → True", is_callback_safe("ch_del:-100123") is True)
+    check("is_callback_safe: 65 bayt → False", is_callback_safe("a" * 65) is False)
+    check("is_callback_safe: 64 bayt → True", is_callback_safe("a" * 64) is True)
+    import re as _re_cb
+    check("cb_pattern: regex", cb_pattern("ch_del:") == "^" + _re_cb.escape("ch_del:"))
+
+    # --- c) STATIK AUDIT: manbadagi barcha literal callback_data <= 64 bayt ---
+    root = Path(__file__).resolve().parent.parent
+    py_files = [
+        p for p in root.rglob("*.py")
+        if "tests" not in p.parts and "__pycache__" not in p.parts
+    ]
+    check("statik audit: fayllar topildi", len(py_files) >= 20, str(len(py_files)))
+
+    literal_total = 0
+    literal_bad = []
+    fstring_bad = []
+    for path in py_files:
+        try:
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+        except SyntaxError:  # pragma: no cover
+            continue
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.keyword) or node.arg != "callback_data":
+                continue
+            value = node.value
+            if isinstance(value, ast.Constant) and isinstance(value.value, str):
+                literal_total += 1
+                if len(value.value.encode("utf-8")) > 64:
+                    literal_bad.append((path.name, node.lineno, value.value))
+            elif isinstance(value, ast.JoinedStr):
+                # Dinamik f-string TO'G'RIDAN-TO'G'RI ishlatilmasligi kerak —
+                # u albatta cb(...) orqali o'tishi shart (64-bayt kafolati).
+                fstring_bad.append((path.name, node.lineno))
+
+    check("statik audit: literal callback'lar sanaldi", literal_total > 100, str(literal_total))
+    check("statik audit: barcha literal <= 64 bayt", not literal_bad, str(literal_bad[:3]))
+    check("statik audit: himoyasiz f-string yo'q (hammasi cb() ichida)",
+          not fstring_bad, str(fstring_bad[:5]))
+
+    # --- d) RUNTIME AUDIT: klaviatura quruvchilar eng yomon kirish bilan ---
+    from keyboards import inline as kb
+    from handlers.payment_receipt import _get_admin_receipt_keyboard
+
+    LONG_ID = "-100" + "9" * 20           # real Telegram id'dan ancha uzun
+    LONG_TITLE = "Канал " + "Ў" * 120     # ko'p baytli kirill nomi
+    BIG_PID = 9_999_999_999_999
+    WILD_EMOJI = "👨‍👩‍👧‍👦"                    # 25 bayt ZWJ ketma-ketligi
+
+    keyboards = [
+        ("close", kb.get_close_keyboard("ru")),
+        ("cache", kb.get_cache_actions_keyboard()),
+        ("sponsors_del", kb.get_sponsors_delete_keyboard(
+            [{"id": BIG_PID, "channel_id": LONG_ID, "title": LONG_TITLE}])),
+        ("admin_sponsors", kb.get_admin_sponsors_keyboard(
+            [{"id": BIG_PID, "channel_id": LONG_ID, "title": LONG_TITLE}])),
+        ("sub_check", kb.get_subscription_check_keyboard(
+            [(BIG_PID, LONG_ID, LONG_TITLE, "kanal", "https://t.me/kanal")])),
+        ("admin_dash", kb.get_admin_dashboard_keyboard()),
+        ("ad_hub", kb.get_ad_hub_keyboard(9, 9, 9, 9)),
+        ("ad_pool", kb.get_ad_pool_menu_keyboard(
+            "channel", [{"id": BIG_PID, "text": LONG_TITLE, "is_active": True}])),
+        ("ad_edit", kb.get_ad_edit_keyboard(
+            {"id": BIG_PID, "text": LONG_TITLE, "is_active": True}, "channel")),
+        ("ad_interval", kb.get_ad_interval_keyboard("channel", 3)),
+        ("ad_delete", kb.get_ad_pool_delete_keyboard(
+            [{"id": BIG_PID, "text": LONG_TITLE}], "channel")),
+        ("ad_back", kb.get_ad_pool_back_keyboard("channel")),
+        ("ai_studio", kb.get_ai_studio_keyboard("ru")),
+        ("ai_photo", kb.get_ai_photo_keyboard("ru")),
+        ("ai_tone", kb.get_ai_tone_keyboard("formal", "ru")),
+        ("ai_confirm", kb.get_ai_confirm_keyboard("ru")),
+        ("channels_list", kb.render_channels_list(
+            [(LONG_ID, LONG_TITLE, "formal")], "ru")),
+        ("cabinet", kb.get_cabinet_inline_keyboard("ru")),
+        ("language", kb.get_language_keyboard()),
+        ("extras", kb.get_extras_inline_keyboard("ru")),
+        ("help", kb.get_help_keyboard("support", "ru")),
+        ("react_toggle", kb.get_reaction_toggle_keyboard(["👍", "🔥"], "ru")),
+        ("cabinet_back", kb.get_cabinet_back_keyboard("ru")),
+        ("channels_manage", kb.get_channels_manage_keyboard("ru")),
+        ("receipt_admin", _get_admin_receipt_keyboard(BIG_PID, "ru")),
+    ]
+
+    # Kutilayotgan postlar kartochkasi (p_time:/p_edit:/p_btn:/p_react:/p_cancel:)
+    pending_posts = [(BIG_PID, LONG_TITLE, "photo", None, 9999, "none", None, None)]
+    keyboards.append(("pending", kb.render_pending_list(
+        pending_posts, user_code="ABC" * 20, lang="ru")))
+
+    # Kanal postidagi reaksiya tugmalari (react:) — eng yomon emoji bilan
+    rows = kb.build_reaction_button_rows(BIG_PID, [WILD_EMOJI] * 5)
+    keyboards.append(("reactions", kb.InlineKeyboardMarkup(rows)))
+
+    oversized = []
+    empty = []
+    counted = 0
+    for name, markup in keyboards:
+        for row in markup.inline_keyboard:
+            for button in row:
+                data = getattr(button, "callback_data", None)
+                if data is None:
+                    continue  # URL tugmasi
+                counted += 1
+                size = len(str(data).encode("utf-8"))
+                if size > 64:
+                    oversized.append((name, data, size))
+                if size == 0:
+                    empty.append((name, button.text))
+    check("runtime audit: tugmalar tekshirildi", counted > 80, str(counted))
+    check("runtime audit: 64 baytdan oshgan tugma YO'Q", not oversized, str(oversized[:3]))
+    check("runtime audit: bo'sh callback_data YO'Q", not empty, str(empty[:3]))
+
+    # --- e) Scheduler post tugmalari ham xavfsiz ---
+    from scheduler import build_reaction_buttons, build_ad_button_row
+    sched_buttons = build_reaction_buttons(BIG_PID, True, [WILD_EMOJI, "💯", "⭐️", "👍"])
+    check("scheduler: reaksiya tugmalari bor", len(sched_buttons) >= 2, str(len(sched_buttons)))
+    check("scheduler: reaksiya callback <= 64 bayt",
+          all(len(b.callback_data.encode("utf-8")) <= 64 for b in sched_buttons),
+          str([b.callback_data for b in sched_buttons]))
+    ad_row = build_ad_button_row({"button_text": "Bosing", "button_url": "https://t.me/x"})
+    check("scheduler: reklama tugmasi URL (callback_data yo'q)",
+          ad_row and ad_row[0].callback_data is None)
+
+    # --- f) Handler pattern'lari yangi prefikslarga mos ---
+    h_src = (root / "handlers" / "__init__.py").read_text(encoding="utf-8")
+    for prefix in ("ch_del:", "ch_set:", "p_time:", "p_edit:", "p_btn:",
+                   "p_react:", "p_cancel:", "sp_del:", "nprt:t:"):
+        check(f"pattern ro'yxatdan o'tgan: {prefix}",
+              f'pattern=r"^{prefix}"' in h_src, prefix)
+    check("pattern: rc_ok/rc_no (chek moderatsiyasi)",
+          'pattern=r"^(rc_ok|rc_no):"' in h_src)
+    check("pattern: react: saqlangan", 'pattern=r"^react:"' in h_src)
+    ph_src = (root / "handlers" / "photo_check.py").read_text(encoding="utf-8")
+    check("pattern: cph:a:/cph:r:", 'pattern=r"^cph:a:|^cph:r:"' in ph_src)
+    # Eski uzun prefikslar manbada qolmagan bo'lishi kerak
+    all_src = "\n".join(p.read_text(encoding="utf-8") for p in py_files)
+    for stale in ('pattern=r"^remove_channel:"', 'pattern=r"^tone_menu:"',
+                  'pattern=r"^del_sponsor:"', 'pattern=r"^edit_content:"',
+                  'pattern=r"^npreact:'):
+        check(f"eski prefiks olib tashlangan: {stale}", stale not in all_src)
+
+
+def test_i18n_safe_fallback_and_parity():
+    """2️⃣ UZ/RU: get_text xavfsiz fallback + to'liq kalit pariteti."""
+    print("== 2. i18n xavfsiz fallback va paritet ==")
+    from locales import translations as tr
+    from locales.translations import (
+        get_text, translation_parity_report, missing_keys, has_key,
+        TRANSLATIONS, DEFAULT_LANG, SUPPORTED_LANGS,
+    )
+
+    # --- a) To'liq paritet: UZ va RU kalitlari 1:1 ---
+    report = translation_parity_report()
+    check("paritet: uz_only bo'sh", report["uz_only"] == [], str(report["uz_only"][:5]))
+    check("paritet: ru_only bo'sh", report["ru_only"] == [], str(report["ru_only"][:5]))
+    check("paritet: in_sync", report["in_sync"] is True)
+    check("paritet: kalitlar soni 500+", report["total"] >= 500, str(report["total"]))
+    check("missing_keys('ru') bo'sh", missing_keys("ru") == [])
+    check("missing_keys('uz') bo'sh", missing_keys("uz", reference="ru") == [])
+
+    # Har bir kalit ikkala tilda ham NOBO'SH satr bo'lishi shart
+    bad_values = []
+    for lang in SUPPORTED_LANGS:
+        for key, value in TRANSLATIONS[lang].items():
+            if not isinstance(value, str) or not value.strip():
+                bad_values.append((lang, key))
+    check("paritet: barcha qiymatlar nobo'sh satr", not bad_values, str(bad_values[:5]))
+
+    # UZ va RU shablonlaridagi {placeholder}'lar bir xil bo'lishi kerak
+    import re as _re
+    ph_mismatch = []
+    for key, uz_val in TRANSLATIONS["uz"].items():
+        ru_val = TRANSLATIONS["ru"].get(key, "")
+        uz_ph = set(_re.findall(r"\{(\w+)\}", uz_val))
+        ru_ph = set(_re.findall(r"\{(\w+)\}", ru_val))
+        if uz_ph != ru_ph:
+            ph_mismatch.append((key, sorted(uz_ph ^ ru_ph)))
+    check("paritet: {placeholder}'lar mos", not ph_mismatch, str(ph_mismatch[:5]))
+
+    # --- b) Fallback zanjiri: ru → uz → kalit nomi (KeyError YO'Q) ---
+    tr.TRANSLATIONS["uz"]["__t_only_uz__"] = "faqat o'zbekcha {n}"
+    try:
+        check("fallback: ru'da yo'q kalit → uz varianti",
+              get_text("__t_only_uz__", "ru") == "faqat o'zbekcha {n}")
+        check("fallback: ru'da yo'q + format ishlaydi",
+              get_text("__t_only_uz__", "ru", n=5) == "faqat o'zbekcha 5")
+    finally:
+        tr.TRANSLATIONS["uz"].pop("__t_only_uz__", None)
+
+    check("fallback: ikkala tilda yo'q → kalit nomi",
+          get_text("__hech_qayerda_yoq__", "ru") == "__hech_qayerda_yoq__")
+    check("fallback: ikkala tilda yo'q (uz) → kalit nomi",
+          get_text("__hech_qayerda_yoq__", "uz") == "__hech_qayerda_yoq__")
+    check("fallback: None kalit → bo'sh satr", get_text(None, "ru") == "")
+    check("fallback: bo'sh kalit → bo'sh satr", get_text("", "ru") == "")
+    check("fallback: noma'lum til → uz",
+          get_text("btn_new_post", "en") == get_text("btn_new_post", "uz"))
+    check("fallback: None til → uz",
+          get_text("btn_new_post", None) == get_text("btn_new_post", "uz"))
+
+    # --- c) Formatlash xatolari HECH QACHON crash bermaydi ---
+    res = get_text("start_hello", "ru")          # {name} berilmagan
+    check("format: kam argument → crash yo'q", isinstance(res, str) and res)
+    res = get_text("start_hello", "ru", name="Ivan", extra="ortiqcha")
+    check("format: ortiqcha argument → crash yo'q", "Ivan" in res)
+    res = get_text("card_payment_prices", "ru", p1m=None, p3m=None, p1y=None)
+    check("format: None qiymat → crash yo'q", isinstance(res, str) and res)
+
+    # Buzilgan RU shabloni: UZ varianti bilan qayta formatlanadi
+    orig = tr.TRANSLATIONS["ru"].get("start_hello")
+    tr.TRANSLATIONS["ru"]["start_hello"] = "Привет, {nomavjud_kalit}!"
+    try:
+        res = get_text("start_hello", "ru", name="Ivan")
+        check("format: buzilgan RU shabloni → UZ varianti", "Ivan" in res, res[:60])
+    finally:
+        tr.TRANSLATIONS["ru"]["start_hello"] = orig
+
+    # Lug'atga xato tur tushib qolsa ham yiqilmaymiz
+    tr.TRANSLATIONS["uz"]["__t_bad_type__"] = 12345
+    try:
+        check("format: str bo'lmagan qiymat → str()",
+              get_text("__t_bad_type__", "uz") == "12345")
+    finally:
+        tr.TRANSLATIONS["uz"].pop("__t_bad_type__", None)
+
+    check("has_key: mavjud", has_key("btn_new_post", "ru") is True)
+    check("has_key: yo'q", has_key("__yoq__") is False)
+    check("DEFAULT_LANG uz", DEFAULT_LANG == "uz")
+
+    # --- d) Vaqt formati xabarlari ikkala tilda ham namunani ko'rsatadi ---
+    for lang in ("uz", "ru"):
+        msg = get_text("np_time_format_error", lang, example="30.08.2026 18:00")
+        check(f"{lang}: format xatosi DD.MM.YYYY namunasi bor",
+              "DD.MM.YYYY HH:MM" in msg, msg[:70])
+        check(f"{lang}: format xatosi jonli namuna bor",
+              "30.08.2026 18:00" in msg, msg[:70])
+        check(f"{lang}: format xatosi Toshkent vaqtini eslatadi",
+              "UTC+5" in msg, msg[:70])
+        future = get_text("np_time_future", lang, example="30.08.2026 18:00",
+                          now="29.08.2026 10:00")
+        check(f"{lang}: o'tgan vaqt xabari namunali", "30.08.2026 18:00" in future)
+
+
+def test_scheduler_timezone_and_time_input():
+    """3️⃣ Scheduler/APScheduler Toshkent vaqti + crash-proof vaqt kiritish."""
+    print("== 3. Vaqt zonasi (Asia/Tashkent) va vaqt kiritish oqimi ==")
+    import scheduler as sch
+    from utils.helpers import (
+        parse_schedule_input, parse_daily_time_input, schedule_time_example,
+        schedule_error_key, SCHEDULE_INPUT_FORMAT, SCHEDULE_STRICT_FORMATS,
+        SCHEDULE_ERR_EMPTY, SCHEDULE_ERR_FORMAT, SCHEDULE_ERR_PAST,
+    )
+
+    tz = pytz.timezone("Asia/Tashkent")
+
+    # --- a) Yagona vaqt zonasi manbasi ---
+    check("scheduler: TIMEZONE_NAME", sch.TIMEZONE_NAME == "Asia/Tashkent")
+    check("scheduler: tashkent_tz", str(sch.tashkent_tz) == "Asia/Tashkent")
+    now_tk = sch.now_tashkent()
+    check("now_tashkent: tz-aware", now_tk.tzinfo is not None)
+    check("now_tashkent: UTC+5",
+          now_tk.utcoffset().total_seconds() == 5 * 3600,
+          str(now_tk.utcoffset()))
+
+    # --- b) calculate_next_time HAR DOIM Toshkent vaqtini qaytaradi ---
+    rec_time = datetime(2000, 1, 1, 10, 0).time()
+
+    # Naive kirish → Toshkentga bog'lanadi
+    t = sch.calculate_next_time("daily", None, rec_time, datetime(2026, 8, 30, 9, 0))
+    check("daily: naive kirish → Toshkent", str(t.tzinfo) == "Asia/Tashkent", str(t))
+    check("daily: bugun 10:00", t == tz.localize(datetime(2026, 8, 30, 10, 0)), str(t))
+
+    # UTC kirish → Toshkentga o'giriladi (UTC 06:00 = Toshkent 11:00 → ertaga)
+    utc_now = pytz.utc.localize(datetime(2026, 8, 30, 6, 0))
+    t = sch.calculate_next_time("daily", None, rec_time, utc_now)
+    check("daily: UTC kirish → Toshkentga o'giriladi",
+          t == tz.localize(datetime(2026, 8, 31, 10, 0)), str(t))
+    check("daily: natija UTC+5", t.utcoffset().total_seconds() == 5 * 3600)
+
+    # Weekly ham xuddi shunday
+    t = sch.calculate_next_time("weekly", 0, rec_time,
+                                pytz.utc.localize(datetime(2026, 8, 26, 4, 0)))
+    check("weekly: UTC kirish → keyingi dushanba (Toshkent)",
+          t == tz.localize(datetime(2026, 8, 31, 10, 0)), str(t))
+
+    # Chekka holatlar — crash yo'q
+    check("calculate_next_time: None vaqt → None",
+          sch.calculate_next_time("daily", None, None, now_tk) is None)
+    check("calculate_next_time: weekly kunsiz → None",
+          sch.calculate_next_time("weekly", None, rec_time, now_tk) is None)
+    check("calculate_next_time: none → None",
+          sch.calculate_next_time("none", None, rec_time, now_tk) is None)
+
+    # --- c) main.py: APScheduler triggerlari Toshkentga bog'langan ---
+    main_src = (Path(__file__).resolve().parent.parent / "main.py").read_text(encoding="utf-8")
+    check("main: AsyncIOScheduler(timezone=tashkent_tz)",
+          "AsyncIOScheduler(\n        timezone=tashkent_tz," in main_src)
+    check("main: har bir job'da timezone=tashkent_tz",
+          main_src.count("timezone=tashkent_tz") >= 4,
+          str(main_src.count("timezone=tashkent_tz")))
+    check("main: cron trigger Toshkentda", "'cron', hour=\"*/6\"" in main_src)
+    check("main: next_run_time Toshkentda", "next_run_time=now_tashkent()" in main_src)
+    check("main: tz scheduler modulidan olinadi",
+          'pytz.timezone("Asia/Tashkent")' not in main_src)
+
+    # --- d) parse_schedule_input: crash YO'Q, aniq sabab qaytadi ---
+    now = tz.localize(datetime(2026, 8, 30, 12, 0))
+    check("format konstantasi", SCHEDULE_INPUT_FORMAT == "DD.MM.YYYY HH:MM")
+    check("qat'iy formatlar ro'yxati", "%d.%m.%Y %H:%M" in SCHEDULE_STRICT_FORMATS)
+
+    dt, reason = parse_schedule_input("31.12.2026 18:00", now)
+    check("DD.MM.YYYY HH:MM o'qildi",
+          dt == tz.localize(datetime(2026, 12, 31, 18, 0)) and reason == "", str(dt))
+    check("natija Toshkent vaqtida", dt.utcoffset().total_seconds() == 5 * 3600)
+
+    for text, expected in (
+        ("31/12/2026 18:00", datetime(2026, 12, 31, 18, 0)),
+        ("31-12-2026 18:00", datetime(2026, 12, 31, 18, 0)),
+        ("2026-12-31 18:00", datetime(2026, 12, 31, 18, 0)),
+        ("31.12.26 18:00", datetime(2026, 12, 31, 18, 0)),
+    ):
+        dt, reason = parse_schedule_input(text, now)
+        check(f"format o'qildi: {text}", dt == tz.localize(expected) and not reason, str(dt))
+
+    dt, reason = parse_schedule_input("18:00", now)
+    check("faqat soat → bugun 18:00", dt == tz.localize(datetime(2026, 8, 30, 18, 0)), str(dt))
+    dt, reason = parse_schedule_input("09:00", now)
+    check("faqat soat (o'tgan) → ertaga",
+          dt == tz.localize(datetime(2026, 8, 31, 9, 0)), str(dt))
+
+    # 🔴 Foydalanuvchi so'ragan aynan shu holat: "ertaga 5 da"
+    dt, reason = parse_schedule_input("ertaga 5 da", now)
+    check("erkin til: 'ertaga 5 da' → ertaga 05:00",
+          dt == tz.localize(datetime(2026, 8, 31, 5, 0)) and not reason, str(dt))
+    dt, reason = parse_schedule_input("2 soatdan keyin", now)
+    check("erkin til: '2 soatdan keyin'", dt is not None and dt > now, str(dt))
+    dt, reason = parse_schedule_input("завтра 18:00", now)
+    check("erkin til (RU): 'завтра 18:00'",
+          dt == tz.localize(datetime(2026, 8, 31, 18, 0)), str(dt))
+
+    # 🔴 Noto'g'ri kiritishlar — crash EMAS, aniq sabab
+    for bad in ("salom", "abc def", "25:99", "99:99", "32.13.2026 18:00",
+                "31.12.2026 25:00", "-----", "18:", ":00", "1.2.3.4.5",
+                "30.02.2026 10:00", "2026-13-31 18:00", "00.00.2026 10:00",
+                "ertaga 25:00", "31.12.2026 18:99"):
+        dt, reason = parse_schedule_input(bad, now)
+        check(f"noto'g'ri kiritish xavfsiz: {bad!r}",
+              dt is None and reason == SCHEDULE_ERR_FORMAT, f"{dt} / {reason}")
+
+    for empty in (None, "", "   ", 12345, [], {}):
+        dt, reason = parse_schedule_input(empty, now)
+        check(f"bo'sh/nomatn kiritish xavfsiz: {empty!r}",
+              dt is None and reason == SCHEDULE_ERR_EMPTY, f"{dt} / {reason}")
+
+    dt, reason = parse_schedule_input("01.01.2020 10:00", now)
+    check("o'tgan sana → 'past' sababi", dt is None and reason == SCHEDULE_ERR_PAST)
+    check("xato → i18n kaliti (past)", schedule_error_key(SCHEDULE_ERR_PAST) == "np_time_future")
+    check("xato → i18n kaliti (format)",
+          schedule_error_key(SCHEDULE_ERR_FORMAT) == "np_time_format_error")
+
+    # Namuna har doim kelajakda va DD.MM.YYYY ko'rinishida
+    example = schedule_time_example(now)
+    check("namuna DD.MM.YYYY HH:MM", example == "31.08.2026 18:00", example)
+    ex_dt, ex_reason = parse_schedule_input(example, now)
+    check("namuna o'zi ham qabul qilinadi", ex_dt is not None and not ex_reason, str(ex_reason))
+
+    # --- e) parse_daily_time_input: takroriy postlar uchun HH:MM ---
+    check("daily: '10:00'", parse_daily_time_input("10:00") == (10, 0))
+    check("daily: '9:5'", parse_daily_time_input("9:5") == (9, 5))
+    check("daily: '18' → 18:00", parse_daily_time_input("18") == (18, 0))
+    check("daily: '18.30'", parse_daily_time_input("18.30") == (18, 30))
+    for bad in ("25:00", "10:99", "salom", "", None, "-1:00", 42, "::"):
+        check(f"daily xavfsiz: {bad!r}", parse_daily_time_input(bad) is None)
+
+    # --- f) Handlerlar markaziy parserdan foydalanadi (strptime qoldiqsiz) ---
+    root = Path(__file__).resolve().parent.parent
+    np_src = (root / "handlers" / "new_post.py").read_text(encoding="utf-8")
+    pend_src = (root / "handlers" / "pending.py").read_text(encoding="utf-8")
+    ai_src = (root / "handlers" / "ai_assistant.py").read_text(encoding="utf-8")
+    for name, src in (("new_post", np_src), ("pending", pend_src), ("ai_assistant", ai_src)):
+        check(f"{name}: parse_schedule_input ishlatiladi", "parse_schedule_input" in src)
+        check(f"{name}: qo'lda strptime qolmagan",
+              'datetime.strptime(text' not in src and 'strptime(sched_time_str' not in src)
+    check("new_post: DD.MM.YYYY namunasi", "schedule_time_example" in np_src)
+    check("new_post: daily parser", "parse_daily_time_input" in np_src)
+
+
+def test_floodwait_and_ai_timeout_protection():
+    """4️⃣ Telegram FloodWait (429) va tashqi AI so'rovlari timeout himoyasi."""
+    print("== 4. FloodWait (429) va AI timeout himoyasi ==")
+    import asyncio as _aio
+    import aiohttp
+    import scheduler as sch
+    from telegram.error import RetryAfter
+    from utils import ai_agent
+
+    # ------------------------------------------------------------------
+    # A) Scheduler: mikro-kechikish + RetryAfter
+    # ------------------------------------------------------------------
+    check("mikro-kechikish oralig'i 0.05..0.1",
+          sch.SEND_MICRO_DELAY_MIN == 0.05 and sch.SEND_MICRO_DELAY_MAX == 0.1)
+    check("SEND_MICRO_DELAY oraliqda",
+          sch.SEND_MICRO_DELAY_MIN <= sch.SEND_MICRO_DELAY <= sch.SEND_MICRO_DELAY_MAX,
+          str(sch.SEND_MICRO_DELAY))
+
+    # flood_wait_seconds: har qanday buzilgan qiymatga chidamli
+    check("flood_wait: oddiy", sch.flood_wait_seconds(RetryAfter(retry_after=7)) == 7.0)
+    check("flood_wait: 0 → default", sch.flood_wait_seconds(RetryAfter(retry_after=0)) == 5.0)
+    check("flood_wait: juda katta → cheklanadi",
+          sch.flood_wait_seconds(RetryAfter(retry_after=9999)) == sch.FLOOD_WAIT_SLEEP_MAX)
+    check("flood_wait: minimum 1s", sch.flood_wait_seconds(RetryAfter(retry_after=0.1)) == 1.0)
+
+    class _NoAttr:
+        pass
+    check("flood_wait: atributsiz obyekt", sch.flood_wait_seconds(_NoAttr()) == 5.0)
+
+    class _BadAttr:
+        retry_after = "olti"
+    check("flood_wait: str qiymat → default", sch.flood_wait_seconds(_BadAttr()) == 5.0)
+
+    # --- Navbat oqimi: 3 ta post, 2-si FloodWait beradi ---
+    posts = [(pid, 1, "-100", "text", f"Post {pid}", None, None, None, False,
+              None, "none", None, None, None, 0, None) for pid in (101, 102, 103)]
+
+    state = {"sent": [], "sleeps": [], "requeued": []}
+
+    async def _fake_execute(bot, post):
+        if post[0] == 102 and 102 not in state["sent"]:
+            raise RetryAfter(retry_after=3)
+        state["sent"].append(post[0])
+
+    async def _fake_sleep(seconds):
+        state["sleeps"].append(round(float(seconds), 4))
+
+    async def _fake_run_db(fn, *args, **kwargs):
+        name = getattr(fn, "__name__", "")
+        if name == "get_due_posts":
+            return posts
+        if name == "retry_post":
+            state["requeued"].append(args[0])
+        return None
+
+    orig_exec = sch._execute_send
+    orig_sleep = sch.asyncio.sleep
+    orig_run_db = sch.db.run_db
+    try:
+        sch._execute_send = _fake_execute
+        sch.asyncio.sleep = _fake_sleep
+        sch.db.run_db = _fake_run_db
+        _aio.run(sch.check_and_send_posts(object()))
+    finally:
+        sch._execute_send = orig_exec
+        sch.asyncio.sleep = orig_sleep
+        sch.db.run_db = orig_run_db
+
+    check("navbat: FloodWait navbatni to'xtatmadi (101 va 103 yuborildi)",
+          state["sent"] == [101, 103], str(state["sent"]))
+    micro = [s for s in state["sleeps"] if s == sch.SEND_MICRO_DELAY]
+    check("navbat: postlar orasida mikro-kechikish qo'yildi",
+          len(micro) == 2, str(state["sleeps"]))
+    check("navbat: RetryAfter → asyncio.sleep(retry_after)",
+          3.0 in state["sleeps"], str(state["sleeps"]))
+    check("navbat: FloodWait bo'lgan post qayta navbatga qo'yildi",
+          state["requeued"] == [102], str(state["requeued"]))
+
+    # --- Manba kodi darajasidagi kafolatlar ---
+    root = Path(__file__).resolve().parent.parent
+    sch_src = (root / "scheduler.py").read_text(encoding="utf-8")
+    check("scheduler: RetryAfter ushlanadi", "except RetryAfter as e:" in sch_src)
+    check("scheduler: asyncio.sleep(...) FloodWait uchun",
+          "await asyncio.sleep(wait_seconds)" in sch_src)
+    check("scheduler: mikro-kechikish kodda",
+          "await asyncio.sleep(SEND_MICRO_DELAY)" in sch_src)
+
+    # --- _execute_send ichidagi FloodWait ham kutadi va postni saqlaydi ---
+    inner = {"sleeps": [], "requeued": [], "status": []}
+
+    class _FloodBot:
+        async def send_message(self, **kwargs):
+            raise RetryAfter(retry_after=4)
+
+    async def _inner_run_db(fn, *args, **kwargs):
+        name = getattr(fn, "__name__", "")
+        if name == "is_premium":
+            return True
+        if name == "get_setting":
+            return ""
+        if name == "bump_channel_post_count":
+            return 1
+        if name == "retry_post":
+            inner["requeued"].append(args[0])
+        if name == "mark_post_status":
+            inner["status"].append(args[1])
+        return None
+
+    async def _inner_sleep(seconds):
+        inner["sleeps"].append(float(seconds))
+
+    async def _no_watermark(content, user_id, username):
+        return content
+
+    orig_run_db = sch.db.run_db
+    orig_sleep = sch.asyncio.sleep
+    orig_wm = sch.apply_post_watermark
+    try:
+        sch.db.run_db = _inner_run_db
+        sch.asyncio.sleep = _inner_sleep
+        sch.apply_post_watermark = _no_watermark
+        _aio.run(sch._execute_send(_FloodBot(), posts[0]))
+    finally:
+        sch.db.run_db = orig_run_db
+        sch.asyncio.sleep = orig_sleep
+        sch.apply_post_watermark = orig_wm
+
+    check("_execute_send: FloodWait'da kutildi", inner["sleeps"] == [4.0], str(inner["sleeps"]))
+    check("_execute_send: post yo'qolmadi (qayta navbat)",
+          inner["requeued"] == [101], str(inner["requeued"]))
+    check("_execute_send: 'failed' deb belgilanmadi",
+          "failed" not in inner["status"], str(inner["status"]))
+
+    # ------------------------------------------------------------------
+    # B) AI: aiohttp.ClientTimeout(total=35)
+    # ------------------------------------------------------------------
+    check("AI_TOTAL_TIMEOUT = 35", ai_agent.AI_TOTAL_TIMEOUT == 35)
+    check("AI_HTTP_TIMEOUT — ClientTimeout",
+          isinstance(ai_agent.AI_HTTP_TIMEOUT, aiohttp.ClientTimeout))
+    check("AI_HTTP_TIMEOUT.total == 35", ai_agent.AI_HTTP_TIMEOUT.total == 35)
+    check("AI_HTTP_TIMEOUT.connect belgilangan",
+          ai_agent.AI_HTTP_TIMEOUT.connect == ai_agent.CONNECT_TIMEOUT)
+    check("AI_HTTP_TIMEOUT.sock_read == 35", ai_agent.AI_HTTP_TIMEOUT.sock_read == 35)
+    check("discovery timeout ham cheklangan",
+          ai_agent.AI_DISCOVERY_TIMEOUT.total <= 35)
+
+    ai_src = (root / "utils" / "ai_agent.py").read_text(encoding="utf-8")
+    check("ai_agent: sessiya AI_HTTP_TIMEOUT bilan ochiladi",
+          "timeout=AI_HTTP_TIMEOUT,\n                    connector=connector," in ai_src)
+
+    # HAR BIR tashqi so'rovda aniq `timeout=` bo'lishi shart
+    import re as _re
+    unguarded = []
+    for m in _re.finditer(r"session\.(get|post)\((.*?)\)\s+as resp", ai_src, _re.S):
+        if "timeout=" not in m.group(2):
+            unguarded.append(m.group(0)[:70])
+    check("ai_agent: timeout'siz tashqi so'rov YO'Q", not unguarded, str(unguarded))
+    total_reqs = len(_re.findall(r"session\.(?:get|post)\(", ai_src))
+    check("ai_agent: barcha so'rovlar sanaldi", total_reqs >= 8, str(total_reqs))
+
+    # --- Timeout bo'lganda XUSHMUOMALA xabar ---
+    msg_uz = ai_agent.ai_timeout_message("uz")
+    msg_ru = ai_agent.ai_timeout_message("ru")
+    check("timeout xabari (uz) mavjud", "AI xizmati" in msg_uz, msg_uz[:50])
+    check("timeout xabari (uz) muloyim", "🙏" in msg_uz and "urinib" in msg_uz)
+    check("timeout xabari (uz) matn saqlanishini aytadi", "saqlan" in msg_uz)
+    check("timeout xabari (ru) ruscha", "ИИ" in msg_ru, msg_ru[:50])
+    check("timeout xabari (ru) muloyim", "🙏" in msg_ru and "попробуйте" in msg_ru)
+    check("timeout xabarida texnik traceback yo'q",
+          "Traceback" not in msg_uz and "Exception" not in msg_uz)
+    check("timeout xabarida 35 soniya ko'rsatilgan", "35" in msg_uz and "35" in msg_ru)
+
+    async def _hang():
+        await _aio.sleep(5)
+
+    res = _aio.run(ai_agent._run_with_hard_timeout(_hang(), timeout=0.05))
+    check("hard timeout → xushmuomala xabar",
+          res.get("error") == ai_agent.AI_TIMEOUT_USER_MESSAGE, str(res)[:80])
+    check("hard timeout → timeout bayrog'i", res.get("timeout") is True)
+
+    # Barcha provayderlar timeout bersa ham texnik ro'yxat emas, muloyim xabar
+    async def _all_timeout():
+        return await ai_agent._run_ai_chain("test", "system")
+
+    orig_providers = {}
+    for fn_name in ("_call_gemini", "_call_groq", "_call_openrouter", "_call_mistral",
+                    "_call_cerebras", "_call_sambanova", "_call_cloudflare",
+                    "_call_pollinations"):
+        orig_providers[fn_name] = getattr(ai_agent, fn_name)
+
+    async def _timeout_provider(*args, **kwargs):
+        raise ai_agent.ProviderError(0, "timeout")
+
+    orig_breaker = ai_agent._breaker_open
+    try:
+        for fn_name in orig_providers:
+            setattr(ai_agent, fn_name, _timeout_provider)
+        ai_agent._breaker_open = lambda name: False
+        res = _aio.run(_all_timeout())
+    finally:
+        for fn_name, fn in orig_providers.items():
+            setattr(ai_agent, fn_name, fn)
+        ai_agent._breaker_open = orig_breaker
+
+    check("barcha provayder timeout → muloyim xabar",
+          res.get("error") == ai_agent.AI_TIMEOUT_USER_MESSAGE, str(res)[:90])
+    check("barcha provayder timeout → API kalit yo'riqnomasi ko'rsatilmaydi",
+          "GEMINI_API_KEY" not in res.get("error", ""))
+
+
 def main():
     test_calculate_next_time()
     test_converter()
@@ -7254,6 +7920,12 @@ def main():
     test_pending_i18n_suite()
     test_queue_i18n_suite()
     test_extras_help_i18n_suite()
+
+    # --- 🚀 Ommaviy reliz: 4 ta arxitekturaviy himoya ---
+    test_callback_data_64byte_safety()
+    test_i18n_safe_fallback_and_parity()
+    test_scheduler_timezone_and_time_input()
+    test_floodwait_and_ai_timeout_protection()
 
     print(f"\nO'tdi: {passed}, Xato: {failures}")
     if failures:

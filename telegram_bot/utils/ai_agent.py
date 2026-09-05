@@ -45,9 +45,19 @@ OPENROUTER_MODELS_ENDPOINT = os.getenv("OPENROUTER_MODELS_ENDPOINT", "https://op
 # Timeout sozlamalari:
 # - connect: birinchi ulanish uchun
 # - sock_read: javob oqimini o'qish uchun (sekin modellar ham shu muddat ichida kelishi kerak)
+# Eskirgan sozlama (orqaga moslik uchun saqlanadi) — amaldagi chegara
+# AI_TOTAL_TIMEOUT / AI_HTTP_TIMEOUT tomonidan belgilanadi.
 REQUEST_TIMEOUT = max(30, int(os.getenv("AI_REQUEST_TIMEOUT", "45")))
 CONNECT_TIMEOUT = max(5, int(os.getenv("AI_CONNECT_TIMEOUT", "10")))
+
+# 🛡 TASHQI AI SO'ROVLARI UCHUN QAT'IY TIMEOUT (soniya).
+# HAR BIR tashqi HTTP so'rovi (Gemini / Groq / OpenRouter / Mistral /
+# Cerebras / SambaNova / Cloudflare / Pollinations + model discovery) shu
+# ClientTimeout bilan yuboriladi. Bitta osilib qolgan provayder butun
+# bot event-loopini yoki foydalanuvchi sessiyasini bloklab qo'ymaydi.
+AI_TOTAL_TIMEOUT = max(5, int(os.getenv("AI_TOTAL_TIMEOUT", "35")))
 MAX_429_RETRIES = 2
+
 # Foydalanuvchi promptining maksimal uzunligi (token byudjetini himoya qiladi)
 MAX_PROMPT_CHARS = max(500, int(os.getenv("AI_MAX_PROMPT_CHARS", "3000")))
 # Bir vaqtda ko'pi bilan 2 ta AI so'rovi ishlaydi (bepul RPM limitlarini himoya qiladi)
@@ -57,7 +67,7 @@ BREAKER_THRESHOLD = 3
 BREAKER_COOLDOWN = 600  # 10 daqiqa
 # AI chaqiruvlarining QAT'IY umumiy muddati (soniya): butun provayder zanjiri
 # shu vaqt ichida javob berishi shart — aks holda asyncio.wait_for bekor qiladi.
-# Har bir alohida HTTP urinish uchun REQUEST_TIMEOUT (45s) alohida ishlaydi.
+# Har bir alohida HTTP urinish uchun AI_HTTP_TIMEOUT (total=35s) alohida ishlaydi.
 AI_HARD_TIMEOUT = max(5.0, float(os.getenv("AI_HARD_TIMEOUT", "25")))
 
 # === AI parametr defaultlari ===
@@ -210,6 +220,53 @@ CLOUDFLARE_MODELS = list(CLOUDFLARE_PREFERRED)
 _session: aiohttp.ClientSession | None = None
 _session_lock = asyncio.Lock()
 
+# 🛡 Har bir tashqi AI so'rovi uchun QAT'IY timeout (total=35s).
+# Sessiya darajasidagi umumiy timeout yetarli emas: `session.post(...)` ga
+# aniq `timeout=` berilmasa, sessiya sozlamasi o'zgartirilib qolsa yoki
+# mock/test sessiyasi ishlatilsa chegara yo'qolishi mumkin. Shu sababli
+# TIMEOUT HAR BIR SO'ROVGA ALOHIDA uzatiladi.
+AI_HTTP_TIMEOUT = aiohttp.ClientTimeout(
+    total=AI_TOTAL_TIMEOUT,
+    connect=CONNECT_TIMEOUT,
+    sock_connect=CONNECT_TIMEOUT,
+    sock_read=AI_TOTAL_TIMEOUT,
+)
+
+# Model discovery — yordamchi so'rov, javobi tez kelishi kerak.
+AI_DISCOVERY_TIMEOUT = aiohttp.ClientTimeout(
+    total=min(15, AI_TOTAL_TIMEOUT),
+    connect=CONNECT_TIMEOUT,
+)
+
+# Telegram'dan media yuklab olish (AI so'rovi emas — katta fayl oqimi).
+MEDIA_DOWNLOAD_TIMEOUT = aiohttp.ClientTimeout(
+    total=max(60, AI_TOTAL_TIMEOUT),
+    connect=CONNECT_TIMEOUT,
+)
+
+#: Timeout yuz berganda foydalanuvchiga ko'rsatiladigan XUSHMUOMALA xabar.
+AI_TIMEOUT_USER_MESSAGE = (
+    "⏳ <b>AI xizmati hozir javob bermayapti.</b>\n\n"
+    f"So'rov {AI_TOTAL_TIMEOUT} soniyada yakunlanmadi — ehtimol server band yoki "
+    "internet aloqasi sekinlashgan.\n\n"
+    "Iltimos, bir daqiqadan so'ng qayta urinib ko'ring. "
+    "Matningiz saqlanib qoldi. 🙏"
+)
+
+
+def ai_timeout_message(lang: str = "uz") -> str:
+    """Timeout uchun foydalanuvchi tilidagi xushmuomala xabar (uz/ru)."""
+    if str(lang or "").lower().startswith("ru"):
+        return (
+            "⏳ <b>Сервис ИИ сейчас не отвечает.</b>\n\n"
+            f"Запрос не завершился за {AI_TOTAL_TIMEOUT} секунд — возможно, сервер "
+            "загружен или соединение медленное.\n\n"
+            "Пожалуйста, попробуйте ещё раз через минуту. "
+            "Ваш текст сохранён. 🙏"
+        )
+    return AI_TIMEOUT_USER_MESSAGE
+
+
 # Discovery natijalari keshida: key -> (timestamp, [model_id, ...])
 _model_cache: dict = {}
 
@@ -221,23 +278,22 @@ _AI_SEMAPHORE = asyncio.Semaphore(MAX_CONCURRENT_AI)
 
 
 async def _get_session() -> aiohttp.ClientSession:
-    """Singleton aiohttp sessiyasi — har so'rovda yangi sessiya ochilmaydi."""
+    """Singleton aiohttp sessiyasi — har so'rovda yangi sessiya ochilmaydi.
+
+    Sessiya darajasidagi timeout ``AI_HTTP_TIMEOUT`` (total=35s) bo'ladi;
+    bundan tashqari har bir so'rov ham aniq ``timeout=`` bilan yuboriladi.
+    """
     global _session
     if _session is None or _session.closed:
         async with _session_lock:
             if _session is None or _session.closed:
-                timeout = aiohttp.ClientTimeout(
-                    total=REQUEST_TIMEOUT,
-                    connect=CONNECT_TIMEOUT,
-                    sock_read=REQUEST_TIMEOUT,
-                )
                 connector = aiohttp.TCPConnector(
                     limit=20,           # maksimal parallel ulanishlar
                     ttl_dns_cache=300,  # DNS keshi — har so'rovda DNS so'rovi yo'q
                     enable_cleanup_closed=True,
                 )
                 _session = aiohttp.ClientSession(
-                    timeout=timeout,
+                    timeout=AI_HTTP_TIMEOUT,
                     connector=connector,
                     headers={"User-Agent": "PostAssistBot/2.0"},
                 )
@@ -500,7 +556,9 @@ async def _discover_gemini_models(api_key: str) -> list | None:
         return cached
     session = await _get_session()
     try:
-        async with session.get(f"{GEMINI_MODELS_ENDPOINT}?key={api_key}") as resp:
+        async with session.get(
+            f"{GEMINI_MODELS_ENDPOINT}?key={api_key}", timeout=AI_DISCOVERY_TIMEOUT
+        ) as resp:
             if resp.status != 200:
                 return None
             data = await resp.json()
@@ -530,7 +588,9 @@ async def _discover_groq_models(api_key: str) -> list | None:
     session = await _get_session()
     try:
         headers = {"Authorization": f"Bearer {api_key}"}
-        async with session.get(GROQ_MODELS_ENDPOINT, headers=headers) as resp:
+        async with session.get(
+            GROQ_MODELS_ENDPOINT, headers=headers, timeout=AI_DISCOVERY_TIMEOUT
+        ) as resp:
             if resp.status != 200:
                 return None
             data = await resp.json()
@@ -553,7 +613,9 @@ async def _discover_openrouter_models(api_key: str) -> list | None:
         return cached
     session = await _get_session()
     try:
-        async with session.get(OPENROUTER_MODELS_ENDPOINT) as resp:
+        async with session.get(
+            OPENROUTER_MODELS_ENDPOINT, timeout=AI_DISCOVERY_TIMEOUT
+        ) as resp:
             if resp.status != 200:
                 return None
             data = await resp.json()
@@ -709,7 +771,9 @@ async def _post_chat_completion(endpoint: str, headers: dict | None, payload: di
 
     for attempt in range(MAX_429_RETRIES + 1):
         try:
-            async with session.post(endpoint, headers=headers, json=payload) as resp:
+            async with session.post(
+                endpoint, headers=headers, json=payload, timeout=AI_HTTP_TIMEOUT
+            ) as resp:
                 if resp.status == 200:
                     data = await resp.json()
                     content = data["choices"][0]["message"]["content"]
@@ -771,7 +835,9 @@ async def _call_gemini(prompt: str, api_key: str, system_instruction: str, param
 
         for attempt in range(MAX_429_RETRIES + 1):
             try:
-                async with session.post(url, json=payload) as resp:
+                async with session.post(
+                    url, json=payload, timeout=AI_HTTP_TIMEOUT
+                ) as resp:
                     if resp.status == 200:
                         data = await resp.json()
                         raw_text = data["candidates"][0]["content"]["parts"][0]["text"]
@@ -1114,6 +1180,15 @@ async def _run_ai_chain(prompt: str, system_instruction: str) -> dict:
                 logger.warning("%s ishlamadi (%s). Keyingi zaxiraga o'tilmoqda...", name, e)
 
     detail = "\n".join(f"• {e}" for e in errors if e)
+
+    # Agar barcha (yoki asosiy) uzilishlar TIMEOUT tufayli bo'lsa — texnik
+    # ro'yxat o'rniga foydalanuvchiga xushmuomala, tushunarli xabar beramiz.
+    timeout_errors = [e for e in errors if "timeout" in str(e).lower()]
+    real_attempts = [e for e in errors if "kalit topilmadi" not in str(e)]
+    if timeout_errors and len(timeout_errors) >= max(1, len(real_attempts)):
+        logger.warning("Barcha AI provayderlari timeout berdi: %s", detail)
+        return {"error": AI_TIMEOUT_USER_MESSAGE, "timeout": True}
+
     return {
         "error": (
             "⚠️ AI xizmatlarining hech biri javob bermadi:\n"
@@ -1145,12 +1220,8 @@ async def _run_with_hard_timeout(coro, timeout: float = None) -> dict:
         return await asyncio.wait_for(coro, timeout=hard)
     except asyncio.TimeoutError:
         logger.warning("AI javobi %.0fs ichida kelmadi (hard timeout)", hard)
-        return {
-            "error": (
-                f"⚠️ AI javobi {hard:.0f} soniyada kelmadi. "
-                "Iltimos, qayta urinib ko'ring."
-            )
-        }
+        # XUSHMUOMALA xabar: aybdor foydalanuvchi emas, matni ham yo'qolmaydi.
+        return {"error": AI_TIMEOUT_USER_MESSAGE, "timeout": True}
 
 
 async def generate_ai_response(
@@ -1980,7 +2051,9 @@ async def _call_gemini_vision(
         url = f"{base_url}/{model}:generateContent?key={api_key}"
         for attempt in range(MAX_429_RETRIES + 1):
             try:
-                async with session.post(url, json=payload) as resp:
+                async with session.post(
+                    url, json=payload, timeout=AI_HTTP_TIMEOUT
+                ) as resp:
                     if resp.status == 200:
                         data = await resp.json()
                         feedback = data.get("promptFeedback") or {}
@@ -2070,7 +2143,9 @@ async def download_telegram_media_to_temp(
 
     get_url = f"https://api.telegram.org/bot{token}/getFile"
     try:
-        async with session.get(get_url, params={"file_id": file_id}) as resp:
+        async with session.get(
+            get_url, params={"file_id": file_id}, timeout=AI_HTTP_TIMEOUT
+        ) as resp:
             if resp.status != 200:
                 raise VisionError("⚠️ Rasmni yuklab bo'lmadi. Iltimos, qayta urinib ko'ring.")
             data = await resp.json()
@@ -2090,7 +2165,7 @@ async def download_telegram_media_to_temp(
     url = f"https://api.telegram.org/file/bot{token}/{file_path}"
     size = 0
     try:
-        async with session.get(url) as resp:
+        async with session.get(url, timeout=MEDIA_DOWNLOAD_TIMEOUT) as resp:
             if resp.status != 200:
                 raise VisionError(
                     f"⚠️ Rasmni yuklab bo'lmadi (server HTTP {resp.status})."
@@ -2207,8 +2282,12 @@ async def generate_vision_post(
     except asyncio.TimeoutError:
         logger.warning("Vision javobi %.0fs ichida kelmadi (hard timeout)", VISION_HARD_TIMEOUT)
         return {
-            "error": "⏱ AI rasmni tahlil qilishda kechikish yuz berdi. "
-            "Iltimos, birozdan so'ng qayta urinib ko'ring."
+            "error": (
+                "⏳ <b>AI rasmni tahlil qilishga ulgurmadi.</b>\n\n"
+                "Server hozir band ko'rinadi. Iltimos, bir daqiqadan so'ng "
+                "qayta urinib ko'ring yoki kichikroq rasm yuboring. 🙏"
+            ),
+            "timeout": True,
         }
     except VisionError as e:
         return {"error": str(e)}

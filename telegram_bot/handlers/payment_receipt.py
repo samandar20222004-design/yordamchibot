@@ -28,8 +28,13 @@ from handlers.start import ensure_user_lang
 logger = logging.getLogger(__name__)
 
 # Inline callback prefikslari (har qanday tilda bir xil callback_data).
-CB_RECEIPT_APPROVE = "receipt_appr:"
-CB_RECEIPT_REJECT = "receipt_rej:"
+# Qisqa kanonik prefikslar ``keyboards/callback_data.py`` dan olinadi —
+# 64-bayt limitidan oshmasligi markazlashgan holda kafolatlanadi.
+from keyboards.callback_data import (  # noqa: E402 — modul boshidagi importlardan keyin
+    CB_RECEIPT_APPROVE,
+    CB_RECEIPT_REJECT,
+    cb,
+)
 
 # Qabul qilinadigan hujjat kengaytmalari/MIME'lar (chek: PDF yoki rasm).
 _ACCEPT_DOC_EXT = (".pdf", ".jpg", ".jpeg", ".png", ".webp", ".heic", ".bmp")
@@ -76,11 +81,11 @@ def _get_admin_receipt_keyboard(receipt_id: int, lang: str) -> InlineKeyboardMar
     return InlineKeyboardMarkup([
         [InlineKeyboardButton(
             get_text("receipt_btn_approve", lang),
-            callback_data=f"{CB_RECEIPT_APPROVE}{receipt_id}",
+            callback_data=cb(CB_RECEIPT_APPROVE, receipt_id),
         )],
         [InlineKeyboardButton(
             get_text("receipt_btn_reject", lang),
-            callback_data=f"{CB_RECEIPT_REJECT}{receipt_id}",
+            callback_data=cb(CB_RECEIPT_REJECT, receipt_id),
         )],
     ])
 

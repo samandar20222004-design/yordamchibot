@@ -6,6 +6,7 @@ from config import ADMIN_IDS_SET
 import database as db
 from keyboards.default import get_main_keyboard
 from keyboards.inline import btn_label
+from keyboards.callback_data import cb
 from utils.helpers import html_escape
 
 logger = logging.getLogger(__name__)
@@ -116,7 +117,7 @@ def _get_analytics_channel_keyboard(channels: list, show_pro: bool = False) -> I
         keyboard.append([
             InlineKeyboardButton(
                 f"📢 {btn_label(ch_title)}",
-                callback_data=f"an_ch:{ch_id}",
+                callback_data=cb(f"an_ch:{ch_id}"),
             )
         ])
     if show_pro:

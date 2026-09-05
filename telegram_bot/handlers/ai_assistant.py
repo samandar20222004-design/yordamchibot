@@ -24,7 +24,7 @@ from utils.ai_agent import (
 from locales.translations import clear_fsm_data, get_lang, get_text
 from utils.helpers import (
     html_escape, safe_html, check_ai_rate_limit, check_ai_daily_limit, parse_future_time,
-    get_auto_ad_injection_async,
+    get_auto_ad_injection_async, parse_schedule_input,
 )
 
 logger = logging.getLogger(__name__)
@@ -540,13 +540,11 @@ async def ai_time_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     return AI_GET_TIME
 
         if post_time is None:
-            try:
-                naive = datetime.strptime(text, "%Y-%m-%d %H:%M")
-                candidate = tashkent_tz.localize(naive)
-                if candidate > now:
-                    post_time = candidate
-            except Exception:
-                pass
+            # Crash-proof: "31.12.2026 18:00", "18:00", "ertaga 5 da" — barchasi
+            # bitta parserdan o'tadi, xato bo'lsa quyida yo'riqnoma ko'rsatiladi.
+            candidate, _reason = parse_schedule_input(text, now)
+            if candidate is not None:
+                post_time = candidate
 
     if post_time is None or post_time <= now:
         await update.message.reply_text(
@@ -631,13 +629,10 @@ async def ai_confirm_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
     now = datetime.now(tashkent_tz)
     post_time = now
     if sched_time_str:
-        try:
-            naive = datetime.strptime(sched_time_str, "%Y-%m-%d %H:%M")
-            post_time = tashkent_tz.localize(naive)
-            if post_time <= now:
-                post_time = now
-        except Exception:
-            post_time = now
+        # Ichki (bot o'zi yozgan) "%Y-%m-%d %H:%M" formati — buzilgan bo'lsa
+        # ham hech qachon yiqilmaydi, "hozir" ga tushib qoladi.
+        candidate, _reason = parse_schedule_input(sched_time_str, now)
+        post_time = candidate if candidate is not None else now
 
     target_channels = channels if target_all else [channels[0]]
     ok_count = 0

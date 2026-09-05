@@ -9,4 +9,7 @@ from locales.translations import (  # noqa: F401
     get_lang,
     set_lang_cache,
     clear_fsm_data,
+    has_key,
+    missing_keys,
+    translation_parity_report,
 )

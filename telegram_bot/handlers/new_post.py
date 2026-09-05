@@ -28,7 +28,12 @@ from keyboards.inline import (
     normalize_custom_reaction_emojis, strip_variation_selector,
     REACTION_EMOJIS,
 )
-from utils.helpers import html_escape, parse_future_time, safe_html, parse_reactions_input, get_auto_ad_injection_async, keep_typing
+from utils.helpers import (
+    html_escape, parse_future_time, safe_html, parse_reactions_input,
+    get_auto_ad_injection_async, keep_typing,
+    parse_schedule_input, parse_daily_time_input, schedule_time_example,
+    SCHEDULE_ERR_PAST,
+)
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from locales.translations import clear_fsm_data, get_lang, get_text
 
@@ -752,7 +757,7 @@ async def auto_delete_received(update: Update, context: ContextTypes.DEFAULT_TYP
 
     lang = get_lang(context)
     now = datetime.now(tashkent_tz)
-    example = (now + timedelta(days=1)).strftime("%Y-%m-%d %H:%M")
+    example = schedule_time_example(now)
     await update.message.reply_text(
         get_text("np_time_ask", lang, example=example),
         reply_markup=get_time_keyboard(lang),
@@ -835,25 +840,26 @@ async def time_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
             get_text("np_weekday_ask", lang), reply_markup=get_weekday_keyboard(lang), parse_mode="HTML")
         return RECUR_DAY
 
-    post_time = None
-    try:
-        if text in (BTN_T_5MIN, BTN_T_5MIN_RU):
-            post_time = now + timedelta(minutes=5)
-        elif text in (BTN_T_15MIN, BTN_T_15MIN_RU):
-            post_time = now + timedelta(minutes=15)
-        elif text in (BTN_T_1H, BTN_T_1H_RU):
-            post_time = now + timedelta(hours=1)
-        else:
-            post_time = parse_future_time(text.strip(), now)
-            if post_time is None:
-                naive_time = datetime.strptime(text.strip(), "%Y-%m-%d %H:%M")
-                post_time = tashkent_tz.localize(naive_time)
+    # Tayyor tugmalar (5 daqiqa / 15 daqiqa / 1 soat) — Toshkent vaqtida.
+    if text in (BTN_T_5MIN, BTN_T_5MIN_RU):
+        post_time, reason = now + timedelta(minutes=5), ""
+    elif text in (BTN_T_15MIN, BTN_T_15MIN_RU):
+        post_time, reason = now + timedelta(minutes=15), ""
+    elif text in (BTN_T_1H, BTN_T_1H_RU):
+        post_time, reason = now + timedelta(hours=1), ""
+    else:
+        # Qo'lda kiritilgan vaqt: parser HECH QACHON exception tashlamaydi —
+        # noto'g'ri format ham, noto'g'ri sonlar ham (masalan "25:99") xato
+        # sababi sifatida qaytadi va foydalanuvchiga o'z tilida tushuntiriladi.
+        post_time, reason = parse_schedule_input(text, now)
 
-        if post_time is None or post_time <= now:
-            await update.message.reply_text(get_text("np_time_future", lang))
-            return GET_TIME
-    except Exception:
-        await update.message.reply_text(get_text("np_time_format_error", lang), parse_mode="HTML")
+    if post_time is None:
+        example = schedule_time_example(now)
+        key = "np_time_future" if reason == SCHEDULE_ERR_PAST else "np_time_format_error"
+        await update.message.reply_text(
+            get_text(key, lang, example=example, now=now.strftime("%d.%m.%Y %H:%M")),
+            parse_mode="HTML",
+        )
         return GET_TIME
 
     # Confirmation ekranini ko'rsatish
@@ -867,19 +873,20 @@ async def time_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def daily_time_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     lang = get_lang(context)
-    text = update.message.text.strip()
-    try:
-        hh, mm = map(int, text.split(":"))
-        assert 0 <= hh < 24 and 0 <= mm < 60
-    except Exception:
+    # `text` None bo'lishi mumkin (rasm/stiker yuborilsa) — .strip() qulatmasin.
+    parsed = parse_daily_time_input(getattr(update.message, "text", None))
+    if parsed is None:
         await update.message.reply_text(
             get_text("np_daily_time_format", lang), parse_mode="HTML")
         return DAILY_TIME
+    hh, mm = parsed
 
     now = datetime.now(tashkent_tz)
-    first_run = now.replace(hour=hh, minute=mm, second=0, microsecond=0)
+    first_run = tashkent_tz.localize(
+        datetime(now.year, now.month, now.day, hh, mm)
+    )
     if first_run <= now:
-        first_run += timedelta(days=1)
+        first_run = tashkent_tz.normalize(first_run + timedelta(days=1))
 
     context.user_data["rec_first_run"] = first_run
     context.user_data["rec_type"] = "daily"
@@ -911,21 +918,27 @@ async def recur_day_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def recur_time_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     lang = get_lang(context)
-    text = update.message.text.strip()
-    try:
-        hh, mm = map(int, text.split(":"))
-        assert 0 <= hh < 24 and 0 <= mm < 60
-    except Exception:
+    parsed = parse_daily_time_input(getattr(update.message, "text", None))
+    if parsed is None:
         await update.message.reply_text(
             get_text("np_recur_time_format", lang), parse_mode="HTML")
         return RECUR_TIME
+    hh, mm = parsed
 
     now = datetime.now(tashkent_tz)
-    target_day = context.user_data["rec_day"]
-    days_ahead = (target_day - now.weekday() + 7) % 7
-    first_run = now.replace(hour=hh, minute=mm, second=0, microsecond=0) + timedelta(days=days_ahead)
+    target_day = context.user_data.get("rec_day")
+    if target_day is None:
+        await update.message.reply_text(
+            get_text("np_weekday_invalid", lang), parse_mode="HTML")
+        return RECUR_DAY
+    days_ahead = (int(target_day) - now.weekday() + 7) % 7
+    # Toshkent zonasida qayta localize qilinadi (UTC-ofset to'g'ri hisoblansin).
+    first_run = tashkent_tz.normalize(
+        tashkent_tz.localize(datetime(now.year, now.month, now.day, hh, mm))
+        + timedelta(days=days_ahead)
+    )
     if first_run <= now:
-        first_run += timedelta(days=7)
+        first_run = tashkent_tz.normalize(first_run + timedelta(days=7))
 
     context.user_data["rec_first_run"] = first_run
     context.user_data["rec_type"] = "weekly"
@@ -1241,7 +1254,7 @@ async def edit_confirm_field_callback(update: Update, context: ContextTypes.DEFA
 
     if field == "time":
         now = datetime.now(tashkent_tz)
-        example = (now + timedelta(days=1)).strftime("%Y-%m-%d %H:%M")
+        example = schedule_time_example(now)
         await query.message.reply_text(
             get_text("np_edit_time_ask", lang, example=example),
             reply_markup=get_time_keyboard(lang),
@@ -1287,24 +1300,16 @@ async def edit_confirm_message_received(update: Update, context: ContextTypes.DE
             return CONFIRM_POST
 
     now = datetime.now(tashkent_tz)
-    new_time = None
-    try:
-        if text in (BTN_T_5MIN, BTN_T_5MIN_RU):
-            new_time = now + timedelta(minutes=5)
-        elif text in (BTN_T_15MIN, BTN_T_15MIN_RU):
-            new_time = now + timedelta(minutes=15)
-        elif text in (BTN_T_1H, BTN_T_1H_RU):
-            new_time = now + timedelta(hours=1)
-        else:
-            new_time = parse_future_time(text, now)
-            if new_time is None:
-                try:
-                    naive_time = datetime.strptime(text, "%Y-%m-%d %H:%M")
-                    new_time = tashkent_tz.localize(naive_time)
-                except Exception:
-                    pass
-    except Exception:
-        pass
+    if text in (BTN_T_5MIN, BTN_T_5MIN_RU):
+        new_time = now + timedelta(minutes=5)
+    elif text in (BTN_T_15MIN, BTN_T_15MIN_RU):
+        new_time = now + timedelta(minutes=15)
+    elif text in (BTN_T_1H, BTN_T_1H_RU):
+        new_time = now + timedelta(hours=1)
+    else:
+        # Crash-proof parser: bu bosqichda matn tugma/URL ham bo'lishi mumkin,
+        # shuning uchun tanilmasa jim o'tib ketamiz (quyidagi tarmoqlar ishlaydi).
+        new_time, _reason = parse_schedule_input(text, now)
 
     if new_time and new_time > now:
         context.user_data["confirm_post_time"] = new_time

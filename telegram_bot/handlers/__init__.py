@@ -500,10 +500,10 @@ def register_all_handlers(app):
     # ============================================================
     main_conv = ConversationHandler(
         entry_points=all_menu_jumps + [
-            CallbackQueryHandler(edit_post_time_start, pattern=r"^edit_time:"),
-            CallbackQueryHandler(edit_post_content_start, pattern=r"^edit_content:"),
-            CallbackQueryHandler(edit_post_btn_start, pattern=r"^edit_btn:"),
-            CallbackQueryHandler(edit_post_react_start, pattern=r"^edit_react:"),
+            CallbackQueryHandler(edit_post_time_start, pattern=r"^p_time:"),
+            CallbackQueryHandler(edit_post_content_start, pattern=r"^p_edit:"),
+            CallbackQueryHandler(edit_post_btn_start, pattern=r"^p_btn:"),
+            CallbackQueryHandler(edit_post_react_start, pattern=r"^p_react:"),
             CallbackQueryHandler(add_channel_inline_entry, pattern=r"^add_channel_start$"),
             # 🔁 Qayta tekshirish: sessiya tugagan bo'lsa ham eski tugma
             # ishlasin — conversation qayta ochiladi yoki yo'riqnoma qaytariladi.
@@ -542,9 +542,9 @@ def register_all_handlers(app):
             GET_BTN_URL: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, btn_url_received)],
             GET_REACTIONS: all_menu_jumps + [
                 # Multi-select reaksiya (toggle): emoji tanlash + Davom etish / O'tkazib yuborish
-                CallbackQueryHandler(reaction_toggle_callback, pattern=r"^npreact:tgl:"),
-                CallbackQueryHandler(reactions_done_callback, pattern=r"^npreact:done$"),
-                CallbackQueryHandler(reactions_skip_callback, pattern=r"^npreact:skip$"),
+                CallbackQueryHandler(reaction_toggle_callback, pattern=r"^nprt:t:"),
+                CallbackQueryHandler(reactions_done_callback, pattern=r"^nprt:done$"),
+                CallbackQueryHandler(reactions_skip_callback, pattern=r"^nprt:skip$"),
                 MessageHandler(filters.TEXT & ~filters.COMMAND, reactions_received),
             ],
             # 2b. ✨ Postga Tugma & Reaksiya qo'shish: post qabul qilish + inline ekranlar
@@ -798,15 +798,15 @@ def register_all_handlers(app):
     app.add_handler(CallbackQueryHandler(converter_callback, pattern=r"^conv_show:"))
     app.add_handler(CallbackQueryHandler(converter_close_callback, pattern=r"^conv_close$"))
     app.add_handler(CallbackQueryHandler(subscription_check_callback, pattern=r"^(check_sub_status|check_subscription)$"))
-    app.add_handler(CallbackQueryHandler(del_sponsor_callback, pattern=r"^del_sponsor:"))
+    app.add_handler(CallbackQueryHandler(del_sponsor_callback, pattern=r"^sp_del:"))
     app.add_handler(CallbackQueryHandler(reaction_callback, pattern=r"^react:"))
-    app.add_handler(CallbackQueryHandler(cancel_post_callback, pattern=r"^cancel_post:"))
+    app.add_handler(CallbackQueryHandler(cancel_post_callback, pattern=r"^p_cancel:"))
     app.add_handler(CallbackQueryHandler(refresh_pending_callback, pattern=r"^pending_refresh$"))
-    app.add_handler(CallbackQueryHandler(edit_post_content_start, pattern=r"^edit_content:"))
-    app.add_handler(CallbackQueryHandler(edit_post_btn_start, pattern=r"^edit_btn:"))
-    app.add_handler(CallbackQueryHandler(edit_post_react_start, pattern=r"^edit_react:"))
-    app.add_handler(CallbackQueryHandler(remove_channel_callback, pattern=r"^remove_channel:"))
-    app.add_handler(CallbackQueryHandler(tone_menu_callback, pattern=r"^tone_menu:"))
+    app.add_handler(CallbackQueryHandler(edit_post_content_start, pattern=r"^p_edit:"))
+    app.add_handler(CallbackQueryHandler(edit_post_btn_start, pattern=r"^p_btn:"))
+    app.add_handler(CallbackQueryHandler(edit_post_react_start, pattern=r"^p_react:"))
+    app.add_handler(CallbackQueryHandler(remove_channel_callback, pattern=r"^ch_del:"))
+    app.add_handler(CallbackQueryHandler(tone_menu_callback, pattern=r"^ch_set:"))
     app.add_handler(CallbackQueryHandler(close_msg_callback, pattern=r"^close_msg$"))
     app.add_handler(CallbackQueryHandler(noop_callback, pattern=r"^noop$"))
     app.add_handler(CallbackQueryHandler(cache_clear_callback, pattern=r"^cache_clear$"))
@@ -836,7 +836,7 @@ def register_all_handlers(app):
     # "eskirgan tugma" toast'iga yutib yuboriladi (✅/❌ ishlamay qoladi).
     app.add_handler(CallbackQueryHandler(
         receipt_admin_callback,
-        pattern=r"^(receipt_appr|receipt_rej):",
+        pattern=r"^(rc_ok|rc_no):",
     ))
     # 📢 Ulangan kanallardan yangi postlarni real vaqtda bazaga yozib borish
     app.add_handler(MessageHandler(

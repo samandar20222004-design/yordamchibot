@@ -45,6 +45,7 @@ from telegram.ext import ContextTypes, ConversationHandler
 from config import ADMIN_IDS_SET, BOT_USERNAME
 import database as db
 from keyboards.default import get_cancel_keyboard, get_main_keyboard
+from keyboards.callback_data import cb
 from keyboards.inline import (
     btn_label,
     extract_emoji_tokens,
@@ -173,7 +174,7 @@ def nav_row(back_callback: str = "enh:screen:hub", lang: str = "uz") -> list:
     translations dagi umumiy btn_back/btn_cancel kalitlaridan.
     """
     return [
-        InlineKeyboardButton(get_text("btn_back", lang), callback_data=back_callback),
+        InlineKeyboardButton(get_text("btn_back", lang), callback_data=cb(back_callback)),
         InlineKeyboardButton(get_text("btn_cancel", lang), callback_data="enh:cancel"),
     ]
 
@@ -501,7 +502,7 @@ def _react_view(context, watermark_note: str = "", lang: str | None = None) -> t
     row = []
     for emoji in REACTION_POOL:
         mark = " ✅" if any(reaction_key(emoji) == reaction_key(e) for e in selected) else ""
-        row.append(InlineKeyboardButton(f"{emoji}{mark}", callback_data=f"enh:rtgl:{emoji}"))
+        row.append(InlineKeyboardButton(f"{emoji}{mark}", callback_data=cb(f"enh:rtgl:{emoji}")))
         if len(row) == REACTIONS_PER_ROW:
             rows.append(row)
             row = []
@@ -530,8 +531,8 @@ def _btn_entry_rows(buttons: list, lang: str = "uz") -> list:
             text=btn_label(b.get('text'), get_text("enh_btn_fallback", lang), max_length=20),
         )
         return [
-            InlineKeyboardButton(label, callback_data=f"enh:btn:edit:{i}"),
-            InlineKeyboardButton("❌", callback_data=f"enh:btn:del:{i}"),
+            InlineKeyboardButton(label, callback_data=cb(f"enh:btn:edit:{i}")),
+            InlineKeyboardButton("❌", callback_data=cb(f"enh:btn:del:{i}")),
         ]
 
     rows = []
@@ -551,7 +552,7 @@ def _btn_entry_rows(buttons: list, lang: str = "uz") -> list:
 def _preset_rows(per_row: int = 2, lang: str = "uz") -> list:
     """Tayyor URL tugma shablonlari qatorlari (uz/ru)."""
     buttons = [
-        InlineKeyboardButton(f"{p['icon']} {p['num']}. {p['title']}", callback_data=f"enh:preset:{i}")
+        InlineKeyboardButton(f"{p['icon']} {p['num']}. {p['title']}", callback_data=cb(f"enh:preset:{i}"))
         for i, p in enumerate(get_url_presets(lang))
     ]
     return [buttons[i:i + per_row] for i in range(0, len(buttons), per_row)]
@@ -606,7 +607,7 @@ def _btn_add_view(context, watermark_note: str = "", lang: str | None = None) ->
     n = len(enh.get("buttons") or [])
     text = get_text("enh_btn_add_title", lang, n=n, max=MAX_ENH_BUTTONS)
     rows = [[InlineKeyboardButton(f"{p['icon']} {p['num']}. {p['title']}",
-                                  callback_data=f"enh:preset:{i}")]
+                                  callback_data=cb(f"enh:preset:{i}"))]
             for i, p in enumerate(get_url_presets(lang))]
     rows.append([InlineKeyboardButton(
         get_text("enh_btn_manual", lang), callback_data="enh:btn:manual")])
@@ -629,7 +630,7 @@ def _channel_view(context, watermark_note: str = "", lang: str | None = None) ->
     for idx, (ch_id, ch_title) in enumerate(visible):
         row.append(InlineKeyboardButton(
             f"📢 {btn_label(ch_title, ch_fallback, max_length=24)}",
-            callback_data=f"enh:send:{idx}"))
+            callback_data=cb(f"enh:send:{idx}")))
         if len(row) == 2:
             rows.append(row)
             row = []
