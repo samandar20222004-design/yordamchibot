@@ -1,4 +1,5 @@
 import asyncio
+from contextlib import asynccontextmanager
 import logging
 import pytz  # noqa: F401 — vaqt zonasi bilan ishlovchi modullar uchun saqlanadi
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -28,45 +29,108 @@ logger = logging.getLogger(__name__)
 # APScheduler va DB hisob-kitoblari hech qachon ajralib ketmasligi uchun.
 
 
-class GuardedApplication(Application):
-    """Hujum/ortiqcha yuklama himoyasi qo'shilgan Application.
+class UpdateLockManager:
+    """Per-user / per-chat lock menejeri.
 
-    Har bir update process_update() orqali o'tadi:
-    1. Global flood bo'lsa — qisqa pauza (backpressure) bilan sekinlashtiramiz.
-    2. Bitta foydalanuvchi 2 soniyada 20 tadan ortiq update yuborsa — tashlab yuboramiz.
-    3. Bir xil xabarni 1.5 soniya ichida qayta yuborsa — tashlab yuboramiz.
+    concurrent_updates=True bilan ishlaganda bir xil foydalanuvchi/chatdan
+    kelgan update'lar bir vaqtda ConversationHandler va context.user_data'ni
+    o'zgartirib race condition keltirib chiqarmasligi uchun navbat bilan (seriyali)
+    bajariladi, lekin turli foydalanuvchilar parallel ravishda ishlayveradi.
+
+    Xotira sizib ketmasligi (leak-free) uchun faoliyat tugagach
+    foydalanilmagan lock'lar darhol tozalanadi.
     """
 
+    def __init__(self):
+        self._locks: dict[str, asyncio.Lock] = {}
+        self._counts: dict[str, int] = {}
+        self._meta_lock = asyncio.Lock()
+
+    @asynccontextmanager
+    async def lock(self, key: str | None):
+        if not key:
+            yield
+            return
+
+        async with self._meta_lock:
+            if key not in self._locks:
+                self._locks[key] = asyncio.Lock()
+                self._counts[key] = 0
+            self._counts[key] += 1
+            user_lock = self._locks[key]
+
+        async with user_lock:
+            try:
+                yield
+            finally:
+                async with self._meta_lock:
+                    self._counts[key] -= 1
+                    if self._counts[key] <= 0:
+                        self._locks.pop(key, None)
+                        self._counts.pop(key, None)
+
+
+def get_update_lock_key(update) -> str | None:
+    """Update uchun yagona lock kaliti (per-user / per-chat)."""
+    if update is None:
+        return None
+    user = getattr(update, "effective_user", None)
+    if user is not None and getattr(user, "id", None) is not None:
+        return f"user:{user.id}"
+    chat = getattr(update, "effective_chat", None)
+    if chat is not None and getattr(chat, "id", None) is not None:
+        return f"chat:{chat.id}"
+    return None
+
+
+class GuardedApplication(Application):
+    """Hujum/ortiqcha yuklama himoyasi va per-user concurrency locking qo'shilgan Application.
+
+    Har bir update process_update() orqali o'tadi:
+    1. Per-user / per-chat lock: bir foydalanuvchining parallel so'rovlari (double click / race condition)
+       seriyalashtiriladi, shunda ConversationHandler va context.user_data kutilmagan bosqichga sakrab ketmaydi.
+    2. Global flood bo'lsa — qisqa pauza (backpressure) bilan sekinlashtiramiz.
+    3. Bitta foydalanuvchi 2 soniyada 20 tadan ortiq update yuborsa — tashlab yuboramiz.
+    4. Bir xil xabarni 1.5 soniya ichida qayta yuborsa — tashlab yuboramiz.
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._lock_manager = UpdateLockManager()
+
     async def process_update(self, update):
-        try:
-            # 1) Global flood — botni to'xtatib qo'ymasdan, yukni sekinlashtiramiz
-            if check_global_flood():
-                await asyncio.sleep(0.4)
+        lock_key = get_update_lock_key(update)
+        async with self._lock_manager.lock(lock_key):
+            try:
+                # 1) Global flood — botni to'xtatib qo'ymasdan, yukni sekinlashtiramiz
+                if check_global_flood():
+                    await asyncio.sleep(0.4)
 
-            # 2) Foydalanuvchi bo'yicha burst (hujum/flood)
-            user = getattr(update, "effective_user", None)
-            if user is not None:
-                blocked, _ = check_rate_limit(user.id, max_requests=20, window_seconds=2.0)
-                if blocked:
-                    # Update tashlab yuboriladi, lekin callback bo'lsa tugma
-                    # "yuklanmoqda" holatida muzlab qolmasligi uchun darhol
-                    # javob beramiz (jim chiqish — tugmalarni qotiradi).
-                    await self._answer_rate_limited(update)
-                    return None
+                # 2) Foydalanuvchi bo'yicha burst (hujum/flood)
+                user = getattr(update, "effective_user", None)
+                if user is not None:
+                    blocked, _ = check_rate_limit(user.id, max_requests=20, window_seconds=2.0)
+                    if blocked:
+                        # Update tashlab yuboriladi, lekin callback bo'lsa tugma
+                        # "yuklanmoqda" holatida muzlab qolmasligi uchun darhol
+                        # javob beramiz (jim chiqish — tugmalarni qotiradi).
+                        await self._answer_rate_limited(update)
+                        return None
 
-                # 3) Dublikat xabar (avtomatik qayta yuborish hujumi)
-                msg = getattr(update, "effective_message", None)
-                text = getattr(msg, "text", None) if msg else None
-                if text and is_duplicate_message(user.id, text):
-                    await self._answer_rate_limited(update)
-                    return None
-        except Exception:
-            logger.exception("Guard himoyasida xatolik — update davom ettirilmoqda")
+                    # 3) Dublikat xabar (avtomatik qayta yuborish hujumi)
+                    msg = getattr(update, "effective_message", None)
+                    text = getattr(msg, "text", None) if msg else None
+                    if text and is_duplicate_message(user.id, text):
+                        await self._answer_rate_limited(update)
+                        return None
+            except Exception:
+                logger.exception("Guard himoyasida xatolik — update davom ettirilmoqda")
 
-        return await super().process_update(update)
+            return await super().process_update(update)
 
     @staticmethod
     async def _answer_rate_limited(update):
+
         """Rate-limit/dublikat tufayli tashlab yuborilgan callback'ga darhol
         javob beradi — aks holda Telegram tugmani 'yuklanmoqda' holatida
         qoldiradi (tugma qotib qoladi)."""

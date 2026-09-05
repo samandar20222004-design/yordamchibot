@@ -488,6 +488,180 @@ def test_receipt_admin_handler_registered_before_stale_fallback():
         "admin ✅/❌ tugmalari ishlamaydi")
 
 
+def test_update_lock_manager_concurrency_and_cleanup():
+    """UpdateLockManager: ayni bir user/chat so'rovlari navbat bilan (seriyali),
+    turli userlar esa parallel ishlaydi; foydalanilmagan lock'lar tozalanadi."""
+    import asyncio
+    from main import UpdateLockManager
+
+    mgr = UpdateLockManager()
+    events = []
+
+    async def worker(key, delay, val):
+        async with mgr.lock(key):
+            events.append(f"start:{val}")
+            await asyncio.sleep(delay)
+            events.append(f"end:{val}")
+
+    async def run():
+        # 1) Ayni bir user (user:1) — ketma-ketlik kafolati
+        await asyncio.gather(
+            worker("user:1", 0.04, 1),
+            worker("user:1", 0.01, 2),
+        )
+        assert events == ["start:1", "end:1", "start:2", "end:2"], events
+        assert len(mgr._locks) == 0 and len(mgr._counts) == 0
+
+        # 2) Turli userlar (user:1 va user:2) — parallel bajarilish
+        events.clear()
+        t0 = asyncio.get_event_loop().time()
+        await asyncio.gather(
+            worker("user:1", 0.04, "u1"),
+            worker("user:2", 0.04, "u2"),
+        )
+        elapsed = asyncio.get_event_loop().time() - t0
+        assert events[:2] == ["start:u1", "start:u2"] or events[:2] == ["start:u2", "start:u1"]
+        assert elapsed < 0.07, f"Parallel bajarilmadi: {elapsed}s"
+        assert len(mgr._locks) == 0 and len(mgr._counts) == 0
+
+    asyncio.run(run())
+
+
+def test_guarded_application_per_user_locking():
+    """GuardedApplication: har bir update uchun lock key to'g'ri aniqlanadi."""
+    from main import GuardedApplication, get_update_lock_key
+    from types import SimpleNamespace
+
+    user_u1 = SimpleNamespace(effective_user=SimpleNamespace(id=1001), callback_query=None, effective_message=None)
+    user_u2 = SimpleNamespace(effective_user=SimpleNamespace(id=1002), callback_query=None, effective_message=None)
+    chat_upd = SimpleNamespace(effective_user=None, effective_chat=SimpleNamespace(id=2001), callback_query=None, effective_message=None)
+
+    assert get_update_lock_key(user_u1) == "user:1001"
+    assert get_update_lock_key(user_u2) == "user:1002"
+    assert get_update_lock_key(chat_upd) == "chat:2001"
+    assert get_update_lock_key(None) is None
+
+
+def test_scheduler_mark_processing_before_send():
+    """Post kanalga yuborilishidan oldin statusi qat'iy 'processing' qilinadi."""
+    import asyncio
+    import scheduler as sch_mod
+
+    calls = []
+
+    async def fake_run_db(fn, *args, **kwargs):
+        name = getattr(fn, "__name__", str(fn))
+        calls.append((name, args))
+        if name == "mark_post_processing":
+            return None
+        if name == "is_premium":
+            return True
+        if name == "get_setting":
+            return ""
+        if name == "bump_channel_post_count":
+            return 1
+        if name == "mark_post_as_sent":
+            return None
+        return None
+
+    class _MockBot:
+        async def send_message(self, chat_id, text, **kwargs):
+            calls.append(("send_message", (chat_id, text)))
+            return SimpleNamespace(message_id=999)
+
+    orig_run_db = sch_mod.db.run_db
+    sch_mod.db.run_db = fake_run_db
+    try:
+        post = (
+            501, 123456789, "-100123", "text", "Test content", None,
+            None, None, False, None,
+            "none", None, None, None,
+            0, None
+        )
+        asyncio.run(sch_mod._execute_send(_MockBot(), post))
+        call_names = [c[0] for c in calls]
+        assert "mark_post_processing" in call_names
+        assert "send_message" in call_names
+        assert call_names.index("mark_post_processing") < call_names.index("send_message")
+        assert ("mark_post_processing", (501,)) in calls
+    finally:
+        sch_mod.db.run_db = orig_run_db
+
+
+def test_scheduler_idempotency_on_db_error_after_send():
+    """Post Telegramga yuborilgach, agar DB da xatolik bo'lsa ham post qayta navbatga qo'yilmaydi (idempotent)."""
+    import asyncio
+    import scheduler as sch_mod
+
+    calls = []
+    requeued = []
+
+    async def fake_run_db(fn, *args, **kwargs):
+        name = getattr(fn, "__name__", str(fn))
+        calls.append((name, args))
+        if name == "mark_post_processing":
+            return None
+        if name == "is_premium":
+            return True
+        if name == "get_setting":
+            return ""
+        if name == "bump_channel_post_count":
+            return 1
+        if name == "mark_post_as_sent":
+            raise RuntimeError("DB connection dropped after send")
+        if name == "mark_post_status":
+            return None
+        if name == "retry_post":
+            requeued.append(args[0])
+            return None
+        return None
+
+    class _MockBot:
+        async def send_message(self, chat_id, text, **kwargs):
+            return SimpleNamespace(message_id=888)
+
+    orig_run_db = sch_mod.db.run_db
+    sch_mod.db.run_db = fake_run_db
+    try:
+        post = (
+            502, 123456789, "-100123", "text", "Test content", None,
+            None, None, False, None,
+            "none", None, None, None,
+            0, None
+        )
+        asyncio.run(sch_mod._execute_send(_MockBot(), post))
+        assert 502 not in requeued, "Post Telegramga ketganidan keyin qayta navbatga qo'yilmasligi shart!"
+        status_calls = [c for c in calls if c[0] == "mark_post_status"]
+        assert any(c[1] == (502, "posted") for c in status_calls), status_calls
+    finally:
+        sch_mod.db.run_db = orig_run_db
+
+
+def test_recover_stale_processing_posts_idempotent():
+    """Stale processing postlarni tiklash: yuborilganlar 'posted', yuborilmaganlar 'pending' bo'ladi."""
+    src = (ROOT / "database.py").read_text(encoding="utf-8")
+    assert "def recover_stale_processing_posts" in src
+    assert "def mark_post_processing" in src
+    assert "SET status = 'posted'" in src
+    assert "SET status = 'pending', processing_started_at = NULL" in src
+
+
+def test_env_card_config_and_fallback():
+    """Karta ma'lumotlari config.py va .env orqali boshqariladi (fallback bilan)."""
+    import config as cfg
+    assert cfg.PAYMENT_CARD_NUMBER != ""
+    assert cfg.PAYMENT_CARD_HOLDER != ""
+    assert cfg._str_env("NON_EXISTING_ENV_VAR_12345", "8600060950825589") == "8600060950825589"
+    assert cfg._str_env("NON_EXISTING_ENV_VAR_12345", "Sayitqulov S.") == "Sayitqulov S."
+
+
+def test_main_menu_hint_translations():
+    """translations.py dagi main_menu_hint kaliti UZ va RU lug'atlarida to'liq bo'lishi kerak."""
+    from locales.translations import get_text
+    assert get_text("main_menu_hint", "uz") == "Quyidagi menyudan kerakli bo‘limni tanlang 👇"
+    assert get_text("main_menu_hint", "ru") == "Выберите нужный раздел из меню ниже 👇"
+
+
 if __name__ == "__main__":
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     for test in tests:

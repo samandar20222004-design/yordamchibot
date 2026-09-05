@@ -726,12 +726,21 @@ def _init_db_once():
                 cur.execute(f"RELEASE SAVEPOINT {savepoint}")
                 logger.warning(f"Migratsiya eslatmasi: {e}")
 
-        # Server crash paytida processing holatida qolgan postlarni qayta navbatga qaytaramiz.
+        # Server crash paytida processing holatida qolgan postlarni qayta navbatga qaytaramiz (idempotent himoya bilan).
+        cur.execute("""
+            UPDATE scheduled_posts
+            SET status = 'posted'
+            WHERE status = 'processing'
+              AND (sent_message_id IS NOT NULL 
+                   OR id IN (SELECT post_id FROM sent_post_messages));
+        """)
         cur.execute("""
             UPDATE scheduled_posts
             SET status = 'pending', processing_started_at = NULL
             WHERE status = 'processing'
-              AND processing_started_at < NOW() - INTERVAL '10 minutes'
+              AND sent_message_id IS NULL
+              AND id NOT IN (SELECT post_id FROM sent_post_messages)
+              AND processing_started_at < NOW() - INTERVAL '10 minutes';
         """)
         cur.execute("CREATE INDEX IF NOT EXISTS idx_scheduled_posts_status_time ON scheduled_posts (status, scheduled_time);")
         # Eng ko'p ishlatiladigan foydalanuvchi/post qidiruvlari uchun indekslar.
@@ -2233,6 +2242,18 @@ def get_due_posts(now) -> list:
         logger.error(f"Due posts xatosi: {e}")
         return []
 
+def mark_post_processing(post_id: int):
+    """Postni Telegramga yuborishdan oldin statusini qat'iy 'processing' va processing_started_at ni NOW() deb belgilash."""
+    try:
+        with db_cursor(commit=True) as cur:
+            cur.execute(
+                "UPDATE scheduled_posts SET status = 'processing', processing_started_at = NOW() WHERE id = %s",
+                (post_id,)
+            )
+        _cache_clear("system_stats")
+    except Exception as e:
+        logger.error(f"Post processing status xatosi (Post ID {post_id}): {e}")
+
 def mark_post_status(post_id: int, status: str):
     try:
         with db_cursor(commit=True) as cur:
@@ -2303,12 +2324,44 @@ def retry_post(post_id: int, retry_at):
         logger.error(f"Post qayta navbatlash xatosi: {e}")
 
 
+def recover_stale_processing_posts():
+    """Server crash/restart paytida 'processing' holatida qolib ketgan postlarni tiklash (idempotent).
+
+    1. Agar post allaqachon Telegramga yuborilgan bo'lsa (sent_message_id to'ldirilgan yoki
+       sent_post_messages jadvalida qayd etilgan bo'lsa), statusi 'posted' deb belgilanadi —
+       bunday postlar hech qachon qayta yuborilmaydi (idempotentlik kafolati).
+    2. Yuborilmagan va 10 daqiqadan ko'p vaqt 'processing' holatida qolgan postlar
+       qayta navbatga ('pending') qaytariladi.
+    """
+    try:
+        with db_cursor(commit=True) as cur:
+            cur.execute("""
+                UPDATE scheduled_posts
+                SET status = 'posted'
+                WHERE status = 'processing'
+                  AND (sent_message_id IS NOT NULL 
+                       OR id IN (SELECT post_id FROM sent_post_messages));
+            """)
+            cur.execute("""
+                UPDATE scheduled_posts
+                SET status = 'pending', processing_started_at = NULL
+                WHERE status = 'processing'
+                  AND sent_message_id IS NULL
+                  AND id NOT IN (SELECT post_id FROM sent_post_messages)
+                  AND processing_started_at < NOW() - INTERVAL '10 minutes';
+            """)
+        _cache_clear("system_stats")
+    except Exception as e:
+        logger.error(f"Stale processing postlarni tiklashda xato: {e}")
+
+
 def cleanup_old_data() -> dict:
     """Eski, keraksiz ma'lumotlarni o'chirish (scheduler har 6 soatda chaqiradi).
 
     Baza o'sib ketmasligi uchun: yuborilgan/ochilgan xabarlar, 30 kundan eski
     yakunlangan postlar va boshqa qoldiqlar tozalanadi.
     """
+    recover_stale_processing_posts()
     deleted = {"sent_post_messages": 0, "scheduled_posts": 0, "post_reactions": 0, "channels": 0}
     try:
         with db_cursor(commit=True) as cur:
