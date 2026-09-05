@@ -8,6 +8,11 @@ from keyboards.callback_data import CB_PHOTO_APPROVE, CB_PHOTO_REJECT, cb
 
 logger = logging.getLogger(__name__)
 
+# Handler tanlash bosqichidayoq `/ai` captionli rasmlarni chiqarib tashlaymiz.
+# Callback ichida shunchaki `return` qilish yetarli emas: bir handler group'ida
+# birinchi mos MessageHandler keyingi Vision handleriga navbat bermaydi.
+_AI_PHOTO_CAPTION = filters.CaptionRegex(r"(?i)^/ai(?:@[a-z0-9_]+)?(?:\s|$)")
+
 
 # Helper: check if photo has /ai caption (avoid interfering with AI Studio)
 def _is_ai_photo_command(msg) -> bool:
@@ -36,7 +41,7 @@ async def handle_user_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     photo_file_id = photo.file_id
 
     # Send photo to admin with buttons
-    admin_id = ADMIN_IDS_SET[0] if ADMIN_IDS_SET else None
+    admin_id = next(iter(ADMIN_IDS_SET)) if ADMIN_IDS_SET else None
     if not admin_id:
         logger.error("No admin ID configured")
         return
@@ -126,7 +131,7 @@ def register(app):
     # User photo: any photo message (but skip /ai captions)
     app.add_handler(
         MessageHandler(
-            filters.PHOTO & ~filters.COMMAND,
+            filters.PHOTO & ~filters.COMMAND & ~_AI_PHOTO_CAPTION,
             handle_user_photo,
         )
     )
