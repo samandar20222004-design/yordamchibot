@@ -28,7 +28,7 @@ from keyboards.inline import (
     normalize_custom_reaction_emojis, strip_variation_selector,
     REACTION_EMOJIS,
 )
-from utils.helpers import html_escape, parse_future_time, safe_html, parse_reactions_input, get_auto_ad_injection_async
+from utils.helpers import html_escape, parse_future_time, safe_html, parse_reactions_input, get_auto_ad_injection_async, keep_typing
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from locales.translations import clear_fsm_data, get_lang, get_text
 
@@ -1435,7 +1435,9 @@ async def ai_action_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
     context.user_data["ai_original_content"] = content
 
     from utils.ai_agent import format_post_text
-    result = await format_post_text(content, action)
+    # AI javob kelgunicha chatda uzluksiz "typing..." ko'rsatamiz
+    async with keep_typing(context.bot, query.message.chat_id):
+        result = await format_post_text(content, action)
 
     if "error" in result:
         await query.message.reply_text(result["error"], parse_mode="HTML")
@@ -1511,7 +1513,9 @@ async def ai_result_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
         last_action = context.user_data.get("ai_last_action", "grammar")
 
         from utils.ai_agent import format_post_text
-        result = await format_post_text(content, last_action)
+        # AI javob kelgunicha chatda uzluksiz "typing..." ko'rsatamiz
+        async with keep_typing(context.bot, query.message.chat_id):
+            result = await format_post_text(content, last_action)
 
         if "error" in result:
             await query.message.reply_text(result["error"], parse_mode="HTML")

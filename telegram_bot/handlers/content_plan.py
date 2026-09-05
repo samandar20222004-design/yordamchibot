@@ -6,7 +6,7 @@ from config import ADMIN_IDS_SET
 import database as db
 from keyboards.default import get_cancel_keyboard, get_main_keyboard
 from keyboards.inline import btn_label
-from utils.helpers import html_escape, safe_html, get_auto_ad_injection_async
+from utils.helpers import html_escape, safe_html, get_auto_ad_injection_async, keep_typing
 
 logger = logging.getLogger(__name__)
 
@@ -154,7 +154,9 @@ async def plan_topic_received(update: Update, context: ContextTypes.DEFAULT_TYPE
     await update.message.reply_text("⏳ AI kontent-reja tuzmoqda...")
 
     from utils.ai_agent import generate_content_plan
-    result = await generate_content_plan(text, channel_title, tone, recent_posts=recent_posts)
+    # AI javob kelgunicha chatda uzluksiz "typing..." ko'rsatamiz
+    async with keep_typing(context.bot, update.effective_chat.id):
+        result = await generate_content_plan(text, channel_title, tone, recent_posts=recent_posts)
 
     if "error" in result:
         await update.message.reply_text(
@@ -240,7 +242,9 @@ async def plan_view_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
             recent_posts = [p.get("text") for p in history if p.get("text") and not p.get("text").startswith("[")]
 
         from utils.ai_agent import generate_content_plan
-        result = await generate_content_plan(topic, channel_title, tone, recent_posts=recent_posts)
+        # AI javob kelgunicha chatda uzluksiz "typing..." ko'rsatamiz
+        async with keep_typing(context.bot, query.message.chat_id):
+            result = await generate_content_plan(topic, channel_title, tone, recent_posts=recent_posts)
 
         if "error" in result:
             await query.message.reply_text(result["error"], parse_mode="HTML")
@@ -338,7 +342,9 @@ async def plan_view_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
         from utils.ai_agent import generate_post_from_plan
         tone = await db.run_db(db.get_channel_tone, channel_id) if channel_id else "friendly"
-        result = await generate_post_from_plan(topic, title, idea, tone)
+        # AI javob kelgunicha chatda uzluksiz "typing..." ko'rsatamiz
+        async with keep_typing(context.bot, query.message.chat_id):
+            result = await generate_post_from_plan(topic, title, idea, tone)
 
         if "error" in result:
             await query.message.reply_text(result["error"], parse_mode="HTML")

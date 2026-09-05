@@ -1,7 +1,9 @@
+import asyncio
 import html
 import re
 import threading
 import time
+from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 import pytz
 from config import ADMIN_IDS_SET
@@ -947,3 +949,65 @@ def parse_future_time(text: str, now: datetime = None) -> datetime | None:
         if candidate <= now:
             return None
     return candidate
+
+
+# === Uzluksiz "typing" (yozmoqda...) indikatori ============================
+# Telegram "typing..." holatini ~5 soniyadan keyin avtomatik o'chiradi.
+# AI so'rovlari 10-30 soniya davom etishi mumkinligi sababli holatni doimiy
+# saqlash uchun fon vazifasi har TYPING_INTERVAL soniyada qayta yuboradi.
+
+TYPING_INTERVAL = 4.0  # soniya — Telegramning ~5s limitidan kichik bo'lishi shart
+
+
+@asynccontextmanager
+async def keep_typing(bot, chat_id: int, interval: float = TYPING_INTERVAL):
+    """AI so'rovi davomida chatda uzluksiz "typing..." holatini ko'rsatadi.
+
+    Foydalanish:
+        async with keep_typing(context.bot, chat_id):
+            result = await generate_content_plan(...)
+
+    Xatti-harakat:
+      * kirishda fon vazifasi (asyncio.Task) ishga tushadi va har ``interval``
+        soniyada ``send_chat_action(chat_id, "typing")`` yuborib turadi;
+      * chiqishda (AI javobi kelsa ham, xato bo'lsa ham) fon vazifasi bekor
+        qilinadi (cancelled) — "orphan" task qolmaydi;
+      * ``send_chat_action`` xatolari jim o'tkaziladi — typing kosmetik
+        harakat, asosiy oqimni (AI so'rovini) hech qachon buzmasligi kerak.
+
+    Yields:
+        asyncio.Task: fon vazifasi (kerak bo'lsa kuzatish uchun).
+    """
+    stop_event = asyncio.Event()
+
+    async def _typing_loop():
+        while not stop_event.is_set():
+            try:
+                await bot.send_chat_action(chat_id=chat_id, action="typing")
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                # Tarmoq/API xatosi — jim to'xtaymiz (asosiy oqim buzilmasin)
+                return
+            try:
+                await asyncio.wait_for(stop_event.wait(), timeout=interval)
+            except asyncio.TimeoutError:
+                continue
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                return
+
+    task = asyncio.create_task(_typing_loop())
+    try:
+        yield task
+    finally:
+        # Fon vazifasini to'xtatamiz va uning tugashini kutamiz
+        stop_event.set()
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass  # fon vazifasi bekor qilindi — normal yakun
+        except Exception:
+            pass

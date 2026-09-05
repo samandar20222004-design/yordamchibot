@@ -7035,9 +7035,96 @@ def test_extras_help_i18n_suite():
           msg_eh.replies and "непредвиденная ошибка" in msg_eh.replies[-1],
           str(msg_eh.replies))
 
+def test_keep_typing():
+    """utils.helpers.keep_typing — uzluksiz 'typing' indikatori."""
+    print("== utils.helpers.keep_typing ==")
+    import asyncio as _aio
+    from utils.helpers import keep_typing
+
+    class _FakeBot:
+        def __init__(self):
+            self.calls = []
+
+        async def send_chat_action(self, chat_id, action, **kwargs):
+            self.calls.append((chat_id, action))
+
+    # 1) Kontekst ichida typing yuboriladi va interval bilan takrorlanadi
+    async def _inside():
+        bot = _FakeBot()
+        async with keep_typing(bot, 42, interval=0.03):
+            await _aio.sleep(0.11)
+        return bot
+
+    bot = _aio.run(_inside())
+    check("typing: kontekst ichida yuborildi", len(bot.calls) >= 2, str(bot.calls))
+    check("typing: action='typing'", all(a == "typing" for _, a in bot.calls), str(bot.calls))
+    check("typing: chat_id to'g'ri", all(c == 42 for c, _ in bot.calls), str(bot.calls))
+
+    # 2) Kontekstdan chiqqach fon vazifasi to'xtaydi (orphan task qolmaydi)
+    async def _after_exit():
+        bot = _FakeBot()
+        async with keep_typing(bot, 42, interval=0.02):
+            await _aio.sleep(0.03)  # kamida bitta yuborilishi uchun
+        n_exit = len(bot.calls)
+        await _aio.sleep(0.12)
+        return bot, n_exit
+
+    bot2, n_exit2 = _aio.run(_after_exit())
+    check("typing: chiqishda kam 1 marta yuborgan", n_exit2 >= 1, str(bot2.calls))
+    check("typing: chiqqandan keyin to'xtedi", len(bot2.calls) <= n_exit2, f"{n_exit2} → {len(bot2.calls)}")
+
+    # 2b) Javob juda tez kelsa (tana await qilmasa) ortiqcha typing yuborilmaydi
+    async def _instant():
+        bot = _FakeBot()
+        async with keep_typing(bot, 42, interval=0.02):
+            pass  # AI darhol javob berdi
+        await _aio.sleep(0.1)
+        return bot
+
+    bot2b = _aio.run(_instant())
+    check("typing: tez javobda ortiqcha indikator yo'q", len(bot2b.calls) == 0, str(bot2b.calls))
+
+    # 3) Kontekst ichida xato bo'lsa ham vazifa to'xtatiladi va xato oqmaydi
+    async def _on_error():
+        bot = _FakeBot()
+        try:
+            async with keep_typing(bot, 7, interval=0.02):
+                await _aio.sleep(0.01)  # vazifa ishga tushishi uchun
+                raise ValueError("AI xatosi (sinov)")
+        except ValueError:
+            pass
+        n_exit = len(bot.calls)
+        await _aio.sleep(0.1)
+        return bot, n_exit
+
+    bot3, n_exit3 = _aio.run(_on_error())
+    check("typing: xatoda ham yubordi", n_exit3 >= 1, str(bot3.calls))
+    check("typing: xatodan keyin to'xtedi", len(bot3.calls) <= n_exit3, f"{n_exit3} → {len(bot3.calls)}")
+    check("typing: xatodagi chat_id to'g'ri", bool(bot3.calls) and bot3.calls[0][0] == 7, str(bot3.calls))
+
+    # 4) send_chat_action xato bersa ham asosiy oqim buzilmaydi
+    class _BrokenBot:
+        def __init__(self):
+            self.attempts = 0
+
+        async def send_chat_action(self, chat_id, action, **kwargs):
+            self.attempts += 1
+            raise RuntimeError("network down")
+
+    async def _broken():
+        bot = _BrokenBot()
+        async with keep_typing(bot, 42, interval=0.02):
+            await _aio.sleep(0.05)
+        return bot
+
+    bot4 = _aio.run(_broken())
+    check("typing: xato botda ham kontekst ishladi", bot4.attempts == 1, str(bot4.attempts))
+
+
 def main():
     test_calculate_next_time()
     test_converter()
+    test_keep_typing()
     test_rate_limits()
     test_json_clean()
     test_retry_after_seconds()

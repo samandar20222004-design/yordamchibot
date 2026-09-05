@@ -6,7 +6,7 @@ from config import ADMIN_IDS_SET
 import database as db
 from keyboards.default import get_cancel_keyboard, get_main_keyboard, get_button_prompt_keyboard
 from keyboards.inline import btn_label
-from utils.helpers import html_escape, safe_html, get_auto_ad_injection_async
+from utils.helpers import html_escape, safe_html, get_auto_ad_injection_async, keep_typing
 from utils.channel_reader import fetch_latest_channel_posts, format_post_list
 
 logger = logging.getLogger(__name__)
@@ -194,7 +194,9 @@ async def extract_post_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE
         await query.message.reply_text("⏳ AI postni qayta yozmoqda...")
 
         from utils.ai_agent import rewrite_channel_post
-        result = await rewrite_channel_post(original_text, username, post_link, tone)
+        # AI javob kelgunicha chatda uzluksiz "typing..." ko'rsatamiz
+        async with keep_typing(context.bot, query.message.chat_id):
+            result = await rewrite_channel_post(original_text, username, post_link, tone)
 
         if "error" in result:
             await query.message.reply_text(result["error"], parse_mode="HTML")
@@ -235,7 +237,9 @@ async def extract_post_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE
             tone = await db.run_db(db.get_channel_tone, ch_id)
 
         from utils.ai_agent import rewrite_channel_post
-        result = await rewrite_channel_post(original_text, username, post_link, tone)
+        # AI javob kelgunicha chatda uzluksiz "typing..." ko'rsatamiz
+        async with keep_typing(context.bot, query.message.chat_id):
+            result = await rewrite_channel_post(original_text, username, post_link, tone)
 
         if "error" in result:
             await query.message.reply_text(result["error"], parse_mode="HTML")
