@@ -817,6 +817,10 @@ def register_all_handlers(app):
     app.add_handler(CallbackQueryHandler(ai_close, pattern=r"^ai_close$"))
     # 🖼 Vision natijasi stale tugmalari: sessiya tugagach ham yo'riqnoma ko'rsatadi
     app.add_handler(CallbackQueryHandler(ai_photo_stale_callback, pattern=r"^photo_"))
+    # 📷 Qo'lda rasm tekshirish (admin PRO tasdiqlashi): uning callback'i
+    # catch-all stale handlerdan, photo handleri esa /ai Vision handleridan
+    # oldin ro'yxatdan o'tishi kerak.
+    register_photo_check(app)
     # 🖼 Rasm + `/ai` caption: CommandHandler caption'larni tanimaydi — shu yerda
     # rasm bilan birga yuborilgan /ai buyrug'i Vision oqimini ochadi
     app.add_handler(MessageHandler(
@@ -845,4 +849,3 @@ def register_all_handlers(app):
     ))
     app.add_handler(ChatMemberHandler(on_bot_chat_member_update, ChatMemberHandler.MY_CHAT_MEMBER))
     app.add_handler(CallbackQueryHandler(expired_session_callback))
-    register_photo_check(app)

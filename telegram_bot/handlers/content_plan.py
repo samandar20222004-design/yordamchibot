@@ -155,8 +155,13 @@ async def plan_topic_received(update: Update, context: ContextTypes.DEFAULT_TYPE
     await update.message.reply_text("⏳ AI kontent-reja tuzmoqda...")
 
     from utils.ai_agent import generate_content_plan
-    # AI javob kelgunicha chatda uzluksiz "typing..." ko'rsatamiz
-    async with keep_typing(context.bot, update.effective_chat.id):
+    # Indikator darhol ko'rinsin, keyin uzoq AI so'rovi davomida yangilanib tursin.
+    chat_id = update.effective_chat.id
+    try:
+        await context.bot.send_chat_action(chat_id=chat_id, action="typing")
+    except Exception:
+        pass
+    async with keep_typing(context.bot, chat_id):
         result = await generate_content_plan(text, channel_title, tone, recent_posts=recent_posts)
 
     if "error" in result:
@@ -243,8 +248,13 @@ async def plan_view_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
             recent_posts = [p.get("text") for p in history if p.get("text") and not p.get("text").startswith("[")]
 
         from utils.ai_agent import generate_content_plan
-        # AI javob kelgunicha chatda uzluksiz "typing..." ko'rsatamiz
-        async with keep_typing(context.bot, query.message.chat_id):
+        # Indikator darhol ko'rinsin, keyin uzoq AI so'rovi davomida yangilanib tursin.
+        chat_id = query.message.chat_id
+        try:
+            await context.bot.send_chat_action(chat_id=chat_id, action="typing")
+        except Exception:
+            pass
+        async with keep_typing(context.bot, chat_id):
             result = await generate_content_plan(topic, channel_title, tone, recent_posts=recent_posts)
 
         if "error" in result:
@@ -343,8 +353,13 @@ async def plan_view_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
         from utils.ai_agent import generate_post_from_plan
         tone = await db.run_db(db.get_channel_tone, channel_id) if channel_id else "friendly"
-        # AI javob kelgunicha chatda uzluksiz "typing..." ko'rsatamiz
-        async with keep_typing(context.bot, query.message.chat_id):
+        # Indikator darhol ko'rinsin, keyin uzoq AI so'rovi davomida yangilanib tursin.
+        chat_id = query.message.chat_id
+        try:
+            await context.bot.send_chat_action(chat_id=chat_id, action="typing")
+        except Exception:
+            pass
+        async with keep_typing(context.bot, chat_id):
             result = await generate_post_from_plan(topic, title, idea, tone)
 
         if "error" in result:

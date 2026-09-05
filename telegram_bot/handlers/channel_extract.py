@@ -195,8 +195,13 @@ async def extract_post_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE
         await query.message.reply_text("⏳ AI postni qayta yozmoqda...")
 
         from utils.ai_agent import rewrite_channel_post
-        # AI javob kelgunicha chatda uzluksiz "typing..." ko'rsatamiz
-        async with keep_typing(context.bot, query.message.chat_id):
+        # Indikator darhol ko'rinsin, keyin uzoq AI so'rovi davomida yangilanib tursin.
+        chat_id = query.message.chat_id
+        try:
+            await context.bot.send_chat_action(chat_id=chat_id, action="typing")
+        except Exception:
+            pass
+        async with keep_typing(context.bot, chat_id):
             result = await rewrite_channel_post(original_text, username, post_link, tone)
 
         if "error" in result:
@@ -238,8 +243,13 @@ async def extract_post_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE
             tone = await db.run_db(db.get_channel_tone, ch_id)
 
         from utils.ai_agent import rewrite_channel_post
-        # AI javob kelgunicha chatda uzluksiz "typing..." ko'rsatamiz
-        async with keep_typing(context.bot, query.message.chat_id):
+        # Indikator darhol ko'rinsin, keyin uzoq AI so'rovi davomida yangilanib tursin.
+        chat_id = query.message.chat_id
+        try:
+            await context.bot.send_chat_action(chat_id=chat_id, action="typing")
+        except Exception:
+            pass
+        async with keep_typing(context.bot, chat_id):
             result = await rewrite_channel_post(original_text, username, post_link, tone)
 
         if "error" in result:
