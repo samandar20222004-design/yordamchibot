@@ -532,7 +532,7 @@ TRANSLATIONS = {
         "np_channel_selected": (
             "✅ Tanlandi: <b>{channel}</b>\n\n"
             "📝 <b>Post uchun kontentni yuboring:</b>\n"
-            "(Matn, rasm, video, albom, hujjat, audio, ovozli xabar yoki stiker)"
+            "(Matn, rasm, video, albom, hujjat, audio yoki GIF — stiker va ovozli xabar qabul qilinmaydi)"
         ),
         "np_channel_not_found": "⚠️ Bunday kanal topilmadi. Qaytadan tanlang:",
         "np_media_not_allowed": (
@@ -1360,6 +1360,40 @@ TRANSLATIONS = {
             "Asosiy menyuga qaytdingiz. Kerakli bo'limni tanlang 👇"
         ),
         "main_menu_hint": "Quyidagi menyudan kerakli bo‘limni tanlang 👇",
+        # Kutilmagan / notanish xabar (dialogdan tashqarida matn, voice, kontakt,
+        # fayl...) — bot jim qolmaydi: xushmuomala xabar + asosiy menyu.
+        "unknown_message_fallback": (
+            "Kechirasiz, men bu xabarni tushunmadim. "
+            "Iltimos, quyidagi menyudan kerakli bo‘limni tanlang 👇"
+        ),
+        # Dialog ICHIDA joriy bosqich qabul qilmaydigan xabar turi kelsa
+        "unknown_in_dialog": (
+            "⚠️ Bu turdagi xabar hozirgi bosqichda qabul qilinmaydi. "
+            "Iltimos, so‘ralgan ma’lumotni yuboring yoki 🔙 Asosiy menyu tugmasini bosing."
+        ),
+        # Post tayyorlash bosqichida stiker yuborilsa
+        "np_sticker_not_allowed": (
+            "Kechirasiz, stikerlar post sifatida qabul qilinmaydi. "
+            "Iltimos, rasm, video yoki matn yuboring"
+        ),
+        # Majburiy homiy-kanal obunasi (start / obuna tekshiruvi)
+        "sub_required": (
+            "⚠️ <b>Botdan to'liq foydalanish uchun quyidagi rasmiy kanallarga "
+            "a'zo bo'ling:</b>"
+        ),
+        "sub_confirmed": (
+            "✅ Obuna tasdiqlandi!\n\n"
+            "Xush kelibsiz, <b>{name}</b>! Barcha imkoniyatlar siz uchun ochiq.\n\n"
+            "{hint}"
+        ),
+        "sub_not_yet_alert": (
+            "⚠️ Hali barcha kanallarga a'zo bo'lmadingiz! "
+            "Iltimos, barcha kanallarga a'zo bo'ling."
+        ),
+        "sub_not_yet_msg": (
+            "⚠️ Hali barcha kanallarga a'zo bo'lmadingiz! "
+            "Pastdagi tugmalar orqali obuna bo'ling."
+        ),
     },
     "ru": {
         "btn_new_post": "➕ Новый пост",
@@ -1886,7 +1920,7 @@ TRANSLATIONS = {
         "np_channel_selected": (
             "✅ Выбрано: <b>{channel}</b>\n\n"
             "📝 <b>Отправьте контент для поста:</b>\n"
-            "(Текст, фото, видео, альбом, документ, аудио, голосовое сообщение или стикер)"
+            "(Текст, фото, видео, альбом, документ, аудио или GIF — стикеры и голосовые не принимаются)"
         ),
         "np_channel_not_found": "⚠️ Такой канал не найден. Выберите ещё раз:",
         "np_media_not_allowed": (
@@ -2726,6 +2760,39 @@ TRANSLATIONS = {
             "Вы вернулись в главное меню. Выберите нужный раздел 👇"
         ),
         "main_menu_hint": "Выберите нужный раздел из меню ниже 👇",
+        # Неизвестное / неожиданное сообщение вне диалога — бот не молчит
+        "unknown_message_fallback": (
+            "Извините, я не понял это сообщение. "
+            "Пожалуйста, выберите нужный раздел из меню ниже 👇"
+        ),
+        # Внутри диалога пришло сообщение, которое текущий шаг не принимает
+        "unknown_in_dialog": (
+            "⚠️ Сообщение такого типа на этом шаге не принимается. "
+            "Пожалуйста, отправьте запрошенные данные или нажмите 🔙 Главное меню."
+        ),
+        # Стикер на шаге подготовки поста
+        "np_sticker_not_allowed": (
+            "Извините, стикеры не принимаются в качестве поста. "
+            "Пожалуйста, отправьте фото, видео или текст"
+        ),
+        # Обязательная подписка на спонсорские каналы (start / проверка подписки)
+        "sub_required": (
+            "⚠️ <b>Чтобы полноценно пользоваться ботом, подпишитесь на "
+            "официальные каналы ниже:</b>"
+        ),
+        "sub_confirmed": (
+            "✅ Подписка подтверждена!\n\n"
+            "Добро пожаловать, <b>{name}</b>! Все возможности открыты для вас.\n\n"
+            "{hint}"
+        ),
+        "sub_not_yet_alert": (
+            "⚠️ Вы ещё не подписались на все каналы! "
+            "Пожалуйста, подпишитесь на все каналы."
+        ),
+        "sub_not_yet_msg": (
+            "⚠️ Вы ещё не подписались на все каналы! "
+            "Подпишитесь с помощью кнопок ниже."
+        ),
     },
 }
 

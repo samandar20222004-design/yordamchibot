@@ -1,6 +1,8 @@
 import asyncio
 import json
 import logging
+import os
+import tempfile
 from datetime import datetime, timedelta
 import pytz
 from telegram import (
@@ -49,6 +51,239 @@ SEND_MICRO_DELAY = 0.08  # soniya — 0.05..0.1 oralig'ida
 # qaytarsa (masalan 900s) scheduler ishini butunlay muzlatib qo'ymaymiz —
 # shu chegaragacha kutamiz, qolganini `retry_post` orqali DB'ga ko'chiramiz.
 FLOOD_WAIT_SLEEP_MAX = 60.0
+
+# --- IDEMPOTENT YUBORISH: "yuborildi" markeri kafolati -----------------------
+# Post Telegramga chiqqach DB'ga 'posted' + sent_message_id yozilishi SHART —
+# aks holda stale-recovery uni 10 daqiqadan keyin 'pending' ga qaytaradi va
+# post IKKINCHI marta chiqadi. Neon'da qisqa uzilishlar bo'lib turadi, shuning
+# uchun marker yozuvi:
+#   1) eksponensial backoff bilan bir necha marta qayta uriniladi;
+#   2) baribir yozilmasa — xotiradagi ``_UNPERSISTED_SENT`` ro'yxatiga va
+#      lokal journal fayliga tushadi. Shu jarayon ichida o'sha post hech
+#      qachon qayta yuborilmaydi (``_execute_send`` boshida guard), har
+#      scheduler tick'i boshida marker qayta yozishga urinadi
+#      (``flush_unpersisted_sent_markers``) — DB tiklanishi bilan holat
+#      to'g'rilanadi. Journal restartdan keyin ham o'qiladi (best-effort).
+SENT_MARKER_RETRY_DELAYS = (0.5, 1.0, 2.0, 4.0)
+
+
+def _resolve_sent_journal_path() -> str:
+    """SENT_JOURNAL_PATH env: yo'l → shu fayl; 'off'/'none'/'0' → o'chirilgan ('');
+    berilmagan → vaqtinchalik papkadagi standart fayl."""
+    raw = os.getenv("SENT_JOURNAL_PATH")
+    if raw is None:
+        return os.path.join(tempfile.gettempdir(), "postassist_sent_journal.json")
+    raw = raw.strip()
+    if raw.lower() in ("", "off", "none", "0", "false"):
+        return ""
+    return raw
+
+
+SENT_JOURNAL_PATH = _resolve_sent_journal_path()
+_UNPERSISTED_SENT: dict = {}   # post_id -> marker (DB'ga hali yozilmagan "yuborildi" faktlari)
+_journal_loaded = False
+
+
+def _journal_load() -> None:
+    """Journal faylini (bo'lsa) bir marta xotiraga yuklaydi."""
+    global _journal_loaded
+    if _journal_loaded:
+        return
+    _journal_loaded = True
+    if not SENT_JOURNAL_PATH:
+        return
+    try:
+        if not os.path.isfile(SENT_JOURNAL_PATH):
+            return
+        with open(SENT_JOURNAL_PATH, encoding="utf-8") as fh:
+            data = json.load(fh) or {}
+        loaded = 0
+        for key, marker in data.items():
+            try:
+                pid = int(key)
+            except (TypeError, ValueError):
+                continue
+            if isinstance(marker, dict):
+                _UNPERSISTED_SENT.setdefault(pid, marker)
+                loaded += 1
+        if loaded:
+            logger.warning(
+                "Sent-journal: %d ta post Telegramga yuborilgan, lekin DB markeri yozilmagan — "
+                "qayta yuborilmaydi, marker keyingi tick'da yoziladi.", loaded,
+            )
+    except Exception:
+        logger.exception("Sent-journal o'qishda xato (%s)", SENT_JOURNAL_PATH)
+
+
+def _journal_save() -> None:
+    """Xotiradagi ro'yxatni journal fayliga atomik yozadi (bo'sh bo'lsa faylni o'chiradi)."""
+    if not SENT_JOURNAL_PATH:
+        return
+    try:
+        if not _UNPERSISTED_SENT:
+            if os.path.isfile(SENT_JOURNAL_PATH):
+                os.remove(SENT_JOURNAL_PATH)
+            return
+        tmp = SENT_JOURNAL_PATH + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as fh:
+            json.dump({str(k): v for k, v in _UNPERSISTED_SENT.items()}, fh, ensure_ascii=False)
+        os.replace(tmp, SENT_JOURNAL_PATH)
+    except Exception:
+        logger.exception("Sent-journal yozishda xato (%s)", SENT_JOURNAL_PATH)
+
+
+def _db_ok(result) -> bool:
+    """DB yozuv natijasi: faqat aniq ``False`` — xato. ``None``/``True`` — muvaffaqiyat
+    (eski yoki soxta (test) funksiyalar ``None`` qaytaradi)."""
+    return result is not False
+
+
+def _build_sent_marker(post_id, sent_msg_id, channel_id, delete_after_hours, extra_ids,
+                       recurrence_type=None, recurrence_day=None, recurrence_time=None,
+                       end_date=None) -> dict:
+    """Telegramga yuborilgan post uchun DB'ga yozilishi kerak bo'lgan barcha
+    ma'lumot (JSON-serializable): 'posted' markeri + takrorlanuvchi post uchun
+    keyingi vaqt / yakunlanganlik."""
+    marker = {
+        "post_id": int(post_id),
+        "message_id": int(sent_msg_id) if sent_msg_id else None,
+        "channel_id": str(channel_id) if channel_id is not None else None,
+        "delete_after_hours": int(delete_after_hours or 0),
+        "extra_ids": [int(x) for x in (extra_ids or []) if x],
+        "next_time": None,
+        "completed": False,
+        "marker_done": False,
+        "sent_at": now_tashkent().isoformat(),
+    }
+    if recurrence_type in ("daily", "weekly"):
+        try:
+            now = now_tashkent()
+            if end_date and _as_tashkent(end_date) and now >= _as_tashkent(end_date):
+                marker["completed"] = True
+            else:
+                next_time = calculate_next_time(recurrence_type, recurrence_day, recurrence_time, now)
+                if next_time:
+                    marker["next_time"] = next_time.isoformat()
+        except Exception:
+            logger.exception("Takrorlanuvchi post uchun keyingi vaqtni hisoblashda xato (Post ID: %s)", post_id)
+    return marker
+
+
+async def _apply_sent_marker(marker: dict) -> bool:
+    """Markerni DB'ga yozishga BIR marta urinadi. ``True`` — hammasi yozildi.
+
+    Bosqichlar idempotent: 'posted' markeri yozilgach ``marker_done`` belgilanadi,
+    keyingi urinishlar faqat qolgan qismini (takrorlash) bajaradi."""
+    pid = int(marker["post_id"])
+    if not marker.get("marker_done"):
+        ok = False
+        try:
+            ok = _db_ok(await db.run_db(
+                db.mark_post_as_sent, pid, marker.get("message_id"), marker.get("channel_id"),
+                int(marker.get("delete_after_hours") or 0), marker.get("extra_ids") or None,
+            ))
+        except Exception as e:
+            logger.exception(
+                "Post Telegramga yuborildi (Msg ID: %s), lekin DB ga 'posted' deb belgilashda xatolik (Post ID: %s): %s",
+                marker.get("message_id"), pid, e,
+            )
+        if not ok:
+            # Zaxira: hech bo'lmaganda statusni 'posted' qilamiz (qayta yuborilmasin)
+            try:
+                ok = _db_ok(await db.run_db(db.mark_post_status, pid, "posted"))
+            except Exception:
+                ok = False
+        if not ok:
+            return False
+        marker["marker_done"] = True
+
+    next_time_raw = marker.get("next_time")
+    try:
+        if next_time_raw:
+            next_time = datetime.fromisoformat(next_time_raw)
+            if not _db_ok(await db.run_db(db.reschedule_recurring_post, pid, next_time)):
+                return False
+            if not _db_ok(await db.run_db(db.mark_post_status, pid, "pending")):
+                return False
+        elif marker.get("completed"):
+            if not _db_ok(await db.run_db(db.mark_post_status, pid, "completed")):
+                return False
+    except Exception as e:
+        logger.exception("Takrorlanuvchi postni qayta rejalashtirishda xato (Post ID: %s): %s", pid, e)
+        return False
+    return True
+
+
+async def _persist_sent_marker(marker: dict, retry_delays=SENT_MARKER_RETRY_DELAYS) -> bool:
+    """Yuborilgan post markerini DB'ga yozadi — backoff bilan qayta urinib.
+
+    Marker AVVAL xotira/journalga tushadi (send va DB yozuvi orasidagi crash
+    ham post faktini yo'qotmasin), muvaffaqiyatdan keyin o'chiriladi. Hech
+    qachon istisno tashlamaydi: yozilmasa ``False`` — post keyingi tick'da
+    ``flush_unpersisted_sent_markers`` orqali to'g'rilanadi."""
+    pid = int(marker["post_id"])
+    _UNPERSISTED_SENT[pid] = marker
+    _journal_save()
+    attempt = 0
+    while True:
+        try:
+            done = await _apply_sent_marker(marker)
+        except Exception:
+            logger.exception("Sent-marker yozishda kutilmagan xato (Post ID: %s)", pid)
+            done = False
+        if done:
+            _UNPERSISTED_SENT.pop(pid, None)
+            _journal_save()
+            return True
+        if attempt >= len(retry_delays):
+            logger.error(
+                "Post %s Telegramga yuborildi, lekin DB markeri yozilmadi — journalda saqlandi; "
+                "post QAYTA YUBORILMAYDI, marker keyingi tick'da qayta uriniladi.", pid,
+            )
+            _journal_save()
+            return False
+        delay = retry_delays[attempt]
+        attempt += 1
+        logger.warning(
+            "Post %s: DB markerini yozishda vaqtinchalik xato, %.1fs dan keyin qayta uriniladi (%d/%d)",
+            pid, delay, attempt, len(retry_delays),
+        )
+        await asyncio.sleep(delay)
+
+
+async def flush_unpersisted_sent_markers() -> int:
+    """Har tick boshida: yozilmay qolgan "yuborildi" markerlarini DB'ga yozishga urinadi.
+
+    ``get_due_posts`` dan OLDIN chaqiriladi — stale-recovery 'pending' ga qaytargan
+    post yana olinishidan avval 'posted' ga qaytariladi. Qaytaradi: yozilganlar soni."""
+    _journal_load()
+    if not _UNPERSISTED_SENT:
+        return 0
+    done = 0
+    for pid in list(_UNPERSISTED_SENT):
+        marker = _UNPERSISTED_SENT.get(pid)
+        if not marker:
+            _UNPERSISTED_SENT.pop(pid, None)
+            continue
+        try:
+            if await _apply_sent_marker(marker):
+                _UNPERSISTED_SENT.pop(pid, None)
+                done += 1
+        except Exception:
+            logger.exception("Sent-marker flush xatosi (Post ID: %s)", pid)
+    _journal_save()
+    if done:
+        logger.info("Sent-marker flush: %d ta post markeri DB'ga yozildi.", done)
+    return done
+
+
+def is_sent_but_unpersisted(post_id) -> bool:
+    """Post Telegramga yuborilgan-u, DB markeri hali yozilmaganmi (qayta yuborish taqiqlanadi)."""
+    _journal_load()
+    try:
+        return int(post_id) in _UNPERSISTED_SENT
+    except (TypeError, ValueError):
+        return False
 
 
 def flood_wait_seconds(error, default: float = 5.0) -> float:
@@ -320,6 +555,9 @@ async def check_and_send_posts(bot):
         bilan kutiladi — navbat to'xtamaydi, post yo'qolmaydi.
     """
     try:
+        # 0) Avvalgi tick'larda DB'ga yozilmay qolgan "yuborildi" markerlari —
+        #    yangi postlarni olishdan OLDIN yoziladi (idempotentlik kafolati).
+        await flush_unpersisted_sent_markers()
         now = now_tashkent()
         due_posts = await db.run_db(db.get_due_posts, now)
         if due_posts:
@@ -367,8 +605,23 @@ async def _execute_send(bot, post):
         delete_after_hours, reaction_emojis
     ) = post
 
+    # 0. IDEMPOTENTLIK GUARD'I: bu post allaqachon Telegramga chiqqan, faqat DB
+    #    markeri yozilmay qolgan bo'lsa (masalan, stale-recovery uni 'pending' ga
+    #    qaytargan) — QAYTA YUBORILMAYDI, faqat marker yozishga urinamiz.
+    if is_sent_but_unpersisted(post_id):
+        logger.warning(
+            "Post %s allaqachon Telegramga yuborilgan (DB markeri kutilmoqda) — qayta yuborilmaydi.",
+            post_id,
+        )
+        await _persist_sent_marker(_UNPERSISTED_SENT[int(post_id)], retry_delays=())
+        return
+
     # 1. Post holatini Telegramga yuborishdan oldin qat'iy "processing" qilib belgilaymiz (processing_started_at bilan)
-    await db.run_db(db.mark_post_processing, post_id)
+    if await db.run_db(db.mark_post_processing, post_id) is False:
+        # DB hozir yozuvni qabul qilmayapti — yuborishdan OLDIN to'xtaymiz
+        # (aks holda yuborilgach marker ham yozilmay qolishi ehtimoli katta).
+        # Chaqiruvchi (check_and_send_posts) postni qayta navbatga qo'yadi.
+        raise RuntimeError(f"DB 'processing' markerini yozib bo'lmadi (Post ID: {post_id})")
 
     buttons = []
     if btn_text and btn_url:
@@ -471,21 +724,14 @@ async def _execute_send(bot, post):
             sent_msg = await bot.send_message(chat_id=target_chat, text=final_content or " ", reply_markup=reply_markup, parse_mode="HTML")
 
         sent_msg_id = sent_msg.message_id if sent_msg else None
-        # Post Telegramga muvaffaqiyatli yuborildi! DB ga natijani yozamiz (idempotentlik kafolati).
-        try:
-            await db.run_db(
-                db.mark_post_as_sent, post_id, sent_msg_id, channel_id, delete_after_hours, extra_ids or None
-            )
-        except Exception as e:
-            logger.exception(
-                "Post Telegramga yuborildi (Msg ID: %s), lekin DB ga 'posted' deb belgilashda xatolik (Post ID: %s): %s",
-                sent_msg_id, post_id, e,
-            )
-            try:
-                await db.run_db(db.mark_post_status, post_id, "posted")
-            except Exception:
-                pass
-        # Post muvaffaqiyatli chiqqachgina litsenziya sarflanadi
+        # Post Telegramga muvaffaqiyatli yuborildi! Bundan keyin HECH QANDAY
+        # holatda (DB xatosi, restart) post qayta yuborilmasligi kerak:
+        # marker (posted + sent_message_id + takrorlash rejasi) backoff bilan
+        # yoziladi; yozilmasa xotira/journal guard'ida qoladi.
+        sent_marker = _build_sent_marker(
+            post_id, sent_msg_id, channel_id, delete_after_hours, extra_ids,
+            recurrence_type, recurrence_day, recurrence_time, end_date,
+        )
 
     except RetryAfter as e:
         # Telegram rate-limit (FloodWait, 429) — vaqtinchalik holat.
@@ -511,18 +757,10 @@ async def _execute_send(bot, post):
         await db.run_db(db.mark_post_status, post_id, "failed")
         return
 
-    if recurrence_type in ('daily', 'weekly'):
-        try:
-            now = now_tashkent()
-            if end_date and _as_tashkent(end_date) and now >= _as_tashkent(end_date):
-                await db.run_db(db.mark_post_status, post_id, "completed")
-            else:
-                next_time = calculate_next_time(recurrence_type, recurrence_day, recurrence_time, now)
-                if next_time:
-                    await db.run_db(db.reschedule_recurring_post, post_id, next_time)
-                    await db.run_db(db.mark_post_status, post_id, "pending")
-        except Exception as e:
-            logger.exception("Takrorlanuvchi postni qayta rejalashtirishda xato (Post ID: %s): %s", post_id, e)
+    # Yuborildi → marker (posted / takrorlanuvchi: keyingi vaqt + pending /
+    # muddati tugagan: completed). Hech qachon istisno tashlamaydi — shuning
+    # uchun yuborilgan post hech qachon _requeue_post ga tushmaydi.
+    await _persist_sent_marker(sent_marker)
 
 
 async def _send_single_media(bot, target_chat, kind, file_id, caption, reply_markup):

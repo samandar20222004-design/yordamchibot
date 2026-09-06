@@ -2242,8 +2242,11 @@ def get_due_posts(now) -> list:
         logger.error(f"Due posts xatosi: {e}")
         return []
 
-def mark_post_processing(post_id: int):
-    """Postni Telegramga yuborishdan oldin statusini qat'iy 'processing' va processing_started_at ni NOW() deb belgilash."""
+def mark_post_processing(post_id: int) -> bool:
+    """Postni Telegramga yuborishdan oldin statusini qat'iy 'processing' va processing_started_at ni NOW() deb belgilash.
+
+    Qaytaradi: ``True`` — yozildi, ``False`` — DB xatosi (istisno tashlanmaydi).
+    """
     try:
         with db_cursor(commit=True) as cur:
             cur.execute(
@@ -2251,18 +2254,33 @@ def mark_post_processing(post_id: int):
                 (post_id,)
             )
         _cache_clear("system_stats")
+        return True
     except Exception as e:
         logger.error(f"Post processing status xatosi (Post ID {post_id}): {e}")
+        return False
 
-def mark_post_status(post_id: int, status: str):
+def mark_post_status(post_id: int, status: str) -> bool:
+    """Post statusini yangilaydi. ``True`` — yozildi, ``False`` — DB xatosi (istisno yo'q).
+
+    Scheduler qaytgan qiymatga qarab transient DB xatosida qayta urinadi —
+    aks holda 'yuborildi' fakti yo'qolib, restartdan keyin post ikki marta chiqishi mumkin.
+    """
     try:
         with db_cursor(commit=True) as cur:
             cur.execute("UPDATE scheduled_posts SET status = %s WHERE id = %s", (status, post_id))
         _cache_clear("system_stats")
+        return True
     except Exception as e:
         logger.error(f"Post status xatosi: {e}")
+        return False
 
-def mark_post_as_sent(post_id: int, sent_message_id: int, channel_id: str = None, delete_after_hours: int = 0, extra_message_ids: list = None):
+def mark_post_as_sent(post_id: int, sent_message_id: int, channel_id: str = None, delete_after_hours: int = 0, extra_message_ids: list = None) -> bool:
+    """Telegramga yuborilgan postni 'posted' deb belgilaydi va xabar ID'larini saqlaydi.
+
+    Bitta tranzaksiyada bajariladi (yarim yozilgan holat bo'lmaydi). Qaytaradi:
+    ``True`` — commit bo'ldi; ``False`` — DB xatosi (istisno tashlanmaydi, chaqiruvchi
+    qayta urinishi kerak: 'yuborildi' markeri idempotentlik kafolatining asosi).
+    """
     try:
         with db_cursor(commit=True) as cur:
             cur.execute("UPDATE scheduled_posts SET status = 'posted', sent_message_id = %s WHERE id = %s", (sent_message_id, post_id))
@@ -2278,8 +2296,10 @@ def mark_post_as_sent(post_id: int, sent_message_id: int, channel_id: str = None
                         VALUES (%s, %s, %s, CASE WHEN %s > 0 THEN NOW() + (%s || ' hours')::INTERVAL ELSE NULL END)
                     """, (post_id, str(channel_id), mid, delete_after_hours, delete_after_hours))
         _cache_clear("system_stats")
+        return True
     except Exception as e:
         logger.error(f"Post yuborilganini belgilash xatosi: {e}")
+        return False
 
 def get_posts_to_delete(now) -> list:
     try:

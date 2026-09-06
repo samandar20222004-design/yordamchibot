@@ -170,7 +170,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return ConversationHandler.END
     if not is_sub:
         await update.message.reply_text(
-            "⚠️ <b>Botdan to'liq foydalanish uchun quyidagi rasmiy kanallarga a'zo bo'ling:</b>",
+            get_text("sub_required", lang),
             reply_markup=get_subscription_check_keyboard(unsubs),
             parse_mode="HTML"
         )
@@ -186,6 +186,23 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     return ConversationHandler.END
 
+
+async def send_main_menu(context, chat_id: int, lang: str, is_admin: bool,
+                         text: str | None = None):
+    """Asosiy reply-menyuni ``main_menu_hint`` bilan yuboradi (uz/ru).
+
+    Start/orqaga/fallback oqimlari uchun yagona yordamchi: ``text`` berilsa u
+    xabar matni bo'ladi, aks holda faqat ``main_menu_hint`` chiqadi. Har doim
+    foydalanuvchi tilidagi asosiy klaviatura biriktiriladi.
+    """
+    body = text if text else get_text("main_menu_hint", lang)
+    return await context.bot.send_message(
+        chat_id=chat_id,
+        text=body,
+        reply_markup=get_main_keyboard(is_admin, lang=lang),
+        parse_mode="HTML",
+    )
+
 async def subscription_check_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     user = query.from_user
@@ -197,22 +214,28 @@ async def subscription_check_callback(update: Update, context: ContextTypes.DEFA
 
     is_sub, unsubs = await check_user_subscribed(context.bot, user.id)
 
+    # Til: kesh → DB (bot qayta ishga tushgan bo'lsa ham RU foydalanuvchi
+    # ruscha javob oladi).
+    lang = await ensure_user_lang(context, user.id)
+
     if is_sub:
         try:
             await query.message.delete()
         except TelegramError:
             pass
         is_admin = (user.id in ADMIN_IDS_SET)
-        lang = await ensure_user_lang(context, user.id)
-        await context.bot.send_message(
-            chat_id=user.id,
-            text=f"✅ Obuna tasdiqlandi!\n\nXush kelibsiz, <b>{html_escape(user.first_name)}</b>! Barcha imkoniyatlar siz uchun ochiq.",
-            reply_markup=get_main_keyboard(is_admin, lang=lang),
-            parse_mode="HTML"
+        # Obuna tasdiqlangach — tabrik + main_menu_hint + asosiy menyu (uz/ru)
+        await send_main_menu(
+            context, user.id, lang, is_admin,
+            text=get_text(
+                "sub_confirmed", lang,
+                name=html_escape(user.first_name or ""),
+                hint=get_text("main_menu_hint", lang),
+            ),
         )
     else:
         try:
-            await query.answer("⚠️ Hali barcha kanallarga a'zo bo'lmadingiz! Iltimos, barcha kanallarga a'zo bo'ling.", show_alert=True)
+            await query.answer(get_text("sub_not_yet_alert", lang), show_alert=True)
         except Exception:
             pass
         try:
@@ -221,7 +244,7 @@ async def subscription_check_callback(update: Update, context: ContextTypes.DEFA
             pass
         try:
             await query.message.reply_text(
-                "⚠️ Hali barcha kanallarga a'zo bo'lmadingiz! Pastdagi tugmalar orqali obuna bo'ling.",
+                get_text("sub_not_yet_msg", lang),
                 parse_mode="HTML",
             )
         except Exception:

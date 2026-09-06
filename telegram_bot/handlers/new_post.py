@@ -486,25 +486,55 @@ async def _show_confirmation(target_msg, context):
     context.user_data["confirm_msg_type"] = sent_type
 
 
+def is_sticker_message(msg) -> bool:
+    """Xabar stiker ekanini aniqlaydi (oddiy, animatsion yoki video stiker).
+
+    Post tayyorlash bosqichida stikerlar hech qachon post bo'lolmaydi —
+    ular kanalga caption/tugma bilan chiqmaydi va Telegram ularni albomga
+    ham qo'shmaydi. Shu sababli stiker alohida, ANIQ xabar bilan rad etiladi.
+    """
+    return bool(getattr(msg, "sticker", None))
+
+
+def classify_post_content(msg) -> str:
+    """Post kontenti sifatida kelgan xabarni tasniflaydi.
+
+    Qaytaradi:
+      * ``"sticker"``     — stiker (alohida ogohlantirish: ``np_sticker_not_allowed``);
+      * ``"unsupported"`` — voice/video_note yoki media ham, matn ham bo'lmagan
+        xabar (kontakt, joylashuv, o'yincha, poll...) — ``np_media_not_allowed``;
+      * ``"ok"``          — matn, rasm, video, hujjat, audio yoki GIF (post bo'ladi).
+    """
+    if is_sticker_message(msg):
+        return "sticker"
+    item0 = _media_item_from_message(msg)
+    if item0 is not None and item0["type"] in ("sticker", "voice", "video_note"):
+        return "unsupported"
+    if getattr(msg, "video_note", None):
+        return "unsupported"
+    if item0 is None and not getattr(msg, "photo", None) \
+            and not getattr(msg, "text", None) and not (getattr(msg, "caption", None) or ""):
+        return "unsupported"
+    return "ok"
+
+
 async def content_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = update.message
     user_id = update.effective_user.id
 
     # 🚫 Stiker va qo'llab-quvvatlanmaydigan media — post sifatida qabul
-    # qilinmaydi. Bot OSILIB QOLMASLIGI uchun foydalanuvchiga aniq (uz/ru)
-    # xabar yuborib, GET_CONTENT holatida qaytamiz (post yaratish davom etadi).
-    item0 = _media_item_from_message(msg)
-    unsupported = bool(getattr(msg, "sticker", None)) or (
-        item0 is not None and item0["type"] in ("sticker", "voice", "video_note")
-    )
-    # Rasm/video/hujjat/audio/animation yoki matn yo'q bo'lgan (masalan,
-    # kontakt, joylashuv, o'yincha) xabarlar ham post bo'lolmaydi.
-    if unsupported or (
-        item0 is None
-        and not getattr(msg, "photo", None)
-        and not getattr(msg, "text", None)
-        and not (msg.caption or "")
-    ):
+    # qilinmaydi. Bot JIM QOLMASLIGI uchun foydalanuvchiga o'z tilida (uz/ru)
+    # aniq xabar yuborib, GET_CONTENT holatida qolamiz (post yaratish davom etadi):
+    #   • stiker  → "Kechirasiz, stikerlar post sifatida qabul qilinmaydi..."
+    #   • voice / video_note / kontakt / joylashuv / o'yincha → umumiy xabar.
+    kind = classify_post_content(msg)
+    if kind == "sticker":
+        await msg.reply_text(
+            get_text("np_sticker_not_allowed", get_lang(context)),
+            parse_mode="HTML",
+        )
+        return GET_CONTENT
+    if kind == "unsupported":
         await msg.reply_text(
             get_text("np_media_not_allowed", get_lang(context)),
             parse_mode="HTML",
@@ -1276,6 +1306,13 @@ async def edit_confirm_field_callback(update: Update, context: ContextTypes.DEFA
 async def edit_confirm_message_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """EDIT_CONFIRM_FIELD holatida matn qabul qilish."""
     lang = get_lang(context)
+    # 🚫 Tasdiqlash/tahrirlash bosqichida stiker kelsa — jim qolmaymiz,
+    # foydalanuvchiga o'z tilida aniq xabar beramiz va kartani saqlab qolamiz.
+    if is_sticker_message(update.message):
+        await update.message.reply_text(
+            get_text("np_sticker_not_allowed", lang), parse_mode="HTML",
+        )
+        return CONFIRM_POST
     text = (update.message.text or "").strip()
 
     if text in (get_text("np_btn_back_confirm", "uz"), BTN_BACK, BTN_MAIN_MENU,

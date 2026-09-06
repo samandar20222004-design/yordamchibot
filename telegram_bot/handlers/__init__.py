@@ -175,7 +175,7 @@ async def _deny_if_unsubscribed(update, context) -> bool:
         return True
     if not is_sub:
         await update.message.reply_text(
-            "⚠️ <b>Botdan to'liq foydalanish uchun quyidagi rasmiy kanallarga a'zo bo'ling:</b>",
+            get_text("sub_required", get_lang(context)),
             reply_markup=get_subscription_check_keyboard(unsubs),
             parse_mode="HTML",
         )
@@ -334,6 +334,10 @@ async def ai_photo_stale_callback(update, context):
         pass
 
 
+# Rasm/hujjat captionidagi `/ai` (yoki `/ai@Bot`) buyrug'i uchun filtr
+_AI_CAPTION_FILTER = filters.CaptionRegex(r"(?i)^/ai(?:@[a-z0-9_]+)?(?:\s|$)")
+
+
 def _is_ai_photo_command(msg) -> bool:
     """Rasm captioni `/ai` (yoki `/ai@Bot`) buyrug'i ekanini aniqlaydi.
 
@@ -357,6 +361,122 @@ async def ai_photo_command_callback(update, context):
     if msg is None or not _is_ai_photo_command(msg):
         return
     await guard_entry(update, context, ai_photo_received)
+
+
+# ============================================================
+# 🤷 KUTILMAGAN / NOTANISH XABARLAR FALLBACK'I (eng pastki prioritet)
+# ============================================================
+# PTB semantikasi: bitta guruh ichida faqat BIRINCHI mos kelgan handler ishlaydi.
+# Shu sababli fallback ``register_all_handlers`` ning ENG OXIRIDA, 0-guruhga
+# qo'shiladi — ConversationHandler (dialog holatlari + menyu sakrashlari),
+# buyruqlar, to'lov, rasm handlerlari va boshqalar xabarni tanimagandagina
+# navbat unga yetadi. Bu tekshiruv dialog holati O'ZGARMASDAN OLDIN amalga
+# oshadi (hammasi bitta ``check_update`` o'tishida), shuning uchun "post
+# saqlandi → END" kabi holatlardan keyin ham noto'g'ri ishga tushmaydi.
+#
+# Qamrov: faqat SHAXSIY chat (guruh/kanalda bot jim turadi), tahrirlangan
+# xabarlar va servis (status) xabarlari chetlab o'tiladi. Buyruqlar
+# (/nomalum) ham shu yerga tushadi — foydalanuvchiga asosiy menyu ko'rsatiladi.
+UNKNOWN_MESSAGE_FILTER = (
+    filters.ChatType.PRIVATE
+    & ~filters.StatusUpdate.ALL
+    & ~filters.SUCCESSFUL_PAYMENT
+    & ~filters.UpdateType.EDITED
+)
+
+# Bir foydalanuvchiga fallback javobi ko'pi bilan shu oraliqda bir marta
+# yuboriladi — voice/kontakt/fayl seriyasi (yoki albom) kelganda har biriga
+# alohida "tushunmadim" chiqib spam bo'lmasligi uchun.
+UNKNOWN_FALLBACK_COOLDOWN_SEC = 2.0
+_UNKNOWN_FALLBACK_LAST: dict = {}
+_UNKNOWN_FALLBACK_MAX_KEYS = 20000
+
+
+def _unknown_fallback_allowed(user_id: int, now: float = None) -> bool:
+    """Cooldown: bir foydalanuvchiga ketma-ket fallback javoblari cheklanadi."""
+    import time as _time
+    now = _time.time() if now is None else now
+    if len(_UNKNOWN_FALLBACK_LAST) > _UNKNOWN_FALLBACK_MAX_KEYS:
+        _UNKNOWN_FALLBACK_LAST.clear()
+    last = _UNKNOWN_FALLBACK_LAST.get(user_id, 0.0)
+    if now - last < UNKNOWN_FALLBACK_COOLDOWN_SEC:
+        return False
+    _UNKNOWN_FALLBACK_LAST[user_id] = now
+    return True
+
+
+def _active_conversation_state(app, update):
+    """Foydalanuvchi hozir biror ConversationHandler dialogi ICHIDA bo'lsa —
+    uning joriy holatini, aks holda ``None`` qaytaradi.
+
+    PTB ``ConversationHandler`` faol suhbatlarni ``_conversations`` lug'atida
+    (kalit: ``_get_key(update)`` → ``(chat_id, user_id)``) saqlaydi. Bu ichki
+    atributlar PTB 13–22 oralig'ida barqaror; baribir har ehtimolga qarshi
+    himoyalangan — mavjud bo'lmasa "dialogda emas" deb hisoblanadi.
+    """
+    handlers = getattr(app, "handlers", None) or {}
+    try:
+        groups = sorted(handlers)
+    except Exception:
+        groups = list(handlers)
+    for group in groups:
+        for handler in handlers.get(group) or ():
+            if not isinstance(handler, ConversationHandler):
+                continue
+            try:
+                key = handler._get_key(update)
+                state = handler._conversations.get(key)
+            except Exception:
+                continue
+            if state is not None:
+                return state
+    return None
+
+
+async def unknown_message_fallback(update, context):
+    """Eng pastki prioritetli fallback: bot hech qachon JIM qolmaydi.
+
+    * Dialogdan TASHQARIDA (hech qanday ConversationHandler holati yo'q)
+      tasodifiy matn, ovozli xabar (voice), audio, video, kontakt, joylashuv,
+      fayl yoki stiker kelsa — foydalanuvchi tilida (uz/ru) xushmuomala xabar
+      ``unknown_message_fallback`` va ASOSIY reply-menyu yuboriladi.
+    * Dialog ICHIDA bo'lsa-yu, joriy bosqich bu xabar turini qabul qilmasa —
+      qisqa ``unknown_in_dialog`` eslatmasi (klaviatura o'zgartirilmaydi,
+      dialog buzilmaydi).
+
+    Til: avval ``context.user_data['lang']`` keshi, bo'lmasa DB
+    (``ensure_user_lang``) — bot qayta ishga tushgandan keyin ham RU
+    foydalanuvchi ruscha javob oladi.
+    """
+    msg = getattr(update, "effective_message", None)
+    user = getattr(update, "effective_user", None)
+    if msg is None or user is None:
+        return None
+    user_id = getattr(user, "id", 0) or 0
+    if user_id and not _unknown_fallback_allowed(user_id):
+        return None
+    try:
+        from handlers.start import ensure_user_lang
+        lang = await ensure_user_lang(context, user_id)
+    except Exception:
+        lang = get_lang(context)
+
+    app = getattr(context, "application", None)
+    in_dialog = _active_conversation_state(app, update) is not None if app is not None else False
+    try:
+        if in_dialog:
+            await msg.reply_text(get_text("unknown_in_dialog", lang), parse_mode="HTML")
+        else:
+            from keyboards.default import get_main_keyboard
+            is_admin = user_id in ADMIN_IDS_SET
+            await msg.reply_text(
+                get_text("unknown_message_fallback", lang),
+                reply_markup=get_main_keyboard(is_admin, lang=lang),
+                parse_mode="HTML",
+            )
+    except Exception:
+        logger.debug("unknown_message_fallback: javob yuborib bo'lmadi", exc_info=True)
+    return None
 
 
 async def conversation_timeout_handler(update, context):
@@ -823,8 +943,12 @@ def register_all_handlers(app):
     register_photo_check(app)
     # 🖼 Rasm + `/ai` caption: CommandHandler caption'larni tanimaydi — shu yerda
     # rasm bilan birga yuborilgan /ai buyrug'i Vision oqimini ochadi
+    # Filtr faqat `/ai` caption bo'lganda mos keladi — aks holda oddiy hujjat/
+    # rasm keyingi handlerlarga (jumladan, pastdagi fallback'ga) o'tadi va bot
+    # jim qolmaydi.
     app.add_handler(MessageHandler(
-        filters.PHOTO | filters.Document.ALL, ai_photo_command_callback
+        (filters.PHOTO | filters.Document.ALL) & _AI_CAPTION_FILTER,
+        ai_photo_command_callback,
     ))
     app.add_handler(CallbackQueryHandler(cabinet_callback, pattern=r"^cab_|^close_cabinet"))
     app.add_handler(CallbackQueryHandler(extras_close_callback, pattern=r"^extra_close$"))
@@ -849,3 +973,13 @@ def register_all_handlers(app):
     ))
     app.add_handler(ChatMemberHandler(on_bot_chat_member_update, ChatMemberHandler.MY_CHAT_MEMBER))
     app.add_handler(CallbackQueryHandler(expired_session_callback))
+
+    # ============================================================
+    # 🤷 ENG PASTKI PRIORITET: kutilmagan / notanish xabarlar fallback'i
+    # ============================================================
+    # MUHIM: bu handler HAR DOIM ro'yxatning ENG OXIRIDA turishi shart. PTB bir
+    # guruhda faqat birinchi mos handlerni ishlatadi — yuqoridagi barcha
+    # handlerlar (ConversationHandler holatlari, menyu tugmalari, buyruqlar,
+    # rasm/to'lov handlerlari) xabarni tanimagandagina shu yerga tushadi.
+    # Yangi handler qo'shsangiz — uni SHU QATORDAN YUQORIGA qo'ying.
+    app.add_handler(MessageHandler(UNKNOWN_MESSAGE_FILTER, unknown_message_fallback))
