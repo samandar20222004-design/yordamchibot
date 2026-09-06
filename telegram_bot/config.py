@@ -56,15 +56,38 @@ CLOUDFLARE_ACCOUNT_ID = os.getenv("CLOUDFLARE_ACCOUNT_ID", "").strip()
 CLOUDFLARE_API_TOKEN = os.getenv("CLOUDFLARE_API_TOKEN", "")
 
 # --- Karta orqali to'lov (Uzcard / Humo) — O'zbekiston uchun qulaylik ---
-# Default: joriy qabul kartasi (8600 0609 5082 5589 / Sayitqulov S.).
-# Muhit o'zgaruvchilari orqali bemalol almashtiriladi; bo'sh qoldirilsa
-# quyidagi qiymatlar ishlatiladi.
+# Karta rekvizitlari KODDA QATTIQ YOZILMAYDI — faqat shu yerda (config) va
+# .env orqali boshqariladi. Default: joriy qabul kartasi
+# (8600 0609 5082 5589 / Sayitqulov S.).
+#
+# Muhit o'zgaruvchilari (ustuvorlik tartibida):
+#   CARD_NUMBER  → PAYMENT_CARD_NUMBER (eski nom, orqaga moslik) → default
+#   CARD_HOLDER  → PAYMENT_CARD_HOLDER (eski nom, orqaga moslik) → default
+# Bo'sh qoldirilsa default qiymatlar ishlatiladi.
+DEFAULT_CARD_NUMBER = "8600060950825589"
+DEFAULT_CARD_HOLDER = "Sayitqulov S."
+
+
 def _str_env(name: str, default: str) -> str:
     raw = (os.getenv(name, "") or "").strip()
     return raw if raw else default
 
-PAYMENT_CARD_NUMBER = _str_env("PAYMENT_CARD_NUMBER", "8600060950825589")
-PAYMENT_CARD_HOLDER = _str_env("PAYMENT_CARD_HOLDER", "Sayitqulov S.")
+
+def _first_env(names, default: str) -> str:
+    """Bir nechta env nomidan birinchi BO'SH BO'LMAGAN qiymatni qaytaradi."""
+    for name in names:
+        raw = (os.getenv(name, "") or "").strip()
+        if raw:
+            return raw
+    return default
+
+
+CARD_NUMBER = _first_env(("CARD_NUMBER", "PAYMENT_CARD_NUMBER"), DEFAULT_CARD_NUMBER)
+CARD_HOLDER = _first_env(("CARD_HOLDER", "PAYMENT_CARD_HOLDER"), DEFAULT_CARD_HOLDER)
+# Eski nomlar — mavjud importlar (handlers/subscription.py va h.k.) buzilmasligi
+# uchun alias sifatida saqlanadi; qiymati CARD_NUMBER/CARD_HOLDER bilan bir xil.
+PAYMENT_CARD_NUMBER = CARD_NUMBER
+PAYMENT_CARD_HOLDER = CARD_HOLDER
 # Chek yuboriladigan admin username (@ belgisisiz ham bo'lishi mumkin)
 PAYMENT_ADMIN_USERNAME = os.getenv("PAYMENT_ADMIN_USERNAME", "").strip().lstrip("@")
 

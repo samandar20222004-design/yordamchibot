@@ -457,6 +457,51 @@ Test suite UZ/RU kalitlari **to'liq mos** ekanini har run'da tasdiqlaydi.
 - Sozlamalar: `AI_TOTAL_TIMEOUT` (default 35), `AI_CONNECT_TIMEOUT` (10),
   `AI_HARD_TIMEOUT` (butun provayder zanjiri uchun).
 
+### 5. Ishonchlilik paketi: fallback, concurrency, idempotent scheduler, karta config
+
+**Notanish xabar fallback'i (bot hech qachon jim qolmaydi).**
+`register_all_handlers()` ning ENG OXIRIDA `MessageHandler(UNKNOWN_MESSAGE_FILTER,
+unknown_message_fallback)` turadi — PTB bir guruhda faqat birinchi mos handlerni
+ishlatgani uchun u faqat ConversationHandler, buyruqlar, to'lov/rasm handlerlari
+xabarni tanimagandagina ishga tushadi. Foydalanuvchi dialogdan tashqarida
+tasodifiy matn, voice, audio, kontakt, fayl yoki stiker yuborsa — o'z tilida
+(`unknown_message_fallback`, uz/ru) javob va **asosiy reply-menyu** oladi.
+Dialog ichida bosqich qabul qilmaydigan tur kelsa — holat buzilmaydi, qisqa
+`unknown_in_dialog` eslatmasi chiqadi. Faqat shaxsiy chat; 2 s cooldown (spam yo'q).
+Yangi global handler qo'shsangiz — uni fallback qatoridan YUQORIGA qo'ying.
+
+**`main_menu_hint`** (uz: «Quyidagi menyudan kerakli bo‘limni tanlang 👇», ru:
+«Выберите нужный раздел из меню ниже 👇») — start, obuna tasdig'i
+(`sub_confirmed`), orqaga-menyu oqimlarida; `handlers/start.py: send_main_menu()`
+yordamchisi bilan.
+
+**Per-user concurrency (double click).** `main.py` da `GuardedApplication.process_update`
+har update'ni `UpdateLockManager` dagi `asyncio.Lock` (kalit `user:<id>` /
+`chat:<id>`) ostida ishlaydi: `concurrent_updates=True` bo'lsa ham bitta
+foydalanuvchining update'lari **ketma-ket**, turli foydalanuvchilar parallel.
+ConversationHandler holati va `context.user_data` race'dan himoyalangan.
+
+**Idempotent scheduler.** `_execute_send`: (1) `mark_post_processing` — Telegramga
+yuborishdan OLDIN (yozilmasa yuborilmaydi, keyinroq qayta uriniladi);
+(2) yuborilgach `posted + sent_message_id + sent_post_messages` markeri
+**backoff bilan** yoziladi (`SENT_MARKER_RETRY_DELAYS`); (3) DB baribir
+yotgan bo'lsa marker xotira + journal faylda (`SENT_JOURNAL_PATH`, default
+`/tmp/postassist_sent_journal.json`, `off` = faqat xotira) saqlanadi — shu post
+**hech qachon qayta yuborilmaydi**, har tick boshida `flush_unpersisted_sent_markers()`
+markerni DB'ga yozishga urinadi. `get_due_posts` faqat `pending` ni `FOR UPDATE
+SKIP LOCKED` bilan oladi; `recover_stale_processing_posts` yuborilganlarni
+`posted` ga o'tkazadi, faqat yuborilmaganlarni (10 daqiqadan eski) `pending` ga.
+
+**Karta rekvizitlari faqat config/.env da.** `config.CARD_NUMBER` /
+`config.CARD_HOLDER` (env `CARD_NUMBER` → `PAYMENT_CARD_NUMBER` → default
+`8600060950825589`; `CARD_HOLDER` → `PAYMENT_CARD_HOLDER` → `Sayitqulov S.`).
+Handlerlarda qattiq yozilgan raqam yo'q; eski `PAYMENT_CARD_*` nomlari alias.
+
+**Stiker filtri.** Post tayyorlash (GET_CONTENT) va tasdiqlash bosqichida stiker
+kelsa `np_sticker_not_allowed` (uz: «Kechirasiz, stikerlar post sifatida qabul
+qilinmaydi. Iltimos, rasm, video yoki matn yuboring», ru ekvivalenti); voice /
+video_note / kontakt — `np_media_not_allowed`. Holat saqlanadi, bot osilmaydi.
+
 ### Testlar
 
 ```bash
@@ -466,11 +511,11 @@ bash tests/run_tests.sh
 
 | Suite | Testlar |
 |---|---|
-| `unit_test.py` | 2082 |
-| `new_requirements_test.py` | 12 |
-| `schema_test.py` | 62 |
+| `unit_test.py` | 2085 |
+| `new_requirements_test.py` | 43 |
+| `schema_test.py` | 68 |
 | `ai_mock_test.py` | 52 |
-| `load_test.py` (real PostgreSQL) | 100 |
+| `load_test.py` (real PostgreSQL, `pip install pgserver`) | 100 |
 
 ## Bot "doim ishlashi" uchun
 

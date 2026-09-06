@@ -662,6 +662,852 @@ def test_main_menu_hint_translations():
     assert get_text("main_menu_hint", "ru") == "Выберите нужный раздел из меню ниже 👇"
 
 
+# ======================================================================
+# 6 TA YANGI TALAB: fallback, main_menu_hint, concurrency, idempotency,
+# karta config, stiker filtri
+# ======================================================================
+import asyncio as _asyncio
+import datetime as _dt
+import warnings as _warnings
+
+
+def _build_app():
+    """Haqiqiy PTB Application + register_all_handlers (tarmoqsiz)."""
+    from telegram.ext import ApplicationBuilder
+    from handlers import register_all_handlers
+    with _warnings.catch_warnings():
+        _warnings.simplefilter("ignore")
+        app = ApplicationBuilder().token("123456:TEST_TOKEN").build()
+        register_all_handlers(app)
+    return app
+
+
+class _RecBot:
+    """PTB shortcut'lari (reply_text → send_message) uchun yozib boruvchi bot."""
+    id = 1
+    username = "TestBot"
+    defaults = None
+
+    def __init__(self):
+        self.sent = []
+
+    async def send_message(self, chat_id=None, text=None, reply_markup=None, parse_mode=None, **kw):
+        self.sent.append({"chat_id": chat_id, "text": text, "reply_markup": reply_markup})
+        return SimpleNamespace(message_id=len(self.sent))
+
+
+def _private_update(uid=777, text=None, voice=False, contact=False, sticker=False,
+                    document=False, command=False, edited=False, chat_type="private", bot=None):
+    from telegram import (Update, Message, Chat, User, Voice, Contact, Sticker,
+                          Document, MessageEntity)
+    user = User(id=uid, first_name="Ali", is_bot=False)
+    chat = Chat(id=uid if chat_type == "private" else -100500, type=chat_type)
+    kw = dict(message_id=1, date=_dt.datetime.now(), chat=chat, from_user=user)
+    if text is not None:
+        kw["text"] = text
+    if command and text:
+        kw["entities"] = [MessageEntity(type="bot_command", offset=0, length=len(text.split()[0]))]
+    if voice:
+        kw["voice"] = Voice(file_id="v", file_unique_id="vu", duration=3)
+    if contact:
+        kw["contact"] = Contact(phone_number="+998901234567", first_name="A")
+    if sticker:
+        kw["sticker"] = Sticker(file_id="s", file_unique_id="su", width=1, height=1,
+                                is_animated=False, is_video=False, type="regular")
+    if document:
+        kw["document"] = Document(file_id="d", file_unique_id="du", file_name="a.pdf")
+    msg = Message(**kw)
+    if bot is not None:
+        msg.set_bot(bot)
+    upd = Update(update_id=1, edited_message=msg) if edited else Update(update_id=1, message=msg)
+    if bot is not None:
+        upd.set_bot(bot)
+    return upd
+
+
+def _first_matching_handler(app, upd):
+    """PTB Application.process_update kabi: guruh bo'yicha birinchi mos handler."""
+    for group in sorted(app.handlers):
+        for handler in app.handlers[group]:
+            check = handler.check_update(upd)
+            if check is None or check is False:
+                continue
+            return group, handler, check
+    return None
+
+
+async def _dispatch(app, upd, lang="uz"):
+    """Birinchi mos handlerni haqiqiy CallbackContext bilan ishga tushiradi."""
+    from telegram.ext import CallbackContext
+    found = _first_matching_handler(app, upd)
+    if not found:
+        return None
+    group, handler, check = found
+    ctx = CallbackContext(app, chat_id=upd.effective_chat.id, user_id=upd.effective_user.id)
+    ctx.user_data["lang"] = lang
+    await handler.handle_update(upd, app, check, ctx)
+    return handler
+
+
+def _patch_db(responses=None):
+    import database as db_mod
+    responses = responses or {}
+
+    async def fake_run_db(fn, *args, **kwargs):
+        name = getattr(fn, "__name__", "")
+        if name in responses:
+            val = responses[name]
+            return val(*args, **kwargs) if callable(val) else val
+        return None
+
+    orig = db_mod.run_db
+    db_mod.run_db = fake_run_db
+    return lambda: setattr(db_mod, "run_db", orig)
+
+
+# ---------------------------------------------------------------- 1. FALLBACK
+def test_unknown_fallback_texts_exact_uz_ru():
+    """Talab 1: fallback matni UZ/RU lug'atlarda aynan ko'rsatilgan shaklda."""
+    assert get_text("unknown_message_fallback", "uz") == (
+        "Kechirasiz, men bu xabarni tushunmadim. "
+        "Iltimos, quyidagi menyudan kerakli bo‘limni tanlang 👇"
+    )
+    assert get_text("unknown_message_fallback", "ru") == (
+        "Извините, я не понял это сообщение. "
+        "Пожалуйста, выберите нужный раздел из меню ниже 👇"
+    )
+
+
+def test_unknown_fallback_registered_last_in_register_all_handlers():
+    """Talab 1: fallback register_all_handlers ning ENG OXIRIDA (eng past prioritet)."""
+    from telegram.ext import MessageHandler
+    from handlers import unknown_message_fallback
+    src = (ROOT / "handlers/__init__.py").read_text(encoding="utf-8")
+    body = src.split("def register_all_handlers(app):", 1)[1]
+    i_fallback = body.rfind("unknown_message_fallback")
+    i_last_add = body.rfind("app.add_handler(")
+    assert i_fallback != -1 and i_last_add != -1
+    # Fallback ro'yxatga qo'shish — oxirgi add_handler chaqiruvi
+    assert i_last_add < i_fallback, "unknown_message_fallback oxirgi add_handler bo'lishi shart"
+    # catch-all expired_session_callback dan ham keyin
+    assert body.rfind("CallbackQueryHandler(expired_session_callback)") < i_fallback
+
+    app = _build_app()
+    groups = sorted(app.handlers)
+    last = app.handlers[groups[-1]][-1]
+    assert isinstance(last, MessageHandler)
+    assert last.callback is unknown_message_fallback
+
+
+def test_unknown_fallback_filter_scope():
+    """Fallback faqat shaxsiy chat, tahrirlanmagan, oddiy xabarlar uchun mos keladi."""
+    from telegram.ext import MessageHandler
+    from handlers import UNKNOWN_MESSAGE_FILTER, unknown_message_fallback
+    h = MessageHandler(UNKNOWN_MESSAGE_FILTER, unknown_message_fallback)
+    assert h.check_update(_private_update(text="salom"))
+    assert h.check_update(_private_update(voice=True))
+    assert h.check_update(_private_update(contact=True))
+    assert h.check_update(_private_update(sticker=True))
+    assert h.check_update(_private_update(document=True))
+    assert not h.check_update(_private_update(text="salom", chat_type="supergroup"))
+    assert not h.check_update(_private_update(text="salom", edited=True))
+
+
+def test_unknown_fallback_does_not_shadow_commands_and_menu_buttons():
+    """/start, /help va menyu tugmalari fallback'ga EMAS — o'z handlerlariga tushadi."""
+    from telegram.ext import CommandHandler, ConversationHandler
+    from handlers import unknown_message_fallback
+    from keyboards.default import BTN_NEW_POST, BTN_NEW_POST_RU, BTN_HELP, BTN_BACK, BTN_BACK_RU
+    app = _build_app()
+    bot = _RecBot()
+
+    g, h, _ = _first_matching_handler(app, _private_update(text="/start", command=True, bot=bot))
+    assert isinstance(h, CommandHandler) and h.callback.__name__ == "start"
+    g, h, _ = _first_matching_handler(app, _private_update(text="/help", command=True, bot=bot))
+    assert isinstance(h, CommandHandler)
+    for btn in (BTN_NEW_POST, BTN_NEW_POST_RU, BTN_HELP, BTN_BACK, BTN_BACK_RU):
+        g, h, _ = _first_matching_handler(app, _private_update(text=btn, bot=bot))
+        assert isinstance(h, ConversationHandler), btn
+    # noma'lum buyruq va tasodifiy matn → fallback
+    for txt, cmd in (("/nomalum", True), ("tasodifiy matn", False)):
+        g, h, _ = _first_matching_handler(app, _private_update(text=txt, command=cmd, bot=bot))
+        assert getattr(h, "callback", None) is unknown_message_fallback, txt
+
+
+def test_unknown_fallback_replies_in_user_language_with_main_menu():
+    """Dialogdan tashqarida: matn/voice/kontakt → foydalanuvchi tilida javob + asosiy menyu."""
+    import handlers as h_mod
+    from telegram import ReplyKeyboardMarkup
+    from keyboards.default import BTN_NEW_POST, BTN_NEW_POST_RU
+    app = _build_app()
+    restore = _patch_db({"get_user_language": "ru", "is_premium": True})
+    try:
+        async def run():
+            results = []
+            for lang, kind in (("uz", "text"), ("ru", "voice"), ("uz", "contact"), ("ru", "sticker")):
+                h_mod._UNKNOWN_FALLBACK_LAST.clear()
+                bot = _RecBot()
+                upd = _private_update(
+                    text="???" if kind == "text" else None,
+                    voice=(kind == "voice"), contact=(kind == "contact"),
+                    sticker=(kind == "sticker"), bot=bot,
+                )
+                handler = await _dispatch(app, upd, lang=lang)
+                assert handler is not None and handler.callback is h_mod.unknown_message_fallback
+                results.append((lang, bot.sent))
+            return results
+        for lang, sent in _asyncio.run(run()):
+            assert len(sent) == 1, sent
+            assert sent[0]["text"] == get_text("unknown_message_fallback", lang)
+            kb = sent[0]["reply_markup"]
+            assert isinstance(kb, ReplyKeyboardMarkup)
+            labels = [b.text for row in kb.keyboard for b in row]
+            assert (BTN_NEW_POST_RU if lang == "ru" else BTN_NEW_POST) in labels
+    finally:
+        restore()
+
+
+def test_unknown_fallback_uses_db_language_when_cache_empty():
+    """Bot restartdan keyin (user_data bo'sh) RU foydalanuvchi ruscha javob oladi."""
+    import handlers as h_mod
+    from telegram.ext import CallbackContext
+    app = _build_app()
+    restore = _patch_db({"get_user_language": "ru", "is_premium": True})
+    try:
+        h_mod._UNKNOWN_FALLBACK_LAST.clear()
+        bot = _RecBot()
+        upd = _private_update(text="что-то", bot=bot)
+        ctx = CallbackContext(app, chat_id=777, user_id=777)  # lang keshi YO'Q
+        _asyncio.run(h_mod.unknown_message_fallback(upd, ctx))
+        assert bot.sent and bot.sent[0]["text"] == get_text("unknown_message_fallback", "ru")
+        assert ctx.user_data.get("lang") == "ru"
+    finally:
+        restore()
+
+
+def test_unknown_fallback_cooldown_prevents_spam():
+    """Bir foydalanuvchiga ketma-ket xabarlar uchun bitta javob (cooldown)."""
+    import handlers as h_mod
+    h_mod._UNKNOWN_FALLBACK_LAST.clear()
+    assert h_mod._unknown_fallback_allowed(4242, now=1000.0) is True
+    assert h_mod._unknown_fallback_allowed(4242, now=1000.5) is False
+    assert h_mod._unknown_fallback_allowed(4242, now=1000.0 + h_mod.UNKNOWN_FALLBACK_COOLDOWN_SEC) is True
+    # boshqa foydalanuvchiga ta'sir qilmaydi
+    assert h_mod._unknown_fallback_allowed(4343, now=1000.0) is True
+    h_mod._UNKNOWN_FALLBACK_LAST.clear()
+
+
+def test_unknown_fallback_inside_dialog_does_not_break_state():
+    """Dialog ICHIDA (masalan, ball o'tkazish — faqat matn) voice kelsa: holat saqlanadi,
+    asosiy menyu YUBORILMAYDI, qisqa eslatma chiqadi."""
+    import handlers as h_mod
+    from telegram.ext import ConversationHandler
+    from handlers.start import TRANSFER_TARGET
+    app = _build_app()
+    conv = [h for h in app.handlers[0] if isinstance(h, ConversationHandler)][0]
+    restore = _patch_db({"get_user_language": "uz", "is_premium": True})
+    try:
+        h_mod._UNKNOWN_FALLBACK_LAST.clear()
+        conv._conversations[(777, 777)] = TRANSFER_TARGET
+        bot = _RecBot()
+        handler = _asyncio.run(_dispatch(app, _private_update(voice=True, bot=bot)))
+        assert handler is not None and handler.callback is h_mod.unknown_message_fallback
+        assert conv._conversations.get((777, 777)) == TRANSFER_TARGET, "dialog holati buzilmasligi kerak"
+        assert bot.sent and bot.sent[0]["text"] == get_text("unknown_in_dialog", "uz")
+        assert bot.sent[0]["reply_markup"] is None
+    finally:
+        conv._conversations.pop((777, 777), None)
+        restore()
+
+
+# ---------------------------------------------------------- 2. main_menu_hint
+def test_main_menu_hint_used_in_start_and_back_to_menu_flows():
+    """Talab 2: main_menu_hint start / orqaga-menyu oqimlarida ishlatiladi (uz/ru)."""
+    st_src = (ROOT / "handlers/start.py").read_text(encoding="utf-8")
+    sub_src = (ROOT / "handlers/subscription.py").read_text(encoding="utf-8")
+    assert 'get_text("main_menu_hint"' in st_src
+    assert 'get_text("main_menu_hint"' in sub_src
+    assert "def send_main_menu(" in st_src
+    # start.py da qattiq yozilgan o'zbekcha obuna matnlari qolmagan
+    assert "Obuna tasdiqlandi!" not in st_src
+    assert "Hali barcha kanallarga a'zo bo'lmadingiz" not in st_src
+    for lang in ("uz", "ru"):
+        hint = get_text("main_menu_hint", lang)
+        confirmed = get_text("sub_confirmed", lang, name="Ali", hint=hint)
+        assert hint in confirmed and "Ali" in confirmed
+        assert "{" not in confirmed
+
+
+def test_send_main_menu_helper_renders_hint_and_keyboard():
+    """send_main_menu: matn berilmasa main_menu_hint + foydalanuvchi tilidagi klaviatura."""
+    import importlib
+    from telegram import ReplyKeyboardMarkup
+    from keyboards.default import BTN_NEW_POST_RU, BTN_NEW_POST
+    st_mod = importlib.import_module("handlers.start")
+
+    async def run():
+        out = {}
+        for lang in ("uz", "ru"):
+            bot = _RecBot()
+            ctx = SimpleNamespace(bot=bot, user_data={"lang": lang})
+            await st_mod.send_main_menu(ctx, 555, lang, False)
+            out[lang] = bot.sent
+        return out
+
+    res = _asyncio.run(run())
+    for lang, sent in res.items():
+        assert len(sent) == 1
+        assert sent[0]["text"] == get_text("main_menu_hint", lang)
+        kb = sent[0]["reply_markup"]
+        assert isinstance(kb, ReplyKeyboardMarkup)
+        labels = [b.text for row in kb.keyboard for b in row]
+        assert (BTN_NEW_POST_RU if lang == "ru" else BTN_NEW_POST) in labels
+
+
+def test_subscription_check_callback_localized_ru():
+    """Obuna tasdiqlangach RU foydalanuvchi ruscha tabrik + main_menu_hint + menyu oladi."""
+    import importlib
+    from telegram import ReplyKeyboardMarkup
+    st_mod = importlib.import_module("handlers.start")
+
+    async def fake_check(bot, uid):
+        return True, []
+
+    orig_check = st_mod.check_user_subscribed
+    st_mod.check_user_subscribed = fake_check
+    restore = _patch_db({"get_user_language": "ru"})
+    try:
+        bot = _RecBot()
+
+        class _Q:
+            from_user = SimpleNamespace(id=901, first_name="Ivan")
+            async def answer(self, *a, **k): return True
+            class message:
+                @staticmethod
+                async def delete(): return True
+
+        upd = SimpleNamespace(callback_query=_Q(), effective_user=_Q.from_user)
+        ctx = SimpleNamespace(bot=bot, user_data={})
+        _asyncio.run(st_mod.subscription_check_callback(upd, ctx))
+        assert len(bot.sent) == 1
+        text = bot.sent[0]["text"]
+        assert "Подписка подтверждена" in text and "Ivan" in text
+        assert get_text("main_menu_hint", "ru") in text
+        assert isinstance(bot.sent[0]["reply_markup"], ReplyKeyboardMarkup)
+    finally:
+        st_mod.check_user_subscribed = orig_check
+        restore()
+
+
+def test_i18n_new_keys_parity_and_no_hardcoded_sub_text():
+    """Yangi kalitlar ikkala tilda; parity buzilmagan; _deny_if_unsubscribed lokalizatsiya qilingan."""
+    from locales.translations import translation_parity_report, has_key
+    for key in ("unknown_message_fallback", "unknown_in_dialog", "np_sticker_not_allowed",
+                "sub_required", "sub_confirmed", "sub_not_yet_alert", "sub_not_yet_msg",
+                "main_menu_hint"):
+        assert has_key(key, "uz") and has_key(key, "ru"), key
+        assert get_text(key, "uz") != get_text(key, "ru"), key
+    assert translation_parity_report()["in_sync"] is True
+    h_src = (ROOT / "handlers/__init__.py").read_text(encoding="utf-8")
+    assert 'get_text("sub_required"' in h_src
+    assert "Botdan to'liq foydalanish uchun quyidagi rasmiy kanallarga" not in h_src
+
+
+# ------------------------------------------------------------ 3. CONCURRENCY
+def test_double_click_same_user_is_serialized_no_state_corruption():
+    """Talab 3: bitta foydalanuvchining 2 ta parallel update'i (double click)
+    GuardedApplication.process_update orqali KETMA-KET ishlanadi, boshqa
+    foydalanuvchi esa parallel; user_data'dagi read-modify-write yo'qolmaydi."""
+    import main as main_mod
+
+    events = []
+
+    class _Parent:
+        """Application o'rnini bosuvchi: haqiqiy process_update ish yukini taqlid qiladi."""
+        user_data = {}
+
+        async def process_update(self, update):
+            uid = update.effective_user.id
+            ud = self.user_data.setdefault(uid, {"step": 0})
+            step = ud["step"]
+            events.append(("start", uid, update.update_id))
+            await _asyncio.sleep(0.02)  # DB/Telegram I/O taqlidi
+            ud["step"] = step + 1        # qulfsiz bo'lsa ikkinchi bosish yo'qolardi
+            events.append(("end", uid, update.update_id))
+
+    class _Guarded(main_mod.GuardedApplication):
+        """Application.__init__ siz (tarmoqsiz) — faqat process_update mantiqi."""
+        def __init__(self):
+            self._lock_manager = main_mod.UpdateLockManager()
+            self._parent = _Parent()
+
+        async def _answer_rate_limited(self, update):
+            events.append(("rate_limited", update.effective_user.id, update.update_id))
+
+    # super().process_update → _Parent.process_update
+    async def _super_process(self, update):
+        return await self._parent.process_update(update)
+
+    orig_process = main_mod.Application.process_update
+    main_mod.Application.process_update = _super_process
+    # flood/dublikat himoyasi testga aralashmasin
+    orig_flood, orig_rate, orig_dup = main_mod.check_global_flood, main_mod.check_rate_limit, main_mod.is_duplicate_message
+    main_mod.check_global_flood = lambda: False
+    main_mod.check_rate_limit = lambda *a, **k: (False, False)
+    main_mod.is_duplicate_message = lambda *a, **k: False
+    try:
+        app = _Guarded()
+
+        def upd(uid, n):
+            return SimpleNamespace(update_id=n, effective_user=SimpleNamespace(id=uid),
+                                   effective_chat=SimpleNamespace(id=uid),
+                                   effective_message=SimpleNamespace(text=f"t{n}"), callback_query=None)
+
+        async def run():
+            await _asyncio.gather(app.process_update(upd(1, 1)), app.process_update(upd(1, 2)),
+                                  app.process_update(upd(2, 3)))
+        _asyncio.run(run())
+    finally:
+        main_mod.Application.process_update = orig_process
+        main_mod.check_global_flood, main_mod.check_rate_limit, main_mod.is_duplicate_message = orig_flood, orig_rate, orig_dup
+
+    assert app._parent.user_data[1]["step"] == 2, app._parent.user_data  # ikkala bosish ham hisobga olindi
+    assert app._parent.user_data[2]["step"] == 1
+    idx = {(e[0], e[2]): i for i, e in enumerate(events)}
+    assert idx[("end", 1)] < idx[("start", 2)], events   # user 1: seriyali
+    assert idx[("start", 3)] < idx[("end", 1)], events   # user 2: user 1 ni kutmadi
+    assert not [e for e in events if e[0] == "rate_limited"]
+    assert len(app._lock_manager._locks) == 0           # leak yo'q
+
+
+def test_main_uses_guarded_application_with_concurrent_updates():
+    src = (ROOT / "main.py").read_text(encoding="utf-8")
+    assert "class GuardedApplication" in src
+    assert "concurrent_updates(True)" in src
+    assert "asyncio.Lock" in src
+    assert "def get_update_lock_key" in src
+
+
+# ------------------------------------------------------------ 4. IDEMPOTENCY
+def _sch_isolated():
+    """Scheduler idempotency testlari uchun toza xotira/journal holati."""
+    import scheduler as sch_mod
+    sch_mod._UNPERSISTED_SENT.clear()
+    sch_mod._journal_loaded = True  # diskdagi journalni o'qimaymiz
+    return sch_mod
+
+
+def test_scheduler_restart_does_not_resend_after_transient_db_error():
+    """Talab 4: send → DB xatosi → restart: post QAYTA YUBORILMAYDI.
+
+    Oqim: mark_post_processing → Telegram send OK → mark_post_as_sent XATO →
+    backoff bilan qayta urinish → yozildi. Keyingi tick get_due_posts faqat
+    'pending' ni oladi; recover_stale_processing_posts esa sent_message_id /
+    sent_post_messages bo'yicha 'posted' ga o'tkazadi — 'pending' ga qaytarmaydi."""
+    sch_mod = _sch_isolated()
+    db_src = (ROOT / "database.py").read_text(encoding="utf-8")
+    sch_src = (ROOT / "scheduler.py").read_text(encoding="utf-8")
+
+    # get_due_posts faqat pending'ni oladi (processing qayta olinmaydi)
+    body = db_src.split("def get_due_posts", 1)[1].split("\ndef ", 1)[0]
+    assert "status = 'pending'" in body and "FOR UPDATE SKIP LOCKED" in body
+    assert "SET status = 'processing'" in body
+    # recover: yuborilganlar posted, faqat yuborilmaganlar pending
+    rec = db_src.split("def recover_stale_processing_posts", 1)[1].split("\ndef ", 1)[0]
+    assert "SET status = 'posted'" in rec and "sent_post_messages" in rec
+    assert "sent_message_id IS NULL" in rec
+    # scheduler: processing send'dan oldin; send'dan keyin marker backoff bilan
+    assert "db.mark_post_processing" in sch_src
+    assert "await _persist_sent_marker(sent_marker)" in sch_src
+    assert "await flush_unpersisted_sent_markers()" in sch_src
+    # DB yozuv funksiyalari natija qaytaradi (False = xato) — scheduler shunga tayanadi
+    for fn in ("mark_post_processing", "mark_post_status", "mark_post_as_sent"):
+        fn_body = db_src.split(f"def {fn}(", 1)[1].split("\ndef ", 1)[0]
+        assert "return True" in fn_body and "return False" in fn_body, fn
+
+    calls = []
+    fail_left = {"n": 2}   # mark_post_as_sent ikki marta "uzilib", uchinchisida yoziladi
+
+    async def fake_run_db(fn, *args, **kwargs):
+        name = getattr(fn, "__name__", "")
+        calls.append((name, args))
+        if name == "is_premium":
+            return True
+        if name == "get_setting":
+            return ""
+        if name == "mark_post_as_sent":
+            if fail_left["n"] > 0:
+                fail_left["n"] -= 1
+                raise RuntimeError("transient DB error")
+            return True
+        if name == "mark_post_status":
+            return False  # zaxira yo'li ham vaqtincha ishlamaydi
+        return None
+
+    sleeps = []
+
+    async def fake_sleep(sec):
+        sleeps.append(float(sec))
+
+    class _Bot:
+        def __init__(self): self.n = 0
+        async def send_message(self, chat_id, text, **kw):
+            self.n += 1
+            return SimpleNamespace(message_id=4242)
+
+    bot = _Bot()
+    orig, orig_sleep = sch_mod.db.run_db, sch_mod.asyncio.sleep
+    sch_mod.db.run_db, sch_mod.asyncio.sleep = fake_run_db, fake_sleep
+    try:
+        post = (777, 123456789, "-100123", "text", "Idempotent", None, None, None, False, None,
+                "none", None, None, None, 0, None)
+        _asyncio.run(sch_mod._execute_send(bot, post))
+        names = [c[0] for c in calls]
+        assert bot.n == 1
+        assert names.index("mark_post_processing") < names.index("mark_post_as_sent")
+        assert names.count("mark_post_as_sent") == 3          # 2 xato + 1 muvaffaqiyat
+        assert sleeps[:2] == list(sch_mod.SENT_MARKER_RETRY_DELAYS[:2])  # backoff
+        assert "retry_post" not in names
+        assert 777 not in sch_mod._UNPERSISTED_SENT               # marker yozildi → guard tozalandi
+
+        # "restart" — scheduler ticki: get_due_posts faqat pending ni beradi → 777 qayta chiqmaydi
+        async def fake_due(fn, *a, **k):
+            name = getattr(fn, "__name__", "")
+            calls.append((name, a))
+            return [] if name == "get_due_posts" else None
+        sch_mod.db.run_db = fake_due
+        _asyncio.run(sch_mod.check_and_send_posts(bot))
+        assert bot.n == 1, "post faqat BIR marta yuborilishi shart"
+    finally:
+        sch_mod.db.run_db, sch_mod.asyncio.sleep = orig, orig_sleep
+        sch_mod._UNPERSISTED_SENT.clear()
+
+
+def test_scheduler_persistent_db_outage_guard_and_flush():
+    """DB uzoq vaqt yotsa: post yuborilgach marker xotira/journal guard'ida qoladi;
+    stale-recovery uni 'pending' qilib qayta bersa ham QAYTA YUBORILMAYDI; DB
+    tiklangach keyingi tick boshida marker yoziladi (flush)."""
+    sch_mod = _sch_isolated()
+    db_down = {"v": True}
+    calls = []
+    # Soxta DB holati: marker yozilmaguncha stale-recovery postni 'pending' ga
+    # qaytargan deb faraz qilamiz (eng yomon holat) — u har tick'da yana keladi.
+    db_status = {900: "pending"}
+
+    async def fake_run_db(fn, *args, **kwargs):
+        name = getattr(fn, "__name__", "")
+        calls.append((name, args))
+        if name == "is_premium":
+            return True
+        if name == "get_setting":
+            return ""
+        if name in ("mark_post_as_sent", "mark_post_status", "reschedule_recurring_post"):
+            if db_down["v"]:
+                raise RuntimeError("DB down")
+            if name == "mark_post_as_sent":
+                db_status[args[0]] = "posted"
+            elif name == "mark_post_status":
+                db_status[args[0]] = args[1]
+            return True
+        if name == "get_due_posts":
+            if db_status.get(900) != "pending":
+                return []  # haqiqiy DB: 'posted' post hech qachon olinmaydi
+            return [(900, 1, "-100", "text", "Bir marta", None, None, None, False, None,
+                     "none", None, None, None, 0, None)]
+        return None
+
+    async def fake_sleep(sec):
+        return None
+
+    class _Bot:
+        def __init__(self): self.n = 0
+        async def send_message(self, chat_id, text, **kw):
+            self.n += 1
+            return SimpleNamespace(message_id=1)
+
+    bot = _Bot()
+    orig, orig_sleep = sch_mod.db.run_db, sch_mod.asyncio.sleep
+    sch_mod.db.run_db, sch_mod.asyncio.sleep = fake_run_db, fake_sleep
+    try:
+        # Tick 1: yuboriladi, marker yozilmaydi (DB down) → guard'da qoladi
+        _asyncio.run(sch_mod.check_and_send_posts(bot))
+        assert bot.n == 1
+        assert sch_mod.is_sent_but_unpersisted(900)
+        assert "retry_post" not in [c[0] for c in calls]
+        # Tick 2 (DB hali down, post yana 'pending' deb keladi): QAYTA YUBORILMAYDI
+        _asyncio.run(sch_mod.check_and_send_posts(bot))
+        assert bot.n == 1, "DB yotganda ham post ikki marta chiqmasligi shart"
+        # DB tiklandi → tick 3 boshida flush marker yozadi, post qayta yuborilmaydi
+        db_down["v"] = False
+        calls.clear()
+        _asyncio.run(sch_mod.check_and_send_posts(bot))
+        assert bot.n == 1
+        names = [c[0] for c in calls]
+        assert names and names[0] == "mark_post_as_sent" and names.index("mark_post_as_sent") < names.index("get_due_posts")
+        assert not sch_mod.is_sent_but_unpersisted(900)
+    finally:
+        sch_mod.db.run_db, sch_mod.asyncio.sleep = orig, orig_sleep
+        sch_mod._UNPERSISTED_SENT.clear()
+
+
+def test_scheduler_sent_journal_survives_restart(tmp_path=None):
+    """Journal fayli: marker restartdan keyin ham o'qiladi (best-effort) va guard ishlaydi."""
+    import importlib
+    import tempfile
+    sch_mod = _sch_isolated()
+    path = os.path.join(tempfile.mkdtemp(prefix="sent_journal_"), "journal.json")
+    orig_path = sch_mod.SENT_JOURNAL_PATH
+    sch_mod.SENT_JOURNAL_PATH = path
+    try:
+        marker = sch_mod._build_sent_marker(555, 77, "-100", 0, [78], "daily", None,
+                                            _dt.time(10, 0), None)
+        assert marker["next_time"]  # takrorlanuvchi post uchun keyingi vaqt saqlanadi
+        sch_mod._UNPERSISTED_SENT[555] = marker
+        sch_mod._journal_save()
+        assert os.path.isfile(path)
+        # "restart": xotira bo'sh, journal qayta o'qiladi
+        sch_mod._UNPERSISTED_SENT.clear()
+        sch_mod._journal_loaded = False
+        assert sch_mod.is_sent_but_unpersisted(555)
+        assert sch_mod._UNPERSISTED_SENT[555]["message_id"] == 77
+        # DB tiklangach flush: posted + reschedule + pending; journal tozalanadi
+        calls = []
+
+        async def ok_db(fn, *a, **k):
+            calls.append((getattr(fn, "__name__", ""), a))
+            return True
+        orig = sch_mod.db.run_db
+        sch_mod.db.run_db = ok_db
+        try:
+            assert _asyncio.run(sch_mod.flush_unpersisted_sent_markers()) == 1
+        finally:
+            sch_mod.db.run_db = orig
+        names = [c[0] for c in calls]
+        assert names == ["mark_post_as_sent", "reschedule_recurring_post", "mark_post_status"], names
+        assert ("mark_post_status", (555, "pending")) in calls
+        assert not os.path.isfile(path) and not sch_mod._UNPERSISTED_SENT
+    finally:
+        sch_mod.SENT_JOURNAL_PATH = orig_path
+        sch_mod._UNPERSISTED_SENT.clear()
+        sch_mod._journal_loaded = True
+
+
+def test_scheduler_processing_write_failure_aborts_before_send():
+    """DB 'processing' markerini yozolmasa post YUBORILMAYDI (avval to'xtaymiz, keyin qayta navbat)."""
+    sch_mod = _sch_isolated()
+    calls = []
+
+    async def fake_run_db(fn, *args, **kwargs):
+        name = getattr(fn, "__name__", "")
+        calls.append((name, args))
+        if name == "mark_post_processing":
+            return False
+        if name == "get_due_posts":
+            return [(901, 1, "-100", "text", "x", None, None, None, False, None,
+                     "none", None, None, None, 0, None)]
+        return None
+
+    class _Bot:
+        def __init__(self): self.n = 0
+        async def send_message(self, *a, **k):
+            self.n += 1
+            return SimpleNamespace(message_id=1)
+
+    bot = _Bot()
+    orig = sch_mod.db.run_db
+    sch_mod.db.run_db = fake_run_db
+    try:
+        _asyncio.run(sch_mod.check_and_send_posts(bot))
+    finally:
+        sch_mod.db.run_db = orig
+    assert bot.n == 0
+    names = [c[0] for c in calls]
+    assert "retry_post" in names  # keyinroq qayta uriniladi, post yo'qolmaydi
+
+
+# --------------------------------------------------------- 5. KARTA CONFIG
+def test_card_config_defaults_env_override_and_no_hardcoded_card():
+    """Talab 5: CARD_NUMBER/CARD_HOLDER config + .env; handlerlarda qattiq raqam yo'q."""
+    import importlib
+    import config as cfg
+    assert cfg.DEFAULT_CARD_NUMBER == "8600060950825589"
+    assert cfg.DEFAULT_CARD_HOLDER == "Sayitqulov S."
+    assert cfg.CARD_NUMBER and cfg.CARD_HOLDER
+    # Eski nomlar alias bo'lib qoladi
+    assert cfg.PAYMENT_CARD_NUMBER == cfg.CARD_NUMBER
+    assert cfg.PAYMENT_CARD_HOLDER == cfg.CARD_HOLDER
+
+    # env override: CARD_* ustuvor, keyin PAYMENT_CARD_*, keyin default
+    saved = {k: os.environ.get(k) for k in ("CARD_NUMBER", "CARD_HOLDER",
+                                            "PAYMENT_CARD_NUMBER", "PAYMENT_CARD_HOLDER")}
+    try:
+        for k in saved:
+            os.environ.pop(k, None)
+        importlib.reload(cfg)
+        assert cfg.CARD_NUMBER == "8600060950825589" and cfg.CARD_HOLDER == "Sayitqulov S."
+        os.environ["PAYMENT_CARD_NUMBER"] = "9860111122223333"
+        os.environ["PAYMENT_CARD_HOLDER"] = "Legacy H."
+        importlib.reload(cfg)
+        assert cfg.CARD_NUMBER == "9860111122223333" and cfg.CARD_HOLDER == "Legacy H."
+        os.environ["CARD_NUMBER"] = "5614680000000001"
+        os.environ["CARD_HOLDER"] = "Test T."
+        importlib.reload(cfg)
+        assert cfg.CARD_NUMBER == "5614680000000001" and cfg.CARD_HOLDER == "Test T."
+        assert cfg.PAYMENT_CARD_NUMBER == "5614680000000001"
+        os.environ["CARD_NUMBER"] = "   "  # bo'sh → keyingi manba
+        importlib.reload(cfg)
+        assert cfg.CARD_NUMBER == "9860111122223333"
+    finally:
+        for k, v in saved.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
+        importlib.reload(cfg)
+
+    # Handlerlarda karta raqami qattiq yozilmagan; subscription config'dan oladi
+    for rel in ("handlers/payment_receipt.py", "handlers/subscription.py"):
+        src = (ROOT / rel).read_text(encoding="utf-8")
+        assert "8600060950825589" not in src, rel
+        assert "8600 0609 5082 5589" not in src, rel
+        assert "Sayitqulov" not in src, rel
+    sub_src = (ROOT / "handlers/subscription.py").read_text(encoding="utf-8")
+    assert "CARD_NUMBER" in sub_src and "CARD_HOLDER" in sub_src
+    assert "PAYMENT_CARD_NUMBER" not in sub_src
+
+    # .env.example (ikkala fayl) hujjatlashtirilgan
+    for rel in (".env.example", "telegram_bot/.env.example"):
+        env_src = (ROOT.parent / rel).read_text(encoding="utf-8")
+        assert "CARD_NUMBER=" in env_src and "CARD_HOLDER=" in env_src, rel
+        assert "8600060950825589" in env_src and "Sayitqulov S." in env_src, rel
+
+
+def test_card_text_renders_config_values():
+    import config as cfg
+    import handlers.subscription as sub
+    for lang in ("uz", "ru"):
+        text = sub._build_card_payment_text(123, lang, "1m")
+        assert sub._fmt_card_number(cfg.CARD_NUMBER) in text, lang
+        assert cfg.CARD_HOLDER in text, lang
+
+
+# ------------------------------------------------------- 6. STIKER FILTRI
+def test_sticker_warning_texts_exact():
+    """Talab 6: stiker ogohlantirishi UZ aynan talabdagidek, RU ekvivalenti mavjud."""
+    assert get_text("np_sticker_not_allowed", "uz") == (
+        "Kechirasiz, stikerlar post sifatida qabul qilinmaydi. "
+        "Iltimos, rasm, video yoki matn yuboring"
+    )
+    ru = get_text("np_sticker_not_allowed", "ru")
+    assert ru and ru != get_text("np_sticker_not_allowed", "uz") and "стикер" in ru.lower()
+
+
+def test_content_received_rejects_sticker_in_user_language():
+    """GET_CONTENT bosqichida stiker → o'z tilida ogohlantirish, holat GET_CONTENT da qoladi."""
+    import handlers.new_post as np_mod
+    from handlers.new_post import GET_CONTENT, content_received, classify_post_content, is_sticker_message
+
+    class _Msg:
+        def __init__(self, **kw):
+            self.sticker = kw.get("sticker")
+            self.voice = kw.get("voice")
+            self.video_note = kw.get("video_note")
+            self.contact = kw.get("contact")
+            self.photo = kw.get("photo")
+            self.video = kw.get("video")
+            self.document = kw.get("document")
+            self.audio = kw.get("audio")
+            self.animation = kw.get("animation")
+            self.text = kw.get("text")
+            self.caption = kw.get("caption", "")
+            self.media_group_id = None
+            self.replies = []
+
+        async def reply_text(self, text, **kw):
+            self.replies.append(text)
+
+    _f = SimpleNamespace(file_id="f1")
+    assert is_sticker_message(_Msg(sticker=_f))
+    assert not is_sticker_message(_Msg(text="salom"))
+    assert classify_post_content(_Msg(sticker=_f)) == "sticker"
+    assert classify_post_content(_Msg(voice=_f)) == "unsupported"
+    assert classify_post_content(_Msg(video_note=_f)) == "unsupported"
+    assert classify_post_content(_Msg(contact=_f)) == "unsupported"
+    assert classify_post_content(_Msg(text="matn")) == "ok"
+    assert classify_post_content(_Msg(photo=[SimpleNamespace(file_id="p")])) == "ok"
+
+    async def run(lang):
+        msg = _Msg(sticker=SimpleNamespace(file_id="st1"))
+        upd = SimpleNamespace(message=msg, effective_user=SimpleNamespace(id=42),
+                              effective_message=msg)
+        ctx = SimpleNamespace(user_data={"lang": lang, "post_channel": "-100"}, bot=None)
+        state = await content_received(upd, ctx)
+        return state, msg.replies, ctx.user_data
+
+    for lang in ("uz", "ru"):
+        state, replies, ud = _asyncio.run(run(lang))
+        assert state == GET_CONTENT, (lang, state)
+        assert replies == [get_text("np_sticker_not_allowed", lang)], (lang, replies)
+        assert "file_id" not in ud and "post_type" not in ud  # stiker post bo'lib qolmadi
+
+    # voice → umumiy "media qabul qilinmaydi" xabari (stiker matni emas)
+    async def run_voice():
+        msg = _Msg(voice=SimpleNamespace(file_id="v1"))
+        upd = SimpleNamespace(message=msg, effective_user=SimpleNamespace(id=42), effective_message=msg)
+        ctx = SimpleNamespace(user_data={"lang": "uz"}, bot=None)
+        return await content_received(upd, ctx), msg.replies
+    state, replies = _asyncio.run(run_voice())
+    assert state == GET_CONTENT and replies == [get_text("np_media_not_allowed", "uz")]
+
+
+def test_edit_confirm_rejects_sticker_keeps_card():
+    """Tasdiqlash/tahrirlash bosqichida stiker → ogohlantirish, CONFIRM_POST holati, karta saqlanadi."""
+    from handlers.new_post import CONFIRM_POST, edit_confirm_message_received
+
+    class _Msg:
+        sticker = SimpleNamespace(file_id="st")
+        text = None
+        caption = None
+
+        def __init__(self): self.replies = []
+        async def reply_text(self, text, **kw): self.replies.append(text)
+
+    async def run(lang):
+        msg = _Msg()
+        upd = SimpleNamespace(message=msg, effective_user=SimpleNamespace(id=42), effective_message=msg)
+        ctx = SimpleNamespace(user_data={"lang": lang, "content": "asl matn", "post_type": "photo",
+                                         "file_id": "ph"}, bot=None)
+        return await edit_confirm_message_received(upd, ctx), msg.replies, ctx.user_data
+
+    for lang in ("uz", "ru"):
+        state, replies, ud = _asyncio.run(run(lang))
+        assert state == CONFIRM_POST
+        assert replies == [get_text("np_sticker_not_allowed", lang)]
+        assert ud["content"] == "asl matn" and ud["file_id"] == "ph" and ud["post_type"] == "photo"
+
+
+def test_sticker_in_get_content_state_goes_to_conversation_not_fallback():
+    """To'liq handler zanjiri: GET_CONTENT holatida stiker ConversationHandler ga tushadi
+    (content_received) — fallback emas — va aynan stiker ogohlantirishi yuboriladi."""
+    import handlers as h_mod
+    from telegram.ext import ConversationHandler
+    from handlers.new_post import GET_CONTENT
+    app = _build_app()
+    conv = [h for h in app.handlers[0] if isinstance(h, ConversationHandler)][0]
+    restore = _patch_db({"get_user_language": "ru", "is_premium": True})
+    try:
+        h_mod._UNKNOWN_FALLBACK_LAST.clear()
+        conv._conversations[(777, 777)] = GET_CONTENT
+        bot = _RecBot()
+        handler = _asyncio.run(_dispatch(app, _private_update(sticker=True, bot=bot), lang="ru"))
+        assert isinstance(handler, ConversationHandler)
+        assert conv._conversations.get((777, 777)) == GET_CONTENT
+        assert bot.sent and bot.sent[0]["text"] == get_text("np_sticker_not_allowed", "ru")
+    finally:
+        conv._conversations.pop((777, 777), None)
+        restore()
+
+
 if __name__ == "__main__":
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     for test in tests:

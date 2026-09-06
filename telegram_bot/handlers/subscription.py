@@ -4,7 +4,7 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, Labeled
 from telegram.ext import ContextTypes, ConversationHandler
 from config import (
     ADMIN_IDS_SET,
-    PAYMENT_CARD_NUMBER, PAYMENT_CARD_HOLDER, PAYMENT_ADMIN_USERNAME,
+    CARD_NUMBER, CARD_HOLDER, PAYMENT_ADMIN_USERNAME,
     PAYMENT_PRICE_1M_UZS, PAYMENT_PRICE_3M_UZS, PAYMENT_PRICE_1Y_UZS,
 )
 import database as db
@@ -50,7 +50,10 @@ def _fmt_uzs(amount: int) -> str:
 
 
 def _fmt_card_number(card: str) -> str:
-    """8600060950825589 → '8600 0609 5082 5589' (o'qish oson format)."""
+    """16 xonali raqamni 4 talab ajratadi: '1234567812345678' → '1234 5678 1234 5678'.
+
+    Karta raqamining o'zi kodda saqlanmaydi — ``config.CARD_NUMBER`` (.env) dan keladi.
+    """
     digits = "".join(ch for ch in str(card or "") if ch.isdigit())
     if not digits:
         return str(card or "")
@@ -189,11 +192,13 @@ def _build_card_payment_text(
         get_text("card_payment_selected", lang, tarif=plan_name, summa=price),
         "",
     ]
-    if PAYMENT_CARD_NUMBER:
+    # Karta rekvizitlari FAQAT config/.env dan (CARD_NUMBER / CARD_HOLDER) —
+    # kodda qattiq yozilgan raqam yo'q.
+    if CARD_NUMBER:
         parts.append(get_text(
             "card_payment_card", lang,
-            card=html_escape(_fmt_card_number(PAYMENT_CARD_NUMBER)),
-            holder=html_escape(PAYMENT_CARD_HOLDER or "—"),
+            card=html_escape(_fmt_card_number(CARD_NUMBER)),
+            holder=html_escape(CARD_HOLDER or "—"),
         ))
     else:
         parts.append(get_text("card_payment_no_card", lang))
