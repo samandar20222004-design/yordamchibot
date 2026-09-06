@@ -549,6 +549,13 @@ async def extras_close_callback(update: Update, context: ContextTypes.DEFAULT_TY
 async def cancel_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Foydalanuvchi band holatda /cancel bosganda yoki tugma bosganda — aniq xabar (uz/ru)."""
     user_id = update.effective_user.id
+    # Tugallanmagan albom yig'uvchi task'ini ham bekor qilamiz (leak/ustiga
+    # yozilish oldini olish uchun).
+    try:
+        from handlers.new_post import cancel_album_collections
+        cancel_album_collections(user_id)
+    except Exception:
+        pass
     is_admin = (user_id in ADMIN_IDS_SET)
     lang = await ensure_user_lang(context, user_id)
     clear_fsm_data(context)

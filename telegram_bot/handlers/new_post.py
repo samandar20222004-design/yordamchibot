@@ -4,7 +4,7 @@ import re
 import time
 from datetime import datetime, timedelta
 import pytz
-from telegram import Update, ReplyKeyboardMarkup
+from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove
 from telegram.ext import ContextTypes, ConversationHandler
 from config import ADMIN_IDS_SET
 import database as db
@@ -15,7 +15,8 @@ from keyboards.default import (
     BTN_DUR_1W, BTN_DUR_1M, BTN_DUR_3M, BTN_DUR_6M, BTN_DUR_1Y, BTN_DUR_INF,
     WEEKDAY_MAP, WEEKDAY_LABELS,
     BTN_ALL_CHANNELS_TARGET_RU, BTN_SKIP_BUTTON_RU, BTN_ADD_URL_BUTTON_RU,
-    BTN_SKIP_URL_BUTTON_RU, BTN_NO_REACT_RU, BTN_BACK_RU, BTN_BACK_TO_CONFIRM_RU,
+    BTN_SKIP_URL_BUTTON_RU, BTN_NO_REACT, BTN_NO_REACT_RU, BTN_BACK_RU,
+    BTN_BACK_TO_CONFIRM_RU,
     BTN_T_5MIN_RU, BTN_T_15MIN_RU, BTN_T_1H_RU, BTN_T_DAILY_RU, BTN_T_WEEKLY_RU,
     BTN_DUR_1W_RU, BTN_DUR_1M_RU, BTN_DUR_3M_RU, BTN_DUR_6M_RU, BTN_DUR_1Y_RU,
     BTN_DUR_INF_RU, WEEKDAY_MAP_RU, WEEKDAY_LABELS_RU,
@@ -40,10 +41,40 @@ from locales.translations import clear_fsm_data, get_lang, get_text
 tashkent_tz = pytz.timezone("Asia/Tashkent")
 
 # Albom (media_group) yig'ish: bir nechta rasm/video bitta post bo'lishi uchun.
-# concurrent_updates=True bo'lgani uchun token+sleep ishlaydi.
-_ALBUM_BUFFERS = {}
-_ALBUM_WAIT_SECONDS = 1.5
-_ALBUM_MAX_ITEMS = 10
+#
+# MUHIM: ``GuardedApplication`` har bir foydalanuvchi update'larini per-user
+# lock bilan SERIYALI qayta ishlaydi. Shu sababli handler ICHIDA
+# ``await asyncio.sleep(...)`` qilish mumkin EMAS — albomning qolgan qismlari
+# lock ortida kutib qoladi va har bir rasm ALOHIDA post bo'lib ketadi.
+# Yechim: birinchi albom xabari kelganda arka fonda AJRATILGAN yig'uvchi task
+# (collector) ishga tushadi; qolgan xabarlar shu task kutayotganda buferga
+# yig'iladi; vaqt tugagach bitta "Albom" posti sifatida yakunlanadi.
+_ALBUM_BUFFERS: dict = {}       # (user_id, media_group_id) -> buffer dict
+_ALBUM_WAIT_SECONDS = 3.0       # Telegram albom qismlari kelishi uchun kutiladigan vaqt
+_ALBUM_MAX_ITEMS = 10           # Telegram albom chegarasi
+
+# "⏩ O'tkazib yuborish" — pastki reply-klaviaturadagi skip tugmalari.
+# Eski/asosiy yorliqlar (⏭ ...), legacy "Tugmasiz davom etish" va qo'shimcha
+# variantlar ham qo'llab-quvvatlanadi.
+SKIP_BUTTON_TEXTS = (
+    "⏩ O'tkazib yuborish",
+    "⏩ Пропустить",
+    "⏭ O'tkazib yuborish",
+    "⏭ Пропустить",
+    "O'tkazib yuborish",
+    "Пропустить",
+    BTN_SKIP_BUTTON,
+    BTN_SKIP_URL_BUTTON,
+    BTN_SKIP_BUTTON_RU,
+    BTN_SKIP_URL_BUTTON_RU,
+)
+
+
+def is_skip_button_text(text) -> bool:
+    """Foydalanuvchi pastki klaviaturadan skip (o'tkazib yuborish) tugmasini bosganini aniqlaydi."""
+    if not text:
+        return False
+    return str(text).strip() in SKIP_BUTTON_TEXTS
 
 CHOOSE_CHANNEL = 100
 GET_CONTENT = 101
@@ -147,6 +178,9 @@ def parse_url_button_line(text: str) -> "tuple[str, str] | None":
 async def start_new_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
     clear_fsm_data(context)
     user_id = update.effective_user.id
+    # Eski (tugallanmagan) albom yig'uvi qolgan bo'lsa — bekor qilinadi,
+    # aks holda u yangi konversatsiya user_data'iga yozilishi mumkin.
+    cancel_album_collections(user_id)
     is_admin = (user_id in ADMIN_IDS_SET)
     lang = get_lang(context)
     channels = await db.run_db(db.get_user_channels, user_id)
@@ -220,10 +254,140 @@ def _media_item_from_message(msg):
 
 
 def _purge_stale_albums():
+    """Eski/uzoq qolgan albom buferlarini tozalaydi (task'larni ham bekor qiladi)."""
     now = time.time()
     stale = [k for k, v in _ALBUM_BUFFERS.items() if now - v.get("ts", 0) > 120]
     for k in stale:
-        _ALBUM_BUFFERS.pop(k, None)
+        _cancel_album_buffer(k)
+
+
+def _album_key_of(key) -> tuple:
+    return key if isinstance(key, tuple) else tuple(key)
+
+
+def _cancel_album_buffer(key):
+    """Bitta albom buferini va uning collector task'ini bekor qiladi."""
+    buf = _ALBUM_BUFFERS.pop(key, None)
+    if not buf:
+        return
+    task = buf.get("task")
+    if task is not None and not task.done() and not task.cancelled():
+        task.cancel()
+    buf["done"] = True
+
+
+def cancel_album_collections(user_id: int):
+    """Foydalanuvchining barcha faol albom yig'ish vazifalarini bekor qiladi.
+
+    Conversation tugaganda (cancel / time-out / yangi post boshlanganda) chaqiriladi —
+    aks holda collector eski postni keyingi sessiya user_data'iga yozib qo'yishi mumkin.
+    """
+    for key in [k for k in _ALBUM_BUFFERS if k[0] == user_id]:
+        _cancel_album_buffer(key)
+
+
+def _album_items_to_post(items: list) -> dict:
+    """Yig'ilgan albom elementlarini post user_data qiymatlariga aylantiradi.
+
+    Caption har doim TO'LIQ olinadi (birinchisidan) — hech qanday qator/kesish
+    qilinmaydi. Bitta element bo'lsa ham yaxlit saqlanadi (scheduler keyinchalik
+    yakka media sifatida yuboradi).
+    """
+    caption = ""
+    for item in items:
+        cap = (item.get("caption") or "").strip()
+        if cap:
+            caption = cap
+            break
+    if len(items) == 1:
+        return {"post_type": items[0]["type"], "file_id": items[0]["file_id"], "content": caption}
+    return {
+        "post_type": "album",
+        "file_id": json.dumps(items, ensure_ascii=False),
+        "content": caption,
+    }
+
+
+def _finalize_album_buffer(key, cancel_task=False) -> dict | None:
+    """Buferdagi albomni HOZIROQ yakunlaydi va user_data'ga yozadi.
+
+    ``cancel_task=True`` — kutayotgan collector task bekor qilinadi (masalan,
+    foydalanuvchi vaqt o'tmasdan matn yuborganda yoki yangi albom boshlaganda).
+    """
+    key = _album_key_of(key)
+    buf = _ALBUM_BUFFERS.get(key)
+    if not buf or buf.get("done"):
+        return None
+    if cancel_task:
+        task = buf.get("task")
+        if task is not None and not task.done() and not task.cancelled():
+            task.cancel()
+    buf["done"] = True
+    _ALBUM_BUFFERS.pop(key, None)
+    items = buf.get("items") or []
+    if not items:
+        return None
+    final = _album_items_to_post(items)
+    ud = buf.get("user_data")
+    if ud is not None:
+        ud.update({
+            "post_type": final["post_type"],
+            "file_id": final["file_id"],
+            "content": final["content"],
+            "_album_ready": True,
+            "_album_count": len(items),
+        })
+    return final
+
+
+def _active_user_album_keys(user_id: int):
+    return [k for k, v in _ALBUM_BUFFERS.items() if k[0] == user_id and not v.get("done")]
+
+
+async def _album_collector(key, bot, chat_id, lang, user_data):
+    """Arka fondagi albom yig'uvchi: kutish tugagach yaxlit post qilib yakunlaydi.
+
+    - Hech qachon handler'ni bloklamaydi (per-user lock ortida qolmaydi) —
+      albomning barcha qismlari buferga yig'iladi.
+    - Yakun topgach user_data'ga post_type='album' + file_id (JSON ro'yxat)
+      yoziladi va foydalanuvchiga keyingi qadam (tugma so'rovi) yuboriladi.
+    """
+    try:
+        await asyncio.sleep(_ALBUM_WAIT_SECONDS)
+    except asyncio.CancelledError:
+        return
+    buf = _ALBUM_BUFFERS.get(key)
+    if not buf or buf.get("done"):
+        return
+    final = _finalize_album_buffer(key)
+    if not final:
+        return
+    # Foydalanuvchiga avtomatik "Tugma qo'shilsinmi?" so'rovi (eski oqim kabi).
+    try:
+        await bot.send_message(
+            chat_id=chat_id,
+            text=get_text("np_button_ask", lang),
+            reply_markup=get_button_prompt_keyboard(lang),
+            parse_mode="HTML",
+        )
+    except Exception:
+        # Xabar yuborib bo'lmasa ham post ma'lumotlari saqlanadi —
+        # foydalanuvchi keyingi xabarni yuborganda oqim davom etadi.
+        pass
+
+
+def _build_album_summary(items: list, lang: str) -> str:
+    """Albom uchun lokalizatsiya qilingan xulosa: '🖼 Albom: 6 ta rasm' kabi."""
+    photos = sum(1 for i in items if (i.get("type") or "photo") in ("photo", "animation"))
+    videos = sum(1 for i in items if (i.get("type") or "") == "video")
+    total = len(items)
+    if photos and videos:
+        return get_text("np_confirm_album_mixed", lang, photos=photos, videos=videos)
+    if photos == total:
+        return get_text("np_confirm_album_photos", lang, count=total)
+    if videos == total:
+        return get_text("np_confirm_album_videos", lang, count=total)
+    return get_text("np_confirm_album_files", lang, count=total)
 
 
 def _apply_single_media(context, item):
@@ -246,11 +410,22 @@ async def _ask_reactions_step(msg, context):
 
     Keyingi qadamga faqat "[➡️ Davom etish]" yoki "[⏭ Reaksiyasiz o'tish]"
     bosilganda o'tiladi (callback handlerlar orqali).
+
+    ⚠️ Oldingi bosqichning pastki reply-klaviaturasi ("⏭ O'tkazib yuborish"
+    tugmasi) Telegram'da NAVBATDA qoladi va GET_REACTIONS holatida bosilsa
+    "Kutilmagan xatolik" berardi. Shuning uchun bu yerda ReplyKeyboardRemove
+    bilan eski klaviatura olib tashlanadi — foydalanuvchi faqat inline
+    reaksiya tugmalarini ko'radi.
     """
     lang = get_lang(context)
     selected = context.user_data.setdefault("selected_reactions", [])
     await msg.reply_text(
         get_text("np_reactions_ask", lang),
+        reply_markup=ReplyKeyboardRemove(),
+        parse_mode="HTML"
+    )
+    await msg.reply_text(
+        get_text("np_reactions_use_inline", lang),
         reply_markup=get_reaction_toggle_keyboard(selected, lang),
         parse_mode="HTML"
     )
@@ -311,12 +486,37 @@ def _build_preview_text(context) -> str:
     }
     type_text = get_text(type_labels.get(post_type, "np_type_unknown"), lang)
 
+    # 🖼 ALBOM: preview'da nechta fayl borligi aniq ko'rsatiladi
+    # ("🖼 Albom: 6 ta rasm") — barcha fayllar saqlangan va scheduler
+    # send_media_group orqali to'liq yuboradi.
+    if post_type == "album":
+        try:
+            items = json.loads(context.user_data.get("file_id") or "[]")
+            if isinstance(items, list) and items:
+                type_text = _build_album_summary(items, lang)
+        except (TypeError, ValueError, json.JSONDecodeError):
+            pass
+
+    # 📝 To'liq matn: 300 belgida UZIB QOLINMAYDI. Telegram chegarasi
+    # (matn 4096 / caption 1024) doirasida to'liq ko'rsatiladi; undan uzun
+    # bo'lsa qancha qismi chiqishi aniq eslatma bilan aytiladi.
     content_preview = ""
     if content:
-        preview = content[:300]
-        if len(content) > 300:
-            preview += "…"
-        content_preview = "\n\n" + get_text("np_confirm_content", lang, content=safe_html(preview))
+        caption_media = post_type in _CONFIRM_MEDIA_TYPES or post_type == "album"
+        limit = 3600 if post_type == "text" else 900
+        if len(content) <= limit:
+            shown = content
+            truncate_note = ""
+        else:
+            shown = content[:limit].rstrip() + "…"
+            truncate_note = "\n" + get_text(
+                "np_confirm_content_truncated", lang,
+                total=len(content), limit=(1024 if caption_media else 4096),
+            )
+        content_preview = (
+            "\n\n" + get_text("np_confirm_content", lang, content=safe_html(shown))
+            + truncate_note
+        )
 
     btn_info = ""
     if btn_text and btn_url:
@@ -521,6 +721,7 @@ def classify_post_content(msg) -> str:
 async def content_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = update.message
     user_id = update.effective_user.id
+    lang = get_lang(context)
 
     # 🚫 Stiker va qo'llab-quvvatlanmaydigan media — post sifatida qabul
     # qilinmaydi. Bot JIM QOLMASLIGI uchun foydalanuvchiga o'z tilida (uz/ru)
@@ -530,47 +731,78 @@ async def content_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     kind = classify_post_content(msg)
     if kind == "sticker":
         await msg.reply_text(
-            get_text("np_sticker_not_allowed", get_lang(context)),
+            get_text("np_sticker_not_allowed", lang),
             parse_mode="HTML",
         )
         return GET_CONTENT
     if kind == "unsupported":
         await msg.reply_text(
-            get_text("np_media_not_allowed", get_lang(context)),
+            get_text("np_media_not_allowed", lang),
             parse_mode="HTML",
         )
         return GET_CONTENT
 
+    _purge_stale_albums()
+
+    # 1) Yakunlangan (collector tugagan) albom kutilmoqda:
+    #    foydalanuvchi yuborgan KEYINGI matn — tugma so'rovining javobi.
+    #    context.user_data HECH NARSA yo'qotilmaydi, oqim xuddi inline
+    #    callback bosilgandek davom etadi.
+    if context.user_data.get("_album_ready"):
+        incoming_media = msg.media_group_id or _media_item_from_message(msg)
+        if not incoming_media:
+            return await btn_title_received(update, context)
+        # Media keldi — foydalanuvchi kontentni almashtirmoqchi;
+        # eski albom holati tozalanadi va yangi media quyida qo'llanadi.
+        context.user_data.pop("_album_ready", None)
+
+    # 2) Hali yig'ilayotgan albom bor va foydalanuvchi matn yubordi —
+    #    kutishsiz yig'ishni yakunlab, matnni tugma sarlavhasi sifatida qabul qilamiz.
+    incoming_is_media = bool(msg.media_group_id or _media_item_from_message(msg))
+    if not incoming_is_media:
+        active = _active_user_album_keys(user_id)
+        if active:
+            _finalize_album_buffer(active[-1], cancel_task=True)
+            return await btn_title_received(update, context)
+
+    # 3) ALBOM (media_group): barcha qismlar bitta buferga yig'iladi.
     if msg.media_group_id:
         item = _media_item_from_message(msg)
         if not item or item["type"] in ("voice", "sticker"):
             return GET_CONTENT
 
-        _purge_stale_albums()
         key = (user_id, msg.media_group_id)
-        buf = _ALBUM_BUFFERS.setdefault(key, {"items": [], "seq": 0, "ts": time.time()})
+        # Aynan shu foydalanuvchining BOSHQA (eski) albomi hali yig'ilmoqda —
+        # uni darhol yakunlab, yangi albomni boshidan to'playmiz.
+        for old_key in _active_user_album_keys(user_id):
+            if old_key != key:
+                _cancel_album_buffer(old_key)
+        # Albom yakunlanishi kutilmagan paytda yangi albom boshlasa —
+        # eski "_album_ready" holati yangi yig'ish davomida oqimni buzmasin.
+        context.user_data.pop("_album_ready", None)
+
+        buf = _ALBUM_BUFFERS.get(key)
+        if not buf:
+            buf = {
+                "items": [],
+                "task": None,
+                "user_data": context.user_data,
+                "bot": context.bot if getattr(context, "bot", None) is not None else None,
+                "chat_id": msg.chat_id,
+                "lang": lang,
+                "ts": time.time(),
+                "done": False,
+            }
+            _ALBUM_BUFFERS[key] = buf
+            # Arka fondagi collector — handler bloklanmaydi, shuning uchun
+            # per-user lock albom qismlarini yig'ishga to'sqinlik qilmaydi.
+            buf["task"] = asyncio.get_running_loop().create_task(
+                _album_collector(key, buf["bot"], buf["chat_id"], buf["lang"], buf["user_data"])
+            )
         if len(buf["items"]) < _ALBUM_MAX_ITEMS:
             buf["items"].append(item)
-        buf["seq"] += 1
         buf["ts"] = time.time()
-        my_seq = buf["seq"]
-
-        # Boshqa albom elementlari ham start bo'lishi uchun avval yield
-        await asyncio.sleep(0)
-        await asyncio.sleep(_ALBUM_WAIT_SECONDS)
-        current = _ALBUM_BUFFERS.get(key)
-        if not current or current.get("seq") != my_seq:
-            return GET_CONTENT
-
-        items = _ALBUM_BUFFERS.pop(key, {}).get("items") or [item]
-        caption = next((i.get("caption") or "" for i in items if i.get("caption")), "")
-        if len(items) == 1:
-            _apply_single_media(context, items[0])
-        else:
-            context.user_data["post_type"] = "album"
-            context.user_data["file_id"] = json.dumps(items, ensure_ascii=False)
-            context.user_data["content"] = caption
-        return await _ask_button_prompt(msg, get_lang(context))
+        return GET_CONTENT
 
     item = _media_item_from_message(msg)
     if item:
@@ -580,7 +812,28 @@ async def content_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data["file_id"] = None
         context.user_data["content"] = msg.text or ""
 
-    return await _ask_button_prompt(msg, get_lang(context))
+    return await _ask_button_prompt(msg, lang)
+
+async def skip_url_step(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """'⏩ O'tkazib yuborish' — URL tugma bosqichini o'tkazib yuborish.
+
+    GET_BTN_TITLE / GET_BTN_URL holatlarida Ishlatiladi: tugma yo'qligini
+    belgilaydi va xuddi inline callback bosilgandek reaksiya bosqichiga o'tadi.
+    """
+    context.user_data["btn_text"] = None
+    context.user_data["btn_url"] = None
+    return await _ask_reactions_step(update.message, context)
+
+
+async def skip_reactions_step(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """'⏩ O'tkazib yuborish' — reaksiya bosqichini o'tkazib yuborish.
+
+    GET_REACTIONS holatida ishlatiladi: reaksiyalarsiz avto-o'chirish
+    bosqichiga xavfsiz (crash'siz) o'tadi.
+    """
+    context.user_data["selected_reactions"] = []
+    return await _proceed_after_reactions(update.message, context, [])
+
 
 async def btn_title_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     lang = get_lang(context)
@@ -606,8 +859,8 @@ async def btn_title_received(update: Update, context: ContextTypes.DEFAULT_TYPE)
         return GET_BTN_TITLE
 
     # Tugmasiz o'tish (eski va yangi "skip" tugmalari bir xil ishlaydi)
-    if text in (BTN_SKIP_BUTTON, BTN_SKIP_URL_BUTTON,
-                BTN_SKIP_BUTTON_RU, BTN_SKIP_URL_BUTTON_RU):
+    if is_skip_button_text(text) or text in (BTN_SKIP_BUTTON, BTN_SKIP_URL_BUTTON,
+                                             BTN_SKIP_BUTTON_RU, BTN_SKIP_URL_BUTTON_RU):
         context.user_data["btn_text"], context.user_data["btn_url"] = None, None
         return await _ask_reactions_step(update.message, context)
 
@@ -646,9 +899,9 @@ async def btn_url_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip()
 
     # GET_BTN_URL holatida ham tezkor format ishlashi mumkin
-    if text in (BTN_SKIP_BUTTON, BTN_SKIP_URL_BUTTON,
-                BTN_SKIP_BUTTON_RU, BTN_SKIP_URL_BUTTON_RU,
-                BTN_ADD_URL_BUTTON, BTN_ADD_URL_BUTTON_RU):
+    if is_skip_button_text(text) or text in (BTN_SKIP_BUTTON, BTN_SKIP_URL_BUTTON,
+                                             BTN_SKIP_BUTTON_RU, BTN_SKIP_URL_BUTTON_RU,
+                                             BTN_ADD_URL_BUTTON, BTN_ADD_URL_BUTTON_RU):
         return await btn_title_received(update, context)
     one_liner = parse_url_button_line(text)
     if one_liner:
@@ -684,6 +937,14 @@ async def reactions_received(update: Update, context: ContextTypes.DEFAULT_TYPE)
     lang = get_lang(context)
     msg = update.message
     text = msg.text
+
+    # 🚀 "⏩ O'tkazib yuborish" / "⏩ Пропустить" / "⏭ ..." — foydalanuvchi
+    # pastki reply-klaviaturani bosganida ham xuddi inline "⏭ Reaksiyasiz
+    # o'tish" kabi xavfsiz davom etamiz (crash yo'q, user_data yo'qolmaydi).
+    if is_skip_button_text(text):
+        context.user_data["selected_reactions"] = []
+        return await _proceed_after_reactions(msg, context, [])
+
     parsed = parse_reactions_input(text)
 
     # Rus tilidagi "reaksiyasiz" tugma/so'zlar ham reaksiyasiz davom ettiradi.
@@ -854,6 +1115,7 @@ async def _save_and_finish(update, context, post_time, recurrence_type='none', r
             reply_markup=get_main_keyboard(is_admin, context=context),
             parse_mode="HTML"
         )
+    cancel_album_collections(user_id)
     clear_fsm_data(context)
 
 async def time_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1031,6 +1293,7 @@ async def confirm_post_callback(update: Update, context: ContextTypes.DEFAULT_TY
 
     if action == "cancel":
         clear_fsm_data(context)
+        cancel_album_collections(user_id)
         try:
             await query.edit_message_reply_markup(reply_markup=None)
         except Exception:
@@ -1235,11 +1498,9 @@ async def confirm_post_callback(update: Update, context: ContextTypes.DEFAULT_TY
             reply_markup=get_main_keyboard(is_admin, context=context),
             parse_mode="HTML"
         )
+    cancel_album_collections(user_id)
     clear_fsm_data(context)
     return ConversationHandler.END
-
-
-    return CONFIRM_POST
 
 
 async def edit_confirm_field_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):

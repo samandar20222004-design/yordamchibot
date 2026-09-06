@@ -668,6 +668,15 @@ TRANSLATIONS = {
         "np_type_album": "🖼 Albom",
         "np_type_animation": "🎞 GIF",
         "np_type_unknown": "📝 Xabar",
+        # Albom xulosasi (preview'da nechta fayl borligi aniq ko'rinadi)
+        "np_confirm_album_photos": "🖼 Albom: {count} ta rasm",
+        "np_confirm_album_videos": "🎬 Albom: {count} ta video",
+        "np_confirm_album_mixed": "🖼 Albom: {photos} ta rasm, {videos} ta video",
+        "np_confirm_album_files": "🖼 Albom: {count} ta fayl",
+        "np_confirm_content_truncated": (
+            "⚠️ Eslatma: matn {total} belgi — Telegram {limit} belgi chegarasi "
+            "tufayli kanaldagi postda shu limitgacha ko'rinadi. Matn to'liq saqlanadi."
+        ),
         "np_confirm_time_none": "⏰ Vaqt belgilanmagan",
         "np_confirm_time_single": "⏰ {time} (Toshkent vaqti)",
         "np_confirm_time_daily": "🔁 Har kuni, soat {time} da",
@@ -2066,6 +2075,16 @@ TRANSLATIONS = {
         "np_type_album": "🖼 Альбом",
         "np_type_animation": "🎞 GIF",
         "np_type_unknown": "📝 Сообщение",
+        # Сводка альбома (в предпросмотре видно, сколько файлов будет отправлено)
+        "np_confirm_album_photos": "🖼 Альбом: {count} фото",
+        "np_confirm_album_videos": "🎬 Альбом: {count} видео",
+        "np_confirm_album_mixed": "🖼 Альбом: {photos} фото, {videos} видео",
+        "np_confirm_album_files": "🖼 Альбом: {count} файлов",
+        "np_confirm_content_truncated": (
+            "⚠️ Примечание: текст {total} символов — из-за лимита Telegram "
+            "{limit} символов в канале будет показано до этого лимита. "
+            "Текст сохраняется полностью."
+        ),
         "np_confirm_time_none": "⏰ Время не указано",
         "np_confirm_time_single": "⏰ {time} (время Ташкента)",
         "np_confirm_time_daily": "🔁 Ежедневно, в {time}",
