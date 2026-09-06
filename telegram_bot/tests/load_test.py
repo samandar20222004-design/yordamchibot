@@ -680,6 +680,216 @@ def test_system_settings_real_db(db):
     check("o'chirilgach default", db.get_setting("load_test_key2", "yo'q") == "yo'q")
 
 
+def test_user_onboarding_real_db(db):
+    """🆕 get_user_onboarding / set_user_full_menu_unlocked — haqiqiy PostgreSQL."""
+    print("== onboarding (real DB) ==")
+    import onboarding
+    import pytz
+    from datetime import datetime, timedelta
+
+    uid = 990001
+    db.save_user(uid, "yangi_user", "Yangi User")
+
+    # 1) Yangi foydalanuvchi: created_at ~hozir, post yo'q, belgi yo'q
+    data = db.get_user_onboarding(uid)
+    check("onboarding: yozuv topildi", bool(data), str(data))
+    check("onboarding: created_at qaytdi", data.get("created_at") is not None)
+    check("onboarding: postlar soni 0", data.get("posts_published") == 0, str(data))
+    check("onboarding: full_menu_unlocked=False", data.get("full_menu_unlocked") is False)
+    check("onboarding: yangi foydalanuvchi → sodda menyu",
+          onboarding.decide_menu_mode(data) == "simple", str(data))
+
+    # 2) 3 ta post chiqarildi → postlar soni o'sadi
+    tz = pytz.timezone("Asia/Tashkent")
+    future = datetime.now(tz) + timedelta(days=30)
+    for i in range(3):
+        pid = db.add_post(uid, "-1009900", "text", f"Onboarding posti {i}", None, future)
+        db.mark_post_as_sent(pid, 5000 + i)
+    data2 = db.get_user_onboarding(uid)
+    check("onboarding: 3 ta chiqarilgan post sanaldi",
+          data2.get("posts_published") == 3, str(data2))
+    check("onboarding: 3 post + yangi hisob → hali sodda menyu",
+          onboarding.decide_menu_mode(data2) == "simple", str(data2))
+
+    # 3) created_at 5 kun oldinga surilsa (3 kundan oshgan) → to'liq menyu
+    with db.db_cursor(commit=True) as cur:
+        cur.execute("UPDATE users SET created_at = NOW() - INTERVAL '5 days' WHERE user_id = %s", (uid,))
+    db._invalidate_user(uid)
+    onboarding.invalidate_simple_menu(uid)
+    data3 = db.get_user_onboarding(uid)
+    check("onboarding: 5 kunlik hisob → to'liq menyu",
+          onboarding.decide_menu_mode(data3) == "full", str(data3))
+
+    # 4) "⚙️ To'liq menyuni ochish" belgisi yoziladi
+    check("set_user_full_menu_unlocked → True",
+          db.set_user_full_menu_unlocked(uid, True) is True)
+    data4 = db.get_user_onboarding(uid)
+    check("onboarding: belgi bazada saqlandi", data4.get("full_menu_unlocked") is True)
+    check("onboarding: belgi bilan → to'liq menyu",
+          onboarding.decide_menu_mode(data4) == "full", str(data4))
+
+    # 5) Mavjud bo'lmagan foydalanuvchi → bo'sh dict (fail-open: to'liq menyu)
+    check("onboarding: noma'lum user → {}", db.get_user_onboarding(424242) == {})
+    check("onboarding: bo'sh dict → full", onboarding.decide_menu_mode({}) == "full")
+
+
+def test_schedule_week_posts_real_db(db):
+    """🚀 schedule_week_posts — 7 post BITTA tranzaksiyada (haqiqiy PostgreSQL)."""
+    print("== schedule_week_posts (real DB) ==")
+    import pytz as _pytz
+    from datetime import datetime as _dt, timedelta as _td
+    from handlers.content_plan import week_schedule_times, build_plan_post_text
+
+    uid = 990002
+    db.save_user(uid, "reja_user", "Reja User")
+
+    plan_items = [
+        {"day": "Dushanba", "format": "Maslahat", "title": f"G'oya {i}", "idea": f"Tavsif {i}"}
+        for i in range(1, 8)
+    ]
+    times = week_schedule_times(len(plan_items))
+    posts = [(t, build_plan_post_text(it, i)) for i, (t, it) in enumerate(zip(times, plan_items))]
+
+    res = db.schedule_week_posts(uid, "-1009902", posts)
+    check("week: muvaffaqiyatli", res["success"] is True, str(res.get("error")))
+    check("week: 7 ta post yozildi", res["count"] == 7, str(res))
+    check("week: 7 ta id qaytdi", len(res["ids"]) == 7 and all(res["ids"]), str(res["ids"]))
+
+    # Baza holati: barchasi 'pending', kanal to'g'ri, vaqtlar dushanba→yakshanba 12:00
+    with db.db_cursor() as cur:
+        cur.execute(
+            "SELECT id, status, channel_id, scheduled_time, user_post_number, content "
+            "FROM scheduled_posts WHERE user_id = %s ORDER BY scheduled_time",
+            (uid,),
+        )
+        rows = cur.fetchall()
+    check("week: bazada 7 qator", len(rows) == 7, str(len(rows)))
+    check("week: barchasi pending", all(r[1] == "pending" for r in rows))
+    check("week: kanal saqlandi", all(r[2] == "-1009902" for r in rows))
+    check("week: post raqamlari 1..7", [r[4] for r in rows] == list(range(1, 8)),
+          str([r[4] for r in rows]))
+    check("week: matn yozildi (HTML-escape bilan: ' → &#x27;)",
+          all(r[5] and "G&#x27;oya" in r[5] and "Tavsif" in r[5] for r in rows),
+          str(rows[0][5] if rows else None))
+    check("week: xom apostrof saqlanmagan (HTML xavfsiz)",
+          all("G'oya" not in (r[5] or "") for r in rows))
+
+    tz = _pytz.timezone("Asia/Tashkent")
+    stored = [r[3].astimezone(tz) for r in rows]
+    check("week: kunlar dushanba(0)→yakshanba(6)",
+          [m.weekday() for m in stored] == [0, 1, 2, 3, 4, 5, 6],
+          str([m.weekday() for m in stored]))
+    check("week: barchasi soat 12:00",
+          all(m.hour == 12 and m.minute == 0 for m in stored),
+          str([(m.hour, m.minute) for m in stored]))
+    check("week: ketma-ket kunlar (24 soat)",
+          all((stored[i + 1] - stored[i]) == _td(days=1) for i in range(6)))
+    check("week: barcha vaqtlar kelajakda",
+          all(m > _dt.now(tz) for m in stored))
+
+    # Post raqami mavjud postlardan DAVOM etadi (MAX+1)
+    extra = db.add_post(uid, "-1009902", "text", "Qo'shimcha", None,
+                        _dt.now(tz) + _td(days=40))
+    with db.db_cursor() as cur:
+        cur.execute("SELECT user_post_number FROM scheduled_posts WHERE id = %s", (extra,))
+        num = cur.fetchone()[0]
+    check("week: keyingi post raqami 8", num == 8, str(num))
+
+    # Tranzaksiya atomicligi: bitta yaroqsiz vaqt → HECH NARSA yozilmaydi
+    before = db.get_queue_post_count(uid)
+    bad_posts = list(posts[:3]) + [("bu-vaqt-emas", "buzilgan")]
+    bad = db.schedule_week_posts(uid, "-1009902", bad_posts)
+    check("week: xato holatda success=False", bad["success"] is False)
+    check("week: xato holatda id bo'sh", bad["ids"] == [])
+    after = db.get_queue_post_count(uid)
+    check("week: ROLLBACK — yarim-yorti navbat qolmadi", before == after,
+          f"before={before} after={after}")
+
+    # Chekka holatlar
+    check("week: bo'sh ro'yxat → empty", db.schedule_week_posts(uid, "-1009902", [])["error"] == "empty")
+    check("week: kanalsiz → no_channel",
+          db.schedule_week_posts(uid, "", posts)["error"] == "no_channel")
+
+
+def test_week_posts_delivered_by_scheduler(db):
+    """🚀➡️🤖 End-to-end: navbatga qo'yilgan 7 postni MAVJUD scheduler yuboradi.
+
+    Yangi job yaratilmaydi — APScheduler'ning odatdagi ``check_and_send_posts``
+    tick'i ``scheduled_posts`` jadvalidan o'zi o'qiydi. Shu test ikkala talabni
+    bog'laydi: postlar chiqqach ``posts_published`` o'sadi va foydalanuvchi
+    avtomatik to'liq menyuga o'tadi.
+    """
+    print("== 7 kunlik postlar → scheduler → kanal (end-to-end) ==")
+    import pytz
+    import onboarding
+    from datetime import datetime, timedelta
+    from scheduler import check_and_send_posts
+
+    uid = 990003
+    db.save_user(uid, "e2e_user", "E2E User")
+    db.save_channel(uid, "-1009903", "E2E Kanal")
+
+    tz = pytz.timezone("Asia/Tashkent")
+    # Reja navbatga KELAJAKKA yoziladi; scheduler yuborishi uchun vaqtni
+    # ataylab o'tmishga suramiz (funksiya vaqtni tekshirmaydi — bu test uchun).
+    now = datetime.now(tz)
+    times = [now - timedelta(minutes=10 - i) for i in range(7)]
+    posts = [(t, f"<b>Hafta posti {i + 1}</b>\n\nKontent-reja matni {i + 1}")
+             for i, t in enumerate(times)]
+
+    res = db.schedule_week_posts(uid, "-1009903", posts)
+    check("e2e: 7 post navbatga qo'yildi", res["success"] and res["count"] == 7, str(res.get("error")))
+    check("e2e: barchasi hali pending", db.get_queue_post_count(uid) == 7,
+          str(db.get_queue_post_count(uid)))
+
+    # Mavjud scheduler tick'i (alohida job YARATILMAYDI)
+    bot = FakeBot()
+    asyncio.run(check_and_send_posts(bot))
+
+    sent_to_channel = [m for m in bot.sent if str(m[0]) == "-1009903"]
+    check("e2e: 7 post kanalga yuborildi", len(sent_to_channel) == 7,
+          f"sent={len(sent_to_channel)} of {len(bot.sent)}: {bot.sent[:2]}")
+    check("e2e: matn to'g'ri yetib bordi",
+          len(sent_to_channel) == 7
+          and all("Hafta posti" in (m[1] or "") for m in sent_to_channel),
+          str(sent_to_channel[:1]))
+    check("e2e: kanalga int chat_id bilan yuborildi (scheduler qoidasi)",
+          all(m[0] == -1009903 for m in sent_to_channel), str(sent_to_channel[:1]))
+
+    with db.db_cursor() as cur:
+        cur.execute("SELECT status, sent_message_id FROM scheduled_posts WHERE user_id = %s", (uid,))
+        rows = cur.fetchall()
+    check("e2e: barchasi 'posted' holatida",
+          len(rows) == 7 and all(r[0] == "posted" for r in rows), str(rows[:2]))
+    check("e2e: sent_message_id yozildi (idempotentlik markeri)",
+          all(r[1] for r in rows), str(rows[:2]))
+    check("e2e: navbat bo'shadi", db.get_queue_post_count(uid) == 0,
+          str(db.get_queue_post_count(uid)))
+
+    # Ikkala talab bog'lanadi: postlar soni onboarding qaroriga ta'sir qiladi.
+    data = db.get_user_onboarding(uid)
+    check("e2e: posts_published = 7", data["posts_published"] == 7, str(data))
+    # Hisob hozirgina yaratildi (0 kun) — talab bo'yicha "3 kundan kam" sharti
+    # bajarilgani uchun menyu HALI sodda (postlar soni yetarli bo'lsa ham).
+    check("e2e: 0 kunlik hisob + 7 post → hali sodda menyu (kun < 3)",
+          onboarding.decide_menu_mode(data) == "simple", str(data))
+    # 3 kun o'tgach va 3 tadan ko'p post chiqargach → standart bosh menyu.
+    with db.db_cursor(commit=True) as cur:
+        cur.execute("UPDATE users SET created_at = NOW() - INTERVAL '3 days' WHERE user_id = %s",
+                    (uid,))
+    db._invalidate_user(uid)
+    onboarding.invalidate_simple_menu(uid)
+    data2 = db.get_user_onboarding(uid)
+    check("e2e: 3 kunlik hisob + 7 post → to'liq menyu",
+          onboarding.decide_menu_mode(data2) == "full", str(data2))
+
+    # Ikkinchi tick postlarni TAKRORAN yubormaydi (idempotentlik)
+    before = len(bot.sent)
+    asyncio.run(check_and_send_posts(bot))
+    check("e2e: ikkinchi tick'da dublikat yo'q", len(bot.sent) == before,
+          f"{before} → {len(bot.sent)}")
+
+
 def main():
     try:
         import pgserver
@@ -768,6 +978,11 @@ def main():
     test_channel_counters_real_db(db)
     test_channel_ad_interval_end_to_end(db)
     test_system_settings_real_db(db)
+
+    # 12. 🆕 Onboarding (sodda klaviatura) va 🚀 7 kunlik rejani navbatga qo'yish
+    test_user_onboarding_real_db(db)
+    test_schedule_week_posts_real_db(db)
+    test_week_posts_delivered_by_scheduler(db)
 
     db.close_pool()
     server.cleanup()

@@ -29,6 +29,30 @@ BTN_BACK_RU = get_text("btn_main_menu", "ru")
 BTN_CANCEL_RU = get_text("btn_cancel", "ru")
 BTN_CONVERTER_RU = get_text("cab_btn_converter", "ru")
 
+# ============================================================
+# 🆕 SODDA KLAVIATURA — yangi foydalanuvchilar (1-3 kun) uchun
+# ============================================================
+# Standart 6 talik menyu o'rniga 3 ta katta, harakatga undovchi tugma va
+# pastda bitta kichik "to'liq menyu" tugmasi. Qachon ko'rsatilishi
+# ``onboarding.should_show_simple_menu`` da hal qilinadi.
+BTN_QUICK_AI_POST = get_text("quick_btn_ai_post", "uz")
+BTN_QUICK_PHOTO_POST = get_text("quick_btn_photo_post", "uz")
+BTN_QUICK_ADD_CHANNEL = get_text("quick_btn_add_channel", "uz")
+BTN_OPEN_FULL_MENU = get_text("quick_btn_full_menu", "uz")
+
+# Ruscha variantlar — MessageHandler Regex ikkala tilni tanishi uchun
+BTN_QUICK_AI_POST_RU = get_text("quick_btn_ai_post", "ru")
+BTN_QUICK_PHOTO_POST_RU = get_text("quick_btn_photo_post", "ru")
+BTN_QUICK_ADD_CHANNEL_RU = get_text("quick_btn_add_channel", "ru")
+BTN_OPEN_FULL_MENU_RU = get_text("quick_btn_full_menu", "ru")
+
+# Sodda menyudagi barcha tugmalar (uz + ru) — routing/audit uchun yagona manba.
+QUICK_MENU_BUTTONS = (
+    BTN_QUICK_AI_POST, BTN_QUICK_PHOTO_POST, BTN_QUICK_ADD_CHANNEL, BTN_OPEN_FULL_MENU,
+    BTN_QUICK_AI_POST_RU, BTN_QUICK_PHOTO_POST_RU,
+    BTN_QUICK_ADD_CHANNEL_RU, BTN_OPEN_FULL_MENU_RU,
+)
+
 # Orqaga moslik (Aliases)
 BTN_AI_POST = "🤖 AI Post Yordamchi"
 BTN_CABINET = BTN_SETTINGS
@@ -166,6 +190,31 @@ def get_main_keyboard(is_admin=False, lang="uz", context=None):
     ]
     if is_admin:
         keyboard.append([BTN_ADMIN_PANEL])
+    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+
+
+def get_simple_keyboard(lang="uz", context=None):
+    """🆕 Yangi foydalanuvchi uchun SODDA reply-klaviatura (uz/ru).
+
+    Standart 6 talik menyu o'rniga 3 ta katta va tushunarli tugma:
+
+        [🚀 1 daqiqada post yaratish]   — AI orqali post yozish
+        [🖼 Rasmdan post olish]         — Vision (rasm → post) oqimi
+        [📢 Kanal ulash]                — kanal/guruh ulash
+        [⚙️ To'liq menyuni ochish]      — darhol to'liq menyuga o'tish
+
+    Har bir tugma alohida qatorda (bitta ustun) — mobil ekranda maksimal
+    katta va chalkashsiz ko'rinadi. ``context`` berilsa til
+    ``context.user_data['lang']`` dan olinadi (``get_main_keyboard`` kabi).
+    """
+    if context is not None:
+        lang = get_lang(context, lang)
+    keyboard = [
+        [get_text("quick_btn_ai_post", lang)],
+        [get_text("quick_btn_photo_post", lang)],
+        [get_text("quick_btn_add_channel", lang)],
+        [get_text("quick_btn_full_menu", lang)],
+    ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
 

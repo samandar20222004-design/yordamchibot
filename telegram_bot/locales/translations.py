@@ -33,6 +33,23 @@ TRANSLATIONS = {
             "\n"
             "Birinchi postingizni hoziroq tayyorlash uchun quyidagi bo'limni tanlang 👇"
         ),
+        # 🆕 SODDA KLAVIATURA — yangi foydalanuvchilar (1-3 kun) uchun 3 ta
+        # katta tugma + 1 ta kichik "to'liq menyu" tugmasi.
+        "quick_menu_hint": (
+            "👋 <b>Xush kelibsiz!</b>\n\n"
+            "Boshlash uchun pastdagi <b>3 ta tugmadan</b> birini bosing — qolgani avtomatik.\n\n"
+            "🚀 AI post yozadi  •  🖼 Rasmdan post oladi  •  📢 Kanalni ulaydi\n\n"
+            "<i>Barcha bo'limlar kerak bo'lsa — pastdagi "
+            "«⚙️ To'liq menyuni ochish» tugmasini bosing.</i>"
+        ),
+        "quick_btn_ai_post": "🚀 1 daqiqada post yaratish",
+        "quick_btn_photo_post": "🖼 Rasmdan post olish",
+        "quick_btn_add_channel": "📢 Kanal ulash",
+        "quick_btn_full_menu": "⚙️ To'liq menyuni ochish",
+        "quick_full_menu_opened": (
+            "✅ <b>To'liq menyu ochildi!</b>\n\n"
+            "Endi barcha bo'limlar sizga ochiq — pastdagi menyudan tanlang 👇"
+        ),
         "my_channels_title": "📢 <b>Mening kanallarim:</b>",
         "my_channels_empty": (
             "📢 <b>Mening kanallarim:</b>\n\n"
@@ -343,6 +360,34 @@ TRANSLATIONS = {
             "Kontent-reja tuzish uchun kamida bitta kanal bo'lishi kerak.\n"
             "📢 Kanallar bo'limidan kanal ulang."
         ),
+        # 🚀 7 KUNLIK KONTENT-REJANI BITTA TUGMA BILAN NAVBATGA QO'YISH
+        "plan_btn_schedule_all": "🚀 Barchasini 7 kunga rejalashtirish",
+        "plan_week_hint": "\n\n🚀 <i>Yoki bitta tugma bilan butun haftani "
+                        "navbatga qo'ying.</i>",
+        "plan_sched_busy": "⏳ 7 kunlik postlar navbatga qo'yilmoqda...",
+        "plan_sched_done_alert": "✅ 7 kunlik postlar navbatda!",
+        "plan_sched_done": (
+            "✅ <b>7 kunlik postlar navbatga qo'yildi!</b>\n\n"
+            "📢 Kanal: <b>{channel}</b>\n"
+            "📦 Navbatga qo'yildi: <b>{count} ta post</b>\n\n"
+            "{days}\n\n"
+            "🤖 Postlar har kuni soat <b>12:00</b> da avtomatik chiqadi.\n"
+            "📋 Istalgan postni «👤 Kabinet & Sozlamalar» → "
+            "«⏳ Postlar navbati (Queue)» bo'limidan tahrirlashingiz yoki "
+            "bekor qilishingiz mumkin."
+        ),
+        "plan_sched_already": "ℹ️ Bu kontent-reja allaqachon navbatga qo'yilgan.",
+        "plan_sched_stale": (
+            "⚠️ Sessiya eskirgan. Kontent-rejani qayta yarating — "
+            "shundan keyin bitta tugma bilan 7 kunga rejalashtirasiz."
+        ),
+        "plan_sched_no_channel": (
+            "⚠️ <b>Kanal topilmadi.</b>\n\n"
+            "Avval kanal ulang, so'ng kontent-rejani qayta yarating."
+        ),
+        "plan_sched_empty": "⚠️ Reja bo'sh — avval kontent-rejani yarating.",
+        "plan_sched_error": "❌ Postlarni navbatga qo'yishda xatolik yuz berdi. Qaytadan urinib ko'ring.",
+        "plan_sched_day_line": "• {day} — soat {time}",
         "ai_tone_formal": "👔 Rasmiy",
         "ai_tone_friendly": "😊 Do'stona",
         "ai_tone_concise": "⚡️ Qisqa",
@@ -1457,6 +1502,23 @@ TRANSLATIONS = {
             "\n"
             "Чтобы создать свой первый пост прямо сейчас, выберите раздел ниже 👇"
         ),
+        # 🆕 ПРОСТОЕ МЕНЮ — для новых пользователей (1-3 дня): 3 крупные кнопки
+        # + 1 небольшая кнопка «открыть полное меню».
+        "quick_menu_hint": (
+            "👋 <b>Добро пожаловать!</b>\n\n"
+            "Нажмите одну из <b>3 кнопок ниже</b> — остальное сделаем автоматически.\n\n"
+            "🚀 AI напишет пост  •  🖼 Пост из фото  •  📢 Подключит канал\n\n"
+            "<i>Если нужны все разделы — нажмите "
+            "«⚙️ Открыть полное меню» внизу.</i>"
+        ),
+        "quick_btn_ai_post": "🚀 Создать пост за 1 минуту",
+        "quick_btn_photo_post": "🖼 Пост из фото",
+        "quick_btn_add_channel": "📢 Подключить канал",
+        "quick_btn_full_menu": "⚙️ Открыть полное меню",
+        "quick_full_menu_opened": (
+            "✅ <b>Полное меню открыто!</b>\n\n"
+            "Теперь доступны все разделы — выберите нужный в меню ниже 👇"
+        ),
         "my_channels_title": "📢 <b>Мои каналы:</b>",
         "my_channels_empty": (
             "📢 <b>Мои каналы:</b>\n\n"
@@ -1769,6 +1831,33 @@ TRANSLATIONS = {
             "Для составления контент-плана нужен хотя бы один канал.\n"
             "Подключите канал в разделе «Каналы»."
         ),
+        # 🚀 ПЛАНИРОВАНИЕ ВСЕГО КОНТЕНТ-ПЛАНА НА 7 ДНЕЙ ОДНОЙ КНОПКОЙ
+        "plan_btn_schedule_all": "🚀 Запланировать все на 7 дней",
+        "plan_week_hint": "\n\n🚀 <i>Или поставьте всю неделю в очередь "
+                        "одной кнопкой.</i>",
+        "plan_sched_busy": "⏳ Добавляем 7 постов в очередь...",
+        "plan_sched_done_alert": "✅ 7 постов в очереди!",
+        "plan_sched_done": (
+            "✅ <b>7 постов на неделю добавлены в очередь!</b>\n\n"
+            "📢 Канал: <b>{channel}</b>\n"
+            "📦 В очередь добавлено: <b>{count} постов</b>\n\n"
+            "{days}\n\n"
+            "🤖 Посты будут выходить автоматически каждый день в <b>12:00</b>.\n"
+            "📋 Любой пост можно изменить или отменить в разделе "
+            "«👤 Кабинет & Настройки» → «⏳ Очередь постов (Queue)»."
+        ),
+        "plan_sched_already": "ℹ️ Этот контент-план уже добавлен в очередь.",
+        "plan_sched_stale": (
+            "⚠️ Сессия устарела. Создайте контент-план заново — "
+            "после этого вы сможете запланировать 7 дней одной кнопкой."
+        ),
+        "plan_sched_no_channel": (
+            "⚠️ <b>Канал не найден.</b>\n\n"
+            "Сначала подключите канал, затем создайте контент-план заново."
+        ),
+        "plan_sched_empty": "⚠️ План пуст — сначала создайте контент-план.",
+        "plan_sched_error": "❌ Не удалось добавить посты в очередь. Попробуйте ещё раз.",
+        "plan_sched_day_line": "• {day} — {time}",
         "ai_tone_formal": "👔 Официальный",
         "ai_tone_friendly": "😊 Дружелюбный",
         "ai_tone_concise": "⚡️ Кратко",

@@ -7852,6 +7852,1175 @@ def test_floodwait_and_ai_timeout_protection():
           "GEMINI_API_KEY" not in res.get("error", ""))
 
 
+# ============================================================
+# 🆕 ONBOARDING — YANGI FOYDALANUVCHILAR UCHUN SODDA KLAVIATURA
+# ============================================================
+
+class _OnbMe:
+    username = "TestBot"
+    id = 1
+
+
+class _OnbUser:
+    def __init__(self, uid=4242, name="Ali", lang="uz"):
+        self.id = uid
+        self.first_name = name
+        self.full_name = name
+        self.username = "ali"
+        self.language_code = lang
+
+
+class _OnbMsg:
+    def __init__(self, chat_id=4242):
+        self.chat_id = chat_id
+        self.message_id = 1
+        self.sent = []
+
+    async def reply_text(self, text, reply_markup=None, parse_mode=None, **kw):
+        self.sent.append((text, reply_markup, parse_mode))
+        return self
+
+
+class _OnbBot:
+    id = 1
+    username = "TestBot"
+    defaults = None
+
+    def __init__(self):
+        self.sent = []
+
+    async def get_me(self):
+        return _OnbMe()
+
+    async def send_message(self, chat_id=None, text=None, reply_markup=None,
+                           parse_mode=None, **kw):
+        self.sent.append((chat_id, text, reply_markup, parse_mode))
+        return _OnbMsg()
+
+    async def send_chat_action(self, chat_id=None, action=None, **kw):
+        return True
+
+
+class _OnbUpdate:
+    def __init__(self, uid=4242, lang="uz"):
+        self.effective_user = _OnbUser(uid, lang=lang)
+        self.effective_chat = self.effective_user
+        self.message = _OnbMsg(uid)
+        self.effective_message = self.message
+        self.callback_query = None
+        self.args = []
+
+
+class _OnbCtx:
+    def __init__(self, lang="uz", user_data=None):
+        self.user_data = {"lang": lang} if user_data is None else user_data
+        self.bot = _OnbBot()
+        self.chat_data = {}
+        self.args = []
+
+
+def _onb_days_ago(days, hours=0):
+    import pytz
+    from datetime import datetime, timedelta
+    tz = pytz.timezone("Asia/Tashkent")
+    return datetime.now(tz) - timedelta(days=days, hours=hours)
+
+
+def test_onboarding_simple_menu_rules():
+    """1️⃣ Sodda menyu qoidalari: 3 kun / 3 post / 'To'liq menyu' belgisi."""
+    print("== onboarding: sodda menyu qoidalari (sof mantiq) ==")
+    import onboarding as ob
+    import pytz
+    from datetime import datetime, timedelta
+
+    tz = pytz.timezone("Asia/Tashkent")
+    now = tz.localize(datetime(2026, 9, 6, 12, 0))
+
+    def ago(days, hours=0):
+        return now - timedelta(days=days, hours=hours)
+
+    # --- Talab 1-band: 3 kundan kam YOKI 3 tadan kam post → sodda menyu ---
+    check("1 kun, 0 post → sodda",
+          ob.should_show_simple_menu(ago(1), 0, False, now) is True)
+    check("1 kun, 10 post → sodda (kun < 3)",
+          ob.should_show_simple_menu(ago(1), 10, False, now) is True)
+    check("2 kun 23 soat, 0 post → sodda",
+          ob.should_show_simple_menu(ago(2, 23), 0, False, now) is True)
+    check("3 kun, 2 post → sodda (hali 3 post chiqarmagan)",
+          ob.should_show_simple_menu(ago(3), 2, False, now) is True)
+    check("3 kun, 3 post → to'liq",
+          ob.should_show_simple_menu(ago(3), 3, False, now) is False)
+
+    # --- Talab 2-band: 3 kundan oshsa → standart bosh menyu ---
+    check("5 kun, 0 post → to'liq (3 kundan oshgan)",
+          ob.should_show_simple_menu(ago(5), 0, False, now) is False)
+    check("5 kun, 100 post → to'liq",
+          ob.should_show_simple_menu(ago(5), 100, False, now) is False)
+    check("30 kun, 0 post → to'liq",
+          ob.should_show_simple_menu(ago(30), 0, False, now) is False)
+
+    # --- Talab 2-band: "⚙️ To'liq menyuni ochish" bosilgan ---
+    check("'To'liq menyu' bosilgan → to'liq (hatto 1 kunlik hisob)",
+          ob.should_show_simple_menu(ago(1), 0, True, now) is False)
+    check("belgi + eski hisob → to'liq",
+          ob.should_show_simple_menu(ago(40), 9, True, now) is False)
+
+    # --- created_at yo'q (eski hisob) → faqat postlar soni hal qiladi ---
+    check("created_at yo'q, 0 post → sodda",
+          ob.should_show_simple_menu(None, 0, False, now) is True)
+    check("created_at yo'q, 3 post → to'liq",
+          ob.should_show_simple_menu(None, 3, False, now) is False)
+    check("created_at bo'sh satr → sodda (post yo'q)",
+          ob.should_show_simple_menu("", 0, False, now) is True)
+
+    # --- Chekka holatlar ---
+    check("chegara: posts_published=None → sodda",
+          ob.should_show_simple_menu(ago(3), None, False, now) is True)
+    check("chegara: posts_published buzilgan qiymat → sodda",
+          ob.should_show_simple_menu(ago(3), "abc", False, now) is True)
+    check("chegara: 2 kun 23 soat + 99 post → sodda",
+          ob.should_show_simple_menu(ago(2, 23), 99, False, now) is True)
+
+    # --- days_since_registration ---
+    naive_utc = datetime(2026, 9, 4, 7, 0)   # UTC → Toshkentda 12:00, 2 kun oldin
+    check("naive datetime UTC deb hisoblanadi",
+          ob.days_since_registration(naive_utc, now) == 2,
+          str(ob.days_since_registration(naive_utc, now)))
+    check("aware datetime Toshkentga o'tkaziladi",
+          ob.days_since_registration(ago(4, 6), now) == 4,
+          str(ob.days_since_registration(ago(4, 6), now)))
+    check("satr (ISO) created_at o'qiladi",
+          ob.days_since_registration("2026-09-04 07:00:00", now) == 2,
+          str(ob.days_since_registration("2026-09-04 07:00:00", now)))
+    check("buzilgan satr → None", ob.days_since_registration("sanasi yo'q", now) is None)
+    check("created_at=None → None", ob.days_since_registration(None, now) is None)
+    check("kelajakdagi sana → 0 (eski deb hisoblanmaydi)",
+          ob.days_since_registration(ago(-5), now) == 0)
+    check("is_new_by_days: 1 kun → True", ob.is_new_by_days(ago(1), now) is True)
+    check("is_new_by_days: 4 kun → False", ob.is_new_by_days(ago(4), now) is False)
+    check("has_few_posts: 2 → True", ob.has_few_posts(2) is True)
+    check("has_few_posts: 3 → False", ob.has_few_posts(3) is False)
+
+    # --- decide_menu_mode (DB natijasi → menyu rejimi) ---
+    check("decide: bo'sh dict → full (fail-open)", ob.decide_menu_mode({}) == "full")
+    check("decide: None → full", ob.decide_menu_mode(None) == "full")
+    check("decide: yangi hisob → simple",
+          ob.decide_menu_mode({"created_at": ago(1), "posts_published": 0,
+                               "full_menu_unlocked": False}, now) == "simple")
+    check("decide: eski hisob → full",
+          ob.decide_menu_mode({"created_at": ago(9), "posts_published": 0,
+                               "full_menu_unlocked": False}, now) == "full")
+
+    # --- Sabab kodlari (log/analytics) ---
+    check("sabab: unlocked", ob.simple_menu_reason(ago(1), 0, True, now) == "unlocked")
+    check("sabab: expired", ob.simple_menu_reason(ago(9), 0, False, now) == "expired")
+    check("sabab: new_days", ob.simple_menu_reason(ago(1), 7, False, now) == "new_days")
+    check("sabab: few_posts", ob.simple_menu_reason(ago(3), 1, False, now) == "few_posts")
+    check("sabab: unknown (created_at yo'q, post yetarli)",
+          ob.simple_menu_reason(None, 7, False, now) == "unknown")
+
+    # --- Qisqa muddatli kesh (Neon'ga ortiqcha so'rov ketmasligi uchun) ---
+    ob.invalidate_simple_menu()
+    check("kesh: boshida bo'sh", ob.get_cached_simple_menu(1) is None)
+    ob.cache_simple_menu(1, True)
+    ob.cache_simple_menu(2, False)
+    check("kesh: True qaytdi", ob.get_cached_simple_menu(1) is True)
+    check("kesh: False qaytdi", ob.get_cached_simple_menu(2) is False)
+    check("kesh: 2 yozuv", ob.cache_size() == 2, str(ob.cache_size()))
+    ob.invalidate_simple_menu(1)
+    check("kesh: bitta user tozalandi",
+          ob.get_cached_simple_menu(1) is None and ob.get_cached_simple_menu(2) is False)
+    ob._SIMPLE_MENU_CACHE[3] = (time.time() - ob.SIMPLE_MENU_CACHE_TTL - 1, True)
+    check("kesh: eskirgan yozuv qaytmaydi", ob.get_cached_simple_menu(3) is None)
+    ob.invalidate_simple_menu()
+    check("kesh: hammasi tozalandi", ob.cache_size() == 0)
+    check("kesh: user_id bo'sh → hech narsa", ob.get_cached_simple_menu(None) is None)
+
+
+def test_onboarding_simple_keyboard():
+    """1️⃣ Sodda klaviatura: 3 ta katta tugma + 1 ta kichik 'To'liq menyu' (uz/ru)."""
+    print("== onboarding: sodda klaviatura (uz/ru) ==")
+    from locales.translations import get_text
+    from keyboards.default import (
+        get_simple_keyboard, get_main_keyboard,
+        BTN_QUICK_AI_POST, BTN_QUICK_PHOTO_POST, BTN_QUICK_ADD_CHANNEL, BTN_OPEN_FULL_MENU,
+        BTN_QUICK_AI_POST_RU, BTN_QUICK_PHOTO_POST_RU,
+        BTN_QUICK_ADD_CHANNEL_RU, BTN_OPEN_FULL_MENU_RU, QUICK_MENU_BUTTONS,
+        BTN_NEW_POST, BTN_AI_STUDIO, BTN_PREMIUM, BTN_SETTINGS, BTN_HELP, BTN_EXTRAS,
+    )
+
+    # --- Tugma yozuvlari aynan talabdagidek ---
+    check("tugma uz: 🚀 1 daqiqada post yaratish",
+          BTN_QUICK_AI_POST == "🚀 1 daqiqada post yaratish", BTN_QUICK_AI_POST)
+    check("tugma uz: 🖼 Rasmdan post olish",
+          BTN_QUICK_PHOTO_POST == "🖼 Rasmdan post olish", BTN_QUICK_PHOTO_POST)
+    check("tugma uz: 📢 Kanal ulash",
+          BTN_QUICK_ADD_CHANNEL == "📢 Kanal ulash", BTN_QUICK_ADD_CHANNEL)
+    check("tugma uz: ⚙️ To'liq menyuni ochish",
+          BTN_OPEN_FULL_MENU == "⚙️ To'liq menyuni ochish", BTN_OPEN_FULL_MENU)
+    check("tugma ru: 🚀 Создать пост за 1 минуту",
+          BTN_QUICK_AI_POST_RU == "🚀 Создать пост за 1 минуту", BTN_QUICK_AI_POST_RU)
+    check("tugma ru: 🖼 Пост из фото",
+          BTN_QUICK_PHOTO_POST_RU == "🖼 Пост из фото", BTN_QUICK_PHOTO_POST_RU)
+    check("tugma ru: 📢 Подключить канал",
+          BTN_QUICK_ADD_CHANNEL_RU == "📢 Подключить канал", BTN_QUICK_ADD_CHANNEL_RU)
+    check("tugma ru: ⚙️ Открыть полное меню",
+          BTN_OPEN_FULL_MENU_RU == "⚙️ Открыть полное меню", BTN_OPEN_FULL_MENU_RU)
+    check("QUICK_MENU_BUTTONS: 8 ta (uz+ru)", len(QUICK_MENU_BUTTONS) == 8,
+          str(len(QUICK_MENU_BUTTONS)))
+    check("barcha tugmalar lug'atdan olinadi",
+          BTN_QUICK_AI_POST == get_text("quick_btn_ai_post", "uz")
+          and BTN_OPEN_FULL_MENU_RU == get_text("quick_btn_full_menu", "ru"))
+
+    # --- Tuzilma: 3 ta katta tugma + pastda 1 ta kichik ---
+    kb = get_simple_keyboard("uz")
+    rows = [[b.text for b in row] for row in kb.keyboard]
+    check("sodda kb uz: 4 qator", len(rows) == 4, str(rows))
+    check("sodda kb: har tugma alohida qatorda (katta ko'rinish)",
+          all(len(r) == 1 for r in rows), str(rows))
+    check("sodda kb uz: tartib AI → Rasm → Kanal → To'liq menyu",
+          rows == [[BTN_QUICK_AI_POST], [BTN_QUICK_PHOTO_POST],
+                   [BTN_QUICK_ADD_CHANNEL], [BTN_OPEN_FULL_MENU]], str(rows))
+    check("sodda kb: 'To'liq menyu' ENG PASTDA", rows[-1] == [BTN_OPEN_FULL_MENU])
+    check("sodda kb: resize_keyboard=True", kb.resize_keyboard is True)
+
+    rows_ru = [[b.text for b in row] for row in get_simple_keyboard("ru").keyboard]
+    check("sodda kb ru: tarjima qilingan",
+          rows_ru == [[BTN_QUICK_AI_POST_RU], [BTN_QUICK_PHOTO_POST_RU],
+                      [BTN_QUICK_ADD_CHANNEL_RU], [BTN_OPEN_FULL_MENU_RU]], str(rows_ru))
+    check("sodda kb: default uz (eski chaqiruvlar buzilmaydi)",
+          [[b.text for b in r] for r in get_simple_keyboard().keyboard] == rows)
+
+    class _Ctx:
+        def __init__(self, data):
+            self.user_data = data
+
+    check("sodda kb: context.user_data['lang'] hurmat qilinadi",
+          [[b.text for b in r] for r in get_simple_keyboard(context=_Ctx({"lang": "ru"})).keyboard]
+          == rows_ru)
+
+    # --- Murakkab 6 talik menyu tugmalari sodda klaviaturada YO'Q ---
+    flat = [t for r in rows for t in r]
+    for btn in (BTN_NEW_POST, BTN_AI_STUDIO, BTN_PREMIUM, BTN_SETTINGS, BTN_HELP, BTN_EXTRAS):
+        check(f"sodda kb: 6 talik menyu tugmasi yo'q ({btn[:14]})", btn not in flat, str(flat))
+    full_flat = [b.text for row in get_main_keyboard(False).keyboard for b in row]
+    check("standart menyu buzilmagan: 6 tugma", len(full_flat) == 6, str(full_flat))
+
+
+def test_onboarding_resolve_and_quick_handlers():
+    """1️⃣ Menyu tanlash (DB + kesh) va 3 ta tezkor tugma — runtime."""
+    print("== onboarding: resolve_main_keyboard va tezkor tugmalar ==")
+    import asyncio
+    import importlib
+    import database as db_mod
+    import onboarding as ob
+    from telegram.ext import ConversationHandler
+    from locales.translations import get_text
+    from keyboards.default import BTN_NEW_POST, BTN_QUICK_AI_POST
+
+    ob_mod = importlib.import_module("handlers.onboarding")
+    from handlers.ai_assistant import AI_PROMPT_INPUT, AI_PHOTO_INPUT
+    from handlers.channels import ADD_CHANNEL
+
+    state = {"onboarding": {}, "raise": False}
+    calls = []
+
+    async def fake_run_db(fn, *args, **kwargs):
+        name = getattr(fn, "__name__", "")
+        calls.append(name)
+        if state["raise"]:
+            raise RuntimeError("DB uzildi")
+        if name == "get_user_onboarding":
+            return state["onboarding"]
+        if name == "set_user_full_menu_unlocked":
+            return True
+        return None
+
+    orig = db_mod.run_db
+    db_mod.run_db = fake_run_db
+    ob.invalidate_simple_menu()
+    try:
+        # --- a) Yangi foydalanuvchi → sodda klaviatura + kesh ---
+        state["onboarding"] = {"created_at": _onb_days_ago(1), "posts_published": 0,
+                               "full_menu_unlocked": False}
+        kb = asyncio.run(ob_mod.resolve_main_keyboard(4242, False, "uz"))
+        labels = [b.text for r in kb.keyboard for b in r]
+        check("yangi user → sodda klaviatura", labels[0] == BTN_QUICK_AI_POST, str(labels))
+        check("yangi user → 4 qator", len(kb.keyboard) == 4, str(labels))
+        db_calls = calls.count("get_user_onboarding")
+        asyncio.run(ob_mod.resolve_main_keyboard(4242, False, "uz"))
+        check("ikkinchi chaqiruv keshdan (DB so'rovi yo'q)",
+              calls.count("get_user_onboarding") == db_calls,
+              str(calls.count("get_user_onboarding")))
+        check("qaror keshga yozildi", ob.get_cached_simple_menu(4242) is True)
+        suffix = asyncio.run(ob_mod.main_menu_intro_suffix(4242, False, "uz"))
+        check("intro: quick_menu_hint qo'shiladi",
+              get_text("quick_menu_hint", "uz") in suffix, suffix[:40])
+
+        # --- b) Admin → har doim to'liq menyu (DB so'rovsiz) ---
+        calls.clear()
+        kb_admin = asyncio.run(ob_mod.resolve_main_keyboard(4242, True, "uz"))
+        check("admin → to'liq menyu",
+              BTN_NEW_POST in [b.text for r in kb_admin.keyboard for b in r])
+        check("admin → DB so'rovi yo'q", "get_user_onboarding" not in calls, str(calls))
+        check("admin → intro qatori bo'sh",
+              asyncio.run(ob_mod.main_menu_intro_suffix(4242, True, "uz")) == "")
+
+        # --- c) Eski foydalanuvchi → to'liq menyu ---
+        ob.invalidate_simple_menu()
+        state["onboarding"] = {"created_at": _onb_days_ago(12), "posts_published": 0,
+                               "full_menu_unlocked": False}
+        kb_old = asyncio.run(ob_mod.resolve_main_keyboard(5150, False, "uz"))
+        check("eski user → to'liq menyu",
+              BTN_NEW_POST in [b.text for r in kb_old.keyboard for b in r])
+        check("eski user → intro qatori yo'q",
+              asyncio.run(ob_mod.main_menu_intro_suffix(5150, False, "uz")) == "")
+
+        # --- d) Foydalanuvchi topilmadi ({}) → to'liq menyu (fail-open) ---
+        ob.invalidate_simple_menu()
+        state["onboarding"] = {}
+        kb_empty = asyncio.run(ob_mod.resolve_main_keyboard(6160, False, "uz"))
+        check("bo'sh onboarding → to'liq menyu",
+              BTN_NEW_POST in [b.text for r in kb_empty.keyboard for b in r])
+
+        # --- e) DB yiqilsa → to'liq menyu (bot qulflab qolmaydi) ---
+        ob.invalidate_simple_menu()
+        state["raise"] = True
+        kb_err = asyncio.run(ob_mod.resolve_main_keyboard(7170, False, "uz"))
+        check("DB xatosi → to'liq menyu",
+              BTN_NEW_POST in [b.text for r in kb_err.keyboard for b in r])
+        state["raise"] = False
+
+        # --- f) 🚀 1 daqiqada post yaratish → AI post oqimi ---
+        upd = _OnbUpdate(4242)
+        ctx = _OnbCtx("uz", {"lang": "uz", "studio_post_text": "eski", "studio_tone": "formal"})
+        out = asyncio.run(ob_mod.quick_ai_post_entry(upd, ctx))
+        check("quick AI: AI_PROMPT_INPUT holati", out == AI_PROMPT_INPUT, str(out))
+        text, markup, pm = upd.message.sent[-1]
+        check("quick AI: intro matni (uz)", text == get_text("ai_studio_post_intro", "uz"))
+        check("quick AI: HTML parse_mode", pm == "HTML")
+        check("quick AI: 'orqaga' tugmasi bor",
+              any(b.callback_data == "ai_back_to_menu"
+                  for r in markup.inline_keyboard for b in r))
+        check("quick AI: eski studio ma'lumoti tozalandi",
+              "studio_post_text" not in ctx.user_data and "studio_tone" not in ctx.user_data)
+
+        upd_ru = _OnbUpdate(4242, lang="ru")
+        ctx_ru = _OnbCtx("ru", {"lang": "ru"})
+        asyncio.run(ob_mod.quick_ai_post_entry(upd_ru, ctx_ru))
+        check("quick AI ru: intro matni ruscha",
+              upd_ru.message.sent[-1][0] == get_text("ai_studio_post_intro", "ru"))
+
+        # --- g) 🖼 Rasmdan post olish → Vision oqimi ---
+        upd_p = _OnbUpdate(4242)
+        ctx_p = _OnbCtx("uz", {"lang": "uz", "studio_file_id": "ph-1"})
+        out_p = asyncio.run(ob_mod.quick_photo_post_entry(upd_p, ctx_p))
+        check("quick Rasm: AI_PHOTO_INPUT holati", out_p == AI_PHOTO_INPUT, str(out_p))
+        check("quick Rasm: vision intro matni",
+              upd_p.message.sent[-1][0] == get_text("ai_studio_photo_intro", "uz"))
+        check("quick Rasm: eski rasm ma'lumoti tozalandi",
+              "studio_file_id" not in ctx_p.user_data)
+
+        # --- h) 📢 Kanal ulash → ADD_CHANNEL oqimi ---
+        upd_c = _OnbUpdate(4242)
+        ctx_c = _OnbCtx("uz", {"lang": "uz", "add_channel_pending": "@old"})
+        out_c = asyncio.run(ob_mod.quick_add_channel_entry(upd_c, ctx_c))
+        check("quick Kanal: ADD_CHANNEL holati", out_c == ADD_CHANNEL, str(out_c))
+        check("quick Kanal: yo'riqnoma yuborildi",
+              bool(ctx_c.bot.sent) and "TestBot" in str(ctx_c.bot.sent[0][1]),
+              str(ctx_c.bot.sent)[:1])
+        check("quick Kanal: eski 'kutilayotgan kanal' tozalandi",
+              "add_channel_pending" not in ctx_c.user_data)
+
+        # --- i) ⚙️ To'liq menyuni ochish ---
+        upd_f = _OnbUpdate(4242)
+        ctx_f = _OnbCtx("uz", {"lang": "uz"})
+        out_f = asyncio.run(ob_mod.open_full_menu(upd_f, ctx_f))
+        check("full menu: END qaytdi", out_f == ConversationHandler.END, str(out_f))
+        check("full menu: belgi bazaga yozildi",
+              "set_user_full_menu_unlocked" in calls, str(calls[-3:]))
+        f_text, f_markup, f_pm = upd_f.message.sent[-1]
+        check("full menu: tasdiq matni (uz)",
+              f_text == get_text("quick_full_menu_opened", "uz"), f_text[:60])
+        check("full menu: standart 6 talik menyu biriktirildi",
+              BTN_NEW_POST in [b.text for r in f_markup.keyboard for b in r])
+        check("full menu: HTML", f_pm == "HTML")
+        check("full menu: kesh to'liq menyuga o'tdi",
+              ob.get_cached_simple_menu(4242) is False)
+
+        upd_fr = _OnbUpdate(4242, lang="ru")
+        ctx_fr = _OnbCtx("ru", {"lang": "ru"})
+        asyncio.run(ob_mod.open_full_menu(upd_fr, ctx_fr))
+        f_text_ru, f_markup_ru, _ = upd_fr.message.sent[-1]
+        check("full menu ru: ruscha tasdiq + ruscha menyu",
+              f_text_ru == get_text("quick_full_menu_opened", "ru")
+              and get_text("btn_new_post", "ru")
+              in [b.text for r in f_markup_ru.keyboard for b in r], f_text_ru[:60])
+
+        # DB yozuvi yiqilsa ham menyu ochiladi (foydalanuvchi qulflanmaydi)
+        state["raise"] = True
+        upd_e = _OnbUpdate(4242)
+        ctx_e = _OnbCtx("uz", {"lang": "uz"})
+        out_e = asyncio.run(ob_mod.open_full_menu(upd_e, ctx_e))
+        check("full menu: DB xatosida ham menyu ochiladi",
+              out_e == ConversationHandler.END and bool(upd_e.message.sent))
+        state["raise"] = False
+    finally:
+        db_mod.run_db = orig
+        ob.invalidate_simple_menu()
+
+
+def test_onboarding_start_integration():
+    """1️⃣ /start: yangi foydalanuvchi sodda klaviatura oladi, eski — standart."""
+    print("== onboarding: /start integratsiyasi ==")
+    import asyncio
+    import importlib
+    import database as db_mod
+    import onboarding as ob
+    from telegram import ReplyKeyboardMarkup
+    from keyboards.default import BTN_NEW_POST, BTN_QUICK_AI_POST, BTN_OPEN_FULL_MENU
+    from locales.translations import get_text
+
+    st_mod = importlib.import_module("handlers.start")
+    state = {"onboarding": {}, "is_new": True, "lang": "uz"}
+
+    async def fake_run_db(fn, *args, **kwargs):
+        name = getattr(fn, "__name__", "")
+        if name == "save_user":
+            return state["is_new"]
+        if name == "get_user_language":
+            return state["lang"]
+        if name == "get_user_onboarding":
+            return state["onboarding"]
+        if name == "get_setting":
+            return ""
+        if name == "is_premium":
+            return False
+        return None
+
+    async def fake_check(bot, uid):
+        return True, []
+
+    async def fake_ad(uid):
+        return ""
+
+    def run_start():
+        upd = _OnbUpdate(4242, lang=state["lang"])
+        ctx = _OnbCtx(state["lang"], {"lang": state["lang"]})
+        asyncio.run(st_mod.start(upd, ctx))
+        return upd.message.sent[-1]
+
+    orig_db = db_mod.run_db
+    orig_check = st_mod.check_user_subscribed
+    orig_ad = st_mod.get_smart_reply_ad_async
+    db_mod.run_db = fake_run_db
+    st_mod.check_user_subscribed = fake_check
+    st_mod.get_smart_reply_ad_async = fake_ad
+    ob.invalidate_simple_menu()
+    try:
+        # a) Yangi foydalanuvchi → onboarding matni + SODDA klaviatura + yo'riqnoma
+        state.update({"onboarding": {"created_at": _onb_days_ago(0, 2), "posts_published": 0,
+                                     "full_menu_unlocked": False}, "is_new": True, "lang": "uz"})
+        text, markup, pm = run_start()
+        check("start: onboarding matni saqlangan",
+              text.startswith(get_text("start_onboarding", "uz")), text[:60])
+        check("start: quick_menu_hint qo'shilgan",
+              get_text("quick_menu_hint", "uz") in text, text[-60:])
+        check("start: ReplyKeyboardMarkup", isinstance(markup, ReplyKeyboardMarkup))
+        labels = [b.text for r in markup.keyboard for b in r]
+        check("start: sodda klaviatura (3 katta + 1 kichik)",
+              labels == [BTN_QUICK_AI_POST, get_text("quick_btn_photo_post", "uz"),
+                         get_text("quick_btn_add_channel", "uz"), BTN_OPEN_FULL_MENU], str(labels))
+        check("start: 6 talik menyu tugmasi yo'q", BTN_NEW_POST not in labels, str(labels))
+        check("start: HTML", pm == "HTML")
+
+        # b) Eski foydalanuvchi → standart 6 talik menyu
+        ob.invalidate_simple_menu()
+        state.update({"onboarding": {"created_at": _onb_days_ago(20), "posts_published": 9,
+                                     "full_menu_unlocked": False}, "is_new": False, "lang": "uz"})
+        text2, markup2, _ = run_start()
+        labels2 = [b.text for r in markup2.keyboard for b in r]
+        check("start (eski): standart menyu", BTN_NEW_POST in labels2, str(labels2))
+        check("start (eski): quick_menu_hint yo'q",
+              get_text("quick_menu_hint", "uz") not in text2)
+        check("start (eski): standart salomlashish",
+              text2.startswith(get_text("start_hello", "uz", name="Ali")), text2[:50])
+
+        # c) RU foydalanuvchi → ruscha sodda klaviatura
+        ob.invalidate_simple_menu()
+        state.update({"onboarding": {"created_at": _onb_days_ago(1), "posts_published": 0,
+                                     "full_menu_unlocked": False}, "is_new": False, "lang": "ru"})
+        text3, markup3, _ = run_start()
+        labels3 = [b.text for r in markup3.keyboard for b in r]
+        check("start ru: ruscha sodda klaviatura",
+              labels3[0] == get_text("quick_btn_ai_post", "ru")
+              and labels3[-1] == get_text("quick_btn_full_menu", "ru"), str(labels3))
+        check("start ru: ruscha yo'riqnoma", get_text("quick_menu_hint", "ru") in text3)
+
+        # d) "To'liq menyu" allaqachon bosilgan → standart menyu
+        ob.invalidate_simple_menu()
+        state.update({"onboarding": {"created_at": _onb_days_ago(1), "posts_published": 0,
+                                     "full_menu_unlocked": True}, "is_new": True, "lang": "uz"})
+        _, markup4, _ = run_start()
+        check("start: belgi bilan → standart menyu",
+              BTN_NEW_POST in [b.text for r in markup4.keyboard for b in r])
+
+        # e) Onboarding ma'lumoti bo'lmasa → standart menyu (regressiya yo'q)
+        ob.invalidate_simple_menu()
+        state.update({"onboarding": {}, "is_new": True, "lang": "uz"})
+        _, markup5, _ = run_start()
+        check("start: ma'lumot yo'q → standart menyu (regressiya yo'q)",
+              BTN_NEW_POST in [b.text for r in markup5.keyboard for b in r])
+
+        # f) send_main_menu: simple_menu parametri (bazaga so'rov yubormaydi)
+        class _RecBot:
+            def __init__(self):
+                self.sent = []
+
+            async def send_message(self, chat_id=None, text=None, reply_markup=None,
+                                   parse_mode=None, **kw):
+                self.sent.append((text, reply_markup))
+                return None
+
+        bot = _RecBot()
+        sctx = _OnbCtx("uz", {"lang": "uz"})
+        sctx.bot = bot
+        check("send_main_menu: main_menu_hint matni",
+              asyncio.run(st_mod.send_main_menu(sctx, 4242, "uz", False)) is None)
+        check("send_main_menu: default → standart menyu (orqaga moslik)",
+              BTN_NEW_POST in [b.text for r in bot.sent[-1][1].keyboard for b in r],
+              str([b.text for r in bot.sent[-1][1].keyboard for b in r]))
+        check("send_main_menu: matn main_menu_hint",
+              bot.sent[-1][0] == get_text("main_menu_hint", "uz"), str(bot.sent[-1][0])[:50])
+
+        asyncio.run(st_mod.send_main_menu(sctx, 4242, "uz", False, simple_menu=True))
+        simple_labels = [b.text for r in bot.sent[-1][1].keyboard for b in r]
+        check("send_main_menu: simple_menu=True → sodda klaviatura",
+              simple_labels == [BTN_QUICK_AI_POST, get_text("quick_btn_photo_post", "uz"),
+                                get_text("quick_btn_add_channel", "uz"),
+                                get_text("quick_btn_full_menu", "uz")], str(simple_labels))
+
+        asyncio.run(st_mod.send_main_menu(sctx, 4242, "ru", False, simple_menu=True))
+        check("send_main_menu ru: ruscha sodda klaviatura",
+              [b.text for r in bot.sent[-1][1].keyboard for b in r][0]
+              == get_text("quick_btn_ai_post", "ru"))
+
+        asyncio.run(st_mod.send_main_menu(sctx, 4242, "uz", True, simple_menu=True))
+        check("send_main_menu: admin → standart menyu",
+              BTN_NEW_POST in [b.text for r in bot.sent[-1][1].keyboard for b in r])
+    finally:
+        db_mod.run_db = orig_db
+        st_mod.check_user_subscribed = orig_check
+        st_mod.get_smart_reply_ad_async = orig_ad
+        ob.invalidate_simple_menu()
+
+
+def test_onboarding_handlers_registered():
+    """1️⃣ Sodda menyu tugmalari router'da ro'yxatdan o'tgan (uz/ru, barcha holatlar)."""
+    print("== onboarding: handler registratsiyasi ==")
+    import re
+    import warnings
+    from telegram.ext import ApplicationBuilder, ConversationHandler, MessageHandler
+    from handlers import register_all_handlers
+    from keyboards.default import (
+        BTN_QUICK_AI_POST, BTN_QUICK_AI_POST_RU, BTN_QUICK_PHOTO_POST, BTN_QUICK_PHOTO_POST_RU,
+        BTN_QUICK_ADD_CHANNEL, BTN_QUICK_ADD_CHANNEL_RU, BTN_OPEN_FULL_MENU, BTN_OPEN_FULL_MENU_RU,
+    )
+    import handlers as h_mod
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        app = ApplicationBuilder().token("123456:TEST_TOKEN").build()
+        register_all_handlers(app)
+
+    conv = [h for h in app.handlers[0] if isinstance(h, ConversationHandler)][0]
+
+    def _matches(handler_list, label):
+        """Handler ro'yxatidagi Regex filtrlardan biri tugma matnini taniydimi?
+
+        Matnni ro'yxatdan qidirish o'rniga HAQIQIY regex mosligi tekshiriladi —
+        shunda emoji/bo'sh joy escape'lanishi natijani buzmaydi.
+        """
+        for h in handler_list:
+            if not isinstance(h, MessageHandler):
+                continue
+            pattern = getattr(h.filters, "pattern", None)
+            if not pattern:
+                continue
+            try:
+                if re.fullmatch(pattern, label):
+                    return True
+            except Exception:
+                continue
+        return False
+
+    for label in (BTN_QUICK_AI_POST, BTN_QUICK_AI_POST_RU, BTN_QUICK_PHOTO_POST,
+                  BTN_QUICK_PHOTO_POST_RU, BTN_QUICK_ADD_CHANNEL, BTN_QUICK_ADD_CHANNEL_RU,
+                  BTN_OPEN_FULL_MENU, BTN_OPEN_FULL_MENU_RU):
+        check(f"entry point tugmani taniydi: {label[:24]}",
+              _matches(conv.entry_points, label), label)
+
+    # Har bir FSM holatida ham ishlaydi (all_menu_jumps har state boshida)
+    from handlers.new_post import GET_CONTENT
+    from handlers.content_plan import PLAN_VIEW
+    from handlers.channels import ADD_CHANNEL
+    for state_name, state in (("GET_CONTENT", GET_CONTENT), ("PLAN_VIEW", PLAN_VIEW),
+                              ("ADD_CHANNEL", ADD_CHANNEL)):
+        check(f"{state_name}: sodda menyu tugmalari ishlaydi",
+              _matches(conv.states[state], BTN_QUICK_AI_POST)
+              and _matches(conv.states[state], BTN_OPEN_FULL_MENU_RU))
+
+    # Global (conversation tashqarisida) handlerlar ham bor
+    check("global: sodda menyu tugmalari ro'yxatda",
+          _matches(app.handlers[0], BTN_QUICK_AI_POST)
+          and _matches(app.handlers[0], BTN_OPEN_FULL_MENU))
+    # Eski 6 talik menyu tugmalari ham saqlangan (regressiya yo'q)
+    from keyboards.default import BTN_NEW_POST, BTN_NEW_POST_RU
+    check("global: eski menyu tugmalari saqlangan",
+          _matches(app.handlers[0], BTN_NEW_POST) and _matches(app.handlers[0], BTN_NEW_POST_RU))
+
+    src = open(h_mod.__file__, encoding="utf-8").read()
+    check("router: quick_ai_post_entry ulangan", "quick_ai_post_entry" in src)
+    check("router: quick_photo_post_entry ulangan", "quick_photo_post_entry" in src)
+    check("router: quick_add_channel_entry ulangan", "quick_add_channel_entry" in src)
+    check("router: open_full_menu ulangan", "open_full_menu" in src)
+    check("router: onboarding_handlers all_menu_jumps'da", "onboarding_handlers +" in src)
+
+
+def test_onboarding_db_and_schema():
+    """1️⃣ Onboarding DB funksiyalari va sxema migratsiyasi (Neon uchun idempotent)."""
+    print("== onboarding: DB funksiyalari va sxema ==")
+    from pathlib import Path
+    import database as db_mod
+    import inspect
+
+    check("db: get_user_onboarding mavjud", hasattr(db_mod, "get_user_onboarding"))
+    check("db: set_user_full_menu_unlocked mavjud",
+          hasattr(db_mod, "set_user_full_menu_unlocked"))
+    sig = inspect.signature(db_mod.get_user_onboarding)
+    check("db: get_user_onboarding(user_id)", list(sig.parameters) == ["user_id"],
+          str(list(sig.parameters)))
+
+    schema = (Path(db_mod.__file__).parent / "schema.sql").read_text(encoding="utf-8")
+    check("schema.sql: full_menu_unlocked ustuni",
+          "full_menu_unlocked BOOLEAN DEFAULT FALSE" in schema)
+    check("schema.sql: idempotent migratsiya (ADD COLUMN IF NOT EXISTS)",
+          "ADD COLUMN IF NOT EXISTS full_menu_unlocked BOOLEAN DEFAULT FALSE" in schema)
+    src = open(db_mod.__file__, encoding="utf-8").read()
+    check("database.py: zaxira DDL'da ustun bor",
+          src.count("full_menu_unlocked BOOLEAN DEFAULT FALSE") >= 2)
+    check("database.py: migratsiya ro'yxatida bor",
+          '"ALTER TABLE users ADD COLUMN IF NOT EXISTS full_menu_unlocked' in src)
+    check("database.py: postlar soni status='posted' bo'yicha",
+          "status = 'posted'" in src)
+    check("database.py: onboarding keshi tozalanadi",
+          "invalidate_simple_menu" in src)
+
+
+# ============================================================
+# 🚀 7 KUNLIK KONTENT-REJANI BITTA TUGMA BILAN NAVBATGA QO'YISH
+# ============================================================
+
+_PLAN_ITEMS_7 = [
+    {"day": "Dushanba", "format": "Maslahat", "title": "Birinchi g'oya", "idea": "Tavsif 1"},
+    {"day": "Seshanba", "format": "Keys", "title": "Ikkinchi g'oya", "idea": "Tavsif 2"},
+    {"day": "Chorshanba", "format": "So'rovnoma", "title": "Uchinchi", "idea": "Tavsif 3"},
+    {"day": "Payshanba", "format": "Video", "title": "To'rtinchi", "idea": "Tavsif 4"},
+    {"day": "Juma", "format": "Statistika", "title": "Beshinchi", "idea": "Tavsif 5"},
+    {"day": "Shanba", "format": "Iqtibos", "title": "Oltinchi", "idea": "Tavsif 6"},
+    {"day": "Yakshanba", "format": "Xulosa", "title": "Yettinchi", "idea": "Tavsif 7"},
+]
+
+
+def test_content_plan_week_times():
+    """2️⃣ Haftalik vaqtlar: dushanba → yakshanba, har kuni 12:00, doim kelajakda."""
+    print("== content plan: haftalik vaqtlar ==")
+    import pytz
+    from datetime import datetime, timedelta
+    from handlers.content_plan import (
+        week_schedule_times, build_plan_post_text,
+        PLAN_SCHEDULE_HOUR, PLAN_SCHEDULE_MINUTE, PLAN_WEEK_DAYS, CB_PLAN_SCHEDULE_ALL,
+    )
+
+    tz = pytz.timezone("Asia/Tashkent")
+    check("soat 12:00 konstantasi",
+          PLAN_SCHEDULE_HOUR == 12 and PLAN_SCHEDULE_MINUTE == 0)
+    check("7 kun konstantasi", PLAN_WEEK_DAYS == 7)
+    check("callback_data: plan_sched_all", CB_PLAN_SCHEDULE_ALL == "plan_sched_all")
+    check("callback_data: ^plan_ pattern'iga mos (router ushlaydi)",
+          CB_PLAN_SCHEDULE_ALL.startswith("plan_"))
+
+    # Chorshanba 09:00 → keyingi dushanbadan boshlanadi
+    wed = tz.localize(datetime(2026, 9, 2, 9, 0))
+    times = week_schedule_times(7, now=wed)
+    check("7 ta vaqt qaytdi", len(times) == 7, str(len(times)))
+    check("kunlar: dushanba(0) → yakshanba(6)",
+          [t.weekday() for t in times] == [0, 1, 2, 3, 4, 5, 6],
+          str([t.weekday() for t in times]))
+    check("barchasi soat 12:00",
+          all(t.hour == 12 and t.minute == 0 for t in times),
+          str([(t.hour, t.minute) for t in times]))
+    check("ketma-ket kunlar (24 soat)",
+          all(times[i + 1] - times[i] == timedelta(days=1) for i in range(6)))
+    check("barchasi kelajakda", all(t > wed for t in times))
+    check("birinchi kun: 2026-09-07 dushanba",
+          times[0] == tz.localize(datetime(2026, 9, 7, 12, 0)), str(times[0]))
+    check("aware datetime (tz bor)", all(t.tzinfo is not None for t in times))
+
+    # Dushanba 08:00 → SHU dushanba 12:00 (hali o'tmagan)
+    mon_early = tz.localize(datetime(2026, 9, 7, 8, 0))
+    t2 = week_schedule_times(7, now=mon_early)
+    check("dushanba 08:00 → bugungi 12:00",
+          t2[0] == tz.localize(datetime(2026, 9, 7, 12, 0)), str(t2[0]))
+
+    # Dushanba 13:00 → 12:00 allaqachon o'tgan → keyingi hafta
+    mon_late = tz.localize(datetime(2026, 9, 7, 13, 0))
+    t3 = week_schedule_times(7, now=mon_late)
+    check("dushanba 13:00 → keyingi hafta dushanbasi",
+          t3[0] == tz.localize(datetime(2026, 9, 14, 12, 0)), str(t3[0]))
+
+    # Dushanba aynan 12:00 → o'tgan hisoblanadi (post o'tmishga tushmaydi)
+    mon_exact = tz.localize(datetime(2026, 9, 7, 12, 0))
+    check("dushanba aynan 12:00 → keyingi hafta",
+          week_schedule_times(7, now=mon_exact)[0] == tz.localize(datetime(2026, 9, 14, 12, 0)))
+
+    # Yakshanba → ertasi kuni dushanba
+    sun = tz.localize(datetime(2026, 9, 6, 23, 30))
+    check("yakshanba 23:30 → ertaga dushanba",
+          week_schedule_times(7, now=sun)[0] == tz.localize(datetime(2026, 9, 7, 12, 0)))
+
+    # Naive datetime ham qabul qilinadi
+    check("naive datetime qabul qilinadi",
+          len(week_schedule_times(7, now=datetime(2026, 9, 2, 9, 0))) == 7)
+    check("0 kun → bo'sh ro'yxat", week_schedule_times(0, now=wed) == [])
+    check("3 kun → 3 ta vaqt", len(week_schedule_times(3, now=wed)) == 3)
+    check("standart: now berilmasa ham 7 ta kelajakdagi vaqt",
+          all(t > datetime.now(tz) for t in week_schedule_times()))
+
+    # --- Post matni (HTML xavfsiz) ---
+    post = build_plan_post_text(_PLAN_ITEMS_7[0], 0)
+    check("post: sarlavha <b> ichida",
+          post.startswith("<b>Birinchi g&#x27;oya</b>"), post[:40])
+    check("post: g'oya (idea) qo'shilgan", "Tavsif 1" in post, post)
+    check("post: apostrof HTML'ga xavfsiz escape qilinadi (&#x27;)",
+          "&#x27;" in post and "G'oya" not in post, post[:60])
+    check("post: xavfli belgilar escape qilinadi",
+          "&lt;script&gt;" in build_plan_post_text({"title": "<script>", "idea": "a & b"})
+          and "a &amp; b" in build_plan_post_text({"title": "<script>", "idea": "a & b"}))
+    check("post: sarlavha bo'lmasa kun nomi",
+          "Kun 2" in build_plan_post_text({"day": "", "idea": ""}, 1))
+    check("post: bo'sh item → kun nomi",
+          build_plan_post_text({}, 0) == "<b>Kun 1</b>", build_plan_post_text({}, 0))
+    check("post: faqat idea bo'lsa (sarlavha kunga almashtiriladi)",
+          build_plan_post_text({"idea": "Faqat g'oya"}, 4)
+          == "<b>Kun 5</b>\n\nFaqat g&#x27;oya",
+          build_plan_post_text({"idea": "Faqat g'oya"}, 4))
+    check("post: None item yiqilmaydi", build_plan_post_text(None, 3) == "<b>Kun 4</b>")
+    check("post: 7 kunlik reja → 7 xil matn",
+          len({build_plan_post_text(it, i) for i, it in enumerate(_PLAN_ITEMS_7)}) == 7)
+
+
+def test_content_plan_week_keyboard():
+    """2️⃣ Reja ekrani klaviaturasi: [🚀 Barchasini 7 kunga rejalashtirish] + kunlar."""
+    print("== content plan: hafta klaviaturasi ==")
+    from locales.translations import get_text
+    from handlers.content_plan import (
+        _get_plan_day_keyboard, _get_plan_week_keyboard, _plan_list_keyboard,
+        CB_PLAN_SCHEDULE_ALL,
+    )
+
+    items = _PLAN_ITEMS_7[:2]
+
+    # Eski keyboard O'ZGARMAGAN (mavjud testlar buzilmasin)
+    day_cbs = [b.callback_data for r in _get_plan_day_keyboard(items).inline_keyboard for b in r]
+    check("day kb: 3 ta tugma (2 kun + orqaga) — o'zgarmagan", len(day_cbs) == 3, str(day_cbs))
+
+    # Yangi hafta klaviaturasi
+    kb = _get_plan_week_keyboard(items, "uz")
+    rows = kb.inline_keyboard
+    labels = [b.text for r in rows for b in r]
+    cbs = [b.callback_data for r in rows for b in r]
+    check("week kb uz: birinchi qator — rejalashtirish tugmasi",
+          rows[0][0].callback_data == CB_PLAN_SCHEDULE_ALL, str(rows[0]))
+    check("week kb uz: tugma yozuvi talabdagidek",
+          rows[0][0].text == "🚀 Barchasini 7 kunga rejalashtirish", rows[0][0].text)
+    check("week kb uz: tugma lug'atdan olinadi",
+          rows[0][0].text == get_text("plan_btn_schedule_all", "uz"))
+    check("week kb uz: kun tugmalari saqlangan",
+          "plan_day:0" in cbs and "plan_day:1" in cbs and "plan_back" in cbs, str(cbs))
+    check("week kb: jami 4 tugma (1 + 2 kun + orqaga)", len(cbs) == 4, str(cbs))
+    check("week kb: callback_data 64 baytdan oshmaydi",
+          all(len(c.encode("utf-8")) <= 64 for c in cbs), str(cbs))
+
+    rows_ru = _get_plan_week_keyboard(items, "ru").inline_keyboard
+    check("week kb ru: ruscha yozuv",
+          rows_ru[0][0].text == "🚀 Запланировать все на 7 дней", rows_ru[0][0].text)
+    check("week kb ru: callback_data bir xil",
+          rows_ru[0][0].callback_data == CB_PLAN_SCHEDULE_ALL)
+
+    # 7 kunlik to'liq reja
+    kb7 = _get_plan_week_keyboard(_PLAN_ITEMS_7, "uz")
+    check("week kb: 7 kun + 1 rejalashtirish + orqaga = 9 tugma",
+          len([b for r in kb7.inline_keyboard for b in r]) == 9,
+          str(len([b for r in kb7.inline_keyboard for b in r])))
+
+    # _plan_list_keyboard: allaqachon rejalashtirilgan bo'lsa tugma ko'rsatilmaydi
+    class _Ctx:
+        def __init__(self, data):
+            self.user_data = data
+
+    kb_open = _plan_list_keyboard(items, _Ctx({"plan_scheduled": False}), "uz")
+    check("plan_list: rejalashtirilmagan → tugma BOR",
+          any(b.callback_data == CB_PLAN_SCHEDULE_ALL
+              for r in kb_open.inline_keyboard for b in r))
+    kb_done = _plan_list_keyboard(items, _Ctx({"plan_scheduled": True}), "uz")
+    check("plan_list: rejalashtirilgan → tugma YO'Q (ikki marta bosish himoyasi)",
+          not any(b.callback_data == CB_PLAN_SCHEDULE_ALL
+                  for r in kb_done.inline_keyboard for b in r))
+    kb_nodata = _plan_list_keyboard(items, None, "uz")
+    check("plan_list: context=None → tugma bor (yiqilmaydi)",
+          any(b.callback_data == CB_PLAN_SCHEDULE_ALL
+              for r in kb_nodata.inline_keyboard for b in r))
+
+
+class _PlanQuery:
+    def __init__(self, data, uid=4242):
+        self.data = data
+        self.from_user = _OnbUser(uid)
+        self.message = _OnbMsg(uid)
+        self.answers = []
+        self.edits = []
+
+    async def answer(self, text=None, show_alert=False):
+        self.answers.append((text, show_alert))
+
+    async def edit_message_text(self, text, reply_markup=None, parse_mode=None, **kw):
+        self.edits.append((text, reply_markup))
+        return True
+
+    async def edit_message_reply_markup(self, reply_markup=None, **kw):
+        self.edits.append(("<markup>", reply_markup))
+        return True
+
+
+class _PlanUpdate:
+    def __init__(self, data, uid=4242):
+        self.callback_query = _PlanQuery(data, uid)
+        self.effective_user = self.callback_query.from_user
+        self.effective_chat = self.effective_user
+        self.message = None
+        self.effective_message = self.callback_query.message
+
+
+def test_content_plan_schedule_all_flow():
+    """2️⃣ '🚀 Barchasini 7 kunga rejalashtirish' — runtime oqim."""
+    print("== content plan: 7 kunni navbatga qo'yish (runtime) ==")
+    import asyncio
+    import importlib
+    import pytz
+    from datetime import datetime, timedelta
+    import database as db_mod
+    from locales.translations import get_text
+
+    cp = importlib.import_module("handlers.content_plan")
+    tz = pytz.timezone("Asia/Tashkent")
+    state = {"result": {"success": True, "count": 7, "ids": list(range(11, 18)),
+                        "times": cp.week_schedule_times(7)}, "raise": False}
+    calls = []
+
+    async def fake_run_db(fn, *args, **kwargs):
+        name = getattr(fn, "__name__", "")
+        calls.append((name, args))
+        if state["raise"]:
+            raise RuntimeError("DB uzildi")
+        if name == "schedule_week_posts":
+            return state["result"]
+        if name == "get_user_channels":
+            return [("-1001234567890", "Mening Kanalim")]
+        return None
+
+    def make_ctx(extra=None):
+        data = {
+            "lang": "uz",
+            "plan_items": list(_PLAN_ITEMS_7),
+            "plan_channel_id": "-1001234567890",
+            "plan_channel_title": "Mening Kanalim",
+            "plan_channels": [("-1001234567890", "Mening Kanalim")],
+        }
+        data.update(extra or {})
+        return _OnbCtx("uz", data)
+
+    orig = db_mod.run_db
+    db_mod.run_db = fake_run_db
+    try:
+        # --- a) Muvaffaqiyatli: 7 post navbatga ---
+        upd = _PlanUpdate(cp.CB_PLAN_SCHEDULE_ALL)
+        ctx = make_ctx()
+        out = asyncio.run(cp.plan_schedule_all(upd, ctx))
+        check("sched: PLAN_VIEW qaytdi", out == cp.PLAN_VIEW, str(out))
+        check("sched: schedule_week_posts chaqirildi",
+              any(n == "schedule_week_posts" for n, _ in calls), str([n for n, _ in calls]))
+        write_call = [a for n, a in calls if n == "schedule_week_posts"][0]
+        uid_arg, ch_arg, posts_arg = write_call[0], write_call[1], write_call[2]
+        check("sched: user_id to'g'ri", uid_arg == 4242, str(uid_arg))
+        check("sched: kanal to'g'ri", ch_arg == "-1001234567890", str(ch_arg))
+        check("sched: 7 ta post yuborildi", len(posts_arg) == 7, str(len(posts_arg)))
+        moments = [p[0] for p in posts_arg]
+        check("sched: kunlar dushanba → yakshanba",
+              [m.weekday() for m in moments] == [0, 1, 2, 3, 4, 5, 6],
+              str([m.weekday() for m in moments]))
+        check("sched: barchasi soat 12:00",
+              all(m.hour == 12 and m.minute == 0 for m in moments),
+              str([(m.hour, m.minute) for m in moments]))
+        check("sched: kunlar ketma-ket",
+              all(moments[i + 1] - moments[i] == timedelta(days=1) for i in range(6)))
+        check("sched: har postda matn bor",
+              all(p[1] and "<b>" in p[1] for p in posts_arg), str(posts_arg[0]))
+        check("sched: matnlar rejadan olingan",
+              "Birinchi g&#x27;oya" in posts_arg[0][1]
+              and "Yettinchi" in posts_arg[6][1], str(posts_arg[0][1])[:60])
+
+        q = upd.callback_query
+        check("sched: darhol answer berildi", bool(q.answers), str(q.answers))
+        confirm = q.message.sent[-1][0]
+        check("sched: '✅ 7 kunlik postlar navbatga qo'yildi!'",
+              confirm.startswith("✅ <b>7 kunlik postlar navbatga qo'yildi!</b>"), confirm[:70])
+        check("sched: kanal nomi tasdiqda", "Mening Kanalim" in confirm, confirm[:120])
+        check("sched: 7 ta post soni tasdiqda", "7 ta post" in confirm, confirm[:160])
+        check("sched: har kun va vaqt ro'yxati",
+              all(w in confirm for w in ("Dushanba", "Seshanba", "Chorshanba", "Payshanba",
+                                         "Juma", "Shanba", "Yakshanba")), confirm[100:260])
+        check("sched: 12:00 vaqtlari ko'rsatilgan", confirm.count("12:00") >= 7,
+              str(confirm.count("12:00")))
+        check("sched: HTML yuborildi", q.message.sent[-1][2] == "HTML")
+        check("sched: belgi qo'yildi (ikki marta bosish himoyasi)",
+              ctx.user_data.get("plan_scheduled") is True)
+        check("sched: tugma klaviaturadan olib tashlandi",
+              q.edits and not any(
+                  b.callback_data == cp.CB_PLAN_SCHEDULE_ALL
+                  for r in q.edits[-1][1].inline_keyboard for b in r))
+
+        # RU tasdiq
+        upd_ru = _PlanUpdate(cp.CB_PLAN_SCHEDULE_ALL)
+        ctx_ru = make_ctx({"lang": "ru"})
+        asyncio.run(cp.plan_schedule_all(upd_ru, ctx_ru))
+        confirm_ru = upd_ru.callback_query.message.sent[-1][0]
+        check("sched ru: ruscha tasdiq",
+              confirm_ru.startswith("✅ <b>7 постов на неделю добавлены в очередь!</b>"),
+              confirm_ru[:70])
+        check("sched ru: ruscha kun nomlari",
+              "Понедельник" in confirm_ru and "Воскресенье" in confirm_ru, confirm_ru[100:260])
+
+        # --- b) Ikki marta bosish → alert, DB'ga yozilmaydi ---
+        calls.clear()
+        upd2 = _PlanUpdate(cp.CB_PLAN_SCHEDULE_ALL)
+        ctx2 = make_ctx({"plan_scheduled": True})
+        out2 = asyncio.run(cp.plan_schedule_all(upd2, ctx2))
+        check("ikki marta: alert ko'rsatildi",
+              upd2.callback_query.answers
+              and upd2.callback_query.answers[0][0] == get_text("plan_sched_already", "uz"),
+              str(upd2.callback_query.answers))
+        check("ikki marta: DB'ga yozilmadi",
+              not any(n == "schedule_week_posts" for n, _ in calls), str(calls))
+        check("ikki marta: PLAN_VIEW", out2 == cp.PLAN_VIEW)
+
+        # --- c) Sessiya eskirgan (reja yo'q) ---
+        upd3 = _PlanUpdate(cp.CB_PLAN_SCHEDULE_ALL)
+        ctx3 = make_ctx({"plan_items": []})
+        out3 = asyncio.run(cp.plan_schedule_all(upd3, ctx3))
+        check("eskirgan: stale alert",
+              upd3.callback_query.answers
+              and upd3.callback_query.answers[0][0] == get_text("plan_sched_stale", "uz"),
+              str(upd3.callback_query.answers))
+        check("eskirgan: alert show_alert=True",
+              upd3.callback_query.answers[0][1] is True)
+        check("eskirgan: PLAN_VIEW", out3 == cp.PLAN_VIEW)
+
+        # --- d) Kanal foydalanuvchiga tegishli emas ---
+        calls.clear()
+        upd4 = _PlanUpdate(cp.CB_PLAN_SCHEDULE_ALL)
+        ctx4 = make_ctx({"plan_channel_id": "-1009999999999"})
+        asyncio.run(cp.plan_schedule_all(upd4, ctx4))
+        check("begona kanal: alert",
+              upd4.callback_query.answers
+              and upd4.callback_query.answers[0][0] == get_text("plan_sched_no_channel", "uz"),
+              str(upd4.callback_query.answers))
+        check("begona kanal: DB'ga yozilmadi",
+              not any(n == "schedule_week_posts" for n, _ in calls), str(calls))
+
+        # plan_channels user_data'da bo'lmasa — bazadan o'qiladi
+        calls.clear()
+        upd4b = _PlanUpdate(cp.CB_PLAN_SCHEDULE_ALL)
+        ctx4b = make_ctx()
+        del ctx4b.user_data["plan_channels"]
+        asyncio.run(cp.plan_schedule_all(upd4b, ctx4b))
+        check("kanal ro'yxati bazadan o'qildi",
+              any(n == "get_user_channels" for n, _ in calls), str([n for n, _ in calls]))
+        check("kanal ro'yxati bazadan: reja baribir navbatga qo'yildi",
+              any(n == "schedule_week_posts" for n, _ in calls), str([n for n, _ in calls]))
+
+        # --- e) DB xatosi → xushmuomala xabar, belgi qo'yilmaydi ---
+        state["result"] = {"success": False, "count": 0, "ids": [], "times": [],
+                           "error": "connection lost"}
+        upd5 = _PlanUpdate(cp.CB_PLAN_SCHEDULE_ALL)
+        ctx5 = make_ctx()
+        out5 = asyncio.run(cp.plan_schedule_all(upd5, ctx5))
+        err_text = upd5.callback_query.message.sent[-1][0]
+        check("DB xatosi: xushmuomala xabar",
+              err_text == get_text("plan_sched_error", "uz"), err_text[:60])
+        check("DB xatosi: belgi qo'yilmadi", not ctx5.user_data.get("plan_scheduled"))
+        check("DB xatosi: kun tugmalari qaytarildi",
+              any(b.callback_data == "plan_day:0"
+                  for r in upd5.callback_query.message.sent[-1][1].inline_keyboard for b in r))
+        check("DB xatosi: PLAN_VIEW", out5 == cp.PLAN_VIEW)
+
+        # --- f) run_db istisno tashlasa ham handler yiqilmaydi ---
+        state["raise"] = True
+        upd6 = _PlanUpdate(cp.CB_PLAN_SCHEDULE_ALL)
+        ctx6 = make_ctx()
+        try:
+            out6 = asyncio.run(cp.plan_schedule_all(upd6, ctx6))
+            raised = False
+        except Exception:
+            raised = True
+            out6 = None
+        check("run_db istisnosi: handler yiqilmaydi", raised is False)
+        check("run_db istisnosi: xushmuomala xabar yuborildi",
+              bool(upd6.callback_query.message.sent)
+              and upd6.callback_query.message.sent[-1][0] == get_text("plan_sched_error", "uz"),
+              str(upd6.callback_query.message.sent[-1:] if upd6.callback_query.message.sent else []))
+        check("run_db istisnosi: belgi qo'yilmadi", not ctx6.user_data.get("plan_scheduled"))
+        check("run_db istisnosi: PLAN_VIEW", out6 == cp.PLAN_VIEW, str(out6))
+        state["raise"] = False
+    finally:
+        db_mod.run_db = orig
+
+
+def test_content_plan_schedule_all_routing():
+    """2️⃣ plan_view_callback 'plan_sched_all' ni plan_schedule_all ga yo'naltiradi."""
+    print("== content plan: callback routing ==")
+    import asyncio
+    import importlib
+    cp = importlib.import_module("handlers.content_plan")
+
+    hit = []
+
+    async def fake_schedule_all(update, context):
+        hit.append(update.callback_query.data)
+        return cp.PLAN_VIEW
+
+    orig = cp.plan_schedule_all
+    cp.plan_schedule_all = fake_schedule_all
+    try:
+        upd = _PlanUpdate(cp.CB_PLAN_SCHEDULE_ALL)
+        ctx = _OnbCtx("uz", {"lang": "uz", "plan_items": list(_PLAN_ITEMS_7)})
+        out = asyncio.run(cp.plan_view_callback(upd, ctx))
+        check("routing: plan_sched_all ushlandi", hit == [cp.CB_PLAN_SCHEDULE_ALL], str(hit))
+        check("routing: PLAN_VIEW qaytdi", out == cp.PLAN_VIEW, str(out))
+    finally:
+        cp.plan_schedule_all = orig
+
+    # Router: PLAN_VIEW holatidagi ^plan_ pattern yangi callback'ni ham qamrab oladi
+    import re
+    check("router pattern: ^plan_ → plan_sched_all mos",
+          re.match(r"^plan_", cp.CB_PLAN_SCHEDULE_ALL) is not None)
+
+    # Reja yaratilganda belgi tozalanadi (yangi reja = yangi imkoniyat)
+    src = open(cp.__file__, encoding="utf-8").read()
+    check("content_plan: plan_scheduled tozalanadi",
+          src.count('context.user_data["plan_scheduled"] = False') >= 2,
+          str(src.count('context.user_data["plan_scheduled"] = False')))
+    check("content_plan: tranzaksiya DB funksiyasi chaqiriladi",
+          "db.schedule_week_posts" in src)
+    check("content_plan: hafta klaviaturasi ishlatiladi",
+          "_plan_list_keyboard(" in src)
+    check("content_plan: tasdiq matni get_text orqali (uz/ru)",
+          '"plan_sched_done"' in src and '"plan_btn_schedule_all"' in src)
+    check("content_plan: xato xabari ham lokalizatsiya qilingan",
+          '"plan_sched_error"' in src and '"plan_sched_stale"' in src
+          and '"plan_sched_already"' in src)
+
+
+def test_content_plan_db_schedule_week_posts():
+    """2️⃣ schedule_week_posts — DB funksiyasi imzosi va tranzaksiya kafolati."""
+    print("== content plan: schedule_week_posts (DB qatlami) ==")
+    import inspect
+    import database as db_mod
+
+    check("db: schedule_week_posts mavjud", hasattr(db_mod, "schedule_week_posts"))
+    sig = inspect.signature(db_mod.schedule_week_posts)
+    check("db: imzo (user_id, channel_id, posts, post_type)",
+          list(sig.parameters) == ["user_id", "channel_id", "posts", "post_type"],
+          str(list(sig.parameters)))
+    check("db: post_type default 'text'", sig.parameters["post_type"].default == "text")
+
+    src = inspect.getsource(db_mod.schedule_week_posts)
+    check("db: BITTA tranzaksiya (yagona with db_cursor bloki)",
+          src.count("with db_cursor(commit=True) as cur:") == 1,
+          str(src.count("with db_cursor(commit=True) as cur:")))
+    check("db: advisory qulf (parallel chaqiruvlar himoyasi)",
+          "pg_advisory_xact_lock" in src)
+    check("db: user_post_number MAX+1 davom etadi",
+          "COALESCE(MAX(user_post_number), 0)" in src)
+    check("db: status='pending' bilan yoziladi", "'pending'" in src)
+    check("db: kesh tozalanadi", "_invalidate_user" in src and '_cache_clear("system_stats")' in src)
+    check("db: bo'sh ro'yxat → empty", db_mod.schedule_week_posts(1, "-100", [])["error"] == "empty")
+    check("db: kanalsiz → no_channel",
+          db_mod.schedule_week_posts(1, "", [("x", "y")])["error"] == "no_channel")
+    check("db: buzilgan user_id → bad_user",
+          db_mod.schedule_week_posts("abc", "-100", [("x", "y")])["error"] == "bad_user")
+    empty = db_mod.schedule_week_posts(1, "-100", [])
+    check("db: xato natijasi strukturali",
+          set(empty) == {"success", "count", "ids", "times", "error"}, str(set(empty)))
+    check("db: muvaffaqiyatsiz → success=False", empty["success"] is False)
+
+
+def test_onboarding_i18n_keys():
+    """1️⃣2️⃣ Yangi kalitlar ikkala tilda; paritet buzilmagan."""
+    print("== onboarding/content-plan: i18n kalitlari ==")
+    from locales.translations import (
+        translation_parity_report, has_key, get_text, TRANSLATIONS, missing_keys,
+    )
+
+    keys = (
+        "quick_menu_hint", "quick_btn_ai_post", "quick_btn_photo_post",
+        "quick_btn_add_channel", "quick_btn_full_menu", "quick_full_menu_opened",
+        "plan_btn_schedule_all", "plan_week_hint", "plan_sched_busy", "plan_sched_done_alert",
+        "plan_sched_done", "plan_sched_already", "plan_sched_stale",
+        "plan_sched_no_channel", "plan_sched_empty", "plan_sched_error",
+        "plan_sched_day_line",
+    )
+    for key in keys:
+        check(f"kalit uz/ru: {key}", has_key(key, "uz") and has_key(key, "ru"))
+    check("paritet buzilmagan", translation_parity_report()["in_sync"] is True)
+    check("missing_keys('ru') bo'sh", missing_keys("ru") == [])
+
+    # uz va ru qiymatlari har xil (tarjima qilingan)
+    diff = [k for k in keys if TRANSLATIONS["uz"].get(k) == TRANSLATIONS["ru"].get(k)]
+    check("barcha yangi kalitlar tarjima qilingan", not diff, str(diff))
+
+    # {placeholder} pariteti
+    import re as _re
+    mismatch = []
+    for k in keys:
+        uz_ph = set(_re.findall(r"\{(\w+)\}", TRANSLATIONS["uz"][k]))
+        ru_ph = set(_re.findall(r"\{(\w+)\}", TRANSLATIONS["ru"][k]))
+        if uz_ph != ru_ph:
+            mismatch.append((k, sorted(uz_ph ^ ru_ph)))
+    check("placeholder'lar mos", not mismatch, str(mismatch))
+
+    # plan_sched_done formatlash (uz/ru) — xom {} qolmasligi kerak
+    for lang in ("uz", "ru"):
+        out = get_text("plan_sched_done", lang, channel="Kanal", count=7, days="• Dushanba — 12:00")
+        check(f"plan_sched_done {lang}: formatlandi", "{" not in out and "}" not in out, out[:80])
+        check(f"plan_sched_done {lang}: kanal va son bor", "Kanal" in out and "7" in out)
+        line = get_text("plan_sched_day_line", lang, day="Dushanba", time="07.09 12:00")
+        check(f"plan_sched_day_line {lang}: formatlandi",
+              "Dushanba" in line and "12:00" in line and "{" not in line, line)
+    check("quick_menu_hint uz: HTML teglari bor", "<b>" in get_text("quick_menu_hint", "uz"))
+    check("quick_menu_hint ru: HTML teglari bor", "<b>" in get_text("quick_menu_hint", "ru"))
+
+
 def main():
     test_calculate_next_time()
     test_converter()
@@ -7985,6 +9154,22 @@ def main():
     test_pending_i18n_suite()
     test_queue_i18n_suite()
     test_extras_help_i18n_suite()
+
+    # --- 🆕 Onboarding: yangi foydalanuvchilar uchun sodda klaviatura ---
+    test_onboarding_simple_menu_rules()
+    test_onboarding_simple_keyboard()
+    test_onboarding_resolve_and_quick_handlers()
+    test_onboarding_start_integration()
+    test_onboarding_handlers_registered()
+    test_onboarding_db_and_schema()
+    test_onboarding_i18n_keys()
+
+    # --- 🚀 7 kunlik kontent-rejani bitta tugma bilan navbatga qo'yish ---
+    test_content_plan_week_times()
+    test_content_plan_week_keyboard()
+    test_content_plan_schedule_all_flow()
+    test_content_plan_schedule_all_routing()
+    test_content_plan_db_schedule_week_posts()
 
     # --- 🚀 Ommaviy reliz: 4 ta arxitekturaviy himoya ---
     test_callback_data_64byte_safety()

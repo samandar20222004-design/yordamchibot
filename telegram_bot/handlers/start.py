@@ -5,7 +5,12 @@ from telegram.error import TelegramError, Forbidden
 from telegram.ext import ContextTypes, ConversationHandler
 from config import ADMIN_IDS_SET, SUPPORT_USERNAME
 import database as db
-from keyboards.default import get_main_keyboard, get_cabinet_keyboard, get_cancel_keyboard
+from handlers.onboarding import (
+    main_menu_intro_suffix, resolve_main_keyboard, user_wants_simple_menu,
+)
+from keyboards.default import (
+    get_main_keyboard, get_cabinet_keyboard, get_cancel_keyboard, get_simple_keyboard,
+)
 from keyboards.inline import (
     get_referral_share_keyboard, get_subscription_check_keyboard,
     get_cabinet_inline_keyboard, get_cabinet_back_keyboard,
@@ -185,27 +190,41 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         greeting = get_text("start_onboarding", lang)
     else:
         greeting = get_text("start_hello", lang, name=html_escape(user.first_name))
+    # 🆕 YANGI FOYDALANUVCHI (ro'yxatdan o'tganiga 3 kundan kam YOKI hali 3 ta
+    # post chiqarmagan) — murakkab 6 talik menyu o'rniga 3 ta katta tugmali
+    # sodda klaviatura + qisqa yo'riqnoma. "⚙️ To'liq menyuni ochish" bosilsa
+    # yoki 3 kun o'tsa — avtomatik standart menyuga o'tiladi.
+    reply_markup = await resolve_main_keyboard(user.id, is_admin, lang, context)
+    greeting += await main_menu_intro_suffix(user.id, is_admin, lang, context)
     await update.message.reply_text(
         f"{greeting}{ad_line}",
-        reply_markup=get_main_keyboard(is_admin, lang=lang),
+        reply_markup=reply_markup,
         parse_mode="HTML"
     )
     return ConversationHandler.END
 
 
 async def send_main_menu(context, chat_id: int, lang: str, is_admin: bool,
-                         text: str | None = None):
+                         text: str | None = None, simple_menu: bool = False):
     """Asosiy reply-menyuni ``main_menu_hint`` bilan yuboradi (uz/ru).
 
     Start/orqaga/fallback oqimlari uchun yagona yordamchi: ``text`` berilsa u
     xabar matni bo'ladi, aks holda faqat ``main_menu_hint`` chiqadi. Har doim
     foydalanuvchi tilidagi asosiy klaviatura biriktiriladi.
+
+    ``simple_menu=True`` bo'lsa (yangi foydalanuvchi) — 6 talik menyu o'rniga
+    3 tugmali sodda klaviatura biriktiriladi. Bu funksiya bazaga so'rov
+    YUBORMAYDI: qarorni chaqiruvchi oldindan hisoblab beradi.
     """
     body = text if text else get_text("main_menu_hint", lang)
+    if simple_menu and not is_admin:
+        markup = get_simple_keyboard(lang)
+    else:
+        markup = get_main_keyboard(is_admin, lang=lang)
     return await context.bot.send_message(
         chat_id=chat_id,
         text=body,
-        reply_markup=get_main_keyboard(is_admin, lang=lang),
+        reply_markup=markup,
         parse_mode="HTML",
     )
 
@@ -230,7 +249,8 @@ async def subscription_check_callback(update: Update, context: ContextTypes.DEFA
         except TelegramError:
             pass
         is_admin = (user.id in ADMIN_IDS_SET)
-        # Obuna tasdiqlangach — tabrik + main_menu_hint + asosiy menyu (uz/ru)
+        # Obuna tasdiqlangach — tabrik + main_menu_hint + asosiy menyu (uz/ru).
+        # Yangi foydalanuvchi bo'lsa sodda (3 tugmali) klaviatura biriktiriladi.
         await send_main_menu(
             context, user.id, lang, is_admin,
             text=get_text(
@@ -238,6 +258,7 @@ async def subscription_check_callback(update: Update, context: ContextTypes.DEFA
                 name=html_escape(user.first_name or ""),
                 hint=get_text("main_menu_hint", lang),
             ),
+            simple_menu=await user_wants_simple_menu(user.id, context),
         )
     else:
         try:
@@ -561,7 +582,9 @@ async def cancel_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     clear_fsm_data(context)
     await update.message.reply_text(
         get_text("cancel_done", lang),
-        reply_markup=get_main_keyboard(is_admin, lang=lang),
+        # 🆕 Yangi foydalanuvchi bekor qilgandan keyin ham sodda (3 tugmali)
+        # menyuga qaytadi — 6 talik menyu uni yana chalkashtirmaydi.
+        reply_markup=await resolve_main_keyboard(user_id, is_admin, lang, context),
         parse_mode="HTML",
     )
     return ConversationHandler.END
