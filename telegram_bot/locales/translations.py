@@ -22,6 +22,17 @@ TRANSLATIONS = {
             "AI yordamida matnlar va kontent-reja tuzish bo'yicha aqlli yordamchingiz.\n\n"
             "Kerakli bo'limni tanlang 👇"
         ),
+        # 🚀 BIRINCHI MARTA kirgan foydalanuvchi uchun onboarding matni
+        # (faqat ro'yxatdan yangi o'tganda ko'rsatiladi).
+        "start_onboarding": (
+            "👋 Xush kelibsiz! Telegram kanalingiz uchun 1 daqiqada professional post tayyorlaymizmi?\n"
+            "\n"
+            "✍️ AI post yozish\n"
+            "📅 Istalgan vaqtga rejalashtirish\n"
+            "📢 Avtomatik kanalga chiqarish\n"
+            "\n"
+            "Birinchi postingizni hoziroq tayyorlash uchun quyidagi bo'limni tanlang 👇"
+        ),
         "my_channels_title": "📢 <b>Mening kanallarim:</b>",
         "my_channels_empty": (
             "📢 <b>Mening kanallarim:</b>\n\n"
@@ -1407,6 +1418,16 @@ TRANSLATIONS = {
             "🤖 @PostAssistrobot — умный помощник для своевременной публикации "
             "постов в каналы, текстов и контент-плана с помощью ИИ.\n\n"
             "Выберите нужный раздел 👇"
+        ),
+        # 🚀 Онбординг для ПЕРВОГО входа (показывается только новым пользователям)
+        "start_onboarding": (
+            "👋 Добро пожаловать! Готовы создать профессиональный пост для вашего канала всего за 1 минуту?\n"
+            "\n"
+            "✍️ Генерация постов через AI\n"
+            "📅 Планирование на любое время\n"
+            "📢 Автопостинг в каналы\n"
+            "\n"
+            "Чтобы создать свой первый пост прямо сейчас, выберите раздел ниже 👇"
         ),
         "my_channels_title": "📢 <b>Мои каналы:</b>",
         "my_channels_empty": (

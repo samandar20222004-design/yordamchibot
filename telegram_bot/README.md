@@ -492,10 +492,13 @@ markerni DB'ga yozishga urinadi. `get_due_posts` faqat `pending` ni `FOR UPDATE
 SKIP LOCKED` bilan oladi; `recover_stale_processing_posts` yuborilganlarni
 `posted` ga o'tkazadi, faqat yuborilmaganlarni (10 daqiqadan eski) `pending` ga.
 
-**Karta rekvizitlari faqat config/.env da.** `config.CARD_NUMBER` /
-`config.CARD_HOLDER` (env `CARD_NUMBER` → `PAYMENT_CARD_NUMBER` → default
-`8600060950825589`; `CARD_HOLDER` → `PAYMENT_CARD_HOLDER` → `Sayitqulov S.`).
-Handlerlarda qattiq yozilgan raqam yo'q; eski `PAYMENT_CARD_*` nomlari alias.
+**Karta rekvizitlari FAQAT .env / Render da.** `config.CARD_NUMBER =
+os.getenv("CARD_NUMBER", "")` va `config.CARD_HOLDER = os.getenv("CARD_HOLDER", "")`
+— kodda hech qanday default karta raqami yoki egasi YO'Q. Render Environment
+yoki `.env` da berilgan qiymatlar to'lov oynasida aynan shu ko'rinishda chiqadi;
+bo'sh bo'lsa "rekvizitlar sozlanmagan" xabari ko'rsatiladi. Eski
+`PAYMENT_CARD_NUMBER` / `PAYMENT_CARD_HOLDER` nomlari faqat import alias
+sifatida qoldi (qiymatni belgilamaydi).
 
 **Stiker filtri.** Post tayyorlash (GET_CONTENT) va tasdiqlash bosqichida stiker
 kelsa `np_sticker_not_allowed` (uz: «Kechirasiz, stikerlar post sifatida qabul
