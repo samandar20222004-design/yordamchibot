@@ -28,6 +28,11 @@ from keyboards.default import (
     BTN_ADS, BTN_CHANNEL_AD, BTN_BOT_REPLY_AD, BTN_POST_TAG, BTN_AI_SETTINGS, BTN_CACHE_DB,
     BTN_ADD_CHANNEL, BTN_QUEUE, BTN_QUEUE_RU, BTN_CONTENT_PLAN, BTN_ANALYTICS, BTN_PREMIUM, BTN_PREMIUM_RU,
     BTN_CHANNEL_EXTRACT,
+    # 🆕 Yangi foydalanuvchilar uchun sodda (3 tugmali) klaviatura
+    BTN_QUICK_AI_POST, BTN_QUICK_AI_POST_RU,
+    BTN_QUICK_PHOTO_POST, BTN_QUICK_PHOTO_POST_RU,
+    BTN_QUICK_ADD_CHANNEL, BTN_QUICK_ADD_CHANNEL_RU,
+    BTN_OPEN_FULL_MENU, BTN_OPEN_FULL_MENU_RU,
 )
 from locales.translations import clear_fsm_data, get_lang, get_text
 from keyboards.inline import get_subscription_check_keyboard
@@ -38,6 +43,12 @@ from handlers.start import (
     help_command, help_menu_callback, cancel_handler, subscription_check_callback, check_user_subscribed,
     cabinet_callback, extras_menu, extras_close_callback,
     TRANSFER_TARGET, TRANSFER_AMOUNT
+)
+
+# 1b. 🆕 ONBOARDING — yangi foydalanuvchilar uchun sodda (3 tugmali) klaviatura
+from handlers.onboarding import (
+    quick_ai_post_entry, quick_photo_post_entry, quick_add_channel_entry,
+    open_full_menu,
 )
 
 # 2. NEW POST MODULI
@@ -549,6 +560,25 @@ def register_all_handlers(app):
         MessageHandler(exact(BTN_NEW_POST, BTN_NEW_POST_RU), lambda u, c: guard_entry(u, c, start_new_post)),
     ]
 
+    # 1b. 🆕 Yangi foydalanuvchi — SODDA (3 tugmali) klaviatura.
+    # Bu tugmalar faqat yangi foydalanuvchiga ko'rsatiladi (onboarding.py),
+    # lekin handlerlar HAR DOIM ro'yxatda turadi: eski klaviatura xabarlari
+    # yoki qo'lda yuborilgan matn ham to'g'ri oqimni ochishi kerak.
+    onboarding_handlers = [
+        # 🚀 1 daqiqada post yaratish → AI post yozish (AI_PROMPT_INPUT)
+        MessageHandler(exact(BTN_QUICK_AI_POST, BTN_QUICK_AI_POST_RU),
+                       lambda u, c: guard_entry(u, c, quick_ai_post_entry)),
+        # 🖼 Rasmdan post olish → Vision oqimi (AI_PHOTO_INPUT)
+        MessageHandler(exact(BTN_QUICK_PHOTO_POST, BTN_QUICK_PHOTO_POST_RU),
+                       lambda u, c: guard_entry(u, c, quick_photo_post_entry)),
+        # 📢 Kanal ulash → kanal ulash oqimi (ADD_CHANNEL)
+        MessageHandler(exact(BTN_QUICK_ADD_CHANNEL, BTN_QUICK_ADD_CHANNEL_RU),
+                       lambda u, c: guard_entry(u, c, quick_add_channel_entry)),
+        # ⚙️ To'liq menyuni ochish → belgi bazaga yoziladi, standart menyu chiqadi
+        MessageHandler(exact(BTN_OPEN_FULL_MENU, BTN_OPEN_FULL_MENU_RU),
+                       lambda u, c: guard_menu(u, c, open_full_menu)),
+    ]
+
     # 3. Kanallar
     channels_handlers = [
         MessageHandler(exact(BTN_CHANNELS, BTN_CHANNELS_RU), lambda u, c: guard_menu(u, c, channels_menu)),
@@ -618,6 +648,7 @@ def register_all_handlers(app):
     all_menu_jumps = (
         start_handlers +
         new_post_handlers +
+        onboarding_handlers +
         channels_handlers +
         pending_handlers +
         converter_handlers +

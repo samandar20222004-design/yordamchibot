@@ -472,7 +472,8 @@ def _init_db_once():
                 ad_free_active BOOLEAN DEFAULT TRUE,
                 streak_days INTEGER DEFAULT 0,
                 last_bonus_date DATE,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                full_menu_unlocked BOOLEAN DEFAULT FALSE
             );
         """)
         
@@ -696,6 +697,8 @@ def _init_db_once():
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS ai_requests_today INTEGER DEFAULT 0;",
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS last_limit_reset DATE DEFAULT CURRENT_DATE;",
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS language_code VARCHAR(10) DEFAULT 'uz';",
+            # 🆕 Onboarding: "⚙️ To'liq menyuni ochish" bosilganini eslab qolamiz
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS full_menu_unlocked BOOLEAN DEFAULT FALSE;",
             "ALTER TABLE sponsor_channels ADD COLUMN IF NOT EXISTS title TEXT;",
             "ALTER TABLE sponsor_channels ADD COLUMN IF NOT EXISTS username TEXT;",
             "ALTER TABLE sponsor_channels ADD COLUMN IF NOT EXISTS invite_link TEXT;",
@@ -1814,6 +1817,80 @@ def set_user_language(user_id: int, language_code: str) -> bool:
         return False
 
 
+# ============================================================
+# 🆕 ONBOARDING — yangi foydalanuvchilar uchun sodda klaviatura
+# ============================================================
+# Qaror mantiqi (3 kun / 3 post) ``onboarding.py`` da — bu funksiya faqat
+# xom faktlarni qaytaradi: created_at, chiqarilgan postlar soni va
+# foydalanuvchi to'liq menyuni o'zi ochganmi.
+
+def get_user_onboarding(user_id: int) -> dict:
+    """Onboarding uchun xom ma'lumotlarni qaytaradi.
+
+    Qaytadi::
+
+        {"created_at": datetime | None,
+         "posts_published": int,          # status = 'posted' postlar soni
+         "full_menu_unlocked": bool}      # "⚙️ To'liq menyuni ochish" bosilganmi
+
+    Foydalanuvchi topilmasa yoki DB xatosi bo'lsa **bo'sh dict** qaytadi —
+    chaqiruvchi (``onboarding.decide_menu_mode``) bo'sh ma'lumotni "to'liq
+    menyu" deb hisoblaydi, ya'ni xatolik hech qachon foydalanuvchini
+    cheklamaydi (fail-open).
+    """
+    try:
+        with db_cursor() as cur:
+            cur.execute(
+                "SELECT created_at, COALESCE(full_menu_unlocked, FALSE) "
+                "FROM users WHERE user_id = %s",
+                (user_id,),
+            )
+            row = cur.fetchone()
+            if not row:
+                return {}
+            created_at, unlocked = row
+            cur.execute(
+                "SELECT COUNT(*) FROM scheduled_posts "
+                "WHERE user_id = %s AND status = 'posted'",
+                (user_id,),
+            )
+            posts_published = int((cur.fetchone() or (0,))[0] or 0)
+            return {
+                "created_at": created_at,
+                "posts_published": posts_published,
+                "full_menu_unlocked": bool(unlocked),
+            }
+    except Exception as e:
+        logger.error(f"get_user_onboarding xatosi: {e}")
+        return {}
+
+
+def set_user_full_menu_unlocked(user_id: int, unlocked: bool = True) -> bool:
+    """"⚙️ To'liq menyuni ochish" belgisini yozadi.
+
+    ``True`` qaytsa — yozuv yangilandi. Onboarding keshi ham tozalanadi,
+    shunda keyingi menyu darhol to'liq ko'rinishda chiqadi.
+    """
+    try:
+        with db_cursor(commit=True) as cur:
+            cur.execute(
+                "UPDATE users SET full_menu_unlocked = %s WHERE user_id = %s",
+                (bool(unlocked), int(user_id)),
+            )
+            updated = cur.rowcount > 0
+        if updated:
+            _invalidate_user(user_id)
+            try:
+                import onboarding
+                onboarding.invalidate_simple_menu(user_id)
+            except Exception:
+                pass
+        return updated
+    except Exception as e:
+        logger.error(f"To'liq menyu belgisini saqlash xatosi: {e}")
+        return False
+
+
 def get_user_code(user_id: int) -> str:
     cache_key = f"user_code:{user_id}"
     cached = _cache_get(cache_key)
@@ -2075,6 +2152,74 @@ def add_post(
     except Exception as e:
         logger.error(f"Post saqlash xatosi: {e}")
         return 0
+
+
+def schedule_week_posts(user_id: int, channel_id: str, posts: list,
+                        post_type: str = "text") -> dict:
+    """🚀 Bir necha postni (odatda 7 kunlik kontent-reja) BITTA tranzaksiyada navbatga qo'yadi.
+
+    ``posts`` — ``(scheduled_time, content)`` juftliklari ro'yxati (tartib
+    dushanba → yakshanba). Barcha INSERT'lar bitta ``db_cursor(commit=True)``
+    blokida bajariladi: psycopg2 birinchi so'rovda tranzaksiyani boshlaydi va
+    ``commit`` faqat blok muvaffaqiyatli tugaganda chaqiriladi. Biror INSERT
+    yiqilsa — ``db_cursor`` ``ROLLBACK`` qiladi, ya'ni **yarim-yorti navbat
+    hech qachon qolmaydi** (hammasi yoki hech narsa).
+
+    ``add_post`` bilan bir xil himoya: ``pg_advisory_xact_lock(user_id)`` va
+    ``MAX(user_post_number) + 1`` — parallel chaqiruvlar bir xil post raqamini
+    olmaydi. Qulf commit/rollback bilan avtomatik bo'shaydi.
+
+    Qaytadi::
+
+        {"success": bool, "count": int, "ids": [int], "times": [datetime],
+         "error": str}
+    """
+    result = {"success": False, "count": 0, "ids": [], "times": [], "error": ""}
+    rows = [p for p in (posts or []) if p]
+    if not rows:
+        result["error"] = "empty"
+        return result
+    if not channel_id:
+        result["error"] = "no_channel"
+        return result
+    try:
+        user_id = int(user_id)
+    except (TypeError, ValueError):
+        result["error"] = "bad_user"
+        return result
+
+    try:
+        ids = []
+        times = []
+        with db_cursor(commit=True) as cur:
+            cur.execute("SELECT pg_advisory_xact_lock(%s)", (user_id,))
+            cur.execute(
+                "SELECT COALESCE(MAX(user_post_number), 0) FROM scheduled_posts WHERE user_id = %s",
+                (user_id,),
+            )
+            next_num = int((cur.fetchone() or (0,))[0] or 0)
+            for scheduled_time, content in rows:
+                next_num += 1
+                cur.execute("""
+                    INSERT INTO scheduled_posts
+                        (user_id, channel_id, post_type, content, file_id,
+                         scheduled_time, status, user_post_number, recurrence_type)
+                    VALUES (%s, %s, %s, %s, NULL, %s, 'pending', %s, 'none')
+                    RETURNING id
+                """, (
+                    user_id, str(channel_id), post_type, content,
+                    scheduled_time, next_num,
+                ))
+                ids.append(cur.fetchone()[0])
+                times.append(scheduled_time)
+        _invalidate_user(user_id)
+        _cache_clear("system_stats")
+        result.update({"success": True, "count": len(ids), "ids": ids, "times": times})
+        return result
+    except Exception as e:
+        logger.error(f"Haftalik postlarni navbatga qo'yish xatosi: {e}")
+        result["error"] = str(e)
+        return result
 
 
 def get_recent_posts(limit: int = 15) -> list:

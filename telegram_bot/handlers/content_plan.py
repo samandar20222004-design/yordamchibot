@@ -1,5 +1,7 @@
 """Content Plan Generator — AI yordamida haftalik kontent-reja tuzish."""
 import logging
+from datetime import datetime, timedelta
+import pytz
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes, ConversationHandler
 from config import ADMIN_IDS_SET
@@ -7,6 +9,7 @@ import database as db
 from keyboards.default import get_cancel_keyboard, get_main_keyboard
 from keyboards.inline import btn_label
 from keyboards.callback_data import cb
+from locales.translations import get_lang, get_text
 from utils.helpers import html_escape, safe_html, get_auto_ad_injection_async, keep_typing
 
 logger = logging.getLogger(__name__)
@@ -16,6 +19,70 @@ logger = logging.getLogger(__name__)
 PLAN_CHOOSE_CHANNEL = 411
 PLAN_GET_TOPIC = 412
 PLAN_VIEW = 413
+
+# ============================================================
+# 🚀 7 KUNLIK REJANI BITTA TUGMA BILAN NAVBATGA QO'YISH
+# ============================================================
+# Butun bot uchun yagona vaqt zonasi (scheduler.TIMEZONE_NAME bilan bir xil) —
+# shunda DB'ga yozilgan scheduled_time va APScheduler tick'lari mos keladi.
+tashkent_tz = pytz.timezone("Asia/Tashkent")
+
+#: Haftalik postlar har kuni shu soatda chiqadi (talab: 12:00).
+PLAN_SCHEDULE_HOUR = 12
+PLAN_SCHEDULE_MINUTE = 0
+#: Rejadagi kunlar soni (dushanba → yakshanba).
+PLAN_WEEK_DAYS = 7
+
+#: "🚀 Barchasini 7 kunga rejalashtirish" tugmasining callback_data'si.
+# ``plan_`` prefiksi bilan boshlanadi — PLAN_VIEW holatidagi
+# ``CallbackQueryHandler(plan_view_callback, pattern=r"^plan_")`` uni ushlaydi.
+CB_PLAN_SCHEDULE_ALL = "plan_sched_all"
+
+
+def week_schedule_times(count: int = PLAN_WEEK_DAYS,
+                        hour: int = PLAN_SCHEDULE_HOUR,
+                        minute: int = PLAN_SCHEDULE_MINUTE,
+                        now=None) -> list:
+    """Dushanbadan boshlab ``count`` ta kun uchun soat ``hour:minute`` vaqtlarini qaytaradi.
+
+    Qoidalar:
+      * ro'yxat har doim **dushanba** (weekday 0) dan boshlanadi;
+      * agar shu haftaning dushanba 12:00'i allaqachon o'tgan bo'lsa (yoki bugun
+        dushanba va 12:00 dan kech bo'lsa) — **keyingi hafta** dushanbasidan
+        boshlanadi. Shunday qilib hech bir post o'tmishga tushmaydi va
+        scheduler uni darhol "muddati o'tgan" deb yubormaydi;
+      * barcha vaqtlar Toshkent zonasida (aware ``datetime``) — Neon DB'dagi
+        ``TIMESTAMP WITH TIME ZONE`` ustuniga to'g'ri yoziladi.
+    """
+    reference = now if now is not None else datetime.now(tashkent_tz)
+    if reference.tzinfo is None:
+        reference = tashkent_tz.localize(reference)
+    reference = reference.astimezone(tashkent_tz)
+
+    days_to_monday = (0 - reference.weekday()) % 7
+    monday = (reference + timedelta(days=days_to_monday)).date()
+    first = tashkent_tz.localize(datetime(monday.year, monday.month, monday.day, hour, minute))
+    if first <= reference:
+        first = first + timedelta(days=7)
+    return [first + timedelta(days=i) for i in range(max(0, int(count)))]
+
+
+def build_plan_post_text(item: dict, index: int = 0) -> str:
+    """Kontent-reja elementidan kanalga chiqadigan post matnini (HTML) quradi.
+
+    Postlar ``parse_mode="HTML"`` bilan yuboriladi, shuning uchun AI matni
+    ``html_escape`` orqali xavfsizlashtiriladi — aks holda matndagi ``<`` yoki
+    ``&`` butun postni ``BadRequest`` bilan yiqitadi.
+    """
+    item = item or {}
+    title = str(item.get("title") or "").strip()
+    idea = str(item.get("idea") or "").strip()
+    if not title:
+        title = str(item.get("day") or f"Kun {index + 1}").strip()
+    parts = [f"<b>{html_escape(title)}</b>"]
+    if idea:
+        parts.append(html_escape(idea))
+    return "\n\n".join(parts)
 
 
 def _get_plan_channel_keyboard(channels: list) -> InlineKeyboardMarkup:
@@ -42,8 +109,13 @@ def _get_plan_result_keyboard() -> InlineKeyboardMarkup:
     ])
 
 
-def _get_plan_day_keyboard(plan_items: list) -> InlineKeyboardMarkup:
-    """Kun tanlash keyboard (post yaratish uchun)."""
+def _get_plan_day_keyboard(plan_items: list, lang: str = "uz") -> InlineKeyboardMarkup:
+    """Kun tanlash keyboard (post yaratish uchun).
+
+    Eslatma: bu keyboard FAQAT kunlar + "🔙 Orqaga" tugmalaridan iborat.
+    "🚀 Barchasini 7 kunga rejalashtirish" tugmasi ustiga
+    :func:`_get_plan_week_keyboard` orqali qo'shiladi.
+    """
     keyboard = []
     for i, item in enumerate(plan_items):
         day = item.get("day", f"Kun {i+1}")
@@ -56,6 +128,33 @@ def _get_plan_day_keyboard(plan_items: list) -> InlineKeyboardMarkup:
         ])
     keyboard.append([InlineKeyboardButton("🔙 Orqaga", callback_data="plan_back")])
     return InlineKeyboardMarkup(keyboard)
+
+
+def _get_plan_week_keyboard(plan_items: list, lang: str = "uz") -> InlineKeyboardMarkup:
+    """Reja ekrani keyboard'i: [🚀 Barchasini 7 kunga rejalashtirish] + kunlar.
+
+    Birinchi qatorda — bitta tugma bilan butun haftani navbatga qo'yish.
+    Pastda odatdagi kun tanlash tugmalari va "🔙 Orqaga".
+    """
+    rows = [[
+        InlineKeyboardButton(
+            get_text("plan_btn_schedule_all", lang),
+            callback_data=CB_PLAN_SCHEDULE_ALL,
+        )
+    ]]
+    rows += [list(row) for row in _get_plan_day_keyboard(plan_items, lang).inline_keyboard]
+    return InlineKeyboardMarkup(rows)
+
+
+def _plan_list_keyboard(plan_items: list, context, lang: str = "uz") -> InlineKeyboardMarkup:
+    """Reja ro'yxati keyboard'i — reja allaqachon navbatga qo'yilgan bo'lsa,
+    "🚀 Barchasini 7 kunga rejalashtirish" tugmasi ko'rsatilmaydi (ikki marta
+    rejalashtirishning oldini oladi).
+    """
+    if context is not None and getattr(context, "user_data", None) is not None \
+            and context.user_data.get("plan_scheduled"):
+        return _get_plan_day_keyboard(plan_items, lang)
+    return _get_plan_week_keyboard(plan_items, lang)
 
 
 async def start_content_plan(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -182,6 +281,8 @@ async def plan_topic_received(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     context.user_data["plan_items"] = plan_items
     context.user_data["plan_topic"] = text
+    # Yangi reja — eski "navbatga qo'yilgan" belgisi tozalanadi.
+    context.user_data["plan_scheduled"] = False
 
     # Format plan as text
     plan_text = f"🧠 <b>7 kunlik kontent-reja</b>\n"
@@ -201,12 +302,136 @@ async def plan_topic_received(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     ad_line = await get_auto_ad_injection_async(update.effective_user.id)
     plan_text += f"{ad_line}\n\nKunni tanlab, to'g'ridan-to'g'ri post yarating 👇"
+    plan_text += get_text("plan_week_hint", get_lang(context))
 
     await update.message.reply_text(
         plan_text,
-        reply_markup=_get_plan_day_keyboard(plan_items),
+        reply_markup=_plan_list_keyboard(plan_items, context, get_lang(context)),
         parse_mode="HTML",
     )
+    return PLAN_VIEW
+
+
+async def plan_schedule_all(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """🚀 "Barchasini 7 kunga rejalashtirish" — butun haftani navbatga qo'yadi.
+
+    Nima qiladi:
+      1. Rejadagi har bir kun (dushanba → yakshanba) uchun soat **12:00** ga
+         post matnini tayyorlaydi (:func:`build_plan_post_text`);
+      2. ``database.schedule_week_posts`` orqali 7 ta postni **BITTA
+         tranzaksiyada** ``scheduled_posts`` jadvaliga yozadi (hammasi yoki
+         hech narsa — yarim-yorti navbat qolmaydi);
+      3. Mavjud APScheduler tick'lari (``scheduler.check_and_send_posts``)
+         ularni muddati kelganda kanallarga avtomatik chiqaradi — alohida
+         job yaratish shart emas;
+      4. "✅ 7 kunlik postlar navbatga qo'yildi!" tasdig'ini ko'rsatadi va
+         tugmani klaviaturadan olib tashlaydi (ikki marta bosish himoyasi).
+    """
+    query = update.callback_query
+    lang = get_lang(context)
+    user_id = query.from_user.id
+
+    plan_items = context.user_data.get("plan_items") or []
+    channel_id = context.user_data.get("plan_channel_id") or ""
+    channel_title = context.user_data.get("plan_channel_title") or ""
+
+    # 1) Sessiya eskirgan (bot qayta ishga tushgan) — reja xotirada yo'q.
+    if not plan_items:
+        try:
+            await query.answer(get_text("plan_sched_stale", lang), show_alert=True)
+        except Exception:
+            pass
+        return PLAN_VIEW
+
+    # 2) Ikki marta rejalashtirish himoyasi.
+    if context.user_data.get("plan_scheduled"):
+        try:
+            await query.answer(get_text("plan_sched_already", lang), show_alert=True)
+        except Exception:
+            pass
+        return PLAN_VIEW
+
+    # 3) Kanal foydalanuvchiga tegishli ekanini tekshiramiz (xavfsizlik:
+    #    user_data'ga yozilgan id bazadagi kanallarga mos kelishi shart).
+    channels = context.user_data.get("plan_channels")
+    if not channels:
+        try:
+            channels = await db.run_db(db.get_user_channels, user_id)
+        except Exception:
+            logger.exception("Kanallar ro'yxatini olishda xato (user=%s)", user_id)
+            channels = []
+    owned = {str(ch[0]) for ch in (channels or [])}
+    if not channel_id or str(channel_id) not in owned:
+        try:
+            await query.answer(get_text("plan_sched_no_channel", lang), show_alert=True)
+        except Exception:
+            pass
+        return PLAN_VIEW
+
+    # Darhol javob — DB yozuvi tugaguncha tugma "yopishib" qolmaydi.
+    try:
+        await query.answer(get_text("plan_sched_busy", lang))
+    except Exception:
+        pass
+
+    # 4) Dushanba → yakshanba, har kuni 12:00 (Toshkent).
+    times = week_schedule_times(len(plan_items))
+    posts = [
+        (moment, build_plan_post_text(item, i))
+        for i, (moment, item) in enumerate(zip(times, plan_items))
+    ]
+
+    # 5) BITTA tranzaksiyada navbatga yozamiz. Neon uzilishi yoki boshqa xato
+    #    bo'lsa ham handler yiqilmaydi — foydalanuvchi aniq xabar oladi.
+    try:
+        result = await db.run_db(db.schedule_week_posts, user_id, channel_id, posts)
+    except Exception as exc:
+        logger.exception(
+            "Haftalik reja navbatga qo'yilmadi (user=%s, kanal=%s): %s",
+            user_id, channel_id, exc,
+        )
+        result = {"success": False, "count": 0, "ids": [], "times": [], "error": str(exc)}
+
+    if not result.get("success"):
+        logger.error(
+            "Haftalik reja navbatga qo'yilmadi (user=%s, kanal=%s): %s",
+            user_id, channel_id, result.get("error"),
+        )
+        await query.message.reply_text(
+            get_text("plan_sched_error", lang),
+            reply_markup=_get_plan_day_keyboard(plan_items, lang),
+            parse_mode="HTML",
+        )
+        return PLAN_VIEW
+
+    context.user_data["plan_scheduled"] = True
+    scheduled_times = result.get("times") or times
+
+    # 6) Tasdiq: har bir kun va aniq vaqt ro'yxati bilan.
+    day_lines = []
+    for i, moment in enumerate(scheduled_times):
+        moment_tz = moment.astimezone(tashkent_tz) if moment.tzinfo else tashkent_tz.localize(moment)
+        day_lines.append(get_text(
+            "plan_sched_day_line", lang,
+            day=get_text(f"np_weekday_{moment_tz.weekday()}", lang),
+            time=moment_tz.strftime("%d.%m %H:%M"),
+        ))
+
+    confirm_text = get_text(
+        "plan_sched_done", lang,
+        channel=html_escape(channel_title or channel_id),
+        count=result.get("count", len(scheduled_times)),
+        days="\n".join(day_lines),
+    )
+    await query.message.reply_text(confirm_text, parse_mode="HTML")
+
+    # 7) Tugmani klaviaturadan olamiz — eski xabardan qayta bosib bo'lmaydi.
+    try:
+        await query.edit_message_reply_markup(
+            reply_markup=_get_plan_day_keyboard(plan_items, lang)
+        )
+    except Exception:
+        pass
     return PLAN_VIEW
 
 
@@ -215,6 +440,10 @@ async def plan_view_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
     query = update.callback_query
     data = query.data
     is_admin = query.from_user.id in ADMIN_IDS_SET
+
+    # 🚀 Bitta tugma bilan butun haftani navbatga qo'yish
+    if data == CB_PLAN_SCHEDULE_ALL:
+        return await plan_schedule_all(update, context)
 
     if data == "plan_cancel":
         await query.answer()
@@ -267,6 +496,8 @@ async def plan_view_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
             return PLAN_VIEW
 
         context.user_data["plan_items"] = plan_items
+        # Yangi reja — eski "navbatga qo'yilgan" belgisi tozalanadi.
+        context.user_data["plan_scheduled"] = False
 
         plan_text = f"🧠 <b>7 kunlik kontent-reja (yangi)</b>\n"
         plan_text += f"📢 Kanal: <b>{html_escape(channel_title)}</b>\n"
@@ -285,7 +516,7 @@ async def plan_view_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
         await query.message.reply_text(
             plan_text,
-            reply_markup=_get_plan_day_keyboard(plan_items),
+            reply_markup=_plan_list_keyboard(plan_items, context, get_lang(context)),
             parse_mode="HTML",
         )
         return PLAN_VIEW
@@ -336,7 +567,7 @@ async def plan_view_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
             if plan_items:
                 await query.message.reply_text(
                     "📅 <b>Qaysi kun uchun post yaratamiz?</b>",
-                    reply_markup=_get_plan_day_keyboard(plan_items),
+                    reply_markup=_plan_list_keyboard(plan_items, context, get_lang(context)),
                     parse_mode="HTML",
                 )
             return PLAN_VIEW
@@ -425,7 +656,7 @@ async def plan_view_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
         await query.message.reply_text(
             plan_text,
-            reply_markup=_get_plan_day_keyboard(plan_items),
+            reply_markup=_plan_list_keyboard(plan_items, context, get_lang(context)),
             parse_mode="HTML",
         )
         return PLAN_VIEW

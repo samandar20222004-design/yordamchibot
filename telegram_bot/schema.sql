@@ -25,7 +25,10 @@ CREATE TABLE IF NOT EXISTS users (
     streak_days INTEGER DEFAULT 0,
     last_bonus_date DATE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    language_code VARCHAR(10) DEFAULT 'uz'
+    language_code VARCHAR(10) DEFAULT 'uz',
+    -- 🆕 Onboarding: foydalanuvchi "⚙️ To'liq menyuni ochish" tugmasini bosganmi?
+    -- TRUE bo'lsa yangi foydalanuvchi ham darhol standart bosh menyuni ko'radi.
+    full_menu_unlocked BOOLEAN DEFAULT FALSE
 );
 
 CREATE TABLE IF NOT EXISTS channels (
@@ -206,6 +209,8 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_expires_at TIMESTAMP WIT
 ALTER TABLE users ADD COLUMN IF NOT EXISTS ai_requests_today INTEGER DEFAULT 0;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS last_limit_reset DATE DEFAULT CURRENT_DATE;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS language_code VARCHAR(10) DEFAULT 'uz';
+-- 🆕 Sodda klaviatura: foydalanuvchi to'liq menyuni o'zi ochganini eslab qolamiz
+ALTER TABLE users ADD COLUMN IF NOT EXISTS full_menu_unlocked BOOLEAN DEFAULT FALSE;
 
 ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS inline_button_text VARCHAR(255);
 ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS inline_button_url TEXT;
