@@ -704,7 +704,8 @@ class _RecBot:
 
 
 def _private_update(uid=777, text=None, voice=False, contact=False, sticker=False,
-                    document=False, command=False, edited=False, chat_type="private", bot=None):
+                    sticker_emoji=None, document=False, command=False, edited=False,
+                    chat_type="private", bot=None):
     from telegram import (Update, Message, Chat, User, Voice, Contact, Sticker,
                           Document, MessageEntity)
     user = User(id=uid, first_name="Ali", is_bot=False)
@@ -720,7 +721,8 @@ def _private_update(uid=777, text=None, voice=False, contact=False, sticker=Fals
         kw["contact"] = Contact(phone_number="+998901234567", first_name="A")
     if sticker:
         kw["sticker"] = Sticker(file_id="s", file_unique_id="su", width=1, height=1,
-                                is_animated=False, is_video=False, type="regular")
+                                is_animated=False, is_video=False, type="regular",
+                                emoji=sticker_emoji)
     if document:
         kw["document"] = Document(file_id="d", file_unique_id="du", file_name="a.pdf")
     msg = Message(**kw)
@@ -1533,6 +1535,182 @@ def test_sticker_in_get_content_state_goes_to_conversation_not_fallback():
         assert isinstance(handler, ConversationHandler)
         assert conv._conversations.get((777, 777)) == GET_CONTENT
         assert bot.sent and bot.sent[0]["text"] == get_text("np_sticker_not_allowed", "ru")
+    finally:
+        conv._conversations.pop((777, 777), None)
+        restore()
+
+
+# -------------------------------------------------- 7. REAKSIYA: STIKER + ERKIN EMOJI
+def test_reactions_received_accepts_free_space_separated_emojis():
+    """GET_REACTIONS: erkin emoji matni ("👍 ❤️ 🔥") tanlovga qo'shiladi."""
+    from handlers.new_post import GET_REACTIONS, reactions_received
+
+    class _Msg:
+        def __init__(self, text):
+            self.text = text
+            self.sticker = None
+            self.replies = []
+
+        async def reply_text(self, text, reply_markup=None, parse_mode=None, **kw):
+            self.replies.append((text, reply_markup))
+
+    async def run():
+        msg = _Msg("👍 ❤️ 🔥")
+        upd = SimpleNamespace(message=msg, effective_user=SimpleNamespace(id=42),
+                              effective_message=msg)
+        ctx = SimpleNamespace(user_data={"lang": "uz"}, bot=None)
+        state = await reactions_received(upd, ctx)
+        return state, ctx.user_data, msg.replies
+
+    state, ud, replies = _asyncio.run(run())
+    assert state == GET_REACTIONS, state
+    assert ud.get("selected_reactions") == ["👍", "❤️", "🔥"], ud
+    assert replies, "javob yuborilmadi"
+    for emoji in ("👍", "❤️", "🔥"):
+        assert emoji in replies[0][0], replies[0]
+
+
+def test_reactions_received_accepts_sticker_emoji():
+    """GET_REACTIONS: stiker yuborilganda message.sticker.emoji reaksiyaga qo'shiladi."""
+    from handlers.new_post import GET_REACTIONS, reactions_received
+
+    class _Sticker:
+        file_id = "st1"
+        emoji = "🔥"
+
+    class _Msg:
+        def __init__(self):
+            self.text = None
+            self.sticker = _Sticker()
+            self.replies = []
+
+        async def reply_text(self, text, reply_markup=None, parse_mode=None, **kw):
+            self.replies.append((text, reply_markup))
+
+    async def run():
+        msg = _Msg()
+        upd = SimpleNamespace(message=msg, effective_user=SimpleNamespace(id=42),
+                              effective_message=msg)
+        ctx = SimpleNamespace(user_data={"lang": "ru"}, bot=None)
+        state = await reactions_received(upd, ctx)
+        return state, ctx.user_data, msg.replies
+
+    state, ud, replies = _asyncio.run(run())
+    assert state == GET_REACTIONS, state
+    assert ud.get("selected_reactions") == ["🔥"], ud
+    assert replies and "🔥" in replies[0][0], replies
+
+
+def test_reactions_received_sticker_custom_emoji_added():
+    """GET_REACTIONS: kanonik bo'lmagan stiker emojisi (😍) ham tanlovga qo'shiladi."""
+    from handlers.new_post import GET_REACTIONS, reactions_received
+
+    class _Sticker:
+        file_id = "st2"
+        emoji = "😍"
+
+    class _Msg:
+        def __init__(self):
+            self.text = None
+            self.sticker = _Sticker()
+            self.replies = []
+
+        async def reply_text(self, text, reply_markup=None, parse_mode=None, **kw):
+            self.replies.append((text, reply_markup))
+
+    async def run():
+        msg = _Msg()
+        upd = SimpleNamespace(message=msg, effective_user=SimpleNamespace(id=42),
+                              effective_message=msg)
+        ctx = SimpleNamespace(user_data={"lang": "uz"}, bot=None)
+        state = await reactions_received(upd, ctx)
+        return state, ctx.user_data, msg.replies
+
+    state, ud, replies = _asyncio.run(run())
+    assert state == GET_REACTIONS
+    assert ud.get("selected_reactions") == ["😍"], ud
+
+
+def test_reactions_received_sticker_without_emoji_falls_back_to_hint():
+    """GET_REACTIONS: emojisi yo'q stiker — crash'siz inline eslatma, holat saqlanadi."""
+    from handlers.new_post import GET_REACTIONS, reactions_received
+
+    class _Sticker:
+        file_id = "st3"
+        emoji = None
+
+    class _Msg:
+        def __init__(self):
+            self.text = None
+            self.sticker = _Sticker()
+            self.replies = []
+
+        async def reply_text(self, text, reply_markup=None, parse_mode=None, **kw):
+            self.replies.append((text, reply_markup))
+
+    async def run():
+        msg = _Msg()
+        upd = SimpleNamespace(message=msg, effective_user=SimpleNamespace(id=42),
+                              effective_message=msg)
+        ctx = SimpleNamespace(user_data={"lang": "uz"}, bot=None)
+        state = await reactions_received(upd, ctx)
+        return state, ctx.user_data, msg.replies
+
+    state, ud, replies = _asyncio.run(run())
+    assert state == GET_REACTIONS
+    assert replies and replies[0][0] == get_text("np_reactions_use_inline", "uz"), replies
+
+
+def test_get_reactions_state_registers_sticker_handler():
+    """GET_REACTIONS holatida filters.Sticker.ALL → reactions_received ro'yxatdan o'tgan."""
+    src = (ROOT / "handlers/__init__.py").read_text(encoding="utf-8")
+    assert "MessageHandler(filters.Sticker.ALL, reactions_received)" in src
+
+
+def test_sticker_in_get_reactions_state_goes_to_conversation_not_fallback():
+    """To'liq zanjir: GET_REACTIONS holatida stiker ConversationHandler'ga tushadi
+    (fallback emas) va stiker emojisi reaksiyaga qo'shiladi."""
+    import handlers as h_mod
+    from telegram.ext import ConversationHandler
+    from handlers.new_post import GET_REACTIONS
+    app = _build_app()
+    conv = [h for h in app.handlers[0] if isinstance(h, ConversationHandler)][0]
+    restore = _patch_db({"get_user_language": "ru", "is_premium": True})
+    try:
+        h_mod._UNKNOWN_FALLBACK_LAST.clear()
+        conv._conversations[(777, 777)] = GET_REACTIONS
+        bot = _RecBot()
+        upd = _private_update(sticker=True, sticker_emoji="👍", bot=bot)
+        handler = _asyncio.run(_dispatch(app, upd, lang="ru"))
+        assert isinstance(handler, ConversationHandler), handler
+        assert conv._conversations.get((777, 777)) == GET_REACTIONS
+        assert bot.sent, "javob yuborilmadi"
+        assert bot.sent[0]["text"] == get_text("np_reactions_selected", "ru", emojis="👍"), bot.sent[0]["text"]
+        # Fallback emas — aynan reaksiya tanlovi javobi
+        assert bot.sent[0]["text"] != get_text("unknown_message_fallback", "ru")
+    finally:
+        conv._conversations.pop((777, 777), None)
+        restore()
+
+
+def test_free_emoji_in_get_reactions_state_goes_to_conversation_not_fallback():
+    """To'liq zanjir: GET_REACTIONS holatida "👍 ❤️ 🔥" matni ham ConversationHandler'da
+    qabul qilinadi va fallback'ga tushmaydi."""
+    import handlers as h_mod
+    from telegram.ext import ConversationHandler
+    from handlers.new_post import GET_REACTIONS
+    app = _build_app()
+    conv = [h for h in app.handlers[0] if isinstance(h, ConversationHandler)][0]
+    restore = _patch_db({"get_user_language": "uz", "is_premium": True})
+    try:
+        h_mod._UNKNOWN_FALLBACK_LAST.clear()
+        conv._conversations[(777, 777)] = GET_REACTIONS
+        bot = _RecBot()
+        upd = _private_update(text="👍 ❤️ 🔥", bot=bot)
+        handler = _asyncio.run(_dispatch(app, upd, lang="uz"))
+        assert isinstance(handler, ConversationHandler), handler
+        assert conv._conversations.get((777, 777)) == GET_REACTIONS
+        assert bot.sent and "👍" in bot.sent[0]["text"] and "❤️" in bot.sent[0]["text"]
     finally:
         conv._conversations.pop((777, 777), None)
         restore()

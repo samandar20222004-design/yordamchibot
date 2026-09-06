@@ -721,6 +721,12 @@ def register_all_handlers(app):
                 # klaviatura bosilsa ham reaksiyasiz davom etadi (crash yo'q).
                 MessageHandler(filters.Text(SKIP_BUTTON_TEXTS), skip_reactions_step),
                 MessageHandler(filters.TEXT & ~filters.COMMAND, reactions_received),
+                # 🎯 Stiker ham reaksiya sifatida qabul qilinadi: uning emojisi
+                # (message.sticker.emoji) tanlovga qo'shiladi. Stiker filtri TEXT
+                # handleridan keyin turadi, lekin stiker matn emas — ikkalasi
+                # ham bir-biriga to'sqinlik qilmaydi. Shuning uchun stiker
+                # hech qachon global "tushunmadim" fallback'iga tushib ketmaydi.
+                MessageHandler(filters.Sticker.ALL, reactions_received),
             ],
             # 2b. ✨ Postga Tugma & Reaksiya qo'shish: post qabul qilish + inline ekranlar
             # (reaksiya/tugma/kanal/tasdiq) — bitta holat, qadamlar user_data'da.

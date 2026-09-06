@@ -629,6 +629,9 @@ TRANSLATIONS = {
         "np_reactions_ask": (
             "👍 <b>Post ostiga qaysi reaksiya tugmalari qo'shilsin?</b>\n\n"
             "Kerakli emojilarni bosing — ✅ belgilanadi (qayta bossangiz bekor bo'ladi).\n"
+            "Yoki erkin yozing, masalan: <code>👍 ❤️ 🔥</code> — bir nechtasini "
+            "probel bilan yuborsangiz ham bo'ladi.\n"
+            "Stiker yuborsangiz — uning emojisi ham reaksiyaga qo'shiladi.\n"
             "Tanlab bo'lgach, <b>➡️ Davom etish</b> tugmasini bosing.\n"
             "Reaksiya kerak bo'lmasa — <b>⏭ Reaksiyasiz o'tish</b>."
         ),
@@ -639,6 +642,8 @@ TRANSLATIONS = {
         "np_reactions_use_inline": (
             "⚠️ <b>Iltimos, pastdagi inline tugmalardan foydalaning:</b>\n"
             "• Emojilarni bosib tanlang (✅ belgilanadi)\n"
+            "• Erkin emoji yuborish ham mumkin: <code>👍 ❤️ 🔥</code>\n"
+            "• Stiker yuborsangiz — uning emojisi reaksiyaga qo'shiladi\n"
             "• <b>➡️ Davom etish</b> — tanlanganlar bilan keyingi qadam\n"
             "• <b>⏭ Reaksiyasiz o'tish</b> — reaksiyasiz"
         ),
@@ -2099,6 +2104,9 @@ TRANSLATIONS = {
         "np_reactions_ask": (
             "👍 <b>Какие кнопки-реакции добавить под пост?</b>\n\n"
             "Нажимайте нужные эмодзи — отметятся ✅ (повторное нажатие отменяет).\n"
+            "Или напишите свободно, например: <code>👍 ❤️ 🔥</code> — можно "
+            "отправить несколько через пробел.\n"
+            "Если отправите стикер — его эмодзи тоже добавится к реакциям.\n"
             "Выбрав, нажмите <b>➡️ Продолжить</b>.\n"
             "Если реакции не нужны — <b>⏭ Пропустить реакции</b>."
         ),
@@ -2109,6 +2117,8 @@ TRANSLATIONS = {
         "np_reactions_use_inline": (
             "⚠️ <b>Пожалуйста, используйте инлайн-кнопки ниже:</b>\n"
             "• Нажмите эмодзи, чтобы выбрать (отметятся ✅)\n"
+            "• Можно отправить эмодзи свободно: <code>👍 ❤️ 🔥</code>\n"
+            "• Если отправите стикер — его эмодзи добавится к реакциям\n"
             "• <b>➡️ Продолжить</b> — перейти с выбранными\n"
             "• <b>⏭ Пропустить реакции</b> — без реакций"
         ),
