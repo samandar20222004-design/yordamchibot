@@ -8,6 +8,7 @@ from keyboards.callback_data import (  # noqa: F401 — re-export (eski importla
     CALLBACK_DATA_MAX_BYTES,
     CB_CHANNEL_DELETE,
     CB_CHANNEL_SETTINGS,
+    CB_CHANNEL_VOICE,
     CB_POST_BTN,
     CB_POST_CANCEL,
     CB_POST_EDIT,
@@ -462,6 +463,7 @@ def render_channels_list(channels: list, lang: str = "uz") -> InlineKeyboardMark
         ])
         keyboard.append([
             InlineKeyboardButton(f"{tone_emoji} {get_text('cab_tone', lang)}", callback_data=cb(CB_CHANNEL_SETTINGS, ch_id)),
+            InlineKeyboardButton(get_text("ch_voice_btn", lang), callback_data=cb(CB_CHANNEL_VOICE, ch_id)),
         ])
     # "Qo'shish bor, lekin bekor qilish/chiqish yo'q" kamchiligini tuzatish:
     # ro'yxat ostida yangi kanal ulash va oynani yopish tugmalari bo'ladi.

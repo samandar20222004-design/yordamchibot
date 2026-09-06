@@ -1,4 +1,7 @@
 import logging
+import re
+
+from keyboards.callback_data import CB_CHANNEL_VOICE
 from telegram.ext import (
     CommandHandler,
     MessageHandler,
@@ -63,6 +66,7 @@ from handlers.channels import (
     channels_menu, start_add_channel, channel_received, add_channel_retry,
     remove_channel_callback, on_bot_chat_member_update, add_channel_inline_entry,
     tone_menu_callback, tone_chosen, on_channel_post,
+    channel_voice_analysis_callback,
     ADD_CHANNEL, SET_TONE
 )
 
@@ -149,7 +153,11 @@ from handlers.queue import (
 )
 
 import database as db
-from handlers.photo_check import register as register_photo_check
+from handlers.photo_check import (
+    register as register_photo_check,
+    PHOTO_CHECK_WAIT,
+    handle_user_photo,
+)
 from utils.helpers import (
     check_rate_limit,
     NAV_RATE_LIMIT_MAX,
@@ -752,6 +760,18 @@ def register_all_handlers(app):
                 MessageHandler(filters.ALL & ~filters.COMMAND, receipt_received),
             ],
 
+            # 10c. 🖼 Rasm moderatsiyasi (photo_check) — QAT'IY HOLAT
+            # Rasm adminga FAQAT shu "Moderatsiya" holatida yuboriladi. Global
+            # photo handler (register_photo_check) ichida ham xuddi shu holat/
+            # user_data belgisi tekshiriladi — yangi post oqimi, AI Studio yoki
+            # boshqa dialogda yuborilgan rasmlar hech qachon adminga bormaydi.
+            PHOTO_CHECK_WAIT: all_menu_jumps + [
+                MessageHandler(
+                    filters.PHOTO & ~filters.COMMAND & ~_AI_CAPTION_FILTER,
+                    handle_user_photo,
+                ),
+            ],
+
             # 11. Channel Extract holatlari
             EXTRACT_USERNAME: all_menu_jumps + [
                 CallbackQueryHandler(ai_back_to_menu, pattern=r"^ai_back_to_menu$"),
@@ -943,6 +963,12 @@ def register_all_handlers(app):
     app.add_handler(CallbackQueryHandler(edit_post_react_start, pattern=r"^p_react:"))
     app.add_handler(CallbackQueryHandler(remove_channel_callback, pattern=r"^ch_del:"))
     app.add_handler(CallbackQueryHandler(tone_menu_callback, pattern=r"^ch_set:"))
+    # 🎙 Kanal ovozi tahlili — kanal ro'yxatidagi profil tugmasi (AI tahlil +
+    # natijani kanalning tone_of_voice profiliga saqlaydi).
+    app.add_handler(CallbackQueryHandler(
+        channel_voice_analysis_callback,
+        pattern="^" + re.escape(CB_CHANNEL_VOICE),
+    ))
     app.add_handler(CallbackQueryHandler(close_msg_callback, pattern=r"^close_msg$"))
     app.add_handler(CallbackQueryHandler(noop_callback, pattern=r"^noop$"))
     app.add_handler(CallbackQueryHandler(cache_clear_callback, pattern=r"^cache_clear$"))

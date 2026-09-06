@@ -1,12 +1,46 @@
 import logging
+
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ContextTypes, MessageHandler, filters, CallbackQueryHandler
+from telegram.ext import (
+    ContextTypes,
+    MessageHandler,
+    filters,
+    CallbackQueryHandler,
+    ConversationHandler,
+)
 
 from config import ADMIN_IDS_SET
 import database as db
 from keyboards.callback_data import CB_PHOTO_APPROVE, CB_PHOTO_REJECT, cb
+from utils.fsm_state import active_conversation_state
 
 logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# QAT'IY HOLAT GATE (spam tuzatish)
+# ---------------------------------------------------------------------------
+# Eski xato: ``handle_user_photo`` HAR QANDAY rasmni (foydalanuvchi yangi post
+# rejalashtirayotganda albom yuborsa ham) ushlab, rasmni adminga yuborar va
+# "📸 Rasmingiz adminga yuborildi. Tasdiqlanishi kutilmoqda." deb har bir
+# rasm uchun javob qaytarardi.
+#
+# YANGI QOIDA: rasm adminga FAQAT foydalanuvchi ANIQ moderatsiya holatida
+# bo'lganda yuboriladi:
+#   * ConversationHandler holati ``PHOTO_CHECK_WAIT`` ("Moderatsiya"), yoki
+#   * ``context.user_data[UD_PHOTO_CHECK_WAIT]`` belgisi (moderatsiya oqimini
+#     boshlagan kod buni o'rnatadi).
+# Boshqa BARCHA holatda — yangi post oqimi (new_post states), AI Studio,
+# to'lov oqimi, oddiy chat — rasm hech qachon adminga bormaydi va foydalanuvchiga
+# ortiqcha xabar chiqmaydi (update jim yutiladi).
+# ---------------------------------------------------------------------------
+
+# "Moderatsiya" (qo'lda rasm tekshiruvi) holati — main ConversationHandler'da
+# ro'yxatdan o'tkaziladi (handlers/__init__.py).
+PHOTO_CHECK_WAIT = 604
+
+# user_data kaliti: moderatsiya oqimi boshqa kod orqali (masalan, inline entry)
+# boshlanganda rasmlar shu belgi bilan qabul qilinadi.
+UD_PHOTO_CHECK_WAIT = "photo_check_wait"
 
 # Handler tanlash bosqichidayoq `/ai` captionli rasmlarni chiqarib tashlaymiz.
 # Callback ichida shunchaki `return` qilish yetarli emas: bir handler group'ida
@@ -23,8 +57,44 @@ def _is_ai_photo_command(msg) -> bool:
     return cmd == "/ai"
 
 
+def _photo_moderation_allowed(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
+    """Rasm adminga yuborilishi MUMKIN bo'lgan holatni tekshiradi.
+
+    Faqat ikkita yo'l bor:
+      1) foydalanuvchi ``PHOTO_CHECK_WAIT`` ("Moderatsiya") dialog holatida;
+      2) ``user_data`` da moderatsiya belgisi qo'yilgan (context tekshiruvi).
+    Boshqa hollarda (yangi post, AI, to'lov, dialogdan tashqari) → False.
+    """
+    ud = getattr(context, "user_data", None) or {}
+    try:
+        flag = ud.get(UD_PHOTO_CHECK_WAIT)
+    except Exception:
+        flag = None
+    if flag:
+        return True
+    state = active_conversation_state(getattr(context, "application", None), update)
+    return state == PHOTO_CHECK_WAIT
+
+
+def _clear_moderation_marker(context) -> None:
+    """Moderatsiya belgisini tozalaydi (bitta rasm — bitta tekshiruv)."""
+    ud = getattr(context, "user_data", None)
+    if ud is not None:
+        try:
+            ud.pop(UD_PHOTO_CHECK_WAIT, None)
+        except Exception:
+            pass
+
+
 # 1. User photo handler: forwards photo to admin with approval buttons
 async def handle_user_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """'Moderatsiya' holatida yuborilgan rasmni adminga yo'naltiradi.
+
+    QAT'IY GATE: agar foydalanuvchi moderatsiya holatida/so'rovida bo'lmasa,
+    funksiya JIM qaytadi — rasm adminga yuborilmaydi va foydalanuvchiga hech
+    qanday xabar chiqmaydi. Bu yangi post rejalashtirish jarayonida (new_post
+    states) albom rasmlari tasodifan adminga ketib qolishining oldini oladi.
+    """
     user = update.effective_user
     if not user:
         return
@@ -35,6 +105,12 @@ async def handle_user_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     photo = update.message.photo[-1] if update.message.photo else None
     if not photo:
+        return
+
+    # 🚦 QAT'IY HOLAT TEKSHIRUVI — faqat "Moderatsiya" holatida adminga yuboramiz.
+    if not _photo_moderation_allowed(update, context):
+        # Yangi post oqimi / AI Studio / to'lov / oddiy chat rasmi — JIM yutamiz:
+        # hech qachon adminga bormaydi, ortiqcha xabarlar chiqmaydi.
         return
 
     user_id = user.id
@@ -56,13 +132,18 @@ async def handle_user_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     caption_text = f"🆔 Foydalanuvchi ID: {user_id}\n📷 Rasm yuborildi."
 
-    await context.bot.send_photo(
-        chat_id=admin_id,
-        photo=photo_file_id,
-        caption=caption_text,
-        reply_markup=reply_markup,
-        parse_mode="HTML",
-    )
+    try:
+        await context.bot.send_photo(
+            chat_id=admin_id,
+            photo=photo_file_id,
+            caption=caption_text,
+            reply_markup=reply_markup,
+            parse_mode="HTML",
+        )
+    except Exception as e:
+        logger.warning("Rasmni adminga yuborishda xato (user %s): %s", user_id, e)
+        return
+
     # Reply to user that photo was sent to admin
     try:
         await update.message.reply_text(
@@ -70,6 +151,11 @@ async def handle_user_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
     except Exception:
         pass
+
+    # Bitta moderatsiya so'rovi bitta rasm uchun — marker tozalanadi,
+    # conversation (agar shu holatda bo'lsa) yakunlanadi.
+    _clear_moderation_marker(context)
+    return ConversationHandler.END
 
 
 # 2. Admin callback: approve or reject PRO grant
@@ -128,7 +214,10 @@ async def handle_admin_check_photo_callback(update: Update, context: ContextType
 
 # Register handlers with the application
 def register(app):
-    # User photo: any photo message (but skip /ai captions)
+    # User photo: any photo message (but skip /ai captions). Handler GLOBAL
+    # bo'lib qoladi, lekin ICHIDA qat'iy holat gate'i bor — moderatsiya holatida
+    # bo'lmagan rasm hech qachon adminga yuborilmaydi va hech qanday xabar
+    # chiqarmaydi (yangi post oqimi, AI Studio va boshqa dialoglar uchun).
     app.add_handler(
         MessageHandler(
             filters.PHOTO & ~filters.COMMAND & ~_AI_PHOTO_CAPTION,

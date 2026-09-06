@@ -372,6 +372,10 @@ TRANSLATIONS = {
         "ai_wait_post": "🤖 <i>AI post yozmoqda...</i>",
         "ai_wait_audit": "🔍 <i>AI audit qilmoqda...</i>",
         "ai_wait_photo": "🖼 <i>AI rasmni tahlil qilmoqda...</i>",
+        "ai_photo_variants_ask": (
+            "🎨 Rasm bo'yicha <b>3 xil uslub</b> tayyorlandi. "
+            "Birini tanlang — tanlangan matn ochiladi 👇"
+        ),
         "ai_wait_edit": "✏️ <i>AI postni tahrirlamoqda...</i>",
         "ai_unavailable": (
             "⚠️ AI xizmatida vaqtinchalik uzilish yuz berdi. "
@@ -892,6 +896,21 @@ TRANSLATIONS = {
             "Endi AI postlarni shu uslubda tayyorlaydi."
         ),
         "ch_tone_error": "❌ Uslubni saqlashda xatolik. Qaytadan urinib ko'ring.",
+        "ch_voice_btn": "🎙 Kanal ovozi tahlili",
+        "ch_voice_analyzing": (
+            "🎙 <b>Kanal ovozi tahlil qilinmoqda...</b>\n\n"
+            "AI kanaldagi so'nggi postlarni o'rganib, kanal uslubini aniqlaydi."
+        ),
+        "ch_voice_no_posts": (
+            "⚠️ Tahlil uchun kanalda yetarli post topilmadi. "
+            "Bot kanalda admin bo'lib postlar yozilgach, qaytadan urinib ko'ring."
+        ),
+        "ch_voice_result": (
+            "🎙 <b>Kanal ovozi tahlili natijasi:</b>\n\n"
+            "✅ Uslub: <b>{tone}</b>\n💬 {reason}\n\n"
+            "Bu uslub kanal profilingizga saqlandi va keyingi AI generatsiyalarda ishlatiladi."
+        ),
+        "ch_voice_error": "⚠️ Kanal ovozi tahlilini bajarib bo'lmadi. Bir ozdan so'ng qayta urinib ko'ring.",
 
         # --- 3-QISM: 📅 Kutilayotgan postlar i18n (UZ) ---
         "pend_empty": "⏳ <b>Sizda kutilayotgan faol postlar mavjud emas.</b>",
@@ -1779,6 +1798,10 @@ TRANSLATIONS = {
         "ai_wait_post": "🤖 <i>ИИ пишет пост...</i>",
         "ai_wait_audit": "🔍 <i>ИИ проводит аудит...</i>",
         "ai_wait_photo": "🖼 <i>ИИ анализирует изображение...</i>",
+        "ai_photo_variants_ask": (
+            "🎨 По фото готово <b>3 варианта стиля</b>. "
+            "Выберите один — откроется выбранный текст 👇"
+        ),
         "ai_wait_edit": "✏️ <i>ИИ редактирует пост...</i>",
         "ai_unavailable": (
             "⚠️ Временный сбой в сервисе ИИ. "
@@ -2297,6 +2320,21 @@ TRANSLATIONS = {
             "Теперь ИИ будет готовить посты в этом стиле."
         ),
         "ch_tone_error": "❌ Ошибка при сохранении стиля. Попробуйте ещё раз.",
+        "ch_voice_btn": "🎙 Голос канала",
+        "ch_voice_analyzing": (
+            "🎙 <b>Анализ голоса канала...</b>\n\n"
+            "ИИ изучает последние посты канала и определяет его стиль."
+        ),
+        "ch_voice_no_posts": (
+            "⚠️ На канале недостаточно постов для анализа. "
+            "Добавьте бота администратором канала, дождитесь постов и повторите попытку."
+        ),
+        "ch_voice_result": (
+            "🎙 <b>Результат анализа голоса канала:</b>\n\n"
+            "✅ Стиль: <b>{tone}</b>\n💬 {reason}\n\n"
+            "Стиль сохранён в профиле канала и будет использоваться в генерациях ИИ."
+        ),
+        "ch_voice_error": "⚠️ Не удалось выполнить анализ голоса канала. Попробуйте ещё раз чуть позже.",
 
         # --- 3-QISM: 📅 Ожидающие посты i18n (RU) ---
         "pend_empty": "⏳ <b>У вас нет ожидающих активных постов.</b>",

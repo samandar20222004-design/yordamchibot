@@ -11,6 +11,7 @@ from keyboards.default import (
     BTN_BACK, BTN_MAIN_MENU,
     get_cancel_keyboard, get_main_keyboard, get_ai_time_keyboard,
 )
+from keyboards.callback_data import CB_PHOTO_VARIANT, cb
 from keyboards.inline import (
     get_ai_studio_keyboard, get_ai_back_keyboard, get_ai_tone_keyboard,
     get_ai_photo_keyboard, get_ai_confirm_keyboard, AI_TONE_KEYS,
@@ -49,6 +50,9 @@ AI_AUDIT_INPUT = 407     # Foydalanuvchi audit uchun post matnini yuboradi
 AI_PHOTO_INPUT = 408     # Foydalanuvchi rasmdan post yaratish uchun rasm yuboradi
 AI_PHOTO_RESULT = 409    # Vision natijasi: rejalashtirish / qayta yozish / tahrirlash
 AI_PHOTO_EDIT_INPUT = 410  # Foydalanuvchi tahrirlash talabini matn sifatida yuboradi
+
+# 🎨 Rasm → post: taklif qilinadigan 3 xil uslub (rasmiy / do'stona / qisqa).
+PHOTO_VARIANT_STYLES = ("formal", "friendly", "concise")
 
 # AI Studio menyusi matni (⬅️ Orqaga shu xabarga qaytadi)
 AI_STUDIO_MENU_TEXT = (
@@ -1276,6 +1280,37 @@ def _photo_result_text(post_text: str, lang: str = "uz") -> str:
     )
 
 
+# Variantlarni taklif qilish tartibi va raqamlari (1-3).
+_PHOTO_VARIANT_NUMBERS = ("1️⃣", "2️⃣", "3️⃣")
+
+
+def _photo_variants_text(variants: dict, lang: str = "uz") -> str:
+    """3 xil uslub variantlari tanlov ekrani matni (qisqa prevyu bilan)."""
+    parts = [get_text("ai_photo_variants_ask", lang), ""]
+    for i, style in enumerate(PHOTO_VARIANT_STYLES):
+        text = (variants.get(style) or "").strip()
+        if not text:
+            continue
+        preview = text if len(text) <= 160 else text[:157].rstrip() + "…"
+        label = f"{_PHOTO_VARIANT_NUMBERS[i]} {get_text(AI_TONE_KEYS[style], lang)}"
+        parts.append(f"<b>{label}</b>\n<i>{safe_html(preview)}</i>\n")
+    return "\n".join(parts)
+
+
+def _photo_variants_keyboard(variants: dict, lang: str = "uz") -> InlineKeyboardMarkup:
+    """Variant tanlash tugmalari: faqat muvaffaqiyatli tayyorlangan uslublar."""
+    rows = []
+    for i, style in enumerate(PHOTO_VARIANT_STYLES):
+        if (variants.get(style) or "").strip():
+            label = f"{_PHOTO_VARIANT_NUMBERS[i]} {get_text(AI_TONE_KEYS[style], lang)}"
+            rows.append([InlineKeyboardButton(label, callback_data=cb(CB_PHOTO_VARIANT, style))])
+    rows.append([
+        InlineKeyboardButton(get_text("ai_btn_back", lang), callback_data="ai_back_to_menu"),
+        InlineKeyboardButton(get_text("ai_btn_close", lang), callback_data="ai_close"),
+    ])
+    return InlineKeyboardMarkup(rows)
+
+
 async def _vision_run(file_id: str, extra_prompt: str, rewrite_context="") -> dict:
     """Rasmni temp diskka stream qilib, Gemini vision orqali tahlil qiladi.
 
@@ -1298,6 +1333,53 @@ async def _vision_run(file_id: str, extra_prompt: str, rewrite_context="") -> di
     finally:
         if tmp_path:
             cleanup_temp_media(tmp_path)
+
+
+async def _vision_run_variants(file_id: str, extra_prompt: str):
+    """Rasmni BIR MARTA yuklab, 3 xil uslub (rasmiy/do'stona/qisqa) bo'yicha
+    post variantlarini tayyorlaydi.
+
+    Returns:
+        (variants, first_error). variants: ``{style: post_text}`` (1–3 ta,
+        faqat muvaffaqiyatlilari); hammasi muvaffaqiyatsiz bo'lsa bo'sh dict va
+        birinchi xato xabari qaytadi.
+    """
+    tmp_path = None
+    variants: dict = {}
+    errors = []
+    try:
+        tmp_path = await download_telegram_media_to_temp(file_id)
+
+        async def _run(style):
+            res = await generate_vision_post(
+                tmp_path, extra_prompt=extra_prompt, tone=style
+            )
+            return style, res
+
+        outcomes = await asyncio.gather(
+            *(_run(s) for s in PHOTO_VARIANT_STYLES),
+            return_exceptions=True,
+        )
+        for style, res in outcomes:
+            if isinstance(res, Exception):
+                logger.warning("Vision varianti xatosi (%s): %s", style, res)
+                errors.append(AI_PHOTO_UNAVAILABLE_MSG)
+                continue
+            if isinstance(res, dict) and res.get("error"):
+                errors.append(res["error"])
+                continue
+            text = ((res or {}).get("post_text") or "").strip()
+            if text:
+                variants[style] = text
+    except Exception as e:
+        logger.error("Vision variantlar xatosi: %s", e)
+        errors.append(AI_PHOTO_UNAVAILABLE_MSG)
+    finally:
+        if tmp_path:
+            cleanup_temp_media(tmp_path)
+
+    first_error = errors[0] if errors else AI_PHOTO_UNAVAILABLE_MSG
+    return variants, first_error
 
 
 async def ai_photo_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1342,7 +1424,9 @@ async def ai_photo_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     stop_typing = asyncio.Event()
     typing_task = asyncio.create_task(_keep_typing(context.bot, msg.chat_id, stop_typing))
     try:
-        result = await _vision_run(file_id, extra_prompt)
+        # 🎨 Rasm BIR marta yuklanadi va 3 xil uslub (rasmiy/do'stona/qisqa)
+        # bo'yicha post variantlari tayyorlanadi — foydalanuvchi birini tanlaydi.
+        variants, first_error = await _vision_run_variants(file_id, extra_prompt)
     finally:
         stop_typing.set()
         typing_task.cancel()
@@ -1351,39 +1435,44 @@ async def ai_photo_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception:
             pass
 
-    if "error" in result:
+    if not variants:
         await _studio_ai_refund(user_id, is_admin, is_pro)
         await msg.reply_text(
-            f"{result['error']}\n\n"
+            f"{first_error}\n\n"
             f"{get_text('ai_photo_retry_hint', lang)}",
             reply_markup=get_ai_back_keyboard(lang),
             parse_mode="HTML",
         )
         return AI_PHOTO_INPUT
 
-    post_text = (result.get("post_text") or "").strip()
-    if not post_text:
-        await _studio_ai_refund(user_id, is_admin, is_pro)
-        await msg.reply_text(
-            get_text("ai_photo_no_text", lang),
-            reply_markup=get_ai_back_keyboard(lang),
-            parse_mode="HTML",
-        )
-        return AI_PHOTO_INPUT
+    # Birlamchi variant: birinchi muvaffaqiyatli uslub (formal → friendly → concise)
+    primary_style = next((s for s in PHOTO_VARIANT_STYLES if s in variants), None)
+    post_text = variants[primary_style].strip()
 
     context.user_data["studio_post_text"] = post_text
     context.user_data["studio_file_id"] = file_id
     context.user_data["studio_post_type"] = "photo"
-    context.user_data["studio_tone"] = "friendly"
+    context.user_data["studio_tone"] = primary_style
     context.user_data["studio_photo_extra"] = extra_prompt
+    context.user_data["studio_photo_variants"] = dict(variants)
 
     # Muvaffaqiyatli vision so'rovi kunlik AI sanagichiga qo'shiladi (faqat free)
     if not is_admin and not is_pro:
         await db.run_db(db.increment_ai_usage, user_id)
 
+    if len(variants) == 1:
+        # Faqat bitta variant chiqdi (qolganlari xato) — darhol natija ekrani.
+        await msg.reply_text(
+            _photo_result_text(post_text, lang),
+            reply_markup=get_ai_photo_keyboard(lang),
+            parse_mode="HTML",
+        )
+        return AI_PHOTO_RESULT
+
+    # 3 xil uslub tayyor — foydalanuvchi variantni tanlaydi.
     await msg.reply_text(
-        _photo_result_text(post_text, lang),
-        reply_markup=get_ai_photo_keyboard(lang),
+        _photo_variants_text(variants, lang),
+        reply_markup=_photo_variants_keyboard(variants, lang),
         parse_mode="HTML",
     )
     return AI_PHOTO_RESULT
@@ -1407,6 +1496,39 @@ async def ai_photo_result_callback(update: Update, context: ContextTypes.DEFAULT
             get_ai_back_keyboard(lang),
         )
         return AI_PHOTO_INPUT
+
+    # --- 0) 🎨 Uslub variantini tanlash (photo_v:formal|friendly|concise) ---
+    if data.startswith(CB_PHOTO_VARIANT):
+        style = data[len(CB_PHOTO_VARIANT):]
+        variants = context.user_data.get("studio_photo_variants") or {}
+        picked = (variants.get(style) or "").strip()
+        if not picked:
+            # Variantlar yo'q (sessiya yangilangan) — tanlovni qayta ko'rsatamiz.
+            if variants:
+                await _safe_edit(
+                    query,
+                    _photo_variants_text(variants, lang),
+                    _photo_variants_keyboard(variants, lang),
+                )
+            return AI_PHOTO_RESULT
+        context.user_data["studio_post_text"] = picked
+        context.user_data["studio_tone"] = style
+        try:
+            await query.edit_message_text(
+                _photo_result_text(picked, lang),
+                reply_markup=get_ai_photo_keyboard(lang),
+                parse_mode="HTML",
+            )
+        except Exception:
+            try:
+                await query.message.reply_text(
+                    _photo_result_text(picked, lang),
+                    reply_markup=get_ai_photo_keyboard(lang),
+                    parse_mode="HTML",
+                )
+            except Exception:
+                pass
+        return AI_PHOTO_RESULT
 
     # --- 1) Kanalga rejalashtirish → mavjud AI_GET_TIME → AI_CONFIRM oqimi ---
     if data == "photo_schedule":
