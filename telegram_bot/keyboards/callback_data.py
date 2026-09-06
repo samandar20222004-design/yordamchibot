@@ -64,6 +64,12 @@ CB_RECEIPT_REJECT = "rc_no:"
 CB_PHOTO_APPROVE = "cph:a:"
 CB_PHOTO_REJECT = "cph:r:"
 
+# 🖼 Rasm → post: 3 uslub variantidan birini tanlash (formal/friendly/concise)
+CB_PHOTO_VARIANT = "photo_v:"
+
+# 🎙 Kanal ovozi tahlili (AI) — kanal profil tugmasi
+CB_CHANNEL_VOICE = "ch_voice:"
+
 # Yangi post oqimidagi reaksiya tanlash (avval: npreact:tgl: / done / skip)
 CB_REACT_TOGGLE = "nprt:t:"
 CB_REACT_DONE = "nprt:done"
@@ -87,6 +93,7 @@ CANONICAL_PREFIXES = (
     CB_RECEIPT_REJECT,
     CB_PHOTO_APPROVE,
     CB_PHOTO_REJECT,
+    CB_PHOTO_VARIANT,
     CB_REACT_TOGGLE,
     CB_REACTION,
 )

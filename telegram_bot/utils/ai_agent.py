@@ -1514,6 +1514,136 @@ async def format_post_text_with_tone(text: str, action: str, tone: str = "friend
 
 
 # ============================================================
+# KANAL OVOZI (TONE OF VOICE) TAHLILI
+# ============================================================
+
+_CHANNEL_VOICE_SYSTEM = (
+    "Siz Telegram kanali kontent uslubini (Tone of Voice) tahlil qiluvchi "
+    "professional SMM-mutaxassissiz. Kanaldagi so'nggi postlar matnini tahlil "
+    "qilib, kanal uslubini ANIQ tasniflaysiz.\n\n"
+    "FAQAT 4 ta uslubdan BIRINI tanlang:\n"
+    "  - \"formal\" — rasmiy, professional, biznes ohangi\n"
+    "  - \"friendly\" — do'stona, samimiy, iliq ohang\n"
+    "  - \"concise\" — qisqa, yangiliklar uslubi\n"
+    "  - \"engaging\" — ko'ngilochar, emotsional, diqqat tortuvchi\n\n"
+    "QOIDALAR:\n"
+    "1. Javobda FAQAT JSON qaytaring (boshqa matn yo'q):\n"
+    "    {\"tone\": \"formal|friendly|concise|engaging\", \"reason\": \"1-2 jumlada izoh\"}\n"
+    "2. \"reason\" foydalanuvchi tilida, qisqa va aniq bo'lsin.\n"
+    "3. Agar postlar matni uslubni aniqlashga yetarli bo'lmasa — "
+    '"friendly" va shu haqda izoh qaytaring.'
+)
+
+
+def _posts_for_analysis(recent_posts, max_posts: int = 6, max_chars: int = 2400) -> str:
+    """Tahlil uchun kanal postlarini matnga aylantiradi (xavfsiz, cheklangan)."""
+    lines = []
+    budget = max_chars
+    count = 0
+    for item in (recent_posts or []):
+        if count >= max_posts:
+            break
+        if isinstance(item, dict):
+            text = (item.get("text") or item.get("content") or "").strip()
+        else:
+            text = str(item or "").strip()
+        if not text:
+            continue
+        # Media-fayl belgilarini (masalan "[Rasm]") tahlilga kiritmaymiz
+        if text.startswith("[") and text.endswith("]") and len(text) <= 20:
+            continue
+        piece = text[:400]
+        if budget - len(piece) < 0:
+            break
+        lines.append(f"- {piece}")
+        budget -= len(piece)
+        count += 1
+    return "\n".join(lines)
+
+
+def _normalize_voice_tone(raw) -> str:
+    """AI qaytargan uslub kalitini normalizatsiya qiladi (None bo'lsa None)."""
+    if not raw:
+        return None
+    tone = str(raw).strip().lower().strip("\"'` ")
+    if tone in ("formal", "friendly", "concise", "engaging"):
+        return tone
+    # Model ba'zan yorliq bilan qaytaradi (masalan "Rasmiy", "Do'stona") —
+    # ularni ham tanib olamiz.
+    mapping = {
+        "rasmiy": "formal", "official": "formal", "business": "formal",
+        "do'stona": "friendly", "dostona": "friendly", "samimiy": "friendly",
+        "iliq": "friendly",
+        "qisqa": "concise", "yangiliklar": "concise", "news": "concise",
+        "ko'ngilochar": "engaging", "kongilochar": "engaging",
+        "emotsional": "engaging", "jozibali": "engaging",
+    }
+    return mapping.get(tone)
+
+
+async def analyze_channel_voice(recent_posts: list, lang: str = "uz") -> dict:
+    """Kanalning so'nggi postlari asosida uning ovozi/uslubini AI tahlil qiladi.
+
+    Args:
+        recent_posts: kanal postlari ro'yxati (dict — ``text``/``content``
+            kalitlari bilan yoki oddiy matn satrlari).
+        lang: izoh tili ("uz" | "ru")
+
+    Returns:
+        {"tone": "formal|friendly|concise|engaging", "reason": "..."}
+        yoki {"error": "..."} (post yo'q / AI xatosi).
+    """
+    samples = _posts_for_analysis(recent_posts)
+    if not samples:
+        return {"error": "⚠️ Kanal postlari tarixi bo'sh — uslubni tahlil qilib bo'lmadi."}
+
+    lang_rule = (
+        "Izohni o'zbek tilida yozing."
+        if lang != "ru"
+        else "Напишите пояснение на русском языке."
+    )
+    prompt = (
+        "Kanalning so'nggi postlari:\n\n"
+        f"{samples}\n\n"
+        f"{lang_rule}\n"
+        "Shu postlar asosida kanal uslubini (tone of voice) aniqlang va JSON qaytaring."
+    )
+
+    try:
+        result = await _run_ai_chain(prompt, _CHANNEL_VOICE_SYSTEM)
+    except Exception as e:
+        logger.warning("Kanal ovozi tahlili xatosi: %s", e)
+        return {"error": "⚠️ AI xizmatida vaqtinchalik uzilish. Qaytadan urinib ko'ring."}
+
+    if not isinstance(result, dict) or "error" in result:
+        return result if isinstance(result, dict) else {"error": "⚠️ AI javob bermadi."}
+
+    tone = _normalize_voice_tone(result.get("tone"))
+    reason = (result.get("reason") or "").strip()
+
+    if not tone:
+        # Model JSON o'rniga oddiy matn qaytargan bo'lishi mumkin — qidiramiz.
+        for value in result.values():
+            if isinstance(value, str):
+                tone = _normalize_voice_tone(value) or tone
+                if tone:
+                    break
+        if not reason:
+            for value in result.values():
+                if isinstance(value, str) and len(value) > 20:
+                    reason = value
+                    break
+
+    if not tone:
+        return {"error": "⚠️ AI kanal uslubini aniqlay olmadi. Qaytadan urinib ko'ring."}
+
+    return {
+        "tone": tone,
+        "reason": (reason or "").strip() or "Kanal uslubi AI orqali aniqlandi.",
+    }
+
+
+# ============================================================
 # CONTENT PLAN GENERATOR
 # ============================================================
 

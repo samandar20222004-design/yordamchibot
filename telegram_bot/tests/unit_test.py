@@ -1923,29 +1923,76 @@ def test_photo_to_post_flow():
         ai.download_telegram_media_to_temp = fake_dl
 
         async def fake_vision(path, extra_prompt="", tone=None, timeout=None, rewrite_context=""):
-            calls.append(("vision", path, extra_prompt, bool(rewrite_context)))
-            return {"post_text": "<b>Buyuk taklif!</b>\n\n• Mahsulot\n\n👉 Sotib oling\n\n#smm"}
+            tone = tone or "formal"
+            calls.append(("vision", path, extra_prompt, tone, bool(rewrite_context)))
+            return {"post_text": f"<b>Variant {tone}</b> posti"}
 
         ai.generate_vision_post = fake_vision
 
-        # 5) Rasm qabul qilish → vision → natija ekrani
+        # 5) Rasm qabul qilish → 3 USLUB VARIANTI (formal/friendly/concise) tayyorlanadi
         uid = 999777000
         msg = _FakeMsg(1, chat_id=111, caption="mahsulotni sot")
         msg.photo = [type("P", (), {"file_id": "file123"})()]
         upd = type("U", (), {"message": msg, "effective_user": _FakeUser(uid)})()
         ctx2 = _FakeCtx(_FakeBot(), user_data={})
         state2 = asyncio.run(ai.ai_photo_received(upd, ctx2))
-        check("photo: vision natijasi → AI_PHOTO_RESULT",
+        check("photo: variantlar ekrani → AI_PHOTO_RESULT",
               state2 == ai.AI_PHOTO_RESULT, str(state2))
-        check("photo: post saqlandi",
-              ctx2.user_data.get("studio_post_text", "").startswith("<b>"))
+        vision_calls = [c for c in calls if c[0] == "vision"]
+        check("photo: AI chaqiruv 3 marta (3 uslub)",
+              len(vision_calls) == 3, str(vision_calls))
+        check("photo: barcha 3 uslub so'raldi",
+              {c[3] for c in vision_calls} == {"formal", "friendly", "concise"},
+              str([c[3] for c in vision_calls]))
+        check("photo: rasm temp download BIR marta",
+              len([c for c in calls if c[0] == "dl"]) == 1)
+        check("photo: birlamchi variant (formal) postga saqlandi",
+              ctx2.user_data.get("studio_post_text") == "<b>Variant formal</b> posti")
+        check("photo: studio_tone=formal", ctx2.user_data.get("studio_tone") == "formal")
+        variants = ctx2.user_data.get("studio_photo_variants") or {}
+        check("photo: 3 xil variant saqlandi",
+              set(variants) == {"formal", "friendly", "concise"}, str(variants))
+        check("photo: har variant o'z matni bilan",
+              variants.get("friendly") == "<b>Variant friendly</b> posti")
         check("photo: file_id saqlandi", ctx2.user_data.get("studio_file_id") == "file123")
         check("photo: post_type=photo", ctx2.user_data.get("studio_post_type") == "photo")
         check("photo: izoh saqlandi",
               ctx2.user_data.get("studio_photo_extra") == "mahsulotni sot")
-        check("photo: rasm temp download qilindi", any(c[0] == "dl" for c in calls))
-        check("photo: AI chaqiruv bitta", len([c for c in calls if c[0] == "vision"]) == 1)
+        sent_markups = [c[3] for c in ctx2.bot.calls if c[0] in ("send_message", "reply_text") and c[3]]
+        sent_cbs = {b.callback_data for mk in sent_markups for row in mk.inline_keyboard for b in row}
+        check("photo: variant tanlash tugmalari yuborildi",
+              {"photo_v:formal", "photo_v:friendly", "photo_v:concise"} <= sent_cbs,
+              str(sent_cbs))
         check("photo: muvaffaqiyat → ai_usage+1", "increment_ai_usage" in calls)
+
+        # 5b) Foydalanuvchi variant tanlaydi: photo_v:friendly
+        q_pick = _FakeQuery("photo_v:friendly", _FakeMsg(2, chat_id=111))
+        ctx_pick = _FakeCtx(_FakeBot(), user_data=dict(ctx2.user_data))
+        state_pick = asyncio.run(ai.ai_photo_result_callback(_QUpd(q_pick), ctx_pick))
+        check("photo: variant tanlash → AI_PHOTO_RESULT",
+              state_pick == ai.AI_PHOTO_RESULT, str(state_pick))
+        check("photo: tanlangan variant postga yozildi",
+              ctx_pick.user_data.get("studio_post_text") == "<b>Variant friendly</b> posti")
+        check("photo: tanlangan uslub saqlandi",
+              ctx_pick.user_data.get("studio_tone") == "friendly")
+        pick_edit = q_pick.edits[0][0] if q_pick.edits else ""
+        check("photo: natija ekrani ochildi (rejalashtirish tugmasi)",
+              any(
+                  b.callback_data == "photo_schedule"
+                  for row in q_pick.edits[0][1].inline_keyboard for b in row
+              ) if q_pick.edits and q_pick.edits[0][1] else False,
+              pick_edit[:80])
+
+        # 5c) Notanish uslub → sessiya buzilmaydi, tanlov qayta ko'rsatiladi
+        q_bad = _FakeQuery("photo_v:weird", _FakeMsg(3, chat_id=111))
+        ctx_bad = _FakeCtx(_FakeBot(), user_data=dict(ctx2.user_data))
+        state_bad = asyncio.run(ai.ai_photo_result_callback(_QUpd(q_bad), ctx_bad))
+        check("photo: notanish uslub → AI_PHOTO_RESULT",
+              state_bad == ai.AI_PHOTO_RESULT, str(state_bad))
+        check("photo: notanish uslub matnni buzmaydi",
+              ctx_bad.user_data.get("studio_post_text") == "<b>Variant formal</b> posti")
+        check("photo: notanish uslub → tanlov qayta ko'rsatildi",
+              bool(q_bad.edits) and "photo_v:formal" in str(q_bad.edits[0][1]))
 
         # 6) [Kanalga rejalashtirish] → AI_GET_TIME (mavjud oqimga uzatiladi)
         class _PhotoMsg(_FakeMsg):

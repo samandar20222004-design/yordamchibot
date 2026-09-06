@@ -9,9 +9,12 @@ from keyboards.default import (
     get_cancel_keyboard, get_main_keyboard, get_tone_keyboard,
     TONE_LABELS, TONE_LABELS_RU, BTN_BACK_RU,
 )
+from keyboards.callback_data import CB_CHANNEL_VOICE
 from keyboards.inline import render_channels_list
 from locales.translations import get_lang, get_text, normalize_lang
 from utils.helpers import html_escape
+from utils.fsm_state import active_conversation_state
+from utils.ai_agent import analyze_channel_voice
 
 logger = logging.getLogger(__name__)
 
@@ -571,6 +574,118 @@ async def tone_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
     context.user_data.pop("tone_channel_id", None)
+    return ConversationHandler.END
+
+
+async def channel_voice_analysis_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """🎙 'Kanal ovozi tahlili' — AI kanal postlari asosida uslubni aniqlaydi.
+
+    Kanal profiliga bog'langan tugma (render_channels_list → ``ch_voice:``):
+      1. kanalning so'nggi postlari ``channel_posts_history`` dan olinadi;
+      2. AI ularni tahlil qilib kanal ovozi/uslubini (formal | friendly |
+         concise | engaging) aniqlaydi;
+      3. natija kanalning ``tone_of_voice`` profiliga SAQLANADI — keyingi AI
+         generatsiyalar (AI Studio, kontent-reja, rasmdan post) shu uslubda
+         yoziladi.
+
+    Bu handler hech qanday ConversationHandler holatiga bog'liq emas — faqat
+    kanal ro'yxatidagi inline tugma orqali ishlaydi.
+    """
+    query = update.callback_query
+    try:
+        await query.answer()
+    except Exception:
+        pass
+    lang = get_lang(context)
+    user_id = query.from_user.id
+    is_admin = user_id in ADMIN_IDS_SET
+
+    data = query.data or ""
+    if not data.startswith(CB_CHANNEL_VOICE):
+        return ConversationHandler.END
+    channel_id = data[len(CB_CHANNEL_VOICE):].strip()
+    if not channel_id:
+        return ConversationHandler.END
+
+    # Kanal foydalanuvchining o'z kanali ekanini tekshiramiz (fail-closed).
+    channels = await db.run_db(db.get_user_channels_with_tone, user_id)
+    owned = any(str(ch[0]) == channel_id for ch in channels)
+    if not owned:
+        try:
+            await query.message.reply_text(
+                get_text("ch_voice_error", lang),
+                reply_markup=get_main_keyboard(is_admin, lang=lang),
+                parse_mode="HTML",
+            )
+        except Exception:
+            pass
+        return ConversationHandler.END
+
+    # 1) Tahlil jarayoni haqida xabar
+    try:
+        analyzing_msg = await query.message.reply_text(
+            get_text("ch_voice_analyzing", lang),
+            parse_mode="HTML",
+        )
+    except Exception:
+        analyzing_msg = None
+
+    # 2) Kanal postlari tarixini o'qib, AI bilan uslubni aniqlaymiz
+    posts = await db.run_db(db.get_channel_posts_history, channel_id, 15)
+    try:
+        result = await analyze_channel_voice(posts, lang)
+    except Exception as e:
+        logger.warning("Kanal ovozi tahlili chaqiruv xatosi (%s): %s", channel_id, e)
+        result = {"error": get_text("ch_voice_error", lang)}
+
+    if analyzing_msg is not None:
+        try:
+            await analyzing_msg.delete()
+        except Exception:
+            pass
+
+    tone = (result or {}).get("tone")
+    if not tone:
+        error_text = (result or {}).get("error") or get_text("ch_voice_error", lang)
+        try:
+            await query.message.reply_text(
+                f"{error_text}",
+                reply_markup=get_main_keyboard(is_admin, lang=lang),
+                parse_mode="HTML",
+            )
+        except Exception:
+            pass
+        return ConversationHandler.END
+
+    # 3) Natijani kanal profiliga saqlaymiz (tone_of_voice)
+    await db.run_db(db.set_channel_tone, channel_id, tone)
+
+    labels = TONE_LABELS_RU if lang == "ru" else TONE_LABELS
+    tone_label = labels.get(tone, labels["friendly"])
+    reason = (result.get("reason") or "").strip()
+    try:
+        await query.message.reply_text(
+            get_text("ch_voice_result", lang, tone=html_escape(tone_label),
+                     reason=html_escape(reason)),
+            reply_markup=get_main_keyboard(is_admin, lang=lang),
+            parse_mode="HTML",
+        )
+    except Exception:
+        pass
+
+    # Dialog ICHIDA bo'lmasa kanal ro'yxatini yangilangan uslub bilan qayta
+    # ko'rsatamiz (dialog bo'lsa foydalanuvchi holatini buzmaymiz).
+    if active_conversation_state(getattr(context, "application", None), update) is None:
+        try:
+            fresh = await db.run_db(db.get_user_channels_with_tone, user_id)
+            if fresh:
+                await query.message.reply_text(
+                    get_text("ch_list_title", lang, count=len(fresh)),
+                    reply_markup=render_channels_list(fresh, lang),
+                    parse_mode="HTML",
+                )
+        except Exception:
+            pass
     return ConversationHandler.END
 
 

@@ -20,6 +20,7 @@ import database as db
 from keyboards.default import get_main_keyboard
 from locales.translations import get_text, get_lang
 from utils.helpers import html_escape
+from utils.fsm_state import active_conversation_state
 from handlers.subscription import (
     RECEIPT_WAIT, CARD_TARIFFS, _card_tariff_name, _fmt_uzs,
 )
@@ -153,10 +154,28 @@ async def receipt_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     Chekni DB'ga yozadi va barcha adminlarga inline tugmalar bilan yuboradi.
     Muvaffaqiyatda main menyu bilan tugatadi (ConversationHandler.END).
+
+    🚦 QAT'IY HOLAT GATE: chek adminga FAQAT foydalanuvchi aynan RECEIPT_WAIT
+    ("📸 Chek yuborish") holatida bo'lganda yuboriladi. Haqiqiy (Application'li)
+    kontekstda foydalanuvchi boshqa holatda/dialogdan tashqarida bo'lsa — chek
+    qabul qilinmaydi, adminga yuborilmaydi va javob chiqarilmaydi (yangi post
+    oqimida yuborilgan rasm/PDF hech qachon chek sifatida o'tmaydi).
     """
     msg = update.message
     user = update.effective_user
     user_id = user.id if user else 0
+
+    application = getattr(context, "application", None)
+    if application is not None:
+        state = active_conversation_state(application, update)
+        if state != RECEIPT_WAIT:
+            logger.info(
+                "Chek rad etildi: foydalanuvchi %s RECEIPT_WAIT holatida emas (state=%s) — "
+                "chek adminga yuborilmadi.",
+                user_id, state,
+            )
+            return ConversationHandler.END
+
     lang = await ensure_user_lang(context, user_id)
 
     media = _pick_receipt_media(msg)

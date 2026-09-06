@@ -20,6 +20,9 @@ echo
 echo "================= ALBOM & SKIP TEST ================="
 "$PY" tests/album_skip_test.py || exit 1
 
+echo "================= PHOTO LEAK & VOICE TEST ===================="
+"$PY" tests/photo_leak_test.py || exit 1
+
 echo
 echo "==================== SCHEMA TEST ===================="
 "$PY" tests/schema_test.py || exit 1
