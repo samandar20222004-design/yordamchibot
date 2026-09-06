@@ -8,6 +8,10 @@ from types import SimpleNamespace
 os.environ.setdefault("BOT_TOKEN", "123456:TEST_TOKEN")
 os.environ.setdefault("ADMIN_ID", "123456789")
 os.environ.setdefault("DATABASE_URL", "postgresql://user:pass@localhost/test")
+# 💳 Karta rekvizitlari FAQAT .env/Render orqali keladi (kodda hardcode yo'q) —
+# testlarda ham ular muhit o'zgaruvchisi sifatida beriladi.
+os.environ.setdefault("CARD_NUMBER", "8600060950825589")
+os.environ.setdefault("CARD_HOLDER", "Sayitqulov S.")
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
@@ -302,17 +306,19 @@ def test_card_payment_tariff_and_receipt_flow():
     import config as cfg
     import database as db_mod
 
-    # Fixed karta rekvizitlari (env bo'sh bo'lsa ham default ishlaydi)
-    expected_number = _os.getenv("PAYMENT_CARD_NUMBER", "8600060950825589")
-    expected_holder = _os.getenv("PAYMENT_CARD_HOLDER", "Sayitqulov S.")
-    assert cfg.PAYMENT_CARD_NUMBER == expected_number
+    # Karta rekvizitlari FAQAT muhit o'zgaruvchilaridan (CARD_NUMBER/CARD_HOLDER)
+    expected_number = _os.environ["CARD_NUMBER"]
+    expected_holder = _os.environ["CARD_HOLDER"]
+    assert cfg.CARD_NUMBER == expected_number
+    assert cfg.CARD_HOLDER == expected_holder
+    assert cfg.PAYMENT_CARD_NUMBER == expected_number  # eski nom = alias
     assert cfg.PAYMENT_CARD_HOLDER == expected_holder
 
     sub = importlib.import_module("handlers.subscription")
     pr = importlib.import_module("handlers.payment_receipt")
 
     # --- 1) Karta raqami/summa formatlash ---
-    assert sub._fmt_card_number(cfg.PAYMENT_CARD_NUMBER) == "8600 0609 5082 5589"
+    assert sub._fmt_card_number(cfg.CARD_NUMBER) == "8600 0609 5082 5589"
     assert sub._fmt_uzs(sub.CARD_TARIFFS["1m"]["amount"]) == "19 000"
     assert sub._fmt_uzs(sub.CARD_TARIFFS["3m"]["amount"]) == "45 000"
     assert sub._fmt_uzs(sub.CARD_TARIFFS["1y"]["amount"]) == "140 000"
@@ -647,12 +653,13 @@ def test_recover_stale_processing_posts_idempotent():
 
 
 def test_env_card_config_and_fallback():
-    """Karta ma'lumotlari config.py va .env orqali boshqariladi (fallback bilan)."""
+    """Karta ma'lumotlari QAT'IY .env (CARD_NUMBER/CARD_HOLDER) orqali keladi."""
     import config as cfg
-    assert cfg.PAYMENT_CARD_NUMBER != ""
-    assert cfg.PAYMENT_CARD_HOLDER != ""
-    assert cfg._str_env("NON_EXISTING_ENV_VAR_12345", "8600060950825589") == "8600060950825589"
-    assert cfg._str_env("NON_EXISTING_ENV_VAR_12345", "Sayitqulov S.") == "Sayitqulov S."
+    assert cfg.CARD_NUMBER == os.environ["CARD_NUMBER"]
+    assert cfg.CARD_HOLDER == os.environ["CARD_HOLDER"]
+    assert cfg.PAYMENT_CARD_NUMBER == cfg.CARD_NUMBER
+    assert cfg.PAYMENT_CARD_HOLDER == cfg.CARD_HOLDER
+    assert cfg._str_env("NON_EXISTING_ENV_VAR_12345", "fallback") == "fallback"
 
 
 def test_main_menu_hint_translations():
@@ -1327,36 +1334,57 @@ def test_scheduler_processing_write_failure_aborts_before_send():
 
 # --------------------------------------------------------- 5. KARTA CONFIG
 def test_card_config_defaults_env_override_and_no_hardcoded_card():
-    """Talab 5: CARD_NUMBER/CARD_HOLDER config + .env; handlerlarda qattiq raqam yo'q."""
+    """Talab: CARD_NUMBER/CARD_HOLDER FAQAT .env dan; kodda hardcode yo'q."""
     import importlib
     import config as cfg
-    assert cfg.DEFAULT_CARD_NUMBER == "8600060950825589"
-    assert cfg.DEFAULT_CARD_HOLDER == "Sayitqulov S."
-    assert cfg.CARD_NUMBER and cfg.CARD_HOLDER
+    # Kodda default karta qolmagan
+    assert not hasattr(cfg, "DEFAULT_CARD_NUMBER")
+    assert not hasattr(cfg, "DEFAULT_CARD_HOLDER")
+    cfg_src = (ROOT / "config.py").read_text(encoding="utf-8")
+    assert 'CARD_NUMBER = os.getenv("CARD_NUMBER", "")' in cfg_src
+    assert 'CARD_HOLDER = os.getenv("CARD_HOLDER", "")' in cfg_src
     # Eski nomlar alias bo'lib qoladi
     assert cfg.PAYMENT_CARD_NUMBER == cfg.CARD_NUMBER
     assert cfg.PAYMENT_CARD_HOLDER == cfg.CARD_HOLDER
 
-    # env override: CARD_* ustuvor, keyin PAYMENT_CARD_*, keyin default
     saved = {k: os.environ.get(k) for k in ("CARD_NUMBER", "CARD_HOLDER",
                                             "PAYMENT_CARD_NUMBER", "PAYMENT_CARD_HOLDER")}
     try:
+        # env yo'q → bo'sh (hech qanday yashirin default yo'q)
         for k in saved:
             os.environ.pop(k, None)
         importlib.reload(cfg)
-        assert cfg.CARD_NUMBER == "8600060950825589" and cfg.CARD_HOLDER == "Sayitqulov S."
-        os.environ["PAYMENT_CARD_NUMBER"] = "9860111122223333"
-        os.environ["PAYMENT_CARD_HOLDER"] = "Legacy H."
-        importlib.reload(cfg)
-        assert cfg.CARD_NUMBER == "9860111122223333" and cfg.CARD_HOLDER == "Legacy H."
+        assert cfg.CARD_NUMBER == "" and cfg.CARD_HOLDER == ""
+        assert cfg.PAYMENT_CARD_NUMBER == "" and cfg.PAYMENT_CARD_HOLDER == ""
+        # env berilsa — aynan o'sha qiymatlar
         os.environ["CARD_NUMBER"] = "5614680000000001"
         os.environ["CARD_HOLDER"] = "Test T."
         importlib.reload(cfg)
         assert cfg.CARD_NUMBER == "5614680000000001" and cfg.CARD_HOLDER == "Test T."
         assert cfg.PAYMENT_CARD_NUMBER == "5614680000000001"
-        os.environ["CARD_NUMBER"] = "   "  # bo'sh → keyingi manba
+        assert cfg.PAYMENT_CARD_HOLDER == "Test T."
+        # eski PAYMENT_CARD_* endi karta qiymatini BELGILAMAYDI
+        os.environ.pop("CARD_NUMBER", None)
+        os.environ.pop("CARD_HOLDER", None)
+        os.environ["PAYMENT_CARD_NUMBER"] = "9860111122223333"
+        os.environ["PAYMENT_CARD_HOLDER"] = "Legacy H."
         importlib.reload(cfg)
-        assert cfg.CARD_NUMBER == "9860111122223333"
+        assert cfg.CARD_NUMBER == "" and cfg.CARD_HOLDER == ""
+        # Render'dagi qiymat to'lov oynasida aynan ko'rinadi
+        os.environ["CARD_NUMBER"] = "8600123412341234"
+        os.environ["CARD_HOLDER"] = "Render R."
+        importlib.reload(cfg)
+        import handlers.subscription as sub
+        importlib.reload(sub)
+        for lang in ("uz", "ru"):
+            text = sub._build_card_payment_text(7, lang, "1m")
+            assert "8600 1234 1234 1234" in text and "Render R." in text, lang
+        # env bo'sh → "rekvizit yo'q" xabari
+        os.environ["CARD_NUMBER"] = ""
+        os.environ["CARD_HOLDER"] = ""
+        importlib.reload(cfg)
+        importlib.reload(sub)
+        assert get_text("card_payment_no_card", "uz") in sub._build_card_payment_text(7, "uz", "1m")
     finally:
         for k, v in saved.items():
             if v is None:
@@ -1364,13 +1392,16 @@ def test_card_config_defaults_env_override_and_no_hardcoded_card():
             else:
                 os.environ[k] = v
         importlib.reload(cfg)
+        import handlers.subscription as sub
+        importlib.reload(sub)
 
-    # Handlerlarda karta raqami qattiq yozilmagan; subscription config'dan oladi
-    for rel in ("handlers/payment_receipt.py", "handlers/subscription.py"):
+    # Handlerlarda karta raqami/egasi qattiq yozilmagan
+    for rel in ("handlers/payment_receipt.py", "handlers/subscription.py", "config.py"):
         src = (ROOT / rel).read_text(encoding="utf-8")
-        assert "8600060950825589" not in src, rel
-        assert "8600 0609 5082 5589" not in src, rel
-        assert "Sayitqulov" not in src, rel
+        if rel != "config.py":
+            assert "8600060950825589" not in src, rel
+            assert "8600 0609 5082 5589" not in src, rel
+            assert "Sayitqulov" not in src, rel
     sub_src = (ROOT / "handlers/subscription.py").read_text(encoding="utf-8")
     assert "CARD_NUMBER" in sub_src and "CARD_HOLDER" in sub_src
     assert "PAYMENT_CARD_NUMBER" not in sub_src
@@ -1379,7 +1410,6 @@ def test_card_config_defaults_env_override_and_no_hardcoded_card():
     for rel in (".env.example", "telegram_bot/.env.example"):
         env_src = (ROOT.parent / rel).read_text(encoding="utf-8")
         assert "CARD_NUMBER=" in env_src and "CARD_HOLDER=" in env_src, rel
-        assert "8600060950825589" in env_src and "Sayitqulov S." in env_src, rel
 
 
 def test_card_text_renders_config_values():
@@ -1506,6 +1536,108 @@ def test_sticker_in_get_content_state_goes_to_conversation_not_fallback():
     finally:
         conv._conversations.pop((777, 777), None)
         restore()
+
+
+# ============================================================== ONBOARDING
+def test_start_onboarding_texts_exact_uz_ru():
+    """Birinchi marta kirgan foydalanuvchi matni aynan talabdagidek (uz/ru)."""
+    assert get_text("start_onboarding", "uz") == (
+        "👋 Xush kelibsiz! Telegram kanalingiz uchun 1 daqiqada professional post tayyorlaymizmi?\n"
+        "\n"
+        "✍️ AI post yozish\n"
+        "📅 Istalgan vaqtga rejalashtirish\n"
+        "📢 Avtomatik kanalga chiqarish\n"
+        "\n"
+        "Birinchi postingizni hoziroq tayyorlash uchun quyidagi bo'limni tanlang 👇"
+    )
+    assert get_text("start_onboarding", "ru") == (
+        "👋 Добро пожаловать! Готовы создать профессиональный пост для вашего канала всего за 1 минуту?\n"
+        "\n"
+        "✍️ Генерация постов через AI\n"
+        "📅 Планирование на любое время\n"
+        "📢 Автопостинг в каналы\n"
+        "\n"
+        "Чтобы создать свой первый пост прямо сейчас, выберите раздел ниже 👇"
+    )
+
+
+def _run_start(is_new: bool, lang: str):
+    """/start ni ishga tushirib, (matn, reply_markup) juftligini qaytaradi."""
+    import importlib
+    from telegram import ReplyKeyboardMarkup  # noqa: F401
+    import database as db_mod
+    st_mod = importlib.import_module("handlers.start")
+
+    async def fake_run_db(fn, *args, **kwargs):
+        name = getattr(fn, "__name__", "")
+        if name == "save_user":
+            return is_new
+        if name == "get_user_language":
+            return lang
+        if name == "get_setting":
+            return ""
+        if name == "is_premium":
+            return False
+        return None
+
+    async def fake_check(bot, uid):
+        return True, []
+
+    class _Msg:
+        def __init__(self):
+            self.replies = []
+
+        async def reply_text(self, text, reply_markup=None, parse_mode=None, **kw):
+            self.replies.append((text, reply_markup))
+            return None
+
+    user = SimpleNamespace(id=880001, username="newbie", full_name="Yangi User",
+                           first_name="Yangi", language_code=lang)
+    msg = _Msg()
+    upd = SimpleNamespace(message=msg, effective_user=user, effective_message=msg)
+    ctx = SimpleNamespace(bot=_RecBot(), user_data={}, chat_data={}, args=[])
+
+    orig_run_db, orig_check = db_mod.run_db, st_mod.check_user_subscribed
+    db_mod.run_db = fake_run_db
+    st_mod.check_user_subscribed = fake_check
+    try:
+        _asyncio.run(st_mod.start(upd, ctx))
+    finally:
+        db_mod.run_db = orig_run_db
+        st_mod.check_user_subscribed = orig_check
+    assert msg.replies, "start() javob bermadi"
+    return msg.replies[0]
+
+
+def test_start_first_time_user_gets_onboarding_and_main_menu():
+    """Birinchi marta kirgan (is_new=True) → onboarding matni + bosh menyu."""
+    from telegram import ReplyKeyboardMarkup
+    from keyboards.default import BTN_NEW_POST, BTN_NEW_POST_RU
+    for lang, btn in (("uz", BTN_NEW_POST), ("ru", BTN_NEW_POST_RU)):
+        text, markup = _run_start(True, lang)
+        assert text.startswith(get_text("start_onboarding", lang)), (lang, text[:80])
+        assert get_text("start_hello", lang, name="Yangi") not in text
+        assert isinstance(markup, ReplyKeyboardMarkup)
+        labels = [b.text for row in markup.keyboard for b in row]
+        assert btn in labels, (lang, labels)
+
+
+def test_start_returning_user_gets_standard_greeting():
+    """Qayta kirgan (is_new=False) → standart salomlashish + bosh menyu."""
+    from telegram import ReplyKeyboardMarkup
+    for lang in ("uz", "ru"):
+        text, markup = _run_start(False, lang)
+        assert text.startswith(get_text("start_hello", lang, name="Yangi")), (lang, text[:80])
+        assert get_text("start_onboarding", lang) not in text
+        assert isinstance(markup, ReplyKeyboardMarkup)
+
+
+def test_start_source_uses_is_new_branch():
+    """handlers/start.py da is_new bo'yicha onboarding tarmog'i mavjud."""
+    src = (ROOT / "handlers/start.py").read_text(encoding="utf-8")
+    assert 'get_text("start_onboarding"' in src
+    assert 'get_text("start_hello"' in src
+    assert "if is_new:" in src
 
 
 if __name__ == "__main__":

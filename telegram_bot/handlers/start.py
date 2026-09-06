@@ -178,9 +178,15 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     is_admin = (user.id in ADMIN_IDS_SET)
     ad_line = await get_smart_reply_ad_async(user.id)
-    hello = get_text("start_hello", lang, name=html_escape(user.first_name))
+    # 🚀 BIRINCHI MARTA kirgan foydalanuvchi (bazada yangi yozuv yaratildi) —
+    # qisqa, harakatga undovchi onboarding matni ko'rsatiladi. Qayta kirganda
+    # (/start) esa odatdagi standart salomlashish chiqadi.
+    if is_new:
+        greeting = get_text("start_onboarding", lang)
+    else:
+        greeting = get_text("start_hello", lang, name=html_escape(user.first_name))
     await update.message.reply_text(
-        f"{hello}{ad_line}",
+        f"{greeting}{ad_line}",
         reply_markup=get_main_keyboard(is_admin, lang=lang),
         parse_mode="HTML"
     )
