@@ -367,6 +367,9 @@ async def _execute_send(bot, post):
         delete_after_hours, reaction_emojis
     ) = post
 
+    # 1. Post holatini Telegramga yuborishdan oldin qat'iy "processing" qilib belgilaymiz (processing_started_at bilan)
+    await db.run_db(db.mark_post_processing, post_id)
+
     buttons = []
     if btn_text and btn_url:
         buttons.append([InlineKeyboardButton(text=btn_text, url=btn_url)])
@@ -468,9 +471,20 @@ async def _execute_send(bot, post):
             sent_msg = await bot.send_message(chat_id=target_chat, text=final_content or " ", reply_markup=reply_markup, parse_mode="HTML")
 
         sent_msg_id = sent_msg.message_id if sent_msg else None
-        await db.run_db(
-            db.mark_post_as_sent, post_id, sent_msg_id, channel_id, delete_after_hours, extra_ids or None
-        )
+        # Post Telegramga muvaffaqiyatli yuborildi! DB ga natijani yozamiz (idempotentlik kafolati).
+        try:
+            await db.run_db(
+                db.mark_post_as_sent, post_id, sent_msg_id, channel_id, delete_after_hours, extra_ids or None
+            )
+        except Exception as e:
+            logger.exception(
+                "Post Telegramga yuborildi (Msg ID: %s), lekin DB ga 'posted' deb belgilashda xatolik (Post ID: %s): %s",
+                sent_msg_id, post_id, e,
+            )
+            try:
+                await db.run_db(db.mark_post_status, post_id, "posted")
+            except Exception:
+                pass
         # Post muvaffaqiyatli chiqqachgina litsenziya sarflanadi
 
     except RetryAfter as e:
@@ -498,14 +512,17 @@ async def _execute_send(bot, post):
         return
 
     if recurrence_type in ('daily', 'weekly'):
-        now = now_tashkent()
-        if end_date and _as_tashkent(end_date) and now >= _as_tashkent(end_date):
-            await db.run_db(db.mark_post_status, post_id, "completed")
-        else:
-            next_time = calculate_next_time(recurrence_type, recurrence_day, recurrence_time, now)
-            if next_time:
-                await db.run_db(db.reschedule_recurring_post, post_id, next_time)
-                await db.run_db(db.mark_post_status, post_id, "pending")
+        try:
+            now = now_tashkent()
+            if end_date and _as_tashkent(end_date) and now >= _as_tashkent(end_date):
+                await db.run_db(db.mark_post_status, post_id, "completed")
+            else:
+                next_time = calculate_next_time(recurrence_type, recurrence_day, recurrence_time, now)
+                if next_time:
+                    await db.run_db(db.reschedule_recurring_post, post_id, next_time)
+                    await db.run_db(db.mark_post_status, post_id, "pending")
+        except Exception as e:
+            logger.exception("Takrorlanuvchi postni qayta rejalashtirishda xato (Post ID: %s): %s", post_id, e)
 
 
 async def _send_single_media(bot, target_chat, kind, file_id, caption, reply_markup):
