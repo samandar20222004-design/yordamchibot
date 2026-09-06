@@ -17,6 +17,10 @@ echo "================ NEW REQUIREMENTS TEST ==============="
 "$PY" tests/new_requirements_test.py || exit 1
 
 echo
+echo "================= ALBOM & SKIP TEST ================="
+"$PY" tests/album_skip_test.py || exit 1
+
+echo
 echo "==================== SCHEMA TEST ===================="
 "$PY" tests/schema_test.py || exit 1
 

@@ -459,15 +459,24 @@ def build_reaction_buttons(post_id: int, enable_reactions: bool, reaction_emojis
 
 
 def _build_album_media(items: list, caption: str):
+    """Albom elementlarini ``send_media_group`` uchun InputMedia ro'yxatiga aylantiradi.
+
+    - Barcha elementlar (rasm/video/hujjat/audio) SAQLANADI — faqat birinchisi
+      o'chirilmaydi, hech bir fayl yo'qolmaydi.
+    - Caption faqat BIRINCHI elementga qo'shiladi (Telegram albomlarda captions
+      faqat bitta xabarda bo'ladi).
+    - GIF (animation) Telegram media-guruhida alohida tur sifatida
+      qo'llab-quvvatlanmaydi — u hujjat (document) sifatida yuboriladi.
+    """
     media = []
     for i, item in enumerate(items):
         cap = caption if i == 0 else None
         parse = "HTML" if cap else None
         fid = item["file_id"]
-        kind = item["type"]
+        kind = (item.get("type") or "photo").lower()
         if kind == "video":
             media.append(InputMediaVideo(media=fid, caption=cap, parse_mode=parse))
-        elif kind == "document":
+        elif kind == "document" or kind == "animation":
             media.append(InputMediaDocument(media=fid, caption=cap, parse_mode=parse))
         elif kind == "audio":
             media.append(InputMediaAudio(media=fid, caption=cap, parse_mode=parse))

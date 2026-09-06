@@ -46,6 +46,7 @@ from handlers.new_post import (
     edit_confirm_media_received,
     reaction_toggle_callback, reactions_done_callback, reactions_skip_callback,
     ai_action_menu_callback, ai_action_callback, ai_result_callback,
+    skip_url_step, skip_reactions_step, SKIP_BUTTON_TEXTS, cancel_album_collections,
     CHOOSE_CHANNEL, GET_CONTENT, GET_BTN_TITLE, GET_BTN_URL,
     GET_REACTIONS, GET_AUTO_DELETE, GET_TIME, DAILY_TIME, RECUR_DAY, RECUR_TIME,
     GET_DURATION, CONFIRM_POST, EDIT_CONFIRM_FIELD
@@ -196,6 +197,9 @@ async def guard_entry(update, context, fn):
                 except Exception:
                     pass
             return ConversationHandler.END
+        # Tugallanmagan albom yig'uvchi task'lari ham tozalanadi — ular yangi
+        # konversatsiya user_data'iga eski postni yozib qo'ymasligi uchun.
+        cancel_album_collections(user.id)
 
     if await _deny_if_unsubscribed(update, context):
         return ConversationHandler.END
@@ -217,6 +221,7 @@ async def guard_menu(update, context, fn):
                 except Exception:
                     pass
             return ConversationHandler.END
+        cancel_album_collections(user.id)
 
     if await _deny_if_unsubscribed(update, context):
         return ConversationHandler.END
@@ -483,6 +488,8 @@ async def conversation_timeout_handler(update, context):
     is_admin = update.effective_user.id in ADMIN_IDS_SET if update.effective_user else False
     lang = get_lang(context)
     clear_fsm_data(context)
+    if update.effective_user:
+        cancel_album_collections(update.effective_user.id)
     if update.effective_message:
         try:
             await update.effective_message.reply_text(
@@ -654,17 +661,26 @@ def register_all_handlers(app):
             CHOOSE_CHANNEL: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, channel_chosen)],
             GET_CONTENT: all_menu_jumps + [MessageHandler(filters.ALL & ~filters.COMMAND, content_received)],
             GET_BTN_TITLE: all_menu_jumps + [
+                # 🚀 "⏩ O'tkazib yuborish" — pastki reply-klaviaturadan bosilsa
+                # xuddi inline callback kabi xavfsiz keyingi bosqichga o'tadi.
+                MessageHandler(filters.Text(SKIP_BUTTON_TEXTS), skip_url_step),
                 MessageHandler(filters.TEXT & ~filters.COMMAND, btn_title_received),
                 CallbackQueryHandler(ai_action_menu_callback, pattern=r"^ai_menu$"),
                 CallbackQueryHandler(ai_action_callback, pattern=r"^ai_act:"),
                 CallbackQueryHandler(ai_result_callback, pattern=r"^ai_res:"),
             ],
-            GET_BTN_URL: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, btn_url_received)],
+            GET_BTN_URL: all_menu_jumps + [
+                MessageHandler(filters.Text(SKIP_BUTTON_TEXTS), skip_url_step),
+                MessageHandler(filters.TEXT & ~filters.COMMAND, btn_url_received),
+            ],
             GET_REACTIONS: all_menu_jumps + [
                 # Multi-select reaksiya (toggle): emoji tanlash + Davom etish / O'tkazib yuborish
                 CallbackQueryHandler(reaction_toggle_callback, pattern=r"^nprt:t:"),
                 CallbackQueryHandler(reactions_done_callback, pattern=r"^nprt:done$"),
                 CallbackQueryHandler(reactions_skip_callback, pattern=r"^nprt:skip$"),
+                # 🚀 "⏩ O'tkazib yuborish" — oldingi bosqichdan qolgan reply
+                # klaviatura bosilsa ham reaksiyasiz davom etadi (crash yo'q).
+                MessageHandler(filters.Text(SKIP_BUTTON_TEXTS), skip_reactions_step),
                 MessageHandler(filters.TEXT & ~filters.COMMAND, reactions_received),
             ],
             # 2b. ✨ Postga Tugma & Reaksiya qo'shish: post qabul qilish + inline ekranlar
