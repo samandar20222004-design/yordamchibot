@@ -111,6 +111,22 @@ orqali qayta jo'natadi — hech qanday hajm cheklovisiz.
 **Albom:** bir nechta rasm/videoni birga yuborsangiz, bot ularni albom
 sifatida saqlaydi va kanalga `sendMediaGroup` orqali chiqaradi (10 tagacha).
 
+**Albom + tugma/reaksiya cheklovi:** Telegram Bot API qoidasiga ko'ra
+`sendMediaGroup`'ga `inline_keyboard` (URL tugma yoki reaksiya) ulab
+bo'lmaydi. Shu sababli albom yuborib tugma/reaksiya bosqichiga yetganda
+bot ogohlantirish beradi va 2 ta tanlov taklif etadi:
+
+- **[🖼 1-rasm qolsin + tugma qo'shilsin]** — post bitta rasmga aylanadi va
+  tugma/reaksiya ulanadi;
+- **[⏩ Tugmalarsiz to'liq albom chiqsin]** — 10 tagacha to'liq albom
+  tugma/reaksiyasiz chiqadi.
+
+Kanalga faqat foydalanuvchining asl matni (caption/text) va tanlangan
+rasmlar toza holatda yuboriladi — "Postni tasdiqlang:", "Kanal:", "Turi:",
+"Tugma:", "Reaksiyalar:", "Avto-o'chirish:" kabi botning ichki
+preview/xizmat yozuvlari kanalda hech qachon chiqmaydi (scheduler ularni
+yuborishdan oldin tozalaydi).
+
 **Kanal ulash oqimi:** "➕ Kanal/Guruh qo'shish" bosilgach kanal manbasini
 to'rt formatning birida yuborish mumkin: kanaldan **forward**, `@username`,
 `t.me/kanal_nomi` havolasi yoki raqamli ID (`-1001234567890`). Yopiq

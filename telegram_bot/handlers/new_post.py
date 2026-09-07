@@ -363,14 +363,29 @@ async def _album_collector(key, bot, chat_id, lang, user_data):
     final = _finalize_album_buffer(key)
     if not final:
         return
-    # Foydalanuvchiga avtomatik "Tugma qo'shilsinmi?" so'rovi (eski oqim kabi).
+    # Foydalanuvchiga keyingi qadam so'rovi:
+    #  • ALBOM (bir nechta fayl): sendMediaGroup'ga inline_keyboard ulab
+    #    bo'lmaydi — xushmuomala ogohlantirish + 2 ta tanlov;
+    #  • yakka media (bitta faylli albom yoki oddiy rasm): odatdagi
+    #    "Tugma qo'shilsinmi?" so'rovi (eski oqim).
     try:
-        await bot.send_message(
-            chat_id=chat_id,
-            text=get_text("np_button_ask", lang),
-            reply_markup=get_button_prompt_keyboard(lang),
-            parse_mode="HTML",
-        )
+        if final["post_type"] == "album":
+            ud = buf.get("user_data")
+            if ud is not None:
+                ud["_album_warning_stage"] = "button"
+            await bot.send_message(
+                chat_id=chat_id,
+                text=get_text("np_album_warning", lang),
+                reply_markup=_album_choice_keyboard(lang),
+                parse_mode="HTML",
+            )
+        else:
+            await bot.send_message(
+                chat_id=chat_id,
+                text=get_text("np_button_ask", lang),
+                reply_markup=get_button_prompt_keyboard(lang),
+                parse_mode="HTML",
+            )
     except Exception:
         # Xabar yuborib bo'lmasa ham post ma'lumotlari saqlanadi —
         # foydalanuvchi keyingi xabarni yuborganda oqim davom etadi.
@@ -397,6 +412,82 @@ def _apply_single_media(context, item):
     context.user_data["content"] = item.get("caption") or ""
 
 
+# ============================================================
+# 🖼 ALBOM + TUGMA/REAKSIYA CHEKLOVI (sendMediaGroup qoidasi)
+# ============================================================
+# Telegram Bot API qoidasi: ``sendMediaGroup`` ga ``inline_keyboard``
+# (URL tugma yoki reaksiya tugmalari) ulab BO'LMAydi. Shu sababli foydalanuvchi
+# bir nechta faylli ALBOM yuborgani va tugma/reaksiya bosqichiga yetgani
+# dalolatida bot xushmuomala ogohlantirish beradi va 2 ta tanlov taklif etadi:
+#   [🖼 1-rasm qolsin + tugma qo'shilsin] — post bitta rasmga aylanadi,
+#                                           tugma/reaksiya ulanadi;
+#   [⏩ Tugmalarsiz to'liq albom chiqsin] — 10 tagacha to'liq albom
+#                                           tugma/reaksiyasiz chiqadi.
+def _album_items_of(context) -> list:
+    """user_data'dagi albom tarkibini (file_id JSON ro'yxati) qaytaradi.
+
+    Albom bo'lmagan (yakka media/matn) yoki JSON buzilgan bo'lsa — bo'sh ro'yxat.
+    """
+    file_id = context.user_data.get("file_id")
+    if not file_id:
+        return []
+    try:
+        items = json.loads(file_id) if isinstance(file_id, str) else file_id
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return []
+    return items if isinstance(items, list) else []
+
+
+def _is_multi_album(context) -> bool:
+    """Post bir nechta faylli ALBOMmi (tugma/reaksiya ulab bo'lmaydigan holat)."""
+    return context.user_data.get("post_type") == "album" and len(_album_items_of(context)) > 1
+
+
+def _strip_unsupported_album_options(context) -> None:
+    """Albom post uchun sendMediaGroup qo'llab-quvvatlamaydigan opsiyalarni tozalaydi.
+
+    Albom postida URL tugma (``btn_text``/``btn_url``) va reaksiya tugmalari
+    (``enable_reactions``/``reaction_emojis``) hech qachon DB'ga yozilmaydi —
+    aks holda kanalda albom ortidan "🔗" xizmat xabari chiqib qolardi.
+    Yakka media/matn postlariga ta'siri YO'Q (o'zgarishsiz qaytadi).
+    """
+    if not _is_multi_album(context):
+        return
+    ud = context.user_data
+    ud["btn_text"] = None
+    ud["btn_url"] = None
+    ud["enable_reactions"] = False
+    ud["reaction_emojis"] = []
+    ud["selected_reactions"] = []
+
+
+def _album_choice_keyboard(lang="uz") -> InlineKeyboardMarkup:
+    """Ogohlantirish ostidagi 2 ta tanlov tugmasi (inline)."""
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton(get_text("np_album_choice_first_photo", lang),
+                              callback_data="album_choice:first_photo")],
+        [InlineKeyboardButton(get_text("np_album_choice_full", lang),
+                              callback_data="album_choice:full_album")],
+    ])
+
+
+async def _show_album_warning(msg, context, stage: str):
+    """Albom + tugma/reaksiya cheklovi ogohlantirishini ko'rsatadi (uz/ru).
+
+    ``stage`` — ogohlantirish qaysi bosqichda chiqqani (``"button"`` yoki
+    ``"reactions"``): foydalanuvchi [🖼 1-rasm] ni tanlasa, aynan shu
+    bosqichdan davom ettiriladi. Konversatsiya holati O'ZGARMAYDI — tanlov
+    callback'lari joriy holatda ro'yxatdan o'tgan.
+    """
+    lang = get_lang(context)
+    context.user_data["_album_warning_stage"] = stage
+    await msg.reply_text(
+        get_text("np_album_warning", lang),
+        reply_markup=_album_choice_keyboard(lang),
+        parse_mode="HTML",
+    )
+
+
 async def _ask_button_prompt(msg, lang="uz"):
     await msg.reply_text(
         get_text("np_button_ask", lang),
@@ -417,8 +508,15 @@ async def _ask_reactions_step(msg, context):
     "Kutilmagan xatolik" berardi. Shuning uchun bu yerda ReplyKeyboardRemove
     bilan eski klaviatura olib tashlanadi — foydalanuvchi faqat inline
     reaksiya tugmalarini ko'radi.
+
+    🖼 ALBOM: reaksiya tugmalari ham ``inline_keyboard`` — albomga ulanmaydi.
+    Bir nechta faylli albom bo'lsa reaksiya klaviaturasi O'RNIGA ogohlantirish
+    + 2 ta tanlov chiqadi (holat GET_REACTIONS da saqlanadi).
     """
     lang = get_lang(context)
+    if _is_multi_album(context):
+        await _show_album_warning(msg, context, "reactions")
+        return GET_REACTIONS
     selected = context.user_data.setdefault("selected_reactions", [])
     await msg.reply_text(
         get_text("np_reactions_ask", lang),
@@ -443,8 +541,13 @@ async def _proceed_after_reactions(msg, context, selected_emojis):
 
     Tanlangan emojilar FAQAT ``reaction_emojis`` / ``enable_reactions``
     maydonlariga yoziladi — ``content`` (post matni/caption) o'zgarmaydi.
+
+    🖼 ALBOM: reaksiya tugmalari (inline_keyboard) albomga ulanmaydi —
+    albom postida reaksiyalar hech qachon saqlanmaydi (qayta himoya).
     """
     lang = get_lang(context)
+    if _is_multi_album(context):
+        selected_emojis = []
     ordered = normalize_custom_reaction_emojis(selected_emojis)
     context.user_data["enable_reactions"] = bool(ordered)
     context.user_data["reaction_emojis"] = ordered
@@ -843,6 +946,16 @@ async def btn_title_received(update: Update, context: ContextTypes.DEFAULT_TYPE)
     lang = get_lang(context)
     text = update.message.text.strip()
 
+    # 🖼 ALBOM + tugma: sendMediaGroup'ga inline_keyboard ulab bo'lmaydi.
+    # Albom yuborilgan bo'lsa — tugma sarlavhasi QABUL QILINMAYDI, o'rniga
+    # xushmuomala ogohlantirish + 2 ta tanlov chiqadi (holat GET_BTN_TITLE da).
+    # "⏩ O'tkazib yuborish" — reaksiya bosqichiga o'tadi (u yerda ham albom
+    # bo'lsa ogohlantirish chiqadi) — foydalanuvchi ixtiyori xohishiga
+    # to'g'ri keladi (tugmasiz davom etish = to'liq albom).
+    if _is_multi_album(context) and not is_skip_button_text(text):
+        await _show_album_warning(update.message, context, "button")
+        return GET_BTN_TITLE
+
     # AI Yordamchi tugmasi (uz/ru)
     if text in (get_text("np_btn_ai_assistant", "uz"), get_text("np_btn_ai_assistant", "ru")):
         content = context.user_data.get("content", "")
@@ -1000,21 +1113,28 @@ async def reactions_received(update: Update, context: ContextTypes.DEFAULT_TYPE)
     """
     lang = get_lang(context)
     msg = update.message
-
-    # 🎯 STIKER: stiker yuborilganda global "tushunmadim" fallback'iga tushib
-    # ketmasdan, alohida ``handle_reaction_sticker`` handler uni qabul qiladi
-    # (GET_REACTIONS holatida filters.Sticker.ALL bilan ro'yxatdan o'tgan).
-    if getattr(msg, "sticker", None) is not None:
-        return await handle_reaction_sticker(update, context)
-
     text = msg.text
 
     # 🚀 "⏩ O'tkazib yuborish" / "⏩ Пропустить" / "⏭ ..." — foydalanuvchi
     # pastki reply-klaviaturani bosganida ham xuddi inline "⏭ Reaksiyasiz
     # o'tish" kabi xavfsiz davom etamiz (crash yo'q, user_data yo'qolmaydi).
     if is_skip_button_text(text):
+        # ALBOM uchun bu ham to'g'ri yo'l: reaksiyasiz davom etish =
+        # tugmalarsiz to'liq albom (reaksiya albomga ulanmaydi).
         context.user_data["selected_reactions"] = []
         return await _proceed_after_reactions(msg, context, [])
+
+    # 🖼 ALBOM: reaksiya tugmalari (inline_keyboard) albomga ulanmaydi —
+    # ogohlantirish + 2 ta tanlov chiqadi (holat GET_REACTIONS da saqlanadi).
+    if _is_multi_album(context):
+        await _show_album_warning(msg, context, "reactions")
+        return GET_REACTIONS
+
+    # 🎯 STIKER: stiker yuborilganda global "tushunmadim" fallback'iga tushib
+    # ketmasdan, alohida ``handle_reaction_sticker`` handler uni qabul qiladi
+    # (GET_REACTIONS holatida filters.Sticker.ALL bilan ro'yxatdan o'tgan).
+    if getattr(msg, "sticker", None) is not None:
+        return await handle_reaction_sticker(update, context)
 
     parsed = parse_reactions_input(text)
 
@@ -1103,6 +1223,75 @@ async def reactions_skip_callback(update: Update, context: ContextTypes.DEFAULT_
     context.user_data["selected_reactions"] = []
     return await _proceed_after_reactions(query.message, context, [])
 
+
+async def album_choice_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Albom cheklovi tanlovi: [🖼 1-rasm qolsin + tugma] / [⏩ Tugmalarsiz to'liq albom].
+
+    Telegram Bot API qoidasi: ``sendMediaGroup`` ga ``inline_keyboard``
+    (URL tugma yoki reaksiya) ulab bo'lmaydi. Foydalanuvchi tanlovi:
+
+    - ``first_photo`` — albomning BIRINCHI rasmi qoladi, post yakka media'ga
+      aylanadi (caption o'zgarishsiz) va foydalanuvchi ogohlantirish chiqqan
+      bosqichdan (tugma yoki reaksiya) davom etadi — endi tugma/reaksiya
+      qo'shish mumkin.
+    - ``full_album`` — tugma/reaksiya olib tashlanadi, to'liq albom
+      (10 tagacha fayl) avto-o'chirish bosqichiga o'tadi.
+    """
+    query = update.callback_query
+    await query.answer()
+    lang = get_lang(context)
+    ud = context.user_data
+    data = query.data or ""
+    action = data.split(":", 1)[1] if ":" in data else ""
+    items = _album_items_of(context)
+    is_album = _is_multi_album(context)
+
+    if action == "first_photo" and is_album and items and isinstance(items[0], dict):
+        stage = ud.pop("_album_warning_stage", "button") or "button"
+        first = items[0]
+        # Post yakka media'ga aylanadi — content (caption) o'zgarishsiz qoladi.
+        ud["post_type"] = first.get("type") or "photo"
+        ud["file_id"] = first.get("file_id")
+        ud.pop("_album_count", None)
+        try:
+            await query.edit_message_reply_markup(reply_markup=None)
+        except Exception:
+            pass
+        await query.message.reply_text(
+            get_text("np_album_first_photo_done", lang),
+            parse_mode="HTML",
+        )
+        if stage == "reactions":
+            return await _ask_reactions_step(query.message, context)
+        return await _ask_button_prompt(query.message, lang)
+
+    if action == "full_album" and is_album:
+        count = len(items) or int(ud.get("_album_count") or 0)
+        ud.pop("_album_warning_stage", None)
+        ud.pop("_album_count", None)
+        # Albom to'liq qoladi — lekin sendMediaGroup cheklovi tufayli
+        # tugma/reaksiya opsiyalari olib tashlanadi.
+        ud["btn_text"] = None
+        ud["btn_url"] = None
+        ud["selected_reactions"] = []
+        try:
+            await query.edit_message_reply_markup(reply_markup=None)
+        except Exception:
+            pass
+        await query.message.reply_text(
+            get_text("np_album_full_done", lang, count=count),
+            parse_mode="HTML",
+        )
+        return await _proceed_after_reactions(query.message, context, [])
+
+    # Eskirgan/ikkilangan bosish (albom allaqachon hal qilingan) — o'zgarish
+    # yo'q, faqat tugmalar yashiriladi.
+    try:
+        await query.edit_message_reply_markup(reply_markup=None)
+    except Exception:
+        pass
+    return GET_BTN_TITLE
+
 async def auto_delete_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip()
     hours = 0
@@ -1138,6 +1327,10 @@ async def _save_and_finish(update, context, post_time, recurrence_type='none', r
     user_id = update.effective_user.id
     selected_channel_id = context.user_data["selected_channel_id"]
     channel_title = context.user_data.get("selected_channel_title", "Kanal")
+    # 🖼 ALBOM: sendMediaGroup'ga inline_keyboard ulanmaydi — albom uchun
+    # tugma/reaksiya opsiyalari DB'ga yozilmaydi (kanalda "🔗" xizmat
+    # xabari chiqib qolmasligi uchun). Yakka media/matn postlariga ta'siri yo'q.
+    _strip_unsupported_album_options(context)
     post_type = context.user_data["post_type"]
     reaction_emojis = context.user_data.get("reaction_emojis")
     content = _content_for_db(context.user_data.get("content"), reaction_emojis)
@@ -1435,6 +1628,9 @@ async def confirm_post_callback(update: Update, context: ContextTypes.DEFAULT_TY
             clear_fsm_data(context)
             return ConversationHandler.END
 
+        # 🖼 ALBOM: sendMediaGroup'ga inline_keyboard ulanmaydi — albom uchun
+        # tugma/reaksiya opsiyalari DB'ga yozilmaydi.
+        _strip_unsupported_album_options(context)
         post_type = context.user_data.get("post_type")
         reaction_emojis = context.user_data.get("reaction_emojis")
         content = _content_for_db(context.user_data.get("content"), reaction_emojis)
@@ -1514,6 +1710,9 @@ async def confirm_post_callback(update: Update, context: ContextTypes.DEFAULT_TY
 
     selected_channel_id = context.user_data.get("selected_channel_id")
     channel_title = context.user_data.get("selected_channel_title", "Kanal")
+    # 🖼 ALBOM: sendMediaGroup'ga inline_keyboard ulanmaydi — albom uchun
+    # tugma/reaksiya opsiyalari DB'ga yozilmaydi.
+    _strip_unsupported_album_options(context)
     post_type = context.user_data.get("post_type")
     reaction_emojis = context.user_data.get("reaction_emojis")
     content = _content_for_db(context.user_data.get("content"), reaction_emojis)

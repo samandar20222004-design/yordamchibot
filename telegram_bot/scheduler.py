@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 import tempfile
 from datetime import datetime, timedelta
 import pytz
@@ -430,6 +431,70 @@ def parse_album_items(file_id) -> list:
     return cleaned
 
 
+# ============================================================
+# 🧹 KANALGA TOZA MATN — ichki xizmat/preview yozuvlarini olish
+# ============================================================
+# Kanalga yuborilayotganda asl post matni (caption/text) dan tashqari hech
+# qanday ICHKI TEXNIK xabar qo'shilmasligi kerak: "Postni tasdiqlang:",
+# "Kanal:", "Turi: Albom...", "Tugma:", "Reaksiyalar:", "Avto-o'chirish:"
+# kabi botning tasdiqlash (preview) kartasi qatorlari KANALGA ASLO CHIQMASLIGI
+# SHART. Foydalanuvchi bot xabarini (masalan tasdiqlash kartasini) post matni
+# sifatida yuborib qo'yishi mumkin — shunday qatorlar yuborishdan oldin
+# olinadi. Faqat aniq tan olingan xizmat yorliqlari (emoji-boshli preview
+# qatorlari, uz/ru) olinadi; foydalanuvchining odatiy matni o'zgarmaydi.
+_INTERNAL_TECHNICAL_LINE_PATTERNS = (
+    # Tasdiqlash kartasi sarlavhasi: "📋 Postni tasdiqlang:" / "📋 Подтвердите пост:"
+    re.compile(r"^📋\s*(?:<b>)?\s*(?:Postni tasdiqlang|Подтвердите пост)\b.*$", re.I),
+    # "📢 Kanal: ..." / "📢 Канал: ..."
+    re.compile(r"^📢\s*(?:<b>)?\s*(?:Kanal|Канал)\s*:.*$", re.I),
+    # "📦 Turi: ..." / "📦 Тип: ..."
+    re.compile(r"^📦\s*(?:<b>)?\s*(?:Turi|Тип)\s*:.*$", re.I),
+    # Albom xulosasi (preview): "🖼 Albom: 6 ta rasm" / "🖼 Альбом: 6 фото"
+    re.compile(r"^(?:🖼\s*)?(?:Albom|Альбом)\s*:\s*(?:\d+).*$", re.I),
+    # "⏰ Vaqt belgilanmagan" / "⏰ Время не указано"
+    re.compile(r"^⏰\s*(?:Vaqt belgilanmagan|Время не указано)\s*\.?\s*$"),
+    # "⏰ 2026-09-07 14:00 (Toshkent vaqti)" / "⏰ ... (время Ташкента)"
+    re.compile(r"^⏰\s*\S.*(?:Toshkent vaqti|время Ташкента)\s*\)?\s*\.?\s*$", re.I),
+    # "🔁 Har kuni, soat 10:00 da" / "🔁 Ежедневно, в 10:00"
+    # (faqat preview formati — vaqt (HH:MM) qismi SHART bo'lsa kesiladi;
+    #  foydalanuvchi o'z matnidagi "🔁 Har kuni..." kabi oddiy qator qoladi)
+    re.compile(r"^🔁\s*(?:Har kuni|Ежедневно)\s*,\s*(?:soat\s+|в\s+)?\d{1,2}:\d{2}", re.I),
+    # "📅 Har Dushanba, soat 10:00 da" / "📅 Каждый Понедельник, в 10:00"
+    re.compile(r"^📅\s*(?:Har |Каждый )\S+\s*,\s*(?:soat\s+|в\s+)?\d{1,2}:\d{2}", re.I),
+    # "📋 Matn:" / "📋 Текст:" yorlig'i (matnning O'ZI keyingi qatorda qoladi)
+    re.compile(r"^📋\s*(?:<b>)?\s*(?:Matn|Текст)\s*:.*$", re.I),
+    # "🔘 Tugma: ..." / "🔘 Кнопка: ..."
+    re.compile(r"^🔘\s*(?:<b>)?\s*(?:Tugma|Кнопка)\s*:.*$", re.I),
+    # "👍 Reaksiyalar: ..." / "👍 Реакции: ..."
+    re.compile(r"^👍\s*(?:<b>)?\s*(?:Reaksiyalar|Реакции)\s*:.*$", re.I),
+    # "⏳ Avto-o'chirish: 24 soat" / "⏳ Авто-удаление: 24 ч."
+    re.compile(r"^⏳\s*(?:Avto-?o'chirish|Авто-?удаление)\s*:.*$", re.I),
+    # Preview "matn kesildi" eslatmasi (uz/ru)
+    re.compile(r"^⚠️\s*(?:Eslatma|Примечание)\s*:.*(?:belgi|символов).*$", re.I),
+)
+
+
+def sanitize_channel_content(content: str) -> str:
+    """Kanalga yuboriladigan matndan botning ICHKI xizmat/preview qatorlarini oladi.
+
+    ``"Postni tasdiqlang:"``, ``"Kanal:"``, ``"Turi: Albom..."``, ``"Tugma:"``,
+    ``"Reaksiyalar:"``, ``"Avto-o'chirish:"`` kabi tasdiqlash kartasi (preview)
+    yozuvlari kanaldagi postda HECH QACHON chiqmasligi kerak. Foydalanuvchi
+    bot xabarini post matni sifatida yuborib qo'ysa, shunday qatorlar yuborish
+    dan oldin olinadi. Faqat aniq tan olingan preview qatorlari (emoji-boshli,
+    uz/ru) kesiladi — odatiy post matni o'zgarmaydi.
+    """
+    if not content:
+        return content or ""
+    text = content if isinstance(content, str) else str(content)
+    lines = text.split("\n")
+    cleaned = [
+        line for line in lines
+        if not any(p.match(line.strip()) for p in _INTERNAL_TECHNICAL_LINE_PATTERNS)
+    ]
+    return "\n".join(cleaned).strip()
+
+
 def build_reaction_buttons(post_id: int, enable_reactions: bool, reaction_emojis=None) -> list:
     """Post ostidagi reaksiya tugmalari (BITTA QATOR, yassi ro'yxat).
 
@@ -671,6 +736,13 @@ async def _execute_send(bot, post):
     if enable_reactions and not normalize_custom_reaction_emojis(strip_emojis):
         strip_emojis = list(DEFAULT_REACTION_EMOJIS)
     clean_content = strip_leading_reaction_glyphs(content or "", strip_emojis)
+
+    # 🧹 ICHKI XIZMAT MATNLARI KANALGA CHIQMAYDI: foydalanuvchi tasdiqlash
+    # kartasini (preview) yoki boshqa bot xabarini post matni sifatida yuborib
+    # qo'ysa — "Postni tasdiqlang:", "Kanal:", "Turi: Albom...", "Tugma:",
+    # "Reaksiyalar:", "Avto-o'chirish:" kabi ichki texnik qatorlar yuborishdan
+    # oldin olinadi. Kanalda faqat foydalanuvchining ASL matni qoladi.
+    clean_content = sanitize_channel_content(clean_content)
 
     # WATERMARK: Bepul foydalanuvchilar postlariga bot username qo'shish
     watermarked_content = await apply_post_watermark(clean_content, user_id, BOT_USERNAME)

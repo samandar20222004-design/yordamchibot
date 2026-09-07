@@ -340,9 +340,20 @@ def test_album_collection_keeps_all_files_and_full_caption():
     check("albom: caption TO'LIQ saqlandi", user_data.get("content") == caption,
           f"len={len(user_data.get('content') or '')}, expected={len(caption)}")
     check("albom: _album_ready belgisi", user_data.get("_album_ready") is True)
-    check("albom: botga tugma so'rovi yuborildi",
-          any(s["kind"] == "message" and get_text("np_button_ask", "uz") in s["text"]
+    # 🖼 Yangi oqim: bir nechta faylli ALBOM uchun odatdagi tugma so'rovi
+    # O'RNIGA sendMediaGroup cheklovi ogohlantirishi + 2 ta tanlov chiqadi
+    # (sendMediaGroup'ga inline_keyboard ulab bo'lmaydi).
+    check("albom: botga ALBOM OG'HOHLANTIRISHI yuborildi",
+          any(s["kind"] == "message" and get_text("np_album_warning", "uz") in s["text"]
               for s in bot.sent), str(bot.sent)[:120])
+    check("albom: ogohlantirishda 2 ta tanlov tugmasi bor",
+          any(s["kind"] == "message" and get_text("np_album_warning", "uz") in s["text"]
+              and s.get("reply_markup") is not None
+              and len(s["reply_markup"].inline_keyboard) == 2
+              for s in bot.sent), str(bot.sent)[:120])
+    check("albom: ogohlantirishda eski tugma so'rovi YO'Q",
+          not any(s["kind"] == "message" and get_text("np_button_ask", "uz") in (s["text"] or "")
+                  for s in bot.sent), str(bot.sent)[:120])
     check("albom: bufer tozalandi", not np_mod._ALBUM_BUFFERS,
           str(list(np_mod._ALBUM_BUFFERS)))
 
@@ -381,8 +392,13 @@ def test_album_then_skip_continues_flow_and_keeps_data():
     check("albom+skip: albom ma'lumotlari yo'qolmadi",
           user_data.get("post_type") == "album" and len(json.loads(user_data["file_id"])) == 2,
           str(user_data))
-    check("albom+skip: reaksiya so'rovi yuborildi",
-          any(get_text("np_reactions_ask", "uz") in r[0] for r in msg.replies),
+    # 🖼 Yangi oqim: albom bo'lsa reaksiya so'rovi O'RNIGA ogohlantirish +
+    # 2 ta tanlov chiqadi (reaksiya albomga ulanmaydi).
+    check("albom+skip: ALBOM OG'HOHLANTIRISHI yuborildi",
+          any(get_text("np_album_warning", "uz") in r[0] for r in msg.replies),
+          str(msg.replies)[:120])
+    check("albom+skip: reaksiya so'rovi YO'Q (albom cheklovi)",
+          not any(get_text("np_reactions_ask", "uz") in r[0] for r in msg.replies),
           str(msg.replies)[:120])
 
 
@@ -416,13 +432,66 @@ def test_text_before_collector_finalizes():
         np_mod._ALBUM_WAIT_SECONDS = old_wait
         np_mod._ALBUM_BUFFERS.clear()
 
-    check("ertapishar matn: GET_BTN_URL ga o'tdi", state == GET_BTN_URL, str(state))
-    check("ertapishar matn: tugma matni saqlandi",
-          user_data.get("btn_text") == "Batafsil", str(user_data))
+    # 🖼 Yangi oqim: albom (2 fayl) bo'lgani uchun tugma matni darhol
+    # QABUL QILINMAYDI — ogohlantirish + 2 ta tanlov chiqadi (holat
+    # GET_BTN_TITLE da saqlanadi). Foydalanuvchi [🖼 1-rasm] ni tanlasa
+    # keyinroq tugma qo'sha oladi.
+    check("ertapishar matn: GET_BTN_TITLE da qoladi (ogohlantirish)",
+          state == GET_BTN_TITLE, str(state))
+    check("ertapishar matn: tugma matni HALI SAQLANMAGAN (albom cheklovi)",
+          user_data.get("btn_text") is None, str(user_data))
+    check("ertapishar matn: ALBOM OG'HOHLANTIRISHI yuborildi",
+          any(get_text("np_album_warning", "uz") in r[0] for r in msg.replies),
+          str(msg.replies)[:120])
     check("ertapishar matn: albom 2 fayl bilan saqlandi",
           user_data.get("post_type") == "album" and len(json.loads(user_data["file_id"])) == 2,
           str(user_data))
     check("ertapishar matn: bufer tozalandi", not np_mod._ALBUM_BUFFERS)
+
+    # Endi foydalanuvchi [🖼 1-rasm qolsin + tugma qo'shilsin] ni tanlaydi —
+    # post bitta rasmga aylanadi va tugma bosqichi qayta so'raladi.
+    class _ChoiceQuery:
+        def __init__(self, data):
+            self.data = data
+            self.edits = []
+            self.message = msg
+            self.from_user = SimpleNamespace(id=42)
+        async def answer(self, *a, **k):
+            pass
+        async def edit_message_reply_markup(self, reply_markup=None, **k):
+            self.edits.append(reply_markup)
+
+    from handlers.new_post import album_choice_callback
+    async def run_choice():
+        ctx = SimpleNamespace(user_data=user_data, bot=bot)
+        q = _ChoiceQuery("album_choice:first_photo")
+        upd = SimpleNamespace(callback_query=q, message=msg,
+                              effective_user=SimpleNamespace(id=42))
+        return await album_choice_callback(upd, ctx)
+
+    state2 = asyncio.run(run_choice())
+    check("ertapishar matn: [1-rasm] tanlovi → GET_BTN_TITLE (tugma so'rovi)",
+          state2 == GET_BTN_TITLE, str(state2))
+    check("ertapishar matn: post yakka rasmga o'zgartirildi",
+          user_data.get("post_type") == "photo" and user_data.get("file_id") == "b1",
+          str(user_data))
+    check("ertapishar matn: tugma so'rovi qayta yuborildi",
+          any(get_text("np_button_ask", "uz") in r[0] for r in msg.replies),
+          str(msg.replies)[:120])
+
+    # Endi foydalanuvchi birinchi marta yuborgan matnni qayta yuboradi —
+    # endi (yakka rasm uchun) tugma normal qabul qilinadi.
+    async def run_title_again():
+        ctx = SimpleNamespace(user_data=user_data, bot=bot)
+        upd = SimpleNamespace(message=msg, effective_user=SimpleNamespace(id=42),
+                              effective_message=msg)
+        return await btn_title_received(upd, ctx)
+
+    state3 = asyncio.run(run_title_again())
+    check("ertapishar matn: yakka rasm + tugma matni → GET_BTN_URL",
+          state3 == GET_BTN_URL, str(state3))
+    check("ertapishar matn: tugma matni endi saqlandi",
+          user_data.get("btn_text") == "Batafsil", str(user_data))
 
 
 # ----------------------------------------------------------------------

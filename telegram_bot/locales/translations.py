@@ -745,6 +745,24 @@ TRANSLATIONS = {
         "np_confirm_edit_btn": "✏️ Tahrirlash",
         "np_confirm_cancel_btn": "❌ Bekor qilish",
 
+        # 🖼 ALBOM + tugma/reaksiya ogohlantirishi (sendMediaGroup cheklovi)
+        # Telegram Bot API qoidasi: sendMediaGroup'ga inline_keyboard (URL
+        # tugma yoki reaksiya) ulab bo'lmaydi — albom yuborilganda foydalanuvchi
+        # xushmuomala ogohlantirish + 2 ta tanlov oladi.
+        "np_album_warning": (
+            "⚠️ Telegram qoidalariga ko'ra bir nechta rasmli albomlarga havola yoki "
+            "reaksiya tugmalarini qo'shib bo'lmaydi. \n"
+            "Tugma yoki reaksiya faqat 1 ta rasm (yoki oddiy matn) uchun ishlaydi."
+        ),
+        "np_album_choice_first_photo": "🖼 1-rasm qolsin + tugma qo'shilsin",
+        "np_album_choice_full": "⏩ Tugmalarsiz to'liq albom chiqsin",
+        "np_album_first_photo_done": (
+            "✅ Post bitta rasmga o'zgartirildi — endi tugma yoki reaksiya qo'sha olasiz."
+        ),
+        "np_album_full_done": (
+            "✅ To'liq albom ({count} ta fayl) tugma va reaksiyasiz chiqariladi."
+        ),
+
         # Tahrirlash sub-menyusi
         "np_edit_menu_title": "✏️ <b>Qaysi qismini tahrirlash kerak?</b>",
         "np_edit_content_btn": "📝 Matn",
@@ -2220,6 +2238,24 @@ TRANSLATIONS = {
         "np_confirm_queue_btn": "⏳ Добавить в очередь",
         "np_confirm_edit_btn": "✏️ Редактировать",
         "np_confirm_cancel_btn": "❌ Отмена",
+
+        # 🖼 АЛЬБОМ + кнопка/реакция предупреждение (sendMediaGroup ограничение)
+        # Правило Telegram Bot API: к sendMediaGroup нельзя привязать
+        # inline_keyboard (URL-кнопку или реакции) — при отправке альбома
+        # пользователь получает предупреждение + 2 варианта выбора.
+        "np_album_warning": (
+            "⚠️ По правилам Telegram к альбому из нескольких фото нельзя добавить "
+            "кнопку-ссылку или кнопки реакций. \n"
+            "Кнопка или реакции работают только для 1 фото (или простого текста)."
+        ),
+        "np_album_choice_first_photo": "🖼 Оставить 1 фото + добавить кнопку",
+        "np_album_choice_full": "⏩ Опубликовать полный альбом без кнопок",
+        "np_album_first_photo_done": (
+            "✅ Пост изменён до одного фото — теперь можно добавить кнопку или реакции."
+        ),
+        "np_album_full_done": (
+            "✅ Полный альбом ({count} файлов) будет опубликован без кнопок и реакций."
+        ),
 
         # Меню редактирования
         "np_edit_menu_title": "✏️ <b>Что нужно отредактировать?</b>",

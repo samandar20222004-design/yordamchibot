@@ -20,6 +20,9 @@ echo
 echo "================= ALBOM & SKIP TEST ================="
 "$PY" tests/album_skip_test.py || exit 1
 
+echo "=========== ALBOM OG'HOHLANTIRISH + TOZA KANAL ==========="
+"$PY" tests/album_warning_test.py || exit 1
+
 echo "================= PHOTO LEAK & VOICE TEST ===================="
 "$PY" tests/photo_leak_test.py || exit 1
 
