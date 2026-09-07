@@ -15,6 +15,7 @@ from locales.translations import get_lang, get_text, normalize_lang
 from utils.helpers import html_escape
 from utils.fsm_state import active_conversation_state
 from utils.ai_agent import analyze_channel_voice
+from utils.channel_reader import read_channel_posts
 
 logger = logging.getLogger(__name__)
 
@@ -577,6 +578,34 @@ async def tone_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 
+async def _fetch_public_posts_fallback(context, channel_id: str) -> list:
+    """Kanalning public username'i orqali t.me/s/ web-preview postlarini o'qiydi.
+
+    Kanal ovozi tahlilida DB tarixi (channel_posts_history) bo'sh bo'lganda
+    chaqiriladi: bot kanal username'ini get_chat orqali aniqlaydi va ochiq
+    kanal bo'lsa so'nggi postlarini web-preview dan o'qiydi — kanalda yangi
+    postlar hali yozilmagan bo'lsa ham tahlil ishlaydi.
+
+    Xatolarda/yopiq kanalda bo'sh ro'yxat qaytaradi (jim — bu faqat fallback).
+    """
+    try:
+        bot = getattr(context, "bot", None)
+        if bot is None:
+            return []
+        raw_id = str(channel_id).strip()
+        if not raw_id.lstrip("-").isdigit():
+            return []
+        chat = await bot.get_chat(int(raw_id))
+        username = getattr(chat, "username", None)
+        if not username:
+            return []
+        result = await read_channel_posts(username, limit=12)
+        return result.get("posts") or []
+    except Exception as e:
+        logger.debug("Web-preview fallback (%s): %s", channel_id, e)
+        return []
+
+
 async def channel_voice_analysis_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """🎙 'Kanal ovozi tahlili' — AI kanal postlari asosida uslubni aniqlaydi.
 
@@ -630,8 +659,12 @@ async def channel_voice_analysis_callback(update: Update, context: ContextTypes.
     except Exception:
         analyzing_msg = None
 
-    # 2) Kanal postlari tarixini o'qib, AI bilan uslubni aniqlaymiz
+    # 2) Kanal postlari tarixini o'qib, AI bilan uslubni aniqlaymiz.
+    #    DB tarixi bo'sh bo'lsa — ochiq kanal uchun t.me/s/ web-preview fallback
+    #    (bot kanalda admin bo'lmasa ham yoki postlar hali yozilmagan bo'lsa ham).
     posts = await db.run_db(db.get_channel_posts_history, channel_id, 15)
+    if not posts:
+        posts = await _fetch_public_posts_fallback(context, channel_id)
     try:
         result = await analyze_channel_voice(posts, lang)
     except Exception as e:
