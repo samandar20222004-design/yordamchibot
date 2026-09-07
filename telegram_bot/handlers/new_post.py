@@ -931,13 +931,70 @@ async def btn_url_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["btn_url"] = btn_link
     return await _ask_reactions_step(update.message, context)
 
+async def handle_reaction_sticker(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """GET_REACTIONS (reaksiya tanlash) bosqichida STIKER uchun alohida handler.
+
+    Foydalanuvchi reaksiya tanlamoqda stiker yuborsa:
+      1. Stikerning emojisi (``update.message.sticker.emoji``) ajratib olinadi
+         va ``normalize_custom_reaction_emojis`` orqali normalizatsiya qilinadi.
+      2. Emoji postning reaksiyalari ro'yxatiga
+         (``user_data["selected_reactions"]``) takrorlanishsiz qo'shiladi.
+      3. Tasdiq xabari (``np_reactions_selected``) chiqadi va inline toggle
+         klaviaturada aynan o'sha emoji TANLANGAN (✅) holatda ko'rsatiladi.
+      4. Post yaratish jarayoni uzilmaydi — holat GET_REACTIONS da qoladi
+         (global "Kechirasiz, men bu xabarni tushunmadim" fallback'iga
+         tushib ketishning oldi olinadi).
+
+    MUHIM: reaksiya emojilari HECH QACHON post matni/caption'iga
+    (``user_data["content"]``) qo'shilmaydi — ular faqat
+    ``reaction_emojis`` maydonida saqlanadi va kanal postiga pastidagi
+    INLINE TUGMA sifatida chiqadi (``scheduler.build_reaction_buttons``).
+
+    Agar stikerning emojisi bo'lmasa (kamdan-kam holat) — jarayonni bekor
+    qilmay, xushmuomala tushuntirish (``np_reactions_use_inline``) beriladi
+    va GET_REACTIONS holati saqlanadi.
+    """
+    lang = get_lang(context)
+    msg = update.message
+    sticker = getattr(msg, "sticker", None)
+    emoji = getattr(sticker, "emoji", None) if sticker is not None else None
+    typed = normalize_custom_reaction_emojis(emoji) if emoji else []
+
+    if typed:
+        selected = context.user_data.setdefault("selected_reactions", [])
+        existing_keys = {strip_variation_selector(e) for e in selected}
+        for e in typed:
+            if strip_variation_selector(e) not in existing_keys:
+                selected.append(e)
+                existing_keys.add(strip_variation_selector(e))
+        # Tasdiq xabari + inline klaviaturada tanlangan emojilar ✅ bilan
+        # ko'rsatiladi. ``content`` (post matni/caption) O'ZGARMAYDI.
+        await msg.reply_text(
+            get_text("np_reactions_selected", lang, emojis=" ".join(selected)),
+            reply_markup=get_reaction_toggle_keyboard(selected, lang),
+            parse_mode="HTML",
+        )
+        return GET_REACTIONS
+
+    # Emojisi bo'lmagan (kamdan-kam) stiker — xushmuomala tushuntirish,
+    # mavjud tanlov saqlanadi va jarayon davom etadi.
+    await msg.reply_text(
+        get_text("np_reactions_use_inline", lang),
+        reply_markup=get_reaction_toggle_keyboard(
+            context.user_data.get("selected_reactions", []), lang),
+        parse_mode="HTML",
+    )
+    return GET_REACTIONS
+
+
 async def reactions_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """GET_REACTIONS uchun zaxira handler (asosiy yo'l — inline toggle).
 
     - Emoji matn sifatida yuborilsa (masalan "👍 ❤️ 🔥") — tanlovga qo'shiladi
       va klaviatura yangilanadi.
-    - Stiker yuborilsa — uning emojisi (``message.sticker.emoji``) reaksiya
-      sifatida tanlovga qo'shiladi (fayl emas, aynan stiker emojisi).
+    - Stiker yuborilsa — alohida ``handle_reaction_sticker`` handler orqali
+      uning emojisi (``message.sticker.emoji``) reaksiya sifatida tanlovga
+      qo'shiladi (fayl emas, aynan stiker emojisi).
     - "reaksiyasiz/yo'q/skip" — reaksiyasiz davom etiladi.
     - Boshqa matn — inline tugmalarni ishlatish eslatiladi.
     """
@@ -945,34 +1002,10 @@ async def reactions_received(update: Update, context: ContextTypes.DEFAULT_TYPE)
     msg = update.message
 
     # 🎯 STIKER: stiker yuborilganda global "tushunmadim" fallback'iga tushib
-    # ketmasdan, uning emojisi to'g'ridan-to'g'ri reaksiyalar ro'yxatiga
-    # qo'shiladi. ``normalize_custom_reaction_emojis`` stiker emojisini kanonik
-    # tartibda tanlaydi (va Variation Selector farqlarini hisobga olmaydi).
-    sticker = getattr(msg, "sticker", None)
-    if sticker is not None:
-        emoji = getattr(sticker, "emoji", None)
-        typed = normalize_custom_reaction_emojis(emoji) if emoji else []
-        if typed:
-            selected = context.user_data.setdefault("selected_reactions", [])
-            existing_keys = {strip_variation_selector(e) for e in selected}
-            for e in typed:
-                if strip_variation_selector(e) not in existing_keys:
-                    selected.append(e)
-                    existing_keys.add(strip_variation_selector(e))
-            await msg.reply_text(
-                get_text("np_reactions_selected", lang, emojis=" ".join(selected)),
-                reply_markup=get_reaction_toggle_keyboard(selected, lang),
-                parse_mode="HTML",
-            )
-            return GET_REACTIONS
-        # Emojisi bo'lmagan (kamdan-kam) stiker — inline tugmalarga yo'naltiramiz.
-        await msg.reply_text(
-            get_text("np_reactions_use_inline", lang),
-            reply_markup=get_reaction_toggle_keyboard(
-                context.user_data.get("selected_reactions", []), lang),
-            parse_mode="HTML",
-        )
-        return GET_REACTIONS
+    # ketmasdan, alohida ``handle_reaction_sticker`` handler uni qabul qiladi
+    # (GET_REACTIONS holatida filters.Sticker.ALL bilan ro'yxatdan o'tgan).
+    if getattr(msg, "sticker", None) is not None:
+        return await handle_reaction_sticker(update, context)
 
     text = msg.text
 
