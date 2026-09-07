@@ -59,6 +59,7 @@ from handlers.new_post import (
     confirm_post_callback, edit_confirm_field_callback, edit_confirm_message_received,
     edit_confirm_media_received,
     reaction_toggle_callback, reactions_done_callback, reactions_skip_callback,
+    album_choice_callback,
     ai_action_menu_callback, ai_action_callback, ai_result_callback,
     skip_url_step, skip_reactions_step, SKIP_BUTTON_TEXTS, cancel_album_collections,
     CHOOSE_CHANNEL, GET_CONTENT, GET_BTN_TITLE, GET_BTN_URL,
@@ -698,11 +699,19 @@ def register_all_handlers(app):
         states={
             # 2. Yangi post holatlari
             CHOOSE_CHANNEL: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, channel_chosen)],
-            GET_CONTENT: all_menu_jumps + [MessageHandler(filters.ALL & ~filters.COMMAND, content_received)],
+            GET_CONTENT: all_menu_jumps + [
+                # 🖼 ALBOM cheklovi tanlovi: albom yig'uvchi (collector) ogohlantirishni
+                # GET_CONTENT holatida yuboradi — tanlov callback'lari shu yerda.
+                CallbackQueryHandler(album_choice_callback, pattern=r"^album_choice:"),
+                MessageHandler(filters.ALL & ~filters.COMMAND, content_received),
+            ],
             GET_BTN_TITLE: all_menu_jumps + [
                 # 🚀 "⏩ O'tkazib yuborish" — pastki reply-klaviaturadan bosilsa
                 # xuddi inline callback kabi xavfsiz keyingi bosqichga o'tadi.
                 MessageHandler(filters.Text(SKIP_BUTTON_TEXTS), skip_url_step),
+                # 🖼 ALBOM cheklovi tanlovi: albom yuborilganda tugma bosqichida
+                # ogohlantirish + [🖼 1-rasm] / [⏩ Tugmalarsiz albom] tugmalari.
+                CallbackQueryHandler(album_choice_callback, pattern=r"^album_choice:"),
                 MessageHandler(filters.TEXT & ~filters.COMMAND, btn_title_received),
                 CallbackQueryHandler(ai_action_menu_callback, pattern=r"^ai_menu$"),
                 CallbackQueryHandler(ai_action_callback, pattern=r"^ai_act:"),
@@ -713,6 +722,9 @@ def register_all_handlers(app):
                 MessageHandler(filters.TEXT & ~filters.COMMAND, btn_url_received),
             ],
             GET_REACTIONS: all_menu_jumps + [
+                # 🖼 ALBOM cheklovi tanlovi: albom postida reaksiya bosqichida
+                # ogohlantirish + [🖼 1-rasm] / [⏩ Tugmalarsiz albom] tugmalari.
+                CallbackQueryHandler(album_choice_callback, pattern=r"^album_choice:"),
                 # Multi-select reaksiya (toggle): emoji tanlash + Davom etish / O'tkazib yuborish
                 CallbackQueryHandler(reaction_toggle_callback, pattern=r"^nprt:t:"),
                 CallbackQueryHandler(reactions_done_callback, pattern=r"^nprt:done$"),
