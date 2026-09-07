@@ -1716,6 +1716,153 @@ def test_free_emoji_in_get_reactions_state_goes_to_conversation_not_fallback():
         restore()
 
 
+def test_strip_leading_reaction_glyphs_helper():
+    """Tanlangan reaksiya emojilari caption boshidan olinadi; emoji-only post saqlanadi."""
+    from keyboards.inline import strip_leading_reaction_glyphs
+    reactions = ["👍", "❤️", "🔥"]
+    assert strip_leading_reaction_glyphs("👍 ❤️ 🔥\n\nHello", reactions) == "Hello"
+    assert strip_leading_reaction_glyphs("👍❤️🔥\nHello", reactions) == "Hello"
+    assert strip_leading_reaction_glyphs("🔥 👍 ❤️\n\nSalom", reactions) == "Salom"
+    assert strip_leading_reaction_glyphs("👍 ❤️ 🔥", reactions) == "👍 ❤️ 🔥"
+    assert strip_leading_reaction_glyphs("👍 ❤️ 🔥\n\n", reactions) == "👍 ❤️ 🔥\n\n"
+    assert strip_leading_reaction_glyphs("Hello world", reactions) == "Hello world"
+    assert strip_leading_reaction_glyphs("😍\n\nHello", reactions) == "😍\n\nHello"
+    assert strip_leading_reaction_glyphs(None, reactions) is None
+    assert strip_leading_reaction_glyphs("👍 ❤️ 🔥\n\nHello", None) == "👍 ❤️ 🔥\n\nHello"
+    assert strip_leading_reaction_glyphs("👍 ❤ 🔥\n\nHi", reactions) == "Hi"
+
+
+def test_proceed_after_reactions_does_not_assign_content():
+    """GET_REACTIONS yakunida content (caption) reaksiya emojilari bilan to'ldirilmaydi."""
+    src = (ROOT / "handlers/new_post.py").read_text(encoding="utf-8")
+    body = src.split("async def _proceed_after_reactions", 1)[1].split("\ndef ", 1)[0]
+    assert 'user_data["content"]' not in body
+    assert "user_data['content']" not in body
+    assert "content =" not in body
+    assert '["content"] =' not in body
+    assert "content +=" not in body
+
+
+def test_reactions_not_concatenated_into_published_text():
+    """new_post / scheduler / enhancer: reaksiyalar matnga qo'shilmaydi, strip chaqiriladi."""
+    for rel in ("handlers/new_post.py", "scheduler.py", "handlers/post_enhancer.py"):
+        src = (ROOT / rel).read_text(encoding="utf-8")
+        assert "strip_leading_reaction_glyphs" in src, rel
+    sch = (ROOT / "scheduler.py").read_text(encoding="utf-8")
+    exec_body = sch.split("async def _execute_send", 1)[1].split("\nasync def ", 1)[0]
+    assert "strip_leading_reaction_glyphs" in exec_body
+    assert "compose_post_text" in exec_body
+    # compose_post_text reaksiya emojilarini qo'shmasligi kerak
+    compose = sch.split("def compose_post_text", 1)[1].split("\ndef ", 1)[0]
+    assert "reaction" not in compose.lower()
+
+
+def test_execute_send_strips_leading_reaction_glyphs_from_text_and_caption():
+    """Scheduler kanalga yuborganda text/caption tanlangan reaksiya glyph'larisiz chiqadi;
+    reaksiyalar faqat reply_markup (yalang'och emoji, '👍 0' emas) bo'ladi."""
+    sch_mod = _sch_isolated()
+    captured = []
+
+    async def fake_run_db(fn, *args, **kwargs):
+        name = getattr(fn, "__name__", "")
+        if name == "is_premium":
+            return True
+        if name == "get_setting":
+            return ""
+        if name == "mark_post_processing":
+            return True
+        if name == "mark_post_as_sent":
+            return True
+        if name == "bump_channel_post_count":
+            return 1
+        return None
+
+    class _Bot:
+        def __init__(self):
+            self.messages = []
+            self.photos = []
+
+        async def send_message(self, chat_id, text=None, reply_markup=None, **kw):
+            self.messages.append({"text": text, "reply_markup": reply_markup, "chat_id": chat_id})
+            return SimpleNamespace(message_id=11)
+
+        async def send_photo(self, chat_id, photo=None, caption=None, reply_markup=None, **kw):
+            self.photos.append({"caption": caption, "reply_markup": reply_markup, "photo": photo})
+            return SimpleNamespace(message_id=12)
+
+    leaked = "👍 ❤️ 🔥\n\nHello"
+    reactions = "👍 ❤️ 🔥"
+    orig = sch_mod.db.run_db
+    sch_mod.db.run_db = fake_run_db
+    try:
+        bot = _Bot()
+        text_post = (
+            801, 123456789, "-100123", "text", leaked, None,
+            None, None, True, None,
+            "none", None, None, None,
+            0, reactions,
+        )
+        _asyncio.run(sch_mod._execute_send(bot, text_post))
+        assert bot.messages, "text post yuborilmadi"
+        sent_text = bot.messages[0]["text"]
+        assert sent_text == "Hello", sent_text
+        assert not sent_text.startswith("👍"), sent_text
+        markup = bot.messages[0]["reply_markup"]
+        assert markup is not None
+        labels = [b.text for row in markup.inline_keyboard for b in row]
+        assert labels == ["👍", "❤️", "🔥"], labels
+        assert all("0" not in (b.text or "") for row in markup.inline_keyboard for b in row)
+
+        bot2 = _Bot()
+        photo_post = (
+            802, 123456789, "-100123", "photo", leaked, "file-photo",
+            None, None, True, None,
+            "none", None, None, None,
+            0, reactions,
+        )
+        _asyncio.run(sch_mod._execute_send(bot2, photo_post))
+        assert bot2.photos, "photo post yuborilmadi"
+        caption = bot2.photos[0]["caption"]
+        assert caption == "Hello", caption
+        assert not str(caption).startswith("👍")
+        plabels = [b.text for row in bot2.photos[0]["reply_markup"].inline_keyboard for b in row]
+        assert plabels == ["👍", "❤️", "🔥"], plabels
+
+        # Emoji-only post saqlanadi
+        bot3 = _Bot()
+        emoji_post = (
+            803, 123456789, "-100123", "text", "👍 ❤️ 🔥", None,
+            None, None, True, None,
+            "none", None, None, None,
+            0, reactions,
+        )
+        _asyncio.run(sch_mod._execute_send(bot3, emoji_post))
+        assert bot3.messages[0]["text"] == "👍 ❤️ 🔥", bot3.messages[0]["text"]
+    finally:
+        sch_mod.db.run_db = orig
+        sch_mod._UNPERSISTED_SENT.clear()
+
+
+def test_content_for_db_strips_leaked_reaction_glyphs():
+    """new_post saqlash yo'li caption'ga reaksiya glyph'larini yozmaydi."""
+    from handlers.new_post import _content_for_db
+    reactions = ["👍", "❤️", "🔥"]
+    assert _content_for_db("👍 ❤️ 🔥\n\nHello", reactions) == "Hello"
+    assert _content_for_db("Hello", reactions) == "Hello"
+    assert _content_for_db("👍 ❤️ 🔥", reactions) == "👍 ❤️ 🔥"
+
+
+def test_compose_post_text_never_injects_reactions():
+    """compose_post_text reaksiya emojilarini matnga qo'shmaydi."""
+    from scheduler import compose_post_text
+    out = compose_post_text("Hello", True, "", "")
+    assert out == "Hello"
+    assert not out.startswith("👍")
+    out2 = compose_post_text("Hello", False, "REKLAMA", "")
+    assert out2 == "Hello\n\nREKLAMA"
+    assert "👍" not in out2
+
+
 # ============================================================== ONBOARDING
 def test_start_onboarding_texts_exact_uz_ru():
     """Birinchi marta kirgan foydalanuvchi matni aynan talabdagidek (uz/ru)."""

@@ -780,6 +780,66 @@ def extract_emoji_tokens(text, max_count: int = 10) -> list:
     return out
 
 
+def strip_leading_reaction_glyphs(content, reaction_emojis=None):
+    """Caption/matn boshidagi sizib chiqqan reaksiya emojilarini olib tashlaydi.
+
+    Stiker yoki qo'lda yozilgan emojilar faqat ``InlineKeyboardMarkup``
+    tugmalari bo'lishi kerak — kanal postining matni/caption'iga hech
+    qachon qo'shilmasligi kerak. Eski saqlangan postlarda
+    ``👍 ❤️ 🔥\\n\\nSalom`` kabi prefix bo'lsa, u yuborishdan oldin
+    tozalanadi.
+
+    Moslik: birinchi qator tanlangan emojilarning bo'shliqli/bo'shliqsiz
+    qo'shilmasi yoki token-to'plami bilan teng bo'lsa (Variation Selector
+    hisobga olinmaydi). Qolgan matn bo'sh bo'lsa (faqat emojidan iborat
+    post) — o'zgartirilmaydi.
+    """
+    if content is None:
+        return content
+    text = content if isinstance(content, str) else str(content)
+    if not text:
+        return text
+
+    reactions = normalize_custom_reaction_emojis(reaction_emojis)
+    if not reactions:
+        return text
+
+    normalized = text.replace("\r\n", "\n").replace("\r", "\n")
+    if "\n" in normalized:
+        first, rest = normalized.split("\n", 1)
+    else:
+        first, rest = normalized, ""
+
+    first_stripped = first.strip()
+    if not first_stripped:
+        return text
+
+    def _key(value: str) -> str:
+        return _strip_vs16(value or "")
+
+    first_key = _key(first_stripped)
+    space_key = _key(" ".join(reactions))
+    nospace_key = _key("".join(reactions))
+    matched = first_key == space_key or first_key == nospace_key
+
+    if not matched:
+        tokens = extract_emoji_tokens(first_stripped)
+        if tokens:
+            compact_first = _key("".join(first_stripped.split()))
+            compact_tokens = _key("".join(tokens))
+            token_set = {_key(t) for t in tokens}
+            reaction_set = {_key(e) for e in reactions}
+            if compact_first == compact_tokens and token_set == reaction_set:
+                matched = True
+
+    if not matched:
+        return text
+    if not rest.strip():
+        # Faqat emojidan iborat post — caption o'zi shu emojilar.
+        return text
+    return rest.lstrip("\n")
+
+
 def get_reaction_toggle_keyboard(selected=None, lang: str = "uz") -> InlineKeyboardMarkup:
     """Multi-select reaksiya klaviaturasi — emoji bosilganda ✅ belgilanadi/olib tashlanadi.
 

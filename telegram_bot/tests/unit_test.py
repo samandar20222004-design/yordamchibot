@@ -2866,6 +2866,27 @@ def test_reaction_toggle_keyboard_and_normalize():
     check("normalize: begona matn → []", normalize_reaction_emojis("salom dunyo") == [])
     check("normalize: set ham qabul qiladi", normalize_reaction_emojis({"🎉"}) == ["🎉"])
 
+    # 5. strip_leading_reaction_glyphs — caption boshidagi sizib chiqqan reaksiyalar
+    from keyboards.inline import strip_leading_reaction_glyphs
+    leaked = "👍 ❤️ 🔥\n\nHello"
+    reactions = ["👍", "❤️", "🔥"]
+    check("strip: bo'shliqli join", strip_leading_reaction_glyphs(leaked, reactions) == "Hello")
+    check("strip: bo'shliqsiz join",
+          strip_leading_reaction_glyphs("👍❤️🔥\nHello", reactions) == "Hello")
+    check("strip: tartib farqi (token-set)",
+          strip_leading_reaction_glyphs("🔥 👍 ❤️\n\nSalom", reactions) == "Salom")
+    check("strip: emoji-only post saqlanadi",
+          strip_leading_reaction_glyphs("👍 ❤️ 🔥", reactions) == "👍 ❤️ 🔥")
+    check("strip: reaksiyasiz o'zgarmaydi",
+          strip_leading_reaction_glyphs(leaked, None) == leaked)
+    check("strip: boshqa emoji saqlanadi",
+          strip_leading_reaction_glyphs("😍\n\nHello", reactions) == "😍\n\nHello")
+    check("strip: matn ichidagi emoji saqlanadi",
+          strip_leading_reaction_glyphs("Hello\n👍 ❤️ 🔥", reactions) == "Hello\n👍 ❤️ 🔥")
+    check("strip: None → None", strip_leading_reaction_glyphs(None, reactions) is None)
+    check("strip: VS16 farqi",
+          strip_leading_reaction_glyphs("👍 ❤ 🔥\n\nHi", reactions) == "Hi")
+
 
 def test_url_button_builder():
     """Inline URL tugma quruvchi: 'Button Text - https://link.com' parser testlari."""
