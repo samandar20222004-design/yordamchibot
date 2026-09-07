@@ -27,6 +27,7 @@ from keyboards.default import (
 from keyboards.inline import (
     btn_label, get_reaction_toggle_keyboard, normalize_reaction_emojis,
     normalize_custom_reaction_emojis, strip_variation_selector,
+    strip_leading_reaction_glyphs,
     REACTION_EMOJIS,
 )
 from utils.helpers import (
@@ -439,6 +440,9 @@ async def _proceed_after_reactions(msg, context, selected_emojis):
     kanondan tashqari emojilar (😍, 💯, 🙏 ...) ham saqlanib qoladi va
     kanal postida tugma sifatida chiqadi (faqat 6 ta standart emoji bilan
     chegaralanib qolmaydi).
+
+    Tanlangan emojilar FAQAT ``reaction_emojis`` / ``enable_reactions``
+    maydonlariga yoziladi — ``content`` (post matni/caption) o'zgarmaydi.
     """
     lang = get_lang(context)
     ordered = normalize_custom_reaction_emojis(selected_emojis)
@@ -1090,18 +1094,24 @@ async def auto_delete_received(update: Update, context: ContextTypes.DEFAULT_TYP
     )
     return GET_TIME
 
+
+def _content_for_db(content, reaction_emojis):
+    """DB'ga yoziladigan matn: reaksiya glyph'lari caption'ga qo'shilmaydi."""
+    return strip_leading_reaction_glyphs(content, reaction_emojis)
+
+
 async def _save_and_finish(update, context, post_time, recurrence_type='none', recurrence_day=None, recurrence_time_str=None, end_date=None):
     is_admin = (update.effective_user.id in ADMIN_IDS_SET)
     user_id = update.effective_user.id
     selected_channel_id = context.user_data["selected_channel_id"]
     channel_title = context.user_data.get("selected_channel_title", "Kanal")
     post_type = context.user_data["post_type"]
-    content = context.user_data.get("content")
+    reaction_emojis = context.user_data.get("reaction_emojis")
+    content = _content_for_db(context.user_data.get("content"), reaction_emojis)
     file_id = context.user_data.get("file_id")
     btn_text = context.user_data.get("btn_text")
     btn_url = context.user_data.get("btn_url")
     enable_reactions = context.user_data.get("enable_reactions", False)
-    reaction_emojis = context.user_data.get("reaction_emojis")
     delete_after_hours = context.user_data.get("delete_after_hours", 0)
 
     post_time_tz = post_time.astimezone(tashkent_tz)
@@ -1393,12 +1403,12 @@ async def confirm_post_callback(update: Update, context: ContextTypes.DEFAULT_TY
             return ConversationHandler.END
 
         post_type = context.user_data.get("post_type")
-        content = context.user_data.get("content")
+        reaction_emojis = context.user_data.get("reaction_emojis")
+        content = _content_for_db(context.user_data.get("content"), reaction_emojis)
         file_id = context.user_data.get("file_id")
         btn_text = context.user_data.get("btn_text")
         btn_url = context.user_data.get("btn_url")
         enable_reactions = context.user_data.get("enable_reactions", False)
-        reaction_emojis = context.user_data.get("reaction_emojis")
         delete_after_hours = context.user_data.get("delete_after_hours", 0)
         channel_title = context.user_data.get("selected_channel_title", "Kanal")
 
@@ -1472,12 +1482,12 @@ async def confirm_post_callback(update: Update, context: ContextTypes.DEFAULT_TY
     selected_channel_id = context.user_data.get("selected_channel_id")
     channel_title = context.user_data.get("selected_channel_title", "Kanal")
     post_type = context.user_data.get("post_type")
-    content = context.user_data.get("content")
+    reaction_emojis = context.user_data.get("reaction_emojis")
+    content = _content_for_db(context.user_data.get("content"), reaction_emojis)
     file_id = context.user_data.get("file_id")
     btn_text = context.user_data.get("btn_text")
     btn_url = context.user_data.get("btn_url")
     enable_reactions = context.user_data.get("enable_reactions", False)
-    reaction_emojis = context.user_data.get("reaction_emojis")
     delete_after_hours = context.user_data.get("delete_after_hours", 0)
 
     post_time_tz = post_time.astimezone(tashkent_tz)

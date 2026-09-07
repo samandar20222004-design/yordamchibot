@@ -50,6 +50,7 @@ from keyboards.inline import (
     btn_label,
     extract_emoji_tokens,
     strip_variation_selector,
+    strip_leading_reaction_glyphs,
     REACTION_POOL,
 )
 from utils.helpers import (
@@ -1553,11 +1554,13 @@ async def _execute_send(update, context, query, enh):
     post = enh.get("post") or {}
     ptype = post.get("type") or "text"
     file_id = post.get("file_id")
-    content = post.get("content") or ""
     reactions = list(enh.get("reactions") or [])
     buttons = list(enh.get("buttons") or [])
     if ptype == "sticker":
         reactions, buttons = [], []  # sticker ostiga tugma qo'shib bo'lmaydi
+    # Reaksiyalar faqat inline tugma — caption/matn boshiga sizib chiqqan
+    # emoji qatori (👍 ❤️ 🔥\n\n...) kanalga yuborishdan oldin olinadi.
+    content = strip_leading_reaction_glyphs(post.get("content") or "", reactions)
 
     # --- Kanal ko'rinishidagi yakuniy matn (asl matn O'ZGARMAYDI, faqat
     # scheduler bilan bir xil qoidalar: watermark → reklama → nishon) ---

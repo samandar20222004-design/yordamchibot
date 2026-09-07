@@ -18,6 +18,7 @@ from config import ADMIN_IDS_SET, BOT_USERNAME
 import database as db
 from keyboards.inline import (
     normalize_custom_reaction_emojis,
+    strip_leading_reaction_glyphs,
     DEFAULT_REACTION_EMOJIS,
 )
 from keyboards.callback_data import CB_REACTION, cb
@@ -662,8 +663,17 @@ async def _execute_send(bot, post):
     # Admin tomonidan yoqilgan nishon (masalan @PostAssistrobot) — bo'sh bo'lsa qo'shilmaydi.
     brand_text = (await db.run_db(db.get_setting, "post_tag_text", "")).strip()
 
+    # Reaksiya emojilari FAQAT inline tugma (reply_markup). Caption/matn
+    # boshiga sizib chiqqan glyph qatori (👍 ❤️ 🔥\n\n...) yuborishdan oldin
+    # olinadi. Eski postlarda reaction_emojis NULL bo'lsa — tugmalar bilan
+    # bir xil standart to'plam solishtiriladi.
+    strip_emojis = reaction_emojis
+    if enable_reactions and not normalize_custom_reaction_emojis(strip_emojis):
+        strip_emojis = list(DEFAULT_REACTION_EMOJIS)
+    clean_content = strip_leading_reaction_glyphs(content or "", strip_emojis)
+
     # WATERMARK: Bepul foydalanuvchilar postlariga bot username qo'shish
-    watermarked_content = await apply_post_watermark(content or "", user_id, BOT_USERNAME)
+    watermarked_content = await apply_post_watermark(clean_content, user_id, BOT_USERNAME)
 
     sent_msg = None
     extra_ids = []
