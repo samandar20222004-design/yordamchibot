@@ -45,12 +45,18 @@ BTN_QUICK_AI_POST_RU = get_text("quick_btn_ai_post", "ru")
 BTN_QUICK_PHOTO_POST_RU = get_text("quick_btn_photo_post", "ru")
 BTN_QUICK_ADD_CHANNEL_RU = get_text("quick_btn_add_channel", "ru")
 BTN_OPEN_FULL_MENU_RU = get_text("quick_btn_full_menu", "ru")
+BTN_QUICK_AI_POST_EN = get_text("quick_btn_ai_post", "en")
+BTN_QUICK_PHOTO_POST_EN = get_text("quick_btn_photo_post", "en")
+BTN_QUICK_ADD_CHANNEL_EN = get_text("quick_btn_add_channel", "en")
+BTN_OPEN_FULL_MENU_EN = get_text("quick_btn_full_menu", "en")
 
-# Sodda menyudagi barcha tugmalar (uz + ru) — routing/audit uchun yagona manba.
+# Sodda menyudagi barcha tugmalar (uz + ru + en) — routing/audit uchun yagona manba.
 QUICK_MENU_BUTTONS = (
     BTN_QUICK_AI_POST, BTN_QUICK_PHOTO_POST, BTN_QUICK_ADD_CHANNEL, BTN_OPEN_FULL_MENU,
     BTN_QUICK_AI_POST_RU, BTN_QUICK_PHOTO_POST_RU,
     BTN_QUICK_ADD_CHANNEL_RU, BTN_OPEN_FULL_MENU_RU,
+    BTN_QUICK_AI_POST_EN, BTN_QUICK_PHOTO_POST_EN,
+    BTN_QUICK_ADD_CHANNEL_EN, BTN_OPEN_FULL_MENU_EN,
 )
 
 # Orqaga moslik (Aliases)
@@ -157,10 +163,13 @@ BTN_BACK_TO_CONFIRM_RU = get_text("np_btn_back_confirm", "ru")
 
 WEEKDAY_BUTTONS = [get_text(f"np_weekday_{i}", "uz") for i in range(7)]
 WEEKDAY_BUTTONS_RU = [get_text(f"np_weekday_{i}", "ru") for i in range(7)]
+WEEKDAY_BUTTONS_EN = [get_text(f"np_weekday_{i}", "en") for i in range(7)]
 WEEKDAY_MAP = {name: idx for idx, name in enumerate(WEEKDAY_BUTTONS)}
 WEEKDAY_MAP_RU = {name: idx for idx, name in enumerate(WEEKDAY_BUTTONS_RU)}
+WEEKDAY_MAP_EN = {name: idx for idx, name in enumerate(WEEKDAY_BUTTONS_EN)}
 WEEKDAY_LABELS = {idx: name for name, idx in WEEKDAY_MAP.items()}
 WEEKDAY_LABELS_RU = {idx: name for name, idx in WEEKDAY_MAP_RU.items()}
+WEEKDAY_LABELS_EN = {idx: name for name, idx in WEEKDAY_MAP_EN.items()}
 
 
 def exact(*texts):
@@ -169,10 +178,10 @@ def exact(*texts):
 
 
 def exact_i18n(*keys):
-    """Asosiy menyu tugmalarini uz/ru tillarida taniydigan Regex filter."""
+    """Asosiy menyu tugmalarini uz/ru/en tillarida taniydigan Regex filter."""
     texts = []
     for key in keys:
-        for lang in ("uz", "ru"):
+        for lang in ("uz", "ru", "en"):
             t = get_text(key, lang)
             if t not in texts:
                 texts.append(t)
@@ -372,8 +381,17 @@ BTN_TONE_CONCISE = TONE_LABELS["concise"]
 BTN_TONE_ENGAGING = TONE_LABELS["engaging"]
 
 
+TONE_LABELS_EN = {
+    "formal": get_text("ch_tone_formal", "en"),
+    "friendly": get_text("ch_tone_friendly", "en"),
+    "concise": get_text("ch_tone_concise", "en"),
+    "engaging": get_text("ch_tone_engaging", "en"),
+}
+
+
 def get_tone_keyboard(lang="uz"):
-    labels = TONE_LABELS_RU if normalize_lang(lang) == "ru" else TONE_LABELS
+    code = normalize_lang(lang)
+    labels = TONE_LABELS_RU if code == "ru" else (TONE_LABELS_EN if code == "en" else TONE_LABELS)
     return ReplyKeyboardMarkup(
         [
             [labels["formal"], labels["friendly"]],
@@ -385,7 +403,8 @@ def get_tone_keyboard(lang="uz"):
 
 
 def get_weekday_keyboard(lang="uz"):
-    buttons = WEEKDAY_BUTTONS_RU if normalize_lang(lang) == "ru" else WEEKDAY_BUTTONS
+    code = normalize_lang(lang)
+    buttons = WEEKDAY_BUTTONS_RU if code == "ru" else (WEEKDAY_BUTTONS_EN if code == "en" else WEEKDAY_BUTTONS)
     rows = [[buttons[i], buttons[i + 1]] for i in range(0, 6, 2)]
     rows.append([buttons[6]])
     rows.append([get_text("btn_main_menu", lang)])

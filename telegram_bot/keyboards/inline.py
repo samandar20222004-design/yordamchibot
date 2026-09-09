@@ -531,11 +531,14 @@ def get_cabinet_inline_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
 
 
 def get_language_keyboard() -> InlineKeyboardMarkup:
-    """Til tanlash: O'zbekcha / Русский."""
+    """Til tanlash: O'zbekcha / Русский / English."""
     return InlineKeyboardMarkup([
         [
             InlineKeyboardButton("🇺🇿 O'zbekcha", callback_data="cab_lang_uz"),
             InlineKeyboardButton("🇷🇺 Русский", callback_data="cab_lang_ru"),
+        ],
+        [
+            InlineKeyboardButton("🇬🇧 English", callback_data="cab_lang_en"),
         ],
         [
             InlineKeyboardButton("⬅️ Orqaga", callback_data="cab_main"),

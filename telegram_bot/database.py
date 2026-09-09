@@ -1510,10 +1510,12 @@ def toggle_reaction(post_id: int, user_id: int, reaction: str) -> dict:
 
 # --- USERS & CREDITS ---
 def _normalize_language_code(language_code) -> str:
-    """Telegram language_code → 'ru' yoki 'uz'."""
+    """Telegram language_code → 'ru', 'en' yoki 'uz'."""
     raw = str(language_code or "").strip().lower()
     if raw.startswith("ru"):
         return "ru"
+    if raw.startswith("en"):
+        return "en"
     return "uz"
 
 
