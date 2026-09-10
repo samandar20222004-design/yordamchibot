@@ -3,7 +3,6 @@ import json
 import logging
 import os
 import re
-import tempfile
 from datetime import datetime, timedelta
 import pytz
 from telegram import (
@@ -55,26 +54,26 @@ SEND_MICRO_DELAY = 0.08  # soniya — 0.05..0.1 oralig'ida
 FLOOD_WAIT_SLEEP_MAX = 60.0
 
 # --- IDEMPOTENT YUBORISH: "yuborildi" markeri kafolati -----------------------
-# Post Telegramga chiqqach DB'ga 'posted' + sent_message_id yozilishi SHART —
-# aks holda stale-recovery uni 10 daqiqadan keyin 'pending' ga qaytaradi va
-# post IKKINCHI marta chiqadi. Neon'da qisqa uzilishlar bo'lib turadi, shuning
-# uchun marker yozuvi:
-#   1) eksponensial backoff bilan bir necha marta qayta uriniladi;
-#   2) baribir yozilmasa — xotiradagi ``_UNPERSISTED_SENT`` ro'yxatiga va
-#      lokal journal fayliga tushadi. Shu jarayon ichida o'sha post hech
-#      qachon qayta yuborilmaydi (``_execute_send`` boshida guard), har
-#      scheduler tick'i boshida marker qayta yozishga urinadi
-#      (``flush_unpersisted_sent_markers``) — DB tiklanishi bilan holat
-#      to'g'rilanadi. Journal restartdan keyin ham o'qiladi (best-effort).
+# post_deliveries Telegram delivery'sining asosiy, doimiy source-of-truth'i.
+# Post Telegramga chiqqach delivery status='sent' + message_id yozilishi SHART;
+# scheduled_posts markerining retry mexanizmi esa shu yozuvni yakunlaydi.
+# ``_UNPERSISTED_SENT`` faqat DB qisqa uzilganda shu jarayon ichida qayta
+# yuborishni to'suvchi best-effort legacy fallback; normal holatda vaqtinchalik
+# JSON journal ishlatilmaydi.
 SENT_MARKER_RETRY_DELAYS = (0.5, 1.0, 2.0, 4.0)
 
 
 def _resolve_sent_journal_path() -> str:
-    """SENT_JOURNAL_PATH env: yo'l → shu fayl; 'off'/'none'/'0' → o'chirilgan ('');
-    berilmagan → vaqtinchalik papkadagi standart fayl."""
+    """Legacy SENT_JOURNAL_PATH opt-in yo'lini o'qiydi.
+
+    Berilmaganida bo'sh qaytadi: P0 delivery markerlari DB'da saqlanadi.
+    """
     raw = os.getenv("SENT_JOURNAL_PATH")
     if raw is None:
-        return os.path.join(tempfile.gettempdir(), "postassist_sent_journal.json")
+        # P0: normal operation no longer depends on a temporary JSON journal;
+        # post_deliveries is the source of truth. Explicit path remains as a
+        # legacy/test-only escape hatch for old deployments.
+        return ""
     raw = raw.strip()
     if raw.lower() in ("", "off", "none", "0", "false"):
         return ""
@@ -142,7 +141,7 @@ def _db_ok(result) -> bool:
 
 def _build_sent_marker(post_id, sent_msg_id, channel_id, delete_after_hours, extra_ids,
                        recurrence_type=None, recurrence_day=None, recurrence_time=None,
-                       end_date=None) -> dict:
+                       end_date=None, idempotency_key=None) -> dict:
     """Telegramga yuborilgan post uchun DB'ga yozilishi kerak bo'lgan barcha
     ma'lumot (JSON-serializable): 'posted' markeri + takrorlanuvchi post uchun
     keyingi vaqt / yakunlanganlik."""
@@ -155,6 +154,8 @@ def _build_sent_marker(post_id, sent_msg_id, channel_id, delete_after_hours, ext
         "next_time": None,
         "completed": False,
         "marker_done": False,
+        "delivery_key": idempotency_key,
+        "delivery_done": False,
         "sent_at": now_tashkent().isoformat(),
     }
     if recurrence_type in ("daily", "weekly"):
@@ -177,6 +178,21 @@ async def _apply_sent_marker(marker: dict) -> bool:
     Bosqichlar idempotent: 'posted' markeri yozilgach ``marker_done`` belgilanadi,
     keyingi urinishlar faqat qolgan qismini (takrorlash) bajaradi."""
     pid = int(marker["post_id"])
+    # post_deliveries — yangi asosiy idempotency marker. Legacy markerlarda
+    # delivery_key yo'q, shuning uchun eski restart oqimi ham saqlanadi.
+    delivery_key = marker.get("delivery_key")
+    if delivery_key and not marker.get("delivery_done"):
+        delivery_ok = False
+        try:
+            delivery_ok = _db_ok(await db.run_db(
+                db.mark_post_delivery_sent, delivery_key, marker.get("message_id")
+            ))
+        except Exception as e:
+            logger.exception("Delivery sent marker yozilmadi (Post ID: %s): %s", pid, e)
+        if not delivery_ok:
+            return False
+        marker["delivery_done"] = True
+
     if not marker.get("marker_done"):
         ok = False
         try:
@@ -672,6 +688,16 @@ async def _requeue_post(post, delay_seconds: float) -> None:
         logger.exception("Postni qayta navbatlashda xato (Post ID: %s)", post[0])
 
 
+async def _mark_delivery_failed(delivery_key, error) -> None:
+    """Delivery claim qilinganidan keyingi Telegram xatosini DB ga yozadi."""
+    if not delivery_key:
+        return
+    try:
+        await db.run_db(db.mark_post_delivery_failed, delivery_key, str(error))
+    except Exception:
+        logger.exception("Delivery failed marker yozilmadi (%s)", delivery_key)
+
+
 async def _execute_send(bot, post):
     (
         post_id, user_id, channel_id, post_type, content, file_id,
@@ -697,6 +723,34 @@ async def _execute_send(bot, post):
         # (aks holda yuborilgach marker ham yozilmay qolishi ehtimoli katta).
         # Chaqiruvchi (check_and_send_posts) postni qayta navbatga qo'yadi.
         raise RuntimeError(f"DB 'processing' markerini yozib bo'lmadi (Post ID: {post_id})")
+
+    # P0-04: scheduled_posts statusi yetarli emas, chunki restart/crash va
+    # parallel schedulerlar orasida aynan Telegram delivery'sini claim qilish
+    # kerak. post_deliveries.sent bo'lsa Telegramga qayta murojaat qilmaymiz.
+    delivery_key = db.build_delivery_idempotency_key(post_id, channel_id, scheduled_time)
+    delivery_marker_key = None
+    delivery_claim = await db.run_db(
+        db.claim_post_delivery, post_id, channel_id, scheduled_time
+    )
+    if isinstance(delivery_claim, dict):
+        claim_status = delivery_claim.get("status")
+        if delivery_claim.get("sent") or claim_status == "sent":
+            await db.run_db(db.mark_post_status, post_id, "posted")
+            return
+        if not delivery_claim.get("claimed"):
+            if claim_status == "processing":
+                # Boshqa scheduler instance hozir yuborayotgan bo'lishi mumkin.
+                return
+            raise RuntimeError(
+                f"Delivery claim bajarilmadi (Post ID: {post_id}, "
+                f"status={claim_status})"
+            )
+        delivery_marker_key = delivery_claim.get("idempotency_key") or delivery_key
+    elif delivery_claim is False:
+        raise RuntimeError(f"Delivery claim bajarilmadi (Post ID: {post_id})")
+    elif delivery_claim is True:
+        # Minimal fake/legacy DB adapterlari uchun ham marker ishlaydi.
+        delivery_marker_key = delivery_key
 
     buttons = []
     if btn_text and btn_url:
@@ -822,9 +876,11 @@ async def _execute_send(bot, post):
         sent_marker = _build_sent_marker(
             post_id, sent_msg_id, channel_id, delete_after_hours, extra_ids,
             recurrence_type, recurrence_day, recurrence_time, end_date,
+            delivery_marker_key,
         )
 
     except RetryAfter as e:
+        await _mark_delivery_failed(delivery_key, e)
         # Telegram rate-limit (FloodWait, 429) — vaqtinchalik holat.
         # 1) Telegram ko'rsatgan muddat davomida JIM turamiz (aks holda
         #    keyingi so'rovlar ham 429 bilan qaytadi va limit uzayadi).
@@ -839,14 +895,19 @@ async def _execute_send(bot, post):
         await db.run_db(db.retry_post, post_id, retry_at)
         return
     except (TimedOut, NetworkError) as e:
+        await _mark_delivery_failed(delivery_key, e)
         logger.warning(f"Telegram tarmoq xatosi (Post ID: {post_id}): {e}; qayta uriniladi")
         retry_at = now_tashkent() + timedelta(seconds=NETWORK_RETRY_DELAY)
         await db.run_db(db.retry_post, post_id, retry_at)
         return
     except TelegramError as e:
+        await _mark_delivery_failed(delivery_key, e)
         logger.error(f"Post yuborishda xato (Post ID: {post_id}): {e}")
         await db.run_db(db.mark_post_status, post_id, "failed")
         return
+    except Exception as e:
+        await _mark_delivery_failed(delivery_key, e)
+        raise
 
     # Yuborildi → marker (posted / takrorlanuvchi: keyingi vaqt + pending /
     # muddati tugagan: completed). Hech qachon istisno tashlamaydi — shuning

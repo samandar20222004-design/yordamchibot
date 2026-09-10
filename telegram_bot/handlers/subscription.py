@@ -1,5 +1,6 @@
 """Subscriptions, Limits & Monetization — tariflar va obuna boshqaruvi."""
 import logging
+import re
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice
 from telegram.ext import ContextTypes, ConversationHandler
 from config import (
@@ -599,6 +600,38 @@ async def grant_pro_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # TELEGRAM STARS PAYMENT HANDLERS
 # ============================================================
 
+_STARS_PAYLOAD_RE = re.compile(r"^sub_(stars_1m|stars_3m|stars_1y)_([0-9]+)$")
+
+
+def _validate_stars_payload(payload: str, user_id: int, amount=None, currency=None):
+    """Invoice payload + summa + valuta'ni qat'iy tekshiradi.
+
+    Payload oddiy prefix tekshiruvi bilan qabul qilinmaydi: user ID, plan va
+    Telegram invoice'dagi kutilgan Stars miqdori bir-biriga mos bo'lishi shart.
+    """
+    match = _STARS_PAYLOAD_RE.fullmatch(str(payload or ""))
+    if not match:
+        return None, "Noto'g'ri to'lov payload'i."
+    plan_key, payload_user = match.groups()
+    try:
+        if int(payload_user) != int(user_id):
+            return None, "To'lov foydalanuvchiga mos emas."
+    except (TypeError, ValueError):
+        return None, "Noto'g'ri foydalanuvchi ID."
+    plan = STARS_PLANS.get(plan_key)
+    if not plan:
+        return None, "Noto'g'ri tarif."
+    if currency is not None and str(currency).upper() != "XTR":
+        return None, "To'lov valyutasi noto'g'ri."
+    if amount is not None:
+        try:
+            if int(amount) != int(plan["stars"]):
+                return None, "To'lov summasi tarifga mos emas."
+        except (TypeError, ValueError):
+            return None, "To'lov summasi noto'g'ri."
+    return {"plan_key": plan_key, "stars": plan["stars"], "days": plan["days"]}, None
+
+
 async def precheckout_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """PreCheckoutQuery — Telegram to'lovni tasdiqlashdan oldin so'raydi.
 
@@ -609,10 +642,23 @@ async def precheckout_callback(update: Update, context: ContextTypes.DEFAULT_TYP
     if not query:
         return
 
-    # Payload tekshirish — sub_stars_1m_USERID, sub_stars_3m_USERID, sub_stars_1y_USERID
+    # Telegram payment retry/qo'lda yuborilgan soxta invoice'ni qat'iy rad etamiz.
     payload = query.invoice_payload or ""
-    ok = payload.startswith("sub_stars_")
-    await query.answer(ok=ok, error_message=None if ok else "Noto'g'ri to'lov so'rovi.")
+    query_user = getattr(getattr(query, "from_user", None), "id", None)
+    query_amount = getattr(query, "total_amount", None)
+    query_currency = getattr(query, "currency", None)
+    plan, error = _validate_stars_payload(
+        payload,
+        query_user,
+        query_amount,
+        query_currency,
+    )
+    if query_user is None or query_amount is None or query_currency is None:
+        plan, error = None, "To'lov rekvizitlari to'liq emas."
+    await query.answer(
+        ok=plan is not None,
+        error_message=None if plan is not None else (error or "Noto'g'ri to'lov so'rovi."),
+    )
 
 
 async def create_promo_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -671,48 +717,72 @@ async def create_promo_command(update: Update, context: ContextTypes.DEFAULT_TYP
 
 
 async def successful_payment_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """SuccessfulPayment — to'lov muvaffaqiyatli o'tganda."""
-    payment = update.message.successful_payment
+    """SuccessfulPayment'ni qat'iy tekshiradi va atomik grant qiladi."""
+    payment = getattr(getattr(update, "message", None), "successful_payment", None)
     if not payment:
         return
 
     user_id = update.effective_user.id
-    total_stars = payment.total_amount
-    payload = payment.invoice_payload or ""
-
-    # PRO muddatini aniqlash
-    if total_stars >= 550:
-        days = 365  # 1 yillik
-    elif total_stars >= 175:
-        days = 90  # 3 oylik
-    else:
-        days = 30  # 1 oylik
-
-    # PRO berish
-    success = await db.run_db(db.set_user_plan, user_id, "pro", days)
-
-    # To'lovni log qilash
-    await db.run_db(
-        db.log_stars_payment, user_id, total_stars, "XTR",
-        payload, payment.telegram_payment_charge_id or ""
+    total_stars = getattr(payment, "total_amount", None)
+    payload = getattr(payment, "invoice_payload", "") or ""
+    payment_currency = getattr(payment, "currency", None)
+    plan, error = _validate_stars_payload(
+        payload,
+        user_id,
+        total_stars,
+        payment_currency,
     )
-
-    lang = await ensure_user_lang(context, user_id)
-    if success:
-        await update.message.reply_text(
-            f"🎉 <b>To'lov muvaffaqiyatli!</b>\n\n"
-            f"⭐️ {total_stars} Stars qabul qilindi.\n"
-            f"📅 <b>{days} kunlik PRO tarif</b> faollashtirildi!\n\n"
-            f"Barcha PRO imkoniyatlardan foydalanishingiz mumkin:\n"
-            f"• Cheksiz kanallar\n"
-            f"• Cheksiz AI\n"
-            f"• To'liq analitika",
-            reply_markup=get_main_keyboard(update.effective_user.id in ADMIN_IDS_SET, lang=lang),
-            parse_mode="HTML",
+    if total_stars is None or payment_currency is None:
+        plan, error = None, "To'lov rekvizitlari to'liq emas."
+    charge_id = (getattr(payment, "telegram_payment_charge_id", "") or "").strip()
+    if plan is None or not charge_id:
+        logger.warning(
+            "Stars payment rad etildi: user=%s payload=%r charge=%r sabab=%s",
+            user_id, payload, charge_id, error or "charge_id yo'q",
         )
-    else:
+        return
+
+    # Oldingi set_user_plan chaqiruvi o'rniga log_stars_payment audit yozuvi va
+    # subscription UPDATE aynan shu
+    # tranzaksiyada; bir xil charge_id qaytsa process_stars_payment duplicate
+    # qaytaradi va obuna ikkinchi marta berilmaydi.
+    result = await db.run_db(
+        db.process_stars_payment,
+        user_id,
+        plan["stars"],
+        "XTR",
+        payload,
+        charge_id,
+        "pro",
+        plan["days"],
+    )
+    if not isinstance(result, dict) or not result.get("ok"):
         await update.message.reply_text(
             "⚠️ To'lov qabul qilindi, lekin tarifni faollashtirishda xatolik.\n"
             "Iltimos, admin bilan bog'laning.",
             parse_mode="HTML",
         )
+        return
+
+    lang = await ensure_user_lang(context, user_id)
+    if result.get("duplicate"):
+        # Retry kelgan — grant allaqachon berilgan, yana subscription yozmaymiz.
+        await update.message.reply_text(
+            "✅ Bu to'lov avval qayta ishlangan. PRO tarifingiz allaqachon faol.",
+            reply_markup=get_main_keyboard(user_id in ADMIN_IDS_SET, lang=lang),
+            parse_mode="HTML",
+        )
+        return
+
+    days = plan["days"]
+    await update.message.reply_text(
+        f"🎉 <b>To'lov muvaffaqiyatli!</b>\n\n"
+        f"⭐️ {total_stars} Stars qabul qilindi.\n"
+        f"📅 <b>{days} kunlik PRO tarif</b> faollashtirildi!\n\n"
+        f"Barcha PRO imkoniyatlardan foydalanishingiz mumkin:\n"
+        f"• Cheksiz kanallar\n"
+        f"• Cheksiz AI\n"
+        f"• To'liq analitika",
+        reply_markup=get_main_keyboard(user_id in ADMIN_IDS_SET, lang=lang),
+        parse_mode="HTML",
+    )
