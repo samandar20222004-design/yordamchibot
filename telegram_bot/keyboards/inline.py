@@ -530,8 +530,12 @@ def get_cabinet_inline_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(keyboard)
 
 
-def get_language_keyboard() -> InlineKeyboardMarkup:
-    """Til tanlash: O'zbekcha / Русский / English."""
+def get_language_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
+    """Til tanlash: O'zbekcha / Русский / English.
+
+    ``lang`` — foydalanuvchi joriy tili; "Orqaga" tugmasi shu tilga mos
+    tarjima qilinadi (masalan ru → "⬅️ Назад", en → "⬅️ Back").
+    """
     return InlineKeyboardMarkup([
         [
             InlineKeyboardButton("🇺🇿 O'zbekcha", callback_data="cab_lang_uz"),
@@ -541,7 +545,7 @@ def get_language_keyboard() -> InlineKeyboardMarkup:
             InlineKeyboardButton("🇬🇧 English", callback_data="cab_lang_en"),
         ],
         [
-            InlineKeyboardButton("⬅️ Orqaga", callback_data="cab_main"),
+            InlineKeyboardButton(get_text("btn_back", lang), callback_data="cab_main"),
         ],
     ])
 

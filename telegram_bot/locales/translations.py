@@ -1501,6 +1501,15 @@ TRANSLATIONS = {
             "⚠️ Hali barcha kanallarga a'zo bo'lmadingiz! "
             "Pastdagi tugmalar orqali obuna bo'ling."
         ),
+
+        # Vaqt mintaqasi tanlash (Timezone)
+        "tz_prompt": "🌍 <b>Vaqt mintaqangizni tanlang:</b>",
+        "tz_changed": "✅ Vaqt mintaqasi <b>{tz}</b> ga o'zgartirildi.",
+        "tz_btn_tashkent": "🇺🇿 Toshkent (UTC+5)",
+        "tz_btn_moscow": "🇷🇺 Moskva (UTC+3)",
+        "tz_btn_utc": "🌐 UTC (UTC+0)",
+        "tz_btn_samarkand": "🇺🇿 Samarqand (UTC+5)",
+        "tz_current": "🌍 Vaqt mintaqasi: <b>{tz}</b>",
     },
     "ru": {
         "btn_new_post": "➕ Новый пост",
@@ -3006,6 +3015,15 @@ TRANSLATIONS = {
             "⚠️ Вы ещё не подписались на все каналы! "
             "Подпишитесь с помощью кнопок ниже."
         ),
+
+        # Выбор часового пояса (Timezone)
+        "tz_prompt": "🌍 <b>Выберите часовой пояс:</b>",
+        "tz_changed": "✅ Часовой пояс изменён на <b>{tz}</b>.",
+        "tz_btn_tashkent": "🇺🇿 Ташкент (UTC+5)",
+        "tz_btn_moscow": "🇷🇺 Москва (UTC+3)",
+        "tz_btn_utc": "🌐 UTC (UTC+0)",
+        "tz_btn_samarkand": "🇺🇿 Самарканд (UTC+5)",
+        "tz_current": "🌍 Часовой пояс: <b>{tz}</b>",
     },
 }
 

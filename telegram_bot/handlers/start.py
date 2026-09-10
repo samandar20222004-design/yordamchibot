@@ -619,13 +619,13 @@ async def cabinet_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         try:
             await query.edit_message_text(
                 get_text("lang_prompt", lang),
-                reply_markup=get_language_keyboard(),
+                reply_markup=get_language_keyboard(lang),
                 parse_mode="HTML",
             )
         except Exception:
             await query.message.reply_text(
                 get_text("lang_prompt", lang),
-                reply_markup=get_language_keyboard(),
+                reply_markup=get_language_keyboard(lang),
                 parse_mode="HTML",
             )
         return
@@ -638,7 +638,7 @@ async def cabinet_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         try:
             await query.edit_message_text(
                 get_text("lang_changed", lang),
-                reply_markup=get_language_keyboard(),
+                reply_markup=get_language_keyboard(lang),
                 parse_mode="HTML",
             )
         except Exception:
