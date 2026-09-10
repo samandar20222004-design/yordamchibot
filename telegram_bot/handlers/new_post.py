@@ -70,6 +70,38 @@ SKIP_BUTTON_TEXTS = (
     BTN_SKIP_URL_BUTTON_RU,
 )
 
+# ⏳ Throttling / Debounce Middleware: Callback tugmalarini ketma-ket bosishlarni oldiniш
+# Foydalanuvchi_id bo'yicha so'nggi callback vaqtini xotirada saqlab, 1.5 soniya ichida
+# takroriy bosishlarni oldiniш va Telegram API yordamida xabarda tuzatish.
+
+_callback_last_call: dict = {}  # user_id -> timestamp
+
+
+def check_callback_throttle(user_id: int, min_interval: float = 1.5) -> bool:
+    """
+    Callback query throttle tekshiriши.
+    
+    - True = o'tkazib yuborish (throttling effektiga uchragan)
+    - False = handler davom etishi kerak
+    """
+    now = time.time()
+    last_time = _callback_last_call.get(user_id, 0)
+    elapsed = now - last_time
+    
+    if elapsed < min_interval:
+        # Kichik vaqt o'tgan - throttling effectively
+        return True
+    
+    # Vaqt saqlab qolamiz
+    _callback_last_call[user_id] = now
+    return False
+
+
+def reset_callback_throttle(user_id: int) -> None:
+    "Foydalanuvchi uchun throttling holatini tozalash."
+    _callback_last_call.pop(user_id, None)
+
+
 
 def is_skip_button_text(text) -> bool:
     """Foydalanuvchi pastki klaviaturadan skip (o'tkazib yuborish) tugmasini bosganini aniqlaydi."""
@@ -1180,6 +1212,16 @@ async def reactions_received(update: Update, context: ContextTypes.DEFAULT_TYPE)
 async def reaction_toggle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Multi-select: emoji tugma bosilganda tanlovga qo'shadi yoki olib tashlaydi."""
     query = update.callback_query
+    user_id = update.effective_user.id
+    if check_callback_throttle(user_id):
+        try:
+            await update.callback_query.answer(
+                text="⏳ Jarayon bajarilmoqda, iltimos kuting...",
+                show_alert=False
+        )
+        except Exception:
+            pass
+        return
     await query.answer()
     data = query.data or ""
     parts = data.split(":", 2)
@@ -1205,6 +1247,16 @@ async def reaction_toggle_callback(update: Update, context: ContextTypes.DEFAULT
 async def reactions_done_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """"➡️ Davom etish" — tanlangan reaksiyalar bilan keyingi qadamga o'tadi."""
     query = update.callback_query
+    user_id = update.effective_user.id
+    if check_callback_throttle(user_id):
+        try:
+            await update.callback_query.answer(
+                text="⏳ Jarayon bajarilmoqda, iltimos kuting...",
+                show_alert=False
+        )
+        except Exception:
+            pass
+        return
     await query.answer()
     # Qo'lda kiritilgan (kanondan tashqari) emojilar ham saqlanib qoladi.
     selected = normalize_custom_reaction_emojis(context.user_data.get("selected_reactions"))
@@ -1219,6 +1271,16 @@ async def reactions_done_callback(update: Update, context: ContextTypes.DEFAULT_
 async def reactions_skip_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """"⏭ Reaksiyasiz o'tish" — reaksiyalarsiz keyingi qadamga o'tadi."""
     query = update.callback_query
+    user_id = update.effective_user.id
+    if check_callback_throttle(user_id):
+        try:
+            await update.callback_query.answer(
+                text="⏳ Jarayon bajarilmoqda, iltimos kuting...",
+                show_alert=False
+        )
+        except Exception:
+            pass
+        return
     await query.answer()
     context.user_data["selected_reactions"] = []
     return await _proceed_after_reactions(query.message, context, [])
@@ -1553,6 +1615,16 @@ async def duration_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def confirm_post_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Tasdiqlash ekranidagi tugmalar: OK / Queue / Edit / Cancel."""
     query = update.callback_query
+    user_id = update.effective_user.id
+    if check_callback_throttle(user_id):
+        try:
+            await update.callback_query.answer(
+                text="⏳ Jarayon bajarilmoqda, iltimos kuting...",
+                show_alert=False
+        )
+        except Exception:
+            pass
+        return
     await query.answer()
     data = query.data
     action = data.split(":", 1)[1] if ":" in data else ""
@@ -1782,6 +1854,16 @@ async def confirm_post_callback(update: Update, context: ContextTypes.DEFAULT_TY
 async def edit_confirm_field_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Tahrirlash sub-menyusi."""
     query = update.callback_query
+    user_id = update.effective_user.id
+    if check_callback_throttle(user_id):
+        try:
+            await update.callback_query.answer(
+                text="⏳ Jarayon bajarilmoqda, iltimos kuting...",
+                show_alert=False
+        )
+        except Exception:
+            pass
+        return
     await query.answer()
     data = query.data
     field = data.split(":", 1)[1] if ":" in data else ""
@@ -1971,6 +2053,16 @@ def _get_ai_result_keyboard(lang="uz"):
 async def ai_action_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """AI harakatlari menyusini ko'rsatadi."""
     query = update.callback_query
+    user_id = update.effective_user.id
+    if check_callback_throttle(user_id):
+        try:
+            await update.callback_query.answer(
+                text="⏳ Jarayon bajarilmoqda, iltimos kuting...",
+                show_alert=False
+        )
+        except Exception:
+            pass
+        return
     await query.answer()
     lang = get_lang(context)
     content = context.user_data.get("content", "")
@@ -1995,6 +2087,16 @@ async def ai_action_menu_callback(update: Update, context: ContextTypes.DEFAULT_
 async def ai_action_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """AI harakati tugmasi bosilganda."""
     query = update.callback_query
+    user_id = update.effective_user.id
+    if check_callback_throttle(user_id):
+        try:
+            await update.callback_query.answer(
+                text="⏳ Jarayon bajarilmoqda, iltimos kuting...",
+                show_alert=False
+        )
+        except Exception:
+            pass
+        return
     data = query.data
     lang = get_lang(context)
     action = data.split(":", 1)[1] if ":" in data else ""
@@ -2050,6 +2152,16 @@ async def ai_action_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
 async def ai_result_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """AI natijasini qabul qilish / rad etish."""
     query = update.callback_query
+    user_id = update.effective_user.id
+    if check_callback_throttle(user_id):
+        try:
+            await update.callback_query.answer(
+                text="⏳ Jarayon bajarilmoqda, iltimos kuting...",
+                show_alert=False
+        )
+        except Exception:
+            pass
+        return
     data = query.data
     lang = get_lang(context)
     action = data.split(":", 1)[1] if ":" in data else ""
