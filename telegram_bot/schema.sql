@@ -116,6 +116,10 @@ CREATE TABLE IF NOT EXISTS scheduled_posts (
 -- Telegramga yuborilgan har bir delivery uchun doimiy idempotency marker.
 -- scheduled_posts tarixiy navbatni saqlaydi, bu jadval esa aynan Telegram
 -- chaqiruvini bir marta bajarish kafolatini beradi.
+-- PostAssist V2 (3-bosqich): statuslar 'pending' | 'processing' | 'sent' |
+-- 'failed' | 'dead_letter'. Vaqtinchalik xatolarda exponential backoff
+-- (30s, 2m, 5m, 15m) next_retry_at orqali rejalashtiriladi; 5-urinishdan
+-- keyin yoki doimiy xatoda (chat_not_found, bot_kicked) 'dead_letter'.
 CREATE TABLE IF
 NOT EXISTS post_deliveries (
     id BIGSERIAL PRIMARY KEY,
@@ -126,11 +130,15 @@ NOT EXISTS post_deliveries (
     telegram_message_id BIGINT,
     idempotency_key TEXT UNIQUE NOT NULL,
     last_error TEXT,
+    scheduled_time TIMESTAMPTZ,
+    next_retry_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 CREATE INDEX IF
 NOT EXISTS idx_deliveries_sched ON post_deliveries(status, post_id);
+CREATE INDEX IF
+NOT EXISTS idx_deliveries_retry ON post_deliveries(status, next_retry_at);
 
 CREATE TABLE IF NOT EXISTS post_reactions (
     id SERIAL PRIMARY KEY,
@@ -302,6 +310,10 @@ ALTER TABLE channel_posts_history ADD COLUMN IF NOT EXISTS content TEXT;
 ALTER TABLE channel_posts_history ADD COLUMN IF NOT EXISTS views INTEGER DEFAULT 0;
 ALTER TABLE channel_posts_history ADD COLUMN IF NOT EXISTS post_date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
 ALTER TABLE channel_posts_history ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
+
+-- PostAssist V2 (3-bosqich): persistent delivery + backoff ustunlari.
+ALTER TABLE post_deliveries ADD COLUMN IF NOT EXISTS scheduled_time TIMESTAMPTZ;
+ALTER TABLE post_deliveries ADD COLUMN IF NOT EXISTS next_retry_at TIMESTAMPTZ;
 
 -- --- INDEKSLAR (eng ko'p ishlatiladigan qidiruvlar uchun) ---
 -- users.user_id PRIMARY KEY bo'lgani uchun u yerda indeks avtomatik mavjud.
