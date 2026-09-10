@@ -95,9 +95,13 @@ LIMIT_AI_MSG = (
 )
 
 
-def _format_expires(expires_at) -> str:
+def _format_expires(expires_at, lang: str = "uz") -> str:
     """Obuna tugash muddatini formatlaydi."""
     if expires_at is None:
+        if lang == "ru":
+            return "♾ Безлимит"
+        if lang == "en":
+            return "♾ Unlimited"
         return "♾ Cheksiz"
     try:
         return expires_at.strftime("%d.%m.%Y %H:%M")
@@ -105,8 +109,8 @@ def _format_expires(expires_at) -> str:
         return str(expires_at)
 
 
-def _build_subscription_card(plan_info: dict) -> str:
-    """Obuna holati kartasini yaratadi."""
+def _build_subscription_card(plan_info: dict, lang: str = "uz") -> str:
+    """Obuna holati kartasini yaratadi (uz/ru/en)."""
     plan = plan_info.get("plan_type", "free")
     expires = plan_info.get("expires_at")
     ai_used = plan_info.get("ai_used", 0)
@@ -117,36 +121,76 @@ def _build_subscription_card(plan_info: dict) -> str:
     limits = db.PLAN_LIMITS.get(plan, db.PLAN_LIMITS["free"])
     max_ch = limits["max_channels"]
     max_ai = limits["daily_ai_requests"]
-    ch_str = str(max_ch) if max_ch < 999 else "Cheksiz"
-    ai_str = str(max_ai) if max_ai < 999 else "Cheksiz"
+    unlimited = {"uz": "Cheksiz", "ru": "Безлимит", "en": "Unlimited"}.get(lang, "Cheksiz")
+    ch_str = str(max_ch) if max_ch < 999 else unlimited
+    ai_str = str(max_ai) if max_ai < 999 else unlimited
+    your = {
+        "uz": f"{plan_emoji} <b>Sizning tarifingiz: {plan_name}</b>",
+        "ru": f"{plan_emoji} <b>Ваш тариф: {plan_name}</b>",
+        "en": f"{plan_emoji} <b>Your plan: {plan_name}</b>",
+    }.get(lang, f"{plan_emoji} <b>Sizning tarifingiz: {plan_name}</b>")
+    expires_l = {
+        "uz": f"📅 Obuna muddati: <b>{_format_expires(expires, lang)}</b>",
+        "ru": f"📅 Срок подписки: <b>{_format_expires(expires, lang)}</b>",
+        "en": f"📅 Subscription: <b>{_format_expires(expires, lang)}</b>",
+    }.get(lang)
+    ch_l = {
+        "uz": f"📢 Kanallar limiti: <b>{ch_str}</b>",
+        "ru": f"📢 Лимит каналов: <b>{ch_str}</b>",
+        "en": f"📢 Channel limit: <b>{ch_str}</b>",
+    }.get(lang)
+    ai_l = {
+        "uz": f"🤖 Kunlik AI so'rovlar: <b>{ai_used} / {ai_str}</b>",
+        "ru": f"🤖 ИИ-запросы за день: <b>{ai_used} / {ai_str}</b>",
+        "en": f"🤖 Daily AI requests: <b>{ai_used} / {ai_str}</b>",
+    }.get(lang)
 
     lines = [
-        f"{plan_emoji} <b>Sizning tarifingiz: {plan_name}</b>",
-        f"━━━━━━━━━━━━━━━━━",
-        f"📅 Obuna muddati: <b>{_format_expires(expires)}</b>",
-        f"📢 Kanallar limiti: <b>{ch_str}</b>",
-        f"🤖 Kunlik AI so'rovlar: <b>{ai_used} / {ai_str}</b>",
-        f"━━━━━━━━━━━━━━━━━",
+        your,
+        "━━━━━━━━━━━━━━━━━",
+        expires_l,
+        ch_l,
+        ai_l,
+        "━━━━━━━━━━━━━━━━━",
     ]
 
     if plan == "free":
+        if lang == "ru":
+            lines.extend([
+                "",
+                "⭐️ <b>Возможности тарифа PRO:</b>",
+                "• Безлимитные каналы",
+                "• Безлимитный ИИ и контент-план",
+                "• Безлимитная очередь постов",
+                "• Полная аналитика",
+                "• Приоритетная поддержка",
+            ])
+        elif lang == "en":
+            lines.extend([
+                "",
+                "⭐️ <b>PRO features:</b>",
+                "• Unlimited channels",
+                "• Unlimited AI posts and content plan",
+                "• Unlimited queue",
+                "• Full analytics",
+                "• Priority support",
+            ])
+        else:
+            lines.extend([
+                "",
+                "⭐️ <b>PRO Tarif imkoniyatlari:</b>",
+                "• Cheksiz kanallar ulash",
+                "• Cheksiz AI post yordamchisi va Kontent-reja",
+                "• Cheksiz Queue (Navbat) postlari",
+                "• To'liq analitika",
+                "• Ustuvor yordam",
+            ])
         lines.extend([
             "",
-            "⭐️ <b>PRO Tarif imkoniyatlari:</b>",
-            "• Cheksiz kanallar ulash",
-            "• Cheksiz AI post yordamchisi va Kontent-reja",
-            "• Cheksiz Queue (Navbat) postlari",
-            "• To'liq analitika",
-            "• Ustuvor yordam",
-            "",
-            "💳 <b>PRO Tarif narxlari:</b>",
+            "💳 <b>PRO:</b>",
             "• 1 oy — ⭐️ 75 Stars (~$1.5)",
             "• 3 oy — ⭐️ 175 Stars (~$3.5)",
-            "• 1 yil — ⭐️ 550 Stars (~$11.0 / -40% chegirma)",
-            "• 💳 Karta orqali (Uzcard / Humo) — pastdagi tugma",
-            "",
-            "🚫 PRO'da postlaringiz va bot javoblari avtomatik 100% reklamasiz.",
-            "👥 Referal: 1–3-do'st uchun +3 tadan, keyingilar uchun +1 AI ball.",
+            "• 1 yil — ⭐️ 550 Stars (~$11.0 / -40%)",
         ])
 
     return "\n".join(lines)
@@ -170,7 +214,8 @@ def _get_subscription_keyboard(plan: str, lang: str = "uz") -> InlineKeyboardMar
         keyboard.append([
             InlineKeyboardButton(get_text("btn_card_payment", lang), callback_data="sub_card_pay"),
         ])
-    keyboard.append([InlineKeyboardButton("🎁 Promo-kod kiritish", callback_data="sub_promo")])
+    promo = {"uz": "🎁 Promo-kod kiritish", "ru": "🎁 Ввести промокод", "en": "🎁 Enter promo code"}.get(lang, "🎁 Promo-kod kiritish")
+    keyboard.append([InlineKeyboardButton(promo, callback_data="sub_promo")])
     keyboard.append([InlineKeyboardButton("⬅️ Orqaga", callback_data="sub_back_main")])
     return InlineKeyboardMarkup(keyboard)
 
@@ -263,7 +308,7 @@ async def start_subscription(update: Update, context: ContextTypes.DEFAULT_TYPE)
     user_id = update.effective_user.id
     lang = await ensure_user_lang(context, user_id)
     plan_info = await db.run_db(db.get_user_plan, user_id)
-    card = _build_subscription_card(plan_info)
+    card = _build_subscription_card(plan_info, lang)
     plan = plan_info.get("plan_type", "free")
 
     await update.message.reply_text(
@@ -319,7 +364,7 @@ async def subscription_callback(update: Update, context: ContextTypes.DEFAULT_TY
         # Tarif limiti / reklama tugmasi orqali '⭐️ PRO tarifga o'tish' —
         # obuna kartasini ko'rsatadi.
         plan_info = await db.run_db(db.get_user_plan, user_id)
-        card = _build_subscription_card(plan_info)
+        card = _build_subscription_card(plan_info, lang)
         plan = plan_info.get("plan_type", "free")
         try:
             await query.message.reply_text(
@@ -417,7 +462,7 @@ async def subscription_callback(update: Update, context: ContextTypes.DEFAULT_TY
 
     if data == "sub_back":
         plan_info = await db.run_db(db.get_user_plan, user_id)
-        card = _build_subscription_card(plan_info)
+        card = _build_subscription_card(plan_info, lang)
         plan = plan_info.get("plan_type", "free")
         try:
             await query.edit_message_text(
@@ -443,7 +488,7 @@ async def subscription_callback(update: Update, context: ContextTypes.DEFAULT_TY
 
     if data == "sub_refresh":
         plan_info = await db.run_db(db.get_user_plan, user_id)
-        card = _build_subscription_card(plan_info)
+        card = _build_subscription_card(plan_info, lang)
         plan = plan_info.get("plan_type", "free")
         try:
             await query.edit_message_text(
@@ -471,7 +516,7 @@ async def promo_code_received(update: Update, context: ContextTypes.DEFAULT_TYPE
     if text in ("🔙 Asosiy menyu", "🔙 Orqaga"):
         # Qaytadan obuna kartasini ko'rsatamiz
         plan_info = await db.run_db(db.get_user_plan, user_id)
-        card = _build_subscription_card(plan_info)
+        card = _build_subscription_card(plan_info, lang)
         plan = plan_info.get("plan_type", "free")
         await update.message.reply_text(
             card,

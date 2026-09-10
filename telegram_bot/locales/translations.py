@@ -5,7 +5,7 @@ Foydalanish:
 """
 
 DEFAULT_LANG = "uz"
-SUPPORTED_LANGS = ("uz", "ru")
+SUPPORTED_LANGS = ("uz", "ru", "en")
 LANG_KEY = "lang"
 
 TRANSLATIONS = {
@@ -3009,14 +3009,24 @@ TRANSLATIONS = {
     },
 }
 
+try:
+    from locales.en_overlay import EN_OVERLAY
+except ImportError:
+    from en_overlay import EN_OVERLAY  # type: ignore
+
+TRANSLATIONS["en"] = dict(TRANSLATIONS["uz"])
+TRANSLATIONS["en"].update(EN_OVERLAY)
+
 
 def normalize_lang(lang) -> str:
-    """Faqat 'uz' yoki 'ru' qaytaradi."""
+    """Faqat 'uz', 'ru' yoki 'en' qaytaradi."""
     if lang is None:
         return DEFAULT_LANG
     raw = str(lang).strip().lower()
     if raw.startswith("ru"):
         return "ru"
+    if raw.startswith("en"):
+        return "en"
     return DEFAULT_LANG
 
 

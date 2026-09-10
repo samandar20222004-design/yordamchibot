@@ -7,6 +7,7 @@ import database as db
 from keyboards.default import get_cancel_keyboard, get_main_keyboard, get_button_prompt_keyboard
 from keyboards.inline import btn_label
 from keyboards.callback_data import cb
+from locales.translations import get_text, get_lang
 from utils.helpers import html_escape, safe_html, get_auto_ad_injection_async, keep_typing
 from utils.channel_reader import (
     format_post_list, read_channel_posts, read_webpage_for_ai,
@@ -176,12 +177,31 @@ async def extract_username_received(update: Update, context: ContextTypes.DEFAUL
     username = result.get("channel") or extract_channel_username(text) or text.lstrip("@").strip().rstrip("/")
 
     if status == "private":
+        lang = get_lang(context)
+        if lang == "ru":
+            msg = (
+                "🔒 <b>Это закрытый канал.</b>\n\n"
+                "Отправьте открытый канал или канал, где вы администратор.\n"
+                "Например: <code>@kunuzofficial</code> или "
+                "<code>https://t.me/kunuzofficial</code>"
+            )
+        elif lang == "en":
+            msg = (
+                "🔒 <b>This is a private channel.</b>\n\n"
+                "Send a public channel or one where you are an admin.\n"
+                "Example: <code>@kunuzofficial</code> or "
+                "<code>https://t.me/kunuzofficial</code>"
+            )
+        else:
+            msg = (
+                "🔒 <b>Bu yopiq kanal.</b>\n\n"
+                "Ochiq kanallarni yoki o'zingiz admin bo'lgan kanallarni yuboring.\n"
+                "Masalan: <code>@kunuzofficial</code> yoki "
+                "<code>https://t.me/kunuzofficial</code>"
+            )
         await update.message.reply_text(
-            "🔒 <b>Bu yopiq kanal.</b>\n\n"
-            "Ochiq kanallarni yoki o'zingiz admin bo'lgan kanallarni yuboring.\n"
-            "Masalan: <code>@kunuzofficial</code> yoki "
-            "<code>https://t.me/kunuzofficial</code>",
-            reply_markup=get_cancel_keyboard(),
+            msg,
+            reply_markup=get_cancel_keyboard(lang),
             parse_mode="HTML",
         )
         return EXTRACT_USERNAME

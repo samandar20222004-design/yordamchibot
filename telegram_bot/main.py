@@ -18,7 +18,9 @@ from scheduler import (
 )
 from utils.web_server import start_web_server
 from utils.ai_agent import close_ai_session, reload_runtime_params
-from utils.helpers import check_global_flood, check_rate_limit, is_duplicate_message
+from utils.helpers import (
+    check_global_flood, check_rate_limit, is_duplicate_message, is_callback_throttled,
+)
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -106,8 +108,15 @@ class GuardedApplication(Application):
                 if check_global_flood():
                     await asyncio.sleep(0.4)
 
-                # 2) Foydalanuvchi bo'yicha burst (hujum/flood)
+                # 1b) Callback 1.5s debounce — tugma spam / double-tap
+                query = getattr(update, "callback_query", None)
                 user = getattr(update, "effective_user", None)
+                if query is not None and user is not None:
+                    if is_callback_throttled(user.id):
+                        await self._answer_callback_wait(update)
+                        return None
+
+                # 2) Foydalanuvchi bo'yicha burst (hujum/flood)
                 if user is not None:
                     blocked, _ = check_rate_limit(user.id, max_requests=20, window_seconds=2.0)
                     if blocked:
@@ -130,14 +139,17 @@ class GuardedApplication(Application):
 
     @staticmethod
     async def _answer_rate_limited(update):
-
         """Rate-limit/dublikat tufayli tashlab yuborilgan callback'ga darhol
         javob beradi — aks holda Telegram tugmani 'yuklanmoqda' holatida
         qoldiradi (tugma qotib qoladi)."""
+        await GuardedApplication._answer_callback_wait(update)
+
+    @staticmethod
+    async def _answer_callback_wait(update):
         query = getattr(update, "callback_query", None)
         if query is not None:
             try:
-                await query.answer("⏳ Iltimos, biroz kuting...", show_alert=False)
+                await query.answer("⏳ Iltimos, kuting...", show_alert=False)
             except Exception:
                 pass
 

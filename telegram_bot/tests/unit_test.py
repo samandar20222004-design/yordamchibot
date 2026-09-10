@@ -6142,12 +6142,12 @@ def test_i18n_uz_ru():
     import database as db_mod
     from pathlib import Path
 
-    check("SUPPORTED_LANGS", SUPPORTED_LANGS == ("uz", "ru"))
+    check("SUPPORTED_LANGS", SUPPORTED_LANGS == ("uz", "ru", "en"))
     check("DEFAULT_LANG uz", DEFAULT_LANG == "uz")
     check("detect ru", detect_language("ru") == "ru")
     check("detect ru-RU", detect_language("ru-RU") == "ru")
     check("detect uz", detect_language("uz") == "uz")
-    check("detect en -> uz", detect_language("en") == "uz")
+    check("detect en -> en", detect_language("en") == "en")
     check("detect None -> uz", detect_language(None) == "uz")
     check("normalize ru-uz", normalize_lang("RU") == "ru")
 
@@ -6160,7 +6160,7 @@ def test_i18n_uz_ru():
     check("new_post_no_channels uz", "Ulangan kanal" in get_text("new_post_no_channels", "uz"))
     check("new_post_no_channels ru", "не найден" in get_text("new_post_no_channels", "ru"))
     check("unknown key fallback", get_text("no_such_key", "ru") == "no_such_key")
-    check("unknown lang -> uz", get_text("btn_new_post", "en") == get_text("btn_new_post", "uz"))
+    check("unknown lang -> uz", get_text("btn_new_post", "fr") == get_text("btn_new_post", "uz"))
 
     ru_rows = [[b.text for b in row] for row in get_main_keyboard(False, lang="ru").keyboard]
     check("ru row1", ru_rows[0] == [BTN_NEW_POST_RU, BTN_AI_STUDIO_RU], str(ru_rows[0]))
@@ -6196,9 +6196,10 @@ def test_i18n_uz_ru():
     lk_cbs = [b.callback_data for row in get_language_keyboard().inline_keyboard for b in row]
     check("lang kb: uz", "cab_lang_uz" in lk_cbs, str(lk_cbs))
     check("lang kb: ru", "cab_lang_ru" in lk_cbs, str(lk_cbs))
+    check("lang kb: en", "cab_lang_en" in lk_cbs, str(lk_cbs))
 
     check("db._normalize ru", db_mod._normalize_language_code("ru-RU") == "ru")
-    check("db._normalize en", db_mod._normalize_language_code("en") == "uz")
+    check("db._normalize en", db_mod._normalize_language_code("en") == "en")
     check("db.get_user_language", callable(db_mod.get_user_language))
     check("db.set_user_language", callable(db_mod.set_user_language))
     check("save_user language_code param",
@@ -7472,7 +7473,7 @@ def test_i18n_safe_fallback_and_parity():
     check("fallback: None kalit → bo'sh satr", get_text(None, "ru") == "")
     check("fallback: bo'sh kalit → bo'sh satr", get_text("", "ru") == "")
     check("fallback: noma'lum til → uz",
-          get_text("btn_new_post", "en") == get_text("btn_new_post", "uz"))
+          get_text("btn_new_post", "fr") == get_text("btn_new_post", "uz"))
     check("fallback: None til → uz",
           get_text("btn_new_post", None) == get_text("btn_new_post", "uz"))
 
@@ -8087,7 +8088,7 @@ def test_onboarding_simple_keyboard():
           BTN_QUICK_ADD_CHANNEL_RU == "📢 Подключить канал", BTN_QUICK_ADD_CHANNEL_RU)
     check("tugma ru: ⚙️ Открыть полное меню",
           BTN_OPEN_FULL_MENU_RU == "⚙️ Открыть полное меню", BTN_OPEN_FULL_MENU_RU)
-    check("QUICK_MENU_BUTTONS: 8 ta (uz+ru)", len(QUICK_MENU_BUTTONS) == 8,
+    check("QUICK_MENU_BUTTONS: 12 ta (uz+ru+en)", len(QUICK_MENU_BUTTONS) == 12,
           str(len(QUICK_MENU_BUTTONS)))
     check("barcha tugmalar lug'atdan olinadi",
           BTN_QUICK_AI_POST == get_text("quick_btn_ai_post", "uz")

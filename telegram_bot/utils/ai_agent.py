@@ -255,14 +255,22 @@ AI_TIMEOUT_USER_MESSAGE = (
 
 
 def ai_timeout_message(lang: str = "uz") -> str:
-    """Timeout uchun foydalanuvchi tilidagi xushmuomala xabar (uz/ru)."""
-    if str(lang or "").lower().startswith("ru"):
+    """Timeout uchun foydalanuvchi tilidagi xushmuomala xabar (uz/ru/en)."""
+    code = str(lang or "").lower()
+    if code.startswith("ru"):
         return (
             "⏳ <b>Сервис ИИ сейчас не отвечает.</b>\n\n"
             f"Запрос не завершился за {AI_TOTAL_TIMEOUT} секунд — возможно, сервер "
             "загружен или соединение медленное.\n\n"
             "Пожалуйста, попробуйте ещё раз через минуту. "
             "Ваш текст сохранён. 🙏"
+        )
+    if code.startswith("en"):
+        return (
+            "⏳ <b>The AI service is not responding right now.</b>\n\n"
+            f"The request did not finish in {AI_TOTAL_TIMEOUT} seconds — the server "
+            "may be busy or the connection is slow.\n\n"
+            "Please try again in a minute. Your text was saved. 🙏"
         )
     return AI_TIMEOUT_USER_MESSAGE
 

@@ -630,8 +630,8 @@ async def cabinet_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
         return
 
-    if data in ("cab_lang_uz", "cab_lang_ru"):
-        lang = "ru" if data.endswith("_ru") else "uz"
+    if data in ("cab_lang_uz", "cab_lang_ru", "cab_lang_en"):
+        lang = data.rsplit("_", 1)[-1]
         await query.answer()
         await db.run_db(db.set_user_language, user_id, lang)
         set_lang_cache(context, lang)

@@ -81,7 +81,9 @@ _USER_MSG_COUNT = {}
 _AI_HISTORY = {}
 _AI_DAILY = {}
 _DUP_HISTORY = {}
+_CB_THROTTLE = {}
 _GLOBAL_FLOOD = []  # so'nggi 1 soniyadagi barcha update'lar vaqtlari
+CALLBACK_THROTTLE_SECONDS = 1.5
 
 # --- Avtomatik reklama rotatsiya holati ---
 # Har bir scope ('channel' / 'reply') uchun navbatdagi reklama indeksi.
@@ -400,6 +402,22 @@ def check_rate_limit(user_id: int, max_requests: int = 3, window_seconds: float 
     history.append(now)
     _USER_HISTORY[user_id] = history
     return False, False
+
+
+def is_callback_throttled(user_id: int, data: str = "", window: float = None) -> bool:
+    """Same user + callback_data within 1.5s → True (debounce)."""
+    now = time.time()
+    win = CALLBACK_THROTTLE_SECONDS if window is None else float(window)
+    key = (int(user_id or 0), str(data or "")[:80])
+    last = _CB_THROTTLE.get(key)
+    if last is not None and now - last < win:
+        return True
+    _CB_THROTTLE[key] = now
+    if len(_CB_THROTTLE) > 8000:
+        cutoff = now - 10
+        for k in [k for k, v in _CB_THROTTLE.items() if v < cutoff]:
+            _CB_THROTTLE.pop(k, None)
+    return False
 
 
 def check_ai_rate_limit(user_id: int, max_per_minute: int = AI_MAX_PER_MINUTE) -> bool:
