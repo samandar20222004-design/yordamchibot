@@ -33,6 +33,14 @@ from keyboards.default import (
     BTN_QUICK_PHOTO_POST, BTN_QUICK_PHOTO_POST_RU,
     BTN_QUICK_ADD_CHANNEL, BTN_QUICK_ADD_CHANNEL_RU,
     BTN_OPEN_FULL_MENU, BTN_OPEN_FULL_MENU_RU,
+    #  EN variantlar — asosiy menyu/kabinet/onboarding tugmalari inglizcha
+    # klaviaturada bosilganda routing'da tanilishi uchun (uz/ru/en).
+    BTN_NEW_POST_EN, BTN_AI_STUDIO_EN, BTN_PREMIUM_EN, BTN_SETTINGS_EN,
+    BTN_HELP_EN, BTN_EXTRAS_EN, BTN_BACK_EN, BTN_CANCEL_EN,
+    BTN_CHANNELS_EN, BTN_CONVERTER_EN, BTN_DAILY_BONUS_EN, BTN_INVITE_EN,
+    BTN_TRANSFER_EN, BTN_ADMIN_PANEL_RU,
+    BTN_QUICK_AI_POST_EN, BTN_QUICK_PHOTO_POST_EN,
+    BTN_QUICK_ADD_CHANNEL_EN, BTN_OPEN_FULL_MENU_EN,
 )
 from locales.translations import clear_fsm_data, get_lang, get_text
 from keyboards.inline import get_subscription_check_keyboard
@@ -463,7 +471,7 @@ async def unknown_message_fallback(update, context):
 
     * Dialogdan TASHQARIDA (hech qanday ConversationHandler holati yo'q)
       tasodifiy matn, ovozli xabar (voice), audio, video, kontakt, joylashuv,
-      fayl yoki stiker kelsa — foydalanuvchi tilida (uz/ru) xushmuomala xabar
+      fayl yoki stiker kelsa — foydalanuvchi tilida (uz/ru/en) xushmuomala xabar
       ``unknown_message_fallback`` va ASOSIY reply-menyu yuboriladi.
     * Dialog ICHIDA bo'lsa-yu, joriy bosqich bu xabar turini qabul qilmasa —
       qisqa ``unknown_in_dialog`` eslatmasi (klaviatura o'zgartirilmaydi,
@@ -540,25 +548,35 @@ def register_all_handlers(app):
     # ============================================================
 
     # 1. Start & Navigatsiya
+    # Uch tilli routing: har bir reply tugma uz/ru/en variantlari bilan taniladi
+    # (klaviatura foydalanuvchi tilida chiziladi — bosilgan tugma hech qachon
+    # global fallback'ga tushib ketmasligi kerak).
     start_handlers = [
         # ❌ Bekor qilish — HAR QANDAY holatda FSM'ni to'xtatadi (all_menu_jumps
         # har bir state ro'yxatining boshida turgani uchun hamma joyda ishlaydi).
-        # ❌ Bekor qilish / 🔙 Asosiy menyu — ikkala tilda ham ishlaydi
+        # ❌ Bekor qilish / 🔙 Asosiy menyu — uchala tilda ham ishlaydi
         # (klaviatura foydalanuvchi tilida chiziladi).
         MessageHandler(exact(BTN_CANCEL, BTN_CANCEL_RU), cancel_handler),
+        MessageHandler(exact(BTN_CANCEL_EN), cancel_handler),
         MessageHandler(exact(BTN_BACK, BTN_MAIN_MENU, BTN_BACK_RU), lambda u, c: guard_menu(u, c, start)),
-        MessageHandler(exact(BTN_SETTINGS, BTN_CABINET, BTN_SETTINGS_RU), lambda u, c: guard_menu(u, c, user_cabinet_menu)),
-        MessageHandler(exact(BTN_HELP, BTN_HELP_RU), lambda u, c: guard_menu(u, c, help_command)),
-        MessageHandler(exact(BTN_EXTRAS, BTN_EXTRAS_RU), lambda u, c: guard_menu(u, c, extras_menu)),
-        # --- Kabinet ichki tugmalari (uz/ru) ---
+        MessageHandler(exact(BTN_BACK_EN), lambda u, c: guard_menu(u, c, start)),
+        MessageHandler(exact(BTN_SETTINGS, BTN_CABINET, BTN_SETTINGS_RU, BTN_SETTINGS_EN), lambda u, c: guard_menu(u, c, user_cabinet_menu)),
+        MessageHandler(exact(BTN_HELP, BTN_HELP_RU, BTN_HELP_EN), lambda u, c: guard_menu(u, c, help_command)),
+        MessageHandler(exact(BTN_EXTRAS, BTN_EXTRAS_RU, BTN_EXTRAS_EN), lambda u, c: guard_menu(u, c, extras_menu)),
+        # --- Kabinet ichki tugmalari (uz/ru/en) ---
         MessageHandler(exact(BTN_DAILY_BONUS, BTN_DAILY_BONUS_RU), lambda u, c: guard_menu(u, c, daily_bonus_handler)),
+        MessageHandler(exact(BTN_DAILY_BONUS_EN), lambda u, c: guard_menu(u, c, daily_bonus_handler)),
         MessageHandler(exact(BTN_INVITE, BTN_INVITE_RU), lambda u, c: guard_menu(u, c, user_invite_menu)),
+        MessageHandler(exact(BTN_INVITE_EN), lambda u, c: guard_menu(u, c, user_invite_menu)),
         MessageHandler(exact(BTN_TRANSFER, BTN_TRANSFER_RU), lambda u, c: guard_entry(u, c, start_transfer_credits)),
+        MessageHandler(exact(BTN_TRANSFER_EN), lambda u, c: guard_entry(u, c, start_transfer_credits)),
     ]
 
     # 2. Yangi post
     new_post_handlers = [
         MessageHandler(exact(BTN_NEW_POST, BTN_NEW_POST_RU), lambda u, c: guard_entry(u, c, start_new_post)),
+        # EN klaviaturadagi "➕ New post" — fallback'ga tushmasligi uchun alohida variant
+        MessageHandler(exact(BTN_NEW_POST_EN), lambda u, c: guard_entry(u, c, start_new_post)),
     ]
 
     # 1b. 🆕 Yangi foydalanuvchi — SODDA (3 tugmali) klaviatura.
@@ -567,22 +585,23 @@ def register_all_handlers(app):
     # yoki qo'lda yuborilgan matn ham to'g'ri oqimni ochishi kerak.
     onboarding_handlers = [
         # 🚀 1 daqiqada post yaratish → AI post yozish (AI_PROMPT_INPUT)
-        MessageHandler(exact(BTN_QUICK_AI_POST, BTN_QUICK_AI_POST_RU),
+        MessageHandler(exact(BTN_QUICK_AI_POST, BTN_QUICK_AI_POST_RU, BTN_QUICK_AI_POST_EN),
                        lambda u, c: guard_entry(u, c, quick_ai_post_entry)),
         # 🖼 Rasmdan post olish → Vision oqimi (AI_PHOTO_INPUT)
-        MessageHandler(exact(BTN_QUICK_PHOTO_POST, BTN_QUICK_PHOTO_POST_RU),
+        MessageHandler(exact(BTN_QUICK_PHOTO_POST, BTN_QUICK_PHOTO_POST_RU, BTN_QUICK_PHOTO_POST_EN),
                        lambda u, c: guard_entry(u, c, quick_photo_post_entry)),
         # 📢 Kanal ulash → kanal ulash oqimi (ADD_CHANNEL)
-        MessageHandler(exact(BTN_QUICK_ADD_CHANNEL, BTN_QUICK_ADD_CHANNEL_RU),
+        MessageHandler(exact(BTN_QUICK_ADD_CHANNEL, BTN_QUICK_ADD_CHANNEL_RU, BTN_QUICK_ADD_CHANNEL_EN),
                        lambda u, c: guard_entry(u, c, quick_add_channel_entry)),
         # ⚙️ To'liq menyuni ochish → belgi bazaga yoziladi, standart menyu chiqadi
-        MessageHandler(exact(BTN_OPEN_FULL_MENU, BTN_OPEN_FULL_MENU_RU),
+        MessageHandler(exact(BTN_OPEN_FULL_MENU, BTN_OPEN_FULL_MENU_RU, BTN_OPEN_FULL_MENU_EN),
                        lambda u, c: guard_menu(u, c, open_full_menu)),
     ]
 
     # 3. Kanallar
     channels_handlers = [
         MessageHandler(exact(BTN_CHANNELS, BTN_CHANNELS_RU), lambda u, c: guard_menu(u, c, channels_menu)),
+        MessageHandler(exact(BTN_CHANNELS_EN), lambda u, c: guard_menu(u, c, channels_menu)),
         MessageHandler(exact(BTN_ADD_CHANNEL), lambda u, c: guard_entry(u, c, start_add_channel)),
     ]
 
@@ -594,11 +613,12 @@ def register_all_handlers(app):
     # 5. Konverter
     converter_handlers = [
         MessageHandler(exact(BTN_CONVERTER, BTN_CONVERTER_RU), lambda u, c: guard_entry(u, c, start_converter)),
+        MessageHandler(exact(BTN_CONVERTER_EN), lambda u, c: guard_entry(u, c, start_converter)),
     ]
 
     # 6. Admin
     admin_handlers = [
-        MessageHandler(exact(BTN_ADMIN_PANEL), lambda u, c: guard_menu(u, c, admin_panel_menu)),
+        MessageHandler(exact(BTN_ADMIN_PANEL, BTN_ADMIN_PANEL_RU), lambda u, c: guard_menu(u, c, admin_panel_menu)),
         MessageHandler(exact(BTN_STATS), lambda u, c: guard_menu(u, c, show_statistics)),
         MessageHandler(exact(BTN_ALL_POSTS), lambda u, c: guard_menu(u, c, admin_all_posts)),
         MessageHandler(exact(BTN_ALL_CHANNELS), lambda u, c: guard_menu(u, c, admin_all_channels)),
@@ -616,8 +636,12 @@ def register_all_handlers(app):
     ]
 
     # 7. AI Studio (inline sub-menu — conversation ICHIDA doimiy navigatsiya)
+    # "✨ AI Studio" hozircha uchala tilda ham bir xil matn, lekin EN variant
+    # alohida qator sifatida saqlanadi — keyinchalik tarjima farqlansa ham
+    # routing buzilmaydi.
     ai_handlers = [
         MessageHandler(exact(BTN_AI_STUDIO, BTN_AI_STUDIO_RU), lambda u, c: guard_entry(u, c, ai_studio_menu_entry)),
+        MessageHandler(exact(BTN_AI_STUDIO_EN), lambda u, c: guard_entry(u, c, ai_studio_menu_entry)),
     ]
 
     # 8. Content Plan
@@ -631,8 +655,12 @@ def register_all_handlers(app):
     ]
 
     # 10. Subscription
+    # "⭐️ Premium" hozircha uchala tilda ham bir xil matn, lekin EN variant
+    # alohida qator sifatida saqlanadi — keyinchalik tarjima farqlansa ham
+    # routing buzilmaydi.
     subscription_handlers = [
         MessageHandler(exact(BTN_PREMIUM, BTN_PREMIUM_RU), lambda u, c: guard_entry(u, c, start_subscription)),
+        MessageHandler(exact(BTN_PREMIUM_EN), lambda u, c: guard_entry(u, c, start_subscription)),
     ]
 
     # 11. Channel Extract
@@ -968,7 +996,9 @@ def register_all_handlers(app):
             CommandHandler("start", start),
             CommandHandler("cancel", cancel_handler),
             MessageHandler(exact(BTN_CANCEL, BTN_CANCEL_RU), cancel_handler),
+            MessageHandler(exact(BTN_CANCEL_EN), cancel_handler),
             MessageHandler(exact(BTN_BACK, BTN_MAIN_MENU, BTN_BACK_RU), lambda u, c: guard_menu(u, c, start)),
+            MessageHandler(exact(BTN_BACK_EN), lambda u, c: guard_menu(u, c, start)),
         ],
         allow_reentry=True,
         conversation_timeout=CONVERSATION_TIMEOUT_SEC,

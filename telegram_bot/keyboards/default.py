@@ -29,6 +29,18 @@ BTN_BACK_RU = get_text("btn_main_menu", "ru")
 BTN_CANCEL_RU = get_text("btn_cancel", "ru")
 BTN_CONVERTER_RU = get_text("cab_btn_converter", "ru")
 
+# Inglizcha variantlar — MessageHandler regex'iga (uz/ru/en) qo'shiladi.
+# EN klaviaturada bosilgan barcha asosiy menyu tugmalari routing'da tanilishi
+# uchun (aks holda global fallback'ga tushib ketardi).
+BTN_NEW_POST_EN = get_text("btn_new_post", "en")
+BTN_AI_STUDIO_EN = get_text("btn_ai_studio", "en")
+BTN_PREMIUM_EN = get_text("btn_premium", "en")
+BTN_SETTINGS_EN = get_text("btn_settings", "en")
+BTN_HELP_EN = get_text("btn_help", "en")
+BTN_EXTRAS_EN = get_text("btn_extras", "en")
+BTN_BACK_EN = get_text("btn_main_menu", "en")
+BTN_CANCEL_EN = get_text("btn_cancel", "en")
+
 # ============================================================
 # 🆕 SODDA KLAVIATURA — yangi foydalanuvchilar (1-3 kun) uchun
 # ============================================================
@@ -76,8 +88,17 @@ BTN_DAILY_BONUS_RU = get_text("cab_btn_daily_bonus", "ru")
 BTN_INVITE_RU = get_text("cab_btn_invite", "ru")
 BTN_TRANSFER_RU = get_text("cab_btn_transfer", "ru")
 
+# --- Kabinet ichidagi tugmalar (en) — Routing EN tilini ham taniydi ---
+BTN_CHANNELS_EN = get_text("cab_btn_channels", "en")
+BTN_CONVERTER_EN = get_text("cab_btn_converter", "en")
+BTN_DAILY_BONUS_EN = get_text("cab_btn_daily_bonus", "en")
+BTN_INVITE_EN = get_text("cab_btn_invite", "en")
+BTN_TRANSFER_EN = get_text("cab_btn_transfer", "en")
+
 # --- Admin tugmalari ---
 BTN_ADMIN_PANEL = "⚙️ Admin Panel"
+# RU variant — qo'lda yuborilgan ruscha matn ham admin panelga tushadi
+BTN_ADMIN_PANEL_RU = "⚙️ Панель администратора"
 BTN_STATS = "📊 Statistika"
 BTN_BROADCAST = "✉️ Xabar yuborish"
 BTN_ALL_POSTS = "📋 Barcha postlar"
