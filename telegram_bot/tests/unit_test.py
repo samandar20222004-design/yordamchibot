@@ -6218,6 +6218,226 @@ def test_i18n_uz_ru():
     check("start: cab_lang", "cab_lang" in start_src)
     check("start: set_user_language", "set_user_language" in start_src)
 
+
+def test_i18n_en_menu_buttons_and_fallback():
+    """EN i18n: lang='en' bo'lganda asosiy menyu/onboarding/kabinet tugmalari
+    router'da taniladi (fallback'ga tushmaydi) va global fallback xabari
+    foydalanuvchi tilida — inglizcha — chiqadi.
+
+    Kritik regression: EN klaviaturada bosilgan har bir reply tugma
+    (New post / AI Studio / Premium / Account & Settings / Guide / About /
+    Extra features / Admin Panel + onboarding sodda menyu + kabinet)
+    tegishli handlerga tushishi, ``unknown_message_fallback``'ga emas.
+    """
+    print("== i18n EN: asosiy menyu tugmalari + fallback ==")
+    import asyncio
+    import datetime as _dt
+    import types
+    import warnings
+    from telegram import Update, Message, Chat, User, Voice, ReplyKeyboardMarkup
+    from telegram.ext import (
+        ApplicationBuilder, ConversationHandler, MessageHandler, CallbackContext,
+    )
+    from locales.translations import get_text
+    from keyboards.default import (
+        get_main_keyboard, get_simple_keyboard,
+        BTN_NEW_POST_EN, BTN_AI_STUDIO_EN, BTN_PREMIUM_EN, BTN_SETTINGS_EN,
+        BTN_HELP_EN, BTN_EXTRAS_EN, BTN_BACK_EN, BTN_CANCEL_EN,
+        BTN_CHANNELS_EN, BTN_CONVERTER_EN, BTN_DAILY_BONUS_EN, BTN_INVITE_EN,
+        BTN_TRANSFER_EN, BTN_ADMIN_PANEL, BTN_ADMIN_PANEL_RU,
+        BTN_QUICK_AI_POST_EN, BTN_QUICK_PHOTO_POST_EN,
+        BTN_QUICK_ADD_CHANNEL_EN, BTN_OPEN_FULL_MENU_EN,
+        BTN_NEW_POST, BTN_NEW_POST_RU, BTN_SETTINGS_RU,
+    )
+    import handlers as h_mod
+    from handlers import register_all_handlers, unknown_message_fallback
+
+    # ---------- 1) EN lug'at: tugma matnlari va fallback xabarlar ----------
+    check("EN btn_new_post", get_text("btn_new_post", "en") == "➕ New post")
+    check("EN btn_settings", get_text("btn_settings", "en") == "👤 Account & Settings")
+    check("EN btn_help", get_text("btn_help", "en") == "📖 Guide / About")
+    check("EN btn_extras", get_text("btn_extras", "en") == "⚙️ Extra features")
+    check("EN btn_cancel", get_text("btn_cancel", "en") == "❌ Cancel")
+    check("EN btn_main_menu", get_text("btn_main_menu", "en") == "🔙 Main menu")
+    check("EN fallback: uz'dan farq qiladi",
+          get_text("unknown_message_fallback", "en") != get_text("unknown_message_fallback", "uz"))
+    check("EN fallback: inglizcha",
+          get_text("unknown_message_fallback", "en").startswith("Sorry"))
+    check("EN in_dialog: uz'dan farq qiladi",
+          get_text("unknown_in_dialog", "en") != get_text("unknown_in_dialog", "uz"))
+    check("EN in_dialog: inglizcha",
+          "not accepted" in get_text("unknown_in_dialog", "en"))
+
+    # ---------- 2) HAQIQIY router: register_all_handlers ----------
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        app = ApplicationBuilder().token("123456:TEST_TOKEN").build()
+        register_all_handlers(app)
+    conv = [h for h in app.handlers[0] if isinstance(h, ConversationHandler)][0]
+
+    def _upd(text):
+        user = User(id=777, first_name="Ali", is_bot=False)
+        chat = Chat(id=777, type="private")
+        msg = Message(message_id=1, date=_dt.datetime.now(), chat=chat,
+                      from_user=user, text=text)
+        return Update(update_id=1, message=msg)
+
+    def _first_match(text):
+        for group in sorted(app.handlers):
+            for h in app.handlers[group]:
+                r = h.check_update(_upd(text))
+                if r is not None and r is not False:
+                    return h
+        return None
+
+    def _entry_fn_names(label):
+        """"label" matnini taniydigan conv entry_point MessageHandler'lari
+        chaqiradigan funksiya nomlari (lambda bo'lsa — co_names orqali)."""
+        names = set()
+        for h in conv.entry_points:
+            if not isinstance(h, MessageHandler):
+                continue
+            if h.check_update(_upd(label)) in (None, False):
+                continue
+            cb = h.callback
+            if callable(cb) and hasattr(cb, "__name__") and cb.__name__ != "<lambda>":
+                names.add(cb.__name__)
+            elif getattr(getattr(cb, "__code__", None), "co_names", None):
+                names.update(cb.__code__.co_names)
+        return names
+
+    # ---------- 3) Har bir EN tugma → tegishli handler (fallback EMAS) ----------
+    en_button_targets = (
+        (BTN_NEW_POST_EN, "start_new_post"),
+        (BTN_AI_STUDIO_EN, "ai_studio_menu_entry"),
+        (BTN_PREMIUM_EN, "start_subscription"),
+        (BTN_SETTINGS_EN, "user_cabinet_menu"),
+        (BTN_HELP_EN, "help_command"),
+        (BTN_EXTRAS_EN, "extras_menu"),
+        (BTN_BACK_EN, "start"),
+        (BTN_CANCEL_EN, "cancel_handler"),
+        (BTN_ADMIN_PANEL, "admin_panel_menu"),
+        (BTN_ADMIN_PANEL_RU, "admin_panel_menu"),
+        # Onboarding sodda menyu (EN)
+        (BTN_QUICK_AI_POST_EN, "quick_ai_post_entry"),
+        (BTN_QUICK_PHOTO_POST_EN, "quick_photo_post_entry"),
+        (BTN_QUICK_ADD_CHANNEL_EN, "quick_add_channel_entry"),
+        (BTN_OPEN_FULL_MENU_EN, "open_full_menu"),
+        # Kabinet ichki tugmalar (EN)
+        (BTN_CHANNELS_EN, "channels_menu"),
+        (BTN_CONVERTER_EN, "start_converter"),
+        (BTN_DAILY_BONUS_EN, "daily_bonus_handler"),
+        (BTN_INVITE_EN, "user_invite_menu"),
+        (BTN_TRANSFER_EN, "start_transfer_credits"),
+    )
+    for label, fn in en_button_targets:
+        fns = _entry_fn_names(label)
+        check(f"EN entry_point {label[:26]!r} → {fn}", fn in fns, str(sorted(fns)))
+        h = _first_match(label)
+        check(f"EN {label[:26]!r} fallback'ga tushmaydi",
+              h is not None and isinstance(h, ConversationHandler)
+              and getattr(h, "callback", None) is not unknown_message_fallback,
+              type(h).__name__)
+
+    # ---------- 4) EN klaviaturalar = router qamrovi (tuxunsiz) ----------
+    en_rows = [[b.text for b in row] for row in get_main_keyboard(False, lang="en").keyboard]
+    check("EN main kb row1", en_rows[0] == [BTN_NEW_POST_EN, BTN_AI_STUDIO_EN], str(en_rows[0]))
+    check("EN main kb row2", en_rows[1] == [BTN_PREMIUM_EN, BTN_SETTINGS_EN], str(en_rows[1]))
+    check("EN main kb row3", en_rows[2] == [BTN_HELP_EN, BTN_EXTRAS_EN], str(en_rows[2]))
+    for label in (t for row in en_rows for t in row):
+        check(f"EN klaviatura tugmasi router'da: {label[:26]!r}",
+              bool(_entry_fn_names(label)))
+    simple_rows = [b.text for row in get_simple_keyboard("en").keyboard for b in row]
+    check("EN simple kb (onboarding)",
+          simple_rows == [BTN_QUICK_AI_POST_EN, BTN_QUICK_PHOTO_POST_EN,
+                          BTN_QUICK_ADD_CHANNEL_EN, BTN_OPEN_FULL_MENU_EN],
+          str(simple_rows))
+
+    # ---------- 5) Regressiya: UZ/RU tugmalar hali ham taniladi ----------
+    for label in (BTN_NEW_POST, BTN_NEW_POST_RU, BTN_SETTINGS_RU,
+                  get_text("btn_settings", "ru"), BTN_ADMIN_PANEL_RU):
+        h = _first_match(label)
+        check(f"UZ/RU regressiya: {label[:26]!r} → Conversation",
+              isinstance(h, ConversationHandler), type(h).__name__)
+
+    # Tasodifiy (notanish) matn — fallback'ga tushadi
+    h = _first_match("hello, this is a random english message")
+    check("EN tasodifiy matn → fallback",
+          h is not None and getattr(h, "callback", None) is unknown_message_fallback,
+          type(h).__name__)
+
+    # ---------- 6) Fallback javobi: foydalanuvchi tilida (EN) + asosiy menyu ----------
+    class _RecBot:
+        id = 1
+        username = "TestBot"
+        defaults = None
+
+        def __init__(self):
+            self.sent = []
+
+        async def send_message(self, chat_id=None, text=None, reply_markup=None,
+                               parse_mode=None, **kw):
+            self.sent.append({"chat_id": chat_id, "text": text,
+                              "reply_markup": reply_markup})
+            return types.SimpleNamespace(message_id=len(self.sent))
+
+    # 6a) Dialogdan TASHQARIDA: tushunarsiz EN matn → EN fallback + EN menyu
+    h_mod._UNKNOWN_FALLBACK_LAST.clear()
+    bot = _RecBot()
+    user = User(id=888, first_name="Bob", is_bot=False)
+    chat = Chat(id=888, type="private")
+    msg = Message(message_id=1, date=_dt.datetime.now(), chat=chat,
+                  from_user=user, text="hello?")
+    msg.set_bot(bot)
+    upd = Update(update_id=1, message=msg)
+    upd.set_bot(bot)
+    ctx = CallbackContext(app, chat_id=888, user_id=888)
+    ctx.user_data["lang"] = "en"
+    asyncio.run(unknown_message_fallback(upd, ctx))
+    check("EN fallback: javob yuborildi", len(bot.sent) == 1, str(len(bot.sent)))
+    if bot.sent:
+        check("EN fallback: matn inglizcha",
+              bot.sent[0]["text"] == get_text("unknown_message_fallback", "en"),
+              str(bot.sent[0]["text"]))
+        kb = bot.sent[0]["reply_markup"]
+        check("EN fallback: asosiy menyu klaviaturasi bor",
+              isinstance(kb, ReplyKeyboardMarkup), type(kb).__name__)
+        labels = [b.text for row in kb.keyboard for b in row] if kb is not None else []
+        check("EN fallback: klaviatura EN tugmalar bilan",
+              BTN_NEW_POST_EN in labels and BTN_SETTINGS_EN in labels, str(labels))
+
+    # 6b) Dialog ICHIDA: qabul qilinmaydigan xabar turi → EN eslatma,
+    #     menyu YUBORILMAYDI, dialog holati buzilmaydi
+    from handlers.start import TRANSFER_TARGET
+    conv._conversations[(999, 999)] = TRANSFER_TARGET
+    h_mod._UNKNOWN_FALLBACK_LAST.clear()
+    try:
+        bot2 = _RecBot()
+        user2 = User(id=999, first_name="Eve", is_bot=False)
+        chat2 = Chat(id=999, type="private")
+        msg2 = Message(message_id=1, date=_dt.datetime.now(), chat=chat2,
+                       from_user=user2,
+                       voice=Voice(file_id="v", file_unique_id="vu", duration=3))
+        msg2.set_bot(bot2)
+        upd2 = Update(update_id=1, message=msg2)
+        upd2.set_bot(bot2)
+        ctx2 = CallbackContext(app, chat_id=999, user_id=999)
+        ctx2.user_data["lang"] = "en"
+        asyncio.run(unknown_message_fallback(upd2, ctx2))
+        check("EN in_dialog: eslatma yuborildi", len(bot2.sent) == 1, str(len(bot2.sent)))
+        if bot2.sent:
+            check("EN in_dialog: matn inglizcha",
+                  bot2.sent[0]["text"] == get_text("unknown_in_dialog", "en"),
+                  str(bot2.sent[0]["text"]))
+            check("EN in_dialog: klaviatura o'zgarmaydi",
+                  bot2.sent[0]["reply_markup"] is None)
+        check("EN in_dialog: holat buzilmadi",
+              conv._conversations.get((999, 999)) == TRANSFER_TARGET)
+    finally:
+        conv._conversations.pop((999, 999), None)
+        h_mod._UNKNOWN_FALLBACK_LAST.clear()
+
+
 def test_ai_studio_i18n_suite():
     """2-QISM: ✨ AI Studio i18n (uz/ru) — klaviaturalar va matnlar ikki tilda."""
     print("== AI Studio i18n (uz/ru) ==")
@@ -9169,6 +9389,7 @@ def main():
     test_my_chat_member_autoconnect_suite()
     test_referrer_id_and_new_providers_suite()
     test_i18n_uz_ru()
+    test_i18n_en_menu_buttons_and_fallback()
     test_cabinet_i18n_suite()
     test_ai_studio_i18n_suite()
     test_new_post_i18n_suite()

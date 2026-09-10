@@ -31,6 +31,13 @@ EN_OVERLAY = {
     "quick_btn_photo_post": "🖼 Post from a photo",
     "quick_btn_add_channel": "📢 Connect a channel",
     "quick_btn_full_menu": "⚙️ Open full menu",
+    # Kabinet (Account & Settings) ichidagi reply tugmalar — EN klaviaturada
+    # inglizcha chiqadi va routing ularni taniydi (fallback'ga tushmaydi).
+    "cab_btn_channels": "📢 Channels/Groups",
+    "cab_btn_converter": "🔤 Cyrillic-Latin converter",
+    "cab_btn_daily_bonus": "🎁 Daily bonus",
+    "cab_btn_invite": "🚀 Invite friends",
+    "cab_btn_transfer": "🔄 Transfer credits",
     "quick_full_menu_opened": (
         "✅ <b>Full menu is open!</b>\n\n"
         "All sections are available — pick one below 👇"
@@ -70,5 +77,16 @@ EN_OVERLAY = {
         "<b>5. Which languages does the bot support?</b>\n"
         "Uzbek, Russian and English. Change it in Account → Language.\n\n"
         "{support}"
+    ),
+    # 🤷 Global fallback: foydalanuvchi tushunarsiz matn yuborsa — xabar
+    # foydalanuvchi tanlangan tilida (uz/ru/en) chiqadi.
+    "unknown_message_fallback": (
+        "Sorry, I didn't understand that message. "
+        "Please choose a section from the menu below 👇"
+    ),
+    # Dialog ICHIDA joriy bosqich qabul qilmaydigan xabar turi kelsa
+    "unknown_in_dialog": (
+        "⚠️ This type of message is not accepted at this step. "
+        "Please send the requested information or press the 🔙 Main menu button."
     ),
 }
