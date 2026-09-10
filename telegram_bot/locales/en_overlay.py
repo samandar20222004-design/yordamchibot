@@ -89,4 +89,201 @@ EN_OVERLAY = {
         "⚠️ This type of message is not accepted at this step. "
         "Please send the requested information or press the 🔙 Main menu button."
     ),
+
+    # ================================================================
+    # ACCOUNT & SETTINGS — full EN coverage for Cabinet & Settings
+    # ================================================================
+
+    # Inline keyboard buttons
+    "cab_my_channels": "📢 My channels",
+    "cab_analytics": "📊 Channel analytics",
+    "cab_pending": "📅 Pending posts",
+    "cab_queue": "⏳ Post queue (Queue)",
+    "cab_balance": "💎 Credits & Ad mode",
+    "cab_referral": "👥 Invite friends",
+    "cab_add_channel": "➕ Add channel",
+    "cab_del_channel": "🗑 Delete channel",
+    "cab_remove_channel": "❌ Delete",
+    "cab_tone": "Style",
+    "cab_add_channel_alt": "➕ Connect new channel/group",
+
+    # My channels list
+    "my_channels_title": "📢 <b>My channels:</b>",
+    "my_channels_empty": (
+        "📢 <b>My channels:</b>\n\n"
+        "No channels connected yet.\n\n"
+        "{hint}\n\n"
+        "⚠️ <i>Add the bot as an administrator to your channel/group "
+        "(with permission to send messages), then tap "
+        "<b>➕ Add channel</b>.</i>"
+    ),
+    "my_channels_list": "📢 <b>My channels ({count} total):</b>\n\n",
+    "my_channels_footer": "\nTo connect a new channel or delete an existing one 👇",
+
+    # Channel deletion
+    "cab_channels_delete_empty": (
+        "📢 <b>My channels:</b>\n\n"
+        "No channels to delete yet.\n\n"
+        "{hint}"
+    ),
+    "cab_channels_delete_title": (
+        "🗑 <b>Delete channel</b> ({count} total)\n\n"
+        "Tap <b>❌ Delete</b> next to the channel you want to remove 👇"
+    ),
+
+    # Cabinet screen
+    "credits_value": "<b>{n} pcs</b>",
+    "cabinet_credits_admin": "♾ Unlimited (Super Admin)",
+    "cabinet_streak": "🔥 <b>{streak}/7 days</b>",
+    "cabinet_title": (
+        "👤 <b>Personal Account:</b>\n\n"
+        "🆔 Your ID: <code>{user_id}</code>\n"
+        "🔑 Your code: <code>{user_code}</code>\n"
+        "💎 Available AI requests: {credits}\n"
+        "🔥 Daily streak: {streak}\n"
+        "📢 Connected channels: <b>{channels} total</b>\n"
+        "👥 Friends invited: <b>{referrals} total</b>\n\n"
+        "Choose a section below 👇{ad_line}"
+    ),
+
+    # Balance & credits
+    "balance_card": (
+        "💎 <b>Credits & Ad Mode:</b>\n\n"
+        "🤖 AI requests: {credits}\n"
+        "📢 Ad mode: {ad_mode}\n\n"
+        "To earn more credits:\n"
+        "• 🎁 Claim daily bonus\n"
+        "• 👥 Invite friends (1–3rd friend: +3, after: +1)\n"
+        "• ⭐️ Switch to PRO (unlimited AI, 100% ad-free posts)"
+    ),
+
+    # Daily bonus
+    "daily_bonus_admin": (
+        "👑 <b>You are a Super Admin</b> — you have unlimited requests!"
+    ),
+    "daily_bonus_claimed": (
+        "🎉 <b>Daily bonus claimed!</b>\n\n"
+        "{reset_notice}"
+        "🔥 Your streak: <b>{streak}/7 days</b>\n"
+        "{bar}\n\n"
+        "🎁 Today's gift: <b>+{bonus} AI requests</b>\n"
+        "💎 Total balance: <b>{credits} pcs</b>\n\n"
+        "📌 <i>Come back tomorrow and on day 7 get a "
+        "<b>+4 super bonus</b>!</i>"
+    ),
+    "daily_bonus_reset_notice": (
+        "\n⚠️ <i>You missed a day, so the streak restarted from day 1.</i>\n"
+    ),
+    "daily_bonus_already": (
+        "ℹ️ {msg}\n\n💎 Total credits: <b>{credits} pcs</b>"
+    ),
+
+    # Referral
+    "referral_reward_notice": (
+        "🎉 <b>A new friend was invited!</b>\n\n"
+        "<b>+{reward} AI credits</b> were added to your account. "
+        "First 3 friends: +3 each, after that: +1 each. 🚀"
+    ),
+    "referral_menu": (
+        "🚀 <b>Invite friends and earn AI credits:</b>\n\n"
+        "🎁 <i>For the 1st, 2nd and 3rd friend: +3 each; from the 4th: +1 AI credit.</i>\n\n"
+        "💎 Your AI credits: {credits}\n👥 Invited: <b>{count}</b>\n\n"
+        "🔗 <b>Your referral link:</b>\n<code>{link}</code>"
+    ),
+
+    # Transfer
+    "transfer_intro": (
+        "🔄 <b>Transfer credits (AI requests):</b>\n\n"
+        "Send the <b>ID</b>, "
+        "<b>Telegram username (@...)</b> or <b>special code</b> "
+        "of your friend:\n"
+        "<i>(Note: credits can only be transferred to active "
+        "registered users)</i>"
+    ),
+    "transfer_insufficient": (
+        "⚠️ <b>You don't have enough credits!</b>\n\n"
+        "To transfer, you need at least <b>3 credits</b>. "
+        "You have: <b>{credits} pcs</b>.\n"
+        "{guide}\n"
+        "Or collect credits using your referral link!"
+    ),
+    "transfer_user_not_found": (
+        "❌ <b>User not found!</b>\n\n"
+        "This user has not registered in the bot yet or the data "
+        "was entered incorrectly.\n"
+        "Your friend should first open the bot and press <b>/start</b>.\n\n"
+        "Enter the correct ID or code:"
+    ),
+    "transfer_self": (
+        "⚠️ You cannot transfer credits to yourself! "
+        "Enter another friend's details:"
+    ),
+    "transfer_target_ok": (
+        "✅ <b>Recipient:</b> <b>{name}</b> "
+        "(ID: <code>{user_id}</code>)\n\n"
+        "How many credits to send? <i>(At least <b>3</b>, "
+        "up to <b>20</b>)</i>:"
+    ),
+    "transfer_amount_nan": (
+        "Please enter the amount as numbers only (e.g.: 5):"
+    ),
+    "transfer_amount_range": (
+        "⚠️ Transfer amount must be at least <b>3</b> and at most "
+        "<b>20 credits</b>. Please re-enter:"
+    ),
+    "transfer_success": (
+        "🎉 <b>Success!</b>\n\n"
+        "<b>+{amount} AI requests</b> were transferred to "
+        "<b>{name}</b>'s account! 🚀"
+    ),
+    "transfer_gift_notice": (
+        "🎁 <b>You received a gift!</b>\n\n"
+        "<b>{name}</b> sent you <b>+{amount} AI requests</b>! 🎉"
+    ),
+    "transfer_error": "❌ <b>Error:</b> {msg}",
+    "transfer_default_name": "Your friend",
+
+    # Channel tone / voice
+    "ch_tone_title": (
+        "🎭 <b>Choose channel style:</b>\n\n"
+        "Current style: <b>{current}</b>\n\n"
+        "Style determines the tone and style of posts:"
+    ),
+    "ch_tone_formal": "👔 Formal / Business",
+    "ch_tone_friendly": "😊 Friendly / Warm",
+    "ch_tone_concise": "⚡️ Brief / News",
+    "ch_tone_engaging": "🎉 Fun / Emotional",
+    "ch_tone_cancelled": "✅ Style change cancelled.",
+    "ch_tone_invalid": "❌ Invalid style. Please tap one of the buttons.",
+    "ch_tone_success": (
+        "✅ <b>Channel style updated!</b>\n\n"
+        "🎭 New style: <b>{tone}</b>\n\n"
+        "AI will now generate posts in this style."
+    ),
+    "ch_tone_error": "❌ Error saving style. Please try again.",
+
+    "ch_voice_btn": "🎙 Channel voice analysis",
+    "ch_voice_analyzing": (
+        "🎙 <b>Analyzing channel voice...</b>\n\n"
+        "AI is studying the channel's recent posts to determine its style."
+    ),
+    "ch_voice_no_posts": (
+        "⚠️ Not enough posts in the channel for analysis. "
+        "Add the bot as admin, wait for posts, then try again."
+    ),
+    "ch_voice_result": (
+        "🎙 <b>Channel voice analysis result:</b>\n\n"
+        "✅ Style: <b>{tone}</b>\n💬 {reason}\n\n"
+        "This style has been saved to your channel profile and will be used in future AI generations."
+    ),
+    "ch_voice_error": "⚠️ Could not perform channel voice analysis. Please try again later.",
+
+    # Timezone selection
+    "tz_prompt": "🌍 <b>Choose your timezone:</b>",
+    "tz_changed": "✅ Timezone changed to <b>{tz}</b>.",
+    "tz_btn_tashkent": "🇺🇿 Tashkent (UTC+5)",
+    "tz_btn_moscow": "🇷🇺 Moscow (UTC+3)",
+    "tz_btn_utc": "🌐 UTC (UTC+0)",
+    "tz_btn_samarkand": "🇺🇿 Samarkand (UTC+5)",
+    "tz_current": "🌍 Timezone: <b>{tz}</b>",
 }
