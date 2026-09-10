@@ -448,4 +448,105 @@ EN_OVERLAY = {
         "Welcome, <b>{name}</b>! All features are now open to you.\n\n"
         "{hint}"
     ),
+
+    # ============================================================
+    # ⚙️ EXTRA FEATURES & GUIDE — 3-language finalization (EN)
+    # ============================================================
+    "extras_menu_body": (
+        "⚙️ <b>Extra features</b>\n\n"
+        "✨ <b>Add Buttons & Reactions to post</b> — send a ready post (text, photo, "
+        "video, album or forward): the original text stays untouched, add up to "
+        "10 reactions and up to 10 URL buttons and publish instantly to any channel\n"
+        "🔤 <b>Cyrillic-Latin converter</b> — convert texts between two alphabets\n\n"
+        "Pick a tool below 👇"
+    ),
+    "extras_btn_enhancer": "✨ Add Buttons & Reactions to post",
+    "extras_btn_converter": "🔤 Cyrillic-Latin converter",
+    "extras_closed": "✅ <b>Extra features</b> section closed.",
+    "conv_intro": (
+        "🔤 <b>Latin ⇄ Cyrillic Text Converter:</b>\n\n"
+        "Send the <b>text</b> or <b>photo/video/file</b> (with caption) you want to convert:\n\n"
+        "<i>Press '🔙 Main menu' to cancel.</i>"
+    ),
+    "conv_no_text": (
+        "⚠️ No text (caption) found in this file.\n"
+        "Please send text or resend the file with a caption:"
+    ),
+    "conv_received": (
+        "📝 <b>Text received!</b>\n\n"
+        "Which alphabet to convert to? Pick one below 👇"
+    ),
+    "conv_btn_cyr": "🔤 Cyrillic version",
+    "conv_btn_lat": "🔤 Latin version",
+    "conv_no_saved_text": "⚠️ Text not found, please send it again.",
+    "conv_result_title": "📋 <b>Result:</b>",
+    "conv_result_part1": "📋 <b>Result (part 1):</b>",
+    "conv_result_part2": "📋 <b>Result (part 2):</b>",
+    "conv_copy_hint": "<i>(Tap the text to copy)</i>",
+    "conv_cont_title": "ℹ️ <i>Continued:</i>",
+    "conv_error": "⚠️ Error occurred: {error}",
+    "conv_timeout_msg": (
+        "⏰ <b>Conversation ended due to timeout.</b>\n"
+        "You are back in the main menu. Pick a section again 👇"
+    ),
+    "cab_converter_info": (
+        "🔤 <b>Cyrillic-Latin converter:</b>\n\n"
+        "Send text in Latin or Cyrillic — I'll convert it automatically.\n\n"
+        "<i>Example: Salom dunyo → Салом дунё</i>"
+    ),
+    "help_guide": (
+        "📖 <b>PostAssistrobot — Complete Guide:</b>\n\n"
+        "🔹 <b>1. Connect channel/group:</b>\n"
+        "• Add the bot as <b>administrator</b> to your channel (with permission to send messages).\n"
+        "• Go to «👤 Account & Settings» → «📢 My channels» and forward any post from the channel or send @username.\n\n"
+        "🔹 <b>2. Schedule a new post:</b>\n"
+        "• Schedule text, photo, video, audio or <b>album</b> (multiple photos/videos) for any date.\n"
+        "• URL buttons, reactions and auto-delete (12, 24, 48, 72 hours).\n"
+        "• <i>PRO posts are automatically 100% ad-free!</i>\n\n"
+        "🔹 <b>3. ✨ AI Studio:</b>\n"
+        "• Create AI post, photo-to-post (Vision), AI audit and content plan.\n"
+        "• Ask a question or send text/photo/forward — get a professional post.\n"
+        "• Free-form command: <i>«schedule to all channels tomorrow at 9 am»</i>.\n"
+        "• Edit post: <i>«add phone number at the end»</i>.\n\n"
+        "🔹 <b>4. Credits & Daily Streak:</b>\n"
+        "• Open the bot daily and tap <b>'🎁 Daily bonus'</b>.\n"
+        "• Day 1 (+1), Day 2 (+1), Day 3 (+2), ..., Day 7 (+4 credits)!\n\n"
+        "🔹 <b>5. ⚙️ Extra features:</b>\n"
+        "• ✨ Add Buttons & Reactions to post — instantly boost a ready post.\n"
+        "• 🔤 Latin ⇄ Cyrillic text converter.\n\n"
+        "⚙️ <b>Quick commands:</b>\n"
+        "/start — Main menu\n"
+        "/newpost — New post\n"
+        "/profile — Account\n"
+        "/help — Guide\n"
+        "/cancel — Cancel\n\n"
+        "{support}"
+    ),
+    "help_guide_admin": (
+        "\n\n👑 <b>Admin commands:</b>\n"
+        "/admin — Control panel\n"
+        "/broadcast — Broadcast\n"
+        "/stats — Statistics"
+    ),
+    "help_btn_faq": "❓ Frequently asked questions",
+    "help_btn_support": "💬 Contact support",
+    "help_support_line": "👨‍💻 <b>Need help?</b> Contact {admin}.",
+    "help_admin_fallback": "bot administrator",
+    "cab_guide_text": (
+        "📖 <b>PostAssistrobot — Complete Guide:</b>\n\n"
+        "🔹 <b>1. Schedule a new post:</b>\n"
+        "• Schedule text, photo, video, audio or <b>album</b> for any date.\n"
+        "• URL buttons, reactions and auto-delete.\n\n"
+        "🔹 <b>2. AI Assistant:</b>\n"
+        "• Ask a question or send text/photo — get a professional post.\n"
+        "• Free form: <i>\"tomorrow at 9 am to all channels\"</i>.\n\n"
+        "🔹 <b>3. Credits & Daily Streak:</b>\n"
+        "• Open bot daily and claim bonus (Day 7 +4 credits).\n\n"
+        "⚙️ <b>Quick commands:</b>\n"
+        "/start — Main menu\n"
+        "/profile — Account\n"
+        "/help — Guide\n"
+        "/cancel — Cancel"
+    ),
+
 }
