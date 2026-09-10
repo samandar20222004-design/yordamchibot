@@ -3077,37 +3077,14 @@ def _ensure_limit_reset(cur, user_id: int):
 
 
 def is_premium(user_id: int) -> bool:
-    """Foydalanuvchi PRO yoki Enterprise ekanligini tekshiradi."""
-    try:
-        with db_cursor() as cur:
-            cur.execute(
-                "SELECT plan_type, subscription_expires_at FROM users WHERE user_id = %s",
-                (user_id,),
-            )
-            row = cur.fetchone()
-            if not row:
-                return False
-            plan_type, expires_at = row
-            if plan_type in ("pro", "enterprise"):
-                if expires_at is None:
-                    return True
-                from datetime import datetime, timezone
-                now = datetime.now(timezone.utc)
-                if expires_at > now:
-                    return True
-                try:
-                    with db_cursor(commit=True) as wcur:
-                        wcur.execute(
-                            "UPDATE users SET plan_type = 'free' WHERE user_id = %s",
-                            (user_id,),
-                        )
-                except Exception:
-                    pass
-                return False
-            return False
-    except Exception as e:
-        logger.error(f"is_premium xatosi: {e}")
-        return False
+    """Foydalanuvchi PRO yoki Enterprise ekanligini tekshiradi.
+
+    .. deprecated:: v2
+        Servis orqali chaqirish tavsiya etiladi:
+        ``SubscriptionService.is_premium(user_id)``
+    """
+    from services.subscription_service import SubscriptionService
+    return SubscriptionService.is_premium(user_id)
 
 
 def get_user_plan(user_id: int) -> dict:
@@ -3211,114 +3188,53 @@ def check_queue_limit(user_id: int) -> tuple[bool, int, int]:
 
 
 def set_user_plan(user_id: int, plan: str, days: int = None) -> bool:
-    """Foydalanuvchi tarifini o'zgartiradi."""
+    """Foydalanuvchi tarifini o'zgartiradi.
+
+    .. deprecated:: v2
+        Servis orqali chaqirish tavsiya etiladi:
+        ``SubscriptionService.activate(user_id, plan, days)``
+    """
+    from services.subscription_service import SubscriptionService
     if plan not in PLAN_LIMITS:
         return False
-    try:
-        with db_cursor(commit=True) as cur:
-            if days and days > 0:
-                # Qolgan muddat kuyib ketmasin: yangi paket amaldagi
-                # expiry (yoki hozirgi vaqt) ustiga qo'shiladi.
-                cur.execute(
-                    "UPDATE users SET plan_type = %s, "
-                    "subscription_expires_at = GREATEST("
-                    "COALESCE(subscription_expires_at, NOW()), NOW()) "
-                    "+ (%s || ' days')::INTERVAL "
-                    "WHERE user_id = %s",
-                    (plan, str(days), user_id),
-                )
-            else:
+    if days and days > 0:
+        return SubscriptionService.activate(user_id, plan, days)
+    else:
+        # Cheksiz (days=None yoki 0) — activate qiyin bo'lgani uchun
+        # to'g'ridan-to'g'ri DB ga yozamiz
+        try:
+            with db_cursor(commit=True) as cur:
                 cur.execute(
                     "UPDATE users SET plan_type = %s, subscription_expires_at = NULL "
                     "WHERE user_id = %s",
                     (plan, user_id),
                 )
-            return cur.rowcount > 0
-    except Exception as e:
-        logger.error(f"set_user_plan xatosi: {e}")
-        return False
+                return cur.rowcount > 0
+        except Exception as e:
+            logger.error(f"set_user_plan xatosi: {e}")
+            return False
 
 
 def create_promo_code(code: str, plan_type: str = "pro", duration_days: int = 30, max_uses: int = None) -> bool:
-    """Promo-kod yaratadi (admin)."""
-    try:
-        with db_cursor(commit=True) as cur:
-            cur.execute(
-                "INSERT INTO promo_codes (code, plan_type, duration_days, max_uses) "
-                "VALUES (%s, %s, %s, %s) ON CONFLICT (code) DO NOTHING",
-                (code.upper(), plan_type, duration_days, max_uses),
-            )
-            return cur.rowcount > 0
-    except Exception as e:
-        logger.error(f"create_promo_code xatosi: {e}")
-        return False
+    """Promo-kod yaratadi (admin).
+
+    .. deprecated:: v2
+        Servis orqali chaqirish tavsiya etiladi:
+        ``PromoService.create_promo(code, duration_days, max_uses, expires_at, plan_type)``
+    """
+    from services.promo_service import PromoService
+    return PromoService.create_promo(code, duration_days, max_uses, None, plan_type)
 
 
 def redeem_promo_code(user_id: int, code: str) -> tuple[bool, str]:
     """Promo-kodni bir marta, race-free tarzda faollashtiradi.
 
-    Promo qatori ``FOR UPDATE`` bilan qulflanadi. Shu sababli parallel
-    redemption'lar navbat bilan o'tadi va ``current_uses`` tekshiruvi bilan
-    increment'i bitta tranzaksiyada bajariladi. ``promo_redemptions`` dagi
-    unique constraint esa aynan shu userning ikkinchi urinishini ham bloklaydi.
+    .. deprecated:: v2
+        Servis orqali chaqirish tavsiya etiladi:
+        ``PromoService.redeem_promo(user_id, code)``
     """
-    code = (code or "").strip().upper()
-    if not code:
-        return False, "Promo-kod kiritilmadi."
-    try:
-        with db_cursor(commit=True) as cur:
-            # Muhim: oddiy SELECT emas — promo limitini tekshirayotgan
-            # tranzaksiya davomida boshqa redemption uni o'zgartira olmaydi.
-            cur.execute(
-                "SELECT id, plan_type, duration_days, max_uses, current_uses, "
-                "is_active, expires_at "
-                "FROM promo_codes WHERE code = %s FOR UPDATE",
-                (code,),
-            )
-            row = cur.fetchone()
-            if not row:
-                return False, "Promo-kod topilmadi."
-            promo_id, plan_type, duration_days, max_uses, current_uses, is_active, expires_at = row
-            if not is_active:
-                return False, "Bu promo-kod o'chirilgan."
-            if expires_at is not None:
-                cur.execute("SELECT (%s <= NOW())", (expires_at,))
-                if cur.fetchone()[0]:
-                    return False, "Bu promo-kod muddati o'tgan."
-            if max_uses is not None and (current_uses or 0) >= max_uses:
-                return False, "Bu promo-kod ishlatib bo'lingan."
-
-            # UNIQUE(promo_id, user_id) tufayli ikki parallel so'rovdan faqat
-            # birinchisi qator oladi. ON CONFLICT yangi xato yaratmaydi.
-            cur.execute(
-                "INSERT INTO promo_redemptions (promo_id, user_id) "
-                "VALUES (%s, %s) ON CONFLICT (promo_id, user_id) DO NOTHING "
-                "RETURNING id",
-                (promo_id, user_id),
-            )
-            redemption = cur.fetchone()
-            if not redemption:
-                return False, "Siz bu promo-kodni avval ishlatgansiz."
-
-            cur.execute(
-                "UPDATE users SET plan_type = %s, "
-                "subscription_expires_at = GREATEST("
-                "COALESCE(subscription_expires_at, NOW()), NOW()) "
-                "+ (%s || ' days')::INTERVAL "
-                "WHERE user_id = %s",
-                (plan_type, str(duration_days), user_id),
-            )
-            if cur.rowcount == 0:
-                # User mavjud bo'lmasa, butun tranzaksiya rollback bo'ladi.
-                return False, "Foydalanuvchi topilmadi."
-            cur.execute(
-                "UPDATE promo_codes SET current_uses = current_uses + 1 WHERE id = %s",
-                (promo_id,),
-            )
-            return True, f"Promo-kod faollashtirildi! {duration_days} kunlik {plan_type.upper()} tarif yoqildi."
-    except Exception as e:
-        logger.error(f"redeem_promo_code xatosi: {e}")
-        return False, "Xatolik yuz berdi."
+    from services.promo_service import PromoService
+    return PromoService.redeem_promo(user_id, code)
 
 
 # ============================================================
@@ -3394,56 +3310,14 @@ def process_stars_payment(
 ) -> dict:
     """To'lovni audit qilish va obunani uzaytirishni bitta tranzaksiyada bajaradi.
 
-    PostgreSQL unique constraint orqali Telegram charge ID ikkinchi marta
-    kelganda INSERT hech narsa qilmaydi; shunda subscription UPDATE ham
-    bajarilmaydi. Bu webhook/Telegram retry'larida 1 ta haqiqiy grantni
-    kafolatlaydi.
+    .. deprecated:: v2
+        Servis orqali chaqirish tavsiya etiladi:
+        ``PaymentService.process_stars_payment(user_id, charge_id, amount, payload, plan, duration_days)``
     """
-    charge_id = (telegram_payment_id or "").strip()
-    try:
-        duration_days = int(duration_days)
-    except (TypeError, ValueError):
-        duration_days = 0
-    if not charge_id or duration_days <= 0:
-        return {"ok": False, "duplicate": False, "reason": "invalid_payment"}
-    try:
-        with db_cursor(commit=True) as cur:
-            # User rowini oldindan qulflash ham UPDATE natijasini aniq qiladi,
-            # ham topilmagan user uchun payment auditini commit qilib qo'ymaydi.
-            cur.execute("SELECT 1 FROM users WHERE user_id = %s FOR UPDATE", (user_id,))
-            if not cur.fetchone():
-                return {"ok": False, "duplicate": False, "reason": "user_not_found"}
-            cur.execute(
-                """
-                INSERT INTO payments (user_id, amount, currency, payload, telegram_payment_charge_id)
-                VALUES (%s, %s, %s, %s, %s)
-                ON CONFLICT DO NOTHING
-                RETURNING id
-                """,
-                (user_id, amount, currency, payload, charge_id),
-            )
-            payment_row = cur.fetchone()
-            if not payment_row:
-                return {"ok": True, "duplicate": True, "days": 0}
-
-            cur.execute(
-                "UPDATE users SET plan_type = %s, "
-                "subscription_expires_at = GREATEST("
-                "COALESCE(subscription_expires_at, NOW()), NOW()) "
-                "+ (%s || ' days')::INTERVAL "
-                "WHERE user_id = %s",
-                (plan, str(int(duration_days)), user_id),
-            )
-            if cur.rowcount == 0:
-                # To'lov ham, subscription ham atomik rollback qilinadi.
-                return {"ok": False, "duplicate": False, "reason": "user_not_found"}
-        _invalidate_user(user_id)
-        _cache_clear("system_stats")
-        _cache_clear("admin_dashboard_stats")
-        return {"ok": True, "duplicate": False, "days": int(duration_days)}
-    except Exception as e:
-        logger.error(f"Stars payment transaction xatosi: {e}")
-        return {"ok": False, "duplicate": False, "reason": "database_error"}
+    from services.payment_service import PaymentService
+    return PaymentService.process_stars_payment(
+        user_id, telegram_payment_id, amount, payload, plan, duration_days
+    )
 
 
 # ============================================================
@@ -3561,84 +3435,23 @@ def list_pending_payment_receipts(limit: int = 20) -> list:
 def approve_payment_receipt(receipt_id: int, admin_id: int, days: int = None) -> dict:
     """Chekni tasdiqlaydi va PRO muddatini ATOMIK uzaytiradi.
 
-    Bitta tranzaksiyada: ``payment_receipts.status='approved'`` va
-    ``users.plan_type='pro'`` + obuna muddati ``days`` ga uzaytiriladi.
-    Returns:
-        {"ok": True, "receipt": {...}, "days": N, "language_code": "uz"}
-        yoki {"ok": False, "reason": "..."}. Allaqachon ko'rib chiqilgan bo'lsa
-        ham ``ok=True`` (idempotent — foydalanuvchiga qayta xabar ketmaydi).
+    .. deprecated:: v2
+        Servis orqali chaqirish tavsiya etiladi:
+        ``PaymentService.process_receipt(receipt_id, admin_id, approved=True)``
     """
-    try:
-        with db_cursor(commit=True) as cur:
-            cur.execute(
-                "SELECT status, user_id, days_granted FROM payment_receipts "
-                "WHERE id = %s FOR UPDATE",
-                (int(receipt_id),),
-            )
-            row = cur.fetchone()
-            if not row:
-                return {"ok": False, "reason": "not_found"}
-            status, user_id, default_days = row
-            if status == RECEIPT_STATUS_APPROVED:
-                return {"ok": False, "reason": "already_approved"}
-            grant_days = int(days) if days else int(default_days or 30)
-            if grant_days <= 0:
-                grant_days = 30
-
-            cur.execute(
-                "UPDATE users SET plan_type = 'pro', "
-                "subscription_expires_at = GREATEST("
-                "   COALESCE(subscription_expires_at, NOW()), NOW())"
-                "   + (%s || ' days')::INTERVAL "
-                "WHERE user_id = %s",
-                (str(grant_days), int(user_id)),
-            )
-            cur.execute(
-                "UPDATE payment_receipts SET status = 'approved', "
-                "decided_by = %s, reviewed_at = NOW(), days_granted = %s "
-                "WHERE id = %s",
-                (int(admin_id), grant_days, int(receipt_id)),
-            )
-            lang = "uz"
-            cur.execute(
-                "SELECT language_code FROM users WHERE user_id = %s", (int(user_id),)
-            )
-            lrow = cur.fetchone()
-            lang = _normalize_language_code(lrow[0] if lrow else "uz")
-        _invalidate_user(int(user_id))
-        _cache_clear("system_stats")
-        _cache_clear("admin_dashboard_stats")
-        receipt = get_payment_receipt(int(receipt_id)) or {}
-        return {"ok": True, "receipt": receipt, "days": grant_days,
-                "user_id": int(user_id), "language_code": lang}
-    except Exception as e:
-        logger.error(f"payment_receipt tasdiqlash xatosi: {e}")
-        return {"ok": False, "reason": "error"}
+    from services.payment_service import PaymentService
+    return PaymentService.process_receipt(receipt_id, admin_id, True)
 
 
 def reject_payment_receipt(receipt_id: int, admin_id: int) -> dict:
-    """Chekni rad etadi (faqat hali ko'rib chiqilmagan bo'lsa)."""
-    try:
-        with db_cursor(commit=True) as cur:
-            cur.execute(
-                "SELECT status, user_id FROM payment_receipts WHERE id = %s FOR UPDATE",
-                (int(receipt_id),),
-            )
-            row = cur.fetchone()
-            if not row:
-                return {"ok": False, "reason": "not_found"}
-            status, user_id = row
-            if status != RECEIPT_STATUS_PENDING:
-                return {"ok": False, "reason": "already_reviewed"}
-            cur.execute(
-                "UPDATE payment_receipts SET status = 'rejected', "
-                "decided_by = %s, reviewed_at = NOW() WHERE id = %s",
-                (int(admin_id), int(receipt_id)),
-            )
-        return {"ok": True, "user_id": int(user_id)}
-    except Exception as e:
-        logger.error(f"payment_receipt rad etish xatosi: {e}")
-        return {"ok": False, "reason": "error"}
+    """Chekni rad etadi (faqat hali ko'rib chiqilmagan bo'lsa).
+
+    .. deprecated:: v2
+        Servis orqali chaqirish tavsiya etiladi:
+        ``PaymentService.process_receipt(receipt_id, admin_id, approved=False)``
+    """
+    from services.payment_service import PaymentService
+    return PaymentService.process_receipt(receipt_id, admin_id, False)
 
 
 def get_pending_receipts_count() -> int:
