@@ -426,6 +426,10 @@ TRANSLATIONS = {
             "⚠️ AI xizmatida vaqtinchalik uzilish yuz berdi. "
             "Iltimos, birozdan so'ng qayta urinib ko'ring."
         ),
+        "ai_quota": (
+            "⚠️ AI kvota yo‘qaldi. "
+            "Vaqt o‘tgandan so‘ng qayta urinib ko'ring."
+        ),
         "ai_rate_limit": (
             "⏳ <i>AI so'rovlarini juda tez-tez yuboryapsiz. Iltimos, 1 daqiqa kuting...</i>"
         ),
@@ -1927,6 +1931,10 @@ TRANSLATIONS = {
         "ai_unavailable": (
             "⚠️ Временный сбой в сервисе ИИ. "
             "Пожалуйста, попробуйте ещё раз чуть позже."
+        ),
+        "ai_quota": (
+            "⚠️ AI quota закончилась. "
+            "Подождите и попробуйте снова."
         ),
         "ai_rate_limit": (
             "⏳ <i>Вы отправляете ИИ-запросы слишком часто. Подождите 1 минуту...</i>"
