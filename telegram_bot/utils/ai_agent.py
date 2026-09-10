@@ -862,18 +862,38 @@ class ProviderError(RuntimeError):
         self.message = message
 
 
-async def _post_chat_completion(endpoint: str, headers: dict | None, payload: dict) -> dict:
+def _check_deadline(deadline: float | None) -> None:
+    """Qat'iy provayder byudjetini tekshiradi (deadline = time.monotonic() + byudjet).
+
+    Har bir model/urinishning BOSIDA chaqiriladi — shu tufayli bitta
+    provayder qat'iy byudjetdan oshib vaqt ololmaydi (timeout/429 retrylari
+    byudjetni cheksiz cho'zib yubormaydi).
+    """
+    if deadline is not None and _time.monotonic() >= deadline:
+        raise ProviderError(0, "provayder byudjeti tugadi (timeout)")
+
+
+async def _post_chat_completion(
+    endpoint: str, headers: dict | None, payload: dict, http_timeout: aiohttp.ClientTimeout = None,
+    deadline: float = None,
+) -> dict:
     """OpenAI-compatible chat/completions so'rovini 429-retry bilan yuborish.
 
     Muvaffaqiyatda: {"content": "..."} qaytaradi.
     Muvaffaqiyatsizda: ProviderError(status, matn) tashlaydi.
+
+    ``http_timeout`` berilmasa standart ``AI_HTTP_TIMEOUT`` ishlatiladi;
+    ``services/ai_service.py`` har bir provayder uchun qat'iyroq
+    (connect 3s / read 8s / total 10s) timeout uzatadi.
     """
     session = await _get_session()
+    timeout = http_timeout or AI_HTTP_TIMEOUT
 
     for attempt in range(MAX_429_RETRIES + 1):
+        _check_deadline(deadline)
         try:
             async with session.post(
-                endpoint, headers=headers, json=payload, timeout=AI_HTTP_TIMEOUT
+                endpoint, headers=headers, json=payload, timeout=timeout
             ) as resp:
                 if resp.status == 200:
                     data = await resp.json()
@@ -885,6 +905,7 @@ async def _post_chat_completion(endpoint: str, headers: dict | None, payload: di
                     wait = _retry_after_seconds(resp)
                     logger.warning("AI rate-limit (429); %ss dan keyin qayta uriniladi", wait)
                     await asyncio.sleep(wait)
+                    _check_deadline(deadline)
                     continue
                 # 429'dan boshqa barcha holatlar (400, 404, 500...) darhol xato
                 resp_txt = await resp.text()
@@ -899,13 +920,18 @@ async def _post_chat_completion(endpoint: str, headers: dict | None, payload: di
             raise
 
 
-async def _call_gemini(prompt: str, api_key: str, system_instruction: str, params: dict = None) -> dict:
+async def _call_gemini(
+    prompt: str, api_key: str, system_instruction: str, params: dict = None,
+    http_timeout: aiohttp.ClientTimeout = None, deadline: float = None,
+) -> dict:
     session = await _get_session()
     models = await _discover_gemini_models(api_key) or GEMINI_MODELS
     params = params or get_runtime_params()
+    timeout = http_timeout or AI_HTTP_TIMEOUT
     last_err = ""
 
     for model in models:
+        _check_deadline(deadline)
         url = f"{GEMINI_BASE}/{model}:generateContent?key={api_key}"
         # Faqat o'chirilmagan (None bo'lmagan) parametrlar yuboriladi —
         # `null` qiymat ba'zi provayderlarda 400 xatosiga olib keladi.
@@ -935,9 +961,10 @@ async def _call_gemini(prompt: str, api_key: str, system_instruction: str, param
         }
 
         for attempt in range(MAX_429_RETRIES + 1):
+            _check_deadline(deadline)
             try:
                 async with session.post(
-                    url, json=payload, timeout=AI_HTTP_TIMEOUT
+                    url, json=payload, timeout=timeout
                 ) as resp:
                     if resp.status == 200:
                         data = await resp.json()
@@ -947,6 +974,7 @@ async def _call_gemini(prompt: str, api_key: str, system_instruction: str, param
                         wait = _retry_after_seconds(resp)
                         logger.warning("Gemini rate-limit (429); %ss dan keyin qayta uriniladi", wait)
                         await asyncio.sleep(wait)
+                        _check_deadline(deadline)
                         continue
                     if resp.status in (400, 404):
                         # Bu model mavjud emas yoki yaroqsiz — keyingisiga o'tamiz
@@ -965,13 +993,17 @@ async def _call_gemini(prompt: str, api_key: str, system_instruction: str, param
     raise RuntimeError(last_err or "Gemini noma'lum xato")
 
 
-async def _call_groq(prompt: str, api_key: str, system_instruction: str, params: dict = None) -> dict:
+async def _call_groq(
+    prompt: str, api_key: str, system_instruction: str, params: dict = None,
+    http_timeout: aiohttp.ClientTimeout = None, deadline: float = None,
+) -> dict:
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
     models = await _discover_groq_models(api_key) or GROQ_MODELS
     params = params or get_runtime_params()
     last_err = ""
 
     for model in models:
+        _check_deadline(deadline)
         payload = {
             "model": model,
             "messages": [
@@ -982,7 +1014,7 @@ async def _call_groq(prompt: str, api_key: str, system_instruction: str, params:
         }
         _apply_optional_params(payload, params)
         try:
-            result = await _post_chat_completion(GROQ_ENDPOINT, headers, payload)
+            result = await _post_chat_completion(GROQ_ENDPOINT, headers, payload, http_timeout, deadline)
             return _extract_json(result["content"])
         except ProviderError as e:
             msg = (e.message or "").lower()
@@ -996,7 +1028,7 @@ async def _call_groq(prompt: str, api_key: str, system_instruction: str, params:
             if e.status == 400 and ("response_format" in msg or "unsupported parameter" in msg):
                 try:
                     payload_no_json = {k: v for k, v in payload.items() if k != "response_format"}
-                    result = await _post_chat_completion(GROQ_ENDPOINT, headers, payload_no_json)
+                    result = await _post_chat_completion(GROQ_ENDPOINT, headers, payload_no_json, http_timeout, deadline)
                     return _extract_json(result["content"])
                 except Exception as e2:
                     last_err = f"Groq ({model}): {e2}"
@@ -1010,7 +1042,10 @@ async def _call_groq(prompt: str, api_key: str, system_instruction: str, params:
     raise RuntimeError(last_err or "Groq noma'lum xato")
 
 
-async def _call_openrouter(prompt: str, api_key: str, system_instruction: str, params: dict = None) -> dict:
+async def _call_openrouter(
+    prompt: str, api_key: str, system_instruction: str, params: dict = None,
+    http_timeout: aiohttp.ClientTimeout = None, deadline: float = None,
+) -> dict:
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
@@ -1022,6 +1057,7 @@ async def _call_openrouter(prompt: str, api_key: str, system_instruction: str, p
     last_err = ""
 
     for model in models:
+        _check_deadline(deadline)
         payload = {
             "model": model,
             "messages": [
@@ -1031,7 +1067,7 @@ async def _call_openrouter(prompt: str, api_key: str, system_instruction: str, p
         }
         _apply_optional_params(payload, params)
         try:
-            result = await _post_chat_completion(OPENROUTER_ENDPOINT, headers, payload)
+            result = await _post_chat_completion(OPENROUTER_ENDPOINT, headers, payload, http_timeout, deadline)
             return _extract_json(result["content"])
         except ProviderError as e:
             msg = (e.message or "").lower()
@@ -1049,12 +1085,16 @@ async def _call_openrouter(prompt: str, api_key: str, system_instruction: str, p
     raise RuntimeError(last_err or "OpenRouter noma'lum xato")
 
 
-async def _call_mistral(prompt: str, api_key: str, system_instruction: str, params: dict = None) -> dict:
+async def _call_mistral(
+    prompt: str, api_key: str, system_instruction: str, params: dict = None,
+    http_timeout: aiohttp.ClientTimeout = None, deadline: float = None,
+) -> dict:
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
     params = params or get_runtime_params()
     last_err = ""
 
     for model in MISTRAL_MODELS:
+        _check_deadline(deadline)
         payload = {
             "model": model,
             "messages": [
@@ -1065,7 +1105,7 @@ async def _call_mistral(prompt: str, api_key: str, system_instruction: str, para
         }
         _apply_optional_params(payload, params)
         try:
-            result = await _post_chat_completion(MISTRAL_ENDPOINT, headers, payload)
+            result = await _post_chat_completion(MISTRAL_ENDPOINT, headers, payload, http_timeout, deadline)
             return _extract_json(result["content"])
         except ProviderError as e:
             msg = (e.message or "").lower()
@@ -1078,7 +1118,7 @@ async def _call_mistral(prompt: str, api_key: str, system_instruction: str, para
                 # safe_prompt parametri qo'llab-quvvatlanmasa — unsiz qayta urinamiz
                 try:
                     payload_no_safe = {k: v for k, v in payload.items() if k != "safe_prompt"}
-                    result = await _post_chat_completion(MISTRAL_ENDPOINT, headers, payload_no_safe)
+                    result = await _post_chat_completion(MISTRAL_ENDPOINT, headers, payload_no_safe, http_timeout, deadline)
                     return _extract_json(result["content"])
                 except Exception as e2:
                     last_err = f"Mistral ({model}): {e2}"
@@ -1092,12 +1132,16 @@ async def _call_mistral(prompt: str, api_key: str, system_instruction: str, para
     raise RuntimeError(last_err or "Mistral noma'lum xato")
 
 
-async def _call_cerebras(prompt: str, api_key: str, system_instruction: str, params: dict = None) -> dict:
+async def _call_cerebras(
+    prompt: str, api_key: str, system_instruction: str, params: dict = None,
+    http_timeout: aiohttp.ClientTimeout = None, deadline: float = None,
+) -> dict:
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
     params = params or get_runtime_params()
     last_err = ""
 
     for model in CEREBRAS_MODELS:
+        _check_deadline(deadline)
         payload = {
             "model": model,
             "messages": [
@@ -1107,7 +1151,7 @@ async def _call_cerebras(prompt: str, api_key: str, system_instruction: str, par
         }
         _apply_optional_params(payload, params)
         try:
-            result = await _post_chat_completion(CEREBRAS_ENDPOINT, headers, payload)
+            result = await _post_chat_completion(CEREBRAS_ENDPOINT, headers, payload, http_timeout, deadline)
             return _extract_json(result["content"])
         except ProviderError as e:
             msg = (e.message or "").lower()
@@ -1125,12 +1169,16 @@ async def _call_cerebras(prompt: str, api_key: str, system_instruction: str, par
     raise RuntimeError(last_err or "Cerebras noma'lum xato")
 
 
-async def _call_sambanova(prompt: str, api_key: str, system_instruction: str, params: dict = None) -> dict:
+async def _call_sambanova(
+    prompt: str, api_key: str, system_instruction: str, params: dict = None,
+    http_timeout: aiohttp.ClientTimeout = None, deadline: float = None,
+) -> dict:
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
     params = params or get_runtime_params()
     last_err = ""
 
     for model in SAMBANOVA_MODELS:
+        _check_deadline(deadline)
         payload = {
             "model": model,
             "messages": [
@@ -1140,7 +1188,7 @@ async def _call_sambanova(prompt: str, api_key: str, system_instruction: str, pa
         }
         _apply_optional_params(payload, params)
         try:
-            result = await _post_chat_completion(SAMBANOVA_ENDPOINT, headers, payload)
+            result = await _post_chat_completion(SAMBANOVA_ENDPOINT, headers, payload, http_timeout, deadline)
             return _extract_json(result["content"])
         except ProviderError as e:
             msg = (e.message or "").lower()
@@ -1159,7 +1207,10 @@ async def _call_sambanova(prompt: str, api_key: str, system_instruction: str, pa
     raise RuntimeError(last_err or "SambaNova noma'lum xato")
 
 
-async def _call_cloudflare(prompt: str, api_key: str, system_instruction: str, params: dict = None) -> dict:
+async def _call_cloudflare(
+    prompt: str, api_key: str, system_instruction: str, params: dict = None,
+    http_timeout: aiohttp.ClientTimeout = None, deadline: float = None,
+) -> dict:
     """Cloudflare Workers AI (OpenAI-mos /v1/chat/completions).
 
     Endpoint ichida CLOUDFLARE_ACCOUNT_ID bo'lishi shart — bo'lmasa darhol
@@ -1173,6 +1224,7 @@ async def _call_cloudflare(prompt: str, api_key: str, system_instruction: str, p
     last_err = ""
 
     for model in CLOUDFLARE_MODELS:
+        _check_deadline(deadline)
         payload = {
             "model": model,
             "messages": [
@@ -1182,7 +1234,7 @@ async def _call_cloudflare(prompt: str, api_key: str, system_instruction: str, p
         }
         _apply_optional_params(payload, params)
         try:
-            result = await _post_chat_completion(CLOUDFLARE_ENDPOINT, headers, payload)
+            result = await _post_chat_completion(CLOUDFLARE_ENDPOINT, headers, payload, http_timeout, deadline)
             return _extract_json(result["content"])
         except ProviderError as e:
             msg = (e.message or "").lower()
@@ -1202,7 +1254,10 @@ async def _call_cloudflare(prompt: str, api_key: str, system_instruction: str, p
     raise RuntimeError(last_err or "Cloudflare noma'lum xato")
 
 
-async def _call_pollinations(prompt: str, system_instruction: str, params: dict = None) -> dict:
+async def _call_pollinations(
+    prompt: str, system_instruction: str, params: dict = None,
+    http_timeout: aiohttp.ClientTimeout = None, deadline: float = None,
+) -> dict:
     """Kalitsiz bepul zaxira (Pollinations) — oxirgi chora."""
     params = params or get_runtime_params()
     payload = {
@@ -1213,7 +1268,7 @@ async def _call_pollinations(prompt: str, system_instruction: str, params: dict 
         ],
     }
     _apply_optional_params(payload, params)
-    result = await _post_chat_completion(POLLINATIONS_ENDPOINT, None, payload)
+    result = await _post_chat_completion(POLLINATIONS_ENDPOINT, None, payload, http_timeout, deadline)
     return _extract_json(result["content"])
 
 
@@ -1222,90 +1277,31 @@ def _clean_key(value: str) -> str:
 
 
 async def _run_ai_chain(prompt: str, system_instruction: str) -> dict:
-    """8 ta provayderni navbat bilan sinaydi: Gemini → Groq → OpenRouter →
-    Mistral → Cerebras → SambaNova → Cloudflare → Pollinations (kalitsiz).
+    """8 ta provayderni navbat bilan sinaydi (qat'iy tartib):
 
-    - Har bir provayder 3 marta ketma-ket xato bersa, 10 daqiqaga o'tkazib
-      yuboriladi (circuit breaker) — o'lik provayderga vaqt sarflanmaydi.
-    - Bir vaqtda ko'pi bilan MAX_CONCURRENT_AI (2) ta so'rov ishlaydi.
-    - Prompt max_prompt_chars belgidan oshsa kesiladi (admin sozlashi mumkin).
+    "Gemini" → "Groq" → "OpenRouter" → "Mistral" → "Cerebras" →
+    "SambaNova" → "Cloudflare" → "Pollinations" (kalitsiz)
+
+    4-BOSQICH: orkestratsiya endi ``services/ai_service.py`` dagi
+    ``AIFallbackService`` da — yagona provayderlar boshqaruvi:
+
+    - har bir provayder uchun QAT'IY timeout (connect 3s / read 8s / jami 10s);
+    - timeout, 429 (rate limit) yoki 5xx xatoda foydalanuvchiga hech qanday
+      xato ko'rsatilmasdan darhol keyingi provayderga o'tiladi;
+    - foydalanuvchiga muvaffaqiyatli javob qaytgan provayderdan matn
+      yetkaziladi (natijada ``provider`` maydoni qaytariladi);
+    - har bir provayder 3 marta ketma-ket xato bersa 10 daqiqaga
+      o'tkazib yuboriladi (circuit breaker);
+    - barcha provayderlar ishdan chiqqan taqdirdagina graceful xato
+      qaytariladi (``ai_unavailable=True``, ``quota_safe=True`` — foydalanuvchi
+      kunlik kvotasi yechilmaydi).
+
+    Bir vaqtda ko'pi bilan MAX_CONCURRENT_AI (2) ta so'rov ishlaydi.
+    Prompt max_prompt_chars belgidan oshsa kesiladi (admin sozlashi mumkin).
     Muvaffaqiyatda provayder qaytargan JSON dict qaytadi; xatolikda {"error": ...}.
     """
-    params = get_runtime_params()
-    max_prompt_chars = int(params.get("max_prompt_chars") or MAX_PROMPT_CHARS)
-
-    # Prompt uzunligini cheklash (bepul token byudjetini himoya qilish)
-    prompt = (prompt or "").strip()
-    if len(prompt) > max_prompt_chars:
-        prompt = prompt[:max_prompt_chars] + "\n…(matn juda uzun edi, kesildi)"
-
-    gemini_key = _clean_key(GEMINI_API_KEY)
-    groq_key = _clean_key(GROQ_API_KEY)
-    openrouter_key = _clean_key(OPENROUTER_API_KEY)
-    mistral_key = _clean_key(MISTRAL_API_KEY)
-    cerebras_key = _clean_key(CEREBRAS_API_KEY)
-    sambanova_key = _clean_key(SAMBANOVA_API_KEY)
-    cloudflare_key = _clean_key(CLOUDFLARE_API_TOKEN)
-
-    providers = [
-        ("Gemini", _call_gemini, (prompt, gemini_key, system_instruction, params), bool(gemini_key)),
-        ("Groq", _call_groq, (prompt, groq_key, system_instruction, params), bool(groq_key)),
-        ("OpenRouter", _call_openrouter, (prompt, openrouter_key, system_instruction, params), bool(openrouter_key)),
-        ("Mistral", _call_mistral, (prompt, mistral_key, system_instruction, params), bool(mistral_key)),
-        ("Cerebras", _call_cerebras, (prompt, cerebras_key, system_instruction, params), bool(cerebras_key)),
-        ("SambaNova", _call_sambanova, (prompt, sambanova_key, system_instruction, params), bool(sambanova_key)),
-        # Cloudflare: kalit + account_id ikkalasi ham kerak (endpoint shu ikkisidan yig'iladi)
-        ("Cloudflare", _call_cloudflare, (prompt, cloudflare_key, system_instruction, params),
-         bool(cloudflare_key and CLOUDFLARE_ACCOUNT_ID)),
-        ("Pollinations", _call_pollinations, (prompt, system_instruction, params), True),
-    ]
-
-    errors = []
-    async with _AI_SEMAPHORE:
-        for name, func, args, has_key in providers:
-            if _breaker_open(name):
-                errors.append(f"{name}: vaqtincha o'tkazib yuborildi")
-                continue
-            if not has_key:
-                errors.append(f"{name}: kalit topilmadi" + (" (ixtiyoriy)" if name != "Gemini" else ""))
-                continue
-            try:
-                result = await func(*args)
-                if isinstance(result, dict):
-                    _breaker_success(name)
-                    return result
-                errors.append(f"{name}: javob formati noto'g'ri")
-            except Exception as e:
-                errors.append(f"{name}: {e}")
-                _breaker_fail(name)
-                logger.warning("%s ishlamadi (%s). Keyingi zaxiraga o'tilmoqda...", name, e)
-
-    detail = "\n".join(f"• {e}" for e in errors if e)
-
-    # Agar barcha (yoki asosiy) uzilishlar TIMEOUT tufayli bo'lsa — texnik
-    # ro'yxat o'rniga foydalanuvchiga xushmuomala, tushunarli xabar beramiz.
-    timeout_errors = [e for e in errors if "timeout" in str(e).lower()]
-    real_attempts = [e for e in errors if "kalit topilmadi" not in str(e)]
-    if timeout_errors and len(timeout_errors) >= max(1, len(real_attempts)):
-        logger.warning("Barcha AI provayderlari timeout berdi: %s", detail)
-        return {"error": AI_TIMEOUT_USER_MESSAGE, "timeout": True}
-
-    return {
-        "error": (
-            "⚠️ AI xizmatlarining hech biri javob bermadi:\n"
-            f"{detail}\n\n"
-            "💡 <b>Bepul kalit olish (kamida bittasi kifoya):</b>\n"
-            "• Gemini → GEMINI_API_KEY: aistudio.google.com (kuniga 1500 so'rov)\n"
-            "• Groq → GROQ_API_KEY: console.groq.com (kuniga 1000 so'rov)\n"
-            "• Mistral → MISTRAL_API_KEY: console.mistral.ai (oyiga ~1 mlrd token)\n"
-            "• Cerebras → CEREBRAS_API_KEY: cloud.cerebras.ai (kuniga 1M token)\n"
-            "• OpenRouter → OPENROUTER_API_KEY: openrouter.ai (:free modellar)\n"
-            "• SambaNova → SAMBANOVA_API_KEY: cloud.sambanova.ai (10–30 RPM)\n"
-            "• Cloudflare → CLOUDFLARE_API_TOKEN + CLOUDFLARE_ACCOUNT_ID: "
-            "dash.cloudflare.com → Workers AI (kunlik 10K neuron)\n"
-            "Kalitlarni Render → Environment bo'limiga qo'shing va botni qayta ishga tushiring."
-        )
-    }
+    from services import ai_service
+    return await ai_service.run_ai_chain(prompt, system_instruction)
 
 
 async def _run_with_hard_timeout(coro, timeout: float = None) -> dict:
