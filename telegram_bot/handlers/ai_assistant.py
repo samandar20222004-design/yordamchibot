@@ -18,9 +18,11 @@ from keyboards.inline import (
 )
 from utils.ai_agent import (
     analyze_user_prompt, extract_schedule_time, clear_ai_context,
-    generate_ai_response,
+    generate_ai_response, audit_post,
     VisionError, download_telegram_media_to_temp, cleanup_temp_media,
     generate_vision_post,
+    _AUDIT_PRO_SYSTEM, _AUDIT_FREE_SYSTEM,
+    _PRO_POST_ENHANCEMENT, _FREE_POST_HINT,
 )
 from locales.translations import clear_fsm_data, get_lang, get_text
 from utils.helpers import (
@@ -29,6 +31,21 @@ from utils.helpers import (
 )
 
 logger = logging.getLogger(__name__)
+
+# b2c01d1 compatibility: get_user_subscription fallback
+async def _get_is_pro(user_id: int) -> bool:
+    try:
+        # Prefer is_premium if exists
+        return await db.run_db(db.is_premium, user_id)
+    except Exception:
+        try:
+            sub = await db.run_db(db.get_user_subscription, user_id)
+            if isinstance(sub, dict):
+                return bool(sub.get("is_pro") or sub.get("is_premium"))
+            return False
+        except Exception:
+            return False
+
 tashkent_tz = pytz.timezone("Asia/Tashkent")
 
 # ============================================================
@@ -385,7 +402,7 @@ async def ai_input_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     typing_task = asyncio.create_task(_keep_typing(context.bot, msg.chat_id, stop_typing))
 
     try:
-        result = await analyze_user_prompt(prompt, user_id)
+        result = await analyze_user_prompt(prompt, user_id, is_pro=is_pro)
     finally:
         stop_typing.set()
         typing_task.cancel()
@@ -928,7 +945,8 @@ async def ai_prompt_received(update: Update, context: ContextTypes.DEFAULT_TYPE)
     typing_task = asyncio.create_task(_keep_typing(context.bot, msg.chat_id, stop_typing))
     try:
         # 25 soniyalik qat'iy timeout utils.ai_agent ichida o'rnatilgan
-        result = await generate_ai_response(text_input)
+        # b2c01d1: FREE vs PRO post enhancement
+        result = await generate_ai_response(text_input, is_pro=is_pro)
     except Exception as e:
         logger.error("AI Generation Error: %s", e)
         result = {"error": AI_UNAVAILABLE_MSG}
@@ -1023,7 +1041,9 @@ async def ai_tone_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         pass
 
     try:
-        result = await generate_ai_response(prompt, tone=tone)
+        # b2c01d1: is_pro flag for enhancement
+        is_pro_tone = await db.run_db(db.is_premium, user_id)
+        result = await generate_ai_response(prompt, tone=tone, is_pro=is_pro_tone)
         post_text = (result.get("post_text") or "").strip()
         if not post_text:
             raise RuntimeError(result.get("reply") or "AI bo'sh javob qaytardi")
@@ -1112,10 +1132,8 @@ async def ai_audit_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     stop_typing = asyncio.Event()
     typing_task = asyncio.create_task(_keep_typing(context.bot, msg.chat_id, stop_typing))
     try:
-        result = await generate_ai_response(
-            f"Auditlanadigan post matni:\n\n{text}",
-            system_instruction=AI_AUDIT_SYSTEM,
-        )
+        # b2c01d1: FREE vs PRO audit — audit_post with is_pro
+        result = await audit_post(text, is_pro=is_pro)
     except Exception as e:
         logger.error("AI Generation Error: %s", e)
         result = {"error": AI_UNAVAILABLE_MSG}
@@ -1636,6 +1654,7 @@ async def ai_photo_edit_received(update: Update, context: ContextTypes.DEFAULT_T
             f"Tahrirlanadigan post:\n\n{post_text}\n\n"
             f"Foydalanuvchi talabi:\n{text}",
             system_instruction=PHOTO_EDIT_SYSTEM,
+            is_pro=is_pro,
         )
     except Exception as e:
         logger.error("Vision edit xatosi: %s", e)
