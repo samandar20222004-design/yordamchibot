@@ -767,6 +767,13 @@ def test_conversation_states_handle_album_choice():
 # ----------------------------------------------------------------------
 def test_confirm_save_album_no_buttons_in_db():
     print("== 12. confirm_post_callback: albom postida tugma/reaksiya DB'ga yozilmaydi ==")
+    # throttle chegarasi (1.5s) testlar ketma-ket kelganda yakka rasm → albom holatiga
+    # xalaqit bermasligi uchun — har bir confirm testi boshida tozalaymiz
+    try:
+        from handlers.new_post import reset_callback_throttle as _rst
+        _rst(42)
+    except Exception:
+        pass
     captured = {}
 
     def fake_add_post(**kwargs):
@@ -837,6 +844,11 @@ def test_confirm_save_album_no_buttons_in_db():
 
 def test_confirm_save_single_photo_keeps_buttons():
     print("== 12b. confirm_post_callback: yakka rasm — tugma/reaksiya saqlanadi ==")
+    try:
+        from handlers.new_post import reset_callback_throttle as _rst
+        _rst(42)
+    except Exception:
+        pass
     captured = {}
 
     def fake_add_post(**kwargs):

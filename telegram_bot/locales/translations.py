@@ -3234,6 +3234,32 @@ DB_MESSAGE_TRANSLATIONS = {
             "переводить баллы другим <b>через 3 дня</b> после регистрации."
         ),
     },
+    "en": {
+        "Foydalanuvchi topilmadi.": "User not found.",
+        "Siz bugungi bonusingizni olgansiz! Ertaga yana kiring.": (
+            "You have already claimed today's bonus! Come back tomorrow."
+        ),
+        "Tizim xatoligi yuz berdi.": "A system error occurred.",
+        "O'zingizga ball o'tkaza olmaysiz.": (
+            "You cannot transfer credits to yourself."
+        ),
+        "O'tkazish miqdori kamida 3 ta, ko'pi bilan 20 ta bo'lishi kerak.": (
+            "Transfer amount must be at least 3 and at most 20 credits."
+        ),
+        "Hisobingizda yetarli ball mavjud emas.": (
+            "You don't have enough credits."
+        ),
+        "Qabul qiluvchi foydalanuvchi topilmadi.": "Recipient not found.",
+        "Ballar muvaffaqiyatli o'tkazildi!": "Credits transferred successfully!",
+        (
+            "⚠️ <b>Xavfsizlik qoidasi:</b> Yangi ro'yxatdan o'tgan "
+            "foydalanuvchilar ballarni <b>3 kun o'tgach</b> boshqalarga "
+            "ulasha oladi."
+        ): (
+            "⚠️ <b>Security rule:</b> newly registered users can transfer credits to others "
+            "<b>after 3 days</b>."
+        ),
+    },
 }
 
 
