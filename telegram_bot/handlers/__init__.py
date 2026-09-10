@@ -15,7 +15,7 @@ from config import ADMIN_IDS_SET
 from keyboards.default import (
     exact,
     BTN_NEW_POST, BTN_NEW_POST_RU, BTN_AI_STUDIO, BTN_AI_STUDIO_RU,
-    BTN_PENDING, BTN_PENDING_RU, BTN_SETTINGS, BTN_SETTINGS_RU, BTN_CABINET,
+    BTN_PENDING, BTN_PENDING_RU, BTN_PENDING_EN, BTN_SETTINGS, BTN_SETTINGS_RU, BTN_CABINET,
     BTN_HELP, BTN_HELP_RU, BTN_CONVERTER, BTN_CONVERTER_RU,
     BTN_EXTRAS, BTN_EXTRAS_RU,
     BTN_BACK, BTN_BACK_RU, BTN_MAIN_MENU, BTN_CANCEL, BTN_CANCEL_RU,
@@ -26,7 +26,7 @@ from keyboards.default import (
     BTN_ADMIN_PANEL, BTN_STATS, BTN_ALL_POSTS, BTN_ALL_CHANNELS,
     BTN_BROADCAST, BTN_SPONSORS, BTN_ADD_SPONSOR,
     BTN_ADS, BTN_CHANNEL_AD, BTN_BOT_REPLY_AD, BTN_POST_TAG, BTN_AI_SETTINGS, BTN_CACHE_DB,
-    BTN_ADD_CHANNEL, BTN_QUEUE, BTN_QUEUE_RU, BTN_CONTENT_PLAN, BTN_ANALYTICS, BTN_PREMIUM, BTN_PREMIUM_RU,
+    BTN_ADD_CHANNEL, BTN_QUEUE, BTN_QUEUE_RU, BTN_QUEUE_EN, BTN_CONTENT_PLAN, BTN_ANALYTICS, BTN_PREMIUM, BTN_PREMIUM_RU,
     BTN_CHANNEL_EXTRACT,
     # 🆕 Yangi foydalanuvchilar uchun sodda (3 tugmali) klaviatura
     BTN_QUICK_AI_POST, BTN_QUICK_AI_POST_RU,
@@ -607,7 +607,7 @@ def register_all_handlers(app):
 
     # 4. Kutilayotgan postlar
     pending_handlers = [
-        MessageHandler(exact(BTN_PENDING, BTN_PENDING_RU), lambda u, c: guard_menu(u, c, list_pending_posts)),
+        MessageHandler(exact(BTN_PENDING, BTN_PENDING_RU, BTN_PENDING_EN), lambda u, c: guard_menu(u, c, list_pending_posts)),
     ]
 
     # 5. Konverter
@@ -670,7 +670,7 @@ def register_all_handlers(app):
 
     # 12. Queue
     queue_handlers = [
-        MessageHandler(exact(BTN_QUEUE, BTN_QUEUE_RU), lambda u, c: guard_menu(u, c, queue_menu)),
+        MessageHandler(exact(BTN_QUEUE, BTN_QUEUE_RU, BTN_QUEUE_EN), lambda u, c: guard_menu(u, c, queue_menu)),
     ]
 
     # Barcha menyu sakrashlari

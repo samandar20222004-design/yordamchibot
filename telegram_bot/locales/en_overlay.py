@@ -448,4 +448,136 @@ EN_OVERLAY = {
         "Welcome, <b>{name}</b>! All features are now open to you.\n\n"
         "{hint}"
     ),
+
+    # ============================================================
+    # ⚙️ EXTRA FEATURES / 🔤 CONVERTER / 📖 GUIDE — yakuniy bosqich (EN)
+    # ------------------------------------------------------------
+    # Qo'shimcha funksiyalar, Lotin ⇄ Kirill konverteri, Qo'llanma/FAQ va
+    # tizim xabarlari: EN foydalanuvchisi bu bo'limlarni 100% inglizchada
+    # ko'radi (overlay'siz qolganda UZ matn chiqib qolardi).
+    # Qoidalar: {placeholder} to'plami UZ bilan bir xil, HTML teglari
+    # (<b>/<i>/<code>) va emoji'lar saqlanadi.
+    # ============================================================
+    "extras_menu_body": (
+        "⚙️ <b>Extra features</b>\n\n"
+        "✨ <b>Add Buttons & Reactions to Post</b> — send a ready post (text, "
+        "photo, video, album or forward): the original text stays untouched, "
+        "up to 10 reactions and up to 10 URL buttons are added, and it is "
+        "instantly sent to any channel\n"
+        "🔤 <b>Cyrillic-Latin converter</b> — convert texts between the two "
+        "alphabets\n\n"
+        "Pick the tool you need 👇"
+    ),
+    "extras_btn_enhancer": "✨ Add Buttons & Reactions to Post",
+    "extras_btn_converter": "🔤 Cyrillic-Latin converter",
+    "extras_closed": "✅ The <b>Extra features</b> section is closed.",
+    # 🔤 Lotin ⇄ Kirill matn konvertori oqimi
+    "conv_intro": (
+        "🔤 <b>Latin ⇄ Cyrillic Text Converter:</b>\n\n"
+        "Send the <b>text</b> or <b>photo/video/file</b> (with a caption) "
+        "you want to convert:\n\n"
+        "<i>To cancel, press the '🔙 Main menu' button.</i>"
+    ),
+    "conv_no_text": (
+        "⚠️ No text (caption) found under this file.\n"
+        "Please send text or re-send the file with a caption:"
+    ),
+    "conv_received": (
+        "📝 <b>Text received!</b>\n\n"
+        "Which alphabet should I convert it to? Pick one of the buttons below 👇"
+    ),
+    "conv_btn_cyr": "🔤 Cyrillic version",
+    "conv_btn_lat": "🔤 Latin version",
+    "conv_no_saved_text": "⚠️ Text not found, please re-send it.",
+    "conv_result_title": "📋 <b>Result:</b>",
+    "conv_result_part1": "📋 <b>Result (part 1):</b>",
+    "conv_result_part2": "📋 <b>Result (part 2):</b>",
+    "conv_copy_hint": "<i>(Tap the text to copy it)</i>",
+    "conv_cont_title": "ℹ️ <i>Text continued:</i>",
+    "conv_error": "⚠️ An error occurred: {error}",
+    "cab_converter_info": (
+        "🔤 <b>Cyrillic-Latin converter:</b>\n\n"
+        "Send Latin or Cyrillic text — I will convert it automatically.\n\n"
+        "<i>For example: Salom dunyo → Салом дунё</i>"
+    ),
+    # 📖 Guide / About (/help) + FAQ navigatsiyasi
+    "help_guide": (
+        "📖 <b>PostAssistrobot — Full Guide:</b>\n\n"
+        "🔹 <b>1. Connecting a channel/group:</b>\n"
+        "• Add the bot to your channel as an <b>administrator</b> (with permission to send messages).\n"
+        "• Via «👤 Account & Settings» → «📢 My channels», forward any message from the channel "
+        "to the bot or send @username.\n\n"
+        "🔹 <b>2. Scheduling a new post:</b>\n"
+        "• Schedule text, photo, video, audio or <b>album</b> (several photos/videos) "
+        "posts for any date.\n"
+        "• Link buttons (URL button), reactions and auto-delete (12, 24, 48, 72 hours).\n"
+        "• <i>On the PRO plan posts go out automatically ad-free (100% clean)!</i>\n\n"
+        "🔹 <b>3. ✨ AI Studio:</b>\n"
+        "• AI post writing, post from photo (Vision), AI post audit and content plan.\n"
+        "• Ask a question or send text/photo/forward — a professional post and poems are prepared.\n"
+        "• Free-form command: <i>«schedule to all channels tomorrow morning at 9»</i>.\n"
+        "• Editing a post: <i>«add a phone number at the end»</i>.\n\n"
+        "🔹 <b>4. Credits & Daily Streak:</b>\n"
+        "• Open the bot every day and press the <b>'🎁 Daily bonus'</b> button.\n"
+        "• Day 1 (+1), day 2 (+1), day 3 (+2), ..., day 7 (+4 credits)!\n\n"
+        "🔹 <b>5. ⚙️ Extra features:</b>\n"
+        "• ✨ Add Buttons & Reactions to Post — instantly boost a ready post.\n"
+        "• 🔤 Latin ⇄ Cyrillic text converter.\n\n"
+        "⚙️ <b>Quick commands:</b>\n"
+        "/start — Main menu\n"
+        "/newpost — New post\n"
+        "/profile — Account\n"
+        "/help — Guide\n"
+        "/cancel — Cancel\n\n"
+        "{support}"
+    ),
+    "help_guide_admin": (
+        "\n\n👑 <b>Admin commands:</b>\n"
+        "/admin — Control panel\n"
+        "/broadcast — Broadcast message\n"
+        "/stats — Statistics"
+    ),
+    "help_btn_faq": "❓ Frequently asked questions",
+    "help_btn_support": "💬 Contact support",
+    "help_support_line": "👨‍💻 <b>Need help?</b> Contact {admin}.",
+    "help_admin_fallback": "the bot administrator",
+    "cab_guide_text": (
+        "📖 <b>PostAssistrobot — Full Guide:</b>\n\n"
+        "🔹 <b>1. Scheduling a new post:</b>\n"
+        "• Schedule text, photo, video, audio or <b>album</b> posts for any date.\n"
+        "• Link buttons, reactions and auto-delete.\n\n"
+        "🔹 <b>2. AI Assistant:</b>\n"
+        "• Ask a question or send text/photo — it prepares a professional post.\n"
+        "• Free-form: <i>\"tomorrow morning at 9 to all channels\"</i>.\n\n"
+        "🔹 <b>3. Credits & Daily Streak:</b>\n"
+        "• Open the bot every day and claim your bonus (+4 credits on day 7).\n\n"
+        "⚙️ <b>Quick commands:</b>\n"
+        "/start — Main menu\n"
+        "/profile — Account\n"
+        "/help — Guide\n"
+        "/cancel — Cancel"
+    ),
+    # ⚠️ Tizim xabarlari va yordamchi matnlar (start.py oqimlari EN'da ham
+    # foydalanuvchi tilida javob beradi)
+    "msg_closed": "✅ Closed.",
+    "conv_timeout_msg": (
+        "⏰ <b>The conversation ended due to timeout.</b>\n"
+        "You are back in the main menu. Please pick a section again 👇"
+    ),
+    "no_channels_hint": (
+        "First connect your channel or group in the <b>«My channels»</b> section."
+    ),
+    "btn_pending": "⏳ Pending posts",
+    "btn_queue": "📚 Queue",
+    "sys_busy": (
+        "⚠️ <b>The system is temporarily busy.</b>\n"
+        "Please press /start in a moment."
+    ),
+    "sys_stale_button": (
+        "♻️ This button is outdated (the bot was restarted). Reopen the menu: /start"
+    ),
+    "sys_unexpected_error": (
+        "⚠️ <b>An unexpected error occurred.</b>\n"
+        "Please try again in a moment or press /start."
+    ),
 }

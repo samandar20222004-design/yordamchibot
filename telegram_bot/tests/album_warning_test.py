@@ -49,6 +49,7 @@ from handlers.new_post import (  # noqa: E402
     album_choice_callback, _ask_reactions_step, _proceed_after_reactions,
     _is_multi_album, _album_items_of, _album_choice_keyboard,
     _strip_unsupported_album_options, confirm_post_callback,
+    reset_callback_throttle,
 )
 from keyboards.default import BTN_SKIP_BUTTON  # noqa: E402
 from locales.translations import get_text, has_key, translation_parity_report  # noqa: E402
@@ -767,6 +768,11 @@ def test_conversation_states_handle_album_choice():
 # ----------------------------------------------------------------------
 def test_confirm_save_album_no_buttons_in_db():
     print("== 12. confirm_post_callback: albom postida tugma/reaksiya DB'ga yozilmaydi ==")
+    # Test izolyatsiyasi: confirm_post_callback 1.5 soniyalik callback throttle
+    # bilan himoyalangan — ketma-ket testlar bir xil user_id (42) bilan
+    # ishlagani uchun throttle holati tozalanadi (aks holda keyingi test
+    # \"jim\" qolib None qaytaradi va noto'g'ri FAIL beradi).
+    reset_callback_throttle(42)
     captured = {}
 
     def fake_add_post(**kwargs):
@@ -837,6 +843,10 @@ def test_confirm_save_album_no_buttons_in_db():
 
 def test_confirm_save_single_photo_keeps_buttons():
     print("== 12b. confirm_post_callback: yakka rasm — tugma/reaksiya saqlanadi ==")
+    # Test izolyatsiyasi: oldingi test (12) bilan bir xil user_id (42)
+    # ishlatiladi — throttle tozalanmasa, bu chaqiruv 1.5s oynaga tushib
+    # None qaytaradi (soxta FAIL). Production'da bu himoya to'g'ri ishlaydi.
+    reset_callback_throttle(42)
     captured = {}
 
     def fake_add_post(**kwargs):

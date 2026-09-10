@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Barcha testlarni ishga tushirish:
+# Barcha testlarni ishga tushirish (global smoke test — 3000+ tekshiruv):
 #   cd telegram_bot && bash tests/run_tests.sh
 set -u
 cd "$(dirname "$0")/.."
@@ -31,8 +31,36 @@ echo "================= STICKER REACTION TEST ================="
 "$PY" tests/sticker_reaction_test.py || exit 1
 
 echo
+echo "================= NEW POST i18n TEST ================"
+"$PY" tests/new_post_i18n_test.py || exit 1
+
+echo
+echo "============= ACCOUNT & SETTINGS i18n TEST ==========="
+"$PY" tests/account_settings_i18n_test.py || exit 1
+
+echo
+echo "============== AI STUDIO PLAN i18n TEST ============="
+"$PY" tests/ai_studio_plan_i18n_test.py || exit 1
+
+echo
 echo "=============== PREMIUM / EN i18n TEST ==============="
 "$PY" tests/premium_i18n_en_test.py || exit 1
+
+echo
+echo "=========== EXTRAS / ONBOARDING i18n TEST ==========="
+"$PY" tests/extras_onboarding_i18n_test.py || exit 1
+
+echo
+echo "================= CHANNEL READER TEST ==============="
+"$PY" tests/channel_reader_test.py || exit 1
+
+echo
+echo "================== FREE vs PRO TEST ================="
+"$PY" tests/free_vs_pro_test.py || exit 1
+
+echo
+echo "=============== CALLBACK THROTTLE TEST =============="
+"$PY" tests/callback_throttle_test.py || exit 1
 
 echo
 echo "==================== SCHEMA TEST ===================="
