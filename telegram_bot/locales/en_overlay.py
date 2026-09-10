@@ -286,4 +286,162 @@ EN_OVERLAY = {
     "tz_btn_utc": "🌐 UTC (UTC+0)",
     "tz_btn_samarkand": "🇺🇿 Samarkand (UTC+5)",
     "tz_current": "🌍 Timezone: <b>{tz}</b>",
+
+    # ============================================================
+    # ⭐️ PREMIUM / PRO — to'lov, chek va obuna oqimi (EN)
+    # ------------------------------------------------------------
+    # ``TRANSLATIONS["en"]`` UZ blokasidan nusxalanib faqat shu overlay bilan
+    # to'ldiriladi (translations.py oxiri). Overlay'da bo'lmagan har bir kalit
+    # EN foydalanuvchisiga **o'zbekcha** matn qaytaradi. Quyidagi guruh —
+    # Premium/to'lov ekrani kalitlari: bu yerga qo'shilmasa, EN'da butun
+    # «⭐️ Premium» bo'limi o'zbekcha ko'rinadi.
+    # Qoidalar: {placeholder} to'plami UZ bilan bir xil, HTML teglari
+    # (<b>/<i>/<code>) va emoji'lar saqlanadi.
+    # ============================================================
+    # «btn_premium» (⭐️ Premium) allaqachon overlay boshida — 3 tilda ham bir xil
+    # brend yozuvi, qasddan tarjimasi yo'q.
+    # Premium / tarif ekrani
+    "ch_pro_btn": "⭐️ Go PRO",
+    "ad_mode_admin": "👑 <b>Admin</b> — no ads",
+    "ad_mode_pro": "✨ <b>PRO</b> — posts and bot replies are automatically 100% ad-free",
+    "ad_mode_free": "🆓 <b>Free</b> — ads appear at a set interval (turned off automatically in PRO)",
+    # AI limitlari va kunlik bonus
+    "ai_credits_unlimited": "♾ Unlimited",
+    "ai_credits_unlimited_pro": "♾ Unlimited (PRO)",
+    "no_credits": (
+        "⚠️ <b>You have run out of free AI requests!</b>\n\n"
+        "Invite friends to get more.\n"
+        "🎁 <i>+3 credits for the 1st, 2nd and 3rd friend; +1 for each friend from the 4th on.</i>\n"
+        "{guide}\n\n"
+        "🔗 Your referral link:\n"
+        "<code>{link}</code>"
+    ),
+    "daily_bonus_guide": (
+        "🎁 To claim your daily free AI credits, open 'Account & Settings' → '🎁 Daily bonus'."
+    ),
+    # AI Studio / post enhancer promptlari (PRO rejasi matnlari)
+    "ai_prompt_hint": "✍️ Write the post topic or send a photo/file:",
+    "ai_audit_prompt_hint": "🔍 Send the post text you want audited:",
+    "ai_time_prompt_hint": "Please write the publishing time (e.g.: <i>“tomorrow at 10:00”</i>):",
+    "np_ai_proposal": (
+        "✨ <b>AI suggestion:</b>\n\n"
+        "{new}\n\n"
+        "📝 Original: <i>{old}</i>"
+    ),
+    "np_ai_retry_proposal": "✨ <b>AI suggestion (retry):</b>\n\n{new}",
+    "enh_note_pro": "✨ <i>PRO — no via/watermark added, the post goes out clean.</i>\n",
+    "enh_again_prompt": (
+        "{notice}\n\n"
+        "🚀 <b>New post</b> — send the post you want to enhance "
+        "(text, photo, video, album or forward):"
+    ),
+    "enh_replace_prompt": (
+        "🔁 <b>Send the new post</b> — the current post (text/media) will be replaced. "
+        "Reactions and buttons are kept 👇"
+    ),
+    "enh_edit_prompt": (
+        "✏️ <b>Editing button {num}</b>\n\n"
+        "Current: <b>{text}</b> → <code>{url}</code>\n\n"
+        "Send the new value in one line:\n"
+        "<code>New label - https://new-link.com</code>"
+    ),
+    "enh_manual_prompt": (
+        "✍️ <b>New URL button (manual entry)</b>\n\n"
+        "Send it in one line:\n"
+        "<code>Button label - https://site.com</code>\n"
+        "<code>Button label | @mychannel</code>\n"
+        "<code>My bot - t.me/bot_name/start</code>"
+    ),
+    "enh_preset_prompt": (
+        "{icon} <b>{num}. {title}</b>\n\n"
+        "Send <b>only the link</b> (e.g.: <code>{hint}</code>) — "
+        "the button label is added automatically.\n\n"
+        "<i>Full format also works: <code>Label - https://site.com</code></i>"
+    ),
+    # 💳 Karta orqali to'lov oqimi
+    "btn_card_payment": "💳 Card payment (Uzcard / Humo)",
+    "card_tariff_title": "💳 <b>Card payment</b>\n\n📌 Which plan are you paying for? Pick a plan 👇",
+    "card_plan_1m": "1 month",
+    "card_plan_3m": "3 months",
+    "card_plan_1y": "1 year",
+    "card_tariff_1m": "1 month — {price} so'm",
+    "card_tariff_3m": "3 months — {price} so'm",
+    "card_tariff_1y": "1 year — {price} so'm",
+    "card_payment_title": "💳 <b>Card payment (Uzcard / Humo)</b>",
+    "card_payment_prices": (
+        "💰 <b>Amount to pay:</b>\n"
+        "• 1 month — <b>{p1m} so'm</b>\n"
+        "• 3 months — <b>{p3m} so'm</b>\n"
+        "• 1 year — <b>{p1y} so'm</b>"
+    ),
+    "card_payment_selected": (
+        "🎫 Selected plan: <b>{tarif}</b>\n"
+        "💰 Amount to pay: <b>{summa} so'm</b>"
+    ),
+    "card_payment_card": (
+        "💳 <b>Card number:</b> <code>{card}</code>\n"
+        "👤 <b>Card holder:</b> {holder}"
+    ),
+    "card_payment_no_card": "ℹ️ Contact the admin to get the card details.",
+    "card_payment_admin_missing": "admin (contact details in the '📖 Guide / About' section)",
+    "card_payment_steps": (
+        "📝 <b>Instructions:</b>\n"
+        "1️⃣ Transfer the selected amount to the card above.\n"
+        "2️⃣ Get the payment receipt (screenshot or PDF).\n"
+        "3️⃣ Tap the <b>\"📸 Send receipt\"</b> button below and send the receipt here.\n"
+        "4️⃣ Your ID: <code>{user_id}</code> — used when the receipt is checked.\n\n"
+        "Once the admin approves it, the <b>PRO plan</b> is activated.\n"
+        "⚡️ For instant activation, pay with ⭐️ Stars — PRO turns on right away.\n"
+        "Questions: {admin}"
+    ),
+    # 📸 Chek (receipt) oqimi — foydalanuvchi + admin tomoni
+    "btn_send_receipt": "📸 Send receipt",
+    "receipt_prompt": (
+        "📸 <b>Send your payment receipt:</b>\n\n"
+        "🎫 Selected plan: {tarif} ({summa} so'm)\n\n"
+        "Send the receipt (screenshot or PDF) as a <b>photo or document</b>. "
+        "The bot forwards the receipt to the admins.\n"
+        "🆔 Your ID: <code>{user_id}</code>\n\n"
+        "Once the admin approves it, the <b>PRO</b> plan is activated automatically."
+    ),
+    "receipt_saved": (
+        "✅ Your receipt was received and sent to the admin. "
+        "We will check it soon and activate PRO."
+    ),
+    "receipt_bad_media": (
+        "⚠️ Please send the receipt as a <b>photo</b> or a <b>PDF document</b>. "
+        "Other files are not accepted as a receipt."
+    ),
+    "receipt_approved_user": (
+        "🎉 <b>Congratulations!</b>\n\n"
+        "Your payment receipt has been approved and the <b>{days}-day PRO plan</b> is now active!\n"
+        "You can use everything PRO offers. 🚀"
+    ),
+    "receipt_rejected_user": (
+        "❌ <b>Receipt rejected</b>\n\n"
+        "Unfortunately your payment receipt was not approved. "
+        "Please try again or contact the admin in the '⭐️ Premium' section."
+    ),
+    "receipt_admin_title": "💳 <b>New payment receipt!</b>",
+    "receipt_admin_ask": "📝 Check the receipt and tap one of the buttons below:",
+    "receipt_admin_already": "This receipt has already been reviewed.",
+    "receipt_admin_done_ok": "✅ Approved. PRO has been granted to the user.",
+    "receipt_admin_done_reject": "❌ Rejected.",
+    "receipt_admin_user_line": "👤 User: {name} (@{username})",
+    "receipt_admin_user_nick_line": "👤 User: {name}",
+    # ID qatori — talab bo'yicha barcha tillarda bir xil (lang-neutral).
+    "receipt_admin_user_id_line": "🆔 ID: {user_id}",
+    "receipt_admin_tarif_line": "🎫 Selected plan: {tarif} ({summa} so'm)",
+    "receipt_admin_time_line": "🕐 Time: {sana}",
+    "receipt_btn_approve": "✅ Approve",
+    "receipt_btn_reject": "❌ Reject",
+    # 🔒 Kanalga obuna (majburiy) ekrani
+    "sub_required": "⚠️ <b>To use the bot fully, join the official channels below:</b>",
+    "sub_not_yet_alert": "⚠️ You have not joined all the channels yet! Please join all of them.",
+    "sub_not_yet_msg": "⚠️ You have not joined all the channels yet! Join using the buttons below.",
+    "sub_confirmed": (
+        "✅ Subscription confirmed!\n\n"
+        "Welcome, <b>{name}</b>! All features are now open to you.\n\n"
+        "{hint}"
+    ),
 }

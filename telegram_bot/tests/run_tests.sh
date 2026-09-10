@@ -31,6 +31,10 @@ echo "================= STICKER REACTION TEST ================="
 "$PY" tests/sticker_reaction_test.py || exit 1
 
 echo
+echo "=============== PREMIUM / EN i18n TEST ==============="
+"$PY" tests/premium_i18n_en_test.py || exit 1
+
+echo
 echo "==================== SCHEMA TEST ===================="
 "$PY" tests/schema_test.py || exit 1
 
