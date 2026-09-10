@@ -1,5 +1,6 @@
 import os
 import asyncio
+import hashlib
 import logging
 import random
 import string
@@ -30,7 +31,8 @@ SCHEMA_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "schema.s
 
 # Startup schema check: bot ishga tushganda mavjudligi tasdiqlanadigan
 # jadvallar va indekslar (schema.sql bilan bir xil bo'lishi shart —
-# tests/schema_test.py buni tekshirib turadi).
+# tests/schema_test.py buni tekshirib turadi). Legacy ro'yxatlar saqlanadi;
+# P0 obyektlari alohida REQUIRED_P0_* orqali ham startup'da tekshiriladi.
 EXPECTED_TABLES = (
     "users", "channels", "sponsor_channels", "system_settings",
     "bot_settings", "ad_pool", "channel_post_counters", "scheduled_posts",
@@ -48,6 +50,8 @@ EXPECTED_INDEXES = (
     "idx_post_reactions_post_id",
     "idx_channel_posts_history_channel_date",
 )
+REQUIRED_P0_TABLES = ("promo_redemptions", "post_deliveries")
+REQUIRED_P0_INDEXES = ("idx_deliveries_sched", "uq_payments_telegram_charge_id")
 
 
 def resolve_sslmode(url: str = None) -> str:
@@ -416,13 +420,15 @@ def _verify_schema(cur) -> None:
         "WHERE table_schema = current_schema()"
     )
     tables = {row[0] for row in cur.fetchall()}
-    missing_tables = [t for t in EXPECTED_TABLES if t not in tables]
+    required_tables = (*EXPECTED_TABLES, *REQUIRED_P0_TABLES)
+    missing_tables = [t for t in required_tables if t not in tables]
 
     cur.execute(
         "SELECT indexname FROM pg_indexes WHERE schemaname = current_schema()"
     )
     indexes = {row[0] for row in cur.fetchall()}
-    missing_indexes = [i for i in EXPECTED_INDEXES if i not in indexes]
+    required_indexes = (*EXPECTED_INDEXES, *REQUIRED_P0_INDEXES)
+    missing_indexes = [i for i in required_indexes if i not in indexes]
 
     if missing_indexes:
         logger.warning("Sxema tekshiruvi: indekslar topilmadi: %s (schema.sql ularni yaratadi)",
@@ -437,7 +443,7 @@ def _verify_schema(cur) -> None:
             "WHERE table_schema = current_schema()"
         )
         tables = {row[0] for row in cur.fetchall()}
-        missing_tables = [t for t in EXPECTED_TABLES if t not in tables]
+        missing_tables = [t for t in required_tables if t not in tables]
         if missing_tables:
             raise RuntimeError(
                 "DB sxemasi to'liq emas, jadvallar yaratilmadi: "
@@ -448,8 +454,8 @@ def _verify_schema(cur) -> None:
 
     logger.info(
         "Sxema tekshiruvi OK: %d/%d jadval, %d/%d indeks.",
-        len(EXPECTED_TABLES) - len(missing_tables), len(EXPECTED_TABLES),
-        len(EXPECTED_INDEXES) - len(missing_indexes), len(EXPECTED_INDEXES),
+        len(required_tables) - len(missing_tables), len(required_tables),
+        len(required_indexes) - len(missing_indexes), len(required_indexes),
     )
 
 
@@ -574,6 +580,23 @@ def _init_db_once():
             );
         """)
 
+        # P0-01: doimiy, DB-backed delivery idempotency registry.
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS post_deliveries (
+                id BIGSERIAL PRIMARY KEY,
+                post_id BIGINT NOT NULL,
+                channel_id BIGINT NOT NULL,
+                status VARCHAR(20) NOT NULL DEFAULT 'pending',
+                attempt_count INT DEFAULT 0,
+                telegram_message_id BIGINT,
+                idempotency_key TEXT UNIQUE NOT NULL,
+                last_error TEXT,
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                updated_at TIMESTAMPTZ DEFAULT NOW()
+            );
+        """)
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_deliveries_sched ON post_deliveries(status, post_id);")
+
         cur.execute("""
             CREATE TABLE IF NOT EXISTS post_reactions (
                 id SERIAL PRIMARY KEY,
@@ -605,7 +628,17 @@ def _init_db_once():
                 max_uses INTEGER DEFAULT NULL,
                 current_uses INTEGER DEFAULT 0,
                 is_active BOOLEAN DEFAULT TRUE,
+                expires_at TIMESTAMPTZ,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS promo_redemptions (
+                id BIGSERIAL PRIMARY KEY,
+                promo_id BIGINT NOT NULL,
+                user_id BIGINT NOT NULL,
+                redeemed_at TIMESTAMPTZ DEFAULT NOW(),
+                CONSTRAINT uq_promo_user UNIQUE (promo_id, user_id)
             );
         """)
 
@@ -636,11 +669,16 @@ def _init_db_once():
                 amount INT,
                 currency VARCHAR(10),
                 payload TEXT,
-                telegram_payment_charge_id TEXT,
+                telegram_payment_charge_id TEXT UNIQUE,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
         """)
         cur.execute("CREATE INDEX IF NOT EXISTS idx_payments_user_id ON payments (user_id);")
+        cur.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS uq_payments_telegram_charge_id "
+            "ON payments (telegram_payment_charge_id) "
+            "WHERE telegram_payment_charge_id IS NOT NULL;"
+        )
 
         # 💳 Karta orqali to'lov cheklari — Admin Approval Flow.
         # Foydalanuvchi chek yuborganida pending holatida saqlanadi, adminlarga
@@ -668,6 +706,9 @@ def _init_db_once():
         )
 
         migrations = [
+            # P0 backward-compatible migrations (har bir statement savepoint bilan bajariladi).
+            "ALTER TABLE payments ADD COLUMN IF NOT EXISTS telegram_payment_charge_id TEXT UNIQUE;",
+            "ALTER TABLE promo_codes ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ;",
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS full_name VARCHAR(255);",
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS user_code VARCHAR(8) UNIQUE;",
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS referrer_id BIGINT;",
@@ -2357,6 +2398,113 @@ def cancel_post(post_id: int, user_id: int, is_admin: bool = False) -> bool:
         logger.error(f"Post bekor qilish xatosi: {e}")
         return False
 
+def _delivery_channel_number(channel_id) -> int:
+    """post_deliveries.channel_id BIGINT uchun kanalni deterministik kodlaydi.
+
+    Telegram kanal ID'lari odatda BIGINT. Legacy konfiguratsiyada ``@username``
+    ham uchrashi mumkin; bunday qiymat uchun stable signed 63-bit surrogate
+    ishlatiladi. Haqiqiy idempotency_key esa original qiymatni saqlaydi.
+    """
+    try:
+        return int(channel_id)
+    except (TypeError, ValueError):
+        digest = hashlib.sha256(str(channel_id).encode("utf-8")).digest()[:8]
+        value = int.from_bytes(digest, "big") & ((1 << 63) - 1)
+        return value or 1
+
+
+def build_delivery_idempotency_key(post_id: int, channel_id, scheduled_timestamp) -> str:
+    """Bir scheduled post/channel/vaqt uchun o'zgarmas delivery key."""
+    if hasattr(scheduled_timestamp, "isoformat"):
+        timestamp = scheduled_timestamp.isoformat()
+    else:
+        timestamp = str(scheduled_timestamp)
+    return f"post_{int(post_id)}_{channel_id}_{timestamp}"
+
+
+def claim_post_delivery(post_id: int, channel_id, scheduled_timestamp) -> dict:
+    """Telegramga yuborish huquqini atomik claim qiladi.
+
+    ``sent`` bo'lsa caller darhol skip qiladi; ``processing`` bo'lsa boshqa
+    scheduler instance ishlayotgan bo'ladi. Faqat pending/failed yozuv claim
+    qilinadi va attempt counter oshadi.
+    """
+    key = build_delivery_idempotency_key(post_id, channel_id, scheduled_timestamp)
+    try:
+        with db_cursor(commit=True) as cur:
+            cur.execute(
+                "INSERT INTO post_deliveries "
+                "(post_id, channel_id, status, idempotency_key) "
+                "VALUES (%s, %s, 'pending', %s) ON CONFLICT DO NOTHING",
+                (int(post_id), _delivery_channel_number(channel_id), key),
+            )
+            cur.execute(
+                "SELECT status, attempt_count, telegram_message_id "
+                "FROM post_deliveries WHERE idempotency_key = %s FOR UPDATE",
+                (key,),
+            )
+            row = cur.fetchone()
+            if not row:
+                return {"claimed": False, "status": "missing", "idempotency_key": key}
+            status, attempt_count, message_id = row
+            if status == "sent":
+                return {"claimed": False, "sent": True, "status": status,
+                        "message_id": message_id, "idempotency_key": key}
+            if status == "processing":
+                return {"claimed": False, "sent": False, "status": status,
+                        "idempotency_key": key}
+            cur.execute(
+                "UPDATE post_deliveries SET status = 'processing', "
+                "attempt_count = COALESCE(attempt_count, 0) + 1, "
+                "last_error = NULL, updated_at = NOW() "
+                "WHERE idempotency_key = %s",
+                (key,),
+            )
+            return {"claimed": True, "sent": False, "status": "processing",
+                    "attempt_count": (attempt_count or 0) + 1,
+                    "idempotency_key": key}
+    except Exception as e:
+        logger.error("Delivery claim xatosi (post=%s, channel=%s): %s", post_id, channel_id, e)
+        return {"claimed": False, "error": str(e), "idempotency_key": key}
+
+
+def mark_post_delivery_sent(idempotency_key: str, telegram_message_id: int) -> bool:
+    """Yuborilgan delivery'ni sent/message_id bilan idempotent belgilaydi."""
+    try:
+        with db_cursor(commit=True) as cur:
+            cur.execute(
+                "UPDATE post_deliveries SET status = 'sent', telegram_message_id = %s, "
+                "last_error = NULL, updated_at = NOW() "
+                "WHERE idempotency_key = %s AND status <> 'sent'",
+                (telegram_message_id, idempotency_key),
+            )
+            if cur.rowcount == 0:
+                cur.execute(
+                    "SELECT 1 FROM post_deliveries WHERE idempotency_key = %s AND status = 'sent'",
+                    (idempotency_key,),
+                )
+                return cur.fetchone() is not None
+        return True
+    except Exception as e:
+        logger.error("Delivery sent marker xatosi (%s): %s", idempotency_key, e)
+        return False
+
+
+def mark_post_delivery_failed(idempotency_key: str, error: str) -> bool:
+    """Telegram yuborish xatosini qayd qiladi; keyingi retry claim qila oladi."""
+    try:
+        with db_cursor(commit=True) as cur:
+            cur.execute(
+                "UPDATE post_deliveries SET status = 'failed', last_error = %s, updated_at = NOW() "
+                "WHERE idempotency_key = %s AND status <> 'sent'",
+                (str(error)[:4000], idempotency_key),
+            )
+        return True
+    except Exception as e:
+        logger.error("Delivery failed marker xatosi (%s): %s", idempotency_key, e)
+        return False
+
+
 def get_due_posts(now) -> list:
     """Atomically claim due posts so concurrent scheduler runs cannot duplicate them.
 
@@ -3069,9 +3217,13 @@ def set_user_plan(user_id: int, plan: str, days: int = None) -> bool:
     try:
         with db_cursor(commit=True) as cur:
             if days and days > 0:
+                # Qolgan muddat kuyib ketmasin: yangi paket amaldagi
+                # expiry (yoki hozirgi vaqt) ustiga qo'shiladi.
                 cur.execute(
                     "UPDATE users SET plan_type = %s, "
-                    "subscription_expires_at = NOW() + (%s || ' days')::INTERVAL "
+                    "subscription_expires_at = GREATEST("
+                    "COALESCE(subscription_expires_at, NOW()), NOW()) "
+                    "+ (%s || ' days')::INTERVAL "
                     "WHERE user_id = %s",
                     (plan, str(days), user_id),
                 )
@@ -3103,31 +3255,62 @@ def create_promo_code(code: str, plan_type: str = "pro", duration_days: int = 30
 
 
 def redeem_promo_code(user_id: int, code: str) -> tuple[bool, str]:
-    """Promo-kodni faollashtiradi. Returns: (success, message)."""
+    """Promo-kodni bir marta, race-free tarzda faollashtiradi.
+
+    Promo qatori ``FOR UPDATE`` bilan qulflanadi. Shu sababli parallel
+    redemption'lar navbat bilan o'tadi va ``current_uses`` tekshiruvi bilan
+    increment'i bitta tranzaksiyada bajariladi. ``promo_redemptions`` dagi
+    unique constraint esa aynan shu userning ikkinchi urinishini ham bloklaydi.
+    """
     code = (code or "").strip().upper()
     if not code:
         return False, "Promo-kod kiritilmadi."
     try:
         with db_cursor(commit=True) as cur:
+            # Muhim: oddiy SELECT emas — promo limitini tekshirayotgan
+            # tranzaksiya davomida boshqa redemption uni o'zgartira olmaydi.
             cur.execute(
-                "SELECT id, plan_type, duration_days, max_uses, current_uses, is_active "
-                "FROM promo_codes WHERE code = %s",
+                "SELECT id, plan_type, duration_days, max_uses, current_uses, "
+                "is_active, expires_at "
+                "FROM promo_codes WHERE code = %s FOR UPDATE",
                 (code,),
             )
             row = cur.fetchone()
             if not row:
                 return False, "Promo-kod topilmadi."
-            promo_id, plan_type, duration_days, max_uses, current_uses, is_active = row
+            promo_id, plan_type, duration_days, max_uses, current_uses, is_active, expires_at = row
             if not is_active:
                 return False, "Bu promo-kod o'chirilgan."
-            if max_uses is not None and current_uses >= max_uses:
+            if expires_at is not None:
+                cur.execute("SELECT (%s <= NOW())", (expires_at,))
+                if cur.fetchone()[0]:
+                    return False, "Bu promo-kod muddati o'tgan."
+            if max_uses is not None and (current_uses or 0) >= max_uses:
                 return False, "Bu promo-kod ishlatib bo'lingan."
+
+            # UNIQUE(promo_id, user_id) tufayli ikki parallel so'rovdan faqat
+            # birinchisi qator oladi. ON CONFLICT yangi xato yaratmaydi.
+            cur.execute(
+                "INSERT INTO promo_redemptions (promo_id, user_id) "
+                "VALUES (%s, %s) ON CONFLICT (promo_id, user_id) DO NOTHING "
+                "RETURNING id",
+                (promo_id, user_id),
+            )
+            redemption = cur.fetchone()
+            if not redemption:
+                return False, "Siz bu promo-kodni avval ishlatgansiz."
+
             cur.execute(
                 "UPDATE users SET plan_type = %s, "
-                "subscription_expires_at = NOW() + (%s || ' days')::INTERVAL "
+                "subscription_expires_at = GREATEST("
+                "COALESCE(subscription_expires_at, NOW()), NOW()) "
+                "+ (%s || ' days')::INTERVAL "
                 "WHERE user_id = %s",
                 (plan_type, str(duration_days), user_id),
             )
+            if cur.rowcount == 0:
+                # User mavjud bo'lmasa, butun tranzaksiya rollback bo'ladi.
+                return False, "Foydalanuvchi topilmadi."
             cur.execute(
                 "UPDATE promo_codes SET current_uses = current_uses + 1 WHERE id = %s",
                 (promo_id,),
@@ -3175,27 +3358,92 @@ def get_referrer_id(user_id: int) -> int | None:
 # ============================================================
 
 def log_stars_payment(user_id: int, amount: int, currency: str, payload: str, telegram_payment_id: str = "") -> bool:
-    """Stars to'lovini alohida ``payments`` jadvaliga yozadi.
+    """Stars to'lovini audit jadvaliga idempotent yozadi.
 
-    To'lovlar endi promo_codes jadvali bilan aralashmaydi — har bir to'lov
-    o'z qatori sifatida audit qilinadi (user_id, amount, currency, payload,
-    telegram_payment_charge_id, created_at).
+    ``telegram_payment_charge_id`` NULL bo'lishi mumkin (legacy/manual
+    chaqiriqlar uchun), ammo haqiqiy Telegram charge ID doimo unique.
     """
     try:
+        charge_id = (telegram_payment_id or "").strip() or None
         with db_cursor(commit=True) as cur:
             cur.execute(
                 """
                 INSERT INTO payments (user_id, amount, currency, payload, telegram_payment_charge_id)
                 VALUES (%s, %s, %s, %s, %s)
+                ON CONFLICT DO NOTHING
                 """,
-                (user_id, amount, currency, payload, telegram_payment_id or ""),
+                (user_id, amount, currency, payload, charge_id),
             )
+            inserted = cur.rowcount > 0
         _cache_clear("system_stats")
         _cache_clear("admin_dashboard_stats")
-        return True
+        return inserted
     except Exception as e:
         logger.error(f"Stars payment log xatosi: {e}")
         return False
+
+
+def process_stars_payment(
+    user_id: int,
+    amount: int,
+    currency: str,
+    payload: str,
+    telegram_payment_id: str,
+    plan: str = "pro",
+    duration_days: int = 30,
+) -> dict:
+    """To'lovni audit qilish va obunani uzaytirishni bitta tranzaksiyada bajaradi.
+
+    PostgreSQL unique constraint orqali Telegram charge ID ikkinchi marta
+    kelganda INSERT hech narsa qilmaydi; shunda subscription UPDATE ham
+    bajarilmaydi. Bu webhook/Telegram retry'larida 1 ta haqiqiy grantni
+    kafolatlaydi.
+    """
+    charge_id = (telegram_payment_id or "").strip()
+    try:
+        duration_days = int(duration_days)
+    except (TypeError, ValueError):
+        duration_days = 0
+    if not charge_id or duration_days <= 0:
+        return {"ok": False, "duplicate": False, "reason": "invalid_payment"}
+    try:
+        with db_cursor(commit=True) as cur:
+            # User rowini oldindan qulflash ham UPDATE natijasini aniq qiladi,
+            # ham topilmagan user uchun payment auditini commit qilib qo'ymaydi.
+            cur.execute("SELECT 1 FROM users WHERE user_id = %s FOR UPDATE", (user_id,))
+            if not cur.fetchone():
+                return {"ok": False, "duplicate": False, "reason": "user_not_found"}
+            cur.execute(
+                """
+                INSERT INTO payments (user_id, amount, currency, payload, telegram_payment_charge_id)
+                VALUES (%s, %s, %s, %s, %s)
+                ON CONFLICT DO NOTHING
+                RETURNING id
+                """,
+                (user_id, amount, currency, payload, charge_id),
+            )
+            payment_row = cur.fetchone()
+            if not payment_row:
+                return {"ok": True, "duplicate": True, "days": 0}
+
+            cur.execute(
+                "UPDATE users SET plan_type = %s, "
+                "subscription_expires_at = GREATEST("
+                "COALESCE(subscription_expires_at, NOW()), NOW()) "
+                "+ (%s || ' days')::INTERVAL "
+                "WHERE user_id = %s",
+                (plan, str(int(duration_days)), user_id),
+            )
+            if cur.rowcount == 0:
+                # To'lov ham, subscription ham atomik rollback qilinadi.
+                return {"ok": False, "duplicate": False, "reason": "user_not_found"}
+        _invalidate_user(user_id)
+        _cache_clear("system_stats")
+        _cache_clear("admin_dashboard_stats")
+        return {"ok": True, "duplicate": False, "days": int(duration_days)}
+    except Exception as e:
+        logger.error(f"Stars payment transaction xatosi: {e}")
+        return {"ok": False, "duplicate": False, "reason": "database_error"}
 
 
 # ============================================================

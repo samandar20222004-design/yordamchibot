@@ -113,6 +113,25 @@ CREATE TABLE IF NOT EXISTS scheduled_posts (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Telegramga yuborilgan har bir delivery uchun doimiy idempotency marker.
+-- scheduled_posts tarixiy navbatni saqlaydi, bu jadval esa aynan Telegram
+-- chaqiruvini bir marta bajarish kafolatini beradi.
+CREATE TABLE IF
+NOT EXISTS post_deliveries (
+    id BIGSERIAL PRIMARY KEY,
+    post_id BIGINT NOT NULL,
+    channel_id BIGINT NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'pending',
+    attempt_count INT DEFAULT 0,
+    telegram_message_id BIGINT,
+    idempotency_key TEXT UNIQUE NOT NULL,
+    last_error TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF
+NOT EXISTS idx_deliveries_sched ON post_deliveries(status, post_id);
+
 CREATE TABLE IF NOT EXISTS post_reactions (
     id SERIAL PRIMARY KEY,
     post_id INTEGER NOT NULL,
@@ -140,7 +159,18 @@ CREATE TABLE IF NOT EXISTS promo_codes (
     max_uses INTEGER DEFAULT NULL,
     current_uses INTEGER DEFAULT 0,
     is_active BOOLEAN DEFAULT TRUE,
+    expires_at TIMESTAMPTZ,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Bir foydalanuvchi bitta promo-kodni faqat bir marta ishlata oladi.
+CREATE TABLE IF
+NOT EXISTS promo_redemptions (
+    id BIGSERIAL PRIMARY KEY,
+    promo_id BIGINT NOT NULL,
+    user_id BIGINT NOT NULL,
+    redeemed_at TIMESTAMPTZ DEFAULT NOW(),
+    CONSTRAINT uq_promo_user UNIQUE (promo_id, user_id)
 );
 
 -- Real vaqtli kanal postlari tarixi (AI tahlil, kontent-reja va analitika uchun)
@@ -165,7 +195,7 @@ CREATE TABLE IF NOT EXISTS payments (
     amount INT,
     currency VARCHAR(10),
     payload TEXT,
-    telegram_payment_charge_id TEXT,
+    telegram_payment_charge_id TEXT UNIQUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_payments_user_id ON payments (user_id);
@@ -195,6 +225,31 @@ CREATE INDEX IF NOT EXISTS idx_payment_receipts_status
 -- --- MIGRATSIYALAR (eski bazalar uchun; yangi bazada allaqachon bor) ---
 -- Eslatma: ADD COLUMN IF NOT EXISTS tufayli takroriy bajarish xavfsiz.
 
+-- P0-01: eski payments jadvallarida bu ustun bo'lmasligi mumkin.
+-- UNIQUE constraint uchun quyidagi normalizatsiya ham bajariladi: eski
+-- implementatsiya bo'sh satr saqlagan bo'lsa, u idempotent NULL ga aylantiriladi.
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS telegram_payment_charge_id TEXT UNIQUE;
+UPDATE payments SET telegram_payment_charge_id = NULL
+ WHERE telegram_payment_charge_id IS NOT NULL AND BTRIM(telegram_payment_charge_id) = '';
+-- Eski bazalarda ustun UNIQUE siz yaratilgan bo'lishi mumkin. Dublikat
+-- charge-id'larni o'chirmasdan (auditni saqlab) faqat keyingi nusxalarni NULL
+-- qilamiz va unique indexni yaratamiz.
+WITH duplicate_charges AS (
+    SELECT ctid, ROW_NUMBER() OVER (
+        PARTITION BY telegram_payment_charge_id ORDER BY id
+    ) AS rn
+    FROM payments
+    WHERE telegram_payment_charge_id IS NOT NULL
+)
+UPDATE payments p
+SET telegram_payment_charge_id = NULL
+FROM duplicate_charges d
+WHERE p.ctid = d.ctid AND d.rn > 1;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_payments_telegram_charge_id
+    ON payments (telegram_payment_charge_id)
+    WHERE telegram_payment_charge_id IS NOT NULL;
+
+ALTER TABLE promo_codes ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS full_name VARCHAR(255);
 ALTER TABLE users ADD COLUMN IF NOT EXISTS user_code VARCHAR(8) UNIQUE;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS referrer_id BIGINT;

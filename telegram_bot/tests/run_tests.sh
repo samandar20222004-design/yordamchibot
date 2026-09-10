@@ -43,6 +43,14 @@ echo "==================== AI MOCK TEST ==================="
 "$PY" tests/ai_mock_test.py || exit 1
 
 echo
+echo "==================== P0 CONCURRENCY TEST ============="
+if "$PY" -c "import pytest" 2>/dev/null; then
+    "$PY" -m pytest tests/p0_concurrency_test.py -q || exit 1
+else
+    echo "pytest topilmadi — P0 concurrency-test o'tkazib yuboriladi."
+fi
+
+echo
 echo "==================== LOAD TEST ======================"
 if "$PY" -c "import pgserver" 2>/dev/null; then
     "$PY" tests/load_test.py || exit 1
