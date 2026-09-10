@@ -17,6 +17,10 @@ echo "==================== SERVICES TEST ===================="
 "$PY" tests/services_test.py || exit 1
 
 echo
+echo "================ SCHEDULER SERVICE TEST =============="
+"$PY" tests/scheduler_service_test.py || exit 1
+
+echo
 echo "================ NEW REQUIREMENTS TEST ==============="
 "$PY" tests/new_requirements_test.py || exit 1
 

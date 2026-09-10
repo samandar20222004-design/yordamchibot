@@ -51,7 +51,7 @@ EXPECTED_INDEXES = (
     "idx_channel_posts_history_channel_date",
 )
 REQUIRED_P0_TABLES = ("promo_redemptions", "post_deliveries")
-REQUIRED_P0_INDEXES = ("idx_deliveries_sched", "uq_payments_telegram_charge_id")
+REQUIRED_P0_INDEXES = ("idx_deliveries_sched", "idx_deliveries_retry", "uq_payments_telegram_charge_id")
 
 
 def resolve_sslmode(url: str = None) -> str:
@@ -581,6 +581,8 @@ def _init_db_once():
         """)
 
         # P0-01: doimiy, DB-backed delivery idempotency registry.
+        # PostAssist V2 (3-bosqich): backoff uchun next_retry_at va kalit
+        # tarkibidagi scheduled_time ustunlari qo'shildi.
         cur.execute("""
             CREATE TABLE IF NOT EXISTS post_deliveries (
                 id BIGSERIAL PRIMARY KEY,
@@ -591,11 +593,14 @@ def _init_db_once():
                 telegram_message_id BIGINT,
                 idempotency_key TEXT UNIQUE NOT NULL,
                 last_error TEXT,
+                scheduled_time TIMESTAMPTZ,
+                next_retry_at TIMESTAMPTZ,
                 created_at TIMESTAMPTZ DEFAULT NOW(),
                 updated_at TIMESTAMPTZ DEFAULT NOW()
             );
         """)
         cur.execute("CREATE INDEX IF NOT EXISTS idx_deliveries_sched ON post_deliveries(status, post_id);")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_deliveries_retry ON post_deliveries(status, next_retry_at);")
 
         cur.execute("""
             CREATE TABLE IF NOT EXISTS post_reactions (
@@ -756,6 +761,9 @@ def _init_db_once():
             "ALTER TABLE channel_posts_history ADD COLUMN IF NOT EXISTS views INTEGER DEFAULT 0;",
             "ALTER TABLE channel_posts_history ADD COLUMN IF NOT EXISTS post_date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;",
             "ALTER TABLE channel_posts_history ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;",
+            # PostAssist V2 (3-bosqich): persistent delivery + backoff ustunlari.
+            "ALTER TABLE post_deliveries ADD COLUMN IF NOT EXISTS scheduled_time TIMESTAMPTZ;",
+            "ALTER TABLE post_deliveries ADD COLUMN IF NOT EXISTS next_retry_at TIMESTAMPTZ;",
         ]
         for index, migration in enumerate(migrations):
             # Bitta migration xatosi qolgan migrationlarni transaction aborted
@@ -2422,59 +2430,135 @@ def build_delivery_idempotency_key(post_id: int, channel_id, scheduled_timestamp
     return f"post_{int(post_id)}_{channel_id}_{timestamp}"
 
 
+# PostAssist V2 (3-bosqich): delivery backoff jadvali (urinish → kutish, soniya).
+# 1-urinishdagi transient xato → 30s, 2- → 2 daqiqa, 3- → 5 daqiqa,
+# 4- → 15 daqiqa; 5-urinishda ham xato bo'lsa → 'dead_letter' (qayta urinilmaydi).
+DELIVERY_BACKOFF_SECONDS = (30, 120, 300, 900)
+DELIVERY_MAX_ATTEMPTS = 5
+# 'processing' da qolib ketgan delivery crash deb hisoblanadigan muddat.
+# scheduled_posts dagi 10 daqiqalik stale-recovery bilan bir xil.
+DELIVERY_STALE_PROCESSING_SECONDS = 600
+
+
 def claim_post_delivery(post_id: int, channel_id, scheduled_timestamp) -> dict:
     """Telegramga yuborish huquqini atomik claim qiladi.
 
-    ``sent`` bo'lsa caller darhol skip qiladi; ``processing`` bo'lsa boshqa
-    scheduler instance ishlayotgan bo'ladi. Faqat pending/failed yozuv claim
-    qilinadi va attempt counter oshadi.
+    ``sent`` bo'lsa caller darhol skip qiladi (0 duplikat); ``processing``
+    bo'lsa boshqa scheduler instance ishlayotgan bo'ladi; ``dead_letter``
+    bo'lsa HECH QACHON qayta urinilmaydi. ``failed`` yozuv faqat backoff
+    muddati (``next_retry_at``) o'tgan bo'lsa claim qilinadi.
+
+    Urinish sanagichi (``attempt_count``) claim'da oshirilmaydi — u faqat
+    ``SchedulerService.mark_as_failed`` da (real xatoda) yoki stale
+    'processing' qayta olinganda (crash hisobi) oshadi.
     """
     key = build_delivery_idempotency_key(post_id, channel_id, scheduled_timestamp)
     try:
         with db_cursor(commit=True) as cur:
             cur.execute(
                 "INSERT INTO post_deliveries "
-                "(post_id, channel_id, status, idempotency_key) "
-                "VALUES (%s, %s, 'pending', %s) ON CONFLICT DO NOTHING",
-                (int(post_id), _delivery_channel_number(channel_id), key),
+                "(post_id, channel_id, status, idempotency_key, scheduled_time) "
+                "VALUES (%s, %s, 'pending', %s, %s) ON CONFLICT DO NOTHING",
+                (int(post_id), _delivery_channel_number(channel_id), key,
+                 scheduled_timestamp),
             )
             cur.execute(
-                "SELECT status, attempt_count, telegram_message_id "
+                "SELECT status, attempt_count, telegram_message_id, next_retry_at, updated_at "
                 "FROM post_deliveries WHERE idempotency_key = %s FOR UPDATE",
                 (key,),
             )
             row = cur.fetchone()
             if not row:
                 return {"claimed": False, "status": "missing", "idempotency_key": key}
-            status, attempt_count, message_id = row
+            status, attempt_count, message_id, next_retry_at, updated_at = row
             if status == "sent":
                 return {"claimed": False, "sent": True, "status": status,
                         "message_id": message_id, "idempotency_key": key}
+            if status == "dead_letter":
+                # Doimiy xato yoki urinishlar tugagan — qayta yuborilmaydi.
+                return {"claimed": False, "sent": False, "dead": True,
+                        "status": status, "idempotency_key": key}
             if status == "processing":
-                return {"claimed": False, "sent": False, "status": status,
+                if not _delivery_processing_is_stale(updated_at):
+                    return {"claimed": False, "sent": False, "status": status,
+                            "idempotency_key": key}
+                # Crash: avvalgi worker 'processing' da qolib ketgan. Urinishni
+                # hisobga olamiz — cheksiz crash-loop bo'lmasligi uchun limit
+                # oshsa to'g'ridan-to'g'ri 'dead_letter' qilinadi.
+                new_attempt = (attempt_count or 0) + 1
+                if new_attempt >= DELIVERY_MAX_ATTEMPTS:
+                    cur.execute(
+                        "UPDATE post_deliveries SET status = 'dead_letter', "
+                        "attempt_count = %s, "
+                        "last_error = 'stale processing: attempts exhausted', "
+                        "next_retry_at = NULL, updated_at = NOW() "
+                        "WHERE idempotency_key = %s",
+                        (new_attempt, key),
+                    )
+                    return {"claimed": False, "sent": False, "dead": True,
+                            "status": "dead_letter", "attempt_count": new_attempt,
+                            "idempotency_key": key}
+                cur.execute(
+                    "UPDATE post_deliveries SET status = 'processing', "
+                    "attempt_count = %s, updated_at = NOW() "
+                    "WHERE idempotency_key = %s",
+                    (new_attempt, key),
+                )
+                return {"claimed": True, "sent": False, "status": "processing",
+                        "attempt_count": new_attempt, "stale_reclaim": True,
                         "idempotency_key": key}
+            if status == "failed" and next_retry_at is not None:
+                from datetime import timezone as _tz
+                now_utc = datetime.now(_tz.utc)
+                retry_at = next_retry_at
+                if getattr(retry_at, "tzinfo", None) is None:
+                    retry_at = retry_at.replace(tzinfo=_tz.utc)
+                if retry_at > now_utc:
+                    # Backoff hali o'tmagan — hozir claim qilib bo'lmaydi.
+                    return {"claimed": False, "sent": False, "status": status,
+                            "retry_pending": True, "next_retry_at": next_retry_at,
+                            "attempt_count": attempt_count or 0,
+                            "idempotency_key": key}
             cur.execute(
                 "UPDATE post_deliveries SET status = 'processing', "
-                "attempt_count = COALESCE(attempt_count, 0) + 1, "
                 "last_error = NULL, updated_at = NOW() "
                 "WHERE idempotency_key = %s",
                 (key,),
             )
             return {"claimed": True, "sent": False, "status": "processing",
-                    "attempt_count": (attempt_count or 0) + 1,
+                    "attempt_count": attempt_count or 0,
                     "idempotency_key": key}
     except Exception as e:
         logger.error("Delivery claim xatosi (post=%s, channel=%s): %s", post_id, channel_id, e)
         return {"claimed": False, "error": str(e), "idempotency_key": key}
 
 
+def _delivery_processing_is_stale(updated_at) -> bool:
+    """'processing' yozuv crash deb hisoblanadimi (10 daqiqadan eski)?"""
+    if updated_at is None:
+        return False
+    try:
+        from datetime import timezone as _tz
+        now_utc = datetime.now(_tz.utc)
+        stamp = updated_at
+        if getattr(stamp, "tzinfo", None) is None:
+            stamp = stamp.replace(tzinfo=_tz.utc)
+        return (now_utc - stamp).total_seconds() > DELIVERY_STALE_PROCESSING_SECONDS
+    except Exception:
+        return False
+
+
 def mark_post_delivery_sent(idempotency_key: str, telegram_message_id: int) -> bool:
-    """Yuborilgan delivery'ni sent/message_id bilan idempotent belgilaydi."""
+    """Yuborilgan delivery'ni sent/message_id bilan idempotent belgilaydi.
+
+    ``next_retry_at`` tozalanadi — 'sent' yozuv hech qachon retry navbatiga
+    qaytmaydi.
+    """
     try:
         with db_cursor(commit=True) as cur:
             cur.execute(
                 "UPDATE post_deliveries SET status = 'sent', telegram_message_id = %s, "
-                "last_error = NULL, updated_at = NOW() "
+                "last_error = NULL, next_retry_at = NULL, updated_at = NOW() "
                 "WHERE idempotency_key = %s AND status <> 'sent'",
                 (telegram_message_id, idempotency_key),
             )
@@ -2491,12 +2575,18 @@ def mark_post_delivery_sent(idempotency_key: str, telegram_message_id: int) -> b
 
 
 def mark_post_delivery_failed(idempotency_key: str, error: str) -> bool:
-    """Telegram yuborish xatosini qayd qiladi; keyingi retry claim qila oladi."""
+    """Telegram yuborish xatosini qayd qiladi; keyingi retry claim qila oladi.
+
+    Legacy imzo (PostAssist V2'gacha): backoff qo'ymaydi — keyingi urinish
+    vaqti ``scheduled_posts.scheduled_time`` (``retry_post``) orqali boshqariladi.
+    Backoff'li yangi oqim ``SchedulerService.mark_as_failed`` da.
+    """
     try:
         with db_cursor(commit=True) as cur:
             cur.execute(
-                "UPDATE post_deliveries SET status = 'failed', last_error = %s, updated_at = NOW() "
-                "WHERE idempotency_key = %s AND status <> 'sent'",
+                "UPDATE post_deliveries SET status = 'failed', last_error = %s, "
+                "next_retry_at = NULL, updated_at = NOW() "
+                "WHERE idempotency_key = %s AND status NOT IN ('sent', 'dead_letter')",
                 (str(error)[:4000], idempotency_key),
             )
         return True

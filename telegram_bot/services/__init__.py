@@ -15,9 +15,11 @@ backward compatibility uchun shu servicelarga delegatsiya qiladi.
 from services.subscription_service import SubscriptionService  # noqa: F401
 from services.payment_service import PaymentService  # noqa: F401
 from services.promo_service import PromoService  # noqa: F401
+from services.scheduler_service import SchedulerService  # noqa: F401
 
 __all__ = [
     "SubscriptionService",
     "PaymentService",
     "PromoService",
+    "SchedulerService",
 ]

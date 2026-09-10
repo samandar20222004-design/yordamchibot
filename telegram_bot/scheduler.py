@@ -16,6 +16,7 @@ from telegram import (
 from telegram.error import TelegramError, RetryAfter, TimedOut, NetworkError
 from config import ADMIN_IDS_SET, BOT_USERNAME
 import database as db
+from services.scheduler_service import SchedulerService
 from keyboards.inline import (
     normalize_custom_reaction_emojis,
     strip_leading_reaction_glyphs,
@@ -185,7 +186,7 @@ async def _apply_sent_marker(marker: dict) -> bool:
         delivery_ok = False
         try:
             delivery_ok = _db_ok(await db.run_db(
-                db.mark_post_delivery_sent, delivery_key, marker.get("message_id")
+                SchedulerService.mark_sent_by_key, delivery_key, marker.get("message_id")
             ))
         except Exception as e:
             logger.exception("Delivery sent marker yozilmadi (Post ID: %s): %s", pid, e)
@@ -688,14 +689,44 @@ async def _requeue_post(post, delay_seconds: float) -> None:
         logger.exception("Postni qayta navbatlashda xato (Post ID: %s)", post[0])
 
 
-async def _mark_delivery_failed(delivery_key, error) -> None:
-    """Delivery claim qilinganidan keyingi Telegram xatosini DB ga yozadi."""
+async def _mark_delivery_failed(delivery_key, error, is_transient: bool = True):
+    """Delivery claim qilinganidan keyingi Telegram xatosini DB ga yozadi.
+
+    PostAssist V2: vaqtinchalik xatoda backoff (30s/2m/5m/15m) qo'yiladi,
+    doimiy xatoda yoki 5-urinishda ham xato bo'lsa ``dead_letter`` bo'ladi.
+    Qaytadi: SchedulerService natijasi (dict) yoki None (kalit yo'q / DB xatosi).
+    ``None`` — chaqiruvchi eski oqimda davom etishi kerak (qayta navbat).
+    """
     if not delivery_key:
-        return
+        return None
     try:
-        await db.run_db(db.mark_post_delivery_failed, delivery_key, str(error))
+        return await db.run_db(
+            SchedulerService.mark_failed_by_key, delivery_key, error,
+            is_transient,
+        )
     except Exception:
         logger.exception("Delivery failed marker yozilmadi (%s)", delivery_key)
+        return None
+
+
+def _delivery_is_dead(result) -> bool:
+    """Delivery natijasi 'dead_letter' ekanligini tekshiradi (None-safe)."""
+    return isinstance(result, dict) and (
+        result.get("status") == SchedulerService.STATUS_DEAD_LETTER
+        or result.get("dead") is True
+    )
+
+
+def _delivery_retry_delay(result, fallback: float) -> float:
+    """Delivery natijasidagi backoff (soniya) yoki fallback qiymat."""
+    if isinstance(result, dict):
+        try:
+            backoff = float(result.get("backoff_seconds") or 0)
+        except (TypeError, ValueError):
+            backoff = 0
+        if backoff > 0:
+            return backoff
+    return float(fallback)
 
 
 async def _execute_send(bot, post):
@@ -724,22 +755,39 @@ async def _execute_send(bot, post):
         # Chaqiruvchi (check_and_send_posts) postni qayta navbatga qo'yadi.
         raise RuntimeError(f"DB 'processing' markerini yozib bo'lmadi (Post ID: {post_id})")
 
-    # P0-04: scheduled_posts statusi yetarli emas, chunki restart/crash va
-    # parallel schedulerlar orasida aynan Telegram delivery'sini claim qilish
-    # kerak. post_deliveries.sent bo'lsa Telegramga qayta murojaat qilmaymiz.
-    delivery_key = db.build_delivery_idempotency_key(post_id, channel_id, scheduled_time)
+    # P0-04 / PostAssist V2: scheduled_posts statusi yetarli emas, chunki
+    # restart/crash va parallel schedulerlar orasida aynan Telegram
+    # delivery'sini claim qilish kerak. post_deliveries 'sent' bo'lsa
+    # Telegramga qayta murojaat qilmaymiz (0 duplikat kafolati).
+    delivery_key = SchedulerService.build_idempotency_key(post_id, channel_id, scheduled_time)
     delivery_marker_key = None
     delivery_claim = await db.run_db(
-        db.claim_post_delivery, post_id, channel_id, scheduled_time
+        SchedulerService.claim_post_for_delivery, post_id, channel_id, scheduled_time
     )
     if isinstance(delivery_claim, dict):
         claim_status = delivery_claim.get("status")
         if delivery_claim.get("sent") or claim_status == "sent":
             await db.run_db(db.mark_post_status, post_id, "posted")
             return
+        if _delivery_is_dead(delivery_claim):
+            # Doimiy xato yoki urinishlar tugagan — post hech qachon
+            # yuborilmaydi, navbatda ('processing') qolib ketmasligi uchun
+            # 'failed' deb yakunlaymiz.
+            logger.warning(
+                "Post %s delivery'si dead_letter — qayta urinilmaydi.", post_id,
+            )
+            await db.run_db(db.mark_post_status, post_id, "failed")
+            return
         if not delivery_claim.get("claimed"):
             if claim_status == "processing":
                 # Boshqa scheduler instance hozir yuborayotgan bo'lishi mumkin.
+                return
+            if delivery_claim.get("retry_pending"):
+                # Backoff hali o'tmagan — postni retry vaqtiga qaytaramiz.
+                retry_at = delivery_claim.get("next_retry_at") or (
+                    now_tashkent() + timedelta(seconds=NETWORK_RETRY_DELAY)
+                )
+                await db.run_db(db.retry_post, post_id, retry_at)
                 return
             raise RuntimeError(
                 f"Delivery claim bajarilmadi (Post ID: {post_id}, "
@@ -880,33 +928,66 @@ async def _execute_send(bot, post):
         )
 
     except RetryAfter as e:
-        await _mark_delivery_failed(delivery_key, e)
         # Telegram rate-limit (FloodWait, 429) — vaqtinchalik holat.
         # 1) Telegram ko'rsatgan muddat davomida JIM turamiz (aks holda
         #    keyingi so'rovlar ham 429 bilan qaytadi va limit uzayadi).
-        # 2) Post yo'qolmasligi uchun qayta navbatga qo'yamiz.
+        # 2) Post yo'qolmasligi uchun qayta navbatga qo'yamiz (5-urinishda
+        #    ham 429 bo'lsa delivery dead_letter bo'lib, post yakunlanadi).
+        delivery_result = await _mark_delivery_failed(delivery_key, e, is_transient=True)
         wait_seconds = flood_wait_seconds(e)
         logger.warning(
             "Telegram FloodWait (Post ID: %s), %.0fs kutiladi va qayta uriniladi",
             post_id, wait_seconds,
         )
         await asyncio.sleep(wait_seconds)
+        if _delivery_is_dead(delivery_result):
+            logger.warning(
+                "Post %s: FloodWait urinishlari tugadi (dead_letter) — 'failed' deb yakunlanadi.",
+                post_id,
+            )
+            await db.run_db(db.mark_post_status, post_id, "failed")
+            return
         retry_at = now_tashkent() + timedelta(seconds=wait_seconds)
         await db.run_db(db.retry_post, post_id, retry_at)
         return
     except (TimedOut, NetworkError) as e:
-        await _mark_delivery_failed(delivery_key, e)
+        delivery_result = await _mark_delivery_failed(delivery_key, e, is_transient=True)
+        if _delivery_is_dead(delivery_result):
+            logger.warning(
+                "Post %s: tarmoq urinishlari tugadi (dead_letter) — 'failed' deb yakunlanadi.",
+                post_id,
+            )
+            await db.run_db(db.mark_post_status, post_id, "failed")
+            return
         logger.warning(f"Telegram tarmoq xatosi (Post ID: {post_id}): {e}; qayta uriniladi")
-        retry_at = now_tashkent() + timedelta(seconds=NETWORK_RETRY_DELAY)
+        delay = _delivery_retry_delay(delivery_result, NETWORK_RETRY_DELAY)
+        retry_at = now_tashkent() + timedelta(seconds=delay)
         await db.run_db(db.retry_post, post_id, retry_at)
         return
     except TelegramError as e:
-        await _mark_delivery_failed(delivery_key, e)
+        # Noma'lum Telegram xatosi (masalan BadRequest): odatda doimiy
+        # (noto'g'ri so'rov) — takrorlash foydasiz, dead_letter + 'failed'.
+        # SchedulerService ichida ham chat_not_found/bot_kicked naqshlari
+        # qo'shimcha tekshiriladi.
+        delivery_result = await _mark_delivery_failed(delivery_key, e, is_transient=False)
         logger.error(f"Post yuborishda xato (Post ID: {post_id}): {e}")
+        if not _delivery_is_dead(delivery_result) and isinstance(delivery_result, dict):
+            # Kutilmagan holat (masalan, transient deb topildi) — backoff bilan qayta.
+            delay = _delivery_retry_delay(delivery_result, NETWORK_RETRY_DELAY)
+            retry_at = now_tashkent() + timedelta(seconds=delay)
+            await db.run_db(db.retry_post, post_id, retry_at)
+            return
         await db.run_db(db.mark_post_status, post_id, "failed")
         return
     except Exception as e:
-        await _mark_delivery_failed(delivery_key, e)
+        delivery_result = await _mark_delivery_failed(delivery_key, e, is_transient=True)
+        if _delivery_is_dead(delivery_result):
+            logger.warning(
+                "Post %s: urinishlar tugadi (dead_letter) — 'failed' deb yakunlanadi.",
+                post_id,
+            )
+            await db.run_db(db.mark_post_status, post_id, "failed")
+            return
         raise
 
     # Yuborildi → marker (posted / takrorlanuvchi: keyingi vaqt + pending /
