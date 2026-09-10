@@ -63,6 +63,10 @@ EN_OVERLAY = {
         "⚠️ Temporary issue in the AI service. "
         "Please try again in a moment."
     ),
+    "ai_quota": (
+        "⚠️ AI quota exceeded. "
+        "Please wait and try again."
+    ),
     "help_faq": (
         "❓ <b>FAQ</b>\n\n"
         "<b>1. My post did not appear — what now?</b>\n"

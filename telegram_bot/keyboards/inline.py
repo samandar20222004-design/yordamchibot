@@ -392,6 +392,37 @@ def get_ai_studio_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(keyboard)
 
 
+
+
+def get_ai_studio_plan_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
+    """AI Studio Kontent-reja inline klaviaturasi.
+
+    Tugmalar:
+      • [🔄 Qayta urinish] — rechaberingizni yangilash (callback_data="plan_refresh")
+      • Barcha matnlar foydalanuvchi tiliga (lang) mos tarjima qilinadi.
+    """
+    keyboard = [
+        [
+            InlineKeyboardButton(get_text("ai_studio_post", lang), callback_data="studio_ai_post"),
+            InlineKeyboardButton(get_text("ai_studio_photo", lang), callback_data="studio_ai_photo"),
+        ],
+        [
+            InlineKeyboardButton(get_text("ai_studio_extract", lang), callback_data="studio_extract"),
+            InlineKeyboardButton(get_text("ai_studio_audit", lang), callback_data="studio_ai_audit"),
+        ],
+        [
+            InlineKeyboardButton(get_text("ai_studio_content_plan", lang), callback_data="studio_content_plan"),
+        ],
+        [
+            InlineKeyboardButton(get_text("btn_back", lang), callback_data="plan_back"),
+            InlineKeyboardButton("🔄 Qayta urinish", callback_data="plan_refresh"),
+        ],
+        [
+            InlineKeyboardButton(get_text("btn_main_menu", lang), callback_data="studio_close"),
+        ],
+    ]
+    return InlineKeyboardMarkup(keyboard)
+
 def get_ai_photo_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
     """🖼 Vision (Photo-to-Post) natijasi uchun inline tugmalar.
 
