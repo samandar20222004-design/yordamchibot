@@ -127,7 +127,18 @@ class ReferralService:
 
         ``new_user_id`` — taklif qilingan do'stning ID'si (ledger'dagi
         ``reference_id`` sifatida saqlanadi). Berilgan mukofot (int) qaytadi.
+
+        9-bosqich (high-concurrency): COUNT dan OLDIN referrer qatori
+        ``FOR UPDATE`` bilan qulflanadi. Aks holda bir referrer'ning bir
+        nechta do'sti AYNI PAYTDA ``/start`` bossa, READ COMMITTED
+        izolyatsiyasida ikkala tranzaksiya ham COUNT=1 ko'rib, ikkalasiga
+        +3 (1-do'st tarifi) yozardi. Qulf tarif hisobini referrer bo'yicha
+        ketma-ketlashtiradi; qulf ochilgach COUNT yangi snapshot'da
+        (boshqa tranzaksiya commit qilgan do'stlar bilan) hisoblanadi.
         """
+        cur.execute(
+            "SELECT user_id FROM users WHERE user_id = %s FOR UPDATE", (referrer_id,)
+        )
         cur.execute(
             "SELECT COUNT(*) FROM users WHERE referrer_id = %s", (referrer_id,)
         )

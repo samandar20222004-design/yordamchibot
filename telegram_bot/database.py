@@ -2623,23 +2623,32 @@ def transfer_user_credits(from_user_id: int, to_user_id: int, amount: int) -> tu
 
     try:
         with db_cursor(commit=True) as cur:
-            cur.execute("SELECT ai_credits, created_at FROM users WHERE user_id = %s FOR UPDATE", (from_user_id,))
-            row_from = cur.fetchone()
+            # 9-bosqich (high-concurrency): ikkala foydalanuvchi qatori BITTA
+            # so'rovda, DOIM user_id o'sish tartibida qulflanadi. Aks holda
+            # A→B va B→A o'tkazmalari bir vaqtda kelganda qulflar teskari
+            # tartibda olinib PostgreSQL "deadlock detected" berardi.
+            # Deterministik tartib deadlock'ni butunlay yo'q qiladi.
+            cur.execute(
+                "SELECT user_id, ai_credits, created_at FROM users "
+                "WHERE user_id IN (%s, %s) ORDER BY user_id FOR UPDATE",
+                (from_user_id, to_user_id),
+            )
+            locked = {int(r[0]): r for r in cur.fetchall()}
+            row_from = locked.get(int(from_user_id))
             if not row_from:
                 return False, "Foydalanuvchi topilmadi."
-            
-            credits, created_at = row_from
+
+            _uid, credits, created_at = row_from
             if created_at:
                 now_tz = datetime.now(tashkent_tz)
                 created_tz = tashkent_tz.localize(created_at) if created_at.tzinfo is None else created_at.astimezone(tashkent_tz)
                 if (now_tz - created_tz).days < 3:
                     return False, "⚠️ <b>Xavfsizlik qoidasi:</b> Yangi ro'yxatdan o'tgan foydalanuvchilar ballarni <b>3 kun o'tgach</b> boshqalarga ulasha oladi."
-                
+
             if credits < amount:
                 return False, "Hisobingizda yetarli ball mavjud emas."
 
-            cur.execute("SELECT user_id FROM users WHERE user_id = %s", (to_user_id,))
-            if not cur.fetchone():
+            if int(to_user_id) not in locked:
                 return False, "Qabul qiluvchi foydalanuvchi topilmadi."
 
             # 8-bosqich: ball o'tkazish CreditsService orqali — ikkala tomonning

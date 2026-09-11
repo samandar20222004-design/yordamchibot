@@ -17,6 +17,8 @@ from telegram.error import TelegramError, RetryAfter, TimedOut, NetworkError
 from config import ADMIN_IDS_SET, BOT_USERNAME
 import database as db
 from services.scheduler_service import SchedulerService
+from services import lifecycle_service as lifecycle
+from services.cleanup_service import cleanup_old_records
 from keyboards.inline import (
     normalize_custom_reaction_emojis,
     strip_leading_reaction_glyphs,
@@ -647,6 +649,12 @@ async def check_and_send_posts(bot):
         bilan kutiladi — navbat to'xtamaydi, post yo'qolmaydi.
     """
     try:
+        # 9-bosqich (graceful shutdown): yopilish boshlangan bo'lsa YANGI
+        # ishlar navbatdan OLINMAYDI — faol yuborishlar tugashiga ruxsat
+        # beriladi, lekin yangi post 'processing' ga o'tkazilmaydi.
+        if lifecycle.is_shutting_down():
+            logger.info("Scheduler: bot yopilmoqda — yangi postlar olinmaydi.")
+            return
         # 0) Avvalgi tick'larda DB'ga yozilmay qolgan "yuborildi" markerlari —
         #    yangi postlarni olishdan OLDIN yoziladi (idempotentlik kafolati).
         await flush_unpersisted_sent_markers()
@@ -658,8 +666,15 @@ async def check_and_send_posts(bot):
             # 1) Mikro-kechikish — birinchi postdan keyin har safar.
             if index:
                 await asyncio.sleep(SEND_MICRO_DELAY)
+            # 9-bosqich: paket o'rtasida shutdown so'ralgan bo'lsa — qolgan
+            # (hali Telegramga yuborilmagan) postlar darhol 'pending' ga
+            # qaytariladi; ular keyingi ishga tushishda yuboriladi.
+            if lifecycle.is_shutting_down():
+                await _requeue_unsent_on_shutdown(due_posts[index:])
+                break
             try:
-                await _execute_send(bot, post)
+                with lifecycle.track(f"post:{post[0] if post else '?'}"):
+                    await _execute_send(bot, post)
             except RetryAfter as e:
                 # 2) Telegram FloodWait (429): ko'rsatilgan muddat kutiladi va
                 # navbat XAVFSIZ davom ettiriladi (post qayta navbatga qo'yiladi).
@@ -687,6 +702,33 @@ async def _requeue_post(post, delay_seconds: float) -> None:
         await db.run_db(db.retry_post, post[0], retry_at)
     except Exception:
         logger.exception("Postni qayta navbatlashda xato (Post ID: %s)", post[0])
+
+
+async def _requeue_unsent_on_shutdown(posts) -> int:
+    """Graceful shutdown: paketda HALI YUBORILMAGAN postlarni darhol 'pending'
+    ga qaytaradi (``get_due_posts`` ularni 'processing' qilib olgan edi).
+
+    Postlar Telegramga yuborilmagan — shuning uchun qayta navbatga qo'yish
+    xavfsiz (duplikat bo'lmaydi). ``scheduled_time`` o'z qiymatida qoladi:
+    keyingi ishga tushishda darhol yuboriladi. Qaytadi: qaytarilganlar soni.
+    """
+    count = 0
+    for post in posts or ():
+        if not post:
+            continue
+        try:
+            # retry_at = asl vaqt (o'tmishda) — keyingi tick'da darhol due bo'ladi.
+            scheduled = post[9] if len(post) > 9 and post[9] is not None else now_tashkent()
+            await db.run_db(db.retry_post, post[0], scheduled)
+            count += 1
+        except Exception:
+            logger.exception("Shutdown: postni navbatga qaytarishda xato (Post ID: %s)", post[0])
+    if count:
+        logger.warning(
+            "Graceful shutdown: %d ta yuborilmagan post 'pending' ga qaytarildi "
+            "(keyingi ishga tushishda yuboriladi).", count,
+        )
+    return count
 
 
 async def _mark_delivery_failed(delivery_key, error, is_transient: bool = True):
@@ -1035,3 +1077,26 @@ async def cleanup_old_data_job():
         logger.info("DB tozalash yakunlandi: %s", result)
     except Exception:
         logger.exception("DB tozalashda kutilmagan xato")
+
+
+async def cleanup_old_records_job():
+    """9-bosqich: kunlik (03:00 Toshkent) paketli tozalash worker'i.
+
+    ``services.cleanup_service.cleanup_old_records`` — 30 kundan eski 'sent'
+    delivery jurnallari va 60 kundan eski / bekor qilingan vaqtinchalik
+    sessiya-kredit qoldiqlari LIMIT 1000 paketlar bilan, har paket alohida
+    tranzaksiyada o'chiriladi (katta jadval qulflanmaydi). Faol/yangi
+    yozuvlarga tegilmaydi. Hech qachon istisno ko'tarmaydi.
+    """
+    try:
+        with lifecycle.track("cleanup_old_records"):
+            summary = await cleanup_old_records()
+        if summary.get("errors"):
+            logger.warning("Kunlik tozalash xatolar bilan yakunlandi: %s", summary)
+        else:
+            logger.info("Kunlik tozalash yakunlandi: jami %s ta yozuv o'chirildi.",
+                        summary.get("total", 0))
+        return summary
+    except Exception:
+        logger.exception("Kunlik tozalashda kutilmagan xato")
+        return None

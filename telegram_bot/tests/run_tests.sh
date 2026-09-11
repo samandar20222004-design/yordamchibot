@@ -87,4 +87,11 @@ else
 fi
 
 echo
+echo "===== STRESS & CONCURRENCY TEST (9-BOSQICH) ====="
+# Static qismi (graceful shutdown, cleanup lojikasi) DOIM ishlaydi; real
+# PostgreSQL qismi (100 post / 5 worker, 50 parallel credits+referral,
+# shutdown simulyatsiyasi, cleanup worker) pgserver bo'lsa bajariladi.
+"$PY" tests/stress_concurrency_test.py || exit 1
+
+echo
 echo "BARCHA TESTLAR MUVOFFAQIYATLI ✔"

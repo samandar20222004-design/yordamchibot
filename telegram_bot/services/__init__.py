@@ -9,6 +9,11 @@ Har bir servis o'z domeniga tegishli qoidalarni boshqaradi:
   - RBACService: rollar va ruxsatlar (6-BOSQICH) — OWNER/SUPER_ADMIN/ADMIN/
     MODERATOR/FINANCE, ``@require_permission`` / ``@require_role``
   - AuditService: admin harakatlari auditi (6-BOSQICH) — admin_audit_logs
+  - CleanupService: kunlik paketli tozalash (9-BOSQICH) — 30 kundan eski
+    'sent' delivery jurnallari va 60 kundan eski/bekor qilingan vaqtinchalik
+    qoldiqlar, LIMIT 1000 paketlar bilan alohida tranzaksiyalarda
+  - lifecycle_service: graceful shutdown holati (9-BOSQICH) — yangi ish
+    qabul qilishni to'xtatish, faol vazifalarni 5–10 s kutish
 
 database.py faqat CRUD (ma'lumotlar bazasi so'rovlari) bajaradi;
 biznes qoidalar shu paketdagi servislar orqali amalga oshiriladi.
@@ -29,6 +34,8 @@ from services.promo_service import PromoService  # noqa: F401
 from services.scheduler_service import SchedulerService  # noqa: F401
 from services.ai_service import AIFallbackService  # noqa: F401
 from services import rbac_service as RBACService  # noqa: F401
+from services.cleanup_service import CleanupService, cleanup_old_records  # noqa: F401
+from services import lifecycle_service  # noqa: F401
 
 __all__ = [
     "SubscriptionService",
@@ -38,6 +45,9 @@ __all__ = [
     "AIFallbackService",
     "RBACService",
     "AuditService",
+    "CleanupService",
+    "cleanup_old_records",
+    "lifecycle_service",
     "Role",
     "require_permission",
     "require_role",

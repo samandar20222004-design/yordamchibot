@@ -636,6 +636,9 @@ bash tests/run_tests.sh
 | `ai_mock_test.py` | 52 |
 | `rbac_security_test.py` (6-bosqich: RBAC, audit, xavfsizlik) | 251 |
 | `load_test.py` (real PostgreSQL, `pip install pgserver`) | 147 |
+| `stress_concurrency_test.py` (9-bosqich: graceful shutdown, cleanup worker, high-concurrency; live qismi pgserver bilan) | 149 |
+
+`bash tests/run_tests.sh` to'liq to'plami (pgserver bilan): **4388 ta test, 0 xato**.
 
 ## Bot "doim ishlashi" uchun
 
@@ -710,3 +713,62 @@ tushadi (`telegram.ext.add_error_handler`):
 
 Shuningdek, handler oxirgi 1 soat / 24 soatdagi xatolar statistikasini
 saqlaydi — `/health` hisobotida ko'rsatiladi.
+
+## 🛑 Graceful shutdown, kunlik tozalash va stress testlar (PostAssist V2 — 9-BOSQICH)
+
+### Graceful shutdown (`main.py`, `services/lifecycle_service.py`)
+
+`SIGINT` (Ctrl+C) va `SIGTERM` (Render deploy, `docker stop`, `systemctl stop`)
+signallari event loop ichida (`loop.add_signal_handler`) ushlanadi va bot
+**tartib bilan** yopiladi — hech qanday ish yarim yo'lda tashlab ketilmaydi:
+
+1. `lifecycle.request_shutdown()` — scheduler workerlari navbatdan **yangi
+   post olmaydi** (`check_and_send_posts` bayroqni har postdan oldin tekshiradi;
+   paket o'rtasida signal kelsa, hali yuborilmagan postlar darhol `pending` ga
+   qaytariladi — duplikat bo'lmaydi);
+2. `updater.stop()` — Telegramdan yangi update olish to'xtaydi;
+3. `scheduler.pause()` — navbatdagi joblar ishga tushmaydi, faol job davom etadi;
+4. `lifecycle.wait_for_inflight()` — ayni paytda yuborilayotgan postlarga
+   tugallanish uchun **5–10 soniya** beriladi (`SHUTDOWN_GRACE_SECONDS`,
+   standart 8). Vazifalar **bekor qilinmaydi**; timeout'da ham DB'dagi
+   `processing` holati keyingi ishga tushishda stale-recovery bilan tiklanadi;
+5. `application.stop()/shutdown()` → `scheduler.shutdown(wait=False)` → web server;
+6. `db.close_pool()` (Neon pool) va `close_ai_session()` (aiohttp) — **har doim**
+   yopiladi, oldingi bosqichda xato bo'lsa ham;
+7. jarayon **exit code 0** bilan chiqadi. Takroriy signal yopilishni qayta boshlamaydi.
+
+### Kunlik paketli tozalash (`services/cleanup_service.py`)
+
+Scheduler har 24 soatda bir marta (**03:00**, Toshkent; `CLEANUP_CRON_HOUR`/
+`CLEANUP_CRON_MINUTE`) `cleanup_old_records()` ni ishga tushiradi:
+
+| Nima o'chadi | Shart |
+|---|---|
+| `post_deliveries` — `sent` jurnallari | 30 kundan eski (`CLEANUP_DELIVERY_RETENTION_DAYS`) |
+| `scheduled_posts` — `cancelled` / `failed` qoldiqlar (delivery/reaksiyalar CASCADE) | 60 kundan eski (`CLEANUP_TEMP_RETENTION_DAYS`) |
+| `payment_receipts` — `rejected` cheklar | 60 kundan eski |
+| `payments` — `failed` urinishlar | 60 kundan eski |
+| `sent_post_messages` — kanaldan o'chirilgan xabar yozuvlari (`deleted_at`) | 60 kundan eski |
+
+Qoidalar: har paket **alohida tranzaksiya**, hajmi **LIMIT 1000**
+(`CLEANUP_BATCH_SIZE`), `FOR UPDATE SKIP LOCKED` — worker ushlab turgan qator
+kutilmaydi; `pending`/`processing`/`posted`, yaqinda yuborilgan `sent`,
+`dead_letter`, `succeeded`/`refunded`, `approved`, `credits_ledger`, `users`
+— **hech qachon tegilmaydi**. Bitta jadvaldagi xato boshqalarini to'xtatmaydi;
+shutdown boshlangan bo'lsa yangi paket boshlanmaydi.
+
+### Stress / high-concurrency testlar (`tests/stress_concurrency_test.py`)
+
+- **100 ta post / 5 parallel worker** — 1 daqiqa ichida rejalashtirilgan postlar,
+  har biri aynan 1 marta yuboriladi (0 duplikat, `post_deliveries` da 1 ta `sent`);
+- **50 parallel Credits + 50 parallel Referral** so'rovi `DB_POOL_MAX=5` bilan —
+  deadlock yo'q, pool starvation yo'q, balans/ledger zanjiri mos
+  (`transfer_user_credits` endi ikkala qatorni `ORDER BY user_id FOR UPDATE`
+  bilan deterministik tartibda qulflaydi; referral bonusi referrer qatorini
+  qulflab hisoblanadi — parallel `/start` larda tarif poygasi yo'q);
+- **Graceful shutdown simulyatsiyasi** — yuborish o'rtasida SIGTERM: boshlangan
+  postlar tugaydi, yangilari olinmaydi, olingan-u yuborilmaganlar `pending` ga
+  qaytadi, restartdan keyin ham har post 1 marta chiqadi;
+- **Cleanup worker** — faqat belgilangan eski yozuvlar o'chadi, qulflangan qator
+  o'tkazib yuboriladi, paketlar LIMIT bo'yicha bo'linadi, scheduler bilan parallel
+  ishlaganda faol postlarga ta'sir qilmaydi.
