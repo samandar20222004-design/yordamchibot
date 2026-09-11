@@ -268,6 +268,25 @@ CREATE TABLE IF NOT EXISTS admin_audit_logs (
 );
 CREATE INDEX IF NOT EXISTS idx_audit_admin ON admin_audit_logs(admin_id, created_at);
 
+-- 💰 PostAssist V2 (8-bosqich): credits ledger — AI-ballar auditi.
+-- Har bir ball o'zgarishi (berilish = musbat, yechilish = manfiy) shu
+-- jadvalga doimiy audit qatori qo'shiladi. ``balance_after`` — yozuvdan
+-- keyingi balans; tarix bo'ylab to'liq hisob-kitobni tiklash imkonini beradi.
+-- Jadval ``CreditsService`` (services/credits_service.py) orqali foydalanuvchi
+-- bilan BIR tranzaksiyada yoziladi — balans va audit hech qachon uzil-kesik
+-- qolmaydi. operation_type: 'daily_bonus' | 'referral' | 'ai_request' |
+-- 'promo' | 'admin' (qo'shimcha: 'transfer' — foydalanuvchilararo o'tkazish).
+CREATE TABLE IF NOT EXISTS credits_ledger (
+    id BIGSERIAL PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    amount INT NOT NULL, -- musbat (+10) yoki manfiy (-2)
+    balance_after INT NOT NULL,
+    operation_type VARCHAR(32) NOT NULL, -- 'daily_bonus', 'referral', 'ai_request', 'promo', 'admin'
+    reference_id TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_ledger_user ON credits_ledger(user_id, created_at);
+
 -- --- MIGRATSIYALAR (eski bazalar uchun; yangi bazada allaqachon bor) ---
 -- Eslatma: ADD COLUMN IF NOT EXISTS tufayli takroriy bajarish xavfsiz.
 
@@ -431,7 +450,8 @@ BEGIN
             ('promo_redemptions', 'uq_promo_user', 'unique', 'UNIQUE (promo_id, user_id)'),
             ('post_deliveries', 'chk_post_deliveries_status', 'check', 'CHECK (status IN (''pending'', ''processing'', ''sent'', ''failed'', ''dead_letter''))'),
             ('scheduled_posts', 'chk_scheduled_posts_status', 'check', 'CHECK (status IN (''pending'', ''processing'', ''posted'', ''failed'', ''cancelled'', ''completed''))'),
-            ('payments', 'chk_payments_status', 'check', 'CHECK (status IN (''pending'', ''succeeded'', ''failed'', ''refunded''))')
+            ('payments', 'chk_payments_status', 'check', 'CHECK (status IN (''pending'', ''succeeded'', ''failed'', ''refunded''))'),
+            ('credits_ledger', 'fk_credits_ledger_user', 'fk', 'FOREIGN KEY (user_id) REFERENCES users(user_id)')
         ) AS t(tbl, cname, kind, cdef)
     LOOP
         IF to_regclass(spec.tbl) IS NULL THEN

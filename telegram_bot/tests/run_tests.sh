@@ -67,6 +67,10 @@ echo "====== HEALTH & MONITORING TEST (7-BOSQICH) ======"
 "$PY" tests/health_monitoring_test.py || exit 1
 
 echo
+echo "============ CREDITS LEDGER & REFERRAL TEST (8-BOSQICH) =========="
+"$PY" tests/credits_referral_test.py || exit 1
+
+echo
 echo "==================== P0 CONCURRENCY TEST ============="
 if "$PY" -c "import pytest" 2>/dev/null; then
     "$PY" -m pytest tests/p0_concurrency_test.py -q || exit 1

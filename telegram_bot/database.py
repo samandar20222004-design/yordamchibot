@@ -43,6 +43,8 @@ EXPECTED_TABLES = (
     "payment_receipts", "channel_posts_history",
     # PostAssist V2 (6-bosqich): RBAC rollari va admin auditi.
     "admin_roles", "admin_audit_logs",
+    # PostAssist V2 (8-bosqich): AI-ballar auditi (credits ledger).
+    "credits_ledger",
 )
 EXPECTED_INDEXES = (
     "idx_ad_pool_scope",
@@ -63,6 +65,8 @@ EXPECTED_INDEXES = (
     "idx_deliveries_post",
     # PostAssist V2 (6-bosqich): admin harakatlari auditi indeksi.
     "idx_audit_admin",
+    # PostAssist V2 (8-bosqich): foydalanuvchi ballar tarixi indeksi.
+    "idx_ledger_user",
 )
 REQUIRED_P0_TABLES = ("promo_redemptions", "post_deliveries")
 REQUIRED_P0_INDEXES = ("idx_deliveries_sched", "idx_deliveries_retry", "uq_payments_telegram_charge_id")
@@ -144,6 +148,13 @@ INTEGRITY_CONSTRAINTS = (
         "kind": "check",
         "definition": "CHECK (status IN ('pending', 'succeeded', 'failed', 'refunded'))",
         "note": "Stars/To'lov audit holatlari (yangi ustun)",
+    },
+    {
+        "table": "credits_ledger",
+        "name": "fk_credits_ledger_user",
+        "kind": "fk",
+        "definition": "FOREIGN KEY (user_id) REFERENCES users(user_id)",
+        "note": "har bir ball audit yozuvi mavjud foydalanuvchiga tegishli",
     },
 )
 
@@ -972,6 +983,7 @@ INTEGRITY_ORPHAN_CHECKS = (
     ("post_reactions", "post_id", "scheduled_posts", "id"),
     ("promo_redemptions", "promo_id", "promo_codes", "id"),
     ("promo_redemptions", "user_id", "users", "user_id"),
+    ("credits_ledger", "user_id", "users", "user_id"),
 )
 
 
@@ -1610,6 +1622,24 @@ def _init_db_once():
         cur.execute(
             "CREATE INDEX IF NOT EXISTS idx_audit_admin "
             "ON admin_audit_logs(admin_id, created_at);"
+        )
+
+        # 💰 PostAssist V2 (8-bosqich): credits ledger — AI-ballar auditi.
+        # schema.sql fayli topilmasa ham bu jadval albatta yaratiladi.
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS credits_ledger (
+                id BIGSERIAL PRIMARY KEY,
+                user_id BIGINT NOT NULL,
+                amount INT NOT NULL,
+                balance_after INT NOT NULL,
+                operation_type VARCHAR(32) NOT NULL,
+                reference_id TEXT,
+                created_at TIMESTAMPTZ DEFAULT NOW()
+            );
+        """)
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_ledger_user "
+            "ON credits_ledger(user_id, created_at);"
         )
 
         # 3) PostAssist V2 (5-bosqich): scheduler tezligi uchun kompozit indekslar
@@ -2429,36 +2459,24 @@ def total_referral_reward(friends_count: int) -> int:
 
 def save_user(user_id: int, username: str, full_name: str = "", referrer_id: int = None,
               language_code: str = None) -> bool:
-    try:
-        with db_cursor(commit=True) as cur:
-            cur.execute("SELECT user_id FROM users WHERE user_id = %s", (user_id,))
-            row = cur.fetchone()
-            if row:
-                cur.execute("UPDATE users SET username = %s, full_name = %s WHERE user_id = %s", (username, full_name, user_id))
-                _invalidate_user(user_id)
-                return False
-            else:
-                code = _generate_user_code(cur)
-                valid_ref = referrer_id if referrer_id and referrer_id != user_id else None
-                lang = _normalize_language_code(language_code)
-                cur.execute("""
-                    INSERT INTO users (user_id, username, full_name, user_code, referrer_id, ai_credits, streak_days, created_at, language_code)
-                    VALUES (%s, %s, %s, %s, %s, 5, 0, NOW(), %s)
-                """, (user_id, username, full_name, code, valid_ref, lang))
+    """Foydalanuvchini saqlaydi: yangi — ro'yxatdan o'tkazadi, eski — yangilaydi.
 
-                if valid_ref:
-                    # Referal mukofoti FAQAT AI ball: 1-, 2-, 3-do'st uchun +3 tadan,
-                    # 4-do'stdan boshlab har biri uchun +1. PRO berilmaydi.
-                    # Hisoblash va yozish bitta tranzaksiyada — parallel /start
-                    # chaqiruvlari poyga (race) hosil qilmaydi.
-                    cur.execute("SELECT COUNT(*) FROM users WHERE referrer_id = %s", (valid_ref,))
-                    referral_count = int((cur.fetchone() or (0,))[0] or 0)
-                    reward = referral_reward_for(referral_count)
-                    cur.execute("UPDATE users SET ai_credits = ai_credits + %s WHERE user_id = %s", (reward, valid_ref))
-                    _invalidate_user(valid_ref)
-                _invalidate_user(user_id)
-                _cache_clear("system_stats")
-                return True
+    8-bosqich: referal anti-abuse qoidalari (self-referral, takroriy
+    referral, noma'lum referrer) va ball mukofoti
+    ``services.referral_service.ReferralService.register_new_user`` orqali
+    BIR atomik tranzaksiyada bajariladi; mukofot formulasi
+    ``referral_reward_for(n)`` (1-3 do'st +3, keyingilar +1 — PRO berilmaydi)
+    va har bir bonus ``credits_ledger`` jadvaliga audit yozuvi tushadi.
+
+    Returns: True — yangi foydalanuvchi yaratildi (False — allaqachon bor).
+    """
+    from services.referral_service import ReferralService
+    try:
+        result = ReferralService.register_new_user(
+            user_id, username, full_name=full_name,
+            referrer_id=referrer_id, language_code=language_code,
+        )
+        return bool(result.get("is_new"))
     except Exception as e:
         logger.error(f"User saqlash xatosi: {e}")
         return False
@@ -2472,6 +2490,9 @@ def _today_tashkent():
 def claim_daily_streak_bonus(user_id: int) -> dict:
     today = _today_tashkent()
     reward_map = {1: 1, 2: 1, 3: 2, 4: 1, 5: 2, 6: 2, 7: 4}
+
+    # 8-bosqich: bonus ballini CreditsService orqali yechamiz (credits_ledger).
+    from services.credits_service import CreditsService
 
     try:
         with db_cursor(commit=True) as cur:
@@ -2497,13 +2518,18 @@ def claim_daily_streak_bonus(user_id: int) -> dict:
                 streak = 1
 
             bonus_amount = reward_map.get(streak, 1)
-            new_credits = credits + bonus_amount
 
             cur.execute("""
                 UPDATE users 
-                SET ai_credits = %s, streak_days = %s, last_bonus_date = %s 
+                SET streak_days = %s, last_bonus_date = %s 
                 WHERE user_id = %s
-            """, (new_credits, streak, today, user_id))
+            """, (streak, today, user_id))
+            # 8-bosqich: bonusni CreditsService orqali SHU tranzaksiyada
+            # qo'shamiz — balans va credits_ledger audit yozuvi (op_type=
+            # 'daily_bonus') birga commit/rollback bo'ladi.
+            grant = CreditsService.grant_in_tx(
+                cur, user_id, bonus_amount, CreditsService.OP_DAILY_BONUS)
+            new_credits = grant["balance_after"]
             _invalidate_user(user_id)
             _cache_clear("system_stats")
 
@@ -2527,13 +2553,16 @@ def claim_daily_streak_bonus(user_id: int) -> dict:
 
 
 def add_user_credit(user_id: int, amount: int = 1) -> bool:
+    """Ball qo'shadi (odatda 1 — AI xatosidagi refund).
+
+    8-bosqich: ``CreditsService.add_credits`` orqali — balans va
+    ``credits_ledger`` audit yozuvi BIR tranzaksiyada (op_type='ai_request').
+    """
+    from services.credits_service import CreditsService
     try:
-        with db_cursor(commit=True) as cur:
-            cur.execute("UPDATE users SET ai_credits = ai_credits + %s WHERE user_id = %s", (amount, user_id))
-            changed = cur.rowcount > 0
-        _invalidate_user(user_id)
-        _cache_clear("system_stats")
-        return changed
+        result = CreditsService.add_credits(
+            user_id, amount, CreditsService.OP_AI_REQUEST)
+        return bool(result.get("success"))
     except Exception as e:
         logger.error(f"Ball qaytarish xatosi: {e}")
         return False
@@ -2555,18 +2584,20 @@ def get_user_credits(user_id: int) -> int:
         return 0
 
 def use_user_credit(user_id: int) -> bool:
-    """Atomically spend one credit; prevents double-spending on concurrent updates."""
+    """Atomically spend one credit; prevents double-spending on concurrent updates.
+
+    8-bosqich: ``CreditsService.spend_credits`` orqali — balans va
+    ``credits_ledger`` audit yozuvi BIR tranzaksiyada (op_type='ai_request').
+    Balans yetarli bo'lmasa (InsufficientCreditsError) ``False`` qaytadi va
+    hech qanday yarim yozuv qolmaydi.
+    """
+    from services.credits_service import CreditsService, InsufficientCreditsError
     try:
-        with db_cursor(commit=True) as cur:
-            cur.execute(
-                "UPDATE users SET ai_credits = ai_credits - 1 "
-                "WHERE user_id = %s AND ai_credits > 0 RETURNING user_id",
-                (user_id,),
-            )
-            spent = cur.fetchone() is not None
-        _invalidate_user(user_id)
-        _cache_clear("system_stats")
-        return spent
+        result = CreditsService.spend_credits(
+            user_id, 1, CreditsService.OP_AI_REQUEST)
+        return bool(result.get("success"))
+    except InsufficientCreditsError:
+        return False
     except Exception as e:
         logger.error(f"Ball ayirish xatosi: {e}")
         return False
@@ -2611,8 +2642,16 @@ def transfer_user_credits(from_user_id: int, to_user_id: int, amount: int) -> tu
             if not cur.fetchone():
                 return False, "Qabul qiluvchi foydalanuvchi topilmadi."
 
-            cur.execute("UPDATE users SET ai_credits = ai_credits - %s WHERE user_id = %s", (amount, from_user_id))
-            cur.execute("UPDATE users SET ai_credits = ai_credits + %s WHERE user_id = %s", (amount, to_user_id))
+            # 8-bosqich: ball o'tkazish CreditsService orqali — ikkala tomonning
+            # balans va credits_ledger audit yozuvlari SHU tranzaksiyada
+            # (op_type='transfer'): yechilgan tomon manfiy, qabul qilgan musbat.
+            from services.credits_service import CreditsService
+            CreditsService.spend_in_tx(
+                cur, from_user_id, amount, CreditsService.OP_TRANSFER,
+                ref_id=str(to_user_id))
+            CreditsService.add_in_tx(
+                cur, to_user_id, amount, CreditsService.OP_TRANSFER,
+                ref_id=str(from_user_id))
             _invalidate_user(from_user_id)
             _invalidate_user(to_user_id)
             _cache_clear("system_stats")
