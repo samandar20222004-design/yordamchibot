@@ -755,6 +755,97 @@ def ping_db() -> bool:
         logger.warning(f"DB ping xatosi: {e}")
         return False
 
+
+# ============================================================
+# 🩺 SYSTEM HEALTH CHECK (PostAssist V2 — 7-BOSQICH)
+# ------------------------------------------------------------
+# HealthService (services/health_service.py) ishlatadigan yengil
+# DB so'rovlari. HECH QANDAY mavjud funksiyani o'zgartirmaydi —
+# faqat QO'SHIMCHA, xatosiz (hech qachon istisno ko'tarmaydi).
+# ============================================================
+
+def ping_db_with_latency() -> dict:
+    """Neon DB ga oddiy ``SELECT 1`` ping + javob vaqti (latency ms).
+
+    Returns:
+        dict: ``{"ok": bool, "latency_ms": float | None, "error": str | None}``
+              ``error`` matni FAQAT log/monitoring uchun — foydalanuvchiga
+              hech qachon ko'rsatilmaydi (buning uchun global error handler
+              va ``safe_html`` javobgar).
+    """
+    started = _time.perf_counter()
+    try:
+        with db_cursor() as cur:
+            cur.execute("SELECT 1")
+            row = cur.fetchone()
+            ok = bool(row and row[0] == 1)
+        elapsed_ms = (_time.perf_counter() - started) * 1000.0
+        if ok:
+            return {"ok": True, "latency_ms": round(elapsed_ms, 2), "error": None}
+        return {"ok": False, "latency_ms": None,
+                "error": "SELECT 1 kutilmagan natija qaytardi"}
+    except Exception as e:
+        logger.warning("DB ping (latency) xatosi: %s", e)
+        return {
+            "ok": False,
+            "latency_ms": None,
+            "error": f"{type(e).__name__}: {e}"[:200],
+        }
+
+
+def get_post_health_counts() -> dict:
+    """Scheduler monitoringi uchun postlar holati bo'yicha hisob-kitob.
+
+    Ikki yengil COUNT so'rovi (indekslangan ustunlar):
+
+    * ``scheduled_posts``  → ``pending`` / ``processing`` / ``failed`` /
+      ``stale_processing`` (10+ daqiqa 'processing'da qotib qolganlar —
+      stale-recovery bilan bir xil chegara);
+    * ``post_deliveries``  → ``delivery_failed`` / ``dead_letter``.
+
+    Xato bo'lsa hech qachon istisno ko'tarmaydi — hisoblanagan qismi va
+    ``error`` kaliti qaytariladi (health hisoboti yarim bo'lsa ham ishlaydi).
+    """
+    counts = {
+        "pending": 0,
+        "processing": 0,
+        "failed": 0,
+        "stale_processing": 0,
+        "delivery_failed": 0,
+        "dead_letter": 0,
+    }
+    try:
+        with db_cursor() as cur:
+            cur.execute("""
+                SELECT
+                    COUNT(*) FILTER (WHERE status = 'pending'),
+                    COUNT(*) FILTER (WHERE status = 'processing'),
+                    COUNT(*) FILTER (WHERE status = 'failed'),
+                    COUNT(*) FILTER (WHERE status = 'processing'
+                                     AND processing_started_at
+                                         < NOW() - INTERVAL '10 minutes')
+                FROM scheduled_posts
+            """)
+            row = cur.fetchone() or (0, 0, 0, 0)
+            counts["pending"] = int(row[0] or 0)
+            counts["processing"] = int(row[1] or 0)
+            counts["failed"] = int(row[2] or 0)
+            counts["stale_processing"] = int(row[3] or 0)
+
+            cur.execute("""
+                SELECT
+                    COUNT(*) FILTER (WHERE status = 'failed'),
+                    COUNT(*) FILTER (WHERE status = 'dead_letter')
+                FROM post_deliveries
+            """)
+            drow = cur.fetchone() or (0, 0)
+            counts["delivery_failed"] = int(drow[0] or 0)
+            counts["dead_letter"] = int(drow[1] or 0)
+    except Exception as e:
+        logger.warning("Post health hisob-kitobida xato: %s", e)
+        counts["error"] = f"{type(e).__name__}: {e}"[:200]
+    return counts
+
 def init_db():
     last_err = None
     for attempt in range(3):

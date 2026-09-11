@@ -173,6 +173,9 @@ from handlers.queue import (
     QUEUE_MENU, SLOT_ADD,
 )
 
+# 13. 🩺 TIZIM HOLATI MONITORINGI (7-BOSQICH)
+from handlers.health import health_command
+
 import database as db
 from handlers.photo_check import (
     register as register_photo_check,
@@ -1017,6 +1020,8 @@ def register_all_handlers(app):
     app.add_handler(CommandHandler("admin_stats", admin_stats_command))
     # 📝 6-bosqich: audit jurnali (faqat OWNER/SUPER_ADMIN — RBAC dekoratori)
     app.add_handler(CommandHandler("audit", admin_audit_command))
+    # 🩺 7-bosqich: tizim holati (faqat system_settings ruxsati — RBAC dekoratori)
+    app.add_handler(CommandHandler("health", health_command))
     # 🎖 6-bosqich: rollarni boshqarish (faqat OWNER — RBAC dekoratori)
     app.add_handler(CommandHandler("setrole", admin_set_role_command))
     app.add_handler(CommandHandler("delrole", admin_del_role_command))

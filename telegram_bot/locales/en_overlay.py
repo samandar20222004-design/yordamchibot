@@ -549,4 +549,39 @@ EN_OVERLAY = {
         "/cancel — Cancel"
     ),
 
+    # ⚠️ Errors and system messages (EN)
+    "sys_busy": (
+        "⚠️ <b>The system is temporarily busy.</b>\n"
+        "Please tap /start again a bit later."
+    ),
+    "sys_stale_button": (
+        "♻️ This button is stale (the bot was restarted). "
+        "Open the menu again: /start"
+    ),
+    "sys_unexpected_error": (
+        "⚠️ <b>An unexpected error occurred.</b>\n"
+        "Please try again a bit later or tap /start."
+    ),
+
+    # 🩺 PHASE 7: System health monitoring (/health — admins only)
+    "health_title": "🩺 <b>SYSTEM HEALTH</b>",
+    "health_overall": "📊 <b>Overall status:</b>",
+    "health_checked_at": "🕐 Checked: {time} (UTC)",
+    "health_uptime": "⏱ Uptime: {uptime}",
+    "health_db_title": "🗄 <b>Database:</b> {status}",
+    "health_db_latency": "• Neon DB response time: {latency} ms",
+    "health_db_error": "• Error: {error}",
+    "health_db_pool": "• Connection pool: {used}/{max} in use ({available} free)",
+    "health_scheduler_title": "⏰ <b>Scheduler (apscheduler):</b> {status}",
+    "health_sched_jobs": "• Active jobs: {count}",
+    "health_posts_pending": "• ⏳ Pending posts: {count}",
+    "health_posts_failed": "• ⚠️ Failed posts: {count}",
+    "health_posts_dead": "• ☠️ Dead-letter posts: {count}",
+    "health_posts_stale": "• 🧊 Stuck (stale) posts: {count}",
+    "health_ai_title": "🤖 <b>AI providers:</b> {status}",
+    "health_ai_provider": "• {name}: {status}",
+    "health_system_title": "🖥 <b>System resources:</b>",
+    "health_errors": "• Errors — last 1h: {hour} | 24h: {day}",
+    "health_tasks": "• Active asyncio tasks: {count}",
+
 }
