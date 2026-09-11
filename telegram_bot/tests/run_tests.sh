@@ -94,4 +94,12 @@ echo "===== STRESS & CONCURRENCY TEST (9-BOSQICH) ====="
 "$PY" tests/stress_concurrency_test.py || exit 1
 
 echo
+echo "===== YAKUNIY ACCEPTANCE TEST (10-BOSQICH) ====="
+# PostAssist V2 final smoke: 10 bosqichning barcha asosiy kontraktlari
+# (payment idempotency, promo atomic redemption, additive extension,
+# delivery idempotency, AI fallback, DB integrity, RBAC, health,
+# credits ledger, graceful shutdown) + Docker/CI/Sentry infratuzilma.
+"$PY" tests/final_acceptance_test.py || exit 1
+
+echo
 echo "BARCHA TESTLAR MUVOFFAQIYATLI ✔"

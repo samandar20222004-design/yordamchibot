@@ -1,0 +1,21 @@
+# Build kontekstiga kirmasligi kerak bo'lgan fayllar
+.git
+.gitignore
+.env
+**/.env
+**/__pycache__/
+**/*.py[cod]
+.venv/
+venv/
+*.db
+*.sqlite3
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+# Test ma'lumotlari image'ga kerak emas
+telegram_bot/tests/
+# Hujjatlar va CI
+*.md
+.github/
+docker-compose.yml
+Dockerfile

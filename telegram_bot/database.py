@@ -24,6 +24,18 @@ logger = logging.getLogger(__name__)
 # DB_POOL_MAX ni oshirishdan oldin Render'da Postgres ulanish limitini tekshiring.
 DB_POOL_MIN = max(0, int(os.getenv("DB_POOL_MIN", "0")))
 DB_POOL_MAX = max(DB_POOL_MIN + 1, int(os.getenv("DB_POOL_MAX", "5")))
+# PostAssist V2 (10-BOSQICH): DB_POOL_SIZE — pool hajmi uchun qulay alias.
+# Berilgan bo'lsa DB_POOL_MAX o'rniga shu qiymat ishlatiladi (Neon pooler
+# cheklovlariga moslash uchun). Noto'g'ri qiymat e'tiborga olinmaydi.
+_raw_pool_size = os.getenv("DB_POOL_SIZE", "").strip()
+if _raw_pool_size:
+    try:
+        DB_POOL_MAX = max(DB_POOL_MIN + 1, int(_raw_pool_size))
+    except ValueError:
+        logger.warning(
+            "DB_POOL_SIZE noto'g'ri qiymatga ega: %r. DB_POOL_MAX=%s saqlanadi.",
+            _raw_pool_size, DB_POOL_MAX,
+        )
 # Har bir scheduler ishlashida ko'pi bilan shuncha post yuboriladi
 # (ulkan navbat bitta tick'ni to'sib qo'ymasligi uchun).
 POST_BATCH_SIZE = max(1, int(os.getenv("POST_BATCH_SIZE", "100")))

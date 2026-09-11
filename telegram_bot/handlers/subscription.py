@@ -524,7 +524,7 @@ async def promo_code_received(update: Update, context: ContextTypes.DEFAULT_TYPE
     if text in ("🔙 Asosiy menyu", "🔙 Orqaga"):
         # Qaytadan obuna kartasini ko'rsatamiz
         plan_info = await db.run_db(db.get_user_plan, user_id)
-        card = _build_subscription_card(plan_info, lang)
+        card = _build_subscription_card(plan_info, get_lang(context))
         plan = plan_info.get("plan_type", "free")
         await update.message.reply_text(
             card,
