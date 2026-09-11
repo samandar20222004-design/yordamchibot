@@ -152,7 +152,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         lang = await db.run_db(db.get_user_language, user.id)
     set_lang_cache(context, lang)
 
-    if is_new and referrer_id:
+    # 8-bosqich: self-referral rad etilgani uchun bonus YO'Q — "siz bonus
+    # yutdingiz" xabarini ham yubormaymiz (referrer == user bo'lsa).
+    if is_new and referrer_id and referrer_id != user.id:
         try:
             ref_stats = await db.run_db(db.get_referral_stats, referrer_id)
             ref_count = int((ref_stats or {}).get("referrals_count", 0))

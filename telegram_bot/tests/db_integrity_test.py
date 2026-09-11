@@ -86,6 +86,8 @@ def test_schema_declares_integrity():
             "CHECK (status IN ('pending', 'processing', 'posted', 'failed', 'cancelled', 'completed'))",
         "chk_payments_status":
             "CHECK (status IN ('pending', 'succeeded', 'failed', 'refunded'))",
+        # 8-bosqich: ball auditi har doim mavjud foydalanuvchiga bog'liq.
+        "fk_credits_ledger_user": "FOREIGN KEY (user_id) REFERENCES users(user_id)",
     }
     for name, definition in expected_constraints.items():
         literal = definition.replace("'", "''")
@@ -118,7 +120,7 @@ def test_python_metadata_matches_schema():
     print("== database.py ↔ schema.sql paralligi ==")
     import database as db_mod
 
-    check("INTEGRITY_CONSTRAINTS 8 ta obyekt", len(db_mod.INTEGRITY_CONSTRAINTS) == 8,
+    check("INTEGRITY_CONSTRAINTS 9 ta obyekt", len(db_mod.INTEGRITY_CONSTRAINTS) == 9,
           str(len(db_mod.INTEGRITY_CONSTRAINTS)))
     for item in db_mod.INTEGRITY_CONSTRAINTS:
         check(f"constraint ro'yxatda: {item['name']}",
