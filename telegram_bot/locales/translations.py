@@ -1466,6 +1466,28 @@ TRANSLATIONS = {
             "Asosiy menyuga qaytdingiz. Kerakli bo'limni qaytadan tanlang 👇"
         ),
         "msg_closed": "✅ Yopildi.",
+
+        # 🩺 7-BOSQICH: Tizim holati monitoringi (/health — faqat adminlar)
+        "health_title": "🩺 <b>TIZIM HOLATI (System Health)</b>",
+        "health_overall": "📊 <b>Umumiy holat:</b>",
+        "health_checked_at": "🕐 Tekshirildi: {time} (UTC)",
+        "health_uptime": "⏱ Ishga tushganiga: {uptime}",
+        "health_db_title": "🗄 <b>Ma'lumotlar bazasi:</b> {status}",
+        "health_db_latency": "• Neon DB javob vaqti: {latency} ms",
+        "health_db_error": "• Xato: {error}",
+        "health_db_pool": "• Ulanishlar pool'i: {used}/{max} band ({available} bo'sh)",
+        "health_scheduler_title": "⏰ <b>Scheduler (apscheduler):</b> {status}",
+        "health_sched_jobs": "• Faol vazifalar: {count}",
+        "health_posts_pending": "• ⏳ Kutilayotgan postlar: {count}",
+        "health_posts_failed": "• ⚠️ Xatolikli postlar: {count}",
+        "health_posts_dead": "• ☠️ Dead-letter postlar: {count}",
+        "health_posts_stale": "• 🧊 Qotib qolgan (stale) postlar: {count}",
+        "health_ai_title": "🤖 <b>AI provayderlar:</b> {status}",
+        "health_ai_provider": "• {name}: {status}",
+        "health_system_title": "🖥 <b>Tizim resurslari:</b>",
+        "health_errors": "• Xatolar — oxirgi 1 soat: {hour} | 24 soat: {day}",
+        "health_tasks": "• Faol asyncio vazifalari: {count}",
+
         "cancel_done": (
             "🚫 <b>Jarayon bekor qilindi.</b>\n"
             "Asosiy menyuga qaytdingiz. Kerakli bo'limni tanlang 👇"
@@ -2985,6 +3007,28 @@ TRANSLATIONS = {
             "Вы вернулись в главное меню. Выберите нужный раздел заново 👇"
         ),
         "msg_closed": "✅ Закрыто.",
+
+        # 🩺 ЭТАП 7: мониторинг состояния системы (/health — только для админов)
+        "health_title": "🩺 <b>СОСТОЯНИЕ СИСТЕМЫ (System Health)</b>",
+        "health_overall": "📊 <b>Общий статус:</b>",
+        "health_checked_at": "🕐 Проверено: {time} (UTC)",
+        "health_uptime": "⏱ Время работы: {uptime}",
+        "health_db_title": "🗄 <b>База данных:</b> {status}",
+        "health_db_latency": "• Время ответа Neon DB: {latency} мс",
+        "health_db_error": "• Ошибка: {error}",
+        "health_db_pool": "• Пул соединений: {used}/{max} занято ({available} свободно)",
+        "health_scheduler_title": "⏰ <b>Планировщик (apscheduler):</b> {status}",
+        "health_sched_jobs": "• Активные задачи: {count}",
+        "health_posts_pending": "• ⏳ Ожидающие посты: {count}",
+        "health_posts_failed": "• ⚠️ Посты с ошибками: {count}",
+        "health_posts_dead": "• ☠️ Dead-letter посты: {count}",
+        "health_posts_stale": "• 🧊 Застрявшие (stale) посты: {count}",
+        "health_ai_title": "🤖 <b>AI-провайдеры:</b> {status}",
+        "health_ai_provider": "• {name}: {status}",
+        "health_system_title": "🖥 <b>Ресурсы системы:</b>",
+        "health_errors": "• Ошибки — за 1 час: {hour} | 24 часа: {day}",
+        "health_tasks": "• Активные asyncio-задачи: {count}",
+
         "cancel_done": (
             "🚫 <b>Действие отменено.</b>\n"
             "Вы вернулись в главное меню. Выберите нужный раздел 👇"

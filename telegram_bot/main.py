@@ -21,6 +21,11 @@ from utils.ai_agent import close_ai_session, reload_runtime_params
 from utils.helpers import (
     check_global_flood, check_rate_limit, is_duplicate_message, is_callback_throttled,
 )
+from handlers.error_handler import (
+    global_error_handler,
+    register_error_handlers,
+)
+from services import health_service
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -154,26 +159,17 @@ class GuardedApplication(Application):
                 pass
 
 
-async def error_handler(update, context):
-    """Hech qanday xatolik botni o'chirib yubormasligi uchun global ushlagich.
-
-    Foydalanuvchiga esa uning tilida (uz/ru) qisqa, xavfsiz xabar yuboriladi —
-    ichki xatolik tafsilotlari (traceback) hech qachon ko'rsatilmaydi.
-    """
-    logger.error("Xatolik yuz berdi (update=%s): %s", update, context.error, exc_info=context.error)
-    # Kutilmagan xatolik haqida foydalanuvchiga o'z tilida xabar (best-effort).
-    try:
-        from locales.translations import get_text, get_lang
-        message = getattr(update, "effective_message", None) if update is not None else None
-        if message is not None:
-            await message.reply_text(
-                get_text("sys_unexpected_error", get_lang(context)),
-                parse_mode="HTML",
-            )
-    except Exception:
-        # Xabar yuborishning o'zi ham xato berishi mumkin — jim o'tamiz,
-        # bot uchun muhimi — error_handler hech qachon tashlanmasligi.
-        pass
+# Orqaga mos (backward-compatible) nom: asosiy mantiq endi
+# ``handlers/error_handler.py`` modulidagi ``global_error_handler`` da.
+# Kafolotlar o'zgarmagan:
+#   * foydalanuvchiga tilga mos (uz/ru/en) ``sys_unexpected_error``
+#     xushmuomala xabari yuboriladi — Python traceback, SQL yoki boshqa
+#     ichki xatolik tafsilotlari HECH QACHON ko'rsatilmaydi;
+#   * to'liq tafsilot (user_id, handler_name, exception, traceback)
+#     strukturalli log formatida qayd etiladi;
+#   * kritik xatolar (DB down, fatal) logda [CRITICAL_HEALTH] bilan
+#     ajratilib, admin audit jurnaliga best-effort yoziladi.
+error_handler = global_error_handler
 
 
 async def set_bot_commands(application):
@@ -218,8 +214,10 @@ async def main():
         .build()
     )
 
-    # Kutilmagan xatoliklarni log qilish (jim o'tib ketmasligi uchun)
-    application.add_error_handler(error_handler)
+    # Kutilmagan xatoliklarni ushlash — universal global error handler
+    # (handlers/error_handler.py): strukturalli log + tilga mos xushmuomala
+    # foydalanuvchi xabari + kritik xatolarni auditga yozish.
+    register_error_handlers(application)
 
     register_all_handlers(application)
     web_runner = await start_web_server()
@@ -260,6 +258,12 @@ async def main():
     # Scheduler'ni app to'liq ishga tushgandan keyin boshlaymiz —
     # shunda birinchi ishlash ham to'liq tayyor muhitda bo'ladi.
     scheduler.start()
+    # 🩺 Health service: scheduler/application instansiyalarini ro'yxatga
+    # olish + uptime nolini qo'yish — /health buyrug'i shu ma'lumotlarni
+    # ko'rsatadi (services/health_service.py).
+    health_service.register_application(application)
+    health_service.register_scheduler(scheduler)
+    health_service.mark_bot_started()
     logger.info(
         "Scheduler started (TZ=%s): postlar har 1 daqiqada, DB tozalash har 6 soatda.",
         TIMEZONE_NAME,

@@ -664,3 +664,49 @@ quyidagilardan birini tanlang:
 - Barcha rejalashtirilgan xabarlar PostgreSQL (Neon/Render) bazasida saqlanadi —
   bot qayta ishga tushirilganda ular avtomatik qayta yuklanadi (yo'qolmaydi).
 - Bir martalik xabar yuborilgach, ro'yxatdan avtomatik olib tashlanadi.
+
+## 🩺 Tizim holati monitoringi (PostAssist V2 — 7-BOSQICH)
+
+### `/health` buyrug'i (faqat OWNER — `system_settings` ruxsati)
+
+Botga `/health` yuborib tizimning to'liq holatini ko'rish mumkin:
+
+- **🗄 Database** — Neon DB ga `SELECT 1` ping + javob vaqti (latency ms) va
+  ulanishlar pool'i holati;
+- **⏰ Scheduler** — apscheduler ishlayotgani, faol joblar, pending/processing/
+  failed/stale postlar va `post_deliveries` dagi `failed`/`dead_letter` soni;
+- **🤖 AI provayderlar** — har bir API kalit borligi va asosiy modellar
+  (Gemini → Groq → OpenRouter) holati: `OK` / `DEGRADED` (circuit-breaker
+  ochiq) / `UNCONFIGURED` (kalit yo'q);
+- **🖥 Tizim** — bot uptime, faol ulanishlar, asyncio vazifalari va oxirgi
+  1 soat / 24 soatdagi xatolar soni.
+
+Umumiy holat: **HEALTHY** (hammasi joyida) / **DEGRADED** (scheduler to'xtagan,
+dead-letter/failed postlar chegara oshgan, stale processing yoki asosiy AI
+provayderlari ishlamayapti) / **UNHEALTHY** (DB javob bermayapti).
+
+Chegaralar `.env` orqali sozlanadi: `HEALTH_DEAD_LETTER_ALERT` (1),
+`HEALTH_FAILED_ALERT` (10), `HEALTH_PENDING_BACKLOG_ALERT` (1000).
+
+Kod: `services/health_service.py` (`get_system_health`, `format_health_report`),
+handler: `handlers/health.py`.
+
+### Global universal error handler (`handlers/error_handler.py`)
+
+Barcha handlerlardan o'tgan har qanday xato bitta markazlashgan ushlagichga
+tushadi (`telegram.ext.add_error_handler`):
+
+1. Foydalanuvchiga **HECH QACHON** Python traceback, SQL yoki ichki xatolik
+   tafsilotlari ko'rsatilmaydi — faqat uning tilida (uz/ru/en) qisqa,
+   xushmuomala xabar yuboriladi;
+2. Xatolikning to'liq tafsiloti (user_id, chat_id, handler_name, exception,
+   traceback) `logger.error` orqali **strukturalli JSON** qator sifatida
+   qayd etiladi (`[BOT_ERROR] {...}`) — Sentry/SIEM uchun ham mos;
+3. Kritik xatolar (DB down, ulanish uzilishi, timeout) logda
+   `[CRITICAL_HEALTH]` belgisi bilan ajratilib, admin audit jurnaliga
+   best-effort yoziladi (DB turgan holda);
+4. Handler o'zi hech qachon istisno ko'tarmaydi — bot hech qanday xatoda
+   to'xtab qolmaydi.
+
+Shuningdek, handler oxirgi 1 soat / 24 soatdagi xatolar statistikasini
+saqlaydi — `/health` hisobotida ko'rsatiladi.
