@@ -1,13 +1,15 @@
 import os
 import asyncio
+import contextvars
 import hashlib
+import itertools as _itertools
 import logging
 import random
 import string
 import threading
 import time as _time
 from datetime import datetime, timedelta
-from contextlib import contextmanager
+from contextlib import contextmanager, asynccontextmanager
 import psycopg2
 from psycopg2.pool import ThreadedConnectionPool
 import pytz
@@ -49,9 +51,149 @@ EXPECTED_INDEXES = (
     "idx_channels_user_id",
     "idx_post_reactions_post_id",
     "idx_channel_posts_history_channel_date",
+    # PostAssist V2 (5-bosqich): scheduler/bot tezligi va FK ustunlari.
+    "idx_posts_sched_status",
+    "idx_deliveries_lookup",
+    "idx_payments_user",
+    "idx_channels_owner",
+    "idx_scheduled_posts_channel",
+    "idx_deliveries_post",
 )
 REQUIRED_P0_TABLES = ("promo_redemptions", "post_deliveries")
 REQUIRED_P0_INDEXES = ("idx_deliveries_sched", "idx_deliveries_retry", "uq_payments_telegram_charge_id")
+
+# --- MA'LUMOTLAR BUTUNLIGI (PostAssist V2 — 5-bosqich) -------------------
+# Kanonik ro'yxat: schema.sql'dagi "5-BOSQICH" bo'limi bilan bir xil bo'lishi
+# shart (tests/db_integrity_test.py buni tekshirib turadi). Har bir element
+# idempotent: obyekt allaqachon bo'lsa qayta yaratilmaydi, mavjud ma'lumotlar
+# esa umidan o'chirilmaydi yoki o'zgartirilmaydi.
+#
+# ``kind`` qiymatlari:
+#   fk    — jadvallararo bog'lanish (ota yozuv bo'lmasa — yangi qator rad etiladi);
+#   check — qiymatlar to'plami (noma'lum status yozib bo'lmaydi);
+#   unique— takrorlanmas juftlik.
+#
+# Xavfsizlik qoidasi: eski (legacy) yozuvlar talabga javob bermasa, constraint
+# ``NOT VALID`` holatida qo'shiladi — ya'ni tarix tekshirilmaydi (ma'lumot
+# buzilmaydi), lekin BARCHA YANGI yozuvlar baribir himoyalanadi.
+INTEGRITY_CONSTRAINTS = (
+    {
+        "table": "channels",
+        "name": "fk_channels_user",
+        "kind": "fk",
+        "definition": "FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE",
+        "note": "har bir kanal mavjud foydalanuvchiga tegishli bo'ladi",
+    },
+    {
+        "table": "scheduled_posts",
+        "name": "fk_scheduled_posts_channel",
+        "kind": "fk",
+        "definition": "FOREIGN KEY (channel_id) REFERENCES channels(channel_id) ON DELETE CASCADE",
+        "note": "post faqat ro'yxatdan o'tgan kanalga rejalanadi",
+    },
+    {
+        "table": "post_deliveries",
+        "name": "fk_post_deliveries_post",
+        "kind": "fk",
+        "definition": "FOREIGN KEY (post_id) REFERENCES scheduled_posts(id) ON DELETE CASCADE",
+        "note": "delivery markeri doim haqiqiy postga bog'liq",
+    },
+    {
+        "table": "post_reactions",
+        "name": "fk_post_reactions_post",
+        "kind": "fk",
+        "definition": "FOREIGN KEY (post_id) REFERENCES scheduled_posts(id) ON DELETE CASCADE",
+        "note": "yetim reaksiyalar endi DB tomonidan yo'q qilinadi",
+    },
+    {
+        "table": "promo_redemptions",
+        "name": "uq_promo_user",
+        "kind": "unique",
+        "definition": "UNIQUE (promo_id, user_id)",
+        "note": "bitta kod — bitta foydalanuvchi uchun bir marta",
+    },
+    {
+        "table": "post_deliveries",
+        "name": "chk_post_deliveries_status",
+        "kind": "check",
+        "definition": "CHECK (status IN ('pending', 'processing', 'sent', 'failed', 'dead_letter'))",
+        "note": "delivery holatlari faqat 3-bosqich jadvalidagilar",
+    },
+    {
+        "table": "scheduled_posts",
+        "name": "chk_scheduled_posts_status",
+        "kind": "check",
+        "definition": (
+            "CHECK (status IN ('pending', 'processing', 'posted', 'failed', "
+            "'cancelled', 'completed'))"
+        ),
+        "note": (
+            "5-bosqich topshig'ida 4 ta status so'ralgan, biroq bot "
+            "'processing' (claim) va 'completed' (recurring tick) holatlarini "
+            "ham ishlatadi — ularsiz CHECK scheduler'ni buzardi"
+        ),
+    },
+    {
+        "table": "payments",
+        "name": "chk_payments_status",
+        "kind": "check",
+        "definition": "CHECK (status IN ('pending', 'succeeded', 'failed', 'refunded'))",
+        "note": "Stars/To'lov audit holatlari (yangi ustun)",
+    },
+)
+
+#: Startup'da mavjudligi tekshiriladigan constraintlar (schema.sql bilan bir xil).
+INTEGRITY_CONSTRAINT_NAMES = tuple(item["name"] for item in INTEGRITY_CONSTRAINTS)
+
+#: Kompozit indekslar: (nom, jadval, ustunlar ifodasi, SQL). ``ddl`` — schema.sql
+# bilan bir xil matn; ``require_all`` — testlar bu indekslarni talab qiladi.
+INTEGRITY_INDEXES = (
+    {
+        "name": "idx_posts_sched_status",
+        "table": "scheduled_posts",
+        "columns": "(status, scheduled_time)",
+        "ddl": "CREATE INDEX IF NOT EXISTS idx_posts_sched_status "
+               "ON scheduled_posts (status, scheduled_time) WHERE status = 'pending'",
+        "note": "scheduler'ning eng issiq so'rovi: pending navbati (get_due_posts)",
+    },
+    {
+        "name": "idx_deliveries_lookup",
+        "table": "post_deliveries",
+        "columns": "(status, post_id, channel_id)",
+        "ddl": "CREATE INDEX IF NOT EXISTS idx_deliveries_lookup "
+               "ON post_deliveries (status, post_id, channel_id)",
+        "note": "delivery holati bo'yicha filtr + post/kanal bo'yicha izlash",
+    },
+    {
+        "name": "idx_payments_user",
+        "table": "payments",
+        "columns": "(user_id, status)",
+        "ddl": "CREATE INDEX IF NOT EXISTS idx_payments_user ON payments (user_id, status)",
+        "note": "foydalanuvchi to'lov tarixi (holat bo'yicha)",
+    },
+    {
+        "name": "idx_channels_owner",
+        "table": "channels",
+        "columns": "(user_id)",
+        "ddl": "CREATE INDEX IF NOT EXISTS idx_channels_owner ON channels (user_id) WHERE is_active = TRUE",
+        "note": "get_user_channels (faqat faol kanallar) — idx_channels_user_id'ni takrorlamaydi",
+    },
+    {
+        "name": "idx_scheduled_posts_channel",
+        "table": "scheduled_posts",
+        "columns": "(channel_id)",
+        "ddl": "CREATE INDEX IF NOT EXISTS idx_scheduled_posts_channel ON scheduled_posts (channel_id)",
+        "note": "FK (channel_id) tufayli kanal o'chirish/cascade tekshiruvlari tez bo'ladi",
+    },
+    {
+        "name": "idx_deliveries_post",
+        "table": "post_deliveries",
+        "columns": "(post_id)",
+        "ddl": "CREATE INDEX IF NOT EXISTS idx_deliveries_post ON post_deliveries (post_id)",
+        "note": "post o'chirilganda cascade tekshiruvi uchun",
+    },
+)
+INTEGRITY_INDEX_NAMES = tuple(item["name"] for item in INTEGRITY_INDEXES)
 
 
 def resolve_sslmode(url: str = None) -> str:
@@ -311,44 +453,278 @@ def _discard_connection(conn):
         sem.release()
 
 
-@contextmanager
-def db_cursor(commit: bool = False):
-    conn = None
-    try:
+# ============================================================
+# ATOMIK TRANZAKSIYA YORDAMCHILARI (PostAssist V2 — 5-bosqich)
+# ------------------------------------------------------------
+# ``db_cursor(commit=True)`` avvallari ham bitta ulanishda implicit BEGIN +
+# COMMIT/ROLLBACK qilardi. 5-bosqichda bu xatti-harakat rasmiy, ismli API'ga
+# chiqarildi, shunda istalgan qavat (DB funksiyasi, servis yoki async handler)
+# nechta SQL bo'lsin — BITTA atomik blokda bajariladi:
+#
+#   * blok ichida istisno ko'tarilsa  → avtomatik ROLLBACK (qismiy yozuv qolmaydi);
+#   * blok muvaffaqiyatli tugasa      → COMMIT;
+#   * ich-ma-ich chaqiruvda yangi tranzaksiya OCHILMAYDI — bir ulanishda
+#     SAVEPOINT ishlatiladi va qaror tashqi blokka bo'ysunadi;
+#   * tranzaksiya ichidagi ``db_cursor()`` qo'shimcha ulanish olmaydi (pool
+#     to'lib, o'z-o'zini bloqlab qo'yishi mumkin, shuning uchun bir ulanish
+#     va bir tranzaksiya davom etadi);
+#   * server ulanishni uzsa — buzilgan ulanish pool'ga qaytarilmaydi.
+#
+# Sinkron kod uchun:  ``with db_transaction() as cur:``
+# Asinxron kod uchun: ``async with transaction() as cur:``
+# ============================================================
+
+#: Ruxsat etilgan izolatsiya darajalari (SQL'ga string konkatensiyasi uchun
+# oq ro'yxat — chaqiruvchi xato satri hech qachon SQL bo'la olmaydi).
+TX_ISOLATION_LEVELS = ("read committed", "repeatable read", "serializable")
+
+#: Tranzaksiya holati (faol blokningsiz o'zi). ContextVar — chunki
+# ``asyncio.to_thread`` kontekstni ko'chirib oladi, ya'ni async blok ichida
+# ishga tushadigan sinkron ``db_cursor()`` ham shu tranzaksiyani ko'radi.
+_TX_CTX = contextvars.ContextVar("postassist_tx", default=None)
+_TX_SEQ = _itertools.count(1)
+
+
+class _Transaction:
+    """Bitta atomik blokning holati: ulanish, kursor, savepoint va yakun.
+
+    ``enter()`` — ulanishni oladi (yoki mavjud tranzaksiyada savepoint ochadi),
+    ``finish(exc)`` — COMMIT/ROLLBACK va ulanishni pool'ga qaytaradi.
+    """
+
+    __slots__ = ("commit", "isolation_level", "readonly", "conn", "cur",
+                 "savepoint", "parent", "owns_conn", "_token")
+
+    def __init__(self, commit: bool = True, isolation_level: str = None,
+                 readonly: bool = False):
+        self.commit = bool(commit)
+        level = (isolation_level or "").strip().lower() or None
+        if level is not None and level not in TX_ISOLATION_LEVELS:
+            raise ValueError(
+                f"Noma'lum izolatsiya darajasi: {isolation_level!r} "
+                f"(ruxsat etilgan: {', '.join(TX_ISOLATION_LEVELS)})"
+            )
+        self.isolation_level = level
+        self.readonly = bool(readonly)
+        self.conn = None
+        self.cur = None
+        self.savepoint = None
+        self.parent = None
+        self.owns_conn = True
+        self._token = None
+
+    # ---- kirish -------------------------------------------------------
+    def enter(self):
+        parent = _TX_CTX.get()
+        if parent is not None and parent.conn is not None:
+            # Ich-ma-ich: BITTA ulanish, SAVEPOINT. Alohida kursor ochiladi —
+            # shunda tashqi blokning natijalari (fetchone/fetchall) buzilmaydi.
+            self.parent = parent
+            self.conn = parent.conn
+            self.owns_conn = False
+            self.savepoint = f"postassist_tx_{next(_TX_SEQ)}"
+            self.cur = self.conn.cursor()
+            self.cur.execute(f"SAVEPOINT {self.savepoint}")
+            self._token = _TX_CTX.set(self)
+            return self.cur
+
         conn = _acquire_connection()
-        cur = conn.cursor()
+        self.conn = conn
         try:
-            yield cur
-            if commit:
-                conn.commit()
-        except (psycopg2.OperationalError, psycopg2.InterfaceError):
-            # Server ulanishni uzgan bo'lsa (masalan, Render DB uyquda) —
-            # buzilgan ulanishni tashlab, xatoni chaqiruvchiga uzatamiz.
-            _discard_connection(conn)
-            conn = None
-            raise
+            self.cur = conn.cursor()
+            if getattr(conn, "autocommit", False):
+                # Autocommit ulanishda tranzaksiyani qo'lbella ochamiz.
+                self.cur.execute("BEGIN")
+            if self.isolation_level:
+                self.cur.execute(
+                    "SET LOCAL TRANSACTION ISOLATION LEVEL " + self.isolation_level
+                )
+            if self.readonly:
+                self.cur.execute("SET LOCAL TRANSACTION READ ONLY")
+            self._token = _TX_CTX.set(self)
         except Exception:
-            # Oddiy so'rov/mantiqiy xatolik bo'lsa — tranzaksiyani bekor qilib (rollback),
-            # butun ulanishni buzmasdan pool'ga qaytaramiz.
+            self._reset_ctx()
             try:
-                conn.rollback()
+                _discard_connection(conn)
             except Exception:
                 pass
-            _release_connection(conn)
-            conn = None
+            self.conn = None
             raise
-        finally:
+        return self.cur
+
+    # ---- chiqish ------------------------------------------------------
+    def finish(self, exc: BaseException = None):
+        """``exc`` None bo'lsa — COMMIT (yoki savepoint release), aks holda ROLLBACK."""
+        self._reset_ctx()
+        if self.savepoint is not None:
             try:
-                cur.close()
+                if exc is None:
+                    self.cur.execute(f"RELEASE SAVEPOINT {self.savepoint}")
+                else:
+                    self.cur.execute(f"ROLLBACK TO SAVEPOINT {self.savepoint}")
+            except Exception:
+                # Ulanish buzilgan bo'lsa savepoint ham yo'q — tashqi blok
+                # xatolikni o'zi boshqaradi.
+                if exc is None:
+                    raise
+            finally:
+                self._close_cursor()
+            return
+
+        conn, self.conn = self.conn, None
+        if conn is None:
+            return
+        try:
+            self._close_cursor()
+        except Exception:
+            pass
+        if exc is None:
+            try:
+                if self.commit:
+                    conn.commit()
+            except (psycopg2.OperationalError, psycopg2.InterfaceError):
+                self._retire(conn, broken=True)
+                raise
+            except Exception:
+                # COMMIT o'zi xato berdi — ulanish aniq holatda emas, tashlaymiz.
+                self._retire(conn, broken=True)
+                raise
+            else:
+                self._retire(conn, broken=False)
+            return
+        # Xatolik yo'li: rollback, keyin ulanishni saqlab qolish.
+        if isinstance(exc, (psycopg2.OperationalError, psycopg2.InterfaceError)):
+            self._retire(conn, broken=True)
+            return
+        try:
+            conn.rollback()
+        except Exception:
+            self._retire(conn, broken=True)
+            return
+        self._retire(conn, broken=False)
+
+    # ---- ichki yordamchilar -------------------------------------------
+    def _reset_ctx(self):
+        token, self._token = self._token, None
+        if token is not None:
+            try:
+                _TX_CTX.reset(token)
             except Exception:
                 pass
-        if conn is not None:
-            _release_connection(conn)
-            conn = None
-    except Exception:
-        if conn is not None:
-            _discard_connection(conn)
+
+    def _close_cursor(self):
+        cur, self.cur = self.cur, None
+        if cur is None:
+            return
+        try:
+            cur.close()
+        except Exception:
+            pass
+
+    @staticmethod
+    def _retire(conn, broken: bool):
+        try:
+            if broken:
+                _discard_connection(conn)
+            else:
+                _release_connection(conn)
+        except Exception:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+
+@contextmanager
+def db_transaction(commit: bool = True, isolation_level: str = None,
+                   readonly: bool = False):
+    """Atomik tranzaksiya bloki (sync).
+
+    Muvaffaqiyatli yakunda COMMIT, istisnoda avtomatik ROLLBACK qilinadi.
+    Ich-ma-ich chaqirilganda yangi tranzaksiya ochilmaydi — SAVEPOINT
+    ishlatiladi (ichki blok xatosi tashqi blokni buzmaydi).
+
+    Ishlatish::
+
+        with db_transaction() as cur:
+            cur.execute("INSERT INTO payments ...", (...))
+            cur.execute("UPDATE users SET ...", (...))   # bitta atomik blok
+
+    Args:
+        commit: ``False`` — o'qish uchun (hech qachon COMMIT qilinmaydi).
+        isolation_level: ``read committed`` | ``repeatable read`` | ``serializable``.
+        readonly: ``True`` — ``SET LOCAL TRANSACTION READ ONLY`` (tasodifiy
+            yozishlarni bloklaydi).
+    """
+    tx = _Transaction(commit=commit, isolation_level=isolation_level, readonly=readonly)
+    cur = tx.enter()
+    try:
+        yield cur
+    except BaseException as exc:
+        tx.finish(exc)
         raise
+    tx.finish(None)
+
+
+def current_transaction() -> _Transaction:
+    """Faol tranzaksiya obyekti yoki ``None`` (tashqi chaqiruvlar uchun)."""
+    return _TX_CTX.get()
+
+
+@asynccontextmanager
+async def transaction(commit: bool = True, isolation_level: str = None,
+                     readonly: bool = False):
+    """Asinxron atomik tranzaksiya bloki — ``db_transaction`` o'rami.
+
+    psycopg2 sinkron, shuning uchun BEGIN/COMMIT/ROLLBACK alohida thread'da
+    bajariladi (event loop bloklanmaydi). ``asyncio.to_thread`` kontekstni
+    ko'chirib olgani uchun blok ichidagi sinkron ``db_cursor()`` chaqiruvlari
+    ham shu tranzaksiyaga qo'shiladi.
+
+    Ishlatish::
+
+        async with transaction() as cur:
+            await asyncio.to_thread(cur.execute, "INSERT INTO ...", (...))
+    """
+    holder = {}
+
+    def _begin():
+        tx = _Transaction(commit=commit, isolation_level=isolation_level,
+                          readonly=readonly)
+        cur = tx.enter()
+        holder["tx"] = tx
+        return cur
+
+    cur = await asyncio.to_thread(_begin)
+    # ``_begin`` alohida thread'da ishlagani uchun ContextVar shu thread'ning
+    # nusxa ko'chirilgan kontekstiga yozildi — uni joriy (task) kontekstga ham
+    # o'rnatamiz, shunda blok ichidagi sinkron ``db_cursor()`` chaqiruvlari ham
+    # shu tranzaksiyani ko'radi.
+    token = _TX_CTX.set(holder["tx"])
+    try:
+        yield cur
+    except BaseException as exc:
+        _TX_CTX.reset(token)
+        await asyncio.to_thread(holder["tx"].finish, exc)
+        raise
+    else:
+        _TX_CTX.reset(token)
+        await asyncio.to_thread(holder["tx"].finish, None)
+
+
+#: Asinxron API uchun qo'shimcha nom (chaqiruvchi uslubiga qarab).
+atransaction = transaction
+
+
+def db_cursor(commit: bool = False):
+    """DB kursori (kanalik nomi). ``transaction()`` yordamchisiga delegat.
+
+    ``commit=True`` — blok muvaffaqiyatli tugaganda COMMIT (atomik tranzaksiya),
+    ``commit=False`` — o'qish rejimi (xatoda rollback, lekin COMMIT yo'q).
+    Faol tranzaksiya ichida chaqirilsa, yangi ulanish OLINMAYDI — mavjud
+    tranzaksiyaning SAVEPOINT'ida ishlanadi.
+    """
+    return db_transaction(commit=commit)
 
 
 async def run_db(func, *args, **kwargs):
@@ -400,6 +776,279 @@ def _apply_schema_file(cur) -> bool:
     with open(SCHEMA_FILE, "r", encoding="utf-8") as f:
         cur.execute(f.read())
     return True
+
+
+def _sql_literal(value: str) -> str:
+    """SQL satr literali (bitta tirnoqlar ikkilantiriladi)."""
+    return "'" + str(value).replace("'", "''") + "'"
+
+
+def _integrity_values_rows() -> str:
+    """``INTEGRITY_CONSTRAINTS`` ro'yxatidan DO blokidagi VALUES qatorlari."""
+    rows = []
+    for item in INTEGRITY_CONSTRAINTS:
+        rows.append("            ({table}, {name}, {kind}, {definition})".format(
+            table=_sql_literal(item["table"]),
+            name=_sql_literal(item["name"]),
+            kind=_sql_literal(item["kind"]),
+            definition=_sql_literal(item["definition"]),
+        ))
+    return ",\n".join(rows)
+
+
+def build_integrity_block() -> str:
+    """Ma'lumotlar butunligi (FK/CHECK/UNIQUE) migratsiyasini qaytaradi.
+
+    Ushbu blok ``INTEGRITY_CONSTRAINTS`` ro'yxatidan quriladi va schema.sql'dagi
+    statik nusxasi bilan bir xil ish qiladi. Kafolatlar:
+
+      * **Idempotent** — obyekt mavjud bo'lsa (``pg_constraint`` bo'yicha)
+        hech narsa qilinmaydi, qayta-qayta bajarish xavfsiz;
+      * **Ma'lumot buzilmaydi** — eski (legacy) yozuvlar talabga javob
+        bermasa, constraint ``NOT VALID`` holatida qo'shiladi: tarix
+        tekshirilmaydi, lekin barcha YANGI yozuvlar himoyalanadi;
+      * **Bot to'xtamaydi** — har bir DDL alohida ``BEGIN ... EXCEPTION``
+        blokida: bitta muvaffaqiyatsiz constraint qolganlarini va tranzaksiyani
+        buzmaydi (faqat RAISE WARNING).
+    """
+    return """DO $postassist_integrity$
+DECLARE
+    spec RECORD;
+BEGIN
+    FOR spec IN
+        SELECT * FROM (VALUES
+{rows}
+        ) AS t(tbl, cname, kind, cdef)
+    LOOP
+        IF to_regclass(spec.tbl) IS NULL THEN
+            RAISE NOTICE 'integrity: % jadvali topilmadi -- % otkazib yuborildi', spec.tbl, spec.cname;
+            CONTINUE;
+        END IF;
+        IF EXISTS (
+            SELECT 1 FROM pg_constraint c
+             WHERE c.conrelid = spec.tbl::regclass AND c.conname = spec.cname
+        ) THEN
+            CONTINUE;  -- idempotent: constraint allaqachon mavjud
+        END IF;
+        BEGIN
+            EXECUTE format('ALTER TABLE %I ADD CONSTRAINT %I %s', spec.tbl, spec.cname, spec.cdef);
+            RAISE NOTICE 'integrity: %.% qoshildi', spec.tbl, spec.cname;
+        EXCEPTION
+            WHEN foreign_key_violation THEN
+                BEGIN
+                    EXECUTE format('ALTER TABLE %I ADD CONSTRAINT %I %s NOT VALID',
+                                   spec.tbl, spec.cname, spec.cdef);
+                    RAISE WARNING 'integrity: %.% NOT VALID holatda qoshildi (yetim yozuvlar bor) -- '
+                                  'VALIDATE CONSTRAINT orqali tekshirish tugallanadi',
+                                  spec.tbl, spec.cname;
+                EXCEPTION WHEN OTHERS THEN
+                    RAISE WARNING 'integrity: %.% qoshilmadi: %', spec.tbl, spec.cname, SQLERRM;
+                END;
+            WHEN check_violation THEN
+                BEGIN
+                    EXECUTE format('ALTER TABLE %I ADD CONSTRAINT %I %s NOT VALID',
+                                   spec.tbl, spec.cname, spec.cdef);
+                    RAISE WARNING 'integrity: %.% NOT VALID holatda qoshildi (eski qiymatlar chekka mos emas)',
+                                  spec.tbl, spec.cname;
+                EXCEPTION WHEN OTHERS THEN
+                    RAISE WARNING 'integrity: %.% qoshilmadi: %', spec.tbl, spec.cname, SQLERRM;
+                END;
+            WHEN unique_violation THEN
+                RAISE WARNING 'integrity: %.% qoshilmadi -- jadvalda dublikat qatorlar bor, '
+                              'avval tozalash kerak', spec.tbl, spec.cname;
+            WHEN OTHERS THEN
+                RAISE WARNING 'integrity: %.% qoshilmadi: %', spec.tbl, spec.cname, SQLERRM;
+        END;
+    END LOOP;
+END
+$postassist_integrity$;""".format(rows=_integrity_values_rows())
+
+
+#: schema.sql'dagi statik blokning belgisi (testlar shu orqali tekshiradi).
+INTEGRITY_BLOCK_MARKER = "$postassist_integrity$"
+
+#: ``integrity_orphan_counts()`` uchun tekshiruvlar:
+# (bola jadval, bola ustun, ota jadval, ota ustun).
+INTEGRITY_ORPHAN_CHECKS = (
+    ("channels", "user_id", "users", "user_id"),
+    ("scheduled_posts", "channel_id", "channels", "channel_id"),
+    ("post_deliveries", "post_id", "scheduled_posts", "id"),
+    ("post_reactions", "post_id", "scheduled_posts", "id"),
+    ("promo_redemptions", "promo_id", "promo_codes", "id"),
+    ("promo_redemptions", "user_id", "users", "user_id"),
+)
+
+
+def _integrity_indexes_statements() -> list:
+    """5-bosqich indekslarining DDL ro'yxati (schema.sql bilan bir xil)."""
+    return [item["ddl"] + ";" for item in INTEGRITY_INDEXES]
+
+
+def _apply_integrity_indexes(cur) -> None:
+    """Kompozit indekslarni yaratadi (barchasi ``IF NOT EXISTS`` — idempotent)."""
+    for ddl in _integrity_indexes_statements():
+        try:
+            cur.execute(ddl)
+        except Exception as e:
+            # Indeksdan xato chiqsa bot ishlashda davom etsin (masalan,
+            # ustun migratsiyasi hali bajarmagan eski bazada).
+            logger.warning("Integrity indeks yaratilmadi (%s): %s", ddl.split()[5], e)
+
+
+def _apply_integrity_constraints(cur) -> None:
+    """FK/CHECK/UNIQUE constraintlarini qo'llaydi (idempotent DO bloki)."""
+    try:
+        cur.execute(build_integrity_block())
+    except Exception as e:
+        # Bitta xato butun init'ni buzmasin: schema.sql allaqachon buni
+        # qilgan bo'lishi mumkin yoki DB eski versiya bo'lishi mumkin.
+        logger.warning("Integrity constraintlar qo'llanmadi: %s", e)
+
+
+def _list_integrity_constraints(cur) -> dict:
+    """``INTEGRITY_CONSTRAINT_NAMES`` bo'yicha {nom: {"valid": bool}} qaytaradi.
+
+    Jadvallar bo'lmasa yoki bazada xato bo'lsa — bo'sh dict (fail-open).
+    """
+    if not INTEGRITY_CONSTRAINT_NAMES:
+        return {}
+    try:
+        cur.execute(
+            """
+            SELECT c.conname, c.convalidated, r.relname
+              FROM pg_constraint c
+              JOIN pg_class r ON r.oid = c.conrelid
+              JOIN pg_namespace n ON n.oid = r.relnamespace
+             WHERE n.nspname = current_schema()
+               AND c.conname = ANY(%s)
+            """,
+            (list(INTEGRITY_CONSTRAINT_NAMES),),
+        )
+        rows = cur.fetchall()
+    except Exception as e:
+        logger.warning("Integrity constraintlar ro'yxati o'qilmadi: %s", e)
+        return {}
+    found = {}
+    for conname, convalidated, _relname in rows:
+        found[conname] = {"valid": bool(convalidated)}
+    for name in INTEGRITY_CONSTRAINT_NAMES:
+        found.setdefault(name, {"missing": True, "valid": False})
+    return found
+
+
+def integrity_orphan_counts() -> dict:
+    """Yetim (ota-yozuvi yo'q) qatorlar soni: ``{"channels.user_id": 0, ...}``.
+
+    Faqat ikkala jadval mavjud bo'lsa sanaladi. Xatoda 0 emas, belgilash
+    uchun ``-1`` qaytadi (admin diagnostikasi shuni "tekshirib bo'lmadi"
+    deb talqin qiladi).
+    """
+    counts = {}
+    try:
+        with db_cursor() as cur:
+            for child, ccol, parent, pcol in INTEGRITY_ORPHAN_CHECKS:
+                label = f"{child}.{ccol}"
+                try:
+                    cur.execute("SELECT to_regclass(%s), to_regclass(%s)", (child, parent))
+                    child_reg, parent_reg = cur.fetchone()
+                    if not child_reg or not parent_reg:
+                        counts[label] = 0
+                        continue
+                    cur.execute(
+                        f"SELECT COUNT(*) FROM {child} c "
+                        f"LEFT JOIN {parent} p ON p.{pcol} = c.{ccol} "
+                        f"WHERE p.{pcol} IS NULL AND c.{ccol} IS NOT NULL"
+                    )
+                    counts[label] = int(cur.fetchone()[0])
+                except Exception as e:
+                    logger.warning("Yetim sanagichi xatosi (%s): %s", label, e)
+                    counts[label] = -1
+    except Exception as e:
+        logger.warning("integrity_orphan_counts xatosi: %s", e)
+    return counts
+
+
+def integrity_report() -> dict:
+    """Ma'lumotlar butunligi holati — admin diagnostika va testlar uchun.
+
+    Qaytadi::
+
+        {"constraints": {nom: {"valid": bool, ...}},
+         "missing": [nom, ...],          # umuman yo'q
+         "not_valid": [nom, ...],        # bor, lekin eski yozuvlar tekshirilmagan
+         "orphans": {"jadval.ustun": n}, # yetim qatorlar soni
+         "indexes": {nom: True|False}}
+    """
+    report = {"constraints": {}, "missing": [], "not_valid": [], "orphans": {},
+              "indexes": {}}
+    try:
+        with db_cursor() as cur:
+            report["constraints"] = _list_integrity_constraints(cur)
+            cur.execute(
+                "SELECT indexname FROM pg_indexes WHERE schemaname = current_schema()"
+            )
+            indexes = {row[0] for row in cur.fetchall()}
+    except Exception as e:
+        logger.warning("integrity_report xatosi: %s", e)
+        report["error"] = str(e)
+        return report
+    for name, info in report["constraints"].items():
+        if info.get("missing"):
+            report["missing"].append(name)
+        elif not info.get("valid"):
+            report["not_valid"].append(name)
+    for name in INTEGRITY_INDEX_NAMES:
+        report["indexes"][name] = name in indexes
+    report["orphans"] = integrity_orphan_counts()
+    return report
+
+
+def validate_integrity_constraints(names=None) -> dict:
+    """``NOT VALID`` holatdagi constraintlarni tekshiradi (VALIDATE CONSTRAINT).
+
+    Katta jadvallarda bu amol READ ONLY qulfini oladi (yozishlar to'xtab
+    turadi), shuning uchun avtomatik ishga tushirilmaydi — tungi tekshiruv
+    yoki admin buyrug'i uchun ajratilgan. ``DB_VALIDATE_INTEGRITY=1`` bo'lsa
+    startup paytida ham bajariladi.
+
+    Qaytadi: ``{nom: 'validated' | 'ok' | 'xato: ...'}``.
+    """
+    result = {}
+    wanted = list(names) if names else list(INTEGRITY_CONSTRAINT_NAMES)
+    try:
+        with db_cursor(commit=True) as cur:
+            current = _list_integrity_constraints(cur)
+            for name in wanted:
+                info = current.get(name) or {}
+                if info.get("missing"):
+                    result[name] = "missing"
+                    continue
+                if info.get("valid"):
+                    result[name] = "ok"
+                    continue
+                table = next((it["table"] for it in INTEGRITY_CONSTRAINTS
+                              if it["name"] == name), None)
+                if not table:
+                    result[name] = "unknown"
+                    continue
+                try:
+                    cur.execute(f"SAVEPOINT validate_{name}")
+                    cur.execute(
+                        f"ALTER TABLE {table} VALIDATE CONSTRAINT {name}"
+                    )
+                    cur.execute(f"RELEASE SAVEPOINT validate_{name}")
+                    result[name] = "validated"
+                except Exception as e:
+                    try:
+                        cur.execute(f"ROLLBACK TO SAVEPOINT validate_{name}")
+                        cur.execute(f"RELEASE SAVEPOINT validate_{name}")
+                    except Exception:
+                        pass
+                    result[name] = f"xato: {e}"
+                    logger.warning("VALIDATE CONSTRAINT %s xatosi: %s", name, e)
+    except Exception as e:
+        logger.error("validate_integrity_constraints xatosi: %s", e)
+    return result
 
 
 def _verify_schema(cur) -> None:
@@ -457,6 +1106,34 @@ def _verify_schema(cur) -> None:
         len(required_tables) - len(missing_tables), len(required_tables),
         len(required_indexes) - len(missing_indexes), len(required_indexes),
     )
+
+    # 5-bosqich: ma'lumotlar butunligi (FK / CHECK / UNIQUE) ham tekshiriladi.
+    # Topilmasa — schema.sql + ichki migratsiya bloki qayta qo'llanadi; baribir
+    # bo'lmasa ogohlantiramiz (bot ishlashda davom etadi — eski bazalarda
+    # constraint qo'shish ma'lumot hajmi/tartibi tufayli imkonsiz bo'lishi mumkin).
+    constraints = _list_integrity_constraints(cur)
+    missing_constraints = [n for n, info in constraints.items() if info.get("missing")]
+    if missing_constraints:
+        logger.warning("Sxema tekshiruvi: integrity constraintlar topilmadi: %s — qayta qo'llanilmoqda...",
+                       ", ".join(missing_constraints))
+        _apply_integrity_indexes(cur)
+        _apply_integrity_constraints(cur)
+        constraints = _list_integrity_constraints(cur)
+        missing_constraints = [n for n, info in constraints.items() if info.get("missing")]
+        if missing_constraints:
+            logger.warning("Integrity constraintlar qo'shib bo'lmadi: %s "
+                           "(mavjud ma'lumotni buzmaslik uchun davom etamiz)",
+                           ", ".join(missing_constraints))
+    not_valid = [n for n, info in constraints.items()
+                 if not info.get("missing") and not info.get("valid")]
+    if not_valid:
+        logger.warning("Integrity: %d ta constraint NOT VALID holatda (eski yozuvlar tekshirilmagan): %s. "
+                       "Tungi yuklama kam paytda validate_integrity_constraints() bajaring.",
+                       len(not_valid), ", ".join(not_valid))
+    if os.getenv("DB_VALIDATE_INTEGRITY", "").strip().lower() in ("1", "true", "yes", "on"):
+        validated = validate_integrity_constraints()
+        ok = sum(1 for v in validated.values() if v in ("ok", "validated"))
+        logger.info("Integrity VALIDATE: %d/%d tayyor.", ok, len(validated))
 
 
 def _init_db_once():
@@ -675,7 +1352,8 @@ def _init_db_once():
                 currency VARCHAR(10),
                 payload TEXT,
                 telegram_payment_charge_id TEXT UNIQUE,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                status VARCHAR(20) NOT NULL DEFAULT 'succeeded'
             );
         """)
         cur.execute("CREATE INDEX IF NOT EXISTS idx_payments_user_id ON payments (user_id);")
@@ -764,6 +1442,10 @@ def _init_db_once():
             # PostAssist V2 (3-bosqich): persistent delivery + backoff ustunlari.
             "ALTER TABLE post_deliveries ADD COLUMN IF NOT EXISTS scheduled_time TIMESTAMPTZ;",
             "ALTER TABLE post_deliveries ADD COLUMN IF NOT EXISTS next_retry_at TIMESTAMPTZ;",
+            # PostAssist V2 (5-bosqich): to'lov audit holati + idx_payments_user
+            # (user_id, status) shu ustun bilan quriladi. DEFAULT tufayli eski
+            # yozuvlar ham 'succeeded' hisoblanadi (ma'lumot o'zgarmaydi).
+            "ALTER TABLE payments ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'succeeded';",
         ]
         for index, migration in enumerate(migrations):
             # Bitta migration xatosi qolgan migrationlarni transaction aborted
@@ -802,7 +1484,14 @@ def _init_db_once():
         cur.execute("CREATE INDEX IF NOT EXISTS idx_post_reactions_post_id ON post_reactions (post_id);")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_channel_posts_history_channel_date ON channel_posts_history (channel_id, post_date DESC);")
 
-        # 3) Startup schema check: server versiyasi, jadvallar va indekslar.
+        # 3) PostAssist V2 (5-bosqich): scheduler tezligi uchun kompozit indekslar
+        # va jadvallararo FK/CHECK/UNIQUE constraintlar. Ikkalasi ham idempotent
+        # va ma'lumotni o'zgartirmaydi (tafsilot: ``build_integrity_block``).
+        _apply_integrity_indexes(cur)
+        _apply_integrity_constraints(cur)
+
+        # 4) Startup schema check: server versiyasi, jadvallar, indekslar va
+        #    ma'lumotlar butunligi constraintlari.
         _verify_schema(cur)
 
 # --- SETTINGS ---
@@ -2765,6 +3454,13 @@ def cleanup_old_data() -> dict:
 
     Baza o'sib ketmasligi uchun: yuborilgan/ochilgan xabarlar, 30 kundan eski
     yakunlangan postlar va boshqa qoldiqlar tozalanadi.
+
+    ⚠️ 5-bosqich: ``scheduled_posts.channel_id → channels(channel_id)`` FK'i
+    ``ON DELETE CASCADE`` bilan, ya'ni kanal qatori o'chirilsa, uning BARCHA
+    post tarixi (analitika shu ustunda qurilgan) ham ketadi. Shuning uchun bu
+    tozalash endi kanal qatorini faqat unga bog'liq BIRORTA post qolmaganida
+    o'chiradi — tarix hech qachon "reklama sanagichi tozalash" oqibatida
+    yo'qolmaydi.
     """
     recover_stale_processing_posts()
     deleted = {"sent_post_messages": 0, "scheduled_posts": 0, "post_reactions": 0, "channels": 0}
@@ -2784,10 +3480,20 @@ def cleanup_old_data() -> dict:
             """)
             deleted["scheduled_posts"] = cur.rowcount
 
+            # FK (fk_post_reactions_post) ishlaganda bunday yetim qatorlar
+            # umudan paydo bo'lmaydi — bu sorov eski/nofaol (NOT VALID)
+            # bazalarda himoya to'r sifatida qoladi.
             cur.execute("DELETE FROM post_reactions WHERE post_id NOT IN (SELECT id FROM scheduled_posts)")
             deleted["post_reactions"] = cur.rowcount
 
-            cur.execute("DELETE FROM channels WHERE is_active = FALSE AND created_at < NOW() - INTERVAL '90 days'")
+            cur.execute("""
+                DELETE FROM channels c
+                 WHERE c.is_active = FALSE
+                   AND c.created_at < NOW() - INTERVAL '90 days'
+                   AND NOT EXISTS (
+                       SELECT 1 FROM scheduled_posts sp WHERE sp.channel_id = c.channel_id
+                   )
+            """)
             deleted["channels"] = cur.rowcount
 
             cur.execute("DELETE FROM channel_posts_history WHERE created_at < NOW() - INTERVAL '90 days'")
@@ -3362,23 +4068,45 @@ def get_referrer_id(user_id: int) -> int | None:
 # ============================================================
 # STARS PAYMENTS LOG
 # ============================================================
+# To'lov audit holatlari (5-bosqich). DB tomonida CHECK (chk_payments_status)
+# bilan ham himolangan — Python to'plami bilan bir xil bo'lishi shart.
+PAYMENT_STATUS_PENDING = "pending"
+PAYMENT_STATUS_SUCCEEDED = "succeeded"
+PAYMENT_STATUS_FAILED = "failed"
+PAYMENT_STATUS_REFUNDED = "refunded"
+PAYMENT_STATUSES = (
+    PAYMENT_STATUS_PENDING,
+    PAYMENT_STATUS_SUCCEEDED,
+    PAYMENT_STATUS_FAILED,
+    PAYMENT_STATUS_REFUNDED,
+)
 
-def log_stars_payment(user_id: int, amount: int, currency: str, payload: str, telegram_payment_id: str = "") -> bool:
+
+def log_stars_payment(user_id: int, amount: int, currency: str, payload: str, telegram_payment_id: str = "",
+                      status: str = "succeeded") -> bool:
     """Stars to'lovini audit jadvaliga idempotent yozadi.
 
     ``telegram_payment_charge_id`` NULL bo'lishi mumkin (legacy/manual
     chaqiriqlar uchun), ammo haqiqiy Telegram charge ID doimo unique.
+
+    ``status`` — 5-bosqich audit holati (``pending | succeeded | failed |
+    refunded``); ``payments_status`` CHECK'i shu to'plamni DB darajasida
+    qat'iy ushlab turadi va ``idx_payments_user (user_id, status)`` indeksini
+    ishlatib to'lov tarixini holat bo'yicha chizadi.
     """
+    if status not in PAYMENT_STATUSES:
+        status = PAYMENT_STATUS_SUCCEEDED
     try:
         charge_id = (telegram_payment_id or "").strip() or None
         with db_cursor(commit=True) as cur:
             cur.execute(
                 """
-                INSERT INTO payments (user_id, amount, currency, payload, telegram_payment_charge_id)
-                VALUES (%s, %s, %s, %s, %s)
+                INSERT INTO payments (user_id, amount, currency, payload,
+                                      telegram_payment_charge_id, status)
+                VALUES (%s, %s, %s, %s, %s, %s)
                 ON CONFLICT DO NOTHING
                 """,
-                (user_id, amount, currency, payload, charge_id),
+                (user_id, amount, currency, payload, charge_id, status),
             )
             inserted = cur.rowcount > 0
         _cache_clear("system_stats")

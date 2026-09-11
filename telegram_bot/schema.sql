@@ -197,6 +197,9 @@ CREATE INDEX IF NOT EXISTS idx_channel_posts_history_channel_date
 -- Stars to'lovlari uchun alohida audit jadvali.
 -- To'lovlar promo_codes jadvaliga yozilmaydi — har bir to'lov o'z
 -- qatori bilan audit qilinadi (summa, valyuta, payload, charge_id).
+-- PostAssist V2 (5-bosqich): status ustuni — to'lov audit holati
+-- (pending | succeeded | failed | refunded) va (user_id, status) kompozit
+-- indeksining qismi. DEFAULT tufayli eski yozuvlar 'succeeded' hisoblanadi.
 CREATE TABLE IF NOT EXISTS payments (
     id SERIAL PRIMARY KEY,
     user_id BIGINT,
@@ -204,7 +207,8 @@ CREATE TABLE IF NOT EXISTS payments (
     currency VARCHAR(10),
     payload TEXT,
     telegram_payment_charge_id TEXT UNIQUE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    status VARCHAR(20) NOT NULL DEFAULT 'succeeded'
 );
 CREATE INDEX IF NOT EXISTS idx_payments_user_id ON payments (user_id);
 
@@ -315,6 +319,11 @@ ALTER TABLE channel_posts_history ADD COLUMN IF NOT EXISTS created_at TIMESTAMP 
 ALTER TABLE post_deliveries ADD COLUMN IF NOT EXISTS scheduled_time TIMESTAMPTZ;
 ALTER TABLE post_deliveries ADD COLUMN IF NOT EXISTS next_retry_at TIMESTAMPTZ;
 
+-- PostAssist V2 (5-bosqich): to'lov audit holati. ADD COLUMN IF NOT EXISTS +
+-- NOT NULL DEFAULT tufayli (PostgreSQL 11+ "fast default") migratsiya bir
+-- necha milisekundda bajariladi va mavjud qatorlar 'succeeded' deb hisoblanadi.
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'succeeded';
+
 -- --- INDEKSLAR (eng ko'p ishlatiladigan qidiruvlar uchun) ---
 -- users.user_id PRIMARY KEY bo'lgani uchun u yerda indeks avtomatik mavjud.
 
@@ -322,3 +331,110 @@ CREATE INDEX IF NOT EXISTS idx_scheduled_posts_status_time ON scheduled_posts (s
 CREATE INDEX IF NOT EXISTS idx_scheduled_posts_user_id ON scheduled_posts (user_id);
 CREATE INDEX IF NOT EXISTS idx_channels_user_id ON channels (user_id);
 CREATE INDEX IF NOT EXISTS idx_post_reactions_post_id ON post_reactions (post_id);
+
+-- ============================================================
+-- POSTASSIST V2 — 5-BOSQICH: MA'LUMOTLAR BUTUNLIGI
+-- (composite indekslar + foreign key / check / unique constraintlar)
+-- ------------------------------------------------------------
+-- 1) INDEKSLAR. Barchasi IF NOT EXISTS — qayta-bajarish bepul va xavfsiz.
+--    Eslatma: topshiriqda so'ralgan scheduled_posts.scheduled_at ustuni
+--    sxemada scheduled_time deb yuritiladi (va unda allaqachon
+--    idx_scheduled_posts_status_time bor), shuning uchun idx_posts_sched_status
+--    shu ustun bilan va FAQAT 'pending' navbatini qamrab oluvchi qismiy
+--    (partial) indeks sifatida quriladi — scheduler'ning eng issiq so'rovi
+--    aynan shu, indeks esa butun jadvaldan bir necha barobar kichik.
+--    Xuddi shu sababli idx_channels_owner idx_channels_user_id'ni takrorlamaydi:
+--    u faqat faol kanallarni qamrab oluvchi partial indeks.
+-- ============================================================
+
+-- Scheduler navbati: status='pending' AND scheduled_time <= now ORDER BY scheduled_time
+CREATE INDEX IF NOT EXISTS idx_posts_sched_status ON scheduled_posts (status, scheduled_time) WHERE status = 'pending';
+-- Delivery qidiruvi: holat + post + kanallar bo'yicha bitta indeksda
+CREATE INDEX IF NOT EXISTS idx_deliveries_lookup ON post_deliveries (status, post_id, channel_id);
+-- To'lov tarixi holat bilan
+CREATE INDEX IF NOT EXISTS idx_payments_user ON payments (user_id, status);
+-- Kanallar ro'yxati (faqat faollar) — get_user_channels / tone so'rovlari
+CREATE INDEX IF NOT EXISTS idx_channels_owner ON channels (user_id) WHERE is_active = TRUE;
+-- FK ustunlarini indekslash: ota qatorni o'chirishda (ON DELETE CASCADE)
+-- PostgreSQL bola jadvalini seq scan qilmasin.
+CREATE INDEX IF NOT EXISTS idx_scheduled_posts_channel ON scheduled_posts (channel_id);
+CREATE INDEX IF NOT EXISTS idx_deliveries_post ON post_deliveries (post_id);
+
+-- ============================================================
+-- 2) CONSTRAINTLAR. Har bir obyekt alohida "xavfsiz" blokda:
+--      * mavjud bo'lsa — CONTINUE (idempotent, qayta iskga tushirishda
+--        hech qanday qulf/lock olinmaydi);
+--      * eski (legacy) yozuvlar talabga javob bermasa — constraint
+--        NOT VALID holatida qo'shiladi: tarixiy ma'lumot O'CHIRILMAYDI va
+--        O'ZGARTIRILMAYDI, ammo barcha YANGI yozuvlar himoyalanadi.
+--        Keyinchalik "ALTER TABLE ... VALIDATE CONSTRAINT" bilan tugatiladi
+--        (database.validate_integrity_constraints() yordamchisi shuni qiladi).
+--      * kutilmagan xato faqat RAISE WARNING — bot ishlayveradi.
+--
+--    E'lon qilingan nomlar sxemaning haqiqiy ustunlariga moslashtirildi:
+--      channels.user_id      → users(user_id)      (users PK'si "id" emas)
+--      scheduled_posts.channel_id → channels(channel_id)  (VARCHAR→VARCHAR;
+--                               channels.id — int surrogate, tipsiz mos kelmaydi)
+--      post_deliveries.post_id    → scheduled_posts(id)
+--      post_reactions.post_id     → scheduled_posts(id)
+--      promo_redemptions: UNIQUE (promo_id, user_id) tekshiriladi
+--    ============================================================
+
+DO $postassist_integrity$
+DECLARE
+    spec RECORD;
+BEGIN
+    FOR spec IN
+        SELECT * FROM (VALUES
+            ('channels', 'fk_channels_user', 'fk', 'FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE'),
+            ('scheduled_posts', 'fk_scheduled_posts_channel', 'fk', 'FOREIGN KEY (channel_id) REFERENCES channels(channel_id) ON DELETE CASCADE'),
+            ('post_deliveries', 'fk_post_deliveries_post', 'fk', 'FOREIGN KEY (post_id) REFERENCES scheduled_posts(id) ON DELETE CASCADE'),
+            ('post_reactions', 'fk_post_reactions_post', 'fk', 'FOREIGN KEY (post_id) REFERENCES scheduled_posts(id) ON DELETE CASCADE'),
+            ('promo_redemptions', 'uq_promo_user', 'unique', 'UNIQUE (promo_id, user_id)'),
+            ('post_deliveries', 'chk_post_deliveries_status', 'check', 'CHECK (status IN (''pending'', ''processing'', ''sent'', ''failed'', ''dead_letter''))'),
+            ('scheduled_posts', 'chk_scheduled_posts_status', 'check', 'CHECK (status IN (''pending'', ''processing'', ''posted'', ''failed'', ''cancelled'', ''completed''))'),
+            ('payments', 'chk_payments_status', 'check', 'CHECK (status IN (''pending'', ''succeeded'', ''failed'', ''refunded''))')
+        ) AS t(tbl, cname, kind, cdef)
+    LOOP
+        IF to_regclass(spec.tbl) IS NULL THEN
+            RAISE NOTICE 'integrity: % jadvali topilmadi -- % otkazib yuborildi', spec.tbl, spec.cname;
+            CONTINUE;
+        END IF;
+        IF EXISTS (
+            SELECT 1 FROM pg_constraint c
+             WHERE c.conrelid = spec.tbl::regclass AND c.conname = spec.cname
+        ) THEN
+            CONTINUE;  -- idempotent: constraint allaqachon mavjud
+        END IF;
+        BEGIN
+            EXECUTE format('ALTER TABLE %I ADD CONSTRAINT %I %s', spec.tbl, spec.cname, spec.cdef);
+            RAISE NOTICE 'integrity: %.% qoshildi', spec.tbl, spec.cname;
+        EXCEPTION
+            WHEN foreign_key_violation THEN
+                BEGIN
+                    EXECUTE format('ALTER TABLE %I ADD CONSTRAINT %I %s NOT VALID',
+                                   spec.tbl, spec.cname, spec.cdef);
+                    RAISE WARNING 'integrity: %.% NOT VALID holatda qoshildi (yetim yozuvlar bor) -- '
+                                  'VALIDATE CONSTRAINT orqali tekshirish tugallanadi',
+                                  spec.tbl, spec.cname;
+                EXCEPTION WHEN OTHERS THEN
+                    RAISE WARNING 'integrity: %.% qoshilmadi: %', spec.tbl, spec.cname, SQLERRM;
+                END;
+            WHEN check_violation THEN
+                BEGIN
+                    EXECUTE format('ALTER TABLE %I ADD CONSTRAINT %I %s NOT VALID',
+                                   spec.tbl, spec.cname, spec.cdef);
+                    RAISE WARNING 'integrity: %.% NOT VALID holatda qoshildi (eski qiymatlar chekka mos emas)',
+                                  spec.tbl, spec.cname;
+                EXCEPTION WHEN OTHERS THEN
+                    RAISE WARNING 'integrity: %.% qoshilmadi: %', spec.tbl, spec.cname, SQLERRM;
+                END;
+            WHEN unique_violation THEN
+                RAISE WARNING 'integrity: %.% qoshilmadi -- jadvalda dublikat qatorlar bor, '
+                              'avval tozalash kerak', spec.tbl, spec.cname;
+            WHEN OTHERS THEN
+                RAISE WARNING 'integrity: %.% qoshilmadi: %', spec.tbl, spec.cname, SQLERRM;
+        END;
+    END LOOP;
+END
+$postassist_integrity$;

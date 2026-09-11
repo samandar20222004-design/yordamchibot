@@ -11,15 +11,31 @@ Foydalanish::
 
 import logging
 import re
+from contextlib import contextmanager
 
 from database import (
     db_cursor,
+    PAYMENT_STATUS_SUCCEEDED,
     _invalidate_user,
     _cache_clear,
     _normalize_language_code,
 )
 
 logger = logging.getLogger(__name__)
+
+
+@contextmanager
+def transaction(commit: bool = True):
+    """To'lov oqimi uchun BITTA atomik tranzaksiya bloki (5-bosqich).
+
+    Blok ichidagi barcha SQL'lar bitta DB ulanishidan o'tadi va faqat blok
+    muvaffaqiyatli tugaganda COMMIT qilinadi — istisnoda to'liq ROLLBACK.
+    Bu ``database.transaction()`` (``db_transaction``) bilan bir xil
+    semantika: ikkalasi ham ``db_cursor`` primitivi ustida qurilgan, shuning
+    uchun qavat testlarda bir xil nuqtadan mock qilinadi.
+    """
+    with db_cursor(commit=commit) as cur:
+        yield cur
 
 # Karta chek holatlari
 RECEIPT_STATUS_PENDING = "pending"
@@ -116,8 +132,13 @@ class PaymentService:
         if not charge_id or duration_days <= 0:
             return {"ok": False, "duplicate": False, "reason": "invalid_payment"}
 
+        status = PAYMENT_STATUS_SUCCEEDED
+
         try:
-            with db_cursor(commit=True) as cur:
+            # 5-bosqich: to'lov audit yozuvi + obuna uzaytirish — BITTA
+            # atomik blokda (transaction). Xatoda ikkalasi birga qaytariladi,
+            # ya'ni "pul olindi, lekin PRO berilmadi" holati mumkin emas.
+            with transaction() as cur:
                 # User mavjudligini tekshirib qulflash
                 cur.execute("SELECT 1 FROM users WHERE user_id = %s FOR UPDATE", (user_id,))
                 if not cur.fetchone():
@@ -126,12 +147,13 @@ class PaymentService:
                 # Idempotent yozuv
                 cur.execute(
                     """
-                    INSERT INTO payments (user_id, amount, currency, payload, telegram_payment_charge_id)
-                    VALUES (%s, %s, %s, %s, %s)
+                    INSERT INTO payments (user_id, amount, currency, payload,
+                                          telegram_payment_charge_id, status)
+                    VALUES (%s, %s, %s, %s, %s, %s)
                     ON CONFLICT DO NOTHING
                     RETURNING id
                     """,
-                    (user_id, amount, "XTR", payload, charge_id),
+                    (user_id, amount, "XTR", payload, charge_id, status),
                 )
                 payment_row = cur.fetchone()
                 if not payment_row:
@@ -182,7 +204,8 @@ class PaymentService:
     def _approve_receipt(receipt_id: int, admin_id: int) -> dict:
         """Chekni tasdiqlaydi va PRO beradi (atomik)."""
         try:
-            with db_cursor(commit=True) as cur:
+            # Chek tasdiqlash + PRO uzaytirish — bitta tranzaksiya (5-bosqich).
+            with transaction() as cur:
                 cur.execute(
                     "SELECT status, user_id, days_granted FROM payment_receipts "
                     "WHERE id = %s FOR UPDATE",
@@ -239,7 +262,7 @@ class PaymentService:
     def _reject_receipt(receipt_id: int, admin_id: int) -> dict:
         """Chekni rad etadi."""
         try:
-            with db_cursor(commit=True) as cur:
+            with transaction() as cur:
                 cur.execute(
                     "SELECT status, user_id FROM payment_receipts WHERE id = %s FOR UPDATE",
                     (int(receipt_id),),

@@ -201,6 +201,42 @@ Bot [Neon](https://neon.tech) serverless PostgreSQL bilan ham ishlaydi:
    psql "$DATABASE_URL" -f telegram_bot/schema.sql
    ```
 
+#### Ma'lumotlar butunligi (PostAssist V2 — 5-bosqich)
+
+Sxema `schema.sql`da FK/CHECK/UNIQUE constraintlar va ularni tezlashtiruvchi
+kompozit indekslar bilan mustahkamlangan:
+
+| Obyekt | Ma'nosi |
+|---|---|
+| `channels.user_id → users(user_id)` (CASCADE) | kanal doim mavjud foydalanuvchiga tegishli |
+| `scheduled_posts.channel_id → channels(channel_id)` (CASCADE) | post faqat ulangan kanalga rejalanadi |
+| `post_deliveries.post_id → scheduled_posts(id)` (CASCADE) | delivery markeri yetim qolmaydi |
+| `post_reactions.post_id → scheduled_posts(id)` (CASCADE) | reaksiyalar o'chirilgan postga yopishib qolmaydi |
+| `promo_redemptions UNIQUE (promo_id, user_id)` | bitta kod — bitta hisobga bir marta |
+| `chk_post_deliveries_status` | `pending / processing / sent / failed / dead_letter` |
+| `chk_scheduled_posts_status` | `pending / processing / posted / failed / cancelled / completed` |
+| `chk_payments_status` + `payments.status` | `pending / succeeded / failed / refunded` |
+| `idx_posts_sched_status` (partial) | scheduler navbati: `status='pending' AND scheduled_time` |
+| `idx_deliveries_lookup` / `idx_payments_user` / `idx_channels_owner` / `idx_scheduled_posts_channel` / `idx_deliveries_post` | issiq yo'nalishlar bo'yicha indekslar |
+
+Migratsiya **idempotent va mavjud ma'lumotga tegmaydi**: obyekt allaqachon bo'lsa
+hech narsa qilinmaydi; eski yozuvlar talabga javob bermasa, constraint
+`NOT VALID` holatida qo'shiladi — ya'ni tarix o'chirilmaydi, lekin barcha
+**yangi** yozuvlar baribir himoyalanadi. `NOT VALID` qismini keyin
+`DB_VALIDATE_INTEGRITY=1` bilan (yoki `database.validate_integrity_constraints()`)
+tekshirib tugatish mumkin. Holatni ko'rish: `database.integrity_report()` va
+`database.integrity_orphan_counts()` — barcha yetim qatorlar `0` bo'lishi kerak.
+
+Tranzaksiya API: `with db_transaction() as cur:` (sync) va
+`async with transaction() as cur:` (async) — istisnoda avtomatik ROLLBACK,
+muvaffaqiyatda COMMIT; ich-ma-ich chaqiruv SAVEPOINT bilan davom etadi va
+`db_cursor()` tranzaksiya ichida qo'shimcha ulanish olmaydi (pool deadlock'idan
+himoya). To'lov (`PaymentService.process_stars_payment`, karta chekini
+tasdiqlash/rad etish), obuna (`SubscriptionService.activate/extend/revoke`) va
+promo (`PromoService.redeem_promo`) oqimlari shu yagona atomik blokda ishlaydi.
+
+Tekshirish: `cd telegram_bot && python tests/db_integrity_test.py`
+
 UptimeRobot monitor turi **HTTP(s)** bo'lsin va URL quyidagicha berilsin:
 `https://sizning-render-service.onrender.com/health/live`
 Health endpoint `200` va JSON qaytaradi. UptimeRobot bot polling'ini emas, Render web-service'ni uyg'oq saqlaydi.

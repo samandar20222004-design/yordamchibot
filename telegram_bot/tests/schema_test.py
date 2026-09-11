@@ -53,6 +53,13 @@ EXPECTED_INDEXES = (
     "idx_channels_user_id",
     "idx_post_reactions_post_id",
     "idx_channel_posts_history_channel_date",
+    # PostAssist V2 (5-bosqich): kompozit indekslar + FK ustun indekslari
+    "idx_posts_sched_status",
+    "idx_deliveries_lookup",
+    "idx_payments_user",
+    "idx_channels_owner",
+    "idx_scheduled_posts_channel",
+    "idx_deliveries_post",
 )
 
 
@@ -93,9 +100,84 @@ def test_schema_file_indexes():
     print("== schema.sql: indekslar ==")
     for index in EXPECTED_INDEXES:
         check(f"indeks: {index}", f"CREATE INDEX IF NOT EXISTS {index}" in SCHEMA)
-    check("indekslar soni 9",
-          SCHEMA.count("CREATE INDEX IF NOT EXISTS") == 9,
+    check("indekslar soni 15",
+          SCHEMA.count("CREATE INDEX IF NOT EXISTS") == 15,
           f"topildi: {SCHEMA.count('CREATE INDEX IF NOT EXISTS')}")
+    # 5-bosqich: kompozit indekslar scheduler/bot tezligi uchun
+    for name, columns in (
+        ("idx_posts_sched_status", "ON scheduled_posts (status, scheduled_time)"),
+        ("idx_deliveries_lookup", "ON post_deliveries (status, post_id, channel_id)"),
+        ("idx_payments_user", "ON payments (user_id, status)"),
+        ("idx_channels_owner", "ON channels (user_id)"),
+        ("idx_scheduled_posts_channel", "ON scheduled_posts (channel_id)"),
+        ("idx_deliveries_post", "ON post_deliveries (post_id)"),
+    ):
+        idx_line = next((line for line in SCHEMA.splitlines()
+                         if f"CREATE INDEX IF NOT EXISTS {name} " in line), "")
+        check(f"{name} ustunlari {columns}", columns in idx_line, idx_line)
+
+
+def test_schema_file_integrity():
+    """5-bosqich: FK / CHECK / UNIQUE constraintlari schema.sql'da bor."""
+    print("== schema.sql: ma'lumotlar butunligi ==")
+    check("integrity DO bloki bor", "$postassist_integrity$" in SCHEMA)
+    for constraint in ("fk_channels_user", "fk_scheduled_posts_channel",
+                       "fk_post_deliveries_post", "fk_post_reactions_post",
+                       "uq_promo_user", "chk_post_deliveries_status",
+                       "chk_scheduled_posts_status", "chk_payments_status"):
+        check(f"constraint: {constraint}", constraint in SCHEMA)
+    for fk in ("REFERENCES users(user_id) ON DELETE CASCADE",
+               "REFERENCES channels(channel_id) ON DELETE CASCADE",
+               "REFERENCES scheduled_posts(id) ON DELETE CASCADE"):
+        check(f"FK: {fk}", fk in SCHEMA)
+    check("payments.status ustuni (audit holati)",
+          "ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'succeeded'" in SCHEMA)
+    # schema.sql'da bu ro'yxatlar DO bloki ichidagi satr literali bo'lgani
+    # uchun tirnoqlar ikkilangan (''pending'').
+    check("delivery statuslari CHECK'ida",
+          "''pending'', ''processing'', ''sent'', ''failed'', ''dead_letter''" in SCHEMA)
+    check("post statuslari CHECK'ida (processing/completed bilan)",
+          "''pending'', ''processing'', ''posted'', ''failed'', ''cancelled'', ''completed''" in SCHEMA)
+    check("constraintlar NOT VALID fallback bilan xavfsiz",
+          SCHEMA.count("NOT VALID") >= 2)
+
+    # Python ro'yxati (database.py) schema.sql bilan bir xil bo'lishi shart
+    import database as db_mod
+    for item in db_mod.INTEGRITY_CONSTRAINTS:
+        definition = item["definition"].replace("'", "''")  # SQL literali
+        check(f"INTEGRITY_CONSTRAINTS ↔ schema.sql: {item['name']}",
+              definition in SCHEMA, definition)
+    for item in db_mod.INTEGRITY_INDEXES:
+        check(f"INTEGRITY_INDEXES ↔ schema.sql: {item['name']}",
+              item["ddl"] in SCHEMA, item["ddl"])
+    check("build_integrity_block() markeri",
+          db_mod.INTEGRITY_BLOCK_MARKER in db_mod.build_integrity_block())
+    check("build_integrity_block() barcha constraint nomlari",
+          all(n in db_mod.build_integrity_block() for n in db_mod.INTEGRITY_CONSTRAINT_NAMES))
+
+
+def test_database_transaction_api():
+    """5-bosqich: atomik tranzaksiya yordamchilari mavjud."""
+    print("== database.py: transaction API ==")
+    import inspect
+    import database as db_mod
+
+    check("sync db_transaction() bor", callable(getattr(db_mod, "db_transaction", None)))
+    check("async transaction() bor (@asynccontextmanager)",
+          inspect.isasyncgenfunction(db_mod.transaction.__wrapped__))
+    check("atransaction aliasi bor", db_mod.atransaction is db_mod.transaction)
+    check("current_transaction() bor", callable(getattr(db_mod, "current_transaction", None)))
+    check("db_cursor transaction() ga delegat qiladi",
+          "return db_transaction(commit=commit)" in
+          inspect.getsource(db_mod.db_cursor))
+    check("ROLLBACK istisnoda", "conn.rollback()" in inspect.getsource(db_mod._Transaction.finish))
+    check("COMMIT muvaffaqiyatda", "conn.commit()" in inspect.getsource(db_mod._Transaction.finish))
+    check("nesting SAVEPOINT bilan", "SAVEPOINT" in inspect.getsource(db_mod._Transaction.enter))
+    check("integrity_report() bor", callable(getattr(db_mod, "integrity_report", None)))
+    check("validate_integrity_constraints() bor",
+          callable(getattr(db_mod, "validate_integrity_constraints", None)))
+    check("startup check constraintlarni ham tekshiradi",
+          "_list_integrity_constraints(cur)" in inspect.getsource(db_mod._verify_schema))
 
 
 def test_database_ssl_pool():
@@ -226,6 +308,8 @@ if __name__ == "__main__":
     test_schema_file_tables()
     test_schema_file_columns()
     test_schema_file_indexes()
+    test_schema_file_integrity()
+    test_database_transaction_api()
     test_database_ssl_pool()
     test_database_schema_checks()
     test_resolve_sslmode()

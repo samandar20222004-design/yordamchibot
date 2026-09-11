@@ -41,6 +41,55 @@ def check(name, cond, extra=""):
         print(f"  [FAIL] {name} {extra}")
 
 
+# ---------- 5-BOSQICH: sxema butunligi bilan mos test ma'lumotlari ----------
+# PostAssist V2 5-bosqichdan so'ng bazada FK constraintlar ishlaydi:
+#   channels.user_id → users(user_id)
+#   scheduled_posts.channel_id → channels(channel_id)
+# Shuning uchun testlar post yozishdan OLDIN foydalanuvchi va kanal
+# qatorlarini yaratadi ("seed"). Bu yozuvlar sxemaga to'liq mos — ya'ni test
+# endi nafaqat logichni, balki constraintlar orqali ma'lumot butunligini ham
+# tekshiradi.
+TEST_CHANNEL_OWNERS = {
+    "-1000": 1, "-1001": 1, "-1002": 1,
+    "-100111": 1, "-100222": 1, "-100333": 1, "-100444": 1,
+    "-100XXX": 555001, "-100YYY": 555001,
+    "-1009900": 990001, "-1009902": 990002,
+}
+PARALLEL_CHANNELS = 24
+
+
+def ensure_user(db, user_id, username=None):
+    """FK ota-yozuvi: users qatori (idempotent)."""
+    db.save_user(int(user_id), username or f"load_user_{user_id}", "Load test user")
+
+
+def ensure_channels(db, owners=None):
+    """FK ota-yozuvlari: kanallar (va ularning egalari)."""
+    owners = TEST_CHANNEL_OWNERS if owners is None else owners
+    for channel_id, owner in owners.items():
+        ensure_user(db, owner)
+        db.save_channel(int(owner), str(channel_id), f"Load kanal {channel_id}")
+    ensure_user(db, 990001)
+    for i in range(PARALLEL_CHANNELS):
+        db.save_channel(990001, f"-100parallel{i}", f"Parallel kanal {i}")
+
+
+def force_insert(db, sql, params=None, expect_error=None):
+    """Qatorni majburan yozadi (test seed uchun) va natijani qaytaradi.
+
+    ``expect_error`` berilsa — xatolik kutilmoqda: ``True`` (rad etildi)
+    yoki ``False`` (kutilmagan muvaffaqiyat) qaytadi.
+    """
+    try:
+        with db.db_cursor(commit=True) as cur:
+            cur.execute(sql, params)
+            return False if expect_error else True
+    except Exception:
+        if expect_error:
+            return True
+        raise
+
+
 # ---------- Fake Telegram bot ----------
 class FakeBot:
     """Scheduler chaqiradigan Telegram bot metodlarini taqlid qiladi."""
@@ -131,6 +180,8 @@ def test_parallel_post_numbering_and_indexes(db):
 
     user_id = 990001
     workers = 24
+    # 5-bosqich FK: "-100parallel{i}" kanallari oldindan ro'yxatdan o'tgan
+    ensure_channels(db, owners={})   # idempotent seed (paralel kanallar)
     barrier = threading.Barrier(workers)
     result_lock = threading.Lock()
     post_ids = []
@@ -385,7 +436,7 @@ def test_cleanup(db):
     import pytz
     tz = pytz.timezone("Asia/Tashkent")
 
-    # 1) Eski 'posted' post yaratamiz
+    # 1) Eski 'posted' post yaratamiz (kanal oldindan ulangan — FK talabi)
     with db.db_cursor(commit=True) as cur:
         cur.execute("""
             INSERT INTO scheduled_posts (user_id, channel_id, post_type, content, scheduled_time, status, created_at)
@@ -398,14 +449,31 @@ def test_cleanup(db):
             INSERT INTO sent_post_messages (post_id, channel_id, message_id, delete_at, deleted_at)
             VALUES (%s, '-100333', 1, NOW() - INTERVAL '100 days', NOW() - INTERVAL '40 days')
         """, (old_post_id,))
-        # 3) Reaksiya yozuvi (bazada yo'q post uchun)
-        cur.execute("INSERT INTO post_reactions (post_id, user_id, reaction_type) VALUES (999999, 1, '👍')")
+        # 3) Reaksiya — HAQIQIY post uchun (5-bosqich: yetim reaksiya yozib bo'lmaydi)
+        cur.execute("INSERT INTO post_reactions (post_id, user_id, reaction_type) VALUES (%s, 1, '👍')",
+                    (old_post_id,))
+
+    # 4) 5-bosqich (FK): bazada yo'q post uchun reaksiya DB tomonidan rad etiladi,
+    #    ya'ni "yetim yozuvlar" endi umudan paydo bo'lmaydi.
+    orphan_rejected = force_insert(
+        db,
+        "INSERT INTO post_reactions (post_id, user_id, reaction_type) VALUES (999999, 1, '👍')",
+        expect_error=True,
+    )
+    check("yetim reaksiya rad etildi (fk_post_reactions_post)", orphan_rejected is True)
 
     result = db.cleanup_old_data()
     check("eski posted post o'chirildi", result["scheduled_posts"] >= 1, str(result))
     check("eski sent_post_messages o'chirildi", result["sent_post_messages"] >= 1, str(result))
-    check("yetim reaksiyalar o'chirildi", result["post_reactions"] >= 1, str(result))
-    check("yangi postlar o'chirilmadi", True)  # sanity
+    with db.db_cursor() as cur:
+        # Post o'chirilganda reaksiyasi ham CASCADE bilan ketadi.
+        cur.execute("SELECT COUNT(*) FROM post_reactions WHERE post_id = %s", (old_post_id,))
+        left = cur.fetchone()[0]
+        cur.execute("SELECT COUNT(*) FROM post_reactions WHERE post_id NOT IN (SELECT id FROM scheduled_posts)")
+        orphans = cur.fetchone()[0]
+    check("eski post reaksiyasi cascade bilan o'chdi", left == 0, str(left))
+    check("bazada yetim reaksiya qolmadi", orphans == 0, str(orphans))
+    check("cleanup sorovi xatosiz ishladi", result["post_reactions"] >= 0, str(result))
 
 
 def test_channel_ownership(db):
@@ -919,6 +987,10 @@ def main():
     db.save_user(777000, "admin", "Admin")           # ADMIN_ID (cheksiz)
     db.save_user(1, "user1", "Foydalanuvchi 1")
     db.save_user(2, "user2", "Foydalanuvchi 2")
+    # 5-bosqich: FK constraintlar tufayli kanallar ham oldindan ulanadi.
+    ensure_channels(db)
+    check("test kanallari va foydalanuvchilari saqlandi",
+          db.get_user_channels(1).__len__() >= 1)
 
     # 1) Pool testi
     test_pool_and_ping(db)
