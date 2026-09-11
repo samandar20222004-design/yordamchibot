@@ -637,8 +637,9 @@ bash tests/run_tests.sh
 | `rbac_security_test.py` (6-bosqich: RBAC, audit, xavfsizlik) | 251 |
 | `load_test.py` (real PostgreSQL, `pip install pgserver`) | 147 |
 | `stress_concurrency_test.py` (9-bosqich: graceful shutdown, cleanup worker, high-concurrency; live qismi pgserver bilan) | 149 |
+| `final_acceptance_test.py` (10-bosqich: yakuniy acceptance smoke — 10 bosqich kontraktlari + Docker/CI/Sentry; static + live) | 134 |
 
-`bash tests/run_tests.sh` to'liq to'plami (pgserver bilan): **4388 ta test, 0 xato**.
+`bash tests/run_tests.sh` to'liq to'plami (pgserver bilan): **4522 ta test, 0 xato**.
 
 ## Bot "doim ishlashi" uchun
 
@@ -772,3 +773,68 @@ shutdown boshlangan bo'lsa yangi paket boshlanmaydi.
 - **Cleanup worker** — faqat belgilangan eski yozuvlar o'chadi, qulflangan qator
   o'tkazib yuboriladi, paketlar LIMIT bo'yicha bo'linadi, scheduler bilan parallel
   ishlaganda faol postlarga ta'sir qilmaydi.
+
+## 🐳 Production Docker, CI/CD va Sentry (PostAssist V2 — 10-BOSQICH, YAKUNIY)
+
+### Production Dockerfile va docker-compose
+
+Ildizda joylashgan `Dockerfile` production talablarga mos qurilgan:
+
+- **Asos:** `python:3.11-slim` (kichik, minimizatsiya qilingan image);
+- **Xavfsizlik:** dastur `appuser` (UID 10001, root emas) ostida ishlaydi;
+- **HEALTHCHECK:** har 30 soniyada `services.health_service.get_system_health()`
+  orqali DB/scheduler/AI holati tekshiriladi — faqat `UNHEALTHY` (DB javob
+  bermayapti) holatida konteyner nosog'lom deb topiladi;
+- **Graceful shutdown:** `STOPSIGNAL SIGTERM` + `tini` (PID 1) — `docker stop`
+  signali 9-bosqichdagi tartibli yopilish oqimini ishga tushiradi
+  (in-flight postlar tugashi kutiladi, DB pool yopiladi, exit 0).
+
+```bash
+# Build va ishga tushirish
+docker build -t postassist-bot .
+cp .env.example .env   # qiymatlarni to'ldiring
+docker compose up -d   # bot + lokal PostgreSQL (development)
+docker compose ps      # healthcheck holati
+```
+
+`docker-compose.yml` bot + mahalliy PostgreSQL (development) + ikkala
+xizmat uchun healthcheck'larni o'z ichiga oladi. Production'da `.env` dagi
+`DATABASE_URL` Neon'ga qaratiladi — bot to'g'ridan-to'g'ri Neon bilan ishlaydi.
+`SENT_JOURNAL_PATH=/app/data/...` qilib belgilansa, post idempotentlik jurnali
+Docker volume'da saqlanadi.
+
+### GitHub Actions CI/CD (`.github/workflows/ci.yml`)
+
+Har bir `main`'ga push va PR uchun avtomatik:
+
+1. Python 3.11 sozlanadi;
+2. bog'liqliklar (+ test vositalari: `pytest`, `pgserver`) o'rnatiladi;
+3. **ruff + flake8** sintaksis tekshiruvi (xato topilsa build to'xtaydi);
+4. `bash tests/run_tests.sh` — **barcha testlar**; bittasi yiqilsa build
+   darhol qizil bo'ladi.
+
+### Sentry va maxfiylik (10-BOSQICH)
+
+`SENTRY_DSN` berilsa va `sentry-sdk` o'rnatilgan bo'lsa, xatolar avtomatik
+Sentry'ga yuboriladi. **Maxfiylik kafolati:** har bir event yuborilishidan
+oldin `utils/sentry_scrubber.py` filtridan o'tadi — bot token, `DATABASE_URL`
+paroli, karta raqami/egasi va barcha AI API kalitlar loglarga **hech qachon**
+tushmaydi (`before_send=scrub_event`, `send_default_pii=False`).
+
+### Yakuniy acceptance smoke (`tests/final_acceptance_test.py`)
+
+10 bosqichning har biri bo'yicha asosiy shartnomalarni bitta suite'da
+tekshiradi (static qismlar doim, live qismlar pgserver bilan):
+
+| # | Kontrakt | Tekshiruv |
+|---|---|---|
+| 1 | Payment idempotency | bir xil `charge_id` ikki marta PRO bermaydi |
+| 2 | Promo atomic redemption | parallel redemptionda limit buzilmaydi |
+| 3 | Subscription additive extension | qolgan muddat kuyib ketmaydi (30+30=60) |
+| 4 | Scheduler delivery idempotency | bitta post faqat 1 marta yuboriladi |
+| 5 | AI fallback resilience | zanjir xatoda ham javob qaytaradi |
+| 6 | Database integrity & constraints | FK/CHECK'lar real bazada ishlaydi |
+| 7 | Admin RBAC permissions | rol → ruxsat matritsa qat'iy |
+| 8 | Health check status | hech qachon istisno ko'tarmaydi |
+| 9 | Credits ledger audit | balans ↔ ledger zanjiri doim mos |
+| 10 | Graceful shutdown handler | SIGTERM/SIGINT tartibli yopilish |

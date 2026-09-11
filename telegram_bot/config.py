@@ -102,22 +102,75 @@ PAYMENT_PRICE_1M_UZS = _int_env("PAYMENT_PRICE_1M_UZS", 19000)
 PAYMENT_PRICE_3M_UZS = _int_env("PAYMENT_PRICE_3M_UZS", 45000)
 PAYMENT_PRICE_1Y_UZS = _int_env("PAYMENT_PRICE_1Y_UZS", 140000)
 
-# --- Sentry monitoring (ixtiyoriy) ---
-# Render'da SENTRY_DSN o'zgaruvchisini qo'shsangiz, barcha xatolar avtomatik yig'iladi.
+# --- Sentry monitoring (ixtiyoriy, 10-BOSQICH: maxfiylik filtri bilan) ---
+# SENTRY_DSN berilsa va sentry_sdk o'rnatilgan bo'lsa, barcha xatolar
+# avtomatik yig'iladi. MUHIM: Sentry'ga yuborilishdan oldin har bir event
+# `utils.sentry_scrubber.scrub_event` filtridan o'tadi — bot token, DB paroli,
+# karta rekvizitlari va API kalitlar loglarga HECH QACHON tushmaydi.
 SENTRY_DSN = os.getenv("SENTRY_DSN", "")
-if SENTRY_DSN:
+
+
+def _db_password_from_url(url: str) -> str:
+    """DATABASE_URL ichidagi parolni ajratib oladi (ro'yxatga olish uchun)."""
+    try:
+        from urllib.parse import urlparse
+        parsed = urlparse(url or "")
+        return parsed.password or ""
+    except Exception:
+        return ""
+
+
+def _init_sentry() -> bool:
+    """Sentry'ni maxfiylik filtri bilan ishga tushiradi.
+
+    Qaytadi: ``True`` — Sentry faollashtirildi; aks holda ``False``.
+    Hech qachon istisno ko'tarmaydi: Sentry'siz bot ishlashi davom etadi.
+    """
+    if not SENTRY_DSN:
+        return False
     try:
         import sentry_sdk
+    except ImportError:
+        logger.warning("sentry_sdk o'rnatilmagan. pip install sentry-sdk")
+        return False
+    try:
+        from utils.sentry_scrubber import register_secret, scrub_event
+
+        # 1) Ma'lum sezgir qiymatlar ro'yxati — event matnida aniq ko'rinsa
+        #    o'chiriladi (regex'dan oldin ishlaydigan birinchi himoya qatlami).
+        _sensitive = (
+            (BOT_TOKEN, "BOT_TOKEN"),
+            (CARD_NUMBER, "CARD_NUMBER"),
+            (CARD_HOLDER, "CARD_HOLDER"),
+            (_db_password_from_url(DATABASE_URL), "DB_PASSWORD"),
+            (GEMINI_API_KEY, "GEMINI_API_KEY"),
+            (GROQ_API_KEY, "GROQ_API_KEY"),
+            (OPENROUTER_API_KEY, "OPENROUTER_API_KEY"),
+            (MISTRAL_API_KEY, "MISTRAL_API_KEY"),
+            (CEREBRAS_API_KEY, "CEREBRAS_API_KEY"),
+            (SAMBANOVA_API_KEY, "SAMBANOVA_API_KEY"),
+            (CLOUDFLARE_API_TOKEN, "CLOUDFLARE_API_TOKEN"),
+        )
+        for value, label in _sensitive:
+            register_secret(value, label)
+
+        # 2) Sentry ishga tushirish: before_send — maxfiylik filtri,
+        #    send_default_pii=False — foydalanuvchi PII yig'ilmaydi.
         sentry_sdk.init(
             dsn=SENTRY_DSN,
             traces_sample_rate=0.1,   # 10% so'rovlarni kuzatish
             profiles_sample_rate=0.05,
+            send_default_pii=False,
+            before_send=scrub_event,
         )
-        logger.info("Sentry monitoring yoqildi.")
-    except ImportError:
-        logger.warning("sentry_sdk o'rnatilmagan. pip install sentry-sdk")
+        logger.info("Sentry monitoring yoqildi (maxfiylik filtri faol).")
+        return True
     except Exception as e:
         logger.warning("Sentry ishga tushmadi: %s", e)
+        return False
+
+
+_init_sentry()
 
 if not BOT_TOKEN:
     raise RuntimeError("BOT_TOKEN topilmadi! Render Environment bo'limida BOT_TOKEN ni kiriting.")

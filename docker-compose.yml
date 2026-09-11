@@ -1,0 +1,77 @@
+# ============================================================
+# PostAssist V2 — Docker Compose (10-BOSQICH)
+#
+# Development:  docker compose up -d          (bot + lokal PostgreSQL)
+# Production:   .env da DATABASE_URL Neon'ga qarasa, bot to'g'ridan-to'g'ri
+#               Neon bilan ishlaydi; lokal postgres xizmati development uchun.
+#
+# Majburiy env: .env faylini ildizda yarating (namuna: .env.example).
+# ============================================================
+
+services:
+  bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: postassist-bot:latest
+    container_name: postassist-bot
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      # .env da DATABASE_URL berilmagan bo'lsa — development rejimida
+      # mahalliy PostgreSQL'ga ulanadi.
+      DATABASE_URL: ${DATABASE_URL:-postgresql://postassist:postassist@postgres:5432/postassist}
+      PORT: ${PORT:-10000}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      # Dockerfile'dagi HEALTHCHECK bilan bir xil mantiq: UNHEALTHY bo'lsa
+      # konteyner nosog'lom. DEGRADED/HEALTHY — sog'lom.
+      test:
+        - CMD
+        - python
+        - -c
+        - "from services.health_service import get_system_health; import asyncio; res=asyncio.run(get_system_health()); exit(0 if res.get('status')!='UNHEALTHY' else 1)"
+      interval: 30s
+      timeout: 20s
+      retries: 3
+      start_period: 40s
+    networks:
+      - postassist
+    volumes:
+      # sent-journal (post idempotentlik jurnali) konteyner restartlarida
+      # saqlanib qolishi uchun doimiy disk.
+      - bot_data:/app/data
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: postassist-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postassist
+      POSTGRES_PASSWORD: postassist
+      POSTGRES_DB: postassist
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postassist -d postassist"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    # Development uchun port lokal mashinaga ochiladi; production'da
+    # rules'ni olib tashlash yoki faqat ichki tarmoqqa qoldirish mumkin.
+    ports:
+      - "5432:5432"
+    networks:
+      - postassist
+
+volumes:
+  pg_data:
+  bot_data:
+
+networks:
+  postassist:
+    driver: bridge
