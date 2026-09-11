@@ -3,6 +3,7 @@ import asyncio
 import contextvars
 import hashlib
 import itertools as _itertools
+import json
 import logging
 import random
 import string
@@ -40,6 +41,8 @@ EXPECTED_TABLES = (
     "bot_settings", "ad_pool", "channel_post_counters", "scheduled_posts",
     "post_reactions", "sent_post_messages", "promo_codes", "payments",
     "payment_receipts", "channel_posts_history",
+    # PostAssist V2 (6-bosqich): RBAC rollari va admin auditi.
+    "admin_roles", "admin_audit_logs",
 )
 EXPECTED_INDEXES = (
     "idx_ad_pool_scope",
@@ -58,6 +61,8 @@ EXPECTED_INDEXES = (
     "idx_channels_owner",
     "idx_scheduled_posts_channel",
     "idx_deliveries_post",
+    # PostAssist V2 (6-bosqich): admin harakatlari auditi indeksi.
+    "idx_audit_admin",
 )
 REQUIRED_P0_TABLES = ("promo_redemptions", "post_deliveries")
 REQUIRED_P0_INDEXES = ("idx_deliveries_sched", "idx_deliveries_retry", "uq_payments_telegram_charge_id")
@@ -1423,6 +1428,9 @@ def _init_db_once():
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS language_code VARCHAR(10) DEFAULT 'uz';",
             # 🆕 Onboarding: "⚙️ To'liq menyuni ochish" bosilganini eslab qolamiz
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS full_menu_unlocked BOOLEAN DEFAULT FALSE;",
+            # 🆕 6-bosqich (RBAC): foydalanuvchi roli. DEFAULT 'user' — barcha
+            # eski yozuvlar oddiy foydalanuvchi bo'lib qoladi (backward-compatible).
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(20) DEFAULT 'user';",
             "ALTER TABLE sponsor_channels ADD COLUMN IF NOT EXISTS title TEXT;",
             "ALTER TABLE sponsor_channels ADD COLUMN IF NOT EXISTS username TEXT;",
             "ALTER TABLE sponsor_channels ADD COLUMN IF NOT EXISTS invite_link TEXT;",
@@ -1483,6 +1491,35 @@ def _init_db_once():
         cur.execute("CREATE INDEX IF NOT EXISTS idx_channels_user_id ON channels (user_id);")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_post_reactions_post_id ON post_reactions (post_id);")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_channel_posts_history_channel_date ON channel_posts_history (channel_id, post_date DESC);")
+
+        # 2b) PostAssist V2 (6-bosqich): RBAC rollari va admin auditi.
+        # schema.sql fayli topilmasa ham bu jadvallar albatta yaratiladi.
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS admin_roles (
+                user_id BIGINT PRIMARY KEY,
+                role VARCHAR(20) NOT NULL DEFAULT 'admin',
+                granted_by BIGINT,
+                granted_at TIMESTAMPTZ DEFAULT NOW(),
+                updated_at TIMESTAMPTZ DEFAULT NOW()
+            );
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS admin_audit_logs (
+                id BIGSERIAL PRIMARY KEY,
+                admin_id BIGINT NOT NULL,
+                action VARCHAR(64) NOT NULL,
+                target_type VARCHAR(64),
+                target_id VARCHAR(64),
+                old_value JSONB,
+                new_value JSONB,
+                ip_or_metadata JSONB,
+                created_at TIMESTAMPTZ DEFAULT NOW()
+            );
+        """)
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_audit_admin "
+            "ON admin_audit_logs(admin_id, created_at);"
+        )
 
         # 3) PostAssist V2 (5-bosqich): scheduler tezligi uchun kompozit indekslar
         # va jadvallararo FK/CHECK/UNIQUE constraintlar. Ikkalasi ham idempotent
@@ -3983,8 +4020,12 @@ def check_queue_limit(user_id: int) -> tuple[bool, int, int]:
         return (True, 0, FREE_QUEUE_MAX_POSTS)
 
 
-def set_user_plan(user_id: int, plan: str, days: int = None) -> bool:
+def set_user_plan(user_id: int, plan: str, days: int = None,
+                  admin_id: int = None) -> bool:
     """Foydalanuvchi tarifini o'zgartiradi.
+
+    ``admin_id`` (6-bosqich) berilsa — PRO berish harakati
+    ``admin_audit_logs`` jadvaliga yoziladi (atomik).
 
     .. deprecated:: v2
         Servis orqali chaqirish tavsiya etiladi:
@@ -3994,7 +4035,7 @@ def set_user_plan(user_id: int, plan: str, days: int = None) -> bool:
     if plan not in PLAN_LIMITS:
         return False
     if days and days > 0:
-        return SubscriptionService.activate(user_id, plan, days)
+        return SubscriptionService.activate(user_id, plan, days, admin_id=admin_id)
     else:
         # Cheksiz (days=None yoki 0) — activate qiyin bo'lgani uchun
         # to'g'ridan-to'g'ri DB ga yozamiz
@@ -4011,15 +4052,20 @@ def set_user_plan(user_id: int, plan: str, days: int = None) -> bool:
             return False
 
 
-def create_promo_code(code: str, plan_type: str = "pro", duration_days: int = 30, max_uses: int = None) -> bool:
+def create_promo_code(code: str, plan_type: str = "pro", duration_days: int = 30,
+                      max_uses: int = None, admin_id: int = None) -> bool:
     """Promo-kod yaratadi (admin).
+
+    ``admin_id`` (6-bosqich) berilsa — harakat ``admin_audit_logs``
+    jadvaliga kod yaratilgan tranzaksiyada yoziladi (atomik).
 
     .. deprecated:: v2
         Servis orqali chaqirish tavsiya etiladi:
         ``PromoService.create_promo(code, duration_days, max_uses, expires_at, plan_type)``
     """
     from services.promo_service import PromoService
-    return PromoService.create_promo(code, duration_days, max_uses, None, plan_type)
+    return PromoService.create_promo(code, duration_days, max_uses, None,
+                                     plan_type, admin_id=admin_id)
 
 
 def redeem_promo_code(user_id: int, code: str) -> tuple[bool, str]:
@@ -4428,3 +4474,299 @@ def get_channel_posts_history_stats(channel_id: str | int = None) -> dict:
     except Exception as e:
         logger.error(f"Kanal tarixi statistikasini olishda xato: {e}")
     return stats
+
+
+# ============================================================
+# POSTASSIST V2 — 6-BOSQICH: RBAC VA ADMIN AUDITI (DB CRUD)
+# ------------------------------------------------------------
+# Rollar ``admin_roles`` jadvalida saqlanadi (asosiy manba) va
+# ``users.role`` ustunida aks ettiriladi (ko'rinish/moslik uchun).
+# Admin harakatlari ``admin_audit_logs`` jadvaliga yoziladi.
+# Biznes mantiq ``services/rbac_service.py`` va
+# ``services/audit_service.py`` da; bu yerda faqat CRUD.
+# ============================================================
+
+#: Audit yozuvi uchun maydon chegaralari (jadval ustunlari bilan bir xil).
+AUDIT_ACTION_MAX_LEN = 64
+AUDIT_FIELD_MAX_LEN = 64
+
+
+def _valid_admin_role(value):
+    """Rol qiymatini tekshiradi (``services.rbac_service`` bilan bir xil to'plam)."""
+    from services.rbac_service import parse_role
+    return parse_role(value)
+
+
+def get_admin_role(user_id):
+    """Foydalanuvchining DB'dagi rolini qaytaradi (``None`` — rol yo'q).
+
+    Avval ``admin_roles`` jadvali (aniq berilgan rol), keyin ``users.role``
+    ustuni o'qiladi. Har qanday xato (jadval/ustun yo'q, DB uzilgan) —
+    ``None``: RBAC qatlami legacy ``ADMIN_IDS`` ro'yxatiga tayanib ishlayveradi.
+    """
+    try:
+        uid = int(user_id)
+    except (TypeError, ValueError):
+        return None
+    try:
+        with db_cursor() as cur:
+            cur.execute("SELECT role FROM admin_roles WHERE user_id = %s", (uid,))
+            row = cur.fetchone()
+        if row and row[0]:
+            return str(row[0])
+    except Exception as e:
+        logger.debug("get_admin_role(%s) admin_roles o'qishda xato: %s", uid, e)
+    try:
+        with db_cursor() as cur:
+            cur.execute("SELECT role FROM users WHERE user_id = %s", (uid,))
+            row = cur.fetchone()
+        if row and row[0]:
+            return str(row[0])
+    except Exception as e:
+        logger.debug("get_admin_role(%s) users.role o'qishda xato: %s", uid, e)
+    return None
+
+
+def set_admin_role(user_id, role, granted_by=None) -> bool:
+    """Foydalanuvchiga rol beradi (upsert) va ``users.role`` ni yangilaydi.
+
+    ``users`` jadvalidagi yozuv bo'lmasa ham rol saqlanadi (faqat
+    ``admin_roles`` qatori qo'shiladi) — foydalanuvchi botga hali
+    kirmagan bo'lishi mumkin.
+    """
+    parsed = _valid_admin_role(role)
+    if parsed is None:
+        return False
+    try:
+        uid = int(user_id)
+    except (TypeError, ValueError):
+        return False
+    if uid <= 0:
+        return False
+    try:
+        actor = int(granted_by) if granted_by is not None else None
+    except (TypeError, ValueError):
+        actor = None
+
+    try:
+        with db_cursor(commit=True) as cur:
+            cur.execute(
+                """
+                INSERT INTO admin_roles (user_id, role, granted_by, granted_at, updated_at)
+                VALUES (%s, %s, %s, NOW(), NOW())
+                ON CONFLICT (user_id) DO UPDATE
+                    SET role = EXCLUDED.role,
+                        granted_by = EXCLUDED.granted_by,
+                        updated_at = NOW()
+                """,
+                (uid, parsed.value, actor),
+            )
+            # users.role — ko'rinish uchun nusxa. Ich-ma-ich blok SAVEPOINT
+            # ochadi: eski bazada ustun bo'lmasa faqat shu qism qaytariladi,
+            # asosiy (admin_roles) yozuvi saqlanib qoladi.
+            try:
+                with db_cursor(commit=True) as mirror_cur:
+                    mirror_cur.execute(
+                        "UPDATE users SET role = %s WHERE user_id = %s",
+                        (parsed.value, uid),
+                    )
+            except Exception as e:
+                logger.debug("users.role yangilanmadi (user=%s): %s", uid, e)
+        try:
+            from services.rbac_service import invalidate_role_cache
+            invalidate_role_cache(uid)
+        except Exception:
+            pass
+        return True
+    except Exception as e:
+        logger.error("set_admin_role xatosi (user=%s, role=%s): %s", uid, parsed, e)
+        return False
+
+
+def delete_admin_role(user_id) -> bool:
+    """Foydalanuvchi rolini o'chiradi (``users.role`` → 'user')."""
+    try:
+        uid = int(user_id)
+    except (TypeError, ValueError):
+        return False
+    try:
+        with db_cursor(commit=True) as cur:
+            cur.execute("DELETE FROM admin_roles WHERE user_id = %s", (uid,))
+            deleted = cur.rowcount > 0
+            try:
+                with db_cursor(commit=True) as mirror_cur:
+                    mirror_cur.execute(
+                        "UPDATE users SET role = 'user' WHERE user_id = %s", (uid,)
+                    )
+            except Exception as e:
+                logger.debug("users.role tozalanmadi (user=%s): %s", uid, e)
+        try:
+            from services.rbac_service import invalidate_role_cache
+            invalidate_role_cache(uid)
+        except Exception:
+            pass
+        return bool(deleted)
+    except Exception as e:
+        logger.error("delete_admin_role xatosi (user=%s): %s", uid, e)
+        return False
+
+
+def list_admin_roles(limit: int = 100) -> list:
+    """``admin_roles`` jadvalidagi rollar ro'yxati (yangilari birinchi)."""
+    try:
+        limit = max(1, min(int(limit), 500))
+    except (TypeError, ValueError):
+        limit = 100
+    try:
+        with db_cursor() as cur:
+            cur.execute(
+                "SELECT user_id, role, granted_by, granted_at, updated_at "
+                "FROM admin_roles ORDER BY updated_at DESC NULLS LAST LIMIT %s",
+                (limit,),
+            )
+            rows = cur.fetchall() or []
+        return [
+            {
+                "user_id": int(row[0]),
+                "role": str(row[1]),
+                "granted_by": int(row[2]) if row[2] is not None else None,
+                "granted_at": row[3],
+                "updated_at": row[4],
+            }
+            for row in rows
+        ]
+    except Exception as e:
+        logger.error("list_admin_roles xatosi: %s", e)
+        return []
+
+
+def log_admin_action(admin_id, action, target_type=None, target_id=None,
+                     old_value=None, new_value=None, ip_or_metadata=None,
+                     cur=None) -> bool:
+    """Admin harakatini ``admin_audit_logs`` jadvaliga yozadi.
+
+    ``cur`` berilsa — chaqiruvchining tranzaksiyasida (ATOMIK: biznes amali
+    bilan birga commit/rollback bo'ladi). Berilmasa — o'z tranzaksiyasida.
+    JSONB qiymatlar ``json.dumps`` orqali uzatiladi (``%s::jsonb``).
+    """
+    try:
+        actor = int(admin_id)
+    except (TypeError, ValueError):
+        return False
+    if actor <= 0:
+        return False
+    act = str(action or "").strip()[:AUDIT_ACTION_MAX_LEN]
+    if not act:
+        return False
+
+    def _dump(value):
+        if value is None:
+            return None
+        try:
+            return json.dumps(value, ensure_ascii=False, default=str)
+        except Exception:
+            return json.dumps({"_repr": str(value)}, ensure_ascii=False)
+
+    params = (
+        actor,
+        act,
+        (str(target_type).strip()[:AUDIT_FIELD_MAX_LEN] or None)
+        if target_type is not None else None,
+        (str(target_id).strip()[:AUDIT_FIELD_MAX_LEN] or None)
+        if target_id is not None else None,
+        _dump(old_value),
+        _dump(new_value),
+        _dump(ip_or_metadata),
+    )
+    sql = (
+        "INSERT INTO admin_audit_logs (admin_id, action, target_type, target_id, "
+        "old_value, new_value, ip_or_metadata) "
+        "VALUES (%s, %s, %s, %s, %s::jsonb, %s::jsonb, %s::jsonb)"
+    )
+    if cur is not None:
+        # Chaqiruvchi tranzaksiyasi ichida — xato yutilmaydi (ROLLBACK kafolati).
+        cur.execute(sql, params)
+        return True
+    try:
+        with db_cursor(commit=True) as own_cur:
+            own_cur.execute(sql, params)
+        return True
+    except Exception as e:
+        logger.error("log_admin_action xatosi (admin=%s, action=%s): %s", actor, act, e)
+        return False
+
+
+def get_admin_audit_logs(limit: int = 50, admin_id=None, action=None) -> list:
+    """Audit yozuvlarini o'qish (eng yangisi birinchi)."""
+    try:
+        limit = max(1, min(int(limit), 500))
+    except (TypeError, ValueError):
+        limit = 50
+
+    where = []
+    params = []
+    if admin_id is not None:
+        try:
+            where.append("admin_id = %s")
+            params.append(int(admin_id))
+        except (TypeError, ValueError):
+            pass
+    if action:
+        where.append("action = %s")
+        params.append(str(action).strip()[:AUDIT_ACTION_MAX_LEN])
+    sql = (
+        "SELECT id, admin_id, action, target_type, target_id, old_value, "
+        "new_value, ip_or_metadata, created_at FROM admin_audit_logs"
+    )
+    if where:
+        sql += " WHERE " + " AND ".join(where)
+    sql += " ORDER BY id DESC LIMIT %s"
+    params.append(limit)
+
+    try:
+        with db_cursor() as cur:
+            cur.execute(sql, tuple(params))
+            rows = cur.fetchall() or []
+        return [
+            {
+                "id": int(row[0]),
+                "admin_id": int(row[1]),
+                "action": row[2],
+                "target_type": row[3],
+                "target_id": row[4],
+                "old_value": row[5],
+                "new_value": row[6],
+                "ip_or_metadata": row[7],
+                "created_at": row[8],
+            }
+            for row in rows
+        ]
+    except Exception as e:
+        logger.error("get_admin_audit_logs xatosi: %s", e)
+        return []
+
+
+def count_admin_audit_logs(admin_id=None, action=None) -> int:
+    """Audit yozuvlari soni (filtrlar ixtiyoriy)."""
+    where = []
+    params = []
+    if admin_id is not None:
+        try:
+            where.append("admin_id = %s")
+            params.append(int(admin_id))
+        except (TypeError, ValueError):
+            pass
+    if action:
+        where.append("action = %s")
+        params.append(str(action).strip()[:AUDIT_ACTION_MAX_LEN])
+    sql = "SELECT COUNT(*) FROM admin_audit_logs"
+    if where:
+        sql += " WHERE " + " AND ".join(where)
+    try:
+        with db_cursor() as cur:
+            cur.execute(sql, tuple(params))
+            row = cur.fetchone()
+        return int(row[0]) if row else 0
+    except Exception as e:
+        logger.error("count_admin_audit_logs xatosi: %s", e)
+        return 0

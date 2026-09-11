@@ -93,6 +93,9 @@ yozuvni ko'rasiz. Endi Telegram'da botingizga `/start` yozing.
 | `/help` | Yordam matni |
 | `/cancel` | Joriy amalni bekor qilish |
 | `/admin` | Admin paneli (faqat admin) |
+| `/audit [N]` | Oxirgi admin harakatlari jurnali (`OWNER`/`SUPER_ADMIN`, 6-bosqich) |
+| `/setrole <user_id> <rol>` | Rol berish — faqat `OWNER` (6-bosqich) |
+| `/delrole <user_id>` | Rolni o'chirish — faqat `OWNER` (6-bosqich) |
 
 `/yangi` bosilganda bot ketma-ket so'raydi: xabar (matn, YOKI rasm/video/fayl
 — xohlasangiz izoh bilan) → bir marta yoki har kuni → sana/vaqt yoki muddat
@@ -236,6 +239,68 @@ tasdiqlash/rad etish), obuna (`SubscriptionService.activate/extend/revoke`) va
 promo (`PromoService.redeem_promo`) oqimlari shu yagona atomik blokda ishlaydi.
 
 Tekshirish: `cd telegram_bot && python tests/db_integrity_test.py`
+
+#### RBAC, audit va HTML/URL xavfsizligi (PostAssist V2 — 6-bosqich)
+
+**Rollar va ruxsatlar** (`services/rbac_service.py`):
+
+| Ruxsat | Rollar |
+|---|---|
+| `manage_payments` | `FINANCE`, `SUPER_ADMIN`, `OWNER` |
+| `manage_promos` | `ADMIN`, `SUPER_ADMIN`, `OWNER` |
+| `manage_users` | `MODERATOR`, `ADMIN`, `SUPER_ADMIN`, `OWNER` |
+| `system_settings` | `OWNER` |
+
+```python
+from services.rbac_service import require_permission, require_role, Role
+
+@require_permission("manage_payments")          # chek tasdiqlash/rad etish
+async def approve(update, context): ...
+
+@require_role(Role.OWNER)                        # faqat egasi
+async def system_settings(update, context): ...
+```
+
+Dekoratorlar ruxsati yo'q adminga **rad javobini yuboradi** (callback'da
+`show_alert=True`) va handlerni umuman chaqirmaydi. Rolni aniqlash tartibi:
+`ADMIN_ID` → `OWNER`, qolgan `ADMIN_IDS` → `SUPER_ADMIN`, so'ng DB'dagi rol
+(`admin_roles` jadvali va `users.role` ustuni, `RBAC_CACHE_TTL` soniya keshlanadi).
+**Orqaga moslik:** eski `ADMIN_ID`/`ADMIN_IDS` ro'yxati o'zgartirilmaydi, DB'dagi
+rol undan past bo'lsa legacy admin huquqdan mahrum bo'lmaydi.
+
+**Audit** (`services/audit_service.py` → `admin_audit_logs`): chek tasdiqlash
+(`receipt_approve`), rad etish (`receipt_reject`), PRO berish/bekor qilish
+(`grant_pro`/`revoke_pro`), promo yaratish (`create_promo`), rol berish
+(`set_role`/`remove_role`), tizim sozlamalari va broadcast (`system_settings`/
+`broadcast`) yoziladi. Yozuv biznes tranzaksiyasi **ichida** bajariladi
+(`cur=cur`) — amal bajarilib, audit qatorisiz qolmaydi; xatoda ikkalasi ham
+ROLLBACK bo'ladi.
+
+**Xavfsizlik** (`utils/security.py`):
+
+* `safe_html(text)` — foydalanuvchi ismi/AI qoldig'i kabi dinamik matnni
+  `html.escape` qiladi (sindirilgan teg tufayli Telegram
+  `can't parse entities` xatosi chiqmaydi). AI javobidagi *ruxsat etilgan*
+  teglarni saqlash kerak bo'lsa — `utils.helpers.safe_html()`.
+* `validate_button_url(url)` — faqat `http://`, `https://`, `tg://`;
+  `javascript:`, `data:`, `vbscript:`, `file:`, `blob:` va h.k. rad etiladi;
+  login/parol (`user:pass@host`), bo'sh joy/control belgi va domensiz
+  havolalar ham rad etiladi. `utils.helpers.validate_button_url()` shu
+  tekshiruvga tayanadi.
+
+**Buyruqlar.**
+
+| Buyruq | Kim ishlatadi | Vazifasi |
+|---|---|---|
+| `/audit [N]` | `OWNER`, `SUPER_ADMIN` | oxirgi `N` (default 10, maks. 50) admin harakatini ko'rsatadi |
+| `/setrole <user_id> <rol>` | faqat `OWNER` | rol beradi (`owner`, `super_admin`, `admin`, `moderator`, `finance`; `user` — olib tashlaydi) |
+| `/delrole <user_id>` | faqat `OWNER` | DB'dagi rolni o'chiradi |
+
+Rol berish/olish ham auditiga (`set_role` / `remove_role`) yoziladi.
+
+Atrof-muhit: `RBAC_CACHE_TTL` (default `60`, sekund; `0` — keshsiz) va
+`RBAC_DB_TIMEOUT` (default `2`, sekund — rol o'qish uchun maksimal kutish).
+Tekshirish: `cd telegram_bot && python tests/rbac_security_test.py`
 
 UptimeRobot monitor turi **HTTP(s)** bo'lsin va URL quyidagicha berilsin:
 `https://sizning-render-service.onrender.com/health/live`
@@ -556,7 +621,6 @@ sifatida qoldi (qiymatni belgilamaydi).
 kelsa `np_sticker_not_allowed` (uz: «Kechirasiz, stikerlar post sifatida qabul
 qilinmaydi. Iltimos, rasm, video yoki matn yuboring», ru ekvivalenti); voice /
 video_note / kontakt — `np_media_not_allowed`. Holat saqlanadi, bot osilmaydi.
-
 ### Testlar
 
 ```bash
@@ -566,11 +630,12 @@ bash tests/run_tests.sh
 
 | Suite | Testlar |
 |---|---|
-| `unit_test.py` | 2085 |
+| `unit_test.py` | 2456 |
 | `new_requirements_test.py` | 43 |
-| `schema_test.py` | 68 |
+| `schema_test.py` | 126 |
 | `ai_mock_test.py` | 52 |
-| `load_test.py` (real PostgreSQL, `pip install pgserver`) | 100 |
+| `rbac_security_test.py` (6-bosqich: RBAC, audit, xavfsizlik) | 251 |
+| `load_test.py` (real PostgreSQL, `pip install pgserver`) | 147 |
 
 ## Bot "doim ishlashi" uchun
 

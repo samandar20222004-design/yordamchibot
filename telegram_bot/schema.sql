@@ -28,7 +28,10 @@ CREATE TABLE IF NOT EXISTS users (
     language_code VARCHAR(10) DEFAULT 'uz',
     -- 🆕 Onboarding: foydalanuvchi "⚙️ To'liq menyuni ochish" tugmasini bosganmi?
     -- TRUE bo'lsa yangi foydalanuvchi ham darhol standart bosh menyuni ko'radi.
-    full_menu_unlocked BOOLEAN DEFAULT FALSE
+    full_menu_unlocked BOOLEAN DEFAULT FALSE,
+    -- 🆕 6-bosqich (RBAC): rol ustuni. DEFAULT 'user' — eski yozuvlarning
+    -- barchasi oddiy foydalanuvchi bo'lib qoladi (backward-compatible).
+    role VARCHAR(20) DEFAULT 'user'
 );
 
 CREATE TABLE IF NOT EXISTS channels (
@@ -234,6 +237,37 @@ CREATE TABLE IF NOT EXISTS payment_receipts (
 CREATE INDEX IF NOT EXISTS idx_payment_receipts_status
     ON payment_receipts (status, created_at);
 
+-- 🔐 PostAssist V2 (6-bosqich): RBAC rollari.
+-- ``users.role`` ustuni asosiy manba emas — aniq berilgan rollar shu jadvalda
+-- saqlanadi (asosiy admin ``ADMIN_ID`` esa servis qatlamida avtomatik OWNER).
+-- Jadval bo'sh bo'lsa ham bot avvalgidek ishlaydi: eski ``ADMIN_ID`` /
+-- ``ADMIN_IDS`` ro'yxati orqali barcha adminlar taniladi.
+CREATE TABLE IF NOT EXISTS admin_roles (
+    user_id BIGINT PRIMARY KEY,
+    role VARCHAR(20) NOT NULL DEFAULT 'admin',
+    granted_by BIGINT,
+    granted_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 📝 PostAssist V2 (6-bosqich): admin harakatlari auditi.
+-- Har bir muhim admin amali (chek tasdiqlash/rad etish, PRO berish/bekor
+-- qilish, promo yaratish, rol berish, tizim sozlamalari) shu jadvalga
+-- yoziladi. Yozuv biznes tranzaksiyasi ICHIDA bajariladi — amal bajarilib,
+-- audit yozuvi yo'qolib qolmaydi (atomiklik).
+CREATE TABLE IF NOT EXISTS admin_audit_logs (
+    id BIGSERIAL PRIMARY KEY,
+    admin_id BIGINT NOT NULL,
+    action VARCHAR(64) NOT NULL,
+    target_type VARCHAR(64),
+    target_id VARCHAR(64),
+    old_value JSONB,
+    new_value JSONB,
+    ip_or_metadata JSONB,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_audit_admin ON admin_audit_logs(admin_id, created_at);
+
 -- --- MIGRATSIYALAR (eski bazalar uchun; yangi bazada allaqachon bor) ---
 -- Eslatma: ADD COLUMN IF NOT EXISTS tufayli takroriy bajarish xavfsiz.
 
@@ -278,6 +312,10 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS last_limit_reset DATE DEFAULT CURRENT
 ALTER TABLE users ADD COLUMN IF NOT EXISTS language_code VARCHAR(10) DEFAULT 'uz';
 -- 🆕 Sodda klaviatura: foydalanuvchi to'liq menyuni o'zi ochganini eslab qolamiz
 ALTER TABLE users ADD COLUMN IF NOT EXISTS full_menu_unlocked BOOLEAN DEFAULT FALSE;
+-- 🔐 PostAssist V2 (6-bosqich): RBAC rol ustuni (eski bazalarda yo'q).
+-- DEFAULT 'user' tufayli mavjud yozuvlar oddiy foydalanuvchi bo'lib qoladi,
+-- admin huquqi esa hamon ADMIN_ID/ADMIN_IDS orqali ishlayveradi.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(20) DEFAULT 'user';
 
 ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS inline_button_text VARCHAR(255);
 ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS inline_button_url TEXT;

@@ -281,7 +281,9 @@ def test_subscription_grant_admin_bonus():
     with patch.object(SubscriptionService, "activate", return_value=True) as mock_act:
         result = SubscriptionService.grant_admin_bonus(12345, 30, 999)
         check("grant_admin_bonus: muvaffaqiyatli", result is True)
-        mock_act.assert_called_once_with(12345, "pro", 30)
+        # 6-bosqich: admin_id audit uchun activate()ga uzatiladi (PRO berish
+        # harakati admin_audit_logs jadvaliga atomik yozilishi kerak).
+        mock_act.assert_called_once_with(12345, "pro", 30, admin_id=999)
 
     with patch.object(SubscriptionService, "activate", return_value=False):
         result2 = SubscriptionService.grant_admin_bonus(12345, 0, 999)
