@@ -6,6 +6,9 @@ Har bir servis o'z domeniga tegishli qoidalarni boshqaradi:
   - PromoService: promo-kod yaratish va faollashtirish
   - AIFallbackService: AI multi-provider fallback (4-BOSQICH) —
     Gemini → Groq → OpenRouter → zaxira zanjir, qat'iy timeout
+  - RBACService: rollar va ruxsatlar (6-BOSQICH) — OWNER/SUPER_ADMIN/ADMIN/
+    MODERATOR/FINANCE, ``@require_permission`` / ``@require_role``
+  - AuditService: admin harakatlari auditi (6-BOSQICH) — admin_audit_logs
 
 database.py faqat CRUD (ma'lumotlar bazasi so'rovlari) bajaradi;
 biznes qoidalar shu paketdagi servislar orqali amalga oshiriladi.
@@ -14,11 +17,18 @@ Eski chaqiruvlar (``db.set_user_plan``, ``db.redeem_promo_code`` va h.k.)
 backward compatibility uchun shu servicelarga delegatsiya qiladi.
 """
 
+from services.rbac_service import (  # noqa: F401
+    Role,
+    require_permission,
+    require_role,
+)
+from services.audit_service import AuditService  # noqa: F401
 from services.subscription_service import SubscriptionService  # noqa: F401
 from services.payment_service import PaymentService  # noqa: F401
 from services.promo_service import PromoService  # noqa: F401
 from services.scheduler_service import SchedulerService  # noqa: F401
 from services.ai_service import AIFallbackService  # noqa: F401
+from services import rbac_service as RBACService  # noqa: F401
 
 __all__ = [
     "SubscriptionService",
@@ -26,4 +36,9 @@ __all__ = [
     "PromoService",
     "SchedulerService",
     "AIFallbackService",
+    "RBACService",
+    "AuditService",
+    "Role",
+    "require_permission",
+    "require_role",
 ]

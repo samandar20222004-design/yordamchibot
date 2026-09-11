@@ -23,6 +23,21 @@ from keyboards.inline import (
 )
 from utils import ai_agent
 from locales.translations import clear_fsm_data, get_lang, get_text
+# 6-bosqich: RBAC (rollar/ruxsatlar) va admin harakatlari auditi.
+from services.rbac_service import (
+    Role,
+    PERM_MANAGE_PROMOS,
+    PERM_MANAGE_USERS,
+    PERM_SYSTEM_SETTINGS,
+    has_permission,
+    parse_role,
+    remove_role,
+    require_permission,
+    require_role,
+    required_permissions,
+    set_role,
+)
+from services.audit_service import AuditService
 from utils.helpers import (
     html_escape, safe_html, format_post_type_label,
     validate_ad_html, validate_button_text, validate_button_url,
@@ -138,8 +153,19 @@ def _build_dashboard_text(stats: dict) -> str:
 
 
 def is_admin(user_id: int) -> bool:
-    """Ko'p adminli tekshiruv: ADMIN_ID va ADMIN_IDS ichidan birida bo'lsa admin."""
-    return user_id in ADMIN_IDS_SET
+    """Admin tekshiruvi: legacy ``ADMIN_IDS`` yoki RBAC roli bo'lsa.
+
+    Tez yo'l — eski ``ADMIN_ID``/``ADMIN_IDS`` ro'yxati (DB'siz ishlaydi).
+    Qo'shimcha: 6-bosqichda DB orqali berilgan rol (``admin_roles``) ham
+    admin panelini ochishga haqli (natija 60 soniya keshlanadi).
+    """
+    if user_id in ADMIN_IDS_SET:
+        return True
+    try:
+        from services.rbac_service import is_admin as rbac_is_admin
+        return rbac_is_admin(user_id)
+    except Exception:  # pragma: no cover - RBAC import/DB xatosi
+        return False
 
 
 # ============================================================
@@ -307,6 +333,10 @@ async def admin_dashboard_callback(update: Update, context: ContextTypes.DEFAULT
         return ConversationHandler.END
 
     if data == "adm_promo":
+        if not has_permission(query.from_user.id, PERM_MANAGE_PROMOS):
+            await query.answer("❌ Sizda promo-kod boshqaruvi uchun ruxsat yo'q.",
+                               show_alert=True)
+            return ConversationHandler.END
         await query.answer()
         await _admin_edit(
             query,
@@ -322,6 +352,10 @@ async def admin_dashboard_callback(update: Update, context: ContextTypes.DEFAULT
         return ADMIN_PROMO_CREATE
 
     if data == "adm_grant_pro":
+        if not has_permission(query.from_user.id, PERM_MANAGE_USERS):
+            await query.answer("❌ Sizda foydalanuvchilarga PRO berish uchun ruxsat yo'q.",
+                               show_alert=True)
+            return ConversationHandler.END
         await query.answer()
         await _admin_edit(
             query,
@@ -335,6 +369,10 @@ async def admin_dashboard_callback(update: Update, context: ContextTypes.DEFAULT
         return ADMIN_GRANT_PRO
 
     if data == "adm_broadcast":
+        if not has_permission(query.from_user.id, PERM_MANAGE_USERS):
+            await query.answer("❌ Sizda broadcast yuborish uchun ruxsat yo'q.",
+                               show_alert=True)
+            return ConversationHandler.END
         await query.answer()
         await _admin_edit(
             query,
@@ -454,6 +492,13 @@ async def admin_inline_text_handler(update: Update, context: ContextTypes.DEFAUL
         return ConversationHandler.END
 
     if flow == "grant_pro":
+        if not has_permission(update.effective_user.id, PERM_MANAGE_USERS):
+            await update.message.reply_text(
+                "❌ Sizda foydalanuvchilarga PRO berish uchun ruxsat yo'q.",
+                reply_markup=get_admin_back_keyboard(),
+            )
+            context.user_data.pop("admin_flow", None)
+            return ConversationHandler.END
         parts = text.split()
         if len(parts) < 2:
             await update.message.reply_text(
@@ -479,7 +524,8 @@ async def admin_inline_text_handler(update: Update, context: ContextTypes.DEFAUL
                 parse_mode="HTML",
             )
             return ADMIN_GRANT_PRO
-        success = await db.run_db(db.set_user_plan, target_id, "pro", days)
+        success = await db.run_db(db.set_user_plan, target_id, "pro", days,
+                                  admin_id=update.effective_user.id)
         if success:
             await update.message.reply_text(
                 f"✅ <b>PRO tarif berildi!</b>\n\n"
@@ -510,6 +556,13 @@ async def admin_inline_text_handler(update: Update, context: ContextTypes.DEFAUL
         return ADMIN_GRANT_PRO
 
     if flow == "promo_create":
+        if not has_permission(update.effective_user.id, PERM_MANAGE_PROMOS):
+            await update.message.reply_text(
+                "❌ Sizda promo-kod yaratish uchun ruxsat yo'q.",
+                reply_markup=get_admin_back_keyboard(),
+            )
+            context.user_data.pop("admin_flow", None)
+            return ConversationHandler.END
         parts = text.split()
         if len(parts) < 2:
             await update.message.reply_text(
@@ -546,7 +599,8 @@ async def admin_inline_text_handler(update: Update, context: ContextTypes.DEFAUL
                 parse_mode="HTML",
             )
             return ADMIN_PROMO_CREATE
-        success = await db.run_db(db.create_promo_code, code, "pro", days, max_uses)
+        success = await db.run_db(db.create_promo_code, code, "pro", days, max_uses,
+                                  admin_id=update.effective_user.id)
         if success:
             max_str = f"{max_uses} marta" if max_uses else "cheksiz"
             await update.message.reply_text(
@@ -567,6 +621,13 @@ async def admin_inline_text_handler(update: Update, context: ContextTypes.DEFAUL
         return ADMIN_PROMO_CREATE
 
     if flow == "broadcast":
+        if not has_permission(update.effective_user.id, PERM_MANAGE_USERS):
+            await update.message.reply_text(
+                "❌ Sizda broadcast yuborish uchun ruxsat yo'q.",
+                reply_markup=get_admin_back_keyboard(),
+            )
+            context.user_data.pop("admin_flow", None)
+            return ConversationHandler.END
         user_ids = await db.run_db(db.get_all_user_ids)
         await update.message.reply_text(
             f"⏳ Xabar <b>{len(user_ids)} ta</b> foydalanuvchiga yuborilmoqda...\n"
@@ -710,6 +771,8 @@ async def ai_settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return AI_SETTINGS
 
 
+@require_permission(PERM_SYSTEM_SETTINGS,
+                    message="❌ AI parametrlarini faqat bot egasi (OWNER) o'zgartira oladi.")
 async def ai_settings_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id):
         return ConversationHandler.END
@@ -801,11 +864,16 @@ async def cache_db_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 
+@require_permission(PERM_SYSTEM_SETTINGS,
+                    message="❌ Keshni faqat bot egasi (OWNER) tozalay oladi.")
 async def cache_clear_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     if not is_admin(query.from_user.id):
         await query.answer("Ruxsat yo'q.", show_alert=True)
         return
+    await db.run_db(AuditService.log_action, query.from_user.id, "system_settings",
+                    target_type="system_settings", target_id="cache_clear",
+                    new_value={"action": "cache_clear"})
     await db.run_db(db.cache_clear)
     status = await db.run_db(db.get_db_pool_status)
     await query.answer("✅ Kesh tozalandi.")
@@ -844,12 +912,21 @@ async def start_set_post_tag(update: Update, context: ContextTypes.DEFAULT_TYPE)
     return SET_POST_TAG
 
 
+@require_permission(PERM_SYSTEM_SETTINGS,
+                    message="❌ Post nishonini faqat bot egasi (OWNER) o'zgartira oladi.")
 async def post_tag_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id):
         return ConversationHandler.END
     text = update.message.text.strip()
+    # 6-bosqich: eski qiymat audit uchun (o'zgarishdan oldin o'qiladi).
+    old_tag = await db.run_db(db.get_setting, "post_tag_text", "")
     if text.lower() == "clear":
         await db.run_db(db.set_setting, "post_tag_text", "")
+        await db.run_db(AuditService.log_action, update.effective_user.id,
+                        "system_settings", target_type="system_settings",
+                        target_id="post_tag_text",
+                        old_value={"post_tag_text": old_tag},
+                        new_value={"post_tag_text": ""})
         await update.message.reply_text(
             "✅ <b>Post nishoni o'chirildi</b> — postlar toza chiqadi.",
             reply_markup=get_admin_panel_keyboard(),
@@ -858,12 +935,138 @@ async def post_tag_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         # HTML matn buzilmasligi uchun nishonni xavfsiz saqlaymiz.
         await db.run_db(db.set_setting, "post_tag_text", text)
+        await db.run_db(AuditService.log_action, update.effective_user.id,
+                        "system_settings", target_type="system_settings",
+                        target_id="post_tag_text",
+                        old_value={"post_tag_text": old_tag},
+                        new_value={"post_tag_text": text})
         await update.message.reply_text(
             f"✅ <b>Post nishoni saqlandi:</b>\n\n<code>{html_escape(text)}</code>",
             reply_markup=get_admin_panel_keyboard(),
             parse_mode="HTML",
         )
     return ConversationHandler.END
+
+
+@require_role(Role.OWNER, strict=True,
+              message="❌ Rol berish/olishni faqat OWNER (bot egasi) bajaradi.")
+async def admin_set_role_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """`/setrole <user_id> <rol>` — admin rolini berish (faqat OWNER).
+
+    Rollar: ``owner``, ``super_admin``, ``admin``, ``moderator``, ``finance``.
+    ``user`` berilsa rol olib tashlanadi. Har bir amal ``admin_audit_logs``
+    jadvaliga yoziladi (``set_role`` / ``remove_role``).
+    """
+    args = getattr(context, "args", None) or []
+    if len(args) < 2:
+        await update.message.reply_text(
+            "📝 Foydalanish: <code>/setrole &lt;user_id&gt; &lt;rol&gt;</code>\n\n"
+            "Rollar: <code>owner</code>, <code>super_admin</code>, <code>admin</code>, "
+            "<code>moderator</code>, <code>finance</code>\n"
+            "Rolni olib tashlash uchun <code>user</code> yozing.",
+            parse_mode="HTML",
+        )
+        return
+    try:
+        target_id = int(args[0])
+    except (TypeError, ValueError):
+        await update.message.reply_text(
+            "❌ Noto'g'ri foydalanuvchi ID. Masalan: /setrole 123456789 admin"
+        )
+        return
+    role = parse_role(args[1])
+    if role is None:
+        await update.message.reply_text(
+            "❌ Noma'lum rol. Mumkin: owner, super_admin, admin, moderator, finance, user."
+        )
+        return
+    admin_id = update.effective_user.id
+    ok = await db.run_db(set_role, target_id, role, granted_by=admin_id)
+    if not ok:
+        await update.message.reply_text("❌ Rolni saqlab bo'lmadi (baza bilan aloqa).")
+        return
+    if role is Role.USER:
+        text = (f"✅ <b>Rol olib tashlandi.</b>\n\n"
+                f"👤 Foydalanuvchi: <code>{target_id}</code>")
+    else:
+        perms = ", ".join(required_permissions(role)) or "—"
+        text = (f"✅ <b>Rol berildi.</b>\n\n"
+                f"👤 Foydalanuvchi: <code>{target_id}</code>\n"
+                f"🎖 Rol: <b>{html_escape(role.value.upper())}</b>\n"
+                f"🔑 Ruxsatlar: <code>{html_escape(perms)}</code>")
+    await update.message.reply_text(text, parse_mode="HTML")
+
+
+@require_role(Role.OWNER, strict=True,
+              message="❌ Rol olishni faqat OWNER (bot egasi) bajaradi.")
+async def admin_del_role_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """`/delrole <user_id>` — admin rolini olib tashlash (faqat OWNER)."""
+    args = getattr(context, "args", None) or []
+    if not args:
+        await update.message.reply_text(
+            "📝 Foydalanish: <code>/delrole &lt;user_id&gt;</code>", parse_mode="HTML",
+        )
+        return
+    try:
+        target_id = int(args[0])
+    except (TypeError, ValueError):
+        await update.message.reply_text("❌ Noto'g'ri foydalanuvchi ID.")
+        return
+    admin_id = update.effective_user.id
+    ok = await db.run_db(remove_role, target_id, granted_by=admin_id)
+    if not ok:
+        await update.message.reply_text(
+            f"❌ <code>{target_id}</code> foydalanuvchida DB'dagi rol topilmadi."
+        )
+        return
+    await update.message.reply_text(
+        f"✅ <b>Rol olib tashlandi.</b>\n\n👤 Foydalanuvchi: <code>{target_id}</code>",
+        parse_mode="HTML",
+    )
+
+
+@require_role(Role.SUPER_ADMIN,
+              message="❌ Audit jurnalini faqat OWNER yoki SUPER_ADMIN ko'ra oladi.")
+async def admin_audit_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """`/audit [N]` — oxirgi admin harakatlari (6-bosqich auditi).
+
+    Har bir qatorda: vaqt | admin | amal | obyekt. Faqat OWNER/SUPER_ADMIN
+    ko'ra oladi (`@require_role`), boshqalarga rad javobi yuboriladi.
+    """
+    args = getattr(context, "args", None) or []
+    limit = 10
+    if args:
+        try:
+            limit = max(1, min(int(args[0]), 50))
+        except (TypeError, ValueError):
+            limit = 10
+    rows = await db.run_db(db.get_admin_audit_logs, limit=limit)
+    if not rows:
+        await update.message.reply_text(
+            "📝 <b>Audit jurnali hozircha bo'sh.</b>\n"
+            "<i>Admin harakatlari (chek, PRO, promo, sozlamalar) shu yerda ko'rinadi.</i>",
+            parse_mode="HTML",
+        )
+        return
+    lines = [f"📝 <b>Oxirgi admin harakatlari</b> (jami {len(rows)} ta):",
+             "━━━━━━━━━━━━━━━━━"]
+    for row in rows:
+        created = row.get("created_at")
+        try:
+            when = created.strftime("%d.%m.%Y %H:%M")
+        except Exception:
+            when = str(created or "")[:16]
+        target = ""
+        if row.get("target_type"):
+            target = f" → <code>{html_escape(row['target_type'])}"
+            if row.get("target_id"):
+                target += f"#{html_escape(row['target_id'])}"
+            target += "</code>"
+        lines.append(
+            f"🕒 <b>{html_escape(when)}</b> | 👤 <code>{html_escape(row.get('admin_id'))}</code>\n"
+            f"   {html_escape(row.get('action'))}{target}"
+        )
+    await update.message.reply_text("\n".join(lines), parse_mode="HTML")
 
 
 async def show_statistics(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1709,6 +1912,10 @@ async def broadcast_send(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return ConversationHandler.END
 
+    if not has_permission(update.effective_user.id, PERM_MANAGE_USERS):
+        await update.message.reply_text("❌ Sizda broadcast yuborish uchun ruxsat yo'q.")
+        return ConversationHandler.END
+
     text = update.message.text
     # DB chaqiruvini event loop'ni bloklamasdan thread'da bajarish
     user_ids = await db.run_db(db.get_all_user_ids)
@@ -1789,3 +1996,11 @@ async def _run_broadcast(bot, user_ids, text, admin_id):
     except Exception:
         logger.exception("Broadcast yakuni haqida admin xabari yuborilmadi")
     logger.info("Broadcast yakunlandi: sent=%d, failed=%d, total=%d", sent, failed, len(user_ids))
+    # 6-bosqich: broadcast ham admin harakati sifatida auditga yoziladi.
+    try:
+        await db.run_db(AuditService.log_action, admin_id, "broadcast",
+                        target_type="users", target_id="all",
+                        new_value={"sent": sent, "failed": failed,
+                                   "total": len(user_ids)})
+    except Exception as e:  # pragma: no cover - audit botni to'xtatmaydi
+        logger.warning("Broadcast auditi yozilmadi: %s", e)

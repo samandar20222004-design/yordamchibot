@@ -36,6 +36,8 @@ from keyboards.callback_data import (  # noqa: E402 — modul boshidagi importla
     CB_RECEIPT_REJECT,
     cb,
 )
+# 6-bosqich: chek tasdiqlash/rad etish — 'manage_payments' ruxsati.
+from services.rbac_service import PERM_MANAGE_PAYMENTS, has_permission
 
 # Qabul qilinadigan hujjat kengaytmalari/MIME'lar (chek: PDF yoki rasm).
 _ACCEPT_DOC_EXT = (".pdf", ".jpg", ".jpeg", ".png", ".webp", ".heic", ".bmp")
@@ -266,6 +268,15 @@ async def receipt_admin_callback(update: Update, context: ContextTypes.DEFAULT_T
 
     admin_id = query.from_user.id
     if admin_id not in ADMIN_IDS_SET:
+        return None
+    # 6-bosqich: RBAC — to'lovni faqat 'manage_payments' ruxsati bor admin
+    # tasdiqlashi/rad etishi mumkin (legacy adminlar avtomatik OWNER/SUPER_ADMIN).
+    if not has_permission(admin_id, PERM_MANAGE_PAYMENTS):
+        try:
+            await query.answer("❌ Sizda to'lovni tasdiqlash uchun ruxsat yo'q.",
+                               show_alert=True)
+        except Exception:
+            pass
         return None
 
     data = query.data or ""

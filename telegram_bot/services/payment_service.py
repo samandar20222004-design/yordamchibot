@@ -20,6 +20,8 @@ from database import (
     _cache_clear,
     _normalize_language_code,
 )
+# 6-bosqich: admin harakatlari auditi (chek tasdiqlash/rad etish).
+from services.audit_service import AuditService
 
 logger = logging.getLogger(__name__)
 
@@ -237,6 +239,12 @@ class PaymentService:
                     "WHERE id = %s",
                     (int(admin_id), grant_days, int(receipt_id)),
                 )
+                # 6-bosqich: audit yozuvi SHU tranzaksiyada (atomik).
+                AuditService.log_receipt_decision(
+                    admin_id, receipt_id, approved=True,
+                    user_id=user_id, days=grant_days,
+                    old_status=status, cur=cur,
+                )
                 # Foydalanuvchi tilini olish
                 lang = "uz"
                 cur.execute(
@@ -277,6 +285,11 @@ class PaymentService:
                     "UPDATE payment_receipts SET status = 'rejected', "
                     "decided_by = %s, reviewed_at = NOW() WHERE id = %s",
                     (int(admin_id), int(receipt_id)),
+                )
+                # 6-bosqich: audit yozuvi SHU tranzaksiyada (atomik).
+                AuditService.log_receipt_decision(
+                    admin_id, receipt_id, approved=False,
+                    user_id=user_id, old_status=status, cur=cur,
                 )
             return {"ok": True, "user_id": int(user_id)}
         except Exception as e:

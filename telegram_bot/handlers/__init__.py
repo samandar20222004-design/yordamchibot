@@ -115,6 +115,7 @@ from handlers.admin import (
     ai_settings_menu, ai_settings_received, cache_db_menu, cache_clear_callback,
     start_set_post_tag, post_tag_received,
     admin_stats_command, admin_dashboard_callback, admin_inline_text_handler,
+    admin_audit_command, admin_set_role_command, admin_del_role_command,
     ad_pool_callback,
     BROADCAST_MESSAGE, ADD_SPONSOR_CHANNEL, SET_CHANNEL_AD, SET_BOT_REPLY_AD,
     AI_SETTINGS, SET_POST_TAG, ADMIN_GRANT_PRO, ADMIN_PROMO_CREATE,
@@ -1014,6 +1015,11 @@ def register_all_handlers(app):
     app.add_handler(CommandHandler("grant_pro", grant_pro_command))
     app.add_handler(CommandHandler("create_promo", create_promo_command))
     app.add_handler(CommandHandler("admin_stats", admin_stats_command))
+    # 📝 6-bosqich: audit jurnali (faqat OWNER/SUPER_ADMIN — RBAC dekoratori)
+    app.add_handler(CommandHandler("audit", admin_audit_command))
+    # 🎖 6-bosqich: rollarni boshqarish (faqat OWNER — RBAC dekoratori)
+    app.add_handler(CommandHandler("setrole", admin_set_role_command))
+    app.add_handler(CommandHandler("delrole", admin_del_role_command))
     # 🖼 /ai — AI Studio'ni ochadi; shundan keyin rasm yuborilsa Vision ishlaydi
     app.add_handler(CommandHandler("ai", lambda u, c: guard_entry(u, c, ai_studio_menu_entry)))
 

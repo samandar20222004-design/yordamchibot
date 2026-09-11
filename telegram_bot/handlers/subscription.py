@@ -14,6 +14,13 @@ from keyboards.callback_data import cb
 from handlers.start import ensure_user_lang
 from locales.translations import get_text, get_lang
 from utils.helpers import html_escape
+# 6-bosqich: RBAC — /grant_pro va /create_promo endi ruxsatga bog'langan.
+from services.rbac_service import (
+    PERM_MANAGE_PROMOS,
+    PERM_MANAGE_USERS,
+    has_permission,
+    require_permission,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -545,10 +552,12 @@ async def promo_code_received(update: Update, context: ContextTypes.DEFAULT_TYPE
         return PROMO_INPUT
 
 
+@require_permission(PERM_MANAGE_USERS,
+                    message="❌ Sizda foydalanuvchilarga PRO berish uchun ruxsat yo'q.")
 async def grant_pro_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Admin: /grant_pro <user_id> <days> — foydalanuvchiga PRO berish."""
     user_id = update.effective_user.id
-    if user_id not in ADMIN_IDS_SET:
+    if user_id not in ADMIN_IDS_SET and not has_permission(user_id, PERM_MANAGE_USERS):
         await update.message.reply_text("❌ Faqat admin bu buyruqni ishlatishi mumkin.")
         return
 
@@ -571,7 +580,8 @@ async def grant_pro_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ Kunlar soni 0 dan katta bo'lishi kerak.")
         return
 
-    success = await db.run_db(db.set_user_plan, target_id, "pro", days)
+    success = await db.run_db(db.set_user_plan, target_id, "pro", days,
+                              admin_id=user_id)
     if success:
         await update.message.reply_text(
             f"✅ <b>PRO tarif berildi!</b>\n\n"
@@ -661,10 +671,12 @@ async def precheckout_callback(update: Update, context: ContextTypes.DEFAULT_TYP
     )
 
 
+@require_permission(PERM_MANAGE_PROMOS,
+                    message="❌ Sizda promo-kod yaratish uchun ruxsat yo'q.")
 async def create_promo_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """SuperAdmin: /create_promo <KOD> <KUNLAR> <MAKS_ISHLATISH> — promo-kod yaratish."""
     user_id = update.effective_user.id
-    if user_id not in ADMIN_IDS_SET:
+    if user_id not in ADMIN_IDS_SET and not has_permission(user_id, PERM_MANAGE_PROMOS):
         await update.message.reply_text("❌ Faqat admin bu buyruqni ishlatishi mumkin.")
         return
 
@@ -699,7 +711,8 @@ async def create_promo_command(update: Update, context: ContextTypes.DEFAULT_TYP
         await update.message.reply_text("❌ Kunlar soni 0 dan katta bo'lishi kerak.")
         return
 
-    success = await db.run_db(db.create_promo_code, code, "pro", days, max_uses)
+    success = await db.run_db(db.create_promo_code, code, "pro", days, max_uses,
+                              admin_id=user_id)
     if success:
         max_str = f"{max_uses} marta" if max_uses else "cheksiz"
         await update.message.reply_text(

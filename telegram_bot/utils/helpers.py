@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 import pytz
 from config import ADMIN_IDS_SET
 import database as db
+from utils.security import url_rejection_reason
 
 tashkent_tz = pytz.timezone("Asia/Tashkent")
 
@@ -236,7 +237,13 @@ def validate_ad_html(text: str, max_len: int = 1024) -> tuple[bool, str]:
 
 
 def validate_button_url(url: str) -> tuple[bool, str]:
-    """Inline tugma havolasini tekshiradi. Qaytadi: ``(ok, xato_xabari)``."""
+    """Inline tugma havolasini tekshiradi. Qaytadi: ``(ok, xato_xabari)``.
+
+    6-bosqich: protokol/domen tekshiruvi yagona manbadan —
+    ``utils.security.url_rejection_reason()`` — olinadi, shu sababli
+    ``javascript:``, ``data:`` kabi xavfli protokollar bu yerda ham,
+    yangi xavfsizlik modulida ham bir xil rad etiladi.
+    """
     value = (url or "").strip()
     if not value:
         return False, "Havola bo'sh bo'lishi mumkin emas."
@@ -244,18 +251,16 @@ def validate_button_url(url: str) -> tuple[bool, str]:
         return False, "Havola juda uzun (maksimal 2048 belgi)."
     if " " in value:
         return False, "Havolada bo'sh joy bo'lishi mumkin emas."
-    lowered = value.lower()
-    allowed_prefixes = ("http://", "https://", "tg://")
-    if not lowered.startswith(allowed_prefixes):
-        return False, (
-            "Havola <code>https://</code>, <code>http://</code> yoki "
-            "<code>tg://</code> bilan boshlanishi kerak."
-        )
-    if lowered.startswith(("http://", "https://")):
-        rest = value.split("//", 1)[1]
-        host = rest.split("/", 1)[0]
-        if not host or "." not in host:
-            return False, "Havola domeni noto'g'ri (masalan: https://t.me/kanal)."
+    reason = url_rejection_reason(value)
+    if reason:
+        if reason in ("bad_scheme", "empty"):
+            return False, (
+                "Havola <code>https://</code>, <code>http://</code> yoki "
+                "<code>tg://</code> bilan boshlanishi kerak."
+            )
+        if reason == "credentials":
+            return False, "Havolada login/parol ko'rsatilishi mumkin emas."
+        return False, "Havola domeni noto'g'ri (masalan: https://t.me/kanal)."
     return True, ""
 
 

@@ -25,6 +25,8 @@ from database import (
     _ensure_limit_reset,
     _normalize_language_code,
 )
+# 6-bosqich: admin harakatlari auditi (PRO berish/bekor qilish).
+from services.audit_service import AuditService
 
 logger = logging.getLogger(__name__)
 
@@ -48,12 +50,17 @@ class SubscriptionService:
     # ACTIVATE — yangi obuna berish
     # ──────────────────────────────────────────────────────────────
     @staticmethod
-    def activate(user_id: int, plan: str = "pro", duration_days: int = 30) -> bool:
+    def activate(user_id: int, plan: str = "pro", duration_days: int = 30,
+                 admin_id: int = None) -> bool:
         """Foydalanuvchiga obuna beradi (yoki yangilaydi).
 
         Qoida: ``subscription_expires_at = max(current_expiry, NOW()) + days``.
         Agar foydalanuvchining allaqachon faol obunasi bo'lsa — qolgan
         muddat kuyib ketmaydi, yangi muddat qo'shiladi.
+
+        Args:
+            admin_id: (6-bosqich) obunani bergan admin — berilsa harakat
+                ``admin_audit_logs`` ga SHU tranzaksiyada yoziladi (atomik).
         """
         if plan not in PLAN_LIMITS:
             return False
@@ -75,6 +82,11 @@ class SubscriptionService:
                     (plan, str(days), user_id),
                 )
                 updated = cur.rowcount > 0
+                if updated and admin_id is not None:
+                    # 6-bosqich: PRO berish auditi — shu tranzaksiyada.
+                    AuditService.log_pro_grant(
+                        admin_id, user_id, days, plan=plan, cur=cur,
+                    )
             if updated:
                 _invalidate_user(user_id)
                 _cache_clear("system_stats")
@@ -88,10 +100,12 @@ class SubscriptionService:
     # EXTEND — muddatni uzaytirish
     # ──────────────────────────────────────────────────────────────
     @staticmethod
-    def extend(user_id: int, duration_days: int = 30) -> bool:
+    def extend(user_id: int, duration_days: int = 30, admin_id: int = None) -> bool:
         """Mavjud obuna muddatini uzaytiradi (plan o'zgarmaydi).
 
         Formula: ``max(current_expiry, NOW()) + duration_days``.
+
+        ``admin_id`` berilsa — 6-bosqich auditi shu tranzaksiyada yoziladi.
         """
         try:
             days = int(duration_days)
@@ -112,6 +126,11 @@ class SubscriptionService:
                     (str(days), user_id),
                 )
                 updated = cur.rowcount > 0
+                if updated and admin_id is not None:
+                    # 6-bosqich: muddat uzaytirish (PRO berish) auditi.
+                    AuditService.log_pro_grant(
+                        admin_id, user_id, days, plan="pro", cur=cur,
+                    )
             if updated:
                 _invalidate_user(user_id)
                 _cache_clear("system_stats")
@@ -208,11 +227,13 @@ class SubscriptionService:
     def grant_admin_bonus(user_id: int, days: int, admin_id: int) -> bool:
         """Admin tomonidan PRO bonus berish (audit logging bilan).
 
-        ``activate`` dan farqi: admin_id qo'shimcha audit uchun.
+        ``activate`` dan farqi: ``admin_id`` beriladi va harakat
+        ``admin_audit_logs`` jadvaliga atomik yoziladi.
         """
         if not isinstance(days, int) or days <= 0:
             return False
-        result = SubscriptionService.activate(user_id, "pro", days)
+        result = SubscriptionService.activate(user_id, "pro", days,
+                                             admin_id=admin_id)
         if result:
             logger.info(
                 "Admin %s foydalanuvchiga %s kunlik PRO berdi (user=%s)",
@@ -224,8 +245,11 @@ class SubscriptionService:
     # REVOKE — obunani bekor qilish
     # ──────────────────────────────────────────────────────────────
     @staticmethod
-    def revoke(user_id: int) -> bool:
-        """Foydalanuvchi obunasini bekor qiladi (free ga qaytaradi)."""
+    def revoke(user_id: int, admin_id: int = None, old_plan: str = None) -> bool:
+        """Foydalanuvchi obunasini bekor qiladi (free ga qaytaradi).
+
+        ``admin_id`` berilsa — 6-bosqich auditi shu tranzaksiyada yoziladi.
+        """
         try:
             with transaction() as cur:
                 cur.execute(
@@ -235,6 +259,11 @@ class SubscriptionService:
                     (user_id,),
                 )
                 updated = cur.rowcount > 0
+                if updated and admin_id is not None:
+                    # 6-bosqich: PRO bekor qilish auditi.
+                    AuditService.log_pro_revoke(
+                        admin_id, user_id, old_plan=old_plan, cur=cur,
+                    )
             if updated:
                 _invalidate_user(user_id)
                 _cache_clear("system_stats")

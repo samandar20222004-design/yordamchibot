@@ -13,6 +13,8 @@ from config import ADMIN_IDS_SET
 import database as db
 from keyboards.callback_data import CB_PHOTO_APPROVE, CB_PHOTO_REJECT, cb
 from utils.fsm_state import active_conversation_state
+# 6-bosqich: rasm tekshiruvi orqali PRO berish — 'manage_users' ruxsati.
+from services.rbac_service import PERM_MANAGE_USERS, has_permission
 
 logger = logging.getLogger(__name__)
 
@@ -164,6 +166,10 @@ async def handle_admin_check_photo_callback(update: Update, context: ContextType
     if not query.from_user.id in ADMIN_IDS_SET:
         await query.answer("Ruxsat yo'q.", show_alert=True)
         return
+    if not has_permission(query.from_user.id, PERM_MANAGE_USERS):
+        await query.answer("❌ Sizda foydalanuvchilarga PRO berish uchun ruxsat yo'q.",
+                           show_alert=True)
+        return
 
     data = query.data  # format: "cph:a:{user_id}" yoki "cph:r:{user_id}"
     parts = data.split(":")
@@ -180,7 +186,8 @@ async def handle_admin_check_photo_callback(update: Update, context: ContextType
 
     if action == "a":
         # Activate PRO for user (30 days)
-        success = await db.run_db(db.set_user_plan, target_user_id, "pro", days=30)
+        success = await db.run_db(db.set_user_plan, target_user_id, "pro", days=30,
+                                  admin_id=query.from_user.id)
         if success:
             # Notify user
             try:

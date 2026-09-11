@@ -18,6 +18,8 @@ from database import (
     _invalidate_user,
     _cache_clear,
 )
+# 6-bosqich: admin harakatlari auditi (promo-kod yaratish).
+from services.audit_service import AuditService
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +49,7 @@ class PromoService:
         max_uses: int = None,
         expires_at=None,
         plan_type: str = "pro",
+        admin_id: int = None,
     ) -> bool:
         """Yangi promo-kod yaratadi.
 
@@ -56,6 +59,8 @@ class PromoService:
             max_uses: Maksimal ishlatish soni (None = cheksiz).
             expires_at: Amal qilish muddati (datetime, ixtiyoriy).
             plan_type: Beriladigan tarif (default: "pro").
+            admin_id: (6-bosqich) kodni yaratgan admin — berilsa harakat
+                ``admin_audit_logs`` jadvaliga SHU tranzaksiyada yoziladi.
         """
         code = (code or "").strip().upper()
         if not code:
@@ -83,7 +88,15 @@ class PromoService:
                     "VALUES (%s, %s, %s, %s, %s) ON CONFLICT (code) DO NOTHING",
                     (code, plan_type, duration, uses, expires_at),
                 )
-                return cur.rowcount > 0
+                inserted = cur.rowcount > 0
+                if inserted and admin_id is not None:
+                    # 6-bosqich: audit yozuvi SHU tranzaksiyada (atomik) —
+                    # kod yaratildi, lekin audit yozuvi yo'q qolmaydi.
+                    AuditService.log_promo_creation(
+                        admin_id, code, duration_days=duration,
+                        max_uses=uses, plan_type=plan_type, cur=cur,
+                    )
+                return inserted
         except Exception as e:
             logger.error("PromoService.create_promo xatosi: %s", e)
             return False
