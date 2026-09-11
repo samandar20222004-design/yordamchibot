@@ -1,6 +1,8 @@
 import asyncio
 from contextlib import asynccontextmanager
 import logging
+import signal
+import sys
 import pytz  # noqa: F401 — vaqt zonasi bilan ishlovchi modullar uchun saqlanadi
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from telegram.ext import ApplicationBuilder, Application
@@ -12,6 +14,7 @@ from scheduler import (
     check_and_send_posts,
     check_and_delete_expired_posts,
     cleanup_old_data_job,
+    cleanup_old_records_job,
     tashkent_tz,
     TIMEZONE_NAME,
     now_tashkent,
@@ -26,6 +29,12 @@ from handlers.error_handler import (
     register_error_handlers,
 )
 from services import health_service
+from services import lifecycle_service as lifecycle
+from services.cleanup_service import (
+    CLEANUP_CRON_HOUR,
+    CLEANUP_CRON_MINUTE,
+    CLEANUP_JOB_ID,
+)
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -187,6 +196,178 @@ async def set_bot_commands(application):
         logger.warning(f"Menyu buyruqlarini o'rnatishda xatolik: {e}")
 
 
+# ============================================================
+# 🛑 GRACEFUL SHUTDOWN (PostAssist V2 — 9-bosqich)
+# ------------------------------------------------------------
+# SIGINT (Ctrl+C) va SIGTERM (Render deploy / systemctl stop / docker stop)
+# signallari event loop ichida ushlanadi va yopilish TARTIB BILAN boradi:
+#   1) lifecycle.request_shutdown()  — yangi ishlar qabul qilinmaydi
+#      (scheduler workerlari navbatdan yangi post olmaydi);
+#   2) updater.stop()                — Telegramdan yangi update olish to'xtaydi;
+#   3) scheduler.pause()             — navbatdagi joblar ishga tushmaydi,
+#      ayni paytda bajarilayotgan yuborishlar davom etadi;
+#   4) lifecycle.wait_for_inflight() — faol postlarga tugallanish uchun
+#      5–10 soniya (SHUTDOWN_GRACE_SECONDS) beriladi; ular BEKOR QILINMAYDI;
+#   5) application.stop()/shutdown() — PTB navbatdagi update'larni tugatadi;
+#   6) scheduler.shutdown(wait=False), web server cleanup;
+#   7) db.close_pool() + close_ai_session() — Neon pool va aiohttp
+#      sessiyalari toza yopiladi;
+#   8) jarayon exit code 0 bilan chiqadi.
+# Ikkinchi signal (masalan, ikki marta Ctrl+C) yopilishni qayta boshlamaydi.
+# ============================================================
+SHUTDOWN_SIGNALS = tuple(
+    sig for sig in (getattr(signal, "SIGINT", None), getattr(signal, "SIGTERM", None))
+    if sig is not None
+)
+
+
+def install_signal_handlers(loop, stop_event: asyncio.Event) -> list:
+    """SIGINT/SIGTERM uchun asinxron shutdown handlerlarini o'rnatadi.
+
+    Handler event loop thread'ida ishlaydi (``loop.add_signal_handler``), shu
+    sababli ``KeyboardInterrupt`` istisnosi ``await`` o'rtasida "portlab"
+    resurslarni yarim yo'lda qoldirmaydi. Windows/cheklangan muhitda
+    ``add_signal_handler`` bo'lmasa ``signal.signal`` fallback ishlatiladi.
+    Qaytadi: muvaffaqiyatli o'rnatilgan signallar ro'yxati.
+    """
+    installed = []
+
+    def _on_signal(sig):
+        name = getattr(sig, "name", str(sig))
+        if lifecycle.request_shutdown(name):
+            logger.warning("Signal %s qabul qilindi — graceful shutdown boshlanmoqda.", name)
+            loop.call_soon_threadsafe(stop_event.set)
+        else:
+            logger.warning("Signal %s takror keldi — yopilish allaqachon davom etmoqda.", name)
+
+    for sig in SHUTDOWN_SIGNALS:
+        try:
+            loop.add_signal_handler(sig, _on_signal, sig)
+            installed.append(sig)
+        except (NotImplementedError, RuntimeError, ValueError):
+            try:
+                signal.signal(sig, lambda s, f, _sig=sig: _on_signal(_sig))
+                installed.append(sig)
+            except (ValueError, OSError):
+                logger.debug("Signal handler o'rnatilmadi: %s", sig)
+    return installed
+
+
+def remove_signal_handlers(loop, installed) -> None:
+    for sig in installed or ():
+        try:
+            loop.remove_signal_handler(sig)
+        except (NotImplementedError, RuntimeError, ValueError):
+            pass
+
+
+async def graceful_shutdown(application=None, scheduler=None, web_runner=None,
+                            grace_seconds: float = None) -> dict:
+    """Barcha komponentlarni TARTIB bilan, xatolardan himoyalangan holda yopadi.
+
+    Har bir bosqich alohida ``try/except`` da — bittasi xato bersa keyingilari
+    baribir bajariladi (DB pool va aiohttp sessiyalari doim yopiladi).
+    Qaytadi: bosqichlar hisoboti (testlar/diagnostika uchun).
+    """
+    report = {"steps": [], "errors": []}
+
+    def _step(name, ok=True, extra=None):
+        report["steps"].append(name)
+        if not ok:
+            report["errors"].append(name)
+        if extra is not None:
+            report[name] = extra
+
+    lifecycle.request_shutdown("graceful_shutdown")
+
+    # 1) Telegramdan yangi update olishni to'xtatamiz.
+    updater = getattr(application, "updater", None) if application is not None else None
+    if updater is not None and getattr(updater, "running", False):
+        try:
+            await updater.stop()
+            _step("updater_stopped")
+        except Exception:
+            logger.exception("Updater'ni to'xtatishda xatolik")
+            _step("updater_stopped", ok=False)
+
+    # 2) Scheduler: navbatdagi joblar ishga tushmaydi (pause), faol job
+    #    davom etadi. Yopish (shutdown) faol vazifalar tugagach.
+    if scheduler is not None:
+        try:
+            if getattr(scheduler, "running", False):
+                scheduler.pause()
+            _step("scheduler_paused")
+        except Exception:
+            logger.exception("Scheduler'ni pauza qilishda xatolik")
+            _step("scheduler_paused", ok=False)
+
+    # 3) Faol vazifalarga tugallanish uchun 5–10 soniya (bekor qilinmaydi).
+    try:
+        drain = await lifecycle.wait_for_inflight(grace_seconds)
+        _step("inflight_drained", ok=drain.get("drained", False), extra=drain)
+    except Exception:
+        logger.exception("Faol vazifalarni kutishda xatolik")
+        _step("inflight_drained", ok=False)
+
+    # 4) PTB application: navbatdagi update'lar ishlanadi, so'ng yopiladi.
+    if application is not None:
+        try:
+            if getattr(application, "running", False):
+                await application.stop()
+            _step("application_stopped")
+        except Exception:
+            logger.exception("Application.stop() xatolik")
+            _step("application_stopped", ok=False)
+        try:
+            await application.shutdown()
+            _step("application_shutdown")
+        except Exception:
+            logger.exception("Application.shutdown() xatolik")
+            _step("application_shutdown", ok=False)
+
+    # 5) Scheduler'ni to'liq yopamiz (kutmasdan — faol vazifalar allaqachon
+    #    kutildi; qolganlari DB'da 'processing' bo'lib stale-recovery'ga tushadi).
+    if scheduler is not None:
+        try:
+            if getattr(scheduler, "running", False) or getattr(scheduler, "state", 0):
+                scheduler.shutdown(wait=False)
+            _step("scheduler_shutdown")
+        except Exception:
+            logger.exception("Scheduler'ni yopishda xatolik")
+            _step("scheduler_shutdown", ok=False)
+
+    # 6) Web server (health endpointlari).
+    if web_runner is not None:
+        try:
+            await web_runner.cleanup()
+            _step("web_server_closed")
+        except Exception:
+            logger.exception("Web serverni yopishda xatolik")
+            _step("web_server_closed", ok=False)
+
+    # 7) Neon DB pool va aiohttp ClientSession'lar — HAR DOIM yopiladi.
+    try:
+        db.close_pool()
+        _step("db_pool_closed")
+    except Exception:
+        logger.exception("DB pool'ni yopishda xatolik")
+        _step("db_pool_closed", ok=False)
+    try:
+        await close_ai_session()
+        _step("ai_session_closed")
+    except Exception:
+        logger.exception("AI (aiohttp) sessiyasini yopishda xatolik")
+        _step("ai_session_closed", ok=False)
+
+    report["clean"] = not report["errors"]
+    logger.info(
+        "Bot to'liq to'xtatildi va barcha resurslar yopildi (bosqichlar: %s%s).",
+        ", ".join(report["steps"]),
+        f"; xatolar: {report['errors']}" if report["errors"] else "",
+    )
+    return report
+
+
 async def main():
     db.init_db()
 
@@ -198,6 +379,9 @@ async def main():
 
     web_runner = None
     scheduler = None
+    stop_event = asyncio.Event()
+    loop = asyncio.get_running_loop()
+    installed_signals = install_signal_handlers(loop, stop_event)
     application = (
         ApplicationBuilder()
         .token(BOT_TOKEN)
@@ -249,55 +433,65 @@ async def main():
         id="cleanup_old_data", timezone=tashkent_tz,
         max_instances=1, coalesce=True, misfire_grace_time=3600,
     )
-
-    await application.initialize()
-    await application.start()
-    await set_bot_commands(application)
-    await application.updater.start_polling(drop_pending_updates=True)
-
-    # Scheduler'ni app to'liq ishga tushgandan keyin boshlaymiz —
-    # shunda birinchi ishlash ham to'liq tayyor muhitda bo'ladi.
-    scheduler.start()
-    # 🩺 Health service: scheduler/application instansiyalarini ro'yxatga
-    # olish + uptime nolini qo'yish — /health buyrug'i shu ma'lumotlarni
-    # ko'rsatadi (services/health_service.py).
-    health_service.register_application(application)
-    health_service.register_scheduler(scheduler)
-    health_service.mark_bot_started()
-    logger.info(
-        "Scheduler started (TZ=%s): postlar har 1 daqiqada, DB tozalash har 6 soatda.",
-        TIMEZONE_NAME,
+    # 9-bosqich: kunlik paketli tozalash worker'i — har 24 soatda 1 marta,
+    # kechasi soat 03:00 (Toshkent). LIMIT 1000 paketlar, har paket alohida
+    # tranzaksiya (services/cleanup_service.py). misfire_grace_time=6h —
+    # bot 03:00 da o'chiq bo'lsa, ertalab ishga tushganda bir marta bajariladi.
+    scheduler.add_job(
+        cleanup_old_records_job, 'cron',
+        hour=CLEANUP_CRON_HOUR, minute=CLEANUP_CRON_MINUTE,
+        id=CLEANUP_JOB_ID, timezone=tashkent_tz,
+        max_instances=1, coalesce=True, misfire_grace_time=6 * 3600,
     )
-    logger.info("Bot muvaffaqiyatli ishga tushdi.")
 
     try:
-        while True:
-            await asyncio.sleep(3600)
+        await application.initialize()
+        await application.start()
+        await set_bot_commands(application)
+        await application.updater.start_polling(drop_pending_updates=True)
+
+        # Scheduler'ni app to'liq ishga tushgandan keyin boshlaymiz —
+        # shunda birinchi ishlash ham to'liq tayyor muhitda bo'ladi.
+        scheduler.start()
+        # 🩺 Health service: scheduler/application instansiyalarini ro'yxatga
+        # olish + uptime nolini qo'yish — /health buyrug'i shu ma'lumotlarni
+        # ko'rsatadi (services/health_service.py).
+        health_service.register_application(application)
+        health_service.register_scheduler(scheduler)
+        health_service.mark_bot_started()
+        logger.info(
+            "Scheduler started (TZ=%s): postlar har 1 daqiqada, DB tozalash har 6 soatda, "
+            "kunlik paketli tozalash %02d:%02d da.",
+            TIMEZONE_NAME, CLEANUP_CRON_HOUR, CLEANUP_CRON_MINUTE,
+        )
+        logger.info("Bot muvaffaqiyatli ishga tushdi.")
+
+        # Signal kelguncha kutamiz (SIGINT/SIGTERM → stop_event).
+        await stop_event.wait()
+        logger.info("Bot to'xtatilmoqda (%s)...", lifecycle.shutdown_reason() or "signal")
     except (KeyboardInterrupt, SystemExit):
+        # Signal handler o'rnatilmagan muhit (masalan, Windows) — eski yo'l.
+        lifecycle.request_shutdown("KeyboardInterrupt")
         logger.info("Bot to'xtatilmoqda...")
     finally:
         # Ishga tushirish bosqichida xatolik bo'lgan taqdirda ham
         # ochilgan resurslar yopilishi kerak (shuning uchun None-tekshiruv).
-        # Yopilish xatosi asl xatoni yashirmasligi uchun try/except ichida.
-        try:
-            if scheduler is not None:
-                scheduler.shutdown(wait=False)
-            updater = getattr(application, "updater", None)
-            if updater is not None:
-                await updater.stop()
-            await application.stop()
-            await application.shutdown()
-            if web_runner is not None:
-                await web_runner.cleanup()
-        except Exception:
-            logger.exception("Botni to'xtatishda xatolik yuz berdi")
-        db.close_pool()
-        await close_ai_session()
-        logger.info("Bot to'liq to'xtatildi va barcha resurslar yopildi.")
+        # graceful_shutdown har bosqichni alohida himoyalaydi — asl xato
+        # yashirilmaydi, DB pool va aiohttp sessiyalari DOIM yopiladi.
+        remove_signal_handlers(loop, installed_signals)
+        await graceful_shutdown(application, scheduler, web_runner)
 
 
-if __name__ == "__main__":
+def run() -> int:
+    """Botni ishga tushiradi; toza yopilishda 0 qaytaradi (exit code)."""
     try:
         asyncio.run(main())
     except (KeyboardInterrupt, SystemExit):
+        # Signal handlerlar o'rnatilgan bo'lsa bu yerga kelinmaydi; fallback
+        # muhitda ham yopilish main() ning finally blokida tugallangan.
         pass
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(run())
