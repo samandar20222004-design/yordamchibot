@@ -47,6 +47,10 @@ echo "==================== SCHEMA TEST ===================="
 "$PY" tests/schema_test.py || exit 1
 
 echo
+echo "============ DB INTEGRITY TEST (5-BOSQICH) ============"
+"$PY" tests/db_integrity_test.py || exit 1
+
+echo
 echo "==================== AI MOCK TEST ==================="
 "$PY" tests/ai_mock_test.py || exit 1
 

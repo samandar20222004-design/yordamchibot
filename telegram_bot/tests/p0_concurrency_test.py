@@ -6,14 +6,17 @@ constraints cannot be faithfully tested with a mock.  Set P0_TEST_DATABASE_URL
 
     P0_TEST_DATABASE_URL=postgresql://... pytest tests/p0_concurrency_test.py -q
 
-Without a PostgreSQL URL the integration tests are skipped rather than making
-local unit-test runs fail.  Each test uses random IDs/codes and cleans up its
-own rows.
+URL berilmasa va muhitda ``pgserver`` o'rnatilgan bo'lsa, testlar o'zi vaqtincha
+lokal PostgreSQL ko'taradi (load/schema/integrity testlaridagi kabi). Ikkalamasi
+bo'lmasa integration testlar skip qilinadi — mahalliy unit-test yugurtirishlari
+buning hisobiga xato bermaydi. Har bir test o'zini o'zi tozalaydigan tasodifiy
+ID/kodlardan foydalanadi.
 """
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 import os
 import sys
+import tempfile
 import uuid
 
 import pytest
@@ -27,11 +30,34 @@ os.environ.setdefault("DATABASE_URL", "postgresql://user:pass@localhost:5432/tes
 import database as db  # noqa: E402
 
 
+_local_server = []
+
+
+def _local_pgserver_uri():
+    """``pgserver`` orqali vaqtinchalik lokal PostgreSQL URI (bo'lmasa None)."""
+    if _local_server:
+        return _local_server[0].get_uri()
+    try:
+        import pgserver
+    except ImportError:
+        return None
+    try:
+        server = pgserver.get_server(
+            os.path.join(tempfile.gettempdir(), "yordamchi_pg_p0")
+        )
+    except Exception:  # pragma: no cover - muhitga bog'liq
+        return None
+    _local_server.append(server)
+    return server.get_uri()
+
+
 @pytest.fixture(scope="session")
 def p0_db():
     url = os.getenv("P0_TEST_DATABASE_URL") or os.getenv("DATABASE_URL")
     if not url or "user:pass" in url:
-        pytest.skip("P0_TEST_DATABASE_URL is not configured")
+        url = _local_pgserver_uri()
+    if not url or "user:pass" in url:
+        pytest.skip("P0_TEST_DATABASE_URL is not configured (and pgserver is unavailable)")
     db.DATABASE_URL = url
     db._reset_pool()
     try:
@@ -51,11 +77,45 @@ def _user(db_mod, user_id):
         )
 
 
+def _seed_post(db_mod, user_id):
+    """Real user → channel → scheduled_post zanjiri (5-bosqich FK talabi).
+
+    PostAssist V2 5-bosqichdan so'ng ``post_deliveries.post_id`` va
+    ``scheduled_posts.channel_id`` ustunlari ustida FOREIGN KEY ishlaydi, ya'ni
+    delivery testi uchun ota-yozuvlar (foydalanuvchi, kanal, post) bazada
+    mavjud bo'lishi shart. Aks holda DB yozuvni rad etadi — bu aynan
+    istalgan narsa.
+    """
+    channel_id = f"-100{user_id}"
+    _user(db_mod, user_id)
+    with db_mod.db_cursor(commit=True) as cur:
+        cur.execute(
+            "INSERT INTO channels (user_id, channel_id, channel_title) "
+            "VALUES (%s, %s, 'P0 test kanali') "
+            "ON CONFLICT (channel_id) DO UPDATE SET is_active = TRUE",
+            (user_id, channel_id),
+        )
+        cur.execute(
+            "INSERT INTO scheduled_posts (user_id, channel_id, post_type, content, "
+            " scheduled_time, status) "
+            "VALUES (%s, %s, 'text', 'P0 delivery testi', NOW(), 'pending') "
+            "RETURNING id",
+            (user_id, channel_id),
+        )
+        return int(cur.fetchone()[0]), channel_id
+
+
 def _cleanup(db_mod, user_ids=(), code=None):
     with db_mod.db_cursor(commit=True) as cur:
         if user_ids:
             cur.execute("DELETE FROM promo_redemptions WHERE user_id = ANY(%s)", (list(user_ids),))
-            cur.execute("DELETE FROM users WHERE user_id = ANY(%s)", (list(user_ids),))
+            # 5-bosqich: post/kanal o'chirilsa delivery va reaksiyalar ham
+            # CASCADE bilan ketadi — shuning uchun avval ularni tozalash
+            # shart emas, ammo aniq tartib (bola → ota) baribir saqlanadi.
+            ids = list(user_ids)
+            cur.execute("DELETE FROM scheduled_posts WHERE user_id = ANY(%s)", (ids,))
+            cur.execute("DELETE FROM channels WHERE user_id = ANY(%s)", (ids,))
+            cur.execute("DELETE FROM users WHERE user_id = ANY(%s)", (ids,))
         if code:
             cur.execute("DELETE FROM promo_codes WHERE code = %s", (code,))
 
@@ -121,18 +181,31 @@ def test_same_user_cannot_redeem_same_promo_twice(p0_db):
 
 
 def test_scheduler_restart_does_not_send_sent_delivery_twice(p0_db):
-    post_id = 840000000 + (os.getpid() % 100000)
-    channel_id = -1000000000000 - (os.getpid() % 100000)
+    user_id = 840000000 + (os.getpid() % 100000)
+    # FK (fk_post_deliveries_post): delivery faqat MAVJUD post uchun yoziladi.
+    post_id, channel_id = _seed_post(p0_db, user_id)
     scheduled = datetime.now(timezone.utc)
-    first = p0_db.claim_post_delivery(post_id, channel_id, scheduled)
-    assert first["claimed"] is True
-    key = first["idempotency_key"]
-    assert p0_db.mark_post_delivery_sent(key, 991337)
+    try:
+        first = p0_db.claim_post_delivery(post_id, channel_id, scheduled)
+        assert first["claimed"] is True
+        key = first["idempotency_key"]
+        assert p0_db.mark_post_delivery_sent(key, 991337)
 
-    # A second scheduler process/restart sees the durable sent marker and must
-    # skip before calling Telegram.
-    second = p0_db.claim_post_delivery(post_id, channel_id, scheduled)
-    assert second["sent"] is True
-    assert second["claimed"] is False
-    with p0_db.db_cursor(commit=True) as cur:
-        cur.execute("DELETE FROM post_deliveries WHERE idempotency_key = %s", (key,))
+        # A second scheduler process/restart sees the durable sent marker and must
+        # skip before calling Telegram.
+        second = p0_db.claim_post_delivery(post_id, channel_id, scheduled)
+        assert second["sent"] is True
+        assert second["claimed"] is False
+
+        # 5-bosqich: delivery uchun mavjud bo'lmagan postga ota-yozuv kerak —
+        # DB yetim yozuvni rad etadi (yetim qolmaydi, cascade bilan o'chadi).
+        with pytest.raises(Exception) as exc:
+            with p0_db.db_cursor(commit=True) as cur:
+                cur.execute(
+                    "INSERT INTO post_deliveries (post_id, channel_id, status, idempotency_key) "
+                    "VALUES (%s, %s, 'pending', 'p0-orphan-probe')",
+                    (post_id + 77_000_000, -1),
+                )
+        assert "foreign key" in str(exc.value).lower()
+    finally:
+        _cleanup(p0_db, [user_id])

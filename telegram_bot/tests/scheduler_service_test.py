@@ -766,18 +766,72 @@ def _start_test_postgres():
         return None
 
 
-def _cleanup_deliveries(db_mod, post_ids):
+#: 5-bosqich FK uchun test seed'larining unikal raqam kechiruvi.
+_SEED_BASE = 987000000 + (os.getpid() % 500) * 1000
+_seed_counter = [0]
+
+
+def _seed_delivery_post(db_mod):
+    """Real (va tozalanadigan) user → channel → post zanjirini yaratadi.
+
+    PostAssist V2 (5-bosqich)dan so'ng ``post_deliveries.post_id`` FK'i
+    ``scheduled_posts(id)`` ga bog'langan — ya'ni delivery yozuvi uchun
+    ota-qator shart. Testlar shu talabni buzmaydi: avval haqiqiy post
+    yaratiladi, keyin shu id bilan delivery claim qilinadi.
+
+    Qaytadi: ``{"post_id": int, "channel_id": str, "user_id": int}``.
+    """
+    _seed_counter[0] += 1
+    user_id = _SEED_BASE + _seed_counter[0]
+    channel_id = f"-100{user_id}"
     with db_mod.db_cursor(commit=True) as cur:
-        cur.execute("DELETE FROM post_deliveries WHERE post_id = ANY(%s)",
-                    (list(post_ids),))
+        cur.execute(
+            "INSERT INTO users (user_id, username) VALUES (%s, %s) "
+            "ON CONFLICT (user_id) DO NOTHING",
+            (user_id, f"seed_{user_id}"),
+        )
+        cur.execute(
+            "INSERT INTO channels (user_id, channel_id, channel_title) "
+            "VALUES (%s, %s, 'Scheduler test kanali') "
+            "ON CONFLICT (channel_id) DO UPDATE SET is_active = TRUE",
+            (user_id, channel_id),
+        )
+        cur.execute(
+            "INSERT INTO scheduled_posts (user_id, channel_id, post_type, content, "
+            " scheduled_time, status) "
+            "VALUES (%s, %s, 'text', 'scheduler testi', NOW(), 'pending') "
+            "RETURNING id",
+            (user_id, channel_id),
+        )
+        return {"post_id": int(cur.fetchone()[0]), "channel_id": channel_id,
+                "user_id": user_id}
+
+
+def _cleanup_deliveries(db_mod, post_ids, user_ids=()):
+    """Test yozuvlarini tozalash.
+
+    5-bosqichdan keyin postni o'chirish delivery'larni ham CASCADE bilan
+    olib ketadi — bu funksiya zanjirni (post → kanal → foydalanuvchi)
+    izchil tozalaydi.
+    """
+    with db_mod.db_cursor(commit=True) as cur:
+        ids = [int(p) for p in post_ids]
+        if ids:
+            cur.execute("DELETE FROM post_deliveries WHERE post_id = ANY(%s)", (ids,))
+            cur.execute("DELETE FROM post_reactions WHERE post_id = ANY(%s)", (ids,))
+            cur.execute("DELETE FROM scheduled_posts WHERE id = ANY(%s)", (ids,))
+        if user_ids:
+            uids = [int(u) for u in user_ids]
+            cur.execute("DELETE FROM channels WHERE user_id = ANY(%s)", (uids,))
+            cur.execute("DELETE FROM users WHERE user_id = ANY(%s)", (uids,))
 
 
 def test_real_concurrent_claim_single_winner(db_mod):
     print("== REAL DB: 2 parallel worker → faqat 1 claim ==")
     from services.scheduler_service import SchedulerService
 
-    post_id = 910000000 + (os.getpid() % 100000)
-    channel = "-1001999000001"
+    seed = _seed_delivery_post(db_mod)
+    post_id, channel = seed["post_id"], "-1001999000001"
     sched = datetime.now(timezone.utc)
     try:
         with ThreadPoolExecutor(max_workers=2) as pool:
@@ -802,7 +856,7 @@ def test_real_concurrent_claim_single_winner(db_mod):
         check("is_already_sent True",
               SchedulerService.is_already_sent(post_id, channel, sched) is True)
     finally:
-        _cleanup_deliveries(db_mod, [post_id])
+        _cleanup_deliveries(db_mod, [post_id], [seed["user_id"]])
 
 
 def test_real_transient_backoff_then_dead(db_mod):
@@ -810,8 +864,8 @@ def test_real_transient_backoff_then_dead(db_mod):
     from telegram.error import NetworkError
     from services.scheduler_service import SchedulerService
 
-    post_id = 920000000 + (os.getpid() % 100000)
-    channel = "-1001999000002"
+    seed = _seed_delivery_post(db_mod)
+    post_id, channel = seed["post_id"], "-1001999000002"
     sched = datetime.now(timezone.utc)
     try:
         first = SchedulerService.claim_post_for_delivery(post_id, channel, sched)
@@ -850,7 +904,7 @@ def test_real_transient_backoff_then_dead(db_mod):
         check("dead'dan keyin claim → dead",
               after.get("claimed") is False and after.get("dead") is True, str(after))
     finally:
-        _cleanup_deliveries(db_mod, [post_id])
+        _cleanup_deliveries(db_mod, [post_id], [seed["user_id"]])
 
 
 def test_real_permanent_dead_immediately(db_mod):
@@ -858,7 +912,9 @@ def test_real_permanent_dead_immediately(db_mod):
     from telegram.error import BadRequest, Forbidden
     from services.scheduler_service import SchedulerService
 
-    post_id = 930000000 + (os.getpid() % 100000)
+    seed = _seed_delivery_post(db_mod)
+    seed2 = _seed_delivery_post(db_mod)
+    post_id, post_id2 = seed["post_id"], seed2["post_id"]
     channel = "-1001999000003"
     sched = datetime.now(timezone.utc)
     try:
@@ -872,14 +928,14 @@ def test_real_permanent_dead_immediately(db_mod):
         again = SchedulerService.claim_post_for_delivery(post_id, channel, sched)
         check("dead → claim dead", again.get("dead") is True, str(again))
 
-        post_id2 = post_id + 1
         SchedulerService.claim_post_for_delivery(post_id2, channel, sched)
         res2 = SchedulerService.mark_as_failed(
             post_id2, channel, BadRequest("Bad Request: chat not found"),
             is_transient=True, scheduled_time=sched)
         check("ChatNotFound → dead_letter", res2.get("status") == "dead_letter", str(res2))
     finally:
-        _cleanup_deliveries(db_mod, [post_id, post_id + 1])
+        _cleanup_deliveries(db_mod, [post_id, post_id2],
+                            [seed["user_id"], seed2["user_id"]])
 
 
 def test_real_pending_retry_filter(db_mod):
@@ -887,7 +943,9 @@ def test_real_pending_retry_filter(db_mod):
     from telegram.error import NetworkError
     from services.scheduler_service import SchedulerService
 
-    base = 940000000 + (os.getpid() % 100000)
+    seed = _seed_delivery_post(db_mod)
+    seed2 = _seed_delivery_post(db_mod)
+    base, base2 = seed["post_id"], seed2["post_id"]
     channel = "-1001999000004"
     sched = datetime.now(timezone.utc)
     try:
@@ -908,13 +966,14 @@ def test_real_pending_retry_filter(db_mod):
         check("backoff o'tgan failed ro'yxatda bor", waiting_key in keys2)
 
         # sent → ro'yxatda YO'Q
-        SchedulerService.claim_post_for_delivery(base + 1, channel, sched)
-        SchedulerService.mark_as_sent(base + 1, channel, 555, sched)
+        SchedulerService.claim_post_for_delivery(base2, channel, sched)
+        SchedulerService.mark_as_sent(base2, channel, 555, sched)
         keys3 = {p["idempotency_key"] for p in SchedulerService.get_pending_or_retry_posts(limit=1000)}
-        sent_key = SchedulerService.build_idempotency_key(base + 1, channel, sched)
+        sent_key = SchedulerService.build_idempotency_key(base2, channel, sched)
         check("sent ro'yxatda yo'q", sent_key not in keys3)
     finally:
-        _cleanup_deliveries(db_mod, [base, base + 1])
+        _cleanup_deliveries(db_mod, [base, base2],
+                            [seed["user_id"], seed2["user_id"]])
 
 
 def test_claim_sql_row_lock_fallback():

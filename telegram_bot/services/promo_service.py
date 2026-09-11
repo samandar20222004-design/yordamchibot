@@ -11,6 +11,7 @@ Foydalanish::
 """
 
 import logging
+from contextlib import contextmanager
 
 from database import (
     db_cursor,
@@ -19,6 +20,18 @@ from database import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+@contextmanager
+def transaction(commit: bool = True):
+    """Promo oqimi uchun BITTA atomik tranzaksiya bloki (5-bosqich).
+
+    ``database.transaction()`` bilan bir xil semantika: blok ichidagi
+    redemption + obuna + hisoblagich yozuvlari birga COMMIT yoki birga
+    ROLLBACK bo'ladi.
+    """
+    with db_cursor(commit=commit) as cur:
+        yield cur
 
 
 class PromoService:
@@ -64,7 +77,7 @@ class PromoService:
                 return False
 
         try:
-            with db_cursor(commit=True) as cur:
+            with transaction() as cur:
                 cur.execute(
                     "INSERT INTO promo_codes (code, plan_type, duration_days, max_uses, expires_at) "
                     "VALUES (%s, %s, %s, %s, %s) ON CONFLICT (code) DO NOTHING",
@@ -97,7 +110,9 @@ class PromoService:
         if not code:
             return False, "Promo-kod kiritilmadi."
         try:
-            with db_cursor(commit=True) as cur:
+            # 5-bosqich: tekshiruv + redemption + obuna + hisoblagich —
+            # hammasi BITTA atomik blokda (transaction).
+            with transaction() as cur:
                 # FOR UPDATE — boshqa tranzaksiya shu qatorni o'zgartira olmaydi
                 cur.execute(
                     "SELECT id, plan_type, duration_days, max_uses, current_uses, "

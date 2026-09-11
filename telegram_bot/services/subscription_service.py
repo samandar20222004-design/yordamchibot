@@ -29,6 +29,18 @@ from database import (
 logger = logging.getLogger(__name__)
 
 
+@contextmanager
+def transaction(commit: bool = True):
+    """Obuna oqimi uchun BITTA atomik tranzaksiya bloki (5-bosqich).
+
+    ``database.transaction()`` bilan bir xil semantika (blok oxirida COMMIT,
+    istisnoda ROLLBACK). Sinkron servis kodi uchun ``db_cursor`` primitivi
+    ustida qurilgan — testlar shu nuqtani mock qiladi.
+    """
+    with db_cursor(commit=commit) as cur:
+        yield cur
+
+
 class SubscriptionService:
     """Obuna boshqaruvi: activate, extend, get_status, grant, revoke."""
 
@@ -52,7 +64,8 @@ class SubscriptionService:
         if days <= 0:
             return False
         try:
-            with db_cursor(commit=True) as cur:
+            # Tarif + muddat BITTA blokda yangilanadi (5-bosqich).
+            with transaction() as cur:
                 cur.execute(
                     "UPDATE users SET plan_type = %s, "
                     "subscription_expires_at = GREATEST("
@@ -87,7 +100,9 @@ class SubscriptionService:
         if days <= 0:
             return False
         try:
-            with db_cursor(commit=True) as cur:
+            # Muddat uzaytirish — atomik (fallback/parallel chaqiruvlar
+            # bir-birini ustma-ust yozib qolmasligi uchun bitta blok).
+            with transaction() as cur:
                 cur.execute(
                     "UPDATE users SET "
                     "subscription_expires_at = GREATEST("
@@ -212,7 +227,7 @@ class SubscriptionService:
     def revoke(user_id: int) -> bool:
         """Foydalanuvchi obunasini bekor qiladi (free ga qaytaradi)."""
         try:
-            with db_cursor(commit=True) as cur:
+            with transaction() as cur:
                 cur.execute(
                     "UPDATE users SET plan_type = 'free', "
                     "subscription_expires_at = NULL "
