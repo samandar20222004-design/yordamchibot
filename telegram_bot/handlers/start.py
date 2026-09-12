@@ -10,6 +10,7 @@ from handlers.onboarding import (
 )
 from keyboards.default import (
     get_main_keyboard, get_cabinet_keyboard, get_cancel_keyboard, get_simple_keyboard,
+    get_refreshed_main_keyboard,
 )
 from keyboards.inline import (
     get_referral_share_keyboard, get_subscription_check_keyboard,
@@ -20,12 +21,51 @@ from keyboards.inline import (
     unpack_sponsor,
 )
 from locales.translations import (
-    get_text, detect_language, get_lang, set_lang_cache, clear_fsm_data,
+    get_text, safe_t, detect_language, get_lang, set_lang_cache, clear_fsm_data,
     localize_db_message, normalize_lang, LANG_KEY,
 )
 from utils.helpers import html_escape, get_smart_reply_ad_async
 
 logger = logging.getLogger(__name__)
+
+
+async def send_language_reply_keyboard(message, context, user_id: int, is_admin: bool,
+                                       lang: str) -> None:
+    """Til o'zgarganda pastki doimiy ReplyKeyboard'ni DARHOL yangi tilda yuboradi.
+
+    Nima uchun alohida xabar? Telegram ``ReplyKeyboardMarkup`` faqat YANGI
+    xabar bilan yuboriladi (eski xabarning klaviaturasini alohida
+    o'zgartirib bo'lmaydi). Shuning uchun til tugmasi bosilishi bilan:
+
+      1. inline menyu shu xabarning o'zida yangi tilda qayta chiziladi;
+      2. shu yerdan keyin yangi tildagi reply-klaviatura yuboriladi —
+         foydalanuvchi pastki menyuni bir zumda yangi tilda ko'radi
+         (UZ: "➕ Yangi post", RU: "➕ Новый пост", EN: "➕ New post").
+
+    Yangi foydalanuvchi (onboarding) uchun sodda 3 tugmali klaviatura
+    qaytariladi (``resolve_main_keyboard`` qarorini o'zi beradi).
+    """
+    try:
+        kb = await resolve_main_keyboard(user_id, is_admin, lang, context)
+    except Exception as exc:  # pragma: no cover - himoya
+        logger.warning("Til klaviaturasini tayyorlashda xato: %s", exc)
+        kb = get_refreshed_main_keyboard(lang, is_admin=is_admin)
+    await message.reply_text(
+        safe_t("lang_changed", lang),
+        reply_markup=kb,
+        parse_mode="HTML",
+    )
+
+
+async def switch_user_language(context, user_id: int, lang: str) -> str:
+    """Foydalanuvchi tilini bazada va keshda yangilaydi (uz/ru/en).
+
+    Qaytargan qiymat — normallashtirilgan til kodi ('uz' | 'ru' | 'en').
+    """
+    code = normalize_lang(lang)
+    await db.run_db(db.set_user_language, user_id, code)
+    set_lang_cache(context, code)
+    return code
 
 
 async def ensure_user_lang(context, user_id: int) -> str:
@@ -633,25 +673,41 @@ async def cabinet_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if data in ("cab_lang_uz", "cab_lang_ru", "cab_lang_en"):
-        lang = data.rsplit("_", 1)[-1]
         await query.answer()
-        await db.run_db(db.set_user_language, user_id, lang)
-        set_lang_cache(context, lang)
+        # 1) Til bazada + keshda yangilanadi (uz / ru / en).
+        lang = await switch_user_language(context, user_id, data.rsplit("_", 1)[-1])
+
+        # 2) Inline menyu TO'LIQ yangi tilda qayta chiziladi: avval Kabinet
+        #    ekrani (barcha tugma va matnlar yangi tilda), bu iloji bo'lmasa
+        #    hech bo'lmaganda til tanlash menyusi yangilanadi.
         try:
+            stats = await db.run_db(db.get_referral_stats, user_id)
+            channels = await db.run_db(db.get_user_channels, user_id)
+            user_code = await db.run_db(db.get_user_code, user_id)
+            credits_text = cabinet_credits_text(is_admin, stats["ai_credits"], lang)
+            streak_text = safe_t("cabinet_streak", lang, streak=stats.get("streak", 0))
+            text = build_cabinet_text(
+                user_id, user_code, credits_text, streak_text,
+                len(channels), stats["referrals_count"], lang,
+            )
             await query.edit_message_text(
-                get_text("lang_changed", lang),
-                reply_markup=get_language_keyboard(lang),
-                parse_mode="HTML",
+                text, reply_markup=get_cabinet_inline_keyboard(lang), parse_mode="HTML"
             )
         except Exception:
-            pass
-        # Til o'zgarganda ReplyKeyboard darhol yangilanadi; sodda menyu
-        # rejimidagi foydalanuvchiga sodda klaviatura qaytariladi.
-        main_kb = await resolve_main_keyboard(user_id, is_admin, lang, context)
-        await query.message.reply_text(
-            get_text("lang_changed", lang),
-            reply_markup=main_kb,
-            parse_mode="HTML",
+            try:
+                await query.edit_message_text(
+                    safe_t("lang_changed", lang),
+                    reply_markup=get_language_keyboard(lang),
+                    parse_mode="HTML",
+                )
+            except Exception:
+                pass
+
+        # 3) Pastki doimiy ReplyKeyboard DARHOL yangi tilda yuboriladi
+        #    (UZ: "➕ Yangi post", RU: "➕ Новый пост", EN: "➕ New post").
+        #    Sodda menyu rejimidagi foydalanuvchiga sodda klaviatura qaytadi.
+        await send_language_reply_keyboard(
+            query.message, context, user_id, is_admin, lang
         )
         return
 

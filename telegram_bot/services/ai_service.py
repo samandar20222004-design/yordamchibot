@@ -33,6 +33,13 @@ Har bir provayder so'rovi uchun QAT'IY timeout::
 hamda barcha AI oqimlari endi shu servis orqali ishlaydi
 (``utils/ai_agent.py::_run_ai_chain`` shu yerda delegatsiya qiladi).
 
+🌐 3 TILLIK MOSLASHUV (UZ / RU / EN)
+    Har bir chaqiruv ``lang`` ('uz' | 'ru' | 'en') qabul qiladi. Orkestrator
+    tizim promptiga ``utils/ai_agent.with_language()`` orqali QAT'IY til
+    qoidasini biriktiradi (idempotent) va xato xabarlarini ham shu tilda
+    qaytaradi. Natijada AI javobi, posti va tavsiyalari foydalanuvchi
+    tilidan qat'i nazar boshqa tilga aralashib KETMAYDI.
+
 Qaytariladigan natija (muvaffaqiyatda)::
 
     { ...model JSON maydonlari...,
@@ -388,12 +395,35 @@ def build_default_providers() -> list[AIProvider]:
 # GRACEFUL XATO (barcha provayderlar ishdan chiqqanida)
 # ============================================================
 
-def _graceful_error(errors: list) -> dict:
+def enforce_system_language(system_instruction: str, lang=None) -> str:
+    """Tizim promptiga foydalanuvchi tilining QAT'IY qoidasini biriktiradi.
+
+    Orkestrator darajasidagi YAKUNIY himoya qatlami: ``utils/ai_agent.py``
+    til blokini allaqachon qo'shgan bo'lsa ham, bu yerda qayta
+    qo'shilMAYDI (``with_language`` idempotent).
+
+    ``lang`` None/bo'sh bo'lsa — prompt O'ZGARISHSIZ qaytadi (orqaga moslik).
+    """
+    if not lang:
+        return system_instruction
+    try:
+        aa = _ai_agent()
+        func = getattr(aa, "with_language", None) or getattr(aa, "apply_language", None)
+        if func is None:
+            return system_instruction
+        return func(system_instruction, lang)
+    except Exception:  # pragma: no cover - himoya
+        return system_instruction
+
+
+def _graceful_error(errors: list, lang: str = None) -> dict:
     """Barcha provayderlar ishlamaganda qaytariladigan toza xato.
 
     Bu holatda foydalanuvchining kunlik kvotasi yechilmaydi
     (``quota_safe=True`` — handler bal/sanakchini oshirmaydi va
     band qilingan ballini qaytaradi).
+
+    🌐 ``lang`` berilsa, timeout xabari foydalanuvchi tilida chiqadi.
     """
     detail = "\n".join(f"• {e}" for e in errors if e)
 
@@ -403,8 +433,12 @@ def _graceful_error(errors: list) -> dict:
     real_attempts = [e for e in errors if "kalit topilmadi" not in str(e)]
     if timeout_errors and len(timeout_errors) >= max(1, len(real_attempts)):
         logger.warning("Barcha AI provayderlari timeout berdi: %s", detail)
+        try:
+            message = _ai_agent().ai_timeout_message(lang or "uz")
+        except Exception:  # pragma: no cover - himoya
+            message = _ai_agent().AI_TIMEOUT_USER_MESSAGE
         return {
-            "error": _ai_agent().AI_TIMEOUT_USER_MESSAGE,
+            "error": message,
             "timeout": True,
             "ai_unavailable": True,
             "quota_safe": True,
@@ -466,16 +500,24 @@ class AIFallbackService:
         return prompt
 
     # ----------------------------------------------------------
-    async def generate(self, prompt: str, system_instruction: str) -> dict:
+    async def generate(self, prompt: str, system_instruction: str,
+                       lang: str = None) -> dict:
         """Fallback zanjiri orqali AI javobini qaytaradi.
 
         Muvaffaqiyatda: provayder JSON dict + ``provider`` /
         ``provider_chain`` maydonlari. Barcha provayderlar yiqilsa:
         graceful xato dict (kvota yechilmaydi).
+
+        🌐 3 TILLIK (UZ / RU / EN): ``lang`` berilsa, tizim promptiga
+        qat'iy til qoidasi biriktiriladi (:func:`enforce_system_language`)
+        va xato xabarlari ham shu tilda qaytadi. ``lang=None`` bo'lsa —
+        eski (tilsiz) xatti-harakat saqlanadi.
         """
         aa = _ai_agent()
         prompt = self._prepare_prompt(prompt)
         params = aa.get_runtime_params()
+        # Til qoidasi — eng yuqorida (idempotent: takror qo'shilmaydi).
+        system_instruction = enforce_system_language(system_instruction, lang)
 
         errors: list[str] = []
         chain: list[str] = []
@@ -527,7 +569,7 @@ class AIFallbackService:
                     aa._breaker_fail(name)
                     logger.warning("%s ishlamadi (%s). Keyingi zaxiraga o'tilmoqda...", name, e)
 
-        return _graceful_error(errors)
+        return _graceful_error(errors, lang)
 
     # ----------------------------------------------------------
     def status(self) -> dict:
@@ -577,11 +619,15 @@ def reset_default_service() -> None:
     _default_service = None
 
 
-async def run_ai_chain(prompt: str, system_instruction: str) -> dict:
+async def run_ai_chain(prompt: str, system_instruction: str, lang: str = None) -> dict:
     """Yagona AI kirish nuqtasi: promptni avtomatik fallback zanjiridan o'tkazadi.
 
     ``utils/ai_agent.py::_run_ai_chain`` shu funksiya bilan almashtirilgan —
     barcha mavjud chaqiruvchilar (ai_assistant, content_plan, formatlash,
     kontent-reja, kanal ovozi va h.k.) endi shu yagona orkestratordan ishlaydi.
+
+    🌐 ``lang`` ('uz' | 'ru' | 'en') berilsa, orkestrator tizim promptiga
+    foydalanuvchi tilining QAT'IY qoidasini biriktiradi — AI javobi,
+    posti va tavsiyalari faqat shu tilda bo'ladi.
     """
-    return await get_default_service().generate(prompt, system_instruction)
+    return await get_default_service().generate(prompt, system_instruction, lang=lang)

@@ -223,6 +223,30 @@ def get_main_keyboard(is_admin=False, lang="uz", context=None):
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
 
+def get_refreshed_main_keyboard(lang="uz", is_admin=False, simple_menu=False,
+                                context=None):
+    """Til o'zgarganda yuboriladigan PASTKI DOIMIY menyu — YANGI tilda.
+
+    Telegram ``ReplyKeyboardMarkup`` faqat yangi xabar bilan yuborilishi
+    mumkinligi sababli til almashganda shu klaviatura alohida xabar bilan
+    chiqariladi (:func:`handlers.start.send_language_reply_keyboard`).
+
+    Args:
+        lang: yangi til ('uz' | 'ru' | 'en')
+        is_admin: admin uchun "⚙️ Admin Panel" qatori qo'shiladi
+        simple_menu: yangi foydalanuvchi (onboarding) — 3 tugmali sodda menyu
+        context: berilsa, til ``context.user_data['lang']`` dan olinadi
+
+    Returns:
+        UZ: "➕ Yangi post" | RU: "➕ Новый пост" | EN: "➕ New post" ...
+    """
+    if context is not None:
+        lang = get_lang(context, lang)
+    if simple_menu and not is_admin:
+        return get_simple_keyboard(lang)
+    return get_main_keyboard(is_admin, lang=lang)
+
+
 def get_simple_keyboard(lang="uz", context=None):
     """🆕 Yangi foydalanuvchi uchun SODDA reply-klaviatura (uz/ru).
 

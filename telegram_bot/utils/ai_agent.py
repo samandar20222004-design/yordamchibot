@@ -1,6 +1,7 @@
 import asyncio
 import base64
 import html as _html
+import inspect
 import json
 import logging
 import os
@@ -20,6 +21,262 @@ from config import (
 
 logger = logging.getLogger(__name__)
 tashkent_tz = pytz.timezone("Asia/Tashkent")
+
+# ============================================================
+# 🌐 3 TILLIK AI MOSLASHUVI (UZ / RU / EN) — YAGONA MANBA
+# ============================================================
+# Til qoidalari ``locales/translations.py`` da saqlanadi (yagona manba);
+# import buzilgan taqdirda (masalan, mustaqil ishga tushirilganda) shu
+# yerda keltirilgan zaxira nusxa ishlatiladi — ikki lug'at HECH QACHON
+# bir-biridan farq qilmasligi testlar bilan qo'riqlanadi.
+try:  # pragma: no cover - import himoyasi
+    from locales.translations import (
+        AI_LANGUAGE_RULES,
+        AI_LANGUAGE_GUARDS,
+        AI_LANGUAGE_NAMES,
+        AI_LANGUAGE_MARKER,
+        build_ai_language_directive,
+        localize_service_error,
+        normalize_lang,
+    )
+except Exception:  # pragma: no cover - zaxira (fallback)
+    AI_LANGUAGE_RULES = {
+        "uz": "Barcha tahlil, post va tavsiyalarni FAQAT O'ZBEK TILIDA taqdim et.",
+        "ru": "Все ответы, посты и рекомендации пиши СТРОГО НА РУССКОМ ЯЗЫКЕ.",
+        "en": "Provide all analysis, posts, and recommendations STRICTLY IN ENGLISH.",
+    }
+    AI_LANGUAGE_GUARDS = {
+        "uz": (
+            "Hech qanday holatda ruscha, inglizcha yoki boshqa tilni aralashtirma. "
+            "Javob FAQAT o'zbek tilida, boshidan oxirigacha bir tilda bo'lsin "
+            "(texnik JSON kalitlari bundan mustasno)."
+        ),
+        "ru": (
+            "Ни в коем случае не смешивай языки: не добавляй узбекский или "
+            "английский текст. Ответ ТОЛЬКО на русском языке от начала до конца "
+            "(кроме технических ключей JSON)."
+        ),
+        "en": (
+            "Never mix in any other language — no Uzbek, no Russian. "
+            "The answer must be ONLY in English from the first word to the last "
+            "(technical JSON keys are the only exception)."
+        ),
+    }
+    AI_LANGUAGE_NAMES = {"uz": "O'ZBEK TILI (UZ)", "ru": "РУССКИЙ ЯЗЫК (RU)", "en": "ENGLISH (EN)"}
+    AI_LANGUAGE_MARKER = "STRICT LANGUAGE RULE"
+
+    def build_ai_language_directive(lang) -> str:
+        code = normalize_ai_lang(lang)
+        return (
+            f"================= {AI_LANGUAGE_MARKER} ({AI_LANGUAGE_NAMES[code]}) =================\n"
+            f"{AI_LANGUAGE_RULES[code]}\n"
+            f"{AI_LANGUAGE_GUARDS[code]}\n"
+            "================= END OF LANGUAGE RULE ================="
+        )
+
+    def normalize_lang(lang) -> str:
+        if lang is None:
+            return "uz"
+        raw = str(lang).strip().lower()
+        if raw.startswith("ru"):
+            return "ru"
+        if raw.startswith("en"):
+            return "en"
+        return "uz"
+
+    def localize_service_error(error, lang="uz") -> str:
+        return str(error or "")
+
+
+#: Qo'llab-quvvatlanadigan AI tillari (i18n lug'ati bilan bir xil).
+SUPPORTED_AI_LANGS = ("uz", "ru", "en")
+
+
+def normalize_ai_lang(lang) -> str:
+    """Har qanday qiymatni 'uz' | 'ru' | 'en' ga keltiradi (hech qachon yiqilmaydi)."""
+    try:
+        return normalize_lang(lang)
+    except Exception:  # pragma: no cover - himoya
+        raw = str(lang or "").strip().lower()
+        if raw.startswith("ru"):
+            return "ru"
+        if raw.startswith("en"):
+            return "en"
+        return "uz"
+
+
+def language_directive(lang) -> str:
+    """Foydalanuvchi tili uchun qat'iy til bloki (tizim promptining tepasiga)."""
+    return build_ai_language_directive(normalize_ai_lang(lang))
+
+
+_CYRILLIC_RX = re.compile(r"[\u0400-\u04FF]")
+
+
+def detect_text_lang(text) -> str | None:
+    """Matn tilini aniqlaydi: 'ru' | 'en' | 'uz' | None (aniq emas).
+
+    Faqat yozuv (alfavit) bo'yicha ishlaydi — qisqa va aralash matnlarda
+    ``None`` qaytadi. Asosiy qoida: foydalanuvchi TANLAGAN til ustun
+    (:func:`resolve_ai_lang`), bu funksiya faqat til noma'lum bo'lganda
+    yordamchi sifatida ishlatiladi.
+    """
+    try:
+        raw = text if isinstance(text, str) else str(text or "")
+    except Exception:  # pragma: no cover - himoya
+        return None
+    letters = [c for c in raw if c.isalpha()]
+    if len(letters) < 12:
+        return None
+    cyr = sum(1 for c in letters if _CYRILLIC_RX.match(c))
+    if cyr >= len(letters) * 0.6:
+        return "ru"
+    # O'zbek (lotin) va ingliz tillari bir alifboda — faqat aniq inglizcha
+    # belgilar/so'zlar bo'yicha farqlanadi; shubhali holatda None.
+    lowered = raw.lower()
+    en_hits = sum(
+        1 for w in (" the ", " and ", " is ", " are ", " you ", " post ", " please ",
+                    " write ", " this ", " for ", " with ", " channel ")
+        if w in f" {lowered} "
+    )
+    uz_hits = sum(
+        1 for w in (" va ", " uchun ", " bilan ", " post ", " yozing ", " kerak ",
+                    " qanday ", " men ", " bu ", " kanal ", " iltimos ", " salom ")
+        if w in f" {lowered} "
+    )
+    if en_hits > uz_hits and en_hits >= 2:
+        return "en"
+    if uz_hits > en_hits and uz_hits >= 2:
+        return "uz"
+    return None
+
+
+def resolve_ai_lang(preferred=None, text=None) -> str:
+    """AI uchun yakuniy tilni aniqlaydi ('uz' | 'ru' | 'en').
+
+    Ustuvorlik:
+      1. Foydalanuvchi TANLAGAN til (``preferred`` — ``context.user_data['lang']``
+         yoki DB'dagi qiymat). Bu har doim ustun: foydalanuvchi o'zbek
+         interfeysida ruscha kanal postini tahlil qilayotgan bo'lsa ham,
+         natija o'zbekcha chiqishi kutiladi.
+      2. Tanlangan til bo'lmasa — ``text`` (murojaat matni) bo'yicha
+         aniqlanadi (:func:`detect_text_lang`).
+      3. Ikkalasi ham noma'lum bo'lsa — ``'uz'``.
+    """
+    raw = str(preferred or "").strip().lower()
+    if raw and raw not in ("none", "null", "0", "false"):
+        return normalize_ai_lang(raw)
+    return normalize_ai_lang(detect_text_lang(text))
+
+
+# Eski promptlarda ("UZ'ga mixlangan") qolib ketgan til ko'rsatmalari —
+# boshqa til tanlanganda ular TOZALANADI, aks holda tizim promptida
+# "faqat o'zbekcha yoz" va "СТРОГО НА РУССКОМ" kabi ziddiyatli qoidalar
+# paydo bo'lib, model tillarni aralashtirib yuborardi.
+_UZ_LANGUAGE_PATTERNS = (
+    r"^[ \t]*[•\-–*]\s*Barcha javoblar O'ZBEK tilida bo'lishi SHART\..*$",
+    r"^[ \t]*[•\-–*]\s*Barcha javoblar O'ZBEK tilida bo'lishi shart\..*$",
+    r"^[ \t]*[•\-–*]\s*Post yaratishda:.*emotsional O'zbek tili ishlating\..*$",
+    r"^[ \t]*[•\-–*]\s*Jonli, jozibador.*O'zbek tili ishlating\..*$",
+    r"^[ \t]*[•\-–*]\s*Barcha javoblar O'zbek tilida bo'lishi SHART\..*$",
+    r"^[ \t]*[-\d]+\.\s*O'zbek tilida,?.*yozing\..*$",
+    r"^[ \t]*[•\-–*]\s*O'zbek tilida,?.*yozing\..*$",
+    r"^[ \t]*[•\-–*]\s*Sarlavha va hashtaglar O'zbek tilida bo'lsin\..*$",
+    r"^[ \t]*[•\-–*]\s*Barcha javoblar O'ZBEK tilida bo'lishi SHART$",
+    r"^[ \t]*[•\-–*]\s*Javob.*O'ZBEK tilida.*$",
+    r"^[ \t]*[•\-–*]\s*Javob.*O'zbek tilida.*$",
+    r"^[ \t]*[•\-–*]\s*muloyim O'ZBEK tilida javob yozing\..*$",
+)
+_UZ_LANGUAGE_REGEXES = tuple(
+    re.compile(p, re.IGNORECASE | re.MULTILINE) for p in _UZ_LANGUAGE_PATTERNS
+)
+
+
+def strip_competing_language_rules(text: str, lang) -> str:
+    """Tizim promptidan boshqa tillarga zid bo'lgan eski til qoidalarini olib tashlaydi.
+
+    Faqat ``lang != 'uz'`` bo'lganda ishlaydi: o'zbek tilida eski "O'ZBEK
+    tilida yoz" ko'rsatmasi qat'iy til bloki bilan BIR XIL ma'noda, shuning
+    uchun uni saqlab qolamiz (orqaga moslik).
+    """
+    if not isinstance(text, str) or not text:
+        return text or ""
+    if normalize_ai_lang(lang) == "uz":
+        return text
+    cleaned = text
+    for rx in _UZ_LANGUAGE_REGEXES:
+        cleaned = rx.sub("", cleaned)
+    # Ketma-ket uchta bo'sh qatorni ikkitaga qisqartiramiz (tozalik uchun).
+    cleaned = re.sub(r"\n{4,}", "\n\n\n", cleaned)
+    return cleaned.strip() or text
+
+
+#: Prompt ichidagi avval qo'shilgan til blokini topib olib tashlash uchun.
+_LANG_DIRECTIVE_RX = re.compile(
+    r"=+[ \t]*" + AI_LANGUAGE_MARKER + r".*?=+[ \t]*END OF LANGUAGE RULE[ \t]*=+[ \t]*\n?",
+    re.DOTALL | re.IGNORECASE,
+)
+
+
+def strip_language_directive(text: str) -> str:
+    """Prompt ichidagi eski til blokini olib tashlaydi (til almashganda)."""
+    if not isinstance(text, str) or not text:
+        return text or ""
+    return _LANG_DIRECTIVE_RX.sub("", text).lstrip("\n").strip()
+
+
+def with_language(system_instruction: str, lang) -> str:
+    """Tizim promptiga foydalanuvchi tilining QAT'IY qoidasini biriktiradi.
+
+    Xususiyatlari:
+      * **idempotent** — bir xil til qayta qo'shilganda blok ko'paymaydi;
+      * **til almashsa yangilanadi** — eski til bloki olib tashlanib, yangi
+        tildagi qoida qo'yiladi (prompt hech qachon ikki xil til qoidasini
+        bir vaqtda saqlamaydi);
+      * **til aralashuvisiz** — boshqa til tanlanganda eski "faqat
+        o'zbekcha yoz" ko'rsatmalari tozalanadi
+        (:func:`strip_competing_language_rules`);
+      * hech qachon istisno bermaydi — buzilgan qiymatda ham matn qaytaradi.
+    """
+    try:
+        code = normalize_ai_lang(lang)
+    except Exception:  # pragma: no cover - himoya
+        code = "uz"
+    directive = build_ai_language_directive(code)
+    try:
+        base = system_instruction if isinstance(system_instruction, str) else str(system_instruction or "")
+    except Exception:  # pragma: no cover - himoya
+        base = ""
+    if AI_LANGUAGE_MARKER in base:
+        # Avvalgi til blokini tozalaymiz: aynan shu til bo'lsa — natija
+        # o'zgarmaydi (idempotent), til o'zgargan bo'lsa — YANGI til qo'yiladi.
+        stripped = strip_language_directive(base)
+        if directive in base or AI_LANGUAGE_RULES.get(code, "") in stripped:
+            return base
+        base = stripped
+    base = strip_competing_language_rules(base, code)
+    if not base.strip():
+        return directive
+    return f"{directive}\n\n{base}"
+
+
+#: ``services/ai_service.py`` shu nom bilan chaqiradi (orkestrator darajasida
+#: yakuniy himoya qatlami).
+apply_language = with_language
+
+
+def localize_ai_error(text, lang) -> str:
+    """AI qatlamining xatolik matnini foydalanuvchi tiliga o'giradi.
+
+    ``locales.translations.localize_service_error`` o'rami: o'zbekcha (uz)
+    uchun matn O'ZGARISHSIZ qaytadi (orqaga moslik), ru/en uchun tarjima
+    topilmasa — asl matn qaytadi (xabar hech qachon yo'qolmaydi).
+    Hech qachon istisno bermaydi.
+    """
+    try:
+        return localize_service_error(text, normalize_ai_lang(lang))
+    except Exception:  # pragma: no cover - himoya
+        return str(text or "")
 
 GROQ_ENDPOINT = os.getenv("GROQ_ENDPOINT", "https://api.groq.com/openai/v1/chat/completions")
 GEMINI_BASE = os.getenv("GEMINI_BASE", "https://generativelanguage.googleapis.com/v1beta/models")
@@ -698,104 +955,364 @@ Berilgan post matnining imlo xatolarini tekshiring va umumiy qisqa tavsiya berin
 # alohida konstantalar ham mavjud.
 
 
-def _get_router_system_instruction(is_pro: bool = False) -> str:
+#: FREE/PRO post uslubi ko'rsatmasi — 3 tilda (UZ varianti orqaga moslik
+#: uchun alohida konstantalarda ham saqlanadi).
+_PRO_POST_ENHANCEMENT_BY_LANG = {
+    "uz": _PRO_POST_ENHANCEMENT,
+    "ru": (
+        "Вы — профессиональный SMM-копирайтер. Стройте пост по формулам AIDA "
+        "(Attention, Interest, Desire, Action) или PAS (Problem, Agitation, Solution).\n"
+        "Строго соблюдайте правила форматирования Telegram:\n"
+        "- Цепляющий, жирный (bold) заголовок;\n"
+        "- Удобные для чтения абзацы, разделённые пустой строкой;\n"
+        "- Живой, естественный язык без шаблонов машинного перевода;\n"
+        "- Чёткий и убедительный призыв к действию (Call to Action)."
+    ),
+    "en": (
+        "You are a professional SMM copywriter. Build the post with the AIDA "
+        "(Attention, Interest, Desire, Action) or PAS (Problem, Agitation, Solution) formula.\n"
+        "Follow Telegram formatting rules strictly:\n"
+        "- A catchy, bold headline;\n"
+        "- Easy-to-read paragraphs separated by blank lines;\n"
+        "- Lively, natural language with no machine-translation patterns;\n"
+        "- A clear and convincing call to action (CTA)."
+    ),
+}
+
+_FREE_POST_HINT_BY_LANG = {
+    "uz": _FREE_POST_HINT,
+    "ru": "Сделайте пост простым, компактным, понятным и в стандартном формате.",
+    "en": "Write a simple, compact, clear post in a standard format.",
+}
+
+#: Intent-router promptining tilga bog'liq qismlari (UZ / RU / EN).
+#: Har bir til to'liq va ARALASHUVSIZ yozilgan — tizim promptida ikkinchi
+#: tilning so'zlari qolmaydi (aks holda model javobni aralashtirib yuboradi).
+_ROUTER_I18N = {
+    "uz": {
+        "persona": (
+            "Siz PostAssist — professional Telegram kanallar boshqaruvchisi va "
+            "post muharriri botisiz."
+        ),
+        "time": "Hozirgi vaqt: {now} (Toshkent, UTC+5), {day}, {year}-yil.",
+        "extra": "Qo'shimcha ko'rsatma: {extra}",
+        "style_title": "TIL VA USLUB TALABLARI (juda muhim):",
+        "style_body": (
+            "• Barcha javoblar O'ZBEK tilida bo'lishi SHART. Ruscha, inglizcha aralashtirilmasin.\n"
+            "• Post yaratishda: jonli, jozibador, emotsional O'zbek tili ishlating.\n"
+            "• Emoji'lardan oqilona foydalaning (har gapga emas, asosiy nuqtalarga).\n"
+            "• Telegram HTML formatlash: <b>qalin</b>, <i>kursiv</i>, <code>kod</code>.\n"
+            "• Post matni kamida 3-5 qator, mazmunan to'liq bo'lsin."
+        ),
+        "task": (
+            "Vazifangiz — foydalanuvchining xabarini tahlil qilib, UNING NIYATINI aniqlash. "
+            "Javobni FAQAT bitta JSON obyekti sifatida qaytaring. Niyat turlari:\n\n"
+        ),
+        "faq": (
+            '1) "faq" — SAVOL-JAVOB / SUHBAT:\n'
+            "   • Bot imkoniyatlari, post rejalashtirish, ballar, kanal ulash, reaksiyalar, "
+            "avto-o'chirish, kunlik bonus haqida savol bo'lsa — aniq, foydali, do'stona javob bering.\n"
+            "   • Salomlashsa — iliq javob bering va yordam taklif qiling.\n"
+            "   • Mavzu botga mutlaqo aloqasiz bo'lsa — qisqa, muloyim rad qiling va postga "
+            "o'tishni taklif qiling.\n"
+            "   • Javobni 'reply' maydoniga yozing. HTML formatlash mumkin."
+        ),
+        "post": (
+            '2) "post" — YANGI POST YARATISH yoki TAYYOR POST QABUL QILISH:\n'
+            "   • Mavzu/sarlavha berilsa — PROFESSIONAL, JOZIBADOR, TO'LIQ post tayyorlang.\n"
+            "     Aniq faktlar, chaqiriq (CTA), kerakli hashtaglar qo'shing.\n"
+            "   • Tayyor post/forward/e'lon yuborilsa — matnni BUZMASDAN, to'liq ko'chiring.\n"
+            "   • Vaqt ko'rsatilsa ('bugun 15:45', 'ertaga 9 da') — Toshkent bo'yicha "
+            "'YYYY-MM-DD HH:MM' da yozing.\n"
+            "   • 'Barcha kanallarga' deyilsa — target_all: true."
+        ),
+        "edit": (
+            '3) "edit" — MAVJUD POSTNI TAHRIRLASH:\n'
+            "   • Foydalanuvchi oldingi postni o'zgartirishni so'rasa — TAHRIRLANGAN to'liq "
+            "postni yozing.\n"
+            "   • Faqat so'ralgan o'zgarishni qiling, qolganini saqlab qoldiring."
+        ),
+        "rules": "MUHIM QOIDALAR:",
+        "rule_time": "• Vaqt hisobini FAQAT Toshkent vaqti (UTC+5) bo'yicha qiling.",
+        "rule_json": "• JSON dan boshqa hech narsa yozmang. Toza JSON formati:",
+        "json_reply": "faq niyatida to'liq, HTML formatlangan javob (boshqa hollarda bo'sh satr)",
+        "json_post": (
+            "post/edit niyatida tayyor post matni (faqat post matni, boshqa narsa yo'q)"
+        ),
+        "json_time": "YYYY-MM-DD HH:MM yoki null",
+        "plan_label": "POST USLUBI ({tier}):",
+    },
+    "ru": {
+        "persona": (
+            "Вы — PostAssist, профессиональный помощник по управлению "
+            "Telegram-каналами и редактированию постов."
+        ),
+        "time": "Текущее время: {now} (Ташкент, UTC+5), {day}, {year} год.",
+        "extra": "Дополнительная инструкция: {extra}",
+        "style_title": "ТРЕБОВАНИЯ К ЯЗЫКУ И СТИЛЮ (очень важно):",
+        "style_body": (
+            "• Все ответы должны быть СТРОГО НА РУССКОМ ЯЗЫКЕ. Не смешивайте узбекский "
+            "или английский.\n"
+            "• При создании поста используйте живой, яркий и эмоциональный русский язык.\n"
+            "• Используйте эмодзи умеренно (не в каждом предложении, а в ключевых местах).\n"
+            "• Форматирование Telegram HTML: <b>жирный</b>, <i>курсив</i>, <code>код</code>.\n"
+            "• Текст поста — минимум 3-5 строк, содержательный и полный."
+        ),
+        "task": (
+            "Ваша задача — проанализировать сообщение пользователя и определить ЕГО "
+            "НАМЕРЕНИЕ. Верните ответ ТОЛЬКО одним JSON-объектом. Типы намерений:\n\n"
+        ),
+        "faq": (
+            '1) "faq" — ВОПРОС-ОТВЕТ / ДИАЛОГ:\n'
+            "   • Если спрашивают о возможностях бота, планировании постов, баллах, "
+            "подключении канала, реакциях, авто-удалении, ежедневном бонусе — дайте точный, "
+            "полезный и дружелюбный ответ.\n"
+            "   • Если здороваются — тепло ответьте и предложите помощь.\n"
+            "   • Если тема совершенно не относится к боту — вежливо и кратко откажите и "
+            "предложите перейти к созданию поста.\n"
+            "   • Ответ запишите в поле 'reply'. HTML-форматирование допускается."
+        ),
+        "post": (
+            '2) "post" — СОЗДАНИЕ НОВОГО ПОСТА или ПРИЁМ ГОТОВОГО ПОСТА:\n'
+            "   • Если дана тема/заголовок — подготовьте ПРОФЕССИОНАЛЬНЫЙ, ЯРКИЙ и ПОЛНЫЙ пост.\n"
+            "     Добавьте конкретные факты, призыв к действию (CTA) и нужные хэштеги.\n"
+            "   • Если прислали готовый пост/пересланное сообщение/объявление — скопируйте "
+            "текст ПОЛНОСТЬЮ, НЕ ИЗМЕНЯЯ.\n"
+            "   • Если указано время ('сегодня 15:45', 'завтра в 9') — запишите его по "
+            "Ташкенту в формате 'YYYY-MM-DD HH:MM'.\n"
+            "   • Если сказано «во все каналы» — target_all: true."
+        ),
+        "edit": (
+            '3) "edit" — РЕДАКТИРОВАНИЕ СУЩЕСТВУЮЩЕГО ПОСТА:\n'
+            "   • Если пользователь просит изменить предыдущий пост — напишите ПОЛНЫЙ "
+            "ОТРЕДАКТИРОВАННЫЙ пост.\n"
+            "   • Измените только то, о чём просят, остальное сохраните."
+        ),
+        "rules": "ВАЖНЫЕ ПРАВИЛА:",
+        "rule_time": "• Время рассчитывайте ТОЛЬКО по Ташкенту (UTC+5).",
+        "rule_json": "• Не пишите ничего, кроме JSON. Чистый формат JSON:",
+        "json_reply": "при намерении faq — полный HTML-ответ (в остальных случаях пустая строка)",
+        "json_post": "при намерении post/edit — готовый текст поста (только текст поста)",
+        "json_time": "YYYY-MM-DD HH:MM или null",
+        "plan_label": "СТИЛЬ ПОСТА ({tier}):",
+    },
+    "en": {
+        "persona": (
+            "You are PostAssist — a professional Telegram channel manager and "
+            "post editor bot."
+        ),
+        "time": "Current time: {now} (Tashkent, UTC+5), {day}, {year}.",
+        "extra": "Additional instruction: {extra}",
+        "style_title": "LANGUAGE AND STYLE REQUIREMENTS (very important):",
+        "style_body": (
+            "• All answers MUST be written in ENGLISH. Do not mix in Uzbek or Russian.\n"
+            "• When writing a post: use lively, catchy and engaging English.\n"
+            "• Use emojis wisely (not in every sentence — only at key points).\n"
+            "• Telegram HTML formatting: <b>bold</b>, <i>italic</i>, <code>code</code>.\n"
+            "• The post must be at least 3-5 lines long and complete in meaning."
+        ),
+        "task": (
+            "Your task is to analyze the user's message and detect THEIR INTENT. "
+            "Return the answer as ONE single JSON object only. Intent types:\n\n"
+        ),
+        "faq": (
+            '1) "faq" — Q&A / CONVERSATION:\n'
+            "   • If they ask about bot features, post scheduling, credits, connecting a "
+            "channel, reactions, auto-delete or the daily bonus — give a clear, useful and "
+            "friendly answer.\n"
+            "   • If they greet you — reply warmly and offer help.\n"
+            "   • If the topic is completely unrelated to the bot — politely decline in one "
+            "short line and suggest moving on to a post.\n"
+            "   • Put the answer in the 'reply' field. HTML formatting is allowed."
+        ),
+        "post": (
+            '2) "post" — CREATE A NEW POST or ACCEPT A READY POST:\n'
+            "   • If a topic/headline is given — write a PROFESSIONAL, CATCHY and COMPLETE post.\n"
+            "     Add concrete facts, a call to action (CTA) and the needed hashtags.\n"
+            "   • If a ready post/forward/announcement is sent — copy the text EXACTLY, "
+            "without altering it.\n"
+            "   • If a time is mentioned ('today 15:45', 'tomorrow at 9') — write it in "
+            "Tashkent time as 'YYYY-MM-DD HH:MM'.\n"
+            "   • If they say 'to all channels' — target_all: true."
+        ),
+        "edit": (
+            '3) "edit" — EDIT AN EXISTING POST:\n'
+            "   • If the user asks to change the previous post — write the FULL EDITED post.\n"
+            "   • Change only what was asked, keep everything else."
+        ),
+        "rules": "IMPORTANT RULES:",
+        "rule_time": "• Calculate time using Tashkent time (UTC+5) ONLY.",
+        "rule_json": "• Write nothing but JSON. Clean JSON format:",
+        "json_reply": "for the faq intent — the full HTML answer (empty string otherwise)",
+        "json_post": "for the post/edit intent — the ready post text (nothing but the post text)",
+        "json_time": "YYYY-MM-DD HH:MM or null",
+        "plan_label": "POST STYLE ({tier}):",
+    },
+}
+
+
+def _router_i18n(lang) -> dict:
+    """Intent-router uchun til bloki (noma'lum til → uz)."""
+    return _ROUTER_I18N.get(normalize_ai_lang(lang)) or _ROUTER_I18N["uz"]
+
+
+def _get_router_system_instruction(is_pro: bool = False, lang: str = "uz") -> str:
     """Intent routing: har qanday xabarni 3 yo'nalishdan biriga ajratadi.
 
-    Sifat oshirildi:
-    - O'zbek tili uchun aniq ko'rsatmalar va uslub talablari
+    3 TILLIK (UZ / RU / EN): prompt to'liq foydalanuvchi tilida tuziladi —
+    bir tilda yozilgan ko'rsatma boshqa til matni bilan ARALASHMAYDI.
+
+    Sifat talablari:
+    - Foydalanuvchi tili uchun aniq ko'rsatmalar va uslub talablari
     - Post yaratishda professional, jozibador til talab qilinadi
     - Kontekst (avvalgi xabarlar) to'g'ri ishlatiladi
     - FREE vs PRO: PRO uchun AIDA/PAS va SMM kopirayter uslubi
     """
+    code = normalize_ai_lang(lang)
+    t = _router_i18n(code)
     now_dt = datetime.now(tashkent_tz)
     now_str = now_dt.strftime("%Y-%m-%d %H:%M")
     current_year = now_dt.year
     current_day = now_dt.strftime("%A")  # hafta kuni
 
     extra = (_RUNTIME_PARAMS.get("extra_context") or "").strip()
-    extra_block = f"\n\nQo'shimcha ko'rsatma: {extra}" if extra else ""
-    enhancement = _PRO_POST_ENHANCEMENT if is_pro else _FREE_POST_HINT
-    enhancement_block = f"\n\nPOST USLUBI ({'PRO' if is_pro else 'FREE'}): {enhancement.strip()}\n"
-    return (
-        f"Siz PostAssist — professional Telegram kanallar boshqaruvchisi va post muharriri botisiz.\n"
-        f"Hozirgi vaqt: {now_str} (Toshkent, UTC+5), {current_day}, {current_year}-yil.{extra_block}{enhancement_block}\n"
-        f"TIL VA USLUB TALABLARI (juda muhim):\n"
-        f"• Barcha javoblar O'ZBEK tilida bo'lishi SHART. Ruscha, inglizcha aralashtirilmasin.\n"
-        f"• Post yaratishda: jonli, jozibador, emotsional O'zbek tili ishlating.\n"
-        f"• Emoji'lardan oqilona foydalaning (har gapga emas, asosiy nuqtalarga).\n"
-        f"• Telegram HTML formatlash: <b>qalin</b>, <i>kursiv</i>, <code>kod</code>.\n"
-        f"• Post matni kamida 3-5 qator, mazmunan to'liq bo'lsin.\n\n"
-        f"Vazifangiz — foydalanuvchining xabarini tahlil qilib, UNING NIYATINI aniqlash. "
-        f"Javobni FAQAT bitta JSON obyekti sifatida qaytaring. Niyat turlari:\n\n"
-        f'1) "faq" — SAVOL-JAVOB / SUHBAT:\n'
-        f"   • Bot imkoniyatlari, post rejalashtirish, ballar, kanal ulash, reaksiyalar, "
-        f"avto-o'chirish, kunlik bonus haqida savol bo'lsa — aniq, foydali, do'stona javob bering.\n"
-        f"   • Salomlashsa — iliq javob bering va yordam taklif qiling.\n"
-        f"   • Mavzu botga mutlaqo aloqasiz bo'lsa — qisqa, muloyim rad qiling va postga o'tishni taklif qiling.\n"
-        f"   • Javobni 'reply' maydoniga yozing. HTML formatlash mumkin.\n\n"
-        f'2) "post" — YANGI POST YARATISH yoki TAYYOR POST QABUL QILISH:\n'
-        f"   • Mavzu/sarlavha berilsa — PROFESSIONAL, JOZIBADOR, TO'LIQ post tayyorlang.\n"
-        f"     Aniq faktlar, chaqiriq (CTA), kerakli hashtaglar qo'shing.\n"
-        f"   • Tayyor post/forward/e'lon yuborilsa — matnni BUZMASDAN, to'liq ko'chiring.\n"
-        f"   • Vaqt ko'rsatilsa ('bugun 15:45', 'ertaga 9 da') — Toshkent bo'yicha 'YYYY-MM-DD HH:MM' da yozing.\n"
-        f"   • 'Barcha kanallarga' deyilsa — target_all: true.\n\n"
-        f'3) "edit" — MAVJUD POSTNI TAHRIRLASH:\n'
-        f"   • Foydalanuvchi oldingi postni o'zgartirishni so'rasa — TAHRIRLANGAN to'liq postni yozing.\n"
-        f"   • Faqat so'ralgan o'zgarishni qiling, qolganini saqlab qoldiring.\n\n"
-        f"MUHIM QOIDALAR:\n"
-        f"• Vaqt hisobini FAQAT Toshkent vaqti (UTC+5) bo'yicha qiling.\n"
-        f"• JSON dan boshqa hech narsa yozmang. Toza JSON formati:\n"
+    extra_block = f"\n\n{t['extra'].format(extra=extra)}" if extra else ""
+    enhancement = (
+        _PRO_POST_ENHANCEMENT_BY_LANG.get(code, _PRO_POST_ENHANCEMENT) if is_pro
+        else _FREE_POST_HINT_BY_LANG.get(code, _FREE_POST_HINT)
+    )
+    tier = "PRO" if is_pro else "FREE"
+    enhancement_block = f"\n\n{t['plan_label'].format(tier=tier)} {enhancement.strip()}\n"
+    prompt = (
+        f"{t['persona']}\n"
+        f"{t['time'].format(now=now_str, day=current_day, year=current_year)}"
+        f"{extra_block}{enhancement_block}\n"
+        f"{t['style_title']}\n"
+        f"{t['style_body']}\n\n"
+        f"{t['task']}"
+        f"{t['faq']}\n\n"
+        f"{t['post']}\n\n"
+        f"{t['edit']}\n\n"
+        f"{t['rules']}\n"
+        f"{t['rule_time']}\n"
+        f"{t['rule_json']}\n"
         f"{{\n"
         f'  "intent": "faq | post | edit",\n'
-        f'  "reply": "faq niyatida to\'liq, HTML formatlangan javob (boshqa hollarda bo\'sh satr)",\n'
-        f'  "post_text": "post/edit niyatida tayyor post matni (faqat post matni, boshqa narsa yo\'q)",\n'
-        f'  "scheduled_time": "YYYY-MM-DD HH:MM yoki null",\n'
+        f'  "reply": "{t["json_reply"]}",\n'
+        f'  "post_text": "{t["json_post"]}",\n'
+        f'  "scheduled_time": "{t["json_time"]}",\n'
         f'  "has_explicit_time": false,\n'
         f'  "target_all": false\n'
         f"}}"
     )
+    # Eng yuqoriga QAT'IY til bloki qo'yiladi (idempotent — takrorlanmaydi).
+    return with_language(prompt, code)
 
 
-def _get_time_system_instruction() -> str:
-    """Yengil rejim: faqat erkin tildagi vaqtni yoki savolni ajratadi."""
+#: Yengil (time extraction) promptining tilga bog'liq qismlari.
+_TIME_I18N = {
+    "uz": {
+        "persona": "Siz Telegram post rejalashtiruvchi botning yordamchisisiz.",
+        "time": "Hozirgi Toshkent vaqti: {now}, joriy yil: {year}.",
+        "task": (
+            "Foydalanuvchining xabarini tahlil qiling va FAQAT bitta JSON qaytaring:\n"
+            "• Agar xabarda post chiqish VAQTI ko'rsatilgan bo'lsa (masalan: '15:45 ga', "
+            "'ertaga ertalab 9 da', 'bugun kechqurun 20:00', '1 soatdan keyin', "
+            "'5 daqiqadan keyin', '2-sentyabr 10:00') — vaqtni Toshkent vaqti bo'yicha "
+            "hisoblab 'YYYY-MM-DD HH:MM' formatida \"scheduled_time\" ga yozing, "
+            "\"has_explicit_time\": true.\n"
+            "• Agar xabar vaqt emas, balki savol yoki boshqa gap bo'lsa — "
+            "\"has_explicit_time\": false, \"scheduled_time\": null, \"reply\" maydoniga "
+            "qisqa, muloyim O'ZBEK tilida javob yozing.\n"
+            "• 'Barcha kanallarga' deyilgan bo'lsa \"target_all\": true."
+        ),
+        "json_reply": "savol bo'lsa o'zbek tilida javob, aks holda bo'sh satr",
+        "json_time": "YYYY-MM-DD HH:MM yoki null",
+    },
+    "ru": {
+        "persona": "Вы — помощник бота планирования постов в Telegram.",
+        "time": "Текущее время в Ташкенте: {now}, текущий год: {year}.",
+        "task": (
+            "Проанализируйте сообщение пользователя и верните ТОЛЬКО один JSON:\n"
+            "• Если в сообщении указано ВРЕМЯ выхода поста (например: 'в 15:45', "
+            "'завтра утром в 9', 'сегодня вечером в 20:00', 'через 1 час', "
+            "'через 5 минут', '2 сентября 10:00') — рассчитайте время по Ташкенту и "
+            "запишите его в \"scheduled_time\" в формате 'YYYY-MM-DD HH:MM', "
+            "\"has_explicit_time\": true.\n"
+            "• Если это не время, а вопрос или другая фраза — \"has_explicit_time\": false, "
+            "\"scheduled_time\": null, а в поле \"reply\" напишите короткий вежливый ответ "
+            "НА РУССКОМ ЯЗЫКЕ.\n"
+            "• Если сказано «во все каналы» — \"target_all\": true."
+        ),
+        "json_reply": "если это вопрос — ответ на русском, иначе пустая строка",
+        "json_time": "YYYY-MM-DD HH:MM или null",
+    },
+    "en": {
+        "persona": "You are the assistant of a Telegram post scheduling bot.",
+        "time": "Current Tashkent time: {now}, current year: {year}.",
+        "task": (
+            "Analyze the user's message and return ONE JSON object only:\n"
+            "• If the message contains a POST TIME (for example: 'at 15:45', "
+            "'tomorrow morning at 9', 'today at 20:00', 'in 1 hour', 'in 5 minutes', "
+            "'September 2, 10:00') — calculate it in Tashkent time and write it into "
+            "\"scheduled_time\" as 'YYYY-MM-DD HH:MM', with \"has_explicit_time\": true.\n"
+            "• If it is not a time but a question or another phrase — "
+            "\"has_explicit_time\": false, \"scheduled_time\": null, and write a short, "
+            "polite answer IN ENGLISH into the \"reply\" field.\n"
+            "• If they say 'to all channels' — \"target_all\": true."
+        ),
+        "json_reply": "if it is a question — the answer in English, empty string otherwise",
+        "json_time": "YYYY-MM-DD HH:MM or null",
+        "json_label": "JSON format:",
+    },
+}
+_TIME_I18N["uz"]["json_label"] = "JSON formati:"
+_TIME_I18N["ru"]["json_label"] = "Формат JSON:"
+
+
+def _get_time_system_instruction(lang: str = "uz") -> str:
+    """Yengil rejim: faqat erkin tildagi vaqtni yoki savolni ajratadi (3 tilda)."""
+    code = normalize_ai_lang(lang)
+    t = _TIME_I18N.get(code) or _TIME_I18N["uz"]
     now_dt = datetime.now(tashkent_tz)
     now_str = now_dt.strftime("%Y-%m-%d %H:%M")
     current_year = now_dt.year
-    return (
-        f"Siz Telegram post rejalashtiruvchi botning yordamchisisiz. "
-        f"Hozirgi Toshkent vaqti: {now_str}, joriy yil: {current_year}.\n\n"
-        f"Foydalanuvchining xabarini tahlil qiling va FAQAT bitta JSON qaytaring:\n"
-        f"• Agar xabarda post chiqish VAQTI ko'rsatilgan bo'lsa (masalan: '15:45 ga', 'ertaga "
-        f"ertalab 9 da', 'bugun kechqurun 20:00', '1 soatdan keyin', '5 daqiqadan keyin', "
-        f"'2-sentyabr 10:00') — vaqtni Toshkent vaqti bo'yicha hisoblab 'YYYY-MM-DD HH:MM' "
-        f'formatida "scheduled_time" ga yozing, "has_explicit_time": true.\n'
-        f"• Agar xabar vaqt emas, balki savol yoki boshqa gap bo'lsa — "
-        f'"has_explicit_time": false, "scheduled_time": null, "reply" maydoniga qisqa, '
-        f"muloyim O'ZBEK tilida javob yozing.\n"
-        f"• 'Barcha kanallarga' deyilgan bo'lsa \"target_all\": true.\n\n"
-        f"JSON formati:\n"
+    prompt = (
+        f"{t['persona']} "
+        f"{t['time'].format(now=now_str, year=current_year)}\n\n"
+        f"{t['task']}\n\n"
+        f"{t.get('json_label', 'JSON format:')}\n"
         f"{{\n"
         f'  "intent": "faq | post",\n'
-        f'  "reply": "savol bo\'lsa O\'zbek tilida javob, aks holda bo\'sh satr",\n'
-        f'  "scheduled_time": "YYYY-MM-DD HH:MM yoki null",\n'
+        f'  "reply": "{t["json_reply"]}",\n'
+        f'  "scheduled_time": "{t["json_time"]}",\n'
         f'  "has_explicit_time": false,\n'
         f'  "target_all": false\n'
         f"}}"
     )
+    return with_language(prompt, code)
 
 
 
-async def audit_post(post_text: str, is_pro: bool = False, timeout: float = None) -> dict:
+async def audit_post(post_text: str, is_pro: bool = False, timeout: float = None,
+                     lang: str = "uz") -> dict:
     """b2c01d1 patch: post audit — FREE vs PRO.
 
     FREE: imlo tekshirish + qisqa tavsiya.
     PRO: sotuvchanlik reytingi 1-10, kuchli tomonlar, yaxshilash punktlari, tayyor yaxshilangan variant.
 
+    🌐 3 TILLIK: ``lang`` ('uz' | 'ru' | 'en') bo'yicha tizim promptiga
+    qat'iy til qoidasi biriktiriladi — audit natijasi foydalanuvchi
+    tilida, boshqa til aralashuvisiz qaytadi.
+
     Returns dict with audit result or error.
     """
+    code = normalize_ai_lang(lang)
     if not post_text or not str(post_text).strip():
-        return {"error": "Matn bo'sh."}
+        return {"error": localize_ai_error("Matn bo'sh.", code)}
     system_prompt = _AUDIT_PRO_SYSTEM if is_pro else _AUDIT_FREE_SYSTEM
+    # Tizim prompti foydalanuvchi tiliga 100% moslanadi (aralashuv yo'q).
+    system_prompt = with_language(system_prompt, code)
     try:
         # AI model chaqiruvi — generate_ai_response orqali
         prompt = f"Auditlanadigan post matni:\n\n{post_text}"
@@ -804,13 +1321,17 @@ async def audit_post(post_text: str, is_pro: bool = False, timeout: float = None
             system_instruction=system_prompt,
             timeout=timeout,
             is_pro=is_pro,
+            lang=code,
         )
         return result
     except Exception as e:
-        return {"error": f"Audit xizmatida vaqtinchalik xatolik: {e}. Qaytadan urinib ko'ring."}
+        return {"error": localize_ai_error(
+            f"Audit xizmatida vaqtinchalik xatolik: {e}. Qaytadan urinib ko'ring.", code
+        )}
 
 
-def audit_post_sync(post_text: str, is_pro: bool = False, timeout: int = None) -> str:
+def audit_post_sync(post_text: str, is_pro: bool = False, timeout: int = None,
+                    lang: str = "uz") -> str:
     """Sync wrapper for backward-compat tests (b2c01d1 original sync signature).
 
     If event loop is running, returns coroutine string representation;
@@ -828,7 +1349,7 @@ def audit_post_sync(post_text: str, is_pro: bool = False, timeout: int = None) -
             return f"{'PRO' if is_pro else 'FREE'} audit: {post_text[:100]}"
         except RuntimeError:
             # No running loop — run synchronously
-            result = asyncio.run(audit_post(post_text, is_pro=is_pro, timeout=timeout))
+            result = asyncio.run(audit_post(post_text, is_pro=is_pro, timeout=timeout, lang=lang))
             if isinstance(result, dict):
                 return result.get("audit") or result.get("post_text") or result.get("reply") or result.get("text") or str(result)
             return str(result)
@@ -837,8 +1358,9 @@ def audit_post_sync(post_text: str, is_pro: bool = False, timeout: int = None) -
 
 
 # Keep original sync name for compatibility with patch that expects sync audit_post
-def audit_post_compat(post_text: str, is_pro: bool = False, timeout: int = None) -> str:
-    return audit_post_sync(post_text, is_pro=is_pro, timeout=timeout)
+def audit_post_compat(post_text: str, is_pro: bool = False, timeout: int = None,
+                      lang: str = "uz") -> str:
+    return audit_post_sync(post_text, is_pro=is_pro, timeout=timeout, lang=lang)
 
 
 
@@ -1276,7 +1798,33 @@ def _clean_key(value: str) -> str:
     return (value or "").strip().replace('"', '').replace("'", "")
 
 
-async def _run_ai_chain(prompt: str, system_instruction: str) -> dict:
+def pick_supported_kwargs(func, **kwargs) -> dict:
+    """``func`` qabul qilMAYDIGAN kalit so'z argumentlarni olib tashlaydi.
+
+    Nega kerak? Testlar (va eski chaqiruvchilar) AI funksiyalarini
+    ``lang`` parametrini bilmaydigan mock/stub bilan almashtirishi mumkin.
+    Bunday funksiyaga ``lang=...`` uzatilsa ``TypeError`` chiqib, butun AI
+    oqimi uzilib qolar edi. Bu yordamchi imzoni tekshirib, faqat qabul
+    qilinadigan argumentlarni qoldiradi (VAR_KEYWORD bo'lsa — hammasi).
+
+    Til bloki ``system_instruction`` ichida allaqachon mavjud bo'lgani
+    uchun ``lang`` tushib qolsa ham natija to'g'ri chiqadi.
+    """
+    try:
+        params = inspect.signature(func).parameters
+    except (TypeError, ValueError):  # pragma: no cover - builtin/C-func
+        return dict(kwargs)
+    if any(p.kind is inspect.Parameter.VAR_KEYWORD for p in params.values()):
+        return dict(kwargs)
+    return {k: v for k, v in kwargs.items() if k in params}
+
+
+def _chain_accepts_lang(func) -> bool:
+    """``_run_ai_chain`` o'rnini bosuvchi (test mock'i) ``lang`` qabul qiladimi?"""
+    return bool(pick_supported_kwargs(func, lang="uz"))
+
+
+async def _run_ai_chain(prompt: str, system_instruction: str, lang: str = None) -> dict:
     """8 ta provayderni navbat bilan sinaydi (qat'iy tartib):
 
     "Gemini" → "Groq" → "OpenRouter" → "Mistral" → "Cerebras" →
@@ -1299,18 +1847,41 @@ async def _run_ai_chain(prompt: str, system_instruction: str) -> dict:
     Bir vaqtda ko'pi bilan MAX_CONCURRENT_AI (2) ta so'rov ishlaydi.
     Prompt max_prompt_chars belgidan oshsa kesiladi (admin sozlashi mumkin).
     Muvaffaqiyatda provayder qaytargan JSON dict qaytadi; xatolikda {"error": ...}.
+
+    🌐 3 TILLIK: ``lang`` berilsa, orkestrator (``services/ai_service.py``)
+    tizim promptiga qat'iy til qoidasini BIRIKTIRADI (idempotent). Til
+    bloki shu yerda ham oldindan qo'shilgan bo'ladi — ikki qavatli himoya.
     """
     from services import ai_service
-    return await ai_service.run_ai_chain(prompt, system_instruction)
+    runner = ai_service.run_ai_chain
+    if lang and _chain_accepts_lang(runner):
+        return await runner(prompt, system_instruction, lang=normalize_ai_lang(lang))
+    return await runner(prompt, system_instruction)
 
 
-async def _run_with_hard_timeout(coro, timeout: float = None) -> dict:
+async def _call_chain(prompt: str, system_instruction: str, lang: str = None) -> dict:
+    """``_run_ai_chain`` ni til parametri bilan (xavfsiz) chaqiradi.
+
+    Testlar ``ai_agent._run_ai_chain`` ni ikki argumentli mock bilan
+    almashtirishi mumkin — bunday holda ``lang`` uzatilmaydi (til bloki
+    baribir ``system_instruction`` ichida allaqachon bor).
+    """
+    chain = globals().get("_run_ai_chain") or _run_ai_chain
+    if lang and _chain_accepts_lang(chain):
+        return await chain(prompt, system_instruction, lang=normalize_ai_lang(lang))
+    return await chain(prompt, system_instruction)
+
+
+async def _run_with_hard_timeout(coro, timeout: float = None, lang: str = None) -> dict:
     """AI zanjirini QAT'IY vaqt chegarasi (default 25s) bilan ishga tushiradi.
 
     Provayderlar zanjiri (Gemini → Groq → ...) eng yomon holatda daqiqalar
     olishi mumkin — foydalanuvchi cheksiz "AI yozmoqda..." holatida qolib
     ketmasligi uchun butun zanjir ``asyncio.wait_for`` bilan cheklanadi.
     Timeout bo'lsa {"error": ...} qaytaradi (handler doimiy nav-tugma ko'rsatadi).
+
+    🌐 ``lang`` berilsa, timeout xabari foydalanuvchi tilida chiqadi
+    (``ai_timeout_message``); 'uz' uchun matn o'zgarishsiz qoladi.
     """
     hard = float(timeout or AI_HARD_TIMEOUT)
     try:
@@ -1318,7 +1889,7 @@ async def _run_with_hard_timeout(coro, timeout: float = None) -> dict:
     except asyncio.TimeoutError:
         logger.warning("AI javobi %.0fs ichida kelmadi (hard timeout)", hard)
         # XUSHMUOMALA xabar: aybdor foydalanuvchi emas, matni ham yo'qolmaydi.
-        return {"error": AI_TIMEOUT_USER_MESSAGE, "timeout": True}
+        return {"error": ai_timeout_message(lang or "uz"), "timeout": True}
 
 
 async def generate_ai_response(
@@ -1327,6 +1898,7 @@ async def generate_ai_response(
     timeout: float = None,
     tone: str = None,
     is_pro: bool = False,
+    lang: str = "uz",
 ) -> dict:
     """Umumiy AI chaqiruv (AI Studio) — 25 soniyalik qat'iy timeout bilan.
 
@@ -1335,28 +1907,49 @@ async def generate_ai_response(
         system_instruction: None bo'lsa standart intent-router prompt ishlatiladi
         timeout: qat'iy timeout (None → AI_HARD_TIMEOUT, default 25s)
         tone: kanal uslubi ("formal" | "friendly" | "concise" | "engaging")
+        is_pro: PRO tarif — AIDA/PAS professional uslub
+        lang: foydalanuvchi tili ('uz' | 'ru' | 'en') — AI FAQAT shu tilda javob qaytaradi
 
     Returns:
         Provayder qaytargan JSON dict; xato/timeout bo'lsa {"error": "..."}.
+
+    🌐 3 TILLIK MOSLASHUV:
+        ``lang`` bo'yicha tizim promptining ENG YUQORISIGA qat'iy til qoidasi
+        biriktiriladi (:func:`with_language`) — AI javobi, posti va
+        tavsiyalari faqat shu tilda bo'ladi, tillar aralashmaydi.
     """
+    code = normalize_ai_lang(lang)
     if system_instruction is None:
-        system_instruction = _get_router_system_instruction(is_pro=is_pro)
+        system_instruction = _get_router_system_instruction(is_pro=is_pro, lang=code)
     else:
         # If caller provides custom system instruction, still inject FREE/PRO hint if not already present
         # to satisfy b2c01d1 patch intent: extra_instruction based on is_pro
-        if is_pro and _PRO_POST_ENHANCEMENT.strip() not in system_instruction:
-            system_instruction = f"{_PRO_POST_ENHANCEMENT.strip()}\n\n{system_instruction}"
-        elif not is_pro and _FREE_POST_HINT.strip() not in system_instruction:
-            system_instruction = f"{_FREE_POST_HINT.strip()}\n\n{system_instruction}"
+        hint = (
+            _PRO_POST_ENHANCEMENT_BY_LANG.get(code, _PRO_POST_ENHANCEMENT) if is_pro
+            else _FREE_POST_HINT_BY_LANG.get(code, _FREE_POST_HINT)
+        )
+        hint = hint.strip()
+        # Uchala tildagi variantlardan biri allaqachon bo'lsa — qayta qo'shilmaydi.
+        already = any(
+            variant.strip() in (system_instruction or "")
+            for variant in (
+                _PRO_POST_ENHANCEMENT_BY_LANG.get(code, _PRO_POST_ENHANCEMENT),
+                _FREE_POST_HINT_BY_LANG.get(code, _FREE_POST_HINT),
+            )
+        )
+        if not already:
+            system_instruction = f"{hint}\n\n{system_instruction}"
     if tone:
-        system_instruction = _inject_tone(system_instruction, tone)
+        system_instruction = _inject_tone(system_instruction, tone, lang=code)
+    # QAT'IY TIL QOIDASI — eng oxirida (ya'ni promptning eng tepasida) turadi.
+    system_instruction = with_language(system_instruction, code)
     try:
         return await _run_with_hard_timeout(
-            _run_ai_chain(prompt, system_instruction), timeout
+            _call_chain(prompt, system_instruction, lang=code), timeout, lang=code,
         )
     except Exception as e:
         logger.warning("AI chaqiruv xatosi: %s", e)
-        return {"error": f"⚠️ AI xizmatida xatolik yuz berdi: {e}"}
+        return {"error": localize_ai_error(f"⚠️ AI xizmatida xatolik yuz berdi: {e}", code)}
 
 
 def _normalize_router_result(result: dict) -> dict:
@@ -1394,7 +1987,8 @@ def _normalize_router_result(result: dict) -> dict:
     }
 
 
-async def analyze_user_prompt(prompt: str, user_id: int = 0, is_pro: bool = False) -> dict:
+async def analyze_user_prompt(prompt: str, user_id: int = 0, is_pro: bool = False,
+                              lang: str = "uz") -> dict:
     """Asosiy intent router: xabarni tahlil qilib yo'naltiradi.
 
     Qaytargan maydonlar:
@@ -1405,6 +1999,9 @@ async def analyze_user_prompt(prompt: str, user_id: int = 0, is_pro: bool = Fals
       - has_explicit_time: bool
       - target_all: bool
     Eski kod bilan muvofiqlik uchun post_text/scheduled_time maydonlari saqlanadi.
+
+    🌐 3 TILLIK: ``lang`` ('uz' | 'ru' | 'en') — tizim prompti va AI javobi
+    faqat shu tilda bo'ladi.
     """
     params = get_runtime_params()
     raw_prompt = (prompt or "").strip()
@@ -1420,8 +2017,12 @@ async def analyze_user_prompt(prompt: str, user_id: int = 0, is_pro: bool = Fals
 
     # 25 soniyalik QAT'IY timeout — foydalanuvchi cheksiz kutib qolmaydi.
     # FREE vs PRO: PRO uchun AIDA/PAS professional uslub
+    # 🌐 Til: router prompti foydalanuvchi tilida (to'liq, aralashuvsiz).
+    code = normalize_ai_lang(lang)
     result = await _run_with_hard_timeout(
-        _run_ai_chain(prompt, _get_router_system_instruction(is_pro=is_pro))
+        _call_chain(prompt, _get_router_system_instruction(is_pro=is_pro, lang=code),
+                    lang=code),
+        lang=code,
     )
     if "error" in result:
         # Muvaffaqiyatsiz chaqiruv kontekstga yozilmaydi — aks holda keyingi
@@ -1436,7 +2037,7 @@ async def analyze_user_prompt(prompt: str, user_id: int = 0, is_pro: bool = Fals
     return normalized
 
 
-async def extract_schedule_time(prompt: str, user_id: int = 0) -> dict:
+async def extract_schedule_time(prompt: str, user_id: int = 0, lang: str = "uz") -> dict:
     """Yengil AI rejimi — faqat erkin tildagi vaqtni (yoki savolni) ajratadi.
 
     Postni qaytadan tahlil qilmaydi, kam token sarflaydi. Qaytargan maydonlar:
@@ -1444,10 +2045,14 @@ async def extract_schedule_time(prompt: str, user_id: int = 0) -> dict:
       - scheduled_time: 'YYYY-MM-DD HH:MM' yoki None
       - reply: foydalanuvchi savol bergan bo'lsa, qisqa javob
       - target_all: bool
+
+    🌐 3 TILLIK: savolga javob ham foydalanuvchi tilida (``lang``).
     """
+    code = normalize_ai_lang(lang)
     # 25 soniyalik QAT'IY timeout — vaqt aniqlash ham yopishib qolmaydi.
     result = await _run_with_hard_timeout(
-        _run_ai_chain(prompt, _get_time_system_instruction())
+        _call_chain(prompt, _get_time_system_instruction(lang=code), lang=code),
+        lang=code,
     )
     if "error" in result:
         return result
@@ -1489,31 +2094,103 @@ _FORMAT_ACTION_PROMPTS = {
     ),
 }
 
+#: Formatlash promptlari — 3 tilda (uz varianti orqaga moslik uchun asosiy
+#: lug'atda saqlanadi, ru/en qo'shimcha ravishda shu yerda).
+_FORMAT_ACTION_PROMPTS_BY_LANG = {
+    "uz": _FORMAT_ACTION_PROMPTS,
+    "ru": {
+        "grammar": (
+            "Вы — профессиональный редактор русского языка. Исправьте орфографию, "
+            "грамматику и пунктуацию в тексте поста. НЕ МЕНЯЙТЕ СМЫСЛ, исправьте "
+            "только ошибки. Сохраните структуру текста (абзацы, эмодзи). "
+            "Верните ТОЛЬКО исправленный текст, без каких-либо комментариев."
+        ),
+        "emoji": (
+            "Вы — профессиональный дизайнер постов Telegram. Добавьте подходящие "
+            "эмодзи к тексту поста и красиво отформатируйте его. Разбейте на абзацы, "
+            "к каждой ключевой мысли подберите эмодзи. СОДЕРЖАНИЕ НЕ МЕНЯЙТЕ. "
+            "Используйте HTML-форматирование Telegram: <b>жирный</b>, <i>курсив</i>. "
+            "Верните ТОЛЬКО отформатированный текст."
+        ),
+        "hashtags": (
+            "Вы — профессиональный SMM-специалист. Добавьте к тексту поста: "
+            "1) Цепляющий заголовок (с эмодзи). "
+            "2) 3-5 подходящих хэштегов (в конце). "
+            "3) Заголовок и хэштеги должны быть НА РУССКОМ ЯЗЫКЕ. "
+            "СОДЕРЖАНИЕ НЕ МЕНЯЙТЕ. Верните ТОЛЬКО полный пост."
+        ),
+        "tldr": (
+            "Вы — специалист по сокращению текстов. Сократите текст поста, "
+            "сохранив основной смысл: кратко и по делу. Оставьте самую важную "
+            "информацию, удалите повторы. Верните ТОЛЬКО сокращённый текст."
+        ),
+    },
+    "en": {
+        "grammar": (
+            "You are a professional English-language editor. Fix the spelling, "
+            "grammar and punctuation of the post text. DO NOT CHANGE THE MEANING — "
+            "only fix the mistakes. Keep the text structure (paragraphs, emojis). "
+            "Return ONLY the corrected text, with no comments."
+        ),
+        "emoji": (
+            "You are a professional Telegram post designer. Add fitting emojis to "
+            "the post text and format it nicely. Split it into paragraphs and put a "
+            "matching emoji next to each key idea. DO NOT CHANGE THE CONTENT. "
+            "Use Telegram HTML formatting: <b>bold</b>, <i>italic</i>. "
+            "Return ONLY the formatted text."
+        ),
+        "hashtags": (
+            "You are a professional SMM specialist. Add to the post text: "
+            "1) An attention-grabbing headline (with an emoji). "
+            "2) 3-5 matching hashtags (at the end). "
+            "3) The headline and the hashtags must be IN ENGLISH. "
+            "DO NOT CHANGE THE CONTENT. Return ONLY the complete post."
+        ),
+        "tldr": (
+            "You are a text-summarising specialist. Shorten the post text while "
+            "keeping the core meaning — brief and to the point. Keep the most "
+            "important information, remove repetition. Return ONLY the shortened text."
+        ),
+    },
+}
 
-async def format_post_text(text: str, action: str) -> dict:
+
+def _format_action_prompt(action: str, lang: str = "uz") -> str:
+    """Formatlash promptini foydalanuvchi tilida qaytaradi (uz/ru/en)."""
+    code = normalize_ai_lang(lang)
+    table = _FORMAT_ACTION_PROMPTS_BY_LANG.get(code) or _FORMAT_ACTION_PROMPTS
+    return table.get(action) or _FORMAT_ACTION_PROMPTS.get(action) or ""
+
+
+async def format_post_text(text: str, action: str, lang: str = "uz") -> dict:
     """Post matnini AI yordamida formatlaydi.
 
     Args:
         text: formatlanadigan post matni
         action: "grammar" | "emoji" | "hashtags" | "tldr"
+        lang: foydalanuvchi tili ('uz' | 'ru' | 'en')
 
     Returns:
         {"formatted": "..."} yoki {"error": "..."}
     """
+    code = normalize_ai_lang(lang)
     if not text or not text.strip():
-        return {"error": "Matn bo'sh."}
+        return {"error": localize_ai_error("Matn bo'sh.", code)}
 
     if action not in _FORMAT_ACTION_PROMPTS:
-        return {"error": f"Noma'lum harakat: {action}"}
+        return {"error": localize_ai_error(f"Noma'lum harakat: {action}", code)}
 
-    system_instruction = _FORMAT_ACTION_PROMPTS[action]
+    system_instruction = with_language(_format_action_prompt(action, code), code)
     prompt = f"Post matni:\n\n{text}"
 
     try:
-        result = await _run_ai_chain(prompt, system_instruction)
+        result = await _call_chain(prompt, system_instruction, lang=code)
     except Exception as e:
         logger.warning("AI format xatosi (%s): %s", action, e)
-        return {"error": f"⚠️ AI xizmatida vaqtinchalik uzilish. Asl matningiz saqlab qolindi.\n\n{e}"}
+        return {"error": localize_ai_error(
+            f"⚠️ AI xizmatida vaqtinchalik uzilish. Asl matningiz saqlab qolindi.\n\n{e}",
+            code,
+        )}
 
     if "error" in result:
         return {"error": result["error"]}
@@ -1538,7 +2215,9 @@ async def format_post_text(text: str, action: str) -> dict:
                     break
 
     if not formatted or not formatted.strip():
-        return {"error": "⚠️ AI javobi bo'sh qaytdi. Asl matningiz saqlab qolindi."}
+        return {"error": localize_ai_error(
+            "⚠️ AI javobi bo'sh qaytdi. Asl matningiz saqlab qolindi.", code
+        )}
 
     return {"formatted": formatted.strip()}
 
@@ -1554,45 +2233,104 @@ _TONE_DESCRIPTIONS = {
     "engaging": "Ko'ngilochar, emotsional va diqqat tortuvchi uslubda. Savollar bering, emoji ko'proq ishlating, CTA qo'shing.",
 }
 
+#: Kanal uslubi (Tone of Voice) tavsiflari — 3 tilda.
+_TONE_DESCRIPTIONS_BY_LANG = {
+    "uz": _TONE_DESCRIPTIONS,
+    "ru": {
+        "formal": (
+            "Официальный, профессиональный и деловой стиль. Пишите кратко, точно и "
+            "уважительно. Используйте меньше эмодзи."
+        ),
+        "friendly": (
+            "Дружелюбный, искренний и тёплый тон. Обращайтесь к читателю, "
+            "используйте эмодзи умеренно."
+        ),
+        "concise": (
+            "Кратко, в новостном стиле. В каждом предложении — конкретная "
+            "информация. Разделяйте заголовками и подзаголовками."
+        ),
+        "engaging": (
+            "Развлекательный, эмоциональный и привлекающий внимание стиль. "
+            "Задавайте вопросы, используйте больше эмодзи, добавьте CTA."
+        ),
+    },
+    "en": {
+        "formal": (
+            "Formal, professional and business-like style. Write briefly, precisely "
+            "and respectfully. Use fewer emojis."
+        ),
+        "friendly": (
+            "Friendly, sincere and warm tone. Address the reader directly and use "
+            "emojis sensibly."
+        ),
+        "concise": (
+            "Short, news-style. Give concrete information in every sentence. "
+            "Separate with headlines and subheadings."
+        ),
+        "engaging": (
+            "Entertaining, emotional and attention-grabbing style. Ask questions, "
+            "use more emojis and add a CTA."
+        ),
+    },
+}
 
-def get_tone_instruction(tone: str) -> str:
-    """Kanal uslubiga mos system instruction qaytaradi."""
-    desc = _TONE_DESCRIPTIONS.get(tone, _TONE_DESCRIPTIONS["friendly"])
-    return f"\n\nKANAL USLUBI (Tone of Voice): {desc}"
+#: "KANAL USLUBI (Tone of Voice)" sarlavhasi — 3 tilda.
+_TONE_LABEL_BY_LANG = {
+    "uz": "KANAL USLUBI (Tone of Voice):",
+    "ru": "СТИЛЬ КАНАЛА (Tone of Voice):",
+    "en": "CHANNEL STYLE (Tone of Voice):",
+}
 
 
-def _inject_tone(system_instruction: str, tone: str) -> str:
-    """System instructionga kanal uslubini qo'shadi."""
+def get_tone_instruction(tone: str, lang: str = "uz") -> str:
+    """Kanal uslubiga mos system instruction qaytaradi (foydalanuvchi tilida)."""
+    code = normalize_ai_lang(lang)
+    table = _TONE_DESCRIPTIONS_BY_LANG.get(code) or _TONE_DESCRIPTIONS
+    desc = table.get(tone) or table.get("friendly") or _TONE_DESCRIPTIONS["friendly"]
+    label = _TONE_LABEL_BY_LANG.get(code, _TONE_LABEL_BY_LANG["uz"])
+    return f"\n\n{label} {desc}"
+
+
+def _inject_tone(system_instruction: str, tone: str, lang: str = "uz") -> str:
+    """System instructionga kanal uslubini (foydalanuvchi tilida) qo'shadi."""
     if tone and tone != "friendly":
-        return system_instruction + get_tone_instruction(tone)
+        return system_instruction + get_tone_instruction(tone, lang)
     return system_instruction
 
 
-async def format_post_text_with_tone(text: str, action: str, tone: str = "friendly") -> dict:
+async def format_post_text_with_tone(text: str, action: str, tone: str = "friendly",
+                                     lang: str = "uz") -> dict:
     """Post matnini kanal uslubini hisobga olgan holda formatlaydi.
 
     Args:
         text: formatlanadigan post matni
         action: "grammar" | "emoji" | "hashtags" | "tldr"
         tone: kanal uslubi ("formal" | "friendly" | "concise" | "engaging")
+        lang: foydalanuvchi tili ('uz' | 'ru' | 'en')
 
     Returns:
         {"formatted": "..."} yoki {"error": "..."}
     """
+    code = normalize_ai_lang(lang)
     if not text or not text.strip():
-        return {"error": "Matn bo'sh."}
+        return {"error": localize_ai_error("Matn bo'sh.", code)}
 
     if action not in _FORMAT_ACTION_PROMPTS:
-        return {"error": f"Noma'lum harakat: {action}"}
+        return {"error": localize_ai_error(f"Noma'lum harakat: {action}", code)}
 
-    system_instruction = _inject_tone(_FORMAT_ACTION_PROMPTS[action], tone)
+    system_instruction = with_language(
+        _inject_tone(_format_action_prompt(action, code), tone, lang=code), code
+    )
     prompt = f"Post matni:\n\n{text}"
 
     try:
-        result = await _run_ai_chain(prompt, system_instruction)
+        result = await _call_chain(prompt, system_instruction, lang=code)
     except Exception as e:
         logger.warning("AI format xatosi (%s, tone=%s): %s", action, tone, e)
-        return {"error": f"⚠️ AI xizmatida vaqtinchalik uzilish. Asl matningiz saqlab qolindi.\n\n{e}"}
+        return {"error": localize_ai_error(
+            f"⚠️ AI xizmatida vaqtinchalik uzilish. Asl matningiz saqlab qolindi.\n\n{e}",
+            code,
+        )}
 
     if "error" in result:
         return {"error": result["error"]}
@@ -1622,6 +2360,20 @@ async def format_post_text_with_tone(text: str, action: str, tone: str = "friend
 # ============================================================
 # KANAL OVOZI (TONE OF VOICE) TAHLILI
 # ============================================================
+
+#: "Izohni ... tilida yozing" ko'rsatmasi — 3 tilda.
+_VOICE_LANG_RULE = {
+    "uz": "Izohni o'zbek tilida yozing.",
+    "ru": "Напишите пояснение на русском языке.",
+    "en": "Write the explanation in English.",
+}
+
+#: AI izoh bermaganda qaytariladigan standart sabab — 3 tilda.
+_VOICE_FALLBACK_REASON = {
+    "uz": "Kanal uslubi AI orqali aniqlandi.",
+    "ru": "Стиль канала определён с помощью ИИ.",
+    "en": "The channel style was detected by AI.",
+}
 
 _CHANNEL_VOICE_SYSTEM = (
     "Siz Telegram kanali kontent uslubini (Tone of Voice) tahlil qiluvchi "
@@ -1693,21 +2445,20 @@ async def analyze_channel_voice(recent_posts: list, lang: str = "uz") -> dict:
     Args:
         recent_posts: kanal postlari ro'yxati (dict — ``text``/``content``
             kalitlari bilan yoki oddiy matn satrlari).
-        lang: izoh tili ("uz" | "ru")
+        lang: izoh tili ("uz" | "ru" | "en")
 
     Returns:
         {"tone": "formal|friendly|concise|engaging", "reason": "..."}
         yoki {"error": "..."} (post yo'q / AI xatosi).
     """
+    code = normalize_ai_lang(lang)
     samples = _posts_for_analysis(recent_posts)
     if not samples:
-        return {"error": "⚠️ Kanal postlari tarixi bo'sh — uslubni tahlil qilib bo'lmadi."}
+        return {"error": localize_ai_error(
+            "⚠️ Kanal postlari tarixi bo'sh — uslubni tahlil qilib bo'lmadi.", code
+        )}
 
-    lang_rule = (
-        "Izohni o'zbek tilida yozing."
-        if lang != "ru"
-        else "Напишите пояснение на русском языке."
-    )
+    lang_rule = _VOICE_LANG_RULE.get(code, _VOICE_LANG_RULE["uz"])
     prompt = (
         "Kanalning so'nggi postlari:\n\n"
         f"{samples}\n\n"
@@ -1716,13 +2467,20 @@ async def analyze_channel_voice(recent_posts: list, lang: str = "uz") -> dict:
     )
 
     try:
-        result = await _run_ai_chain(prompt, _CHANNEL_VOICE_SYSTEM)
+        # Tizim prompti ham foydalanuvchi tiliga moslanadi (aralashuv yo'q).
+        result = await _call_chain(
+            prompt, with_language(_CHANNEL_VOICE_SYSTEM, code), lang=code
+        )
     except Exception as e:
         logger.warning("Kanal ovozi tahlili xatosi: %s", e)
-        return {"error": "⚠️ AI xizmatida vaqtinchalik uzilish. Qaytadan urinib ko'ring."}
+        return {"error": localize_ai_error(
+            "⚠️ AI xizmatida vaqtinchalik uzilish. Qaytadan urinib ko'ring.", code
+        )}
 
     if not isinstance(result, dict) or "error" in result:
-        return result if isinstance(result, dict) else {"error": "⚠️ AI javob bermadi."}
+        return result if isinstance(result, dict) else {
+            "error": localize_ai_error("⚠️ AI javob bermadi.", code)
+        }
 
     tone = _normalize_voice_tone(result.get("tone"))
     reason = (result.get("reason") or "").strip()
@@ -1741,11 +2499,15 @@ async def analyze_channel_voice(recent_posts: list, lang: str = "uz") -> dict:
                     break
 
     if not tone:
-        return {"error": "⚠️ AI kanal uslubini aniqlay olmadi. Qaytadan urinib ko'ring."}
+        return {"error": localize_ai_error(
+            "⚠️ AI kanal uslubini aniqlay olmadi. Qaytadan urinib ko'ring.", code
+        )}
 
     return {
         "tone": tone,
-        "reason": (reason or "").strip() or "Kanal uslubi AI orqali aniqlandi.",
+        "reason": (reason or "").strip() or _VOICE_FALLBACK_REASON.get(
+            code, _VOICE_FALLBACK_REASON["uz"]
+        ),
     }
 
 
@@ -1774,7 +2536,65 @@ _CONTENT_PLAN_SYSTEM = (
 )
 
 
-async def generate_content_plan(topic: str, channel_title: str, tone: str = "friendly", recent_posts: list = None) -> dict:
+#: Kontent-reja (7 kunlik) tizim prompti — 3 tilda, to'liq va aralashuvsiz.
+_CONTENT_PLAN_SYSTEMS = {
+    "uz": _CONTENT_PLAN_SYSTEM,
+    "ru": (
+        "Вы — профессиональный специалист по SMM и контент-стратегии. "
+        "Составьте 7-дневный контент-план для Telegram-канала.\n\n"
+        "ПРАВИЛА:\n"
+        "- Все ответы должны быть СТРОГО НА РУССКОМ ЯЗЫКЕ.\n"
+        "- Для каждого дня: название дня, формат (Совет/Кейс/Вопрос-Ответ/Акция/Новость), "
+        "короткий заголовок и описание идеи.\n"
+        "- Упорядочьте дни с понедельника по воскресенье.\n"
+        "- Чередуйте форматы (пусть они не повторяются).\n"
+        "- Каждая идея должна быть практичной и интересной.\n\n"
+        "Верните ответ ТОЛЬКО в следующем формате JSON:\n"
+        "{\n"
+        '  "plan": [\n'
+        '    {"day": "Понедельник", "format": "Совет", "title": "заголовок", "idea": "описание идеи"},\n'
+        '    {"day": "Вторник", "format": "Кейс/Факт", "title": "заголовок", "idea": "описание идеи"},\n'
+        "    ... 7 дней\n"
+        "  ]\n"
+        "}"
+    ),
+    "en": (
+        "You are a professional SMM and content-strategy specialist. "
+        "Build a 7-day content plan for a Telegram channel.\n\n"
+        "RULES:\n"
+        "- All answers MUST be STRICTLY IN ENGLISH.\n"
+        "- For each day: day name, format (Tip/Case/Q&A/Promo/News), "
+        "a short headline and an idea description.\n"
+        "- Order the days from Monday to Sunday.\n"
+        "- Vary the formats (do not repeat the same one).\n"
+        "- Every idea must be practical and interesting.\n\n"
+        "Return the answer ONLY in the following JSON format:\n"
+        "{\n"
+        '  "plan": [\n'
+        '    {"day": "Monday", "format": "Tip", "title": "headline", "idea": "idea description"},\n'
+        '    {"day": "Tuesday", "format": "Case/Fact", "title": "headline", "idea": "idea description"},\n'
+        "    ... 7 days\n"
+        "  ]\n"
+        "}"
+    ),
+}
+
+
+def _content_plan_system(lang: str = "uz") -> str:
+    """Kontent-reja tizim promptini foydalanuvchi tilida qaytaradi."""
+    return _CONTENT_PLAN_SYSTEMS.get(normalize_ai_lang(lang)) or _CONTENT_PLAN_SYSTEM
+
+
+#: Kontent-reja so'rovining yakuniy ko'rsatmasi — 3 tilda.
+_PLAN_FINAL_INSTRUCTION = {
+    "uz": "7 kunlik kontent-reja tuzing.",
+    "ru": "Составьте 7-дневный контент-план.",
+    "en": "Build a 7-day content plan.",
+}
+
+
+async def generate_content_plan(topic: str, channel_title: str, tone: str = "friendly",
+                                recent_posts: list = None, lang: str = "uz") -> dict:
     """7 kunlik kontent-reja generatsiya qiladi.
 
     Args:
@@ -1782,14 +2602,18 @@ async def generate_content_plan(topic: str, channel_title: str, tone: str = "fri
         channel_title: kanal nomi
         tone: kanal uslubi
         recent_posts: kanalning oxirgi postlari tarixi (kontekst uchun)
+        lang: foydalanuvchi tili ('uz' | 'ru' | 'en') — reja FAQAT shu tilda
 
     Returns:
         {"plan": [...]} yoki {"error": "..."}
     """
+    code = normalize_ai_lang(lang)
     if not topic or not topic.strip():
-        return {"error": "⚠️ Mavzu kiritilmadi."}
+        return {"error": localize_ai_error("⚠️ Mavzu kiritilmadi.", code)}
 
-    system_instruction = _inject_tone(_CONTENT_PLAN_SYSTEM, tone)
+    system_instruction = with_language(
+        _inject_tone(_content_plan_system(code), tone, lang=code), code
+    )
     prompt = (
         f"Kanal nomi: {channel_title}\n"
         f"Mavzu: {topic}\n"
@@ -1798,20 +2622,24 @@ async def generate_content_plan(topic: str, channel_title: str, tone: str = "fri
         posts_context = "\n".join(f"- {p[:150]}" for p in recent_posts[:3] if p)
         if posts_context:
             prompt += f"\nKanalning so'nggi postlari (kontekst va uslub uchun):\n{posts_context}\n"
-    prompt += "\n7 kunlik kontent-reja tuzing."
+    prompt += f"\n{_PLAN_FINAL_INSTRUCTION.get(code, _PLAN_FINAL_INSTRUCTION['uz'])}"
 
     try:
-        result = await _run_ai_chain(prompt, system_instruction)
+        result = await _call_chain(prompt, system_instruction, lang=code)
     except Exception as e:
         logger.warning("Content plan AI xatosi: %s", e)
-        return {"error": f"⚠️ AI xizmatida vaqtinchalik uzilish.\n\n{e}"}
+        return {"error": localize_ai_error(
+            f"⚠️ AI xizmatida vaqtinchalik uzilish.\n\n{e}", code
+        )}
 
     if "error" in result:
         return result
 
     plan = result.get("plan", [])
     if not plan or not isinstance(plan, list):
-        return {"error": "⚠️ AI reja tuza olmadi. Qaytadan urinib ko'ring."}
+        return {"error": localize_ai_error(
+            "⚠️ AI reja tuza olmadi. Qaytadan urinib ko'ring.", code
+        )}
 
     return {"plan": plan}
 
@@ -1830,7 +2658,45 @@ _POST_FROM_PLAN_SYSTEM = (
 )
 
 
-async def generate_post_from_plan(topic: str, title: str, idea: str, tone: str = "friendly") -> dict:
+#: Rejadagi g'oyadan post yozish tizim prompti — 3 tilda.
+_POST_FROM_PLAN_SYSTEMS = {
+    "uz": _POST_FROM_PLAN_SYSTEM,
+    "ru": (
+        "Вы — профессиональный редактор постов Telegram. На основе данной идеи вы "
+        "напишете полный, готовый текст поста.\n\n"
+        "ПРАВИЛА:\n"
+        "- Пишите на русском языке, живо и привлекательно.\n"
+        "- HTML-форматирование Telegram: <b>жирный</b>, <i>курсив</i>.\n"
+        "- Используйте эмодзи умеренно.\n"
+        "- Минимум 3-5 строк, содержание полное.\n"
+        "- Добавьте CTA (призыв к действию).\n\n"
+        "Верните ответ ТОЛЬКО в следующем формате JSON:\n"
+        '{"post_text": "готовый текст поста"}'
+    ),
+    "en": (
+        "You are a professional Telegram post editor. Based on the given idea you "
+        "will write a complete, ready-to-publish post text.\n\n"
+        "RULES:\n"
+        "- Write in English, lively and catchy.\n"
+        "- Telegram HTML formatting: <b>bold</b>, <i>italic</i>.\n"
+        "- Use emojis sensibly.\n"
+        "- At least 3-5 lines, complete in meaning.\n"
+        "- Add a CTA (call to action).\n\n"
+        "Return the answer ONLY in the following JSON format:\n"
+        '{"post_text": "the ready post text"}'
+    ),
+}
+
+#: G'oyadan post yozish bo'yicha yakuniy ko'rsatma — 3 tilda.
+_POST_FROM_PLAN_FINAL = {
+    "uz": "Shu g'oya asosida to'liq Telegram post yozing.",
+    "ru": "На основе этой идеи напишите полный пост для Telegram.",
+    "en": "Based on this idea, write a complete Telegram post.",
+}
+
+
+async def generate_post_from_plan(topic: str, title: str, idea: str, tone: str = "friendly",
+                                  lang: str = "uz") -> dict:
     """Kontent-reja g'oyasidan to'liq post yaratadi.
 
     Args:
@@ -1838,23 +2704,28 @@ async def generate_post_from_plan(topic: str, title: str, idea: str, tone: str =
         title: post sarlavhasi
         idea: g'oya tavsifi
         tone: kanal uslubi
+        lang: foydalanuvchi tili ('uz' | 'ru' | 'en')
 
     Returns:
         {"post_text": "..."} yoki {"error": "..."}
     """
-    system_instruction = _inject_tone(_POST_FROM_PLAN_SYSTEM, tone)
+    code = normalize_ai_lang(lang)
+    base = _POST_FROM_PLAN_SYSTEMS.get(code) or _POST_FROM_PLAN_SYSTEM
+    system_instruction = with_language(_inject_tone(base, tone, lang=code), code)
     prompt = (
         f"Umumiy mavzu: {topic}\n"
         f"Post sarlavhasi: {title}\n"
         f"G'oya: {idea}\n\n"
-        f"Shu g'oya asosida to'liq Telegram post yozing."
+        f"{_POST_FROM_PLAN_FINAL.get(code, _POST_FROM_PLAN_FINAL['uz'])}"
     )
 
     try:
-        result = await _run_ai_chain(prompt, system_instruction)
+        result = await _call_chain(prompt, system_instruction, lang=code)
     except Exception as e:
         logger.warning("Post from plan AI xatosi: %s", e)
-        return {"error": f"⚠️ AI xizmatida vaqtinchalik uzilish.\n\n{e}"}
+        return {"error": localize_ai_error(
+            f"⚠️ AI xizmatida vaqtinchalik uzilish.\n\n{e}", code
+        )}
 
     if "error" in result:
         return result
@@ -1872,7 +2743,7 @@ async def generate_post_from_plan(topic: str, title: str, idea: str, tone: str =
                 break
 
     if not post_text:
-        return {"error": "⚠️ AI post matni tayyorlay olmadi."}
+        return {"error": localize_ai_error("⚠️ AI post matni tayyorlay olmadi.", code)}
 
     return {"post_text": post_text.strip()}
 
@@ -1896,11 +2767,51 @@ _REWRITE_SYSTEM = (
 )
 
 
+#: Re-write tizim prompti — 3 tilda.
+_REWRITE_SYSTEMS = {
+    "uz": _REWRITE_SYSTEM,
+    "ru": (
+        "Вы — профессиональный редактор постов Telegram. Вы переписываете "
+        "данный текст новости (re-write). СТРОГИЕ ПРАВИЛА:\n"
+        "1. НЕ ДОБАВЛЯЙТЕ новых вымышленных фактов — опирайтесь только на исходный текст.\n"
+        "2. Не изменяйте факты, сохраните их полностью, без сокращений.\n"
+        "3. Пишите на русском языке, живо и привлекательно.\n"
+        "4. HTML-форматирование Telegram: <b>жирный</b>, <i>курсив</i>.\n"
+        "5. Используйте эмодзи умеренно.\n"
+        "6. В конец поста добавьте ссылку на ИСТОЧНИК (её даст пользователь).\n"
+        "7. Пост должен быть минимум 3-5 строк.\n\n"
+        "Верните ответ ТОЛЬКО в следующем формате JSON:\n"
+        '{"post_text": "полностью переписанный текст поста"}'
+    ),
+    "en": (
+        "You are a professional Telegram post editor. You rewrite (re-write) the "
+        "given news text. STRICT RULES:\n"
+        "1. DO NOT ADD any new made-up facts — rely only on the source text.\n"
+        "2. Do not change the facts; keep them complete, without shortening.\n"
+        "3. Write in English, lively and catchy.\n"
+        "4. Telegram HTML formatting: <b>bold</b>, <i>italic</i>.\n"
+        "5. Use emojis sensibly.\n"
+        "6. Add the SOURCE link at the end of the post (provided by the user).\n"
+        "7. The post must be at least 3-5 lines long.\n\n"
+        "Return the answer ONLY in the following JSON format:\n"
+        '{"post_text": "the fully rewritten post text"}'
+    ),
+}
+
+#: Re-write yakuniy ko'rsatmasi — 3 tilda.
+_REWRITE_FINAL = {
+    "uz": "Matnni qayta yozing.",
+    "ru": "Перепишите текст.",
+    "en": "Rewrite the text.",
+}
+
+
 async def rewrite_channel_post(
     original_text: str,
     channel_username: str,
     post_link: str = "",
     tone: str = "friendly",
+    lang: str = "uz",
 ) -> dict:
     """Ochiq kanal postini AI orqali qayta yozadi.
 
@@ -1909,14 +2820,17 @@ async def rewrite_channel_post(
         channel_username: kanal niki (manba uchun)
         post_link: asl post havolasi
         tone: kanal uslubi
+        lang: foydalanuvchi tili ('uz' | 'ru' | 'en')
 
     Returns:
         {"post_text": "..."} yoki {"error": "..."}
     """
+    code = normalize_ai_lang(lang)
     if not original_text or not original_text.strip():
-        return {"error": "⚠️ Post matni bo'sh."}
+        return {"error": localize_ai_error("⚠️ Post matni bo'sh.", code)}
 
-    system_instruction = _inject_tone(_REWRITE_SYSTEM, tone)
+    base = _REWRITE_SYSTEMS.get(code) or _REWRITE_SYSTEM
+    system_instruction = with_language(_inject_tone(base, tone, lang=code), code)
 
     source_line = f"📌 Manba: @{channel_username}"
     if post_link:
@@ -1927,14 +2841,16 @@ async def rewrite_channel_post(
         f"Manba: @{channel_username}\n"
         f"Post havolasi: {post_link}\n\n"
         f"Post oxiriga quyidagi manba qatorini QO'SHING:\n{source_line}\n\n"
-        f"Matnni qayta yozing."
+        f"{_REWRITE_FINAL.get(code, _REWRITE_FINAL['uz'])}"
     )
 
     try:
-        result = await _run_ai_chain(prompt, system_instruction)
+        result = await _call_chain(prompt, system_instruction, lang=code)
     except Exception as e:
         logger.warning("Rewrite AI xatosi: %s", e)
-        return {"error": f"⚠️ AI xizmatida vaqtinchalik uzilish.\n\n{e}"}
+        return {"error": localize_ai_error(
+            f"⚠️ AI xizmatida vaqtinchalik uzilish.\n\n{e}", code
+        )}
 
     if "error" in result:
         return result
@@ -1952,7 +2868,7 @@ async def rewrite_channel_post(
                 break
 
     if not post_text:
-        return {"error": "⚠️ AI post matni tayyorlay olmadi."}
+        return {"error": localize_ai_error("⚠️ AI post matni tayyorlay olmadi.", code)}
 
     # Manba qatorini tekshirish — agar AI qo'shmagan bo'lsa, biz qo'shamiz
     if f"@{channel_username}" not in post_text:
@@ -2112,6 +3028,109 @@ _VISION_REWRITE_SYSTEM = (
     "Javobni FAQAT quyidagi JSON formatida qaytaring:\n"
     '{"post_text": "qayta yozilgan to\'liq post"}'
 )
+
+#: Vision (rasm → post) tizim promptlari — 3 tilda.
+_VISION_SYSTEMS = {
+    "uz": _VISION_SYSTEM,
+    "ru": (
+        "Вы — профессиональный SMM-специалист и автор контента для Telegram-каналов. "
+        "Вы ПРОВЕДЁТЕ ГЛУБОКИЙ анализ присланного изображения и на его основе "
+        "напишете ПОЛНОСТЬЮ ГОТОВЫЙ пост для Telegram-канала (анализируется только "
+        "изображение — видео не анализируется).\n\n"
+        "СТРОГИЕ ТРЕБОВАНИЯ:\n"
+        "- Весь текст должен быть НА РУССКОМ ЯЗЫКЕ (без примеси узбекского/английского).\n"
+        "- 1-Я СТРОКА — ЗАГОЛОВОК: цепляющий, короткий, выделенный жирным <b>...</b>.\n"
+        "- Глубоко проанализируйте содержание: что изображено, для кого, какие эмоции "
+        "или действие это вызывает.\n"
+        "- ПРИВЛЕКАТЕЛЬНЫЙ ТЕКСТ: минимум 3-6 строк, короткими пунктами (•), простым "
+        "и выразительным стилем.\n"
+        "- ЭМОДЗИ: используйте уместные эмодзи умеренно (3-6 штук, не в каждом предложении).\n"
+        "- В конце добавьте чёткий призыв к действию (CTA), например: '👉 ...'.\n"
+        "- В самом конце ОТДЕЛЬНОЙ строкой 3-5 подходящих ХЭШТЕГОВ (#...).\n"
+        "- HTML Telegram: разрешены только <b> и <i> — других тегов НЕТ.\n"
+        "- НЕ ДОБАВЛЯЙТЕ вымышленных фактов: опирайтесь только на то, что видно на "
+        "изображении, или на обоснованные выводы.\n"
+        "- НЕ ПИШИТЕ пояснений — ответ должен быть готовым постом для публикации.\n\n"
+        "Верните ответ ТОЛЬКО в следующем формате JSON:\n"
+        '{"post_text": "полностью готовый текст поста"}'
+    ),
+    "en": (
+        "You are a professional SMM specialist and content writer for Telegram "
+        "channels. You will DEEPLY analyze the image you are given and, based on it, "
+        "write a FULLY READY post for a Telegram channel (only the image is analyzed "
+        "— videos are not).\n\n"
+        "STRICT REQUIREMENTS:\n"
+        "- The whole text must be IN ENGLISH (no Uzbek/Russian mixed in).\n"
+        "- LINE 1 — HEADLINE: catchy, short, wrapped in bold <b>...</b>.\n"
+        "- Analyze the content deeply: what is shown, who it is for, which emotion "
+        "or action it triggers.\n"
+        "- CATCHY TEXT: at least 3-6 lines, in short bullet points (•), in a simple "
+        "and expressive style.\n"
+        "- EMOJIS: use fitting emojis sensibly (3-6 of them, not in every sentence).\n"
+        "- End with a clear call to action (CTA), for example: '👉 ...'.\n"
+        "- On the very last SEPARATE line, add 3-5 matching HASHTAGS (#...).\n"
+        "- Telegram HTML: only <b> and <i> are allowed — no other tags.\n"
+        "- DO NOT ADD made-up facts: rely only on what is visible in the image or on "
+        "well-founded conclusions.\n"
+        "- Write NO explanations — the answer must be a ready-to-publish post.\n\n"
+        "Return the answer ONLY in the following JSON format:\n"
+        '{"post_text": "the complete ready post text"}'
+    ),
+}
+
+_VISION_REWRITE_SYSTEMS = {
+    "uz": _VISION_REWRITE_SYSTEM,
+    "ru": (
+        "Вы — профессиональный SMM-специалист и редактор постов Telegram. Ещё раз "
+        "глубоко проанализируйте изображение и полностью перепишите предыдущий пост "
+        "В ДРУГОМ СТИЛЕ (с новым заголовком, новым CTA и новыми хэштегами).\n\n"
+        "СТРОГИЕ ТРЕБОВАНИЯ:\n"
+        "- НА РУССКОМ ЯЗЫКЕ, с заголовком <b>...</b>, пунктами (•) и уместными эмодзи.\n"
+        "- Сохраните факты, НЕ ДОБАВЛЯЙТЕ вымышленную информацию.\n"
+        "- В конце — призыв к действию (CTA) и 3-5 подходящих хэштегов.\n"
+        "- HTML Telegram: только <b> и <i>.\n\n"
+        "Верните ответ ТОЛЬКО в следующем формате JSON:\n"
+        '{"post_text": "полностью переписанный пост"}'
+    ),
+    "en": (
+        "You are a professional SMM specialist and Telegram post editor. Analyze the "
+        "image deeply once more and completely rewrite the previous post IN A "
+        "DIFFERENT STYLE (with a new headline, a new CTA and new hashtags).\n\n"
+        "STRICT REQUIREMENTS:\n"
+        "- IN ENGLISH, with a <b>...</b> headline, (•) bullet points and fitting emojis.\n"
+        "- Keep the facts, DO NOT ADD made-up information.\n"
+        "- End with a call to action (CTA) and 3-5 matching hashtags.\n"
+        "- Telegram HTML: only <b> and <i>.\n\n"
+        "Return the answer ONLY in the following JSON format:\n"
+        '{"post_text": "the fully rewritten post"}'
+    ),
+}
+
+#: Vision promptining tilga bog'liq yakuniy ko'rsatmalari.
+_VISION_PROMPT_I18N = {
+    "uz": {
+        "rewrite_intro": "Quyidagi rasm asosida tayyorlangan postni qayta yozing:",
+        "extra": "Qo'shimcha talab: {extra}",
+        "default": (
+            "Rasmni chuqur tahlil qiling va professional Telegram post tayyorlang."
+        ),
+    },
+    "ru": {
+        "rewrite_intro": "Перепишите пост, созданный на основе этого изображения:",
+        "extra": "Дополнительное требование: {extra}",
+        "default": (
+            "Проведите глубокий анализ изображения и подготовьте "
+            "профессиональный пост для Telegram."
+        ),
+    },
+    "en": {
+        "rewrite_intro": "Rewrite the post created from the image below:",
+        "extra": "Additional requirement: {extra}",
+        "default": (
+            "Analyze the image deeply and write a professional Telegram post."
+        ),
+    },
+}
 
 
 def detect_image_mime(path: str) -> str | None:
@@ -2449,6 +3468,7 @@ async def generate_vision_post(
     tone: str = None,
     rewrite_context: str = "",
     timeout: float = None,
+    lang: str = "uz",
 ) -> dict:
     """Rasmni Gemini vision bilan chuqur tahlil qilib professional post yozadi.
 
@@ -2458,54 +3478,72 @@ async def generate_vision_post(
         tone: kanal uslubi ("formal" | "friendly" | ...)
         rewrite_context: "Qayta yozish" rejimida oldingi post matni
         timeout: qat'iy vaqt chegarasi (default VISION_HARD_TIMEOUT=45s)
+        lang: foydalanuvchi tili ('uz' | 'ru' | 'en') — post FAQAT shu tilda
 
     Returns:
-        {"post_text": "..."} yoki {"error": "o'zbekcha tushunarli xabar"}
+        {"post_text": "..."} yoki {"error": "<foydalanuvchi tilidagi xabar>"}
     """
+    code = normalize_ai_lang(lang)
+    vi18n = _VISION_PROMPT_I18N.get(code) or _VISION_PROMPT_I18N["uz"]
     if not image_path or not os.path.exists(image_path):
-        return {"error": "⚠️ Rasm faylini topib bo'lmadi. Rasmni qaytadan yuboring."}
+        return {"error": localize_ai_error(
+            "⚠️ Rasm faylini topib bo'lmadi. Rasmni qaytadan yuboring.", code
+        )}
     try:
         size = os.path.getsize(image_path)
     except OSError:
-        return {"error": "⚠️ Rasm faylini o'qib bo'lmadi. Rasmni qaytadan yuboring."}
+        return {"error": localize_ai_error(
+            "⚠️ Rasm faylini o'qib bo'lmadi. Rasmni qaytadan yuboring.", code
+        )}
     if size > VISION_MAX_FILE_BYTES:
         mb = VISION_MAX_FILE_BYTES // (1024 * 1024)
         return {
-            "error": f"📦 Rasm hajmi {mb} MB dan oshib ketdi — kichikroq rasm yuboring."
+            "error": localize_ai_error(
+                f"📦 Rasm hajmi {mb} MB dan oshib ketdi — kichikroq rasm yuboring.",
+                code,
+            )
         }
 
     mime_type = detect_image_mime(image_path)
     if not mime_type:
         return {
-            "error": "🖼 Bu fayl rasm emas yoki formati qo'llab-quvvatlanmaydi. "
-            "JPG, PNG yoki WEBP yuboring."
+            "error": localize_ai_error(
+                "🖼 Bu fayl rasm emas yoki formati qo'llab-quvvatlanmaydi. "
+                "JPG, PNG yoki WEBP yuboring.",
+                code,
+            )
         }
 
     gemini_key = _clean_key(GEMINI_API_KEY)
     if not gemini_key:
         return {
-            "error": (
+            "error": localize_ai_error(
                 "🔑 Rasm tahlili uchun Gemini API kaliti kerak: <b>GEMINI_API_KEY</b> "
-                "o'rnatilmagan. Iltimos, keyinroq qayta urinib ko'ring."
+                "o'rnatilmagan. Iltimos, keyinroq qayta urinib ko'ring.",
+                code,
             )
         }
 
     if rewrite_context:
-        system_instruction = _inject_tone(_VISION_REWRITE_SYSTEM, tone or "friendly")
+        base = _VISION_REWRITE_SYSTEMS.get(code) or _VISION_REWRITE_SYSTEM
+        system_instruction = _inject_tone(base, tone or "friendly", lang=code)
         prompt_parts = [
-            "Quyidagi rasm asosida tayyorlangan postni qayta yozing:",
+            vi18n["rewrite_intro"],
             rewrite_context,
         ]
         if extra_prompt:
-            prompt_parts.append(f"Qo'shimcha talab: {extra_prompt}")
+            prompt_parts.append(vi18n["extra"].format(extra=extra_prompt))
         prompt = "\n\n".join(prompt_parts)
     else:
-        system_instruction = _inject_tone(_VISION_SYSTEM, tone or "friendly")
+        base = _VISION_SYSTEMS.get(code) or _VISION_SYSTEM
+        system_instruction = _inject_tone(base, tone or "friendly", lang=code)
         prompt = (
-            f"Qo'shimcha ko'rsatma: {extra_prompt}"
+            vi18n["extra"].format(extra=extra_prompt)
             if extra_prompt
-            else "Rasmni chuqur tahlil qiling va professional Telegram post tayyorlang."
+            else vi18n["default"]
         )
+    # QAT'IY til qoidasi — promptning eng tepasida (idempotent).
+    system_instruction = with_language(system_instruction, code)
 
     try:
         image_b64 = _encode_image_base64(image_path)
@@ -2518,18 +3556,22 @@ async def generate_vision_post(
     except asyncio.TimeoutError:
         logger.warning("Vision javobi %.0fs ichida kelmadi (hard timeout)", VISION_HARD_TIMEOUT)
         return {
-            "error": (
+            "error": localize_ai_error(
                 "⏳ <b>AI rasmni tahlil qilishga ulgurmadi.</b>\n\n"
                 "Server hozir band ko'rinadi. Iltimos, bir daqiqadan so'ng "
-                "qayta urinib ko'ring yoki kichikroq rasm yuboring. 🙏"
+                "qayta urinib ko'ring yoki kichikroq rasm yuboring. 🙏",
+                code,
             ),
             "timeout": True,
         }
     except VisionError as e:
-        return {"error": str(e)}
+        return {"error": localize_ai_error(str(e), code)}
     except Exception as e:
         logger.warning("Vision xatosi: %s", e)
         return {
-            "error": "⚠️ AI rasmni tahlil qila olmadi. "
-            "Iltimos, birozdan so'ng qayta urinib ko'ring."
+            "error": localize_ai_error(
+                "⚠️ AI rasmni tahlil qila olmadi. "
+                "Iltimos, birozdan so'ng qayta urinib ko'ring.",
+                code,
+            )
         }

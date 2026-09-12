@@ -15,4 +15,13 @@ from locales.translations import (  # noqa: F401
     has_key,
     missing_keys,
     translation_parity_report,
+    translation_format_report,
+    format_args,
+    # --- AI til qoidalari (UZ / RU / EN) — yagona manba ---
+    AI_LANGUAGE_RULES,
+    AI_LANGUAGE_GUARDS,
+    AI_LANGUAGE_NAMES,
+    AI_LANGUAGE_MARKER,
+    ai_language_rule,
+    build_ai_language_directive,
 )
