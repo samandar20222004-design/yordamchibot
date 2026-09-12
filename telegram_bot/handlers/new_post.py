@@ -2118,7 +2118,8 @@ async def ai_action_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
     from utils.ai_agent import format_post_text
     # AI javob kelgunicha chatda uzluksiz "typing..." ko'rsatamiz
     async with keep_typing(context.bot, query.message.chat_id):
-        result = await format_post_text(content, action)
+        # 🌐 AI formatlash foydalanuvchi tilida (uz/ru/en).
+        result = await format_post_text(content, action, lang=lang)
 
     if "error" in result:
         await query.message.reply_text(result["error"], parse_mode="HTML")
@@ -2206,7 +2207,7 @@ async def ai_result_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
         from utils.ai_agent import format_post_text
         # AI javob kelgunicha chatda uzluksiz "typing..." ko'rsatamiz
         async with keep_typing(context.bot, query.message.chat_id):
-            result = await format_post_text(content, last_action)
+            result = await format_post_text(content, last_action, lang=lang)
 
         if "error" in result:
             await query.message.reply_text(result["error"], parse_mode="HTML")

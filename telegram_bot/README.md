@@ -520,7 +520,7 @@ oshsa `BadRequest: BUTTON_DATA_INVALID` bilan butun klaviatura yiqiladi.
 - Butun repoda birorta ham "yalang'och" dinamik `callback_data=f"..."` qolmagan:
   hammasi `cb()` orqali o'tadi. Statik audit testi buni har run'da tekshiradi.
 
-### 2. UZ/RU i18n xavfsiz fallback
+### 2. UZ/RU/EN i18n xavfsiz fallback
 
 `get_text(key, lang)` **hech qachon `KeyError` bermaydi** — 3 bosqichli zanjir:
 
@@ -529,9 +529,58 @@ oshsa `BadRequest: BUTTON_DATA_INVALID` bilan butun klaviatura yiqiladi.
 Format placeholderlari yetishmasa ham (`{name}` berilmagan) xom matn
 qaytariladi, `.format()` xatosi foydalanuvchiga chiqmaydi.
 
+`safe_t(key, lang, **kwargs)` — xuddi shu zanjirning mustahkamlangan o'rami:
+kutilmagan istisnoda ham kalit nomi (yoki bo'sh satr) qaytadi, **handler hech
+qachon qulamaydi**. AI/formatlash oqimlari aynan shu funksiyadan foydalanadi.
+
 Parity nazorati: `translation_parity_report()` → `{"uz_only": [], "ru_only": [],
-"total": 552, "in_sync": True}`, `missing_keys(lang)`, `has_key(key, lang)`.
-Test suite UZ/RU kalitlari **to'liq mos** ekanini har run'da tasdiqlaydi.
+"en_missing": [], "total": 754, "in_sync": True, "en_in_sync": True,
+"all_in_sync": True}`; `translation_format_report()` — `{user_id}`, `{days}`,
+`{balance}`, `{plan}`, `{code}`, `{date}` kabi **format argumentlarining**
+uchala tilda 100% mosligini tekshiradi; `missing_keys(lang)`, `has_key(key, lang)`.
+
+### 2.1 AI 3 tilga 100% moslashishi (UZ / RU / EN)
+
+Til qoidalari **yagona manbada** — `locales/translations.py`:
+
+```python
+AI_LANGUAGE_RULES = {
+    "uz": "Barcha tahlil, post va tavsiyalarni FAQAT O'ZBEK TILIDA taqdim et.",
+    "ru": "Все ответы, посты и рекомендации пиши СТРОГО НА РУССКОМ ЯЗЫКЕ.",
+    "en": "Provide all analysis, posts, and recommendations STRICTLY IN ENGLISH.",
+}
+```
+
+- Har bir AI chaqiruvi (`generate_ai_response`, `analyze_user_prompt`,
+  `audit_post`, `generate_content_plan`, `extract_schedule_time`,
+  `format_post_text`, `generate_post_from_plan`, `rewrite_channel_post`,
+  `generate_vision_post`, `analyze_channel_voice`) `lang` qabul qiladi.
+- `ai_agent.with_language(prompt, lang)` tizim promptining **eng tepasiga**
+  qat'iy til blokini qo'yadi: **idempotent** (takrorlanmaydi), til almashganda
+  eski blok o'chiriladi, `lang != uz` bo'lsa eski "faqat o'zbekcha yoz"
+  ko'rsatmalari tozalanadi — **tizim promptida tillar aralashib qolmaydi**.
+- Router / kontent-reja / vision / rewrite / format promptlari **to'liq**
+  uchala tilda yozilgan (tarjima qilingan, aralash emas).
+- `services/ai_service.py` (`run_ai_chain(..., lang=...)` →
+  `AIFallbackService.generate(..., lang=...)` → `enforce_system_language()`)
+  — orkestrator darajasidagi **yakuniy himoya qatlami**; xato/timeout xabarlari
+  ham foydalanuvchi tilida (`ai_timeout_message(lang)`).
+- Til ustuvorligi `ai_agent.resolve_ai_lang(preferred, text)`: foydalanuvchi
+  **tanlagan** til doim ustun, tanlov bo'lmasa murojaat matni bo'yicha
+  aniqlanadi.
+
+### 2.2 Til o'zgarganda klaviatura darhol yangilanishi
+
+Kabinet → «🌐 Til» → `uz | ru | en` bosilishi bilan:
+
+1. til Neon DB (`set_user_language`) va keshga (`user_data['lang']`) yoziladi;
+2. **inline menyu** shu xabarning o'zida yangi tilda qayta chiziladi;
+3. **pastki doimiy ReplyKeyboard** alohida xabar bilan darhol yangi tilda
+   yuboriladi (UZ: `➕ Yangi post`, RU: `➕ Новый пост`, EN: `➕ New post`).
+
+Yordamchilar: `handlers/start.switch_user_language()`,
+`handlers/start.send_language_reply_keyboard()`,
+`keyboards/default.get_refreshed_main_keyboard()`.
 
 ### 3. Scheduler va vaqt zonasi (Asia/Tashkent, UTC+5)
 
@@ -638,8 +687,11 @@ bash tests/run_tests.sh
 | `load_test.py` (real PostgreSQL, `pip install pgserver`) | 147 |
 | `stress_concurrency_test.py` (9-bosqich: graceful shutdown, cleanup worker, high-concurrency; live qismi pgserver bilan) | 149 |
 | `final_acceptance_test.py` (10-bosqich: yakuniy acceptance smoke — 10 bosqich kontraktlari + Docker/CI/Sentry; static + live) | 134 |
+| `i18n_ai_parity_test.py` (UZ/RU/EN lug'at pariteti, AI tizim promptlarining tilga moslashuvi, til o'zgarganda klaviatura yangilanishi) | 243 |
+| `account_settings_i18n_test.py` (Kabinet & Sozlamalar — 3 til) | 352 |
+| `new_post_i18n_test.py` + `ai_studio_plan_i18n_test.py` | 84 |
 
-`bash tests/run_tests.sh` to'liq to'plami (pgserver bilan): **4522 ta test, 0 xato**.
+`bash tests/run_tests.sh` to'liq to'plami (pgserver bilan): **5000+ ta test, 0 xato**.
 
 ## Bot "doim ishlashi" uchun
 

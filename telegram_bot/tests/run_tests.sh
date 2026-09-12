@@ -43,6 +43,21 @@ echo "=============== PREMIUM / EN i18n TEST ==============="
 "$PY" tests/premium_i18n_en_test.py || exit 1
 
 echo
+echo "========= 3 TILLIK (UZ/RU/EN) + AI TIL PARITETI ========="
+# Yangi: lug'atlar pariteti, AI tizim promptlarining tilga moslashuvi va
+# til o'zgarganda pastki klaviatura yangilanishi (tests/i18n_ai_parity_test.py).
+"$PY" tests/i18n_ai_parity_test.py || exit 1
+
+echo
+echo "=========== ACCOUNT & SETTINGS i18n TEST ============"
+"$PY" tests/account_settings_i18n_test.py || exit 1
+
+echo
+echo "=============== NEW POST / AI STUDIO i18n TEST ==============="
+"$PY" tests/new_post_i18n_test.py || exit 1
+"$PY" tests/ai_studio_plan_i18n_test.py || exit 1
+
+echo
 echo "==================== SCHEMA TEST ===================="
 "$PY" tests/schema_test.py || exit 1
 

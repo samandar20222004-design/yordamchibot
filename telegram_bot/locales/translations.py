@@ -5,6 +5,7 @@ Foydalanish:
 """
 
 import re
+import string
 
 DEFAULT_LANG = "uz"
 SUPPORTED_LANGS = ("uz", "ru", "en")
@@ -3739,27 +3740,184 @@ def missing_keys(lang: str, reference: str = DEFAULT_LANG) -> list:
 
 
 def translation_parity_report() -> dict:
-    """UZ va RU bo'limlari orasidagi to'liq paritet hisoboti.
+    """UZ / RU / EN bo'limlari orasidagi TO'LIQ paritet hisoboti.
 
     Qaytaradi::
 
         {
-            "uz_only": [...],   # faqat UZ'da bor kalitlar
-            "ru_only": [...],   # faqat RU'da bor kalitlar
-            "total": 552,       # umumiy noyob kalitlar soni
-            "in_sync": True,    # to'liq paritet bormi
+            "uz_only": [...],        # faqat UZ'da bor kalitlar
+            "ru_only": [...],        # faqat RU'da bor kalitlar
+            "en_only": [...],        # faqat EN'da bor kalitlar
+            "en_missing": [...],     # UZ'da bor, lekin EN_OVERLAY'da YO'Q kalitlar
+            "total": 754,            # umumiy noyob kalitlar soni
+            "in_sync": True,         # UZ ↔ RU to'liq paritet bormi
+            "en_in_sync": True,      # EN ham UZ bilan to'liq qoplanganmi
+            "all_in_sync": True,     # uchala til bir xil kalit to'plami
         }
+
+    Eslatma: EN lug'ati ``TRANSLATIONS["uz"]`` dan nusxalanib, ustiga
+    ``EN_OVERLAY`` qo'yilgani uchun kalitlar soni har doim teng chiqadi —
+    lekin overlay'da YO'Q kalit jimgina o'zbekcha matn qaytaradi. Shu
+    sababli ``en_missing`` (overlay qamrovi) ham hisobotga qo'shildi.
     """
     uz_keys = set(TRANSLATIONS.get("uz") or {})
     ru_keys = set(TRANSLATIONS.get("ru") or {})
+    en_keys = set(TRANSLATIONS.get("en") or {})
     uz_only = sorted(uz_keys - ru_keys)
     ru_only = sorted(ru_keys - uz_keys)
+    en_only = sorted(en_keys - uz_keys - ru_keys)
+    try:
+        overlay_keys = set(EN_OVERLAY or {})
+    except Exception:  # pragma: no cover - himoya
+        overlay_keys = set()
+    # UZ'da bor, lekin EN overlay'da YO'Q kalitlar — ular EN'da o'zbekcha
+    # chiqadi (jimgina buzilish). Bo'sh bo'lishi SHART.
+    en_missing = sorted((uz_keys | ru_keys) - overlay_keys)
     return {
         "uz_only": uz_only,
         "ru_only": ru_only,
-        "total": len(uz_keys | ru_keys),
+        "en_only": en_only,
+        "en_missing": en_missing,
+        "total": len(uz_keys | ru_keys | en_keys),
         "in_sync": not uz_only and not ru_only,
+        "en_in_sync": not en_missing and not en_only,
+        "all_in_sync": not uz_only and not ru_only and not en_missing and not en_only,
     }
+
+
+def format_args(value) -> set:
+    """Matndagi ``{name}`` ko'rsatkichlari to'plami (xavfsiz, hech qachon yiqilmaydi).
+
+    Faqat NOMI qaytariladi — format spetsifikatsiyasi (``{n:,}``),
+    konversiya (``{n!r}``) va atribut/indeks (``{user.name}``) dan tozalanadi,
+    chunki paritet tekshiruvi uchun faqat argument nomlari ahamiyatli.
+    """
+    try:
+        text = value if isinstance(value, str) else str(value)
+    except Exception:  # pragma: no cover - himoya
+        return set()
+    names = set()
+    try:
+        for _literal, field, _spec, _conv in string.Formatter().parse(text):
+            if not field:
+                continue
+            name = str(field)
+            # "{n:>5}" → "n", "{n!r}" → "n", "{user.name}" → "user"
+            name = name.split("!")[0].split(":")[0]
+            name = name.split(".")[0].split("[")[0]
+            if name:
+                names.add(name)
+    except (ValueError, AttributeError, TypeError, IndexError):
+        return set()
+    return names
+
+
+def translation_format_report(langs=SUPPORTED_LANGS, reference: str = DEFAULT_LANG) -> dict:
+    """Uchala tildagi format argumentlari ({user_id}, {days}, {balance}, ...) pariteti.
+
+    Qaytaradi::
+
+        {
+            "mismatch": [{"key": "credits_value",
+                          "args": {"uz": {"n"}, "ru": {"n"}, "en": {"n"}}}],
+            "keys": 754,          # tekshirilgan kalitlar soni
+            "in_sync": True,      # barcha kalitlarda argumentlar bir xil
+            "empty": [...],       # bo'sh/None qiymatli kalitlar
+        }
+
+    Argumentlar mos kelmasa ``get_text`` formatlashdan qochib boshqa til
+    variantiga o'tadi — ya'ni foydalanuvchi noto'g'ri tildagi matn ko'radi.
+    Shu sababli bu hisobot ``100%`` bo'lishi kerak.
+    """
+    tables = {code: (TRANSLATIONS.get(code) or {}) for code in langs}
+    ref_table = tables.get(reference) or {}
+    mismatch = []
+    empty = []
+    for key in sorted(ref_table):
+        per_lang = {code: format_args(table.get(key)) for code, table in tables.items()}
+        values = {code: (table.get(key) if isinstance(table.get(key), str) else "")
+                  for code, table in tables.items()}
+        if any(not str(v).strip() for v in values.values()):
+            empty.append(key)
+        unique = {frozenset(args) for args in per_lang.values()}
+        if len(unique) > 1:
+            mismatch.append({"key": key, "args": {c: sorted(a) for c, a in per_lang.items()}})
+    return {
+        "mismatch": mismatch,
+        "keys": len(ref_table),
+        "in_sync": not mismatch,
+        "empty": empty,
+    }
+
+
+# ---------------------------------------------------------------------------
+# AI TIL QOIDALARI (UZ / RU / EN) — YAGONA MANBA (single source of truth)
+# ---------------------------------------------------------------------------
+# AI har bir foydalanuvchiga FAQAT uning tilida javob qaytarishi shart.
+# Qoidalar shu yerda (i18n qatlami) saqlanadi; ``utils/ai_agent.py`` va
+# ``services/ai_service.py`` aynan shu lug'atni ishlatadi — natijada prompt
+# matni va testlar hech qachon bir-biridan chetga chiqmaydi.
+AI_LANGUAGE_RULES = {
+    "uz": "Barcha tahlil, post va tavsiyalarni FAQAT O'ZBEK TILIDA taqdim et.",
+    "ru": "Все ответы, посты и рекомендации пиши СТРОГО НА РУССКОМ ЯЗЫКЕ.",
+    "en": "Provide all analysis, posts, and recommendations STRICTLY IN ENGLISH.",
+}
+
+#: Tilga xos "aralashtirma" ogohlantiruvi (prompt ichidagi qat'iy blok uchun).
+AI_LANGUAGE_GUARDS = {
+    "uz": (
+        "Hech qanday holatda ruscha, inglizcha yoki boshqa tilni aralashtirma. "
+        "Javob FAQAT o'zbek tilida, boshidan oxirigacha bir tilda bo'lsin "
+        "(texnik JSON kalitlari bundan mustasno)."
+    ),
+    "ru": (
+        "Ни в коем случае не смешивай языки: не добавляй узбекский или "
+        "английский текст. Ответ ТОЛЬКО на русском языке от начала до конца "
+        "(кроме технических ключей JSON)."
+    ),
+    "en": (
+        "Never mix in any other language — no Uzbek, no Russian. "
+        "The answer must be ONLY in English from the first word to the last "
+        "(technical JSON keys are the only exception)."
+    ),
+}
+
+#: Tizim promptidagi qat'iy til blokining sarlavhasi (til nomi bilan).
+AI_LANGUAGE_NAMES = {
+    "uz": "O'ZBEK TILI (UZ)",
+    "ru": "РУССКИЙ ЯЗЫК (RU)",
+    "en": "ENGLISH (EN)",
+}
+
+#: ``with_language()`` qo'llanilganligini bildiruvchi marker (idempotentlik uchun).
+AI_LANGUAGE_MARKER = "STRICT LANGUAGE RULE"
+
+
+def ai_language_rule(lang) -> str:
+    """Foydalanuvchi tili uchun qat'iy til qoidasi (uz/ru/en)."""
+    return AI_LANGUAGE_RULES.get(normalize_lang(lang), AI_LANGUAGE_RULES[DEFAULT_LANG])
+
+
+def build_ai_language_directive(lang) -> str:
+    """AI tizim promptining eng yuqorisiga qo'yiladigan qat'iy til bloki.
+
+    Misol (``lang='ru'``)::
+
+        ================= STRICT LANGUAGE RULE (РУССКИЙ ЯЗЫК (RU)) =================
+        Все ответы, посты и рекомендации пиши СТРОГО НА РУССКОМ ЯЗЫКЕ.
+        Ни в коем случае не смешивай языки: ...
+        ================= END OF LANGUAGE RULE =================
+    """
+    code = normalize_lang(lang)
+    rule = AI_LANGUAGE_RULES.get(code, AI_LANGUAGE_RULES[DEFAULT_LANG])
+    guard = AI_LANGUAGE_GUARDS.get(code, AI_LANGUAGE_GUARDS[DEFAULT_LANG])
+    name = AI_LANGUAGE_NAMES.get(code, AI_LANGUAGE_NAMES[DEFAULT_LANG])
+    return (
+        f"================= {AI_LANGUAGE_MARKER} ({name}) =================\n"
+        f"{rule}\n"
+        f"{guard}\n"
+        f"================= END OF LANGUAGE RULE ================="
+    )
 
 
 def has_key(key, lang: str = None) -> bool:

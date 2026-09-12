@@ -11,7 +11,7 @@ from keyboards.default import (
 )
 from keyboards.callback_data import CB_CHANNEL_VOICE
 from keyboards.inline import render_channels_list
-from locales.translations import get_lang, get_text, normalize_lang
+from locales.translations import get_lang, safe_t, normalize_lang
 from utils.helpers import html_escape
 from utils.fsm_state import active_conversation_state
 from utils.ai_agent import analyze_channel_voice
@@ -72,7 +72,7 @@ def _retry_verify_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
     """
     return InlineKeyboardMarkup([[
         InlineKeyboardButton(
-            get_text("ch_retry_btn", lang),
+            safe_t("ch_retry_btn", lang),
             callback_data="add_channel_retry",
         ),
     ]])
@@ -93,21 +93,21 @@ PRO_UPGRADE_KEYBOARD = InlineKeyboardMarkup([
 
 def _channel_limit_text(lang: str, current: int, max_ch: int) -> str:
     """Kanal limiti xabari — foydalanuvchi tilida (uz/ru)."""
-    return get_text("ch_limit_msg", normalize_lang(lang), current=current, max=max_ch)
+    return safe_t("ch_limit_msg", normalize_lang(lang), current=current, max=max_ch)
 
 
 def _pro_upgrade_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
     """PRO tarifga o'tish inline tugmasi — foydalanuvchi tilida."""
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton(get_text("ch_pro_btn", lang), callback_data="sub_open")],
+        [InlineKeyboardButton(safe_t("ch_pro_btn", lang), callback_data="sub_open")],
     ])
 
 
 def _empty_channels_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
     """Kanal yo'q paytda ko'rsatiladigan tugmalar (qo'shish + yopish, uz/ru)."""
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton(get_text("ch_add_btn", lang), callback_data="add_channel_start")],
-        [InlineKeyboardButton(get_text("pend_close_btn", lang), callback_data="close_msg")],
+        [InlineKeyboardButton(safe_t("ch_add_btn", lang), callback_data="add_channel_start")],
+        [InlineKeyboardButton(safe_t("pend_close_btn", lang), callback_data="close_msg")],
     ])
 
 
@@ -118,14 +118,14 @@ async def channels_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if not channels:
         await update.message.reply_text(
-            get_text("ch_empty_title", lang),
+            safe_t("ch_empty_title", lang),
             reply_markup=_empty_channels_keyboard(lang),
             parse_mode="HTML"
         )
         return ConversationHandler.END
 
     await update.message.reply_text(
-        get_text("ch_list_title", lang, count=len(channels)),
+        safe_t("ch_list_title", lang, count=len(channels)),
         reply_markup=render_channels_list(channels, lang),
         parse_mode="HTML"
     )
@@ -136,7 +136,7 @@ async def _send_add_channel_instructions(bot, chat_id: int, lang: str = "uz"):
     bot_obj = await bot.get_me()
     await bot.send_message(
         chat_id=chat_id,
-        text=get_text("ch_add_instructions", lang, bot=bot_obj.username),
+        text=safe_t("ch_add_instructions", lang, bot=bot_obj.username),
         reply_markup=get_cancel_keyboard(lang),
         parse_mode="HTML",
     )
@@ -172,32 +172,32 @@ async def _verify_channel_permissions(bot, chat_id, user_id: int, is_admin_user:
         chat = await bot.get_chat(chat_id)
     except TelegramError as e:
         logger.warning("Kanal topilmadi (%s): %s", chat_id, e)
-        return False, get_text("ch_not_found", lang), None, None
+        return False, safe_t("ch_not_found", lang), None, None
 
     real_id = str(chat.id)
-    title = chat.title or get_text("ch_default_title", lang)
+    title = chat.title or safe_t("ch_default_title", lang)
 
     try:
         bot_member = await bot.get_chat_member(chat.id, bot.id)
     except TelegramError as e:
         logger.warning("Bot a'zoligini tekshirib bo'lmadi (%s): %s", real_id, e)
-        return False, get_text("ch_cannot_verify", lang), None, None
+        return False, safe_t("ch_cannot_verify", lang), None, None
 
     if bot_member.status not in ("administrator", "creator"):
-        return False, get_text("ch_not_admin", lang), None, None
+        return False, safe_t("ch_not_admin", lang), None, None
 
     if chat.type == "channel" and bot_member.status == "administrator":
         if not getattr(bot_member, "can_post_messages", False):
-            return False, get_text("ch_no_post_permission", lang), None, None
+            return False, safe_t("ch_no_post_permission", lang), None, None
 
     if not is_admin_user:
         try:
             user_member = await bot.get_chat_member(chat.id, user_id)
         except TelegramError as e:
             logger.warning("Foydalanuvchi huquqini tekshirib bo'lmadi (%s / %s): %s", real_id, user_id, e)
-            return False, get_text("ch_user_verify_fail", lang), None, None
+            return False, safe_t("ch_user_verify_fail", lang), None, None
         if user_member.status not in ("administrator", "creator"):
-            return False, get_text("ch_forbidden", lang), None, None
+            return False, safe_t("ch_forbidden", lang), None, None
 
     return True, "", real_id, title
 
@@ -251,7 +251,7 @@ async def channel_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 return ADD_CHANNEL
             if target is None:
                 await msg.reply_text(
-                    get_text("ch_unknown_target", lang),
+                    safe_t("ch_unknown_target", lang),
                     reply_markup=get_cancel_keyboard(lang),
                     parse_mode="HTML",
                 )
@@ -259,7 +259,7 @@ async def channel_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
             raw_target = target
         else:
             await msg.reply_text(
-                get_text("ch_empty_target_short", lang),
+                safe_t("ch_empty_target_short", lang),
                 reply_markup=get_cancel_keyboard(lang),
             )
             return ADD_CHANNEL
@@ -269,7 +269,7 @@ async def channel_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.exception("channel_received: kutilmagan xatolik — foydalanuvchi qayta urinishga yo'naltirilmoqda")
         try:
             await msg.reply_text(
-                get_text("ch_unexpected_error", lang),
+                safe_t("ch_unexpected_error", lang),
                 reply_markup=get_cancel_keyboard(lang),
                 parse_mode="HTML",
             )
@@ -318,7 +318,7 @@ async def _link_channel(update: Update, context: ContextTypes.DEFAULT_TYPE, raw_
         # tekshirish mumkin (xabarni qayta yuborish shart emas).
         context.user_data["add_channel_pending"] = raw_target
         await msg.reply_text(
-            get_text("ch_retry_after", lang, error=err),
+            safe_t("ch_retry_after", lang, error=err),
             reply_markup=_retry_verify_keyboard(lang),
             parse_mode="HTML",
         )
@@ -353,7 +353,7 @@ async def _link_channel(update: Update, context: ContextTypes.DEFAULT_TYPE, raw_
         # qolganday ko'rinardi). Endi ikkita alohida xabar yuboriladi:
         # 1) reply-klaviatura bilan tasdiq, 2) inline ro'yxat (agar bo'lsa).
         await msg.reply_text(
-            get_text("ch_success", lang, title=html_escape(channel_title),
+            safe_t("ch_success", lang, title=html_escape(channel_title),
                      channel_id=channel_id, count=len(channels or [])),
             reply_markup=get_main_keyboard(is_admin, lang=lang),
             parse_mode="HTML",
@@ -361,7 +361,7 @@ async def _link_channel(update: Update, context: ContextTypes.DEFAULT_TYPE, raw_
         if list_markup:
             try:
                 await msg.reply_text(
-                    get_text("ch_success_footer", lang),
+                    safe_t("ch_success_footer", lang),
                     reply_markup=list_markup,
                     parse_mode="HTML",
                 )
@@ -371,13 +371,13 @@ async def _link_channel(update: Update, context: ContextTypes.DEFAULT_TYPE, raw_
     elif reason == "taken":
         context.user_data.pop("add_channel_pending", None)
         await msg.reply_text(
-            get_text("ch_taken", lang),
+            safe_t("ch_taken", lang),
             reply_markup=get_main_keyboard(is_admin, lang=lang),
             parse_mode="HTML",
         )
     else:
         await msg.reply_text(
-            get_text("ch_save_error", lang),
+            safe_t("ch_save_error", lang),
             reply_markup=get_main_keyboard(is_admin, lang=lang),
         )
 
@@ -402,7 +402,7 @@ async def remove_channel_callback(update: Update, context: ContextTypes.DEFAULT_
     if not removed:
         try:
             await query.message.reply_text(
-                get_text("ch_remove_not_found", lang),
+                safe_t("ch_remove_not_found", lang),
                 parse_mode="HTML",
             )
         except Exception:
@@ -412,13 +412,13 @@ async def remove_channel_callback(update: Update, context: ContextTypes.DEFAULT_
     try:
         if channels:
             await query.edit_message_text(
-                get_text("ch_list_title", lang, count=len(channels)),
+                safe_t("ch_list_title", lang, count=len(channels)),
                 reply_markup=render_channels_list(channels, lang),
                 parse_mode="HTML",
             )
         else:
             await query.edit_message_text(
-                get_text("ch_all_removed", lang),
+                safe_t("ch_all_removed", lang),
                 reply_markup=_empty_channels_keyboard(lang),
                 parse_mode="HTML",
             )
@@ -458,7 +458,7 @@ async def on_bot_chat_member_update(update: Update, context: ContextTypes.DEFAUL
                 try:
                     await context.bot.send_message(
                         chat_id=user_id,
-                        text=get_text("ch_no_perm_dm", lang,
+                        text=safe_t("ch_no_perm_dm", lang,
                                       channel=html_escape(chat.title or "Kanal")),
                         parse_mode="HTML",
                     )
@@ -484,13 +484,13 @@ async def on_bot_chat_member_update(update: Update, context: ContextTypes.DEFAUL
                 return
         success, reason = await db.run_db(
             db.save_channel, user_id, str(chat.id),
-            chat.title or get_text("ch_default_title", lang), is_admin
+            chat.title or safe_t("ch_default_title", lang), is_admin
         )
         if success:
             try:
                 await context.bot.send_message(
                     chat_id=user_id,
-                    text=get_text("ch_autoconnect_success", lang,
+                    text=safe_t("ch_autoconnect_success", lang,
                                   channel=html_escape(chat.title or "Kanal"),
                                   channel_id=chat.id),
                     parse_mode="HTML",
@@ -524,7 +524,7 @@ async def tone_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
     current_label = labels.get(current_tone, labels["friendly"])
 
     await query.message.reply_text(
-        get_text("ch_tone_title", lang, current=current_label),
+        safe_t("ch_tone_title", lang, current=current_label),
         reply_markup=get_tone_keyboard(lang),
         parse_mode="HTML",
     )
@@ -544,11 +544,11 @@ async def tone_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE):
     label_to_tone.update({v: k for k, v in TONE_LABELS.items()})
     label_to_tone.update({v: k for k, v in TONE_LABELS_RU.items()})
 
-    if text in (get_text("btn_main_menu", "uz"), get_text("btn_main_menu", "ru"),
-                get_text("btn_back", "uz"), get_text("btn_back", "ru"),
+    if text in (safe_t("btn_main_menu", "uz"), safe_t("btn_main_menu", "ru"),
+                safe_t("btn_back", "uz"), safe_t("btn_back", "ru"),
                 BTN_BACK_RU):
         await update.message.reply_text(
-            get_text("ch_tone_cancelled", lang),
+            safe_t("ch_tone_cancelled", lang),
             reply_markup=get_main_keyboard(is_admin, lang=lang),
         )
         return ConversationHandler.END
@@ -556,7 +556,7 @@ async def tone_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE):
     tone = label_to_tone.get(text)
     if not tone:
         await update.message.reply_text(
-            get_text("ch_tone_invalid", lang),
+            safe_t("ch_tone_invalid", lang),
             reply_markup=get_tone_keyboard(lang),
         )
         return SET_TONE
@@ -564,13 +564,13 @@ async def tone_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE):
     success = await db.run_db(db.set_channel_tone, channel_id, tone)
     if success:
         await update.message.reply_text(
-            get_text("ch_tone_success", lang, tone=labels[tone]),
+            safe_t("ch_tone_success", lang, tone=labels[tone]),
             reply_markup=get_main_keyboard(is_admin, lang=lang),
             parse_mode="HTML",
         )
     else:
         await update.message.reply_text(
-            get_text("ch_tone_error", lang),
+            safe_t("ch_tone_error", lang),
             reply_markup=get_main_keyboard(is_admin, lang=lang),
         )
 
@@ -642,7 +642,7 @@ async def channel_voice_analysis_callback(update: Update, context: ContextTypes.
     if not owned:
         try:
             await query.message.reply_text(
-                get_text("ch_voice_error", lang),
+                safe_t("ch_voice_error", lang),
                 reply_markup=get_main_keyboard(is_admin, lang=lang),
                 parse_mode="HTML",
             )
@@ -653,7 +653,7 @@ async def channel_voice_analysis_callback(update: Update, context: ContextTypes.
     # 1) Tahlil jarayoni haqida xabar
     try:
         analyzing_msg = await query.message.reply_text(
-            get_text("ch_voice_analyzing", lang),
+            safe_t("ch_voice_analyzing", lang),
             parse_mode="HTML",
         )
     except Exception:
@@ -669,7 +669,7 @@ async def channel_voice_analysis_callback(update: Update, context: ContextTypes.
         result = await analyze_channel_voice(posts, lang)
     except Exception as e:
         logger.warning("Kanal ovozi tahlili chaqiruv xatosi (%s): %s", channel_id, e)
-        result = {"error": get_text("ch_voice_error", lang)}
+        result = {"error": safe_t("ch_voice_error", lang)}
 
     if analyzing_msg is not None:
         try:
@@ -679,7 +679,7 @@ async def channel_voice_analysis_callback(update: Update, context: ContextTypes.
 
     tone = (result or {}).get("tone")
     if not tone:
-        error_text = (result or {}).get("error") or get_text("ch_voice_error", lang)
+        error_text = (result or {}).get("error") or safe_t("ch_voice_error", lang)
         try:
             await query.message.reply_text(
                 f"{error_text}",
@@ -698,7 +698,7 @@ async def channel_voice_analysis_callback(update: Update, context: ContextTypes.
     reason = (result.get("reason") or "").strip()
     try:
         await query.message.reply_text(
-            get_text("ch_voice_result", lang, tone=html_escape(tone_label),
+            safe_t("ch_voice_result", lang, tone=html_escape(tone_label),
                      reason=html_escape(reason)),
             reply_markup=get_main_keyboard(is_admin, lang=lang),
             parse_mode="HTML",
@@ -713,7 +713,7 @@ async def channel_voice_analysis_callback(update: Update, context: ContextTypes.
             fresh = await db.run_db(db.get_user_channels_with_tone, user_id)
             if fresh:
                 await query.message.reply_text(
-                    get_text("ch_list_title", lang, count=len(fresh)),
+                    safe_t("ch_list_title", lang, count=len(fresh)),
                     reply_markup=render_channels_list(fresh, lang),
                     parse_mode="HTML",
                 )

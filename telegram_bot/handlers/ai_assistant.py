@@ -18,14 +18,14 @@ from keyboards.inline import (
 )
 from utils.ai_agent import (
     analyze_user_prompt, extract_schedule_time, clear_ai_context,
-    generate_ai_response, audit_post,
+    generate_ai_response, audit_post, pick_supported_kwargs,
     VisionError, download_telegram_media_to_temp, cleanup_temp_media,
     generate_vision_post,
     _AUDIT_PRO_SYSTEM, _AUDIT_FREE_SYSTEM,
     _PRO_POST_ENHANCEMENT, _FREE_POST_HINT,
 )
 from locales.translations import (
-    clear_fsm_data, get_lang, get_text, localize_service_error,
+    clear_fsm_data, get_lang, safe_t, localize_service_error,
 )
 from utils.helpers import (
     html_escape, safe_html, check_ai_rate_limit, check_ai_daily_limit, parse_future_time,
@@ -112,6 +112,46 @@ PHOTO_EDIT_SYSTEM = (
     '{"post_text": "tahrirlangan to\'liq post matni"}'
 )
 
+#: ✏️ Tahrirlash system instruction — 3 tilda (uz varianti orqaga moslik
+#: uchun ``PHOTO_EDIT_SYSTEM`` nomi bilan saqlanadi).
+PHOTO_EDIT_SYSTEMS = {
+    "uz": PHOTO_EDIT_SYSTEM,
+    "ru": (
+        "Вы — профессиональный редактор постов Telegram. Вы редактируете пост, "
+        "созданный на основе анализа изображения ИИ, в соответствии с запросом "
+        "пользователя.\n\n"
+        "ПРАВИЛА:\n"
+        "- Пишите на русском языке.\n"
+        "- Вносите ТОЛЬКО ЗАПРОШЕННЫЕ изменения; сохраните остальной текст и факты.\n"
+        "- Заголовок <b>...</b> жирным, пункты (•) и эмодзи сохраните.\n"
+        "- В конце сохраните призыв к действию (CTA) и хэштеги.\n"
+        "Верните ответ ТОЛЬКО в следующем формате JSON:\n"
+        '{"post_text": "полностью отредактированный пост"}'
+    ),
+    "en": (
+        "You are a professional Telegram post editor. You edit the post created "
+        "from the AI image analysis according to the user's request.\n\n"
+        "RULES:\n"
+        "- Write in English.\n"
+        "- Make ONLY THE REQUESTED changes; keep the rest of the text and the facts.\n"
+        "- Keep the <b>...</b> bold headline, the (•) bullet points and the emojis.\n"
+        "- Keep the call to action (CTA) and the hashtags at the end.\n"
+        "Return the answer ONLY in the following JSON format:\n"
+        '{"post_text": "the fully edited post"}'
+    ),
+}
+
+
+def _photo_edit_system(lang: str = "uz") -> str:
+    """Tahrirlash system instructionini foydalanuvchi tilida qaytaradi."""
+    try:
+        from locales.translations import normalize_lang
+        code = normalize_lang(lang)
+    except Exception:  # pragma: no cover - himoya
+        code = str(lang or "uz").lower()
+        code = "ru" if code.startswith("ru") else ("en" if code.startswith("en") else "uz")
+    return PHOTO_EDIT_SYSTEMS.get(code) or PHOTO_EDIT_SYSTEM
+
 # AI chaqiruv muvaffaqiyatsiz bo'lganda ko'rsatiladigan YAGONA xabar.
 AI_UNAVAILABLE_MSG = (
     "⚠️ AI xizmatida vaqtinchalik uzilish yuz berdi. "
@@ -155,17 +195,17 @@ PRO_UPGRADE_KEYBOARD = InlineKeyboardMarkup([
 def _pro_upgrade_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
     """PRO tarifga o'tish tugmasi — foydalanuvchi tilida (uz/ru/en)."""
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton(get_text("ch_pro_btn", lang), callback_data="sub_open")],
+        [InlineKeyboardButton(safe_t("ch_pro_btn", lang), callback_data="sub_open")],
     ])
 
 
 # AI vaqt tugmalarining 3 tildagi matnlari — RU/EN foydalanuvchi bosgan
 # tugma ham to'g'ri tanilishi uchun (avval faqat UZ matn solishtirilardi).
-_T_5MIN_ALL = frozenset(get_text("np_btn_time_5m", _l) for _l in ("uz", "ru", "en"))
-_T_15MIN_ALL = frozenset(get_text("np_btn_time_15m", _l) for _l in ("uz", "ru", "en"))
-_T_1H_ALL = frozenset(get_text("np_btn_time_1h", _l) for _l in ("uz", "ru", "en"))
+_T_5MIN_ALL = frozenset(safe_t("np_btn_time_5m", _l) for _l in ("uz", "ru", "en"))
+_T_15MIN_ALL = frozenset(safe_t("np_btn_time_15m", _l) for _l in ("uz", "ru", "en"))
+_T_1H_ALL = frozenset(safe_t("np_btn_time_1h", _l) for _l in ("uz", "ru", "en"))
 _T_REPEAT_ALL = frozenset(
-    get_text(_k, _l) for _k in ("np_btn_time_daily", "np_btn_time_weekly") for _l in ("uz", "ru", "en")
+    safe_t(_k, _l) for _k in ("np_btn_time_daily", "np_btn_time_weekly") for _l in ("uz", "ru", "en")
 )
 
 # Tarif asosidagi kunlik AI limiti xabari (database.PLAN_LIMITS).
@@ -197,13 +237,13 @@ async def _keep_typing(bot, chat_id: int, stop_event: asyncio.Event):
 
 def _no_credits_text(bot_username: str, user_id: int, lang: str = "uz") -> str:
     ref_link = f"https://t.me/{bot_username}?start=ref_{user_id}"
-    return get_text("no_credits", lang, guide=get_text("daily_bonus_guide", lang), link=ref_link)
+    return safe_t("no_credits", lang, guide=safe_t("daily_bonus_guide", lang), link=ref_link)
 
 
 def _ai_tone_label(tone: str, lang: str = "uz") -> str:
     """Tanlangan Tone of Voice (AI post uslubi) tarjimasini qaytaradi."""
     tone_key = AI_TONE_KEYS.get(tone, "ai_tone_friendly")
-    return get_text(tone_key, lang)
+    return safe_t(tone_key, lang)
 
 
 async def _studio_menu_text(user_id: int, lang: str) -> str:
@@ -214,15 +254,15 @@ async def _studio_menu_text(user_id: int, lang: str) -> str:
     """
     is_admin = user_id in ADMIN_IDS_SET
     if is_admin:
-        credits_label = get_text("ai_credits_unlimited", lang)
+        credits_label = safe_t("ai_credits_unlimited", lang)
     else:
         is_pro = await db.run_db(db.is_premium, user_id)
         if is_pro:
-            credits_label = get_text("ai_credits_unlimited_pro", lang)
+            credits_label = safe_t("ai_credits_unlimited_pro", lang)
         else:
             credits = await db.run_db(db.get_user_credits, user_id)
-            credits_label = get_text("credits_value", lang, n=credits)
-    return get_text("ai_studio_menu", lang, credits=credits_label)
+            credits_label = safe_t("credits_value", lang, n=credits)
+    return safe_t("ai_studio_menu", lang, credits=credits_label)
 
 
 async def start_ai_assistant(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -246,16 +286,16 @@ async def start_ai_assistant(update: Update, context: ContextTypes.DEFAULT_TYPE)
         return ConversationHandler.END
 
     if is_admin:
-        limit_info = get_text("cabinet_credits_admin", lang)
+        limit_info = safe_t("cabinet_credits_admin", lang)
     elif is_pro:
-        limit_info = get_text("ai_credits_unlimited_pro", lang)
+        limit_info = safe_t("ai_credits_unlimited_pro", lang)
     else:
-        limit_info = get_text("credits_value", lang, n=credits)
+        limit_info = safe_t("credits_value", lang, n=credits)
 
     await update.message.reply_text(
-        get_text(
+        safe_t(
             "ai_legacy_welcome", lang, credits=limit_info,
-            main_menu=get_text("btn_main_menu", lang),
+            main_menu=safe_t("btn_main_menu", lang),
         ),
         reply_markup=get_cancel_keyboard(lang),
         parse_mode="HTML",
@@ -297,7 +337,7 @@ def _build_prompt(text_input: str, context) -> str:
 
 async def _send_preview(target_msg, text, file_id, post_type, reply_markup, lang: str = "uz"):
     """Postni (media bilan yoki matn) preview sifatida ko'rsatadi."""
-    caption_note = get_text("ai_media_caption_note", lang)
+    caption_note = safe_t("ai_media_caption_note", lang)
     if file_id and post_type in ("photo", "video", "document"):
         cap = text[:900]
         if len(text) > 900:
@@ -309,7 +349,7 @@ async def _send_preview(target_msg, text, file_id, post_type, reply_markup, lang
         else:
             await target_msg.reply_document(document=file_id, caption=cap, reply_markup=reply_markup, parse_mode="HTML")
         if len(text) > 900:
-            await target_msg.reply_text(get_text("ai_full_post_text", lang, text=text[:3500]), parse_mode="HTML")
+            await target_msg.reply_text(safe_t("ai_full_post_text", lang, text=text[:3500]), parse_mode="HTML")
         return
     body = f"{text}{caption_note}" if file_id else text
     await target_msg.reply_text(body[:4000], reply_markup=reply_markup, parse_mode="HTML")
@@ -318,9 +358,9 @@ async def _send_preview(target_msg, text, file_id, post_type, reply_markup, lang
 async def _show_time_prompt(msg, post_text: str, file_id, post_type: str, lang: str = "uz"):
     """Vaqt tanlash oynasini ko'rsatadi (tilga mos)."""
     header = (
-        get_text("ai_schedule_header", lang)
+        safe_t("ai_schedule_header", lang)
         + safe_html(post_text[:1500])
-        + get_text("ai_schedule_foot", lang)
+        + safe_t("ai_schedule_foot", lang)
     )
     await _send_preview(
         msg, header, file_id, post_type, get_ai_time_keyboard(lang), lang
@@ -355,7 +395,7 @@ async def ai_input_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Rate-limitlar
     if not is_admin and check_ai_rate_limit(user_id, max_per_minute=4):
         await msg.reply_text(
-            get_text("ai_rate_limit", lang),
+            safe_t("ai_rate_limit", lang),
             parse_mode="HTML",
         )
         return AI_INPUT
@@ -366,7 +406,7 @@ async def ai_input_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await _show_time_prompt(msg, existing_post, file_id, post_type, lang)
             return AI_GET_TIME
         await msg.reply_text(
-            get_text("ai_legacy_media_hint", lang),
+            safe_t("ai_legacy_media_hint", lang),
             reply_markup=get_cancel_keyboard(lang),
             parse_mode="HTML",
         )
@@ -374,7 +414,7 @@ async def ai_input_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if not text_input and not file_id:
         await msg.reply_text(
-            get_text("ai_legacy_input_hint", lang),
+            safe_t("ai_legacy_input_hint", lang),
             reply_markup=get_cancel_keyboard(lang),
         )
         return AI_INPUT
@@ -388,7 +428,7 @@ async def ai_input_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Kunlik limit (in-memory, tezkor himoya) — faqat free uchun.
     if not is_admin and not is_pro and check_ai_daily_limit(user_id, max_per_day=30):
         await msg.reply_text(
-            get_text("ai_daily_limit", lang),
+            safe_t("ai_daily_limit", lang),
             parse_mode="HTML",
         )
         return AI_INPUT
@@ -400,7 +440,7 @@ async def ai_input_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
         can_use, used, max_ai = await db.run_db(db.check_ai_limit, user_id)
         if not can_use:
             await msg.reply_text(
-                get_text("ai_limit_msg", lang, used=used, max=max_ai),
+                safe_t("ai_limit_msg", lang, used=used, max=max_ai),
                 reply_markup=_pro_upgrade_keyboard(lang),
                 parse_mode="HTML",
             )
@@ -416,14 +456,15 @@ async def ai_input_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return ConversationHandler.END
 
-    msg_wait = await msg.reply_text(get_text("ai_analyzing", lang), parse_mode="HTML")
+    msg_wait = await msg.reply_text(safe_t("ai_analyzing", lang), parse_mode="HTML")
 
     # Typing animatsiyasini fonda ishga tushiramiz
     stop_typing = asyncio.Event()
     typing_task = asyncio.create_task(_keep_typing(context.bot, msg.chat_id, stop_typing))
 
     try:
-        result = await analyze_user_prompt(prompt, user_id, is_pro=is_pro)
+        # 🌐 AI faqat foydalanuvchi tilida javob qaytaradi (uz/ru/en).
+        result = await analyze_user_prompt(prompt, user_id, is_pro=is_pro, lang=lang)
     finally:
         stop_typing.set()
         typing_task.cancel()
@@ -446,11 +487,11 @@ async def ai_input_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # A) SAVOL-JAVOB
     if intent == "faq":
-        reply = result.get("reply", "") or get_text("ai_legacy_faq_fallback", lang)
+        reply = result.get("reply", "") or safe_t("ai_legacy_faq_fallback", lang)
         ad_line = await get_auto_ad_injection_async(user_id)
         await msg.reply_text(
             f"🤖 {safe_html(reply)}"
-            f"{get_text('ai_legacy_faq_footer', lang)}{ad_line}",
+            f"{safe_t('ai_legacy_faq_footer', lang)}{ad_line}",
             reply_markup=get_cancel_keyboard(lang),
             parse_mode="HTML",
         )
@@ -459,7 +500,7 @@ async def ai_input_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # B/C) POST yoki EDIT
     post_text = result.get("post_text", "") or ""
     if not post_text:
-        reply = result.get("reply", "") or get_text("ai_legacy_no_post", lang)
+        reply = result.get("reply", "") or safe_t("ai_legacy_no_post", lang)
         await msg.reply_text(
             safe_html(reply), reply_markup=get_cancel_keyboard(lang), parse_mode="HTML"
         )
@@ -485,8 +526,8 @@ async def ai_input_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await _show_time_prompt(msg, post_text, file_id, post_type, lang)
         return AI_GET_TIME
 
-    target_info = get_text("ai_legacy_target_all", lang) if target_all else ""
-    preview = get_text(
+    target_info = safe_t("ai_legacy_target_all", lang) if target_all else ""
+    preview = safe_t(
         "ai_confirm_title", lang, post=safe_html(post_text[:3000]),
         time=sched_time, target=target_info,
     )
@@ -505,13 +546,13 @@ async def ai_time_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
             context.user_data["ai_file_id"] = file_id
             context.user_data["ai_post_type"] = post_type
             await update.message.reply_text(
-                get_text("ai_media_received_scheduled", lang),
+                safe_t("ai_media_received_scheduled", lang),
                 reply_markup=get_ai_time_keyboard(),
                 parse_mode="HTML",
             )
         else:
             await update.message.reply_text(
-                get_text("ai_time_prompt_hint", lang),
+                safe_t("ai_time_prompt_hint", lang),
                 reply_markup=get_ai_time_keyboard(),
                 parse_mode="HTML",
             )
@@ -524,7 +565,7 @@ async def ai_time_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if text in (BTN_T_DAILY, BTN_T_WEEKLY):
         await update.message.reply_text(
-            get_text("ai_only_one_time", lang),
+            safe_t("ai_only_one_time", lang),
             reply_markup=get_ai_time_keyboard(),
             parse_mode="HTML",
         )
@@ -543,13 +584,13 @@ async def ai_time_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if post_time is None and text:
             if not is_admin and check_ai_rate_limit(user_id, max_per_minute=4):
                 await update.message.reply_text(
-                    get_text("ai_time_fast", lang),
+                    safe_t("ai_time_fast", lang),
                     parse_mode="HTML",
                 )
                 return AI_GET_TIME
 
             msg_wait = await update.message.reply_text(
-                get_text("ai_time_detecting", lang), parse_mode="HTML"
+                safe_t("ai_time_detecting", lang), parse_mode="HTML"
             )
 
             stop_typing2 = asyncio.Event()
@@ -558,7 +599,8 @@ async def ai_time_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             try:
                 ai_res = await extract_schedule_time(
-                    f"Foydalanuvchining vaqt haqidagi xabari: {text}", user_id
+                    f"Foydalanuvchining vaqt haqidagi xabari: {text}", user_id,
+                    lang=lang,
                 )
             finally:
                 stop_typing2.set()
@@ -575,7 +617,7 @@ async def ai_time_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         context.user_data["ai_target_all"] = True
                 elif ai_res.get("reply"):
                     await update.message.reply_text(
-                        get_text("ai_time_ask", lang, reply=safe_html(ai_res["reply"])),
+                        safe_t("ai_time_ask", lang, reply=safe_html(ai_res["reply"])),
                         reply_markup=get_ai_time_keyboard(),
                         parse_mode="HTML",
                     )
@@ -590,7 +632,7 @@ async def ai_time_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if post_time is None or post_time <= now:
         await update.message.reply_text(
-            get_text("ai_time_unparsed", lang),
+            safe_t("ai_time_unparsed", lang),
             reply_markup=get_ai_time_keyboard(),
             parse_mode="HTML",
         )
@@ -603,9 +645,9 @@ async def ai_time_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     target_all = context.user_data.get("ai_target_all", False)
     target_info = "\n🌐 <b>Kanal:</b> Barcha ulangan kanallarga" if target_all else ""
     await update.message.reply_text(
-        get_text("ai_post_ready", lang)
+        safe_t("ai_post_ready", lang)
         + safe_html(post_text[:2500])
-        + get_text("ai_post_ready_foot", lang, time=time_str, target=target_info),
+        + safe_t("ai_post_ready_foot", lang, time=time_str, target=target_info),
         reply_markup=get_ai_confirm_keyboard(lang),
         parse_mode="HTML",
     )
@@ -621,7 +663,7 @@ async def ai_confirm_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
     lang = get_lang(context)
 
     if data == "ai_post_cancel":
-        await query.answer(get_text("ai_close_session", lang))
+        await query.answer(safe_t("ai_close_session", lang))
         clear_ai_context(user_id)
         clear_fsm_data(context)
         try:
@@ -629,7 +671,7 @@ async def ai_confirm_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
         except Exception:
             pass
         await query.message.reply_text(
-            get_text("ai_post_cancelled", lang),
+            safe_t("ai_post_cancelled", lang),
             reply_markup=get_main_keyboard(is_admin, lang),
         )
         return ConversationHandler.END
@@ -641,14 +683,14 @@ async def ai_confirm_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
         except Exception:
             pass
         await query.message.reply_text(
-            get_text("ai_post_retry", lang),
+            safe_t("ai_post_retry", lang),
             reply_markup=get_cancel_keyboard(lang),
             parse_mode="HTML",
         )
         return AI_INPUT
 
     # data == "ai_post_schedule"
-    await query.answer(get_text("ai_saving", lang))
+    await query.answer(safe_t("ai_saving", lang))
 
     post_text = context.user_data.get("ai_generated_post", "")
     sched_time_str = context.user_data.get("ai_scheduled_time")
@@ -659,7 +701,7 @@ async def ai_confirm_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
     channels = await db.run_db(db.get_user_channels, user_id)
     if not channels:
         await query.message.reply_text(
-            get_text("ai_no_channel_schedule", lang),
+            safe_t("ai_no_channel_schedule", lang),
             reply_markup=get_main_keyboard(is_admin, lang),
             parse_mode="HTML",
         )
@@ -708,7 +750,7 @@ async def ai_confirm_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
         except Exception:
             pass
         await query.message.reply_text(
-            get_text(
+            safe_t(
                 "ai_scheduled_ok", lang,
                 channel=html_escape(target_name),
                 time=post_time.strftime("%Y-%m-%d %H:%M"),
@@ -718,7 +760,7 @@ async def ai_confirm_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
         )
     else:
         await query.message.reply_text(
-            get_text("ai_schedule_error", lang),
+            safe_t("ai_schedule_error", lang),
             reply_markup=get_main_keyboard(is_admin, lang),
         )
 
@@ -775,7 +817,7 @@ async def _studio_ai_preflight(update: Update, context: ContextTypes.DEFAULT_TYP
 
     if not is_admin and check_ai_rate_limit(user_id, max_per_minute=4):
         await msg.reply_text(
-            get_text("ai_rate_limit", lang),
+            safe_t("ai_rate_limit", lang),
             reply_markup=get_ai_back_keyboard(lang),
             parse_mode="HTML",
         )
@@ -788,7 +830,7 @@ async def _studio_ai_preflight(update: Update, context: ContextTypes.DEFAULT_TYP
     # Kunlik limit (in-memory, tezkor himoya) — faqat free uchun.
     if not is_admin and not is_pro and check_ai_daily_limit(user_id, max_per_day=30):
         await msg.reply_text(
-            get_text("ai_daily_limit", lang),
+            safe_t("ai_daily_limit", lang),
             reply_markup=get_ai_back_keyboard(lang),
             parse_mode="HTML",
         )
@@ -799,7 +841,7 @@ async def _studio_ai_preflight(update: Update, context: ContextTypes.DEFAULT_TYP
         can_use, used, max_ai = await db.run_db(db.check_ai_limit, user_id)
         if not can_use:
             await msg.reply_text(
-                get_text("ai_limit_msg", lang, used=used, max=max_ai),
+                safe_t("ai_limit_msg", lang, used=used, max=max_ai),
                 reply_markup=PRO_UPGRADE_KEYBOARD,
                 parse_mode="HTML",
             )
@@ -826,11 +868,11 @@ async def _studio_ai_refund(user_id: int, is_admin: bool, is_pro: bool):
 
 def _studio_preview_text(post_text: str, tone: str, file_id=None, lang: str = "uz") -> str:
     """AI_TONE_SELECT ekranidagi post preview matni (tilga mos)."""
-    media_note = get_text("ai_preview_media_note", lang) if file_id else ""
+    media_note = safe_t("ai_preview_media_note", lang) if file_id else ""
     return (
-        get_text("ai_preview_title", lang)
+        safe_t("ai_preview_title", lang)
         + safe_html(post_text[:2400])
-        + get_text("ai_preview_foot", lang, tone=_ai_tone_label(tone, lang), media=media_note)
+        + safe_t("ai_preview_foot", lang, tone=_ai_tone_label(tone, lang), media=media_note)
     )
 
 
@@ -859,7 +901,7 @@ async def ai_studio_nav_callback(update: Update, context: ContextTypes.DEFAULT_T
             context.user_data.pop(key, None)
         await _safe_edit(
             query,
-            get_text("ai_studio_post_intro", lang),
+            safe_t("ai_studio_post_intro", lang),
             get_ai_back_keyboard(lang),
         )
         return AI_PROMPT_INPUT
@@ -871,13 +913,13 @@ async def ai_studio_nav_callback(update: Update, context: ContextTypes.DEFAULT_T
             "studio_file_id", "studio_post_type", "studio_photo_extra",
         ):
             context.user_data.pop(key, None)
-        await _safe_edit(query, get_text("ai_studio_photo_intro", lang), get_ai_back_keyboard(lang))
+        await _safe_edit(query, safe_t("ai_studio_photo_intro", lang), get_ai_back_keyboard(lang))
         return AI_PHOTO_INPUT
 
     if data == "studio_ai_audit":
         await _safe_edit(
             query,
-            get_text("ai_studio_audit_intro", lang),
+            safe_t("ai_studio_audit_intro", lang),
             get_ai_back_keyboard(lang),
         )
         return AI_AUDIT_INPUT
@@ -885,7 +927,7 @@ async def ai_studio_nav_callback(update: Update, context: ContextTypes.DEFAULT_T
     if data == "studio_extract":
         await _safe_edit(
             query,
-            get_text("ai_studio_extract_intro", lang),
+            safe_t("ai_studio_extract_intro", lang),
             get_ai_back_keyboard(lang),
         )
         # Lazy import (circular import himoyasi) — mavjud koduslubga mos
@@ -898,7 +940,7 @@ async def ai_studio_nav_callback(update: Update, context: ContextTypes.DEFAULT_T
         if not channels:
             await _safe_edit(
                 query,
-                get_text("ai_studio_no_channel", lang),
+                safe_t("ai_studio_no_channel", lang),
                 get_ai_back_keyboard(lang),
             )
             return AI_MENU_STATE
@@ -906,12 +948,12 @@ async def ai_studio_nav_callback(update: Update, context: ContextTypes.DEFAULT_T
         plan_kb = _get_plan_channel_keyboard(channels)
         rows = [list(row) for row in plan_kb.inline_keyboard]
         rows.append([
-            InlineKeyboardButton(get_text("ai_btn_back", lang), callback_data="ai_back_to_menu"),
-            InlineKeyboardButton(get_text("ai_btn_close", lang), callback_data="ai_close"),
+            InlineKeyboardButton(safe_t("ai_btn_back", lang), callback_data="ai_back_to_menu"),
+            InlineKeyboardButton(safe_t("ai_btn_close", lang), callback_data="ai_close"),
         ])
         await _safe_edit(
             query,
-            get_text("ai_studio_content_plan_intro", lang),
+            safe_t("ai_studio_content_plan_intro", lang),
             InlineKeyboardMarkup(rows),
         )
         return PLAN_CHOOSE_CHANNEL
@@ -945,13 +987,13 @@ async def ai_prompt_received(update: Update, context: ContextTypes.DEFAULT_TYPE)
     if not text_input:
         if file_id:
             await msg.reply_text(
-                get_text("ai_media_received", lang),
+                safe_t("ai_media_received", lang),
                 reply_markup=get_ai_back_keyboard(lang),
                 parse_mode="HTML",
             )
         else:
             await msg.reply_text(
-                get_text("ai_prompt_hint", lang),
+                safe_t("ai_prompt_hint", lang),
                 reply_markup=get_ai_back_keyboard(lang),
             )
         return AI_PROMPT_INPUT
@@ -961,13 +1003,14 @@ async def ai_prompt_received(update: Update, context: ContextTypes.DEFAULT_TYPE)
         # Limit/blok xabari allaqachon yuborildi — foydalanuvchi menyuga qaytadi
         return AI_MENU_STATE
 
-    msg_wait = await msg.reply_text(get_text("ai_wait_post", lang), parse_mode="HTML")
+    msg_wait = await msg.reply_text(safe_t("ai_wait_post", lang), parse_mode="HTML")
     stop_typing = asyncio.Event()
     typing_task = asyncio.create_task(_keep_typing(context.bot, msg.chat_id, stop_typing))
     try:
         # 25 soniyalik qat'iy timeout utils.ai_agent ichida o'rnatilgan
         # b2c01d1: FREE vs PRO post enhancement
-        result = await generate_ai_response(text_input, is_pro=is_pro)
+        # 🌐 Til: AI post/javobni foydalanuvchi tilida yozadi.
+        result = await generate_ai_response(text_input, is_pro=is_pro, lang=lang)
     except Exception as e:
         logger.error("AI Generation Error: %s", e)
         result = {"error": AI_UNAVAILABLE_MSG}
@@ -982,7 +1025,7 @@ async def ai_prompt_received(update: Update, context: ContextTypes.DEFAULT_TYPE)
     if "error" in result:
         await _studio_ai_refund(user_id, is_admin, is_pro)
         await msg.reply_text(
-            get_text("ai_unavailable", lang),
+            safe_t("ai_unavailable", lang),
             reply_markup=get_ai_back_keyboard(lang),
             parse_mode="HTML",
         )
@@ -992,9 +1035,9 @@ async def ai_prompt_received(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     # Savol-javob — javobni ko'rsatib, menyuga qaytaramiz (flow uzilmaydi)
     if intent == "faq":
-        reply = result.get("reply", "") or get_text("ai_not_found", lang)
+        reply = result.get("reply", "") or safe_t("ai_not_found", lang)
         await msg.reply_text(
-            f"🤖 {safe_html(reply)}{get_text('ai_faq_footer', lang)}",
+            f"🤖 {safe_html(reply)}{safe_t('ai_faq_footer', lang)}",
             reply_markup=get_ai_back_keyboard(lang),
             parse_mode="HTML",
         )
@@ -1004,7 +1047,7 @@ async def ai_prompt_received(update: Update, context: ContextTypes.DEFAULT_TYPE)
     if not post_text:
         await _studio_ai_refund(user_id, is_admin, is_pro)
         await msg.reply_text(
-            get_text("ai_no_post_text", lang),
+            safe_t("ai_no_post_text", lang),
             reply_markup=get_ai_back_keyboard(lang),
         )
         return AI_MENU_STATE
@@ -1038,14 +1081,14 @@ async def ai_tone_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not base_prompt and not current_post:
         await _safe_edit(
             query,
-            get_text("ai_tone_unknown", lang),
+            safe_t("ai_tone_unknown", lang),
             get_ai_back_keyboard(lang),
         )
         return AI_PROMPT_INPUT
 
     # Uslub almashtirish qo'shimcha ball YEMAYDI, lekin rate-limit bilan himoyalangan
     if not is_admin and check_ai_rate_limit(user_id, max_per_minute=4):
-        await query.answer(get_text("ai_rate_limit_alert", lang), show_alert=True)
+        await query.answer(safe_t("ai_rate_limit_alert", lang), show_alert=True)
         return AI_TONE_SELECT
 
     prompt = base_prompt or (
@@ -1055,7 +1098,7 @@ async def ai_tone_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     try:
         await query.edit_message_text(
-            get_text("ai_tone_applying", lang, tone=_ai_tone_label(tone, lang)),
+            safe_t("ai_tone_applying", lang, tone=_ai_tone_label(tone, lang)),
             parse_mode="HTML",
         )
     except Exception:
@@ -1064,7 +1107,9 @@ async def ai_tone_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         # b2c01d1: is_pro flag for enhancement
         is_pro_tone = await db.run_db(db.is_premium, user_id)
-        result = await generate_ai_response(prompt, tone=tone, is_pro=is_pro_tone)
+        result = await generate_ai_response(
+            prompt, tone=tone, is_pro=is_pro_tone, lang=lang
+        )
         post_text = (result.get("post_text") or "").strip()
         if not post_text:
             raise RuntimeError(result.get("reply") or "AI bo'sh javob qaytardi")
@@ -1076,7 +1121,7 @@ async def ai_tone_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception:
             pass
         await query.message.reply_text(
-            get_text("ai_unavailable", lang),
+            safe_t("ai_unavailable", lang),
             reply_markup=get_ai_back_keyboard(lang),
             parse_mode="HTML",
         )
@@ -1102,7 +1147,7 @@ async def ai_studio_schedule_callback(update: Update, context: ContextTypes.DEFA
     if not post_text:
         await _safe_edit(
             query,
-            get_text("ai_schedule_need_post", lang),
+            safe_t("ai_schedule_need_post", lang),
             get_ai_back_keyboard(lang),
         )
         return AI_PROMPT_INPUT
@@ -1139,7 +1184,7 @@ async def ai_audit_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = (msg.text or msg.caption or "").strip()
     if not text:
         await msg.reply_text(
-            get_text("ai_audit_prompt_hint", lang),
+            safe_t("ai_audit_prompt_hint", lang),
             reply_markup=get_ai_back_keyboard(lang),
         )
         return AI_AUDIT_INPUT
@@ -1149,12 +1194,13 @@ async def ai_audit_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not ok:
         return AI_MENU_STATE
 
-    msg_wait = await msg.reply_text(get_text("ai_wait_audit", lang), parse_mode="HTML")
+    msg_wait = await msg.reply_text(safe_t("ai_wait_audit", lang), parse_mode="HTML")
     stop_typing = asyncio.Event()
     typing_task = asyncio.create_task(_keep_typing(context.bot, msg.chat_id, stop_typing))
     try:
         # b2c01d1: FREE vs PRO audit — audit_post with is_pro
-        result = await audit_post(text, is_pro=is_pro)
+        # 🌐 Audit natijasi foydalanuvchi tilida (uz/ru/en).
+        result = await audit_post(text, is_pro=is_pro, lang=lang)
     except Exception as e:
         logger.error("AI Generation Error: %s", e)
         result = {"error": AI_UNAVAILABLE_MSG}
@@ -1169,7 +1215,7 @@ async def ai_audit_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if "error" in result:
         await _studio_ai_refund(user_id, is_admin, is_pro)
         await msg.reply_text(
-            get_text("ai_unavailable", lang),
+            safe_t("ai_unavailable", lang),
             reply_markup=get_ai_back_keyboard(lang),
             parse_mode="HTML",
         )
@@ -1191,7 +1237,7 @@ async def ai_audit_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not audit:
         await _studio_ai_refund(user_id, is_admin, is_pro)
         await msg.reply_text(
-            get_text("ai_audit_no_result", lang),
+            safe_t("ai_audit_no_result", lang),
             reply_markup=get_ai_back_keyboard(lang),
         )
         return AI_MENU_STATE
@@ -1202,7 +1248,7 @@ async def ai_audit_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     ad_line = await get_auto_ad_injection_async(user_id)
     await msg.reply_text(
-        get_text("ai_audit_result_title", lang) + safe_html(audit[:3500]) + ad_line,
+        safe_t("ai_audit_result_title", lang) + safe_html(audit[:3500]) + ad_line,
         reply_markup=get_ai_back_keyboard(lang),
         parse_mode="HTML",
     )
@@ -1230,15 +1276,15 @@ async def ai_close(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """❌ Bekor qilish — faqat SHU yerda sessiya ataylab yakunlanadi (END)."""
     query = update.callback_query
     lang = get_lang(context)
-    await query.answer(get_text("ai_close_session", lang))  # SPEKS: darhol answer
+    await query.answer(safe_t("ai_close_session", lang))  # SPEKS: darhol answer
     try:
-        await query.edit_message_text(get_text("ai_close_session", lang), reply_markup=None)
+        await query.edit_message_text(safe_t("ai_close_session", lang), reply_markup=None)
     except Exception:
         pass
     clear_ai_context(query.from_user.id)
     clear_fsm_data(context)
     await query.message.reply_text(
-        get_text("ai_close_main_menu", lang),
+        safe_t("ai_close_main_menu", lang),
         reply_markup=get_main_keyboard(query.from_user.id in ADMIN_IDS_SET, lang),
     )
     return ConversationHandler.END
@@ -1313,9 +1359,9 @@ def _photo_extra_from_caption(raw) -> str:
 def _photo_result_text(post_text: str, lang: str = "uz") -> str:
     """Vision natijasi — to'liq post + keyingi qadam tugmalari (tilga mos)."""
     return (
-        get_text("ai_photo_result_title", lang)
+        safe_t("ai_photo_result_title", lang)
         + safe_html(post_text[:3500])
-        + get_text("ai_photo_result_foot", lang)
+        + safe_t("ai_photo_result_foot", lang)
     )
 
 
@@ -1325,13 +1371,13 @@ _PHOTO_VARIANT_NUMBERS = ("1️⃣", "2️⃣", "3️⃣")
 
 def _photo_variants_text(variants: dict, lang: str = "uz") -> str:
     """3 xil uslub variantlari tanlov ekrani matni (qisqa prevyu bilan)."""
-    parts = [get_text("ai_photo_variants_ask", lang), ""]
+    parts = [safe_t("ai_photo_variants_ask", lang), ""]
     for i, style in enumerate(PHOTO_VARIANT_STYLES):
         text = (variants.get(style) or "").strip()
         if not text:
             continue
         preview = text if len(text) <= 160 else text[:157].rstrip() + "…"
-        label = f"{_PHOTO_VARIANT_NUMBERS[i]} {get_text(AI_TONE_KEYS[style], lang)}"
+        label = f"{_PHOTO_VARIANT_NUMBERS[i]} {safe_t(AI_TONE_KEYS[style], lang)}"
         parts.append(f"<b>{label}</b>\n<i>{safe_html(preview)}</i>\n")
     return "\n".join(parts)
 
@@ -1341,28 +1387,36 @@ def _photo_variants_keyboard(variants: dict, lang: str = "uz") -> InlineKeyboard
     rows = []
     for i, style in enumerate(PHOTO_VARIANT_STYLES):
         if (variants.get(style) or "").strip():
-            label = f"{_PHOTO_VARIANT_NUMBERS[i]} {get_text(AI_TONE_KEYS[style], lang)}"
+            label = f"{_PHOTO_VARIANT_NUMBERS[i]} {safe_t(AI_TONE_KEYS[style], lang)}"
             rows.append([InlineKeyboardButton(label, callback_data=cb(CB_PHOTO_VARIANT, style))])
     rows.append([
-        InlineKeyboardButton(get_text("ai_btn_back", lang), callback_data="ai_back_to_menu"),
-        InlineKeyboardButton(get_text("ai_btn_close", lang), callback_data="ai_close"),
+        InlineKeyboardButton(safe_t("ai_btn_back", lang), callback_data="ai_back_to_menu"),
+        InlineKeyboardButton(safe_t("ai_btn_close", lang), callback_data="ai_close"),
     ])
     return InlineKeyboardMarkup(rows)
 
 
-async def _vision_run(file_id: str, extra_prompt: str, rewrite_context="") -> dict:
+async def _vision_run(file_id: str, extra_prompt: str, rewrite_context="",
+                      lang: str = "uz") -> dict:
     """Rasmni temp diskka stream qilib, Gemini vision orqali tahlil qiladi.
 
     RAM himoyasi: rasm hech qachon user_data'da/handler xotirasida saqlanmaydi —
     temp fayl ish tugagach `finally` blokida o'chiriladi.
+
+    🌐 ``lang`` — post foydalanuvchi tilida (uz/ru/en) yoziladi.
     """
     tmp_path = None
     try:
         tmp_path = await download_telegram_media_to_temp(file_id)
-        return await generate_vision_post(
+        # ``lang`` — post foydalanuvchi tilida (uz/ru/en). Mock/eski imzolar
+        # ``lang`` ni bilmasa, u shunchaki tashlab yuboriladi.
+        gvp = globals().get("generate_vision_post") or generate_vision_post
+        return await gvp(
             tmp_path,
-            extra_prompt=extra_prompt,
-            rewrite_context=rewrite_context,
+            **pick_supported_kwargs(
+                gvp, extra_prompt=extra_prompt,
+                rewrite_context=rewrite_context, lang=lang,
+            ),
         )
     except VisionError as e:
         return {"error": str(e)}
@@ -1374,7 +1428,7 @@ async def _vision_run(file_id: str, extra_prompt: str, rewrite_context="") -> di
             cleanup_temp_media(tmp_path)
 
 
-async def _vision_run_variants(file_id: str, extra_prompt: str):
+async def _vision_run_variants(file_id: str, extra_prompt: str, lang: str = "uz"):
     """Rasmni BIR MARTA yuklab, 3 xil uslub (rasmiy/do'stona/qisqa) bo'yicha
     post variantlarini tayyorlaydi.
 
@@ -1390,8 +1444,12 @@ async def _vision_run_variants(file_id: str, extra_prompt: str):
         tmp_path = await download_telegram_media_to_temp(file_id)
 
         async def _run(style):
-            res = await generate_vision_post(
-                tmp_path, extra_prompt=extra_prompt, tone=style
+            gvp = globals().get("generate_vision_post") or generate_vision_post
+            res = await gvp(
+                tmp_path,
+                **pick_supported_kwargs(
+                    gvp, extra_prompt=extra_prompt, tone=style, lang=lang
+                ),
             )
             return style, res
 
@@ -1443,13 +1501,13 @@ async def ai_photo_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not file_id:
         if _is_non_image_media(msg):
             await msg.reply_text(
-                get_text("ai_video_rejected", lang),
+                safe_t("ai_video_rejected", lang),
                 reply_markup=get_ai_back_keyboard(lang),
                 parse_mode="HTML",
             )
         else:
             await msg.reply_text(
-                get_text("ai_photo_only", lang),
+                safe_t("ai_photo_only", lang),
                 reply_markup=get_ai_back_keyboard(lang),
                 parse_mode="HTML",
             )
@@ -1459,13 +1517,13 @@ async def ai_photo_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not ok:
         return AI_MENU_STATE
 
-    msg_wait = await msg.reply_text(get_text("ai_wait_photo", lang), parse_mode="HTML")
+    msg_wait = await msg.reply_text(safe_t("ai_wait_photo", lang), parse_mode="HTML")
     stop_typing = asyncio.Event()
     typing_task = asyncio.create_task(_keep_typing(context.bot, msg.chat_id, stop_typing))
     try:
         # 🎨 Rasm BIR marta yuklanadi va 3 xil uslub (rasmiy/do'stona/qisqa)
         # bo'yicha post variantlari tayyorlanadi — foydalanuvchi birini tanlaydi.
-        variants, first_error = await _vision_run_variants(file_id, extra_prompt)
+        variants, first_error = await _vision_run_variants(file_id, extra_prompt, lang)
     finally:
         stop_typing.set()
         typing_task.cancel()
@@ -1478,7 +1536,7 @@ async def ai_photo_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await _studio_ai_refund(user_id, is_admin, is_pro)
         await msg.reply_text(
             f"{first_error}\n\n"
-            f"{get_text('ai_photo_retry_hint', lang)}",
+            f"{safe_t('ai_photo_retry_hint', lang)}",
             reply_markup=get_ai_back_keyboard(lang),
             parse_mode="HTML",
         )
@@ -1531,7 +1589,7 @@ async def ai_photo_result_callback(update: Update, context: ContextTypes.DEFAULT
     if not post_text or not file_id:
         await _safe_edit(
             query,
-            get_text("ai_session_expired", lang),
+            safe_t("ai_session_expired", lang),
             get_ai_back_keyboard(lang),
         )
         return AI_PHOTO_INPUT
@@ -1587,7 +1645,7 @@ async def ai_photo_result_callback(update: Update, context: ContextTypes.DEFAULT
     if data == "photo_edit":
         await _safe_edit(
             query,
-            get_text("ai_photo_edit_intro", lang),
+            safe_t("ai_photo_edit_intro", lang),
             get_ai_back_keyboard(lang),
         )
         return AI_PHOTO_EDIT_INPUT
@@ -1596,7 +1654,7 @@ async def ai_photo_result_callback(update: Update, context: ContextTypes.DEFAULT
     if data == "photo_rewrite":
         # Uslub almashtirish kabi qo'shimcha bal YEMAYDI (rate-limit saqlanadi)
         if not is_admin and check_ai_rate_limit(user_id, max_per_minute=4):
-            await query.answer(get_text("ai_rate_limit_alert", lang), show_alert=True)
+            await query.answer(safe_t("ai_rate_limit_alert", lang), show_alert=True)
             return AI_PHOTO_RESULT
 
         extra = context.user_data.get("studio_photo_extra", "")
@@ -1607,12 +1665,12 @@ async def ai_photo_result_callback(update: Update, context: ContextTypes.DEFAULT
         )
         try:
             await query.edit_message_text(
-                get_text("ai_photo_rewrite_wait", lang),
+                safe_t("ai_photo_rewrite_wait", lang),
                 parse_mode="HTML",
             )
         except Exception:
             pass
-        result = await _vision_run(file_id, extra, rewrite_context=rewrite_ctx)
+        result = await _vision_run(file_id, extra, rewrite_context=rewrite_ctx, lang=lang)
         if "error" in result:
             await _safe_edit(query, _photo_result_text(post_text, lang), get_ai_photo_keyboard(lang))
             await query.message.reply_text(
@@ -1626,7 +1684,7 @@ async def ai_photo_result_callback(update: Update, context: ContextTypes.DEFAULT
         if not new_text:
             await _safe_edit(query, _photo_result_text(post_text, lang), get_ai_photo_keyboard(lang))
             await query.message.reply_text(
-                get_text("ai_photo_rewrite_keep", lang),
+                safe_t("ai_photo_rewrite_keep", lang),
                 reply_markup=get_ai_back_keyboard(lang),
             )
             return AI_PHOTO_RESULT
@@ -1649,7 +1707,7 @@ async def ai_photo_edit_received(update: Update, context: ContextTypes.DEFAULT_T
     text = (msg.text or msg.caption or "").strip()
     if not text:
         await msg.reply_text(
-            get_text("ai_photo_edit_hint", lang),
+            safe_t("ai_photo_edit_hint", lang),
             reply_markup=get_ai_back_keyboard(lang),
         )
         return AI_PHOTO_EDIT_INPUT
@@ -1657,7 +1715,7 @@ async def ai_photo_edit_received(update: Update, context: ContextTypes.DEFAULT_T
     post_text = context.user_data.get("studio_post_text", "")
     if not post_text:
         await msg.reply_text(
-            get_text("ai_session_expired", lang),
+            safe_t("ai_session_expired", lang),
             reply_markup=get_ai_back_keyboard(lang),
         )
         return AI_PHOTO_INPUT
@@ -1667,15 +1725,16 @@ async def ai_photo_edit_received(update: Update, context: ContextTypes.DEFAULT_T
     if not ok:
         return AI_MENU_STATE
 
-    msg_wait = await msg.reply_text(get_text("ai_wait_edit", lang), parse_mode="HTML")
+    msg_wait = await msg.reply_text(safe_t("ai_wait_edit", lang), parse_mode="HTML")
     stop_typing = asyncio.Event()
     typing_task = asyncio.create_task(_keep_typing(context.bot, msg.chat_id, stop_typing))
     try:
         result = await generate_ai_response(
             f"Tahrirlanadigan post:\n\n{post_text}\n\n"
             f"Foydalanuvchi talabi:\n{text}",
-            system_instruction=PHOTO_EDIT_SYSTEM,
+            system_instruction=_photo_edit_system(lang),
             is_pro=is_pro,
+            lang=lang,
         )
     except Exception as e:
         logger.error("Vision edit xatosi: %s", e)
@@ -1712,7 +1771,7 @@ async def ai_photo_edit_received(update: Update, context: ContextTypes.DEFAULT_T
     if not new_text:
         await _studio_ai_refund(user_id, is_admin, is_pro)
         await msg.reply_text(
-            get_text("ai_photo_edit_no_result", lang),
+            safe_t("ai_photo_edit_no_result", lang),
             reply_markup=get_ai_back_keyboard(lang),
         )
         return AI_PHOTO_EDIT_INPUT

@@ -10,7 +10,7 @@ from keyboards.default import get_cancel_keyboard, get_main_keyboard
 from keyboards.inline import btn_label
 from keyboards.callback_data import cb
 from locales.translations import (
-    get_lang, get_text, is_main_menu_text, localize_service_error,
+    get_lang, safe_t, is_main_menu_text, localize_service_error,
 )
 from utils.helpers import html_escape, safe_html, get_auto_ad_injection_async, keep_typing
 
@@ -81,7 +81,7 @@ def build_plan_post_text(item: dict, index: int = 0, lang: str = "uz") -> str:
     idea = str(item.get("idea") or "").strip()
     if not title:
         title = str(
-            item.get("day") or get_text("cp_day_fallback", lang, n=index + 1)
+            item.get("day") or safe_t("cp_day_fallback", lang, n=index + 1)
         ).strip()
     parts = [f"<b>{html_escape(title)}</b>"]
     if idea:
@@ -101,7 +101,7 @@ def _get_plan_channel_keyboard(channels: list, lang: str = "uz") -> InlineKeyboa
             )
         ])
     keyboard.append([
-        InlineKeyboardButton(get_text("ai_btn_close", lang), callback_data="plan_cancel")
+        InlineKeyboardButton(safe_t("ai_btn_close", lang), callback_data="plan_cancel")
     ])
     return InlineKeyboardMarkup(keyboard)
 
@@ -109,9 +109,9 @@ def _get_plan_channel_keyboard(channels: list, lang: str = "uz") -> InlineKeyboa
 def _get_plan_result_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
     """Kontent-reja natijasi uchun keyboard."""
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton(get_text("cp_btn_create_post", lang), callback_data="plan_create_post")],
-        [InlineKeyboardButton(get_text("cp_btn_regenerate", lang), callback_data="plan_regenerate")],
-        [InlineKeyboardButton(get_text("pend_close_btn", lang), callback_data="plan_cancel")],
+        [InlineKeyboardButton(safe_t("cp_btn_create_post", lang), callback_data="plan_create_post")],
+        [InlineKeyboardButton(safe_t("cp_btn_regenerate", lang), callback_data="plan_regenerate")],
+        [InlineKeyboardButton(safe_t("pend_close_btn", lang), callback_data="plan_cancel")],
     ])
 
 
@@ -124,7 +124,7 @@ def _get_plan_day_keyboard(plan_items: list, lang: str = "uz") -> InlineKeyboard
     """
     keyboard = []
     for i, item in enumerate(plan_items):
-        day = item.get("day", get_text("cp_day_fallback", lang, n=i + 1))
+        day = item.get("day", safe_t("cp_day_fallback", lang, n=i + 1))
         title = item.get("title", "")[:30]
         keyboard.append([
             InlineKeyboardButton(
@@ -133,7 +133,7 @@ def _get_plan_day_keyboard(plan_items: list, lang: str = "uz") -> InlineKeyboard
             )
         ])
     keyboard.append([
-        InlineKeyboardButton(get_text("cp_btn_back", lang), callback_data="plan_back")
+        InlineKeyboardButton(safe_t("cp_btn_back", lang), callback_data="plan_back")
     ])
     return InlineKeyboardMarkup(keyboard)
 
@@ -146,7 +146,7 @@ def _get_plan_week_keyboard(plan_items: list, lang: str = "uz") -> InlineKeyboar
     """
     rows = [[
         InlineKeyboardButton(
-            get_text("plan_btn_schedule_all", lang),
+            safe_t("plan_btn_schedule_all", lang),
             callback_data=CB_PLAN_SCHEDULE_ALL,
         )
     ]]
@@ -173,7 +173,7 @@ async def start_content_plan(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     if not channels:
         await update.message.reply_text(
-            get_text("cp_no_channel", lang),
+            safe_t("cp_no_channel", lang),
             reply_markup=get_main_keyboard(user_id in ADMIN_IDS_SET, lang=lang),
             parse_mode="HTML",
         )
@@ -181,7 +181,7 @@ async def start_content_plan(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     context.user_data["plan_channels"] = channels
     await update.message.reply_text(
-        get_text("cp_choose_channel", lang),
+        safe_t("cp_choose_channel", lang),
         reply_markup=_get_plan_channel_keyboard(channels, lang),
         parse_mode="HTML",
     )
@@ -197,7 +197,7 @@ async def plan_channel_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     if data == "plan_cancel":
         await query.message.reply_text(
-            get_text("op_cancelled", lang),
+            safe_t("op_cancelled", lang),
             reply_markup=get_main_keyboard(query.from_user.id in ADMIN_IDS_SET, lang=lang),
         )
         return ConversationHandler.END
@@ -207,7 +207,7 @@ async def plan_channel_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     channel_id = data.split(":", 1)[1]
     channels = context.user_data.get("plan_channels", [])
-    channel_title = get_text("an_channel_fallback", lang)
+    channel_title = safe_t("an_channel_fallback", lang)
     for ch in channels:
         if ch[0] == channel_id:
             channel_title = ch[1]
@@ -217,7 +217,7 @@ async def plan_channel_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE
     context.user_data["plan_channel_title"] = channel_title
 
     await query.message.reply_text(
-        get_text("cp_topic_ask", lang, channel=html_escape(channel_title)),
+        safe_t("cp_topic_ask", lang, channel=html_escape(channel_title)),
         reply_markup=get_cancel_keyboard(lang),
         parse_mode="HTML",
     )
@@ -232,21 +232,21 @@ async def plan_topic_received(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     if is_main_menu_text(text):
         await update.message.reply_text(
-            get_text("op_cancelled", lang),
+            safe_t("op_cancelled", lang),
             reply_markup=get_main_keyboard(user_id in ADMIN_IDS_SET, lang=lang),
         )
         return ConversationHandler.END
 
     if len(text) < 3:
         await update.message.reply_text(
-            get_text("cp_topic_short", lang),
+            safe_t("cp_topic_short", lang),
             reply_markup=get_cancel_keyboard(lang),
         )
         return PLAN_GET_TOPIC
 
     channel_id = context.user_data.get("plan_channel_id", "")
     channel_title = context.user_data.get(
-        "plan_channel_title", get_text("an_channel_fallback", lang)
+        "plan_channel_title", safe_t("an_channel_fallback", lang)
     )
     tone = await db.run_db(db.get_channel_tone, channel_id) if channel_id else "friendly"
 
@@ -256,7 +256,7 @@ async def plan_topic_received(update: Update, context: ContextTypes.DEFAULT_TYPE
         history = await db.run_db(db.get_channel_posts_history, channel_id, 5)
         recent_posts = [p.get("text") for p in history if p.get("text") and not p.get("text").startswith("[")]
 
-    await update.message.reply_text(get_text("cp_ai_building", lang))
+    await update.message.reply_text(safe_t("cp_ai_building", lang))
 
     from utils.ai_agent import generate_content_plan
     # Indikator darhol ko'rinsin, keyin uzoq AI so'rovi davomida yangilanib tursin.
@@ -266,7 +266,10 @@ async def plan_topic_received(update: Update, context: ContextTypes.DEFAULT_TYPE
     except Exception:
         pass
     async with keep_typing(context.bot, chat_id):
-        result = await generate_content_plan(text, channel_title, tone, recent_posts=recent_posts)
+        # 🌐 Kontent-reja foydalanuvchi tilida (uz/ru/en).
+        result = await generate_content_plan(
+            text, channel_title, tone, recent_posts=recent_posts, lang=lang
+        )
 
     if "error" in result:
         await update.message.reply_text(
@@ -279,7 +282,7 @@ async def plan_topic_received(update: Update, context: ContextTypes.DEFAULT_TYPE
     plan_items = result.get("plan", [])
     if not plan_items:
         await update.message.reply_text(
-            get_text("cp_ai_failed_retry", lang),
+            safe_t("cp_ai_failed_retry", lang),
             reply_markup=get_main_keyboard(user_id in ADMIN_IDS_SET, lang=lang),
         )
         return ConversationHandler.END
@@ -290,27 +293,27 @@ async def plan_topic_received(update: Update, context: ContextTypes.DEFAULT_TYPE
     context.user_data["plan_scheduled"] = False
 
     # Format plan as text
-    plan_text = get_text(
+    plan_text = safe_t(
         "cp_plan_header", lang,
         channel=html_escape(channel_title), topic=html_escape(text),
     )
 
     for i, item in enumerate(plan_items):
-        day = item.get("day", get_text("cp_day_fallback", lang, n=i + 1))
+        day = item.get("day", safe_t("cp_day_fallback", lang, n=i + 1))
         fmt = item.get("format", "")
         title = item.get("title", "")
         idea = item.get("idea", "")
-        plan_text += get_text(
+        plan_text += safe_t(
             "cp_plan_day", lang, day=day,
             fmt=html_escape(fmt), title=html_escape(title),
         )
         if idea:
-            plan_text += get_text("cp_plan_idea", lang, idea=html_escape(idea[:150]))
+            plan_text += safe_t("cp_plan_idea", lang, idea=html_escape(idea[:150]))
         plan_text += "\n"
 
     ad_line = await get_auto_ad_injection_async(user_id)
-    plan_text += f"{ad_line}" + get_text("cp_plan_footer", lang)
-    plan_text += get_text("plan_week_hint", lang)
+    plan_text += f"{ad_line}" + safe_t("cp_plan_footer", lang)
+    plan_text += safe_t("plan_week_hint", lang)
 
     await update.message.reply_text(
         plan_text,
@@ -346,7 +349,7 @@ async def plan_schedule_all(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # 1) Sessiya eskirgan (bot qayta ishga tushgan) — reja xotirada yo'q.
     if not plan_items:
         try:
-            await query.answer(get_text("plan_sched_stale", lang), show_alert=True)
+            await query.answer(safe_t("plan_sched_stale", lang), show_alert=True)
         except Exception:
             pass
         return PLAN_VIEW
@@ -354,7 +357,7 @@ async def plan_schedule_all(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # 2) Ikki marta rejalashtirish himoyasi.
     if context.user_data.get("plan_scheduled"):
         try:
-            await query.answer(get_text("plan_sched_already", lang), show_alert=True)
+            await query.answer(safe_t("plan_sched_already", lang), show_alert=True)
         except Exception:
             pass
         return PLAN_VIEW
@@ -371,14 +374,14 @@ async def plan_schedule_all(update: Update, context: ContextTypes.DEFAULT_TYPE):
     owned = {str(ch[0]) for ch in (channels or [])}
     if not channel_id or str(channel_id) not in owned:
         try:
-            await query.answer(get_text("plan_sched_no_channel", lang), show_alert=True)
+            await query.answer(safe_t("plan_sched_no_channel", lang), show_alert=True)
         except Exception:
             pass
         return PLAN_VIEW
 
     # Darhol javob — DB yozuvi tugaguncha tugma "yopishib" qolmaydi.
     try:
-        await query.answer(get_text("plan_sched_busy", lang))
+        await query.answer(safe_t("plan_sched_busy", lang))
     except Exception:
         pass
 
@@ -406,7 +409,7 @@ async def plan_schedule_all(update: Update, context: ContextTypes.DEFAULT_TYPE):
             user_id, channel_id, result.get("error"),
         )
         await query.message.reply_text(
-            get_text("plan_sched_error", lang),
+            safe_t("plan_sched_error", lang),
             reply_markup=_get_plan_day_keyboard(plan_items, lang),
             parse_mode="HTML",
         )
@@ -419,13 +422,13 @@ async def plan_schedule_all(update: Update, context: ContextTypes.DEFAULT_TYPE):
     day_lines = []
     for i, moment in enumerate(scheduled_times):
         moment_tz = moment.astimezone(tashkent_tz) if moment.tzinfo else tashkent_tz.localize(moment)
-        day_lines.append(get_text(
+        day_lines.append(safe_t(
             "plan_sched_day_line", lang,
-            day=get_text(f"np_weekday_{moment_tz.weekday()}", lang),
+            day=safe_t(f"np_weekday_{moment_tz.weekday()}", lang),
             time=moment_tz.strftime("%d.%m %H:%M"),
         ))
 
-    confirm_text = get_text(
+    confirm_text = safe_t(
         "plan_sched_done", lang,
         channel=html_escape(channel_title or channel_id),
         count=result.get("count", len(scheduled_times)),
@@ -457,7 +460,7 @@ async def plan_view_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
     if data == "plan_cancel":
         await query.answer()
         await query.message.reply_text(
-            get_text("cp_closed", lang),
+            safe_t("cp_closed", lang),
             reply_markup=get_main_keyboard(is_admin, lang=lang),
         )
         return ConversationHandler.END
@@ -466,18 +469,18 @@ async def plan_view_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await query.answer()
         channels = context.user_data.get("plan_channels", [])
         await query.message.reply_text(
-            get_text("cp_back_title", lang),
+            safe_t("cp_back_title", lang),
             reply_markup=_get_plan_channel_keyboard(channels, lang),
             parse_mode="HTML",
         )
         return PLAN_CHOOSE_CHANNEL
 
     if data == "plan_regenerate":
-        await query.answer(get_text("cp_regenerating", lang))
+        await query.answer(safe_t("cp_regenerating", lang))
         topic = context.user_data.get("plan_topic", "")
         channel_id = context.user_data.get("plan_channel_id", "")
         channel_title = context.user_data.get(
-            "plan_channel_title", get_text("an_channel_fallback", lang)
+            "plan_channel_title", safe_t("an_channel_fallback", lang)
         )
         tone = await db.run_db(db.get_channel_tone, channel_id) if channel_id else "friendly"
 
@@ -495,7 +498,9 @@ async def plan_view_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
         except Exception:
             pass
         async with keep_typing(context.bot, chat_id):
-            result = await generate_content_plan(topic, channel_title, tone, recent_posts=recent_posts)
+            result = await generate_content_plan(
+                topic, channel_title, tone, recent_posts=recent_posts, lang=lang
+            )
 
         if "error" in result:
             await query.message.reply_text(
@@ -505,29 +510,29 @@ async def plan_view_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
         plan_items = result.get("plan", [])
         if not plan_items:
-            await query.message.reply_text(get_text("cp_ai_failed", lang))
+            await query.message.reply_text(safe_t("cp_ai_failed", lang))
             return PLAN_VIEW
 
         context.user_data["plan_items"] = plan_items
         # Yangi reja — eski "navbatga qo'yilgan" belgisi tozalanadi.
         context.user_data["plan_scheduled"] = False
 
-        plan_text = get_text(
+        plan_text = safe_t(
             "cp_plan_header_new", lang,
             channel=html_escape(channel_title), topic=html_escape(topic),
         )
 
         for i, item in enumerate(plan_items):
-            day = item.get("day", get_text("cp_day_fallback", lang, n=i + 1))
+            day = item.get("day", safe_t("cp_day_fallback", lang, n=i + 1))
             fmt = item.get("format", "")
             title = item.get("title", "")
             idea = item.get("idea", "")
-            plan_text += get_text(
+            plan_text += safe_t(
                 "cp_plan_day", lang, day=day,
                 fmt=html_escape(fmt), title=html_escape(title),
             )
             if idea:
-                plan_text += get_text("cp_plan_idea", lang, idea=html_escape(idea[:150]))
+                plan_text += safe_t("cp_plan_idea", lang, idea=html_escape(idea[:150]))
             plan_text += "\n"
 
         await query.message.reply_text(
@@ -547,11 +552,11 @@ async def plan_view_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
         plan_items = context.user_data.get("plan_items", [])
         if idx < 0 or idx >= len(plan_items):
-            await query.message.reply_text(get_text("cp_invalid_day", lang))
+            await query.message.reply_text(safe_t("cp_invalid_day", lang))
             return PLAN_VIEW
 
         item = plan_items[idx]
-        day = item.get("day", get_text("cp_day_fallback", lang, n=idx + 1))
+        day = item.get("day", safe_t("cp_day_fallback", lang, n=idx + 1))
         title = item.get("title", "")
         idea = item.get("idea", "")
         fmt = item.get("format", "")
@@ -559,18 +564,18 @@ async def plan_view_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
         # Saqlaymiz — post yaratish oqimiga yo'naltirish uchun
         context.user_data["plan_selected_item"] = item
 
-        detail = get_text(
+        detail = safe_t(
             "cp_day_detail", lang, day=html_escape(day), fmt=html_escape(fmt),
             title=html_escape(title), idea=html_escape(idea),
-            ask=get_text("cp_day_ask", lang),
+            ask=safe_t("cp_day_ask", lang),
         )
 
         confirm_kb = InlineKeyboardMarkup([
             [InlineKeyboardButton(
-                get_text("cp_btn_create_on_topic", lang), callback_data="plan_create_post"
+                safe_t("cp_btn_create_on_topic", lang), callback_data="plan_create_post"
             )],
             [InlineKeyboardButton(
-                get_text("cp_btn_back", lang), callback_data="plan_back_to_list"
+                safe_t("cp_btn_back", lang), callback_data="plan_back_to_list"
             )],
         ])
 
@@ -585,7 +590,7 @@ async def plan_view_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
             plan_items = context.user_data.get("plan_items", [])
             if plan_items:
                 await query.message.reply_text(
-                    get_text("cp_choose_day", lang),
+                    safe_t("cp_choose_day", lang),
                     reply_markup=_plan_list_keyboard(plan_items, context, lang),
                     parse_mode="HTML",
                 )
@@ -599,7 +604,7 @@ async def plan_view_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
         channel_title = context.user_data.get("plan_channel_title", "")
 
         # AI dan to'liq post so'raymiz
-        await query.message.reply_text(get_text("cp_ai_writing", lang))
+        await query.message.reply_text(safe_t("cp_ai_writing", lang))
 
         from utils.ai_agent import generate_post_from_plan
         tone = await db.run_db(db.get_channel_tone, channel_id) if channel_id else "friendly"
@@ -610,7 +615,7 @@ async def plan_view_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
         except Exception:
             pass
         async with keep_typing(context.bot, chat_id):
-            result = await generate_post_from_plan(topic, title, idea, tone)
+            result = await generate_post_from_plan(topic, title, idea, tone, lang=lang)
 
         if "error" in result:
             await query.message.reply_text(
@@ -620,7 +625,7 @@ async def plan_view_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
         post_text = result.get("post_text", "")
         if not post_text:
-            await query.message.reply_text(get_text("cp_ai_write_failed", lang))
+            await query.message.reply_text(safe_t("cp_ai_write_failed", lang))
             return PLAN_VIEW
 
         # Post matnini user_data ga saqlash va yangi post oqimiga o'tkazish
@@ -635,7 +640,7 @@ async def plan_view_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
             preview += "…"
 
         await query.message.reply_text(
-            get_text(
+            safe_t(
                 "cp_post_ready", lang, preview=safe_html(preview),
                 channel=html_escape(channel_title),
             ),
@@ -645,7 +650,7 @@ async def plan_view_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
         # To'g'ridan-to'g'ri GET_BTN_TITLE ga o'tamiz (tugma bosish bosqichi)
         from keyboards.default import get_button_prompt_keyboard
         await query.message.reply_text(
-            get_text("cp_button_ask", lang),
+            safe_t("cp_button_ask", lang),
             reply_markup=get_button_prompt_keyboard(lang),
             parse_mode="HTML",
         )
@@ -656,26 +661,26 @@ async def plan_view_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await query.answer()
         plan_items = context.user_data.get("plan_items", [])
         channel_title = context.user_data.get(
-            "plan_channel_title", get_text("an_channel_fallback", lang)
+            "plan_channel_title", safe_t("an_channel_fallback", lang)
         )
         topic = context.user_data.get("plan_topic", "")
 
-        plan_text = get_text(
+        plan_text = safe_t(
             "cp_plan_header", lang,
             channel=html_escape(channel_title), topic=html_escape(topic),
         )
 
         for i, item in enumerate(plan_items):
-            day = item.get("day", get_text("cp_day_fallback", lang, n=i + 1))
+            day = item.get("day", safe_t("cp_day_fallback", lang, n=i + 1))
             fmt = item.get("format", "")
             title = item.get("title", "")
             idea = item.get("idea", "")
-            plan_text += get_text(
+            plan_text += safe_t(
                 "cp_plan_day", lang, day=day,
                 fmt=html_escape(fmt), title=html_escape(title),
             )
             if idea:
-                plan_text += get_text("cp_plan_idea", lang, idea=html_escape(idea[:150]))
+                plan_text += safe_t("cp_plan_idea", lang, idea=html_escape(idea[:150]))
             plan_text += "\n"
 
         await query.message.reply_text(

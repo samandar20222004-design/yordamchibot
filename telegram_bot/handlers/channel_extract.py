@@ -7,7 +7,7 @@ import database as db
 from keyboards.default import get_cancel_keyboard, get_main_keyboard, get_button_prompt_keyboard
 from keyboards.inline import btn_label
 from keyboards.callback_data import cb
-from locales.translations import get_text, get_lang, is_main_menu_text, localize_service_error
+from locales.translations import safe_t, get_lang, is_main_menu_text, localize_service_error
 from utils.helpers import html_escape, safe_html, get_auto_ad_injection_async, keep_typing
 from utils.channel_reader import (
     format_post_list, read_channel_posts, read_webpage_for_ai,
@@ -26,7 +26,7 @@ def _get_post_list_keyboard(
 ) -> InlineKeyboardMarkup:
     """Postlar ro'yxati uchun keyboard."""
     keyboard = []
-    media_preview = get_text("ext_media_preview", lang)
+    media_preview = safe_t("ext_media_preview", lang)
     for i, post in enumerate(posts):
         text = post.get("text", "")
         preview = text[:35] if text else media_preview
@@ -39,10 +39,10 @@ def _get_post_list_keyboard(
             )
         ])
     keyboard.append([
-        InlineKeyboardButton(get_text("ext_btn_refresh", lang), callback_data="ext_refresh")
+        InlineKeyboardButton(safe_t("ext_btn_refresh", lang), callback_data="ext_refresh")
     ])
     keyboard.append([
-        InlineKeyboardButton(get_text("ai_btn_close", lang), callback_data="ext_cancel")
+        InlineKeyboardButton(safe_t("ai_btn_close", lang), callback_data="ext_cancel")
     ])
     return InlineKeyboardMarkup(keyboard)
 
@@ -50,15 +50,15 @@ def _get_post_list_keyboard(
 def _get_rewrite_result_keyboard(show_back: bool = True, lang: str = "uz") -> InlineKeyboardMarkup:
     """AI natijasi uchun keyboard (sayt oqimida 'Boshqa post' tugmasi yashirinadi)."""
     rows = [
-        [InlineKeyboardButton(get_text("ai_confirm_schedule", lang), callback_data="ext_schedule")],
-        [InlineKeyboardButton(get_text("ext_btn_rewrite", lang), callback_data="ext_rewrite")],
+        [InlineKeyboardButton(safe_t("ai_confirm_schedule", lang), callback_data="ext_schedule")],
+        [InlineKeyboardButton(safe_t("ext_btn_rewrite", lang), callback_data="ext_rewrite")],
     ]
     if show_back:
         rows.append([
-            InlineKeyboardButton(get_text("ext_btn_other_post", lang), callback_data="ext_back")
+            InlineKeyboardButton(safe_t("ext_btn_other_post", lang), callback_data="ext_back")
         ])
     rows.append([
-        InlineKeyboardButton(get_text("ai_btn_close", lang), callback_data="ext_cancel")
+        InlineKeyboardButton(safe_t("ai_btn_close", lang), callback_data="ext_cancel")
     ])
     return InlineKeyboardMarkup(rows)
 
@@ -67,7 +67,7 @@ async def start_extract(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Ochiq kanaldan post olish oqimini boshlash."""
     lang = get_lang(context)
     await update.message.reply_text(
-        get_text("ext_intro", lang),
+        safe_t("ext_intro", lang),
         reply_markup=get_cancel_keyboard(lang),
         parse_mode="HTML",
     )
@@ -96,11 +96,11 @@ async def _handle_website_link(update: Update, context: ContextTypes.DEFAULT_TYP
     yetkaziladi.
     """
     lang = get_lang(context)
-    await update.message.reply_text(get_text("ext_reading_site", lang))
+    await update.message.reply_text(safe_t("ext_reading_site", lang))
 
     page = await read_webpage_for_ai(url)
     if "error" in page or not (page.get("content") or page.get("title")):
-        raw_error = page.get("error") or get_text("ext_site_read_failed", lang)
+        raw_error = page.get("error") or safe_t("ext_site_read_failed", lang)
         if page.get("error"):
             raw_error = localize_service_error(raw_error, lang)
         await update.message.reply_text(
@@ -119,9 +119,9 @@ async def _handle_website_link(update: Update, context: ContextTypes.DEFAULT_TYP
     context.user_data["extract_post_link"] = site_url
     context.user_data["extract_posts"] = []
 
-    await update.message.reply_text(get_text("ext_ai_analyzing_page", lang))
+    await update.message.reply_text(safe_t("ext_ai_analyzing_page", lang))
 
-    from utils.ai_agent import rewrite_channel_post
+    from utils.ai_agent import rewrite_channel_post, pick_supported_kwargs
     tone = await _get_user_tone(user_id)
 
     chat_id = update.effective_chat.id
@@ -131,7 +131,11 @@ async def _handle_website_link(update: Update, context: ContextTypes.DEFAULT_TYP
         pass
 
     async with keep_typing(context.bot, chat_id):
-        result = await rewrite_channel_post(original_text, source, site_url, tone)
+        # 🌐 Qayta yozilgan post foydalanuvchi tilida (uz/ru/en).
+        result = await rewrite_channel_post(
+            original_text, source, site_url, tone,
+            **pick_supported_kwargs(rewrite_channel_post, lang=lang),
+        )
 
     if "error" in result:
         await update.message.reply_text(
@@ -141,7 +145,7 @@ async def _handle_website_link(update: Update, context: ContextTypes.DEFAULT_TYP
 
     rewritten = result.get("post_text", "")
     if not rewritten:
-        await update.message.reply_text(get_text("ext_ai_page_failed", lang))
+        await update.message.reply_text(safe_t("ext_ai_page_failed", lang))
         return EXTRACT_USERNAME
 
     context.user_data["extract_rewritten"] = rewritten
@@ -155,7 +159,7 @@ async def _handle_website_link(update: Update, context: ContextTypes.DEFAULT_TYP
 
     ad_line = await get_auto_ad_injection_async(user_id)
     await update.message.reply_text(
-        get_text(
+        safe_t(
             "ext_ai_proposal_src", lang,
             src=html_escape(source), text=safe_html(preview),
         ) + ad_line,
@@ -174,7 +178,7 @@ async def extract_username_received(update: Update, context: ContextTypes.DEFAUL
 
     if is_main_menu_text(text):
         await update.message.reply_text(
-            get_text("op_cancelled", lang),
+            safe_t("op_cancelled", lang),
             reply_markup=get_main_keyboard(is_admin, lang=lang),
         )
         return ConversationHandler.END
@@ -184,7 +188,7 @@ async def extract_username_received(update: Update, context: ContextTypes.DEFAUL
         return await _handle_website_link(update, context, text, user_id)
 
     # 2) Telegram kanali: @kanal, kanal yoki https://t.me/kanal havolasi
-    await update.message.reply_text(get_text("ext_reading_posts", lang))
+    await update.message.reply_text(safe_t("ext_reading_posts", lang))
 
     result = await read_channel_posts(text, limit=5)
     status = result.get("status")
@@ -193,7 +197,7 @@ async def extract_username_received(update: Update, context: ContextTypes.DEFAUL
 
     if status == "private":
         await update.message.reply_text(
-            get_text("ext_private_channel_full", lang),
+            safe_t("ext_private_channel_full", lang),
             reply_markup=get_cancel_keyboard(lang),
             parse_mode="HTML",
         )
@@ -201,7 +205,7 @@ async def extract_username_received(update: Update, context: ContextTypes.DEFAUL
 
     if status == "not_found":
         await update.message.reply_text(
-            get_text("ext_not_found", lang, text=html_escape(text)),
+            safe_t("ext_not_found", lang, text=html_escape(text)),
             reply_markup=get_cancel_keyboard(lang),
             parse_mode="HTML",
         )
@@ -209,7 +213,7 @@ async def extract_username_received(update: Update, context: ContextTypes.DEFAUL
 
     if status == "invalid":
         await update.message.reply_text(
-            get_text("ext_invalid_username", lang),
+            safe_t("ext_invalid_username", lang),
             reply_markup=get_cancel_keyboard(lang),
             parse_mode="HTML",
         )
@@ -218,13 +222,13 @@ async def extract_username_received(update: Update, context: ContextTypes.DEFAUL
     if not posts:
         if status == "empty":
             await update.message.reply_text(
-                get_text("ext_empty", lang, channel=html_escape(username)),
+                safe_t("ext_empty", lang, channel=html_escape(username)),
                 reply_markup=get_cancel_keyboard(lang),
                 parse_mode="HTML",
             )
         else:
             await update.message.reply_text(
-                get_text("ext_read_failed", lang, channel=html_escape(username)),
+                safe_t("ext_read_failed", lang, channel=html_escape(username)),
                 reply_markup=get_cancel_keyboard(lang),
                 parse_mode="HTML",
             )
@@ -253,7 +257,7 @@ async def extract_post_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE
     if data == "ext_cancel":
         await query.answer()
         await query.message.reply_text(
-            get_text("op_cancelled", lang),
+            safe_t("op_cancelled", lang),
             reply_markup=get_main_keyboard(is_admin, lang=lang),
         )
         return ConversationHandler.END
@@ -270,11 +274,11 @@ async def extract_post_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE
                 parse_mode="HTML",
             )
         else:
-            await query.message.reply_text(get_text("ext_no_list", lang))
+            await query.message.reply_text(safe_t("ext_no_list", lang))
         return EXTRACT_CHOOSE_POST
 
     if data == "ext_refresh":
-        await query.answer(get_text("ext_refreshing", lang))
+        await query.answer(safe_t("ext_refreshing", lang))
         username = context.user_data.get("extract_channel", "")
         if not username:
             return EXTRACT_CHOOSE_POST
@@ -283,9 +287,9 @@ async def extract_post_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE
         posts = result.get("posts") or []
         if not posts:
             if result.get("status") == "private":
-                await query.message.reply_text(get_text("ext_private_channel", lang))
+                await query.message.reply_text(safe_t("ext_private_channel", lang))
             else:
-                await query.message.reply_text(get_text("ext_no_posts", lang))
+                await query.message.reply_text(safe_t("ext_no_posts", lang))
             return EXTRACT_CHOOSE_POST
 
         context.user_data["extract_posts"] = posts
@@ -307,7 +311,7 @@ async def extract_post_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE
 
         posts = context.user_data.get("extract_posts", [])
         if idx < 0 or idx >= len(posts):
-            await query.message.reply_text(get_text("ext_invalid_post", lang))
+            await query.message.reply_text(safe_t("ext_invalid_post", lang))
             return EXTRACT_CHOOSE_POST
 
         post = posts[idx]
@@ -316,7 +320,7 @@ async def extract_post_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE
         username = context.user_data.get("extract_channel", "")
 
         if not original_text:
-            await query.message.reply_text(get_text("ext_post_no_text", lang))
+            await query.message.reply_text(safe_t("ext_post_no_text", lang))
             return EXTRACT_CHOOSE_POST
 
         # Saqlab qo'yamiz
@@ -325,9 +329,9 @@ async def extract_post_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE
 
         tone = await _get_user_tone(user_id)
 
-        await query.message.reply_text(get_text("ext_ai_rewriting", lang))
+        await query.message.reply_text(safe_t("ext_ai_rewriting", lang))
 
-        from utils.ai_agent import rewrite_channel_post
+        from utils.ai_agent import rewrite_channel_post, pick_supported_kwargs
         # Indikator darhol ko'rinsin, keyin uzoq AI so'rovi davomida yangilanib tursin.
         chat_id = query.message.chat_id
         try:
@@ -335,7 +339,10 @@ async def extract_post_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE
         except Exception:
             pass
         async with keep_typing(context.bot, chat_id):
-            result = await rewrite_channel_post(original_text, username, post_link, tone)
+            result = await rewrite_channel_post(
+                original_text, username, post_link, tone,
+                **pick_supported_kwargs(rewrite_channel_post, lang=lang),
+            )
 
         if "error" in result:
             await query.message.reply_text(
@@ -345,7 +352,7 @@ async def extract_post_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE
 
         rewritten = result.get("post_text", "")
         if not rewritten:
-            await query.message.reply_text(get_text("ext_ai_rewrite_failed", lang))
+            await query.message.reply_text(safe_t("ext_ai_rewrite_failed", lang))
             return EXTRACT_CHOOSE_POST
 
         context.user_data["extract_rewritten"] = rewritten
@@ -359,21 +366,21 @@ async def extract_post_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE
 
         ad_line = await get_auto_ad_injection_async(user_id)
         await query.message.reply_text(
-            get_text("ext_ai_proposal", lang, text=safe_html(preview)) + ad_line,
+            safe_t("ext_ai_proposal", lang, text=safe_html(preview)) + ad_line,
             reply_markup=_get_rewrite_result_keyboard(lang=lang),
             parse_mode="HTML",
         )
         return EXTRACT_CHOOSE_POST
 
     if data == "ext_rewrite":
-        await query.answer(get_text("ext_rewriting", lang))
+        await query.answer(safe_t("ext_rewriting", lang))
         original_text = context.user_data.get("extract_original", "")
         post_link = context.user_data.get("extract_post_link", "")
         username = context.user_data.get("extract_channel", "")
 
         tone = await _get_user_tone(user_id)
 
-        from utils.ai_agent import rewrite_channel_post
+        from utils.ai_agent import rewrite_channel_post, pick_supported_kwargs
         # Indikator darhol ko'rinsin, keyin uzoq AI so'rovi davomida yangilanib tursin.
         chat_id = query.message.chat_id
         try:
@@ -381,7 +388,10 @@ async def extract_post_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE
         except Exception:
             pass
         async with keep_typing(context.bot, chat_id):
-            result = await rewrite_channel_post(original_text, username, post_link, tone)
+            result = await rewrite_channel_post(
+                original_text, username, post_link, tone,
+                **pick_supported_kwargs(rewrite_channel_post, lang=lang),
+            )
 
         if "error" in result:
             await query.message.reply_text(
@@ -401,7 +411,7 @@ async def extract_post_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE
                 preview += "…"
 
             await query.message.reply_text(
-                get_text("np_ai_retry_proposal", lang, new=safe_html(preview)),
+                safe_t("np_ai_retry_proposal", lang, new=safe_html(preview)),
                 reply_markup=_get_rewrite_result_keyboard(lang=lang),
                 parse_mode="HTML",
             )
@@ -411,7 +421,7 @@ async def extract_post_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE
         await query.answer()
         rewritten = context.user_data.get("extract_rewritten", "")
         if not rewritten:
-            await query.message.reply_text(get_text("ext_no_post_text", lang))
+            await query.message.reply_text(safe_t("ext_no_post_text", lang))
             return EXTRACT_CHOOSE_POST
 
         # Post yaratish oqimiga o'tkazish
@@ -420,7 +430,7 @@ async def extract_post_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE
         context.user_data["file_id"] = None
 
         await query.message.reply_text(
-            get_text("ext_post_accepted", lang),
+            safe_t("ext_post_accepted", lang),
             reply_markup=get_button_prompt_keyboard(lang),
             parse_mode="HTML",
         )
