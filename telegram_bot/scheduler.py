@@ -462,35 +462,53 @@ def parse_album_items(file_id) -> list:
 # olinadi. Faqat aniq tan olingan xizmat yorliqlari (emoji-boshli preview
 # qatorlari, uz/ru) olinadi; foydalanuvchining odatiy matni o'zgarmaydi.
 _INTERNAL_TECHNICAL_LINE_PATTERNS = (
-    # Tasdiqlash kartasi sarlavhasi: "📋 Postni tasdiqlang:" / "📋 Подтвердите пост:"
-    re.compile(r"^📋\s*(?:<b>)?\s*(?:Postni tasdiqlang|Подтвердите пост)\b.*$", re.I),
-    # "📢 Kanal: ..." / "📢 Канал: ..."
-    re.compile(r"^📢\s*(?:<b>)?\s*(?:Kanal|Канал)\s*:.*$", re.I),
-    # "📦 Turi: ..." / "📦 Тип: ..."
-    re.compile(r"^📦\s*(?:<b>)?\s*(?:Turi|Тип)\s*:.*$", re.I),
-    # Albom xulosasi (preview): "🖼 Albom: 6 ta rasm" / "🖼 Альбом: 6 фото"
-    re.compile(r"^(?:🖼\s*)?(?:Albom|Альбом)\s*:\s*(?:\d+).*$", re.I),
-    # "⏰ Vaqt belgilanmagan" / "⏰ Время не указано"
-    re.compile(r"^⏰\s*(?:Vaqt belgilanmagan|Время не указано)\s*\.?\s*$"),
-    # "⏰ 2026-09-07 14:00 (Toshkent vaqti)" / "⏰ ... (время Ташкента)"
-    re.compile(r"^⏰\s*\S.*(?:Toshkent vaqti|время Ташкента)\s*\)?\s*\.?\s*$", re.I),
-    # "🔁 Har kuni, soat 10:00 da" / "🔁 Ежедневно, в 10:00"
+    # Tasdiqlash kartasi sarlavhasi:
+    #   "📋 Postni tasdiqlang:" / "📋 Подтвердите пост:" / "📋 Confirm the post:"
+    re.compile(r"^📋\s*(?:Postni tasdiqlang|Подтвердите пост|Confirm the post)\b.*$", re.I),
+    # "📢 Kanal: ..." / "📢 Канал: ..." / "📢 Channel: ..."
+    re.compile(r"^📢\s*(?:Kanal|Канал|Channel)\s*:.*$", re.I),
+    # "📦 Turi: ..." / "📦 Тип: ..." / "📦 Type: ..."
+    re.compile(r"^📦\s*(?:Turi|Тип|Type)\s*:.*$", re.I),
+    # Albom xulosasi (preview): "🖼 Albom: 6 ta rasm" / "🖼 Альбом: 6 фото" /
+    # "🖼 Album: 6 photos" (bu qator albom preview'ida alohida qatorda chiqadi)
+    re.compile(r"^(?:🖼\s*)?(?:Albom|Альбом|Album)\s*:\s*\d+.*$", re.I),
+    # "⏰ Vaqt belgilanmagan" / "⏰ Время не указано" / "⏰ Time not set"
+    re.compile(r"^⏰\s*(?:Vaqt belgilanmagan|Время не указано|Time not set)\s*\.?\s*$", re.I),
+    # "⏰ 2026-09-07 14:00 (Toshkent vaqti)" / "⏰ ... (время Ташкента)" /
+    # "⏰ Sep 07, 2026 14:00 (Tashkent time)"
+    re.compile(r"^⏰\s*\S.*(?:Toshkent vaqti|время Ташкента|Tashkent time)\s*\)?\s*\.?\s*$", re.I),
+    # "🔁 Har kuni, soat 10:00 da" / "🔁 Ежедневно, в 10:00" / "🔁 Daily at 10:00"
     # (faqat preview formati — vaqt (HH:MM) qismi SHART bo'lsa kesiladi;
     #  foydalanuvchi o'z matnidagi "🔁 Har kuni..." kabi oddiy qator qoladi)
-    re.compile(r"^🔁\s*(?:Har kuni|Ежедневно)\s*,\s*(?:soat\s+|в\s+)?\d{1,2}:\d{2}", re.I),
-    # "📅 Har Dushanba, soat 10:00 da" / "📅 Каждый Понедельник, в 10:00"
-    re.compile(r"^📅\s*(?:Har |Каждый )\S+\s*,\s*(?:soat\s+|в\s+)?\d{1,2}:\d{2}", re.I),
-    # "📋 Matn:" / "📋 Текст:" yorlig'i (matnning O'ZI keyingi qatorda qoladi)
-    re.compile(r"^📋\s*(?:<b>)?\s*(?:Matn|Текст)\s*:.*$", re.I),
-    # "🔘 Tugma: ..." / "🔘 Кнопка: ..."
-    re.compile(r"^🔘\s*(?:<b>)?\s*(?:Tugma|Кнопка)\s*:.*$", re.I),
-    # "👍 Reaksiyalar: ..." / "👍 Реакции: ..."
-    re.compile(r"^👍\s*(?:<b>)?\s*(?:Reaksiyalar|Реакции)\s*:.*$", re.I),
-    # "⏳ Avto-o'chirish: 24 soat" / "⏳ Авто-удаление: 24 ч."
-    re.compile(r"^⏳\s*(?:Avto-?o'chirish|Авто-?удаление)\s*:.*$", re.I),
-    # Preview "matn kesildi" eslatmasi (uz/ru)
-    re.compile(r"^⚠️\s*(?:Eslatma|Примечание)\s*:.*(?:belgi|символов).*$", re.I),
+    re.compile(r"^🔁\s*(?:Har kuni|Ежедневно|Daily)\b[,:]?\s*(?:soat\s+|в\s+|at\s+)?\d{1,2}:\d{2}", re.I),
+    # "📅 Har Dushanba, soat 10:00 da" / "📅 Каждый Понедельник, в 10:00" /
+    # "📅 Every Monday at 10:00"
+    re.compile(r"^📅\s*(?:Har |Каждый |Every )\S+.*?[,:]?\s*(?:soat\s+|в\s+|at\s+)?\d{1,2}:\d{2}", re.I),
+    # "📋 Matn:" / "📋 Текст:" / "📋 Text:" yorlig'i (matnning O'ZI keyingi
+    # qatorda qoladi)
+    re.compile(r"^📋\s*(?:Matn|Текст|Text)\s*:.*$", re.I),
+    # "🔘 Tugma: ..." / "🔘 Кнопка: ..." / "🔘 Button: disabled"
+    re.compile(r"^🔘\s*(?:Tugma|Кнопка|Button)\b\s*:?.*$", re.I),
+    # "👍 Reaksiyalar: ..." / "👍 Реакции: ..." / "👍 Reactions: disabled"
+    re.compile(r"^👍\s*(?:Reaksiyalar|Реакции|Reactions)\b\s*:?.*$", re.I),
+    # "⏳ Avto-o'chirish: 24 soat" / "⏳ Авто-удаление: 24 ч." /
+    # "⏳ Auto-delete: 24 h"
+    re.compile(r"^⏳\s*(?:Avto-?o'chirish|Авто-?удаление|Auto-?delete)\b\s*:?.*$", re.I),
+    # Preview "matn kesildi" eslatmasi (uz/ru/en)
+    re.compile(r"^⚠️\s*(?:Eslatma|Примечание|Note)\s*:.*(?:belgi|символ\w*|character\w*).*$", re.I),
 )
+
+#: Preview qatorlaridagi HTML teglar (<b>, <i>, <code>…) — solishtirishdan
+#: oldin olib tashlanadi, aks holda "📦 <b>Type:</b> Text" kabi qatorlar
+#: pattern'ga tushmay, kanal postiga sizib chiqadi.
+_PREVIEW_HTML_TAG_RE = re.compile(r"</?(?:b|i|u|s|code|pre|tg-emoji)[^>]*>")
+
+
+def _preview_comparable_line(line: str) -> str:
+    """Texnik qatorlarni tanish uchun soddalashtirilgan ko'rinish."""
+    return _PREVIEW_HTML_TAG_RE.sub(" ", (line or "").strip())
+
+
 
 
 def sanitize_channel_content(content: str) -> str:
@@ -509,7 +527,7 @@ def sanitize_channel_content(content: str) -> str:
     lines = text.split("\n")
     cleaned = [
         line for line in lines
-        if not any(p.match(line.strip()) for p in _INTERNAL_TECHNICAL_LINE_PATTERNS)
+        if not any(p.match(_preview_comparable_line(line)) for p in _INTERNAL_TECHNICAL_LINE_PATTERNS)
     ]
     return "\n".join(cleaned).strip()
 

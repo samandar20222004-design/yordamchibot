@@ -7,9 +7,10 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKe
 from telegram.ext import ContextTypes, ConversationHandler
 from config import ADMIN_IDS_SET
 import database as db
-from keyboards.default import get_main_keyboard, get_cancel_keyboard
+from keyboards.default import get_main_keyboard, get_cancel_keyboard, is_menu_text
 from keyboards.callback_data import CB_POST_VIEW, cb
 from locales.translations import get_lang, get_text, normalize_lang
+from utils.date_format import format_datetime, format_list_datetime
 from utils.helpers import html_escape
 
 logger = logging.getLogger(__name__)
@@ -61,11 +62,19 @@ def _content_preview(content: str, max_len: int = 40) -> str:
 
 
 def _format_queue_item(row, index: int, lang: str = "uz") -> str:
-    """Bitta queue postni formatlaydi."""
+    """Bitta queue postni formatlaydi — sana/vaqt foydalanuvchi tilida.
+
+    Avval ``%d-%b`` ishlatilardi: Python ``strftime`` C-locale oy nomini
+    qaytargani uchun RU/O'Z foydalanuvchi ham "05-Sep" ko'rardi. Endi oy nomi
+    til lug'atidan olinadi va bugun/ertaga sanalari "Bugun 14:00" /
+    "Сегодня 14:00" / "Today 14:00" ko'rinishida chiqadi.
+    """
     post_id, ch_title, post_type, content, sched_time, post_num, ch_id = row
     icon = _post_type_icon(post_type)
     preview = _content_preview(content)
-    time_str = sched_time.astimezone(tashkent_tz).strftime("%d-%b %H:%M")
+    time_str = format_list_datetime(
+        sched_time, lang=normalize_lang(lang), now=datetime.now(tashkent_tz)
+    ) or "—"
     ch_display = html_escape(ch_title or ch_id or "?")
     preview_part = f' "{html_escape(preview)}"' if preview else ""
     return f"{index}. 🗓 {time_str} | 📢 {ch_display} | {icon}{preview_part}"
@@ -234,7 +243,7 @@ async def queue_view_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
      btn_text, btn_url, enable_reactions, delete_after_hours,
      sched_time, post_num) = post
 
-    time_str = sched_time.astimezone(tashkent_tz).strftime("%Y-%m-%d %H:%M")
+    time_str = format_datetime(sched_time, normalize_lang(lang)) or "—"
     ch_display = html_escape(ch_title or ch_id or "?")
     type_key = "np_type_" + post_type if ("np_type_" + post_type) in _KNOWN_TYPE_KEYS else "np_type_unknown"
     type_text = get_text(type_key, lang)
@@ -461,9 +470,9 @@ async def slot_add_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = (update.message.text or "").strip()
     user_id = update.effective_user.id
 
-    if text in (get_text("btn_back", lang), get_text("btn_main_menu", lang),
-                get_text("btn_back", "uz"), get_text("btn_main_menu", "uz"),
-                get_text("btn_back", "ru"), get_text("btn_main_menu", "ru")):
+    # "Orqaga/Asosiy menyu" tugmalari — registry orqali UCHALA tilda (uz/ru/en),
+    # shunda EN klaviatura bilan ham slot qo'shish bekor qilinadi.
+    if is_menu_text(text, "back", "main_menu", "np_back_confirm"):
         context.user_data.pop("slot_add_pending", None)
         slots = await db.run_db(db.get_queue_slots, user_id)
         slot_text = get_text("queue_slots_title", lang, slots=", ".join(slots))

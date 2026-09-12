@@ -53,6 +53,11 @@ echo "=========== ACCOUNT & SETTINGS i18n TEST ============"
 "$PY" tests/account_settings_i18n_test.py || exit 1
 
 echo
+echo "====== REPLY TUGMA FILTRLARI (uz/ru/en) + SANA + PHOTO_CHECK ======"
+# Doimiy (reply) klaviatura tugmalari 3 tilda ham taniyladi, sana/vaqt
+# foydalanuvchi tilida chiziladi va 📷 rasm moderatsiyasi ham tilga mos.
+"$PY" tests/reply_filters_i18n_dates_test.py || exit 1
+
 echo "=============== NEW POST / AI STUDIO i18n TEST ==============="
 "$PY" tests/new_post_i18n_test.py || exit 1
 "$PY" tests/ai_studio_plan_i18n_test.py || exit 1

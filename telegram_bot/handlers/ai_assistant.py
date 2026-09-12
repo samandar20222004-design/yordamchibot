@@ -7,9 +7,11 @@ from telegram.ext import ContextTypes, ConversationHandler
 from config import ADMIN_IDS_SET
 import database as db
 from keyboards.default import (
-    BTN_T_5MIN, BTN_T_15MIN, BTN_T_1H, BTN_T_DAILY, BTN_T_WEEKLY,
     BTN_BACK, BTN_MAIN_MENU,
     get_cancel_keyboard, get_main_keyboard, get_ai_time_keyboard,
+    # Uch tilli tugma registry: "⚡ 5 minutes" / "🔁 Daily (same time)" kabi
+    # EN/RU yorliqlari ham shu yerdan taniladi.
+    is_menu_text,
 )
 from keyboards.callback_data import CB_PHOTO_VARIANT, cb
 from keyboards.inline import (
@@ -27,6 +29,7 @@ from utils.ai_agent import (
 from locales.translations import (
     clear_fsm_data, get_lang, safe_t, localize_service_error,
 )
+from utils.date_format import format_datetime
 from utils.helpers import (
     html_escape, safe_html, check_ai_rate_limit, check_ai_daily_limit, parse_future_time,
     get_auto_ad_injection_async, parse_schedule_input,
@@ -92,11 +95,18 @@ AI_PHOTO_INSTRUCTION = (
     "«rasmdagi mahsulotni sotishga urg'u ber».</i>"
 )
 
-# Vision xizmati mavjud bo'lmaganda ko'rsatiladigan xabar
-AI_PHOTO_UNAVAILABLE_MSG = (
-    "⚠️ AI rasmni tahlil qila olmadi. "
-    "Iltimos, birozdan so'ng qayta urinib ko'ring."
-)
+# Vision xizmati mavjud bo'lmaganda ko'rsatiladigan xabar.
+# MUHIM: bu matn foydalanuvchiga KO'RSATILADI — shu sababli u qotirilgan
+# o'zbekcha satr emas, ``ai_photo_unavailable`` lug'at kaliti (uz/ru/en).
+# ``AI_PHOTO_UNAVAILABLE_MSG`` eski chaqiruvlar uchun saqlanadi.
+AI_PHOTO_UNAVAILABLE_KEY = "ai_photo_unavailable"
+AI_PHOTO_UNAVAILABLE_MSG = safe_t(AI_PHOTO_UNAVAILABLE_KEY, "uz")
+
+
+def _photo_unavailable_msg(lang: str = "uz") -> str:
+    """Rasm tahlili muvaffaqiyatsizligi — foydalanuvchi tilidagi xabar."""
+    text = safe_t(AI_PHOTO_UNAVAILABLE_KEY, lang)
+    return text if text and text != AI_PHOTO_UNAVAILABLE_KEY else AI_PHOTO_UNAVAILABLE_MSG
 
 # ✏️ Tahrirlash (matn orqali) uchun system instruction — Vision natijasini
 # bosqichsiz, faqat talab bo'yicha o'zgartiradi.
@@ -563,7 +573,9 @@ async def ai_time_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     is_admin = (user_id in ADMIN_IDS_SET)
 
-    if text in (BTN_T_DAILY, BTN_T_WEEKLY):
+    # 🔁/📅 tugmalari va "⚡ 5/15/60" tugmalari UCHALA tilda taniyladi —
+    # klaviatura EN bo'lsa "⚡ 15 minutes" bosilganda avval vaqt o'qilmasdi.
+    if is_menu_text(text, "np_time_daily", "np_time_weekly"):
         await update.message.reply_text(
             safe_t("ai_only_one_time", lang),
             reply_markup=get_ai_time_keyboard(),
@@ -572,11 +584,11 @@ async def ai_time_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return AI_GET_TIME
 
     post_time = None
-    if text == BTN_T_5MIN:
+    if is_menu_text(text, "np_time_5m"):
         post_time = now + timedelta(minutes=5)
-    elif text == BTN_T_15MIN:
+    elif is_menu_text(text, "np_time_15m"):
         post_time = now + timedelta(minutes=15)
-    elif text == BTN_T_1H:
+    elif is_menu_text(text, "np_time_1h"):
         post_time = now + timedelta(hours=1)
     else:
         post_time = parse_future_time(text)
@@ -638,16 +650,22 @@ async def ai_time_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return AI_GET_TIME
 
+    # DB/user_data uchun ISO (qayta o'qiladigan), foydalanuvchi uchun esa
+    # TILIGA MOS ko'rinish (en: "Sep 05, 2026 14:00").
     time_str = post_time.strftime("%Y-%m-%d %H:%M")
     context.user_data["ai_scheduled_time"] = time_str
+    time_display = format_datetime(post_time, lang) or time_str
 
     post_text = context.user_data.get("ai_generated_post", "")
     target_all = context.user_data.get("ai_target_all", False)
-    target_info = "\n🌐 <b>Kanal:</b> Barcha ulangan kanallarga" if target_all else ""
+    # 🌐 "Barcha ulangan kanallarga" qatori ham foydalanuvchi tilida.
+    target_info = (
+        "\n" + safe_t("ai_target_all_line", lang) if target_all else ""
+    )
     await update.message.reply_text(
         safe_t("ai_post_ready", lang)
         + safe_html(post_text[:2500])
-        + safe_t("ai_post_ready_foot", lang, time=time_str, target=target_info),
+        + safe_t("ai_post_ready_foot", lang, time=time_display, target=target_info),
         reply_markup=get_ai_confirm_keyboard(lang),
         parse_mode="HTML",
     )
@@ -743,7 +761,9 @@ async def ai_confirm_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
         if not is_admin and not is_pro:
             await db.run_db(db.increment_ai_usage, user_id)
         first_title = (channels[0][1] or "").strip() or "Kanal"
-        target_name = "Barcha ulangan kanallarga" if target_all else first_title
+        target_name = (
+            safe_t("ai_target_all_name", lang) if target_all else first_title
+        )
         ad_line = await get_auto_ad_injection_async(user_id)
         try:
             await query.edit_message_reply_markup(reply_markup=None)
@@ -753,7 +773,8 @@ async def ai_confirm_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
             safe_t(
                 "ai_scheduled_ok", lang,
                 channel=html_escape(target_name),
-                time=post_time.strftime("%Y-%m-%d %H:%M"),
+                time=format_datetime(post_time, lang)
+                or post_time.strftime("%Y-%m-%d %H:%M"),
             ) + ad_line,
             reply_markup=get_main_keyboard(is_admin, lang),
             parse_mode="HTML",
@@ -1422,7 +1443,7 @@ async def _vision_run(file_id: str, extra_prompt: str, rewrite_context="",
         return {"error": str(e)}
     except Exception as e:
         logger.error("Vision xatosi: %s", e)
-        return {"error": AI_PHOTO_UNAVAILABLE_MSG}
+        return {"error": _photo_unavailable_msg(lang)}
     finally:
         if tmp_path:
             cleanup_temp_media(tmp_path)
@@ -1460,7 +1481,7 @@ async def _vision_run_variants(file_id: str, extra_prompt: str, lang: str = "uz"
         for style, res in outcomes:
             if isinstance(res, Exception):
                 logger.warning("Vision varianti xatosi (%s): %s", style, res)
-                errors.append(AI_PHOTO_UNAVAILABLE_MSG)
+                errors.append(_photo_unavailable_msg(lang))
                 continue
             if isinstance(res, dict) and res.get("error"):
                 errors.append(res["error"])
@@ -1470,12 +1491,12 @@ async def _vision_run_variants(file_id: str, extra_prompt: str, lang: str = "uz"
                 variants[style] = text
     except Exception as e:
         logger.error("Vision variantlar xatosi: %s", e)
-        errors.append(AI_PHOTO_UNAVAILABLE_MSG)
+        errors.append(_photo_unavailable_msg(lang))
     finally:
         if tmp_path:
             cleanup_temp_media(tmp_path)
 
-    first_error = errors[0] if errors else AI_PHOTO_UNAVAILABLE_MSG
+    first_error = errors[0] if errors else _photo_unavailable_msg(lang)
     return variants, first_error
 
 
@@ -1738,7 +1759,7 @@ async def ai_photo_edit_received(update: Update, context: ContextTypes.DEFAULT_T
         )
     except Exception as e:
         logger.error("Vision edit xatosi: %s", e)
-        result = {"error": AI_PHOTO_UNAVAILABLE_MSG}
+        result = {"error": _photo_unavailable_msg(lang)}
     finally:
         stop_typing.set()
         typing_task.cancel()

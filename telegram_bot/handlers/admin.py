@@ -11,6 +11,7 @@ from keyboards.default import (
     get_cancel_keyboard,
     BTN_MAIN_MENU, BTN_CANCEL,
     BTN_AI_SETTINGS, BTN_CACHE_DB,
+    is_menu_text,
 )
 from keyboards.inline import (
     get_sponsors_delete_keyboard, get_cache_actions_keyboard,
@@ -477,8 +478,9 @@ async def admin_inline_text_handler(update: Update, context: ContextTypes.DEFAUL
     flow = context.user_data.get("admin_flow")
     text = update.message.text.strip()
 
-    # "Bekor qilish" har qanday admin oqimida ishlashi kerak.
-    if text in (BTN_CANCEL, BTN_MAIN_MENU):
+    # "Bekor qilish"/"Asosiy menyu" har qanday admin oqimida va UCHALA TILDA
+    # ishlashi kerak (admin klaviaturasi ham tilga qarab chiziladi).
+    if is_menu_text(text, "cancel", "main_menu"):
         clear_fsm_data(context)
         await update.message.reply_text(
             "🚫 <b>Jarayon bekor qilindi.</b>",
@@ -777,7 +779,10 @@ async def ai_settings_received(update: Update, context: ContextTypes.DEFAULT_TYP
     if not is_admin(update.effective_user.id):
         return ConversationHandler.END
     text = update.message.text.strip()
-    if text == BTN_MAIN_MENU:
+    # "🔙 Asosiy menyu"/"⬅️ Back"/"❌ Cancel" — har qanday tilda bu bosqichdan
+    # chiqadi (avval faqat UZ yorlig'i solishtirilgani uchun EN/RU da kiritilgan
+    # matn AI parametri sifatida o'qib, xato berardi).
+    if is_menu_text(text, "main_menu", "back", "cancel"):
         return ConversationHandler.END
 
     if text.lower() == "reset":

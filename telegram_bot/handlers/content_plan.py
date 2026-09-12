@@ -12,6 +12,7 @@ from keyboards.callback_data import cb
 from locales.translations import (
     get_lang, safe_t, is_main_menu_text, localize_service_error,
 )
+from utils.date_format import format_datetime, weekday_label
 from utils.helpers import html_escape, safe_html, get_auto_ad_injection_async, keep_typing
 
 logger = logging.getLogger(__name__)
@@ -424,8 +425,8 @@ async def plan_schedule_all(update: Update, context: ContextTypes.DEFAULT_TYPE):
         moment_tz = moment.astimezone(tashkent_tz) if moment.tzinfo else tashkent_tz.localize(moment)
         day_lines.append(safe_t(
             "plan_sched_day_line", lang,
-            day=safe_t(f"np_weekday_{moment_tz.weekday()}", lang),
-            time=moment_tz.strftime("%d.%m %H:%M"),
+            day=weekday_label(moment_tz.weekday(), lang),
+            time=format_datetime(moment_tz, lang, style="list"),
         ))
 
     confirm_text = safe_t(

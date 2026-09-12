@@ -1787,5 +1787,29 @@ EN_OVERLAY = {
     "an_type_audio": "Audio",
     "an_type_animation": "GIF",
     "an_type_album": "Album",
+    # ============================================================
+    # 🌐 DATES (utils.date_format) and MANUAL PHOTO MODERATION (photo_check)
+    # ============================================================
+    "dt_today": "Today",
+    "dt_tomorrow": "Tomorrow",
+    # ── 🤖 AI Studio / Vision ──
+    "ai_photo_unavailable": "⚠️ AI couldn't analyze this image. Please try again in a moment.",
+    "ai_target_all_line": "🌐 <b>Channel:</b> All connected channels",
+    "ai_target_all_name": "All connected channels",
+    # ── 📷 Manual photo check (handlers/photo_check.py) ──
+    "pc_sent_user": "📸 Your photo was sent to the admin. Awaiting approval.",
+    "pc_admin_caption": "🆔 User ID: <code>{user_id}</code>\n📷 Photo received.",
+    "pc_btn_approve": "✅ Approve",
+    "pc_btn_reject": "❌ Reject",
+    "pc_approved_admin": "✅ <b>Approved!</b>\n\nPRO has been granted to user <code>{user_id}</code>.",
+    "pc_rejected_admin": "❌ <b>Rejected.</b>\n\nThe user's PRO request was declined.",
+    "pc_pro_granted": "🎉 <b>Congratulations!</b>\n\nYou have been granted the <b>30-day PRO plan</b>!\nAll PRO features are now available to you.",
+    "pc_reject_notice": "⚠️ <b>Your photo was not approved.</b>\n\nPlease try again or contact the admin @shmat_uz for help.",
+    "pc_no_permission": "❌ Not allowed.",
+    "pc_no_pro_permission": "❌ You don't have permission to grant PRO to users.",
+    "pc_bad_callback": "Invalid callback data.",
+    "pc_bad_user_id": "Invalid user ID.",
+    "pc_db_error": "Something went wrong.",
+
 
 }

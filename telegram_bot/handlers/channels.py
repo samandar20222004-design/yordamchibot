@@ -8,6 +8,7 @@ import database as db
 from keyboards.default import (
     get_cancel_keyboard, get_main_keyboard, get_tone_keyboard,
     TONE_LABELS, TONE_LABELS_RU, BTN_BACK_RU,
+    is_menu_text, tone_from_text, tone_labels,
 )
 from keyboards.callback_data import CB_CHANNEL_VOICE
 from keyboards.inline import render_channels_list
@@ -520,7 +521,7 @@ async def tone_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     context.user_data["tone_channel_id"] = channel_id
     current_tone = await db.run_db(db.get_channel_tone, channel_id)
-    labels = TONE_LABELS_RU if lang == "ru" else TONE_LABELS
+    labels = tone_labels(lang)
     current_label = labels.get(current_tone, labels["friendly"])
 
     await query.message.reply_text(
@@ -537,23 +538,19 @@ async def tone_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip()
     channel_id = context.user_data.get("tone_channel_id", "")
     is_admin = update.effective_user.id in ADMIN_IDS_SET
-    labels = TONE_LABELS_RU if lang == "ru" else TONE_LABELS
+    labels = tone_labels(lang)
 
-    # Ters mapping: label -> tone key (ikkala til ham qabul qilinadi)
-    label_to_tone = {v: k for k, v in labels.items()}
-    label_to_tone.update({v: k for k, v in TONE_LABELS.items()})
-    label_to_tone.update({v: k for k, v in TONE_LABELS_RU.items()})
+    # Uslub tugmalari UCHALA tilda ham qabul qilinadi: klaviatura EN bo'lganda
+    # "👔 Formal / Business" bosilса avval "nota'g'ri uslub" deb qaytardi.
+    tone = tone_from_text(text)
 
-    if text in (safe_t("btn_main_menu", "uz"), safe_t("btn_main_menu", "ru"),
-                safe_t("btn_back", "uz"), safe_t("btn_back", "ru"),
-                BTN_BACK_RU):
+    if is_menu_text(text, "main_menu", "back", "cancel"):
         await update.message.reply_text(
             safe_t("ch_tone_cancelled", lang),
             reply_markup=get_main_keyboard(is_admin, lang=lang),
         )
         return ConversationHandler.END
 
-    tone = label_to_tone.get(text)
     if not tone:
         await update.message.reply_text(
             safe_t("ch_tone_invalid", lang),
@@ -693,7 +690,7 @@ async def channel_voice_analysis_callback(update: Update, context: ContextTypes.
     # 3) Natijani kanal profiliga saqlaymiz (tone_of_voice)
     await db.run_db(db.set_channel_tone, channel_id, tone)
 
-    labels = TONE_LABELS_RU if lang == "ru" else TONE_LABELS
+    labels = tone_labels(lang)
     tone_label = labels.get(tone, labels["friendly"])
     reason = (result.get("reason") or "").strip()
     try:

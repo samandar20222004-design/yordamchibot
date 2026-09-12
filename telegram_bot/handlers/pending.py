@@ -11,6 +11,7 @@ from keyboards.inline import (
 )
 from keyboards.default import get_cancel_keyboard, get_main_keyboard, get_reactions_keyboard
 from locales.translations import clear_fsm_data, get_lang, get_text
+from utils.date_format import format_datetime
 from utils.helpers import (
     format_post_type_label, format_schedule_line, html_escape, check_rate_limit, parse_future_time,
     NAV_RATE_LIMIT_MAX, parse_reactions_input,
@@ -155,7 +156,7 @@ async def edit_post_time_received(update: Update, context: ContextTypes.DEFAULT_
         example = schedule_time_example(now)
         key = "np_time_future" if reason == SCHEDULE_ERR_PAST else "pend_time_format"
         await update.message.reply_text(
-            get_text(key, lang, example=example, now=now.strftime("%d.%m.%Y %H:%M")),
+            get_text(key, lang, example=example, now=format_datetime(now, lang)),
             parse_mode="HTML",
         )
         return EDIT_POST_TIME

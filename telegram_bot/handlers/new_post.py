@@ -9,20 +9,20 @@ from telegram.ext import ContextTypes, ConversationHandler
 from config import ADMIN_IDS_SET
 import database as db
 from keyboards.default import (
-    BTN_ALL_CHANNELS_TARGET, BTN_MAIN_MENU, BTN_BACK, BTN_SKIP_BUTTON,
-    BTN_ADD_URL_BUTTON, BTN_SKIP_URL_BUTTON,
-    BTN_T_5MIN, BTN_T_15MIN, BTN_T_1H, BTN_T_DAILY, BTN_T_WEEKLY,
-    BTN_DUR_1W, BTN_DUR_1M, BTN_DUR_3M, BTN_DUR_6M, BTN_DUR_1Y, BTN_DUR_INF,
-    WEEKDAY_MAP, WEEKDAY_LABELS,
-    BTN_ALL_CHANNELS_TARGET_RU, BTN_SKIP_BUTTON_RU, BTN_ADD_URL_BUTTON_RU,
-    BTN_SKIP_URL_BUTTON_RU, BTN_NO_REACT, BTN_NO_REACT_RU, BTN_BACK_RU,
-    BTN_BACK_TO_CONFIRM_RU,
-    BTN_T_5MIN_RU, BTN_T_15MIN_RU, BTN_T_1H_RU, BTN_T_DAILY_RU, BTN_T_WEEKLY_RU,
-    BTN_DUR_1W_RU, BTN_DUR_1M_RU, BTN_DUR_3M_RU, BTN_DUR_6M_RU, BTN_DUR_1Y_RU,
-    BTN_DUR_INF_RU, WEEKDAY_MAP_RU, WEEKDAY_LABELS_RU,
+    # Eski/yangi "skip" yorliqlari — SKIP_BUTTON_TEXTS ro'yxatini to'plash
+    # uchun (chat tarixidagi klaviatura xabarlari buzilmasligi kerak).
+    BTN_SKIP_BUTTON, BTN_SKIP_URL_BUTTON,
+    BTN_SKIP_BUTTON_RU, BTN_SKIP_URL_BUTTON_RU,
     get_main_keyboard, get_cancel_keyboard, get_button_prompt_keyboard,
     get_reactions_keyboard, get_auto_delete_keyboard, get_time_keyboard,
-    get_duration_keyboard, get_weekday_keyboard
+    get_duration_keyboard, get_weekday_keyboard,
+    # 🌐 Uch tilli tugma registry (uz/ru/en) — barcha matn solishtiruvlari
+    # shu yerdan foydalanadi, shunda klaviatura qaysi tilda chizilganiga
+    # qaramay tugmalar BIR XIL ishlaydi:
+    #   • "⚡ 5 minutes" (EN) ham xuddi "⚡ 5 daqiqa" (UZ) kabi rejalashtiriladi;
+    #   • "Friday" (EN) ham hafta kuni sifatida qabul qilinadi;
+    #   • "Skip" / "Пропустить" / "⏭ O'tkazib yuborish" — bitta oqim.
+    is_menu_text, weekday_index, menu_texts,
 )
 from keyboards.inline import (
     btn_label, get_reaction_toggle_keyboard, normalize_reaction_emojis,
@@ -38,6 +38,7 @@ from utils.helpers import (
 )
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from locales.translations import clear_fsm_data, get_lang, get_text
+from utils.date_format import format_datetime, format_time, weekday_label
 
 tashkent_tz = pytz.timezone("Asia/Tashkent")
 
@@ -57,7 +58,11 @@ _ALBUM_MAX_ITEMS = 10           # Telegram albom chegarasi
 # "⏩ O'tkazib yuborish" — pastki reply-klaviaturadagi skip tugmalari.
 # Eski/asosiy yorliqlar (⏭ ...), legacy "Tugmasiz davom etish" va qo'shimcha
 # variantlar ham qo'llab-quvvatlanadi.
-SKIP_BUTTON_TEXTS = (
+# YANGI: ro'yxat ``MENU_TEXTS["np_skip"]`` registry'dan yig'iladi — shunda
+# UZ ("⏭ O'tkazib yuborish"), RU ("⏭ Пропустить") va EN ("⏭ Skip" /
+# "➡️ Continue without button") yorliqlari ham, qo'lda yozilgan "Skip" ham
+# BIR XIL ishlaydi. Eski yorliqlar (⏩ ...) ham saqlanib qolgan.
+SKIP_BUTTON_TEXTS = tuple(dict.fromkeys((
     "⏩ O'tkazib yuborish",
     "⏩ Пропустить",
     "⏭ O'tkazib yuborish",
@@ -68,7 +73,7 @@ SKIP_BUTTON_TEXTS = (
     BTN_SKIP_URL_BUTTON,
     BTN_SKIP_BUTTON_RU,
     BTN_SKIP_URL_BUTTON_RU,
-)
+) + menu_texts("np_skip")))
 
 # ⏳ Throttling / Debounce Middleware: Callback tugmalarini ketma-ket bosishlarni oldiniш
 # Foydalanuvchi_id bo'yicha so'nggi callback vaqtini xotirada saqlab, 1.5 soniya ichida
@@ -103,11 +108,43 @@ def reset_callback_throttle(user_id: int) -> None:
 
 
 
+#: ``db.find_next_queue_slot`` qaytargan UZ yorliqlar → lug'at kaliti.
+_QUEUE_SLOT_LABEL_KEYS = {"Bugun": "np_label_today", "Ertaga": "np_label_tomorrow"}
+
+
+def _queue_slot_label(label, lang: str = "uz") -> str:
+    """Navbat sloti yorlig'ini foydalanuvchi tiliga o'giradi (uz/ru/en).
+
+    ``database.find_next_queue_slot`` yorliqlarni doim o'zbekcha qaytaradi
+    ("Bugun"/"Ertaga"/"05.09.2026"). Foydalanuvchi RU yoki EN bo'lsa ham
+    xuddi shu so'zni ko'rib qolmasligi uchun bu yerda tilga mos tarjimasi
+    olinadi; sana ko'rinishlari o'zgarishsiz qaytadi.
+    """
+    text = "" if label is None else str(label).strip()
+    if not text:
+        return ""
+    key = _QUEUE_SLOT_LABEL_KEYS.get(text)
+    if key:
+        translated = get_text(key, lang)
+        # Kalit yo'q bo'lsa ``get_text`` kalit nomini qaytaradi — unda
+        # foydalanuvchiga "np_label_today" ko'rsatmaymiz.
+        if translated and translated != key:
+            return translated
+    return text
+
+
 def is_skip_button_text(text) -> bool:
-    """Foydalanuvchi pastki klaviaturadan skip (o'tkazib yuborish) tugmasini bosganini aniqlaydi."""
+    """Skip (o'tkazib yuborish) tugmasi bosilganini uchala tilda aniqlaydi.
+
+    ``MENU_TEXTS["np_skip"]`` registry'i ishlatiladi: uz/ru/en yorliqlari,
+    ularning eski ko'rinishlari va emoji/bo'shliq farqlari HISOBGA
+    OLINMAYDI (masalan foydalanuvchi qo'lda "Skip" deb yozsa ham ishlaydi).
+    """
     if not text:
         return False
-    return str(text).strip() in SKIP_BUTTON_TEXTS
+    if str(text).strip() in SKIP_BUTTON_TEXTS:
+        return True
+    return is_menu_text(text, "np_skip")
 
 CHOOSE_CHANNEL = 100
 GET_CONTENT = 101
@@ -246,7 +283,7 @@ async def start_new_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def channel_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE):
     lang = get_lang(context)
     text = update.message.text
-    if text in (BTN_ALL_CHANNELS_TARGET, BTN_ALL_CHANNELS_TARGET_RU):
+    if is_menu_text(text, "np_all_channels"):
         context.user_data["selected_channel_id"] = "ALL"
         context.user_data["selected_channel_title"] = get_text("np_all_channel_title", lang)
     else:
@@ -592,7 +629,15 @@ async def _proceed_after_reactions(msg, context, selected_emojis):
 
 
 def _build_preview_text(context) -> str:
-    """Confirmation ekrani uchun post preview matnini tuzadi (uz/ru)."""
+    """Confirmation (post preview) oynasi — SANA/VAQT ham foydalanuvchi tilida.
+
+    Avval bu yerda ``strftime("%Y-%m-%d %H:%M")`` va hafta kunlari uchun
+    ``WEEKDAY_LABELS_RU if lang == "ru" else WEEKDAY_LABELS`` ishlatilardi —
+    ya'ni EN foydalanuvchi hafta kunini O'ZBEKCHA ("Juma") deb o'qirdi va
+    sana formati umuman tilga bog'liq emasdi. Endi yagona manba:
+    :mod:`utils.date_format` (har tilga o'zining sana tartibi va oy/hafta
+    kunlari nomlari bilan).
+    """
     lang = get_lang(context)
     channel_title = context.user_data.get("selected_channel_title", "Kanal")
     post_type = context.user_data.get("post_type", "text")
@@ -607,13 +652,15 @@ def _build_preview_text(context) -> str:
     recurrence_day = context.user_data.get("confirm_recurrence_day")
 
     if recurrence_type == "daily" and recurrence_time_str:
-        when_text = get_text("np_confirm_time_daily", lang, time=recurrence_time_str[:5])
+        when_text = get_text("np_confirm_time_daily", lang,
+                             time=format_time(recurrence_time_str, lang))
     elif recurrence_type == "weekly" and recurrence_time_str:
-        day_label = (WEEKDAY_LABELS_RU if lang == "ru" else WEEKDAY_LABELS).get(recurrence_day, "?")
-        when_text = get_text("np_confirm_time_weekly", lang, day=day_label, time=recurrence_time_str[:5])
+        when_text = get_text("np_confirm_time_weekly", lang,
+                             day=weekday_label(recurrence_day, lang),
+                             time=format_time(recurrence_time_str, lang))
     elif post_time:
         when_text = get_text("np_confirm_time_single", lang,
-                             time=post_time.strftime("%Y-%m-%d %H:%M"))
+                             time=format_datetime(post_time, lang))
     else:
         when_text = get_text("np_confirm_time_none", lang)
 
@@ -988,8 +1035,8 @@ async def btn_title_received(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await _show_album_warning(update.message, context, "button")
         return GET_BTN_TITLE
 
-    # AI Yordamchi tugmasi (uz/ru)
-    if text in (get_text("np_btn_ai_assistant", "uz"), get_text("np_btn_ai_assistant", "ru")):
+    # ✨ AI Yordamchi tugmasi — uchala tilda ham ishlaydi
+    if is_menu_text(text, "np_ai_assistant"):
         content = context.user_data.get("content", "")
         if not content:
             await update.message.reply_text(
@@ -1008,13 +1055,12 @@ async def btn_title_received(update: Update, context: ContextTypes.DEFAULT_TYPE)
         return GET_BTN_TITLE
 
     # Tugmasiz o'tish (eski va yangi "skip" tugmalari bir xil ishlaydi)
-    if is_skip_button_text(text) or text in (BTN_SKIP_BUTTON, BTN_SKIP_URL_BUTTON,
-                                             BTN_SKIP_BUTTON_RU, BTN_SKIP_URL_BUTTON_RU):
+    if is_skip_button_text(text):
         context.user_data["btn_text"], context.user_data["btn_url"] = None, None
         return await _ask_reactions_step(update.message, context)
 
     # "🔗 URL tugma qo'shish" — bir qatorli tezkor formatga yo'naltirish
-    if text in (BTN_ADD_URL_BUTTON, BTN_ADD_URL_BUTTON_RU):
+    if is_menu_text(text, "np_url_add"):
         await update.message.reply_text(
             get_text("np_button_url_add_ask", lang),
             reply_markup=get_cancel_keyboard(lang),
@@ -1048,9 +1094,7 @@ async def btn_url_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip()
 
     # GET_BTN_URL holatida ham tezkor format ishlashi mumkin
-    if is_skip_button_text(text) or text in (BTN_SKIP_BUTTON, BTN_SKIP_URL_BUTTON,
-                                             BTN_SKIP_BUTTON_RU, BTN_SKIP_URL_BUTTON_RU,
-                                             BTN_ADD_URL_BUTTON, BTN_ADD_URL_BUTTON_RU):
+    if is_skip_button_text(text) or is_menu_text(text, "np_url_add"):
         return await btn_title_received(update, context)
     one_liner = parse_url_button_line(text)
     if one_liner:
@@ -1170,10 +1214,18 @@ async def reactions_received(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     parsed = parse_reactions_input(text)
 
-    # Rus tilidagi "reaksiyasiz" tugma/so'zlar ham reaksiyasiz davom ettiradi.
-    ru_skip_words = ("без реакций", "нет", "пропустить", "отключить", "не надо")
-    if parsed is False or text in (BTN_NO_REACT, BTN_NO_REACT_RU) \
-            or (text or "").strip().lower() in ru_skip_words:
+    # "Reaksiyasiz" tugma/so'zlari UCHALA tilda ham reaksiyasiz davom ettiradi.
+    no_reaction_words = (
+        # o'zbekcha
+        "reaksiyasiz", "yo'q", "yoq", "o'tkazib yuborish", "otkazib yuborish",
+        # ruscha
+        "без реакций", "нет", "пропустить", "отключить", "не надо",
+        # inglizcha
+        "no reactions", "none", "no", "skip", "without reactions",
+        "continue without reactions", "disable",
+    )
+    if parsed is False or is_menu_text(text, "np_no_reactions") \
+            or (text or "").strip().lower() in no_reaction_words:
         return await _proceed_after_reactions(msg, context, [])
 
     if parsed is True:
@@ -1355,9 +1407,21 @@ async def album_choice_callback(update: Update, context: ContextTypes.DEFAULT_TY
     return GET_BTN_TITLE
 
 async def auto_delete_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = update.message.text.strip()
-    hours = 0
-    if "12" in text:
+    text = (update.message.text or "").strip()
+    # Avval TUGMA matnlari uchala tilda solishtiriladi ("❌ O'chirilmasin
+    # (Doimiy)" / "❌ Не удалять (постоянно)" / "❌ Never delete (Permanent)"),
+    # so'ng eski raqam-guruch mantiqi (12/24/48/72) sinab ko'riladi.
+    if is_menu_text(text, "np_del_never"):
+        hours = 0
+    elif is_menu_text(text, "np_del_12h"):
+        hours = 12
+    elif is_menu_text(text, "np_del_24h"):
+        hours = 24
+    elif is_menu_text(text, "np_del_48h"):
+        hours = 48
+    elif is_menu_text(text, "np_del_72h"):
+        hours = 72
+    elif "12" in text:
         hours = 12
     elif "24" in text:
         hours = 24
@@ -1426,13 +1490,15 @@ async def _save_and_finish(update, context, post_time, recurrence_type='none', r
     lang = get_lang(context)
     if ok_count:
         if recurrence_type == 'daily':
-            when_text = get_text("np_scheduled_when_daily", lang, time=recurrence_time_str[:5])
+            when_text = get_text("np_scheduled_when_daily", lang,
+                                 time=format_time(recurrence_time_str, lang))
         elif recurrence_type == 'weekly':
-            day_label = (WEEKDAY_LABELS_RU if lang == "ru" else WEEKDAY_LABELS).get(recurrence_day, "?")
-            when_text = get_text("np_scheduled_when_weekly", lang, day=day_label, time=recurrence_time_str[:5])
+            when_text = get_text("np_scheduled_when_weekly", lang,
+                                 day=weekday_label(recurrence_day, lang),
+                                 time=format_time(recurrence_time_str, lang))
         else:
             when_text = get_text("np_scheduled_when_single", lang,
-                                 time=post_time_tz.strftime("%Y-%m-%d %H:%M"))
+                                 time=format_datetime(post_time_tz, lang))
 
         del_info = get_text("np_scheduled_del", lang, hours=delete_after_hours) if delete_after_hours > 0 else ""
         await update.message.reply_text(
@@ -1455,21 +1521,23 @@ async def time_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
     now = datetime.now(tashkent_tz)
 
-    if text in (BTN_T_DAILY, BTN_T_DAILY_RU):
+    # Tayyor tugmalar UCHALA tilda taniyadi (MENU_TEXTS["np_time_*"]) —
+    # klaviatura EN bo'lsa ham "⚡ 5 minutes" / "🔁 Daily" ishlaydi.
+    if is_menu_text(text, "np_time_daily"):
         await update.message.reply_text(
             get_text("np_daily_time_ask", lang), reply_markup=get_cancel_keyboard(lang), parse_mode="HTML")
         return DAILY_TIME
-    elif text in (BTN_T_WEEKLY, BTN_T_WEEKLY_RU):
+    elif is_menu_text(text, "np_time_weekly"):
         await update.message.reply_text(
             get_text("np_weekday_ask", lang), reply_markup=get_weekday_keyboard(lang), parse_mode="HTML")
         return RECUR_DAY
 
     # Tayyor tugmalar (5 daqiqa / 15 daqiqa / 1 soat) — Toshkent vaqtida.
-    if text in (BTN_T_5MIN, BTN_T_5MIN_RU):
+    if is_menu_text(text, "np_time_5m"):
         post_time, reason = now + timedelta(minutes=5), ""
-    elif text in (BTN_T_15MIN, BTN_T_15MIN_RU):
+    elif is_menu_text(text, "np_time_15m"):
         post_time, reason = now + timedelta(minutes=15), ""
-    elif text in (BTN_T_1H, BTN_T_1H_RU):
+    elif is_menu_text(text, "np_time_1h"):
         post_time, reason = now + timedelta(hours=1), ""
     else:
         # Qo'lda kiritilgan vaqt: parser HECH QACHON exception tashlamaydi —
@@ -1481,7 +1549,7 @@ async def time_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
         example = schedule_time_example(now)
         key = "np_time_future" if reason == SCHEDULE_ERR_PAST else "np_time_format_error"
         await update.message.reply_text(
-            get_text(key, lang, example=example, now=now.strftime("%d.%m.%Y %H:%M")),
+            get_text(key, lang, example=example, now=format_datetime(now, lang)),
             parse_mode="HTML",
         )
         return GET_TIME
@@ -1527,14 +1595,15 @@ async def daily_time_received(update: Update, context: ContextTypes.DEFAULT_TYPE
 async def recur_day_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE):
     lang = get_lang(context)
     text = update.message.text
-    day_idx = WEEKDAY_MAP_RU.get(text) if text in WEEKDAY_MAP_RU else WEEKDAY_MAP.get(text)
+    # Hafta kuni ham uchala tilda qabul qilinadi: "Juma"/"Пятница"/"Friday".
+    day_idx = weekday_index(text)
     if day_idx is None:
         await update.message.reply_text(get_text("np_weekday_invalid", lang))
         return RECUR_DAY
 
     context.user_data["rec_day"] = day_idx
     await update.message.reply_text(
-        get_text("np_recur_time_ask", lang, day=text),
+        get_text("np_recur_time_ask", lang, day=weekday_label(day_idx, lang)),
         reply_markup=get_cancel_keyboard(lang),
         parse_mode="HTML"
     )
@@ -1581,18 +1650,18 @@ async def duration_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE):
     now = datetime.now(tashkent_tz)
     end_date = None
 
-    if text in (BTN_DUR_1W, BTN_DUR_1W_RU):
+    if is_menu_text(text, "np_dur_1w"):
         # Yangi: post har kuni roppa-rosa 1 hafta (7 kun) davomida chiqadi
         end_date = now + timedelta(days=7)
-    elif text in (BTN_DUR_1M, BTN_DUR_1M_RU):
+    elif is_menu_text(text, "np_dur_1m"):
         end_date = now + timedelta(days=30)
-    elif text in (BTN_DUR_3M, BTN_DUR_3M_RU):
+    elif is_menu_text(text, "np_dur_3m"):
         end_date = now + timedelta(days=90)
-    elif text in (BTN_DUR_6M, BTN_DUR_6M_RU):
+    elif is_menu_text(text, "np_dur_6m"):
         end_date = now + timedelta(days=180)
-    elif text in (BTN_DUR_1Y, BTN_DUR_1Y_RU):
+    elif is_menu_text(text, "np_dur_1y"):
         end_date = now + timedelta(days=365)
-    elif text in (BTN_DUR_INF, BTN_DUR_INF_RU):
+    elif is_menu_text(text, "np_dur_inf"):
         end_date = None
     else:
         await update.message.reply_text(get_text("np_duration_invalid", lang))
@@ -1741,14 +1810,11 @@ async def confirm_post_callback(update: Update, context: ContextTypes.DEFAULT_TY
             pass
 
         if ok_count:
-            time_str = slot_dt.strftime("%H:%M")
+            time_str = format_time(slot_dt, lang)
             ad_line = await get_auto_ad_injection_async(user_id)
-            # db.find_next_queue_slot "Bugun"/"Ertaga" qaytaradi — RU'ga o'giramiz.
-            label_ru = {"Bugun": get_text("np_label_today", "ru"),
-                        "Ertaga": get_text("np_label_tomorrow", "ru")}.get(label, label)
-            label_uz = {"Bugun": get_text("np_label_today", "uz"),
-                        "Ertaga": get_text("np_label_tomorrow", "uz")}.get(label, label)
-            label_i18n = label_ru if lang == "ru" else label_uz
+            # db.find_next_queue_slot "Bugun"/"Ertaga" qaytaradi — bu yorliq
+            # har bir tilga (uz/ru/en) o'giramiz.
+            label_i18n = _queue_slot_label(label, lang)
             await query.message.reply_text(
                 get_text("np_queue_added", lang, label=label_i18n, time=time_str,
                          channel=html_escape(channel_title), ad_line=ad_line or ""),
@@ -1824,13 +1890,15 @@ async def confirm_post_callback(update: Update, context: ContextTypes.DEFAULT_TY
 
     if ok_count:
         if recurrence_type == "daily" and recurrence_time_str:
-            when_text = get_text("np_scheduled_when_daily", lang, time=recurrence_time_str[:5])
+            when_text = get_text("np_scheduled_when_daily", lang,
+                                 time=format_time(recurrence_time_str, lang))
         elif recurrence_type == "weekly" and recurrence_time_str:
-            day_label = (WEEKDAY_LABELS_RU if lang == "ru" else WEEKDAY_LABELS).get(recurrence_day, "?")
-            when_text = get_text("np_scheduled_when_weekly", lang, day=day_label, time=recurrence_time_str[:5])
+            when_text = get_text("np_scheduled_when_weekly", lang,
+                                 day=weekday_label(recurrence_day, lang),
+                                 time=format_time(recurrence_time_str, lang))
         else:
             when_text = get_text("np_scheduled_when_single", lang,
-                                 time=post_time_tz.strftime("%Y-%m-%d %H:%M"))
+                                 time=format_datetime(post_time_tz, lang))
         del_info = get_text("np_scheduled_del", lang, hours=delete_after_hours) if delete_after_hours > 0 else ""
         ad_line = await get_auto_ad_injection_async(user_id)
         await query.message.reply_text(
@@ -1934,15 +2002,13 @@ async def edit_confirm_message_received(update: Update, context: ContextTypes.DE
         return CONFIRM_POST
     text = (update.message.text or "").strip()
 
-    if text in (get_text("np_btn_back_confirm", "uz"), BTN_BACK, BTN_MAIN_MENU,
-                get_text("np_btn_back_confirm", "ru"), BTN_BACK_RU,
-                BTN_BACK_TO_CONFIRM_RU):
+    if is_menu_text(text, "np_back_confirm", "back", "main_menu"):
         await _show_confirmation(update.message, context)
         return CONFIRM_POST
 
     edit_channels_map = context.user_data.get("edit_channels_map")
     if edit_channels_map:
-        if text in (get_text("np_btn_all_channels", "uz"), get_text("np_btn_all_channels", "ru")):
+        if is_menu_text(text, "np_all_channels"):
             context.user_data["selected_channel_id"] = "ALL"
             context.user_data["selected_channel_title"] = get_text("np_all_channel_title", lang)
             context.user_data.pop("edit_channels_map", None)
@@ -1956,11 +2022,11 @@ async def edit_confirm_message_received(update: Update, context: ContextTypes.DE
             return CONFIRM_POST
 
     now = datetime.now(tashkent_tz)
-    if text in (BTN_T_5MIN, BTN_T_5MIN_RU):
+    if is_menu_text(text, "np_time_5m"):
         new_time = now + timedelta(minutes=5)
-    elif text in (BTN_T_15MIN, BTN_T_15MIN_RU):
+    elif is_menu_text(text, "np_time_15m"):
         new_time = now + timedelta(minutes=15)
-    elif text in (BTN_T_1H, BTN_T_1H_RU):
+    elif is_menu_text(text, "np_time_1h"):
         new_time = now + timedelta(hours=1)
     else:
         # Crash-proof parser: bu bosqichda matn tugma/URL ham bo'lishi mumkin,
@@ -1989,14 +2055,17 @@ async def edit_confirm_message_received(update: Update, context: ContextTypes.DE
         await _show_confirmation(update.message, context)
         return CONFIRM_POST
 
-    if text.lower() in ("yo'q", "yoq", "none", "-", "o'chir", "нет", "удалить"):
+    if text.lower() in ("yo'q", "yoq", "none", "-", "o'chir", "нет", "удалить",
+                         "remove", "delete", "no", "no button", "без кнопки"):
         context.user_data["btn_text"] = None
         context.user_data["btn_url"] = None
         await _show_confirmation(update.message, context)
         return CONFIRM_POST
 
-    if text and text not in (BTN_T_DAILY, BTN_T_WEEKLY, BTN_T_DAILY_RU, BTN_T_WEEKLY_RU,
-                             BTN_BACK, BTN_MAIN_MENU, BTN_BACK_RU):
+    # Bu bosqichda MATN — post matni sifatida qabul qilinadi, lekin menyuga
+    # tegishli tugmalar (har qanday tilda) EMAS.
+    if text and not is_menu_text(text, "np_time_daily", "np_time_weekly",
+                                 "back", "main_menu", "np_back_confirm"):
         # Caption/text editing must never discard the original media.  Only a
         # newly uploaded media message is allowed to replace type/file_id.
         context.user_data["content"] = text
