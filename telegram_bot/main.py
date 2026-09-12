@@ -163,7 +163,21 @@ class GuardedApplication(Application):
         query = getattr(update, "callback_query", None)
         if query is not None:
             try:
-                await query.answer("⏳ Iltimos, kuting...", show_alert=False)
+                # 🌐 Throttle toast'i foydalanuvchi tilida (uz/ru/en). Til
+                # keshlangan DB o'quvi orqali olinadi (get_user_language —
+                # TTL keshli, DB uzilganda 'uz' ga qaytadi).
+                lang = "uz"
+                user = getattr(update, "effective_user", None)
+                if user is not None and getattr(user, "id", None):
+                    try:
+                        import database as _db
+                        lang = await _db.run_db(_db.get_user_language, user.id)
+                    except Exception:
+                        lang = "uz"
+                from locales.translations import get_text
+                await query.answer(
+                    get_text("sys_wait_short", lang), show_alert=False
+                )
             except Exception:
                 pass
 

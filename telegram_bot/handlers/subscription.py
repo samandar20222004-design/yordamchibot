@@ -579,7 +579,10 @@ async def grant_pro_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Admin: /grant_pro <user_id> <days> — foydalanuvchiga PRO berish."""
     user_id = update.effective_user.id
     if user_id not in ADMIN_IDS_SET and not has_permission(user_id, PERM_MANAGE_USERS):
-        await update.message.reply_text("❌ Faqat admin bu buyruqni ishlatishi mumkin.")
+        # 🌐 Admin bo'lmagan foydalanuvchiga tiliga mos rad javobi.
+        await update.message.reply_text(
+            get_text("admin_only_cmd", get_lang(context))
+        )
         return
 
     args = context.args
@@ -702,7 +705,10 @@ async def create_promo_command(update: Update, context: ContextTypes.DEFAULT_TYP
     """SuperAdmin: /create_promo <KOD> <KUNLAR> <MAKS_ISHLATISH> — promo-kod yaratish."""
     user_id = update.effective_user.id
     if user_id not in ADMIN_IDS_SET and not has_permission(user_id, PERM_MANAGE_PROMOS):
-        await update.message.reply_text("❌ Faqat admin bu buyruqni ishlatishi mumkin.")
+        # 🌐 Admin bo'lmagan foydalanuvchiga tiliga mos rad javobi.
+        await update.message.reply_text(
+            get_text("admin_only_cmd", get_lang(context))
+        )
         return
 
     args = context.args

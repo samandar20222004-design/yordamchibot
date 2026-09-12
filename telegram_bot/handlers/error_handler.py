@@ -295,11 +295,17 @@ async def _notify_user(update, context) -> None:
             # qilinmaydi; asosiy vazifa (log) allaqachon bajarilgan.
             logger.debug("error_handler: foydalanuvchiga javob yuborilmadi: %s", e)
     if query is not None:
+        # 🌐 Qisqa xato toast'i ham foydalanuvchi tilida (uz/ru/en).
         try:
-            await query.answer("⚠️ Xatolik yuz berdi", show_alert=False)
+            from locales.translations import get_text as _get_text
+            short = _get_text("sys_error_short", lang)
+        except Exception:
+            short = "⚠️ Xatolik yuz berdi"
+        try:
+            await query.answer(short, show_alert=False)
         except TypeError:
             try:
-                await query.answer("⚠️ Xatolik yuz berdi")
+                await query.answer(short)
             except Exception:
                 pass
         except Exception:

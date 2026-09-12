@@ -204,7 +204,7 @@ async def receipt_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if not receipt_id:
         await msg.reply_text(
-            "⚠️ Chekni saqlashda xatolik yuz berdi. Iltimos, qayta yuboring.",
+            get_text("receipt_save_error", lang),
             parse_mode="HTML",
         )
         return RECEIPT_WAIT

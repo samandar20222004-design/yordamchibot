@@ -1268,7 +1268,7 @@ async def reaction_toggle_callback(update: Update, context: ContextTypes.DEFAULT
     if check_callback_throttle(user_id):
         try:
             await update.callback_query.answer(
-                text="⏳ Jarayon bajarilmoqda, iltimos kuting...",
+                text=get_text("np_callback_wait", get_lang(context)),
                 show_alert=False
         )
         except Exception:
@@ -1303,7 +1303,7 @@ async def reactions_done_callback(update: Update, context: ContextTypes.DEFAULT_
     if check_callback_throttle(user_id):
         try:
             await update.callback_query.answer(
-                text="⏳ Jarayon bajarilmoqda, iltimos kuting...",
+                text=get_text("np_callback_wait", get_lang(context)),
                 show_alert=False
         )
         except Exception:
@@ -1327,7 +1327,7 @@ async def reactions_skip_callback(update: Update, context: ContextTypes.DEFAULT_
     if check_callback_throttle(user_id):
         try:
             await update.callback_query.answer(
-                text="⏳ Jarayon bajarilmoqda, iltimos kuting...",
+                text=get_text("np_callback_wait", get_lang(context)),
                 show_alert=False
         )
         except Exception:
@@ -1688,7 +1688,7 @@ async def confirm_post_callback(update: Update, context: ContextTypes.DEFAULT_TY
     if check_callback_throttle(user_id):
         try:
             await update.callback_query.answer(
-                text="⏳ Jarayon bajarilmoqda, iltimos kuting...",
+                text=get_text("np_callback_wait", get_lang(context)),
                 show_alert=False
         )
         except Exception:
@@ -1926,7 +1926,7 @@ async def edit_confirm_field_callback(update: Update, context: ContextTypes.DEFA
     if check_callback_throttle(user_id):
         try:
             await update.callback_query.answer(
-                text="⏳ Jarayon bajarilmoqda, iltimos kuting...",
+                text=get_text("np_callback_wait", get_lang(context)),
                 show_alert=False
         )
         except Exception:
@@ -2126,7 +2126,7 @@ async def ai_action_menu_callback(update: Update, context: ContextTypes.DEFAULT_
     if check_callback_throttle(user_id):
         try:
             await update.callback_query.answer(
-                text="⏳ Jarayon bajarilmoqda, iltimos kuting...",
+                text=get_text("np_callback_wait", get_lang(context)),
                 show_alert=False
         )
         except Exception:
@@ -2160,7 +2160,7 @@ async def ai_action_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
     if check_callback_throttle(user_id):
         try:
             await update.callback_query.answer(
-                text="⏳ Jarayon bajarilmoqda, iltimos kuting...",
+                text=get_text("np_callback_wait", get_lang(context)),
                 show_alert=False
         )
         except Exception:
@@ -2226,7 +2226,7 @@ async def ai_result_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
     if check_callback_throttle(user_id):
         try:
             await update.callback_query.answer(
-                text="⏳ Jarayon bajarilmoqda, iltimos kuting...",
+                text=get_text("np_callback_wait", get_lang(context)),
                 show_alert=False
         )
         except Exception:

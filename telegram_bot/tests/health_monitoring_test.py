@@ -598,8 +598,12 @@ def test_error_handler_never_crashes():
     q = asyncio.run(_query_only())
     check("eh: callback faqat toast bilan javoblanadi",
           len(q.answers) == 1, str(q.answers))
-    check("eh: toast matni xavfsiz",
-          q.answers and "Xatolik" in str(q.answers[0][0]))
+    # 🌐 Toast endi foydalanuvchi tilida: _FakeCtx(lang="ru") → ruscha
+    # qisqa xato matni ("⚠️ Произошла ошибка"), traceback yo'q.
+    from locales.translations import get_text as _gt
+    check("eh: toast matni xavfsiz (tilga mos, traceback'siz)",
+          q.answers and q.answers[0][0] == _gt("sys_error_short", "ru"),
+          str(q.answers))
 
 
 def test_error_handler_structured_log_and_critical():

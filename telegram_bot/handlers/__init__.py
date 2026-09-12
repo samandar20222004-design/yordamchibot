@@ -272,7 +272,10 @@ async def reaction_callback(update, context):
 
     is_blocked, _ = check_rate_limit(user_id, max_requests=REACTION_RATE_LIMIT_MAX, window_seconds=2.0)
     if is_blocked:
-        await query.answer("⏳ Iltimos, biroz kuting...", show_alert=False)
+        # 🌐 Rate-limit toast'i foydalanuvchi tilida (uz/ru/en).
+        await query.answer(
+            get_text("pend_rate_limited", get_lang(context)), show_alert=False
+        )
         return
 
     try:
@@ -313,8 +316,9 @@ async def close_msg_callback(update, context):
 
 
 async def noop_callback(update, context):
+    # 🌐 Ma'lumot tugmasi toast'i foydalanuvchi tilida (uz/ru/en).
     await update.callback_query.answer(
-        "Bu ma'lumot tugmasi. Kanalni o'chirish uchun yonidagi ❌ tugmasini bosing.",
+        get_text("noop_channel_info", get_lang(context)),
         show_alert=True,
     )
 
@@ -345,8 +349,8 @@ async def ai_studio_callback(update, context):
     await query.answer()  # speks: har callback boshida darhol answer
     try:
         await query.edit_message_text(
-            "⚠️ <b>Bu menyu eskirgan.</b>\n"
-            "Davom etish uchun ✨ AI Studio tugmasini qaytadan bosing.",
+            # 🌐 Eskirgan menyu xabari foydalanuvchi tilida (uz/ru/en).
+            get_text("ai_menu_stale", get_lang(context)),
             reply_markup=None,
             parse_mode="HTML",
         )
@@ -364,9 +368,8 @@ async def ai_photo_stale_callback(update, context):
     await query.answer()
     try:
         await query.edit_message_text(
-            "⚠️ <b>Bu menyu eskirgan.</b>\n"
-            "Rasmdan post yaratish uchun ✨ AI Studio → 🖼 Rasmdan post yaratish "
-            "bo'limini qaytadan tanlang.",
+            # 🌐 Eskirgan Vision menyu xabari foydalanuvchi tilida (uz/ru/en).
+            get_text("ai_photo_stale", get_lang(context)),
             reply_markup=None,
             parse_mode="HTML",
         )
