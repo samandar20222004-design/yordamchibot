@@ -9,7 +9,9 @@ import database as db
 from keyboards.default import get_cancel_keyboard, get_main_keyboard
 from keyboards.inline import btn_label
 from keyboards.callback_data import cb
-from locales.translations import get_lang, get_text
+from locales.translations import (
+    get_lang, get_text, is_main_menu_text, localize_service_error,
+)
 from utils.helpers import html_escape, safe_html, get_auto_ad_injection_async, keep_typing
 
 logger = logging.getLogger(__name__)
@@ -67,7 +69,7 @@ def week_schedule_times(count: int = PLAN_WEEK_DAYS,
     return [first + timedelta(days=i) for i in range(max(0, int(count)))]
 
 
-def build_plan_post_text(item: dict, index: int = 0) -> str:
+def build_plan_post_text(item: dict, index: int = 0, lang: str = "uz") -> str:
     """Kontent-reja elementidan kanalga chiqadigan post matnini (HTML) quradi.
 
     Postlar ``parse_mode="HTML"`` bilan yuboriladi, shuning uchun AI matni
@@ -78,14 +80,16 @@ def build_plan_post_text(item: dict, index: int = 0) -> str:
     title = str(item.get("title") or "").strip()
     idea = str(item.get("idea") or "").strip()
     if not title:
-        title = str(item.get("day") or f"Kun {index + 1}").strip()
+        title = str(
+            item.get("day") or get_text("cp_day_fallback", lang, n=index + 1)
+        ).strip()
     parts = [f"<b>{html_escape(title)}</b>"]
     if idea:
         parts.append(html_escape(idea))
     return "\n\n".join(parts)
 
 
-def _get_plan_channel_keyboard(channels: list) -> InlineKeyboardMarkup:
+def _get_plan_channel_keyboard(channels: list, lang: str = "uz") -> InlineKeyboardMarkup:
     """Kontent-reja uchun kanal tanlash keyboard."""
     keyboard = []
     for ch in channels:
@@ -96,16 +100,18 @@ def _get_plan_channel_keyboard(channels: list) -> InlineKeyboardMarkup:
                 callback_data=cb(f"plan_ch:{ch_id}"),
             )
         ])
-    keyboard.append([InlineKeyboardButton("❌ Bekor qilish", callback_data="plan_cancel")])
+    keyboard.append([
+        InlineKeyboardButton(get_text("ai_btn_close", lang), callback_data="plan_cancel")
+    ])
     return InlineKeyboardMarkup(keyboard)
 
 
-def _get_plan_result_keyboard() -> InlineKeyboardMarkup:
+def _get_plan_result_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
     """Kontent-reja natijasi uchun keyboard."""
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("📝 Post yaratish", callback_data="plan_create_post")],
-        [InlineKeyboardButton("🔄 Qayta generatsiya", callback_data="plan_regenerate")],
-        [InlineKeyboardButton("❌ Yopish", callback_data="plan_cancel")],
+        [InlineKeyboardButton(get_text("cp_btn_create_post", lang), callback_data="plan_create_post")],
+        [InlineKeyboardButton(get_text("cp_btn_regenerate", lang), callback_data="plan_regenerate")],
+        [InlineKeyboardButton(get_text("pend_close_btn", lang), callback_data="plan_cancel")],
     ])
 
 
@@ -118,7 +124,7 @@ def _get_plan_day_keyboard(plan_items: list, lang: str = "uz") -> InlineKeyboard
     """
     keyboard = []
     for i, item in enumerate(plan_items):
-        day = item.get("day", f"Kun {i+1}")
+        day = item.get("day", get_text("cp_day_fallback", lang, n=i + 1))
         title = item.get("title", "")[:30]
         keyboard.append([
             InlineKeyboardButton(
@@ -126,7 +132,9 @@ def _get_plan_day_keyboard(plan_items: list, lang: str = "uz") -> InlineKeyboard
                 callback_data=cb(f"plan_day:{i}"),
             )
         ])
-    keyboard.append([InlineKeyboardButton("🔙 Orqaga", callback_data="plan_back")])
+    keyboard.append([
+        InlineKeyboardButton(get_text("cp_btn_back", lang), callback_data="plan_back")
+    ])
     return InlineKeyboardMarkup(keyboard)
 
 
@@ -160,23 +168,21 @@ def _plan_list_keyboard(plan_items: list, context, lang: str = "uz") -> InlineKe
 async def start_content_plan(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Kontent-reja bo'limini boshlash."""
     user_id = update.effective_user.id
+    lang = get_lang(context)
     channels = await db.run_db(db.get_user_channels, user_id)
 
     if not channels:
         await update.message.reply_text(
-            "⚠️ <b>Avval kanal ulang.</b>\n\n"
-            "Kontent-reja tuzish uchun kamida bitta kanal bo'lishi kerak.\n"
-            "📢 Kanallar bo'limidan kanal ulang.",
-            reply_markup=get_main_keyboard(user_id in ADMIN_IDS_SET),
+            get_text("cp_no_channel", lang),
+            reply_markup=get_main_keyboard(user_id in ADMIN_IDS_SET, lang=lang),
             parse_mode="HTML",
         )
         return ConversationHandler.END
 
     context.user_data["plan_channels"] = channels
     await update.message.reply_text(
-        "🧠 <b>Kontent-reja generatori</b>\n\n"
-        "Qaysi kanal uchun kontent-reja tuzamiz?",
-        reply_markup=_get_plan_channel_keyboard(channels),
+        get_text("cp_choose_channel", lang),
+        reply_markup=_get_plan_channel_keyboard(channels, lang),
         parse_mode="HTML",
     )
     return PLAN_CHOOSE_CHANNEL
@@ -187,11 +193,12 @@ async def plan_channel_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE
     query = update.callback_query
     await query.answer()
     data = query.data
+    lang = get_lang(context)
 
     if data == "plan_cancel":
         await query.message.reply_text(
-            "❌ Bekor qilindi.",
-            reply_markup=get_main_keyboard(query.from_user.id in ADMIN_IDS_SET),
+            get_text("op_cancelled", lang),
+            reply_markup=get_main_keyboard(query.from_user.id in ADMIN_IDS_SET, lang=lang),
         )
         return ConversationHandler.END
 
@@ -200,7 +207,7 @@ async def plan_channel_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     channel_id = data.split(":", 1)[1]
     channels = context.user_data.get("plan_channels", [])
-    channel_title = "Kanal"
+    channel_title = get_text("an_channel_fallback", lang)
     for ch in channels:
         if ch[0] == channel_id:
             channel_title = ch[1]
@@ -210,14 +217,8 @@ async def plan_channel_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE
     context.user_data["plan_channel_title"] = channel_title
 
     await query.message.reply_text(
-        f"🧠 <b>Kontent-reja: {html_escape(channel_title)}</b>\n\n"
-        f"Kanal mavzusini qisqacha yozing.\n\n"
-        f"<i>Masalan:</i>\n"
-        f"• Ingliz tili noldan\n"
-        f"• Oshxona buyumlari do'koni\n"
-        f"• Sog'lom turmush tarzi\n"
-        f"• IT yangiliklar",
-        reply_markup=get_cancel_keyboard(),
+        get_text("cp_topic_ask", lang, channel=html_escape(channel_title)),
+        reply_markup=get_cancel_keyboard(lang),
         parse_mode="HTML",
     )
     return PLAN_GET_TOPIC
@@ -226,23 +227,27 @@ async def plan_channel_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE
 async def plan_topic_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Mavzu qabul qilish va AI dan reja so'rash."""
     text = (update.message.text or "").strip()
+    user_id = update.effective_user.id
+    lang = get_lang(context)
 
-    if text in ("🔙 Asosiy menyu", "🔙 Orqaga"):
+    if is_main_menu_text(text):
         await update.message.reply_text(
-            "❌ Bekor qilindi.",
-            reply_markup=get_main_keyboard(update.effective_user.id in ADMIN_IDS_SET),
+            get_text("op_cancelled", lang),
+            reply_markup=get_main_keyboard(user_id in ADMIN_IDS_SET, lang=lang),
         )
         return ConversationHandler.END
 
     if len(text) < 3:
         await update.message.reply_text(
-            "⚠️ Mavzu juda qisqa. Kamida 3 ta belgi yozing.",
-            reply_markup=get_cancel_keyboard(),
+            get_text("cp_topic_short", lang),
+            reply_markup=get_cancel_keyboard(lang),
         )
         return PLAN_GET_TOPIC
 
     channel_id = context.user_data.get("plan_channel_id", "")
-    channel_title = context.user_data.get("plan_channel_title", "Kanal")
+    channel_title = context.user_data.get(
+        "plan_channel_title", get_text("an_channel_fallback", lang)
+    )
     tone = await db.run_db(db.get_channel_tone, channel_id) if channel_id else "friendly"
 
     # Kanalning real vaqtdagi postlar tarixini olamiz
@@ -251,7 +256,7 @@ async def plan_topic_received(update: Update, context: ContextTypes.DEFAULT_TYPE
         history = await db.run_db(db.get_channel_posts_history, channel_id, 5)
         recent_posts = [p.get("text") for p in history if p.get("text") and not p.get("text").startswith("[")]
 
-    await update.message.reply_text("⏳ AI kontent-reja tuzmoqda...")
+    await update.message.reply_text(get_text("cp_ai_building", lang))
 
     from utils.ai_agent import generate_content_plan
     # Indikator darhol ko'rinsin, keyin uzoq AI so'rovi davomida yangilanib tursin.
@@ -265,8 +270,8 @@ async def plan_topic_received(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     if "error" in result:
         await update.message.reply_text(
-            result["error"],
-            reply_markup=get_main_keyboard(update.effective_user.id in ADMIN_IDS_SET),
+            localize_service_error(result["error"], lang),
+            reply_markup=get_main_keyboard(user_id in ADMIN_IDS_SET, lang=lang),
             parse_mode="HTML",
         )
         return ConversationHandler.END
@@ -274,8 +279,8 @@ async def plan_topic_received(update: Update, context: ContextTypes.DEFAULT_TYPE
     plan_items = result.get("plan", [])
     if not plan_items:
         await update.message.reply_text(
-            "⚠️ AI reja tuza olmadi. Qaytadan urinib ko'ring.",
-            reply_markup=get_main_keyboard(update.effective_user.id in ADMIN_IDS_SET),
+            get_text("cp_ai_failed_retry", lang),
+            reply_markup=get_main_keyboard(user_id in ADMIN_IDS_SET, lang=lang),
         )
         return ConversationHandler.END
 
@@ -285,28 +290,31 @@ async def plan_topic_received(update: Update, context: ContextTypes.DEFAULT_TYPE
     context.user_data["plan_scheduled"] = False
 
     # Format plan as text
-    plan_text = f"🧠 <b>7 kunlik kontent-reja</b>\n"
-    plan_text += f"📢 Kanal: <b>{html_escape(channel_title)}</b>\n"
-    plan_text += f"📝 Mavzu: <i>{html_escape(text)}</i>\n\n"
+    plan_text = get_text(
+        "cp_plan_header", lang,
+        channel=html_escape(channel_title), topic=html_escape(text),
+    )
 
     for i, item in enumerate(plan_items):
-        day = item.get("day", f"Kun {i+1}")
+        day = item.get("day", get_text("cp_day_fallback", lang, n=i + 1))
         fmt = item.get("format", "")
         title = item.get("title", "")
         idea = item.get("idea", "")
-        plan_text += f"<b>📅 {day}</b> — {html_escape(fmt)}\n"
-        plan_text += f"  📌 <b>{html_escape(title)}</b>\n"
+        plan_text += get_text(
+            "cp_plan_day", lang, day=day,
+            fmt=html_escape(fmt), title=html_escape(title),
+        )
         if idea:
-            plan_text += f"  <i>{html_escape(idea[:150])}</i>\n"
+            plan_text += get_text("cp_plan_idea", lang, idea=html_escape(idea[:150]))
         plan_text += "\n"
 
-    ad_line = await get_auto_ad_injection_async(update.effective_user.id)
-    plan_text += f"{ad_line}\n\nKunni tanlab, to'g'ridan-to'g'ri post yarating 👇"
-    plan_text += get_text("plan_week_hint", get_lang(context))
+    ad_line = await get_auto_ad_injection_async(user_id)
+    plan_text += f"{ad_line}" + get_text("cp_plan_footer", lang)
+    plan_text += get_text("plan_week_hint", lang)
 
     await update.message.reply_text(
         plan_text,
-        reply_markup=_plan_list_keyboard(plan_items, context, get_lang(context)),
+        reply_markup=_plan_list_keyboard(plan_items, context, lang),
         parse_mode="HTML",
     )
     return PLAN_VIEW
@@ -377,7 +385,7 @@ async def plan_schedule_all(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # 4) Dushanba → yakshanba, har kuni 12:00 (Toshkent).
     times = week_schedule_times(len(plan_items))
     posts = [
-        (moment, build_plan_post_text(item, i))
+        (moment, build_plan_post_text(item, i, lang))
         for i, (moment, item) in enumerate(zip(times, plan_items))
     ]
 
@@ -440,6 +448,7 @@ async def plan_view_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
     query = update.callback_query
     data = query.data
     is_admin = query.from_user.id in ADMIN_IDS_SET
+    lang = get_lang(context)
 
     # 🚀 Bitta tugma bilan butun haftani navbatga qo'yish
     if data == CB_PLAN_SCHEDULE_ALL:
@@ -448,8 +457,8 @@ async def plan_view_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
     if data == "plan_cancel":
         await query.answer()
         await query.message.reply_text(
-            "❌ Yopildi.",
-            reply_markup=get_main_keyboard(is_admin),
+            get_text("cp_closed", lang),
+            reply_markup=get_main_keyboard(is_admin, lang=lang),
         )
         return ConversationHandler.END
 
@@ -457,17 +466,19 @@ async def plan_view_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await query.answer()
         channels = context.user_data.get("plan_channels", [])
         await query.message.reply_text(
-            "🧠 <b>Qaysi kanal uchun kontent-reja tuzamiz?</b>",
-            reply_markup=_get_plan_channel_keyboard(channels),
+            get_text("cp_back_title", lang),
+            reply_markup=_get_plan_channel_keyboard(channels, lang),
             parse_mode="HTML",
         )
         return PLAN_CHOOSE_CHANNEL
 
     if data == "plan_regenerate":
-        await query.answer("🔄 Qayta generatsiya...")
+        await query.answer(get_text("cp_regenerating", lang))
         topic = context.user_data.get("plan_topic", "")
         channel_id = context.user_data.get("plan_channel_id", "")
-        channel_title = context.user_data.get("plan_channel_title", "Kanal")
+        channel_title = context.user_data.get(
+            "plan_channel_title", get_text("an_channel_fallback", lang)
+        )
         tone = await db.run_db(db.get_channel_tone, channel_id) if channel_id else "friendly"
 
         # Kanalning postlar tarixini olamiz
@@ -487,36 +498,41 @@ async def plan_view_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
             result = await generate_content_plan(topic, channel_title, tone, recent_posts=recent_posts)
 
         if "error" in result:
-            await query.message.reply_text(result["error"], parse_mode="HTML")
+            await query.message.reply_text(
+                localize_service_error(result["error"], lang), parse_mode="HTML"
+            )
             return PLAN_VIEW
 
         plan_items = result.get("plan", [])
         if not plan_items:
-            await query.message.reply_text("⚠️ AI reja tuza olmadi.")
+            await query.message.reply_text(get_text("cp_ai_failed", lang))
             return PLAN_VIEW
 
         context.user_data["plan_items"] = plan_items
         # Yangi reja — eski "navbatga qo'yilgan" belgisi tozalanadi.
         context.user_data["plan_scheduled"] = False
 
-        plan_text = f"🧠 <b>7 kunlik kontent-reja (yangi)</b>\n"
-        plan_text += f"📢 Kanal: <b>{html_escape(channel_title)}</b>\n"
-        plan_text += f"📝 Mavzu: <i>{html_escape(topic)}</i>\n\n"
+        plan_text = get_text(
+            "cp_plan_header_new", lang,
+            channel=html_escape(channel_title), topic=html_escape(topic),
+        )
 
         for i, item in enumerate(plan_items):
-            day = item.get("day", f"Kun {i+1}")
+            day = item.get("day", get_text("cp_day_fallback", lang, n=i + 1))
             fmt = item.get("format", "")
             title = item.get("title", "")
             idea = item.get("idea", "")
-            plan_text += f"<b>📅 {day}</b> — {html_escape(fmt)}\n"
-            plan_text += f"  📌 <b>{html_escape(title)}</b>\n"
+            plan_text += get_text(
+                "cp_plan_day", lang, day=day,
+                fmt=html_escape(fmt), title=html_escape(title),
+            )
             if idea:
-                plan_text += f"  <i>{html_escape(idea[:150])}</i>\n"
+                plan_text += get_text("cp_plan_idea", lang, idea=html_escape(idea[:150]))
             plan_text += "\n"
 
         await query.message.reply_text(
             plan_text,
-            reply_markup=_plan_list_keyboard(plan_items, context, get_lang(context)),
+            reply_markup=_plan_list_keyboard(plan_items, context, lang),
             parse_mode="HTML",
         )
         return PLAN_VIEW
@@ -531,11 +547,11 @@ async def plan_view_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
         plan_items = context.user_data.get("plan_items", [])
         if idx < 0 or idx >= len(plan_items):
-            await query.message.reply_text("❌ Noto'g'ri kun tanlandi.")
+            await query.message.reply_text(get_text("cp_invalid_day", lang))
             return PLAN_VIEW
 
         item = plan_items[idx]
-        day = item.get("day", f"Kun {idx+1}")
+        day = item.get("day", get_text("cp_day_fallback", lang, n=idx + 1))
         title = item.get("title", "")
         idea = item.get("idea", "")
         fmt = item.get("format", "")
@@ -543,16 +559,19 @@ async def plan_view_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
         # Saqlaymiz — post yaratish oqimiga yo'naltirish uchun
         context.user_data["plan_selected_item"] = item
 
-        detail = (
-            f"📅 <b>{html_escape(day)}</b> — {html_escape(fmt)}\n\n"
-            f"📌 <b>{html_escape(title)}</b>\n\n"
-            f"{html_escape(idea)}\n\n"
-            f"Shu mavzuda post yaratishni xohlaysizmi?"
+        detail = get_text(
+            "cp_day_detail", lang, day=html_escape(day), fmt=html_escape(fmt),
+            title=html_escape(title), idea=html_escape(idea),
+            ask=get_text("cp_day_ask", lang),
         )
 
         confirm_kb = InlineKeyboardMarkup([
-            [InlineKeyboardButton("📝 Shu mavzuda post yaratish", callback_data="plan_create_post")],
-            [InlineKeyboardButton("🔙 Orqaga", callback_data="plan_back_to_list")],
+            [InlineKeyboardButton(
+                get_text("cp_btn_create_on_topic", lang), callback_data="plan_create_post"
+            )],
+            [InlineKeyboardButton(
+                get_text("cp_btn_back", lang), callback_data="plan_back_to_list"
+            )],
         ])
 
         await query.message.reply_text(detail, reply_markup=confirm_kb, parse_mode="HTML")
@@ -566,8 +585,8 @@ async def plan_view_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
             plan_items = context.user_data.get("plan_items", [])
             if plan_items:
                 await query.message.reply_text(
-                    "📅 <b>Qaysi kun uchun post yaratamiz?</b>",
-                    reply_markup=_plan_list_keyboard(plan_items, context, get_lang(context)),
+                    get_text("cp_choose_day", lang),
+                    reply_markup=_plan_list_keyboard(plan_items, context, lang),
                     parse_mode="HTML",
                 )
             return PLAN_VIEW
@@ -580,7 +599,7 @@ async def plan_view_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
         channel_title = context.user_data.get("plan_channel_title", "")
 
         # AI dan to'liq post so'raymiz
-        await query.message.reply_text("⏳ AI post matnini tayyorlamoqda...")
+        await query.message.reply_text(get_text("cp_ai_writing", lang))
 
         from utils.ai_agent import generate_post_from_plan
         tone = await db.run_db(db.get_channel_tone, channel_id) if channel_id else "friendly"
@@ -594,12 +613,14 @@ async def plan_view_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
             result = await generate_post_from_plan(topic, title, idea, tone)
 
         if "error" in result:
-            await query.message.reply_text(result["error"], parse_mode="HTML")
+            await query.message.reply_text(
+                localize_service_error(result["error"], lang), parse_mode="HTML"
+            )
             return PLAN_VIEW
 
         post_text = result.get("post_text", "")
         if not post_text:
-            await query.message.reply_text("⚠️ AI post matni tayyorlay olmadi.")
+            await query.message.reply_text(get_text("cp_ai_write_failed", lang))
             return PLAN_VIEW
 
         # Post matnini user_data ga saqlash va yangi post oqimiga o'tkazish
@@ -614,20 +635,18 @@ async def plan_view_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
             preview += "…"
 
         await query.message.reply_text(
-            f"✅ <b>Tayyor post:</b>\n\n{safe_html(preview)}\n\n"
-            f"📢 Kanal: <b>{html_escape(channel_title)}</b>\n\n"
-            f"Endi tugma, vaqt va boshqa sozlamalarni kiriting.",
+            get_text(
+                "cp_post_ready", lang, preview=safe_html(preview),
+                channel=html_escape(channel_title),
+            ),
             parse_mode="HTML",
         )
 
         # To'g'ridan-to'g'ri GET_BTN_TITLE ga o'tamiz (tugma bosish bosqichi)
         from keyboards.default import get_button_prompt_keyboard
         await query.message.reply_text(
-            "🔘 <b>Tugma qo'shasizmi?</b>\n\n"
-            "Tugma matni va URL ni yozing:\n"
-            "<code>Matn | https://havola.uz</code>\n\n"
-            "Yoki tugmasiz davom eting 👇",
-            reply_markup=get_button_prompt_keyboard(),
+            get_text("cp_button_ask", lang),
+            reply_markup=get_button_prompt_keyboard(lang),
             parse_mode="HTML",
         )
         from handlers.new_post import GET_BTN_TITLE
@@ -636,27 +655,32 @@ async def plan_view_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
     if data == "plan_back_to_list":
         await query.answer()
         plan_items = context.user_data.get("plan_items", [])
-        channel_title = context.user_data.get("plan_channel_title", "Kanal")
+        channel_title = context.user_data.get(
+            "plan_channel_title", get_text("an_channel_fallback", lang)
+        )
         topic = context.user_data.get("plan_topic", "")
 
-        plan_text = f"🧠 <b>7 kunlik kontent-reja</b>\n"
-        plan_text += f"📢 Kanal: <b>{html_escape(channel_title)}</b>\n"
-        plan_text += f"📝 Mavzu: <i>{html_escape(topic)}</i>\n\n"
+        plan_text = get_text(
+            "cp_plan_header", lang,
+            channel=html_escape(channel_title), topic=html_escape(topic),
+        )
 
         for i, item in enumerate(plan_items):
-            day = item.get("day", f"Kun {i+1}")
+            day = item.get("day", get_text("cp_day_fallback", lang, n=i + 1))
             fmt = item.get("format", "")
             title = item.get("title", "")
             idea = item.get("idea", "")
-            plan_text += f"<b>📅 {day}</b> — {html_escape(fmt)}\n"
-            plan_text += f"  📌 <b>{html_escape(title)}</b>\n"
+            plan_text += get_text(
+                "cp_plan_day", lang, day=day,
+                fmt=html_escape(fmt), title=html_escape(title),
+            )
             if idea:
-                plan_text += f"  <i>{html_escape(idea[:150])}</i>\n"
+                plan_text += get_text("cp_plan_idea", lang, idea=html_escape(idea[:150]))
             plan_text += "\n"
 
         await query.message.reply_text(
             plan_text,
-            reply_markup=_plan_list_keyboard(plan_items, context, get_lang(context)),
+            reply_markup=_plan_list_keyboard(plan_items, context, lang),
             parse_mode="HTML",
         )
         return PLAN_VIEW

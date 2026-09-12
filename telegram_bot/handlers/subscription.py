@@ -12,7 +12,9 @@ import database as db
 from keyboards.default import get_main_keyboard
 from keyboards.callback_data import cb
 from handlers.start import ensure_user_lang
-from locales.translations import get_text, get_lang
+from locales.translations import (
+    get_text, get_lang, is_main_menu_text, localize_db_message,
+)
 from utils.helpers import html_escape
 # 6-bosqich: RBAC — /grant_pro va /create_promo endi ruxsatga bog'langan.
 from services.rbac_service import (
@@ -193,12 +195,26 @@ def _build_subscription_card(plan_info: dict, lang: str = "uz") -> str:
                 "• To'liq analitika",
                 "• Ustuvor yordam",
             ])
-        lines.extend([
-            "",
-            "💳 <b>PRO:</b>",
+        price_lines = {
+            "ru": [
+                "• 1 месяц — ⭐️ 75 Stars (~$1.5)",
+                "• 3 месяца — ⭐️ 175 Stars (~$3.5)",
+                "• 1 год — ⭐️ 550 Stars (~$11.0 / -40%)",
+            ],
+            "en": [
+                "• 1 month — ⭐️ 75 Stars (~$1.5)",
+                "• 3 months — ⭐️ 175 Stars (~$3.5)",
+                "• 1 year — ⭐️ 550 Stars (~$11.0 / -40%)",
+            ],
+        }.get(lang, [
             "• 1 oy — ⭐️ 75 Stars (~$1.5)",
             "• 3 oy — ⭐️ 175 Stars (~$3.5)",
             "• 1 yil — ⭐️ 550 Stars (~$11.0 / -40%)",
+        ])
+        lines.extend([
+            "",
+            "💳 <b>PRO:</b>",
+            *price_lines,
         ])
 
     return "\n".join(lines)
@@ -213,18 +229,21 @@ def _get_subscription_keyboard(plan: str, lang: str = "uz") -> InlineKeyboardMar
     keyboard = []
     if plan == "free":
         keyboard.append([
-            InlineKeyboardButton("⭐️ 1 oy (75 Stars)", callback_data="sub_pay:stars_1m"),
-            InlineKeyboardButton("⭐️ 3 oy (175 Stars)", callback_data="sub_pay:stars_3m"),
+            InlineKeyboardButton(get_text("sub_pay_1m", lang), callback_data="sub_pay:stars_1m"),
+            InlineKeyboardButton(get_text("sub_pay_3m", lang), callback_data="sub_pay:stars_3m"),
         ])
         keyboard.append([
-            InlineKeyboardButton("⭐️ 1 yil (550 Stars)", callback_data="sub_pay:stars_1y"),
+            InlineKeyboardButton(get_text("sub_pay_1y", lang), callback_data="sub_pay:stars_1y"),
         ])
         keyboard.append([
             InlineKeyboardButton(get_text("btn_card_payment", lang), callback_data="sub_card_pay"),
         ])
-    promo = {"uz": "🎁 Promo-kod kiritish", "ru": "🎁 Ввести промокод", "en": "🎁 Enter promo code"}.get(lang, "🎁 Promo-kod kiritish")
-    keyboard.append([InlineKeyboardButton(promo, callback_data="sub_promo")])
-    keyboard.append([InlineKeyboardButton("⬅️ Orqaga", callback_data="sub_back_main")])
+    keyboard.append([
+        InlineKeyboardButton(get_text("sub_btn_promo", lang), callback_data="sub_promo")
+    ])
+    keyboard.append([
+        InlineKeyboardButton(get_text("btn_back", lang), callback_data="sub_back_main")
+    ])
     return InlineKeyboardMarkup(keyboard)
 
 
@@ -290,23 +309,23 @@ def _get_card_payment_keyboard(
     ])
     if PAYMENT_ADMIN_USERNAME:
         keyboard.append([InlineKeyboardButton(
-            "✉️ Adminga chek yuborish" if lang != "ru" else "✉️ Отправить чек администратору",
+            get_text("sub_btn_send_receipt_admin", lang),
             url=f"https://t.me/{PAYMENT_ADMIN_USERNAME}",
         )])
     keyboard.append([InlineKeyboardButton(get_text("btn_back", lang), callback_data="sub_back")])
     return InlineKeyboardMarkup(keyboard)
 
 
-def _get_stars_keyboard() -> InlineKeyboardMarkup:
+def _get_stars_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
     """Stars to'lov tanlash keyboard."""
     keyboard = [
         [
-            InlineKeyboardButton("⭐️ 1 oylik (75 Stars)", callback_data="sub_pay:stars_1m"),
-            InlineKeyboardButton("⭐️ 3 oylik (175 Stars)", callback_data="sub_pay:stars_3m"),
+            InlineKeyboardButton(get_text("sub_pay_1m_full", lang), callback_data="sub_pay:stars_1m"),
+            InlineKeyboardButton(get_text("sub_pay_3m_full", lang), callback_data="sub_pay:stars_3m"),
         ],
-        [InlineKeyboardButton("⭐️ 1 yillik (550 Stars)", callback_data="sub_pay:stars_1y")],
-        [InlineKeyboardButton("🎁 Promo-kod kiritish", callback_data="sub_promo")],
-        [InlineKeyboardButton("⬅️ Orqaga", callback_data="sub_back")],
+        [InlineKeyboardButton(get_text("sub_pay_1y_full", lang), callback_data="sub_pay:stars_1y")],
+        [InlineKeyboardButton(get_text("sub_btn_promo", lang), callback_data="sub_promo")],
+        [InlineKeyboardButton(get_text("btn_back", lang), callback_data="sub_back")],
     ]
     return InlineKeyboardMarkup(keyboard)
 
@@ -386,17 +405,18 @@ async def subscription_callback(update: Update, context: ContextTypes.DEFAULT_TY
 
     if data.startswith("sub_pay:"):
         plan_key = data.split(":", 1)[1]
-        # Telegram Stars (XTR) invoice ma'lumotlari: (miqdor, sarlavha, tavsif)
-        plan_map = {
-            "stars_1m": (75, "⭐️ PostAssist PRO (1 oy)", "1 oylik to'liq PRO imkoniyatlar"),
-            "stars_3m": (175, "⭐️ PostAssist PRO (3 oy)", "3 oylik to'liq PRO imkoniyatlar"),
-            "stars_1y": (550, "⭐️ PostAssist PRO (1 yil)", "1 yillik to'liq PRO imkoniyatlar (chegirma bilan)"),
-        }
-        if plan_key not in plan_map:
-            await query.message.reply_text("❌ Noto'g'ri tarif tanlandi.")
+        # Telegram Stars (XTR) invoice ma'lumotlari: (miqdor, sarlavha, tavsif).
+        # Sarlavha/tavsif foydalanuvchi tilida (uz/ru/en) — lug'at kalitlari
+        # orqali olinadi; plan_key: stars_1m | stars_3m | stars_1y.
+        plan_suffix = plan_key.split("_", 1)[1] if "_" in plan_key else ""
+        plan_stars = {"1m": 75, "3m": 175, "1y": 550}.get(plan_suffix)
+        if plan_stars is None:
+            await query.message.reply_text(get_text("sub_invalid_plan", lang))
             return SUBSCRIPTION_VIEW
 
-        amount, title, desc = plan_map[plan_key]
+        amount = plan_stars
+        title = get_text(f"sub_inv_title_{plan_suffix}", lang)
+        desc = get_text(f"sub_inv_desc_{plan_suffix}", lang)
         prices = [LabeledPrice(label=title, amount=amount)]
 
         try:
@@ -417,9 +437,7 @@ async def subscription_callback(update: Update, context: ContextTypes.DEFAULT_TY
         except Exception as e:
             logger.warning("Invoice yaratish xatosi: %s", e)
             try:
-                await query.message.reply_text(
-                    "⚠️ To'lov oynasini ochishda xatolik yuz berdi. Iltimos, qayta urinib ko'ring."
-                )
+                await query.message.reply_text(get_text("sub_invoice_error", lang))
             except Exception:
                 pass
         return SUBSCRIPTION_VIEW
@@ -488,8 +506,10 @@ async def subscription_callback(update: Update, context: ContextTypes.DEFAULT_TY
 
     if data == "sub_promo":
         await query.message.reply_text(
-            "🎁 <b>Promo-kodni kiriting:</b>\n\n"
-            "Promo-kodni yozing yoki '🔙 Orqaga' tugmasini bosing.",
+            get_text(
+                "sub_promo_ask", lang,
+                back=get_text("btn_main_menu", lang),
+            ),
             parse_mode="HTML",
         )
         return PROMO_INPUT
@@ -520,33 +540,34 @@ async def promo_code_received(update: Update, context: ContextTypes.DEFAULT_TYPE
     text = (update.message.text or "").strip()
     user_id = update.effective_user.id
     is_admin = user_id in ADMIN_IDS_SET
+    lang = get_lang(context)
 
-    if text in ("🔙 Asosiy menyu", "🔙 Orqaga"):
+    if is_main_menu_text(text):
         # Qaytadan obuna kartasini ko'rsatamiz
         plan_info = await db.run_db(db.get_user_plan, user_id)
-        card = _build_subscription_card(plan_info, get_lang(context))
+        card = _build_subscription_card(plan_info, lang)
         plan = plan_info.get("plan_type", "free")
         await update.message.reply_text(
             card,
-            reply_markup=_get_subscription_keyboard(plan, get_lang(context)),
+            reply_markup=_get_subscription_keyboard(plan, lang),
             parse_mode="HTML",
         )
         return SUBSCRIPTION_VIEW
 
     success, msg = await db.run_db(db.redeem_promo_code, user_id, text)
+    msg_localized = html_escape(localize_db_message(msg, lang))
+    back_label = get_text("btn_main_menu", lang)
 
     if success:
         await update.message.reply_text(
-            f"✅ <b>{html_escape(msg)}</b>\n\n"
-            "Yangi tarif imkoniyatlaringiz faollashtirildi!",
-            reply_markup=get_main_keyboard(is_admin),
+            get_text("sub_promo_success", lang, msg=msg_localized),
+            reply_markup=get_main_keyboard(is_admin, lang=lang),
             parse_mode="HTML",
         )
         return ConversationHandler.END
     else:
         await update.message.reply_text(
-            f"❌ <b>{html_escape(msg)}</b>\n\n"
-            "Qaytadan urinib ko'ring yoki '🔙 Orqaga' tugmasini bosing.",
+            get_text("sub_promo_fail", lang, msg=msg_localized, back=back_label),
             parse_mode="HTML",
         )
         return PROMO_INPUT
@@ -589,15 +610,12 @@ async def grant_pro_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"📅 Muddat: <b>{days} kun</b>",
             parse_mode="HTML",
         )
-        # Foydalanuvchiga xabar berishga harakat qilamiz
+        # Foydalanuvchiga xabar berishga harakat qilamiz (o'z tilida).
         try:
+            target_lang = await db.run_db(db.get_user_language, target_id)
             await context.bot.send_message(
                 chat_id=target_id,
-                text=(
-                    f"🎉 <b>Tabriklaymiz!</b>\n\n"
-                    f"Sizga <b>{days} kunlik PRO tarif</b> berildi!\n"
-                    f"Barcha PRO imkoniyatlardan foydalanishingiz mumkin."
-                ),
+                text=get_text("sub_pro_granted", target_lang, days=days),
                 parse_mode="HTML",
             )
         except Exception:
@@ -613,32 +631,34 @@ async def grant_pro_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 _STARS_PAYLOAD_RE = re.compile(r"^sub_(stars_1m|stars_3m|stars_1y)_([0-9]+)$")
 
 
-def _validate_stars_payload(payload: str, user_id: int, amount=None, currency=None):
+def _validate_stars_payload(payload: str, user_id: int, amount=None, currency=None,
+                            lang: str = "uz"):
     """Invoice payload + summa + valuta'ni qat'iy tekshiradi.
 
     Payload oddiy prefix tekshiruvi bilan qabul qilinmaydi: user ID, plan va
     Telegram invoice'dagi kutilgan Stars miqdori bir-biriga mos bo'lishi shart.
+    Xatolik matnlari foydalanuvchi tilida (uz/ru/en) qaytariladi.
     """
     match = _STARS_PAYLOAD_RE.fullmatch(str(payload or ""))
     if not match:
-        return None, "Noto'g'ri to'lov payload'i."
+        return None, get_text("sub_pay_err_payload", lang)
     plan_key, payload_user = match.groups()
     try:
         if int(payload_user) != int(user_id):
-            return None, "To'lov foydalanuvchiga mos emas."
+            return None, get_text("sub_pay_err_user", lang)
     except (TypeError, ValueError):
-        return None, "Noto'g'ri foydalanuvchi ID."
+        return None, get_text("sub_pay_err_user_id", lang)
     plan = STARS_PLANS.get(plan_key)
     if not plan:
-        return None, "Noto'g'ri tarif."
+        return None, get_text("sub_pay_err_plan", lang)
     if currency is not None and str(currency).upper() != "XTR":
-        return None, "To'lov valyutasi noto'g'ri."
+        return None, get_text("sub_pay_err_currency", lang)
     if amount is not None:
         try:
             if int(amount) != int(plan["stars"]):
-                return None, "To'lov summasi tarifga mos emas."
+                return None, get_text("sub_pay_err_amount", lang)
         except (TypeError, ValueError):
-            return None, "To'lov summasi noto'g'ri."
+            return None, get_text("sub_pay_err_amount_bad", lang)
     return {"plan_key": plan_key, "stars": plan["stars"], "days": plan["days"]}, None
 
 
@@ -653,6 +673,8 @@ async def precheckout_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         return
 
     # Telegram payment retry/qo'lda yuborilgan soxta invoice'ni qat'iy rad etamiz.
+    # Til keshdan sinxron olinadi — answer() dan oldin await yo'q (tezlik).
+    lang = get_lang(context)
     payload = query.invoice_payload or ""
     query_user = getattr(getattr(query, "from_user", None), "id", None)
     query_amount = getattr(query, "total_amount", None)
@@ -662,12 +684,15 @@ async def precheckout_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         query_user,
         query_amount,
         query_currency,
+        lang,
     )
     if query_user is None or query_amount is None or query_currency is None:
-        plan, error = None, "To'lov rekvizitlari to'liq emas."
+        plan, error = None, get_text("sub_pay_err_incomplete", lang)
     await query.answer(
         ok=plan is not None,
-        error_message=None if plan is not None else (error or "Noto'g'ri to'lov so'rovi."),
+        error_message=None if plan is not None else (
+            error or get_text("sub_pay_err_bad_request", lang)
+        ),
     )
 
 
@@ -744,9 +769,10 @@ async def successful_payment_callback(update: Update, context: ContextTypes.DEFA
         user_id,
         total_stars,
         payment_currency,
+        get_lang(context),
     )
     if total_stars is None or payment_currency is None:
-        plan, error = None, "To'lov rekvizitlari to'liq emas."
+        plan, error = None, get_text("sub_pay_err_incomplete", get_lang(context))
     charge_id = (getattr(payment, "telegram_payment_charge_id", "") or "").strip()
     if plan is None or not charge_id:
         logger.warning(
@@ -769,19 +795,18 @@ async def successful_payment_callback(update: Update, context: ContextTypes.DEFA
         "pro",
         plan["days"],
     )
+    lang = await ensure_user_lang(context, user_id)
     if not isinstance(result, dict) or not result.get("ok"):
         await update.message.reply_text(
-            "⚠️ To'lov qabul qilindi, lekin tarifni faollashtirishda xatolik.\n"
-            "Iltimos, admin bilan bog'laning.",
+            get_text("sub_pay_activate_error", lang),
             parse_mode="HTML",
         )
         return
 
-    lang = await ensure_user_lang(context, user_id)
     if result.get("duplicate"):
         # Retry kelgan — grant allaqachon berilgan, yana subscription yozmaymiz.
         await update.message.reply_text(
-            "✅ Bu to'lov avval qayta ishlangan. PRO tarifingiz allaqachon faol.",
+            get_text("sub_pay_duplicate", lang),
             reply_markup=get_main_keyboard(user_id in ADMIN_IDS_SET, lang=lang),
             parse_mode="HTML",
         )
@@ -789,13 +814,7 @@ async def successful_payment_callback(update: Update, context: ContextTypes.DEFA
 
     days = plan["days"]
     await update.message.reply_text(
-        f"🎉 <b>To'lov muvaffaqiyatli!</b>\n\n"
-        f"⭐️ {total_stars} Stars qabul qilindi.\n"
-        f"📅 <b>{days} kunlik PRO tarif</b> faollashtirildi!\n\n"
-        f"Barcha PRO imkoniyatlardan foydalanishingiz mumkin:\n"
-        f"• Cheksiz kanallar\n"
-        f"• Cheksiz AI\n"
-        f"• To'liq analitika",
+        get_text("sub_pay_success", lang, stars=total_stars, days=days),
         reply_markup=get_main_keyboard(user_id in ADMIN_IDS_SET, lang=lang),
         parse_mode="HTML",
     )

@@ -178,7 +178,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_sub:
         await update.message.reply_text(
             get_text("sub_required", lang),
-            reply_markup=get_subscription_check_keyboard(unsubs),
+            reply_markup=get_subscription_check_keyboard(unsubs, lang),
             parse_mode="HTML"
         )
         return ConversationHandler.END
@@ -268,7 +268,7 @@ async def subscription_check_callback(update: Update, context: ContextTypes.DEFA
         except Exception:
             pass
         try:
-            await query.edit_message_reply_markup(reply_markup=get_subscription_check_keyboard(unsubs))
+            await query.edit_message_reply_markup(reply_markup=get_subscription_check_keyboard(unsubs, lang))
         except TelegramError:
             pass
         try:
@@ -385,7 +385,7 @@ async def user_invite_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     await update.message.reply_text(
         text,
-        reply_markup=get_referral_share_keyboard(ref_link),
+        reply_markup=get_referral_share_keyboard(ref_link, lang),
         parse_mode="HTML"
     )
 
@@ -645,9 +645,12 @@ async def cabinet_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
         except Exception:
             pass
+        # Til o'zgarganda ReplyKeyboard darhol yangilanadi; sodda menyu
+        # rejimidagi foydalanuvchiga sodda klaviatura qaytariladi.
+        main_kb = await resolve_main_keyboard(user_id, is_admin, lang, context)
         await query.message.reply_text(
             get_text("lang_changed", lang),
-            reply_markup=get_main_keyboard(is_admin, lang=lang),
+            reply_markup=main_kb,
             parse_mode="HTML",
         )
         return
@@ -715,7 +718,9 @@ async def cabinet_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         lang = get_lang(context)
         from handlers.analytics import _build_dashboard
         stats = await db.run_db(db.get_channel_post_stats, user_id, None)
-        text = _build_dashboard(stats, "Barcha kanallar")
+        text = _build_dashboard(
+            stats, get_text("an_all_channels", lang), lang,
+        )
         try:
             await query.edit_message_text(text, reply_markup=get_cabinet_back_keyboard(lang), parse_mode="HTML")
         except Exception:
@@ -769,7 +774,7 @@ async def cabinet_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "referral_menu", lang, credits=credits_text,
             count=stats["referrals_count"], link=ref_link,
         )
-        share_kb = get_referral_share_keyboard(ref_link)
+        share_kb = get_referral_share_keyboard(ref_link, lang)
         combined_kb = InlineKeyboardMarkup(
             share_kb.inline_keyboard + get_cabinet_back_keyboard(lang).inline_keyboard
         )
@@ -782,8 +787,8 @@ async def cabinet_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if data == "cab_balance":
         await query.answer()
         stats = await db.run_db(db.get_referral_stats, user_id)
-        credits_text = "♾ Cheksiz (Super Admin)" if is_admin else f"<b>{stats['ai_credits']} ta</b>"
         lang = get_lang(context)
+        credits_text = cabinet_credits_text(is_admin, stats['ai_credits'], lang)
         if is_admin:
             ad_mode = get_text("ad_mode_admin", lang)
         elif await db.run_db(db.is_premium, user_id):

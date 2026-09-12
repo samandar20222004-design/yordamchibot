@@ -807,11 +807,17 @@ def test_source_integration():
     check("channel_reader: meta description o'qiladi", "description" in cr_src)
 
     check("channel_extract: read_channel_posts ishlatiladi", "read_channel_posts" in ce_src)
-    check("channel_extract: 'Bu yopiq kanal' xabari bor", "Bu yopiq kanal" in ce_src)
+    # i18n: matnlar locales/translations.py dagi kalitlardan olinadi —
+    # handler kalitni ishlatishi VA uz qiymatda matn saqlanishi shart.
+    from locales.translations import TRANSLATIONS as _TR
+    check("channel_extract: 'Bu yopiq kanal' xabari bor",
+          "ext_private_channel_full" in ce_src
+          and "Bu yopiq kanal" in _TR["uz"]["ext_private_channel_full"])
     check("channel_extract: sayt havolasi qo'llab-quvvatlanadi",
           "is_website_link" in ce_src and "read_webpage_for_ai" in ce_src)
     check("channel_extract: to'liq havola promptda ko'rsatiladi",
-          "https://t.me/kunuzofficial" in ce_src)
+          "ext_intro" in ce_src
+          and "https://t.me/kunuzofficial" in _TR["uz"]["ext_intro"])
 
     check("channels: ovoz tahlilida web-preview fallback bor",
           "_fetch_public_posts_fallback" in ch_src and "read_channel_posts" in ch_src)

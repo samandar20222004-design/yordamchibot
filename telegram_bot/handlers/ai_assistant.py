@@ -24,7 +24,9 @@ from utils.ai_agent import (
     _AUDIT_PRO_SYSTEM, _AUDIT_FREE_SYSTEM,
     _PRO_POST_ENHANCEMENT, _FREE_POST_HINT,
 )
-from locales.translations import clear_fsm_data, get_lang, get_text
+from locales.translations import (
+    clear_fsm_data, get_lang, get_text, localize_service_error,
+)
 from utils.helpers import (
     html_escape, safe_html, check_ai_rate_limit, check_ai_daily_limit, parse_future_time,
     get_auto_ad_injection_async, parse_schedule_input,
@@ -144,9 +146,27 @@ AI_CONFIRM_KEYBOARD = InlineKeyboardMarkup([
 ])
 
 # Tarif limiti (FREE vs PRO) tugaganda ko'rsatiladigan PRO tugmasi.
+# UZ standarti (testlar import qiladi); handler'lar tilga mos variantni ishlatadi.
 PRO_UPGRADE_KEYBOARD = InlineKeyboardMarkup([
     [InlineKeyboardButton("⭐️ PRO tarifga o'tish", callback_data="sub_open")],
 ])
+
+
+def _pro_upgrade_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
+    """PRO tarifga o'tish tugmasi — foydalanuvchi tilida (uz/ru/en)."""
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton(get_text("ch_pro_btn", lang), callback_data="sub_open")],
+    ])
+
+
+# AI vaqt tugmalarining 3 tildagi matnlari — RU/EN foydalanuvchi bosgan
+# tugma ham to'g'ri tanilishi uchun (avval faqat UZ matn solishtirilardi).
+_T_5MIN_ALL = frozenset(get_text("np_btn_time_5m", _l) for _l in ("uz", "ru", "en"))
+_T_15MIN_ALL = frozenset(get_text("np_btn_time_15m", _l) for _l in ("uz", "ru", "en"))
+_T_1H_ALL = frozenset(get_text("np_btn_time_1h", _l) for _l in ("uz", "ru", "en"))
+_T_REPEAT_ALL = frozenset(
+    get_text(_k, _l) for _k in ("np_btn_time_daily", "np_btn_time_weekly") for _l in ("uz", "ru", "en")
+)
 
 # Tarif asosidagi kunlik AI limiti xabari (database.PLAN_LIMITS).
 AI_LIMIT_MSG = (
@@ -213,32 +233,31 @@ async def start_ai_assistant(update: Update, context: ContextTypes.DEFAULT_TYPE)
     is_admin = (user_id in ADMIN_IDS_SET)
     is_pro = await db.run_db(db.is_premium, user_id)
     credits = await db.run_db(db.get_user_credits, user_id)
+    lang = get_lang(context)
 
     # PRO/Enterprise foydalanuvchi cheksiz AI oladi — ball talab qilinmaydi.
     if not is_admin and not is_pro and credits <= 0:
         bot_obj = await context.bot.get_me()
         await update.message.reply_text(
-            _no_credits_text(bot_obj.username, user_id, get_lang(context)),
-            reply_markup=get_main_keyboard(is_admin),
+            _no_credits_text(bot_obj.username, user_id, lang),
+            reply_markup=get_main_keyboard(is_admin, lang=lang),
             parse_mode="HTML",
         )
         return ConversationHandler.END
 
-    limit_info = (
-        "♾ Cheksiz (Super Admin)" if is_admin else
-        ("♾ Cheksiz (PRO)" if is_pro else f"<b>{credits} ta</b>")
-    )
+    if is_admin:
+        limit_info = get_text("cabinet_credits_admin", lang)
+    elif is_pro:
+        limit_info = get_text("ai_credits_unlimited_pro", lang)
+    else:
+        limit_info = get_text("credits_value", lang, n=credits)
 
     await update.message.reply_text(
-        "🤖 <b>AI Yordamchiga xush kelibsiz!</b>\n\n"
-        f"💎 Mavjud AI so'rovlari: {limit_info}\n\n"
-        "Men sizga quyidagi ishlarda yordam bera olaman:\n"
-        "❓ <b>Savol-javob</b> — bot, postlar, ballar, kanallar haqida savol bering.\n"
-        "📝 <b>Post yaratish</b> — post mavzusini yozing yoki tayyor post/rasm yuboring.\n"
-        "🕒 <b>Erkin rejalashtirish</b> — masalan: <i>“bugun 15:45 ga hamma kanalga post tayyorla”</i>.\n\n"
-        "👉 Post mavzusini yoki savolingizni yozing.\n"
-        "<i>Chiqish uchun '🔙 Asosiy menyu' tugmasini bosing.</i>",
-        reply_markup=get_cancel_keyboard(),
+        get_text(
+            "ai_legacy_welcome", lang, credits=limit_info,
+            main_menu=get_text("btn_main_menu", lang),
+        ),
+        reply_markup=get_cancel_keyboard(lang),
         parse_mode="HTML",
     )
     return AI_INPUT
@@ -303,7 +322,9 @@ async def _show_time_prompt(msg, post_text: str, file_id, post_type: str, lang: 
         + safe_html(post_text[:1500])
         + get_text("ai_schedule_foot", lang)
     )
-    await _send_preview(msg, header, file_id, post_type, get_ai_time_keyboard(), lang)
+    await _send_preview(
+        msg, header, file_id, post_type, get_ai_time_keyboard(lang), lang
+    )
 
 
 async def ai_input_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -311,6 +332,7 @@ async def ai_input_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = update.message
     user_id = update.effective_user.id
     is_admin = (user_id in ADMIN_IDS_SET)
+    lang = get_lang(context)
 
     # Albom (media_group) dublikatlarini bitta ishlov bilan cheklaymiz
     if msg.media_group_id:
@@ -333,7 +355,7 @@ async def ai_input_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Rate-limitlar
     if not is_admin and check_ai_rate_limit(user_id, max_per_minute=4):
         await msg.reply_text(
-            "⏳ <i>AI so'rovlarini juda tez-tez yuboryapsiz. Iltimos, 1 daqiqa kuting...</i>",
+            get_text("ai_rate_limit", lang),
             parse_mode="HTML",
         )
         return AI_INPUT
@@ -341,20 +363,19 @@ async def ai_input_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if file_id and not text_input:
         existing_post = context.user_data.get("ai_generated_post", "")
         if existing_post:
-            await _show_time_prompt(msg, existing_post, file_id, post_type)
+            await _show_time_prompt(msg, existing_post, file_id, post_type, lang)
             return AI_GET_TIME
         await msg.reply_text(
-            "🖼 <b>Rasm/media qabul qilindi!</b>\n\n"
-            "Endi post matnini yuboring yoki vaqtni yozing, masalan: <i>“bugun 18:00 ga”</i>.",
-            reply_markup=get_cancel_keyboard(),
+            get_text("ai_legacy_media_hint", lang),
+            reply_markup=get_cancel_keyboard(lang),
             parse_mode="HTML",
         )
         return AI_INPUT
 
     if not text_input and not file_id:
         await msg.reply_text(
-            "Iltimos, post matnini, savolingizni yoki rasm/fayl yuboring:",
-            reply_markup=get_cancel_keyboard(),
+            get_text("ai_legacy_input_hint", lang),
+            reply_markup=get_cancel_keyboard(lang),
         )
         return AI_INPUT
 
@@ -367,7 +388,7 @@ async def ai_input_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Kunlik limit (in-memory, tezkor himoya) — faqat free uchun.
     if not is_admin and not is_pro and check_ai_daily_limit(user_id, max_per_day=30):
         await msg.reply_text(
-            "⚠️ <i>Kunlik AI so'rovlar limiti tugadi (30 ta/kun). Ertaga qayta urinib ko'ring.</i>",
+            get_text("ai_daily_limit", lang),
             parse_mode="HTML",
         )
         return AI_INPUT
@@ -379,8 +400,8 @@ async def ai_input_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
         can_use, used, max_ai = await db.run_db(db.check_ai_limit, user_id)
         if not can_use:
             await msg.reply_text(
-                AI_LIMIT_MSG.format(used=used, max=max_ai),
-                reply_markup=PRO_UPGRADE_KEYBOARD,
+                get_text("ai_limit_msg", lang, used=used, max=max_ai),
+                reply_markup=_pro_upgrade_keyboard(lang),
                 parse_mode="HTML",
             )
             return AI_INPUT
@@ -389,13 +410,13 @@ async def ai_input_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin and not is_pro and not await db.run_db(db.use_user_credit, user_id):
         bot_obj = await context.bot.get_me()
         await msg.reply_text(
-            _no_credits_text(bot_obj.username, user_id, get_lang(context)),
-            reply_markup=get_main_keyboard(is_admin),
+            _no_credits_text(bot_obj.username, user_id, lang),
+            reply_markup=get_main_keyboard(is_admin, lang=lang),
             parse_mode="HTML",
         )
         return ConversationHandler.END
 
-    msg_wait = await msg.reply_text("🤖 <i>AI tahlil qilmoqda...</i>", parse_mode="HTML")
+    msg_wait = await msg.reply_text(get_text("ai_analyzing", lang), parse_mode="HTML")
 
     # Typing animatsiyasini fonda ishga tushiramiz
     stop_typing = asyncio.Event()
@@ -415,8 +436,8 @@ async def ai_input_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not is_admin:
             await db.run_db(db.add_user_credit, user_id)
         await msg.reply_text(
-            f"⚠️ {result['error']}",
-            reply_markup=get_cancel_keyboard(),
+            f"⚠️ {localize_service_error(result['error'], lang)}",
+            reply_markup=get_cancel_keyboard(lang),
             parse_mode="HTML",
         )
         return AI_INPUT
@@ -425,14 +446,12 @@ async def ai_input_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # A) SAVOL-JAVOB
     if intent == "faq":
-        reply = result.get("reply", "") or (
-            "Kechirasiz, men faqat Telegram kanallarni boshqarish va postlarni "
-            "rejalashtirish bo'yicha yordam bera olaman."
-        )
+        reply = result.get("reply", "") or get_text("ai_legacy_faq_fallback", lang)
         ad_line = await get_auto_ad_injection_async(user_id)
         await msg.reply_text(
-            f"🤖 {safe_html(reply)}\n\n<i>Yana savol bering yoki post mavzusini yuboring 👇</i>{ad_line}",
-            reply_markup=get_cancel_keyboard(),
+            f"🤖 {safe_html(reply)}"
+            f"{get_text('ai_legacy_faq_footer', lang)}{ad_line}",
+            reply_markup=get_cancel_keyboard(lang),
             parse_mode="HTML",
         )
         return AI_INPUT
@@ -440,8 +459,10 @@ async def ai_input_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # B/C) POST yoki EDIT
     post_text = result.get("post_text", "") or ""
     if not post_text:
-        reply = result.get("reply", "") or "Post matnini aniqlab bo'lmadi. Iltimos, qaytadan yuboring."
-        await msg.reply_text(safe_html(reply), reply_markup=get_cancel_keyboard(), parse_mode="HTML")
+        reply = result.get("reply", "") or get_text("ai_legacy_no_post", lang)
+        await msg.reply_text(
+            safe_html(reply), reply_markup=get_cancel_keyboard(lang), parse_mode="HTML"
+        )
         return AI_INPUT
 
     sched_time = result.get("scheduled_time")
@@ -461,17 +482,17 @@ async def ai_input_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
             sched_time, has_explicit = None, False
 
     if not has_explicit or not sched_time:
-        await _show_time_prompt(msg, post_text, file_id, post_type)
+        await _show_time_prompt(msg, post_text, file_id, post_type, lang)
         return AI_GET_TIME
 
-    target_info = "\n🌐 <b>Kanal:</b> Barcha ulangan kanallarga" if target_all else ""
-    preview = (
-        "✨ <b>Tayyorlangan post:</b>\n\n"
-        f"{safe_html(post_text[:3000])}\n\n"
-        f"🕒 <b>Chiqish vaqti:</b> <code>{sched_time}</code>{target_info}\n\n"
-        "Ushbu postni rejalashtiramizmi?"
+    target_info = get_text("ai_legacy_target_all", lang) if target_all else ""
+    preview = get_text(
+        "ai_confirm_title", lang, post=safe_html(post_text[:3000]),
+        time=sched_time, target=target_info,
     )
-    await _send_preview(msg, preview, file_id, post_type, AI_CONFIRM_KEYBOARD)
+    await _send_preview(
+        msg, preview, file_id, post_type, get_ai_confirm_keyboard(lang), lang
+    )
     return AI_CONFIRM
 
 

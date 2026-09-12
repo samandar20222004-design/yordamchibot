@@ -46,15 +46,17 @@ def get_close_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
     ]])
 
 
-def get_referral_share_keyboard(referral_link: str) -> InlineKeyboardMarkup:
-    share_text = "Salom! Ushbu bot orqali Telegram kanallaringizga postlarni avtomatik va qulay rejalashtiring:"
+def get_referral_share_keyboard(referral_link: str, lang: str = "uz") -> InlineKeyboardMarkup:
+    share_text = get_text("ref_share_text", lang)
     # Ikkala query-parametrni ham encode qilamiz: bo'sh joy, apostrof va
     # maxsus belgilar Telegram share URL'ini buzib qo'ymasligi kerak.
     share_url = (
         "https://t.me/share/url?"
         f"url={quote(referral_link, safe='')}&text={quote(share_text, safe='')}"
     )
-    return InlineKeyboardMarkup([[InlineKeyboardButton("🚀 Do'stlarga ulashish", url=share_url)]])
+    return InlineKeyboardMarkup([[
+        InlineKeyboardButton(get_text("btn_share_referral", lang), url=share_url)
+    ]])
 
 def unpack_sponsor(sponsor):
     """Sponsor ma'lumotlarini tuple yoki dict'dan xavfsiz ajratib beradi."""
@@ -77,15 +79,20 @@ def unpack_sponsor(sponsor):
     return (0, "", "Kanal", "", "")
 
 
-def get_subscription_check_keyboard(unsubscribed_channels: list) -> InlineKeyboardMarkup:
+def get_subscription_check_keyboard(unsubscribed_channels: list, lang: str = "uz") -> InlineKeyboardMarkup:
     keyboard = []
+    sponsor_fallback = get_text("sub_sponsor_fallback", lang)
     for sponsor in (unsubscribed_channels or []):
         s_id, ch_id, ch_title, username, ch_url = unpack_sponsor(sponsor)
         url = ch_url or (f"https://t.me/{username}" if username else "")
         keyboard.append([
-            InlineKeyboardButton(f"➕ {btn_label(ch_title, 'Homiy kanal')}", url=url)
+            InlineKeyboardButton(f"➕ {btn_label(ch_title, sponsor_fallback)}", url=url)
         ])
-    keyboard.append([InlineKeyboardButton("✅ Obunani tekshirish", callback_data="check_sub_status")])
+    keyboard.append([
+        InlineKeyboardButton(
+            get_text("btn_check_subscription", lang), callback_data="check_sub_status"
+        )
+    ])
     return InlineKeyboardMarkup(keyboard)
 
 def get_cache_actions_keyboard() -> InlineKeyboardMarkup:
@@ -415,7 +422,7 @@ def get_ai_studio_plan_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
         ],
         [
             InlineKeyboardButton(get_text("btn_back", lang), callback_data="plan_back"),
-            InlineKeyboardButton("🔄 Qayta urinish", callback_data="plan_refresh"),
+            InlineKeyboardButton(get_text("np_ai_btn_retry", lang), callback_data="plan_refresh"),
         ],
         [
             InlineKeyboardButton(get_text("btn_main_menu", lang), callback_data="studio_close"),
