@@ -590,18 +590,22 @@ async def read_webpage_for_ai(url: str, max_chars: int = 1000) -> dict:
 # Formatlash
 # ============================================================
 
-def format_post_list(posts: list[dict], channel_username: str) -> str:
+def format_post_list(posts: list[dict], channel_username: str, lang: str = "uz") -> str:
     """Postlar ro'yxatini chiroyli matn ko'rinishida formatlaydi."""
     if not posts:
         return ""
 
-    lines = [f"📢 <b>@{channel_username}</b> — so'nggi postlar:\n"]
+    # Mahalliy import — aylanma bog'liqlik (circular import) oldini oladi.
+    from locales.translations import get_text
+
+    lines = [get_text("ext_list_header", lang, channel=channel_username)]
+    media_only = get_text("ext_media_only", lang)
     for i, post in enumerate(posts, 1):
         text = post.get("text", "")
         date = post.get("date", "")
 
         # Matnni qisqartirish
-        preview = text[:200] if text else "(rasm/video)"
+        preview = text[:200] if text else media_only
         if len(text) > 200:
             preview += "…"
 
@@ -619,5 +623,5 @@ def format_post_list(posts: list[dict], channel_username: str) -> str:
             lines.append(f"   🕒 {date_str}")
         lines.append("")
 
-    lines.append("Qaysi postni qayta ishlashni tanlang 👇")
+    lines.append(get_text("ext_list_choose", lang))
     return "\n".join(lines)

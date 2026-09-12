@@ -7,7 +7,7 @@ import database as db
 from keyboards.default import get_cancel_keyboard, get_main_keyboard, get_button_prompt_keyboard
 from keyboards.inline import btn_label
 from keyboards.callback_data import cb
-from locales.translations import get_text, get_lang
+from locales.translations import get_text, get_lang, is_main_menu_text, localize_service_error
 from utils.helpers import html_escape, safe_html, get_auto_ad_injection_async, keep_typing
 from utils.channel_reader import (
     format_post_list, read_channel_posts, read_webpage_for_ai,
@@ -21,12 +21,15 @@ EXTRACT_USERNAME = 701
 EXTRACT_CHOOSE_POST = 702
 
 
-def _get_post_list_keyboard(posts: list[dict], channel: str) -> InlineKeyboardMarkup:
+def _get_post_list_keyboard(
+    posts: list[dict], channel: str, lang: str = "uz",
+) -> InlineKeyboardMarkup:
     """Postlar ro'yxati uchun keyboard."""
     keyboard = []
+    media_preview = get_text("ext_media_preview", lang)
     for i, post in enumerate(posts):
         text = post.get("text", "")
-        preview = text[:35] if text else "🖼 Rasm/Video"
+        preview = text[:35] if text else media_preview
         if len(text) > 35:
             preview += "…"
         keyboard.append([
@@ -35,34 +38,37 @@ def _get_post_list_keyboard(posts: list[dict], channel: str) -> InlineKeyboardMa
                 callback_data=cb(f"ext_post:{i}"),
             )
         ])
-    keyboard.append([InlineKeyboardButton("🔄 Yangilash", callback_data="ext_refresh")])
-    keyboard.append([InlineKeyboardButton("❌ Bekor qilish", callback_data="ext_cancel")])
+    keyboard.append([
+        InlineKeyboardButton(get_text("ext_btn_refresh", lang), callback_data="ext_refresh")
+    ])
+    keyboard.append([
+        InlineKeyboardButton(get_text("ai_btn_close", lang), callback_data="ext_cancel")
+    ])
     return InlineKeyboardMarkup(keyboard)
 
 
-def _get_rewrite_result_keyboard(show_back: bool = True) -> InlineKeyboardMarkup:
+def _get_rewrite_result_keyboard(show_back: bool = True, lang: str = "uz") -> InlineKeyboardMarkup:
     """AI natijasi uchun keyboard (sayt oqimida 'Boshqa post' tugmasi yashirinadi)."""
     rows = [
-        [InlineKeyboardButton("✅ Kanalga rejalashtirish", callback_data="ext_schedule")],
-        [InlineKeyboardButton("🔄 Qayta yozish", callback_data="ext_rewrite")],
+        [InlineKeyboardButton(get_text("ai_confirm_schedule", lang), callback_data="ext_schedule")],
+        [InlineKeyboardButton(get_text("ext_btn_rewrite", lang), callback_data="ext_rewrite")],
     ]
     if show_back:
-        rows.append([InlineKeyboardButton("🔙 Boshqa post tanlash", callback_data="ext_back")])
-    rows.append([InlineKeyboardButton("❌ Bekor qilish", callback_data="ext_cancel")])
+        rows.append([
+            InlineKeyboardButton(get_text("ext_btn_other_post", lang), callback_data="ext_back")
+        ])
+    rows.append([
+        InlineKeyboardButton(get_text("ai_btn_close", lang), callback_data="ext_cancel")
+    ])
     return InlineKeyboardMarkup(rows)
 
 
 async def start_extract(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Ochiq kanaldan post olish oqimini boshlash."""
+    lang = get_lang(context)
     await update.message.reply_text(
-        "📢 <b>Ochiq kanaldan post olish</b>\n\n"
-        "Kanal nikini YOKI havolasini yuboring:\n"
-        "• <code>@kunuzofficial</code>\n"
-        "• <code>https://t.me/kunuzofficial</code>\n\n"
-        "Yoki sayt havolasini yuboring (masalan: <code>https://kun.uz/</code>) — "
-        "bot sahifani o'qib, AI tahlilini tayyorlaydi.\n\n"
-        "<i>Faqat ochiq kanallar uchun ishlaydi.</i>",
-        reply_markup=get_cancel_keyboard(),
+        get_text("ext_intro", lang),
+        reply_markup=get_cancel_keyboard(lang),
         parse_mode="HTML",
     )
     return EXTRACT_USERNAME
@@ -89,14 +95,17 @@ async def _handle_website_link(update: Update, context: ContextTypes.DEFAULT_TYP
     asosiy matnini (1000 belgigacha) o'qiydi — natija AI re-write oqimiga
     yetkaziladi.
     """
-    await update.message.reply_text("⏳ Sayt o'qilmoqda...")
+    lang = get_lang(context)
+    await update.message.reply_text(get_text("ext_reading_site", lang))
 
     page = await read_webpage_for_ai(url)
     if "error" in page or not (page.get("content") or page.get("title")):
-        error_text = page.get("error") or "⚠️ Saytdan matn o'qib bo'lmadi. Manzilni tekshirib, qayta yuboring."
+        raw_error = page.get("error") or get_text("ext_site_read_failed", lang)
+        if page.get("error"):
+            raw_error = localize_service_error(raw_error, lang)
         await update.message.reply_text(
-            error_text,
-            reply_markup=get_cancel_keyboard(),
+            raw_error,
+            reply_markup=get_cancel_keyboard(lang),
             parse_mode="HTML",
         )
         return EXTRACT_USERNAME
@@ -110,7 +119,7 @@ async def _handle_website_link(update: Update, context: ContextTypes.DEFAULT_TYP
     context.user_data["extract_post_link"] = site_url
     context.user_data["extract_posts"] = []
 
-    await update.message.reply_text("⏳ AI sahifani tahlil qilmoqda...")
+    await update.message.reply_text(get_text("ext_ai_analyzing_page", lang))
 
     from utils.ai_agent import rewrite_channel_post
     tone = await _get_user_tone(user_id)
@@ -125,12 +134,14 @@ async def _handle_website_link(update: Update, context: ContextTypes.DEFAULT_TYP
         result = await rewrite_channel_post(original_text, source, site_url, tone)
 
     if "error" in result:
-        await update.message.reply_text(result["error"], parse_mode="HTML")
+        await update.message.reply_text(
+            localize_service_error(result["error"], lang), parse_mode="HTML"
+        )
         return EXTRACT_USERNAME
 
     rewritten = result.get("post_text", "")
     if not rewritten:
-        await update.message.reply_text("⚠️ AI sahifani qayta ishlolmadi.")
+        await update.message.reply_text(get_text("ext_ai_page_failed", lang))
         return EXTRACT_USERNAME
 
     context.user_data["extract_rewritten"] = rewritten
@@ -144,8 +155,11 @@ async def _handle_website_link(update: Update, context: ContextTypes.DEFAULT_TYP
 
     ad_line = await get_auto_ad_injection_async(user_id)
     await update.message.reply_text(
-        f"✨ <b>AI taklifi ({html_escape(source)}):</b>\n\n{safe_html(preview)}{ad_line}",
-        reply_markup=_get_rewrite_result_keyboard(show_back=False),
+        get_text(
+            "ext_ai_proposal_src", lang,
+            src=html_escape(source), text=safe_html(preview),
+        ) + ad_line,
+        reply_markup=_get_rewrite_result_keyboard(show_back=False, lang=lang),
         parse_mode="HTML",
     )
     return EXTRACT_CHOOSE_POST
@@ -156,11 +170,12 @@ async def extract_username_received(update: Update, context: ContextTypes.DEFAUL
     text = (update.message.text or "").strip()
     user_id = update.effective_user.id
     is_admin = user_id in ADMIN_IDS_SET
+    lang = get_lang(context)
 
-    if text in ("🔙 Asosiy menyu", "🔙 Orqaga"):
+    if is_main_menu_text(text):
         await update.message.reply_text(
-            "❌ Bekor qilindi.",
-            reply_markup=get_main_keyboard(is_admin),
+            get_text("op_cancelled", lang),
+            reply_markup=get_main_keyboard(is_admin, lang=lang),
         )
         return ConversationHandler.END
 
@@ -169,7 +184,7 @@ async def extract_username_received(update: Update, context: ContextTypes.DEFAUL
         return await _handle_website_link(update, context, text, user_id)
 
     # 2) Telegram kanali: @kanal, kanal yoki https://t.me/kanal havolasi
-    await update.message.reply_text("⏳ Kanal postlari o'qilmoqda...")
+    await update.message.reply_text(get_text("ext_reading_posts", lang))
 
     result = await read_channel_posts(text, limit=5)
     status = result.get("status")
@@ -177,30 +192,8 @@ async def extract_username_received(update: Update, context: ContextTypes.DEFAUL
     username = result.get("channel") or extract_channel_username(text) or text.lstrip("@").strip().rstrip("/")
 
     if status == "private":
-        lang = get_lang(context)
-        if lang == "ru":
-            msg = (
-                "🔒 <b>Это закрытый канал.</b>\n\n"
-                "Отправьте открытый канал или канал, где вы администратор.\n"
-                "Например: <code>@kunuzofficial</code> или "
-                "<code>https://t.me/kunuzofficial</code>"
-            )
-        elif lang == "en":
-            msg = (
-                "🔒 <b>This is a private channel.</b>\n\n"
-                "Send a public channel or one where you are an admin.\n"
-                "Example: <code>@kunuzofficial</code> or "
-                "<code>https://t.me/kunuzofficial</code>"
-            )
-        else:
-            msg = (
-                "🔒 <b>Bu yopiq kanal.</b>\n\n"
-                "Ochiq kanallarni yoki o'zingiz admin bo'lgan kanallarni yuboring.\n"
-                "Masalan: <code>@kunuzofficial</code> yoki "
-                "<code>https://t.me/kunuzofficial</code>"
-            )
         await update.message.reply_text(
-            msg,
+            get_text("ext_private_channel_full", lang),
             reply_markup=get_cancel_keyboard(lang),
             parse_mode="HTML",
         )
@@ -208,20 +201,16 @@ async def extract_username_received(update: Update, context: ContextTypes.DEFAUL
 
     if status == "not_found":
         await update.message.reply_text(
-            f"❌ <b>{html_escape(text)}</b> — bunday kanal topilmadi.\n\n"
-            "Manzilni tekshirib, qayta yuboring:\n"
-            "<code>@kanal</code> yoki <code>https://t.me/kanal</code>",
-            reply_markup=get_cancel_keyboard(),
+            get_text("ext_not_found", lang, text=html_escape(text)),
+            reply_markup=get_cancel_keyboard(lang),
             parse_mode="HTML",
         )
         return EXTRACT_USERNAME
 
     if status == "invalid":
         await update.message.reply_text(
-            "⚠️ Noto'g'ri kanal niki yoki havolasi. Qaytadan kiriting:\n"
-            "<code>@kanal</code>, <code>kanal</code> yoki <code>https://t.me/kanal</code>\n\n"
-            "Yoki sayt havolasi: <code>https://kun.uz/</code>",
-            reply_markup=get_cancel_keyboard(),
+            get_text("ext_invalid_username", lang),
+            reply_markup=get_cancel_keyboard(lang),
             parse_mode="HTML",
         )
         return EXTRACT_USERNAME
@@ -229,20 +218,14 @@ async def extract_username_received(update: Update, context: ContextTypes.DEFAUL
     if not posts:
         if status == "empty":
             await update.message.reply_text(
-                f"📭 <b>{html_escape(username)}</b> kanalida postlar topilmadi.\n\n"
-                "Boshqa kanal yoki sayt havolasini yuboring:",
-                reply_markup=get_cancel_keyboard(),
+                get_text("ext_empty", lang, channel=html_escape(username)),
+                reply_markup=get_cancel_keyboard(lang),
                 parse_mode="HTML",
             )
         else:
             await update.message.reply_text(
-                f"❌ <b>{html_escape(username)}</b> kanalidan postlar o'qilmadi.\n\n"
-                "Sabablari:\n"
-                "• Kanal yopiq (private)\n"
-                "• Kanal niki noto'g'ri\n"
-                "• Kanalda postlar yo'q\n\n"
-                "Qaytadan urinib ko'ring:",
-                reply_markup=get_cancel_keyboard(),
+                get_text("ext_read_failed", lang, channel=html_escape(username)),
+                reply_markup=get_cancel_keyboard(lang),
                 parse_mode="HTML",
             )
         return EXTRACT_USERNAME
@@ -250,10 +233,10 @@ async def extract_username_received(update: Update, context: ContextTypes.DEFAUL
     context.user_data["extract_channel"] = username
     context.user_data["extract_posts"] = posts
 
-    list_text = format_post_list(posts, username)
+    list_text = format_post_list(posts, username, lang)
     await update.message.reply_text(
         list_text,
-        reply_markup=_get_post_list_keyboard(posts, username),
+        reply_markup=_get_post_list_keyboard(posts, username, lang),
         parse_mode="HTML",
     )
     return EXTRACT_CHOOSE_POST
@@ -265,12 +248,13 @@ async def extract_post_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE
     data = query.data
     user_id = query.from_user.id
     is_admin = user_id in ADMIN_IDS_SET
+    lang = get_lang(context)
 
     if data == "ext_cancel":
         await query.answer()
         await query.message.reply_text(
-            "❌ Bekor qilindi.",
-            reply_markup=get_main_keyboard(is_admin),
+            get_text("op_cancelled", lang),
+            reply_markup=get_main_keyboard(is_admin, lang=lang),
         )
         return ConversationHandler.END
 
@@ -279,20 +263,18 @@ async def extract_post_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE
         username = context.user_data.get("extract_channel", "")
         posts = context.user_data.get("extract_posts", [])
         if posts:
-            list_text = format_post_list(posts, username)
+            list_text = format_post_list(posts, username, lang)
             await query.message.reply_text(
                 list_text,
-                reply_markup=_get_post_list_keyboard(posts, username),
+                reply_markup=_get_post_list_keyboard(posts, username, lang),
                 parse_mode="HTML",
             )
         else:
-            await query.message.reply_text(
-                "⚠️ Postlar ro'yxati mavjud emas. Yangi kanal yoki sayt havolasini yuboring:",
-            )
+            await query.message.reply_text(get_text("ext_no_list", lang))
         return EXTRACT_CHOOSE_POST
 
     if data == "ext_refresh":
-        await query.answer("🔄 Yangilanmoqda...")
+        await query.answer(get_text("ext_refreshing", lang))
         username = context.user_data.get("extract_channel", "")
         if not username:
             return EXTRACT_CHOOSE_POST
@@ -301,19 +283,16 @@ async def extract_post_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE
         posts = result.get("posts") or []
         if not posts:
             if result.get("status") == "private":
-                await query.message.reply_text(
-                    "🔒 Bu yopiq kanal. Ochiq kanallarni yoki o'zingiz admin "
-                    "bo'lgan kanallarni yuboring.",
-                )
+                await query.message.reply_text(get_text("ext_private_channel", lang))
             else:
-                await query.message.reply_text("⚠️ Postlar topilmadi.")
+                await query.message.reply_text(get_text("ext_no_posts", lang))
             return EXTRACT_CHOOSE_POST
 
         context.user_data["extract_posts"] = posts
-        list_text = format_post_list(posts, username)
+        list_text = format_post_list(posts, username, lang)
         await query.message.reply_text(
             list_text,
-            reply_markup=_get_post_list_keyboard(posts, username),
+            reply_markup=_get_post_list_keyboard(posts, username, lang),
             parse_mode="HTML",
         )
         return EXTRACT_CHOOSE_POST
@@ -328,7 +307,7 @@ async def extract_post_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE
 
         posts = context.user_data.get("extract_posts", [])
         if idx < 0 or idx >= len(posts):
-            await query.message.reply_text("❌ Noto'g'ri post tanlandi.")
+            await query.message.reply_text(get_text("ext_invalid_post", lang))
             return EXTRACT_CHOOSE_POST
 
         post = posts[idx]
@@ -337,23 +316,16 @@ async def extract_post_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE
         username = context.user_data.get("extract_channel", "")
 
         if not original_text:
-            await query.message.reply_text(
-                "⚠️ Bu postda matn yo'q (faqat rasm/video). Boshqa postni tanlang.",
-            )
+            await query.message.reply_text(get_text("ext_post_no_text", lang))
             return EXTRACT_CHOOSE_POST
 
         # Saqlab qo'yamiz
         context.user_data["extract_original"] = original_text
         context.user_data["extract_post_link"] = post_link
 
-        # Kanal tone ini olamiz
-        tone = "friendly"
-        channels = await db.run_db(db.get_user_channels, user_id)
-        if channels:
-            ch_id = channels[0][0]
-            tone = await db.run_db(db.get_channel_tone, ch_id)
+        tone = await _get_user_tone(user_id)
 
-        await query.message.reply_text("⏳ AI postni qayta yozmoqda...")
+        await query.message.reply_text(get_text("ext_ai_rewriting", lang))
 
         from utils.ai_agent import rewrite_channel_post
         # Indikator darhol ko'rinsin, keyin uzoq AI so'rovi davomida yangilanib tursin.
@@ -366,12 +338,14 @@ async def extract_post_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE
             result = await rewrite_channel_post(original_text, username, post_link, tone)
 
         if "error" in result:
-            await query.message.reply_text(result["error"], parse_mode="HTML")
+            await query.message.reply_text(
+                localize_service_error(result["error"], lang), parse_mode="HTML"
+            )
             return EXTRACT_CHOOSE_POST
 
         rewritten = result.get("post_text", "")
         if not rewritten:
-            await query.message.reply_text("⚠️ AI postni qayta yozolmadi.")
+            await query.message.reply_text(get_text("ext_ai_rewrite_failed", lang))
             return EXTRACT_CHOOSE_POST
 
         context.user_data["extract_rewritten"] = rewritten
@@ -385,23 +359,19 @@ async def extract_post_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE
 
         ad_line = await get_auto_ad_injection_async(user_id)
         await query.message.reply_text(
-            f"✨ <b>AI taklifi:</b>\n\n{safe_html(preview)}{ad_line}",
-            reply_markup=_get_rewrite_result_keyboard(),
+            get_text("ext_ai_proposal", lang, text=safe_html(preview)) + ad_line,
+            reply_markup=_get_rewrite_result_keyboard(lang=lang),
             parse_mode="HTML",
         )
         return EXTRACT_CHOOSE_POST
 
     if data == "ext_rewrite":
-        await query.answer("🔄 Qayta yozilmoqda...")
+        await query.answer(get_text("ext_rewriting", lang))
         original_text = context.user_data.get("extract_original", "")
         post_link = context.user_data.get("extract_post_link", "")
         username = context.user_data.get("extract_channel", "")
 
-        tone = "friendly"
-        channels = await db.run_db(db.get_user_channels, user_id)
-        if channels:
-            ch_id = channels[0][0]
-            tone = await db.run_db(db.get_channel_tone, ch_id)
+        tone = await _get_user_tone(user_id)
 
         from utils.ai_agent import rewrite_channel_post
         # Indikator darhol ko'rinsin, keyin uzoq AI so'rovi davomida yangilanib tursin.
@@ -414,7 +384,9 @@ async def extract_post_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE
             result = await rewrite_channel_post(original_text, username, post_link, tone)
 
         if "error" in result:
-            await query.message.reply_text(result["error"], parse_mode="HTML")
+            await query.message.reply_text(
+                localize_service_error(result["error"], lang), parse_mode="HTML"
+            )
             return EXTRACT_CHOOSE_POST
 
         rewritten = result.get("post_text", "")
@@ -429,8 +401,8 @@ async def extract_post_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE
                 preview += "…"
 
             await query.message.reply_text(
-                f"✨ <b>AI taklifi (qayta):</b>\n\n{safe_html(preview)}",
-                reply_markup=_get_rewrite_result_keyboard(),
+                get_text("np_ai_retry_proposal", lang, new=safe_html(preview)),
+                reply_markup=_get_rewrite_result_keyboard(lang=lang),
                 parse_mode="HTML",
             )
         return EXTRACT_CHOOSE_POST
@@ -439,7 +411,7 @@ async def extract_post_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE
         await query.answer()
         rewritten = context.user_data.get("extract_rewritten", "")
         if not rewritten:
-            await query.message.reply_text("⚠️ Post matni topilmadi.")
+            await query.message.reply_text(get_text("ext_no_post_text", lang))
             return EXTRACT_CHOOSE_POST
 
         # Post yaratish oqimiga o'tkazish
@@ -447,11 +419,9 @@ async def extract_post_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE
         context.user_data["post_type"] = "text"
         context.user_data["file_id"] = None
 
-        from keyboards.default import get_button_prompt_keyboard
         await query.message.reply_text(
-            "✅ <b>Post qabul qilindi!</b>\n\n"
-            "Endi tugma, vaqt va boshqa sozlamalarni kiriting.",
-            reply_markup=get_button_prompt_keyboard(),
+            get_text("ext_post_accepted", lang),
+            reply_markup=get_button_prompt_keyboard(lang),
             parse_mode="HTML",
         )
         from handlers.new_post import GET_BTN_TITLE

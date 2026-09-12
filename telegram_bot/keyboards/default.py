@@ -361,11 +361,19 @@ def get_time_keyboard(lang="uz"):
     )
 
 
-def get_ai_time_keyboard():
+def get_ai_time_keyboard(lang: str = "uz"):
+    lang = normalize_lang(lang)
+    if lang == "uz":
+        t_5min, t_15min, t_1h, back = BTN_T_5MIN, BTN_T_15MIN, BTN_T_1H, BTN_BACK
+    else:
+        t_5min = get_text("np_btn_time_5m", lang)
+        t_15min = get_text("np_btn_time_15m", lang)
+        t_1h = get_text("np_btn_time_1h", lang)
+        back = get_text("btn_main_menu", lang)
     return ReplyKeyboardMarkup(
         [
-            [BTN_T_5MIN, BTN_T_15MIN, BTN_T_1H],
-            [BTN_BACK],
+            [t_5min, t_15min, t_1h],
+            [back],
         ],
         resize_keyboard=True,
     )

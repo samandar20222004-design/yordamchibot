@@ -584,4 +584,1208 @@ EN_OVERLAY = {
     "health_errors": "• Errors — last 1h: {hour} | 24h: {day}",
     "health_tasks": "• Active asyncio tasks: {count}",
 
+    # ============================================================
+    # FULL EN COVERAGE — batch A: new-post entry, AI Studio, content plan
+    # (PostAssist V2 i18n audit: every key below was falling back to UZ.)
+    # ============================================================
+    "new_post_no_channels": (
+        "⚠️ <b>No connected channel or group found!</b>\n\n"
+        "First connect your channel or group in the '📢 Channels/Groups' section."
+    ),
+    "new_post_choose_channel": (
+        "📢 <b>Which channel or group should we schedule the post for?</b>\n"
+        "Pick from the list 👇"
+    ),
+    "no_channels_hint": (
+        "First connect your channel or group in the "
+        "<b>\"My channels\"</b> section."
+    ),
+    "ai_studio_menu": (
+        "🤖 <b>PostAssist AI Studio</b>\n\n"
+        "💎 Available AI requests: {credits}\n\n"
+        "Pick a tool to create channel content 👇"
+    ),
+    "ai_studio_post": "✍️ Create AI post",
+    "ai_studio_photo": "🖼 Post from photo",
+    "ai_studio_extract": "📢 Take from public channel",
+    "ai_studio_audit": "🔍 AI post audit",
+    "ai_studio_post_intro": (
+        "✍️ <b>Create AI post</b>\n\n"
+        "Write the post topic or send a photo/file.\n"
+        "<i>Example: \"Motivational post about a healthy lifestyle\"</i>"
+    ),
+    "ai_studio_photo_intro": (
+        "🖼 <b>Post from photo</b>\n\n"
+        "Send a photo — AI will analyze it deeply and write a "
+        "professional SMM post for your Telegram channel:\n"
+        "• ✨ Nicely formatted headline (<b>...</b>)\n"
+        "• 📝 Interesting / selling copy\n"
+        "• 😎 Emojis and lists\n"
+        "• 👉 Call to action (CTA) and hashtags\n\n"
+        "<i>Optionally send a caption with the photo — e.g.: "
+        "\"focus on selling the product in the photo\".</i>"
+    ),
+    "ai_studio_audit_intro": (
+        "🔍 <b>AI post audit</b>\n\n"
+        "Send your finished post text — AI will audit it:\n"
+        "• ✍️ Spelling and grammar\n"
+        "• 🎯 Appeal and CTA\n"
+        "• 🧩 Structure recommendations\n"
+        "• ⭐️ Overall score (1-10)"
+    ),
+    "ai_studio_extract_intro": (
+        "📢 <b>Take from public channel</b>\n\n"
+        "Enter the channel username (e.g.: <code>@kunuzofficial</code> or <code>daryo</code>):\n\n"
+        "<i>Works for public channels only.</i>"
+    ),
+    "ai_studio_no_channel": (
+        "⚠️ <b>Connect a channel first.</b>\n\n"
+        "You need at least one channel to build a content plan.\n"
+        "Connect a channel in the 📢 Channels section."
+    ),
+    "plan_btn_schedule_all": "🚀 Schedule all for 7 days",
+    "plan_week_hint": "\n\n🚀 <i>Or queue the whole week with one tap.</i>",
+    "plan_sched_busy": "⏳ Queueing 7 days of posts...",
+    "plan_sched_done_alert": "✅ 7 days of posts queued!",
+    "plan_sched_done": (
+        "✅ <b>7 days of posts queued!</b>\n\n"
+        "📢 Channel: <b>{channel}</b>\n"
+        "📦 Queued: <b>{count} posts</b>\n\n"
+        "{days}\n\n"
+        "🤖 Posts will go out automatically every day at <b>12:00</b>.\n"
+        "📋 You can edit or cancel any post in "
+        "\"👤 Account & Settings\" → \"⏳ Post queue (Queue)\"."
+    ),
+    "plan_sched_already": "ℹ️ This content plan is already queued.",
+    "plan_sched_stale": (
+        "⚠️ Session expired. Recreate the content plan — "
+        "then you can schedule 7 days with one tap."
+    ),
+    "plan_sched_no_channel": (
+        "⚠️ <b>Channel not found.</b>\n\n"
+        "Connect a channel first, then recreate the content plan."
+    ),
+    "plan_sched_empty": "⚠️ The plan is empty — create the content plan first.",
+    "plan_sched_error": "❌ Failed to queue the posts. Please try again.",
+    "plan_sched_day_line": "• {day} — {time}",
+
+    # ============================================================
+    # FULL EN COVERAGE — batch B: AI tones, photo flow, scheduling
+    # ============================================================
+    "ai_tone_formal": "👔 Formal",
+    "ai_tone_friendly": "😊 Friendly",
+    "ai_tone_concise": "⚡️ Short",
+    "ai_tone_engaging": "🎉 Engaging",
+    "ai_tone_schedule": "➡️ Go to scheduling",
+    "ai_photo_schedule": "📅 Schedule to channel",
+    "ai_photo_rewrite": "🔄 Rewrite",
+    "ai_photo_edit": "✏️ Edit",
+    "ai_photo_result_title": "🖼 <b>Post made from photo:</b>\n\n",
+    "ai_photo_result_foot": (
+        "\n\n🖼 <i>The sent photo will be attached to this post.</i>\n\n"
+        "Pick the next step 👇"
+    ),
+    "ai_btn_back": "⬅️ Back",
+    "ai_btn_close": "❌ Cancel",
+    "ai_btn_main_menu": "⬅️ Main menu",
+    "ai_confirm_schedule": "✅ Schedule to channel",
+    "ai_confirm_edit": "📝 Edit text",
+    "ai_preview_title": "✨ <b>AI post is ready!</b>\n\n",
+    "ai_preview_foot": (
+        "\n\n🎨 <b>Style:</b> {tone}{media}\n\n"
+        "Change the style or go to scheduling 👇"
+    ),
+    "ai_preview_media_note": "\n🖼 <i>Media will be attached to the post.</i>",
+    "ai_thinking": "🤖 <i>AI is preparing a reply...</i>",
+    "ai_saving": "💾 Saving...",
+    "ai_wait_post": "🤖 <i>AI is writing the post...</i>",
+    "ai_wait_audit": "🔍 <i>AI is auditing...</i>",
+    "ai_wait_photo": "🖼 <i>AI is analyzing the photo...</i>",
+    "ai_photo_variants_ask": (
+        "🎨 <b>3 style variants</b> are ready for the photo. "
+        "Pick one — the chosen text will open 👇"
+    ),
+    "ai_wait_edit": "✏️ <i>AI is editing the post...</i>",
+    "ai_rate_limit": (
+        "⏳ <i>You are sending AI requests too often. Please wait 1 minute...</i>"
+    ),
+    "ai_daily_limit": (
+        "⚠️ <i>Daily AI request limit reached (30/day). Try again tomorrow.</i>"
+    ),
+    "ai_limit_msg": (
+        "🚫 <b>Daily AI limit reached!</b>\n\n"
+        "Today <b>{used}/{max}</b> AI requests were used.\n"
+        "The Free plan allows max <b>{max}</b> AI requests per day.\n\n"
+        "⭐️ Switch to PRO for unlimited AI."
+    ),
+    "ai_media_received": (
+        "🖼 <b>Media received!</b>\n\nNow write the post topic or text."
+    ),
+    "ai_faq_footer": "\n\n<i>Write another topic or go back 👇</i>",
+    "ai_no_post_text": "⚠️ Could not determine the post text. Try phrasing the topic differently.",
+    "ai_session_expired": "⚠️ Session expired. Send the topic again.",
+    "ai_audit_result_title": "🔍 <b>AI audit result:</b>\n\n",
+    "ai_audit_no_result": "⚠️ AI could not return the audit result. Please try again.",
+    "ai_photo_only": (
+        "🖼 Please send a photo (JPG/PNG/WEBP):\n"
+        "• <i>You can add a caption to the photo</i>\n"
+        "• <i>Video is not analyzed — photo only</i>"
+    ),
+    "ai_video_rejected": (
+        "🎬 <b>Video is not analyzed.</b>\n\n"
+        "To save server resources, only <b>photos</b> are analyzed.\n"
+        "Please send the <b>photo</b> to analyze (JPG/PNG/WEBP)."
+    ),
+    "ai_photo_no_text": "⚠️ AI could not prepare the post text. Send the photo again.",
+    "ai_photo_retry_hint": "🖼 Send another photo or return to the menu 👇",
+    "ai_photo_edit_intro": (
+        "✏️ <b>Edit post</b>\n\n"
+        "What should change? Send text:\n"
+        "<i>Example: \"rewrite the headline\", \"shorten\", \"add the price\"</i>"
+    ),
+    "ai_photo_edit_hint": "✏️ Send text to edit:",
+    "ai_photo_edit_no_result": "⚠️ AI could not return the edited text. Please try again.",
+    "ai_photo_rewrite_wait": "🔄 <i>AI is re-analyzing the photo...</i>",
+    "ai_photo_rewrite_keep": "⚠️ AI could not rewrite the post. The original post is kept.",
+    "ai_tone_applying": "🎨 <i>Applying the {tone} style...</i>",
+    "ai_schedule_need_post": "⚠️ Create a post first. Write the topic:",
+    "ai_close_session": "❌ AI Studio session finished.",
+    "ai_close_main_menu": "🏠 Main menu.",
+    "ai_not_found": "Sorry, I could not find an answer.",
+    "ai_tone_unknown": "⚠️ Session expired. Send the topic again.",
+    "ai_rate_limit_alert": "⏳ Too many requests. Please wait 1 minute.",
+    "ai_schedule_header": "✨ <b>Post received!</b>\n\n",
+    "ai_schedule_foot": (
+        "🕒 <b>When should this post go out to the channel?</b>\n"
+        "Pick a button below or write freely:\n"
+        "• <i>\"tomorrow morning at 9\"</i>\n"
+        "• <i>\"today at 15:45 to all channels\"</i>\n"
+        "• <i>\"in 1 hour\"</i>"
+    ),
+    "ai_media_caption_note": "\n\n⬆️ The media above will be attached to this post.",
+    "ai_confirm_title": (
+        "✨ <b>Prepared post:</b>\n\n"
+        "{post}\n\n"
+        "🕒 <b>Publish time:</b> <code>{time}</code>{target}\n\n"
+        "Shall we schedule this post?"
+    ),
+    "ai_media_received_scheduled": (
+        "🖼 <b>Media received and attached to the post!</b>\n\n"
+        "Now write the publish time (e.g.: <i>\"today at 18:00\"</i>) or tap a button:"
+    ),
+    "ai_only_one_time": (
+        "ℹ️ <i>Only a one-time post can be scheduled via the AI assistant.</i>\n"
+        "For daily/weekly recurring posts use the <b>➕ Schedule new post</b> section.\n\n"
+        "Write the time (e.g.: <i>\"tomorrow at 10:00\"</i>) or tap a quick button:"
+    ),
+    "ai_time_fast": (
+        "⏳ <i>You are sending requests too often. Wait 1 minute or "
+        "write the time in exact format: <code>2026-08-30 18:00</code></i>"
+    ),
+    "ai_time_ask": (
+        "🤖 {reply}\n\n"
+        "Write the post time like this: <i>\"tomorrow at 10:00\"</i> or tap a button:"
+    ),
+    "ai_time_unparsed": (
+        "⚠️ <b>Could not determine the time, or it has passed.</b>\n\n"
+        "Write like this:\n"
+        "• <i>\"today at 18:00\"</i>\n"
+        "• <i>\"tomorrow morning at 9\"</i>\n"
+        "• <i>\"in 30 minutes\"</i>\n"
+        "Or exact format: <code>DD.MM.YYYY HH:MM</code> "
+        "(e.g. <code>30.08.2026 18:00</code>)\n\n"
+        "🕒 <i>Tashkent time (UTC+5).</i>"
+    ),
+    "ai_time_detecting": "🤖 <i>Detecting time...</i>",
+    "ai_full_post_text": "📝 <b>Post text (full):</b>\n\n{text}",
+    "ai_post_ready": "✨ <b>Post is ready!</b>\n\n",
+    "ai_post_ready_foot": (
+        "\n\n🕒 <b>Publish time:</b> <code>{time}</code>{target}\n\n"
+        "Shall we schedule it?"
+    ),
+    "ai_post_cancelled": "🚫 Post cancelled. Pick a section from the menu.",
+    "ai_post_retry": (
+        "📝 <b>How shall we change the post?</b>\n\n"
+        "E.g.: <i>\"add phone number at the end\"</i>, <i>\"shorten the text\"</i>, "
+        "<i>\"change the headline\"</i> — or send a new post."
+    ),
+    "ai_no_channel_schedule": (
+        "⚠️ <b>No connected channels found.</b>\n\n"
+        "First connect a channel in the '📢 Channels/Groups' section, then reschedule the post."
+    ),
+    "ai_scheduled_ok": (
+        "✅ <b>AI post scheduled successfully!</b>\n\n"
+        "📢 Placement: <b>{channel}</b>\n"
+        "⏰ Publish time: <b>{time}</b>\n\n"
+        "Tap <b>🤖 AI Assistant</b> to create another post or return to the menu."
+    ),
+    "ai_schedule_error": "❌ Error saving. Please try again later.",
+    "ai_photo_media_received": (
+        "🖼 <b>Media received!</b>\n\nNow write the post topic or text."
+    ),
+
+    # ============================================================
+    # FULL EN COVERAGE — batch C: new-post buttons, weekdays, reactions
+    # ============================================================
+    "np_btn_skip": "➡️ Continue without button",
+    "np_btn_skip_url": "⏭ Skip",
+    "np_btn_url_add": "🔗 Add URL button",
+    "np_btn_ai_assistant": "✨ AI Assistant",
+    "np_btn_title_details": "Details",
+    "np_btn_title_join": "Join channel",
+    "np_btn_title_site": "Visit site",
+    "np_btn_title_contact": "Contact",
+    "np_btn_no_reactions": "➡️ Continue without reactions",
+    "np_btn_del_never": "❌ Never delete (Permanent)",
+    "np_btn_del_12h": "⏳ 12 hours",
+    "np_btn_del_24h": "⏳ 24 hours (1 day)",
+    "np_btn_del_48h": "⏳ 48 hours (2 days)",
+    "np_btn_del_72h": "⏳ 72 hours (3 days)",
+    "np_btn_time_5m": "⚡ 5 minutes",
+    "np_btn_time_15m": "⚡ 15 minutes",
+    "np_btn_time_1h": "⚡ 1 hour",
+    "np_btn_time_daily": "🔁 Daily (same time)",
+    "np_btn_time_weekly": "📅 Weekly (same weekday)",
+    "np_btn_dur_1w": "1 week",
+    "np_btn_dur_1m": "1 month",
+    "np_btn_dur_3m": "3 months",
+    "np_btn_dur_6m": "6 months",
+    "np_btn_dur_1y": "1 year",
+    "np_btn_dur_inf": "♾ Forever",
+    "np_weekday_0": "Monday",
+    "np_weekday_1": "Tuesday",
+    "np_weekday_2": "Wednesday",
+    "np_weekday_3": "Thursday",
+    "np_weekday_4": "Friday",
+    "np_weekday_5": "Saturday",
+    "np_weekday_6": "Sunday",
+    "np_btn_back_confirm": "🔙 Back",
+    "np_btn_all_channels": "🌐 To all at once",
+    "np_label_today": "Today",
+    "np_label_tomorrow": "Tomorrow",
+    "np_channel_selected": (
+        "✅ Selected: <b>{channel}</b>\n\n"
+        "📝 <b>Send content for the post:</b>\n"
+        "(Text, photo, video, album, document, audio or GIF — "
+        "stickers and voice messages are not accepted)"
+    ),
+    "np_channel_not_found": "⚠️ No such channel found. Pick again:",
+    "np_media_not_allowed": (
+        "Sorry, stickers are not accepted as a post. "
+        "Please send a photo, video or text"
+    ),
+    "np_all_channel_title": "🌐 All",
+    "np_button_ask": (
+        "🔘 <b>Add a link button under the post?</b> (optional)\n\n"
+        "⚡️ <b>Quick way:</b> send the button label and link in one line:\n"
+        "<code>Button Text - https://link.com</code>\n\n"
+        "Or pick a ready label / send your own (link will be asked next).\n\n"
+        "If not needed, tap <b>⏭ Skip</b>:"
+    ),
+    "np_button_ready": (
+        "✅ <b>Inline button is ready:</b>\n"
+        "🔘 Label: <b>{title}</b>\n"
+        "🔗 Link: <code>{url}</code>"
+    ),
+    "np_button_url_ask": (
+        "🔗 Send the link or channel username that opens when the "
+        "<b>'{title}'</b> button is tapped:\n\n"
+        "E.g.: <code>@kanalim</code> or <code>https://sayt.uz</code>\n\n"
+        "<i>Or in one line: <code>{title} - https://link.com</code></i>"
+    ),
+    "np_button_url_add_ask": (
+        "🔗 <b>Add URL button</b>\n\n"
+        "Send the button label and link <b>in one line, separated by \" - \"</b>:\n"
+        "<code>Button Text - https://link.com</code>\n\n"
+        "<i>E.g.:</i> <code>Visit site - https://sayt.uz</code> or\n"
+        "<code>My channel - @kanalim</code>"
+    ),
+    "np_reactions_ask": (
+        "👍 <b>Which reaction buttons to add under the post?</b>\n\n"
+        "Tap the emojis you need — they get ✅ (tap again to remove).\n"
+        "Or write freely, e.g.: <code>👍 ❤️ 🔥</code> — you can send "
+        "several separated by space.\n"
+        "If you send a sticker — its emoji is added to reactions too.\n"
+        "When done, tap <b>➡️ Continue</b>.\n"
+        "If no reactions needed — <b>⏭ Skip reactions</b>."
+    ),
+    "np_reactions_selected": (
+        "✅ Selected: {emojis}\n"
+        "You can add more emojis or tap <b>➡️ Continue</b>:"
+    ),
+    "np_reactions_use_inline": (
+        "⚠️ <b>Please use the inline buttons below:</b>\n"
+        "• Tap emojis to select (marked ✅)\n"
+        "• You can also send emojis freely: <code>👍 ❤️ 🔥</code>\n"
+        "• If you send a sticker — its emoji is added to reactions\n"
+        "• <b>➡️ Continue</b> — next step with selected\n"
+        "• <b>⏭ Skip reactions</b> — without reactions"
+    ),
+
+    # ============================================================
+    # FULL EN COVERAGE — batch D: time, duration, confirmation, album, edit
+    # ============================================================
+    "np_reactions_none": "ℹ️ No reactions selected — the post will go out without reactions.",
+    "np_react_done": "➡️ Continue",
+    "np_react_done_count": "➡️ Continue ({count})",
+    "np_react_skip": "⏭ Skip reactions",
+    "np_auto_delete_ask": (
+        "🗑️ <b>How long should the post stay in the channel?</b>\n\n"
+        "After the set time, the bot will automatically delete it from the channel:"
+    ),
+    "np_time_ask": (
+        "🕒 <b>When should the post go out?</b>\n\n"
+        "Pick a ready button or write the exact time.\n"
+        "Format: <code>DD.MM.YYYY HH:MM</code>\n"
+        "Example: <code>{example}</code>\n\n"
+        "🕒 <i>Tashkent time (UTC+5).</i>"
+    ),
+    "np_time_future": (
+        "⚠️ <b>This time has already passed.</b>\n\n"
+        "Please enter a time in the FUTURE.\n"
+        "Example: <code>{example}</code>\n\n"
+        "🕒 <i>Now in Tashkent: {now}</i>"
+    ),
+    "np_time_format_error": (
+        "⚠️ <b>Time format not recognized.</b>\n\n"
+        "Correct format: <code>DD.MM.YYYY HH:MM</code>\n"
+        "Example: <code>{example}</code>\n\n"
+        "Or write one of these:\n"
+        "• time only — <code>18:00</code> (today, or tomorrow if passed)\n"
+        "• <code>tomorrow 18:00</code>\n"
+        "• <code>in 2 hours</code>\n\n"
+        "🕒 <i>All times are Tashkent time (UTC+5).</i>"
+    ),
+    "np_daily_time_ask": (
+        "🔁 <b>What time should it go out daily?</b>\n"
+        "E.g.: <code>10:00</code> or <code>18:30</code>"
+    ),
+    "np_daily_time_format": (
+        "⚠️ <b>Wrong time format.</b>\n\n"
+        "Write only the time as <code>HH:MM</code>.\n"
+        "Example: <code>10:00</code> or <code>18:30</code>\n\n"
+        "🕒 <i>Tashkent time (UTC+5).</i>"
+    ),
+    "np_weekday_ask": "📅 <b>Which weekday should it go out?</b>",
+    "np_weekday_invalid": "⚠️ Pick one of the days:",
+    "np_recur_time_ask": (
+        "🕒 <b>What time every {day}?</b>\n"
+        "E.g.: <code>10:00</code>"
+    ),
+    "np_recur_time_format": (
+        "⚠️ <b>Wrong format!</b> Write the time as <code>HH:MM</code>. "
+        "Example: <code>10:00</code> 🕒 <i>(Tashkent time, UTC+5)</i>"
+    ),
+    "np_duration_ask_daily": "⏳ <b>How long should the post go out daily?</b>",
+    "np_duration_ask_weekly": "⏳ <b>How long should this post keep going out?</b>",
+    "np_duration_invalid": "⚠️ Pick one of the options:",
+    "np_confirm_title": "📋 <b>Confirm the post:</b>",
+    "np_confirm_channel": "📢 <b>Channel:</b> {channel}",
+    "np_confirm_type": "📦 <b>Type:</b> {type}",
+    "np_type_text": "📝 Text",
+    "np_type_photo": "🖼 Photo",
+    "np_type_video": "🎬 Video",
+    "np_type_document": "📄 Document",
+    "np_type_audio": "🎵 Audio",
+    "np_type_voice": "🎙 Voice",
+    "np_type_sticker": "😀 Sticker",
+    "np_type_album": "🖼 Album",
+    "np_type_animation": "🎞 GIF",
+    "np_type_unknown": "📝 Message",
+    "np_confirm_album_photos": "🖼 Album: {count} photos",
+    "np_confirm_album_videos": "🎬 Album: {count} videos",
+    "np_confirm_album_mixed": "🖼 Album: {photos} photos, {videos} videos",
+    "np_confirm_album_files": "🖼 Album: {count} files",
+    "np_confirm_content_truncated": (
+        "⚠️ Note: the text is {total} chars — due to Telegram's {limit}-char "
+        "limit only that much will show in the channel post. The full text is saved."
+    ),
+    "np_confirm_time_none": "⏰ Time not set",
+    "np_confirm_time_single": "⏰ {time} (Tashkent time)",
+    "np_confirm_time_daily": "🔁 Daily at {time}",
+    "np_confirm_time_weekly": "📅 Every {day} at {time}",
+    "np_confirm_content": "📋 <b>Text:</b>\n{content}",
+    "np_confirm_button": "🔘 Button: <b>{text}</b>",
+    "np_confirm_reactions": "👍 Reactions: {emojis}",
+    "np_confirm_reactions_on": "👍 Reactions: On",
+    "np_confirm_auto_delete": "⏳ Auto-delete: {hours} h",
+    "np_confirm_ok_btn": "✅ Confirm & schedule",
+    "np_confirm_queue_btn": "⏳ Add to queue",
+    "np_confirm_edit_btn": "✏️ Edit",
+    "np_album_warning": (
+        "⚠️ Per Telegram rules, link or reaction buttons cannot be added "
+        "to multi-photo albums. \n"
+        "Buttons or reactions only work for 1 photo (or plain text)."
+    ),
+    "np_album_choice_first_photo": "🖼 Keep 1st photo + add button",
+    "np_album_choice_full": "⏩ Publish full album without buttons",
+    "np_album_first_photo_done": (
+        "✅ Post changed to a single photo — now you can add a button or reactions."
+    ),
+    "np_album_full_done": (
+        "✅ Full album ({count} files) will go out without buttons or reactions."
+    ),
+    "np_edit_menu_title": "✏️ <b>Which part to edit?</b>",
+    "np_edit_content_btn": "📝 Text",
+    "np_edit_channel_btn": "📢 Channel",
+    "np_edit_time_btn": "⏰ Time",
+    "np_edit_button_btn": "🔘 Button",
+    "np_edit_back_btn": "⬅️ Back (to confirmation)",
+    "np_edit_content_ask": "📝 <b>Send the new text:</b>",
+    "np_edit_channel_ask": "📢 <b>Which channel?</b>",
+    "np_edit_time_ask": "🕒 <b>New time:</b> <code>{example}</code>",
+    "np_edit_button_ask": (
+        "🔘 <b>Button:</b> <code>Text | https://link.uz</code>\n"
+        "Delete: <code>no</code>"
+    ),
+    "np_edit_channel_not_found": "⚠️ Channel not found.",
+
+    # ============================================================
+    # FULL EN COVERAGE — batch E: scheduling results, AI helper
+    # ============================================================
+    "np_cancelled": "🚫 <b>Post cancelled.</b>\nYou are back in the main menu 👇",
+    "np_no_time": "⚠️ <b>Time not set.</b>",
+    "np_no_channel": "⚠️ <b>Channel not selected.</b>",
+    "np_no_slot": (
+        "⚠️ <b>No free slot found.</b>\nAll slots are busy for 7 days."
+    ),
+    "np_scheduled_ok": (
+        "✅ <b>Post scheduled successfully!</b>\n\n"
+        "📢 Placement: <b>{channel}</b>\n"
+        "{when}{del_info}"
+    ),
+    "np_scheduled_when_single": "⏰ {time}",
+    "np_scheduled_when_daily": "🔁 Daily at {time}",
+    "np_scheduled_when_weekly": "📅 Every {day} at {time}",
+    "np_scheduled_del": "\n⏳ Time in channel: <b>{hours} h</b>",
+    "np_queue_added": (
+        "⚡️ <b>Post queued!</b>\n\n"
+        "📅 {label} at {time}\n"
+        "📢 Channel: <b>{channel}</b>{ad_line}"
+    ),
+    "np_queue_error": "❌ <b>Error queueing the post.</b>",
+    "np_save_error": "❌ Error saving.",
+    "np_save_error_bold": "❌ <b>Error saving.</b>",
+    "np_ai_menu_title": (
+        "✨ <b>AI Assistant</b>\n\n"
+        "📋 Current text:\n<i>{preview}</i>\n\n"
+        "Which action?"
+    ),
+    "np_ai_empty_content": "⚠️ <b>Post text is empty.</b>\nEnter text first.",
+    "np_ai_empty_alert": "⚠️ Text is empty!",
+    "np_ai_working": "⏳ AI is working...",
+    "np_ai_empty_result": "⚠️ AI reply is empty. Original text kept.",
+    "np_ai_accepted_alert": "✅ Accepted!",
+    "np_ai_accept_msg": "✅ <b>New text accepted!</b>\n\n{content}",
+    "np_ai_reverted_alert": "❌ Reverted to original!",
+    "np_ai_revert_msg": "❌ <b>Original text restored.</b>",
+    "np_ai_retrying": "🔄 Retrying...",
+    "np_ai_action_grammar": "✍️ Spelling & style",
+    "np_ai_action_emoji": "🎨 Emojis",
+    "np_ai_action_hashtags": "🏷 Hashtags",
+    "np_ai_action_tldr": "✂️ Shorten",
+    "np_ai_btn_back": "⬅️ Back",
+    "np_ai_btn_accept": "✅ Accept",
+    "np_ai_btn_retry": "🔄 Retry",
+    "np_ai_btn_revert": "❌ Revert to original",
+
+    # ============================================================
+    # FULL EN COVERAGE — batch F: channels
+    # ============================================================
+    "ch_empty_title": (
+        "📢 <b>You have no connected channels yet.</b>\n\n"
+        "Tap the button below to connect a channel 👇\n\n"
+        "<i>You will need to add the bot as an administrator to your channel "
+        "(with permission to send messages).</i>"
+    ),
+    "ch_list_title": (
+        "📢 <b>Your connected channels ({count}):</b>\n\n"
+        "Tap '❌ Delete' to remove a channel, or connect a new one 👇"
+    ),
+    "ch_all_removed": (
+        "📢 <b>All channels removed.</b>\n\n"
+        "Tap the button below to connect a new channel 👇"
+    ),
+    "ch_add_btn": "➕ Connect channel/group",
+    "ch_add_instructions": (
+        "➕ <b>Connect a new channel or group:</b>\n\n"
+        "1. Add the bot (<code>@{bot}</code>) to your channel or group as an "
+        "<b>Administrator</b> (with permission to send messages).\n"
+        "2. Then send the channel source in one of four formats:\n"
+        "   • <b>Forward</b> any message from the channel;\n"
+        "   • <code>@channel_name</code>;\n"
+        "   • <code>t.me/channel_name</code> or <code>https://t.me/channel_name</code>;\n"
+        "   • channel ID (e.g.: <code>-1001234567890</code>).\n\n"
+        "<i>To cancel, tap '🔙 Main menu'.</i>"
+    ),
+    "ch_retry_btn": "🔁 I made the bot admin — check again",
+    "ch_empty_target": (
+        "❌ Empty message received. <b>Forward</b> a message from the channel, "
+        "or send <code>@username</code>, ID or a <code>t.me/channel</code> link."
+    ),
+    "ch_invite_blocked": (
+        "🔒 <b>A closed channel cannot be connected via an invite link.</b>\n\n"
+        "Since the bot is already a channel admin, send <code>@username</code> "
+        "or <b>forward</b> any message from the channel — then we'll detect it."
+    ),
+    "ch_not_found": "❌ Channel or group not found. Forward a message or send the correct ID.",
+    "ch_cannot_verify": (
+        "⚠️ <b>The bot is not in this channel or rights could not be verified.</b>\n\n"
+        "First make the bot an administrator (with permission to send messages)."
+    ),
+    "ch_not_admin": (
+        "⚠️ <b>The bot is not an administrator of this channel!</b>\n\n"
+        "Please first grant the bot permission to send messages in the channel."
+    ),
+    "ch_no_post_permission": (
+        "⚠️ <b>The bot was not granted permission to send messages in the channel.</b>\n\n"
+        "Enable the <b>Post Messages</b> right in the administrator settings."
+    ),
+    "ch_user_verify_fail": (
+        "⚠️ <b>Could not verify your rights in this channel.</b>\n\n"
+        "Only a channel/group administrator can connect a channel to the bot."
+    ),
+    "ch_forbidden": (
+        "🚫 <b>No access.</b>\n\n"
+        "Only a channel or group <b>administrator</b> can connect a channel to this bot."
+    ),
+    "ch_unknown_target": (
+        "❌ Channel data not detected. Please <b>forward</b> a message from the channel "
+        "or send <code>@username</code>, a <code>t.me/channel_name</code> link, or the ID "
+        "(e.g.: <code>-1001234567890</code>)."
+    ),
+    "ch_empty_target_short": "❌ Channel data not detected. Please forward a message from the channel:",
+    "ch_unexpected_error": (
+        "⚠️ <b>An unexpected error occurred.</b>\n\n"
+        "Please forward the channel message again or send "
+        "<code>@username</code> / <code>t.me/channel</code>."
+    ),
+    "ch_retry_after": (
+        "{error}\n\nAfter granting rights to the bot, tap the button below "
+        "or resend the channel source 👇"
+    ),
+    "ch_limit_msg": (
+        "🚫 <b>Channel limit reached!</b>\n\n"
+        "You now have <b>{current}/{max}</b> channels connected.\n"
+        "The Free plan allows max <b>{max}</b> channels.\n\n"
+        "⭐️ Switch to PRO for unlimited use."
+    ),
+    "ch_success": (
+        "✅ <b>Channel connected successfully!</b>\n\n"
+        "📢 Name: <b>{title}</b>\n"
+        "🆔 ID: <code>{channel_id}</code>\n\n"
+        "📋 <b>Your channels ({count}):</b>"
+    ),
+    "ch_success_footer": "To delete a channel or change its style 👇",
+    "ch_taken": (
+        "🚫 <b>This channel is already connected to another user.</b>\n\n"
+        "It cannot be taken over. If this is your channel, the owner must first remove it from the bot."
+    ),
+    "ch_save_error": "❌ Error saving the channel.",
+    "ch_remove_not_found": "❌ Channel not found or not yours.",
+    "ch_no_perm_dm": (
+        "⚠️ <b>The bot was made an administrator, but the permission to send messages "
+        "(Post Messages) was not granted!</b>\n\n"
+        "📢 Channel: <b>{channel}</b>\n\n"
+        "Please enable the <b>Post Messages</b> right for the bot in the channel settings — "
+        "the channel will then connect automatically."
+    ),
+    "ch_autoconnect_success": (
+        "🎉 <b>You made the bot an admin of {channel} — the channel is connected!</b>\n\n"
+        "🆔 <code>{channel_id}</code>\n\n"
+        "Now you can schedule posts to this channel 👇"
+    ),
+    "ch_default_title": "Telegram Channel",
+
+    # ============================================================
+    # FULL EN COVERAGE — batch G: pending posts
+    # ============================================================
+    "pend_empty": "⏳ <b>You have no pending active posts.</b>",
+    "pend_list_title": "⏳ <b>Your pending posts ({count}):</b>",
+    "pend_item": (
+        "🔹 <b>Post: {code}</b>\n"
+        "📢 Channel: <b>{channel}</b>\n"
+        "📦 Type: <b>{type}</b>\n"
+        "{time}\n\n"
+    ),
+    "pend_channel_fallback": "Channel",
+    "pend_edit_time_btn": "🕒 {code} time",
+    "pend_edit_content_btn": "✏️ {code} text",
+    "pend_edit_btn_btn": "🔗 Button",
+    "pend_edit_react_btn": "👍 Reactions",
+    "pend_cancel_btn": "❌ Cancel",
+    "pend_refresh_btn": "🔄 Refresh",
+    "pend_close_btn": "❌ Close",
+    "pend_refreshed": "✅ Refreshed",
+    "pend_refresh_fail": "Could not refresh",
+    "pend_rate_limited": "⏳ Please wait a bit...",
+    "pend_error": "⚠️ Error: {error}",
+    "pend_not_found": "❌ Post not found.",
+    "pend_not_owned": "❌ This post is not yours.",
+    "pend_time_ask": (
+        "🕒 <b>Send the new publish time for the post:</b>\n\n"
+        "• For a one-time post: <code>DD.MM.YYYY HH:MM</code> "
+        "(e.g. <code>30.08.2026 20:00</code>)\n"
+        "• Free format also works: <code>tomorrow 18:00</code>, <code>today 10:00</code>\n"
+        "• For a daily post, time only: <code>10:00</code>"
+    ),
+    "pend_time_success": "✅ <b>Post time updated successfully!</b>",
+    "pend_time_format": (
+        "⚠️ <b>Time format not recognized.</b>\n\n"
+        "Correct format: <code>DD.MM.YYYY HH:MM</code>\n"
+        "Example: <code>{example}</code> or time only — <code>18:00</code>\n\n"
+        "🕒 <i>Tashkent time (UTC+5).</i>"
+    ),
+    "pend_content_ask": (
+        "✏️ <b>Send the new post text:</b>\n\n"
+        "HTML tags (<b>bold</b>, <i>italic</i>, <code>code</code>) are supported."
+    ),
+    "pend_content_success": "✅ <b>Post text updated!</b>",
+    "pend_btn_ask": (
+        "🔗 <b>Send the new button text:</b>\n\n"
+        "Format: <code>Button text | https://link.uz</code>\n"
+        "To delete the button, write: <code>no</code>."
+    ),
+    "pend_btn_removed": "✅ <b>Button deleted!</b>",
+    "pend_btn_updated": "✅ <b>Button updated:</b> <code>{text}</code>",
+    "pend_btn_format": (
+        "⚠️ Wrong format!\nE.g.: <code>Details | https://sayt.uz</code>\n"
+        "Or delete: <code>no</code>"
+    ),
+    "pend_react_ask": (
+        "👍 <b>Change post reactions:</b>\n\nPick one of the options:"
+    ),
+    "pend_react_invalid": "⚠️ Pick one of the buttons:",
+    "pend_react_off": "✅ <b>Reactions turned off!</b>",
+    "pend_react_updated": "✅ <b>Reactions updated:</b> {emojis}",
+    "pend_react_on": "✅ <b>Reactions turned on!</b>",
+    "pend_update_fail": "❌ Could not change.",
+    "pend_schedule_daily": "🔁 <b>Daily</b> at <b>{time}</b>",
+    "pend_schedule_weekly": "📅 <b>Every {day}</b> at <b>{time}</b>",
+    "pend_schedule_once": "⏰ Time: <b>{time}</b>",
+    "pend_schedule_unknown": "⏰ Time: unknown",
+
+    # ============================================================
+    # FULL EN COVERAGE — batch H: queue & slots
+    # ============================================================
+    "queue_db_error": (
+        "📚 <b>Queue</b>\n\n"
+        "⚠️ Could not load scheduled posts right now "
+        "(database connection error).\n"
+        "Please try again in a bit."
+    ),
+    "queue_title": "📚 <b>Queued posts</b> ({count}):",
+    "queue_title_range": "📚 <b>Queued posts</b> ({count}, {start}-{end}):",
+    "queue_empty": (
+        "📚 <b>Queue</b>\n\n"
+        "No posts in the queue yet.\n"
+        "Create a new post and tap <b>⏳ Add to queue</b>."
+    ),
+    "queue_empty_short": "📚 <b>Queue</b>\n\nNo posts in the queue.",
+    "queue_limit_msg": (
+        "🚫 <b>Queue limit reached!</b>\n\n"
+        "You have <b>{current}/{max}</b> queued posts.\n"
+        "The Free plan allows max <b>{max}</b> posts in the queue.\n\n"
+        "⭐️ Switch to PRO for an unlimited queue."
+    ),
+    "queue_not_found": "⚠️ Post not found or already deleted.",
+    "queue_not_found_short": "⚠️ Post not found!",
+    "queue_no_slot": "⚠️ No free slot found!",
+    "queue_deleted_alert": "🗑 Deleted!",
+    "queue_view_title": "👁 <b>Post #{id}</b>",
+    "queue_view_channel": "📢 Channel: {channel}",
+    "queue_view_type": "📦 Type: {type}",
+    "queue_view_time": "⏰ Time: {time}",
+    "queue_view_content": "📋 Text:\n{content}",
+    "queue_view_button": "🔘 Button: {text}",
+    "queue_view_reactions": "👍 Reactions: On",
+    "queue_view_auto_delete": "⏳ Auto-delete: {hours} h",
+    "queue_btn_view": "👁 View #{id}",
+    "queue_btn_delete": "🗑 Delete",
+    "queue_btn_push": "⏩ Push",
+    "queue_btn_prev": "⬅️ Previous",
+    "queue_btn_next": "Next ➡️",
+    "queue_btn_slots": "⚙️ Configure slots",
+    "queue_btn_close": "❌ Close",
+    "queue_btn_back": "⬅️ Back to list",
+    "queue_btn_add_slot": "➕ Add new slot",
+    "queue_btn_reset_slots": "🔄 Default slots",
+    "queue_slots_title": (
+        "⚙️ <b>Slot settings</b>\n\n"
+        "Current slots: <code>{slots}</code>\n\n"
+        "Posts are automatically scheduled for these times every day."
+    ),
+    "queue_slots_reset": (
+        "⚙️ <b>Slot settings</b>\n\n"
+        "Current slots: <code>{slots}</code>\n\n"
+        "Default slots restored."
+    ),
+    "queue_slot_add_ask": (
+        "➕ <b>Add new slot</b>\n\n"
+        "Time format: <code>HH:MM</code>\n"
+        "E.g.: <code>22:00</code>"
+    ),
+    "queue_slot_added": (
+        "✅ Slot added: <code>{slot}</code>\n\n"
+        "⚙️ <b>Slot settings</b>\n\n"
+        "Current slots: <code>{slots}</code>"
+    ),
+    "queue_slot_exists": "⚠️ <code>{slot}</code> already exists!",
+    "queue_slot_max": "⚠️ You can add max 10 slots!",
+    "queue_slot_format": (
+        "⚠️ Wrong format! Write as <code>HH:MM</code>.\n"
+        "E.g.: <code>22:00</code>"
+    ),
+    "queue_slot_min": "⚠️ At least one slot must remain!",
+    "queue_slot_reset_alert": "🔄 Default slots restored!",
+    "btn_pending": "⏳ Pending posts",
+    "btn_queue": "📚 Queue",
+
+    # ============================================================
+    # FULL EN COVERAGE — batch I-1: post enhancer (hub, reactions, buttons)
+    # ============================================================
+    "enh_notice_admin": (
+        "💡 <b>Note:</b> for the bot to publish the post to your channel, "
+        "first make sure you added it to the channel as an <b>Admin</b>."
+    ),
+    "enh_post_request": (
+        "Send the post you want to publish to the channel "
+        "(Text, Photo, Video or Forward from another channel):"
+    ),
+    "enh_intro_features": (
+        "✅ The original text stays untouched — only:\n"
+        "• 👍 up to 10 reactions (batch entry with spaces allowed),\n"
+        "• 🔗 up to 10 URL buttons (with ready templates),\n"
+        "• 👁 preview on request and 🚀 instant send to the channel."
+    ),
+    "enh_preset1_title": "Join channel",
+    "enh_preset1_text": "📢 Join channel",
+    "enh_preset2_title": "Join group",
+    "enh_preset2_text": "💬 Join group",
+    "enh_preset3_title": "Go to bot",
+    "enh_preset3_text": "🤖 Go to bot",
+    "enh_summary": (
+        "👍 Reactions: <b>{rn}/{maxr}</b>{emojis}\n"
+        "🔗 URL buttons: <b>{bn}/{maxb}</b>"
+    ),
+    "enh_post_line_type": "📦 <b>Type:</b> {type}",
+    "enh_post_line_album_count": " ({n} media)",
+    "enh_post_line_text": "\n📝 <b>Text:</b> <i>{preview}</i>",
+    "enh_post_line_no_text": "\n📝 <b>Text:</b> <i>(no caption — media only)</i>",
+    "enh_hub_title": (
+        "✨ <b>Add Buttons & Reactions to post</b>\n\n"
+        "{post}\n\n"
+        "{summary}\n"
+        "{note}{notice}\n\n"
+        "Pick a step 👇"
+    ),
+    "enh_hub_btn_reacts": "👍 1. Reactions ({n}/{max})",
+    "enh_hub_btn_buttons": "🔗 2. URL buttons ({n}/{max})",
+    "enh_btn_preview": "👁️ Preview",
+    "enh_btn_send_channel": "🚀 Send to channel",
+    "enh_btn_replace": "🔁 Replace post",
+    "enh_react_title": (
+        "👍 <b>Step 1. Reactions</b> (<b>{n}/{max}</b>)\n\n"
+        "Selected: {sel}\n\n"
+        "• Tap an emoji button — it gets ✅, tap again to remove;\n"
+        "• Or send several emojis <b>separated by space</b> in one message "
+        "(e.g.: <code>👍 ❤️ 🔥 👏 🎉</code>);\n"
+        "• You can add <b>{left}</b> more reactions.\n\n"
+        "<i>The post is shown only at the final preview/confirmation step.</i>"
+    ),
+    "enh_react_none": "— (nothing selected)",
+    "enh_react_done": "➡️ Continue / Go to URL buttons",
+    "enh_react_done_count": "➡️ Continue / Go to URL buttons ({n})",
+    "enh_btn_clear": "🗑 Clear",
+    "enh_btns_title": (
+        "🔗 <b>Step 2. URL buttons</b> (<b>{n}/{max}</b>)\n\n"
+        "{body}\n\n"
+        "Pick a ready template — the bot will ask only for the link.\n"
+        "Manual entry: <code>Button name - https://link.com</code> or "
+        "<code>Button name | @mychannel</code>"
+    ),
+    "enh_btns_empty": "<i>No buttons yet — pick a template or enter manually.</i>",
+    "enh_btns_line": "{mark} <b>{text}</b> → <code>{url}</code>",
+    "enh_btn_fallback": "Button",
+    "enh_btn_add_new": "➕ Add new button",
+    "enh_btn_manual": "✍️ Enter manually",
+    "enh_btn_confirm_send": "➡️ Confirm & Send to channel",
+    "enh_btn_entry_edit": "✏️ {num}. {text}",
+    "enh_btn_add_title": (
+        "➕ <b>New URL button</b> (<b>{n}/{max}</b>)\n\n"
+        "Pick one of the ready templates — the bot will ask for <b>only the link</b>.\n\n"
+        "Or send in one line via <b>✍️ Enter manually</b>:\n"
+        "<code>Button name - https://link.com</code>\n"
+        "<code>Button name | @mychannel</code>"
+    ),
+    "enh_channel_title": (
+        "📢 <b>Which channel to send to?</b> ({n})\n\n"
+        "<i>The post goes directly to the selected channel (no scheduling). "
+        "Confirmation is asked at the end.</i>\n\n"
+        "{notice}"
+    ),
+    "enh_channel_fallback": "Channel",
+    "enh_channels_more": "…and {n} more (pick via the add-channel section)",
+    "enh_confirm_no_channel": "⚠️ <b>Channel not selected.</b>\n\nPick a channel from the list.",
+    "enh_btn_channel_list": "📢 Channel list",
+
+    # ============================================================
+    # FULL EN COVERAGE — batch I-2: post enhancer (confirm, send, errors)
+    # ============================================================
+    "enh_confirm_title": (
+        "📢 <b>Confirm sending</b>\n\n"
+        "Send this post to <b>{channel}</b>?\n\n"
+        "{post}\n\n"
+        "{summary}\n"
+        "{note}"
+        "\n<i>The post cannot be changed after sending.</i>"
+    ),
+    "enh_btn_confirm_yes": "✅ Yes, send it",
+    "enh_btn_preview_first": "👁️ Preview first",
+    "enh_success_text": (
+        "✅ <b>Post published!</b>\n"
+        "The post was successfully published to your channel!{where}\n\n"
+        "If you want, you can send this post to another channel or enhance a new post 👇"
+    ),
+    "enh_success_where": "\n📢 <b>Channel:</b> {channel}",
+    "enh_btn_home": "🏠 Main menu",
+    "enh_btn_other_channel": "📢 To another channel",
+    "enh_btn_new_post": "🚀 New post",
+    "enh_btn_finish": "❌ Finish",
+    "enh_note_admin": "👑 <i>Admin — the post goes out clean.</i>\n",
+    "enh_note_free": (
+        "🆓 <i>Free plan: when sent to the channel, {bot} is added "
+        "to the top of the post.</i>\n"
+    ),
+    "enh_use_buttons": (
+        "👇 <b>To enhance the post, pick one of the buttons below.</b>\n"
+        "To replace the post — tap <b>🔁 Replace post</b>."
+    ),
+    "enh_album_reject": "⚠️ This media type cannot be added to an album — send it alone:",
+    "enh_empty_msg": "⚠️ Empty message not accepted. Send the post text or media:",
+    "enh_react_saved": "✅ <b>Reactions saved:</b> {sel}\nTotal: <b>{total}/{max}</b>{extra}",
+    "enh_react_overflow_part": "\n⚠️ Limit is <b>{max}</b> — {items} did not fit.",
+    "enh_react_dups_part": "\nℹ️ Duplicate emojis were ignored.",
+    "enh_react_dups": "ℹ️ These emojis are already selected: {items}\nTotal: <b>{total}/{max}</b>",
+    "enh_react_full": (
+        "⚠️ <b>Reaction limit reached</b> (max {max}). Remove one first."
+    ),
+    "enh_react_hint_msg": (
+        "ℹ️ Send only <b>emojis</b> — if several, <b>separated by space</b> "
+        "(e.g.: <code>👍 ❤️ 🔥 👏 🎉</code>) or use the buttons below."
+    ),
+    "enh_bad_link": (
+        "⚠️ <b>Invalid link.</b>\n\n"
+        "Send only the link, e.g.: <code>{hint}</code>\n"
+        "or <code>@channel_name</code>"
+    ),
+    "enh_bad_format": (
+        "⚠️ <b>Wrong button format.</b>\n\n"
+        "Send again:\n"
+        "<code>Visit site - https://sayt.uz</code>\n"
+        "<code>My channel | @kanalim</code>\n"
+        "<code>https://t.me/bot_name/start</code> (label picked automatically)"
+    ),
+    "enh_btn_limit_reached": (
+        "⚠️ You can add max <b>{max} URL buttons</b>. Delete one first."
+    ),
+    "enh_btn_verb_saved": "saved",
+    "enh_btn_verb_updated": "updated",
+    "enh_btn_saved": "✅ <b>Button {verb}:</b> {text} → <code>{url}</code>",
+    "enh_session_expired": "⚠️ Session expired — reopen the menu.",
+    "enh_home_msg": "🏠 <b>Main menu</b> — pick a section 👇",
+    "enh_no_channels_alert": (
+        "⚠️ No connected channels — first connect a channel and add the bot to it as Admin."
+    ),
+    "enh_react_limit_alert": "⚠️ Max {max} reactions!",
+    "enh_channel_gone_alert": "⚠️ This channel is no longer in the list.",
+    "enh_preset_missing": "⚠️ Template not found.",
+    "enh_btn_limit_alert": "⚠️ Max {max} buttons!",
+    "enh_btn_back_cancel": "⬅️ Cancel",
+    "enh_btn_missing_alert": "⚠️ Button not found.",
+    "enh_preview_follow_note": (
+        "👆 <i>Above is the preview. The buttons will appear under this post in the channel.</i>"
+    ),
+    "enh_preview_failed": "⚠️ Could not build preview (media file invalid).",
+    "enh_preview_error": "⚠️ Could not show preview.",
+    "enh_too_fast": "⏳ Too fast — try again in a bit.",
+    "enh_no_channel_sel": "⚠️ Channel not selected.",
+    "enh_channel_not_owned": "⚠️ This channel is no longer in your list.",
+    "enh_prepare_failed": "⚠️ Could not prepare the post. Please try again.",
+    "enh_send_no_rights": (
+        "⚠️ The bot is not a channel admin (or has no rights). "
+        "Add the bot to the channel as admin."
+    ),
+    "enh_send_failed": "⚠️ Could not send: {error}",
+    "enh_stale_notice": "⚠️ This menu has expired — reopen ⚙️ Extra features.",
+
+    # ============================================================
+    # FULL EN COVERAGE — batch J: misc
+    # ============================================================
+    "msg_closed": "✅ Closed.",
+    "np_sticker_not_allowed": (
+        "Sorry, stickers are not accepted as a post. "
+        "Please send a photo, video or text"
+    ),
+
+    # ============================================================
+    # FULL EN COVERAGE — batch K: shared / legacy AI / extract
+    # ============================================================
+    "op_cancelled": "❌ Cancelled.",
+    "btn_share_referral": "🚀 Share with friends",
+    "btn_check_subscription": "✅ Check subscription",
+    "ref_share_text": "Hi! Schedule posts for your Telegram channels automatically and easily with this bot:",
+    "sub_sponsor_fallback": "Sponsor channel",
+    "pr_no_permission": "❌ You don't have permission to confirm payments.",
+    "pr_error": "❌ An error occurred.",
+    "ai_analyzing": "🤖 <i>AI is analyzing...</i>",
+    "ai_legacy_welcome": (
+        "🤖 <b>Welcome to the AI Assistant!</b>\n\n"
+        "💎 Available AI requests: {credits}\n\n"
+        "I can help you with:\n"
+        "❓ <b>Q&A</b> — ask about the bot, posts, credits and channels.\n"
+        "📝 <b>Post creation</b> — write a post topic or send a ready post/photo.\n"
+        "🕒 <b>Free scheduling</b> — e.g.: <i>“prepare a post for all channels for today 15:45”</i>.\n\n"
+        "👉 Write a post topic or your question.\n"
+        "<i>To exit, press “{main_menu}”.</i>"
+    ),
+    "ai_legacy_media_hint": (
+        "🖼 <b>Photo/media received!</b>\n\n"
+        "Now send the post text or write the time, e.g.: <i>“for today 18:00”</i>."
+    ),
+    "ai_legacy_input_hint": "Please send post text, your question, or a photo/file:",
+    "ai_legacy_faq_fallback": (
+        "Sorry, I can only help with managing Telegram channels "
+        "and scheduling posts."
+    ),
+    "ai_legacy_faq_footer": "\n\n<i>Ask another question or send a post topic 👇</i>",
+    "ai_legacy_no_post": "Could not determine the post text. Please resend.",
+    "ai_legacy_target_all": "\n🌐 <b>Channel:</b> To all connected channels",
+    "ext_intro": (
+        "📢 <b>Get a post from a public channel</b>\n\n"
+        "Send the channel username OR link:\n"
+        "• <code>@kunuzofficial</code>\n"
+        "• <code>https://t.me/kunuzofficial</code>\n\n"
+        "Or send a website link (e.g.: <code>https://kun.uz/</code>) — "
+        "the bot will read the page and prepare an AI analysis.\n\n"
+        "<i>Works for public channels only.</i>"
+    ),
+    "ext_btn_other_post": "🔙 Choose another post",
+    "ext_btn_rewrite": "🔄 Rewrite",
+    "ext_btn_refresh": "🔄 Refresh",
+    "ext_media_preview": "🖼 Photo/Video",
+    "ext_reading_site": "⏳ Reading the site...",
+    "ext_site_read_failed": "⚠️ Could not read text from the site. Check the address and resend.",
+    "ext_ai_analyzing_page": "⏳ AI is analyzing the page...",
+    "ext_ai_page_failed": "⚠️ AI could not process the page.",
+    "ext_ai_proposal_src": "✨ <b>AI suggestion ({src}):</b>\n\n{text}",
+    "ext_ai_proposal": "✨ <b>AI suggestion:</b>\n\n{text}",
+    "ext_reading_posts": "⏳ Reading channel posts...",
+    "ext_post_accepted": (
+        "✅ <b>Post accepted!</b>\n\n"
+        "Now enter the button, time and other settings."
+    ),
+    "ext_private_channel_full": (
+        "🔒 <b>This is a private channel.</b>\n\n"
+        "Send a public channel or one where you are an admin.\n"
+        "Example: <code>@kunuzofficial</code> or "
+        "<code>https://t.me/kunuzofficial</code>"
+    ),
+    "ext_private_channel": (
+        "🔒 This is a private channel. Send public channels or ones "
+        "where you are an admin."
+    ),
+    "ext_not_found": (
+        "❌ <b>{text}</b> — no such channel found.\n\n"
+        "Check the address and resend:\n"
+        "<code>@kanal</code> or <code>https://t.me/kanal</code>"
+    ),
+    "ext_invalid_username": (
+        "⚠️ Invalid channel username or link. Please re-enter:\n"
+        "<code>@kanal</code>, <code>kanal</code> or <code>https://t.me/kanal</code>\n\n"
+        "Or a website link: <code>https://kun.uz/</code>"
+    ),
+    "ext_empty": (
+        "📭 No posts found in <b>{channel}</b>.\n\n"
+        "Send another channel or website link:"
+    ),
+    "ext_read_failed": (
+        "❌ Could not read posts from <b>{channel}</b>.\n\n"
+        "Reasons:\n"
+        "• Channel is private\n"
+        "• Wrong channel username\n"
+        "• Channel has no posts\n\n"
+        "Try again:"
+    ),
+    "ext_list_header": "📢 <b>@{channel}</b> — latest posts:\n",
+    "ext_list_choose": "Choose which post to process 👇",
+    "ext_media_only": "(image/video)",
+    "ext_no_list": "⚠️ Post list is unavailable. Send a new channel or website link:",
+    "ext_no_posts": "⚠️ No posts found.",
+    "ext_invalid_post": "❌ Invalid post selected.",
+    "ext_post_no_text": "⚠️ This post has no text (image/video only). Choose another post.",
+    "ext_ai_rewriting": "⏳ AI is rewriting the post...",
+    "ext_ai_rewrite_failed": "⚠️ AI could not rewrite the post.",
+    "ext_no_post_text": "⚠️ Post text not found.",
+    "ext_refreshing": "🔄 Refreshing...",
+    "ext_rewriting": "🔄 Rewriting...",
+
+    # ============================================================
+    # FULL EN COVERAGE — batch L: content plan
+    # ============================================================
+    "cp_btn_create_post": "📝 Create post",
+    "cp_btn_regenerate": "🔄 Regenerate",
+    "cp_btn_back": "🔙 Back",
+    "cp_btn_create_on_topic": "📝 Create a post on this topic",
+    "cp_no_channel": (
+        "⚠️ <b>Connect a channel first.</b>\n\n"
+        "You need at least one channel to build a content plan.\n"
+        "📢 Connect a channel in the Channels section."
+    ),
+    "cp_choose_channel": (
+        "🧠 <b>Content Plan Generator</b>\n\n"
+        "Which channel should we build a content plan for?"
+    ),
+    "cp_back_title": "🧠 <b>Which channel should we build a content plan for?</b>",
+    "cp_closed": "❌ Closed.",
+    "cp_topic_ask": (
+        "🧠 <b>Content plan: {channel}</b>\n\n"
+        "Briefly describe the channel topic.\n\n"
+        "<i>For example:</i>\n"
+        "• English from scratch\n"
+        "• Kitchenware store\n"
+        "• Healthy lifestyle\n"
+        "• IT news"
+    ),
+    "cp_topic_short": "⚠️ Topic is too short. Write at least 3 characters.",
+    "cp_ai_building": "⏳ AI is building the content plan...",
+    "cp_ai_failed": "⚠️ AI could not build the plan.",
+    "cp_ai_failed_retry": "⚠️ AI could not build the plan. Please try again.",
+    "cp_plan_header": (
+        "🧠 <b>7-day content plan</b>\n"
+        "📢 Channel: <b>{channel}</b>\n"
+        "📝 Topic: <i>{topic}</i>\n\n"
+    ),
+    "cp_plan_header_new": (
+        "🧠 <b>7-day content plan (new)</b>\n"
+        "📢 Channel: <b>{channel}</b>\n"
+        "📝 Topic: <i>{topic}</i>\n\n"
+    ),
+    "cp_plan_day": "<b>📅 {day}</b> — {fmt}\n  📌 <b>{title}</b>\n",
+    "cp_plan_idea": "  <i>{idea}</i>\n",
+    "cp_day_fallback": "Day {n}",
+    "cp_plan_footer": "\n\nPick a day and create a post right away 👇",
+    "cp_regenerating": "🔄 Regenerating...",
+    "cp_invalid_day": "❌ Invalid day selected.",
+    "cp_day_detail": "📅 <b>{day}</b> — {fmt}\n\n📌 <b>{title}</b>\n\n{idea}\n\n{ask}",
+    "cp_day_ask": "Do you want to create a post on this topic?",
+    "cp_choose_day": "📅 <b>Which day should we create a post for?</b>",
+    "cp_ai_writing": "⏳ AI is preparing the post text...",
+    "cp_ai_write_failed": "⚠️ AI could not prepare the post text.",
+    "cp_post_ready": (
+        "✅ <b>Ready post:</b>\n\n{preview}\n\n"
+        "📢 Channel: <b>{channel}</b>\n\n"
+        "Now enter the button, time and other settings."
+    ),
+    "cp_button_ask": (
+        "🔘 <b>Add a button?</b>\n\n"
+        "Write the button text and URL:\n"
+        "<code>Text | https://example.com</code>\n\n"
+        "Or continue without a button 👇"
+    ),
+
+    # ============================================================
+    # FULL EN COVERAGE — batch M: subscription / analytics
+    # ============================================================
+    "sub_pay_1m": "⭐️ 1 month (75 Stars)",
+    "sub_pay_3m": "⭐️ 3 months (175 Stars)",
+    "sub_pay_1y": "⭐️ 1 year (550 Stars)",
+    "sub_pay_1m_full": "⭐️ For 1 month (75 Stars)",
+    "sub_pay_3m_full": "⭐️ For 3 months (175 Stars)",
+    "sub_pay_1y_full": "⭐️ For 1 year (550 Stars)",
+    "sub_btn_promo": "🎁 Enter promo code",
+    "sub_btn_send_receipt_admin": "✉️ Send receipt to admin",
+    "sub_inv_title_1m": "⭐️ PostAssist PRO (1 month)",
+    "sub_inv_title_3m": "⭐️ PostAssist PRO (3 months)",
+    "sub_inv_title_1y": "⭐️ PostAssist PRO (1 year)",
+    "sub_inv_desc_1m": "Full PRO features for 1 month",
+    "sub_inv_desc_3m": "Full PRO features for 3 months",
+    "sub_inv_desc_1y": "Full PRO features for 1 year (discounted)",
+    "sub_invalid_plan": "❌ Invalid plan selected.",
+    "sub_invoice_error": "⚠️ Error opening the payment window. Please try again.",
+    "sub_promo_ask": (
+        "🎁 <b>Enter the promo code:</b>\n\n"
+        "Type the promo code or press “{back}”."
+    ),
+    "sub_promo_success": "✅ <b>{msg}</b>\n\nYour new plan features are activated!",
+    "sub_promo_fail": "❌ <b>{msg}</b>\n\nTry again or press “{back}”.",
+    "sub_pro_granted": (
+        "🎉 <b>Congratulations!</b>\n\n"
+        "You have been granted a <b>{days}-day PRO plan</b>!\n"
+        "You can enjoy all PRO features."
+    ),
+    "sub_pay_activate_error": (
+        "⚠️ Payment received, but plan activation failed.\n"
+        "Please contact the admin."
+    ),
+    "sub_pay_duplicate": "✅ This payment has already been processed. Your PRO plan is already active.",
+    "sub_pay_success": (
+        "🎉 <b>Payment successful!</b>\n\n"
+        "⭐️ {stars} Stars received.\n"
+        "📅 <b>{days}-day PRO plan</b> activated!\n\n"
+        "You can enjoy all PRO features:\n"
+        "• Unlimited channels\n"
+        "• Unlimited AI\n"
+        "• Full analytics"
+    ),
+    "sub_pay_err_payload": "Invalid payment payload.",
+    "sub_pay_err_user": "Payment does not match the user.",
+    "sub_pay_err_user_id": "Invalid user ID.",
+    "sub_pay_err_plan": "Invalid plan.",
+    "sub_pay_err_currency": "Invalid payment currency.",
+    "sub_pay_err_amount": "Payment amount does not match the plan.",
+    "sub_pay_err_amount_bad": "Invalid payment amount.",
+    "sub_pay_err_incomplete": "Payment details incomplete.",
+    "sub_pay_err_bad_request": "Invalid payment request.",
+    "an_all_channels": "All channels",
+    "an_btn_all": "📊 All channels",
+    "an_btn_other": "📢 Another channel",
+    "an_btn_refresh": "🔄 Refresh",
+    "an_refreshing": "🔄 Refreshing...",
+    "an_free_hint": (
+        "📊 <b>Analytics</b>\n\n"
+        "📌 On the Free plan, statistics for the last <b>7 days</b> are shown.\n"
+        "⭐️ The <b>PRO</b> plan unlocks full analytics (30 days, all posts, peak hours)!"
+    ),
+    "an_no_channels": (
+        "⚠️ <b>You have no connected channels yet.</b>\n\n"
+        "To view statistics, connect a channel first."
+    ),
+    "an_choose": "📊 <b>Analytics & Statistics</b>\n\nWhich channel's statistics do you want to see?",
+    "an_choose_short": "📊 <b>Which channel's statistics do you want to see?</b>",
+    "an_channel_fallback": "Channel",
+    "an_dash_header": "📊 <b>{channel}</b> — Channel statistics",
+    "an_dash_div": "━━━━━━━━━━━━━━━━━",
+    "an_dash_empty": (
+        "📊 <b>{channel}</b> — Channel statistics\n"
+        "━━━━━━━━━━━━━━━━━\n\n"
+        "📭 <b>No posts yet.</b>\n\n"
+        "Schedule your first post and track statistics here!\n"
+        "━━━━━━━━━━━━━━━━━"
+    ),
+    "an_dash_7d": "📤 Last 7 days: <b>{n}</b> posts",
+    "an_dash_30d": "📦 Last 30 days: <b>{n}</b> posts",
+    "an_dash_all": "📋 Total published: <b>{n}</b> posts",
+    "an_dash_pending": "⏳ Waiting in queue: <b>{n}</b> posts",
+    "an_dash_peak": "🕒 Peak hours: <b>{hours}</b>",
+    "an_dash_types": "📁 Post types: {types}",
+    "an_dash_no_data": "No data",
+    "an_type_text": "Text",
+    "an_type_photo": "Photo",
+    "an_type_video": "Video",
+    "an_type_document": "Document",
+    "an_type_audio": "Audio",
+    "an_type_animation": "GIF",
+    "an_type_album": "Album",
+
 }

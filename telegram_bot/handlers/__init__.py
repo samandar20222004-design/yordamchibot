@@ -207,9 +207,10 @@ async def _deny_if_unsubscribed(update, context) -> bool:
         )
         return True
     if not is_sub:
+        lang = get_lang(context)
         await update.message.reply_text(
-            get_text("sub_required", get_lang(context)),
-            reply_markup=get_subscription_check_keyboard(unsubs),
+            get_text("sub_required", lang),
+            reply_markup=get_subscription_check_keyboard(unsubs, lang),
             parse_mode="HTML",
         )
         return True
@@ -221,11 +222,12 @@ async def guard_entry(update, context, fn):
     if user:
         is_blocked, _ = check_rate_limit(user.id, max_requests=ENTRY_RATE_LIMIT_MAX, window_seconds=2.0)
         if is_blocked:
+            wait_msg = get_text("pend_rate_limited", get_lang(context))
             if update.message:
-                await update.message.reply_text("⏳ Iltimos, biroz kuting...", parse_mode="HTML")
+                await update.message.reply_text(wait_msg, parse_mode="HTML")
             elif update.callback_query:
                 try:
-                    await update.callback_query.answer("⏳ Iltimos, biroz kuting...", show_alert=False)
+                    await update.callback_query.answer(wait_msg, show_alert=False)
                 except Exception:
                     pass
             return ConversationHandler.END
@@ -245,11 +247,12 @@ async def guard_menu(update, context, fn):
     if user:
         is_blocked, _ = check_rate_limit(user.id, max_requests=NAV_RATE_LIMIT_MAX, window_seconds=2.0)
         if is_blocked:
+            wait_msg = get_text("pend_rate_limited", get_lang(context))
             if update.message:
-                await update.message.reply_text("⏳ Iltimos, biroz kuting...", parse_mode="HTML")
+                await update.message.reply_text(wait_msg, parse_mode="HTML")
             elif update.callback_query:
                 try:
-                    await update.callback_query.answer("⏳ Iltimos, biroz kuting...", show_alert=False)
+                    await update.callback_query.answer(wait_msg, show_alert=False)
                 except Exception:
                     pass
             return ConversationHandler.END

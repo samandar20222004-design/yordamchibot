@@ -4,6 +4,8 @@ Foydalanish:
     get_text("start_hello", lang="ru", name="Ivan")
 """
 
+import re
+
 DEFAULT_LANG = "uz"
 SUPPORTED_LANGS = ("uz", "ru", "en")
 LANG_KEY = "lang"
@@ -1536,6 +1538,266 @@ TRANSLATIONS = {
         "tz_btn_utc": "🌐 UTC (UTC+0)",
         "tz_btn_samarkand": "🇺🇿 Samarqand (UTC+5)",
         "tz_current": "🌍 Vaqt mintaqasi: <b>{tz}</b>",
+
+        # --- Umumiy operatsiyalar ---
+        "op_cancelled": "❌ Bekor qilindi.",
+        "btn_share_referral": "🚀 Do'stlarga ulashish",
+        "btn_check_subscription": "✅ Obunani tekshirish",
+        "ref_share_text": "Salom! Ushbu bot orqali Telegram kanallaringizga postlarni avtomatik va qulay rejalashtiring:",
+        "sub_sponsor_fallback": "Homiy kanal",
+        "pr_no_permission": "❌ Sizda to'lovni tasdiqlash uchun ruxsat yo'q.",
+        "pr_error": "❌ Xatolik yuz berdi.",
+
+        # --- AI yordamchi (legacy AI_INPUT oqimi) ---
+        "ai_analyzing": "🤖 <i>AI tahlil qilmoqda...</i>",
+        "ai_legacy_welcome": (
+            "🤖 <b>AI Yordamchiga xush kelibsiz!</b>\n\n"
+            "💎 Mavjud AI so'rovlari: {credits}\n\n"
+            "Men sizga quyidagi ishlarda yordam bera olaman:\n"
+            "❓ <b>Savol-javob</b> — bot, postlar, ballar, kanallar haqida savol bering.\n"
+            "📝 <b>Post yaratish</b> — post mavzusini yozing yoki tayyor post/rasm yuboring.\n"
+            "🕒 <b>Erkin rejalashtirish</b> — masalan: <i>“bugun 15:45 ga hamma kanalga post tayyorla”</i>.\n\n"
+            "👉 Post mavzusini yoki savolingizni yozing.\n"
+            "<i>Chiqish uchun '{main_menu}' tugmasini bosing.</i>"
+        ),
+        "ai_legacy_media_hint": (
+            "🖼 <b>Rasm/media qabul qilindi!</b>\n\n"
+            "Endi post matnini yuboring yoki vaqtni yozing, masalan: <i>“bugun 18:00 ga”</i>."
+        ),
+        "ai_legacy_input_hint": "Iltimos, post matnini, savolingizni yoki rasm/fayl yuboring:",
+        "ai_legacy_faq_fallback": (
+            "Kechirasiz, men faqat Telegram kanallarni boshqarish va postlarni "
+            "rejalashtirish bo'yicha yordam bera olaman."
+        ),
+        "ai_legacy_faq_footer": "\n\n<i>Yana savol bering yoki post mavzusini yuboring 👇</i>",
+        "ai_legacy_no_post": "Post matnini aniqlab bo'lmadi. Iltimos, qaytadan yuboring.",
+        "ai_legacy_target_all": "\n🌐 <b>Kanal:</b> Barcha ulangan kanallarga",
+
+        # --- Ochiq kanaldan post olish (extract) ---
+        "ext_intro": (
+            "📢 <b>Ochiq kanaldan post olish</b>\n\n"
+            "Kanal nikini YOKI havolasini yuboring:\n"
+            "• <code>@kunuzofficial</code>\n"
+            "• <code>https://t.me/kunuzofficial</code>\n\n"
+            "Yoki sayt havolasini yuboring (masalan: <code>https://kun.uz/</code>) — "
+            "bot sahifani o'qib, AI tahlilini tayyorlaydi.\n\n"
+            "<i>Faqat ochiq kanallar uchun ishlaydi.</i>"
+        ),
+        "ext_btn_other_post": "🔙 Boshqa post tanlash",
+        "ext_btn_rewrite": "🔄 Qayta yozish",
+        "ext_btn_refresh": "🔄 Yangilash",
+        "ext_media_preview": "🖼 Rasm/Video",
+        "ext_reading_site": "⏳ Sayt o'qilmoqda...",
+        "ext_site_read_failed": "⚠️ Saytdan matn o'qib bo'lmadi. Manzilni tekshirib, qayta yuboring.",
+        "ext_ai_analyzing_page": "⏳ AI sahifani tahlil qilmoqda...",
+        "ext_ai_page_failed": "⚠️ AI sahifani qayta ishlolmadi.",
+        "ext_ai_proposal_src": "✨ <b>AI taklifi ({src}):</b>\n\n{text}",
+        "ext_ai_proposal": "✨ <b>AI taklifi:</b>\n\n{text}",
+        "ext_reading_posts": "⏳ Kanal postlari o'qilmoqda...",
+        "ext_post_accepted": (
+            "✅ <b>Post qabul qilindi!</b>\n\n"
+            "Endi tugma, vaqt va boshqa sozlamalarni kiriting."
+        ),
+        "ext_private_channel_full": (
+            "🔒 <b>Bu yopiq kanal.</b>\n\n"
+            "Ochiq kanallarni yoki o'zingiz admin bo'lgan kanallarni yuboring.\n"
+            "Masalan: <code>@kunuzofficial</code> yoki "
+            "<code>https://t.me/kunuzofficial</code>"
+        ),
+        "ext_private_channel": (
+            "🔒 Bu yopiq kanal. Ochiq kanallarni yoki o'zingiz admin "
+            "bo'lgan kanallarni yuboring."
+        ),
+        "ext_not_found": (
+            "❌ <b>{text}</b> — bunday kanal topilmadi.\n\n"
+            "Manzilni tekshirib, qayta yuboring:\n"
+            "<code>@kanal</code> yoki <code>https://t.me/kanal</code>"
+        ),
+        "ext_invalid_username": (
+            "⚠️ Noto'g'ri kanal niki yoki havolasi. Qaytadan kiriting:\n"
+            "<code>@kanal</code>, <code>kanal</code> yoki <code>https://t.me/kanal</code>\n\n"
+            "Yoki sayt havolasi: <code>https://kun.uz/</code>"
+        ),
+        "ext_empty": (
+            "📭 <b>{channel}</b> kanalida postlar topilmadi.\n\n"
+            "Boshqa kanal yoki sayt havolasini yuboring:"
+        ),
+        "ext_read_failed": (
+            "❌ <b>{channel}</b> kanalidan postlar o'qilmadi.\n\n"
+            "Sabablari:\n"
+            "• Kanal yopiq (private)\n"
+            "• Kanal niki noto'g'ri\n"
+            "• Kanalda postlar yo'q\n\n"
+            "Qaytadan urinib ko'ring:"
+        ),
+        "ext_list_header": "📢 <b>@{channel}</b> — so'nggi postlar:\n",
+        "ext_list_choose": "Qaysi postni qayta ishlashni tanlang 👇",
+        "ext_media_only": "(rasm/video)",
+        "ext_no_list": "⚠️ Postlar ro'yxati mavjud emas. Yangi kanal yoki sayt havolasini yuboring:",
+        "ext_no_posts": "⚠️ Postlar topilmadi.",
+        "ext_invalid_post": "❌ Noto'g'ri post tanlandi.",
+        "ext_post_no_text": "⚠️ Bu postda matn yo'q (faqat rasm/video). Boshqa postni tanlang.",
+        "ext_ai_rewriting": "⏳ AI postni qayta yozmoqda...",
+        "ext_ai_rewrite_failed": "⚠️ AI postni qayta yozolmadi.",
+        "ext_no_post_text": "⚠️ Post matni topilmadi.",
+        "ext_refreshing": "🔄 Yangilanmoqda...",
+        "ext_rewriting": "🔄 Qayta yozilmoqda...",
+
+        # --- Kontent reja (content plan) ---
+        "cp_btn_create_post": "📝 Post yaratish",
+        "cp_btn_regenerate": "🔄 Qayta generatsiya",
+        "cp_btn_back": "🔙 Orqaga",
+        "cp_btn_create_on_topic": "📝 Shu mavzuda post yaratish",
+        "cp_no_channel": (
+            "⚠️ <b>Avval kanal ulang.</b>\n\n"
+            "Kontent-reja tuzish uchun kamida bitta kanal bo'lishi kerak.\n"
+            "📢 Kanallar bo'limidan kanal ulang."
+        ),
+        "cp_choose_channel": (
+            "🧠 <b>Kontent-reja generatori</b>\n\n"
+            "Qaysi kanal uchun kontent-reja tuzamiz?"
+        ),
+        "cp_back_title": "🧠 <b>Qaysi kanal uchun kontent-reja tuzamiz?</b>",
+        "cp_closed": "❌ Yopildi.",
+        "cp_topic_ask": (
+            "🧠 <b>Kontent-reja: {channel}</b>\n\n"
+            "Kanal mavzusini qisqacha yozing.\n\n"
+            "<i>Masalan:</i>\n"
+            "• Ingliz tili noldan\n"
+            "• Oshxona buyumlari do'koni\n"
+            "• Sog'lom turmush tarzi\n"
+            "• IT yangiliklar"
+        ),
+        "cp_topic_short": "⚠️ Mavzu juda qisqa. Kamida 3 ta belgi yozing.",
+        "cp_ai_building": "⏳ AI kontent-reja tuzmoqda...",
+        "cp_ai_failed": "⚠️ AI reja tuza olmadi.",
+        "cp_ai_failed_retry": "⚠️ AI reja tuza olmadi. Qaytadan urinib ko'ring.",
+        "cp_plan_header": (
+            "🧠 <b>7 kunlik kontent-reja</b>\n"
+            "📢 Kanal: <b>{channel}</b>\n"
+            "📝 Mavzu: <i>{topic}</i>\n\n"
+        ),
+        "cp_plan_header_new": (
+            "🧠 <b>7 kunlik kontent-reja (yangi)</b>\n"
+            "📢 Kanal: <b>{channel}</b>\n"
+            "📝 Mavzu: <i>{topic}</i>\n\n"
+        ),
+        "cp_plan_day": "<b>📅 {day}</b> — {fmt}\n  📌 <b>{title}</b>\n",
+        "cp_plan_idea": "  <i>{idea}</i>\n",
+        "cp_day_fallback": "Kun {n}",
+        "cp_plan_footer": "\n\nKunni tanlab, to'g'ridan-to'g'ri post yarating 👇",
+        "cp_regenerating": "🔄 Qayta generatsiya...",
+        "cp_invalid_day": "❌ Noto'g'ri kun tanlandi.",
+        "cp_day_detail": "📅 <b>{day}</b> — {fmt}\n\n📌 <b>{title}</b>\n\n{idea}\n\n{ask}",
+        "cp_day_ask": "Shu mavzuda post yaratishni xohlaysizmi?",
+        "cp_choose_day": "📅 <b>Qaysi kun uchun post yaratamiz?</b>",
+        "cp_ai_writing": "⏳ AI post matnini tayyorlamoqda...",
+        "cp_ai_write_failed": "⚠️ AI post matni tayyorlay olmadi.",
+        "cp_post_ready": (
+            "✅ <b>Tayyor post:</b>\n\n{preview}\n\n"
+            "📢 Kanal: <b>{channel}</b>\n\n"
+            "Endi tugma, vaqt va boshqa sozlamalarni kiriting."
+        ),
+        "cp_button_ask": (
+            "🔘 <b>Tugma qo'shasizmi?</b>\n\n"
+            "Tugma matni va URL ni yozing:\n"
+            "<code>Matn | https://havola.uz</code>\n\n"
+            "Yoki tugmasiz davom eting 👇"
+        ),
+
+        # --- Obuna / to'lov (subscription) ---
+        "sub_pay_1m": "⭐️ 1 oy (75 Stars)",
+        "sub_pay_3m": "⭐️ 3 oy (175 Stars)",
+        "sub_pay_1y": "⭐️ 1 yil (550 Stars)",
+        "sub_pay_1m_full": "⭐️ 1 oylik (75 Stars)",
+        "sub_pay_3m_full": "⭐️ 3 oylik (175 Stars)",
+        "sub_pay_1y_full": "⭐️ 1 yillik (550 Stars)",
+        "sub_btn_promo": "🎁 Promo-kod kiritish",
+        "sub_btn_send_receipt_admin": "✉️ Adminga chek yuborish",
+        "sub_inv_title_1m": "⭐️ PostAssist PRO (1 oy)",
+        "sub_inv_title_3m": "⭐️ PostAssist PRO (3 oy)",
+        "sub_inv_title_1y": "⭐️ PostAssist PRO (1 yil)",
+        "sub_inv_desc_1m": "1 oylik to'liq PRO imkoniyatlar",
+        "sub_inv_desc_3m": "3 oylik to'liq PRO imkoniyatlar",
+        "sub_inv_desc_1y": "1 yillik to'liq PRO imkoniyatlar (chegirma bilan)",
+        "sub_invalid_plan": "❌ Noto'g'ri tarif tanlandi.",
+        "sub_invoice_error": "⚠️ To'lov oynasini ochishda xatolik yuz berdi. Iltimos, qayta urinib ko'ring.",
+        "sub_promo_ask": (
+            "🎁 <b>Promo-kodni kiriting:</b>\n\n"
+            "Promo-kodni yozing yoki '{back}' tugmasini bosing."
+        ),
+        "sub_promo_success": "✅ <b>{msg}</b>\n\nYangi tarif imkoniyatlaringiz faollashtirildi!",
+        "sub_promo_fail": "❌ <b>{msg}</b>\n\nQaytadan urinib ko'ring yoki '{back}' tugmasini bosing.",
+        "sub_pro_granted": (
+            "🎉 <b>Tabriklaymiz!</b>\n\n"
+            "Sizga <b>{days} kunlik PRO tarif</b> berildi!\n"
+            "Barcha PRO imkoniyatlardan foydalanishingiz mumkin."
+        ),
+        "sub_pay_activate_error": (
+            "⚠️ To'lov qabul qilindi, lekin tarifni faollashtirishda xatolik.\n"
+            "Iltimos, admin bilan bog'laning."
+        ),
+        "sub_pay_duplicate": "✅ Bu to'lov avval qayta ishlangan. PRO tarifingiz allaqachon faol.",
+        "sub_pay_success": (
+            "🎉 <b>To'lov muvaffaqiyatli!</b>\n\n"
+            "⭐️ {stars} Stars qabul qilindi.\n"
+            "📅 <b>{days} kunlik PRO tarif</b> faollashtirildi!\n\n"
+            "Barcha PRO imkoniyatlardan foydalanishingiz mumkin:\n"
+            "• Cheksiz kanallar\n"
+            "• Cheksiz AI\n"
+            "• To'liq analitika"
+        ),
+        "sub_pay_err_payload": "Noto'g'ri to'lov payload'i.",
+        "sub_pay_err_user": "To'lov foydalanuvchiga mos emas.",
+        "sub_pay_err_user_id": "Noto'g'ri foydalanuvchi ID.",
+        "sub_pay_err_plan": "Noto'g'ri tarif.",
+        "sub_pay_err_currency": "To'lov valyutasi noto'g'ri.",
+        "sub_pay_err_amount": "To'lov summasi tarifga mos emas.",
+        "sub_pay_err_amount_bad": "To'lov summasi noto'g'ri.",
+        "sub_pay_err_incomplete": "To'lov rekvizitlari to'liq emas.",
+        "sub_pay_err_bad_request": "Noto'g'ri to'lov so'rovi.",
+
+        # --- Analitika (analytics) ---
+        "an_all_channels": "Barcha kanallar",
+        "an_btn_all": "📊 Barcha kanallar",
+        "an_btn_other": "📢 Boshqa kanal",
+        "an_btn_refresh": "🔄 Yangilash",
+        "an_refreshing": "🔄 Yangilanmoqda...",
+        "an_free_hint": (
+            "📊 <b>Analitika</b>\n\n"
+            "📌 Free tarifida oxirgi <b>7 kunlik</b> statistika ko'rsatiladi.\n"
+            "⭐️ <b>PRO</b> tarifida to'liq analitika (30 kun, barcha postlar, eng faol soatlar) ochiladi!"
+        ),
+        "an_no_channels": (
+            "⚠️ <b>Sizda hali ulangan kanallar mavjud emas.</b>\n\n"
+            "Statistika ko'rish uchun avval kanal ulang."
+        ),
+        "an_choose": "📊 <b>Analitika va Statistika</b>\n\nQaysi kanal statistikasini ko'rasiz?",
+        "an_choose_short": "📊 <b>Qaysi kanal statistikasini ko'rasiz?</b>",
+        "an_channel_fallback": "Kanal",
+        "an_dash_header": "📊 <b>{channel}</b> — Kanal statistikasi",
+        "an_dash_div": "━━━━━━━━━━━━━━━━━",
+        "an_dash_empty": (
+            "📊 <b>{channel}</b> — Kanal statistikasi\n"
+            "━━━━━━━━━━━━━━━━━\n\n"
+            "📭 <b>Hali post chiqarilmagan.</b>\n\n"
+            "Birinchi postingizni rejalashtiring va bu yerda statistikani kuzating!\n"
+            "━━━━━━━━━━━━━━━━━"
+        ),
+        "an_dash_7d": "📤 Oxirgi 7 kunda: <b>{n}</b> ta post",
+        "an_dash_30d": "📦 Oxirgi 30 kunda: <b>{n}</b> ta post",
+        "an_dash_all": "📋 Jami chiqarilgan: <b>{n}</b> ta post",
+        "an_dash_pending": "⏳ Navbatda kutayotgan: <b>{n}</b> ta post",
+        "an_dash_peak": "🕒 Eng faol vaqtlar: <b>{hours}</b>",
+        "an_dash_types": "📁 Post turlari: {types}",
+        "an_dash_no_data": "Ma'lumot yo'q",
+        "an_type_text": "Matn",
+        "an_type_photo": "Rasm",
+        "an_type_video": "Video",
+        "an_type_document": "Hujjat",
+        "an_type_audio": "Audio",
+        "an_type_animation": "GIF",
+        "an_type_album": "Albom",
     },
     "ru": {
         "btn_new_post": "➕ Новый пост",
@@ -1731,7 +1993,6 @@ TRANSLATIONS = {
         "cab_referral": "👥 Пригласить друзей",
         "cab_close": "❌ Закрыть",
         "cab_add_channel": "➕ Добавить канал",
-        "cab_del_channel": "🗑 Удалить канал",
         "cab_del_channel": "🗑 Удалить канал",
         "cab_remove_channel": "❌ Удалить",
         "cab_tone": "Стиль",
@@ -3076,6 +3337,266 @@ TRANSLATIONS = {
         "tz_btn_utc": "🌐 UTC (UTC+0)",
         "tz_btn_samarkand": "🇺🇿 Самарканд (UTC+5)",
         "tz_current": "🌍 Часовой пояс: <b>{tz}</b>",
+
+        # --- Общие операции ---
+        "op_cancelled": "❌ Отменено.",
+        "btn_share_referral": "🚀 Поделиться с друзьями",
+        "btn_check_subscription": "✅ Проверить подписку",
+        "ref_share_text": "Привет! Планируйте посты для своих Telegram-каналов автоматически и удобно с помощью этого бота:",
+        "sub_sponsor_fallback": "Спонсорский канал",
+        "pr_no_permission": "❌ У вас нет прав для подтверждения оплаты.",
+        "pr_error": "❌ Произошла ошибка.",
+
+        # --- AI-помощник (legacy AI_INPUT поток) ---
+        "ai_analyzing": "🤖 <i>ИИ анализирует...</i>",
+        "ai_legacy_welcome": (
+            "🤖 <b>Добро пожаловать в AI-помощник!</b>\n\n"
+            "💎 Доступно AI-запросов: {credits}\n\n"
+            "Я могу помочь вам со следующим:\n"
+            "❓ <b>Вопросы и ответы</b> — спрашивайте о боте, постах, баллах и каналах.\n"
+            "📝 <b>Создание постов</b> — напишите тему поста или отправьте готовый пост/фото.\n"
+            "🕒 <b>Свободное планирование</b> — например: <i>«подготовь пост во все каналы на сегодня 15:45»</i>.\n\n"
+            "👉 Напишите тему поста или ваш вопрос.\n"
+            "<i>Для выхода нажмите кнопку «{main_menu}».</i>"
+        ),
+        "ai_legacy_media_hint": (
+            "🖼 <b>Фото/медиа получено!</b>\n\n"
+            "Теперь отправьте текст поста или напишите время, например: <i>«на сегодня 18:00»</i>."
+        ),
+        "ai_legacy_input_hint": "Пожалуйста, отправьте текст поста, ваш вопрос или фото/файл:",
+        "ai_legacy_faq_fallback": (
+            "Извините, я могу помочь только с управлением Telegram-каналами "
+            "и планированием постов."
+        ),
+        "ai_legacy_faq_footer": "\n\n<i>Задайте ещё вопрос или отправьте тему поста 👇</i>",
+        "ai_legacy_no_post": "Не удалось определить текст поста. Пожалуйста, отправьте ещё раз.",
+        "ai_legacy_target_all": "\n🌐 <b>Канал:</b> Во все подключённые каналы",
+
+        # --- Получение поста из открытого канала (extract) ---
+        "ext_intro": (
+            "📢 <b>Получение поста из открытого канала</b>\n\n"
+            "Отправьте ник ИЛИ ссылку канала:\n"
+            "• <code>@kunuzofficial</code>\n"
+            "• <code>https://t.me/kunuzofficial</code>\n\n"
+            "Или отправьте ссылку на сайт (например: <code>https://kun.uz/</code>) — "
+            "бот прочитает страницу и подготовит AI-анализ.\n\n"
+            "<i>Работает только для открытых каналов.</i>"
+        ),
+        "ext_btn_other_post": "🔙 Выбрать другой пост",
+        "ext_btn_rewrite": "🔄 Переписать",
+        "ext_btn_refresh": "🔄 Обновить",
+        "ext_media_preview": "🖼 Фото/Видео",
+        "ext_reading_site": "⏳ Читаю сайт...",
+        "ext_site_read_failed": "⚠️ Не удалось прочитать текст с сайта. Проверьте адрес и отправьте снова.",
+        "ext_ai_analyzing_page": "⏳ ИИ анализирует страницу...",
+        "ext_ai_page_failed": "⚠️ ИИ не смог обработать страницу.",
+        "ext_ai_proposal_src": "✨ <b>Предложение ИИ ({src}):</b>\n\n{text}",
+        "ext_ai_proposal": "✨ <b>Предложение ИИ:</b>\n\n{text}",
+        "ext_reading_posts": "⏳ Читаю посты канала...",
+        "ext_post_accepted": (
+            "✅ <b>Пост принят!</b>\n\n"
+            "Теперь введите кнопку, время и другие настройки."
+        ),
+        "ext_private_channel_full": (
+            "🔒 <b>Это закрытый канал.</b>\n\n"
+            "Отправьте открытый канал или канал, где вы администратор.\n"
+            "Например: <code>@kunuzofficial</code> или "
+            "<code>https://t.me/kunuzofficial</code>"
+        ),
+        "ext_private_channel": (
+            "🔒 Это закрытый канал. Отправьте открытые каналы или каналы, "
+            "где вы администратор."
+        ),
+        "ext_not_found": (
+            "❌ <b>{text}</b> — такой канал не найден.\n\n"
+            "Проверьте адрес и отправьте снова:\n"
+            "<code>@kanal</code> или <code>https://t.me/kanal</code>"
+        ),
+        "ext_invalid_username": (
+            "⚠️ Неверный ник или ссылка канала. Введите заново:\n"
+            "<code>@kanal</code>, <code>kanal</code> или <code>https://t.me/kanal</code>\n\n"
+            "Или ссылка на сайт: <code>https://kun.uz/</code>"
+        ),
+        "ext_empty": (
+            "📭 В канале <b>{channel}</b> посты не найдены.\n\n"
+            "Отправьте другой канал или ссылку на сайт:"
+        ),
+        "ext_read_failed": (
+            "❌ Не удалось прочитать посты из канала <b>{channel}</b>.\n\n"
+            "Причины:\n"
+            "• Канал закрыт (private)\n"
+            "• Неверный ник канала\n"
+            "• В канале нет постов\n\n"
+            "Попробуйте ещё раз:"
+        ),
+        "ext_list_header": "📢 <b>@{channel}</b> — последние посты:\n",
+        "ext_list_choose": "Выберите, какой пост обработать 👇",
+        "ext_media_only": "(фото/видео)",
+        "ext_no_list": "⚠️ Список постов недоступен. Отправьте новый канал или ссылку на сайт:",
+        "ext_no_posts": "⚠️ Посты не найдены.",
+        "ext_invalid_post": "❌ Выбран неверный пост.",
+        "ext_post_no_text": "⚠️ В этом посте нет текста (только фото/видео). Выберите другой пост.",
+        "ext_ai_rewriting": "⏳ ИИ переписывает пост...",
+        "ext_ai_rewrite_failed": "⚠️ ИИ не смог переписать пост.",
+        "ext_no_post_text": "⚠️ Текст поста не найден.",
+        "ext_refreshing": "🔄 Обновляю...",
+        "ext_rewriting": "🔄 Переписываю...",
+
+        # --- Контент-план (content plan) ---
+        "cp_btn_create_post": "📝 Создать пост",
+        "cp_btn_regenerate": "🔄 Перегенерировать",
+        "cp_btn_back": "🔙 Назад",
+        "cp_btn_create_on_topic": "📝 Создать пост на эту тему",
+        "cp_no_channel": (
+            "⚠️ <b>Сначала подключите канал.</b>\n\n"
+            "Для составления контент-плана нужен хотя бы один канал.\n"
+            "📢 Подключите канал в разделе «Каналы»."
+        ),
+        "cp_choose_channel": (
+            "🧠 <b>Генератор контент-плана</b>\n\n"
+            "Для какого канала составляем контент-план?"
+        ),
+        "cp_back_title": "🧠 <b>Для какого канала составляем контент-план?</b>",
+        "cp_closed": "❌ Закрыто.",
+        "cp_topic_ask": (
+            "🧠 <b>Контент-план: {channel}</b>\n\n"
+            "Коротко напишите тематику канала.\n\n"
+            "<i>Например:</i>\n"
+            "• Английский с нуля\n"
+            "• Магазин кухонных товаров\n"
+            "• Здоровый образ жизни\n"
+            "• IT-новости"
+        ),
+        "cp_topic_short": "⚠️ Тема слишком короткая. Напишите минимум 3 символа.",
+        "cp_ai_building": "⏳ ИИ составляет контент-план...",
+        "cp_ai_failed": "⚠️ ИИ не смог составить план.",
+        "cp_ai_failed_retry": "⚠️ ИИ не смог составить план. Попробуйте ещё раз.",
+        "cp_plan_header": (
+            "🧠 <b>Контент-план на 7 дней</b>\n"
+            "📢 Канал: <b>{channel}</b>\n"
+            "📝 Тема: <i>{topic}</i>\n\n"
+        ),
+        "cp_plan_header_new": (
+            "🧠 <b>Контент-план на 7 дней (новый)</b>\n"
+            "📢 Канал: <b>{channel}</b>\n"
+            "📝 Тема: <i>{topic}</i>\n\n"
+        ),
+        "cp_plan_day": "<b>📅 {day}</b> — {fmt}\n  📌 <b>{title}</b>\n",
+        "cp_plan_idea": "  <i>{idea}</i>\n",
+        "cp_day_fallback": "День {n}",
+        "cp_plan_footer": "\n\nВыберите день и создавайте пост прямо отсюда 👇",
+        "cp_regenerating": "🔄 Перегенерирую...",
+        "cp_invalid_day": "❌ Выбран неверный день.",
+        "cp_day_detail": "📅 <b>{day}</b> — {fmt}\n\n📌 <b>{title}</b>\n\n{idea}\n\n{ask}",
+        "cp_day_ask": "Хотите создать пост на эту тему?",
+        "cp_choose_day": "📅 <b>На какой день создаём пост?</b>",
+        "cp_ai_writing": "⏳ ИИ готовит текст поста...",
+        "cp_ai_write_failed": "⚠️ ИИ не смог подготовить текст поста.",
+        "cp_post_ready": (
+            "✅ <b>Готовый пост:</b>\n\n{preview}\n\n"
+            "📢 Канал: <b>{channel}</b>\n\n"
+            "Теперь введите кнопку, время и другие настройки."
+        ),
+        "cp_button_ask": (
+            "🔘 <b>Добавить кнопку?</b>\n\n"
+            "Напишите текст кнопки и URL:\n"
+            "<code>Текст | https://example.com</code>\n\n"
+            "Или продолжите без кнопки 👇"
+        ),
+
+        # --- Подписка / оплата (subscription) ---
+        "sub_pay_1m": "⭐️ 1 месяц (75 Stars)",
+        "sub_pay_3m": "⭐️ 3 месяца (175 Stars)",
+        "sub_pay_1y": "⭐️ 1 год (550 Stars)",
+        "sub_pay_1m_full": "⭐️ На 1 месяц (75 Stars)",
+        "sub_pay_3m_full": "⭐️ На 3 месяца (175 Stars)",
+        "sub_pay_1y_full": "⭐️ На 1 год (550 Stars)",
+        "sub_btn_promo": "🎁 Ввести промокод",
+        "sub_btn_send_receipt_admin": "✉️ Отправить чек администратору",
+        "sub_inv_title_1m": "⭐️ PostAssist PRO (1 месяц)",
+        "sub_inv_title_3m": "⭐️ PostAssist PRO (3 месяца)",
+        "sub_inv_title_1y": "⭐️ PostAssist PRO (1 год)",
+        "sub_inv_desc_1m": "Полные PRO-возможности на 1 месяц",
+        "sub_inv_desc_3m": "Полные PRO-возможности на 3 месяца",
+        "sub_inv_desc_1y": "Полные PRO-возможности на 1 год (со скидкой)",
+        "sub_invalid_plan": "❌ Выбран неверный тариф.",
+        "sub_invoice_error": "⚠️ Ошибка при открытии окна оплаты. Пожалуйста, попробуйте ещё раз.",
+        "sub_promo_ask": (
+            "🎁 <b>Введите промокод:</b>\n\n"
+            "Напишите промокод или нажмите кнопку «{back}»."
+        ),
+        "sub_promo_success": "✅ <b>{msg}</b>\n\nНовые возможности тарифа активированы!",
+        "sub_promo_fail": "❌ <b>{msg}</b>\n\nПопробуйте ещё раз или нажмите кнопку «{back}».",
+        "sub_pro_granted": (
+            "🎉 <b>Поздравляем!</b>\n\n"
+            "Вам предоставлен <b>PRO-тариф на {days} дн.</b>!\n"
+            "Вы можете пользоваться всеми PRO-возможностями."
+        ),
+        "sub_pay_activate_error": (
+            "⚠️ Оплата получена, но при активации тарифа произошла ошибка.\n"
+            "Пожалуйста, свяжитесь с администратором."
+        ),
+        "sub_pay_duplicate": "✅ Этот платёж уже был обработан. Ваш PRO-тариф уже активен.",
+        "sub_pay_success": (
+            "🎉 <b>Оплата прошла успешно!</b>\n\n"
+            "⭐️ Получено {stars} Stars.\n"
+            "📅 <b>PRO-тариф на {days} дн.</b> активирован!\n\n"
+            "Вы можете пользоваться всеми PRO-возможностями:\n"
+            "• Безлимитные каналы\n"
+            "• Безлимитный ИИ\n"
+            "• Полная аналитика"
+        ),
+        "sub_pay_err_payload": "Неверный payload платежа.",
+        "sub_pay_err_user": "Платёж не соответствует пользователю.",
+        "sub_pay_err_user_id": "Неверный ID пользователя.",
+        "sub_pay_err_plan": "Неверный тариф.",
+        "sub_pay_err_currency": "Неверная валюта платежа.",
+        "sub_pay_err_amount": "Сумма платежа не соответствует тарифу.",
+        "sub_pay_err_amount_bad": "Неверная сумма платежа.",
+        "sub_pay_err_incomplete": "Реквизиты платежа неполные.",
+        "sub_pay_err_bad_request": "Неверный запрос платежа.",
+
+        # --- Аналитика (analytics) ---
+        "an_all_channels": "Все каналы",
+        "an_btn_all": "📊 Все каналы",
+        "an_btn_other": "📢 Другой канал",
+        "an_btn_refresh": "🔄 Обновить",
+        "an_refreshing": "🔄 Обновляю...",
+        "an_free_hint": (
+            "📊 <b>Аналитика</b>\n\n"
+            "📌 На тарифе Free показывается статистика за последние <b>7 дней</b>.\n"
+            "⭐️ На тарифе <b>PRO</b> открывается полная аналитика (30 дней, все посты, самые активные часы)!"
+        ),
+        "an_no_channels": (
+            "⚠️ <b>У вас пока нет подключённых каналов.</b>\n\n"
+            "Чтобы посмотреть статистику, сначала подключите канал."
+        ),
+        "an_choose": "📊 <b>Аналитика и статистика</b>\n\nСтатистику какого канала показать?",
+        "an_choose_short": "📊 <b>Статистику какого канала показать?</b>",
+        "an_channel_fallback": "Канал",
+        "an_dash_header": "📊 <b>{channel}</b> — Статистика канала",
+        "an_dash_div": "━━━━━━━━━━━━━━━━━",
+        "an_dash_empty": (
+            "📊 <b>{channel}</b> — Статистика канала\n"
+            "━━━━━━━━━━━━━━━━━\n\n"
+            "📭 <b>Постов пока не было.</b>\n\n"
+            "Запланируйте свой первый пост и следите за статистикой здесь!\n"
+            "━━━━━━━━━━━━━━━━━"
+        ),
+        "an_dash_7d": "📤 За последние 7 дней: <b>{n}</b> пост.",
+        "an_dash_30d": "📦 За последние 30 дней: <b>{n}</b> пост.",
+        "an_dash_all": "📋 Всего выпущено: <b>{n}</b> пост.",
+        "an_dash_pending": "⏳ Ожидают в очереди: <b>{n}</b> пост.",
+        "an_dash_peak": "🕒 Самое активное время: <b>{hours}</b>",
+        "an_dash_types": "📁 Типы постов: {types}",
+        "an_dash_no_data": "Нет данных",
+        "an_type_text": "Текст",
+        "an_type_photo": "Фото",
+        "an_type_video": "Видео",
+        "an_type_document": "Документ",
+        "an_type_audio": "Аудио",
+        "an_type_animation": "GIF",
+        "an_type_album": "Альбом",
     },
 }
 
@@ -3166,6 +3687,44 @@ def get_text(key, lang=DEFAULT_LANG, **kwargs) -> str:
                     except (KeyError, IndexError, ValueError, TypeError, AttributeError):
                         pass
     return text
+
+
+def safe_t(key, lang=DEFAULT_LANG, **kwargs) -> str:
+    """Xavfsiz tarjima — HECH QACHON istisno (exception) bermaydi.
+
+    Fallback zanjiri: ``lang`` → ``uz`` (``DEFAULT_LANG``) → kalit nomi.
+    ``get_text()`` ning mustahkamlangan o'rami: kutilmagan xatolikda ham
+    (masalan, lug'at buzilgan bo'lsa) kalit nomi (yoki bo'sh satr)
+    qaytariladi — handler hech qachon qulamaydi.
+    """
+    try:
+        return get_text(key, lang, **kwargs)
+    except Exception:
+        try:
+            if key is None:
+                return ""
+            return key if isinstance(key, str) else str(key)
+        except Exception:
+            return ""
+
+
+def is_main_menu_text(text) -> bool:
+    """Matn biror tildagi «Asosiy menyu» tugmasi matniga mosmi?
+
+    ConversationHandler'larning bekor/orqaga tekshiruvlarida ishlatiladi:
+    foydalanuvchi RU/EN tanlagan bo'lsa ham menyu tugmasi to'g'ri
+    taniladi (avval faqat UZ matnlar tekshirilardi).
+    """
+    if not text or not isinstance(text, str):
+        return False
+    needle = text.strip()
+    for code in SUPPORTED_LANGS:
+        table = TRANSLATIONS.get(code) or {}
+        btn = table.get("btn_main_menu")
+        if isinstance(btn, str) and needle == btn.strip():
+            return True
+    # Eski oqimlardagi «🔙 Orqaga» varianti (orqaga moslik uchun).
+    return needle in ("🔙 Orqaga",)
 
 
 # ---------------------------------------------------------------------------
@@ -3277,6 +3836,14 @@ DB_MESSAGE_TRANSLATIONS = {
             "⚠️ <b>Правило безопасности:</b> новые пользователи могут "
             "переводить баллы другим <b>через 3 дня</b> после регистрации."
         ),
+        # Promo-kod xabarlari (services/promo_service.py).
+        "Promo-kod kiritilmadi.": "Промокод не введён.",
+        "Promo-kod topilmadi.": "Промокод не найден.",
+        "Bu promo-kod o'chirilgan.": "Этот промокод отключён.",
+        "Bu promo-kod muddati o'tgan.": "Срок действия этого промокода истёк.",
+        "Bu promo-kod ishlatib bo'lingan.": "Этот промокод уже использован.",
+        "Siz bu promo-kodni avval ishlatgansiz.": "Вы уже использовали этот промокод.",
+        "Xatolik yuz berdi.": "Произошла ошибка.",
     },
     "en": {
         "Foydalanuvchi topilmadi.": "User not found.",
@@ -3303,19 +3870,418 @@ DB_MESSAGE_TRANSLATIONS = {
             "⚠️ <b>Security rule:</b> newly registered users can transfer credits to others "
             "<b>after 3 days</b>."
         ),
+        # Promo-kod xabarlari (services/promo_service.py).
+        "Promo-kod kiritilmadi.": "No promo code entered.",
+        "Promo-kod topilmadi.": "Promo code not found.",
+        "Bu promo-kod o'chirilgan.": "This promo code is disabled.",
+        "Bu promo-kod muddati o'tgan.": "This promo code has expired.",
+        "Bu promo-kod ishlatib bo'lingan.": "This promo code has already been used.",
+        "Siz bu promo-kodni avval ishlatgansiz.": "You have already used this promo code.",
+        "Xatolik yuz berdi.": "An error occurred.",
     },
 }
+
+
+# Dinamik DB xabarlari uchun regex andozalar:
+# (pattern, ru_shablon, en_shablon). Guruhlar ``{g1}``, ``{g2}`` ... orqali
+# shablonga qo'yiladi. Masalan promo muvaffaqiyat xabari:
+# ``"Promo-kod faollashtirildi! 30 kunlik PRO tarif yoqildi."``
+DB_MESSAGE_PATTERNS = [
+    (
+        r"^Promo-kod faollashtirildi! (\d+) kunlik (.+) tarif yoqildi\.$",
+        "Промокод активирован! Тариф {g2} на {g1} дн. включён.",
+        "Promo code activated! The {g2} plan for {g1} days is enabled.",
+    ),
+]
 
 
 def localize_db_message(message, lang="uz") -> str:
     """DB dan kelgan tayyor xabarni foydalanuvchi tiliga o'giradi.
 
-    Tarjima topilmasa (yoki til o'zbekcha bo'lsa) asl matn qaytariladi.
+    Avval aniq moslik (``DB_MESSAGE_TRANSLATIONS``), keyin dinamik
+    andozalar (``DB_MESSAGE_PATTERNS``) sinaladi. Tarjima topilmasa
+    (yoki til o'zbekcha bo'lsa) asl matn qaytariladi.
     """
     if message is None:
         return ""
     text = str(message)
-    if normalize_lang(lang) == DEFAULT_LANG:
+    code = normalize_lang(lang)
+    if code == DEFAULT_LANG:
         return text
-    table = DB_MESSAGE_TRANSLATIONS.get(normalize_lang(lang)) or {}
-    return table.get(text.strip(), text)
+    table = DB_MESSAGE_TRANSLATIONS.get(code) or {}
+    hit = table.get(text.strip())
+    if hit is not None:
+        return hit
+    for pattern, ru_tpl, en_tpl in DB_MESSAGE_PATTERNS:
+        try:
+            m = re.match(pattern, text.strip(), re.DOTALL)
+        except re.error:
+            continue
+        if m:
+            tpl = ru_tpl if code == "ru" else en_tpl
+            try:
+                return tpl.format(
+                    **{f"g{i + 1}": g for i, g in enumerate(m.groups())}
+                )
+            except (KeyError, IndexError, ValueError):
+                return text
+    return text
+
+
+# --- AI/servis qatlamidan qaytadigan xatoliklar tarjimalari ---
+# ``utils/ai_agent.py`` va ``utils/channel_reader.py`` funksiyalari
+# ``{"error": "..."}`` ko'rinishida o'zbekcha xabar qaytaradi; handler'lar
+# uni bevosita ko'rsatadi. Bu lug'at + prefiks qoidalari RU/EN
+# foydalanuvchilarga o'z tilidagi xabarni ko'rsatadi. Texnik tafsilot
+# (``{e}``) saqlanib qoladi — faqat o'zbekcha o'ram tarjima qilinadi.
+SERVICE_ERROR_TRANSLATIONS = {
+    "ru": {
+        "Matn bo'sh.": "Текст пуст.",
+        "Javob formati noto'g'ri": "Неверный формат ответа",
+        "⚠️ AI javobi bo'sh qaytdi. Asl matningiz saqlab qolindi.": (
+            "⚠️ ИИ вернул пустой ответ. Ваш исходный текст сохранён."
+        ),
+        "⚠️ Kanal postlari tarixi bo'sh — uslubni tahlil qilib bo'lmadi.": (
+            "⚠️ История постов канала пуста — не удалось проанализировать стиль."
+        ),
+        "⚠️ AI xizmatida vaqtinchalik uzilish. Qaytadan urinib ko'ring.": (
+            "⚠️ Временный сбой сервиса ИИ. Попробуйте ещё раз."
+        ),
+        "⚠️ AI kanal uslubini aniqlay olmadi. Qaytadan urinib ko'ring.": (
+            "⚠️ ИИ не смог определить стиль канала. Попробуйте ещё раз."
+        ),
+        "⚠️ Mavzu kiritilmadi.": "⚠️ Тема не введена.",
+        "⚠️ AI reja tuza olmadi. Qaytadan urinib ko'ring.": (
+            "⚠️ ИИ не смог составить план. Попробуйте ещё раз."
+        ),
+        "⚠️ AI post matni tayyorlay olmadi.": (
+            "⚠️ ИИ не смог подготовить текст поста."
+        ),
+        "⚠️ Post matni bo'sh.": "⚠️ Текст поста пуст.",
+        "⚠️ AI rasmni tahlil qila olmadi (bo'sh javob). Iltimos, qayta urinib ko'ring.": (
+            "⚠️ ИИ не смог проанализировать изображение (пустой ответ). "
+            "Пожалуйста, попробуйте ещё раз."
+        ),
+        "🚫 Kechirasiz, bu rasm kontent xavfsizligi talablariga mos kelmaydi. Iltimos, boshqa rasm yuboring.": (
+            "🚫 Извините, это изображение не соответствует требованиям "
+            "безопасности контента. Пожалуйста, отправьте другое изображение."
+        ),
+        "🔑 Gemini API kaliti noto'g'ri yoki yaroqsiz. Iltimos, admin bilan bog'laning.": (
+            "🔑 Ключ Gemini API неверный или недействительный. "
+            "Пожалуйста, свяжитесь с администратором."
+        ),
+        "⏳ Gemini API hozircha band (rate limit / kvota). Iltimos, 1-2 daqiqa kuting va qayta urinib ko'ring.": (
+            "⏳ Gemini API сейчас занят (rate limit / квота). "
+            "Пожалуйста, подождите 1–2 минуты и попробуйте ещё раз."
+        ),
+        "🤖 Rasm tahlili modeli yangilanishi kerak (server sozlamasi). Iltimos, birozdan so'ng qayta urinib ko'ring yoki admin bilan bog'laning.": (
+            "🤖 Модель анализа изображений нуждается в обновлении (настройка сервера). "
+            "Пожалуйста, попробуйте позже или свяжитесь с администратором."
+        ),
+        "📦 Rasm hajmi juda katta. Iltimos, kichikroq rasm yuboring.": (
+            "📦 Изображение слишком большое. Пожалуйста, отправьте изображение поменьше."
+        ),
+        "🖼 Rasm formati qo'llab-quvvatlanmaydi. JPG, PNG yoki WEBP formatidagi rasm yuboring.": (
+            "🖼 Формат изображения не поддерживается. "
+            "Отправьте изображение в формате JPG, PNG или WEBP."
+        ),
+        "⏱ AI rasmni tahlil qilishda vaqt tugadi. Tarmoq holatini tekshirib, qayta urinib ko'ring.": (
+            "⏱ Время анализа изображения истекло. "
+            "Проверьте сеть и попробуйте ещё раз."
+        ),
+        "⚠️ AI javob bermadi.": "⚠️ ИИ не ответил.",
+        "⚠️ AI rasmni tahlil qila olmadi. Iltimos, birozdan so'ng qayta urinib ko'ring.": (
+            "⚠️ ИИ не смог проанализировать изображение. "
+            "Пожалуйста, попробуйте чуть позже."
+        ),
+        "⏳ <b>AI rasmni tahlil qilishga ulgurmadi.</b>\n\nServer hozir band ko'rinadi. Iltimos, bir daqiqadan so'ng qayta urinib ko'ring yoki kichikroq rasm yuboring. 🙏": (
+            "⏳ <b>ИИ не успел проанализировать изображение.</b>\n\n"
+            "Похоже, сервер сейчас занят. Пожалуйста, попробуйте через минуту "
+            "или отправьте изображение поменьше. 🙏"
+        ),
+        "🖼 Bu fayl rasm emas yoki formati qo'llab-quvvatlanmaydi. JPG, PNG yoki WEBP yuboring.": (
+            "🖼 Этот файл — не изображение или его формат не поддерживается. "
+            "Отправьте JPG, PNG или WEBP."
+        ),
+        "🔑 Rasm tahlili uchun Gemini API kaliti kerak: <b>GEMINI_API_KEY</b> o'rnatilmagan. Iltimos, keyinroq qayta urinib ko'ring.": (
+            "🔑 Для анализа изображений нужен ключ Gemini API: "
+            "<b>GEMINI_API_KEY</b> не установлен. Пожалуйста, попробуйте позже."
+        ),
+        "⚠️ BOT_TOKEN topilmadi — rasmni yuklab bo'lmadi.": (
+            "⚠️ BOT_TOKEN не найден — не удалось загрузить изображение."
+        ),
+        "⚠️ Rasmni yuklab bo'lmadi. Iltimos, qayta urinib ko'ring.": (
+            "⚠️ Не удалось загрузить изображение. Пожалуйста, попробуйте ещё раз."
+        ),
+        "⚠️ Rasm fayli bo'sh. Boshqa rasm yuboring.": (
+            "⚠️ Файл изображения пуст. Отправьте другое изображение."
+        ),
+        "⚠️ Rasm faylini topib bo'lmadi. Rasmni qaytadan yuboring.": (
+            "⚠️ Не удалось найти файл изображения. Отправьте фото ещё раз."
+        ),
+        "⚠️ Rasm faylini o'qib bo'lmadi. Rasmni qaytadan yuboring.": (
+            "⚠️ Не удалось прочитать файл изображения. Отправьте фото ещё раз."
+        ),
+        "⚠️ Sayt manzili bo'sh.": "⚠️ Адрес сайта пуст.",
+        "⚠️ Noto'g'ri sayt manzili. Qaytadan kiriting.": (
+            "⚠️ Неверный адрес сайта. Введите заново."
+        ),
+        "⚠️ Bu Telegram havolasi. Iltimos, oddiy sayt manzilini yuboring.": (
+            "⚠️ Это ссылка Telegram. Пожалуйста, отправьте обычный адрес сайта."
+        ),
+        "⚠️ Saytga ulanib bo'lmadi. Manzilni tekshirib, qayta yuboring.": (
+            "⚠️ Не удалось подключиться к сайту. Проверьте адрес и отправьте снова."
+        ),
+        "⚠️ Bu havola matnli sahifa emas (rasm/fayl). Matnli sahifa havolasini yuboring.": (
+            "⚠️ Эта ссылка — не текстовая страница (фото/файл). "
+            "Отправьте ссылку на текстовую страницу."
+        ),
+        "⚠️ Saytdan matn o'qib bo'lmadi. Boshqa havolani urinib ko'ring.": (
+            "⚠️ Не удалось прочитать текст с сайта. Попробуйте другую ссылку."
+        ),
+    },
+    "en": {
+        "Matn bo'sh.": "Text is empty.",
+        "Javob formati noto'g'ri": "Invalid response format",
+        "⚠️ AI javobi bo'sh qaytdi. Asl matningiz saqlab qolindi.": (
+            "⚠️ AI returned an empty reply. Your original text was kept."
+        ),
+        "⚠️ Kanal postlari tarixi bo'sh — uslubni tahlil qilib bo'lmadi.": (
+            "⚠️ Channel post history is empty — could not analyze the style."
+        ),
+        "⚠️ AI xizmatida vaqtinchalik uzilish. Qaytadan urinib ko'ring.": (
+            "⚠️ Temporary AI service outage. Please try again."
+        ),
+        "⚠️ AI kanal uslubini aniqlay olmadi. Qaytadan urinib ko'ring.": (
+            "⚠️ AI could not detect the channel style. Please try again."
+        ),
+        "⚠️ Mavzu kiritilmadi.": "⚠️ No topic entered.",
+        "⚠️ AI reja tuza olmadi. Qaytadan urinib ko'ring.": (
+            "⚠️ AI could not build the plan. Please try again."
+        ),
+        "⚠️ AI post matni tayyorlay olmadi.": (
+            "⚠️ AI could not prepare the post text."
+        ),
+        "⚠️ Post matni bo'sh.": "⚠️ Post text is empty.",
+        "⚠️ AI rasmni tahlil qila olmadi (bo'sh javob). Iltimos, qayta urinib ko'ring.": (
+            "⚠️ AI could not analyze the image (empty reply). Please try again."
+        ),
+        "🚫 Kechirasiz, bu rasm kontent xavfsizligi talablariga mos kelmaydi. Iltimos, boshqa rasm yuboring.": (
+            "🚫 Sorry, this image does not meet content safety requirements. "
+            "Please send another image."
+        ),
+        "🔑 Gemini API kaliti noto'g'ri yoki yaroqsiz. Iltimos, admin bilan bog'laning.": (
+            "🔑 The Gemini API key is invalid. Please contact the admin."
+        ),
+        "⏳ Gemini API hozircha band (rate limit / kvota). Iltimos, 1-2 daqiqa kuting va qayta urinib ko'ring.": (
+            "⏳ Gemini API is busy right now (rate limit / quota). "
+            "Please wait 1–2 minutes and try again."
+        ),
+        "🤖 Rasm tahlili modeli yangilanishi kerak (server sozlamasi). Iltimos, birozdan so'ng qayta urinib ko'ring yoki admin bilan bog'laning.": (
+            "🤖 The image analysis model needs an update (server setting). "
+            "Please try again later or contact the admin."
+        ),
+        "📦 Rasm hajmi juda katta. Iltimos, kichikroq rasm yuboring.": (
+            "📦 The image is too large. Please send a smaller image."
+        ),
+        "🖼 Rasm formati qo'llab-quvvatlanmaydi. JPG, PNG yoki WEBP formatidagi rasm yuboring.": (
+            "🖼 Image format not supported. Send an image in JPG, PNG or WEBP format."
+        ),
+        "⏱ AI rasmni tahlil qilishda vaqt tugadi. Tarmoq holatini tekshirib, qayta urinib ko'ring.": (
+            "⏱ Image analysis timed out. Check your connection and try again."
+        ),
+        "⚠️ AI javob bermadi.": "⚠️ AI did not respond.",
+        "⚠️ AI rasmni tahlil qila olmadi. Iltimos, birozdan so'ng qayta urinib ko'ring.": (
+            "⚠️ AI could not analyze the image. Please try again shortly."
+        ),
+        "⏳ <b>AI rasmni tahlil qilishga ulgurmadi.</b>\n\nServer hozir band ko'rinadi. Iltimos, bir daqiqadan so'ng qayta urinib ko'ring yoki kichikroq rasm yuboring. 🙏": (
+            "⏳ <b>AI did not manage to analyze the image in time.</b>\n\n"
+            "The server seems busy right now. Please try again in a minute "
+            "or send a smaller image. 🙏"
+        ),
+        "🖼 Bu fayl rasm emas yoki formati qo'llab-quvvatlanmaydi. JPG, PNG yoki WEBP yuboring.": (
+            "🖼 This file is not an image or its format is not supported. "
+            "Send JPG, PNG or WEBP."
+        ),
+        "🔑 Rasm tahlili uchun Gemini API kaliti kerak: <b>GEMINI_API_KEY</b> o'rnatilmagan. Iltimos, keyinroq qayta urinib ko'ring.": (
+            "🔑 Image analysis needs a Gemini API key: "
+            "<b>GEMINI_API_KEY</b> is not set. Please try again later."
+        ),
+        "⚠️ BOT_TOKEN topilmadi — rasmni yuklab bo'lmadi.": (
+            "⚠️ BOT_TOKEN not found — could not download the image."
+        ),
+        "⚠️ Rasmni yuklab bo'lmadi. Iltimos, qayta urinib ko'ring.": (
+            "⚠️ Could not download the image. Please try again."
+        ),
+        "⚠️ Rasm fayli bo'sh. Boshqa rasm yuboring.": (
+            "⚠️ The image file is empty. Send another image."
+        ),
+        "⚠️ Rasm faylini topib bo'lmadi. Rasmni qaytadan yuboring.": (
+            "⚠️ Could not find the image file. Please resend the photo."
+        ),
+        "⚠️ Rasm faylini o'qib bo'lmadi. Rasmni qaytadan yuboring.": (
+            "⚠️ Could not read the image file. Please resend the photo."
+        ),
+        "⚠️ Sayt manzili bo'sh.": "⚠️ Site address is empty.",
+        "⚠️ Noto'g'ri sayt manzili. Qaytadan kiriting.": (
+            "⚠️ Invalid site address. Please re-enter."
+        ),
+        "⚠️ Bu Telegram havolasi. Iltimos, oddiy sayt manzilini yuboring.": (
+            "⚠️ This is a Telegram link. Please send a regular site address."
+        ),
+        "⚠️ Saytga ulanib bo'lmadi. Manzilni tekshirib, qayta yuboring.": (
+            "⚠️ Could not connect to the site. Check the address and resend."
+        ),
+        "⚠️ Bu havola matnli sahifa emas (rasm/fayl). Matnli sahifa havolasini yuboring.": (
+            "⚠️ This link is not a text page (image/file). Send a text-page link."
+        ),
+        "⚠️ Saytdan matn o'qib bo'lmadi. Boshqa havolani urinib ko'ring.": (
+            "⚠️ Could not read text from the site. Try another link."
+        ),
+    },
+}
+
+# Texnik tafsilot (``{e}``) bilan keladigan xatoliklar — prefiks bo'yicha
+# moslik: (uz_prefiks, ru_prefiks, en_prefiks). Qolgan qism o'zgarmaydi.
+# TARTIB MUHIM: uzunroq (aniqroq) prefikslar birinchi turishi shart.
+SERVICE_ERROR_PREFIXES = [
+    (
+        "⚠️ AI xizmatida vaqtinchalik uzilish. Asl matningiz saqlab qolindi.",
+        "⚠️ Временный сбой сервиса ИИ. Ваш исходный текст сохранён.",
+        "⚠️ Temporary AI service outage. Your original text was kept.",
+    ),
+    (
+        "⚠️ AI xizmatida vaqtinchalik uzilish.",
+        "⚠️ Временный сбой сервиса ИИ.",
+        "⚠️ Temporary AI service outage.",
+    ),
+    (
+        "⚠️ AI xizmatida xatolik yuz berdi:",
+        "⚠️ Ошибка сервиса ИИ:",
+        "⚠️ AI service error:",
+    ),
+    (
+        "Audit xizmatida vaqtinchalik xatolik:",
+        "Временная ошибка сервиса аудита:",
+        "Temporary audit service error:",
+    ),
+    (
+        "Noma'lum harakat:",
+        "Неизвестное действие:",
+        "Unknown action:",
+    ),
+]
+
+# Dinamik servis xatoliklari uchun regex andozalar:
+# (pattern, ru_shablon, en_shablon).
+SERVICE_ERROR_PATTERNS = [
+    (
+        r"^⚠️ AI rasmni tahlil qila olmadi \(Gemini: HTTP ([^)]+)\)\. "
+        r"Iltimos, birozdan so'ng qayta urinib ko'ring\.$",
+        "⚠️ ИИ не смог проанализировать изображение (Gemini: HTTP {g1}). "
+        "Пожалуйста, попробуйте чуть позже.",
+        "⚠️ AI could not analyze the image (Gemini: HTTP {g1}). "
+        "Please try again shortly.",
+    ),
+    (
+        r"^⚠️ Sayt javob bermadi \(HTTP (\d+)\)\. "
+        r"Manzilni tekshirib, qayta yuboring\.$",
+        "⚠️ Сайт не отвечает (HTTP {g1}). Проверьте адрес и отправьте снова.",
+        "⚠️ The site did not respond (HTTP {g1}). Check the address and resend.",
+    ),
+    (
+        r"^Audit xizmatida vaqtinchalik xatolik: (.+)\. Qaytadan urinib ko'ring\.$",
+        "Временная ошибка сервиса аудита: {g1}. Попробуйте ещё раз.",
+        "Temporary audit service error: {g1}. Please try again.",
+    ),
+    (
+        r"^⚠️ Rasmni yuklab bo'lmadi \(server HTTP (\d+)\)\.$",
+        "⚠️ Не удалось загрузить изображение (сервер HTTP {g1}).",
+        "⚠️ Could not download the image (server HTTP {g1}).",
+    ),
+    (
+        r"^📦 Rasm hajmi (.+) MB dan oshib ketdi\. Iltimos, kichikroq rasm yuboring\.$",
+        "📦 Размер изображения превышает {g1} МБ. "
+        "Пожалуйста, отправьте изображение поменьше.",
+        "📦 The image exceeds {g1} MB. Please send a smaller image.",
+    ),
+    (
+        r"^📦 Rasm hajmi (.+) MB dan oshib ketdi — kichikroq rasm yuboring\.$",
+        "📦 Размер изображения превышает {g1} МБ — отправьте изображение поменьше.",
+        "📦 The image exceeds {g1} MB — send a smaller image.",
+    ),
+]
+
+
+def _localize_ai_timeout(text: str, lang: str):
+    """AI timeout xabari (``AI_TIMEOUT_USER_MESSAGE``) ni tarjima qiladi.
+
+    Xabar ichidagi soniya qiymati regex orqali ajratib olinadi, shuning
+    uchun ``utils.ai_agent`` ga import (va aylanma bog'liqlik) kerak emas.
+    Timeout xabari bo'lmasa ``None`` qaytaradi.
+    """
+    marker = "AI xizmati hozir javob bermayapti"
+    if marker not in text:
+        return None
+    try:
+        m = re.search(r"So'rov (\d+) soniyada yakunlanmadi", text)
+        secs = m.group(1) if m else "…"
+    except re.error:
+        secs = "…"
+    if normalize_lang(lang) == "ru":
+        return (
+            "⏳ <b>Сервис ИИ сейчас не отвечает.</b>\n\n"
+            f"Запрос не завершился за {secs} секунд — возможно, сервер "
+            "загружен или соединение медленное.\n\n"
+            "Пожалуйста, попробуйте ещё раз через минуту. "
+            "Ваш текст сохранён. 🙏"
+        )
+    return (
+        "⏳ <b>The AI service is not responding right now.</b>\n\n"
+        f"The request did not finish in {secs} seconds — the server "
+        "may be busy or the connection is slow.\n\n"
+        "Please try again in a minute. Your text was saved. 🙏"
+    )
+
+
+def localize_service_error(error, lang="uz") -> str:
+    """AI/servis qatlamidan kelgan xatolikni foydalanuvchi tiliga o'giradi.
+
+    Moslik topilmasa (yoki til o'zbekcha bo'lsa) asl matn qaytariladi —
+    hech qanday xabar yo'qolmaydi. Texnik tafsilotlar (``{e}``) saqlanadi.
+    """
+    if error is None:
+        return ""
+    text = str(error)
+    code = normalize_lang(lang)
+    if code == DEFAULT_LANG:
+        return text
+    stripped = text.strip()
+    table = SERVICE_ERROR_TRANSLATIONS.get(code) or {}
+    hit = table.get(stripped)
+    if hit is not None:
+        return hit
+    # Regex andozalar prefiksdan oldin: aniqroq moslik ustun turadi
+    # (masalan, Audit xatoligining dumidagi «Qaytadan urinib ko'ring»
+    # ham tarjima qilinadi).
+    for pattern, ru_tpl, en_tpl in SERVICE_ERROR_PATTERNS:
+        try:
+            m = re.match(pattern, stripped, re.DOTALL)
+        except re.error:
+            continue
+        if m:
+            tpl = ru_tpl if code == "ru" else en_tpl
+            try:
+                return tpl.format(
+                    **{f"g{i + 1}": g for i, g in enumerate(m.groups())}
+                )
+            except (KeyError, IndexError, ValueError):
+                return text
+    for uz_prefix, ru_prefix, en_prefix in SERVICE_ERROR_PREFIXES:
+        if stripped.startswith(uz_prefix):
+            rest = stripped[len(uz_prefix):]
+            return (ru_prefix if code == "ru" else en_prefix) + rest
+    timeout_hit = _localize_ai_timeout(stripped, code)
+    if timeout_hit is not None:
+        return timeout_hit
+    return text
