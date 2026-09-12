@@ -162,6 +162,10 @@ TRANSLATIONS = {
             "✅ Chekingiz qabul qilindi va adminga yuborildi. "
             "Tez orada tekshirib PRO faollashtiriladi."
         ),
+        "receipt_save_error": (
+            "⚠️ Chekni saqlashda xatolik yuz berdi. "
+            "Iltimos, qayta yuboring."
+        ),
         "receipt_admin_title": "💳 <b>Yangi to'lov cheki!</b>",
         "receipt_admin_user_line": "👤 Foydalanuvchi: {name} (@{username})",
         "receipt_admin_user_nick_line": "👤 Foydalanuvchi: {name}",
@@ -1464,6 +1468,25 @@ TRANSLATIONS = {
             "⚠️ <b>Kutilmagan xatolik yuz berdi.</b>\n"
             "Iltimos, birozdan so'ng qayta urinib ko'ring yoki /start bosing."
         ),
+        # 🌐 Qisqa toast-xabarlar — callback throttle/rate-limit va eskirgan
+        # menyu fallbacklari uchun (avval qotirib yozilgan o'zbekcha edi).
+        "sys_error_short": "⚠️ Xatolik yuz berdi",
+        "sys_wait_short": "⏳ Iltimos, kuting...",
+        "admin_only_cmd": "❌ Bu buyruqni faqat admin ishlata oladi.",
+        "np_callback_wait": "⏳ Jarayon bajarilmoqda, iltimos kuting...",
+        "noop_channel_info": (
+            "Bu ma'lumot tugmasi. Kanalni o'chirish uchun yonidagi "
+            "❌ tugmasini bosing."
+        ),
+        "ai_menu_stale": (
+            "⚠️ <b>Bu menyu eskirgan.</b>\n"
+            "Davom etish uchun ✨ AI Studio tugmasini qaytadan bosing."
+        ),
+        "ai_photo_stale": (
+            "⚠️ <b>Bu menyu eskirgan.</b>\n"
+            "Rasmdan post yaratish uchun ✨ AI Studio → 🖼 Rasmdan post "
+            "yaratish bo'limini qaytadan tanlang."
+        ),
         "conv_timeout_msg": (
             "⏰ <b>Suhbat muddat tugash sababli yakunlandi.</b>\n"
             "Asosiy menyuga qaytdingiz. Kerakli bo'limni qaytadan tanlang 👇"
@@ -1976,6 +1999,9 @@ TRANSLATIONS = {
         "receipt_saved": (
             "✅ Ваш чек получен и отправлен администратору. "
             "Вскоре мы проверим его и активируем PRO."
+        ),
+        "receipt_save_error": (
+            "⚠️ Не удалось сохранить чек. Пожалуйста, отправьте его ещё раз."
         ),
         "receipt_admin_title": "💳 <b>Новый платёжный чек!</b>",
         "receipt_admin_user_line": "👤 Пользователь: {name} (@{username})",
@@ -3291,6 +3317,24 @@ TRANSLATIONS = {
             "⚠️ <b>Произошла непредвиденная ошибка.</b>\n"
             "Пожалуйста, попробуйте ещё раз чуть позже или нажмите /start."
         ),
+        # 🌐 Короткие toast-сообщения (callback throttle / устаревшие меню).
+        "sys_error_short": "⚠️ Произошла ошибка",
+        "sys_wait_short": "⏳ Пожалуйста, подождите...",
+        "admin_only_cmd": "❌ Эту команду может использовать только администратор.",
+        "np_callback_wait": "⏳ Идёт обработка, пожалуйста, подождите...",
+        "noop_channel_info": (
+            "Это информационная кнопка. Чтобы удалить канал, нажмите "
+            "соседнюю кнопку ❌."
+        ),
+        "ai_menu_stale": (
+            "⚠️ <b>Это меню устарело.</b>\n"
+            "Чтобы продолжить, нажмите кнопку ✨ AI Studio ещё раз."
+        ),
+        "ai_photo_stale": (
+            "⚠️ <b>Это меню устарело.</b>\n"
+            "Чтобы создать пост из изображения, выберите ✨ AI Studio → "
+            "🖼 Создать пост из изображения ещё раз."
+        ),
         "conv_timeout_msg": (
             "⏰ <b>Диалог завершён по истечении времени.</b>\n"
             "Вы вернулись в главное меню. Выберите нужный раздел заново 👇"
@@ -4023,9 +4067,9 @@ def translation_format_report(langs=SUPPORTED_LANGS, reference: str = DEFAULT_LA
 # ``services/ai_service.py`` aynan shu lug'atni ishlatadi — natijada prompt
 # matni va testlar hech qachon bir-biridan chetga chiqmaydi.
 AI_LANGUAGE_RULES = {
-    "uz": "Barcha tahlil, post va tavsiyalarni FAQAT O'ZBEK TILIDA taqdim et.",
-    "ru": "Все ответы, посты и рекомендации пиши СТРОГО НА РУССКОМ ЯЗЫКЕ.",
-    "en": "Provide all analysis, posts, and recommendations STRICTLY IN ENGLISH.",
+    "uz": "Barcha tahlil, post, reja va tavsiyalarni FAQAT O'ZBEK TILIDA yoz.",
+    "ru": "Все ответы, посты, контент-планы и рекомендации пиши СТРОГО НА РУССКОМ ЯЗЫКЕ.",
+    "en": "Provide all analysis, posts, content plans, and recommendations STRICTLY IN ENGLISH.",
 }
 
 #: Tilga xos "aralashtirma" ogohlantiruvi (prompt ichidagi qat'iy blok uchun).

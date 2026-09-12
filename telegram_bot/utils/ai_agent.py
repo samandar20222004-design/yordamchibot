@@ -41,9 +41,9 @@ try:  # pragma: no cover - import himoyasi
     )
 except Exception:  # pragma: no cover - zaxira (fallback)
     AI_LANGUAGE_RULES = {
-        "uz": "Barcha tahlil, post va tavsiyalarni FAQAT O'ZBEK TILIDA taqdim et.",
-        "ru": "Все ответы, посты и рекомендации пиши СТРОГО НА РУССКОМ ЯЗЫКЕ.",
-        "en": "Provide all analysis, posts, and recommendations STRICTLY IN ENGLISH.",
+        "uz": "Barcha tahlil, post, reja va tavsiyalarni FAQAT O'ZBEK TILIDA yoz.",
+        "ru": "Все ответы, посты, контент-планы и рекомендации пиши СТРОГО НА РУССКОМ ЯЗЫКЕ.",
+        "en": "Provide all analysis, posts, content plans, and recommendations STRICTLY IN ENGLISH.",
     }
     AI_LANGUAGE_GUARDS = {
         "uz": (
@@ -186,6 +186,17 @@ _UZ_LANGUAGE_PATTERNS = (
     r"^[ \t]*[•\-–*]\s*Javob.*O'ZBEK tilida.*$",
     r"^[ \t]*[•\-–*]\s*Javob.*O'zbek tilida.*$",
     r"^[ \t]*[•\-–*]\s*muloyim O'ZBEK tilida javob yozing\..*$",
+    # Belgisiz (bullet'siz) va qator o'rtasidagi shakllar — caller
+    # tomonidan berilgan custom tizim promptida "faqat o'zbekcha" qoidasi
+    # oddiy gap sifatida kelganda ham RU/EN so'roviga aralashib ketmasligi
+    # kerak. Naqshlar JUDA aniq (to'liq ibora) — faqat shu ibora olib
+    # tashlanadi, qolgan matnga tegilmaydi.
+    r"Barcha javoblar O'[Zz][Bb][Ee][Kk] tilida bo'lishi SHART\.?",
+    r"Barcha javoblar O'zbek tilida bo'lishi shart\.?",
+    r"Barcha tahlil, post va tavsiyalarni FAQAT O'ZBEK TILIDA[^.\n]*\.",
+    r"Sarlavha va hashtaglar O'zbek tilida bo'lsin\.?",
+    r"Javoblarni FAQAT O'[Zz][Bb][Ee][Kk] tilida[^.\n]*\.",
+    r"Javob FAQAT O'[Zz][Bb][Ee][Kk] tilida[^.\n]*\.",
 )
 _UZ_LANGUAGE_REGEXES = tuple(
     re.compile(p, re.IGNORECASE | re.MULTILINE) for p in _UZ_LANGUAGE_PATTERNS
@@ -1156,6 +1167,33 @@ def _router_i18n(lang) -> dict:
     return _ROUTER_I18N.get(normalize_ai_lang(lang)) or _ROUTER_I18N["uz"]
 
 
+#: Intent-router promptidagi "hozirgi hafta kuni" — foydalanuvchi TILIDA.
+#: Avval ``now_dt.strftime("%A")`` ishlatilgani uchun RU/EN promptiga
+#: "Saturday" (C-locale, inglizcha) aralashib ketardi — tizim prompti
+#: bir tildan iborat bo'lishi shart. Yagona manba —
+#: ``utils/date_format.WEEKDAY_NAMES``; import buzilsa zaxira jadval.
+try:  # pragma: no cover - import himoyasi
+    from utils.date_format import WEEKDAY_NAMES as _PROMPT_WEEKDAYS
+except Exception:  # pragma: no cover - zaxira (fallback)
+    _PROMPT_WEEKDAYS = {
+        "uz": ("Dushanba", "Seshanba", "Chorshanba", "Payshanba", "Juma",
+               "Shanba", "Yakshanba"),
+        "ru": ("Понедельник", "Вторник", "Среда", "Четверг", "Пятница",
+               "Суббота", "Воскресенье"),
+        "en": ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday",
+               "Saturday", "Sunday"),
+    }
+
+
+def _prompt_weekday_name(dt, lang) -> str:
+    """Hafta kuni nomi — foydalanuvchi tilida (hech qachon yiqilmaydi)."""
+    try:
+        names = _PROMPT_WEEKDAYS.get(normalize_ai_lang(lang)) or _PROMPT_WEEKDAYS["uz"]
+        return names[dt.weekday()]
+    except Exception:  # pragma: no cover - himoya
+        return dt.strftime("%A")
+
+
 def _get_router_system_instruction(is_pro: bool = False, lang: str = "uz") -> str:
     """Intent routing: har qanday xabarni 3 yo'nalishdan biriga ajratadi.
 
@@ -1173,7 +1211,7 @@ def _get_router_system_instruction(is_pro: bool = False, lang: str = "uz") -> st
     now_dt = datetime.now(tashkent_tz)
     now_str = now_dt.strftime("%Y-%m-%d %H:%M")
     current_year = now_dt.year
-    current_day = now_dt.strftime("%A")  # hafta kuni
+    current_day = _prompt_weekday_name(now_dt, code)  # hafta kuni (tilga mos)
 
     extra = (_RUNTIME_PARAMS.get("extra_context") or "").strip()
     extra_block = f"\n\n{t['extra'].format(extra=extra)}" if extra else ""

@@ -58,6 +58,12 @@ echo "====== REPLY TUGMA FILTRLARI (uz/ru/en) + SANA + PHOTO_CHECK ======"
 # foydalanuvchi tilida chiziladi va 📷 rasm moderatsiyasi ham tilga mos.
 "$PY" tests/reply_filters_i18n_dates_test.py || exit 1
 
+echo "========= UZ/RU/EN TO'LIQ PARITET AUDITI (i18n_full_parity) ========="
+# Yakuniy 3 tillik audit: lug'atlar pariteti (kalitlar + format argumentlari),
+# reply tugmalarining real routing'i (3 til → to'g'ri handler) va AI tizim
+# promptlariga til qat'iy birikishi (tests/i18n_full_parity_test.py).
+"$PY" tests/i18n_full_parity_test.py || exit 1
+
 echo "=============== NEW POST / AI STUDIO i18n TEST ==============="
 "$PY" tests/new_post_i18n_test.py || exit 1
 "$PY" tests/ai_studio_plan_i18n_test.py || exit 1

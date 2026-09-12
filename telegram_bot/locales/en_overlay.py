@@ -412,6 +412,9 @@ EN_OVERLAY = {
         "✅ Your receipt was received and sent to the admin. "
         "We will check it soon and activate PRO."
     ),
+    "receipt_save_error": (
+        "⚠️ Failed to save your receipt. Please send it again."
+    ),
     "receipt_bad_media": (
         "⚠️ Please send the receipt as a <b>photo</b> or a <b>PDF document</b>. "
         "Other files are not accepted as a receipt."
@@ -561,6 +564,24 @@ EN_OVERLAY = {
     "sys_unexpected_error": (
         "⚠️ <b>An unexpected error occurred.</b>\n"
         "Please try again a bit later or tap /start."
+    ),
+    # 🌐 Short toast messages (callback throttle / stale menu fallbacks).
+    "sys_error_short": "⚠️ An error occurred",
+    "sys_wait_short": "⏳ Please wait...",
+    "admin_only_cmd": "❌ This command can only be used by an administrator.",
+    "np_callback_wait": "⏳ Processing, please wait...",
+    "noop_channel_info": (
+        "This is an info button. To delete the channel, tap the ❌ button "
+        "next to it."
+    ),
+    "ai_menu_stale": (
+        "⚠️ <b>This menu is stale.</b>\n"
+        "To continue, tap the ✨ AI Studio button again."
+    ),
+    "ai_photo_stale": (
+        "⚠️ <b>This menu is stale.</b>\n"
+        "To create a post from an image, open ✨ AI Studio → 🖼 Post from "
+        "image again."
     ),
 
     # 🩺 PHASE 7: System health monitoring (/health — admins only)

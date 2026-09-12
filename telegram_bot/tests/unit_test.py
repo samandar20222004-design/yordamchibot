@@ -3219,9 +3219,18 @@ def test_guard_feedback_and_silent_blocking_fix():
     check("handlers: ENTRY_RATE_LIMIT_MAX import", "ENTRY_RATE_LIMIT_MAX" in src_h)
     check("handlers: NAV_RATE_LIMIT_MAX import", "NAV_RATE_LIMIT_MAX" in src_h)
     check("handlers: REACTION_RATE_LIMIT_MAX import", "REACTION_RATE_LIMIT_MAX" in src_h)
-    check("handlers: guard_entry notice text", "⏳ Iltimos, biroz kuting..." in src_h)
-    check("handlers: guard_menu notice text", "⏳ Iltimos, biroz kuting..." in src_h)
-    check("handlers: reaction_callback alert text", "⏳ Iltimos, biroz kuting..." in src_h)
+    # 🌐 Rate-limit bildirishnomasi endi qotirilgan matn emas — lug'at
+    # kaliti orqali foydalanuvchi tilida chiqadi (pend_rate_limited,
+    # uz qiymati: "⏳ Iltimos, biroz kuting...").
+    from locales.translations import get_text as _gt
+    check("handlers: pend_rate_limited lug'at matni (uz) saqlangan",
+          _gt("pend_rate_limited", "uz") == "⏳ Iltimos, biroz kuting...")
+    check("handlers: guard_entry notice lug'atdan olinadi",
+          'get_text("pend_rate_limited"' in src_h)
+    check("handlers: guard_menu notice lug'atdan olinadi",
+          'get_text("pend_rate_limited"' in src_h)
+    check("handlers: reaction_callback alert lug'atdan olinadi",
+          'get_text("pend_rate_limited"' in src_h)
 
     src_p = open(p_mod.__file__).read()
     check("pending: NAV_RATE_LIMIT_MAX import", "NAV_RATE_LIMIT_MAX" in src_p)
