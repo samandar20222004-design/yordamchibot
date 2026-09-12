@@ -784,25 +784,27 @@ def format_post_type_label(post_type: str, lang: str = "uz") -> str:
     return get_text(key, lang).split(" ", 1)[-1] if " " in get_text(key, lang) else get_text(key, lang)
 
 def format_schedule_line(s_time, recurrence_type, recurrence_day, recurrence_time, lang: str = "uz"):
-    """Post chiqish vaqtini foydalanuvchi tilida (uz/ru) formatlaydi."""
+    """Post chiqish vaqtini foydalanuvchi TILIDA formatlaydi (uz/ru/en).
+
+    Sana/vaqt ko'rinishi va hafta kuni nomlari :mod:`utils.date_format`
+    orqali olinadi:
+      * UZ/RU — ``2026-09-10 12:00``, hafta kuni "Juma"/"Пятница";
+      * EN    — ``Sep 10, 2026 12:00``, hafta kuni "Friday".
+    """
     from locales.translations import get_text, normalize_lang
-    from keyboards.default import WEEKDAY_LABELS, WEEKDAY_LABELS_RU
+    from utils.date_format import format_datetime, format_time, weekday_label
     lang = normalize_lang(lang)
     if recurrence_type == 'daily':
-        time_str = recurrence_time.strftime("%H:%M") if hasattr(recurrence_time, 'strftime') else str(recurrence_time)[:5]
-        return get_text("pend_schedule_daily", lang, time=time_str)
+        return get_text("pend_schedule_daily", lang,
+                        time=format_time(recurrence_time, lang))
     elif recurrence_type == 'weekly':
-        labels = WEEKDAY_LABELS_RU if lang == "ru" else WEEKDAY_LABELS
-        day_label = labels.get(recurrence_day, "?")
-        time_str = recurrence_time.strftime("%H:%M") if hasattr(recurrence_time, 'strftime') else str(recurrence_time)[:5]
-        return get_text("pend_schedule_weekly", lang, day=day_label, time=time_str)
+        return get_text("pend_schedule_weekly", lang,
+                        day=weekday_label(recurrence_day, lang),
+                        time=format_time(recurrence_time, lang))
 
     if s_time:
-        if s_time.tzinfo is None:
-            s_time = pytz.utc.localize(s_time).astimezone(tashkent_tz)
-        else:
-            s_time = s_time.astimezone(tashkent_tz)
-        return get_text("pend_schedule_once", lang, time=s_time.strftime("%Y-%m-%d %H:%M"))
+        return get_text("pend_schedule_once", lang,
+                        time=format_datetime(s_time, lang))
     return get_text("pend_schedule_unknown", lang)
 
 

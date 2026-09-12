@@ -553,6 +553,23 @@ def register_all_handlers(app):
     # ============================================================
     # QAT'IY NAVIGATSIYA HANDLERLARI RO'YXATI
     # ============================================================
+    #
+    # 🌐 UCH TILLI ROUTING QOIDASI (uz / ru / en)
+    # Har bir pastki (reply) klaviatura tugmasi foydalanuvchi TILIDA
+    # chiziladi: UZ "➕ Yangi post" | RU "➕ Новый пост" | EN "➕ New post".
+    # Shu sababli quyidagi ``exact(...)`` filtrlar ham AYNAN shu uch matnni
+    # tanishi shart — aks holda tugma bosilganda javob "kutilmagan xabar"
+    # fallback'iga tushib qoladi.
+    #
+    # Buning uchun yagona manba — ``keyboards.default.MENU_TEXTS`` registry'i:
+    # :func:`keyboards.default.exact` berilgan har bir matnni registry'dagi
+    # o'z "tugma oilasi" bilan (uz + ru + en + eski/variant yorliqlar)
+    # to'ldiradi. Ya'ni ``exact(BTN_NEW_POST, BTN_NEW_POST_RU)`` yozuvi
+    # bugun "➕ New post" ni ham taniydi va yangi til qo'shilganda routing
+    # o'zgartirishsiz ham ishlayveradi.
+    #
+    # Qo'shimcha (zaxira) qatorlar — masalan ``exact(BTN_CANCEL_EN)`` —
+    # registry buzilsa ham EN tugmalar ishlashini kafolatlaydi.
 
     # 1. Start & Navigatsiya
     # Uch tilli routing: har bir reply tugma uz/ru/en variantlari bilan taniladi
@@ -1014,6 +1031,9 @@ def register_all_handlers(app):
     # 1. Global Buyruqlar
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("profile", user_cabinet_menu))
+    # 👤 Profil / Sozlamalar — klaviatura matnini qo'lda yozish o'rniga
+    # buyruq orqali ham kabinetga kirish mumkin (uz/ru/en — bitta yo'l).
+    app.add_handler(CommandHandler("settings", user_cabinet_menu))
     app.add_handler(CommandHandler("help", help_command))
     app.add_handler(CommandHandler("admin", admin_panel_menu))
     app.add_handler(CommandHandler("stats", show_statistics))

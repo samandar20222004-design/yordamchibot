@@ -1,7 +1,21 @@
+"""Pastki (reply) klaviatura tugmalari, ularning matn konstantalari va
+uchala til (uz/ru/en) uchun umumiy TANISH registrlari.
+
+Bu modulning ikkita vazifasi bor:
+  1. Klaviaturalarni foydalanuvchi TILIDA chizish (``get_main_keyboard``...);
+  2. Bosilgan tugma matnini AMALGA bog'lash — buning uchun ``MENU_TEXTS``
+     registry'da har bir tugmaning UCHALA TILDagi (va eski/variant)
+     yorliqlari saqlanadi va ``exact()`` filtrlari shu registry orqali
+     avtomatik kengaytiriladi.
+"""
+
 import re
 from telegram import ReplyKeyboardMarkup
 from telegram.ext import filters
-from locales.translations import get_text, get_lang, normalize_lang
+from locales.translations import (
+    get_text, get_lang, normalize_lang,
+    button_texts, button_variants, normalize_button_text,
+)
 
 # ============================================================
 # STANDART MENYU TUGMALARI (Constants)
@@ -191,10 +205,269 @@ WEEKDAY_MAP_EN = {name: idx for idx, name in enumerate(WEEKDAY_BUTTONS_EN)}
 WEEKDAY_LABELS = {idx: name for name, idx in WEEKDAY_MAP.items()}
 WEEKDAY_LABELS_RU = {idx: name for name, idx in WEEKDAY_MAP_RU.items()}
 WEEKDAY_LABELS_EN = {idx: name for name, idx in WEEKDAY_MAP_EN.items()}
+#: Uchala tilning hafta kuni yorliqlari → indeks (klaviatura qaysi tilda
+#: bo'lishidan qat'iy nazar "Juma"/"Пятница"/"Friday" — bittaning o'zi).
+WEEKDAY_MAP_ALL = {}
+for _names in (WEEKDAY_BUTTONS, WEEKDAY_BUTTONS_RU, WEEKDAY_BUTTONS_EN):
+    for _idx, _name in enumerate(_names):
+        WEEKDAY_MAP_ALL.setdefault(_name, _idx)
+
+
+def weekday_index(text):
+    """Matndan hafta kuni indeksini topadi (uz/ru/en, normallashtirilgan)."""
+    if not text or not isinstance(text, str):
+        return None
+    needle = button_variants(text)
+    if not needle:
+        return None
+    for name, idx in WEEKDAY_MAP_ALL.items():
+        shapes = button_variants(name)
+        if shapes and shapes[0] in needle:
+            return idx
+    return None
+
+
+# ============================================================
+# 🌐 HAR BIR DOIMIY TUGMA UCHUN UCHALA TIL MATNLARI (yagona manba)
+# ============================================================
+# Bu registry ikki ishni bajaradi:
+#   1. ``exact()`` har bir filtr matnini shu to'plamdagi aliaslar bilan
+#      KENGAYTIRADI — ya'ni barcha mavjud ``MessageHandler(exact(...))``
+#      filtrlari avtomatik ravishda uz/ru/en (va eski yorliqlarni) taniydi;
+#   2. handlerlar ichidagi qo'lda solishtiruvlar ``is_menu_text()`` orqali
+#      shu to'plamdan foydalanadi.
+#
+# Qoida: TILGA BOG'LIQ MATN HECH QACHON handler ichida qotirilmaydi —
+# klaviatura qaysi tilda chizilsa ham tugma bir xil ishlashi shart.
+PROFILE_ALIASES = (
+    # "Profil / Sozlamalar" — eski va alternative klaviatura yorliqlari.
+    # Uchala til ham qabul qilinadi, chunki chat tarixidagi eski xabarlarda
+    # aynan shu matnlar turgan bo'lishi mumkin.
+    "👤 Profil / Sozlamalar", "👤 Профиль / Настройки", "👤 Profile & Settings",
+    "👤 Profil", "👤 Профиль", "👤 Profile",
+    "👤 Kabinet", "👤 Кабинет", "👤 Account",
+    "⚙️ Sozlamalar", "⚙️ Настройки", "⚙️ Settings",
+)
+ADMIN_PANEL_ALIASES = ("⚙️ Admin panel", "⚙️ Админ панель", "⚙️ Админ-панель")
+PENDING_ALIASES = ("⏳ Kutilayotgan", "⏳ Ожидающие", "⏳ Pending")
+QUEUE_ALIASES = ("📚 Navbat", "📚 Очередь")
+CONVERTER_ALIASES = (
+    "🔤 Konvertor", "🔤 Кирилл-Лотин", "🔤 Converter", "🔤 Latin", "🔤 Кириллица",
+)
+CHANNELS_ALIASES = (
+    "📢 Kanallar", "📢 Каналлар", "📢 Kanallar/guruhlar",
+    "📢 Каналы/группы", "📢 Channels",
+    "📢 Kanallarim", "📢 Мои каналы", "📢 My channels",
+)
+ADD_CHANNEL_ALIASES = (
+    "➕ Kanal qo'shish", "➕ Kanal/Guruh qo'shish",
+    "➕ Добавить канал/группу", "➕ Добавить канал",
+    "➕ Add channel/group", "➕ Add channel", "📢 Add channel",
+)
+BONUS_ALIASES = ("🎁 Bonus", "🎁 Бонус", "🎁 Daily bonus", "🎁 Kunlik bonus")
+INVITE_ALIASES = (
+    "🚀 Taklif qilish", "🚀 Пригласить", "🚀 Invite", "🚀 Invite friends",
+)
+TRANSFER_ALIASES = (
+    "🔄 Ballar ulashish", "🔄 Передать баллы", "🔄 Transfer credits", "🔄 Transfer",
+)
+HELP_ALIASES = ("📖 Qo'llanma", "📖 Руководство", "📖 Guide", "📖 Help", "📖 About")
+EXTRAS_ALIASES = (
+    "⚙️ Qo'shimcha", "⚙️ Дополнительные", "⚙️ Extra features", "⚙️ Extras",
+)
+AI_STUDIO_ALIASES = ("✨ AI Студия", "🤖 AI Studio", "✨ Studio")
+NEW_POST_ALIASES = (
+    "➕ Post yaratish", "➕ Создать пост", "➕ Новый пост",
+    "➕ Yangi post yozish", "➕ Create post",
+)
+PREMIUM_ALIASES = ("⭐️ Pro", "⭐️ PRO", "⭐️ Подписка", "⭐️ Upgrade", "⭐️ Premium tarif")
+CONTENT_PLAN_ALIASES = (
+    "🧠 Kontent-reja", "🧠 Контент-план", "🧠 Content plan", "🧠 Content-plan",
+)
+ANALYTICS_ALIASES = ("📊 Analitika", "📊 Аналитика", "📊 Analytics", "📊 Statistics")
+EXTRACT_ALIASES = (
+    "📢 Ochiq kanaldan olish", "📢 Из открытого канала",
+    "📢 Open channel import", "📢 Import from public channel",
+)
+# "📊 Statistics" EN aliasi ataylab ANALITIKA tomonida qoldirildi — ikkita
+# tugma bir xil matnni olsа, registry'da qaysi biriga tegishli ligi
+# noaniq bo'lardi (yagona egalik = aniq routing).
+ADMIN_STATS_ALIASES = ("📊 Statistika", "📊 Статистика")
+ADMIN_POSTS_ALIASES = ("📋 Barcha postlar", "📋 Все посты", "📋 All posts")
+ADMIN_CHANNELS_ALIASES = (
+    "📋 Barcha kanal/guruhlar", "📋 Все каналы/группы",
+    "📋 All channels/groups", "📋 All channels",
+)
+BROADCAST_ALIASES = ("✉️ Xabar yuborish", "✉️ Рассылка", "✉️ Broadcast")
+SPONSORS_ALIASES = (
+    "📢 Majburiy obuna", "📢 Обязательная подписка", "📢 Required subscription",
+)
+ADD_SPONSOR_ALIASES = (
+    "➕ Homiy kanal qo'shish", "➕ Добавить канал спонсора",
+    "➕ Add sponsor channel", "➕ Add sponsor",
+)
+ADS_ALIASES = ("🎯 Reklama markazi", "🎯 Рекламный центр", "🎯 Ads center", "🎯 Ads")
+POST_TAG_ALIASES = ("🏷 Post nishoni", "🏷 Метка поста", "🏷 Post tag")
+AI_SETTINGS_ALIASES = ("⚙️ AI parametrlar", "⚙️ Параметры ИИ", "⚙️ AI settings")
+CACHE_DB_ALIASES = (
+    "🗄️ DB / Kesh holati", "🗄️ Состояние БД / кеша",
+    "🗄️ DB / cache status", "🗄️ DB / Cache",
+)
+CANCEL_ALIASES = ("❌ Bekor qilish", "❌ Отмена", "❌ Cancel", "❌ Bekor", "❌ Yo'q")
+MAIN_MENU_ALIASES = ("🔙 Asosiy menyu", "🔙 Главное меню", "🔙 Main menu")
+
+def _uniq(*groups) -> tuple:
+    """Matnlar to'plamini takrorlanishlarsiz, tartibni saqlab birlashtiradi."""
+    out = []
+    for group in groups:
+        items = group if isinstance(group, (tuple, list)) else (group,)
+        for value in items:
+            text = value.strip() if isinstance(value, str) else str(value or "")
+            if text and text not in out:
+                out.append(text)
+    return tuple(out)
+
+
+MENU_TEXTS = {
+    # --- Asosiy menyu (6 tugma + admin qatori) ---
+    "new_post": button_texts("btn_new_post", extra=NEW_POST_ALIASES),
+    "ai_studio": button_texts("btn_ai_studio", extra=AI_STUDIO_ALIASES),
+    "premium": button_texts("btn_premium", extra=PREMIUM_ALIASES),
+    "settings": button_texts("btn_settings", extra=PROFILE_ALIASES),
+    "help": button_texts("btn_help", extra=HELP_ALIASES),
+    "extras": button_texts("btn_extras", extra=EXTRAS_ALIASES),
+    "main_menu": button_texts("btn_main_menu", extra=MAIN_MENU_ALIASES),
+    "cancel": button_texts("btn_cancel", extra=CANCEL_ALIASES),
+    # --- Kabinet va ichki bo'limlar ---
+    "back": button_texts("btn_back"),
+    "pending": button_texts("btn_pending", extra=PENDING_ALIASES),
+    "queue": button_texts("btn_queue", extra=QUEUE_ALIASES),
+    "converter": button_texts("cab_btn_converter", extra=CONVERTER_ALIASES),
+    "channels": button_texts("cab_btn_channels", extra=CHANNELS_ALIASES),
+    "add_channel": _uniq((BTN_ADD_CHANNEL,), ADD_CHANNEL_ALIASES),
+    "daily_bonus": button_texts("cab_btn_daily_bonus", extra=BONUS_ALIASES),
+    "invite": button_texts("cab_btn_invite", extra=INVITE_ALIASES),
+    "transfer": button_texts("cab_btn_transfer", extra=TRANSFER_ALIASES),
+    "content_plan": _uniq((BTN_CONTENT_PLAN,), CONTENT_PLAN_ALIASES),
+    "analytics": _uniq((BTN_ANALYTICS,), ANALYTICS_ALIASES),
+    "channel_extract": _uniq((BTN_CHANNEL_EXTRACT,), EXTRACT_ALIASES),
+    # --- Admin paneli (klaviatura UZ'da chiziladi, aliaslar ham taniladi) ---
+    "admin_panel": _uniq((BTN_ADMIN_PANEL, BTN_ADMIN_PANEL_RU), ADMIN_PANEL_ALIASES),
+    "admin_stats": _uniq((BTN_STATS,), ADMIN_STATS_ALIASES),
+    "admin_all_posts": _uniq((BTN_ALL_POSTS,), ADMIN_POSTS_ALIASES),
+    "admin_all_channels": _uniq((BTN_ALL_CHANNELS,), ADMIN_CHANNELS_ALIASES),
+    "broadcast": _uniq((BTN_BROADCAST,), BROADCAST_ALIASES),
+    "sponsors": _uniq((BTN_SPONSORS,), SPONSORS_ALIASES),
+    "add_sponsor": _uniq((BTN_ADD_SPONSOR,), ADD_SPONSOR_ALIASES),
+    "ads": _uniq((BTN_ADS, BTN_CHANNEL_AD, BTN_BOT_REPLY_AD), ADS_ALIASES),
+    "post_tag": _uniq((BTN_POST_TAG,), POST_TAG_ALIASES),
+    "ai_settings": _uniq((BTN_AI_SETTINGS,), AI_SETTINGS_ALIASES),
+    "cache_db": _uniq((BTN_CACHE_DB,), CACHE_DB_ALIASES),
+    # --- 🆕 Onboarding (sodda klaviatura) ---
+    "quick_ai_post": button_texts("quick_btn_ai_post"),
+    "quick_photo_post": button_texts("quick_btn_photo_post"),
+    "quick_add_channel": button_texts("quick_btn_add_channel"),
+    "quick_full_menu": button_texts("quick_btn_full_menu"),
+    # --- ➕ Yangi post oqimidagi reply-tugmalar ---
+    "np_all_channels": button_texts("np_btn_all_channels"),
+    "np_skip": button_texts("np_btn_skip", "np_btn_skip_url", extra=(
+        "⏩ O'tkazib yuborish", "⏩ Пропустить", "⏭ O'tkazib yuborish",
+        "⏭ Пропустить", "⏭ Skip", "O'tkazib yuborish", "Пропустить", "Skip",
+        "Continue", "Continue without button", "➡️ Continue without button",
+    )),
+    "np_url_add": button_texts("np_btn_url_add"),
+    "np_no_reactions": button_texts("np_btn_no_reactions", extra=(
+        "➡️ Reaksiyasiz", "➡️ Без реакций", "➡️ Without reactions",
+        "Reaksiyasiz davom etish", "Продолжить без реакций",
+        "Continue without reactions",
+    )),
+    "np_ai_assistant": button_texts("np_btn_ai_assistant"),
+    "np_title_details": button_texts("np_btn_title_details"),
+    "np_title_join": button_texts("np_btn_title_join"),
+    "np_title_site": button_texts("np_btn_title_site"),
+    "np_title_contact": button_texts("np_btn_title_contact"),
+    "np_time_5m": button_texts("np_btn_time_5m"),
+    "np_time_15m": button_texts("np_btn_time_15m"),
+    "np_time_1h": button_texts("np_btn_time_1h"),
+    "np_time_daily": button_texts("np_btn_time_daily"),
+    "np_time_weekly": button_texts("np_btn_time_weekly"),
+    "np_del_never": button_texts("np_btn_del_never", extra=("❌ Doimiy", "❌ Никогда", "❌ Never")),
+    "np_del_12h": button_texts("np_btn_del_12h"),
+    "np_del_24h": button_texts("np_btn_del_24h"),
+    "np_del_48h": button_texts("np_btn_del_48h"),
+    "np_del_72h": button_texts("np_btn_del_72h"),
+    "np_dur_1w": button_texts("np_btn_dur_1w"),
+    "np_dur_1m": button_texts("np_btn_dur_1m"),
+    "np_dur_3m": button_texts("np_btn_dur_3m"),
+    "np_dur_6m": button_texts("np_btn_dur_6m"),
+    "np_dur_1y": button_texts("np_btn_dur_1y"),
+    "np_dur_inf": button_texts("np_btn_dur_inf"),
+    "np_back_confirm": button_texts("np_btn_back_confirm"),
+    "np_weekday": _uniq(WEEKDAY_BUTTONS, WEEKDAY_BUTTONS_RU, WEEKDAY_BUTTONS_EN),
+}
+
+#: ``exact()`` kengaytiruvi uchun indeks: normallashtirilgan yorliq → action.
+_LABEL_TO_ACTION = {}
+for _action, _texts in MENU_TEXTS.items():
+    for _label in _texts:
+        _shapes = button_variants(_label)
+        if _shapes:
+            _LABEL_TO_ACTION.setdefault(_shapes[0], _action)
+            for _shape in _shapes:
+                _LABEL_TO_ACTION.setdefault(_shape, _action)
+
+
+def menu_texts(*actions) -> tuple:
+    """Tanlangan amallar (tugmalar) uchun barcha til variantlari."""
+    out = []
+    for action in actions:
+        for text in MENU_TEXTS.get(action, ()):
+            if text not in out:
+                out.append(text)
+    return tuple(out)
+
+
+def is_menu_text(text, *actions) -> bool:
+    """``text`` tanlangan tugmalarning biriga mosmi (uz/ru/en, qo'lda yozilgan
+    holda ham — emoji va katta/kichik harf farqi hisobga olinmaydi)."""
+    needle = button_variants(text)
+    if not needle:
+        return False
+    for cand in menu_texts(*actions):
+        shapes = button_variants(cand)
+        if shapes and shapes[0] in needle:
+            return True
+    return False
 
 
 def exact(*texts):
-    pattern = "^(" + "|".join(re.escape(t) for t in texts) + ")$"
+    """Aniq matn filtri — har bir matn UCHALA TIL aliaslari bilan kengayadi.
+
+    ``exact(BTN_NEW_POST, BTN_NEW_POST_RU)`` yozuvi endi "➕ New post" ni ham
+    taniydi: klaviatura qaysi tilda chizilganiga qaramay tugma ishlashi uchun
+    filtr ``MENU_TEXTS`` registry'dagi barcha variantlar bilan to'ldiriladi.
+    Qo'shimcha ravishda qator boshidagi/oxiridagi bo'shliqlar bardoshli.
+    """
+    expanded = []
+
+    def _add(value):
+        if not isinstance(value, str):
+            value = str(value or "")
+        value = value.strip()
+        if value and value not in expanded:
+            expanded.append(value)
+            # Shu yorliqqa mos tugma oilasi (uz/ru/en + legacy) ham qo'shiladi.
+            shapes = button_variants(value)
+            action = _LABEL_TO_ACTION.get(shapes[0]) if shapes else None
+            for alias in MENU_TEXTS.get(action or "", ()):
+                _add(alias)
+
+    for item in texts:
+        _add(item)
+    if not expanded:
+        # Bo'sh filtr — hech narsa bilan mos kelmasligi kerak (crash emas).
+        return filters.Regex(r"^(?!)$")
+    pattern = r"^\s*(" + "|".join(re.escape(t) for t in expanded) + r")\s*$"
     return filters.Regex(pattern)
 
 
@@ -207,6 +480,7 @@ def exact_i18n(*keys):
             if t not in texts:
                 texts.append(t)
     return exact(*texts)
+
 
 
 def get_main_keyboard(is_admin=False, lang="uz", context=None):
@@ -440,6 +714,36 @@ TONE_LABELS_EN = {
     "concise": get_text("ch_tone_concise", "en"),
     "engaging": get_text("ch_tone_engaging", "en"),
 }
+
+#: Uslub yorliqlari — til bo'yicha yagona kirish nuqtasi.
+TONE_LABELS_BY_LANG = {"uz": TONE_LABELS, "ru": TONE_LABELS_RU, "en": TONE_LABELS_EN}
+
+
+def tone_labels(lang="uz") -> dict:
+    """Kanal uslubi (Tone of Voice) tugma yorliqlari — tilga mos (uz/ru/en).
+
+    Avval har chaqiruv nuqtasida ``TONE_LABELS_RU if lang == "ru" else
+    TONE_LABELS`` yozilgani uchun EN foydalanuvchi uslub nomlarini O'ZBEKCHA
+    ko'rardi (va EN tugmasi umunan tanilmasdi).
+    """
+    return TONE_LABELS_BY_LANG.get(normalize_lang(lang), TONE_LABELS)
+
+
+def tone_from_text(text):
+    """Matn/yorliqdan uslub kodini topadi — uchala tilda ham.
+
+    "👔 Formal / Business", "Rasmiy / Biznes" (emojisiz), "официальный / бизнес"
+    (katta/kichik farqsiz) — barchasi ``formal`` ga olib keladi.
+    """
+    needle = normalize_button_text(text)
+    if not needle:
+        return None
+    for table in (TONE_LABELS_EN, TONE_LABELS_RU, TONE_LABELS):
+        for code, label in table.items():
+            shapes = button_variants(label)
+            if needle in shapes:
+                return code
+    return None
 
 
 def get_tone_keyboard(lang="uz"):

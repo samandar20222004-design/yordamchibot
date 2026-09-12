@@ -7,6 +7,11 @@ from locales.translations import (  # noqa: F401
     localize_db_message,
     localize_service_error,
     is_main_menu_text,
+    # --- Reply-klaviatura tugma matnlari (uz/ru/en) uchun yordamchilar ---
+    normalize_button_text,
+    button_variants,
+    button_texts,
+    is_button_text,
     detect_language,
     normalize_lang,
     get_lang,

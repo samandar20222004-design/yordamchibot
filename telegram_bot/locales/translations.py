@@ -1799,6 +1799,33 @@ TRANSLATIONS = {
         "an_type_audio": "Audio",
         "an_type_animation": "GIF",
         "an_type_album": "Albom",
+    # ============================================================
+    # 🌐 SANALAR (utils.date_format) va RASM MODERATSIYASI (photo_check)
+    #    Sana ko'rinishi, "Bugun/Ertaga" yorliqlari va moderatsiya xabarlari
+    #    — avval bu faylda umuman EN/RU variantlari yo'q edi.
+    # ============================================================
+    "dt_today": "Bugun",
+    "dt_tomorrow": "Ertaga",
+    # ── 🤖 AI Studio / Vision ──
+    "ai_photo_unavailable": "⚠️ AI rasmni tahlil qila olmadi. Iltimos, birozdan so'ng qayta urinib ko'ring.",
+    "ai_target_all_line": "🌐 <b>Kanal:</b> Barcha ulangan kanallarga",
+    "ai_target_all_name": "Barcha ulangan kanallarga",
+    # ── 📷 Qo'lda rasm tekshiruvi (handlers/photo_check.py) ──
+    "pc_sent_user": "📸 Rasmingiz adminga yuborildi. Tasdiqlanishi kutilmoqda.",
+    "pc_admin_caption": "🆔 Foydalanuvchi ID: <code>{user_id}</code>\n📷 Rasm yuborildi.",
+    "pc_btn_approve": "✅ Tasdiqlash",
+    "pc_btn_reject": "❌ Rad etish",
+    "pc_approved_admin": "✅ <b>Tasdiqlandi!</b>\n\nFoydalanuvchi <code>{user_id}</code> ga PRO berildi.",
+    "pc_rejected_admin": "❌ <b>Rad etildi.</b>\n\nFoydalanuvchi PRO tarifi rad etildi.",
+    "pc_pro_granted": "🎉 <b>Tabriklaymiz!</b>\n\nSizga <b>30 kunlik PRO tarif</b> berildi!\nBarcha PRO imkoniyatlardan foydalanishingiz mumkin.",
+    "pc_reject_notice": "⚠️ <b>Rasmingiz tasdiqlanmadi.</b>\n\nIltimos, qayta urinib ko'ring yoki yordam uchun @shmat_uz adminiga murojaat qiling.",
+    "pc_no_permission": "❌ Ruxsat yo'q.",
+    "pc_no_pro_permission": "❌ Sizda foydalanuvchilarga PRO berish uchun ruxsat yo'q.",
+    "pc_bad_callback": "Noto'g'ri callback data.",
+    "pc_bad_user_id": "User ID xatosi.",
+    "pc_db_error": "Xatolik yuz berdi.",
+
+    # ============================================================
     },
     "ru": {
         "btn_new_post": "➕ Новый пост",
@@ -3597,7 +3624,31 @@ TRANSLATIONS = {
         "an_type_document": "Документ",
         "an_type_audio": "Аудио",
         "an_type_animation": "GIF",
+    # ============================================================
+    # 🌐 ДАТА / ВРЕМЯ (utils.date_format) и РУЧНАЯ ПРОВЕРКА ФОТО
+    # ============================================================
+    "dt_today": "Сегодня",
+    "dt_tomorrow": "Завтра",
+    # ── 🤖 AI Studio / Vision ──
+    "ai_photo_unavailable": "⚠️ ИИ не смог проанализировать это изображение. Попробуйте ещё раз через минуту.",
+    "ai_target_all_line": "🌐 <b>Канал:</b> Все подключённые каналы",
+    "ai_target_all_name": "Все подключённые каналы",
+    # ── 📷 Ручная проверка фото (handlers/photo_check.py) ──
+    "pc_sent_user": "📸 Ваше фото отправлено администратору. Ожидается подтверждение.",
+    "pc_admin_caption": "🆔 ID пользователя: <code>{user_id}</code>\n📷 Получено фото.",
+    "pc_btn_approve": "✅ Подтвердить",
+    "pc_btn_reject": "❌ Отклонить",
+    "pc_approved_admin": "✅ <b>Подтверждено!</b>\n\nПользователю <code>{user_id}</code> выдан PRO.",
+    "pc_rejected_admin": "❌ <b>Отклонено.</b>\n\nPRO-запрос пользователя отклонён.",
+    "pc_pro_granted": "🎉 <b>Поздравляем!</b>\n\nВам выдан <b>тариф PRO на 30 дней</b>!\nТеперь доступны все возможности PRO.",
+    "pc_reject_notice": "⚠️ <b>Фото не подтверждено.</b>\n\nПопробуйте ещё раз или обратитесь к администратору @shmat_uz.",
+    "pc_no_permission": "❌ Нет доступа.",
+    "pc_no_pro_permission": "❌ У вас нет прав выдавать PRO пользователям.",
+    "pc_bad_callback": "Некорректные данные callback.",
+    "pc_bad_user_id": "Ошибка ID пользователя.",
+    "pc_db_error": "Произошла ошибка.",
         "an_type_album": "Альбом",
+
     },
 }
 
@@ -3709,6 +3760,126 @@ def safe_t(key, lang=DEFAULT_LANG, **kwargs) -> str:
             return ""
 
 
+# ---------------------------------------------------------------------------
+# 🔘 REPLY-KLAVIATURA TUGMA MATNLARI — uchala tilda bir xil ishonchli
+# ---------------------------------------------------------------------------
+# Pastki (reply) klaviatura tugmalari foydalanuvchi TILIDA chiziladi:
+# UZ "➕ Yangi post" | RU "➕ Новый пост" | EN "➕ New post".
+# Shu sababli filtrlar va qo'lda solishtiruvchi handlerlar ham AYNAN shu uch
+# matnni (va eski/variant yozilishlarini) TANISHI kerak. Aks holda tugma
+# bosilganda javob "kutilmagan xabar" fallback'iga tushib qoladi.
+#
+# ``button_texts`` / ``is_button_text`` — shu ishning yagona manbasi:
+#   • kalit bo'yicha uz/ru/en yorliqlarini yig'adi (takrorlanishlarsiz);
+#   • solishtirishda NBSP, qo'shimcha probellar, emoji variatsiya tanlagichi
+#     (\ufe0f) va boshidagi emoji/simvollar CHETLA O'TADI — ya'ni foydalanuvchi
+#     "Yangi post" deb yozsa ham tugma ishlaydi.
+
+#: Boshidagi emoji/punktni olib tashlash uchun (\w — kirill va o'zbek
+#: lotin belgilarini ham "harf" deb hisoblaydi).
+_BTN_LEADING_SYMBOLS_RE = re.compile(r"^[^\w]+", re.UNICODE)
+_BTN_SPACES_RE = re.compile(r"\s+")
+
+#: Kirill → lotin gomoglifi (tashqi jihatdan bir xil harflar). Foydalanuvchi
+#: tugma matnini QO'lda yozganda (masalan "👤 Profil / Sozlamaлar") klaviatura
+#: tilidagi harflar bilan aralash yozuv paydo bo'ladi — normallashtirishda
+#: ular lotinsha ko'rinishga keltiriladi, shunda solishtiruv baribir yopiladi.
+#: Eski/yangi formatni buzmaydi: ikkala tomon ham bir xil funksiya orqadan o'tadi.
+_BTN_HOMOGLYPHS = str.maketrans({
+    "а": "a", "е": "e", "о": "o", "р": "p", "с": "c", "у": "y", "х": "x",
+    "А": "A", "В": "B", "Е": "E", "К": "K", "М": "M", "Н": "H", "О": "O",
+    "Р": "P", "С": "C", "Т": "T", "У": "Y", "Х": "X",
+})
+
+
+def normalize_button_text(text) -> str:
+    """Tugma matnini solishtirishga tayyorlaydi (xavfsiz, istisno bermaydi).
+
+    • ``\\xa0`` (NBSP) va ``\\u200b`` (zero-width) tozalanadi;
+    • ketma-ket probellar bittaga tushadi, chetdagi bo'shliqlar olinadi;
+    • emoji variatsiya tanlagichlari (``\\ufe0f``/``\\ufe0e``) olib tashlanadi
+      — Telegram mijozlari "⭐️ Premium" ni ba'zan "⭐ Premium" qilib yuboradi;
+    • katta/kichik harf farqi bekor qilinadi.
+    """
+    if text is None:
+        return ""
+    raw = text if isinstance(text, str) else str(text)
+    cleaned = raw.replace("\u00a0", " ").replace("\u200b", "").replace("\u200e", "")
+    cleaned = cleaned.replace("\ufe0f", "").replace("\ufe0e", "")
+    cleaned = _BTN_SPACES_RE.sub(" ", cleaned).strip()
+    return cleaned.casefold().translate(_BTN_HOMOGLYPHS)
+
+
+def button_variants(text) -> tuple:
+    """Berilgan matn uchun QABUL QILINADIGAN normallashtirilgan shakllar.
+
+    To'liq matn + boshidagi emoji/simvollarsiz shakl (masalan
+    "➕ New post" → {"➕ new post", "new post"}).
+    """
+    norm = normalize_button_text(text)
+    if not norm:
+        return ()
+    out = [norm]
+    bare = _BTN_LEADING_SYMBOLS_RE.sub("", norm).strip()
+    if bare and bare not in out:
+        out.append(bare)
+    return tuple(out)
+
+
+def button_texts(*keys, langs=SUPPORTED_LANGS, extra=()) -> tuple:
+    """Lug'at kalitlarining BARCHA tildagi tugma matnlari (tartib saqlangan).
+
+    Args:
+        *keys:  ``TRANSLATIONS`` kalitlari (masalan ``"btn_new_post"``).
+        langs:  qaysi tillar yig'iladi (standart: uz, ru, en).
+        extra:  qo'shimcha alias matnlar (eski klaviatura yorliqlari...).
+
+    Returns:
+        Takrorlanmagan matnlar tuple'i — ``exact()``/``filters.Text()`` ga
+        to'g'ridan-to'g'ri berish mumkin.
+    """
+    out = []
+    for key in keys:
+        for code in langs:
+            if not has_key(key, code):
+                # Lug'atda yo'q kalit — ``get_text`` kalit nomining o'zini
+                # qaytaradi; uni tugma matni deb yubormaymiz.
+                continue
+            value = get_text(key, code)
+            if not isinstance(value, str):
+                continue
+            value = value.strip()
+            if value and value not in out:
+                out.append(value)
+    for value in extra:
+        if not isinstance(value, str):
+            continue
+        value = value.strip()
+        if value and value not in out:
+            out.append(value)
+    return tuple(out)
+
+
+def is_button_text(text, *keys, langs=SUPPORTED_LANGS, extra=()) -> bool:
+    """``text`` ushbu tugmalarning ISTALGANI (istalgan tilda) bilan mosmi?
+
+    Handlerlar ichida ``text == BTN_X`` kabi qattiq solishtiruv o'rniga
+    ishlatiladi — shunda klaviatura UZ/RU/EN tilda chizilganiga qaramay
+    tugma BIR XIL ishlaydi.
+    """
+    needle_variants = button_variants(text)
+    if not needle_variants:
+        return False
+    candidates = button_texts(*keys, langs=langs, extra=extra)
+    if not candidates:
+        return False
+    for cand in candidates:
+        for shape in button_variants(cand):
+            if shape in needle_variants:
+                return True
+    return False
+
+
 def is_main_menu_text(text) -> bool:
     """Matn biror tildagi «Asosiy menyu» tugmasi matniga mosmi?
 
@@ -3718,14 +3889,8 @@ def is_main_menu_text(text) -> bool:
     """
     if not text or not isinstance(text, str):
         return False
-    needle = text.strip()
-    for code in SUPPORTED_LANGS:
-        table = TRANSLATIONS.get(code) or {}
-        btn = table.get("btn_main_menu")
-        if isinstance(btn, str) and needle == btn.strip():
-            return True
     # Eski oqimlardagi «🔙 Orqaga» varianti (orqaga moslik uchun).
-    return needle in ("🔙 Orqaga",)
+    return is_button_text(text, "btn_main_menu", extra=("🔙 Orqaga",))
 
 
 # ---------------------------------------------------------------------------

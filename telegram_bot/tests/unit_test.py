@@ -3504,7 +3504,34 @@ def test_post_enhancer_flow():
 
     # 8. Birga tuzatilgan regressiyalar
     np_src = open(pe.__file__.replace("post_enhancer.py", "new_post.py"), encoding="utf-8").read()
-    check("new_post: BTN_BACK import (NameError fix)", "BTN_ALL_CHANNELS_TARGET, BTN_MAIN_MENU, BTN_BACK" in np_src)
+    # Regressiya: bir vaqtlar new_post.py'da import qilinmagan BTN_BACK
+    # ishlatilgani uchun NameError o'qib kelardi ("BTN_ALL_CHANNELS_TARGET,
+    # BTN_MAIN_MENU, BTN_BACK" import qatori shuni tuzatgan edi). Endi tugma
+    # matnlari yagona UCH TILLI registry'dan (is_menu_text / MENU_TEXTS)
+    # olinadi, shu sababli tekshiruv ham umumlashtirildi: fayldagi HAR BIR
+    # BTN_* nomi import yoki modul ichida aniqlangan bo'lishi shart.
+    import ast as _np_ast
+    _np_tree = _np_ast.parse(np_src)
+    _np_imported = {
+        alias.asname or alias.name
+        for node in _np_tree.body
+        if isinstance(node, _np_ast.ImportFrom) for alias in node.names
+    }
+    _np_local = {
+        n.id for node in _np_tree.body
+        if isinstance(node, _np_ast.Assign) for n in node.targets if isinstance(n, _np_ast.Name)
+    } | {
+        node.name for node in _np_tree.body
+        if isinstance(node, (_np_ast.FunctionDef, _np_ast.AsyncFunctionDef, _np_ast.ClassDef))
+    }
+    _np_btns = {
+        node.id for node in _np_ast.walk(_np_tree)
+        if isinstance(node, _np_ast.Name) and node.id.startswith("BTN_")
+    }
+    _np_missing = sorted(_np_btns - _np_imported - _np_local)
+    check("new_post: BTN_* nomlari (BTN_BACK) NameError'siz", not _np_missing, str(_np_missing))
+    check("new_post: uch tilli tugma registry'si ishlatilgan",
+          "is_menu_text" in np_src and "from keyboards.default import" in np_src)
     db_src = open(__import__("database").__file__, encoding="utf-8").read()
     check("db: update_post_content inline_button_text ustuni", "inline_button_text = %s" in db_src)
     check("db: update_post_content inline_button_url ustuni", "inline_button_url = %s" in db_src)
@@ -4916,7 +4943,11 @@ def test_admin_cancel_registration():
     # Admin matn handleri bekor qilishni tushunadi
     admin_src = (Path(__file__).resolve().parent.parent / "handlers" / "admin.py").read_text(encoding="utf-8")
     check("admin_inline_text_handler BTN_CANCEL ni tekshiradi",
-          "text in (BTN_CANCEL, BTN_MAIN_MENU)" in admin_src)
+          "text in (BTN_CANCEL, BTN_MAIN_MENU)" in admin_src
+          # YANGI: "❌ Bekor qilish"/"🔙 Asosiy menyu" endi yagona UCH TILLI
+          # tugma registry'i orqali tekshiriladi — shunda EN klaviaturadagi
+          # "❌ Cancel" ham admin oqimini bekor qiladi.
+          or 'is_menu_text(text, "cancel", "main_menu")' in admin_src)
     check("oqimsiz matn FSM'ni band qoldirmaydi", "if not flow:" in admin_src)
 
 
