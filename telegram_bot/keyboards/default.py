@@ -16,6 +16,8 @@ from locales.translations import (
     get_text, get_lang, normalize_lang,
     button_texts, button_variants, normalize_button_text,
 )
+# ✨ MAGIC POST — i18n `translations/` paketidan (uz/ru/en uchala yorliq).
+from translations import MAGIC_POST_I18N
 
 # ============================================================
 # STANDART MENYU TUGMALARI (Constants)
@@ -54,6 +56,25 @@ BTN_HELP_EN = get_text("btn_help", "en")
 BTN_EXTRAS_EN = get_text("btn_extras", "en")
 BTN_BACK_EN = get_text("btn_main_menu", "en")
 BTN_CANCEL_EN = get_text("btn_cancel", "en")
+
+# ============================================================
+# ✨ MAGIC POST — KILLER FEATURE #1 (asosiy menyu tugmasi)
+# ============================================================
+# Yorliqlar `translations/` paketidan olinadi (yagona manba). «✨ Magic Post»
+# brend-nomi bo'lgani uchun uchala tilda bir xil, lekin routing uchun
+# uchala til konstantasi ham saqlanadi (AI Studio tugmasi kabi).
+
+
+def _magic_post_label(lang: str) -> str:
+    """Magic Post tugma yorlig'i (tilga mos, hech qachon yiqilmaydi)."""
+    table = MAGIC_POST_I18N.get(normalize_lang(lang)) or {}
+    return table.get("btn_magic_post") or MAGIC_POST_I18N["uz"]["btn_magic_post"]
+
+
+BTN_MAGIC_POST = _magic_post_label("uz")
+BTN_MAGIC_POST_RU = _magic_post_label("ru")
+BTN_MAGIC_POST_EN = _magic_post_label("en")
+MAGIC_POST_ALIASES = (BTN_MAGIC_POST, BTN_MAGIC_POST_RU, BTN_MAGIC_POST_EN)
 
 # ============================================================
 # 🆕 SODDA KLAVIATURA — yangi foydalanuvchilar (1-3 kun) uchun
@@ -332,6 +353,8 @@ MENU_TEXTS = {
     # --- Asosiy menyu (6 tugma + admin qatori) ---
     "new_post": button_texts("btn_new_post", extra=NEW_POST_ALIASES),
     "ai_studio": button_texts("btn_ai_studio", extra=AI_STUDIO_ALIASES),
+    "magic_post": _uniq((BTN_MAGIC_POST, BTN_MAGIC_POST_RU, BTN_MAGIC_POST_EN),
+                        MAGIC_POST_ALIASES),
     "premium": button_texts("btn_premium", extra=PREMIUM_ALIASES),
     "settings": button_texts("btn_settings", extra=PROFILE_ALIASES),
     "help": button_texts("btn_help", extra=HELP_ALIASES),
@@ -489,6 +512,8 @@ def get_main_keyboard(is_admin=False, lang="uz", context=None):
         lang = get_lang(context, lang)
     keyboard = [
         [get_text("btn_new_post", lang), get_text("btn_ai_studio", lang)],
+        # ✨ Magic Post — killer feature (yakka qatorda, ko'zga ko'rinadigan)
+        [_magic_post_label(lang)],
         [get_text("btn_premium", lang), get_text("btn_settings", lang)],
         [get_text("btn_help", lang), get_text("btn_extras", lang)],
     ]

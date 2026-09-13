@@ -43,6 +43,8 @@ def main():
         "keyboards.inline",
         "locales",
         "locales.translations",
+        "translations",
+        "translations.magic_post",
         "utils.helpers",
         "utils.converter",
         "utils.ai_agent",

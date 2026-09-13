@@ -9,7 +9,8 @@
 #   1) Sintaksis darsi (telegram_bot/tests/syntax_test.py)
 #   2) 3-BOSQICH PRODUCTION ACCEPTANCE SUITE — 18 majburiy ssenariy
 #      (tests/production_acceptance_suite_test.py — deterministik, mock asosida)
-#   3) TO'LIQ regressiya: telegram_bot/tests/run_tests.sh (barcha 30+ test fayli)
+#   3) ✨ MAGIC POST oqimi — Killer Feature #1 (tests/magic_post_flow_test.py)
+#   4) TO'LIQ regressiya: telegram_bot/tests/run_tests.sh (barcha 30+ test fayli)
 #
 # Har qanday xatoda 1 bilan chiqadi (CI uchun).
 # ============================================================================
@@ -31,7 +32,14 @@ echo "======= 2) 3-BOSQICH PRODUCTION ACCEPTANCE SUITE (18) ======="
 "$PY" tests/production_acceptance_suite_test.py || EXIT_CODE=1
 
 echo
-echo "======== 3) TO'LIQ REGRESSIYA (telegram_bot/tests) ========"
+echo "======= 3) ✨ MAGIC POST OQIMI (KILLER FEATURE #1) ======="
+# Foydalanuvchi xom matn → 5 uslub menyusi → AI generatsiya (uslubga xos
+# tizim prompti) → [Kanalga yuborish] / [Rejalashtirish] / [Boshqa uslub]
+# + i18n UZ/RU/EN 100% paritet (tests/magic_post_flow_test.py).
+"$PY" tests/magic_post_flow_test.py || EXIT_CODE=1
+
+echo
+echo "======== 4) TO'LIQ REGRESSIYA (telegram_bot/tests) ========"
 ( cd telegram_bot && bash tests/run_tests.sh ) || EXIT_CODE=1
 
 echo
