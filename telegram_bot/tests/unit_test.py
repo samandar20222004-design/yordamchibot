@@ -8006,8 +8006,9 @@ def test_floodwait_and_ai_timeout_protection():
     root = Path(__file__).resolve().parent.parent
     sch_src = (root / "scheduler.py").read_text(encoding="utf-8")
     check("scheduler: RetryAfter ushlanadi", "except RetryAfter as e:" in sch_src)
-    check("scheduler: asyncio.sleep(...) FloodWait uchun",
-          "await asyncio.sleep(wait_seconds)" in sch_src)
+    check("scheduler: asyncio.sleep(...) FloodWait uchun (inline chegara bilan, scheduler bloklanmaydi)",
+          "await asyncio.sleep(inline_sleep)" in sch_src
+          and "flood_wait_inline_sleep(wait_seconds)" in sch_src)
     check("scheduler: mikro-kechikish kodda",
           "await asyncio.sleep(SEND_MICRO_DELAY)" in sch_src)
 

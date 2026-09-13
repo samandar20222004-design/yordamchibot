@@ -644,11 +644,15 @@ def test_execute_send_claims_then_sends_once():
 
     check("Telegram API aynan 1 marta chaqirildi", bot.n == 1, f"calls={bot.n}")
     names = [c[0] for c in calls]
-    check("delivery 'sent' deb belgilandi", "mark_sent_by_key" in names, str(names))
-    check("scheduled_posts 'posted' deb belgilandi", "mark_post_as_sent" in names)
-    sent_calls = [c for c in calls if c[0] == "mark_sent_by_key"]
+    # 11-bosqich: 'posted' + delivery 'sent' BITTA atomik tranzaksiyada
+    # (mark_post_as_sent delivery_key bilan) — alohida mark_sent_by_key shart emas.
+    posted_calls = [c for c in calls if c[0] == "mark_post_as_sent"]
+    check("scheduled_posts 'posted' deb belgilandi", bool(posted_calls), str(names))
+    check("delivery 'sent' deb belgilandi (atomik: delivery_key mark_post_as_sent'ga uzatildi)",
+          posted_calls and len(posted_calls[0][1]) >= 6
+          and posted_calls[0][1][5] == "post_702_-100123_t", str(posted_calls))
     check("telegram_message_id saqlandi",
-          sent_calls and sent_calls[0][1][1] == 2001, str(sent_calls))
+          posted_calls and posted_calls[0][1][1] == 2001, str(posted_calls))
 
 
 def test_execute_send_dead_letter_marks_failed():

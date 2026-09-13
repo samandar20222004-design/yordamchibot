@@ -556,6 +556,143 @@ def _guard(checker, *, message: str, raise_error: bool, tag, value):
     return decorator
 
 
+# ============================================================
+# 7) ADMIN CALLBACK TAMPERING HIMOYASI (11-bosqich, P0)
+# ============================================================
+#
+# Inline callback ``data`` foydalanuvchi tomonidan SOXTALASHTIRILISHI mumkin
+# (Telegram mijozi emas, API orqali istalgan matn yuboriladi). Shuning uchun:
+#   * kim bosgani FAQAT ``query.from_user.id`` (server-side) bo'yicha
+#     aniqlanadi — payload ichidagi ID'larga ISHONILMAYDI;
+#   * admin callback'lari uchun ``ADMIN_IDS_SET``/RBAC roli tekshiriladi;
+#   * payload'dagi ID'lar qat'iy musbat butun son bo'lishi shart
+#     (``-1``, ``1e3``, ``12;DROP``, bo'sh — hammasi rad).
+#
+#: Callback payload'idagi ID uchun ruxsat etilgan maksimal qiymat (Telegram
+#: ID'lari va BIGSERIAL'lar shu chegaraga sig'adi).
+CALLBACK_ID_MAX = 2 ** 62
+
+
+class CallbackTampering(Exception):
+    """Soxtalashtirilgan / ruxsatsiz admin callback aniqlandi."""
+
+    def __init__(self, reason: str, user_id=None, data=None):
+        self.reason = reason
+        self.user_id = user_id
+        self.data = data
+        super().__init__(f"callback tampering: {reason} (user={user_id})")
+
+
+def parse_callback_id(value, *, allow_zero: bool = False):
+    """Payload bo'lagini QAT'IY ``int`` ID'ga aylantiradi; buzilgan bo'lsa ``None``.
+
+    Faqat ``[0-9]+`` (ixtiyoriy oldingi ``-`` YO'Q) qabul qilinadi — manfiy,
+    kasr, bo'sh, ``+``, bo'shliq, katta son — hammasi rad etiladi.
+    """
+    if value is None:
+        return None
+    text = str(value)
+    # Bo'shliq/tab ham RAD — payload aynan raqamlardan iborat bo'lishi shart.
+    if not text or not text.isdigit() or not text.isascii():
+        return None
+    try:
+        number = int(text)
+    except ValueError:
+        return None
+    if number > CALLBACK_ID_MAX:
+        return None
+    if number == 0 and not allow_zero:
+        return None
+    return number
+
+
+def parse_callback_parts(data, prefix: str, expected: int = 1, sep: str = ":"):
+    """``prefix`` bilan boshlanuvchi callback'dan ``expected`` ta ID'ni oladi.
+
+    Qaytadi: ``list[int]`` yoki ``None`` (prefiks mos emas / soni noto'g'ri /
+    biror bo'lak ID emas). Ortiqcha bo'laklar ham RAD etiladi — payload'ga
+    qo'shimcha "argument" tiqishtirib bo'lmaydi.
+    """
+    if data is None or prefix is None:
+        return None
+    text = str(data)
+    head = str(prefix)
+    if not text.startswith(head):
+        return None
+    tail = text[len(head):]
+    parts = tail.split(sep) if tail != "" else []
+    if len(parts) != int(expected):
+        return None
+    ids = []
+    for part in parts:
+        number = parse_callback_id(part)
+        if number is None:
+            return None
+        ids.append(number)
+    return ids
+
+
+def verify_admin_callback(update, permission=None, *, role=None, strict: bool = False) -> bool:
+    """Callback'ni bosgan foydalanuvchi (server-side ``from_user.id``) admin
+    va (berilsa) kerakli ruxsat/rolga egami?
+
+    Payload ichidagi hech qanday ID'ga qaralmaydi. ``update`` — PTB
+    ``Update`` yoki to'g'ridan-to'g'ri ``CallbackQuery``. Xato/DB uzilishida
+    XAVFSIZ tomon — ``False`` (fail-closed).
+    """
+    try:
+        query = getattr(update, "callback_query", None) or update
+        user = getattr(query, "from_user", None)
+        if user is None:
+            user = getattr(update, "effective_user", None)
+        user_id = _as_int(getattr(user, "id", None))
+        if user_id is None or user_id <= 0:
+            return False
+        # Kim bosgani va xabar kimga tegishli ekani mos bo'lishi shart emas
+        # (admin guruh chatidan bosishi mumkin), lekin ID ADMIN bo'lishi shart.
+        if not (user_id in ADMIN_IDS_SET or is_admin(user_id)):
+            return False
+        if permission is not None and not has_permission(user_id, permission):
+            return False
+        if role is not None and not has_role(user_id, role, strict=strict):
+            return False
+        return True
+    except Exception as e:  # pragma: no cover - DB/mock chekka holatlari
+        logger.warning("verify_admin_callback xatosi (fail-closed): %s", e)
+        return False
+
+
+def admin_callback_guard(update, prefix: str, expected_ids: int = 1,
+                         permission=None, *, role=None, strict: bool = False):
+    """Admin inline callback uchun YAGONA tekshiruv nuqtasi.
+
+    1) ``from_user.id`` server-side admin/RBAC tekshiruvi (payload'ga
+       ishonilmaydi);
+    2) payload ``prefix`` + aynan ``expected_ids`` ta qat'iy musbat ``int``.
+
+    Muvaffaqiyatda ``list[int]`` (ID'lar) qaytadi, aks holda
+    ``CallbackTampering`` ko'tariladi va urinish WARNING bilan loglanadi.
+    """
+    query = getattr(update, "callback_query", None) or update
+    user = getattr(query, "from_user", None) or getattr(update, "effective_user", None)
+    user_id = _as_int(getattr(user, "id", None))
+    data = getattr(query, "data", None)
+    if not verify_admin_callback(update, permission, role=role, strict=strict):
+        logger.warning(
+            "RBAC: admin callback rad etildi (user=%s, data=%r) — ruxsat yo'q",
+            user_id, str(data)[:64] if data is not None else None,
+        )
+        raise CallbackTampering("not_admin", user_id, data)
+    ids = parse_callback_parts(data, prefix, expected_ids)
+    if ids is None:
+        logger.warning(
+            "RBAC: admin callback payload buzilgan/soxta (user=%s, data=%r)",
+            user_id, str(data)[:64] if data is not None else None,
+        )
+        raise CallbackTampering("bad_payload", user_id, data)
+    return ids
+
+
 def require_permission(permission, *, message: str = DEFAULT_DENIED_MESSAGE,
                        raise_error: bool = False):
     """Dekorator: handler faqat shu ruxsatga ega foydalanuvchiga ishlaydi.

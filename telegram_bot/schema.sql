@@ -120,9 +120,13 @@ CREATE TABLE IF NOT EXISTS scheduled_posts (
 -- scheduled_posts tarixiy navbatni saqlaydi, bu jadval esa aynan Telegram
 -- chaqiruvini bir marta bajarish kafolatini beradi.
 -- PostAssist V2 (3-bosqich): statuslar 'pending' | 'processing' | 'sent' |
--- 'failed' | 'dead_letter'. Vaqtinchalik xatolarda exponential backoff
--- (30s, 2m, 5m, 15m) next_retry_at orqali rejalashtiriladi; 5-urinishdan
--- keyin yoki doimiy xatoda (chat_not_found, bot_kicked) 'dead_letter'.
+-- 'failed' | 'dead_letter' | 'unknown'. Vaqtinchalik xatolarda exponential
+-- backoff (30s, 2m, 5m, 15m) next_retry_at orqali rejalashtiriladi;
+-- 5-urinishdan keyin yoki doimiy xatoda (chat_not_found, bot_kicked)
+-- 'dead_letter'. 'unknown' (UNKNOWN_DELIVERY, 11-bosqich) — Telegram API
+-- javobi olinmagan (albom/media-group yuborishda TimedOut/NetworkError):
+-- xabar kanalga chiqqan-chiqmagani NOMA'LUM, shuning uchun avtomatik
+-- (blind) qayta yuborilmaydi — admin ko'rib chiqadi.
 CREATE TABLE IF
 NOT EXISTS post_deliveries (
     id BIGSERIAL PRIMARY KEY,
@@ -454,6 +458,35 @@ CREATE INDEX IF NOT EXISTS idx_deliveries_post ON post_deliveries (post_id);
 --      promo_redemptions: UNIQUE (promo_id, user_id) tekshiriladi
 --    ============================================================
 
+-- 11-bosqich migratsiyasi: mavjud bazalarda eski status CHECK'lari
+-- ('unknown' qiymatisiz) bo'lsa — tashlanadi, quyidagi idempotent blok
+-- yangi ta'rif bilan qayta qo'shadi. Yangi baza uchun no-op.
+DO $postassist_unknown_status_migration$
+DECLARE
+    spec RECORD;
+    cur_def TEXT;
+BEGIN
+    FOR spec IN
+        SELECT * FROM (VALUES
+            ('post_deliveries', 'chk_post_deliveries_status'),
+            ('scheduled_posts', 'chk_scheduled_posts_status')
+        ) AS t(tbl, cname)
+    LOOP
+        IF to_regclass(spec.tbl) IS NULL THEN
+            CONTINUE;
+        END IF;
+        SELECT pg_get_constraintdef(c.oid) INTO cur_def
+          FROM pg_constraint c
+         WHERE c.conrelid = spec.tbl::regclass AND c.conname = spec.cname;
+        IF cur_def IS NOT NULL AND position('unknown' in cur_def) = 0 THEN
+            EXECUTE format('ALTER TABLE %I DROP CONSTRAINT %I', spec.tbl, spec.cname);
+            RAISE NOTICE 'integrity: %.% eski ta''rifi tashlandi (unknown status uchun yangilanadi)',
+                         spec.tbl, spec.cname;
+        END IF;
+    END LOOP;
+END
+$postassist_unknown_status_migration$;
+
 DO $postassist_integrity$
 DECLARE
     spec RECORD;
@@ -465,8 +498,8 @@ BEGIN
             ('post_deliveries', 'fk_post_deliveries_post', 'fk', 'FOREIGN KEY (post_id) REFERENCES scheduled_posts(id) ON DELETE CASCADE'),
             ('post_reactions', 'fk_post_reactions_post', 'fk', 'FOREIGN KEY (post_id) REFERENCES scheduled_posts(id) ON DELETE CASCADE'),
             ('promo_redemptions', 'uq_promo_user', 'unique', 'UNIQUE (promo_id, user_id)'),
-            ('post_deliveries', 'chk_post_deliveries_status', 'check', 'CHECK (status IN (''pending'', ''processing'', ''sent'', ''failed'', ''dead_letter''))'),
-            ('scheduled_posts', 'chk_scheduled_posts_status', 'check', 'CHECK (status IN (''pending'', ''processing'', ''posted'', ''failed'', ''cancelled'', ''completed''))'),
+            ('post_deliveries', 'chk_post_deliveries_status', 'check', 'CHECK (status IN (''pending'', ''processing'', ''sent'', ''failed'', ''dead_letter'', ''unknown''))'),
+            ('scheduled_posts', 'chk_scheduled_posts_status', 'check', 'CHECK (status IN (''pending'', ''processing'', ''posted'', ''failed'', ''cancelled'', ''completed'', ''unknown''))'),
             ('payments', 'chk_payments_status', 'check', 'CHECK (status IN (''pending'', ''succeeded'', ''failed'', ''refunded''))'),
             ('credits_ledger', 'fk_credits_ledger_user', 'fk', 'FOREIGN KEY (user_id) REFERENCES users(user_id)')
         ) AS t(tbl, cname, kind, cdef)

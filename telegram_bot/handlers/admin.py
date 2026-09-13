@@ -25,8 +25,13 @@ from keyboards.inline import (
 from utils import ai_agent
 from locales.translations import clear_fsm_data, get_lang, get_text
 # 6-bosqich: RBAC (rollar/ruxsatlar) va admin harakatlari auditi.
+from keyboards.callback_data import CB_SPONSOR_DELETE
 from services.rbac_service import (
     Role,
+    CallbackTampering,
+    admin_callback_guard,
+    parse_callback_id,
+    verify_admin_callback,
     PERM_MANAGE_PROMOS,
     PERM_MANAGE_USERS,
     PERM_SYSTEM_SETTINGS,
@@ -293,6 +298,10 @@ async def admin_dashboard_callback(update: Update, context: ContextTypes.DEFAULT
     """
     query = update.callback_query
     if not is_admin(query.from_user.id):
+        await query.answer("Ruxsat yo'q.", show_alert=True)
+        return ConversationHandler.END
+    # 11-bosqich (P0): server-side RBAC — payload emas, from_user.id hal qiladi.
+    if not verify_admin_callback(update):
         await query.answer("Ruxsat yo'q.", show_alert=True)
         return ConversationHandler.END
     data = query.data
@@ -1259,7 +1268,11 @@ async def del_sponsor_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         except Exception:
             pass
         return
-    s_id = query.data.split(":")[1]
+    # 11-bosqich (P0): payload ID qat'iy tekshiriladi (tampering himoyasi).
+    try:
+        (s_id,) = admin_callback_guard(update, CB_SPONSOR_DELETE, 1)
+    except CallbackTampering:
+        return
     removed = await db.run_db(db.remove_sponsor_channel, s_id)
     if not removed:
         try:
@@ -1687,13 +1700,19 @@ async def ad_pool_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         pass
     if not is_admin(query.from_user.id):
         return ConversationHandler.END
+    # 11-bosqich (P0): server-side RBAC (payload'ga ishonilmaydi).
+    if not verify_admin_callback(update):
+        return ConversationHandler.END
 
-    parts = query.data.split(":")
-    if len(parts) < 3 or parts[0] != "adp":
+    parts = (query.data or "").split(":")
+    if len(parts) < 3 or len(parts) > 4 or parts[0] != "adp":
         return ConversationHandler.END
     scope = parts[1]
     action = parts[2]
     arg = parts[3] if len(parts) >= 4 else None
+    if arg is not None and parse_callback_id(arg) is None:
+        # Reklama ID'si qat'iy musbat int bo'lishi shart.
+        return ConversationHandler.END
     meta = AD_SCOPE_META.get(scope)
     if not meta:
         return ConversationHandler.END

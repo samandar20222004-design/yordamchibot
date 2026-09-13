@@ -57,6 +57,26 @@ SEND_MICRO_DELAY = 0.08  # soniya — 0.05..0.1 oralig'ida
 # shu chegaragacha kutamiz, qolganini `retry_post` orqali DB'ga ko'chiramiz.
 FLOOD_WAIT_SLEEP_MAX = 60.0
 
+# 11-bosqich (P0): FloodWait butun schedulerni BLOKLAMAYDI. Tick ichida
+# real kutish faqat shu chegaragacha (soniya); qolgan muddat DB'da
+# (``retry_post``) — aynan shu post uchun kechiktiriladi, qolgan kanallar
+# navbatdagi postlari davom etadi.
+FLOOD_WAIT_INLINE_SLEEP_MAX = 5.0
+
+# Kanal bo'yicha FloodWait "sovutish" jadvali: {channel_id: monotonic_until}.
+# Telegram 429 qaytargan kanalga shu muddat ichida boshqa post yuborilmaydi
+# (ular ham DB'da kechiktiriladi) — limit uzayib ketmasligi uchun.
+_CHANNEL_FLOOD_UNTIL: dict = {}
+
+# UNKNOWN_DELIVERY (P0): albom (media group) yuborishda TimedOut/NetworkError
+# bo'lsa Telegram xabarni qabul qilgan bo'lishi mumkin — qayta yuborish
+# dublikat albom chiqaradi. Bunday postlar 'unknown' bo'ladi va avtomatik
+# qayta yuborilmaydi (admin health panelida ko'rinadi).
+UNKNOWN_DELIVERY = "unknown"
+
+# Avto-o'chirishda vaqtinchalik xatodan keyin qayta urinish (soniya).
+AUTO_DELETE_RETRY_DELAY = 300
+
 # --- IDEMPOTENT YUBORISH: "yuborildi" markeri kafolati -----------------------
 # post_deliveries Telegram delivery'sining asosiy, doimiy source-of-truth'i.
 # Post Telegramga chiqqach delivery status='sent' + message_id yozilishi SHART;
@@ -185,25 +205,28 @@ async def _apply_sent_marker(marker: dict) -> bool:
     # post_deliveries — yangi asosiy idempotency marker. Legacy markerlarda
     # delivery_key yo'q, shuning uchun eski restart oqimi ham saqlanadi.
     delivery_key = marker.get("delivery_key")
-    if delivery_key and not marker.get("delivery_done"):
-        delivery_ok = False
-        try:
-            delivery_ok = _db_ok(await db.run_db(
-                SchedulerService.mark_sent_by_key, delivery_key, marker.get("message_id")
-            ))
-        except Exception as e:
-            logger.exception("Delivery sent marker yozilmadi (Post ID: %s): %s", pid, e)
-        if not delivery_ok:
-            return False
-        marker["delivery_done"] = True
 
+    # 11-bosqich (P0): 'posted' (scheduled_posts) + 'sent' (post_deliveries)
+    # BITTA atomik tranzaksiyada yoziladi — Telegram'ga chiqqan post DB'da
+    # darhol va bo'linmas holda "yuborildi" bo'ladi. Crash bo'lsa ham ikkala
+    # marker birga yoki umuman yozilmaydi (ikkinchi holatda in-memory guard
+    # va flush qayta yozadi; post QAYTA YUBORILMAYDI).
     if not marker.get("marker_done"):
         ok = False
         try:
             ok = _db_ok(await db.run_db(
                 db.mark_post_as_sent, pid, marker.get("message_id"), marker.get("channel_id"),
                 int(marker.get("delete_after_hours") or 0), marker.get("extra_ids") or None,
+                delivery_key,
             ))
+            if ok and delivery_key:
+                marker["delivery_done"] = True
+        except TypeError:
+            # Legacy/fake adapter: delivery_key parametrini bilmaydi —
+            # eski ikki bosqichli oqim (avval delivery, keyin posted).
+            ok = await _apply_sent_marker_legacy(marker)
+            if not ok:
+                return False
         except Exception as e:
             logger.exception(
                 "Post Telegramga yuborildi (Msg ID: %s), lekin DB ga 'posted' deb belgilashda xatolik (Post ID: %s): %s",
@@ -218,6 +241,20 @@ async def _apply_sent_marker(marker: dict) -> bool:
         if not ok:
             return False
         marker["marker_done"] = True
+
+    if delivery_key and not marker.get("delivery_done"):
+        # Atomik yozuv delivery'ni qamrab olmagan bo'lsa (legacy adapter) —
+        # alohida idempotent 'sent' markeri.
+        delivery_ok = False
+        try:
+            delivery_ok = _db_ok(await db.run_db(
+                SchedulerService.mark_sent_by_key, delivery_key, marker.get("message_id")
+            ))
+        except Exception as e:
+            logger.exception("Delivery sent marker yozilmadi (Post ID: %s): %s", pid, e)
+        if not delivery_ok:
+            return False
+        marker["delivery_done"] = True
 
     next_time_raw = marker.get("next_time")
     try:
@@ -234,6 +271,30 @@ async def _apply_sent_marker(marker: dict) -> bool:
         logger.exception("Takrorlanuvchi postni qayta rejalashtirishda xato (Post ID: %s): %s", pid, e)
         return False
     return True
+
+
+async def _apply_sent_marker_legacy(marker: dict) -> bool:
+    """Eski adapterlar uchun ikki bosqichli marker (delivery → posted)."""
+    pid = int(marker["post_id"])
+    delivery_key = marker.get("delivery_key")
+    if delivery_key and not marker.get("delivery_done"):
+        try:
+            if not _db_ok(await db.run_db(
+                SchedulerService.mark_sent_by_key, delivery_key, marker.get("message_id")
+            )):
+                return False
+        except Exception as e:
+            logger.exception("Delivery sent marker yozilmadi (Post ID: %s): %s", pid, e)
+            return False
+        marker["delivery_done"] = True
+    try:
+        return _db_ok(await db.run_db(
+            db.mark_post_as_sent, pid, marker.get("message_id"), marker.get("channel_id"),
+            int(marker.get("delete_after_hours") or 0), marker.get("extra_ids") or None,
+        ))
+    except Exception as e:
+        logger.exception("'posted' markeri yozilmadi (Post ID: %s): %s", pid, e)
+        return False
 
 
 async def _persist_sent_marker(marker: dict, retry_delays=SENT_MARKER_RETRY_DELAYS) -> bool:
@@ -323,6 +384,95 @@ def flood_wait_seconds(error, default: float = 5.0) -> float:
     if value <= 0:
         value = float(default)
     return max(1.0, min(value, FLOOD_WAIT_SLEEP_MAX))
+
+
+def flood_wait_inline_sleep(wait_seconds: float) -> float:
+    """Tick ichida REAL kutiladigan muddat (qolgani DB'da kechiktiriladi)."""
+    try:
+        value = float(wait_seconds)
+    except (TypeError, ValueError):
+        value = 1.0
+    return max(0.0, min(value, FLOOD_WAIT_INLINE_SLEEP_MAX))
+
+
+def _channel_key(channel_id) -> str:
+    return str(channel_id) if channel_id is not None else ""
+
+
+def mark_channel_flood(channel_id, wait_seconds: float) -> None:
+    """Kanalni ``wait_seconds`` davomida FloodWait sovutishiga qo'yadi."""
+    try:
+        wait = max(1.0, float(wait_seconds))
+    except (TypeError, ValueError):
+        wait = 1.0
+    import time as _t
+    _CHANNEL_FLOOD_UNTIL[_channel_key(channel_id)] = _t.monotonic() + wait
+
+
+def channel_flood_remaining(channel_id) -> float:
+    """Kanal hali FloodWait sovutishida bo'lsa qolgan soniya, aks holda 0."""
+    import time as _t
+    key = _channel_key(channel_id)
+    until = _CHANNEL_FLOOD_UNTIL.get(key)
+    if not until:
+        return 0.0
+    remaining = until - _t.monotonic()
+    if remaining <= 0:
+        _CHANNEL_FLOOD_UNTIL.pop(key, None)
+        return 0.0
+    return remaining
+
+
+def clear_channel_flood(channel_id=None) -> None:
+    """Testlar/admin uchun: kanal (yoki barcha) FloodWait sovutishini tozalaydi."""
+    if channel_id is None:
+        _CHANNEL_FLOOD_UNTIL.clear()
+    else:
+        _CHANNEL_FLOOD_UNTIL.pop(_channel_key(channel_id), None)
+
+
+# --- Avto-o'chirish xatolarini tasniflash -----------------------------------
+_DELETE_GONE_PATTERNS = (
+    "message to delete not found",
+    "message_id_invalid",
+    "message can't be deleted",
+    "message cant be deleted",
+    "message identifier is not specified",
+    "chat not found",
+    "chat_not_found",
+    "bot was kicked",
+    "bot is not a member",
+    "not enough rights",
+    "have no rights",
+    "channel_private",
+    "chat_write_forbidden",
+    "message_delete_forbidden",
+)
+
+
+def classify_delete_error(error) -> str:
+    """Avto-o'chirish xatosi: ``"gone"`` (xabar yo'q / qayta urinish foydasiz)
+    yoki ``"transient"`` (tarmoq/FloodWait/noma'lum — keyinroq qayta uriniladi).
+
+    Faqat ``gone`` bo'lgandagina DB'da ``deleted_at`` yoziladi; vaqtinchalik
+    xatoda xabar hali kanalda deb hisoblanadi va o'chirish kechiktiriladi.
+    """
+    if error is None:
+        return "gone"
+    if isinstance(error, (RetryAfter, TimedOut)):
+        return "transient"
+    text = str(error).lower()
+    if any(p in text for p in _DELETE_GONE_PATTERNS):
+        return "gone"
+    # DIQQAT: PTB'da BadRequest — NetworkError'ning subklassi, shuning uchun
+    # avval nom bo'yicha tekshiriladi: BadRequest/Forbidden — doimiy (xabar
+    # yo'q yoki huquq yo'q), qayta-qayta urinish foydasiz → 'gone'.
+    name = type(error).__name__.lower()
+    if isinstance(error, TelegramError) and ("badrequest" in name or "forbidden" in name):
+        return "gone"
+    if isinstance(error, NetworkError):
+        return "transient"
+    return "transient"
 
 
 def calculate_next_time(recurrence_type, recurrence_day, recurrence_time, current_time):
@@ -690,18 +840,35 @@ async def check_and_send_posts(bot):
             if lifecycle.is_shutting_down():
                 await _requeue_unsent_on_shutdown(due_posts[index:])
                 break
+            # 1b) Kanal FloodWait sovutishida bo'lsa — bu post Telegramga
+            #     URINILMAYDI, DB'da kechiktiriladi; boshqa kanallar davom etadi.
+            channel_id = post[2] if post and len(post) > 2 else None
+            cooldown = channel_flood_remaining(channel_id)
+            if cooldown > 0:
+                logger.info(
+                    "Kanal %s FloodWait sovutishida (%.0fs) — post %s kechiktirildi.",
+                    channel_id, cooldown, post[0] if post else "?",
+                )
+                await _requeue_post(post, cooldown)
+                continue
             try:
                 with lifecycle.track(f"post:{post[0] if post else '?'}"):
                     await _execute_send(bot, post)
             except RetryAfter as e:
-                # 2) Telegram FloodWait (429): ko'rsatilgan muddat kutiladi va
-                # navbat XAVFSIZ davom ettiriladi (post qayta navbatga qo'yiladi).
+                # 2) Telegram FloodWait (429): scheduler BLOKLANMAYDI —
+                #    qisqa (≤ FLOOD_WAIT_INLINE_SLEEP_MAX) pauza, post esa
+                #    Telegram ko'rsatgan to'liq muddatga DB'da kechiktiriladi;
+                #    kanal sovutishga qo'yiladi, navbat XAVFSIZ davom etadi.
                 wait_seconds = flood_wait_seconds(e)
                 logger.warning(
-                    "Telegram FloodWait (429): %.0fs kutilmoqda (Post ID: %s)",
-                    wait_seconds, post[0] if post else "?",
+                    "Telegram FloodWait (429): post %s %.0fs ga kechiktirildi (kanal %s)",
+                    post[0] if post else "?", wait_seconds, channel_id,
                 )
-                await asyncio.sleep(wait_seconds)
+                inline_sleep = flood_wait_inline_sleep(wait_seconds)
+                # Inline kutishdan ORTIQ qolgan muddat kanal sovutishiga o'tadi.
+                if wait_seconds - inline_sleep > 0:
+                    mark_channel_flood(channel_id, wait_seconds - inline_sleep)
+                await asyncio.sleep(inline_sleep)
                 await _requeue_post(post, wait_seconds)
             except Exception:
                 logger.exception("Post yuborishda kutilmagan xato (Post ID: %s)", post[0] if post else "?")
@@ -777,6 +944,40 @@ def _delivery_is_dead(result) -> bool:
     )
 
 
+def _delivery_is_unknown(result) -> bool:
+    """Delivery natijasi 'unknown' (UNKNOWN_DELIVERY) ekanligini tekshiradi."""
+    return isinstance(result, dict) and (
+        result.get("status") == UNKNOWN_DELIVERY or result.get("unknown") is True
+    )
+
+
+async def _mark_delivery_unknown(post_id, delivery_key, error) -> bool:
+    """UNKNOWN_DELIVERY: delivery + scheduled_posts 'unknown' (blind retry yo'q).
+
+    Hech qachon istisno tashlamaydi. Qaytadi: DB'ga yozildimi.
+    """
+    ok_delivery = True
+    if delivery_key:
+        try:
+            ok_delivery = _db_ok(await db.run_db(
+                SchedulerService.mark_unknown_by_key, delivery_key, error
+            ))
+        except Exception:
+            logger.exception("Delivery unknown markeri yozilmadi (%s)", delivery_key)
+            ok_delivery = False
+    ok_post = False
+    try:
+        ok_post = _db_ok(await db.run_db(db.mark_post_status, post_id, UNKNOWN_DELIVERY))
+    except Exception:
+        logger.exception("Post %s 'unknown' statusi yozilmadi", post_id)
+    logger.error(
+        "UNKNOWN_DELIVERY: post %s albomi yuborilayotganda Telegram javobi olinmadi (%s: %s). "
+        "Dublikat xavfi tufayli avtomatik qayta yuborilmaydi — admin tekshiruvi kerak.",
+        post_id, type(error).__name__, error,
+    )
+    return bool(ok_delivery and ok_post)
+
+
 def _delivery_retry_delay(result, fallback: float) -> float:
     """Delivery natijasidagi backoff (soniya) yoki fallback qiymat."""
     if isinstance(result, dict):
@@ -837,6 +1038,15 @@ async def _execute_send(bot, post):
                 "Post %s delivery'si dead_letter — qayta urinilmaydi.", post_id,
             )
             await db.run_db(db.mark_post_status, post_id, "failed")
+            return
+        if _delivery_is_unknown(delivery_claim):
+            # UNKNOWN_DELIVERY: avvalgi urinishda Telegram javobi olinmagan —
+            # xabar kanalda bo'lishi mumkin. Blind retry TAQIQLANADI.
+            logger.warning(
+                "Post %s delivery'si UNKNOWN — avtomatik qayta yuborilmaydi (admin ko'radi).",
+                post_id,
+            )
+            await db.run_db(db.mark_post_status, post_id, UNKNOWN_DELIVERY)
             return
         if not delivery_claim.get("claimed"):
             if claim_status == "processing":
@@ -911,6 +1121,9 @@ async def _execute_send(bot, post):
 
     sent_msg = None
     extra_ids = []
+    # Albom (media group) uchun: Telegram API chaqiruvi BOSHLANGAN, lekin javob
+    # kelmagan bo'lsa (TimedOut/NetworkError) — xabar chiqqan bo'lishi mumkin.
+    album_api_started = False
     try:
         # Telegram caption limiti 1024, oddiy matn limiti 4096 belgidan iborat.
         # Limit compose_post_text ichida qo'llanadi — nishon kesishdan KEYIN
@@ -949,7 +1162,9 @@ async def _execute_send(bot, post):
                 )
             else:
                 media = _build_album_media(items, final_content)
+                album_api_started = True
                 sent_group = await bot.send_media_group(chat_id=target_chat, media=media)
+                album_api_started = False
                 sent_msg = sent_group[0] if sent_group else None
                 extra_ids = [m.message_id for m in (sent_group or [])[1:] if getattr(m, "message_id", None)]
                 # sendMediaGroup reply_markup'ni qo'llab-quvvatlamaydi — tugmalarni alohida xabar
@@ -998,10 +1213,15 @@ async def _execute_send(bot, post):
         delivery_result = await _mark_delivery_failed(delivery_key, e, is_transient=True)
         wait_seconds = flood_wait_seconds(e)
         logger.warning(
-            "Telegram FloodWait (Post ID: %s), %.0fs kutiladi va qayta uriniladi",
-            post_id, wait_seconds,
+            "Telegram FloodWait (Post ID: %s, kanal %s): post %.0fs ga kechiktiriladi",
+            post_id, channel_id, wait_seconds,
         )
-        await asyncio.sleep(wait_seconds)
+        # Scheduler BLOKLANMAYDI: kanal sovutishga qo'yiladi, tick ichida faqat
+        # qisqa pauza; to'liq kutish DB'dagi retry vaqtida.
+        inline_sleep = flood_wait_inline_sleep(wait_seconds)
+        if wait_seconds - inline_sleep > 0:
+            mark_channel_flood(channel_id, wait_seconds - inline_sleep)
+        await asyncio.sleep(inline_sleep)
         if _delivery_is_dead(delivery_result):
             logger.warning(
                 "Post %s: FloodWait urinishlari tugadi (dead_letter) — 'failed' deb yakunlanadi.",
@@ -1013,6 +1233,12 @@ async def _execute_send(bot, post):
         await db.run_db(db.retry_post, post_id, retry_at)
         return
     except (TimedOut, NetworkError) as e:
+        if album_api_started:
+            # P0: albom so'rovi Telegramga ketgan, javob kelmagan — xabar
+            # kanalga chiqqan bo'lishi MUMKIN. Blind retry dublikat albom
+            # chiqaradi → UNKNOWN_DELIVERY, qayta yuborilmaydi.
+            await _mark_delivery_unknown(post_id, delivery_key, e)
+            return
         delivery_result = await _mark_delivery_failed(delivery_key, e, is_transient=True)
         if _delivery_is_dead(delivery_result):
             logger.warning(
@@ -1072,22 +1298,80 @@ async def _send_single_media(bot, target_chat, kind, file_id, caption, reply_mar
 
 
 async def check_and_delete_expired_posts(bot):
-    """Avto-o'chirish muddati yetgan xabarlarni kanaldan o'chirish (har 1 daqiqada)."""
+    """Avto-o'chirish muddati yetgan xabarlarni kanaldan o'chirish (har 1 daqiqada).
+
+    11-bosqich (P0): ``deleted=true`` FAQAT xabar haqiqatan o'chirilganda yoki
+    Telegram uni topa olmaganda (``classify_delete_error == "gone"``) yoziladi.
+    Vaqtinchalik xatoda (tarmoq, timeout, FloodWait) yozuv TEGILMAYDI —
+    o'chirish ``AUTO_DELETE_RETRY_DELAY`` dan keyin qayta rejalashtiriladi.
+    """
     try:
         now = now_tashkent()
         to_delete = await db.run_db(db.get_posts_to_delete, now)
         for item in to_delete:
             pid, ch_id, msg_id = item
+            target_chat = int(ch_id) if str(ch_id).lstrip('-').isdigit() else ch_id
             try:
-                target_chat = int(ch_id) if str(ch_id).lstrip('-').isdigit() else ch_id
                 await bot.delete_message(chat_id=target_chat, message_id=msg_id)
             except Exception as e:
-                logger.warning(f"Avto-o'chirish xatosi (Post {pid}): {e}")
-            finally:
-                # Xabar topilmasa ham, qayta-qayta urinmaslik uchun bazada belgilab qo'yamiz.
-                await db.run_db(db.mark_post_as_deleted, pid)
+                kind = classify_delete_error(e)
+                if kind == "transient":
+                    delay = AUTO_DELETE_RETRY_DELAY
+                    if isinstance(e, RetryAfter):
+                        delay = max(delay, flood_wait_seconds(e))
+                    logger.warning(
+                        "Avto-o'chirish vaqtinchalik xatosi (Post %s): %s — %.0fs dan keyin qayta uriniladi",
+                        pid, e, delay,
+                    )
+                    await _defer_deletion(pid, delay)
+                    continue
+                # Xabar topilmadi / o'chirib bo'lmaydi — qayta urinish foydasiz.
+                logger.warning(f"Avto-o'chirish: xabar topilmadi yoki o'chirib bo'lmaydi (Post {pid}): {e}")
+            await _mark_deleted_safe(pid)
     except Exception:
         logger.exception("Avto-o'chirish ishida kutilmagan xato")
+
+
+async def _mark_deleted_safe(row_id) -> None:
+    try:
+        await db.run_db(db.mark_post_as_deleted, row_id)
+    except Exception:
+        logger.exception("Avto-o'chirish markerini yozishda xato (row %s)", row_id)
+
+
+async def _defer_deletion(row_id, delay_seconds: float) -> None:
+    try:
+        fn = getattr(db, "defer_post_deletion", None)
+        if fn is None:
+            return
+        await db.run_db(fn, row_id, int(delay_seconds))
+    except Exception:
+        logger.exception("Avto-o'chirishni kechiktirishda xato (row %s)", row_id)
+
+
+async def recover_on_startup() -> dict:
+    """Restart recovery (P0): bot ishga tushganda 'processing' da qolib
+    ketgan postlarni XAVFSIZ tiklaydi — Telegramga chiqqanlari 'posted',
+    UNKNOWN_DELIVERY bo'lganlari 'unknown', yuborilmaganlari 'pending'.
+
+    ``check_and_send_posts`` birinchi tick'idan OLDIN chaqiriladi. Hech qachon
+    istisno tashlamaydi.
+    """
+    try:
+        fn = getattr(db, "recover_processing_posts_on_startup", None)
+        if fn is None:
+            await db.run_db(db.recover_stale_processing_posts)
+            return {}
+        result = await db.run_db(fn, 0) or {}
+        if any(result.get(k) for k in ("posted", "unknown", "requeued")):
+            logger.warning(
+                "Restart recovery: posted=%s, unknown=%s, requeued=%s",
+                result.get("posted"), result.get("unknown"), result.get("requeued"),
+            )
+        return result
+    except Exception:
+        logger.exception("Restart recovery xatosi")
+        return {}
 
 
 async def cleanup_old_data_job():

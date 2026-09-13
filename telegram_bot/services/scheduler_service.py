@@ -37,6 +37,7 @@ from database import (
     _delivery_channel_number,
     claim_post_delivery,
     mark_post_delivery_sent,
+    mark_post_delivery_unknown,
     DELIVERY_BACKOFF_SECONDS,
     DELIVERY_MAX_ATTEMPTS,
 )
@@ -52,6 +53,9 @@ class SchedulerService:
     STATUS_SENT = "sent"
     STATUS_FAILED = "failed"
     STATUS_DEAD_LETTER = "dead_letter"
+    #: UNKNOWN_DELIVERY (11-bosqich): Telegram javobi olinmagan (albom
+    #: yuborishda TimedOut/NetworkError). Qayta yuborish TAQIQLANADI.
+    STATUS_UNKNOWN = "unknown"
 
     CLAIMABLE_STATUSES = (
         STATUS_PENDING,
@@ -245,6 +249,25 @@ class SchedulerService:
             return bool(mark_post_delivery_sent(idempotency_key, telegram_message_id))
         except Exception as e:
             logger.error("SchedulerService.mark_as_sent xatosi (post=%s): %s", post_id, e)
+            return False
+
+    @staticmethod
+    def mark_unknown_by_key(idempotency_key: str, error) -> bool:
+        """Kalit bo'yicha ``unknown`` (UNKNOWN_DELIVERY) belgilash.
+
+        Albom (media group) yuborishda TimedOut/NetworkError bo'lsa Telegram
+        xabarni qabul qilgan bo'lishi mumkin — blind retry dublikat albom
+        chiqaradi. Shuning uchun delivery 'unknown' bo'ladi va scheduler uni
+        boshqa claim qilmaydi.
+        """
+        try:
+            if not idempotency_key:
+                return False
+            return bool(mark_post_delivery_unknown(
+                idempotency_key, SchedulerService.normalize_error_text(error)
+            ))
+        except Exception as e:
+            logger.error("SchedulerService.mark_unknown_by_key xatosi: %s", e)
             return False
 
     @staticmethod
