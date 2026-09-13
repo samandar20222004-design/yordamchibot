@@ -438,14 +438,11 @@ GROQ_PREFERRED = [
     "gemma2-9b-it",                               # Kichik va tez
     "llama3-8b-8192",                             # Zaxira
 ]
-# OpenRouter: bepul (:free) kuchli modellar
-OPENROUTER_PREFERRED = [
-    "meta-llama/llama-3.3-70b-instruct:free",
-    "meta-llama/llama-4-scout:free",
-    "google/gemma-3-27b-it:free",
-    "qwen/qwen3-14b:free",
-    "mistralai/mistral-7b-instruct:free",
-]
+# OpenRouter: free dynamic router. Eski qattiq :free model ro'yxatlari tez
+# eskiradi/decommission bo'ladi; OpenRouter'ning "openrouter/free" routeri
+# chaqiruv paytida mavjud bepul modelga yo'naltiradi.
+OPENROUTER_FREE_ROUTER_MODEL = os.getenv("OPENROUTER_FREE_ROUTER_MODEL", "openrouter/free").strip() or "openrouter/free"
+OPENROUTER_PREFERRED = [OPENROUTER_FREE_ROUTER_MODEL]
 MISTRAL_PREFERRED = [
     "mistral-small-latest",    # Bepul tier, ko'p tilli
     "open-mistral-nemo",       # 128k kontekst

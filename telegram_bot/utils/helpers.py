@@ -689,80 +689,96 @@ def html_escape(text) -> str:
     return html.escape(str(text))
 
 
-# Telegram qo'llab-quvvatlaydigan HTML teglar
-_TELEGRAM_TAGS = {"b", "strong", "i", "em", "u", "ins", "s", "strike", "del",
-                  "code", "pre", "a", "tg-spoiler", "blockquote", "tg-emoji"}
+# Telegram HTML'da foydalanuvchi matnidan saqlashga ruxsat etilgan kichik oq
+# ro'yxat. Qolgan barcha <, >, & belgilar TEXT sifatida escape qilinadi.
+_TELEGRAM_TAGS = {"b", "strong", "i", "em", "code", "a"}
+_SAFE_TAG_RE = re.compile(r"<\s*(/?)\s*([a-zA-Z][a-zA-Z0-9-]*)([^>]*)>")
+
+
+def has_allowed_html(text: str) -> bool:
+    """Matnda Telegram uchun ruxsat etilgan HTML teglar bor-yo'qligini tekshiradi."""
+    if not text:
+        return False
+    for match in _SAFE_TAG_RE.finditer(str(text)):
+        name = match.group(2).lower()
+        if name in _TELEGRAM_TAGS:
+            return True
+    return False
+
+
+def telegram_html_payload(text: str) -> tuple[str, str | None]:
+    """Yuborish uchun (matn, parse_mode) qaytaradi.
+
+    Plain text bo'lsa ``parse_mode=None`` — Telegram HTML parser umuman
+    ishga tushmaydi. Ruxsat etilgan HTML teg bo'lsa matn ``safe_html`` bilan
+    sanitizatsiya qilinib, ``parse_mode='HTML'`` qaytariladi.
+    """
+    raw = "" if text is None else str(text)
+    if has_allowed_html(raw):
+        return safe_html(raw), "HTML"
+    return raw, None
 
 
 def safe_html(text: str) -> str:
-    """AI yoki tashqi matnni Telegram HTML uchun xavfsiz formatlaydi.
+    """Foydalanuvchi/AI matnini Telegram ``parse_mode='HTML'`` uchun xavfsiz qiladi.
 
-    - Faqat Telegram qo'llab-quvvatlaydigan teglar saqlanadi
-    - Noto'g'ri yopilmagan teglar avtomatik yopiladi
-    - Boshqa barcha HTML teglar olib tashlanadi
-    - '&' belgisi teglar ichida escape qilinmaydi (Telegram API talabi)
+    Qoidalar:
+      * Oddiy matndagi ``<``, ``>``, ``&`` har doim escape qilinadi — masalan
+        ``5 < 10 & price > 100`` → ``5 &lt; 10 &amp; price &gt; 100``.
+      * Faqat ruxsat etilgan format teglari saqlanadi: ``b/strong``, ``i/em``,
+        ``code`` va ``a href=...``.
+      * ``<a>`` tegida faqat xavfsiz ``href`` atributi qoldiriladi; boshqa
+        atributlar, noma'lum teglar va yopilmagan/noto'g'ri teglar matn sifatida
+        escape qilinadi.
+      * Funksiya hech qachon istisno bermaydi.
     """
-    if not text:
+    if text is None or text == "":
         return ""
-    text = str(text)
+    raw = str(text)
+    out: list[str] = []
+    stack: list[str] = []
+    pos = 0
 
-    # Noto'g'ri teglarni tozalash: ruxs etilmagan teglarni olib tashlash
-    import re as _re
+    for match in _SAFE_TAG_RE.finditer(raw):
+        # Tegdan oldingi oddiy matn — to'liq escape qilinadi.
+        out.append(html.escape(raw[pos:match.start()], quote=False))
+        pos = match.end()
 
-    # Yopilgan teglarni tekshirish va tuzatish
-    open_tags = []
-    result = []
-    i = 0
-    while i < len(text):
-        if text[i] == '<':
-            # Tegni topish
-            end = text.find('>', i)
-            if end == -1:
-                # Yopilmagan < — escape qilamiz
-                result.append('&lt;')
-                i += 1
-                continue
-
-            tag_content = text[i+1:end].strip()
-
-            # Self-closing yoki closing teg
-            if tag_content.startswith('/'):
-                tag_name = tag_content[1:].split()[0].lower().rstrip('/')
-                if tag_name in _TELEGRAM_TAGS and tag_name in open_tags:
-                    # To'g'ri yopilgan teg
-                    while open_tags and open_tags[-1] != tag_name:
-                        # Oraliq teglarni avtomatik yopamiz
-                        result.append(f'</{open_tags.pop()}>')
-                    if open_tags:
-                        open_tags.pop()
-                    result.append(f'</{tag_name}>')
-                # Noto'g'ri yoki ortiqcha yopilgan teg — o'tkazib yuboramiz
-                i = end + 1
-                continue
-
-            # Ochiq teg
-            tag_name = tag_content.split()[0].lower().rstrip('/')
-            if tag_name in _TELEGRAM_TAGS:
-                # Tegni saqlaymiz
-                attrs = tag_content[len(tag_name):].strip()
-                if attrs.endswith('/'):
-                    # Self-closing
-                    result.append(f'<{tag_name}{attrs}')
-                else:
-                    result.append(f'<{tag_name}{attrs}>')
-                    open_tags.append(tag_name)
-            # Ruxs etilmagan teg — o'tkazib yuboramiz (matnini saqlaymiz)
-            i = end + 1
+        closing, tag_name, attrs = match.group(1), match.group(2).lower(), match.group(3) or ""
+        canonical = {"strong": "b", "em": "i"}.get(tag_name, tag_name)
+        if tag_name not in _TELEGRAM_TAGS:
+            out.append(html.escape(match.group(0), quote=False))
             continue
 
-        result.append(text[i])
-        i += 1
+        if closing:
+            if canonical not in stack:
+                out.append(html.escape(match.group(0), quote=False))
+                continue
+            while stack and stack[-1] != canonical:
+                out.append(f"</{stack.pop()}>")
+            if stack:
+                stack.pop()
+                out.append(f"</{canonical}>")
+            continue
 
-    # Ochiq qolgan teglarni yopamiz
-    while open_tags:
-        result.append(f'</{open_tags.pop()}>')
+        if canonical == "a":
+            href = _HREF_RE.search(attrs)
+            href_value = (href.group(1).strip() if href else "")
+            if not href_value or url_rejection_reason(href_value):
+                out.append(html.escape(match.group(0), quote=False))
+                continue
+            out.append(f'<a href="{html.escape(href_value, quote=True)}">')
+            stack.append("a")
+            continue
 
-    return ''.join(result)
+        # b/i/code atributsiz saqlanadi; atributlar tashlab yuboriladi.
+        out.append(f"<{canonical}>")
+        stack.append(canonical)
+
+    out.append(html.escape(raw[pos:], quote=False))
+    while stack:
+        out.append(f"</{stack.pop()}>")
+    return "".join(out)
 
 def format_post_type_label(post_type: str, lang: str = "uz") -> str:
     """Post turi yorlig'i — foydalanuvchi tilida (uz/ru).

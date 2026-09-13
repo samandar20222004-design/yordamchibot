@@ -247,6 +247,16 @@ async def _keep_typing(bot, chat_id: int, stop_event: asyncio.Event):
             break
 
 
+def _ai_quota_temp_error_text(lang: str = "uz") -> str:
+    """DB/pool xatosida AI kvotasini fail-closed rad etish uchun muloyim xabar."""
+    code = str(lang or "uz").lower()
+    if code == "ru":
+        return "⏳ <b>AI временно недоступен.</b> Пожалуйста, попробуйте ещё раз через минуту."
+    if code == "en":
+        return "⏳ <b>AI is temporarily unavailable.</b> Please try again in a minute."
+    return "⏳ <b>AI xizmati vaqtincha band.</b> Iltimos, bir daqiqadan so'ng qayta urinib ko'ring."
+
+
 def _no_credits_text(bot_username: str, user_id: int, lang: str = "uz") -> str:
     ref_link = f"https://t.me/{bot_username}?start=ref_{user_id}"
     return safe_t("no_credits", lang, guide=safe_t("daily_bonus_guide", lang), link=ref_link)
@@ -451,11 +461,14 @@ async def ai_input_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin and not is_pro:
         can_use, used, max_ai = await db.run_db(db.check_ai_limit, user_id)
         if not can_use:
-            await msg.reply_text(
-                safe_t("ai_limit_msg", lang, used=used, max=max_ai),
-                reply_markup=_pro_upgrade_keyboard(lang),
-                parse_mode="HTML",
-            )
+            if int(used or 0) < 0:
+                await msg.reply_text(_ai_quota_temp_error_text(lang), parse_mode="HTML")
+            else:
+                await msg.reply_text(
+                    safe_t("ai_limit_msg", lang, used=used, max=max_ai),
+                    reply_markup=_pro_upgrade_keyboard(lang),
+                    parse_mode="HTML",
+                )
             return AI_INPUT
 
     # Ballni atomik band qilamiz (faqat free uchun; PRO cheksiz).
@@ -488,6 +501,11 @@ async def ai_input_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if "error" in result:
         if not is_admin:
             await db.run_db(db.add_user_credit, user_id)
+            if not is_pro and hasattr(db, "refund_ai_usage"):
+                try:
+                    await db.run_db(db.refund_ai_usage, user_id)
+                except Exception:
+                    pass
         await msg.reply_text(
             f"⚠️ {localize_service_error(result['error'], lang)}",
             reply_markup=get_cancel_keyboard(lang),
@@ -863,11 +881,14 @@ async def _studio_ai_preflight(update: Update, context: ContextTypes.DEFAULT_TYP
     if not is_admin and not is_pro:
         can_use, used, max_ai = await db.run_db(db.check_ai_limit, user_id)
         if not can_use:
-            await msg.reply_text(
-                safe_t("ai_limit_msg", lang, used=used, max=max_ai),
-                reply_markup=PRO_UPGRADE_KEYBOARD,
-                parse_mode="HTML",
-            )
+            if int(used or 0) < 0:
+                await msg.reply_text(_ai_quota_temp_error_text(lang), parse_mode="HTML")
+            else:
+                await msg.reply_text(
+                    safe_t("ai_limit_msg", lang, used=used, max=max_ai),
+                    reply_markup=PRO_UPGRADE_KEYBOARD,
+                    parse_mode="HTML",
+                )
             return False, is_admin, is_pro
 
     # Ballni atomik band qilamiz (faqat free uchun; PRO/Admin cheksiz).
@@ -887,6 +908,13 @@ async def _studio_ai_refund(user_id: int, is_admin: bool, is_pro: bool):
     """Band qilingan AI ballini qaytaradi (AI xato/timeout bo'lganda)."""
     if not is_admin and not is_pro:
         await db.run_db(db.add_user_credit, user_id)
+        if hasattr(db, "refund_ai_usage"):
+            try:
+                await db.run_db(db.refund_ai_usage, user_id)
+            except Exception:
+                # Eski test/fake DB adapterlari bu helperni bilmasligi mumkin;
+                # kredit refund'i saqlanadi, production DB'da quota ham qaytariladi.
+                pass
 
 
 def _studio_preview_text(post_text: str, tone: str, file_id=None, lang: str = "uz") -> str:

@@ -89,6 +89,10 @@ echo "==================== AI MOCK TEST ==================="
 "$PY" tests/ai_mock_test.py || exit 1
 
 echo
+echo "=========== PRODUCTION AI SECURITY P0/P1 TEST ==========="
+"$PY" tests/production_ai_security_p0_test.py || exit 1
+
+echo
 echo "==================== AI FALLBACK TEST (4-BOSQICH) ================"
 "$PY" tests/ai_fallback_test.py || exit 1
 

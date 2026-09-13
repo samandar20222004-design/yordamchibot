@@ -4124,35 +4124,119 @@ def check_channel_limit(user_id: int) -> tuple[bool, int, int]:
         return (True, 0, 2)
 
 
+_AI_QUOTA_RESERVATIONS: dict[int, int] = {}
+_AI_QUOTA_RESERVATIONS_LOCK = threading.Lock()
+
+
+def _remember_ai_quota_reservation(user_id: int) -> None:
+    with _AI_QUOTA_RESERVATIONS_LOCK:
+        uid = int(user_id)
+        _AI_QUOTA_RESERVATIONS[uid] = _AI_QUOTA_RESERVATIONS.get(uid, 0) + 1
+        if len(_AI_QUOTA_RESERVATIONS) > 10000:
+            _AI_QUOTA_RESERVATIONS.clear()
+
+
+def _consume_ai_quota_reservation(user_id: int) -> bool:
+    with _AI_QUOTA_RESERVATIONS_LOCK:
+        uid = int(user_id)
+        count = _AI_QUOTA_RESERVATIONS.get(uid, 0)
+        if count <= 0:
+            return False
+        if count == 1:
+            _AI_QUOTA_RESERVATIONS.pop(uid, None)
+        else:
+            _AI_QUOTA_RESERVATIONS[uid] = count - 1
+        return True
+
+
 def check_ai_limit(user_id: int) -> tuple[bool, int, int]:
-    """Kunlik AI so'rov limitini tekshiradi. Returns: (can_use, used, max)."""
+    """Kunlik AI limitini ATOMIK bron qiladi. Returns: (can_use, used, max).
+
+    Production P0: check va increment alohida bo'lsa parallel so'rovlarda race
+    condition paydo bo'ladi. Shu sababli FREE kvota shu funksiyaning o'zida DB
+    darajasida bitta shartli UPDATE bilan bron qilinadi:
+
+        UPDATE users SET ai_requests_today = ai_requests_today + 1
+        WHERE user_id = $1 AND ai_requests_today < $2
+
+    DB uzilishi/timeout/pool xatosi yoki foydalanuvchi topilmasligi — qat'iy
+    FAIL-CLOSED: can_use=False. Muvaffaqiyatli bron qilingan so'rovdan keyingi
+    eski ``increment_ai_usage`` chaqiruvi idempotent no-op bo'ladi.
+    """
+    try:
+        user_id = int(user_id)
+    except (TypeError, ValueError):
+        return (False, -1, PLAN_LIMITS["free"]["daily_ai_requests"])
     try:
         with db_cursor(commit=True) as cur:
             _ensure_limit_reset(cur, user_id)
             cur.execute(
-                "SELECT plan_type, ai_requests_today FROM users WHERE user_id = %s",
+                "SELECT plan_type, COALESCE(ai_requests_today, 0) "
+                "FROM users WHERE user_id = %s",
                 (user_id,),
             )
             row = cur.fetchone()
             if not row:
-                return (True, 0, 5)
+                return (False, 0, PLAN_LIMITS["free"]["daily_ai_requests"])
             plan, ai_used = row
             plan = plan or "free"
-            ai_used = ai_used or 0
             max_ai = PLAN_LIMITS.get(plan, PLAN_LIMITS["free"])["daily_ai_requests"]
-            return (ai_used < max_ai, ai_used, max_ai)
+            cur.execute(
+                "UPDATE users SET ai_requests_today = COALESCE(ai_requests_today, 0) + 1 "
+                "WHERE user_id = %s AND COALESCE(ai_requests_today, 0) < %s "
+                "RETURNING ai_requests_today",
+                (user_id, max_ai),
+            )
+            updated = cur.fetchone()
+            if updated:
+                used_after = int(updated[0] or 0)
+                _remember_ai_quota_reservation(user_id)
+                return (True, used_after, max_ai)
+            return (False, int(ai_used or 0), max_ai)
     except Exception as e:
-        logger.error(f"check_ai_limit xatosi: {e}")
-        return (True, 0, 5)
+        logger.error(f"check_ai_limit fail-closed xatosi: {e}")
+        # used=-1 — handler uchun vaqtinchalik infratuzilma xatosi signali.
+        return (False, -1, PLAN_LIMITS["free"]["daily_ai_requests"])
 
 
-def increment_ai_usage(user_id: int):
-    """AI so'rov sanagichini oshiradi."""
+def refund_ai_usage(user_id: int) -> bool:
+    """Bron qilingan kunlik AI kvotasini qaytaradi (AI/provayder yiqilganda)."""
     try:
+        user_id = int(user_id)
+    except (TypeError, ValueError):
+        return False
+    try:
+        # Agar keyingi legacy increment no-op bo'lishi uchun xotirada reservation
+        # turgan bo'lsa, uni ham yechamiz.
+        _consume_ai_quota_reservation(user_id)
         with db_cursor(commit=True) as cur:
             _ensure_limit_reset(cur, user_id)
             cur.execute(
-                "UPDATE users SET ai_requests_today = ai_requests_today + 1 WHERE user_id = %s",
+                "UPDATE users SET ai_requests_today = GREATEST(COALESCE(ai_requests_today, 0) - 1, 0) "
+                "WHERE user_id = %s",
+                (user_id,),
+            )
+        return True
+    except Exception as e:
+        logger.error(f"refund_ai_usage xatosi: {e}")
+        return False
+
+
+def increment_ai_usage(user_id: int):
+    """AI so'rov sanagichini oshiradi (legacy/idempotent).
+
+    ``check_ai_limit`` allaqachon atomik bron qilgan bo'lsa, bu funksiya no-op:
+    eski handler/test oqimlari buzilmaydi, lekin production'da double-count
+    bo'lmaydi. Bevosita chaqirilganda esa fail-closed semantikasiga mos ravishda
+    DB xatosini yutadi, lekin hech qachon ruxsat bermaydi.
+    """
+    try:
+        if _consume_ai_quota_reservation(int(user_id)):
+            return
+        with db_cursor(commit=True) as cur:
+            _ensure_limit_reset(cur, user_id)
+            cur.execute(
+                "UPDATE users SET ai_requests_today = COALESCE(ai_requests_today, 0) + 1 WHERE user_id = %s",
                 (user_id,),
             )
     except Exception as e:
