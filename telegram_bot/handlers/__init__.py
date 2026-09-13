@@ -146,6 +146,20 @@ from handlers.magic_post import (
     MAGIC_INPUT, MAGIC_STYLE_SELECT, MAGIC_RESULT, MAGIC_SEND_CHOOSE,
 )
 
+# 2d. 🎙 VOICE → POST (Killer Feature — ovoz → matn → uslub → tayyor post)
+# MUHIM: shu modul `handlers.magic_post` dan (_safe_edit, _magic_deliver_one),
+# `handlers.ai_assistant` dan (AI_GET_TIME, _show_time_prompt) va
+# `handlers.start` dan (check_user_subscribed, ensure_user_lang) import oladi —
+# shu sababli yuqoridagi importlardan KEYIN turadi.
+from handlers.voice_post import (
+    voice_message_received, voice_style_callback, voice_cancel_callback,
+    voice_send_now_callback, voice_channel_picked_callback,
+    voice_schedule_callback, voice_restyle_callback, voice_stale_callback,
+    set_application as set_voice_application,
+    VoiceEntryHandler,
+    VOICE_MESSAGE_FILTER, VOICE_STYLE_SELECT, VOICE_RESULT, VOICE_SEND_CHOOSE,
+)
+
 # 8. CONTENT PLAN MODULI
 from handlers.content_plan import (
     start_content_plan, plan_channel_chosen, plan_topic_received, plan_view_callback,
@@ -492,12 +506,15 @@ async def unknown_message_fallback(update, context):
     """Eng pastki prioritetli fallback: bot hech qachon JIM qolmaydi.
 
     * Dialogdan TASHQARIDA (hech qanday ConversationHandler holati yo'q)
-      tasodifiy matn, ovozli xabar (voice), audio, video, kontakt, joylashuv,
-      fayl yoki stiker kelsa — foydalanuvchi tilida (uz/ru/en) xushmuomala xabar
+      tasodifiy matn, video, kontakt, joylashuv, fayl yoki stiker kelsa —
+      foydalanuvchi tilida (uz/ru/en) xushmuomala xabar
       ``unknown_message_fallback`` va ASOSIY reply-menyu yuboriladi.
+      (🎙 Ovozli xabar/audio endi bu yerga tushmaydi — ular ``VoiceEntryHandler``
+      orqali VOICE → POST STT oqimini boshlaydi: ``handlers/voice_post.py``.)
     * Dialog ICHIDA bo'lsa-yu, joriy bosqich bu xabar turini qabul qilmasa —
       qisqa ``unknown_in_dialog`` eslatmasi (klaviatura o'zgartirilmaydi,
-      dialog buzilmaydi).
+      dialog buzilmaydi). Bu ovozli xabarlarga ham taalluqli: VoiceEntryHandler
+      dialog ichida mos kelmaydi (holat HECH QACHON buzilmaydi).
 
     Til: avval ``context.user_data['lang']`` keshi, bo'lmasa DB
     (``ensure_user_lang``) — bot qayta ishga tushgandan keyin ham RU
@@ -565,6 +582,9 @@ def _admin_flow_state(text_handler, menu_jumps):
 
 
 def register_all_handlers(app):
+    # 🎙 VoiceEntryHandler dialog holatini tekshirishi uchun Application
+    # havolasi (register_all_handlers boshida o'rnatiladi).
+    set_voice_application(app)
     # ============================================================
     # QAT'IY NAVIGATSIYA HANDLERLARI RO'YXATI
     # ============================================================
@@ -745,6 +765,12 @@ def register_all_handlers(app):
     # ============================================================
     main_conv = ConversationHandler(
         entry_points=all_menu_jumps + [
+            # 🎙 VOICE → POST: ovozli xabar/audio — dialog TASHQARISIDA ovoz
+            # yuborilsa STT oqimi darhol boshlanadi (cheklovlar: FREE ≤60s,
+            # PRO ≤180s, ≤20 MB; transkripsiya BEPUL — kredit yechilmaydi).
+            # VoiceEntryHandler dialog ICHIDA mos KELMAYDI — ovoz eski xulq
+            # bo'yicha unknown_message_fallback'ga tushadi (holat buzilmaydi).
+            VoiceEntryHandler(VOICE_MESSAGE_FILTER, voice_message_received),
             CallbackQueryHandler(edit_post_time_start, pattern=r"^p_time:"),
             CallbackQueryHandler(edit_post_content_start, pattern=r"^p_edit:"),
             CallbackQueryHandler(edit_post_btn_start, pattern=r"^p_btn:"),
@@ -1044,6 +1070,27 @@ def register_all_handlers(app):
                 CallbackQueryHandler(magic_restyle_callback, pattern=r"^mp_restyle$"),
             ],
 
+            # 7e. 🎙 VOICE → POST holatlari (Killer Feature — resurs-tejamkor)
+            # VOICE_STYLE_SELECT: transkripsiyalangan matn → 5 uslub + ❌ Bekor.
+            # Uslub tanlanmaguncha HECH QANDAY kredit/limit yechilmaydi;
+            # yangi ovoz kelib qolsa — oqim qaytadan boshlanadi (re-entry).
+            VOICE_STYLE_SELECT: all_menu_jumps + [
+                CallbackQueryHandler(voice_style_callback, pattern=r"^vp_style:"),
+                CallbackQueryHandler(voice_cancel_callback, pattern=r"^vp_cancel$"),
+                MessageHandler(VOICE_MESSAGE_FILTER, voice_message_received),
+            ],
+            VOICE_RESULT: all_menu_jumps + [
+                CallbackQueryHandler(voice_send_now_callback, pattern=r"^vp_send$"),
+                CallbackQueryHandler(voice_schedule_callback, pattern=r"^vp_sched$"),
+                CallbackQueryHandler(voice_restyle_callback, pattern=r"^vp_restyle$"),
+                CallbackQueryHandler(voice_cancel_callback, pattern=r"^vp_cancel$"),
+                MessageHandler(VOICE_MESSAGE_FILTER, voice_message_received),
+            ],
+            VOICE_SEND_CHOOSE: all_menu_jumps + [
+                CallbackQueryHandler(voice_channel_picked_callback, pattern=r"^vp_ch"),
+                MessageHandler(VOICE_MESSAGE_FILTER, voice_message_received),
+            ],
+
             # 8. Queue holatlari
             QUEUE_MENU: all_menu_jumps + [
                 CallbackQueryHandler(queue_page_callback, pattern=r"^qpage:"),
@@ -1145,6 +1192,9 @@ def register_all_handlers(app):
     # ✨ Magic Post stale tugmalari: sessiya tugagach eski natija/tanlov tugmasi
     # bosilsa — foydalanuvchiga «sessiya eskirgan» toast ko'rsatiladi.
     app.add_handler(CallbackQueryHandler(magic_stale_callback, pattern=r"^mp_"))
+    # 🎙 Voice Post stale tugmalari: sessiya tugagach eski uslub/amal tugmasi
+    # bosilsa — foydalanuvchiga «sessiya eskirgan» toast ko'rsatiladi.
+    app.add_handler(CallbackQueryHandler(voice_stale_callback, pattern=r"^vp_"))
     # 🖼 Vision natijasi stale tugmalari: sessiya tugagach ham yo'riqnoma ko'rsatadi
     app.add_handler(CallbackQueryHandler(ai_photo_stale_callback, pattern=r"^photo_"))
     # 📷 Qo'lda rasm tekshirish (admin PRO tasdiqlashi): uning callback'i

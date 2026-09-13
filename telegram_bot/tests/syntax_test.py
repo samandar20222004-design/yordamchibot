@@ -45,11 +45,14 @@ def main():
         "locales.translations",
         "translations",
         "translations.magic_post",
+        "translations.voice_post",
         "utils.helpers",
         "utils.converter",
         "utils.ai_agent",
+        "utils.audio_transcriber",
         "utils.web_server",
         "handlers",
+        "handlers.voice_post",
     ]
     for mod in modules:
         try:

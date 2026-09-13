@@ -844,7 +844,12 @@ def test_unknown_fallback_does_not_shadow_commands_and_menu_buttons():
 
 
 def test_unknown_fallback_replies_in_user_language_with_main_menu():
-    """Dialogdan tashqarida: matn/voice/kontakt → foydalanuvchi tilida javob + asosiy menyu."""
+    """Dialogdan tashqarida: matn/hujjat/kontakt → foydalanuvchi tilida javob + asosiy menyu.
+
+    Eslatma: 🎙 VOICE → POST (killer feature) bilan ovozli xabar/audio endi
+    fallback'ga TUSHMAYDI — u VoiceEntryHandler orqali Voice→Post STT oqimini
+    boshlaydi (pastdagi test_unknown_fallback_voice_now_starts_voice_post_flow).
+    """
     import handlers as h_mod
     from telegram import ReplyKeyboardMarkup
     from keyboards.default import BTN_NEW_POST, BTN_NEW_POST_RU
@@ -853,12 +858,12 @@ def test_unknown_fallback_replies_in_user_language_with_main_menu():
     try:
         async def run():
             results = []
-            for lang, kind in (("uz", "text"), ("ru", "voice"), ("uz", "contact"), ("ru", "sticker")):
+            for lang, kind in (("uz", "text"), ("ru", "document"), ("uz", "contact"), ("ru", "sticker")):
                 h_mod._UNKNOWN_FALLBACK_LAST.clear()
                 bot = _RecBot()
                 upd = _private_update(
                     text="???" if kind == "text" else None,
-                    voice=(kind == "voice"), contact=(kind == "contact"),
+                    document=(kind == "document"), contact=(kind == "contact"),
                     sticker=(kind == "sticker"), bot=bot,
                 )
                 handler = await _dispatch(app, upd, lang=lang)
@@ -874,6 +879,42 @@ def test_unknown_fallback_replies_in_user_language_with_main_menu():
             assert (BTN_NEW_POST_RU if lang == "ru" else BTN_NEW_POST) in labels
     finally:
         restore()
+
+
+def test_unknown_fallback_voice_now_starts_voice_post_flow():
+    """🎙 VOICE → POST (yangi xulq): dialogdan TASHQARIDA ovozli xabar endi
+    unknown_message_fallback'ga EMAS — Voice→Post STT oqimiga tushadi
+    (cheklovlar: FREE ≤60s / PRO ≤180s, transkripsiya BEPUL).
+
+    Dialog ICHIDA esa eski xulq to'liq saqlanadi: ConversationHandler ovozni
+    USHLAMAYDI (VoiceEntryHandler None qaytaradi) → unknown_in_dialog
+    eslatmasi, dialog holati buzilmaydi.
+    """
+    from telegram.ext import ConversationHandler
+    from handlers import voice_post as vp
+    from handlers.start import TRANSFER_TARGET
+    app = _build_app()
+    upd = _private_update(voice=True, bot=_RecBot())
+
+    # 1) Dialog tashqarida: ovozni asosiy conversation USHLAYDI (entry).
+    group, handler, check = _first_matching_handler(app, upd)
+    assert isinstance(handler, ConversationHandler), type(handler)
+    # Entry aynan VoiceEntryHandler (dialog himoyalangan variant).
+    entry_matches = [
+        e for e in handler.entry_points
+        if isinstance(e, vp.VoiceEntryHandler) and e.check_update(upd) is not None
+    ]
+    assert entry_matches, "VoiceEntryHandler ovozni ushlashi kerak (dialog tashqarida)"
+
+    # 2) Dialog ichida (TRANSFER_TARGET): ovoz USHLANMAYDI — holat buzilmaydi.
+    conv = [x for x in app.handlers[0] if isinstance(x, ConversationHandler)][0]
+    conv._conversations[(777, 777)] = TRANSFER_TARGET
+    try:
+        assert conv.check_update(upd) is None, \
+            "dialog ichida ovoz conversation tomonidan ushlanmasligi kerak"
+        assert conv._conversations.get((777, 777)) == TRANSFER_TARGET
+    finally:
+        conv._conversations.pop((777, 777), None)
 
 
 def test_unknown_fallback_uses_db_language_when_cache_empty():
