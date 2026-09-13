@@ -948,7 +948,17 @@ Telegram formati qoidalariga qat'iy rioya qiling:
 - Aniq va ishonchli harakatga chaqiruv (Call to Action).
 """
 
-_FREE_POST_HINT = "Oddiy, ixcham, tushunarli va standart formatdagi post tuzing."
+#: FREE tarif ko'rsatmasi — tezlik/resurs tejash uchun 2-bosqich audit
+#: chaqirilmaydi, shuning uchun postning TARTIBI shu promptning o'zida
+#: aniq minimal struktura bilan talab qilinadi (Hook → Value → CTA → hashtag).
+_FREE_POST_HINT = (
+    "Oddiy, ixcham, tushunarli va standart formatdagi post tuzing.\n"
+    "Minimal struktura (SHART — har bir qism alohida bo'lsin):\n"
+    "1) Hook — qisqa, qiziqtiruvchi kirish (1-2 jumla);\n"
+    "2) Value — bitta aniq asosiy fikr (ortiqcha tafsilotlarsiz);\n"
+    "3) Call to Action — oddiy, bitta harakatga chaqiruv;\n"
+    "4) Oxirida 3-5 ta tematik hashtag."
+)
 
 _AUDIT_PRO_SYSTEM = """
 Siz yetuk SMM auditor va marketing mutaxassisisiz. Berilgan post matnini chuqur tahlil qiling:
@@ -992,9 +1002,257 @@ _PRO_POST_ENHANCEMENT_BY_LANG = {
 
 _FREE_POST_HINT_BY_LANG = {
     "uz": _FREE_POST_HINT,
-    "ru": "Сделайте пост простым, компактным, понятным и в стандартном формате.",
-    "en": "Write a simple, compact, clear post in a standard format.",
+    "ru": (
+        "Сделайте пост простым, компактным, понятным и в стандартном формате.\n"
+        "Минимальная структура (ОБЯЗАТЕЛЬНО — каждый пункт отдельно):\n"
+        "1) Hook — короткое цепляющее вступление (1-2 предложения);\n"
+        "2) Value — одна чёткая основная мысль (без лишних деталей);\n"
+        "3) Call to Action — простой призыв к одному действию;\n"
+        "4) В конце 3-5 тематических хештегов."
+    ),
+    "en": (
+        "Write a simple, compact, clear post in a standard format.\n"
+        "Minimal structure (REQUIRED — keep every part separate):\n"
+        "1) Hook — a short, catchy opening (1-2 sentences);\n"
+        "2) Value — one clear main idea (no extra details);\n"
+        "3) Call to Action — a simple single-step call to action;\n"
+        "4) End with 3-5 topical hashtags."
+    ),
 }
+
+
+# ============================================================
+# PRO — 2-BOSQICHLI AVTOMATIK AUDIT OQIMI
+# ============================================================
+# 1-bosqich: post AIDA/PAS asosida generatsiya qilinadi (PRO prompti).
+# 2-bosqich: olingan matn mavjud ``_AUDIT_PRO_SYSTEM`` tizim prompti bilan
+#            ikkinchi AI so'roviga yuboriladi — auditor kuchsiz joylarni
+#            bartaraf etib, TAYYOR yakuniy variantni qaytaradi.
+# Foydalanuvchiga FAQAT 2-bosqichning saralangan natijasi ko'rsatiladi.
+# 2-bosqich timeout/tarmoq uzilishi bersa (zaxira modellardan keyin ham) →
+# 1-bosqich posti XAVFSIZ qaytadi, oqim to'xtab qolmaydi.
+# FREE tarifda 2-bosqich UMUMAN chaqirilmaydi (bitta AI so'rovi).
+# ============================================================
+
+#: 2-bosqichga ajratiladigan vaqt (default: AI_HARD_TIMEOUT bilan bir xil).
+PRO_AUDIT_TIMEOUT = max(5.0, float(os.getenv("AI_PRO_AUDIT_TIMEOUT", str(AI_HARD_TIMEOUT))))
+
+#: Butunlay o'chirish: ``AI_PRO_TWO_STAGE=0`` (ops/sinchiklab tekshirish uchun).
+PRO_TWO_STAGE_ENABLED = os.getenv("AI_PRO_TWO_STAGE", "1").strip().lower() not in (
+    "0", "false", "no", "off",
+)
+
+#: 2-bosqich javobining JSON kontrakti — auditor o'z tahlilini ichki yozuvda
+#: bajaradi, lekin chaqiruvchiga FAQAT tayyor postni qaytaradi (aks holda
+#: foydalanuvchiga tahlil matni post sifatida ko'rsatilib qolishi mumkin).
+_AUDIT_FINAL_REQUEST = (
+    "Tahlilni (1-4 punktlar) ichki yozuvda bajaring, lekin javobni FAQAT "
+    "bitta JSON obyekt sifatida qaytaring:\n"
+    '{"rating": <1 dan 10 gacha butun son>, '
+    '"improved_post": "<to\'liq, yakuniy, yaxshilangan post matni>"}\n'
+    "Qat'iy talablar:\n"
+    "- \"improved_post\" ichida FAQAT tayyor post bo'lsin — izoh, tahlil, "
+    "reyting yoki ro'yxat yozilmaydi;\n"
+    "- post foydalanuvchi tilida, Telegram HTML formatida (<b>, <i>) bo'lsin;\n"
+    "- struktura saqlansin: kuchli hook, bitta aniq asosiy fikr, aniq CTA va "
+    "oxirida 3-5 ta tematik hashtag;\n"
+    "- asl postdagi faktlar, raqamlar, narxlar va havolalar O'ZGARTIRILMAYDI."
+)
+
+_AUDIT_FINAL_REQUEST_BY_LANG = {
+    "uz": _AUDIT_FINAL_REQUEST,
+    "ru": (
+        "Выполните анализ (пункты 1-4) внутренне, но верните ответ ТОЛЬКО "
+        "в виде одного JSON-объекта:\n"
+        '{"rating": <целое число от 1 до 10>, '
+        '"improved_post": "<полный, финальный, улучшенный текст поста>"}\n'
+        "Строгие требования:\n"
+        "- внутри \"improved_post\" — ТОЛЬКО готовый пост: без комментариев, "
+        "анализа, рейтинга и списков;\n"
+        "- пост на языке пользователя, в формате Telegram HTML (<b>, <i>);\n"
+        "- сохраните структуру: сильный хук, одна чёткая главная мысль, "
+        "понятный CTA и 3-5 тематических хештегов в конце;\n"
+        "- факты, цифры, цены и ссылки из исходного поста НЕ меняются."
+    ),
+    "en": (
+        "Do the analysis (points 1-4) internally, but return the answer ONLY "
+        "as a single JSON object:\n"
+        '{"rating": <integer from 1 to 10>, '
+        '"improved_post": "<the full, final, improved post text>"}\n'
+        "Strict requirements:\n"
+        "- \"improved_post\" must contain ONLY the ready post — no comments, "
+        "analysis, rating or lists;\n"
+        "- write it in the user's language, in Telegram HTML format (<b>, <i>);\n"
+        "- keep the structure: a strong hook, one clear main idea, a clear CTA "
+        "and 3-5 topical hashtags at the end;\n"
+        "- facts, numbers, prices and links from the original post MUST NOT change."
+    ),
+}
+
+#: Auditor javobida "tayyor post" o'rniga tahlil matni qaytganini aniqlash
+#: belgilari (bunday javob 1-bosqich variantiga almashtiriladi).
+_AUDIT_ANALYSIS_MARKERS = (
+    # uz
+    "reyting", "kuchli tomon", "kuchsiz", "yaxshilash", "tahlil", "tavsiya",
+    # ru
+    "рейтинг", "сильные сторон", "слабые сторон", "улучш", "анализ", "рекомендац",
+    # en
+    "rating", "/10", "strengths", "weakness", "improvement", "analysis",
+    "recommendation",
+)
+
+#: Auditor qaytarishi mumkin bo'lgan kalitlar — ustuvorlik tartibida.
+_AUDIT_POST_KEYS = (
+    "improved_post", "final_post", "post_text", "audit", "reply", "text", "result",
+)
+
+
+def _looks_like_analysis(text: str) -> bool:
+    """Matn tayyor post emas, balki AUDIT TAHLILI ekanligini aniqlaydi."""
+    low = (text or "").lower()
+    if not low:
+        return False
+    if low.lstrip().startswith(("{", "[")):
+        return True
+    return any(marker in low for marker in _AUDIT_ANALYSIS_MARKERS)
+
+
+def _extract_improved_post(result, original: str = "") -> str:
+    """2-bosqich javobidan YAKUNIY yaxshilangan post matnini ajratadi.
+
+    Modellar turli kalitlar bilan qaytarishi mumkin — shuning uchun avval
+    ustuvor kalitlar (``improved_post`` → ``post_text`` → ...), so'ng eng
+    uzun matnli qiymat ko'riladi (``ai_assistant``dagi mavjud audit
+    ekstraktsiyasi bilan bir xil yondashuv).
+
+    Xavfsizlik: tahlil matniga o'xshash yoki asl postdan keskin qisqa
+    javob QABUL QILINMAYDI — bunday holda bo'sh satr qaytadi va chaqiruvchi
+    1-bosqich variantini saqlab qoladi.
+    """
+    if not isinstance(result, dict):
+        return ""
+    original = (original or "").strip()
+
+    def acceptable(candidate: str) -> bool:
+        cand = (candidate or "").strip()
+        if len(cand) < 20:
+            return False
+        if _looks_like_analysis(cand):
+            return False
+        if len(original) >= 60:
+            # Keskin qisqartirish — bu post emas, xulosa/tahlil bo'lishi mumkin.
+            return len(cand) >= len(original) * 0.35
+        return True
+
+    for key in _AUDIT_POST_KEYS[:3]:
+        value = result.get(key)
+        if isinstance(value, str) and acceptable(value):
+            return value.strip()
+    for key in _AUDIT_POST_KEYS[3:]:
+        value = result.get(key)
+        if isinstance(value, str) and acceptable(value):
+            return value.strip()
+    best = ""
+    for value in result.values():
+        if isinstance(value, str) and len(value.strip()) > len(best):
+            best = value.strip()
+    return best.strip() if acceptable(best) else ""
+
+
+async def refine_post_pro(post_text: str, lang: str = "uz", timeout: float = None) -> dict:
+    """PRO 2-BOSQICH: ``_AUDIT_PRO_SYSTEM`` orqali postni mukammallashtirish.
+
+    Args:
+        post_text: 1-bosqichda generatsiya qilingan post matni.
+        lang: 'uz' | 'ru' | 'en' — audit va yakuniy post shu tilda bo'ladi.
+        timeout: 2-bosqichning qat'iy timeout'i (None → ``PRO_AUDIT_TIMEOUT``).
+
+    Returns:
+        ``{"post_text": str, "error": str | None, "rating": int | None, ...}``
+        — ``post_text`` bo'sh bo'lsa, chaqiruvchi 1-bosqich matnini qaytaradi
+        (oqim hech qachon to'xtab qolmaydi).
+    """
+    code = normalize_ai_lang(lang)
+    text = (post_text or "").strip()
+    if not text:
+        return {"post_text": "", "error": localize_ai_error("Matn bo'sh.", code),
+                "rating": None}
+    # Mavjud PRO auditor tizim prompti + foydalanuvchi tili qat'iy birikadi.
+    system_prompt = with_language(_AUDIT_PRO_SYSTEM, code)
+    request = _AUDIT_FINAL_REQUEST_BY_LANG.get(code, _AUDIT_FINAL_REQUEST)
+    prompt = f"Auditlanadigan post matni:\n\n{text}\n\n{request}"
+    try:
+        # Zaxira modellar zanjiri (Gemini → Groq → ...) generate_ai_response
+        # ichida; timeout ham shu yerda QAT'IY boshqariladi.
+        result = await generate_ai_response(
+            prompt,
+            system_instruction=system_prompt,
+            timeout=float(timeout or PRO_AUDIT_TIMEOUT),
+            is_pro=True,
+            lang=code,
+        )
+    except Exception as e:  # pragma: no cover - himoya
+        logger.warning("PRO audit (2-bosqich) istisnosi: %s", e)
+        return {"post_text": "", "error": str(e), "rating": None}
+
+    if not isinstance(result, dict) or result.get("error"):
+        err = result.get("error") if isinstance(result, dict) else None
+        return {
+            "post_text": "",
+            "error": err or localize_ai_error("Audit javob bermadi.", code),
+            "rating": None,
+            "timeout": bool(isinstance(result, dict) and result.get("timeout")),
+        }
+
+    improved = _extract_improved_post(result, text)
+    if not improved:
+        return {"post_text": "", "rating": result.get("rating"), "raw": result,
+                "error": localize_ai_error(
+                    "Audit natijasida tayyor post topilmadi.", code)}
+    return {"post_text": improved, "error": None,
+            "rating": result.get("rating"), "raw": result}
+
+
+async def apply_pro_audit_stage(result, lang: str = "uz", timeout: float = None):
+    """Router natijasiga PRO 2-bosqich auditini XAVFSIZ qo'llaydi.
+
+    Qoidalar:
+      - FAQAT PRO oqimida chaqiriladi (FREE'da 2-bosqich yo'q);
+      - FAQAT ``post``/``edit`` intentida va bo'sh bo'lmagan ``post_text``
+        bo'lsa ishlaydi (FAQ/javoblar audit qilinmaydi);
+      - 2-bosqich xato, timeout yoki yaroqsiz javob bersa → 1-bosqich posti
+        O'ZGARMAYDI (``audit_applied=False``), oqim davom etadi.
+
+    Qo'shimcha maydonlar: ``post_text_stage1``, ``audit_applied``,
+    ``audit_error``, ``audit_rating``.
+    """
+    if not PRO_TWO_STAGE_ENABLED or not isinstance(result, dict) or result.get("error"):
+        return result
+    if str(result.get("intent") or "") not in ("post", "edit"):
+        return result
+    stage1 = str(result.get("post_text") or "").strip()
+    if not stage1:
+        return result
+
+    out = dict(result)
+    out["post_text_stage1"] = stage1
+    refined = await refine_post_pro(stage1, lang=lang, timeout=timeout)
+    improved = (refined.get("post_text") or "").strip()
+    if not improved:
+        logger.warning(
+            "PRO 2-bosqich audit bajarilmadi (%s) — 1-bosqich posti qaytarildi",
+            refined.get("error"),
+        )
+        out["audit_applied"] = False
+        out["audit_error"] = refined.get("error")
+        return out
+
+    out["post_text"] = improved
+    out["audit_applied"] = True
+    out["audit_error"] = None
+    if refined.get("rating") is not None:
+        out["audit_rating"] = refined.get("rating")
+    return out
 
 #: Intent-router promptining tilga bog'liq qismlari (UZ / RU / EN).
 #: Har bir til to'liq va ARALASHUVSIZ yozilgan — tizim promptida ikkinchi
@@ -2068,11 +2326,44 @@ async def analyze_user_prompt(prompt: str, user_id: int = 0, is_pro: bool = Fals
         return result
 
     normalized = _normalize_router_result(result)
+
+    # === PRO: 2-BOSQICHLI AVTOMATIK AUDIT ===
+    # 1-bosqich posti (AIDA/PAS) mavjud _AUDIT_PRO_SYSTEM orqali ikkinchi AI
+    # so'roviga yuboriladi va foydalanuvchiga FAQAT mukammallashtirilgan
+    # yakuniy variant ko'rsatiladi. 2-bosqich xato/timeout bersa — 1-bosqich
+    # posti xavfsiz qaytadi. FREE tarifda bu qadam UMUMAN chaqirilmaydi.
+    if is_pro:
+        normalized = await apply_pro_audit_stage(normalized, lang=code)
+
     # Muvaffaqiyatli suhbatgina eslab qolinadi: foydalanuvchi xabari + bot javobi.
+    # Kontekstga YAKUNIY (audit qilingan) post yoziladi — keyingi so'rovda
+    # foydalanuvchi ko'rgan matn takrorlanadi.
     _store_ai_context(user_id, raw_prompt, role="user")
     bot_answer = normalized.get("post_text") or normalized.get("reply") or ""
     _store_ai_context(user_id, bot_answer, role="bot")
     return normalized
+
+
+async def generate_post_two_stage(prompt: str, user_id: int = 0, is_pro: bool = False,
+                                  lang: str = "uz", timeout: float = None) -> dict:
+    """PRO uchun 2-BOSQICHLI post generatsiyasi (ochiq/tashqi API).
+
+    1-bosqich: ``analyze_user_prompt`` — PRO'da AIDA/PAS professional uslub.
+    2-bosqich: FAQAT PRO'da — ``_AUDIT_PRO_SYSTEM`` auditori postni
+    mukammallashtiradi (``analyze_user_prompt`` ichida avtomatik bajariladi).
+    FREE: bitta AI so'rovi (2-bosqich chaqirilmaydi).
+
+    Qaytargan maydonlar (``analyze_user_prompt`` + audit metadata):
+      - ``post_text`` — foydalanuvchiga ko'rsatiladigan YAKUNIY variant;
+      - ``post_text_stage1`` — 1-bosqichning dastlabki posti (PRO'da);
+      - ``audit_applied`` — 2-bosqich muvaffaqiyatli qo'llandimi;
+      - ``audit_error`` — 2-bosqich xatosi (fallback sababi), agar bo'lsa.
+    """
+    code = normalize_ai_lang(lang)
+    result = await analyze_user_prompt(prompt, user_id, is_pro=is_pro, lang=code)
+    if isinstance(result, dict):
+        result.setdefault("audit_applied", False)
+    return result
 
 
 async def extract_schedule_time(prompt: str, user_id: int = 0, lang: str = "uz") -> dict:

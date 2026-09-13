@@ -85,6 +85,16 @@ echo "==================== AI FALLBACK TEST (4-BOSQICH) ================"
 "$PY" tests/ai_fallback_test.py || exit 1
 
 echo
+echo "=========== PRO 2-BOSQICHLI AUDIT + FREE PROMPT STRUKTURASI ==========="
+# PRO postlari 2 bosqichda tayyorlanadi: 1-bosqich (AIDA/PAS) → 2-bosqich
+# (_AUDIT_PRO_SYSTEM auditori) va foydalanuvchiga FAQAT yaxshilangan yakuniy
+# variant ko'rsatiladi. 2-bosqich timeout/xato bersa → 1-bosqich posti
+# XAVFSIZ qaytadi. FREE'da 2-bosqich chaqirilmaydi, lekin FREE prompti
+# minimal strukturani (Hook / Value / CTA / 3-5 hashtag) talab qiladi.
+# post_enhancer'dagi "✨ AI audit (PRO)" tugmasi ham shu yerda tekshiriladi.
+"$PY" tests/post_enhancer_audit_test.py || exit 1
+
+echo
 echo "============== RBAC & SECURITY TEST (6-BOSQICH) =============="
 "$PY" tests/rbac_security_test.py || exit 1
 

@@ -1405,6 +1405,18 @@ EN_OVERLAY = {
     "enh_btn_preview": "👁️ Preview",
     "enh_btn_send_channel": "🚀 Send to channel",
     "enh_btn_replace": "🔁 Replace post",
+    # ✨ PRO two-stage AI review — the button is visible ONLY to PRO users and
+    # the post text changes only when the user taps it.
+    "enh_btn_ai_audit": "✨ AI review (PRO)",
+    "enh_audit_wait": "✨ AI review is running — polishing your post...",
+    "enh_audit_done": (
+        "✅ AI review (PRO) done — the post was replaced with the improved version."
+    ),
+    "enh_audit_fallback": (
+        "⚠️ The AI review did not respond — your original post was kept unchanged."
+    ),
+    "enh_audit_text_only": "ℹ️ The AI review works only for text posts.",
+    "enh_audit_pro_only": "⭐️ The AI review (2 stages) is available on the PRO plan only.",
     "enh_react_title": (
         "👍 <b>Step 1. Reactions</b> (<b>{n}/{max}</b>)\n\n"
         "Selected: {sel}\n\n"

@@ -8,6 +8,15 @@ Bosqichma-bosqich oqim (har bir qadamda "⬅️ Orqaga" va "❌ Bekor qilish" bo
      TEKILMAYDI — bot uni o'zgartirmaydi, qisqartirmaydi, AI bilan
      "yozmaydi". Faqat bepul (Free) rejali foydalanuvchilar uchun kanalga
      yuborilganda scheduler'dagi via/watermark qoidalari qo'llanadi.
+
+     YAGONA ISTISNO — foydalanuvchining O'Z so'rovi bilan: PRO tarifda
+     hub'da "✨ AI audit (PRO)" tugmasi ko'rinadi. Bosilganda post matni
+     2-BOSQICHLI auditor oqimidan o'tadi (``utils.ai_agent``:
+     ``_AUDIT_PRO_SYSTEM`` tizim prompti bilan ikkinchi AI so'rovi) va
+     foydalanuvchiga mukammallashtirilgan yakuniy variant ko'rsatiladi.
+     Auditor timeout/xato bersa yoki tayyor post qaytarmasa — ASL post
+     o'zgarmaydi, oqim to'xtab qolmaydi. FREE tarifda tugma ko'rinmaydi
+     va ikkinchi AI so'rovi UMUMAN chaqirilmaydi.
   2. 👍 Reaksiyalar: emoji tugmalari YOKI bir nechta emojini probel bilan
      bitta xabarda yuborish (batch): ``👍 ❤️ 🔥 👏 🎉``.
   3. 🔗 URL tugmalar: 3 ta tayyor shablon (Kanalga a'zo bo'lish / Guruhga
@@ -59,6 +68,8 @@ from utils.helpers import (
     apply_post_watermark,
     check_rate_limit,
 )
+# ✨ PRO 2-bosqichli AI audit: auditor utils.ai_agent'da (_AUDIT_PRO_SYSTEM).
+from utils import ai_agent
 from scheduler import (
     compose_post_text, parse_album_items,
     resolve_channel_ad, build_ad_button_row,
@@ -421,6 +432,9 @@ def _fresh_enh() -> dict:
         "btn_preset": None, "_btn_pending_idx": None, "sent_channel": "",
         "success_msg_id": None, "preview_msg_id": None, "preview_type": None,
         "preview_extra_ids": [],
+        # ✨ PRO 2-bosqichli AI audit: None = hali aniqlanmagan (DB so'rovi
+        # bir marta qilinadi va shu yerda keshlanadi).
+        "is_pro": None,
     }
 
 
@@ -458,6 +472,40 @@ def _post_line(enh: dict, lang: str = "uz") -> str:
     return line
 
 
+def _auditable_text(enh: dict) -> str:
+    """✨ PRO AI audit uchun yaroqli matn (faqat matnli postlar).
+
+    Media/albom postlarida audit ishlamaydi — post mazmuni (rasm/video
+    fayl_id) o'zgarmasligi kerak, matn esa caption sifatida kanal
+    formatlash qoidalariga bog'liq. Bo'sh satr = "audit qilinmaydi".
+    """
+    post = (enh or {}).get("post") or {}
+    if str(post.get("type") or "") != "text":
+        return ""
+    return str(post.get("content") or "").strip()
+
+
+async def _resolve_is_pro(user_id: int, enh: dict) -> bool:
+    """PRO holatini aniqlaydi va enhancer holatida keshlaydi.
+
+    Adminlar ham PRO imkoniyatlaridan foydalanadi (boshqa oqimlardagi
+    kabi). DB xatosida ``False`` qaytadi — audit tugmasi ko'rinmaydi,
+    oqim to'xtab qolmaydi.
+    """
+    if user_id in ADMIN_IDS_SET:
+        enh["is_pro"] = True
+        return True
+    cached = enh.get("is_pro")
+    if cached is not None:
+        return bool(cached)
+    try:
+        is_pro = bool(await db.run_db(db.is_premium, user_id))
+    except Exception:  # pragma: no cover - himoya
+        is_pro = False
+    enh["is_pro"] = is_pro
+    return is_pro
+
+
 def _hub_view(context, watermark_note: str = "", lang: str | None = None) -> tuple:
     enh = _payload(context)
     lang = _view_lang(context, lang)
@@ -486,7 +534,14 @@ def _hub_view(context, watermark_note: str = "", lang: str | None = None) -> tup
             InlineKeyboardButton(get_text("btn_cancel", lang), callback_data="enh:cancel"),
         ],
     ]
-    return text, InlineKeyboardMarkup(keyboard)
+    # ✨ PRO: 2-bosqichli AI audit tugmasi — FAQAT PRO foydalanuvchilarda va
+    # faqat matnli postda ko'rinadi. Post matni enhancer tomonidan hech qachon
+    # O'ZICHA o'zgartirilmaydi: audit faqat foydalanuvchi shu tugmani bosganda
+    # ishlaydi (yuqoridagi "ASL MATNGA TEKILMAYDI" kafolati saqlanadi).
+    if enh.get("is_pro") and _auditable_text(enh):
+        keyboard.insert(2, [InlineKeyboardButton(
+            get_text("enh_btn_ai_audit", lang), callback_data="enh:audit")])
+    return text, InlineKeyboardMarkup(keyboard[:MAX_KEYBOARD_ROWS])
 
 
 def _react_view(context, watermark_note: str = "", lang: str | None = None) -> tuple:
@@ -883,6 +938,9 @@ async def _capture_post(update, context, msg, enh):
     enh["step"] = "hub"
     enh["hub_msg_id"] = None  # yangi hub xabari (post bilan bog'liq)
     await _drop_preview(context, chat_id, enh)  # eski post prevyusi eskirgan
+    # ✨ PRO bo'lsa hub'da "AI audit (PRO)" tugmasi ko'rinadi (bitta DB so'rovi,
+    # natija enhancer holatida keshlanadi).
+    await _resolve_is_pro(user_id, enh)
     note = await _plan_note(user_id, lang)
     await _render(context, chat_id, target_msg=msg, watermark_note=note)
     # Tahrirlash vaqtida post ko'rsatilmaydi; preview alohida tugma bilan ochiladi.
@@ -1018,6 +1076,80 @@ async def _answer(query, text: str = None, alert: bool = False):
         pass
 
 
+async def _audit_post_step(update, context, query, enh):
+    """✨ AI audit (PRO): post matnini 2-bosqichli auditor orqali yaxshilaydi.
+
+    Oqim (utils.ai_agent'dagi PRO auditor pipeline'i bilan bir xil):
+      1-bosqich — foydalanuvchi yuborgan/AI generatsiya qilgan post matni;
+      2-bosqich — ``_AUDIT_PRO_SYSTEM`` tizim prompti bilan ikkinchi AI
+      so'rovi: auditor kuchsiz joylarni bartaraf etib, TAYYOR yakuniy
+      variantni qaytaradi va post shu variant bilan almashtiriladi.
+
+    XAVFSIZLIK: 2-bosqich timeout/tarmoq uzilishi/yaroqsiz javob bersa
+    (zaxira modellardan keyin ham) — ASL post o'zgarmaydi, foydalanuvchiga
+    sabab aytiladi va oqim to'xtab qolmaydi (hub qayta chiziladi).
+    """
+    lang = get_lang(context)
+    user_id = query.from_user.id
+    chat_id = query.message.chat_id if query.message else user_id
+
+    text = _auditable_text(enh)
+    if not text:
+        await _answer(query, get_text("enh_audit_text_only", lang), alert=True)
+        return ENH_POST
+
+    # Tugma faqat PRO'da ko'rinadi, lekin har doim qayta tekshiriladi
+    # (eskirgan panel/tarif muddati tugagan holatlar uchun).
+    if not await _resolve_is_pro(user_id, enh):
+        await _answer(query, get_text("enh_audit_pro_only", lang), alert=True)
+        await _render(context, chat_id,
+                      watermark_note=await _plan_note(user_id, lang))
+        return ENH_POST
+
+    await _answer(query)
+    wait_msg = None
+    try:
+        wait_msg = await context.bot.send_message(
+            chat_id=chat_id,
+            text=get_text("enh_audit_wait", lang),
+            parse_mode="HTML",
+        )
+    except TelegramError:
+        wait_msg = None
+
+    try:
+        refined = await ai_agent.refine_post_pro(text, lang=lang)
+    except Exception as e:  # pragma: no cover - himoya
+        logger.warning("AI audit (enhancer) xatosi: %s", e)
+        refined = {"post_text": "", "error": str(e)}
+    finally:
+        if wait_msg is not None:
+            try:
+                await context.bot.delete_message(
+                    chat_id=chat_id, message_id=wait_msg.message_id)
+            except TelegramError:
+                pass
+
+    improved = str((refined or {}).get("post_text") or "").strip()
+    plan_note = await _plan_note(user_id, lang)
+
+    if not improved:
+        # XAVFSIZ fallback: asl post saqlanadi, oqim davom etadi.
+        logger.info("AI audit (PRO) natija bermadi — asl post saqlandi (%s)",
+                    (refined or {}).get("error"))
+        note = "\n".join(x for x in (get_text("enh_audit_fallback", lang), plan_note) if x)
+        await _drop_preview(context, chat_id, enh)  # prevyu eskirgan bo'lishi mumkin
+        await _render(context, chat_id, watermark_note=note)
+        return ENH_POST
+
+    enh["post"]["content"] = improved
+    context.user_data["content"] = improved
+    note = "\n".join(x for x in (get_text("enh_audit_done", lang), plan_note) if x)
+    await _drop_preview(context, chat_id, enh)  # eski prevyu yangi matnga to'g'ri kelmaydi
+    await _render(context, chat_id, watermark_note=note)
+    return ENH_POST
+
+
 async def enh_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     data = query.data or ""
@@ -1102,6 +1234,10 @@ async def enh_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await _render(context, chat_id, target_msg=query.message,
                       watermark_note=await _plan_note(user_id, get_lang(context)))
         return ENH_POST
+
+    if action == "audit":
+        # ✨ PRO: 2-bosqichli AI audit (faqat matnli postlar uchun).
+        return await _audit_post_step(update, context, query, enh)
 
     if action == "rtgl":
         await _answer(query)

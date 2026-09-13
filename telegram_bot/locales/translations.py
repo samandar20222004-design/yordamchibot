@@ -1219,6 +1219,20 @@ TRANSLATIONS = {
         "enh_btn_preview": "👁️ Prevyu",
         "enh_btn_send_channel": "🚀 Kanalga yuborish",
         "enh_btn_replace": "🔁 Postni almashtirish",
+        # ✨ PRO 2-bosqichli AI audit — tugma FAQAT PRO foydalanuvchilarga
+        # ko'rinadi va post matni faqat foydalanuvchi o'zi bosganda o'zgaradi.
+        "enh_btn_ai_audit": "✨ AI audit (PRO)",
+        "enh_audit_wait": "✨ AI audit ishlamoqda — post mukammallashtirilmoqda...",
+        "enh_audit_done": (
+            "✅ AI audit (PRO) bajarildi — post yaxshilangan variant bilan "
+            "almashtirildi."
+        ),
+        "enh_audit_fallback": (
+            "⚠️ AI audit hozircha javob bermadi — asl postingiz o'zgarmagan "
+            "holda saqlandi."
+        ),
+        "enh_audit_text_only": "ℹ️ AI audit faqat matnli postlar uchun ishlaydi.",
+        "enh_audit_pro_only": "⭐️ AI audit (2 bosqich) faqat PRO tarifda mavjud.",
         "enh_react_title": (
             "👍 <b>1-qadam. Reaksiyalar</b> (<b>{n}/{max}</b>)\n\n"
             "Tanlangan: {sel}\n\n"
@@ -3056,6 +3070,19 @@ TRANSLATIONS = {
         "enh_btn_preview": "👁️ Превью",
         "enh_btn_send_channel": "🚀 Отправить в канал",
         "enh_btn_replace": "🔁 Заменить пост",
+        # ✨ PRO: двухэтапный AI-аудит — кнопка видна ТОЛЬКО PRO-пользователям,
+        # текст поста меняется лишь когда пользователь нажал её сам.
+        "enh_btn_ai_audit": "✨ AI-аудит (PRO)",
+        "enh_audit_wait": "✨ AI-аудит работает — пост улучшается...",
+        "enh_audit_done": (
+            "✅ AI-аудит (PRO) выполнен — пост заменён улучшенным вариантом."
+        ),
+        "enh_audit_fallback": (
+            "⚠️ AI-аудит пока не ответил — ваш исходный пост сохранён "
+            "без изменений."
+        ),
+        "enh_audit_text_only": "ℹ️ AI-аудит работает только с текстовыми постами.",
+        "enh_audit_pro_only": "⭐️ AI-аудит (2 этапа) доступен только на тарифе PRO.",
         "enh_react_title": (
             "👍 <b>Шаг 1. Реакции</b> (<b>{n}/{max}</b>)\n\n"
             "Выбрано: {sel}\n\n"
