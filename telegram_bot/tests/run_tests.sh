@@ -43,6 +43,14 @@ echo "=============== PREMIUM / EN i18n TEST ==============="
 "$PY" tests/premium_i18n_en_test.py || exit 1
 
 echo
+echo "===== 💳 TO'LOV MINTAQASI TANLOVI (UZ/RU/EN, HUDUDIY — tilga bog'liq EMAS) ====="
+# Tarif tanlangach rekvizit DARHOL chiqmaydi: avval 🇺🇿 O'zbekiston / 🌍
+# Xalqaro menyusi. Xalqaro tanlovda Uzcard/Humo BUTUNLAY yashirinadi;
+# ledger'da payment_method ('uzcard_humo' UZS | 'international_stars' XTR)
+# ajratilgan holda idempotent yoziladi (tests/payment_region_selection_test.py).
+"$PY" tests/payment_region_selection_test.py || exit 1
+
+echo
 echo "========= 3 TILLIK (UZ/RU/EN) + AI TIL PARITETI ========="
 # Yangi: lug'atlar pariteti, AI tizim promptlarining tilga moslashuvi va
 # til o'zgarganda pastki klaviatura yangilanishi (tests/i18n_ai_parity_test.py).

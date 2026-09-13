@@ -11,6 +11,16 @@ from config import (
 import database as db
 from keyboards.default import get_main_keyboard
 from keyboards.callback_data import cb
+from keyboards.inline import (
+    CB_PAY_INTL_PLAN,
+    CB_PAY_REGION,
+    PAYMENT_REGION_INTL,
+    PAYMENT_REGION_UZ,
+    get_intl_tariffs_keyboard,
+    get_payment_region_keyboard,
+    is_payment_region,
+    payment_region_from_callback,
+)
 from handlers.start import ensure_user_lang
 from locales.translations import (
     get_text, get_lang, is_main_menu_text, localize_db_message,
@@ -88,6 +98,199 @@ def _plan_key_for_days(days) -> str:
         return _DAYS_TO_PLAN.get(int(days), "1m")
     except (TypeError, ValueError):
         return "1m"
+
+
+# ---------------------------------------------------------------------------
+# 🌍 TO'LOV MINTAQASI (payment region) — HUDUDIY TANLOV, TILGA BOG'LIQ EMAS
+# ---------------------------------------------------------------------------
+# Foydalanuvchi tarifni tanlaganda to'lov rekvizitlari TO'G'RIdan-TO'G'RI
+# ko'rsatilmaydi: avval ikkita mintaqa tugmasi chiqadi:
+#   🇺🇿 PAYMENT_REGION_UZ   → mahalliy kartalar (Uzcard / Humo, so'm);
+#   🌍 PAYMENT_REGION_INTL  → xalqaro usullar (Stars / Crypto / Card, $ ~).
+# Tanlov tilga bog'liq emas — RU/EN foydalanuvchi ham Uzcard/Humo tanlaydi,
+# UZ foydalanuvchi ham Stars. `context.user_data` kalitlari:
+USERDATA_PAY_REGION = "pay_region"       # 'uz' | 'intl'
+USERDATA_PENDING_PLAN = "pending_plan"   # '1m' | '3m' | '1y' | None
+
+# Xalqaro ekvivalent narxlar (Stars + AQSH dollariga taxminan moslama).
+INTL_STARS_AMOUNTS = {"1m": 75, "3m": 175, "1y": 550}
+INTL_USD_EQUIV = {"1m": "1.5", "3m": "3.5", "1y": "11.0"}
+
+
+def _remember_payment_choice(context, region=None, plan_key=None) -> None:
+    """Mintaqa/tarif tanlovini FSM-kontekstga yozadi (bo'sh user_data ham xavfsiz)."""
+    ud = getattr(context, "user_data", None)
+    if ud is None:
+        return
+    if region is not None:
+        ud[USERDATA_PAY_REGION] = region
+    if plan_key is not None:
+        if plan_key:
+            ud[USERDATA_PENDING_PLAN] = plan_key
+        else:
+            ud.pop(USERDATA_PENDING_PLAN, None)
+
+
+def _clear_payment_choice(context) -> None:
+    """Orqaga qaytishda mintaqa/tarif tanlovini tozalaydi."""
+    ud = getattr(context, "user_data", None)
+    if ud is None:
+        return
+    ud.pop(USERDATA_PAY_REGION, None)
+    ud.pop(USERDATA_PENDING_PLAN, None)
+
+
+def _get_payment_region(context) -> str:
+    """Kontekstdagi tanlangan mintaqa ('uz' | 'intl' | '')."""
+    ud = getattr(context, "user_data", None) or {}
+    region = str(ud.get(USERDATA_PAY_REGION) or "")
+    return region if is_payment_region(region) else ""
+
+
+def _get_pending_plan(context) -> str:
+    """Kontekstdagi kutilayotgan tarif ('1m'|'3m'|'1y') yoki ''."""
+    ud = getattr(context, "user_data", None) or {}
+    plan_key = str(ud.get(USERDATA_PENDING_PLAN) or "")
+    return plan_key if plan_key in CARD_TARIFFS else ""
+
+
+def _build_pay_region_text(lang: str = "uz", plan_key: str = "") -> str:
+    """Mintaqa tanlash ekrani matni (kerak bo'lsa tanlangan tarif bilan)."""
+    parts = [get_text("pay_region_title", lang)]
+    if plan_key and plan_key in CARD_TARIFFS:
+        parts.append("")
+        parts.append(
+            get_text("pay_region_selected", lang, tarif=_card_tariff_name(plan_key, lang))
+        )
+    return "\n".join(parts)
+
+
+def _build_intl_payment_text(lang: str = "uz", plan_key: str = "1m") -> str:
+    """🌍 Xalqaro to'lov ekrani: ekvivalent valyuta (Stars / ~$) ko'rsatiladi.
+
+    BU EKRANDA Uzcard / Humo rekvizitlari butunlay YO'Q — xalqaro mintaqa
+    tanlangan foydalanuvchi mahalliy kartalarni umuman ko'rmaydi.
+    """
+    plan_key = plan_key if plan_key in CARD_TARIFFS else "1m"
+    admin_ref = (
+        f"@{html_escape(PAYMENT_ADMIN_USERNAME)}" if PAYMENT_ADMIN_USERNAME
+        else get_text("card_payment_admin_missing", lang)
+    )
+    parts = [
+        get_text("intl_payment_title", lang),
+        "",
+        get_text(
+            "intl_payment_selected", lang,
+            tarif=_card_tariff_name(plan_key, lang),
+            stars=INTL_STARS_AMOUNTS[plan_key],
+            usd=INTL_USD_EQUIV[plan_key],
+        ),
+        "",
+        get_text("intl_payment_hint", lang, admin=admin_ref),
+    ]
+    return "\n".join(parts)
+
+
+def _get_intl_payment_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
+    """Xalqaro ekran: orqaga — mintaqa tanlash menyusiga (region almashtirish)."""
+    return InlineKeyboardMarkup([[
+        InlineKeyboardButton(get_text("btn_back", lang), callback_data=CB_PAY_REGION)
+    ]])
+
+
+async def _send_stars_invoice(
+    context, chat_id: int, user_id: int, plan_suffix: str, lang: str = "uz"
+) -> bool:
+    """Telegram Stars (XTR) invoice'ini yuboradi. Muvaffaqiyat → True.
+
+    Payload formati o'zgarmagan: ``sub_stars_<plan>_<user_id>`` —
+    precheckout/successful_payment validatorlari shu formatni kutadi.
+    """
+    plan_stars = INTL_STARS_AMOUNTS.get(plan_suffix)
+    if plan_stars is None:
+        return False
+    title = get_text(f"sub_inv_title_{plan_suffix}", lang)
+    desc = get_text(f"sub_inv_desc_{plan_suffix}", lang)
+    prices = [LabeledPrice(label=title, amount=plan_stars)]
+    try:
+        # Telegram Stars (XTR) uchun provider_token talab qilinmaydi,
+        # lekin PTB 21.x da bo'sh satr (provider_token="") uzatilishi
+        # talab etiladi — None qiymat ba'zi PTB versiyalarida so'rovdan
+        # tashlab qo'yilib, Telegram Stars invoice'ni ocholmay qoladi.
+        await context.bot.send_invoice(
+            chat_id=chat_id,
+            title=title,
+            description=desc,
+            payload=f"sub_stars_{plan_suffix}_{user_id}",
+            provider_token="",
+            currency="XTR",
+            prices=prices,
+            start_parameter="pro-sub",
+        )
+        return True
+    except Exception as e:
+        logger.warning("Invoice yaratish xatosi: %s", e)
+        return False
+
+
+async def _edit_or_reply(query, text: str, markup: InlineKeyboardMarkup) -> None:
+    """Xabarni edit qiladi; imkon bo'lmasa yangi xabar yuboradi (eski uslub)."""
+    try:
+        await query.edit_message_text(text, reply_markup=markup, parse_mode="HTML")
+    except Exception:
+        try:
+            await query.message.reply_text(text, reply_markup=markup, parse_mode="HTML")
+        except Exception:
+            pass
+
+
+async def _show_local_card_payment(query, context, user_id: int, lang: str, plan_key: str) -> None:
+    """🇺🇿 Mahalliy to'lov ekrani — FAQAT Uzcard / Humo rekvizitlari va so'm.
+
+    Bu funksiya mintaqa 'uz' tanlanganligi TASDIqlangandan keyin chaqiriladi
+    (yoki '💳 Karta orqali to'lov' tugmasi orqali — u o'zi mahalliy tanlov).
+    """
+    plan_key = plan_key if plan_key in CARD_TARIFFS else "1m"
+    # Tanlangan tarifni kontekstda saqlaymiz — chek kelganda admin xabarida
+    # aynan shu tarif (nomi + summasi) ko'rsatiladi va PRO shu muddatga beriladi.
+    ud = getattr(context, "user_data", None)
+    if ud is not None:
+        ud["card_plan"] = plan_key
+    text = _build_card_payment_text(user_id, lang, plan_key)
+    markup = _get_card_payment_keyboard(lang, plan_key)
+    await _edit_or_reply(query, text, markup)
+
+
+async def _show_intl_payment(query, context, user_id: int, lang: str, plan_key: str) -> None:
+    """🌍 Xalqaro oqim — Stars/Crypto/Card (~$ yoki Stars). Uzcard/Humo YO'Q.
+
+    ``plan_key`` bo'sh bo'lsa Stars tarif tanlagichi ko'rsatiladi; tanlangan
+    bo'lsa Telegram Stars invoice'si yuboriladi va xalqaro to'lov ekrani
+    chiziladi. Invoice xatosida eski ``sub_invoice_error`` xabari qaytadi.
+    """
+    if plan_key not in CARD_TARIFFS:
+        # 🌍 Tarif hali tanlanmagan — faqat xalqaro paketlar ro'yxati.
+        text = get_text("intl_payment_title", lang)
+        markup = get_intl_tariffs_keyboard(lang)
+        await _edit_or_reply(query, text, markup)
+        return
+
+    chat_id = getattr(getattr(query, "message", None), "chat_id", None)
+    if chat_id is None:
+        chat_id = user_id
+    ok = await _send_stars_invoice(context, chat_id, user_id, plan_key, lang)
+    if not ok:
+        try:
+            await query.message.reply_text(get_text("sub_invoice_error", lang))
+        except Exception:
+            pass
+        return
+    # Tanlov bajarildi — kutilayotgan tarifni tozalaymiz.
+    _remember_payment_choice(context, PAYMENT_REGION_INTL, "")
+    text = _build_intl_payment_text(lang, plan_key)
+    markup = _get_intl_payment_keyboard(lang)
+    await _edit_or_reply(query, text, markup)
+
 
 # Limit xabarlari
 LIMIT_CHANNEL_MSG = (
@@ -283,8 +486,15 @@ def _build_card_payment_text(
     return "\n".join(parts)
 
 
-def _get_card_tariffs_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
-    """💳 Karta to'lovi uchun TARIF TANLASH klaviaturasi (1m/3m/1y + orqaga)."""
+def _get_card_tariffs_keyboard(
+    lang: str = "uz", back_cb: str = "sub_back"
+) -> InlineKeyboardMarkup:
+    """💳 Karta to'lovi uchun TARIF TANLASH klaviaturasi (1m/3m/1y + orqaga).
+
+    ``back_cb`` — orqa tugma callback'i. Mintaqa oqimida u ``sub_region``ga
+    qo'yiladi (foydalanuvchi mintaqani almashtira olishi uchun), standart —
+    obuna kartasiga (``sub_back``).
+    """
     keyboard = []
     for key in CARD_TARIFF_ORDER:
         keyboard.append([
@@ -293,7 +503,7 @@ def _get_card_tariffs_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
             )
         ])
     keyboard.append([
-        InlineKeyboardButton(get_text("btn_back", lang), callback_data="sub_back")
+        InlineKeyboardButton(get_text("btn_back", lang), callback_data=back_cb)
     ])
     return InlineKeyboardMarkup(keyboard)
 
@@ -375,6 +585,8 @@ async def subscription_callback(update: Update, context: ContextTypes.DEFAULT_TY
         return ConversationHandler.END
 
     if data == "sub_back_main":
+        # Chiqishda mintaqa/tarif tanlovini ham tozalaymiz.
+        _clear_payment_choice(context)
         # Xabarni o'chirib, asosiy menyuni yuboramiz
         try:
             await query.message.delete()
@@ -404,46 +616,72 @@ async def subscription_callback(update: Update, context: ContextTypes.DEFAULT_TY
         return SUBSCRIPTION_VIEW
 
     if data.startswith("sub_pay:"):
+        # ⛔️ Rekvizitlar/DARHOL invoice ENDI YO'Q: tarif tanlangach avval
+        # to'lov MINTAQASI so'raladi (🇺🇿 O'zbekiston / 🌍 Xalqaro). Bu tanlov
+        # tilga bog'liq emas — RU/EN foydalanuvchi ham Uzcard/Humo tanlaydi.
         plan_key = data.split(":", 1)[1]
-        # Telegram Stars (XTR) invoice ma'lumotlari: (miqdor, sarlavha, tavsif).
-        # Sarlavha/tavsif foydalanuvchi tilida (uz/ru/en) — lug'at kalitlari
-        # orqali olinadi; plan_key: stars_1m | stars_3m | stars_1y.
+        # plan_key: stars_1m | stars_3m | stars_1y → tarif '1m'|'3m'|'1y'.
         plan_suffix = plan_key.split("_", 1)[1] if "_" in plan_key else ""
-        plan_stars = {"1m": 75, "3m": 175, "1y": 550}.get(plan_suffix)
-        if plan_stars is None:
+        if plan_suffix not in CARD_TARIFFS:
             await query.message.reply_text(get_text("sub_invalid_plan", lang))
             return SUBSCRIPTION_VIEW
 
-        amount = plan_stars
-        title = get_text(f"sub_inv_title_{plan_suffix}", lang)
-        desc = get_text(f"sub_inv_desc_{plan_suffix}", lang)
-        prices = [LabeledPrice(label=title, amount=amount)]
+        _remember_payment_choice(context, "", plan_suffix)
+        text = _build_pay_region_text(lang, plan_suffix)
+        markup = get_payment_region_keyboard(lang, plan_suffix)
+        await _edit_or_reply(query, text, markup)
+        return SUBSCRIPTION_VIEW
 
-        try:
-            # Telegram Stars (XTR) uchun provider_token talab qilinmaydi,
-            # lekin PTB 21.x da bo'sh satr (provider_token="") uzatilishi
-            # talab etiladi — None qiymat ba'zi PTB versiyalarida so'rovdan
-            # tashlab qo'yilib, Telegram Stars invoice'ni ocholmay qoladi.
-            await context.bot.send_invoice(
-                chat_id=update.effective_chat.id,
-                title=title,
-                description=desc,
-                payload=f"sub_{plan_key}_{user_id}",
-                provider_token="",
-                currency="XTR",
-                prices=prices,
-                start_parameter="pro-sub",
-            )
-        except Exception as e:
-            logger.warning("Invoice yaratish xatosi: %s", e)
-            try:
-                await query.message.reply_text(get_text("sub_invoice_error", lang))
-            except Exception:
-                pass
+    if data == CB_PAY_REGION or data.startswith(f"{CB_PAY_REGION}:"):
+        # 🌍 Mintaqa tanlandi (yoki menyu qayta so'raldi):
+        #   sub_region            → menyusini ko'rsatish
+        #   sub_region:uz[:plan]  → mahalliy oqim (Uzcard/Humo, so'm)
+        #   sub_region:intl[:plan]→ xalqaro oqim (Stars/Crypto, ~$)
+        region, plan_key = payment_region_from_callback(data)
+        if not plan_key:
+            plan_key = _get_pending_plan(context)
+        if region not in (PAYMENT_REGION_UZ, PAYMENT_REGION_INTL):
+            # Noma'lum/bo'sq mintaqа tokeni — menyuni tarif eslatmasiz qayta
+            # ko'rsatamiz (hech qanday rekvizit chiqmaydi).
+            text = _build_pay_region_text(lang, plan_key)
+            markup = get_payment_region_keyboard(lang, plan_key or None)
+            await _edit_or_reply(query, text, markup)
+            return SUBSCRIPTION_VIEW
+
+        if region == PAYMENT_REGION_UZ:
+            _remember_payment_choice(context, PAYMENT_REGION_UZ, plan_key)
+            if plan_key in CARD_TARIFFS:
+                await _show_local_card_payment(
+                    query, context, user_id, lang, plan_key
+                )
+            else:
+                # 🇺🇿 Faqat mahalliy usullar: so'mdagi narxlar bilan tarif
+                # tanlash (Uzcard / Humo). Xalqaro Stars tugmalari yo'q.
+                text = get_text("card_tariff_title", lang)
+                markup = _get_card_tariffs_keyboard(lang, back_cb=CB_PAY_REGION)
+                await _edit_or_reply(query, text, markup)
+            return SUBSCRIPTION_VIEW
+
+        # 🌍 Xalqaro: Uzcard / Humo BUTUNLAY yashirilgan.
+        _remember_payment_choice(context, PAYMENT_REGION_INTL, plan_key)
+        await _show_intl_payment(query, context, user_id, lang, plan_key)
+        return SUBSCRIPTION_VIEW
+
+    if data.startswith(f"{CB_PAY_INTL_PLAN}:"):
+        # 🌍 Xalqaro tarif tanlagichidagi bosish — invoice + xalqaro ekran.
+        plan_key = data.split(":", 1)[1]
+        if plan_key not in CARD_TARIFFS:
+            await query.message.reply_text(get_text("sub_invalid_plan", lang))
+            return SUBSCRIPTION_VIEW
+        _remember_payment_choice(context, PAYMENT_REGION_INTL, plan_key)
+        await _show_intl_payment(query, context, user_id, lang, plan_key)
         return SUBSCRIPTION_VIEW
 
     if data == "sub_card_pay":
-        # 1-qadam: 💳 Karta to'lovi — avval TARIF tanlanadi (1 oy / 3 oy / 1 yil).
+        # 1-qadam: 💳 Karta to'lovi tugmasi O'ZI "🇺🇿 O'zbekiston" usulini
+        # tanlashdir (yozuvida Uzcard / Humo ko'rsatilgan) — mintaqa darhol
+        # qayd etiladi va FAQAT mahalliy tarif tanlagichi (so'mda) chiqadi.
+        _remember_payment_choice(context, PAYMENT_REGION_UZ, "")
         text = get_text("card_tariff_title", lang)
         markup = _get_card_tariffs_keyboard(lang)
         try:
@@ -453,19 +691,18 @@ async def subscription_callback(update: Update, context: ContextTypes.DEFAULT_TY
         return SUBSCRIPTION_VIEW
 
     if data.startswith("sub_tarif:"):
-        # 2-qadam: tarif tanlandi — karta raqami, egasi va summa ko'rsatiladi.
+        # 2-qadam: tarif tanlandi — LEKIN rekvizitlar faqat mintaqa tanlangan
+        # bo'lsa chiqadi; mintaqa tanlanmagan bo'lsa avval 2 tugma menyusimiz.
         plan_key = data.split(":", 1)[1]
         if plan_key not in CARD_TARIFFS:
             return SUBSCRIPTION_VIEW
-        # Tanlangan tarifni kontekstda saqlaymiz — chek kelganda admin xabarida
-        # aynan shu tarif (nomi + summasi) ko'rsatiladi va PRO shu muddatga beriladi.
-        context.user_data["card_plan"] = plan_key
-        text = _build_card_payment_text(user_id, lang, plan_key)
-        markup = _get_card_payment_keyboard(lang, plan_key)
-        try:
-            await query.edit_message_text(text, reply_markup=markup, parse_mode="HTML")
-        except Exception:
-            await query.message.reply_text(text, reply_markup=markup, parse_mode="HTML")
+        if _get_payment_region(context) != PAYMENT_REGION_UZ:
+            _remember_payment_choice(context, "", plan_key)
+            text = _build_pay_region_text(lang, plan_key)
+            markup = get_payment_region_keyboard(lang, plan_key)
+            await _edit_or_reply(query, text, markup)
+            return SUBSCRIPTION_VIEW
+        await _show_local_card_payment(query, context, user_id, lang, plan_key)
         return SUBSCRIPTION_VIEW
 
     if data == "sub_send_receipt":
@@ -487,6 +724,8 @@ async def subscription_callback(update: Update, context: ContextTypes.DEFAULT_TY
         return RECEIPT_WAIT
 
     if data == "sub_back":
+        # Obuna kartasiga qaytish — mintaqa/tarif tanlovi bekor qilinadi.
+        _clear_payment_choice(context)
         plan_info = await db.run_db(db.get_user_plan, user_id)
         card = _build_subscription_card(plan_info, lang)
         plan = plan_info.get("plan_type", "free")

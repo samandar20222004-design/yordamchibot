@@ -637,6 +637,120 @@ def get_help_back_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
 
 
 # ============================================================
+# 💳 TO'LOV MINTAQASI (payment region) — HUDUDIY TANLOV
+# ------------------------------------------------------------
+# To'lov usuli TANLOVI HECH QACHON tilga bog'liq emas: rus/ingliz tilidagi
+# foydalanuvchilar ham Uzcard/Humo'dan, o'zbek tilidagilar ham Telegram
+# Stars'dan bemalol foydalana oladi. Shuning uchun FAQAT tugma yorliqlari
+# ``lang`` bo'yicha tarjima qilinadi, ``callback_data`` esa tillardan
+# mustaqil — bir xil (routing tilga bog'liq emas).
+#
+# Oqim: tarif tanlandi → [🇺🇿 O'zbekiston] / [🌍 Xalqaro] → rekvizitlar.
+#   * uz   → faqat mahalliy usullar (Uzcard / Humo, so'mdagi narxlar);
+#   * intl → faqat xalqaro usullar (Stars / Crypto / Card, $ yoki Stars);
+#            Uzcard / Humo rekvizitlari BUTUNLAY ko'rsatilmaydi.
+# ============================================================
+
+PAYMENT_REGION_UZ = "uz"
+PAYMENT_REGION_INTL = "intl"
+PAYMENT_REGIONS = (PAYMENT_REGION_UZ, PAYMENT_REGION_INTL)
+
+#: Callback prefikslari (handler'lardagi ``^sub_`` patterni ichida ishlaydi).
+CB_PAY_REGION = "sub_region"
+CB_PAY_INTL_PLAN = "sub_intl_plan"
+
+_REGION_ALIASES = {
+    "uz": PAYMENT_REGION_UZ,
+    "uzb": PAYMENT_REGION_UZ,
+    "uzbekistan": PAYMENT_REGION_UZ,
+    "uzbekiston": PAYMENT_REGION_UZ,
+    "intl": PAYMENT_REGION_INTL,
+    "int": PAYMENT_REGION_INTL,
+    "international": PAYMENT_REGION_INTL,
+}
+
+
+def normalize_payment_region(region) -> str:
+    """Berilgan qiymatni 'uz' | 'intl' ga normallashtiradi; noma'lum → ''."""
+    raw = str(region or "").strip().lower()
+    return _REGION_ALIASES.get(raw, "")
+
+
+def is_payment_region(region) -> bool:
+    """Qiymat ruxsat etilgan to'lov mintaqasimi ('uz' | 'intl')."""
+    return str(region or "").strip().lower() in PAYMENT_REGIONS
+
+
+def payment_region_callback(region: str, plan_key: str = None) -> str:
+    """``sub_region:uz`` / ``sub_region:intl:1y`` (64-bayt kafolatli ``cb``)."""
+    return cb(CB_PAY_REGION, str(region or ""), plan_key)
+
+
+def payment_region_from_callback(data: str, maxsplit: int = 2) -> tuple:
+    """``sub_region:intl:1y`` → ``('intl', '1y')``; yaroqsiz → ``('', '')``.
+
+    Handler testlari va klaviatura quruvchilari bir xil parserdan
+    foydalanadi — format bir joyda yashaydi.
+    """
+    from keyboards.callback_data import split_callback
+
+    parts = split_callback(data, maxsplit)
+    if not parts or parts[0] != CB_PAY_REGION:
+        return "", ""
+    region = normalize_payment_region(parts[1]) if len(parts) > 1 else ""
+    plan_key = parts[2] if len(parts) > 2 else ""
+    return region, plan_key
+
+
+def get_payment_region_keyboard(
+    lang: str = "uz", plan_key: str = None
+) -> InlineKeyboardMarkup:
+    """To'lov mintaqasi tanlash klaviaturasi — 2 ta asosiy tugma + orqaga.
+
+    ``lang`` — faqat YORLIQLARNI tarjima qiladi (uz/ru/en); tanlovning
+    o'zi tilga bog'liq emas: uchala tilda ham callback_data bir xil.
+
+    ``plan_key`` ('1m'|'3m'|'1y' yoki None) — oldindan tanlangan tarif;
+    u holda mintaqani tanlagan zahoti shu tarifning to'lov ekrani ochiladi.
+    """
+    rows = [
+        [InlineKeyboardButton(
+            get_text("pay_region_uz", lang),
+            callback_data=payment_region_callback(PAYMENT_REGION_UZ, plan_key),
+        )],
+        [InlineKeyboardButton(
+            get_text("pay_region_intl", lang),
+            callback_data=payment_region_callback(PAYMENT_REGION_INTL, plan_key),
+        )],
+        [InlineKeyboardButton(get_text("btn_back", lang), callback_data="sub_back")],
+    ]
+    return InlineKeyboardMarkup(rows)
+
+
+def get_intl_tariffs_keyboard(
+    lang: str = "uz", plan_order: tuple = ("1m", "3m", "1y")
+) -> InlineKeyboardMarkup:
+    """🌍 Xalqaro tarif tanlash — FAQAT Stars/Crypto paketlari.
+
+    Bu klaviaturada Uzcard / Humo tugmalari va rekvizitlari UMUMAN
+    mavjud emas (xalqaro tanlovda mahalliy kartalar butunlay yashiriladi).
+    Orqa tugma ``sub_region``ga qaytadi — foydalanuvchi mintaqani
+    almashtirishi mumkin.
+    """
+    rows = [
+        [InlineKeyboardButton(
+            get_text(f"intl_tariff_{key}", lang),
+            callback_data=cb(CB_PAY_INTL_PLAN, key),
+        )]
+        for key in plan_order
+    ]
+    rows.append([InlineKeyboardButton(
+        get_text("btn_back", lang), callback_data=CB_PAY_REGION
+    )])
+    return InlineKeyboardMarkup(rows)
+
+
+# ============================================================
 # MULTI-SELECT REAKSIYALAR (TOGGLE)
 # ============================================================
 # Post yaratishda reaksiya tanlash uchun ruxsat etilgan emojilar.

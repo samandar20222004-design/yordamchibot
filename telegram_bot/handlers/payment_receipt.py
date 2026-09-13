@@ -103,15 +103,17 @@ def _fmt_receipt_time() -> str:
 
 
 def _receipt_plan_for(context) -> tuple:
-    """Chek uchun tanlangan tarif: (plan_key, days).
+    """Chek uchun tanlangan tarif: (plan_key, days, amount_uzs).
 
     ``context.user_data['card_plan']`` da foydalanuvchi '💳 Karta orqali to'lov'
     oqimida tanlagan tarif saqlanadi ('1m'|'3m'|'1y'); topilmasa — '1m'.
+    Uchunchi qiymat — so'mdagi summa: ledger yozuviga to'g'ri valyuta
+    (UZS) bilan tushishi uchun.
     """
     ud = getattr(context, "user_data", None) or {}
     plan_key = ud.get("card_plan") or "1m"
     plan = CARD_TARIFFS.get(plan_key) or CARD_TARIFFS["1m"]
-    return plan_key, plan["days"]
+    return plan_key, plan["days"], int(plan.get("amount") or 0)
 
 
 def _build_receipt_caption(
@@ -193,13 +195,14 @@ async def receipt_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     display_name = ((user.first_name or "") if user else "") or full_name
 
     # 💳 Foydalanuvchi tanlagan tarif ('sub_tarif:1m/3m/1y' → user_data).
-    # Chek DB'ga shu tarifning muddati bilan saqlanadi — admin ✅ bosganda
-    # PRO aynan shu muddatga (30/90/365 kun) uzaytiriladi.
-    plan_key, plan_days = _receipt_plan_for(context)
+    # Chek DB'ga shu tarifning muddati VA so'mdagi summasi bilan saqlanadi —
+    # admin ✅ bosganda PRO aynan shu muddatga (30/90/365 kun) uzaytiriladi
+    # va payments ledger'iga to'g'ri valyuta (UZS / 'uzcard_humo') yoziladi.
+    plan_key, plan_days, plan_amount = _receipt_plan_for(context)
 
     receipt_id = await db.run_db(
         db.save_payment_receipt, user_id, media_type, file_id, caption,
-        username, full_name, lang, plan_days,
+        username, full_name, lang, plan_days, amount_uzs=plan_amount,
     )
 
     if not receipt_id:
