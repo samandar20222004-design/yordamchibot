@@ -52,7 +52,7 @@ EXPECTED_TABLES = (
     "users", "channels", "sponsor_channels", "system_settings",
     "bot_settings", "ad_pool", "channel_post_counters", "scheduled_posts",
     "post_reactions", "sent_post_messages", "promo_codes", "payments",
-    "payment_receipts", "channel_posts_history",
+    "payment_receipts", "payment_orders", "channel_posts_history",
     # PostAssist V2 (6-bosqich): RBAC rollari va admin auditi.
     "admin_roles", "admin_audit_logs",
     # PostAssist V2 (8-bosqich): AI-ballar auditi (credits ledger).
@@ -63,6 +63,7 @@ EXPECTED_INDEXES = (
     "idx_channel_post_counters_updated",
     "idx_payments_user_id",
     "idx_payment_receipts_status",
+    "idx_payment_orders_user",
     "idx_scheduled_posts_status_time",
     "idx_scheduled_posts_user_id",
     "idx_channels_user_id",
