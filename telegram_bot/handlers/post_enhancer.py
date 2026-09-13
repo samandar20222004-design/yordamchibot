@@ -940,7 +940,33 @@ async def _capture_post(update, context, msg, enh):
     await _drop_preview(context, chat_id, enh)  # eski post prevyusi eskirgan
     # ✨ PRO bo'lsa hub'da "AI audit (PRO)" tugmasi ko'rinadi (bitta DB so'rovi,
     # natija enhancer holatida keshlanadi).
-    await _resolve_is_pro(user_id, enh)
+    is_pro = await _resolve_is_pro(user_id, enh)
+
+    # ✨ PRO uchun avtomatik 2-bosqichli audit (task talab):
+    # 1-bosqich: foydalanuvchi yuborgan post (enh["post"]["content"] da)
+    # 2-bosqich: AUDIT_PRO_SYSTEM bilan yaxshilangan final variant
+    # Foydalanuvchiga FAQAT 2-bosqich natijasi ko'rsatiladi.
+    # FREE: bitta bosqich (ikkinchi AI chaqiruvi yo'q) — tezlik/xarajat.
+    # Xatoliklarda (timeout, bo'sh javob, tarmoq) — asl post saqlanadi.
+    if is_pro and getattr(ai_agent, "PRO_TWO_STAGE_ENABLED", True):
+        auditable = _auditable_text(enh)
+        if auditable:
+            try:
+                refined = await ai_agent.refine_post_pro(auditable, lang=lang)
+                improved = str((refined or {}).get("post_text") or "").strip()
+                if improved:
+                    enh["post"]["content"] = improved
+                    context.user_data["content"] = improved
+                    enh["audit_auto_applied"] = True
+                    enh["audit_auto_rating"] = (refined or {}).get("rating")
+                else:
+                    enh["audit_auto_applied"] = False
+                    enh["audit_auto_error"] = (refined or {}).get("error")
+            except Exception as e:
+                logger.warning("Auto audit (PRO) xatosi: %s", e)
+                enh["audit_auto_applied"] = False
+                enh["audit_auto_error"] = str(e)
+
     note = await _plan_note(user_id, lang)
     await _render(context, chat_id, target_msg=msg, watermark_note=note)
     # Tahrirlash vaqtida post ko'rsatilmaydi; preview alohida tugma bilan ochiladi.

@@ -23,6 +23,8 @@ from utils.ai_agent import (
     generate_ai_response, audit_post, pick_supported_kwargs,
     VisionError, download_telegram_media_to_temp, cleanup_temp_media,
     generate_vision_post,
+    refine_post_pro, apply_pro_audit_stage,
+    PRO_TWO_STAGE_ENABLED,
     _AUDIT_PRO_SYSTEM, _AUDIT_FREE_SYSTEM,
     _PRO_POST_ENHANCEMENT, _FREE_POST_HINT,
 )
@@ -1073,6 +1075,19 @@ async def ai_prompt_received(update: Update, context: ContextTypes.DEFAULT_TYPE)
         )
         return AI_MENU_STATE
 
+    # ✨ PRO 2-bosqichli auto audit: foydalanuvchiga ko'rsatishdan OLDIN
+    # AUDIT_PRO_SYSTEM orqali yaxshilangan final variant olinadi.
+    # FREE: bitta bosqich — tezlik/xarajat.
+    # Fallback: refine xato/timeout/bo'sh bo'lsa stage1 post saqlanadi.
+    if is_pro and PRO_TWO_STAGE_ENABLED and post_text:
+        try:
+            refined = await refine_post_pro(post_text, lang=lang)
+            improved = str((refined or {}).get("post_text") or "").strip()
+            if improved:
+                post_text = improved
+        except Exception as _e:
+            logger.warning("AI Studio auto audit (PRO) xatosi: %s", _e)
+
     context.user_data["studio_topic"] = text_input
     context.user_data["studio_post_text"] = post_text
     context.user_data["studio_tone"] = "friendly"
@@ -1134,6 +1149,17 @@ async def ai_tone_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         post_text = (result.get("post_text") or "").strip()
         if not post_text:
             raise RuntimeError(result.get("reply") or "AI bo'sh javob qaytardi")
+
+        # ✨ PRO 2-bosqichli auto audit (tone o'zgartirishda ham)
+        if is_pro_tone and PRO_TWO_STAGE_ENABLED and post_text:
+            try:
+                refined = await refine_post_pro(post_text, lang=lang)
+                improved = str((refined or {}).get("post_text") or "").strip()
+                if improved:
+                    post_text = improved
+            except Exception as _e:
+                logger.warning("AI Studio tone auto audit (PRO) xatosi: %s", _e)
+
     except Exception as e:
         # SPEKS: xato log'lanadi, foydalanuvchi doimiy nav-tugmaga qaytadi
         logger.error("AI Generation Error: %s", e)
