@@ -388,6 +388,33 @@ EN_OVERLAY = {
     ),
     "card_payment_no_card": "ℹ️ Contact the admin to get the card details.",
     "card_payment_admin_missing": "admin (contact details in the '📖 Guide / About' section)",
+    # 🌍 Payment-region choice (GEOGRAPHIC — never tied to language).
+    "pay_region_title": (
+        "💳 <b>Select your payment region</b>\n\n"
+        "🌐 The payment method does NOT depend on your language — you can "
+        "pay in any region no matter which language is set.\n"
+        "📌 Which region will you pay from? 👇"
+    ),
+    "pay_region_uz": "🇺🇿 Uzbekistan (Uzcard / Humo)",
+    "pay_region_intl": "🌍 International (Stars / Crypto / Card)",
+    "pay_region_selected": "🎫 Selected plan: <b>{tarif}</b>",
+    "intl_payment_title": (
+        "🌍 <b>International payment</b>\n\n"
+        "⭐️ Telegram Stars — instant payment, PRO turns on automatically.\n"
+        "🪙 Crypto (USDT) and 💳 international cards (Visa / Mastercard)."
+    ),
+    "intl_tariff_1m": "⭐️ 1 month — 75 Stars (~$1.5)",
+    "intl_tariff_3m": "⭐️ 3 months — 175 Stars (~$3.5)",
+    "intl_tariff_1y": "⭐️ 1 year — 550 Stars (~$11.0)",
+    "intl_payment_selected": (
+        "🎫 Selected plan: <b>{tarif}</b>\n"
+        "⭐️ Price: <b>{stars} Stars</b> (~${usd})"
+    ),
+    "intl_payment_hint": (
+        "👇 Tap the button below — the Telegram Stars payment window opens and "
+        "PRO is activated automatically after the payment.\n"
+        "🪙 Crypto or international card help: {admin}"
+    ),
     "card_payment_steps": (
         "📝 <b>Instructions:</b>\n"
         "1️⃣ Transfer the selected amount to the card above.\n"

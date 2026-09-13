@@ -145,6 +145,36 @@ TRANSLATIONS = {
             "Savol bo'lsa: {admin}"
         ),
         "card_payment_admin_missing": "admin (Bot haqida bo'limidagi aloqa orqali)",
+        # 🌍 To'lov mintaqasi tanlash (GEYUGRAFIK tanlov — tilga bog'liq EMAS).
+        # Uchala tugma ham har qanday foydalanuvchi uchun ochiq: rus yoki
+        # ingliz tilidagilar ham Uzcard / Humo'ni, o'zbek tilidagilar ham
+        # Stars'ni tanlashi mumkin.
+        "pay_region_title": (
+            "💳 <b>To'lov mintaqasini tanlang</b>\n\n"
+            "🌐 To'lov usuli tilingizga bog'liq EMAS — istalgan til "
+            "sozlamasida istalgan mintaqadan to'lashingiz mumkin.\n"
+            "📌 Qaysi mintaqada to'laysiz? 👇"
+        ),
+        "pay_region_uz": "🇺🇿 O'zbekiston (Uzcard / Humo)",
+        "pay_region_intl": "🌍 Xalqaro (Stars / Crypto / Card)",
+        "pay_region_selected": "🎫 Tanlangan tarif: <b>{tarif}</b>",
+        "intl_payment_title": (
+            "🌍 <b>Xalqaro to'lov</b>\n\n"
+            "⭐️ Telegram Stars — bir zumda to'lov va PRO avtomatik yoqiladi.\n"
+            "🪙 Crypto (USDT) va 💳 xalqaro kartalar (Visa / Mastercard)."
+        ),
+        "intl_tariff_1m": "⭐️ 1 oy — 75 Stars (~$1.5)",
+        "intl_tariff_3m": "⭐️ 3 oy — 175 Stars (~$3.5)",
+        "intl_tariff_1y": "⭐️ 1 yil — 550 Stars (~$11.0)",
+        "intl_payment_selected": (
+            "🎫 Tanlangan tarif: <b>{tarif}</b>\n"
+            "⭐️ Narx: <b>{stars} Stars</b> (~${usd})"
+        ),
+        "intl_payment_hint": (
+            "👇 Quyidagi tugmani bosing — Telegram Stars to'lov oynasi "
+            "ochiladi va to'lovdan so'ng PRO avtomatik faollashadi.\n"
+            "🪙 Crypto yoki xalqaro karta bo'yicha yordam: {admin}"
+        ),
         "btn_send_receipt": "📸 Chek yuborish",
         "receipt_prompt": (
             "📸 <b>To'lov chekini yuboring:</b>\n\n"
@@ -1996,6 +2026,33 @@ TRANSLATIONS = {
             "Вопросы: {admin}"
         ),
         "card_payment_admin_missing": "администратор (контакты в разделе «О боте»)",
+        # 🌍 Выбор региона оплаты (ГЕОГРАФИЧЕСКИЙ выбор — НЕ зависит от языка).
+        "pay_region_title": (
+            "💳 <b>Выберите регион оплаты</b>\n\n"
+            "🌐 Способ оплаты НЕ зависит от языка — платить в любом регионе "
+            "можно при любых языковых настройках.\n"
+            "📌 В каком регионе будете платить? 👇"
+        ),
+        "pay_region_uz": "🇺🇿 Узбекистан (Uzcard / Humo)",
+        "pay_region_intl": "🌍 Международная (Stars / Crypto / Card)",
+        "pay_region_selected": "🎫 Выбранный тариф: <b>{tarif}</b>",
+        "intl_payment_title": (
+            "🌍 <b>Международная оплата</b>\n\n"
+            "⭐️ Telegram Stars — мгновенная оплата, PRO включается сразу.\n"
+            "🪙 Крипта (USDT) и 💳 международные карты (Visa / Mastercard)."
+        ),
+        "intl_tariff_1m": "⭐️ 1 месяц — 75 Stars (~$1.5)",
+        "intl_tariff_3m": "⭐️ 3 месяца — 175 Stars (~$3.5)",
+        "intl_tariff_1y": "⭐️ 1 год — 550 Stars (~$11.0)",
+        "intl_payment_selected": (
+            "🎫 Выбранный тариф: <b>{tarif}</b>\n"
+            "⭐️ Цена: <b>{stars} Stars</b> (~${usd})"
+        ),
+        "intl_payment_hint": (
+            "👇 Нажмите кнопку ниже — откроется окно оплаты Telegram Stars, и "
+            "после оплаты PRO активируется автоматически.\n"
+            "🪙 Помощь по крипте или международной карте: {admin}"
+        ),
         "btn_send_receipt": "📸 Отправить чек",
         "receipt_prompt": (
             "📸 <b>Отправьте чек об оплате:</b>\n\n"

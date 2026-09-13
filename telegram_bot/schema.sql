@@ -204,6 +204,11 @@ CREATE INDEX IF NOT EXISTS idx_channel_posts_history_channel_date
 -- PostAssist V2 (5-bosqich): status ustuni — to'lov audit holati
 -- (pending | succeeded | failed | refunded) va (user_id, status) kompozit
 -- indeksining qismi. DEFAULT tufayli eski yozuvlar 'succeeded' hisoblanadi.
+-- 💳 payment_method: to'lov USULI ajratgichi (HUDUDIY tanlov — tilga bog'liq
+-- EMAS): 'uzcard_humo' (🇺🇿 Uzcard / Humo, valyuta UZS) yoki
+-- 'international_stars' (🌍 Telegram Stars / Crypto, valyuta XTR).
+-- DEFAULT 'international_stars' — bu jadvalga yozilgan ESKI barcha
+-- (Stars-only) yozuvlar migratsiyasiz to'g'ri nomlanadi.
 CREATE TABLE IF NOT EXISTS payments (
     id SERIAL PRIMARY KEY,
     user_id BIGINT,
@@ -212,7 +217,8 @@ CREATE TABLE IF NOT EXISTS payments (
     payload TEXT,
     telegram_payment_charge_id TEXT UNIQUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    status VARCHAR(20) NOT NULL DEFAULT 'succeeded'
+    status VARCHAR(20) NOT NULL DEFAULT 'succeeded',
+    payment_method VARCHAR(32) NOT NULL DEFAULT 'international_stars'
 );
 CREATE INDEX IF NOT EXISTS idx_payments_user_id ON payments (user_id);
 
@@ -220,6 +226,9 @@ CREATE INDEX IF NOT EXISTS idx_payments_user_id ON payments (user_id);
 -- Foydalanuvchi chek (rasm/PDF) yuborganida pending holatida saqlanadi va
 -- barcha adminlarga yuboriladi. Admin ✅ Tasdiqlash bosganda status='approved'
 -- bo'lib, PRO muddati uzaytiriladi (atomik); ❌ Rad etishda 'rejected'.
+-- amount_uzs — tanlangan tarifning so'mdagi summasi (CARD_TARIFFS). Admin
+-- ✅ bosganda payments ledger'iga to'g'ri valyuta (UZS) va usul
+-- ('uzcard_humo') bilan yozish uchun ishlatiladi; eski cheklarda 0.
 CREATE TABLE IF NOT EXISTS payment_receipts (
     id SERIAL PRIMARY KEY,
     user_id BIGINT NOT NULL,
@@ -233,7 +242,8 @@ CREATE TABLE IF NOT EXISTS payment_receipts (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     reviewed_at TIMESTAMP WITH TIME ZONE,
     decided_by BIGINT,
-    days_granted INTEGER DEFAULT 30
+    days_granted INTEGER DEFAULT 30,
+    amount_uzs INT DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_payment_receipts_status
     ON payment_receipts (status, created_at);
@@ -380,6 +390,13 @@ ALTER TABLE post_deliveries ADD COLUMN IF NOT EXISTS scheduled_time TIMESTAMPTZ;
 -- NOT NULL DEFAULT tufayli (PostgreSQL 11+ "fast default") migratsiya bir
 -- necha milisekundda bajariladi va mavjud qatorlar 'succeeded' deb hisoblanadi.
 ALTER TABLE payments ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'succeeded';
+
+-- 💳 To'lov usuli (payment region feature, additive): ledger'da mahalliy va
+-- xalqaro to'lovlar AJRATILIB saqlanadi — usul + valyuta birga yuradi.
+-- Eski yozuvlar (FAQAT Stars bo'lgan) DEFAULT tufayli 'international_stars'.
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS payment_method VARCHAR(32) NOT NULL DEFAULT 'international_stars';
+-- Karta cheki summasi (so'm) — approve bo'lganda UZS ledger yozuvi uchun.
+ALTER TABLE payment_receipts ADD COLUMN IF NOT EXISTS amount_uzs INT DEFAULT 0;
 
 -- --- INDEKSLAR (eng ko'p ishlatiladigan qidiruvlar uchun) ---
 -- users.user_id PRIMARY KEY bo'lgani uchun u yerda indeks avtomatik mavjud.

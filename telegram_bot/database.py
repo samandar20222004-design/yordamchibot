@@ -1473,7 +1473,8 @@ def _init_db_once():
                 payload TEXT,
                 telegram_payment_charge_id TEXT UNIQUE,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                status VARCHAR(20) NOT NULL DEFAULT 'succeeded'
+                status VARCHAR(20) NOT NULL DEFAULT 'succeeded',
+                payment_method VARCHAR(32) NOT NULL DEFAULT 'international_stars'
             );
         """)
         cur.execute("CREATE INDEX IF NOT EXISTS idx_payments_user_id ON payments (user_id);")
@@ -1500,7 +1501,8 @@ def _init_db_once():
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 reviewed_at TIMESTAMP WITH TIME ZONE,
                 decided_by BIGINT,
-                days_granted INTEGER DEFAULT 30
+                days_granted INTEGER DEFAULT 30,
+                amount_uzs INT DEFAULT 0
             );
         """)
         cur.execute(
@@ -1569,6 +1571,14 @@ def _init_db_once():
             # (user_id, status) shu ustun bilan quriladi. DEFAULT tufayli eski
             # yozuvlar ham 'succeeded' hisoblanadi (ma'lumot o'zgarmaydi).
             "ALTER TABLE payments ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'succeeded';",
+            # 💳 To'lov mintaqasi/usuli (hududiy tanlov — tilga bog'liq EMAS):
+            # 'uzcard_humo' (🇺🇿 UZS) | 'international_stars' (🌍 XTR).
+            # ADD COLUMN + DEFAULT: eski (Stars) yozuvlar xuddi shu nom bilan
+            # migratsiyasiz to'g'ri hisoblanadi.
+            "ALTER TABLE payments ADD COLUMN IF NOT EXISTS payment_method VARCHAR(32) NOT NULL DEFAULT 'international_stars';",
+            # 🇺🇿 Karta cheki uchun so'mdagi summa — ledger'ga to'g'ri valyuta
+            # bilan yozish uchun (eski cheklar: 0 — hisob kitobi buzilmaydi).
+            "ALTER TABLE payment_receipts ADD COLUMN IF NOT EXISTS amount_uzs INT DEFAULT 0;",
         ]
         for index, migration in enumerate(migrations):
             # Bitta migration xatosi qolgan migrationlarni transaction aborted
@@ -4279,9 +4289,28 @@ PAYMENT_STATUSES = (
 )
 
 
+#: 💳 To'lov usuli (payment_method) — HUDUDIY tanlov, tilga bog'liq emas:
+#:   'uzcard_humo'         → 🇺🇿 Uzcard / Humo (so'm);
+#:   'international_stars' → 🌍 Telegram Stars / Crypto (~$ ekvivalent).
+#: Ledger audit tozaligi uchun FAQAT shu ikki qiymat qabul qilinadi
+#: (noma'lum qiymat 'international_stars'ga normallashtiriladi —
+#: PaymentService.normalize_payment_method bilan bir xil mantiq).
+PAYMENT_METHOD_UZCARD_HUMO = "uzcard_humo"
+PAYMENT_METHOD_INTERNATIONAL_STARS = "international_stars"
+PAYMENT_METHODS = (PAYMENT_METHOD_UZCARD_HUMO, PAYMENT_METHOD_INTERNATIONAL_STARS)
+
+
+def _normalize_payment_method(method) -> str:
+    """payment_method qiymatini ruxsat etilgan to'plamga keltiradi."""
+    raw = str(method or "").strip().lower()
+    if raw in PAYMENT_METHODS:
+        return raw
+    return PAYMENT_METHOD_INTERNATIONAL_STARS
+
+
 def log_stars_payment(user_id: int, amount: int, currency: str, payload: str, telegram_payment_id: str = "",
-                      status: str = "succeeded") -> bool:
-    """Stars to'lovini audit jadvaliga idempotent yozadi.
+                      status: str = "succeeded", payment_method: str = None) -> bool:
+    """To'lovni audit jadvaliga idempotent yozadi (Stars yoki karta).
 
     ``telegram_payment_charge_id`` NULL bo'lishi mumkin (legacy/manual
     chaqiriqlar uchun), ammo haqiqiy Telegram charge ID doimo unique.
@@ -4290,20 +4319,31 @@ def log_stars_payment(user_id: int, amount: int, currency: str, payload: str, te
     refunded``); ``payments_status`` CHECK'i shu to'plamni DB darajasida
     qat'iy ushlab turadi va ``idx_payments_user (user_id, status)`` indeksini
     ishlatib to'lov tarixini holat bo'yicha chizadi.
+
+    ``payment_method`` — 💳 usul ajratgichi (``'international_stars'``
+    default yoki ``'uzcard_humo'``); ledger'da valyuta bilan birga saqlanadi,
+    shunda mahalliy (UZS) va xalqaro (XTR) oqimlar ARXIVDA ham adashmaydi.
     """
     if status not in PAYMENT_STATUSES:
         status = PAYMENT_STATUS_SUCCEEDED
+    method = _normalize_payment_method(
+        payment_method
+        if payment_method is not None
+        else (PAYMENT_METHOD_INTERNATIONAL_STARS if str(currency or "").upper() != "UZS"
+              else PAYMENT_METHOD_UZCARD_HUMO)
+    )
     try:
         charge_id = (telegram_payment_id or "").strip() or None
         with db_cursor(commit=True) as cur:
             cur.execute(
                 """
                 INSERT INTO payments (user_id, amount, currency, payload,
-                                      telegram_payment_charge_id, status)
-                VALUES (%s, %s, %s, %s, %s, %s)
+                                      telegram_payment_charge_id, status,
+                                      payment_method)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT DO NOTHING
                 """,
-                (user_id, amount, currency, payload, charge_id, status),
+                (user_id, amount, currency, payload, charge_id, status, method),
             )
             inserted = cur.rowcount > 0
         _cache_clear("system_stats")
@@ -4358,27 +4398,36 @@ def save_payment_receipt(
     full_name: str = "",
     language_code: str = "uz",
     days_granted: int = 30,
+    amount_uzs: int = 0,
 ) -> int:
     """Yangi karta chekini ``pending`` holatida saqlaydi.
 
     Returns: receipt id (xato: 0). ``media_type`` — 'photo' | 'document'.
+    ``amount_uzs`` — so'mdagi to'lov summasi (CARD_TARIFFS); admin ✅
+    bosganda payments ledger'iga USHBU summa 'UZS' valyutasi va
+    'uzcard_humo' usuli bilan yoziladi.
     """
     if not file_id:
         return 0
+    try:
+        amount_uzs = max(0, int(amount_uzs or 0))
+    except (TypeError, ValueError):
+        amount_uzs = 0
     try:
         with db_cursor(commit=True) as cur:
             cur.execute(
                 """
                 INSERT INTO payment_receipts
                     (user_id, username, full_name, language_code, media_type,
-                     file_id, caption, status, days_granted)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, 'pending', %s)
+                     file_id, caption, status, days_granted, amount_uzs)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, 'pending', %s, %s)
                 RETURNING id
                 """,
                 (int(user_id), username or "", full_name or "",
                  _normalize_language_code(language_code) or "uz",
                  media_type if media_type in ("photo", "document") else "photo",
-                 file_id, caption or "", int(days_granted) if days_granted else 30),
+                 file_id, caption or "", int(days_granted) if days_granted else 30,
+                 amount_uzs),
             )
             row = cur.fetchone()
             return int(row[0]) if row else 0
