@@ -47,10 +47,10 @@ from handlers.ai_assistant import AI_GET_TIME, _show_time_prompt
 # regressiyasiga ta'sir qilmaydi.
 from handlers.magic_post import _magic_deliver_one, _safe_edit
 from handlers.start import check_user_subscribed, ensure_user_lang
-from keyboards.callback_data import cb
+from keyboards.callback_data import CB_POST_SCORE_EVAL, cb
 from keyboards.inline import btn_label, get_subscription_check_keyboard
 from locales.translations import clear_fsm_data, get_lang, safe_t
-from translations import MAGIC_STYLE_KEYS, magic_t, voice_t
+from translations import MAGIC_STYLE_KEYS, magic_t, post_score_t, voice_t
 from utils.ai_agent import (
     MAGIC_POST_MAX_MATERIAL_CHARS,
     generate_magic_post,
@@ -84,6 +84,9 @@ VP_SCHED = "vp_sched"
 VP_RESTYLE = "vp_restyle"
 VP_CHANNEL_PREFIX = "vp_ch:"
 VP_SEND_ALL = "vp_chall"
+
+#: 📊 Post Score oqimiga uzatish uchun manba nomi (``ps_eval:voice``).
+PS_EVAL_SOURCE = "voice"
 
 #: 🎙 Ovozli xabar / audio filtri — faqat shaxsiy chat, tahrirlanganlar tashqari.
 VOICE_MESSAGE_FILTER = (
@@ -171,8 +174,14 @@ def _voice_style_keyboard(lang: str) -> InlineKeyboardMarkup:
 
 
 def _voice_action_keyboard(lang: str) -> InlineKeyboardMarkup:
-    """Natija ekrani amallari: kanalga yuborish / rejalashtirish / boshqa uslub."""
+    """Natija amallari: baholash / kanalga yuborish / rejalashtirish / uslub."""
     return InlineKeyboardMarkup([
+        # 📊 Post Score (Killer Feature #4): transkripsiyadan tayyorlangan postni
+        # qayta yozmasdan baholash (``ps_eval:voice``) — kredit yechilmaydi.
+        [InlineKeyboardButton(
+            post_score_t("ps_btn_eval", lang),
+            callback_data=cb(CB_POST_SCORE_EVAL, PS_EVAL_SOURCE),
+        )],
         [
             InlineKeyboardButton(
                 voice_t("vp_btn_send_channel", lang), callback_data=VP_SEND

@@ -26,8 +26,9 @@ from telegram.ext import ContextTypes, ConversationHandler, MessageHandler
 
 import database as db
 from config import ADMIN_IDS_SET
-from keyboards.callback_data import cb
+from keyboards.callback_data import CB_POST_SCORE_EVAL, cb
 from locales.translations import get_lang, safe_t
+from translations import post_score_t
 from services.ai_service import generate_image_post
 from utils.ai_agent import pick_supported_kwargs
 from utils.helpers import html_escape, telegram_html_payload, parse_schedule_input
@@ -105,6 +106,9 @@ IMAGE_RESTYLE = "image_restyle"
 IMAGE_CHANNEL_PREFIX = "image_ch:"
 IMAGE_SEND_ALL = "image_ch:all"
 
+#: 📊 Post Score oqimiga uzatish uchun manba nomi (``ps_eval:image``).
+PS_EVAL_SOURCE = "image"
+
 # Eski naming variantlari bilan patch/integratsiya mosligi.
 IMG_STYLE_PREFIX = IMAGE_STYLE_PREFIX
 IMG_CANCEL = IMAGE_CANCEL
@@ -156,8 +160,14 @@ def image_style_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
 
 
 def image_action_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
-    """Tayyor photo+caption preview amallari."""
+    """Tayyor photo+caption preview amallari (+ 📊 Baholash)."""
     return InlineKeyboardMarkup([
+        # 📊 Post Score (Killer Feature #4): tayyor caption'ni qayta yozmasdan
+        # baholash (``ps_eval:image``) — baholash bepul (kredit yechilmaydi).
+        [InlineKeyboardButton(
+            post_score_t("ps_btn_eval", lang),
+            callback_data=cb(CB_POST_SCORE_EVAL, PS_EVAL_SOURCE),
+        )],
         [InlineKeyboardButton(safe_t("image_btn_send", lang), callback_data=IMAGE_SEND)],
         [InlineKeyboardButton(safe_t("image_btn_schedule", lang), callback_data=IMAGE_SCHEDULE)],
         [InlineKeyboardButton(safe_t("image_btn_restyle", lang), callback_data=IMAGE_RESTYLE)],

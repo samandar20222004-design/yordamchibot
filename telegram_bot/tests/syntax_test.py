@@ -46,6 +46,7 @@ def main():
         "translations",
         "translations.magic_post",
         "translations.voice_post",
+        "translations.post_score",
         "utils.helpers",
         "utils.converter",
         "utils.ai_agent",
@@ -53,6 +54,8 @@ def main():
         "utils.web_server",
         "handlers",
         "handlers.voice_post",
+        "handlers.post_score",
+        "utils.post_scorer",
     ]
     for mod in modules:
         try:

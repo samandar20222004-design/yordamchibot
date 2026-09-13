@@ -383,6 +383,43 @@ Legacy **✨ AI Studio → 🖼 Rasmdan post yaratish** oqimi orqaga moslik uchu
 saqlangan; yangi oqim eski Magic Post, Voice va photo-moderatsiya handlerlariga
 callback/state to'qnashuvi bermaydi.
 
+### 📊 POST SCORE & IMPROVER (Killer Feature #4)
+
+`📊 Post Score` bo'limi (asosiy menyu) yoki Magic Post / Voice → Post /
+Image → Post natijalaridagi **`📊 Baholash`** tugmasi postni **6 mezon**
+bo'yicha 1–10 ball bilan baholaydi va 100 ballik umumiy natija hamda
+1–2 jumlalik aniq tavsiya beradi:
+
+| Mezon | Nima o'lchanadi |
+|---|---|
+| `headline` | sarlavha kuchi (birinchi qator) |
+| `readability` | o'qilishi va abzaslar |
+| `cta` | harakatga chaqiruv aniqligi |
+| `engagement` | qiziqarlilik va savollar |
+| `sales_power` | sotuv / taklif kuchi |
+| `structure` | Telegram formatlash, emojilar, hashtaglar |
+
+`overall_score` — mezonlar o'rtachasining 100 ballik ekvivalenti (mezonlar
+bilan har doim izchil), `recommendation` — o'sha tildagi (uz/ru/en) qisqa
+tavsiya. Baholash mavjud **Gemini Flash → Groq Llama → ...** zaxira zanjiri
+orqali ishlaydi; JSON javob provayderdan qanday kelsa ham (markdown to'siq,
+matn ichidagi JSON, `"8/10"` ko'rinishidagi qiymatlar) **xavfsiz parser**
+o'qiydi. AI butunlay ishlamay qolsa, ballar **lokal deterministik tahlil**
+bilan hisoblanadi — oqim hech qachon uzilmaydi.
+
+**Resurs va limitlar.** Baholash (Score) — tezkor va arzon operatsiya:
+**kredit ham, kunlik AI kvota ham yechilmaydi** (faqat rate-limit himoyasi).
+Faqat **`✨ 95/100 ga yaxshilash`** tugmasi bosilganda AI tavsiyalar asosida
+eng sara variant generatsiya qilinadi va **AYNAN 1 ta AI kredit** atomik
+yechiladi (`db.use_user_credit` → `CreditsService.spend_credits`, ledger
+yozuvi bilan). AI xato/timeout qaytarsa kredit **avtomatik qaytariladi**
+(refund) — foydalanuvchi hech qachon to'lovsiz qolmaydi.
+
+Natija ostidagi amallar: `✨ 95/100 ga yaxshilash`, `📢 Kanalga yuborish`
+(bitta kanal → darhol, ko'p kanal → tanlov + «Barcha kanallarga»),
+`📅 Rejalashtirish` (mavjud scheduler oqimiga `AI_GET_TIME` kontraktida
+uzatiladi) va `📊 Boshqa postni baholash`.
+
 ### 🖼 Rasmdan post yaratish (Vision / Photo-to-Post)
 
 **✨ AI Studio → 🖼 Rasmdan post yaratish** bo'limida rasm yuborilsa (yoki `/ai`
