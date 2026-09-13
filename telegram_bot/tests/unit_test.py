@@ -9303,6 +9303,129 @@ def test_onboarding_i18n_keys():
     check("quick_menu_hint ru: HTML teglari bor", "<b>" in get_text("quick_menu_hint", "ru"))
 
 
+def test_pro_two_stage_audit_auto():
+    """PRO 2-bosqichli auto audit — task talabiga mos test.
+
+    Tekshiriladi:
+      - PRO (is_pro=True): 2 ta AI chaqiruvi (1-bosqich post + 2-bosqich AUDIT_PRO_SYSTEM)
+        va foydalanuvchiga FAQAT 2-bosqich natijasi ko'rsatiladi.
+      - FREE (is_pro=False): faqat 1 ta chaqiruv, audit yo'q (tezlik/xarajat).
+      - 2-bosqich xatolari (raise/error/timeout/analysis/empty/short) → 1-bosqich
+        posti xavfsiz qaytadi, oqim to'xtamaydi, audit_applied=False.
+    """
+    print("== PRO 2-bosqichli auto audit (task) ==")
+    import asyncio
+    from utils import ai_agent
+
+    STAGE1 = (
+        "<b>Kofe</b>\n\nYangi kofe yetib keldi. Sifatli va arzon.\n"
+        "CTA: xarid qiling.\n\n#kofe #yangi #uzum"
+    )
+    AUDITED = (
+        "<b>☕ Ertalabki energiya — bir finjonda</b>\n\n"
+        "Yangi qovurilgan kofe kunni butunlay o'zgartiradi.\n\n"
+        "👉 Hoziroq buyurtma bering.\n\n#kofe #energiya #toshkent"
+    )
+    ANALYSIS_ONLY = "Reyting: 7/10. Kuchli tomonlari: aniq hook. Yaxshilash: CTA kuchsiz."
+
+    class FakeChain:
+        def __init__(self, mode="ok"):
+            self.mode = mode
+            self.calls = []
+
+        async def __call__(self, prompt, system_instruction, lang=None):
+            is_audit = ai_agent._AUDIT_PRO_SYSTEM.strip()[:40] in (system_instruction or "")
+            self.calls.append({"prompt": prompt, "sys": system_instruction or "",
+                               "stage": 2 if is_audit else 1, "lang": lang})
+            if is_audit:
+                if self.mode == "raise":
+                    raise RuntimeError("tarmoq uzildi (mock)")
+                if self.mode == "timeout":
+                    await asyncio.sleep(5)
+                if self.mode == "error":
+                    return {"error": "AI xato", "timeout": True}
+                if self.mode == "analysis":
+                    return {"audit": ANALYSIS_ONLY}
+                if self.mode == "empty":
+                    return {"rating": 5, "improved_post": "   "}
+                if self.mode == "short":
+                    return {"rating": 8, "improved_post": "Qisqa."}
+                return {"rating": 9, "improved_post": AUDITED}
+            return {"intent": "post", "reply": "", "post_text": STAGE1,
+                    "scheduled_time": None, "has_explicit_time": False, "target_all": False}
+
+        @property
+        def stage2(self):
+            return [c for c in self.calls if c["stage"] == 2]
+
+    async def _run_with_chain(mode, coro_fn):
+        chain = FakeChain(mode)
+        orig = ai_agent._run_ai_chain
+        orig_timeout = ai_agent.PRO_AUDIT_TIMEOUT
+        ai_agent._run_ai_chain = chain
+        if mode == "timeout":
+            ai_agent.PRO_AUDIT_TIMEOUT = 0.2
+        try:
+            result = await coro_fn(chain)
+        finally:
+            ai_agent._run_ai_chain = orig
+            ai_agent.PRO_AUDIT_TIMEOUT = orig_timeout
+        return chain, result
+
+    # PRO — 2 bosqich
+    async def call_pro(chain):
+        return await ai_agent.analyze_user_prompt("Kofe haqida post", user_id=1, is_pro=True, lang="uz")
+
+    chain, res = asyncio.run(_run_with_chain("ok", call_pro))
+    check("PRO auto: 2 ta AI chaqiruvi (stage1 + AUDIT_PRO_SYSTEM)", len(chain.calls) == 2, str(len(chain.calls)))
+    check("PRO auto: 2-bosqich _AUDIT_PRO_SYSTEM bilan", len(chain.stage2) == 1 and "SMM auditor" in chain.stage2[0]["sys"])
+    check("PRO auto: foydalanuvchiga FAQAT 2-bosqich (audited) ko'rsatiladi", res.get("post_text") == AUDITED)
+    check("PRO auto: 1-bosqich matni post_text_stage1 da saqlanadi", res.get("post_text_stage1") == STAGE1)
+    check("PRO auto: audit_applied=True", res.get("audit_applied") is True)
+    check("PRO auto: error yo'q", "error" not in res)
+
+    # FREE — 1 bosqich
+    async def call_free(chain):
+        return await ai_agent.analyze_user_prompt("Kofe haqida post", user_id=1, is_pro=False, lang="uz")
+
+    chain_f, res_f = asyncio.run(_run_with_chain("ok", call_free))
+    check("FREE auto: faqat 1 ta AI chaqiruvi", len(chain_f.calls) == 1)
+    check("FREE auto: auditor chaqirilmadi", len(chain_f.stage2) == 0)
+    check("FREE auto: post_text == stage1", res_f.get("post_text") == STAGE1)
+    check("FREE auto: audit yo'q", not res_f.get("audit_applied"))
+
+    # Fallback holatlari
+    for mode in ("raise", "error", "timeout", "analysis", "empty", "short"):
+        async def call_fail(chain):
+            return await ai_agent.analyze_user_prompt("Kofe haqida post", user_id=1, is_pro=True, lang="uz")
+
+        _c, r = asyncio.run(_run_with_chain(mode, call_fail))
+        check(f"fallback[{mode}]: 1-bosqich qaytadi", r.get("post_text") == STAGE1, str(r.get("post_text"))[:50])
+        check(f"fallback[{mode}]: error kaliti yo'q (oqim davom etadi)", "error" not in r)
+        check(f"fallback[{mode}]: audit_applied=False", r.get("audit_applied") is False)
+
+    # refine_post_pro to'g'ridan-to'g'ri — bo'sh matn xavfsiz
+    res_empty = asyncio.run(ai_agent.refine_post_pro("", lang="uz"))
+    check("refine_post_pro(''): bo'sh + error", res_empty.get("post_text") == "" and bool(res_empty.get("error")))
+
+    # post_enhancer integratsiyasi — auto audit matnli postda, PRO uchun
+    import handlers.post_enhancer as pe
+    check("post_enhancer: _auditable_text faqat text turida", pe._auditable_text({"post": {"type": "photo", "content": "x"}}) == "")
+    check("post_enhancer: _auditable_text text turida", pe._auditable_text({"post": {"type": "text", "content": "Salom"}}) == "Salom")
+    pe_src = open(pe.__file__, encoding="utf-8").read()
+    check("post_enhancer: auto audit refine_post_pro chaqiruvi (_capture_post)", "refine_post_pro" in pe_src and "_capture_post" in pe_src)
+    check("post_enhancer: PRO_TWO_STAGE_ENABLED tekshiriladi", "PRO_TWO_STAGE_ENABLED" in pe_src or "PRO_TWO_STAGE" in pe_src)
+    check("post_enhancer: FREE uchun ikkinchi chaqiruv yo'q (is_pro sharti)", "if is_pro" in pe_src)
+
+    # ai_assistant integratsiyasi — AI Studio ham PRO auto audit
+    import handlers.ai_assistant as ai_mod
+    ai_src = open(ai_mod.__file__, encoding="utf-8").read()
+    check("ai_assistant: ai_prompt_received PRO auto audit", "refine_post_pro" in ai_src and "ai_prompt_received" in ai_src)
+    check("ai_assistant: PRO_TWO_STAGE_ENABLED ishlatiladi", "PRO_TWO_STAGE_ENABLED" in ai_src)
+
+
+
+
 def main():
     test_calculate_next_time()
     test_converter()
@@ -9459,6 +9582,7 @@ def main():
     test_i18n_safe_fallback_and_parity()
     test_scheduler_timezone_and_time_input()
     test_floodwait_and_ai_timeout_protection()
+    test_pro_two_stage_audit_auto()
 
     print(f"\nO'tdi: {passed}, Xato: {failures}")
     if failures:
