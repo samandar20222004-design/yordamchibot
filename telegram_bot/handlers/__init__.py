@@ -41,6 +41,8 @@ from keyboards.default import (
     BTN_TRANSFER_EN, BTN_ADMIN_PANEL_RU,
     BTN_QUICK_AI_POST_EN, BTN_QUICK_PHOTO_POST_EN,
     BTN_QUICK_ADD_CHANNEL_EN, BTN_OPEN_FULL_MENU_EN,
+    # ✨ MAGIC POST — killer feature tugmasi (uz/ru/en)
+    BTN_MAGIC_POST, BTN_MAGIC_POST_RU, BTN_MAGIC_POST_EN,
 )
 from locales.translations import clear_fsm_data, get_lang, get_text
 from keyboards.inline import get_subscription_check_keyboard
@@ -132,6 +134,16 @@ from handlers.ai_assistant import (
     AI_INPUT, AI_CONFIRM, AI_GET_TIME,
     AI_MENU_STATE, AI_PROMPT_INPUT, AI_TONE_SELECT, AI_AUDIT_INPUT,
     AI_PHOTO_INPUT, AI_PHOTO_RESULT, AI_PHOTO_EDIT_INPUT,
+)
+
+# 2c. ✨ MAGIC POST (Killer Feature #1 — matn → uslub → tayyor post)
+# MUHIM: shu modul `handlers.ai_assistant` dan (AI_GET_TIME, _show_time_prompt)
+# import oladi — shu sababli yuqoridagi ai_assistant importidan KEYIN turadi.
+from handlers.magic_post import (
+    magic_post_entry, magic_text_received, magic_style_callback,
+    magic_send_now_callback, magic_channel_picked_callback,
+    magic_schedule_callback, magic_restyle_callback, magic_stale_callback,
+    MAGIC_INPUT, MAGIC_STYLE_SELECT, MAGIC_RESULT, MAGIC_SEND_CHOOSE,
 )
 
 # 8. CONTENT PLAN MODULI
@@ -671,6 +683,16 @@ def register_all_handlers(app):
         MessageHandler(exact(BTN_AI_STUDIO_EN), lambda u, c: guard_entry(u, c, ai_studio_menu_entry)),
     ]
 
+    # 7d. ✨ MAGIC POST — asosiy menyudagi killer feature tugmasi
+    # ("✨ Magic Post" brend-nomi uchala tilda bir xil, lekin uchala til
+    # konstantasi ham routing'da aniq tanilishi uchun beriladi).
+    magic_handlers = [
+        MessageHandler(
+            exact(BTN_MAGIC_POST, BTN_MAGIC_POST_RU, BTN_MAGIC_POST_EN),
+            lambda u, c: guard_entry(u, c, magic_post_entry),
+        ),
+    ]
+
     # 8. Content Plan
     content_plan_handlers = [
         MessageHandler(exact(BTN_CONTENT_PLAN), lambda u, c: guard_entry(u, c, start_content_plan)),
@@ -710,6 +732,7 @@ def register_all_handlers(app):
         converter_handlers +
         admin_handlers +
         ai_handlers +
+        magic_handlers +
         content_plan_handlers +
         analytics_handlers +
         subscription_handlers +
@@ -1000,6 +1023,27 @@ def register_all_handlers(app):
                 MessageHandler(filters.TEXT & ~filters.COMMAND, ai_photo_edit_received),
             ],
 
+            # 7d. ✨ MAGIC POST holatlari (Killer Feature #1)
+            MAGIC_INPUT: all_menu_jumps + [
+                MessageHandler(filters.ALL & ~filters.COMMAND, magic_text_received),
+            ],
+            MAGIC_STYLE_SELECT: all_menu_jumps + [
+                CallbackQueryHandler(magic_style_callback, pattern=r"^mp_style:"),
+                CallbackQueryHandler(magic_restyle_callback, pattern=r"^mp_restyle$"),
+            ],
+            MAGIC_RESULT: all_menu_jumps + [
+                CallbackQueryHandler(magic_send_now_callback, pattern=r"^mp_send$"),
+                CallbackQueryHandler(magic_schedule_callback, pattern=r"^mp_sched$"),
+                CallbackQueryHandler(magic_channel_picked_callback, pattern=r"^mp_ch"),
+                CallbackQueryHandler(magic_restyle_callback, pattern=r"^mp_restyle$"),
+                # Yangi matn yuborilsa — yangi oqim (eski natija almashtiriladi)
+                MessageHandler(filters.ALL & ~filters.COMMAND, magic_text_received),
+            ],
+            MAGIC_SEND_CHOOSE: all_menu_jumps + [
+                CallbackQueryHandler(magic_channel_picked_callback, pattern=r"^mp_ch"),
+                CallbackQueryHandler(magic_restyle_callback, pattern=r"^mp_restyle$"),
+            ],
+
             # 8. Queue holatlari
             QUEUE_MENU: all_menu_jumps + [
                 CallbackQueryHandler(queue_page_callback, pattern=r"^qpage:"),
@@ -1098,6 +1142,9 @@ def register_all_handlers(app):
     app.add_handler(CallbackQueryHandler(ai_studio_callback, pattern=r"^studio_"))
     # AI Studio stale ❌ tugmasi: conversation tashqarisida ham xabar edit qilinadi
     app.add_handler(CallbackQueryHandler(ai_close, pattern=r"^ai_close$"))
+    # ✨ Magic Post stale tugmalari: sessiya tugagach eski natija/tanlov tugmasi
+    # bosilsa — foydalanuvchiga «sessiya eskirgan» toast ko'rsatiladi.
+    app.add_handler(CallbackQueryHandler(magic_stale_callback, pattern=r"^mp_"))
     # 🖼 Vision natijasi stale tugmalari: sessiya tugagach ham yo'riqnoma ko'rsatadi
     app.add_handler(CallbackQueryHandler(ai_photo_stale_callback, pattern=r"^photo_"))
     # 📷 Qo'lda rasm tekshirish (admin PRO tasdiqlashi): uning callback'i

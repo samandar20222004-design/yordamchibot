@@ -3909,3 +3909,543 @@ async def generate_vision_post(
                 code,
             )
         }
+
+
+# ============================================================
+# ✨ MAGIC POST — KILLER FEATURE #1
+# 5 USLUBLI TIZIM PROMPT ARXITEKTURASI (Sotuv / Premium / Oddiy /
+# Reklama / Informativ)
+# ============================================================
+# Arxitektura (3 qatlam):
+#   1. _MAGIC_POST_ROLE[lang]        — umumiy rol (SMM kopirayter);
+#   2. _MAGIC_POST_STYLE_SPEC[style][lang] — uslubga xos "formula"
+#      (AIDA/PAS, premium estetika, blogerona ton, ad-offer, ekspert);
+#   3. _MAGIC_POST_FORMAT_RULES[lang] — umumiy chiqish qoidalari
+#      (safe_html, 3-5 hashtag, JSON kontrakti).
+# Yakuniy tizim prompti: role + spec + rules, ustiga ``with_language()``
+# orqali foydalanuvchi tilining QAT'IY qoidasi qo'shiladi
+# (:func:`generate_magic_post` da) — xuddi qolgan AI oqimlari kabi.
+
+MAGIC_POST_STYLES = ("sales", "premium", "casual", "ads", "informative")
+
+#: Eski/qisqa nomlar va emojili yorliqlar → kanonik uslub kaliti.
+_MAGIC_POST_STYLE_ALIASES = {
+    "sale": "sales",
+    "sotuv": "sales",
+    "продажи": "sales",
+    "🔥 sotuv": "sales",
+    "premium": "premium",
+    "премиум": "premium",
+    "💎 premium": "premium",
+    "casual": "casual",
+    "oddiy": "casual",
+    "обычный": "casual",
+    "😊 oddiy": "casual",
+    "ads": "ads",
+    "ad": "ads",
+    "reklama": "ads",
+    "реклама": "ads",
+    "📢 reklama": "ads",
+    "informative": "informative",
+    "informativ": "informative",
+    "информативный": "informative",
+    "📰 informativ": "informative",
+}
+
+_MAGIC_POST_ROLE = {
+    "uz": (
+        "Siz Telegram kanallari uchun professional SMM kopirayter va Magic Post "
+        "muharririsiz. Foydalanuvchi sizga XOM MATERIAL yuboradi — bu g'oya, "
+        "mahsulot tavsifi, e'lon yoki tayyorlanmagan matn bo'lishi mumkin. "
+        "Siz shu material asosida TO'LIQ TAYYOR, nashrga tayyor bitta Telegram "
+        "postini yozasiz. Materialdagi faktlarni o'ylab topmaysiz — yetishmagan "
+        "ma'lumot o'rniga [qavs ichida] placeholder qoldirasiz."
+    ),
+    "ru": (
+        "Вы — профессиональный SMM-копирайтер и редактор Magic Post для "
+        "Telegram-каналов. Пользователь присылает вам СЫРОЙ МАТЕРИАЛ — идею, "
+        "описание товара, объявление или необработанный текст. На его основе "
+        "вы пишите ОДИН полностью готовый к публикации Telegram-пост. "
+        "Не выдумывайте факты — вместо недостающих данных оставляйте "
+        "заполнитель [в квадратных скобках]."
+    ),
+    "en": (
+        "You are a professional SMM copywriter and Magic Post editor for "
+        "Telegram channels. The user sends you RAW MATERIAL — an idea, a "
+        "product description, an announcement or unpolished text. Based on it "
+        "you write ONE fully publish-ready Telegram post. Never invent facts — "
+        "leave a [bracketed] placeholder for any missing details."
+    ),
+}
+
+_MAGIC_POST_STYLE_SPEC = {
+    "sales": {
+        "uz": (
+            "USLUB: 🔥 SOTUV (hard-sell).\n"
+            "- Tuzilma: AIDA (Attention → Interest → Desire → Action) YOKI "
+            "PAS (Problem → Agitation → Solution) formulasi bo'yicha.\n"
+            "- 1-qator: diqqatni tortuvchi hook (savol, raqam yoki aniq foyda).\n"
+            "- Foydalar 3-4 punktda (✅ yoki •) — nima uchun kerakligi.\n"
+            "- NARX, CHEGIRMA va AKSIYAGA alohida urg'u — ular <b>qalin</b> "
+            "ichida, alohida qatorda; materialda narx bo'lmasa [narx] va "
+            "[chegirma %] placeholder'larini ishlating.\n"
+            "- Shoshilinchlik: materialda bo'lsa cheklangan vaqt/sonini "
+            "ta'kidlamping.\n"
+            "- Yakuniy CTA ANIQ va Bitta: «🛒 Buyurtma berish», «✍️ Yozib "
+            "qoldiring», «📞 Hoziroq murojaat qiling» kabi — qalin qatorda."
+        ),
+        "ru": (
+            "СТИЛЬ: 🔥 ПРОДАЖИ (hard-sell).\n"
+            "- Структура по формуле AIDA (Attention → Interest → Desire → Action) "
+            "ИЛИ PAS (Problem → Agitation → Solution).\n"
+            "- 1-я строка: цепляющий хук (вопрос, цифра или конкретная выгода).\n"
+            "- Выгоды в 3-4 пунктах (✅ или •) — зачем это нужно.\n"
+            "- Особый акцент на ЦЕНУ, СКИДКУ и АКЦИЮ — жирным <b>...</b>, "
+            "отдельной строкой; если цены нет в материале — используйте "
+            "заполнители [цена] и [скидка %].\n"
+            "- Срочность: если в материале есть ограничение по времени/количеству — "
+            "подчеркните его.\n"
+            "- Финальный CTA ОДИН и конкретный: «🛒 Заказать», «✍️ Напишите нам», "
+            "«📞 Свяжитесь сейчас» — жирной строкой."
+        ),
+        "en": (
+            "STYLE: 🔥 SALES (hard-sell).\n"
+            "- Structure: AIDA (Attention → Interest → Desire → Action) OR PAS "
+            "(Problem → Agitation → Solution) formula.\n"
+            "- Line 1: an attention-grabbing hook (question, number or concrete "
+            "benefit).\n"
+            "- Benefits in 3-4 bullets (✅ or •) — why it matters.\n"
+            "- Special emphasis on PRICE, DISCOUNT and OFFER — inside <b>bold</b>, "
+            "on its own line; if the price is missing from the material use "
+            "[price] and [discount %] placeholders.\n"
+            "- Urgency: if the material mentions a limited time/quantity, stress it.\n"
+            "- One clear final CTA: “🛒 Order now”, “✍️ Message us”, “📞 Contact "
+            "us today” — as a bold line."
+        ),
+    },
+    "premium": {
+        "uz": (
+            "USLUB: 💎 PREMIUM (nafis va estetik).\n"
+            "- Qisqa va lint: 60-120 so'z, har bir gap o'rinli.\n"
+            "- Baland ohang: sakrab-bo'p o'tmasdan, sha'ns va a'lo darajadagi "
+            "tilda gapiring; solishtirgichlar (eng yaxshi, raqam 1) tabiiy.\n"
+            "- Estetik format: keng qatorlar, 1-2 ta nafis emoji (💎 ✨ 🤍), "
+            "ortiqcha bezak YO'Q.\n"
+            "- Narxni \"qimmat\" deb atamang — qiymat, sifat va tanlovga urg'u.\n"
+            "- CTA yumshoq: «Batafsil», «Tanishing», «Sizga xos taklif uchun "
+            "yozing» — bosim YO'Q.\n"
+            "- Chegirma/aksiya toni TAQIQLANGAN — bu premium ton."
+        ),
+        "ru": (
+            "СТИЛЬ: 💎 ПРЕМИУМ (элегантно и эстетично).\n"
+            "- Коротко и лаконично: 60-120 слов, каждое предложение по делу.\n"
+            "- Высокий тон: без давления и дешёвых приёмов; сравнения "
+            "(лучший, №1) — естественно.\n"
+            "- Эстетичное оформление: воздух между строк, 1-2 изящных эмодзи "
+            "(💎 ✨ 🤍), без лишних украшений.\n"
+            "- Цену не называйте «дорогой» — акцент на ценность, качество и выбор.\n"
+            "- Мягкий CTA: «Подробнее», «Познакомьтесь», «Напишите за персональным "
+            "предложением» — без давления.\n"
+            "- Тон скидок/акций ЗАПРЕЩЁН — это премиальный тон."
+        ),
+        "en": (
+            "STYLE: 💎 PREMIUM (elegant & aesthetic).\n"
+            "- Short and refined: 60-120 words, every sentence counts.\n"
+            "- Elevated tone: no hype or cheap tricks; comparisons (finest, "
+            "№1) used naturally.\n"
+            "- Aesthetic formatting: breathing room between lines, 1-2 tasteful "
+            "emojis (💎 ✨ 🤍), no clutter.\n"
+            "- Never call the price “expensive” — emphasize value, craft and choice.\n"
+            "- Soft CTA: “Discover more”, “Get acquainted”, “Message us for a "
+            "personal offer” — no pressure.\n"
+            "- Discount/sales tone is FORBIDDEN — this is a premium voice."
+        ),
+    },
+    "casual": {
+        "uz": (
+            "USLUB: 😊 ODDIY (do'stona, blogerona).\n"
+            "- Ting: yaqin do'st bilan gaplashganday — samimiy, iliq, "
+            "\"siz\"-bilan muloqot.\n"
+            "- Blogerona uslub: shaxsiy tajriba ohangi (\"sinab ko'rdim\", "
+            "\"sizga ham yoqadi\"), tabiiy emojilar (😊 🙌 ✨) — har punktda emas.\n"
+            "- Oddiy tilda: murakkab terminlarsiz, gapyoz jumlalarsiz.\n"
+            "- Kichik interaktivlik: savol berish (\"Siz qanday fikrdasiz?\") "
+            "yoki fikr bildirishga chaqirish mumkin.\n"
+            "- CTA yumshoq va tabiiy: «Agar yoqsa — do'stlaringizga ulashing».\n"
+            "- Agressiv sotuv va bosim YO'Q."
+        ),
+        "ru": (
+            "СТИЛЬ: 😊 ОБЫЧНЫЙ (дружелюбный, блогерский).\n"
+            "- Тон: как разговор с близким другом — искренне, тепло, на «вы».\n"
+            "- Блогерская подача: оттенок личного опыта («попробовал», «вам тоже "
+            "понравится»), естественные эмодзи (😊 🙌 ✨) — но не в каждой строке.\n"
+            "- Простой язык: без сложных терминов и канцелярита.\n"
+            "- Лёгкая интерактивность: можно задать вопрос («А как думаете вы?») "
+            "или попросить поделиться мнением.\n"
+            "- Мягкий естественный CTA: «Если понравилось — поделитесь с друзьями».\n"
+            "- Без агрессивных продаж и давления."
+        ),
+        "en": (
+            "STYLE: 😊 CASUAL (friendly, blogger-style).\n"
+            "- Tone: like chatting with a close friend — sincere, warm, “you”-based.\n"
+            "- Blogger voice: a personal-experience flavour (“I tried it”, “you'll "
+            "love it too”), natural emojis (😊 🙌 ✨) — but not in every line.\n"
+            "- Plain language: no jargon, no stiff corporate phrasing.\n"
+            "- Light interactivity: asking a question (“What do you think?”) or "
+            "inviting people to share their thoughts is welcome.\n"
+            "- Soft, natural CTA: “If you liked it — share it with friends”.\n"
+            "- No hard selling, no pressure."
+        ),
+    },
+    "ads": {
+        "uz": (
+            "USLUB: 📢 REKLAMA (offer-first).\n"
+            "- 1-qator: DIQQATNI JALB QILUVCHI SARLAVHA — <b>qalin</b>, ko'pincha "
+            "raqam yoki kuchli foyda bilan (\"3 kun ichida natija\").\n"
+            "- Taklif (offer) aniq va mazmunli: nima, kim uchun, qanday foyda "
+            "bilan — 2-3 gap yoki punktlarda.\n"
+            "- HAVOLA JOYI: post oxiriga yaqin havola uchun alohida qator "
+            "qoldiring — «🔗 Batafsil: [havola]» shaklida (materialda link "
+            "bo'lsa ANIQ shuni ishlating).\n"
+            "- CTA kuchli: «Hoziroq bosing», «Joyingizni band qiling».\n"
+            "- Qisqa jumlalar, dinamik ritm — skroll to'xtatuvchi post."
+        ),
+        "ru": (
+            "СТИЛЬ: 📢 РЕКЛАМА (offer-first).\n"
+            "- 1-я строка: ЦЕПЛЯЮЩИЙ ЗАГОЛОВОК — <b>жирным</b>, часто с цифрой "
+            "или сильной выгодой («результат за 3 дня»). Нельзя обманывать.\n"
+            "- Оффер конкретный и содержательный: что, для кого, с какой выгодой — "
+            "в 2-3 предложениях или пунктах.\n"
+            "- МЕСТО ДЛЯ ССЫЛКИ: ближе к концу поста отдельная строка — "
+            "«🔗 Подробнее: [ссылка]» (если в материале есть ссылка — используйте "
+            "именно её).\n"
+            "- Сильный CTA: «Жмите сейчас», «Забронируйте место».\n"
+            "- Короткие фразы, динамичный ритм — пост, останавливающий скролл."
+        ),
+        "en": (
+            "STYLE: 📢 ADS (offer-first).\n"
+            "- Line 1: a HEADLINE THAT STOPS THE SCROLL — <b>bold</b>, often with "
+            "a number or a strong benefit (“results in 3 days”). No deception.\n"
+            "- The offer is concrete and meaningful: what, for whom, with what "
+            "benefit — in 2-3 sentences or bullets.\n"
+            "- PLACE FOR THE LINK: a dedicated line near the end — "
+            "“🔗 Learn more: [link]” (if the material contains a link, use that "
+            "exact one).\n"
+            "- Strong CTA: “Tap now”, “Reserve your spot”.\n"
+            "- Short punchy sentences, dynamic rhythm."
+        ),
+    },
+    "informative": {
+        "uz": (
+            "USLUB: 📰 INFORMATIV (foydali ma'lumot).\n"
+            "- Vazifa: obunachiga HAQIQIY FOYDA — maslahat, qo'llanma yoki "
+            "tushunarli tahlil.\n"
+            "- Tuzilma: qisqa kirish (muhimlik) → 3-5 ta TUSHUNARLI PUNKT "
+            "(har biri 1-2 gap, raqamlangan yoki •) → yakuniy xulosa.\n"
+            "- Punktlar amaliy bo'lsin: \"qanday qilish\", \"nimaga e'tibor "
+            "berish\" darajasida.\n"
+            "- Materialda yetarli fakt bo'lmasa — umumiy professional tavsiya "
+            "bering, lekin O'YLAB TOPILGAN raqamlar KELTIRMANG.\n"
+            "- Xulosa EKSPERT ohangida: qisqa, ishonchli, vaznli yakuniy gap.\n"
+            "- CTA o'rniga foydani mustahkamlovchi satr: «Saqlab oling — kerak "
+            "bo'ladi» kabi."
+        ),
+        "ru": (
+            "СТИЛЬ: 📰 ИНФОРМАТИВНЫЙ (полезная информация).\n"
+            "- Задача: НАСТОЯЩАЯ ПОЛЬЗА для подписчика — совет, мини-гайд или "
+            "понятный разбор.\n"
+            "- Структура: короткое вступление (почему это важно) → 3-5 ПОНЯТНЫХ "
+            "ПУНКТОВ (каждый 1-2 предложения, пронумерованы или •) → финальный вывод.\n"
+            "- Пункты практические: уровня «как сделать», «на что обратить внимание».\n"
+            "- Если в материале мало фактов — дайте общую профессиональную "
+            "рекомендацию, но НЕ ПРИДУМЫВАЙТЕ цифры.\n"
+            "- Вывод в экспертном тоне: короткое, уверенное, весомое заключение.\n"
+            "- Вместо CTA — закрепляющая пользу строка: «Сохраните — пригодится»."
+        ),
+        "en": (
+            "STYLE: 📰 INFORMATIVE (useful information).\n"
+            "- Mission: REAL VALUE for the subscriber — advice, a mini-guide or "
+            "a clear breakdown.\n"
+            "- Structure: a short intro (why it matters) → 3-5 CLEAR BULLETS "
+            "(1-2 sentences each, numbered or •) → a final takeaway.\n"
+            "- Bullets must be practical: “how to do it”, “what to watch for” level.\n"
+            "- If the material lacks facts, give general professional advice — "
+            "but NEVER invent numbers.\n"
+            "- Conclude in an expert voice: a short, confident, weighty closing line.\n"
+            "- Instead of a CTA, reinforce the value: “Save this — you'll need it”."
+        ),
+    },
+}
+
+_MAGIC_POST_FORMAT_RULES = {
+    "uz": (
+        "UMUMIY FORMAT QOIDALARI:\n"
+        "- Faqat Telegram HTML: <b>qalin</b> va <i>kursiv</i> teglari; markdown "
+        "(**, ##, __, ```) QAT'IY TAQIQLANGAN.\n"
+        "- Emojilar uslubga mos va o'rtacha (jami 3-8 ta).\n"
+        "- Hajm: 500-1500 belgi orasida (premium uslubda 400-900).\n"
+        "- Materialdagi fakt, raqam, narx va havolalarni O'ZGARTIRMANG.\n"
+        "- Matn oxirida ALOHIDA qatorda aynan 3-5 ta mavzuga mos hashtag "
+        "bo'lsin (so'zlar orasida bitta bo'shliq, # bilan boshlanadi).\n"
+        "- Avvalgi qoidalarga zid hech narsa yozmang.\n"
+        '- Javobingiz FAQAT quyidagi JSON formatida bo\'lsin, boshqa matn, '
+        'izoh yoki markdown qo\'shmang:\n{"post_text": "...to\'liq post matni..."}'
+    ),
+    "ru": (
+        "ОБЩИЕ ПРАВИЛА ФОРМАТИРОВАНИЯ:\n"
+        "- Только Telegram HTML: теги <b>жирный</b> и <i>курсив</i>; markdown "
+        "(**, ##, __, ```) СТРОГО ЗАПРЕЩЁН.\n"
+        "- Эмодзи по стилю и умеренно (всего 3-8).\n"
+        "- Объём: 500-1500 символов (в премиум-стиле 400-900).\n"
+        "- НЕ ИЗМЕНЯЙТЕ факты, цифры, цены и ссылки из материала.\n"
+        "- В самом конце текста ОТДЕЛЬНОЙ строкой ровно 3-5 тематических "
+        "хэштега (через один пробел, начинаются с #).\n"
+        "- Не пишите ничего, противоречащего правилам выше.\n"
+        '- Ваш ответ ТОЛЬКО в формате JSON, без стороннего текста, комментариев '
+        'или markdown:\n{"post_text": "...полный текст поста..."}'
+    ),
+    "en": (
+        "GENERAL FORMATTING RULES:\n"
+        "- Telegram HTML only: <b>bold</b> and <i>italic</i> tags; markdown "
+        "(**, ##, __, ```) is STRICTLY FORBIDDEN.\n"
+        "- Emojis should fit the style and stay moderate (3-8 total).\n"
+        "- Length: 500-1500 characters (400-900 for the premium style).\n"
+        "- DO NOT change facts, numbers, prices or links from the material.\n"
+        "- At the very end, on a SEPARATE line, exactly 3-5 topical hashtags "
+        "(space-separated, each starting with #).\n"
+        "- Write nothing that contradicts the rules above.\n"
+        '- Reply ONLY in the following JSON format, with no extra text, comments '
+        'or markdown:\n{"post_text": "...full post text..."}'
+    ),
+}
+
+#: Yakuniy tizim promptlari: style → lang → prompt (import paytida quriladi).
+MAGIC_POST_SYSTEMS = {
+    style: {
+        code: (
+            f"{_MAGIC_POST_ROLE[code]}\n\n"
+            f"{_MAGIC_POST_STYLE_SPEC[style][code]}\n\n"
+            f"{_MAGIC_POST_FORMAT_RULES[code]}"
+        )
+        for code in SUPPORTED_AI_LANGS
+    }
+    for style in MAGIC_POST_STYLES
+}
+
+#: AI hashtag yozib yubormasa — uslub va tilga mos zaxira hashtaglar
+#: (``ensure_magic_hashtags`` 3 tagacha yetkazadi).
+MAGIC_POST_FALLBACK_HASHTAGS = {
+    "sales": {
+        "uz": ("#sotuv", "#chegirma", "#taklif", "#aksiya"),
+        "ru": ("#продажи", "#скидка", "#акция", "#товар"),
+        "en": ("#sale", "#discount", "#offer", "#deal"),
+    },
+    "premium": {
+        "uz": ("#premium", "#sifat", "#tanlov", "#nafis"),
+        "ru": ("#премиум", "#качество", "#стиль", "#выбор"),
+        "en": ("#premium", "#quality", "#style", "#luxury"),
+    },
+    "casual": {
+        "uz": ("#kundalik", "#qiziqarli", "#hamkorlik", "#post"),
+        "ru": ("#повседневность", "#интересное", "#блог", "#пост"),
+        "en": ("#daily", "#interesting", "#blog", "#post"),
+    },
+    "ads": {
+        "uz": ("#reklama", "#taklif", "#chegirma", "#topdim"),
+        "ru": ("#реклама", "#оффер", "#скидка", "#нашел"),
+        "en": ("#ad", "#offer", "#deal", "#promo"),
+    },
+    "informative": {
+        "uz": ("#foydali", "#maslahat", "#bilim", "#ekspert"),
+        "ru": ("#полезно", "#совет", "#знание", "#эксперт"),
+        "en": ("#useful", "#tips", "#knowledge", "#expert"),
+    },
+}
+
+#: Hashtag aniqlash (unicode so'zlar, raqamli emas).
+_MAGIC_HASHTAG_RX = re.compile(r"(?<![\w])#[\w'’-]{2,40}", re.UNICODE)
+
+#: Magic Post uchun xom material chegarasi (belgi).
+MAGIC_POST_MAX_MATERIAL_CHARS = 3500
+
+
+def normalize_magic_style(style, default: str = "casual") -> str:
+    """Har qanday qiymatni kanonik Magic Post uslubiga keltiradi.
+
+    ``"Sotuv"``, ``"🔥 Продажи"`` kabi yorliqlar ham taniladi. Noma'lum
+    qiymat hech qachon yiqilmaydi — ``default`` (standart ``casual``).
+    """
+    raw = str(style or "").strip().lower()
+    if raw in MAGIC_POST_STYLES:
+        return raw
+    if raw in _MAGIC_POST_STYLE_ALIASES:
+        return _MAGIC_POST_STYLE_ALIASES[raw]
+    return default if default in MAGIC_POST_STYLES else "casual"
+
+
+def build_magic_post_system(style, lang: str = "uz") -> str:
+    """Uslub va til bo'yicha Magic Post tizim promptini quradi.
+
+    Qaytgan promptga ``with_language`` orqali qat'iy til bloki
+    (:func:`generate_magic_post` ichida) qo'shiladi.
+    """
+    st = normalize_magic_style(style)
+    code = normalize_ai_lang(lang)
+    return MAGIC_POST_SYSTEMS[st][code]
+
+
+def ensure_magic_hashtags(text: str, style, lang: str = "uz") -> str:
+    """Post oxirida AYNAN 3-5 ta hashtag bo'lishini KAFOLATLAYDI.
+
+    Qoidalar:
+      * hashtaglar asosiy matndan ALOHIDA oxirgi qatorda joylashadi;
+      * 3-5 tasi bo'lsa — tartibi saqlanadi (ko'pi bo'lsa ortig'i olib
+        tashlanadi);
+      * 3 tadan kam bo'lsa — uslub va tilga mos zaxira hashtaglar
+        qo'shiladi 4 tagacha;
+      * funksiya hech qachon istisno bermaydi.
+    """
+    if not isinstance(text, str):
+        text = "" if text is None else str(text)
+    st = normalize_magic_style(style)
+    code = normalize_ai_lang(lang)
+
+    lines = text.splitlines()
+    tags_in_tail = []
+    # Oxirgi bo'sh bo'lmagan qator FAQAT hashtaglardan iborat bo'lsa —
+    # uni matndan ajratib olamiz (AI ko'pincha shunday yozadi).
+    while lines and not lines[-1].strip():
+        lines.pop()
+    if lines:
+        last = lines[-1].strip()
+        stripped = _MAGIC_HASHTAG_RX.sub("", last).strip()
+        if last.startswith("#") and not stripped:
+            tags_in_tail = _MAGIC_HASHTAG_RX.findall(last)
+            lines.pop()
+    body = "\n".join(lines).rstrip()
+
+    # Barcha hashtaglar yig'iladi (matn ichidagilar ham — ular oxirga ko'chadi),
+    # takrorlar tashlanadi, ko'pi 5 ta.
+    seen, unique = set(), []
+    for tag in tags_in_tail + _MAGIC_HASHTAG_RX.findall(body):
+        low = tag.lower()
+        if low not in seen:
+            seen.add(low)
+            unique.append(tag)
+    # 5 tadan ko'p bo'lsa — 5 tasi qoladi (tartib saqlanadi).
+    unique = unique[:5]
+    # Hashtaglar yig'ilgach, matndan tozalanadi (oxirgi qatorga ko'chadi).
+    body = _MAGIC_HASHTAG_RX.sub("", body)
+    body = re.sub(r"[ \t]{2,}", " ", body)
+    body = re.sub(r"\n{3,}", "\n\n", body).rstrip()
+
+    # 3 tadan kam bo'lsa — zaxira hashtaglar qo'shamiz (4 tagacha).
+    if len(unique) < 3:
+        for tag in MAGIC_POST_FALLBACK_HASHTAGS.get(st, {}).get(code, ()):
+            if len(unique) >= 4:
+                break
+            if tag.lower() not in seen:
+                unique.append(tag)
+                seen.add(tag.lower())
+    if len(unique) < 3:  # ekstremal himoya — umumiy tag'lar
+        for tag in ("#post", "#telegram", "#kanal"):
+            if len(unique) >= 3:
+                break
+            if tag.lower() not in seen:
+                unique.append(tag)
+
+    if not unique:
+        return body
+    body = body.rstrip()
+    if not body:
+        return " ".join(unique)
+    return f"{body}\n\n{' '.join(unique)}"
+
+
+def _extract_magic_post_text(result) -> str:
+    """Provayder javobidan tayyor post matnini ajratadi (zaxira kalitlar bilan)."""
+    if not isinstance(result, dict):
+        return str(result or "").strip()
+    for key in ("post_text", "improved_post", "final_post", "reply", "text"):
+        value = result.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return ""
+
+
+def sanitize_magic_post_html(text: str) -> str:
+    """AI matnini Telegram HTML uchun xavfsizlaydi (``safe_html``).
+
+    Aylanma import oldini olish uchun ``utils.helpers`` funksiya ICHIDA
+    import qilinadi (helpers → database → ... zanjiri ai_agent'ga tegishi mumkin).
+    """
+    if not text:
+        return ""
+    try:
+        from utils.helpers import safe_html
+
+        return safe_html(text)
+    except Exception:  # pragma: no cover - zaxira: teglarni to'liq olib tashlaymiz
+        import html as _html_mod
+
+        return _html_mod.escape(str(text))
+
+
+async def generate_magic_post(
+    raw_text: str,
+    style: str,
+    lang: str = "uz",
+    is_pro: bool = False,
+    timeout: float = None,
+) -> dict:
+    """✨ MAGIC POST — xom matnni tanlangan uslubda tayyor postga aylantiradi.
+
+    Mavjud Gemini / Groq bepul AI zanjiri (``generate_ai_response``) orqali
+    ishlaydi — alohida provayder sozlamasi TALAB QILINMAYDI.
+
+    Args:
+        raw_text: foydalanuvchining xom matni/g'oyasi (≤3500 belgi);
+        style: 'sales' | 'premium' | 'casual' | 'ads' | 'informative';
+        lang: foydalanuvchi tili ('uz' | 'ru' | 'en') — post FAQAT shu tilda;
+        is_pro: PRO tarif — professional kuchaytirish qo'shimchasi;
+        timeout: qat'iy vaqt chegarasi (None → 25s hard timeout).
+
+    Returns:
+        {"post_text": "...", "style": "...", "lang": "..."} — muvaffaqiyatda;
+        {"error": "<foydalanuvchi tilidagi xabar>"} — xato/timeoutda.
+    """
+    code = normalize_ai_lang(lang)
+    st = normalize_magic_style(style)
+    material = str(raw_text or "").strip()
+    if not material:
+        return {"error": localize_ai_error(
+            "⚠️ Post uchun matn topilmadi — g'oyangizni yozib yuboring.", code
+        )}
+    if len(material) > MAGIC_POST_MAX_MATERIAL_CHARS:
+        material = material[:MAGIC_POST_MAX_MATERIAL_CHARS]
+
+    system_instruction = with_language(build_magic_post_system(st, code), code)
+
+    result = await generate_ai_response(
+        material,
+        system_instruction=system_instruction,
+        timeout=timeout,
+        is_pro=is_pro,
+        lang=code,
+    )
+    if not isinstance(result, dict):
+        return {"error": localize_ai_error(
+            "⚠️ AI xizmatida xatolik yuz berdi.", code
+        )}
+    if result.get("error"):
+        return result
+
+    post_text = _extract_magic_post_text(result)
+    if not post_text:
+        return {"error": localize_ai_error(
+            "⚠️ AI bo'sh javob qaytardi — qayta urinib ko'ring.", code
+        )}
+
+    # Xavfsiz HTML + 3-5 hashtag kafolati.
+    post_text = sanitize_magic_post_html(ensure_magic_hashtags(post_text, st, code))
+    return {"post_text": post_text, "style": st, "lang": code}

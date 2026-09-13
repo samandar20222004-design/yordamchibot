@@ -1057,18 +1057,21 @@ def test_main_menu_layout_v2():
     check("BTN_EXTRAS matni", BTN_EXTRAS == "⚙️ Qo'shimcha funksiyalar")
 
     rows = [[b.text for b in row] for row in get_main_keyboard(False).keyboard]
-    check("user: 3 qator", len(rows) == 3, str(rows))
+    # ✨ Magic Post qo'shilgach: 4 qator (2-qator = yakka «✨ Magic Post»).
+    check("user: 4 qator", len(rows) == 4, str(rows))
     check("user row1", rows[0] == [BTN_NEW_POST, BTN_AI_STUDIO], str(rows[0]))
+    check("user row2 (Magic Post)", rows[1] == [kd.BTN_MAGIC_POST], str(rows[1]))
     # Yangi tartib: ⭐️ Premium chapda, 👤 Kabinet o'ngda (almashtirildi)
-    check("user row2", rows[1] == [BTN_PREMIUM, BTN_SETTINGS], str(rows[1]))
-    check("user row3", rows[2] == [BTN_HELP, BTN_EXTRAS], str(rows[2]))
+    check("user row3", rows[2] == [BTN_PREMIUM, BTN_SETTINGS], str(rows[2]))
+    check("user row4", rows[3] == [BTN_HELP, BTN_EXTRAS], str(rows[3]))
 
     arows = [[b.text for b in row] for row in get_main_keyboard(True).keyboard]
-    check("admin: 4 qator", len(arows) == 4, str(arows))
+    check("admin: 5 qator", len(arows) == 5, str(arows))
     check("admin row1", arows[0] == [BTN_NEW_POST, BTN_AI_STUDIO], str(arows[0]))
-    check("admin row2", arows[1] == [BTN_PREMIUM, BTN_SETTINGS], str(arows[1]))
-    check("admin row3", arows[2] == [BTN_HELP, BTN_EXTRAS], str(arows[2]))
-    check("admin row4", arows[3] == [BTN_ADMIN_PANEL], str(arows[3]))
+    check("admin row2 (Magic Post)", arows[1] == [kd.BTN_MAGIC_POST], str(arows[1]))
+    check("admin row3", arows[2] == [BTN_PREMIUM, BTN_SETTINGS], str(arows[2]))
+    check("admin row4", arows[3] == [BTN_HELP, BTN_EXTRAS], str(arows[3]))
+    check("admin row5", arows[4] == [BTN_ADMIN_PANEL], str(arows[4]))
 
     ex = [[(b.text, b.callback_data) for b in row] for row in get_extras_inline_keyboard().inline_keyboard]
     ex_cbs = [c for row in ex for _, c in row]
@@ -1620,7 +1623,7 @@ def test_ai_studio_keyboard():
     """AI Studio inline keyboard to'g'ri shakllanishi."""
     print("== AI Studio keyboard ==")
     from keyboards.inline import get_ai_studio_keyboard
-    from keyboards.default import get_main_keyboard, BTN_AI_STUDIO, BTN_NEW_POST, BTN_QUEUE, BTN_ANALYTICS, BTN_PREMIUM, BTN_SETTINGS
+    from keyboards.default import get_main_keyboard, BTN_AI_STUDIO, BTN_NEW_POST, BTN_QUEUE, BTN_ANALYTICS, BTN_PREMIUM, BTN_SETTINGS, BTN_MAGIC_POST
 
     kb = get_ai_studio_keyboard()
     cbs = [b.callback_data for row in kb.inline_keyboard for b in row]
@@ -1636,21 +1639,22 @@ def test_ai_studio_keyboard():
     check("studio kb: Rasmdan post label", any("Rasmdan post" in t for t in labels))
     check("studio kb: Kontent-reja label", any("Kontent-reja" in t for t in labels))
 
-    # Main keyboard — 6 tugma (3x2 grid)
+    # Main keyboard — 7 tugma (✨ Magic Post qatori qo'shilgach)
     kb_main = get_main_keyboard(False)
     main_texts = [b.text for row in kb_main.keyboard for b in row]
-    check("main kb: 6 ta tugma (free)", len(main_texts) == 6)
+    check("main kb: 7 ta tugma (free)", len(main_texts) == 7)
     check("main kb: Yangi post", BTN_NEW_POST in main_texts)
     check("main kb: AI Studio", BTN_AI_STUDIO in main_texts)
+    check("main kb: Magic Post", BTN_MAGIC_POST in main_texts)
     check("main kb: Queue yo'q (Kabinet ichida)", BTN_QUEUE not in main_texts)
     check("main kb: Analitika yo'q (Kabinet ichida)", BTN_ANALYTICS not in main_texts)
     check("main kb: Premium", BTN_PREMIUM in main_texts)
     check("main kb: Kabinet", BTN_SETTINGS in main_texts)
 
-    # Admin keyboard — 7 ta tugma (6 + admin)
+    # Admin keyboard — 8 ta tugma (7 + admin)
     kb_admin = get_main_keyboard(True)
     admin_texts = [b.text for row in kb_admin.keyboard for b in row]
-    check("main kb: 7 ta tugma (admin)", len(admin_texts) == 7)
+    check("main kb: 8 ta tugma (admin)", len(admin_texts) == 8)
 
 
 def test_ai_studio_hardening():
@@ -6008,9 +6012,10 @@ def test_cabinet_i18n_suite():
           == [BTN_CANCEL, BTN_BACK])
 
     # Asosiy klaviatura ham kabinet tugmasi bilan bir tilda
+    # (✨ Magic Post qatori qo'shilgach kabinet tugmasi 3-qatorda).
     main_ru_rows = _rows(get_main_keyboard(False, lang="ru"))
     check("asosiy menyu ru: kabinet tugmasi tarjimasi",
-          BTN_SETTINGS_RU in main_ru_rows[1], str(main_ru_rows))
+          BTN_SETTINGS_RU in main_ru_rows[2], str(main_ru_rows))
 
     # ---------- 3) Kabinet inline-klaviaturasi ----------
     cab = get_cabinet_inline_keyboard("ru")
@@ -6177,6 +6182,7 @@ def test_i18n_uz_ru():
         BTN_NEW_POST, BTN_NEW_POST_RU, BTN_AI_STUDIO, BTN_AI_STUDIO_RU,
         BTN_PREMIUM, BTN_PREMIUM_RU, BTN_SETTINGS, BTN_SETTINGS_RU,
         BTN_HELP, BTN_HELP_RU, BTN_EXTRAS, BTN_EXTRAS_RU,
+        BTN_MAGIC_POST_RU,
     )
     from keyboards.inline import get_language_keyboard
     import database as db_mod
@@ -6204,8 +6210,9 @@ def test_i18n_uz_ru():
 
     ru_rows = [[b.text for b in row] for row in get_main_keyboard(False, lang="ru").keyboard]
     check("ru row1", ru_rows[0] == [BTN_NEW_POST_RU, BTN_AI_STUDIO_RU], str(ru_rows[0]))
-    check("ru row2", ru_rows[1] == [BTN_PREMIUM_RU, BTN_SETTINGS_RU], str(ru_rows[1]))
-    check("ru row3", ru_rows[2] == [BTN_HELP_RU, BTN_EXTRAS_RU], str(ru_rows[2]))
+    check("ru row2 (Magic Post)", ru_rows[1] == [BTN_MAGIC_POST_RU], str(ru_rows[1]))
+    check("ru row3", ru_rows[2] == [BTN_PREMIUM_RU, BTN_SETTINGS_RU], str(ru_rows[2]))
+    check("ru row4", ru_rows[3] == [BTN_HELP_RU, BTN_EXTRAS_RU], str(ru_rows[3]))
     uz_rows = [[b.text for b in row] for row in get_main_keyboard(False).keyboard]
     check("uz default row1", uz_rows[0] == [BTN_NEW_POST, BTN_AI_STUDIO], str(uz_rows[0]))
 
@@ -6288,6 +6295,7 @@ def test_i18n_en_menu_buttons_and_fallback():
         BTN_QUICK_AI_POST_EN, BTN_QUICK_PHOTO_POST_EN,
         BTN_QUICK_ADD_CHANNEL_EN, BTN_OPEN_FULL_MENU_EN,
         BTN_NEW_POST, BTN_NEW_POST_RU, BTN_SETTINGS_RU,
+        BTN_MAGIC_POST_EN,
     )
     import handlers as h_mod
     from handlers import register_all_handlers, unknown_message_fallback
@@ -6350,6 +6358,7 @@ def test_i18n_en_menu_buttons_and_fallback():
     en_button_targets = (
         (BTN_NEW_POST_EN, "start_new_post"),
         (BTN_AI_STUDIO_EN, "ai_studio_menu_entry"),
+        (BTN_MAGIC_POST_EN, "magic_post_entry"),
         (BTN_PREMIUM_EN, "start_subscription"),
         (BTN_SETTINGS_EN, "user_cabinet_menu"),
         (BTN_HELP_EN, "help_command"),
@@ -6382,8 +6391,9 @@ def test_i18n_en_menu_buttons_and_fallback():
     # ---------- 4) EN klaviaturalar = router qamrovi (tuxunsiz) ----------
     en_rows = [[b.text for b in row] for row in get_main_keyboard(False, lang="en").keyboard]
     check("EN main kb row1", en_rows[0] == [BTN_NEW_POST_EN, BTN_AI_STUDIO_EN], str(en_rows[0]))
-    check("EN main kb row2", en_rows[1] == [BTN_PREMIUM_EN, BTN_SETTINGS_EN], str(en_rows[1]))
-    check("EN main kb row3", en_rows[2] == [BTN_HELP_EN, BTN_EXTRAS_EN], str(en_rows[2]))
+    check("EN main kb row2 (Magic Post)", en_rows[1] == [BTN_MAGIC_POST_EN], str(en_rows[1]))
+    check("EN main kb row3", en_rows[2] == [BTN_PREMIUM_EN, BTN_SETTINGS_EN], str(en_rows[2]))
+    check("EN main kb row4", en_rows[3] == [BTN_HELP_EN, BTN_EXTRAS_EN], str(en_rows[3]))
     for label in (t for row in en_rows for t in row):
         check(f"EN klaviatura tugmasi router'da: {label[:26]!r}",
               bool(_entry_fn_names(label)))
@@ -8387,7 +8397,8 @@ def test_onboarding_simple_keyboard():
     for btn in (BTN_NEW_POST, BTN_AI_STUDIO, BTN_PREMIUM, BTN_SETTINGS, BTN_HELP, BTN_EXTRAS):
         check(f"sodda kb: 6 talik menyu tugmasi yo'q ({btn[:14]})", btn not in flat, str(flat))
     full_flat = [b.text for row in get_main_keyboard(False).keyboard for b in row]
-    check("standart menyu buzilmagan: 6 tugma", len(full_flat) == 6, str(full_flat))
+    # ✨ Magic Post qatori qo'shilgach: 7 tugma.
+    check("standart menyu buzilmagan: 7 tugma", len(full_flat) == 7, str(full_flat))
 
 
 def test_onboarding_resolve_and_quick_handlers():

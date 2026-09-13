@@ -316,6 +316,19 @@ def test_reply_buttons_route_to_handlers():
         names = sorted({getattr(m, "__name__", str(m)) for m in matched})
         check(f"{label!r} → {expected}", names == [expected], str(names))
 
+    # ✨ MAGIC POST (Killer Feature #1) — «✨ Magic Post» brend-nomi uchala
+    # tilda bir xil, lekin routing har tilda aniq `magic_post_entry`ga boradi.
+    for lang in LANGS:
+        label = "✨ Magic Post"
+        upd = _mk_update(label)
+        matched = []
+        for h in menu_handlers:
+            if h.check_update(upd):
+                matched.append(_target_of(H, h.callback))
+        names = sorted({getattr(m, "__name__", str(m)) for m in matched})
+        check(f"magic_post[{lang}] {label!r} → magic_post_entry",
+              names == ["magic_post_entry"], str(names))
+
     # Noto'g'ri matn HECH BIR menyu handleriga tushmasligi kerak —
     # u "kutilmagan xabar" fallback'iga o'tadi.
     upd = _mk_update("bu matn hech qaysi tugmaga mos emas 12345")
