@@ -1862,6 +1862,46 @@ EN_OVERLAY = {
     "ai_photo_unavailable": "⚠️ AI couldn't analyze this image. Please try again in a moment.",
     "ai_target_all_line": "🌐 <b>Channel:</b> All connected channels",
     "ai_target_all_name": "All connected channels",
+    # ── 📸 IMAGE → POST (Killer Feature #3) ──
+    "image_post_intro": (
+        "📸 <b>Image → Post</b>\n\nSend a photo — I will identify the product, category, "
+        "colour, material and use price/size/delivery details from its caption.\n\n"
+        "<i>No AI credit is spent at this stage.</i>"
+    ),
+    "image_photo_only": "🖼 Please send a JPG, PNG or WEBP image.",
+    "image_analysis_summary": (
+        "📸 <b>Product identified:</b> {product}\n"
+        "📂 Category: {category}\n"
+        "🎨 Colour: {color} · 🧵 Material: {material}\n"
+        "✨ Design: {design} · Style: {style}{facts}"
+    ),
+    "image_choose_style": "Which style should we use for the sales post? 👇",
+    "image_choose_style_again": "Choose another style — a new credit is spent only after selection.",
+    "image_style_sales": "🔥 Sales",
+    "image_style_premium": "💎 Premium",
+    "image_style_simple": "😊 Simple",
+    "image_style_discount": "📢 Discount/Offer",
+    "image_style_review": "📰 Review",
+    "image_btn_cancel": "❌ Cancel",
+    "image_btn_send": "📢 Send to channel",
+    "image_btn_schedule": "📅 Schedule",
+    "image_btn_restyle": "🔄 Another style",
+    "image_btn_send_all": "📢 All channels ({count})",
+    "image_analysis_error": "⚠️ Could not analyze the photo. Please send another image.",
+    "image_generation_error": "⚠️ Could not create the post. Your credit was refunded; try again.",
+    "image_no_credit": "🚫 You do not have enough AI credits. Get a bonus or switch to PRO.",
+    "image_generating": "🤖 Creating a {style} post...",
+    "image_preview_ready": "✅ Post ready! Photo and caption preview below:",
+    "image_cancelled": "❌ Image → Post cancelled. No credit was spent.",
+    "image_session_expired": "⚠️ The Image → Post session expired. Send the photo again.",
+    "image_no_channels": "⚠️ Connect at least one channel first.",
+    "image_choose_channel": "📢 Which channel should receive it?",
+    "image_sent_ok": "✅ Photo post sent to {count} channel(s).",
+    "image_send_error": "❌ Could not send to the channel. Please try again.",
+    "image_schedule_prompt": "📅 Save it for what time? For example: <code>2026-09-13 18:30</code>",
+    "image_schedule_invalid": "⚠️ Send the time as YYYY-MM-DD HH:MM.",
+    "image_schedule_error": "❌ The photo post was not saved to the scheduler. Please try again.",
+    "image_schedule_ok": "✅ Photo post saved for <b>{channel}</b> (ID: {post_id}).",
     # ── 📷 Manual photo check (handlers/photo_check.py) ──
     "pc_sent_user": "📸 Your photo was sent to the admin. Awaiting approval.",
     "pc_admin_caption": "🆔 User ID: <code>{user_id}</code>\n📷 Photo received.",

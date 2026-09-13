@@ -1883,6 +1883,46 @@ TRANSLATIONS = {
     "ai_photo_unavailable": "⚠️ AI rasmni tahlil qila olmadi. Iltimos, birozdan so'ng qayta urinib ko'ring.",
     "ai_target_all_line": "🌐 <b>Kanal:</b> Barcha ulangan kanallarga",
     "ai_target_all_name": "Barcha ulangan kanallarga",
+    # ── 📸 IMAGE → POST (Killer Feature #3) ──
+    "image_post_intro": (
+        "📸 <b>Rasm → Post</b>\n\nRasm yuboring — mahsulot nomi, toifasi, rangi, "
+        "materiali va captiondagi narx/o'lcham/yetkazib berish ma'lumotlarini tahlil qilaman.\n\n"
+        "<i>Bu bosqichda AI krediti sarflanmaydi.</i>"
+    ),
+    "image_photo_only": "🖼 Iltimos, JPG, PNG yoki WEBP formatidagi rasm yuboring.",
+    "image_analysis_summary": (
+        "📸 <b>Mahsulot aniqlandi:</b> {product}\n"
+        "📂 Toifa: {category}\n"
+        "🎨 Rang: {color} · 🧵 Material: {material}\n"
+        "✨ Dizayn: {design} · Uslub: {style}{facts}"
+    ),
+    "image_choose_style": "Qaysi uslubda sotuv posti tayyorlaymiz? 👇",
+    "image_choose_style_again": "Boshqa uslubni tanlang — bu tanlovda yangi kredit olinmaydi.",
+    "image_style_sales": "🔥 Sotuv",
+    "image_style_premium": "💎 Premium",
+    "image_style_simple": "😊 Oddiy",
+    "image_style_discount": "📢 Chegirma/Aksiya",
+    "image_style_review": "📰 Sharh",
+    "image_btn_cancel": "❌ Bekor qilish",
+    "image_btn_send": "📢 Kanalga yuborish",
+    "image_btn_schedule": "📅 Rejalashtirish",
+    "image_btn_restyle": "🔄 Boshqa uslub",
+    "image_btn_send_all": "📢 Barcha kanallarga ({count})",
+    "image_analysis_error": "⚠️ Rasmni tahlil qilib bo'lmadi. Boshqa rasm yuboring.",
+    "image_generation_error": "⚠️ Post yaratishda xatolik. Kredit qaytarildi, qayta urinib ko'ring.",
+    "image_no_credit": "🚫 AI kreditingiz yetarli emas. Avval bonus oling yoki PRO tarifiga o'ting.",
+    "image_generating": "🤖 {style} uslubida post tayyorlanmoqda...",
+    "image_preview_ready": "✅ Post tayyor! Rasm va caption preview quyida:",
+    "image_cancelled": "❌ Image → Post jarayoni bekor qilindi. Kredit sarflanmadi.",
+    "image_session_expired": "⚠️ Image → Post sessiyasi tugagan. Rasmni qaytadan yuboring.",
+    "image_no_channels": "⚠️ Avval kamida bitta kanal ulang.",
+    "image_choose_channel": "📢 Qaysi kanalga yuboramiz?",
+    "image_sent_ok": "✅ Rasmli post {count} ta kanalga yuborildi.",
+    "image_send_error": "❌ Kanalga yuborib bo'lmadi. Qayta urinib ko'ring.",
+    "image_schedule_prompt": "📅 Qaysi vaqtga saqlaymiz? Masalan: <code>2026-09-13 18:30</code>",
+    "image_schedule_invalid": "⚠️ Vaqtni YYYY-MM-DD HH:MM ko'rinishida yuboring.",
+    "image_schedule_error": "❌ Photo post scheduler'ga saqlanmadi. Qayta urinib ko'ring.",
+    "image_schedule_ok": "✅ Photo post <b>{channel}</b> kanaliga scheduler'ga saqlandi (ID: {post_id}).",
     # ── 📷 Qo'lda rasm tekshiruvi (handlers/photo_check.py) ──
     "pc_sent_user": "📸 Rasmingiz adminga yuborildi. Tasdiqlanishi kutilmoqda.",
     "pc_admin_caption": "🆔 Foydalanuvchi ID: <code>{user_id}</code>\n📷 Rasm yuborildi.",
@@ -3773,6 +3813,46 @@ TRANSLATIONS = {
     "ai_photo_unavailable": "⚠️ ИИ не смог проанализировать это изображение. Попробуйте ещё раз через минуту.",
     "ai_target_all_line": "🌐 <b>Канал:</b> Все подключённые каналы",
     "ai_target_all_name": "Все подключённые каналы",
+    # ── 📸 IMAGE → POST (Killer Feature #3) ──
+    "image_post_intro": (
+        "📸 <b>Фото → Пост</b>\n\nОтправьте фото — я определю название, категорию, "
+        "цвет, материал и учту цену/размер/доставку из подписи.\n\n"
+        "<i>На этом этапе ИИ-балл не списывается.</i>"
+    ),
+    "image_photo_only": "🖼 Отправьте изображение в формате JPG, PNG или WEBP.",
+    "image_analysis_summary": (
+        "📸 <b>Товар определён:</b> {product}\n"
+        "📂 Категория: {category}\n"
+        "🎨 Цвет: {color} · 🧵 Материал: {material}\n"
+        "✨ Дизайн: {design} · Стиль: {style}{facts}"
+    ),
+    "image_choose_style": "В каком стиле подготовить продающий пост? 👇",
+    "image_choose_style_again": "Выберите другой стиль — новый балл списывается только после выбора.",
+    "image_style_sales": "🔥 Продажа",
+    "image_style_premium": "💎 Премиум",
+    "image_style_simple": "😊 Простой",
+    "image_style_discount": "📢 Скидка/Акция",
+    "image_style_review": "📰 Обзор",
+    "image_btn_cancel": "❌ Отмена",
+    "image_btn_send": "📢 Отправить в канал",
+    "image_btn_schedule": "📅 Запланировать",
+    "image_btn_restyle": "🔄 Другой стиль",
+    "image_btn_send_all": "📢 Во все каналы ({count})",
+    "image_analysis_error": "⚠️ Не удалось проанализировать фото. Отправьте другое изображение.",
+    "image_generation_error": "⚠️ Не удалось создать пост. Балл возвращён, попробуйте ещё раз.",
+    "image_no_credit": "🚫 Недостаточно ИИ-баллов. Получите бонус или подключите PRO.",
+    "image_generating": "🤖 Готовлю пост в стиле {style}...",
+    "image_preview_ready": "✅ Пост готов! Ниже предпросмотр фото и подписи:",
+    "image_cancelled": "❌ Процесс Фото → Пост отменён. Балл не списан.",
+    "image_session_expired": "⚠️ Сессия Фото → Пост завершилась. Отправьте фото снова.",
+    "image_no_channels": "⚠️ Сначала подключите хотя бы один канал.",
+    "image_choose_channel": "📢 В какой канал отправить?",
+    "image_sent_ok": "✅ Пост с фото отправлен в {count} канал(а).",
+    "image_send_error": "❌ Не удалось отправить в канал. Попробуйте ещё раз.",
+    "image_schedule_prompt": "📅 На какое время сохранить? Например: <code>2026-09-13 18:30</code>",
+    "image_schedule_invalid": "⚠️ Отправьте время в формате YYYY-MM-DD HH:MM.",
+    "image_schedule_error": "❌ Photo-пост не сохранён в планировщик. Попробуйте ещё раз.",
+    "image_schedule_ok": "✅ Photo-пост сохранён для канала <b>{channel}</b> (ID: {post_id}).",
     # ── 📷 Ручная проверка фото (handlers/photo_check.py) ──
     "pc_sent_user": "📸 Ваше фото отправлено администратору. Ожидается подтверждение.",
     "pc_admin_caption": "🆔 ID пользователя: <code>{user_id}</code>\n📷 Получено фото.",

@@ -104,10 +104,10 @@ async def resolve_main_keyboard(user_id: int, is_admin: bool, lang: str = "uz", 
     Panel" tugmasi yo'q.
     """
     if is_admin:
-        return get_main_keyboard(True, lang=lang)
+        return get_main_keyboard(True, lang=lang, context=context)
     if await user_wants_simple_menu(user_id, context):
         return get_simple_keyboard(lang)
-    return get_main_keyboard(False, lang=lang)
+    return get_main_keyboard(False, lang=lang, context=context)
 
 
 async def main_menu_intro_suffix(user_id: int, is_admin: bool, lang: str = "uz",

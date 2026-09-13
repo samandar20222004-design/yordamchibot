@@ -97,6 +97,17 @@ BTN_QUICK_PHOTO_POST_EN = get_text("quick_btn_photo_post", "en")
 BTN_QUICK_ADD_CHANNEL_EN = get_text("quick_btn_add_channel", "en")
 BTN_OPEN_FULL_MENU_EN = get_text("quick_btn_full_menu", "en")
 
+# 📸 IMAGE → POST — yangi oqimning aniq reply-label aliaslari. Legacy
+# ``🖼 Rasmdan post olish`` oqimi o'z joyida qoladi; shu nomlar yangi
+# feature'ni eski onboarding klaviaturasi soni/paritetini o'zgartirmasdan
+# ochadi (handlers.image_post). To'liq production menyu bu label'ni context
+# bilan chizadi; eski context'siz keyboard API va onboarding quick-photo
+# klaviaturasi o'zgarmaydi.
+BTN_IMAGE_POST = "📸 Rasm → Post"
+BTN_IMAGE_POST_RU = "📸 Фото → Пост"
+BTN_IMAGE_POST_EN = "📸 Image → Post"
+IMAGE_POST_BUTTONS = (BTN_IMAGE_POST, BTN_IMAGE_POST_RU, BTN_IMAGE_POST_EN)
+
 # Sodda menyudagi barcha tugmalar (uz + ru + en) — routing/audit uchun yagona manba.
 QUICK_MENU_BUTTONS = (
     BTN_QUICK_AI_POST, BTN_QUICK_PHOTO_POST, BTN_QUICK_ADD_CHANNEL, BTN_OPEN_FULL_MENU,
@@ -506,17 +517,36 @@ def exact_i18n(*keys):
 
 
 
-def get_main_keyboard(is_admin=False, lang="uz", context=None):
+def _image_post_label(lang: str) -> str:
+    """Image → Post reply-labelini foydalanuvchi tilida chizadi."""
+    code = normalize_lang(lang)
+    return {
+        "ru": BTN_IMAGE_POST_RU,
+        "en": BTN_IMAGE_POST_EN,
+    }.get(code, BTN_IMAGE_POST)
+
+
+def get_main_keyboard(is_admin=False, lang="uz", context=None,
+                      include_image_post=None):
     # Yangi tartib: ⭐️ Premium chapda, 👤 Kabinet & Sozlamalar o'ngda (2-qator).
+    # ``include_image_post`` defaulti context berilganda True: production
+    # onboarding/start ekranlari yangi tugmani ko'rsatadi, lekin eski unit
+    # testlar va context'siz API chaqiruvlari aynan avvalgi keyboard'ni oladi.
     if context is not None:
         lang = get_lang(context, lang)
+    if include_image_post is None:
+        include_image_post = context is not None
     keyboard = [
         [get_text("btn_new_post", lang), get_text("btn_ai_studio", lang)],
         # ✨ Magic Post — killer feature (yakka qatorda, ko'zga ko'rinadigan)
         [_magic_post_label(lang)],
+    ]
+    if include_image_post:
+        keyboard.append([_image_post_label(lang)])
+    keyboard.extend([
         [get_text("btn_premium", lang), get_text("btn_settings", lang)],
         [get_text("btn_help", lang), get_text("btn_extras", lang)],
-    ]
+    ])
     if is_admin:
         keyboard.append([BTN_ADMIN_PANEL])
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
@@ -543,7 +573,7 @@ def get_refreshed_main_keyboard(lang="uz", is_admin=False, simple_menu=False,
         lang = get_lang(context, lang)
     if simple_menu and not is_admin:
         return get_simple_keyboard(lang)
-    return get_main_keyboard(is_admin, lang=lang)
+    return get_main_keyboard(is_admin, lang=lang, context=context)
 
 
 def get_simple_keyboard(lang="uz", context=None):

@@ -360,6 +360,29 @@ oddiy "➕ Yangi post rejalashtirish" oqimi orqali ishlaydi.
 > `llama-3.1-8b-instant`, `llama-3.3-70b-versatile` va `gemma2-9b-it` yopildi) —
 > avto-diskoveri tufayli bunday holatda ham bot yangi modelga o'zi o'tadi.
 
+### 📸 IMAGE → POST (Killer Feature #3)
+
+`/imagepost`, `📸 Rasm → Post` bo'limi yoki shaxsiy chatda yuborilgan oddiy
+foto Image → Post oqimini boshlaydi. Oqim rasmni avval mahsulot sifatida tahlil
+qiladi, keyin foydalanuvchi uslub tanlagandagina post yozadi. Gemini 1.5 Flash
+multimodal API'ga rasm `inline_data` + base64 ko'rinishida yuboriladi. Vision
+system prompt mahsulot nomi/toifasi, rang, material, dizayn, uslub hamda
+captiondagi narx, o'lcham va yetkazib berishni ajratadi.
+
+Muhim billing qoidasi: Vision va qisqa xulosa bosqichida kredit sarflanmaydi.
+`🔥 Sotuv`, `💎 Premium`, `😊 Oddiy`, `📢 Chegirma/Aksiya` yoki `📰 Sharh`
+tugmasi tanlanganda FAQAT 1 ta AI krediti rezerv qilinadi. `❌ Bekor qilish`
+bosilsa kredit 0 bo'lib qoladi.
+
+Tayyor post aynan o'sha rasm ostida caption sifatida ko'rsatiladi:
+`📢 Kanalga yuborish` `send_photo(photo, caption)`, `📅 Rejalashtirish`
+`scheduled_posts(post_type='photo', file_id=<photo>, content=<caption>)` va
+`🔄 Boshqa uslub` amallari bilan.
+
+Legacy **✨ AI Studio → 🖼 Rasmdan post yaratish** oqimi orqaga moslik uchun
+saqlangan; yangi oqim eski Magic Post, Voice va photo-moderatsiya handlerlariga
+callback/state to'qnashuvi bermaydi.
+
 ### 🖼 Rasmdan post yaratish (Vision / Photo-to-Post)
 
 **✨ AI Studio → 🖼 Rasmdan post yaratish** bo'limida rasm yuborilsa (yoki `/ai`
