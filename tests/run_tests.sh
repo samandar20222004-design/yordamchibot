@@ -39,6 +39,15 @@ echo "======= 3) ✨ MAGIC POST OQIMI (KILLER FEATURE #1) ======="
 "$PY" tests/magic_post_flow_test.py || EXIT_CODE=1
 
 echo
+echo "======= 3b) 🎙 VOICE → POST (STT $0 + RESURS HIMOYASI) ======="
+# Ovozli xabar → cheklovlar (FREE ≤60s, PRO ≤180s, ≤20MB) → Groq Whisper
+# Large v3 (bepul STT, zaxira Gemini) → 5 uslub + [Bekor qilish] → uslub
+# tanlanganda FAQAT 1 kredit atomik → tayyor post + amallar.
+# Kredit/limit transkripsiya va bekor qilishda TIYILMAYDI
+# (tests/voice_to_post_flow_test.py).
+"$PY" tests/voice_to_post_flow_test.py || EXIT_CODE=1
+
+echo
 echo "======== 4) TO'LIQ REGRESSIYA (telegram_bot/tests) ========"
 ( cd telegram_bot && bash tests/run_tests.sh ) || EXIT_CODE=1
 
