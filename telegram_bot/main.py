@@ -16,6 +16,7 @@ from scheduler import (
     cleanup_old_data_job,
     cleanup_old_records_job,
     recover_on_startup,
+    subscription_sweep_job,
     tashkent_tz,
     TIMEZONE_NAME,
     now_tashkent,
@@ -459,6 +460,13 @@ async def main():
         cleanup_old_data_job, 'cron', hour="*/6", minute=0,
         id="cleanup_old_data", timezone=tashkent_tz,
         max_instances=1, coalesce=True, misfire_grace_time=3600,
+    )
+    # 3-BOSQICH (P1): muddati o'tgan PRO/enterprise obunalarni avtomatik FREE ga
+    # tushirish — har 15 daqiqada bitta yengil UPDATE (index-friendly).
+    scheduler.add_job(
+        subscription_sweep_job, 'interval', minutes=15,
+        id="subscription_sweep", timezone=tashkent_tz,
+        max_instances=1, coalesce=True, misfire_grace_time=300,
     )
     # 9-bosqich: kunlik paketli tozalash worker'i — har 24 soatda 1 marta,
     # kechasi soat 03:00 (Toshkent). LIMIT 1000 paketlar, har paket alohida

@@ -4283,12 +4283,19 @@ def get_user_plan(user_id: int) -> dict:
 
 
 def check_channel_limit(user_id: int) -> tuple[bool, int, int]:
-    """Kanal limitini tekshiradi. Returns: (can_add, current, max)."""
+    """Kanal limitini tekshiradi. Returns: (can_add, current, max).
+
+    3-BOSQICH (P0): muddati o'tgan PRO/enterprise obunasi FREE limitlariga
+    tushadi (va lazy ravishda DB'da ham 'free' qilinadi) — eski ``plan_type``
+    ustuni muddat tugaganidan keyin ham PRO limit berib qo'ymasligi uchun.
+    """
     try:
-        with db_cursor() as cur:
+        with db_cursor(commit=True) as cur:
             cur.execute("SELECT plan_type FROM users WHERE user_id = %s", (user_id,))
             row = cur.fetchone()
             plan = (row[0] if row else "free") or "free"
+            # 3-BOSQICH (P0): muddati o'tgan PRO → avtomatik FREE limitlari.
+            plan = _effective_plan(cur, plan, user_id)
             cur.execute(
                 "SELECT COUNT(*) FROM channels WHERE user_id = %s AND is_active = TRUE",
                 (user_id,),
@@ -4299,6 +4306,33 @@ def check_channel_limit(user_id: int) -> tuple[bool, int, int]:
     except Exception as e:
         logger.error(f"check_channel_limit xatosi: {e}")
         return (True, 0, 2)
+
+
+def downgrade_expired_subscriptions() -> int:
+    """Muddati o'tgan BARCHA PRO/enterprise obunalarni 'free' ga tushiradi.
+
+    3-BOSQICH (P1): ``SubscriptionService.get_status`` faqat bitta foydalanuvchini
+    lazy downgrade qiladi; bu sweep esa periodik job (scheduler
+    ``subscription_sweep_job``) orqali hamma bazani bir tranzaksiyada tozalaydi —
+    muddati tugagan PRO hech qachon PRO limitlarda qolib ketmaydi.
+
+    Qaytaradi: tushirilgan foydalanuvchilar soni (DB xatosida 0, istisno yo'q).
+    """
+    try:
+        with db_cursor(commit=True) as cur:
+            cur.execute(
+                "UPDATE users SET plan_type = 'free' "
+                "WHERE plan_type IN ('pro', 'enterprise') "
+                "AND subscription_expires_at IS NOT NULL "
+                "AND subscription_expires_at <= NOW()"
+            )
+            count = int(cur.rowcount or 0)
+        if count:
+            _cache_clear("system_stats")
+        return count
+    except Exception as e:
+        logger.error(f"downgrade_expired_subscriptions xatosi: {e}")
+        return 0
 
 
 _AI_QUOTA_RESERVATIONS: dict[int, int] = {}
@@ -4324,6 +4358,50 @@ def _consume_ai_quota_reservation(user_id: int) -> bool:
         else:
             _AI_QUOTA_RESERVATIONS[uid] = count - 1
         return True
+
+
+def _subscription_expired(cur, user_id: int) -> bool:
+    """PRO/enterprise obunasi muddati o'tganini tekshiradi (lazy downgrade uchun).
+
+    3-BOSQICH (P0): ``check_ai_limit`` / ``check_channel_limit`` avval faqat
+    ``plan_type`` ustuniga qaragan — muddati o'tgan, lekin hali ``get_status``
+    chaqirilmagan PRO foydalanuvchi PRO limitlarini SAQLAB QOLAR edi. Endi
+    pro/enterprise planlarda ``subscription_expires_at`` ham tekshiriladi.
+
+    DB xatosida ``False`` qaytaradi (joriy plan saqlanadi — fail-safe);
+    qat'iy fail-closed talab qilinadigan joylarda chaqiruvchi allaqachon
+    exception'larni yutadi.
+    """
+    try:
+        cur.execute(
+            "SELECT subscription_expires_at FROM users WHERE user_id = %s",
+            (user_id,),
+        )
+        row = cur.fetchone()
+        if not row or row[0] is None:
+            return False  # cheksiz obuna (enterprise/legacy)
+        from datetime import timezone as _tz
+        expires_at = row[0]
+        if getattr(expires_at, "tzinfo", None) is None:
+            expires_at = expires_at.replace(tzinfo=_tz.utc)
+        return expires_at <= datetime.now(_tz.utc)
+    except Exception:
+        return False
+
+
+def _effective_plan(cur, plan: str, user_id: int) -> str:
+    """Plan nomini obuna muddatini hisobga olib tuzatadi (expired PRO → free)."""
+    if plan in ("pro", "enterprise") and _subscription_expired(cur, user_id):
+        # Lazy downgrade: keyingi so'rovlarda qayta tekshirilmasin.
+        try:
+            cur.execute(
+                "UPDATE users SET plan_type = 'free' WHERE user_id = %s",
+                (user_id,),
+            )
+        except Exception:
+            pass
+        return "free"
+    return plan
 
 
 def check_ai_limit(user_id: int) -> tuple[bool, int, int]:
@@ -4357,6 +4435,8 @@ def check_ai_limit(user_id: int) -> tuple[bool, int, int]:
                 return (False, 0, PLAN_LIMITS["free"]["daily_ai_requests"])
             plan, ai_used = row
             plan = plan or "free"
+            # 3-BOSQICH (P0): muddati o'tgan PRO → avtomatik FREE limitlari.
+            plan = _effective_plan(cur, plan, user_id)
             max_ai = PLAN_LIMITS.get(plan, PLAN_LIMITS["free"])["daily_ai_requests"]
             cur.execute(
                 "UPDATE users SET ai_requests_today = COALESCE(ai_requests_today, 0) + 1 "

@@ -894,6 +894,14 @@ async def _discover_openrouter_models(api_key: str) -> list | None:
             data = await resp.json()
         free_ids = [m.get("id", "") for m in data.get("data", []) if m.get("id", "").endswith(":free")]
         picked = _pick_models(free_ids, OPENROUTER_PREFERRED)
+        if not picked and free_ids:
+            # 3-BOSQICH (P1): preferred (free-router) ID'si `:free` bilan
+            # tugamagani uchun `_pick_models` uni hech qachon topolmaydi —
+            # natijada discovery doim bo'sh qaytarib, jonli :free modellar
+            # hech qachon ishlatilmas edi. Endi afzal ro'yxat bo'sh qaytsa,
+            # discovery jonli :free modellardan cheklangan (4) ro'yxat
+            # qaytaradi; router esa `_call_openrouter` fallbackida qoladi.
+            picked = free_ids[:4]
         if picked:
             _set_cached_models("openrouter", picked)
             logger.info("OpenRouter modellari aniqlandi: %s", picked)
