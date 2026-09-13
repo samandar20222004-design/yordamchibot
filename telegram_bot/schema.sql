@@ -138,6 +138,7 @@ NOT EXISTS post_deliveries (
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+ALTER TABLE post_deliveries ADD COLUMN IF NOT EXISTS next_retry_at TIMESTAMPTZ;
 CREATE INDEX IF
 NOT EXISTS idx_deliveries_sched ON post_deliveries(status, post_id);
 CREATE INDEX IF
@@ -374,7 +375,6 @@ ALTER TABLE channel_posts_history ADD COLUMN IF NOT EXISTS created_at TIMESTAMP 
 
 -- PostAssist V2 (3-bosqich): persistent delivery + backoff ustunlari.
 ALTER TABLE post_deliveries ADD COLUMN IF NOT EXISTS scheduled_time TIMESTAMPTZ;
-ALTER TABLE post_deliveries ADD COLUMN IF NOT EXISTS next_retry_at TIMESTAMPTZ;
 
 -- PostAssist V2 (5-bosqich): to'lov audit holati. ADD COLUMN IF NOT EXISTS +
 -- NOT NULL DEFAULT tufayli (PostgreSQL 11+ "fast default") migratsiya bir
