@@ -16,8 +16,8 @@ from locales.translations import (
     get_text, get_lang, normalize_lang,
     button_texts, button_variants, normalize_button_text,
 )
-# ✨ MAGIC POST — i18n `translations/` paketidan (uz/ru/en uchala yorliq).
-from translations import MAGIC_POST_I18N
+# ✨ MAGIC POST / 📊 POST SCORE — i18n `translations/` paketidan (uz/ru/en).
+from translations import MAGIC_POST_I18N, POST_SCORE_I18N
 
 # ============================================================
 # STANDART MENYU TUGMALARI (Constants)
@@ -107,6 +107,25 @@ BTN_IMAGE_POST = "📸 Rasm → Post"
 BTN_IMAGE_POST_RU = "📸 Фото → Пост"
 BTN_IMAGE_POST_EN = "📸 Image → Post"
 IMAGE_POST_BUTTONS = (BTN_IMAGE_POST, BTN_IMAGE_POST_RU, BTN_IMAGE_POST_EN)
+
+# ============================================================
+# 📊 POST SCORE & IMPROVER — KILLER FEATURE #4 (asosiy menyu tugmasi)
+# ============================================================
+# Yorliq `translations/post_score.py` dan olinadi (yagona manba). «📊 Post
+# Score» brend-nomi bo'lgani uchun uchala tilda bir xil, lekin routing uchun
+# uchala til konstantasi ham saqlanadi (Magic Post / Image Post kabi).
+
+
+def _post_score_label(lang: str) -> str:
+    """📊 Post Score tugma yorlig'i (tilga mos, hech qachon yiqilmaydi)."""
+    table = POST_SCORE_I18N.get(normalize_lang(lang)) or {}
+    return table.get("ps_btn_menu") or POST_SCORE_I18N["uz"]["ps_btn_menu"]
+
+
+BTN_POST_SCORE = _post_score_label("uz")
+BTN_POST_SCORE_RU = _post_score_label("ru")
+BTN_POST_SCORE_EN = _post_score_label("en")
+POST_SCORE_ALIASES = (BTN_POST_SCORE, BTN_POST_SCORE_RU, BTN_POST_SCORE_EN)
 
 # Sodda menyudagi barcha tugmalar (uz + ru + en) — routing/audit uchun yagona manba.
 QUICK_MENU_BUTTONS = (
@@ -366,6 +385,8 @@ MENU_TEXTS = {
     "ai_studio": button_texts("btn_ai_studio", extra=AI_STUDIO_ALIASES),
     "magic_post": _uniq((BTN_MAGIC_POST, BTN_MAGIC_POST_RU, BTN_MAGIC_POST_EN),
                         MAGIC_POST_ALIASES),
+    "post_score": _uniq((BTN_POST_SCORE, BTN_POST_SCORE_RU, BTN_POST_SCORE_EN),
+                        POST_SCORE_ALIASES),
     "premium": button_texts("btn_premium", extra=PREMIUM_ALIASES),
     "settings": button_texts("btn_settings", extra=PROFILE_ALIASES),
     "help": button_texts("btn_help", extra=HELP_ALIASES),
@@ -527,15 +548,18 @@ def _image_post_label(lang: str) -> str:
 
 
 def get_main_keyboard(is_admin=False, lang="uz", context=None,
-                      include_image_post=None):
+                      include_image_post=None, include_post_score=None):
     # Yangi tartib: ⭐️ Premium chapda, 👤 Kabinet & Sozlamalar o'ngda (2-qator).
-    # ``include_image_post`` defaulti context berilganda True: production
-    # onboarding/start ekranlari yangi tugmani ko'rsatadi, lekin eski unit
-    # testlar va context'siz API chaqiruvlari aynan avvalgi keyboard'ni oladi.
+    # ``include_image_post`` / ``include_post_score`` defaulti context
+    # berilganda True: production onboarding/start ekranlari yangi tugmalarni
+    # ko'rsatadi, lekin eski unit testlar va context'siz API chaqiruvlari
+    # aynan avvalgi keyboard'ni oladi (regressiya yo'q).
     if context is not None:
         lang = get_lang(context, lang)
     if include_image_post is None:
         include_image_post = context is not None
+    if include_post_score is None:
+        include_post_score = context is not None
     keyboard = [
         [get_text("btn_new_post", lang), get_text("btn_ai_studio", lang)],
         # ✨ Magic Post — killer feature (yakka qatorda, ko'zga ko'rinadigan)
@@ -543,6 +567,9 @@ def get_main_keyboard(is_admin=False, lang="uz", context=None,
     ]
     if include_image_post:
         keyboard.append([_image_post_label(lang)])
+    if include_post_score:
+        # 📊 Post Score — killer feature #4 (baholash bepul, yaxshilash 1 kredit).
+        keyboard.append([_post_score_label(lang)])
     keyboard.extend([
         [get_text("btn_premium", lang), get_text("btn_settings", lang)],
         [get_text("btn_help", lang), get_text("btn_extras", lang)],

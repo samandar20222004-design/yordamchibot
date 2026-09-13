@@ -10,6 +10,9 @@
 #   2) 3-BOSQICH PRODUCTION ACCEPTANCE SUITE — 18 majburiy ssenariy
 #      (tests/production_acceptance_suite_test.py — deterministik, mock asosida)
 #   3) ✨ MAGIC POST oqimi — Killer Feature #1 (tests/magic_post_flow_test.py)
+#   3a) 📸 IMAGE → POST — Killer Feature #3 (tests/image_to_post_flow_test.py)
+#   3b) 🎙 VOICE → POST — Killer Feature #2 (tests/voice_to_post_flow_test.py)
+#   3c) 📊 POST SCORE & IMPROVER — Killer Feature #4 (tests/post_score_flow_test.py)
 #   4) TO'LIQ regressiya: telegram_bot/tests/run_tests.sh (barcha 30+ test fayli)
 #
 # Har qanday xatoda 1 bilan chiqadi (CI uchun).
@@ -52,6 +55,16 @@ echo "======= 3b) 🎙 VOICE → POST (STT $0 + RESURS HIMOYASI) ======="
 # Kredit/limit transkripsiya va bekor qilishda TIYILMAYDI
 # (tests/voice_to_post_flow_test.py).
 "$PY" tests/voice_to_post_flow_test.py || EXIT_CODE=1
+
+echo
+echo "===== 3c) 📊 POST SCORE & IMPROVER (KILLER FEATURE #4) ====="
+# Matn → 6 mezon (1-10) + 100 ballik natija + tavsiya (BEPUL, kreditsiz);
+# Magic/Voice/Image natijalarida «📊 Baholash» tugmasi; «✨ 95/100 ga
+# yaxshilash» bosilganda AI eng sara variantni yozadi va AYNAN 1 kredit
+# atomik yechiladi (xatoda refund); bo'sh/yaroqsiz matnda xavfsiz
+# ogohlantirish + i18n UZ/RU/EN 100% paritet
+# (tests/post_score_flow_test.py).
+"$PY" tests/post_score_flow_test.py || EXIT_CODE=1
 
 echo
 echo "======== 4) TO'LIQ REGRESSIYA (telegram_bot/tests) ========"

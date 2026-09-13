@@ -45,6 +45,7 @@ from keyboards.default import (
     BTN_IMAGE_POST, BTN_IMAGE_POST_RU, BTN_IMAGE_POST_EN,
     # ✨ MAGIC POST — killer feature tugmasi (uz/ru/en)
     BTN_MAGIC_POST, BTN_MAGIC_POST_RU, BTN_MAGIC_POST_EN,
+    BTN_POST_SCORE, BTN_POST_SCORE_RU, BTN_POST_SCORE_EN,
 )
 from locales.translations import clear_fsm_data, get_lang, get_text
 from keyboards.inline import get_subscription_check_keyboard
@@ -174,6 +175,18 @@ from handlers.image_post import (
     set_application as set_image_application,
     IMAGE_POST_INPUT, IMAGE_STYLE_SELECT, IMAGE_POST_RESULT,
     IMAGE_SEND_CHOOSE, IMAGE_SCHEDULE_INPUT,
+)
+
+# 2f. 📊 POST SCORE & IMPROVER (Killer Feature #4)
+# MUHIM: modul Magic/Voice/Image oqimlaridan (natija holatlari va
+# _safe_edit/_magic_deliver_one yordamchilari) import oladi — shu sababli
+# ularning importlaridan KEYIN turadi.
+from handlers.post_score import (
+    POST_SCORE_INPUT, POST_SCORE_RESULT, POST_SCORE_SEND_CHOOSE,
+    post_score_entry, post_score_text_received, post_score_eval_callback,
+    post_score_improve_callback, post_score_new_callback,
+    post_score_send_callback, post_score_channel_picked_callback,
+    post_score_schedule_callback, post_score_stale_callback,
 )
 
 # 8. CONTENT PLAN MODULI
@@ -740,6 +753,16 @@ def register_all_handlers(app):
         ),
     ]
 
+    # 7g. 📊 POST SCORE — asosiy menyudagi killer feature #4 tugmasi
+    # (baholash BEPUL: kredit/kvota sarflanmaydi; «✨ 95/100 ga yaxshilash»
+    # bosilgandagina 1 kredit atomik yechiladi).
+    post_score_handlers = [
+        MessageHandler(
+            exact(BTN_POST_SCORE, BTN_POST_SCORE_RU, BTN_POST_SCORE_EN),
+            lambda u, c: guard_entry(u, c, post_score_entry),
+        ),
+    ]
+
     # 8. Content Plan
     content_plan_handlers = [
         MessageHandler(exact(BTN_CONTENT_PLAN), lambda u, c: guard_entry(u, c, start_content_plan)),
@@ -781,6 +804,7 @@ def register_all_handlers(app):
         ai_handlers +
         magic_handlers +
         image_post_handlers +
+        post_score_handlers +
         content_plan_handlers +
         analytics_handlers +
         subscription_handlers +
@@ -1095,6 +1119,14 @@ def register_all_handlers(app):
                 CallbackQueryHandler(magic_schedule_callback, pattern=r"^mp_sched$"),
                 CallbackQueryHandler(magic_channel_picked_callback, pattern=r"^mp_ch"),
                 CallbackQueryHandler(magic_restyle_callback, pattern=r"^mp_restyle$"),
+                # 📊 Post Score (Killer Feature #4): natijani baholash va
+                # yaxshilash tugmalari shu holatda ham ishlaydi.
+                CallbackQueryHandler(post_score_eval_callback, pattern=r"^ps_eval:"),
+                CallbackQueryHandler(post_score_improve_callback, pattern=r"^ps_improve$"),
+                CallbackQueryHandler(post_score_send_callback, pattern=r"^ps_send$"),
+                CallbackQueryHandler(post_score_schedule_callback, pattern=r"^ps_sched$"),
+                CallbackQueryHandler(post_score_new_callback, pattern=r"^ps_new$"),
+                CallbackQueryHandler(post_score_channel_picked_callback, pattern=r"^ps_ch"),
                 # Yangi matn yuborilsa — yangi oqim (eski natija almashtiriladi)
                 MessageHandler(filters.ALL & ~filters.COMMAND, magic_text_received),
             ],
@@ -1117,6 +1149,14 @@ def register_all_handlers(app):
                 CallbackQueryHandler(voice_schedule_callback, pattern=r"^vp_sched$"),
                 CallbackQueryHandler(voice_restyle_callback, pattern=r"^vp_restyle$"),
                 CallbackQueryHandler(voice_cancel_callback, pattern=r"^vp_cancel$"),
+                # 📊 Post Score (Killer Feature #4): natijani baholash va
+                # yaxshilash tugmalari shu holatda ham ishlaydi.
+                CallbackQueryHandler(post_score_eval_callback, pattern=r"^ps_eval:"),
+                CallbackQueryHandler(post_score_improve_callback, pattern=r"^ps_improve$"),
+                CallbackQueryHandler(post_score_send_callback, pattern=r"^ps_send$"),
+                CallbackQueryHandler(post_score_schedule_callback, pattern=r"^ps_sched$"),
+                CallbackQueryHandler(post_score_new_callback, pattern=r"^ps_new$"),
+                CallbackQueryHandler(post_score_channel_picked_callback, pattern=r"^ps_ch"),
                 MessageHandler(VOICE_MESSAGE_FILTER, voice_message_received),
             ],
             VOICE_SEND_CHOOSE: all_menu_jumps + [
@@ -1137,6 +1177,14 @@ def register_all_handlers(app):
                 CallbackQueryHandler(image_schedule_callback, pattern=r"^image_schedule$"),
                 CallbackQueryHandler(image_restyle_callback, pattern=r"^image_restyle$"),
                 CallbackQueryHandler(image_cancel_callback, pattern=r"^image_cancel$"),
+                # 📊 Post Score (Killer Feature #4): natijani baholash va
+                # yaxshilash tugmalari shu holatda ham ishlaydi.
+                CallbackQueryHandler(post_score_eval_callback, pattern=r"^ps_eval:"),
+                CallbackQueryHandler(post_score_improve_callback, pattern=r"^ps_improve$"),
+                CallbackQueryHandler(post_score_send_callback, pattern=r"^ps_send$"),
+                CallbackQueryHandler(post_score_schedule_callback, pattern=r"^ps_sched$"),
+                CallbackQueryHandler(post_score_new_callback, pattern=r"^ps_new$"),
+                CallbackQueryHandler(post_score_channel_picked_callback, pattern=r"^ps_ch"),
             ],
             IMAGE_SEND_CHOOSE: all_menu_jumps + [
                 CallbackQueryHandler(image_channel_callback, pattern=r"^image_ch:"),
@@ -1144,6 +1192,27 @@ def register_all_handlers(app):
             ],
             IMAGE_SCHEDULE_INPUT: all_menu_jumps + [
                 MessageHandler(filters.TEXT & ~filters.COMMAND, image_schedule_time_received),
+            ],
+
+            # 7h. 📊 POST SCORE holatlari (Killer Feature #4)
+            # Baholash BEPUL — kredit/kunlik kvota yechilmaydi; «✨ 95/100 ga
+            # yaxshilash» bosilgandagina 1 kredit atomik yechiladi (+refund).
+            POST_SCORE_INPUT: all_menu_jumps + [
+                MessageHandler(filters.ALL & ~filters.COMMAND, post_score_text_received),
+            ],
+            POST_SCORE_RESULT: all_menu_jumps + [
+                CallbackQueryHandler(post_score_improve_callback, pattern=r"^ps_improve$"),
+                CallbackQueryHandler(post_score_send_callback, pattern=r"^ps_send$"),
+                CallbackQueryHandler(post_score_schedule_callback, pattern=r"^ps_sched$"),
+                CallbackQueryHandler(post_score_new_callback, pattern=r"^ps_new$"),
+                CallbackQueryHandler(post_score_eval_callback, pattern=r"^ps_eval:"),
+                CallbackQueryHandler(post_score_channel_picked_callback, pattern=r"^ps_ch"),
+                # Yangi matn yuborilsa — darhol baholash (yangi sessiya).
+                MessageHandler(filters.ALL & ~filters.COMMAND, post_score_text_received),
+            ],
+            POST_SCORE_SEND_CHOOSE: all_menu_jumps + [
+                CallbackQueryHandler(post_score_channel_picked_callback, pattern=r"^ps_ch"),
+                CallbackQueryHandler(post_score_new_callback, pattern=r"^ps_new$"),
             ],
 
             # 8. Queue holatlari
@@ -1247,6 +1316,8 @@ def register_all_handlers(app):
     # ✨ Magic Post stale tugmalari: sessiya tugagach eski natija/tanlov tugmasi
     # bosilsa — foydalanuvchiga «sessiya eskirgan» toast ko'rsatiladi.
     app.add_handler(CallbackQueryHandler(magic_stale_callback, pattern=r"^mp_"))
+    # 📊 Post Score — sessiyadan tashqarida bosilgan eski `ps_` tugmalari.
+    app.add_handler(CallbackQueryHandler(post_score_stale_callback, pattern=r"^ps_"))
     # 🎙 Voice Post stale tugmalari: sessiya tugagach eski uslub/amal tugmasi
     # bosilsa — foydalanuvchiga «sessiya eskirgan» toast ko'rsatiladi.
     app.add_handler(CallbackQueryHandler(voice_stale_callback, pattern=r"^vp_"))

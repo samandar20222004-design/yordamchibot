@@ -807,3 +807,88 @@ async def generate_image_post(analysis: dict, style: str = "sales",
 async def generate_post_from_image(*args, **kwargs) -> dict:
     """Public compatibility alias for ``generate_image_post``."""
     return await generate_image_post(*args, **kwargs)
+
+
+# ============================================================
+# 📊 POST SCORE & IMPROVER (KILLER FEATURE #4)
+# ============================================================
+# Baholash va yaxshilash yadrosi ``utils/post_scorer.py`` da yashaydi
+# (promptlar, xavfsiz JSON parser, lokal deterministik zaxira). Bu yerdagi
+# funksiyalar — yagona SERVICE kirish nuqtasi (handler'lar faqat shu qatlamga
+# tayanadi), xuddi ``analyze_image`` / ``generate_image_post`` kabi.
+#
+# Resurs siyosati:
+#   * ``score_post`` — tezkor va arzon: KREDIT YECHILMAYDI, kunlik AI kvota
+#     sarflanmaydi (faqat handlerdagi rate-limit);
+#   * ``improve_post_to_95`` — 1 kredit talab qiladi, ammo kreditni HANDLER
+#     atomik yechadi (``db.use_user_credit`` → CreditsService), bu qatlam
+#     faqat AI ishini bajaradi.
+
+#: Baholanadigan mezonlar (tartib UI bilan bir xil) — test/audit uchun ochiq.
+POST_SCORE_CRITERIA = (
+    "headline",
+    "readability",
+    "cta",
+    "engagement",
+    "sales_power",
+    "structure",
+)
+
+#: 100 ballik maqsadli natija («✨ 95/100 ga yaxshilash»).
+POST_SCORE_TARGET = 95
+
+
+def build_post_score_system_prompt() -> str:
+    """Baholash tizim prompti (JSON kontrakti bilan) — ``utils/post_scorer``."""
+    from utils.post_scorer import build_post_score_system_prompt as _build
+    return _build()
+
+
+def build_post_score_prompt(text: str, lang: str = "uz") -> str:
+    """Baholanayotgan post uchun user prompti."""
+    from utils.post_scorer import build_post_score_prompt as _build
+    return _build(text, lang)
+
+
+async def score_post(text: str, lang: str = "uz", timeout: float = None,
+                     use_ai: bool = True) -> dict:
+    """Postni 6 mezon bo'yicha baholaydi (BEPUL — kredit yechilmaydi).
+
+    AI ishlamay qolsa natija lokal deterministik tahlil bilan qaytariladi
+    (``fallback=True``), shuning uchun funksiya amalda hech qachon
+    muvaffaqiyatsiz bo'lmaydi.
+
+    Returns:
+        {"scores": {...}, "overall": 0..100, "recommendation": "...",
+         "weakest": "cta", "fallback": False, "provider": "Gemini",
+         "source": "ai"|"local", "lang": "uz"} yoki {"error": "empty"|...}.
+    """
+    from utils.post_scorer import score_post as _score
+    return await _score(text, lang=lang, timeout=timeout, use_ai=use_ai)
+
+
+def score_post_local(text: str, lang: str = "uz") -> dict:
+    """Sof lokal (deterministik) baholash — AI'siz, tarmoqsiz, kreditsiz."""
+    from utils.post_scorer import score_post_locally
+    return score_post_locally(text, lang)
+
+
+async def improve_post_to_95(text: str, lang: str = "uz", is_pro: bool = False,
+                             timeout: float = None, attempts: int = None) -> dict:
+    """Postni 95+ ballik eng sara variantga qayta ishlaydi.
+
+    Kreditni chaqiruvchi handler yechadi va xatolikda qaytaradi; bu funksiya
+    faqat AI generatsiyasi va eng yaxshi variantni tanlash bilan shug'ullanadi.
+
+    Returns:
+        {"post_text": "...", "score": {...}, "attempts": n,
+         "target_met": bool, "lang": "uz"} yoki {"error": "..."}.
+    """
+    from utils.post_scorer import improve_post_to_95 as _improve
+    return await _improve(text, lang=lang, is_pro=is_pro, timeout=timeout,
+                          attempts=attempts)
+
+
+# Eski/kelgusi nomlar uchun moslik aliaslari (import xatolarini oldini oladi).
+analyze_post_score = score_post
+score_and_improve_post = improve_post_to_95

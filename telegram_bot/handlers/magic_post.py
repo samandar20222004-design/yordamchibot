@@ -32,11 +32,11 @@ from telegram.ext import ContextTypes, ConversationHandler
 import database as db
 from config import ADMIN_IDS_SET
 from handlers.ai_assistant import AI_GET_TIME, _show_time_prompt
-from keyboards.callback_data import cb
+from keyboards.callback_data import CB_POST_SCORE_EVAL, cb
 from keyboards.default import get_cancel_keyboard, get_main_keyboard
 from keyboards.inline import btn_label
 from locales.translations import clear_fsm_data, get_lang, safe_t
-from translations import MAGIC_STYLE_KEYS, magic_t
+from translations import MAGIC_STYLE_KEYS, magic_t, post_score_t
 from utils.ai_agent import (
     generate_magic_post,
     normalize_magic_style,
@@ -66,6 +66,9 @@ MP_RESTYLE = "mp_restyle"
 MP_CHANNEL_PREFIX = "mp_ch:"
 MP_SEND_ALL = "mp_chall"
 
+#: 📊 Post Score oqimiga uzatish uchun manba nomi (``ps_eval:magic``).
+PS_EVAL_SOURCE = "magic"
+
 #: Natija ekrani post matni chegarasi (Telegram 4096 belgi xavfsiz chegarasi).
 _MAGIC_RESULT_POST_LIMIT = 3600
 
@@ -86,8 +89,14 @@ def _magic_style_keyboard(lang: str) -> InlineKeyboardMarkup:
 
 
 def _magic_action_keyboard(lang: str) -> InlineKeyboardMarkup:
-    """Natija ekrani amallari: kanalga yuborish / rejalashtirish / boshqa uslub."""
+    """Natija ekrani amallari: baholash / kanalga yuborish / rejalashtirish / uslub."""
     return InlineKeyboardMarkup([
+        # 📊 Post Score (Killer Feature #4): tayyor postni qayta yozmasdan
+        # baholash oqimiga uzatadi (``ps_eval:magic``) — kredit yechilmaydi.
+        [InlineKeyboardButton(
+            post_score_t("ps_btn_eval", lang),
+            callback_data=cb(CB_POST_SCORE_EVAL, PS_EVAL_SOURCE),
+        )],
         [
             InlineKeyboardButton(
                 magic_t("mp_btn_send_channel", lang), callback_data=MP_SEND

@@ -78,6 +78,18 @@ CB_REACT_SKIP = "nprt:skip"
 # Kanal postidagi reaksiya hisoblagichi — O'ZGARMAYDI (eski postlar bilan mos).
 CB_REACTION = "react:"
 
+# 📊 Post Score & Improver (Killer Feature #4).
+# ``ps_eval:<flow>`` — Magic Post / Voice / Image natijasidagi «📊 Baholash»
+# tugmasi (flow = magic | voice | image); ``ps_ch:<idx>`` — kanal tanlash.
+CB_POST_SCORE_EVAL = "ps_eval:"
+CB_POST_SCORE_CHANNEL = "ps_ch:"
+# Statik (payload'siz) post-score amallari.
+CB_POST_SCORE_IMPROVE = "ps_improve"
+CB_POST_SCORE_SEND = "ps_send"
+CB_POST_SCORE_SCHEDULE = "ps_sched"
+CB_POST_SCORE_NEW = "ps_new"
+CB_POST_SCORE_SEND_ALL = "ps_chall"
+
 #: Barcha kanonik prefikslar (test va audit uchun).
 CANONICAL_PREFIXES = (
     CB_CHANNEL_DELETE,
@@ -96,6 +108,9 @@ CANONICAL_PREFIXES = (
     CB_PHOTO_VARIANT,
     CB_REACT_TOGGLE,
     CB_REACTION,
+    # 📊 Post Score — dinamik payload qo'shiladigan prefikslar.
+    CB_POST_SCORE_EVAL,
+    CB_POST_SCORE_CHANNEL,
 )
 
 
