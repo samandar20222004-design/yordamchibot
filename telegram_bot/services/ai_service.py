@@ -56,6 +56,7 @@ xato; foydalanuvchi kunlik kvotasi yechilmaydi::
 """
 
 import asyncio
+import json
 import logging
 import os
 import time as _time
@@ -660,3 +661,149 @@ async def run_ai_chain(prompt: str, system_instruction: str, lang: str = None) -
     posti va tavsiyalari faqat shu tilda bo'ladi.
     """
     return await get_default_service().generate(prompt, system_instruction, lang=lang)
+
+# ============================================================
+# 📸 IMAGE → POST (KILLER FEATURE #3)
+# ============================================================
+# Vision (rasmni tushunish) va copywriting (tanlangan uslubda post yozish)
+# ataylab ikki alohida kirish nuqtasi. Vision bosqichida kredit sarflanmaydi;
+# handler kreditni uslub callback'ining boshida, FAQAT bir marta rezerv qiladi.
+
+_IMAGE_POST_STYLE_SPECS = {
+    "sales": (
+        "🔥 Sotuv uslubi: AIDA/PAS formulasi, foydani aniq ko'rsating, "
+        "ishonchli CTA va buyurtma qilish qadamini yozing."
+    ),
+    "premium": (
+        "💎 Premium uslub: nafis, minimal va yuqori sifatli brend tili; "
+        "material, detal va eksklyuzivlikni bo'rttirmasdan ta'kidlang."
+    ),
+    "simple": (
+        "😊 Oddiy uslub: samimiy, sodda va tez o'qiladigan tilda; "
+        "ortiqcha va'da yoki murakkab iboralar ishlatmang."
+    ),
+    "discount": (
+        "📢 Chegirma/Aksiya uslubi: chegirma, narx yoki muddat captionda bo'lsa "
+        "uni aniq ajrating; shoshilinch, lekin halol CTA yozing."
+    ),
+    "review": (
+        "📰 Sharh uslubi: xolis sharh/review ohangi; ko'rinadigan foyda va "
+        "kamchiliklarni uydirmasdan, yumshoq tavsiya bilan bering."
+    ),
+}
+
+
+def _image_analysis_text(analysis: dict) -> str:
+    """Vision schema'sini generation promptiga xavfsiz va ixcham aylantiradi."""
+    data = analysis if isinstance(analysis, dict) else {}
+    features = data.get("visual_features") or {}
+    details = data.get("caption_details") or {}
+    if not isinstance(features, dict):
+        features = {"description": str(features)}
+    if not isinstance(details, dict):
+        details = {"text": str(details)}
+    unknown = "noma'lum"
+    return (
+        f"Mahsulot nomi: {data.get('product_name') or unknown}\n"
+        f"Toifa: {data.get('category') or unknown}\n"
+        f"Rang: {features.get('color') or unknown}\n"
+        f"Material: {features.get('material') or unknown}\n"
+        f"Dizayn: {features.get('design') or unknown}\n"
+        f"Uslub: {features.get('style') or unknown}\n"
+        f"Caption ma'lumotlari: {json.dumps(details, ensure_ascii=False, default=str)}\n"
+        f"Qisqa xulosa: {data.get('summary') or ''}"
+    )
+
+
+def build_image_post_prompt(analysis: dict, style: str,
+                            caption: str = "", lang: str = "uz") -> str:
+    """Tanlangan uslub uchun post generator user prompti."""
+    spec = _IMAGE_POST_STYLE_SPECS.get(style) or _IMAGE_POST_STYLE_SPECS["sales"]
+    # Caption Vision bosqichida allaqachon hisobga olingan bo'ladi, ammo uni
+    # generation bosqichiga ham berish narx/o'lcham/yetkazib berishni yo'qotmaslik
+    # uchun foydali. U instruktsiya emas, faqat ma'lumot sifatida ajratilgan.
+    caption_block = str(caption or "").strip()[:1000]
+    return (
+        "Quyidagi Vision tahliliga asoslanib, Telegram uchun tayyor reklama postini yozing.\n"
+        f"{spec}\n"
+        "Faqat tahlilda yoki captionda bor faktlardan foydalaning, fakt uydirmang.\n"
+        "Post HTML xavfsiz bo'lsin: faqat <b> va <i> teglaridan foydalaning. "
+        "Birinchi qatorda qisqa sarlavha, keyin foydalar va aniq CTA, oxirida 3-5 hashtag bo'lsin.\n"
+        "--- VISION TAHLILI START ---\n"
+        f"{_image_analysis_text(analysis)}\n"
+        "--- VISION TAHLILI END ---\n"
+        "--- ORIGINAL CAPTION START ---\n"
+        f"{caption_block}\n"
+        "--- ORIGINAL CAPTION END ---\n"
+        "Javobni FAQAT {\"post_text\": \"...\"} JSON formatida qaytaring."
+    )
+
+
+def build_image_post_system_prompt(style: str, lang: str = "uz") -> str:
+    """Image-to-post copywriter system prompti."""
+    spec = _IMAGE_POST_STYLE_SPECS.get(style) or _IMAGE_POST_STYLE_SPECS["sales"]
+    code = str(lang or "uz").lower()
+    language_name = "RUS" if code.startswith("ru") else ("INGLIZ" if code.startswith("en") else "O'ZBEK")
+    return (
+        "Siz PostAssist professional Telegram reklama copywriterisiz.\n"
+        f"{spec}\n"
+        f"Javobni FAQAT {language_name} tilida yozing.\n"
+        "Rasm tahlilida ko'rinmagan narx, o'lcham, material yoki va'dani qo'shmang. "
+        "Captiondagi narx, o'lcham va yetkazib berish ma'lumotlarini saqlang.\n"
+        "JSON: {\"post_text\": \"tayyor post\"}."
+    )
+
+
+async def analyze_image(*args, **kwargs) -> dict:
+    """Vision analyzer facade — public service API.
+
+    Lazy import circular dependencydan saqlaydi va test/mock uchun bitta aniq
+    patch nuqtasini beradi: ``services.ai_service.analyze_image``.
+    """
+    from utils.vision_analyzer import analyze_image as _analyze_image
+    return await _analyze_image(*args, **kwargs)
+
+
+async def analyze_image_bytes(*args, **kwargs) -> dict:
+    """``analyze_image`` aliasi (aniq bytes nomi bilan integratsiya uchun)."""
+    return await analyze_image(*args, **kwargs)
+
+
+async def generate_image_post(analysis: dict, style: str = "sales",
+                              caption: str = "", lang: str = "uz",
+                              is_pro: bool = False) -> dict:
+    """Vision tahlili asosida tanlangan uslubdagi tayyor postni yaratadi.
+
+    Muhim: bu funksiya uslub tanlanishidan oldin chaqirilmaydi. Kredit rezervi
+    handlerda bo'ladi; servis esa AI provider fallback'ini ishlatadi.
+    """
+    style = str(style or "sales").strip().lower()
+    if style not in _IMAGE_POST_STYLE_SPECS:
+        style = "sales"
+    system = build_image_post_system_prompt(style, lang)
+    prompt = build_image_post_prompt(analysis, style, caption, lang)
+    try:
+        result = await run_ai_chain(prompt, system, lang=lang)
+    except TypeError:
+        # Eski ikki argumentli test adapterlari/runtime shimlari bilan moslik.
+        result = await run_ai_chain(prompt, system)
+    if not isinstance(result, dict):
+        return {"error": "AI javobi noto'g'ri formatda.", "style": style}
+    if result.get("error"):
+        return dict(result, style=style)
+    post_text = str(
+        result.get("post_text") or result.get("content") or result.get("reply") or ""
+    ).strip()
+    if not post_text:
+        return {"error": "AI bo'sh post qaytardi.", "style": style}
+    return {
+        "post_text": post_text,
+        "style": style,
+        "provider": result.get("provider"),
+        "provider_chain": result.get("provider_chain"),
+    }
+
+
+async def generate_post_from_image(*args, **kwargs) -> dict:
+    """Public compatibility alias for ``generate_image_post``."""
+    return await generate_image_post(*args, **kwargs)

@@ -208,6 +208,7 @@ async def set_bot_commands(application):
     commands = [
         BotCommand("start", "Bosh menyu"),
         BotCommand("newpost", "Yangi post rejalashtirish"),
+        BotCommand("imagepost", "Rasm orqali post yaratish"),
         BotCommand("profile", "Kabinet va sozlamalar"),
         BotCommand("help", "Yordam va qo'llanma"),
         BotCommand("cancel", "Amalni bekor qilish"),

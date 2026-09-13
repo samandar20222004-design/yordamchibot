@@ -41,6 +41,8 @@ from keyboards.default import (
     BTN_TRANSFER_EN, BTN_ADMIN_PANEL_RU,
     BTN_QUICK_AI_POST_EN, BTN_QUICK_PHOTO_POST_EN,
     BTN_QUICK_ADD_CHANNEL_EN, BTN_OPEN_FULL_MENU_EN,
+    # 📸 IMAGE → POST — yangi explicit entry label (legacy quick photo saqlanadi)
+    BTN_IMAGE_POST, BTN_IMAGE_POST_RU, BTN_IMAGE_POST_EN,
     # ✨ MAGIC POST — killer feature tugmasi (uz/ru/en)
     BTN_MAGIC_POST, BTN_MAGIC_POST_RU, BTN_MAGIC_POST_EN,
 )
@@ -158,6 +160,20 @@ from handlers.voice_post import (
     set_application as set_voice_application,
     VoiceEntryHandler,
     VOICE_MESSAGE_FILTER, VOICE_STYLE_SELECT, VOICE_RESULT, VOICE_SEND_CHOOSE,
+)
+
+# 2e. 📸 IMAGE → POST (Killer Feature #3)
+# Legacy AI Studio Vision oqimi buzilmasligi uchun yangi oqim alohida FSM
+# holatlari/callback prefikslari bilan ro'yxatdan o'tadi.
+from handlers.image_post import (
+    ImageEntryHandler,
+    image_post_entry, image_photo_received, image_style_callback,
+    image_cancel_callback, image_send_callback, image_channel_callback,
+    image_schedule_callback, image_schedule_time_received,
+    image_restyle_callback, image_stale_callback,
+    set_application as set_image_application,
+    IMAGE_POST_INPUT, IMAGE_STYLE_SELECT, IMAGE_POST_RESULT,
+    IMAGE_SEND_CHOOSE, IMAGE_SCHEDULE_INPUT,
 )
 
 # 8. CONTENT PLAN MODULI
@@ -582,9 +598,10 @@ def _admin_flow_state(text_handler, menu_jumps):
 
 
 def register_all_handlers(app):
-    # 🎙 VoiceEntryHandler dialog holatini tekshirishi uchun Application
-    # havolasi (register_all_handlers boshida o'rnatiladi).
+    # 🎙 VoiceEntryHandler va 📸 ImageEntryHandler dialog holatini
+    # tekshirishi uchun Application havolasi.
     set_voice_application(app)
+    set_image_application(app)
     # ============================================================
     # QAT'IY NAVIGATSIYA HANDLERLARI RO'YXATI
     # ============================================================
@@ -713,6 +730,16 @@ def register_all_handlers(app):
         ),
     ]
 
+    # 7b. 📸 IMAGE → POST — explicit label. Oddiy, legacy photo messages
+    # photo_check moderation oqimini buzmasligi uchun global catch-all emas:
+    # foydalanuvchi shu bo'limni ochgach rasm yuboradi.
+    image_post_handlers = [
+        MessageHandler(
+            exact(BTN_IMAGE_POST, BTN_IMAGE_POST_RU, BTN_IMAGE_POST_EN),
+            lambda u, c: guard_entry(u, c, image_post_entry),
+        ),
+    ]
+
     # 8. Content Plan
     content_plan_handlers = [
         MessageHandler(exact(BTN_CONTENT_PLAN), lambda u, c: guard_entry(u, c, start_content_plan)),
@@ -753,6 +780,7 @@ def register_all_handlers(app):
         admin_handlers +
         ai_handlers +
         magic_handlers +
+        image_post_handlers +
         content_plan_handlers +
         analytics_handlers +
         subscription_handlers +
@@ -771,6 +799,10 @@ def register_all_handlers(app):
             # VoiceEntryHandler dialog ICHIDA mos KELMAYDI — ovoz eski xulq
             # bo'yicha unknown_message_fallback'ga tushadi (holat buzilmaydi).
             VoiceEntryHandler(VOICE_MESSAGE_FILTER, voice_message_received),
+            # 📸 Oddiy private photo ham Image → Post oqimini boshlaydi.
+            # Conversation ichidagi new-post/photo-check holatlari o'zining
+            # state handlerlari bilan ustun turadi — legacy oqimlar buzilmaydi.
+            ImageEntryHandler(filters.PHOTO & filters.ChatType.PRIVATE, image_photo_received),
             CallbackQueryHandler(edit_post_time_start, pattern=r"^p_time:"),
             CallbackQueryHandler(edit_post_content_start, pattern=r"^p_edit:"),
             CallbackQueryHandler(edit_post_btn_start, pattern=r"^p_btn:"),
@@ -797,6 +829,7 @@ def register_all_handlers(app):
                 pattern=r"^ai_back_to_menu$",
             ),
             CommandHandler("newpost", lambda u, c: guard_entry(u, c, start_new_post)),
+            CommandHandler("imagepost", lambda u, c: guard_entry(u, c, image_post_entry)),
             CommandHandler("broadcast", lambda u, c: guard_entry(u, c, broadcast_start)),
             CommandHandler("queue", lambda u, c: guard_menu(u, c, queue_menu)),
         ],
@@ -1091,6 +1124,28 @@ def register_all_handlers(app):
                 MessageHandler(VOICE_MESSAGE_FILTER, voice_message_received),
             ],
 
+            # 7f. 📸 IMAGE → POST holatlari
+            IMAGE_POST_INPUT: all_menu_jumps + [
+                MessageHandler(filters.PHOTO | filters.Document.ALL, image_photo_received),
+            ],
+            IMAGE_STYLE_SELECT: all_menu_jumps + [
+                CallbackQueryHandler(image_style_callback, pattern=r"^(image_style:|img_style:|image_cancel$|img_cancel$)"),
+                CallbackQueryHandler(image_cancel_callback, pattern=r"^image_cancel$"),
+            ],
+            IMAGE_POST_RESULT: all_menu_jumps + [
+                CallbackQueryHandler(image_send_callback, pattern=r"^image_send$"),
+                CallbackQueryHandler(image_schedule_callback, pattern=r"^image_schedule$"),
+                CallbackQueryHandler(image_restyle_callback, pattern=r"^image_restyle$"),
+                CallbackQueryHandler(image_cancel_callback, pattern=r"^image_cancel$"),
+            ],
+            IMAGE_SEND_CHOOSE: all_menu_jumps + [
+                CallbackQueryHandler(image_channel_callback, pattern=r"^image_ch:"),
+                CallbackQueryHandler(image_cancel_callback, pattern=r"^image_cancel$"),
+            ],
+            IMAGE_SCHEDULE_INPUT: all_menu_jumps + [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, image_schedule_time_received),
+            ],
+
             # 8. Queue holatlari
             QUEUE_MENU: all_menu_jumps + [
                 CallbackQueryHandler(queue_page_callback, pattern=r"^qpage:"),
@@ -1195,6 +1250,8 @@ def register_all_handlers(app):
     # 🎙 Voice Post stale tugmalari: sessiya tugagach eski uslub/amal tugmasi
     # bosilsa — foydalanuvchiga «sessiya eskirgan» toast ko'rsatiladi.
     app.add_handler(CallbackQueryHandler(voice_stale_callback, pattern=r"^vp_"))
+    # 📸 Image → Post stale tugmalari.
+    app.add_handler(CallbackQueryHandler(image_stale_callback, pattern=r"^image_|^img_"))
     # 🖼 Vision natijasi stale tugmalari: sessiya tugagach ham yo'riqnoma ko'rsatadi
     app.add_handler(CallbackQueryHandler(ai_photo_stale_callback, pattern=r"^photo_"))
     # 📷 Qo'lda rasm tekshirish (admin PRO tasdiqlashi): uning callback'i

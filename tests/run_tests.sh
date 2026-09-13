@@ -39,6 +39,12 @@ echo "======= 3) ✨ MAGIC POST OQIMI (KILLER FEATURE #1) ======="
 "$PY" tests/magic_post_flow_test.py || EXIT_CODE=1
 
 echo
+echo "======= 3a) 📸 IMAGE → POST (GEMINI VISION + PHOTO SCHEDULER) ======="
+# Mock Gemini Vision, 10MB/format guard, style tanlanguncha 0 credit,
+# tanlanganda 1 credit va photo+caption delivery/scheduler contract.
+"$PY" tests/image_to_post_flow_test.py || EXIT_CODE=1
+
+echo
 echo "======= 3b) 🎙 VOICE → POST (STT $0 + RESURS HIMOYASI) ======="
 # Ovozli xabar → cheklovlar (FREE ≤60s, PRO ≤180s, ≤20MB) → Groq Whisper
 # Large v3 (bepul STT, zaxira Gemini) → 5 uslub + [Bekor qilish] → uslub

@@ -262,7 +262,7 @@ async def send_main_menu(context, chat_id: int, lang: str, is_admin: bool,
     if simple_menu and not is_admin:
         markup = get_simple_keyboard(lang)
     else:
-        markup = get_main_keyboard(is_admin, lang=lang)
+        markup = get_main_keyboard(is_admin, lang=lang, context=context)
     return await context.bot.send_message(
         chat_id=chat_id,
         text=body,
