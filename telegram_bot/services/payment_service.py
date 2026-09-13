@@ -33,6 +33,7 @@ from database import (
 )
 # 6-bosqich: admin harakatlari auditi (chek tasdiqlash/rad etish).
 from services.audit_service import AuditService
+from config import STARS_PLANS as CONFIG_STARS_PLANS
 
 logger = logging.getLogger(__name__)
 
@@ -108,11 +109,10 @@ class PaymentService:
     # ──────────────────────────────────────────────────────────────
     _STARS_PAYLOAD_RE = re.compile(r"^sub_(stars_1m|stars_3m|stars_1y)_([0-9]+)$")
 
-    # Standart tariflar
+    # Standart tariflar — yagona manba: config.STARS_PLANS
     STARS_PLANS = {
-        "stars_1m": {"stars": 75, "days": 30},
-        "stars_3m": {"stars": 175, "days": 90},
-        "stars_1y": {"stars": 550, "days": 365},
+        key: {"stars": int(info["stars"]), "days": int(info["days"])}
+        for key, info in CONFIG_STARS_PLANS.items()
     }
 
     @staticmethod
@@ -198,6 +198,19 @@ class PaymentService:
 
         if not charge_id or duration_days <= 0:
             return {"ok": False, "duplicate": False, "reason": "invalid_payment"}
+
+        if str(payload or "").startswith("sub_"):
+            plan_info, payload_err = PaymentService.validate_payload(
+                payload, user_id=user_id, amount=amount,
+                currency=currency or "XTR",
+            )
+            if plan_info is None:
+                return {
+                    "ok": False, "duplicate": False,
+                    "reason": payload_err or "invalid_payload",
+                }
+            duration_days = int(plan_info["days"])
+            amount = int(plan_info["stars"])
 
         status = PAYMENT_STATUS_SUCCEEDED
         method = normalize_payment_method(payment_method)
@@ -371,12 +384,23 @@ class PaymentService:
                     return {"ok": False, "reason": "not_found"}
                 status, user_id, default_days = row[0], row[1], row[2]
                 amount_uzs = row[3] if len(row) > 3 else 0
-                if status == RECEIPT_STATUS_APPROVED:
-                    return {"ok": False, "reason": "already_approved"}
+                if status != RECEIPT_STATUS_PENDING:
+                    if status == RECEIPT_STATUS_APPROVED:
+                        return {"ok": False, "reason": "already_approved"}
+                    return {"ok": False, "reason": "already_reviewed"}
 
                 grant_days = int(default_days or 30)
                 if grant_days <= 0:
                     grant_days = 30
+
+                cur.execute(
+                    "UPDATE payment_receipts SET status = 'approved', "
+                    "decided_by = %s, reviewed_at = NOW(), days_granted = %s "
+                    "WHERE id = %s AND status = 'pending'",
+                    (int(admin_id), grant_days, int(receipt_id)),
+                )
+                if cur.rowcount == 0:
+                    return {"ok": False, "reason": "already_reviewed"}
 
                 # PRO berish: max(current_expiry, NOW()) + days
                 cur.execute(
@@ -386,12 +410,6 @@ class PaymentService:
                     "   + (%s || ' days')::INTERVAL "
                     "WHERE user_id = %s",
                     (str(grant_days), int(user_id)),
-                )
-                cur.execute(
-                    "UPDATE payment_receipts SET status = 'approved', "
-                    "decided_by = %s, reviewed_at = NOW(), days_granted = %s "
-                    "WHERE id = %s",
-                    (int(admin_id), grant_days, int(receipt_id)),
                 )
                 # 6-bosqich: audit yozuvi SHU tranzaksiyada (atomik).
                 AuditService.log_receipt_decision(

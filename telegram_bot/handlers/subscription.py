@@ -7,6 +7,7 @@ from config import (
     ADMIN_IDS_SET,
     CARD_NUMBER, CARD_HOLDER, PAYMENT_ADMIN_USERNAME,
     PAYMENT_PRICE_1M_UZS, PAYMENT_PRICE_3M_UZS, PAYMENT_PRICE_1Y_UZS,
+    STARS_PLANS, SUBSCRIPTION_PLANS,
 )
 import database as db
 from keyboards.default import get_main_keyboard
@@ -113,8 +114,10 @@ USERDATA_PAY_REGION = "pay_region"       # 'uz' | 'intl'
 USERDATA_PENDING_PLAN = "pending_plan"   # '1m' | '3m' | '1y' | None
 
 # Xalqaro ekvivalent narxlar (Stars + AQSH dollariga taxminan moslama).
-INTL_STARS_AMOUNTS = {"1m": 75, "3m": 175, "1y": 550}
-INTL_USD_EQUIV = {"1m": "1.5", "3m": "3.5", "1y": "11.0"}
+INTL_STARS_AMOUNTS = {
+    k: int(SUBSCRIPTION_PLANS[k]["stars"]) for k in ("1m", "3m", "1y")
+}
+INTL_USD_EQUIV = {k: str(SUBSCRIPTION_PLANS[k]["usd"]) for k in ("1m", "3m", "1y")}
 
 
 def _remember_payment_choice(context, region=None, plan_key=None) -> None:
@@ -251,11 +254,15 @@ async def _show_local_card_payment(query, context, user_id: int, lang: str, plan
     (yoki '💳 Karta orqali to'lov' tugmasi orqali — u o'zi mahalliy tanlov).
     """
     plan_key = plan_key if plan_key in CARD_TARIFFS else "1m"
-    # Tanlangan tarifni kontekstda saqlaymiz — chek kelganda admin xabarida
-    # aynan shu tarif (nomi + summasi) ko'rsatiladi va PRO shu muddatga beriladi.
+    plan = CARD_TARIFFS[plan_key]
+    order_id = await db.run_db(
+        db.create_payment_order, user_id, plan_key, plan["days"], plan["amount"], "UZS",
+    )
     ud = getattr(context, "user_data", None)
     if ud is not None:
         ud["card_plan"] = plan_key
+        if order_id:
+            ud["card_order_id"] = order_id
     text = _build_card_payment_text(user_id, lang, plan_key)
     markup = _get_card_payment_keyboard(lang, plan_key)
     await _edit_or_reply(query, text, markup)
@@ -398,21 +405,31 @@ def _build_subscription_card(plan_info: dict, lang: str = "uz") -> str:
                 "• To'liq analitika",
                 "• Ustuvor yordam",
             ])
+        s1, s3, sY = (
+            STARS_PLANS["stars_1m"]["stars"],
+            STARS_PLANS["stars_3m"]["stars"],
+            STARS_PLANS["stars_1y"]["stars"],
+        )
+        u1, u3, uY = (
+            STARS_PLANS["stars_1m"]["usd"],
+            STARS_PLANS["stars_3m"]["usd"],
+            STARS_PLANS["stars_1y"]["usd"],
+        )
         price_lines = {
             "ru": [
-                "• 1 месяц — ⭐️ 75 Stars (~$1.5)",
-                "• 3 месяца — ⭐️ 175 Stars (~$3.5)",
-                "• 1 год — ⭐️ 550 Stars (~$11.0 / -40%)",
+                f"• 1 месяц — ⭐️ {s1} Stars (~${u1})",
+                f"• 3 месяца — ⭐️ {s3} Stars (~${u3})",
+                f"• 1 год — ⭐️ {sY} Stars (~${uY} / -40%)",
             ],
             "en": [
-                "• 1 month — ⭐️ 75 Stars (~$1.5)",
-                "• 3 months — ⭐️ 175 Stars (~$3.5)",
-                "• 1 year — ⭐️ 550 Stars (~$11.0 / -40%)",
+                f"• 1 month — ⭐️ {s1} Stars (~${u1})",
+                f"• 3 months — ⭐️ {s3} Stars (~${u3})",
+                f"• 1 year — ⭐️ {sY} Stars (~${uY} / -40%)",
             ],
         }.get(lang, [
-            "• 1 oy — ⭐️ 75 Stars (~$1.5)",
-            "• 3 oy — ⭐️ 175 Stars (~$3.5)",
-            "• 1 yil — ⭐️ 550 Stars (~$11.0 / -40%)",
+            f"• 1 oy — ⭐️ {s1} Stars (~${u1})",
+            f"• 3 oy — ⭐️ {s3} Stars (~${u3})",
+            f"• 1 yil — ⭐️ {sY} Stars (~${uY} / -40%)",
         ])
         lines.extend([
             "",

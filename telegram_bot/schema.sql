@@ -252,6 +252,23 @@ CREATE TABLE IF NOT EXISTS payment_receipts (
 CREATE INDEX IF NOT EXISTS idx_payment_receipts_status
     ON payment_receipts (status, created_at);
 
+-- 💳 Karta to'lov buyurtmalari — chek user_data emas order_id ga bog'lanadi.
+CREATE TABLE IF NOT EXISTS payment_orders (
+    order_id TEXT PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    plan VARCHAR(20) NOT NULL,
+    days INTEGER NOT NULL,
+    amount INT NOT NULL,
+    currency VARCHAR(10) NOT NULL DEFAULT 'UZS',
+    status VARCHAR(20) NOT NULL DEFAULT 'pending',
+    receipt_id INTEGER,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    expires_at TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS idx_payment_orders_user
+    ON payment_orders (user_id, status);
+ALTER TABLE payment_receipts ADD COLUMN IF NOT EXISTS order_id TEXT;
+
 -- 🔐 PostAssist V2 (6-bosqich): RBAC rollari.
 -- ``users.role`` ustuni asosiy manba emas — aniq berilgan rollar shu jadvalda
 -- saqlanadi (asosiy admin ``ADMIN_ID`` esa servis qatlamida avtomatik OWNER).
