@@ -120,24 +120,17 @@ def _db_password_from_url(url: str) -> str:
         return ""
 
 
-def _init_sentry() -> bool:
-    """Sentry'ni maxfiylik filtri bilan ishga tushiradi.
+def _register_known_secrets() -> None:
+    """Ma'lum sezgir qiymatlarni scrubber ro'yxatiga oladi.
 
-    Qaytadi: ``True`` — Sentry faollashtirildi; aks holda ``False``.
-    Hech qachon istisno ko'tarmaydi: Sentry'siz bot ishlashi davom etadi.
+    11-bosqich: Sentry yoqilgan-yoqilmaganidan QAT'I NAZAR chaqiriladi —
+    stdlib ``logging`` filtri (``utils.sentry_scrubber.install_logging_scrubber``)
+    ham shu ro'yxatdan foydalanadi, shuning uchun bot token, DB paroli, karta
+    raqami va API kalitlar oddiy loglarga ham tushmaydi.
     """
-    if not SENTRY_DSN:
-        return False
     try:
-        import sentry_sdk
-    except ImportError:
-        logger.warning("sentry_sdk o'rnatilmagan. pip install sentry-sdk")
-        return False
-    try:
-        from utils.sentry_scrubber import register_secret, scrub_event
+        from utils.sentry_scrubber import register_secret
 
-        # 1) Ma'lum sezgir qiymatlar ro'yxati — event matnida aniq ko'rinsa
-        #    o'chiriladi (regex'dan oldin ishlaydigan birinchi himoya qatlami).
         _sensitive = (
             (BOT_TOKEN, "BOT_TOKEN"),
             (CARD_NUMBER, "CARD_NUMBER"),
@@ -153,7 +146,39 @@ def _init_sentry() -> bool:
         )
         for value, label in _sensitive:
             register_secret(value, label)
+    except Exception as e:  # pragma: no cover
+        logger.warning("Maxfiy qiymatlarni ro'yxatga olishda xato: %s", e)
 
+
+def _init_log_scrubber() -> bool:
+    """stdlib logging uchun maxfiylik filtrini o'rnatadi (Sentry'siz ham)."""
+    try:
+        from utils.sentry_scrubber import install_logging_scrubber
+        install_logging_scrubber()
+        return True
+    except Exception as e:  # pragma: no cover
+        logger.warning("Log scrubber o'rnatilmadi: %s", e)
+        return False
+
+
+def _init_sentry() -> bool:
+    """Sentry'ni maxfiylik filtri bilan ishga tushiradi.
+
+    Qaytadi: ``True`` — Sentry faollashtirildi; aks holda ``False``.
+    Hech qachon istisno ko'tarmaydi: Sentry'siz bot ishlashi davom etadi.
+    """
+    if not SENTRY_DSN:
+        return False
+    try:
+        import sentry_sdk
+    except ImportError:
+        logger.warning("sentry_sdk o'rnatilmagan. pip install sentry-sdk")
+        return False
+    try:
+        from utils.sentry_scrubber import scrub_event
+
+        # 1) Ma'lum sezgir qiymatlar ro'yxati allaqachon
+        #    _register_known_secrets() orqali to'ldirilgan.
         # 2) Sentry ishga tushirish: before_send — maxfiylik filtri,
         #    send_default_pii=False — foydalanuvchi PII yig'ilmaydi.
         sentry_sdk.init(
@@ -170,6 +195,8 @@ def _init_sentry() -> bool:
         return False
 
 
+_register_known_secrets()
+_init_log_scrubber()
 _init_sentry()
 
 if not BOT_TOKEN:

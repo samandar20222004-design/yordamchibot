@@ -73,7 +73,9 @@ _CARD_PLAIN_RE = re.compile(r"\b\d{13,19}\b")
 # qo'shimcha himoya): sk-..., AIza..., ghp_..., xoxb-..., key bilan boshlanadi.
 _API_KEY_RE = re.compile(
     r"\b(?:sk-[A-Za-z0-9_-]{16,}|AIza[0-9A-Za-z_-]{30,}|"
-    r"ghp_[A-Za-z0-9]{20,}|xox[baprs]-[A-Za-z0-9-]{10,})\b"
+    r"ghp_[A-Za-z0-9]{20,}|xox[baprs]-[A-Za-z0-9-]{10,}|"
+    r"gsk_[A-Za-z0-9_-]{20,}|csk-[A-Za-z0-9_-]{20,}|"
+    r"sk-or-v1-[A-Za-z0-9]{20,})\b"
 )
 
 # ──────────────────────────────────────────────────────────────
@@ -277,3 +279,80 @@ def scrub_event(event, hint=None):
     except Exception:
         # Xavfsiz tomon: filtr ishlamasa event umuman yuborilmaydi.
         return None
+
+
+# ──────────────────────────────────────────────────────────────
+# STDLIB LOGGING FILTRI (11-bosqich, P0 — qat'iy log scrubbing)
+# ──────────────────────────────────────────────────────────────
+#
+# Sentry'dan tashqari ODDIY loglar (stdout/fayl) ham tozalanadi: bot token,
+# DB paroli (URL ichida), to'liq karta raqamlari va API kalitlar
+# ``[REDACTED...]`` bilan almashtiriladi. Filtr root logger'ning barcha
+# handler'lariga va root'ning o'ziga o'rnatiladi — keyin qo'shilgan
+# handler'lar uchun ``install_logging_scrubber()`` qayta chaqirilishi mumkin
+# (idempotent).
+
+import logging as _logging
+
+
+class SecretScrubbingFilter(_logging.Filter):
+    """LogRecord xabari, argumentlari va istisno matnini tozalaydi."""
+
+    def filter(self, record: _logging.LogRecord) -> bool:  # noqa: A003
+        try:
+            if isinstance(record.msg, str):
+                record.msg = scrub_text(record.msg)
+            elif record.msg is not None and not isinstance(record.msg, (int, float)):
+                record.msg = scrub_text(str(record.msg))
+            if record.args:
+                if isinstance(record.args, dict):
+                    record.args = {k: scrub_value(v) for k, v in record.args.items()}
+                elif isinstance(record.args, tuple):
+                    record.args = tuple(_scrub_arg(a) for a in record.args)
+            if record.exc_info and record.exc_info[1] is not None:
+                exc = record.exc_info[1]
+                try:
+                    new_args = tuple(_scrub_arg(a) for a in exc.args)
+                    if new_args != exc.args:
+                        exc.args = new_args
+                except Exception:
+                    pass
+            if getattr(record, "exc_text", None):
+                record.exc_text = scrub_text(record.exc_text)
+        except Exception:
+            # Filtr HECH QACHON logni yiqitmasin.
+            pass
+        return True
+
+
+def _scrub_arg(value):
+    if isinstance(value, str):
+        return scrub_text(value)
+    if isinstance(value, (dict, list, tuple)):
+        return scrub_value(value)
+    if isinstance(value, BaseException):
+        try:
+            value.args = tuple(_scrub_arg(a) for a in value.args)
+        except Exception:
+            pass
+        return value
+    return value
+
+
+_LOG_FILTER = SecretScrubbingFilter("secret_scrubber")
+
+
+def install_logging_scrubber(logger_obj: _logging.Logger = None) -> _logging.Filter:
+    """Filtrni root (yoki berilgan) logger va uning handler'lariga o'rnatadi."""
+    target = logger_obj or _logging.getLogger()
+    if _LOG_FILTER not in target.filters:
+        target.addFilter(_LOG_FILTER)
+    for handler in list(target.handlers):
+        if _LOG_FILTER not in handler.filters:
+            handler.addFilter(_LOG_FILTER)
+    return _LOG_FILTER
+
+
+def scrub_log_line(text: str) -> str:
+    """Tayyor log satrini tozalash (tashqi log yozuvchilar uchun)."""
+    return scrub_text(text)

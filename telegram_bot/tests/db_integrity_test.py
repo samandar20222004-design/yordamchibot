@@ -81,9 +81,9 @@ def test_schema_declares_integrity():
             "FOREIGN KEY (post_id) REFERENCES scheduled_posts(id) ON DELETE CASCADE",
         "uq_promo_user": "UNIQUE (promo_id, user_id)",
         "chk_post_deliveries_status":
-            "CHECK (status IN ('pending', 'processing', 'sent', 'failed', 'dead_letter'))",
+            "CHECK (status IN ('pending', 'processing', 'sent', 'failed', 'dead_letter', 'unknown'))",
         "chk_scheduled_posts_status":
-            "CHECK (status IN ('pending', 'processing', 'posted', 'failed', 'cancelled', 'completed'))",
+            "CHECK (status IN ('pending', 'processing', 'posted', 'failed', 'cancelled', 'completed', 'unknown'))",
         "chk_payments_status":
             "CHECK (status IN ('pending', 'succeeded', 'failed', 'refunded'))",
         # 8-bosqich: ball auditi har doim mavjud foydalanuvchiga bog'liq.

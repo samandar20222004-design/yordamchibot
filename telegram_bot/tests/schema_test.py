@@ -143,7 +143,7 @@ def test_schema_file_integrity():
     # schema.sql'da bu ro'yxatlar DO bloki ichidagi satr literali bo'lgani
     # uchun tirnoqlar ikkilangan (''pending'').
     check("delivery statuslari CHECK'ida",
-          "''pending'', ''processing'', ''sent'', ''failed'', ''dead_letter''" in SCHEMA)
+          "''pending'', ''processing'', ''sent'', ''failed'', ''dead_letter'', ''unknown''" in SCHEMA)
     check("post statuslari CHECK'ida (processing/completed bilan)",
           "''pending'', ''processing'', ''posted'', ''failed'', ''cancelled'', ''completed''" in SCHEMA)
     check("constraintlar NOT VALID fallback bilan xavfsiz",

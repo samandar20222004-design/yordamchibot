@@ -37,7 +37,10 @@ from keyboards.callback_data import (  # noqa: E402 — modul boshidagi importla
     cb,
 )
 # 6-bosqich: chek tasdiqlash/rad etish — 'manage_payments' ruxsati.
-from services.rbac_service import PERM_MANAGE_PAYMENTS, has_permission
+from services.rbac_service import (
+    PERM_MANAGE_PAYMENTS, has_permission,
+    CallbackTampering, admin_callback_guard,
+)
 
 # Qabul qilinadigan hujjat kengaytmalari/MIME'lar (chek: PDF yoki rasm).
 _ACCEPT_DOC_EXT = (".pdf", ".jpg", ".jpeg", ".png", ".webp", ".heic", ".bmp")
@@ -270,7 +273,12 @@ async def receipt_admin_callback(update: Update, context: ContextTypes.DEFAULT_T
         pass
 
     admin_id = query.from_user.id
+    # 11-bosqich (P0) — callback tampering himoyasi: kim bosgani FAQAT
+    # server-side ``from_user.id`` orqali aniqlanadi; admin bo'lmagan
+    # foydalanuvchi soxta ``rc_ok:<id>`` yuborsa amal MUTLAQO bajarilmaydi.
     if admin_id not in ADMIN_IDS_SET:
+        logger.warning("Receipt callback: admin bo'lmagan user=%s rad etildi (data=%r)",
+                       admin_id, str(query.data)[:64])
         return None
     # 6-bosqich: RBAC — to'lovni faqat 'manage_payments' ruxsati bor admin
     # tasdiqlashi/rad etishi mumkin (legacy adminlar avtomatik OWNER/SUPER_ADMIN).
@@ -283,9 +291,11 @@ async def receipt_admin_callback(update: Update, context: ContextTypes.DEFAULT_T
         return None
 
     data = query.data or ""
+    prefix = CB_RECEIPT_APPROVE if data.startswith(CB_RECEIPT_APPROVE) else CB_RECEIPT_REJECT
     try:
-        receipt_id = int(data.split(":", 1)[1])
-    except (IndexError, ValueError):
+        (receipt_id,) = admin_callback_guard(update, prefix, 1, PERM_MANAGE_PAYMENTS)
+    except CallbackTampering:
+        # Payload buzilgan/soxta (manfiy, kasr, qo'shimcha bo'lak...) — rad.
         return None
 
     lang = get_lang(context) or await db.run_db(db.get_user_language, admin_id)

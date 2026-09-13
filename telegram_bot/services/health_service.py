@@ -85,6 +85,8 @@ def _env_int(name: str, default: int) -> int:
 DEAD_LETTER_ALERT_THRESHOLD = _env_int("HEALTH_DEAD_LETTER_ALERT", 1)
 FAILED_ALERT_THRESHOLD = _env_int("HEALTH_FAILED_ALERT", 10)
 PENDING_BACKLOG_ALERT = _env_int("HEALTH_PENDING_BACKLOG_ALERT", 1000)
+#: Shuncha va undan ko'p ko'rib chiqilmagan chek → to'lovlar DEGRADED.
+PENDING_RECEIPTS_ALERT = _env_int("HEALTH_PENDING_RECEIPTS_ALERT", 50)
 
 #: Stale processing chegara sekundlarda — DB so'rovidagi 10 daqiqa bilan bir xil.
 STALE_PROCESSING_THRESHOLD_SEC = 600
@@ -208,6 +210,9 @@ async def _check_scheduler(post_counts: dict) -> dict:
         "stale_processing": post_counts.get("stale_processing", 0),
         "delivery_failed": post_counts.get("delivery_failed", 0),
         "dead_letter": post_counts.get("dead_letter", 0),
+        # 11-bosqich: UNKNOWN_DELIVERY (albom timeout — qo'lda tekshiruv kerak)
+        "unknown_posts": post_counts.get("unknown_posts", 0),
+        "unknown_delivery": post_counts.get("unknown_delivery", 0),
         "error": post_counts.get("error"),
     }
 
@@ -232,8 +237,71 @@ async def _check_scheduler(post_counts: dict) -> dict:
 
 
 # ──────────────────────────────────────────────────────────────
+# 2b) TO'LOVLAR (11-bosqich)
+# ──────────────────────────────────────────────────────────────
+STATUS_DISABLED = "DISABLED"
+
+
+def _payments_configured() -> dict:
+    """Stars/karta to'lovlari sozlanganmi (config'dan, maxfiy ma'lumotsiz)."""
+    info = {"card_enabled": False, "stars_enabled": True}
+    try:
+        from config import CARD_NUMBER  # lazy — testlarda config almashtirilishi mumkin
+        info["card_enabled"] = bool((CARD_NUMBER or "").strip())
+    except Exception:
+        pass
+    return info
+
+
+async def _check_payments() -> dict:
+    """To'lov holati: kutayotgan cheklar, 24 soatlik tasdiqlar/Stars soni."""
+    result = {
+        "component": "payments",
+        "status": STATUS_UNKNOWN,
+        "pending_receipts": 0,
+        "approved_24h": 0,
+        "stars_24h": 0,
+        "card_enabled": False,
+        "stars_enabled": True,
+        "error": None,
+    }
+    result.update(_payments_configured())
+    try:
+        getter = getattr(db, "get_payments_health_counts", None)
+        counts = await db.run_db(getter) if getter is not None else {}
+        counts = counts or {}
+        result["pending_receipts"] = int(counts.get("pending_receipts") or 0)
+        result["approved_24h"] = int(counts.get("approved_24h") or 0)
+        result["stars_24h"] = int(counts.get("stars_24h") or 0)
+        result["error"] = counts.get("error")
+    except Exception as e:
+        logger.warning("health: to'lov tekshiruvida xato: %s", e)
+        result["error"] = f"{type(e).__name__}: {e}"[:200]
+    if result["error"]:
+        # DB uzilishi allaqachon "database" komponentida aks etadi —
+        # bu yerda faqat UNKNOWN (ikki marta jarima yo'q).
+        result["status"] = STATUS_UNKNOWN
+    elif not result["card_enabled"] and not result["stars_enabled"]:
+        result["status"] = STATUS_DISABLED
+    elif result["pending_receipts"] >= PENDING_RECEIPTS_ALERT:
+        result["status"] = STATUS_DEGRADED
+    else:
+        result["status"] = STATUS_OK
+    return result
+
+
+# ──────────────────────────────────────────────────────────────
 # 3) AI PROVAYDERLAR
 # ──────────────────────────────────────────────────────────────
+def _ai_breaker_fail_count(aa, name: str) -> int:
+    """Provayderning ketma-ket xatolari soni (circuit-breaker hisoblagichi)."""
+    try:
+        entry = (getattr(aa, "_BREAKERS", None) or {}).get(name) or {}
+        return int(entry.get("fails") or 0)
+    except Exception:
+        return 0
+
+
 def _check_ai_providers() -> dict:
     """Har bir AI provayder: kalit bormi + circuit-breaker holati.
 
@@ -247,6 +315,8 @@ def _check_ai_providers() -> dict:
         "providers": [],
         "core_ok": 0,
         "core_total": 0,
+        "breakers_open": 0,
+        "consecutive_errors": 0,
     }
     try:
         from services.ai_service import build_default_providers  # lazy import
@@ -255,6 +325,8 @@ def _check_ai_providers() -> dict:
         providers = []
         core_ok = 0
         core_total = 0
+        open_count = 0
+        total_fails = 0
         any_key_configured = False
         for provider in build_default_providers():
             try:
@@ -283,15 +355,22 @@ def _check_ai_providers() -> dict:
             if available and getattr(provider, "key_attr", None):
                 any_key_configured = True
 
+            fails = _ai_breaker_fail_count(aa, provider.name)
+            if breaker:
+                open_count += 1
+            total_fails += fails
             providers.append({
                 "name": provider.name,
                 "tier": provider.tier,
                 "status": status,
                 "breaker_open": breaker,
                 "configured": available,
+                "consecutive_errors": fails,
             })
 
         result["providers"] = providers
+        result["breakers_open"] = open_count
+        result["consecutive_errors"] = total_fails
         result["core_ok"] = core_ok
         result["core_total"] = core_total
 
@@ -347,7 +426,7 @@ def _check_system() -> dict:
 # 5) UMUMIY HOLAT
 # ──────────────────────────────────────────────────────────────
 def _compute_overall_status(database: dict, scheduler: dict,
-                            ai: dict) -> str:
+                            ai: dict, payments: dict = None) -> str:
     """Komponentlardan umumiy HEALTHY / DEGRADED / UNHEALTHY ni hisoblaydi."""
     # 1) DB yiqilgan bo'lsa — bot umuman ishlamaydi → UNHEALTHY.
     if database.get("status") != STATUS_OK:
@@ -368,8 +447,14 @@ def _compute_overall_status(database: dict, scheduler: dict,
     if scheduler.get("stale_processing", 0) > 0:
         reasons.append("stale_processing")
 
+    if (scheduler.get("unknown_posts") or 0) > 0 or (scheduler.get("unknown_delivery") or 0) > 0:
+        reasons.append("unknown_delivery")
+
     if ai.get("status") == STATUS_DEGRADED:
         reasons.append("ai_core_degraded")
+
+    if payments and payments.get("status") in (STATUS_DEGRADED, STATUS_UNHEALTHY):
+        reasons.append("payments")
 
     return STATUS_DEGRADED if reasons else STATUS_HEALTHY
 
@@ -393,9 +478,15 @@ async def get_system_health() -> dict:
     post_counts = await db.run_db(db.get_post_health_counts)
     scheduler_info = await _check_scheduler(post_counts or {})
     ai_info = _check_ai_providers()
+    try:
+        payments_info = await _check_payments()
+    except Exception as e:  # hech qachon health'ni yiqitmasin
+        logger.warning("health: payments tekshiruvi yiqildi: %s", e)
+        payments_info = {"component": "payments", "status": STATUS_UNKNOWN,
+                         "error": f"{type(e).__name__}: {e}"[:200]}
     system_info = _check_system()
 
-    overall = _compute_overall_status(database_info, scheduler_info, ai_info)
+    overall = _compute_overall_status(database_info, scheduler_info, ai_info, payments_info)
 
     return {
         "status": overall,
@@ -404,6 +495,7 @@ async def get_system_health() -> dict:
         "database": database_info,
         "scheduler": scheduler_info,
         "ai_providers": ai_info,
+        "payments": payments_info,
         "system": system_info,
     }
 
@@ -421,6 +513,7 @@ def _status_emoji(status: str) -> str:
         STATUS_UNCONFIGURED: "⚪️",
         STATUS_UNHEALTHY: "❌",
         STATUS_UNKNOWN: "❔",
+        STATUS_DISABLED: "⚪️",
     }.get(status, "❔")
 
 
@@ -511,6 +604,9 @@ async def format_health_report(lang: str = "uz", health: dict = None) -> str:
     lines.append(get_text("health_posts_pending", lang).format(
         count=_fmt_num(sched.get("pending"))
     ))
+    lines.append(get_text("health_posts_processing", lang).format(
+        count=_fmt_num(sched.get("processing"))
+    ))
     lines.append(get_text("health_posts_failed", lang).format(
         count=_fmt_num(sched.get("failed"))
     ))
@@ -521,6 +617,11 @@ async def format_health_report(lang: str = "uz", health: dict = None) -> str:
         lines.append(get_text("health_posts_stale", lang).format(
             count=_fmt_num(sched.get("stale_processing"))
         ))
+    unknown_total = max(int(sched.get("unknown_posts") or 0),
+                        int(sched.get("unknown_delivery") or 0))
+    lines.append(get_text("health_posts_unknown", lang).format(
+        count=_fmt_num(unknown_total)
+    ))
     lines.append("")
 
     # ── AI provayderlar ──
@@ -535,6 +636,29 @@ async def format_health_report(lang: str = "uz", health: dict = None) -> str:
         lines.append(get_text("health_ai_provider", lang).format(
             name=_html.escape(str(provider.get("name", "?"))),
             status=f"{_status_emoji(p_status)} {_html.escape(p_status)}",
+        ))
+    lines.append(get_text("health_ai_errors", lang).format(
+        open=_fmt_num(ai.get("breakers_open")),
+        errors=_fmt_num(ai.get("consecutive_errors")),
+    ))
+    lines.append("")
+
+    # ── To'lovlar ──
+    pay = health.get("payments") or {}
+    pay_status = pay.get("status") or STATUS_UNKNOWN
+    lines.append(get_text("health_payments_title", lang).format(
+        status=f"{_status_emoji(pay_status)} {_html.escape(pay_status)}"
+    ))
+    lines.append(get_text("health_payments_pending", lang).format(
+        count=_fmt_num(pay.get("pending_receipts"))
+    ))
+    lines.append(get_text("health_payments_24h", lang).format(
+        approved=_fmt_num(pay.get("approved_24h")),
+        stars=_fmt_num(pay.get("stars_24h")),
+    ))
+    if pay.get("error"):
+        lines.append(get_text("health_db_error", lang).format(
+            error=_html.escape(str(pay.get("error")))[:160]
         ))
     lines.append("")
 

@@ -150,4 +150,14 @@ echo "===== YAKUNIY ACCEPTANCE TEST (10-BOSQICH) ====="
 "$PY" tests/final_acceptance_test.py || exit 1
 
 echo
+echo "===== PRODUCTION FINAL ACCEPTANCE (11-BOSQICH, 18 SSENARIY) ====="
+# Stars duplicate (10 parallel), AI quota race (20 parallel), DB fail-closed,
+# HTML escape, albom timeout → UNKNOWN_DELIVERY, avto-o'chirish transient,
+# expired PRO → FREE, chek 10× parallel, soxta admin callback, AI fallback
+# zanjiri, restart recovery, invoice manipulyatsiyasi, self-referral, promo
+# reuse, FloodWait barqarorligi, DB pool leak. Mock qismi DOIM; pgserver
+# bo'lsa 1/8/16 jonli bazada ham tekshiriladi.
+"$PY" tests/production_final_acceptance_test.py || exit 1
+
+echo
 echo "BARCHA TESTLAR MUVOFFAQIYATLI ✔"

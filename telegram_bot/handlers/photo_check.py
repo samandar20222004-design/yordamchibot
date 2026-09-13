@@ -27,7 +27,9 @@ from keyboards.callback_data import CB_PHOTO_APPROVE, CB_PHOTO_REJECT, cb
 from locales.translations import get_lang, safe_t
 from utils.fsm_state import active_conversation_state
 # 6-bosqich: rasm tekshiruvi orqali PRO berish — 'manage_users' ruxsati.
-from services.rbac_service import PERM_MANAGE_USERS, has_permission
+from services.rbac_service import (
+    PERM_MANAGE_USERS, has_permission, CallbackTampering, admin_callback_guard,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -243,16 +245,19 @@ async def handle_admin_check_photo_callback(update: Update, context: ContextType
                            show_alert=True)
         return
 
-    data = query.data  # format: "cph:a:{user_id}" yoki "cph:r:{user_id}"
+    data = query.data or ""  # format: "cph:a:{user_id}" yoki "cph:r:{user_id}"
     parts = data.split(":")
     if len(parts) != 3:
         await query.answer(_pc_text("pc_bad_callback", admin_lang), show_alert=True)
         return
 
     action = parts[1]  # 'a' (tasdiq) yoki 'r' (rad)
+    # 11-bosqich (P0): payload'dagi user_id QAT'IY tekshiriladi va bosgan
+    # shaxs server-side admin/RBAC bo'lishi shart (tampering himoyasi).
+    prefix = CB_PHOTO_APPROVE if action == "a" else CB_PHOTO_REJECT
     try:
-        target_user_id = int(parts[2])
-    except ValueError:
+        (target_user_id,) = admin_callback_guard(update, prefix, 1, PERM_MANAGE_USERS)
+    except CallbackTampering:
         await query.answer(_pc_text("pc_bad_user_id", admin_lang), show_alert=True)
         return
     # Foydalanuvchining qaror xabari uning TILIDA bo'lishi kerak.

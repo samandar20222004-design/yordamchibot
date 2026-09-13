@@ -137,8 +137,9 @@ INTEGRITY_CONSTRAINTS = (
         "table": "post_deliveries",
         "name": "chk_post_deliveries_status",
         "kind": "check",
-        "definition": "CHECK (status IN ('pending', 'processing', 'sent', 'failed', 'dead_letter'))",
-        "note": "delivery holatlari faqat 3-bosqich jadvalidagilar",
+        "definition": "CHECK (status IN ('pending', 'processing', 'sent', 'failed', 'dead_letter', 'unknown'))",
+        "note": ("delivery holatlari: 3-bosqich jadvali + 'unknown' "
+                 "(UNKNOWN_DELIVERY — albom yuborishda javob olinmagan)"),
     },
     {
         "table": "scheduled_posts",
@@ -146,12 +147,13 @@ INTEGRITY_CONSTRAINTS = (
         "kind": "check",
         "definition": (
             "CHECK (status IN ('pending', 'processing', 'posted', 'failed', "
-            "'cancelled', 'completed'))"
+            "'cancelled', 'completed', 'unknown'))"
         ),
         "note": (
             "5-bosqich topshig'ida 4 ta status so'ralgan, biroq bot "
-            "'processing' (claim) va 'completed' (recurring tick) holatlarini "
-            "ham ishlatadi — ularsiz CHECK scheduler'ni buzardi"
+            "'processing' (claim), 'completed' (recurring tick) va 'unknown' "
+            "(UNKNOWN_DELIVERY — albom yuborishda javob olinmagan, blind "
+            "retry taqiqlangan) holatlarini ham ishlatadi"
         ),
     },
     {
@@ -834,8 +836,10 @@ def get_post_health_counts() -> dict:
         "processing": 0,
         "failed": 0,
         "stale_processing": 0,
+        "unknown_posts": 0,
         "delivery_failed": 0,
         "dead_letter": 0,
+        "unknown_delivery": 0,
     }
     try:
         with db_cursor() as cur:
@@ -846,24 +850,28 @@ def get_post_health_counts() -> dict:
                     COUNT(*) FILTER (WHERE status = 'failed'),
                     COUNT(*) FILTER (WHERE status = 'processing'
                                      AND processing_started_at
-                                         < NOW() - INTERVAL '10 minutes')
+                                         < NOW() - INTERVAL '10 minutes'),
+                    COUNT(*) FILTER (WHERE status = 'unknown')
                 FROM scheduled_posts
             """)
-            row = cur.fetchone() or (0, 0, 0, 0)
+            row = cur.fetchone() or (0, 0, 0, 0, 0)
             counts["pending"] = int(row[0] or 0)
             counts["processing"] = int(row[1] or 0)
             counts["failed"] = int(row[2] or 0)
             counts["stale_processing"] = int(row[3] or 0)
+            counts["unknown_posts"] = int(row[4] or 0) if len(row) > 4 else 0
 
             cur.execute("""
                 SELECT
                     COUNT(*) FILTER (WHERE status = 'failed'),
-                    COUNT(*) FILTER (WHERE status = 'dead_letter')
+                    COUNT(*) FILTER (WHERE status = 'dead_letter'),
+                    COUNT(*) FILTER (WHERE status = 'unknown')
                 FROM post_deliveries
             """)
-            drow = cur.fetchone() or (0, 0)
+            drow = cur.fetchone() or (0, 0, 0)
             counts["delivery_failed"] = int(drow[0] or 0)
             counts["dead_letter"] = int(drow[1] or 0)
+            counts["unknown_delivery"] = int(drow[2] or 0) if len(drow) > 2 else 0
     except Exception as e:
         logger.warning("Post health hisob-kitobida xato: %s", e)
         counts["error"] = f"{type(e).__name__}: {e}"[:200]
@@ -3365,6 +3373,11 @@ def claim_post_delivery(post_id: int, channel_id, scheduled_timestamp) -> dict:
                 # Doimiy xato yoki urinishlar tugagan — qayta yuborilmaydi.
                 return {"claimed": False, "sent": False, "dead": True,
                         "status": status, "idempotency_key": key}
+            if status == "unknown":
+                # UNKNOWN_DELIVERY: Telegram javobi olinmagan — xabar chiqqan
+                # bo'lishi mumkin. Blind retry TAQIQLANADI (dublikat xavfi).
+                return {"claimed": False, "sent": False, "unknown": True,
+                        "status": status, "idempotency_key": key}
             if status == "processing":
                 if not _delivery_processing_is_stale(updated_at):
                     return {"claimed": False, "sent": False, "status": status,
@@ -3461,6 +3474,30 @@ def mark_post_delivery_sent(idempotency_key: str, telegram_message_id: int) -> b
         return False
 
 
+def mark_post_delivery_unknown(idempotency_key: str, error: str) -> bool:
+    """Delivery'ni ``unknown`` (UNKNOWN_DELIVERY) deb belgilaydi.
+
+    Telegram API so'rovi ketdi, lekin javob olinmadi (TimedOut/NetworkError
+    albom yuborishda) — xabar kanalga chiqqan-chiqmagani NOMA'LUM. Bunday
+    yozuv scheduler tomonidan HECH QACHON avtomatik qayta yuborilmaydi
+    (blind retry taqiqlanadi); admin health panelida ko'rinadi.
+    'sent' va 'dead_letter' ustidan yozilmaydi.
+    """
+    try:
+        with db_cursor(commit=True) as cur:
+            cur.execute(
+                "UPDATE post_deliveries SET status = 'unknown', last_error = %s, "
+                "next_retry_at = NULL, updated_at = NOW() "
+                "WHERE idempotency_key = %s AND status NOT IN ('sent', 'dead_letter')",
+                (str(error)[:4000], idempotency_key),
+            )
+        _cache_clear("system_stats")
+        return True
+    except Exception as e:
+        logger.error(f"Delivery unknown marker xatosi ({idempotency_key}): {e}")
+        return False
+
+
 def mark_post_delivery_failed(idempotency_key: str, error: str) -> bool:
     """Telegram yuborish xatosini qayd qiladi; keyingi retry claim qila oladi.
 
@@ -3546,16 +3583,28 @@ def mark_post_status(post_id: int, status: str) -> bool:
         logger.error(f"Post status xatosi: {e}")
         return False
 
-def mark_post_as_sent(post_id: int, sent_message_id: int, channel_id: str = None, delete_after_hours: int = 0, extra_message_ids: list = None) -> bool:
+def mark_post_as_sent(post_id: int, sent_message_id: int, channel_id: str = None, delete_after_hours: int = 0, extra_message_ids: list = None, delivery_key: str = None) -> bool:
     """Telegramga yuborilgan postni 'posted' deb belgilaydi va xabar ID'larini saqlaydi.
 
     Bitta tranzaksiyada bajariladi (yarim yozilgan holat bo'lmaydi). Qaytaradi:
     ``True`` — commit bo'ldi; ``False`` — DB xatosi (istisno tashlanmaydi, chaqiruvchi
     qayta urinishi kerak: 'yuborildi' markeri idempotentlik kafolatining asosi).
+
+    11-bosqich (P0): ``delivery_key`` berilsa ``post_deliveries`` yozuvi ham
+    AYNI SHU tranzaksiyada ``'sent'`` bo'ladi — scheduled_posts 'posted' va
+    delivery 'sent' markerlari hech qachon bir-biridan ajralib qolmaydi
+    (crash oralig'ida "biri yozildi, biri yo'q" holati bo'lmaydi).
     """
     try:
         with db_cursor(commit=True) as cur:
             cur.execute("UPDATE scheduled_posts SET status = 'posted', sent_message_id = %s WHERE id = %s", (sent_message_id, post_id))
+            if delivery_key:
+                cur.execute(
+                    "UPDATE post_deliveries SET status = 'sent', telegram_message_id = %s, "
+                    "last_error = NULL, next_retry_at = NULL, updated_at = NOW() "
+                    "WHERE idempotency_key = %s AND status <> 'sent'",
+                    (sent_message_id, str(delivery_key)),
+                )
             if channel_id is not None:
                 ids = [sent_message_id]
                 if extra_message_ids:
@@ -3586,13 +3635,45 @@ def get_posts_to_delete(now) -> list:
         logger.error(f"O'chiriladigan postlar xatosi: {e}")
         return []
 
-def mark_post_as_deleted(message_row_id: int):
+def mark_post_as_deleted(message_row_id: int) -> bool:
+    """Kanal xabarini 'o'chirildi' deb belgilaydi (``deleted_at = NOW()``).
+
+    FAQAT haqiqatan o'chirilganda yoki xabar Telegramda topilmaganda
+    chaqirilishi kerak (scheduler ``classify_delete_error`` bilan ajratadi).
+    Qaytaradi: ``True`` — yozildi, ``False`` — DB xatosi.
+    """
     try:
         with db_cursor(commit=True) as cur:
             cur.execute("UPDATE sent_post_messages SET deleted_at = NOW() WHERE id = %s", (message_row_id,))
         _cache_clear("system_stats")
+        return True
     except Exception as e:
         logger.error(f"Post o'chirish xatosi: {e}")
+        return False
+
+
+def defer_post_deletion(message_row_id: int, delay_seconds: int = 300) -> bool:
+    """Avto-o'chirishni vaqtinchalik xatoda (tarmoq/FloodWait) KEYINGA suradi.
+
+    ``deleted_at`` TEGILMAYDI — xabar hali kanalda turibdi deb hisoblanadi;
+    faqat ``delete_at`` oldinga suriladi, scheduler keyingi tick'da yana urinadi.
+    """
+    try:
+        delay = max(30, int(delay_seconds or 300))
+    except (TypeError, ValueError):
+        delay = 300
+    try:
+        with db_cursor(commit=True) as cur:
+            cur.execute(
+                "UPDATE sent_post_messages "
+                "SET delete_at = NOW() + (%s || ' seconds')::INTERVAL "
+                "WHERE id = %s AND deleted_at IS NULL",
+                (str(delay), message_row_id),
+            )
+        return True
+    except Exception as e:
+        logger.error(f"Avto-o'chirishni kechiktirish xatosi: {e}")
+        return False
 
 def reschedule_recurring_post(post_id: int, next_time):
     try:
@@ -3614,6 +3695,77 @@ def retry_post(post_id: int, retry_at):
         _cache_clear("system_stats")
     except Exception as e:
         logger.error(f"Post qayta navbatlash xatosi: {e}")
+
+
+def recover_processing_posts_on_startup(max_age_seconds: int = 0) -> dict:
+    """Restart recovery (11-bosqich): jarayon qayta ishga tushganda 'processing'
+    da qolib ketgan postlarni XAVFSIZ tiklaydi.
+
+    Restartdan keyin 'processing' yozuvlar o'lik jarayonga tegishli, shuning
+    uchun 10 daqiqalik stale chegarasini kutish shart emas (``max_age_seconds``
+    bilan sozlanadi, 0 — darhol):
+
+    1. Telegramga chiqqani ISBOTLANGAN postlar (``sent_message_id`` yoki
+       ``sent_post_messages`` yozuvi) → ``posted`` — HECH QACHON qayta
+       yuborilmaydi (0 duplikat).
+    2. ``post_deliveries`` da ``sent`` bo'lgan postlar ham → ``posted``
+       (scheduled_posts markeri yozilmay qolgan crash holati).
+    3. ``post_deliveries`` da ``unknown`` (UNKNOWN_DELIVERY) bo'lganlar →
+       ``unknown`` — blind retry TAQIQLANADI, admin ko'rib chiqadi.
+    4. Qolgan (yuborilmagani aniq) postlar → ``pending``; ularning
+       'processing' delivery yozuvlari ``failed`` (backoff'siz) qilinadi —
+       keyingi tick darhol qayta claim qila oladi.
+
+    Qaytadi: ``{"posted": n, "unknown": n, "requeued": n, "error": str|None}``.
+    """
+    result = {"posted": 0, "unknown": 0, "requeued": 0, "error": None}
+    try:
+        age = max(0, int(max_age_seconds or 0))
+    except (TypeError, ValueError):
+        age = 0
+    try:
+        with db_cursor(commit=True) as cur:
+            cur.execute("""
+                UPDATE scheduled_posts
+                SET status = 'posted'
+                WHERE status = 'processing'
+                  AND (sent_message_id IS NOT NULL
+                       OR id IN (SELECT post_id FROM sent_post_messages)
+                       OR id IN (SELECT post_id FROM post_deliveries WHERE status = 'sent'))
+            """)
+            result["posted"] = int(cur.rowcount or 0)
+            cur.execute("""
+                UPDATE scheduled_posts
+                SET status = 'unknown'
+                WHERE status = 'processing'
+                  AND id IN (SELECT post_id FROM post_deliveries WHERE status = 'unknown')
+            """)
+            result["unknown"] = int(cur.rowcount or 0)
+            cur.execute("""
+                UPDATE scheduled_posts
+                SET status = 'pending', processing_started_at = NULL
+                WHERE status = 'processing'
+                  AND sent_message_id IS NULL
+                  AND id NOT IN (SELECT post_id FROM sent_post_messages)
+                  AND (processing_started_at IS NULL
+                       OR processing_started_at < NOW() - (%s || ' seconds')::INTERVAL)
+                RETURNING id
+            """, (str(age),))
+            rows = cur.fetchall() or []
+            result["requeued"] = len(rows)
+            if rows:
+                ids = [int(r[0]) for r in rows]
+                cur.execute(
+                    "UPDATE post_deliveries SET status = 'failed', next_retry_at = NULL, "
+                    "last_error = COALESCE(last_error, 'restart recovery'), updated_at = NOW() "
+                    "WHERE status = 'processing' AND post_id = ANY(%s)",
+                    (ids,),
+                )
+        _cache_clear("system_stats")
+    except Exception as e:
+        logger.error(f"Restart recovery xatosi: {e}")
+        result["error"] = f"{type(e).__name__}: {e}"[:200]
+    return result
 
 
 def recover_stale_processing_posts():
@@ -4600,6 +4752,48 @@ def reject_payment_receipt(receipt_id: int, admin_id: int) -> dict:
     """
     from services.payment_service import PaymentService
     return PaymentService.process_receipt(receipt_id, admin_id, False)
+
+
+def get_payments_health_counts() -> dict:
+    """Health panel uchun to'lov ko'rsatkichlari (11-bosqich).
+
+    Qaytadi: ``pending_receipts`` (ko'rib chiqilmagan cheklar),
+    ``approved_24h`` (so'nggi 24 soatda tasdiqlangan cheklar),
+    ``stars_24h`` (so'nggi 24 soatdagi Stars to'lovlari), ``error``.
+    DB xatosida crash yo'q — ``error`` to'ldiriladi.
+    """
+    counts = {"pending_receipts": 0, "approved_24h": 0, "stars_24h": 0, "error": None}
+    try:
+        with db_cursor() as cur:
+            cur.execute(
+                "SELECT COUNT(*) FROM payment_receipts WHERE status = 'pending'"
+            )
+            row = cur.fetchone()
+            counts["pending_receipts"] = int(row[0]) if row else 0
+            try:
+                cur.execute(
+                    "SELECT COUNT(*) FROM payment_receipts "
+                    "WHERE status = 'approved' "
+                    "AND reviewed_at >= NOW() - INTERVAL '24 hours'"
+                )
+                row = cur.fetchone()
+                counts["approved_24h"] = int(row[0]) if row else 0
+            except Exception:
+                counts["approved_24h"] = 0
+            try:
+                cur.execute(
+                    "SELECT COUNT(*) FROM payments "
+                    "WHERE currency = 'XTR' "
+                    "AND created_at >= NOW() - INTERVAL '24 hours'"
+                )
+                row = cur.fetchone()
+                counts["stars_24h"] = int(row[0]) if row else 0
+            except Exception:
+                counts["stars_24h"] = 0
+    except Exception as e:
+        logger.error(f"payments health counts xatosi: {e}")
+        counts["error"] = f"{type(e).__name__}: {e}"[:200]
+    return counts
 
 
 def get_pending_receipts_count() -> int:

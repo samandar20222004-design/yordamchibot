@@ -15,6 +15,7 @@ from scheduler import (
     check_and_delete_expired_posts,
     cleanup_old_data_job,
     cleanup_old_records_job,
+    recover_on_startup,
     tashkent_tz,
     TIMEZONE_NAME,
     now_tashkent,
@@ -40,6 +41,13 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     level=logging.INFO
 )
+# 11-bosqich (P0): basicConfig yaratgan handler'ga ham maxfiylik filtri —
+# bot token / DB parol / karta raqami / API kalit loglarga tushmaydi.
+try:
+    from utils.sentry_scrubber import install_logging_scrubber
+    install_logging_scrubber()
+except Exception:  # pragma: no cover
+    pass
 logger = logging.getLogger(__name__)
 # ⏰ Vaqt zonasi YAGONA manbadan (scheduler.tashkent_tz) olinadi — bot,
 # APScheduler va DB hisob-kitoblari hech qachon ajralib ketmasligi uchun.
@@ -384,6 +392,11 @@ async def graceful_shutdown(application=None, scheduler=None, web_runner=None,
 
 async def main():
     db.init_db()
+
+    # 11-bosqich (P0) restart recovery: avvalgi jarayon 'processing' da
+    # qoldirgan postlar — Telegramga chiqqanlari 'posted' (qayta yuborilmaydi),
+    # UNKNOWN_DELIVERY bo'lganlari 'unknown', qolganlari 'pending'.
+    await recover_on_startup()
 
     # Admin panelda o'zgartirilgan AI parametrlarini ishga tushirishda yuklaymiz.
     try:
