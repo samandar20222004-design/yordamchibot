@@ -1383,6 +1383,24 @@ async def cleanup_old_data_job():
         logger.exception("DB tozalashda kutilmagan xato")
 
 
+async def subscription_sweep_job():
+    """3-BOSQICH (P1): muddati o'tgan PRO/enterprise obunalarni FREE ga tushirish.
+
+    Har 15 daqiqada bitta indeksli UPDATE — obuna muddati tugagan foydalanuvchi
+    ``SubscriptionService.get_status`` chaqirilmasa ham PRO AI/kanal limitlarida
+    qolib ketmaydi. Hech qachon istisno tashlamaydi (scheduler barqarorligi).
+    """
+    try:
+        count = await db.run_db(db.downgrade_expired_subscriptions)
+        if count:
+            logger.warning(
+                "Obuna sweep: %d ta muddati o'tgan PRO/enterprise foydalanuvchi FREE ga tushirildi.",
+                count,
+            )
+    except Exception:
+        logger.exception("Obuna sweep ishida kutilmagan xato")
+
+
 async def cleanup_old_records_job():
     """9-bosqich: kunlik (03:00 Toshkent) paketli tozalash worker'i.
 
