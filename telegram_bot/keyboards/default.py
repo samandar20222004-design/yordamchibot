@@ -58,6 +58,33 @@ BTN_BACK_EN = get_text("btn_main_menu", "en")
 BTN_CANCEL_EN = get_text("btn_cancel", "en")
 
 # ============================================================
+# 🆕 UX V2 — ASOSIY MENYU: QAT'IY 6 TUGMA STANDARTI (uz/ru/en)
+# ============================================================
+# Asosiy menyuda FAQAT va FAQAT quyidagi 6 ta tugma chiziladi:
+#   [✨ Kontent yaratish]   [📢 Kanallarim]
+#   [📅 Rejalashtirilgan]   [📊 Statistika]
+#   [💎 PRO]                [⚙️ Sozlamalar]
+# (+ oddiy foydalanuvchiga KO'RINMAS, faqat ADMIN_IDS uchun alohida
+#   [⚙️ Admin Panel] qatori).
+# Eski yorliqlar ("➕ Yangi post", "✨ AI Studio", "⭐️ Premium",
+# "👤 Kabinet & Sozlamalar", "📖 Qo'llanma / Bot haqida", "⚙️ Qo'shimcha
+# funksiyalar" ...) asosiy menyudan olib tashlandi, lekin routing'da alias
+# sifatida saqlanadi — keshda qolgan eski klaviatura xabarlari xavfsiz mos
+# bo'limga yo'naltiriladi (backward compatibility).
+BTN_CREATE_CONTENT = get_text("btn_create_content", "uz")
+BTN_CREATE_CONTENT_RU = get_text("btn_create_content", "ru")
+BTN_CREATE_CONTENT_EN = get_text("btn_create_content", "en")
+BTN_MY_CHANNELS = get_text("btn_my_channels", "uz")
+BTN_MY_CHANNELS_RU = get_text("btn_my_channels", "ru")
+BTN_MY_CHANNELS_EN = get_text("btn_my_channels", "en")
+BTN_SCHEDULED = get_text("btn_scheduled", "uz")
+BTN_SCHEDULED_RU = get_text("btn_scheduled", "ru")
+BTN_SCHEDULED_EN = get_text("btn_scheduled", "en")
+BTN_STATISTICS = get_text("btn_statistics", "uz")
+BTN_STATISTICS_RU = get_text("btn_statistics", "ru")
+BTN_STATISTICS_EN = get_text("btn_statistics", "en")
+
+# ============================================================
 # ✨ MAGIC POST — KILLER FEATURE #1 (asosiy menyu tugmasi)
 # ============================================================
 # Yorliqlar `translations/` paketidan olinadi (yagona manba). «✨ Magic Post»
@@ -293,7 +320,10 @@ def weekday_index(text):
 PROFILE_ALIASES = (
     # "Profil / Sozlamalar" — eski va alternative klaviatura yorliqlari.
     # Uchala til ham qabul qilinadi, chunki chat tarixidagi eski xabarlarda
-    # aynan shu matnlar turgan bo'lishi mumkin.
+    # aynan shu matnlar turgan bo'lishi mumkin. UX V2: asosiy menyu yorlig'i
+    # endi "⚙️ Sozlamalar" — eski "👤 Kabinet & Sozlamalar" nomlari shu yerda
+    # (orqaga moslik: eski klaviatura xabarlari buzilmasligi uchun).
+    "👤 Kabinet & Sozlamalar", "👤 Кабинет & Настройки", "👤 Account & Settings",
     "👤 Profil / Sozlamalar", "👤 Профиль / Настройки", "👤 Profile & Settings",
     "👤 Profil", "👤 Профиль", "👤 Profile",
     "👤 Kabinet", "👤 Кабинет", "👤 Account",
@@ -301,7 +331,12 @@ PROFILE_ALIASES = (
 )
 ADMIN_PANEL_ALIASES = ("⚙️ Admin panel", "⚙️ Админ панель", "⚙️ Админ-панель")
 PENDING_ALIASES = ("⏳ Kutilayotgan", "⏳ Ожидающие", "⏳ Pending")
-QUEUE_ALIASES = ("📚 Navbat", "📚 Очередь")
+# UX V2: asosiy menyu "📅 Rejalashtirilgan" tugmasi ham navbat (queue)
+# bo'limiga tushadi — eski "📚 Navbat" yorliqlari ham saqlanadi.
+QUEUE_ALIASES = (
+    "📚 Navbat", "📚 Очередь",
+    "📅 Rejalashtirilgan", "📅 Запланированные", "📅 Scheduled",
+)
 CONVERTER_ALIASES = (
     "🔤 Konvertor", "🔤 Кирилл-Лотин", "🔤 Converter", "🔤 Latin", "🔤 Кириллица",
 )
@@ -326,16 +361,33 @@ HELP_ALIASES = ("📖 Qo'llanma", "📖 Руководство", "📖 Guide", "
 EXTRAS_ALIASES = (
     "⚙️ Qo'shimcha", "⚙️ Дополнительные", "⚙️ Extra features", "⚙️ Extras",
 )
-AI_STUDIO_ALIASES = ("✨ AI Студия", "🤖 AI Studio", "✨ Studio")
+# UX V2: asosiy menyudagi "✨ Kontent yaratish" tugmasi AI Studio (kontent
+# yaratish markazi) oqimini ochadi — "✨ AI Studio" yorlig'i ham saqlanadi.
+AI_STUDIO_ALIASES = (
+    "✨ AI Студия", "🤖 AI Studio", "✨ Studio",
+    "✨ Kontent yaratish", "✨ Создать контент", "✨ Create content",
+)
 NEW_POST_ALIASES = (
     "➕ Post yaratish", "➕ Создать пост", "➕ Новый пост",
     "➕ Yangi post yozish", "➕ Create post",
 )
-PREMIUM_ALIASES = ("⭐️ Pro", "⭐️ PRO", "⭐️ Подписка", "⭐️ Upgrade", "⭐️ Premium tarif")
+# UX V2: asosiy menyu yorlig'i endi «💎 PRO» — eski «⭐️ Premium» nomi
+# (keshdagi eski klaviatura xabarlari uchun) shu oilada saqlanadi.
+PREMIUM_ALIASES = (
+    "💎 PRO",
+    "⭐️ Premium", "⭐️ Pro", "⭐️ PRO", "⭐️ Подписка", "⭐️ Upgrade", "⭐️ Premium tarif",
+)
 CONTENT_PLAN_ALIASES = (
     "🧠 Kontent-reja", "🧠 Контент-план", "🧠 Content plan", "🧠 Content-plan",
 )
-ANALYTICS_ALIASES = ("📊 Analitika", "📊 Аналитика", "📊 Analytics", "📊 Statistics")
+ANALYTICS_ALIASES = ("📊 Analitika", "📊 Аналитика", "📊 Analytics")
+# UX V2: "📊 Statistika" asosiy menyudagi 6-tugma standartining yorlig'i —
+# bir yagona "statistics" amali egasida (handlers/__init__.py dagi
+# statistics_button: admin → bot statistikasi, oddiy foydalanuvchi → o'z
+# kanallari analitikasi). Eski admin panel «📊 Statistika» tugmasi ham shu
+# yagona yo'nalishga tushadi. "📊 Statistics" EN yorlig'i ham shu oilaga
+# o'tdi (avval ANALYTICS tomonida edi — yagona egalik = aniq routing).
+STATISTICS_ALIASES = ("📊 Statistika", "📊 Статистика", "📊 Statistics")
 EXTRACT_ALIASES = (
     "📢 Ochiq kanaldan olish", "📢 Из открытого канала",
     "📢 Open channel import", "📢 Import from public channel",
@@ -405,6 +457,10 @@ MENU_TEXTS = {
     "transfer": button_texts("cab_btn_transfer", extra=TRANSFER_ALIASES),
     "content_plan": _uniq((BTN_CONTENT_PLAN,), CONTENT_PLAN_ALIASES),
     "analytics": _uniq((BTN_ANALYTICS,), ANALYTICS_ALIASES),
+    # UX V2: asosiy menyudagi "📊 Statistika" tugmasi — yagona statistics
+    # amali (yukdagi statistics_button dispatcher orqali).
+    "statistics": _uniq((BTN_STATISTICS, BTN_STATISTICS_RU, BTN_STATISTICS_EN),
+                        STATISTICS_ALIASES),
     "channel_extract": _uniq((BTN_CHANNEL_EXTRACT,), EXTRACT_ALIASES),
     # --- Admin paneli (klaviatura UZ'da chiziladi, aliaslar ham taniladi) ---
     "admin_panel": _uniq((BTN_ADMIN_PANEL, BTN_ADMIN_PANEL_RU), ADMIN_PANEL_ALIASES),
@@ -549,31 +605,33 @@ def _image_post_label(lang: str) -> str:
 
 def get_main_keyboard(is_admin=False, lang="uz", context=None,
                       include_image_post=None, include_post_score=None):
-    # Yangi tartib: ⭐️ Premium chapda, 👤 Kabinet & Sozlamalar o'ngda (2-qator).
-    # ``include_image_post`` / ``include_post_score`` defaulti context
-    # berilganda True: production onboarding/start ekranlari yangi tugmalarni
-    # ko'rsatadi, lekin eski unit testlar va context'siz API chaqiruvlari
-    # aynan avvalgi keyboard'ni oladi (regressiya yo'q).
+    """Asosiy reply-klaviatura — UX V2: QAT'IY 6 TUGMA STANDARTI.
+
+    Oddiy foydalanuvchi (3 qator × 2 tugma):
+
+        [✨ Kontent yaratish]   [📢 Kanallarim]
+        [📅 Rejalashtirilgan]   [📊 Statistika]
+        [💎 PRO]                [⚙️ Sozlamalar]
+
+    Admin foydalanuvchi (ADMIN_IDS) — shu 6 ta tugma + pastda alohida
+    [⚙️ Admin Panel] qatori. Oddiy foydalanuvchiga "Admin Panel" HECH
+    QACHON ko'rinmaydi.
+
+    ``include_image_post`` / ``include_post_score`` parametrlari UX V2 dan
+    beri DEPRECATED: asosiy menyuda Magic Post / Image Post / Post Score
+    tugmalari chizilmaydi — ularning oqimlari hali ham ishlaydi (keshdagi
+    eski klaviatura xabarlari, "✨ Kontent yaratish" ichidagi AI Studio
+    sub-menyusi, to'g'ridan-to'g'ri rasm/ovoz yuborish). Parametrlar eski
+    chaqiruvchilarni buzmaslik uchun API'da saqlanib qolgan (e'tibor
+    qilinmaydi).
+    """
     if context is not None:
         lang = get_lang(context, lang)
-    if include_image_post is None:
-        include_image_post = context is not None
-    if include_post_score is None:
-        include_post_score = context is not None
     keyboard = [
-        [get_text("btn_new_post", lang), get_text("btn_ai_studio", lang)],
-        # ✨ Magic Post — killer feature (yakka qatorda, ko'zga ko'rinadigan)
-        [_magic_post_label(lang)],
-    ]
-    if include_image_post:
-        keyboard.append([_image_post_label(lang)])
-    if include_post_score:
-        # 📊 Post Score — killer feature #4 (baholash bepul, yaxshilash 1 kredit).
-        keyboard.append([_post_score_label(lang)])
-    keyboard.extend([
+        [get_text("btn_create_content", lang), get_text("btn_my_channels", lang)],
+        [get_text("btn_scheduled", lang), get_text("btn_statistics", lang)],
         [get_text("btn_premium", lang), get_text("btn_settings", lang)],
-        [get_text("btn_help", lang), get_text("btn_extras", lang)],
-    ])
+    ]
     if is_admin:
         keyboard.append([BTN_ADMIN_PANEL])
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
@@ -594,7 +652,9 @@ def get_refreshed_main_keyboard(lang="uz", is_admin=False, simple_menu=False,
         context: berilsa, til ``context.user_data['lang']`` dan olinadi
 
     Returns:
-        UZ: "➕ Yangi post" | RU: "➕ Новый пост" | EN: "➕ New post" ...
+        UX V2 6-tugma standart klaviatura (tilga mos yorliqlar):
+        UZ: "✨ Kontent yaratish", "📢 Kanallarim", "📅 Rejalashtirilgan",
+        "📊 Statistika", "💎 PRO", "⚙️ Sozlamalar" ...
     """
     if context is not None:
         lang = get_lang(context, lang)

@@ -43,12 +43,12 @@ PROMO_INPUT = 602
 # 💳 Karta to'lov chekini (rasm/PDF) kutuvchi holat — Admin Approval Flow
 RECEIPT_WAIT = 603
 
-# Stars to'lov paketlari
-STARS_PLANS = {
-    "stars_1m": {"label": "⭐️ 1 oylik (75 Stars)", "stars": 75, "days": 30, "description": "~$1.5", "usd": "1.5"},
-    "stars_3m": {"label": "⭐️ 3 oylik (175 Stars)", "stars": 175, "days": 90, "description": "~$3.5", "usd": "3.5"},
-    "stars_1y": {"label": "⭐️ 1 yillik (550 Stars)", "stars": 550, "days": 365, "description": "~$11.0 / -40% chegirma", "usd": "11.0"},
-}
+# Stars to'lov paketlari — YAGONA MANBA: config.STARS_PLANS (SSOT).
+# Avval bu modulda lokal qattiq-kodlangan dict shadowing qilingan edi (F811):
+# precheckout bu yerdan, payment_service esa config'dan o'qigan. Endi ikkala
+# oqim ham import qilingan config.STARS_PLANS ni ulashadi — tarif o'zgarishi
+# (.env: STARS_PRICE_1M/3M/1Y) avtomatik precheckout tekshiruvi va
+# PaymentService.validate_payload ga tarqaladi.
 
 # 💳 Karta orqali to'lov (Uzcard/Humo) tariflari.
 # Tartib: CARD_TARIFF_ORDER dagi ketma-ketlikda tugmalar chiqadi.

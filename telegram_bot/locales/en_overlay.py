@@ -3,23 +3,36 @@
 EN_OVERLAY = {
     "btn_new_post": "➕ New post",
     "btn_ai_studio": "✨ AI Studio",
-    "btn_premium": "⭐️ Premium",
-    "btn_settings": "👤 Account & Settings",
+    # UX V2 (6-button standard) — EN parity (legacy names stay in the
+    # alias lists in keyboards/default.py for backward compatibility).
+    "btn_premium": "💎 PRO",
+    "btn_settings": "⚙️ Settings",
     "btn_help": "📖 Guide / About",
     "btn_extras": "⚙️ Extra features",
+    # 🆕 UX V2 main menu — STRICT 6-BUTTON standard (EN):
+    #   [✨ Create content]  [📢 My channels]
+    #   [📅 Scheduled]       [📊 Statistics]
+    #   [💎 PRO]             [⚙️ Settings]
+    "btn_create_content": "✨ Create content",
+    "btn_my_channels": "📢 My channels",
+    "btn_scheduled": "📅 Scheduled",
+    "btn_statistics": "📊 Statistics",
     "start_hello": (
         "Hi, <b>{name}</b>! 👋\n\n"
         "🤖 @PostAssistrobot — schedule posts on time, write copy and content plans with AI.\n\n"
         "Pick a section 👇"
     ),
+    # UX V2: compact onboarding — 3 input modes (photo / text / voice)
+    # + promise (mirrors UZ/RU).
     "start_onboarding": (
-        "👋 Welcome! Ready to create a professional post for your channel in 1 minute?\n"
+        "👋 Hi!\n"
+        "I'm PostAssist — your AI SMM assistant.\n"
         "\n"
-        "✍️ AI writing\n"
-        "📅 Schedule for any time\n"
-        "📢 Auto-post to channels\n"
+        "📸 Send a photo\n"
+        "📝 Write a text\n"
+        "🎙 Send a voice note\n"
         "\n"
-        "Choose a section below to make your first post 👇"
+        "I'll prepare a professional post for you."
     ),
     "quick_menu_hint": (
         "👋 <b>Welcome!</b>\n\n"

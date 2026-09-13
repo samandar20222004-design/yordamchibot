@@ -13,6 +13,7 @@
 #   3a) 📸 IMAGE → POST — Killer Feature #3 (tests/image_to_post_flow_test.py)
 #   3b) 🎙 VOICE → POST — Killer Feature #2 (tests/voice_to_post_flow_test.py)
 #   3c) 📊 POST SCORE & IMPROVER — Killer Feature #4 (tests/post_score_flow_test.py)
+#   3d) 🧭 UX V2 — asosiy menyu qat'iy 6 tugma standarti (tests/ux_v2_main_menu_test.py)
 #   4) TO'LIQ regressiya: telegram_bot/tests/run_tests.sh (barcha 30+ test fayli)
 #
 # Har qanday xatoda 1 bilan chiqadi (CI uchun).
@@ -65,6 +66,16 @@ echo "===== 3c) 📊 POST SCORE & IMPROVER (KILLER FEATURE #4) ====="
 # ogohlantirish + i18n UZ/RU/EN 100% paritet
 # (tests/post_score_flow_test.py).
 "$PY" tests/post_score_flow_test.py || EXIT_CODE=1
+
+echo
+echo "===== 3d) 🧭 UX V2 — ASOSIY MENYU QAT'IY 6 TUGMA STANDARTI ====="
+# (1) Asosiy menyu: [✨ Kontent yaratish] [📢 Kanallarim] / [📅 Rejalashtirilgan]
+# [📊 Statistika] / [💎 PRO] [⚙️ Sozlamalar] — FAQAT 6 tugma (uz/ru/en);
+# (2) Admin Panel faqat ADMIN_IDS uchun (oddiy foydalanuvchida KO'RINMAydi);
+# (3) eski tarqoq tugmalar menyudan olingan, routing'da alias qoladi
+# (backward compatibility); (4) STARS_PLANS — yagona manba (config.STARS_PLANS:
+# precheckout + PaymentService, shadowing yo'q); (5) /start onboarding 3 tilda.
+"$PY" tests/ux_v2_main_menu_test.py || EXIT_CODE=1
 
 echo
 echo "======== 4) TO'LIQ REGRESSIYA (telegram_bot/tests) ========"

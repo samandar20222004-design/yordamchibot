@@ -14,6 +14,14 @@ from telegram.ext import (
 from config import ADMIN_IDS_SET
 from keyboards.default import (
     exact,
+    # 🆕 UX V2 — asosiy menyu QAT'IY 6 TUGMA standarti (uz/ru/en):
+    #   [✨ Kontent yaratish] [📢 Kanallarim]
+    #   [📅 Rejalashtirilgan] [📊 Statistika]
+    #   [💎 PRO]              [⚙️ Sozlamalar]  (+ admin: ⚙️ Admin Panel)
+    BTN_CREATE_CONTENT, BTN_CREATE_CONTENT_RU, BTN_CREATE_CONTENT_EN,
+    BTN_MY_CHANNELS, BTN_MY_CHANNELS_RU, BTN_MY_CHANNELS_EN,
+    BTN_SCHEDULED, BTN_SCHEDULED_RU, BTN_SCHEDULED_EN,
+    BTN_STATISTICS, BTN_STATISTICS_RU, BTN_STATISTICS_EN,
     BTN_NEW_POST, BTN_NEW_POST_RU, BTN_AI_STUDIO, BTN_AI_STUDIO_RU,
     BTN_PENDING, BTN_PENDING_RU, BTN_SETTINGS, BTN_SETTINGS_RU, BTN_CABINET,
     BTN_HELP, BTN_HELP_RU, BTN_CONVERTER, BTN_CONVERTER_RU,
@@ -23,7 +31,7 @@ from keyboards.default import (
     BTN_DAILY_BONUS, BTN_DAILY_BONUS_RU,
     BTN_INVITE, BTN_INVITE_RU,
     BTN_TRANSFER, BTN_TRANSFER_RU,
-    BTN_ADMIN_PANEL, BTN_STATS, BTN_ALL_POSTS, BTN_ALL_CHANNELS,
+    BTN_ADMIN_PANEL, BTN_ALL_POSTS, BTN_ALL_CHANNELS,
     BTN_BROADCAST, BTN_SPONSORS, BTN_ADD_SPONSOR,
     BTN_ADS, BTN_CHANNEL_AD, BTN_BOT_REPLY_AD, BTN_POST_TAG, BTN_AI_SETTINGS, BTN_CACHE_DB,
     BTN_ADD_CHANNEL, BTN_QUEUE, BTN_QUEUE_RU, BTN_CONTENT_PLAN, BTN_ANALYTICS, BTN_PREMIUM, BTN_PREMIUM_RU,
@@ -319,6 +327,22 @@ async def guard_menu(update, context, fn):
     clear_fsm_data(context)
     await fn(update, context)
     return ConversationHandler.END
+
+
+async def statistics_button(update, context):
+    """📊 Statistika — UX V2 asosiy menyudagi 6-tugma standarti statistikasi.
+
+    Bitta yorliq, ikki to'g'ri ma'nosi:
+      • ADMIN_IDS a'zosi → bot bo'yicha statistika (``show_statistics``) —
+        eski admin panel klaviaturasidagi «📊 Statistika» tugmasi xuddi
+        avvalgidek ishlaydi (orqaga moslik);
+      • oddiy foydalanuvchi → o'z kanallari analitikasi
+        (``start_analytics``) — yangi asosiy menyudagi tugma xavfsiz ishlaydi.
+    """
+    user = update.effective_user
+    if user is not None and user.id in ADMIN_IDS_SET:
+        return await guard_menu(update, context, show_statistics)
+    return await guard_entry(update, context, start_analytics)
 
 
 async def reaction_callback(update, context):
@@ -691,6 +715,9 @@ def register_all_handlers(app):
     channels_handlers = [
         MessageHandler(exact(BTN_CHANNELS, BTN_CHANNELS_RU), lambda u, c: guard_menu(u, c, channels_menu)),
         MessageHandler(exact(BTN_CHANNELS_EN), lambda u, c: guard_menu(u, c, channels_menu)),
+        # 🆕 UX V2: "📢 Kanallarim" — asosiy menyu 6-tugma standarti.
+        MessageHandler(exact(BTN_MY_CHANNELS, BTN_MY_CHANNELS_RU, BTN_MY_CHANNELS_EN),
+                       lambda u, c: guard_menu(u, c, channels_menu)),
         MessageHandler(exact(BTN_ADD_CHANNEL), lambda u, c: guard_entry(u, c, start_add_channel)),
     ]
 
@@ -708,7 +735,11 @@ def register_all_handlers(app):
     # 6. Admin
     admin_handlers = [
         MessageHandler(exact(BTN_ADMIN_PANEL, BTN_ADMIN_PANEL_RU), lambda u, c: guard_menu(u, c, admin_panel_menu)),
-        MessageHandler(exact(BTN_STATS), lambda u, c: guard_menu(u, c, show_statistics)),
+        # UX V2: "📊 Statistika" — asosiy menyudagi 6-tugma standartining
+        # statistika tugmasi VA eski admin panel «📊 Statistika» tugmasi:
+        # admin → bot statistikasi, oddiy foydalanuvchi → o'z analitikasi.
+        MessageHandler(exact(BTN_STATISTICS, BTN_STATISTICS_RU, BTN_STATISTICS_EN),
+                       lambda u, c: statistics_button(u, c)),
         MessageHandler(exact(BTN_ALL_POSTS), lambda u, c: guard_menu(u, c, admin_all_posts)),
         MessageHandler(exact(BTN_ALL_CHANNELS), lambda u, c: guard_menu(u, c, admin_all_channels)),
         MessageHandler(exact(BTN_BROADCAST), lambda u, c: guard_entry(u, c, broadcast_start)),
@@ -731,6 +762,10 @@ def register_all_handlers(app):
     ai_handlers = [
         MessageHandler(exact(BTN_AI_STUDIO, BTN_AI_STUDIO_RU), lambda u, c: guard_entry(u, c, ai_studio_menu_entry)),
         MessageHandler(exact(BTN_AI_STUDIO_EN), lambda u, c: guard_entry(u, c, ai_studio_menu_entry)),
+        # 🆕 UX V2: "✨ Kontent yaratish" — asosiy menyu 6-tugma standarti
+        # kirish nuqtasi (kontent yaratish markazi = AI Studio oqimi).
+        MessageHandler(exact(BTN_CREATE_CONTENT, BTN_CREATE_CONTENT_RU, BTN_CREATE_CONTENT_EN),
+                       lambda u, c: guard_entry(u, c, ai_studio_menu_entry)),
     ]
 
     # 7d. ✨ MAGIC POST — asosiy menyudagi killer feature tugmasi
@@ -790,6 +825,9 @@ def register_all_handlers(app):
     # 12. Queue
     queue_handlers = [
         MessageHandler(exact(BTN_QUEUE, BTN_QUEUE_RU), lambda u, c: guard_menu(u, c, queue_menu)),
+        # 🆕 UX V2: "📅 Rejalashtirilgan" — asosiy menyu 6-tugma standarti.
+        MessageHandler(exact(BTN_SCHEDULED, BTN_SCHEDULED_RU, BTN_SCHEDULED_EN),
+                       lambda u, c: guard_menu(u, c, queue_menu)),
     ]
 
     # Barcha menyu sakrashlari

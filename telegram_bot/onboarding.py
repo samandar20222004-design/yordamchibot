@@ -2,11 +2,11 @@
 
 Nima uchun kerak
 ----------------
-Standart bosh menyu 6 ta tugmadan iborat (➕ Yangi post, ✨ AI Studio,
-⭐️ Premium, 👤 Kabinet & Sozlamalar, 📖 Qo'llanma, ⚙️ Qo'shimcha
-funktsiyalar). Birinchi 1-3 kun ichida foydalanuvchi uchun bu ko'p — u
-"nima qilishim kerak?" degan savolga javob olmaydi. Shu sababli yangi
-foydalanuvchiga faqat 3 ta katta, harakatga undovchi tugma ko'rsatiladi:
+Standart bosh menyu 6 ta tugmadan iborat (UX V2: ✨ Kontent yaratish,
+📢 Kanallarim, 📅 Rejalashtirilgan, 📊 Statistika, 💎 PRO, ⚙️ Sozlamalar).
+Birinchi 1-3 kun ichida foydalanuvchi uchun bu ko'p — u "nima qilishim
+kerak?" degan savolga javob olmaydi. Shu sababli yangi foydalanuvchiga
+faqat 3 ta katta, harakatga undovchi tugma ko'rsatiladi:
 
     [🚀 1 daqiqada post yaratish]   — AI orqali post yozish
     [🖼 Rasmdan post olish]         — Vision (rasm → post) oqimi
