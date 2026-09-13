@@ -89,8 +89,8 @@ def test_health_components():
         db.get_db_pool_status = lambda: {"ready": True, "used": 1, "available": 7, "max": 8}
         aa.GEMINI_API_KEY = "test-key"  # core provayder sozlangan
 
-        from apscheduler.schedulers.asyncio import AsyncIOScheduler
-        sched = AsyncIOScheduler()
+        from apscheduler.schedulers.background import BackgroundScheduler
+        sched = BackgroundScheduler()
         sched.start()
         sched.add_job(lambda: None, "interval", seconds=60, id="h_job")
         health_service.register_scheduler(sched)
@@ -204,8 +204,8 @@ def test_health_degraded_reasons():
             "pending": 0, "processing": 0, "failed": 0, "stale_processing": 0,
             "delivery_failed": 0, "dead_letter": 0,
         }
-        from apscheduler.schedulers.asyncio import AsyncIOScheduler
-        stopped = AsyncIOScheduler()  # start() chaqirilmagan
+        from apscheduler.schedulers.background import BackgroundScheduler
+        stopped = BackgroundScheduler()  # start() chaqirilmagan
         health_service.register_scheduler(stopped)
         health = asyncio.run(health_service.get_system_health())
         check("health: scheduler to'xtagan → STOPPED",
