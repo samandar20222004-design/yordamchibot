@@ -150,6 +150,10 @@ echo "===== YAKUNIY ACCEPTANCE TEST (10-BOSQICH) ====="
 "$PY" tests/final_acceptance_test.py || exit 1
 
 echo
+echo "===== PRODUCTION PAYMENTS P0 (SSOT / IDEMPOTENCY) ====="
+"$PY" tests/production_payments_p0_test.py || exit 1
+
+echo
 echo "===== PRODUCTION FINAL ACCEPTANCE (11-BOSQICH, 18 SSENARIY) ====="
 # Stars duplicate (10 parallel), AI quota race (20 parallel), DB fail-closed,
 # HTML escape, albom timeout → UNKNOWN_DELIVERY, avto-o'chirish transient,

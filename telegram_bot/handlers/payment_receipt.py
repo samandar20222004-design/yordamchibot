@@ -215,6 +215,11 @@ async def receipt_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return RECEIPT_WAIT
 
+    ud_order = getattr(context, "user_data", None) or {}
+    order_id = ud_order.get("card_order_id")
+    if order_id:
+        await db.run_db(db.attach_receipt_to_order, order_id, receipt_id)
+
     # 📣 Barcha adminlarga yuboramiz (o'zini chetlab). Caption'da foydalanuvchi
     # (ism + @username), ID, tanlangan tarif + summa va vaqt ko'rsatiladi.
     tarif_sum = _fmt_uzs(CARD_TARIFFS[plan_key]["amount"])

@@ -102,6 +102,130 @@ PAYMENT_PRICE_1M_UZS = _int_env("PAYMENT_PRICE_1M_UZS", 19000)
 PAYMENT_PRICE_3M_UZS = _int_env("PAYMENT_PRICE_3M_UZS", 45000)
 PAYMENT_PRICE_1Y_UZS = _int_env("PAYMENT_PRICE_1Y_UZS", 140000)
 
+# --- YAGONA TARIF MANBAI (single source of truth) ---
+# Stars / karta / AI-kanal limitlari faqat shu yerdan o'qiladi.
+STARS_1M = _int_env("STARS_PRICE_1M", 75)
+STARS_3M = _int_env("STARS_PRICE_3M", 175)
+STARS_1Y = _int_env("STARS_PRICE_1Y", 550)
+USD_1M = _str_env("USD_EQUIV_1M", "1.5")
+USD_3M = _str_env("USD_EQUIV_3M", "3.5")
+USD_1Y = _str_env("USD_EQUIV_1Y", "11.0")
+
+FREE_MAX_CHANNELS = _int_env("FREE_MAX_CHANNELS", 3)
+FREE_DAILY_AI = _int_env("FREE_DAILY_AI", 5)
+PRO_MAX_CHANNELS = _int_env("PRO_MAX_CHANNELS", 999)
+PRO_DAILY_AI = _int_env("PRO_DAILY_AI", 999)
+
+STARS_PLANS = {
+    "stars_1m": {
+        "key": "1m",
+        "stars": STARS_1M,
+        "days": 30,
+        "usd": USD_1M,
+        "uzs": PAYMENT_PRICE_1M_UZS,
+        "label": f"⭐️ 1 oylik ({STARS_1M} Stars)",
+        "description": f"~${USD_1M}",
+    },
+    "stars_3m": {
+        "key": "3m",
+        "stars": STARS_3M,
+        "days": 90,
+        "usd": USD_3M,
+        "uzs": PAYMENT_PRICE_3M_UZS,
+        "label": f"⭐️ 3 oylik ({STARS_3M} Stars)",
+        "description": f"~${USD_3M}",
+    },
+    "stars_1y": {
+        "key": "1y",
+        "stars": STARS_1Y,
+        "days": 365,
+        "usd": USD_1Y,
+        "uzs": PAYMENT_PRICE_1Y_UZS,
+        "label": f"⭐️ 1 yillik ({STARS_1Y} Stars)",
+        "description": f"~${USD_1Y} / -40% chegirma",
+    },
+}
+
+SUBSCRIPTION_PLANS = {
+    "1m": {
+        "days": 30,
+        "stars": STARS_1M,
+        "usd": USD_1M,
+        "uzs": PAYMENT_PRICE_1M_UZS,
+        "stars_key": "stars_1m",
+        "max_channels": PRO_MAX_CHANNELS,
+        "daily_ai_requests": PRO_DAILY_AI,
+    },
+    "3m": {
+        "days": 90,
+        "stars": STARS_3M,
+        "usd": USD_3M,
+        "uzs": PAYMENT_PRICE_3M_UZS,
+        "stars_key": "stars_3m",
+        "max_channels": PRO_MAX_CHANNELS,
+        "daily_ai_requests": PRO_DAILY_AI,
+    },
+    "1y": {
+        "days": 365,
+        "stars": STARS_1Y,
+        "usd": USD_1Y,
+        "uzs": PAYMENT_PRICE_1Y_UZS,
+        "stars_key": "stars_1y",
+        "max_channels": PRO_MAX_CHANNELS,
+        "daily_ai_requests": PRO_DAILY_AI,
+    },
+    "free": {
+        "days": 0,
+        "stars": 0,
+        "usd": "0",
+        "uzs": 0,
+        "stars_key": None,
+        "max_channels": FREE_MAX_CHANNELS,
+        "daily_ai_requests": FREE_DAILY_AI,
+    },
+    "pro": {
+        "days": 30,
+        "stars": STARS_1M,
+        "usd": USD_1M,
+        "uzs": PAYMENT_PRICE_1M_UZS,
+        "stars_key": "stars_1m",
+        "max_channels": PRO_MAX_CHANNELS,
+        "daily_ai_requests": PRO_DAILY_AI,
+    },
+    "enterprise": {
+        "days": 365,
+        "stars": STARS_1Y,
+        "usd": USD_1Y,
+        "uzs": PAYMENT_PRICE_1Y_UZS,
+        "stars_key": "stars_1y",
+        "max_channels": PRO_MAX_CHANNELS,
+        "daily_ai_requests": PRO_DAILY_AI,
+    },
+}
+
+PLAN_LIMITS = {
+    "free": {
+        "max_channels": FREE_MAX_CHANNELS,
+        "daily_ai_requests": FREE_DAILY_AI,
+    },
+    "pro": {
+        "max_channels": PRO_MAX_CHANNELS,
+        "daily_ai_requests": PRO_DAILY_AI,
+    },
+    "enterprise": {
+        "max_channels": PRO_MAX_CHANNELS,
+        "daily_ai_requests": PRO_DAILY_AI,
+    },
+}
+
+
+def get_stars_plan(plan_key: str) -> dict | None:
+    return STARS_PLANS.get(str(plan_key or "").strip())
+
+
+def get_subscription_plan(plan_key: str) -> dict | None:
+    return SUBSCRIPTION_PLANS.get(str(plan_key or "").strip())
+
 # --- Sentry monitoring (ixtiyoriy, 10-BOSQICH: maxfiylik filtri bilan) ---
 # SENTRY_DSN berilsa va sentry_sdk o'rnatilgan bo'lsa, barcha xatolar
 # avtomatik yig'iladi. MUHIM: Sentry'ga yuborilishdan oldin har bir event

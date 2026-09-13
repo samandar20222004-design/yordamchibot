@@ -14,7 +14,7 @@ from contextlib import contextmanager, asynccontextmanager
 import psycopg2
 from psycopg2.pool import ThreadedConnectionPool
 import pytz
-from config import DATABASE_URL
+from config import DATABASE_URL, PLAN_LIMITS as CONFIG_PLAN_LIMITS
 
 tashkent_tz = pytz.timezone("Asia/Tashkent")
 
@@ -1517,6 +1517,27 @@ def _init_db_once():
             "CREATE INDEX IF NOT EXISTS idx_payment_receipts_status "
             "ON payment_receipts (status, created_at);"
         )
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS payment_orders (
+                order_id TEXT PRIMARY KEY,
+                user_id BIGINT NOT NULL,
+                plan VARCHAR(20) NOT NULL,
+                days INTEGER NOT NULL,
+                amount INT NOT NULL,
+                currency VARCHAR(10) NOT NULL DEFAULT 'UZS',
+                status VARCHAR(20) NOT NULL DEFAULT 'pending',
+                receipt_id INTEGER,
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                expires_at TIMESTAMPTZ
+            );
+        """)
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_payment_orders_user "
+            "ON payment_orders (user_id, status);"
+        )
+        cur.execute(
+            "ALTER TABLE payment_receipts ADD COLUMN IF NOT EXISTS order_id TEXT;"
+        )
 
         migrations = [
             # P0 backward-compatible migrations (har bir statement savepoint bilan bajariladi).
@@ -1587,6 +1608,7 @@ def _init_db_once():
             # 🇺🇿 Karta cheki uchun so'mdagi summa — ledger'ga to'g'ri valyuta
             # bilan yozish uchun (eski cheklar: 0 — hisob kitobi buzilmaydi).
             "ALTER TABLE payment_receipts ADD COLUMN IF NOT EXISTS amount_uzs INT DEFAULT 0;",
+            "ALTER TABLE payment_receipts ADD COLUMN IF NOT EXISTS order_id TEXT;",
         ]
         for index, migration in enumerate(migrations):
             # Bitta migration xatosi qolgan migrationlarni transaction aborted
@@ -4203,9 +4225,11 @@ def get_user_channel_list_for_analytics(user_id: int) -> list:
 
 # Tarif limitlari
 PLAN_LIMITS = {
-    "free": {"max_channels": 3, "daily_ai_requests": 5},
-    "pro": {"max_channels": 999, "daily_ai_requests": 999},
-    "enterprise": {"max_channels": 999, "daily_ai_requests": 999},
+    key: {
+        "max_channels": int(info["max_channels"]),
+        "daily_ai_requests": int(info["daily_ai_requests"]),
+    }
+    for key, info in CONFIG_PLAN_LIMITS.items()
 }
 
 # Navbatda turishi mumkin bo'lgan postlar soni (free uchun).
@@ -4623,6 +4647,66 @@ def process_stars_payment(
 RECEIPT_STATUS_PENDING = "pending"
 RECEIPT_STATUS_APPROVED = "approved"
 RECEIPT_STATUS_REJECTED = "rejected"
+
+
+def create_payment_order(
+    user_id: int, plan: str, days: int, amount: int, currency: str = "UZS",
+    ttl_hours: int = 48,
+) -> str:
+    """Karta to'lovi uchun buyurtma (order_id) yaratadi."""
+    import uuid
+    order_id = uuid.uuid4().hex
+    try:
+        with db_cursor(commit=True) as cur:
+            cur.execute(
+                """
+                INSERT INTO payment_orders
+                    (order_id, user_id, plan, days, amount, currency, status, expires_at)
+                VALUES (%s, %s, %s, %s, %s, %s, 'pending',
+                        NOW() + (%s || ' hours')::INTERVAL)
+                """,
+                (order_id, int(user_id), str(plan), int(days), int(amount),
+                 str(currency or "UZS"), str(int(ttl_hours))),
+            )
+        return order_id
+    except Exception as e:
+        logger.error("create_payment_order xatosi: %s", e)
+        return ""
+
+
+def get_payment_order(order_id: str):
+    try:
+        with db_cursor() as cur:
+            cur.execute(
+                "SELECT order_id, user_id, plan, days, amount, currency, status, "
+                "receipt_id FROM payment_orders WHERE order_id = %s",
+                (str(order_id or ""),),
+            )
+            row = cur.fetchone()
+        if not row:
+            return None
+        return {
+            "order_id": row[0], "user_id": int(row[1]), "plan": row[2],
+            "days": int(row[3]), "amount": int(row[4] or 0),
+            "currency": row[5], "status": row[6], "receipt_id": row[7],
+        }
+    except Exception as e:
+        logger.error("get_payment_order xatosi: %s", e)
+        return None
+
+
+def attach_receipt_to_order(order_id: str, receipt_id: int) -> bool:
+    try:
+        with db_cursor(commit=True) as cur:
+            cur.execute(
+                "UPDATE payment_orders SET receipt_id = %s "
+                "WHERE order_id = %s AND status = 'pending'",
+                (int(receipt_id), str(order_id)),
+            )
+            return cur.rowcount > 0
+    except Exception as e:
+        logger.error("attach_receipt_to_order xatosi: %s", e)
+        return False
 
 
 def save_payment_receipt(
