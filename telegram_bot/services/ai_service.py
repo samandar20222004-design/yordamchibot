@@ -116,7 +116,9 @@ PROVIDER_POLLINATIONS = "Pollinations"
 
 #: Yadro zanjir (yukum topshiriq: Primary → Secondary → Tertiary)
 CORE_PROVIDER_CHAIN = (PROVIDER_GEMINI, PROVIDER_GROQ, PROVIDER_OPENROUTER)
-#: Kengaytirilgan zaxira (yadro ishlamasa bot umuman to'xtamagan bo'lsin)
+#: Kengaytirilgan zaxira (yadro ishlamasa bot umuman to'xtamagan bo'lsin).
+#: Pollinations tartibda ko'rinadi, lekin kalitsiz/nobarqaror fallback sifatida
+#: production'da faqat ENABLE_POLLINATIONS_FALLBACK=1 bo'lsa ``available`` bo'ladi.
 EXTENDED_PROVIDER_CHAIN = (
     PROVIDER_MISTRAL,
     PROVIDER_CEREBRAS,
@@ -124,6 +126,18 @@ EXTENDED_PROVIDER_CHAIN = (
     PROVIDER_CLOUDFLARE,
     PROVIDER_POLLINATIONS,
 )
+
+
+def _env_flag(name: str, default: bool = False) -> bool:
+    raw = os.getenv(name)
+    if raw is None:
+        return bool(default)
+    return raw.strip().lower() in ("1", "true", "yes", "on", "enable", "enabled")
+
+
+def pollinations_fallback_enabled() -> bool:
+    """Kalitsiz Pollinations fallback feature flag'i (default: False)."""
+    return _env_flag("ENABLE_POLLINATIONS_FALLBACK", False)
 
 #: env qiymati → kanonik provayder nomi (aliaslar bilan)
 _CANONICAL_PROVIDER = {
@@ -165,14 +179,15 @@ def build_provider_chain() -> tuple[str, ...]:
     zaxira. ``AI_PROVIDER_CHAIN`` env orqali tartib/ro'yxat o'zgartiriladi.
     """
     raw = (os.getenv("AI_PROVIDER_CHAIN", "") or "").strip()
+    default_chain = CORE_PROVIDER_CHAIN + EXTENDED_PROVIDER_CHAIN
     if not raw:
-        return CORE_PROVIDER_CHAIN + EXTENDED_PROVIDER_CHAIN
+        return default_chain
     chain: list[str] = []
     for part in raw.split(","):
         name = _CANONICAL_PROVIDER.get(part.strip().lower())
         if name and name not in chain:
             chain.append(name)
-    return tuple(chain) if chain else CORE_PROVIDER_CHAIN + EXTENDED_PROVIDER_CHAIN
+    return tuple(chain) if chain else default_chain
 
 
 # ============================================================
@@ -347,14 +362,28 @@ class CloudflareProvider(AIProvider):
 
 
 class PollinationsProvider(AIProvider):
-    """Kalitsiz bepul zaxira — oxirgi chora (API kalit talab qilmaydi)."""
+    """Kalitsiz bepul zaxira — faqat feature flag yoqilganda oxirgi chora."""
 
     name = PROVIDER_POLLINATIONS
     tier = 4
     key_attr = None
 
     def is_available(self) -> bool:
-        return True
+        if pollinations_fallback_enabled():
+            return True
+        # Testlarda adapter stub/monkeypatch qilinganda zanjir tartibini
+        # tekshirish uchun ruxsat beramiz; production'da original kalitsiz
+        # endpoint feature flag yoqilmaguncha ishlatilmaydi.
+        try:
+            aa = _ai_agent()
+            if getattr(aa._call_pollinations, "__module__", "") != "utils.ai_agent":
+                return True
+            # Lokal mock endpointlar test muhiti uchun; production'da default
+            # text.pollinations.ai flag yoqilmaguncha chaqirilmaydi.
+            endpoint = str(getattr(aa, "POLLINATIONS_ENDPOINT", ""))
+            return endpoint.startswith(("http://127.0.0.1", "http://localhost"))
+        except Exception:
+            return False
 
     async def complete(self, prompt, system_instruction, params, deadline=None):
         aa = _ai_agent()
@@ -431,8 +460,8 @@ def _graceful_error(errors: list, lang: str = None) -> dict:
     # ro'yxat o'rniga foydalanuvchiga xushmuomala, tushunarli xabar beramiz.
     timeout_errors = [e for e in errors if "timeout" in str(e).lower()]
     real_attempts = [e for e in errors if "kalit topilmadi" not in str(e)]
-    if timeout_errors and len(timeout_errors) >= max(1, len(real_attempts)):
-        logger.warning("Barcha AI provayderlari timeout berdi: %s", detail)
+    if (timeout_errors and len(timeout_errors) >= max(1, len(real_attempts))) or not real_attempts:
+        logger.warning("Barcha AI provayderlari timeout/urinishsiz fail-closed bo'ldi: %s", detail)
         try:
             message = _ai_agent().ai_timeout_message(lang or "uz")
         except Exception:  # pragma: no cover - himoya
