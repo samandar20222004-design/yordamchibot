@@ -203,55 +203,82 @@ def get_hub_back_keyboard() -> InlineKeyboardMarkup:
     ]])
 
 
+# ============================================================
+# 👑 ADMIN DASHBOARD — YAGONA INLINE PANEL (3-bosqich)
+# ============================================================
+# Layoutning YAGONA MANBASI: (yorliq, callback_data) qatorlari. Klaviatura
+# shu registrdan quriladi — testlar ham, hujjat ham shu yerdan o'qiydi.
+#
+#     [📊 Bot statistikasi]   [📢 Ommaviy xabar]
+#     [🎯 Reklama markazi]    [📋 Kanallar ro'yxati]
+#     [📋 Barcha postlar]     [🎁 Promo-kod yaratish]
+#     [⭐️ PRO berish]        [🏷 Post nishoni]
+#     [⚙️ AI parametrlari]    [🗄️ DB / Kesh holati]
+#     [🩺 Tizim monitoringi]  [❌ Yopish]
+ADMIN_DASHBOARD_ROWS = (
+    (("📊 Bot statistikasi", "adm_stats"),
+     ("📢 Ommaviy xabar", "adm_broadcast")),
+    (("🎯 Reklama markazi", "adm_adhub"),
+     ("📋 Kanallar ro'yxati", "adm_channels")),
+    (("📋 Barcha postlar", "adm_posts"),
+     ("🎁 Promo-kod yaratish", "adm_promo")),
+    (("⭐️ PRO berish", "adm_grant_pro"),
+     ("🏷 Post nishoni", "adm_tag")),
+    (("⚙️ AI parametrlari", "adm_ai"),
+     ("🗄️ DB / Kesh holati", "adm_dbcache")),
+    (("🩺 Tizim monitoringi", "adm_health"),
+     ("❌ Yopish", "close_msg")),
+)
+
+#: Dashboard'dagi barcha callback'lar (tartib saqlanadi, tekshiruvlar uchun).
+ADMIN_DASHBOARD_CALLBACKS = tuple(
+    cb for row in ADMIN_DASHBOARD_ROWS for _label, cb in row
+)
+
+
 def get_admin_dashboard_keyboard() -> InlineKeyboardMarkup:
-    """👑 Admin dashboard — YAGONA MARKAZ (PostAssist V2 · 4-qadam).
+    """👑 Admin panel — YAGONA INLINE MARKAZ (3-bosqich).
 
-    Eski admin reply-klaviaturasi va /buyruqlar to'liq shu dashboard'ga
-    integratsiya qilingan (eski yo'llar alias sifatida ishlaydi):
+    Pastdagi 10 talik oq reply-klaviatura BUTUNLAY olib tashlandi: endi
+    admin panel ochilganda faqat shu INLINE panel chiziladi (reply
+    klaviatura o'rnida asosiy menyu qoladi, hech qanday admin tugmasi
+    qayta chizilmaydi).
 
-        [📊 To'liq statistika]  [📢 Ommaviy xabar]      ← /stats, /admin_stats
+        [📊 Bot statistikasi]   [📢 Ommaviy xabar]      ← /stats, /admin_stats
         [🎯 Reklama markazi]    [📋 Kanallar ro'yxati]  ← /channels boshqaruvi
         [📋 Barcha postlar]     [🎁 Promo-kod yaratish] ← /allposts
-        [⭐️ PRO berish]         [🏷 Post nishoni]       ← /grant_pro
+        [⭐️ PRO berish]        [🏷 Post nishoni]       ← /grant_pro
         [⚙️ AI parametrlari]    [🗄️ DB / Kesh holati]  ← /ai parametrlari
-        [🩺 Tizim salomatligi]  [📜 Audit | 👥 Rollar]  ← /health, /audit
-                          [❌ Yopish]
+        [🩺 Tizim monitoringi]  [❌ Yopish]             ← /health (+ Audit|Rollar
+                                                          shu ekran ichida)
 
-    Yangi ``adm_*`` callback'lar (4-qadam): ``adm_posts`` (Barcha postlar),
-    ``adm_tag`` (Post nishoni), ``adm_ai`` (AI parametrlari), ``adm_dbcache``
-    (DB/Kesh holati), ``adm_audit_roles`` (Audit + Rollar). ``adm_health``
-    allaqachon mavjud edi — endi dashboard'da KO'RINADIGAN tugmaga aylandi.
-    Barchasi ``admin_dashboard_callback`` orqali server-side RBAC bilan
-    (fail-closed) ishlaydi.
+    Har bir tugma ``admin_dashboard_callback`` orqali server-side RBAC bilan
+    (fail-closed) ishlaydi. Eski reply-tugmalar matnlari va /buyruqlar esa
+    routing ALIAS'i sifatida saqlanadi — lekin ular hech qanday klaviaturada
+    CHIZILMAYDI (``keyboards.default.ADMIN_LEGACY_REPLY_TEXTS``).
     """
     keyboard = [
-        [
-            InlineKeyboardButton("📊 To'liq statistika", callback_data="adm_stats"),
-            InlineKeyboardButton("📢 Ommaviy xabar", callback_data="adm_broadcast"),
-        ],
-        [
-            InlineKeyboardButton("🎯 Reklama markazi", callback_data="adm_adhub"),
-            InlineKeyboardButton("📋 Kanallar ro'yxati", callback_data="adm_channels"),
-        ],
-        [
-            InlineKeyboardButton("📋 Barcha postlar", callback_data="adm_posts"),
-            InlineKeyboardButton("🎁 Promo-kod yaratish", callback_data="adm_promo"),
-        ],
-        [
-            InlineKeyboardButton("⭐️ PRO berish", callback_data="adm_grant_pro"),
-            InlineKeyboardButton("🏷 Post nishoni", callback_data="adm_tag"),
-        ],
-        [
-            InlineKeyboardButton("⚙️ AI parametrlari", callback_data="adm_ai"),
-            InlineKeyboardButton("🗄️ DB / Kesh holati", callback_data="adm_dbcache"),
-        ],
-        [
-            InlineKeyboardButton("🩺 Tizim salomatligi", callback_data="adm_health"),
-            InlineKeyboardButton("📜 Audit | 👥 Rollar", callback_data="adm_audit_roles"),
-        ],
-        [InlineKeyboardButton("❌ Yopish", callback_data="close_msg")],
+        [InlineKeyboardButton(label, callback_data=callback)
+         for label, callback in row]
+        for row in ADMIN_DASHBOARD_ROWS
     ]
     return InlineKeyboardMarkup(keyboard)
+
+
+def get_admin_monitoring_keyboard() -> InlineKeyboardMarkup:
+    """🩺 Tizim monitoringi ekrani tugmalari (``adm_health``).
+
+    ``📜 Audit | 👥 Rollar`` (``adm_audit_roles``) dashboard'dan shu ekranga
+    ko'chirildi: monitoring = tizim holati + oxirgi admin harakatlari. Tugma
+    o'z handlerga ega va faqat OWNER/SUPER_ADMIN uchun ochiladi (fail-closed).
+    """
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("📜 Audit | 👥 Rollar", callback_data="adm_audit_roles")],
+        [
+            InlineKeyboardButton("⬅️ Orqaga", callback_data="adm_back"),
+            InlineKeyboardButton("❌ Yopish", callback_data="close_msg"),
+        ],
+    ])
 
 
 def get_admin_back_keyboard(cancel: bool = True) -> InlineKeyboardMarkup:

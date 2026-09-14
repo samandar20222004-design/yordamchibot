@@ -18,12 +18,24 @@ Qamrov (4-qadam topshirig'i bo'yicha):
            * [🏠 Asosiy menyu] — istalgan joydan asosiy 6 tugmali menyuga;
            * bo'lim yozuvi (``nav_section``) FSM tozalanishidan omon qoladi.
 
-  TEST 3 — 👑 ADMIN DASHBOARD YAGONA MARKAZ (12 tugma + Yopish):
-           * Barcha yangi tugmalar (adm_posts, adm_tag, adm_ai, adm_dbcache,
-             adm_audit_roles, adm_health) adminga OCHILADI va ishlaydi;
+  TEST 3 — 👑 ADMIN DASHBOARD YAGONA INLINE PANEL (12 tugma):
+           * Pastdagi oq 10 talik ADMIN REPLY-KLAVIATURASI BUTUNLAY olib
+             tashlangan (``get_admin_panel_keyboard() → ReplyKeyboardRemove``);
+             admin panel ochilganda u HECH QACHON qayta chizilmaydi;
+           * Layout topshiriq bo'yicha AYNAN: 📊 Bot statistikasi / 📢 Ommaviy
+             xabar / 🎯 Reklama markazi / 📋 Kanallar ro'yxati / 📋 Barcha
+             postlar / 🎁 Promo-kod yaratish / ⭐️ PRO berish / 🏷 Post nishoni
+             / ⚙️ AI parametrlari / 🗄️ DB / Kesh holati / 🩺 Tizim monitoringi
+             / ❌ Yopish (6 qator × 2);
+           * Barcha inline ``adm_*`` tugmalari adminga OCHILADI va ishlaydi
+             (adm_posts, adm_tag, adm_ai, adm_dbcache, adm_health — «📜 Audit |
+             👥 Rollar» esa 🩺 Tizim monitoringi ekranida);
            * dublikat statistika handlerlari (adm_stats / /admin_stats /
-             «📊 Statistika» reply-tugmasi) BIRTA yagona ekranga birlashgan;
-           * eski admin reply-tugmalari va buyruqlari ALIAS sifatida ishlaydi.
+             «📊 To'liq statistika» reply-aliasi) BIRTA yagona ekranga
+             birlashgan;
+           * eski admin reply-tugmalari matnlari va buyruqlari FAQAT routing
+             ALIAS sifatida ishlaydi (chat tarixidan yozilsa) — lekin ular
+             hech qanday klaviaturada CHIZILMAYDI.
 
   TEST 4 — 🛡 TAMPERING / RBAC (fail-closed):
            * Oddiy foydalanuvchiga BARCHA adm_* callback'lari QAT'IY yopiq —
@@ -78,7 +90,8 @@ from keyboards.default import (  # noqa: E402
     BTN_ADMIN_PANEL, BTN_CANCEL, content_creation_rows, get_main_keyboard,
 )
 from keyboards.inline import (  # noqa: E402
-    get_admin_dashboard_keyboard, get_ai_studio_keyboard,
+    ADMIN_DASHBOARD_ROWS, get_admin_dashboard_keyboard,
+    get_admin_monitoring_keyboard, get_ai_studio_keyboard,
     get_settings_hub_keyboard, get_tools_keyboard,
 )
 from keyboards.callback_data import (  # noqa: E402
@@ -605,10 +618,10 @@ def test_fsm_cancel_returns_to_section_start():
 # TEST 3 — 👑 ADMIN DASHBOARD YAGONA MARKAZ
 # ===========================================================================
 def test_admin_dashboard_single_center():
-    print("== TEST 3: 👑 Admin dashboard — yagona markaz (12 tugma) ==")
+    print("== TEST 3: 👑 Admin dashboard — yagona INLINE panel (12 tugma) ==")
     fake = _FakeDB()
 
-    # 3a) Layout — topshiriqdagi AYNAN tartib.
+    # 3a) Layout — 3-bosqich topshirig'idagi AYNAN tartib: 6 qator × 2.
     kb = get_admin_dashboard_keyboard()
     rows = _inline_rows(kb)
     cbs = _cbs(kb)
@@ -618,13 +631,36 @@ def test_admin_dashboard_single_center():
         ("adm_posts", "adm_promo"),
         ("adm_grant_pro", "adm_tag"),
         ("adm_ai", "adm_dbcache"),
-        ("adm_health", "adm_audit_roles"),
+        ("adm_health", "close_msg"),
     ]
-    got = [tuple(cb for _, cb in row) for row in rows[:6]]
-    check("Dashboard 6 juft (12) amaliy tugma + Yopish",
-          got == expected and rows[-1][0][1] == "close_msg" and len(rows) == 7,
+    got = [tuple(cb for _, cb in row) for row in rows]
+    check("Dashboard 6 juft (12) inline tugma — 6 qator",
+          got == expected and len(rows) == 6, str(rows))
+    check("Dashboard: jami 12 tugma", len(cbs) == 12, str(cbs))
+    check("Dashboard layout = ADMIN_DASHBOARD_ROWS (yagona manba SSOT)",
+          tuple(tuple((t, c) for t, c in row) for row in rows) == ADMIN_DASHBOARD_ROWS,
           str(rows))
-    check("Dashboard: jami 13 tugma", len(cbs) == 13, str(cbs))
+    label_map = {t: c for row in rows for t, c in row}
+    check("1-yorliq: «📊 Bot statistikasi» → adm_stats",
+          label_map.get("📊 Bot statistikasi") == "adm_stats", str(label_map))
+    check("oxirgi qator: «🩺 Tizim monitoringi» → adm_health",
+          rows[-1][0] == ("🩺 Tizim monitoringi", "adm_health"), str(rows[-1]))
+    check("oxirgi qator: «❌ Yopish» → close_msg",
+          rows[-1][1] == ("❌ Yopish", "close_msg"), str(rows[-1]))
+    check("eski «📊 To'liq statistika» yorlig'i dashboard'da emas (alias bo'lib qoldi)",
+          "📊 To'liq statistika" not in label_map, str(label_map))
+    check("dashboard'da eski «🩺 Tizim salomatligi» yorlig'i yo'q",
+          "🩺 Tizim salomatligi" not in label_map, str(label_map))
+    # «📜 Audit | 👥 Rollar» dashboard'dan 🩺 Tizim monitoringi ekraniga
+    # ko'chirildi — callback va RBAC tekshiruvi o'zgarmadi.
+    check("dashboard'da adm_audit_roles YO'Q (monitoring ekraniga ko'chdi)",
+          "adm_audit_roles" not in cbs, str(cbs))
+    mon_rows = _inline_rows(get_admin_monitoring_keyboard())
+    check("🩺 monitoring ekranida «📜 Audit | 👥 Rollar» bor",
+          mon_rows[0] == [("📜 Audit | 👥 Rollar", "adm_audit_roles")], str(mon_rows))
+    check("🩺 monitoring ekranida [⬅️ Orqaga] dashboard'ga",
+          [("⬅️ Orqaga", "adm_back"), ("❌ Yopish", "close_msg")] == mon_rows[1],
+          str(mon_rows))
 
     # 3b) Yangi tugmalar admin uchun ISHLAYDI (ekran chiziladi).
     #     📋 Barcha postlar
@@ -680,7 +716,7 @@ def test_admin_dashboard_single_center():
     check("adm_audit_roles → Rollar bloki",
           "Rollar" in audit_text and "admin" in audit_text, audit_text[-200:])
 
-    #     🩺 Tizim salomatligi — endi DASHBOARD tugmasi (mavjud callback).
+    #     🩺 Tizim monitoringi — dashboard tugmasi (mavjud callback).
     import services.health_service as HS
     orig_report = HS.format_health_report
     async def _fake_report(lang="uz"):
@@ -694,6 +730,10 @@ def test_admin_dashboard_single_center():
               state == ConversationHandler.END
               and "Tizim holati" in (q_health.screen.get("text") or ""),
               str(q_health.screen.get("text"))[:80])
+        check("adm_health → monitoring klaviaturasi (Audit | Rollar + Orqaga)",
+              _cbs(q_health.screen.get("reply_markup"))
+              == _cbs(get_admin_monitoring_keyboard()),
+              str(_cbs(q_health.screen.get("reply_markup"))))
     finally:
         HS.format_health_report = orig_report
 
@@ -857,6 +897,110 @@ def test_admin_dashboard_single_center():
 
 
 # ===========================================================================
+# TEST 3b — ⛔️ ESKI ADMIN REPLY-KLAVIATURASI QAYTMASLIGI (3-bosqich)
+# ===========================================================================
+def test_admin_reply_keyboard_removed():
+    """Admin panel ochilganda pastdagi 10 talik oq reply-klaviatura
+    CHIZILMASLIGI kerak — barcha admin boshqaruvi FAQAT yagona inline panel.
+    """
+    print("== TEST 3b: ⛔️ Eski admin reply-klaviatura qaytmasligi ==")
+    from telegram import InlineKeyboardMarkup, ReplyKeyboardMarkup, ReplyKeyboardRemove
+    from keyboards.default import (
+        ADMIN_LEGACY_REPLY_ROWS, ADMIN_LEGACY_REPLY_TEXTS,
+        BTN_ADS, BTN_AI_SETTINGS, BTN_ALL_CHANNELS, BTN_ALL_POSTS,
+        BTN_BROADCAST, BTN_CACHE_DB, BTN_FULL_STATS, BTN_POST_TAG,
+        BTN_SPONSORS, get_admin_panel_keyboard,
+    )
+
+    # 3b-1) Klaviatura quruvchisi endi ReplyKeyboardRemove qaytaradi.
+    kb = get_admin_panel_keyboard()
+    check("get_admin_panel_keyboard() → ReplyKeyboardRemove",
+          isinstance(kb, ReplyKeyboardRemove), type(kb).__name__)
+    check("ReplyKeyboardRemove'da .keyboard yo'q (tugma chizilmaydi)",
+          not hasattr(kb, "keyboard"), str(getattr(kb, "keyboard", None)))
+
+    # 3b-2) Eski 10 yorliq ALIAS sifatida saqlanadi (o'chirilmagan).
+    legacy_texts = (
+        BTN_SPONSORS, BTN_FULL_STATS, BTN_ADS, BTN_POST_TAG, BTN_AI_SETTINGS,
+        BTN_CACHE_DB, BTN_BROADCAST, BTN_ALL_POSTS, BTN_ALL_CHANNELS,
+    )
+    for label in legacy_texts:
+        check(f"legacy yorliq alias ro'yxatida: «{label}»",
+              label in ADMIN_LEGACY_REPLY_TEXTS, str(ADMIN_LEGACY_REPLY_TEXTS))
+    check("ADMIN_LEGACY_REPLY_ROWS — 5 qator (eski klaviatura hujjati)",
+          len(ADMIN_LEGACY_REPLY_ROWS) == 5, str(ADMIN_LEGACY_REPLY_ROWS))
+
+    # 3b-3) Manba darajasida: admin handlerlarida reply-klaviatura chaqiruvi yo'q.
+    admin_src = (ROOT / "handlers" / "admin.py").read_text(encoding="utf-8")
+    check("admin.py: «reply_markup=get_admin_panel_keyboard()» qolmagan",
+          "reply_markup=get_admin_panel_keyboard()" not in admin_src)
+    check("admin.py: «reply_markup=get_cancel_keyboard()» qolmagan "
+          "(admin FSM'lari inline [❌ Bekor qilish] ishlatadi)",
+          "reply_markup=get_cancel_keyboard()" not in admin_src)
+    default_src = (ROOT / "keyboards" / "default.py").read_text(encoding="utf-8")
+    check("default.py: admin ReplyKeyboardMarkup o'chirilgan",
+          "[BTN_SPONSORS, BTN_FULL_STATS]" not in default_src, "eski qator topildi")
+
+    # 3b-4) HAQIQIY chaqiruv: har bir legacy admin handler yangi inline
+    #       klaviaturalardan foydalanadi (reply-klaviatura CHIZILMAYDI).
+    fake = _FakeDB()
+    legacy_handlers = (
+        ("admin_panel_menu", ADM.admin_panel_menu),
+        ("show_statistics", ADM.show_statistics),
+        ("admin_all_posts", ADM.admin_all_posts),
+        ("admin_all_channels", ADM.admin_all_channels),
+        ("sponsors_menu", ADM.sponsors_menu),
+        ("ai_settings_menu", ADM.ai_settings_menu),
+        ("cache_db_menu", ADM.cache_db_menu),
+        ("start_set_post_tag", ADM.start_set_post_tag),
+        ("start_add_sponsor", ADM.start_add_sponsor),
+        ("broadcast_start", ADM.broadcast_start),
+        ("start_set_channel_ad", ADM.start_set_channel_ad),
+        ("start_set_bot_reply_ad", ADM.start_set_bot_reply_ad),
+        ("admin_ad_hub_entry", ADM.admin_ad_hub_entry),
+    )
+    for name, fn in legacy_handlers:
+        msg = _Msg()
+        with _with_db(fake), _quiet():
+            _run(fn(_msg_update(msg, user_id=ADMIN_ID), _ctx("uz")))
+        reply_kbs = [m["reply_markup"] for m in msg.sent
+                     if isinstance(m.get("reply_markup"), ReplyKeyboardMarkup)]
+        flat = [b.text for markup in reply_kbs for row in markup.keyboard for b in row]
+        leaked = sorted(set(flat) & set(ADMIN_LEGACY_REPLY_TEXTS))
+        check(f"{name}: reply-klaviatura chizilmadi (eski admin tugmalari yo'q)",
+              not leaked, str(leaked))
+        check(f"{name}: ekran INLINE klaviatura bilan chizildi",
+              bool(msg.sent) and any(
+                  isinstance(m.get("reply_markup"), InlineKeyboardMarkup)
+                  for m in msg.sent),
+              str([type(m.get("reply_markup")).__name__ for m in msg.sent]))
+
+    # 3b-5) HECH BIR admin ekrani eski 10 talik matnni klaviaturada chiqarmaydi:
+    #       dashboard tugmalari ham faqat inline.
+    dash = get_admin_dashboard_keyboard()
+    check("dashboard ham INLINE (ReplyKeyboardMarkup emas)",
+          isinstance(dash, InlineKeyboardMarkup), type(dash).__name__)
+
+    # 3b-6) RBAC: oddiy foydalanuvchi uchun panel yopiq (fail-closed) va u
+    #       hech qanday admin klaviaturasini ko'rmaydi.
+    from keyboards.default import BTN_ADMIN_PANEL
+    check("is_admin(USER_ID) is False", ADM.is_admin(USER_ID) is False)
+    for lang in LANGS:
+        user_labels = [t for row in _rows(get_main_keyboard(False, lang=lang))
+                       for t in row]
+        check(f"[{lang}] oddiy user menyusida admin tugmalari yo'q",
+              not (set(user_labels) & set(ADMIN_LEGACY_REPLY_TEXTS)),
+              str(sorted(set(user_labels) & set(ADMIN_LEGACY_REPLY_TEXTS))))
+        check(f"[{lang}] oddiy user menyusida «{BTN_ADMIN_PANEL}» yo'q",
+              BTN_ADMIN_PANEL not in user_labels, str(user_labels))
+    user_msg = _Msg()
+    with _with_db(_FakeDB()), _quiet():
+        state = _run(ADM.admin_panel_menu(_msg_update(user_msg, user_id=USER_ID), _ctx("uz")))
+    check("oddiy user: admin_panel_menu jim rad (hech narsa chizilmaydi)",
+          state == ConversationHandler.END and not user_msg.sent, str(user_msg.sent))
+
+
+# ===========================================================================
 # TEST 4 — 🛡 TAMPERING: oddiy foydalanuvchiga adm_* QAT'IY yopiq
 # ===========================================================================
 def test_admin_callbacks_fail_closed_for_non_admin():
@@ -998,7 +1142,7 @@ def test_i18n_and_callback_safety():
 # ===========================================================================
 def main():
     print("=" * 70)
-    print(" POSTASSIST V2 · 4-QADAM — NAVIGATSIYA STACKI + ADMIN DASHBOARD")
+    print(" POSTASSIST V2 · 4-QADAM + 3-BOSQICH (YAGONA INLINE ADMIN PANEL)")
     print("=" * 70)
 
     test_navigation_stack_content_ai_back()
@@ -1007,6 +1151,7 @@ def main():
     test_back_cancel_main_menu_separation()
     test_fsm_cancel_returns_to_section_start()
     test_admin_dashboard_single_center()
+    test_admin_reply_keyboard_removed()
     test_admin_callbacks_fail_closed_for_non_admin()
     test_i18n_and_callback_safety()
 

@@ -10,7 +10,7 @@ Bu modulning ikkita vazifasi bor:
 """
 
 import re
-from telegram import ReplyKeyboardMarkup
+from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove
 from telegram.ext import filters
 from locales.translations import (
     get_text, get_lang, normalize_lang,
@@ -925,35 +925,49 @@ def get_auto_delete_keyboard(lang="uz"):
     )
 
 
+# ============================================================
+# ⛔️ LEGACY ADMIN REPLY-KLAVIATURASI — 3-BOSQICHDA OLIB TASHLANDI
+# ============================================================
+# Ilgari admin panel ochilganda pastda oq 10 talik reply-klaviatura
+# chizilardi:
+#
+#     [📢 Majburiy obuna]      [📊 To'liq statistika]
+#     [🎯 Reklama markazi]     [🏷 Post nishoni]
+#     [⚙️ AI parametrlar]      [🗄️ DB / Kesh holati]
+#     [✉️ Xabar yuborish]      [📋 Barcha postlar]
+#     [📋 Barcha kanal/guruhlar] [🔙 Asosiy menyu]
+#
+# Endi BUNDAY KLAVIATURA CHIZILMAYDI: barcha admin boshqaruvi FAQAT yagona
+# INLINE panel (``keyboards.inline.get_admin_dashboard_keyboard``) orqali
+# ishlaydi. Quyidagi matnlar esa ROUTING ALIAS'i sifatida saqlanadi —
+# chat tarixidan qo'lda yozilsa (yoki eski klaviatura xabaridan bosilsa)
+# handler baribir ishga tushadi. Bir yorliq — bitta amal, lekin hech
+# qanday klaviaturada ko'rinmaydi.
+ADMIN_LEGACY_REPLY_ROWS = (
+    (BTN_SPONSORS, BTN_FULL_STATS),
+    (BTN_ADS, BTN_POST_TAG),
+    (BTN_AI_SETTINGS, BTN_CACHE_DB),
+    (BTN_BROADCAST, BTN_ALL_POSTS),
+    (BTN_ALL_CHANNELS, BTN_BACK),
+)
+#: O'sha klaviaturadagi barcha matnlar (takrorlanishlarsiz) — testlar shu
+#: ro'yxat orqali «eski reply-klaviatura qaytmadi» ni tekshiradi.
+ADMIN_LEGACY_REPLY_TEXTS = _uniq(*ADMIN_LEGACY_REPLY_ROWS)
+
+
 def get_admin_panel_keyboard():
-    """Admin panel reply-klaviaturasi.
+    """⛔️ DEPRECATED — eski admin reply-klaviaturasi ENDI MAVJUD EMAS.
 
-    UX: reklama boshqaruvi endi BITTA tugada — "🎯 Reklama markazi".
-    Avval shu qatorda kanallar/obotlar uchun alohida reklama tugmalari
-    bor edi; ular hub menyusidagi bo'limlarga birlashtirildi.
+    3-bosqich: admin panelning pastdagi 10 talik oq reply-klaviaturasi
+    butunlay olib tashlandi. Barcha admin boshqaruvi FAQAT yagona inline
+    panel orqali (``adm_*`` callback'lari):
+    ``keyboards.inline.get_admin_dashboard_keyboard()``.
 
-    STATISTIKA IZOLYATSIYASI: bot bo'yicha statistika tugmasi endi
-    «📊 To'liq statistika» (BTN_FULL_STATS) — asosiy menyudagi shaxsiy
-    «📊 Statistika» (BTN_STATS) bilan matni bo'lishilmaydi, shu sababli
-    admin panel ichidagi tugma aniq ADMIN statistikasini ochadi.
+    Funksiya nomi API mosligi uchun saqlanadi, lekin u endi HAR DOIM
+    ``ReplyKeyboardRemove`` qaytaradi — ya'ni eski chaqiruvlar ham yangi
+    tugmalar to'plamini chizib qo'ya olmaydi (defense-in-depth).
     """
-    return ReplyKeyboardMarkup(
-        [
-            [BTN_SPONSORS, BTN_FULL_STATS],
-            [BTN_ADS, BTN_POST_TAG],
-            [BTN_AI_SETTINGS, BTN_CACHE_DB],
-            [BTN_BROADCAST, BTN_ALL_POSTS],
-            [BTN_ALL_CHANNELS, BTN_BACK],
-        ],
-        resize_keyboard=True,
-    )
-
-
-def get_sponsors_keyboard():
-    return ReplyKeyboardMarkup(
-        [[BTN_ADD_SPONSOR], [BTN_ADMIN_PANEL, BTN_BACK]],
-        resize_keyboard=True
-    )
+    return ReplyKeyboardRemove()
 
 
 def get_time_keyboard(lang="uz"):

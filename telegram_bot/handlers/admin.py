@@ -6,17 +6,18 @@ from telegram.ext import ContextTypes, ConversationHandler
 from config import ADMIN_IDS_SET
 import database as db
 from keyboards.default import (
-    get_admin_panel_keyboard,
-    get_sponsors_keyboard,
-    get_cancel_keyboard,
+    # ⛔️ Eski admin reply-klaviaturasi (get_admin_panel_keyboard) endi
+    # CHAQIRILMAYDI: 3-bosqichda butun admin boshqaruvi yagona INLINE
+    # panelga o'tkazildi. Funksiya API mosligi uchun `keyboards.default`
+    # da qoldi va endi har doim ReplyKeyboardRemove qaytaradi.
     get_main_keyboard,
     BTN_MAIN_MENU, BTN_CANCEL,
-    BTN_AI_SETTINGS, BTN_CACHE_DB,
     is_menu_text,
 )
 from keyboards.inline import (
     get_sponsors_delete_keyboard, get_cache_actions_keyboard,
     get_admin_dashboard_keyboard, get_admin_back_keyboard,
+    get_admin_monitoring_keyboard,
     get_ad_pool_menu_keyboard, get_ad_pool_delete_keyboard,
     get_ad_pool_back_keyboard, get_admin_sponsors_keyboard,
     get_ad_hub_keyboard,
@@ -340,6 +341,12 @@ async def admin_panel_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     rad etiladi. Admin kirganda dashboard bilan birga TIZIM MONITORINGI
     (Health status) bloki ham ko'rsatiladi: Bot & DB, Scheduler, AI
     provayderlar (Gemini/Groq/OpenRouter) va pending manual to'lovlar.
+
+    ⛔️ 3-bosqich: pastdagi oq 10 talik ADMIN REPLY-KLAVIATURASI BU YERDA
+    HAM, boshqa admin handlerlarida ham CHIZILMAYDI — panel faqat INLINE
+    (``get_admin_dashboard_keyboard``) bo'lib qoldi. Reply klaviatura
+    o'rnida foydalanuvchining mavjud asosiy menyusi saqlanadi; eski admin
+    matnlari esa faqat routing ALIAS'i (chat tarixidan yozilsa ishlaydi).
     """
     if not is_admin(update.effective_user.id):
         return ConversationHandler.END
@@ -649,7 +656,10 @@ async def admin_dashboard_callback(update: Update, context: ContextTypes.DEFAULT
         except Exception as e:
             logger.error("adm_health: hisobot yaratishda xato: %s", e)
             text = get_text("sys_busy", lang)
-        await _admin_edit(query, text, get_admin_back_keyboard(cancel=False))
+        # 3-bosqich: «📜 Audit | 👥 Rollar» dashboard'dan shu monitoring
+        # ekraniga ko'chirildi (yagona dashboard 12 tugma standarti), lekin
+        # ``adm_audit_roles`` callback'i va uning RBAC tekshiruvi o'zgarmadi.
+        await _admin_edit(query, text, get_admin_monitoring_keyboard())
         context.user_data.pop("admin_flow", None)
         return ConversationHandler.END
 
@@ -1084,8 +1094,14 @@ async def admin_inline_text_handler(update: Update, context: ContextTypes.DEFAUL
 
 
 # ============================================================
-# LEGACY ADMIN HANDLERS (ReplyKeyboard bilan ishlaydi)
+# LEGACY ADMIN HANDLERS — ROUTING ALIAS sifatida ishlaydi
 # ============================================================
+# Bu bo'limdagi handlerlar ilgari eski admin REPLY-KLAVIATURASI
+# tugmalariga bog'langan edi. 3-bosqichdan keyin pastdagi admin
+# klaviaturasi YO'Q, lekin har bir handler (a) yagona inline panelning
+# ``adm_*`` callback'i orqali va (b) eski matn router ALIAS'i orqali
+# (chat tarixidan qo'lda yozilganda) baribir ochiladi. Har bir ekran
+# esa endi INLINE tugmalar bilan chiziladi.
 
 async def ai_settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id):
@@ -1103,7 +1119,7 @@ async def ai_settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "<code>max_tokens=off</code>  <i>(parametr umuman yuborilmaydi)</i>\n\n"
         "👉 Hammasini defaultga qaytarish uchun <code>reset</code> deb yozing.\n"
         "Bekor qilish uchun asosiy menyu tugmasini bosing.",
-        reply_markup=get_cancel_keyboard(),
+        reply_markup=get_admin_back_keyboard(),
         parse_mode="HTML",
     )
     return AI_SETTINGS
@@ -1128,7 +1144,7 @@ async def ai_settings_received(update: Update, context: ContextTypes.DEFAULT_TYP
         await update.message.reply_text(
             "✅ <b>Barcha AI parametrlar default holatga qaytarildi.</b>\n\n"
             f"{_ai_settings_text()}",
-            reply_markup=get_cancel_keyboard(),
+            reply_markup=get_admin_back_keyboard(),
             parse_mode="HTML",
         )
         return AI_SETTINGS
@@ -1156,7 +1172,7 @@ async def ai_settings_received(update: Update, context: ContextTypes.DEFAULT_TYP
     if errors:
         await update.message.reply_text(
             "⚠️ <b>Quyidagi kalitlarni o'zgartirib bo'lmadi:</b>\n" + "\n".join(errors),
-            reply_markup=get_cancel_keyboard(),
+            reply_markup=get_admin_back_keyboard(),
             parse_mode="HTML",
         )
 
@@ -1169,13 +1185,13 @@ async def ai_settings_received(update: Update, context: ContextTypes.DEFAULT_TYP
         await update.message.reply_text(
             "✅ <b>AI parametrlar yangilandi:</b>\n\n"
             f"{_ai_settings_text()}",
-            reply_markup=get_cancel_keyboard(),
+            reply_markup=get_admin_back_keyboard(),
             parse_mode="HTML",
         )
     elif not errors:
         await update.message.reply_text(
             "⚠️ Hech qanday kalit kiritilmadi. <code>kalit=qiymat</code> formatida yuboring.",
-            reply_markup=get_cancel_keyboard(),
+            reply_markup=get_admin_back_keyboard(),
             parse_mode="HTML",
         )
     return AI_SETTINGS
@@ -1249,7 +1265,7 @@ async def start_set_post_tag(update: Update, context: ContextTypes.DEFAULT_TYPE)
         "Postlar oxiriga qo'shiladigan matnni yuboring.\n"
         "Masalan: <code>@PostAssistrobot</code>\n"
         "O'chirish uchun <code>clear</code> deb yozing.",
-        reply_markup=get_cancel_keyboard(),
+        reply_markup=get_admin_back_keyboard(),
         parse_mode="HTML",
     )
     return SET_POST_TAG
@@ -1272,7 +1288,7 @@ async def post_tag_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         new_value={"post_tag_text": ""})
         await update.message.reply_text(
             "✅ <b>Post nishoni o'chirildi</b> — postlar toza chiqadi.",
-            reply_markup=get_admin_panel_keyboard(),
+            reply_markup=get_admin_dashboard_keyboard(),
             parse_mode="HTML",
         )
     else:
@@ -1285,7 +1301,7 @@ async def post_tag_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         new_value={"post_tag_text": text})
         await update.message.reply_text(
             f"✅ <b>Post nishoni saqlandi:</b>\n\n<code>{html_escape(text)}</code>",
-            reply_markup=get_admin_panel_keyboard(),
+            reply_markup=get_admin_dashboard_keyboard(),
             parse_mode="HTML",
         )
     return ConversationHandler.END
@@ -1425,7 +1441,7 @@ async def show_statistics(update: Update, context: ContextTypes.DEFAULT_TYPE):
     stats = await db.run_db(db.get_system_stats)
     await update.message.reply_text(
         _build_full_stats_text(stats),
-        reply_markup=get_admin_panel_keyboard(),
+        reply_markup=get_admin_dashboard_keyboard(),
         parse_mode="HTML",
     )
 
@@ -1438,7 +1454,7 @@ async def admin_all_posts(update: Update, context: ContextTypes.DEFAULT_TYPE):
     recent_posts = await db.run_db(db.get_recent_posts, 15)
     await update.message.reply_text(
         _build_admin_posts_text(recent_posts),
-        reply_markup=get_admin_panel_keyboard(),
+        reply_markup=get_admin_dashboard_keyboard(),
         parse_mode="HTML",
     )
 
@@ -1450,11 +1466,11 @@ async def admin_all_channels(update: Update, context: ContextTypes.DEFAULT_TYPE)
     _remember_admin_section(context)
     channels = await db.run_db(db.get_all_channels, ADMIN_CHANNELS_LIMIT)
     if not channels:
-        await update.message.reply_text("Hozircha ulangan kanallar yo'q.", reply_markup=get_admin_panel_keyboard())
+        await update.message.reply_text("Hozircha ulangan kanallar yo'q.", reply_markup=get_admin_dashboard_keyboard())
         return
 
     text = format_admin_channels_list(channels)
-    await update.message.reply_text(text, reply_markup=get_admin_panel_keyboard(), parse_mode="HTML")
+    await update.message.reply_text(text, reply_markup=get_admin_dashboard_keyboard(), parse_mode="HTML")
 
 
 async def sponsors_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1465,7 +1481,7 @@ async def sponsors_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if sponsors is None:
         await update.message.reply_text(
             "⚠️ Homiy kanallarni bazadan o'qib bo'lmadi. Keyinroq urinib ko'ring.",
-            reply_markup=get_admin_panel_keyboard(),
+            reply_markup=get_admin_dashboard_keyboard(),
         )
         return
     count = len(sponsors)
@@ -1491,7 +1507,7 @@ async def start_add_sponsor(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Kanalning <code>@username</code>ini, ID sini (masalan: <code>-1001234567890</code>) yoki formatda yuboring:\n"
         "<code>KANAL_ID|KANAL_NOMI|HAVOLA</code>\n\n"
         "⚠️ <i>Bot ushbu kanalda administrator bo'lishi shart.</i>",
-        reply_markup=get_cancel_keyboard(),
+        reply_markup=get_admin_back_keyboard(),
         parse_mode="HTML"
     )
     return ADD_SPONSOR_CHANNEL
@@ -1510,11 +1526,11 @@ async def sponsor_channel_received(update: Update, context: ContextTypes.DEFAULT
             if success:
                 await update.message.reply_text(
                     f"✅ Homiy kanal qo'shildi: <b>{html_escape(title)}</b>",
-                    reply_markup=get_admin_panel_keyboard(),
+                    reply_markup=get_admin_dashboard_keyboard(),
                     parse_mode="HTML",
                 )
             else:
-                await update.message.reply_text("❌ Saqlashda xatolik yuz berdi.", reply_markup=get_admin_panel_keyboard())
+                await update.message.reply_text("❌ Saqlashda xatolik yuz berdi.", reply_markup=get_admin_dashboard_keyboard())
             return ConversationHandler.END
 
     raw_target = text
@@ -1536,7 +1552,7 @@ async def sponsor_channel_received(update: Update, context: ContextTypes.DEFAULT
                 f"❌ <b>Bot bu kanalda admin emas!</b>\n\n"
                 f"Kanal: <b>{html_escape(chat.title or '')}</b> (<code>{chat.id}</code>)\n\n"
                 "Iltimos, avval botni ushbu kanalga <b>admin</b> qiling va qayta yuboring:",
-                reply_markup=get_cancel_keyboard(),
+                reply_markup=get_admin_back_keyboard(),
                 parse_mode="HTML",
             )
             return ADD_SPONSOR_CHANNEL
@@ -1567,16 +1583,16 @@ async def sponsor_channel_received(update: Update, context: ContextTypes.DEFAULT
         if success:
             await update.message.reply_text(
                 f"✅ Homiy kanal muvaffaqiyatli qo'shildi: <b>{html_escape(title)}</b>",
-                reply_markup=get_admin_panel_keyboard(),
+                reply_markup=get_admin_dashboard_keyboard(),
                 parse_mode="HTML",
             )
         else:
-            await update.message.reply_text("❌ Saqlashda xatolik yuz berdi.", reply_markup=get_admin_panel_keyboard())
+            await update.message.reply_text("❌ Saqlashda xatolik yuz berdi.", reply_markup=get_admin_dashboard_keyboard())
     except Exception as e:
         logger.error(f"Sponsor kanal tekshirish xatosi: {e}")
         await update.message.reply_text(
             f"❌ Kanal topilmadi yoki bot u yerda admin emas ({html_escape(str(e))}). Qaytadan kiriting:",
-            reply_markup=get_cancel_keyboard(),
+            reply_markup=get_admin_back_keyboard(),
         )
         return ADD_SPONSOR_CHANNEL
 
@@ -1814,7 +1830,7 @@ async def start_set_channel_ad(update: Update, context: ContextTypes.DEFAULT_TYP
         "Yangi reklama matnini shu yerga yozib yuborishingiz mumkin (pulga qo'shiladi).\n"
         f"{AD_HTML_HINT}\n\n"
         "Bekor qilish uchun ❌ Bekor qilish tugmasini bosing.",
-        reply_markup=get_cancel_keyboard(),
+        reply_markup=get_admin_back_keyboard(),
         parse_mode="HTML",
     )
     return SET_CHANNEL_AD
@@ -1831,7 +1847,7 @@ async def start_set_bot_reply_ad(update: Update, context: ContextTypes.DEFAULT_T
         "Yangi reklama matnini shu yerga yozib yuborishingiz mumkin (pulga qo'shiladi).\n"
         f"{AD_HTML_HINT}\n\n"
         "Bekor qilish uchun ❌ Bekor qilish tugmasini bosing.",
-        reply_markup=get_cancel_keyboard(),
+        reply_markup=get_admin_back_keyboard(),
         parse_mode="HTML",
     )
     return SET_BOT_REPLY_AD
@@ -1854,7 +1870,7 @@ async def _ad_text_received(update, context, scope: str):
             context.user_data.pop("ad_edit", None)
             await update.message.reply_text(
                 "🚫 <b>Inline tugma olib tashlandi.</b>",
-                reply_markup=get_admin_panel_keyboard(),
+                reply_markup=get_admin_dashboard_keyboard(),
                 parse_mode="HTML",
             )
             await _send_ad_card(update, context, scope, pending["id"])
@@ -1865,17 +1881,17 @@ async def _ad_text_received(update, context, scope: str):
             await update.message.reply_text(
                 "❌ Noto'g'ri format. <code>Tugma matni | https://havola</code> ko'rinishida yuboring.\n"
                 "Tugmani olib tashlash uchun <code>clear</code> deb yozing.",
-                reply_markup=get_cancel_keyboard(),
+                reply_markup=get_admin_back_keyboard(),
                 parse_mode="HTML",
             )
             return state
         ok, err = validate_button_text(btn_text)
         if not ok:
-            await update.message.reply_text(f"❌ {err}", reply_markup=get_cancel_keyboard(), parse_mode="HTML")
+            await update.message.reply_text(f"❌ {err}", reply_markup=get_admin_back_keyboard(), parse_mode="HTML")
             return state
         ok, err = validate_button_url(btn_url)
         if not ok:
-            await update.message.reply_text(f"❌ {err}", reply_markup=get_cancel_keyboard(), parse_mode="HTML")
+            await update.message.reply_text(f"❌ {err}", reply_markup=get_admin_back_keyboard(), parse_mode="HTML")
             return state
 
         saved = await db.run_db(db.update_ad, pending["id"], None, btn_text, btn_url)
@@ -1883,12 +1899,12 @@ async def _ad_text_received(update, context, scope: str):
         if saved:
             await update.message.reply_text(
                 f"✅ <b>Inline tugma saqlandi:</b> {html_escape(btn_text)} → {html_escape(btn_url)}",
-                reply_markup=get_admin_panel_keyboard(),
+                reply_markup=get_admin_dashboard_keyboard(),
                 parse_mode="HTML",
             )
         else:
             await update.message.reply_text("❌ Saqlashda xatolik yuz berdi.",
-                                            reply_markup=get_admin_panel_keyboard())
+                                            reply_markup=get_admin_dashboard_keyboard())
         await _send_ad_card(update, context, scope, pending["id"])
         return state
 
@@ -1898,7 +1914,7 @@ async def _ad_text_received(update, context, scope: str):
         if not ok:
             await update.message.reply_text(
                 f"❌ {err}\n\n{AD_HTML_HINT}",
-                reply_markup=get_cancel_keyboard(),
+                reply_markup=get_admin_back_keyboard(),
                 parse_mode="HTML",
             )
             return state
@@ -1907,12 +1923,12 @@ async def _ad_text_received(update, context, scope: str):
         if saved:
             await update.message.reply_text(
                 "✅ <b>Reklama matni yangilandi!</b>",
-                reply_markup=get_admin_panel_keyboard(),
+                reply_markup=get_admin_dashboard_keyboard(),
                 parse_mode="HTML",
             )
         else:
             await update.message.reply_text("❌ Saqlashda xatolik yuz berdi.",
-                                            reply_markup=get_admin_panel_keyboard())
+                                            reply_markup=get_admin_dashboard_keyboard())
         await _send_ad_card(update, context, scope, pending["id"])
         return state
 
@@ -1923,13 +1939,13 @@ async def _ad_text_received(update, context, scope: str):
         except ValueError:
             await update.message.reply_text(
                 "❌ Faqat butun son kiriting (masalan: 3, 4 yoki 5).",
-                reply_markup=get_cancel_keyboard(),
+                reply_markup=get_admin_back_keyboard(),
             )
             return state
         if value < db.AD_INTERVAL_MIN or value > db.AD_INTERVAL_MAX:
             await update.message.reply_text(
                 f"❌ Oraliq {db.AD_INTERVAL_MIN} va {db.AD_INTERVAL_MAX} orasida bo'lishi kerak.",
-                reply_markup=get_cancel_keyboard(),
+                reply_markup=get_admin_back_keyboard(),
             )
             return state
         if scope == "channel":
@@ -1943,7 +1959,7 @@ async def _ad_text_received(update, context, scope: str):
             f"✅ <b>Reklama oralig'i yangilandi:</b> endi har <b>{value}-{unit}da</b> reklama chiqadi.\n"
             + ("<i>Sanagich har bir kanal uchun alohida yuritiladi.</i>"
                if scope == "channel" else "<i>Har bir foydalanuvchi uchun alohida hisoblanadi.</i>"),
-            reply_markup=get_admin_panel_keyboard(),
+            reply_markup=get_admin_dashboard_keyboard(),
             parse_mode="HTML",
         )
         await _send_ad_menu(update, context, scope)
@@ -1954,7 +1970,7 @@ async def _ad_text_received(update, context, scope: str):
         removed = await db.run_db(db.clear_ads, scope)
         await update.message.reply_text(
             f"🧹 Reklamalar tozalandi ({removed} ta).",
-            reply_markup=get_admin_panel_keyboard(),
+            reply_markup=get_admin_dashboard_keyboard(),
         )
         return ConversationHandler.END
 
@@ -1962,7 +1978,7 @@ async def _ad_text_received(update, context, scope: str):
     if not ok:
         await update.message.reply_text(
             f"❌ {err}\n\n{AD_HTML_HINT}",
-            reply_markup=get_cancel_keyboard(),
+            reply_markup=get_admin_back_keyboard(),
             parse_mode="HTML",
         )
         return state
@@ -1972,12 +1988,12 @@ async def _ad_text_received(update, context, scope: str):
         await update.message.reply_text(
             "✅ <b>Reklama rotatsiya puliga qo'shildi!</b>\n"
             "Inline URL tugma qo'shish uchun ro'yxatdan uni tanlang.",
-            reply_markup=get_admin_panel_keyboard(),
+            reply_markup=get_admin_dashboard_keyboard(),
             parse_mode="HTML",
         )
     else:
         await update.message.reply_text("❌ Saqlashda xatolik yuz berdi.",
-                                        reply_markup=get_admin_panel_keyboard())
+                                        reply_markup=get_admin_dashboard_keyboard())
     await _send_ad_menu(update, context, scope)
     return state
 
@@ -2247,7 +2263,7 @@ async def broadcast_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     _remember_admin_section(context)
     await update.message.reply_text(
         "✉️ <b>Barcha foydalanuvchilarga xabar yuborish:</b>\n\nYuboriladigan xabar matnini yozing:",
-        reply_markup=get_cancel_keyboard(),
+        reply_markup=get_admin_back_keyboard(),
         parse_mode="HTML"
     )
     return BROADCAST_MESSAGE

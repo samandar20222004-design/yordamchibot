@@ -10,9 +10,19 @@ MANTIQ (yorliqlar, tilga moslash, ``MENU_TEXTS`` registrlari) SHA YERDA
 YASHIMAYDI — hammasi ``keyboards/default.py`` da yagona manba bo'lib qoladi,
 aks holda ikki faylda ikki xil klaviatura paydo bo'lib paritet buzilardi.
 Import yo'nalishi faqat bittа: ``reply → default`` (tsikl yo'q).
+
+⛔️ 3-BOSQICH: admin panelning oq 10 talik REPLY-klaviaturasi butunlay olib
+tashlandi — barcha admin boshqaruvi FAQAT inline panel
+(``keyboards.inline.get_admin_dashboard_keyboard``) orqali. Shu sababli bu
+faylda admin klaviaturasi yo'q; ``get_admin_panel_keyboard`` esa faqat API
+mosligi uchun qolgan va har doim ``ReplyKeyboardRemove`` qaytaradi. Eski
+admin matnlari ro'yxati — ``ADMIN_LEGACY_REPLY_TEXTS`` (ular hech qanday
+klaviaturada chizilmaydi, faqat routing aliasi bo'lib ishlaydi).
 """
 
 from keyboards.default import (  # noqa: F401  (qayta eksport — API)
+    ADMIN_LEGACY_REPLY_ROWS,
+    ADMIN_LEGACY_REPLY_TEXTS,
     BTN_CONTENT_AI,
     BTN_CONTENT_AI_EN,
     BTN_CONTENT_AI_RU,
@@ -46,6 +56,7 @@ from keyboards.default import (  # noqa: F401  (qayta eksport — API)
     content_magic_label,
     content_text_label,
     content_voice_label,
+    get_admin_panel_keyboard,
     get_content_creation_keyboard,
     get_main_keyboard,
     get_simple_keyboard,
@@ -57,6 +68,8 @@ CONTENT_CREATION_BUTTONS = ("✨ Magic Post", "📝 Matn → Post", "📸 Rasm �
                             "🎙 Ovoz → Post", "🤖 AI Yordamchi")
 
 __all__ = [
+    "ADMIN_LEGACY_REPLY_ROWS",
+    "ADMIN_LEGACY_REPLY_TEXTS",
     "CONTENT_CREATION_BUTTONS",
     "BTN_CONTENT_AI", "BTN_CONTENT_AI_EN", "BTN_CONTENT_AI_RU",
     "BTN_CONTENT_BACK", "BTN_CONTENT_BACK_EN", "BTN_CONTENT_BACK_RU",
@@ -70,5 +83,6 @@ __all__ = [
     "content_ai_label", "content_back_label", "content_creation_labels",
     "content_creation_rows", "content_image_label", "content_magic_label",
     "content_text_label", "content_voice_label",
+    "get_admin_panel_keyboard",
     "get_content_creation_keyboard", "get_main_keyboard", "get_simple_keyboard",
 ]
