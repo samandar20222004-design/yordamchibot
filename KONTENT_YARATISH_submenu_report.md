@@ -9,8 +9,10 @@
 
 Topshiriqdagi 3 mikro qadam to'liq bajarildi. Mavjud **6719** ta yashil
 tekshovdan birortasi ham o'chirilmadi/yumshatilmadi — aksincha, yangi
-`tests/content_creation_menu_test.py` bilan **271** ta yangi tekshov
-qo'shildi (jami ~6990) va ular ham 100% yashil. Hech qanday killer featura
+`tests/content_creation_menu_test.py` bilan **268** ta yangi tekshov
+qo'shildi va yakuniy hisob **6993 `[OK]` / 0 `[FAIL]`** (baseline 6719;
+6719→6725 ko'tarilgan qismi AI provayder zanjiriga bog'liq o'zgaruvchan
+tekshovlar, bu PR bilan aloqasi yo'q). Hech qanday killer featura
 (Magic Post / Voice→Post / Image→Post Vision / Post Score / AI Studio /
 to'lov / moderatsiya / admin) xulqiy o'zgarishga uchramadi: submenu faqat
 **yangi kirish yo'llarini** qo'shadi.
@@ -110,7 +112,8 @@ to'lov / moderatsiya / admin) xulqiy o'zgarishga uchramadi: submenu faqat
 
 ## 4-qadam — testlar
 
-`tests/content_creation_menu_test.py` (**265 tekshov**, 6 blok):
+`tests/content_creation_menu_test.py` (**268 tekshov**, 6 blok, ruff/flake8
+lint-gate toza):
 
 1. **TEST 1** — submenu klaviaturasi: aynan 5 tugma + ◀️ Orqaga, qatorlar
    speksdagi tartibda (uz/ru/en), takror yo'q, asosiy 6 tugma menyuga

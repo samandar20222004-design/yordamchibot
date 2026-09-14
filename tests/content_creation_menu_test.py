@@ -122,7 +122,7 @@ from handlers.magic_post import (  # noqa: E402
 )
 from handlers.new_post import CHOOSE_CHANNEL, start_new_post  # noqa: E402
 from handlers.voice_post import (  # noqa: E402
-    VOICE_AWAIT, VOICE_MESSAGE_FILTER, VoiceEntryHandler, voice_post_entry,
+    VOICE_AWAIT, VoiceEntryHandler, voice_post_entry,
 )
 from keyboards.default import (  # noqa: E402
     BTN_ADMIN_PANEL, MENU_TEXTS, get_content_creation_keyboard,
@@ -449,7 +449,6 @@ def test_submenu_routing():
         for key, expected in EXPECTED_ROUTE.items():
             if state == MAGIC_STYLE_SELECT and key != "cm_btn_back":
                 continue
-            probe = MessageHandler(filters.Regex("x"), lambda u, c: None)
             labels = [content_menu_t(key, lang) for lang in LANGS]
             matched = set()
             for h in handlers:
@@ -466,7 +465,6 @@ def test_submenu_routing():
                                 matched.add(nm)
             check(f"state {state}: {key} tugmalari menu-jump sifatida ro'yxatda",
                   expected in matched, str(sorted(matched)))
-            del probe
 
 
 # ============================================================================
@@ -535,9 +533,12 @@ def test_submenu_flows():
             check(f"[{lang}] 🤖 AI Yordamchi → AI Studio bo'limi ochildi",
                   res == AI_MENU_STATE and len(rec.sent) == 1, f"{res} {rec.sent}")
             labels = [b.text for row in rec.sent[0]["reply_markup"].inline_keyboard for b in row]
-            check(f"[{lang}] AI bo'limi 5 ta vositani ko'rsatadi",
-                  any("Post" in l or "пост" in l.lower() or "пост" in l.lower() for l in labels),
-                  str(labels))
+            check(f"[{lang}] AI bo'limi vositalar ro'yxatini ko'rsatadi",
+                  any("Post" in lb or "пост" in lb.lower() or "post" in lb.lower()
+                      for lb in labels), str(labels))
+            check(f"[{lang}] AI bo'limida kontent-reja (g'oya) vositasi bor",
+                  any(("Kontent-reja" in lb) or ("Контент-план" in lb) or ("Content plan" in lb)
+                      for lb in labels), str(labels))
             check(f"[{lang}] AI bo'limida yozish/qayta yozish/tarjima g'oyasi bor",
                   all(word in rec.sent[0]["text"] for word in (
                       {"uz": ("tarjima", "qayta yozish"),
@@ -643,7 +644,7 @@ def test_action_first_entry_points():
         check(f"[{lang}] taklif tugmalari: cc_magic + cc_menu", cbs == [CC_MAGIC, CC_MENU], str(cbs))
         labels = [b.text for row in sent[0]["reply_markup"].inline_keyboard for b in row]
         check(f"[{lang}] taklif tugmasida Magic Post nomi bor",
-              all(l.strip() for l in labels) and "Magic Post" in labels[0], str(labels))
+              all(lb.strip() for lb in labels) and "Magic Post" in labels[0], str(labels))
 
         # c) Taklifni bosish → Magic Post uslub tanlash ekrani (matn yo'qolmaydi).
         #    Fallback cooldown'i tufayli matn yana saqlanib olinadi (holizoda).
