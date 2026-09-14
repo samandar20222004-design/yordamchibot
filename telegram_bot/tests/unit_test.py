@@ -1654,10 +1654,15 @@ def test_ai_studio_keyboard():
     check("studio kb: audit", "studio_ai_audit" in cbs)
     check("studio kb: photo", "studio_ai_photo" in cbs)
     check("studio kb: close", "studio_close" in cbs)
-    check("studio kb: 6 ta tugma", len(cbs) == 6)
+    # 🧭 4-qadam: [◀️ Orqaga] — Kontent yaratish submenusiga qaytadi
+    # (asosiy menyuga emas). [🏠 Asosiy menyu] alohida tugma sifatida qoladi.
+    check("studio kb: back_to_content (4-qadam)", "ai_back_to_content" in cbs)
+    check("studio kb: 7 ta tugma (6 + ◀️ Orqaga)", len(cbs) == 7, str(cbs))
     check("studio kb: AI Post label", any("AI Post" in t for t in labels))
     check("studio kb: Rasmdan post label", any("Rasmdan post" in t for t in labels))
     check("studio kb: Kontent-reja label", any("Kontent-reja" in t for t in labels))
+    check("studio kb: ◀️ Orqaga label (submenu bilan bir xil)",
+          "◀️ Orqaga" in labels, str(labels))
 
     # UX V2: asosiy klaviatura — QAT'IY 6 tugma (free) + admin qatori.
     kb_main = get_main_keyboard(False)
@@ -3450,18 +3455,25 @@ def test_auto_ad_injector_suite():
 
 
 def test_admin_dashboard_layout_suite():
-    """Admin dashboard ixchamlashtirilgan 6-tugmali layout testi.
+    """Admin dashboard — YAGONA MARKAZ layout testi (PostAssist V2 · 4-qadam).
 
-    Talab: faqat 6 ta asosiy tugma + Yopish qoladi. "🛠 Tizim sozlamalari"
-    panelda BUTUNLAY yo'q, "📢 Majburiy obuna" mustaqil tugma sifatida
-    yo'q — u endi "🎯 Reklama markazi" hub ichida.
+    Talab (4-qadam): eski admin reply-klaviaturasi to'liq dashboard'ga
+    integratsiya qilingan — 12 ta amaliy tugma + Yopish:
+        [📊 To'liq statistika]  [📢 Ommaviy xabar]
+        [🎯 Reklama markazi]    [📋 Kanallar ro'yxati]
+        [📋 Barcha postlar]     [🎁 Promo-kod yaratish]
+        [⭐️ PRO berish]         [🏷 Post nishoni]
+        [⚙️ AI parametrlari]    [🗄️ DB / Kesh holati]
+        [🩺 Tizim salomatligi]  [📜 Audit | 👥 Rollar]
+                          [❌ Yopish]
+    Eski reply-tugmalar va /buyruqlar alias sifatida ishlaydi.
     """
-    print("== Admin Dashboard Layout (ixcham, 6 ta tugma) ==")
+    print("== Admin Dashboard Layout (yagona markaz, 12 tugma) ==")
     from keyboards.inline import get_admin_dashboard_keyboard
 
     kb = get_admin_dashboard_keyboard()
     rows = kb.inline_keyboard
-    check("dashboard qatorlar soni = 4", len(rows) == 4, str(len(rows)))
+    check("dashboard qatorlar soni = 7", len(rows) == 7, str(len(rows)))
 
     # Qator 1: To'liq statistika & Ommaviy xabar
     check("row 0 btn 0: adm_stats", rows[0][0].callback_data == "adm_stats")
@@ -3471,21 +3483,42 @@ def test_admin_dashboard_layout_suite():
     check("row 1 btn 0: adm_adhub", rows[1][0].callback_data == "adm_adhub")
     check("row 1 btn 1: adm_channels", rows[1][1].callback_data == "adm_channels")
 
-    # Qator 3: Promo & PRO
-    check("row 2 btn 0: adm_promo", rows[2][0].callback_data == "adm_promo")
-    check("row 2 btn 1: adm_grant_pro", rows[2][1].callback_data == "adm_grant_pro")
+    # Qator 3: Barcha postlar & Promo-kod yaratish
+    check("row 2 btn 0: adm_posts (4-qadam)", rows[2][0].callback_data == "adm_posts")
+    check("row 2 btn 1: adm_promo", rows[2][1].callback_data == "adm_promo")
 
-    # Qator 4: Yopish
-    check("row 3 btn 0: close_msg", rows[3][0].callback_data == "close_msg")
+    # Qator 4: PRO berish & Post nishoni
+    check("row 3 btn 0: adm_grant_pro", rows[3][0].callback_data == "adm_grant_pro")
+    check("row 3 btn 1: adm_tag (4-qadam)", rows[3][1].callback_data == "adm_tag")
+
+    # Qator 5: AI parametrlari & DB/Kesh holati
+    check("row 4 btn 0: adm_ai (4-qadam)", rows[4][0].callback_data == "adm_ai")
+    check("row 4 btn 1: adm_dbcache (4-qadam)", rows[4][1].callback_data == "adm_dbcache")
+
+    # Qator 6: Tizim salomatligi & Audit/Rollar
+    check("row 5 btn 0: adm_health", rows[5][0].callback_data == "adm_health")
+    check("row 5 btn 1: adm_audit_roles (4-qadam)", rows[5][1].callback_data == "adm_audit_roles")
+
+    # Qator 7: Yopish
+    check("row 6 btn 0: close_msg", rows[6][0].callback_data == "close_msg")
 
     cbs = [b.callback_data for row in rows for b in row]
-    check("faqat 6 ta amaliy tugma + yopish", len(cbs) == 7, str(cbs))
-    check("adm_sponsors mustaqil tugma sifatida yo'q", "adm_sponsors" not in cbs, str(cbs))
-    check("adm_settings (Tizim sozlamalari) butunlay yo'q", "adm_settings" not in cbs, str(cbs))
+    check("faqat 12 ta amaliy tugma + yopish", len(cbs) == 13, str(cbs))
+    check("adm_sponsors mustaqil tugma sifatida yo'q",
+          "adm_sponsors" not in cbs, str(cbs))
+    check("adm_settings (Tizim sozlamalari) butunlay yo'q",
+          "adm_settings" not in cbs, str(cbs))
 
     labels = [b.text for row in rows for b in row]
     check("label: To'liq statistika", any("statistika" in t.lower() for t in labels))
     check("label: Ommaviy xabar", any("ommaviy" in t.lower() for t in labels))
+    check("label: Barcha postlar", any("Barcha postlar" in t for t in labels))
+    check("label: PRO berish", any("PRO berish" in t for t in labels))
+    check("label: Post nishoni", any("Post nishoni" in t for t in labels))
+    check("label: AI parametrlari", any("AI parametrlari" in t for t in labels))
+    check("label: DB / Kesh holati", any("DB / Kesh" in t for t in labels))
+    check("label: Tizim salomatligi", any("Tizim salomatligi" in t for t in labels))
+    check("label: Audit | Rollar", any("Audit" in t and "Rollar" in t for t in labels))
     check("label: Majburiy obuna mustaqil tugma sifatida yo'q",
           not any("majburiy obuna" in t.lower() for t in labels), str(labels))
     check("label: Tizim sozlamalari yo'q",
@@ -6574,12 +6607,15 @@ def test_ai_studio_i18n_suite():
     ru_labels = [b.text for row in kb_ru.inline_keyboard for b in row]
     uz_cbs = [b.callback_data for row in kb_uz.inline_keyboard for b in row]
     ru_cbs = [b.callback_data for row in kb_ru.inline_keyboard for b in row]
-    check("studio kb: 6 ta tugma (uz)", len(uz_labels) == 6, str(len(uz_labels)))
-    check("studio kb: 6 ta tugma (ru)", len(ru_labels) == 6, str(len(ru_labels)))
+    check("studio kb: 7 ta tugma (uz) — 4-qadam ◀️ Orqaga bilan",
+          len(uz_labels) == 7, str(len(uz_labels)))
+    check("studio kb: 7 ta tugma (ru) — 4-qadam ◀️ Orqaga bilan",
+          len(ru_labels) == 7, str(len(ru_labels)))
     check("studio kb: callback_data bir xil (uz==ru)", uz_cbs == ru_cbs, str((uz_cbs, ru_cbs)))
     check("studio kb: callback_data to'g'ri",
           uz_cbs == ["studio_ai_post", "studio_ai_photo", "studio_extract",
-                     "studio_ai_audit", "studio_content_plan", "studio_close"])
+                     "studio_ai_audit", "studio_content_plan",
+                     "ai_back_to_content", "studio_close"], str(uz_cbs))
     check("studio kb uz: ai_studio_post label",
           uz_labels[0] == get_text("ai_studio_post", "uz"))
     check("studio kb ru: ai_studio_post label",

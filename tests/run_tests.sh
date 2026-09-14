@@ -183,6 +183,24 @@ echo "===== 3j) ⚙️ 3-QADAM REFAKTORI: SOZLAMALAR MENYUSI + VOSITALAR ====="
 "$PY" tests/refactor_step3_test.py || EXIT_CODE=1
 
 echo
+echo "===== 3k) 🧭 4-QADAM REFAKTORI: NAVIGATSIYA STACKI + ADMIN DASHBOARD ====="
+# (1) Navigatsiya stacki: Kontent → AI Yordamchi → [◀️ Orqaga] → Kontent
+#     yaratish submenyusi (asosiy menyuga sakramaydi); Kanallarim → Kanal →
+#     [◀️ Orqaga] → kanallar ro'yxati; Sozlamalar → Vositalar → [◀️ Orqaga] →
+#     Sozlamalar menyusi; (2) ◀️ Orqaga / ❌ Bekor qilish / 🏠 Asosiy menyu
+#     mantig'i ajratildi — FSM ichida Bekor qilish kontekstni tozalanib
+#     O'SHA BO'LIM BOSHIGA qaytadi, oddiy ko'rishda Orqaga parent menyuga;
+#     (3) 👑 Admin dashboard YAGONA MARKAZ: 12 tugma (adm_posts, adm_tag,
+#     adm_ai, adm_dbcache, adm_audit_roles, adm_health ...) faqat adminga
+#     ochiladi, dublikat statistika handlerlari bitta ekranga birlashdi,
+#     eski reply-tugmalar/buyruqlar alias sifatida ishlaydi; (4) oddiy
+#     foydalanuvchiga BARCHA adm_* callback'lari qat'iy yopiq (tampering,
+#     fail-closed, server-side RBAC); (5) i18n UZ/RU/EN 100% paritet va
+#     callback'lar 64-bayt chegarasida
+#     (tests/refactor_step4_test.py).
+"$PY" tests/refactor_step4_test.py || EXIT_CODE=1
+
+echo
 echo "======== 4) TO'LIQ REGRESSIYA (telegram_bot/tests) ========"
 # PY'ni aniq uzatamiz: ichki runner ham shu interpreter (venv) bilan ishlasin.
 ( cd telegram_bot && PYTHON="$PY" bash tests/run_tests.sh ) || EXIT_CODE=1

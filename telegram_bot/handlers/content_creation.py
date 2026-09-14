@@ -181,6 +181,10 @@ async def content_creation_back(update: Update, context: ContextTypes.DEFAULT_TY
     user = getattr(update, "effective_user", None)
     user_id = getattr(user, "id", 0) or 0
     _DIRECT_TEXT.pop(user_id, None)
+    # 🧭 4-qadam: submenu yopildi — foydalanuvchi asosiy menyuda (bo'lim
+    # yozuvi tozalanadi, keyingi [❌ Bekor qilish] asosiy menyuga qaytadi).
+    from handlers.navigation import clear_section
+    clear_section(context)
     await msg.reply_text(
         content_menu_t("cm_back_done", lang),
         reply_markup=get_main_keyboard(user_id in ADMIN_IDS_SET, lang=lang),

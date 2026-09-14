@@ -9,6 +9,7 @@ from keyboards.default import (
     get_admin_panel_keyboard,
     get_sponsors_keyboard,
     get_cancel_keyboard,
+    get_main_keyboard,
     BTN_MAIN_MENU, BTN_CANCEL,
     BTN_AI_SETTINGS, BTN_CACHE_DB,
     is_menu_text,
@@ -36,6 +37,7 @@ from services.rbac_service import (
     PERM_MANAGE_USERS,
     PERM_SYSTEM_SETTINGS,
     has_permission,
+    has_role,
     parse_role,
     remove_role,
     require_permission,
@@ -158,6 +160,62 @@ def _build_dashboard_text(stats: dict) -> str:
     )
 
 
+def _build_full_stats_text(stats: dict) -> str:
+    """📊 YAGONA «To'liq statistika» ekrani (4-qadam: dublikatlar birlashdi).
+
+    Bir vaqtda UCHTA dublikat handler bu matnni chizardi (``adm_stats``
+    callback'i, ``/admin_stats`` buyrug'i va «📊 Statistika» reply-tugmasi /
+    ``/stats``). Endi hammasi SHU bitta builder'ga ulangan — ekran ham,
+    raqamlar ham har doim bir xil (eski yo'llar alias sifatida ishlaydi).
+    """
+    return (
+        "📊 <b>To'liq Statistika:</b>\n\n"
+        f"👥 Jami foydalanuvchilar: <b>{stats['users']} ta</b>\n"
+        f"📢 Ulangan kanallar: <b>{stats['channels']} ta</b>\n"
+        f"📢 Homiy kanallar: <b>{stats['sponsors']} ta</b>\n"
+        f"⏳ Kutilayotgan postlar: <b>{stats['pending']} ta</b>\n"
+        f"✅ Yuborilgan postlar: <b>{stats['sent']} ta</b>\n"
+        f"🚫 Bekor qilingan: <b>{stats['cancelled']} ta</b>\n"
+        f"⚠️ Xatolik: <b>{stats['failed']} ta</b>"
+    )
+
+
+def _build_admin_posts_text(posts: list) -> str:
+    """📋 YAGONA «Barcha postlar» ekrani (``adm_posts`` + eski reply-tugma).
+
+    ``posts`` — ``db.get_recent_posts`` natijasi (pid, uid, title, ptype,
+    stime, status). Bo'sh ro'yxat uchun ham xavfsiz matn qaytaradi.
+    """
+    if not posts:
+        return "📋 <b>Barcha postlar</b>\n\n<i>Hozircha hech qanday post mavjud emas.</i>"
+    text = f"📋 <b>Oxirgi {len(posts)} ta post:</b>\n\n"
+    for p in posts:
+        pid, uid, title, ptype, stime, status = (list(p) + [None] * 6)[:6]
+        title_str = title or "Noma'lum kanal"
+        status_emoji = "⏳" if status == "pending" else ("✅" if status == "posted" else "🚫")
+        text += (
+            f"{status_emoji} <b>#{pid}</b> | {html_escape(str(title_str))}"
+            f" | {format_post_type_label(ptype)} | {html_escape(str(status))}\n"
+        )
+    return text
+
+
+def _build_dbcache_text(status: dict) -> str:
+    """🗄️ YAGONA «DB / Kesh holati» ekrani (``adm_dbcache`` + eski reply-tugma)."""
+    collapsed_label = "yo'q" if status.get("collapsed") else "ha"
+    cache_label = "yoqilgan" if status.get("cache_enabled") else "o'chirilgan"
+    pool_label = "✅ ishlayapti" if status.get("ready") else "⏳ hali ochilmagan"
+    return (
+        "🗄️ <b>DB Pool va Kesh holati:</b>\n\n"
+        f"   • Pool: <b>{pool_label}</b> ({status.get('message', '')})\n"
+        f"   • Min/Maks: <b>{status.get('min')} / {status.get('max')}</b>\n"
+        f"   • Band: <b>{status.get('used')}</b> | Bo'sh: <b>{status.get('available')}</b>"
+        f" | Yopiq: <b>{collapsed_label}</b>\n"
+        f"   • Kesh: <b>{cache_label}</b> — <b>{status.get('cache_entries')} ta</b> yozuv\n\n"
+        "Kesh TTL o'zgarishlarsiz avtomatik eskiradi. Tozalash kerak bo'lsa pastdagi tugmani bosing."
+    )
+
+
 #: Holat → emoji (health_service'dagi bilan bir xil qoida).
 _HEALTH_STATUS_EMOJI = {
     "OK": "✅", "HEALTHY": "✅", "RUNNING": "✅",
@@ -255,6 +313,21 @@ def is_admin(user_id: int) -> bool:
         return False
 
 
+def _remember_admin_section(context) -> None:
+    """🧭 4-qadam: admin bo'limi yozuvi — [❌ Bekor qilish] dashboard'ga qaytadi.
+
+    Eski admin reply-tugmalari (⚙️ AI parametrlari, 🗄️ DB/Kesh, 🏷 Post
+    nishoni, 📢 Ommaviy xabar ...) dashboard'ga integratsiya qilinganidan
+    keyin ham to'g'ridan-to'g'ri ochilishi mumkin — shu yerda ham foydalanuvchi
+    admin bo'limida ekanini belgilab qo'yamiz.
+    """
+    try:
+        from handlers.navigation import remember_section, SECTION_ADMIN
+        remember_section(context, SECTION_ADMIN)
+    except Exception:  # pragma: no cover — navigatsiya xizmati majburiy emas
+        logger.debug("admin nav_section yozilmadi")
+
+
 # ============================================================
 # ADMIN PANEL DASHBOARD
 # ============================================================
@@ -271,6 +344,10 @@ async def admin_panel_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id):
         return ConversationHandler.END
     clear_fsm_data(context)
+    # 🧭 4-qadam: admin endi «👑 Admin» bo'limida — admin FSM oqimlarida
+    # [❌ Bekor qilish] (adm_cancel) aynan shu dashboard'ga qaytadi.
+    from handlers.navigation import remember_section, SECTION_ADMIN
+    remember_section(context, SECTION_ADMIN)
     stats = await db.run_db(db.get_admin_dashboard_stats)
     text = _build_dashboard_text(stats)
     # 🩺 Tizim monitoringi — faqat adminlar ko'radi (health hech qachon
@@ -287,22 +364,18 @@ async def admin_panel_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def admin_stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """`/admin_stats` — qisqa umumiy statistika."""
+    """`/admin_stats` — eski buyruq, endi YAGONA «To'liq statistika» ekrani.
+
+    4-qadam: dublikat statistika handlerlari (``/admin_stats``, ``/stats``
+    va «📊 Statistika» reply-tugmasi) bitta ekranga birlashtirildi — hammasi
+    ``_build_full_stats_text`` orqali AYNAN bir xil matn chiqaradi.
+    """
     if not is_admin(update.effective_user.id):
         return
+    _remember_admin_section(context)
     stats = await db.run_db(db.get_system_stats)
-    text = (
-        "📊 <b>Bot Statistikasi:</b>\n\n"
-        f"👥 Jami foydalanuvchilar: <b>{stats['users']} ta</b>\n"
-        f"📢 Ulangan kanallar: <b>{stats['channels']} ta</b>\n"
-        f"📢 Homiy kanallar: <b>{stats['sponsors']} ta</b>\n"
-        f"⏳ Kutilayotgan postlar: <b>{stats['pending']} ta</b>\n"
-        f"✅ Yuborilgan postlar: <b>{stats['sent']} ta</b>\n"
-        f"🚫 Bekor qilingan postlar: <b>{stats['cancelled']} ta</b>\n"
-        f"⚠️ Xatolik bilan tugagan: <b>{stats['failed']} ta</b>"
-    )
     await update.message.reply_text(
-        text,
+        _build_full_stats_text(stats),
         reply_markup=get_admin_back_keyboard(),
         parse_mode="HTML",
     )
@@ -321,6 +394,57 @@ async def _admin_edit(query, text: str, reply_markup=None):
             await query.message.reply_text(text, reply_markup=reply_markup, parse_mode="HTML")
         except TelegramError:
             logger.debug("Admin ekranini ko'rsatib bo'lmadi")
+
+
+async def _build_audit_roles_text(limit: int = 10) -> str:
+    """📜 YAGONA «Audit | Rollar» ekrani matni (``adm_audit_roles``).
+
+    Ikki blok: (1) oxirgi admin harakatlari — ``/audit`` buyrug'i bilan
+    AYNAN bir xil format; (2) ``admin_roles`` jadvalidagi faol rollar.
+    DB xatosida ham crash qilmaydi — bo'sh blok matni qaytaradi.
+    """
+    lines = ["📜 <b>Audit jurnali</b> (oxirgi harakatlar)",
+             "━━━━━━━━━━━━━━━━━"]
+    try:
+        rows = await db.run_db(db.get_admin_audit_logs, limit=limit) or []
+    except Exception as e:  # pragma: no cover — DB xatosi ham ekranni buzmaydi
+        logger.warning("adm_audit_roles: audit o'qilmadi: %s", e)
+        rows = []
+    if rows:
+        for row in rows:
+            created = row.get("created_at")
+            try:
+                when = created.strftime("%d.%m.%Y %H:%M")
+            except Exception:
+                when = str(created or "")[:16]
+            target = ""
+            if row.get("target_type"):
+                target = f" → <code>{html_escape(str(row.get('target_type')))}"
+                if row.get("target_id"):
+                    target += f"#{html_escape(str(row.get('target_id')))}"
+                target += "</code>"
+            lines.append(
+                f"🕒 <b>{html_escape(when)}</b> | 👤 <code>{html_escape(str(row.get('admin_id')))}</code>\n"
+                f"   {html_escape(str(row.get('action')))}{target}"
+            )
+    else:
+        lines.append("<i>Audit jurnali hozircha bo'sh.</i>")
+
+    lines += ["", "👥 <b>Rollar</b> (RBAC — /setrole, /delrole)",
+              "━━━━━━━━━━━━━━━━━"]
+    try:
+        roles = await db.run_db(db.list_admin_roles, limit=20) or []
+    except Exception as e:  # pragma: no cover — DB xatosi ham ekranni buzmaydi
+        logger.warning("adm_audit_roles: rollar o'qilmadi: %s", e)
+        roles = []
+    if roles:
+        for r in roles:
+            lines.append(
+                f"👤 <code>{r.get('user_id')}</code> — 🎖 <b>{html_escape(str(r.get('role')))}</b>"
+            )
+    else:
+        lines.append("<i>Qo'shimcha rollar berilmagan (faqat legacy ADMIN_IDS).</i>")
+    return "\n".join(lines)
 
 
 async def _ad_hub_render() -> tuple[str, InlineKeyboardMarkup]:
@@ -411,17 +535,9 @@ async def admin_dashboard_callback(update: Update, context: ContextTypes.DEFAULT
     if data == "adm_stats":
         await query.answer()
         stats = await db.run_db(db.get_system_stats)
-        text = (
-            "📊 <b>To'liq Statistika:</b>\n\n"
-            f"👥 Jami foydalanuvchilar: <b>{stats['users']} ta</b>\n"
-            f"📢 Ulangan kanallar: <b>{stats['channels']} ta</b>\n"
-            f"📢 Homiy kanallar: <b>{stats['sponsors']} ta</b>\n"
-            f"⏳ Kutilayotgan postlar: <b>{stats['pending']} ta</b>\n"
-            f"✅ Yuborilgan postlar: <b>{stats['sent']} ta</b>\n"
-            f"🚫 Bekor qilingan: <b>{stats['cancelled']} ta</b>\n"
-            f"⚠️ Xatolik: <b>{stats['failed']} ta</b>"
-        )
-        await _admin_edit(query, text, get_admin_back_keyboard())
+        # 4-qadam: YAGONA statistika ekrani (reply-tugma va /admin_stats
+        # buyrug'i ham aynan shu matnni chiqaradi).
+        await _admin_edit(query, _build_full_stats_text(stats), get_admin_back_keyboard())
         context.user_data.pop("admin_flow", None)
         return ConversationHandler.END
 
@@ -433,6 +549,85 @@ async def admin_dashboard_callback(update: Update, context: ContextTypes.DEFAULT
         else:
             text = "📋 <b>Ulangan kanallar</b>\n\n<i>Hozircha hech qanday kanal ulanmagan.</i>"
         await _admin_edit(query, text, get_admin_back_keyboard())
+        context.user_data.pop("admin_flow", None)
+        return ConversationHandler.END
+
+    if data == "adm_posts":
+        # 📋 Barcha postlar — eski «📋 Barcha postlar» reply-tugmasi va
+        # ``admin_all_posts`` handleri bilan AYNAN bir xil ekran (4-qadam:
+        # reply-klaviatura to'liq dashboard'ga integratsiya qilindi).
+        await query.answer()
+        recent_posts = await db.run_db(db.get_recent_posts, 15)
+        await _admin_edit(query, _build_admin_posts_text(recent_posts),
+                          get_admin_back_keyboard())
+        context.user_data.pop("admin_flow", None)
+        return ConversationHandler.END
+
+    if data == "adm_tag":
+        # 🏷 Post nishoni (watermark) — eski reply-tugma oqimini ochadi
+        # (``start_set_post_tag`` / ``post_tag_received``). Matn kutish
+        # FSM holati talab qilgani uchun SET_POST_TAG qaytariladi; o'zgarish
+        #ning o'zi ``post_tag_received`` ichida OWNER ruxsati bilan
+        # fail-closed tekshiriladi.
+        await query.answer()
+        current_tag = await db.run_db(db.get_setting, "post_tag_text", "")
+        await _admin_edit(
+            query,
+            "🏷 <b>Post nishoni (watermark):</b>\n\n"
+            "Hozirgi qiymat: <code>" + html_escape(current_tag or "(bo'sh — nishon yo'q)") + "</code>\n\n"
+            "Postlar oxiriga qo'shiladigan matnni yuboring.\n"
+            "Masalan: <code>@PostAssistrobot</code>\n"
+            "O'chirish uchun <code>clear</code> deb yozing.",
+            get_admin_back_keyboard(),
+        )
+        context.user_data.pop("admin_flow", None)
+        return SET_POST_TAG
+
+    if data == "adm_ai":
+        # ⚙️ AI parametrlari — eski reply-tugma oqimini ochadi
+        # (``ai_settings_menu`` / ``ai_settings_received``). Parametrni
+        # O'ZGARTIRISH faqat OWNER (system_settings) ruxsati bilan —
+        # ``ai_settings_received`` dekoratorida fail-closed.
+        await query.answer()
+        await _admin_edit(
+            query,
+            "⚙️ <b>AI parametrlarni boshqarish:</b>\n\n"
+            f"{_ai_settings_text()}\n\n"
+            "O'zgartirish uchun quyidagi formatda satrlarni yuboring:\n"
+            "<code>kalit=qiymat</code>\n\n"
+            "Masalan:\n"
+            "<code>temperature=0.4</code>\n"
+            "<code>max_tokens=2048</code>\n"
+            "<code>context_messages=8</code>\n"
+            "<code>max_tokens=off</code>  <i>(parametr umuman yuborilmaydi)</i>\n\n"
+            "👉 Hammasini defaultga qaytarish uchun <code>reset</code> deb yozing.",
+            get_admin_back_keyboard(),
+        )
+        context.user_data.pop("admin_flow", None)
+        return AI_SETTINGS
+
+    if data == "adm_dbcache":
+        # 🗄️ DB / Kesh holati — eski reply-tugma ekrani bilan AYNAN bir xil
+        # (``cache_db_menu``); keshni tozalash tugmasi ham shu yerda qoladi
+        # (``cache_clear`` — OWNER ruxsati bilan fail-closed).
+        await query.answer()
+        status = await db.run_db(db.get_db_pool_status)
+        await _admin_edit(query, _build_dbcache_text(status),
+                          get_cache_actions_keyboard())
+        context.user_data.pop("admin_flow", None)
+        return ConversationHandler.END
+
+    if data == "adm_audit_roles":
+        # 📜 Audit | 👥 Rollar — /audit buyrug'i bilan bir xil ma'lumot +
+        # RBAC rollari ro'yxati. Faqat OWNER/SUPER_ADMIN (``/audit`` bilan
+        # bir xil qoida — ``admin_audit_command`` dekoratori).
+        if not has_role(query.from_user.id, Role.SUPER_ADMIN):
+            await query.answer("❌ Audit jurnalini faqat OWNER yoki SUPER_ADMIN ko'ra oladi.",
+                               show_alert=True)
+            return ConversationHandler.END
+        await query.answer()
+        await _admin_edit(query, await _build_audit_roles_text(),
+                          get_admin_back_keyboard())
         context.user_data.pop("admin_flow", None)
         return ConversationHandler.END
 
@@ -605,13 +800,28 @@ async def admin_inline_text_handler(update: Update, context: ContextTypes.DEFAUL
 
     # "Bekor qilish"/"Asosiy menyu" har qanday admin oqimida va UCHALA TILDA
     # ishlashi kerak (admin klaviaturasi ham tilga qarab chiziladi).
+    # 🧭 4-qadam standarti: [❌ Bekor qilish] — kontekst tozalanib BO'LIM
+    # BOSHIGA (admin dashboard) qaytadi; [🏠 Asosiy menyu] — asosiy menyu.
     if is_menu_text(text, "cancel", "main_menu"):
         clear_fsm_data(context)
-        await update.message.reply_text(
-            "🚫 <b>Jarayon bekor qilindi.</b>",
-            reply_markup=get_admin_panel_keyboard(),
-            parse_mode="HTML",
-        )
+        if is_menu_text(text, "cancel"):
+            stats = await db.run_db(db.get_admin_dashboard_stats)
+            await update.message.reply_text(
+                "🚫 <b>Jarayon bekor qilindi.</b>\n\n" + _build_dashboard_text(stats),
+                reply_markup=get_admin_dashboard_keyboard(),
+                parse_mode="HTML",
+            )
+        else:
+            from handlers.navigation import clear_section
+            clear_section(context)
+            await update.message.reply_text(
+                "🚫 <b>Jarayon bekor qilindi.</b>",
+                reply_markup=get_main_keyboard(
+                    update.effective_user.id in ADMIN_IDS_SET,
+                    lang=get_lang(context),
+                ),
+                parse_mode="HTML",
+            )
         return ConversationHandler.END
 
     if not flow:
@@ -880,6 +1090,7 @@ async def admin_inline_text_handler(update: Update, context: ContextTypes.DEFAUL
 async def ai_settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id):
         return ConversationHandler.END
+    _remember_admin_section(context)
     await update.message.reply_text(
         "⚙️ <b>AI parametrlarni boshqarish:</b>\n\n"
         f"{_ai_settings_text()}\n\n"
@@ -973,6 +1184,7 @@ async def ai_settings_received(update: Update, context: ContextTypes.DEFAULT_TYP
 async def cache_db_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id):
         return ConversationHandler.END
+    _remember_admin_section(context)
     status = await db.run_db(db.get_db_pool_status)
     collapsed_label = "yo'q" if status.get("collapsed") else "ha"
     cache_label = "yoqilgan" if status.get("cache_enabled") else "o'chirilgan"
@@ -1029,6 +1241,7 @@ async def cache_clear_callback(update: Update, context: ContextTypes.DEFAULT_TYP
 async def start_set_post_tag(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id):
         return ConversationHandler.END
+    _remember_admin_section(context)
     current_tag = await db.run_db(db.get_setting, "post_tag_text", "")
     await update.message.reply_text(
         "🏷 <b>Post nishoni (watermark):</b>\n\n"
@@ -1200,44 +1413,41 @@ async def admin_audit_command(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 
 async def show_statistics(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """«📊 Statistika» reply-tugmasi va ``/stats`` — YAGONA statistika ekrani.
+
+    4-qadam: ``adm_stats`` callback'i, ``/admin_stats`` buyrug'i va shu
+    handler — hammasi ``_build_full_stats_text`` dan AYNAN bir xil matn
+    oladi (dublikat ekranlar birlashtirildi; eski yo'llar alias qoldi).
+    """
     if not is_admin(update.effective_user.id):
         return
+    _remember_admin_section(context)
     stats = await db.run_db(db.get_system_stats)
-    text = (
-        "📊 <b>Bot Statistikasi:</b>\n\n"
-        f"👥 Jami foydalanuvchilar: <b>{stats['users']} ta</b>\n"
-        f"📢 Ulangan kanallar: <b>{stats['channels']} ta</b>\n"
-        f"📢 Homiy kanallar: <b>{stats['sponsors']} ta</b>\n"
-        f"⏳ Kutilayotgan postlar: <b>{stats['pending']} ta</b>\n"
-        f"✅ Yuborilgan postlar: <b>{stats['sent']} ta</b>\n"
-        f"🚫 Bekor qilingan postlar: <b>{stats['cancelled']} ta</b>\n"
-        f"⚠️ Xatolik bilan tugagan: <b>{stats['failed']} ta</b>"
+    await update.message.reply_text(
+        _build_full_stats_text(stats),
+        reply_markup=get_admin_panel_keyboard(),
+        parse_mode="HTML",
     )
-    await update.message.reply_text(text, reply_markup=get_admin_panel_keyboard(), parse_mode="HTML")
 
 
 async def admin_all_posts(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """«📋 Barcha postlar» reply-tugmasi — ``adm_posts`` bilan bir xil ekran."""
     if not is_admin(update.effective_user.id):
         return
+    _remember_admin_section(context)
     recent_posts = await db.run_db(db.get_recent_posts, 15)
-
-    if not recent_posts:
-        await update.message.reply_text("Hozircha hech qanday post mavjud emas.", reply_markup=get_admin_panel_keyboard())
-        return
-
-    text = "📋 <b>Oxirgi 15 ta post:</b>\n\n"
-    for p in recent_posts:
-        pid, uid, title, ptype, stime, status = p
-        title_str = title or "Noma'lum kanal"
-        status_emoji = "⏳" if status == "pending" else ("✅" if status == "posted" else "🚫")
-        text += f"{status_emoji} <b>#{pid}</b> | {html_escape(title_str)} | {format_post_type_label(ptype)} | {status}\n"
-
-    await update.message.reply_text(text, reply_markup=get_admin_panel_keyboard(), parse_mode="HTML")
+    await update.message.reply_text(
+        _build_admin_posts_text(recent_posts),
+        reply_markup=get_admin_panel_keyboard(),
+        parse_mode="HTML",
+    )
 
 
 async def admin_all_channels(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """«📋 Barcha kanal/guruhlar» reply-tugmasi — ``adm_channels`` bilan bir xil ekran."""
     if not is_admin(update.effective_user.id):
         return
+    _remember_admin_section(context)
     channels = await db.run_db(db.get_all_channels, ADMIN_CHANNELS_LIMIT)
     if not channels:
         await update.message.reply_text("Hozircha ulangan kanallar yo'q.", reply_markup=get_admin_panel_keyboard())
@@ -1250,6 +1460,7 @@ async def admin_all_channels(update: Update, context: ContextTypes.DEFAULT_TYPE)
 async def sponsors_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id):
         return
+    _remember_admin_section(context)
     sponsors = await db.run_db(db.get_sponsor_channels)
     if sponsors is None:
         await update.message.reply_text(
@@ -1274,6 +1485,7 @@ async def sponsors_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def start_add_sponsor(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id):
         return ConversationHandler.END
+    _remember_admin_section(context)
     await update.message.reply_text(
         "➕ <b>Homiy kanal qo'shish:</b>\n\n"
         "Kanalning <code>@username</code>ini, ID sini (masalan: <code>-1001234567890</code>) yoki formatda yuboring:\n"
@@ -1584,6 +1796,7 @@ async def admin_ad_hub_entry(update: Update, context: ContextTypes.DEFAULT_TYPE)
     """
     if not is_admin(update.effective_user.id):
         return ConversationHandler.END
+    _remember_admin_section(context)
     context.user_data.pop("ad_edit", None)
     text, markup = await _ad_hub_render()
     await update.message.reply_text(text, reply_markup=markup, parse_mode="HTML")
@@ -2031,6 +2244,7 @@ async def ad_pool_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def broadcast_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id):
         return ConversationHandler.END
+    _remember_admin_section(context)
     await update.message.reply_text(
         "✉️ <b>Barcha foydalanuvchilarga xabar yuborish:</b>\n\nYuboriladigan xabar matnini yozing:",
         reply_markup=get_cancel_keyboard(),

@@ -36,6 +36,12 @@ from translations import content_menu_t
 from locales.translations import (
     clear_fsm_data, get_lang, safe_t, localize_service_error,
 )
+# 🧭 PostAssist V2 · 4-qadam — navigatsiya stacki (◀️ Orqaga / ❌ Bekor
+# qilish / 🏠 Asosiy menyu standarti, handlers/navigation.py).
+from handlers.navigation import (
+    SECTION_AI_STUDIO, SECTION_CONTENT,
+    remember_section, clear_section,
+)
 from utils.date_format import format_datetime
 from utils.helpers import (
     html_escape, safe_html, check_ai_rate_limit, check_ai_daily_limit, parse_future_time,
@@ -706,18 +712,22 @@ async def ai_confirm_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
     lang = get_lang(context)
 
     if data == "ai_post_cancel":
+        # 🧭 4-qadam: FSM ichida [🚫 Bekor qilish] — kontekst tozalanadi va
+        # BO'LIM BOSHIGA (AI Studio hub) qaytadi, asosiy menyuga emas.
         await query.answer(safe_t("ai_close_session", lang))
         clear_ai_context(user_id)
         clear_fsm_data(context)
+        from handlers.navigation import remember_section, SECTION_AI_STUDIO
+        remember_section(context, SECTION_AI_STUDIO)
         try:
             await query.edit_message_reply_markup(reply_markup=None)
         except Exception:
             pass
         await query.message.reply_text(
             safe_t("ai_post_cancelled", lang),
-            reply_markup=get_main_keyboard(is_admin, lang),
+            reply_markup=get_ai_studio_keyboard(lang),
         )
-        return ConversationHandler.END
+        return AI_MENU_STATE
 
     if data == "ai_post_retry":
         await query.answer()
@@ -955,6 +965,10 @@ async def ai_studio_menu_entry(update: Update, context: ContextTypes.DEFAULT_TYP
     if msg is None:
         return ConversationHandler.END
     lang = get_lang(context)
+    # 🧭 4-qadam: foydalanuvchi endi «🧩 Kontent yaratish» bo'limida —
+    # shu bo'limdan boshlangan FSM oqimlarida [❌ Bekor qilish] aynan
+    # shu submenyuga qaytadi (asosiy menyuga emas).
+    remember_section(context, SECTION_CONTENT)
     await msg.reply_text(
         content_menu_t("cm_menu_intro", lang),
         reply_markup=get_content_creation_keyboard(lang),
@@ -976,6 +990,10 @@ async def ai_studio_hub_entry(update: Update, context: ContextTypes.DEFAULT_TYPE
         return ConversationHandler.END
     lang = get_lang(context)
     user_id = update.effective_user.id
+    # 🧭 4-qadam: AI Yordamchi bo'limi ochildi — bu bo'limga kirish
+    # «✨ Kontent yaratish» submenyusidan, shuning uchun [◀️ Orqaga] ham,
+    # FSM [❌ Bekor qilish] ham shu bo'lim boshiga (AI Studio hub) qaytadi.
+    remember_section(context, SECTION_AI_STUDIO)
     await msg.reply_text(
         await _studio_menu_text(user_id, lang)
         + "\n\n"
@@ -1052,7 +1070,9 @@ async def ai_studio_nav_callback(update: Update, context: ContextTypes.DEFAULT_T
         return CALENDAR_BUSINESS
 
     if data == "studio_close":
-        return await ai_close(update, context)
+        # 🏠 Asosiy menyu — AI bo'limidan chiqib, asosiy 6 tugmali menyuga
+        # qaytadi (4-qadam: [◀️ Orqaga] va [🏠 Asosiy menyu] mantig'i ajratildi).
+        return await ai_exit_to_menu(update, context)
 
     return AI_MENU_STATE
 
@@ -1380,6 +1400,8 @@ async def ai_back_to_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # 🔄 Avval barcha AI/studio post kontekstini tozalaymiz
     clear_ai_context(user_id)
     clear_fsm_data(context)
+    # 🧭 4-qadam: AI Studio hub'iga qaytdik — bo'lim yozuvi yangilanadi.
+    remember_section(context, SECTION_AI_STUDIO)
     lang = get_lang(context)
     await _safe_edit(
         query,
@@ -1389,8 +1411,38 @@ async def ai_back_to_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return AI_MENU_STATE
 
 
-async def ai_close(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """❌ Bekor qilish — faqat SHU yerda sessiya ataylab yakunlanadi (END)."""
+async def ai_back_to_content(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """🧭 ◀️ Orqaga — AI Yordamchidan KONTENT YARATISH submenyusiga qaytadi.
+
+    PostAssist V2 · 4-qadam navigatsiya stacki: foydalanuvchi «✨ Kontent
+    yaratish» → «🤖 AI Yordamchi» yo'li bilan kelgani uchun [◀️ Orqaga] ham
+    aynan shu yo'lni TESKARI yuradi — asosiy menyuga sakrab ketmaydi.
+    AI xotira va FSM konteksti tozalanadi, submenu reply-klaviaturasi bilan
+    qayta chiziladi.
+    """
+    query = update.callback_query
+    await query.answer()  # SPEKS: darhol answer
+    user_id = query.from_user.id
+    clear_ai_context(user_id)
+    clear_fsm_data(context)
+    # Foydalanuvchi endi «🧩 Kontent yaratish» bo'limida.
+    remember_section(context, SECTION_CONTENT)
+    lang = get_lang(context)
+    await _safe_edit(
+        query,
+        content_menu_t("cm_menu_intro", lang),
+        get_content_creation_keyboard(lang),
+    )
+    return ConversationHandler.END
+
+
+async def ai_exit_to_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """🏠 Asosiy menyu — AI bo'limidan chiqib asosiy menyuga qaytadi (END).
+
+    4-qadam standarti: [🏠 Asosiy menyu] — istalgan ichki ekrandan to'g'ridan
+    -to'g'ri asosiy 6 tugmali menyuga chiqadi (``studio_close`` callback'i
+    eski chat tarixidagi tugmalar uchun o'zgarmagan).
+    """
     query = update.callback_query
     lang = get_lang(context)
     await query.answer(safe_t("ai_close_session", lang))  # SPEKS: darhol answer
@@ -1400,11 +1452,31 @@ async def ai_close(update: Update, context: ContextTypes.DEFAULT_TYPE):
         pass
     clear_ai_context(query.from_user.id)
     clear_fsm_data(context)
+    # Asosiy menyuga chiqdik — bo'lim yozuvi tozalanadi.
+    clear_section(context)
     await query.message.reply_text(
         safe_t("ai_close_main_menu", lang),
         reply_markup=get_main_keyboard(query.from_user.id in ADMIN_IDS_SET, lang),
     )
     return ConversationHandler.END
+
+
+async def ai_close(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """❌ Bekor qilish — FSM tozalanadi va bo'lim boshiga (AI Studio hub) qaytadi."""
+    query = update.callback_query
+    lang = get_lang(context)
+    await query.answer(safe_t("ai_close_session", lang))  # SPEKS: darhol answer
+    user_id = query.from_user.id
+    clear_ai_context(user_id)
+    clear_fsm_data(context)
+    # Bekor qilindi, lekin foydalanuvchi AI bo'limi boshida qoladi.
+    remember_section(context, SECTION_AI_STUDIO)
+    await _safe_edit(
+        query,
+        await _studio_menu_text(user_id, lang),
+        get_ai_studio_keyboard(lang),
+    )
+    return AI_MENU_STATE
 
 
 # ============================================================

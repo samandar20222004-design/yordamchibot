@@ -179,6 +179,11 @@ async def channels_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     lang = get_lang(context)
     user_id = update.effective_user.id
+    # 🧭 4-qadam: foydalanuvchi «📢 Kanallarim» bo'limida — shu bo'limdan
+    # boshlangan FSM oqimlari (kanal qo'shish va h.k.) bekor qilinsa,
+    # foydalanuvchi aynan shu ro'yxatga qaytadi.
+    from handlers.navigation import remember_section, SECTION_CHANNELS
+    remember_section(context, SECTION_CHANNELS)
     await _send_channels_list(update.message, user_id, lang)
     return ConversationHandler.END
 
