@@ -838,43 +838,45 @@ def get_cabinet_inline_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(keyboard)
 
 
+def get_settings_profile_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
+    """👤 Profil ekranining compatibility klaviaturasi + Sozlamalarga qaytish.
+
+    Eski kabinet amallari saqlanadi, lekin yangi settings oqimida aniq parent
+    tugmasi ham ko'rsatiladi: [◀️ Orqaga] → ``stgs_hub``.
+    """
+    base = get_cabinet_inline_keyboard(lang)
+    rows = [list(row) for row in base.inline_keyboard]
+    from translations import settings_stats_t
+    rows.append([
+        InlineKeyboardButton(settings_stats_t("ss_btn_back", lang),
+                             callback_data="stgs_hub")
+    ])
+    return InlineKeyboardMarkup(rows)
+
+
 # ============================================================
-# ⚙️ SOZLAMALAR — YAGONA TARTIBLI MENYU (PostAssist V2, 3-qadam)
+# ⚙️ SOZLAMALAR — IXCHAM 8 GURUHLI HUB (PostAssist V2, 2-bosqich)
 # ------------------------------------------------------------
-# Asosiy menyudan [⚙️ Sozlamalar] bosilganda barcha foydali ichki opsiyalar
-# BITTA tartibli menyuda chiqadi (speks tartibi, 12 tugma + Orqaga):
+# Asosiy Sozlamalar ekrani faqat yuqori darajadagi guruhlarni ko'rsatadi:
 #
-#     [👤 Profil]            [🌐 Til / Язык]
-#     [💎 Ballarim]          [🔄 Ballar o'tkazish]
-#     [🎁 Kunlik bonus]      [👥 Do'stlarni taklif]
-#     [🔔 Bildirishnomalar]  [🎨 Post sozlamalari]
-#     [💳 To'lovlar tarixi]  [🧰 Vositalar]
-#     [❓ Yordam]            [ℹ️ Bot haqida]
-#                 [◀️ Orqaga]
+#     [👤 Profil]             [🌐 Til / Язык]
+#     [🎁 Bonuslar & Ballar]  [🎨 Post sozlamalari]
+#     [🔔 Bildirishnomalar]   [💳 To'lovlar tarixi]
+#     [🧰 Vositalar]          [❓ Yordam & Ma'lumot]
+#                    [◀️ Orqaga]
 #
-# ⚠️ 3-qadam refaktori: eski kabinet tezkor tugmalari (📢 Mening kanallarim,
-# 📅 Rejalashtirilgan/Kutilayotgan, 📊 Analitika, 💎 Ballar & reklama rejimi)
-# menyudan OLIB TASHLANDI — ular o'z asosiy menyularida bor, dublikat esa
-# foydalanuvchini chalg'itardi. Ularning callback'lari (cab_*) esa o'chirilmagan:
-# eski xabarlardagi tugmalar uchun xavfsiz alias/redirect bo'lib qoladi
-# (handlers.start.cabinet_callback).
-#
-# Routing tilga bog'liq emas: barcha callback_data uz/ru/en da bir xil.
+# Bonuslar/ballar va yordam/ma'lumot bo'limlari o'z submenu'lariga ega.
+# Eski callback'lar alohida handlerlarda ham saqlanadi — Telegram chat
+# tarixidagi eski inline tugmalar yangi oqimlarda "o'lik" bo'lib qolmaydi.
 # ============================================================
+
 
 def get_settings_hub_keyboard(lang: str = "uz", include_legacy: bool = False) -> InlineKeyboardMarkup:
-    """⚙️ Sozlamalar — 12 ta ichki opsiya + [◀️ Orqaga] (yagona tartibli menyu).
+    """⚙️ Sozlamalar asosiy hub'i: 8 ta guruh + [◀️ Orqaga].
 
-    Tugma callback'lari (routing tilga bog'liq emas):
-
-      stgs_profile / stgs_lang / stgs_points / stgs_transfer / stgs_bonus /
-      stgs_referral / stgs_notif / stgs_post / stgs_pay / stgs_tools /
-      stgs_help / stgs_about / stgs_back
-
-    ``include_legacy`` — 3-qadamdan keyin ESKIRGAN parametr (orqaga moslik
-    uchun imzoda saqlangan, xavfsiz): qiymatidan qat'i nazar legacy kabinet
-    tugmalari CHIZILMAYDI. Eski chaqiruv kod ``TypeError`` bermasligi uchun
-    qabul qilinadi, lekin endi dublikat tugmalar umuman chiqmaydi.
+    ``include_legacy`` avvalgi 12-tugmali API bilan chaqiruvchi kodlar uchun
+    saqlangan. Legacy tugmalar endi yangi hub'da ko'rsatilmaydi; ularning
+    callback'lari esa routing'da qo'llab-quvvatlanadi.
     """
     from translations import settings_stats_t  # lazy — aylanma importdan himoya
 
@@ -882,49 +884,112 @@ def get_settings_hub_keyboard(lang: str = "uz", include_legacy: bool = False) ->
         [
             InlineKeyboardButton(settings_stats_t("ss_btn_profile", lang),
                                  callback_data="stgs_profile"),
-            InlineKeyboardButton(get_text("lang_button", lang),
+            InlineKeyboardButton(settings_stats_t("ss_btn_lang", lang),
                                  callback_data="stgs_lang"),
         ],
         [
-            InlineKeyboardButton(settings_stats_t("ss_btn_points", lang),
-                                 callback_data="stgs_points"),
-            InlineKeyboardButton(settings_stats_t("ss_btn_transfer", lang),
-                                 callback_data="stgs_transfer"),
-        ],
-        [
-            # «🎁 Kunlik bonus» va «👥 Do'stlarni taklif» matnlari asosiy
-            # lug'atdagi yagona manbadan (settings_stats_t fallback'i).
-            InlineKeyboardButton(settings_stats_t("cab_btn_daily_bonus", lang),
-                                 callback_data="stgs_bonus"),
-            InlineKeyboardButton(settings_stats_t("cab_referral", lang),
-                                 callback_data="stgs_referral"),
-        ],
-        [
-            InlineKeyboardButton(settings_stats_t("ss_btn_notif", lang),
-                                 callback_data="stgs_notif"),
+            InlineKeyboardButton(settings_stats_t("ss_btn_rewards", lang),
+                                 callback_data="stgs_rewards"),
             InlineKeyboardButton(settings_stats_t("ss_btn_post_settings", lang),
                                  callback_data="stgs_post"),
         ],
         [
+            InlineKeyboardButton(settings_stats_t("ss_btn_notif", lang),
+                                 callback_data="stgs_notif"),
             InlineKeyboardButton(settings_stats_t("ss_btn_payments", lang),
                                  callback_data="stgs_pay"),
-            InlineKeyboardButton(settings_stats_t("ss_btn_tools", lang),
-                                 callback_data="stgs_tools"),
         ],
         [
-            InlineKeyboardButton(settings_stats_t("ss_btn_help", lang),
-                                 callback_data="stgs_help"),
-            InlineKeyboardButton(settings_stats_t("ss_btn_about", lang),
-                                 callback_data="stgs_about"),
+            InlineKeyboardButton(settings_stats_t("ss_btn_tools", lang),
+                                 callback_data="stgs_tools"),
+            InlineKeyboardButton(settings_stats_t("ss_btn_help_hub", lang),
+                                 callback_data="stgs_help_hub"),
         ],
         [
             InlineKeyboardButton(settings_stats_t("ss_btn_back", lang),
                                  callback_data="stgs_back"),
         ],
     ]
-    # ``include_legacy`` — ataylab hech narsa qilmaydi (yuqoridagi izoh).
+    # Imzoni buzmaslik uchun qabul qilinadi, lekin yangi hub doim bir xil.
     _ = include_legacy
     return InlineKeyboardMarkup(keyboard)
+
+
+def get_settings_rewards_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
+    """🎁 Bonuslar & Ballar submenu'si.
+
+    Tugma callback'lari ataylab eski nomlar bilan ham mos: ``stgs_credits``,
+    ``stgs_transfer``, ``claim_bonus`` va ``referral_hub`` eski xabarlarda
+    uchrashi mumkin. [◀️ Orqaga] esa parent hub'ni (`stgs_hub`) qayta chizadi.
+    """
+    from translations import settings_stats_t
+
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton(settings_stats_t("ss_rewards_points", lang),
+                              callback_data="stgs_credits")],
+        [InlineKeyboardButton(settings_stats_t("ss_rewards_transfer", lang),
+                              callback_data="stgs_transfer")],
+        [InlineKeyboardButton(settings_stats_t("ss_rewards_daily_bonus", lang),
+                              callback_data="claim_bonus")],
+        [InlineKeyboardButton(settings_stats_t("ss_rewards_referral", lang),
+                              callback_data="referral_hub")],
+        [InlineKeyboardButton(settings_stats_t("ss_btn_back", lang),
+                              callback_data="stgs_hub")],
+    ])
+
+
+def get_settings_help_hub_keyboard(
+    lang: str = "uz", support_username: str | None = None,
+) -> InlineKeyboardMarkup:
+    """❓ Yordam & Ma'lumot submenu'si.
+
+    Qo'llab-quvvatlash uchun username bo'lsa Telegram URL tugmasi ishlatiladi;
+    username sozlanmagan test/development muhitida esa ``help_support``
+    callback'i xavfsiz ma'lumot ekranini ochadi.
+    """
+    from config import SUPPORT_USERNAME
+    from translations import settings_stats_t
+
+    username = str(
+        SUPPORT_USERNAME if support_username is None else support_username
+    ).strip().lstrip("@")
+    support_kwargs = (
+        {"url": f"https://t.me/{username}"} if username else
+        {"callback_data": "help_support"}
+    )
+    support_button = InlineKeyboardButton(
+        settings_stats_t("ss_help_hub_support", lang), **support_kwargs
+    )
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton(settings_stats_t("ss_help_hub_guide", lang),
+                              callback_data="help_hub")],
+        [support_button],
+        [InlineKeyboardButton(settings_stats_t("ss_help_hub_about", lang),
+                              callback_data="stgs_about")],
+        [InlineKeyboardButton(settings_stats_t("ss_btn_back", lang),
+                              callback_data="stgs_hub")],
+    ])
+
+
+# O'qilishi oson aliaslar: integratsiyalarda ikkala nomlash uslubi ishlatilgan.
+def get_stgs_rewards_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
+    return get_settings_rewards_keyboard(lang)
+
+
+def get_stgs_help_hub_keyboard(
+    lang: str = "uz", support_username: str | None = None,
+) -> InlineKeyboardMarkup:
+    return get_settings_help_hub_keyboard(lang, support_username)
+
+
+def get_rewards_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
+    return get_settings_rewards_keyboard(lang)
+
+
+def get_help_hub_keyboard(
+    lang: str = "uz", support_username: str | None = None,
+) -> InlineKeyboardMarkup:
+    return get_settings_help_hub_keyboard(lang, support_username)
 
 
 def get_tools_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
@@ -955,12 +1020,17 @@ def get_tools_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
 
 
 def get_settings_back_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
-    """Sozlamalar ichki ekranlaridan menyuga qaytish: [◀️ Orqaga] → stgs_back."""
+    """Sozlamalar ichki ekranidan parent hub'ga qaytish.
+
+    Asosiy hub'ning o'zidagi [◀️ Orqaga] ``stgs_back`` orqali asosiy reply
+    menyuga chiqadi; barcha ichki sahifalar esa ``stgs_hub`` bilan hub'ga
+    qaytadi.
+    """
     from translations import settings_stats_t
 
     return InlineKeyboardMarkup([[
         InlineKeyboardButton(settings_stats_t("ss_btn_back", lang),
-                             callback_data="stgs_back"),
+                             callback_data="stgs_hub"),
     ]])
 
 

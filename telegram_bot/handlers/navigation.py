@@ -166,7 +166,7 @@ async def render_section_start_message(msg, context, user_id: int,
 
         if section == SECTION_SETTINGS:
             # ⚙️ Sozlamalar — bo'lim boshiasi sozlamalar hub'i: profil
-            # kartasi + yagona 12 tugmali menyu.
+            # kartasi + yagona 8 guruhli menyu.
             from handlers.settings import render_settings_hub
             await render_settings_hub(msg, context, user_id, lang, is_admin)
             return True

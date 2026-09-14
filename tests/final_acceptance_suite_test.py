@@ -15,7 +15,7 @@ Qamrov (32 ta belgilangan test):
                 UZ/RU/EN pariteti (``in_sync: True``).
   TEST H..J   — 📢 Kanallarim va 📅 Rejalashtirilgan (Queue) navigatsiyasi.
   TEST K..N   — 📊 Statistika (FAQAT shaxsiy hisobot + ADMIN IZOLYATSIYASI),
-                ⚙️ Sozlamalar (12 tugma + Orqaga), 💎 PRO va 🧰 Vositalar.
+                ⚙️ Sozlamalar (8 guruh + Orqaga), 💎 PRO va 🧰 Vositalar.
   TEST O      — Ko'rinadigan (visible) menyularda DUBLIKAT tugmalar yo'qligi.
   TEST P..S   — Uchala tildagi HAR BIR tugma ishchi handler/callback'ga ega.
   TEST T..V   — ◀️ Orqaga / ❌ Bekor qilish / 🏠 Asosiy menyu navigatsiya
@@ -751,11 +751,10 @@ def test_k_statistics_isolation():
               user_text.count("\n") >= 5, user_text[:80])
 
 
-def test_l_settings_menu_12_plus_back():
-    header("L", "⚙️ Sozlamalar — 12 tugma + [◀️ Orqaga] = 13, uchala tilda bir xil")
-    expected_cbs = ["stgs_profile", "stgs_lang", "stgs_points", "stgs_transfer",
-                    "stgs_bonus", "stgs_referral", "stgs_notif", "stgs_post",
-                    "stgs_pay", "stgs_tools", "stgs_help", "stgs_about",
+def test_l_settings_menu_8_groups_plus_back():
+    header("L", "⚙️ Sozlamalar — 8 guruh + [◀️ Orqaga] = 9, uchala tilda bir xil")
+    expected_cbs = ["stgs_profile", "stgs_lang", "stgs_rewards", "stgs_post",
+                    "stgs_notif", "stgs_pay", "stgs_tools", "stgs_help_hub",
                     "stgs_back"]
     base = None
     for lang in LANGS:
@@ -764,7 +763,7 @@ def test_l_settings_menu_12_plus_back():
         labels = _labels(kb)
         if base is None:
             base = cbs
-        check(f"[{lang}] 12 tugma + Orqaga = 13", len(cbs) == 13, str(cbs))
+        check(f"[{lang}] 8 guruh + Orqaga = 9", len(cbs) == 9, str(cbs))
         check(f"[{lang}] callback'lar kutilgan ro'yxat bilan AYNAN bir xil",
               cbs == expected_cbs, str(cbs))
         check(f"[{lang}] oxirgi tugma — [◀️ Orqaga] (stgs_back)",
@@ -779,7 +778,7 @@ def test_l_settings_menu_12_plus_back():
     with _with_db(fake), _quiet():
         _run(start_mod.user_cabinet_menu(_msg_update(msg), _ctx("uz")))
     drawn = _cbs(msg.sent[-1]["reply_markup"]) if msg.sent else []
-    check("user_cabinet_menu: 13 tugmali sozlamalar klaviaturasini chizdi",
+    check("user_cabinet_menu: 9 tugmali sozlamalar klaviaturasini chizdi",
           drawn == expected_cbs, str(drawn))
 
 
@@ -1511,7 +1510,7 @@ def main():
         test_i_channel_panel_management_screen,
         test_j_queue_menu_navigation,
         test_k_statistics_isolation,
-        test_l_settings_menu_12_plus_back,
+        test_l_settings_menu_8_groups_plus_back,
         test_m_pro_subscription_opens,
         test_n_tools_submenu_opens,
         test_o_no_duplicate_visible_buttons,

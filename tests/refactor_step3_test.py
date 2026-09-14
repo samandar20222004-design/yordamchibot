@@ -8,7 +8,7 @@ Qamrov (3-qadam topshirig'i bo'yicha):
            📅 Kutilayotgan/Rejalashtirilgan, 💎 Ballar & reklama rejimi,
            🎁 bonus) menyu KO'RINISHIDAN olib tashlandi — ular o'z asosiy
            menyularida bor. Menyu yagona, tartibli va TO'LIQ ko'rinishga
-           (12 tugma + [◀️ Orqaga]) keltirildi va bu uchala tilda AYNAN
+           (8 guruh + [◀️ Orqaga]) keltirildi va bu uchala tilda AYNAN
            speks tartibida chiziladi:
                [👤 Profil]            [🌐 Til / Язык]
                [💎 Ballarim]          [🔄 Ballar o'tkazish]
@@ -115,23 +115,17 @@ def check(label, condition, extra=""):
 # ---------------------------------------------------------------------------
 HUB_LABELS = {
     "uz": (("👤 Profil", "🌐 Til / Язык"),
-           ("💎 Ballarim", "🔄 Ballar o'tkazish"),
-           ("🎁 Kunlik bonus", "👥 Do'stlarni taklif"),
-           ("🔔 Bildirishnomalar", "🎨 Post sozlamalari"),
-           ("💳 To'lovlar tarixi", "🧰 Vositalar"),
-           ("❓ Yordam", "ℹ️ Bot haqida")),
-    "ru": (("👤 Профиль", "🌐 Til / Язык"),
-           ("💎 Мои баллы", "🔄 Перевести баллы"),
-           ("🎁 Ежедневный бонус", "👥 Пригласить друзей"),
-           ("🔔 Уведомления", "🎨 Настройки постов"),
-           ("💳 История платежей", "🧰 Инструменты"),
-           ("❓ Помощь", "ℹ️ О боте")),
+           ("🎁 Bonuslar & Ballar", "🎨 Post sozlamalari"),
+           ("🔔 Bildirishnomalar", "💳 To'lovlar tarixi"),
+           ("🧰 Vositalar", "❓ Yordam & Ma'lumot")),
+    "ru": (("👤 Профиль", "🌐 Язык / Language"),
+           ("🎁 Бонусы и баллы", "🎨 Настройки постов"),
+           ("🔔 Уведомления", "💳 История платежей"),
+           ("🧰 Инструменты", "❓ Помощь и информация")),
     "en": (("👤 Profile", "🌐 Language"),
-           ("💎 My credits", "🔄 Transfer credits"),
-           ("🎁 Daily bonus", "👥 Invite friends"),
-           ("🔔 Notifications", "🎨 Post settings"),
-           ("💳 Payment history", "🧰 Tools"),
-           ("❓ Help", "ℹ️ About")),
+           ("🎁 Bonuses & Credits", "🎨 Post settings"),
+           ("🔔 Notifications", "💳 Payment history"),
+           ("🧰 Tools", "❓ Help & Info")),
 }
 
 #: Legacy kabinet callback'lari — menyu KO'RINISHIDA bo'lmasligi shart
@@ -486,26 +480,26 @@ def _msg_entry_fn_names(app, text, as_command=False):
 # TEST 1 — ⚙️ SOZLAMALAR MENYUSI: LEGACY DUBLIKATLAR YO'Q + SPEKS TARTIBI
 # ===========================================================================
 def test_settings_hub_has_no_legacy_duplicates():
-    print("== TEST 1: ⚙️ Sozlamalar menyusi — legacy dublikatlarsiz, 12+1 tugma ==")
+    print("== TEST 1: ⚙️ Sozlamalar menyusi — 8 guruh + Orqaga ==")
 
     for lang in LANGS:
         kb = get_settings_hub_keyboard(lang)
         rows = _rows(kb)
         cbs = _cbs(kb)
 
-        check(f"[{lang}] menyu 7 qator (6 juftlik + ◀️ Orqaga)",
-              len(rows) == 7, str(len(rows)))
-        check(f"[{lang}] 12 tugma AYNAN speks tartibida",
-              [[t for t, _ in row] for row in rows[:6]]
+        check(f"[{lang}] menyu 5 qator (4 juftlik + ◀️ Orqaga)",
+              len(rows) == 5, str(len(rows)))
+        check(f"[{lang}] 8 guruh AYNAN speks tartibida",
+              [[t for t, _ in row] for row in rows[:4]]
               == [list(pair) for pair in HUB_LABELS[lang]],
-              str([[t for t, _ in row] for row in rows[:6]]))
+              str([[t for t, _ in row] for row in rows[:4]]))
         check(f"[{lang}] callback tartibi speks bilan bir xil",
-              cbs[:12] == list(CB_SETTINGS_HUB[:12]), str(cbs))
+              cbs[:8] == list(CB_SETTINGS_HUB[:8]), str(cbs))
         check(f"[{lang}] oxirgi qator = [◀️ Orqaga] → stgs_back",
               rows[-1] == [(settings_stats_t("ss_btn_back", lang), "stgs_back")],
               str(rows[-1]))
-        check(f"[{lang}] jami 13 tugma (12 + Orqaga)",
-              len(cbs) == 13, str(len(cbs)))
+        check(f"[{lang}] jami 9 tugma (8 + Orqaga)",
+              len(cbs) == 9, str(len(cbs)))
         check(f"[{lang}] callback'lar takrorlanmaydi",
               len(set(cbs)) == len(cbs), str(cbs))
 
@@ -534,7 +528,7 @@ def test_settings_hub_has_no_legacy_duplicates():
             _run(start_mod.user_cabinet_menu(_msg_update(msg), _ctx(lang)))
         last = msg.sent[-1]
         cbs = _cbs(last["reply_markup"])
-        check(f"[{lang}] hub ekrani 13 tugma bilan ochiladi", len(cbs) == 13, str(cbs))
+        check(f"[{lang}] hub ekrani 9 tugma bilan ochiladi", len(cbs) == 9, str(cbs))
         check(f"[{lang}] hub ekrani legacy tugmasiz",
               not any(cb in cbs for cb in LEGACY_HUB_CALLBACKS), str(cbs))
         check(f"[{lang}] hub profil kartasi bilan (Shaxsiy Kabinet)",
@@ -543,9 +537,9 @@ def test_settings_hub_has_no_legacy_duplicates():
                        ad_line="").splitlines()[0] in (last["text"] or ""),
               (last["text"] or "")[:80])
 
-    # 1e) 12 tugma — o'zining YANGI callback'lariga ega (ballar/bonus/vositalar).
+    # 1e) 8 guruh — rewards/help parent callback'lari ko'rinadi.
     uz_cbs = _cbs(get_settings_hub_keyboard("uz"))
-    for cb in ("stgs_points", "stgs_transfer", "stgs_bonus", "stgs_tools"):
+    for cb in ("stgs_rewards", "stgs_tools", "stgs_help_hub"):
         check(f"hub: {cb} tugmasi mavjud", cb in uz_cbs, str(uz_cbs))
 
 
@@ -557,11 +551,13 @@ def test_hub_actions_open_their_flows():
     app = _build_app()
 
     # 2a) Menyu tugmalari to'g'ri handlerga ulanadi (real router).
-    for data in ("stgs_points", "stgs_bonus", "stgs_referral", "stgs_tools",
-                 "stgs_hub", "stgs_profile", "stgs_lang"):
+    for data in ("stgs_rewards", "stgs_help_hub", "stgs_points", "stgs_bonus",
+                 "stgs_referral", "stgs_tools", "stgs_hub", "stgs_profile",
+                 "stgs_lang"):
         name = _first_routed_name(app, _cb_update(data))
-        check(f"routing: {data} → settings_menu_callback",
-              name == "settings_menu_callback", str(name))
+        check(f"routing: {data} → settings handler",
+              name in {"settings_menu_callback", "settings_rewards_callback",
+                       "settings_help_hub_callback"}, str(name))
 
     # 2b) 🔄 Ballar o'tkazish — main_conv entry point'i (mavjud FSM oqimi).
     names = _cb_entry_fn_names(app, "stgs_transfer")
@@ -611,8 +607,8 @@ def test_hub_actions_open_their_flows():
         _run(settings_mod.settings_menu_callback(_query_update(q), _ctx("uz")))
     text = q.screen.get("text", "")
     check("ballarim: balans kartasi (7 ta AI so'rov)", "7" in text, text[:100])
-    check("ballarim: stgs_back tugmasi",
-          _cbs(q.screen.get("reply_markup")) == ["stgs_back"],
+    check("ballarim: stgs_hub tugmasi",
+          _cbs(q.screen.get("reply_markup")) == ["stgs_hub"],
           str(_cbs(q.screen.get("reply_markup"))))
 
     # 2g) 🎁 Kunlik bonus — mavjud claim amali chaqiriladi.
@@ -625,8 +621,8 @@ def test_hub_actions_open_their_flows():
           "claim_daily_streak_bonus" in fake.calls, str(fake.calls[-3:]))
     check("kunlik bonus: natija ekrani (streak 4/7 + sovg'a)",
           "4/7" in text and "+1" in text, text[:160])
-    check("kunlik bonus: stgs_back tugmasi",
-          _cbs(q.screen.get("reply_markup")) == ["stgs_back"],
+    check("kunlik bonus: stgs_hub tugmasi",
+          _cbs(q.screen.get("reply_markup")) == ["stgs_hub"],
           str(_cbs(q.screen.get("reply_markup"))))
 
     # 2g-2) Bonus allaqachon olingan bo'lsa — xavfsiz "keyinroq" ekrani
@@ -640,7 +636,7 @@ def test_hub_actions_open_their_flows():
             error = f"{type(exc).__name__}: {exc}"
     check("kunlik bonus (takror): crash yo'q", error is None, str(error))
     check("kunlik bonus (takror): ekran chizildi",
-          bool(q.screen.get("text")) and "stgs_back" in _cbs(q.screen.get("reply_markup")),
+          bool(q.screen.get("text")) and "stgs_hub" in _cbs(q.screen.get("reply_markup")),
           str(q.screen)[:120])
 
     # 2h) Admin — cheksiz so'rovlar (claim qilinmaydi).
@@ -660,7 +656,7 @@ def test_hub_actions_open_their_flows():
           f"https://t.me/postassist_test_bot?start=ref_{USER_ID}" in ref_text,
           ref_text[:160])
     check("referral: ekranda Orqaga bor",
-          "stgs_back" in _cbs(q.screen.get("reply_markup")),
+          "stgs_hub" in _cbs(q.screen.get("reply_markup")),
           str(_cbs(q.screen.get("reply_markup"))))
 
 
@@ -730,7 +726,7 @@ def test_tools_submenu_wires_converter_and_enhancer():
     with _with_db(_FakeDB()):
         q = _Query("stgs_hub")
         _run(settings_mod.settings_menu_callback(_query_update(q), _ctx("uz")))
-    check("vositalar → orqaga: sozlamalar 13 tugmasi qaytdi",
+    check("vositalar → orqaga: sozlamalar 9 tugmasi qaytdi",
           _cbs(q.screen.get("reply_markup")) == list(CB_SETTINGS_HUB),
           str(_cbs(q.screen.get("reply_markup"))))
     check("vositalar → orqaga: yangi xabar yuborilmadi (edit)",

@@ -1,15 +1,15 @@
-"""⚙️ SOZLAMALAR — yagona tartibli menyu (PostAssist V2, 3-qadam refaktori).
+"""⚙️ SOZLAMALAR — ixcham 8 guruhli hub (PostAssist V2, 2-bosqich).
 
-Asosiy menyudan [⚙️ Sozlamalar] bosilganda barcha foydali ichki opsiyalar
-BITTA tartibli, TO'LIQ menyuda chiqadi (inline ``stgs_*`` callback'lari):
+Asosiy menyudan [⚙️ Sozlamalar] bosilganda quyidagi guruhlar chiqadi:
 
-    [👤 Profil]            [🌐 Til / Язык]
-    [💎 Ballarim]          [🔄 Ballar o'tkazish]
-    [🎁 Kunlik bonus]      [👥 Do'stlarni taklif]
-    [🔔 Bildirishnomalar]  [🎨 Post sozlamalari]
-    [💳 To'lovlar tarixi]  [🧰 Vositalar]
-    [❓ Yordam]            [ℹ️ Bot haqida]
+    [👤 Profil]             [🌐 Til / Язык]
+    [🎁 Bonuslar & Ballar]  [🎨 Post sozlamalari]
+    [🔔 Bildirishnomalar]   [💳 To'lovlar tarixi]
+    [🧰 Vositalar]          [❓ Yordam & Ma'lumot]
                  [◀️ Orqaga]
+
+Bonuslar/ballar va yordam/ma'lumot o'z submenu'lariga ega; barcha ichki
+[◀️ Orqaga] tugmalari ``stgs_hub`` orqali shu asosiy settings ekraniga qaytadi.
 
 Qoidalar:
   * 3-qadam refaktori: eski kabinet tezkor tugmalari (📢 Mening kanallarim,
@@ -18,10 +18,10 @@ Qoidalar:
     ``cab_*`` callback'lari O'CHIRILMAGAN: eski xabarlardagi tugmalar uchun
     xavfsiz alias/redirect sifatida ``handlers.start.cabinet_callback`` da
     ishlashda davom etadi (crash yo'q);
-  * «Qo'llanma / Bot haqida», «Do'stlarni taklif qilish», «Kunlik bonus»,
-    «Ballarim» va «Ballar o'tkazish» shu menyu orqali qulay ochiladi
-    (stgs_help / stgs_about / stgs_referral / stgs_bonus / stgs_points /
-    stgs_transfer);
+  * «🎁 Bonuslar & Ballar» hamda «❓ Yordam & Ma'lumot» parent ekranlari
+    alohida ochiladi; ichki oqimlar eski callback aliaslari bilan ishlaydi
+    (stgs_credits / stgs_transfer / claim_bonus / referral_hub /
+    stgs_about / help_hub);
   * mavjud PROFIL (kabinet) va TIL almashtirish oqimlari buzilmaydi:
     [👤 Profil] eski kabinet ekranini, [🌐 Til / Язык] esa avvalgi til
     klaviaturasini ochadi (cab_lang_* callback'lari o'zgarmagan);
@@ -46,12 +46,14 @@ import database as db
 from keyboards.callback_data import cb
 from keyboards.default import get_main_keyboard
 from keyboards.inline import (
-    get_cabinet_inline_keyboard,
     get_help_keyboard,
     get_language_keyboard,
     get_referral_share_keyboard,
     get_settings_back_keyboard,
+    get_settings_help_hub_keyboard,
+    get_settings_profile_keyboard,
     get_settings_hub_keyboard,
+    get_settings_rewards_keyboard,
 )
 from locales.translations import get_lang, get_text, localize_db_message
 from translations import settings_stats_t
@@ -139,10 +141,43 @@ async def render_settings_hub(update_message, context, user_id: int,
 
 async def _render_hub_screen(query, context, user_id: int, lang: str,
                              is_admin: bool) -> None:
-    """⚙️ Sozlamalar hub'ini qayta chizadi (🧰 Vositalar → [◀️ Orqaga])."""
+    """⚙️ Sozlamalar hub'ini qayta chizadi (stgs_hub → shu ekran)."""
+    try:
+        context.user_data.pop("settings_help_flow", None)
+    except Exception:
+        pass
     text = await build_settings_hub_text(user_id, lang, is_admin)
     await _edit_or_reply(
         query, text, get_settings_hub_keyboard(lang),
+    )
+
+
+async def _render_rewards_hub(query, lang: str) -> None:
+    """🎁 Bonuslar & Ballar submenu'sini ko'rsatadi."""
+    await _edit_or_reply(
+        query,
+        settings_stats_t("ss_rewards_title", lang),
+        get_settings_rewards_keyboard(lang),
+    )
+
+
+async def _render_help_hub(query, lang: str) -> None:
+    """❓ Yordam & Ma'lumot submenu'sini ko'rsatadi."""
+    await _edit_or_reply(
+        query,
+        settings_stats_t("ss_help_hub_title", lang),
+        get_settings_help_hub_keyboard(lang),
+    )
+
+
+async def _render_support(query, lang: str) -> None:
+    """💬 Qo'llab-quvvatlash sahifasi (username bo'lmasa ham javob beradi)."""
+    from handlers.start import _help_support_line
+
+    await _edit_or_reply(
+        query,
+        _help_support_line(lang),
+        get_settings_back_keyboard(lang),
     )
 
 
@@ -213,7 +248,7 @@ async def _render_profile_screen(query, context, user_id: int, lang: str,
         len(channels), stats["referrals_count"], lang, ad_line,
     )
     await _edit_or_reply(
-        query, text, get_cabinet_inline_keyboard(lang),
+        query, text, get_settings_profile_keyboard(lang),
     )
 
 
@@ -263,7 +298,7 @@ def _build_toggles_keyboard(scope: str, keys: dict, values: dict,
             ))
         rows.append(row)
     rows.append([_inline(
-        settings_stats_t("ss_btn_back", lang), callback_data="stgs_back",
+        settings_stats_t("ss_btn_back", lang), callback_data="stgs_hub",
     )])
     return InlineKeyboardMarkup(rows)
 
@@ -353,10 +388,20 @@ async def _render_referral(query, context, user_id: int, lang: str,
     await _edit_or_reply(query, text, combined)
 
 
-async def _render_help(query, lang: str) -> None:
-    """❓ Yordam — qo'llanma + FAQ + orqaga."""
+async def _render_help(query, lang: str, context=None) -> None:
+    """❓ Yordam — qo'llanma + FAQ + settings hub'iga qaytish.
+
+    ``settings_help_flow`` flag'i FAQ ichki callback'i ham parent settings
+    hub'iga qaytishini, oddiy /help oqimi esa o'zining legacy navigatsiyasini
+    saqlashini ta'minlaydi.
+    """
     from handlers.start import _help_support_line
 
+    if context is not None:
+        try:
+            context.user_data["settings_help_flow"] = True
+        except Exception:
+            pass
     text = get_text("help_guide", lang, support=_help_support_line(lang))
     help_kb = get_help_keyboard(SUPPORT_USERNAME, lang)
     combined = InlineKeyboardMarkup(
@@ -377,15 +422,15 @@ async def _render_about(query, lang: str) -> None:
 async def settings_menu_callback(update, context: ContextTypes.DEFAULT_TYPE):
     """⚙️ Sozlamalar ichki menyusi — barcha ``stgs_*`` inline callback'lar.
 
-    Har bir bo'lim o'z ekranini ochadi; [◀️ Orqaga] asosiy menyuga qaytaradi.
-    Mavjud kabinet (``cab_*``) callback'lari o'z joyida qoladi — bu handler
-    faqat sozlamalar hub'iga xizmat qiladi.
+    Har bir parent/submenu o'z ekranini ochadi; ichki [◀️ Orqaga]
+    ``stgs_hub`` orqali settings hub'iga qaytadi. Hub'ning o'zidagi
+    [◀️ Orqaga] esa asosiy reply menyuga chiqadi. Mavjud kabinet (``cab_*``)
+    callback'lari o'z joyida qoladi — bu handler faqat settings oqimlariga
+    xizmat qiladi.
 
-    MUHIM: ``stgs_transfer`` (🔄 Ballar o'tkazish) bu yerda ishlanmaydi —
-    u ``main_conv`` entry point'i (``handlers.start.transfer_inline_entry``)
-    orqali mavjud TRANSFER_TARGET FSM oqimini ochadi. Faqat suhbat allaqachon
-    faol bo'lgan holatda (entry point'lar ko'rilmaydi) bu yerga tushadi va
-    foydalanuvchi jim qolmasligi uchun tushunarli yo'riqnoma ko'rsatiladi.
+    ``stgs_transfer`` ``main_conv`` entry point'i (``handlers.start``) orqali
+    mavjud TRANSFER_TARGET FSM oqimini ochadi; fallback routing ham shu oqimga
+    qayta ulanadi, shuning uchun eski inline tugmalar javobsiz qolmaydi.
     """
     from handlers.start import ensure_user_lang
 
@@ -415,6 +460,14 @@ async def settings_menu_callback(update, context: ContextTypes.DEFAULT_TYPE):
             pass
         return
 
+    if data == "stgs_rewards":
+        await _render_rewards_hub(query, lang)
+        return
+
+    if data == "stgs_help_hub":
+        await _render_help_hub(query, lang)
+        return
+
     if data == "stgs_profile":
         await _render_profile_screen(query, context, user_id, lang, is_admin)
         return
@@ -440,14 +493,14 @@ async def settings_menu_callback(update, context: ContextTypes.DEFAULT_TYPE):
         await _render_toggles(query, user_id, scope, lang)
         return
 
-    if data == "stgs_points":
-        # 💎 Ballarim — kredit balansi va reklama rejimi (cab_balance bilan
-        # bir xil manba, lekin sozlamalar menyusi ichida qoladi).
+    if data in ("stgs_points", "stgs_credits"):
+        # 💎 Ballarim — yangi ``stgs_credits`` va mavjud ``stgs_points``
+        # callback'lari bitta ekran/DB manbasiga ulanadi.
         await _render_points(query, user_id, lang, is_admin)
         return
 
-    if data == "stgs_bonus":
-        # 🎁 Kunlik bonus — streak bonusi (cab_bonus bilan bir xil DB amali).
+    if data in ("stgs_bonus", "claim_bonus"):
+        # 🎁 Kunlik bonus — eski ``claim_bonus`` callback'i ham saqlanadi.
         await _render_daily_bonus(query, user_id, lang, is_admin)
         return
 
@@ -498,12 +551,22 @@ async def settings_menu_callback(update, context: ContextTypes.DEFAULT_TYPE):
         await _render_payments(query, user_id, lang)
         return
 
-    if data == "stgs_referral":
+    if data in ("stgs_referral", "referral_hub"):
         await _render_referral(query, context, user_id, lang, is_admin)
         return
 
     if data == "stgs_help":
-        await _render_help(query, lang)
+        # 3-qadamdagi eski to'g'ridan-to'g'ri yordam callback'i.
+        await _render_help(query, lang, context)
+        return
+
+    if data == "help_hub":
+        # Legacy callback: yangi help hub ichidagi qo'llanma/FAQ sahifasi.
+        await _render_help(query, lang, context)
+        return
+
+    if data == "help_support":
+        await _render_support(query, lang)
         return
 
     if data == "stgs_about":
@@ -511,16 +574,22 @@ async def settings_menu_callback(update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if data == "stgs_transfer":
-        # 🛡 Fail-safe: odatda bu yerga yetib kelinmaydi — ``main_conv``
-        # entry point'i (``handlers.start.transfer_inline_entry``) transfer
-        # oqimini ochadi. Suhbat allaqachon faol bo'lgan holatda entry
-        # point'lar ko'rilmaydi; foydalanuvchi jim qolmasligi uchun
-        # tushunarli toast ko'rsatiladi (crash yo'q, xabar buzilmaydi).
-        try:
-            await query.answer(get_text("sys_stale_button", lang), show_alert=True)
-        except Exception:
-            pass
-        return
+        # 🔄 Mavjud TRANSFER_TARGET → TRANSFER_AMOUNT oqimiga qayta ulanadi.
+        # ``main_conv`` odatda bu callback'ni entry point sifatida ushlaydi;
+        # bu fallback esa eski xabarlar/global callback va unit-test chaqiruvi
+        # uchun kerak.
+        from handlers.start import transfer_inline_entry
+        return await transfer_inline_entry(update, context)
 
-    # Noma'lum stgs_* callback — xavfsiz jim chiqish (crash yo'q).
+    # Noma'lum settings callback — xavfsiz jim chiqish (crash yo'q).
     logger.debug("Sozlamalar: noma'lum callback: %r", data[:64])
+
+
+async def settings_rewards_callback(update, context: ContextTypes.DEFAULT_TYPE):
+    """Global router uchun 🎁 Bonuslar & Ballar callback handleri."""
+    return await settings_menu_callback(update, context)
+
+
+async def settings_help_hub_callback(update, context: ContextTypes.DEFAULT_TYPE):
+    """Global router uchun ❓ Yordam & Ma'lumot callback handleri."""
+    return await settings_menu_callback(update, context)
