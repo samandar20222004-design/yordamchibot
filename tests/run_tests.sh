@@ -22,6 +22,8 @@
 #   3h) 🗓 SMART CONTENT CALENDAR — 7/30 kunlik reja, PRO entitlement,
 #       haftalik limit, Magic Post uzatmasi, i18n va xavfsizlik
 #       (tests/content_calendar_flow_test.py)
+#   3i) 🔄 POSTASSIST V2 2-QADAM REFAKTORI — B1 (navbat) + B2 (rasm) birlashtiruvi
+#       (tests/refactor_step2_test.py)
 #   4) TO'LIQ regressiya: telegram_bot/tests/run_tests.sh (barcha 30+ test fayli)
 #
 # Har qanday xatoda 1 bilan chiqadi (CI uchun).
@@ -136,6 +138,25 @@ echo "===== 3h) 🗓 SMART CONTENT CALENDAR (7/30 KUNLIK REJA) ====="
 # lug'at shaklida va kunlar soni bilan cheklangan, ishonchsiz matn
 # HTML-escape qilinadi (tests/content_calendar_flow_test.py).
 "$PY" tests/content_calendar_flow_test.py || EXIT_CODE=1
+
+echo
+echo "===== 3i) 🔄 2-QADAM REFAKTORI: B1 NAVBAT + B2 RASM OQIMI ====="
+# (1) «Kutilayotgan postlar» + «Rejalashtirilgan postlar» YAGONA «📅
+# Rejalashtirilgan» ekraniga birlashtirildi — har bir post ostida TO'LIQ
+# amallar: [👁 Ko'rish] [✏️ Tahrirlash] [⏰ Vaqt] [🔗 Tugma/Reaksiya]
+# [🗑 O'chirish] (barchasi mavjud, sinovdan o'tgan oqimlarga ulanadi);
+# (2) eski cab_pending / cab_queue callback'lari AYNAN shu yagona ekranga
+# xavfsiz yo'naltiriladi — baza xatosida ham foydalanuvchi javob oladi
+# (crash yo'q, tugma "qotmaydi"); (3) AI Studio va Onboarding'dagi
+# «🖼 Rasmdan post...» tugmalari YAGONA «📸 Rasm → Post» oqimini ochadi
+# (IMAGE_POST_INPUT), eski photo_* callback'lari va 408–410 holatlari ALIAS
+# sifatida saqlanadi; (4) «🤖 AI Yordamchi» → [🧠 Kontent reja] 7/30 kunlik
+# SMART CONTENT CALENDAR oqimini boshlaydi (soha → cal_days:7|30 → AI reja →
+# cal_day:N → «✨ Magic Post»), FREE uchun 30 kun PRO taklifiga olib boradi;
+# (5) yangi FSM holatlari (470–472) noyob, yangi callback'lar <=64 bayt,
+# eskirgan tugmalar toast bilan javob beradi, i18n UZ/RU/EN 100% paritet
+# (tests/refactor_step2_test.py).
+"$PY" tests/refactor_step2_test.py || EXIT_CODE=1
 
 echo
 echo "======== 4) TO'LIQ REGRESSIYA (telegram_bot/tests) ========"

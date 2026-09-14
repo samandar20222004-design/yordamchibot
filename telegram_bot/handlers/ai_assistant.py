@@ -1005,14 +1005,20 @@ async def ai_studio_nav_callback(update: Update, context: ContextTypes.DEFAULT_T
         return AI_PROMPT_INPUT
 
     if data == "studio_ai_photo":
-        # 🖼 Vision: yangi sessiya — eski natija tozalanadi
+        # 📸 PostAssist V2 · 2-qadam (B2): AI Studio'dagi «🖼 Rasmdan post
+        # yaratish» tugmasi endi YAGONA «📸 Rasm → Post» oqimini ochadi
+        # (Vision tahlili + Post Score, ``IMAGE_POST_INPUT``). Eski Vision
+        # oqimi (AI_PHOTO_INPUT=408 …) ALIAS sifatida saqlanadi — eski
+        # ``photo_`` callback'lari va ularning handlerlari o'chirilmagan.
         for key in (
             "studio_topic", "studio_post_text", "studio_tone",
             "studio_file_id", "studio_post_type", "studio_photo_extra",
         ):
             context.user_data.pop(key, None)
-        await _safe_edit(query, safe_t("ai_studio_photo_intro", lang), get_ai_back_keyboard(lang))
-        return AI_PHOTO_INPUT
+        from handlers.image_post import IMAGE_POST_INPUT, image_post_entry
+        # Menu xabari O'CHIRILMAYDI — edit qilinadi (studio uslubi).
+        await image_post_entry(update, context)
+        return IMAGE_POST_INPUT
 
     if data == "studio_ai_audit":
         await _safe_edit(
@@ -1033,28 +1039,17 @@ async def ai_studio_nav_callback(update: Update, context: ContextTypes.DEFAULT_T
         return EXTRACT_USERNAME
 
     if data == "studio_content_plan":
-        from handlers.content_plan import PLAN_CHOOSE_CHANNEL, _get_plan_channel_keyboard
-        channels = await db.run_db(db.get_user_channels, query.from_user.id)
-        if not channels:
-            await _safe_edit(
-                query,
-                safe_t("ai_studio_no_channel", lang),
-                get_ai_back_keyboard(lang),
-            )
-            return AI_MENU_STATE
-        context.user_data["plan_channels"] = channels
-        plan_kb = _get_plan_channel_keyboard(channels)
-        rows = [list(row) for row in plan_kb.inline_keyboard]
-        rows.append([
-            InlineKeyboardButton(safe_t("ai_btn_back", lang), callback_data="ai_back_to_menu"),
-            InlineKeyboardButton(safe_t("ai_btn_close", lang), callback_data="ai_close"),
-        ])
-        await _safe_edit(
-            query,
-            safe_t("ai_studio_content_plan_intro", lang),
-            InlineKeyboardMarkup(rows),
+        # 🧠 PostAssist V2 · 2-qadam: [🧠 Kontent reja] tugmasi endi SMART
+        # CONTENT CALENDAR (7/30 kunlik reja) oqimini boshlaydi —
+        # ``handlers.content_calendar_flow`` (soha → davomiylik → AI reja →
+        # kun tanlash → «✨ Magic Post»). Eski ``content_plan`` oqimi
+        # (BTN_CONTENT_PLAN tugmasi, ``plan_*`` callback'lari) O'CHIRILMAGAN —
+        # u alohida alias sifatida ishlayveradi.
+        from handlers.content_calendar_flow import (
+            CALENDAR_BUSINESS, content_calendar_entry,
         )
-        return PLAN_CHOOSE_CHANNEL
+        await content_calendar_entry(update, context)
+        return CALENDAR_BUSINESS
 
     if data == "studio_close":
         return await ai_close(update, context)

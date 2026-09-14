@@ -1914,17 +1914,21 @@ def test_photo_to_post_flow():
               b.callback_data for row in get_ai_studio_keyboard().inline_keyboard for b in row
           ])
 
-    # 4) Menyu: studio_ai_photo → AI_PHOTO_INPUT (edit, o'chirish yo'q)
+    # 4) Menyu: studio_ai_photo → YAGONA «📸 Rasm → Post» oqimi (PostAssist V2 ·
+    #    2-qadam / B2). Eski Vision oqimi (AI_PHOTO_INPUT=408) ALIAS sifatida
+    #    qoladi: ``photo_v:`` / ``photo_schedule`` / ``photo_rewrite`` /
+    #    ``photo_edit`` handlerlari va ``ai_photo_received`` o'chirilmagan.
     class _QUpd:
         def __init__(self, q):
             self.callback_query = q
 
+    from handlers.image_post import IMAGE_POST_INPUT
     q = _FakeQuery("studio_ai_photo", _FakeMsg(1))
     ctx = _FakeCtx(_FakeBot())
     state = asyncio.run(ai.ai_studio_nav_callback(_QUpd(q), ctx))
-    check("photo: nav → AI_PHOTO_INPUT", state == ai.AI_PHOTO_INPUT, str(state))
+    check("photo: nav → IMAGE_POST_INPUT (yagona oqim)", state == IMAGE_POST_INPUT, str(state))
     check("photo: nav yo'riqnoma edit qilinadi",
-          any("Rasmdan post" in e[0] for e in q.edits), str(q.edits))
+          any("Rasm" in e[0] and "Post" in e[0] for e in q.edits), str(q.edits))
     check("photo: nav eski natija tozalanadi", "studio_post_text" not in ctx.user_data)
 
     # 5-10) Mock DB + Mock AI bilan to'liq oqim
@@ -8479,7 +8483,8 @@ def test_onboarding_resolve_and_quick_handlers():
     from keyboards.default import BTN_NEW_POST, BTN_QUICK_AI_POST, BTN_CREATE_CONTENT
 
     ob_mod = importlib.import_module("handlers.onboarding")
-    from handlers.ai_assistant import AI_PROMPT_INPUT, AI_PHOTO_INPUT
+    from handlers.ai_assistant import AI_PROMPT_INPUT
+    from handlers.image_post import IMAGE_POST_INPUT
     from handlers.channels import ADD_CHANNEL
 
     state = {"onboarding": {}, "raise": False}
@@ -8575,9 +8580,11 @@ def test_onboarding_resolve_and_quick_handlers():
         upd_p = _OnbUpdate(4242)
         ctx_p = _OnbCtx("uz", {"lang": "uz", "studio_file_id": "ph-1"})
         out_p = asyncio.run(ob_mod.quick_photo_post_entry(upd_p, ctx_p))
-        check("quick Rasm: AI_PHOTO_INPUT holati", out_p == AI_PHOTO_INPUT, str(out_p))
-        check("quick Rasm: vision intro matni",
-              upd_p.message.sent[-1][0] == get_text("ai_studio_photo_intro", "uz"))
+        # 🖼 → 📸 PostAssist V2 · 2-qadam (B2): tezkor tugma ham YAGONA
+        # «Rasm → Post» oqimini ochadi (Vision + Post Score).
+        check("quick Rasm: IMAGE_POST_INPUT holati", out_p == IMAGE_POST_INPUT, str(out_p))
+        check("quick Rasm: yagona oqim intro matni",
+              upd_p.message.sent[-1][0] == get_text("image_post_intro", "uz"))
         check("quick Rasm: eski rasm ma'lumoti tozalandi",
               "studio_file_id" not in ctx_p.user_data)
 

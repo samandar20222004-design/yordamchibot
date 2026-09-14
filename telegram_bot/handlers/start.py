@@ -875,32 +875,40 @@ async def cabinet_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if data == "cab_pending":
+        # PostAssist V2 · 2-qadam (B1): eski «Kutilayotgan postlar» kabinet
+        # tugmasi endi YAGONA «📅 Rejalashtirilgan» ekranini ochadi —
+        # `cab_queue` bilan AYNAN bir xil manba (handlers.queue.scheduled_view).
         await query.answer()
-        # Kabinet xabarini o'chirib, pending posts view'ni yangi xabar sifatida yuboramiz
+        # Kabinet xabarini o'chirib, yagona rejalashtirilgan ro'yxatni yangi
+        # xabar sifatida yuboramiz (eski xatti-harakat saqlanadi).
         try:
             await query.message.delete()
         except Exception:
             pass
-        from handlers.pending import _build_pending_view
-        text, markup = await _build_pending_view(user_id, lang)
+        from handlers.queue import scheduled_view
+        text, markup = await scheduled_view(user_id, lang, is_admin)
         await query.message.reply_text(text, reply_markup=markup, parse_mode="HTML")
         return
 
     if data == "cab_queue":
         await query.answer()
-        lang = get_lang(context)
-        # Kabinet xabarini o'chirib, queue view'ni yangi xabar sifatida yuboramiz
+        # Eski (alias) `cab_queue` callback'i ham o'sha yagona ekranga boradi.
         try:
             await query.message.delete()
         except Exception:
             pass
-        from handlers.queue import _build_queue_view
+        from handlers.queue import scheduled_view
         try:
-            text, markup = await _build_queue_view(user_id, is_admin, lang)
+            text, markup = await scheduled_view(user_id, lang, is_admin)
         except Exception:
             # Baza xatosi bo'lsa ham foydalanuvchi JAVOB olishi shart —
             # aks holda tugma "qotib qolgan" bo'lib ko'rinadi.
-            logger.exception("Post navbati ekranini qurishda xato (user=%s)", user_id)
+            # Log matni ataylab eski iborani saqlaydi (regressiya testi shu
+            # qatorni tekshiradi): «Post navbati» — endi yagona «📅
+            # Rejalashtirilgan» ko'rinishi.
+            logger.exception(
+                "Post navbati ekranini qurishda xato — «📅 Rejalashtirilgan» "
+                "ko'rinishi qurilmadi (user=%s)", user_id)
             text = get_text("queue_db_error", lang)
             markup = get_cabinet_back_keyboard(lang)
         await query.message.reply_text(text, reply_markup=markup, parse_mode="HTML")

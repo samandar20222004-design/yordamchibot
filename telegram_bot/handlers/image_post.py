@@ -27,6 +27,7 @@ from telegram.ext import ContextTypes, ConversationHandler, MessageHandler
 import database as db
 from config import ADMIN_IDS_SET
 from keyboards.callback_data import CB_POST_SCORE_EVAL, cb
+from keyboards.default import get_cancel_keyboard
 from locales.translations import get_lang, safe_t
 from translations import post_score_t
 from services.ai_service import generate_image_post
@@ -280,13 +281,55 @@ async def _download_image_bytes(bot, media) -> bytes:
 
 
 async def image_post_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """"📸 Rasm → Post" bo'limini ochadi; hali kredit sarflanmaydi."""
+    """«📸 Rasm → Post» — YAGONA rasm oqimining kirish nuqtasi (B2).
+
+    PostAssist V2 · 2-qadam: AI Studio (``studio_ai_photo``) va Onboarding
+    (``quick_photo_post_entry``) menyularidagi barcha «🖼 Rasmdan post...»
+    tugmalari AYNAN shu funksiyaga yo'naltiriladi — endi botda ikkita
+    chalg'ituvchi rasm oqimi emas, bitta implementatsiya (Vision + Post
+    Score) bor. Eski ``photo_`` callback'lari esa xavfsiz alias bo'lib
+    qoladi (``handlers.ai_assistant`` + global stale handler).
+
+    Kirish ikki shaklda bo'lishi mumkin:
+      * oddiy xabar (reply-tugma / ``/imagepost``) — yo'riqnoma yuboriladi;
+      * inline tugma (AI Studio/Onboarding menyusi) — xabar EDIT qilinadi.
+
+    Kredit hali sarflanmaydi: u FAQAT uslub tanlanganda (``image_style:``)
+    atomik yechiladi.
+    """
     message = getattr(update, "message", None)
-    if message is None:
-        return ConversationHandler.END
+    query = getattr(update, "callback_query", None)
     _clear_image_session(context)
     lang = get_lang(context)
-    await message.reply_text(_image_entry_text(lang), parse_mode="HTML")
+    text = _image_entry_text(lang)
+    keyboard = get_cancel_keyboard(lang)
+
+    if query is not None:
+        # Inline tugma (studio_ai_photo / onboarding / cc_*) — xabar O'CHIRILMAYDI
+        # (menyu xabari edit qilinadi), aks holda AI Studio uslubidagi
+        # «edit → yo'riqnoma» xatti-harakati buzilardi.
+        try:
+            await query.answer()
+        except Exception:
+            pass
+        edited = False
+        try:
+            await query.edit_message_text(text, reply_markup=keyboard, parse_mode="HTML")
+            edited = True
+        except Exception:
+            edited = False
+        if not edited:
+            target = message or getattr(query, "message", None)
+            if target is not None:
+                try:
+                    await target.reply_text(text, reply_markup=keyboard, parse_mode="HTML")
+                except Exception:
+                    logger.debug("image_post_entry: xabar yuborib bo'lmadi", exc_info=True)
+        return IMAGE_POST_INPUT
+
+    if message is None:
+        return ConversationHandler.END
+    await message.reply_text(text, reply_markup=keyboard, parse_mode="HTML")
     return IMAGE_POST_INPUT
 
 

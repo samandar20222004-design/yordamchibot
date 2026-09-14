@@ -32,8 +32,12 @@ from telegram.ext import ContextTypes, ConversationHandler
 from config import ADMIN_IDS_SET
 import database as db
 from keyboards.default import get_main_keyboard, get_cancel_keyboard, is_menu_text
-from keyboards.callback_data import CB_POST_VIEW, cb
-from keyboards.inline import render_scheduled_actions
+from keyboards.callback_data import cb
+from keyboards.inline import (
+    render_scheduled_actions,
+    render_scheduled_full_actions,
+    scheduled_btn_react_keyboard,
+)
 from locales.translations import get_lang, get_text, normalize_lang
 from translations import channels_queue_t
 from utils.date_format import format_datetime, format_list_datetime
@@ -115,22 +119,25 @@ def _format_queue_item(row, index: int, lang: str = "uz") -> str:
 
 
 def _get_queue_list_keyboard(posts, offset: int, total: int, lang: str = "uz") -> InlineKeyboardMarkup:
-    """📅 Rejalashtirilgan ro'yxati uchun inline keyboard.
+    """📅 YAGONA Rejalashtirilgan ro'yxati uchun inline keyboard.
 
-    Har bir post uchun IKKI qator:
-      1. [👁 Ko'rish #id] [⏩ Surish] — mavjud (alias) amallar;
-      2. [✏️ Tahrirlash] [⏰ Vaqtni o'zgartirish] [🗑 O'chirish] — master plan
-         speksidagi 3 ta asosiy amal (``render_scheduled_actions``).
+    PostAssist V2 · 2-qadam (B1): «Kutilayotgan postlar» va «Rejalashtirilgan
+    postlar» bitta ekranga birlashtirildi, shu sababli har bir post ostida
+    BARCHA amallar TO'LIQ jamlangan (``render_scheduled_full_actions``)::
+
+        [👁 Ko'rish]   [✏️ Tahrirlash]
+        [⏰ Vaqt]      [🔗 Tugma/Reaksiya]
+        [🗑 O'chirish] [⏩ Surish]
+
+    ``⏩ Surish`` — eski (alias) amal, ro'yxat oxirida saqlanadi; barcha
+    callback'lar (``qview:`` / ``p_edit:`` / ``p_time:`` / ``sched_br:`` /
+    ``qdel:`` / ``qpush:`` / ``qpage:`` / ``qslots:`` / ``qclose``) chat
+    tarixidagi eski tugmalar bilan bir xil qoladi.
     """
     rows = []
     for post in posts:
         pid = post[0]
-        rows.append([
-            InlineKeyboardButton(get_text("queue_btn_view", lang, id=pid), callback_data=cb(CB_POST_VIEW, pid)),
-            InlineKeyboardButton(get_text("queue_btn_push", lang), callback_data=cb(f"qpush:{pid}")),
-        ])
-        # ✏️ Tahrirlash | ⏰ Vaqtni o'zgartirish | 🗑 O'chirish
-        rows.append(render_scheduled_actions(pid, lang))
+        rows.extend(render_scheduled_full_actions(pid, lang))
 
     # Pagination tugmalari
     nav = []
@@ -189,11 +196,17 @@ async def _build_queue_view(user_id: int, is_admin: bool, lang: str = "uz") -> t
     total = await db.run_db(db.get_queue_post_count, user_id)
 
     # Free foydalanuvchi navbat limitiga yetganda PRO taklifi ko'rsatiladi.
+    # DB nostandart javob qaytarsa (None/istisno) — upsell ko'rsatilmaydi va
+    # ro'yxat ASLO yiqilmaydi (eski kabinet aliaslari ham shunga tayanadi).
     show_upsell = False
+    max_q = 0
     if not is_admin:
-        can_add, current, max_q = await db.run_db(db.check_queue_limit, user_id)
-        if not can_add:
-            show_upsell = True
+        try:
+            can_add, current, max_q = await db.run_db(db.check_queue_limit, user_id)
+            if not can_add:
+                show_upsell = True
+        except Exception:
+            logger.debug("check_queue_limit ishlamadi (user=%s)", user_id, exc_info=True)
 
     if total == 0:
         # get_cabinet_back_keyboard keyboards.INLINE'da (default'da emas) —
@@ -260,6 +273,29 @@ async def build_channel_scheduled_view(user_id: int, channel_id, channel_title: 
     keyboard.append([InlineKeyboardButton(
         _t("cq_ch_btn_back", lang), callback_data=cb("ch_op:", target))])
     return "\n".join(text_lines), InlineKeyboardMarkup(keyboard)
+
+
+async def scheduled_view(user_id: int, lang: str = "uz", is_admin=None) -> tuple:
+    """YAGONA «📅 Rejalashtirilgan» ekrani (matn + markup) — B1 birlashtiruv.
+
+    Butun bot uchun BITTA manba: asosiy menyudagi «📅 Rejalashtirilgan»,
+    eski «⏳ Kutilayotgan postlar» reply-tugmasi va kabinetdagi eski
+    ``cab_pending`` / ``cab_queue`` callback'lari hammasi shu funksiyani
+    chaqiradi. Hech qachon istisno tashlamaydi (fail-safe): DB yiqilsa
+    foydalanuvchi ``cq_sch_empty`` xabari va ❌ Yopish tugmasini oladi —
+    tugma hech qachon "qotib" qolmaydi.
+    """
+    if is_admin is None:
+        is_admin = user_id in ADMIN_IDS_SET
+    try:
+        return await _build_queue_view(user_id, is_admin, lang)
+    except Exception:
+        logger.exception("Rejalashtirilgan ekranini qurishda xato (user=%s)", user_id)
+        return (
+            channels_queue_t("cq_sch_empty", lang),
+            InlineKeyboardMarkup([[InlineKeyboardButton(
+                get_text("queue_btn_close", lang), callback_data="qclose")]]),
+        )
 
 
 async def queue_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -459,6 +495,55 @@ async def queue_push_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
     keyboard = _get_queue_list_keyboard(posts, 0, total, lang)
     try:
         await query.edit_message_text(text, reply_markup=keyboard, parse_mode="HTML")
+    except Exception:
+        pass
+    return QUEUE_MENU
+
+
+# ============================================================
+# 🔗 TUGMA / REAKSIYA — yagona ro'yxatdagi 4-amal
+# ============================================================
+async def scheduled_btn_react_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """[🔗 Tugma/Reaksiya] — mavjud ``p_btn:`` / ``p_react:`` oqimlari tanlagichi.
+
+    Yangi FSM holati YARATILMAYDI: tanlangan tugma o'z (allaqachon entry
+    point bo'lgan) oqimini ochadi. Egalik tekshiruvi shu yerda bajariladi —
+    begona postning tugmasi ochilmaydi (fail-closed), xato bo'lsa ham
+    foydalanuvchi JAVOB oladi va handler qulamaydi.
+    """
+    query = update.callback_query
+    if query is None:
+        return QUEUE_MENU
+    try:
+        await query.answer()
+    except Exception:
+        pass
+    lang = get_lang(context)
+    user_id = query.from_user.id
+    try:
+        post_id = int(str(query.data).split(":", 1)[1])
+    except (IndexError, ValueError):
+        return QUEUE_MENU
+
+    owned = False
+    try:
+        owned = bool(await db.run_db(db.get_queue_post_detail, post_id, user_id))
+    except Exception:
+        logger.debug("get_queue_post_detail ishlamadi (post=%s)", post_id, exc_info=True)
+    if not owned:
+        try:
+            await query.edit_message_text(
+                channels_queue_t("cq_sch_not_found", lang), parse_mode="HTML")
+        except Exception:
+            pass
+        return QUEUE_MENU
+
+    try:
+        await query.edit_message_text(
+            channels_queue_t("cq_sch_br_title", lang),
+            reply_markup=scheduled_btn_react_keyboard(post_id, lang),
+            parse_mode="HTML",
+        )
     except Exception:
         pass
     return QUEUE_MENU
