@@ -9,18 +9,15 @@ Qamrov (topshiriq spetsifikatsiyasi bilan birma-bir):
              📅 Rejalashtirilgan postlar soni / 🤖 AI so'rovlar & kreditlar.
            Natija ostida amallar: [🔄 Yangilash] [◀️ Orqaga]; Yangilash
            ma'lumotlarni qayta o'qiydi, Orqaga asosiy menyuga qaytaradi.
-  TEST 2:  ⚙️ SOZLAMALAR — [⚙️ Sozlamalar] bosilganda bitta tartibli menyu
-           (3-qadam refaktori: legacy dublikatlar olib tashlangan, 12 tugma):
-             [👤 Profil]            [🌐 Til / Язык]
-             [💎 Ballarim]          [🔄 Ballar o'tkazish]
-             [🎁 Kunlik bonus]      [👥 Do'stlarni taklif]
-             [🔔 Bildirishnomalar]  [🎨 Post sozlamalari]
-             [💳 To'lovlar tarixi]  [🧰 Vositalar]
-             [❓ Yordam]            [ℹ️ Bot haqida]
+  TEST 2:  ⚙️ SOZLAMALAR — [⚙️ Sozlamalar] bosilganda 8 ta guruhli hub:
+             [👤 Profil]             [🌐 Til / Язык]
+             [🎁 Bonuslar & Ballar]  [🎨 Post sozlamalari]
+             [🔔 Bildirishnomalar]   [💳 To'lovlar tarixi]
+             [🧰 Vositalar]          [❓ Yordam & Ma'lumot]
                           [◀️ Orqaga]
-           Har bir 12 ta sub-tugma O'Z oqimini ochadi; [◀️ Orqaga] asosiy
-           menyuga qaytaradi; profil va til almashtirish oqimlari buzilmagan.
-           Eski cab_* callback'lari ALIAS sifatida ishlashda davom etadi.
+           Bonuslar & Ballar hamda Yordam & Ma'lumot o'z submenu'larini
+           ochadi; ichki [◀️ Orqaga] har doim ``stgs_hub`` ga qaytadi.
+           Eski callback'lar to'liq alias sifatida ishlashda davom etadi.
   TEST 3:  ⚙️ ADMIN PANEL — oddiy foydalanuvchiga HECH QACHON ko'rinmaydi
            (klaviatura + handlerlar fail-closed); admin kirganda tizim
            monitoringi (Bot & DB, Scheduler, AI provayderlar, Pending manual
@@ -72,39 +69,28 @@ EXPECTED_STATS_MARKERS = {
            "📅 Scheduled posts", "🤖 AI requests", "Credits spent"),
 }
 
-# Sozlamalar menyusi — speksdagi 12 ta sub-tugma callback'lari (tartib bilan).
+# Sozlamalar menyusi — yangi 8 ta guruh callback'lari (tartib bilan).
 EXPECTED_SETTINGS_CBS = (
     "stgs_profile", "stgs_lang",
-    "stgs_points", "stgs_transfer",
-    "stgs_bonus", "stgs_referral",
-    "stgs_notif", "stgs_post",
-    "stgs_pay", "stgs_tools",
-    "stgs_help", "stgs_about",
+    "stgs_rewards", "stgs_post",
+    "stgs_notif", "stgs_pay",
+    "stgs_tools", "stgs_help_hub",
 )
 
-# Sozlamalar menyusi yorliqlari — SPEKS tartibi (uchala til).
-# 3-qadam refaktori: legacy kabinet dublikatlari olib tashlandi va menyu
-# 12 tugma + [◀️ Orqaga] ko'rinishiga keltirildi (tests/refactor_step3_test.py
-# bu tarkibni alohida, qat'iy qo'riqlaydi).
+# Sozlamalar menyusi yorliqlari — yangi 8 guruhli SPEKS tartibi.
 EXPECTED_SETTINGS_LABELS = {
     "uz": (("👤 Profil", "🌐 Til / Язык"),
-           ("💎 Ballarim", "🔄 Ballar o'tkazish"),
-           ("🎁 Kunlik bonus", "👥 Do'stlarni taklif"),
-           ("🔔 Bildirishnomalar", "🎨 Post sozlamalari"),
-           ("💳 To'lovlar tarixi", "🧰 Vositalar"),
-           ("❓ Yordam", "ℹ️ Bot haqida")),
-    "ru": (("👤 Профиль", "🌐 Til / Язык"),
-           ("💎 Мои баллы", "🔄 Перевести баллы"),
-           ("🎁 Ежедневный бонус", "👥 Пригласить друзей"),
-           ("🔔 Уведомления", "🎨 Настройки постов"),
-           ("💳 История платежей", "🧰 Инструменты"),
-           ("❓ Помощь", "ℹ️ О боте")),
+           ("🎁 Bonuslar & Ballar", "🎨 Post sozlamalari"),
+           ("🔔 Bildirishnomalar", "💳 To'lovlar tarixi"),
+           ("🧰 Vositalar", "❓ Yordam & Ma'lumot")),
+    "ru": (("👤 Профиль", "🌐 Язык / Language"),
+           ("🎁 Бонусы и баллы", "🎨 Настройки постов"),
+           ("🔔 Уведомления", "💳 История платежей"),
+           ("🧰 Инструменты", "❓ Помощь и информация")),
     "en": (("👤 Profile", "🌐 Language"),
-           ("💎 My credits", "🔄 Transfer credits"),
-           ("🎁 Daily bonus", "👥 Invite friends"),
-           ("🔔 Notifications", "🎨 Post settings"),
-           ("💳 Payment history", "🧰 Tools"),
-           ("❓ Help", "ℹ️ About")),
+           ("🎁 Bonuses & Credits", "🎨 Post settings"),
+           ("🔔 Notifications", "💳 Payment history"),
+           ("🧰 Tools", "❓ Help & Info")),
 }
 
 
@@ -138,7 +124,9 @@ from keyboards.default import (  # noqa: E402
     get_main_keyboard,
 )
 from keyboards.inline import (  # noqa: E402
-    get_settings_back_keyboard, get_settings_hub_keyboard, get_user_stats_keyboard,
+    get_settings_back_keyboard, get_settings_help_hub_keyboard,
+    get_settings_hub_keyboard, get_settings_rewards_keyboard,
+    get_user_stats_keyboard,
 )
 from locales.translations import get_text  # noqa: E402
 from translations import (  # noqa: E402
@@ -242,6 +230,10 @@ class _FakeDB:
             return dict(self.overview)
         if name == "get_referral_stats":
             return {"referrals_count": 2, "ai_credits": 7, "streak": 3}
+        if name == "get_user_credits":
+            return 7
+        if name == "claim_daily_streak_bonus":
+            return {"success": True, "streak": 4, "bonus_amount": 1, "credits": 8}
         if name == "get_user_channels":
             return [("-1001", "Kanal A", "friendly"), ("-1002", "Kanal B", "formal")]
         if name == "get_user_code":
@@ -423,10 +415,10 @@ def test_statistics_overview_format():
 
 
 # ============================================================================
-# TEST 2 — ⚙️ SOZLAMALAR: 12 SUB-TUGMA + [◀️ ORQAGA] (legacy dublikatlarsiz)
+# TEST 2 — ⚙️ SOZLAMALAR: 8 GURUH + [◀️ ORQAGA] (legacy aliaslar bilan)
 # ============================================================================
 def test_settings_menu_structure_and_flows():
-    print("\n== TEST 2: ⚙️ Sozlamalar — yagona tartibli menyu (12+Orqaga) ==")
+    print("\n== TEST 2: ⚙️ Sozlamalar — 8 guruh + rewards/help hub ==")
     from telegram.ext import ConversationHandler
 
     # Legacy kabinet tezkor tugmalari — menyuda KO'RINMASLIGI shart
@@ -439,13 +431,13 @@ def test_settings_menu_structure_and_flows():
         kb = get_settings_hub_keyboard(lang)
         rows = kb_rows_inline(kb)
         expected = EXPECTED_SETTINGS_LABELS[lang]
-        check(f"{lang}: birinchi 6 qator = speksdagi 12 tugma",
-              [[t for t, _ in row] for row in rows[:6]] == [
+        check(f"{lang}: birinchi 4 qator = speksdagi 8 guruh",
+              [[t for t, _ in row] for row in rows[:4]] == [
                   list(r) for r in expected],
-              str(rows[:6]))
-        check(f"{lang}: 12 tugma callback tartibi",
-              kb_flat_cbs(kb)[:12] == list(EXPECTED_SETTINGS_CBS),
-              str(kb_flat_cbs(kb)[:12]))
+              str(rows[:4]))
+        check(f"{lang}: 8 guruh callback tartibi",
+              kb_flat_cbs(kb)[:8] == list(EXPECTED_SETTINGS_CBS),
+              str(kb_flat_cbs(kb)[:8]))
         check(f"{lang}: oxirgi qator = [◀️ Orqaga] (stgs_back)",
               rows[-1] == [(settings_stats_t("ss_btn_back", lang), "stgs_back")],
               str(rows[-1]))
@@ -475,7 +467,7 @@ def test_settings_menu_structure_and_flows():
               get_text("cabinet_title", lang, user_id=USER_ID, user_code="TST777",
                        credits="7", streak="3/7", channels=2, referrals=2,
                        ad_line="").splitlines()[0] in text, text[:80])
-        check(f"{lang}: 12 stgs callback menyuda",
+        check(f"{lang}: 8 guruh callback menyuda",
               all(cb in cbs for cb in EXPECTED_SETTINGS_CBS), str(cbs))
         check(f"{lang}: stgs_back menyuda", "stgs_back" in cbs)
         check(f"{lang}: legacy tugmalar yo'q (user_cabinet_menu)",
@@ -487,7 +479,46 @@ def test_settings_menu_structure_and_flows():
               and get_text("cab_pending", lang) not in labels
               and get_text("cab_balance", lang) not in labels, str(labels))
 
-    # 2c) 👤 Profil — mavjud kabinet ekrani (cabinet_title + cab_* klaviatura).
+    # 2c) 🎁 Bonuslar & Ballar submenu'si — eski callback nomlari saqlanadi.
+    reward_cbs = ["stgs_credits", "stgs_transfer", "claim_bonus",
+                  "referral_hub", "stgs_hub"]
+    help_cbs_expected = ["help_hub", "help_support", "stgs_about", "stgs_hub"]
+    for lang in LANGS:
+        reward_kb = get_settings_rewards_keyboard(lang)
+        help_kb = get_settings_help_hub_keyboard(lang, support_username="")
+        check(f"{lang}: rewards submenu callback tartibi",
+              kb_flat_cbs(reward_kb) == reward_cbs,
+              str(kb_flat_cbs(reward_kb)))
+        check(f"{lang}: rewards submenu 4 tugma + stgs_hub",
+              len(kb_flat_cbs(reward_kb)) == 5
+              and kb_flat_cbs(reward_kb)[-1] == "stgs_hub")
+        check(f"{lang}: help hub callback tartibi",
+              kb_flat_cbs(help_kb) == help_cbs_expected,
+              str(kb_flat_cbs(help_kb)))
+        check(f"{lang}: help hub sarlavha kaliti mavjud",
+              settings_stats_t("ss_help_hub_title", lang) != "ss_help_hub_title")
+
+    async def _open_rewards():
+        q = _Query("stgs_rewards")
+        await STG.settings_menu_callback(_upd_query(q), _ctx("uz"))
+        return q
+
+    q = _with_db(_FakeDB(), _open_rewards)
+    check("rewards parent: submenu sarlavhasi", "Bonuslar" in q.screen.get("text", ""))
+    check("rewards parent: back → stgs_hub",
+          kb_flat_cbs(q.screen.get("reply_markup"))[-1] == "stgs_hub")
+
+    async def _open_help_hub():
+        q = _Query("stgs_help_hub")
+        await STG.settings_menu_callback(_upd_query(q), _ctx("uz"))
+        return q
+
+    q = _with_db(_FakeDB(), _open_help_hub)
+    check("help parent: submenu sarlavhasi", "Yordam" in q.screen.get("text", ""))
+    check("help parent: back → stgs_hub",
+          kb_flat_cbs(q.screen.get("reply_markup"))[-1] == "stgs_hub")
+
+    # 2d) 👤 Profil — mavjud kabinet ekrani (cabinet_title + cab_* klaviatura).
     fake = _FakeDB()
     async def _profile():
         q = _Query("stgs_profile")
@@ -498,8 +529,9 @@ def test_settings_menu_structure_and_flows():
     prof_text = q.screen.get("text", "")
     prof_cbs = kb_flat_cbs(q.screen.get("reply_markup"))
     check("profil: cabinet_title matni", "Shaxsiy Kabinet" in prof_text, prof_text[:80])
-    check("profil: eski cabinet klaviaturasi (cab_channels/cab_lang)",
-          "cab_channels" in prof_cbs and "cab_lang" in prof_cbs, str(prof_cbs))
+    check("profil: cabinet klaviaturasi + stgs_hub orqaga",
+          "cab_channels" in prof_cbs and "cab_lang" in prof_cbs
+          and "stgs_hub" in prof_cbs, str(prof_cbs))
 
     # 2d) 🌐 Til / Язык — mavjud til almashtirish klaviaturasi.
     async def _lang():
@@ -534,7 +566,7 @@ def test_settings_menu_structure_and_flows():
     check("bildirishnomalar: toggle callback'lari",
           "stgs_tgl:notif:notify_scheduled" in notif_cbs
           and "stgs_tgl:notif:notify_news" in notif_cbs, str(notif_cbs))
-    check("bildirishnomalar: stgs_back bor", "stgs_back" in notif_cbs)
+    check("bildirishnomalar: stgs_hub orqaga", "stgs_hub" in notif_cbs)
     check("bildirishnomalar: toggle DB'ga yozildi (True)",
           fake.set_calls == [(USER_ID, "notify_news", True)], str(fake.set_calls))
     toggled_text = q2.screen.get("text", "")
@@ -589,8 +621,8 @@ def test_settings_menu_structure_and_flows():
     check("to'lovlar: Stars yozuvi", "300 XTR" in pay_text, pay_text)
     check("to'lovlar: karta yozuvi", "19000 UZS" in pay_text, pay_text)
     check("to'lovlar: jami 2 ta", "2" in pay_text)
-    check("to'lovlar: stgs_back",
-          "stgs_back" in kb_flat_cbs(q.screen.get("reply_markup")))
+    check("to'lovlar: stgs_hub orqaga",
+          "stgs_hub" in kb_flat_cbs(q.screen.get("reply_markup")))
 
     fake = _FakeDB(payments=[])
     q = _with_db(fake, _pay)
@@ -610,7 +642,7 @@ def test_settings_menu_structure_and_flows():
     check("referral: havola matnda",
           f"https://t.me/postassist_test_bot?start=ref_{USER_ID}" in ref_text,
           ref_text[:160])
-    check("referral: share + stgs_back tugmalari", "stgs_back" in ref_cbs, str(ref_cbs))
+    check("referral: share + stgs_hub tugmalari", "stgs_hub" in ref_cbs, str(ref_cbs))
 
     # 2j) ❓ Yordam — qo'llanma shu menyu orqali ochiladi.
     async def _help():
@@ -621,8 +653,8 @@ def test_settings_menu_structure_and_flows():
     q = _with_db(_FakeDB(), _help)
     help_cbs = kb_flat_cbs(q.screen.get("reply_markup"))
     check("yordam: qo'llanma matni", len(q.screen.get("text", "")) > 50)
-    check("yordam: FAQ tugmasi + stgs_back",
-          "help:faq" in help_cbs and "stgs_back" in help_cbs, str(help_cbs))
+    check("yordam: FAQ tugmasi + stgs_hub",
+          "help:faq" in help_cbs and "stgs_hub" in help_cbs, str(help_cbs))
 
     # 2k) ℹ️ Bot haqida — yangi bo'lim shu menyu orqali ochiladi.
     async def _about():
@@ -632,10 +664,33 @@ def test_settings_menu_structure_and_flows():
 
     q = _with_db(_FakeDB(), _about)
     check("bot haqida: matn", "PostAssist" in q.screen.get("text", ""))
-    check("bot haqida: stgs_back",
-          kb_flat_cbs(q.screen.get("reply_markup")) == ["stgs_back"])
+    check("bot haqida: stgs_hub",
+          kb_flat_cbs(q.screen.get("reply_markup")) == ["stgs_hub"])
 
-    # 2l) ◀️ Orqaga — asosiy menyuga qaytish.
+    # 2l) Backward compatibility — PR #118 old callback'lari hanuz ishchi.
+    legacy_callbacks = ("stgs_credits", "claim_bonus", "referral_hub",
+                         "stgs_about", "help_hub")
+    for callback in legacy_callbacks:
+        async def _legacy(callback=callback):
+            q = _Query(callback)
+            await STG.settings_menu_callback(_upd_query(q), _ctx("uz"))
+            return q
+        q = _with_db(_FakeDB(), _legacy)
+        check(f"legacy callback ishlaydi: {callback}", bool(q.screen.get("text")),
+              str(q.screen)[:120])
+        check(f"legacy callback orqasi: {callback} → stgs_hub",
+              "stgs_hub" in kb_flat_cbs(q.screen.get("reply_markup")),
+              str(kb_flat_cbs(q.screen.get("reply_markup"))))
+
+    async def _legacy_transfer():
+        q = _Query("stgs_transfer")
+        state = await STG.settings_menu_callback(_upd_query(q), _ctx("uz"))
+        return q, state
+    q, state = _with_db(_FakeDB(), _legacy_transfer)
+    check("legacy callback ishlaydi: stgs_transfer",
+          bool(q.message.sent) and state is not None, str(q.message.sent))
+
+    # 2m) ◀️ Orqaga — asosiy menyuga qaytish.
     async def _back():
         q = _Query("stgs_back")
         await STG.settings_menu_callback(_upd_query(q), _ctx("uz"))

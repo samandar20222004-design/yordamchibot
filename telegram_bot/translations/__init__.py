@@ -17,7 +17,8 @@ Modullar:
                  tugma kalitlari va paritet hisoboti (PostAssist V2, 4-qadam).
     settings_stats — ⚙️ SOZLAMALAR + 📊 STATISTIKA + 🧰 VOSITALAR:
                  SETTINGS_STATS_I18N lug'ati, ``settings_stats_t``, sozlamalar
-                 menyu (12 tugma + Orqaga), vositalar submenyusi va statistika
+                 menyu (8 guruh + Orqaga), rewards/help submenu'lari, vositalar
+                 submenyusi va statistika
                  qator kalitlari hamda paritet hisoboti
                  (PostAssist V2, 5-qadam + 3-qadam refaktori).
 
@@ -73,13 +74,21 @@ from translations.post_score import (  # noqa: F401
     score_band_key,
 )
 from translations.settings_stats import (  # noqa: F401
+    CB_HELP_HUB,
+    CB_REWARDS_HUB,
+    CB_SETTINGS_HELP_HUB,
     CB_SETTINGS_HUB,
     CB_SETTINGS_PREFIX,
+    CB_SETTINGS_REWARDS,
     CB_STATS_DETAIL,
     CB_STATS_OVERVIEW,
     CB_TOOLS_HUB,
+    HELP_HUB_BUTTON_KEYS,
     MY_STATS_ROW_KEYS,
+    REWARDS_MENU_BUTTON_KEYS,
+    SETTINGS_HELP_HUB_BUTTON_KEYS,
     SETTINGS_MENU_BUTTON_KEYS,
+    SETTINGS_REWARDS_BUTTON_KEYS,
     SETTINGS_STATS_I18N,
     SETTINGS_STATS_KEYS,
     STATS_ROW_KEYS,

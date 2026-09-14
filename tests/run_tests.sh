@@ -25,8 +25,8 @@
 #   3i) 🔄 POSTASSIST V2 2-QADAM REFAKTORI — B1 (navbat) + B2 (rasm) birlashtiruvi
 #       (tests/refactor_step2_test.py)
 #   3j) ⚙️ POSTASSIST V2 3-QADAM REFAKTORI — sozlamalar menyusi (legacy
-#       dublikatlarsiz, 12 tugma) + 🧰 Vositalar submenyusi (Konvertor va
-#       Post Enhancer) (tests/refactor_step3_test.py)
+#       dublikatlarsiz, 8 guruh + rewards/help hub) + 🧰 Vositalar submenyusi
+#       (Konvertor va Post Enhancer) (tests/refactor_step3_test.py)
 #   3l) 🏁 YAKUNIY ACCEPTANCE SUITE — TEST A..AF (32 ta qat'iy tekshiruv):
 #       6-tugma menyu, submenu pariteti, navigatsiya stacki, statistika
 #       izolyatsiyasi, dublikat yo'qligi, RBAC tampering himoyasi va i18n
@@ -128,9 +128,9 @@ echo "===== 3g) 📊 STATISTIKA + ⚙️ SOZLAMALAR + ADMIN RBAC ====="
 # (1) 📊 Statistika — aniq nom + ixcham 4 ko'rsatkich (📢 kanallar /
 # 📝 yaratilgan postlar / 📅 rejalashtirilgan / 🤖 AI so'rovlar & kreditlar)
 # va natija ostida [🔄 Yangilash] [◀️ Orqaga]; (2) ⚙️ Sozlamalar — yagona
-# tartibli menyu: 8 ta sub-tugma (👤 Profil / 🌐 Til / 🔔 Bildirishnomalar /
-# 🎨 Post sozlamalari / 💳 To'lovlar tarixi / 🎁 Do'stlarni taklif qilish /
-# ❓ Yordam / ℹ️ Bot haqida) + [◀️ Orqaga]; (3) ⚙️ Admin Panel — oddiy
+# tartibli menyu: 8 ta guruh (👤 Profil / 🌐 Til / 🎁 Bonuslar & Ballar /
+# 🎨 Post sozlamalari / 🔔 Bildirishnomalar / 💳 To'lovlar tarixi /
+# 🧰 Vositalar / ❓ Yordam & Ma'lumot) + [◀️ Orqaga]; (3) ⚙️ Admin Panel — oddiy
 # foydalanuvchiga MUTLAQO yopiq (RBAC fail-closed), admin kirganda tizim
 # monitoringi (Bot & DB / Scheduler / AI provayderlar / Pending manual
 # to'lovlar); (4) translations/settings_stats.py UZ/RU/EN 100% paritet;
@@ -174,12 +174,12 @@ echo "===== 3j) ⚙️ 3-QADAM REFAKTORI: SOZLAMALAR MENYUSI + VOSITALAR ====="
 # (1) ⚙️ Sozlamalar menyusidagi LEGACY DUBLIKATLAR (📢 Mening kanallarim,
 # 📊 Analitika, 📅 Kutilayotgan/Rejalashtirilgan, 💎 Ballar & reklama rejimi)
 # ko'rinishdan olib tashlandi — ular o'z asosiy menyularida bor; menyu
-# yagona, tartibli va TO'LIQ: 12 tugma + [◀️ Orqaga], UZ/RU/EN da AYNAN
+# yagona, tartibli va TO'LIQ: 8 guruh + [◀️ Orqaga], UZ/RU/EN da AYNAN
 # bir xil callback'lar bilan:
-#   [👤 Profil] [🌐 Til] / [💎 Ballarim] [🔄 Ballar o'tkazish] /
-#   [🎁 Kunlik bonus] [👥 Do'stlarni taklif] / [🔔 Bildirishnomalar]
-#   [🎨 Post sozlamalari] / [💳 To'lovlar tarixi] [🧰 Vositalar] /
-#   [❓ Yordam] [ℹ️ Bot haqida] / [◀️ Orqaga];
+#   [👤 Profil] [🌐 Til] / [🎁 Bonuslar & Ballar] [🎨 Post sozlamalari] /
+#   [🔔 Bildirishnomalar] [💳 To'lovlar tarixi] /
+#   [🧰 Vositalar] [❓ Yordam & Ma'lumot] / [◀️ Orqaga];
+# rewards/help ichki hub'lari eski callback aliaslarini ham saqlaydi;
 # (2) eski cab_* callback'lari O'CHIRILMAGAN — xavfsiz alias/redirect
 # sifatida ishlaydi (crash yo'q); (3) 🧰 Vositalar submenyusi: ilgari
 # yashirinib qolgan Konvertor (#38) va Post Enhancer (#9) endi aniq,
@@ -214,7 +214,7 @@ echo "===== 3l) 🏁 YAKUNIY ACCEPTANCE SUITE (TEST A..AF — 32 TEKSHIRUV) ====
 # (A..D) asosiy menyu QAT'IY 6 tugma UZ/RU/EN; (E..G) Kontent va AI Studio
 # submenu pariteti (in_sync: True); (H..J) Kanallarim + Rejalashtirilgan
 # navigatsiyasi; (K..N) 📊 Statistika — FAQAT shaxsiy hisobot (ADMIN
-# STATISTIKASI IZOLYATSIYASI), ⚙️ Sozlamalar 12+Orqaga, 💎 PRO, 🧰 Vositalar;
+# STATISTIKASI IZOLYATSIYASI), ⚙️ Sozlamalar 8 guruh + Orqaga, 💎 PRO, 🧰 Vositalar;
 # (O) ko'rinadigan menyularda dublikat yo'q; (P..S) har bir tugma ishchi
 # handler/callback'ga ega (uchala tilda); (T..V) Back/Cancel/Exit stacki;
 # (W..X) eski tugma va callback'lar (backward compatibility); (Y) FSM

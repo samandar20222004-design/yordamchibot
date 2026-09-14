@@ -427,7 +427,7 @@ def test_navigation_stack_channels_back():
 def test_navigation_stack_settings_tools_back():
     print("== TEST 1c: ⚙️ Sozlamalar → 🧰 Vositalar → [◀️ Orqaga] → Sozlamalar ==")
 
-    # 1) Sozlamalar menyusi (12 tugma + ◀️ Orqaga).
+    # 1) Sozlamalar menyusi (8 guruh + ◀️ Orqaga).
     fake = _FakeDB()
     ctx = _ctx("uz")
 
@@ -444,12 +444,12 @@ def test_navigation_stack_settings_tools_back():
     check("Vositalarda [◀️ Orqaga] → stgs_hub bor",
           "stgs_hub" in tools_cbs, str(tools_cbs))
 
-    # 3) [◀️ Orqaga] — SOZLAMALAR MENYUSIGA qaytadi (12 + Orqaga).
+    # 3) [◀️ Orqaga] — SOZLAMALAR MENYUSIGA qaytadi (8 guruh + Orqaga).
     q_back = _Query("stgs_hub", _Msg(), USER_ID)
     with _with_db(fake):
         _run(settings_mod.settings_menu_callback(_query_update(q_back), ctx))
     back_cbs = _cbs(q_back.screen.get("reply_markup"))
-    check("Orqaga → Sozlamalar menyusi (13 tugma)",
+    check("Orqaga → Sozlamalar menyusi (9 tugma)",
           back_cbs == _cbs(get_settings_hub_keyboard("uz")), str(back_cbs))
     check("Orqaga → nav_section = settings",
           nav_mod.current_section(ctx) == nav_mod.SECTION_SETTINGS)

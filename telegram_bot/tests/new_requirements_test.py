@@ -229,14 +229,14 @@ def test_ru_cabinet_after_switch_no_crash():
             assert "Личный кабинет" in text, text[:120]
             assert ctx.user_data.get("lang") == "ru", ctx.user_data  # DB'dan hydrate
             labels = [b.text for row in markup.inline_keyboard for b in row]
-            # ⚙️ SOZLAMALAR (3-qadam refaktori): kabinet ekrani endi YAGONA
-            # tartibli menyu — 12 tugma + [◀️ Назад]; eski kabinet tezkor
-            # tugmalari (📢 Мои каналы, ...) DUBLIKAT bo'lgani uchun olib
-            # tashlangan (ular o'z asosiy menyularida bor).
+            # ⚙️ SOZLAMALAR (2-bosqich): kabinet ekrani 8 ta guruhli
+            # hub — rewards/help ichki bo'limlari alohida ochiladi.
             cbs = [b.callback_data for row in markup.inline_keyboard for b in row]
-            assert "stgs_points" in cbs and "stgs_transfer" in cbs, cbs
-            assert "stgs_bonus" in cbs and "stgs_tools" in cbs, cbs
-            assert "stgs_back" in cbs and len(cbs) == 13, cbs
+            assert cbs == [
+                "stgs_profile", "stgs_lang", "stgs_rewards", "stgs_post",
+                "stgs_notif", "stgs_pay", "stgs_tools", "stgs_help_hub",
+                "stgs_back",
+            ], cbs
             assert "cab_channels" not in cbs, cbs
             assert get_text("cab_my_channels", "ru") not in labels, labels
 

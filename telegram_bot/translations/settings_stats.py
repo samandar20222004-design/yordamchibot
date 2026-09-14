@@ -81,6 +81,9 @@ SETTINGS_STATS_I18N = {
             "Kerakli bo'limni tanlang 👇"
         ),
         "ss_btn_profile": "👤 Profil",
+        "ss_btn_lang": "🌐 Til / Язык",
+        "ss_btn_rewards": "🎁 Bonuslar & Ballar",
+        "ss_btn_help_hub": "❓ Yordam & Ma'lumot",
         "ss_btn_notif": "🔔 Bildirishnomalar",
         "ss_btn_post_settings": "🎨 Post sozlamalari",
         "ss_btn_payments": "💳 To'lovlar tarixi",
@@ -107,6 +110,25 @@ SETTINGS_STATS_I18N = {
         ),
         "ss_tools_btn_converter": "🔤 Kirill-Lotin Konvertor",
         "ss_tools_btn_enhancer": "✨ Tugma & Reaksiyalar (Post Enhancer)",
+
+        # --- 🎁 Bonuslar & Ballar submenu ---
+        "ss_rewards_title": (
+            "🎁 <b>Bonuslar &amp; Ballar</b>\n\n"
+            "Kerakli bo'limni tanlang 👇"
+        ),
+        "ss_rewards_points": "💎 Ballarim",
+        "ss_rewards_transfer": "🔄 Ballar o'tkazish",
+        "ss_rewards_daily_bonus": "🎁 Kunlik bonus",
+        "ss_rewards_referral": "👥 Do'stlarni taklif",
+
+        # --- ❓ Yordam & Ma'lumot submenu ---
+        "ss_help_hub_title": (
+            "❓ <b>Yordam &amp; Ma'lumot</b>\n\n"
+            "Kerakli bo'limni tanlang 👇"
+        ),
+        "ss_help_hub_guide": "📖 Qo'llanma & FAQ",
+        "ss_help_hub_support": "💬 Qo'llab-quvvatlash",
+        "ss_help_hub_about": "ℹ️ Bot haqida",
 
         # --- 🔔 Bildirishnomalar ekrani ---
         "ss_notif_title": (
@@ -208,6 +230,9 @@ SETTINGS_STATS_I18N = {
             "Выберите раздел 👇"
         ),
         "ss_btn_profile": "👤 Профиль",
+        "ss_btn_lang": "🌐 Язык / Language",
+        "ss_btn_rewards": "🎁 Бонусы и баллы",
+        "ss_btn_help_hub": "❓ Помощь и информация",
         "ss_btn_notif": "🔔 Уведомления",
         "ss_btn_post_settings": "🎨 Настройки постов",
         "ss_btn_payments": "💳 История платежей",
@@ -233,6 +258,25 @@ SETTINGS_STATS_I18N = {
         ),
         "ss_tools_btn_converter": "🔤 Конвертер Кириллица-Латиница",
         "ss_tools_btn_enhancer": "✨ Кнопки & Реакции (Post Enhancer)",
+
+        # --- 🎁 Подменю «Бонусы и баллы» ---
+        "ss_rewards_title": (
+            "🎁 <b>Бонусы и баллы</b>\n\n"
+            "Выберите нужный раздел 👇"
+        ),
+        "ss_rewards_points": "💎 Мои баллы",
+        "ss_rewards_transfer": "🔄 Перевести баллы",
+        "ss_rewards_daily_bonus": "🎁 Ежедневный бонус",
+        "ss_rewards_referral": "👥 Пригласить друзей",
+
+        # --- ❓ Подменю «Помощь и информация» ---
+        "ss_help_hub_title": (
+            "❓ <b>Помощь и информация</b>\n\n"
+            "Выберите нужный раздел 👇"
+        ),
+        "ss_help_hub_guide": "📖 Руководство и FAQ",
+        "ss_help_hub_support": "💬 Поддержка",
+        "ss_help_hub_about": "ℹ️ О боте",
 
         # --- 🔔 Уведомления ---
         "ss_notif_title": (
@@ -334,6 +378,9 @@ SETTINGS_STATS_I18N = {
             "Pick a section 👇"
         ),
         "ss_btn_profile": "👤 Profile",
+        "ss_btn_lang": "🌐 Language",
+        "ss_btn_rewards": "🎁 Bonuses & Credits",
+        "ss_btn_help_hub": "❓ Help & Info",
         "ss_btn_notif": "🔔 Notifications",
         "ss_btn_post_settings": "🎨 Post settings",
         "ss_btn_payments": "💳 Payment history",
@@ -359,6 +406,25 @@ SETTINGS_STATS_I18N = {
         ),
         "ss_tools_btn_converter": "🔤 Cyrillic-Latin Converter",
         "ss_tools_btn_enhancer": "✨ Buttons & Reactions (Post Enhancer)",
+
+        # --- 🎁 Bonuses & Credits submenu ---
+        "ss_rewards_title": (
+            "🎁 <b>Bonuses &amp; Credits</b>\n\n"
+            "Choose a section below 👇"
+        ),
+        "ss_rewards_points": "💎 My credits",
+        "ss_rewards_transfer": "🔄 Transfer credits",
+        "ss_rewards_daily_bonus": "🎁 Daily bonus",
+        "ss_rewards_referral": "👥 Invite friends",
+
+        # --- ❓ Help & Info submenu ---
+        "ss_help_hub_title": (
+            "❓ <b>Help &amp; Info</b>\n\n"
+            "Choose a section below 👇"
+        ),
+        "ss_help_hub_guide": "📖 Guide & FAQ",
+        "ss_help_hub_support": "💬 Contact support",
+        "ss_help_hub_about": "ℹ️ About the bot",
 
         # --- 🔔 Notifications ---
         "ss_notif_title": (
@@ -430,48 +496,48 @@ SETTINGS_STATS_I18N = {
 SETTINGS_STATS_KEYS = tuple(sorted(SETTINGS_STATS_I18N["uz"].keys()))
 
 # ============================================================
-# ⚙️ SOZLAMALAR MENYUSI — SPEKS TARTIBI (12 ta ichki opsiya + Orqaga)
+# ⚙️ SOZLAMALAR MENYUSI — 8 GURUH + ORQAGA
 # ============================================================
-#: Yagona tartibli menyu tugma kalitlari — spetsifikatsiyadagi aniq tartib
-#: (PostAssist V2 · 3-qadam — legacy dublikatlar olib tashlangan holat):
-#:   [👤 Profil]            [🌐 Til / Язык]
-#:   [💎 Ballarim]          [🔄 Ballar o'tkazish]
-#:   [🎁 Kunlik bonus]      [👥 Do'stlarni taklif]
-#:   [🔔 Bildirishnomalar]  [🎨 Post sozlamalari]
-#:   [💳 To'lovlar tarixi]  [🧰 Vositalar]
-#:   [❓ Yordam]            [ℹ️ Bot haqida]
-#:                [◀️ Orqaga]
-#: Ba'zi matnlar asosiy lug'atdan olinadi (``settings_stats_t`` fallback'i):
-#: ``lang_button`` (🌐 Til / Язык), ``cab_btn_daily_bonus`` (🎁 Kunlik bonus)
-#: va ``cab_referral`` (👥 Do'stlarni taklif) — mavjud oqimlar bilan yagona
-#: manba, takroriy matn yo'q.
+#: Asosiy hubdagi tugmalar — spetsifikatsiyadagi aniq tartib.
 SETTINGS_MENU_BUTTON_KEYS = (
     "ss_btn_profile",
-    "lang_button",
-    "ss_btn_points",
-    "ss_btn_transfer",
-    "cab_btn_daily_bonus",
-    "cab_referral",
-    "ss_btn_notif",
+    "ss_btn_lang",
+    "ss_btn_rewards",
     "ss_btn_post_settings",
+    "ss_btn_notif",
     "ss_btn_payments",
     "ss_btn_tools",
-    "ss_btn_help",
-    "ss_btn_about",
+    "ss_btn_help_hub",
     "ss_btn_back",
 )
 
-#: 🧰 Vositalar submenyusi tugma kalitlari (speks tartibi):
-#:   [🔤 Kirill-Lotin Konvertor]
-#:   [✨ Tugma & Reaksiyalar (Post Enhancer)]
-#:              [◀️ Orqaga]
+#: 🎁 Bonuslar & Ballar submenu'si tugma kalitlari.
+SETTINGS_REWARDS_BUTTON_KEYS = (
+    "ss_rewards_points",
+    "ss_rewards_transfer",
+    "ss_rewards_daily_bonus",
+    "ss_rewards_referral",
+    "ss_btn_back",
+)
+REWARDS_MENU_BUTTON_KEYS = SETTINGS_REWARDS_BUTTON_KEYS
+
+#: ❓ Yordam & Ma'lumot submenu'si tugma kalitlari.
+SETTINGS_HELP_HUB_BUTTON_KEYS = (
+    "ss_help_hub_guide",
+    "ss_help_hub_support",
+    "ss_help_hub_about",
+    "ss_btn_back",
+)
+HELP_HUB_BUTTON_KEYS = SETTINGS_HELP_HUB_BUTTON_KEYS
+
+#: 🧰 Vositalar submenyusi tugma kalitlari.
 TOOLS_MENU_BUTTON_KEYS = (
     "ss_tools_btn_converter",
     "ss_tools_btn_enhancer",
     "ss_btn_back",
 )
 
-#: Statistika ekranidagi 4 ta asosiy ko'rsatkich qatori — speks tartibida.
+#: Statistika ekranidagi 4 ta asosiy ko'rsatkich qatori — spek tartibida.
 STATS_ROW_KEYS = (
     "ss_stats_channels",
     "ss_stats_created",
@@ -479,11 +545,7 @@ STATS_ROW_KEYS = (
     "ss_stats_ai",
 )
 
-#: 📊 SHAXSIY statistika ekranidagi 4 ta ko'rsatkich qatori — speks tartibida:
-#:   📢 Ulangan kanallaringiz / 📝 Yaratilgan postlaringiz /
-#:   📅 Rejalashtirilgan postlar / 💎 Qolgan AI kreditlaringiz
-#: Bu qatorlar FAQAT foydalanuvchining O'Z ma'lumotlarini aks ettiradi —
-#: admin (bot bo'yicha) statistikasi bu ekranda HECH QACHON chiqmaydi.
+#: 📊 SHAXSIY statistika ekranidagi 4 ta ko'rsatkich qatori.
 MY_STATS_ROW_KEYS = (
     "ss_my_channels",
     "ss_my_created",
@@ -495,33 +557,42 @@ MY_STATS_ROW_KEYS = (
 CB_SETTINGS_PREFIX = "stgs_"
 CB_STATS_REFRESH = "an_refresh"
 CB_STATS_BACK = "an_close"
-#: 📊 Shaxsiy statistika ↔ kanal analitikasi navigatsiyasi:
-#:   ``an_detail``  — shaxsiy ekrandan kanal bo'yicha batafsil analitikaga;
-#:   ``an_overview``— kanal analitikasidan shaxsiy statistikaga ORQAGA.
-#: ``an_close`` esa (har doimgidek) asosiy menyuga chiqadi.
 CB_STATS_DETAIL = "an_detail"
 CB_STATS_OVERVIEW = "an_overview"
 
-#: ⚙️ Sozlamalar menyusi callback'lari — speks tartibida (12 tugma + Orqaga).
+#: Asosiy 8 guruhli Sozlamalar hub'i.
 CB_SETTINGS_HUB = (
     "stgs_profile",
     "stgs_lang",
-    "stgs_points",
-    "stgs_transfer",
-    "stgs_bonus",
-    "stgs_referral",
-    "stgs_notif",
+    "stgs_rewards",
     "stgs_post",
+    "stgs_notif",
     "stgs_pay",
     "stgs_tools",
-    "stgs_help",
-    "stgs_about",
+    "stgs_help_hub",
     "stgs_back",
 )
 
-#: 🧰 Vositalar submenyusi callback'lari: mavjud, sinovdan o'tgan oqimlarga
-#: ulanadi (Konverter → CONVERT_INPUT, Post Enhancer → ENH_POST) va
-#: [◀️ Orqaga] sozlamalar menyusini qayta chizadi.
+#: 🎁 Bonuslar & Ballar submenu'si.
+CB_SETTINGS_REWARDS = (
+    "stgs_credits",
+    "stgs_transfer",
+    "claim_bonus",
+    "referral_hub",
+    "stgs_hub",
+)
+CB_REWARDS_HUB = CB_SETTINGS_REWARDS
+
+#: ❓ Yordam & Ma'lumot submenu'si.
+CB_SETTINGS_HELP_HUB = (
+    "help_hub",
+    "help_support",
+    "stgs_about",
+    "stgs_hub",
+)
+CB_HELP_HUB = CB_SETTINGS_HELP_HUB
+
+#: 🧰 Vositalar submenu'si.
 CB_TOOLS_HUB = ("extra_converter", "extra_enhancer", "stgs_hub")
 
 

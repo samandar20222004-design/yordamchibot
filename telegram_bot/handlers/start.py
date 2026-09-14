@@ -18,7 +18,7 @@ from keyboards.inline import (
     get_extras_inline_keyboard, get_language_keyboard,
     get_channels_manage_keyboard, render_channels_list, no_channels_hint,
     get_help_keyboard, get_help_back_keyboard,
-    get_settings_hub_keyboard,
+    get_settings_back_keyboard, get_settings_hub_keyboard,
     unpack_sponsor,
 )
 from locales.translations import (
@@ -367,17 +367,17 @@ async def user_cabinet_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """⚙️ Sozlamalar — profil kartasi + YAGONA TARTIBLI MENYU (PostAssist V2).
 
     PostAssist V2 (5-mikro qadam): [⚙️ Sozlamalar] bosilganda profil
-    ma'lumotlari bilan birga barcha foydali ichki opsiyalar bitta menyuda
-    chiqadi (handlers/settings.py — ``stgs_*`` callback'lari):
+    ma'lumotlari bilan birga barcha foydali guruhlar bitta hub'da chiqadi
+    (handlers/settings.py — ``stgs_*`` callback'lari):
 
         [👤 Profil]             [🌐 Til / Язык]
-        [🔔 Bildirishnomalar]   [🎨 Post sozlamalari]
-        [💳 To'lovlar tarixi]   [🎁 Do'stlarni taklif qilish]
-        [❓ Yordam]             [ℹ️ Bot haqida]
+        [🎁 Bonuslar & Ballar]  [🎨 Post sozlamalari]
+        [🔔 Bildirishnomalar]   [💳 To'lovlar tarixi]
+        [🧰 Vositalar]          [❓ Yordam & Ma'lumot]
                      [◀️ Orqaga]
 
-    Mavjud kabinet oqimlari (``cab_*``) tezkor bo'limlar sifatida pastda
-    saqlanadi — [👤 Profil] esa to'liq kabinet ekranini ochadi.
+    Bonuslar/ballar va yordam/ma'lumot ichki submenu'larda ochiladi. Mavjud
+    kabinet oqimlari (``cab_*``) esa eski xabarlar uchun saqlanadi.
     """
     clear_fsm_data(context)
     user = update.effective_user
@@ -623,12 +623,26 @@ async def help_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
     query = update.callback_query
     await query.answer()
     lang = await ensure_user_lang(context, query.from_user.id)
+    try:
+        settings_flow = bool(context.user_data.get("settings_help_flow"))
+    except Exception:
+        settings_flow = False
     if (query.data or "") == "help:faq":
         text = get_text("help_faq", lang, support=_help_support_line(lang))
-        markup = get_help_back_keyboard(lang)
+        markup = (
+            get_settings_back_keyboard(lang)
+            if settings_flow else get_help_back_keyboard(lang)
+        )
     else:  # "help:guide" — asosiy qo'llanma sahifasi
         text = get_text("help_guide", lang, support=_help_support_line(lang))
-        markup = get_help_keyboard(SUPPORT_USERNAME, lang)
+        help_kb = get_help_keyboard(SUPPORT_USERNAME, lang)
+        if settings_flow:
+            markup = InlineKeyboardMarkup(
+                help_kb.inline_keyboard
+                + get_settings_back_keyboard(lang).inline_keyboard
+            )
+        else:
+            markup = help_kb
     try:
         await query.edit_message_text(text, reply_markup=markup, parse_mode="HTML")
     except Exception:
