@@ -16,8 +16,10 @@ from locales.translations import (
     get_text, get_lang, normalize_lang,
     button_texts, button_variants, normalize_button_text,
 )
-# ✨ MAGIC POST / 📊 POST SCORE — i18n `translations/` paketidan (uz/ru/en).
-from translations import MAGIC_POST_I18N, POST_SCORE_I18N
+# ✨ MAGIC POST / 📊 POST SCORE / 🧩 KONTENT YARATISH — i18n `translations/`
+# paketidan (uz/ru/en). Killer featuralar lug'ati bilan bir xil qoida: yangi
+# bo'lim matnlari asosiy `locales/` lug'atiga tegmasdan o'z modulida yashaydi.
+from translations import CONTENT_MENU_I18N, MAGIC_POST_I18N, POST_SCORE_I18N
 
 # ============================================================
 # STANDART MENYU TUGMALARI (Constants)
@@ -153,6 +155,92 @@ BTN_POST_SCORE = _post_score_label("uz")
 BTN_POST_SCORE_RU = _post_score_label("ru")
 BTN_POST_SCORE_EN = _post_score_label("en")
 POST_SCORE_ALIASES = (BTN_POST_SCORE, BTN_POST_SCORE_RU, BTN_POST_SCORE_EN)
+
+# ============================================================
+# 🧩 KONTENT YARATISH — ichki submenu (PostAssist V2, 1-qadam)
+# ============================================================
+# Asosiy menyudagi «✨ Kontent yaratish» tugmasi shu 5 ta yaratish yo'lini
+# ochadi (+ ◀️ Orqaga). Yorliqlar `translations/content_menu.py` dan olinadi
+# (yagona manba, uchala tilda paritet), shu sababli RU/EN klaviaturasi ham
+# avtomatik sinxron: tugma bir joyda tarjima qilinsa, menyu, routing va
+# takliflar birga o'zgaradi.
+#
+# MUHIM: «✨ Magic Post» va «📸 Rasm → Post» tugmalari o'z killer
+# featuralarining mavjud yorliqlarini QAYTA ISHLATADI — bir xil tugma bir xil
+# oqimni ochadi (dublikat label/register xavfisiz).
+
+
+def _content_menu_label(key: str, lang: str) -> str:
+    """Kontent yaratish submenu yorlig'i (tilga mos, hech qachon yiqilmaydi)."""
+    table = CONTENT_MENU_I18N.get(normalize_lang(lang)) or {}
+    value = table.get(key)
+    if value:
+        return value
+    return (CONTENT_MENU_I18N.get("uz") or {}).get(key, key)
+
+
+def content_magic_label(lang: str = "uz") -> str:
+    """✨ Magic Post — Magic Post brend yorlig'i (killer feature manbasidan)."""
+    return _magic_post_label(lang)
+
+
+def content_image_label(lang: str = "uz") -> str:
+    """📸 Rasm → Post — Image → Post reply-labeli (yagona manba: cm_btn_image).
+
+    Bu yorliq ``BTN_IMAGE_POST_*`` konstantalari bilan AYNAN BIR XIL —
+    shu sababli «🧩 Kontent yaratish» submenu'idagi tugma bilan eski
+    «📸 Rasm → Post» tugmasi BITTA oqimni (handlers/image_post.py) ochadi va
+    registry'da ham bitta oila bo'lib qoladi (dublikat amal yo'q).
+    """
+    return _content_menu_label("cm_btn_image", lang)
+
+
+def content_text_label(lang: str = "uz") -> str:
+    """📝 Matn → Post — oddiy matnli post yaratish bo'limi yorlig'i."""
+    return _content_menu_label("cm_btn_text", lang)
+
+
+def content_voice_label(lang: str = "uz") -> str:
+    """🎙 Ovoz → Post — ovozli xabardan post yaratish bo'limi yorlig'i."""
+    return _content_menu_label("cm_btn_voice", lang)
+
+
+def content_ai_label(lang: str = "uz") -> str:
+    """🤖 AI Yordamchi — AI Studio bo'limi yorlig'i."""
+    return _content_menu_label("cm_btn_ai", lang)
+
+
+def content_back_label(lang: str = "uz") -> str:
+    """◀️ Orqaga — asosiy 6 tugmali menyuga qaytish yorlig'i."""
+    return _content_menu_label("cm_btn_back", lang)
+
+
+#: Submenu'ning 5 ta yaratish tugmasi + ◀️ Orqaga (uz/ru/en konstantalari).
+BTN_CONTENT_MAGIC = content_magic_label("uz")
+BTN_CONTENT_MAGIC_RU = content_magic_label("ru")
+BTN_CONTENT_MAGIC_EN = content_magic_label("en")
+BTN_CONTENT_TEXT = content_text_label("uz")
+BTN_CONTENT_TEXT_RU = content_text_label("ru")
+BTN_CONTENT_TEXT_EN = content_text_label("en")
+BTN_CONTENT_IMAGE = content_image_label("uz")
+BTN_CONTENT_IMAGE_RU = content_image_label("ru")
+BTN_CONTENT_IMAGE_EN = content_image_label("en")
+BTN_CONTENT_VOICE = content_voice_label("uz")
+BTN_CONTENT_VOICE_RU = content_voice_label("ru")
+BTN_CONTENT_VOICE_EN = content_voice_label("en")
+BTN_CONTENT_AI = content_ai_label("uz")
+BTN_CONTENT_AI_RU = content_ai_label("ru")
+BTN_CONTENT_AI_EN = content_ai_label("en")
+BTN_CONTENT_BACK = content_back_label("uz")
+BTN_CONTENT_BACK_RU = content_back_label("ru")
+BTN_CONTENT_BACK_EN = content_back_label("en")
+
+#: Yangi oilalar — har biri uchala tilda ham routing'da tanilishi shart
+#: (``exact()`` registry orqali avtomatik kengaytiradi).
+CONTENT_TEXT_POST_ALIASES = (BTN_CONTENT_TEXT, BTN_CONTENT_TEXT_RU, BTN_CONTENT_TEXT_EN)
+CONTENT_VOICE_POST_ALIASES = (BTN_CONTENT_VOICE, BTN_CONTENT_VOICE_RU, BTN_CONTENT_VOICE_EN)
+CONTENT_AI_ALIASES = (BTN_CONTENT_AI, BTN_CONTENT_AI_RU, BTN_CONTENT_AI_EN)
+CONTENT_BACK_ALIASES = (BTN_CONTENT_BACK, BTN_CONTENT_BACK_RU, BTN_CONTENT_BACK_EN)
 
 # Sodda menyudagi barcha tugmalar (uz + ru + en) — routing/audit uchun yagona manba.
 QUICK_MENU_BUTTONS = (
@@ -435,6 +523,17 @@ MENU_TEXTS = {
     # --- Asosiy menyu (6 tugma + admin qatori) ---
     "new_post": button_texts("btn_new_post", extra=NEW_POST_ALIASES),
     "ai_studio": button_texts("btn_ai_studio", extra=AI_STUDIO_ALIASES),
+    # 🧩 KONTENT YARATISH ichki menyusi (PostAssist V2) — faqat YANGI
+    # yorliqlar uchun oila qo'shildi: «✨ Magic Post» yuqoridagi magic_post
+    # oilasi bilan, «📸 Rasm → Post» esa BTN_IMAGE_POST_* konstantalari bilan
+    # BITTA yorliqni ishlatadi (cm_btn_* == o'sha manbalar) — shu sababli ular
+    # uchun alohida oila yaratilmadi: bir yorliq, bitta amal = aniq routing.
+    "content_text_post": _uniq(CONTENT_TEXT_POST_ALIASES,),
+    "content_voice_post": _uniq(CONTENT_VOICE_POST_ALIASES,),
+    "content_ai": _uniq(CONTENT_AI_ALIASES,),
+    "content_back": _uniq(CONTENT_BACK_ALIASES,),
+    # 🧩 «✨ Magic Post» yorlig'i Kontent yaratish submenu'ida ham shu oiladan
+    # chiziladi (cm_btn_magic == BTN_MAGIC_POST_*) — bir yorliq, bitta amal.
     "magic_post": _uniq((BTN_MAGIC_POST, BTN_MAGIC_POST_RU, BTN_MAGIC_POST_EN),
                         MAGIC_POST_ALIASES),
     "post_score": _uniq((BTN_POST_SCORE, BTN_POST_SCORE_RU, BTN_POST_SCORE_EN),
@@ -601,6 +700,43 @@ def _image_post_label(lang: str) -> str:
         "ru": BTN_IMAGE_POST_RU,
         "en": BTN_IMAGE_POST_EN,
     }.get(code, BTN_IMAGE_POST)
+
+
+def content_creation_rows(lang: str = "uz") -> list:
+    """🧩 Kontent yaratish submenu qatorlari — DIQQATdagi aniq tartib.
+
+    Layout (uchala tilda bir xil, faqat yorliqlar tarjima qilinadi)::
+
+        [✨ Magic Post]   [📝 Matn → Post]
+        [📸 Rasm → Post]  [🎙 Ovoz → Post]
+        [🤖 AI Yordamchi]
+        [◀️ Orqaga]
+
+    Qaytaradi: ``list[list[str]]`` — tugma matnlari (klaviatura emas).
+    """
+    return [
+        [content_magic_label(lang), content_text_label(lang)],
+        [content_image_label(lang), content_voice_label(lang)],
+        [content_ai_label(lang)],
+        [content_back_label(lang)],
+    ]
+
+
+def content_creation_labels(lang: str = "uz") -> list:
+    """Submenu'dagi barcha tugma yorliqlari (5 ta yaratish + ◀️ Orqaga)."""
+    return [label for row in content_creation_rows(lang) for label in row]
+
+
+def get_content_creation_keyboard(lang: str = "uz", context=None):
+    """🧩 KONTENT YARATISH ichki menyusi — 5 tugma + ◀️ Orqaga (reply keyboard).
+
+    ``get_main_keyboard`` kabi pastki (reply) klaviatura: foydalanuvchi tilida
+    chiziladi va «✨ Kontent yaratish» bosilganda asosiy 6 tugma o'rniga
+    ko'rsatiladi. ``context`` berilsa til undan olinadi (``get_lang``).
+    """
+    if context is not None:
+        lang = get_lang(context, lang)
+    return ReplyKeyboardMarkup(content_creation_rows(lang), resize_keyboard=True)
 
 
 def get_main_keyboard(is_admin=False, lang="uz", context=None,

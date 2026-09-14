@@ -48,6 +48,7 @@ from handlers.ai_assistant import AI_GET_TIME, _show_time_prompt
 from handlers.magic_post import _magic_deliver_one, _safe_edit
 from handlers.start import check_user_subscribed, ensure_user_lang
 from keyboards.callback_data import CB_POST_SCORE_EVAL, cb
+from keyboards.default import get_cancel_keyboard
 from keyboards.inline import btn_label, get_subscription_check_keyboard
 from locales.translations import clear_fsm_data, get_lang, safe_t
 from translations import MAGIC_STYLE_KEYS, magic_t, post_score_t, voice_t
@@ -72,6 +73,7 @@ logger = logging.getLogger(__name__)
 # ============================================================
 # FSM HOLATLARI (noyob — repodagi boshqa 4xx holatlar bilan to'qnashmaydi)
 # ============================================================
+VOICE_AWAIT = 439         # 🧩 submenu'dan kirish: ovozli xabar kutilmoqda
 VOICE_STYLE_SELECT = 440  # uslub tanlanmoqda (transkripsiya allaqachon tayyor)
 VOICE_RESULT = 441        # tayyor post + amallar
 VOICE_SEND_CHOOSE = 442   # kanal tanlanmoqda (darhol yuborish)
@@ -283,6 +285,32 @@ def _extract_voice_media(msg):
         if doc is not None and str(getattr(doc, "mime_type", "") or "").startswith("audio/"):
             media = doc
     return media
+
+
+# ============================================================
+# MENU ENTRY: «🧩 Kontent yaratish → 🎙 Ovoz → Post» yo'riqnomasi
+# ============================================================
+async def voice_post_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """«🎙 Ovoz → Post» bo'limini ochadi: yo'riqnoma + ovozli xabar kutiladi.
+
+    DIQQAT (2-qadam): «Iltimos, g'oyangizni ovozli xabar (1 daqiqa ichida)
+    qilib yuboring» talabi shu yerda ko'rsatiladi. Keyingi ovozli xabar
+    ``VOICE_AWAIT`` holatidagi ``voice_message_received`` orqali STT oqimiga
+    tushadi — ya'ni menyu orqali kirish ham, menyu tashqarisidagi
+    action-first kirish ham (``VoiceEntryHandler``) BITTА oqimdan foydalanadi.
+    Hech qanday kredit/limit bu bosqichda yechilmaydi.
+    """
+    msg = getattr(update, "message", None)
+    if msg is None:
+        return ConversationHandler.END
+    lang = get_lang(context)
+    _clear_voice_session(context)
+    await msg.reply_text(
+        voice_t("vp_intro", lang),
+        reply_markup=get_cancel_keyboard(lang),
+        parse_mode="HTML",
+    )
+    return VOICE_AWAIT
 
 
 # ============================================================

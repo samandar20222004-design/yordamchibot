@@ -3,6 +3,7 @@
 "🎙 VOICE → POST" killer funksiyasining BARCHA foydalanuvchiga ko'rinadigan
 matnlari shu modulda saqlanadi:
 
+  * «🎙 Ovoz → Post» bo'limi yo'riqnomasi (``vp_intro``);
   * transkripsiya holati (``vp_listening``);
   * davomiylik/hajm cheklovlari (``vp_too_long``, ``vp_too_large``);
   * «Ovozingiz matnga o'girildi» menyusi (``vp_transcribed_header``);
@@ -36,6 +37,16 @@ VOICE_POST_I18N = {
     # 🇺🇿 O'ZBEK TILI
     # ------------------------------------------------------------
     "uz": {
+        # 🧩 Kontent yaratish submenu'idagi «🎙 Ovoz → Post» tugmasi ochadigan
+        # yo'riqnoma ekrani (DIQQAT: «ovozli xabar (1 daqiqa ichida)» talabi).
+        "vp_intro": (
+            "🎙 <b>Ovoz → Post</b>\n\n"
+            "Iltimos, g'oyangizni ovozli xabar (1 daqiqa ichida) qilib "
+            "yuboring — uni matnga o'girib, 5 uslubdan birida professional "
+            "post tayyorlab beramiz.\n\n"
+            "<i>Transkripsiya bepul — AI ballari faqat uslub tanlaganda "
+            "yechiladi.</i>"
+        ),
         "vp_listening": (
             "🎙 <b>Ovozingiz tinglanmoqda...</b>\n\n"
             "Audio matnga aylantirilmoqda — bu bir necha soniya oladi ☕️"
@@ -119,6 +130,14 @@ VOICE_POST_I18N = {
     # 🇷🇺 RUS TILI
     # ------------------------------------------------------------
     "ru": {
+        "vp_intro": (
+            "🎙 <b>Голос → Пост</b>\n\n"
+            "Пожалуйста, отправьте голосовое сообщение с вашей идеей "
+            "(до 1 минуты) — мы переведём его в текст и подготовим "
+            "профессиональный пост в одном из 5 стилей.\n\n"
+            "<i>Распознавание бесплатно — AI балы снимаются только при "
+            "выборе стиля.</i>"
+        ),
         "vp_listening": (
             "🎙 <b>Ваш голос обрабатывается...</b>\n\n"
             "Аудио преобразуется в текст — это займёт несколько секунд ☕️"
@@ -200,6 +219,14 @@ VOICE_POST_I18N = {
     # 🇬🇧 INGLIZ TILI
     # ------------------------------------------------------------
     "en": {
+        "vp_intro": (
+            "🎙 <b>Voice → Post</b>\n\n"
+            "Please send your idea as a voice message (within 1 minute) — "
+            "we transcribe it and prepare a professional post in one of "
+            "5 styles.\n\n"
+            "<i>Transcription is free — AI credits are only used when you "
+            "pick a style.</i>"
+        ),
         "vp_listening": (
             "🎙 <b>Listening to your voice...</b>\n\n"
             "Converting the audio to text — this takes a few seconds ☕️"

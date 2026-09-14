@@ -14,6 +14,7 @@
 #   3b) 🎙 VOICE → POST — Killer Feature #2 (tests/voice_to_post_flow_test.py)
 #   3c) 📊 POST SCORE & IMPROVER — Killer Feature #4 (tests/post_score_flow_test.py)
 #   3d) 🧭 UX V2 — asosiy menyu qat'iy 6 tugma standarti (tests/ux_v2_main_menu_test.py)
+#   3e) 🧩 KONTENT YARATISH submenu + ACTION-FIRST (tests/content_creation_menu_test.py)
 #   4) TO'LIQ regressiya: telegram_bot/tests/run_tests.sh (barcha 30+ test fayli)
 #
 # Har qanday xatoda 1 bilan chiqadi (CI uchun).
@@ -76,6 +77,16 @@ echo "===== 3d) 🧭 UX V2 — ASOSIY MENYU QAT'IY 6 TUGMA STANDARTI ====="
 # (backward compatibility); (4) STARS_PLANS — yagona manba (config.STARS_PLANS:
 # precheckout + PaymentService, shadowing yo'q); (5) /start onboarding 3 tilda.
 "$PY" tests/ux_v2_main_menu_test.py || EXIT_CODE=1
+
+echo
+echo "===== 3e) 🧩 KONTENT YARATISH SUBMENYUSI + ACTION-FIRST ====="
+# [🧩 Kontent yaratish] bosilganda ichki menyu: 5 tugma + ◀️ Orqaga
+# (✨ Magic Post / 📝 Matn → Post / 📸 Rasm → Post / 🎙 Ovoz → Post /
+# 🤖 AI Yordamchi) — UZ/RU/EN to'liq sinxron, har bir tugma o'z oqimini
+# ochadi, ◀️ Orqaga asosiy 6 tugmali menyuga qaytaradi. ACTION-FIRST: menyu
+# tashqarisida ovoz → STT, rasm → Vision, xom matn → "✨ Magic Post" taklifi
+# (tests/content_creation_menu_test.py).
+"$PY" tests/content_creation_menu_test.py || EXIT_CODE=1
 
 echo
 echo "======== 4) TO'LIQ REGRESSIYA (telegram_bot/tests) ========"

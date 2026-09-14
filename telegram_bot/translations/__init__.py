@@ -10,6 +10,8 @@ Modullar:
     voice_post — 🎙 VOICE → POST: VOICE_POST_I18N lug'ati, ``voice_t`` va paritet hisoboti.
     post_score — 📊 POST SCORE & IMPROVER: POST_SCORE_I18N lug'ati, ``post_score_t``,
                  mezon yorliqlari/darajalari va paritet hisoboti (Killer Feature #4).
+    content_menu — 🧩 KONTENT YARATISH submenu: CONTENT_MENU_I18N lug'ati,
+                 ``content_menu_t`` va paritet hisoboti (PostAssist V2).
 
 Foydalanish:
     from translations import magic_t, MAGIC_STYLE_KEYS
@@ -18,6 +20,7 @@ Foydalanish:
     magic_t("mp_intro", lang="ru")
     voice_t("vp_listening", lang="en")
     post_score_t("ps_btn_improve", lang="uz")          # «✨ 95/100 ga yaxshilash»
+    content_menu_t("cm_btn_ai", lang="en")              # «🤖 AI Assistant»
     post_score_criterion_label("cta", "ru")            # «📣 CTA»
 """
 
@@ -33,6 +36,12 @@ from translations.voice_post import (  # noqa: F401
     VOICE_POST_KEYS,
     voice_post_parity_report,
     voice_t,
+)
+from translations.content_menu import (  # noqa: F401
+    CONTENT_MENU_I18N,
+    CONTENT_MENU_KEYS,
+    content_menu_parity_report,
+    content_menu_t,
 )
 from translations.post_score import (  # noqa: F401
     POST_SCORE_BANDS,
@@ -57,6 +66,10 @@ __all__ = [
     "VOICE_POST_KEYS",
     "voice_post_parity_report",
     "voice_t",
+    "CONTENT_MENU_I18N",
+    "CONTENT_MENU_KEYS",
+    "content_menu_parity_report",
+    "content_menu_t",
     "POST_SCORE_I18N",
     "POST_SCORE_CRITERIA_KEYS",
     "POST_SCORE_LABEL_KEYS",
