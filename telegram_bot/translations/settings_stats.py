@@ -6,10 +6,14 @@ Bo'limlar:
   * 📊 STATISTIKA — asosiy menyudagi «📊 Statistika» tugmasi ochadigan IXCHAM
     umumiy ko'rsatkichlar ekrani (ss_stats_*) va uning amallari
     [🔄 Yangilash] [◀️ Orqaga] (ss_btn_refresh / ss_btn_back);
-  * ⚙️ SOZLAMALAR — yagona tartibli menyu (12 ta ichki opsiya + ◀️ Orqaga):
-    👤 Profil, 🌐 Til / Язык, 💎 Ballarim, 🔄 Ballar o'tkazish, 🎁 Kunlik bonus,
-    👥 Do'stlarni taklif, 🔔 Bildirishnomalar, 🎨 Post sozlamalari,
-    💳 To'lovlar tarixi, 🧰 Vositalar, ❓ Yordam, ℹ️ Bot haqida (ss_btn_*);
+  * ⚙️ SOZLAMALAR — IXCHAM 8 guruhli menyu (2-bosqich):
+    👤 Profil, 🌐 Til / Язык, 🎁 Bonuslar & Ballar, 🎨 Post sozlamalari,
+    🔔 Bildirishnomalar, 💳 To'lovlar tarixi, 🧰 Vositalar,
+    ❓ Yordam & Ma'lumot + ◀️ Orqaga (ss_btn_*);
+  * 🎁 BONUSLAR & BALLAR hub'i — 💎 Ballarim, 🔄 Ballar o'tkazish,
+    🎁 Kunlik bonus, 👥 Do'stlarni taklif (ss_rewards_title);
+  * ❓ YORDAM & MA'LUMOT hub'i — 📖 Qo'llanma & FAQ,
+    💬 Qo'llab-quvvatlash, ℹ️ Bot haqida (ss_help_hub_title);
   * 🧰 VOSITALAR — yordamchi vositalar submenyusi (Konverter + Post Enhancer,
     ss_tools_*) — 3-qadam refaktorida avval yashirinib qolgan funksiyalar o'z
     aniq, ko'rinadigan joyiga qo'yildi;
