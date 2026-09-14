@@ -248,7 +248,11 @@ TRANSLATIONS = {
         "cab_my_channels": "📢 Mening kanallarim",
         "cab_analytics": "📊 Kanallar analitikasi",
         "cab_pending": "📅 Kutilayotgan postlar",
-        "cab_queue": "⏳ Postlar navbati (Queue)",
+        # 📅 REJALASHTIRILGAN (PostAssist V2, 4-qadam): eskirgan «Postlar
+        # navbati (Queue)» nomi yagona «📅 Rejalashtirilgan» ga o'tkazildi.
+        # Kalit nomi (cab_queue) va callback (cab_queue) ALIAS sifatida
+        # o'zgarishsiz qoladi — eski inline xabarlar ishlayveradi.
+        "cab_queue": "📅 Rejalashtirilgan",
         "cab_balance": "💎 Ballar & Reklama rejimi",
         "cab_referral": "👥 Do'stlarni taklif",
         "cab_close": "❌ Yopish",
@@ -424,7 +428,7 @@ TRANSLATIONS = {
             "{days}\n\n"
             "🤖 Postlar har kuni soat <b>12:00</b> da avtomatik chiqadi.\n"
             "📋 Istalgan postni «👤 Kabinet & Sozlamalar» → "
-            "«⏳ Postlar navbati (Queue)» bo'limidan tahrirlashingiz yoki "
+            "«📅 Rejalashtirilgan» bo'limidan tahrirlashingiz yoki "
             "bekor qilishingiz mumkin."
         ),
         "plan_sched_already": "ℹ️ Bu kontent-reja allaqachon navbatga qo'yilgan.",
@@ -1104,24 +1108,24 @@ TRANSLATIONS = {
 
         # --- 3-QISM: ⏳ Navbat va slotlar i18n (UZ) ---
         "queue_db_error": (
-            "📚 <b>Navbat (Queue)</b>\n\n"
+            "📅 <b>Rejalashtirilgan</b>\n\n"
             "⚠️ Rejalashtirilgan postlarni hozircha o'qib bo'lmadi "
             "(baza bilan aloqa xatosi).\n"
             "Iltimos, birozdan so'ng qayta urinib ko'ring."
         ),
-        "queue_title": "📚 <b>Navbatdagi postlar</b> ({count} ta):",
-        "queue_title_range": "📚 <b>Navbatdagi postlar</b> ({count} ta, {start}-{end}):",
+        "queue_title": "📅 <b>Rejalashtirilgan</b> — {count} ta post:",
+        "queue_title_range": "📅 <b>Rejalashtirilgan</b> — {count} ta post ({start}-{end}):",
         "queue_empty": (
-            "📚 <b>Navbat (Queue)</b>\n\n"
-            "Hozircha navbatda postlar yo'q.\n"
-            "Yangi post yaratib, <b>⏳ Navbatga qo'shish</b> tugmasini bosing."
+            "📅 <b>Rejalashtirilgan</b>\n\n"
+            "Hozircha rejalashtirilgan post yo'q.\n"
+            "Yangi post yarating va chiqish vaqtini belgilang."
         ),
-        "queue_empty_short": "📚 <b>Navbat (Queue)</b>\n\nNavbatda postlar yo'q.",
+        "queue_empty_short": "📅 <b>Rejalashtirilgan</b>\n\nRejalashtirilgan post yo'q.",
         "queue_limit_msg": (
-            "🚫 <b>Navbat limiti tugadi!</b>\n\n"
-            "Sizda <b>{current}/{max}</b> ta navbatdagi post bor.\n"
-            "Free tarifida maksimal <b>{max}</b> ta post navbatda turishi mumkin.\n\n"
-            "⭐️ Cheksiz navbat uchun PRO tarifiga o'ting."
+            "🚫 <b>Rejalashtirilgan postlar limiti tugadi!</b>\n\n"
+            "Sizda <b>{current}/{max}</b> ta rejalashtirilgan post bor.\n"
+            "Free tarifida maksimal <b>{max}</b> ta post rejada turishi mumkin.\n\n"
+            "⭐️ Cheksiz rejalashtirish uchun PRO tarifiga o'ting."
         ),
         "queue_not_found": "⚠️ Post topilmadi yoki allaqachon o'chirilgan.",
         "queue_not_found_short": "⚠️ Post topilmadi!",
@@ -1174,7 +1178,9 @@ TRANSLATIONS = {
         "queue_slot_min": "⚠️ Kamida bitta slot bo'lishi kerak!",
         "queue_slot_reset_alert": "🔄 Default slotlar qaytarildi!",
         "btn_pending": "⏳ Kutilayotgan postlar",
-        "btn_queue": "📚 Navbat (Queue)",
+        # Eski (keshdagi klaviatura) yorlig'i — ATAYLAB saqlanadi, lekin endi
+        # yagona «📅 Rejalashtirilgan» nomini ko'rsatadi.
+        "btn_queue": "📅 Rejalashtirilgan",
 
         # --- 4-QISM: ⚙️ Qo'shimcha funksiyalar, 📖 Qo'llanma va tizim xabarlari (i18n) ---
 
@@ -2186,7 +2192,7 @@ TRANSLATIONS = {
         "cab_my_channels": "📢 Мои каналы",
         "cab_analytics": "📊 Аналитика каналов",
         "cab_pending": "📅 Ожидающие посты",
-        "cab_queue": "⏳ Очередь постов (Queue)",
+        "cab_queue": "📅 Запланированные",
         "cab_balance": "💎 Баллы & Режим рекламы",
         "cab_referral": "👥 Пригласить друзей",
         "cab_close": "❌ Закрыть",
@@ -2361,7 +2367,7 @@ TRANSLATIONS = {
             "{days}\n\n"
             "🤖 Посты будут выходить автоматически каждый день в <b>12:00</b>.\n"
             "📋 Любой пост можно изменить или отменить в разделе "
-            "«👤 Кабинет & Настройки» → «⏳ Очередь постов (Queue)»."
+            "«📅 Запланированные»."
         ),
         "plan_sched_already": "ℹ️ Этот контент-план уже добавлен в очередь.",
         "plan_sched_stale": (
@@ -3036,19 +3042,19 @@ TRANSLATIONS = {
         "pend_schedule_unknown": "⏰ Время: не указано",
 
         # --- 3-QISM: ⏳ Очередь и слоты i18n (RU) ---
-        "queue_title": "📚 <b>Посты в очереди</b> ({count} шт.):",
-        "queue_title_range": "📚 <b>Посты в очереди</b> ({count} шт., {start}-{end}):",
+        "queue_title": "📅 <b>Запланированные</b> — постов: {count}:",
+        "queue_title_range": "📅 <b>Запланированные</b> — постов: {count} ({start}-{end}):",
         "queue_empty": (
-            "📚 <b>Очередь (Queue)</b>\n\n"
-            "Пока в очереди нет постов.\n"
-            "Создайте пост и нажмите <b>⏳ Добавить в очередь</b>."
+            "📅 <b>Запланированные</b>\n\n"
+            "Пока нет запланированных постов.\n"
+            "Создайте новый пост и укажите время публикации."
         ),
-        "queue_empty_short": "📚 <b>Очередь (Queue)</b>\n\nВ очереди нет постов.",
+        "queue_empty_short": "📅 <b>Запланированные</b>\n\nНет запланированных постов.",
         "queue_limit_msg": (
-            "🚫 <b>Лимит очереди исчерпан!</b>\n\n"
-            "У вас <b>{current}/{max}</b> постов в очереди.\n"
-            "На бесплатном тарифе максимум <b>{max}</b> постов в очереди.\n\n"
-            "⭐️ Перейдите на PRO для безлимитной очереди."
+            "🚫 <b>Лимит запланированных постов исчерпан!</b>\n\n"
+            "У вас <b>{current}/{max}</b> запланированных постов.\n"
+            "На бесплатном тарифе максимум <b>{max}</b> постов в расписании.\n\n"
+            "⭐️ Перейдите на PRO для безлимитного планирования."
         ),
         "queue_not_found": "⚠️ Пост не найден или уже удалён.",
         "queue_not_found_short": "⚠️ Пост не найден!",
@@ -3100,14 +3106,14 @@ TRANSLATIONS = {
         ),
         "queue_slot_min": "⚠️ Должен остаться хотя бы один слот!",
         "queue_db_error": (
-            "📚 <b>Очередь (Queue)</b>\n\n"
+            "📅 <b>Запланированные</b>\n\n"
             "⚠️ Пока не удалось загрузить запланированные посты "
             "(ошибка соединения с базой).\n"
             "Пожалуйста, попробуйте ещё раз чуть позже."
         ),
         "queue_slot_reset_alert": "🔄 Слоты по умолчанию возвращены!",
         "btn_pending": "⏳ Ожидающие посты",
-        "btn_queue": "📚 Очередь (Queue)",
+        "btn_queue": "📅 Запланированные",
 
         # --- 4-ЧАСТЬ: ⚙️ Дополнительные функции, 📖 Руководство и системные сообщения (i18n) ---
 

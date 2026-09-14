@@ -115,7 +115,7 @@ EN_OVERLAY = {
     "cab_my_channels": "📢 My channels",
     "cab_analytics": "📊 Channel analytics",
     "cab_pending": "📅 Pending posts",
-    "cab_queue": "⏳ Post queue (Queue)",
+    "cab_queue": "📅 Scheduled",
     "cab_balance": "💎 Credits & Ad mode",
     "cab_referral": "👥 Invite friends",
     "cab_add_channel": "➕ Add channel",
@@ -721,7 +721,7 @@ EN_OVERLAY = {
         "{days}\n\n"
         "🤖 Posts will go out automatically every day at <b>12:00</b>.\n"
         "📋 You can edit or cancel any post in "
-        "\"👤 Account & Settings\" → \"⏳ Post queue (Queue)\"."
+        "\"📅 Scheduled\"."
     ),
     "plan_sched_already": "ℹ️ This content plan is already queued.",
     "plan_sched_stale": (
@@ -1336,24 +1336,24 @@ EN_OVERLAY = {
     # FULL EN COVERAGE — batch H: queue & slots
     # ============================================================
     "queue_db_error": (
-        "📚 <b>Queue</b>\n\n"
+        "📅 <b>Scheduled</b>\n\n"
         "⚠️ Could not load scheduled posts right now "
         "(database connection error).\n"
         "Please try again in a bit."
     ),
-    "queue_title": "📚 <b>Queued posts</b> ({count}):",
-    "queue_title_range": "📚 <b>Queued posts</b> ({count}, {start}-{end}):",
+    "queue_title": "📅 <b>Scheduled</b> — {count} post(s):",
+    "queue_title_range": "📅 <b>Scheduled</b> — {count} post(s) ({start}-{end}):",
     "queue_empty": (
-        "📚 <b>Queue</b>\n\n"
-        "No posts in the queue yet.\n"
-        "Create a new post and tap <b>⏳ Add to queue</b>."
+        "📅 <b>Scheduled</b>\n\n"
+        "No scheduled posts yet.\n"
+        "Create a new post and set its publishing time."
     ),
-    "queue_empty_short": "📚 <b>Queue</b>\n\nNo posts in the queue.",
+    "queue_empty_short": "📅 <b>Scheduled</b>\n\nNo scheduled posts.",
     "queue_limit_msg": (
-        "🚫 <b>Queue limit reached!</b>\n\n"
-        "You have <b>{current}/{max}</b> queued posts.\n"
-        "The Free plan allows max <b>{max}</b> posts in the queue.\n\n"
-        "⭐️ Switch to PRO for an unlimited queue."
+        "🚫 <b>Scheduled posts limit reached!</b>\n\n"
+        "You have <b>{current}/{max}</b> scheduled posts.\n"
+        "The Free plan allows max <b>{max}</b> posts in the schedule.\n\n"
+        "⭐️ Switch to PRO for unlimited scheduling."
     ),
     "queue_not_found": "⚠️ Post not found or already deleted.",
     "queue_not_found_short": "⚠️ Post not found!",
@@ -1406,7 +1406,7 @@ EN_OVERLAY = {
     "queue_slot_min": "⚠️ At least one slot must remain!",
     "queue_slot_reset_alert": "🔄 Default slots restored!",
     "btn_pending": "⏳ Pending posts",
-    "btn_queue": "📚 Queue",
+    "btn_queue": "📅 Scheduled",
 
     # ============================================================
     # FULL EN COVERAGE — batch I-1: post enhancer (hub, reactions, buttons)

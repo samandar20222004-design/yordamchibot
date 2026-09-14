@@ -1096,7 +1096,7 @@ def test_main_menu_layout_v2():
     check("kabinet: 5 qator", len(cab) == 5, str(cab))
     expected = [
         [("📢 Mening kanallarim", "cab_channels"), ("📊 Kanallar analitikasi", "cab_analytics")],
-        [("📅 Kutilayotgan postlar", "cab_pending"), ("⏳ Postlar navbati (Queue)", "cab_queue")],
+        [("📅 Kutilayotgan postlar", "cab_pending"), ("📅 Rejalashtirilgan", "cab_queue")],
         [("💎 Ballar & Reklama rejimi", "cab_balance"), ("🎁 Kunlik bonus", "cab_bonus")],
         [("👥 Do'stlarni taklif", "cab_referral"), ("❌ Yopish", "close_cabinet")],
         [("🌐 Til / Язык", "cab_lang")],
@@ -1667,7 +1667,12 @@ def test_ai_studio_keyboard():
     check("main kb: Kanallarim", BTN_MY_CHANNELS in main_texts)
     check("main kb: Rejalashtirilgan", BTN_SCHEDULED in main_texts)
     check("main kb: Statistika", BTN_STATISTICS in main_texts)
-    check("main kb: Queue yo'q (Kabinet ichida)", BTN_QUEUE not in main_texts)
+    # PostAssist V2 (4-qadam): BTN_QUEUE endi «📅 Rejalashtirilgan» — ya'ni
+    # asosiy menyudagi 6-tugma standartining o'sha tugmasi bilan AYNI
+    # yorliq. Shuning uchun u menyuda BOR (dublikat tugma emas — bitta).
+    check("main kb: Queue yorlig'i = Rejalashtirilgan (dublikat yo'q)",
+          BTN_QUEUE == BTN_SCHEDULED and main_texts.count(BTN_QUEUE) == 1,
+          f"{BTN_QUEUE!r} vs {BTN_SCHEDULED!r} / {main_texts}")
     check("main kb: Analitika yo'q (Kabinet ichida)", BTN_ANALYTICS not in main_texts)
     check("main kb: PRO (💎)", BTN_PREMIUM in main_texts)
     check("main kb: Sozlamalar", BTN_SETTINGS in main_texts)
@@ -2485,8 +2490,11 @@ def test_queue_main_keyboard():
     texts = [b.text for row in kb.keyboard for b in row]
     cab_cbs = [b.callback_data for row in get_cabinet_inline_keyboard().inline_keyboard for b in row]
     check("queue tugmasi kabinetda", "cab_queue" in cab_cbs, str(cab_cbs))
-    check("queue tugmasi asosiy menyuda yo'q", BTN_QUEUE not in texts, str(texts))
-    check("BTN_QUEUE matni", BTN_QUEUE == "📚 Navbat (Queue)")
+    # PostAssist V2 (4-qadam): eskirgan «📚 Navbat (Queue)» yagona
+    # «📅 Rejalashtirilgan» nomiga o'tkazildi (kalitlar/aliaslar saqlanadi).
+    check("BTN_QUEUE matni (📅 Rejalashtirilgan)", BTN_QUEUE == "📅 Rejalashtirilgan", BTN_QUEUE)
+    check("queue yorlig'i asosiy menyuda FAQAT bir marta",
+          texts.count(BTN_QUEUE) == 1, str(texts))
 
 
 def test_confirmation_queue_integration():
@@ -6962,10 +6970,22 @@ def test_queue_i18n_suite():
     item = _format_queue_item(row, 1, "ru")
     check("queue item ru: kanal saqlanadi", "Kanal" in item and item.startswith("1."), item)
 
-    # Routing: queue/pending RU tugmalari
-    from keyboards.default import BTN_QUEUE, BTN_QUEUE_RU, BTN_PENDING, BTN_PENDING_RU
-    check("routing: queue uz", "Navbat" in BTN_QUEUE)
-    check("routing: queue ru", "Очередь" in BTN_QUEUE_RU)
+    # Routing: queue/pending RU tugmalari.
+    # PostAssist V2 (4-qadam): «📚 Navbat (Queue)» → «📅 Rejalashtirilgan»,
+    # «📚 Очередь (Queue)» → «📅 Запланированные». Eskirgan yorliqlar
+    # QUEUE_ALIASES ichida alias bo'lib qoladi (routing buzilmaydi).
+    from keyboards.default import (
+        BTN_QUEUE, BTN_QUEUE_RU, BTN_PENDING, BTN_PENDING_RU,
+        QUEUE_ALIASES, is_menu_text,
+    )
+    check("routing: queue uz (📅 Rejalashtirilgan)", BTN_QUEUE == "📅 Rejalashtirilgan", BTN_QUEUE)
+    check("routing: queue ru (📅 Запланированные)", BTN_QUEUE_RU == "📅 Запланированные", BTN_QUEUE_RU)
+    check("routing: eskirgan 'Navbat' nomi alias bo'lib qoldi",
+          any("Navbat" in a for a in QUEUE_ALIASES)
+          and is_menu_text("📚 Navbat (Queue)", "queue"), str(QUEUE_ALIASES))
+    check("routing: eskirgan 'Очередь' nomi alias bo'lib qoldi",
+          any("Очередь" in a for a in QUEUE_ALIASES)
+          and is_menu_text("📚 Очередь (Queue)", "queue"), str(QUEUE_ALIASES))
     check("routing: pending uz", "Kutilayotgan" in BTN_PENDING)
     check("routing: pending ru", "Ожидающие" in BTN_PENDING_RU)
 

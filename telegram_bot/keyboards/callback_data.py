@@ -70,6 +70,30 @@ CB_PHOTO_VARIANT = "photo_v:"
 # 🎙 Kanal ovozi tahlili (AI) — kanal profil tugmasi
 CB_CHANNEL_VOICE = "ch_voice:"
 
+# ---------------------------------------------------------------------------
+# 📢 KANALLARIM — kanal boshqaruv ekrani (PostAssist V2, 4-mikro qadam)
+# ---------------------------------------------------------------------------
+# Kanal ro'yxatidan muayyan kanal tanlanganda ochiladigan submenu. Ichki
+# amallar ASOSIY MENYUGA CHIQIB KETMAYDI: har bir tugma shu kanal konteksti
+# (channel_id payload) bilan o'z ekranini ochadi va [◀️ Orqaga] ro'yxatga
+# qaytaradi.
+CB_CHANNEL_OPEN = "ch_op:"        # kanalni tanlash → boshqaruv ekrani
+CB_CHANNEL_NEW_POST = "ch_np:"    # ➕ Post yaratish (shu kanal uchun)
+CB_CHANNEL_SCHEDULED = "ch_sch:"  # 📅 Rejalashtirilgan (shu kanal bo'yicha)
+CB_CHANNEL_STATS = "ch_st:"       # 📊 Statistika (shu kanal bo'yicha)
+CB_CHANNEL_BACK = "ch_back"       # ◀️ Orqaga → kanallar ro'yxati (payload'siz)
+
+# ---------------------------------------------------------------------------
+# 📅 REJALASHTIRILGAN — post kartochkasi amallari (PostAssist V2, 4-qadam)
+# ---------------------------------------------------------------------------
+# Ro'yxatdagi har bir post ostida [✏️ Tahrirlash] [⏰ Vaqtni o'zgartirish]
+# [🗑 O'chirish]. Tahrirlash/vaqt amallari mavjud, sinovdan o'tgan
+# ``p_edit:`` / ``p_time:`` oqimlarini QAYTA ISHLATADI (yangi FSM yaratilmaydi),
+# o'chirish esa navbat modulining ``qdel:`` amali bilan bir xil (alias).
+CB_SCHED_EDIT = CB_POST_EDIT      # ✏️ Tahrirlash  → pending.edit_post_content_start
+CB_SCHED_TIME = CB_POST_TIME      # ⏰ Vaqtni o'zgartirish → pending.edit_post_time_start
+CB_SCHED_DELETE = "qdel:"         # 🗑 O'chirish (navbat moduli bilan bitta amal)
+
 # Yangi post oqimidagi reaksiya tanlash (avval: npreact:tgl: / done / skip)
 CB_REACT_TOGGLE = "nprt:t:"
 CB_REACT_DONE = "nprt:done"
@@ -108,6 +132,11 @@ CANONICAL_PREFIXES = (
     CB_PHOTO_VARIANT,
     CB_REACT_TOGGLE,
     CB_REACTION,
+    # 📢 Kanallarim — kanal boshqaruv ekrani (dinamik channel_id payload).
+    CB_CHANNEL_OPEN,
+    CB_CHANNEL_NEW_POST,
+    CB_CHANNEL_SCHEDULED,
+    CB_CHANNEL_STATS,
     # 📊 Post Score — dinamik payload qo'shiladigan prefikslar.
     CB_POST_SCORE_EVAL,
     CB_POST_SCORE_CHANNEL,

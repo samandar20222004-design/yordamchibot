@@ -419,11 +419,21 @@ PROFILE_ALIASES = (
 )
 ADMIN_PANEL_ALIASES = ("⚙️ Admin panel", "⚙️ Админ панель", "⚙️ Админ-панель")
 PENDING_ALIASES = ("⏳ Kutilayotgan", "⏳ Ожидающие", "⏳ Pending")
-# UX V2: asosiy menyu "📅 Rejalashtirilgan" tugmasi ham navbat (queue)
-# bo'limiga tushadi — eski "📚 Navbat" yorliqlari ham saqlanadi.
+# 📅 REJALASHTIRILGAN (PostAssist V2, 4-mikro qadam).
+# ``btn_queue`` lug'at qiymati endi «📅 Rejalashtirilgan» — eskirgan texnik
+# nomlar («📚 Navbat (Queue)», «📚 Очередь (Queue)», «📚 Queue», «⏳ Postlar
+# navbati (Queue)» ...) shu ro'yxatda ALIAS bo'lib qoladi: chat tarixidagi
+# eski klaviatura xabarlari bosilsa ham foydalanuvchi to'g'ri bo'limga
+# tushadi (fallback'ga EMAS).
 QUEUE_ALIASES = (
-    "📚 Navbat", "📚 Очередь",
+    # Yangi, yagona nom (uchala tilda).
     "📅 Rejalashtirilgan", "📅 Запланированные", "📅 Scheduled",
+    # --- Eskirgan texnik nomlar (faqat routing uchun, menyuda chizilmaydi) ---
+    "📚 Navbat", "📚 Очередь", "📚 Queue",
+    "📚 Navbat (Queue)", "📚 Очередь (Queue)",
+    "⏳ Postlar navbati (Queue)", "⏳ Очередь постов (Queue)",
+    "⏳ Post queue (Queue)",
+    "⏳ Postlar navbati", "⏳ Очередь постов", "⏳ Post queue",
 )
 CONVERTER_ALIASES = (
     "🔤 Konvertor", "🔤 Кирилл-Лотин", "🔤 Converter", "🔤 Latin", "🔤 Кириллица",
