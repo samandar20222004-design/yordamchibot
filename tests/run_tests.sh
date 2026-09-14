@@ -19,6 +19,9 @@
 #       (tests/channels_and_queue_v2_test.py)
 #   3g) 📊 STATISTIKA + ⚙️ SOZLAMALAR + ⚙️ ADMIN PANEL RBAC —
 #       PostAssist V2 5-qadam (tests/settings_and_stats_v2_test.py)
+#   3h) 🗓 SMART CONTENT CALENDAR — 7/30 kunlik reja, PRO entitlement,
+#       haftalik limit, Magic Post uzatmasi, i18n va xavfsizlik
+#       (tests/content_calendar_flow_test.py)
 #   4) TO'LIQ regressiya: telegram_bot/tests/run_tests.sh (barcha 30+ test fayli)
 #
 # Har qanday xatoda 1 bilan chiqadi (CI uchun).
@@ -123,8 +126,21 @@ echo "===== 3g) 📊 STATISTIKA + ⚙️ SOZLAMALAR + ADMIN RBAC ====="
 "$PY" tests/settings_and_stats_v2_test.py || EXIT_CODE=1
 
 echo
+echo "===== 3h) 🗓 SMART CONTENT CALENDAR (7/30 KUNLIK REJA) ====="
+# (1) FREE 7 kunlik reja tuza oladi, 30 kunlik reja FAQAT PRO
+# (pro_required), noto'g'ri davomiylik rad etiladi (invalid_duration);
+# (2) FREE da haftasiga 1 ta 7 kunlik reja (weekly_limit);
+# (3) tanlangan kun mavzusi «✨ Magic Post» oqimiga aynan uzatiladi;
+# (4) translations/content_calendar.py UZ/RU/EN 100% paritet;
+# (5) xavfsizlik: entitlement DB xatosida FAIL-CLOSED, AI javobi faqat
+# lug'at shaklida va kunlar soni bilan cheklangan, ishonchsiz matn
+# HTML-escape qilinadi (tests/content_calendar_flow_test.py).
+"$PY" tests/content_calendar_flow_test.py || EXIT_CODE=1
+
+echo
 echo "======== 4) TO'LIQ REGRESSIYA (telegram_bot/tests) ========"
-( cd telegram_bot && bash tests/run_tests.sh ) || EXIT_CODE=1
+# PY'ni aniq uzatamiz: ichki runner ham shu interpreter (venv) bilan ishlasin.
+( cd telegram_bot && PYTHON="$PY" bash tests/run_tests.sh ) || EXIT_CODE=1
 
 echo
 echo "=============================================================="
