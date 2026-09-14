@@ -387,6 +387,40 @@ Asosiy reply-menyuda **faqat va faqat** 6 ta tugma chiziladi (UZ/RU/EN paritetda
 - `keyboards/default.get_main_keyboard()` — yagona quruvchi;
   regression testlari: `tests/ux_v2_main_menu_test.py`.
 
+#### ⚙️ Sozlamalar — yagona tartibli menyu (12 tugma) + 🧰 Vositalar (3-qadam)
+
+`⚙️ Sozlamalar` profil kartasi bilan birga **bitta tartibli, to'liq menyu**
+ochadi (`keyboards/inline.get_settings_hub_keyboard`, `stgs_*` callback'lari,
+matnlar `translations/settings_stats.py` — UZ/RU/EN 100% paritet):
+
+| | |
+|---|---|
+| 👤 Profil | 🌐 Til / Язык |
+| 💎 Ballarim | 🔄 Ballar o'tkazish |
+| 🎁 Kunlik bonus | 👥 Do'stlarni taklif |
+| 🔔 Bildirishnomalar | 🎨 Post sozlamalari |
+| 💳 To'lovlar tarixi | 🧰 Vositalar |
+| ❓ Yordam | ℹ️ Bot haqida |
+| | ◀️ Orqaga |
+
+- **Legacy dublikatlar yo'q:** eski kabinet tezkor tugmalari (📢 Mening
+  kanallarim, 📊 Analitika, 📅 Kutilayotgan/Rejalashtirilgan, 💎 Ballar &
+  reklama rejimi) menyudan **olib tashlandi** — ular o'z asosiy menyularida
+  bor. Eski `cab_*` callback'lari **o'chirilmagan**: eski xabarlardagi
+  tugmalar uchun xavfsiz alias/redirect bo'lib ishlaydi
+  (`handlers.start.cabinet_callback`).
+- **🔄 Ballar o'tkazish** menyudan ham mavjud `TRANSFER_TARGET` →
+  `TRANSFER_AMOUNT` FSM oqimini ochadi (`handlers.start.transfer_inline_entry`);
+  reply-tugma oqimi (`start_transfer_credits`) o'zgarmagan.
+- **🧰 Vositalar** — yordamchi vositalar submenyusi (ilgari yashirinib qolgan
+  Konverter #38 va Post Enhancer #9 endi aniq, ko'rinadigan joyida):
+  `[🔤 Kirill-Lotin Konvertor]` → `extra_converter` → `CONVERT_INPUT`;
+  `[✨ Tugma & Reaksiyalar (Post Enhancer)]` → `extra_enhancer` → `ENH_POST`;
+  `[◀️ Orqaga]` → `stgs_hub` (sozlamalar menyusi qayta chiziladi).
+  Eski `⚙️ Qo'shimcha funksiyalar` reply-tugmasi va `extra_close` ham saqlanadi.
+- Regression qo'riqonlari: `tests/refactor_step3_test.py` (246 chek),
+  `tests/settings_and_stats_v2_test.py`.
+
 #### 🧩 Kontent yaratish — ichki menyu (5 yo'l) va ACTION-FIRST (PostAssist V2)
 
 `✨ Kontent yaratish` (meros `✨ AI Studio` yorlig'i ham) tugmasi **ichki

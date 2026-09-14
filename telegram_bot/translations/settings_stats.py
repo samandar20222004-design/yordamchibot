@@ -6,10 +6,13 @@ Bo'limlar:
   * 📊 STATISTIKA — asosiy menyudagi «📊 Statistika» tugmasi ochadigan IXCHAM
     umumiy ko'rsatkichlar ekrani (ss_stats_*) va uning amallari
     [🔄 Yangilash] [◀️ Orqaga] (ss_btn_refresh / ss_btn_back);
-  * ⚙️ SOZLAMALAR — yagona tartibli menyu (8 ta ichki opsiya + ◀️ Orqaga):
-    👤 Profil, 🌐 Til / Язык, 🔔 Bildirishnomalar, 🎨 Post sozlamalari,
-    💳 To'lovlar tarixi, 🎁 Do'stlarni taklif qilish, ❓ Yordam,
-    ℹ️ Bot haqida (ss_btn_*);
+  * ⚙️ SOZLAMALAR — yagona tartibli menyu (12 ta ichki opsiya + ◀️ Orqaga):
+    👤 Profil, 🌐 Til / Язык, 💎 Ballarim, 🔄 Ballar o'tkazish, 🎁 Kunlik bonus,
+    👥 Do'stlarni taklif, 🔔 Bildirishnomalar, 🎨 Post sozlamalari,
+    💳 To'lovlar tarixi, 🧰 Vositalar, ❓ Yordam, ℹ️ Bot haqida (ss_btn_*);
+  * 🧰 VOSITALAR — yordamchi vositalar submenyusi (Konverter + Post Enhancer,
+    ss_tools_*) — 3-qadam refaktorida avval yashirinib qolgan funksiyalar o'z
+    aniq, ko'rinadigan joyiga qo'yildi;
   * 🔔 Bildirishnomalar va 🎨 Post sozlamalari ekranlari (ss_notif_* /
     ss_post_*) — foydalanuvchi sozlamalari (``user_settings`` jadvali);
   * 💳 To'lovlar tarixi ekrani (ss_pay_*);
@@ -68,6 +71,25 @@ SETTINGS_STATS_I18N = {
         "ss_btn_help": "❓ Yordam",
         "ss_btn_about": "ℹ️ Bot haqida",
         "ss_settings_legacy": "🗂 Tezkor bo'limlar",
+        # --- 3-qadam: hub'ning yangi (to'liq) tugmalari ---
+        # «🎁 Kunlik bonus» va «👥 Do'stlarni taklif» — asosiy lug'atdagi
+        # yagona manbadan olinadi (``cab_btn_daily_bonus`` / ``cab_referral``),
+        # shu sababli bu yerda TAKRORLANMAYDI (settings_stats_t fallback'i
+        # ularni asosiy lug'atdan o'qib beradi).
+        "ss_btn_points": "💎 Ballarim",
+        "ss_btn_transfer": "🔄 Ballar o'tkazish",
+        "ss_btn_tools": "🧰 Vositalar",
+
+        # --- 🧰 Vositalar submenyusi (yordamchi vositalar) ---
+        "ss_tools_title": (
+            "🧰 <b>Vositalar</b>\n\n"
+            "Asosiy oqimlardan tashqari yordamchi vositalar:\n"
+            "🔤 <b>Kirill-Lotin Konvertor</b> — matnni ikki alifbo orasida o'giradi;\n"
+            "✨ <b>Tugma &amp; Reaksiyalar</b> — tayyor postga URL tugma va reaksiya qo'shadi.\n\n"
+            "Kerakli vositani tanlang 👇"
+        ),
+        "ss_tools_btn_converter": "🔤 Kirill-Lotin Konvertor",
+        "ss_tools_btn_enhancer": "✨ Tugma & Reaksiyalar (Post Enhancer)",
 
         # --- 🔔 Bildirishnomalar ekrani ---
         "ss_notif_title": (
@@ -167,6 +189,24 @@ SETTINGS_STATS_I18N = {
         "ss_btn_help": "❓ Помощь",
         "ss_btn_about": "ℹ️ О боте",
         "ss_settings_legacy": "🗂 Быстрые разделы",
+        # --- Шаг 3: новые (полные) кнопки хаба ---
+        # «🎁 Ежедневный бонус» и «👥 Пригласить друзей» берутся из основного
+        # словаря (``cab_btn_daily_bonus`` / ``cab_referral``) — здесь НЕ
+        # дублируются.
+        "ss_btn_points": "💎 Мои баллы",
+        "ss_btn_transfer": "🔄 Перевести баллы",
+        "ss_btn_tools": "🧰 Инструменты",
+
+        # --- 🧰 Подменю «Инструменты» ---
+        "ss_tools_title": (
+            "🧰 <b>Инструменты</b>\n\n"
+            "Вспомогательные инструменты помимо основных потоков:\n"
+            "🔤 <b>Конвертер Кириллица-Латиница</b> — переводит текст между алфавитами;\n"
+            "✨ <b>Кнопки &amp; Реакции</b> — добавляет URL-кнопки и реакции к готовому посту.\n\n"
+            "Выберите нужный инструмент 👇"
+        ),
+        "ss_tools_btn_converter": "🔤 Конвертер Кириллица-Латиница",
+        "ss_tools_btn_enhancer": "✨ Кнопки & Реакции (Post Enhancer)",
 
         # --- 🔔 Уведомления ---
         "ss_notif_title": (
@@ -266,6 +306,24 @@ SETTINGS_STATS_I18N = {
         "ss_btn_help": "❓ Help",
         "ss_btn_about": "ℹ️ About",
         "ss_settings_legacy": "🗂 Quick sections",
+        # --- Step 3: new (full) hub buttons ---
+        # "🎁 Daily bonus" and "👥 Invite friends" come from the main
+        # dictionary (``cab_btn_daily_bonus`` / ``cab_referral``) — they are
+        # NOT duplicated here.
+        "ss_btn_points": "💎 My credits",
+        "ss_btn_transfer": "🔄 Transfer credits",
+        "ss_btn_tools": "🧰 Tools",
+
+        # --- 🧰 Tools submenu ---
+        "ss_tools_title": (
+            "🧰 <b>Tools</b>\n\n"
+            "Helper tools alongside the main flows:\n"
+            "🔤 <b>Cyrillic-Latin Converter</b> — converts text between the two alphabets;\n"
+            "✨ <b>Buttons &amp; Reactions</b> — adds URL buttons and reactions to a ready post.\n\n"
+            "Pick a tool below 👇"
+        ),
+        "ss_tools_btn_converter": "🔤 Cyrillic-Latin Converter",
+        "ss_tools_btn_enhancer": "✨ Buttons & Reactions (Post Enhancer)",
 
         # --- 🔔 Notifications ---
         "ss_notif_title": (
@@ -337,25 +395,45 @@ SETTINGS_STATS_I18N = {
 SETTINGS_STATS_KEYS = tuple(sorted(SETTINGS_STATS_I18N["uz"].keys()))
 
 # ============================================================
-# ⚙️ SOZLAMALAR MENYUSI — SPEKS TARTIBI (8 ta ichki opsiya)
+# ⚙️ SOZLAMALAR MENYUSI — SPEKS TARTIBI (12 ta ichki opsiya + Orqaga)
 # ============================================================
-#: Yagona tartibli menyu tugma kalitlari — spetsifikatsiyadagi aniq tartib:
-#:   [👤 Profil]             [🌐 Til / Язык]
-#:   [🔔 Bildirishnomalar]   [🎨 Post sozlamalari]
-#:   [💳 To'lovlar tarixi]   [🎁 Do'stlarni taklif qilish]
-#:   [❓ Yordam]             [ℹ️ Bot haqida]
+#: Yagona tartibli menyu tugma kalitlari — spetsifikatsiyadagi aniq tartib
+#: (PostAssist V2 · 3-qadam — legacy dublikatlar olib tashlangan holat):
+#:   [👤 Profil]            [🌐 Til / Язык]
+#:   [💎 Ballarim]          [🔄 Ballar o'tkazish]
+#:   [🎁 Kunlik bonus]      [👥 Do'stlarni taklif]
+#:   [🔔 Bildirishnomalar]  [🎨 Post sozlamalari]
+#:   [💳 To'lovlar tarixi]  [🧰 Vositalar]
+#:   [❓ Yordam]            [ℹ️ Bot haqida]
 #:                [◀️ Orqaga]
-#: («🌐 Til / Язык» asosiy lug'atdagi ``lang_button`` kalitidan olinadi —
-#: mavjud til almashtirish oqimi bilan yagona manba.)
+#: Ba'zi matnlar asosiy lug'atdan olinadi (``settings_stats_t`` fallback'i):
+#: ``lang_button`` (🌐 Til / Язык), ``cab_btn_daily_bonus`` (🎁 Kunlik bonus)
+#: va ``cab_referral`` (👥 Do'stlarni taklif) — mavjud oqimlar bilan yagona
+#: manba, takroriy matn yo'q.
 SETTINGS_MENU_BUTTON_KEYS = (
     "ss_btn_profile",
     "lang_button",
+    "ss_btn_points",
+    "ss_btn_transfer",
+    "cab_btn_daily_bonus",
+    "cab_referral",
     "ss_btn_notif",
     "ss_btn_post_settings",
     "ss_btn_payments",
-    "ss_btn_referral",
+    "ss_btn_tools",
     "ss_btn_help",
     "ss_btn_about",
+    "ss_btn_back",
+)
+
+#: 🧰 Vositalar submenyusi tugma kalitlari (speks tartibi):
+#:   [🔤 Kirill-Lotin Konvertor]
+#:   [✨ Tugma & Reaksiyalar (Post Enhancer)]
+#:              [◀️ Orqaga]
+TOOLS_MENU_BUTTON_KEYS = (
+    "ss_tools_btn_converter",
+    "ss_tools_btn_enhancer",
+    "ss_btn_back",
 )
 
 #: Statistika ekranidagi 4 ta asosiy ko'rsatkich qatori — speks tartibida.
@@ -370,6 +448,28 @@ STATS_ROW_KEYS = (
 CB_SETTINGS_PREFIX = "stgs_"
 CB_STATS_REFRESH = "an_refresh"
 CB_STATS_BACK = "an_close"
+
+#: ⚙️ Sozlamalar menyusi callback'lari — speks tartibida (12 tugma + Orqaga).
+CB_SETTINGS_HUB = (
+    "stgs_profile",
+    "stgs_lang",
+    "stgs_points",
+    "stgs_transfer",
+    "stgs_bonus",
+    "stgs_referral",
+    "stgs_notif",
+    "stgs_post",
+    "stgs_pay",
+    "stgs_tools",
+    "stgs_help",
+    "stgs_about",
+    "stgs_back",
+)
+
+#: 🧰 Vositalar submenyusi callback'lari: mavjud, sinovdan o'tgan oqimlarga
+#: ulanadi (Konverter → CONVERT_INPUT, Post Enhancer → ENH_POST) va
+#: [◀️ Orqaga] sozlamalar menyusini qayta chizadi.
+CB_TOOLS_HUB = ("extra_converter", "extra_enhancer", "stgs_hub")
 
 
 def settings_stats_t(key: str, lang: str = "uz", **kwargs) -> str:

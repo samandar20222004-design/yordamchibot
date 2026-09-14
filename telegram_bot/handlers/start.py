@@ -445,14 +445,24 @@ async def user_invite_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode="HTML"
     )
 
-async def start_transfer_credits(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    clear_fsm_data(context)
+async def _begin_transfer_flow(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """🔄 Ballar o'tkazish oqimining YAGONA kirish nuqtasi (uz/ru/en).
+
+    Ikkala kirish yo'li ham (pastdagi reply-tugma va ⚙️ Sozlamalar menyusidagi
+    [🔄 Ballar o'tkazish] inline tugmasi) shu yordamchidan foydalanadi —
+    FSM (``TRANSFER_TARGET`` → ``TRANSFER_AMOUNT``) va barcha matnlar bir xil
+    qoladi, mantiq takrorlanmaydi.
+
+    ``update.effective_message`` ishlatiladi: u ham oddiy xabar (reply-tugma),
+    ham callback query xabari uchun to'g'ri ishlaydi.
+    """
     user_id = update.effective_user.id
     lang = await ensure_user_lang(context, user_id)
+    message = update.effective_message
     my_credits = await db.run_db(db.get_user_credits, user_id)
 
     if my_credits < 3 and user_id not in ADMIN_IDS_SET:
-        await update.message.reply_text(
+        await message.reply_text(
             get_text(
                 "transfer_insufficient", lang,
                 credits=my_credits,
@@ -463,12 +473,37 @@ async def start_transfer_credits(update: Update, context: ContextTypes.DEFAULT_T
         )
         return ConversationHandler.END
 
-    await update.message.reply_text(
+    await message.reply_text(
         get_text("transfer_intro", lang),
         reply_markup=get_cancel_keyboard(lang),
         parse_mode="HTML"
     )
     return TRANSFER_TARGET
+
+
+async def start_transfer_credits(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """🔄 Ballar o'tkazish — pastdagi reply-tugma orqali kirish (o'zgarmagan)."""
+    clear_fsm_data(context)
+    return await _begin_transfer_flow(update, context)
+
+
+async def transfer_inline_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """🔄 Ballar o'tkazish — ⚙️ Sozlamalar menyusidagi inline tugma orqali kirish.
+
+    PostAssist V2 · 3-qadam: menyudagi [🔄 Ballar o'tkazish] tugmasi mavjud
+    FSM oqimini AYNAN ochadi (yangi holat yaratilmaydi, eski callback'lar
+    o'chirilmaydi). ``handlers/__init__.py`` da ``start_handlers`` ro'yxatiga
+    qo'shilgani uchun u ham entry point, ham HAR BIR faol holatda "menyu
+    sakrashi" (all_menu_jumps) sifatida ishlaydi.
+    """
+    query = getattr(update, "callback_query", None)
+    if query is not None:
+        try:
+            await query.answer()
+        except Exception:
+            pass
+    clear_fsm_data(context)
+    return await _begin_transfer_flow(update, context)
 
 async def transfer_target_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     target_input = update.message.text

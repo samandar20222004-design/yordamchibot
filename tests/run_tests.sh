@@ -24,6 +24,9 @@
 #       (tests/content_calendar_flow_test.py)
 #   3i) 🔄 POSTASSIST V2 2-QADAM REFAKTORI — B1 (navbat) + B2 (rasm) birlashtiruvi
 #       (tests/refactor_step2_test.py)
+#   3j) ⚙️ POSTASSIST V2 3-QADAM REFAKTORI — sozlamalar menyusi (legacy
+#       dublikatlarsiz, 12 tugma) + 🧰 Vositalar submenyusi (Konvertor va
+#       Post Enhancer) (tests/refactor_step3_test.py)
 #   4) TO'LIQ regressiya: telegram_bot/tests/run_tests.sh (barcha 30+ test fayli)
 #
 # Har qanday xatoda 1 bilan chiqadi (CI uchun).
@@ -157,6 +160,27 @@ echo "===== 3i) 🔄 2-QADAM REFAKTORI: B1 NAVBAT + B2 RASM OQIMI ====="
 # eskirgan tugmalar toast bilan javob beradi, i18n UZ/RU/EN 100% paritet
 # (tests/refactor_step2_test.py).
 "$PY" tests/refactor_step2_test.py || EXIT_CODE=1
+
+echo
+echo "===== 3j) ⚙️ 3-QADAM REFAKTORI: SOZLAMALAR MENYUSI + VOSITALAR ====="
+# (1) ⚙️ Sozlamalar menyusidagi LEGACY DUBLIKATLAR (📢 Mening kanallarim,
+# 📊 Analitika, 📅 Kutilayotgan/Rejalashtirilgan, 💎 Ballar & reklama rejimi)
+# ko'rinishdan olib tashlandi — ular o'z asosiy menyularida bor; menyu
+# yagona, tartibli va TO'LIQ: 12 tugma + [◀️ Orqaga], UZ/RU/EN da AYNAN
+# bir xil callback'lar bilan:
+#   [👤 Profil] [🌐 Til] / [💎 Ballarim] [🔄 Ballar o'tkazish] /
+#   [🎁 Kunlik bonus] [👥 Do'stlarni taklif] / [🔔 Bildirishnomalar]
+#   [🎨 Post sozlamalari] / [💳 To'lovlar tarixi] [🧰 Vositalar] /
+#   [❓ Yordam] [ℹ️ Bot haqida] / [◀️ Orqaga];
+# (2) eski cab_* callback'lari O'CHIRILMAGAN — xavfsiz alias/redirect
+# sifatida ishlaydi (crash yo'q); (3) 🧰 Vositalar submenyusi: ilgari
+# yashirinib qolgan Konvertor (#38) va Post Enhancer (#9) endi aniq,
+# ko'rinadigan joyida — mavjud CONVERT_INPUT / ENH_POST oqimlariga ulanadi;
+# (4) 🔄 Ballar o'tkazish menyudan ham mavjud TRANSFER_TARGET →
+# TRANSFER_AMOUNT FSM oqimini ochadi; (5) i18n UZ/RU/EN 100% paritet
+# (in_sync: True) va barcha callback'lar 64-bayt chegarasida
+# (tests/refactor_step3_test.py).
+"$PY" tests/refactor_step3_test.py || EXIT_CODE=1
 
 echo
 echo "======== 4) TO'LIQ REGRESSIYA (telegram_bot/tests) ========"

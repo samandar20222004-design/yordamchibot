@@ -793,32 +793,42 @@ def get_cabinet_inline_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
 
 
 # ============================================================
-# ⚙️ SOZLAMALAR — YAGONA TARTIBLI MENYU (PostAssist V2, 5-mikro qadam)
+# ⚙️ SOZLAMALAR — YAGONA TARTIBLI MENYU (PostAssist V2, 3-qadam)
 # ------------------------------------------------------------
 # Asosiy menyudan [⚙️ Sozlamalar] bosilganda barcha foydali ichki opsiyalar
-# BITTA tartibli menyuda chiqadi (speks tartibi):
+# BITTA tartibli menyuda chiqadi (speks tartibi, 12 tugma + Orqaga):
 #
-#     [👤 Profil]             [🌐 Til / Язык]
-#     [🔔 Bildirishnomalar]   [🎨 Post sozlamalari]
-#     [💳 To'lovlar tarixi]   [🎁 Do'stlarni taklif qilish]
-#     [❓ Yordam]             [ℹ️ Bot haqida]
-#                  [◀️ Orqaga]
+#     [👤 Profil]            [🌐 Til / Язык]
+#     [💎 Ballarim]          [🔄 Ballar o'tkazish]
+#     [🎁 Kunlik bonus]      [👥 Do'stlarni taklif]
+#     [🔔 Bildirishnomalar]  [🎨 Post sozlamalari]
+#     [💳 To'lovlar tarixi]  [🧰 Vositalar]
+#     [❓ Yordam]            [ℹ️ Bot haqida]
+#                 [◀️ Orqaga]
 #
-# Pastda orqaga moslik uchun eski kabinetning tezkor ma'lumot tugmalari
-# (kanallar/analitika/kutilayotgan/navbat/ballar/bonus) saqlanadi — ularning
-# callback'lari (cab_*) avvalgidek cabinet_callback orqali ishlaydi.
+# ⚠️ 3-qadam refaktori: eski kabinet tezkor tugmalari (📢 Mening kanallarim,
+# 📅 Rejalashtirilgan/Kutilayotgan, 📊 Analitika, 💎 Ballar & reklama rejimi)
+# menyudan OLIB TASHLANDI — ular o'z asosiy menyularida bor, dublikat esa
+# foydalanuvchini chalg'itardi. Ularning callback'lari (cab_*) esa o'chirilmagan:
+# eski xabarlardagi tugmalar uchun xavfsiz alias/redirect bo'lib qoladi
+# (handlers.start.cabinet_callback).
+#
 # Routing tilga bog'liq emas: barcha callback_data uz/ru/en da bir xil.
 # ============================================================
 
-def get_settings_hub_keyboard(lang: str = "uz", include_legacy: bool = True) -> InlineKeyboardMarkup:
-    """⚙️ Sozlamalar — 8 ta ichki opsiya + ◀️ Orqaga (yagona tartibli menyu).
+def get_settings_hub_keyboard(lang: str = "uz", include_legacy: bool = False) -> InlineKeyboardMarkup:
+    """⚙️ Sozlamalar — 12 ta ichki opsiya + [◀️ Orqaga] (yagona tartibli menyu).
 
-    ``include_legacy=True`` (default) — speks qatorlaridan keyin eski kabinet
-    tezkor tugmalari ham chiziladi (orqaga moslik: kabindagi barcha oqimlar
-    bir ekranda qoladi). Callback'lar:
+    Tugma callback'lari (routing tilga bog'liq emas):
 
-      stgs_profile / stgs_lang / stgs_notif / stgs_post / stgs_pay /
-      stgs_referral / stgs_help / stgs_about / stgs_back
+      stgs_profile / stgs_lang / stgs_points / stgs_transfer / stgs_bonus /
+      stgs_referral / stgs_notif / stgs_post / stgs_pay / stgs_tools /
+      stgs_help / stgs_about / stgs_back
+
+    ``include_legacy`` — 3-qadamdan keyin ESKIRGAN parametr (orqaga moslik
+    uchun imzoda saqlangan, xavfsiz): qiymatidan qat'i nazar legacy kabinet
+    tugmalari CHIZILMAYDI. Eski chaqiruv kod ``TypeError`` bermasligi uchun
+    qabul qilinadi, lekin endi dublikat tugmalar umuman chiqmaydi.
     """
     from translations import settings_stats_t  # lazy — aylanma importdan himoya
 
@@ -830,6 +840,20 @@ def get_settings_hub_keyboard(lang: str = "uz", include_legacy: bool = True) -> 
                                  callback_data="stgs_lang"),
         ],
         [
+            InlineKeyboardButton(settings_stats_t("ss_btn_points", lang),
+                                 callback_data="stgs_points"),
+            InlineKeyboardButton(settings_stats_t("ss_btn_transfer", lang),
+                                 callback_data="stgs_transfer"),
+        ],
+        [
+            # «🎁 Kunlik bonus» va «👥 Do'stlarni taklif» matnlari asosiy
+            # lug'atdagi yagona manbadan (settings_stats_t fallback'i).
+            InlineKeyboardButton(settings_stats_t("cab_btn_daily_bonus", lang),
+                                 callback_data="stgs_bonus"),
+            InlineKeyboardButton(settings_stats_t("cab_referral", lang),
+                                 callback_data="stgs_referral"),
+        ],
+        [
             InlineKeyboardButton(settings_stats_t("ss_btn_notif", lang),
                                  callback_data="stgs_notif"),
             InlineKeyboardButton(settings_stats_t("ss_btn_post_settings", lang),
@@ -838,8 +862,8 @@ def get_settings_hub_keyboard(lang: str = "uz", include_legacy: bool = True) -> 
         [
             InlineKeyboardButton(settings_stats_t("ss_btn_payments", lang),
                                  callback_data="stgs_pay"),
-            InlineKeyboardButton(settings_stats_t("ss_btn_referral", lang),
-                                 callback_data="stgs_referral"),
+            InlineKeyboardButton(settings_stats_t("ss_btn_tools", lang),
+                                 callback_data="stgs_tools"),
         ],
         [
             InlineKeyboardButton(settings_stats_t("ss_btn_help", lang),
@@ -847,33 +871,41 @@ def get_settings_hub_keyboard(lang: str = "uz", include_legacy: bool = True) -> 
             InlineKeyboardButton(settings_stats_t("ss_btn_about", lang),
                                  callback_data="stgs_about"),
         ],
+        [
+            InlineKeyboardButton(settings_stats_t("ss_btn_back", lang),
+                                 callback_data="stgs_back"),
+        ],
     ]
-    if include_legacy:
-        keyboard += [
-            [
-                InlineKeyboardButton(get_text("cab_my_channels", lang),
-                                     callback_data="cab_channels"),
-                InlineKeyboardButton(get_text("cab_analytics", lang),
-                                     callback_data="cab_analytics"),
-            ],
-            [
-                InlineKeyboardButton(get_text("cab_pending", lang),
-                                     callback_data="cab_pending"),
-                InlineKeyboardButton(get_text("cab_queue", lang),
-                                     callback_data="cab_queue"),
-            ],
-            [
-                InlineKeyboardButton(get_text("cab_balance", lang),
-                                     callback_data="cab_balance"),
-                InlineKeyboardButton(get_text("cab_btn_daily_bonus", lang),
-                                     callback_data="cab_bonus"),
-            ],
-        ]
-    keyboard.append([
-        InlineKeyboardButton(settings_stats_t("ss_btn_back", lang),
-                             callback_data="stgs_back"),
-    ])
+    # ``include_legacy`` — ataylab hech narsa qilmaydi (yuqoridagi izoh).
+    _ = include_legacy
     return InlineKeyboardMarkup(keyboard)
+
+
+def get_tools_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
+    """🧰 Vositalar — yordamchi vositalar submenyusi (PostAssist V2, 3-qadam).
+
+        [🔤 Kirill-Lotin Konvertor]
+        [✨ Tugma & Reaksiyalar (Post Enhancer)]
+                    [◀️ Orqaga]
+
+    Callback'lar YANGI EMAS — mavjud, sinovdan o'tgan oqimlarga ulanadi:
+      * ``extra_converter`` → handlers.converter.converter_inline_entry
+        (``CONVERT_INPUT`` holati — kirill/lotin o'girish, media caption ham);
+      * ``extra_enhancer``  → handlers.post_enhancer.post_enhancer_start
+        (``ENH_POST`` holati — postga URL tugma va reaksiya qo'shish);
+      * ``stgs_hub``        → ⚙️ Sozlamalar menyusiga qaytish (ekran qayta
+        chiziladi, yangi xabar yuborilmaydi).
+    """
+    from translations import settings_stats_t
+
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton(settings_stats_t("ss_tools_btn_converter", lang),
+                              callback_data="extra_converter")],
+        [InlineKeyboardButton(settings_stats_t("ss_tools_btn_enhancer", lang),
+                              callback_data="extra_enhancer")],
+        [InlineKeyboardButton(settings_stats_t("ss_btn_back", lang),
+                              callback_data="stgs_hub")],
+    ])
 
 
 def get_settings_back_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
