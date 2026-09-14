@@ -108,6 +108,9 @@ from handlers.channels import (
     remove_channel_callback, on_bot_chat_member_update, add_channel_inline_entry,
     tone_menu_callback, tone_chosen, on_channel_post,
     channel_voice_analysis_callback,
+    # 📢 KANALLARIM — kanal boshqaruv ekrani (PostAssist V2, 4-mikro qadam)
+    channel_open_callback, channel_new_post_callback, channel_scheduled_callback,
+    channel_stats_callback, channel_settings_callback, channels_list_callback,
     ADD_CHANNEL, SET_TONE
 )
 
@@ -931,6 +934,10 @@ def register_all_handlers(app):
             CallbackQueryHandler(edit_post_btn_start, pattern=r"^p_btn:"),
             CallbackQueryHandler(edit_post_react_start, pattern=r"^p_react:"),
             CallbackQueryHandler(add_channel_inline_entry, pattern=r"^add_channel_start$"),
+            # 📢 Kanallarim → [➕ Post yaratish]: kanal ALLAQACHON tanlangan,
+            # shuning uchun oqim to'g'ridan-to'g'ri GET_CONTENT holatiga
+            # kiradi (entry point bo'lishi SHART — u FSM holati qaytaradi).
+            CallbackQueryHandler(channel_new_post_callback, pattern=r"^ch_np:"),
             # 🔁 Qayta tekshirish: sessiya tugagan bo'lsa ham eski tugma
             # ishlasin — conversation qayta ochiladi yoki yo'riqnoma qaytariladi.
             CallbackQueryHandler(add_channel_retry, pattern=r"^add_channel_retry$"),
@@ -1327,6 +1334,11 @@ def register_all_handlers(app):
                 CallbackQueryHandler(queue_page_callback, pattern=r"^qpage:"),
                 CallbackQueryHandler(queue_view_callback, pattern=r"^qview:"),
                 CallbackQueryHandler(queue_delete_callback, pattern=r"^qdel:"),
+                # 📅 Rejalashtirilgan post amallari: [✏️ Tahrirlash] va
+                # [⏰ Vaqtni o'zgartirish] — mavjud, xavfsiz pending oqimlari
+                # (ular entry_points'da ham bor, bu yerda ATAYLAB oshkora).
+                CallbackQueryHandler(edit_post_content_start, pattern=r"^p_edit:"),
+                CallbackQueryHandler(edit_post_time_start, pattern=r"^p_time:"),
                 CallbackQueryHandler(queue_push_callback, pattern=r"^qpush:"),
                 CallbackQueryHandler(queue_slots_callback, pattern=r"^qslots:"),
                 CallbackQueryHandler(queue_close_callback, pattern=r"^qclose$"),
@@ -1405,7 +1417,16 @@ def register_all_handlers(app):
     app.add_handler(CallbackQueryHandler(edit_post_btn_start, pattern=r"^p_btn:"))
     app.add_handler(CallbackQueryHandler(edit_post_react_start, pattern=r"^p_react:"))
     app.add_handler(CallbackQueryHandler(remove_channel_callback, pattern=r"^ch_del:"))
-    app.add_handler(CallbackQueryHandler(tone_menu_callback, pattern=r"^ch_set:"))
+    # 📢 KANALLARIM — kanal boshqaruv ekrani (PostAssist V2, 4-mikro qadam).
+    # ``ch_set:`` endi channel_settings_callback orqali o'tadi: kanal
+    # boshqaruv ekranidan bosilsa SOZLAMALAR ekranini, eski (chat tarixidagi)
+    # tugmadan bosilsa avvalgidek USLUB menyusini ochadi — orqaga moslik
+    # buzilmaydi (ichida tone_menu_callback chaqiriladi).
+    app.add_handler(CallbackQueryHandler(channel_settings_callback, pattern=r"^ch_set:"))
+    app.add_handler(CallbackQueryHandler(channel_open_callback, pattern=r"^ch_op:"))
+    app.add_handler(CallbackQueryHandler(channel_scheduled_callback, pattern=r"^ch_sch:"))
+    app.add_handler(CallbackQueryHandler(channel_stats_callback, pattern=r"^ch_st:"))
+    app.add_handler(CallbackQueryHandler(channels_list_callback, pattern=r"^ch_back$"))
     # 🎙 Kanal ovozi tahlili — kanal ro'yxatidagi profil tugmasi (AI tahlil +
     # natijani kanalning tone_of_voice profiliga saqlaydi).
     app.add_handler(CallbackQueryHandler(

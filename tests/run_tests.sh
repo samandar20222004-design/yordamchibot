@@ -15,6 +15,8 @@
 #   3c) 📊 POST SCORE & IMPROVER — Killer Feature #4 (tests/post_score_flow_test.py)
 #   3d) 🧭 UX V2 — asosiy menyu qat'iy 6 tugma standarti (tests/ux_v2_main_menu_test.py)
 #   3e) 🧩 KONTENT YARATISH submenu + ACTION-FIRST (tests/content_creation_menu_test.py)
+#   3f) 📢 KANALLARIM + 📅 REJALASHTIRILGAN — PostAssist V2 4-qadam
+#       (tests/channels_and_queue_v2_test.py)
 #   4) TO'LIQ regressiya: telegram_bot/tests/run_tests.sh (barcha 30+ test fayli)
 #
 # Har qanday xatoda 1 bilan chiqadi (CI uchun).
@@ -87,6 +89,21 @@ echo "===== 3e) 🧩 KONTENT YARATISH SUBMENYUSI + ACTION-FIRST ====="
 # tashqarisida ovoz → STT, rasm → Vision, xom matn → "✨ Magic Post" taklifi
 # (tests/content_creation_menu_test.py).
 "$PY" tests/content_creation_menu_test.py || EXIT_CODE=1
+
+echo
+echo "===== 3f) 📢 KANALLARIM + 📅 REJALASHTIRILGAN ====="
+# (1) [📢 Kanallarim] → ulangan kanallar ro'yxati + [➕ Kanal qo'shish];
+# (2) kanal tanlanganda QAT'IY boshqaruv ekrani: [➕ Post yaratish] /
+# [📅 Rejalashtirilgan] [📊 Statistika] / [⚙️ Kanal sozlamalari]
+# [◀️ Orqaga] — kanal ichidagi amallar asosiy menyuga CHIQIB KETMAYDI;
+# (3) [📅 Rejalashtirilgan]: postlar vaqt bo'yicha tartiblangan inline
+# ro'yxat ("🕐 Bugun 18:00 — [Matn qisqartmasi]") va har biri ostida
+# [✏️ Tahrirlash] [⏰ Vaqtni o'zgartirish] [🗑 O'chirish];
+# (4) eskirgan "Postlar navbati" nomi uchala tilda "📅 Rejalashtirilgan"ga
+# o'tkazildi, eski yorliqlar routing ALIAS'i bo'lib qoldi; (5) UZ/RU/EN 100%
+# paritet + FSM/callback regressiya qo'riqonlari
+# (tests/channels_and_queue_v2_test.py).
+"$PY" tests/channels_and_queue_v2_test.py || EXIT_CODE=1
 
 echo
 echo "======== 4) TO'LIQ REGRESSIYA (telegram_bot/tests) ========"

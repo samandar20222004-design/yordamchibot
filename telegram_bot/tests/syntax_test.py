@@ -49,6 +49,8 @@ def main():
         "translations.post_score",
         # 🧩 KONTENT YARATISH submenu (PostAssist V2) — yangi modullar
         "translations.content_menu",
+        # 📢 KANALLARIM + 📅 REJALASHTIRILGAN (PostAssist V2, 4-qadam)
+        "translations.channels_queue",
         "keyboards.reply",
         "handlers.content_creation",
         "utils.helpers",

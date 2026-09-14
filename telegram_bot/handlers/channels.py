@@ -11,8 +11,12 @@ from keyboards.default import (
     is_menu_text, tone_from_text, tone_labels,
 )
 from keyboards.callback_data import CB_CHANNEL_VOICE
-from keyboards.inline import render_channels_list
+from keyboards.inline import (
+    render_channel_panel, render_channel_settings, render_channels_list,
+    render_my_channels_list,
+)
 from locales.translations import get_lang, safe_t, normalize_lang
+from translations import channels_queue_t
 from utils.helpers import html_escape
 from utils.fsm_state import active_conversation_state
 from utils.ai_agent import analyze_channel_voice
@@ -112,25 +116,279 @@ def _empty_channels_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
     ])
 
 
+# ============================================================
+# 📢 KANALLARIM — MASTER PLAN STANDARTI (PostAssist V2, 4-mikro qadam)
+# ============================================================
+# Ekran ierarxiyasi (asosiy menyu → bo'lim → kanal → amal):
+#
+#   [📢 Kanallarim]            → ulangan kanallar ro'yxati + [➕ Kanal qo'shish]
+#     └─ kanal tanlandi        → kanal boshqaruv ekrani:
+#            [➕ Post yaratish]
+#            [📅 Rejalashtirilgan]   [📊 Statistika]
+#            [⚙️ Kanal sozlamalari]  [◀️ Orqaga]
+#
+# MUHIM UX QOIDASI: kanal ichidagi amallar asosiy menyuga CHIQIB KETMAYDI —
+# har bir tugma shu kanal konteksti bilan ishlaydi (``ch_op:``/``ch_sch:``/
+# ``ch_st:``/``ch_np:`` callback'lari channel_id payload'ini olib yuradi),
+# [◀️ Orqaga] esa kanallar ro'yxatiga qaytaradi.
+
+
+async def _owned_channel(user_id: int, channel_id: str):
+    """Kanal AYNAN shu foydalanuvchiga tegishlimi (fail-closed tekshiruv).
+
+    Qaytadi: ``(channel_id, title, tone)`` yoki topilmasa ``None``.
+    Har bir kanal-kontekstli callback shu funksiyadan o'tadi — boshqa
+    foydalanuvchining kanali hech qachon ochilmaydi.
+    """
+    channels = await db.run_db(db.get_user_channels_with_tone, user_id)
+    target = str(channel_id or "").strip()
+    for ch in channels or []:
+        if str(ch[0]) == target:
+            return ch
+    return None
+
+
+def _channel_title(channel) -> str:
+    """Kanal sarlavhasi — HTML-xavfsiz, bo'sh bo'lsa ham tugma buzilmaydi."""
+    title = (channel[1] if channel and len(channel) > 1 else "") or ""
+    return html_escape(title.strip() or "Kanal")
+
+
+async def _send_channels_list(msg, user_id: int, lang: str):
+    """📢 Kanallarim ro'yxatini YANGI xabar sifatida yuboradi."""
+    channels = await db.run_db(db.get_user_channels_with_tone, user_id)
+    if not channels:
+        await msg.reply_text(
+            channels_queue_t("cq_ch_empty", lang),
+            reply_markup=_empty_channels_keyboard(lang),
+            parse_mode="HTML",
+        )
+        return
+    await msg.reply_text(
+        channels_queue_t("cq_ch_list_title", lang, count=len(channels)),
+        reply_markup=render_my_channels_list(channels, lang),
+        parse_mode="HTML",
+    )
+
+
 async def channels_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """📢 Kanallarim — ulangan kanallar ro'yxati + [➕ Kanal qo'shish].
+
+    Ro'yxatdagi har bir kanal BITTA tugma: bosilganda kanal boshqaruv
+    ekrani ochiladi (:func:`channel_open_callback`).
+    """
     lang = get_lang(context)
     user_id = update.effective_user.id
+    await _send_channels_list(update.message, user_id, lang)
+    return ConversationHandler.END
+
+
+async def _safe_edit(query, text: str, markup):
+    """Xabarni EDIT qiladi (o'chirmaydi) — xatoda jim qoladi.
+
+    Kanal ekranlari orasidagi navigatsiya bitta xabar ichida bo'ladi:
+    chatda "phantom" xabarlar to'planmaydi.
+    """
+    try:
+        await query.edit_message_text(text, reply_markup=markup, parse_mode="HTML")
+        return True
+    except Exception:  # pragma: no cover — Telegram "message is not modified" va h.k.
+        logger.debug("Kanal ekranini edit qilib bo'lmadi", exc_info=True)
+        return False
+
+
+async def channels_list_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """[◀️ Orqaga] — kanal ekranidan kanallar RO'YXATIGA qaytadi.
+
+    Asosiy menyuga CHIQMAYDI: foydalanuvchi «📢 Kanallarim» bo'limi ichida
+    qoladi (master plan 2-band talabi).
+    """
+    query = update.callback_query
+    try:
+        await query.answer()
+    except Exception:
+        pass
+    lang = get_lang(context)
+    user_id = query.from_user.id
     channels = await db.run_db(db.get_user_channels_with_tone, user_id)
-
     if not channels:
-        await update.message.reply_text(
-            safe_t("ch_empty_title", lang),
-            reply_markup=_empty_channels_keyboard(lang),
-            parse_mode="HTML"
-        )
+        await _safe_edit(query, channels_queue_t("cq_ch_empty", lang),
+                         _empty_channels_keyboard(lang))
         return ConversationHandler.END
-
-    await update.message.reply_text(
-        safe_t("ch_list_title", lang, count=len(channels)),
-        reply_markup=render_channels_list(channels, lang),
-        parse_mode="HTML"
+    await _safe_edit(
+        query,
+        channels_queue_t("cq_ch_list_title", lang, count=len(channels)),
+        render_my_channels_list(channels, lang),
     )
     return ConversationHandler.END
+
+
+async def channel_open_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Kanal tanlandi → KANAL BOSHQARUV EKRANI (speksdagi 5 tugma)."""
+    query = update.callback_query
+    try:
+        await query.answer()
+    except Exception:
+        pass
+    lang = get_lang(context)
+    user_id = query.from_user.id
+    channel_id = (query.data or "").split(":", 1)[1] if ":" in (query.data or "") else ""
+
+    channel = await _owned_channel(user_id, channel_id)
+    if channel is None:
+        await _safe_edit(query, channels_queue_t("cq_ch_not_found", lang),
+                         _empty_channels_keyboard(lang))
+        return ConversationHandler.END
+
+    await _safe_edit(
+        query,
+        channels_queue_t("cq_ch_panel_title", lang, channel=_channel_title(channel)),
+        render_channel_panel(channel_id, lang),
+    )
+    return ConversationHandler.END
+
+
+async def channel_scheduled_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """📅 Rejalashtirilgan — FAQAT shu kanal postlari (vaqt bo'yicha).
+
+    Ro'yxat «📅 Rejalashtirilgan» bo'limi bilan BIR XIL formatda chiziladi
+    (``handlers.queue._format_queue_item``), har bir post ostida
+    [✏️ Tahrirlash] [⏰ Vaqtni o'zgartirish] [🗑 O'chirish].
+    """
+    query = update.callback_query
+    try:
+        await query.answer()
+    except Exception:
+        pass
+    lang = get_lang(context)
+    user_id = query.from_user.id
+    channel_id = (query.data or "").split(":", 1)[1] if ":" in (query.data or "") else ""
+
+    channel = await _owned_channel(user_id, channel_id)
+    if channel is None:
+        await _safe_edit(query, channels_queue_t("cq_ch_not_found", lang),
+                         _empty_channels_keyboard(lang))
+        return ConversationHandler.END
+
+    # Lokal import: modul sikli (queue ↔ channels) oldini oladi.
+    from handlers.queue import build_channel_scheduled_view
+
+    text, markup = await build_channel_scheduled_view(
+        user_id, channel_id, _channel_title(channel), lang,
+    )
+    await _safe_edit(query, text, markup)
+    return ConversationHandler.END
+
+
+async def channel_stats_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """📊 Statistika — FAQAT shu kanal bo'yicha dashboard (kanal ichida)."""
+    query = update.callback_query
+    try:
+        await query.answer()
+    except Exception:
+        pass
+    lang = get_lang(context)
+    user_id = query.from_user.id
+    channel_id = (query.data or "").split(":", 1)[1] if ":" in (query.data or "") else ""
+
+    channel = await _owned_channel(user_id, channel_id)
+    if channel is None:
+        await _safe_edit(query, channels_queue_t("cq_ch_not_found", lang),
+                         _empty_channels_keyboard(lang))
+        return ConversationHandler.END
+
+    title = _channel_title(channel)
+    try:
+        from handlers.analytics import _build_dashboard
+
+        stats = await db.run_db(db.get_channel_post_stats, user_id, channel_id)
+        text = _build_dashboard(stats or {}, title, lang)
+    except Exception:
+        # Statistika o'qilmasa ham foydalanuvchi JAVOB olishi shart —
+        # ekran "qotib qolgan" bo'lib ko'rinmasligi kerak.
+        logger.exception("Kanal statistikasini qurishda xato (channel=%s)", channel_id)
+        text = channels_queue_t("cq_ch_stats_empty", lang, channel=title)
+
+    await _safe_edit(query, text, render_channel_panel(channel_id, lang))
+    return ConversationHandler.END
+
+
+async def channel_settings_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """⚙️ Kanal sozlamalari — uslub / AI ovoz tahlili / kanalni uzish.
+
+    ``ch_set:<id>`` callback'i IKKI ma'noda ishlatiladi (orqaga moslik):
+      * kanal boshqaruv ekranidan bosilsa — shu SOZLAMALAR ekrani ochiladi;
+      * sozlamalar ekranidagi «🎨 Uslub» tugmasi bosilsa — eski, sinovdan
+        o'tgan uslub tanlash oqimi (``tone_menu_callback``) ishga tushadi.
+    Farq ``user_data`` dagi bayroq orqali aniqlanadi, ya'ni eski chat
+    xabarlaridagi ``ch_set:`` tugmalari avvalgidek uslub menyusini ochadi.
+    """
+    query = update.callback_query
+    lang = get_lang(context)
+    user_id = query.from_user.id
+    channel_id = (query.data or "").split(":", 1)[1] if ":" in (query.data or "") else ""
+
+    # 2-bosqich: sozlamalar ekrani ALLAQACHON ochiq → «🎨 Uslub» bosildi.
+    if context.user_data.get("ch_settings_open") == channel_id:
+        context.user_data.pop("ch_settings_open", None)
+        return await tone_menu_callback(update, context)
+
+    try:
+        await query.answer()
+    except Exception:
+        pass
+
+    channel = await _owned_channel(user_id, channel_id)
+    if channel is None:
+        # Kanal ro'yxatda yo'q (eski xabar / boshqa foydalanuvchi) — eski
+        # uslub oqimiga tushamiz, u o'zi xavfsiz yakunlanadi.
+        return await tone_menu_callback(update, context)
+
+    context.user_data["ch_settings_open"] = channel_id
+    await _safe_edit(
+        query,
+        channels_queue_t("cq_ch_settings_title", lang, channel=_channel_title(channel)),
+        render_channel_settings(channel_id, lang),
+    )
+    return ConversationHandler.END
+
+
+async def channel_new_post_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """➕ Post yaratish — shu kanal ALLAQACHON tanlangan holda post oqimi.
+
+    Foydalanuvchidan kanalni QAYTA so'ramaymiz: ``new_post`` oqimining
+    ``GET_CONTENT`` holatiga to'g'ridan-to'g'ri o'tamiz (kanal konteksti
+    ``user_data`` ga yoziladi), ya'ni ortiqcha qadam yo'q.
+    """
+    query = update.callback_query
+    try:
+        await query.answer()
+    except Exception:
+        pass
+    lang = get_lang(context)
+    user_id = query.from_user.id
+    channel_id = (query.data or "").split(":", 1)[1] if ":" in (query.data or "") else ""
+
+    channel = await _owned_channel(user_id, channel_id)
+    if channel is None:
+        await _safe_edit(query, channels_queue_t("cq_ch_not_found", lang),
+                         _empty_channels_keyboard(lang))
+        return ConversationHandler.END
+
+    from handlers.new_post import GET_CONTENT
+
+    title = _channel_title(channel)
+    context.user_data["selected_channel_id"] = str(channel_id)
+    context.user_data["selected_channel_title"] = (channel[1] or "Kanal")
+    try:
+        await query.message.reply_text(
+            channels_queue_t("cq_ch_post_intro", lang, channel=title),
+            reply_markup=get_cancel_keyboard(lang),
+            parse_mode="HTML",
+        )
+    except Exception:  # pragma: no cover
+        logger.debug("Kanal post yo'riqnomasini yuborib bo'lmadi", exc_info=True)
+    return GET_CONTENT
 
 
 async def _send_add_channel_instructions(bot, chat_id: int, lang: str = "uz"):

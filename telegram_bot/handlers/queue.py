@@ -1,4 +1,28 @@
-"""Queue Management UI — navbatdagi postlarni ko'rish, boshqarish, slot sozlamalari."""
+"""📅 REJALASHTIRILGAN — rejalashtirilgan postlarni ko'rish va boshqarish.
+
+PostAssist V2 · 4-mikro qadam. Bo'lim master plan standartiga keltirildi:
+
+  * **NOMLANISH.** Eskirgan texnik nomlar («Postlar navbati», «Navbatdagi
+    postlar», «Очередь постов», «Queued posts») foydalanuvchi ko'radigan
+    BARCHA joyda yagona «📅 Rejalashtirilgan» / «📅 Запланированные» /
+    «📅 Scheduled» nomiga o'tkazildi (``translations/channels_queue.py``).
+    Eski ``queue_*`` lug'at kalitlari, ``btn_queue``/``cab_queue`` yorliqlari
+    va ``qview:``/``qdel:``/``qpush:``/``qpage:`` callback'lari ALIAS sifatida
+    saqlanadi — chat tarixidagi eski tugmalar buzilmaydi.
+
+  * **FORMAT.** Postlar VAQT BO'YICHA tartiblangan (DB ``ORDER BY
+    scheduled_time ASC``) ixcham inline qatorlarda chiqadi::
+
+        1. 🕐 Bugun 18:00 — 📝 Yangi mahsulot chegirmasi | 📢 Mening kanalim
+
+  * **AMALLAR.** Har bir post ostida [✏️ Tahrirlash] · [⏰ Vaqtni o'zgartirish]
+    · [🗑 O'chirish] — uchalasi ham mavjud, sinovdan o'tgan oqimlarni
+    (``p_edit:`` / ``p_time:`` / ``qdel:``) chaqiradi, ya'ni egalik (ownership)
+    tekshiruvi va FSM xavfsizligi o'zgarishsiz qoladi.
+
+Modul slot sozlamalarini (``qslots:``) ham saqlaydi — u avtomatik
+rejalashtirish vaqtlarini belgilaydi va o'z ekranida ishlaydi.
+"""
 import json
 import logging
 from datetime import datetime, timedelta
@@ -9,7 +33,9 @@ from config import ADMIN_IDS_SET
 import database as db
 from keyboards.default import get_main_keyboard, get_cancel_keyboard, is_menu_text
 from keyboards.callback_data import CB_POST_VIEW, cb
+from keyboards.inline import render_scheduled_actions
 from locales.translations import get_lang, get_text, normalize_lang
+from translations import channels_queue_t
 from utils.date_format import format_datetime, format_list_datetime
 from utils.helpers import html_escape
 
@@ -62,12 +88,18 @@ def _content_preview(content: str, max_len: int = 40) -> str:
 
 
 def _format_queue_item(row, index: int, lang: str = "uz") -> str:
-    """Bitta queue postni formatlaydi — sana/vaqt foydalanuvchi tilida.
+    """Bitta REJALASHTIRILGAN postni ixcham inline qatorga formatlaydi.
 
-    Avval ``%d-%b`` ishlatilardi: Python ``strftime`` C-locale oy nomini
-    qaytargani uchun RU/O'Z foydalanuvchi ham "05-Sep" ko'rardi. Endi oy nomi
-    til lug'atidan olinadi va bugun/ertaga sanalari "Bugun 14:00" /
-    "Сегодня 14:00" / "Today 14:00" ko'rinishida chiqadi.
+    Master plan formati (4-mikro qadam)::
+
+        1. 🕐 Bugun 18:00 — 📝 Yangi mahsulot chegirmasi | 📢 Mening kanalim
+
+    Sana/vaqt foydalanuvchi tilida: avval ``%d-%b`` ishlatilardi va Python
+    ``strftime`` C-locale oy nomini qaytargani uchun RU/O'Z foydalanuvchi ham
+    "05-Sep" ko'rardi. Endi oy nomi til lug'atidan olinadi va bugun/ertaga
+    sanalari "Bugun 18:00" / "Сегодня 18:00" / "Today 18:00" ko'rinishida
+    chiqadi. Qator DB'dan ``ORDER BY scheduled_time ASC`` bilan kelgani
+    uchun ro'yxat doim VAQT BO'YICHA tartiblangan.
     """
     post_id, ch_title, post_type, content, sched_time, post_num, ch_id = row
     icon = _post_type_icon(post_type)
@@ -76,20 +108,29 @@ def _format_queue_item(row, index: int, lang: str = "uz") -> str:
         sched_time, lang=normalize_lang(lang), now=datetime.now(tashkent_tz)
     ) or "—"
     ch_display = html_escape(ch_title or ch_id or "?")
-    preview_part = f' "{html_escape(preview)}"' if preview else ""
-    return f"{index}. 🗓 {time_str} | 📢 {ch_display} | {icon}{preview_part}"
+    # Matn qisqartmasi bo'lmasa (sof media post) — tur ikonkasining o'zi
+    # yetarli, chiziqcha "osilib" qolmaydi.
+    body = f"{icon} {html_escape(preview)}" if preview else icon
+    return f"{index}. 🕐 {time_str} — {body} | 📢 {ch_display}"
 
 
 def _get_queue_list_keyboard(posts, offset: int, total: int, lang: str = "uz") -> InlineKeyboardMarkup:
-    """Queue ro'yxati uchun inline keyboard."""
+    """📅 Rejalashtirilgan ro'yxati uchun inline keyboard.
+
+    Har bir post uchun IKKI qator:
+      1. [👁 Ko'rish #id] [⏩ Surish] — mavjud (alias) amallar;
+      2. [✏️ Tahrirlash] [⏰ Vaqtni o'zgartirish] [🗑 O'chirish] — master plan
+         speksidagi 3 ta asosiy amal (``render_scheduled_actions``).
+    """
     rows = []
     for post in posts:
         pid = post[0]
         rows.append([
             InlineKeyboardButton(get_text("queue_btn_view", lang, id=pid), callback_data=cb(CB_POST_VIEW, pid)),
-            InlineKeyboardButton(get_text("queue_btn_delete", lang), callback_data=cb(f"qdel:{pid}")),
             InlineKeyboardButton(get_text("queue_btn_push", lang), callback_data=cb(f"qpush:{pid}")),
         ])
+        # ✏️ Tahrirlash | ⏰ Vaqtni o'zgartirish | 🗑 O'chirish
+        rows.append(render_scheduled_actions(pid, lang))
 
     # Pagination tugmalari
     nav = []
@@ -108,7 +149,14 @@ def _get_queue_list_keyboard(posts, offset: int, total: int, lang: str = "uz") -
 
 
 def _get_post_detail_keyboard(post_id: int, lang: str = "uz") -> InlineKeyboardMarkup:
-    """Bitta postni ko'rish uchun keyboard."""
+    """Bitta rejalashtirilgan postni ko'rish ekrani keyboardi.
+
+    ATAYLAB o'zgarishsiz qoldirildi (``qdel:`` / ``qpush:`` / ``qpage:0``):
+    kartochka ekrani chat tarixidagi eski xabarlarda ham yashaydi. Master
+    plan speksidagi 3 ta amal ([✏️ Tahrirlash] [⏰ Vaqtni o'zgartirish]
+    [🗑 O'chirish]) RO'YXAT ekranida har bir post ostida turadi
+    (:func:`_get_queue_list_keyboard`).
+    """
     return InlineKeyboardMarkup([
         [
             InlineKeyboardButton(get_text("queue_btn_delete", lang), callback_data=cb(f"qdel:{post_id}")),
@@ -152,12 +200,12 @@ async def _build_queue_view(user_id: int, is_admin: bool, lang: str = "uz") -> t
         # noto'g'ri import tufayli tugma bosilganda ImportError chiqar va
         # foydalanuvchi hech qanday javob olmasdi ("qotib qolish").
         from keyboards.inline import get_cabinet_back_keyboard
-        text = get_text("queue_empty", lang)
+        text = channels_queue_t("cq_sch_empty", lang)
         markup = get_cabinet_back_keyboard(lang)
         return text, markup
 
     posts = await db.run_db(db.get_queue_posts, user_id, 0, QUEUE_PAGE_SIZE)
-    text_lines = [get_text("queue_title", lang, count=total) + "\n"]
+    text_lines = [channels_queue_t("cq_sch_title", lang, count=total) + "\n"]
     for i, post in enumerate(posts, 1):
         text_lines.append(_format_queue_item(post, i, lang))
     text = "\n".join(text_lines)
@@ -177,8 +225,45 @@ async def _build_queue_view(user_id: int, is_admin: bool, lang: str = "uz") -> t
     return text, keyboard
 
 
+async def build_channel_scheduled_view(user_id: int, channel_id, channel_title: str,
+                                       lang: str = "uz") -> tuple:
+    """📢 Kanal ichidagi «📅 Rejalashtirilgan» ekrani (matn + markup).
+
+    ``handlers/channels.py:channel_scheduled_callback`` shu funksiyani
+    chaqiradi. Ro'yxat umumiy bo'lim bilan AYNAN bir xil formatda chiziladi
+    (``_format_queue_item`` — vaqt bo'yicha tartiblangan, "🕐 Bugun 18:00 —
+    [Matn qisqartmasi]"), lekin FAQAT shu kanalning postlari ko'rsatiladi va
+    ostida [◀️ Orqaga] kanal boshqaruv ekraniga qaytaradi — asosiy menyuga
+    chiqib ketilmaydi.
+    """
+    from keyboards.inline import render_channel_panel
+    from translations import channels_queue_t as _t
+
+    target = str(channel_id)
+    # Barcha pending postlar (DB'dan vaqt bo'yicha tartiblangan holda keladi)
+    # ichidan shu kanalnikini ajratamiz — qo'shimcha DB so'rovi kerak emas.
+    total_all = await db.run_db(db.get_queue_post_count, user_id)
+    rows = await db.run_db(db.get_queue_posts, user_id, 0, max(int(total_all or 0), 1))
+    posts = [r for r in (rows or []) if str(r[6]) == target][:QUEUE_PAGE_SIZE]
+
+    if not posts:
+        text = _t("cq_sch_channel_empty", lang, channel=channel_title)
+        markup = render_channel_panel(target, lang)
+        return text, markup
+
+    text_lines = [_t("cq_sch_channel_title", lang, channel=channel_title,
+                     count=len(posts)) + "\n"]
+    keyboard = []
+    for i, post in enumerate(posts, 1):
+        text_lines.append(_format_queue_item(post, i, lang))
+        keyboard.append(render_scheduled_actions(post[0], lang))
+    keyboard.append([InlineKeyboardButton(
+        _t("cq_ch_btn_back", lang), callback_data=cb("ch_op:", target))])
+    return "\n".join(text_lines), InlineKeyboardMarkup(keyboard)
+
+
 async def queue_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Queue ro'yxatini ko'rsatadi."""
+    """📅 Rejalashtirilgan postlar ro'yxatini ko'rsatadi."""
     user_id = update.effective_user.id
     is_admin = (user_id in ADMIN_IDS_SET)
     text, markup = await _build_queue_view(user_id, is_admin, get_lang(context))
@@ -198,7 +283,7 @@ async def queue_page_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
     if total == 0:
         try:
             await query.edit_message_text(
-                get_text("queue_empty_short", lang),
+                channels_queue_t("cq_sch_empty", lang),
                 reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(
                     get_text("queue_btn_close", lang), callback_data="qclose")]]),
                 parse_mode="HTML",
@@ -208,7 +293,7 @@ async def queue_page_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
         return QUEUE_MENU
 
     posts = await db.run_db(db.get_queue_posts, user_id, offset, QUEUE_PAGE_SIZE)
-    text_lines = [get_text("queue_title_range", lang, count=total,
+    text_lines = [channels_queue_t("cq_sch_title_range", lang, count=total,
                            start=offset + 1,
                            end=min(offset + QUEUE_PAGE_SIZE, total)) + "\n"]
     for i, post in enumerate(posts, offset + 1):
@@ -234,7 +319,7 @@ async def queue_view_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
     post = await db.run_db(db.get_queue_post_detail, post_id, user_id)
     if not post:
         try:
-            await query.edit_message_text(get_text("queue_not_found", lang))
+            await query.edit_message_text(channels_queue_t("cq_sch_not_found", lang))
         except Exception:
             pass
         return QUEUE_MENU
@@ -276,7 +361,7 @@ async def queue_delete_callback(update: Update, context: ContextTypes.DEFAULT_TY
     """Postni navbatdan o'chirish."""
     query = update.callback_query
     lang = get_lang(context)
-    await query.answer(get_text("queue_deleted_alert", lang))
+    await query.answer(channels_queue_t("cq_sch_deleted_alert", lang))
     user_id = query.from_user.id
     post_id = int(query.data.split(":")[1])
 
@@ -287,7 +372,7 @@ async def queue_delete_callback(update: Update, context: ContextTypes.DEFAULT_TY
     if total == 0:
         try:
             await query.edit_message_text(
-                get_text("queue_empty", lang),
+                channels_queue_t("cq_sch_empty", lang),
                 reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(
                     get_text("queue_btn_close", lang), callback_data="qclose")]]),
                 parse_mode="HTML",
@@ -297,7 +382,7 @@ async def queue_delete_callback(update: Update, context: ContextTypes.DEFAULT_TY
         return QUEUE_MENU
 
     posts = await db.run_db(db.get_queue_posts, user_id, 0, QUEUE_PAGE_SIZE)
-    text_lines = [get_text("queue_title", lang, count=total) + "\n"]
+    text_lines = [channels_queue_t("cq_sch_title", lang, count=total) + "\n"]
     for i, post in enumerate(posts, 1):
         text_lines.append(_format_queue_item(post, i, lang))
     text = "\n".join(text_lines)
@@ -328,7 +413,7 @@ async def queue_push_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
     if not post:
         try:
             await query.message.reply_text(
-                get_text("queue_not_found_short", lang), parse_mode="HTML")
+                channels_queue_t("cq_sch_not_found", lang), parse_mode="HTML")
         except Exception:
             pass
         return QUEUE_MENU
@@ -366,7 +451,7 @@ async def queue_push_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
     # Ro'yxatni yangilash (surilgan vaqt ro'yxatda ko'rinadi — natija shu orqali bildiriladi)
     total = await db.run_db(db.get_queue_post_count, user_id)
     posts = await db.run_db(db.get_queue_posts, user_id, 0, QUEUE_PAGE_SIZE)
-    text_lines = [get_text("queue_title", lang, count=total) + "\n"]
+    text_lines = [channels_queue_t("cq_sch_title", lang, count=total) + "\n"]
     for i, p in enumerate(posts, 1):
         text_lines.append(_format_queue_item(p, i, lang))
     text = "\n".join(text_lines)
@@ -419,6 +504,7 @@ async def queue_slots_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         return SLOT_ADD
 
     if action == "rm":
+        # Bu SLOT o'chirish (post emas) — eski toast o'z joyida qoladi.
         await query.answer(get_text("queue_deleted_alert", lang))
         idx = int(parts[2])
         slots = await db.run_db(db.get_queue_slots, user_id)

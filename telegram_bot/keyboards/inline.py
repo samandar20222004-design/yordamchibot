@@ -6,9 +6,17 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from locales.translations import get_text
 from keyboards.callback_data import (  # noqa: F401 — re-export (eski importlar uchun)
     CALLBACK_DATA_MAX_BYTES,
+    CB_CHANNEL_BACK,
     CB_CHANNEL_DELETE,
+    CB_CHANNEL_NEW_POST,
+    CB_CHANNEL_OPEN,
+    CB_CHANNEL_SCHEDULED,
     CB_CHANNEL_SETTINGS,
+    CB_CHANNEL_STATS,
     CB_CHANNEL_VOICE,
+    CB_SCHED_DELETE,
+    CB_SCHED_EDIT,
+    CB_SCHED_TIME,
     CB_POST_BTN,
     CB_POST_CANCEL,
     CB_POST_EDIT,
@@ -508,6 +516,116 @@ def render_channels_list(channels: list, lang: str = "uz") -> InlineKeyboardMark
     keyboard.append([InlineKeyboardButton(get_text("cab_add_channel_alt", lang), callback_data="add_channel_start")])
     keyboard.append([InlineKeyboardButton(get_text("cab_close", lang), callback_data="close_msg")])
     return InlineKeyboardMarkup(keyboard)
+
+
+# ============================================================
+# 📢 KANALLARIM — MASTER PLAN STANDARTI (PostAssist V2, 4-qadam)
+# ============================================================
+# Eski ``render_channels_list`` ATAYLAB o'z joyida qoldirildi: kabinet
+# («👤 Sozlamalar» → kanallar) ekrani va chat tarixidagi eski xabarlar shu
+# klaviatura bilan ishlaydi (``ch_del:`` / ``ch_set:`` / ``ch_voice:``
+# callback'lari buzilmasin). Yangi «📢 Kanallarim» bo'limi esa quyidagi
+# ikki funksiyani ishlatadi.
+
+
+def render_my_channels_list(channels: list, lang: str = "uz") -> InlineKeyboardMarkup:
+    """📢 Kanallarim — ulangan kanallar RO'YXATI + [➕ Kanal qo'shish].
+
+    Har bir kanal BITTA tugma: bosilganda ``ch_op:<channel_id>`` orqali
+    o'sha kanalning boshqaruv ekrani ochiladi (ro'yxatda boshqa hech qanday
+    amal tugmasi yo'q — "bir ekran, bir maqsad" qoidasi).
+    """
+    from translations import channels_queue_t
+
+    keyboard = []
+    for ch in channels:
+        ch_id, ch_title = (list(ch) + [None, None])[:2]
+        keyboard.append([InlineKeyboardButton(
+            f"📢 {btn_label(ch_title)}",
+            callback_data=cb(CB_CHANNEL_OPEN, ch_id),
+        )])
+    keyboard.append([InlineKeyboardButton(
+        channels_queue_t("cq_ch_add_btn", lang), callback_data="add_channel_start")])
+    keyboard.append([InlineKeyboardButton(
+        channels_queue_t("cq_ch_close_btn", lang), callback_data="close_msg")])
+    return InlineKeyboardMarkup(keyboard)
+
+
+def render_channel_panel(channel_id, lang: str = "uz") -> InlineKeyboardMarkup:
+    """📢 Kanal boshqaruv ekrani — master plan speksidagi QAT'IY layout::
+
+        [➕ Post yaratish]
+        [📅 Rejalashtirilgan]   [📊 Statistika]
+        [⚙️ Kanal sozlamalari]  [◀️ Orqaga]
+
+    Barcha tugmalar kanal KONTEKSTINI (``channel_id``) olib yuradi, shuning
+    uchun ichki amallar asosiy menyuga chiqib ketmaydi; [◀️ Orqaga] esa
+    kanallar ro'yxatiga qaytaradi (``ch_back``).
+    """
+    from translations import channels_queue_t
+
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton(channels_queue_t("cq_ch_btn_create_post", lang),
+                              callback_data=cb(CB_CHANNEL_NEW_POST, channel_id))],
+        [
+            InlineKeyboardButton(channels_queue_t("cq_ch_btn_scheduled", lang),
+                                 callback_data=cb(CB_CHANNEL_SCHEDULED, channel_id)),
+            InlineKeyboardButton(channels_queue_t("cq_ch_btn_stats", lang),
+                                 callback_data=cb(CB_CHANNEL_STATS, channel_id)),
+        ],
+        [
+            InlineKeyboardButton(channels_queue_t("cq_ch_btn_settings", lang),
+                                 callback_data=cb(CB_CHANNEL_SETTINGS, channel_id)),
+            InlineKeyboardButton(channels_queue_t("cq_ch_btn_back", lang),
+                                 callback_data=CB_CHANNEL_BACK),
+        ],
+    ])
+
+
+def render_channel_settings(channel_id, lang: str = "uz") -> InlineKeyboardMarkup:
+    """⚙️ Kanal sozlamalari — uslub, AI ovoz tahlili, uzish + [◀️ Orqaga].
+
+    Mavjud, sinovdan o'tgan amallarni QAYTA ISHLATADI: ``ch_set:`` (uslub),
+    ``ch_voice:`` (AI tahlil) va ``ch_del:`` (kanalni uzish) — yangi oqim
+    yozilmaydi, faqat ular kanal konteksti ichiga ko'chiriladi.
+    """
+    from translations import channels_queue_t
+
+    return InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton(channels_queue_t("cq_ch_btn_tone", lang),
+                                 callback_data=cb(CB_CHANNEL_SETTINGS, channel_id)),
+            InlineKeyboardButton(channels_queue_t("cq_ch_btn_voice", lang),
+                                 callback_data=cb(CB_CHANNEL_VOICE, channel_id)),
+        ],
+        [InlineKeyboardButton(channels_queue_t("cq_ch_btn_delete", lang),
+                              callback_data=cb(CB_CHANNEL_DELETE, channel_id))],
+        [InlineKeyboardButton(channels_queue_t("cq_ch_btn_back", lang),
+                              callback_data=cb(CB_CHANNEL_OPEN, channel_id))],
+    ])
+
+
+# ============================================================
+# 📅 REJALASHTIRILGAN — post kartochkasi amallari (4-qadam)
+# ============================================================
+def render_scheduled_actions(post_id, lang: str = "uz") -> list:
+    """Bitta rejalashtirilgan post ostidagi 3 ta amal (bitta tugma qatori).
+
+    [✏️ Tahrirlash] [⏰ Vaqtni o'zgartirish] [🗑 O'chirish] — mavjud,
+    xavfsiz oqimlarni (``p_edit:`` / ``p_time:`` / ``qdel:``) chaqiradi.
+    Ro'yxat klaviaturasiga qator sifatida qo'shish uchun LIST qaytaradi.
+    """
+    from translations import channels_queue_t
+
+    return [
+        InlineKeyboardButton(channels_queue_t("cq_sch_btn_edit", lang),
+                             callback_data=cb(CB_SCHED_EDIT, post_id)),
+        InlineKeyboardButton(channels_queue_t("cq_sch_btn_time", lang),
+                             callback_data=cb(CB_SCHED_TIME, post_id)),
+        InlineKeyboardButton(channels_queue_t("cq_sch_btn_delete", lang),
+                             callback_data=cb(CB_SCHED_DELETE, post_id)),
+    ]
+
 
 def render_pending_list(posts: list, user_code: str, lang: str = "uz") -> InlineKeyboardMarkup:
     """Kutilayotgan postlar ro'yxati tugmalari (uz/ru).
