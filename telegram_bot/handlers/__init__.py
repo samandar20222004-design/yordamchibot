@@ -53,6 +53,14 @@ from keyboards.default import (
     BTN_IMAGE_POST, BTN_IMAGE_POST_RU, BTN_IMAGE_POST_EN,
     # ✨ MAGIC POST — killer feature tugmasi (uz/ru/en)
     BTN_MAGIC_POST, BTN_MAGIC_POST_RU, BTN_MAGIC_POST_EN,
+    # 🧩 KONTENT YARATISH submenu'sining yangi yo'l tugmalari (uz/ru/en).
+    # «✨ Magic Post» va «📸 Rasm → Post» esa yuqoridagi killer-featura
+    # konstantalari bilan BITTA yorliqni ishlatadi — shu sababli bu yerda
+    # takrorlanmaydi (bir yorliq — bitta amal = aniq routing).
+    BTN_CONTENT_TEXT, BTN_CONTENT_TEXT_RU, BTN_CONTENT_TEXT_EN,
+    BTN_CONTENT_VOICE, BTN_CONTENT_VOICE_RU, BTN_CONTENT_VOICE_EN,
+    BTN_CONTENT_AI, BTN_CONTENT_AI_RU, BTN_CONTENT_AI_EN,
+    BTN_CONTENT_BACK, BTN_CONTENT_BACK_RU, BTN_CONTENT_BACK_EN,
     BTN_POST_SCORE, BTN_POST_SCORE_RU, BTN_POST_SCORE_EN,
 )
 from locales.translations import clear_fsm_data, get_lang, get_text
@@ -138,7 +146,7 @@ from handlers.admin import (
 # 7. AI ASSISTANT + AI STUDIO MODULI (ENG OXIRIDA)
 from handlers.ai_assistant import (
     start_ai_assistant, ai_input_received, ai_confirm_callback, ai_time_received,
-    ai_studio_menu_entry, ai_studio_nav_callback, ai_prompt_received,
+    ai_studio_menu_entry, ai_studio_hub_entry, ai_studio_nav_callback, ai_prompt_received,
     ai_tone_callback, ai_studio_schedule_callback, ai_audit_received,
     ai_back_to_menu, ai_close,
     ai_photo_received, ai_photo_result_callback, ai_photo_edit_received,
@@ -166,9 +174,11 @@ from handlers.voice_post import (
     voice_message_received, voice_style_callback, voice_cancel_callback,
     voice_send_now_callback, voice_channel_picked_callback,
     voice_schedule_callback, voice_restyle_callback, voice_stale_callback,
+    voice_post_entry,
     set_application as set_voice_application,
     VoiceEntryHandler,
-    VOICE_MESSAGE_FILTER, VOICE_STYLE_SELECT, VOICE_RESULT, VOICE_SEND_CHOOSE,
+    VOICE_MESSAGE_FILTER, VOICE_AWAIT, VOICE_STYLE_SELECT, VOICE_RESULT,
+    VOICE_SEND_CHOOSE,
 )
 
 # 2e. 📸 IMAGE → POST (Killer Feature #3)
@@ -195,6 +205,15 @@ from handlers.post_score import (
     post_score_improve_callback, post_score_new_callback,
     post_score_send_callback, post_score_channel_picked_callback,
     post_score_schedule_callback, post_score_stale_callback,
+)
+
+# 2g. 🧩 KONTENT YARATISH — submenu navigatsiyasi + ACTION-FIRST taklif
+# (PostAssist V2). Modul Magic Post oqimiga tayanadi — shu sababli yuqoridagi
+# killer-featura importlaridan KEYIN turadi.
+from handlers.content_creation import (
+    ContentOfferEntryHandler,
+    content_creation_back, content_offer_callback,
+    set_application as set_content_creation_application,
 )
 
 # 8. CONTENT PLAN MODULI
@@ -564,6 +583,9 @@ async def unknown_message_fallback(update, context):
       ``unknown_message_fallback`` va ASOSIY reply-menyu yuboriladi.
       (🎙 Ovozli xabar/audio endi bu yerga tushmaydi — ular ``VoiceEntryHandler``
       orqali VOICE → POST STT oqimini boshlaydi: ``handlers/voice_post.py``.)
+    * Xom matn post yaratishga yetarli bo'lsa (uzun va so'zlar soni yetarli) —
+      ``handlers/content_creation.py`` dagi «✨ Magic Post» taklifi ko'rsatiladi
+      (ACTION-FIRST), aks holda oddiy yo'riqnomaviy javob qaytariladi.
     * Dialog ICHIDA bo'lsa-yu, joriy bosqich bu xabar turini qabul qilmasa —
       qisqa ``unknown_in_dialog`` eslatmasi (klaviatura o'zgartirilmaydi,
       dialog buzilmaydi). Bu ovozli xabarlarga ham taalluqli: VoiceEntryHandler
@@ -594,11 +616,19 @@ async def unknown_message_fallback(update, context):
         else:
             from keyboards.default import get_main_keyboard
             is_admin = user_id in ADMIN_IDS_SET
-            await msg.reply_text(
-                get_text("unknown_message_fallback", lang),
-                reply_markup=get_main_keyboard(is_admin, lang=lang),
-                parse_mode="HTML",
-            )
+            # 🧩 PostAssist V2 · 3-mikro qadam (ACTION-FIRST): foydalanuvchi
+            # menyu tashqarisida JO'N matn (post uchun yetarli material) yozsa
+            # — avval «✨ Magic Post» taklifi beriladi. Matn saqlanadi va
+            # taklif bosilganda to'g'ridan-to'g'ri uslub tanlash ekrani ochiladi.
+            # Qisqa/tushunarsiz xabarlar ("???", "/buyruq") uchun esa eski
+            # xushmuomala javob + asosiy menyu O'Z KUCHIDA qoladi.
+            from handlers.content_creation import offer_magic_post_for_direct_text
+            if not await offer_magic_post_for_direct_text(msg, context, user_id, lang):
+                await msg.reply_text(
+                    get_text("unknown_message_fallback", lang),
+                    reply_markup=get_main_keyboard(is_admin, lang=lang),
+                    parse_mode="HTML",
+                )
     except Exception:
         logger.debug("unknown_message_fallback: javob yuborib bo'lmadi", exc_info=True)
     return None
@@ -639,6 +669,8 @@ def register_all_handlers(app):
     # tekshirishi uchun Application havolasi.
     set_voice_application(app)
     set_image_application(app)
+    # 🧩 «cc_» taklif tugmalari ham faol dialogni buzmasligi uchun app kerak.
+    set_content_creation_application(app)
     # ============================================================
     # QAT'IY NAVIGATSIYA HANDLERLARI RO'YXATI
     # ============================================================
@@ -768,6 +800,28 @@ def register_all_handlers(app):
                        lambda u, c: guard_entry(u, c, ai_studio_menu_entry)),
     ]
 
+    # 7c. 🧩 KONTENT YARATISH submenu'sining yangi yo'llari (PostAssist V2).
+    # Submenu'ning o'zi «✨ Kontent yaratish» / «✨ AI Studio» tugmasi orqali
+    # ochiladi (ai_handlers'dagi yuqoridagi qator). Bu yerda faqat submenu'ning
+    # 4 TA YANGI yorligi ro'yxatdan o'tadi: ✨ Magic Post va 📸 Rasm → Post
+    # tugmalari allaqachon mavjud bo'limlarning o'z yorliqlari bilan bir xil —
+    # ular magic_handlers / image_post_handlers qatorlariga tushadi.
+    content_creation_handlers = [
+        # 📝 Matn → Post — tayyor matnni oddiy (manual) post sifatida chiqarish.
+        MessageHandler(exact(BTN_CONTENT_TEXT, BTN_CONTENT_TEXT_RU, BTN_CONTENT_TEXT_EN),
+                       lambda u, c: guard_entry(u, c, start_new_post)),
+        # 🎙 Ovoz → Post — «ovozli xabar (1 daqiqa ichida)» yo'riqnomasi + STT.
+        MessageHandler(exact(BTN_CONTENT_VOICE, BTN_CONTENT_VOICE_RU, BTN_CONTENT_VOICE_EN),
+                       lambda u, c: guard_entry(u, c, voice_post_entry)),
+        # 🤖 AI Yordamchi — AI Studio bo'limi (matn yozish, qayta yozish,
+        # tarjima va g'oya vositalari).
+        MessageHandler(exact(BTN_CONTENT_AI, BTN_CONTENT_AI_RU, BTN_CONTENT_AI_EN),
+                       lambda u, c: guard_entry(u, c, ai_studio_hub_entry)),
+        # ◀️ Orqaga — asosiy 6 tugmali menyuga qaytish (submenu yopiladi).
+        MessageHandler(exact(BTN_CONTENT_BACK, BTN_CONTENT_BACK_RU, BTN_CONTENT_BACK_EN),
+                       lambda u, c: guard_menu(u, c, content_creation_back)),
+    ]
+
     # 7d. ✨ MAGIC POST — asosiy menyudagi killer feature tugmasi
     # ("✨ Magic Post" brend-nomi uchala tilda bir xil, lekin uchala til
     # konstantasi ham routing'da aniq tanilishi uchun beriladi).
@@ -840,6 +894,7 @@ def register_all_handlers(app):
         converter_handlers +
         admin_handlers +
         ai_handlers +
+        content_creation_handlers +
         magic_handlers +
         image_post_handlers +
         post_score_handlers +
@@ -865,6 +920,12 @@ def register_all_handlers(app):
             # Conversation ichidagi new-post/photo-check holatlari o'zining
             # state handlerlari bilan ustun turadi — legacy oqimlar buzilmaydi.
             ImageEntryHandler(filters.PHOTO & filters.ChatType.PRIVATE, image_photo_received),
+            # 🧩 ACTION-FIRST (PostAssist V2, 3-qadam): menyu tashqarisida yozilgan
+            # xom matn uchun yuboriladigan «✨ Magic Post» taklifining tugmalari.
+            # ContentOfferEntryHandler dialog ICHIDA mos KELMAYDI — faol suhbat
+            # holati buzilmaydi; tugma «o'lik» holatda bossa esa oddiy
+            # yo'riqnoma ekrani qaytariladi (eski sessiya toast'i chiqmaydi).
+            ContentOfferEntryHandler(content_offer_callback, pattern=r"^cc_"),
             CallbackQueryHandler(edit_post_time_start, pattern=r"^p_time:"),
             CallbackQueryHandler(edit_post_content_start, pattern=r"^p_edit:"),
             CallbackQueryHandler(edit_post_btn_start, pattern=r"^p_btn:"),
@@ -1171,6 +1232,14 @@ def register_all_handlers(app):
             MAGIC_SEND_CHOOSE: all_menu_jumps + [
                 CallbackQueryHandler(magic_channel_picked_callback, pattern=r"^mp_ch"),
                 CallbackQueryHandler(magic_restyle_callback, pattern=r"^mp_restyle$"),
+            ],
+
+            # 7e-0. 🧩 «🎙 Ovoz → Post» bo'limi: ovozli xabar kutiladi.
+            # Ovoz kelishi bilan STT oqimi boshlanadi — menyu tashqarisidagi
+            # VoiceEntryHandler bilan BITTA handler (voice_message_received),
+            # ya'ni ikki kirish yo'li ham bir xil oqimga olib kiradi.
+            VOICE_AWAIT: all_menu_jumps + [
+                MessageHandler(VOICE_MESSAGE_FILTER, voice_message_received),
             ],
 
             # 7e. 🎙 VOICE → POST holatlari (Killer Feature — resurs-tejamkor)

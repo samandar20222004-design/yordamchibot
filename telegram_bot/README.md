@@ -366,7 +366,7 @@ Asosiy reply-menyuda **faqat va faqat** 6 ta tugma chiziladi (UZ/RU/EN paritetda
 
 | # | UZ | RU | EN | Bo'lim |
 |---|----|----|----|--------|
-| 1 | ✨ Kontent yaratish | ✨ Создать контент | ✨ Create content | AI Studio (kontent markazi) |
+| 1 | ✨ Kontent yaratish | ✨ Создать контент | ✨ Create content | 🧩 Kontent yaratish **ichki menyusi** (5 yo'l + ◀️ Orqaga) |
 | 2 | 📢 Kanallarim | 📢 Мои каналы | 📢 My channels | Kanallar ro'yxati |
 | 3 | 📅 Rejalashtirilgan | 📅 Запланированные | 📅 Scheduled | Queue (navbat) |
 | 4 | 📊 Statistika | 📊 Статистика | 📊 Statistics | Admin → bot statistikasi; oddiy foydalanuvchi → o'z analitikasi |
@@ -386,6 +386,44 @@ Asosiy reply-menyuda **faqat va faqat** 6 ta tugma chiziladi (UZ/RU/EN paritetda
   + va'da) + ushbu 6-tugma menyu; 3 tilda sinxron.
 - `keyboards/default.get_main_keyboard()` — yagona quruvchi;
   regression testlari: `tests/ux_v2_main_menu_test.py`.
+
+#### 🧩 Kontent yaratish — ichki menyu (5 yo'l) va ACTION-FIRST (PostAssist V2)
+
+`✨ Kontent yaratish` (meros `✨ AI Studio` yorlig'i ham) tugmasi **ichki
+menyu**ni ochadi — 5 ta yaratish yo'li + ◀️ Orqaga, uchala tilda sinxron
+(`keyboards/default.get_content_creation_keyboard`, yorliqlar
+`translations/content_menu.py` — `cm_btn_*`):
+
+| Qator | Tugma (UZ) | Tugma (RU) | Tugma (EN) | Oqim (handler) |
+|---|---|---|---|---|
+| 1 | ✨ Magic Post | ✨ Magic Post | ✨ Magic Post | `magic_post.magic_post_entry` → `MAGIC_INPUT` |
+| 1 | 📝 Matn → Post | 📝 Текст → Пост | 📝 Text → Post | `new_post.start_new_post` (kanal tanlash) |
+| 2 | 📸 Rasm → Post | 📸 Фото → Пост | 📸 Image → Post | `image_post.image_post_entry` → `IMAGE_POST_INPUT` (Vision) |
+| 2 | 🎙 Ovoz → Post | 🎙 Голос → Пост | 🎙 Voice → Post | `voice_post.voice_post_entry` → `VOICE_AWAIT` (STT) |
+| 3 | 🤖 AI Yordamchi | 🤖 AI-помощник | 🤖 AI Assistant | `ai_assistant.ai_studio_hub_entry` → `AI_MENU_STATE` |
+| 4 | ◀️ Orqaga | ◀️ Назад | ◀️ Back | `content_creation.content_creation_back` → asosiy 6 tugma |
+
+- **✨ Magic Post** va **📸 Rasm → Post** tugmalari killer featuralarning o'z
+  yorliqlari bilan **bitta manba**dan chiziladi (`cm_btn_magic ==
+  BTN_MAGIC_POST_*`, `cm_btn_image == BTN_IMAGE_POST_*`) — bir yorliq, bitta
+  amal, shu sababli eski `✨ Magic Post` / `📸 Rasm → Post` tugmalari ham avvalgidek
+  ishlaydi.
+- **🎙 Ovoz → Post** yo'riqnomasi aniq talabni beradi: «Iltimos, g'oyangizni
+  ovozli xabar (1 daqiqa ichida) qilib yuboring» (`vp_intro`, uz/ru/en).
+- Submenu **FSM holatini ochmaydi** (`ConversationHandler.END`), shu sababli
+  ACTION-FIRST xulq buzilmaydi.
+- **ACTION-FIRST (menyu tashqarisida):** ovozli xabar → `VoiceEntryHandler`
+  STT oqimini darhol boshlaydi; rasm → `ImageEntryHandler` Vision oqimini
+  boshlaydi; **xom matn** (postga yetarli uzunlikda) yozilsa —
+  `unknown_message_fallback` o'rniga «✨ Magic Post» **taklifi** yuboriladi
+  (`cc_magic` / `cc_menu` inline tugmalari). Taklif bosilganda matn yo'qolmaydi:
+  to'g'ridan-to'g'ri uslub tanlash ekrani (`MAGIC_STYLE_SELECT`) ochiladi.
+  Qisqa/tushunarsiz matnlar (`???`, `/buyruq`) uchun eski xushmuomala javob +
+  asosiy menyu o'z kuchida.
+- `cc_` tugmalari `ContentOfferEntryHandler` orqali ro'yxatdan o'tadi: **faol
+  dialog ichida mos kelmaydi** — to'lov/kanal/new-post suhbatlari buzilmaydi.
+- Regression testlari: `tests/content_creation_menu_test.py`
+  (`bash tests/run_tests.sh` — 3e bosqichi).
 
 ### 📸 IMAGE → POST (Killer Feature #3)
 

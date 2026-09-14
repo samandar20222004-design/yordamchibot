@@ -9,6 +9,9 @@ import database as db
 from keyboards.default import (
     BTN_BACK, BTN_MAIN_MENU,
     get_cancel_keyboard, get_main_keyboard, get_ai_time_keyboard,
+    # 🧩 KONTENT YARATISH submenu'si (PostAssist V2) — yorliqlar va
+    # MENU_TEXTS registry bilan bir xil manbadan chiziladi.
+    get_content_creation_keyboard,
     # Uch tilli tugma registry: "⚡ 5 minutes" / "🔁 Daily (same time)" kabi
     # EN/RU yorliqlari ham shu yerdan taniladi.
     is_menu_text,
@@ -28,6 +31,8 @@ from utils.ai_agent import (
     _AUDIT_PRO_SYSTEM, _AUDIT_FREE_SYSTEM,
     _PRO_POST_ENHANCEMENT, _FREE_POST_HINT,
 )
+# 🧩 Kontent yaratish bo'limi matnlari (uz/ru/en, paritet auditlangan).
+from translations import content_menu_t
 from locales.translations import (
     clear_fsm_data, get_lang, safe_t, localize_service_error,
 )
@@ -928,11 +933,53 @@ def _studio_preview_text(post_text: str, tone: str, file_id=None, lang: str = "u
 
 
 async def ai_studio_menu_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """✨ AI Studio — asosiy menyu (message entry). AI_MENU_STATE holatida qoladi."""
+    """🧩 KONTENT YARATISH — asosiy menyudagi ICHKI MENYU (message entry).
+
+    PostAssist V2 · 1-2 qadamlar: «✨ Kontent yaratish» (va meros «✨ AI
+    Studio») tugmasi endi 5 ta yaratish yo'lini ochadi::
+
+        [✨ Magic Post]   [📝 Matn → Post]
+        [📸 Rasm → Post]  [🎙 Ovoz → Post]
+                [🤖 AI Yordamchi]
+                    [◀️ Orqaga]
+
+    SUBMENU FSM HOLATINI OCHMAYDI (``ConversationHandler.END``) — ataylab:
+    shunda «action-first» xulq saqlanadi, ya'ni foydalanuvchi submenu'ni
+    ochgach ham darhol rasm (📸 Image → Post oqimi), ovozli xabar (🎙 Voice →
+    Post STT oqimi) yoki matn (✨ Magic Post taklifi) yubora oladi va uni
+    hech qanday dialog holati to'sib qo'ymaydi. Har bir tugma esa o'z
+    killer-featura oqimiga tushadi (``handlers/magic_post.py``,
+    ``new_post``, ``image_post.py``, ``voice_post.py``).
+    """
+    msg = getattr(update, "message", None)
+    if msg is None:
+        return ConversationHandler.END
+    lang = get_lang(context)
+    await msg.reply_text(
+        content_menu_t("cm_menu_intro", lang),
+        reply_markup=get_content_creation_keyboard(lang),
+        parse_mode="HTML",
+    )
+    return ConversationHandler.END
+
+
+async def ai_studio_hub_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """🤖 AI Yordamchi — AI Studio vositalari bo'limi (message entry).
+
+    «✨ Kontent yaratish» submenu'idagi 🤖 tugmasi shu bo'limni ochadi:
+    matn yozish, qayta yozish (audit), tarjima va g'oya (kontent-reja)
+    vositalari + mavjud AI ballari ko'rsatkichi. AI_MENU_STATE holatida
+    qoladi — shu holatda rasm yuborilsa Vision oqimi darhol ishlaydi.
+    """
+    msg = getattr(update, "message", None)
+    if msg is None:
+        return ConversationHandler.END
     lang = get_lang(context)
     user_id = update.effective_user.id
-    await update.message.reply_text(
-        await _studio_menu_text(user_id, lang),
+    await msg.reply_text(
+        await _studio_menu_text(user_id, lang)
+        + "\n\n"
+        + content_menu_t("cm_ai_hint", lang),
         reply_markup=get_ai_studio_keyboard(lang),
         parse_mode="HTML",
     )

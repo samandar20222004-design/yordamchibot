@@ -47,6 +47,10 @@ def main():
         "translations.magic_post",
         "translations.voice_post",
         "translations.post_score",
+        # 🧩 KONTENT YARATISH submenu (PostAssist V2) — yangi modullar
+        "translations.content_menu",
+        "keyboards.reply",
+        "handlers.content_creation",
         "utils.helpers",
         "utils.converter",
         "utils.ai_agent",
