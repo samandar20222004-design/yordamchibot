@@ -27,6 +27,10 @@
 #   3j) ⚙️ POSTASSIST V2 3-QADAM REFAKTORI — sozlamalar menyusi (legacy
 #       dublikatlarsiz, 12 tugma) + 🧰 Vositalar submenyusi (Konvertor va
 #       Post Enhancer) (tests/refactor_step3_test.py)
+#   3l) 🏁 YAKUNIY ACCEPTANCE SUITE — TEST A..AF (32 ta qat'iy tekshiruv):
+#       6-tugma menyu, submenu pariteti, navigatsiya stacki, statistika
+#       izolyatsiyasi, dublikat yo'qligi, RBAC tampering himoyasi va i18n
+#       sinxroni (tests/final_acceptance_suite_test.py)
 #   4) TO'LIQ regressiya: telegram_bot/tests/run_tests.sh (barcha 30+ test fayli)
 #
 # Har qanday xatoda 1 bilan chiqadi (CI uchun).
@@ -199,6 +203,22 @@ echo "===== 3k) 🧭 4-QADAM REFAKTORI: NAVIGATSIYA STACKI + ADMIN DASHBOARD ===
 #     callback'lar 64-bayt chegarasida
 #     (tests/refactor_step4_test.py).
 "$PY" tests/refactor_step4_test.py || EXIT_CODE=1
+
+echo
+echo "===== 3l) 🏁 YAKUNIY ACCEPTANCE SUITE (TEST A..AF — 32 TEKSHIRUV) ====="
+# Loyihadagi BARCHA majburiy tekshiruvlar bitta qabul yuzasida:
+# (A..D) asosiy menyu QAT'IY 6 tugma UZ/RU/EN; (E..G) Kontent va AI Studio
+# submenu pariteti (in_sync: True); (H..J) Kanallarim + Rejalashtirilgan
+# navigatsiyasi; (K..N) 📊 Statistika — FAQAT shaxsiy hisobot (ADMIN
+# STATISTIKASI IZOLYATSIYASI), ⚙️ Sozlamalar 12+Orqaga, 💎 PRO, 🧰 Vositalar;
+# (O) ko'rinadigan menyularda dublikat yo'q; (P..S) har bir tugma ishchi
+# handler/callback'ga ega (uchala tilda); (T..V) Back/Cancel/Exit stacki;
+# (W..X) eski tugma va callback'lar (backward compatibility); (Y) FSM
+# holatlari konfliktsiz; (Z..AB) ACTION-FIRST rasm/ovoz/uzun matn;
+# (AC..AD) Admin panel oddiy foydalanuvchiga 100% yopiq + server-side RBAC
+# tampering himoyasi; (AE..AF) barcha matnlar i18n orqali va 3 tilda 100%
+# sinxron (tests/final_acceptance_suite_test.py).
+"$PY" tests/final_acceptance_suite_test.py || EXIT_CODE=1
 
 echo
 echo "======== 4) TO'LIQ REGRESSIYA (telegram_bot/tests) ========"
