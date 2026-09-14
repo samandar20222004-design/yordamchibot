@@ -687,8 +687,9 @@ ADMIN_STATS_MARKERS = (
 def test_k_statistics_isolation():
     header("K", "📊 Statistika — FAQAT shaxsiy hisobot (ADMIN STATISTIKASI IZOLYATSIYASI)")
 
-    # K1) Oddiy foydalanuvchi «📊 Statistika» bosganda → start_analytics
-    #     (shaxsiy hisobot), show_statistics (admin) CHAQIRILMAYDI.
+    # K1) Oddiy foydalanuvchi «📊 Statistika» bosganda → shaxsiy hisobot
+    #     (handlers.statistics.show_user_statistics); admin show_statistics
+    #     CHAQIRILMAYDI.
     fake = _FakeDB()
     msg = _Msg()
     ctx = _ctx("uz")
@@ -703,20 +704,32 @@ def test_k_statistics_isolation():
     for marker in ADMIN_STATS_MARKERS:
         check(f"Statistika(user): ADMIN matni YO'Q — {marker!r}", marker not in text, text[:120])
     markup = msg.sent[-1]["reply_markup"] if msg.sent else None
-    check("Statistika(user): klaviatura = user stats (an_refresh/an_close)",
-          set(_cbs(markup)) == {"an_refresh", "an_close"}, str(_cbs(markup)))
+    check("Statistika(user): klaviatura = [📈 Kanal bo'yicha batafsil][◀️ Orqaga]",
+          set(_cbs(markup)) == {"an_detail", "an_close"}, str(_cbs(markup)))
 
-    # K2) Admin shu tugmani bossa — bot statistikasi chiqadi (orqaga moslik).
+    # K2) ADMIN HAM shu tugmani bossa — O'Z SHAXSIY hisobotini ko'radi.
+    #     STATISTIKA IZOLYATSIYASI: asosiy menyu «📊 Statistika» tugmasi
+    #     admin uchun ham bot statistikasini ochmaydi (avval ochardi — bu
+    #     chalkashlik tuzatildi). Bot statistikasi faqat ⚙️ Admin Panel →
+    #     «📊 To'liq statistika» ichida.
     fake_adm = _FakeDB()
     msg_adm = _Msg()
     with _with_db(fake_adm), _quiet():
         _run(handlers.statistics_button(
             _msg_update(msg_adm, get_text("btn_statistics", "uz"), user_id=ADMIN_ID), _ctx("uz")))
-    check("Statistika(admin): get_system_stats chaqirildi",
-          "get_system_stats" in fake_adm.calls, str(fake_adm.calls))
+    check("Statistika(admin): get_system_stats (ADMIN) CHAQIRILMADI",
+          "get_system_stats" not in fake_adm.calls, str(fake_adm.calls))
+    check("Statistika(admin): shaxsiy overview o'qildi",
+          "get_user_overview_stats" in fake_adm.calls, str(fake_adm.calls))
     adm_text = msg_adm.sent[-1]["text"] if msg_adm.sent else ""
-    check("Statistika(admin): 'Jami foydalanuvchilar' ko'rinadi",
-          "Jami foydalanuvchilar" in adm_text, adm_text[:120])
+    for marker in ADMIN_STATS_MARKERS:
+        check(f"Statistika(admin): ADMIN matni YO'Q — {marker!r}",
+              marker not in adm_text, adm_text[:120])
+    check("Statistika(admin): shaxsiy sarlavha ko'rinadi",
+          "Sizning statistikangiz" in adm_text, adm_text[:120])
+    adm_kb = msg_adm.sent[-1]["reply_markup"] if msg_adm.sent else None
+    check("Statistika(admin): klaviatura ham shaxsiy (an_detail/an_close)",
+          set(_cbs(adm_kb)) == {"an_detail", "an_close"}, str(_cbs(adm_kb)))
 
     # K3) show_statistics o'zi ham FAIL-CLOSED — oddiy foydalanuvchi
     #     to'g'ridan-to'g'ri chaqirsa ham hech narsa chizilmaydi.

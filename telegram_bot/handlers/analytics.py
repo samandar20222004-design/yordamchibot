@@ -188,14 +188,21 @@ def _get_analytics_channel_keyboard(
         ])
     if show_pro:
         keyboard.append([_pro_button(lang)])
+    # [◀️ Orqaga] — kanal tanlash ro'yxatidan SHAXSIY statistika ekraniga
+    # qaytadi (an_overview); asosiy menyuga emas.
     keyboard.append([
-        InlineKeyboardButton(get_text("pend_close_btn", lang), callback_data="an_close")
+        InlineKeyboardButton(get_text("btn_back", lang), callback_data="an_overview")
     ])
     return InlineKeyboardMarkup(keyboard)
 
 
 def _get_analytics_view_keyboard(show_pro: bool = False, lang: str = "uz") -> InlineKeyboardMarkup:
-    """Statistika ko'rish tugmalari."""
+    """Statistika ko'rish tugmalari (kanal bo'yicha batafsil dashboard).
+
+    [◀️ Orqaga] endi ``an_overview`` — ya'ni kanal analitikasidan SHAXSIY
+    statistika ekraniga qaytadi (speks 3-qadam). Asosiy menyuga chiqish
+    esa shaxsiy ekrandagi [◀️ Orqaga] (``an_close``) orqali amalga oshadi.
+    """
     rows = [
         [
             InlineKeyboardButton(get_text("an_btn_refresh", lang), callback_data="an_refresh"),
@@ -204,8 +211,40 @@ def _get_analytics_view_keyboard(show_pro: bool = False, lang: str = "uz") -> In
     ]
     if show_pro:
         rows.append([_pro_button(lang)])
-    rows.append([InlineKeyboardButton(get_text("btn_back", lang), callback_data="an_close")])
+    rows.append([InlineKeyboardButton(get_text("btn_back", lang), callback_data="an_overview")])
     return InlineKeyboardMarkup(rows)
+
+
+async def _show_user_overview(user_id: int, lang: str, context, reply) -> None:
+    """📊 SHAXSIY statistika ekranini (qayta) chizadi.
+
+    Kanal bo'yicha analitikadan ``[◀️ Orqaga]`` (``an_overview``) bosilganda
+    foydalanuvchi aynan shu ekranga qaytadi — ``handlers.statistics`` dagi
+    yagona matn/klaviatura manbasi ishlatiladi (dublikat yo'q).
+
+    ``reply`` — xabarni yuboradigan obyekt (``query.message`` yoki
+    ``update.message``). Import funksiyadan ichkarida — ``handlers.statistics``
+    ``ANALYTICS_VIEW`` ni shu moduldan olgani uchun aylanma import bo'lmasligi
+    kerak.
+    """
+    from handlers.statistics import build_user_overview_text
+    from keyboards.inline import get_user_overview_keyboard
+
+    stats = await db.run_db(db.get_user_overview_stats, user_id)
+    try:
+        credits = await db.run_db(db.get_user_credits, user_id)
+    except Exception:  # pragma: no cover - DB himoyasi
+        credits = 0
+
+    context.user_data["statistics_overview"] = True
+    context.user_data.pop("analytics_channel_id", None)
+    context.user_data.pop("analytics_overview", None)
+
+    await reply.reply_text(
+        build_user_overview_text(stats, credits, lang),
+        reply_markup=get_user_overview_keyboard(lang),
+        parse_mode="HTML",
+    )
 
 
 async def start_analytics(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -302,7 +341,10 @@ async def analytics_view_callback(update: Update, context: ContextTypes.DEFAULT_
         )
         return ConversationHandler.END
 
-    if data == "an_other":
+    # 📈 Kanal bo'yicha batafsil — shaxsiy statistika ekranidagi tugma
+    # (``an_detail``) va eski «boshqa kanal» tugmasi (``an_other``) BITTA
+    # kanal tanlash ro'yxatini ochadi: mavjud kanal analitikasi oqimi.
+    if data in ("an_detail", "an_other"):
         await query.answer()
         channels = context.user_data.get("analytics_channels", [])
         if not channels:
@@ -314,6 +356,12 @@ async def analytics_view_callback(update: Update, context: ContextTypes.DEFAULT_
             parse_mode="HTML",
         )
         return ANALYTICS_CHOOSE
+
+    # ◀️ Orqaga — kanal analitikasidan SHAXSIY statistika ekraniga qaytamiz.
+    if data == "an_overview":
+        await query.answer()
+        await _show_user_overview(user_id, lang, context, query.message)
+        return ANALYTICS_VIEW
 
     if data == "an_refresh":
         await query.answer(get_text("an_refreshing", lang))

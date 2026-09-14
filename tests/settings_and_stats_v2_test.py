@@ -812,17 +812,23 @@ def test_admin_panel_rbac_and_health():
     finally:
         HS.get_system_health = orig_get_health
 
-    # 3g) «📊 Statistika» dispatcher'i: admin → bot statistikasi, oddiy
-    # foydalanuvchi → o'z analitikasi (admin panelga hech qanday yo'l yo'q).
+    # 3g) «📊 Statistika» dispatcher'i: STATISTIKA IZOLYATSIYASI — admin
+    # bo'ladimi, oddiy foydalanuvchimi — FAQAT shaxsiy hisobot
+    # (show_user_statistics). Admin (bot bo'yicha) statistikasiga bu yerdan
+    # hech qanday yo'l yo'q; u faqat ⚙️ Admin Panel → 📊 To'liq statistika.
     import handlers as H
     stats_code = getattr(getattr(H, "statistics_button", None), "__code__", None)
     names = set(getattr(stats_code, "co_names", ()))
-    check("statistics_button: start_analytics (oddiy user) bor",
-          "start_analytics" in names, str(sorted(names)))
-    check("statistics_button: show_statistics (admin) bor",
-          "show_statistics" in names, str(sorted(names)))
+    check("statistics_button: show_user_statistics (shaxsiy hisobot) bor",
+          "show_user_statistics" in names, str(sorted(names)))
+    check("statistics_button: show_statistics (ADMIN) YO'Q",
+          "show_statistics" not in names, str(sorted(names)))
+    check("statistics_button: start_analytics (eski analitika) YO'Q",
+          "start_analytics" not in names, str(sorted(names)))
     check("statistics_button: admin panelga yo'l YO'Q",
           "admin_panel_menu" not in names, str(sorted(names)))
+    check("statistics_button: ADMIN_IDS bo'yicha shartlash YO'Q",
+          "ADMIN_IDS_SET" not in names, str(sorted(names)))
 
 
 # ============================================================================

@@ -75,7 +75,10 @@ from translations.post_score import (  # noqa: F401
 from translations.settings_stats import (  # noqa: F401
     CB_SETTINGS_HUB,
     CB_SETTINGS_PREFIX,
+    CB_STATS_DETAIL,
+    CB_STATS_OVERVIEW,
     CB_TOOLS_HUB,
+    MY_STATS_ROW_KEYS,
     SETTINGS_MENU_BUTTON_KEYS,
     SETTINGS_STATS_I18N,
     SETTINGS_STATS_KEYS,
@@ -123,6 +126,9 @@ __all__ = [
     "CB_SETTINGS_HUB",
     "CB_TOOLS_HUB",
     "STATS_ROW_KEYS",
+    "MY_STATS_ROW_KEYS",
+    "CB_STATS_DETAIL",
+    "CB_STATS_OVERVIEW",
     "settings_stats_t",
     "settings_stats_parity_report",
 ]

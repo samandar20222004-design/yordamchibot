@@ -963,7 +963,10 @@ def test_analytics_keyboards():
     check("ch kb: Barcha kanallar", "an_ch:all" in cbs)
     check("ch kb: Kanal A", "an_ch:-1001" in cbs)
     check("ch kb: Kanal B", "an_ch:-1002" in cbs)
-    check("ch kb: close", "an_close" in cbs)
+    # STATISTIKA IZOLYATSIYASI: kanal analitikasidagi [◀️ Orqaga] endi
+    # an_overview — SHAXSIY statistika ekraniga qaytaradi (asosiy menyuga
+    # emas). an_close esa shaxsiy ekranning o'zida (asosiy menyuga chiqish).
+    check("ch kb: [◀️ Orqaga] = an_overview (shaxsiy ekranga)", "an_overview" in cbs)
     check("ch kb: 4 ta tugma", len(cbs) == 4)
 
     # 2. View keyboard
@@ -971,13 +974,15 @@ def test_analytics_keyboards():
     vcbs = [b.callback_data for row in vkb.inline_keyboard for b in row]
     check("view kb: refresh", "an_refresh" in vcbs)
     check("view kb: other", "an_other" in vcbs)
-    check("view kb: close", "an_close" in vcbs)
+    check("view kb: [◀️ Orqaga] = an_overview (shaxsiy ekranga)", "an_overview" in vcbs)
+    check("view kb: asosiy menyuga to'g'ridan chiqish yo'q (an_close yo'q)",
+          "an_close" not in vcbs, str(vcbs))
 
     # 3. Bo'sh kanallar ro'yxati
     kb_empty = _get_analytics_channel_keyboard([])
     ecbs = [b.callback_data for row in kb_empty.inline_keyboard for b in row]
     check("empty kb: all bor", "an_ch:all" in ecbs)
-    check("empty kb: close bor", "an_close" in ecbs)
+    check("empty kb: [◀️ Orqaga] = an_overview", "an_overview" in ecbs)
 
 
 def test_analytics_db_functions_exist():

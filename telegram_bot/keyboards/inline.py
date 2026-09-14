@@ -980,6 +980,28 @@ def get_user_stats_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
     ]])
 
 
+def get_user_overview_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
+    """📊 SHAXSIY statistika ekrani amallari (asosiy menyu «📊 Statistika»).
+
+    Speks: ``[📈 Kanal bo'yicha batafsil]`` ``[◀️ Orqaga]``.
+
+    * ``an_detail``  — mavjud kanal analitikasini ochadi (kanal tanlash →
+      kanal dashboard'i);
+    * ``an_close``   — asosiy 6 tugmali menyuga qaytadi (dialog yopiladi).
+
+    ``get_user_stats_keyboard`` dan farqi: bu ekran SHAXSIY hisobot —
+    unda admin (bot bo'yicha) statistikasiga hech qanday yo'l yo'q.
+    """
+    from translations import settings_stats_t
+
+    return InlineKeyboardMarkup([[
+        InlineKeyboardButton(settings_stats_t("ss_btn_channel_detail", lang),
+                             callback_data="an_detail"),
+        InlineKeyboardButton(settings_stats_t("ss_btn_back", lang),
+                             callback_data="an_close"),
+    ]])
+
+
 def get_language_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
     """Til tanlash: O'zbekcha / Русский / English.
 

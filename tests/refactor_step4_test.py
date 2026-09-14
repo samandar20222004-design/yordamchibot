@@ -750,7 +750,7 @@ def test_admin_dashboard_single_center():
     # 3e) ESKI admin reply-tugmalari va buyruqlari ALIAS sifatida ishlaydi.
     from keyboards.default import (
         BTN_POST_TAG, BTN_AI_SETTINGS, BTN_CACHE_DB, BTN_ALL_POSTS,
-        BTN_STATS, BTN_ALL_CHANNELS,
+        BTN_STATS, BTN_ALL_CHANNELS, BTN_FULL_STATS,
     )
     msg_t = _Msg()
     with _with_db(fake):
@@ -816,10 +816,12 @@ def test_admin_dashboard_single_center():
         BTN_CACHE_DB: "cache_db_menu",
         BTN_ALL_POSTS: "admin_all_posts",
         BTN_ALL_CHANNELS: "admin_all_channels",
-        # «📊 Statistika» — statistics_button dispatcheri: admin uchun
-        # show_statistics (yagona statistika ekrani), oddiy foydalanuvchi
-        # uchun start_analytics — 3g-testsiz ham xavfsiz dispatch.
+        # «📊 Statistika» — statistics_button dispatcheri. STATISTIKA
+        # IZOLYATSIYASI: endi admin bo'ladimi, oddiy foydalanuvchimi —
+        # FAQAT shaxsiy hisobot (show_user_statistics). Bot bo'yicha
+        # statistika esa o'ziga xos «📊 To'liq statistika» yorlig'ida.
         BTN_STATS: "statistics_button",
+        BTN_FULL_STATS: "show_statistics",
     }
     for label, fn_name in alias_map.items():
         check(f"router: «{label}» → {fn_name} (alias saqlangan)",

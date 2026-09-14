@@ -31,6 +31,10 @@
 #       6-tugma menyu, submenu pariteti, navigatsiya stacki, statistika
 #       izolyatsiyasi, dublikat yo'qligi, RBAC tampering himoyasi va i18n
 #       sinxroni (tests/final_acceptance_suite_test.py)
+#   3m) 📊 STATISTIKA IZOLYATSIYASI — asosiy menyu «📊 Statistika» FAQAT
+#       shaxsiy hisobot; admin (bot bo'yicha) statistikasi faqat
+#       ⚙️ Admin Panel → «📊 To'liq statistika»
+#       (tests/statistics_isolation_test.py)
 #   4) TO'LIQ regressiya: telegram_bot/tests/run_tests.sh (barcha 30+ test fayli)
 #
 # Har qanday xatoda 1 bilan chiqadi (CI uchun).
@@ -219,6 +223,24 @@ echo "===== 3l) 🏁 YAKUNIY ACCEPTANCE SUITE (TEST A..AF — 32 TEKSHIRUV) ====
 # tampering himoyasi; (AE..AF) barcha matnlar i18n orqali va 3 tilda 100%
 # sinxron (tests/final_acceptance_suite_test.py).
 "$PY" tests/final_acceptance_suite_test.py || EXIT_CODE=1
+
+echo
+echo "===== 3m) 📊 STATISTIKA IZOLYATSIYASI (SHAXSIY vs ADMIN) ====="
+# Asosiy menyudagi «📊 Statistika» (uz/ru/en) FAQAT shaxsiy hisobotni
+# ochadi — admin bo'ladimi, oddiy foydalanuvchimi, ADMIN PANEL
+# statistikasi («Jami foydalanuvchilar», «Homiy kanallar», «Bekor
+# qilingan postlar») HECH QACHON chiqmaydi:
+# (1) oddiy user va ADMIN uchun ham get_system_stats CHAQIRILMAYDI;
+# (2) ekranda FAQAT foydalanuvchining O'Z ma'lumotlari (📢 ulangan
+# kanallaringiz / 📝 yaratilgan postlaringiz / 📅 rejalashtirilgan
+# postlar / 💎 qolgan AI kreditlaringiz);
+# (3) tugmalar [📈 Kanal bo'yicha batafsil] [◀️ Orqaga] (an_detail/an_close)
+# va an_overview kanal analitikasidan shaxsiy statistikaga qaytaradi;
+# (4) admin (bot bo'yichi) statistikasi FAQAT ⚙️ Admin Panel →
+# «📊 To'liq statistika» ichida (yagona egalik, kesishuvchi yorliq yo'q);
+# (5) UZ/RU/EN 100% paritet + haqiqiy router routing qo'riqonlari
+# (tests/statistics_isolation_test.py).
+"$PY" tests/statistics_isolation_test.py || EXIT_CODE=1
 
 echo
 echo "======== 4) TO'LIQ REGRESSIYA (telegram_bot/tests) ========"
