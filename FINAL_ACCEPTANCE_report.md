@@ -146,7 +146,42 @@ O'lchanadigan inventar (deterministik):
 
 ---
 
-## 6) Yakuniy xulosa
+## 6) ⚠️ CI qamrovi bo'yicha ochiq qoldiq (ruxsat talab qiladi)
+
+`.github/workflows/ci.yml` ichidagi `Run Test Suite` bosqichi
+`working-directory: telegram_bot` bilan ishlaydi — ya'ni CI faqat
+**ichki** runner'ni (`telegram_bot/tests/run_tests.sh`) ishga tushiradi.
+Yangi `tests/final_acceptance_suite_test.py` **ildiz** runner'ida
+(`tests/run_tests.sh`, bosqich `3l`) bor, shu sababli CI uni hozircha
+qamrab olmaydi.
+
+Bu sessiyadagi GitHub App'da `workflows` ruxsati yo'q, shu sababli
+workflow o'zgarishini push qilib bo'lmadi:
+
+```
+! [remote rejected] (refusing to allow a GitHub App to create or update
+  workflow `.github/workflows/ci.yml` without `workflows` permission)
+```
+
+**Tavsiya:** `workflows` ruxsati bor hisobdan quyidagi bosqichni
+`.github/workflows/ci.yml` oxiriga qo'shing (YAML validatsiyasi va
+lint gate'i lokal tekshirilgan):
+
+```yaml
+      - name: 🏁 Final Acceptance Suite (TEST A..AF)
+        working-directory: .
+        env:
+          BOT_TOKEN: "123456789:TEST_MOCK_TOKEN"
+        run: |
+          python tests/final_acceptance_suite_test.py
+```
+
+Suite CI muhitida ham (`BOT_TOKEN` + `PYTHONPATH` o'rnatilgan holatda)
+lokal tekshirildi — **487 [OK] / 0 [FAIL]**.
+
+---
+
+## 7) Yakuniy xulosa
 
 ```
 OLD FEATURE COUNT : production kod o'zgarmadi (git diff HEAD = faqat testlar)
