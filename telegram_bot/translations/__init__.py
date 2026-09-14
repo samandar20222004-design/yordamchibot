@@ -15,6 +15,9 @@ Modullar:
     channels_queue — 📢 KANALLARIM + 📅 REJALASHTIRILGAN: CHANNELS_QUEUE_I18N
                  lug'ati, ``channels_queue_t``, kanal boshqaruv/post amal
                  tugma kalitlari va paritet hisoboti (PostAssist V2, 4-qadam).
+    settings_stats — ⚙️ SOZLAMALAR + 📊 STATISTIKA: SETTINGS_STATS_I18N
+                 lug'ati, ``settings_stats_t``, sozlamalar menyu/statistika
+                 qator kalitlari va paritet hisoboti (PostAssist V2, 5-qadam).
 
 Foydalanish:
     from translations import magic_t, MAGIC_STYLE_KEYS
@@ -67,6 +70,14 @@ from translations.post_score import (  # noqa: F401
     post_score_t,
     score_band_key,
 )
+from translations.settings_stats import (  # noqa: F401
+    SETTINGS_MENU_BUTTON_KEYS,
+    SETTINGS_STATS_I18N,
+    SETTINGS_STATS_KEYS,
+    STATS_ROW_KEYS,
+    settings_stats_parity_report,
+    settings_stats_t,
+)
 
 __all__ = [
     "MAGIC_POST_I18N",
@@ -98,4 +109,10 @@ __all__ = [
     "post_score_advice",
     "post_score_parity_report",
     "score_band_key",
+    "SETTINGS_STATS_I18N",
+    "SETTINGS_STATS_KEYS",
+    "SETTINGS_MENU_BUTTON_KEYS",
+    "STATS_ROW_KEYS",
+    "settings_stats_t",
+    "settings_stats_parity_report",
 ]

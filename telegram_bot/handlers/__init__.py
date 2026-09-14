@@ -244,6 +244,11 @@ from handlers.payment_receipt import (
     receipt_received, receipt_admin_callback,
 )
 
+# 10c. ⚙️ SOZLAMALAR — yagona tartibli menyu (PostAssist V2, 5-mikro qadam).
+# «⚙️ Sozlamalar» bosilganda profil kartasi + 8 ta ichki opsiya chiqadi
+# (stgs_* callback'lari); mavjud cab_* oqimlari o'z joyida qoladi.
+from handlers.settings import settings_menu_callback
+
 # 11. CHANNEL EXTRACT MODULI
 from handlers.channel_extract import (
     start_extract, extract_username_received, extract_post_chosen,
@@ -1467,6 +1472,10 @@ def register_all_handlers(app):
         ai_photo_command_callback,
     ))
     app.add_handler(CallbackQueryHandler(cabinet_callback, pattern=r"^cab_|^close_cabinet"))
+    # ⚙️ SOZLAMALAR (PostAssist V2, 5-mikro qadam) — yagona tartibli menyu:
+    # stgs_profile / stgs_lang / stgs_notif / stgs_post / stgs_pay /
+    # stgs_referral / stgs_help / stgs_about / stgs_tgl:* / stgs_back.
+    app.add_handler(CallbackQueryHandler(settings_menu_callback, pattern=r"^stgs_"))
     app.add_handler(CallbackQueryHandler(extras_close_callback, pattern=r"^extra_close$"))
     # 📖 Qo'llanma ichki navigatsiyasi: FAQ ↔ Qo'llanma (uz/ru)
     app.add_handler(CallbackQueryHandler(help_menu_callback, pattern=r"^help:"))

@@ -18,6 +18,7 @@ from keyboards.inline import (
     get_extras_inline_keyboard, get_language_keyboard,
     get_channels_manage_keyboard, render_channels_list, no_channels_hint,
     get_help_keyboard, get_help_back_keyboard,
+    get_settings_hub_keyboard,
     unpack_sponsor,
 )
 from locales.translations import (
@@ -363,6 +364,21 @@ def build_daily_bonus_text(res: dict, lang: str = "uz") -> str:
 
 
 async def user_cabinet_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """⚙️ Sozlamalar — profil kartasi + YAGONA TARTIBLI MENYU (PostAssist V2).
+
+    PostAssist V2 (5-mikro qadam): [⚙️ Sozlamalar] bosilganda profil
+    ma'lumotlari bilan birga barcha foydali ichki opsiyalar bitta menyuda
+    chiqadi (handlers/settings.py — ``stgs_*`` callback'lari):
+
+        [👤 Profil]             [🌐 Til / Язык]
+        [🔔 Bildirishnomalar]   [🎨 Post sozlamalari]
+        [💳 To'lovlar tarixi]   [🎁 Do'stlarni taklif qilish]
+        [❓ Yordam]             [ℹ️ Bot haqida]
+                     [◀️ Orqaga]
+
+    Mavjud kabinet oqimlari (``cab_*``) tezkor bo'limlar sifatida pastda
+    saqlanadi — [👤 Profil] esa to'liq kabinet ekranini ochadi.
+    """
     clear_fsm_data(context)
     user = update.effective_user
     # Reply-tugma orqali kelgan so'rovda til keshda bo'lmasa (masalan, bot
@@ -382,7 +398,7 @@ async def user_cabinet_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user.id, user_code, credits_text, streak_text,
         len(channels), stats['referrals_count'], lang, ad_line,
     )
-    await update.message.reply_text(text, reply_markup=get_cabinet_inline_keyboard(lang), parse_mode="HTML")
+    await update.message.reply_text(text, reply_markup=get_settings_hub_keyboard(lang), parse_mode="HTML")
 
 async def daily_bonus_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user

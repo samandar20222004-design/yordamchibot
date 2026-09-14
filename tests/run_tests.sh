@@ -17,6 +17,8 @@
 #   3e) 🧩 KONTENT YARATISH submenu + ACTION-FIRST (tests/content_creation_menu_test.py)
 #   3f) 📢 KANALLARIM + 📅 REJALASHTIRILGAN — PostAssist V2 4-qadam
 #       (tests/channels_and_queue_v2_test.py)
+#   3g) 📊 STATISTIKA + ⚙️ SOZLAMALAR + ⚙️ ADMIN PANEL RBAC —
+#       PostAssist V2 5-qadam (tests/settings_and_stats_v2_test.py)
 #   4) TO'LIQ regressiya: telegram_bot/tests/run_tests.sh (barcha 30+ test fayli)
 #
 # Har qanday xatoda 1 bilan chiqadi (CI uchun).
@@ -104,6 +106,21 @@ echo "===== 3f) 📢 KANALLARIM + 📅 REJALASHTIRILGAN ====="
 # paritet + FSM/callback regressiya qo'riqonlari
 # (tests/channels_and_queue_v2_test.py).
 "$PY" tests/channels_and_queue_v2_test.py || EXIT_CODE=1
+
+echo
+echo "===== 3g) 📊 STATISTIKA + ⚙️ SOZLAMALAR + ADMIN RBAC ====="
+# (1) 📊 Statistika — aniq nom + ixcham 4 ko'rsatkich (📢 kanallar /
+# 📝 yaratilgan postlar / 📅 rejalashtirilgan / 🤖 AI so'rovlar & kreditlar)
+# va natija ostida [🔄 Yangilash] [◀️ Orqaga]; (2) ⚙️ Sozlamalar — yagona
+# tartibli menyu: 8 ta sub-tugma (👤 Profil / 🌐 Til / 🔔 Bildirishnomalar /
+# 🎨 Post sozlamalari / 💳 To'lovlar tarixi / 🎁 Do'stlarni taklif qilish /
+# ❓ Yordam / ℹ️ Bot haqida) + [◀️ Orqaga]; (3) ⚙️ Admin Panel — oddiy
+# foydalanuvchiga MUTLAQO yopiq (RBAC fail-closed), admin kirganda tizim
+# monitoringi (Bot & DB / Scheduler / AI provayderlar / Pending manual
+# to'lovlar); (4) translations/settings_stats.py UZ/RU/EN 100% paritet;
+# (5) regressiya qo'riqonlari (6-tugma menyu, FSM, eski callback'lar)
+# (tests/settings_and_stats_v2_test.py).
+"$PY" tests/settings_and_stats_v2_test.py || EXIT_CODE=1
 
 echo
 echo "======== 4) TO'LIQ REGRESSIYA (telegram_bot/tests) ========"

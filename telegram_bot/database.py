@@ -386,7 +386,8 @@ def cache_clear():
 
 def _invalidate_user(user_id: int):
     """Bitta foydalanuvchiga tegishli kesh yozuvlarini tozalash."""
-    for prefix in ("user_credits", "user_code", "user_channels", "user_stats", "user_lang"):
+    for prefix in ("user_credits", "user_code", "user_channels", "user_stats",
+                   "user_lang", "user_overview_stats"):
         _cache_clear(f"{prefix}:{user_id}")
 
 
@@ -1539,6 +1540,20 @@ def _init_db_once():
         cur.execute(
             "ALTER TABLE payment_receipts ADD COLUMN IF NOT EXISTS order_id TEXT;"
         )
+
+        # ⚙️ SOZLAMALAR (PostAssist V2, 5-mikro qadam): foydalanuvchining
+        # shaxsiy sozlamalari (🔔 Bildirishnomalar / 🎨 Post sozlamalari).
+        # Kalitlar handler tomonida OQ RO'YXAT bilan cheklanadi — jadvalga
+        # faqat ma'lum kalitlar yoziladi.
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS user_settings (
+                user_id BIGINT NOT NULL,
+                key VARCHAR(64) NOT NULL,
+                value BOOLEAN NOT NULL DEFAULT FALSE,
+                updated_at TIMESTAMPTZ DEFAULT NOW(),
+                PRIMARY KEY (user_id, key)
+            );
+        """)
 
         migrations = [
             # P0 backward-compatible migrations (har bir statement savepoint bilan bajariladi).
@@ -4218,6 +4233,213 @@ def get_user_channel_list_for_analytics(user_id: int) -> list:
     except Exception as e:
         logger.error(f"Analytics channel list xatosi: {e}")
         return []
+
+
+def get_user_overview_stats(user_id: int) -> dict:
+    """📊 Statistika (PostAssist V2, 5-mikro qadam) — ixcham umumiy ko'rsatkichlar.
+
+    Asosiy menyudagi «📊 Statistika» ekrani uchun foydalanuvchi darajasidagi
+    4 ta asosiy ko'rsatkich:
+
+    * ``channels``        — ulangan faol kanallar soni;
+    * ``created_posts``   — jami yaratilgan postlar (barcha holatlar);
+    * ``scheduled_posts`` — rejalashtirilgan (pending) postlar;
+    * ``ai_requests``     — AI so'rovlar soni (kredit sarflangan so'rovlar,
+                            ``credits_ledger`` auditi bo'yicha);
+    * ``credits_spent``   — sarflangan kreditlar jami (har so'rov = 1 kredit,
+                            refund'lar hisobga olinmaydi).
+
+    DB xatosida ham HECH QACHON istisno ko'tarmaydi — nollar qaytadi
+    (ekran bo'sh bo'lsa ham foydalanuvchiga ko'rsatiladi).
+    """
+    cache_key = f"user_overview_stats:{user_id}"
+    cached = _cache_get(cache_key)
+    if cached is not _MISS:
+        return cached
+    result = {
+        "channels": 0,
+        "created_posts": 0,
+        "scheduled_posts": 0,
+        "ai_requests": 0,
+        "credits_spent": 0,
+    }
+    try:
+        with db_cursor() as cur:
+            cur.execute(
+                "SELECT COUNT(*) FROM channels "
+                "WHERE user_id = %s AND is_active = TRUE",
+                (user_id,),
+            )
+            result["channels"] = cur.fetchone()[0]
+            cur.execute(
+                "SELECT COUNT(*) FROM scheduled_posts WHERE user_id = %s",
+                (user_id,),
+            )
+            result["created_posts"] = cur.fetchone()[0]
+            cur.execute(
+                "SELECT COUNT(*) FROM scheduled_posts "
+                "WHERE user_id = %s AND status = 'pending'",
+                (user_id,),
+            )
+            result["scheduled_posts"] = cur.fetchone()[0]
+            # AI so'rovlar / sarflangan kreditlar — credits_ledger auditi:
+            # har bir haqiqiy AI so'rovi 1 kredit yechadi (amount < 0,
+            # operation_type='ai_request'); refund (amount > 0) sanalmaydi.
+            cur.execute(
+                "SELECT COUNT(*), COALESCE(SUM(-amount), 0) FROM credits_ledger "
+                "WHERE user_id = %s AND operation_type = 'ai_request' "
+                "AND amount < 0",
+                (user_id,),
+            )
+            row = cur.fetchone()
+            if row:
+                result["ai_requests"] = int(row[0] or 0)
+                result["credits_spent"] = int(row[1] or 0)
+        _cache_set(cache_key, result, DB_STATS_CACHE_TTL)
+    except Exception as e:
+        logger.error(f"User overview stats xatosi: {e}")
+    return result
+
+
+def invalidate_user_overview_stats(user_id: int) -> None:
+    """«🔄 Yangilash» bosilganda foydalanuvchi statistikasi keshini tozalaydi."""
+    try:
+        _cache_clear(f"user_overview_stats:{user_id}")
+    except Exception:
+        pass
+
+
+# ============================================================
+# ⚙️ FOYDALANUVCHI SOZLAMALARI (PostAssist V2, 5-mikro qadam)
+# ============================================================
+# 🔔 Bildirishnomalar va 🎨 Post sozlamalari ekranlari shu jadvaldan
+# o'qiladi/yoziladi (user_settings). Kalitlar handler tomonida OQ RO'YXAT
+# bilan cheklanadi — bu modul faqat saqlashni ta'minlaydi.
+
+def get_user_setting(user_id: int, key: str, default: bool = False) -> bool:
+    """Bitta foydalanuvchi sozlamasini qaytaradi (xato/jadval yo'q → default)."""
+    try:
+        with db_cursor() as cur:
+            cur.execute(
+                "SELECT value FROM user_settings WHERE user_id = %s AND key = %s",
+                (user_id, str(key)[:64]),
+            )
+            row = cur.fetchone()
+            return bool(row[0]) if row else bool(default)
+    except Exception as e:
+        logger.debug(f"get_user_setting xatosi (default qaytadi): {e}")
+        return bool(default)
+
+
+def get_user_settings_bulk(user_id: int, keys: list, defaults: dict = None) -> dict:
+    """Bir nechta sozlamani BITTA so'rovda qaytaradi: ``{key: bool}``.
+
+    ``defaults`` berilsa yo'q kalitlar uchun shu qiymatlar ishlatiladi
+    (aks holda ``False``). Jadval mavjud bo'lmasa ham crash yo'q.
+    """
+    keys = [str(k)[:64] for k in (keys or [])]
+    defaults = defaults or {}
+    result = {k: bool(defaults.get(k, False)) for k in keys}
+    if not keys:
+        return result
+    try:
+        with db_cursor() as cur:
+            cur.execute(
+                "SELECT key, value FROM user_settings "
+                "WHERE user_id = %s AND key = ANY(%s)",
+                (user_id, keys),
+            )
+            for key, value in cur.fetchall():
+                result[key] = bool(value)
+    except Exception as e:
+        logger.debug(f"get_user_settings_bulk xatosi (defaultlar qaytadi): {e}")
+    return result
+
+
+def set_user_setting(user_id: int, key: str, value: bool) -> bool:
+    """Sozlamani saqlaydi (UPSERT). Muvaffaqiyatda ``True``."""
+    try:
+        with db_cursor() as cur:
+            cur.execute(
+                "INSERT INTO user_settings (user_id, key, value, updated_at) "
+                "VALUES (%s, %s, %s, NOW()) "
+                "ON CONFLICT (user_id, key) DO UPDATE "
+                "SET value = EXCLUDED.value, updated_at = NOW()",
+                (user_id, str(key)[:64], bool(value)),
+            )
+        return True
+    except Exception as e:
+        logger.error(f"set_user_setting xatosi: {e}")
+        return False
+
+
+# ============================================================
+# 💳 TO'LOVLAR TARIXI (foydalanuvchi uchun)
+# ============================================================
+
+def get_user_payment_history(user_id: int, limit: int = 10) -> list:
+    """Foydalanuvchi to'lovlari tarixi (yangidan eskiga, ``limit`` dona).
+
+    Ikkita manba birlashtiriladi:
+      * ``payments``          — Telegram Stars (XTR) to'lovlari;
+      * ``payment_receipts``  — admin tasdiqlagan qo'lda (karta) to'lovlar.
+
+    Har bir yozuv: ``{"date": datetime|None, "amount": int, "currency": str,
+    "method": "stars"|"card", "status": "succeeded"|"approved"|"pending"}``.
+    Xatoda bo'sh ro'yxat qaytadi (ekranda «to'lov yo'q» ko'rinadi).
+    """
+    rows = []
+    try:
+        with db_cursor() as cur:
+            cur.execute(
+                "SELECT created_at, amount, currency, payment_method, status "
+                "FROM payments WHERE user_id = %s "
+                "ORDER BY created_at DESC LIMIT %s",
+                (user_id, int(limit)),
+            )
+            for created_at, amount, currency, method, status in cur.fetchall():
+                rows.append({
+                    "date": created_at,
+                    "amount": int(amount or 0),
+                    "currency": (currency or "XTR").upper(),
+                    "method": "card" if str(method or "").lower() in (
+                        "uzcard_humo", "card",
+                    ) else "stars",
+                    "status": str(status or "succeeded"),
+                })
+            cur.execute(
+                "SELECT reviewed_at, created_at, amount_uzs, status "
+                "FROM payment_receipts "
+                "WHERE user_id = %s AND status IN ('approved', 'pending') "
+                "ORDER BY COALESCE(reviewed_at, created_at) DESC LIMIT %s",
+                (user_id, int(limit)),
+            )
+            for reviewed_at, created_at, amount_uzs, status in cur.fetchall():
+                rows.append({
+                    "date": reviewed_at or created_at,
+                    "amount": int(amount_uzs or 0),
+                    "currency": "UZS",
+                    "method": "card",
+                    "status": str(status or "pending"),
+                })
+    except Exception as e:
+        logger.error(f"Payment history xatosi: {e}")
+        return []
+
+    # Ikkala manba sanalar bo'yicha birlashtirilib, yangisi yuqorida turadi.
+    # Ehtiyot: sanalar naive (payments) yoki aware (receipts) bo'lishi mumkin —
+    # to'g'ridan-to'g'ri taqqoslash o'rniga unix-timestamp'ga keltiramiz.
+    def _sort_ts(row):
+        date = row.get("date")
+        if date is None:
+            return 0.0
+        try:
+            return float(date.timestamp())
+        except Exception:
+            return 0.0
+
+    rows.sort(key=_sort_ts, reverse=True)
+    return rows[: int(limit)]
 
 
 # ============================================================
