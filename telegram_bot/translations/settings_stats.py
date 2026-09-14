@@ -58,6 +58,19 @@ SETTINGS_STATS_I18N = {
         "ss_btn_back": "◀️ Orqaga",
         "ss_stats_refreshing": "🔄 Yangilanmoqda…",
 
+        # --- 📊 SHAXSIY STATISTIKA: asosiy menyudagi «📊 Statistika» ekrani.
+        # MUHIM: bu kalitlar FAQAT foydalanuvchining O'Z ma'lumotlarini
+        # chizadi. Admin (bot bo'yicha) statistikasi — handlers/admin.py
+        # dagi ``_build_full_stats_text`` va u «⚙️ Admin Panel» ichidan
+        # «📊 To'liq statistika» orqali ochiladi. Ikki ekran matnshunosligi
+        # qat'iy ajratilgan (statistika izolyatsiyasi).
+        "ss_my_title": "📊 <b>Sizning statistikangiz:</b>",
+        "ss_my_channels": "📢 Ulangan kanallaringiz: <b>{n} ta</b>",
+        "ss_my_created": "📝 Yaratilgan postlaringiz: <b>{n} ta</b>",
+        "ss_my_scheduled": "📅 Rejalashtirilgan postlar: <b>{n} ta</b>",
+        "ss_my_credits": "💎 Qolgan AI kreditlaringiz: <b>{n} ta</b>",
+        "ss_btn_channel_detail": "📈 Kanal bo'yicha batafsil",
+
         # --- ⚙️ SOZLAMALAR: yagona tartibli menyu ---
         "ss_menu_title": (
             "⚙️ <b>Sozlamalar</b>\n\n"
@@ -176,6 +189,15 @@ SETTINGS_STATS_I18N = {
         "ss_btn_back": "◀️ Назад",
         "ss_stats_refreshing": "🔄 Обновляется…",
 
+        # --- 📊 ЛИЧНАЯ СТАТИСТИКА: экран «📊 Статистика» главного меню.
+        # Строго отделён от админ-статистики (см. uz-блок).
+        "ss_my_title": "📊 <b>Ваша статистика:</b>",
+        "ss_my_channels": "📢 Ваши подключённые каналы: <b>{n}</b>",
+        "ss_my_created": "📝 Создано ваших постов: <b>{n}</b>",
+        "ss_my_scheduled": "📅 Запланированные посты: <b>{n}</b>",
+        "ss_my_credits": "💎 Осталось AI-кредитов: <b>{n}</b>",
+        "ss_btn_channel_detail": "📈 Детали по каналу",
+
         # --- ⚙️ НАСТРОЙКИ: единое упорядоченное меню ---
         "ss_menu_title": (
             "⚙️ <b>Настройки</b>\n\n"
@@ -292,6 +314,15 @@ SETTINGS_STATS_I18N = {
         "ss_btn_refresh": "🔄 Refresh",
         "ss_btn_back": "◀️ Back",
         "ss_stats_refreshing": "🔄 Refreshing…",
+
+        # --- 📊 PERSONAL STATISTICS: the main menu "📊 Statistics" screen.
+        # Strictly separated from admin stats (see the uz block).
+        "ss_my_title": "📊 <b>Your statistics:</b>",
+        "ss_my_channels": "📢 Your connected channels: <b>{n}</b>",
+        "ss_my_created": "📝 Your posts created: <b>{n}</b>",
+        "ss_my_scheduled": "📅 Scheduled posts: <b>{n}</b>",
+        "ss_my_credits": "💎 AI credits remaining: <b>{n}</b>",
+        "ss_btn_channel_detail": "📈 Per-channel details",
 
         # --- ⚙️ SETTINGS: single ordered menu ---
         "ss_menu_title": (
@@ -444,10 +475,28 @@ STATS_ROW_KEYS = (
     "ss_stats_ai",
 )
 
+#: 📊 SHAXSIY statistika ekranidagi 4 ta ko'rsatkich qatori — speks tartibida:
+#:   📢 Ulangan kanallaringiz / 📝 Yaratilgan postlaringiz /
+#:   📅 Rejalashtirilgan postlar / 💎 Qolgan AI kreditlaringiz
+#: Bu qatorlar FAQAT foydalanuvchining O'Z ma'lumotlarini aks ettiradi —
+#: admin (bot bo'yicha) statistikasi bu ekranda HECH QACHON chiqmaydi.
+MY_STATS_ROW_KEYS = (
+    "ss_my_channels",
+    "ss_my_created",
+    "ss_my_scheduled",
+    "ss_my_credits",
+)
+
 #: Sozlamalar callback'lari (routing tilga bog'liq emas).
 CB_SETTINGS_PREFIX = "stgs_"
 CB_STATS_REFRESH = "an_refresh"
 CB_STATS_BACK = "an_close"
+#: 📊 Shaxsiy statistika ↔ kanal analitikasi navigatsiyasi:
+#:   ``an_detail``  — shaxsiy ekrandan kanal bo'yicha batafsil analitikaga;
+#:   ``an_overview``— kanal analitikasidan shaxsiy statistikaga ORQAGA.
+#: ``an_close`` esa (har doimgidek) asosiy menyuga chiqadi.
+CB_STATS_DETAIL = "an_detail"
+CB_STATS_OVERVIEW = "an_overview"
 
 #: ⚙️ Sozlamalar menyusi callback'lari — speks tartibida (12 tugma + Orqaga).
 CB_SETTINGS_HUB = (

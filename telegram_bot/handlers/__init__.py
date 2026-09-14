@@ -32,6 +32,10 @@ from keyboards.default import (
     BTN_INVITE, BTN_INVITE_RU,
     BTN_TRANSFER, BTN_TRANSFER_RU,
     BTN_ADMIN_PANEL, BTN_ALL_POSTS, BTN_ALL_CHANNELS,
+    # 📊 STATISTIKA IZOLYATSIYASI: admin (bot bo'yicha) statistikaning o'ziga
+    # xos yorlig'i va uning alias oilasi — asosiy menyudagi shaxsiy
+    # «📊 Statistika» (BTN_STATISTICS) bilan matni bo'lishilmaydi.
+    BTN_FULL_STATS, ADMIN_STATS_ALIASES,
     BTN_BROADCAST, BTN_SPONSORS, BTN_ADD_SPONSOR,
     BTN_ADS, BTN_CHANNEL_AD, BTN_BOT_REPLY_AD, BTN_POST_TAG, BTN_AI_SETTINGS, BTN_CACHE_DB,
     BTN_ADD_CHANNEL, BTN_QUEUE, BTN_QUEUE_RU, BTN_CONTENT_PLAN, BTN_ANALYTICS, BTN_PREMIUM, BTN_PREMIUM_RU,
@@ -244,6 +248,14 @@ from handlers.analytics import (
     ANALYTICS_CHOOSE, ANALYTICS_VIEW
 )
 
+# 9b. 📊 SHAXSIY STATISTIKA — asosiy menyudagi «📊 Statistika» tugmasi.
+# MUHIM: bu modul `handlers.analytics` dan ANALYTICS_VIEW oladi — shu sababli
+# yuqoridagi analytics importidan KEYIN turadi.
+# Izolyatsiya: asosiy menyu «📊 Statistika» FAQAT shu handlerga ulanadi
+# (admin bo'ladimi, oddiy foydalanuvchimi — farqi yo'q). Admin (bot bo'yicha)
+# statistikasi esa FAQAT ⚙️ Admin Panel → 📊 To'liq statistika ichida.
+from handlers.statistics import show_user_statistics
+
 # 10. SUBSCRIPTION MODULI
 from handlers.subscription import (
     start_subscription, subscription_callback, promo_code_received,
@@ -374,17 +386,26 @@ async def guard_menu(update, context, fn):
 async def statistics_button(update, context):
     """📊 Statistika — UX V2 asosiy menyudagi 6-tugma standarti statistikasi.
 
-    Bitta yorliq, ikki to'g'ri ma'nosi:
-      • ADMIN_IDS a'zosi → bot bo'yicha statistika (``show_statistics``) —
-        eski admin panel klaviaturasidagi «📊 Statistika» tugmasi xuddi
-        avvalgidek ishlaydi (orqaga moslik);
-      • oddiy foydalanuvchi → o'z kanallari analitikasi
-        (``start_analytics``) — yangi asosiy menyudagi tugma xavfsiz ishlaydi.
+    STATISTIKA IZOLYATSIYASI (qat'iy): bu tugma — SHAXSIY hisobot va faqat
+    shaxsiy hisobot. Foydalanuvchi ADMIN bo'ladimi yoki oddiy foydalanuvchi
+    bo'ladimi, asosiy menyudan «📊 Statistika» bosilganda admin (bot
+    bo'yicha) statistikasi — «Jami foydalanuvchilar», «Homiy kanallar»,
+    «Bekor qilingan postlar» — HECH QACHON chiqmaydi.
+
+    Admin (bot bo'yicha) statistikasi faqat bitta joydan ochiladi:
+    ``⚙️ Admin Panel`` → ``📊 To'liq statistika`` (``adm_stats`` /
+    ``handlers.admin.show_statistics``). Shu sababli bu yerda ``ADMIN_IDS``
+    tekshiruvi ATAYLAB YO'Q — admin ham o'z shaxsiy hisobotini ko'radi.
+
+    Chiqadigan ekran:
+        📊 Sizning statistikangiz:
+         📢 Ulangan kanallaringiz: X ta
+         📝 Yaratilgan postlaringiz: X ta
+         📅 Rejalashtirilgan postlar: X ta
+         💎 Qolgan AI kreditlaringiz: X ta
+    Amallar: [📈 Kanal bo'yicha batafsil] [◀️ Orqaga].
     """
-    user = update.effective_user
-    if user is not None and user.id in ADMIN_IDS_SET:
-        return await guard_menu(update, context, show_statistics)
-    return await guard_entry(update, context, start_analytics)
+    return await guard_entry(update, context, show_user_statistics)
 
 
 async def reaction_callback(update, context):
@@ -800,11 +821,19 @@ def register_all_handlers(app):
     # 6. Admin
     admin_handlers = [
         MessageHandler(exact(BTN_ADMIN_PANEL, BTN_ADMIN_PANEL_RU), lambda u, c: guard_menu(u, c, admin_panel_menu)),
-        # UX V2: "📊 Statistika" — asosiy menyudagi 6-tugma standartining
-        # statistika tugmasi VA eski admin panel «📊 Statistika» tugmasi:
-        # admin → bot statistikasi, oddiy foydalanuvchi → o'z analitikasi.
+        # 📊 STATISTIKA IZOLYATSIYASI — ikki ekran, ikki alohida yorliq:
+        #
+        #  1) «📊 Statistika» (BTN_STATISTICS uz/ru/en) — asosiy menyu 6-tugma
+        #     standarti. FAQAT shaxsiy hisobot (show_user_statistics); admin
+        #     bo'ladimi, oddiy foydalanuvchimi — farqi YO'Q. Admin panel
+        #     statistikasi bu yerdan HECH QACHON chiqmaydi.
         MessageHandler(exact(BTN_STATISTICS, BTN_STATISTICS_RU, BTN_STATISTICS_EN),
                        lambda u, c: statistics_button(u, c)),
+        #  2) «📊 To'liq statistika» (BTN_FULL_STATS + aliaslari) — FAQAT
+        #     ⚙️ Admin Panel ichidagi bot bo'yicha statistika (show_statistics
+        #     o'zi ham is_admin() bilan fail-closed).
+        MessageHandler(exact(BTN_FULL_STATS, *ADMIN_STATS_ALIASES),
+                       lambda u, c: guard_menu(u, c, show_statistics)),
         MessageHandler(exact(BTN_ALL_POSTS), lambda u, c: guard_menu(u, c, admin_all_posts)),
         MessageHandler(exact(BTN_ALL_CHANNELS), lambda u, c: guard_menu(u, c, admin_all_channels)),
         MessageHandler(exact(BTN_BROADCAST), lambda u, c: guard_entry(u, c, broadcast_start)),
@@ -1119,9 +1148,14 @@ def register_all_handlers(app):
             ],
 
             # 9. Analytics holatlari
+            # 📊 Kanal tanlash ro'yxatidagi [◀️ Orqaga] (an_overview) SHAXSIY
+            # statistika ekraniga qaytaradi — shu sababli an_close bilan birga
+            # ro'yxatdan o'tadi (analytics_view_callback ikkalasini ham biladi).
             ANALYTICS_CHOOSE: all_menu_jumps + [
                 CallbackQueryHandler(analytics_channel_chosen, pattern=r"^an_ch:"),
-                CallbackQueryHandler(analytics_view_callback, pattern=r"^an_close$"),
+                CallbackQueryHandler(
+                    analytics_view_callback, pattern=r"^an_close$|^an_overview$"
+                ),
             ],
             ANALYTICS_VIEW: all_menu_jumps + [
                 CallbackQueryHandler(analytics_view_callback, pattern=r"^an_"),

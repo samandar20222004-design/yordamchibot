@@ -280,6 +280,13 @@ BTN_ADMIN_PANEL = "⚙️ Admin Panel"
 # RU variant — qo'lda yuborilgan ruscha matn ham admin panelga tushadi
 BTN_ADMIN_PANEL_RU = "⚙️ Панель администратора"
 BTN_STATS = "📊 Statistika"
+# 📊 ADMIN (bot bo'yicha) STATISTIKA — alohida, noyob yorliq.
+# STATISTIKA IZOLYATSIYASI: asosiy menyudagi «📊 Statistika» (BTN_STATS)
+# SHAXSIY hisobotni ochadi va uning yagona egasi bor. Admin panel ichidagi
+# bot bo'yicha statistika endi O'ZIGA XOS yorliqqa ega — shunda ikki ekran
+# bitta matnni bo'lishib olmaydi va «📊 Statistika» bosilganda hech qachon
+# admin statistikasi chiqmaydi.
+BTN_FULL_STATS = "📊 To'liq statistika"
 BTN_BROADCAST = "✉️ Xabar yuborish"
 BTN_ALL_POSTS = "📋 Barcha postlar"
 BTN_ALL_CHANNELS = "📋 Barcha kanal/guruhlar"
@@ -490,10 +497,17 @@ EXTRACT_ALIASES = (
     "📢 Ochiq kanaldan olish", "📢 Из открытого канала",
     "📢 Open channel import", "📢 Import from public channel",
 )
-# "📊 Statistics" EN aliasi ataylab ANALITIKA tomonida qoldirildi — ikkita
-# tugma bir xil matnni olsа, registry'da qaysi biriga tegishli ligi
-# noaniq bo'lardi (yagona egalik = aniq routing).
-ADMIN_STATS_ALIASES = ("📊 Statistika", "📊 Статистика")
+# STATISTIKA IZOLYATSIYASI: «📊 Statistika» / «📊 Статистика» endi FAQAT
+# STATISTICS oilasiga tegishli (shaxsiy hisobot) — ular bu yerda ATAYLAB
+# YO'Q. Admin (bot bo'yicha) statistikasi o'ziga xos «📊 To'liq statistika»
+# yorlig'ini ishlatadi va faqat ⚙️ Admin Panel ichidan ochiladi.
+# (Yagona egalik = aniq routing: bitta matn — bitta amal.)
+ADMIN_STATS_ALIASES = (
+    "📊 To'liq statistika", "📊 To'liq Statistika",
+    "📊 Полная статистика", "📊 Full statistics",
+    # Eski admin klaviaturalaridagi «📊 Bot statistikasi» nomi ham taniladi.
+    "📊 Bot statistikasi", "📊 Статистика бота", "📊 Bot statistics",
+)
 ADMIN_POSTS_ALIASES = ("📋 Barcha postlar", "📋 Все посты", "📋 All posts")
 ADMIN_CHANNELS_ALIASES = (
     "📋 Barcha kanal/guruhlar", "📋 Все каналы/группы",
@@ -573,7 +587,9 @@ MENU_TEXTS = {
     "channel_extract": _uniq((BTN_CHANNEL_EXTRACT,), EXTRACT_ALIASES),
     # --- Admin paneli (klaviatura UZ'da chiziladi, aliaslar ham taniladi) ---
     "admin_panel": _uniq((BTN_ADMIN_PANEL, BTN_ADMIN_PANEL_RU), ADMIN_PANEL_ALIASES),
-    "admin_stats": _uniq((BTN_STATS,), ADMIN_STATS_ALIASES),
+    # ⚙️ Admin Panel → 📊 To'liq statistika (bot bo'yicha). Yagona egalik:
+    # bu oilada «📊 Statistika» YO'Q — u shaxsiy hisobotniki.
+    "admin_stats": _uniq((BTN_FULL_STATS,), ADMIN_STATS_ALIASES),
     "admin_all_posts": _uniq((BTN_ALL_POSTS,), ADMIN_POSTS_ALIASES),
     "admin_all_channels": _uniq((BTN_ALL_CHANNELS,), ADMIN_CHANNELS_ALIASES),
     "broadcast": _uniq((BTN_BROADCAST,), BROADCAST_ALIASES),
@@ -915,10 +931,15 @@ def get_admin_panel_keyboard():
     UX: reklama boshqaruvi endi BITTA tugada — "🎯 Reklama markazi".
     Avval shu qatorda kanallar/obotlar uchun alohida reklama tugmalari
     bor edi; ular hub menyusidagi bo'limlarga birlashtirildi.
+
+    STATISTIKA IZOLYATSIYASI: bot bo'yicha statistika tugmasi endi
+    «📊 To'liq statistika» (BTN_FULL_STATS) — asosiy menyudagi shaxsiy
+    «📊 Statistika» (BTN_STATS) bilan matni bo'lishilmaydi, shu sababli
+    admin panel ichidagi tugma aniq ADMIN statistikasini ochadi.
     """
     return ReplyKeyboardMarkup(
         [
-            [BTN_SPONSORS, BTN_STATS],
+            [BTN_SPONSORS, BTN_FULL_STATS],
             [BTN_ADS, BTN_POST_TAG],
             [BTN_AI_SETTINGS, BTN_CACHE_DB],
             [BTN_BROADCAST, BTN_ALL_POSTS],
