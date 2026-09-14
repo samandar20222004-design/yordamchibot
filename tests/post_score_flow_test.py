@@ -288,17 +288,21 @@ def test_main_menu_entry():
               bool(re.fullmatch(exact(BTN_POST_SCORE, BTN_POST_SCORE_RU,
                                       BTN_POST_SCORE_EN).pattern, label)))
 
-    # Production klaviatura (context bilan) yangi bo'limni ko'rsatadi.
+    # UX V2 (6-tugma standarti): asosiy menyu aynan 6 tugma; «📊 Post
+    # Score» va «✨ Magic Post» menyu'dan chiqdi (oqimlari yashaydi —
+    # routing filtrlari + AI Studio / to'g'ridan-to'g'ri kirishlar).
     kb_ctx = get_main_keyboard(False, lang="uz", context=object())
     texts_ctx = [btn.text for row in kb_ctx.keyboard for btn in row]
-    check("production menyuda «📊 Post Score» bor", BTN_POST_SCORE in texts_ctx, str(texts_ctx))
-    check("«✨ Magic Post» hamon menyuda", BTN_MAGIC_POST in texts_ctx)
+    check("production menyu: UX V2 — aynan 6 tugma", len(texts_ctx) == 6, str(texts_ctx))
+    check("production menyuda Post Score YO'Q (UX V2)",
+          BTN_POST_SCORE not in texts_ctx, str(texts_ctx))
+    check("production menyuda Magic Post YO'Q (UX V2)",
+          BTN_MAGIC_POST not in texts_ctx, str(texts_ctx))
 
-    # Eski (context'siz) klaviatura o'zgarmagan — regressiya yo'q.
     kb_legacy = get_main_keyboard(False, lang="uz")
     legacy_rows = [[btn.text for btn in row] for row in kb_legacy.keyboard]
-    check("context'siz klaviatura 4 qator (eski xulq saqlangan)",
-          len(legacy_rows) == 4, str(legacy_rows))
+    check("context'siz klaviatura: UX V2 — 3 qator (6 tugma)",
+          len(legacy_rows) == 3, str(legacy_rows))
     check("context'siz klaviaturada Post Score YO'Q",
           BTN_POST_SCORE not in [t for row in legacy_rows for t in row])
 

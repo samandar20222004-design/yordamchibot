@@ -358,26 +358,28 @@ def test_keyboard_refresh_on_language_change():
         get_main_keyboard, get_refreshed_main_keyboard, get_simple_keyboard,
     )
 
+    # UX V2 (6-tugma standarti): asosiy menyuda 6 ta yangi yorliq 3 tilda
+    # chiziladi — har biri foydalanuvchi tilida.
     for lang in LANGS:
         kb = get_main_keyboard(False, lang=lang)
         row_texts = [btn.text for row in kb.keyboard for btn in row]
-        check(f"main_keyboard[{lang}] '➕' tugmasi yangi tilda",
-              get_text("btn_new_post", lang) in row_texts, str(row_texts))
+        check(f"main_keyboard[{lang}] kontent tugmasi yangi tilda",
+              get_text("btn_create_content", lang) in row_texts, str(row_texts))
         check(f"main_keyboard[{lang}] sozlamalar tugmasi yangi tilda",
               get_text("btn_settings", lang) in row_texts)
-        check(f"main_keyboard[{lang}] FAQAT 3 til boshlanishini o'z ichiga oladi",
-              len(row_texts) >= 6)
+        check(f"main_keyboard[{lang}] FAQAT 6 tugma (UX V2 standarti)",
+              len(row_texts) == 6, str(row_texts))
 
     refreshed = get_refreshed_main_keyboard("en", is_admin=False)
     texts = [btn.text for row in refreshed.keyboard for btn in row]
     check("get_refreshed_main_keyboard('en') — EN matnlar",
-          get_text("btn_new_post", "en") in texts
-          and get_text("btn_help", "en") in texts, str(texts))
+          get_text("btn_create_content", "en") in texts
+          and get_text("btn_settings", "en") in texts, str(texts))
     refreshed_ru = get_refreshed_main_keyboard("ru", is_admin=False)
     texts_ru = [btn.text for row in refreshed_ru.keyboard for btn in row]
     check("get_refreshed_main_keyboard('ru') — RU matnlar",
-          get_text("btn_new_post", "ru") in texts_ru
-          and get_text("btn_help", "ru") in texts_ru, str(texts_ru))
+          get_text("btn_create_content", "ru") in texts_ru
+          and get_text("btn_settings", "ru") in texts_ru, str(texts_ru))
 
     simple = get_simple_keyboard("en")
     simple_texts = [btn.text for row in simple.keyboard for btn in row]

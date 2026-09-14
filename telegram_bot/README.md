@@ -360,6 +360,33 @@ oddiy "➕ Yangi post rejalashtirish" oqimi orqali ishlaydi.
 > `llama-3.1-8b-instant`, `llama-3.3-70b-versatile` va `gemma2-9b-it` yopildi) —
 > avto-diskoveri tufayli bunday holatda ham bot yangi modelga o'zi o'tadi.
 
+### 🧭 UX V2 — Asosiy menyu (QAT'IY 6 TUGMA standarti)
+
+Asosiy reply-menyuda **faqat va faqat** 6 ta tugma chiziladi (UZ/RU/EN paritetda):
+
+| # | UZ | RU | EN | Bo'lim |
+|---|----|----|----|--------|
+| 1 | ✨ Kontent yaratish | ✨ Создать контент | ✨ Create content | AI Studio (kontent markazi) |
+| 2 | 📢 Kanallarim | 📢 Мои каналы | 📢 My channels | Kanallar ro'yxati |
+| 3 | 📅 Rejalashtirilgan | 📅 Запланированные | 📅 Scheduled | Queue (navbat) |
+| 4 | 📊 Statistika | 📊 Статистика | 📊 Statistics | Admin → bot statistikasi; oddiy foydalanuvchi → o'z analitikasi |
+| 5 | 💎 PRO | 💎 PRO | 💎 PRO | To'lov / obuna |
+| 6 | ⚙️ Sozlamalar | ⚙️ Настройки | ⚙️ Settings | Kabinet & Sozlamalar |
+
+- **Admin Panel** — faqat `ADMIN_IDS` a'zolari uchun 6-tugma ostida alohida
+  `[⚙️ Admin Panel]` qatori; oddiy foydalanuvchiga **hech qachon** ko'rinmaydi.
+- Eski tarqoq tugmalar (`➕ Yangi post`, `✨ AI Studio`, `⭐️ Premium`,
+  `📖 Qo'llanma / Bot haqida`, `⚙️ Qo'shimcha funksiyalar`, `✨ Magic Post`,
+  `📸 Rasm → Post`, `📊 Post Score` ...) asosiy menyudan **olindi**, lekin
+  routing'da **alias** sifatida saqlanadi: keshda qolgan eski klaviatura
+  xabarlari xavfsiz mos bo'limga yo'naltiriladi (backward compatibility).
+  Qo'llanma / Qo'shimcha funksiyalar keyinchalik `⚙️ Sozlamalar` ichidan
+  ochiladi.
+- `/start` (yangi foydalanuvchi) — ixcham onboarding matni (rasm / matn / ovoz
+  + va'da) + ushbu 6-tugma menyu; 3 tilda sinxron.
+- `keyboards/default.get_main_keyboard()` — yagona quruvchi;
+  regression testlari: `tests/ux_v2_main_menu_test.py`.
+
 ### 📸 IMAGE → POST (Killer Feature #3)
 
 `/imagepost`, `📸 Rasm → Post` bo'limi yoki shaxsiy chatda yuborilgan oddiy
@@ -385,8 +412,9 @@ callback/state to'qnashuvi bermaydi.
 
 ### 📊 POST SCORE & IMPROVER (Killer Feature #4)
 
-`📊 Post Score` bo'limi (asosiy menyu) yoki Magic Post / Voice → Post /
-Image → Post natijalaridagi **`📊 Baholash`** tugmasi postni **6 mezon**
+Magic Post / Voice → Post / Image → Post natijalaridagi **`📊 Baholash`**
+tugmasi (yoki «📊 Post Score» tugmasi — UX V2'da asosiy menyuda emas, eski
+klaviatura xabarlari orqali) postni **6 mezon**
 bo'yicha 1–10 ball bilan baholaydi va 100 ballik umumiy natija hamda
 1–2 jumlalik aniq tavsiya beradi:
 
@@ -636,7 +664,8 @@ Kabinet → «🌐 Til» → `uz | ru | en` bosilishi bilan:
 1. til Neon DB (`set_user_language`) va keshga (`user_data['lang']`) yoziladi;
 2. **inline menyu** shu xabarning o'zida yangi tilda qayta chiziladi;
 3. **pastki doimiy ReplyKeyboard** alohida xabar bilan darhol yangi tilda
-   yuboriladi (UZ: `➕ Yangi post`, RU: `➕ Новый пост`, EN: `➕ New post`).
+   yuboriladi (UX V2 6-tugma standart klaviatura: UZ: `✨ Kontent yaratish`,
+   RU: `✨ Создать контент`, EN: `✨ Create content` ...).
 
 Yordamchilar: `handlers/start.switch_user_language()`,
 `handlers/start.send_language_reply_keyboard()`,
@@ -750,6 +779,7 @@ bash tests/run_tests.sh
 | `i18n_ai_parity_test.py` (UZ/RU/EN lug'at pariteti, AI tizim promptlarining tilga moslashuvi, til o'zgarganda klaviatura yangilanishi) | 243 |
 | `account_settings_i18n_test.py` (Kabinet & Sozlamalar — 3 til) | 352 |
 | `new_post_i18n_test.py` + `ai_studio_plan_i18n_test.py` | 84 |
+| repo ildizi: `tests/ux_v2_main_menu_test.py` (UX V2 — asosiy menyu 6-tugma standarti, STARS_PLANS SSOT, /start onboarding 3 til) | 167 |
 
 `bash tests/run_tests.sh` to'liq to'plami (pgserver bilan): **5000+ ta test, 0 xato**.
 

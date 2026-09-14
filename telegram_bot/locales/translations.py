@@ -15,10 +15,22 @@ TRANSLATIONS = {
     "uz": {
         "btn_new_post": "➕ Yangi post",
         "btn_ai_studio": "✨ AI Studio",
-        "btn_premium": "⭐️ Premium",
-        "btn_settings": "👤 Kabinet & Sozlamalar",
+        # UX V2 (6-tugma standarti): asosiy menyu yorliqlari. "btn_premium" =
+        # 💎 PRO, "btn_settings" = ⚙️ Sozlamalar — eski nomlar routing'da alias
+        # sifatida saqlanadi (keyboards.default PREMIUM_ALIASES /
+        # PROFILE_ALIASES), shuning uchun eski klaviatura xabarlari buzilmaydi.
+        "btn_premium": "💎 PRO",
+        "btn_settings": "⚙️ Sozlamalar",
         "btn_help": "📖 Qo'llanma / Bot haqida",
         "btn_extras": "⚙️ Qo'shimcha funksiyalar",
+        # 🆕 UX V2 asosiy menyu — QAT'IY 6 TUGMA standarti (uz/ru/en paritetda):
+        #   [✨ Kontent yaratish]   [📢 Kanallarim]
+        #   [📅 Rejalashtirilgan]   [📊 Statistika]
+        #   [💎 PRO]                [⚙️ Sozlamalar]
+        "btn_create_content": "✨ Kontent yaratish",
+        "btn_my_channels": "📢 Kanallarim",
+        "btn_scheduled": "📅 Rejalashtirilgan",
+        "btn_statistics": "📊 Statistika",
         "start_hello": (
             "Salom, <b>{name}</b>! 👋\n\n"
             "🤖 @PostAssistrobot — kanallarga postlarni vaqtida joylash, "
@@ -26,15 +38,17 @@ TRANSLATIONS = {
             "Kerakli bo'limni tanlang 👇"
         ),
         # 🚀 BIRINCHI MARTA kirgan foydalanuvchi uchun onboarding matni
-        # (faqat ro'yxatdan yangi o'tganda ko'rsatiladi).
+        # (faqat ro'yxatdan yangi o'tganda ko'rsatiladi). UX V2: ixcham va
+        # tushunarli — 3 ta kirish usuli (rasm / matn / ovoz) + va'da.
         "start_onboarding": (
-            "👋 Xush kelibsiz! Telegram kanalingiz uchun 1 daqiqada professional post tayyorlaymizmi?\n"
+            "👋 Salom!\n"
+            "Men PostAssist — sizning AI SMM yordamchingizman.\n"
             "\n"
-            "✍️ AI post yozish\n"
-            "📅 Istalgan vaqtga rejalashtirish\n"
-            "📢 Avtomatik kanalga chiqarish\n"
+            "📸 Rasm yuboring\n"
+            "📝 Matn yozing\n"
+            "🎙 Ovoz yuboring\n"
             "\n"
-            "Birinchi postingizni hoziroq tayyorlash uchun quyidagi bo'limni tanlang 👇"
+            "Men siz uchun professional post tayyorlayman."
         ),
         # 🆕 SODDA KLAVIATURA — yangi foydalanuvchilar (1-3 kun) uchun 3 ta
         # katta tugma + 1 ta kichik "to'liq menyu" tugmasi.
@@ -1943,25 +1957,38 @@ TRANSLATIONS = {
     "ru": {
         "btn_new_post": "➕ Новый пост",
         "btn_ai_studio": "✨ AI Studio",
-        "btn_premium": "⭐️ Premium",
-        "btn_settings": "👤 Кабинет & Настройки",
+        # UX V2 (6-tugma standarti) — RU paritet (eski nomlar aliaslar
+        # ro'yxatida saqlanadi — keyboards.default).
+        "btn_premium": "💎 PRO",
+        "btn_settings": "⚙️ Настройки",
         "btn_help": "📖 Руководство / О боте",
         "btn_extras": "⚙️ Дополнительные функции",
+        # 🆕 UX V2 asosiy menyu — QAT'IY 6 TUGMA standarti (RU):
+        #   [✨ Создать контент]   [📢 Мои каналы]
+        #   [📅 Запланированные]   [📊 Статистика]
+        #   [💎 PRO]               [⚙️ Настройки]
+        "btn_create_content": "✨ Создать контент",
+        "btn_my_channels": "📢 Мои каналы",
+        "btn_scheduled": "📅 Запланированные",
+        "btn_statistics": "📊 Статистика",
         "start_hello": (
             "Привет, <b>{name}</b>! 👋\n\n"
             "🤖 @PostAssistrobot — умный помощник для своевременной публикации "
             "постов в каналы, текстов и контент-плана с помощью ИИ.\n\n"
             "Выберите нужный раздел 👇"
         ),
-        # 🚀 Онбординг для ПЕРВОГО входа (показывается только новым пользователям)
+        # 🚀 Онбординг для ПЕРВОГО входа (показывается только новым
+        # пользователям). UX V2: компактный и понятный — 3 способа входа
+        # (фото / текст / голос) + обещание.
         "start_onboarding": (
-            "👋 Добро пожаловать! Готовы создать профессиональный пост для вашего канала всего за 1 минуту?\n"
+            "👋 Привет!\n"
+            "Я PostAssist — ваш AI-помощник по SMM.\n"
             "\n"
-            "✍️ Генерация постов через AI\n"
-            "📅 Планирование на любое время\n"
-            "📢 Автопостинг в каналы\n"
+            "📸 Отправьте фото\n"
+            "📝 Напишите текст\n"
+            "🎙 Отправьте голосовое\n"
             "\n"
-            "Чтобы создать свой первый пост прямо сейчас, выберите раздел ниже 👇"
+            "Я подготовлю для вас профессиональный пост."
         ),
         # 🆕 ПРОСТОЕ МЕНЮ — для новых пользователей (1-3 дня): 3 крупные кнопки
         # + 1 небольшая кнопка «открыть полное меню».

@@ -865,15 +865,19 @@ def test_tone_migration_sql():
 def test_main_keyboard_content_plan():
     """Kontent-reja tugmasi mavjud (AI Studio sub-menuda)."""
     print("== Main keyboard content plan ==")
-    from keyboards.default import get_main_keyboard, BTN_CONTENT_PLAN, BTN_AI_STUDIO
+    from keyboards.default import (
+        get_main_keyboard, BTN_CONTENT_PLAN, BTN_AI_STUDIO, BTN_CREATE_CONTENT,
+    )
 
     check("BTN_CONTENT_PLAN mavjud", BTN_CONTENT_PLAN == "🧠 Kontent-reja")
 
-    # Content Plan endi AI Studio sub-menuda, asosiy menyuda emas
+    # Content Plan endi AI Studio sub-menuda, asosiy menyuda emas.
+    # UX V2: kirish nuqtasi — «✨ Kontent yaratish» (AI Studio markazi).
     kb = get_main_keyboard(False)
     all_texts = [b.text for row in kb.keyboard for b in row]
     check("main kb: Kontent-reja yo'q (AI Studio ichida)", BTN_CONTENT_PLAN not in all_texts)
-    check("main kb: AI Studio bor", BTN_AI_STUDIO in all_texts)
+    check("main kb: AI Studio yo'q (UX V2: Kontent yaratish bor)",
+          BTN_AI_STUDIO not in all_texts and BTN_CREATE_CONTENT in all_texts)
 
 
 def test_channels_list_with_tone():
@@ -1042,36 +1046,43 @@ def test_analytics_type_distribution_format():
 
 
 def test_main_menu_layout_v2():
-    """Yangi asosiy menyu tartibi va inline sub-menyular."""
+    """Asosiy menyu tartibi va inline sub-menyular (UX V2: 6-tugma standarti)."""
     print("== Main menu layout v2 ==")
     from keyboards.default import (
-        get_main_keyboard, BTN_NEW_POST, BTN_AI_STUDIO, BTN_SETTINGS,
+        get_main_keyboard, BTN_SETTINGS,
         BTN_PREMIUM, BTN_HELP, BTN_EXTRAS, BTN_ADMIN_PANEL,
+        BTN_CREATE_CONTENT, BTN_MY_CHANNELS, BTN_SCHEDULED, BTN_STATISTICS,
     )
     from keyboards.inline import get_cabinet_inline_keyboard, get_extras_inline_keyboard
     import keyboards.default as kd
 
     check("AI Yordamchi olib tashlangan", not hasattr(kd, "BTN_AI"))
-    check("BTN_SETTINGS matni", BTN_SETTINGS == "👤 Kabinet & Sozlamalar")
+    # UX V2: asosiy menyu yorliqlari (eski nomlar aliaslarda saqlanadi).
+    check("BTN_SETTINGS matni", BTN_SETTINGS == "⚙️ Sozlamalar")
+    check("BTN_PREMIUM matni (💎 PRO)", BTN_PREMIUM == "💎 PRO")
     check("BTN_HELP matni", BTN_HELP == "📖 Qo'llanma / Bot haqida")
     check("BTN_EXTRAS matni", BTN_EXTRAS == "⚙️ Qo'shimcha funksiyalar")
 
     rows = [[b.text for b in row] for row in get_main_keyboard(False).keyboard]
-    # ✨ Magic Post qo'shilgach: 4 qator (2-qator = yakka «✨ Magic Post»).
-    check("user: 4 qator", len(rows) == 4, str(rows))
-    check("user row1", rows[0] == [BTN_NEW_POST, BTN_AI_STUDIO], str(rows[0]))
-    check("user row2 (Magic Post)", rows[1] == [kd.BTN_MAGIC_POST], str(rows[1]))
-    # Yangi tartib: ⭐️ Premium chapda, 👤 Kabinet o'ngda (almashtirildi)
+    # UX V2: QAT'IY 6 tugma — 3 qator × 2 tugma.
+    check("user: 3 qator (6 tugma)", len(rows) == 3, str(rows))
+    check("user row1", rows[0] == [BTN_CREATE_CONTENT, BTN_MY_CHANNELS], str(rows[0]))
+    check("user row2", rows[1] == [BTN_SCHEDULED, BTN_STATISTICS], str(rows[1]))
     check("user row3", rows[2] == [BTN_PREMIUM, BTN_SETTINGS], str(rows[2]))
-    check("user row4", rows[3] == [BTN_HELP, BTN_EXTRAS], str(rows[3]))
+    # Eski tarqoq tugmalar asosiy menyudan olingan (Sozlamalar ichidan ochiladi).
+    flat = [t for r in rows for t in r]
+    check("user: Qo'llanma asosiy menyuda YO'Q", BTN_HELP not in flat, str(flat))
+    check("user: Qo'shimcha asosiy menyuda YO'Q", BTN_EXTRAS not in flat, str(flat))
+    check("user: Magic Post asosiy menyuda YO'Q", kd.BTN_MAGIC_POST not in flat, str(flat))
+    check("user: Admin Panel oddiy foydalanuvchida YO'Q",
+          BTN_ADMIN_PANEL not in flat, str(flat))
 
     arows = [[b.text for b in row] for row in get_main_keyboard(True).keyboard]
-    check("admin: 5 qator", len(arows) == 5, str(arows))
-    check("admin row1", arows[0] == [BTN_NEW_POST, BTN_AI_STUDIO], str(arows[0]))
-    check("admin row2 (Magic Post)", arows[1] == [kd.BTN_MAGIC_POST], str(arows[1]))
+    check("admin: 4 qator (6 tugma + Admin Panel)", len(arows) == 4, str(arows))
+    check("admin row1", arows[0] == [BTN_CREATE_CONTENT, BTN_MY_CHANNELS], str(arows[0]))
+    check("admin row2", arows[1] == [BTN_SCHEDULED, BTN_STATISTICS], str(arows[1]))
     check("admin row3", arows[2] == [BTN_PREMIUM, BTN_SETTINGS], str(arows[2]))
-    check("admin row4", arows[3] == [BTN_HELP, BTN_EXTRAS], str(arows[3]))
-    check("admin row5", arows[4] == [BTN_ADMIN_PANEL], str(arows[4]))
+    check("admin row4 (Admin Panel)", arows[3] == [BTN_ADMIN_PANEL], str(arows[3]))
 
     ex = [[(b.text, b.callback_data) for b in row] for row in get_extras_inline_keyboard().inline_keyboard]
     ex_cbs = [c for row in ex for _, c in row]
@@ -1527,15 +1538,19 @@ def test_channel_reader_error_handling():
 def test_main_keyboard_extract():
     """Ochiq kanaldan olish tugmasi mavjud (AI Studio sub-menuda)."""
     print("== Main keyboard extract ==")
-    from keyboards.default import get_main_keyboard, BTN_CHANNEL_EXTRACT, BTN_AI_STUDIO
+    from keyboards.default import (
+        get_main_keyboard, BTN_CHANNEL_EXTRACT, BTN_AI_STUDIO, BTN_CREATE_CONTENT,
+    )
 
     check("BTN_CHANNEL_EXTRACT mavjud", BTN_CHANNEL_EXTRACT == "📢 Ochiq kanaldan olish")
 
-    # Extract endi AI Studio sub-menuda, asosiy menyuda emas
+    # Extract endi AI Studio sub-menuda, asosiy menyuda emas.
+    # UX V2: kirish nuqtasi — «✨ Kontent yaratish» (AI Studio markazi).
     kb = get_main_keyboard(False)
     all_texts = [b.text for row in kb.keyboard for b in row]
     check("main kb: Extract yo'q (AI Studio ichida)", BTN_CHANNEL_EXTRACT not in all_texts)
-    check("main kb: AI Studio bor", BTN_AI_STUDIO in all_texts)
+    check("main kb: AI Studio yo'q (UX V2: Kontent yaratish bor)",
+          BTN_AI_STUDIO not in all_texts and BTN_CREATE_CONTENT in all_texts)
 
 
 def test_admin_dashboard():
@@ -1623,7 +1638,12 @@ def test_ai_studio_keyboard():
     """AI Studio inline keyboard to'g'ri shakllanishi."""
     print("== AI Studio keyboard ==")
     from keyboards.inline import get_ai_studio_keyboard
-    from keyboards.default import get_main_keyboard, BTN_AI_STUDIO, BTN_NEW_POST, BTN_QUEUE, BTN_ANALYTICS, BTN_PREMIUM, BTN_SETTINGS, BTN_MAGIC_POST
+    from keyboards.default import (
+        get_main_keyboard, BTN_AI_STUDIO, BTN_NEW_POST, BTN_QUEUE, BTN_ANALYTICS,
+        BTN_PREMIUM, BTN_SETTINGS, BTN_MAGIC_POST,
+        BTN_CREATE_CONTENT, BTN_MY_CHANNELS, BTN_SCHEDULED, BTN_STATISTICS,
+        BTN_ADMIN_PANEL,
+    )
 
     kb = get_ai_studio_keyboard()
     cbs = [b.callback_data for row in kb.inline_keyboard for b in row]
@@ -1639,22 +1659,29 @@ def test_ai_studio_keyboard():
     check("studio kb: Rasmdan post label", any("Rasmdan post" in t for t in labels))
     check("studio kb: Kontent-reja label", any("Kontent-reja" in t for t in labels))
 
-    # Main keyboard — 7 tugma (✨ Magic Post qatori qo'shilgach)
+    # UX V2: asosiy klaviatura — QAT'IY 6 tugma (free) + admin qatori.
     kb_main = get_main_keyboard(False)
     main_texts = [b.text for row in kb_main.keyboard for b in row]
-    check("main kb: 7 ta tugma (free)", len(main_texts) == 7)
-    check("main kb: Yangi post", BTN_NEW_POST in main_texts)
-    check("main kb: AI Studio", BTN_AI_STUDIO in main_texts)
-    check("main kb: Magic Post", BTN_MAGIC_POST in main_texts)
+    check("main kb: 6 ta tugma (free, UX V2)", len(main_texts) == 6)
+    check("main kb: Kontent yaratish", BTN_CREATE_CONTENT in main_texts)
+    check("main kb: Kanallarim", BTN_MY_CHANNELS in main_texts)
+    check("main kb: Rejalashtirilgan", BTN_SCHEDULED in main_texts)
+    check("main kb: Statistika", BTN_STATISTICS in main_texts)
     check("main kb: Queue yo'q (Kabinet ichida)", BTN_QUEUE not in main_texts)
     check("main kb: Analitika yo'q (Kabinet ichida)", BTN_ANALYTICS not in main_texts)
-    check("main kb: Premium", BTN_PREMIUM in main_texts)
-    check("main kb: Kabinet", BTN_SETTINGS in main_texts)
+    check("main kb: PRO (💎)", BTN_PREMIUM in main_texts)
+    check("main kb: Sozlamalar", BTN_SETTINGS in main_texts)
+    # UX V2: eski tarqoq tugmalar asosiy menyuda YO'Q (oqimlari saqlanadi).
+    check("main kb: Magic Post yo'q (UX V2)", BTN_MAGIC_POST not in main_texts)
+    check("main kb: AI Studio yo'q (UX V2)", BTN_AI_STUDIO not in main_texts)
+    check("main kb: Yangi post yo'q (UX V2)", BTN_NEW_POST not in main_texts)
 
-    # Admin keyboard — 8 ta tugma (7 + admin)
+    # Admin keyboard — 7 ta tugma (6 + admin)
     kb_admin = get_main_keyboard(True)
     admin_texts = [b.text for row in kb_admin.keyboard for b in row]
-    check("main kb: 8 ta tugma (admin)", len(admin_texts) == 8)
+    check("main kb: 7 ta tugma (admin, UX V2)", len(admin_texts) == 7)
+    check("main kb admin: Admin Panel oxirgi qatorda",
+          [[b.text for b in r] for r in kb_admin.keyboard][-1] == [BTN_ADMIN_PANEL])
 
 
 def test_ai_studio_hardening():
@@ -2240,11 +2267,12 @@ def test_subscription_migration_sql():
 
 
 def test_main_keyboard_premium():
-    """Asosiy menyuda Premium tugmasi bor."""
+    """Asosiy menyuda PRO (💎) tugmasi bor."""
     print("== Main keyboard premium ==")
     from keyboards.default import get_main_keyboard, BTN_PREMIUM
 
-    check("BTN_PREMIUM mavjud", BTN_PREMIUM == "⭐️ Premium")
+    # UX V2: yorliq endi «💎 PRO» (eski «⭐️ Premium» routing'da alias).
+    check("BTN_PREMIUM mavjud", BTN_PREMIUM == "💎 PRO")
 
     kb = get_main_keyboard(False)
     all_texts = [b.text for row in kb.keyboard for b in row]
@@ -6181,8 +6209,10 @@ def test_i18n_uz_ru():
         get_main_keyboard, exact, exact_i18n,
         BTN_NEW_POST, BTN_NEW_POST_RU, BTN_AI_STUDIO, BTN_AI_STUDIO_RU,
         BTN_PREMIUM, BTN_PREMIUM_RU, BTN_SETTINGS, BTN_SETTINGS_RU,
-        BTN_HELP, BTN_HELP_RU, BTN_EXTRAS, BTN_EXTRAS_RU,
-        BTN_MAGIC_POST_RU,
+        BTN_CREATE_CONTENT, BTN_CREATE_CONTENT_RU,
+        BTN_MY_CHANNELS, BTN_MY_CHANNELS_RU,
+        BTN_SCHEDULED, BTN_SCHEDULED_RU,
+        BTN_STATISTICS, BTN_STATISTICS_RU,
     )
     from keyboards.inline import get_language_keyboard
     import database as db_mod
@@ -6208,13 +6238,15 @@ def test_i18n_uz_ru():
     check("unknown key fallback", get_text("no_such_key", "ru") == "no_such_key")
     check("unknown lang -> uz", get_text("btn_new_post", "fr") == get_text("btn_new_post", "uz"))
 
+    # UX V2 (6-tugma standarti): RU klaviatura yangi yorliqlarda.
     ru_rows = [[b.text for b in row] for row in get_main_keyboard(False, lang="ru").keyboard]
-    check("ru row1", ru_rows[0] == [BTN_NEW_POST_RU, BTN_AI_STUDIO_RU], str(ru_rows[0]))
-    check("ru row2 (Magic Post)", ru_rows[1] == [BTN_MAGIC_POST_RU], str(ru_rows[1]))
+    check("ru: 3 qator (6 tugma)", len(ru_rows) == 3, str(ru_rows))
+    check("ru row1", ru_rows[0] == [BTN_CREATE_CONTENT_RU, BTN_MY_CHANNELS_RU], str(ru_rows[0]))
+    check("ru row2", ru_rows[1] == [BTN_SCHEDULED_RU, BTN_STATISTICS_RU], str(ru_rows[1]))
     check("ru row3", ru_rows[2] == [BTN_PREMIUM_RU, BTN_SETTINGS_RU], str(ru_rows[2]))
-    check("ru row4", ru_rows[3] == [BTN_HELP_RU, BTN_EXTRAS_RU], str(ru_rows[3]))
     uz_rows = [[b.text for b in row] for row in get_main_keyboard(False).keyboard]
-    check("uz default row1", uz_rows[0] == [BTN_NEW_POST, BTN_AI_STUDIO], str(uz_rows[0]))
+    check("uz default: 3 qator (6 tugma)", len(uz_rows) == 3, str(uz_rows))
+    check("uz default row1", uz_rows[0] == [BTN_CREATE_CONTENT, BTN_MY_CHANNELS], str(uz_rows[0]))
 
     class _Ctx:
         def __init__(self, data):
@@ -6288,6 +6320,8 @@ def test_i18n_en_menu_buttons_and_fallback():
     from locales.translations import get_text
     from keyboards.default import (
         get_main_keyboard, get_simple_keyboard,
+        BTN_CREATE_CONTENT_EN, BTN_MY_CHANNELS_EN, BTN_SCHEDULED_EN,
+        BTN_STATISTICS_EN,
         BTN_NEW_POST_EN, BTN_AI_STUDIO_EN, BTN_PREMIUM_EN, BTN_SETTINGS_EN,
         BTN_HELP_EN, BTN_EXTRAS_EN, BTN_BACK_EN, BTN_CANCEL_EN,
         BTN_CHANNELS_EN, BTN_CONVERTER_EN, BTN_DAILY_BONUS_EN, BTN_INVITE_EN,
@@ -6302,7 +6336,8 @@ def test_i18n_en_menu_buttons_and_fallback():
 
     # ---------- 1) EN lug'at: tugma matnlari va fallback xabarlar ----------
     check("EN btn_new_post", get_text("btn_new_post", "en") == "➕ New post")
-    check("EN btn_settings", get_text("btn_settings", "en") == "👤 Account & Settings")
+    # UX V2: sozlamalar yorlig'i endi «⚙️ Settings» (eski nom aliasda).
+    check("EN btn_settings", get_text("btn_settings", "en") == "⚙️ Settings")
     check("EN btn_help", get_text("btn_help", "en") == "📖 Guide / About")
     check("EN btn_extras", get_text("btn_extras", "en") == "⚙️ Extra features")
     check("EN btn_cancel", get_text("btn_cancel", "en") == "❌ Cancel")
@@ -6356,6 +6391,11 @@ def test_i18n_en_menu_buttons_and_fallback():
 
     # ---------- 3) Har bir EN tugma → tegishli handler (fallback EMAS) ----------
     en_button_targets = (
+        # 🆕 UX V2 — 6-tugma standarti (EN yorliqlari router'da):
+        (BTN_CREATE_CONTENT_EN, "ai_studio_menu_entry"),
+        (BTN_MY_CHANNELS_EN, "channels_menu"),
+        (BTN_SCHEDULED_EN, "queue_menu"),
+        (BTN_STATISTICS_EN, "statistics_button"),
         (BTN_NEW_POST_EN, "start_new_post"),
         (BTN_AI_STUDIO_EN, "ai_studio_menu_entry"),
         (BTN_MAGIC_POST_EN, "magic_post_entry"),
@@ -6389,11 +6429,15 @@ def test_i18n_en_menu_buttons_and_fallback():
               type(h).__name__)
 
     # ---------- 4) EN klaviaturalar = router qamrovi (tuxunsiz) ----------
+    # UX V2: asosiy menyu — QAT'IY 6 TUGMA (EN yorliqlar).
     en_rows = [[b.text for b in row] for row in get_main_keyboard(False, lang="en").keyboard]
-    check("EN main kb row1", en_rows[0] == [BTN_NEW_POST_EN, BTN_AI_STUDIO_EN], str(en_rows[0]))
-    check("EN main kb row2 (Magic Post)", en_rows[1] == [BTN_MAGIC_POST_EN], str(en_rows[1]))
-    check("EN main kb row3", en_rows[2] == [BTN_PREMIUM_EN, BTN_SETTINGS_EN], str(en_rows[2]))
-    check("EN main kb row4", en_rows[3] == [BTN_HELP_EN, BTN_EXTRAS_EN], str(en_rows[3]))
+    check("EN main kb: 3 qator (6 tugma)", len(en_rows) == 3, str(en_rows))
+    check("EN main kb row1",
+          en_rows[0] == [BTN_CREATE_CONTENT_EN, BTN_MY_CHANNELS_EN], str(en_rows[0]))
+    check("EN main kb row2",
+          en_rows[1] == [BTN_SCHEDULED_EN, BTN_STATISTICS_EN], str(en_rows[1]))
+    check("EN main kb row3",
+          en_rows[2] == [BTN_PREMIUM_EN, BTN_SETTINGS_EN], str(en_rows[2]))
     for label in (t for row in en_rows for t in row):
         check(f"EN klaviatura tugmasi router'da: {label[:26]!r}",
               bool(_entry_fn_names(label)))
@@ -6453,8 +6497,10 @@ def test_i18n_en_menu_buttons_and_fallback():
         check("EN fallback: asosiy menyu klaviaturasi bor",
               isinstance(kb, ReplyKeyboardMarkup), type(kb).__name__)
         labels = [b.text for row in kb.keyboard for b in row] if kb is not None else []
-        check("EN fallback: klaviatura EN tugmalar bilan",
-              BTN_NEW_POST_EN in labels and BTN_SETTINGS_EN in labels, str(labels))
+        # UX V2: fallback klaviaturasi — 6-tugma standart (EN yorliqlar).
+        check("EN fallback: klaviatura EN tugmalar bilan (UX V2: 6 tugma)",
+              len(labels) == 6
+              and BTN_CREATE_CONTENT_EN in labels and BTN_SETTINGS_EN in labels, str(labels))
 
     # 6b) Dialog ICHIDA: qabul qilinmaydigan xabar turi → EN eslatma,
     #     menyu YUBORILMAYDI, dialog holati buzilmaydi
@@ -8395,10 +8441,10 @@ def test_onboarding_simple_keyboard():
     # --- Murakkab 6 talik menyu tugmalari sodda klaviaturada YO'Q ---
     flat = [t for r in rows for t in r]
     for btn in (BTN_NEW_POST, BTN_AI_STUDIO, BTN_PREMIUM, BTN_SETTINGS, BTN_HELP, BTN_EXTRAS):
-        check(f"sodda kb: 6 talik menyu tugmasi yo'q ({btn[:14]})", btn not in flat, str(flat))
+        check(f"sodda kb: asosiy menyu tugmasi yo'q ({btn[:14]})", btn not in flat, str(flat))
     full_flat = [b.text for row in get_main_keyboard(False).keyboard for b in row]
-    # ✨ Magic Post qatori qo'shilgach: 7 tugma.
-    check("standart menyu buzilmagan: 7 tugma", len(full_flat) == 7, str(full_flat))
+    # UX V2: standart menyu — QAT'IY 6 tugma (Magic Post qatori olib tashlangan).
+    check("standart menyu (UX V2): 6 tugma", len(full_flat) == 6, str(full_flat))
 
 
 def test_onboarding_resolve_and_quick_handlers():
@@ -8410,7 +8456,7 @@ def test_onboarding_resolve_and_quick_handlers():
     import onboarding as ob
     from telegram.ext import ConversationHandler
     from locales.translations import get_text
-    from keyboards.default import BTN_NEW_POST, BTN_QUICK_AI_POST
+    from keyboards.default import BTN_NEW_POST, BTN_QUICK_AI_POST, BTN_CREATE_CONTENT
 
     ob_mod = importlib.import_module("handlers.onboarding")
     from handlers.ai_assistant import AI_PROMPT_INPUT, AI_PHOTO_INPUT
@@ -8455,7 +8501,7 @@ def test_onboarding_resolve_and_quick_handlers():
         calls.clear()
         kb_admin = asyncio.run(ob_mod.resolve_main_keyboard(4242, True, "uz"))
         check("admin → to'liq menyu",
-              BTN_NEW_POST in [b.text for r in kb_admin.keyboard for b in r])
+              BTN_CREATE_CONTENT in [b.text for r in kb_admin.keyboard for b in r])
         check("admin → DB so'rovi yo'q", "get_user_onboarding" not in calls, str(calls))
         check("admin → intro qatori bo'sh",
               asyncio.run(ob_mod.main_menu_intro_suffix(4242, True, "uz")) == "")
@@ -8466,7 +8512,7 @@ def test_onboarding_resolve_and_quick_handlers():
                                "full_menu_unlocked": False}
         kb_old = asyncio.run(ob_mod.resolve_main_keyboard(5150, False, "uz"))
         check("eski user → to'liq menyu",
-              BTN_NEW_POST in [b.text for r in kb_old.keyboard for b in r])
+              BTN_CREATE_CONTENT in [b.text for r in kb_old.keyboard for b in r])
         check("eski user → intro qatori yo'q",
               asyncio.run(ob_mod.main_menu_intro_suffix(5150, False, "uz")) == "")
 
@@ -8475,14 +8521,14 @@ def test_onboarding_resolve_and_quick_handlers():
         state["onboarding"] = {}
         kb_empty = asyncio.run(ob_mod.resolve_main_keyboard(6160, False, "uz"))
         check("bo'sh onboarding → to'liq menyu",
-              BTN_NEW_POST in [b.text for r in kb_empty.keyboard for b in r])
+              BTN_CREATE_CONTENT in [b.text for r in kb_empty.keyboard for b in r])
 
         # --- e) DB yiqilsa → to'liq menyu (bot qulflab qolmaydi) ---
         ob.invalidate_simple_menu()
         state["raise"] = True
         kb_err = asyncio.run(ob_mod.resolve_main_keyboard(7170, False, "uz"))
         check("DB xatosi → to'liq menyu",
-              BTN_NEW_POST in [b.text for r in kb_err.keyboard for b in r])
+              BTN_CREATE_CONTENT in [b.text for r in kb_err.keyboard for b in r])
         state["raise"] = False
 
         # --- f) 🚀 1 daqiqada post yaratish → AI post oqimi ---
@@ -8536,8 +8582,8 @@ def test_onboarding_resolve_and_quick_handlers():
         f_text, f_markup, f_pm = upd_f.message.sent[-1]
         check("full menu: tasdiq matni (uz)",
               f_text == get_text("quick_full_menu_opened", "uz"), f_text[:60])
-        check("full menu: standart 6 talik menyu biriktirildi",
-              BTN_NEW_POST in [b.text for r in f_markup.keyboard for b in r])
+        check("full menu: standart 6 talik menyu biriktirildi (UX V2)",
+              BTN_CREATE_CONTENT in [b.text for r in f_markup.keyboard for b in r])
         check("full menu: HTML", f_pm == "HTML")
         check("full menu: kesh to'liq menyuga o'tdi",
               ob.get_cached_simple_menu(4242) is False)
@@ -8546,9 +8592,9 @@ def test_onboarding_resolve_and_quick_handlers():
         ctx_fr = _OnbCtx("ru", {"lang": "ru"})
         asyncio.run(ob_mod.open_full_menu(upd_fr, ctx_fr))
         f_text_ru, f_markup_ru, _ = upd_fr.message.sent[-1]
-        check("full menu ru: ruscha tasdiq + ruscha menyu",
+        check("full menu ru: ruscha tasdiq + ruscha menyu (UX V2)",
               f_text_ru == get_text("quick_full_menu_opened", "ru")
-              and get_text("btn_new_post", "ru")
+              and get_text("btn_create_content", "ru")
               in [b.text for r in f_markup_ru.keyboard for b in r], f_text_ru[:60])
 
         # DB yozuvi yiqilsa ham menyu ochiladi (foydalanuvchi qulflanmaydi)
@@ -8572,7 +8618,9 @@ def test_onboarding_start_integration():
     import database as db_mod
     import onboarding as ob
     from telegram import ReplyKeyboardMarkup
-    from keyboards.default import BTN_NEW_POST, BTN_QUICK_AI_POST, BTN_OPEN_FULL_MENU
+    from keyboards.default import (
+        BTN_NEW_POST, BTN_QUICK_AI_POST, BTN_OPEN_FULL_MENU, BTN_CREATE_CONTENT,
+    )
     from locales.translations import get_text
 
     st_mod = importlib.import_module("handlers.start")
@@ -8634,7 +8682,7 @@ def test_onboarding_start_integration():
                                      "full_menu_unlocked": False}, "is_new": False, "lang": "uz"})
         text2, markup2, _ = run_start()
         labels2 = [b.text for r in markup2.keyboard for b in r]
-        check("start (eski): standart menyu", BTN_NEW_POST in labels2, str(labels2))
+        check("start (eski): standart menyu (UX V2)", BTN_CREATE_CONTENT in labels2, str(labels2))
         check("start (eski): quick_menu_hint yo'q",
               get_text("quick_menu_hint", "uz") not in text2)
         check("start (eski): standart salomlashish",
@@ -8656,15 +8704,15 @@ def test_onboarding_start_integration():
         state.update({"onboarding": {"created_at": _onb_days_ago(1), "posts_published": 0,
                                      "full_menu_unlocked": True}, "is_new": True, "lang": "uz"})
         _, markup4, _ = run_start()
-        check("start: belgi bilan → standart menyu",
-              BTN_NEW_POST in [b.text for r in markup4.keyboard for b in r])
+        check("start: belgi bilan → standart menyu (UX V2)",
+              BTN_CREATE_CONTENT in [b.text for r in markup4.keyboard for b in r])
 
         # e) Onboarding ma'lumoti bo'lmasa → standart menyu (regressiya yo'q)
         ob.invalidate_simple_menu()
         state.update({"onboarding": {}, "is_new": True, "lang": "uz"})
         _, markup5, _ = run_start()
-        check("start: ma'lumot yo'q → standart menyu (regressiya yo'q)",
-              BTN_NEW_POST in [b.text for r in markup5.keyboard for b in r])
+        check("start: ma'lumot yo'q → standart menyu (regressiya yo'q, UX V2)",
+              BTN_CREATE_CONTENT in [b.text for r in markup5.keyboard for b in r])
 
         # f) send_main_menu: simple_menu parametri (bazaga so'rov yubormaydi)
         class _RecBot:
@@ -8681,8 +8729,8 @@ def test_onboarding_start_integration():
         sctx.bot = bot
         check("send_main_menu: main_menu_hint matni",
               asyncio.run(st_mod.send_main_menu(sctx, 4242, "uz", False)) is None)
-        check("send_main_menu: default → standart menyu (orqaga moslik)",
-              BTN_NEW_POST in [b.text for r in bot.sent[-1][1].keyboard for b in r],
+        check("send_main_menu: default → standart menyu (orqaga moslik, UX V2)",
+              BTN_CREATE_CONTENT in [b.text for r in bot.sent[-1][1].keyboard for b in r],
               str([b.text for r in bot.sent[-1][1].keyboard for b in r]))
         check("send_main_menu: matn main_menu_hint",
               bot.sent[-1][0] == get_text("main_menu_hint", "uz"), str(bot.sent[-1][0])[:50])
@@ -8700,8 +8748,8 @@ def test_onboarding_start_integration():
               == get_text("quick_btn_ai_post", "ru"))
 
         asyncio.run(st_mod.send_main_menu(sctx, 4242, "uz", True, simple_menu=True))
-        check("send_main_menu: admin → standart menyu",
-              BTN_NEW_POST in [b.text for r in bot.sent[-1][1].keyboard for b in r])
+        check("send_main_menu: admin → standart menyu (UX V2)",
+              BTN_CREATE_CONTENT in [b.text for r in bot.sent[-1][1].keyboard for b in r])
     finally:
         db_mod.run_db = orig_db
         st_mod.check_user_subscribed = orig_check

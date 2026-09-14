@@ -118,17 +118,19 @@ def test_account_settings_keys_exist():
 # 2. ASOSIY MENYU TUGMASI — har 3 tilda
 # ================================================================
 def test_main_menu_button_3_langs():
-    """Asosiy menyuda Account & Settings tugmasi 3 tilda to'g'ri."""
-    print("== Asosiy menyu: Account & Settings tugmasi ==")
+    """Asosiy menyuda Sozlamalar (Kabinet) tugmasi 3 tilda to'g'ri."""
+    print("== Asosiy menyu: Sozlamalar tugmasi ==")
     from locales.translations import get_text
     from keyboards.default import get_main_keyboard, BTN_SETTINGS, BTN_SETTINGS_RU
 
-    check("uz: BTN_SETTINGS = '👤 Kabinet & Sozlamalar'",
-          BTN_SETTINGS == "👤 Kabinet & Sozlamalar")
-    check("ru: BTN_SETTINGS_RU = '👤 Кабинет & Настройки'",
-          BTN_SETTINGS_RU == "👤 Кабинет & Настройки")
-    check("en: btn_settings = '👤 Account & Settings'",
-          get_text("btn_settings", "en") == "👤 Account & Settings")
+    # UX V2 (6-tugma standarti): yorliq endi «⚙️ Sozlamalar» (eski
+    # «👤 Kabinet & Sozlamalar» routing'da alias sifatida saqlanadi).
+    check("uz: BTN_SETTINGS = '⚙️ Sozlamalar'",
+          BTN_SETTINGS == "⚙️ Sozlamalar")
+    check("ru: BTN_SETTINGS_RU = '⚙️ Настройки'",
+          BTN_SETTINGS_RU == "⚙️ Настройки")
+    check("en: btn_settings = '⚙️ Settings'",
+          get_text("btn_settings", "en") == "⚙️ Settings")
 
     # Reply-klaviaturalarda tugma bor
     for lang in ("uz", "ru", "en"):

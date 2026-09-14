@@ -193,10 +193,11 @@ def test_button_labels_3_langs():
     print("== 5. Tugma yorliqlari (reply + inline) ==")
     from keyboards.default import get_refreshed_main_keyboard
 
+    # UX V2 (6-tugma standarti): birinchi tugma — «✨ Kontent yaratish».
     expected_first = {
-        "uz": "➕ Yangi post",
-        "ru": "➕ Новый пост",
-        "en": "➕ New post",
+        "uz": "✨ Kontent yaratish",
+        "ru": "✨ Создать контент",
+        "en": "✨ Create content",
     }
     for code, expected in expected_first.items():
         kb = get_refreshed_main_keyboard(code)
@@ -624,10 +625,11 @@ def test_language_switch_keyboard():
     orig = db_mod.run_db
     db_mod.run_db = fake_run_db
     try:
+        # UX V2 (6-tugma standarti): birinchi tugma — «✨ Kontent yaratish».
         expected = {
-            "uz": "➕ Yangi post",
-            "ru": "➕ Новый пост",
-            "en": "➕ New post",
+            "uz": "✨ Kontent yaratish",
+            "ru": "✨ Создать контент",
+            "en": "✨ Create content",
         }
         for code, first_btn in expected.items():
             ctx = _FakeContext({"lang": "uz"})
@@ -681,10 +683,11 @@ def test_language_callback_scenario():
     orig = db_mod.run_db
     db_mod.run_db = fake_run_db
     try:
+        # UX V2 (6-tugma standarti): birinchi tugma — «✨ Kontent yaratish».
         expectations = {
-            "cab_lang_uz": ("uz", "➕ Yangi post", "🌐 Til / Язык"),
-            "cab_lang_ru": ("ru", "➕ Новый пост", "🌐 Til / Язык"),
-            "cab_lang_en": ("en", "➕ New post", "🌐 Language"),
+            "cab_lang_uz": ("uz", "✨ Kontent yaratish", "🌐 Til / Язык"),
+            "cab_lang_ru": ("ru", "✨ Создать контент", "🌐 Til / Язык"),
+            "cab_lang_en": ("en", "✨ Create content", "🌐 Language"),
         }
         for data, (code, first_btn, lang_btn) in expectations.items():
             calls.clear()
@@ -740,8 +743,9 @@ def test_language_change_then_texts():
                      for b in row]
         cancel_labels = [b.text for row in get_cancel_keyboard(get_lang(ctx)).keyboard
                          for b in row]
-        check(f"{code}: menyu matni '{safe_t('btn_new_post', code)}'",
-              kb_labels[0] == safe_t("btn_new_post", code), str(kb_labels[:2]))
+        # UX V2: birinchi tugma — «✨ Kontent yaratish» (tilga mos).
+        check(f"{code}: menyu matni '{safe_t('btn_create_content', code)}'",
+              kb_labels[0] == safe_t("btn_create_content", code), str(kb_labels[:2]))
         check(f"{code}: bekor qilish tugmasi tarjimasi",
               cancel_labels[0] == safe_t("btn_cancel", code), str(cancel_labels))
         # AI Studio / kabinet matnlari ham yangi tilda.

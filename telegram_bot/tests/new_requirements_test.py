@@ -852,7 +852,9 @@ def test_unknown_fallback_replies_in_user_language_with_main_menu():
     """
     import handlers as h_mod
     from telegram import ReplyKeyboardMarkup
-    from keyboards.default import BTN_NEW_POST, BTN_NEW_POST_RU
+    from keyboards.default import (
+        BTN_CREATE_CONTENT, BTN_CREATE_CONTENT_RU, BTN_NEW_POST, BTN_NEW_POST_RU,
+    )
     app = _build_app()
     restore = _patch_db({"get_user_language": "ru", "is_premium": True})
     try:
@@ -876,7 +878,9 @@ def test_unknown_fallback_replies_in_user_language_with_main_menu():
             kb = sent[0]["reply_markup"]
             assert isinstance(kb, ReplyKeyboardMarkup)
             labels = [b.text for row in kb.keyboard for b in row]
-            assert (BTN_NEW_POST_RU if lang == "ru" else BTN_NEW_POST) in labels
+            # UX V2: fallback'dagi asosiy menyu — aynan 6 tugma.
+            assert len(labels) == 6, labels
+            assert (BTN_CREATE_CONTENT_RU if lang == "ru" else BTN_CREATE_CONTENT) in labels
     finally:
         restore()
 
@@ -992,7 +996,9 @@ def test_send_main_menu_helper_renders_hint_and_keyboard():
     """send_main_menu: matn berilmasa main_menu_hint + foydalanuvchi tilidagi klaviatura."""
     import importlib
     from telegram import ReplyKeyboardMarkup
-    from keyboards.default import BTN_NEW_POST_RU, BTN_NEW_POST
+    from keyboards.default import (
+        BTN_CREATE_CONTENT, BTN_CREATE_CONTENT_RU, BTN_NEW_POST_RU, BTN_NEW_POST,
+    )
     st_mod = importlib.import_module("handlers.start")
 
     async def run():
@@ -1011,7 +1017,11 @@ def test_send_main_menu_helper_renders_hint_and_keyboard():
         kb = sent[0]["reply_markup"]
         assert isinstance(kb, ReplyKeyboardMarkup)
         labels = [b.text for row in kb.keyboard for b in row]
-        assert (BTN_NEW_POST_RU if lang == "ru" else BTN_NEW_POST) in labels
+        # UX V2: standart menyu — aynan 6 tugma; «✨ Kontent yaratish» chiqadi,
+        # eski «➕ Yangi post» asosiy menyuda yo'q.
+        assert (BTN_CREATE_CONTENT_RU if lang == "ru" else BTN_CREATE_CONTENT) in labels
+        assert (BTN_NEW_POST_RU if lang == "ru" else BTN_NEW_POST) not in labels
+        assert len(labels) == 6, labels
 
 
 def test_subscription_check_callback_localized_ru():
@@ -1906,25 +1916,35 @@ def test_compose_post_text_never_injects_reactions():
 
 # ============================================================== ONBOARDING
 def test_start_onboarding_texts_exact_uz_ru():
-    """Birinchi marta kirgan foydalanuvchi matni aynan talabdagidek (uz/ru)."""
+    """Birinchi marta kirgan foydalanuvchi matni aynan talabdagidek (uz/ru).
+
+    UX V2: ixcham onboarding — 3 ta kirish usuli (rasm / matn / ovoz) + va'da.
+    """
     assert get_text("start_onboarding", "uz") == (
-        "👋 Xush kelibsiz! Telegram kanalingiz uchun 1 daqiqada professional post tayyorlaymizmi?\n"
+        "👋 Salom!\n"
+        "Men PostAssist — sizning AI SMM yordamchingizman.\n"
         "\n"
-        "✍️ AI post yozish\n"
-        "📅 Istalgan vaqtga rejalashtirish\n"
-        "📢 Avtomatik kanalga chiqarish\n"
+        "📸 Rasm yuboring\n"
+        "📝 Matn yozing\n"
+        "🎙 Ovoz yuboring\n"
         "\n"
-        "Birinchi postingizni hoziroq tayyorlash uchun quyidagi bo'limni tanlang 👇"
+        "Men siz uchun professional post tayyorlayman."
     )
     assert get_text("start_onboarding", "ru") == (
-        "👋 Добро пожаловать! Готовы создать профессиональный пост для вашего канала всего за 1 минуту?\n"
+        "👋 Привет!\n"
+        "Я PostAssist — ваш AI-помощник по SMM.\n"
         "\n"
-        "✍️ Генерация постов через AI\n"
-        "📅 Планирование на любое время\n"
-        "📢 Автопостинг в каналы\n"
+        "📸 Отправьте фото\n"
+        "📝 Напишите текст\n"
+        "🎙 Отправьте голосовое\n"
         "\n"
-        "Чтобы создать свой первый пост прямо сейчас, выберите раздел ниже 👇"
+        "Я подготовлю для вас профессиональный пост."
     )
+    # EN paritet: 3 tilda ham mavjud va uz/ru'dan farq qiladi.
+    en = get_text("start_onboarding", "en")
+    assert "PostAssist" in en
+    assert "📸" in en and "📝" in en and "🎙" in en
+    assert en != get_text("start_onboarding", "uz")
 
 
 def _run_start(is_new: bool, lang: str):
@@ -1976,16 +1996,25 @@ def _run_start(is_new: bool, lang: str):
 
 
 def test_start_first_time_user_gets_onboarding_and_main_menu():
-    """Birinchi marta kirgan (is_new=True) → onboarding matni + bosh menyu."""
+    """Birinchi marta kirgan (is_new=True) → onboarding matni + bosh menyu.
+
+    UX V2: standart menyu aynan 6 tugma — «✨ Kontent yaratish» chiqishi
+    shart (eski «➕ Yangi post» asosiy menyuda yo'q).
+    """
     from telegram import ReplyKeyboardMarkup
-    from keyboards.default import BTN_NEW_POST, BTN_NEW_POST_RU
-    for lang, btn in (("uz", BTN_NEW_POST), ("ru", BTN_NEW_POST_RU)):
+    from keyboards.default import (
+        BTN_CREATE_CONTENT, BTN_CREATE_CONTENT_RU, BTN_NEW_POST, BTN_NEW_POST_RU,
+    )
+    for lang, btn in (("uz", BTN_CREATE_CONTENT), ("ru", BTN_CREATE_CONTENT_RU)):
         text, markup = _run_start(True, lang)
         assert text.startswith(get_text("start_onboarding", lang)), (lang, text[:80])
         assert get_text("start_hello", lang, name="Yangi") not in text
         assert isinstance(markup, ReplyKeyboardMarkup)
         labels = [b.text for row in markup.keyboard for b in row]
         assert btn in labels, (lang, labels)
+        # UX V2: eski asosiy menyu yorliqlari standart klaviaturada yo'q.
+        assert (BTN_NEW_POST if lang == "uz" else BTN_NEW_POST_RU) not in labels
+        assert len(labels) == 6, (lang, labels)
 
 
 def test_start_returning_user_gets_standard_greeting():
