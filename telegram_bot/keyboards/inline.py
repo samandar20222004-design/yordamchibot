@@ -204,17 +204,25 @@ def get_hub_back_keyboard() -> InlineKeyboardMarkup:
 
 
 def get_admin_dashboard_keyboard() -> InlineKeyboardMarkup:
-    """Admin panel inline keyboard — ixchamlashtirilgan dashboard layout.
+    """👑 Admin dashboard — YAGONA MARKAZ (PostAssist V2 · 4-qadam).
 
-    Faqat 6 ta asosiy tugma + Yopish qoladi:
-        [📊 To'liq statistika]      [📢 Ommaviy xabar]
-        [🎯 Reklama markazi]         [📋 Kanallar ro'yxati]
-        [🎁 Promo-kod yaratish]     [⭐ PRO obuna berish]
-        [❌ Yopish]
+    Eski admin reply-klaviaturasi va /buyruqlar to'liq shu dashboard'ga
+    integratsiya qilingan (eski yo'llar alias sifatida ishlaydi):
 
-    "🛠 Tizim sozlamalari" panel dan butunlay olib tashlangan, "📢 Majburiy
-    obuna" esa endi mustaqil tugma emas — "🎯 Reklama markazi" (``adm_adhub``)
-    hub ichidagi 1-bo'lim sifatida ko'rsatiladi (``_ad_hub_render``).
+        [📊 To'liq statistika]  [📢 Ommaviy xabar]      ← /stats, /admin_stats
+        [🎯 Reklama markazi]    [📋 Kanallar ro'yxati]  ← /channels boshqaruvi
+        [📋 Barcha postlar]     [🎁 Promo-kod yaratish] ← /allposts
+        [⭐️ PRO berish]         [🏷 Post nishoni]       ← /grant_pro
+        [⚙️ AI parametrlari]    [🗄️ DB / Kesh holati]  ← /ai parametrlari
+        [🩺 Tizim salomatligi]  [📜 Audit | 👥 Rollar]  ← /health, /audit
+                          [❌ Yopish]
+
+    Yangi ``adm_*`` callback'lar (4-qadam): ``adm_posts`` (Barcha postlar),
+    ``adm_tag`` (Post nishoni), ``adm_ai`` (AI parametrlari), ``adm_dbcache``
+    (DB/Kesh holati), ``adm_audit_roles`` (Audit + Rollar). ``adm_health``
+    allaqachon mavjud edi — endi dashboard'da KO'RINADIGAN tugmaga aylandi.
+    Barchasi ``admin_dashboard_callback`` orqali server-side RBAC bilan
+    (fail-closed) ishlaydi.
     """
     keyboard = [
         [
@@ -226,8 +234,20 @@ def get_admin_dashboard_keyboard() -> InlineKeyboardMarkup:
             InlineKeyboardButton("📋 Kanallar ro'yxati", callback_data="adm_channels"),
         ],
         [
+            InlineKeyboardButton("📋 Barcha postlar", callback_data="adm_posts"),
             InlineKeyboardButton("🎁 Promo-kod yaratish", callback_data="adm_promo"),
-            InlineKeyboardButton("⭐️ PRO obuna berish", callback_data="adm_grant_pro"),
+        ],
+        [
+            InlineKeyboardButton("⭐️ PRO berish", callback_data="adm_grant_pro"),
+            InlineKeyboardButton("🏷 Post nishoni", callback_data="adm_tag"),
+        ],
+        [
+            InlineKeyboardButton("⚙️ AI parametrlari", callback_data="adm_ai"),
+            InlineKeyboardButton("🗄️ DB / Kesh holati", callback_data="adm_dbcache"),
+        ],
+        [
+            InlineKeyboardButton("🩺 Tizim salomatligi", callback_data="adm_health"),
+            InlineKeyboardButton("📜 Audit | 👥 Rollar", callback_data="adm_audit_roles"),
         ],
         [InlineKeyboardButton("❌ Yopish", callback_data="close_msg")],
     ]
@@ -395,6 +415,21 @@ def _calendar_hub_label(lang: str = "uz") -> str:
         return get_text("ai_studio_content_plan", lang)
 
 
+def _content_back_label(lang: str = "uz") -> str:
+    """🧭 [◀️ Orqaga] yorlig'i — Kontent yaratish submenyusi bilan bir xil.
+
+    Yorliq ``translations/content_menu.py`` dagi ``cm_btn_back`` kalitidan
+    olinadi (yagona i18n manbasi — submenu reply-tugmasi bilan AYNAN bir
+    xil matn). Modul topilmasa — asosiy lug'atdagi ``btn_back`` ga xavfsiz
+    qaytamiz (klaviatura hech qachon bo'sh tugma bilan yiqilmaydi).
+    """
+    try:
+        from translations.content_menu import content_menu_t
+        return content_menu_t("cm_btn_back", lang)
+    except Exception:  # pragma: no cover - i18n moduli yo'q bo'lsa
+        return get_text("btn_back", lang)
+
+
 def get_ai_studio_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
     """AI Studio sub-menu inline keyboard.
 
@@ -404,6 +439,14 @@ def get_ai_studio_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
     (imlo, jozibadorlik, CTA, 1-10 baho).
 
     Barcha yorliqlar foydalanuvchi tiliga (lang) mos tarjima qilinadi.
+
+    🧭 PostAssist V2 · 4-qadam — NAVIGATSIYA STACKI: pastki qatorda endi
+    IKKI alohida tugma bor:
+      * [◀️ Orqaga] (``ai_back_to_content``) — foydalanuvchi shu bo'limga
+        «✨ Kontent yaratish» submenyusidan kelgani uchun aynan SHU YERGA
+        qaytadi (asosiy menyuga sakrab ketmaydi);
+      * [🏠 Asosiy menyu] (``studio_close``) — istalgan holatda asosiy
+        6 tugmali menyuga chiqadi.
     """
     keyboard = [
         [
@@ -422,6 +465,9 @@ def get_ai_studio_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
             InlineKeyboardButton(_calendar_hub_label(lang), callback_data="studio_content_plan"),
         ],
         [
+            # 🧭 4-qadam: ◀️ Orqaga → Kontent yaratish submenyusi.
+            InlineKeyboardButton(_content_back_label(lang), callback_data="ai_back_to_content"),
+            # 🏠 Asosiy menyu → asosiy 6 tugmali menyu (eski studio_close).
             InlineKeyboardButton(get_text("ai_btn_main_menu", lang), callback_data="studio_close"),
         ],
     ]

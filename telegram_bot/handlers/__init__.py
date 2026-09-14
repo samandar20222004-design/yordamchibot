@@ -155,6 +155,7 @@ from handlers.ai_assistant import (
     ai_studio_menu_entry, ai_studio_hub_entry, ai_studio_nav_callback, ai_prompt_received,
     ai_tone_callback, ai_studio_schedule_callback, ai_audit_received,
     ai_back_to_menu, ai_close,
+    ai_back_to_content, ai_exit_to_menu,
     ai_photo_received, ai_photo_result_callback, ai_photo_edit_received,
     AI_INPUT, AI_CONFIRM, AI_GET_TIME,
     AI_MENU_STATE, AI_PROMPT_INPUT, AI_TONE_SELECT, AI_AUDIT_INPUT,
@@ -981,11 +982,17 @@ def register_all_handlers(app):
             # conversation qayta ochiladi (menu xabari o'chirilmaydi, edit qilinadi)
             CallbackQueryHandler(
                 lambda u, c: guard_entry(u, c, ai_studio_nav_callback),
-                pattern=r"^studio_(ai_post|ai_audit|extract|content_plan|ai_photo)$",
+                pattern=r"^studio_(ai_post|ai_audit|extract|content_plan|ai_photo|close)$",
             ),
             CallbackQueryHandler(
                 lambda u, c: guard_entry(u, c, ai_back_to_menu),
                 pattern=r"^ai_back_to_menu$",
+            ),
+            # 🧭 4-qadam: AI Yordamchi → [◀️ Orqaga] → Kontent yaratish
+            # submenyusi (eski tugma sessiya tugagach bosilsa ham ishlaydi).
+            CallbackQueryHandler(
+                lambda u, c: guard_entry(u, c, ai_back_to_content),
+                pattern=r"^ai_back_to_content$",
             ),
             CommandHandler("newpost", lambda u, c: guard_entry(u, c, start_new_post)),
             CommandHandler("imagepost", lambda u, c: guard_entry(u, c, image_post_entry)),
@@ -1077,16 +1084,19 @@ def register_all_handlers(app):
                 CallbackQueryHandler(plan_channel_chosen, pattern=r"^plan_ch:"),
                 CallbackQueryHandler(plan_view_callback, pattern=r"^plan_cancel$"),
                 CallbackQueryHandler(ai_back_to_menu, pattern=r"^ai_back_to_menu$"),
+                CallbackQueryHandler(ai_back_to_content, pattern=r"^ai_back_to_content$"),
                 CallbackQueryHandler(ai_close, pattern=r"^ai_close$"),
             ],
             PLAN_GET_TOPIC: all_menu_jumps + [
                 CallbackQueryHandler(ai_back_to_menu, pattern=r"^ai_back_to_menu$"),
+                CallbackQueryHandler(ai_back_to_content, pattern=r"^ai_back_to_content$"),
                 CallbackQueryHandler(ai_close, pattern=r"^ai_close$"),
                 MessageHandler(filters.TEXT & ~filters.COMMAND, plan_topic_received),
             ],
             PLAN_VIEW: all_menu_jumps + [
                 CallbackQueryHandler(plan_view_callback, pattern=r"^plan_"),
                 CallbackQueryHandler(ai_back_to_menu, pattern=r"^ai_back_to_menu$"),
+                CallbackQueryHandler(ai_back_to_content, pattern=r"^ai_back_to_content$"),
                 CallbackQueryHandler(ai_close, pattern=r"^ai_close$"),
             ],
 
@@ -1143,12 +1153,14 @@ def register_all_handlers(app):
             # 11. Channel Extract holatlari
             EXTRACT_USERNAME: all_menu_jumps + [
                 CallbackQueryHandler(ai_back_to_menu, pattern=r"^ai_back_to_menu$"),
+                CallbackQueryHandler(ai_back_to_content, pattern=r"^ai_back_to_content$"),
                 CallbackQueryHandler(ai_close, pattern=r"^ai_close$"),
                 MessageHandler(filters.TEXT & ~filters.COMMAND, extract_username_received),
             ],
             EXTRACT_CHOOSE_POST: all_menu_jumps + [
                 CallbackQueryHandler(extract_post_chosen, pattern=r"^ext_"),
                 CallbackQueryHandler(ai_back_to_menu, pattern=r"^ai_back_to_menu$"),
+                CallbackQueryHandler(ai_back_to_content, pattern=r"^ai_back_to_content$"),
                 CallbackQueryHandler(ai_close, pattern=r"^ai_close$"),
             ],
 
@@ -1182,8 +1194,14 @@ def register_all_handlers(app):
                 CallbackQueryHandler(admin_dashboard_callback, pattern=r"^adm_"),
                 MessageHandler(filters.TEXT & ~filters.COMMAND, bot_reply_ad_received),
             ],
-            SET_POST_TAG: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, post_tag_received)],
-            AI_SETTINGS: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, ai_settings_received)],
+            SET_POST_TAG: all_menu_jumps + [
+                # 🧭 4-qadam: [⬅️ Orqaga]/[❌ Bekor qilish] (adm_back/adm_cancel)
+                # holat ICHIDA ham ishlaydi — FSM to'g'ri yopiladi.
+                CallbackQueryHandler(admin_dashboard_callback, pattern=r"^adm_"),
+                MessageHandler(filters.TEXT & ~filters.COMMAND, post_tag_received)],
+            AI_SETTINGS: all_menu_jumps + [
+                CallbackQueryHandler(admin_dashboard_callback, pattern=r"^adm_"),
+                MessageHandler(filters.TEXT & ~filters.COMMAND, ai_settings_received)],
 
             # Admin inline flow holatlari
             ADMIN_GRANT_PRO: _admin_flow_state(admin_inline_text_handler, all_menu_jumps),
@@ -1195,6 +1213,7 @@ def register_all_handlers(app):
             AI_CONFIRM: all_menu_jumps + [
                 CallbackQueryHandler(ai_confirm_callback, pattern=r"^ai_post_"),
                 CallbackQueryHandler(ai_back_to_menu, pattern=r"^ai_back_to_menu$"),
+                CallbackQueryHandler(ai_back_to_content, pattern=r"^ai_back_to_content$"),
                 CallbackQueryHandler(ai_close, pattern=r"^ai_close$"),
                 MessageHandler(filters.ALL & ~filters.COMMAND, ai_input_received),
             ],
@@ -1202,6 +1221,7 @@ def register_all_handlers(app):
                 MessageHandler(filters.ALL & ~filters.COMMAND, ai_time_received),
                 CallbackQueryHandler(ai_confirm_callback, pattern=r"^ai_post_"),
                 CallbackQueryHandler(ai_back_to_menu, pattern=r"^ai_back_to_menu$"),
+                CallbackQueryHandler(ai_back_to_content, pattern=r"^ai_back_to_content$"),
                 CallbackQueryHandler(ai_close, pattern=r"^ai_close$"),
             ],
 
@@ -1210,12 +1230,14 @@ def register_all_handlers(app):
             AI_MENU_STATE: all_menu_jumps + [
                 CallbackQueryHandler(ai_studio_nav_callback, pattern=r"^studio_"),
                 CallbackQueryHandler(ai_back_to_menu, pattern=r"^ai_back_to_menu$"),
+                CallbackQueryHandler(ai_back_to_content, pattern=r"^ai_back_to_content$"),
                 CallbackQueryHandler(ai_close, pattern=r"^ai_close$"),
                 MessageHandler(filters.PHOTO | filters.Document.ALL, ai_photo_received),
             ],
             AI_PROMPT_INPUT: all_menu_jumps + [
                 CallbackQueryHandler(ai_studio_nav_callback, pattern=r"^studio_"),
                 CallbackQueryHandler(ai_back_to_menu, pattern=r"^ai_back_to_menu$"),
+                CallbackQueryHandler(ai_back_to_content, pattern=r"^ai_back_to_content$"),
                 CallbackQueryHandler(ai_close, pattern=r"^ai_close$"),
                 MessageHandler(filters.ALL & ~filters.COMMAND, ai_prompt_received),
             ],
@@ -1224,6 +1246,7 @@ def register_all_handlers(app):
                 CallbackQueryHandler(ai_studio_schedule_callback, pattern=r"^ai_studio_sched$"),
                 CallbackQueryHandler(ai_studio_nav_callback, pattern=r"^studio_"),
                 CallbackQueryHandler(ai_back_to_menu, pattern=r"^ai_back_to_menu$"),
+                CallbackQueryHandler(ai_back_to_content, pattern=r"^ai_back_to_content$"),
                 CallbackQueryHandler(ai_close, pattern=r"^ai_close$"),
                 # Yangi mavzu yozilsa — qayta generatsiya
                 MessageHandler(filters.ALL & ~filters.COMMAND, ai_prompt_received),
@@ -1231,6 +1254,7 @@ def register_all_handlers(app):
             AI_AUDIT_INPUT: all_menu_jumps + [
                 CallbackQueryHandler(ai_studio_nav_callback, pattern=r"^studio_"),
                 CallbackQueryHandler(ai_back_to_menu, pattern=r"^ai_back_to_menu$"),
+                CallbackQueryHandler(ai_back_to_content, pattern=r"^ai_back_to_content$"),
                 CallbackQueryHandler(ai_close, pattern=r"^ai_close$"),
                 MessageHandler(filters.ALL & ~filters.COMMAND, ai_audit_received),
             ],
@@ -1241,6 +1265,7 @@ def register_all_handlers(app):
             AI_PHOTO_INPUT: all_menu_jumps + [
                 CallbackQueryHandler(ai_studio_nav_callback, pattern=r"^studio_"),
                 CallbackQueryHandler(ai_back_to_menu, pattern=r"^ai_back_to_menu$"),
+                CallbackQueryHandler(ai_back_to_content, pattern=r"^ai_back_to_content$"),
                 CallbackQueryHandler(ai_close, pattern=r"^ai_close$"),
                 MessageHandler(filters.ALL & ~filters.COMMAND, ai_photo_received),
             ],
@@ -1248,12 +1273,14 @@ def register_all_handlers(app):
                 CallbackQueryHandler(ai_photo_result_callback, pattern=r"^photo_"),
                 CallbackQueryHandler(ai_studio_nav_callback, pattern=r"^studio_"),
                 CallbackQueryHandler(ai_back_to_menu, pattern=r"^ai_back_to_menu$"),
+                CallbackQueryHandler(ai_back_to_content, pattern=r"^ai_back_to_content$"),
                 CallbackQueryHandler(ai_close, pattern=r"^ai_close$"),
                 MessageHandler(filters.ALL & ~filters.COMMAND, ai_photo_received),
             ],
             AI_PHOTO_EDIT_INPUT: all_menu_jumps + [
                 CallbackQueryHandler(ai_studio_nav_callback, pattern=r"^studio_"),
                 CallbackQueryHandler(ai_back_to_menu, pattern=r"^ai_back_to_menu$"),
+                CallbackQueryHandler(ai_back_to_content, pattern=r"^ai_back_to_content$"),
                 CallbackQueryHandler(ai_close, pattern=r"^ai_close$"),
                 MessageHandler(filters.PHOTO | filters.Document.ALL, ai_photo_received),
                 MessageHandler(filters.TEXT & ~filters.COMMAND, ai_photo_edit_received),

@@ -450,8 +450,14 @@ def test_content_calendar_from_ai_hub():
         hub = [t for t, d in buttons if d == "studio_content_plan"]
         check(f"[{lang}] AI Yordamchi'da [🧠 Kontent reja] tugmasi",
               len(hub) == 1 and "🧠" in hub[0], str(hub))
-    check("hub klaviaturasi — 6 tugma (yangi tugma qo'shilmagan)",
-          len(_cbs(get_ai_studio_keyboard("uz"))) == 6, str(_cbs(get_ai_studio_keyboard("uz"))))
+    # 4-QADAM (navigatsiya stacki): hub klaviaturasiga [◀️ Orqaga] qo'shildi —
+    # endi 7 tugma (5 vosita + ◀️ Orqaga + 🏠 Asosiy menyu). Bu ataylab
+    # qilingan speks o'zgarishi: AI Yordamchi'dan Orqaga KONTENT YARATISH
+    # submenyusiga qaytadi (asosiy menyuga sakrab ketmaydi).
+    check("hub klaviaturasi — 7 tugma (5 vosita + ◀️ Orqaga + 🏠 Asosiy menyu)",
+          len(_cbs(get_ai_studio_keyboard("uz"))) == 7
+          and "ai_back_to_content" in _cbs(get_ai_studio_keyboard("uz")),
+          str(_cbs(get_ai_studio_keyboard("uz"))))
 
     # 2) Callback — oqimni boshlaydi (soha so'raladi).
     q = _Query("studio_content_plan")

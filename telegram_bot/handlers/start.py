@@ -385,6 +385,11 @@ async def user_cabinet_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # qayta ishga tushgach) — foydalanuvchi tilini DB'dan yuklaymiz. Aks holda
     # rus foydalanuvchi kabinetni o'zbekchada ko'rib qolardi (get_lang uz).
     lang = await ensure_user_lang(context, user.id)
+    # 🧭 4-qadam: foydalanuvchi «⚙️ Sozlamalar» bo'limida — bu bo'limdan
+    # boshlangan FSM oqimlari (Vositalar → Konvertor/Enhancer va h.k.)
+    # bekor qilinsa, foydalanuvchi aynan shu menyuga qaytadi.
+    from handlers.navigation import remember_section, SECTION_SETTINGS
+    remember_section(context, SECTION_SETTINGS)
     is_admin = (user.id in ADMIN_IDS_SET)
     stats = await db.run_db(db.get_referral_stats, user.id)
     channels = await db.run_db(db.get_user_channels, user.id)
@@ -661,7 +666,14 @@ async def extras_close_callback(update: Update, context: ContextTypes.DEFAULT_TY
 
 
 async def cancel_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Foydalanuvchi band holatda /cancel bosganda yoki tugma bosganda — aniq xabar (uz/ru)."""
+    """[❌ Bekor qilish] — FSM kontekst tozalanadi va BO'LIM BOSHIGA qaytadi.
+
+    PostAssist V2 · 4-qadam navigatsiya stacki standarti: jarayon (FSM)
+    ichida [❌ Bekor qilish] bosilsa kontekst tozalanadi va foydalanuvchi
+    O'SHA BO'LIM BOSHIGA qaytadi (masalan, «✨ Kontent yaratish» submenyusi
+    yoki «🤖 AI Yordamchi» hub'iga kirib ketgan bo'lsa). Bo'lim noma'lum
+    bo'lsa — asosiy menyuga (eski xulq, to'liq orqaga moslik).
+    """
     user_id = update.effective_user.id
     # Tugallanmagan albom yig'uvchi task'ini ham bekor qilamiz (leak/ustiga
     # yozilish oldini olish uchun).
@@ -672,7 +684,24 @@ async def cancel_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         pass
     is_admin = (user_id in ADMIN_IDS_SET)
     lang = await ensure_user_lang(context, user_id)
+    # 🧭 Bo'limni FSM tozalanishidan OLDIN o'qib olamiz (clear_fsm_data
+    # user_data ni tozalaydi, lekin nav_section endi omon qoladi).
+    from handlers.navigation import (
+        render_section_start_message, current_section, SECTION_MAIN,
+    )
+    section = current_section(context)
     clear_fsm_data(context)
+    if section != SECTION_MAIN:
+        # Bo'lim boshiga qaytish (Kontent submenu / AI Studio hub / ...).
+        # Xato bo'lsa — asosiy menyuga fallback (fail-safe).
+        try:
+            rendered = await render_section_start_message(
+                update.message, context, user_id, is_admin, lang,
+            )
+        except Exception:
+            rendered = False
+        if rendered:
+            return ConversationHandler.END
     await update.message.reply_text(
         get_text("cancel_done", lang),
         # 🆕 Yangi foydalanuvchi bekor qilgandan keyin ham sodda (3 tugmali)

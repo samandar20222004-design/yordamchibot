@@ -4369,16 +4369,26 @@ def set_lang_cache(context, lang: str) -> str:
 
 
 def clear_fsm_data(context) -> None:
-    """FSM holatini tozalaydi, lekin til keshini saqlab qoladi."""
+    """FSM holatini tozalaydi, lekin til keshini saqlab qoladi.
+
+    🧭 PostAssist V2 · 4-qadam: ``nav_section`` (navigatsiya stacki) ham
+    omon qoladi — FSM tozalanishiga qaramay [❌ Bekor qilish] foydalanuvchi
+    QAYSIGA qaytishini bilib turadi (handlers/navigation.py). Qiymatning
+    yaroqliligi o'qilayotganda ``current_section`` tomonidan tekshiriladi
+    (noto'g'ri qiymat → ``main``), shu sababli bu yerda faqat satr saqlanadi.
+    """
     if context is None:
         return
     ud = getattr(context, "user_data", None)
     if ud is None:
         return
     lang = ud.get(LANG_KEY) if hasattr(ud, "get") else None
+    nav_section = ud.get("nav_section") if hasattr(ud, "get") else None
     ud.clear()
     if lang in SUPPORTED_LANGS:
         ud[LANG_KEY] = lang
+    if isinstance(nav_section, str) and nav_section:
+        ud["nav_section"] = nav_section
 
 
 # --- Ma'lumotlar bazasidan qaytadigan tayyor matnlar (uz) tarjimalari ---
