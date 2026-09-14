@@ -158,6 +158,87 @@ def _build_dashboard_text(stats: dict) -> str:
     )
 
 
+#: Holat → emoji (health_service'dagi bilan bir xil qoida).
+_HEALTH_STATUS_EMOJI = {
+    "OK": "✅", "HEALTHY": "✅", "RUNNING": "✅",
+    "DEGRADED": "⚠️", "STOPPED": "🛑", "UNCONFIGURED": "⚪️",
+    "UNHEALTHY": "❌", "UNKNOWN": "❔", "DISABLED": "⚪️",
+}
+
+
+def _health_mark(status) -> str:
+    return _HEALTH_STATUS_EMOJI.get(str(status or ""), "❔")
+
+
+async def build_admin_health_block(lang: str = "uz") -> str:
+    """⚙️ ADMIN PANEL — tizim monitoringi (Health status) bloki.
+
+    Faqat admin panelga kirilganda dashboard matniga qo'shiladi va 4 ta
+    majburiy bo'limni ixcham ko'rsatadi:
+
+      * 🖥 Bot & DB holati (latency bilan);
+      * ⏰ Scheduler holati (faol joblar soni);
+      * 🤖 AI provayderlar (Gemini, Groq, OpenRouter ...);
+      * 💳 Pending manual to'lovlar (tasdiq kutilayotgan cheklar).
+
+    Qat'iy qoida: health bloki HECH QACHON istisno ko'tarmaydi — xato
+    bo'lsa bo'sh satr qaytadi (dashboard baribir chiqadi).
+    """
+    from translations import settings_stats_t
+
+    try:
+        from services.health_service import get_system_health
+
+        health = await get_system_health()
+        db_info = health.get("database") or {}
+        sched = health.get("scheduler") or {}
+        ai = health.get("ai_providers") or {}
+        pay = health.get("payments") or {}
+
+        lines = [
+            "━━━━━━━━━━━━━━━━━",
+            settings_stats_t("ss_health_title", lang),
+        ]
+        db_line = settings_stats_t(
+            "ss_health_bot_db", lang,
+            status=f"{_health_mark(db_info.get('status'))} {db_info.get('status', '❔')}",
+        )
+        if db_info.get("latency_ms") is not None:
+            db_line += settings_stats_t(
+                "ss_health_db_latency", lang, ms=int(db_info["latency_ms"]),
+            )
+        lines.append(db_line)
+
+        sched_line = settings_stats_t(
+            "ss_health_scheduler", lang,
+            status=f"{_health_mark(sched.get('status'))} {sched.get('status', '❔')}",
+        )
+        if sched.get("jobs") is not None:
+            sched_line += settings_stats_t(
+                "ss_health_jobs", lang, n=int(sched["jobs"]),
+            )
+        lines.append(sched_line)
+
+        lines.append(settings_stats_t("ss_health_ai", lang))
+        for provider in ai.get("providers") or []:
+            lines.append(settings_stats_t(
+                "ss_health_ai_row", lang,
+                name=provider.get("name", "?"),
+                status=f"{_health_mark(provider.get('status'))} "
+                       f"{provider.get('status', '❔')}",
+            ))
+
+        lines.append(settings_stats_t(
+            "ss_health_pending_pays", lang,
+            n=int(pay.get("pending_receipts") or 0),
+        ))
+        lines.append("━━━━━━━━━━━━━━━━━")
+        return "\n".join(lines)
+    except Exception as e:  # pragma: no cover - health himoyasi
+        logger.debug("Admin health bloki qurilmadi: %s", e)
+        return ""
+
+
 def is_admin(user_id: int) -> bool:
     """Admin tekshiruvi: legacy ``ADMIN_IDS`` yoki RBAC roli bo'lsa.
 
@@ -179,11 +260,24 @@ def is_admin(user_id: int) -> bool:
 # ============================================================
 
 async def admin_panel_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """⚙️ Admin Panel — FAQAT adminlar uchun (RBAC qat'iy tekshiruvi).
+
+    Oddiy foydalanuvchi bu yerga HECH QACHON kira olmaydi: ``is_admin``
+    (legacy ADMIN_IDS + RBAC rollari) tekshiruvidan o'tmagan update jim
+    rad etiladi. Admin kirganda dashboard bilan birga TIZIM MONITORINGI
+    (Health status) bloki ham ko'rsatiladi: Bot & DB, Scheduler, AI
+    provayderlar (Gemini/Groq/OpenRouter) va pending manual to'lovlar.
+    """
     if not is_admin(update.effective_user.id):
         return ConversationHandler.END
     clear_fsm_data(context)
     stats = await db.run_db(db.get_admin_dashboard_stats)
     text = _build_dashboard_text(stats)
+    # 🩺 Tizim monitoringi — faqat adminlar ko'radi (health hech qachon
+    # istisno ko'tarmaydi; xato bo'lsa dashboard baribir chiqadi).
+    health_block = await build_admin_health_block(get_lang(context))
+    if health_block:
+        text = f"{text}\n{health_block}"
     await update.message.reply_text(
         text,
         reply_markup=get_admin_dashboard_keyboard(),
@@ -339,6 +433,28 @@ async def admin_dashboard_callback(update: Update, context: ContextTypes.DEFAULT
         else:
             text = "📋 <b>Ulangan kanallar</b>\n\n<i>Hozircha hech qanday kanal ulanmagan.</i>"
         await _admin_edit(query, text, get_admin_back_keyboard())
+        context.user_data.pop("admin_flow", None)
+        return ConversationHandler.END
+
+    if data == "adm_health":
+        # 🩺 Tizim monitoringi — to'liq Health hisoboti. Yuqoridagi is_admin
+        # + verify_admin_callback tekshiruvlaridan o'tgan bo'lsa ham, hisobot
+        # faqat system_settings ruxsati (RBAC) bo'lgan adminlarga ochiladi
+        # (/health buyrug'i bilan bir xil qoida — fail-closed).
+        if not has_permission(query.from_user.id, PERM_SYSTEM_SETTINGS):
+            await query.answer("❌ Sizda tizim holatini ko'rish uchun ruxsat yo'q.",
+                               show_alert=True)
+            return ConversationHandler.END
+        await query.answer()
+        from services.health_service import format_health_report
+
+        lang = get_lang(context)
+        try:
+            text = await format_health_report(lang=lang)
+        except Exception as e:
+            logger.error("adm_health: hisobot yaratishda xato: %s", e)
+            text = get_text("sys_busy", lang)
+        await _admin_edit(query, text, get_admin_back_keyboard(cancel=False))
         context.user_data.pop("admin_flow", None)
         return ConversationHandler.END
 

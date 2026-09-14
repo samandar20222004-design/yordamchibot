@@ -686,6 +686,116 @@ def get_cabinet_inline_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(keyboard)
 
 
+# ============================================================
+# ⚙️ SOZLAMALAR — YAGONA TARTIBLI MENYU (PostAssist V2, 5-mikro qadam)
+# ------------------------------------------------------------
+# Asosiy menyudan [⚙️ Sozlamalar] bosilganda barcha foydali ichki opsiyalar
+# BITTA tartibli menyuda chiqadi (speks tartibi):
+#
+#     [👤 Profil]             [🌐 Til / Язык]
+#     [🔔 Bildirishnomalar]   [🎨 Post sozlamalari]
+#     [💳 To'lovlar tarixi]   [🎁 Do'stlarni taklif qilish]
+#     [❓ Yordam]             [ℹ️ Bot haqida]
+#                  [◀️ Orqaga]
+#
+# Pastda orqaga moslik uchun eski kabinetning tezkor ma'lumot tugmalari
+# (kanallar/analitika/kutilayotgan/navbat/ballar/bonus) saqlanadi — ularning
+# callback'lari (cab_*) avvalgidek cabinet_callback orqali ishlaydi.
+# Routing tilga bog'liq emas: barcha callback_data uz/ru/en da bir xil.
+# ============================================================
+
+def get_settings_hub_keyboard(lang: str = "uz", include_legacy: bool = True) -> InlineKeyboardMarkup:
+    """⚙️ Sozlamalar — 8 ta ichki opsiya + ◀️ Orqaga (yagona tartibli menyu).
+
+    ``include_legacy=True`` (default) — speks qatorlaridan keyin eski kabinet
+    tezkor tugmalari ham chiziladi (orqaga moslik: kabindagi barcha oqimlar
+    bir ekranda qoladi). Callback'lar:
+
+      stgs_profile / stgs_lang / stgs_notif / stgs_post / stgs_pay /
+      stgs_referral / stgs_help / stgs_about / stgs_back
+    """
+    from translations import settings_stats_t  # lazy — aylanma importdan himoya
+
+    keyboard = [
+        [
+            InlineKeyboardButton(settings_stats_t("ss_btn_profile", lang),
+                                 callback_data="stgs_profile"),
+            InlineKeyboardButton(get_text("lang_button", lang),
+                                 callback_data="stgs_lang"),
+        ],
+        [
+            InlineKeyboardButton(settings_stats_t("ss_btn_notif", lang),
+                                 callback_data="stgs_notif"),
+            InlineKeyboardButton(settings_stats_t("ss_btn_post_settings", lang),
+                                 callback_data="stgs_post"),
+        ],
+        [
+            InlineKeyboardButton(settings_stats_t("ss_btn_payments", lang),
+                                 callback_data="stgs_pay"),
+            InlineKeyboardButton(settings_stats_t("ss_btn_referral", lang),
+                                 callback_data="stgs_referral"),
+        ],
+        [
+            InlineKeyboardButton(settings_stats_t("ss_btn_help", lang),
+                                 callback_data="stgs_help"),
+            InlineKeyboardButton(settings_stats_t("ss_btn_about", lang),
+                                 callback_data="stgs_about"),
+        ],
+    ]
+    if include_legacy:
+        keyboard += [
+            [
+                InlineKeyboardButton(get_text("cab_my_channels", lang),
+                                     callback_data="cab_channels"),
+                InlineKeyboardButton(get_text("cab_analytics", lang),
+                                     callback_data="cab_analytics"),
+            ],
+            [
+                InlineKeyboardButton(get_text("cab_pending", lang),
+                                     callback_data="cab_pending"),
+                InlineKeyboardButton(get_text("cab_queue", lang),
+                                     callback_data="cab_queue"),
+            ],
+            [
+                InlineKeyboardButton(get_text("cab_balance", lang),
+                                     callback_data="cab_balance"),
+                InlineKeyboardButton(get_text("cab_btn_daily_bonus", lang),
+                                     callback_data="cab_bonus"),
+            ],
+        ]
+    keyboard.append([
+        InlineKeyboardButton(settings_stats_t("ss_btn_back", lang),
+                             callback_data="stgs_back"),
+    ])
+    return InlineKeyboardMarkup(keyboard)
+
+
+def get_settings_back_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
+    """Sozlamalar ichki ekranlaridan menyuga qaytish: [◀️ Orqaga] → stgs_back."""
+    from translations import settings_stats_t
+
+    return InlineKeyboardMarkup([[
+        InlineKeyboardButton(settings_stats_t("ss_btn_back", lang),
+                             callback_data="stgs_back"),
+    ]])
+
+
+def get_user_stats_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
+    """📊 Statistika ekrani amallari: [🔄 Yangilash] [◀️ Orqaga].
+
+    Callback'lar eski analytics prefiksida (``an_refresh`` / ``an_close``) —
+    mavjud FSM routing (ANALYTICS_VIEW holati) o'zgarishsiz qoladi.
+    """
+    from translations import settings_stats_t
+
+    return InlineKeyboardMarkup([[
+        InlineKeyboardButton(settings_stats_t("ss_btn_refresh", lang),
+                             callback_data="an_refresh"),
+        InlineKeyboardButton(settings_stats_t("ss_btn_back", lang),
+                             callback_data="an_close"),
+    ]])
+
+
 def get_language_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
     """Til tanlash: O'zbekcha / Русский / English.
 

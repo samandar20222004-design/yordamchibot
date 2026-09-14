@@ -1,13 +1,29 @@
-"""Analytics & Post Performance Dashboard — kanal statistikasi va hisobotlar."""
+"""Analytics & Post Performance Dashboard — kanal statistikasi va hisobotlar.
+
+PostAssist V2 (5-mikro qadam): asosiy menyudagi «📊 Statistika» tugmasi
+endi IXCHAM umumiy ko'rsatkichlar ekranini ochadi (uzun va noaniq
+«Kanallar analytics...» nomi o'rniga aniq «📊 Statistika»):
+
+    📢 Ulangan kanallar soni
+    📝 Yaratilgan postlar soni
+    📅 Rejalashtirilgan postlar soni
+    🤖 AI so'rovlar / Sarflangan kreditlar
+
+Natija ostida amallar: [🔄 Yangilash] [◀️ Orqaga].
+
+Kanal darajasidagi batafsil analitika (eski oqim) ham saqlanadi —
+``an_ch:`` / ``an_other`` callback'lari orqaga moslik uchun ishlayveradi.
+"""
 import logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes, ConversationHandler
 from config import ADMIN_IDS_SET
 import database as db
 from keyboards.default import get_main_keyboard
-from keyboards.inline import btn_label
+from keyboards.inline import btn_label, get_user_stats_keyboard
 from keyboards.callback_data import cb
 from locales.translations import get_lang, get_text, has_key
+from translations import settings_stats_t
 from utils.helpers import html_escape
 
 logger = logging.getLogger(__name__)
@@ -53,6 +69,38 @@ _TYPE_LABEL = {
 def _format_hour(h: int) -> str:
     """Soatni 09:00 formatiga keltiradi."""
     return f"{h:02d}:00"
+
+
+def build_user_stats_text(stats: dict, lang: str = "uz") -> str:
+    """📊 Statistika — ixcham umumiy ko'rsatkichlar ekrani matni (uz/ru/en).
+
+    ``stats`` — ``db.get_user_overview_stats`` natijasi:
+    ``{"channels", "created_posts", "scheduled_posts", "ai_requests",
+    "credits_spent"}``. Matn SPEKStdagi 4 ta asosiy ko'rsatkichdan tuziladi:
+
+        📢 Ulangan kanallar soni
+        📝 Yaratilgan postlar soni
+        📅 Rejalashtirilgan postlar soni
+        🤖 AI so'rovlar / Sarflangan kreditlar
+    """
+    stats = stats or {}
+    lines = [
+        settings_stats_t("ss_stats_title", lang),
+        "━━━━━━━━━━━━━━━━━",
+        settings_stats_t("ss_stats_channels", lang, n=int(stats.get("channels", 0))),
+        settings_stats_t("ss_stats_created", lang, n=int(stats.get("created_posts", 0))),
+        settings_stats_t(
+            "ss_stats_scheduled", lang, n=int(stats.get("scheduled_posts", 0))
+        ),
+        settings_stats_t(
+            "ss_stats_ai", lang,
+            ai=int(stats.get("ai_requests", 0)),
+            credits=int(stats.get("credits_spent", 0)),
+        ),
+        "━━━━━━━━━━━━━━━━━",
+        settings_stats_t("ss_stats_footer", lang),
+    ]
+    return "\n".join(lines)
 
 
 def _type_label(ptype: str, lang: str = "uz") -> str:
@@ -161,33 +209,30 @@ def _get_analytics_view_keyboard(show_pro: bool = False, lang: str = "uz") -> In
 
 
 async def start_analytics(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Analitika bo'limini boshlash."""
+    """📊 Statistika — IXCHAM umumiy ko'rsatkichlar ekrani (PostAssist V2).
+
+    Oddiy foydalanuvchiga asosiy ko'rsatkichlar bitta ekranda ko'rsatiladi:
+    📢 kanallar / 📝 yaratilgan postlar / 📅 rejalashtirilgan / 🤖 AI
+    so'rovlar va kreditlar. Natija ostida [🔄 Yangilash] [◀️ Orqaga].
+
+    Kanal yo'q bo'lsa ham ekran ochiladi (nollar bilan) — foydalanuvchi
+    hech qachon «bo'sh» qolib ketmaydi. Kanal darajasidagi batafsil
+    analitika esa eski ``an_ch:`` / ``an_other`` callback'lari orqali
+    (orqaga moslik) mavjudligicha qoladi.
+    """
     user_id = update.effective_user.id
     lang = get_lang(context)
-    channels = await db.run_db(db.get_user_channel_list_for_analytics, user_id)
 
-    if not channels:
-        await update.message.reply_text(
-            get_text("an_no_channels", lang),
-            reply_markup=get_main_keyboard(user_id in ADMIN_IDS_SET, lang=lang),
-            parse_mode="HTML",
-        )
-        return ConversationHandler.END
+    stats = await db.run_db(db.get_user_overview_stats, user_id)
+    context.user_data["analytics_overview"] = True
+    context.user_data.pop("analytics_channel_id", None)
 
-    is_admin = user_id in ADMIN_IDS_SET
-    is_pro = await db.run_db(db.is_premium, user_id)
-    show_pro = (not is_admin and not is_pro)
-
-    context.user_data["analytics_channels"] = channels
-    text = get_text("an_choose", lang)
-    if show_pro:
-        text = get_text("an_free_hint", lang) + "\n\n" + text
     await update.message.reply_text(
-        text,
-        reply_markup=_get_analytics_channel_keyboard(channels, show_pro=show_pro, lang=lang),
+        build_user_stats_text(stats, lang),
+        reply_markup=get_user_stats_keyboard(lang),
         parse_mode="HTML",
     )
-    return ANALYTICS_CHOOSE
+    return ANALYTICS_VIEW
 
 
 async def analytics_channel_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -272,6 +317,31 @@ async def analytics_view_callback(update: Update, context: ContextTypes.DEFAULT_
 
     if data == "an_refresh":
         await query.answer(get_text("an_refreshing", lang))
+
+        # 📊 Statistika (PostAssist V2, 5-mikro qadam): umumiy ko'rsatkichlar
+        # ekrani yangilanmoqda — kesh tozalanadi va ma'lumotlar qayta o'qiladi.
+        if context.user_data.get("analytics_overview"):
+            try:
+                db.invalidate_user_overview_stats(user_id)
+            except Exception:
+                pass
+            stats = await db.run_db(db.get_user_overview_stats, user_id)
+            overview_text = build_user_stats_text(stats, lang)
+            overview_kb = get_user_stats_keyboard(lang)
+            try:
+                await query.edit_message_text(
+                    overview_text,
+                    reply_markup=overview_kb,
+                    parse_mode="HTML",
+                )
+            except Exception:
+                await query.message.reply_text(
+                    overview_text,
+                    reply_markup=overview_kb,
+                    parse_mode="HTML",
+                )
+            return ANALYTICS_VIEW
+
         channel_id = context.user_data.get("analytics_channel_id")
         channel_title = context.user_data.get(
             "analytics_channel_title", get_text("an_channel_fallback", lang)
