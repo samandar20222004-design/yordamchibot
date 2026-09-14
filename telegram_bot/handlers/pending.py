@@ -32,26 +32,28 @@ _RATE_LIMIT_NOTICE = "⏳ Iltimos, biroz kuting..."
 
 
 async def _build_pending_view(user_id: int, lang: str = "uz"):
-    user_code = await db.run_db(db.get_user_code, user_id)
-    posts = await db.run_db(db.get_pending_posts, user_id)
-    if not posts:
-        return get_text("pend_empty", lang), None
+    """DEPRECATED (PostAssist V2 · 2-qadam) — yagona «📅 Rejalashtirilgan».
 
-    text = get_text("pend_list_title", lang, count=len(posts)) + "\n\n"
-    for p in posts:
-        pid, ch_title, p_type, s_time, p_num, r_type, r_day, r_time = p
-        code_label = f"{user_code}-{p_num}" if p_num else f"#{pid}"
-        time_info = format_schedule_line(s_time, r_type, r_day, r_time, lang)
-        text += get_text("pend_item", lang,
-                         code=code_label,
-                         channel=html_escape(ch_title or get_text("pend_channel_fallback", lang)),
-                         type=format_post_type_label(p_type, lang),
-                         time=time_info) + "\n"
-    markup = render_pending_list(posts, user_code, lang)
-    return text, markup
+    B1 birlashtiruvidan oldin bu funksiya «Kutilayotgan postlar» ekranini
+    chizardi. Endi u ATAYLAB yagona rejalashtirilgan ekraniga (``queue``
+    modulidagi :func:`handlers.queue.scheduled_view`) yo'naltiradi — eski
+    ``cab_pending`` va ``pending_refresh`` oqimlari bir xil ro'yxatni
+    ko'rsatadi va hech qanday crash bo'lmaydi. Nomi (API) saqlanadi, chunki
+    uni chat tarixidagi eski tugmalar ham chaqiradi.
+    """
+    from handlers.queue import scheduled_view
+
+    return await scheduled_view(user_id, lang)
 
 
 async def list_pending_posts(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """📅 YAGONA ro'yxat: «⏳ Kutilayotgan postlar» tugmasi ham shu ekranni ochadi.
+
+    PostAssist V2 · 2-qadam (B1): ikkita alohida ekran («Kutilayotgan
+    postlar» va «Rejalashtirilgan postlar») o'rniga bitta «📅
+    Rejalashtirilgan» ekrani — har bir post ostida barcha amallar to'liq
+    ([👁 Ko'rish] [✏️ Tahrirlash] [⏰ Vaqt] [🔗 Tugma/Reaksiya] [🗑 O'chirish]).
+    """
     clear_fsm_data(context)
     user_id = update.effective_user.id
     lang = get_lang(context)

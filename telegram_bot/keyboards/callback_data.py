@@ -93,6 +93,10 @@ CB_CHANNEL_BACK = "ch_back"       # ◀️ Orqaga → kanallar ro'yxati (payload
 CB_SCHED_EDIT = CB_POST_EDIT      # ✏️ Tahrirlash  → pending.edit_post_content_start
 CB_SCHED_TIME = CB_POST_TIME      # ⏰ Vaqtni o'zgartirish → pending.edit_post_time_start
 CB_SCHED_DELETE = "qdel:"         # 🗑 O'chirish (navbat moduli bilan bitta amal)
+# 🔗 Tugma/Reaksiya tanlagichi (PostAssist V2 · 2-qadam — B1 yagona ro'yxati):
+# yagona «📅 Rejalashtirilgan» ekranida har bir post ostida 4-amal sifatida
+# turadi va mavjud ``p_btn:`` / ``p_react:`` oqimlariga yo'naltiradi.
+CB_SCHED_BTN_REACT = "sched_br:"  # 9 bayt (16 bayt byudjetidan ancha past)
 
 # Yangi post oqimidagi reaksiya tanlash (avval: npreact:tgl: / done / skip)
 CB_REACT_TOGGLE = "nprt:t:"
@@ -137,6 +141,8 @@ CANONICAL_PREFIXES = (
     CB_CHANNEL_NEW_POST,
     CB_CHANNEL_SCHEDULED,
     CB_CHANNEL_STATS,
+    # 📅 REJALASHTIRILGAN — yagona ro'yxat amallari (PostAssist V2 · 2-qadam).
+    CB_SCHED_BTN_REACT,
     # 📊 Post Score — dinamik payload qo'shiladigan prefikslar.
     CB_POST_SCORE_EVAL,
     CB_POST_SCORE_CHANNEL,

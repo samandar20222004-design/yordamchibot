@@ -14,6 +14,7 @@ from keyboards.callback_data import (  # noqa: F401 — re-export (eski importla
     CB_CHANNEL_SETTINGS,
     CB_CHANNEL_STATS,
     CB_CHANNEL_VOICE,
+    CB_SCHED_BTN_REACT,
     CB_SCHED_DELETE,
     CB_SCHED_EDIT,
     CB_SCHED_TIME,
@@ -22,6 +23,7 @@ from keyboards.callback_data import (  # noqa: F401 — re-export (eski importla
     CB_POST_EDIT,
     CB_POST_REACT,
     CB_POST_TIME,
+    CB_POST_VIEW,
     CB_REACTION,
     CB_REACT_DONE,
     CB_REACT_SKIP,
@@ -378,6 +380,21 @@ AI_TONE_KEYS = {
 }
 
 
+def _calendar_hub_label(lang: str = "uz") -> str:
+    """🤖 AI Yordamchi submenu'sidagi [🧠 Kontent reja] yorlig'i (uz/ru/en).
+
+    Yorliq ``translations/content_calendar.py`` dagi ``hub_button`` kalitidan
+    olinadi (yagona i18n manbasi). Modul topilmasa — eski ``ai_studio_content_plan``
+    yorlig'iga xavfsiz qaytamiz (klaviatura hech qachon bo'sh tugma bilan
+    yiqilmaydi).
+    """
+    try:
+        from translations.content_calendar import calendar_t
+        return calendar_t("hub_button", lang)
+    except Exception:  # pragma: no cover - i18n moduli yo'q bo'lsa
+        return get_text("ai_studio_content_plan", lang)
+
+
 def get_ai_studio_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
     """AI Studio sub-menu inline keyboard.
 
@@ -398,7 +415,11 @@ def get_ai_studio_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
             InlineKeyboardButton(get_text("ai_studio_audit", lang), callback_data="studio_ai_audit"),
         ],
         [
-            InlineKeyboardButton(get_text("ai_studio_content_plan", lang), callback_data="studio_content_plan"),
+            # 🧠 Kontent reja — PostAssist V2 · 2-qadam: tugma SMART CONTENT
+            # CALENDAR (7/30 kunlik) oqimini ochadi (``studio_content_plan``
+            # callback'i o'zgarmagan — chat tarixidagi eski tugmalar ham
+            # shu yangi oqimga tushadi).
+            InlineKeyboardButton(_calendar_hub_label(lang), callback_data="studio_content_plan"),
         ],
         [
             InlineKeyboardButton(get_text("ai_btn_main_menu", lang), callback_data="studio_close"),
@@ -625,6 +646,91 @@ def render_scheduled_actions(post_id, lang: str = "uz") -> list:
         InlineKeyboardButton(channels_queue_t("cq_sch_btn_delete", lang),
                              callback_data=cb(CB_SCHED_DELETE, post_id)),
     ]
+
+
+def render_scheduled_full_actions(post_id, lang: str = "uz") -> list:
+    """📅 YAGONA rejalashtirilgan ro'yxati uchun TO'LIQ amal to'plami.
+
+    PostAssist V2 · 2-qadam (B1 birlashtiruv): «Kutilayotgan postlar» va
+    «Rejalashtirilgan postlar» bitta ekranga qo'shilgani uchun har bir post
+    ostida BARCHA amallar ko'rinadi::
+
+        [👁 Ko'rish]   [✏️ Tahrirlash]
+        [⏰ Vaqt]      [🔗 Tugma/Reaksiya]
+        [🗑 O'chirish] [⏩ Surish]
+
+    Qaytaradi: QATORLAR ro'yxati (``_get_queue_list_keyboard`` ularni
+    klaviaturaning keyingi qatorlari sifatida qo'shadi).
+
+    Eslatma: bu funksiya ``render_scheduled_actions`` (kanal kartochkalari
+    uchun qat'iy 3 tugma) ni O'ZGARTIRMAYDI — eski shartnoma va testlar
+    o'z joyida qoladi. Har bir callback mavjud, sinovdan o'tgan oqimlarga
+    boradi: ``qview:`` (ko'rish), ``p_edit:`` (tahrirlash), ``p_time:``
+    (vaqt), ``sched_br:`` (tugma/reaksiya tanlagichi), ``qdel:`` (o'chirish),
+    ``qpush:`` (surish — eski alias).
+    """
+    from translations import channels_queue_t
+
+    # Ko'rish tugmasi — mavjud (sinovdan o'tgan) `queue_btn_view` kaliti:
+    # yorliqda post ID ko'rinadi ("👁 Ko'rish #12"), shu tariqa 5 amalli
+    # yagona ro'yxatda ham eski xatti-harakat saqlanadi.
+    view_btn = InlineKeyboardButton(
+        get_text("queue_btn_view", lang, id=post_id),
+        callback_data=cb(CB_POST_VIEW, post_id),
+    )
+    edit_btn = InlineKeyboardButton(
+        channels_queue_t("cq_sch_btn_edit", lang),
+        callback_data=cb(CB_SCHED_EDIT, post_id),
+    )
+    time_btn = InlineKeyboardButton(
+        channels_queue_t("cq_sch_btn_time_short", lang),
+        callback_data=cb(CB_SCHED_TIME, post_id),
+    )
+    btn_react_btn = InlineKeyboardButton(
+        channels_queue_t("cq_sch_btn_btn_react", lang),
+        callback_data=cb(CB_SCHED_BTN_REACT, post_id),
+    )
+    delete_btn = InlineKeyboardButton(
+        channels_queue_t("cq_sch_btn_delete", lang),
+        callback_data=cb(CB_SCHED_DELETE, post_id),
+    )
+    push_btn = InlineKeyboardButton(
+        get_text("queue_btn_push", lang),
+        callback_data=cb(f"qpush:{post_id}"),
+    )
+    return [
+        [view_btn, edit_btn],
+        [time_btn, btn_react_btn],
+        [delete_btn, push_btn],
+    ]
+
+
+def scheduled_btn_react_keyboard(post_id, lang: str = "uz") -> InlineKeyboardMarkup:
+    """🔗 Tugma/Reaksiya tanlagichi (yagona ro'yxatdagi 4-amal).
+
+    Ikkala tugma ham mavjud, sinovdan o'tgan oqimlarni ochadi
+    (``p_btn:`` / ``p_react:``) — yangi FSM yaratilmaydi.
+    """
+    from translations import channels_queue_t
+
+    return InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton(
+                channels_queue_t("cq_sch_br_btn_link", lang),
+                callback_data=cb(CB_POST_BTN, post_id),
+            ),
+            InlineKeyboardButton(
+                channels_queue_t("cq_sch_br_btn_react", lang),
+                callback_data=cb(CB_POST_REACT, post_id),
+            ),
+        ],
+        [
+            InlineKeyboardButton(
+                channels_queue_t("cq_ch_btn_back", lang),
+                callback_data="qpage:0",
+            ),
+        ],
+    ])
 
 
 def render_pending_list(posts: list, user_code: str, lang: str = "uz") -> InlineKeyboardMarkup:

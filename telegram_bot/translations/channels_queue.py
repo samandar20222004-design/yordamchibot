@@ -100,9 +100,13 @@ CHANNELS_QUEUE_I18N = {
         "cq_sch_channel_title": (
             "📅 <b>Rejalashtirilgan</b> — 📢 {channel} ({count} ta post):"
         ),
+        # Eslatma (B1 — 2-qadam): «Kutilayotgan postlar» va «Rejalashtirilgan
+        # postlar» YAGONA ekranga birlashtirildi — bo'sh holat matni ham shu
+        # sababli ikkala guruhni ham tilga oladi (eski `cab_pending` aliasi
+        # shu matnni qaytaradi, shuning uchun eski oqim ham buzilmaydi).
         "cq_sch_empty": (
             "📅 <b>Rejalashtirilgan</b>\n\n"
-            "Hozircha rejalashtirilgan post yo'q.\n"
+            "Kutilayotgan va rejalashtirilgan postlar yo'q.\n"
             "Yangi post yarating va chiqish vaqtini belgilang."
         ),
         "cq_sch_channel_empty": (
@@ -113,6 +117,23 @@ CHANNELS_QUEUE_I18N = {
         "cq_sch_btn_edit": "✏️ Tahrirlash",
         "cq_sch_btn_time": "⏰ Vaqtni o'zgartirish",
         "cq_sch_btn_delete": "🗑 O'chirish",
+        # --- 📅 Rejalashtirilgan: YAGONA ro'yxat amallari (B1) ---
+        # Har bir post ostida TO'LIQ to'plam: [👁 Ko'rish] [✏️ Tahrirlash]
+        # [⏰ Vaqt] [🔗 Tugma/Reaksiya] [🗑 O'chirish]. Qisqa variantlar
+        # ro'yxat uchun, uzunlari (cq_sch_btn_time) kanal ichidagi
+        # kartochkalar uchun ishlatiladi.
+        "cq_sch_btn_time_short": "⏰ Vaqt",
+        "cq_sch_btn_btn_react": "🔗 Tugma/Reaksiya",
+        "cq_sch_br_title": (
+            "🔗 <b>Tugma yoki reaksiya</b>\n\n"
+            "Post uchun amalni tanlang 👇"
+        ),
+        "cq_sch_br_btn_link": "🔗 Tugma havolasi",
+        "cq_sch_br_btn_react": "👍 Reaksiya",
+        "cq_sch_stale": (
+            "⌛ Bu tugma eskirgan. «📅 Rejalashtirilgan» bo'limini qaytadan "
+            "oching."
+        ),
         "cq_sch_deleted_alert": "🗑 Post rejadan olib tashlandi.",
         "cq_sch_not_found": "⚠️ Post topilmadi — u allaqachon chiqib ketgan yoki o'chirilgan.",
     },
@@ -169,7 +190,7 @@ CHANNELS_QUEUE_I18N = {
         ),
         "cq_sch_empty": (
             "📅 <b>Запланированные</b>\n\n"
-            "Пока нет запланированных постов.\n"
+            "У вас нет ожидающих или запланированных постов.\n"
             "Создайте новый пост и укажите время публикации."
         ),
         "cq_sch_channel_empty": (
@@ -179,6 +200,18 @@ CHANNELS_QUEUE_I18N = {
         "cq_sch_btn_edit": "✏️ Редактировать",
         "cq_sch_btn_time": "⏰ Изменить время",
         "cq_sch_btn_delete": "🗑 Удалить",
+        "cq_sch_btn_time_short": "⏰ Время",
+        "cq_sch_btn_btn_react": "🔗 Кнопка/Реакции",
+        "cq_sch_br_title": (
+            "🔗 <b>Кнопка или реакции</b>\n\n"
+            "Выберите действие для поста 👇"
+        ),
+        "cq_sch_br_btn_link": "🔗 Кнопка-ссылка",
+        "cq_sch_br_btn_react": "👍 Реакции",
+        "cq_sch_stale": (
+            "⌛ Эта кнопка устарела. Откройте раздел «📅 Запланированные» "
+            "заново."
+        ),
         "cq_sch_deleted_alert": "🗑 Пост снят с расписания.",
         "cq_sch_not_found": "⚠️ Пост не найден — он уже опубликован или удалён.",
     },
@@ -235,7 +268,7 @@ CHANNELS_QUEUE_I18N = {
         ),
         "cq_sch_empty": (
             "📅 <b>Scheduled</b>\n\n"
-            "No scheduled posts yet.\n"
+            "You have no pending or scheduled posts.\n"
             "Create a new post and set its publishing time."
         ),
         "cq_sch_channel_empty": (
@@ -245,6 +278,17 @@ CHANNELS_QUEUE_I18N = {
         "cq_sch_btn_edit": "✏️ Edit",
         "cq_sch_btn_time": "⏰ Change time",
         "cq_sch_btn_delete": "🗑 Delete",
+        "cq_sch_btn_time_short": "⏰ Time",
+        "cq_sch_btn_btn_react": "🔗 Button/Reactions",
+        "cq_sch_br_title": (
+            "🔗 <b>Button or reactions</b>\n\n"
+            "Choose an action for the post 👇"
+        ),
+        "cq_sch_br_btn_link": "🔗 Button link",
+        "cq_sch_br_btn_react": "👍 Reactions",
+        "cq_sch_stale": (
+            "⌛ This button is outdated. Open the «📅 Scheduled» section again."
+        ),
         "cq_sch_deleted_alert": "🗑 Post removed from the schedule.",
         "cq_sch_not_found": "⚠️ Post not found — it was already published or deleted.",
     },

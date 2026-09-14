@@ -152,11 +152,20 @@ async def quick_ai_post_entry(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 
 async def quick_photo_post_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """🖼 Rasmdan post olish — Vision (rasm → post) oqimini ochadi."""
-    from handlers.ai_assistant import AI_PHOTO_INPUT
+    """🖼 Rasmdan post olish — YAGONA «📸 Rasm → Post» oqimini ochadi (B2).
 
-    user_id = update.effective_user.id
-    lang = await _user_lang(context, user_id)
+    PostAssist V2 · 2-qadam: bu tugma endi eski Vision oqimining nusxasini
+    emas, ``handlers/image_post`` dagi yagona implementatsiyani ochadi —
+    ``image_post_entry`` (Vision tahlili + Post Score + bir xil kredit/limit
+    qoidalari, ``IMAGE_POST_INPUT`` holati). Shu tariqa botda bitta rasm
+    oqimi qoladi; eski ``photo_`` callback'lari xavfsiz alias bo'lib yashaydi.
+    """
+    # Lokal import — modul sikli (onboarding ↔ image_post ↔ handlers/__init__)
+    # oldini oladi.
+    from handlers.image_post import image_post_entry
+
+    # Yangi sessiya — eski studio/vision natijasi yangi rasmga aralashmasligi
+    # kerak (image_post_entry o'z sessiya kalitlarini ham tozalaydi).
     for key in (
         "studio_topic", "studio_post_text", "studio_tone",
         "studio_file_id", "studio_post_type", "studio_photo_extra",
@@ -164,12 +173,7 @@ async def quick_photo_post_entry(update: Update, context: ContextTypes.DEFAULT_T
     ):
         context.user_data.pop(key, None)
 
-    await update.message.reply_text(
-        get_text("ai_studio_photo_intro", lang),
-        reply_markup=get_ai_back_keyboard(lang),
-        parse_mode="HTML",
-    )
-    return AI_PHOTO_INPUT
+    return await image_post_entry(update, context)
 
 
 async def quick_add_channel_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):

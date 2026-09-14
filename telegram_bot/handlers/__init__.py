@@ -225,6 +225,15 @@ from handlers.content_plan import (
     PLAN_CHOOSE_CHANNEL, PLAN_GET_TOPIC, PLAN_VIEW
 )
 
+# 8b. SMART CONTENT CALENDAR — 7/30 kunlik reja oqimi (PostAssist V2 · 2-qadam).
+# «🤖 AI Yordamchi» → [🧠 Kontent reja] (``studio_content_plan``) shu modulga
+# kiradi; eski ``content_plan`` oqimi (BTN_CONTENT_PLAN, ``plan_*``) tegilmaydi.
+from handlers.content_calendar_flow import (
+    CALENDAR_BUSINESS, CALENDAR_DURATION, CALENDAR_VIEW,
+    calendar_business_received, calendar_cancel_callback, calendar_day_callback,
+    calendar_duration_callback, calendar_stale_callback,
+)
+
 # 9. ANALYTICS MODULI
 from handlers.analytics import (
     start_analytics, analytics_channel_chosen, analytics_view_callback,
@@ -260,6 +269,8 @@ from handlers.queue import (
     queue_menu, queue_page_callback, queue_view_callback,
     queue_delete_callback, queue_push_callback, queue_close_callback,
     queue_slots_callback, slot_add_message,
+    # 🔗 Yagona «📅 Rejalashtirilgan» ro'yxatidagi 4-amal (Tugma/Reaksiya).
+    scheduled_btn_react_callback,
     QUEUE_MENU, SLOT_ADD,
 )
 
@@ -1066,6 +1077,24 @@ def register_all_handlers(app):
                 CallbackQueryHandler(ai_close, pattern=r"^ai_close$"),
             ],
 
+            # 8b. 🗓 SMART CONTENT CALENDAR holatlari (7/30 kunlik reja).
+            # Eslatma: ``cal_cancel`` HAR UCH holatda ham ishlaydi (eski
+            # tugma bosilganda ham oqim toza yopiladi, crash bo'lmaydi).
+            CALENDAR_BUSINESS: all_menu_jumps + [
+                CallbackQueryHandler(calendar_cancel_callback, pattern=r"^cal_cancel$"),
+                MessageHandler(filters.TEXT & ~filters.COMMAND, calendar_business_received),
+            ],
+            CALENDAR_DURATION: all_menu_jumps + [
+                CallbackQueryHandler(calendar_duration_callback, pattern=r"^cal_days:"),
+                CallbackQueryHandler(calendar_cancel_callback, pattern=r"^cal_cancel$"),
+                MessageHandler(filters.TEXT & ~filters.COMMAND, calendar_business_received),
+            ],
+            CALENDAR_VIEW: all_menu_jumps + [
+                CallbackQueryHandler(calendar_day_callback, pattern=r"^cal_day:"),
+                CallbackQueryHandler(calendar_duration_callback, pattern=r"^cal_days:"),
+                CallbackQueryHandler(calendar_cancel_callback, pattern=r"^cal_cancel$"),
+            ],
+
             # 9. Analytics holatlari
             ANALYTICS_CHOOSE: all_menu_jumps + [
                 CallbackQueryHandler(analytics_channel_chosen, pattern=r"^an_ch:"),
@@ -1345,6 +1374,9 @@ def register_all_handlers(app):
                 CallbackQueryHandler(edit_post_content_start, pattern=r"^p_edit:"),
                 CallbackQueryHandler(edit_post_time_start, pattern=r"^p_time:"),
                 CallbackQueryHandler(queue_push_callback, pattern=r"^qpush:"),
+                # 🔗 [Tugma/Reaksiya] — mavjud `p_btn:` / `p_react:` oqimlari
+                # tanlagichi (yangi FSM yaratilmaydi).
+                CallbackQueryHandler(scheduled_btn_react_callback, pattern=r"^sched_br:"),
                 CallbackQueryHandler(queue_slots_callback, pattern=r"^qslots:"),
                 CallbackQueryHandler(queue_close_callback, pattern=r"^qclose$"),
                 MessageHandler(filters.TEXT & ~filters.COMMAND, slot_add_message),
@@ -1421,6 +1453,20 @@ def register_all_handlers(app):
     app.add_handler(CallbackQueryHandler(edit_post_content_start, pattern=r"^p_edit:"))
     app.add_handler(CallbackQueryHandler(edit_post_btn_start, pattern=r"^p_btn:"))
     app.add_handler(CallbackQueryHandler(edit_post_react_start, pattern=r"^p_react:"))
+    # 📅 YAGONA «📅 Rejalashtirilgan» ro'yxati amallari (PostAssist V2 · 2-qadam,
+    # B1): ro'yxat `guard_menu` orqali ochiladi (conversation darhol yopiladi),
+    # shuning uchun bu tugmalar GLOBAL ro'yxatda bo'lishi SHART — aks holda
+    # [👁 Ko'rish] / [🗑 O'chirish] / [⏩ Surish] eski xabarda "o'lik" bo'lib
+    # qolardi. Har bir handler o'zi `query.answer()` qiladi va istisno
+    # tashlamaydi (crash yo'q).
+    app.add_handler(CallbackQueryHandler(queue_page_callback, pattern=r"^qpage:"))
+    app.add_handler(CallbackQueryHandler(queue_view_callback, pattern=r"^qview:"))
+    app.add_handler(CallbackQueryHandler(queue_delete_callback, pattern=r"^qdel:"))
+    app.add_handler(CallbackQueryHandler(queue_push_callback, pattern=r"^qpush:"))
+    app.add_handler(CallbackQueryHandler(queue_slots_callback, pattern=r"^qslots:"))
+    app.add_handler(CallbackQueryHandler(queue_close_callback, pattern=r"^qclose$"))
+    # 🔗 [Tugma/Reaksiya] tanlagichi: mavjud `p_btn:` / `p_react:` oqimlarini ochadi.
+    app.add_handler(CallbackQueryHandler(scheduled_btn_react_callback, pattern=r"^sched_br:"))
     app.add_handler(CallbackQueryHandler(remove_channel_callback, pattern=r"^ch_del:"))
     # 📢 KANALLARIM — kanal boshqaruv ekrani (PostAssist V2, 4-mikro qadam).
     # ``ch_set:`` endi channel_settings_callback orqali o'tadi: kanal
@@ -1446,6 +1492,10 @@ def register_all_handlers(app):
     app.add_handler(CallbackQueryHandler(ai_studio_callback, pattern=r"^studio_"))
     # AI Studio stale ❌ tugmasi: conversation tashqarisida ham xabar edit qilinadi
     app.add_handler(CallbackQueryHandler(ai_close, pattern=r"^ai_close$"))
+    # 🗓 SMART CONTENT CALENDAR stale tugmalari (cal_days: / cal_day: / cal_cancel):
+    # sessiya tugagach yoki boshqa oqim ichida bosilsa — «sessiya eskirgan»
+    # toast ko'rsatiladi (xabar o'chirilmaydi, hech qanday crash yo'q).
+    app.add_handler(CallbackQueryHandler(calendar_stale_callback, pattern=r"^cal_"))
     # ✨ Magic Post stale tugmalari: sessiya tugagach eski natija/tanlov tugmasi
     # bosilsa — foydalanuvchiga «sessiya eskirgan» toast ko'rsatiladi.
     app.add_handler(CallbackQueryHandler(magic_stale_callback, pattern=r"^mp_"))
