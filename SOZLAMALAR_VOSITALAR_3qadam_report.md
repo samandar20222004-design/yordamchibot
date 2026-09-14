@@ -1,6 +1,6 @@
 # ⚙️ SOZLAMALAR MENYUSI + 🧰 VOSITALAR — PostAssist V2 · 3-QADAM hisoboti
 
-**Sana:** 2026-09-14 · **Branch:** `arena/01a09f1d-yordamchibot` · **Testlar:** 8007 ✔ / 0 ✘
+**Sana:** 2026-09-14 · **Branch:** `arena/01a09f1d-yordamchibot` · **Testlar:** 8535 ✔ / 0 ✘ · **Lint gate (ruff+flake8):** toza
 
 ## 1) PR #113 — merge holati
 PR #113 («PostAssist V2 · 2-qadam: B1 navbat + B2 yagona rasm oqimi + 7/30
@@ -78,7 +78,7 @@ o'zining aniq, ko'rinadigan mantiqiy joyida:
   `ss_tools_btn_enhancer`) UZ/RU/EN da 100% paritet:
   `settings_stats_parity_report()` → `in_sync: True`, **54 kalit**, missing/extra/
   format_mismatch/empty — hammasi bo'sh.
-- Yangi `tests/refactor_step3_test.py` — **244 chek**:
+- Yangi `tests/refactor_step3_test.py` — **246 chek**:
   1. sozlamalar menyusida legacy dublikatlar yo'qligi va 12+1 tugma speks
      tartibida (uchala til), `include_legacy=True` ham legacy chizmasligi;
   2. Ballarim / Ballar o'tkazish / Kunlik bonus / Referral ochilishi
@@ -92,6 +92,14 @@ o'zining aniq, ko'rinadigan mantiqiy joyida:
   legacy yo'qligini ham tekshiradi), `telegram_bot/tests/new_requirements_test.py`
   (kabinet ekranida legacy dublikat **yo'q**ligi asserti).
 - Runner: `tests/run_tests.sh` ga **3j** bosqichi qo'shildi.
+- CI muhitidagi deps (`pytest`, `pgserver`, `sentry-sdk`) bilan to'liq runner ham
+  yashil — bu holatda qo'shimcha ~528 test ishga tushadi (bazaviy o'lchov
+  7745 `[OK]` bu depslarsiz olingan edi).
+- **Lint gate** (`ruff==0.6.9` + `flake8==7.1.1`, `--select=E9,F63,F7,F82`) toza.
+  Bu gate haqiqiy xatoni topdi: `handlers/settings.py` da
+  `localize_db_message` import qilinmagan edi (kunlik bonus «allaqachon olingan»
+  yo'li `NameError` berardi) — tuzatildi va shu yo'l uchun regressiya testi
+  qo'shildi (`tests/refactor_step3_test.py`, 2g-2).
 - Yakuniy natija: `PYTHON=$HOME/venv/bin/python bash tests/run_tests.sh` →
-  **8007 `[OK]` / 0 `[FAIL]`** (bazaviy 7745 dan +262), chiqish kodi `0`,
-  «BARCHA TESTLAR 100% YASHIL ✔».
+  **8535 `[OK]` / 0 `[FAIL]`** (yangi 3-qadam to'plami — 246 chek, barcha mavjud
+  testlar yashil), chiqish kodi `0`, «BARCHA TESTLAR 100% YASHIL ✔».

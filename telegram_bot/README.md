@@ -418,7 +418,7 @@ matnlar `translations/settings_stats.py` — UZ/RU/EN 100% paritet):
   `[✨ Tugma & Reaksiyalar (Post Enhancer)]` → `extra_enhancer` → `ENH_POST`;
   `[◀️ Orqaga]` → `stgs_hub` (sozlamalar menyusi qayta chiziladi).
   Eski `⚙️ Qo'shimcha funksiyalar` reply-tugmasi va `extra_close` ham saqlanadi.
-- Regression qo'riqonlari: `tests/refactor_step3_test.py` (244 chek),
+- Regression qo'riqonlari: `tests/refactor_step3_test.py` (246 chek),
   `tests/settings_and_stats_v2_test.py`.
 
 #### 🧩 Kontent yaratish — ichki menyu (5 yo'l) va ACTION-FIRST (PostAssist V2)

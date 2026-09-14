@@ -629,6 +629,20 @@ def test_hub_actions_open_their_flows():
           _cbs(q.screen.get("reply_markup")) == ["stgs_back"],
           str(_cbs(q.screen.get("reply_markup"))))
 
+    # 2g-2) Bonus allaqachon olingan bo'lsa — xavfsiz "keyinroq" ekrani
+    #       (DB xabari foydalanuvchi tiliga o'giriladi, crash yo'q).
+    with _with_db(_FakeDB(bonus_success=False)):
+        q = _Query("stgs_bonus")
+        error = None
+        try:
+            _run(settings_mod.settings_menu_callback(_query_update(q), _ctx("uz")))
+        except Exception as exc:  # pragma: no cover - kutilmaydi
+            error = f"{type(exc).__name__}: {exc}"
+    check("kunlik bonus (takror): crash yo'q", error is None, str(error))
+    check("kunlik bonus (takror): ekran chizildi",
+          bool(q.screen.get("text")) and "stgs_back" in _cbs(q.screen.get("reply_markup")),
+          str(q.screen)[:120])
+
     # 2h) Admin — cheksiz so'rovlar (claim qilinmaydi).
     with _with_db(_FakeDB()):
         q = _Query("stgs_bonus", user_id=ADMIN_ID)

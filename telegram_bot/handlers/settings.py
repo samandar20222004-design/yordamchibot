@@ -53,7 +53,7 @@ from keyboards.inline import (
     get_settings_back_keyboard,
     get_settings_hub_keyboard,
 )
-from locales.translations import get_lang, get_text
+from locales.translations import get_lang, get_text, localize_db_message
 from translations import settings_stats_t
 from utils.helpers import html_escape
 
