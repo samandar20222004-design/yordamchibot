@@ -1,20 +1,34 @@
-"""⚙️ SOZLAMALAR — yagona tartibli menyu (PostAssist V2, 5-mikro qadam).
+"""⚙️ SOZLAMALAR — yagona tartibli menyu (PostAssist V2, 3-qadam refaktori).
 
 Asosiy menyudan [⚙️ Sozlamalar] bosilganda barcha foydali ichki opsiyalar
-BITTA tartibli menyuda chiqadi (inline ``stgs_*`` callback'lari):
+BITTA tartibli, TO'LIQ menyuda chiqadi (inline ``stgs_*`` callback'lari):
 
-    [👤 Profil]             [🌐 Til / Язык]
-    [🔔 Bildirishnomalar]   [🎨 Post sozlamalari]
-    [💳 To'lovlar tarixi]   [🎁 Do'stlarni taklif qilish]
-    [❓ Yordam]             [ℹ️ Bot haqida]
+    [👤 Profil]            [🌐 Til / Язык]
+    [💎 Ballarim]          [🔄 Ballar o'tkazish]
+    [🎁 Kunlik bonus]      [👥 Do'stlarni taklif]
+    [🔔 Bildirishnomalar]  [🎨 Post sozlamalari]
+    [💳 To'lovlar tarixi]  [🧰 Vositalar]
+    [❓ Yordam]            [ℹ️ Bot haqida]
                  [◀️ Orqaga]
 
 Qoidalar:
-  * «Qo'llanma / Bot haqida» va «Do'stlarni taklif qilish» shu menyu
-    orqali qulay ochiladi (stgs_help / stgs_about / stgs_referral);
+  * 3-qadam refaktori: eski kabinet tezkor tugmalari (📢 Mening kanallarim,
+    📅 Rejalashtirilgan/Kutilayotgan, 📊 Analitika, 💎 Ballar & reklama rejimi)
+    menyudan OLIB TASHLANDI — ular o'z asosiy menyularida bor. Ularning
+    ``cab_*`` callback'lari O'CHIRILMAGAN: eski xabarlardagi tugmalar uchun
+    xavfsiz alias/redirect sifatida ``handlers.start.cabinet_callback`` da
+    ishlashda davom etadi (crash yo'q);
+  * «Qo'llanma / Bot haqida», «Do'stlarni taklif qilish», «Kunlik bonus»,
+    «Ballarim» va «Ballar o'tkazish» shu menyu orqali qulay ochiladi
+    (stgs_help / stgs_about / stgs_referral / stgs_bonus / stgs_points /
+    stgs_transfer);
   * mavjud PROFIL (kabinet) va TIL almashtirish oqimlari buzilmaydi:
     [👤 Profil] eski kabinet ekranini, [🌐 Til / Язык] esa avvalgi til
     klaviaturasini ochadi (cab_lang_* callback'lari o'zgarmagan);
+  * [🔄 Ballar o'tkazish] mavjud TRANSFER_TARGET → TRANSFER_AMOUNT FSM
+    oqimini ochadi (yangi holat yo'q — ``handlers.start.transfer_inline_entry``);
+  * [🧰 Vositalar] — yordamchi vositalar submenyusi (``handlers.tools``):
+    Konverter va Post Enhancer endi ko'rinadigan mantiqiy joyida;
   * 🔔 Bildirishnomalar va 🎨 Post sozlamalari — foydalanuvchi sozlamalari
     ``user_settings`` jadvaliga saqlanadi (kalitlar OQ RO'YXAT bilan
     cheklanadi — payload'dan ixtiyoriy kalit yozib bo'lmaydi);
@@ -86,25 +100,97 @@ def _scope_key_label(key: str) -> str:
     return key
 
 
+async def build_settings_hub_text(user_id: int, lang: str, is_admin: bool,
+                                  user_code=None, channels=None,
+                                  stats=None, ad_line: str = "") -> str:
+    """⚙️ Sozlamalar hub ekranining matni (profil kartasi).
+
+    Matn manbasi — ``handlers.start.build_cabinet_text`` (profil ekrani bilan
+    AYNAN bir xil), shu sababli hub va [👤 Profil] bir-biridan farq qilmaydi.
+    Agar ``user_code`` / ``channels`` / ``stats`` argumentlari berilmasa,
+    ma'lumotlar bazadan o'qiladi (ekran qayta chizilganda qayta o'qish uchun).
+    """
+    from handlers.start import build_cabinet_text, cabinet_credits_text
+
+    if stats is None:
+        stats = await db.run_db(db.get_referral_stats, user_id)
+    if channels is None:
+        channels = await db.run_db(db.get_user_channels, user_id)
+    if user_code is None:
+        user_code = await db.run_db(db.get_user_code, user_id)
+    credits_text = cabinet_credits_text(is_admin, stats["ai_credits"], lang)
+    streak_text = get_text("cabinet_streak", lang, streak=stats.get("streak", 0))
+    return build_cabinet_text(
+        user_id, user_code, credits_text, streak_text,
+        len(channels), stats["referrals_count"], lang, ad_line,
+    )
+
+
 async def render_settings_hub(update_message, context, user_id: int,
                               lang: str, is_admin: bool) -> None:
     """⚙️ Sozlamalar hub ekranini yuboradi (profil matni + yagona menyu)."""
-    from handlers.start import build_cabinet_text, cabinet_credits_text
-
-    stats = await db.run_db(db.get_referral_stats, user_id)
-    channels = await db.run_db(db.get_user_channels, user_id)
-    user_code = await db.run_db(db.get_user_code, user_id)
-    credits_text = cabinet_credits_text(is_admin, stats["ai_credits"], lang)
-    streak_text = get_text("cabinet_streak", lang, streak=stats.get("streak", 0))
-    text = build_cabinet_text(
-        user_id, user_code, credits_text, streak_text,
-        len(channels), stats["referrals_count"], lang,
-    )
+    text = await build_settings_hub_text(user_id, lang, is_admin)
     await update_message.reply_text(
         text,
         reply_markup=get_settings_hub_keyboard(lang),
         parse_mode="HTML",
     )
+
+
+async def _render_hub_screen(query, context, user_id: int, lang: str,
+                             is_admin: bool) -> None:
+    """⚙️ Sozlamalar hub'ini qayta chizadi (🧰 Vositalar → [◀️ Orqaga])."""
+    text = await build_settings_hub_text(user_id, lang, is_admin)
+    await _edit_or_reply(
+        query, text, get_settings_hub_keyboard(lang),
+    )
+
+
+async def _render_points(query, user_id: int, lang: str, is_admin: bool) -> None:
+    """💎 Ballarim — kredit balansi va reklama rejimi kartasi.
+
+    Mavjud kabinet ekrani (``cab_balance``) bilan bir xil manba
+    (``balance_card`` matni) — yangi matn lug'atga qo'shilmagan.
+    """
+    from handlers.start import cabinet_credits_text
+
+    stats = await db.run_db(db.get_referral_stats, user_id)
+    credits_text = cabinet_credits_text(is_admin, stats["ai_credits"], lang)
+    if is_admin:
+        ad_mode = get_text("ad_mode_admin", lang)
+    elif await db.run_db(db.is_premium, user_id):
+        ad_mode = get_text("ad_mode_pro", lang)
+    else:
+        ad_mode = get_text("ad_mode_free", lang)
+    text = get_text("balance_card", lang, credits=credits_text, ad_mode=ad_mode)
+    await _edit_or_reply(query, text, get_settings_back_keyboard(lang))
+
+
+async def _render_daily_bonus(query, user_id: int, lang: str,
+                              is_admin: bool) -> None:
+    """🎁 Kunlik bonus — streak bonusi shu ekranda olinadi (cab_bonus = manba)."""
+    from handlers.start import build_daily_bonus_text
+
+    if is_admin:
+        text = get_text("daily_bonus_admin", lang)
+    else:
+        res = await db.run_db(db.claim_daily_streak_bonus, user_id)
+        if res.get("success"):
+            text = build_daily_bonus_text(res, lang)
+        else:
+            text = get_text(
+                "daily_bonus_already", lang,
+                msg=localize_db_message(res.get("msg", ""), lang),
+                credits=res.get("credits", 0),
+            )
+    await _edit_or_reply(query, text, get_settings_back_keyboard(lang))
+
+
+async def _render_tools(query, lang: str) -> None:
+    """🧰 Vositalar — yordamchi vositalar submenyusi (``handlers.tools``)."""
+    from handlers.tools import render_tools_menu
+
+    await render_tools_menu(query, lang)
 
 
 async def _render_profile_screen(query, context, user_id: int, lang: str,
@@ -293,7 +379,13 @@ async def settings_menu_callback(update, context: ContextTypes.DEFAULT_TYPE):
 
     Har bir bo'lim o'z ekranini ochadi; [◀️ Orqaga] asosiy menyuga qaytaradi.
     Mavjud kabinet (``cab_*``) callback'lari o'z joyida qoladi — bu handler
-    faqat YANGI sozlamalar hub'iga xizmat qiladi.
+    faqat sozlamalar hub'iga xizmat qiladi.
+
+    MUHIM: ``stgs_transfer`` (🔄 Ballar o'tkazish) bu yerda ishlanmaydi —
+    u ``main_conv`` entry point'i (``handlers.start.transfer_inline_entry``)
+    orqali mavjud TRANSFER_TARGET FSM oqimini ochadi. Faqat suhbat allaqachon
+    faol bo'lgan holatda (entry point'lar ko'rilmaydi) bu yerga tushadi va
+    foydalanuvchi jim qolmasligi uchun tushunarli yo'riqnoma ko'rsatiladi.
     """
     from handlers.start import ensure_user_lang
 
@@ -348,6 +440,27 @@ async def settings_menu_callback(update, context: ContextTypes.DEFAULT_TYPE):
         await _render_toggles(query, user_id, scope, lang)
         return
 
+    if data == "stgs_points":
+        # 💎 Ballarim — kredit balansi va reklama rejimi (cab_balance bilan
+        # bir xil manba, lekin sozlamalar menyusi ichida qoladi).
+        await _render_points(query, user_id, lang, is_admin)
+        return
+
+    if data == "stgs_bonus":
+        # 🎁 Kunlik bonus — streak bonusi (cab_bonus bilan bir xil DB amali).
+        await _render_daily_bonus(query, user_id, lang, is_admin)
+        return
+
+    if data == "stgs_tools":
+        # 🧰 Vositalar — Konverter + Post Enhancer submenyusi.
+        await _render_tools(query, lang)
+        return
+
+    if data == "stgs_hub":
+        # ◀️ Orqaga (submenyudan) — ⚙️ Sozlamalar menyusi qayta chiziladi.
+        await _render_hub_screen(query, context, user_id, lang, is_admin)
+        return
+
     if data.startswith("stgs_tgl:"):
         # stgs_tgl:<scope>:<key> — OQ RO'YXAT tekshiruvi bilan toggle.
         parts = data.split(":")
@@ -388,6 +501,18 @@ async def settings_menu_callback(update, context: ContextTypes.DEFAULT_TYPE):
 
     if data == "stgs_about":
         await _render_about(query, lang)
+        return
+
+    if data == "stgs_transfer":
+        # 🛡 Fail-safe: odatda bu yerga yetib kelinmaydi — ``main_conv``
+        # entry point'i (``handlers.start.transfer_inline_entry``) transfer
+        # oqimini ochadi. Suhbat allaqachon faol bo'lgan holatda entry
+        # point'lar ko'rilmaydi; foydalanuvchi jim qolmasligi uchun
+        # tushunarli toast ko'rsatiladi (crash yo'q, xabar buzilmaydi).
+        try:
+            await query.answer(get_text("sys_stale_button", lang), show_alert=True)
+        except Exception:
+            pass
         return
 
     # Noma'lum stgs_* callback — xavfsiz jim chiqish (crash yo'q).

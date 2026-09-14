@@ -61,6 +61,10 @@ def main():
         "handlers",
         "handlers.voice_post",
         "handlers.post_score",
+        # 🧰 VOSITALAR submenyusi (PostAssist V2 · 3-qadam) — sozlamalar
+        # menyusidagi [🧰 Vositalar] ekranini chizuvchi modul.
+        "handlers.tools",
+        "handlers.settings",
         "utils.post_scorer",
     ]
     for mod in modules:

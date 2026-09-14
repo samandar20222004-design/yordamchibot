@@ -9,14 +9,18 @@ Qamrov (topshiriq spetsifikatsiyasi bilan birma-bir):
              📅 Rejalashtirilgan postlar soni / 🤖 AI so'rovlar & kreditlar.
            Natija ostida amallar: [🔄 Yangilash] [◀️ Orqaga]; Yangilash
            ma'lumotlarni qayta o'qiydi, Orqaga asosiy menyuga qaytaradi.
-  TEST 2:  ⚙️ SOZLAMALAR — [⚙️ Sozlamalar] bosilganda bitta tartibli menyu:
-             [👤 Profil]             [🌐 Til / Язык]
-             [🔔 Bildirishnomalar]   [🎨 Post sozlamalari]
-             [💳 To'lovlar tarixi]   [🎁 Do'stlarni taklif qilish]
-             [❓ Yordam]             [ℹ️ Bot haqida]
+  TEST 2:  ⚙️ SOZLAMALAR — [⚙️ Sozlamalar] bosilganda bitta tartibli menyu
+           (3-qadam refaktori: legacy dublikatlar olib tashlangan, 12 tugma):
+             [👤 Profil]            [🌐 Til / Язык]
+             [💎 Ballarim]          [🔄 Ballar o'tkazish]
+             [🎁 Kunlik bonus]      [👥 Do'stlarni taklif]
+             [🔔 Bildirishnomalar]  [🎨 Post sozlamalari]
+             [💳 To'lovlar tarixi]  [🧰 Vositalar]
+             [❓ Yordam]            [ℹ️ Bot haqida]
                           [◀️ Orqaga]
-           Har bir 8 ta sub-tugma O'Z oqimini ochadi; [◀️ Orqaga] asosiy
+           Har bir 12 ta sub-tugma O'Z oqimini ochadi; [◀️ Orqaga] asosiy
            menyuga qaytaradi; profil va til almashtirish oqimlari buzilmagan.
+           Eski cab_* callback'lari ALIAS sifatida ishlashda davom etadi.
   TEST 3:  ⚙️ ADMIN PANEL — oddiy foydalanuvchiga HECH QACHON ko'rinmaydi
            (klaviatura + handlerlar fail-closed); admin kirganda tizim
            monitoringi (Bot & DB, Scheduler, AI provayderlar, Pending manual
@@ -68,27 +72,38 @@ EXPECTED_STATS_MARKERS = {
            "📅 Scheduled posts", "🤖 AI requests", "Credits spent"),
 }
 
-# Sozlamalar menyusi — SPEKStdagi 8 ta sub-tugma callback'lari (tartib bilan).
+# Sozlamalar menyusi — speksdagi 12 ta sub-tugma callback'lari (tartib bilan).
 EXPECTED_SETTINGS_CBS = (
     "stgs_profile", "stgs_lang",
+    "stgs_points", "stgs_transfer",
+    "stgs_bonus", "stgs_referral",
     "stgs_notif", "stgs_post",
-    "stgs_pay", "stgs_referral",
+    "stgs_pay", "stgs_tools",
     "stgs_help", "stgs_about",
 )
 
 # Sozlamalar menyusi yorliqlari — SPEKS tartibi (uchala til).
+# 3-qadam refaktori: legacy kabinet dublikatlari olib tashlandi va menyu
+# 12 tugma + [◀️ Orqaga] ko'rinishiga keltirildi (tests/refactor_step3_test.py
+# bu tarkibni alohida, qat'iy qo'riqlaydi).
 EXPECTED_SETTINGS_LABELS = {
     "uz": (("👤 Profil", "🌐 Til / Язык"),
+           ("💎 Ballarim", "🔄 Ballar o'tkazish"),
+           ("🎁 Kunlik bonus", "👥 Do'stlarni taklif"),
            ("🔔 Bildirishnomalar", "🎨 Post sozlamalari"),
-           ("💳 To'lovlar tarixi", "🎁 Do'stlarni taklif qilish"),
+           ("💳 To'lovlar tarixi", "🧰 Vositalar"),
            ("❓ Yordam", "ℹ️ Bot haqida")),
     "ru": (("👤 Профиль", "🌐 Til / Язык"),
+           ("💎 Мои баллы", "🔄 Перевести баллы"),
+           ("🎁 Ежедневный бонус", "👥 Пригласить друзей"),
            ("🔔 Уведомления", "🎨 Настройки постов"),
-           ("💳 История платежей", "🎁 Пригласить друзей"),
+           ("💳 История платежей", "🧰 Инструменты"),
            ("❓ Помощь", "ℹ️ О боте")),
     "en": (("👤 Profile", "🌐 Language"),
+           ("💎 My credits", "🔄 Transfer credits"),
+           ("🎁 Daily bonus", "👥 Invite friends"),
            ("🔔 Notifications", "🎨 Post settings"),
-           ("💳 Payment history", "🎁 Invite friends"),
+           ("💳 Payment history", "🧰 Tools"),
            ("❓ Help", "ℹ️ About")),
 }
 
@@ -408,27 +423,35 @@ def test_statistics_overview_format():
 
 
 # ============================================================================
-# TEST 2 — ⚙️ SOZLAMALAR: 8 SUB-TUGMA + [◀️ ORQAGA]
+# TEST 2 — ⚙️ SOZLAMALAR: 12 SUB-TUGMA + [◀️ ORQAGA] (legacy dublikatlarsiz)
 # ============================================================================
 def test_settings_menu_structure_and_flows():
-    print("\n== TEST 2: ⚙️ Sozlamalar — yagona tartibli menyu (8+Orqaga) ==")
+    print("\n== TEST 2: ⚙️ Sozlamalar — yagona tartibli menyu (12+Orqaga) ==")
     from telegram.ext import ConversationHandler
+
+    # Legacy kabinet tezkor tugmalari — menyuda KO'RINMASLIGI shart
+    # (ular o'z asosiy menyularida bor: 📢 Kanallarim, 📅 Rejalashtirilgan...).
+    legacy_cbs = ("cab_channels", "cab_analytics", "cab_pending", "cab_queue",
+                  "cab_balance", "cab_bonus", "close_cabinet")
 
     # 2a) Menyu strukturasi — SPEKS tartibi (uchala til).
     for lang in LANGS:
         kb = get_settings_hub_keyboard(lang)
         rows = kb_rows_inline(kb)
         expected = EXPECTED_SETTINGS_LABELS[lang]
-        check(f"{lang}: birinchi 4 qator = speksdagi 8 tugma",
-              [[t for t, _ in row] for row in rows[:4]] == [
+        check(f"{lang}: birinchi 6 qator = speksdagi 12 tugma",
+              [[t for t, _ in row] for row in rows[:6]] == [
                   list(r) for r in expected],
-              str(rows[:4]))
-        check(f"{lang}: 8 tugma callback tartibi",
-              kb_flat_cbs(kb)[:8] == list(EXPECTED_SETTINGS_CBS),
-              str(kb_flat_cbs(kb)[:8]))
+              str(rows[:6]))
+        check(f"{lang}: 12 tugma callback tartibi",
+              kb_flat_cbs(kb)[:12] == list(EXPECTED_SETTINGS_CBS),
+              str(kb_flat_cbs(kb)[:12]))
         check(f"{lang}: oxirgi qator = [◀️ Orqaga] (stgs_back)",
               rows[-1] == [(settings_stats_t("ss_btn_back", lang), "stgs_back")],
               str(rows[-1]))
+        check(f"{lang}: legacy cab_* dublikatlar YO'Q",
+              not any(cb in kb_flat_cbs(kb) for cb in legacy_cbs),
+              str(kb_flat_cbs(kb)))
         for row in rows:
             for _label, cbdata in row:
                 check(f"{lang}: cb <= 64 bayt ({cbdata})",
@@ -444,7 +467,7 @@ def test_settings_menu_structure_and_flows():
         await ST.user_cabinet_menu(_upd_msg(msg), ctx)
         return msg
 
-    for lang in ("uz", "ru"):
+    for lang in LANGS:
         msg = _with_db(fake, lambda lang=lang: _open(lang))
         text = msg.sent[-1]["text"]
         cbs = kb_flat_cbs(msg.sent[-1]["reply_markup"])
@@ -452,14 +475,17 @@ def test_settings_menu_structure_and_flows():
               get_text("cabinet_title", lang, user_id=USER_ID, user_code="TST777",
                        credits="7", streak="3/7", channels=2, referrals=2,
                        ad_line="").splitlines()[0] in text, text[:80])
-        check(f"{lang}: 8 stgs callback menyuda",
+        check(f"{lang}: 12 stgs callback menyuda",
               all(cb in cbs for cb in EXPECTED_SETTINGS_CBS), str(cbs))
         check(f"{lang}: stgs_back menyuda", "stgs_back" in cbs)
-        if lang == "ru":
-            labels = [b.text for row in msg.sent[-1]["reply_markup"].inline_keyboard
-                      for b in row]
-            check("ru: eski kabinet tugmasi ham saqlanadi (orqaga moslik)",
-                  get_text("cab_my_channels", "ru") in labels, str(labels))
+        check(f"{lang}: legacy tugmalar yo'q (user_cabinet_menu)",
+              not any(cb in cbs for cb in legacy_cbs), str(cbs))
+        labels = [b.text for row in msg.sent[-1]["reply_markup"].inline_keyboard
+                  for b in row]
+        check(f"{lang}: legacy yorliqlar yo'q",
+              get_text("cab_my_channels", lang) not in labels
+              and get_text("cab_pending", lang) not in labels
+              and get_text("cab_balance", lang) not in labels, str(labels))
 
     # 2c) 👤 Profil — mavjud kabinet ekrani (cabinet_title + cab_* klaviatura).
     fake = _FakeDB()
@@ -816,7 +842,7 @@ def test_i18n_parity():
           str(report["format_mismatch"]))
     check("paritet: bo'sh matn yo'q", not report["empty"], str(report["empty"]))
 
-    # Sozlamalar menyusining 8 ta kaliti uchala tilda bo'sh emas.
+    # Sozlamalar menyusining 12+ kaliti uchala tilda bo'sh emas.
     for lang in LANGS:
         for key in SETTINGS_MENU_BUTTON_KEYS:
             value = settings_stats_t(key, lang)

@@ -71,6 +71,9 @@ from handlers.start import (
     start, user_cabinet_menu, user_invite_menu, daily_bonus_handler, start_transfer_credits, transfer_target_received, transfer_amount_received,
     help_command, help_menu_callback, cancel_handler, subscription_check_callback, check_user_subscribed,
     cabinet_callback, extras_menu, extras_close_callback,
+    # ⚙️ Sozlamalar menyusidagi [🔄 Ballar o'tkazish] inline kirishi
+    # (PostAssist V2 · 3-qadam) — mavjud TRANSFER FSM oqimini ochadi.
+    transfer_inline_entry,
     TRANSFER_TARGET, TRANSFER_AMOUNT
 )
 
@@ -734,6 +737,16 @@ def register_all_handlers(app):
         MessageHandler(exact(BTN_INVITE_EN), lambda u, c: guard_menu(u, c, user_invite_menu)),
         MessageHandler(exact(BTN_TRANSFER, BTN_TRANSFER_RU), lambda u, c: guard_entry(u, c, start_transfer_credits)),
         MessageHandler(exact(BTN_TRANSFER_EN), lambda u, c: guard_entry(u, c, start_transfer_credits)),
+        # 🔄 Ballar o'tkazish — ⚙️ SOZLAMALAR menyusidagi inline tugma
+        # (PostAssist V2 · 3-qadam). ``start_handlers`` ichida turgani uchun
+        # u bir vaqtning o'zida: (1) main_conv entry point'i, (2) HAR BIR
+        # faol holatda menyu sakrashi (all_menu_jumps) va (3) global reyestr
+        # handleri. FSM o'zgarmaydi — oqim mavjud TRANSFER_TARGET →
+        # TRANSFER_AMOUNT holatlariga kiradi, reply-tugma oqimi ham buzilmaydi.
+        CallbackQueryHandler(
+            lambda u, c: guard_entry(u, c, transfer_inline_entry),
+            pattern=r"^stgs_transfer$",
+        ),
     ]
 
     # 2. Yangi post
