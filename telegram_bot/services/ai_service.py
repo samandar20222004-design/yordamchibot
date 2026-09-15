@@ -769,6 +769,73 @@ async def analyze_image_bytes(*args, **kwargs) -> dict:
     return await analyze_image(*args, **kwargs)
 
 
+#: Image-post uslubi → Magic Post uslubi (matn asosidagi fallback uchun).
+IMAGE_TO_MAGIC_STYLE = {
+    "sales": "sales",
+    "premium": "premium",
+    "simple": "casual",
+    "discount": "ads",
+    "review": "informative",
+}
+
+
+def _is_text_based_analysis(analysis) -> bool:
+    return isinstance(analysis, dict) and analysis.get("source") in ("caption", "topic")
+
+
+async def generate_text_fallback_post(text: str, style: str = "sales",
+                                      lang: str = "uz", is_pro: bool = False) -> dict:
+    """Vision ishlamaganda caption/mavzu matnini ✨ Magic Post generatoriga uzatadi.
+
+    Natija ``generate_image_post`` bilan bir xil kontraktda (``post_text`` /
+    ``error``), shuning uchun handler farqni sezmaydi. Magic Post AI zanjiri
+    yiqilsa yakuniy zaxira sifatida ``run_ai_chain`` sinaladi.
+    """
+    style = str(style or "sales").strip().lower()
+    magic_style = IMAGE_TO_MAGIC_STYLE.get(style, "casual")
+    material = str(text or "").strip()
+    if not material:
+        return {"error": "Matn topilmadi.", "style": style}
+    try:
+        aa = _ai_agent()
+        generator = getattr(aa, "generate_magic_post", None)
+        if generator is not None:
+            result = await generator(material, magic_style, lang=lang, is_pro=is_pro)
+            if isinstance(result, dict) and not result.get("error"):
+                post_text = str(result.get("post_text") or "").strip()
+                if post_text:
+                    return {
+                        "post_text": post_text,
+                        "style": style,
+                        "provider": result.get("provider") or "magic_post",
+                        "source": "text_fallback",
+                    }
+    except Exception as exc:  # noqa: BLE001 - zaxira zanjir davom etadi
+        logger.warning("Text fallback Magic Post xatosi: %s", type(exc).__name__)
+    # Yakuniy zaxira: oddiy AI zanjiri.
+    system = build_image_post_system_prompt(style, lang)
+    prompt = (
+        "Quyidagi foydalanuvchi matni asosida Telegram uchun tayyor post yozing. "
+        "Rasm tahlili mavjud emas — faqat matndagi faktlardan foydalaning.\n"
+        "--- MATN START ---\n"
+        f"{material[:1500]}\n"
+        "--- MATN END ---\n"
+        "Javobni FAQAT {\"post_text\": \"...\"} JSON formatida qaytaring."
+    )
+    try:
+        result = await run_ai_chain(prompt, system, lang=lang)
+    except TypeError:
+        result = await run_ai_chain(prompt, system)
+    except Exception as exc:  # noqa: BLE001
+        return {"error": str(exc) or "AI xatosi", "style": style}
+    if not isinstance(result, dict) or result.get("error"):
+        return {"error": (result or {}).get("error") if isinstance(result, dict) else "AI xatosi", "style": style}
+    post_text = str(result.get("post_text") or result.get("content") or result.get("reply") or "").strip()
+    if not post_text:
+        return {"error": "AI bo'sh post qaytardi.", "style": style}
+    return {"post_text": post_text, "style": style, "provider": result.get("provider"), "source": "text_fallback"}
+
+
 async def generate_image_post(analysis: dict, style: str = "sales",
                               caption: str = "", lang: str = "uz",
                               is_pro: bool = False) -> dict:
@@ -776,10 +843,19 @@ async def generate_image_post(analysis: dict, style: str = "sales",
 
     Muhim: bu funksiya uslub tanlanishidan oldin chaqirilmaydi. Kredit rezervi
     handlerda bo'ladi; servis esa AI provider fallback'ini ishlatadi.
+
+    Agar ``analysis`` Vision emas, MATN asosida tuzilgan bo'lsa
+    (``source`` = caption/topic — Vision xizmati ishlamagan holat), post
+    to'g'ridan-to'g'ri ✨ Magic Post generatori orqali yoziladi.
     """
     style = str(style or "sales").strip().lower()
     if style not in _IMAGE_POST_STYLE_SPECS:
         style = "sales"
+    if _is_text_based_analysis(analysis):
+        material = str(
+            analysis.get("source_text") or caption or analysis.get("summary") or ""
+        ).strip()
+        return await generate_text_fallback_post(material, style, lang=lang, is_pro=is_pro)
     system = build_image_post_system_prompt(style, lang)
     prompt = build_image_post_prompt(analysis, style, caption, lang)
     try:

@@ -8,7 +8,14 @@ Oqim:
         → qisqa xulosa + 5 uslub + bekor qilish
         → uslub tanlanganda aynan 1 ta AI krediti + tayyor post
         → rasm ostida caption preview
-        → kanalga yuborish / scheduler'ga saqlash / boshqa uslub
+        → [📢 Kanalga yuborish] [📅 Rejalashtirish] / [✏️ Qayta yozish / Uslub]
+          [📊 Baholash] / [◀️ Orqaga]  (Magic Post bilan bir xil layout)
+
+3-BOSQICH FALLBACK (Vision timeout / rate-limit / model 404 / tushunarsiz javob):
+    * caption bor → o'sha matn asos qilinadi va ✨ Magic Post generatoriga
+      uzatiladi (foydalanuvchi quruq xato ko'rmaydi);
+    * caption yo'q → «🖼 Rasm qabul qilindi! … mavzu yozing» (IMAGE_TOPIC_INPUT).
+    Faqat rasmning o'zi yaroqsiz bo'lsa (format/10 MB) yangi rasm so'raladi.
 
 Legacy AI Studio Vision oqimi ``handlers.ai_assistant`` da ataylab saqlanadi.
 Bu modul yangi kontraktni alohida ushlab, Magic Post, Voice va mavjud
@@ -29,14 +36,18 @@ from config import ADMIN_IDS_SET
 from keyboards.callback_data import CB_POST_SCORE_EVAL, cb
 from keyboards.default import get_cancel_keyboard
 from locales.translations import get_lang, safe_t
-from translations import post_score_t
+from translations import content_menu_t, magic_t, post_score_t
 from services.ai_service import generate_image_post
 from utils.ai_agent import pick_supported_kwargs
 from utils.helpers import html_escape, telegram_html_payload, parse_schedule_input
 from utils.vision_analyzer import (
     MAX_IMAGE_BYTES,
+    TEXT_SOURCE_CAPTION,
+    TEXT_SOURCE_TOPIC,
     VisionError,
+    analysis_from_text,
     analyze_image,
+    is_text_based_analysis,
     normalize_analysis,
     validate_image,
 )
@@ -49,6 +60,9 @@ IMAGE_STYLE_SELECT = 521
 IMAGE_POST_RESULT = 522
 IMAGE_SEND_CHOOSE = 523
 IMAGE_SCHEDULE_INPUT = 524
+#: Vision ishlamadi va caption yo'q — foydalanuvchidan post mavzusi so'raladi
+#: (3-BOSQICH fallback; jarayon to'xtab qolmaydi).
+IMAGE_TOPIC_INPUT = 525
 
 
 # ============================================================
@@ -104,6 +118,7 @@ IMAGE_CANCEL = "image_cancel"
 IMAGE_SEND = "image_send"
 IMAGE_SCHEDULE = "image_schedule"
 IMAGE_RESTYLE = "image_restyle"
+IMAGE_BACK = "image_back"
 IMAGE_CHANNEL_PREFIX = "image_ch:"
 IMAGE_SEND_ALL = "image_ch:all"
 
@@ -136,6 +151,7 @@ _SESSION_KEYS = (
     "image_post_credit_reserved",
     "image_post_scheduled_time",
     "image_post_generating",
+    "image_post_source",
 )
 
 
@@ -161,17 +177,31 @@ def image_style_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
 
 
 def image_action_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
-    """Tayyor photo+caption preview amallari (+ 📊 Baholash)."""
+    """Tayyor photo+caption preview amallari — Magic Post bilan BIR XIL layout:
+
+        [📢 Kanalga yuborish]      [📅 Rejalashtirish]
+        [✏️ Qayta yozish / Uslub]  [📊 Baholash]
+                    [◀️ Orqaga]
+
+    Callback'lar o'zgarmagan (``image_send`` / ``image_schedule`` /
+    ``image_restyle`` / ``ps_eval:image``) — eski chat tarixidagi tugmalar
+    ishlashda davom etadi; ``image_back`` Kontent yaratish submenyusiga qaytaradi.
+    """
     return InlineKeyboardMarkup([
-        # 📊 Post Score (Killer Feature #4): tayyor caption'ni qayta yozmasdan
-        # baholash (``ps_eval:image``) — baholash bepul (kredit yechilmaydi).
-        [InlineKeyboardButton(
-            post_score_t("ps_btn_eval", lang),
-            callback_data=cb(CB_POST_SCORE_EVAL, PS_EVAL_SOURCE),
-        )],
-        [InlineKeyboardButton(safe_t("image_btn_send", lang), callback_data=IMAGE_SEND)],
-        [InlineKeyboardButton(safe_t("image_btn_schedule", lang), callback_data=IMAGE_SCHEDULE)],
-        [InlineKeyboardButton(safe_t("image_btn_restyle", lang), callback_data=IMAGE_RESTYLE)],
+        [
+            InlineKeyboardButton(safe_t("image_btn_send", lang), callback_data=IMAGE_SEND),
+            InlineKeyboardButton(safe_t("image_btn_schedule", lang), callback_data=IMAGE_SCHEDULE),
+        ],
+        [
+            InlineKeyboardButton(magic_t("mp_btn_rewrite", lang), callback_data=IMAGE_RESTYLE),
+            # 📊 Post Score (Killer Feature #4): tayyor caption'ni qayta yozmasdan
+            # baholash (``ps_eval:image``) — baholash bepul (kredit yechilmaydi).
+            InlineKeyboardButton(
+                post_score_t("ps_btn_eval", lang),
+                callback_data=cb(CB_POST_SCORE_EVAL, PS_EVAL_SOURCE),
+            ),
+        ],
+        [InlineKeyboardButton(magic_t("mp_btn_back", lang), callback_data=IMAGE_BACK)],
     ])
 
 
@@ -213,6 +243,13 @@ def _image_entry_text(lang: str) -> str:
 
 
 def _analysis_summary(analysis: dict, lang: str = "uz") -> str:
+    if is_text_based_analysis(analysis):
+        # Vision emas, foydalanuvchi matni asos: mahsulot kartochkasi o'rniga
+        # qisqa "matn qabul qilindi" xulosasi (noma'lum/noma'lum chiqmaydi).
+        preview = str(analysis.get("source_text") or analysis.get("summary") or "").strip()
+        preview = html_escape(preview[:300] + ("…" if len(preview) > 300 else ""))
+        key = "image_text_summary_caption" if analysis.get("source") == TEXT_SOURCE_CAPTION else "image_text_summary_topic"
+        return safe_t(key, lang, text=preview)
     data = normalize_analysis(analysis or {})
     f = data.get("visual_features") or {}
     details = data.get("caption_details") or {}
@@ -262,11 +299,14 @@ async def _download_image_bytes(bot, media) -> bytes:
         raise VisionError("🖼 Rasm topilmadi. Iltimos, JPG, PNG yoki WEBP yuboring.")
     advertised = getattr(media, "file_size", None)
     if advertised is not None:
+        # Eslatma: VisionError ValueError'dan meros olgan — shu sababli int()
+        # xatosi va limit xatosi ALOHIDA ushlanadi (aks holda limit jim o'tardi).
         try:
-            if int(advertised) > MAX_IMAGE_BYTES:
-                raise VisionError("📦 Rasm hajmi 10 MB dan oshib ketdi. Kichikroq rasm yuboring.")
+            advertised_size = int(advertised)
         except (TypeError, ValueError):
-            pass
+            advertised_size = 0
+        if advertised_size > MAX_IMAGE_BYTES:
+            raise VisionError("📦 Rasm hajmi 10 MB dan oshib ketdi. Kichikroq rasm yuboring.")
     try:
         tg_file = await bot.get_file(media.file_id)
         raw = bytes(await tg_file.download_as_bytearray())
@@ -333,8 +373,76 @@ async def image_post_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return IMAGE_POST_INPUT
 
 
+def _message_caption(message) -> str:
+    """Caption (forward qilingan xabarlarda ham) — bo'lmasa bo'sh satr."""
+    for attr in ("caption", "text"):
+        value = getattr(message, attr, None)
+        if isinstance(value, str) and value.strip():
+            return value.strip()[:1000]
+    return ""
+
+
+def _is_recoverable_vision_error(exc: BaseException | None) -> bool:
+    """Xato RASMDA emas, XIZMATDA bo'lsa (timeout, 404 model, rate-limit,
+    tarmoq, yuklab olish) — fallback mexanizmi ishlaydi. Format/hajm xatosi
+    esa yangi rasm talab qiladi."""
+    if exc is None:
+        return True
+    if isinstance(exc, VisionError):
+        if getattr(exc, "recoverable", False):
+            return True
+        text = str(exc)
+        # Yuklab olish/bo'sh javob kabi xizmat xatolari ham tiklanuvchi.
+        return not text.startswith(("📦", "🖼"))
+    return True
+
+
+async def _start_style_select(message, context, analysis: dict, lang: str,
+                              notice_key: str | None = None):
+    """Tahlil (Vision yoki matn) tayyor — uslub menyusini chiqaradi."""
+    context.user_data["image_post_analysis"] = analysis
+    context.user_data["image_post_source"] = analysis.get("source") or "vision"
+    context.user_data.pop("image_post_text", None)
+    context.user_data.pop("image_post_style", None)
+    context.user_data["image_post_credit_reserved"] = False
+    parts = []
+    if notice_key:
+        parts.append(safe_t(notice_key, lang))
+    parts.append(_analysis_summary(analysis, lang))
+    parts.append(safe_t("image_choose_style", lang))
+    await message.reply_text(
+        "\n\n".join(parts),
+        reply_markup=image_style_keyboard(lang),
+        parse_mode="HTML",
+    )
+    return IMAGE_STYLE_SELECT
+
+
+async def _vision_fallback(message, context, caption: str, lang: str):
+    """MUSTAHKAM FALLBACK — Vision xatosi foydalanuvchiga quruq xato bo'lib
+    qaytmaydi:
+
+      * caption bor → o'sha matn asos qilinadi (Magic Post generatoriga
+        uzatiladi), uslub menyusi darhol chiqadi;
+      * caption yo'q → muloyimlik bilan mavzu so'raladi (``IMAGE_TOPIC_INPUT``).
+    """
+    if caption:
+        analysis = analysis_from_text(caption, TEXT_SOURCE_CAPTION)
+        return await _start_style_select(
+            message, context, analysis, lang, notice_key="image_vision_fallback_caption",
+        )
+    await message.reply_text(safe_t("image_topic_prompt", lang), parse_mode="HTML")
+    return IMAGE_TOPIC_INPUT
+
+
 async def image_photo_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Rasmni yuklaydi, Gemini Vision bilan tahlil qiladi va uslub menyusini chiqaradi."""
+    """Rasmni yuklaydi, Gemini Vision bilan tahlil qiladi va uslub menyusini chiqaradi.
+
+    Vision xizmati (timeout / rate-limit / model 404 / tushunarsiz javob)
+    yiqilsa oqim TO'XTAMAYDI: caption bo'lsa u asos qilinadi, bo'lmasa mavzu
+    so'raladi. Faqat rasmning o'zi yaroqsiz bo'lsa (format/hajm) yangi rasm
+    so'raladi.
+    """
     message = getattr(update, "message", None)
     if message is None:
         return IMAGE_POST_INPUT
@@ -344,7 +452,14 @@ async def image_photo_received(update: Update, context: ContextTypes.DEFAULT_TYP
         await message.reply_text(safe_t("image_photo_only", lang), parse_mode="HTML")
         return IMAGE_POST_INPUT
 
-    caption = str(getattr(message, "caption", "") or "").strip()[:1000]
+    caption = _message_caption(message)
+    # file_id Vision natijasidan qat'i nazar saqlanadi — fallback'da ham
+    # tayyor post AYNAN shu rasm bilan yuboriladi.
+    context.user_data["image_post_file_id"] = getattr(media, "file_id", None)
+    context.user_data["image_post_caption"] = caption
+
+    result = None
+    failure: BaseException | None = None
     try:
         raw = await _download_image_bytes(context.bot, media)
         analyzer = globals().get("analyze_image") or analyze_image
@@ -358,37 +473,43 @@ async def image_photo_received(update: Update, context: ContextTypes.DEFAULT_TYP
             ),
         )
     except VisionError as exc:
-        await message.reply_text(_analysis_error_text(exc, lang), parse_mode="HTML")
-        return IMAGE_POST_INPUT
+        failure = exc
     except Exception as exc:  # noqa: BLE001 - user oqimi yiqilmasin
         logger.exception("Image Post Vision error: %s", exc)
-        await message.reply_text(_analysis_error_text(None, lang), parse_mode="HTML")
-        return IMAGE_POST_INPUT
+        failure = exc
+
+    if failure is not None:
+        if not _is_recoverable_vision_error(failure):
+            await message.reply_text(_analysis_error_text(failure, lang), parse_mode="HTML")
+            return IMAGE_POST_INPUT
+        logger.info("Image Post: Vision ishlamadi (%s) — fallback", type(failure).__name__)
+        return await _vision_fallback(message, context, caption, lang)
 
     if not isinstance(result, dict) or result.get("error"):
-        await message.reply_text(
-            _analysis_error_text((result or {}).get("error"), lang),
-            parse_mode="HTML",
-        )
-        return IMAGE_POST_INPUT
+        logger.info("Image Post: Vision natijasi xato — fallback")
+        return await _vision_fallback(message, context, caption, lang)
 
     analysis = result.get("analysis") if isinstance(result.get("analysis"), dict) else result
     analysis = normalize_analysis(analysis, caption=caption)
-    context.user_data["image_post_file_id"] = getattr(media, "file_id", None)
-    context.user_data["image_post_caption"] = caption
-    context.user_data["image_post_analysis"] = analysis
-    context.user_data.pop("image_post_text", None)
-    context.user_data.pop("image_post_style", None)
-    context.user_data["image_post_credit_reserved"] = False
+    return await _start_style_select(message, context, analysis, lang)
 
-    await message.reply_text(
-        _analysis_summary(analysis, lang)
-        + "\n\n"
-        + safe_t("image_choose_style", lang),
-        reply_markup=image_style_keyboard(lang),
-        parse_mode="HTML",
-    )
-    return IMAGE_STYLE_SELECT
+
+async def image_topic_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Vision ishlamagach foydalanuvchi yozgan mavzu → matn asosidagi tahlil."""
+    message = getattr(update, "message", None)
+    if message is None:
+        return IMAGE_TOPIC_INPUT
+    lang = get_lang(context)
+    topic = _message_caption(message)
+    if not topic:
+        await message.reply_text(safe_t("image_topic_prompt", lang), parse_mode="HTML")
+        return IMAGE_TOPIC_INPUT
+    if not context.user_data.get("image_post_file_id"):
+        await message.reply_text(safe_t("image_session_expired", lang), parse_mode="HTML")
+        return ConversationHandler.END
+    context.user_data["image_post_caption"] = topic
+    analysis = analysis_from_text(topic, TEXT_SOURCE_TOPIC)
+    return await _start_style_select(message, context, analysis, lang)
 
 
 async def _get_pro_and_admin(user_id: int):
@@ -771,6 +892,39 @@ async def image_restyle_callback(update: Update, context: ContextTypes.DEFAULT_T
     return IMAGE_STYLE_SELECT
 
 
+async def image_back_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """[◀️ Orqaga] — Magic Post bilan bir xil: sessiya yopiladi, Kontent
+    yaratish submenyusi chiziladi (kredit tegilmaydi)."""
+    query = update.callback_query
+    try:
+        await query.answer()
+    except Exception:
+        pass
+    lang = get_lang(context)
+    _clear_image_session(context)
+    try:
+        from handlers.navigation import SECTION_CONTENT, remember_section
+
+        remember_section(context, SECTION_CONTENT)
+    except Exception:  # pragma: no cover - navigatsiya moduli bo'lmasa ham ishlaydi
+        pass
+    try:
+        await query.edit_message_reply_markup(reply_markup=None)
+    except Exception:
+        pass
+    try:
+        from keyboards.default import get_content_creation_keyboard
+
+        await query.message.reply_text(
+            content_menu_t("cm_menu_intro", lang),
+            reply_markup=get_content_creation_keyboard(lang),
+            parse_mode="HTML",
+        )
+    except Exception:
+        pass
+    return ConversationHandler.END
+
+
 async def image_stale_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer(safe_t("image_session_expired", get_lang(context)), show_alert=True)
@@ -786,10 +940,13 @@ schedule_image_post_callback = image_schedule_callback
 
 __all__ = [
     "IMAGE_POST_INPUT", "IMAGE_STYLE_SELECT", "IMAGE_POST_RESULT", "IMAGE_SEND_CHOOSE",
-    "IMAGE_SCHEDULE_INPUT", "IMAGE_INPUT", "IMAGE_RESULT", "IMAGE_STYLES",
+    "IMAGE_SCHEDULE_INPUT", "IMAGE_TOPIC_INPUT", "IMAGE_INPUT", "IMAGE_RESULT", "IMAGE_STYLES",
     "IMAGE_STYLE_PREFIX", "IMAGE_CANCEL", "IMAGE_SEND", "IMAGE_SCHEDULE", "IMAGE_RESTYLE",
-    "image_post_entry", "image_photo_received", "image_style_keyboard", "image_style_callback",
+    "IMAGE_BACK",
+    "image_post_entry", "image_photo_received", "image_topic_received",
+    "image_style_keyboard", "image_style_callback",
     "image_cancel_callback", "image_action_keyboard", "image_send_callback",
     "image_channel_callback", "image_schedule_callback", "image_schedule_time_received",
-    "image_restyle_callback", "schedule_photo_post", "image_stale_callback",
+    "image_restyle_callback", "image_back_callback", "schedule_photo_post",
+    "image_stale_callback",
 ]
