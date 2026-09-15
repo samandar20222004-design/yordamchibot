@@ -1889,6 +1889,16 @@ EN_OVERLAY = {
         "✨ Design: {design} · Style: {style}{facts}"
     ),
     "image_choose_style": "Which style should we use for the sales post? 👇",
+    "image_vision_fallback_caption": (
+        "🖼 Image received! The post will be built from the "
+        "<b>caption</b> that came with the picture."
+    ),
+    "image_text_summary_caption": "📝 <b>Post basis (caption):</b>\n<i>{text}</i>",
+    "image_text_summary_topic": "📝 <b>Post topic:</b>\n<i>{text}</i>",
+    "image_topic_prompt": (
+        "🖼 Image received! What should this post be about? "
+        "Write a short description:"
+    ),
     "image_choose_style_again": "Choose another style — a new credit is spent only after selection.",
     "image_style_sales": "🔥 Sales",
     "image_style_premium": "💎 Premium",

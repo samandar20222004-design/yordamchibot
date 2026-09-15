@@ -201,10 +201,11 @@ from handlers.image_post import (
     image_post_entry, image_photo_received, image_style_callback,
     image_cancel_callback, image_send_callback, image_channel_callback,
     image_schedule_callback, image_schedule_time_received,
-    image_restyle_callback, image_stale_callback,
+    image_restyle_callback, image_back_callback, image_stale_callback,
+    image_topic_received,
     set_application as set_image_application,
     IMAGE_POST_INPUT, IMAGE_STYLE_SELECT, IMAGE_POST_RESULT,
-    IMAGE_SEND_CHOOSE, IMAGE_SCHEDULE_INPUT,
+    IMAGE_SEND_CHOOSE, IMAGE_SCHEDULE_INPUT, IMAGE_TOPIC_INPUT,
 )
 
 # 2f. 📊 POST SCORE & IMPROVER (Killer Feature #4)
@@ -1398,6 +1399,12 @@ def register_all_handlers(app):
             IMAGE_POST_INPUT: all_menu_jumps + [
                 MessageHandler(filters.PHOTO | filters.Document.ALL, image_photo_received),
             ],
+            # 3-BOSQICH fallback: Vision ishlamadi va caption yo'q — mavzu matni
+            # (yoki yangi rasm) kutiladi; jarayon to'xtab qolmaydi.
+            IMAGE_TOPIC_INPUT: all_menu_jumps + [
+                MessageHandler(filters.PHOTO | filters.Document.ALL, image_photo_received),
+                MessageHandler(filters.TEXT & ~filters.COMMAND, image_topic_received),
+            ],
             IMAGE_STYLE_SELECT: all_menu_jumps + [
                 CallbackQueryHandler(image_style_callback, pattern=r"^(image_style:|img_style:|image_cancel$|img_cancel$)"),
                 CallbackQueryHandler(image_cancel_callback, pattern=r"^image_cancel$"),
@@ -1406,6 +1413,7 @@ def register_all_handlers(app):
                 CallbackQueryHandler(image_send_callback, pattern=r"^image_send$"),
                 CallbackQueryHandler(image_schedule_callback, pattern=r"^image_schedule$"),
                 CallbackQueryHandler(image_restyle_callback, pattern=r"^image_restyle$"),
+                CallbackQueryHandler(image_back_callback, pattern=r"^image_back$"),
                 CallbackQueryHandler(image_cancel_callback, pattern=r"^image_cancel$"),
                 # 📊 Post Score (Killer Feature #4): natijani baholash va
                 # yaxshilash tugmalari shu holatda ham ishlaydi.

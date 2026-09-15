@@ -41,8 +41,46 @@ except (TypeError, ValueError):
     _configured_max = _HARD_MAX_IMAGE_BYTES
 MAX_IMAGE_BYTES = min(_HARD_MAX_IMAGE_BYTES, max(1, _configured_max))
 VISION_MAX_FILE_BYTES = MAX_IMAGE_BYTES  # eski/config nomi bilan qulay alias
-DEFAULT_VISION_MODEL = "gemini-1.5-flash"
+# Google `gemini-1.5-*` oilasini 2025-09-29 da o'chirgan — unga yuborilgan har
+# qanday so'rov HTTP 404 qaytaradi (foydalanuvchi "⚠️ Rasmni tahlil qilib
+# bo'lmadi" xatosini ko'rardi). Standart model — amaldagi barqaror multimodal
+# model; u javob bermasa quyidagi zaxira zanjiri sinaladi.
+DEFAULT_VISION_MODEL = "gemini-2.5-flash"
 VISION_MODEL = (os.getenv("GEMINI_VISION_MODEL") or DEFAULT_VISION_MODEL).strip()
+#: Vision uchun zaxira model zanjiri (barchasi rasm kirishini qo'llaydi).
+VISION_FALLBACK_MODELS: tuple[str, ...] = (
+    "gemini-2.5-flash",
+    "gemini-flash-latest",
+    "gemini-2.5-flash-lite",
+    "gemini-flash-lite-latest",
+)
+_RETIRED_VISION_MODELS = frozenset({
+    "gemini-1.5-flash", "gemini-1.5-flash-001", "gemini-1.5-flash-002",
+    "gemini-1.5-flash-8b", "gemini-1.5-flash-latest", "gemini-1.5-pro",
+    "gemini-1.5-pro-latest", "gemini-pro", "gemini-pro-vision", "gemini-1.0-pro",
+    "gemini-2.0-flash", "gemini-2.0-flash-001", "gemini-2.0-flash-lite",
+    "gemini-2.0-flash-exp",
+})
+#: Shu HTTP statuslarda navbatdagi model sinaladi (vaqtinchalik/model xatosi).
+_RETRYABLE_STATUSES = frozenset({404, 429, 500, 502, 503, 504})
+
+
+def vision_model_chain(model: str | None = None) -> list[str]:
+    """Sinab chiqiladigan Vision modellari (dublikat va o'chirilganlarsiz).
+
+    Aniq berilgan ``model`` (yoki ``GEMINI_VISION_MODEL``) doim birinchi
+    turadi — admin tanlovi hurmat qilinadi; o'chirilgan model bo'lsa ham u
+    ro'yxatdan chiqariladi va zaxira zanjir ishlaydi.
+    """
+    chain: list[str] = []
+    for candidate in (model, VISION_MODEL, *VISION_FALLBACK_MODELS):
+        name = str(candidate or "").strip()
+        if not name or name in chain:
+            continue
+        if name.lower() in _RETIRED_VISION_MODELS:
+            continue
+        chain.append(name)
+    return chain or [DEFAULT_VISION_MODEL]
 try:
     VISION_TIMEOUT_SECONDS = max(5.0, float(os.getenv("VISION_ANALYZER_TIMEOUT", "35")))
 except (TypeError, ValueError):
@@ -62,7 +100,24 @@ SUPPORTED_IMAGE_MIMES = frozenset({
 
 
 class VisionError(ValueError):
-    """Foydalanuvchiga xavfsiz ko'rsatiladigan rasm xatosi."""
+    """Foydalanuvchiga xavfsiz ko'rsatiladigan rasm xatosi.
+
+    ``recoverable`` — xato RASMDA emas, XIZMATDA (timeout, rate-limit, model
+    404, bo'sh/tushunarsiz javob). Bunday holatda handler foydalanuvchiga
+    quruq xato qaytarmasdan caption/mavzu asosidagi fallback oqimiga o'tadi.
+    Format/hajm xatolari (``recoverable=False``) esa yangi rasm talab qiladi.
+    """
+
+    def __init__(self, message: str = "", recoverable: bool = False):
+        super().__init__(message)
+        self.recoverable = bool(recoverable)
+
+
+class VisionUnavailableError(VisionError):
+    """Vision xizmati vaqtincha ishlamadi — fallback mexanizmi ishga tushadi."""
+
+    def __init__(self, message: str = "", recoverable: bool = True):
+        super().__init__(message, recoverable=True)
 
 
 @dataclass(frozen=True)
@@ -329,26 +384,8 @@ def _safe_error_message(status: int | None = None) -> str:
     return "⚠️ Rasmni tahlil qilib bo'lmadi. Iltimos, boshqa rasm yuboring."
 
 
-async def analyze_image(data: bytes | bytearray | memoryview,
-                        caption: str = "",
-                        api_key: str | None = None,
-                        model: str | None = None,
-                        timeout: float | None = None,
-                        session: aiohttp.ClientSession | None = None,
-                        lang: str = "uz",
-                        mime_type: str | None = None) -> dict:
-    """Gemini Vision orqali mahsulot tahlili.
-
-    ``data`` xom bytes bo'lishi shart; bu API Telegramga bog'lanmaganligi
-    sababli unit testda mock rasm bilan to'liq tekshiriladi.
-    """
-    payload = validate_image(data, mime_type=mime_type)
-    key = str(api_key if api_key is not None else GEMINI_API_KEY or "").strip()
-    if not key:
-        raise VisionError("🔑 Vision tahlili hozircha sozlanmagan. Keyinroq urinib ko'ring.")
-    selected_model = str(model or VISION_MODEL or DEFAULT_VISION_MODEL).strip()
-    url = f"{GEMINI_API_BASE}/{selected_model}:generateContent?key={key}"
-    body = {
+def _build_vision_body(payload: ImagePayload, caption: str, lang: str) -> dict:
+    return {
         "systemInstruction": {
             "parts": [{"text": build_vision_system_prompt(lang)}]
         },
@@ -365,33 +402,115 @@ async def analyze_image(data: bytes | bytearray | memoryview,
         "generationConfig": {"temperature": 0.2, "responseMimeType": "application/json"},
     }
 
+
+async def analyze_image(data: bytes | bytearray | memoryview,
+                        caption: str = "",
+                        api_key: str | None = None,
+                        model: str | None = None,
+                        timeout: float | None = None,
+                        session: aiohttp.ClientSession | None = None,
+                        lang: str = "uz",
+                        mime_type: str | None = None) -> dict:
+    """Gemini Vision orqali mahsulot tahlili.
+
+    ``data`` xom bytes bo'lishi shart; bu API Telegramga bog'lanmaganligi
+    sababli unit testda mock rasm bilan to'liq tekshiriladi.
+
+    Model zanjiri: ``model`` → ``GEMINI_VISION_MODEL`` → barqaror zaxiralar.
+    404/429/5xx, timeout yoki tushunarsiz javobda navbatdagi model sinaladi;
+    barchasi yiqilsa ``VisionUnavailableError`` (recoverable) ko'tariladi —
+    handler shunda caption/mavzu fallback'iga o'tadi.
+    """
+    payload = validate_image(data, mime_type=mime_type)
+    key = str(api_key if api_key is not None else GEMINI_API_KEY or "").strip()
+    if not key:
+        raise VisionUnavailableError("🔑 Vision tahlili hozircha sozlanmagan. Keyinroq urinib ko'ring.")
+    body = _build_vision_body(payload, caption, lang)
+    request_timeout = aiohttp.ClientTimeout(total=float(timeout or VISION_TIMEOUT_SECONDS))
+
     own_session = session is None
     client = session or aiohttp.ClientSession()
+    last_error: VisionError | None = None
     try:
-        request_timeout = aiohttp.ClientTimeout(total=float(timeout or VISION_TIMEOUT_SECONDS))
-        async with client.post(url, json=body, timeout=request_timeout) as response:
-            if response.status != 200:
-                logger.warning("Gemini Vision HTTP %s", response.status)
-                raise VisionError(_safe_error_message(response.status))
-            response_data = await response.json()
-        text = _extract_response_text(response_data)
-        if not text:
-            raise VisionError("⚠️ Vision bo'sh javob qaytardi. Boshqa rasm yuboring.")
-        parsed = _parse_json_text(text)
-        if not parsed:
-            raise VisionError("⚠️ Rasmni tushunib bo'lmadi. Aniqroq rasm yuboring.")
-        return normalize_analysis(parsed, caption=caption)
-    except VisionError:
-        raise
-    except (asyncio.TimeoutError, aiohttp.ClientError, binascii.Error) as exc:
-        logger.warning("Gemini Vision tarmoq xatosi: %s", type(exc).__name__)
-        raise VisionError(_safe_error_message()) from exc
-    except (TypeError, ValueError, json.JSONDecodeError) as exc:
-        logger.warning("Gemini Vision javobini parse qilib bo'lmadi: %s", type(exc).__name__)
-        raise VisionError("⚠️ Vision javobi tushunarsiz. Birozdan so'ng qayta urinib ko'ring.") from exc
+        for selected_model in vision_model_chain(model):
+            url = f"{GEMINI_API_BASE}/{selected_model}:generateContent?key={key}"
+            try:
+                async with client.post(url, json=body, timeout=request_timeout) as response:
+                    status = int(getattr(response, "status", 0) or 0)
+                    if status != 200:
+                        logger.warning("Gemini Vision HTTP %s (%s)", status, selected_model)
+                        if status in _RETRYABLE_STATUSES:
+                            last_error = VisionUnavailableError(_safe_error_message(status))
+                            continue
+                        # 400/413/415 — rasm/so'rov muammosi; boshqa model ham
+                        # yordam bermaydi, lekin oqim to'xtamasin (recoverable).
+                        raise VisionUnavailableError(_safe_error_message(status))
+                    response_data = await response.json()
+                text = _extract_response_text(response_data)
+                if not text:
+                    last_error = VisionUnavailableError("⚠️ Vision bo'sh javob qaytardi. Boshqa rasm yuboring.")
+                    continue
+                parsed = _parse_json_text(text)
+                if not parsed:
+                    last_error = VisionUnavailableError("⚠️ Rasmni tushunib bo'lmadi. Aniqroq rasm yuboring.")
+                    continue
+                result = normalize_analysis(parsed, caption=caption)
+                result["model"] = selected_model
+                return result
+            except VisionError:
+                raise
+            except (asyncio.TimeoutError, aiohttp.ClientError, binascii.Error, OSError) as exc:
+                logger.warning("Gemini Vision tarmoq xatosi (%s): %s", selected_model, type(exc).__name__)
+                last_error = VisionUnavailableError(_safe_error_message())
+                continue
+            except (TypeError, ValueError, json.JSONDecodeError) as exc:
+                logger.warning("Gemini Vision javobini parse qilib bo'lmadi (%s): %s", selected_model, type(exc).__name__)
+                last_error = VisionUnavailableError(
+                    "⚠️ Vision javobi tushunarsiz. Birozdan so'ng qayta urinib ko'ring."
+                )
+                continue
+        raise last_error or VisionUnavailableError(_safe_error_message())
     finally:
         if own_session:
             await client.close()
+
+
+# ============================================================
+# FALLBACK: matn (caption/mavzu) asosidagi "tahlil"
+# ============================================================
+#: Vision o'rniga foydalanuvchi matni asos bo'lganini ko'rsatuvchi belgilar.
+TEXT_SOURCE_CAPTION = "caption"
+TEXT_SOURCE_TOPIC = "topic"
+
+
+def analysis_from_text(text: str, source: str = TEXT_SOURCE_CAPTION) -> dict:
+    """Vision ishlamaganda caption yoki mavzu matnidan tahlil sxemasini tuzadi.
+
+    Natija ``normalize_analysis`` bilan bir xil shaklda — keyingi bosqich
+    (uslub tanlash → Magic Post generatori) hech qanday farqni sezmaydi.
+    ``source`` maydoni generatorga "rasm emas, matn asos" ekanini bildiradi.
+    """
+    clean = re.sub(r"[ \t]+", " ", str(text or "")).strip()[:1000]
+    first_line = next((ln.strip() for ln in clean.splitlines() if ln.strip()), "")
+    title = first_line[:80] if first_line else "Post mavzusi"
+    analysis = normalize_analysis(
+        {
+            "product_name": title,
+            "category": "Matn asosidagi post",
+            "summary": clean[:500] or title,
+            "confidence": "low",
+        },
+        caption=clean,
+    )
+    analysis["source"] = source if source in (TEXT_SOURCE_CAPTION, TEXT_SOURCE_TOPIC) else TEXT_SOURCE_CAPTION
+    analysis["source_text"] = clean
+    return analysis
+
+
+def is_text_based_analysis(analysis: Mapping[str, Any] | None) -> bool:
+    return isinstance(analysis, Mapping) and analysis.get("source") in (
+        TEXT_SOURCE_CAPTION, TEXT_SOURCE_TOPIC,
+    )
 
 
 async def analyze_telegram_photo(bot, media, caption: str = "", **kwargs) -> dict:
@@ -429,5 +548,7 @@ __all__ = [
     "VisionError", "ImagePayload", "validate_image", "image_payload",
     "detect_image_mime", "build_vision_system_prompt", "build_vision_user_prompt",
     "normalize_analysis", "analyze_image", "analyze_photo", "analyze_vision",
-    "analyze_telegram_photo",
+    "analyze_telegram_photo", "VisionUnavailableError", "VISION_FALLBACK_MODELS",
+    "vision_model_chain", "analysis_from_text", "is_text_based_analysis",
+    "TEXT_SOURCE_CAPTION", "TEXT_SOURCE_TOPIC",
 ]

@@ -200,7 +200,13 @@ def test_gemini_vision_analysis():
     check("Vision category qaytardi", result["category"] == "Aksessuar", str(result))
     check("Vision visual features qaytdi", result["visual_features"]["material"] == "charm")
     check("Vision caption detail qaytdi", "250" in result["caption_details"]["price"])
-    check("Gemini endpoint 1.5 Flash", "gemini-1.5-flash" in session.calls[0]["url"])
+    # gemini-1.5-flash Google tomonidan o'chirilgan (404) — endi barqaror
+    # multimodal model ishlatiladi va retired modellar zanjirga kirmaydi.
+    check("Gemini endpoint barqaror vision model (retired 1.5 emas)",
+          f"/{va.DEFAULT_VISION_MODEL}:" in session.calls[0]["url"]
+          and "gemini-1.5" not in session.calls[0]["url"], session.calls[0]["url"])
+    check("retired model zanjirdan chiqariladi",
+          "gemini-1.5-flash" not in va.vision_model_chain("gemini-1.5-flash"))
     body = session.calls[0]["json"]
     parts = body["contents"][0]["parts"]
     inline = next(part["inline_data"] for part in parts if "inline_data" in part)

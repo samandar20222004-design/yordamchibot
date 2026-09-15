@@ -1917,6 +1917,16 @@ TRANSLATIONS = {
         "✨ Dizayn: {design} · Uslub: {style}{facts}"
     ),
     "image_choose_style": "Qaysi uslubda sotuv posti tayyorlaymiz? 👇",
+    "image_vision_fallback_caption": (
+        "🖼 Rasm qabul qilindi! Post rasm bilan birga kelgan "
+        "<b>tagmatn (caption)</b> asosida tuziladi."
+    ),
+    "image_text_summary_caption": "📝 <b>Post asosi (tagmatn):</b>\n<i>{text}</i>",
+    "image_text_summary_topic": "📝 <b>Post mavzusi:</b>\n<i>{text}</i>",
+    "image_topic_prompt": (
+        "🖼 Rasm qabul qilindi! Ushbu post qaysi mavzuda bo'lishini xohlaysiz? "
+        "Qisqa izoh yozing:"
+    ),
     "image_choose_style_again": "Boshqa uslubni tanlang — bu tanlovda yangi kredit olinmaydi.",
     "image_style_sales": "🔥 Sotuv",
     "image_style_premium": "💎 Premium",
@@ -3860,6 +3870,16 @@ TRANSLATIONS = {
         "✨ Дизайн: {design} · Стиль: {style}{facts}"
     ),
     "image_choose_style": "В каком стиле подготовить продающий пост? 👇",
+    "image_vision_fallback_caption": (
+        "🖼 Фото получено! Пост будет составлен на основе "
+        "<b>подписи (caption)</b> к изображению."
+    ),
+    "image_text_summary_caption": "📝 <b>Основа поста (подпись):</b>\n<i>{text}</i>",
+    "image_text_summary_topic": "📝 <b>Тема поста:</b>\n<i>{text}</i>",
+    "image_topic_prompt": (
+        "🖼 Фото получено! На какую тему должен быть этот пост? "
+        "Напишите короткое описание:"
+    ),
     "image_choose_style_again": "Выберите другой стиль — новый балл списывается только после выбора.",
     "image_style_sales": "🔥 Продажа",
     "image_style_premium": "💎 Премиум",

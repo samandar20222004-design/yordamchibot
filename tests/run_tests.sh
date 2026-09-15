@@ -11,6 +11,8 @@
 #      (tests/production_acceptance_suite_test.py — deterministik, mock asosida)
 #   3) ✨ MAGIC POST oqimi — Killer Feature #1 (tests/magic_post_flow_test.py)
 #   3a) 📸 IMAGE → POST — Killer Feature #3 (tests/image_to_post_flow_test.py)
+#   3a') 📸 IMAGE → POST 3-BOSQICH — Vision fallback + caption extraction
+#        (tests/image_post_fallback_test.py)
 #   3b) 🎙 VOICE → POST — Killer Feature #2 (tests/voice_to_post_flow_test.py)
 #   3c) 📊 POST SCORE & IMPROVER — Killer Feature #4 (tests/post_score_flow_test.py)
 #   3d) 🧭 UX V2 — asosiy menyu qat'iy 6 tugma standarti (tests/ux_v2_main_menu_test.py)
@@ -71,6 +73,14 @@ echo "======= 3a) 📸 IMAGE → POST (GEMINI VISION + PHOTO SCHEDULER) ======="
 # Mock Gemini Vision, 10MB/format guard, style tanlanguncha 0 credit,
 # tanlanganda 1 credit va photo+caption delivery/scheduler contract.
 "$PY" tests/image_to_post_flow_test.py || EXIT_CODE=1
+
+echo
+echo "======= 3a') 📸 IMAGE → POST — 3-BOSQICH VISION FALLBACK + CAPTION ======="
+# Vision model zanjiri (retired 1.5 yo'q, 404/429/timeout → keyingi model),
+# Vision xatosida QURUQ XATO YO'Q: caption → Magic Post generatori, caption
+# bo'lmasa muloyim mavzu so'rovi (IMAGE_TOPIC_INPUT); forward/caption
+# extraction; natijada Magic Post bilan bir xil ixcham tugmalar; i18n paritet.
+"$PY" tests/image_post_fallback_test.py || EXIT_CODE=1
 
 echo
 echo "======= 3b) 🎙 VOICE → POST (STT $0 + RESURS HIMOYASI) ======="
