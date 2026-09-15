@@ -515,8 +515,10 @@ def test_schema_and_database_additive():
     check("schema.sql: payment_receipts.amount_uzs",
           "amount_uzs INT DEFAULT 0" in schema
           and "ALTER TABLE payment_receipts ADD COLUMN IF NOT EXISTS amount_uzs" in schema)
-    check("schema.sql: indekslar soni o'zgarmadi (18 — schema_test paralleligi)",
-          schema.count("CREATE INDEX IF NOT EXISTS") == 18,
+    # Paritet schema_test.py dagi ro'yxat bilan: PHASE 2 / 1-qadamda
+    # ``idx_ai_reservations_user`` qo'shildi → 18 → 19.
+    check("schema.sql: indekslar soni schema_test parallelligiga mos (19)",
+          schema.count("CREATE INDEX IF NOT EXISTS") == 19,
           schema.count("CREATE INDEX IF NOT EXISTS"))
     check("database.py: ichki fallback DDL ham payment_method'ni oladi",
           "payment_method VARCHAR(32) NOT NULL DEFAULT 'international_stars'"

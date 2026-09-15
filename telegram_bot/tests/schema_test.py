@@ -46,6 +46,8 @@ EXPECTED_TABLES = (
     "admin_roles", "admin_audit_logs",
     # PostAssist V2 (8-bosqich): AI-ballar auditi (credits ledger)
     "credits_ledger",
+    # PHASE 2 / 1-qadam: atomik AI bron (kunlik kvota YOKI kredit)
+    "ai_reservations",
 )
 EXPECTED_INDEXES = (
     "idx_ad_pool_scope",
@@ -76,8 +78,8 @@ def test_schema_file_tables():
     print("== schema.sql: jadvallar ==")
     for table in EXPECTED_TABLES:
         check(f"jadval: {table}", f"CREATE TABLE IF NOT EXISTS {table} (" in SCHEMA)
-    check("jadvallar soni 18",
-          SCHEMA.count("CREATE TABLE IF NOT EXISTS") == 18,
+    check("jadvallar soni 19",
+          SCHEMA.count("CREATE TABLE IF NOT EXISTS") == 19,
           f"topildi: {SCHEMA.count('CREATE TABLE IF NOT EXISTS')}")
 
 
@@ -109,8 +111,8 @@ def test_schema_file_indexes():
     print("== schema.sql: indekslar ==")
     for index in EXPECTED_INDEXES:
         check(f"indeks: {index}", f"CREATE INDEX IF NOT EXISTS {index}" in SCHEMA)
-    check("indekslar soni 18",
-          SCHEMA.count("CREATE INDEX IF NOT EXISTS") == 18,
+    check("indekslar soni 19",
+          SCHEMA.count("CREATE INDEX IF NOT EXISTS") == 19,
           f"topildi: {SCHEMA.count('CREATE INDEX IF NOT EXISTS')}")
     # 5-bosqich: kompozit indekslar scheduler/bot tezligi uchun
     for name, columns in (

@@ -37,6 +37,12 @@ from keyboards.callback_data import CB_POST_SCORE_EVAL, cb
 from keyboards.default import get_cancel_keyboard
 from locales.translations import get_lang, safe_t
 from translations import content_menu_t, magic_t, post_score_t
+from services.ai_quota import (
+    ai_quota_temp_error_text,
+    is_balance_reason,
+    release_ai_quota,
+    reserve_ai_quota,
+)
 from services.ai_service import generate_image_post
 from utils.ai_agent import pick_supported_kwargs
 from utils.helpers import html_escape, telegram_html_payload, parse_schedule_input
@@ -522,52 +528,56 @@ async def _get_pro_and_admin(user_id: int):
         return is_admin, False
 
 
-async def _reserve_one_ai_credit(user_id: int) -> tuple[bool, bool, bool]:
-    """Style callback uchun bitta credit/quota rezervi.
+#: ``context.user_data`` kaliti: joriy rasm→post bronining ID'si (refund uchun).
+#: ``_SESSION_KEYS`` ga KIRITILMAGAN — sessiya tozalash bronni yo'qotmasligi
+#: kerak (aks holda refund qilinmagan bron qolib ketardi).
+IMAGE_RESERVATION_KEY = "image_post_reservation_id"
 
-    Returns ``(ok, is_admin, is_pro)``. ``check_ai_limit`` mavjud loyihaning
-    atomik kunlik quota rezervidir; keyingi ``use_user_credit`` esa aynan bitta
-    AI creditni yechadi.
+
+async def _reserve_one_ai_credit(user_id: int, context=None) -> tuple:
+    """Style callback uchun bitta credit/quota bron'i.
+
+    Returns ``(ok, is_admin, is_pro, reservation)``.
+
+    🔒 PHASE 2 / 1-QADAM: kunlik kvota YOKI kredit BITTA atomik tranzaksiyada
+    (``database.reserve_ai_request``) bron qilinadi — avvalgi ikki alohida
+    tranzaksiya (``check_ai_limit`` + ``use_user_credit``) race condition va
+    yarim bron xavfini tug'dirar edi. Har qanday DB xatosi → ``ok=False``
+    (FAIL-CLOSED). Eski test adapterlari bilan legacy zanjir saqlanadi.
     """
     is_admin, is_pro = await _get_pro_and_admin(user_id)
     if is_admin or is_pro:
-        return True, is_admin, is_pro
+        return True, is_admin, is_pro, None
 
-    try:
-        limit = await db.run_db(db.check_ai_limit, user_id)
-    except Exception:
-        return False, is_admin, is_pro
-    if isinstance(limit, (tuple, list)) and limit and limit[0] is False:
-        return False, is_admin, is_pro
-    if limit is False:
-        return False, is_admin, is_pro
-
-    try:
-        reserved = await db.run_db(db.use_user_credit, user_id)
-    except Exception:
-        # check_ai_limit quota bron qilgan bo'lishi mumkin; credit yechilmasa
-        # o'sha bron ham qolib ketmasin.
-        if hasattr(db, "refund_ai_usage"):
-            try:
-                await db.run_db(db.refund_ai_usage, user_id)
-            except Exception:
-                pass
-        return False, is_admin, is_pro
-    # Real DB adapter qaytargan qiymat bool. None esa eski test adapterining
-    # "javob bermadim" qiymati bo'lishi mumkin; uni muvaffaqiyat deb qabul
-    # qilish faqat mock/backward compatibility uchun, DB xatosi yuqorida False.
-    if reserved is False:
-        if hasattr(db, "refund_ai_usage"):
-            try:
-                await db.run_db(db.refund_ai_usage, user_id)
-            except Exception:
-                pass
-        return False, is_admin, is_pro
-    return True, is_admin, is_pro
+    reservation = await reserve_ai_quota(db, user_id, "image_post", 1)
+    if context is not None and getattr(context, "user_data", None) is not None:
+        context.user_data.pop(IMAGE_RESERVATION_KEY, None)
+    if not reservation.get("allowed"):
+        return False, is_admin, is_pro, reservation
+    if context is not None and getattr(context, "user_data", None) is not None:
+        context.user_data[IMAGE_RESERVATION_KEY] = reservation.get(
+            "reservation_id")
+    return True, is_admin, is_pro, reservation
 
 
-async def _refund_one_ai_credit(user_id: int, is_admin: bool, is_pro: bool) -> None:
+async def _refund_one_ai_credit(user_id: int, is_admin: bool, is_pro: bool,
+                                context=None) -> None:
+    """Bron qilingan kvota/kreditni qaytaradi (generatsiya xatosida).
+
+    Bron ID'si bo'lsa — ATOMIK va IDEMPOTENT ``refund_ai_request`` (ikki marta
+    qaytarib bo'lmaydi); legacy bronda eski ``add_user_credit`` +
+    ``refund_ai_usage`` zanjiri saqlanadi.
+    """
     if is_admin or is_pro:
+        return
+    reservation_id = None
+    if context is not None and getattr(context, "user_data", None) is not None:
+        reservation_id = context.user_data.pop(IMAGE_RESERVATION_KEY, None)
+    if reservation_id:
+        try:
+            await release_ai_quota(db, user_id, reservation_id)
+        except Exception:
+            pass
         return
     try:
         await db.run_db(db.add_user_credit, user_id)
@@ -665,10 +675,17 @@ async def image_style_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         return IMAGE_STYLE_SELECT
     context.user_data["image_post_generating"] = True
 
-    ok, is_admin, is_pro = await _reserve_one_ai_credit(user_id)
+    ok, is_admin, is_pro, reservation = await _reserve_one_ai_credit(
+        user_id, context)
     if not ok:
         context.user_data.pop("image_post_generating", None)
-        await _safe_edit(query, safe_t("image_no_credit", lang), image_style_keyboard(lang))
+        # Mablag' yetishmasa → "kredit yetarli emas"; DB xatosida esa
+        # foydalanuvchini ayblamasdan "xizmat vaqtincha band" (fail-closed).
+        if is_balance_reason((reservation or {}).get("reason")):
+            text = safe_t("image_no_credit", lang)
+        else:
+            text = ai_quota_temp_error_text(lang)
+        await _safe_edit(query, text, image_style_keyboard(lang))
         return IMAGE_STYLE_SELECT
     context.user_data["image_post_credit_reserved"] = True
 
@@ -692,7 +709,7 @@ async def image_style_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         context.user_data.pop("image_post_generating", None)
 
     if not isinstance(result, dict) or result.get("error") or not str(result.get("post_text") or "").strip():
-        await _refund_one_ai_credit(user_id, is_admin, is_pro)
+        await _refund_one_ai_credit(user_id, is_admin, is_pro, context)
         context.user_data["image_post_credit_reserved"] = False
         await _safe_edit(query, safe_t("image_generation_error", lang), image_style_keyboard(lang))
         return IMAGE_STYLE_SELECT

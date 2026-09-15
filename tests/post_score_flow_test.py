@@ -400,9 +400,20 @@ def test_score_is_free():
     src = (ROOT / "handlers" / "post_score.py").read_text(encoding="utf-8")
     check("baholashda rate-limit qo'llanadi", "check_ai_rate_limit" in src)
     score_body = src.split("async def post_score_text_received", 1)[1].split("\nasync def ", 1)[0]
+    # PHASE 2 / 1-qadam: «95/100 ga yaxshilash» endi kvota+kreditni BITTA
+    # atomik tranzaksiyada bron qiladi (services.ai_quota.reserve_for_flow →
+    # database.reserve_ai_request). Shu sababli handler'da bevosita
+    # use_user_credit chaqiruvi YO'Q; bron AYNAN 1 MARTA qilinadi. Eski
+    # (legacy) zanjir esa services/ai_quota.py ichida backward compatibility
+    # uchun saqlangan — u ham aynan bitta chaqiruvdan iborat.
+    quota_src = (ROOT / "services" / "ai_quota.py").read_text(encoding="utf-8")
     check("baholash (score) yo'lida kredit umuman yechilmaydi",
           "use_user_credit" not in score_body
-          and src.count("await db.run_db(db.use_user_credit") == 1)
+          and "reserve_ai_quota" not in score_body
+          and src.count("reserve_for_flow(\n") == 1
+          and quota_src.count("db_module.use_user_credit") == 1,
+          f"reserve_for_flow={src.count('reserve_for_flow(')}, "
+          f"legacy_use_user_credit={quota_src.count('db_module.use_user_credit')}")
 
 
 def test_local_fallback_when_ai_down():
