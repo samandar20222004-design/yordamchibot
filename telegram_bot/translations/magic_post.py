@@ -36,24 +36,19 @@ MAGIC_POST_I18N = {
     "uz": {
         "btn_magic_post": "✨ Magic Post",
         "mp_intro": (
-            "✨ <b>Magic Post</b> — g'oyadan tayyor postga 30 soniyada!\n\n"
-            "Matn, mahsulot tavsifi yoki xom g'oyangizni yozib qoldiring — "
-            "AI uni siz tanlagan uslubda nashrga tayyor Telegram postiga aylantiradi:\n\n"
-            "🔥 Sotuv — AIDA/PAS formulasi, aniq CTA, narx va chegirma urg'usi\n"
-            "💎 Premium — qisqa, nafis, estetik\n"
-            "😊 Oddiy — do'stona, samimiy, blogerona til\n"
-            "📢 Reklama — kuchli sarlavha, taklif va havola joyi\n"
-            "📰 Informativ — foydali maslahat va tushunarli punktlar\n\n"
-            "✍️ Hozir matningizni yuboring:"
+            "✨ <b>Magic Post</b> — g'oyadan tayyor postgacha!\n\n"
+            "Post mavzusini yozing, mahsulot tavsifini qoldiring yoki shunchaki "
+            "ovoz/rasm yuboring:"
         ),
         "mp_text_hint": (
             "✍️ Iltimos, post uchun <b>matn yoki g'oya</b> yuboring.\n\n"
             "Masalan: «Yangi koffemiz endi 20% chegirma bilan sotilmoqda»"
         ),
         "mp_media_hint": (
-            "🖼 Hozircha Magic Post <b>faqat matn</b> bilan ishlaydi.\n\n"
-            "G'oyangizni matn ko'rinishida yozib yuboring — rasmli postni "
-            "«✨ AI Studio» bo'limida yaratishingiz mumkin."
+            "🎙📸 Ovoz va rasm alohida oqimlarda ishlanadi: ularni <b>Magic Post</b>dan "
+            "chiqib (◀️ Orqaga) to'g'ridan-to'g'ri yuboring — bot avtomatik "
+            "«🎙 Ovoz → Post» / «📸 Rasm → Post» (AI Studio Vision) oqimini ochadi.\n\n"
+            "Hozir esa post mavzusini <b>matn</b> bilan yozing:"
         ),
         "mp_choose_style": "🎯 <b>Qaysi uslubda tayyorlaymiz?</b>\n\n<b>Matningiz:</b>\n",
         "mp_choose_style_foot": "\n\nUslubni tanlang 👇",
@@ -77,6 +72,8 @@ MAGIC_POST_I18N = {
         "mp_btn_send_channel": "📢 Kanalga yuborish",
         "mp_btn_schedule": "📅 Rejalashtirish",
         "mp_btn_restyle": "🔄 Boshqa uslub",
+        "mp_btn_rewrite": "✏️ Qayta yozish / Uslub",
+        "mp_btn_back": "◀️ Orqaga",
         "mp_send_choose": "📢 <b>Postni qaysi kanalga yuboramiz?</b>\nKanalni tanlang 👇",
         "mp_send_all": "📣 Barcha kanallarga ({count})",
         "mp_sent_ok": (
@@ -115,24 +112,19 @@ MAGIC_POST_I18N = {
     "ru": {
         "btn_magic_post": "✨ Magic Post",
         "mp_intro": (
-            "✨ <b>Magic Post</b> — от идеи до готового поста за 30 секунд!\n\n"
-            "Отправьте текст, описание товара или сырую идею — ИИ превратит её "
-            "в готовый к публикации Telegram-пост в выбранном вами стиле:\n\n"
-            "🔥 Продажи — формула AIDA/PAS, чёткий CTA, акцент на цену и скидку\n"
-            "💎 Премиум — коротко, элегантно, эстетично\n"
-            "😊 Обычный — дружелюбно, душевно, как у блогеров\n"
-            "📢 Реклама — цепляющий заголовок, оффер и место для ссылки\n"
-            "📰 Информативно — полезные советы и понятные пункты\n\n"
-            "✍️ Отправьте ваш текст прямо сейчас:"
+            "✨ <b>Magic Post</b> — от идеи до готового поста!\n\n"
+            "Напишите тему поста, оставьте описание товара или просто "
+            "отправьте голос/фото:"
         ),
         "mp_text_hint": (
             "✍️ Пожалуйста, отправьте <b>текст или идею</b> для поста.\n\n"
             "Например: «Наш новый кофе продаётся со скидкой 20%»"
         ),
         "mp_media_hint": (
-            "🖼 Пока Magic Post работает <b>только с текстом</b>.\n\n"
-            "Опишите идею словами — пост с изображением можно создать "
-            "в разделе «✨ AI Studio»."
+            "🎙📸 Голос и фото обрабатываются отдельными потоками: выйдите из "
+            "<b>Magic Post</b> (◀️ Назад) и отправьте их напрямую — бот сам откроет "
+            "«🎙 Голос → Пост» / «📸 Фото → Пост» (AI Studio Vision).\n\n"
+            "А сейчас напишите тему поста <b>текстом</b>:"
         ),
         "mp_choose_style": "🎯 <b>В каком стиле подготовим?</b>\n\n<b>Ваш текст:</b>\n",
         "mp_choose_style_foot": "\n\nВыберите стиль 👇",
@@ -156,6 +148,8 @@ MAGIC_POST_I18N = {
         "mp_btn_send_channel": "📢 Отправить в канал",
         "mp_btn_schedule": "📅 Запланировать",
         "mp_btn_restyle": "🔄 Другой стиль",
+        "mp_btn_rewrite": "✏️ Переписать / Стиль",
+        "mp_btn_back": "◀️ Назад",
         "mp_send_choose": "📢 <b>В какой канал отправить пост?</b>\nВыберите канал 👇",
         "mp_send_all": "📣 Во все каналы ({count})",
         "mp_sent_ok": (
@@ -194,24 +188,19 @@ MAGIC_POST_I18N = {
     "en": {
         "btn_magic_post": "✨ Magic Post",
         "mp_intro": (
-            "✨ <b>Magic Post</b> — from an idea to a ready post in 30 seconds!\n\n"
-            "Send your text, product description or raw idea — the AI will turn "
-            "it into a publish-ready Telegram post in the style you pick:\n\n"
-            "🔥 Sales — AIDA/PAS formula, clear CTA, price & discount focus\n"
-            "💎 Premium — short, elegant, aesthetic\n"
-            "😊 Casual — friendly, sincere, blogger-style tone\n"
-            "📢 Ads — catchy headline, offer and a place for your link\n"
-            "📰 Informative — useful tips and clear bullet points\n\n"
-            "✍️ Send your text now:"
+            "✨ <b>Magic Post</b> — from an idea to a ready post!\n\n"
+            "Type a post topic, drop a product description or simply "
+            "send a voice message/photo:"
         ),
         "mp_text_hint": (
             "✍️ Please send a <b>text or idea</b> for the post.\n\n"
             "Example: “Our new coffee is now on sale with 20% off”"
         ),
         "mp_media_hint": (
-            "🖼 For now Magic Post works with <b>text only</b>.\n\n"
-            "Describe your idea in words — image posts can be created "
-            "in the «✨ AI Studio» section."
+            "🎙📸 Voice and photos are handled by their own flows: leave "
+            "<b>Magic Post</b> (◀️ Back) and send them directly — the bot opens "
+            "«🎙 Voice → Post» / «📸 Image → Post» (AI Studio Vision) automatically.\n\n"
+            "For now, type the post topic as <b>text</b>:"
         ),
         "mp_choose_style": "🎯 <b>Which style shall we use?</b>\n\n<b>Your text:</b>\n",
         "mp_choose_style_foot": "\n\nPick a style 👇",
@@ -235,6 +224,8 @@ MAGIC_POST_I18N = {
         "mp_btn_send_channel": "📢 Send to channel",
         "mp_btn_schedule": "📅 Schedule",
         "mp_btn_restyle": "🔄 Other style",
+        "mp_btn_rewrite": "✏️ Rewrite / Style",
+        "mp_btn_back": "◀️ Back",
         "mp_send_choose": "📢 <b>Which channel should we send it to?</b>\nPick a channel 👇",
         "mp_send_all": "📣 To all channels ({count})",
         "mp_sent_ok": (

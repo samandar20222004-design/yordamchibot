@@ -10,10 +10,14 @@ Oqim (FSM):
         └─ generatsiya — mavjud Gemini / Groq bepul AI zanjiri
            (:func:`utils.ai_agent.generate_magic_post`, uslubga xos tizim
            prompti bilan) — soniyalar ichida tayyor post
-        └─ MAGIC_RESULT: natija ekrani + amallar
-           [📢 Kanalga yuborish] — ulangan kanallarga DARHOL jo'natish
-           [📅 Rejalashtirish] — mavjud scheduler oqimiga (AI_GET_TIME) uzatish
-           [🔄 Boshqa uslub] — matnni qayta kiritmasdan qayta generatsiya
+        └─ MAGIC_RESULT: natija ekrani + FAQAT eng kerakli amallar
+           [📢 Kanalga yuborish] [📅 Rejalashtirish]
+           [✏️ Qayta yozish / Uslub] [📊 Baholash]
+                       [◀️ Orqaga]
+           (mp_restyle — matnni qayta kiritmasdan qayta generatsiya;
+            mp_back — Kontent yaratish submenyusiga qaytish)
+        └─ MAGIC_INPUT'da ovoz/rasm yuborilsa — mos killer-feature oqimiga
+           (🎙 Ovoz → Post / 📸 Rasm → Post) uzatiladi.
 
 Qoidalar (repo konventsiyalari):
   * har bir callback handler BOSHIDA ``await query.answer()``;
@@ -33,10 +37,14 @@ import database as db
 from config import ADMIN_IDS_SET
 from handlers.ai_assistant import AI_GET_TIME, _show_time_prompt
 from keyboards.callback_data import CB_POST_SCORE_EVAL, cb
-from keyboards.default import get_cancel_keyboard, get_main_keyboard
+from keyboards.default import (
+    get_cancel_keyboard,
+    get_content_creation_keyboard,
+    get_main_keyboard,
+)
 from keyboards.inline import btn_label
 from locales.translations import clear_fsm_data, get_lang, safe_t
-from translations import MAGIC_STYLE_KEYS, magic_t, post_score_t
+from translations import MAGIC_STYLE_KEYS, content_menu_t, magic_t, post_score_t
 from utils.ai_agent import (
     generate_magic_post,
     normalize_magic_style,
@@ -63,6 +71,7 @@ MP_STYLE_PREFIX = "mp_style:"
 MP_SEND = "mp_send"
 MP_SCHED = "mp_sched"
 MP_RESTYLE = "mp_restyle"
+MP_BACK = "mp_back"
 MP_CHANNEL_PREFIX = "mp_ch:"
 MP_SEND_ALL = "mp_chall"
 
@@ -89,14 +98,16 @@ def _magic_style_keyboard(lang: str) -> InlineKeyboardMarkup:
 
 
 def _magic_action_keyboard(lang: str) -> InlineKeyboardMarkup:
-    """Natija ekrani amallari: baholash / kanalga yuborish / rejalashtirish / uslub."""
+    """Natija ekrani — FAQAT eng kerakli amallar (2-BOSQICH ixcham layout):
+
+        [📢 Kanalga yuborish]      [📅 Rejalashtirish]
+        [✏️ Qayta yozish / Uslub]  [📊 Baholash]
+                    [◀️ Orqaga]
+
+    ``mp_restyle`` callback'i saqlanadi (eski chat tarixidagi «🔄 Boshqa
+    uslub» tugmalari ishlashda davom etadi) — faqat yorliq yangilandi.
+    """
     return InlineKeyboardMarkup([
-        # 📊 Post Score (Killer Feature #4): tayyor postni qayta yozmasdan
-        # baholash oqimiga uzatadi (``ps_eval:magic``) — kredit yechilmaydi.
-        [InlineKeyboardButton(
-            post_score_t("ps_btn_eval", lang),
-            callback_data=cb(CB_POST_SCORE_EVAL, PS_EVAL_SOURCE),
-        )],
         [
             InlineKeyboardButton(
                 magic_t("mp_btn_send_channel", lang), callback_data=MP_SEND
@@ -105,7 +116,16 @@ def _magic_action_keyboard(lang: str) -> InlineKeyboardMarkup:
                 magic_t("mp_btn_schedule", lang), callback_data=MP_SCHED
             ),
         ],
-        [InlineKeyboardButton(magic_t("mp_btn_restyle", lang), callback_data=MP_RESTYLE)],
+        [
+            InlineKeyboardButton(magic_t("mp_btn_rewrite", lang), callback_data=MP_RESTYLE),
+            # 📊 Post Score (Killer Feature #4): tayyor postni qayta yozmasdan
+            # baholash oqimiga uzatadi (``ps_eval:magic``) — kredit yechilmaydi.
+            InlineKeyboardButton(
+                post_score_t("ps_btn_eval", lang),
+                callback_data=cb(CB_POST_SCORE_EVAL, PS_EVAL_SOURCE),
+            ),
+        ],
+        [InlineKeyboardButton(magic_t("mp_btn_back", lang), callback_data=MP_BACK)],
     ])
 
 
@@ -187,6 +207,53 @@ async def _magic_refund(user_id: int, is_admin: bool, is_pro: bool):
 
 
 # ============================================================
+# MEDIA ROUTING: Magic Post ichida ovoz/rasm → o'z killer-feature oqimi
+# ============================================================
+def _is_voice_message(msg) -> bool:
+    if getattr(msg, "voice", None) or getattr(msg, "audio", None):
+        return True
+    doc = getattr(msg, "document", None)
+    mime = str(getattr(doc, "mime_type", "") or "").lower() if doc is not None else ""
+    return mime.startswith("audio/")
+
+
+def _is_image_message(msg) -> bool:
+    if getattr(msg, "photo", None):
+        return True
+    doc = getattr(msg, "document", None)
+    mime = str(getattr(doc, "mime_type", "") or "").lower() if doc is not None else ""
+    return mime.startswith("image/")
+
+
+async def _route_media_to_flow(update, context, msg):
+    """Ovoz → ``voice_message_received``, rasm → ``image_photo_received``.
+
+    Mos oqim topilsa uning FSM holatini qaytaradi; media emas yoki oqim
+    mavjud bo'lmasa ``None`` (chaqiruvchi mp_media_hint ko'rsatadi).
+    Importlar funksiya ichida — aylanma importdan himoya (voice_post shu
+    modulni import qiladi).
+    """
+    try:
+        if _is_voice_message(msg):
+            from handlers.voice_post import voice_message_received
+
+            for key in ("magic_raw_text", "magic_post_text", "magic_style",
+                        "magic_channels", "magic_usage_counted"):
+                context.user_data.pop(key, None)
+            return await voice_message_received(update, context)
+        if _is_image_message(msg):
+            from handlers.image_post import image_photo_received
+
+            for key in ("magic_raw_text", "magic_post_text", "magic_style",
+                        "magic_channels", "magic_usage_counted"):
+                context.user_data.pop(key, None)
+            return await image_photo_received(update, context)
+    except Exception as exc:  # noqa: BLE001 — oqim hech qachon yiqilmaydi
+        logger.warning("Magic Post media routing xatosi: %s", type(exc).__name__)
+    return None
+
+
+# ============================================================
 # ENTRY: asosiy menyu «✨ Magic Post» tugmasi
 # ============================================================
 async def magic_post_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -219,7 +286,13 @@ async def magic_text_received(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     text = (msg.text or "").strip()
     if not text:
-        # Rasm/fayl/sticker va boshqalar — hozircha faqat matn oqimi.
+        # 🎙 Ovoz → «🎙 Ovoz → Post» (STT) oqimiga, 📸 rasm → «📸 Rasm → Post»
+        # (Vision) oqimiga UZATILADI — intro va'da qilganidek, foydalanuvchi
+        # Magic Post ichida ham ovoz/rasm yubora oladi (matn qayta so'ralmaydi).
+        routed = await _route_media_to_flow(update, context, msg)
+        if routed is not None:
+            return routed
+        # Boshqa media (sticker/fayl) — caption bo'lsa matn sifatida olinadi.
         if (msg.caption or "").strip():
             text = msg.caption.strip()
         else:
@@ -539,6 +612,44 @@ async def magic_restyle_callback(update: Update, context: ContextTypes.DEFAULT_T
     await _safe_edit(query, _magic_style_menu_text(raw_text, lang, "mp_restyle_hint"),
                      _magic_style_keyboard(lang))
     return MAGIC_STYLE_SELECT
+
+
+# ============================================================
+# ◀️ ORQAGA: natija ekranidan «🧩 Kontent yaratish» submenyusiga
+# ============================================================
+async def magic_back_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """[◀️ Orqaga]: Magic sessiyasi yopiladi, Kontent yaratish submenyusi chiziladi.
+
+    4-qadam navigatsiya stacki: foydalanuvchi «🧩 Kontent yaratish» →
+    «✨ Magic Post» yo'li bilan kelgan — Orqaga aynan shu yo'lni teskari
+    yuradi (asosiy menyuga sakramaydi). Kredit/limit tegilmaydi.
+    """
+    query = update.callback_query
+    await query.answer()
+    lang = get_lang(context)
+    for key in ("magic_raw_text", "magic_post_text", "magic_style",
+                "magic_channels", "magic_usage_counted"):
+        context.user_data.pop(key, None)
+    clear_fsm_data(context)
+    try:
+        from handlers.navigation import SECTION_CONTENT, remember_section
+
+        remember_section(context, SECTION_CONTENT)
+    except Exception:  # pragma: no cover - navigatsiya moduli bo'lmasa ham ishlaydi
+        pass
+    try:
+        await query.edit_message_reply_markup(reply_markup=None)
+    except Exception:
+        pass
+    try:
+        await query.message.reply_text(
+            content_menu_t("cm_menu_intro", lang),
+            reply_markup=get_content_creation_keyboard(lang),
+            parse_mode="HTML",
+        )
+    except Exception:
+        pass
+    return ConversationHandler.END
 
 
 # ============================================================

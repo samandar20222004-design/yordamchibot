@@ -27,6 +27,9 @@
 #   3j) ⚙️ POSTASSIST V2 3-QADAM REFAKTORI — sozlamalar menyusi (legacy
 #       dublikatlarsiz, 8 guruh + rewards/help hub) + 🧰 Vositalar submenyusi
 #       (Konvertor va Post Enhancer) (tests/refactor_step3_test.py)
+#   3n) ✨ 2-BOSQICH AI PROMPT VA MAGIC POST SIFATI — prompt validation,
+#       sifat validatori, yupqa javobda qayta urinish, ixcham UI
+#       (tests/ai_prompt_quality_test.py)
 #   3l) 🏁 YAKUNIY ACCEPTANCE SUITE — TEST A..AG (33 ta qat'iy tekshiruv):
 #       6-tugma menyu, submenu pariteti, navigatsiya stacki, statistika
 #       izolyatsiyasi, dublikat yo'qligi, RBAC tampering himoyasi va i18n
@@ -255,6 +258,20 @@ echo "===== 3m) 📊 STATISTIKA IZOLYATSIYASI (SHAXSIY vs ADMIN) ====="
 # (5) UZ/RU/EN 100% paritet + haqiqiy router routing qo'riqonlari
 # (tests/statistics_isolation_test.py).
 "$PY" tests/statistics_isolation_test.py || EXIT_CODE=1
+
+echo
+echo "===== 3n) ✨ 2-BOSQICH: AI PROMPT VA MAGIC POST SIFATI ====="
+# (1) 5 uslub × 3 til tizim promptlarida MAJBURIY tuzilma: Hook (qalin
+# sarlavha + emoji) / Asosiy mazmun (2-4 punkt) / CTA / 3-5 hashtag, «1-2
+# qatorli quruq jumla» va so'zma-so'z tarjima TAQIQI, uslublar real farqli
+# (Sotuv=AIDA/PAS, Informativ=faktlar+ekspert xulosasi, Premium=lakonik,
+# Oddiy=blogerona hayotiy misollar); (2) magic_post_quality_report —
+# generatsiya qilingan post uzunligi, sarlavha, CTA va hashtag tekshiruvi;
+# (3) generate_magic_post yupqa javobda kuchaytirilgan ko'rsatma bilan BIR
+# MARTA qayta so'raydi; (4) ixcham mp_intro (SaaS taklifi) + natija
+# klaviaturasi faqat 5 amal [2,2,1]; (5) FSM/callback regressiya, Magic Post
+# ichida ovoz/rasm o'z oqimiga yo'naltiriladi (tests/ai_prompt_quality_test.py).
+"$PY" tests/ai_prompt_quality_test.py || EXIT_CODE=1
 
 echo
 echo "======== 4) TO'LIQ REGRESSIYA (telegram_bot/tests) ========"
