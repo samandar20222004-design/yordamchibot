@@ -1,18 +1,20 @@
 """AI Orchestrator.
 
-PHASE 3: AI Engine va SMM Orkestratsiyasini kuchaytirish.
+PHASE 3, 4 & 5: AI Engine, SMM Orkestratsiyasi, Bounded Queue va Concurrency.
 
 Barcha qismlarni birlashtiruvchi markaz:
 1. Intent Routing (SMMIntentRouter)
 2. Quota Reserve (Phase 2 transactional reserve_ai_request)
-3. Provider Fallback Chain (Gemini -> Groq -> OpenRouter -> Mock)
-4. Output Validation (AIOutputValidator)
-5. Controlled 1-time Retry (kuchaytirilgan prompt bilan)
-6. HTML Sanitization (Phase 2 telegram_sanitizer.sanitize_html)
-7. Fail-Closed Refund (xatolikda kvota/kreditni to'liq qaytarish)
+3. Concurrency & Bounded Queue (Phase 4/5 AIConcurrencyManager)
+4. Provider Fallback Chain (Gemini -> Groq -> OpenRouter -> Mock)
+5. Output Validation (AIOutputValidator)
+6. Controlled 1-time Retry (kuchaytirilgan prompt bilan)
+7. HTML Sanitization (Phase 2 telegram_sanitizer.sanitize_html)
+8. Fail-Closed Refund (xatolikda yoki bekor qilishda kvotani to'liq qaytarish)
 """
 
 from __future__ import annotations
+import asyncio
 import logging
 from dataclasses import dataclass
 from typing import Any
@@ -20,6 +22,13 @@ from typing import Any
 from .router import SMMIntent, detect_intent
 from .validator import AIOutputValidator, ValidationResult
 from .providers import ProviderChain, AIProvider, AIProviderError, MockProvider
+from .concurrency import (
+    AIConcurrencyManager,
+    AIQueueFullError,
+    AITaskCancelledError,
+    AIQueueTimeoutError,
+    ai_concurrency_manager,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +46,7 @@ class AIOrchestrationResult:
     reservation_id: int | None = None
     error: str | None = None
     error_code: str | None = None
+    generation_id: str | None = None
 
 
 class AIOrchestrator:
@@ -46,9 +56,11 @@ class AIOrchestrator:
         self,
         provider_chain: ProviderChain | None = None,
         validator: type[AIOutputValidator] = AIOutputValidator,
+        concurrency_manager: AIConcurrencyManager | None = None,
     ):
         self.provider_chain = provider_chain or ProviderChain()
         self.validator = validator
+        self.concurrency_manager = concurrency_manager or ai_concurrency_manager
 
     async def orchestrate(
         self,
@@ -67,49 +79,54 @@ class AIOrchestrator:
         ctx["lang"] = lang
         ctx["intent"] = intent.value
 
+        gen_id = ctx.get("generation_id") or self.concurrency_manager.generate_id(user_id)
+        ctx["generation_id"] = gen_id
+
         # 2. Quota Reserve (Phase 2 atomik)
         reservation_id = None
-        should_check_quota = db_module is not False and not (context and context.get("skip_quota"))
-        if should_check_quota and user_id and user_id > 0:
-            db = db_module
-            if db is None:
-                try:
-                    import database as db
-                except Exception:
-                    db = None
+        should_check_quota = db_module is not False and not ctx.get("skip_quota")
+        db = db_module
+        if db is None and should_check_quota:
+            try:
+                import database as db
+            except Exception:
+                db = None
 
-            if db is not None:
-                try:
-                    from services.ai_quota import reserve_ai_quota
-                    res = await reserve_ai_quota(db, user_id, f"ai_{intent.value.lower()}", 1)
-                    if not res.get("allowed"):
-                        logger.warning("AI kvotasi yetarli emas (user=%s, reason=%s)", user_id, res.get("reason"))
-                        return AIOrchestrationResult(
-                            success=False,
-                            intent=intent,
-                            error=res.get("reason", "insufficient_quota"),
-                            error_code="QUOTA_EXCEEDED",
-                        )
-                    reservation_id = res.get("reservation_id")
-                except Exception as e:
-                    logger.error("Kvota bron qilishda xatolik (fail-closed): %s", e)
+        if should_check_quota and user_id and user_id > 0 and db is not None:
+            try:
+                from services.ai_quota import reserve_ai_quota
+                res = await reserve_ai_quota(db, user_id, f"ai_{intent.value.lower()}", 1)
+                if not res.get("allowed"):
+                    logger.warning("AI kvotasi yetarli emas (user=%s, reason=%s)", user_id, res.get("reason"))
                     return AIOrchestrationResult(
                         success=False,
                         intent=intent,
-                        error=str(e),
-                        error_code="DB_ERROR",
+                        error=res.get("reason", "insufficient_quota"),
+                        error_code="QUOTA_EXCEEDED",
+                        generation_id=gen_id,
                     )
+                reservation_id = res.get("reservation_id")
+            except Exception as e:
+                logger.error("Kvota bron qilishda xatolik (fail-closed): %s", e)
+                return AIOrchestrationResult(
+                    success=False,
+                    intent=intent,
+                    error=str(e),
+                    error_code="DB_ERROR",
+                    generation_id=gen_id,
+                )
 
         retried = False
         raw_output = ""
         provider_used = "none"
 
-        try:
-            # 3. Provider Chain Execution (1-urinish)
-            raw_output, provider_used = await self.provider_chain.execute(prompt, ctx)
+        # 3. Provider Chain Execution ichki korutinasi
+        async def _execute_ai():
+            nonlocal retried
+            raw, provider = await self.provider_chain.execute(prompt, ctx)
 
             # 4. Output Validation
-            val_res = self.validator.validate(raw_output, expected_lang=lang)
+            val_res = self.validator.validate(raw, expected_lang=lang)
 
             # 5. Controlled Retry (Aniq 1 marta)
             if not val_res.is_valid and val_res.needs_retry:
@@ -127,18 +144,35 @@ class AIOrchestrator:
                     retry_output, retry_provider = await self.provider_chain.execute(boosted_prompt, retry_ctx)
                     val_second = self.validator.validate(retry_output, expected_lang=lang)
                     if val_second.is_valid or len(retry_output) >= 20:
-                        raw_output = retry_output
-                        provider_used = retry_provider
+                        raw = retry_output
+                        provider = retry_provider
                     else:
-                        # Agar ikkinchi urinish ham nosoz bo'lsa, Mock fallback orqali to'g'rilanadi
                         mock = MockProvider()
-                        raw_output = await mock.generate(prompt, ctx)
-                        provider_used = f"{retry_provider}+mock_safe"
+                        raw = await mock.generate(prompt, ctx)
+                        provider = f"{retry_provider}+mock_safe"
                 except Exception as retry_err:
                     logger.warning("Retry muvaffaqiyatsiz bo'ldi, Mock fallback ishlatiladi: %s", retry_err)
                     mock = MockProvider()
-                    raw_output = await mock.generate(prompt, ctx)
-                    provider_used = "MockFallback"
+                    raw = await mock.generate(prompt, ctx)
+                    provider = "MockFallback"
+
+            return raw, provider
+
+        # Concurrency & Bounded Queue orqali bajarish
+        cm = ctx.get("concurrency_manager") or self.concurrency_manager
+
+        try:
+            if ctx.get("skip_queue"):
+                raw_output, provider_used = await _execute_ai()
+            else:
+                raw_output, provider_used = await cm.run_with_queue(
+                    user_id=user_id,
+                    coro_fn=_execute_ai,
+                    generation_id=gen_id,
+                    reservation_id=reservation_id,
+                    db_module=db,
+                    lang=lang,
+                )
 
             # 6. Telegram HTML Sanitization (Phase 2)
             try:
@@ -157,6 +191,41 @@ class AIOrchestrator:
                 retried=retried,
                 cost=1,
                 reservation_id=reservation_id,
+                generation_id=gen_id,
+            )
+
+        except AIQueueFullError as q_err:
+            logger.warning("AI Queue to'ldi (user=%s): %s", user_id, q_err)
+            if db is not None and user_id and reservation_id:
+                try:
+                    from services.ai_quota import release_ai_quota
+                    await release_ai_quota(db, user_id, reservation_id)
+                except Exception as ref_err:
+                    logger.error("Queue full paytida kvota qaytarishda xato: %s", ref_err)
+            return AIOrchestrationResult(
+                success=False,
+                intent=intent,
+                error=str(q_err),
+                error_code="QUEUE_FULL",
+                reservation_id=reservation_id,
+                generation_id=gen_id,
+            )
+
+        except (AITaskCancelledError, asyncio.CancelledError):
+            logger.info("AI so'rovi bekor qilindi (user=%s, gen_id=%s)", user_id, gen_id)
+            if db is not None and user_id and reservation_id:
+                try:
+                    from services.ai_quota import release_ai_quota
+                    await release_ai_quota(db, user_id, reservation_id)
+                except Exception as ref_err:
+                    logger.error("Cancellation paytida kvota qaytarishda xato: %s", ref_err)
+            return AIOrchestrationResult(
+                success=False,
+                intent=intent,
+                error="Vazifa bekor qilindi.",
+                error_code="CANCELLED",
+                reservation_id=reservation_id,
+                generation_id=gen_id,
             )
 
         except Exception as exc:
@@ -178,4 +247,5 @@ class AIOrchestrator:
                 provider_used=provider_used,
                 retried=retried,
                 reservation_id=reservation_id,
+                generation_id=gen_id,
             )
