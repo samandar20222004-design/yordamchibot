@@ -309,6 +309,19 @@ echo "===== 3p) PHASE 2 / 2-QADAM: TELEGRAM HTML SANITIZER + DELIVERY ====="
 "$PY" tests/html_sanitizer_test.py || EXIT_CODE=1
 
 echo
+echo "===== 3q) 🔒 PHASE 2 / 3-QADAM: FSM TOZALASH VA MENYU XAVFSIZLIGI ====="
+# (1) Oraliq holatlarda (MAGIC_INPUT, PHOTO_WAITING / IMAGE_POST_INPUT)
+#     foydalanuvchi asosiy menyu yoki /start bossa, context.user_data tozalanib,
+#     ConversationHandler.END qaytariladi va asosiy menyu ko'rsatiladi;
+# (2) "❌ Bekor qilish" barcha oqimlarda yagona standartda ishlaydi:
+#     sessiya tozalanadi, ConversationHandler.END bo'ladi;
+# (3) Admin callbacklarida (adm_*) RBAC server-side from_user.id orqali qat'iy
+#     tekshiriladi, non-admin show_alert=True bilan rad etiladi;
+# (4) Middleware qatlami (FSMCleanerMiddleware, admin_rbac_required)
+#     tizim yaxlitligini ta'minlaydi (tests/fsm_navigation_safety_test.py).
+"$PY" tests/fsm_navigation_safety_test.py || EXIT_CODE=1
+
+echo
 echo "======== 4) TO'LIQ REGRESSIYA (telegram_bot/tests) ========"
 # PY'ni aniq uzatamiz: ichki runner ham shu interpreter (venv) bilan ishlasin.
 ( cd telegram_bot && PYTHON="$PY" bash tests/run_tests.sh ) || EXIT_CODE=1

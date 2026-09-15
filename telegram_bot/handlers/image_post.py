@@ -63,6 +63,7 @@ logger = logging.getLogger(__name__)
 
 # FSM qiymatlari boshqa oqimlardan ajratilgan (AI 401–410, moderation 604).
 IMAGE_POST_INPUT = 520
+PHOTO_WAITING = IMAGE_POST_INPUT  # Standard alias for intermediate photo waiting state
 IMAGE_STYLE_SELECT = 521
 IMAGE_POST_RESULT = 522
 IMAGE_SEND_CHOOSE = 523
@@ -456,6 +457,21 @@ async def image_photo_received(update: Update, context: ContextTypes.DEFAULT_TYP
     lang = get_lang(context)
     media, declared_mime = _extract_image_media(message)
     if media is None:
+        text = (getattr(message, "text", None) or getattr(message, "caption", None) or "").strip()
+        if text:
+            try:
+                from middlewares.fsm_cleaner import is_cancel_trigger, is_start_or_menu_trigger, clear_user_fsm
+            except ImportError:
+                from telegram_bot.middlewares.fsm_cleaner import is_cancel_trigger, is_start_or_menu_trigger, clear_user_fsm
+            if is_cancel_trigger(text):
+                clear_user_fsm(context)
+                from handlers.start import cancel_handler
+                return await cancel_handler(update, context)
+            if is_start_or_menu_trigger(text):
+                clear_user_fsm(context)
+                from handlers.start import start
+                return await start(update, context)
+
         await message.reply_text(safe_t("image_photo_only", lang), parse_mode="HTML")
         return IMAGE_POST_INPUT
 
@@ -511,6 +527,21 @@ async def image_topic_received(update: Update, context: ContextTypes.DEFAULT_TYP
     if not topic:
         await message.reply_text(safe_t("image_topic_prompt", lang), parse_mode="HTML")
         return IMAGE_TOPIC_INPUT
+
+    try:
+        from middlewares.fsm_cleaner import is_cancel_trigger, is_start_or_menu_trigger, clear_user_fsm
+    except ImportError:
+        from telegram_bot.middlewares.fsm_cleaner import is_cancel_trigger, is_start_or_menu_trigger, clear_user_fsm
+
+    if is_cancel_trigger(topic):
+        clear_user_fsm(context)
+        from handlers.start import cancel_handler
+        return await cancel_handler(update, context)
+    if is_start_or_menu_trigger(topic):
+        clear_user_fsm(context)
+        from handlers.start import start
+        return await start(update, context)
+
     if not context.user_data.get("image_post_file_id"):
         await message.reply_text(safe_t("image_session_expired", lang), parse_mode="HTML")
         return ConversationHandler.END
