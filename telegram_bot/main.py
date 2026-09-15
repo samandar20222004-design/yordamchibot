@@ -8,6 +8,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from telegram.ext import ApplicationBuilder, Application
 from telegram import BotCommand
 from config import BOT_TOKEN
+from utils.telegram_delivery import create_safe_bot
 import database as db
 from handlers import register_all_handlers
 from scheduler import (
@@ -413,17 +414,11 @@ async def main():
     installed_signals = install_signal_handlers(loop, stop_event)
     application = (
         ApplicationBuilder()
-        .token(BOT_TOKEN)
+        .bot(create_safe_bot(BOT_TOKEN))
         .application_class(GuardedApplication)
         .concurrent_updates(True)
-        # Telegram API so'rovlari uchun aniq timeout'lar (Render Free'da
-        # tarmoq sekinlashganda bot osilib qolmasligi uchun).
-        .connect_timeout(15)
-        .read_timeout(15)
-        .write_timeout(30)
-        .media_write_timeout(60)
-        .pool_timeout(5)
-        .connection_pool_size(8)
+        # SafeHTMLBot applies the SSOT sanitizer to all HTML sends/edits.
+        # Network timeout/pool settings are kept in create_safe_bot().
         .build()
     )
 

@@ -305,6 +305,10 @@ echo "===== 3o) 🔒 PHASE 2 / 1-QADAM: ATOMIK KVOTA + KREDIT TRANZAKSIYASI ====
 "$PY" tests/atomic_quota_test.py || EXIT_CODE=1
 
 echo
+echo "===== 3p) PHASE 2 / 2-QADAM: TELEGRAM HTML SANITIZER + DELIVERY ====="
+"$PY" tests/html_sanitizer_test.py || EXIT_CODE=1
+
+echo
 echo "======== 4) TO'LIQ REGRESSIYA (telegram_bot/tests) ========"
 # PY'ni aniq uzatamiz: ichki runner ham shu interpreter (venv) bilan ishlasin.
 ( cd telegram_bot && PYTHON="$PY" bash tests/run_tests.sh ) || EXIT_CODE=1

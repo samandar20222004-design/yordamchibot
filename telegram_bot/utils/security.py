@@ -1,39 +1,10 @@
-"""HTML/URL xavfsizlik yordamchilari — PostAssist V2 (6-bosqich).
+"""Literal HTML escaping and URL validation (backward-compatible facade).
 
-Bu modul FAQAT standart kutubxonaga tayanadi (telegram/DB import qilinmaydi),
-shuning uchun uni istalgan qavat — handler, servis yoki test — xavfsiz
-import qilishi mumkin.
-
-Ikki asosiy vazifa
-------------------
-1. **``safe_html(text)``** — foydalanuvchi ismi, AI qoldig'i, kanal nomi kabi
-   *dinamik* matnlarni ``html.escape`` qiladi. Natija Telegram HTML
-   (``parse_mode="HTML"``) uchun 100% xavfsiz: noto'g'ri/yaroqsiz teg
-   tufayli yuzaga keladigan ``BadRequest: can't parse entities`` xatolari
-   oldini oladi.
-
-   .. note::
-      ``utils.helpers.safe_html()`` boshqa vazifani bajaradi — u AI
-      javobidagi *ruxsat etilgan* Telegram teglarini saqlab qoladi
-      (sanitizer). Bu yerdagi ``safe_html()`` esa hech narsani saqlamaydi:
-      har bir ``<``, ``>``, ``&``, ``"`` belgisi escape qilinadi. Dinamik
-      qiymatlar uchun aynan shu funksiya ishlatilishi kerak.
-
-2. **``validate_button_url(url)``** — inline tugma havolasi uchun qat'iy oq
-   ro'yxat: faqat ``http://``, ``https://`` va ``tg://``. ``javascript:``,
-   ``data:``, ``vbscript:``, ``file:`` kabi barcha boshqa protokollar, ichida
-   bo'sh joy/control belgi bor yoki domeni yo'q havolalar rad etiladi.
-
-Foydalanish::
-
-    from utils.security import safe_html, validate_button_url
-
-    text = f"👤 <b>{safe_html(user.full_name)}</b>"
-    if validate_button_url(url):
-        InlineKeyboardButton("🌐 Sayt", url=url)
+Formatting and truncation live in utils.telegram_sanitizer. safe_html here
+still escapes ALL tags: dynamic user names must never become HTML markup.
 """
 
-import html
+from utils import telegram_sanitizer as _telegram_html
 import logging
 import unicodedata
 from urllib.parse import urlsplit
@@ -45,56 +16,25 @@ logger = logging.getLogger(__name__)
 # ============================================================
 
 #: Telegram HTML uchun maksimal matn uzunligi (xabar) va caption uzunligi.
-TELEGRAM_TEXT_LIMIT = 4096
-TELEGRAM_CAPTION_LIMIT = 1024
+TELEGRAM_TEXT_LIMIT = _telegram_html.TELEGRAM_TEXT_LIMIT
+TELEGRAM_CAPTION_LIMIT = _telegram_html.TELEGRAM_CAPTION_LIMIT
 
 
 def safe_html(text) -> str:
-    """Dinamik matnni Telegram HTML uchun xavfsiz (escape qilingan) holga keltiradi.
-
-    ``<b>``, ``<script>``, ``&``, ``"`` kabi barcha maxsus belgilar
-    ``&lt;b&gt;``, ``&amp;`` ko'rinishiga o'giriladi — natijada foydalanuvchi
-    yoki AI yozgan matn Telegramning HTML parser'ini hech qachon buza olmaydi.
-
-    Args:
-        text: Har qanday qiymat (``None`` → bo'sh satr, sonlar ``str()``).
-
-    Returns:
-        str: Escape qilingan matn.
-
-    Misol::
-
-        >>> safe_html('<b>hi</b> & <script>')
-        '&lt;b&gt;hi&lt;/b&gt; &amp; &lt;script&gt;'
-    """
-    if text is None:
-        return ""
-    if not isinstance(text, str):
-        text = str(text)
-    if not text:
-        return ""
-    # quote=True — qo'shtirnoqlar ham escape qilinadi (href/atribut xavfsizligi).
-    return html.escape(text, quote=True)
+    """Literal-value proxy; intentionally does not preserve HTML tags."""
+    return _telegram_html.escape_html(text)
 
 
-#: Eski nom bilan moslik uchun (``html_escape`` bilan bir xil xatti-harakat).
 escape_html = safe_html
+html_escape = safe_html
 
 
 def safe_text(text, max_len: int = None) -> str:
-    """``safe_html`` + ixtiyoriy qisqartirish (Telegram limitidan oshmasligi uchun).
-
-    Qisqartirish HTML escape'dan KEYIN bajariladi, shuning uchun kesilgan
-    matnda yarim teg qolmaydi (escape tufayli teg umuman yo'q).
-    """
-    result = safe_html(text)
-    if max_len is not None and max_len >= 0 and len(result) > max_len:
-        result = result[:max_len]
-    return result
+    """Legacy serialized budget without partial entities."""
+    return _telegram_html.escape_html_limited(text, max_len)
 
 
 def safe_limit_html(text, max_len: int = TELEGRAM_CAPTION_LIMIT) -> str:
-    """Caption (1024) yoki xabar (4096) limitiga mos xavfsiz matn."""
     return safe_text(text, max_len=max_len)
 
 

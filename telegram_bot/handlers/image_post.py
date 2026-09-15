@@ -45,6 +45,7 @@ from services.ai_quota import (
 )
 from services.ai_service import generate_image_post
 from utils.ai_agent import pick_supported_kwargs
+from utils.telegram_sanitizer import sanitize_html, TELEGRAM_CAPTION_LIMIT
 from utils.helpers import html_escape, telegram_html_payload, parse_schedule_input
 from utils.vision_analyzer import (
     MAX_IMAGE_BYTES,
@@ -591,6 +592,7 @@ async def _refund_one_ai_credit(user_id: int, is_admin: bool, is_pro: bool,
 
 
 async def _safe_edit(query, text: str, reply_markup=None):
+    text = sanitize_html(text)
     try:
         await query.edit_message_text(text, reply_markup=reply_markup, parse_mode="HTML")
         return
@@ -606,12 +608,11 @@ async def _send_photo_preview(target, file_id: str, caption: str,
                               reply_markup=None):
     """Preview/kanal uchun Telegram photo+caption payload.
 
-    Caption 1024 belgidan oshsa qolgan qismi alohida xabar sifatida yuboriladi
-    (preview helperning o'zi esa test/consumer uchun message qaytaradi).
+    Caption is safely limited to 1024 decoded UTF-16 units; full text stays
+    in user_data for editing/scheduling. This helper returns the sent message.
     """
-    payload, parse_mode = telegram_html_payload(caption or "")
-    payload = (payload or " ").strip()
-    short = payload[:1024]
+    payload, parse_mode = telegram_html_payload(caption or "", TELEGRAM_CAPTION_LIMIT)
+    short = payload or " "
     try:
         return await target.reply_photo(
             photo=file_id,
@@ -629,11 +630,11 @@ async def _send_photo_preview(target, file_id: str, caption: str,
 
 
 async def _send_photo_to_chat(bot, chat_id, file_id: str, caption: str):
-    payload, parse_mode = telegram_html_payload(caption or "")
+    payload, parse_mode = telegram_html_payload(caption or "", TELEGRAM_CAPTION_LIMIT)
     kwargs = {
         "chat_id": chat_id,
         "photo": file_id,
-        "caption": (payload or " ")[:1024],
+        "caption": payload or " ",
         "parse_mode": parse_mode,
     }
     try:
@@ -731,7 +732,7 @@ async def image_style_callback(update: Update, context: ContextTypes.DEFAULT_TYP
     except Exception:
         # Minimal test/adapters may not expose reply_photo; still keep the
         # result usable via text and action keyboard.
-        await _safe_edit(query, post_text[:4000], image_action_keyboard(lang))
+        await _safe_edit(query, sanitize_html(post_text, 4096), image_action_keyboard(lang))
     return IMAGE_POST_RESULT
 
 
