@@ -66,6 +66,10 @@ def main():
         "handlers.tools",
         "handlers.settings",
         "utils.post_scorer",
+        # 🔒 PHASE 2 / 1-qadam: kvota + kredit ATOMIK bron/qaytarish qatlami
+        # (barcha AI oqimlari shu modul orqali database.reserve_ai_request /
+        # refund_ai_request ni chaqiradi).
+        "services.ai_quota",
     ]
     for mod in modules:
         try:

@@ -51,6 +51,13 @@ from keyboards.callback_data import CB_POST_SCORE_EVAL, cb
 from keyboards.default import get_cancel_keyboard
 from keyboards.inline import btn_label, get_subscription_check_keyboard
 from locales.translations import clear_fsm_data, get_lang, safe_t
+from services.ai_quota import (
+    denial_message,
+    release_ai_quota,
+    reservation_source,
+    reserve_for_flow,
+    take_reservation_id,
+)
 from translations import MAGIC_STYLE_KEYS, magic_t, post_score_t, voice_t
 from utils.ai_agent import (
     MAGIC_POST_MAX_MATERIAL_CHARS,
@@ -262,9 +269,21 @@ def _clear_voice_session(context) -> None:
         context.user_data.pop(key, None)
 
 
-async def _voice_refund(user_id: int, is_admin: bool, is_pro: bool):
-    """Band qilingan AI ballini/kvotasini qaytaradi (generatsiya xatosida)."""
+async def _voice_refund(user_id: int, is_admin: bool, is_pro: bool,
+                        reservation_id=None):
+    """Band qilingan AI kvota/kreditini qaytaradi (generatsiya xatosida).
+
+    ``reservation_id`` berilgan bo'lsa — ATOMIK va IDEMPOTENT
+    ``refund_ai_request`` ishlaydi. Legacy bronda (ID yo'q) eski
+    ``add_user_credit`` + ``refund_ai_usage`` zanjiri saqlanadi.
+    """
     if is_admin or is_pro:
+        return
+    if reservation_id:
+        try:
+            await release_ai_quota(db, user_id, reservation_id)
+        except Exception:
+            pass
         return
     try:
         await db.run_db(db.add_user_credit, user_id)
@@ -488,27 +507,24 @@ async def voice_style_callback(update: Update, context: ContextTypes.DEFAULT_TYP
             pass
         return VOICE_STYLE_SELECT
 
+    # 🔒 PHASE 2 / 1-QADAM: kunlik kvota YOKI kredit BITTA atomik
+    # tranzaksiyada bron qilinadi (qator qulfi + credits_ledger auditi).
+    # Avvalgi ikki qadam alohida tranzaksiyalar edi → race condition va
+    # yarim bron xavfi; DB xatosida esa oqim DAVOM ETARDI (fail-open).
+    # Endi qat'iy FAIL-CLOSED.
     if not is_admin and not is_pro:
-        try:
-            can_use, used, max_ai = await db.run_db(db.check_ai_limit, user_id)
-        except Exception:
-            can_use, used, max_ai = True, 0, 0
-        if not can_use:
+        reservation = await reserve_for_flow(
+            db, context, user_id, "voice_post", "voice", 1)
+        if not reservation.get("allowed"):
             await _safe_edit(
                 query,
-                safe_t("ai_limit_msg", lang, used=used, max=max_ai),
-                None,
-            )
-            return VOICE_STYLE_SELECT
-        try:
-            # 💳 credits_service: FAQAT 1 ta yagona kredit ATOMIK yechiladi.
-            reserved = await db.run_db(db.use_user_credit, user_id)
-        except Exception:
-            reserved = True  # DB band bo'lsa ham oqim davom etadi (fail-open)
-        if not reserved:
-            await _safe_edit(
-                query,
-                safe_t("ai_limit_msg", lang, used=used, max=max_ai),
+                denial_message(
+                    reservation,
+                    safe_t("ai_limit_msg", lang,
+                           used=int(reservation.get("used") or 0),
+                           max=int(reservation.get("max_ai") or 0)),
+                    lang,
+                ),
                 None,
             )
             return VOICE_STYLE_SELECT
@@ -528,7 +544,10 @@ async def voice_style_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         logger.warning("Voice→Post AI xatosi (style=%s, lang=%s): %s",
                        style, lang, (result or {}).get("error"))
         # ♻️ Refund: ball va kunlik kvota qaytariladi.
-        await _voice_refund(user_id, is_admin, is_pro)
+        await _voice_refund(
+            user_id, is_admin, is_pro,
+            take_reservation_id(context, "voice"),
+        )
         await _safe_edit(
             query,
             voice_t("vp_error", lang),
@@ -594,10 +613,14 @@ async def _voice_finish_send(query, context, targets: list) -> int:
         # (Kvota allaqachon uslub tanlashda atomik bron qilingan — no-op.)
         if not is_admin and not context.user_data.get("voice_usage_counted"):
             context.user_data["voice_usage_counted"] = True
-            try:
-                await db.run_db(db.increment_ai_usage, user_id)
-            except Exception:
-                pass
+            # 🔒 PHASE 2 / 1-qadam: atomik bron sanagichni ALLAQACHON
+            # oshirgan — double-count bo'lmasligi uchun atomik bronda
+            # increment chaqirilmaydi (legacy bronda eski xatti-harakat).
+            if not reservation_source(context, "voice"):
+                try:
+                    await db.run_db(db.increment_ai_usage, user_id)
+                except Exception:
+                    pass
         try:
             await query.edit_message_text(
                 voice_t(

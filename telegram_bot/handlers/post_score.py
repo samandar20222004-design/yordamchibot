@@ -58,6 +58,14 @@ from keyboards.callback_data import (
 from keyboards.default import get_cancel_keyboard
 from keyboards.inline import btn_label
 from locales.translations import clear_fsm_data, get_lang, safe_t
+from services.ai_quota import (
+    ai_quota_temp_error_text,
+    is_balance_reason,
+    release_ai_quota,
+    reservation_source,
+    reserve_for_flow,
+    take_reservation_id,
+)
 from services.ai_service import improve_post_to_95, score_post
 from translations import (
     POST_SCORE_CRITERIA_KEYS,
@@ -237,8 +245,19 @@ def _return_state(context) -> int:
     return _PS_ORIGIN_STATES.get(origin, POST_SCORE_RESULT)
 
 
-async def _add_credit_back(user_id: int) -> None:
-    """Yechilgan 1 kreditni qaytaradi (AI xatosi/timeout bo'lsa)."""
+async def _add_credit_back(user_id: int, reservation_id=None) -> None:
+    """Yechilgan kvota/kreditni qaytaradi (AI xatosi/timeout bo'lsa).
+
+    ``reservation_id`` berilgan bo'lsa — ATOMIK va IDEMPOTENT
+    ``refund_ai_request`` ishlaydi. Legacy bronda (ID yo'q) eski
+    ``add_user_credit`` + ``refund_ai_usage`` zanjiri saqlanadi.
+    """
+    if reservation_id:
+        try:
+            await release_ai_quota(db, user_id, reservation_id)
+        except Exception as e:  # noqa: BLE001
+            logger.warning("Post Score refund xatosi (user=%s): %s", user_id, e)
+        return
     try:
         await db.run_db(db.add_user_credit, user_id)
     except Exception as e:  # noqa: BLE001
@@ -441,25 +460,24 @@ async def post_score_improve_callback(update: Update, context: ContextTypes.DEFA
         await _toast(query, safe_t("ai_daily_limit", lang))
         return _return_state(context)
 
+    # 🔒 PHASE 2 / 1-QADAM: kunlik kvota YOKI AYNAN 1 kredit BITTA atomik
+    # tranzaksiyada bron qilinadi (qator qulfi + credits_ledger auditi).
+    # Avvalgi ikki alohida tranzaksiya race condition va yarim bron xavfini
+    # tug'dirar edi; DB xatosida esa faqat kredit qadami fail-closed edi,
+    # kvota qadami esa fail-open (can_use=True) qolardi. Endi ikkalasi ham
+    # bitta atomik zanjirda va qat'iy FAIL-CLOSED.
     if not is_admin and not is_pro:
-        try:
-            can_use, used, max_ai = await db.run_db(db.check_ai_limit, user_id)
-        except Exception:
-            can_use, used, max_ai = True, 0, 0
-        if not can_use:
-            await _safe_edit(
-                query, safe_t("ai_limit_msg", lang, used=used, max=max_ai), None
-            )
-            return _return_state(context)
-
-        # 💳 credits_service: AYNAN 1 kredit ATOMIK yechiladi (ball + ledger).
-        try:
-            reserved = await db.run_db(db.use_user_credit, user_id)
-        except Exception:
-            reserved = False
-        if not reserved:
-            await _safe_edit(query, post_score_t("ps_no_credit", lang),
-                             post_score_action_keyboard(lang))
+        reservation = await reserve_for_flow(
+            db, context, user_id, "post_score", "score", 1)
+        if not reservation.get("allowed"):
+            if is_balance_reason(reservation.get("reason")):
+                await _safe_edit(
+                    query, post_score_t("ps_no_credit", lang),
+                    post_score_action_keyboard(lang))
+            else:
+                # DB/pool xatosi — ruxsat YO'Q (fail-closed), muloyim xabar.
+                await _safe_edit(query, ai_quota_temp_error_text(lang),
+                                 post_score_action_keyboard(lang))
             return _return_state(context)
 
     await _safe_edit(query, post_score_t("ps_improving", lang), None)
@@ -475,7 +493,8 @@ async def post_score_improve_callback(update: Update, context: ContextTypes.DEFA
         logger.warning("Post Score improve bajarilmadi (lang=%s): %s",
                        lang, (result or {}).get("error"))
         if not is_admin and not is_pro:
-            await _add_credit_back(user_id)
+            await _add_credit_back(
+                user_id, take_reservation_id(context, "score"))
         await _safe_edit(
             query,
             post_score_t("ps_improve_error", lang),
@@ -535,10 +554,14 @@ async def _finish_send(query, context, targets: list) -> int:
         # AI kvotasining hisoblagichi (free uchun) — bir marta yoziladi.
         if not is_admin and not context.user_data.get("ps_usage_counted"):
             context.user_data["ps_usage_counted"] = True
-            try:
-                await db.run_db(db.increment_ai_usage, user_id)
-            except Exception:
-                pass
+            # 🔒 PHASE 2 / 1-qadam: atomik bron sanagichni ALLAQACHON
+            # oshirgan — double-count bo'lmasligi uchun atomik bronda
+            # increment chaqirilmaydi (legacy bronda eski xatti-harakat).
+            if not reservation_source(context, "score"):
+                try:
+                    await db.run_db(db.increment_ai_usage, user_id)
+                except Exception:
+                    pass
         try:
             await query.edit_message_text(
                 post_score_t("ps_sent_ok", lang,

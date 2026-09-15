@@ -57,6 +57,8 @@ EXPECTED_TABLES = (
     "admin_roles", "admin_audit_logs",
     # PostAssist V2 (8-bosqich): AI-ballar auditi (credits ledger).
     "credits_ledger",
+    # PHASE 2 / 1-qadam: atomik AI bron (kunlik kvota YOKI kredit).
+    "ai_reservations",
 )
 EXPECTED_INDEXES = (
     "idx_ad_pool_scope",
@@ -170,6 +172,14 @@ INTEGRITY_CONSTRAINTS = (
         "kind": "fk",
         "definition": "FOREIGN KEY (user_id) REFERENCES users(user_id)",
         "note": "har bir ball audit yozuvi mavjud foydalanuvchiga tegishli",
+    },
+    {
+        # PHASE 2 / 1-qadam: atomik AI bron qatori yetim qolmasligi uchun.
+        "table": "ai_reservations",
+        "name": "fk_ai_reservations_user",
+        "kind": "fk",
+        "definition": "FOREIGN KEY (user_id) REFERENCES users(user_id)",
+        "note": "har bir AI bron (kvota/kredit) mavjud foydalanuvchiga tegishli",
     },
 )
 
@@ -1708,6 +1718,34 @@ def _init_db_once():
         cur.execute(
             "CREATE INDEX IF NOT EXISTS idx_ledger_user "
             "ON credits_ledger(user_id, created_at);"
+        )
+
+        # 🔒 PHASE 2 / 1-qadam: AI so'rov bronlari (atomik kvota + kredit).
+        # ``reserve_ai_request()`` kunlik kvota YOKI kreditni BITTA
+        # tranzaksiyada band qiladi; ``refund_ai_request()`` esa bronni ID
+        # bo'yicha IDEMPOTENT qaytaradi. schema.sql fayli topilmasa ham bu
+        # jadval albatta yaratiladi (aks holda barcha AI oqimi fail-closed
+        # rad etardi).
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS ai_reservations (
+                id BIGSERIAL PRIMARY KEY,
+                user_id BIGINT NOT NULL,
+                operation_type VARCHAR(32) NOT NULL,
+                cost INT NOT NULL DEFAULT 1,
+                source VARCHAR(16) NOT NULL,
+                status VARCHAR(16) NOT NULL DEFAULT 'active',
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                refunded_at TIMESTAMPTZ,
+                CONSTRAINT chk_ai_reservations_source
+                    CHECK (source IN ('daily_quota', 'credit')),
+                CONSTRAINT chk_ai_reservations_status
+                    CHECK (status IN ('active', 'refunded')),
+                CONSTRAINT chk_ai_reservations_cost CHECK (cost > 0)
+            );
+        """)
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_ai_reservations_user "
+            "ON ai_reservations(user_id, created_at);"
         )
 
         # 3) PostAssist V2 (5-bosqich): scheduler tezligi uchun kompozit indekslar
@@ -4720,6 +4758,419 @@ def increment_ai_usage(user_id: int):
             )
     except Exception as e:
         logger.error(f"increment_ai_usage xatosi: {e}")
+
+
+# ============================================================
+# 🔒 PHASE 2 / 1-QADAM — ATOMIK AI BRON (KVOTA + KREDIT)
+# ------------------------------------------------------------
+# Muammo (refaktorgacha): ``check_ai_limit`` va ``use_user_credit`` IKKITA
+# alohida tranzaksiyada ishlar edi. Natijada:
+#   * parallel so'rovlarda kunlik kvota bron qilinib, kredit yechilmay
+#     qolishi (yoki aksincha) mumkin — "yarim to'lov" holati;
+#   * ikki qadam orasidagi xato yarim bron qoldirardi (kvota yondi,
+#     foydalanuvchi javob olmadi);
+#   * ayrim handlerlar DB xatosida ``allowed=True`` deb davom etardi
+#     (FAIL-OPEN).
+#
+# Yechim: ``reserve_ai_request()`` bitta atomik blokda
+#   1) foydalanuvchi qatorini ``SELECT ... FOR UPDATE`` bilan QULFLAYDI,
+#   2) kunlik sanagichni yangilaydi (kun o'tgan bo'lsa),
+#   3) bepul kunlik kvota bo'lsa — kvotadan ``cost`` ni yechadi,
+#   4) kvota tugagan bo'lsa — ``ai_credits`` dan ``cost`` ni yechadi
+#      (balans + ``credits_ledger`` auditi BIR tranzaksiyada),
+#   5) bronni ``ai_reservations`` jadvaliga yozadi va ``reservation_id``
+#      qaytaradi — keyinchalik ``refund_ai_request()`` shu ID bilan
+#      IDEMPOTENT qaytaradi.
+#
+# Qat'iy FAIL-CLOSED: har qanday DB/pool/SQL xatosida tranzaksiya ROLLBACK
+# qilinadi va ``allowed=False, reason="db_error"`` qaytadi. HECH QACHON
+# xatoda ruxsat berilmaydi.
+# ============================================================
+
+#: ``reserve_ai_request`` rad sabablari (handler matn tanlashi uchun).
+AI_RESERVE_OK = "ok"
+#: Bepul kunlik kvota ham, kredit balansi ham yetarli emas.
+AI_RESERVE_INSUFFICIENT = "insufficient_balance"
+#: DB/pool/SQL xatosi — tranzaksiya ROLLBACK qilindi (fail-closed).
+AI_RESERVE_DB_ERROR = "db_error"
+#: Foydalanuvchi bazada yo'q.
+AI_RESERVE_USER_NOT_FOUND = "user_not_found"
+#: ``cost``/``operation_type`` yaroqsiz (chaqiruvchi xatosi) — hech narsa yozilmadi.
+AI_RESERVE_INVALID_REQUEST = "invalid_request"
+
+#: Bron manbalari (``ai_reservations.source``).
+AI_RESERVE_SOURCE_QUOTA = "daily_quota"
+AI_RESERVE_SOURCE_CREDIT = "credit"
+
+#: ``ai_reservations.status`` qiymatlari.
+AI_RESERVATION_ACTIVE = "active"
+AI_RESERVATION_REFUNDED = "refunded"
+
+#: Ruxsat etilgan ``operation_type`` to'plami (oq ro'yxat). ``*`` bilan
+#: boshlanadigan ixtiyoriy belgilash ham qabul qilinadi (masalan
+#: ``magic_post:sales``) — lekin asos qism oq ro'yxatda bo'lishi shart.
+AI_OPERATION_TYPES = (
+    "ai_chat", "ai_studio", "magic_post", "voice_post", "image_post",
+    "post_score", "post_enhancer", "content_calendar", "other",
+)
+
+#: ``cost`` chegaralari (so'rov bitta AI chaqiruvi = 1).
+AI_RESERVE_COST_MIN = 1
+AI_RESERVE_COST_MAX = 100
+
+
+def _deny_ai_reserve(reason: str, used: int = 0,
+                     max_ai: int = None, **extra) -> dict:
+    """Rad javobini yig'adi (barcha maydonlar doim to'ldirilgan bo'ladi)."""
+    result = {
+        "allowed": False,
+        "reason": reason,
+        "reservation_id": None,
+        "source": None,
+        "cost": 0,
+        "used": int(used or 0),
+        "max_ai": (int(max_ai) if max_ai is not None
+                   else PLAN_LIMITS["free"]["daily_ai_requests"]),
+        "credits_left": None,
+    }
+    result.update(extra)
+    return result
+
+
+def _effective_plan_strict(cur, plan: str, user_id: int) -> str:
+    """``_effective_plan`` ning QAT'IY (fail-closed) varianti.
+
+    ``_effective_plan`` obuna muddatini tekshirishda xato bo'lsa ``False``
+    qaytarib, foydalanuvchini PRO deb qoldiradi (fail-open). Atomik bron
+    zanjirida bu yaramaydi: xato bo'lsa istisno ko'tariladi va chaqiruvchi
+    (``reserve_ai_request``) butun tranzaksiyani ROLLBACK qilib, so'rovni
+    rad etadi.
+    """
+    plan = (plan or "free").strip().lower() or "free"
+    if plan not in ("pro", "enterprise"):
+        return plan
+    # Xato bo'lsa istisno tarqaladi — bu yerda yutilmaydi (fail-closed).
+    cur.execute(
+        "SELECT subscription_expires_at FROM users WHERE user_id = %s",
+        (user_id,),
+    )
+    row = cur.fetchone()
+    if not row or row[0] is None:
+        return plan  # cheksiz obuna (enterprise/legacy)
+    from datetime import timezone as _tz
+    expires_at = row[0]
+    if getattr(expires_at, "tzinfo", None) is None:
+        expires_at = expires_at.replace(tzinfo=_tz.utc)
+    if expires_at > datetime.now(_tz.utc):
+        return plan
+    # Muddati o'tgan PRO → FREE (lazy downgrade, shu tranzaksiyada).
+    cur.execute(
+        "UPDATE users SET plan_type = 'free' WHERE user_id = %s", (user_id,)
+    )
+    return "free"
+
+
+def reserve_ai_request(user_id: int, operation_type: str = "other",
+                       cost: int = 1) -> dict:
+    """AI so'rovi uchun kvota/kreditni BITTA atomik tranzaksiyada bron qiladi.
+
+    Bu funksiya ``check_ai_limit`` + ``use_user_credit`` juftligining
+    tranzaksiyaga birlashtirilgan o'rnini bosadi: bitta ulanish, bitta
+    ``BEGIN ... COMMIT``, qator qulfi (``SELECT ... FOR UPDATE``) va
+    ``ai_reservations`` audit qatori.
+
+    Args:
+        user_id: Telegram user id.
+        operation_type: qaysi oqim (``magic_post``, ``ai_studio``, ...).
+            Oq ro'yxat: ``AI_OPERATION_TYPES``; ``"magic_post:sales"`` kabi
+            belgilash ham qabul qilinadi.
+        cost: nechta birlik yechiladi (standart 1).
+
+    Returns:
+        dict — doim bir xil shakl::
+
+            {"allowed": bool, "reason": str, "reservation_id": int | None,
+             "source": "daily_quota" | "credit" | None, "cost": int,
+             "used": int, "max_ai": int, "credits_left": int | None}
+
+        ``reason`` qiymatlari: ``ok`` | ``insufficient_balance`` |
+        ``db_error`` | ``user_not_found`` | ``invalid_request``.
+
+    Kafolatlar:
+        * **Atomik** — kvota, kredit, ``credits_ledger`` auditi va bron
+          qatori BITTA tranzaksiyada; xatoda hammasi ROLLBACK.
+        * **Race-free** — parallel so'rovlarda ``FOR UPDATE`` qulfi tufayli
+          bitta balansdan ikki marta yechib bo'lmaydi.
+        * **FAIL-CLOSED** — har qanday xatoda ``allowed=False``.
+    """
+    # ---- argument validatsiyasi (DB'ga tegmasdan, fail-closed) ----------
+    try:
+        uid = int(user_id)
+    except (TypeError, ValueError):
+        return _deny_ai_reserve(AI_RESERVE_INVALID_REQUEST,
+                                used=-1, error="bad_user_id")
+    try:
+        cost_int = int(cost)
+    except (TypeError, ValueError):
+        return _deny_ai_reserve(AI_RESERVE_INVALID_REQUEST,
+                                used=-1, error="bad_cost")
+    if not (AI_RESERVE_COST_MIN <= cost_int <= AI_RESERVE_COST_MAX):
+        return _deny_ai_reserve(AI_RESERVE_INVALID_REQUEST,
+                                used=-1, error="cost_out_of_range")
+    op_base = str(operation_type or "").strip().split(":", 1)[0].lower()
+    if op_base not in AI_OPERATION_TYPES:
+        return _deny_ai_reserve(AI_RESERVE_INVALID_REQUEST,
+                                used=-1, error="bad_operation_type")
+
+    from services.credits_service import CreditsService, InsufficientCreditsError
+
+    max_ai = PLAN_LIMITS["free"]["daily_ai_requests"]
+    try:
+        # BITTA atomik blok: qator qulfi → kvota → kredit → bron qatori.
+        with db_cursor(commit=True) as cur:
+            # 1) Qatorni QULFLASH — parallel bronlar shu yerda navbatga turadi.
+            #    COALESCE plan_type ustuni bo'lmagan eski bazalarda ham
+            #    ishlashi uchun; ``FOR UPDATE`` qulfni oladi.
+            cur.execute(
+                "SELECT COALESCE(plan_type, 'free'), "
+                "COALESCE(ai_requests_today, 0), COALESCE(ai_credits, 0) "
+                "FROM users WHERE user_id = %s FOR UPDATE",
+                (uid,),
+            )
+            row = cur.fetchone()
+            if not row:
+                # Foydalanuvchi yo'q — ruxsat YO'Q (fail-closed).
+                return _deny_ai_reserve(AI_RESERVE_USER_NOT_FOUND,
+                                        used=0, max_ai=max_ai)
+            plan_raw, used_before, credits_before = row
+            used_before = int(used_before or 0)
+            credits_before = int(credits_before or 0)
+
+            # 2) Kunlik sanagichni yangilash (kun o'tgan bo'lsa) — shu
+            #    tranzaksiyada, shu qulflangan qatorda.
+            _ensure_limit_reset(cur, uid)
+            cur.execute(
+                "SELECT COALESCE(ai_requests_today, 0) FROM users "
+                "WHERE user_id = %s",
+                (uid,),
+            )
+            reset_row = cur.fetchone()
+            if reset_row:
+                used_before = int(reset_row[0] or 0)
+
+            # 3) Amaldagi tarif (muddati o'tgan PRO → FREE, qat'iy).
+            plan = _effective_plan_strict(cur, plan_raw, uid)
+            max_ai = PLAN_LIMITS.get(plan, PLAN_LIMITS["free"])["daily_ai_requests"]
+
+            source = None
+            credits_after = credits_before
+
+            # 4a) Bepul kunlik kvota bo'lsa — AVVAL kvotadan yechiladi.
+            if used_before < max_ai:
+                cur.execute(
+                    "UPDATE users SET ai_requests_today = "
+                    "COALESCE(ai_requests_today, 0) + %s "
+                    "WHERE user_id = %s "
+                    "AND COALESCE(ai_requests_today, 0) + %s <= %s "
+                    "RETURNING COALESCE(ai_requests_today, 0)",
+                    (cost_int, uid, cost_int, max_ai),
+                )
+                quota_row = cur.fetchone()
+                if quota_row:
+                    source = AI_RESERVE_SOURCE_QUOTA
+                    used_before = int(quota_row[0] or 0)
+
+            # 4b) Kvota tugagan (yoki tarifda kunlik kvota yo'q) → KREDIT.
+            if source is None:
+                # Kredit yo'li SAVEPOINT ichida: balans yetarli bo'lmasa bron
+                # qatori ham ROLLBACK bo'ladi (bazada "yetim bron" qolmaydi).
+                try:
+                    with db_transaction() as tx_cur:
+                        # INSERT oldin: ledger yozuviga aniq bron ID'si tushadi.
+                        tx_cur.execute(
+                            "INSERT INTO ai_reservations "
+                            "(user_id, operation_type, cost, source, status) "
+                            "VALUES (%s, %s, %s, %s, %s) RETURNING id",
+                            (uid, op_base, cost_int, AI_RESERVE_SOURCE_CREDIT,
+                             AI_RESERVATION_ACTIVE),
+                        )
+                        res_row = tx_cur.fetchone()
+                        reservation_id = int(res_row[0]) if res_row else 0
+                        spend = CreditsService.spend_in_tx(
+                            tx_cur, uid, cost_int,
+                            op_type=CreditsService.OP_AI_REQUEST,
+                            ref_id=f"ai_reservation:{reservation_id}",
+                        )
+                        if not spend.get("success"):
+                            raise InsufficientCreditsError(
+                                uid, cost_int, credits_before)
+                        credits_after = int(spend.get("balance_after") or 0)
+                except InsufficientCreditsError as exc:
+                    # SAVEPOINT ROLLBACK qilindi → INSERT ham bekor.
+                    raise _InsufficientBalanceSignal(
+                        int(getattr(exc, "available", 0) or 0),
+                        used_before, max_ai,
+                    )
+                source = AI_RESERVE_SOURCE_CREDIT
+            else:
+                # Kvota bron qilingan — bron qatori shu tranzaksiyada yoziladi.
+                cur.execute(
+                    "INSERT INTO ai_reservations "
+                    "(user_id, operation_type, cost, source, status) "
+                    "VALUES (%s, %s, %s, %s, %s) RETURNING id",
+                    (uid, op_base, cost_int, AI_RESERVE_SOURCE_QUOTA,
+                     AI_RESERVATION_ACTIVE),
+                )
+                res_row = cur.fetchone()
+                reservation_id = int(res_row[0]) if res_row else 0
+
+    except _InsufficientBalanceSignal as sig:
+        # Yetarli mablag' yo'q — bu xato emas, lekin ruxsat ham yo'q.
+        return _deny_ai_reserve(
+            AI_RESERVE_INSUFFICIENT, used=sig.used, max_ai=sig.max_ai,
+            credits_left=sig.available)
+    except Exception as e:  # noqa: BLE001 — QAT'IY FAIL-CLOSED
+        # Tranzaksiya bloki ROLLBACK qildi: yarim bron/yarim yechuv qolmadi.
+        logger.error("reserve_ai_request fail-closed xatosi (user=%s, op=%s): %s",
+                     uid, op_base, e)
+        return _deny_ai_reserve(AI_RESERVE_DB_ERROR, used=-1, max_ai=max_ai,
+                                error=type(e).__name__)
+
+    # Kesh tranzaksiyadan KEYIN tozalanadi (eski balans ko'rinib qolmasin).
+    try:
+        _invalidate_user(uid)
+    except Exception:
+        pass
+    return {
+        "allowed": True,
+        "reason": AI_RESERVE_OK,
+        "reservation_id": int(reservation_id or 0),
+        "source": source,
+        "cost": cost_int,
+        "used": used_before,
+        "max_ai": max_ai,
+        "credits_left": credits_after,
+    }
+
+
+class _InsufficientBalanceSignal(Exception):
+    """Ichki signal: mablag' yetarli emas (tranzaksiyani toza yakunlash uchun).
+
+    ``InsufficientCreditsError`` to'g'ridan-to'g'ri tashqi blokka chiqsa
+    ``db_cursor`` ROLLBACK qiladi — bu kerakli xatti-harakat, lekin "balans
+    kam" holati tizim xatosi emas. Shu sababli ichki signalga o'rab, aniq
+    sonlar (mavjud balans, sarflangan kvota) bilan qaytaramiz.
+    """
+
+    __slots__ = ("available", "used", "max_ai")
+
+    def __init__(self, available: int, used: int, max_ai: int):
+        self.available = int(available or 0)
+        self.used = int(used or 0)
+        self.max_ai = int(max_ai or 0)
+        super().__init__("insufficient_balance")
+
+
+def refund_ai_request(user_id: int, reservation_id) -> dict:
+    """Bron qilingan AI kvota/kreditini ATOMIK va IDEMPOTENT qaytaradi.
+
+    AI so'rovi muvaffaqiyatsiz tugaganda (timeout, provayder xatosi, bo'sh
+    javob) chaqiriladi. Qaytarish manbaga qarab aniq bajariladi:
+
+    * ``source='daily_quota'`` → ``ai_requests_today`` kamaytiriladi;
+    * ``source='credit'``      → ``ai_credits`` qaytadi va ``credits_ledger``
+      ga ``ai_refund`` audit yozuvi tushadi.
+
+    Idempotentlik: ``UPDATE ai_reservations SET status='refunded'
+    WHERE id=%s AND user_id=%s AND status='active'`` — qaytarilgan bron
+    ikkinchi marta qaytarilmaydi (parallel refund/retry ham xavfsiz).
+
+    Returns:
+        dict::
+
+            {"success": bool, "reason": "refunded" | "not_found" |
+             "already_refunded" | "invalid_reservation" | "db_error",
+             "reservation_id": int | None, "source": str | None}
+
+    FAIL-CLOSED: DB xatosida ``success=False, reason="db_error"`` — hech
+    qanday yarim qaytaruv qolmaydi (tranzaksiya ROLLBACK).
+    """
+    try:
+        rid = int(reservation_id)
+    except (TypeError, ValueError):
+        return {"success": False, "reason": "invalid_reservation",
+                "reservation_id": None, "source": None}
+    if rid <= 0:
+        return {"success": False, "reason": "invalid_reservation",
+                "reservation_id": None, "source": None}
+    try:
+        uid = int(user_id)
+    except (TypeError, ValueError):
+        return {"success": False, "reason": "invalid_reservation",
+                "reservation_id": rid, "source": None}
+
+    from services.credits_service import CreditsService
+
+    try:
+        with db_cursor(commit=True) as cur:
+            # Bitta atomik holat o'tishi: faqat 'active' bron qaytariladi.
+            cur.execute(
+                "UPDATE ai_reservations SET status = %s, refunded_at = NOW() "
+                "WHERE id = %s AND user_id = %s AND status = %s "
+                "RETURNING source, cost",
+                (AI_RESERVATION_REFUNDED, rid, uid, AI_RESERVATION_ACTIVE),
+            )
+            row = cur.fetchone()
+            if not row:
+                # Nima uchun qaytmadi — aniq sabab (audit/monitoring uchun).
+                cur.execute(
+                    "SELECT status, source FROM ai_reservations "
+                    "WHERE id = %s AND user_id = %s",
+                    (rid, uid),
+                )
+                info = cur.fetchone()
+                reason = ("already_refunded"
+                          if info and info[0] == AI_RESERVATION_REFUNDED
+                          else "not_found")
+                return {"success": False, "reason": reason,
+                        "reservation_id": rid,
+                        "source": (info[1] if info else None)}
+            source = str(row[0] or "")
+            cost = int(row[1] or 0)
+
+            if source == AI_RESERVE_SOURCE_QUOTA:
+                # Kunlik kvota qaytadi (manfiyga tushib ketmaydi).
+                _ensure_limit_reset(cur, uid)
+                cur.execute(
+                    "UPDATE users SET ai_requests_today = GREATEST("
+                    "COALESCE(ai_requests_today, 0) - %s, 0) "
+                    "WHERE user_id = %s",
+                    (cost, uid),
+                )
+            else:
+                # Kredit qaytadi + audit yozuvi (BIR tranzaksiyada).
+                add = CreditsService.add_in_tx(
+                    cur, uid, cost,
+                    op_type=CreditsService.OP_AI_REFUND,
+                    ref_id=f"ai_reservation:{rid}",
+                )
+                if not add.get("success"):
+                    # Foydalanuvchi o'chirilgan bo'lishi mumkin — yarim
+                    # qaytaruv qoldirmaslik uchun tranzaksiyani buzamiz.
+                    raise RuntimeError(
+                        f"refund: kredit qaytarilmadi ({add.get('error')})")
+    except Exception as e:  # noqa: BLE001 — FAIL-CLOSED
+        logger.error("refund_ai_request xatosi (user=%s, reservation=%s): %s",
+                     uid, rid, e)
+        return {"success": False, "reason": "db_error",
+                "reservation_id": rid, "source": None}
+
+    try:
+        _invalidate_user(uid)
+    except Exception:
+        pass
+    return {"success": True, "reason": "refunded",
+            "reservation_id": rid, "source": source}
 
 
 def check_queue_limit(user_id: int) -> tuple[bool, int, int]:

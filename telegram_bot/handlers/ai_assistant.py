@@ -36,6 +36,16 @@ from translations import content_menu_t
 from locales.translations import (
     clear_fsm_data, get_lang, safe_t, localize_service_error,
 )
+# 🔒 PHASE 2 / 1-qadam — kvota + kredit BITTA atomik tranzaksiyada
+# (services/ai_quota.py → database.reserve_ai_request / refund_ai_request).
+from services.ai_quota import (
+    ai_quota_temp_error_text,
+    is_quota_exhausted,
+    release_ai_quota,
+    reservation_source,
+    reserve_for_flow,
+    take_reservation_id,
+)
 # 🧭 PostAssist V2 · 4-qadam — navigatsiya stacki (◀️ Orqaga / ❌ Bekor
 # qilish / 🏠 Asosiy menyu standarti, handlers/navigation.py).
 from handlers.navigation import (
@@ -259,13 +269,14 @@ async def _keep_typing(bot, chat_id: int, stop_event: asyncio.Event):
 
 
 def _ai_quota_temp_error_text(lang: str = "uz") -> str:
-    """DB/pool xatosida AI kvotasini fail-closed rad etish uchun muloyim xabar."""
-    code = str(lang or "uz").lower()
-    if code == "ru":
-        return "⏳ <b>AI временно недоступен.</b> Пожалуйста, попробуйте ещё раз через минуту."
-    if code == "en":
-        return "⏳ <b>AI is temporarily unavailable.</b> Please try again in a minute."
-    return "⏳ <b>AI xizmati vaqtincha band.</b> Iltimos, bir daqiqadan so'ng qayta urinib ko'ring."
+    """DB/pool xatosida AI kvotasini fail-closed rad etish uchun muloyim xabar.
+
+    PHASE 2 / 1-qadam: matn endi yagona manbadan
+    (``services.ai_quota.ai_quota_temp_error_text``) olinadi — barcha AI
+    oqimlari (Magic Post, Voice, Image, Post Score, AI Studio) bir xil
+    UZ/RU/EN matnni ko'radi. Eski nom backward compatibility uchun saqlandi.
+    """
+    return ai_quota_temp_error_text(lang)
 
 
 def _no_credits_text(bot_username: str, user_id: int, lang: str = "uz") -> str:
@@ -466,31 +477,49 @@ async def ai_input_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return AI_INPUT
 
-    # Tarif bo'yicha kunlik AI limiti (FREE vs PRO) — database.PLAN_LIMITS asosida.
-    # Har bir AI so'rovidan oldin tekshiriladi; limit tugasa foydalanuvchiga
-    # xabar va PRO tarifga o'tish tugmasi ko'rsatiladi.
+    # 🔒 PHASE 2 / 1-QADAM: tarif bo'yicha kunlik kvota (database.PLAN_LIMITS)
+    # va AI balli BITTA atomik tranzaksiyada bron qilinadi —
+    # ``database.reserve_ai_request`` qatorni ``SELECT ... FOR UPDATE`` bilan
+    # qulflaydi, avval bepul kunlik kvotadan, kvota tugagach kreditdan
+    # yechadi va ``credits_ledger`` auditi bilan ``ai_reservations`` bron
+    # qatorini yozadi.
+    #
+    # Avvalgi holat: ``check_ai_limit`` va ``use_user_credit`` IKKITA alohida
+    # tranzaksiya edi → parallel so'rovlarda race condition va "kvota yondi,
+    # kredit yechilmadi" yarim holati. Endi qat'iy FAIL-CLOSED: DB xatosida
+    # ruxsat YO'Q.
     if not is_admin and not is_pro:
-        can_use, used, max_ai = await db.run_db(db.check_ai_limit, user_id)
-        if not can_use:
-            if int(used or 0) < 0:
-                await msg.reply_text(_ai_quota_temp_error_text(lang), parse_mode="HTML")
-            else:
+        reservation = await reserve_for_flow(
+            db, context, user_id, "ai_chat", "chat", 1)
+        if not reservation.get("allowed"):
+            used = int(reservation.get("used") or 0)
+            max_ai = int(reservation.get("max_ai") or 0)
+            if used < 0:
+                # Infratuzilma xatosi (DB/pool) — ruxsat YO'Q (fail-closed),
+                # lekin foydalanuvchi ayblanmaydi: muloyim vaqtinchalik xato.
+                await msg.reply_text(_ai_quota_temp_error_text(lang),
+                                     parse_mode="HTML")
+                return AI_INPUT
+            if is_quota_exhausted(reservation):
+                # Kunlik BEPUL kvota tugadi → xabar + PRO'ga o'tish tugmasi.
                 await msg.reply_text(
                     safe_t("ai_limit_msg", lang, used=used, max=max_ai),
                     reply_markup=_pro_upgrade_keyboard(lang),
                     parse_mode="HTML",
                 )
-            return AI_INPUT
-
-    # Ballni atomik band qilamiz (faqat free uchun; PRO cheksiz).
-    if not is_admin and not is_pro and not await db.run_db(db.use_user_credit, user_id):
-        bot_obj = await context.bot.get_me()
-        await msg.reply_text(
-            _no_credits_text(bot_obj.username, user_id, lang),
-            reply_markup=get_main_keyboard(is_admin, lang=lang),
-            parse_mode="HTML",
-        )
-        return ConversationHandler.END
+                return AI_INPUT
+            if reservation.get("reason") == "user_not_found":
+                await msg.reply_text(_ai_quota_temp_error_text(lang),
+                                     parse_mode="HTML")
+                return AI_INPUT
+            # AI kreditlari tugadi (yoki noma'lum rad) → ball yo'riqnomasi.
+            bot_obj = await context.bot.get_me()
+            await msg.reply_text(
+                _no_credits_text(bot_obj.username, user_id, lang),
+                reply_markup=get_main_keyboard(is_admin, lang=lang),
+                parse_mode="HTML",
+            )
+            return ConversationHandler.END
 
     msg_wait = await msg.reply_text(safe_t("ai_analyzing", lang), parse_mode="HTML")
 
@@ -511,12 +540,19 @@ async def ai_input_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if "error" in result:
         if not is_admin:
-            await db.run_db(db.add_user_credit, user_id)
-            if not is_pro and hasattr(db, "refund_ai_usage"):
-                try:
-                    await db.run_db(db.refund_ai_usage, user_id)
-                except Exception:
-                    pass
+            # 🔒 PHASE 2 / 1-qadam: bron ID'si bo'lsa ATOMIK va IDEMPOTENT
+            # refund (kvota YOKI kredit — manbaga qarab, ikki marta emas).
+            reservation_id = (take_reservation_id(context, "chat")
+                              if not is_pro else None)
+            if reservation_id:
+                await release_ai_quota(db, user_id, reservation_id)
+            else:
+                await db.run_db(db.add_user_credit, user_id)
+                if not is_pro and hasattr(db, "refund_ai_usage"):
+                    try:
+                        await db.run_db(db.refund_ai_usage, user_id)
+                    except Exception:
+                        pass
         await msg.reply_text(
             f"⚠️ {localize_service_error(result['error'], lang)}",
             reply_markup=get_cancel_keyboard(lang),
@@ -892,44 +928,71 @@ async def _studio_ai_preflight(update: Update, context: ContextTypes.DEFAULT_TYP
         )
         return False, is_admin, is_pro
 
-    # Tarif bo'yicha kunlik AI limiti (FREE vs PRO).
+    # 🔒 PHASE 2 / 1-QADAM: kunlik kvota va AI balli BITTA atomik
+    # tranzaksiyada bron qilinadi (qator qulfi + credits_ledger auditi +
+    # ai_reservations bron qatori). Avvalgi ikki alohida tranzaksiya
+    # (``check_ai_limit`` + ``use_user_credit``) race condition va yarim bron
+    # xavfini tug'dirar edi. DB xatosida qat'iy FAIL-CLOSED — ruxsat YO'Q.
     if not is_admin and not is_pro:
-        can_use, used, max_ai = await db.run_db(db.check_ai_limit, user_id)
-        if not can_use:
-            if int(used or 0) < 0:
-                await msg.reply_text(_ai_quota_temp_error_text(lang), parse_mode="HTML")
-            else:
+        reservation = await reserve_for_flow(
+            db, context, user_id, "ai_studio", "studio", 1)
+        if not reservation.get("allowed"):
+            used = int(reservation.get("used") or 0)
+            max_ai = int(reservation.get("max_ai") or 0)
+            if used < 0 or reservation.get("reason") == "user_not_found":
+                # Infratuzilma xatosi — muloyim vaqtinchalik xabar.
+                await msg.reply_text(_ai_quota_temp_error_text(lang),
+                                     parse_mode="HTML")
+            elif is_quota_exhausted(reservation):
+                # Kunlik BEPUL kvota tugadi → PRO taklifi.
                 await msg.reply_text(
                     safe_t("ai_limit_msg", lang, used=used, max=max_ai),
                     reply_markup=PRO_UPGRADE_KEYBOARD,
                     parse_mode="HTML",
                 )
+            else:
+                # AI kreditlari tugadi → ball yo'riqnomasi.
+                bot_obj = await context.bot.get_me()
+                await msg.reply_text(
+                    _no_credits_text(bot_obj.username, user_id, lang),
+                    reply_markup=get_ai_back_keyboard(lang),
+                    parse_mode="HTML",
+                )
             return False, is_admin, is_pro
-
-    # Ballni atomik band qilamiz (faqat free uchun; PRO/Admin cheksiz).
-    if not is_admin and not is_pro and not await db.run_db(db.use_user_credit, user_id):
-        bot_obj = await context.bot.get_me()
-        await msg.reply_text(
-            _no_credits_text(bot_obj.username, user_id, lang),
-            reply_markup=get_ai_back_keyboard(lang),
-            parse_mode="HTML",
-        )
-        return False, is_admin, is_pro
 
     return True, is_admin, is_pro
 
 
-async def _studio_ai_refund(user_id: int, is_admin: bool, is_pro: bool):
-    """Band qilingan AI ballini qaytaradi (AI xato/timeout bo'lganda)."""
-    if not is_admin and not is_pro:
-        await db.run_db(db.add_user_credit, user_id)
-        if hasattr(db, "refund_ai_usage"):
-            try:
-                await db.run_db(db.refund_ai_usage, user_id)
-            except Exception:
-                # Eski test/fake DB adapterlari bu helperni bilmasligi mumkin;
-                # kredit refund'i saqlanadi, production DB'da quota ham qaytariladi.
-                pass
+async def _studio_ai_refund(user_id: int, is_admin: bool, is_pro: bool,
+                            context=None):
+    """Band qilingan AI kvota/kreditini qaytaradi (AI xato/timeout bo'lganda).
+
+    ``context`` berilgan bo'lsa — bron ID'si kontekstdan OLINADI (pop) va
+    ATOMIK, IDEMPOTENT ``refund_ai_request`` ishlaydi: kvota YOKI kredit
+    manbaga qarab qaytadi va bitta bronni ikki marta qaytarib bo'lmaydi.
+
+    ``context`` berilmasa (yoki bron legacy zanjirda qilingan bo'lsa) eski
+    ``add_user_credit`` + ``refund_ai_usage`` zanjiri saqlanadi — mavjud
+    chaqiruvlar va test adapterlari buzilmaydi.
+    """
+    if is_admin or is_pro:
+        return
+    reservation_id = (take_reservation_id(context, "studio")
+                      if context is not None else None)
+    if reservation_id:
+        try:
+            await release_ai_quota(db, user_id, reservation_id)
+        except Exception:
+            pass
+        return
+    await db.run_db(db.add_user_credit, user_id)
+    if hasattr(db, "refund_ai_usage"):
+        try:
+            await db.run_db(db.refund_ai_usage, user_id)
+        except Exception:
+            # Eski test/fake DB adapterlari bu helperni bilmasligi mumkin;
+            # kredit refund'i saqlanadi, production DB'da quota ham qaytariladi.
+            pass
 
 
 def _studio_preview_text(post_text: str, tone: str, file_id=None, lang: str = "uz") -> str:
@@ -1136,7 +1199,8 @@ async def ai_prompt_received(update: Update, context: ContextTypes.DEFAULT_TYPE)
             pass
 
     if "error" in result:
-        await _studio_ai_refund(user_id, is_admin, is_pro)
+        # context beriladi → bron ID'si bo'yicha ATOMIK, IDEMPOTENT refund.
+        await _studio_ai_refund(user_id, is_admin, is_pro, context)
         await msg.reply_text(
             safe_t("ai_unavailable", lang),
             reply_markup=get_ai_back_keyboard(lang),
@@ -1158,7 +1222,7 @@ async def ai_prompt_received(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     post_text = (result.get("post_text") or "").strip()
     if not post_text:
-        await _studio_ai_refund(user_id, is_admin, is_pro)
+        await _studio_ai_refund(user_id, is_admin, is_pro, context)
         await msg.reply_text(
             safe_t("ai_no_post_text", lang),
             reply_markup=get_ai_back_keyboard(lang),

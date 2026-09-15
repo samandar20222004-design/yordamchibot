@@ -284,6 +284,27 @@ echo "===== 3n) ✨ 2-BOSQICH: AI PROMPT VA MAGIC POST SIFATI ====="
 "$PY" tests/ai_prompt_quality_test.py || EXIT_CODE=1
 
 echo
+echo "===== 3o) 🔒 PHASE 2 / 1-QADAM: ATOMIK KVOTA + KREDIT TRANZAKSIYASI ====="
+# (1) reserve_ai_request(): kunlik kvota YOKI kredit BITTA tranzaksiyada
+#     (SELECT ... FOR UPDATE qator qulfi + credits_ledger auditi +
+#     ai_reservations bron qatori) — check_ai_limit/use_user_credit
+#     juftligining atomar o'rnini bosadi;
+# (2) RACE CONDITION: balansda 1 kredit bo'lganda 5 PARALLEL so'rov →
+#     AYNAN 1 ta ruxsat, 4 tasi rad; kunlik kvota 3 bo'lganda 5 parallel →
+#     AYNAN 3 ta ruxsat (sanagich limitdan oshmaydi);
+# (3) FAIL-CLOSED: DB/pool/SQL xatosida allowed=False + reason=db_error va
+#     ROLLBACK (yarim bron/yarim yechuv qolmaydi); mablag' yetishmasa ham
+#     bazada IZ QOLMAYDI (SAVEPOINT);
+# (4) refund_ai_request(user_id, reservation_id): ATOMIK va IDEMPOTENT —
+#     manbaga qarab (kvota YOKI kredit) qaytaradi, 5 parallel refund'da ham
+#     AYNAN 1 marta qaytadi;
+# (5) Magic Post / AI Studio / Voice / Image / Post Score oqimlari AYNAN shu
+#     transactional funksiyadan foydalanadi, hech birida fail-open qolmagan,
+#     eski DB funksiyalari backward compatibility uchun saqlangan
+#     (tests/atomic_quota_test.py).
+"$PY" tests/atomic_quota_test.py || EXIT_CODE=1
+
+echo
 echo "======== 4) TO'LIQ REGRESSIYA (telegram_bot/tests) ========"
 # PY'ni aniq uzatamiz: ichki runner ham shu interpreter (venv) bilan ishlasin.
 ( cd telegram_bot && PYTHON="$PY" bash tests/run_tests.sh ) || EXIT_CODE=1

@@ -313,11 +313,41 @@ CREATE TABLE IF NOT EXISTS credits_ledger (
     user_id BIGINT NOT NULL,
     amount INT NOT NULL, -- musbat (+10) yoki manfiy (-2)
     balance_after INT NOT NULL,
-    operation_type VARCHAR(32) NOT NULL, -- 'daily_bonus', 'referral', 'ai_request', 'promo', 'admin'
+    operation_type VARCHAR(32) NOT NULL, -- 'daily_bonus', 'referral', 'ai_request', 'ai_refund', 'promo', 'admin'
     reference_id TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_ledger_user ON credits_ledger(user_id, created_at);
+
+-- 🔒 PHASE 2 / 1-QADAM: AI so'rov bronlari (atomik kvota + kredit).
+-- ``reserve_ai_request()`` kunlik kvota YOKI kreditni BITTA tranzaksiyada
+-- band qiladi va shu jadvalga bron qatorini yozadi. ``refund_ai_request()``
+-- esa bronni ID bo'yicha, IDEMPOTENT tarzda qaytaradi (AI timeout/xatosida).
+--
+-- ``status``: 'active'  — bron amalda (so'rov hali bajarilmoqda);
+--             'refunded'— bron qaytarilgan (kredit/kvota foydalanuvchiga qaytdi).
+-- ``source``: 'daily_quota' — bepul kunlik kvotadan yechildi;
+--             'credit'      — ai_credits balansidan yechildi.
+-- Idempotentlik kafolati: refund FAQAT ``WHERE status = 'active'`` sharti bilan
+-- bajariladi va natijada qaytargan qatoridagi ``source`` ga qarab qaytariladi —
+-- bitta bronni ikki marta qaytarib bo'lmaydi (parallel refund'da ham).
+CREATE TABLE IF NOT EXISTS ai_reservations (
+    id BIGSERIAL PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    operation_type VARCHAR(32) NOT NULL,
+    cost INT NOT NULL DEFAULT 1,
+    source VARCHAR(16) NOT NULL, -- 'daily_quota' | 'credit'
+    status VARCHAR(16) NOT NULL DEFAULT 'active', -- 'active' | 'refunded'
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    refunded_at TIMESTAMPTZ,
+    CONSTRAINT chk_ai_reservations_source
+        CHECK (source IN ('daily_quota', 'credit')),
+    CONSTRAINT chk_ai_reservations_status
+        CHECK (status IN ('active', 'refunded')),
+    CONSTRAINT chk_ai_reservations_cost CHECK (cost > 0)
+);
+CREATE INDEX IF NOT EXISTS idx_ai_reservations_user
+    ON ai_reservations(user_id, created_at);
 
 -- --- MIGRATSIYALAR (eski bazalar uchun; yangi bazada allaqachon bor) ---
 -- Eslatma: ADD COLUMN IF NOT EXISTS tufayli takroriy bajarish xavfsiz.
@@ -518,7 +548,8 @@ BEGIN
             ('post_deliveries', 'chk_post_deliveries_status', 'check', 'CHECK (status IN (''pending'', ''processing'', ''sent'', ''failed'', ''dead_letter'', ''unknown''))'),
             ('scheduled_posts', 'chk_scheduled_posts_status', 'check', 'CHECK (status IN (''pending'', ''processing'', ''posted'', ''failed'', ''cancelled'', ''completed'', ''unknown''))'),
             ('payments', 'chk_payments_status', 'check', 'CHECK (status IN (''pending'', ''succeeded'', ''failed'', ''refunded''))'),
-            ('credits_ledger', 'fk_credits_ledger_user', 'fk', 'FOREIGN KEY (user_id) REFERENCES users(user_id)')
+            ('credits_ledger', 'fk_credits_ledger_user', 'fk', 'FOREIGN KEY (user_id) REFERENCES users(user_id)'),
+            ('ai_reservations', 'fk_ai_reservations_user', 'fk', 'FOREIGN KEY (user_id) REFERENCES users(user_id)')
         ) AS t(tbl, cname, kind, cdef)
     LOOP
         IF to_regclass(spec.tbl) IS NULL THEN

@@ -46,6 +46,10 @@ logger = logging.getLogger(__name__)
 OP_DAILY_BONUS = "daily_bonus"   # kunlik streak bonusi
 OP_REFERRAL = "referral"         # do'st taklif qilgan mukofoti
 OP_AI_REQUEST = "ai_request"     # AI so'rovi uchun ball (yechish va refund)
+#: AI so'rovi muvaffaqiyatsiz tugaganda bron qaytarilganda (PHASE 2 / 1-qadam:
+#: ``refund_ai_request``) — yechishdan (``ai_request``) alohida tur, shunda
+#: ledger tarixida "yechildi / qaytarildi" juftligi aniq ko'rinadi.
+OP_AI_REFUND = "ai_refund"
 OP_PROMO = "promo"               # promo/aksiya berilgan ball
 OP_ADMIN = "admin"               # admin tomonidan berilgan/olingan ball
 
@@ -59,6 +63,7 @@ VALID_OPERATION_TYPES = (
     OP_DAILY_BONUS,
     OP_REFERRAL,
     OP_AI_REQUEST,
+    OP_AI_REFUND,
     OP_PROMO,
     OP_ADMIN,
     OP_TRANSFER,
@@ -95,6 +100,7 @@ class CreditsService:
     OP_DAILY_BONUS = OP_DAILY_BONUS
     OP_REFERRAL = OP_REFERRAL
     OP_AI_REQUEST = OP_AI_REQUEST
+    OP_AI_REFUND = OP_AI_REFUND
     OP_PROMO = OP_PROMO
     OP_ADMIN = OP_ADMIN
     OP_TRANSFER = OP_TRANSFER
