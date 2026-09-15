@@ -322,6 +322,17 @@ echo "===== 3q) 🔒 PHASE 2 / 3-QADAM: FSM TOZALASH VA MENYU XAVFSIZLIGI ====="
 "$PY" tests/fsm_navigation_safety_test.py || EXIT_CODE=1
 
 echo
+echo "===== 3r) 🤖 PHASE 3: AI ENGINE VA SMM ORKESTRATSIYASI ====="
+# (1) SMM Intent Router (8 ta intent: CREATE_POST, IMPROVE_POST, SHORTEN,
+#     EXPAND, GENERATE_VARIANTS, POST_AUDIT, CONTENT_IDEAS, UNKNOWN);
+# (2) Provider Fallback Chain (Gemini 2.5 Flash -> Groq -> OpenRouter -> Mock);
+# (3) AIOutputValidator & Controlled Retry (bo'sh, yupqa va xavfli matnlarni
+#     aniqlab, kuchaytirilgan prompt bilan AYNAN 1 marta qayta so'rov);
+# (4) Phase 2 reserve_ai_request va fail-closed refund kafolati;
+# (5) Telegram HTML Sanitization integratsiyasi (tests/ai_orchestrator_test.py).
+"$PY" tests/ai_orchestrator_test.py || EXIT_CODE=1
+
+echo
 echo "======== 4) TO'LIQ REGRESSIYA (telegram_bot/tests) ========"
 # PY'ni aniq uzatamiz: ichki runner ham shu interpreter (venv) bilan ishlasin.
 ( cd telegram_bot && PYTHON="$PY" bash tests/run_tests.sh ) || EXIT_CODE=1
