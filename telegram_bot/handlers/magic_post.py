@@ -56,6 +56,8 @@ from utils.ai_agent import (
     generate_magic_post,
     normalize_magic_style,
 )
+from telegram.error import BadRequest
+from utils.telegram_sanitizer import html_to_text, sanitize_html
 from utils.helpers import (
     check_ai_daily_limit,
     check_ai_rate_limit,
@@ -175,8 +177,7 @@ def _magic_result_text(post_text: str, style: str, lang: str) -> str:
         MAGIC_STYLE_KEYS.get(style, ("mp_style_casual", ""))[0], lang
     )
     post_text = (post_text or "").strip()
-    if len(post_text) > _MAGIC_RESULT_POST_LIMIT:
-        post_text = post_text[:_MAGIC_RESULT_POST_LIMIT - 1] + "…"
+    post_text = sanitize_html(post_text, _MAGIC_RESULT_POST_LIMIT)
     return (
         f"{magic_t('mp_result_header', lang, style=style_label)}"
         f"{post_text}"
@@ -186,6 +187,7 @@ def _magic_result_text(post_text: str, style: str, lang: str) -> str:
 
 async def _safe_edit(query, text: str, reply_markup=None):
     """Xabarni edit qiladi; iloji bo'lmasa yangi xabar yuboradi (hech qachon yiqilmaydi)."""
+    text = sanitize_html(text)
     try:
         await query.edit_message_text(text, reply_markup=reply_markup, parse_mode="HTML")
     except Exception:
@@ -439,14 +441,21 @@ async def _magic_deliver_one(bot, chat_id, post_text: str) -> bool:
     payload, parse_mode = telegram_html_payload(post_text)
     try:
         await bot.send_message(
-            chat_id=chat_id, text=(payload or " ")[:4000], parse_mode=parse_mode
+            chat_id=chat_id, text=payload or " ", parse_mode=parse_mode
         )
         return True
-    except Exception:
-        pass
+    except BadRequest as exc:
+        if "parse entities" not in str(exc).lower():
+            logger.warning("Magic Post rejected (chat=%s): %s", chat_id, exc)
+            return False
+    except Exception as exc:
+        # Unknown delivery/permissions/flood errors are not parse failures.
+        # A second send after a timeout could publish the same post twice.
+        logger.warning("Magic Post delivery failed (chat=%s): %s", chat_id, exc)
+        return False
     # Fallback: HTML'siz oddiy matn (Telegram parseri umuman ishga tushmaydi).
     try:
-        plain = html_escape(post_text)[:4000]
+        plain = html_to_text(post_text, 4096) or " "
         await bot.send_message(chat_id=chat_id, text=plain, parse_mode=None)
         return True
     except Exception as e:

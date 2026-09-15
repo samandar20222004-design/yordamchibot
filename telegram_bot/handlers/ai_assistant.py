@@ -53,6 +53,7 @@ from handlers.navigation import (
     remember_section, clear_section,
 )
 from utils.date_format import format_datetime
+from utils.telegram_sanitizer import sanitize_html, html_length
 from utils.helpers import (
     html_escape, safe_html, check_ai_rate_limit, check_ai_daily_limit, parse_future_time,
     get_auto_ad_injection_async, parse_schedule_input,
@@ -383,27 +384,26 @@ async def _send_preview(target_msg, text, file_id, post_type, reply_markup, lang
     """Postni (media bilan yoki matn) preview sifatida ko'rsatadi."""
     caption_note = safe_t("ai_media_caption_note", lang)
     if file_id and post_type in ("photo", "video", "document"):
-        cap = text[:900]
-        if len(text) > 900:
-            cap = cap[:880] + "…"
+        cap = sanitize_html(text, 1024)
         if post_type == "photo":
             await target_msg.reply_photo(photo=file_id, caption=cap, reply_markup=reply_markup, parse_mode="HTML")
         elif post_type == "video":
             await target_msg.reply_video(video=file_id, caption=cap, reply_markup=reply_markup, parse_mode="HTML")
         else:
             await target_msg.reply_document(document=file_id, caption=cap, reply_markup=reply_markup, parse_mode="HTML")
-        if len(text) > 900:
-            await target_msg.reply_text(safe_t("ai_full_post_text", lang, text=text[:3500]), parse_mode="HTML")
+        if html_length(text) > 1024:
+            full_text = safe_t("ai_full_post_text", lang, text=sanitize_html(text, 3500))
+            await target_msg.reply_text(sanitize_html(full_text), parse_mode="HTML")
         return
     body = f"{text}{caption_note}" if file_id else text
-    await target_msg.reply_text(body[:4000], reply_markup=reply_markup, parse_mode="HTML")
+    await target_msg.reply_text(sanitize_html(body, 4096), reply_markup=reply_markup, parse_mode="HTML")
 
 
 async def _show_time_prompt(msg, post_text: str, file_id, post_type: str, lang: str = "uz"):
     """Vaqt tanlash oynasini ko'rsatadi (tilga mos)."""
     header = (
         safe_t("ai_schedule_header", lang)
-        + safe_html(post_text[:1500])
+        + sanitize_html(post_text, 1500)
         + safe_t("ai_schedule_foot", lang)
     )
     await _send_preview(
@@ -605,7 +605,7 @@ async def ai_input_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     target_info = safe_t("ai_legacy_target_all", lang) if target_all else ""
     preview = safe_t(
-        "ai_confirm_title", lang, post=safe_html(post_text[:3000]),
+        "ai_confirm_title", lang, post=sanitize_html(post_text, 3000),
         time=sched_time, target=target_info,
     )
     await _send_preview(
@@ -731,7 +731,7 @@ async def ai_time_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     await update.message.reply_text(
         safe_t("ai_post_ready", lang)
-        + safe_html(post_text[:2500])
+        + sanitize_html(post_text, 2500)
         + safe_t("ai_post_ready_foot", lang, time=time_display, target=target_info),
         reply_markup=get_ai_confirm_keyboard(lang),
         parse_mode="HTML",
@@ -1000,7 +1000,7 @@ def _studio_preview_text(post_text: str, tone: str, file_id=None, lang: str = "u
     media_note = safe_t("ai_preview_media_note", lang) if file_id else ""
     return (
         safe_t("ai_preview_title", lang)
-        + safe_html(post_text[:2400])
+        + sanitize_html(post_text, 2400)
         + safe_t("ai_preview_foot", lang, tone=_ai_tone_label(tone, lang), media=media_note)
     )
 
@@ -1449,7 +1449,7 @@ async def ai_audit_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     ad_line = await get_auto_ad_injection_async(user_id)
     await msg.reply_text(
-        safe_t("ai_audit_result_title", lang) + safe_html(audit[:3500]) + ad_line,
+        safe_t("ai_audit_result_title", lang) + sanitize_html(audit, 3500) + ad_line,
         reply_markup=get_ai_back_keyboard(lang),
         parse_mode="HTML",
     )
@@ -1613,7 +1613,7 @@ def _photo_result_text(post_text: str, lang: str = "uz") -> str:
     """Vision natijasi — to'liq post + keyingi qadam tugmalari (tilga mos)."""
     return (
         safe_t("ai_photo_result_title", lang)
-        + safe_html(post_text[:3500])
+        + sanitize_html(post_text, 3500)
         + safe_t("ai_photo_result_foot", lang)
     )
 

@@ -25,6 +25,10 @@ from keyboards.inline import (
     DEFAULT_REACTION_EMOJIS,
 )
 from keyboards.callback_data import CB_REACTION, cb
+from utils.telegram_sanitizer import (
+    sanitize_html, html_length, utf16_length, has_allowed_html, truncate_text,
+    TELEGRAM_TEXT_LIMIT, TELEGRAM_CAPTION_LIMIT,
+)
 from utils.helpers import (
     get_channel_ad_next_async,
     get_channel_ad_next_full_async,
@@ -550,34 +554,24 @@ def compose_post_text(content: str, has_ad_free: bool, channel_ad: str,
     """
     text = content or ""
     ad = (channel_ad or "").strip()
-
-    # Channel ad'ni qo'shish (faqat ad-free litsenziyasi yo'q foydalanuvchilar uchun)
     if not has_ad_free and ad:
         text = f"{text}\n\n{ad}" if text else ad
-
     brand = (brand_text or "").strip()
-    limit = int(limit) if limit else 0
-
-    # Limit bo'yicha kesish (brand_text uchun joy zaxiralash)
-    if limit > 0:
-        if brand:
-            # Nishon va uni ajratuvchi ikki qator uchun joy zaxiraga olinadi
-            reserved = len(brand) + 2
-            allowed = max(0, limit - reserved)
-            if len(text) > allowed:
-                text = text[:allowed].rstrip()
-        elif len(text) > limit:
-            text = text[:limit]
-
-    # Brand text'ni qo'shish (admin tomonidan sozlangan bo'lsa)
+    html_mode = has_allowed_html(text) or has_allowed_html(brand)
+    trim = sanitize_html if html_mode else truncate_text
+    size = html_length if html_mode else utf16_length
+    budget = int(limit) if limit else None
+    # Normalize fragments separately so broken content cannot swallow the brand.
+    text = trim(text, None)
+    brand = trim(brand, budget)
+    if budget is not None and budget > 0:
+        allowed = max(0, budget - size(brand) - 2) if brand else budget
+        text = trim(text, allowed)
+        if not size(text):
+            text = ""
     if brand:
         text = f"{text}\n\n{brand}" if text else brand
-
-    # Yakuniy limit tekshiruvi
-    if limit > 0 and len(text) > limit:
-        # Nishonning o'zi limitdan uzun bo'lgan chekka holat
-        text = text[:limit]
-    return text
+    return trim(text, budget if budget and budget > 0 else None)
 
 
 def parse_album_items(file_id) -> list:
@@ -724,7 +718,7 @@ def _build_album_media(items: list, caption: str):
     """
     media = []
     for i, item in enumerate(items):
-        cap, parse = telegram_html_payload(caption) if i == 0 else (None, None)
+        cap, parse = telegram_html_payload(caption, TELEGRAM_CAPTION_LIMIT) if i == 0 else (None, None)
         fid = item["file_id"]
         kind = (item.get("type") or "photo").lower()
         if kind == "video":
@@ -1130,9 +1124,9 @@ async def _execute_send(bot, post):
         # qo'shiladi, shuning uchun u hech qachon kesilib ketmaydi.
         pt_for_limit = str(post_type).lower()
         text_limit = (
-            1024 if pt_for_limit in
+            TELEGRAM_CAPTION_LIMIT if pt_for_limit in
             ("photo", "video", "animation", "document", "audio", "voice", "album")
-            else 4096
+            else TELEGRAM_TEXT_LIMIT
         )
         final_content = compose_post_text(
             watermarked_content, has_ad_free, channel_ad, brand_text, limit=text_limit
@@ -1146,7 +1140,7 @@ async def _execute_send(bot, post):
         pt = str(post_type).lower()
         target_chat = int(channel_id) if str(channel_id).lstrip('-').isdigit() else channel_id
 
-        safe_final_content, final_parse_mode = telegram_html_payload(final_content or "")
+        safe_final_content, final_parse_mode = telegram_html_payload(final_content or "", text_limit)
 
         if pt == "album":
             items = parse_album_items(file_id)

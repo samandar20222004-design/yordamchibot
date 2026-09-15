@@ -1,5 +1,4 @@
 import asyncio
-import html
 import re
 import threading
 import time
@@ -9,6 +8,7 @@ import pytz
 from config import ADMIN_IDS_SET
 import database as db
 from utils.security import url_rejection_reason
+from utils import telegram_sanitizer as _telegram_html
 
 tashkent_tz = pytz.timezone("Asia/Tashkent")
 
@@ -184,10 +184,7 @@ async def get_channel_ad_next_full_async() -> dict:
 # --- Reklama matni va inline tugmasini tekshirish (validatsiya) ---
 
 # Reklamada ruxsat etilgan HTML teglar (Telegram Bot API qo'llaydiganlari).
-AD_ALLOWED_TAGS = {
-    "b", "strong", "i", "em", "u", "ins", "s", "strike", "del",
-    "a", "code", "pre", "tg-spoiler", "blockquote", "span",
-}
+AD_ALLOWED_TAGS = _telegram_html.ALLOWED_TAGS
 _TAG_RE = re.compile(r"<\s*(/?)\s*([a-zA-Z0-9-]+)([^>]*)>")
 _HREF_RE = re.compile(r"""href\s*=\s*["']([^"']*)["']""", re.IGNORECASE)
 
@@ -684,101 +681,22 @@ def _format_reply_ad(user_id: int, ad_text: str, link_suffix: str = "") -> str:
     return ""
 
 def html_escape(text) -> str:
-    if not text:
-        return ""
-    return html.escape(str(text))
-
-
-# Telegram HTML'da foydalanuvchi matnidan saqlashga ruxsat etilgan kichik oq
-# ro'yxat. Qolgan barcha <, >, & belgilar TEXT sifatida escape qilinadi.
-_TELEGRAM_TAGS = {"b", "strong", "i", "em", "code", "a"}
-_SAFE_TAG_RE = re.compile(r"<\s*(/?)\s*([a-zA-Z][a-zA-Z0-9-]*)([^>]*)>")
+    """Backward-compatible literal-value escaping via the HTML SSOT."""
+    return _telegram_html.escape_html(text) if text else ""
 
 
 def has_allowed_html(text: str) -> bool:
-    """Matnda Telegram uchun ruxsat etilgan HTML teglar bor-yo'qligini tekshiradi."""
-    if not text:
-        return False
-    for match in _SAFE_TAG_RE.finditer(str(text)):
-        name = match.group(2).lower()
-        if name in _TELEGRAM_TAGS:
-            return True
-    return False
+    return _telegram_html.has_allowed_html(text)
 
 
-def telegram_html_payload(text: str) -> tuple[str, str | None]:
-    """Yuborish uchun (matn, parse_mode) qaytaradi.
-
-    Plain text bo'lsa ``parse_mode=None`` — Telegram HTML parser umuman
-    ishga tushmaydi. Ruxsat etilgan HTML teg bo'lsa matn ``safe_html`` bilan
-    sanitizatsiya qilinib, ``parse_mode='HTML'`` qaytariladi.
-    """
-    raw = "" if text is None else str(text)
-    if has_allowed_html(raw):
-        return safe_html(raw), "HTML"
-    return raw, None
+def telegram_html_payload(text: str, max_length: int = _telegram_html.TELEGRAM_TEXT_LIMIT) -> tuple[str, str | None]:
+    return _telegram_html.telegram_html_payload(text, max_length)
 
 
-def safe_html(text: str) -> str:
-    """Foydalanuvchi/AI matnini Telegram ``parse_mode='HTML'`` uchun xavfsiz qiladi.
+def safe_html(text: str, max_length: int = None) -> str:
+    """Legacy formatting-preserving proxy; final payload enforces its limit."""
+    return _telegram_html.sanitize_html(text, max_length)
 
-    Qoidalar:
-      * Oddiy matndagi ``<``, ``>``, ``&`` har doim escape qilinadi — masalan
-        ``5 < 10 & price > 100`` → ``5 &lt; 10 &amp; price &gt; 100``.
-      * Faqat ruxsat etilgan format teglari saqlanadi: ``b/strong``, ``i/em``,
-        ``code`` va ``a href=...``.
-      * ``<a>`` tegida faqat xavfsiz ``href`` atributi qoldiriladi; boshqa
-        atributlar, noma'lum teglar va yopilmagan/noto'g'ri teglar matn sifatida
-        escape qilinadi.
-      * Funksiya hech qachon istisno bermaydi.
-    """
-    if text is None or text == "":
-        return ""
-    raw = str(text)
-    out: list[str] = []
-    stack: list[str] = []
-    pos = 0
-
-    for match in _SAFE_TAG_RE.finditer(raw):
-        # Tegdan oldingi oddiy matn — to'liq escape qilinadi.
-        out.append(html.escape(raw[pos:match.start()], quote=False))
-        pos = match.end()
-
-        closing, tag_name, attrs = match.group(1), match.group(2).lower(), match.group(3) or ""
-        canonical = {"strong": "b", "em": "i"}.get(tag_name, tag_name)
-        if tag_name not in _TELEGRAM_TAGS:
-            out.append(html.escape(match.group(0), quote=False))
-            continue
-
-        if closing:
-            if canonical not in stack:
-                out.append(html.escape(match.group(0), quote=False))
-                continue
-            while stack and stack[-1] != canonical:
-                out.append(f"</{stack.pop()}>")
-            if stack:
-                stack.pop()
-                out.append(f"</{canonical}>")
-            continue
-
-        if canonical == "a":
-            href = _HREF_RE.search(attrs)
-            href_value = (href.group(1).strip() if href else "")
-            if not href_value or url_rejection_reason(href_value):
-                out.append(html.escape(match.group(0), quote=False))
-                continue
-            out.append(f'<a href="{html.escape(href_value, quote=True)}">')
-            stack.append("a")
-            continue
-
-        # b/i/code atributsiz saqlanadi; atributlar tashlab yuboriladi.
-        out.append(f"<{canonical}>")
-        stack.append(canonical)
-
-    out.append(html.escape(raw[pos:], quote=False))
-    while stack:
-        out.append(f"</{stack.pop()}>")
-    return "".join(out)
 
 def format_post_type_label(post_type: str, lang: str = "uz") -> str:
     """Post turi yorlig'i — foydalanuvchi tilida (uz/ru).

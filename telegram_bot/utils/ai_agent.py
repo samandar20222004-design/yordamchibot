@@ -4608,21 +4608,9 @@ def _extract_magic_post_text(result) -> str:
 
 
 def sanitize_magic_post_html(text: str) -> str:
-    """AI matnini Telegram HTML uchun xavfsizlaydi (``safe_html``).
-
-    Aylanma import oldini olish uchun ``utils.helpers`` funksiya ICHIDA
-    import qilinadi (helpers → database → ... zanjiri ai_agent'ga tegishi mumkin).
-    """
-    if not text:
-        return ""
-    try:
-        from utils.helpers import safe_html
-
-        return safe_html(text)
-    except Exception:  # pragma: no cover - zaxira: teglarni to'liq olib tashlaymiz
-        import html as _html_mod
-
-        return _html_mod.escape(str(text))
+    """Backward-compatible proxy to the dependency-light Telegram HTML SSOT."""
+    from utils.telegram_sanitizer import sanitize_html
+    return sanitize_html(text)
 
 
 async def generate_magic_post(
