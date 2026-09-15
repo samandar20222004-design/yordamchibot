@@ -27,7 +27,7 @@
 #   3j) ⚙️ POSTASSIST V2 3-QADAM REFAKTORI — sozlamalar menyusi (legacy
 #       dublikatlarsiz, 8 guruh + rewards/help hub) + 🧰 Vositalar submenyusi
 #       (Konvertor va Post Enhancer) (tests/refactor_step3_test.py)
-#   3l) 🏁 YAKUNIY ACCEPTANCE SUITE — TEST A..AF (32 ta qat'iy tekshiruv):
+#   3l) 🏁 YAKUNIY ACCEPTANCE SUITE — TEST A..AG (33 ta qat'iy tekshiruv):
 #       6-tugma menyu, submenu pariteti, navigatsiya stacki, statistika
 #       izolyatsiyasi, dublikat yo'qligi, RBAC tampering himoyasi va i18n
 #       sinxroni (tests/final_acceptance_suite_test.py)
@@ -191,7 +191,7 @@ echo "===== 3j) ⚙️ 3-QADAM REFAKTORI: SOZLAMALAR MENYUSI + VOSITALAR ====="
 "$PY" tests/refactor_step3_test.py || EXIT_CODE=1
 
 echo
-echo "===== 3k) 🧭 4-QADAM REFAKTORI: NAVIGATSIYA STACKI + ADMIN DASHBOARD ====="
+echo "===== 3k) 🧭 4-QADAM + 3-BOSQICH: NAVIGATSIYA + YAGONA INLINE ADMIN PANEL ====="
 # (1) Navigatsiya stacki: Kontent → AI Yordamchi → [◀️ Orqaga] → Kontent
 #     yaratish submenyusi (asosiy menyuga sakramaydi); Kanallarim → Kanal →
 #     [◀️ Orqaga] → kanallar ro'yxati; Sozlamalar → Vositalar → [◀️ Orqaga] →
@@ -204,12 +204,23 @@ echo "===== 3k) 🧭 4-QADAM REFAKTORI: NAVIGATSIYA STACKI + ADMIN DASHBOARD ===
 #     eski reply-tugmalar/buyruqlar alias sifatida ishlaydi; (4) oddiy
 #     foydalanuvchiga BARCHA adm_* callback'lari qat'iy yopiq (tampering,
 #     fail-closed, server-side RBAC); (5) i18n UZ/RU/EN 100% paritet va
-#     callback'lar 64-bayt chegarasida
-#     (tests/refactor_step4_test.py).
+#     callback'lar 64-bayt chegarasida.
+#     🆕 3-BOSQICH (yagona inline admin panel): pastdagi oq 10 talik ADMIN
+#     REPLY-KLAVIATURASI BUTUNLAY olib tashlandi
+#     (get_admin_panel_keyboard() → ReplyKeyboardRemove); yagona panel
+#     layouti [📊 Bot statistikasi] [📢 Ommaviy xabar] / [🎯 Reklama
+#     markazi] [📋 Kanallar ro'yxati] / [📋 Barcha postlar] [🎁 Promo-kod
+#     yaratish] / [⭐️ PRO berish] [🏷 Post nishoni] / [⚙️ AI parametrlari]
+#     [🗄️ DB / Kesh holati] / [🩺 Tizim monitoringi] [❌ Yopish] — 12 tugma.
+#     Eski admin matnlari (Majburiy obuna, AI parametrlar, DB/Kesh ...)
+#     FAQAT routing ALIAS'i: chat tarixidan yozilsa ishlaydi, lekin hech
+#     qanday klaviaturada chizilmaydi; «📜 Audit | 👥 Rollar» esa
+#     🩺 Tizim monitoringi ekraniga ko'chirildi
+#     (tests/refactor_step4_test.py → TEST 3/3b).
 "$PY" tests/refactor_step4_test.py || EXIT_CODE=1
 
 echo
-echo "===== 3l) 🏁 YAKUNIY ACCEPTANCE SUITE (TEST A..AF — 32 TEKSHIRUV) ====="
+echo "===== 3l) 🏁 YAKUNIY ACCEPTANCE SUITE (TEST A..AG — 33 TEKSHIRUV) ====="
 # Loyihadagi BARCHA majburiy tekshiruvlar bitta qabul yuzasida:
 # (A..D) asosiy menyu QAT'IY 6 tugma UZ/RU/EN; (E..G) Kontent va AI Studio
 # submenu pariteti (in_sync: True); (H..J) Kanallarim + Rejalashtirilgan
@@ -221,7 +232,10 @@ echo "===== 3l) 🏁 YAKUNIY ACCEPTANCE SUITE (TEST A..AF — 32 TEKSHIRUV) ====
 # holatlari konfliktsiz; (Z..AB) ACTION-FIRST rasm/ovoz/uzun matn;
 # (AC..AD) Admin panel oddiy foydalanuvchiga 100% yopiq + server-side RBAC
 # tampering himoyasi; (AE..AF) barcha matnlar i18n orqali va 3 tilda 100%
-# sinxron (tests/final_acceptance_suite_test.py).
+# sinxron; 🆕 (AG) ADMIN PANEL — FAQAT YAGONA INLINE PANEL: eski reply
+# klaviatura qaytmaydi, layout 12 tugma (6 qator × 2), barcha adm_*
+# tugmalari adminga ishlaydi, RBAC oddiy foydalanuvchini yopadi
+# (tests/final_acceptance_suite_test.py).
 "$PY" tests/final_acceptance_suite_test.py || EXIT_CODE=1
 
 echo

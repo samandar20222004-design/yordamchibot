@@ -22,8 +22,12 @@ Tekshiriladigan qoidalar:
   T4) Uchala tilda (uz/ru/en) ham izolyatsiya saqlanadi.
   T5) Tugmalar: [📈 Kanal bo'yicha batafsil] [◀️ Orqaga] = an_detail/an_close.
   T6) Admin (bot bo'yicha) statistikasi FAQAT ⚙️ Admin Panel →
-      «📊 To'liq statistika» ichida; admin panel klaviaturasida endi
-      oddiy «📊 Statistika» yorlig'i YO'Q.
+      «📊 Bot statistikasi» (yagona inline panel tugmasi; eski
+      «📊 To'liq statistika» matni esa routing ALIAS'i bo'lib qoldi).
+      Pastdagi admin reply-klaviaturasi 3-bosqichda BUTUNLAY olib
+      tashlandi (``get_admin_panel_keyboard() → ReplyKeyboardRemove``),
+      shu sababli admin statistikasi klaviaturada ham, asosiy menyuda
+      ham chizilmaydi.
   T7) ``statistics_button`` manbasida ADMIN_IDS sharti yo'q (bir yo'nalish).
   T8) Haqiqiy router: «📊 Statistika» (uz/ru/en) → show_user_statistics;
       «📊 To'liq statistika» → show_statistics.
@@ -500,14 +504,26 @@ def test_t4_builder_is_pure():
 # T5 — ADMIN PANEL: bot statistikasi faqat shu yerda
 # ===========================================================================
 def test_t5_admin_panel_full_stats():
-    header("T5", "Admin panel → «📊 To'liq statistika» (yagona admin yo'li)")
+    header("T5", "Admin panel → «📊 Bot statistikasi» (yagona inline panel)")
 
-    kb_rows = [[b.text for b in row] for row in get_admin_panel_keyboard().keyboard]
-    flat = [t for row in kb_rows for t in row]
-    check("T5: admin panel'da «📊 To'liq statistika» bor", BTN_FULL_STATS in flat, str(flat))
-    check("T5: admin panel'da oddiy «📊 Statistika» YO'Q", BTN_STATS not in flat, str(flat))
+    # 3-bosqich: eski admin reply-klaviatura o'rnida ReplyKeyboardRemove.
+    from telegram import ReplyKeyboardRemove
+    from keyboards.inline import get_admin_dashboard_keyboard
+    check("T5: eski admin reply-klaviatura olib tashlangan",
+          isinstance(get_admin_panel_keyboard(), ReplyKeyboardRemove),
+          type(get_admin_panel_keyboard()).__name__)
+    dash_rows = [[b.text for b in row] for row in get_admin_dashboard_keyboard().inline_keyboard]
+    flat = [t for row in dash_rows for t in row]
+    check("T5: yagona inline panelda «📊 Bot statistikasi» bor",
+          "📊 Bot statistikasi" in flat, str(flat))
+    check("T5: panelda oddiy «📊 Statistika» YO'Q", BTN_STATS not in flat, str(flat))
+    check("T5: panelda eski «📊 To'liq statistika» yorlig'i YO'Q (alias bo'lib qoldi)",
+          BTN_FULL_STATS not in flat, str(flat))
     check("T5: admin statistika yorlig'i shaxsiy yorliqdan farq qiladi",
-          BTN_FULL_STATS != BTN_STATISTICS, f"{BTN_FULL_STATS!r} vs {BTN_STATISTICS!r}")
+          "📊 Bot statistikasi" != BTN_STATISTICS, f"{'📊 Bot statistikasi'!r} vs {BTN_STATISTICS!r}")
+    check("T5: inline panelda adm_stats tugmasi bor",
+          "adm_stats" in [b.callback_data for row in get_admin_dashboard_keyboard().inline_keyboard
+                          for b in row])
 
     # Asosiy 6 tugmali menyuda esa faqat shaxsiy «📊 Statistika» turadi.
     for lang in LANGS:
@@ -533,6 +549,19 @@ def test_t5_admin_panel_full_stats():
           "Homiy kanallar" in adm_text, adm_text[:160])
     check("T5: admin panel ekranida «Bekor qilingan» BOR",
           "Bekor qilingan" in adm_text, adm_text[:160])
+    # 3-bosqich: shu ekran ham endi INLINE klaviatura bilan chiziladi
+    from telegram import InlineKeyboardMarkup, ReplyKeyboardMarkup
+    markup = msg.sent[-1]["reply_markup"] if msg.sent else None
+    check("T5: admin statistika ekrani INLINE klaviatura bilan chiziladi",
+          isinstance(markup, InlineKeyboardMarkup), type(markup).__name__)
+    check("T5: admin statistika ekranida reply-klaviatura YO'Q",
+          not isinstance(markup, ReplyKeyboardMarkup), type(markup).__name__)
+    cbs = [b.callback_data for row in markup.inline_keyboard for b in row]
+    check("T5: ekran YAGONA inline panelni qayta chizadi (adm_stats bor)",
+          "adm_stats" in cbs and "adm_health" in cbs, str(cbs))
+    check("T5: ekrandagi klaviatura = get_admin_dashboard_keyboard()",
+          cbs == [b.callback_data for row in get_admin_dashboard_keyboard().inline_keyboard
+                  for b in row], str(cbs))
 
 
 # ===========================================================================

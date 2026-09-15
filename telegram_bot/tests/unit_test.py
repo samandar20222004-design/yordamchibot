@@ -290,14 +290,34 @@ def test_ai_runtime_params():
 
 
 def test_admin_new_buttons():
-    print("== admin yangi tugmalari ==")
-    from keyboards.default import get_admin_panel_keyboard, BTN_POST_TAG, BTN_AI_SETTINGS, BTN_CACHE_DB
+    """3-bosqich: admin panel FAQAT inline — reply klaviatura YO'Q.
+
+    Eski «🏷 Post nishoni», «⚙️ AI parametrlar», «🗄️ DB / Kesh holati»
+    tugmalari pastdagi klaviaturadan BUTUNLAY olib tashlandi; ular endi
+    yagona inline panel tugmalari (adm_tag / adm_ai / adm_dbcache) va
+    routing ALIAS'i sifatida ishlaydi.
+    """
+    print("== admin panel: yagona inline panel (reply klaviatura yo'q) ==")
+    from telegram import ReplyKeyboardRemove
+    from keyboards.default import (
+        get_admin_panel_keyboard, ADMIN_LEGACY_REPLY_TEXTS,
+        BTN_POST_TAG, BTN_AI_SETTINGS, BTN_CACHE_DB,
+    )
     kb = get_admin_panel_keyboard()
-    texts = [b.text for row in kb.keyboard for b in row]
-    check("Post nishoni tugmasi", BTN_POST_TAG in texts, str(texts))
-    check("AI parametrlar tugmasi", BTN_AI_SETTINGS in texts, str(texts))
-    check("DB/Kesh tugmasi", BTN_CACHE_DB in texts, str(texts))
-    from keyboards.inline import get_cache_actions_keyboard
+    check("eski admin reply-klaviatura → ReplyKeyboardRemove",
+          isinstance(kb, ReplyKeyboardRemove), type(kb).__name__)
+    check("reply klaviaturada hech qanday tugma yo'q",
+          not hasattr(kb, "keyboard"), str(getattr(kb, "keyboard", None)))
+    for legacy in (BTN_POST_TAG, BTN_AI_SETTINGS, BTN_CACHE_DB):
+        check(f"legacy matn alias ro'yxatida: {legacy!r}",
+              legacy in ADMIN_LEGACY_REPLY_TEXTS, str(ADMIN_LEGACY_REPLY_TEXTS))
+
+    # Yagona inline panelda o'sha amallar INLINE tugma sifatida turadi.
+    from keyboards.inline import get_admin_dashboard_keyboard, get_cache_actions_keyboard
+    dash_cbs = [b.callback_data for row in get_admin_dashboard_keyboard().inline_keyboard
+                for b in row]
+    for cb in ("adm_tag", "adm_ai", "adm_dbcache"):
+        check(f"inline panelda {cb} tugmasi bor", cb in dash_cbs, str(dash_cbs))
     cbs = [b.callback_data for row in get_cache_actions_keyboard().inline_keyboard for b in row]
     check("Kesh tozalash callback", "cache_clear" in cbs and "close_msg" in cbs, str(cbs))
 
@@ -3460,70 +3480,101 @@ def test_auto_ad_injector_suite():
 
 
 def test_admin_dashboard_layout_suite():
-    """Admin dashboard — YAGONA MARKAZ layout testi (PostAssist V2 · 4-qadam).
+    """Admin dashboard — YAGONA INLINE PANEL layout testi (3-bosqich).
 
-    Talab (4-qadam): eski admin reply-klaviaturasi to'liq dashboard'ga
-    integratsiya qilingan — 12 ta amaliy tugma + Yopish:
-        [📊 To'liq statistika]  [📢 Ommaviy xabar]
+    Talab (3-bosqich): eski admin reply-klaviaturasi BUTUNLAY olib
+    tashlangan, admin boshqaruvi FAQAT shu inline panel orqali — 12 ta
+    tugma (6 qator × 2):
+        [📊 Bot statistikasi]   [📢 Ommaviy xabar]
         [🎯 Reklama markazi]    [📋 Kanallar ro'yxati]
         [📋 Barcha postlar]     [🎁 Promo-kod yaratish]
-        [⭐️ PRO berish]         [🏷 Post nishoni]
+        [⭐️ PRO berish]        [🏷 Post nishoni]
         [⚙️ AI parametrlari]    [🗄️ DB / Kesh holati]
-        [🩺 Tizim salomatligi]  [📜 Audit | 👥 Rollar]
-                          [❌ Yopish]
-    Eski reply-tugmalar va /buyruqlar alias sifatida ishlaydi.
+        [🩺 Tizim monitoringi]  [❌ Yopish]
+    «📜 Audit | 👥 Rollar» shu panelning 🩺 Tizim monitoringi ekraniga
+    ko'chirildi. Eski reply-tugmalar va /buyruqlar esa routing ALIAS'i
+    sifatida ishlaydi (lekin klaviaturada chizilmaydi).
     """
-    print("== Admin Dashboard Layout (yagona markaz, 12 tugma) ==")
-    from keyboards.inline import get_admin_dashboard_keyboard
+    print("== Admin Dashboard Layout (yagona inline panel, 12 tugma) ==")
+    from telegram import ReplyKeyboardRemove
+    from keyboards.default import get_admin_panel_keyboard, ADMIN_LEGACY_REPLY_TEXTS
+    from keyboards.inline import (
+        ADMIN_DASHBOARD_ROWS, get_admin_dashboard_keyboard,
+        get_admin_monitoring_keyboard,
+    )
+
+    # 0) Eski reply-klaviatura YO'Q (qaytmasligi kafolatlanadi).
+    check("eski admin reply-klaviatura olib tashlangan",
+          isinstance(get_admin_panel_keyboard(), ReplyKeyboardRemove),
+          type(get_admin_panel_keyboard()).__name__)
 
     kb = get_admin_dashboard_keyboard()
     rows = kb.inline_keyboard
-    check("dashboard qatorlar soni = 7", len(rows) == 7, str(len(rows)))
+    check("dashboard qatorlar soni = 6", len(rows) == 6, str(len(rows)))
 
-    # Qator 1: To'liq statistika & Ommaviy xabar
+    # Layout SSOT bilan AYNAN bir xil (yorliq + callback).
+    layout = tuple(tuple((b.text, b.callback_data) for b in row) for row in rows)
+    check("dashboard layout = ADMIN_DASHBOARD_ROWS (yagona manba)",
+          layout == ADMIN_DASHBOARD_ROWS, str(layout))
+
+    # Qator 1: Bot statistikasi & Ommaviy xabar
     check("row 0 btn 0: adm_stats", rows[0][0].callback_data == "adm_stats")
     check("row 0 btn 1: adm_broadcast", rows[0][1].callback_data == "adm_broadcast")
+    check("row 0 btn 0 yorlig'i «📊 Bot statistikasi»",
+          rows[0][0].text == "📊 Bot statistikasi", rows[0][0].text)
 
     # Qator 2: Reklama markazi & Kanallar ro'yxati
     check("row 1 btn 0: adm_adhub", rows[1][0].callback_data == "adm_adhub")
     check("row 1 btn 1: adm_channels", rows[1][1].callback_data == "adm_channels")
 
     # Qator 3: Barcha postlar & Promo-kod yaratish
-    check("row 2 btn 0: adm_posts (4-qadam)", rows[2][0].callback_data == "adm_posts")
+    check("row 2 btn 0: adm_posts", rows[2][0].callback_data == "adm_posts")
     check("row 2 btn 1: adm_promo", rows[2][1].callback_data == "adm_promo")
 
     # Qator 4: PRO berish & Post nishoni
     check("row 3 btn 0: adm_grant_pro", rows[3][0].callback_data == "adm_grant_pro")
-    check("row 3 btn 1: adm_tag (4-qadam)", rows[3][1].callback_data == "adm_tag")
+    check("row 3 btn 1: adm_tag", rows[3][1].callback_data == "adm_tag")
 
     # Qator 5: AI parametrlari & DB/Kesh holati
-    check("row 4 btn 0: adm_ai (4-qadam)", rows[4][0].callback_data == "adm_ai")
-    check("row 4 btn 1: adm_dbcache (4-qadam)", rows[4][1].callback_data == "adm_dbcache")
+    check("row 4 btn 0: adm_ai", rows[4][0].callback_data == "adm_ai")
+    check("row 4 btn 1: adm_dbcache", rows[4][1].callback_data == "adm_dbcache")
 
-    # Qator 6: Tizim salomatligi & Audit/Rollar
+    # Qator 6: Tizim monitoringi & Yopish (audit endi shu ekran ichida).
     check("row 5 btn 0: adm_health", rows[5][0].callback_data == "adm_health")
-    check("row 5 btn 1: adm_audit_roles (4-qadam)", rows[5][1].callback_data == "adm_audit_roles")
+    check("row 5 btn 1: close_msg", rows[5][1].callback_data == "close_msg")
+    check("row 5 btn 0 yorlig'i «🩺 Tizim monitoringi»",
+          rows[5][0].text == "🩺 Tizim monitoringi", rows[5][0].text)
 
-    # Qator 7: Yopish
-    check("row 6 btn 0: close_msg", rows[6][0].callback_data == "close_msg")
+    # Audit | Rollar — 🩺 Tizim monitoringi ekranida (yo'qolmagan!).
+    mon_cbs = [b.callback_data for row in get_admin_monitoring_keyboard().inline_keyboard
+               for b in row]
+    check("monitoring ekranida adm_audit_roles bor",
+          "adm_audit_roles" in mon_cbs, str(mon_cbs))
+    check("monitoring ekranida dashboard'ga qaytish bor",
+          "adm_back" in mon_cbs, str(mon_cbs))
 
     cbs = [b.callback_data for row in rows for b in row]
-    check("faqat 12 ta amaliy tugma + yopish", len(cbs) == 13, str(cbs))
+    check("faqat 12 ta tugma (11 amal + yopish)", len(cbs) == 12, str(cbs))
     check("adm_sponsors mustaqil tugma sifatida yo'q",
           "adm_sponsors" not in cbs, str(cbs))
     check("adm_settings (Tizim sozlamalari) butunlay yo'q",
           "adm_settings" not in cbs, str(cbs))
 
     labels = [b.text for row in rows for b in row]
-    check("label: To'liq statistika", any("statistika" in t.lower() for t in labels))
+    check("label: Bot statistikasi", any("Bot statistikasi" in t for t in labels), str(labels))
     check("label: Ommaviy xabar", any("ommaviy" in t.lower() for t in labels))
     check("label: Barcha postlar", any("Barcha postlar" in t for t in labels))
     check("label: PRO berish", any("PRO berish" in t for t in labels))
     check("label: Post nishoni", any("Post nishoni" in t for t in labels))
     check("label: AI parametrlari", any("AI parametrlari" in t for t in labels))
     check("label: DB / Kesh holati", any("DB / Kesh" in t for t in labels))
-    check("label: Tizim salomatligi", any("Tizim salomatligi" in t for t in labels))
-    check("label: Audit | Rollar", any("Audit" in t and "Rollar" in t for t in labels))
+    check("label: Tizim monitoringi", any("Tizim monitoringi" in t for t in labels), str(labels))
+    check("label: eski «Tizim salomatligi» yorlig'i qolmadi",
+          not any("Tizim salomatligi" in t for t in labels), str(labels))
+    check("label: Audit | Rollar dashboard'da emas, monitoringda",
+          not any("Audit" in t and "Rollar" in t for t in labels), str(labels))
+    check("eski reply matnlari alias ro'yxatida saqlangan",
+          bool(ADMIN_LEGACY_REPLY_TEXTS), str(ADMIN_LEGACY_REPLY_TEXTS))
     check("label: Majburiy obuna mustaqil tugma sifatida yo'q",
           not any("majburiy obuna" in t.lower() for t in labels), str(labels))
     check("label: Tizim sozlamalari yo'q",
@@ -5362,20 +5413,29 @@ def test_ad_hub_unification_suite():
     """UX: reklama menyusini birlashtirish — yagona Reklama markazi."""
     print("== Reklama markazi (hub) birlashtiruvi ==")
     from pathlib import Path
+    from telegram import ReplyKeyboardRemove
     from keyboards.default import (
-        get_admin_panel_keyboard, BTN_ADS, BTN_CHANNEL_AD, BTN_BOT_REPLY_AD,
+        get_admin_panel_keyboard, ADMIN_LEGACY_REPLY_TEXTS,
+        BTN_ADS, BTN_CHANNEL_AD, BTN_BOT_REPLY_AD,
         BTN_POST_TAG,
     )
 
     check("BTN_ADS matni", BTN_ADS == "🎯 Reklama markazi", BTN_ADS)
 
-    kb_rows = [[b.text for b in row] for row in get_admin_panel_keyboard().keyboard]
-    check("admin kb: reklama qatorida bitta hub tugmasi",
-          [BTN_ADS, BTN_POST_TAG] in kb_rows, str(kb_rows))
+    # 3-bosqich: admin reply-klaviaturasi YO'Q — reklama markazi yagona
+    # inline panelda (adm_adhub) turadi.
+    check("admin reply-klaviatura olib tashlangan (ReplyKeyboardRemove)",
+          isinstance(get_admin_panel_keyboard(), ReplyKeyboardRemove))
+    from keyboards.inline import get_admin_dashboard_keyboard
+    kb_rows = [[b.text for b in row] for row in get_admin_dashboard_keyboard().inline_keyboard]
+    check("inline panelda reklama markazi hub tugmasi",
+          any(BTN_ADS in row for row in kb_rows), str(kb_rows))
     flat = [t for row in kb_rows for t in row]
-    check("admin kb: eski ikki alohida tugma yo'q",
+    check("inline panelda eski ikki alohida reklama tugmasi yo'q",
           BTN_CHANNEL_AD not in flat and BTN_BOT_REPLY_AD not in flat, str(flat))
-    check("admin kb: qatorlar soni 5", len(kb_rows) == 5, str(kb_rows))
+    check("eski reply matnlari alias ro'yxatida (klaviaturada emas)",
+          BTN_ADS in ADMIN_LEGACY_REPLY_TEXTS and BTN_POST_TAG in ADMIN_LEGACY_REPLY_TEXTS,
+          str(ADMIN_LEGACY_REPLY_TEXTS))
 
     root = Path(__file__).resolve().parent.parent
     init_src = (root / "handlers" / "__init__.py").read_text(encoding="utf-8")
