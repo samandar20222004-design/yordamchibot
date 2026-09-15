@@ -204,7 +204,7 @@ from handlers.image_post import (
     image_restyle_callback, image_back_callback, image_stale_callback,
     image_topic_received,
     set_application as set_image_application,
-    IMAGE_POST_INPUT, IMAGE_STYLE_SELECT, IMAGE_POST_RESULT,
+    IMAGE_POST_INPUT, PHOTO_WAITING, IMAGE_STYLE_SELECT, IMAGE_POST_RESULT,
     IMAGE_SEND_CHOOSE, IMAGE_SCHEDULE_INPUT, IMAGE_TOPIC_INPUT,
 )
 
@@ -1398,6 +1398,7 @@ def register_all_handlers(app):
             # 7f. 📸 IMAGE → POST holatlari
             IMAGE_POST_INPUT: all_menu_jumps + [
                 MessageHandler(filters.PHOTO | filters.Document.ALL, image_photo_received),
+                MessageHandler(filters.TEXT & ~filters.COMMAND, image_photo_received),
             ],
             # 3-BOSQICH fallback: Vision ishlamadi va caption yo'q — mavzu matni
             # (yoki yangi rasm) kutiladi; jarayon to'xtab qolmaydi.

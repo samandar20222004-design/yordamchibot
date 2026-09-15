@@ -296,6 +296,10 @@ async def magic_post_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return MAGIC_INPUT
 
 
+# Alias for backward compatibility and tests
+magic_start = magic_post_entry
+
+
 # ============================================================
 # MAGIC_INPUT: xom matn qabul qilinadi → uslublar menyusi
 # ============================================================
@@ -307,6 +311,20 @@ async def magic_text_received(update: Update, context: ContextTypes.DEFAULT_TYPE
     lang = get_lang(context)
 
     text = (msg.text or "").strip()
+    if text:
+        try:
+            from middlewares.fsm_cleaner import is_cancel_trigger, is_start_or_menu_trigger, clear_user_fsm
+        except ImportError:
+            from telegram_bot.middlewares.fsm_cleaner import is_cancel_trigger, is_start_or_menu_trigger, clear_user_fsm
+        if is_cancel_trigger(text):
+            clear_user_fsm(context)
+            from handlers.start import cancel_handler
+            return await cancel_handler(update, context)
+        if is_start_or_menu_trigger(text):
+            clear_user_fsm(context)
+            from handlers.start import start
+            return await start(update, context)
+
     if not text:
         # 🎙 Ovoz → «🎙 Ovoz → Post» (STT) oqimiga, 📸 rasm → «📸 Rasm → Post»
         # (Vision) oqimiga UZATILADI — intro va'da qilganidek, foydalanuvchi
