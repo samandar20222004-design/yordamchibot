@@ -173,6 +173,7 @@ from handlers.magic_post import (
     magic_post_entry, magic_text_received, magic_style_callback,
     magic_send_now_callback, magic_channel_picked_callback,
     magic_schedule_callback, magic_restyle_callback, magic_stale_callback,
+    magic_back_callback,
     MAGIC_INPUT, MAGIC_STYLE_SELECT, MAGIC_RESULT, MAGIC_SEND_CHOOSE,
 )
 
@@ -1338,6 +1339,8 @@ def register_all_handlers(app):
                 CallbackQueryHandler(magic_schedule_callback, pattern=r"^mp_sched$"),
                 CallbackQueryHandler(magic_channel_picked_callback, pattern=r"^mp_ch"),
                 CallbackQueryHandler(magic_restyle_callback, pattern=r"^mp_restyle$"),
+                # ◀️ Orqaga — Kontent yaratish submenyusiga (sessiya yopiladi).
+                CallbackQueryHandler(magic_back_callback, pattern=r"^mp_back$"),
                 # 📊 Post Score (Killer Feature #4): natijani baholash va
                 # yaxshilash tugmalari shu holatda ham ishlaydi.
                 CallbackQueryHandler(post_score_eval_callback, pattern=r"^ps_eval:"),

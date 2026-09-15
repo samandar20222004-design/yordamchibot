@@ -440,9 +440,9 @@ def test_eval_buttons_in_all_flows():
     check("Magic natija klaviaturasida «📊 Baholash»",
           expected[0] in kb_buttons(mp._magic_action_keyboard("uz")),
           str(kb_buttons(mp._magic_action_keyboard("uz"))))
-    check("Magic klaviaturasi eski tugmalarini saqlagan",
+    check("Magic klaviaturasi asosiy amallarini saqlagan (2-BOSQICH ixcham layout)",
           {("📢 Kanalga yuborish", "mp_send"), ("📅 Rejalashtirish", "mp_sched"),
-           ("🔄 Boshqa uslub", "mp_restyle")} <=
+           ("✏️ Qayta yozish / Uslub", "mp_restyle"), ("◀️ Orqaga", "mp_back")} <=
           set(kb_buttons(mp._magic_action_keyboard("uz"))))
 
     voice_btns = kb_buttons(vh._voice_action_keyboard("uz"))

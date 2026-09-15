@@ -220,9 +220,15 @@ def test_styles_menu_flow():
     upd = FakeUpdate(message=msg)
     state = run(mp.magic_post_entry(upd, ctx))
     check("entry MAGIC_INPUT holatini qaytaradi", state == mp.MAGIC_INPUT)
+    # 2-BOSQICH: intro IXCHAM SaaS taklifi — uzun 15 qatorli uslublar
+    # tushuntirishi YO'Q (uslublar keyingi ekranda tanlanadi).
+    intro_text = msg.replies[0]["text"] if msg.replies else ""
     check("entry yo'riqnomasi yuborildi (mp_intro)",
-          len(msg.replies) == 1 and "Magic Post" in msg.replies[0]["text"]
-          and "🔥" in msg.replies[0]["text"])
+          len(msg.replies) == 1 and "Magic Post" in intro_text
+          and "postgacha" in intro_text)
+    check("mp_intro ixcham (≤4 qator, uslublar ro'yxatisiz)",
+          intro_text.count("\n") <= 4 and "AIDA" not in intro_text
+          and "🔥" not in intro_text, repr(intro_text))
 
     # 1c) Xom matn yuborildi → uslublar menyusi (5 tugma).
     raw = "Yangi koffemiz 20% chegirma bilan sotilmoqda, dizayner stakanlar"
@@ -425,8 +431,12 @@ def test_result_actions_integration():
           ("📢 Kanalga yuborish", "mp_send") in btns, str(btns))
     check("[📅 Rejalashtirish] tugmasi bor",
           ("📅 Rejalashtirish", "mp_sched") in btns)
-    check("[🔄 Boshqa uslub] tugmasi bor",
-          ("🔄 Boshqa uslub", "mp_restyle") in btns)
+    check("[✏️ Qayta yozish / Uslub] tugmasi bor (mp_restyle callback saqlangan)",
+          ("✏️ Qayta yozish / Uslub", "mp_restyle") in btns, str(btns))
+    check("[◀️ Orqaga] tugmasi bor (mp_back)",
+          ("◀️ Orqaga", "mp_back") in btns, str(btns))
+    check("natija klaviaturasi ixcham layout: 2+2+1",
+          [len(r) for r in last.get("reply_markup").inline_keyboard] == [2, 2, 1])
 
     # --- 3b) [📢 Kanalga yuborish]: bitta kanal — DARHOL yuborish ---
     ctx1 = FakeContext(lang="uz")
@@ -629,6 +639,8 @@ def test_i18n_parity():
         "mp_btn_send_channel": ("📢", {"uz": "kanal", "ru": "канал", "en": "channel"}),
         "mp_btn_schedule": ("📅", None),
         "mp_btn_restyle": ("🔄", None),
+        "mp_btn_rewrite": ("✏️", None),
+        "mp_btn_back": ("◀️", None),
     }
     for key, (prefix, meaning) in expected_actions.items():
         for lang in LANGS:
