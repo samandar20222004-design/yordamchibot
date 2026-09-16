@@ -630,7 +630,7 @@ def test_extract_username_received_flow():
         cr._fetch_html = _FakeFetch({"https://t.me/s/privatechannel": (200, PRIVATE_TME_HTML, "text/html")})
         bot_c = _RecBot()
         upd_c = _text_update(42, "@privatechannel", bot=bot_c)
-        state_c = asyncio.run(ce.extract_username_received(
+        asyncio.run(ce.extract_username_received(
             upd_c, SimpleNamespace(bot=bot_c, user_data={})))
         texts_c = [s["text"] or "" for s in bot_c.sent]
         check("7c: 'Bu yopiq kanal' xabari",
@@ -640,7 +640,7 @@ def test_extract_username_received_flow():
         cr._fetch_html = _FakeFetch({"https://t.me/s/nosuchchannel12345": (404, "Not Found", "text/html")})
         bot_d = _RecBot()
         upd_d = _text_update(42, "nosuchchannel12345", bot=bot_d)
-        state_d = asyncio.run(ce.extract_username_received(
+        asyncio.run(ce.extract_username_received(
             upd_d, SimpleNamespace(bot=bot_d, user_data={})))
         texts_d = [s["text"] or "" for s in bot_d.sent]
         check("7d: 'topilmadi' xabari", any("topilmadi" in t for t in texts_d), texts_d)
@@ -648,7 +648,7 @@ def test_extract_username_received_flow():
         # --- 7e) noto'g'ri manba → haqoratlanmaydi, yo'riqnoma chiqadi ---
         bot_e = _RecBot()
         upd_e = _text_update(42, "salom dunyo", bot=bot_e)
-        state_e = asyncio.run(ce.extract_username_received(
+        asyncio.run(ce.extract_username_received(
             upd_e, SimpleNamespace(bot=bot_e, user_data={})))
         texts_e = [s["text"] or "" for s in bot_e.sent]
         check("7e: 'noto'g'ri' yo'riqnomasi", any("Noto'g'ri" in t for t in texts_e), texts_e)

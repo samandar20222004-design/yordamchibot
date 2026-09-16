@@ -36,7 +36,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from telegram import (  # noqa: E402
-    Update, Message, Chat, User, PhotoSize, CallbackQuery,
+    Update, Message, Chat, User, CallbackQuery,
 )
 from telegram.ext import ApplicationBuilder, ConversationHandler, CallbackContext  # noqa: E402
 
@@ -44,7 +44,7 @@ import handlers as h_mod  # noqa: E402
 from handlers import register_all_handlers  # noqa: E402
 import handlers.new_post as np_mod  # noqa: E402
 from handlers.new_post import (  # noqa: E402
-    GET_CONTENT, GET_BTN_TITLE, GET_BTN_URL, GET_REACTIONS, GET_AUTO_DELETE,
+    GET_CONTENT, GET_BTN_TITLE, GET_REACTIONS, GET_AUTO_DELETE,
     content_received, btn_title_received, reactions_received,
     album_choice_callback, _ask_reactions_step, _proceed_after_reactions,
     _is_multi_album, _album_items_of, _album_choice_keyboard,
@@ -801,7 +801,6 @@ def test_confirm_save_album_no_buttons_in_db():
     upd = SimpleNamespace(callback_query=q, effective_user=SimpleNamespace(id=42),
                           message=msg)
     ctx = SimpleNamespace(user_data=user_data, bot=None)
-    is_admin = 42 in __import__("config").ADMIN_IDS_SET
 
     async def run():
         import database as db_mod

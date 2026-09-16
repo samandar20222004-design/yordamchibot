@@ -1011,7 +1011,7 @@ def test_live_cleanup_worker(db_mod):
     lock_conn = db_mod.psycopg2.connect(db_mod.DATABASE_URL)
     lock_cur = lock_conn.cursor()
     lock_cur.execute("SELECT id FROM post_deliveries WHERE idempotency_key = 'cl_old_sent_1' FOR UPDATE")
-    locked_id = lock_cur.fetchone()[0]
+    lock_cur.fetchone()[0]
 
     # Job orqali (scheduler.cleanup_old_records_job) — asl integratsiya yo'li
     t0 = time.monotonic()

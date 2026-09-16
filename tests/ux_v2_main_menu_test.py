@@ -118,7 +118,6 @@ def kb_flat(markup):
 # MODULLAR (env sozlangandan KEYIN import qilinadi)
 # ---------------------------------------------------------------------------
 import config                                             # noqa: E402
-from handlers import register_all_handlers as _reg        # noqa: E402
 from handlers.subscription import (                       # noqa: E402
     STARS_PLANS as SUB_STARS_PLANS,
     _validate_stars_payload,

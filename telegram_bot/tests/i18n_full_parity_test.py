@@ -56,7 +56,6 @@ sys.path.insert(0, str(ROOT))
 
 from locales.translations import (  # noqa: E402
     TRANSLATIONS,
-    SUPPORTED_LANGS,
     AI_LANGUAGE_RULES,
     AI_LANGUAGE_GUARDS,
     AI_LANGUAGE_MARKER,

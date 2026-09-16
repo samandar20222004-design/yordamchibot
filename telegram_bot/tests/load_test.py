@@ -155,7 +155,6 @@ def test_pool_and_ping(db):
     check("ping_db → True", db.ping_db() is True)
 
     # 20 ta parallel (thread'da) so'rov — pool to'lib qolmasligi kerak
-    import random
     errors = []
 
     def worker(i):
@@ -432,9 +431,6 @@ def test_broadcast_retryafter_exhausted(db):
 
 def test_cleanup(db):
     print("== DB cleanup (eski ma'lumotlar) ==")
-    from datetime import datetime, timedelta
-    import pytz
-    tz = pytz.timezone("Asia/Tashkent")
 
     # 1) Eski 'posted' post yaratamiz (kanal oldindan ulangan — FK talabi)
     with db.db_cursor(commit=True) as cur:

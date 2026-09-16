@@ -243,7 +243,7 @@ async def main():
         check("timeout'dan keyin Groq javobi qaytdi",
               result.get("post_text") == "Groq post" and result.get("provider") == "Groq",
               str(result)[:120])
-        check(f"failover tez bo'ldi (<3.5s, Gemini 4s kutilmadi)", elapsed < 3.5, f"{elapsed:.2f}s")
+        check("failover tez bo'ldi (<3.5s, Gemini 4s kutilmadi)", elapsed < 3.5, f"{elapsed:.2f}s")
         check("foydalanuvchiga xatolik ko'rsatilmadi", "error" not in result, str(result)[:120])
 
         # ------------------------------------------------------------

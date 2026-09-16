@@ -14,7 +14,7 @@ TEST_FILE = Path(__file__).resolve()
 ROOT = TEST_FILE.parent.parent  # /home/user/yordamchibot/telegram_bot
 sys.path.insert(0, str(ROOT))
 
-from locales.translations import TRANSLATIONS, DEFAULT_LANG, normalize_lang, get_text
+from locales.translations import TRANSLATIONS, get_text
 
 passed = 0
 failures = 0
@@ -102,7 +102,7 @@ def test_get_text_works():
         
         for key in list(np_keys)[:20]:  # Test first 20 keys
             try:
-                text = get_text(key, lang=lang_code)
+                get_text(key, lang=lang_code)
                 check(f"get_text({key!r}, {lang_code}) works", True)
             except Exception as e:
                 check(f"get_text({key!r}, {lang_code}) works", False, str(e))

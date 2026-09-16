@@ -57,7 +57,6 @@ from keyboards.default import (  # noqa: E402
     MENU_TEXTS,
     exact,
     is_menu_text,
-    menu_texts,
     weekday_index,
 )
 from locales.translations import (  # noqa: E402

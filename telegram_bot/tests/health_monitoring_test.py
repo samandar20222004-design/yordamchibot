@@ -572,7 +572,7 @@ def test_error_handler_never_crashes():
         await global_error_handler(_FakeUpdMsg(msg, 1), _FakeCtx(None, lang="uz"))
         return msg
     try:
-        msg = asyncio.run(_none_error())
+        asyncio.run(_none_error())
         check("eh: error=None → crash yo'q", True)
     except Exception as e:
         check("eh: error=None → crash yo'q", False, str(e))

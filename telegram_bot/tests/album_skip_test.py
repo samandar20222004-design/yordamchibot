@@ -8,7 +8,6 @@ import asyncio
 import json
 import os
 import sys
-import time
 import warnings
 from datetime import datetime
 from pathlib import Path
@@ -23,20 +22,14 @@ os.environ.setdefault("CARD_HOLDER", "Test S.")
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from telegram import Update, Message, Chat, User, PhotoSize, Video, Document
-from telegram.ext import ApplicationBuilder, ConversationHandler, CallbackContext  # noqa: F401
-from telegram import InputMediaPhoto, InputMediaVideo, InputMediaDocument, InlineKeyboardMarkup
+from telegram import Update, Message, Chat, User, PhotoSize, Video
+from telegram.ext import ApplicationBuilder, ConversationHandler, CallbackContext, MessageHandler  # noqa: F401
+from telegram import InputMediaPhoto, InputMediaVideo
 
 import handlers as h_mod
 from handlers import register_all_handlers
 import handlers.new_post as np_mod
-from handlers.new_post import (
-    GET_CONTENT, GET_BTN_TITLE, GET_BTN_URL, GET_REACTIONS, GET_AUTO_DELETE,
-    content_received, btn_title_received, reactions_received,
-    _build_preview_text, _build_album_summary, _album_items_to_post,
-    _ALBUM_BUFFERS, SKIP_BUTTON_TEXTS, is_skip_button_text,
-    skip_url_step, skip_reactions_step, cancel_album_collections,
-)
+from handlers.new_post import GET_CONTENT, GET_BTN_TITLE, GET_BTN_URL, GET_REACTIONS, GET_AUTO_DELETE, content_received, btn_title_received, reactions_received, _build_preview_text, SKIP_BUTTON_TEXTS, is_skip_button_text, cancel_album_collections
 from keyboards.default import (
     BTN_SKIP_URL_BUTTON, BTN_SKIP_URL_BUTTON_RU,
     BTN_SKIP_BUTTON, BTN_SKIP_BUTTON_RU, BTN_NO_REACT, BTN_NO_REACT_RU,
@@ -306,7 +299,6 @@ def test_album_collection_keeps_all_files_and_full_caption():
     print("== albom yig'ish: 3 ta rasm + to'liq caption ==")
     np_mod._ALBUM_BUFFERS.clear()
     old_wait = np_mod._ALBUM_WAIT_SECONDS
-    old_ts = time.time()
 
     caption = ("Birinchi qator\nIkkinchi qator — juda uzun matn " * 5).strip()
     user_data = {"lang": "uz"}
@@ -501,7 +493,6 @@ def test_single_photo_still_immediate():
     print("== yakka rasm: oqim o'zgarmadi ==")
     user_data = {"lang": "uz"}
     bot = _RecBot()
-    msg = _FakeMsg()
 
     async def run():
         upd = _photo_update(42, "single1", bot=bot)
@@ -635,15 +626,22 @@ def test_album_collection_with_lock_manager():
     # yig'ishga to'sqinlik qilmasligini tekshiradi: handler ICHIDA sleep yo'q —
     # collector arka fonda ishlaydi.
     import main as main_mod
-    from telegram.ext import ApplicationBuilder
     from telegram import Update  # noqa: F401
 
     check("main: GuardedApplication ishlatiladi",
           hasattr(main_mod, "GuardedApplication")
           and hasattr(main_mod, "UpdateLockManager"))
     app = _build_app()
-    conv = [h for h in app.handlers[0] if isinstance(h, ConversationHandler)][0]
-    check("album: GET_CONTENT holatida MessageHandler(filters.ALL) bor", True)
+    conv_handlers = [h for group in sorted(app.handlers)
+                     for h in app.handlers[group]
+                     if isinstance(h, ConversationHandler)]
+    get_content_handlers = [h for c in conv_handlers
+                            for state, hs in c.states.items()
+                            if state == GET_CONTENT for h in hs]
+    check("album: GET_CONTENT holatida content_received MessageHandler bor",
+          any(isinstance(h, MessageHandler) and h.callback is content_received
+              for h in get_content_handlers),
+          str([type(h).__name__ for h in get_content_handlers][:5]))
 
     # handler ichida sleep ketmasligi (per-user lock bloklamasligi) uchun
     src = (ROOT / "handlers" / "new_post.py").read_text(encoding="utf-8")

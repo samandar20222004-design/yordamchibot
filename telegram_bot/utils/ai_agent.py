@@ -1650,7 +1650,7 @@ def audit_post_sync(post_text: str, is_pro: bool = False, timeout: int = None,
         # Try to run async if possible (for real usage outside event loop)
         import asyncio
         try:
-            loop = asyncio.get_running_loop()
+            asyncio.get_running_loop()
             # Inside running loop — cannot run, return formatted audit hint
             return f"{'PRO' if is_pro else 'FREE'} audit: {post_text[:100]}"
         except RuntimeError:

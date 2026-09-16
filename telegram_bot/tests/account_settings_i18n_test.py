@@ -45,7 +45,7 @@ def check(name, cond, extra=""):
 def test_account_settings_keys_exist():
     """Account & Settings bo'limiga tegishli barcha kalitlar 3 tilda mavjud."""
     print("== Account & Settings: kalitlar mavjudligi (uz/ru/en) ==")
-    from locales.translations import TRANSLATIONS, get_text, SUPPORTED_LANGS
+    from locales.translations import get_text
 
     # Account & Settings bo'limidagi asosiy kalitlar
     settings_keys = [
@@ -148,7 +148,6 @@ def test_cabinet_inline_keyboard_3_langs():
     """Kabinet inline klaviaturasi 3 tilda to'g'ri yorliqlar va bir xil callback."""
     print("== Kabinet inline klaviaturasi (uz/ru/en) ==")
     from keyboards.inline import get_cabinet_inline_keyboard
-    from locales.translations import get_text
 
     # UZ inline keyboard
     kb_uz = get_cabinet_inline_keyboard("uz")
@@ -278,7 +277,6 @@ def test_channels_management_3_langs():
     # Kanal boshqaruv klaviaturasi
     for lang in ("uz", "ru", "en"):
         kb = get_channels_manage_keyboard(lang)
-        labels = [b.text for row in kb.inline_keyboard for b in row]
         cbs = [b.callback_data for row in kb.inline_keyboard for b in row]
 
         check(f"{lang}: kanal qo'shish tugmasi callback",

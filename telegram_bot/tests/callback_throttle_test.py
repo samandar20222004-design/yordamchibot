@@ -1,10 +1,7 @@
 #!/usr/bin/env python3
 """Test callback query throttling middleware - in-memory dict test."""
 
-import os
-import sys
 import time
-from pathlib import Path
 
 passed = 0
 failures = 0

@@ -3,7 +3,6 @@ import os
 import sys
 import unittest
 from contextlib import contextmanager
-from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 from concurrent.futures import ThreadPoolExecutor
 

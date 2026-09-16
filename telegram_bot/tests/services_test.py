@@ -12,7 +12,7 @@ Testlar:
 import os
 import sys
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 from datetime import datetime, timedelta, timezone
 
 os.environ.setdefault("BOT_TOKEN", "123456:TEST_TOKEN")

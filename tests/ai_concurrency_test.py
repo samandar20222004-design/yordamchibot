@@ -30,7 +30,7 @@ os.environ.setdefault("BOT_TOKEN", "123456:CONCURRENCY_TEST_TOKEN")
 os.environ.setdefault("DATABASE_URL", "postgresql://user:pass@localhost:5432/testdb")
 os.environ.setdefault("ADMIN_ID", "123456789")
 
-from core.user_lock import UserLockManager, UserLockTimeoutError, user_lock
+from core.user_lock import UserLockManager, UserLockTimeoutError
 from services.ai.concurrency import (
     AIConcurrencyManager,
     AIQueueFullError,

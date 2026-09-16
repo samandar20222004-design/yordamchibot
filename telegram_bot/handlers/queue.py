@@ -593,7 +593,7 @@ async def queue_slots_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         idx = int(parts[2])
         slots = await db.run_db(db.get_queue_slots, user_id)
         if 0 <= idx < len(slots):
-            removed = slots.pop(idx)
+            slots.pop(idx)
             if slots:  # Kamida bitta slot qolishi kerak
                 await db.run_db(db.set_queue_slots, user_id, slots)
             else:
