@@ -59,6 +59,9 @@ os.environ.setdefault("BOT_TOKEN", "123456:AI_ADVANCED_SMM_TEST_TOKEN")
 os.environ.setdefault("ADMIN_ID", "123456789")
 os.environ.setdefault("DATABASE_URL", "postgresql://user:pass@localhost:5432/testdb")
 os.environ.setdefault("PORT", "10011")
+# P0-A: bu to'plam API kalitlarisiz, MockProvider bilan OFFLINE ishlaydi —
+# test muhitini e'lon qilamiz (production'da Mock zanjirdan chiqariladi).
+os.environ.setdefault("ENVIRONMENT", "test")
 warnings.filterwarnings("ignore")
 
 ROOT = Path(__file__).resolve().parents[1]

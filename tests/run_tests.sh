@@ -53,6 +53,11 @@
 #       virtual foydalanuvchi, semafor to'yintirilishi, bounded queue to'lganda
 #       fail-closed + refund, task/thread/pool/RSS leak tekshiruvi va parallel
 #       DB tranzaksiyalari (deadlock yo'q) (tests/concurrency_load_test.py)
+#   3w) 🛡 PHASE A — PRODUCTION SAFETY & AI VALIDATOR HARDENING (P0-A/B/C):
+#       Mock production siyosati (ENVIRONMENT/AI_ALLOW_MOCK), `len >= 20`
+#       bypass'i olib tashlangan qat'iy validator sikli va prompt/retry
+#       ko'rsatmalarining sizib chiqishidan himoya
+#       (tests/production_safety_and_validator_test.py)
 #   4) TO'LIQ regressiya: telegram_bot/tests/run_tests.sh (barcha 30+ test fayli)
 #
 # Har qanday xatoda 1 bilan chiqadi (CI uchun).
@@ -90,6 +95,15 @@ resolve_py() {
 PY=$(resolve_py)
 echo "[INFO] Python interpreter: $PY ($($PY --version 2>&1 || echo 'unknown'))"
 EXIT_CODE=0
+
+# --- P0-A: TEST MUHITI ------------------------------------------------------
+# Barcha testlar OFFLINE (tashqi AI kalitisiz, MockProvider bilan) ishlaydi,
+# shuning uchun Mock ruxsat etilgan muhit e'lon qilinadi.
+# BU PRODUCTION SIYOSATINI O'ZGARTIRMAYDI: ENVIRONMENT sozlanmagan yoki
+# "production" bo'lganda Mock zanjirdan butunlay chiqariladi (fail-closed) —
+# bu xatti-harakatni tests/production_safety_and_validator_test.py o'zi
+# ENVIRONMENT=production qilib tekshiradi.
+export ENVIRONMENT=test
 
 echo "=============================================================="
 echo " PostAssist V2 — TO'LIQ TEST O'TKAZISH (bash tests/run_tests.sh)"
@@ -450,6 +464,24 @@ echo "===== 3v) ⚡️ PHASE 13: YUKLAMA VA KONKURENTLIK (39-band) ====="
 # (6) Muhit 100 ta to'liq yuklamani ko'tarmasa → aniq
 #     "NOT TESTED — resource limit" qayd etiladi (soxta PASS yo'q).
 "$PY" tests/concurrency_load_test.py || EXIT_CODE=1
+
+echo
+echo "===== 3w) 🛡 PHASE A: PRODUCTION SAFETY & VALIDATOR HARDENING (P0-A/B/C) ====="
+# (1) P0-A — Mock production siyosati: ENVIRONMENT=production (default) + kalitlar
+#     yo'q bo'lsa MockProvider ISHLATILMAYDI (hatto aniq uzatilganda ham);
+#     zanjir oshkora NoConfiguredProviderError/AllProvidersFailedError beradi,
+#     orkestrator xavfsiz xabar («AI hozirda mavjud emas, iltimos keyinroq
+#     urinib ko'ring») qaytaradi va bronni TO'LIQ refund qiladi — soxta
+#     generatsiya yo'q; ENVIRONMENT=test yoki AI_ALLOW_MOCK=1 bo'lsa Mock
+#     qonuniy ishlaydi;
+# (2) P0-B — `len(retry_output) >= 20` bypass'i OLIB TASHLANDI: 20+ belgili
+#     yaroqsiz javob ham validator tomonidan rad etiladi, sikl qat'iy:
+#     urinish → validator → aynan 1 retry → validator → keyingi HAQIQIY
+#     provayder → barchasi yaroqsiz bo'lsa xato + to'liq refund;
+# (3) P0-C — prompt/retry ko'rsatmalari («MUHIM: Oldingi javob juda qisqa...»)
+#     provayder javobidan tozalanadi va foydalanuvchiga yetib bormaydi
+#     (tests/production_safety_and_validator_test.py).
+"$PY" tests/production_safety_and_validator_test.py || EXIT_CODE=1
 
 echo
 echo "======== 4) TO'LIQ REGRESSIYA (telegram_bot/tests) ========"
