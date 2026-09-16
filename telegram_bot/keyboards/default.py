@@ -718,16 +718,6 @@ def exact_i18n(*keys):
     return exact(*texts)
 
 
-
-def _image_post_label(lang: str) -> str:
-    """Image → Post reply-labelini foydalanuvchi tilida chizadi."""
-    code = normalize_lang(lang)
-    return {
-        "ru": BTN_IMAGE_POST_RU,
-        "en": BTN_IMAGE_POST_EN,
-    }.get(code, BTN_IMAGE_POST)
-
-
 def content_creation_rows(lang: str = "uz") -> list:
     """🧩 Kontent yaratish submenu qatorlari — DIQQATdagi aniq tartib.
 

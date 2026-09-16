@@ -40,7 +40,6 @@ from keyboards.callback_data import CB_POST_SCORE_EVAL, cb
 from keyboards.default import (
     get_cancel_keyboard,
     get_content_creation_keyboard,
-    get_main_keyboard,
 )
 from keyboards.inline import btn_label
 from locales.translations import clear_fsm_data, get_lang, safe_t

@@ -30,7 +30,6 @@ from utils.telegram_sanitizer import (
     TELEGRAM_TEXT_LIMIT, TELEGRAM_CAPTION_LIMIT,
 )
 from utils.helpers import (
-    get_channel_ad_next_async,
     get_channel_ad_next_full_async,
     should_show_channel_ad,
     apply_post_watermark,

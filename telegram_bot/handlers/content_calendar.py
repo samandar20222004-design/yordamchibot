@@ -1,5 +1,4 @@
 """SMART CONTENT CALENDAR: validation, entitlement and safe rendering."""
-from datetime import datetime, timezone
 from html import escape
 from translations.content_calendar import calendar_t
 

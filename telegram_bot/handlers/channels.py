@@ -7,7 +7,6 @@ from config import ADMIN_IDS_SET
 import database as db
 from keyboards.default import (
     get_cancel_keyboard, get_main_keyboard, get_tone_keyboard,
-    TONE_LABELS, TONE_LABELS_RU, BTN_BACK_RU,
     is_menu_text, tone_from_text, tone_labels,
 )
 from keyboards.callback_data import CB_CHANNEL_VOICE

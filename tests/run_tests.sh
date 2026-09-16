@@ -46,6 +46,10 @@
 #       multi-variant generator, kontent repurpose, chuqur post audit & score va
 #       kontent reja generatori — Phase 3 orchestrator + Phase 2 atomik kvota va
 #       HTML sanitizer bilan (tests/ai_advanced_features_test.py)
+#   3v) ⚡️ PHASE 13 — YUKLAMA VA KONKURENTLIK (39-band): 10/25/50/100 parallel
+#       virtual foydalanuvchi, semafor to'yintirilishi, bounded queue to'lganda
+#       fail-closed + refund, task/thread/pool/RSS leak tekshiruvi va parallel
+#       DB tranzaksiyalari (deadlock yo'q) (tests/concurrency_load_test.py)
 #   4) TO'LIQ regressiya: telegram_bot/tests/run_tests.sh (barcha 30+ test fayli)
 #
 # Har qanday xatoda 1 bilan chiqadi (CI uchun).
@@ -409,6 +413,29 @@ echo "===== 3u) 🚀 PHASE 11 & 12: AI ADVANCED SMM FEATURES (33, 48, 49, 50, 51
 #     atomic kvota API'si va services.ai eksportlari buzilmagan
 #     (tests/ai_advanced_features_test.py).
 "$PY" tests/ai_advanced_features_test.py || EXIT_CODE=1
+
+echo
+echo "===== 3v) ⚡️ PHASE 13: YUKLAMA VA KONKURENTLIK (39-band) ====="
+# (1) 10 / 25 / 50 (va muhit ko'tarsa 100) ta PARALLEL virtual foydalanuvchi
+#     to'liq AI oqimini yuradi: reserve_ai_quota (Phase 2 atomik bron) →
+#     AIOrchestrator → AIConcurrencyManager.run_with_queue → provayder →
+#     sanitizer. Har ssenariyda: javobsiz foydalanuvchi yo'q, DB_ERROR yo'q,
+#     bron qatorlari = muvaffaqiyat + rad, manfiy balans yo'q;
+# (2) SEMAFOR: navbat katta bo'lganda peak parallellik AYNAN
+#     MAX_AI_CONCURRENCY (<= emas, ==) — ortiqcha AI chaqiruvi chiqmaydi;
+# (3) BOUNDED QUEUE TO'LGANDA: fail-closed QUEUE_FULL + 3 tildagi muloyim
+#     xabar + bron TO'LIQ refund (refunded == queue_full) + menejer toza;
+# (4) RESURS LEAK: asyncio task leak yo'q, thread leak yo'q, DB pool
+#     ulanishlari qaytadi (used=0), 5×10 to'lqinli soak'da RSS barqaror;
+# (5) DB TRANZAKSIYALARI PARALLEL (deadlock yo'q): 50 parallel kvota bron
+#     (AYNAN kvota soni ruxsat), 10 parallel refund (AYNAN 1 marta qaytadi),
+#     25 parallel Stars to'lov (1 marta PRO), 10 parallel chek tasdiqlash,
+#     25 parallel referral (bonus double-grant yo'q, ledger zanjiri butun),
+#     10 parallel promo (max_uses buzilmaydi) va 50 job'lik ARALASH YUK
+#     (DB_POOL_MAX=5) — deadlock/starvation yo'q;
+# (6) Muhit 100 ta to'liq yuklamani ko'tarmasa → aniq
+#     "NOT TESTED — resource limit" qayd etiladi (soxta PASS yo'q).
+"$PY" tests/concurrency_load_test.py || EXIT_CODE=1
 
 echo
 echo "======== 4) TO'LIQ REGRESSIYA (telegram_bot/tests) ========"

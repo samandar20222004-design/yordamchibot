@@ -1,11 +1,10 @@
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 import pytz
-from telegram import Update, ReplyKeyboardMarkup
+from telegram import Update
 from telegram.ext import ContextTypes, ConversationHandler
 import database as db
 from keyboards.inline import (
-    render_pending_list,
     normalize_custom_reaction_emojis,
     DEFAULT_REACTION_EMOJIS,
 )
@@ -13,7 +12,7 @@ from keyboards.default import get_cancel_keyboard, get_main_keyboard, get_reacti
 from locales.translations import clear_fsm_data, get_lang, get_text
 from utils.date_format import format_datetime
 from utils.helpers import (
-    format_post_type_label, format_schedule_line, html_escape, check_rate_limit, parse_future_time,
+    html_escape, check_rate_limit,
     NAV_RATE_LIMIT_MAX, parse_reactions_input,
     parse_schedule_input, schedule_time_example, SCHEDULE_ERR_PAST,
 )

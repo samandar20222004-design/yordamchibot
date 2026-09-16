@@ -7,7 +7,6 @@ from telegram.ext import ContextTypes, ConversationHandler
 from config import ADMIN_IDS_SET
 import database as db
 from keyboards.default import (
-    BTN_BACK, BTN_MAIN_MENU,
     get_cancel_keyboard, get_main_keyboard, get_ai_time_keyboard,
     # 🧩 KONTENT YARATISH submenu'si (PostAssist V2) — yorliqlar va
     # MENU_TEXTS registry bilan bir xil manbadan chiziladi.
@@ -26,10 +25,8 @@ from utils.ai_agent import (
     generate_ai_response, audit_post, pick_supported_kwargs,
     VisionError, download_telegram_media_to_temp, cleanup_temp_media,
     generate_vision_post,
-    refine_post_pro, apply_pro_audit_stage,
+    refine_post_pro,
     PRO_TWO_STAGE_ENABLED,
-    _AUDIT_PRO_SYSTEM, _AUDIT_FREE_SYSTEM,
-    _PRO_POST_ENHANCEMENT, _FREE_POST_HINT,
 )
 # 🧩 Kontent yaratish bo'limi matnlari (uz/ru/en, paritet auditlangan).
 from translations import content_menu_t
@@ -42,7 +39,6 @@ from services.ai_quota import (
     ai_quota_temp_error_text,
     is_quota_exhausted,
     release_ai_quota,
-    reservation_source,
     reserve_for_flow,
     take_reservation_id,
 )
@@ -62,18 +58,6 @@ from utils.helpers import (
 logger = logging.getLogger(__name__)
 
 # b2c01d1 compatibility: get_user_subscription fallback
-async def _get_is_pro(user_id: int) -> bool:
-    try:
-        # Prefer is_premium if exists
-        return await db.run_db(db.is_premium, user_id)
-    except Exception:
-        try:
-            sub = await db.run_db(db.get_user_subscription, user_id)
-            if isinstance(sub, dict):
-                return bool(sub.get("is_pro") or sub.get("is_premium"))
-            return False
-        except Exception:
-            return False
 
 tashkent_tz = pytz.timezone("Asia/Tashkent")
 
