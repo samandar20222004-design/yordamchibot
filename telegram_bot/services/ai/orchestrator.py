@@ -6,11 +6,16 @@ Barcha qismlarni birlashtiruvchi markaz:
 1. Intent Routing (SMMIntentRouter)
 2. Quota Reserve (Phase 2 transactional reserve_ai_request)
 3. Concurrency & Bounded Queue (Phase 4/5 AIConcurrencyManager)
-4. Provider Fallback Chain (Gemini -> Groq -> OpenRouter -> Mock)
+4. Provider Fallback Chain (Gemini -> Groq -> OpenRouter; Mock faqat dev/test — P0-A)
 5. Output Validation (AIOutputValidator)
-6. Controlled 1-time Retry (kuchaytirilgan prompt bilan)
-7. HTML Sanitization (Phase 2 telegram_sanitizer.sanitize_html)
-8. Fail-Closed Refund (xatolikda yoki bekor qilishda kvotani to'liq qaytarish)
+6. Strict Quality Gate (P0-B): har bir provayder uchun
+   urinish -> validator -> AYNAN 1 retry -> validator -> keyingi HAQIQIY provayder;
+   barcha provayderlar yaroqsiz bo'lsa — xavfsiz xato + TO'LIQ refund.
+   Uzunlik (``len(...) >= 20``) hech qachon validatorni chetlab o'tmaydi.
+7. Prompt-leak himoyasi (P0-C): provayder javobidagi tizim/retry ko'rsatmalari
+   (``services.ai.prompt_guard``) foydalanuvchiga yetib bormaydi.
+8. HTML Sanitization (Phase 2 telegram_sanitizer.sanitize_html)
+9. Fail-Closed Refund (xatolikda yoki bekor qilishda kvotani to'liq qaytarish)
 """
 
 from __future__ import annotations
@@ -21,7 +26,13 @@ from typing import Any
 
 from .router import SMMIntent, detect_intent
 from .validator import AIOutputValidator
-from .providers import ProviderChain, MockProvider
+from .prompt_guard import sanitize_output
+from .providers import (
+    AllProvidersFailedError,
+    NoConfiguredProviderError,
+    ProviderChain,
+    ai_unavailable_message,
+)
 from .concurrency import (
     AIConcurrencyManager,
     AIQueueFullError,
@@ -93,6 +104,8 @@ class AIOrchestrationResult:
     error: str | None = None
     error_code: str | None = None
     generation_id: str | None = None
+    #: AI umuman ishlamaganda foydalanuvchiga ko'rsatiladigan xavfsiz xabar (P0-A).
+    user_message: str | None = None
 
 
 class AIOrchestrator:
@@ -167,46 +180,104 @@ class AIOrchestrator:
         raw_output = ""
         provider_used = "none"
 
-        # 3. Provider Chain Execution ichki korutinasi
+        # 3. Provider Chain Execution ichki korutinasi — QAT'IY SIFAT SIKLI (P0-B)
         async def _execute_ai():
+            """Bitta provayder → validator → AYNAN 1 retry → validator.
+
+            P0-B: ilgari bu yerda ``if val_second.is_valid or len(retry_output) >= 20:``
+            bypass'i bor edi — 20+ belgili HAR QANDAY yaroqsiz javob (masalan
+            ``<script>...`` yoki til mos kelmaydigan matn) qabul qilinardi.
+            Endi uzunlik validator qoidasini CHETLAB O'TMAYDI.
+
+            P0-A: Mock faqat ``ProviderChain.usable_providers()`` ruxsat bergan
+            muhitda (dev/test yoki AI_ALLOW_MOCK=1) sinaladi; production'da esa
+            haqiqiy provayderlar tugashi bilan halol xato ko'tariladi.
+
+            P0-C: har bir javob ``sanitize_output()`` orqali tozalanadi —
+            tizim/retry ko'rsatmalari validator va foydalanuvchiga yetib bormaydi.
+            """
             nonlocal retried
-            raw, provider = await self.provider_chain.execute(prompt, ctx)
-
-            # 4. Output Validation
-            val_res = self.validator.validate(raw, expected_lang=lang)
-
-            # 5. Controlled Retry (Aniq 1 marta)
-            if not val_res.is_valid and val_res.needs_retry:
-                logger.info(
-                    "Validatsiya xatosi (%s: %s). 1 martalik kuchaytirilgan retry yuborilmoqda...",
-                    val_res.error_code, val_res.reason,
+            providers = self.provider_chain.usable_providers()
+            if not providers:
+                raise NoConfiguredProviderError(
+                    "AI provayderlari sozlanmagan yoki Mock taqiqlangan muhit."
                 )
-                retried = True
-                addon = self.validator.get_retry_prompt_addon(val_res.error_code, expected_lang=lang)
-                boosted_prompt = f"{prompt}\n{addon}"
-                retry_ctx = dict(ctx)
-                retry_ctx["is_retry"] = True
 
-                try:
-                    retry_output, retry_provider = await self.provider_chain.execute(boosted_prompt, retry_ctx)
-                    val_second = self.validator.validate(retry_output, expected_lang=lang)
-                    if val_second.is_valid or len(retry_output) >= 20:
-                        raw = retry_output
-                        provider = retry_provider
-                    else:
-                        mock = MockProvider()
-                        raw = await mock.generate(prompt, ctx)
-                        provider = f"{retry_provider}+mock_safe"
-                except Exception as retry_err:
-                    logger.warning("Retry muvaffaqiyatsiz bo'ldi, Mock fallback ishlatiladi: %s", retry_err)
-                    mock = MockProvider()
-                    raw = await mock.generate(prompt, ctx)
-                    provider = "MockFallback"
+            quality_failures: list[str] = []
 
-            return raw, provider
+            for provider in providers:
+                retry_addon: str | None = None
+
+                # Har bir provayder uchun maksimum 2 chaqiruv: 1 urinish + 1 retry
+                for attempt in (1, 2):
+                    attempt_prompt = prompt
+                    attempt_ctx = dict(ctx)
+                    if attempt == 2:
+                        attempt_prompt = f"{prompt}\n{retry_addon}"
+                        attempt_ctx["is_retry"] = True
+
+                    try:
+                        logger.info("AI chaqiruvi: provider=%s, attempt=%s", provider.name, attempt)
+                        candidate = await provider.generate(attempt_prompt, attempt_ctx)
+                    except Exception as prov_err:  # noqa: BLE001 — keyingi provayderga o'tamiz
+                        logger.warning("Provayder %s xatosi: %s. Keyingisiga o'tilmoqda...",
+                                       provider.name, prov_err)
+                        quality_failures.append(f"{provider.name}: {prov_err}")
+                        break
+
+                    # P0-C: ko'rsatma sizib chiqishini tozalash (validator ham,
+                    # foydalanuvchi ham faqat toza matnni ko'radi)
+                    clean_candidate, leak_found = sanitize_output(candidate)
+                    if leak_found:
+                        logger.warning(
+                            "P0-C: %s javobidan tizim/retry ko'rsatmasi tozalandi "
+                            "(user=%s, gen=%s)", provider.name, user_id, gen_id)
+
+                    val_res = self.validator.validate(clean_candidate, expected_lang=lang)
+                    if val_res.is_valid:
+                        return clean_candidate, provider.name
+
+                    # LENGTH_EXCEEDED — sifat emas, HAJM muammosi: xavfsiz
+                    # kesib, QAYTA validatsiya qilamiz (qoida chetlab o'tilmaydi).
+                    if val_res.error_code == "LENGTH_EXCEEDED":
+                        truncated = clean_candidate[: self.validator.MAX_TELEGRAM_LENGTH]
+                        val_truncated = self.validator.validate(truncated, expected_lang=lang)
+                        if val_truncated.is_valid:
+                            logger.info("Javob %s belgiga kesildi (LENGTH_EXCEEDED)",
+                                        self.validator.MAX_TELEGRAM_LENGTH)
+                            return truncated, provider.name
+
+                    quality_failures.append(f"{provider.name}[{val_res.error_code}]")
+                    logger.warning(
+                        "Validatsiya rad etdi: provider=%s, attempt=%s, code=%s (%s)",
+                        provider.name, attempt, val_res.error_code, val_res.reason)
+
+                    if attempt == 1 and val_res.needs_retry:
+                        retried = True
+                        retry_addon = self.validator.get_retry_prompt_addon(
+                            val_res.error_code, expected_lang=lang)
+                        continue
+                    break
+
+            raise AllProvidersFailedError(
+                "Barcha AI provayderlari yaroqsiz javob qaytardi: "
+                + ("; ".join(quality_failures) or "sabab noma'lum")
+            )
 
         # Concurrency & Bounded Queue orqali bajarish
         cm = ctx.get("concurrency_manager") or self.concurrency_manager
+
+        async def _refund_kvota(reason: str) -> None:
+            """Bron qilingan kvotani TO'LIQ qaytarish (fail-closed, idempotent)."""
+            if db is None or not user_id or not reservation_id:
+                return
+            try:
+                from services.ai_quota import release_ai_quota
+                await release_ai_quota(db, user_id, reservation_id)
+                logger.info("Kvota bron %s foydalanuvchiga qaytarildi (%s)",
+                            reservation_id, reason)
+            except Exception as ref_err:  # noqa: BLE001
+                logger.error("Kvota qaytarishda xatolik (%s): %s", reason, ref_err)
 
         try:
             if ctx.get("skip_queue"):
@@ -243,12 +314,7 @@ class AIOrchestrator:
 
         except AIQueueFullError as q_err:
             logger.warning("AI Queue to'ldi (user=%s): %s", user_id, q_err)
-            if db is not None and user_id and reservation_id:
-                try:
-                    from services.ai_quota import release_ai_quota
-                    await release_ai_quota(db, user_id, reservation_id)
-                except Exception as ref_err:
-                    logger.error("Queue full paytida kvota qaytarishda xato: %s", ref_err)
+            await _refund_kvota("queue_full")
             return AIOrchestrationResult(
                 success=False,
                 intent=intent,
@@ -260,12 +326,7 @@ class AIOrchestrator:
 
         except (AITaskCancelledError, asyncio.CancelledError):
             logger.info("AI so'rovi bekor qilindi (user=%s, gen_id=%s)", user_id, gen_id)
-            if db is not None and user_id and reservation_id:
-                try:
-                    from services.ai_quota import release_ai_quota
-                    await release_ai_quota(db, user_id, reservation_id)
-                except Exception as ref_err:
-                    logger.error("Cancellation paytida kvota qaytarishda xato: %s", ref_err)
+            await _refund_kvota("cancelled")
             return AIOrchestrationResult(
                 success=False,
                 intent=intent,
@@ -275,22 +336,38 @@ class AIOrchestrator:
                 generation_id=gen_id,
             )
 
-        except Exception as exc:
-            logger.error("AI orkestratsiya jarayonida halokatli xato: %s", exc)
-            # Fail-closed: kvota qaytariladi
-            if db is not None and user_id and reservation_id:
-                try:
-                    from services.ai_quota import release_ai_quota
-                    await release_ai_quota(db, user_id, reservation_id)
-                    logger.info("Kvota bron %s foydalanuvchiga muvaffaqiyatli qaytarildi", reservation_id)
-                except Exception as ref_err:
-                    logger.error("Kvota qaytarishda xatolik: %s", ref_err)
+        except NoConfiguredProviderError as no_prov_err:
+            # P0-A: production'da haqiqiy provayder yo'q — soxta generatsiya YO'Q,
+            # foydalanuvchiga xavfsiz xabar + TO'LIQ refund.
+            logger.error("P0-A: AI provayderlari sozlanmagan (user=%s): %s",
+                         user_id, no_prov_err)
+            await _refund_kvota("ai_unavailable")
+            return AIOrchestrationResult(
+                success=False,
+                intent=intent,
+                error=str(no_prov_err),
+                error_code="AI_UNAVAILABLE",
+                user_message=ai_unavailable_message(lang),
+                reservation_id=reservation_id,
+                generation_id=gen_id,
+            )
 
+        except Exception as exc:
+            unavailable = isinstance(exc, AllProvidersFailedError)
+            if unavailable:
+                # P0-A/P0-B: barcha HAQIQIY provayderlar yiqildi yoki yaroqsiz
+                # javob qaytardi — Mock ishlatilmaydi, kvota TO'LIQ qaytariladi.
+                logger.error("AI provayderlari ishlamadi (user=%s): %s", user_id, exc)
+            else:
+                logger.error("AI orkestratsiya jarayonida halokatli xato: %s", exc)
+            # Fail-closed: kvota qaytariladi
+            await _refund_kvota("orchestration_failed")
             return AIOrchestrationResult(
                 success=False,
                 intent=intent,
                 error=str(exc),
                 error_code="ORCHESTRATION_FAILED",
+                user_message=ai_unavailable_message(lang) if unavailable else None,
                 provider_used=provider_used,
                 retried=retried,
                 reservation_id=reservation_id,

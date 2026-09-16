@@ -27,6 +27,9 @@ sys.path.insert(0, str(ROOT))
 os.environ.setdefault("BOT_TOKEN", "123456:AI_ORCHESTRATOR_TOKEN")
 os.environ.setdefault("DATABASE_URL", "postgresql://user:pass@localhost:5432/testdb")
 os.environ.setdefault("ADMIN_ID", "123456789")
+# P0-A: bu test to'plami MockProvider bilan OFFLINE ishlaydi — test muhitini
+# e'lon qilamiz (production'da Mock taqiqlangan, gate buzilmaydi).
+os.environ.setdefault("ENVIRONMENT", "test")
 
 from services.ai.router import SMMIntent, detect_intent
 from services.ai.validator import AIOutputValidator

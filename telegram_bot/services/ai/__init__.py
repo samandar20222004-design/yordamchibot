@@ -14,11 +14,22 @@ from .router import SMMIntent, detect_intent, SMMIntentRouter
 from .providers import (
     AIProvider,
     AIProviderError,
+    AllProvidersFailedError,
     GeminiProvider,
     GroqProvider,
+    NoConfiguredProviderError,
     OpenRouterProvider,
     MockProvider,
     ProviderChain,
+    ai_unavailable_message,
+    get_environment,
+    mock_is_allowed,
+)
+# 🛡 PHASE A (P0-C) — prompt/retry ko'rsatmalarining sizib chiqishidan himoya.
+from .prompt_guard import (
+    has_instruction_leak,
+    sanitize_output,
+    strip_instruction_leaks,
 )
 from .validator import AIOutputValidator, ValidationResult
 from .orchestrator import AIOrchestrator, AIOrchestrationResult
@@ -82,11 +93,20 @@ __all__ = [
     "SMMIntentRouter",
     "AIProvider",
     "AIProviderError",
+    "AllProvidersFailedError",
+    "NoConfiguredProviderError",
     "GeminiProvider",
     "GroqProvider",
     "OpenRouterProvider",
     "MockProvider",
     "ProviderChain",
+    # --- PHASE A: production safety (P0-A / P0-C) ----------------------------
+    "get_environment",
+    "mock_is_allowed",
+    "ai_unavailable_message",
+    "has_instruction_leak",
+    "sanitize_output",
+    "strip_instruction_leaks",
     "AIOutputValidator",
     "ValidationResult",
     "AIOrchestrator",
