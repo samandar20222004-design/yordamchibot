@@ -377,8 +377,9 @@ def test_payment_process_stars_payment():
     print("== PaymentService.process_stars_payment ==")
     from services.payment_service import PaymentService
 
-    # SELECT 1 (fetchone) → (1,), INSERT RETURNING id (fetchone) → (1,)
-    _reset_cur(rows=[(1,), (1,)])
+    # PHASE 9: SELECT user FOR UPDATE → (1,), SELECT charge_id FOR UPDATE → None (new),
+    # INSERT RETURNING id → (1,)
+    _reset_cur(rows=[(1,), None, (1,)])
     with patch("services.payment_service.db_cursor", _make_mock_dc()), \
          patch("services.payment_service._invalidate_user"), \
          patch("services.payment_service._cache_clear"):
@@ -411,8 +412,10 @@ def test_payment_process_stars_duplicate():
     print("== PaymentService.process_stars_payment (takroriy) ==")
     from services.payment_service import PaymentService
 
-    # SELECT 1 → (1,), INSERT RETURNING → None (UNIQUE conflict)
-    _reset_cur(rows=[(1,), None])
+    # PHASE 9: SELECT user FOR UPDATE → (1,), SELECT charge_id FOR UPDATE → (1,) (duplicate)
+    # yoki SELECT charge None + INSERT None (race). Ikkala holat ham duplicate.
+    # Bu test birinchi holatni tekshiradi (charge_id allaqachon mavjud).
+    _reset_cur(rows=[(1,), (1,)])
     with patch("services.payment_service.db_cursor", _make_mock_dc()):
         result = PaymentService.process_stars_payment(
             12345, "charge_dup", 75, "sub_stars_1m_12345", "pro", 30
@@ -446,8 +449,9 @@ def test_payment_process_receipt_approve():
     print("== PaymentService.process_receipt (approve) ==")
     from services.payment_service import PaymentService
 
-    # _approve_receipt: SELECT → ("pending", uid, 30), SELECT lang → ("uz",)
-    _reset_cur(rows=[("pending", 12345, 30), ("uz",)])
+    # PHASE 9: SELECT receipt FOR UPDATE → (pending, uid, 30, amount, order_id),
+    # SELECT payment_orders FOR UPDATE → (pending,), SELECT lang → (uz,)
+    _reset_cur(rows=[("pending", 12345, 30, 19000, "order-1"), ("pending",), ("uz",)])
     with patch("services.payment_service.db_cursor", _make_mock_dc()), \
          patch("services.payment_service._invalidate_user"), \
          patch("services.payment_service._cache_clear"), \
@@ -464,7 +468,8 @@ def test_payment_process_receipt_approve_default_days():
     print("== PaymentService.process_receipt (default days) ==")
     from services.payment_service import PaymentService
 
-    _reset_cur(rows=[("pending", 55555, 0), ("ru",)])
+    # PHASE 9: receipt + order status + lang
+    _reset_cur(rows=[("pending", 55555, 0, 0, "order-2"), ("pending",), ("ru",)])
     with patch("services.payment_service.db_cursor", _make_mock_dc()), \
          patch("services.payment_service._invalidate_user"), \
          patch("services.payment_service._cache_clear"), \

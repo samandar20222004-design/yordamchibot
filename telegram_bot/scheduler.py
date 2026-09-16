@@ -436,12 +436,17 @@ def clear_channel_flood(channel_id=None) -> None:
 
 
 # --- Avto-o'chirish xatolarini tasniflash -----------------------------------
-_DELETE_GONE_PATTERNS = (
+# PHASE 9 & 10: MessageNotFound vs Forbidden xavfsiz ajratiladi.
+# Ikkalasi ham qayta urinilmaydi, lekin monitoringda farqlanadi.
+_DELETE_NOT_FOUND_PATTERNS = (
     "message to delete not found",
     "message_id_invalid",
+    "message identifier is not specified",
     "message can't be deleted",
     "message cant be deleted",
-    "message identifier is not specified",
+)
+
+_DELETE_FORBIDDEN_PATTERNS = (
     "chat not found",
     "chat_not_found",
     "bot was kicked",
@@ -451,29 +456,46 @@ _DELETE_GONE_PATTERNS = (
     "channel_private",
     "chat_write_forbidden",
     "message_delete_forbidden",
+    "bot was blocked",
+    "bot is blocked",
+    "forbidden",
+    "user is deactivated",
+    "chat is deactivated",
 )
+
+# Eski nom — backward compat (testlar import qilishi mumkin)
+_DELETE_GONE_PATTERNS = _DELETE_NOT_FOUND_PATTERNS + _DELETE_FORBIDDEN_PATTERNS
 
 
 def classify_delete_error(error) -> str:
-    """Avto-o'chirish xatosi: ``"gone"`` (xabar yo'q / qayta urinish foydasiz)
-    yoki ``"transient"`` (tarmoq/FloodWait/noma'lum — keyinroq qayta uriniladi).
+    """Avto-o'chirish xatosi tasnifi (PHASE 9 & 10).
 
-    Faqat ``gone`` bo'lgandagina DB'da ``deleted_at`` yoziladi; vaqtinchalik
-    xatoda xabar hali kanalda deb hisoblanadi va o'chirish kechiktiriladi.
+    Qaytadi:
+      * ``"gone"``       — xabar topilmadi / allaqachon o'chirilgan (MessageNotFound)
+      * ``"forbidden"``   — bot cheklangan / huquq yo'q (Forbidden, BotKicked)
+      * ``"transient"``   — vaqtinchalik (tarmoq, FloodWait, TimedOut)
+
+    Faqat ``transient`` bo'lmaganda DB'da ``deleted_at`` yoziladi. ``gone`` va
+    ``forbidden`` ikkalasi ham qayta urinilmaydi, lekin log'da ajratiladi.
     """
     if error is None:
         return "gone"
     if isinstance(error, (RetryAfter, TimedOut)):
         return "transient"
     text = str(error).lower()
-    if any(p in text for p in _DELETE_GONE_PATTERNS):
+    if any(p in text for p in _DELETE_NOT_FOUND_PATTERNS):
         return "gone"
-    # DIQQAT: PTB'da BadRequest — NetworkError'ning subklassi, shuning uchun
-    # avval nom bo'yicha tekshiriladi: BadRequest/Forbidden — doimiy (xabar
-    # yo'q yoki huquq yo'q), qayta-qayta urinish foydasiz → 'gone'.
+    if any(p in text for p in _DELETE_FORBIDDEN_PATTERNS):
+        return "forbidden"
+    # PTB'da BadRequest — NetworkError subklassi, nom bo'yicha avval tekshiramiz
     name = type(error).__name__.lower()
-    if isinstance(error, TelegramError) and ("badrequest" in name or "forbidden" in name):
-        return "gone"
+    if isinstance(error, TelegramError):
+        if "forbidden" in name:
+            return "forbidden"
+        if "badrequest" in name:
+            if any(p in text for p in _DELETE_FORBIDDEN_PATTERNS):
+                return "forbidden"
+            return "gone"
     if isinstance(error, NetworkError):
         return "transient"
     return "transient"
@@ -1319,8 +1341,15 @@ async def check_and_delete_expired_posts(bot):
                     )
                     await _defer_deletion(pid, delay)
                     continue
-                # Xabar topilmadi / o'chirib bo'lmaydi — qayta urinish foydasiz.
-                logger.warning(f"Avto-o'chirish: xabar topilmadi yoki o'chirib bo'lmaydi (Post {pid}): {e}")
+                # PHASE 9 & 10: gone (MessageNotFound) vs forbidden (bot kicked / no rights)
+                # ikkalasi ham qayta urinilmaydi, lekin log'da ajratiladi (diagnostika).
+                if kind == "forbidden":
+                    logger.warning(
+                        "Avto-o'chirish: bot huquqi yo'q / kanal topilmadi (Post %s): %s — qayta urinilmaydi",
+                        pid, e,
+                    )
+                else:
+                    logger.warning(f"Avto-o'chirish: xabar topilmadi yoki o'chirib bo'lmaydi (Post {pid}): {e}")
             await _mark_deleted_safe(pid)
     except Exception:
         logger.exception("Avto-o'chirish ishida kutilmagan xato")

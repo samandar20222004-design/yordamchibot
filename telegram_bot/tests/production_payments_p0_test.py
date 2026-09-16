@@ -147,14 +147,21 @@ class TestStarsIdempotencyMock(unittest.TestCase):
             def execute(self, sql, params=None):
                 self._sql = sql
                 self.rowcount = 1
-                if "INSERT INTO payments" in str(sql):
+                sql_s = str(sql)
+                if "FROM payments WHERE telegram_payment_charge_id" in sql_s and "FOR UPDATE" in sql_s:
+                    # PHASE 9: first SELECT returns None (new charge), subsequent returns id
+                    if inserted["n"] == 0:
+                        self._ret = None
+                    else:
+                        self._ret = (1,)
+                elif "INSERT INTO payments" in sql_s:
                     if inserted["n"] == 0:
                         inserted["n"] = 1
                         self._ret = (1,)
                     else:
                         self._ret = None
                         self.rowcount = 0
-                elif "SELECT 1 FROM users" in str(sql):
+                elif "SELECT 1 FROM users" in sql_s:
                     self._ret = (1,)
                 else:
                     self._ret = (1,)
@@ -202,7 +209,13 @@ class TestReceiptPendingOnly(unittest.TestCase):
                 self._sql = sql
                 sql_l = str(sql)
                 if "FROM payment_receipts" in sql_l and "FOR UPDATE" in sql_l:
-                    self._ret = (state["status"], 99, 30, 19000)
+                    # PHASE 9: now returns 5 cols (status, user_id, days, amount, order_id)
+                    self._ret = (state["status"], 99, 30, 19000, "order-123")
+                elif "FROM payment_orders" in sql_l and "FOR UPDATE" in sql_l:
+                    self._ret = (state.get("order_status", "pending"),)
+                elif "SELECT order_id, status FROM payment_orders" in sql_l:
+                    self._ret = None
+                    self._rows = []
                 elif "UPDATE payment_receipts SET status = 'approved'" in sql_l:
                     if state["status"] != RECEIPT_STATUS_PENDING:
                         self.rowcount = 0
@@ -212,6 +225,9 @@ class TestReceiptPendingOnly(unittest.TestCase):
                         state["updates"] += 1
                         self.rowcount = 1
                         self._ret = None
+                elif "UPDATE payment_orders SET status = 'approved'" in sql_l:
+                    self.rowcount = 1
+                    self._ret = None
                 elif "UPDATE users SET plan_type" in sql_l:
                     self.rowcount = 1
                     self._ret = None
@@ -220,6 +236,9 @@ class TestReceiptPendingOnly(unittest.TestCase):
                 else:
                     self.rowcount = 1
                     self._ret = None
+
+            def fetchall(self):
+                return getattr(self, "_rows", [])
 
             def fetchone(self):
                 return self._ret
