@@ -47,27 +47,3 @@ async def health_command(update, context) -> None:
         await update.effective_message.reply_text(report, parse_mode="HTML")
     except Exception as e:
         logger.warning("health: hisobot yuborilmadi: %s", e)
-
-
-async def admin_health_callback(update, context) -> None:
-    """Admin inline tugmasi uchun zaxira (``adm_health``) — hozircha
-    dashboardda tugma YO'Q (ixcham layout saqlanadi), lekin callback
-    xavfsiz ishlaydi: xuddi shu RBAC tekshiruvi + hisobot."""
-    from services.rbac_service import has_permission
-
-    query = getattr(update, "callback_query", None)
-    user = getattr(update, "effective_user", None)
-    user_id = getattr(user, "id", None)
-    if not has_permission(user_id, PERM_SYSTEM_SETTINGS):
-        if query is not None:
-            try:
-                await query.answer(HEALTH_DENIED_MESSAGE, show_alert=True)
-            except Exception:
-                pass
-        return
-    if query is not None:
-        try:
-            await query.answer()
-        except Exception:
-            pass
-    await health_command(update, context)

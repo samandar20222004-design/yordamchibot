@@ -23,15 +23,14 @@ PostAssist V2 · 4-mikro qadam. Bo'lim master plan standartiga keltirildi:
 Modul slot sozlamalarini (``qslots:``) ham saqlaydi — u avtomatik
 rejalashtirish vaqtlarini belgilaydi va o'z ekranida ishlaydi.
 """
-import json
 import logging
 from datetime import datetime, timedelta
 import pytz
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes, ConversationHandler
 from config import ADMIN_IDS_SET
 import database as db
-from keyboards.default import get_main_keyboard, get_cancel_keyboard, is_menu_text
+from keyboards.default import get_cancel_keyboard, is_menu_text
 from keyboards.callback_data import cb
 from keyboards.inline import (
     render_scheduled_actions,

@@ -20,17 +20,63 @@ from dataclasses import dataclass
 from typing import Any
 
 from .router import SMMIntent, detect_intent
-from .validator import AIOutputValidator, ValidationResult
-from .providers import ProviderChain, AIProvider, AIProviderError, MockProvider
+from .validator import AIOutputValidator
+from .providers import ProviderChain, MockProvider
 from .concurrency import (
     AIConcurrencyManager,
     AIQueueFullError,
     AITaskCancelledError,
-    AIQueueTimeoutError,
     ai_concurrency_manager,
 )
 
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Intent → AI kvota operatsiya turi (Phase 2 ``database.AI_OPERATION_TYPES``)
+# ---------------------------------------------------------------------------
+# MUHIM (P0, Phase 13 yuklama testida topildi): ilgari bu yerda
+# ``f"ai_{intent.value.lower()}"`` (masalan ``ai_create_post``) yuborilar edi,
+# ammo ``database.AI_OPERATION_TYPES`` oq ro'yxatida bunday qiymat YO'Q.
+# Natijada ``reserve_ai_request`` har doim ``invalid_request`` bilan rad etar
+# va ``orchestrate(db_module=<haqiqiy database>)`` HECH QACHON ishlamas edi
+# (fail-closed, lekin 100% rad). Mavjud testlar ``reserve_ai_quota`` ni mock
+# qilgani yoki ``db_module=False`` uzatgani uchun bu holat ko'rinmas edi.
+#
+# Endi har bir intent oq ro'yxatdagi aniq operatsiya turiga tushiriladi va
+# ``_quota_operation_type()`` javobni ishga tushish vaqtida ham oq ro'yxat
+# bo'yicha tekshiradi (kelajakda ro'yxat o'zgarsa ham rad javobi qaytmaydi).
+INTENT_QUOTA_OPERATIONS: dict[SMMIntent, str] = {
+    SMMIntent.CREATE_POST: "magic_post",
+    SMMIntent.IMPROVE_POST: "post_enhancer",
+    SMMIntent.SHORTEN: "post_enhancer",
+    SMMIntent.EXPAND: "post_enhancer",
+    SMMIntent.GENERATE_VARIANTS: "magic_post",
+    SMMIntent.POST_AUDIT: "post_score",
+    SMMIntent.CONTENT_IDEAS: "content_calendar",
+    SMMIntent.UNKNOWN: "ai_chat",
+}
+
+#: Xarita topilmasa ishlatiladigan xavfsiz standart (oq ro'yxatda bor).
+DEFAULT_QUOTA_OPERATION = "ai_chat"
+
+
+def _quota_operation_type(intent: SMMIntent) -> str:
+    """Intent uchun ``database.AI_OPERATION_TYPES`` ga mos operatsiya turi."""
+    op = INTENT_QUOTA_OPERATIONS.get(intent, DEFAULT_QUOTA_OPERATION)
+    try:
+        import database as _db
+        allowed = tuple(getattr(_db, "AI_OPERATION_TYPES", ()) or ())
+    except Exception:  # noqa: BLE001 — database import qilinmasa ham ishlashi kerak
+        allowed = ()
+    if allowed:
+        base = str(op or "").split(":", 1)[0].lower()
+        if base not in allowed:
+            logger.warning(
+                "Kvota operatsiya turi oq ro'yxatda yo'q (%s) — standart '%s' "
+                "ishlatiladi", op, DEFAULT_QUOTA_OPERATION)
+            op = DEFAULT_QUOTA_OPERATION
+    return op
 
 
 @dataclass
@@ -95,7 +141,8 @@ class AIOrchestrator:
         if should_check_quota and user_id and user_id > 0 and db is not None:
             try:
                 from services.ai_quota import reserve_ai_quota
-                res = await reserve_ai_quota(db, user_id, f"ai_{intent.value.lower()}", 1)
+                res = await reserve_ai_quota(
+                    db, user_id, _quota_operation_type(intent), 1)
                 if not res.get("allowed"):
                     logger.warning("AI kvotasi yetarli emas (user=%s, reason=%s)", user_id, res.get("reason"))
                     return AIOrchestrationResult(

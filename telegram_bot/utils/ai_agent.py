@@ -14,7 +14,12 @@ import pytz
 import aiohttp
 from config import (
     BOT_TOKEN,
-    GEMINI_API_KEY, GROQ_API_KEY, OPENROUTER_API_KEY,
+    GEMINI_API_KEY,
+    # Provayder kalitlari — bu modul ularning YAGONA nuqtasi sifatida
+    # qayta eksport qiladi: runtime'da provayder zanjiri shu nomlar orqali
+    # kalitni tekshiradi, testlar esa `ai_agent.<KEY>` ni monkeypatch qiladi
+    # (shu sababli ular "ishlatilmagan import" EMAS — public sirt).
+    GROQ_API_KEY, OPENROUTER_API_KEY,
     MISTRAL_API_KEY, CEREBRAS_API_KEY,
     SAMBANOVA_API_KEY, CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID,
 )

@@ -11,11 +11,10 @@ from keyboards.default import (
     # panelga o'tkazildi. Funksiya API mosligi uchun `keyboards.default`
     # da qoldi va endi har doim ReplyKeyboardRemove qaytaradi.
     get_main_keyboard,
-    BTN_MAIN_MENU, BTN_CANCEL,
     is_menu_text,
 )
 from keyboards.inline import (
-    get_sponsors_delete_keyboard, get_cache_actions_keyboard,
+    get_cache_actions_keyboard,
     get_admin_dashboard_keyboard, get_admin_back_keyboard,
     get_admin_monitoring_keyboard,
     get_ad_pool_menu_keyboard, get_ad_pool_delete_keyboard,

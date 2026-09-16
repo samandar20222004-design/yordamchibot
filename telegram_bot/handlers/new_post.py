@@ -14,7 +14,7 @@ from keyboards.default import (
     BTN_SKIP_BUTTON, BTN_SKIP_URL_BUTTON,
     BTN_SKIP_BUTTON_RU, BTN_SKIP_URL_BUTTON_RU,
     get_main_keyboard, get_cancel_keyboard, get_button_prompt_keyboard,
-    get_reactions_keyboard, get_auto_delete_keyboard, get_time_keyboard,
+    get_auto_delete_keyboard, get_time_keyboard,
     get_duration_keyboard, get_weekday_keyboard,
     # 🌐 Uch tilli tugma registry (uz/ru/en) — barcha matn solishtiruvlari
     # shu yerdan foydalanadi, shunda klaviatura qaysi tilda chizilganiga
@@ -31,7 +31,7 @@ from keyboards.inline import (
     REACTION_EMOJIS,
 )
 from utils.helpers import (
-    html_escape, parse_future_time, safe_html, parse_reactions_input,
+    html_escape, safe_html, parse_reactions_input,
     get_auto_ad_injection_async, keep_typing,
     parse_schedule_input, parse_daily_time_input, schedule_time_example,
     SCHEDULE_ERR_PAST,
@@ -1446,75 +1446,6 @@ async def auto_delete_received(update: Update, context: ContextTypes.DEFAULT_TYP
 def _content_for_db(content, reaction_emojis):
     """DB'ga yoziladigan matn: reaksiya glyph'lari caption'ga qo'shilmaydi."""
     return strip_leading_reaction_glyphs(content, reaction_emojis)
-
-
-async def _save_and_finish(update, context, post_time, recurrence_type='none', recurrence_day=None, recurrence_time_str=None, end_date=None):
-    is_admin = (update.effective_user.id in ADMIN_IDS_SET)
-    user_id = update.effective_user.id
-    selected_channel_id = context.user_data["selected_channel_id"]
-    channel_title = context.user_data.get("selected_channel_title", "Kanal")
-    # 🖼 ALBOM: sendMediaGroup'ga inline_keyboard ulanmaydi — albom uchun
-    # tugma/reaksiya opsiyalari DB'ga yozilmaydi (kanalda "🔗" xizmat
-    # xabari chiqib qolmasligi uchun). Yakka media/matn postlariga ta'siri yo'q.
-    _strip_unsupported_album_options(context)
-    post_type = context.user_data["post_type"]
-    reaction_emojis = context.user_data.get("reaction_emojis")
-    content = _content_for_db(context.user_data.get("content"), reaction_emojis)
-    file_id = context.user_data.get("file_id")
-    btn_text = context.user_data.get("btn_text")
-    btn_url = context.user_data.get("btn_url")
-    enable_reactions = context.user_data.get("enable_reactions", False)
-    delete_after_hours = context.user_data.get("delete_after_hours", 0)
-
-    post_time_tz = post_time.astimezone(tashkent_tz)
-    channels = (
-        await db.run_db(db.get_user_channels, user_id)
-        if selected_channel_id == "ALL"
-        else [(selected_channel_id, channel_title)]
-    )
-    ok_count = 0
-
-    for ch_id, _ in channels:
-        pid = await db.run_db(
-            db.add_post,
-            user_id=user_id, channel_id=ch_id, post_type=post_type, content=content,
-            file_id=file_id, scheduled_time=post_time_tz, recurrence_type=recurrence_type,
-            recurrence_day=recurrence_day, recurrence_time=recurrence_time_str, end_date=end_date,
-            btn_text=btn_text, btn_url=btn_url, enable_reactions=enable_reactions,
-                    reaction_emojis=reaction_emojis,
-            delete_after_hours=delete_after_hours
-        )
-        if pid:
-            ok_count += 1
-
-    lang = get_lang(context)
-    if ok_count:
-        if recurrence_type == 'daily':
-            when_text = get_text("np_scheduled_when_daily", lang,
-                                 time=format_time(recurrence_time_str, lang))
-        elif recurrence_type == 'weekly':
-            when_text = get_text("np_scheduled_when_weekly", lang,
-                                 day=weekday_label(recurrence_day, lang),
-                                 time=format_time(recurrence_time_str, lang))
-        else:
-            when_text = get_text("np_scheduled_when_single", lang,
-                                 time=format_datetime(post_time_tz, lang))
-
-        del_info = get_text("np_scheduled_del", lang, hours=delete_after_hours) if delete_after_hours > 0 else ""
-        await update.message.reply_text(
-            get_text("np_scheduled_ok", lang,
-                     channel=html_escape(channel_title), when=when_text, del_info=del_info),
-            reply_markup=get_main_keyboard(is_admin, context=context),
-            parse_mode="HTML"
-        )
-    else:
-        await update.message.reply_text(
-            get_text("np_save_error", lang),
-            reply_markup=get_main_keyboard(is_admin, context=context),
-            parse_mode="HTML"
-        )
-    cancel_album_collections(user_id)
-    clear_fsm_data(context)
 
 async def time_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     lang = get_lang(context)

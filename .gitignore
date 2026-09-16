@@ -1,6 +1,51 @@
+# --- Python ---
 __pycache__/
 *.py[cod]
-.env
-*.db
+*$py.class
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# --- Virtual muhitlar ---
 .venv/
 venv/
+env/
+
+# --- Maxfiy sozlamalar (hech qachon commit qilinmaydi) ---
+.env
+.env.*
+!.env.example
+
+# --- Ma'lumotlar bazasi / lokal fayllar ---
+*.db
+*.sqlite
+*.sqlite3
+
+# --- Vaqtinchalik loglar va test artefaktlari (PHASE 14, 56-band) ---
+*.log
+logs/
+tmp/
+temp/
+.cache/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# --- Test runner chiqaradigan vaqtinchalik media/kataloglar ---
+telegram_bot/temp_media/
+telegram_bot/uploads/
+downloads/
+
+# --- pgserver (testlar ko'taradigan vaqtinchalik PostgreSQL ma'lumotlari) ---
+yordamchi_pg_*/
+.pgserver/
+
+# --- IDE / OS ---
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

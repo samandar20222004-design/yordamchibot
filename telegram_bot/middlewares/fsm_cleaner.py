@@ -11,9 +11,8 @@ va boshqalar) turganda asosiy menyu tugmalarini yoki /start, /cancel ni bossa:
 
 from __future__ import annotations
 import logging
-from typing import Any
 from telegram import Update
-from telegram.ext import ContextTypes, ConversationHandler
+from telegram.ext import ContextTypes
 
 logger = logging.getLogger(__name__)
 

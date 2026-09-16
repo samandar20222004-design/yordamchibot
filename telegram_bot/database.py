@@ -401,10 +401,6 @@ def _invalidate_user(user_id: int):
         _cache_clear(f"{prefix}:{user_id}")
 
 
-def _invalidate_stats():
-    _cache_clear("system_stats")
-
-
 def get_db_pool_status() -> dict:
     """Admin/health uchun DB pool va kesh holati."""
     pool = _pool
@@ -3983,8 +3979,6 @@ def find_next_queue_slot(slots: list, occupied: list, now, max_days: int = 7) ->
 
     Returns: (datetime, date_label) yoki (None, None).
     """
-    from datetime import time as dtime
-
     parsed_slots = []
     for s in slots:
         try:

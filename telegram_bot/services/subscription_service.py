@@ -14,16 +14,12 @@ import logging
 from datetime import datetime, timezone
 from contextlib import contextmanager
 
-import psycopg2
-
 from database import (
     db_cursor,
     PLAN_LIMITS,
-    FREE_QUEUE_MAX_POSTS,
     _invalidate_user,
     _cache_clear,
     _ensure_limit_reset,
-    _normalize_language_code,
 )
 # 6-bosqich: admin harakatlari auditi (PRO berish/bekor qilish).
 from services.audit_service import AuditService
