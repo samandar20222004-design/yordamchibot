@@ -51,8 +51,8 @@ ENVIRONMENT_VAR = "ENVIRONMENT"
 AI_ALLOW_MOCK_VAR = "AI_ALLOW_MOCK"
 DEFAULT_ENVIRONMENT = "production"
 
-#: Mock ishlashga ruxsat etilgan muhitlar (development/test va ularning sinonimlari).
-MOCK_ALLOWED_ENVIRONMENTS = frozenset({"development", "dev", "test", "testing", "local"})
+#: Mock ishlashga ruxsat etilgan muhitlar — PHASE A spec bo'yicha qat'iy 2 ta.
+MOCK_ALLOWED_ENVIRONMENTS = frozenset({"development", "test"})
 #: ``AI_ALLOW_MOCK`` uchun haqiqat deb hisoblanadigan qiymatlar.
 _TRUTHY_VALUES = frozenset({"1", "true", "yes", "on", "y", "ha"})
 

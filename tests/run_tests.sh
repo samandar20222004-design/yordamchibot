@@ -484,6 +484,16 @@ echo "===== 3w) 🛡 PHASE A: PRODUCTION SAFETY & VALIDATOR HARDENING (P0-A/B/C)
 "$PY" tests/production_safety_and_validator_test.py || EXIT_CODE=1
 
 echo
+echo "===== 3w') 🧠 PHASE A: PROD SAFETY + CHANNEL INTELLIGENCE BASE ======="
+# (1) Production Mock blocking + full refund (P0-A base);
+# (2) 20+ belgili yaroqsiz javob validator tomonidan rad etiladi (P0-B);
+# (3) Channel Intelligence jadvallari: schema.sql + database.py
+#     creation & idempotency, VARCHAR(255) channel_id match, indexes,
+#     ENVIRONMENT/AI_ALLOW_MOCK exports va MOCK_ALLOWED_ENVIRONMENTS tightening
+#     (tests/production_safety_and_channel_intelligence_base_test.py).
+"$PY" tests/production_safety_and_channel_intelligence_base_test.py || EXIT_CODE=1
+
+echo
 echo "======== 4) TO'LIQ REGRESSIYA (telegram_bot/tests) ========"
 # PY'ni aniq uzatamiz: ichki runner ham shu interpreter (venv) bilan ishlasin.
 ( cd telegram_bot && PYTHON="$PY" bash tests/run_tests.sh ) || EXIT_CODE=1
