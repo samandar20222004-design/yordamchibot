@@ -333,6 +333,16 @@ echo "===== 3r) 🤖 PHASE 3: AI ENGINE VA SMM ORKESTRATSIYASI ====="
 "$PY" tests/ai_orchestrator_test.py || EXIT_CODE=1
 
 echo
+echo "===== 3s) ⚡️ PHASE 4 & 5: AI CONCURRENCY, USER LOCK & CANCELLATION ====="
+# (1) Non-blocking User Lock (core/user_lock.py) — 10-20s lock yo'q,
+#     snapshot & background worker modeli;
+# (2) Bounded AI Queue & Rate Limit (services/ai/concurrency.py) —
+#     MAX_AI_CONCURRENCY va MAX_AI_QUEUE (fail-closed muloyim xabar);
+# (3) Request Cancellation — generation_id, asyncio.Task.cancel(), kechikkan
+#     natijani filtrlab tashlash va to'liq refund (tests/ai_concurrency_test.py).
+"$PY" tests/ai_concurrency_test.py || EXIT_CODE=1
+
+echo
 echo "======== 4) TO'LIQ REGRESSIYA (telegram_bot/tests) ========"
 # PY'ni aniq uzatamiz: ichki runner ham shu interpreter (venv) bilan ishlasin.
 ( cd telegram_bot && PYTHON="$PY" bash tests/run_tests.sh ) || EXIT_CODE=1

@@ -15,6 +15,14 @@ from .providers import (
 )
 from .validator import AIOutputValidator, ValidationResult
 from .orchestrator import AIOrchestrator, AIOrchestrationResult
+from .concurrency import (
+    AIConcurrencyManager,
+    AIQueueFullError,
+    AITaskCancelledError,
+    AIQueueTimeoutError,
+    ai_concurrency_manager,
+    get_queue_full_message,
+)
 
 __all__ = [
     "SMMIntent",
@@ -31,4 +39,10 @@ __all__ = [
     "ValidationResult",
     "AIOrchestrator",
     "AIOrchestrationResult",
+    "AIConcurrencyManager",
+    "AIQueueFullError",
+    "AITaskCancelledError",
+    "AIQueueTimeoutError",
+    "ai_concurrency_manager",
+    "get_queue_full_message",
 ]

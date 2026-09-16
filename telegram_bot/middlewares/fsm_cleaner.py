@@ -139,5 +139,12 @@ class FSMCleanerMiddleware:
 
         if is_navigation_trigger(text):
             clear_user_fsm(context)
+            user = getattr(update, "effective_user", None)
+            if user and getattr(user, "id", None):
+                try:
+                    from services.ai.concurrency import ai_concurrency_manager
+                    await ai_concurrency_manager.cancel_user_requests(user.id, reason="fsm_navigation")
+                except Exception as e:
+                    logger.debug("AI tasklarini bekor qilishda xatolik: %s", e)
             return True
         return False
