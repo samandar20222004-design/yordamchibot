@@ -349,6 +349,57 @@ CREATE TABLE IF NOT EXISTS ai_reservations (
 CREATE INDEX IF NOT EXISTS idx_ai_reservations_user
     ON ai_reservations(user_id, created_at);
 
+-- ============================================================
+-- 📊 PHASE A — CHANNEL INTELLIGENCE BAZA POYDEVORI
+-- ------------------------------------------------------------
+-- Kelajakdagi Channel Intelligence uchun idempotent jadvallar.
+-- Barcha channel_id turlari channels jadvali bilan 100% bir xil
+-- (VARCHAR(255)) — tip mosligi FK va JOIN'lar uchun muhim.
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS channel_intelligence_profiles (
+    channel_id VARCHAR(255) PRIMARY KEY,
+    tone VARCHAR(64),
+    avg_post_length INTEGER,
+    emoji_level VARCHAR(32),
+    cta_style VARCHAR(64),
+    top_topics JSONB,
+    confidence INTEGER,
+    sample_size INTEGER,
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS channel_post_events (
+    id SERIAL PRIMARY KEY,
+    channel_id VARCHAR(255) NOT NULL,
+    message_id BIGINT NOT NULL,
+    post_hour INTEGER,
+    post_weekday INTEGER,
+    has_media BOOLEAN,
+    length INTEGER,
+    cta_detected BOOLEAN,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(channel_id, message_id)
+);
+CREATE INDEX IF NOT EXISTS idx_channel_post_events_channel
+    ON channel_post_events (channel_id);
+CREATE INDEX IF NOT EXISTS idx_channel_post_events_created
+    ON channel_post_events (created_at DESC);
+
+CREATE TABLE IF NOT EXISTS channel_insights (
+    id SERIAL PRIMARY KEY,
+    channel_id VARCHAR(255) NOT NULL,
+    insight_type VARCHAR(64),
+    text TEXT,
+    severity VARCHAR(32),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    is_dismissed BOOLEAN DEFAULT FALSE
+);
+CREATE INDEX IF NOT EXISTS idx_channel_insights_channel
+    ON channel_insights (channel_id);
+CREATE INDEX IF NOT EXISTS idx_channel_insights_dismissed
+    ON channel_insights (is_dismissed, created_at DESC);
+
 -- --- MIGRATSIYALAR (eski bazalar uchun; yangi bazada allaqachon bor) ---
 -- Eslatma: ADD COLUMN IF NOT EXISTS tufayli takroriy bajarish xavfsiz.
 

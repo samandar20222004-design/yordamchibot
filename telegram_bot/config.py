@@ -231,6 +231,16 @@ def get_subscription_plan(plan_key: str) -> dict | None:
 # avtomatik yig'iladi. MUHIM: Sentry'ga yuborilishdan oldin har bir event
 # `utils.sentry_scrubber.scrub_event` filtridan o'tadi — bot token, DB paroli,
 # karta rekvizitlari va API kalitlar loglarga HECH QACHON tushmaydi.
+# --- PHASE A: Production safety — ENVIRONMENT / AI_ALLOW_MOCK (P0-A) ---
+# ENVIRONMENT: production|development|test default production (fail-closed).
+# AI_ALLOW_MOCK: 0|1 default 0 — MockProvider faqat dev/test yoki 1 bo'lganda.
+_raw_env = (os.getenv("ENVIRONMENT", "") or "").strip().lower()
+ENVIRONMENT = _raw_env if _raw_env else "production"
+_raw_allow_mock = (os.getenv("AI_ALLOW_MOCK", "") or "").strip().lower()
+AI_ALLOW_MOCK = _raw_allow_mock if _raw_allow_mock else "0"
+# Legacy/test uchun ham foydalaniladigan qat'iy ro'yxat (spec bo'yicha faqat 2 ta).
+MOCK_ALLOWED_ENVIRONMENTS: frozenset[str] = frozenset({"development", "test"})
+
 SENTRY_DSN = os.getenv("SENTRY_DSN", "")
 
 

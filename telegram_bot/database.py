@@ -59,6 +59,10 @@ EXPECTED_TABLES = (
     "credits_ledger",
     # PHASE 2 / 1-qadam: atomik AI bron (kunlik kvota YOKI kredit).
     "ai_reservations",
+    # PHASE A — Channel Intelligence baza poydevori (idempotent).
+    "channel_intelligence_profiles",
+    "channel_post_events",
+    "channel_insights",
 )
 EXPECTED_INDEXES = (
     "idx_ad_pool_scope",
@@ -82,6 +86,13 @@ EXPECTED_INDEXES = (
     "idx_audit_admin",
     # PostAssist V2 (8-bosqich): foydalanuvchi ballar tarixi indeksi.
     "idx_ledger_user",
+    # PHASE 2 / 1-qadam: atomik AI bron indeksi (schema.sql'da mavjud).
+    "idx_ai_reservations_user",
+    # PHASE A — Channel Intelligence indekslari.
+    "idx_channel_post_events_channel",
+    "idx_channel_post_events_created",
+    "idx_channel_insights_channel",
+    "idx_channel_insights_dismissed",
 )
 REQUIRED_P0_TABLES = ("promo_redemptions", "post_deliveries")
 REQUIRED_P0_INDEXES = ("idx_deliveries_sched", "idx_deliveries_retry", "uq_payments_telegram_charge_id")
@@ -1742,6 +1753,65 @@ def _init_db_once():
         cur.execute(
             "CREATE INDEX IF NOT EXISTS idx_ai_reservations_user "
             "ON ai_reservations(user_id, created_at);"
+        )
+
+        # 🧠 PHASE A — Channel Intelligence baza poydevori (idempotent).
+        # schema.sql fayli topilmasa ham bu jadvallar albatta yaratiladi
+        # (aks holda analytics/audit oqimi ishlamasdi). Barcha CREATE TABLE
+        # va indekslar IF NOT EXISTS — qayta-qayta bajarish xavfsiz.
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS channel_intelligence_profiles (
+                channel_id VARCHAR(255) PRIMARY KEY,
+                tone VARCHAR(64),
+                avg_post_length INT,
+                emoji_level VARCHAR(32),
+                cta_style VARCHAR(64),
+                top_topics JSONB,
+                confidence INT,
+                sample_size INT,
+                updated_at TIMESTAMPTZ DEFAULT NOW()
+            );
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS channel_post_events (
+                id SERIAL PRIMARY KEY,
+                channel_id VARCHAR(255) NOT NULL,
+                message_id BIGINT,
+                post_hour INT,
+                post_weekday INT,
+                has_media BOOLEAN,
+                length INT,
+                cta_detected BOOLEAN,
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                CONSTRAINT uq_channel_post_events UNIQUE (channel_id, message_id)
+            );
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS channel_insights (
+                id SERIAL PRIMARY KEY,
+                channel_id VARCHAR(255) NOT NULL,
+                insight_type VARCHAR(64),
+                text TEXT,
+                severity VARCHAR(32),
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                is_dismissed BOOLEAN DEFAULT FALSE
+            );
+        """)
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_channel_post_events_channel "
+            "ON channel_post_events (channel_id);"
+        )
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_channel_post_events_created "
+            "ON channel_post_events (created_at DESC);"
+        )
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_channel_insights_channel "
+            "ON channel_insights (channel_id);"
+        )
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_channel_insights_dismissed "
+            "ON channel_insights (is_dismissed);"
         )
 
         # 3) PostAssist V2 (5-bosqich): scheduler tezligi uchun kompozit indekslar
