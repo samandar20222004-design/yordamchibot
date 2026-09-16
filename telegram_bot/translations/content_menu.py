@@ -41,6 +41,12 @@ CONTENT_MENU_I18N = {
     # ------------------------------------------------------------
     "uz": {
         # --- Submenu tugma yorliqlari (reply klaviatura) ---
+        "ai_chat": '💬 AI Chat',
+        "ai_audit": '🔍 Post auditi',
+        "ai_improve": '✏️ Postni yaxshilash',
+        "ai_ideas": "💡 Kontent g'oyalari",
+        "ai_plan": '🧠 Kontent reja',
+        "ai_analysis": '📊 Kanal tahlili',
         "cm_btn_magic": "✨ Magic Post",
         "cm_btn_text": "📝 Matn → Post",
         # 📸 Rasm → Post — yorliq bu yerda ham yashaydi (Image → Post oqimi
@@ -88,6 +94,12 @@ CONTENT_MENU_I18N = {
     # 🇷🇺 RUS TILI
     # ------------------------------------------------------------
     "ru": {
+        "ai_chat": '💬 AI Чат',
+        "ai_audit": '🔍 Аудит поста',
+        "ai_improve": '✏️ Улучшить пост',
+        "ai_ideas": '💡 Идеи контента',
+        "ai_plan": '🧠 Контент-план',
+        "ai_analysis": '📊 Анализ канала',
         "cm_btn_magic": "✨ Magic Post",
         "cm_btn_text": "📝 Текст → Пост",
         "cm_btn_image": "📸 Фото → Пост",
@@ -125,6 +137,12 @@ CONTENT_MENU_I18N = {
     # 🇬🇧 INGLIZ TILI
     # ------------------------------------------------------------
     "en": {
+        "ai_chat": '💬 AI Chat',
+        "ai_audit": '🔍 Post audit',
+        "ai_improve": '✏️ Improve post',
+        "ai_ideas": '💡 Content ideas',
+        "ai_plan": '🧠 Content plan',
+        "ai_analysis": '📊 Channel analysis',
         "cm_btn_magic": "✨ Magic Post",
         "cm_btn_text": "📝 Text → Post",
         "cm_btn_image": "📸 Image → Post",
