@@ -70,6 +70,16 @@ def main():
         # (barcha AI oqimlari shu modul orqali database.reserve_ai_request /
         # refund_ai_request ni chaqiradi).
         "services.ai_quota",
+        # 🚀 PHASE 11 & 12: AI ADVANCED SMM FEATURES — 4 ta yangi xizmat va
+        # ularning umumiy poydevori (Phase 3 orchestrator + Phase 2 kvota /
+        # sanitizer bilan yagona standartda ishlaydi).
+        "services.ai.smm_common",
+        "services.ai.smm_mock",
+        "services.ai.variants",
+        "services.ai.repurpose",
+        "services.ai.audit",
+        "services.ai.planner",
+        "services.ai",
     ]
     for mod in modules:
         try:
