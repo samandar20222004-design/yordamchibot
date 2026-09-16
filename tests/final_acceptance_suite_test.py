@@ -555,14 +555,21 @@ def test_d_main_menu_admin_variant_and_parity():
 # TEST E..G — KONTENT SUBMENU + AI STUDIO PARITETI
 # ===========================================================================
 def test_e_content_submenu_parity():
-    header("E", "🧩 Kontent yaratish submenu — UZ/RU/EN pariteti")
+    header("E", "🧩 Birlashtirilgan kontent menyusi — UZ/RU/EN pariteti")
     expected_shapes = None
     for lang in LANGS:
         rows = content_creation_rows(lang)
         flat = [t for row in rows for t in row]
-        check(f"[{lang}] 5 tugma + [◀️ Orqaga] = 6 yorliq", len(flat) == 6, str(flat))
+        # Birlashtirish: 3 ta mantiqiy yo'nalish + [◀️ Orqaga] = 4 yorliq.
+        check(f"[{lang}] 3 yo'nalish + [◀️ Orqaga] = 4 yorliq", len(flat) == 4, str(flat))
         check(f"[{lang}] oxirgi yorliq — Orqaga",
               flat[-1] == content_menu_t("cm_btn_back", lang), flat[-1])
+        check(f"[{lang}] 1-yo'nalish — ✍️ Oddiy post (AI'siz)",
+              flat[0] == content_menu_t("cm_btn_manual", lang), flat[0])
+        check(f"[{lang}] 2-yo'nalish — ✨ AI bilan yaratish (Magic Post)",
+              flat[1] == content_menu_t("cm_btn_magic", lang), flat[1])
+        check(f"[{lang}] 3-yo'nalish — 🤖 AI Studio",
+              flat[2] == content_menu_t("cm_btn_studio", lang), flat[2])
         if expected_shapes is None:
             expected_shapes = [len(r) for r in rows]
         check(f"[{lang}] qator tuzilishi uchala tilda bir xil",

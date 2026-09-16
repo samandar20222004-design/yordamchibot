@@ -1,0 +1,585 @@
+"""✍️ ODDIY POST (AI'SIZ) — tayyor kontentni to'g'ridan-to'g'ri chiqarish.
+
+Birlashtirilgan kontent menyusidagi birinchi yo'nalish. QAT'IY QOIDA: bu
+oqimda AI UMUMAN ishtirok etmaydi — foydalanuvchi tayyor matn, rasm yoki
+video yuboradi va bot hech qanday uslub/generatsiya savollarini bermasdan
+DARHOL preview chiqaradi. Preview ostida universal boshqaruv paneli::
+
+    [🚀 Hozir yuborish]
+    [📅 Vaqtni belgilash]
+    [🗑 24 soatlik e'lon]   [🔄 Takroriy e'lon]
+    [✏️ Tahrirlash]         [❌ Bekor qilish]
+
+Amallar (barchasi mavjud, sinovdan o'tgan infratuzilmaga tayanadi):
+  * 🚀 Hozir yuborish — post tanlangan kanalga darhol chiqadi
+    (``db.add_post`` + scheduler zanjiri, ``scheduled_time=now``);
+  * 📅 Vaqtni belgilash — oddiy reja: belgilangan sana/vaqtda chiqadi
+    (masalan: ``19:30``);
+  * 🗑 24 soatlik e'lon — kanalga chiqadi va 24 soat o'tib AVTOMATIK
+    o'chadi (``delete_after_hours=24``);
+  * 🔄 Takroriy e'lon — har kuni bitta vaqtda qayta chiqadi
+    (``recurrence_type='daily'`` — reklama/savdo kanallari uchun);
+  * ✏️ Tahrirlash — yangi matn/rasm bilan preview yangilanadi;
+  * ❌ Bekor qilish — hech narsa yuborilmaydi, asosiy menyu qaytadi.
+
+Callback prefiksi ``mnp_`` (manual post) — Magic Post (``mp_``), Voice
+(``vp_``), Image (``image_``), Post Score (``ps_``) va boshqa global
+prefikslar bilan to'qnashmaydi. FSM holatlari 450–454 — mavjud holatlar
+bilan konfliktsiz (430–442 magic/voice, 460+ post_score/calendar).
+"""
+
+from __future__ import annotations
+
+import logging
+from datetime import datetime, timedelta
+
+import pytz
+from telegram import Update
+from telegram.ext import CallbackQueryHandler, ContextTypes, ConversationHandler
+
+from config import ADMIN_IDS_SET
+import database as db
+from keyboards.default import get_cancel_keyboard, get_main_keyboard
+from keyboards.inline import (
+    CB_MANUAL_24H,
+    CB_MANUAL_CANCEL,
+    CB_MANUAL_CHANNEL,
+    CB_MANUAL_EDIT,
+    CB_MANUAL_NOW,
+    CB_MANUAL_PANEL,
+    CB_MANUAL_REPEAT,
+    CB_MANUAL_TIME,
+    get_manual_channel_keyboard,
+    get_manual_post_panel,
+    manual_channel_from_callback,
+)
+from locales.translations import clear_fsm_data, get_lang
+from translations import manual_post_t
+from utils.date_format import format_datetime, format_time
+from utils.helpers import (
+    html_escape,
+    parse_daily_time_input,
+    parse_schedule_input,
+)
+from utils.telegram_sanitizer import sanitize_html
+
+logger = logging.getLogger(__name__)
+
+tashkent_tz = pytz.timezone("Asia/Tashkent")
+
+# ============================================================
+# FSM HOLATLARI (450–454 — mavjud holatlar bilan to'qnashmaydi)
+# ============================================================
+MANUAL_AWAIT_CONTENT = 450   # tayyor kontent (matn/rasm/video) kutilmoqda
+MANUAL_PREVIEW = 451         # preview + universal boshqaruv paneli
+MANUAL_CHANNEL_SELECT = 452  # kanal tanlanmoqda (inline tugmalar)
+MANUAL_TIME_INPUT = 453      # 📅 vaqt yoki 🔄 takrorlanish vaqti kutilmoqda
+MANUAL_EDIT_INPUT = 454      # ✏️ yangi kontent kutilmoqda
+
+# Amal rejimi (kanal tanlanishi yoki vaqt kiritilishidan oldin tanlanadi).
+MODE_NOW = "now"        # 🚀 Hozir yuborish
+MODE_TIME = "time"      # 📅 Vaqtni belgilash
+MODE_24H = "24h"        # 🗑 24 soatlik e'lon
+MODE_REPEAT = "repeat"  # 🔄 Takroriy e'lon
+
+#: user_data kalitlari (bir joyda — testlar va handlerlar uchun yagona manba).
+UD_CONTENT = "mnp_content"
+UD_POST_TYPE = "mnp_post_type"
+UD_FILE_ID = "mnp_file_id"
+UD_MODE = "mnp_mode"
+UD_WHEN = "mnp_when"            # ISO datetime (rejalashtirish uchun)
+UD_REPEAT_TIME = "mnp_repeat_time"  # "HH:MM" (takroriy e'lon uchun)
+
+#: Qabul qilinadigan media turlari → post_type.
+_SUPPORTED_MEDIA = ("photo", "video", "animation", "document")
+
+
+def _extract_media(msg):
+    """Xabardan (file_id, post_type) ajratadi; media bo'lmasa (None, 'text')."""
+    if getattr(msg, "photo", None):
+        return msg.photo[-1].file_id, "photo"
+    if getattr(msg, "video", None):
+        return msg.video.file_id, "video"
+    if getattr(msg, "animation", None):
+        return msg.animation.file_id, "animation"
+    if getattr(msg, "document", None):
+        return msg.document.file_id, "document"
+    return None, "text"
+
+
+def _has_content(context) -> bool:
+    """Preview uchun kontent saqlanganmi (sessiya eskirmaganmi)."""
+    ud = context.user_data
+    return bool(
+        (ud.get(UD_CONTENT) or "").strip()
+        or (ud.get(UD_FILE_ID) and ud.get(UD_POST_TYPE) in _SUPPORTED_MEDIA)
+    )
+
+
+def _clear_manual_state(context) -> None:
+    """Oddiy post oqimi ma'lumotlarini tozalaydi (FSM kontekstidan tashqari)."""
+    for key in (UD_CONTENT, UD_POST_TYPE, UD_FILE_ID, UD_MODE, UD_WHEN,
+                UD_REPEAT_TIME):
+        context.user_data.pop(key, None)
+
+
+# ============================================================
+# PREVIEW — postning o'zi (AI'siz, o'zgarishsiz) + universal panel
+# ============================================================
+async def _show_preview(target_msg, context, lang: str):
+    """Saqlangan kontentni preview sifatida ko'rsatadi (panel tugmalari bilan).
+
+    Matnli post — to'liq matn; media post — media + caption. Hech qanday AI
+    qo'shimchasi YO'Q: foydalanuvchi nima yuborgan bo'lsa, aynan o'sha chiqadi.
+    """
+    content = context.user_data.get(UD_CONTENT, "") or ""
+    post_type = context.user_data.get(UD_POST_TYPE, "text")
+    file_id = context.user_data.get(UD_FILE_ID)
+    panel = get_manual_post_panel(lang)
+    title = manual_post_t("mp_preview_title", lang)
+    foot = manual_post_t("mp_preview_foot", lang)
+
+    if post_type in _SUPPORTED_MEDIA and file_id:
+        # Caption Telegram chegarasi 1024 — preview matni ham caption'da.
+        caption_text = f"{title}{content}{foot}"
+        cap = sanitize_html(caption_text, 1024)
+        kwargs = dict(caption=cap, reply_markup=panel, parse_mode="HTML")
+        try:
+            if post_type == "photo":
+                return await target_msg.reply_photo(photo=file_id, **kwargs)
+            if post_type == "video":
+                return await target_msg.reply_video(video=file_id, **kwargs)
+            if post_type == "animation":
+                return await target_msg.reply_animation(animation=file_id, **kwargs)
+            return await target_msg.reply_document(document=file_id, **kwargs)
+        except Exception:
+            logger.warning("Oddiy post media preview xatosi", exc_info=True)
+            # Media preview imkonsiz bo'lsa — matn ko'rinishida davom etamiz.
+
+    body = f"{title}{sanitize_html(content, 3600)}{foot}"
+    return await target_msg.reply_text(body, reply_markup=panel, parse_mode="HTML")
+
+
+async def _choose_channel_or_act(query_msg, context, user_id: int, lang: str):
+    """Kanal tanlash: bitta bo'lsa darhol amal, ko'p bo'lsa inline tanlov.
+
+    Qaytaradi: keyingi FSM holati (MANUAL_CHANNEL_SELECT yoki END).
+    """
+    channels = await db.run_db(db.get_user_channels, user_id)
+    if not channels:
+        clear_fsm_data(context)
+        _clear_manual_state(context)
+        await query_msg.reply_text(
+            manual_post_t("mp_no_channels", lang),
+            reply_markup=get_main_keyboard(user_id in ADMIN_IDS_SET, lang),
+            parse_mode="HTML",
+        )
+        return ConversationHandler.END
+    if len(channels) == 1:
+        return await _publish(query_msg, context, user_id, channels[0][0],
+                              channels[0][1], lang)
+    await query_msg.reply_text(
+        manual_post_t("mp_choose_channel", lang),
+        reply_markup=get_manual_channel_keyboard(channels, lang),
+        parse_mode="HTML",
+    )
+    return MANUAL_CHANNEL_SELECT
+
+
+# ============================================================
+# YUBORISH/REJALASHTIRISH — yagona publish nuqtasi (db.add_post)
+# ============================================================
+async def _publish(target_msg, context, user_id: int, channel_id,
+                   channel_title, lang: str):
+    """Tanlangan rejim bo'yicha postni DB'ga yozadi (scheduler darhol oladi).
+
+    Qaytaradi: ConversationHandler.END — yakuniy xabar yuborilgan, FSM
+    tozalanadi va asosiy menyu qaytadi.
+    """
+    is_admin = user_id in ADMIN_IDS_SET
+    mode = context.user_data.get(UD_MODE, MODE_NOW)
+    now = datetime.now(tashkent_tz)
+
+    delete_after_hours = 24 if mode == MODE_24H else 0
+    recurrence_type = "daily" if mode == MODE_REPEAT else "none"
+    recurrence_time = (
+        f"{context.user_data.get(UD_REPEAT_TIME)}:00"
+        if mode == MODE_REPEAT and context.user_data.get(UD_REPEAT_TIME)
+        else None
+    )
+
+    if mode == MODE_REPEAT and context.user_data.get(UD_REPEAT_TIME):
+        hh, mm = (int(x) for x in context.user_data[UD_REPEAT_TIME].split(":"))
+        scheduled_time = tashkent_tz.localize(
+            datetime(now.year, now.month, now.day, hh, mm))
+        if scheduled_time <= now:
+            scheduled_time = tashkent_tz.normalize(
+                scheduled_time + timedelta(days=1))
+    elif context.user_data.get(UD_WHEN):
+        try:
+            scheduled_time = datetime.strptime(
+                context.user_data[UD_WHEN], "%Y-%m-%d %H:%M")
+            scheduled_time = tashkent_tz.localize(scheduled_time)
+        except (ValueError, TypeError):
+            scheduled_time = now
+    else:
+        scheduled_time = now
+
+    ok = False
+    try:
+        pid = await db.run_db(
+            db.add_post,
+            user_id=user_id,
+            channel_id=channel_id,
+            post_type=context.user_data.get(UD_POST_TYPE, "text"),
+            content=context.user_data.get(UD_CONTENT, "") or "",
+            file_id=context.user_data.get(UD_FILE_ID),
+            scheduled_time=scheduled_time,
+            recurrence_type=recurrence_type,
+            recurrence_day=None,
+            recurrence_time=recurrence_time,
+            end_date=None,
+            delete_after_hours=delete_after_hours,
+        )
+        ok = bool(pid)
+    except Exception:
+        logger.exception("Oddiy post saqlash xatosi (user_id=%s)", user_id)
+
+    if not ok:
+        await _finalize(target_msg, context, user_id, lang,
+                        manual_post_t("mp_save_error", lang))
+        return ConversationHandler.END
+
+    channel_safe = html_escape((channel_title or "").strip() or "Kanal")
+    if mode == MODE_TIME:
+        msg_key = "mp_scheduled"
+        time_display = (
+            format_datetime(scheduled_time, lang)
+            or scheduled_time.strftime("%Y-%m-%d %H:%M")
+        )
+    elif mode == MODE_24H:
+        msg_key = "mp_sent_24h"
+        time_display = ""
+    elif mode == MODE_REPEAT:
+        msg_key = "mp_repeat_ok"
+        time_display = format_time(
+            f"{context.user_data.get(UD_REPEAT_TIME)}:00", lang)
+    else:
+        msg_key = "mp_sent_now"
+        time_display = ""
+
+    await _finalize(
+        target_msg, context, user_id, lang,
+        manual_post_t(msg_key, lang, channel=channel_safe, time=time_display),
+    )
+    return ConversationHandler.END
+
+
+async def _finalize(target_msg, context, user_id: int, lang: str,
+                    text: str) -> None:
+    """Yakuniy xabar + asosiy menyu + holatni tozalash (yagona nuqta)."""
+    clear_fsm_data(context)
+    _clear_manual_state(context)
+    if target_msg is None:
+        return
+    try:
+        await target_msg.reply_text(
+            text,
+            reply_markup=get_main_keyboard(user_id in ADMIN_IDS_SET, lang),
+            parse_mode="HTML",
+        )
+    except Exception:
+        logger.debug("Oddiy post yakuniy xabarini yuborib bo'lmadi",
+                     exc_info=True)
+
+
+# ============================================================
+# HANDLERLAR
+# ============================================================
+async def manual_post_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """✍️ Oddiy post (AI'siz) — kontent kutish holatini ochadi.
+
+    Kanal ulanmagan bo'lsa oqim ochilmaydi (muloyim yo'riqnoma + asosiy
+    menyu). HECH QANDAY AI tekshiruvi/limiti YO'Q — bu oddiy posting.
+    """
+    clear_fsm_data(context)
+    _clear_manual_state(context)
+    user_id = update.effective_user.id
+    lang = get_lang(context)
+    from handlers.navigation import SECTION_CONTENT, remember_section
+    remember_section(context, SECTION_CONTENT)
+
+    channels = await db.run_db(db.get_user_channels, user_id)
+    if not channels:
+        await update.message.reply_text(
+            manual_post_t("mp_no_channels", lang),
+            reply_markup=get_main_keyboard(user_id in ADMIN_IDS_SET, lang),
+            parse_mode="HTML",
+        )
+        return ConversationHandler.END
+
+    await update.message.reply_text(
+        manual_post_t("mp_intro", lang),
+        reply_markup=get_cancel_keyboard(lang),
+        parse_mode="HTML",
+    )
+    return MANUAL_AWAIT_CONTENT
+
+
+async def manual_content_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Tayyor kontent qabul qilindi → DARHOL preview (AI savollarsiz).
+
+    Matn, rasm, video, GIF yoki hujjat (caption bilan yokisiz) qabul
+    qilinadi; qolgan turlar (stiker, ovoz, kontakt...) aniq izoh bilan
+    rad etiladi — lekin oqim uzilmaydi.
+    """
+    msg = update.message
+    lang = get_lang(context)
+
+    file_id, post_type = _extract_media(msg)
+    text_input = (msg.text or msg.caption or "").strip()
+
+    if not file_id and not text_input:
+        # Qo'llab-quvvatlanmaydigan xabar turi (stiker/ovoz/kontakt...).
+        await msg.reply_text(
+            manual_post_t("mp_unsupported", lang),
+            reply_markup=get_cancel_keyboard(lang),
+            parse_mode="HTML",
+        )
+        return MANUAL_AWAIT_CONTENT
+
+    context.user_data[UD_CONTENT] = text_input
+    context.user_data[UD_POST_TYPE] = post_type if file_id else "text"
+    context.user_data[UD_FILE_ID] = file_id
+
+    await _show_preview(msg, context, lang)
+    return MANUAL_PREVIEW
+
+
+async def manual_edit_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """✏️ Tahrirlash: yangi kontent bilan preview yangilanadi."""
+    msg = update.message
+    lang = get_lang(context)
+
+    file_id, post_type = _extract_media(msg)
+    text_input = (msg.text or msg.caption or "").strip()
+    if not file_id and not text_input:
+        await msg.reply_text(
+            manual_post_t("mp_unsupported", lang), parse_mode="HTML",
+        )
+        return MANUAL_EDIT_INPUT
+
+    # Tahrirlash: media almashtirilsa — yangi media; matn har doim yangilanadi.
+    if file_id:
+        context.user_data[UD_POST_TYPE] = post_type
+        context.user_data[UD_FILE_ID] = file_id
+    context.user_data[UD_CONTENT] = text_input
+
+    await _show_preview(msg, context, lang)
+    return MANUAL_PREVIEW
+
+
+async def manual_time_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """📅 Vaqtni belgilash / 🔄 Takroriy e'lon vaqti qabul qilinadi.
+
+    ``parse_schedule_input`` — "19:30", "ertaga 09:00", "25.09.2026 18:00"
+    kabi barcha ko'rinishlarni xavfsiz o'qiydi (o'tmishdagi vaqt rad etiladi).
+    Takroriy rejada faqat KUNLIK VAQT ("HH:MM") olinadi.
+    """
+    msg = update.message
+    user_id = update.effective_user.id
+    lang = get_lang(context)
+    mode = context.user_data.get(UD_MODE, MODE_TIME)
+
+    if msg is None:
+        return MANUAL_TIME_INPUT
+    if not getattr(msg, "text", None):
+        await msg.reply_text(manual_post_t("mp_time_invalid", lang),
+                             parse_mode="HTML")
+        return MANUAL_TIME_INPUT
+
+    text = msg.text.strip()
+
+    if mode == MODE_REPEAT:
+        parsed = parse_daily_time_input(text)
+        if parsed is None:
+            # "ertaga 9 da" kabi ifodani ham qabul qilamiz.
+            candidate, _reason = parse_schedule_input(text)
+            parsed = (candidate.hour, candidate.minute) if candidate else None
+        if parsed is None:
+            await msg.reply_text(manual_post_t("mp_time_invalid", lang),
+                                 parse_mode="HTML")
+            return MANUAL_TIME_INPUT
+        hh, mm = parsed
+        context.user_data[UD_REPEAT_TIME] = f"{hh:02d}:{mm:02d}"
+        return await _choose_channel_or_act(msg, context, user_id, lang)
+
+    candidate, _reason = parse_schedule_input(text)
+    if candidate is None:
+        await msg.reply_text(manual_post_t("mp_time_invalid", lang),
+                             parse_mode="HTML")
+        return MANUAL_TIME_INPUT
+
+    context.user_data[UD_WHEN] = candidate.strftime("%Y-%m-%d %H:%M")
+    return await _choose_channel_or_act(msg, context, user_id, lang)
+
+
+async def manual_panel_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Universal boshqaruv paneli tugmalari (``mnp_*`` callback'lari)."""
+    query = update.callback_query
+    if query is None:
+        return ConversationHandler.END
+    await query.answer()  # SPEKS: har callback boshida darhol answer
+    user_id = query.from_user.id
+    lang = get_lang(context)
+    data = query.data or ""
+
+    # Eski tugmalarga qarshi himoya: kontent saqlanmagan bo'lsa, yangi
+    # oqimni ochish taklif qilinadi (foydalanuvchi hech qachon "qotmaydi").
+    if data != CB_MANUAL_CANCEL and not _has_content(context):
+        await query.message.reply_text(
+            manual_post_t("mp_session_expired", lang),
+            reply_markup=get_main_keyboard(user_id in ADMIN_IDS_SET, lang),
+            parse_mode="HTML",
+        )
+        clear_fsm_data(context)
+        return ConversationHandler.END
+
+    if data == CB_MANUAL_CANCEL:
+        try:
+            await query.edit_message_reply_markup(reply_markup=None)
+        except Exception:
+            pass
+        await _finalize(query.message, context, user_id, lang,
+                        manual_post_t("mp_cancelled", lang))
+        return ConversationHandler.END
+
+    if data == CB_MANUAL_PANEL:
+        # Kanal tanlashdan preview paneliga qaytish.
+        await _show_preview(query.message, context, lang)
+        return MANUAL_PREVIEW
+
+    if data == CB_MANUAL_EDIT:
+        await query.message.reply_text(
+            manual_post_t("mp_edit_prompt", lang),
+            reply_markup=get_cancel_keyboard(lang),
+            parse_mode="HTML",
+        )
+        return MANUAL_EDIT_INPUT
+
+    if data == CB_MANUAL_TIME:
+        context.user_data[UD_MODE] = MODE_TIME
+        await query.message.reply_text(
+            manual_post_t("mp_time_prompt", lang),
+            reply_markup=get_cancel_keyboard(lang),
+            parse_mode="HTML",
+        )
+        return MANUAL_TIME_INPUT
+
+    if data == CB_MANUAL_REPEAT:
+        context.user_data[UD_MODE] = MODE_REPEAT
+        await query.message.reply_text(
+            manual_post_t("mp_repeat_prompt", lang),
+            reply_markup=get_cancel_keyboard(lang),
+            parse_mode="HTML",
+        )
+        return MANUAL_TIME_INPUT
+
+    if data == CB_MANUAL_NOW:
+        context.user_data[UD_MODE] = MODE_NOW
+        return await _choose_channel_or_act(query.message, context, user_id, lang)
+
+    if data == CB_MANUAL_24H:
+        context.user_data[UD_MODE] = MODE_24H
+        return await _choose_channel_or_act(query.message, context, user_id, lang)
+
+    if data.startswith(CB_MANUAL_CHANNEL):
+        channel_id = manual_channel_from_callback(data)
+        if channel_id is None:
+            await _show_preview(query.message, context, lang)
+            return MANUAL_PREVIEW
+        channels = await db.run_db(db.get_user_channels, user_id) or []
+        title = next((t for cid, t in channels if str(cid) == str(channel_id)),
+                     "")
+        if not title and channels:
+            # Payload manipulyatsiyasi — foydalanuvchiga TEGISHLI kanalni
+            # tanlatamiz (fail-closed: o'zga kanalga post chiqmaydi).
+            await query.message.reply_text(
+                manual_post_t("mp_choose_channel", lang),
+                reply_markup=get_manual_channel_keyboard(channels, lang),
+                parse_mode="HTML",
+            )
+            return MANUAL_CHANNEL_SELECT
+        return await _publish(query.message, context, user_id, channel_id,
+                              title, lang)
+
+    return MANUAL_PREVIEW
+
+
+async def manual_stale_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Sessiya tugagach bosilgan eski ``mnp_*`` tugma — muloyim javob.
+
+    Entry point sifatida ro'yxatdan o'tadi: eski preview xabaridagi tugma
+    bosilsa foydalanuvchi javobsiz qolmaydi (crash ham yo'q).
+    """
+    query = update.callback_query
+    if query is None:
+        return ConversationHandler.END
+    lang = get_lang(context)
+    user_id = query.from_user.id
+    try:
+        await query.answer()
+    except Exception:
+        pass
+    clear_fsm_data(context)
+    _clear_manual_state(context)
+    try:
+        await query.message.reply_text(
+            manual_post_t("mp_session_expired", lang),
+            reply_markup=get_main_keyboard(user_id in ADMIN_IDS_SET, lang),
+            parse_mode="HTML",
+        )
+    except Exception:
+        pass
+    return ConversationHandler.END
+
+
+# ============================================================
+# DIALOG HIMOYASI (content_creation.ContentOfferEntryHandler usuli)
+# ============================================================
+_APPLICATION = None
+
+
+def set_application(app) -> None:
+    """``ManualEntryHandler`` uchun Application havolasini o'rnatadi."""
+    global _APPLICATION
+    _APPLICATION = app
+
+
+def _is_inside_dialog(update) -> bool:
+    """Foydalanuvchi biror ConversationHandler dialogida bo'lsa True."""
+    app = _APPLICATION
+    if app is None:
+        return False
+    try:
+        from handlers import _active_conversation_state
+
+        return _active_conversation_state(app, update) is not None
+    except Exception:  # pragma: no cover - xatoda entry'ni xavfsiz yopamiz
+        return False
+
+
+class ManualEntryHandler(CallbackQueryHandler):
+    """Eski ``mnp_*`` panel tugmasi — faqat dialog TASHQARISIDA ishlaydi.
+
+    Boshqa dialog (to'lov, kanal ulash, new_post...) faol bo'lsa tugma mos
+    KELMAYDI: holat buzilmaydi, xabar o'sha dialogning o'z handlerlariga
+    (yoki fallback'ga) qoladi. Dialog TASHQARISIDA esa sessiya eskirgani
+    haqida muloyim javob qaytaradi.
+    """
+
+    def check_update(self, update):
+        base = super().check_update(update)
+        if not base or _is_inside_dialog(update):
+            return None
+        return base

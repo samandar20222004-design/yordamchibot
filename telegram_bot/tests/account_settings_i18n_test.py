@@ -152,29 +152,30 @@ def test_cabinet_inline_keyboard_3_langs():
     # UZ inline keyboard
     kb_uz = get_cabinet_inline_keyboard("uz")
     rows_uz = [[(b.text, b.callback_data) for b in row] for row in kb_uz.inline_keyboard]
-    check("uz kabinet: 5 qator", len(rows_uz) == 5, str(len(rows_uz)))
+    check("uz kabinet: 4 qator (Til tugmasi profildan olingan)",
+          len(rows_uz) == 4, str(len(rows_uz)))
     check("uz kabinet: My channels tugmasi",
           rows_uz[0][0] == ("📢 Mening kanallarim", "cab_channels"))
-    check("uz kabinet: Til tugmasi",
-          rows_uz[4][0] == ("🌐 Til / Язык", "cab_lang"))
+    check("uz kabinet: Til tugmasi profilda YO'Q",
+          all(cb != "cab_lang" for row in rows_uz for _label, cb in row))
 
     # RU inline keyboard
     kb_ru = get_cabinet_inline_keyboard("ru")
     rows_ru = [[(b.text, b.callback_data) for b in row] for row in kb_ru.inline_keyboard]
-    check("ru kabinet: 5 qator", len(rows_ru) == 5)
+    check("ru kabinet: 4 qator (Til tugmasi profildan olingan)", len(rows_ru) == 4)
     check("ru kabinet: Мои каналы tugmasi",
           rows_ru[0][0] == ("📢 Мои каналы", "cab_channels"))
-    check("ru kabinet: Til tugmasi",
-          rows_ru[4][0] == ("🌐 Til / Язык", "cab_lang"))
+    check("ru kabinet: Til tugmasi profilda YO'Q",
+          all(cb != "cab_lang" for row in rows_ru for _label, cb in row))
 
     # EN inline keyboard
     kb_en = get_cabinet_inline_keyboard("en")
     rows_en = [[(b.text, b.callback_data) for b in row] for row in kb_en.inline_keyboard]
-    check("en kabinet: 5 qator", len(rows_en) == 5)
+    check("en kabinet: 4 qator (Language tugmasi profildan olingan)", len(rows_en) == 4)
     check("en kabinet: My channels tugmasi",
           rows_en[0][0] == ("📢 My channels", "cab_channels"))
-    check("en kabinet: Language tugmasi",
-          rows_en[4][0] == ("🌐 Language", "cab_lang"))
+    check("en kabinet: Language tugmasi profilda YO'Q",
+          all(cb != "cab_lang" for row in rows_en for _label, cb in row))
 
     # Callback data 3 tilda ham bir xil (tilga bog'liq emas)
     cbs_uz = [b.callback_data for row in kb_uz.inline_keyboard for b in row]
@@ -184,9 +185,10 @@ def test_cabinet_inline_keyboard_3_langs():
     check("callback_data ru == en", cbs_ru == cbs_en)
 
     # Har bir callback mavjud
+    # «cab_lang» profildan OLIB TASHLANDI — til faqat Sozlamalar → Til ichida.
     expected_cbs = [
         "cab_channels", "cab_analytics", "cab_pending", "cab_queue",
-        "cab_balance", "cab_bonus", "cab_referral", "close_cabinet", "cab_lang",
+        "cab_balance", "cab_bonus", "cab_referral", "close_cabinet",
     ]
     for cb in expected_cbs:
         check(f"callback '{cb}' mavjud", cb in cbs_uz)

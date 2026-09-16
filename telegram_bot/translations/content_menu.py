@@ -3,8 +3,10 @@
 PostAssist V2 · 1-2 mikro qadamlar: asosiy menyudagi «✨ Kontent yaratish»
 tugmasi endi 5 ta yaratish yo'lini ochuvchi ICHKI MENYUni chizadi:
 
-  * tugma yorliqlari (``cm_btn_*``) — Magic Post / Matn → Post / Rasm → Post /
-    Ovoz → Post / AI Yordamchi / ◀️ Orqaga;
+  * tugma yorliqlari (``cm_btn_*``) — birlashtirilgan menyu: ✍️ Oddiy post
+    (AI'siz) / ✨ AI bilan yaratish (Magic Post) / 🤖 AI Studio / ◀️ Orqaga
+    (+ eski 📝 Matn → Post, 📸 Rasm → Post, 🎙 Ovoz → Post, 🤖 AI Yordamchi
+    yorliqlari FAQAT routing aliasi sifatida saqlanadi);
   * submenu yo'riqnomasi (``cm_menu_intro``) — har bir yo'l nima qilishi
     qisqacha tushuntiriladi (shu yerda «mahsulot rasmini yuboring» va
     «ovozli xabar (1 daqiqa ichida)» talablari ham beriladi);
@@ -41,28 +43,32 @@ CONTENT_MENU_I18N = {
     # ------------------------------------------------------------
     "uz": {
         # --- Submenu tugma yorliqlari (reply klaviatura) ---
-        "cm_btn_magic": "✨ Magic Post",
+        # 🆕 BIRLASHTIRILGAN MENYU: bo'lingan va chalkash tugmalar 3 ta mantiqiy
+        # yo'nalishga birlashtirildi (Oddiy post / AI bilan yaratish / AI Studio).
+        "cm_btn_manual": "✍️ Oddiy post (AI'siz)",
+        "cm_btn_magic": "✨ AI bilan yaratish (Magic Post)",
+        "cm_btn_studio": "🤖 AI Studio",
+        "cm_btn_back": "◀️ Orqaga",
+        # --- ESKI (menyudan olib tashlangan, FAQAT routing alias) yorliqlar ---
+        # Chat tarixidagi eski klaviatura xabarlari bosilsa ham foydalanuvchi
+        # to'g'ri oqimga tushadi: 📝 Matn → Post endi Oddiy post oqimiga,
+        # 📸 Rasm → Post va 🎙 Ovoz → Post o'z AI oqimlariga, 🤖 AI Yordamchi
+        # esa AI Studio bo'limiga olib boradi.
         "cm_btn_text": "📝 Matn → Post",
-        # 📸 Rasm → Post — yorliq bu yerda ham yashaydi (Image → Post oqimi
-        # bilan BITTA manba): klaviatura, routing va submenu bir joydan
-        # olinadi va keyingi qo'shimcha (eski) yorliqlar bilan birga taniladi.
         "cm_btn_image": "📸 Rasm → Post",
         "cm_btn_voice": "🎙 Ovoz → Post",
         "cm_btn_ai": "🤖 AI Yordamchi",
-        "cm_btn_back": "◀️ Orqaga",
         # --- Submenu yo'riqnomasi ---
         "cm_menu_intro": (
             "🧩 <b>Kontent yaratish</b> — qaysi yo'ldan boshlaymiz?\n\n"
-            "✨ <b>Magic Post</b> — g'oyani matn bilan yozing yoki ovozingizni "
-            "yuboring, AI 5 uslubda professional post tayyorlaydi.\n"
-            "📝 <b>Matn → Post</b> — tayyor matningizni to'g'ridan-to'g'ri "
-            "kanalga chiqarish uchun.\n"
-            "📸 <b>Rasm → Post</b> — iltimos, mahsulot rasmini yuboring: AI "
-            "uni ko'rib chiqib, post yozadi.\n"
-            "🎙 <b>Ovoz → Post</b> — iltimos, g'oyangizni ovozli xabar "
-            "(1 daqiqa ichida) qilib yuboring.\n"
-            "🤖 <b>AI Yordamchi</b> — matn yozish, qayta yozish, tarjima va "
-            "g'oyalar uchun.\n\n"
+            "✍️ <b>Oddiy post (AI'siz)</b> — tayyor matn, rasm yoki "
+            "postingizni yuboring; hech qanday AI aralashuvisiz, to'g'ridan-"
+            "to'g'ri kanalga chiqariladi yoki rejalashtiriladi.\n"
+            "✨ <b>AI bilan yaratish (Magic Post)</b> — g'oyani yozing yoki "
+            "ovozingizni yuboring, AI noldan professional post generatsiya "
+            "qiladi.\n"
+            "🤖 <b>AI Studio</b> — audit, tahlil va boshqa intellektual "
+            "vositalar.\n\n"
             "<i>Yoki darhol rasm, ovoz yoki matn yuboring — oqim o'zi tanlaydi.</i>"
         ),
         # --- 🤖 AI Yordamchi (AI Studio bo'limi) yo'riqnomasi ---
@@ -88,22 +94,24 @@ CONTENT_MENU_I18N = {
     # 🇷🇺 RUS TILI
     # ------------------------------------------------------------
     "ru": {
-        "cm_btn_magic": "✨ Magic Post",
+        "cm_btn_manual": "✍️ Обычный пост (без AI)",
+        "cm_btn_magic": "✨ Создать с AI (Magic Post)",
+        "cm_btn_studio": "🤖 AI Studio",
+        "cm_btn_back": "◀️ Назад",
+        # --- СТАРЫЕ (убраны из меню, только алиасы маршрутизации) ---
         "cm_btn_text": "📝 Текст → Пост",
         "cm_btn_image": "📸 Фото → Пост",
         "cm_btn_voice": "🎙 Голос → Пост",
         "cm_btn_ai": "🤖 AI-помощник",
-        "cm_btn_back": "◀️ Назад",
         "cm_menu_intro": (
             "🧩 <b>Создание контента</b> — с какого способа начнём?\n\n"
-            "✨ <b>Magic Post</b> — опишите идею текстом или голосом, AI "
-            "подготовит профессиональный пост в 5 стилях.\n"
-            "📝 <b>Текст → Пост</b> — чтобы опубликовать уже готовый текст.\n"
-            "📸 <b>Фото → Пост</b> — пожалуйста, отправьте фото товара: AI "
-            "рассмотрит его и напишет пост.\n"
-            "🎙 <b>Голос → Пост</b> — отправьте голосовое сообщение с идеей "
-            "(до 1 минуты).\n"
-            "🤖 <b>AI-помощник</b> — написание, переписывание, перевод и идеи.\n\n"
+            "✍️ <b>Обычный пост (без AI)</b> — отправьте готовый текст, фото "
+            "или пост; без какого-либо вмешательства AI он сразу публикуется "
+            "или планируется в канале.\n"
+            "✨ <b>Создать с AI (Magic Post)</b> — опишите идею или отправьте "
+            "голосовое: AI с нуля сгенерирует профессиональный пост.\n"
+            "🤖 <b>AI Studio</b> — аудит, анализ и другие интеллектуальные "
+            "инструменты.\n\n"
             "<i>Или сразу отправьте фото, голос или текст — режим выберется сам.</i>"
         ),
         "cm_ai_hint": (
@@ -125,22 +133,23 @@ CONTENT_MENU_I18N = {
     # 🇬🇧 INGLIZ TILI
     # ------------------------------------------------------------
     "en": {
-        "cm_btn_magic": "✨ Magic Post",
+        "cm_btn_manual": "✍️ Regular post (no AI)",
+        "cm_btn_magic": "✨ Create with AI (Magic Post)",
+        "cm_btn_studio": "🤖 AI Studio",
+        "cm_btn_back": "◀️ Back",
+        # --- LEGACY (removed from the menu, routing aliases only) ---
         "cm_btn_text": "📝 Text → Post",
         "cm_btn_image": "📸 Image → Post",
         "cm_btn_voice": "🎙 Voice → Post",
         "cm_btn_ai": "🤖 AI Assistant",
-        "cm_btn_back": "◀️ Back",
         "cm_menu_intro": (
             "🧩 <b>Create content</b> — which way do we start?\n\n"
-            "✨ <b>Magic Post</b> — describe the idea in text or send a voice "
-            "note, AI drafts a professional post in 5 styles.\n"
-            "📝 <b>Text → Post</b> — publish your ready-made text as is.\n"
-            "📸 <b>Image → Post</b> — please send the product photo: AI reads "
-            "it and writes the post.\n"
-            "🎙 <b>Voice → Post</b> — please send your idea as a voice message "
-            "(within 1 minute).\n"
-            "🤖 <b>AI Assistant</b> — writing, rewriting, translation and ideas.\n\n"
+            "✍️ <b>Regular post (no AI)</b> — send your ready text, photo or "
+            "post; with zero AI involvement it is published or scheduled in "
+            "your channel right away.\n"
+            "✨ <b>Create with AI (Magic Post)</b> — describe the idea or send "
+            "a voice note: AI generates a professional post from scratch.\n"
+            "🤖 <b>AI Studio</b> — audit, analysis and other smart tools.\n\n"
             "<i>Or just send a photo, voice note or text right now — the flow "
             "will be picked for you.</i>"
         ),

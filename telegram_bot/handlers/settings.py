@@ -230,7 +230,12 @@ async def _render_tools(query, lang: str) -> None:
 
 async def _render_profile_screen(query, context, user_id: int, lang: str,
                                  is_admin: bool) -> None:
-    """👤 Profil — mavjud kabinet ekrani (matn + eski kabinet klaviaturasi)."""
+    """👤 Profil — ID, obuna holati, balans/kreditlar va asosiy hisob ma'lumotlari.
+
+    🧹 TOZALANDI: «🌐 Til» tugmasi profildan olib tashlangan (til faqat
+    Sozlamalar → «🌐 Til / Язык» ichida). Obuna holati (PRO muddati yoki
+    FREE) profil kartasiga qo'shildi.
+    """
     from handlers.start import build_cabinet_text, cabinet_credits_text
     from utils.helpers import get_smart_reply_ad_async
 
@@ -247,6 +252,25 @@ async def _render_profile_screen(query, context, user_id: int, lang: str,
         user_id, user_code, credits_text, streak_text,
         len(channels), stats["referrals_count"], lang, ad_line,
     )
+
+    # ⭐️ Obuna holati — profil kartasining majburiy qismi (spek: ID, obuna
+    # holati, balans/kreditlar va asosiy hisob ma'lumotlari).
+    try:
+        plan = await db.run_db(db.get_user_plan, user_id)
+    except Exception:
+        plan = {"plan_type": "free", "expires_at": None}
+    plan_type = str((plan or {}).get("plan_type") or "free").lower()
+    expires_at = (plan or {}).get("expires_at")
+    if plan_type in ("pro", "enterprise") and expires_at:
+        try:
+            date_text = expires_at.strftime("%d.%m.%Y")
+        except AttributeError:
+            date_text = str(expires_at)[:10]
+        sub_line = settings_stats_t("ss_profile_sub_pro", lang, date=date_text)
+    else:
+        sub_line = settings_stats_t("ss_profile_sub_free", lang)
+    text = f"{text}\n{sub_line}"
+
     await _edit_or_reply(
         query, text, get_settings_profile_keyboard(lang),
     )

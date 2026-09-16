@@ -35,6 +35,12 @@ from keyboards.default import (  # noqa: F401  (qayta eksport — API)
     BTN_CONTENT_MAGIC,
     BTN_CONTENT_MAGIC_EN,
     BTN_CONTENT_MAGIC_RU,
+    BTN_CONTENT_MANUAL,
+    BTN_CONTENT_MANUAL_EN,
+    BTN_CONTENT_MANUAL_RU,
+    BTN_CONTENT_STUDIO,
+    BTN_CONTENT_STUDIO_EN,
+    BTN_CONTENT_STUDIO_RU,
     BTN_CONTENT_TEXT,
     BTN_CONTENT_TEXT_EN,
     BTN_CONTENT_TEXT_RU,
@@ -54,6 +60,8 @@ from keyboards.default import (  # noqa: F401  (qayta eksport — API)
     content_creation_rows,
     content_image_label,
     content_magic_label,
+    content_manual_label,
+    content_studio_label,
     content_text_label,
     content_voice_label,
     get_admin_panel_keyboard,
@@ -62,10 +70,13 @@ from keyboards.default import (  # noqa: F401  (qayta eksport — API)
     get_simple_keyboard,
 )
 
-#: «✨ Kontent yaratish» submenu'sining 5 ta yaratish yo'li + ◀️ Orqaga —
+#: «✨ Kontent yaratish» submenu'sining BIRLASHTIRILGAN 3 yo'nalishi —
 #: testlar va hujjatlashtirish uchun qulay konstanta.
-CONTENT_CREATION_BUTTONS = ("✨ Magic Post", "📝 Matn → Post", "📸 Rasm → Post",
-                            "🎙 Ovoz → Post", "🤖 AI Yordamchi")
+CONTENT_CREATION_BUTTONS = (
+    "✍️ Oddiy post (AI'siz)",
+    "✨ AI bilan yaratish (Magic Post)",
+    "🤖 AI Studio",
+)
 
 __all__ = [
     "ADMIN_LEGACY_REPLY_ROWS",
@@ -75,6 +86,8 @@ __all__ = [
     "BTN_CONTENT_BACK", "BTN_CONTENT_BACK_EN", "BTN_CONTENT_BACK_RU",
     "BTN_CONTENT_IMAGE", "BTN_CONTENT_IMAGE_EN", "BTN_CONTENT_IMAGE_RU",
     "BTN_CONTENT_MAGIC", "BTN_CONTENT_MAGIC_EN", "BTN_CONTENT_MAGIC_RU",
+    "BTN_CONTENT_MANUAL", "BTN_CONTENT_MANUAL_EN", "BTN_CONTENT_MANUAL_RU",
+    "BTN_CONTENT_STUDIO", "BTN_CONTENT_STUDIO_EN", "BTN_CONTENT_STUDIO_RU",
     "BTN_CONTENT_TEXT", "BTN_CONTENT_TEXT_EN", "BTN_CONTENT_TEXT_RU",
     "BTN_CONTENT_VOICE", "BTN_CONTENT_VOICE_EN", "BTN_CONTENT_VOICE_RU",
     "BTN_CREATE_CONTENT",
@@ -82,6 +95,7 @@ __all__ = [
     "BTN_MAGIC_POST", "BTN_MAGIC_POST_EN", "BTN_MAGIC_POST_RU",
     "content_ai_label", "content_back_label", "content_creation_labels",
     "content_creation_rows", "content_image_label", "content_magic_label",
+    "content_manual_label", "content_studio_label",
     "content_text_label", "content_voice_label",
     "get_admin_panel_keyboard",
     "get_content_creation_keyboard", "get_main_keyboard", "get_simple_keyboard",

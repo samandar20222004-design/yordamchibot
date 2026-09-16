@@ -82,6 +82,10 @@ SETTINGS_STATS_I18N = {
         ),
         "ss_btn_profile": "👤 Profil",
         "ss_btn_lang": "🌐 Til / Язык",
+        # 👤 Profil kartasi: obuna holati (ID/balans kabi asosiy ma'lumotlar
+        # cabinet_title'da; Til tugmasi profildan olib tashlangan).
+        "ss_profile_sub_pro": "⭐️ Obuna: <b>PRO</b> (muddatigacha: {date})",
+        "ss_profile_sub_free": "🆓 Obuna: <b>FREE</b>",
         "ss_btn_rewards": "🎁 Bonuslar & Ballar",
         "ss_btn_help_hub": "❓ Yordam & Ma'lumot",
         "ss_btn_notif": "🔔 Bildirishnomalar",
@@ -231,6 +235,8 @@ SETTINGS_STATS_I18N = {
         ),
         "ss_btn_profile": "👤 Профиль",
         "ss_btn_lang": "🌐 Язык / Language",
+        "ss_profile_sub_pro": "⭐️ Подписка: <b>PRO</b> (до {date})",
+        "ss_profile_sub_free": "🆓 Подписка: <b>FREE</b>",
         "ss_btn_rewards": "🎁 Бонусы и баллы",
         "ss_btn_help_hub": "❓ Помощь и информация",
         "ss_btn_notif": "🔔 Уведомления",
@@ -379,6 +385,8 @@ SETTINGS_STATS_I18N = {
         ),
         "ss_btn_profile": "👤 Profile",
         "ss_btn_lang": "🌐 Language",
+        "ss_profile_sub_pro": "⭐️ Subscription: <b>PRO</b> (until {date})",
+        "ss_profile_sub_free": "🆓 Subscription: <b>FREE</b>",
         "ss_btn_rewards": "🎁 Bonuses & Credits",
         "ss_btn_help_hub": "❓ Help & Info",
         "ss_btn_notif": "🔔 Notifications",

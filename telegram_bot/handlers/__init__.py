@@ -57,13 +57,14 @@ from keyboards.default import (
     BTN_IMAGE_POST, BTN_IMAGE_POST_RU, BTN_IMAGE_POST_EN,
     # ✨ MAGIC POST — killer feature tugmasi (uz/ru/en)
     BTN_MAGIC_POST, BTN_MAGIC_POST_RU, BTN_MAGIC_POST_EN,
-    # 🧩 KONTENT YARATISH submenu'sining yangi yo'l tugmalari (uz/ru/en).
-    # «✨ Magic Post» va «📸 Rasm → Post» esa yuqoridagi killer-featura
-    # konstantalari bilan BITTA yorliqni ishlatadi — shu sababli bu yerda
-    # takrorlanmaydi (bir yorliq — bitta amal = aniq routing).
-    BTN_CONTENT_TEXT, BTN_CONTENT_TEXT_RU, BTN_CONTENT_TEXT_EN,
+    # 🧩 BIRLASHTIRILGAN KONTENT YARATISH menyusi (3 yo'nalish + Orqaga):
+    #   ✍️ Oddiy post (AI'siz) / ✨ AI bilan yaratish (Magic Post) / 🤖 AI Studio.
+    # Eski bo'lingan yorliqlar (📝 Matn → Post, 🎙 Ovoz → Post, 🤖 AI
+    # Yordamchi) ``MENU_TEXTS`` registry orqali ALIAS sifatida avtomatik
+    # taniladi — ular uchun alohida konstanta import qilinmaydi.
+    BTN_CONTENT_MANUAL, BTN_CONTENT_MANUAL_RU, BTN_CONTENT_MANUAL_EN,
+    BTN_CONTENT_STUDIO, BTN_CONTENT_STUDIO_RU, BTN_CONTENT_STUDIO_EN,
     BTN_CONTENT_VOICE, BTN_CONTENT_VOICE_RU, BTN_CONTENT_VOICE_EN,
-    BTN_CONTENT_AI, BTN_CONTENT_AI_RU, BTN_CONTENT_AI_EN,
     BTN_CONTENT_BACK, BTN_CONTENT_BACK_RU, BTN_CONTENT_BACK_EN,
     BTN_POST_SCORE, BTN_POST_SCORE_RU, BTN_POST_SCORE_EN,
 )
@@ -101,6 +102,19 @@ from handlers.new_post import (
     CHOOSE_CHANNEL, GET_CONTENT, GET_BTN_TITLE, GET_BTN_URL,
     GET_REACTIONS, GET_AUTO_DELETE, GET_TIME, DAILY_TIME, RECUR_DAY, RECUR_TIME,
     GET_DURATION, CONFIRM_POST, EDIT_CONFIRM_FIELD
+)
+
+# 2b. ✍️ ODDIY POST (AI'SIZ) — birlashtirilgan kontent menyusining 1-yo'nalishi.
+# Tayyor matn/rasm/video AI aralashuvisiz preview'ga tushadi va universal
+# panel orqali darhol yuboriladi / rejalashtiriladi / 24 soatlik yoki
+# takroriy e'lon qilinadi.
+from handlers.manual_post import (
+    manual_post_entry, manual_content_received, manual_edit_received,
+    manual_time_received, manual_panel_callback, manual_stale_callback,
+    ManualEntryHandler,
+    set_application as set_manual_application,
+    MANUAL_AWAIT_CONTENT, MANUAL_PREVIEW, MANUAL_CHANNEL_SELECT,
+    MANUAL_TIME_INPUT, MANUAL_EDIT_INPUT,
 )
 
 # 2b. 🛠 POST KUCHAYTIRGICH (Post Enhancer — qo'shimcha funksiyalar)
@@ -722,6 +736,8 @@ def register_all_handlers(app):
     set_image_application(app)
     # 🧩 «cc_» taklif tugmalari ham faol dialogni buzmasligi uchun app kerak.
     set_content_creation_application(app)
+    # ✍️ «mnp_» eski panel tugmalari ham faol dialogni buzmasligi uchun.
+    set_manual_application(app)
     # ============================================================
     # QAT'IY NAVIGATSIYA HANDLERLARI RO'YXATI
     # ============================================================
@@ -869,22 +885,31 @@ def register_all_handlers(app):
                        lambda u, c: guard_entry(u, c, ai_studio_menu_entry)),
     ]
 
-    # 7c. 🧩 KONTENT YARATISH submenu'sining yangi yo'llari (PostAssist V2).
+    # 7c. 🧩 BIRLASHTIRILGAN KONTENT YARATISH menyusi (PostAssist V2).
     # Submenu'ning o'zi «✨ Kontent yaratish» / «✨ AI Studio» tugmasi orqali
-    # ochiladi (ai_handlers'dagi yuqoridagi qator). Bu yerda faqat submenu'ning
-    # 4 TA YANGI yorligi ro'yxatdan o'tadi: ✨ Magic Post va 📸 Rasm → Post
-    # tugmalari allaqachon mavjud bo'limlarning o'z yorliqlari bilan bir xil —
-    # ular magic_handlers / image_post_handlers qatorlariga tushadi.
+    # ochiladi (ai_handlers'dagi yuqoridagi qator). Menyu 3 ta mantiqiy
+    # yo'nalishga birlashtirildi:
+    #   ✍️ Oddiy post (AI'siz) → manual_post_entry (AI aralashuvisiz);
+    #   ✨ AI bilan yaratish (Magic Post) → magic_handlers (o'z yorlig'i);
+    #   🤖 AI Studio → ai_studio_hub_entry (audit/tahlil vositalari).
+    # Eski bo'lingan yorliqlar (📝 Matn → Post, 🎙 Ovoz → Post, 🤖 AI
+    # Yordamchi) menyudan olib tashlandi, lekin ``exact()`` ularni MENU_TEXTS
+    # registry orqali AVTOMATIK taniydi — chat tarixidagi eski tugmalar ham
+    # to'g'ri oqimga tushadi.
     content_creation_handlers = [
-        # 📝 Matn → Post — tayyor matnni oddiy (manual) post sifatida chiqarish.
-        MessageHandler(exact(BTN_CONTENT_TEXT, BTN_CONTENT_TEXT_RU, BTN_CONTENT_TEXT_EN),
-                       lambda u, c: guard_entry(u, c, start_new_post)),
-        # 🎙 Ovoz → Post — «ovozli xabar (1 daqiqa ichida)» yo'riqnomasi + STT.
+        # ✍️ Oddiy post (AI'siz) — tayyor matn/rasm/video to'g'ridan-to'g'ri
+        # preview'ga tushadi (+ eski «📝 Matn → Post» aliaslari).
+        MessageHandler(exact(BTN_CONTENT_MANUAL, BTN_CONTENT_MANUAL_RU,
+                             BTN_CONTENT_MANUAL_EN),
+                       lambda u, c: guard_entry(u, c, manual_post_entry)),
+        # 🎙 Ovoz → Post — «ovozli xabar (1 daqiqa ichida)» yo'riqnomasi + STT
+        # (eski submenu tugmasi routing aliasi sifatida saqlanadi).
         MessageHandler(exact(BTN_CONTENT_VOICE, BTN_CONTENT_VOICE_RU, BTN_CONTENT_VOICE_EN),
                        lambda u, c: guard_entry(u, c, voice_post_entry)),
-        # 🤖 AI Yordamchi — AI Studio bo'limi (matn yozish, qayta yozish,
-        # tarjima va g'oya vositalari).
-        MessageHandler(exact(BTN_CONTENT_AI, BTN_CONTENT_AI_RU, BTN_CONTENT_AI_EN),
+        # 🤖 AI Studio — audit, tahlil va boshqa intellektual vositalar
+        # (+ eski «🤖 AI Yordamchi» aliaslari).
+        MessageHandler(exact(BTN_CONTENT_STUDIO, BTN_CONTENT_STUDIO_RU,
+                             BTN_CONTENT_STUDIO_EN),
                        lambda u, c: guard_entry(u, c, ai_studio_hub_entry)),
         # ◀️ Orqaga — asosiy 6 tugmali menyuga qaytish (submenu yopiladi).
         MessageHandler(exact(BTN_CONTENT_BACK, BTN_CONTENT_BACK_RU, BTN_CONTENT_BACK_EN),
@@ -995,6 +1020,10 @@ def register_all_handlers(app):
             # holati buzilmaydi; tugma «o'lik» holatda bossa esa oddiy
             # yo'riqnoma ekrani qaytariladi (eski sessiya toast'i chiqmaydi).
             ContentOfferEntryHandler(content_offer_callback, pattern=r"^cc_"),
+            # ✍️ ODDIY POST (AI'SIZ): sessiya tugagach bosilgan eski panel
+            # tugmasi — dialog TASHQARISIDA muloyim javob qaytaradi (dialog
+            # ICHIDA mos KELMAYDI — faol suhbat holati buzilmaydi).
+            ManualEntryHandler(manual_stale_callback, pattern=r"^mnp_"),
             CallbackQueryHandler(edit_post_time_start, pattern=r"^p_time:"),
             CallbackQueryHandler(edit_post_content_start, pattern=r"^p_edit:"),
             CallbackQueryHandler(edit_post_btn_start, pattern=r"^p_btn:"),
@@ -1091,6 +1120,25 @@ def register_all_handlers(app):
                 MessageHandler(filters.ALL & ~filters.COMMAND, enh_message_received),
             ],
             GET_AUTO_DELETE: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, auto_delete_received)],
+            # 2b. ✍️ ODDIY POST (AI'SIZ) — tayyor kontent preview + universal
+            # boshqaruv paneli. HECH QANDAY AI handler/tekshiruvi YO'Q:
+            # kontent qabul qilindi → darhol preview → panel amallari.
+            MANUAL_AWAIT_CONTENT: all_menu_jumps + [
+                MessageHandler(filters.ALL & ~filters.COMMAND, manual_content_received),
+            ],
+            MANUAL_PREVIEW: all_menu_jumps + [
+                CallbackQueryHandler(manual_panel_callback, pattern=r"^mnp_"),
+            ],
+            MANUAL_CHANNEL_SELECT: all_menu_jumps + [
+                CallbackQueryHandler(manual_panel_callback, pattern=r"^mnp_"),
+            ],
+            MANUAL_TIME_INPUT: all_menu_jumps + [
+                CallbackQueryHandler(manual_panel_callback, pattern=r"^mnp_"),
+                MessageHandler(filters.ALL & ~filters.COMMAND, manual_time_received),
+            ],
+            MANUAL_EDIT_INPUT: all_menu_jumps + [
+                MessageHandler(filters.ALL & ~filters.COMMAND, manual_edit_received),
+            ],
             GET_TIME: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, time_received)],
             DAILY_TIME: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, daily_time_received)],
             RECUR_DAY: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, recur_day_chosen)],
