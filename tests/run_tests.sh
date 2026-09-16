@@ -40,6 +40,12 @@
 #       shaxsiy hisobot; admin (bot bo'yicha) statistikasi faqat
 #       ⚙️ Admin Panel → «📊 To'liq statistika»
 #       (tests/statistics_isolation_test.py)
+#   3t) 💳 PHASE 9 & 10 — to'lovlar idempotency + scheduler resilience
+#       (tests/payment_and_scheduler_resilience_test.py)
+#   3u) 🚀 PHASE 11 & 12 — AI ADVANCED SMM FEATURES (33, 48, 49, 50, 51-bandlar):
+#       multi-variant generator, kontent repurpose, chuqur post audit & score va
+#       kontent reja generatori — Phase 3 orchestrator + Phase 2 atomik kvota va
+#       HTML sanitizer bilan (tests/ai_advanced_features_test.py)
 #   4) TO'LIQ regressiya: telegram_bot/tests/run_tests.sh (barcha 30+ test fayli)
 #
 # Har qanday xatoda 1 bilan chiqadi (CI uchun).
@@ -379,6 +385,30 @@ echo "===== 3t) 💳 PHASE 9 & 10: TO'LOVLAR IDEMPOTENCY + SCHEDULER RESILIENCE 
 # (4) Auto-delete: MessageNotFound vs Forbidden ajratiladi;
 # (5) pre_checkout_query payload/user/amount/currency qat'iy tekshiriladi.
 "$PY" tests/payment_and_scheduler_resilience_test.py || EXIT_CODE=1
+
+echo
+echo "===== 3u) 🚀 PHASE 11 & 12: AI ADVANCED SMM FEATURES (33, 48, 49, 50, 51) ====="
+# (1) ✨ MULTI-VARIANT (48-band): bitta mavzudan 5 ta ALOHIDA BURG'UCHDAGI post
+#     (🔥 viral / 💎 premium / 💰 sales / 📚 informative / 🤳 blogger) — juftlik
+#     bo'yicha sinonim emas, har birida hook+CTA+hashtag;
+# (2) 🔄 REPURPOSE (49-band): Telegram Post | Instagram Caption (≤2200, 5-10
+#     hashtag) | Stories ssenariy (3-5 slayd ≤120) | Reels/Shorts (0-3s hook +
+#     tayminglar) | Reklama matni (Meta: headline ≤40, primary ≤125, desc ≤30);
+# (3) 🔍 DEEP AUDIT (33/50-band): 6 mezon (Hook, Clarity, Value, Structure, CTA,
+#     Engagement) → 0-100 score + baho → kuchli tomonlar → Top 3 yaxshilanish →
+#     yaxshilangan yakuniy namuna; ballar deterministik (model ballni
+#     o'zgartira olmaydi), zararli kiritish escape qilinadi;
+# (4) 🗓 CONTENT PLAN (51-band): 1/7/14/30 kun — har bir kunda Mavzu, Format,
+#     Hook, Maqsad, CTA; 14/30 kun FAQAT PRO, boshqa davomiylik invalid_duration;
+# (5) 🧪 Mock rejim: GEMINI/GROQ/OPENROUTER kal'itsiz 100% yashil;
+# (6) ⚙️ Integratsiya: Phase 3 AIOrchestrator + ProviderChain, Phase 2 ATOMIK
+#     reserve_ai_request (butun batch uchun BITTA bron, ichki chaqiruvlar
+#     skip_quota), rad etilsa AI'ga chiqmaydi, AI yiqilsa bron qaytariladi,
+#     barcha chiqishlar sanitize_html + 4096 chunk;
+# (7) 🧱 Regressiya: Intent Router, MockProvider eski javoblari, sanitizer,
+#     atomic kvota API'si va services.ai eksportlari buzilmagan
+#     (tests/ai_advanced_features_test.py).
+"$PY" tests/ai_advanced_features_test.py || EXIT_CODE=1
 
 echo
 echo "======== 4) TO'LIQ REGRESSIYA (telegram_bot/tests) ========"

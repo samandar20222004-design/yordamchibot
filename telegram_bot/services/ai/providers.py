@@ -159,6 +159,19 @@ class MockProvider(AIProvider):
 
         clean_prompt = prompt.strip() if prompt else "Ajoyib mavzu"
 
+        # 🚀 PHASE 11 & 12 — advanced SMM rejimlari (48/49/33+50/51-bandlar):
+        # multi-variant, repurpose, deep audit va content plan. Bu rejimlar
+        # FAQAT services/ai/* xizmatlari ctx["smm_mode"] ni yoqqanda ishlaydi,
+        # shu sababli quyidagi CREATE_POST / POST_AUDIT / ... javoblari (va
+        # ularni tekshiruvchi mavjud testlar) O'ZGARMAYDI.
+        try:
+            from .smm_mock import smm_mock_reply
+            smm_text = smm_mock_reply(ctx, clean_prompt)
+            if smm_text:
+                return smm_text
+        except Exception as smm_err:  # noqa: BLE001 — mock hech qachon yiqilmaydi
+            logger.debug("MockProvider SMM banki o'tkazib yuborildi: %s", smm_err)
+
         if lang == "ru":
             if intent == "GENERATE_VARIANTS":
                 return (
