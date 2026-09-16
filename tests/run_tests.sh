@@ -16,7 +16,10 @@
 #   3b) 🎙 VOICE → POST — Killer Feature #2 (tests/voice_to_post_flow_test.py)
 #   3c) 📊 POST SCORE & IMPROVER — Killer Feature #4 (tests/post_score_flow_test.py)
 #   3d) 🧭 UX V2 — asosiy menyu qat'iy 6 tugma standarti (tests/ux_v2_main_menu_test.py)
-#   3e) 🧩 KONTENT YARATISH submenu + ACTION-FIRST (tests/content_creation_menu_test.py)
+#   3e) 🧩 BIRLASHTIRILGAN KONTENT YARATISH menyusi + ACTION-FIRST
+#       (tests/content_creation_menu_test.py)
+#   3e2) ✍️ ODDIY (AI'SIZ) POSTING + universal panel + profil tozaligi
+#       (tests/manual_posting_and_unified_menu_test.py)
 #   3f) 📢 KANALLARIM + 📅 REJALASHTIRILGAN — PostAssist V2 4-qadam
 #       (tests/channels_and_queue_v2_test.py)
 #   3g) 📊 STATISTIKA + ⚙️ SOZLAMALAR + ⚙️ ADMIN PANEL RBAC —
@@ -152,13 +155,24 @@ echo "===== 3d) 🧭 UX V2 — ASOSIY MENYU QAT'IY 6 TUGMA STANDARTI ====="
 
 echo
 echo "===== 3e) 🧩 KONTENT YARATISH SUBMENYUSI + ACTION-FIRST ====="
-# [🧩 Kontent yaratish] bosilganda ichki menyu: 5 tugma + ◀️ Orqaga
-# (✨ Magic Post / 📝 Matn → Post / 📸 Rasm → Post / 🎙 Ovoz → Post /
-# 🤖 AI Yordamchi) — UZ/RU/EN to'liq sinxron, har bir tugma o'z oqimini
-# ochadi, ◀️ Orqaga asosiy 6 tugmali menyuga qaytaradi. ACTION-FIRST: menyu
+# [✨ Kontent yaratish] bosilganda BIRLASHTIRILGAN ichki menyu: 3 yo'nalish
+# + ◀️ Orqaga (✍️ Oddiy post (AI'siz) / ✨ AI bilan yaratish (Magic Post) /
+# 🤖 AI Studio) — UZ/RU/EN to'liq sinxron, har bir tugma o'z oqimini ochadi,
+# eski bo'lingan tugmalar faqat routing aliasi. ACTION-FIRST: menyu
 # tashqarisida ovoz → STT, rasm → Vision, xom matn → "✨ Magic Post" taklifi
 # (tests/content_creation_menu_test.py).
 "$PY" tests/content_creation_menu_test.py || EXIT_CODE=1
+
+echo
+echo "===== 3e2) ✍️ ODDIY (AI'SIZ) POSTING + BIRLASHTIRILGAN MENYU ====="
+# DIQQAT: botni oddiy (AI'siz) postingga moslash — tayyor matn/rasm/video
+# hech qanday AI aralashuvisiz DARHOL preview'ga tushadi; universal panel
+# (🚀 Hozir yuborish / 📅 Vaqtni belgilash / 🗑 24 soatlik e'lon /
+# 🔄 Takroriy e'lon / ✏️ Tahrirlash / ❌ Bekor qilish) to'liq ishlaydi;
+# profildan takroriy «🌐 Til» tugmasi chiqarilgan (til faqat Sozlamalar
+# ichida); birlashtirilgan menyu va i18n pariteti kafolatlanadi
+# (tests/manual_posting_and_unified_menu_test.py).
+"$PY" tests/manual_posting_and_unified_menu_test.py || EXIT_CODE=1
 
 echo
 echo "===== 3f) 📢 KANALLARIM + 📅 REJALASHTIRILGAN ====="

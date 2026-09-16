@@ -529,8 +529,15 @@ def test_settings_menu_structure_and_flows():
     prof_cbs = kb_flat_cbs(q.screen.get("reply_markup"))
     check("profil: cabinet_title matni", "Shaxsiy Kabinet" in prof_text, prof_text[:80])
     check("profil: cabinet klaviaturasi + stgs_hub orqaga",
-          "cab_channels" in prof_cbs and "cab_lang" in prof_cbs
-          and "stgs_hub" in prof_cbs, str(prof_cbs))
+          "cab_channels" in prof_cbs and "stgs_hub" in prof_cbs, str(prof_cbs))
+    # 🧹 PROFIL TOZALANDI: «🌐 Til» tugmasi profildan OLIB TASHLANGAN — til
+    # faqat Sozlamalar → «🌐 Til / Язык» (stgs_lang) ichida qoldi.
+    check("profil: cab_lang tugmasi profilda YO'Q",
+          "cab_lang" not in prof_cbs, str(prof_cbs))
+    # ⭐️ Obuna holati profil kartasida ko'rsatiladi.
+    check("profil: obuna holati kartada bor",
+          ("Obuna" in prof_text) or ("Подписка" in prof_text)
+          or ("Subscription" in prof_text), prof_text[:120])
 
     # 2d) 🌐 Til / Язык — mavjud til almashtirish klaviaturasi.
     async def _lang():

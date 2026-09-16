@@ -180,8 +180,24 @@ def _content_menu_label(key: str, lang: str) -> str:
 
 
 def content_magic_label(lang: str = "uz") -> str:
-    """✨ Magic Post — Magic Post brend yorlig'i (killer feature manbasidan)."""
-    return _magic_post_label(lang)
+    """✨ AI bilan yaratish (Magic Post) — birlashtirilgan menyu yorlig'i.
+
+    Birlashtirishdan oldin bu tugma Magic Post brend yorlag'ini (✨ Magic
+    Post) qayta ishlatardi; endi u «✨ AI bilan yaratish (Magic Post)» —
+    AI orqali noldan post/g'oya generatsiya qilish yo'nalishi. Eski
+    «✨ Magic Post» yorlig'i routing'da ALIAS bo'lib qoladi.
+    """
+    return _content_menu_label("cm_btn_magic", lang)
+
+
+def content_manual_label(lang: str = "uz") -> str:
+    """✍️ Oddiy post (AI'siz) — tayyor kontentni AI'siz chiqarish yo'nalishi."""
+    return _content_menu_label("cm_btn_manual", lang)
+
+
+def content_studio_label(lang: str = "uz") -> str:
+    """🤖 AI Studio — audit, tahlil va boshqa intellektual vositalar."""
+    return _content_menu_label("cm_btn_studio", lang)
 
 
 def content_image_label(lang: str = "uz") -> str:
@@ -196,17 +212,24 @@ def content_image_label(lang: str = "uz") -> str:
 
 
 def content_text_label(lang: str = "uz") -> str:
-    """📝 Matn → Post — oddiy matnli post yaratish bo'limi yorlig'i."""
+    """📝 Matn → Post — ESKI yorliq (menyudan olingan, routing alias).
+
+    Birlashtirilgan menyudan keyin bu yorliqning amali «✍️ Oddiy post
+    (AI'siz)» oqimiga o'tkazildi: tayyor matnni AI'siz chiqarish.
+    """
     return _content_menu_label("cm_btn_text", lang)
 
 
 def content_voice_label(lang: str = "uz") -> str:
-    """🎙 Ovoz → Post — ovozli xabardan post yaratish bo'limi yorlig'i."""
+    """🎙 Ovoz → Post — ESKI yorliq (menyudan olingan, routing alias)."""
     return _content_menu_label("cm_btn_voice", lang)
 
 
 def content_ai_label(lang: str = "uz") -> str:
-    """🤖 AI Yordamchi — AI Studio bo'limi yorlig'i."""
+    """🤖 AI Yordamchi — ESKI yorliq (menyudan olingan, routing alias).
+
+    Amali «🤖 AI Studio» (audit/tahlil vositalari) bo'limiga ulangan.
+    """
     return _content_menu_label("cm_btn_ai", lang)
 
 
@@ -215,7 +238,19 @@ def content_back_label(lang: str = "uz") -> str:
     return _content_menu_label("cm_btn_back", lang)
 
 
-#: Submenu'ning 5 ta yaratish tugmasi + ◀️ Orqaga (uz/ru/en konstantalari).
+#: 🆕 BIRLASHTIRILGAN KONTENT MENYUSI — 3 ta mantiqiy yo'nalish + ◀️ Orqaga.
+#:   [✍️ Oddiy post (AI'siz)]          — tayyor kontentni AI'siz chiqarish;
+#:   [✨ AI bilan yaratish (Magic Post)] — AI generatsiyasi (Magic Post oqimi);
+#:   [🤖 AI Studio]                      — audit, tahlil va intellektual vositalar;
+#:   [◀️ Orqaga]                         — asosiy 6 tugmali menyu.
+BTN_CONTENT_MANUAL = content_manual_label("uz")
+BTN_CONTENT_MANUAL_RU = content_manual_label("ru")
+BTN_CONTENT_MANUAL_EN = content_manual_label("en")
+BTN_CONTENT_STUDIO = content_studio_label("uz")
+BTN_CONTENT_STUDIO_RU = content_studio_label("ru")
+BTN_CONTENT_STUDIO_EN = content_studio_label("en")
+
+#: Submenu'ning eski yaratish tugmalari (menyudan olingan — routing alias).
 BTN_CONTENT_MAGIC = content_magic_label("uz")
 BTN_CONTENT_MAGIC_RU = content_magic_label("ru")
 BTN_CONTENT_MAGIC_EN = content_magic_label("en")
@@ -237,9 +272,18 @@ BTN_CONTENT_BACK_EN = content_back_label("en")
 
 #: Yangi oilalar — har biri uchala tilda ham routing'da tanilishi shart
 #: (``exact()`` registry orqali avtomatik kengaytiradi).
+#: ✍️ Oddiy post (AI'siz) — yangi yorliq + eski «📝 Matn → Post» oilasi
+#: (birlashtirish: tayyor matnni chiqarish endi yagona Oddiy post oqimi).
+MANUAL_POST_ALIASES = (
+    BTN_CONTENT_MANUAL, BTN_CONTENT_MANUAL_RU, BTN_CONTENT_MANUAL_EN,
+)
 CONTENT_TEXT_POST_ALIASES = (BTN_CONTENT_TEXT, BTN_CONTENT_TEXT_RU, BTN_CONTENT_TEXT_EN)
 CONTENT_VOICE_POST_ALIASES = (BTN_CONTENT_VOICE, BTN_CONTENT_VOICE_RU, BTN_CONTENT_VOICE_EN)
 CONTENT_AI_ALIASES = (BTN_CONTENT_AI, BTN_CONTENT_AI_RU, BTN_CONTENT_AI_EN)
+#: 🤖 AI Studio — yangi yorliq; eski «🤖 AI Yordamchi» shu oilaga qo'shiladi.
+CONTENT_STUDIO_ALIASES = (
+    BTN_CONTENT_STUDIO, BTN_CONTENT_STUDIO_RU, BTN_CONTENT_STUDIO_EN,
+)
 CONTENT_BACK_ALIASES = (BTN_CONTENT_BACK, BTN_CONTENT_BACK_RU, BTN_CONTENT_BACK_EN)
 
 # Sodda menyudagi barcha tugmalar (uz + ru + en) — routing/audit uchun yagona manba.
@@ -468,8 +512,11 @@ EXTRAS_ALIASES = (
 )
 # UX V2: asosiy menyudagi "✨ Kontent yaratish" tugmasi AI Studio (kontent
 # yaratish markazi) oqimini ochadi — "✨ AI Studio" yorlig'i ham saqlanadi.
+# DIQQAT (birlashtirilgan menyu): "🤖 AI Studio" yorlig'i bu oiladan
+# CHIQARILDI — endi u kontent menyusidagi alohida «🤖 AI Studio» bo'limi
+# (audit/tahlil vositalari, ``content_studio`` oilasi) ga tegishli.
 AI_STUDIO_ALIASES = (
-    "✨ AI Студия", "🤖 AI Studio", "✨ Studio",
+    "✨ AI Студия", "✨ Studio",
     "✨ Kontent yaratish", "✨ Создать контент", "✨ Create content",
 )
 NEW_POST_ALIASES = (
@@ -547,18 +594,26 @@ MENU_TEXTS = {
     # --- Asosiy menyu (6 tugma + admin qatori) ---
     "new_post": button_texts("btn_new_post", extra=NEW_POST_ALIASES),
     "ai_studio": button_texts("btn_ai_studio", extra=AI_STUDIO_ALIASES),
-    # 🧩 KONTENT YARATISH ichki menyusi (PostAssist V2) — faqat YANGI
-    # yorliqlar uchun oila qo'shildi: «✨ Magic Post» yuqoridagi magic_post
-    # oilasi bilan, «📸 Rasm → Post» esa BTN_IMAGE_POST_* konstantalari bilan
-    # BITTA yorliqni ishlatadi (cm_btn_* == o'sha manbalar) — shu sababli ular
-    # uchun alohida oila yaratilmadi: bir yorliq, bitta amal = aniq routing.
-    "content_text_post": _uniq(CONTENT_TEXT_POST_ALIASES,),
+    # 🧩 BIRLASHTIRILGAN KONTENT YARATISH menyusi (PostAssist V2):
+    #   [✍️ Oddiy post (AI'siz)] [✨ AI bilan yaratish (Magic Post)]
+    #   [🤖 AI Studio] [◀️ Orqaga].
+    # Eski bo'lingan tugmalar (📝 Matn → Post, 🎙 Ovoz → Post, 🤖 AI
+    # Yordamchi) menyudan OLIB TASHLANDI, lekin ularning yorliqlari routing
+    # ALIAS'i sifatida shu oilalarda saqlanadi — chat tarixidagi eski
+    # klaviatura xabarlari bosilsa ham foydalanuvchi to'g'ri oqimga tushadi:
+    #   * 📝 Matn → Post → ✍️ Oddiy post (AI'siz) oqimi (manual_post);
+    #   * 🎙 Ovoz → Post → ovoz (STT) oqimi (voice_post_entry);
+    #   * 🤖 AI Yordamchi → 🤖 AI Studio bo'limi (ai_studio_hub_entry).
+    # «📸 Rasm → Post» esa BTN_IMAGE_POST_* oilasida (image_post) qoladi.
+    "content_manual_post": _uniq(MANUAL_POST_ALIASES, CONTENT_TEXT_POST_ALIASES),
     "content_voice_post": _uniq(CONTENT_VOICE_POST_ALIASES,),
-    "content_ai": _uniq(CONTENT_AI_ALIASES,),
+    "content_studio": _uniq(CONTENT_STUDIO_ALIASES, CONTENT_AI_ALIASES),
     "content_back": _uniq(CONTENT_BACK_ALIASES,),
-    # 🧩 «✨ Magic Post» yorlig'i Kontent yaratish submenu'ida ham shu oiladan
-    # chiziladi (cm_btn_magic == BTN_MAGIC_POST_*) — bir yorliq, bitta amal.
+    # 🧩 «✨ AI bilan yaratish (Magic Post)» submenu yorlig'i va eski
+    # «✨ Magic Post» brend yorlig'i BITTA oilada — ikkalasi ham bitta
+    # Magic Post oqimini ochadi (bir amal = aniq routing).
     "magic_post": _uniq((BTN_MAGIC_POST, BTN_MAGIC_POST_RU, BTN_MAGIC_POST_EN),
+                        (BTN_CONTENT_MAGIC, BTN_CONTENT_MAGIC_RU, BTN_CONTENT_MAGIC_EN),
                         MAGIC_POST_ALIASES),
     "post_score": _uniq((BTN_POST_SCORE, BTN_POST_SCORE_RU, BTN_POST_SCORE_EN),
                         POST_SCORE_ALIASES),
@@ -719,32 +774,33 @@ def exact_i18n(*keys):
 
 
 def content_creation_rows(lang: str = "uz") -> list:
-    """🧩 Kontent yaratish submenu qatorlari — DIQQATdagi aniq tartib.
+    """🧩 Kontent yaratish submenu qatorlari — BIRLASHTIRILGAN menyu.
 
-    Layout (uchala tilda bir xil, faqat yorliqlar tarjima qilinadi)::
+    Bo'lingan va chalkash 5 tugma 3 ta mantiqiy yo'nalishga birlashtirildi
+    (uchala tilda bir xil tartib, faqat yorliqlar tarjima qilinadi)::
 
-        [✨ Magic Post]   [📝 Matn → Post]
-        [📸 Rasm → Post]  [🎙 Ovoz → Post]
-        [🤖 AI Yordamchi]
+        [✍️ Oddiy post (AI'siz)]
+        [✨ AI bilan yaratish (Magic Post)]
+        [🤖 AI Studio]
         [◀️ Orqaga]
 
     Qaytaradi: ``list[list[str]]`` — tugma matnlari (klaviatura emas).
     """
     return [
-        [content_magic_label(lang), content_text_label(lang)],
-        [content_image_label(lang), content_voice_label(lang)],
-        [content_ai_label(lang)],
+        [content_manual_label(lang)],
+        [content_magic_label(lang)],
+        [content_studio_label(lang)],
         [content_back_label(lang)],
     ]
 
 
 def content_creation_labels(lang: str = "uz") -> list:
-    """Submenu'dagi barcha tugma yorliqlari (5 ta yaratish + ◀️ Orqaga)."""
+    """Submenu'dagi barcha tugma yorliqlari (3 yo'nalish + ◀️ Orqaga)."""
     return [label for row in content_creation_rows(lang) for label in row]
 
 
 def get_content_creation_keyboard(lang: str = "uz", context=None):
-    """🧩 KONTENT YARATISH ichki menyusi — 5 tugma + ◀️ Orqaga (reply keyboard).
+    """🧩 KONTENT YARATISH ichki menyusi — 3 yo'nalish + ◀️ Orqaga (reply).
 
     ``get_main_keyboard`` kabi pastki (reply) klaviatura: foydalanuvchi tilida
     chiziladi va «✨ Kontent yaratish» bosilganda asosiy 6 tugma o'rniga

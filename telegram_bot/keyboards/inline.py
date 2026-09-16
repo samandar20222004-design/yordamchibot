@@ -836,10 +836,15 @@ def render_pending_list(posts: list, user_code: str, lang: str = "uz") -> Inline
 
 
 def get_cabinet_inline_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
-    """Kabinet & Sozlamalar asosiy menyusi — inline tugmalar (4x2 + til).
+    """Kabinet & Sozlamalar asosiy menyusi — inline tugmalar (4x2).
 
     ``lang`` foydalanuvchi tili (uz/ru). Tugma matni tarjima qilinadi,
     ``callback_data`` o'zgarishsiz qoladi (routing tilga bog'liq emas).
+
+    🧹 PROFIL TOZALANDI: «🌐 Til» tugmasi profildan OLIB TASHLANDI — til
+    FAQAT Sozlamalar → «🌐 Til / Язык» (``stgs_lang``) ichida qoldi. Eski
+    ``cab_lang`` callback'i esa chat tarixidagi xabarlar uchun routing'da
+    saqlanadi (handlers.start.cabinet_callback).
     """
     keyboard = [
         [
@@ -857,9 +862,6 @@ def get_cabinet_inline_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
         [
             InlineKeyboardButton(get_text("cab_referral", lang), callback_data="cab_referral"),
             InlineKeyboardButton(get_text("cab_close", lang), callback_data="close_cabinet"),
-        ],
-        [
-            InlineKeyboardButton(get_text("lang_button", lang), callback_data="cab_lang"),
         ],
     ]
     return InlineKeyboardMarkup(keyboard)
@@ -1117,6 +1119,96 @@ def get_language_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
             InlineKeyboardButton(get_text("btn_back", lang), callback_data="cab_main"),
         ],
     ])
+
+
+# ============================================================
+# ✍️ ODDIY POST (AI'SIZ) — UNIVERSAL BOSHQARUV PANELI
+# ------------------------------------------------------------
+# Foydalanuvchi tayyor matn/rasm/video yuborgach preview ostida chiqadigan
+# yagona panel. Callback prefiksi ``mnp_`` (manual post) — global stale
+# handler prefikslari (``mp_`` Magic Post, ``vp_``, ``image_``, ``ps_``,
+# ``studio_``, ``cc_``) bilan to'qnashmaydi.
+# ============================================================
+CB_MANUAL_PREFIX = "mnp_"
+CB_MANUAL_NOW = "mnp_now"            # 🚀 Hozir yuborish
+CB_MANUAL_TIME = "mnp_time"          # 📅 Vaqtni belgilash
+CB_MANUAL_24H = "mnp_24h"            # 🗑 24 soatlik e'lon (auto-delete 24h)
+CB_MANUAL_REPEAT = "mnp_repeat"      # 🔄 Takroriy e'lon (har kuni)
+CB_MANUAL_EDIT = "mnp_edit"          # ✏️ Tahrirlash
+CB_MANUAL_CANCEL = "mnp_cancel"      # ❌ Bekor qilish
+CB_MANUAL_PANEL = "mnp_panel"        # ◀️ Orqaga (kanal tanlashdan panelga)
+CB_MANUAL_CHANNEL = "mnp_ch:"        # mnp_ch:<channel_id> — kanal tanlash
+
+
+def manual_channel_callback(channel_id) -> str:
+    """``mnp_ch:<channel_id>`` callback'i (64-bayt kafolatli ``cb`` orqali)."""
+    return cb(CB_MANUAL_CHANNEL[:-1], str(channel_id))
+
+
+def manual_channel_from_callback(data: str):
+    """``mnp_ch:-100123`` → channel_id (int/str); yaroqsiz bo'lsa None."""
+    prefix = CB_MANUAL_CHANNEL
+    if not isinstance(data, str) or not data.startswith(prefix):
+        return None
+    raw = data[len(prefix):].strip()
+    if not raw:
+        return None
+    try:
+        return int(raw)
+    except ValueError:
+        return raw
+
+
+def get_manual_post_panel(lang: str = "uz") -> InlineKeyboardMarkup:
+    """✍️ Oddiy post preview'si ostidagi UNIVERSAL boshqaruv paneli::
+
+        [🚀 Hozir yuborish]
+        [📅 Vaqtni belgilash]
+        [🗑 24 soatlik e'lon]   [🔄 Takroriy e'lon]
+        [✏️ Tahrirlash]         [❌ Bekor qilish]
+
+    Yorliqlar ``translations/manual_post.py`` dan (uz/ru/en paritet);
+    ``callback_data`` tilga bog'liq emas.
+    """
+    from translations import manual_post_t
+
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton(manual_post_t("mp_btn_send_now", lang),
+                              callback_data=CB_MANUAL_NOW)],
+        [InlineKeyboardButton(manual_post_t("mp_btn_schedule", lang),
+                              callback_data=CB_MANUAL_TIME)],
+        [
+            InlineKeyboardButton(manual_post_t("mp_btn_24h", lang),
+                                 callback_data=CB_MANUAL_24H),
+            InlineKeyboardButton(manual_post_t("mp_btn_repeat", lang),
+                                 callback_data=CB_MANUAL_REPEAT),
+        ],
+        [
+            InlineKeyboardButton(manual_post_t("mp_btn_edit", lang),
+                                 callback_data=CB_MANUAL_EDIT),
+            InlineKeyboardButton(manual_post_t("mp_btn_cancel", lang),
+                                 callback_data=CB_MANUAL_CANCEL),
+        ],
+    ])
+
+
+def get_manual_channel_keyboard(channels: list, lang: str = "uz") -> InlineKeyboardMarkup:
+    """📢 Kanal tanlash klaviaturasi (oddiy post oqimi).
+
+    Har bir kanal bitta tugma: ``mnp_ch:<channel_id>``. Pastda panelga
+    qaytish tugmasi (``mnp_panel``) — foydalanuvchi hech qachon boshi
+    berk ko'chada qolmaydi.
+    """
+    from translations import manual_post_t
+
+    keyboard = [
+        [InlineKeyboardButton(f"📢 {btn_label(ch_title)}",
+                              callback_data=manual_channel_callback(ch_id))]
+        for ch_id, ch_title in [(c[0], c[1]) for c in (channels or [])]
+    ]
+    keyboard.append([InlineKeyboardButton(manual_post_t("mp_btn_back_panel", lang),
+                                          callback_data=CB_MANUAL_PANEL)])
+    return InlineKeyboardMarkup(keyboard)
 
 
 def get_extras_inline_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:

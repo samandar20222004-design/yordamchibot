@@ -12,6 +12,8 @@ Modullar:
                  mezon yorliqlari/darajalari va paritet hisoboti (Killer Feature #4).
     content_menu — 🧩 KONTENT YARATISH submenu: CONTENT_MENU_I18N lug'ati,
                  ``content_menu_t`` va paritet hisoboti (PostAssist V2).
+    manual_post — ✍️ ODDIY POST (AI'SIZ): MANUAL_POST_I18N lug'ati,
+                 ``manual_post_t`` va paritet hisoboti (birlashtirilgan menyu).
     channels_queue — 📢 KANALLARIM + 📅 REJALASHTIRILGAN: CHANNELS_QUEUE_I18N
                  lug'ati, ``channels_queue_t``, kanal boshqaruv/post amal
                  tugma kalitlari va paritet hisoboti (PostAssist V2, 4-qadam).
@@ -52,6 +54,12 @@ from translations.content_menu import (  # noqa: F401
     CONTENT_MENU_KEYS,
     content_menu_parity_report,
     content_menu_t,
+)
+from translations.manual_post import (  # noqa: F401
+    MANUAL_POST_I18N,
+    MANUAL_POST_KEYS,
+    manual_post_parity_report,
+    manual_post_t,
 )
 from translations.channels_queue import (  # noqa: F401
     CHANNEL_PANEL_BUTTON_KEYS,
@@ -111,6 +119,10 @@ __all__ = [
     "CONTENT_MENU_KEYS",
     "content_menu_parity_report",
     "content_menu_t",
+    "MANUAL_POST_I18N",
+    "MANUAL_POST_KEYS",
+    "manual_post_parity_report",
+    "manual_post_t",
     "CHANNELS_QUEUE_I18N",
     "CHANNELS_QUEUE_KEYS",
     "CHANNEL_PANEL_BUTTON_KEYS",

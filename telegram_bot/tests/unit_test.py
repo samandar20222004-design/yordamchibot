@@ -1113,15 +1113,18 @@ def test_main_menu_layout_v2():
     check("extras: yopish", ex[2][0] == ("❌ Yopish", "extra_close"), str(ex[2]))
 
     cab = [[(b.text, b.callback_data) for b in row] for row in get_cabinet_inline_keyboard().inline_keyboard]
-    check("kabinet: 5 qator", len(cab) == 5, str(cab))
+    # 🧹 PROFIL TOZALANDI: «🌐 Til» tugmasi profildan olib tashlandi (til
+    # faqat Sozlamalar → Til ichida) — endi 4 qator.
+    check("kabinet: 4 qator (Til tugmasiz)", len(cab) == 4, str(cab))
     expected = [
         [("📢 Mening kanallarim", "cab_channels"), ("📊 Kanallar analitikasi", "cab_analytics")],
         [("📅 Kutilayotgan postlar", "cab_pending"), ("📅 Rejalashtirilgan", "cab_queue")],
         [("💎 Ballar & Reklama rejimi", "cab_balance"), ("🎁 Kunlik bonus", "cab_bonus")],
         [("👥 Do'stlarni taklif", "cab_referral"), ("❌ Yopish", "close_cabinet")],
-        [("🌐 Til / Язык", "cab_lang")],
     ]
     check("kabinet tartibi", cab == expected, str(cab))
+    check("kabinet: cab_lang tugmasi YO'Q",
+          "cab_lang" not in [c for row in cab for _t, c in row], str(cab))
 
 
 def test_analytics_main_keyboard():
@@ -6131,10 +6134,11 @@ def test_cabinet_i18n_suite():
     check("kabinet inline ru: yorliqlar tarjimasi",
           get_text("cab_my_channels", "ru") in cab_texts
           and get_text("cab_close", "ru") in cab_texts, str(cab_texts))
-    check("kabinet inline ru: callback_data o'zgarmagan",
+    # Til tugmasi profildan olib tashlangan — callback ro'yxati 8 ta.
+    check("kabinet inline ru: callback_data (Tilsiz)",
           cab_cbs == ["cab_channels", "cab_analytics", "cab_pending",
                       "cab_queue", "cab_balance", "cab_bonus", "cab_referral",
-                      "close_cabinet", "cab_lang"], str(cab_cbs))
+                      "close_cabinet"], str(cab_cbs))
     check("kabinet inline uz: default",
           [b.text for row in get_cabinet_inline_keyboard().inline_keyboard for b in row][0]
           == get_text("cab_my_channels", "uz"))

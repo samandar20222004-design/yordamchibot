@@ -220,8 +220,8 @@ def test_button_labels_3_langs():
         inline_labels = [
             b.text for row in get_cabinet_inline_keyboard(code).inline_keyboard for b in row
         ]
-        check(f"{code}: kabinet inline menyusi to'liq (9 ta tugma)",
-              len(inline_labels) == 9 and all(str(x).strip() for x in inline_labels),
+        check(f"{code}: kabinet inline menyusi to'liq (8 ta tugma — Til profildan olingan)",
+              len(inline_labels) == 8 and all(str(x).strip() for x in inline_labels),
               str(inline_labels[:3]))
         lang_cbs = [
             b.callback_data
@@ -710,10 +710,13 @@ def test_language_callback_scenario():
                 inline_cbs = [
                     b.callback_data for row in inline_kb.inline_keyboard for b in row
                 ]
+                # 🧹 PROFIL TOZALANDI: «🌐 Til» tugmasi profildan olingan —
+                # endi birinchi tugma tarjimasi til to'g'riligini tekshiradi.
                 check(f"{data}: inline menyu yangi tilda",
-                      lang_btn in labels, str(labels[:4]))
-                check(f"{data}: inline menyuda til tugmasi bor",
-                      "cab_lang" in inline_cbs, str(inline_cbs))
+                      labels and labels[0] == safe_t("cab_my_channels", code),
+                      str(labels[:4]))
+                check(f"{data}: inline menyuda til tugmasi YO'Q (faqat Sozlamalarda)",
+                      "cab_lang" not in inline_cbs, str(inline_cbs))
             check(f"{data}: pastki menyu yangi xabar bilan yuborildi",
                   len(q.message.replies) == 1, str(len(q.message.replies)))
             if q.message.replies:
@@ -760,11 +763,16 @@ def test_language_switch_simple_menu():
     from handlers.start import send_language_reply_keyboard
     from locales.en_overlay import EN_OVERLAY as _O  # noqa: F401
 
+    from datetime import datetime as _dt, timedelta as _td
+
     async def fake_run_db(func, *args, **kwargs):
         name = getattr(func, "__name__", "")
         if name == "get_user_onboarding":
-            # Yangi foydalanuvchi (bugun ro'yxatdan o'tgan) → sodda menyu.
-            return {"created_at": "2026-09-12 10:00:00", "posts_count": 0}
+            # Yangi foydalanuvchi (2 soat oldin ro'yxatdan o'tgan) → sodda
+            # menyu. Sana DINAMIK: NEW_USER_WINDOW_DAYS (3 kun) oynasidan
+            # chiqib ketmasligi uchun (avvalgi qotirilgan sana eskirgan).
+            fresh = (_dt.now() - _td(hours=2)).strftime("%Y-%m-%d %H:%M:%S")
+            return {"created_at": fresh, "posts_count": 0}
         return None
 
     orig = db_mod.run_db
