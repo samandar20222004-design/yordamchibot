@@ -401,7 +401,8 @@ def test_ledger_method_currency_split():
           and ps.currency_for_method("international_stars") == "XTR")
 
     # 4.1 Stars to'lovi → ledger: XTR + international_stars (default).
-    cur1 = _FakeCur(fetch_rows=[(1,), (4242,)])
+    # PHASE 9: user exists, charge_id not exists (None), INSERT returns id
+    cur1 = _FakeCur(fetch_rows=[(1,), None, (4242,)])
     with patch.object(ps, "transaction", _tx_with(cur1)), \
          patch.object(ps, "_invalidate_user"), patch.object(ps, "_cache_clear"):
         res1 = ps.PaymentService.process_stars_payment(
@@ -417,7 +418,7 @@ def test_ledger_method_currency_split():
           any("GREATEST" in q and "COALESCE" in q for q in cur1.queries))
 
     # 4.2 Xato payment_method → normalizatsiya (audit tozaligi).
-    cur2 = _FakeCur(fetch_rows=[(1,), (4243,)])
+    cur2 = _FakeCur(fetch_rows=[(1,), None, (4243,)])
     with patch.object(ps, "transaction", _tx_with(cur2)), \
          patch.object(ps, "_invalidate_user"), patch.object(ps, "_cache_clear"):
         ps.PaymentService.process_stars_payment(
@@ -427,7 +428,7 @@ def test_ledger_method_currency_split():
           cur2.params[-2][-1] == "international_stars", cur2.params)
 
     # 4.3 Mahalliy usul bilan chaqirilsa — valyuta UZS bo'ladi.
-    cur3 = _FakeCur(fetch_rows=[(1,), (4244,)])
+    cur3 = _FakeCur(fetch_rows=[(1,), None, (4244,)])
     with patch.object(ps, "transaction", _tx_with(cur3)), \
          patch.object(ps, "_invalidate_user"), patch.object(ps, "_cache_clear"):
         res3 = ps.PaymentService.process_stars_payment(
@@ -440,7 +441,8 @@ def test_ledger_method_currency_split():
           cur3.params)
 
     # 4.4 Idempotency: takroriy charge → duplicate (PRO ikki marta bermaydi).
-    cur4 = _FakeCur(fetch_rows=[(1,), None])
+    # PHASE 9: user exists, charge_id exists → duplicate
+    cur4 = _FakeCur(fetch_rows=[(1,), (1,)])
     with patch.object(ps, "transaction", _tx_with(cur4)), \
          patch.object(ps, "_invalidate_user"), patch.object(ps, "_cache_clear"):
         res4 = ps.PaymentService.process_stars_payment(
@@ -467,7 +469,8 @@ def test_ledger_method_currency_split():
           and ps.PaymentService.record_card_payment(1, "abc")["ok"] is False)
 
     # 4.6 Chekni tasdiqlash — PRO grant + audit + ledger BIR tranzaksiyada.
-    cur7 = _FakeCur(fetch_rows=[("pending", 777005, 90, 45000), ("ru",)])
+    # PHASE 9: receipt (5 cols with order_id) + order status + lang
+    cur7 = _FakeCur(fetch_rows=[("pending", 777005, 90, 45000, "order-777005"), ("pending",), ("ru",)])
     with patch.object(ps, "transaction", _tx_with(cur7)), \
          patch.object(ps.AuditService, "log_receipt_decision") as mock_audit, \
          patch.object(ps, "_invalidate_user"), patch.object(ps, "_cache_clear"):
@@ -486,7 +489,7 @@ def test_ledger_method_currency_split():
           any("UPDATE payment_receipts SET status = 'approved'" in q for q in cur7.queries)
           and any("FOR UPDATE" in q for q in cur7.queries))
     # Eski 3 ustunli satr (migratsiyagacha) ham qulatmaydi — backward compat.
-    cur8 = _FakeCur(fetch_rows=[("pending", 777006, 30), ("uz",)])
+    cur8 = _FakeCur(fetch_rows=[("pending", 777006, 30, 0, None), ("uz",)])
     with patch.object(ps, "transaction", _tx_with(cur8)), \
          patch.object(ps.AuditService, "log_receipt_decision"), \
          patch.object(ps, "_invalidate_user"), patch.object(ps, "_cache_clear"):

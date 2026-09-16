@@ -217,17 +217,37 @@ class PaymentService:
         curcy = str(currency or "").strip().upper() or currency_for_method(method)
 
         try:
-            # 5-bosqich: to'lov audit yozuvi + obuna uzaytirish — BITTA
-            # atomik blokda (transaction). Xatoda ikkalasi birga qaytariladi,
-            # ya'ni "pul olindi, lekin PRO berilmadi" holati mumkin emas.
+            # PHASE 9 & 10 (P0): to'lov audit + obuna — BITTA atomik tranzaksiya.
+            # Talab: telegram_payment_charge_id bo'yicha SELECT ... FOR UPDATE
+            # bilan qulflab, duplicate PRO faollashtirish qat'iy bloklansin.
+            # Tartib:
+            #   BEGIN -> LOCK users FOR UPDATE -> LOCK payments (charge_id) FOR UPDATE
+            #   -> INSERT ON CONFLICT DO NOTHING -> PRO uzaytirish -> COMMIT.
             with transaction() as cur:
-                # User mavjudligini tekshirib qulflash
+                # 1) User qatorini qulflash (mavjudlik + parallel update himoyasi)
                 cur.execute("SELECT 1 FROM users WHERE user_id = %s FOR UPDATE", (user_id,))
                 if not cur.fetchone():
                     return {"ok": False, "duplicate": False, "reason": "user_not_found"}
 
-                # Idempotent yozuv — usul (payment_method) va valyuta (currency)
-                # bilan: 🇺🇿 Uzcard/Humo → UZS, 🌍 Stars → XTR.
+                # 2) PHASE 9: charge_id bo'yicha atomar qulf — bitta charge bilan
+                #    2 marta PRO berilmasligi kafolati. Mavjud yozuv bo'lsa FOR UPDATE
+                #    qulfi olinadi, bo'lmasa INSERT paytida UNIQUE himoyasi ishlaydi.
+                try:
+                    cur.execute(
+                        "SELECT id FROM payments WHERE telegram_payment_charge_id = %s FOR UPDATE",
+                        (charge_id,),
+                    )
+                    existing = cur.fetchone()
+                    if existing:
+                        # Allaqachon to'langan — duplicate, PRO qayta berilmaydi
+                        return {"ok": True, "duplicate": True, "days": 0,
+                                "payment_method": method, "currency": curcy}
+                except Exception:
+                    # Eski adapter / jadval hali migratsiyalanmagan bo'lsa ham
+                    # davom etamiz — ON CONFLICT baribir duplicate'ni ushlaydi
+                    pass
+
+                # 3) Idempotent yozuv — usul va valyuta bilan
                 cur.execute(
                     """
                     INSERT INTO payments (user_id, amount, currency, payload,
@@ -241,10 +261,11 @@ class PaymentService:
                 )
                 payment_row = cur.fetchone()
                 if not payment_row:
+                    # Race condition: parallel tranzaksiya bizdan oldin INSERT qilgan
                     return {"ok": True, "duplicate": True, "days": 0,
                             "payment_method": method, "currency": curcy}
 
-                # Obuna uzaytirish: max(current_expiry, NOW()) + days
+                # 4) Obuna uzaytirish: max(current_expiry, NOW()) + days (additive)
                 cur.execute(
                     "UPDATE users SET plan_type = %s, "
                     "subscription_expires_at = GREATEST("
@@ -372,27 +393,85 @@ class PaymentService:
         ishlaydi: amount_uzs ixtiyoriy o'qiladi).
         """
         try:
-            # Chek tasdiqlash + PRO uzaytirish — bitta tranzaksiya (5-bosqich).
+            # PHASE 9 & 10 (P0): Chek tasdiqlash — BITTA atomik tranzaksiya.
+            # Talab: BEGIN -> LOCK payment_orders FOR UPDATE -> status pending
+            # tekshirish -> PRO berish -> status approved -> audit -> COMMIT.
+            # Parallel bosilganda ikkinchi bosish rad etilsin.
             with transaction() as cur:
-                cur.execute(
-                    "SELECT status, user_id, days_granted, amount_uzs "
-                    "FROM payment_receipts WHERE id = %s FOR UPDATE",
-                    (int(receipt_id),),
-                )
+                # 1) Receipt qatorini FOR UPDATE bilan qulflash (pending-only)
+                # Eski mock-testlar 3 ustun qaytarsa ham ishlashi uchun order_id
+                # ixtiyoriy o'qiladi (len tekshiruvi).
+                try:
+                    cur.execute(
+                        "SELECT status, user_id, days_granted, amount_uzs, order_id "
+                        "FROM payment_receipts WHERE id = %s FOR UPDATE",
+                        (int(receipt_id),),
+                    )
+                except Exception:
+                    # Eski adapter / schema hali order_id ustunini bilmasa
+                    cur.execute(
+                        "SELECT status, user_id, days_granted, amount_uzs "
+                        "FROM payment_receipts WHERE id = %s FOR UPDATE",
+                        (int(receipt_id),),
+                    )
                 row = cur.fetchone()
                 if not row:
                     return {"ok": False, "reason": "not_found"}
-                status, user_id, default_days = row[0], row[1], row[2]
+                # Row parsing — backward compatible
+                status = row[0]
+                user_id = row[1]
+                default_days = row[2] if len(row) > 2 else 30
                 amount_uzs = row[3] if len(row) > 3 else 0
+                order_id = row[4] if len(row) > 4 else None
+
                 if status != RECEIPT_STATUS_PENDING:
                     if status == RECEIPT_STATUS_APPROVED:
                         return {"ok": False, "reason": "already_approved"}
                     return {"ok": False, "reason": "already_reviewed"}
 
+                # 2) Agar receipt order_id ga bog'langan bo'lsa — payment_orders
+                #    ni ham FOR UPDATE bilan qulflaymiz (duplicate approval blok).
+                #    Shuningdek, receipt_id orqali bog'langan order'lar ham qulflanadi
+                #    (attach_receipt_to_order oqimi).
+                order_status = None
+                if order_id:
+                    try:
+                        cur.execute(
+                            "SELECT status FROM payment_orders WHERE order_id = %s FOR UPDATE",
+                            (str(order_id),),
+                        )
+                        orow = cur.fetchone()
+                        if orow:
+                            order_status = orow[0]
+                            if order_status != "pending":
+                                return {"ok": False, "reason": "already_reviewed"}
+                    except Exception:
+                        # payment_orders jadvali yo'q yoki eski adapter — davom etamiz
+                        pass
+                else:
+                    # order_id yo'q bo'lsa ham, receipt_id orqali bog'langan
+                    # order'larni qulflab, pending ekanini tekshiramiz
+                    try:
+                        cur.execute(
+                            "SELECT order_id, status FROM payment_orders "
+                            "WHERE receipt_id = %s FOR UPDATE",
+                            (int(receipt_id),),
+                        )
+                        orows = cur.fetchall() if hasattr(cur, "fetchall") else []
+                        for oid, ostatus in orows:
+                            if ostatus != "pending":
+                                return {"ok": False, "reason": "already_reviewed"}
+                            # Birinchi pending order_id ni eslab qolamiz (status update uchun)
+                            if not order_id:
+                                order_id = oid
+                    except Exception:
+                        pass
+
                 grant_days = int(default_days or 30)
                 if grant_days <= 0:
                     grant_days = 30
 
+                # 3) Receipt statusini pending -> approved (qat'iy pending-only)
                 cur.execute(
                     "UPDATE payment_receipts SET status = 'approved', "
                     "decided_by = %s, reviewed_at = NOW(), days_granted = %s "
@@ -402,7 +481,18 @@ class PaymentService:
                 if cur.rowcount == 0:
                     return {"ok": False, "reason": "already_reviewed"}
 
-                # PRO berish: max(current_expiry, NOW()) + days
+                # 4) Agar order mavjud bo'lsa — uni ham approved ga o'tkazamiz
+                if order_id:
+                    try:
+                        cur.execute(
+                            "UPDATE payment_orders SET status = 'approved' "
+                            "WHERE order_id = %s AND status = 'pending'",
+                            (str(order_id),),
+                        )
+                    except Exception:
+                        pass
+
+                # 5) PRO berish: max(current_expiry, NOW()) + days (additive)
                 cur.execute(
                     "UPDATE users SET plan_type = 'pro', "
                     "subscription_expires_at = GREATEST("
@@ -411,24 +501,27 @@ class PaymentService:
                     "WHERE user_id = %s",
                     (str(grant_days), int(user_id)),
                 )
-                # 6-bosqich: audit yozuvi SHU tranzaksiyada (atomik).
+                # 6) Audit yozuvi SHU tranzaksiyada (atomik)
                 AuditService.log_receipt_decision(
                     admin_id, receipt_id, approved=True,
                     user_id=user_id, days=grant_days,
                     old_status=status, cur=cur,
                 )
-                # 💳 Ledger: mahalliy karta to'lovi (UZS / 'uzcard_humo') —
-                # PRO grant, audit va to'lov yozuvi BIR atomik blokda.
+                # 7) Ledger: mahalliy karta to'lovi (UZS / uzcard_humo) —
+                #    PRO grant, audit va to'lov BIR blokda
                 PaymentService._insert_card_ledger_row(
                     cur, user_id, receipt_id, amount_uzs
                 )
-                # Foydalanuvchi tilini olish
+                # 8) Foydalanuvchi tilini olish
                 lang = "uz"
-                cur.execute(
-                    "SELECT language_code FROM users WHERE user_id = %s", (int(user_id),)
-                )
-                lrow = cur.fetchone()
-                lang = _normalize_language_code(lrow[0] if lrow else "uz")
+                try:
+                    cur.execute(
+                        "SELECT language_code FROM users WHERE user_id = %s", (int(user_id),)
+                    )
+                    lrow = cur.fetchone()
+                    lang = _normalize_language_code(lrow[0] if lrow else "uz")
+                except Exception:
+                    lang = "uz"
 
             _invalidate_user(int(user_id))
             _cache_clear("system_stats")

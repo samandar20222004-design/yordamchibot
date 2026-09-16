@@ -4,7 +4,26 @@
 set -u
 cd "$(dirname "$0")/.."
 
-PY=${PYTHON:-python3}
+resolve_py() {
+    if [ -n "${PYTHON:-}" ] && [ -x "${PYTHON:-}" ]; then
+        echo "$PYTHON"
+        return
+    fi
+    if [ -n "${PYTHON:-}" ]; then
+        echo "[WARN] PYTHON='$PYTHON' topilmadi yoki bajarilmaydi — python3 ga fallback" >&2
+    fi
+    if [ -x "$HOME/venv/bin/python" ]; then
+        echo "$HOME/venv/bin/python"
+        return
+    fi
+    if command -v python3 >/dev/null 2>&1; then
+        echo "python3"
+        return
+    fi
+    echo "python"
+}
+PY=$(resolve_py)
+echo "[INFO] (inner) Python interpreter: $PY ($($PY --version 2>&1 || echo 'unknown'))"
 echo "==================== SYNTAX TEST ===================="
 "$PY" tests/syntax_test.py || exit 1
 

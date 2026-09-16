@@ -46,7 +46,36 @@
 # ============================================================================
 set -u
 cd "$(dirname "$0")/.."
-PY=${PYTHON:-python3}
+
+# --- PYTHON interpreter rezolyutsiyasi (P0 fix) ---------------------------
+# Topshiriq: PYTHON=$HOME/venv/bin/python bo'lishi mumkin, lekin yo'l
+# mavjud bo'lmasa skript "No such file or directory" bilan 1 qaytarmasligi
+# kerak — fallback python3 ga tushishi shart. Shuningdek, venv topilsa
+# afzallik beriladi (CI'da deps shu yerda).
+resolve_py() {
+    if [ -n "${PYTHON:-}" ] && [ -x "${PYTHON:-}" ]; then
+        echo "$PYTHON"
+        return
+    fi
+    if [ -n "${PYTHON:-}" ]; then
+        if [ -e "${PYTHON}" ] && [ -x "${PYTHON}" ]; then
+            echo "$PYTHON"
+            return
+        fi
+        echo "[WARN] PYTHON='$PYTHON' topilmadi yoki bajarilmaydi — python3 ga fallback qilinmoqda" >&2
+    fi
+    if [ -x "$HOME/venv/bin/python" ]; then
+        echo "$HOME/venv/bin/python"
+        return
+    fi
+    if command -v python3 >/dev/null 2>&1; then
+        echo "python3"
+        return
+    fi
+    echo "python"
+}
+PY=$(resolve_py)
+echo "[INFO] Python interpreter: $PY ($($PY --version 2>&1 || echo 'unknown'))"
 EXIT_CODE=0
 
 echo "=============================================================="
@@ -341,6 +370,15 @@ echo "===== 3s) ⚡️ PHASE 4 & 5: AI CONCURRENCY, USER LOCK & CANCELLATION ===
 # (3) Request Cancellation — generation_id, asyncio.Task.cancel(), kechikkan
 #     natijani filtrlab tashlash va to'liq refund (tests/ai_concurrency_test.py).
 "$PY" tests/ai_concurrency_test.py || EXIT_CODE=1
+
+echo
+echo "===== 3t) 💳 PHASE 9 & 10: TO'LOVLAR IDEMPOTENCY + SCHEDULER RESILIENCE ====="
+# (1) Duplicate Stars payment: bitta charge_id 2 marta kelsa ikkinchisi rad;
+# (2) Duplicate Admin receipt approval: bir vaqtda tasdiqlanganda faqat 1 marta PRO;
+# (3) Scheduler media group timeout: blind retry YO'Q, UNKNOWN ga o'tadi;
+# (4) Auto-delete: MessageNotFound vs Forbidden ajratiladi;
+# (5) pre_checkout_query payload/user/amount/currency qat'iy tekshiriladi.
+"$PY" tests/payment_and_scheduler_resilience_test.py || EXIT_CODE=1
 
 echo
 echo "======== 4) TO'LIQ REGRESSIYA (telegram_bot/tests) ========"

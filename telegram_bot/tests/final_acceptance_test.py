@@ -115,8 +115,8 @@ def test_payment_idempotency_static():
     section("1) PAYMENT IDEMPOTENCY — static (mock DB)")
     from services import payment_service as ps
 
-    # 1-chaqiruv: user bor, INSERT yangi qator qaytaradi → PRO beriladi.
-    call1 = _FakeCursor(fetch_rows=[(1,), (4242,)])
+    # 1-chaqiruv: PHASE 9 — user bor, charge_id yo'q (None), INSERT yangi qator qaytaradi → PRO beriladi.
+    call1 = _FakeCursor(fetch_rows=[(1,), None, (4242,)])
 
     @contextmanager
     def tx1(commit=True):
@@ -129,8 +129,8 @@ def test_payment_idempotency_static():
           res1.get("ok") is True and res1.get("duplicate") is False, str(res1))
     check("birinchi to'lov: 30 kun berildi", res1.get("days") == 30, str(res1))
 
-    # 2-chaqiruv: INSERT hech narsa qaytarmaydi (charge_id UNIQUE) → dublikat.
-    call2 = _FakeCursor(fetch_rows=[(1,), None])
+    # 2-chaqiruv: PHASE 9 — user bor, charge_id mavjud → dublikat (INSERT qilinmaydi)
+    call2 = _FakeCursor(fetch_rows=[(1,), (1,)])
 
     @contextmanager
     def tx2(commit=True):
