@@ -36,28 +36,17 @@ os.environ.setdefault("ADMIN_IDS", "123456789,987654321")
 
 from telegram.ext import ConversationHandler
 from config import ADMIN_IDS_SET
-from handlers import MAGIC_INPUT, PHOTO_WAITING
-from handlers.magic_post import magic_text_received, magic_post_entry
+from handlers import PHOTO_WAITING
+from handlers.magic_post import magic_text_received
 from handlers.image_post import (
     image_photo_received,
     image_topic_received,
     IMAGE_POST_INPUT,
 )
 from handlers.admin import admin_dashboard_callback
-from handlers.start import cancel_handler, start
-from middlewares.fsm_cleaner import (
-    clear_user_fsm,
-    is_cancel_trigger,
-    is_start_or_menu_trigger,
-    is_navigation_trigger,
-    FSMCleanerMiddleware,
-)
-from middlewares.rbac import (
-    is_admin_user,
-    admin_rbac_required,
-    check_callback_rbac,
-    RBAC_DENIED_MESSAGE,
-)
+from handlers.start import cancel_handler
+from middlewares.fsm_cleaner import is_cancel_trigger, is_start_or_menu_trigger, is_navigation_trigger, FSMCleanerMiddleware
+from middlewares.rbac import is_admin_user, admin_rbac_required, RBAC_DENIED_MESSAGE
 
 
 async def fake_run_db(func, *args, **kwargs):

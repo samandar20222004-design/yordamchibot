@@ -106,7 +106,7 @@ def cb_flat(markup):
 # ---------------------------------------------------------------------------
 import pytz  # noqa: E402
 from telegram.ext import (  # noqa: E402
-    CallbackQueryHandler, ConversationHandler, MessageHandler,
+    CallbackQueryHandler, ConversationHandler,
 )
 
 import database as db_mod  # noqa: E402
@@ -806,7 +806,7 @@ def test_regression_guards():
                    "qpush:", "qpage:", "qslots:", "p_edit:", "p_time:"):
         check(f"eski callback pattern saqlangan: {prefix}",
               f'pattern=r"^{prefix}"' in h_src or f'pattern="^{prefix}"' in h_src
-              or f're.escape(CB_CHANNEL_VOICE)' in h_src, prefix)
+              or 're.escape(CB_CHANNEL_VOICE)' in h_src, prefix)
 
     # (4) FSM holatlari va dialoglar buzilmagan.
     from handlers.new_post import CHOOSE_CHANNEL, GET_CONTENT

@@ -328,7 +328,7 @@ def test_score_text_flow():
     msg = FakeMessage(text=SAMPLE_POST)
     ai_calls = []
 
-    with ai_patch(AI_SCORE_JSON, ai_calls), db_patch()[0] as _p:
+    with ai_patch(AI_SCORE_JSON, ai_calls), db_patch()[0]:
         state = run(ps.post_score_text_received(FakeUpdate(message=msg), ctx))
 
     check("natijadan keyin POST_SCORE_RESULT", state == ps.POST_SCORE_RESULT)
@@ -584,7 +584,7 @@ def test_improve_refunds_on_ai_failure():
     patcher, fake_db = db_patch()
 
     with ai_patch({"error": "timeout", "timeout": True}), patcher:
-        state = run(ps.post_score_improve_callback(FakeUpdate(query=query), ctx))
+        run(ps.post_score_improve_callback(FakeUpdate(query=query), ctx))
 
     check("xatoda kredit yechilgan (1 marta)",
           fake_db.calls.count("use_user_credit") == 1, str(fake_db.calls))

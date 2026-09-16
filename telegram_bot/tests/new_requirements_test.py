@@ -544,7 +544,7 @@ def test_update_lock_manager_concurrency_and_cleanup():
 
 def test_guarded_application_per_user_locking():
     """GuardedApplication: har bir update uchun lock key to'g'ri aniqlanadi."""
-    from main import GuardedApplication, get_update_lock_key
+    from main import get_update_lock_key
     from types import SimpleNamespace
 
     user_u1 = SimpleNamespace(effective_user=SimpleNamespace(id=1001), callback_query=None, effective_message=None)
@@ -861,9 +861,7 @@ def test_unknown_fallback_replies_in_user_language_with_main_menu():
     """
     import handlers as h_mod
     from telegram import ReplyKeyboardMarkup
-    from keyboards.default import (
-        BTN_CREATE_CONTENT, BTN_CREATE_CONTENT_RU, BTN_NEW_POST, BTN_NEW_POST_RU,
-    )
+    from keyboards.default import BTN_CREATE_CONTENT, BTN_CREATE_CONTENT_RU
     app = _build_app()
     restore = _patch_db({"get_user_language": "ru", "is_premium": True})
     try:
@@ -1321,7 +1319,6 @@ def test_scheduler_persistent_db_outage_guard_and_flush():
 
 def test_scheduler_sent_journal_survives_restart(tmp_path=None):
     """Journal fayli: marker restartdan keyin ham o'qiladi (best-effort) va guard ishlaydi."""
-    import importlib
     import tempfile
     sch_mod = _sch_isolated()
     path = os.path.join(tempfile.mkdtemp(prefix="sent_journal_"), "journal.json")
@@ -1496,7 +1493,6 @@ def test_sticker_warning_texts_exact():
 
 def test_content_received_rejects_sticker_in_user_language():
     """GET_CONTENT bosqichida stiker → o'z tilida ogohlantirish, holat GET_CONTENT da qoladi."""
-    import handlers.new_post as np_mod
     from handlers.new_post import GET_CONTENT, content_received, classify_post_content, is_sticker_message
 
     class _Msg:
@@ -1821,7 +1817,6 @@ def test_execute_send_strips_leading_reaction_glyphs_from_text_and_caption():
     """Scheduler kanalga yuborganda text/caption tanlangan reaksiya glyph'larisiz chiqadi;
     reaksiyalar faqat reply_markup (yalang'och emoji, '👍 0' emas) bo'ladi."""
     sch_mod = _sch_isolated()
-    captured = []
 
     async def fake_run_db(fn, *args, **kwargs):
         name = getattr(fn, "__name__", "")

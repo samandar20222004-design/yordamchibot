@@ -94,7 +94,7 @@ from keyboards.callback_data import (  # noqa: E402
     CALLBACK_DATA_MAX_BYTES, CB_CHANNEL_BACK, CB_CHANNEL_OPEN, callback_byte_len,
     is_callback_safe,
 )
-from locales.translations import clear_fsm_data, get_text  # noqa: E402
+from locales.translations import get_text  # noqa: E402
 from translations import (  # noqa: E402
     channels_queue_parity_report, content_menu_parity_report,
     content_menu_t, magic_post_parity_report, post_score_parity_report,

@@ -29,17 +29,9 @@ os.environ.setdefault("DATABASE_URL", "postgresql://user:pass@localhost:5432/tes
 os.environ.setdefault("ADMIN_ID", "123456789")
 
 from services.ai.router import SMMIntent, detect_intent
-from services.ai.validator import AIOutputValidator, ValidationResult
-from services.ai.providers import (
-    AIProvider,
-    AIProviderError,
-    GeminiProvider,
-    GroqProvider,
-    OpenRouterProvider,
-    MockProvider,
-    ProviderChain,
-)
-from services.ai.orchestrator import AIOrchestrator, AIOrchestrationResult
+from services.ai.validator import AIOutputValidator
+from services.ai.providers import AIProvider, AIProviderError, MockProvider, ProviderChain
+from services.ai.orchestrator import AIOrchestrator
 
 
 # ============================================================

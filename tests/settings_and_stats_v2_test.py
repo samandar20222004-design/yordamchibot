@@ -419,7 +419,6 @@ def test_statistics_overview_format():
 # ============================================================================
 def test_settings_menu_structure_and_flows():
     print("\n== TEST 2: ⚙️ Sozlamalar — 8 guruh + rewards/help hub ==")
-    from telegram.ext import ConversationHandler
 
     # Legacy kabinet tezkor tugmalari — menyuda KO'RINMASLIGI shart
     # (ular o'z asosiy menyularida bor: 📢 Kanallarim, 📅 Rejalashtirilgan...).

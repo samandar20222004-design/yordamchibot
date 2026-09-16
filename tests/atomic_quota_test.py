@@ -42,7 +42,7 @@ import sys
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -563,6 +563,8 @@ def test_quota_before_credit():
         restore_fake(db, orig2)
     check("kvota tugach kreditdan yechildi (source='credit')",
           r3.get("allowed") and r3.get("source") == "credit", str(r3))
+    check("ikkinchi so'rov ham kreditdan yechildi (source='credit')",
+          r4.get("allowed") and r4.get("source") == "credit", str(r4))
     check("balans 2 → 1 → 0", pg2.snapshot(771007)["credits"] == 0,
           str(pg2.snapshot(771007)))
     check("uchinchi so'rov rad etildi (kredit tugadi)",

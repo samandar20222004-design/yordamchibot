@@ -21,7 +21,6 @@ Ishga tushirish:
 import asyncio
 import os
 import sys
-import time
 import warnings
 from datetime import datetime
 from pathlib import Path

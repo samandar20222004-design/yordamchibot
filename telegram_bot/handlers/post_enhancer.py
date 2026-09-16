@@ -1360,7 +1360,6 @@ async def enh_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def _preset_action(update, context, query, arg, enh):
     """Tayyor shablon tanlandi — endi faqat havola so'raladi (uz/ru)."""
-    chat_id = query.message.chat_id if query.message else query.from_user.id
     lang = get_lang(context)
     preset = get_url_preset(arg, lang)
     if not preset:

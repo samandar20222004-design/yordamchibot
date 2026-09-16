@@ -16,7 +16,7 @@ os.environ.setdefault("DATABASE_URL", "postgresql://user:pass@localhost:5432/tes
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from datetime import datetime, timedelta
+from datetime import datetime
 import pytz
 from telegram.error import TelegramError
 
@@ -174,7 +174,7 @@ def test_abuse_protection():
 def test_tashkent_date():
     print("== database._today_tashkent (kunlik bonus vaqti) ==")
     from database import _today_tashkent
-    from datetime import date, timedelta
+    from datetime import date
     today = _today_tashkent()
     check("Toshkent sanasi qaytadi", isinstance(today, date), str(today))
     # Toshkent UTC+5 — server UTC dan ko'pi bilan 1 kunga farq qilishi mumkin
@@ -184,7 +184,7 @@ def test_tashkent_date():
 
 def test_prompt_truncation():
     print("== utils.ai_agent prompt limiti ==")
-    from utils.ai_agent import MAX_PROMPT_CHARS, analyze_user_prompt
+    from utils.ai_agent import MAX_PROMPT_CHARS
     check("MAX_PROMPT_CHARS = 3000", MAX_PROMPT_CHARS == 3000)
 
     # Prompt kesish logikasi: 3000 dan ortiq bo'lsa kesiladi
@@ -280,7 +280,6 @@ def test_ai_runtime_params():
     p = ai_agent.get_runtime_params()
     for key in ("temperature", "max_tokens", "top_p", "max_prompt_chars", "context_messages", "context_chars"):
         check(f"runtime: {key} mavjud", key in p, str(p))
-    raise_no = []
     ai_agent._RUNTIME_PARAMS["temperature"] = 0.2
     ai_agent._set_runtime_param("temperature", "0.7")
     check("temperature yangilanadi", ai_agent.get_runtime_params()["temperature"] == 0.7)
@@ -707,7 +706,6 @@ def test_ai_action_keyboards():
     # 1. Action keyboard
     kb = _get_ai_action_keyboard()
     cbs = [b.callback_data for row in kb.inline_keyboard for b in row]
-    labels = [b.text for row in kb.inline_keyboard for b in row]
     check("action kb: grammar", "ai_act:grammar" in cbs)
     check("action kb: emoji", "ai_act:emoji" in cbs)
     check("action kb: hashtags", "ai_act:hashtags" in cbs)
@@ -771,9 +769,7 @@ def test_tone_of_voice_constants():
 
     # 4. Tone keyboard
     kb = get_tone_keyboard()
-    labels = [b.text for row in kb.inline_keyboard for b in row] if hasattr(kb, 'inline_keyboard') else []
     # ReplyKeyboardMarkup — keyboard attribute
-    labels = [b for row in kb.keyboard for b in row]
     check("tone keyboard mavjud", kb is not None)
 
 
@@ -813,7 +809,7 @@ def test_tone_descriptions():
 def test_content_plan_prompt():
     """Content plan prompt strukturasini tekshirish."""
     print("== Content plan prompt ==")
-    from utils.ai_agent import _CONTENT_PLAN_SYSTEM, _POST_FROM_PLAN_SYSTEM, generate_content_plan, generate_post_from_plan
+    from utils.ai_agent import _CONTENT_PLAN_SYSTEM, _POST_FROM_PLAN_SYSTEM, generate_content_plan
     import asyncio
 
     # 1. Content plan system prompt O'zbek tilida
@@ -979,7 +975,6 @@ def test_analytics_keyboards():
     channels = [("-1001", "Kanal A"), ("-1002", "Kanal B")]
     kb = _get_analytics_channel_keyboard(channels)
     cbs = [b.callback_data for row in kb.inline_keyboard for b in row]
-    labels = [b.text for row in kb.inline_keyboard for b in row]
     check("ch kb: Barcha kanallar", "an_ch:all" in cbs)
     check("ch kb: Kanal A", "an_ch:-1001" in cbs)
     check("ch kb: Kanal B", "an_ch:-1002" in cbs)
@@ -2534,13 +2529,7 @@ def test_queue_main_keyboard():
 def test_confirmation_queue_integration():
     """Confirmation + Queue integratsion test."""
     print("== integration: confirmation + queue ==")
-    from handlers.new_post import (
-        _build_preview_text, _get_confirm_keyboard, _get_edit_confirm_keyboard,
-        CONFIRM_POST, EDIT_CONFIRM_FIELD,
-        build_channel_labels, _media_item_from_message, _apply_single_media,
-        CHOOSE_CHANNEL, GET_CONTENT, GET_BTN_TITLE, GET_BTN_URL,
-        GET_REACTIONS, GET_AUTO_DELETE, GET_TIME, DAILY_TIME, RECUR_DAY, RECUR_TIME, GET_DURATION,
-    )
+    from handlers.new_post import _build_preview_text, _get_confirm_keyboard, _get_edit_confirm_keyboard, CONFIRM_POST, EDIT_CONFIRM_FIELD, build_channel_labels, _media_item_from_message
     from database import find_next_queue_slot, DEFAULT_QUEUE_SLOTS
 
     tz = pytz.timezone("Asia/Tashkent")
@@ -2683,7 +2672,6 @@ def test_payments_audit_table():
 def test_stars_invoice_provider_token():
     """Stars invoice provider_token=\"\" (None emas)."""
     print("== Stars invoice provider_token ==")
-    from handlers.subscription import subscription_callback
     source = open(__import__("handlers.subscription", fromlist=["subscription_callback"]).__file__).read()
 
     check("provider_token=\"\" ishlatiladi", 'provider_token=""' in source)
@@ -2724,7 +2712,6 @@ def test_queue_limit_function():
     """Navbat limiti funksiyasi mavjud va to'g'ri formatda."""
     print("== check_queue_limit ==")
     import database as db_mod
-    from config import ADMIN_IDS_SET
 
     check("FREE_QUEUE_MAX_POSTS mavjud", hasattr(db_mod, "FREE_QUEUE_MAX_POSTS"))
     check("FREE_QUEUE_MAX_POSTS = 5", db_mod.FREE_QUEUE_MAX_POSTS == 5)
@@ -2966,9 +2953,7 @@ def test_url_button_builder():
     """Inline URL tugma quruvchi: 'Button Text - https://link.com' parser testlari."""
     print("== inline URL tugma quruvchi ==")
     from handlers.new_post import parse_url_button_line, normalize_button_url
-    from keyboards.default import (
-        get_button_prompt_keyboard, BTN_ADD_URL_BUTTON, BTN_SKIP_URL_BUTTON, BTN_SKIP_BUTTON,
-    )
+    from keyboards.default import get_button_prompt_keyboard, BTN_ADD_URL_BUTTON, BTN_SKIP_URL_BUTTON
 
     # 1. Yangi tugma konstantalari
     check("BTN_ADD_URL_BUTTON", BTN_ADD_URL_BUTTON == "🔗 URL tugma qo'shish")
@@ -3132,10 +3117,7 @@ def test_five_fixes_suite():
     import sys as _sys
     import database as db_mod
     from utils import ai_agent
-    from keyboards.inline import (
-        get_channels_manage_keyboard, NO_CHANNELS_HINT,
-        get_extras_inline_keyboard, get_cabinet_back_keyboard,
-    )
+    from keyboards.inline import get_channels_manage_keyboard, NO_CHANNELS_HINT, get_extras_inline_keyboard
     import handlers.queue as queue_mod
     import handlers.start  # noqa: F401
     start_mod = _sys.modules["handlers.start"]
@@ -3319,13 +3301,7 @@ def test_sponsor_channels_suite():
     """Majburiy obuna (Sponsor kanallar) tizimi testlari."""
     print("== Majburiy obuna (Sponsor channels) ==")
     import database as db_mod
-    from keyboards.inline import (
-        unpack_sponsor,
-        get_subscription_check_keyboard,
-        get_admin_sponsors_keyboard,
-        get_sponsors_delete_keyboard,
-    )
-    from handlers.start import check_user_subscribed, check_user_sponsorship
+    from keyboards.inline import unpack_sponsor, get_subscription_check_keyboard, get_admin_sponsors_keyboard
 
     # DB funksiyalari mavjudligi
     check("db.add_sponsor_channel mavjud", hasattr(db_mod, "add_sponsor_channel"))
@@ -5525,7 +5501,6 @@ def test_channel_posts_history_suite():
     import asyncio
     import database as db_mod
     from handlers.channels import on_channel_post
-    from utils.channel_reader import fetch_latest_channel_posts
 
     # 1. DB funksiyalari mavjudligi
     check("db.save_channel_post_history mavjud", hasattr(db_mod, "save_channel_post_history"))
@@ -6075,13 +6050,7 @@ def test_cabinet_i18n_suite():
     import sys as _sys
     from pathlib import Path
     from locales.translations import get_text, localize_db_message, TRANSLATIONS
-    from keyboards.default import (
-        get_main_keyboard, get_cabinet_keyboard, get_cancel_keyboard, exact,
-        BTN_CHANNELS, BTN_CHANNELS_RU, BTN_CONVERTER, BTN_CONVERTER_RU,
-        BTN_DAILY_BONUS, BTN_DAILY_BONUS_RU, BTN_INVITE, BTN_INVITE_RU,
-        BTN_TRANSFER, BTN_TRANSFER_RU, BTN_BACK, BTN_BACK_RU,
-        BTN_CANCEL, BTN_CANCEL_RU, BTN_SETTINGS, BTN_SETTINGS_RU,
-    )
+    from keyboards.default import get_main_keyboard, get_cabinet_keyboard, get_cancel_keyboard, exact, BTN_CHANNELS, BTN_CHANNELS_RU, BTN_CONVERTER, BTN_CONVERTER_RU, BTN_DAILY_BONUS, BTN_DAILY_BONUS_RU, BTN_INVITE, BTN_INVITE_RU, BTN_TRANSFER, BTN_TRANSFER_RU, BTN_BACK, BTN_BACK_RU, BTN_CANCEL, BTN_CANCEL_RU, BTN_SETTINGS_RU
     from keyboards.inline import (
         get_cabinet_inline_keyboard, get_cabinet_back_keyboard,
         get_channels_manage_keyboard, render_channels_list, no_channels_hint,
@@ -6315,15 +6284,7 @@ def test_i18n_uz_ru():
         get_text, detect_language, normalize_lang, clear_fsm_data,
         SUPPORTED_LANGS, DEFAULT_LANG,
     )
-    from keyboards.default import (
-        get_main_keyboard, exact, exact_i18n,
-        BTN_NEW_POST, BTN_NEW_POST_RU, BTN_AI_STUDIO, BTN_AI_STUDIO_RU,
-        BTN_PREMIUM, BTN_PREMIUM_RU, BTN_SETTINGS, BTN_SETTINGS_RU,
-        BTN_CREATE_CONTENT, BTN_CREATE_CONTENT_RU,
-        BTN_MY_CHANNELS, BTN_MY_CHANNELS_RU,
-        BTN_SCHEDULED, BTN_SCHEDULED_RU,
-        BTN_STATISTICS, BTN_STATISTICS_RU,
-    )
+    from keyboards.default import get_main_keyboard, exact, exact_i18n, BTN_NEW_POST, BTN_NEW_POST_RU, BTN_PREMIUM_RU, BTN_SETTINGS, BTN_SETTINGS_RU, BTN_CREATE_CONTENT, BTN_CREATE_CONTENT_RU, BTN_MY_CHANNELS, BTN_MY_CHANNELS_RU, BTN_SCHEDULED_RU, BTN_STATISTICS_RU
     from keyboards.inline import get_language_keyboard
     import database as db_mod
     from pathlib import Path
@@ -7644,15 +7605,7 @@ def test_callback_data_64byte_safety():
     """1️⃣ Inline tugmalar: callback_data HECH QACHON 64 baytdan oshmaydi."""
     print("== 1. Inline callback_data 64-bayt xavfsizligi ==")
     import ast
-    from keyboards.callback_data import (
-        CALLBACK_DATA_MAX_BYTES, CALLBACK_PREFIX_MAX_BYTES, CANONICAL_PREFIXES,
-        cb, callback_byte_len, is_callback_safe, truncate_callback_data,
-        safe_callback_data, pattern as cb_pattern,
-        CB_CHANNEL_DELETE, CB_CHANNEL_SETTINGS, CB_POST_TIME, CB_POST_EDIT,
-        CB_POST_BTN, CB_POST_REACT, CB_POST_CANCEL, CB_SPONSOR_DELETE,
-        CB_RECEIPT_APPROVE, CB_RECEIPT_REJECT, CB_PHOTO_APPROVE, CB_PHOTO_REJECT,
-        CB_REACT_TOGGLE, CB_REACT_DONE, CB_REACT_SKIP, CB_REACTION,
-    )
+    from keyboards.callback_data import CALLBACK_DATA_MAX_BYTES, CALLBACK_PREFIX_MAX_BYTES, CANONICAL_PREFIXES, cb, callback_byte_len, is_callback_safe, truncate_callback_data, safe_callback_data, pattern as cb_pattern, CB_CHANNEL_DELETE, CB_CHANNEL_SETTINGS, CB_POST_TIME, CB_POST_EDIT, CB_POST_BTN, CB_POST_REACT, CB_POST_CANCEL, CB_SPONSOR_DELETE, CB_RECEIPT_APPROVE, CB_RECEIPT_REJECT, CB_PHOTO_APPROVE, CB_PHOTO_REJECT, CB_REACTION
 
     # --- a) Konstantalar: limit va qisqa kanonik prefikslar ---
     check("limit 64 bayt", CALLBACK_DATA_MAX_BYTES == 64)
@@ -8581,7 +8534,7 @@ def test_onboarding_resolve_and_quick_handlers():
     import onboarding as ob
     from telegram.ext import ConversationHandler
     from locales.translations import get_text
-    from keyboards.default import BTN_NEW_POST, BTN_QUICK_AI_POST, BTN_CREATE_CONTENT
+    from keyboards.default import BTN_QUICK_AI_POST, BTN_CREATE_CONTENT
 
     ob_mod = importlib.import_module("handlers.onboarding")
     from handlers.ai_assistant import AI_PROMPT_INPUT
@@ -9108,7 +9061,6 @@ def test_content_plan_week_keyboard():
     # Yangi hafta klaviaturasi
     kb = _get_plan_week_keyboard(items, "uz")
     rows = kb.inline_keyboard
-    labels = [b.text for r in rows for b in r]
     cbs = [b.callback_data for r in rows for b in r]
     check("week kb uz: birinchi qator — rejalashtirish tugmasi",
           rows[0][0].callback_data == CB_PLAN_SCHEDULE_ALL, str(rows[0]))
@@ -9187,13 +9139,11 @@ def test_content_plan_schedule_all_flow():
     print("== content plan: 7 kunni navbatga qo'yish (runtime) ==")
     import asyncio
     import importlib
-    import pytz
-    from datetime import datetime, timedelta
+    from datetime import timedelta
     import database as db_mod
     from locales.translations import get_text
 
     cp = importlib.import_module("handlers.content_plan")
-    tz = pytz.timezone("Asia/Tashkent")
     state = {"result": {"success": True, "count": 7, "ids": list(range(11, 18)),
                         "times": cp.week_schedule_times(7)}, "raise": False}
     calls = []
@@ -9635,6 +9585,7 @@ def main():
     test_new_inline_keyboards()
     test_admin_new_buttons()
     test_admin_channels_text_limit()
+    test_free_channel_limit_enforcement()
     test_apply_post_watermark()
     test_compose_post_text_limit()
     test_ai_context_memory()
@@ -9722,6 +9673,7 @@ def main():
     test_channel_ad_interval_logic()
     test_per_channel_counter_isolation()
     test_ad_html_and_button_validation()
+    test_safe_html()
     test_ad_pool_full_crud_api()
     test_scheduler_ad_inline_button()
     test_ad_pool_keyboards()

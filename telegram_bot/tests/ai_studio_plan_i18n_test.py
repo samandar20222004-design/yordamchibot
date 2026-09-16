@@ -12,7 +12,7 @@ os.environ.setdefault("DATABASE_URL", "postgresql://user:pass@localhost:5432/tes
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from locales.translations import TRANSLATIONS, get_text, SUPPORTED_LANGS
+from locales.translations import TRANSLATIONS
 
 failures = 0
 passed = 0
@@ -34,7 +34,7 @@ def check(name, cond, extra=""):
 def test_ai_studio_plan_keys_exist():
     """AI Studio va Kontent-reja bo'limiga tegishli barcha kalitlar 3 tilda mavjud."""
     print("== AI Studio Plan: kalitlar mavjudligi (uz/ru/en) ==")
-    from locales.translations import TRANSLATIONS, get_text, SUPPORTED_LANGS
+    from locales.translations import get_text
 
     plan_keys = [
         "ai_studio_post", "ai_studio_photo", "ai_studio_extract",

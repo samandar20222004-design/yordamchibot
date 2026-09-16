@@ -146,14 +146,13 @@ from keyboards.default import (                            # noqa: E402
     BTN_MAGIC_POST, BTN_MAGIC_POST_RU, BTN_MAGIC_POST_EN,
     MENU_TEXTS, exact, get_main_keyboard,
 )
-from locales.translations import normalize_lang, safe_t    # noqa: E402
+from locales.translations import normalize_lang            # noqa: E402
 from translations import (                                 # noqa: E402
-    MAGIC_POST_I18N, MAGIC_POST_KEYS, MAGIC_STYLE_KEYS,
+    MAGIC_POST_I18N, MAGIC_STYLE_KEYS,
     magic_post_parity_report, magic_t,
 )
 from utils.ai_agent import (                               # noqa: E402
-    MAGIC_POST_STYLES, MAGIC_POST_SYSTEMS,
-    build_magic_post_system, ensure_magic_hashtags,
+    MAGIC_POST_STYLES, MAGIC_POST_SYSTEMS, ensure_magic_hashtags,
     generate_magic_post, normalize_magic_style, with_language,
 )
 

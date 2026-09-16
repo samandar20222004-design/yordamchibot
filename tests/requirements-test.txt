@@ -18,10 +18,15 @@
 #               suite'lari (load / stress / integrity / P0 concurrency va
 #               tests/concurrency_load_test.py DB qismi) SKIP bo'ladi va
 #               concurrency test "NOT TESTED — resource limit" deb qayd etadi.
+#               DIQQAT (P2 tuzatildi): ilgari bu yerda mavjud BO'LMAGAN
+#               "pgserver>=0.2.0" yozilgan edi — PyPI'dagi eng yuqori reliz
+#               0.1.4. Natijada `pip install -r tests/requirements-test.txt`
+#               XATO bilan to'xtab, live-DB suite'lari JIM skip bo'lardi
+#               (soxta yashil). Endi real mavjud versiya pin qilingan.
 #   pyflakes  — PHASE 14 (56-band) dead-code/unused-import tozaligini
 #               tekshirish uchun (qo'lda: python -m pyflakes telegram_bot tests).
 # ============================================================================
 
 pytest>=8.0
-pgserver>=0.2.0
+pgserver>=0.1.4
 pyflakes>=3.2.0

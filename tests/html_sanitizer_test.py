@@ -5,7 +5,6 @@ No live Telegram/DB/AI credentials are used. The simulator is intentionally
 independent of the sanitizer: XML enforces balanced markup/entities, then a
 Telegram-specific whitelist checks attributes and prohibited nesting.
 """
-import asyncio
 from io import BytesIO
 import json
 import os
@@ -24,10 +23,7 @@ os.environ.setdefault("BOT_TOKEN", "123456:HTML_TEST")
 os.environ.setdefault("DATABASE_URL", "postgresql://user:pass@localhost/testdb")
 os.environ.setdefault("ADMIN_ID", "123456789")
 
-from utils.telegram_sanitizer import (
-    sanitize_html, html_length, html_to_text, escape_html, escape_html_limited,
-    telegram_html_payload, truncate_text,
-)
+from utils.telegram_sanitizer import sanitize_html, html_length, html_to_text, telegram_html_payload, truncate_text
 from utils.telegram_delivery import SafeHTMLBot, sanitize_api_payload, create_safe_bot
 from telegram import InputMediaPhoto, InputMediaVideo, InputTextMessageContent, InlineQueryResultArticle
 from telegram.error import BadRequest, TimedOut

@@ -296,7 +296,6 @@ except Exception as e:
         check_and_delete_expired_posts=lambda *a, **k: None,
     )
     # For source inspection tests, read file directly
-    import types as _t
     scheduler_module_src = src
     # Monkey-patch inspect.getsource to return file content for our dummy
     UNKNOWN_DELIVERY = "unknown"
@@ -559,11 +558,11 @@ class TestSchedulerAlbumTimeout(unittest.TestCase):
     def test_classify_timeout_transient(self):
         # TimedOut itself is transient, but album case must be UNKNOWN
         try:
-            from telegram.error import TimedOut, NetworkError, BadRequest, RetryAfter
+            from telegram.error import TimedOut
         except Exception:
-            from telegram.error import TimedOut, NetworkError
-            BadRequest = type("BadRequest", (Exception,), {})
-            RetryAfter = type("RetryAfter", (Exception,), {"retry_after": 5})
+            from telegram.error import TimedOut
+            type("BadRequest", (Exception,), {})
+            type("RetryAfter", (Exception,), {"retry_after": 5})
         err = TimedOut("Timed out")
         # Direct classify: TimedOut is transient (general), but scheduler special-cases album_api_started
         # Our classify_delete_error returns transient for TimedOut, which is correct
