@@ -26,7 +26,13 @@ SMM_MODE_VARIANTS = "VARIANTS"
 SMM_MODE_REPURPOSE = "REPURPOSE"
 SMM_MODE_AUDIT = "AUDIT"
 SMM_MODE_PLANNER = "PLANNER"
-SMM_MODES = (SMM_MODE_VARIANTS, SMM_MODE_REPURPOSE, SMM_MODE_AUDIT, SMM_MODE_PLANNER)
+# 📥 PHASE D — kontent manbalari (11, 12, 13-bandlar).
+SMM_MODE_URL_POST = "URL_POST"
+SMM_MODE_RSS = "RSS_DIGEST"
+SMM_MODE_RECYCLE = "RECYCLE"
+SMM_MODES = (SMM_MODE_VARIANTS, SMM_MODE_REPURPOSE, SMM_MODE_AUDIT,
+             SMM_MODE_PLANNER, SMM_MODE_URL_POST, SMM_MODE_RSS,
+             SMM_MODE_RECYCLE)
 
 _LANGS = ("uz", "ru", "en")
 
@@ -401,6 +407,119 @@ PLAN_BANK: dict[str, dict[str, list[str]]] = {
 
 
 # ---------------------------------------------------------------------------
+# 📥 PHASE D — URL→POST / RSS / RECYCLE banks (11, 12, 13-bandlar)
+# ---------------------------------------------------------------------------
+#: URL→post: 4 format (news/short/expert/ads) — deterministik, faqat sarlavha.
+URL_POST_BANK: dict[str, dict[str, str]] = {
+    "news": {
+        "uz": ("📰 <b>{topic}</b>\n\nManbaning asosiy g'oyasi: sodda va aniq "
+               "tilda aytilgan yangilik. Tafsilotlar manbada — takrorlab "
+               "chiqmasdan eng muhimini ajratdik.\n\n🔗 Manba: maqola havolasi"),
+        "ru": ("📰 <b>{topic}</b>\n\nГлавная мысль источника: новость, "
+               "изложенная простым и точным языком. Детали — в источнике.\n\n"
+               "🔗 Источник: ссылка на статью"),
+        "en": ("📰 <b>{topic}</b>\n\nThe key idea of the source: the news told "
+               "in simple and precise language. Details are in the source.\n\n"
+               "🔗 Source: article link"),
+    },
+    "short": {
+        "uz": "⚡ {topic} — buni bilish 30 soniya oladi. Batafsili havolada.",
+        "ru": "⚡ {topic} — на это нужно 30 секунд. Подробности по ссылке.",
+        "en": "⚡ {topic} — it takes 30 seconds to know this. Details in link.",
+    },
+    "expert": {
+        "uz": ("🧠 <b>{topic}</b>\n\nAmaliy xulosa:\n• Manbadagi asosiy tezisni "
+               "o'z sohangizga moslashtiring\n• Raqam va faktlarga tayaning — "
+               "tasdiqlanmagan da'vo yozmang\n• Keyingi postda misol bilan "
+               "davom ettiring"),
+        "ru": ("🧠 <b>{topic}</b>\n\nПрактический вывод:\n• адаптируйте тезис "
+               "источника к своей сфере\n• опирайтесь на цифры и факты\n"
+               "• продолжите примером в следующем посте"),
+        "en": ("🧠 <b>{topic}</b>\n\nPractical takeaway:\n• adapt the source "
+               "thesis to your field\n• rely on numbers and facts\n• follow up "
+               "with an example in the next post"),
+    },
+    "ads": {
+        "uz": ("📢 <b>{topic}</b>\n\n🎯 Taklif: mavzu bo'yicha amaliy yechim.\n"
+               "👉 Batafsil ma'lumot: havolada"),
+        "ru": ("📢 <b>{topic}</b>\n\n🎯 Предложение: практическое решение по "
+               "теме.\n👉 Подробнее: по ссылке"),
+        "en": ("📢 <b>{topic}</b>\n\n🎯 Offer: a practical solution on the "
+               "topic.\n👉 More details: in the link"),
+    },
+}
+
+#: RECYCLE: eski postni yangilovchi (hook/title/body/cta) JSON banki.
+RECYCLE_BANK: dict[str, dict[str, str]] = {
+    "uz": {
+        "hook": "♻️ Bu mavzuni ko'pchilik o'tkazib yuborgan — endi boshqacha ko'rinishda.",
+        "title": "Yangilangan qarash: {topic}",
+        "body": ("Mavzu o'sha, lekin urg'u boshqa: avval natijaga e'tibor "
+                 "berardik, endi esa jarayonning eng muhim qadamiga."),
+        "cta": "👉 Siz qaysi qadamni birinchi qo'llaysiz? Izohda yozing.",
+    },
+    "ru": {
+        "hook": "♻️ Эту тему многие пропустили — теперь в другом виде.",
+        "title": "Обновлённый взгляд: {topic}",
+        "body": ("Тема та же, но акцент другой: раньше смотрели на результат, "
+                 "теперь — на ключевой шаг процесса."),
+        "cta": "👉 Какой шаг примените первым? Напишите в комментариях.",
+    },
+    "en": {
+        "hook": "♻️ Many missed this topic — here it is again, restructured.",
+        "title": "Refreshed take: {topic}",
+        "body": ("Same topic, new emphasis: we used to focus on the outcome, "
+                 "now on the single most important step of the process."),
+        "cta": "👉 Which step will you try first? Tell us in the comments.",
+    },
+}
+
+#: RSS digest: oqim elementidan AI bilan yozilgan qisqa post.
+RSS_BANK: dict[str, str] = {
+    "uz": ("📡 <b>{topic}</b>\n\nManba mazmunidagi asosiy o'zgarish va uning "
+           "kanalingiz uchun ahamiyati qisqa qilib tushuntirildi.\n\n"
+           "🔗 Batafsil: manba havolasi"),
+    "ru": ("📡 <b>{topic}</b>\n\nКратко о главном изменении в источнике и о "
+           "том, почему это важно для вашего канала.\n\n"
+           "🔗 Подробнее: ссылка источника"),
+    "en": ("📡 <b>{topic}</b>\n\nA short note on the key change in the source "
+           "and why it matters for your channel.\n\n"
+           "🔗 Read more: source link"),
+}
+
+
+def url_post_json(lang: Any, topic: str) -> str:
+    """URL→post uchun 4 formatdagi deterministik JSON (mock)."""
+    code = _lang(lang)
+    variants = {key: bank[code].format(topic=topic or "Manba")
+                for key, bank in URL_POST_BANK.items()}
+    return json.dumps({"variants": variants}, ensure_ascii=False)
+
+
+def recycle_json(lang: Any, topic: str) -> str:
+    """Recycle uchun yangilangan post JSON'i (mock)."""
+    code = _lang(lang)
+    table = RECYCLE_BANK[code]
+    return json.dumps({"refreshed": {
+        "hook": table["hook"],
+        "title": str(table["title"]).format(topic=clip_topic(topic)),
+        "body": table["body"],
+        "cta": table["cta"],
+    }}, ensure_ascii=False)
+
+
+def rss_digest_text(lang: Any, topic: str) -> str:
+    """RSS qoralamasi uchun qisqa post matni (mock)."""
+    return RSS_BANK[_lang(lang)].format(topic=topic or "Yangi material")
+
+
+def clip_topic(topic: Any, limit: int = 90) -> str:
+    """Mavzuni sarlavha uchun qisqartiradi."""
+    value = " ".join(str(topic or "").split())
+    return value[:limit] if value else "Mavzu"
+
+
+# ---------------------------------------------------------------------------
 # YARDAMCHILAR
 # ---------------------------------------------------------------------------
 def _lang(lang: Any) -> str:
@@ -490,4 +609,12 @@ def smm_mock_reply(context: dict | None, topic: str = "") -> str | None:
     if mode == SMM_MODE_PLANNER:
         return plan_json(lang, int(context.get("smm_plan_batch") or 7),
                          int(context.get("smm_plan_start") or 1), topic)
+
+    # 📥 PHASE D — URL→post / RSS qoralamasi / recycle (11, 12, 13-bandlar).
+    if mode == SMM_MODE_URL_POST:
+        return url_post_json(lang, topic)
+    if mode == SMM_MODE_RSS:
+        return rss_digest_text(lang, topic)
+    if mode == SMM_MODE_RECYCLE:
+        return recycle_json(lang, topic)
     return None

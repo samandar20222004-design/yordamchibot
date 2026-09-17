@@ -89,6 +89,16 @@ CB_CHANNEL_AUTOPILOT = "ch_ap:"   # 🚀 AI Avtopilot (7 kunlik reja)
 CB_CHANNEL_TEMPLATES = "ch_tpl:"  # 📋 Shablonlar (post shablonlari menyusi)
 CB_CHANNEL_BACK = "ch_back"       # ◀️ Orqaga → kanallar ro'yxati (payload'siz)
 
+# 📥 PHASE D — kontent manbalari (11, 12, 13-bandlar): URL→post, RSS, recycle.
+CB_SOURCE_URL = "src_url:"        # 🔗 Havoladan post (URL → post oqimi)
+CB_SOURCE_RSS = "src_rss:"        # 📡 RSS/ATOM oqimi (manbalar ro'yxati)
+CB_SOURCE_RECYCLE = "src_rec:"    # ♻️ Eski postni yangilash (content recycle)
+CB_SOURCE_DRAFTS = "src_drf:"     # 🗂 Tasdiqlash kutayotgan qoralamalar
+# Qoralama kartochkasi: src_draft:<action>:<draft_id> (dynamic payload).
+CB_SOURCE_DRAFT = "src_draft:"
+CB_SOURCE_BACK = "src_back"       # ◀️ Manbalar menyusiga qaytish (payload'siz)
+CB_SOURCE_CANCEL = "src_cancel"   # ❌ Bekor qilish (payload'siz)
+
 # ---------------------------------------------------------------------------
 # 📅 REJALASHTIRILGAN — post kartochkasi amallari (PostAssist V2, 4-qadam)
 # ---------------------------------------------------------------------------
@@ -153,6 +163,12 @@ CANONICAL_PREFIXES = (
     # 🚀 PHASE C — AI Avtopilot + post shablonlari (kanal kontekstida).
     CB_CHANNEL_AUTOPILOT,
     CB_CHANNEL_TEMPLATES,
+    # 📥 PHASE D — kontent manbalari (URL→post, RSS/ATOM, recycle).
+    CB_SOURCE_URL,
+    CB_SOURCE_RSS,
+    CB_SOURCE_RECYCLE,
+    CB_SOURCE_DRAFTS,
+    CB_SOURCE_DRAFT,
     # 📅 REJALASHTIRILGAN — yagona ro'yxat amallari (PostAssist V2 · 2-qadam).
     CB_SCHED_BTN_REACT,
     # 📊 Post Score — dinamik payload qo'shiladigan prefikslar.

@@ -116,6 +116,13 @@ from translations.templates import (  # noqa: F401
     templates_parity_report,
     templates_t,
 )
+from translations.sources import (  # noqa: F401
+    SOURCES_BUTTON_KEYS,
+    SOURCES_I18N,
+    SOURCES_KEYS,
+    sources_parity_report,
+    sources_t,
+)
 
 __all__ = [
     "MAGIC_POST_I18N",
@@ -172,4 +179,9 @@ __all__ = [
     "TEMPLATES_KEYS",
     "templates_t",
     "templates_parity_report",
+    "SOURCES_I18N",
+    "SOURCES_KEYS",
+    "SOURCES_BUTTON_KEYS",
+    "sources_t",
+    "sources_parity_report",
 ]

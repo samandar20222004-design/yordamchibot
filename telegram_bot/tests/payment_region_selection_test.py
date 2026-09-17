@@ -520,9 +520,10 @@ def test_schema_and_database_additive():
           and "ALTER TABLE payment_receipts ADD COLUMN IF NOT EXISTS amount_uzs" in schema)
     # Paritet schema_test.py dagi ro'yxat bilan: PHASE 2 / 1-qadamda
     # ``idx_ai_reservations_user`` qo'shildi → 18 → 19; PHASE C refaktorida
-    # ``idx_post_templates_user`` qo'shildi → 23 → 24.
-    check("schema.sql: indekslar soni schema_test parallelligiga mos (24)",
-          schema.count("CREATE INDEX IF NOT EXISTS") == 24,
+    # ``idx_post_templates_user`` qo'shildi → 23 → 24; PHASE D (11, 12-bandlar)
+    # da kontent manbalari indekslari qo'shildi → 24 → 28.
+    check("schema.sql: indekslar soni schema_test parallelligiga mos (28)",
+          schema.count("CREATE INDEX IF NOT EXISTS") == 28,
           schema.count("CREATE INDEX IF NOT EXISTS"))
     check("database.py: ichki fallback DDL ham payment_method'ni oladi",
           "payment_method VARCHAR(32) NOT NULL DEFAULT 'international_stars'"

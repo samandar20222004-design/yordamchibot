@@ -65,6 +65,10 @@ EXPECTED_TABLES = (
     "channel_insights",
     # PHASE C — Post shablonlari (7/9/10-bandlar refaktori).
     "post_templates",
+    # PHASE D — Kontent manbalari (11, 12-bandlar): RSS/ATOM oqimi.
+    "content_sources",
+    "source_items",
+    "source_drafts",
 )
 EXPECTED_INDEXES = (
     "idx_ad_pool_scope",
@@ -97,6 +101,11 @@ EXPECTED_INDEXES = (
     "idx_channel_insights_dismissed",
     # PHASE C — Post shablonlari indeksi.
     "idx_post_templates_user",
+    # PHASE D — Kontent manbalari indekslari (RSS/ATOM oqimi).
+    "idx_content_sources_user",
+    "idx_content_sources_due",
+    "idx_source_items_source",
+    "idx_source_drafts_user",
 )
 REQUIRED_P0_TABLES = ("promo_redemptions", "post_deliveries")
 REQUIRED_P0_INDEXES = ("idx_deliveries_sched", "idx_deliveries_retry", "uq_payments_telegram_charge_id")
@@ -1850,6 +1859,69 @@ def _init_db_once():
         cur.execute(
             "CREATE INDEX IF NOT EXISTS idx_post_templates_user "
             "ON post_templates (user_id, created_at DESC);"
+        )
+
+        # 📥 PHASE D — KONTENT MANBALARI (11, 12-bandlar): RSS/ATOM manbalari,
+        # o'qilgan elementlar (dublikat kaliti UNIQUE(source_id, external_id))
+        # va Channel DNA asosidagi post qoralamalari (source_drafts).
+        # Barcha jadvallar idempotent va foydalanuvchi izolyatsiyasi bilan.
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS content_sources (
+                id SERIAL PRIMARY KEY,
+                user_id BIGINT,
+                channel_id VARCHAR(255),
+                source_url TEXT,
+                title TEXT,
+                enabled BOOLEAN DEFAULT TRUE,
+                interval_minutes INT DEFAULT 60,
+                autopublish BOOLEAN DEFAULT FALSE,
+                last_checked_at TIMESTAMPTZ,
+                created_at TIMESTAMPTZ DEFAULT NOW()
+            );
+        """)
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_content_sources_user "
+            "ON content_sources (user_id, created_at DESC);"
+        )
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_content_sources_due "
+            "ON content_sources (enabled, last_checked_at);"
+        )
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS source_items (
+                id SERIAL PRIMARY KEY,
+                source_id INT REFERENCES content_sources(id) ON DELETE CASCADE,
+                external_id TEXT,
+                canonical_url TEXT,
+                title TEXT,
+                summary TEXT,
+                processed_at TIMESTAMPTZ,
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                UNIQUE(source_id, external_id)
+            );
+        """)
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_source_items_source "
+            "ON source_items (source_id, created_at DESC);"
+        )
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS source_drafts (
+                id SERIAL PRIMARY KEY,
+                source_id INT REFERENCES content_sources(id) ON DELETE CASCADE,
+                source_item_id INT REFERENCES source_items(id) ON DELETE CASCADE,
+                user_id BIGINT,
+                channel_id VARCHAR(255),
+                title TEXT,
+                content TEXT,
+                status VARCHAR(20) DEFAULT 'pending',
+                scheduled_post_id INT,
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                UNIQUE(source_item_id)
+            );
+        """)
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_source_drafts_user "
+            "ON source_drafts (user_id, status, created_at DESC);"
         )
 
         # 3) PostAssist V2 (5-bosqich): scheduler tezligi uchun kompozit indekslar
@@ -6600,3 +6672,602 @@ def count_post_templates(user_id: int) -> int:
     except Exception as e:
         logger.error("count_post_templates xatosi (user=%s): %s", user_id, e)
         return 0
+
+
+# ============================================================
+# 📥 PHASE D — KONTENT MANBALARI (11, 12-bandlar)
+# ------------------------------------------------------------
+# RSS/ATOM oqimi va URL→post oqimi uchun DB qatlami:
+#   * content_sources — manbalar (interval, enabled, autopublish);
+#   * source_items    — o'qilgan elementlar. Dublikat QAYTA ISHLANMAYDI:
+#     UNIQUE(source_id, external_id) + INSERT ... ON CONFLICT DO NOTHING;
+#   * source_drafts   — element asosidagi post loyihasi (Channel DNA
+#     asosida tuzilgan tayyor matn), UNIQUE(source_item_id).
+#
+# IDOR: barcha o'qish/o'zgartirish/o'chirish so'rovlari ``user_id`` bilan
+# filtrlanadi — boshqa foydalanuvchining manbasi ko'rinmaydi va
+# o'zgartirilmaydi. Barcha funksiyalar sinxron va xatoda istisno
+# ko'tarmaydi (fail-soft, log + xavfsiz standart qiymat).
+# ============================================================
+
+#: Bitta foydalanuvchi ulashi mumkin bo'lgan manbalar soni.
+CONTENT_SOURCES_LIMIT = 10
+#: Bitta element uchun qoralama holatlari.
+SOURCE_DRAFT_STATUSES = ("pending", "queued", "dismissed")
+#: Qoralama ro'yxati uchun standart limit.
+SOURCE_DRAFTS_LIMIT = 30
+
+
+def _content_source_row_to_dict(row) -> dict | None:
+    """``content_sources`` qatorini dict ko'rinishiga o'giradi."""
+    if not row:
+        return None
+    return {
+        "id": int(row[0]),
+        "user_id": int(row[1]) if row[1] is not None else None,
+        "channel_id": str(row[2]) if row[2] is not None else "",
+        "source_url": row[3] or "",
+        "title": row[4] or "",
+        "enabled": bool(row[5]),
+        "interval_minutes": int(row[6] or 60),
+        "autopublish": bool(row[7]),
+        "last_checked_at": row[8].isoformat() if row[8] else "",
+        "created_at": row[9].isoformat() if row[9] else "",
+    }
+
+
+def _source_draft_row_to_dict(row) -> dict | None:
+    """``source_drafts`` qatorini dict ko'rinishiga o'giradi."""
+    if not row:
+        return None
+    return {
+        "id": int(row[0]),
+        "source_id": int(row[1]) if row[1] is not None else None,
+        "source_item_id": int(row[2]) if row[2] is not None else None,
+        "user_id": int(row[3]) if row[3] is not None else None,
+        "channel_id": str(row[4]) if row[4] is not None else "",
+        "title": row[5] or "",
+        "content": row[6] or "",
+        "status": row[7] or "pending",
+        "scheduled_post_id": int(row[8]) if row[8] else None,
+        "created_at": row[9].isoformat() if row[9] else "",
+    }
+
+
+def create_content_source(
+    user_id: int,
+    channel_id: str,
+    source_url: str,
+    interval_minutes: int = 60,
+    autopublish: bool = False,
+    title: str = "",
+) -> int:
+    """Yangi kontent manbasini qo'shadi. Qaytadi: id yoki 0 (xato/limit)."""
+    from services.sources.rss_service import clamp_interval
+
+    try:
+        uid = int(user_id)
+    except (TypeError, ValueError):
+        return 0
+    url = str(source_url or "").strip()
+    ch_id = str(channel_id or "").strip()
+    if not url or not ch_id:
+        return 0
+    try:
+        with db_cursor(commit=True) as cur:
+            cur.execute(
+                "SELECT COUNT(*) FROM content_sources WHERE user_id = %s",
+                (uid,),
+            )
+            if int(cur.fetchone()[0] or 0) >= CONTENT_SOURCES_LIMIT:
+                return 0
+            cur.execute(
+                """
+                INSERT INTO content_sources
+                    (user_id, channel_id, source_url, title, enabled,
+                     interval_minutes, autopublish)
+                VALUES (%s, %s, %s, %s, TRUE, %s, %s)
+                RETURNING id
+                """,
+                (uid, ch_id, url, str(title or "")[:300],
+                 clamp_interval(interval_minutes), bool(autopublish)),
+            )
+            return int(cur.fetchone()[0])
+    except Exception as e:
+        logger.error("create_content_source xatosi (user=%s): %s", user_id, e)
+        return 0
+
+
+def list_content_sources(user_id: int, limit: int = 20) -> list[dict]:
+    """Foydalanuvchining manbalari (FAQAT o'ziniki — IDOR himoyasi)."""
+    try:
+        uid = int(user_id)
+        safe_limit = max(1, min(int(limit), CONTENT_SOURCES_LIMIT))
+        with db_cursor() as cur:
+            cur.execute(
+                """
+                SELECT id, user_id, channel_id, source_url, title, enabled,
+                       interval_minutes, autopublish, last_checked_at, created_at
+                FROM content_sources
+                WHERE user_id = %s
+                ORDER BY created_at DESC, id DESC
+                LIMIT %s
+                """,
+                (uid, safe_limit),
+            )
+            rows = cur.fetchall()
+        return [item for item in (_content_source_row_to_dict(row) for row in rows)
+                if item]
+    except Exception as e:
+        logger.error("list_content_sources xatosi (user=%s): %s", user_id, e)
+        return []
+
+
+def get_content_source(source_id: int, user_id: int) -> dict | None:
+    """Bitta manba — FAQAT egasi uchun (IDOR himoyasi)."""
+    try:
+        sid, uid = int(source_id), int(user_id)
+    except (TypeError, ValueError):
+        return None
+    try:
+        with db_cursor() as cur:
+            cur.execute(
+                """
+                SELECT id, user_id, channel_id, source_url, title, enabled,
+                       interval_minutes, autopublish, last_checked_at, created_at
+                FROM content_sources
+                WHERE id = %s AND user_id = %s
+                """,
+                (sid, uid),
+            )
+            return _content_source_row_to_dict(cur.fetchone())
+    except Exception as e:
+        logger.error("get_content_source xatosi (id=%s): %s", source_id, e)
+        return None
+
+
+def set_content_source_enabled(source_id: int, user_id: int,
+                               enabled: bool) -> bool:
+    """Manbani yoqadi/o'chiradi (FAQAT egasi)."""
+    try:
+        sid, uid = int(source_id), int(user_id)
+    except (TypeError, ValueError):
+        return False
+    try:
+        with db_cursor(commit=True) as cur:
+            cur.execute(
+                "UPDATE content_sources SET enabled = %s "
+                "WHERE id = %s AND user_id = %s",
+                (bool(enabled), sid, uid),
+            )
+            return cur.rowcount > 0
+    except Exception as e:
+        logger.error("set_content_source_enabled xatosi (id=%s): %s", source_id, e)
+        return False
+
+
+def set_content_source_autopublish(source_id: int, user_id: int,
+                                   enabled: bool) -> bool:
+    """Avtopublish rejimini o'zgartiradi (FAQAT egasi)."""
+    try:
+        sid, uid = int(source_id), int(user_id)
+    except (TypeError, ValueError):
+        return False
+    try:
+        with db_cursor(commit=True) as cur:
+            cur.execute(
+                "UPDATE content_sources SET autopublish = %s "
+                "WHERE id = %s AND user_id = %s",
+                (bool(enabled), sid, uid),
+            )
+            return cur.rowcount > 0
+    except Exception as e:
+        logger.error("set_content_source_autopublish xatosi (id=%s): %s",
+                     source_id, e)
+        return False
+
+
+def set_content_source_interval(source_id: int, user_id: int,
+                                interval_minutes: int) -> bool:
+    """Tekshirish intervalini o'zgartiradi (FAQAT egasi)."""
+    from services.sources.rss_service import clamp_interval
+
+    try:
+        sid, uid = int(source_id), int(user_id)
+    except (TypeError, ValueError):
+        return False
+    try:
+        with db_cursor(commit=True) as cur:
+            cur.execute(
+                "UPDATE content_sources SET interval_minutes = %s "
+                "WHERE id = %s AND user_id = %s",
+                (clamp_interval(interval_minutes), sid, uid),
+            )
+            return cur.rowcount > 0
+    except Exception as e:
+        logger.error("set_content_source_interval xatosi (id=%s): %s",
+                     source_id, e)
+        return False
+
+
+def delete_content_source(source_id: int, user_id: int) -> bool:
+    """Manbani o'chiradi (elementlar/qoralamalar CASCADE bilan o'chadi)."""
+    try:
+        sid, uid = int(source_id), int(user_id)
+    except (TypeError, ValueError):
+        return False
+    try:
+        with db_cursor(commit=True) as cur:
+            cur.execute(
+                "DELETE FROM content_sources WHERE id = %s AND user_id = %s",
+                (sid, uid),
+            )
+            return cur.rowcount > 0
+    except Exception as e:
+        logger.error("delete_content_source xatosi (id=%s): %s", source_id, e)
+        return False
+
+
+def touch_content_source(source_id: int, checked_at=None) -> bool:
+    """``last_checked_at`` ni yangilaydi (scheduler tick'idan chaqiriladi)."""
+    try:
+        sid = int(source_id)
+    except (TypeError, ValueError):
+        return False
+    try:
+        with db_cursor(commit=True) as cur:
+            cur.execute(
+                "UPDATE content_sources SET last_checked_at = COALESCE(%s, NOW()) "
+                "WHERE id = %s",
+                (checked_at, sid),
+            )
+            return cur.rowcount > 0
+    except Exception as e:
+        logger.error("touch_content_source xatosi (id=%s): %s", source_id, e)
+        return False
+
+
+def get_due_content_sources(now=None, limit: int = 25) -> list[dict]:
+    """Vaqti kelgan FAOLLAR (``enabled``) manbalar ro'yxati (scheduler uchun).
+
+    Qaytaradi: manba maydonlari + ``lang`` (foydalanuvchi tili) +
+    ``channel_title`` — bildirishnoma va prompt uchun qulay ko'rinishda.
+    """
+    try:
+        safe_limit = max(1, min(int(limit), 200))
+    except (TypeError, ValueError):
+        safe_limit = 25
+    try:
+        with db_cursor() as cur:
+            cur.execute(
+                """
+                SELECT cs.id, cs.user_id, cs.channel_id, cs.source_url,
+                       cs.title, cs.enabled, cs.interval_minutes,
+                       cs.autopublish, cs.last_checked_at, cs.created_at,
+                       COALESCE(u.language_code, 'uz') AS lang,
+                       COALESCE(ch.channel_title, '') AS channel_title
+                FROM content_sources cs
+                LEFT JOIN users u ON u.user_id = cs.user_id
+                LEFT JOIN channels ch ON ch.channel_id = cs.channel_id
+                WHERE cs.enabled = TRUE
+                  AND (
+                        cs.last_checked_at IS NULL
+                        OR cs.last_checked_at <= COALESCE(%s, NOW())
+                           - make_interval(
+                               mins => COALESCE(cs.interval_minutes, 60))
+                      )
+                ORDER BY COALESCE(cs.last_checked_at, cs.created_at) ASC
+                LIMIT %s
+                """,
+                (now, safe_limit),
+            )
+            rows = cur.fetchall()
+        result = []
+        for row in rows:
+            item = _content_source_row_to_dict(row[:10])
+            if not item:
+                continue
+            item["lang"] = str(row[10] or "uz")
+            item["channel_title"] = row[11] or ""
+            result.append(item)
+        return result
+    except Exception as e:
+        logger.error("get_due_content_sources xatosi: %s", e)
+        return []
+
+
+def get_source_item_external_ids(source_id: int, limit: int = 1000) -> list[str]:
+    """Manba bo'yicha allaqachon o'qilgan element kalitlari (dublikat filtri)."""
+    try:
+        sid = int(source_id)
+        safe_limit = max(1, min(int(limit), 5000))
+    except (TypeError, ValueError):
+        return []
+    try:
+        with db_cursor() as cur:
+            cur.execute(
+                """
+                SELECT external_id FROM source_items
+                WHERE source_id = %s
+                ORDER BY id DESC
+                LIMIT %s
+                """,
+                (sid, safe_limit),
+            )
+            return [str(row[0]) for row in cur.fetchall() if row and row[0]]
+    except Exception as e:
+        logger.error("get_source_item_external_ids xatosi (id=%s): %s",
+                     source_id, e)
+        return []
+
+
+def save_source_item(source_id: int, external_id: str,
+                     canonical_url: str = "", title: str = "",
+                     summary: str = "") -> int:
+    """Elementni saqlaydi (DUBLIKAT: 0 qaytadi — qayta ishlanmaydi).
+
+    ``INSERT ... ON CONFLICT (source_id, external_id) DO NOTHING`` — bir xil
+    element ikkinchi marta kelganda YANGI qator yaratilmaydi, shuning uchun
+    uning uchun qoralama ham yaratilmaydi.
+    """
+    try:
+        sid = int(source_id)
+    except (TypeError, ValueError):
+        return 0
+    ext_id = str(external_id or "").strip()
+    if not ext_id:
+        return 0
+    try:
+        with db_cursor(commit=True) as cur:
+            cur.execute(
+                """
+                INSERT INTO source_items
+                    (source_id, external_id, canonical_url, title, summary)
+                VALUES (%s, %s, %s, %s, %s)
+                ON CONFLICT (source_id, external_id) DO NOTHING
+                RETURNING id
+                """,
+                (sid, ext_id[:512], str(canonical_url or "")[:2048],
+                 str(title or "")[:500], str(summary or "")[:4000]),
+            )
+            row = cur.fetchone()
+            return int(row[0]) if row else 0
+    except Exception as e:
+        logger.error("save_source_item xatosi (source=%s): %s", source_id, e)
+        return 0
+
+
+def mark_source_item_processed(item_id: int, processed_at=None) -> bool:
+    """Element qayta ishlanganini belgilaydi (``processed_at``)."""
+    try:
+        iid = int(item_id)
+    except (TypeError, ValueError):
+        return False
+    try:
+        with db_cursor(commit=True) as cur:
+            cur.execute(
+                "UPDATE source_items SET processed_at = COALESCE(%s, NOW()) "
+                "WHERE id = %s",
+                (processed_at, iid),
+            )
+            return cur.rowcount > 0
+    except Exception as e:
+        logger.error("mark_source_item_processed xatosi (id=%s): %s", item_id, e)
+        return False
+
+
+def create_source_draft(source_id: int, source_item_id: int, user_id: int,
+                        channel_id: str, title: str, content: str,
+                        autopublish: bool = False) -> int:
+    """Element uchun post loyihasini (draft) saqlaydi.
+
+    Bitta element uchun FAQAT BITTA qoralama (UNIQUE(source_item_id)) —
+    takroriy chaqiruvda mavjud qoralama id'si qaytadi (idempotent).
+    Qoralama har doim ``pending`` holatida yaratiladi: ``queued`` ga faqat
+    navbatga MUVAFFAQIYATLI yozilgandan keyin o'tadi
+    (``services.sources.rss_service.autopublish_draft``) — shu sababli
+    rejalashtirish yiqilsa qoralama tasdiqlash ro'yxatida qolaveradi.
+    """
+    try:
+        sid = int(source_id)
+        iid = int(source_item_id)
+        uid = int(user_id)
+    except (TypeError, ValueError):
+        return 0
+    text = str(content or "").strip()
+    if not text:
+        return 0
+    try:
+        with db_cursor(commit=True) as cur:
+            cur.execute(
+                """
+                INSERT INTO source_drafts
+                    (source_id, source_item_id, user_id, channel_id, title,
+                     content, status)
+                VALUES (%s, %s, %s, %s, %s, %s, 'pending')
+                ON CONFLICT (source_item_id) DO NOTHING
+                RETURNING id
+                """,
+                (sid, iid, uid, str(channel_id or "")[:255],
+                 str(title or "")[:500], text),
+            )
+            row = cur.fetchone()
+            if row:
+                return int(row[0])
+            cur.execute(
+                "SELECT id FROM source_drafts WHERE source_item_id = %s", (iid,))
+            existing = cur.fetchone()
+            return int(existing[0]) if existing else 0
+    except Exception as e:
+        logger.error("create_source_draft xatosi (item=%s): %s", source_item_id, e)
+        return 0
+
+
+def list_source_drafts(user_id: int, status: str = "pending",
+                       limit: int = SOURCE_DRAFTS_LIMIT) -> list[dict]:
+    """Foydalanuvchining post loyihalari (FAQAT o'ziniki — IDOR himoyasi)."""
+    try:
+        uid = int(user_id)
+        safe_limit = max(1, min(int(limit), 100))
+    except (TypeError, ValueError):
+        return []
+    state = str(status or "").strip().lower()
+    try:
+        with db_cursor() as cur:
+            if state in SOURCE_DRAFT_STATUSES:
+                cur.execute(
+                    """
+                    SELECT id, source_id, source_item_id, user_id, channel_id,
+                           title, content, status, scheduled_post_id, created_at
+                    FROM source_drafts
+                    WHERE user_id = %s AND status = %s
+                    ORDER BY created_at DESC, id DESC
+                    LIMIT %s
+                    """,
+                    (uid, state, safe_limit),
+                )
+            else:
+                cur.execute(
+                    """
+                    SELECT id, source_id, source_item_id, user_id, channel_id,
+                           title, content, status, scheduled_post_id, created_at
+                    FROM source_drafts
+                    WHERE user_id = %s
+                    ORDER BY created_at DESC, id DESC
+                    LIMIT %s
+                    """,
+                    (uid, safe_limit),
+                )
+            rows = cur.fetchall()
+        return [item for item in (_source_draft_row_to_dict(row) for row in rows)
+                if item]
+    except Exception as e:
+        logger.error("list_source_drafts xatosi (user=%s): %s", user_id, e)
+        return []
+
+
+def get_source_draft(draft_id: int, user_id: int) -> dict | None:
+    """Bitta qoralama — FAQAT egasi uchun (IDOR himoyasi)."""
+    try:
+        did, uid = int(draft_id), int(user_id)
+    except (TypeError, ValueError):
+        return None
+    try:
+        with db_cursor() as cur:
+            cur.execute(
+                """
+                SELECT id, source_id, source_item_id, user_id, channel_id,
+                       title, content, status, scheduled_post_id, created_at
+                FROM source_drafts
+                WHERE id = %s AND user_id = %s
+                """,
+                (did, uid),
+            )
+            return _source_draft_row_to_dict(cur.fetchone())
+    except Exception as e:
+        logger.error("get_source_draft xatosi (id=%s): %s", draft_id, e)
+        return None
+
+
+def set_source_draft_status(draft_id: int, user_id: int, status: str,
+                            scheduled_post_id: int = None) -> bool:
+    """Qoralama holatini o'zgartiradi (FAQAT egasi; statuslar oq ro'yxatda)."""
+    state = str(status or "").strip().lower()
+    if state not in SOURCE_DRAFT_STATUSES:
+        return False
+    try:
+        did, uid = int(draft_id), int(user_id)
+    except (TypeError, ValueError):
+        return False
+    try:
+        with db_cursor(commit=True) as cur:
+            cur.execute(
+                "UPDATE source_drafts SET status = %s, "
+                "scheduled_post_id = COALESCE(%s, scheduled_post_id) "
+                "WHERE id = %s AND user_id = %s",
+                (state, scheduled_post_id, did, uid),
+            )
+            return cur.rowcount > 0
+    except Exception as e:
+        logger.error("set_source_draft_status xatosi (id=%s): %s", draft_id, e)
+        return False
+
+
+def count_source_drafts(user_id: int, status: str = "pending") -> int:
+    """Foydalanuvchining qoralamalari soni (badge/limit uchun)."""
+    try:
+        uid = int(user_id)
+    except (TypeError, ValueError):
+        return 0
+    state = str(status or "pending").strip().lower()
+    try:
+        with db_cursor() as cur:
+            if state in SOURCE_DRAFT_STATUSES:
+                cur.execute(
+                    "SELECT COUNT(*) FROM source_drafts "
+                    "WHERE user_id = %s AND status = %s", (uid, state))
+            else:
+                cur.execute(
+                    "SELECT COUNT(*) FROM source_drafts WHERE user_id = %s",
+                    (uid,))
+            return int(cur.fetchone()[0] or 0)
+    except Exception as e:
+        logger.error("count_source_drafts xatosi (user=%s): %s", user_id, e)
+        return 0
+
+
+def get_recycle_candidates(channel_id: str | int, min_age_days: int = 14,
+                           limit: int = 30) -> list[dict]:
+    """♻️ Recycle uchun eski postlar (PHASE D, 13-band).
+
+    ``channel_posts_history`` dan ``min_age_days`` kundan eski postlar
+    olinadi (views + reaksiyalar soni bilan). Bu funksiya FAQAT xom
+    ma'lumot beradi — «yaxshi ko'rsatkich» tanlovi sof funksiya
+    ``services.channels.recycle.select_recycle_candidates`` da bajariladi
+    (soxta raqamlar uydirilmasligi uchun).
+    """
+    ch_id = str(channel_id or "").strip()
+    if not ch_id:
+        return []
+    try:
+        days = max(1, int(min_age_days))
+        safe_limit = max(1, min(int(limit), 200))
+    except (TypeError, ValueError):
+        return []
+    try:
+        with db_cursor() as cur:
+            cur.execute(
+                """
+                SELECT h.id, h.message_id, h.content, h.views, h.post_date,
+                       COALESCE(r.reactions, 0) AS reactions
+                FROM channel_posts_history h
+                LEFT JOIN (
+                    SELECT spm.message_id, COUNT(pr.id) AS reactions
+                    FROM sent_post_messages spm
+                    JOIN post_reactions pr ON pr.post_id = spm.post_id
+                    GROUP BY spm.message_id
+                ) r ON r.message_id = h.message_id
+                WHERE h.channel_id = %s
+                  AND h.post_date <= NOW() - make_interval(days => %s)
+                ORDER BY h.post_date DESC, h.id DESC
+                LIMIT %s
+                """,
+                (ch_id, days, safe_limit),
+            )
+            rows = cur.fetchall()
+        return [
+            {
+                "id": row[0],
+                "message_id": row[1],
+                "content": row[2] or "",
+                "text": row[2] or "",
+                "views": int(row[3] or 0),
+                "post_date": row[4].isoformat() if row[4] else "",
+                "reactions": int(row[5] or 0),
+            }
+            for row in rows
+        ]
+    except Exception as e:
+        logger.error("get_recycle_candidates xatosi (channel=%s): %s",
+                     channel_id, e)
+        return []

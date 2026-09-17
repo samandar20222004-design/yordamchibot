@@ -432,6 +432,68 @@ CREATE TABLE IF NOT EXISTS post_templates (
 CREATE INDEX IF NOT EXISTS idx_post_templates_user
     ON post_templates (user_id, created_at DESC);
 
+-- ============================================================
+-- 📥 PHASE D — KONTENT MANBALARI (11, 12-bandlar)
+-- ------------------------------------------------------------
+-- content_sources — foydalanuvchining kanaliga bog'langan RSS/ATOM manbalari
+--   (yoki URL→post manbalari). Har bir manba o'z intervali bilan tekshiriladi;
+--   `enabled` o'chirilgan manba scheduler tick'ida ham o'tkazib yuboriladi.
+-- source_items — manbadan o'qilgan elementlar. DUBLIKAT QAYTA ISHLANMAYDI:
+--   UNIQUE (source_id, external_id) — ikkinchi marta kelgan element yangi
+--   element hisoblanmaydi (INSERT ... ON CONFLICT DO NOTHING).
+-- source_drafts — element asosida yaratilgan POST LOYIHASI (draft). Channel
+--   DNA asosida tuziladi; `status='pending'` bo'lsa egasi/adminga tasdiqlash
+--   uchun ko'rsatiladi, `status='queued'` bo'lsa reja navbatiga yozilgan.
+--   UNIQUE (source_item_id) — bitta element uchun faqat BITTA qoralama.
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS content_sources (
+    id SERIAL PRIMARY KEY,
+    user_id BIGINT,
+    channel_id VARCHAR(255),
+    source_url TEXT,
+    title TEXT,
+    enabled BOOLEAN DEFAULT TRUE,
+    interval_minutes INT DEFAULT 60,
+    autopublish BOOLEAN DEFAULT FALSE,
+    last_checked_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_content_sources_user
+    ON content_sources (user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_content_sources_due
+    ON content_sources (enabled, last_checked_at);
+
+CREATE TABLE IF NOT EXISTS source_items (
+    id SERIAL PRIMARY KEY,
+    source_id INT REFERENCES content_sources(id) ON DELETE CASCADE,
+    external_id TEXT,
+    canonical_url TEXT,
+    title TEXT,
+    summary TEXT,
+    processed_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(source_id, external_id)
+);
+CREATE INDEX IF NOT EXISTS idx_source_items_source
+    ON source_items (source_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS source_drafts (
+    id SERIAL PRIMARY KEY,
+    source_id INT REFERENCES content_sources(id) ON DELETE CASCADE,
+    source_item_id INT REFERENCES source_items(id) ON DELETE CASCADE,
+    user_id BIGINT,
+    channel_id VARCHAR(255),
+    title TEXT,
+    content TEXT,
+    status VARCHAR(20) DEFAULT 'pending',
+    scheduled_post_id INT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(source_item_id)
+);
+CREATE INDEX IF NOT EXISTS idx_source_drafts_user
+    ON source_drafts (user_id, status, created_at DESC);
+
 -- --- MIGRATSIYALAR (eski bazalar uchun; yangi bazada allaqachon bor) ---
 -- Eslatma: ADD COLUMN IF NOT EXISTS tufayli takroriy bajarish xavfsiz.
 
