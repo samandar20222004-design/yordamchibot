@@ -9,10 +9,10 @@ from keyboards.default import (
     get_cancel_keyboard, get_main_keyboard, get_tone_keyboard,
     is_menu_text, tone_from_text, tone_labels,
 )
-from keyboards.callback_data import CB_CHANNEL_VOICE
+from keyboards.callback_data import CB_CHANNEL_VOICE, CB_CHANNEL_ADVICE, cb
 from keyboards.inline import (
     render_channel_panel, render_channel_settings, render_channels_list,
-    render_my_channels_list,
+    render_my_channels_list, render_channel_advice_menu,
 )
 from locales.translations import get_lang, safe_t, normalize_lang
 from translations import channels_queue_t
@@ -370,6 +370,65 @@ async def channel_best_time_callback(update: Update, context: ContextTypes.DEFAU
     title = _channel_title(channel)
     text = await _build_best_time_card(channel_id, title, lang)
     await _safe_edit(query, text, render_channel_panel(channel_id, lang))
+    return ConversationHandler.END
+
+
+async def channel_advice_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """📊 Haftalik Channel Advisor kartasi (owner/editor/analyst-safe)."""
+    query = update.callback_query
+    try:
+        await query.answer()
+    except Exception:
+        pass
+    lang = get_lang(context)
+    user_id = query.from_user.id
+    channel_id = (query.data or "").split(":", 1)[1] if ":" in (query.data or "") else ""
+    try:
+        from services.channels.advisor import ChannelAdvisor, render_report_card
+        result = await ChannelAdvisor(db).advice(channel_id, user_id, lang=lang)
+        if not result.get("ok"):
+            await _safe_edit(query, channels_queue_t("cq_ch_not_found", lang),
+                             _empty_channels_keyboard(lang))
+            return ConversationHandler.END
+        # Owner title is available through the legacy isolated query.  For an
+        # analyst member, use a neutral title rather than leaking channel data.
+        title = f"Kanal {html_escape(channel_id)}"
+        try:
+            owned = await _owned_channel(user_id, channel_id)
+            if owned:
+                title = _channel_title(owned)
+        except Exception:
+            pass
+        await _safe_edit(query, render_report_card(result, lang=lang, channel_title=title),
+                         render_channel_panel(channel_id, lang))
+    except Exception:
+        logger.exception("Channel Advisor kartasini qurishda xato (channel=%s)", channel_id)
+        await _safe_edit(query, "📊 Haftalik hisobotni hozircha tuzib bo'lmadi.",
+                         render_channel_panel(channel_id, lang))
+    return ConversationHandler.END
+
+
+async def channel_advice_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Global ``/channel_advice`` command; first owned channel is shown."""
+    lang = get_lang(context)
+    user_id = update.effective_user.id
+    channels = await db.run_db(db.get_user_channels_with_tone, user_id)
+    if not channels:
+        await update.message.reply_text(channels_queue_t("cq_ch_empty", lang), parse_mode="HTML")
+        return ConversationHandler.END
+    if len(channels) > 1:
+        await update.message.reply_text("📊 Kanal uchun haftalik hisobotni tanlang:",
+                                        reply_markup=render_channel_advice_menu(channels, lang))
+        return ConversationHandler.END
+    channel_id, title = channels[0][0], _channel_title(channels[0])
+    from services.channels.advisor import ChannelAdvisor, render_report_card
+    result = await ChannelAdvisor(db).advice(channel_id, user_id, lang=lang)
+    if not result.get("ok"):
+        await update.message.reply_text("📊 Kanal tahlili hozircha mavjud emas.")
+        return ConversationHandler.END
+    await update.message.reply_text(render_report_card(result, lang=lang, channel_title=title),
+                                     parse_mode="HTML",
+                                     reply_markup=render_channel_panel(channel_id, lang))
     return ConversationHandler.END
 
 

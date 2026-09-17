@@ -58,6 +58,9 @@ EXPECTED_TABLES = (
     "content_sources",
     "source_items",
     "source_drafts",
+    # PHASE E — team membership + aggregate comment insights
+    "channel_members",
+    "channel_comment_insights",
 )
 EXPECTED_INDEXES = (
     "idx_ad_pool_scope",
@@ -95,6 +98,10 @@ EXPECTED_INDEXES = (
     "idx_content_sources_due",
     "idx_source_items_source",
     "idx_source_drafts_user",
+    # PHASE E — team membership + aggregate comment insights
+    "idx_channel_members_channel",
+    "idx_channel_members_user",
+    "idx_comment_insights_channel",
 )
 
 
@@ -102,9 +109,9 @@ def test_schema_file_tables():
     print("== schema.sql: jadvallar ==")
     for table in EXPECTED_TABLES:
         check(f"jadval: {table}", f"CREATE TABLE IF NOT EXISTS {table} (" in SCHEMA)
-    # PHASE D (11, 12-bandlar): kontent manbalari jadvallari qo'shildi → 23 → 26.
-    check("jadvallar soni 26",
-          SCHEMA.count("CREATE TABLE IF NOT EXISTS") == 26,
+    # PHASE E: team membership + aggregate comment insights → 28.
+    check("jadvallar soni 28",
+          SCHEMA.count("CREATE TABLE IF NOT EXISTS") == 28,
           f"topildi: {SCHEMA.count('CREATE TABLE IF NOT EXISTS')}")
 
 
@@ -136,9 +143,9 @@ def test_schema_file_indexes():
     print("== schema.sql: indekslar ==")
     for index in EXPECTED_INDEXES:
         check(f"indeks: {index}", f"CREATE INDEX IF NOT EXISTS {index}" in SCHEMA)
-    # PHASE D (11, 12-bandlar): kontent manbalari indekslari qo'shildi → 24 → 28.
-    check("indekslar soni 28",
-          SCHEMA.count("CREATE INDEX IF NOT EXISTS") == 28,
+    # PHASE E: team membership + aggregate comment insight indexes → 31.
+    check("indekslar soni 31",
+          SCHEMA.count("CREATE INDEX IF NOT EXISTS") == 31,
           f"topildi: {SCHEMA.count('CREATE INDEX IF NOT EXISTS')}")
     # 5-bosqich: kompozit indekslar scheduler/bot tezligi uchun
     for name, columns in (

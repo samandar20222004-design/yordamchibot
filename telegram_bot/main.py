@@ -17,6 +17,7 @@ from scheduler import (
     cleanup_old_data_job,
     cleanup_old_records_job,
     poll_content_sources_job,
+    weekly_channel_reports_job,
     recover_on_startup,
     subscription_sweep_job,
     tashkent_tz,
@@ -213,6 +214,7 @@ async def set_bot_commands(application):
         BotCommand("imagepost", "Rasm orqali post yaratish"),
         BotCommand("profile", "Kabinet va sozlamalar"),
         BotCommand("help", "Yordam va qo'llanma"),
+        BotCommand("channel_advice", "Kanal haftalik hisoboti"),
         BotCommand("cancel", "Amalni bekor qilish"),
     ]
     try:
@@ -474,6 +476,13 @@ async def main():
         poll_content_sources_job, 'interval', minutes=15, args=[application.bot],
         id="poll_content_sources", timezone=tashkent_tz,
         max_instances=1, coalesce=True, misfire_grace_time=300,
+    )
+    # PHASE E — ixcham haftalik hisobot: har dushanba 09:00 (Toshkent),
+    # faqat kanal egasining shaxsiy chatiga yuboriladi.
+    scheduler.add_job(
+        weekly_channel_reports_job, 'cron', day_of_week='mon', hour=9, minute=0,
+        args=[application.bot], id="weekly_channel_reports", timezone=tashkent_tz,
+        max_instances=1, coalesce=True, misfire_grace_time=6 * 3600,
     )
     # 9-bosqich: kunlik paketli tozalash worker'i — har 24 soatda 1 marta,
     # kechasi soat 03:00 (Toshkent). LIMIT 1000 paketlar, har paket alohida

@@ -1539,3 +1539,38 @@ async def cleanup_old_records_job():
     except Exception:
         logger.exception("Kunlik tozalashda kutilmagan xato")
         return None
+
+
+# ============================================================
+# PHASE E — WEEKLY CHANNEL ADVISOR DELIVERY
+# ============================================================
+async def weekly_channel_reports_job(bot=None):
+    """Send a compact report to each channel owner every Monday morning.
+
+    Delivery is best-effort and never touches the channel itself.  A missing
+    report, a Telegram error, or a database error skips that owner and lets the
+    scheduler continue with the remaining channels.
+    """
+    if bot is None:
+        return {"sent": 0, "skipped": 0}
+    sent = skipped = 0
+    try:
+        channels = await db.run_db(db.get_all_channels)
+    except Exception:
+        logger.exception("Weekly Channel Advisor: kanallarni olishda xato")
+        return {"sent": 0, "skipped": 0, "error": "db"}
+    from services.channels.advisor import compute_weekly_insights, render_report_card
+    for row in channels or ():
+        try:
+            channel_id, title, owner_id = row[0], row[1], row[2]
+            owner_id = int(owner_id)
+            records = await db.run_db(db.get_channel_weekly_posts, str(channel_id), 7)
+            report = compute_weekly_insights(records or [])
+            card = render_report_card(report, channel_title=str(title or channel_id))
+            await bot.send_message(chat_id=owner_id, text="🗓 <b>Dushanba kanal hisoboti</b>\n\n" + card,
+                                   parse_mode="HTML")
+            sent += 1
+        except Exception:
+            skipped += 1
+            logger.warning("Weekly Channel Advisor: bitta kanal egasiga yuborilmadi", exc_info=True)
+    return {"sent": sent, "skipped": skipped}
