@@ -44,11 +44,14 @@ from keyboards.inline import (
     CB_MANUAL_24H,
     CB_MANUAL_CANCEL,
     CB_MANUAL_CHANNEL,
+    CB_MANUAL_DUP_AI,
+    CB_MANUAL_DUP_FORCE,
     CB_MANUAL_EDIT,
     CB_MANUAL_NOW,
     CB_MANUAL_PANEL,
     CB_MANUAL_REPEAT,
     CB_MANUAL_TIME,
+    get_duplicate_warning_keyboard,
     get_manual_channel_keyboard,
     get_manual_post_panel,
     manual_channel_from_callback,
@@ -89,6 +92,10 @@ UD_FILE_ID = "mnp_file_id"
 UD_MODE = "mnp_mode"
 UD_WHEN = "mnp_when"            # ISO datetime (rejalashtirish uchun)
 UD_REPEAT_TIME = "mnp_repeat_time"  # "HH:MM" (takroriy e'lon uchun)
+# 🔁 PHASE C — dublikat detektori holati (post chiqarilishidan oldin).
+UD_DUP_FORCE = "mnp_dup_force"          # foydalanuvchi "Baribir chiqarish" bosdi
+UD_DUP_CHANNEL_ID = "mnp_dup_channel"   # ogohlantirilgan kanal (id)
+UD_DUP_CHANNEL_TITLE = "mnp_dup_title"  # ogohlantirilgan kanal (nomi)
 
 #: Qabul qilinadigan media turlari → post_type.
 _SUPPORTED_MEDIA = ("photo", "video", "animation", "document")
@@ -119,7 +126,8 @@ def _has_content(context) -> bool:
 def _clear_manual_state(context) -> None:
     """Oddiy post oqimi ma'lumotlarini tozalaydi (FSM kontekstidan tashqari)."""
     for key in (UD_CONTENT, UD_POST_TYPE, UD_FILE_ID, UD_MODE, UD_WHEN,
-                UD_REPEAT_TIME):
+                UD_REPEAT_TIME, UD_DUP_FORCE, UD_DUP_CHANNEL_ID,
+                UD_DUP_CHANNEL_TITLE):
         context.user_data.pop(key, None)
 
 
@@ -193,11 +201,59 @@ async def _publish(target_msg, context, user_id: int, channel_id,
                    channel_title, lang: str):
     """Tanlangan rejim bo'yicha postni DB'ga yozadi (scheduler darhol oladi).
 
+    🔁 PHASE C — DUBLIKAT DETEKTORI: post kanalga chiqarilishidan/rejalanishidan
+    OLDIN kanalning oxirgi postlari bilan yengil (AI'siz) solishtiriladi.
+    85%+ o'xshashlik topilsa — yozish TO'XTATILADI va SPEKS bo'yicha 3 tugmali
+    ogohlantirish chiqadi: [🚀 Baribir chiqarish] | [✨ AI bilan yangilash] |
+    [❌ Bekor qilish]. Detektor fail-soft: DB/kanal tarixi o'qilmasa post
+    to'sib qo'yilmaydi.
+
     Qaytaradi: ConversationHandler.END — yakuniy xabar yuborilgan, FSM
-    tozalanadi va asosiy menyu qaytadi.
+    tozalanadi va asosiy menyu qaytadi. (Dublikat ogohlantirishida:
+    MANUAL_PREVIEW.)
     """
     is_admin = user_id in ADMIN_IDS_SET
     mode = context.user_data.get(UD_MODE, MODE_NOW)
+
+    # --- 🔁 DUBLIKAT TEKSHIRUVI (bir marta; "Baribir chiqarish" o'tkazib yuboradi)
+    if not context.user_data.get(UD_DUP_FORCE):
+        content_for_check = str(context.user_data.get(UD_CONTENT, "") or "")
+        if content_for_check.strip():
+            from services.channels.duplicate_detector import (
+                screen_post_for_duplicates,
+            )
+            try:
+                screen = await screen_post_for_duplicates(
+                    channel_id, user_id, content_for_check)
+            except Exception:  # fail-soft: detektor hech qachon to'suvchi emas
+                logger.debug("Dublikat tekshiruvi xatosi (kanal=%s)",
+                             channel_id, exc_info=True)
+                screen = {"duplicate": False}
+            if screen.get("duplicate"):
+                context.user_data[UD_DUP_CHANNEL_ID] = str(channel_id)
+                context.user_data[UD_DUP_CHANNEL_TITLE] = str(channel_title or "")
+                try:
+                    score_pct = int(round(
+                        float(screen.get("score") or 0.0) * 100))
+                except (TypeError, ValueError):
+                    score_pct = 0
+                preview = html_escape(
+                    str(screen.get("matched_text") or "")[:220])
+                try:
+                    await target_msg.reply_text(
+                        manual_post_t("mp_dup_warning", lang,
+                                      score=score_pct, preview=preview),
+                        reply_markup=get_duplicate_warning_keyboard(lang),
+                        parse_mode="HTML",
+                    )
+                except Exception:
+                    logger.debug("Dublikat ogohlantirishi yuborilmadi",
+                                 exc_info=True)
+                return MANUAL_PREVIEW
+    context.user_data.pop(UD_DUP_FORCE, None)
+    context.user_data.pop(UD_DUP_CHANNEL_ID, None)
+    context.user_data.pop(UD_DUP_CHANNEL_TITLE, None)
+
     now = datetime.now(tashkent_tz)
 
     delete_after_hours = 24 if mode == MODE_24H else 0
@@ -273,6 +329,61 @@ async def _publish(target_msg, context, user_id: int, channel_id,
         manual_post_t(msg_key, lang, channel=channel_safe, time=time_display),
     )
     return ConversationHandler.END
+
+
+async def _dup_ai_refresh(query, context, user_id: int, lang: str) -> int:
+    """[✨ AI bilan yangilash] — dublikat postni AI boshqacha qilib yozadi.
+
+    Oddiy post oqimining "AI'siz" qoidasi buzilmaydi: bu amal FAQAT dublikat
+    ogohlantirishida, foydalanuvchi o'zi bosganda ishlaydi. AI javobi
+    ``sanitize_html`` bilan xavfsizlanadi; xatoda eski matn saqlanib qoladi
+    va muloyim xabar ko'rsatiladi.
+    """
+    old_text = str(context.user_data.get(UD_CONTENT, "") or "")
+    if not old_text.strip():
+        await _show_preview(query.message, context, lang)
+        return MANUAL_PREVIEW
+
+    try:
+        from services.ai_service import run_ai_chain
+        result = await run_ai_chain(
+            f"Quyidagi Telegram postini mavzusi saqlanib, lekin tuzilishi, "
+            f"hook va so'zlari BUTUNLAY BOSHQAChA qilib qayta yozing "
+            f"(bu post kanalda yaqinda chiqqan postga juda o'xshab qoldi):\n\n"
+            f"{old_text[:3000]}",
+            "Siz SMM copywriter'siz. Faqat tayyor post matnini qaytaring — "
+            "izoh, sarlavha va hech qanday qo'shimcha yo'q.",
+            lang,
+        )
+    except Exception:
+        logger.warning("Dublikat AI-yangilash xatosi (user=%s)", user_id,
+                       exc_info=True)
+        result = {}
+    new_text = ""
+    if isinstance(result, dict) and not result.get("error"):
+        new_text = str(result.get("text") or result.get("content") or "").strip()
+
+    if not new_text:
+        try:
+            await query.message.reply_text(
+                manual_post_t("mp_dup_ai_failed", lang),
+                reply_markup=get_duplicate_warning_keyboard(lang),
+                parse_mode="HTML",
+            )
+        except Exception:
+            logger.debug("AI-yangilash xato xabari yuborilmadi", exc_info=True)
+        return MANUAL_PREVIEW
+
+    context.user_data[UD_CONTENT] = sanitize_html(new_text, 3600)
+    for key in (UD_DUP_FORCE, UD_DUP_CHANNEL_ID, UD_DUP_CHANNEL_TITLE):
+        context.user_data.pop(key, None)
+    try:
+        await query.message.reply_text(
+            manual_post_t("mp_dup_ai_done", lang), parse_mode="HTML")
+    except Exception:
+        pass
+    await _show_preview(query.message, context, lang)
+    return MANUAL_PREVIEW
 
 
 async def _finalize(target_msg, context, user_id: int, lang: str,
@@ -492,6 +603,25 @@ async def manual_panel_callback(update: Update, context: ContextTypes.DEFAULT_TY
     if data == CB_MANUAL_24H:
         context.user_data[UD_MODE] = MODE_24H
         return await _choose_channel_or_act(query.message, context, user_id, lang)
+
+    # 🔁 PHASE C — dublikat ogohlantirishi amallari (SPEKS: 3 tugma).
+    if data == CB_MANUAL_DUP_FORCE:
+        # [🚀 Baribir chiqarish] — ogohlantirishga qaramay xuddi shu kanalga
+        # yozamiz (kanal saqlangan bo'lishi shart — payload manipulyatsiyasi
+        # imkonsiz: faqat _publish o'zi yozgan kanal ishlatiladi).
+        context.user_data[UD_DUP_FORCE] = True
+        dup_channel = context.user_data.get(UD_DUP_CHANNEL_ID)
+        dup_title = str(context.user_data.get(UD_DUP_CHANNEL_TITLE) or "")
+        if dup_channel:
+            return await _publish(query.message, context, user_id,
+                                  dup_channel, dup_title, lang)
+        return await _choose_channel_or_act(query.message, context, user_id,
+                                            lang)
+
+    if data == CB_MANUAL_DUP_AI:
+        # [✨ AI bilan yangilash] — matnni AI boshqacha qilib qayta yozadi
+        # (foydalanuvchi O'ZI bosgan holda; oddiy oqim AI'siz qoladi).
+        return await _dup_ai_refresh(query, context, user_id, lang)
 
     if data.startswith(CB_MANUAL_CHANNEL):
         channel_id = manual_channel_from_callback(data)

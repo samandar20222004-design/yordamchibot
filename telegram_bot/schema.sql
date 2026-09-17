@@ -410,6 +410,28 @@ CREATE INDEX IF NOT EXISTS idx_channel_insights_channel
 CREATE INDEX IF NOT EXISTS idx_channel_insights_dismissed
     ON channel_insights (is_dismissed, created_at DESC);
 
+-- ============================================================
+-- 📋 PHASE C — POST SHABLONLARI (post_templates)
+-- ------------------------------------------------------------
+-- Foydalanuvchining takroriy ishlatiladigan post shablonlari.
+-- O'zgaruvchilar ({TITLE}, {TEXT}, {PRICE}, {LINK}, {CTA},
+-- {SOURCE}, {DATE}) variables JSONB ustunida saqlanadi.
+-- IDOR himoyasi: barcha o'qish/o'chirish so'rovlari user_id bilan
+-- filtrlanadi (boshqa foydalanuvchi shablonini ko'rib/o'chira olmaydi).
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS post_templates (
+    id SERIAL PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    channel_id VARCHAR(255),
+    name VARCHAR(128) NOT NULL,
+    content TEXT NOT NULL,
+    variables JSONB DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_post_templates_user
+    ON post_templates (user_id, created_at DESC);
+
 -- --- MIGRATSIYALAR (eski bazalar uchun; yangi bazada allaqachon bor) ---
 -- Eslatma: ADD COLUMN IF NOT EXISTS tufayli takroriy bajarish xavfsiz.
 

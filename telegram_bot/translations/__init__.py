@@ -104,6 +104,18 @@ from translations.settings_stats import (  # noqa: F401
     settings_stats_parity_report,
     settings_stats_t,
 )
+from translations.autopilot import (  # noqa: F401
+    AUTOPILOT_I18N,
+    AUTOPILOT_KEYS,
+    autopilot_parity_report,
+    autopilot_t,
+)
+from translations.templates import (  # noqa: F401
+    TEMPLATES_I18N,
+    TEMPLATES_KEYS,
+    templates_parity_report,
+    templates_t,
+)
 
 __all__ = [
     "MAGIC_POST_I18N",
@@ -152,4 +164,12 @@ __all__ = [
     "CB_STATS_OVERVIEW",
     "settings_stats_t",
     "settings_stats_parity_report",
+    "AUTOPILOT_I18N",
+    "AUTOPILOT_KEYS",
+    "autopilot_t",
+    "autopilot_parity_report",
+    "TEMPLATES_I18N",
+    "TEMPLATES_KEYS",
+    "templates_t",
+    "templates_parity_report",
 ]

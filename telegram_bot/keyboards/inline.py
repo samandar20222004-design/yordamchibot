@@ -6,6 +6,7 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from locales.translations import get_text
 from keyboards.callback_data import (  # noqa: F401 — re-export (eski importlar uchun)
     CALLBACK_DATA_MAX_BYTES,
+    CB_CHANNEL_AUTOPILOT,
     CB_CHANNEL_BACK,
     CB_CHANNEL_BEST_TIME,
     CB_CHANNEL_DELETE,
@@ -15,6 +16,7 @@ from keyboards.callback_data import (  # noqa: F401 — re-export (eski importla
     CB_CHANNEL_SCHEDULED,
     CB_CHANNEL_SETTINGS,
     CB_CHANNEL_STATS,
+    CB_CHANNEL_TEMPLATES,
     CB_CHANNEL_VOICE,
     CB_SCHED_BTN_REACT,
     CB_SCHED_DELETE,
@@ -653,6 +655,7 @@ def render_channel_panel(channel_id, lang: str = "uz") -> InlineKeyboardMarkup:
         [➕ Post yaratish]
         [📅 Rejalashtirilgan]   [📊 Statistika]
         [🧠 Kanal DNA]          [⏰ Eng yaxshi vaqt]
+        [🚀 AI Avtopilot]       [📋 Shablonlar]
         [⚙️ Kanal sozlamalari]  [◀️ Orqaga]
 
     Barcha tugmalar kanal KONTEKSTINI (``channel_id``) olib yuradi, shuning
@@ -661,6 +664,10 @@ def render_channel_panel(channel_id, lang: str = "uz") -> InlineKeyboardMarkup:
 
     🧠 PHASE B: yangi [🧠 Kanal DNA] va [⏰ Eng yaxshi vaqt] tugmalari —
     kanal uslubiy profili va optimal post vaqti (ownership himoyalangan).
+
+    🚀 PHASE C: [🚀 AI Avtopilot] (7 kunlik reja, DNA + best time asosida)
+    va [📋 Shablonlar] (post shablonlari menyusi) — ikkalasi ham kanal
+    egaligi (IDOR) tekshiruvi bilan ochiladi.
     """
     from translations import channels_queue_t
 
@@ -678,6 +685,12 @@ def render_channel_panel(channel_id, lang: str = "uz") -> InlineKeyboardMarkup:
                                  callback_data=cb(CB_CHANNEL_DNA, channel_id)),
             InlineKeyboardButton(channels_queue_t("cq_ch_btn_best_time", lang),
                                  callback_data=cb(CB_CHANNEL_BEST_TIME, channel_id)),
+        ],
+        [
+            InlineKeyboardButton(channels_queue_t("cq_ch_btn_autopilot", lang),
+                                 callback_data=cb(CB_CHANNEL_AUTOPILOT, channel_id)),
+            InlineKeyboardButton(channels_queue_t("cq_ch_btn_templates", lang),
+                                 callback_data=cb(CB_CHANNEL_TEMPLATES, channel_id)),
         ],
         [
             InlineKeyboardButton(channels_queue_t("cq_ch_btn_settings", lang),
@@ -1150,6 +1163,11 @@ CB_MANUAL_EDIT = "mnp_edit"          # ✏️ Tahrirlash
 CB_MANUAL_CANCEL = "mnp_cancel"      # ❌ Bekor qilish
 CB_MANUAL_PANEL = "mnp_panel"        # ◀️ Orqaga (kanal tanlashdan panelga)
 CB_MANUAL_CHANNEL = "mnp_ch:"        # mnp_ch:<channel_id> — kanal tanlash
+# 🔁 PHASE C — dublikat detektori (post chiqarilishidan oldin): ogohlantirish
+# oynasining 3 amali (SPEKS: [🚀 Baribir chiqarish] | [✨ AI bilan yangilash] |
+# [❌ Bekor qilish]; bekor qilish mavjud CB_MANUAL_CANCEL orqali ishlaydi).
+CB_MANUAL_DUP_FORCE = "mnp_dup_go"   # 🚀 Baribir chiqarish
+CB_MANUAL_DUP_AI = "mnp_dup_ai"      # ✨ AI bilan yangilash
 
 
 def manual_channel_callback(channel_id) -> str:
@@ -1201,6 +1219,24 @@ def get_manual_post_panel(lang: str = "uz") -> InlineKeyboardMarkup:
             InlineKeyboardButton(manual_post_t("mp_btn_cancel", lang),
                                  callback_data=CB_MANUAL_CANCEL),
         ],
+    ])
+
+
+def get_duplicate_warning_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
+    """🔁 Dublikat ogohlantirishi klaviaturasi (PHASE C — SPEKS: 3 amal).
+
+    [🚀 Baribir chiqarish] / [✨ AI bilan yangilash] / [❌ Bekor qilish].
+    Bekor qilish — mavjud oddiy-post bekor qilish amali (``mnp_cancel``).
+    """
+    from translations import manual_post_t
+
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton(manual_post_t("mp_dup_btn_force", lang),
+                              callback_data=CB_MANUAL_DUP_FORCE)],
+        [InlineKeyboardButton(manual_post_t("mp_dup_btn_ai", lang),
+                              callback_data=CB_MANUAL_DUP_AI)],
+        [InlineKeyboardButton(manual_post_t("mp_btn_cancel", lang),
+                              callback_data=CB_MANUAL_CANCEL)],
     ])
 
 

@@ -65,14 +65,17 @@ EXPECTED_PANEL = {
     "uz": [["➕ Post yaratish"],
            ["📅 Rejalashtirilgan", "📊 Statistika"],
            ["🧠 Kanal DNA", "⏰ Eng yaxshi vaqt"],
+           ["🚀 AI Avtopilot", "📋 Shablonlar"],
            ["⚙️ Kanal sozlamalari", "◀️ Orqaga"]],
     "ru": [["➕ Создать пост"],
            ["📅 Запланированные", "📊 Статистика"],
            ["🧠 DNA канала", "⏰ Лучшее время"],
+           ["🚀 AI Автопилот", "📋 Шаблоны"],
            ["⚙️ Настройки канала", "◀️ Назад"]],
     "en": [["➕ Create post"],
            ["📅 Scheduled", "📊 Statistics"],
            ["🧠 Channel DNA", "⏰ Best time"],
+           ["🚀 AI Autopilot", "📋 Templates"],
            ["⚙️ Channel settings", "◀️ Back"]],
 }
 
@@ -383,7 +386,7 @@ def test_channels_list_screen():
 # TEST 2 — 📢 KANAL SUBMENYUSI (speksdagi QAT'IY layout + amallar)
 # ============================================================================
 def test_channel_panel_layout_and_actions():
-    print("\n== TEST 2: 📢 Kanal boshqaruv ekrani (5 tugma + amallar) ==")
+    print("\n== TEST 2: 📢 Kanal boshqaruv ekrani (7 tugma + amallar) ==")
 
     for lang in LANGS:
         kb = render_channel_panel(CH_ID, lang)
@@ -396,6 +399,8 @@ def test_channel_panel_layout_and_actions():
                       f"{CB_CHANNEL_STATS}{CH_ID}",
                       f"{CB_CHANNEL_DNA}{CH_ID}",
                       f"{CB_CHANNEL_BEST_TIME}{CH_ID}",
+                      f"ch_ap:{CH_ID}",
+                      f"ch_tpl:{CH_ID}",
                       f"{CB_CHANNEL_SETTINGS}{CH_ID}",
                       CB_CHANNEL_BACK], str(cbs))
 
@@ -408,7 +413,7 @@ def test_channel_panel_layout_and_actions():
           len(q.edits) == 1 and not q.message.sent, str(q.edits))
     check("kanal tanlandi: sarlavhada kanal nomi",
           CH_TITLE in q.screen["text"], q.screen["text"][:80])
-    check("kanal tanlandi: 5 tugmali panel",
+    check("kanal tanlandi: 7 tugmali panel (PHASE C: +Avtopilot, +Shablonlar)",
           kb_rows(q.screen["reply_markup"]) == EXPECTED_PANEL["uz"],
           str(kb_rows(q.screen["reply_markup"])))
 

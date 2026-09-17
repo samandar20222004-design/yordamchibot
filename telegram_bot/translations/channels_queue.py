@@ -70,6 +70,8 @@ CHANNELS_QUEUE_I18N = {
         # 🧠 PHASE B — Channel Intelligence (DNA + Best Time)
         "cq_ch_btn_dna": "🧠 Kanal DNA",
         "cq_ch_btn_best_time": "⏰ Eng yaxshi vaqt",
+        "cq_ch_btn_autopilot": "🚀 AI Avtopilot",
+        "cq_ch_btn_templates": "📋 Shablonlar",
         "cq_ch_btn_settings": "⚙️ Kanal sozlamalari",
         "cq_ch_btn_back": "◀️ Orqaga",
         # --- 📢 Kanallarim: 🧠 Kanal DNA kartochkasi ---
@@ -204,6 +206,8 @@ CHANNELS_QUEUE_I18N = {
         # 🧠 PHASE B — Channel Intelligence (DNA + Best Time)
         "cq_ch_btn_dna": "🧠 DNA канала",
         "cq_ch_btn_best_time": "⏰ Лучшее время",
+        "cq_ch_btn_autopilot": "🚀 AI Автопилот",
+        "cq_ch_btn_templates": "📋 Шаблоны",
         "cq_ch_btn_settings": "⚙️ Настройки канала",
         "cq_ch_btn_back": "◀️ Назад",
         # --- 📢 Мои каналы: 🧠 DNA канала ---
@@ -323,6 +327,8 @@ CHANNELS_QUEUE_I18N = {
         # 🧠 PHASE B — Channel Intelligence (DNA + Best Time)
         "cq_ch_btn_dna": "🧠 Channel DNA",
         "cq_ch_btn_best_time": "⏰ Best time",
+        "cq_ch_btn_autopilot": "🚀 AI Autopilot",
+        "cq_ch_btn_templates": "📋 Templates",
         "cq_ch_btn_settings": "⚙️ Channel settings",
         "cq_ch_btn_back": "◀️ Back",
         # --- 📢 My channels: 🧠 Channel DNA card ---
@@ -428,6 +434,8 @@ CHANNEL_PANEL_BUTTON_KEYS = (
     "cq_ch_btn_stats",
     "cq_ch_btn_dna",
     "cq_ch_btn_best_time",
+    "cq_ch_btn_autopilot",
+    "cq_ch_btn_templates",
     "cq_ch_btn_settings",
     "cq_ch_btn_back",
 )

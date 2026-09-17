@@ -114,6 +114,26 @@ MANUAL_POST_I18N = {
             "Iltimos, <b>matn</b>, <b>rasm</b> yoki <b>video</b> yuboring."
         ),
         "mp_cancelled": "❌ <b>Oddiy post bekor qilindi.</b> Hech narsa yuborilmadi.",
+        # 🔁 PHASE C — dublikat detektori (post chiqarilishidan oldin).
+        # DIQQAT: bu — istisnoiy ogohlantirish oynasi; oddiy oqimda AI
+        # ishtirok etmaydi, [✨ AI bilan yangilash] faqat foydalanuvchi
+        # o'zi bosganda ishlaydi.
+        "mp_dup_warning": (
+            "⚠️ O'xshash post topildi. Bu post yaqindagi postingizga juda "
+            "o'xshaydi.\n\nO'xshashlik: <b>{score}%</b>\n\n"
+            "<i>Kanalning oxirgi postidan parcha:</i>\n{preview}"
+        ),
+        "mp_dup_btn_force": "🚀 Baribir chiqarish",
+        "mp_dup_btn_ai": "✨ AI bilan yangilash",
+        "mp_dup_ai_failed": (
+            "⚠️ AI bilan yangilash hozircha ishlamadi. Postni qo'lda "
+            "tahrirlashingiz ([✏️ Tahrirlash]) yoki baribir chiqarishingiz "
+            "mumkin."
+        ),
+        "mp_dup_ai_done": (
+            "✨ Post AI bilan yangilandi — endi boshqacha. Pastdagi panel "
+            "bilan davom eting."
+        ),
         "mp_session_expired": (
             "⚠️ Sessiya eskirgan. Iltimos, «✍️ Oddiy post (AI'siz)» "
             "bo'limidan qayta boshlang."
@@ -200,6 +220,23 @@ MANUAL_POST_I18N = {
             "Отправьте <b>текст</b>, <b>фото</b> или <b>видео</b>."
         ),
         "mp_cancelled": "❌ <b>Обычный пост отменён.</b> Ничего не отправлено.",
+        # 🔁 PHASE C — детектор дубликатов (перед публикацией поста).
+        "mp_dup_warning": (
+            "⚠️ Найден похожий пост. Этот пост очень похож на ваш недавний."
+            "\n\nСходство: <b>{score}%</b>\n\n"
+            "<i>Фрагмент последнего поста канала:</i>\n{preview}"
+        ),
+        "mp_dup_btn_force": "🚀 Всё равно опубликовать",
+        "mp_dup_btn_ai": "✨ Обновить с помощью AI",
+        "mp_dup_ai_failed": (
+            "⚠️ Обновление через AI сейчас не сработало. Вы можете "
+            "отредактировать пост вручную ([✏️ Изменить]) или опубликовать "
+            "как есть."
+        ),
+        "mp_dup_ai_done": (
+            "✨ Пост обновлён с помощью AI — теперь другой. Продолжайте с "
+            "панелью ниже."
+        ),
         "mp_session_expired": (
             "⚠️ Сессия устарела. Начните заново через раздел "
             "«✍️ Обычный пост (без AI)»."
@@ -286,6 +323,22 @@ MANUAL_POST_I18N = {
             "Please send <b>text</b>, a <b>photo</b> or a <b>video</b>."
         ),
         "mp_cancelled": "❌ <b>Regular post cancelled.</b> Nothing was sent.",
+        # 🔁 PHASE C — duplicate detector (before publishing).
+        "mp_dup_warning": (
+            "⚠️ Similar post found. This post is very similar to your "
+            "recent one.\n\nSimilarity: <b>{score}%</b>\n\n"
+            "<i>Fragment of the channel's recent post:</i>\n{preview}"
+        ),
+        "mp_dup_btn_force": "🚀 Post anyway",
+        "mp_dup_btn_ai": "✨ Refresh with AI",
+        "mp_dup_ai_failed": (
+            "⚠️ AI refresh is unavailable right now. You can edit the post "
+            "manually ([✏️ Edit]) or post it as is."
+        ),
+        "mp_dup_ai_done": (
+            "✨ The post was refreshed with AI — now different. Continue "
+            "with the panel below."
+        ),
         "mp_session_expired": (
             "⚠️ Session expired. Please start again via "
             "“✍️ Regular post (no AI)”."

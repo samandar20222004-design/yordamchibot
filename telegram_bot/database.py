@@ -63,6 +63,8 @@ EXPECTED_TABLES = (
     "channel_intelligence_profiles",
     "channel_post_events",
     "channel_insights",
+    # PHASE C — Post shablonlari (7/9/10-bandlar refaktori).
+    "post_templates",
 )
 EXPECTED_INDEXES = (
     "idx_ad_pool_scope",
@@ -93,6 +95,8 @@ EXPECTED_INDEXES = (
     "idx_channel_post_events_created",
     "idx_channel_insights_channel",
     "idx_channel_insights_dismissed",
+    # PHASE C — Post shablonlari indeksi.
+    "idx_post_templates_user",
 )
 REQUIRED_P0_TABLES = ("promo_redemptions", "post_deliveries")
 REQUIRED_P0_INDEXES = ("idx_deliveries_sched", "idx_deliveries_retry", "uq_payments_telegram_charge_id")
@@ -1826,6 +1830,26 @@ def _init_db_once():
         cur.execute(
             "CREATE INDEX IF NOT EXISTS idx_channel_insights_dismissed "
             "ON channel_insights (is_dismissed);"
+        )
+
+        # 📋 PHASE C — POST SHABLONLARI (7/9/10-bandlar refaktori).
+        # Foydalanuvchining takroriy post shablonlari: variables JSONB'da
+        # {TITLE}/{TEXT}/{PRICE}/{LINK}/{CTA}/{SOURCE}/{DATE} ro'yxati
+        # saqlanadi. Barcha so'rovlar user_id bilan filtrlanadi (IDOR).
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS post_templates (
+                id SERIAL PRIMARY KEY,
+                user_id BIGINT NOT NULL,
+                channel_id VARCHAR(255),
+                name VARCHAR(128) NOT NULL,
+                content TEXT NOT NULL,
+                variables JSONB DEFAULT '{}'::jsonb,
+                created_at TIMESTAMPTZ DEFAULT NOW()
+            );
+        """)
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_post_templates_user "
+            "ON post_templates (user_id, created_at DESC);"
         )
 
         # 3) PostAssist V2 (5-bosqich): scheduler tezligi uchun kompozit indekslar
@@ -6410,3 +6434,169 @@ def get_channel_intelligence_profile(channel_id: str | int) -> dict | None:
     except Exception as e:
         logger.error("get_channel_intelligence_profile xatosi (%s): %s", ch_id, e)
         return None
+
+
+# ============================================================
+# 📋 PHASE C — POST SHABLONLARI (post_templates CRUD)
+# ------------------------------------------------------------
+# Foydalanuvchining takroriy post shablonlari. IDOR himoyasi:
+# barcha o'qish/o'chirish so'rovlari ``user_id`` bilan filtrlanadi —
+# boshqa foydalanuvchining shablonini ko'rib/o'chira olish MUMKIN EMAS.
+# Barcha funksiyalar sinxron (``run_db`` orqali chaqiriladi) va xatoda
+# istisno ko'tarmaydi — fail-soft.
+# ============================================================
+
+#: Bitta foydalanuvchi saqlashi mumkin bo'lgan shablonlar soni (FREE/PRO).
+POST_TEMPLATES_LIMIT = 20
+
+
+def _template_row_to_dict(row) -> dict | None:
+    """``post_templates`` qatorini dict ko'rinishiga o'tkazadi."""
+    if not row:
+        return None
+    variables_raw = row[5]
+    if isinstance(variables_raw, str):
+        try:
+            variables = json.loads(variables_raw)
+        except Exception:
+            variables = {}
+    else:
+        variables = dict(variables_raw or {})
+    return {
+        "id": int(row[0]),
+        "user_id": int(row[1]),
+        "channel_id": row[2],
+        "name": row[3],
+        "content": row[4] or "",
+        "variables": variables,
+        "created_at": row[6].isoformat() if row[6] else "",
+    }
+
+
+def create_post_template(
+    user_id: int,
+    name: str,
+    content: str,
+    channel_id: str | None = None,
+    variables: list | dict | None = None,
+) -> int:
+    """Yangi post shablonini saqlaydi. Qaytadi: template id yoki 0 (xato)."""
+    try:
+        uid = int(user_id)
+    except (TypeError, ValueError):
+        return 0
+    tpl_name = str(name or "").strip()[:128]
+    tpl_content = str(content or "").strip()
+    if not tpl_name or not tpl_content:
+        return 0
+    if isinstance(variables, dict):
+        var_list = sorted(str(v).upper() for v in variables.keys())
+    elif isinstance(variables, (list, tuple, set)):
+        var_list = sorted({str(v).upper() for v in variables if v})
+    else:
+        var_list = []
+    try:
+        with db_cursor(commit=True) as cur:
+            cur.execute(
+                "SELECT COUNT(*) FROM post_templates WHERE user_id = %s", (uid,))
+            count = int(cur.fetchone()[0] or 0)
+            if count >= POST_TEMPLATES_LIMIT:
+                return 0
+            cur.execute(
+                """
+                INSERT INTO post_templates (user_id, channel_id, name, content, variables)
+                VALUES (%s, %s, %s, %s, %s)
+                RETURNING id
+                """,
+                (uid, str(channel_id) if channel_id else None, tpl_name,
+                 tpl_content, json.dumps(var_list)),
+            )
+            return int(cur.fetchone()[0])
+    except Exception as e:
+        logger.error("create_post_template xatosi (user=%s): %s", uid, e)
+        return 0
+
+
+def get_post_templates(user_id: int, limit: int = 20) -> list[dict]:
+    """Foydalanuvchining shablonlari (FAQAT o'ziniki — IDOR himoyasi)."""
+    try:
+        uid = int(user_id)
+        safe_limit = max(1, min(int(limit), POST_TEMPLATES_LIMIT))
+        with db_cursor() as cur:
+            cur.execute(
+                """
+                SELECT id, user_id, channel_id, name, content, variables, created_at
+                FROM post_templates
+                WHERE user_id = %s
+                ORDER BY created_at DESC, id DESC
+                LIMIT %s
+                """,
+                (uid, safe_limit),
+            )
+            rows = cur.fetchall()
+        return [r for r in (_template_row_to_dict(row) for row in rows) if r]
+    except Exception as e:
+        logger.error("get_post_templates xatosi (user=%s): %s", user_id, e)
+        return []
+
+
+def get_post_template(template_id: int, user_id: int) -> dict | None:
+    """Bitta shablon — FAQAT egasi uchun (user_id filtri = IDOR himoyasi).
+
+    ``user_id`` mos kelmasa (yoki shablon yo'q bo'lsa) ``None`` qaytadi:
+    boshqa foydalanuvchining shablonini ko'rib bo'lmaydi.
+    """
+    try:
+        tid = int(template_id)
+        uid = int(user_id)
+    except (TypeError, ValueError):
+        return None
+    try:
+        with db_cursor() as cur:
+            cur.execute(
+                """
+                SELECT id, user_id, channel_id, name, content, variables, created_at
+                FROM post_templates
+                WHERE id = %s AND user_id = %s
+                """,
+                (tid, uid),
+            )
+            return _template_row_to_dict(cur.fetchone())
+    except Exception as e:
+        logger.error("get_post_template xatosi (id=%s): %s", template_id, e)
+        return None
+
+
+def delete_post_template(template_id: int, user_id: int) -> bool:
+    """Shablonni o'chiradi — FAQAT egasi o'chira oladi (IDOR himoyasi).
+
+    Qaytadi: ``True`` — o'chirildi; ``False`` — topilmadi/yetarli emas.
+    """
+    try:
+        tid = int(template_id)
+        uid = int(user_id)
+    except (TypeError, ValueError):
+        return False
+    try:
+        with db_cursor(commit=True) as cur:
+            cur.execute(
+                "DELETE FROM post_templates WHERE id = %s AND user_id = %s",
+                (tid, uid),
+            )
+            return cur.rowcount > 0
+    except Exception as e:
+        logger.error("delete_post_template xatosi (id=%s): %s", template_id, e)
+        return False
+
+
+def count_post_templates(user_id: int) -> int:
+    """Foydalanuvchining shablonlari soni (limit tekshiruvi uchun)."""
+    try:
+        uid = int(user_id)
+        with db_cursor() as cur:
+            cur.execute(
+                "SELECT COUNT(*) FROM post_templates WHERE user_id = %s", (uid,))
+            return int(cur.fetchone()[0] or 0)
+    except Exception as e:
+        logger.error("count_post_templates xatosi (user=%s): %s", user_id, e)
+        return 0

@@ -84,6 +84,9 @@ CB_CHANNEL_STATS = "ch_st:"       # 📊 Statistika (shu kanal bo'yicha)
 # 🧠 PHASE B — Channel Intelligence: kanal uslubiy profili va optimal vaqt
 CB_CHANNEL_DNA = "ch_dna:"        # 🧠 Kanal DNA (uslubiy profil kartochkasi)
 CB_CHANNEL_BEST_TIME = "ch_btm:"  # ⏰ Eng yaxshi vaqt (post statistikasi)
+# 🚀 PHASE C — 7 kunlik AI avtopilot va 📋 post shablonlari (kanal kontekstida)
+CB_CHANNEL_AUTOPILOT = "ch_ap:"   # 🚀 AI Avtopilot (7 kunlik reja)
+CB_CHANNEL_TEMPLATES = "ch_tpl:"  # 📋 Shablonlar (post shablonlari menyusi)
 CB_CHANNEL_BACK = "ch_back"       # ◀️ Orqaga → kanallar ro'yxati (payload'siz)
 
 # ---------------------------------------------------------------------------
@@ -147,6 +150,9 @@ CANONICAL_PREFIXES = (
     # 🧠 PHASE B — Channel Intelligence (DNA + Best Time).
     CB_CHANNEL_DNA,
     CB_CHANNEL_BEST_TIME,
+    # 🚀 PHASE C — AI Avtopilot + post shablonlari (kanal kontekstida).
+    CB_CHANNEL_AUTOPILOT,
+    CB_CHANNEL_TEMPLATES,
     # 📅 REJALASHTIRILGAN — yagona ro'yxat amallari (PostAssist V2 · 2-qadam).
     CB_SCHED_BTN_REACT,
     # 📊 Post Score — dinamik payload qo'shiladigan prefikslar.
