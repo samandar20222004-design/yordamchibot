@@ -187,9 +187,9 @@ PLAN_FORMATS: tuple[PlanFormat, ...] = (
         hook={"uz": "{topic}: haftaning 3 ta muhim raqami",
               "ru": "{topic}: три важные цифры недели",
               "en": "{topic}: three numbers that mattered this week"},
-        cta={"uz": "🔁 Keyingi hafta ham shu vaqtda — obuna bo'ling",
-             "ru": "🔁 Следующая неделя в это же время — подпишитесь",
-             "en": "🔁 Same time next week — subscribe"},
+        cta={"uz": "🔁 Keyingi hafta ham shu vaqtda — izohda fikringizni qoldiring",
+             "ru": "🔁 На следующей неделе в это же время — делитесь мнением в комментариях",
+             "en": "🔁 Same time next week — share your take in the comments"},
         hashtags=("#natijalar", "#tahlil", "#hafta"),
     ),
 )

@@ -206,6 +206,16 @@ from handlers.magic_post import (
     MAGIC_INPUT, MAGIC_STYLE_SELECT, MAGIC_RESULT, MAGIC_SEND_CHOOSE,
 )
 
+# 2c-2. 🧭 AI POST — MAVZUNI ANIQLASHTIRISH WIZARD'I (3-qadam UI/UX polish).
+# Qisqa/umumiy mavzuda yo'nalish tanlovi (📰/💡/🔥/🛒/✍️) va sotuv
+# parametrlari so'rovi. Modul faqat handlers.magic_post / handlers.ai_assistant
+# funksiyalarini LAZY import qiladi — aylanma import YO'Q.
+from handlers.ai_post import (
+    ai_post_format_callback, ai_post_back_callback, ai_post_stale_callback,
+    ai_post_sales_input_received, ai_post_custom_input_received,
+    AI_POST_CLARIFY, AI_POST_SALES_INPUT, AI_POST_CUSTOM_INPUT,
+)
+
 # 2d. 🎙 VOICE → POST (Killer Feature — ovoz → matn → uslub → tayyor post)
 # MUHIM: shu modul `handlers.magic_post` dan (_safe_edit, _magic_deliver_one),
 # `handlers.ai_assistant` dan (AI_GET_TIME, _show_time_prompt) va
@@ -1598,6 +1608,22 @@ def register_all_handlers(app):
                 CallbackQueryHandler(magic_restyle_callback, pattern=r"^mp_restyle$"),
             ],
 
+            # 7d-2. 🧭 AI POST — MAVZUNI ANIQLASHTIRISH WIZARD'I (3-qadam).
+            # Magic Post / AI Studio matn kiritishdan shu holatlarga o'tadi:
+            # CLARIFY (yo'nalish tugmalari) → SALES/CUSTOM_INPUT (matn javobi)
+            # → kelib chiqish oqimiga qaytish. Kvota shu holatlarda BRON
+            # QILINMAYDI — faqat generatsiya boshlanganda (eski qoidalar).
+            AI_POST_CLARIFY: all_menu_jumps + [
+                CallbackQueryHandler(ai_post_format_callback, pattern=r"^aip_fmt:"),
+                CallbackQueryHandler(ai_post_back_callback, pattern=r"^aip_back$"),
+            ],
+            AI_POST_SALES_INPUT: all_menu_jumps + [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, ai_post_sales_input_received),
+            ],
+            AI_POST_CUSTOM_INPUT: all_menu_jumps + [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, ai_post_custom_input_received),
+            ],
+
             # 7e-0. 🧩 «🎙 Ovoz → Post» bo'limi: ovozli xabar kutiladi.
             # Ovoz kelishi bilan STT oqimi boshlanadi — menyu tashqarisidagi
             # VoiceEntryHandler bilan BITTA handler (voice_message_received),
@@ -1857,6 +1883,9 @@ def register_all_handlers(app):
     # ✨ Magic Post stale tugmalari: sessiya tugagach eski natija/tanlov tugmasi
     # bosilsa — foydalanuvchiga «sessiya eskirgan» toast ko'rsatiladi.
     app.add_handler(CallbackQueryHandler(magic_stale_callback, pattern=r"^mp_"))
+    # 🧭 AI Post wizard stale tugmalari (``aip_``): sessiya tugagach bosilgan
+    # eski yo'nalish tugmasi — muloyim toast, crash yo'q.
+    app.add_handler(CallbackQueryHandler(ai_post_stale_callback, pattern=r"^aip_"))
     # 📊 Post Score — sessiyadan tashqarida bosilgan eski `ps_` tugmalari.
     app.add_handler(CallbackQueryHandler(post_score_stale_callback, pattern=r"^ps_"))
     # 🎙 Voice Post stale tugmalari: sessiya tugagach eski uslub/amal tugmasi

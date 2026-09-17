@@ -61,6 +61,8 @@ def main():
         "handlers",
         "handlers.voice_post",
         "handlers.post_score",
+        # 🧭 3-QADAM (UI/UX POLISH) — mavzuni aniqlashtirish wizard'i.
+        "handlers.ai_post",
         # 🧰 VOSITALAR submenyusi (PostAssist V2 · 3-qadam) — sozlamalar
         # menyusidagi [🧰 Vositalar] ekranini chizuvchi modul.
         "handlers.tools",
