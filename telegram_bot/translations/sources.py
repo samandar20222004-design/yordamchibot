@@ -102,6 +102,17 @@ SOURCES_I18N = {
         ),
         "src_regen_failed": "⚠️ Yangi variant yaratilmadi (AI javob bermadi).",
         "src_regen_done": "🔄 Yangi variant tayyor.",
+        "src_bad_time": (
+            "⚠️ Vaqtni tushunib bo'lmadi. Masalan: <code>19:30</code>, "
+            "<code>ertaga 09:00</code> yoki <code>25.09.2026 18:00</code>."
+        ),
+        "src_publish_queued": (
+            "🚀 Post navbatga qo'yildi — bir daqiqa ichida kanalga chiqadi."
+        ),
+        "src_scheduled_ok": "📅 Post rejalashtirildi: <b>{time}</b>",
+        "src_write_failed": (
+            "⚠️ Postni saqlab bo'lmadi. Keyinroq qayta urinib ko'ring."
+        ),
         # --- RSS ---
         "src_rss_title": (
             "📡 <b>RSS / ATOM OQIMI</b>\n\nKanal: <b>{channel}</b>\n"
@@ -194,6 +205,10 @@ SOURCES_I18N = {
             "taqiqlanadi. Boshqa variant urinib ko'ring."
         ),
         "src_rec_failed": "⚠️ AI yangilangan postni bera olmadi. Keyinroq urinib ko'ring.",
+        "src_rec_similarity": (
+            "<i>♻️ Eski post bilan o'xshashlik: {similarity}% "
+            "(chegara {threshold}% — undan yuqorisi repost).</i>"
+        ),
         "src_rec_back": "◀️ Ro'yxatga qaytish",
     },
     # ------------------------------------------------------------
@@ -260,6 +275,17 @@ SOURCES_I18N = {
         ),
         "src_regen_failed": "⚠️ Новый вариант не создан (ИИ не ответил).",
         "src_regen_done": "🔄 Новый вариант готов.",
+        "src_bad_time": (
+            "⚠️ Не удалось понять время. Например: <code>19:30</code>, "
+            "<code>ertaga 09:00</code> или <code>25.09.2026 18:00</code>."
+        ),
+        "src_publish_queued": (
+            "🚀 Пост поставлен в очередь — выйдет в канале в течение минуты."
+        ),
+        "src_scheduled_ok": "📅 Пост запланирован: <b>{time}</b>",
+        "src_write_failed": (
+            "⚠️ Не удалось сохранить пост. Попробуйте позже."
+        ),
         "src_rss_title": (
             "📡 <b>RSS / ATOM ПОТОК</b>\n\nКанал: <b>{channel}</b>\n"
             "Источники: {count}/{limit}"
@@ -350,6 +376,10 @@ SOURCES_I18N = {
             "Попробуйте другой вариант."
         ),
         "src_rec_failed": "⚠️ ИИ не смог обновить пост. Попробуйте позже.",
+        "src_rec_similarity": (
+            "<i>♻️ Сходство со старым постом: {similarity}% "
+            "(порог {threshold}% — выше считается репостом).</i>"
+        ),
         "src_rec_back": "◀️ К списку",
     },
     # ------------------------------------------------------------
@@ -416,6 +446,17 @@ SOURCES_I18N = {
         ),
         "src_regen_failed": "⚠️ A new variant was not created (no AI reply).",
         "src_regen_done": "🔄 New variant is ready.",
+        "src_bad_time": (
+            "⚠️ Could not read the time. For example: <code>19:30</code>, "
+            "<code>ertaga 09:00</code> or <code>25.09.2026 18:00</code>."
+        ),
+        "src_publish_queued": (
+            "🚀 The post is queued — it will be published within a minute."
+        ),
+        "src_scheduled_ok": "📅 The post is scheduled for <b>{time}</b>",
+        "src_write_failed": (
+            "⚠️ Could not save the post. Please try again later."
+        ),
         "src_rss_title": (
             "📡 <b>RSS / ATOM FEED</b>\n\nChannel: <b>{channel}</b>\n"
             "Sources: {count}/{limit}"
@@ -505,6 +546,10 @@ SOURCES_I18N = {
             "forbidden. Try another variant."
         ),
         "src_rec_failed": "⚠️ The AI could not refresh the post. Try later.",
+        "src_rec_similarity": (
+            "<i>♻️ Similarity to the old post: {similarity}% "
+            "(threshold {threshold}% — above that is a repost).</i>"
+        ),
         "src_rec_back": "◀️ Back to the list",
     },
 }

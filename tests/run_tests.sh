@@ -68,6 +68,13 @@
 #       (7 o'zgaruvchi, IDOR) va AI'siz dublikat detektori (0.85) manual
 #       postingda 3 tugmali ogohlantirish bilan
 #       (tests/autopilot_templates_and_duplicates_test.py)
+#   3z) 📥 PHASE D (2/2) — KONTENT MANBALARI: handler/klaviatura qatlami
+#       (🔗 URL→post: SSRF guard + 4 format + preview paneli; 📡 RSS/ATOM:
+#       manba qo'shish, interval clamp, dublikat QAYTA ISHLANMASLIGI,
+#       avtopublish, IDOR; ♻️ Content Recycle: 14+ kunlik post, ko'r-ko'rona
+#       repost taqiqi; 🗂 qoralamalar), 🕒 scheduler ulanmasi
+#       (poll_content_sources_job) va i18n/routing/FSM unikalligi
+#       (tests/sources_rss_and_recycle_test.py)
 #   4) TO'LIQ regressiya: telegram_bot/tests/run_tests.sh (barcha 30+ test fayli)
 #
 # Har qanday xatoda 1 bilan chiqadi (CI uchun).
@@ -545,6 +552,30 @@ echo "===== 3y) 🚀 PHASE C: AI AUTOPILOT + POST SHABLONLARI + DUBLIKAT DETEKTO
 #     i18n paritet (uz/ru/en) va 64-bayt callback chegarasi
 # (tests/autopilot_templates_and_duplicates_test.py).
 "$PY" tests/autopilot_templates_and_duplicates_test.py || EXIT_CODE=1
+
+echo
+echo "===== 3z) 📥 PHASE D (2/2): KONTENT MANBALARI — URL→POST + RSS/ATOM + RECYCLE ====="
+# (1) 🔗 URL → POST — ichki tarmoq/localhost/metadata/bloklangan port
+#     havolalari tarmoqqa chiqarilmasdan rad etiladi; ochiq havola → 4 format
+#     (📰/⚡/🧠/📢) → umumiy preview paneli ([📅 Rejalashtirish]
+#     [🚀 Hozir chiqarish] [🔄 Boshqa variant] [❌ Bekor qilish]); kvota rad
+#     etilsa kredit yechilmaydi;
+# (2) 📡 RSS/ATOM — manba qo'shish (SSRF + interval clamp 15..1440),
+#     [🔄 Hoziroq tekshirish] yangi elementlardan qoralama yaratadi, IKKINCHI
+#     tekshiruvda dublikat qayta ishlanmaydi, ▶️/⏸, 🤖 avtopublish, 🗑;
+#     begona foydalanuvchi manbani ko'ra/ochira olmaydi (IDOR);
+# (3) 🧩 servis qatlami — parse_feed (RSS 2.0 + Atom), XXE/entity himoyasi,
+#     canonical_url (tracking tozalash), filter_new_items;
+# (4) ♻️ RECYCLE — 14+ kunlik nomzodlar, ko'rsatkich yo'q bo'lsa soxta raqam
+#     uydirilmaydi, AI javobi o'xshash bo'lsa BLIND_REPOST rad etiladi;
+# (5) 🗂 qoralamalar — tasdiqlash → navbat ('queued'), o'chirish ('dismissed');
+# (6) 🕒 SCHEDULER — poll_content_sources_job vaqti kelgan manbalarni
+#     tekshiradi: autopublish → scheduled_posts, egasiga bildirishnoma,
+#     takroriy tick dublikatni o'tkazib yuboradi, hech qachon yiqilmaydi;
+# (7) FSM 530–539 unikalligi, routing, stale tarmog'i, 64-bayt va
+#     uz/ru/en i18n pariteti
+# (tests/sources_rss_and_recycle_test.py).
+"$PY" tests/sources_rss_and_recycle_test.py || EXIT_CODE=1
 
 echo
 echo "======== 4) TO'LIQ REGRESSIYA (telegram_bot/tests) ========"

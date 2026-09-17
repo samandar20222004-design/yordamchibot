@@ -16,6 +16,7 @@ from scheduler import (
     check_and_delete_expired_posts,
     cleanup_old_data_job,
     cleanup_old_records_job,
+    poll_content_sources_job,
     recover_on_startup,
     subscription_sweep_job,
     tashkent_tz,
@@ -462,6 +463,16 @@ async def main():
     scheduler.add_job(
         subscription_sweep_job, 'interval', minutes=15,
         id="subscription_sweep", timezone=tashkent_tz,
+        max_instances=1, coalesce=True, misfire_grace_time=300,
+    )
+    # 📥 PHASE D (2/2): RSS/ATOM manbalarini avtomatik tekshirish — har 15
+    # daqiqada vaqti kelgan (``interval_minutes``) manbalar o'qiladi, yangi
+    # elementlardan qoralama tayyorlanadi (dublikat QAYTA ishlanmaydi) va
+    # autopublish yoqilgan bo'lsa navbatga yoziladi. Job hech qachon istisno
+    # tashlamaydi (scheduler barqarorligi).
+    scheduler.add_job(
+        poll_content_sources_job, 'interval', minutes=15, args=[application.bot],
+        id="poll_content_sources", timezone=tashkent_tz,
         max_instances=1, coalesce=True, misfire_grace_time=300,
     )
     # 9-bosqich: kunlik paketli tozalash worker'i — har 24 soatda 1 marta,

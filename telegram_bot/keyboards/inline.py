@@ -15,6 +15,7 @@ from keyboards.callback_data import (  # noqa: F401 — re-export (eski importla
     CB_CHANNEL_OPEN,
     CB_CHANNEL_SCHEDULED,
     CB_CHANNEL_SETTINGS,
+    CB_CHANNEL_SOURCES,
     CB_CHANNEL_STATS,
     CB_CHANNEL_TEMPLATES,
     CB_CHANNEL_VOICE,
@@ -668,6 +669,10 @@ def render_channel_panel(channel_id, lang: str = "uz") -> InlineKeyboardMarkup:
     🚀 PHASE C: [🚀 AI Avtopilot] (7 kunlik reja, DNA + best time asosida)
     va [📋 Shablonlar] (post shablonlari menyusi) — ikkalasi ham kanal
     egaligi (IDOR) tekshiruvi bilan ochiladi.
+
+    📥 PHASE D (2/2): [📥 Kontent manbalari] — 🔗 havoladan post (URL → 4
+    format), 📡 RSS/ATOM oqimi va ♻️ eski postni yangilash (recycle). Hammasi
+    shu kanal kontekstida, IDOR himoyasi bilan.
     """
     from translations import channels_queue_t
 
@@ -692,6 +697,10 @@ def render_channel_panel(channel_id, lang: str = "uz") -> InlineKeyboardMarkup:
             InlineKeyboardButton(channels_queue_t("cq_ch_btn_templates", lang),
                                  callback_data=cb(CB_CHANNEL_TEMPLATES, channel_id)),
         ],
+        # 📥 PHASE D (2/2) — kontent manbalari: URL→post, RSS/ATOM oqimi va
+        # Content Recycle (kanal konteksti bilan, alohida qator — to'liq eni).
+        [InlineKeyboardButton(channels_queue_t("cq_ch_btn_sources", lang),
+                              callback_data=cb(CB_CHANNEL_SOURCES, channel_id))],
         [
             InlineKeyboardButton(channels_queue_t("cq_ch_btn_settings", lang),
                                  callback_data=cb(CB_CHANNEL_SETTINGS, channel_id)),
