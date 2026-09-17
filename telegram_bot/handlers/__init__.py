@@ -115,11 +115,13 @@ from handlers.new_post import (
 # takroriy e'lon qilinadi.
 from handlers.manual_post import (
     manual_post_entry, manual_content_received, manual_edit_received,
-    manual_time_received, manual_panel_callback, manual_stale_callback,
+    manual_time_received, manual_reaction_custom_received,
+    manual_url_received, manual_panel_callback, manual_stale_callback,
     ManualEntryHandler,
     set_application as set_manual_application,
     MANUAL_AWAIT_CONTENT, MANUAL_PREVIEW, MANUAL_CHANNEL_SELECT,
     MANUAL_TIME_INPUT, MANUAL_EDIT_INPUT,
+    MANUAL_REACTION_CUSTOM, MANUAL_URL_INPUT,
 )
 
 # 2b. 🛠 POST KUCHAYTIRGICH (Post Enhancer — qo'shimcha funksiyalar)
@@ -1209,6 +1211,19 @@ def register_all_handlers(app):
             ],
             MANUAL_EDIT_INPUT: all_menu_jumps + [
                 MessageHandler(filters.ALL & ~filters.COMMAND, manual_edit_received),
+            ],
+            # ✍️ 2-qadam UI/UX polish: ❤️ reaksiya (qo'lda emoji) va
+            # 🔗 havolali tugma kiritish holatlari — callback'lar panel
+            # handlerida (``^mnp_``), matn esa maxsus handlerlarda.
+            MANUAL_REACTION_CUSTOM: all_menu_jumps + [
+                CallbackQueryHandler(manual_panel_callback, pattern=r"^mnp_"),
+                MessageHandler(filters.TEXT & ~filters.COMMAND,
+                               manual_reaction_custom_received),
+            ],
+            MANUAL_URL_INPUT: all_menu_jumps + [
+                CallbackQueryHandler(manual_panel_callback, pattern=r"^mnp_"),
+                MessageHandler(filters.TEXT & ~filters.COMMAND,
+                               manual_url_received),
             ],
             GET_TIME: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, time_received)],
             DAILY_TIME: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, daily_time_received)],

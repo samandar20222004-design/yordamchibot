@@ -3,18 +3,27 @@
 Birlashtirilgan kontent menyusidagi birinchi yo'nalish. QAT'IY QOIDA: bu
 oqimda AI UMUMAN ishtirok etmaydi — foydalanuvchi tayyor matn, rasm yoki
 video yuboradi va bot hech qanday uslub/generatsiya savollarini bermasdan
-DARHOL preview chiqaradi. Preview ostida universal boshqaruv paneli::
+DARHOL preview chiqaradi. Preview ostida universal boshqaruv paneli
+(2-qadam UI/UX polish'dan keyin — 4 qatorli, boyitilgan)::
 
-    [🚀 Hozir yuborish]
-    [📅 Vaqtni belgilash]
-    [🗑 24 soatlik e'lon]   [🔄 Takroriy e'lon]
-    [✏️ Tahrirlash]         [❌ Bekor qilish]
+    [🚀 Hozir yuborish]        [📅 Vaqtni belgilash]
+    [❤️ Reaksiyalar]           [🔗 Havolali tugma]
+    [🗑 24 soatlik e'lon]      [🔄 Takroriy e'lon]
+    [✏️ Tahrirlash]            [❌ Bekor qilish]
 
 Amallar (barchasi mavjud, sinovdan o'tgan infratuzilmaga tayanadi):
   * 🚀 Hozir yuborish — post tanlangan kanalga darhol chiqadi
     (``db.add_post`` + scheduler zanjiri, ``scheduled_time=now``);
   * 📅 Vaqtni belgilash — oddiy reja: belgilangan sana/vaqtda chiqadi
     (masalan: ``19:30``);
+  * ❤️ Reaksiyalar — presetlar ([👍/👎], [🔥/❤️/👏]) yoki qo'lda
+    kiritilgan emojilar post tagiga reaksiya TUGMALARI sifatida ulanadi
+    (``enable_reactions`` + ``reaction_emojis`` → scheduler delivery);
+  * 🔗 Havolali tugma — "Matn - https://..." formatida kiritiladi; FAQAT
+    ``http://``, ``https://``, ``tg://`` protokollari ruxsat etiladi
+    (``javascript:``, ``file:`` rad etiladi); tugma preview ostida
+    HAQIQIY inline URL tugma sifatida ko'rinadi va kanalga ham chiqadi
+    (``btn_text`` + ``btn_url`` → scheduler ``reply_markup``);
   * 🗑 24 soatlik e'lon — kanalga chiqadi va 24 soat o'tib AVTOMATIK
     o'chadi (``delete_after_hours=24``);
   * 🔄 Takroriy e'lon — har kuni bitta vaqtda qayta chiqadi
@@ -24,8 +33,9 @@ Amallar (barchasi mavjud, sinovdan o'tgan infratuzilmaga tayanadi):
 
 Callback prefiksi ``mnp_`` (manual post) — Magic Post (``mp_``), Voice
 (``vp_``), Image (``image_``), Post Score (``ps_``) va boshqa global
-prefikslar bilan to'qnashmaydi. FSM holatlari 450–454 — mavjud holatlar
-bilan konfliktsiz (430–442 magic/voice, 460+ post_score/calendar).
+prefikslar bilan to'qnashmaydi. FSM holatlari 450–456 — mavjud holatlar
+bilan konfliktsiz (430–442 magic/voice, 460+ post_score/calendar):
+455 — qo'lda reaksiya kiritish, 456 — havolali tugma kiritish.
 """
 
 from __future__ import annotations
@@ -34,7 +44,7 @@ import logging
 from datetime import datetime, timedelta
 
 import pytz
-from telegram import Update
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import CallbackQueryHandler, ContextTypes, ConversationHandler
 
 from config import ADMIN_IDS_SET
@@ -49,20 +59,34 @@ from keyboards.inline import (
     CB_MANUAL_EDIT,
     CB_MANUAL_NOW,
     CB_MANUAL_PANEL,
+    CB_MANUAL_REACT,
+    CB_MANUAL_REACT_BACK,
+    CB_MANUAL_REACT_CUSTOM,
+    CB_MANUAL_REACT_TOGGLE,
     CB_MANUAL_REPEAT,
     CB_MANUAL_TIME,
+    CB_MANUAL_URL_BTN,
+    CUSTOM_REACTION_MAX,
+    build_reaction_button_rows,
     get_duplicate_warning_keyboard,
     get_manual_channel_keyboard,
     get_manual_post_panel,
+    get_manual_reaction_keyboard,
     manual_channel_from_callback,
+    manual_reaction_from_callback,
+    normalize_custom_reaction_emojis,
+    strip_variation_selector,
 )
 from locales.translations import clear_fsm_data, get_lang
 from translations import manual_post_t
 from utils.date_format import format_datetime, format_time
 from utils.helpers import (
     html_escape,
+    parse_button_input,
     parse_daily_time_input,
     parse_schedule_input,
+    validate_button_text,
+    validate_button_url,
 )
 from utils.telegram_sanitizer import sanitize_html
 
@@ -78,6 +102,8 @@ MANUAL_PREVIEW = 451         # preview + universal boshqaruv paneli
 MANUAL_CHANNEL_SELECT = 452  # kanal tanlanmoqda (inline tugmalar)
 MANUAL_TIME_INPUT = 453      # 📅 vaqt yoki 🔄 takrorlanish vaqti kutilmoqda
 MANUAL_EDIT_INPUT = 454      # ✏️ yangi kontent kutilmoqda
+MANUAL_REACTION_CUSTOM = 455  # ➕ qo'lda kiritiladigan reaksiya emojilari
+MANUAL_URL_INPUT = 456       # 🔗 havolali tugma (matn + URL) kutilmoqda
 
 # Amal rejimi (kanal tanlanishi yoki vaqt kiritilishidan oldin tanlanadi).
 MODE_NOW = "now"        # 🚀 Hozir yuborish
@@ -96,6 +122,10 @@ UD_REPEAT_TIME = "mnp_repeat_time"  # "HH:MM" (takroriy e'lon uchun)
 UD_DUP_FORCE = "mnp_dup_force"          # foydalanuvchi "Baribir chiqarish" bosdi
 UD_DUP_CHANNEL_ID = "mnp_dup_channel"   # ogohlantirilgan kanal (id)
 UD_DUP_CHANNEL_TITLE = "mnp_dup_title"  # ogohlantirilgan kanal (nomi)
+# 2-QADAM UI/UX POLISH — reaksiyalar va havolali (URL) tugma holati.
+UD_REACTIONS = "mnp_reactions"  # tanlangan reaksiya emojilari (list[str])
+UD_URL_BTN_TEXT = "mnp_url_text"  # havolali tugma matni
+UD_URL_BTN_URL = "mnp_url_url"    # havolali tugma URL'i (xavfsiz protokol)
 
 #: Qabul qilinadigan media turlari → post_type.
 _SUPPORTED_MEDIA = ("photo", "video", "animation", "document")
@@ -127,29 +157,83 @@ def _clear_manual_state(context) -> None:
     """Oddiy post oqimi ma'lumotlarini tozalaydi (FSM kontekstidan tashqari)."""
     for key in (UD_CONTENT, UD_POST_TYPE, UD_FILE_ID, UD_MODE, UD_WHEN,
                 UD_REPEAT_TIME, UD_DUP_FORCE, UD_DUP_CHANNEL_ID,
-                UD_DUP_CHANNEL_TITLE):
+                UD_DUP_CHANNEL_TITLE, UD_REACTIONS, UD_URL_BTN_TEXT,
+                UD_URL_BTN_URL):
         context.user_data.pop(key, None)
 
 
 # ============================================================
 # PREVIEW — postning o'zi (AI'siz, o'zgarishsiz) + universal panel
 # ============================================================
+def _manual_reactions(context) -> list:
+    """Saqlangan reaksiya emojilari (normal, takrorsiz ro'yxat)."""
+    return normalize_custom_reaction_emojis(
+        context.user_data.get(UD_REACTIONS) or [])
+
+
+def _manual_url_button(context):
+    """Saqlangan havolali tugma — ``(text, url)`` yoki ``None``."""
+    text = str(context.user_data.get(UD_URL_BTN_TEXT) or "").strip()
+    url = str(context.user_data.get(UD_URL_BTN_URL) or "").strip()
+    if text and url:
+        return text, url
+    return None
+
+
+def _manual_preview_markup(context, lang: str) -> InlineKeyboardMarkup:
+    """Preview ostidagi to'liq markup: URL tugma + reaksiyalar + panel.
+
+    Tartib: (1) havolali tugma (haqiqiy URL button), (2) reaksiya
+    emojilari (ko'rinish uchun neytral ``enh:noop`` callback'li preview
+    tugmalar), (3) 4 qatorli universal boshqaruv paneli.
+    """
+    rows = []
+    url_btn = _manual_url_button(context)
+    if url_btn:
+        rows.append([InlineKeyboardButton(url_btn[0], url=url_btn[1])])
+    reactions = _manual_reactions(context)
+    if reactions:
+        rows.extend(build_reaction_button_rows(None, reactions, preview=True))
+    rows.extend(get_manual_post_panel(lang).inline_keyboard)
+    return InlineKeyboardMarkup(rows)
+
+
+def _manual_extras_text(context, lang: str) -> str:
+    """Preview matniga qo'shiladigan reaksiya/tugma xulosasi (bo'sh ham mumkin)."""
+    lines = []
+    reactions = _manual_reactions(context)
+    if reactions:
+        lines.append(manual_post_t(
+            "mp_reactions_on", lang, emojis=" ".join(reactions)))
+    url_btn = _manual_url_button(context)
+    if url_btn:
+        lines.append(manual_post_t(
+            "mp_url_on", lang, text=html_escape(url_btn[0]),
+            url=html_escape(url_btn[1])))
+    if not lines:
+        return ""
+    return "\n\n" + "\n".join(lines)
+
+
 async def _show_preview(target_msg, context, lang: str):
     """Saqlangan kontentni preview sifatida ko'rsatadi (panel tugmalari bilan).
 
     Matnli post — to'liq matn; media post — media + caption. Hech qanday AI
     qo'shimchasi YO'Q: foydalanuvchi nima yuborgan bo'lsa, aynan o'sha chiqadi.
+    Tanlangan reaksiyalar va havolali tugma bo'lsa — preview matnida xulosa
+    qatori, markup'da esa TUGMALAR ko'rinadi (2-qadam UI/UX polish).
     """
     content = context.user_data.get(UD_CONTENT, "") or ""
     post_type = context.user_data.get(UD_POST_TYPE, "text")
     file_id = context.user_data.get(UD_FILE_ID)
-    panel = get_manual_post_panel(lang)
+    panel = _manual_preview_markup(context, lang)
     title = manual_post_t("mp_preview_title", lang)
     foot = manual_post_t("mp_preview_foot", lang)
+    extras = _manual_extras_text(context, lang)
 
     if post_type in _SUPPORTED_MEDIA and file_id:
         # Caption Telegram chegarasi 1024 — preview matni ham caption'da.
-        caption_text = f"{title}{content}{foot}"
+        caption_text = f"{title}{content}{extras}{foot}"
         cap = sanitize_html(caption_text, 1024)
         kwargs = dict(caption=cap, reply_markup=panel, parse_mode="HTML")
         try:
@@ -164,7 +248,7 @@ async def _show_preview(target_msg, context, lang: str):
             logger.warning("Oddiy post media preview xatosi", exc_info=True)
             # Media preview imkonsiz bo'lsa — matn ko'rinishida davom etamiz.
 
-    body = f"{title}{sanitize_html(content, 3600)}{foot}"
+    body = f"{title}{sanitize_html(content, 3600)}{extras}{foot}"
     return await target_msg.reply_text(body, reply_markup=panel, parse_mode="HTML")
 
 
@@ -281,6 +365,13 @@ async def _publish(target_msg, context, user_id: int, channel_id,
     else:
         scheduled_time = now
 
+    # 2-QADAM UI/UX POLISH: preview'da tanlangan reaksiyalar va havolali
+    # tugma DB'ga to'liq saqlanadi — scheduler kanalga xuddi shu
+    # reply_markup bilan chiqaradi (btn_text/btn_url + enable_reactions +
+    # reaction_emojis ustunlari orqali).
+    reactions = _manual_reactions(context)
+    url_btn = _manual_url_button(context)
+
     ok = False
     try:
         pid = await db.run_db(
@@ -295,7 +386,11 @@ async def _publish(target_msg, context, user_id: int, channel_id,
             recurrence_day=None,
             recurrence_time=recurrence_time,
             end_date=None,
+            btn_text=(url_btn[0] if url_btn else None),
+            btn_url=(url_btn[1] if url_btn else None),
+            enable_reactions=bool(reactions),
             delete_after_hours=delete_after_hours,
+            reaction_emojis=(" ".join(reactions) if reactions else None),
         )
         ok = bool(pid)
     except Exception:
@@ -535,6 +630,69 @@ async def manual_time_received(update: Update, context: ContextTypes.DEFAULT_TYP
     return await _choose_channel_or_act(msg, context, user_id, lang)
 
 
+async def manual_reaction_custom_received(update: Update,
+                                          context: ContextTypes.DEFAULT_TYPE):
+    """➕ O'zim kiritaman: qo'lda yuborilgan reaksiya emojilari qabul qilinadi.
+
+    Emoji bo'lmagan belgilar tashlanadi (``normalize_custom_reaction_emojis``);
+    hech narsa topilmasa muloyim xato bilan holat saqlanadi. Muvaffaqiyatda
+    emojilar postga ulanadi va preview yangilanadi.
+    """
+    msg = update.message
+    lang = get_lang(context)
+    if msg is None or not (msg.text or "").strip():
+        if msg is not None:
+            await msg.reply_text(
+                manual_post_t("mp_react_custom_invalid", lang),
+                parse_mode="HTML",
+            )
+        return MANUAL_REACTION_CUSTOM
+
+    emojis = normalize_custom_reaction_emojis(msg.text)
+    if not emojis:
+        await msg.reply_text(
+            manual_post_t("mp_react_custom_invalid", lang),
+            parse_mode="HTML",
+        )
+        return MANUAL_REACTION_CUSTOM
+
+    context.user_data[UD_REACTIONS] = emojis
+    await _show_preview(msg, context, lang)
+    return MANUAL_PREVIEW
+
+
+async def manual_url_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """🔗 Havolali tugma: "Matn - https://havola" formatidagi kiritma.
+
+    XAVFSIZLIK: havola ``validate_button_url`` (utils.security
+    ``url_rejection_reason`` asosida) tekshiruvidan o'tadi — FAQAT
+    ``http://``, ``https://`` va ``tg://`` protokollariga ruxsat;
+    ``javascript:``, ``file:``, ``data:`` kabi xavfli havolalar RAD
+    etiladi va holat saqlanadi. Muvaffaqiyatda tugma preview ostida
+    HAQIQIY inline URL tugma sifatida paydo bo'ladi.
+    """
+    msg = update.message
+    lang = get_lang(context)
+    if msg is None or not (msg.text or "").strip():
+        if msg is not None:
+            await msg.reply_text(manual_post_t("mp_url_invalid", lang),
+                                 parse_mode="HTML")
+        return MANUAL_URL_INPUT
+
+    btn_text, btn_url = parse_button_input(msg.text)
+    ok_text, _err_text = validate_button_text(btn_text) if btn_text else (False, "")
+    ok_url, _err_url = validate_button_url(btn_url) if btn_url else (False, "")
+    if not (btn_text and btn_url and ok_text and ok_url):
+        await msg.reply_text(manual_post_t("mp_url_invalid", lang),
+                             parse_mode="HTML")
+        return MANUAL_URL_INPUT
+
+    context.user_data[UD_URL_BTN_TEXT] = btn_text
+    context.user_data[UD_URL_BTN_URL] = btn_url
+    await _show_preview(msg, context, lang)
+    return MANUAL_PREVIEW
+
+
 async def manual_panel_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Universal boshqaruv paneli tugmalari (``mnp_*`` callback'lari)."""
     query = update.callback_query
@@ -577,6 +735,62 @@ async def manual_panel_callback(update: Update, context: ContextTypes.DEFAULT_TY
             parse_mode="HTML",
         )
         return MANUAL_EDIT_INPUT
+
+    # --- ❤️ REAKSIYALAR (2-qadam UI/UX polish) ---
+    if data == CB_MANUAL_REACT:
+        # Preset tanlash oynasi: [👍/👎] | [🔥/❤️/👏] + ➕ O'zim kiritaman
+        # + ◀️ Orqaga. Tanlov shu xabarning o'zida (toggle) yangilanadi.
+        await query.message.reply_text(
+            manual_post_t("mp_react_prompt", lang),
+            reply_markup=get_manual_reaction_keyboard(
+                _manual_reactions(context), lang),
+            parse_mode="HTML",
+        )
+        return MANUAL_PREVIEW
+
+    if data == CB_MANUAL_REACT_BACK:
+        # ◀️ Orqaga — tanlangan reaksiyalar bilan preview yangilanadi.
+        await _show_preview(query.message, context, lang)
+        return MANUAL_PREVIEW
+
+    if data == CB_MANUAL_REACT_CUSTOM:
+        # ➕ O'zim kiritaman — qo'lda emoji kiritish holati ochiladi.
+        await query.message.reply_text(
+            manual_post_t("mp_react_custom_prompt", lang),
+            reply_markup=get_cancel_keyboard(lang),
+            parse_mode="HTML",
+        )
+        return MANUAL_REACTION_CUSTOM
+
+    if data.startswith(CB_MANUAL_REACT_TOGGLE):
+        emoji = manual_reaction_from_callback(data)
+        selected = list(context.user_data.get(UD_REACTIONS) or [])
+        if emoji:
+            key = strip_variation_selector(emoji)
+            existing = next(
+                (e for e in selected
+                 if strip_variation_selector(e) == key), None)
+            if existing is not None:
+                selected.remove(existing)          # takror bosildi → o'chadi
+            elif len(selected) < CUSTOM_REACTION_MAX:
+                selected.append(emoji)             # yangi tanlov qo'shiladi
+            context.user_data[UD_REACTIONS] = selected
+        try:
+            await query.edit_message_reply_markup(
+                reply_markup=get_manual_reaction_keyboard(selected, lang))
+        except Exception:
+            logger.debug("Reaksiya klaviaturasini yangilab bo'lmadi",
+                         exc_info=True)
+        return MANUAL_PREVIEW
+
+    # --- 🔗 HAVOLALI (URL) TUGMA (2-qadam UI/UX polish) ---
+    if data == CB_MANUAL_URL_BTN:
+        await query.message.reply_text(
+            manual_post_t("mp_url_prompt", lang),
+            reply_markup=get_cancel_keyboard(lang),
+            parse_mode="HTML",
+        )
+        return MANUAL_URL_INPUT
 
     if data == CB_MANUAL_TIME:
         context.user_data[UD_MODE] = MODE_TIME
