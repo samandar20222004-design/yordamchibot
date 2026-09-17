@@ -84,6 +84,12 @@ CB_CHANNEL_STATS = "ch_st:"       # 📊 Statistika (shu kanal bo'yicha)
 # 🧠 PHASE B — Channel Intelligence: kanal uslubiy profili va optimal vaqt
 CB_CHANNEL_DNA = "ch_dna:"        # 🧠 Kanal DNA (uslubiy profil kartochkasi)
 CB_CHANNEL_BEST_TIME = "ch_btm:"  # ⏰ Eng yaxshi vaqt (post statistikasi)
+# PHASE E — haftalik Channel Advisor kartasi
+CB_CHANNEL_ADVICE = "ch_adv:"
+# PHASE E — approval card callbacks (post id is appended with ``cb``).
+CB_TEAM_APPROVE = "team_ok:"
+CB_TEAM_EDIT = "team_edit:"
+CB_TEAM_REJECT = "team_no:"
 # 🚀 PHASE C — 7 kunlik AI avtopilot va 📋 post shablonlari (kanal kontekstida)
 CB_CHANNEL_AUTOPILOT = "ch_ap:"   # 🚀 AI Avtopilot (7 kunlik reja)
 CB_CHANNEL_TEMPLATES = "ch_tpl:"  # 📋 Shablonlar (post shablonlari menyusi)
@@ -171,6 +177,10 @@ CANONICAL_PREFIXES = (
     # 🧠 PHASE B — Channel Intelligence (DNA + Best Time).
     CB_CHANNEL_DNA,
     CB_CHANNEL_BEST_TIME,
+    CB_CHANNEL_ADVICE,
+    CB_TEAM_APPROVE,
+    CB_TEAM_EDIT,
+    CB_TEAM_REJECT,
     # 🚀 PHASE C — AI Avtopilot + post shablonlari (kanal kontekstida).
     CB_CHANNEL_AUTOPILOT,
     CB_CHANNEL_TEMPLATES,

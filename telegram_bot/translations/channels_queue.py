@@ -70,6 +70,7 @@ CHANNELS_QUEUE_I18N = {
         # 🧠 PHASE B — Channel Intelligence (DNA + Best Time)
         "cq_ch_btn_dna": "🧠 Kanal DNA",
         "cq_ch_btn_best_time": "⏰ Eng yaxshi vaqt",
+        "cq_ch_btn_advice": "📊 Haftalik AI hisobot",
         "cq_ch_btn_autopilot": "🚀 AI Avtopilot",
         "cq_ch_btn_templates": "📋 Shablonlar",
         "cq_ch_btn_sources": "📥 Kontent manbalari",
@@ -207,6 +208,7 @@ CHANNELS_QUEUE_I18N = {
         # 🧠 PHASE B — Channel Intelligence (DNA + Best Time)
         "cq_ch_btn_dna": "🧠 DNA канала",
         "cq_ch_btn_best_time": "⏰ Лучшее время",
+        "cq_ch_btn_advice": "📊 Недельный AI-отчёт",
         "cq_ch_btn_autopilot": "🚀 AI Автопилот",
         "cq_ch_btn_templates": "📋 Шаблоны",
         "cq_ch_btn_sources": "📥 Источники контента",
@@ -329,6 +331,7 @@ CHANNELS_QUEUE_I18N = {
         # 🧠 PHASE B — Channel Intelligence (DNA + Best Time)
         "cq_ch_btn_dna": "🧠 Channel DNA",
         "cq_ch_btn_best_time": "⏰ Best time",
+        "cq_ch_btn_advice": "📊 Weekly AI report",
         "cq_ch_btn_autopilot": "🚀 AI Autopilot",
         "cq_ch_btn_templates": "📋 Templates",
         "cq_ch_btn_sources": "📥 Content sources",

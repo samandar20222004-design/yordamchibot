@@ -43,6 +43,28 @@ CREATE TABLE IF NOT EXISTS channels (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- ============================================================
+-- PHASE E — KANAL JAMOASI (team roles)
+-- ------------------------------------------------------------
+-- Owner legacy rejimida ``channels.user_id`` hali ham asosiy manba.
+-- ``channel_members`` faqat qo'shimcha editor/scheduler/analyst huquqlarini
+-- beradi. Username yoki komment yozuvchisi saqlanmaydi.
+-- ============================================================
+CREATE TABLE IF NOT EXISTS channel_members (
+    id SERIAL PRIMARY KEY,
+    channel_id VARCHAR(255) NOT NULL,
+    user_id BIGINT NOT NULL,
+    role VARCHAR(20) NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(channel_id, user_id),
+    CONSTRAINT chk_channel_members_role
+        CHECK (role IN ('owner', 'editor', 'scheduler', 'analyst'))
+);
+CREATE INDEX IF NOT EXISTS idx_channel_members_channel
+    ON channel_members (channel_id, role);
+CREATE INDEX IF NOT EXISTS idx_channel_members_user
+    ON channel_members (user_id, channel_id);
+
 CREATE TABLE IF NOT EXISTS sponsor_channels (
     id SERIAL PRIMARY KEY,
     channel_id BIGINT UNIQUE,
@@ -113,7 +135,13 @@ CREATE TABLE IF NOT EXISTS scheduled_posts (
     recurrence_day INTEGER,
     recurrence_time TIME,
     end_date TIMESTAMP WITH TIME ZONE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    -- PHASE E approval metadata; old rows remain valid and unchanged.
+    created_by BIGINT,
+    approval_requested_at TIMESTAMPTZ,
+    approved_by BIGINT,
+    approved_at TIMESTAMPTZ,
+    rejection_reason TEXT
 );
 
 -- Telegramga yuborilgan har bir delivery uchun doimiy idempotency marker.
@@ -410,6 +438,22 @@ CREATE INDEX IF NOT EXISTS idx_channel_insights_channel
 CREATE INDEX IF NOT EXISTS idx_channel_insights_dismissed
     ON channel_insights (is_dismissed, created_at DESC);
 
+-- PHASE E — Audience Question Engine aggregate.
+-- Only an opaque fingerprint and counters are persisted: raw comments,
+-- commenter IDs, usernames, contacts and message bodies are never stored.
+CREATE TABLE IF NOT EXISTS channel_comment_insights (
+    id BIGSERIAL PRIMARY KEY,
+    channel_id VARCHAR(255) NOT NULL,
+    question_hash CHAR(64) NOT NULL,
+    category VARCHAR(32) NOT NULL DEFAULT 'general',
+    occurrence_count INTEGER NOT NULL DEFAULT 0,
+    first_seen_at TIMESTAMPTZ DEFAULT NOW(),
+    last_seen_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(channel_id, question_hash)
+);
+CREATE INDEX IF NOT EXISTS idx_comment_insights_channel
+    ON channel_comment_insights (channel_id, occurrence_count DESC);
+
 -- ============================================================
 -- 📋 PHASE C — POST SHABLONLARI (post_templates)
 -- ------------------------------------------------------------
@@ -670,7 +714,11 @@ BEGIN
         SELECT pg_get_constraintdef(c.oid) INTO cur_def
           FROM pg_constraint c
          WHERE c.conrelid = spec.tbl::regclass AND c.conname = spec.cname;
-        IF cur_def IS NOT NULL AND position('unknown' in cur_def) = 0 THEN
+        IF cur_def IS NOT NULL AND (
+               position('unknown' in cur_def) = 0
+               OR position('draft' in cur_def) = 0
+               OR position('pending_approval' in cur_def) = 0
+           ) THEN
             EXECUTE format('ALTER TABLE %I DROP CONSTRAINT %I', spec.tbl, spec.cname);
             RAISE NOTICE 'integrity: %.% eski ta''rifi tashlandi (unknown status uchun yangilanadi)',
                          spec.tbl, spec.cname;
@@ -691,7 +739,9 @@ BEGIN
             ('post_reactions', 'fk_post_reactions_post', 'fk', 'FOREIGN KEY (post_id) REFERENCES scheduled_posts(id) ON DELETE CASCADE'),
             ('promo_redemptions', 'uq_promo_user', 'unique', 'UNIQUE (promo_id, user_id)'),
             ('post_deliveries', 'chk_post_deliveries_status', 'check', 'CHECK (status IN (''pending'', ''processing'', ''sent'', ''failed'', ''dead_letter'', ''unknown''))'),
-            ('scheduled_posts', 'chk_scheduled_posts_status', 'check', 'CHECK (status IN (''pending'', ''processing'', ''posted'', ''failed'', ''cancelled'', ''completed'', ''unknown''))'),
+            -- Legacy status set remains valid; Phase E adds the explicit approval states.
+-- The old seven-value set was: CHECK (status IN (''pending'', ''processing'', ''posted'', ''failed'', ''cancelled'', ''completed'', ''unknown'')).
+('scheduled_posts', 'chk_scheduled_posts_status', 'check', 'CHECK (status IN (''draft'', ''pending_approval'', ''approved'', ''scheduled'', ''published'', ''pending'', ''processing'', ''posted'', ''failed'', ''cancelled'', ''completed'', ''unknown''))'),
             ('payments', 'chk_payments_status', 'check', 'CHECK (status IN (''pending'', ''succeeded'', ''failed'', ''refunded''))'),
             ('credits_ledger', 'fk_credits_ledger_user', 'fk', 'FOREIGN KEY (user_id) REFERENCES users(user_id)'),
             ('ai_reservations', 'fk_ai_reservations_user', 'fk', 'FOREIGN KEY (user_id) REFERENCES users(user_id)')

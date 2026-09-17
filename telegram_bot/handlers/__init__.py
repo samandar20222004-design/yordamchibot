@@ -2,6 +2,7 @@ import logging
 import re
 
 from keyboards.callback_data import (
+    CB_CHANNEL_ADVICE,
     CB_CHANNEL_BEST_TIME,
     CB_CHANNEL_DNA,
     CB_CHANNEL_VOICE,
@@ -137,8 +138,14 @@ from handlers.channels import (
     channel_open_callback, channel_new_post_callback, channel_scheduled_callback,
     channel_stats_callback, channel_settings_callback, channels_list_callback,
     # 🧠 PHASE B — Channel Intelligence (DNA + Best Time)
-    channel_dna_callback, channel_best_time_callback,
+    channel_dna_callback, channel_best_time_callback, channel_advice_callback,
+    channel_advice_command,
     ADD_CHANNEL, SET_TONE
+)
+
+# 4. PENDING POSTS MODULI
+from handlers.team import (
+    team_approve_callback, team_edit_callback, team_reject_callback,
 )
 
 # 4. PENDING POSTS MODULI
@@ -1720,6 +1727,8 @@ def register_all_handlers(app):
     app.add_handler(CommandHandler("help", help_command))
     app.add_handler(CommandHandler("admin", admin_panel_menu))
     app.add_handler(CommandHandler("stats", show_statistics))
+    # PHASE E — kanal egasi yoki analyst uchun ehtimolli haftalik maslahatlar.
+    app.add_handler(CommandHandler("channel_advice", channel_advice_command))
     app.add_handler(CommandHandler("cancel", cancel_handler))
     app.add_handler(CommandHandler("grant_pro", grant_pro_command))
     app.add_handler(CommandHandler("create_promo", create_promo_command))
@@ -1796,12 +1805,20 @@ def register_all_handlers(app):
     app.add_handler(CallbackQueryHandler(
         channel_best_time_callback, pattern="^" + re.escape(CB_CHANNEL_BEST_TIME),
     ))
+    app.add_handler(CallbackQueryHandler(
+        channel_advice_callback, pattern="^" + re.escape(CB_CHANNEL_ADVICE),
+    ))
     # 🎙 Kanal ovozi tahlili — kanal ro'yxatidagi profil tugmasi (AI tahlil +
     # natijani kanalning tone_of_voice profiliga saqlaydi).
     app.add_handler(CallbackQueryHandler(
         channel_voice_analysis_callback,
         pattern="^" + re.escape(CB_CHANNEL_VOICE),
     ))
+    # PHASE E — approval card callbacks.  Authorization is repeated in the
+    # service, so forged callback payloads cannot approve another channel's post.
+    app.add_handler(CallbackQueryHandler(team_approve_callback, pattern=r"^team_ok:"))
+    app.add_handler(CallbackQueryHandler(team_edit_callback, pattern=r"^team_edit:"))
+    app.add_handler(CallbackQueryHandler(team_reject_callback, pattern=r"^team_no:"))
     app.add_handler(CallbackQueryHandler(close_msg_callback, pattern=r"^close_msg$"))
     app.add_handler(CallbackQueryHandler(noop_callback, pattern=r"^noop$"))
     app.add_handler(CallbackQueryHandler(cache_clear_callback, pattern=r"^cache_clear$"))

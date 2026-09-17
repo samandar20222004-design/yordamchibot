@@ -578,6 +578,10 @@ echo "===== 3z) 📥 PHASE D (2/2): KONTENT MANBALARI — URL→POST + RSS/ATOM 
 "$PY" tests/sources_rss_and_recycle_test.py || EXIT_CODE=1
 
 echo
+echo "===== 3E) PHASE E: TEAM ROLES + APPROVAL + AUDIENCE INSIGHTS ====="
+"$PY" tests/team_approval_and_insights_test.py || EXIT_CODE=1
+
+echo
 echo "======== 4) TO'LIQ REGRESSIYA (telegram_bot/tests) ========"
 # PY'ni aniq uzatamiz: ichki runner ham shu interpreter (venv) bilan ishlasin.
 ( cd telegram_bot && PYTHON="$PY" bash tests/run_tests.sh ) || EXIT_CODE=1

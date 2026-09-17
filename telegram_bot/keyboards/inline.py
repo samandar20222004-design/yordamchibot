@@ -9,6 +9,7 @@ from keyboards.callback_data import (  # noqa: F401 — re-export (eski importla
     CB_CHANNEL_AUTOPILOT,
     CB_CHANNEL_BACK,
     CB_CHANNEL_BEST_TIME,
+    CB_CHANNEL_ADVICE,
     CB_CHANNEL_DELETE,
     CB_CHANNEL_DNA,
     CB_CHANNEL_NEW_POST,
@@ -708,6 +709,25 @@ def render_channel_panel(channel_id, lang: str = "uz") -> InlineKeyboardMarkup:
                                  callback_data=CB_CHANNEL_BACK),
         ],
     ])
+
+def render_channel_advice_menu(channels, lang: str = "uz") -> InlineKeyboardMarkup:
+    """Inline selector used by ``/channel_advice`` (kept outside legacy panel).
+
+    Keeping this selector separate preserves the Phase A-D channel panel layout
+    and gives the new command a channel-scoped, callback-safe inline menu.
+    """
+    rows = []
+    for channel in channels or []:
+        try:
+            channel_id = channel[0]
+            title = str(channel[1] or channel_id)[:40]
+        except (IndexError, TypeError):
+            continue
+        rows.append([InlineKeyboardButton(f"📊 {title}",
+                                          callback_data=cb(CB_CHANNEL_ADVICE, channel_id))])
+    rows.append([InlineKeyboardButton(channels_queue_t("cq_ch_btn_back", lang),
+                                      callback_data=CB_CHANNEL_BACK)])
+    return InlineKeyboardMarkup(rows)
 
 
 def render_channel_settings(channel_id, lang: str = "uz") -> InlineKeyboardMarkup:
