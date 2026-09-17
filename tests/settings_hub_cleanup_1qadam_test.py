@@ -15,21 +15,29 @@ def test():
         kb = get_settings_hub_keyboard(lang)
         cbs = [b.callback_data for row in kb.inline_keyboard for b in row]
         texts = [b.text for row in kb.inline_keyboard for b in row]
-        # QAT'IY: 9 tugma
-        assert len(cbs)==9, f"[{lang}] 9 tugma kerak, {len(cbs)} topildi"
+        # QAT'IY: 8 tugma (7 guruh + Orqaga) — 🧹 UI/UX POLISH (1-qadam):
+        # «👤 Profil» hub'dan OLIB TASHLANDI (hub matnining o'zi profil).
+        assert len(cbs)==8, f"[{lang}] 8 tugma kerak, {len(cbs)} topildi"
         # QAT'IY: eski cab_* yo'q
         for cb in cbs:
             assert not cb.startswith("cab_"), f"[{lang}] Eski cab_ callback topildi: {cb}"
+        # QAT'IY: «👤 Profil» ham yo'q — kabinet matnining o'zi profil
+        assert "stgs_profile" not in cbs, f"[{lang}] Profil tugmasi hub'da qolib ketdi: {cbs}"
         # QAT'IY: eski matnlar yo'q
-        forbidden = ["Mening kanallarim","Kanallar analitikasi","Kutilayotgan postlar","Rejalashtirilgan","Ballar & Reklama rejimi"]
+        forbidden = ["Mening kanallarim","Kanallar analitikasi","Kutilayotgan postlar","Rejalashtirilgan","Ballar & Reklama rejimi","👤 Profil"]
         for f in forbidden:
             assert f not in texts, f"[{lang}] Eski matn topildi: {f}"
-        # Yangi 8+1 borligi
+        # QAT'IY: birlashtirilgan «🎁 Bonuslar & Taklif» bor, eski nom yo'q
+        assert "🎁 Bonuslar & Taklif" in texts or \
+               any("Taklif" in t or "приглашения" in t or "Invites" in t for t in texts), \
+               f"[{lang}] Birlashtirilgan Bonuslar & Taklif tugmasi topilmadi: {texts}"
+        assert not any("Bonuslar & Ballar" in t or "Бонусы и баллы" in t for t in texts), texts
+        # Yangi 7+1 borligi
         assert "stgs_hub" not in cbs  # hub o'zi callback emas, orqaga stgs_back
         assert "stgs_back" in cbs
-        assert "stgs_profile" in cbs
         assert "stgs_lang" in cbs
-    print("✅ 1-QADAM: Sozlamalar hub toza, eski kabinet tugmalari yo'q, 8+1 menyu to'g'ri")
+        assert "stgs_rewards" in cbs
+    print("✅ 1-QADAM: Sozlamalar hub toza — Profil yo'q, «🎁 Bonuslar & Taklif» birlashtirildi, 7+1 menyu to'g'ri")
 
 if __name__=="__main__":
     test()

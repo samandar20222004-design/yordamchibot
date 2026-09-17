@@ -766,8 +766,10 @@ def test_k_statistics_isolation():
 
 
 def test_l_settings_menu_8_groups_plus_back():
-    header("L", "⚙️ Sozlamalar — 8 guruh + [◀️ Orqaga] = 9, uchala tilda bir xil")
-    expected_cbs = ["stgs_profile", "stgs_lang", "stgs_rewards", "stgs_post",
+    # 🧹 UI/UX POLISH (1-qadam): «👤 Profil» hub'dan OLIB TASHLANDI —
+    # hub matnining o'zi profil kartasi. Endi 7 guruh + [◀️ Orqaga] = 8.
+    header("L", "⚙️ Sozlamalar — 7 guruh + [◀️ Orqaga] = 8, uchala tilda bir xil")
+    expected_cbs = ["stgs_lang", "stgs_rewards", "stgs_post",
                     "stgs_notif", "stgs_pay", "stgs_tools", "stgs_help_hub",
                     "stgs_back"]
     base = None
@@ -777,7 +779,9 @@ def test_l_settings_menu_8_groups_plus_back():
         labels = _labels(kb)
         if base is None:
             base = cbs
-        check(f"[{lang}] 8 guruh + Orqaga = 9", len(cbs) == 9, str(cbs))
+        check(f"[{lang}] 7 guruh + Orqaga = 8 (Profil yo'q)", len(cbs) == 8, str(cbs))
+        check(f"[{lang}] stgs_profile hub'da YO'Q (matn o'zi profil)",
+              "stgs_profile" not in cbs, str(cbs))
         check(f"[{lang}] callback'lar kutilgan ro'yxat bilan AYNAN bir xil",
               cbs == expected_cbs, str(cbs))
         check(f"[{lang}] oxirgi tugma — [◀️ Orqaga] (stgs_back)",
@@ -792,7 +796,7 @@ def test_l_settings_menu_8_groups_plus_back():
     with _with_db(fake), _quiet():
         _run(start_mod.user_cabinet_menu(_msg_update(msg), _ctx("uz")))
     drawn = _cbs(msg.sent[-1]["reply_markup"]) if msg.sent else []
-    check("user_cabinet_menu: 9 tugmali sozlamalar klaviaturasini chizdi",
+    check("user_cabinet_menu: 8 tugmali sozlamalar klaviaturasini chizdi",
           drawn == expected_cbs, str(drawn))
 
 

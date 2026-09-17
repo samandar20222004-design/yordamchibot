@@ -229,15 +229,17 @@ def test_ru_cabinet_after_switch_no_crash():
             assert "Личный кабинет" in text, text[:120]
             assert ctx.user_data.get("lang") == "ru", ctx.user_data  # DB'dan hydrate
             labels = [b.text for row in markup.inline_keyboard for b in row]
-            # ⚙️ SOZLAMALAR (2-bosqich): kabinet ekrani 8 ta guruhli
-            # hub — rewards/help ichki bo'limlari alohida ochiladi.
+            # ⚙️ SOZLAMALAR (UI/UX polish): kabinet ekrani 7 ta guruhli
+            # hub — «👤 Profil» olib tashlandi (hub matnining o'zi profil),
+            # rewards/help ichki bo'limlari alohida ochiladi.
             cbs = [b.callback_data for row in markup.inline_keyboard for b in row]
             assert cbs == [
-                "stgs_profile", "stgs_lang", "stgs_rewards", "stgs_post",
+                "stgs_lang", "stgs_rewards", "stgs_post",
                 "stgs_notif", "stgs_pay", "stgs_tools", "stgs_help_hub",
                 "stgs_back",
             ], cbs
             assert "cab_channels" not in cbs, cbs
+            assert "stgs_profile" not in cbs, cbs
             assert get_text("cab_my_channels", "ru") not in labels, labels
 
             # 2) Kabinet ichidagi tugma 'cab_pending' — oldin UnboundLocalError

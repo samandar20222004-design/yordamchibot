@@ -59,6 +59,8 @@ def test_account_settings_keys_exist():
         # Inline-klaviatura tugmalari
         "cab_my_channels", "cab_analytics", "cab_pending", "cab_queue",
         "cab_balance", "cab_referral", "cab_close",
+        # 🧹 UI/UX POLISH: ixcham 5 tugmali kabinet paneli (yagona manba)
+        "cab_bonus_invite", "cab_payments", "cab_notifications", "cab_help_guide",
         "cab_add_channel", "cab_del_channel", "cab_remove_channel",
         "cab_tone", "cab_add_channel_alt",
         # Kanal o'chirish
@@ -145,36 +147,48 @@ def test_main_menu_button_3_langs():
 # 3. KABINET INLINE KLAVIATURASI — har 3 tilda
 # ================================================================
 def test_cabinet_inline_keyboard_3_langs():
-    """Kabinet inline klaviaturasi 3 tilda to'g'ri yorliqlar va bir xil callback."""
+    """Kabinet inline klaviaturasi 3 tilda to'g'ri yorliqlar va bir xil callback.
+
+    🧹 UI/UX POLISH (1-qadam): kabinet endi IXCHAM 5 tugmali panel:
+    tarqoq bonus/referral tugmalari YAGONA «🎁 Bonuslar & Taklif» ga
+    birlashtirildi; pastki menyu dublikatlari (kanallar, rejalashtirilgan)
+    va qayta «Profil»/«Til» tugmalari olib tashlandi.
+    """
     print("== Kabinet inline klaviaturasi (uz/ru/en) ==")
     from keyboards.inline import get_cabinet_inline_keyboard
 
     # UZ inline keyboard
     kb_uz = get_cabinet_inline_keyboard("uz")
     rows_uz = [[(b.text, b.callback_data) for b in row] for row in kb_uz.inline_keyboard]
-    check("uz kabinet: 4 qator (Til tugmasi profildan olingan)",
-          len(rows_uz) == 4, str(len(rows_uz)))
-    check("uz kabinet: My channels tugmasi",
-          rows_uz[0][0] == ("📢 Mening kanallarim", "cab_channels"))
-    check("uz kabinet: Til tugmasi profilda YO'Q",
+    check("uz kabinet: 3 qator (ixcham 5 tugmali panel)",
+          len(rows_uz) == 3, str(len(rows_uz)))
+    check("uz kabinet: Bonuslar & Taklif + To'lovlar tarixi",
+          rows_uz[0] == [("🎁 Bonuslar & Taklif", "stgs_rewards"),
+                         ("💳 To'lovlar tarixi", "stgs_pay")], str(rows_uz[0]))
+    check("uz kabinet: Bildirishnomalar + Yordam & Qo'llanma",
+          rows_uz[1] == [("🔔 Bildirishnomalar", "stgs_notif"),
+                         ("❓ Yordam & Qo'llanma", "stgs_help_hub")], str(rows_uz[1]))
+    check("uz kabinet: Yopish",
+          rows_uz[2] == [("❌ Yopish", "close_cabinet")], str(rows_uz[2]))
+    check("uz kabinet: Til tugmasi kabinetda YO'Q",
           all(cb != "cab_lang" for row in rows_uz for _label, cb in row))
 
     # RU inline keyboard
     kb_ru = get_cabinet_inline_keyboard("ru")
     rows_ru = [[(b.text, b.callback_data) for b in row] for row in kb_ru.inline_keyboard]
-    check("ru kabinet: 4 qator (Til tugmasi profildan olingan)", len(rows_ru) == 4)
-    check("ru kabinet: Мои каналы tugmasi",
-          rows_ru[0][0] == ("📢 Мои каналы", "cab_channels"))
-    check("ru kabinet: Til tugmasi profilda YO'Q",
+    check("ru kabinet: 3 qator (ixcham 5 tugmali panel)", len(rows_ru) == 3)
+    check("ru kabinet: Бонусы и приглашения tugmasi",
+          rows_ru[0][0] == ("🎁 Бонусы и приглашения", "stgs_rewards"), str(rows_ru[0]))
+    check("ru kabinet: Til tugmasi kabinetda YO'Q",
           all(cb != "cab_lang" for row in rows_ru for _label, cb in row))
 
     # EN inline keyboard
     kb_en = get_cabinet_inline_keyboard("en")
     rows_en = [[(b.text, b.callback_data) for b in row] for row in kb_en.inline_keyboard]
-    check("en kabinet: 4 qator (Language tugmasi profildan olingan)", len(rows_en) == 4)
-    check("en kabinet: My channels tugmasi",
-          rows_en[0][0] == ("📢 My channels", "cab_channels"))
-    check("en kabinet: Language tugmasi profilda YO'Q",
+    check("en kabinet: 3 qator (ixcham 5 tugmali panel)", len(rows_en) == 3)
+    check("en kabinet: Bonuses & Invites tugmasi",
+          rows_en[0][0] == ("🎁 Bonuses & Invites", "stgs_rewards"), str(rows_en[0]))
+    check("en kabinet: Language tugmasi kabinetda YO'Q",
           all(cb != "cab_lang" for row in rows_en for _label, cb in row))
 
     # Callback data 3 tilda ham bir xil (tilga bog'liq emas)
@@ -184,14 +198,21 @@ def test_cabinet_inline_keyboard_3_langs():
     check("callback_data uz == ru", cbs_uz == cbs_ru)
     check("callback_data ru == en", cbs_ru == cbs_en)
 
-    # Har bir callback mavjud
-    # «cab_lang» profildan OLIB TASHLANDI — til faqat Sozlamalar → Til ichida.
+    # Har bir callback mavjud (barchasi MAVJUD stgs_*/yopish oqimlariga ulanadi)
+    # 🧹 Eski cab_* dublikat callback'lari (cab_channels, cab_analytics,
+    # cab_pending, cab_queue, cab_balance, cab_bonus, cab_referral) panel-
+    # dan OLIB TASHLANDI — routing'da esa eski xabarlar uchun saqlanadi.
     expected_cbs = [
-        "cab_channels", "cab_analytics", "cab_pending", "cab_queue",
-        "cab_balance", "cab_bonus", "cab_referral", "close_cabinet",
+        "stgs_rewards", "stgs_pay", "stgs_notif", "stgs_help_hub", "close_cabinet",
     ]
     for cb in expected_cbs:
         check(f"callback '{cb}' mavjud", cb in cbs_uz)
+    removed_cbs = [
+        "cab_channels", "cab_analytics", "cab_pending", "cab_queue",
+        "cab_balance", "cab_bonus", "cab_referral", "cab_lang",
+    ]
+    for cb in removed_cbs:
+        check(f"eski dublikat callback '{cb}' kabinetda YO'Q", cb not in cbs_uz)
 
 
 # ================================================================
