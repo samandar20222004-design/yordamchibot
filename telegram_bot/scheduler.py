@@ -1405,6 +1405,101 @@ async def cleanup_old_data_job():
         logger.exception("DB tozalashda kutilmagan xato")
 
 
+#: 📡 PHASE D (2/2) — bildirishnoma matni uchun yengil HTML-xavfsiz escape.
+def _notice_escape(value) -> str:
+    try:
+        from utils.helpers import html_escape
+        return html_escape(str(value or ""))
+    except Exception:  # pragma: no cover — escape har doim mavjud
+        return (str(value or "").replace("&", "&amp;").replace("<", "&lt;")
+                .replace(">", "&gt;"))
+
+
+async def poll_content_sources_job(bot=None):
+    """📡 PHASE D (2/2) — vaqti kelgan RSS/ATOM manbalarini avtomatik tekshirish.
+
+    Har 15 daqiqada bir marta: ``db.get_due_content_sources`` orqali intervali
+    to'lgan FAOLLAR (``enabled``) manbalar olinadi va
+    ``services.sources.rss_service.poll_due_sources`` ularni ketma-ket
+    qayta ishlaydi:
+
+      * har bir yangi element ``source_items`` ga yoziladi — **dublikat
+        (UNIQUE(source_id, external_id)) qayta ishlanmaydi**;
+      * har bir yangi element uchun Channel DNA asosida qoralama tayyorlanadi
+        (``source_drafts``, status='pending');
+      * ``autopublish`` YOQILGAN manbada qoralama ``autopublish_draft`` orqali
+        ``scheduled_posts`` navbatiga yoziladi (keyin oddiy scheduler chiqaradi);
+      * egasiga 3 tagacha qorlama haqida bildirishnoma yuboriladi.
+
+    Kafolatlar:
+      * **hech qachon istisno tashlamaydi** — bitta manba xatosi qolganlarini
+        to'xtatmaydi (``poll_due_sources`` fail-soft) va job jim o'tib ketmaydi
+        (xato loglanadi);
+      * tarmoq/SSRF himoyasi servis qatlamida (5 MB / 10 s, ichki tarmoq
+        bloklangan) — scheduler hech qanday havolani tekshirmasdan o'tkazmaydi;
+      * bot ``None`` bo'lsa (test) bildirishnomalar yuborilmaydi, lekin
+        tekshiruv va navbatga yozish baribir bajariladi.
+    """
+    try:
+        from services.sources.rss_service import (
+            MAX_SOURCES_PER_TICK,
+            autopublish_draft,
+            poll_due_sources,
+        )
+    except Exception:  # pragma: no cover — servis modulining o'zi yo'q
+        logger.exception("Kontent manbalari: servis moduli yuklanmadi")
+        return None
+
+    async def _schedule_post(source, draft):
+        """Qoralamani navbatga yozadi (autopublish)."""
+        try:
+            return await autopublish_draft(db, source, draft)
+        except Exception:  # noqa: BLE001 — bitta post xatosi tick'ni to'xtatmaydi
+            logger.exception("Kontent manbalari: avtopublish xatosi (id=%s)",
+                             (source or {}).get("id"))
+            return 0
+
+    async def _notify(user_id, source, drafts):
+        """Egasiga yangi qoralamalar haqida xabar yuboradi (≤3 ta)."""
+        if bot is None or not user_id or not drafts:
+            return
+        from translations import sources_t
+        from utils.telegram_sanitizer import sanitize_html
+        lang = str((source or {}).get("lang") or "uz")
+        channel = _notice_escape(str((source or {}).get("channel_title")
+                                          or ""))
+        for draft in list(drafts)[:3]:
+            title = _notice_escape(str(draft.get("title") or "")[:120])
+            text = sanitize_html(str(draft.get("text") or ""), 2000)
+            try:
+                await bot.send_message(
+                    chat_id=int(user_id),
+                    text=sources_t("src_rss_new_draft_notice", lang,
+                                   channel=channel, title=title, text=text),
+                    parse_mode="HTML",
+                )
+            except Exception:  # noqa: BLE001 — bloklangan bot xatosi job'ni
+                logger.info("Kontent manbalari: bildirishnoma yuborilmadi "
+                            "(user=%s)", user_id, exc_info=True)
+                return
+
+    try:
+        with lifecycle.track("poll_content_sources"):
+            summary = await poll_due_sources(
+                db, notifier=_notify, schedule_post=_schedule_post,
+                limit=MAX_SOURCES_PER_TICK)
+        if summary.get("checked"):
+            logger.info(
+                "Kontent manbalari: tekshirildi=%s, yangi qoralama=%s, "
+                "navbatga=%s, xato=%s", summary.get("checked"),
+                summary.get("drafts"), summary.get("scheduled"),
+                summary.get("errors"))
+        return summary
+    except Exception:  # noqa: BLE001 — scheduler hech qachon yiqilmaydi
+        logger.exception("Kontent manbalari: poll ishida kutilmagan xato")
+        return None
+
+
 async def subscription_sweep_job():
     """3-BOSQICH (P1): muddati o'tgan PRO/enterprise obunalarni FREE ga tushirish.
 

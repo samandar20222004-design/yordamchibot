@@ -87,6 +87,8 @@ CB_CHANNEL_BEST_TIME = "ch_btm:"  # ⏰ Eng yaxshi vaqt (post statistikasi)
 # 🚀 PHASE C — 7 kunlik AI avtopilot va 📋 post shablonlari (kanal kontekstida)
 CB_CHANNEL_AUTOPILOT = "ch_ap:"   # 🚀 AI Avtopilot (7 kunlik reja)
 CB_CHANNEL_TEMPLATES = "ch_tpl:"  # 📋 Shablonlar (post shablonlari menyusi)
+# 📥 PHASE D (2/2) — kontent manbalari HUB'i (kanal kontekstida)
+CB_CHANNEL_SOURCES = "ch_src:"    # 📥 Kontent manbalari (URL→post, RSS, recycle)
 CB_CHANNEL_BACK = "ch_back"       # ◀️ Orqaga → kanallar ro'yxati (payload'siz)
 
 # 📥 PHASE D — kontent manbalari (11, 12, 13-bandlar): URL→post, RSS, recycle.
@@ -98,6 +100,15 @@ CB_SOURCE_DRAFTS = "src_drf:"     # 🗂 Tasdiqlash kutayotgan qoralamalar
 CB_SOURCE_DRAFT = "src_draft:"
 CB_SOURCE_BACK = "src_back"       # ◀️ Manbalar menyusiga qaytish (payload'siz)
 CB_SOURCE_CANCEL = "src_cancel"   # ❌ Bekor qilish (payload'siz)
+# 📥 PHASE D (2/2) — ichki amallar (hammasi 16 bayt byudjetida).
+CB_SOURCE_FORMAT = "src_fmt:"     # 4 formatdan birini tanlash (news/short/...)
+CB_SOURCE_ACTION = "src_act:"     # preview amallari: sched | now | regen
+CB_SOURCE_RSS_ADD = "src_add"     # ➕ Yangi manba qo'shish (payload'siz)
+CB_SOURCE_RSS_CHECK = "src_chk:"  # 🔄 Hoziroq tekshirish (payload: source id)
+CB_SOURCE_RSS_TOGGLE = "src_tgl:" # ▶️/⏸ Manbani yoqish/to'xtatish (source id)
+CB_SOURCE_RSS_AUTO = "src_auto:"  # 🤖 Avtopublish (payload: source id)
+CB_SOURCE_RSS_DEL = "src_del:"    # 🗑 Manbani o'chirish (payload: source id)
+CB_SOURCE_REC_PICK = "src_rp:"    # ♻️ Recycle nomzodi (payload: ro'yxat indeksi)
 
 # ---------------------------------------------------------------------------
 # 📅 REJALASHTIRILGAN — post kartochkasi amallari (PostAssist V2, 4-qadam)
@@ -163,12 +174,21 @@ CANONICAL_PREFIXES = (
     # 🚀 PHASE C — AI Avtopilot + post shablonlari (kanal kontekstida).
     CB_CHANNEL_AUTOPILOT,
     CB_CHANNEL_TEMPLATES,
+    # 📥 PHASE D (2/2) — kontent manbalari HUB'i (kanal kontekstida).
+    CB_CHANNEL_SOURCES,
     # 📥 PHASE D — kontent manbalari (URL→post, RSS/ATOM, recycle).
     CB_SOURCE_URL,
     CB_SOURCE_RSS,
     CB_SOURCE_RECYCLE,
     CB_SOURCE_DRAFTS,
     CB_SOURCE_DRAFT,
+    CB_SOURCE_FORMAT,
+    CB_SOURCE_ACTION,
+    CB_SOURCE_RSS_CHECK,
+    CB_SOURCE_RSS_TOGGLE,
+    CB_SOURCE_RSS_AUTO,
+    CB_SOURCE_RSS_DEL,
+    CB_SOURCE_REC_PICK,
     # 📅 REJALASHTIRILGAN — yagona ro'yxat amallari (PostAssist V2 · 2-qadam).
     CB_SCHED_BTN_REACT,
     # 📊 Post Score — dinamik payload qo'shiladigan prefikslar.

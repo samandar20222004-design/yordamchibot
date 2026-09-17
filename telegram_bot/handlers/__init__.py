@@ -295,6 +295,22 @@ from handlers.templates import (
     template_remove_callback, templates_stale_callback,
 )
 
+# 8e. 📥 PHASE D (2/2) — KONTENT MANBALARI: servis qatlamining (URL→post,
+# RSS/ATOM, Content Recycle) handler/klaviatura qatlami. Kanal kontekstidan
+# (``ch_src:``) ochiladi: 4 yo'nalish + umumiy preview paneli
+# ([📅 Rejalashtirish] [🚀 Hozir chiqarish] [🔄 Boshqa variant] [❌ Bekor]).
+# Barcha yozishlar ``db.add_post`` orqali; havolalar SSRF guard'idan o'tadi;
+# manba/qoralama so'rovlari user_id bilan filtrlanadi (IDOR).
+from handlers.sources import (
+    SRC_HUB, SRC_URL_INPUT, SRC_URL_FORMATS, SRC_PREVIEW, SRC_TIME_INPUT,
+    SRC_RSS_MENU, SRC_RSS_URL, SRC_RSS_INTERVAL, SRC_RECYCLE_LIST, SRC_DRAFTS,
+    channel_sources_entry, sources_hub_callback, sources_back_callback,
+    source_cancel_callback, sources_stale_callback,
+    url_text_received, url_format_callback, preview_action_callback,
+    schedule_time_received, rss_menu_callback, rss_url_received,
+    rss_interval_received, recycle_pick_callback, draft_action_callback,
+)
+
 # 9. ANALYTICS MODULI
 from handlers.analytics import (
     start_analytics, analytics_channel_chosen, analytics_view_callback,
@@ -1077,6 +1093,10 @@ def register_all_handlers(app):
             # 📋 PHASE C — Kanallarim → [📋 Shablonlar]: post shablonlari
             # menyusi (yangi / ishlatish / o'chirish). FSM holatini qaytaradi.
             CallbackQueryHandler(channel_templates_entry, pattern=r"^ch_tpl:"),
+            # 📥 PHASE D (2/2) — Kanallarim → [📥 Kontent manbalari]: URL→post,
+            # RSS/ATOM oqimi, Content Recycle va qoralamalar. FSM holatini
+            # qaytaradi — entry point bo'lishi shart.
+            CallbackQueryHandler(channel_sources_entry, pattern=r"^ch_src:"),
             # 🔁 Qayta tekshirish: sessiya tugagan bo'lsa ham eski tugma
             # ishlasin — conversation qayta ochiladi yoki yo'riqnoma qaytariladi.
             CallbackQueryHandler(add_channel_retry, pattern=r"^add_channel_retry$"),
@@ -1296,6 +1316,60 @@ def register_all_handlers(app):
             TPL_DEL_PICK: all_menu_jumps + [
                 CallbackQueryHandler(template_remove_callback, pattern=r"^tpl_rmv:"),
                 CallbackQueryHandler(templates_menu_callback, pattern=r"^tpl_back$|^tpl_cancel$"),
+            ],
+
+            # 8e. 📥 PHASE D (2/2) — KONTENT MANBALARI holatlari (530–539).
+            # ``src_back`` / ``src_cancel`` HAR BIR holatda ishlaydi (eski
+            # tugma bosilganda ham oqim toza yopiladi, crash bo'lmaydi).
+            SRC_HUB: all_menu_jumps + [
+                CallbackQueryHandler(sources_hub_callback,
+                                     pattern=r"^src_(url|rss|rec|drf):"),
+                CallbackQueryHandler(sources_back_callback, pattern=r"^src_back$"),
+                CallbackQueryHandler(source_cancel_callback, pattern=r"^src_cancel$"),
+            ],
+            SRC_URL_INPUT: all_menu_jumps + [
+                CallbackQueryHandler(sources_back_callback, pattern=r"^src_back$"),
+                CallbackQueryHandler(source_cancel_callback, pattern=r"^src_cancel$"),
+                MessageHandler(filters.TEXT & ~filters.COMMAND, url_text_received),
+            ],
+            SRC_URL_FORMATS: all_menu_jumps + [
+                CallbackQueryHandler(url_format_callback, pattern=r"^src_fmt:"),
+                CallbackQueryHandler(source_cancel_callback, pattern=r"^src_cancel$"),
+            ],
+            SRC_PREVIEW: all_menu_jumps + [
+                CallbackQueryHandler(preview_action_callback, pattern=r"^src_act:"),
+                CallbackQueryHandler(source_cancel_callback, pattern=r"^src_cancel$"),
+            ],
+            SRC_TIME_INPUT: all_menu_jumps + [
+                CallbackQueryHandler(preview_action_callback, pattern=r"^src_act:"),
+                CallbackQueryHandler(source_cancel_callback, pattern=r"^src_cancel$"),
+                MessageHandler(filters.TEXT & ~filters.COMMAND, schedule_time_received),
+            ],
+            SRC_RSS_MENU: all_menu_jumps + [
+                CallbackQueryHandler(rss_menu_callback,
+                                     pattern=r"^src_(add|chk:|tgl:|auto:|del:)"),
+                CallbackQueryHandler(sources_back_callback, pattern=r"^src_back$"),
+                CallbackQueryHandler(source_cancel_callback, pattern=r"^src_cancel$"),
+            ],
+            SRC_RSS_URL: all_menu_jumps + [
+                CallbackQueryHandler(sources_back_callback, pattern=r"^src_back$"),
+                CallbackQueryHandler(source_cancel_callback, pattern=r"^src_cancel$"),
+                MessageHandler(filters.TEXT & ~filters.COMMAND, rss_url_received),
+            ],
+            SRC_RSS_INTERVAL: all_menu_jumps + [
+                CallbackQueryHandler(sources_back_callback, pattern=r"^src_back$"),
+                CallbackQueryHandler(source_cancel_callback, pattern=r"^src_cancel$"),
+                MessageHandler(filters.TEXT & ~filters.COMMAND, rss_interval_received),
+            ],
+            SRC_RECYCLE_LIST: all_menu_jumps + [
+                CallbackQueryHandler(recycle_pick_callback, pattern=r"^src_rp:"),
+                CallbackQueryHandler(sources_back_callback, pattern=r"^src_back$"),
+                CallbackQueryHandler(source_cancel_callback, pattern=r"^src_cancel$"),
+            ],
+            SRC_DRAFTS: all_menu_jumps + [
+                CallbackQueryHandler(draft_action_callback, pattern=r"^src_draft:"),
+                CallbackQueryHandler(sources_back_callback, pattern=r"^src_back$"),
+                CallbackQueryHandler(source_cancel_callback, pattern=r"^src_cancel$"),
             ],
 
             # 9. Analytics holatlari
@@ -1745,6 +1819,9 @@ def register_all_handlers(app):
     app.add_handler(CallbackQueryHandler(autopilot_stale_callback, pattern=r"^ap_"))
     # 📋 PHASE C — Post shablonlari stale tugmalari (tpl_*).
     app.add_handler(CallbackQueryHandler(templates_stale_callback, pattern=r"^tpl_"))
+    # 📥 PHASE D (2/2) — Kontent manbalari stale tugmalari (src_*): sessiya
+    # tugagach bosilgan eski format/amal tugmasi — muloyim toast, crash yo'q.
+    app.add_handler(CallbackQueryHandler(sources_stale_callback, pattern=r"^src_"))
     # ✨ Magic Post stale tugmalari: sessiya tugagach eski natija/tanlov tugmasi
     # bosilsa — foydalanuvchiga «sessiya eskirgan» toast ko'rsatiladi.
     app.add_handler(CallbackQueryHandler(magic_stale_callback, pattern=r"^mp_"))

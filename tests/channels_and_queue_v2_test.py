@@ -61,21 +61,26 @@ OTHER_CH_ID = "-1009999999999"
 # Kanal boshqaruv ekranining QAT'IY layouti (har tilda bir xil tartib).
 # 🧠 PHASE B: [🧠 Kanal DNA] va [⏰ Eng yaxshi vaqt] tugmalari qo'shildi
 # (Channel Intelligence — DNA profili va optimal post vaqti).
+# 📥 PHASE D (2/2): [📥 Kontent manbalari] — URL→post, RSS/ATOM oqimi va
+# Content Recycle (alohida qator, to'liq eni).
 EXPECTED_PANEL = {
     "uz": [["➕ Post yaratish"],
            ["📅 Rejalashtirilgan", "📊 Statistika"],
            ["🧠 Kanal DNA", "⏰ Eng yaxshi vaqt"],
            ["🚀 AI Avtopilot", "📋 Shablonlar"],
+           ["📥 Kontent manbalari"],
            ["⚙️ Kanal sozlamalari", "◀️ Orqaga"]],
     "ru": [["➕ Создать пост"],
            ["📅 Запланированные", "📊 Статистика"],
            ["🧠 DNA канала", "⏰ Лучшее время"],
            ["🚀 AI Автопилот", "📋 Шаблоны"],
+           ["📥 Источники контента"],
            ["⚙️ Настройки канала", "◀️ Назад"]],
     "en": [["➕ Create post"],
            ["📅 Scheduled", "📊 Statistics"],
            ["🧠 Channel DNA", "⏰ Best time"],
            ["🚀 AI Autopilot", "📋 Templates"],
+           ["📥 Content sources"],
            ["⚙️ Channel settings", "◀️ Back"]],
 }
 
@@ -401,6 +406,7 @@ def test_channel_panel_layout_and_actions():
                       f"{CB_CHANNEL_BEST_TIME}{CH_ID}",
                       f"ch_ap:{CH_ID}",
                       f"ch_tpl:{CH_ID}",
+                      f"ch_src:{CH_ID}",
                       f"{CB_CHANNEL_SETTINGS}{CH_ID}",
                       CB_CHANNEL_BACK], str(cbs))
 

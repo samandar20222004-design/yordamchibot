@@ -72,6 +72,7 @@ CHANNELS_QUEUE_I18N = {
         "cq_ch_btn_best_time": "⏰ Eng yaxshi vaqt",
         "cq_ch_btn_autopilot": "🚀 AI Avtopilot",
         "cq_ch_btn_templates": "📋 Shablonlar",
+        "cq_ch_btn_sources": "📥 Kontent manbalari",
         "cq_ch_btn_settings": "⚙️ Kanal sozlamalari",
         "cq_ch_btn_back": "◀️ Orqaga",
         # --- 📢 Kanallarim: 🧠 Kanal DNA kartochkasi ---
@@ -208,6 +209,7 @@ CHANNELS_QUEUE_I18N = {
         "cq_ch_btn_best_time": "⏰ Лучшее время",
         "cq_ch_btn_autopilot": "🚀 AI Автопилот",
         "cq_ch_btn_templates": "📋 Шаблоны",
+        "cq_ch_btn_sources": "📥 Источники контента",
         "cq_ch_btn_settings": "⚙️ Настройки канала",
         "cq_ch_btn_back": "◀️ Назад",
         # --- 📢 Мои каналы: 🧠 DNA канала ---
@@ -329,6 +331,7 @@ CHANNELS_QUEUE_I18N = {
         "cq_ch_btn_best_time": "⏰ Best time",
         "cq_ch_btn_autopilot": "🚀 AI Autopilot",
         "cq_ch_btn_templates": "📋 Templates",
+        "cq_ch_btn_sources": "📥 Content sources",
         "cq_ch_btn_settings": "⚙️ Channel settings",
         "cq_ch_btn_back": "◀️ Back",
         # --- 📢 My channels: 🧠 Channel DNA card ---
@@ -436,6 +439,7 @@ CHANNEL_PANEL_BUTTON_KEYS = (
     "cq_ch_btn_best_time",
     "cq_ch_btn_autopilot",
     "cq_ch_btn_templates",
+    "cq_ch_btn_sources",
     "cq_ch_btn_settings",
     "cq_ch_btn_back",
 )
