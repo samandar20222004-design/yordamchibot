@@ -1766,6 +1766,7 @@ def _init_db_once():
                 avg_post_length INT,
                 emoji_level VARCHAR(32),
                 cta_style VARCHAR(64),
+                formatting_style VARCHAR(64),
                 top_topics JSONB,
                 confidence INT,
                 sample_size INT,
@@ -1780,12 +1781,25 @@ def _init_db_once():
                 post_hour INT,
                 post_weekday INT,
                 has_media BOOLEAN,
+                media_type VARCHAR(32),
+                media_file_id VARCHAR(255),
                 length INT,
                 cta_detected BOOLEAN,
+                emoji_density DOUBLE PRECISION,
                 created_at TIMESTAMPTZ DEFAULT NOW(),
                 CONSTRAINT uq_channel_post_events UNIQUE (channel_id, message_id)
             );
         """)
+        # PHASE B: eski (Phase A) bazalar uchun yangi ustunlar — idempotent.
+        # Media fayllarning O'ZI bazaga saqlanmaydi — faqat file_id va turi.
+        cur.execute("ALTER TABLE channel_intelligence_profiles "
+                    "ADD COLUMN IF NOT EXISTS formatting_style VARCHAR(64);")
+        cur.execute("ALTER TABLE channel_post_events "
+                    "ADD COLUMN IF NOT EXISTS media_type VARCHAR(32);")
+        cur.execute("ALTER TABLE channel_post_events "
+                    "ADD COLUMN IF NOT EXISTS media_file_id VARCHAR(255);")
+        cur.execute("ALTER TABLE channel_post_events "
+                    "ADD COLUMN IF NOT EXISTS emoji_density DOUBLE PRECISION;")
         cur.execute("""
             CREATE TABLE IF NOT EXISTS channel_insights (
                 id SERIAL PRIMARY KEY,
@@ -6150,3 +6164,249 @@ def count_admin_audit_logs(admin_id=None, action=None) -> int:
     except Exception as e:
         logger.error("count_admin_audit_logs xatosi: %s", e)
         return 0
+
+
+# ============================================================
+# 🧠 PHASE B — CHANNEL INTELLIGENCE (DNA, BEST TIME, EVENT INGESTION)
+# ------------------------------------------------------------
+# 1) channel_post_events — kanal postlarining metama'lumotlari
+#    (idempotent: (channel_id, message_id) UNIQUE, ON CONFLICT DO NOTHING).
+#    Media fayllar SAQLANMAYDI — faqat file_id va turi.
+# 2) channel_intelligence_profiles — hisoblangan Channel DNA profili.
+# 3) Boshqaruv so'rovlari (ownership/best-time/DNA uchun).
+# Barcha funksiyalar sinxron (run_db orqali chaqiriladi) va xatoda
+# istisno ko'tarmaydi — fail-soft (qo'ng'iroqchiga bo'sh natija).
+# ============================================================
+
+def get_channel_owner_id(channel_id: str | int) -> int | None:
+    """Kanalning egasini (user_id) qaytaradi. Yo'q bo'lsa None (fail-soft).
+
+    RBAC/IDOR himoyasi uchun: kanal DNA/best-time so'rovlari AYNAN shu
+    egalik tekshiruvidan o'tishi shart (boshqa foydalanuvchining kanali
+    hech qachon ochilmaydi).
+    """
+    ch_id = str(channel_id or "").strip()
+    if not ch_id:
+        return None
+    try:
+        with db_cursor() as cur:
+            cur.execute(
+                "SELECT user_id FROM channels WHERE channel_id = %s",
+                (ch_id,),
+            )
+            row = cur.fetchone()
+            return int(row[0]) if row and row[0] is not None else None
+    except Exception as e:
+        logger.error("get_channel_owner_id xatosi (%s): %s", ch_id, e)
+        return None
+
+
+def insert_channel_post_event(
+    channel_id: str | int,
+    message_id: int,
+    post_hour: int | None = None,
+    post_weekday: int | None = None,
+    has_media: bool = False,
+    media_type: str | None = None,
+    media_file_id: str | None = None,
+    length: int = 0,
+    cta_detected: bool = False,
+    emoji_density: float = 0.0,
+) -> bool:
+    """Kanal postining metama'lumotini ``channel_post_events`` ga yozadi.
+
+    IDEMPOTENT: ``(channel_id, message_id)`` UNIQUE constrainti va
+    ``ON CONFLICT ... DO NOTHING`` tufayli takroriy event (masalan
+    tahrirlangan post yoki qayta yetib kelgan update) qayta yozilmaydi.
+
+    Qaytadi: ``True`` — yangi qator qo'shildi; ``False`` — duplicate
+    (allaqachon bor) yoki xato. Media faylining o'zi EMAS — faqat
+    ``media_file_id`` va ``media_type`` (turi) saqlanadi.
+    """
+    ch_id = str(channel_id or "").strip()
+    if not ch_id or message_id is None:
+        return False
+    try:
+        mid = int(message_id)
+        hour = int(post_hour) if post_hour is not None else None
+        weekday = int(post_weekday) if post_weekday is not None else None
+        med_type = str(media_type or "")[:32] or None
+        file_id = str(media_file_id or "")[:255] or None
+        length_v = max(0, int(length or 0))
+        density_v = float(emoji_density or 0.0)
+        if density_v < 0:
+            density_v = 0.0
+        with db_cursor(commit=True) as cur:
+            cur.execute(
+                """
+                INSERT INTO channel_post_events (
+                    channel_id, message_id, post_hour, post_weekday,
+                    has_media, media_type, media_file_id, length,
+                    cta_detected, emoji_density
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (channel_id, message_id) DO NOTHING
+                """,
+                (
+                    ch_id, mid, hour, weekday,
+                    bool(has_media), med_type, file_id, length_v,
+                    bool(cta_detected), density_v,
+                ),
+            )
+            return cur.rowcount > 0
+    except Exception as e:
+        logger.error("insert_channel_post_event xatosi (%s/%s): %s",
+                     ch_id, message_id, e)
+        return False
+
+
+def get_channel_post_events(channel_id: str | int, limit: int = 500) -> list[dict]:
+    """Kanalning kuzatilgan post eventlarini (eng yangi oldin) qaytaradi.
+
+    Qaytadi: ``[{channel_id, message_id, post_hour, post_weekday, has_media,
+    media_type, length, cta_detected, emoji_density, created_at}, ...]``.
+    Xatoda bo'sh ro'yxat (fail-soft).
+    """
+    ch_id = str(channel_id or "").strip()
+    if not ch_id:
+        return []
+    try:
+        limit = max(1, min(int(limit), 5000))
+        with db_cursor() as cur:
+            cur.execute(
+                """
+                SELECT channel_id, message_id, post_hour, post_weekday,
+                       has_media, media_type, length, cta_detected,
+                       emoji_density, created_at
+                FROM channel_post_events
+                WHERE channel_id = %s
+                ORDER BY created_at DESC, id DESC
+                LIMIT %s
+                """,
+                (ch_id, limit),
+            )
+            rows = cur.fetchall()
+            return [
+                {
+                    "channel_id": r[0],
+                    "message_id": r[1],
+                    "post_hour": r[2],
+                    "post_weekday": r[3],
+                    "has_media": bool(r[4]),
+                    "media_type": r[5],
+                    "length": int(r[6] or 0),
+                    "cta_detected": bool(r[7]),
+                    "emoji_density": float(r[8] or 0.0),
+                    "created_at": r[9].isoformat() if r[9] else "",
+                }
+                for r in rows
+            ]
+    except Exception as e:
+        logger.error("get_channel_post_events xatosi (%s): %s", ch_id, e)
+        return []
+
+
+def save_channel_intelligence_profile(
+    channel_id: str | int,
+    avg_post_length: int | None = None,
+    emoji_level: str | None = None,
+    cta_style: str | None = None,
+    formatting_style: str | None = None,
+    top_topics: list | None = None,
+    confidence: int | None = None,
+    sample_size: int | None = None,
+) -> bool:
+    """Hisoblangan Channel DNA profilini ``channel_intelligence_profiles`` ga
+    saqlaydi (UPSERT — kanal uchun bitta qator). Xatoda False (fail-soft).
+    """
+    ch_id = str(channel_id or "").strip()
+    if not ch_id:
+        return False
+    try:
+        import json as _json
+        topics_json = _json.dumps(top_topics or [], ensure_ascii=False)
+        conf = int(confidence) if confidence is not None else None
+        if conf is not None:
+            conf = max(0, min(100, conf))
+        sample = int(sample_size) if sample_size is not None else None
+        with db_cursor(commit=True) as cur:
+            cur.execute(
+                """
+                INSERT INTO channel_intelligence_profiles (
+                    channel_id, avg_post_length, emoji_level, cta_style,
+                    formatting_style, top_topics, confidence, sample_size,
+                    updated_at
+                )
+                VALUES (%s, %s, %s, %s, %s, %s::jsonb, %s, %s, NOW())
+                ON CONFLICT (channel_id) DO UPDATE SET
+                    avg_post_length = EXCLUDED.avg_post_length,
+                    emoji_level = EXCLUDED.emoji_level,
+                    cta_style = EXCLUDED.cta_style,
+                    formatting_style = EXCLUDED.formatting_style,
+                    top_topics = EXCLUDED.top_topics,
+                    confidence = EXCLUDED.confidence,
+                    sample_size = EXCLUDED.sample_size,
+                    updated_at = NOW()
+                """,
+                (
+                    ch_id,
+                    int(avg_post_length) if avg_post_length is not None else None,
+                    str(emoji_level or "")[:32] or None,
+                    str(cta_style or "")[:64] or None,
+                    str(formatting_style or "")[:64] or None,
+                    topics_json,
+                    conf,
+                    sample,
+                ),
+            )
+            return True
+    except Exception as e:
+        logger.error("save_channel_intelligence_profile xatosi (%s): %s", ch_id, e)
+        return False
+
+
+def get_channel_intelligence_profile(channel_id: str | int) -> dict | None:
+    """Saqlangan Channel DNA profilini qaytaradi (yo'q bo'lsa None)."""
+    ch_id = str(channel_id or "").strip()
+    if not ch_id:
+        return None
+    try:
+        import json as _json
+        with db_cursor() as cur:
+            cur.execute(
+                """
+                SELECT channel_id, avg_post_length, emoji_level, cta_style,
+                       formatting_style, top_topics, confidence, sample_size,
+                       updated_at
+                FROM channel_intelligence_profiles
+                WHERE channel_id = %s
+                """,
+                (ch_id,),
+            )
+            row = cur.fetchone()
+        if not row:
+            return None
+        topics_raw = row[5]
+        if isinstance(topics_raw, str):
+            try:
+                topics = _json.loads(topics_raw)
+            except Exception:
+                topics = []
+        else:
+            topics = list(topics_raw or [])
+        return {
+            "channel_id": row[0],
+            "average_post_length": int(row[1]) if row[1] is not None else None,
+            "avg_post_length": int(row[1]) if row[1] is not None else None,
+            "emoji_level": row[2],
+            "cta_style": row[3],
+            "formatting_style": row[4],
+            "top_topics": topics,
+            "confidence": int(row[6]) if row[6] is not None else None,
+            "confidence_score": int(row[6]) if row[6] is not None else None,
+            "sample_size": int(row[7]) if row[7] is not None else None,
+            "updated_at": row[8].isoformat() if row[8] else "",
+        }
+    except Exception as e:
+        logger.error("get_channel_intelligence_profile xatosi (%s): %s", ch_id, e)
+        return None

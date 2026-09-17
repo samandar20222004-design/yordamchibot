@@ -363,6 +363,7 @@ CREATE TABLE IF NOT EXISTS channel_intelligence_profiles (
     avg_post_length INTEGER,
     emoji_level VARCHAR(32),
     cta_style VARCHAR(64),
+    formatting_style VARCHAR(64),
     top_topics JSONB,
     confidence INTEGER,
     sample_size INTEGER,
@@ -376,11 +377,20 @@ CREATE TABLE IF NOT EXISTS channel_post_events (
     post_hour INTEGER,
     post_weekday INTEGER,
     has_media BOOLEAN,
+    media_type VARCHAR(32),
+    media_file_id VARCHAR(255),
     length INTEGER,
     cta_detected BOOLEAN,
+    emoji_density DOUBLE PRECISION,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE(channel_id, message_id)
 );
+-- PHASE B: eski (Phase A) bazalar uchun yangi ustunlar (idempotent).
+-- Eslatma: media FAILLARI bazaga saqlanmaydi — faqat file_id va turi (media_type).
+ALTER TABLE channel_intelligence_profiles ADD COLUMN IF NOT EXISTS formatting_style VARCHAR(64);
+ALTER TABLE channel_post_events ADD COLUMN IF NOT EXISTS media_type VARCHAR(32);
+ALTER TABLE channel_post_events ADD COLUMN IF NOT EXISTS media_file_id VARCHAR(255);
+ALTER TABLE channel_post_events ADD COLUMN IF NOT EXISTS emoji_density DOUBLE PRECISION;
 CREATE INDEX IF NOT EXISTS idx_channel_post_events_channel
     ON channel_post_events (channel_id);
 CREATE INDEX IF NOT EXISTS idx_channel_post_events_created

@@ -176,6 +176,18 @@ class AIOrchestrator:
                     generation_id=gen_id,
                 )
 
+        # PHASE B — Channel DNA: kanal kontekstida (``context["channel_id"]``)
+        # post generatsiya qilinayotganda, kanalning saqlangan uslubiy profili
+        # ixcham system-prompt bloki sifatida ``ctx["system_prompt"]`` ga
+        # ulanadi. FAIL-SOFT: DNA o'qilishi xatosi generatsiyani HECH QACHON
+        # to'xtatmaydi; IDOR himoyasi — kanal faqat AYNAN shu foydalanuvchiga
+        # tegishli bo'lgandagina ulanadi.
+        try:
+            from services.channels.dna import attach_dna_to_context
+            ctx = await attach_dna_to_context(ctx, user_id, db)
+        except Exception as _dna_err:  # noqa: BLE001 — DNA bonus, bloklovchi emas
+            logger.debug("Channel DNA ulashda xato (o'tkazib yuborildi): %s", _dna_err)
+
         retried = False
         raw_output = ""
         provider_used = "none"

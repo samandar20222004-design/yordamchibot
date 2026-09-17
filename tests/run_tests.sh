@@ -58,6 +58,11 @@
 #       bypass'i olib tashlangan qat'iy validator sikli va prompt/retry
 #       ko'rsatmalarining sizib chiqishidan himoya
 #       (tests/production_safety_and_validator_test.py)
+#   3x) 🧠 PHASE B — CHANNEL INTELLIGENCE: kanal postlari monitoringi
+#       (idempotent event ingestion), Channel DNA profili (channel_
+#       intelligence_profiles ga UPSERT, AI promptiga ulanadi), Smart Best
+#       Time (soxta raqamlarsiz) + IDOR himoyasi
+#       (tests/channel_intelligence_dna_test.py)
 #   4) TO'LIQ regressiya: telegram_bot/tests/run_tests.sh (barcha 30+ test fayli)
 #
 # Har qanday xatoda 1 bilan chiqadi (CI uchun).
@@ -492,6 +497,29 @@ echo "===== 3w') 🧠 PHASE A: PROD SAFETY + CHANNEL INTELLIGENCE BASE ======="
 #     ENVIRONMENT/AI_ALLOW_MOCK exports va MOCK_ALLOWED_ENVIRONMENTS tightening
 #     (tests/production_safety_and_channel_intelligence_base_test.py).
 "$PY" tests/production_safety_and_channel_intelligence_base_test.py || EXIT_CODE=1
+
+echo
+echo "===== 3x) 🧠 PHASE B: CHANNEL INTELLIGENCE — DNA + BEST TIME + MONITORING ====="
+# (1) MONITORING — kanal postidan metama'lumot ajratish: soat/hafta kuni
+#     Asia/Tashkent zonasi, media FAQAT file_id + turi (fayl mazmuni
+#     bazaga tushmaydi), CTA (uz/ru/en), emoji zichligi, matn uzunligi;
+# (2) IDEMPOTENCY — (channel_id, message_id) UNIQUE + ON CONFLICT
+#     DO NOTHING: duplicate (tahrirlangan) post qayta yozilmaydi;
+# (3) INSUFFICIENT DATA — postlar < 5 bo'lsa DNA va Best Time
+#     confidence='low' + "Yetarli ma'lumot yo'q (kamida 5 ta post kerak)"
+#     qaytaradi — soxta raqamlar uydirmaslik;
+# (4) CHANNEL DNA — average_post_length, emoji_level, cta_style,
+#     formatting_style, sample_size, confidence_score; profil
+#     channel_intelligence_profiles ga UPSERT qilinadi;
+# (5) SMART BEST TIME — soat/hafta kuni taqsimoti, "19:00 - 21:00"
+#     oynasi, "🔥 Tavsiya etilgan vaqt: ... (O'rtacha 450 belgi, rasm bilan)";
+# (6) IDOR — boshqa foydalanuvchining kanal DNA/vaqt so'rovi service va
+#     handler darajasida QAT'IYAN MAN (FORBIDDEN / kanal topilmadi);
+# (7) UI — [🧠 Kanal DNA] [⏰ Eng yaxshi vaqt] panel tugmalari (uz/ru/en),
+#     routing, 64-bayt, i18n pariteti + AI orkestrator promptiga DNA
+#     ulanishi (faqat egasi kanalga, fail-soft)
+# (tests/channel_intelligence_dna_test.py).
+"$PY" tests/channel_intelligence_dna_test.py || EXIT_CODE=1
 
 echo
 echo "======== 4) TO'LIQ REGRESSIYA (telegram_bot/tests) ========"
