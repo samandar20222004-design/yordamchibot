@@ -81,6 +81,9 @@ CB_CHANNEL_OPEN = "ch_op:"        # kanalni tanlash → boshqaruv ekrani
 CB_CHANNEL_NEW_POST = "ch_np:"    # ➕ Post yaratish (shu kanal uchun)
 CB_CHANNEL_SCHEDULED = "ch_sch:"  # 📅 Rejalashtirilgan (shu kanal bo'yicha)
 CB_CHANNEL_STATS = "ch_st:"       # 📊 Statistika (shu kanal bo'yicha)
+# 🧠 PHASE B — Channel Intelligence: kanal uslubiy profili va optimal vaqt
+CB_CHANNEL_DNA = "ch_dna:"        # 🧠 Kanal DNA (uslubiy profil kartochkasi)
+CB_CHANNEL_BEST_TIME = "ch_btm:"  # ⏰ Eng yaxshi vaqt (post statistikasi)
 CB_CHANNEL_BACK = "ch_back"       # ◀️ Orqaga → kanallar ro'yxati (payload'siz)
 
 # ---------------------------------------------------------------------------
@@ -141,6 +144,9 @@ CANONICAL_PREFIXES = (
     CB_CHANNEL_NEW_POST,
     CB_CHANNEL_SCHEDULED,
     CB_CHANNEL_STATS,
+    # 🧠 PHASE B — Channel Intelligence (DNA + Best Time).
+    CB_CHANNEL_DNA,
+    CB_CHANNEL_BEST_TIME,
     # 📅 REJALASHTIRILGAN — yagona ro'yxat amallari (PostAssist V2 · 2-qadam).
     CB_SCHED_BTN_REACT,
     # 📊 Post Score — dinamik payload qo'shiladigan prefikslar.

@@ -1,7 +1,11 @@
 import logging
 import re
 
-from keyboards.callback_data import CB_CHANNEL_VOICE
+from keyboards.callback_data import (
+    CB_CHANNEL_BEST_TIME,
+    CB_CHANNEL_DNA,
+    CB_CHANNEL_VOICE,
+)
 from telegram.ext import (
     CommandHandler,
     MessageHandler,
@@ -132,6 +136,8 @@ from handlers.channels import (
     # 📢 KANALLARIM — kanal boshqaruv ekrani (PostAssist V2, 4-mikro qadam)
     channel_open_callback, channel_new_post_callback, channel_scheduled_callback,
     channel_stats_callback, channel_settings_callback, channels_list_callback,
+    # 🧠 PHASE B — Channel Intelligence (DNA + Best Time)
+    channel_dna_callback, channel_best_time_callback,
     ADD_CHANNEL, SET_TONE
 )
 
@@ -1617,6 +1623,15 @@ def register_all_handlers(app):
     app.add_handler(CallbackQueryHandler(channel_scheduled_callback, pattern=r"^ch_sch:"))
     app.add_handler(CallbackQueryHandler(channel_stats_callback, pattern=r"^ch_st:"))
     app.add_handler(CallbackQueryHandler(channels_list_callback, pattern=r"^ch_back$"))
+    # 🧠 PHASE B — Channel Intelligence: [🧠 Kanal DNA] va [⏰ Eng yaxshi vaqt].
+    # Ikkalasi ham kanal KONTEKSTIDAN (channel_id payload) o'tadi va
+    # ownership (fail-closed) tekshiruvi bilan himoyalangan (IDOR xavfsizligi).
+    app.add_handler(CallbackQueryHandler(
+        channel_dna_callback, pattern="^" + re.escape(CB_CHANNEL_DNA),
+    ))
+    app.add_handler(CallbackQueryHandler(
+        channel_best_time_callback, pattern="^" + re.escape(CB_CHANNEL_BEST_TIME),
+    ))
     # 🎙 Kanal ovozi tahlili — kanal ro'yxatidagi profil tugmasi (AI tahlil +
     # natijani kanalning tone_of_voice profiliga saqlaydi).
     app.add_handler(CallbackQueryHandler(

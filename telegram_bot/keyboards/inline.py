@@ -7,7 +7,9 @@ from locales.translations import get_text
 from keyboards.callback_data import (  # noqa: F401 — re-export (eski importlar uchun)
     CALLBACK_DATA_MAX_BYTES,
     CB_CHANNEL_BACK,
+    CB_CHANNEL_BEST_TIME,
     CB_CHANNEL_DELETE,
+    CB_CHANNEL_DNA,
     CB_CHANNEL_NEW_POST,
     CB_CHANNEL_OPEN,
     CB_CHANNEL_SCHEDULED,
@@ -650,11 +652,15 @@ def render_channel_panel(channel_id, lang: str = "uz") -> InlineKeyboardMarkup:
 
         [➕ Post yaratish]
         [📅 Rejalashtirilgan]   [📊 Statistika]
+        [🧠 Kanal DNA]          [⏰ Eng yaxshi vaqt]
         [⚙️ Kanal sozlamalari]  [◀️ Orqaga]
 
     Barcha tugmalar kanal KONTEKSTINI (``channel_id``) olib yuradi, shuning
     uchun ichki amallar asosiy menyuga chiqib ketmaydi; [◀️ Orqaga] esa
     kanallar ro'yxatiga qaytaradi (``ch_back``).
+
+    🧠 PHASE B: yangi [🧠 Kanal DNA] va [⏰ Eng yaxshi vaqt] tugmalari —
+    kanal uslubiy profili va optimal post vaqti (ownership himoyalangan).
     """
     from translations import channels_queue_t
 
@@ -666,6 +672,12 @@ def render_channel_panel(channel_id, lang: str = "uz") -> InlineKeyboardMarkup:
                                  callback_data=cb(CB_CHANNEL_SCHEDULED, channel_id)),
             InlineKeyboardButton(channels_queue_t("cq_ch_btn_stats", lang),
                                  callback_data=cb(CB_CHANNEL_STATS, channel_id)),
+        ],
+        [
+            InlineKeyboardButton(channels_queue_t("cq_ch_btn_dna", lang),
+                                 callback_data=cb(CB_CHANNEL_DNA, channel_id)),
+            InlineKeyboardButton(channels_queue_t("cq_ch_btn_best_time", lang),
+                                 callback_data=cb(CB_CHANNEL_BEST_TIME, channel_id)),
         ],
         [
             InlineKeyboardButton(channels_queue_t("cq_ch_btn_settings", lang),

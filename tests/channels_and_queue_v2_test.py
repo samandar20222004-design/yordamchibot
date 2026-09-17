@@ -59,15 +59,20 @@ CH_TITLE = "Mening kanalim"
 OTHER_CH_ID = "-1009999999999"
 
 # Kanal boshqaruv ekranining QAT'IY layouti (har tilda bir xil tartib).
+# 🧠 PHASE B: [🧠 Kanal DNA] va [⏰ Eng yaxshi vaqt] tugmalari qo'shildi
+# (Channel Intelligence — DNA profili va optimal post vaqti).
 EXPECTED_PANEL = {
     "uz": [["➕ Post yaratish"],
            ["📅 Rejalashtirilgan", "📊 Statistika"],
+           ["🧠 Kanal DNA", "⏰ Eng yaxshi vaqt"],
            ["⚙️ Kanal sozlamalari", "◀️ Orqaga"]],
     "ru": [["➕ Создать пост"],
            ["📅 Запланированные", "📊 Статистика"],
+           ["🧠 DNA канала", "⏰ Лучшее время"],
            ["⚙️ Настройки канала", "◀️ Назад"]],
     "en": [["➕ Create post"],
            ["📅 Scheduled", "📊 Statistics"],
+           ["🧠 Channel DNA", "⏰ Best time"],
            ["⚙️ Channel settings", "◀️ Back"]],
 }
 
@@ -114,10 +119,11 @@ import handlers as H  # noqa: E402
 import handlers.channels as CH  # noqa: E402
 import handlers.queue as Q  # noqa: E402
 from keyboards.callback_data import (  # noqa: E402
-    CALLBACK_DATA_MAX_BYTES, CB_CHANNEL_BACK, CB_CHANNEL_DELETE,
-    CB_CHANNEL_NEW_POST, CB_CHANNEL_OPEN, CB_CHANNEL_SCHEDULED,
-    CB_CHANNEL_SETTINGS, CB_CHANNEL_STATS, CB_CHANNEL_VOICE,
-    CB_SCHED_DELETE, CB_SCHED_EDIT, CB_SCHED_TIME, callback_byte_len,
+    CALLBACK_DATA_MAX_BYTES, CB_CHANNEL_BACK, CB_CHANNEL_BEST_TIME,
+    CB_CHANNEL_DELETE, CB_CHANNEL_DNA, CB_CHANNEL_NEW_POST, CB_CHANNEL_OPEN,
+    CB_CHANNEL_SCHEDULED, CB_CHANNEL_SETTINGS, CB_CHANNEL_STATS,
+    CB_CHANNEL_VOICE, CB_SCHED_DELETE, CB_SCHED_EDIT, CB_SCHED_TIME,
+    callback_byte_len,
 )
 from keyboards.default import (  # noqa: E402
     BTN_QUEUE, BTN_QUEUE_RU, MENU_TEXTS, QUEUE_ALIASES, get_main_keyboard,
@@ -388,6 +394,8 @@ def test_channel_panel_layout_and_actions():
               cbs == [f"{CB_CHANNEL_NEW_POST}{CH_ID}",
                       f"{CB_CHANNEL_SCHEDULED}{CH_ID}",
                       f"{CB_CHANNEL_STATS}{CH_ID}",
+                      f"{CB_CHANNEL_DNA}{CH_ID}",
+                      f"{CB_CHANNEL_BEST_TIME}{CH_ID}",
                       f"{CB_CHANNEL_SETTINGS}{CH_ID}",
                       CB_CHANNEL_BACK], str(cbs))
 
@@ -608,6 +616,9 @@ def test_safety_and_ownership():
         ("ch_sch", CH.channel_scheduled_callback, CB_CHANNEL_SCHEDULED),
         ("ch_st", CH.channel_stats_callback, CB_CHANNEL_STATS),
         ("ch_np", CH.channel_new_post_callback, CB_CHANNEL_NEW_POST),
+        # 🧠 PHASE B — Channel Intelligence (IDOR: begona kanal DNA/vaqt ochilmaydi)
+        ("ch_dna", CH.channel_dna_callback, CB_CHANNEL_DNA),
+        ("ch_btm", CH.channel_best_time_callback, CB_CHANNEL_BEST_TIME),
     ):
         q = _Query(f"{prefix}{OTHER_CH_ID}")
         state = _with_db(_FakeDB(), lambda: fn(_upd_query(q), _ctx("uz")))

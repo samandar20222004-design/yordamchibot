@@ -67,8 +67,49 @@ CHANNELS_QUEUE_I18N = {
         "cq_ch_btn_create_post": "➕ Post yaratish",
         "cq_ch_btn_scheduled": "📅 Rejalashtirilgan",
         "cq_ch_btn_stats": "📊 Statistika",
+        # 🧠 PHASE B — Channel Intelligence (DNA + Best Time)
+        "cq_ch_btn_dna": "🧠 Kanal DNA",
+        "cq_ch_btn_best_time": "⏰ Eng yaxshi vaqt",
         "cq_ch_btn_settings": "⚙️ Kanal sozlamalari",
         "cq_ch_btn_back": "◀️ Orqaga",
+        # --- 📢 Kanallarim: 🧠 Kanal DNA kartochkasi ---
+        "cq_dna_title": (
+            "🧠 <b>Kanal DNA</b> — 📢 {channel}\n\n"
+            "Kanal uslubiy profili (kuzatilgan postlar asosida):"
+        ),
+        "cq_dna_line_len": "✍️ O'rtacha uzunlik: {length} belgi",
+        "cq_dna_line_emoji": "😀 Emoji darajasi: {level}",
+        "cq_dna_line_cta": "📣 CTA uslub: {style}",
+        "cq_dna_line_format": "🎨 Format: {style}",
+        "cq_dna_line_sample": "📊 Namuna: {count} ta post",
+        "cq_dna_line_confidence": "✅ Ishonchlilik: {score}/100 ({level})",
+        "cq_dna_footer": "<i>AI postlarni aynan shu uslubda yozadi.</i>",
+        "cq_dna_insufficient": (
+            "⚠️ Yetarli ma'lumot yo'q (kamida 5 ta post kerak).\n"
+            "Hozircha <b>{count}</b> ta post kuzatildi — bot kanal postlarini "
+            "kuzatib boradi, profil avtomatik shakllanadi."
+        ),
+        "cq_dna_error": (
+            "⚠️ Kanal DNA'sini hozircha hisoblab bo'lmadi. "
+            "Iltimos, keyinroq urinib ko'ring."
+        ),
+        # --- 📢 Kanallarim: ⏰ Eng yaxshi vaqt kartochkasi ---
+        "cq_btm_title": (
+            "⏰ <b>Eng yaxshi vaqt</b> — 📢 {channel}\n\n"
+            "Post chiqarish statistikasi asosida:"
+        ),
+        "cq_btm_top_hours": "🕐 Top soatlar: {hours}",
+        "cq_btm_top_days": "📅 Eng faol kunlar: {days}",
+        "cq_btm_sample": "📊 Kuzatuv: {count} ta post",
+        "cq_btm_insufficient": (
+            "⚠️ Yetarli ma'lumot yo'q (kamida 5 ta post kerak) — aniq "
+            "raqamlar uydirmaymiz.\n"
+            "Hozircha <b>{count}</b> ta post kuzatildi."
+        ),
+        "cq_btm_error": (
+            "⚠️ Vaqt tahlilini hozircha hisoblab bo'lmadi. "
+            "Iltimos, keyinroq urinib ko'ring."
+        ),
         # --- 📢 Kanallarim: kanal sozlamalari ekrani ---
         "cq_ch_settings_title": (
             "⚙️ <b>{channel}</b> — kanal sozlamalari\n\n"
@@ -160,8 +201,49 @@ CHANNELS_QUEUE_I18N = {
         "cq_ch_btn_create_post": "➕ Создать пост",
         "cq_ch_btn_scheduled": "📅 Запланированные",
         "cq_ch_btn_stats": "📊 Статистика",
+        # 🧠 PHASE B — Channel Intelligence (DNA + Best Time)
+        "cq_ch_btn_dna": "🧠 DNA канала",
+        "cq_ch_btn_best_time": "⏰ Лучшее время",
         "cq_ch_btn_settings": "⚙️ Настройки канала",
         "cq_ch_btn_back": "◀️ Назад",
+        # --- 📢 Мои каналы: 🧠 DNA канала ---
+        "cq_dna_title": (
+            "🧠 <b>DNA канала</b> — 📢 {channel}\n\n"
+            "Стилевой профиль канала (по наблюдаемым постам):"
+        ),
+        "cq_dna_line_len": "✍️ Средняя длина: {length} символов",
+        "cq_dna_line_emoji": "😀 Уровень эмодзи: {level}",
+        "cq_dna_line_cta": "📣 Стиль CTA: {style}",
+        "cq_dna_line_format": "🎨 Формат: {style}",
+        "cq_dna_line_sample": "📊 Образец: {count} постов",
+        "cq_dna_line_confidence": "✅ Надёжность: {score}/100 ({level})",
+        "cq_dna_footer": "<i>AI пишет посты именно в этом стиле.</i>",
+        "cq_dna_insufficient": (
+            "⚠️ Недостаточно данных (нужно минимум 5 постов).\n"
+            "Сейчас наблюдается <b>{count}</b> постов — профиль сформируется "
+            "автоматически."
+        ),
+        "cq_dna_error": (
+            "⚠️ Не удалось рассчитать DNA канала. "
+            "Пожалуйста, попробуйте позже."
+        ),
+        # --- 📢 Мои каналы: ⏰ Лучшее время ---
+        "cq_btm_title": (
+            "⏰ <b>Лучшее время</b> — 📢 {channel}\n\n"
+            "По статистике публикации постов:"
+        ),
+        "cq_btm_top_hours": "🕐 Топ-часы: {hours}",
+        "cq_btm_top_days": "📅 Самые активные дни: {days}",
+        "cq_btm_sample": "📊 Наблюдено: {count} постов",
+        "cq_btm_insufficient": (
+            "⚠️ Недостаточно данных (нужно минимум 5 постов) — "
+            "мы не выдумываем цифры.\n"
+            "Сейчас наблюдается <b>{count}</b> постов."
+        ),
+        "cq_btm_error": (
+            "⚠️ Не удалось рассчитать время публикации. "
+            "Пожалуйста, попробуйте позже."
+        ),
         "cq_ch_settings_title": (
             "⚙️ <b>{channel}</b> — настройки канала\n\n"
             "Стиль (tone of voice), AI-анализ и отключение канала — здесь."
@@ -238,8 +320,49 @@ CHANNELS_QUEUE_I18N = {
         "cq_ch_btn_create_post": "➕ Create post",
         "cq_ch_btn_scheduled": "📅 Scheduled",
         "cq_ch_btn_stats": "📊 Statistics",
+        # 🧠 PHASE B — Channel Intelligence (DNA + Best Time)
+        "cq_ch_btn_dna": "🧠 Channel DNA",
+        "cq_ch_btn_best_time": "⏰ Best time",
         "cq_ch_btn_settings": "⚙️ Channel settings",
         "cq_ch_btn_back": "◀️ Back",
+        # --- 📢 My channels: 🧠 Channel DNA card ---
+        "cq_dna_title": (
+            "🧠 <b>Channel DNA</b> — 📢 {channel}\n\n"
+            "Style profile (based on observed posts):"
+        ),
+        "cq_dna_line_len": "✍️ Average length: {length} chars",
+        "cq_dna_line_emoji": "😀 Emoji level: {level}",
+        "cq_dna_line_cta": "📣 CTA style: {style}",
+        "cq_dna_line_format": "🎨 Format: {style}",
+        "cq_dna_line_sample": "📊 Sample: {count} posts",
+        "cq_dna_line_confidence": "✅ Confidence: {score}/100 ({level})",
+        "cq_dna_footer": "<i>AI writes posts in exactly this style.</i>",
+        "cq_dna_insufficient": (
+            "⚠️ Not enough data (at least 5 posts needed).\n"
+            "<b>{count}</b> posts observed so far — the profile will be "
+            "built automatically."
+        ),
+        "cq_dna_error": (
+            "⚠️ Could not compute the Channel DNA right now. "
+            "Please try again later."
+        ),
+        # --- 📢 My channels: ⏰ Best time card ---
+        "cq_btm_title": (
+            "⏰ <b>Best time</b> — 📢 {channel}\n\n"
+            "Based on posting statistics:"
+        ),
+        "cq_btm_top_hours": "🕐 Top hours: {hours}",
+        "cq_btm_top_days": "📅 Most active days: {days}",
+        "cq_btm_sample": "📊 Observed: {count} posts",
+        "cq_btm_insufficient": (
+            "⚠️ Not enough data (at least 5 posts needed) — we never "
+            "fabricate numbers.\n"
+            "<b>{count}</b> posts observed so far."
+        ),
+        "cq_btm_error": (
+            "⚠️ Could not compute posting time right now. "
+            "Please try again later."
+        ),
         "cq_ch_settings_title": (
             "⚙️ <b>{channel}</b> — channel settings\n\n"
             "Tone of voice, AI analysis and disconnecting live here."
@@ -297,11 +420,14 @@ CHANNELS_QUEUE_I18N = {
 #: Barcha kalitlar (paritet auditi va testlar uchun yagona ro'yxat).
 CHANNELS_QUEUE_KEYS = tuple(sorted(CHANNELS_QUEUE_I18N["uz"].keys()))
 
-#: Kanal boshqaruv ekranidagi 5 ta amal tugmasi — SPEKS tartibida.
+#: Kanal boshqaruv ekranidagi amal tugmalari — SPEKS tartibida.
+#: 🧠 PHASE B: [🧠 Kanal DNA] va [⏰ Eng yaxshi vaqt] qo'shildi.
 CHANNEL_PANEL_BUTTON_KEYS = (
     "cq_ch_btn_create_post",
     "cq_ch_btn_scheduled",
     "cq_ch_btn_stats",
+    "cq_ch_btn_dna",
+    "cq_ch_btn_best_time",
     "cq_ch_btn_settings",
     "cq_ch_btn_back",
 )

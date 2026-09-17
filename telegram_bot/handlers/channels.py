@@ -317,6 +317,140 @@ async def channel_stats_callback(update: Update, context: ContextTypes.DEFAULT_T
     return ConversationHandler.END
 
 
+async def channel_dna_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """🧠 Kanal DNA — kanalning uslubiy profilini kartochka ko'rinishida ko'rsatadi.
+
+    Xavfsizlik (RBAC/IDOR): kanal AYNAN shu foydalanuvchiga tegishli bo'lishi
+    shart (``_owned_channel`` fail-closed) — boshqa birovning kanal DNA
+    ma'lumotlari QAT'IYAN MAN etiladi.
+    """
+    query = update.callback_query
+    try:
+        await query.answer()
+    except Exception:
+        pass
+    lang = get_lang(context)
+    user_id = query.from_user.id
+    channel_id = (query.data or "").split(":", 1)[1] if ":" in (query.data or "") else ""
+
+    channel = await _owned_channel(user_id, channel_id)
+    if channel is None:
+        await _safe_edit(query, channels_queue_t("cq_ch_not_found", lang),
+                         _empty_channels_keyboard(lang))
+        return ConversationHandler.END
+
+    title = _channel_title(channel)
+    text = await _build_dna_card(channel_id, title, lang)
+    await _safe_edit(query, text, render_channel_panel(channel_id, lang))
+    return ConversationHandler.END
+
+
+async def channel_best_time_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """⏰ Eng yaxshi vaqt — post chiqarish statistikasi bo'yicha tavsiya.
+
+    Xavfsizlik (RBAC/IDOR): kanal AYNAN shu foydalanuvchiga tegishli bo'lishi
+    shart (``_owned_channel`` fail-closed). Yetarli ma'lumot bo'lmasa
+    soxta raqamlar uydirmaydi — tushunarli "kam ma'lumot" kartochkasi.
+    """
+    query = update.callback_query
+    try:
+        await query.answer()
+    except Exception:
+        pass
+    lang = get_lang(context)
+    user_id = query.from_user.id
+    channel_id = (query.data or "").split(":", 1)[1] if ":" in (query.data or "") else ""
+
+    channel = await _owned_channel(user_id, channel_id)
+    if channel is None:
+        await _safe_edit(query, channels_queue_t("cq_ch_not_found", lang),
+                         _empty_channels_keyboard(lang))
+        return ConversationHandler.END
+
+    title = _channel_title(channel)
+    text = await _build_best_time_card(channel_id, title, lang)
+    await _safe_edit(query, text, render_channel_panel(channel_id, lang))
+    return ConversationHandler.END
+
+
+async def _build_dna_card(channel_id: str, title: str, lang: str) -> str:
+    """🧠 Kanal DNA kartochka matni (i18n, profil yoki 'kam ma'lumot' holati).
+
+    Handler allaqachon ownership'ni tekshirgan (``_owned_channel``) — bu yer
+    faqat hisob-kitob va chiroyli render. Xatoda foydalanuvchi hech qachon
+    "qotib qolmaydi" — muloyim xato xabari qaytadi.
+    """
+    try:
+        from services.channels.dna import get_channel_dna, label_for
+
+        res = await get_channel_dna(channel_id)
+        if not res.get("ok"):
+            return channels_queue_t("cq_dna_error", lang)
+        if res.get("insufficient"):
+            return "\n\n".join((
+                channels_queue_t("cq_dna_title", lang, channel=title),
+                channels_queue_t("cq_dna_insufficient", lang,
+                                 count=int(res.get("sample_size") or 0)),
+            ))
+        profile = res.get("profile") or {}
+        lines = [
+            channels_queue_t("cq_dna_title", lang, channel=title),
+            channels_queue_t("cq_dna_line_len", lang,
+                             length=int(profile.get("average_post_length") or 0)),
+            channels_queue_t("cq_dna_line_emoji", lang,
+                             level=html_escape(label_for("emoji_level",
+                                                         profile.get("emoji_level"), lang))),
+            channels_queue_t("cq_dna_line_cta", lang,
+                             style=html_escape(label_for("cta_style",
+                                                         profile.get("cta_style"), lang))),
+            channels_queue_t("cq_dna_line_format", lang,
+                             style=html_escape(label_for("formatting_style",
+                                                         profile.get("formatting_style"), lang))),
+            channels_queue_t("cq_dna_line_sample", lang,
+                             count=int(profile.get("sample_size") or 0)),
+            channels_queue_t("cq_dna_line_confidence", lang,
+                             score=int(profile.get("confidence_score") or 0),
+                             level=html_escape(label_for("confidence",
+                                                         res.get("confidence"), lang))),
+            channels_queue_t("cq_dna_footer", lang),
+        ]
+        return "\n".join(lines)
+    except Exception:
+        logger.exception("Kanal DNA kartochkasi qurishda xato (channel=%s)", channel_id)
+        return channels_queue_t("cq_dna_error", lang)
+
+
+async def _build_best_time_card(channel_id: str, title: str, lang: str) -> str:
+    """⏰ Eng yaxshi vaqt kartochka matni (i18n).
+
+    Yetarli ma'lumot bo'lmaganda SOXTA RAKAMLAR UYDIRILMAYDI — tushunarli
+    'kam ma'lumot' kartochkasi qaytadi.
+    """
+    try:
+        from services.channels.best_time import get_best_time, render_card_lines
+
+        res = await get_best_time(channel_id)
+        if not res.get("ok"):
+            return channels_queue_t("cq_btm_error", lang)
+        window_line, extra = render_card_lines(res, lang)
+        if res.get("insufficient"):
+            return "\n\n".join((
+                channels_queue_t("cq_btm_title", lang, channel=title),
+                channels_queue_t("cq_btm_insufficient", lang,
+                                 count=int(res.get("sample_size") or 0)),
+            ))
+        lines = [
+            channels_queue_t("cq_btm_title", lang, channel=title),
+            window_line,
+        ]
+        for item in extra:
+            lines.append(html_escape(item))
+        return "\n".join(lines)
+    except Exception:
+        logger.exception("Best-time kartochkasi qurishda xato (channel=%s)", channel_id)
+        return channels_queue_t("cq_btm_error", lang)
+
+
 async def channel_settings_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """⚙️ Kanal sozlamalari — uslub / AI ovoz tahlili / kanalni uzish.
 
@@ -986,7 +1120,12 @@ async def channel_voice_analysis_callback(update: Update, context: ContextTypes.
 # ============================================================
 
 async def on_channel_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Bot admin bo'lgan ulangan kanallarga yangi post kelganda channel_posts_history ga yozish."""
+    """Bot admin bo'lgan ulangan kanallarga yangi post kelganda:
+
+    (1) ``channel_posts_history`` ga yozish (mavjud oqim);
+    (2) 🧠 PHASE B — ``channel_post_events`` ga metama'lumotlarni asinxron
+        (background task, bloklamaydigan) rejimda yozish.
+    """
     msg = update.channel_post or update.edited_channel_post or update.effective_message
     if not msg or not msg.chat:
         return
@@ -1024,3 +1163,14 @@ async def on_channel_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
     except Exception as e:
         logger.warning("on_channel_post saqlashda xato (%s): %s", channel_id, e)
+
+    # 🧠 PHASE B — Channel Intelligence: metama'lumotlarni (soat, hafta kuni,
+    # media turi/file_id, uzunlik, CTA, emoji zichligi) channel_post_events
+    # jadvaliga ASINXRON VA BLOKLAMAYDIGAN rejimda yozamiz (background task;
+    # idempotent — (channel_id, message_id) ON CONFLICT DO NOTHING). Media
+    # fayllarning O'ZI saqlanmaydi — faqat file_id va turi.
+    try:
+        from services.channels.monitoring import schedule_post_event_ingest
+        schedule_post_event_ingest(msg)
+    except Exception as e:  # monitoring yo'qotilsa ham asosiy oqim uzilmaydi
+        logger.debug("Channel event ingestion boshlanmadi (%s): %s", channel_id, e)
