@@ -88,10 +88,35 @@ _SETTING_SCOPES = {
 }
 
 
+COMPACT_TOGGLE_LABELS = {
+    "uz": {
+        "notify_scheduled": "Eslatmalar",
+        "notify_news": "Takliflar",
+        "post_watermark": "Suv belgisi",
+        "post_signature": "Muallif imzosi",
+    },
+    "ru": {
+        "notify_scheduled": "Напоминания",
+        "notify_news": "Предложения",
+        "post_watermark": "Водяной знак",
+        "post_signature": "Подпись автора",
+    },
+    "en": {
+        "notify_scheduled": "Reminders",
+        "notify_news": "Offers",
+        "post_watermark": "Watermark",
+        "post_signature": "Author signature",
+    },
+}
+
+
 def settings_toggle_label(key: str, lang: str, enabled: bool) -> str:
-    """Toggle tugma yorlig'i: ✅/⬜️ belgisi + sozlama nomi."""
+    """Toggle tugma yorlig'i: ✅/⬜️ belgisi + ixcham sozlama nomi."""
     mark = "✅" if enabled else "⬜️"
-    return f"{mark} {settings_stats_t(_scope_key_label(key), lang)}"
+    label = COMPACT_TOGGLE_LABELS.get(lang, COMPACT_TOGGLE_LABELS["uz"]).get(key)
+    if not label:
+        label = settings_stats_t(_scope_key_label(key), lang)
+    return f"{mark} {label}"
 
 
 def _scope_key_label(key: str) -> str:
@@ -332,18 +357,69 @@ def _inline(text: str, callback_data: str):
     return InlineKeyboardButton(text, callback_data=callback_data)
 
 
-async def _render_toggles(query, user_id: int, scope: str, lang: str) -> None:
-    """🔔 Bildirishnomalar / 🎨 Post sozlamalari ekranini chizadi."""
+def _toggle_screen_meta(scope: str):
+    """Toggle scope uchun kalitlar va matn kalitlarini qaytaradi."""
     if scope == "notif":
-        keys, title, hint = NOTIF_SETTING_KEYS, "ss_notif_title", "ss_notif_hint"
-    else:
-        keys, title, hint = POST_SETTING_KEYS, "ss_post_title", "ss_post_hint"
+        return NOTIF_SETTING_KEYS, "ss_notif_title", "ss_notif_hint"
+    return POST_SETTING_KEYS, "ss_post_title", "ss_post_hint"
+
+
+async def _edit_toggle_screen(query, text: str, markup: InlineKeyboardMarkup,
+                              *, allow_reply_fallback: bool = True) -> None:
+    """Toggle ekranini tahrirlaydi.
+
+    Parent ekran ochilishida eski xavfsiz fallback saqlanadi. Toggle bosilganda
+    esa qat'iy talab bo'yicha yangi ``reply_text/send_message`` yuborilmaydi:
+    mavjud xabar joyida yangilanadi, ``MESSAGE_NOT_MODIFIED`` kabi holatda ham
+    faqat reply markup yangilashga uriniladi.
+    """
+    if allow_reply_fallback:
+        await _edit_or_reply(query, text, markup)
+        return
+    try:
+        await query.edit_message_text(
+            text, reply_markup=markup, parse_mode="HTML",
+        )
+    except Exception:
+        try:
+            await query.edit_message_reply_markup(reply_markup=markup)
+        except Exception:
+            logger.debug("Toggle ekranini joyida tahrirlab bo'lmadi", exc_info=True)
+
+
+async def _render_toggles(query, user_id: int, scope: str, lang: str,
+                          *, allow_reply_fallback: bool = True,
+                          values: dict | None = None) -> None:
+    """🔔 Bildirishnomalar / 🎨 Post sozlamalari ekranini chizadi."""
+    keys, title, hint = _toggle_screen_meta(scope)
+    if values is None:
+        values = await db.run_db(
+            db.get_user_settings_bulk, user_id, list(keys), SETTING_DEFAULTS,
+        )
+    text = _build_toggles_text(title, hint, keys, values, lang)
+    markup = _build_toggles_keyboard(scope, keys, values, lang)
+    await _edit_toggle_screen(
+        query, text, markup, allow_reply_fallback=allow_reply_fallback,
+    )
+
+
+async def _toggle_setting_and_edit(query, user_id: int, scope: str,
+                                   key: str, lang: str) -> tuple[bool, bool]:
+    """Sozlamani teskari holatga o'tkazadi va xabarni joyida yangilaydi."""
+    keys, _title, _hint = _toggle_screen_meta(scope)
     values = await db.run_db(
         db.get_user_settings_bulk, user_id, list(keys), SETTING_DEFAULTS,
     )
-    text = _build_toggles_text(title, hint, keys, values, lang)
-    markup = _build_toggles_keyboard(scope, keys, values, lang)
-    await _edit_or_reply(query, text, markup)
+    new_value = not bool(values.get(key, SETTING_DEFAULTS.get(key, False)))
+    saved = await db.run_db(db.set_user_setting, user_id, key, new_value)
+    if saved:
+        values[key] = new_value
+    await _render_toggles(
+        query, user_id, scope, lang,
+        allow_reply_fallback=False,
+        values=values,
+    )
+    return bool(saved), new_value
 
 
 def _fmt_payment_date(value) -> str:
@@ -556,19 +632,17 @@ async def settings_menu_callback(update, context: ContextTypes.DEFAULT_TYPE):
             # Payload manipulyatsiyasi — jim rad (fail-closed).
             logger.warning("Sozlamalar: noma'lum toggle kaliti rad etildi: %r", data[:64])
             return
-        current = await db.run_db(
-            db.get_user_settings_bulk, user_id, [key], SETTING_DEFAULTS,
-        )
-        new_value = not bool(current.get(key, False))
-        await db.run_db(db.set_user_setting, user_id, key, new_value)
-        toast = settings_stats_t(
-            "ss_switched_on" if new_value else "ss_switched_off", lang,
-        )
+        saved, new_value = await _toggle_setting_and_edit(query, user_id, scope, key, lang)
+        # ``_toggle_setting_and_edit`` DB'dan oldingi qiymatlarni olib, bosilgan
+        # kalitni teskari holatga o'tkazadi va xabarni FAQAT joyida tahrirlaydi
+        # (reply_text/send_message fallback yo'q).
+        toast_key = "ss_switched_on" if new_value else "ss_switched_off"
+        if not saved:
+            logger.warning("Sozlamani saqlab bo'lmadi: user_id=%s key=%s", user_id, key)
         try:
-            await query.answer(toast, show_alert=False)
+            await query.answer(settings_stats_t(toast_key, lang), show_alert=False)
         except Exception:
             pass
-        await _render_toggles(query, user_id, scope, lang)
         return
 
     if data == "stgs_pay":
