@@ -716,6 +716,8 @@ def render_channel_advice_menu(channels, lang: str = "uz") -> InlineKeyboardMark
     Keeping this selector separate preserves the Phase A-D channel panel layout
     and gives the new command a channel-scoped, callback-safe inline menu.
     """
+    from translations import channels_queue_t
+
     rows = []
     for channel in channels or []:
         try:

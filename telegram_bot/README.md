@@ -71,12 +71,18 @@ cp .env.example .env
 # .env faylini oching va o'z qiymatlaringizni kiriting:
 # BOT_TOKEN=...
 # ADMIN_ID=...
-# CHANNEL_ID=...
+# DATABASE_URL=...
+# MUHIM: ilova `python-dotenv` ISHLATMAYDI — .env faylni o'zi o'qimaydi.
+# Lokal ishga tushirishda uni shell'ga eksport qiling (keyingi qadamda ko'rsatilgan)
+# yoki serverda systemd `EnvironmentFile` / docker-compose `env_file` ishlating.
+# Kanal ulash ENV ORQALI EMAS: kanallar bot ichida — "📢 Kanallarim →
+# ➕ Kanal/Guruh qo'shish" (bot kanal admini bo'lishi shart).
 ```
 
 ## 5-qadam: Botni ishga tushirish
 
 ```bash
+set -a; . .env; set +a     # .env → process muhitiga (Render/Docker buni o'zi qiladi)
 python main.py
 ```
 
@@ -811,11 +817,12 @@ ConversationHandler holati va `context.user_data` race'dan himoyalangan.
 **Idempotent scheduler.** `_execute_send`: (1) `mark_post_processing` — Telegramga
 yuborishdan OLDIN (yozilmasa yuborilmaydi, keyinroq qayta uriniladi);
 (2) yuborilgach `posted + sent_message_id + sent_post_messages` markeri
-**backoff bilan** yoziladi (`SENT_MARKER_RETRY_DELAYS`); (3) DB baribir
-yotgan bo'lsa marker xotira + journal faylda (`SENT_JOURNAL_PATH`, default
-`/tmp/postassist_sent_journal.json`, `off` = faqat xotira) saqlanadi — shu post
-**hech qachon qayta yuborilmaydi**, har tick boshida `flush_unpersisted_sent_markers()`
-markerni DB'ga yozishga urinadi. `get_due_posts` faqat `pending` ni `FOR UPDATE
+**backoff bilan** yoziladi (`SENT_MARKER_RETRY_DELAYS`); (3) DB qisqa uzilgan
+bo'lsa marker **xotirada** (`_UNPERSISTED_SENT`) saqlanadi va har tick boshida
+`flush_unpersisted_sent_markers()` uni DB'ga yozishga qayta urinadi — shu post
+**hech qachon qayta yuborilmaydi**. `SENT_JOURNAL_PATH` — ixtiyoriy LEGACY
+fayl-zaxira (default **bo'sh = o'chiq**; `off|none|0|false` ham o'chiq): normal
+ishlashda yagona manba DB (`post_deliveries`), fayl talab qilinmaydi. `get_due_posts` faqat `pending` ni `FOR UPDATE
 SKIP LOCKED` bilan oladi; `recover_stale_processing_posts` yuborilganlarni
 `posted` ga o'tkazadi, faqat yuborilmaganlarni (10 daqiqadan eski) `pending` ga.
 

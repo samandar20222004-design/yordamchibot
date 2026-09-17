@@ -75,6 +75,17 @@
 #       repost taqiqi; 🗂 qoralamalar), 🕒 scheduler ulanmasi
 #       (poll_content_sources_job) va i18n/routing/FSM unikalligi
 #       (tests/sources_rss_and_recycle_test.py)
+#   3E) 👥 PHASE E — TEAM ROLlARI + APPROVAL OQIMI + AUDIENCE INSIGHTS:
+#       channel_member rollari (owner/editor/scheduler/analyst), IDOR,
+#       "tasdiqdan o'tmagan post chiqmaydi" gradienti va FAQ/haftalik
+#       hisobot + ehtiyotkor advisor matni
+#       (tests/team_approval_and_insights_test.py)
+#   3F) 🧾 DEPLOYMENT READINESS — .env.example KANONIK HOLATI VA PARITETI:
+#       ikkala nusxada dublikat kalit yo'q, ular o'zaro sinxron,
+#       ENVIRONMENT=production / AI_ALLOW_MOCK=0 (fail-closed) izohlari
+#       to'g'ri, eskirgan gemini-1.5-flash QIYMAT'da yo'q va kod o'qiydigan
+#       barcha production env o'zgaruvchilari hujjatlangan
+#       (tests/env_docs_parity_test.py)
 #   4) TO'LIQ regressiya: telegram_bot/tests/run_tests.sh (barcha 30+ test fayli)
 #
 # Har qanday xatoda 1 bilan chiqadi (CI uchun).
@@ -580,6 +591,18 @@ echo "===== 3z) 📥 PHASE D (2/2): KONTENT MANBALARI — URL→POST + RSS/ATOM 
 echo
 echo "===== 3E) PHASE E: TEAM ROLES + APPROVAL + AUDIENCE INSIGHTS ====="
 "$PY" tests/team_approval_and_insights_test.py || EXIT_CODE=1
+
+echo
+echo "===== 3F) 🧾 DEPLOYMENT READINESS: .env.example KANONIK HOLAT + PARITET ====="
+# Statik hujjat-guard (import'siz, DB/tarmoq'siz):
+# (1) ikkala .env.example da DUBLIKAT kalit yo'q va fayllar PARITYETDA
+#     (Render Root Directory = telegram_bot, Docker = ildiz);
+# (2) ENVIRONMENT=production / AI_ALLOW_MOCK=0 fail-closed siyosati va
+#     izohlari to'g'ri; (3) o'chirilgan gemini-1.5-flash QIYMAT'da yo'q,
+#     GEMINI_VISION_MODEL = gemini-2.5-flash; (4) kodda o'qiladigan har bir
+#     production env o'zgaruvchisi hujjatlangan (orphans yo'q); (5) namunada
+#     haqiqiy secret qiymatlari bo'sh (tests/env_docs_parity_test.py).
+"$PY" tests/env_docs_parity_test.py || EXIT_CODE=1
 
 echo
 echo "======== 4) TO'LIQ REGRESSIYA (telegram_bot/tests) ========"
