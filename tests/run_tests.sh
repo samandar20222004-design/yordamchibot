@@ -20,6 +20,10 @@
 #       (tests/content_creation_menu_test.py)
 #   3e2) ✍️ ODDIY (AI'SIZ) POSTING + universal panel + profil tozaligi
 #       (tests/manual_posting_and_unified_menu_test.py)
+#   3e3) ❤️ REAKSIYALAR + 🔗 HAVOLALI TUGMA — manual post preview panelini
+#       boyitish (4 qatorli panel, reaksiya presetlari, URL xavfsizligi,
+#       scheduler/delivery reply_markup birlashmasi)
+#       (tests/manual_post_reactions_and_url_buttons_test.py)
 #   3f) 📢 KANALLARIM + 📅 REJALASHTIRILGAN — PostAssist V2 4-qadam
 #       (tests/channels_and_queue_v2_test.py)
 #   3g) 📊 STATISTIKA + ⚙️ SOZLAMALAR + ⚙️ ADMIN PANEL RBAC —
@@ -215,6 +219,18 @@ echo "===== 3e2) ✍️ ODDIY (AI'SIZ) POSTING + BIRLASHTIRILGAN MENYU ====="
 # ichida); birlashtirilgan menyu va i18n pariteti kafolatlanadi
 # (tests/manual_posting_and_unified_menu_test.py).
 "$PY" tests/manual_posting_and_unified_menu_test.py || EXIT_CODE=1
+
+echo
+echo "===== 3e3) ❤️ REAKSIYALAR + 🔗 HAVOLALI TUGMA — MANUAL PREVIEW BOYITISH ====="
+# DIQQAT: POSTASSIST UI/UX POLISH 2-QADAM — oddiy post preview paneli
+# boyitiladi: 4 qatorli panel (🚀/📅 | ❤️ Reaksiyalar/🔗 Havolali tugma |
+# 🗑/🔄 | ✏️/❌), reaksiya presetlari ([👍/👎] | [🔥/❤️/👏] | ➕ O'zim
+# kiritaman | ◀️ Orqaga) va havolali tugma oqimi (faqat http://, https://,
+# tg:// — javascript:/file: rad etiladi); tanlangan reaksiyalar va URL
+# tugmalar db.add_post → scheduler orqali kanalga to'liq reply_markup
+# bilan chiqadi; mavjud oqimlar buzilmaydi
+# (tests/manual_post_reactions_and_url_buttons_test.py).
+"$PY" tests/manual_post_reactions_and_url_buttons_test.py || EXIT_CODE=1
 
 echo
 echo "===== 3f) 📢 KANALLARIM + 📅 REJALASHTIRILGAN ====="

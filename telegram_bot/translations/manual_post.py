@@ -45,6 +45,8 @@ MANUAL_POST_I18N = {
             "\n\n<b>Endi nima qilamiz?</b>\n"
             "🚀 Hozir yuborish — darhol kanalga chiqadi\n"
             "📅 Vaqtni belgilash — masalan, 19:30 ga\n"
+            "❤️ Reaksiyalar — post tagiga emoji tugmalari qo'shiladi\n"
+            "🔗 Havolali tugma — post ostida havolali (URL) tugma chiqadi\n"
             "🗑 24 soatlik e'lon — chiqadi va 24 soatdan keyin avtomatik "
             "o'chadi\n"
             "🔄 Takroriy e'lon — har kuni bitta vaqtda qayta chiqadi"
@@ -52,11 +54,43 @@ MANUAL_POST_I18N = {
         # --- Universal boshqaruv paneli tugmalari ---
         "mp_btn_send_now": "🚀 Hozir yuborish",
         "mp_btn_schedule": "📅 Vaqtni belgilash",
+        "mp_btn_reactions": "❤️ Reaksiyalar",
+        "mp_btn_url_btn": "🔗 Havolali tugma",
         "mp_btn_24h": "🗑 24 soatlik e'lon",
         "mp_btn_repeat": "🔄 Takroriy e'lon",
         "mp_btn_edit": "✏️ Tahrirlash",
         "mp_btn_cancel": "❌ Bekor qilish",
         "mp_btn_back_panel": "◀️ Orqaga",
+        # --- ❤️ Reaksiyalar oqimi ---
+        "mp_react_prompt": (
+            "❤️ <b>Reaksiyalar.</b>\n\n"
+            "Post tagida chiqadigan reaksiya tugmalarini tanlang — emoji "
+            "ustiga bosing (tanlanganlar ✅ bilan belgilanadi):"
+        ),
+        "mp_react_custom": "➕ O'zim kiritaman",
+        "mp_react_custom_prompt": (
+            "➕ <b>O'z reaksiyalaringizni yuboring.</b>\n\n"
+            "Emojilarni xabar qilib yuboring — masalan: "
+            "<code>👍 ❤️ 🔥 😍</code> (10 tagacha)."
+        ),
+        "mp_react_custom_invalid": (
+            "⚠️ Emoji topilmadi. Iltimos, faqat emojilar yuboring — "
+            "masalan: <code>👍 ❤️ 🔥</code>."
+        ),
+        "mp_reactions_on": "❤️ Reaksiyalar: {emojis}",
+        # --- 🔗 Havolali (URL) tugma oqimi ---
+        "mp_url_prompt": (
+            "🔗 <b>Havolali tugma.</b>\n\n"
+            "Tugma matni va havolani quyidagi formatda yuboring:\n"
+            "Masalan: <code>Batafsil - https://t.me/kanal</code>"
+        ),
+        "mp_url_invalid": (
+            "⚠️ Tushunmadim. Tugma matni va havolani quyidagi formatda "
+            "yuboring:\n<code>Batafsil - https://t.me/kanal</code>\n\n"
+            "Faqat <code>http://</code>, <code>https://</code> va "
+            "<code>tg://</code> havolalariga ruxsat beriladi."
+        ),
+        "mp_url_on": "🔗 Tugma: {text} → {url}",
         # --- Kanal tanlash ---
         "mp_choose_channel": "📢 <b>Qaysi kanalga chiqaramiz?</b>",
         # --- Vaqt so'rash ---
@@ -160,16 +194,50 @@ MANUAL_POST_I18N = {
             "\n\n<b>Что делаем дальше?</b>\n"
             "🚀 Отправить сейчас — сразу выйдет в канал\n"
             "📅 Указать время — например, на 19:30\n"
+            "❤️ Реакции — эмодзи-кнопки под постом\n"
+            "🔗 Кнопка-ссылка — кнопка с URL под постом\n"
             "🗑 Объявление на 24 часа — выйдет и удалится через 24 часа\n"
             "🔄 Повторяемое объявление — выходит ежедневно в одно время"
         ),
         "mp_btn_send_now": "🚀 Отправить сейчас",
         "mp_btn_schedule": "📅 Указать время",
+        "mp_btn_reactions": "❤️ Реакции",
+        "mp_btn_url_btn": "🔗 Кнопка-ссылка",
         "mp_btn_24h": "🗑 Объявление на 24 часа",
         "mp_btn_repeat": "🔄 Повторяемое объявление",
         "mp_btn_edit": "✏️ Редактировать",
         "mp_btn_cancel": "❌ Отмена",
         "mp_btn_back_panel": "◀️ Назад",
+        # --- ❤️ Поток реакций ---
+        "mp_react_prompt": (
+            "❤️ <b>Реакции.</b>\n\n"
+            "Выберите кнопки-реакции под постом — нажмите на эмодзи "
+            "(выбранные отмечаются ✅):"
+        ),
+        "mp_react_custom": "➕ Введу сам",
+        "mp_react_custom_prompt": (
+            "➕ <b>Отправьте свои реакции.</b>\n\n"
+            "Отправьте эмодзи сообщением — например: "
+            "<code>👍 ❤️ 🔥 😍</code> (до 10 штук)."
+        ),
+        "mp_react_custom_invalid": (
+            "⚠️ Эмодзи не найдены. Отправьте только эмодзи — например: "
+            "<code>👍 ❤️ 🔥</code>."
+        ),
+        "mp_reactions_on": "❤️ Реакции: {emojis}",
+        # --- 🔗 Поток кнопки-ссылки ---
+        "mp_url_prompt": (
+            "🔗 <b>Кнопка-ссылка.</b>\n\n"
+            "Отправьте текст кнопки и ссылку в таком формате:\n"
+            "Например: <code>Подробнее - https://t.me/kanal</code>"
+        ),
+        "mp_url_invalid": (
+            "⚠️ Не понял. Отправьте текст кнопки и ссылку в таком "
+            "формате:\n<code>Подробнее - https://t.me/kanal</code>\n\n"
+            "Разрешены только ссылки <code>http://</code>, "
+            "<code>https://</code> и <code>tg://</code>."
+        ),
+        "mp_url_on": "🔗 Кнопка: {text} → {url}",
         "mp_choose_channel": "📢 <b>В какой канал публикуем?</b>",
         "mp_time_prompt": (
             "📅 <b>Указать время.</b>\n\n"
@@ -262,17 +330,51 @@ MANUAL_POST_I18N = {
             "\n\n<b>What's next?</b>\n"
             "🚀 Send now — published to the channel immediately\n"
             "📅 Set time — for example, 19:30\n"
+            "❤️ Reactions — emoji buttons attached under the post\n"
+            "🔗 Link button — a URL button appears under the post\n"
             "🗑 24-hour announcement — published, then auto-deleted after "
             "24 hours\n"
             "🔄 Recurring announcement — republished daily at the same time"
         ),
         "mp_btn_send_now": "🚀 Send now",
         "mp_btn_schedule": "📅 Set time",
+        "mp_btn_reactions": "❤️ Reactions",
+        "mp_btn_url_btn": "🔗 Link button",
         "mp_btn_24h": "🗑 24-hour announcement",
         "mp_btn_repeat": "🔄 Recurring announcement",
         "mp_btn_edit": "✏️ Edit",
         "mp_btn_cancel": "❌ Cancel",
         "mp_btn_back_panel": "◀️ Back",
+        # --- ❤️ Reactions flow ---
+        "mp_react_prompt": (
+            "❤️ <b>Reactions.</b>\n\n"
+            "Pick the reaction buttons shown under the post — tap an emoji "
+            "(selected ones are marked with ✅):"
+        ),
+        "mp_react_custom": "➕ Enter my own",
+        "mp_react_custom_prompt": (
+            "➕ <b>Send your own reactions.</b>\n\n"
+            "Send the emojis as a message — for example: "
+            "<code>👍 ❤️ 🔥 😍</code> (up to 10)."
+        ),
+        "mp_react_custom_invalid": (
+            "⚠️ No emojis found. Please send emojis only — for example: "
+            "<code>👍 ❤️ 🔥</code>."
+        ),
+        "mp_reactions_on": "❤️ Reactions: {emojis}",
+        # --- 🔗 URL button flow ---
+        "mp_url_prompt": (
+            "🔗 <b>Link button.</b>\n\n"
+            "Send the button text and the link in this format:\n"
+            "Example: <code>Read more - https://t.me/kanal</code>"
+        ),
+        "mp_url_invalid": (
+            "⚠️ I didn't get it. Send the button text and the link in this "
+            "format:\n<code>Read more - https://t.me/kanal</code>\n\n"
+            "Only <code>http://</code>, <code>https://</code> and "
+            "<code>tg://</code> links are allowed."
+        ),
+        "mp_url_on": "🔗 Button: {text} → {url}",
         "mp_choose_channel": "📢 <b>Which channel do we publish to?</b>",
         "mp_time_prompt": (
             "📅 <b>Set the time.</b>\n\n"

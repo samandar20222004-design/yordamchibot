@@ -1570,8 +1570,9 @@ def test_schema_ui_routing():
     check("dublikat klaviaturasi: 3 tugma (force/ai/cancel)",
           _cbs(kb) == [CB_MANUAL_DUP_FORCE, CB_MANUAL_DUP_AI, "mnp_cancel"],
           str(_cbs(kb)))
-    check("manual panel o'zgarmagan (6 amal)",
+    check("manual panel kanonik tartibda (8 amal, 4 qator)",
           _cbs(get_manual_post_panel("uz")) == ["mnp_now", "mnp_time",
+                                                "mnp_react", "mnp_url",
                                                 "mnp_24h", "mnp_repeat",
                                                 "mnp_edit", "mnp_cancel"],
           str(_cbs(get_manual_post_panel("uz"))))

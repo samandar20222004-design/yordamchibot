@@ -81,7 +81,8 @@ import database as db_mod  # noqa: E402
 from keyboards.default import get_main_keyboard  # noqa: E402
 from keyboards.inline import (  # noqa: E402
     CB_MANUAL_24H, CB_MANUAL_CANCEL, CB_MANUAL_CHANNEL, CB_MANUAL_EDIT,
-    CB_MANUAL_NOW, CB_MANUAL_PANEL, CB_MANUAL_REPEAT, CB_MANUAL_TIME,
+    CB_MANUAL_NOW, CB_MANUAL_PANEL, CB_MANUAL_REACT, CB_MANUAL_REPEAT,
+    CB_MANUAL_TIME, CB_MANUAL_URL_BTN,
     get_cabinet_inline_keyboard, get_manual_post_panel,
     get_settings_hub_keyboard, manual_channel_callback,
 )
@@ -277,7 +278,8 @@ def test_direct_preview_without_ai():
             check(f"[{lang}] preview'da universal panel bor",
                   msg.sent[0].get("reply_markup") is not None
                   and _panel_callbacks(msg.sent[0]["reply_markup"]) == [
-                      CB_MANUAL_NOW, CB_MANUAL_TIME, CB_MANUAL_24H,
+                      CB_MANUAL_NOW, CB_MANUAL_TIME, CB_MANUAL_REACT,
+                      CB_MANUAL_URL_BTN, CB_MANUAL_24H,
                       CB_MANUAL_REPEAT, CB_MANUAL_EDIT, CB_MANUAL_CANCEL],
                   str(msg.sent[0].get("reply_markup")))
             # AI chaqiruvi UMUMAN bo'lmadi.
@@ -534,7 +536,8 @@ def test_schedule_and_announcement_flows():
 # ============================================================================
 def test_universal_panel_spec():
     print("\n== TEST 4: universal boshqaruv paneli — speksdagi tugmalar ==")
-    expected_cbs = [CB_MANUAL_NOW, CB_MANUAL_TIME, CB_MANUAL_24H,
+    expected_cbs = [CB_MANUAL_NOW, CB_MANUAL_TIME, CB_MANUAL_REACT,
+                    CB_MANUAL_URL_BTN, CB_MANUAL_24H,
                     CB_MANUAL_REPEAT, CB_MANUAL_EDIT, CB_MANUAL_CANCEL]
     for lang in LANGS:
         kb = get_manual_post_panel(lang)
@@ -545,6 +548,8 @@ def test_universal_panel_spec():
         expected_labels = [
             manual_post_t("mp_btn_send_now", lang),
             manual_post_t("mp_btn_schedule", lang),
+            manual_post_t("mp_btn_reactions", lang),
+            manual_post_t("mp_btn_url_btn", lang),
             manual_post_t("mp_btn_24h", lang),
             manual_post_t("mp_btn_repeat", lang),
             manual_post_t("mp_btn_edit", lang),
@@ -553,18 +558,22 @@ def test_universal_panel_spec():
         check(f"[{lang}] panel yorliqlari i18n orqali", labels == expected_labels, str(labels))
     # Yorliqlar speksdagi emojilar bilan boshlanadi.
     uz_labels = _panel_labels(get_manual_post_panel("uz"))
-    check("panel: 🚀 / 📅 / 🗑 / 🔄 / ✏️ / ❌ emojilari mavjud",
+    check("panel: 🚀 / 📅 / ❤️ / 🔗 / 🗑 / 🔄 / ✏️ / ❌ emojilari mavjud",
           uz_labels[0].startswith("🚀") and uz_labels[1].startswith("📅")
-          and uz_labels[2].startswith("🗑") and uz_labels[3].startswith("🔄")
-          and uz_labels[4].startswith("✏️") and uz_labels[5].startswith("❌"),
+          and uz_labels[2].startswith("❤️") and uz_labels[3].startswith("🔗")
+          and uz_labels[4].startswith("🗑") and uz_labels[5].startswith("🔄")
+          and uz_labels[6].startswith("✏️") and uz_labels[7].startswith("❌"),
           str(uz_labels))
     check("panel: «Hozir yuborish» va «Vaqtni belgilash» aniq",
           "Hozir yuborish" in uz_labels[0] and "Vaqtni belgilash" in uz_labels[1],
           str(uz_labels))
+    check("panel: «Reaksiyalar» va «Havolali tugma» aniq",
+          "Reaksiyalar" in uz_labels[2] and "Havolali tugma" in uz_labels[3],
+          str(uz_labels))
     check("panel: «24 soatlik e'lon» va «Takroriy e'lon» aniq",
-          "24 soatlik" in uz_labels[2] and "Takroriy" in uz_labels[3], str(uz_labels))
+          "24 soatlik" in uz_labels[4] and "Takroriy" in uz_labels[5], str(uz_labels))
     check("panel: «Tahrirlash» | «Bekor qilish» aniq",
-          "Tahrirlash" in uz_labels[4] and "Bekor qilish" in uz_labels[5], str(uz_labels))
+          "Tahrirlash" in uz_labels[6] and "Bekor qilish" in uz_labels[7], str(uz_labels))
     # Har bir tugma FSM'da real handlerga ulangan (conv.states tekshiruvi).
     from telegram.ext import CallbackQueryHandler as CQH
     app = _build_app()

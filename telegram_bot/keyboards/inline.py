@@ -1204,14 +1204,39 @@ def get_language_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
 # ``studio_``, ``cc_``) bilan to'qnashmaydi.
 # ============================================================
 CB_MANUAL_PREFIX = "mnp_"
-CB_MANUAL_NOW = "mnp_now"            # 🚀 Hozir yuborish
-CB_MANUAL_TIME = "mnp_time"          # 📅 Vaqtni belgilash
-CB_MANUAL_24H = "mnp_24h"            # 🗑 24 soatlik e'lon (auto-delete 24h)
-CB_MANUAL_REPEAT = "mnp_repeat"      # 🔄 Takroriy e'lon (har kuni)
-CB_MANUAL_EDIT = "mnp_edit"          # ✏️ Tahrirlash
-CB_MANUAL_CANCEL = "mnp_cancel"      # ❌ Bekor qilish
+CB_MANUAL_NOW = "mnp_now"            # 🚀 Hozir yuborish (manual_send_now)
+CB_MANUAL_TIME = "mnp_time"          # 📅 Vaqtni belgilash (manual_schedule)
+CB_MANUAL_24H = "mnp_24h"            # 🗑 24 soatlik e'lon (manual_24h_autodel)
+CB_MANUAL_REPEAT = "mnp_repeat"      # 🔄 Takroriy e'lon (manual_recurring)
+CB_MANUAL_EDIT = "mnp_edit"          # ✏️ Tahrirlash (manual_edit)
+CB_MANUAL_CANCEL = "mnp_cancel"      # ❌ Bekor qilish (manual_cancel)
 CB_MANUAL_PANEL = "mnp_panel"        # ◀️ Orqaga (kanal tanlashdan panelga)
 CB_MANUAL_CHANNEL = "mnp_ch:"        # mnp_ch:<channel_id> — kanal tanlash
+# 2-QADAM UI/UX POLISH — preview panelini boyitish (reaksiyalar + URL tugma):
+# barcha yangi callback'lar ham ``mnp_`` prefiksida — global stale handler
+# (``^mnp_``) ularni ham qamrab oladi, sessiya tugaganda crash bo'lmaydi.
+CB_MANUAL_REACT = "mnp_react"        # ❤️ Reaksiyalar (manual_add_reactions)
+CB_MANUAL_URL_BTN = "mnp_url"        # 🔗 Havolali tugma (manual_add_url_btn)
+CB_MANUAL_REACT_TOGGLE = "mnp_rt:"   # mnp_rt:<emoji> — preset reaksiya toggle
+CB_MANUAL_REACT_CUSTOM = "mnp_radd"  # ➕ O'zim kiritaman (qo'lda emoji kiritish)
+CB_MANUAL_REACT_BACK = "mnp_rback"   # ◀️ Orqaga (preview'ga qaytish)
+
+# ❤️ Reaksiya presetlari — spets bo'yicha 2 guruh: [👍 / 👎] va [🔥 / ❤️ / 👏].
+MANUAL_REACTION_PRESETS = (("👍", "👎"), ("🔥", "❤️", "👏"))
+
+
+def manual_reaction_toggle_callback(emoji) -> str:
+    """``mnp_rt:<emoji>`` callback'i (64-bayt kafolatli ``cb`` orqali)."""
+    return cb(CB_MANUAL_REACT_TOGGLE[:-1], str(emoji))
+
+
+def manual_reaction_from_callback(data: str):
+    """``mnp_rt:👍`` → emoji (str); yaroqsiz bo'lsa None."""
+    prefix = CB_MANUAL_REACT_TOGGLE
+    if not isinstance(data, str) or not data.startswith(prefix):
+        return None
+    emoji = data[len(prefix):].strip()
+    return emoji or None
 # 🔁 PHASE C — dublikat detektori (post chiqarilishidan oldin): ogohlantirish
 # oynasining 3 amali (SPEKS: [🚀 Baribir chiqarish] | [✨ AI bilan yangilash] |
 # [❌ Bekor qilish]; bekor qilish mavjud CB_MANUAL_CANCEL orqali ishlaydi).
@@ -1239,12 +1264,12 @@ def manual_channel_from_callback(data: str):
 
 
 def get_manual_post_panel(lang: str = "uz") -> InlineKeyboardMarkup:
-    """✍️ Oddiy post preview'si ostidagi UNIVERSAL boshqaruv paneli::
+    """✍️ Oddiy post preview'si ostidagi UNIVERSAL boshqaruv paneli (4 qator)::
 
-        [🚀 Hozir yuborish]
-        [📅 Vaqtni belgilash]
-        [🗑 24 soatlik e'lon]   [🔄 Takroriy e'lon]
-        [✏️ Tahrirlash]         [❌ Bekor qilish]
+        [🚀 Hozir yuborish]        [📅 Vaqtni belgilash]
+        [❤️ Reaksiyalar]           [🔗 Havolali tugma]
+        [🗑 24 soatlik e'lon]      [🔄 Takroriy e'lon]
+        [✏️ Tahrirlash]            [❌ Bekor qilish]
 
     Yorliqlar ``translations/manual_post.py`` dan (uz/ru/en paritet);
     ``callback_data`` tilga bog'liq emas.
@@ -1252,10 +1277,18 @@ def get_manual_post_panel(lang: str = "uz") -> InlineKeyboardMarkup:
     from translations import manual_post_t
 
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton(manual_post_t("mp_btn_send_now", lang),
-                              callback_data=CB_MANUAL_NOW)],
-        [InlineKeyboardButton(manual_post_t("mp_btn_schedule", lang),
-                              callback_data=CB_MANUAL_TIME)],
+        [
+            InlineKeyboardButton(manual_post_t("mp_btn_send_now", lang),
+                                 callback_data=CB_MANUAL_NOW),
+            InlineKeyboardButton(manual_post_t("mp_btn_schedule", lang),
+                                 callback_data=CB_MANUAL_TIME),
+        ],
+        [
+            InlineKeyboardButton(manual_post_t("mp_btn_reactions", lang),
+                                 callback_data=CB_MANUAL_REACT),
+            InlineKeyboardButton(manual_post_t("mp_btn_url_btn", lang),
+                                 callback_data=CB_MANUAL_URL_BTN),
+        ],
         [
             InlineKeyboardButton(manual_post_t("mp_btn_24h", lang),
                                  callback_data=CB_MANUAL_24H),
@@ -1269,6 +1302,40 @@ def get_manual_post_panel(lang: str = "uz") -> InlineKeyboardMarkup:
                                  callback_data=CB_MANUAL_CANCEL),
         ],
     ])
+
+
+def get_manual_reaction_keyboard(selected=None, lang: str = "uz") -> InlineKeyboardMarkup:
+    """❤️ Reaksiya tanlash klaviaturasi (oddiy post preview oqimi)::
+
+        [👍] [👎]
+        [🔥] [❤️] [👏]
+        [➕ O'zim kiritaman] [◀️ Orqaga]
+
+    Har bir preset tugma bosilganda TANLANADI/O'CHIRILADI (toggle) va
+    tanlanganlar ``✅`` belgisi bilan ko'rsatiladi. [◀️ Orqaga] preview'ga
+    qaytaradi — tanlangan emojilar postga reaksiya tugmalari sifatida
+    ulangan bo'ladi.
+    """
+    from translations import manual_post_t
+
+    sel = {strip_variation_selector(e) for e in (selected or []) if e}
+    rows = []
+    for group in MANUAL_REACTION_PRESETS:
+        row = []
+        for emoji in group:
+            marked = strip_variation_selector(emoji) in sel
+            row.append(InlineKeyboardButton(
+                f"✅ {emoji}" if marked else emoji,
+                callback_data=manual_reaction_toggle_callback(emoji),
+            ))
+        rows.append(row)
+    rows.append([
+        InlineKeyboardButton(manual_post_t("mp_react_custom", lang),
+                             callback_data=CB_MANUAL_REACT_CUSTOM),
+        InlineKeyboardButton(manual_post_t("mp_btn_back_panel", lang),
+                             callback_data=CB_MANUAL_REACT_BACK),
+    ])
+    return InlineKeyboardMarkup(rows)
 
 
 def get_duplicate_warning_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
