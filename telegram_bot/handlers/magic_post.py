@@ -285,7 +285,9 @@ async def magic_post_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
     lang = get_lang(context)
     # Eski magic sessiyasi qoldiqlarini tozalaymiz (yangi oqim — toza boshlanish).
     for key in ("magic_raw_text", "magic_post_text", "magic_style",
-                "magic_channels", "magic_usage_counted"):
+                "magic_channels", "magic_usage_counted",
+                # 🧭 3-QADAM: wizard qoldig'i yangi sessiyaga o'tmasligi uchun.
+                "aip_topic", "aip_origin", "aip_format", "aip_format_hint"):
         context.user_data.pop(key, None)
     await msg.reply_text(
         magic_t("mp_intro", lang),
@@ -344,6 +346,18 @@ async def magic_text_received(update: Update, context: ContextTypes.DEFAULT_TYPE
     if len(text) < 2:
         await msg.reply_text(magic_t("mp_text_hint", lang), parse_mode="HTML")
         return MAGIC_INPUT
+
+    # 🧭 3-QADAM (UI/UX POLISH): qisqa (< 3 so'z) yoki umumiy mavzu
+    # ("sport", "yangiliklar") darhol uslublar menyusiga emas, avval
+    # aniqlashtirish wizard'iga yuboriladi (kvota/kredit sarflanmaydi).
+    # Aniq/batafsil mavzular uchun None qaytadi — eski yo'l o'zgarmaydi.
+    try:
+        from handlers.ai_post import maybe_start_clarification
+    except ImportError:
+        from telegram_bot.handlers.ai_post import maybe_start_clarification
+    branch = await maybe_start_clarification(msg, context, text, lang, origin="magic")
+    if branch is not None:
+        return branch
 
     context.user_data["magic_raw_text"] = text
     await msg.reply_text(
@@ -419,9 +433,15 @@ async def magic_style_callback(update: Update, context: ContextTypes.DEFAULT_TYP
     style_label = magic_t(MAGIC_STYLE_KEYS[style][0], lang)
     await _safe_edit(query, magic_t("mp_generating", lang, style=style_label), None)
 
+    # 🧭 3-QADAM (UI/UX POLISH): wizard'da tanlangan format ko'rsatmasi
+    # generatsiya materialiga ulanadi (bir martalik — iste'mol qilinadi).
+    # Wizard'siz oqimlarda hint bo'lmaydi → material == raw_text (o'zgarmaydi).
+    fmt_hint = str(context.user_data.pop("aip_format_hint", "") or "").strip()
+    material = raw_text if not fmt_hint else f"{raw_text}\n\n{fmt_hint}"
+
     # --- ✨ AI generatsiya (Gemini/Groq bepul zanjiri, uslubga xos prompt) ---
     try:
-        result = await generate_magic_post(raw_text, style, lang=lang, is_pro=is_pro)
+        result = await generate_magic_post(material, style, lang=lang, is_pro=is_pro)
     except Exception as e:  # noqa: BLE001 — hech qachon yiqilmaydi
         logger.error("Magic Post generation error: %s", e)
         result = {"error": "exception"}

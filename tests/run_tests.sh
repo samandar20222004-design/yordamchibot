@@ -90,6 +90,13 @@
 #       to'g'ri, eskirgan gemini-1.5-flash QIYMAT'da yo'q va kod o'qiydigan
 #       barcha production env o'zgaruvchilari hujjatlangan
 #       (tests/env_docs_parity_test.py)
+#   3G) 🧭 3-QADAM (UI/UX POLISH) — MAVZU ANIQLIGI, FORMAT VA SIFAT:
+#       qisqa/umumiy mavzuda aniqlashtirish wizard'i (📰/💡/🔥/🛒/✍️),
+#       "yangiliklar" hech qachon Sotuv oqimiga tushmaydi, sotuvda
+#       mahsulot parametrlari so'raladi, quruq "suv" shablonlari barcha
+#       promptlardan chiqarilgan, FSM 434/435/436 noyob va Phase A-E
+#       xavfsizlik filtrlari joyida
+#       (tests/ai_clarification_and_intent_test.py)
 #   4) TO'LIQ regressiya: telegram_bot/tests/run_tests.sh (barcha 30+ test fayli)
 #
 # Har qanday xatoda 1 bilan chiqadi (CI uchun).
@@ -619,6 +626,21 @@ echo "===== 3F) 🧾 DEPLOYMENT READINESS: .env.example KANONIK HOLAT + PARITET 
 #     production env o'zgaruvchisi hujjatlangan (orphans yo'q); (5) namunada
 #     haqiqiy secret qiymatlari bo'sh (tests/env_docs_parity_test.py).
 "$PY" tests/env_docs_parity_test.py || EXIT_CODE=1
+
+echo
+echo "===== 3G) 🧭 3-QADAM: ANIQLASHTIRISH + FORMAT + FLUFF-GUARD ====="
+# (1) Qisqa (< 3 so'z) / umumiy mavzu darhol generatsiyaga emas —
+#     aniqlashtirish wizard'iga (📌 Qaysi yo'nalish ... + 5 tugma);
+# (2) axborot so'zlari (yangilik/xabar/sport/voqea) HECH QACHON 🛒 Sotuv
+#     formatiga aylanmaydi (INFO ustuvorligi);
+# (3) 🛒 tanlansa yoki tafsilotsiz sotuv mavzusi bo'lsa — mahsulot
+#     nomi/narxi/xususiyati so'raladi (mahsulotsiz post to'qilmaydi);
+# (4) "Kanalga obuna bo'ling" kabi quruq shablonlar barcha generatsiya
+#     promptlaridan chiqarilgan; Hook + HTML + • + aniq mazmun standarti;
+# (5) FSM 434/435/436 noyob, aip_ callback'lar ro'yxatda, Phase A-E
+#     xavfsizlik filtrlari buzilmagan
+#     (tests/ai_clarification_and_intent_test.py).
+"$PY" tests/ai_clarification_and_intent_test.py || EXIT_CODE=1
 
 echo
 echo "======== 4) TO'LIQ REGRESSIYA (telegram_bot/tests) ========"

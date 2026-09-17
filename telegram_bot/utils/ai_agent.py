@@ -1300,6 +1300,7 @@ _ROUTER_I18N = {
             '2) "post" — YANGI POST YARATISH yoki TAYYOR POST QABUL QILISH:\n'
             "   • Mavzu/sarlavha berilsa — PROFESSIONAL, JOZIBADOR, TO'LIQ post tayyorlang.\n"
             "     Aniq faktlar, chaqiriq (CTA), kerakli hashtaglar qo'shing.\n"
+            "     Quruq umumiy qoliplar yozmang — har bir jumla aniq mazmun bersin.\n"
             "   • Tayyor post/forward/e'lon yuborilsa — matnni BUZMASDAN, to'liq ko'chiring.\n"
             "   • Vaqt ko'rsatilsa ('bugun 15:45', 'ertaga 9 da') — Toshkent bo'yicha "
             "'YYYY-MM-DD HH:MM' da yozing.\n"
@@ -1355,6 +1356,7 @@ _ROUTER_I18N = {
             '2) "post" — СОЗДАНИЕ НОВОГО ПОСТА или ПРИЁМ ГОТОВОГО ПОСТА:\n'
             "   • Если дана тема/заголовок — подготовьте ПРОФЕССИОНАЛЬНЫЙ, ЯРКИЙ и ПОЛНЫЙ пост.\n"
             "     Добавьте конкретные факты, призыв к действию (CTA) и нужные хэштеги.\n"
+            "     Не используйте пустые общие шаблоны — каждое предложение несёт конкретный смысл.\n"
             "   • Если прислали готовый пост/пересланное сообщение/объявление — скопируйте "
             "текст ПОЛНОСТЬЮ, НЕ ИЗМЕНЯЯ.\n"
             "   • Если указано время ('сегодня 15:45', 'завтра в 9') — запишите его по "
@@ -1408,6 +1410,7 @@ _ROUTER_I18N = {
             '2) "post" — CREATE A NEW POST or ACCEPT A READY POST:\n'
             "   • If a topic/headline is given — write a PROFESSIONAL, CATCHY and COMPLETE post.\n"
             "     Add concrete facts, a call to action (CTA) and the needed hashtags.\n"
+            "     Never write empty generic templates — every sentence must carry concrete meaning.\n"
             "   • If a ready post/forward/announcement is sent — copy the text EXACTLY, "
             "without altering it.\n"
             "   • If a time is mentioned ('today 15:45', 'tomorrow at 9') — write it in "
@@ -4013,7 +4016,7 @@ _MAGIC_POST_STRUCTURE = {
         "maslahat, misol yoki his-tuyg'u. Punktlar orasida bo'sh qator.\n"
         "3) CALL-TO-ACTION — alohida qatorda, jalb qiluvchi: savol («Siz qaysi "
         "jamoani qo'llab-quvvatlaysiz? 👇»), muhokamaga chaqiruv, «Do'stlaringizga "
-        "ulashing» yoki kanalga obuna taklifi.\n"
+        "ulashing» yoki fikr-mulohaza so'rash.\n"
         "4) HASHTAGLAR — eng oxirgi qatorda, alohida, 3-5 ta ixcham va mavzuga mos "
         "(#futbol #sport ...).\n"
         "QAT'IY TAQIQLAR: 1-2 qatorli quruq jumla; foydalanuvchi matnini shunchaki "
@@ -4031,7 +4034,7 @@ _MAGIC_POST_STRUCTURE = {
         "строка.\n"
         "3) ПРИЗЫВ К ДЕЙСТВИЮ — отдельной строкой, вовлекающий: вопрос («А за какую "
         "команду болеете вы? 👇»), приглашение к обсуждению, «Поделитесь с друзьями» "
-        "или предложение подписаться на канал.\n"
+        "или просьба поделиться мнением.\n"
         "4) ХЭШТЕГИ — самой последней строкой, отдельно, 3-5 коротких и тематических "
         "(#футбол #спорт ...).\n"
         "СТРОГО ЗАПРЕЩЕНО: сухие посты из 1-2 строк; простой пересказ текста "
@@ -4047,8 +4050,8 @@ _MAGIC_POST_STRUCTURE = {
         "each). Every bullet delivers REAL VALUE to the reader: a concrete benefit, "
         "fact, tip, example or emotion. Blank line between bullets.\n"
         "3) CALL-TO-ACTION — on its own line, engaging: a question (“Which team do "
-        "you support? 👇”), an invitation to discuss, “Share with friends” or a "
-        "subscribe prompt.\n"
+        "you support? 👇”), an invitation to discuss, “Share with friends” or an "
+        "invitation to share opinions.\n"
         "4) HASHTAGS — on the very last line, separately, 3-5 short topical tags "
         "(#football #sport ...).\n"
         "STRICTLY FORBIDDEN: dry 1-2 line posts; merely paraphrasing the user's "
@@ -4205,7 +4208,7 @@ _MAGIC_POST_STYLE_SPEC = {
             "- HAVOLA JOYI: post oxiriga yaqin alohida qator — «🔗 Batafsil: "
             "[havola]» (materialda link bo'lsa AYNAN shuni ishlating).\n"
             "- CTA kuchli va harakatga undovchi: «Hoziroq bosing», «Joyingizni band "
-            "qiling», «Kanalga obuna bo'ling».\n"
+            "qiling», «Batafsil bilish uchun yozing».\n"
             "- Qisqa jumlalar, dinamik ritm, aniq raqamlar — reklama ko'zga tashlansin."
         ),
         "ru": (
@@ -4217,7 +4220,7 @@ _MAGIC_POST_STYLE_SPEC = {
             "- МЕСТО ДЛЯ ССЫЛКИ: ближе к концу отдельная строка — «🔗 Подробнее: "
             "[ссылка]» (если в материале есть ссылка — используйте именно её).\n"
             "- Сильный CTA, побуждающий к действию: «Жмите сейчас», «Забронируйте "
-            "место», «Подпишитесь на канал».\n"
+            "место», «Напишите, чтобы узнать больше».\n"
             "- Короткие фразы, динамичный ритм, точные цифры — реклама должна "
             "бросаться в глаза."
         ),
@@ -4230,7 +4233,7 @@ _MAGIC_POST_STYLE_SPEC = {
             "- PLACE FOR THE LINK: a dedicated line near the end — “🔗 Learn more: "
             "[link]” (if the material contains a link, use that exact one).\n"
             "- Strong, action-driving CTA: “Tap now”, “Reserve your spot”, "
-            "“Subscribe to the channel”.\n"
+            "“Message us to learn more”.\n"
             "- Short punchy sentences, dynamic rhythm, concrete numbers."
         ),
     },
@@ -4248,7 +4251,7 @@ _MAGIC_POST_STYLE_SPEC = {
             "tavsiya bering, lekin O'YLAB TOPILGAN raqam/statistika KELTIRMANG.\n"
             "- Xulosa EKSPERT ohangida: qisqa, ishonchli, vaznli yakuniy gap.\n"
             "- CTA: «Saqlab oling — kerak bo'ladi», «Qaysi punkt siz uchun yangilik "
-            "bo'ldi?» yoki kanalga obuna taklifi."
+            "bo'ldi?» yoki o'quvchi tajribasi haqida savol."
         ),
         "ru": (
             "СТИЛЬ: 📰 ИНФОРМАТИВНЫЙ (полезные факты + экспертный вывод).\n"
@@ -4263,7 +4266,7 @@ _MAGIC_POST_STYLE_SPEC = {
             "рекомендации, но НЕ ПРИДУМЫВАЙТЕ цифры/статистику.\n"
             "- Вывод в экспертном тоне: короткое, уверенное, весомое заключение.\n"
             "- CTA: «Сохраните — пригодится», «Какой пункт стал для вас открытием?» "
-            "или приглашение подписаться."
+            "или вопрос о личном опыте читателя."
         ),
         "en": (
             "STYLE: 📰 INFORMATIVE (useful facts + expert takeaway).\n"
@@ -4278,7 +4281,7 @@ _MAGIC_POST_STYLE_SPEC = {
             "advice — but NEVER invent numbers/statistics.\n"
             "- Conclude in an expert voice: a short, confident, weighty closing line.\n"
             "- CTA: “Save this — you'll need it”, “Which point was new to you?” or "
-            "a subscribe prompt."
+            "a question about the reader's own experience."
         ),
     },
 }
@@ -4652,6 +4655,21 @@ async def generate_magic_post(
         material = material[:MAGIC_POST_MAX_MATERIAL_CHARS]
 
     system_instruction = with_language(build_magic_post_system(st, code), code)
+
+    # 🧭 3-QADAM (UI/UX POLISH): fluff'siz sifat standarti qo'shimchasi —
+    # kuchli Hook, Telegram HTML, ro'yxatlar va aniq mazmun talabi.
+    # MAGIC_POST_SYSTEMS o'zgarmaydi (prompt arxitekturasi testlari yashil
+    # qoladi) — standart faqat generatsiya chaqiruviga ulanadi.
+    try:
+        from services.ai.prompts import QUALITY_RULES as _MAGIC_QUALITY_RULES
+        _quality_block = (_MAGIC_QUALITY_RULES or {}).get(code) or \
+            _MAGIC_QUALITY_RULES.get("uz", "")
+        if _quality_block and "QUALITY STANDARD" not in system_instruction \
+                and "СТАНДАРТ КАЧЕСТВА" not in system_instruction \
+                and "SIFAT STANDARTI" not in system_instruction:
+            system_instruction = f"{system_instruction}\n\n{_quality_block}"
+    except Exception:
+        pass
 
     result = await generate_ai_response(
         material,

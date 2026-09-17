@@ -887,6 +887,10 @@ async def _studio_ai_preflight(update: Update, context: ContextTypes.DEFAULT_TYP
     Barcha xabarlar/klaviaturalar foydalanuvchi tiliga (lang) mos.
     """
     msg = update.message
+    if msg is None and getattr(update, "callback_query", None) is not None:
+        # 🧭 3-QADAM: aniqlashtirish wizard'idan qaytgan generatsiya —
+        # rad/limit xabarlari o'sha callback xabariga yuboriladi.
+        msg = update.callback_query.message
     user_id = update.effective_user.id
     is_admin = (user_id in ADMIN_IDS_SET)
     lang = get_lang(context)
@@ -1129,7 +1133,6 @@ async def ai_prompt_received(update: Update, context: ContextTypes.DEFAULT_TYPE)
     msg = update.message
     if msg is None:
         return AI_PROMPT_INPUT
-    user_id = update.effective_user.id
     lang = get_lang(context)
 
     # Albom (media_group) dublikatlarini bitta ishlov bilan cheklaymiz
@@ -1157,6 +1160,37 @@ async def ai_prompt_received(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 reply_markup=get_ai_back_keyboard(lang),
             )
         return AI_PROMPT_INPUT
+
+    # 🧭 3-QADAM (UI/UX POLISH): qisqa (< 3 so'z) yoki umumiy mavzu
+    # ("sport", "yangiliklar") darhol generatsiyaga emas, avval
+    # aniqlashtirish wizard'iga yuboriladi — kvota BRON QILINMASDAN OLDIN.
+    # Aniq/batafsil mavzular uchun None qaytadi — eski yo'l o'zgarmaydi.
+    try:
+        from handlers.ai_post import maybe_start_clarification
+    except ImportError:
+        from telegram_bot.handlers.ai_post import maybe_start_clarification
+    branch = await maybe_start_clarification(
+        msg, context, text_input, lang, origin="studio")
+    if branch is not None:
+        return branch
+
+    return await _studio_generate_and_preview(update, context, msg, text_input, lang)
+
+
+async def _studio_generate_and_preview(update: Update, context: ContextTypes.DEFAULT_TYPE,
+                                       msg, text_input: str, lang: str):
+    """AI Studio generatsiyasi: preflight → AI → preview (AI_TONE_SELECT).
+
+    🧭 3-QADAM (UI/UX POLISH): ``ai_prompt_received`` tanasidan ajratilgan —
+    xatti-harakat BITTA harfga o'zgarmagan, faqat qayta ishlatiladigan
+    yordamchi. Aniqlashtirish wizard'i (``handlers.ai_post``) boyitilgan
+    mavzu bilan shu funksiyani chaqiradi — generatsiya/kvota/refund/preview
+    mantig'i yagona joyda qoladi.
+
+    ``msg`` — javob yuboriladigan xabar (oddiy oqimda ``update.message``,
+    wizard'dan qaytganda ``callback_query.message``).
+    """
+    user_id = update.effective_user.id
 
     ok, is_admin, is_pro = await _studio_ai_preflight(update, context)
     if not ok:
