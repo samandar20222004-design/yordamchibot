@@ -256,6 +256,13 @@ TRANSLATIONS = {
         "cab_balance": "💎 Ballar & Reklama rejimi",
         "cab_referral": "👥 Do'stlarni taklif",
         "cab_close": "❌ Yopish",
+        # 🧹 UI/UX POLISH (1-qadam): yagona Shaxsiy kabinet paneli —
+        # tarqoq bonus/referral tugmalari birlashtirildi (eski cab_balance,
+        # cab_bonus, cab_referral callback'lari routing'da saqlanadi).
+        "cab_bonus_invite": "🎁 Bonuslar & Taklif",
+        "cab_payments": "💳 To'lovlar tarixi",
+        "cab_notifications": "🔔 Bildirishnomalar",
+        "cab_help_guide": "❓ Yordam & Qo'llanma",
         "cab_add_channel": "➕ Kanal qo'shish",
         "cab_del_channel": "🗑 Kanalni o'chirish",
         "cab_del_channel": "🗑 Kanalni o'chirish",
@@ -2206,6 +2213,11 @@ TRANSLATIONS = {
         "cab_balance": "💎 Баллы & Режим рекламы",
         "cab_referral": "👥 Пригласить друзей",
         "cab_close": "❌ Закрыть",
+        # 🧹 UI/UX POLISH (1-qadam): yagona Shaxsiy kabinet paneli.
+        "cab_bonus_invite": "🎁 Бонусы и приглашения",
+        "cab_payments": "💳 История платежей",
+        "cab_notifications": "🔔 Уведомления",
+        "cab_help_guide": "❓ Помощь и руководство",
         "cab_add_channel": "➕ Добавить канал",
         "cab_del_channel": "🗑 Удалить канал",
         "cab_remove_channel": "❌ Удалить",

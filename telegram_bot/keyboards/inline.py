@@ -892,32 +892,45 @@ def render_pending_list(posts: list, user_code: str, lang: str = "uz") -> Inline
 
 
 def get_cabinet_inline_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
-    """Kabinet & Sozlamalar asosiy menyusi — inline tugmalar (4x2).
+    """Shaxsiy kabinet — IXCHAM 5 TUGMALI PANEL (UI/UX polish, 1-qadam).
 
-    ``lang`` foydalanuvchi tili (uz/ru). Tugma matni tarjima qilinadi,
-    ``callback_data`` o'zgarishsiz qoladi (routing tilga bog'liq emas).
+        [🎁 Bonuslar & Taklif]  [💳 To'lovlar tarixi]
+        [🔔 Bildirishnomalar]   [❓ Yordam & Qo'llanma]
+                 [❌ Yopish]
 
-    🧹 PROFIL TOZALANDI: «🌐 Til» tugmasi profildan OLIB TASHLANDI — til
-    FAQAT Sozlamalar → «🌐 Til / Язык» (``stgs_lang``) ichida qoldi. Eski
-    ``cab_lang`` callback'i esa chat tarixidagi xabarlar uchun routing'da
-    saqlanadi (handlers.start.cabinet_callback).
+    🧹 TOZALANDI (pastki asosiy menyu bilan dublikatlar):
+      * «📢 Mening kanallarim» / «📊 Kanallar analitikasi» — pastki menyuda
+        📢 Kanallarim va 📊 Statistika bor;
+      * «📅 Kutilayotgan postlar» / «📅 Rejalashtirilgan» — pastki menyuda
+        📅 Rejalashtirilgan bor;
+      * «👤 Profil» — kabinet matnining o'zi profil (qayta takrorlanmaydi);
+      * «🌐 Til» — FAQAT ⚙️ Sozlamalar ichida qoladi;
+      * «💎 Ballar & Reklama rejimi», «🎁 Kunlik bonus», «👥 Do'stlarni
+        taklif» tarqoq tugmalari YAGONA «🎁 Bonuslar & Taklif» tugmasiga
+        birlashtirildi (stgs_rewards submenu'si: Ballarim, Ballar
+        o'tkazish, Kunlik bonus, Do'stlarni taklif).
+
+    Callback'lar MAVJUD, sinovdan o'tgan ``stgs_*`` oqimlariga ulanadi —
+    yangi handler/routing KIRITILMADI. Eski ``cab_*`` callback'lari chat
+    tarixidagi eski xabarlar uchun routing'da saqlanadi (backward compat).
+    ``lang`` foydalanuvchi tili (uz/ru/en); callback_data tilga bog'liq emas.
     """
     keyboard = [
         [
-            InlineKeyboardButton(get_text("cab_my_channels", lang), callback_data="cab_channels"),
-            InlineKeyboardButton(get_text("cab_analytics", lang), callback_data="cab_analytics"),
+            InlineKeyboardButton(get_text("cab_bonus_invite", lang),
+                                 callback_data="stgs_rewards"),
+            InlineKeyboardButton(get_text("cab_payments", lang),
+                                 callback_data="stgs_pay"),
         ],
         [
-            InlineKeyboardButton(get_text("cab_pending", lang), callback_data="cab_pending"),
-            InlineKeyboardButton(get_text("cab_queue", lang), callback_data="cab_queue"),
+            InlineKeyboardButton(get_text("cab_notifications", lang),
+                                 callback_data="stgs_notif"),
+            InlineKeyboardButton(get_text("cab_help_guide", lang),
+                                 callback_data="stgs_help_hub"),
         ],
         [
-            InlineKeyboardButton(get_text("cab_balance", lang), callback_data="cab_balance"),
-            InlineKeyboardButton(get_text("cab_btn_daily_bonus", lang), callback_data="cab_bonus"),
-        ],
-        [
-            InlineKeyboardButton(get_text("cab_referral", lang), callback_data="cab_referral"),
-            InlineKeyboardButton(get_text("cab_close", lang), callback_data="close_cabinet"),
+            InlineKeyboardButton(get_text("cab_close", lang),
+                                 callback_data="close_cabinet"),
         ],
     ]
     return InlineKeyboardMarkup(keyboard)
@@ -926,8 +939,10 @@ def get_cabinet_inline_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
 def get_settings_profile_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
     """👤 Profil ekranining compatibility klaviaturasi + Sozlamalarga qaytish.
 
-    Eski kabinet amallari saqlanadi, lekin yangi settings oqimida aniq parent
-    tugmasi ham ko'rsatiladi: [◀️ Orqaga] → ``stgs_hub``.
+    Kabinet paneli (5 ta ixcham tugma) + aniq parent tugmasi:
+    [◀️ Orqaga] → ``stgs_hub``. Bu ekran endi hub'dan Profil tugmasi
+    olib tashlangani uchun FAQAT chat tarixidagi eski ``stgs_profile``
+    tugmalari bosilganda ochiladi (backward compatibility).
     """
     base = get_cabinet_inline_keyboard(lang)
     rows = [list(row) for row in base.inline_keyboard]
@@ -940,53 +955,56 @@ def get_settings_profile_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
 
 
 # ============================================================
-# ⚙️ SOZLAMALAR — IXCHAM 8 GURUHLI HUB (PostAssist V2, 2-bosqich)
+# ⚙️ SOZLAMALAR — IXCHAM 7 GURUHLI HUB (PostAssist UI/UX polish)
 # ------------------------------------------------------------
-# Asosiy Sozlamalar ekrani faqat yuqori darajadagi guruhlarni ko'rsatadi:
+# Asosiy Sozlamalar ekrani faqat yuqori darajadagi guruhlarni ko'rsatadi.
+# 🧹 «👤 Profil» tugmasi OLIB TASHLANDI — hub matnining o'zi profil kartasi
+# (build_cabinet_text), alohida Profil tugmasi uni ikki marta takrorlar.
 #
-#     [👤 Profil]             [🌐 Til / Язык]
-#     [🎁 Bonuslar & Ballar]  [🎨 Post sozlamalari]
-#     [🔔 Bildirishnomalar]   [💳 To'lovlar tarixi]
-#     [🧰 Vositalar]          [❓ Yordam & Ma'lumot]
+#     [🌐 Til / Язык]         [🎁 Bonuslar & Taklif]
+#     [🎨 Post sozlamalari]   [🔔 Bildirishnomalar]
+#     [💳 To'lovlar tarixi]   [🧰 Vositalar]
+#     [❓ Yordam & Ma'lumot]
 #                    [◀️ Orqaga]
 #
-# Bonuslar/ballar va yordam/ma'lumot bo'limlari o'z submenu'lariga ega.
-# Eski callback'lar alohida handlerlarda ham saqlanadi — Telegram chat
-# tarixidagi eski inline tugmalar yangi oqimlarda "o'lik" bo'lib qolmaydi.
+# Bonuslar/takliflar va yordam/ma'lumot bo'limlari o'z submenu'lariga ega.
+# «🎨 Post sozlamalari» va «🧰 Vositalar» FAQAT shu menyuda bo'ladi.
+# Eski callback'lar (stgs_profile kabilar) alohida handlerlarda ham
+# saqlanadi — Telegram chat tarixidagi eski inline tugmalar yangi
+# oqimlarda "o'lik" bo'lib qolmaydi.
 # ============================================================
 
 
 def get_settings_hub_keyboard(lang: str = "uz", include_legacy: bool = False) -> InlineKeyboardMarkup:
-    """⚙️ Sozlamalar asosiy hub'i: 8 ta guruh + [◀️ Orqaga].
+    """⚙️ Sozlamalar asosiy hub'i: 7 ta guruh + [◀️ Orqaga].
 
     ``include_legacy`` avvalgi 12-tugmali API bilan chaqiruvchi kodlar uchun
     saqlangan. Legacy tugmalar endi yangi hub'da ko'rsatilmaydi; ularning
     callback'lari esa routing'da qo'llab-quvvatlanadi.
+    🧹 «👤 Profil» hub'dan olib tashlandi — hub matnining o'zi profil.
     """
     from translations import settings_stats_t  # lazy — aylanma importdan himoya
 
     keyboard = [
         [
-            InlineKeyboardButton(settings_stats_t("ss_btn_profile", lang),
-                                 callback_data="stgs_profile"),
             InlineKeyboardButton(settings_stats_t("ss_btn_lang", lang),
                                  callback_data="stgs_lang"),
-        ],
-        [
             InlineKeyboardButton(settings_stats_t("ss_btn_rewards", lang),
                                  callback_data="stgs_rewards"),
+        ],
+        [
             InlineKeyboardButton(settings_stats_t("ss_btn_post_settings", lang),
                                  callback_data="stgs_post"),
-        ],
-        [
             InlineKeyboardButton(settings_stats_t("ss_btn_notif", lang),
                                  callback_data="stgs_notif"),
-            InlineKeyboardButton(settings_stats_t("ss_btn_payments", lang),
-                                 callback_data="stgs_pay"),
         ],
         [
+            InlineKeyboardButton(settings_stats_t("ss_btn_payments", lang),
+                                 callback_data="stgs_pay"),
             InlineKeyboardButton(settings_stats_t("ss_btn_tools", lang),
                                  callback_data="stgs_tools"),
+        ],
+        [
             InlineKeyboardButton(settings_stats_t("ss_btn_help_hub", lang),
                                  callback_data="stgs_help_hub"),
         ],

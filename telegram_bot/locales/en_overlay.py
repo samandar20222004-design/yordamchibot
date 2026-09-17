@@ -62,6 +62,11 @@ EN_OVERLAY = {
     "btn_main_menu": "🔙 Main menu",
     "btn_back": "⬅️ Back",
     "cab_close": "❌ Close",
+    # 🧹 UI/UX POLISH (1-qadam): yagona Shaxsiy kabinet paneli.
+    "cab_bonus_invite": "🎁 Bonuses & Invites",
+    "cab_payments": "💳 Payment history",
+    "cab_notifications": "🔔 Notifications",
+    "cab_help_guide": "❓ Help & Guide",
     "ai_studio_content_plan": "🧠 Content plan",
     "ai_studio_content_plan_intro": (
         "🧠 <b>Content-plan generator</b>\n\nWhich channel should we plan for?"

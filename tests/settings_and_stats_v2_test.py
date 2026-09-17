@@ -10,12 +10,12 @@ Qamrov (topshiriq spetsifikatsiyasi bilan birma-bir):
            Natija ostida amallar: [🔄 Yangilash] [◀️ Orqaga]; Yangilash
            ma'lumotlarni qayta o'qiydi, Orqaga asosiy menyuga qaytaradi.
   TEST 2:  ⚙️ SOZLAMALAR — [⚙️ Sozlamalar] bosilganda 8 ta guruhli hub:
-             [👤 Profil]             [🌐 Til / Язык]
-             [🎁 Bonuslar & Ballar]  [🎨 Post sozlamalari]
+             [🌐 Til / Язык]         [🎁 Bonuslar & Taklif]
+             [🎨 Post sozlamalari]   [🔔 Bildirishnomalar]
              [🔔 Bildirishnomalar]   [💳 To'lovlar tarixi]
              [🧰 Vositalar]          [❓ Yordam & Ma'lumot]
                           [◀️ Orqaga]
-           Bonuslar & Ballar hamda Yordam & Ma'lumot o'z submenu'larini
+           Bonuslar & Taklif hamda Yordam & Ma'lumot o'z submenu'larini
            ochadi; ichki [◀️ Orqaga] har doim ``stgs_hub`` ga qaytadi.
            Eski callback'lar to'liq alias sifatida ishlashda davom etadi.
   TEST 3:  ⚙️ ADMIN PANEL — oddiy foydalanuvchiga HECH QACHON ko'rinmaydi
@@ -69,28 +69,30 @@ EXPECTED_STATS_MARKERS = {
            "📅 Scheduled posts", "🤖 AI requests", "Credits spent"),
 }
 
-# Sozlamalar menyusi — yangi 8 ta guruh callback'lari (tartib bilan).
+# Sozlamalar menyusi — yangi 7 ta guruh callback'lari (tartib bilan).
+# 🧹 UI/UX POLISH (1-qadam): «stgs_profile» hub'dan OLIB TASHLANDI —
+# hub matnining o'zi profil kartasi; routing'da esa legacy sifatida saqlanadi.
 EXPECTED_SETTINGS_CBS = (
-    "stgs_profile", "stgs_lang",
+    "stgs_lang",
     "stgs_rewards", "stgs_post",
     "stgs_notif", "stgs_pay",
     "stgs_tools", "stgs_help_hub",
 )
 
-# Sozlamalar menyusi yorliqlari — yangi 8 guruhli SPEKS tartibi.
+# Sozlamalar menyusi yorliqlari — yangi 7 guruhli SPEKS tartibi.
 EXPECTED_SETTINGS_LABELS = {
-    "uz": (("👤 Profil", "🌐 Til / Язык"),
-           ("🎁 Bonuslar & Ballar", "🎨 Post sozlamalari"),
-           ("🔔 Bildirishnomalar", "💳 To'lovlar tarixi"),
-           ("🧰 Vositalar", "❓ Yordam & Ma'lumot")),
-    "ru": (("👤 Профиль", "🌐 Язык / Language"),
-           ("🎁 Бонусы и баллы", "🎨 Настройки постов"),
-           ("🔔 Уведомления", "💳 История платежей"),
-           ("🧰 Инструменты", "❓ Помощь и информация")),
-    "en": (("👤 Profile", "🌐 Language"),
-           ("🎁 Bonuses & Credits", "🎨 Post settings"),
-           ("🔔 Notifications", "💳 Payment history"),
-           ("🧰 Tools", "❓ Help & Info")),
+    "uz": (("🌐 Til / Язык", "🎁 Bonuslar & Taklif"),
+           ("🎨 Post sozlamalari", "🔔 Bildirishnomalar"),
+           ("💳 To'lovlar tarixi", "🧰 Vositalar"),
+           ("❓ Yordam & Ma'lumot",)),
+    "ru": (("🌐 Язык / Language", "🎁 Бонусы и приглашения"),
+           ("🎨 Настройки постов", "🔔 Уведомления"),
+           ("💳 История платежей", "🧰 Инструменты"),
+           ("❓ Помощь и информация",)),
+    "en": (("🌐 Language", "🎁 Bonuses & Invites"),
+           ("🎨 Post settings", "🔔 Notifications"),
+           ("💳 Payment history", "🧰 Tools"),
+           ("❓ Help & Info",)),
 }
 
 
@@ -418,7 +420,7 @@ def test_statistics_overview_format():
 # TEST 2 — ⚙️ SOZLAMALAR: 8 GURUH + [◀️ ORQAGA] (legacy aliaslar bilan)
 # ============================================================================
 def test_settings_menu_structure_and_flows():
-    print("\n== TEST 2: ⚙️ Sozlamalar — 8 guruh + rewards/help hub ==")
+    print("\n== TEST 2: ⚙️ Sozlamalar — 7 guruh + rewards/help hub (Profil hub'dan olib tashlangan) ==")
 
     # Legacy kabinet tezkor tugmalari — menyuda KO'RINMASLIGI shart
     # (ular o'z asosiy menyularida bor: 📢 Kanallarim, 📅 Rejalashtirilgan...).
@@ -430,13 +432,13 @@ def test_settings_menu_structure_and_flows():
         kb = get_settings_hub_keyboard(lang)
         rows = kb_rows_inline(kb)
         expected = EXPECTED_SETTINGS_LABELS[lang]
-        check(f"{lang}: birinchi 4 qator = speksdagi 8 guruh",
+        check(f"{lang}: birinchi 4 qator = speksdagi 7 guruh (Profil yo'q)",
               [[t for t, _ in row] for row in rows[:4]] == [
                   list(r) for r in expected],
               str(rows[:4]))
-        check(f"{lang}: 8 guruh callback tartibi",
-              kb_flat_cbs(kb)[:8] == list(EXPECTED_SETTINGS_CBS),
-              str(kb_flat_cbs(kb)[:8]))
+        check(f"{lang}: 7 guruh callback tartibi",
+              kb_flat_cbs(kb)[:7] == list(EXPECTED_SETTINGS_CBS),
+              str(kb_flat_cbs(kb)[:7]))
         check(f"{lang}: oxirgi qator = [◀️ Orqaga] (stgs_back)",
               rows[-1] == [(settings_stats_t("ss_btn_back", lang), "stgs_back")],
               str(rows[-1]))
@@ -466,9 +468,11 @@ def test_settings_menu_structure_and_flows():
               get_text("cabinet_title", lang, user_id=USER_ID, user_code="TST777",
                        credits="7", streak="3/7", channels=2, referrals=2,
                        ad_line="").splitlines()[0] in text, text[:80])
-        check(f"{lang}: 8 guruh callback menyuda",
+        check(f"{lang}: 7 guruh callback menyuda",
               all(cb in cbs for cb in EXPECTED_SETTINGS_CBS), str(cbs))
         check(f"{lang}: stgs_back menyuda", "stgs_back" in cbs)
+        check(f"{lang}: stgs_profile hub'da YO'Q (matn o'zi profil)",
+              "stgs_profile" not in cbs, str(cbs))
         check(f"{lang}: legacy tugmalar yo'q (user_cabinet_menu)",
               not any(cb in cbs for cb in legacy_cbs), str(cbs))
         labels = [b.text for row in msg.sent[-1]["reply_markup"].inline_keyboard
@@ -478,7 +482,7 @@ def test_settings_menu_structure_and_flows():
               and get_text("cab_pending", lang) not in labels
               and get_text("cab_balance", lang) not in labels, str(labels))
 
-    # 2c) 🎁 Bonuslar & Ballar submenu'si — eski callback nomlari saqlanadi.
+    # 2c) 🎁 Bonuslar & Taklif submenu'si — eski callback nomlari saqlanadi.
     reward_cbs = ["stgs_credits", "stgs_transfer", "claim_bonus",
                   "referral_hub", "stgs_hub"]
     help_cbs_expected = ["help_hub", "help_support", "stgs_about", "stgs_hub"]
@@ -528,8 +532,16 @@ def test_settings_menu_structure_and_flows():
     prof_text = q.screen.get("text", "")
     prof_cbs = kb_flat_cbs(q.screen.get("reply_markup"))
     check("profil: cabinet_title matni", "Shaxsiy Kabinet" in prof_text, prof_text[:80])
-    check("profil: cabinet klaviaturasi + stgs_hub orqaga",
-          "cab_channels" in prof_cbs and "stgs_hub" in prof_cbs, str(prof_cbs))
+    # 🧹 UI/UX POLISH: profil ekrani endi IXCHAM 5 TUGMALI kabinet paneli
+    # (stgs_rewards/stgs_pay/stgs_notif/stgs_help_hub) + stgs_hub orqaga.
+    check("profil: kabinet paneli + stgs_hub orqaga",
+          all(cb in prof_cbs for cb in ("stgs_rewards", "stgs_pay", "stgs_notif",
+                                        "stgs_help_hub", "close_cabinet", "stgs_hub")),
+          str(prof_cbs))
+    check("profil: eski cab_* dublikatlari panel'da YO'Q",
+          not any(cb in prof_cbs for cb in ("cab_channels", "cab_analytics",
+                                            "cab_pending", "cab_queue", "cab_balance")),
+          str(prof_cbs))
     # 🧹 PROFIL TOZALANDI: «🌐 Til» tugmasi profildan OLIB TASHLANGAN — til
     # faqat Sozlamalar → «🌐 Til / Язык» (stgs_lang) ichida qoldi.
     check("profil: cab_lang tugmasi profilda YO'Q",

@@ -1113,35 +1113,42 @@ def test_main_menu_layout_v2():
     check("extras: yopish", ex[2][0] == ("❌ Yopish", "extra_close"), str(ex[2]))
 
     cab = [[(b.text, b.callback_data) for b in row] for row in get_cabinet_inline_keyboard().inline_keyboard]
-    # 🧹 PROFIL TOZALANDI: «🌐 Til» tugmasi profildan olib tashlandi (til
-    # faqat Sozlamalar → Til ichida) — endi 4 qator.
-    check("kabinet: 4 qator (Til tugmasiz)", len(cab) == 4, str(cab))
+    # 🧹 UI/UX POLISH (1-qadam): kabinet — IXCHAM 5 TUGMALI PANEL.
+    # Pastki menyu dublikatlari (kanallar/analitika, kutilayotgan/rejalashtirilgan),
+    # qayta «Profil» va «Til» tugmalari olib tashlandi; tarqoq bonus/referral
+    # tugmalari YAGONA «🎁 Bonuslar & Taklif» ga birlashtirildi.
+    check("kabinet: 3 qator (ixcham 5 tugmali panel)", len(cab) == 3, str(cab))
     expected = [
-        [("📢 Mening kanallarim", "cab_channels"), ("📊 Kanallar analitikasi", "cab_analytics")],
-        [("📅 Kutilayotgan postlar", "cab_pending"), ("📅 Rejalashtirilgan", "cab_queue")],
-        [("💎 Ballar & Reklama rejimi", "cab_balance"), ("🎁 Kunlik bonus", "cab_bonus")],
-        [("👥 Do'stlarni taklif", "cab_referral"), ("❌ Yopish", "close_cabinet")],
+        [("🎁 Bonuslar & Taklif", "stgs_rewards"), ("💳 To'lovlar tarixi", "stgs_pay")],
+        [("🔔 Bildirishnomalar", "stgs_notif"), ("❓ Yordam & Qo'llanma", "stgs_help_hub")],
+        [("❌ Yopish", "close_cabinet")],
     ]
     check("kabinet tartibi", cab == expected, str(cab))
     check("kabinet: cab_lang tugmasi YO'Q",
           "cab_lang" not in [c for row in cab for _t, c in row], str(cab))
+    flat_cab_cbs = [c for row in cab for _t, c in row]
+    for legacy_cb in ("cab_channels", "cab_analytics", "cab_pending",
+                      "cab_queue", "cab_balance", "cab_bonus", "cab_referral"):
+        check(f"kabinet: eski dublikat {legacy_cb} YO'Q", legacy_cb not in flat_cab_cbs, str(cab))
 
 
 def test_analytics_main_keyboard():
-    """Asosiy menyuda Analitika tugmasi bor."""
+    """Asosiy menyuda Statistika tugmasi bor; kabinetda analitika dublikati YO'Q."""
     print("== Analytics main keyboard ==")
-    from keyboards.default import get_main_keyboard, BTN_ANALYTICS
+    from keyboards.default import get_main_keyboard, BTN_ANALYTICS, BTN_STATISTICS
 
     check("BTN_ANALYTICS mavjud", BTN_ANALYTICS == "📊 Analitika")
 
-    # Analitika endi Kabinet & Sozlamalar inline menyusida
+    # 🧹 UI/UX POLISH (1-qadam): «📊 Kanallar analitikasi» kabinetdan
+    # OLIB TASHLANDI — pastki menyuda 📊 Statistika (shaxsiy hisobot) bor.
     from keyboards.inline import get_cabinet_inline_keyboard
     cab_cbs = [b.callback_data for row in get_cabinet_inline_keyboard().inline_keyboard for b in row]
-    check("kabinet kb: analitika bor", "cab_analytics" in cab_cbs)
+    check("kabinet kb: analitika dublikati YO'Q", "cab_analytics" not in cab_cbs, str(cab_cbs))
 
     kb = get_main_keyboard(False)
     all_texts = [b.text for row in kb.keyboard for b in row]
-    check("main kb: Analitika yo'q (Kabinet ichida)", BTN_ANALYTICS not in all_texts)
+    check("main kb: Statistika tugmasi bor (yagona joy)", BTN_STATISTICS in all_texts)
+    check("main kb: Analitika yorlig'i yo'q (Statistika ostida)", BTN_ANALYTICS not in all_texts)
 
 
 def test_plan_limits():
@@ -2521,7 +2528,9 @@ def test_queue_main_keyboard():
     kb = get_main_keyboard(is_admin=False)
     texts = [b.text for row in kb.keyboard for b in row]
     cab_cbs = [b.callback_data for row in get_cabinet_inline_keyboard().inline_keyboard for b in row]
-    check("queue tugmasi kabinetda", "cab_queue" in cab_cbs, str(cab_cbs))
+    # 🧹 UI/UX POLISH (1-qadam): «📅 Rejalashtirilgan» kabinetdan OLIB
+    # TASHLANDI — u FAQAT pastki asosiy menyuda (dublikat yo'q).
+    check("queue tugmasi kabinetda YO'Q (pastki menyuda)", "cab_queue" not in cab_cbs, str(cab_cbs))
     # PostAssist V2 (4-qadam): eskirgan «📚 Navbat (Queue)» yagona
     # «📅 Rejalashtirilgan» nomiga o'tkazildi (kalitlar/aliaslar saqlanadi).
     check("BTN_QUEUE matni (📅 Rejalashtirilgan)", BTN_QUEUE == "📅 Rejalashtirilgan", BTN_QUEUE)
@@ -6071,6 +6080,8 @@ def test_cabinet_i18n_suite():
         "cab_del_channel", "cab_remove_channel", "cab_tone",
         "cab_add_channel_alt", "cab_channels_delete_empty",
         "cab_channels_delete_title", "no_channels_hint",
+        # 🧹 UI/UX POLISH: ixcham 5 tugmali kabinet paneli (yagona manba).
+        "cab_bonus_invite", "cab_payments", "cab_notifications", "cab_help_guide",
         "credits_value", "cabinet_credits_admin", "cabinet_streak",
         "cabinet_title", "daily_bonus_admin", "daily_bonus_claimed",
         "daily_bonus_reset_notice", "daily_bonus_already",
@@ -6132,16 +6143,16 @@ def test_cabinet_i18n_suite():
     cab_texts = [b.text for row in cab.inline_keyboard for b in row]
     cab_cbs = [b.callback_data for row in cab.inline_keyboard for b in row]
     check("kabinet inline ru: yorliqlar tarjimasi",
-          get_text("cab_my_channels", "ru") in cab_texts
+          get_text("cab_bonus_invite", "ru") in cab_texts
           and get_text("cab_close", "ru") in cab_texts, str(cab_texts))
-    # Til tugmasi profildan olib tashlangan — callback ro'yxati 8 ta.
-    check("kabinet inline ru: callback_data (Tilsiz)",
-          cab_cbs == ["cab_channels", "cab_analytics", "cab_pending",
-                      "cab_queue", "cab_balance", "cab_bonus", "cab_referral",
-                      "close_cabinet"], str(cab_cbs))
+    # 🧹 UI/UX POLISH (1-qadam): kabinet — ixcham 5 tugmali panel; eski
+    # cab_* dublikat callback'lari FAQAT routing'da saqlanadi.
+    check("kabinet inline ru: callback_data (ixcham panel)",
+          cab_cbs == ["stgs_rewards", "stgs_pay", "stgs_notif",
+                      "stgs_help_hub", "close_cabinet"], str(cab_cbs))
     check("kabinet inline uz: default",
           [b.text for row in get_cabinet_inline_keyboard().inline_keyboard for b in row][0]
-          == get_text("cab_my_channels", "uz"))
+          == get_text("cab_bonus_invite", "uz"))
 
     back = get_cabinet_back_keyboard("ru")
     check("kabinet orqaga kb ru",

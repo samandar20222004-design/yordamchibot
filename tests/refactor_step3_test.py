@@ -114,18 +114,20 @@ def check(label, condition, extra=""):
 # SPEKS: menyu tarkibi va yorliqlari (uchala til)
 # ---------------------------------------------------------------------------
 HUB_LABELS = {
-    "uz": (("👤 Profil", "🌐 Til / Язык"),
-           ("🎁 Bonuslar & Ballar", "🎨 Post sozlamalari"),
-           ("🔔 Bildirishnomalar", "💳 To'lovlar tarixi"),
-           ("🧰 Vositalar", "❓ Yordam & Ma'lumot")),
-    "ru": (("👤 Профиль", "🌐 Язык / Language"),
-           ("🎁 Бонусы и баллы", "🎨 Настройки постов"),
-           ("🔔 Уведомления", "💳 История платежей"),
-           ("🧰 Инструменты", "❓ Помощь и информация")),
-    "en": (("👤 Profile", "🌐 Language"),
-           ("🎁 Bonuses & Credits", "🎨 Post settings"),
-           ("🔔 Notifications", "💳 Payment history"),
-           ("🧰 Tools", "❓ Help & Info")),
+    # 🧹 UI/UX POLISH (1-qadam): «👤 Profil» yo'q — hub matnining o'zi profil;
+    # «🎁 Bonuslar & Ballar» → yagona «🎁 Bonuslar & Taklif».
+    "uz": (("🌐 Til / Язык", "🎁 Bonuslar & Taklif"),
+           ("🎨 Post sozlamalari", "🔔 Bildirishnomalar"),
+           ("💳 To'lovlar tarixi", "🧰 Vositalar"),
+           ("❓ Yordam & Ma'lumot",)),
+    "ru": (("🌐 Язык / Language", "🎁 Бонусы и приглашения"),
+           ("🎨 Настройки постов", "🔔 Уведомления"),
+           ("💳 История платежей", "🧰 Инструменты"),
+           ("❓ Помощь и информация",)),
+    "en": (("🌐 Language", "🎁 Bonuses & Invites"),
+           ("🎨 Post settings", "🔔 Notifications"),
+           ("💳 Payment history", "🧰 Tools"),
+           ("❓ Help & Info",)),
 }
 
 #: Legacy kabinet callback'lari — menyu KO'RINISHIDA bo'lmasligi shart
@@ -487,19 +489,21 @@ def test_settings_hub_has_no_legacy_duplicates():
         rows = _rows(kb)
         cbs = _cbs(kb)
 
-        check(f"[{lang}] menyu 5 qator (4 juftlik + ◀️ Orqaga)",
+        check(f"[{lang}] menyu 5 qator (3 juftlik + Yordam + ◀️ Orqaga)",
               len(rows) == 5, str(len(rows)))
-        check(f"[{lang}] 8 guruh AYNAN speks tartibida",
+        check(f"[{lang}] 7 guruh AYNAN speks tartibida (Profil olib tashlangan)",
               [[t for t, _ in row] for row in rows[:4]]
               == [list(pair) for pair in HUB_LABELS[lang]],
               str([[t for t, _ in row] for row in rows[:4]]))
         check(f"[{lang}] callback tartibi speks bilan bir xil",
-              cbs[:8] == list(CB_SETTINGS_HUB[:8]), str(cbs))
+              cbs[:7] == list(CB_SETTINGS_HUB[:7]), str(cbs))
         check(f"[{lang}] oxirgi qator = [◀️ Orqaga] → stgs_back",
               rows[-1] == [(settings_stats_t("ss_btn_back", lang), "stgs_back")],
               str(rows[-1]))
-        check(f"[{lang}] jami 9 tugma (8 + Orqaga)",
-              len(cbs) == 9, str(len(cbs)))
+        check(f"[{lang}] jami 8 tugma (7 + Orqaga, Profil yo'q)",
+              len(cbs) == 8, str(len(cbs)))
+        check(f"[{lang}] stgs_profile hub'da YO'Q (matn o'zi profil)",
+              "stgs_profile" not in cbs, str(cbs))
         check(f"[{lang}] callback'lar takrorlanmaydi",
               len(set(cbs)) == len(cbs), str(cbs))
 
@@ -528,7 +532,8 @@ def test_settings_hub_has_no_legacy_duplicates():
             _run(start_mod.user_cabinet_menu(_msg_update(msg), _ctx(lang)))
         last = msg.sent[-1]
         cbs = _cbs(last["reply_markup"])
-        check(f"[{lang}] hub ekrani 9 tugma bilan ochiladi", len(cbs) == 9, str(cbs))
+        check(f"[{lang}] hub ekrani 8 tugma bilan ochiladi (Profil yo'q)",
+              len(cbs) == 8, str(cbs))
         check(f"[{lang}] hub ekrani legacy tugmasiz",
               not any(cb in cbs for cb in LEGACY_HUB_CALLBACKS), str(cbs))
         check(f"[{lang}] hub profil kartasi bilan (Shaxsiy Kabinet)",
@@ -726,7 +731,7 @@ def test_tools_submenu_wires_converter_and_enhancer():
     with _with_db(_FakeDB()):
         q = _Query("stgs_hub")
         _run(settings_mod.settings_menu_callback(_query_update(q), _ctx("uz")))
-    check("vositalar → orqaga: sozlamalar 9 tugmasi qaytdi",
+    check("vositalar → orqaga: sozlamalar 8 tugmasi qaytdi",
           _cbs(q.screen.get("reply_markup")) == list(CB_SETTINGS_HUB),
           str(_cbs(q.screen.get("reply_markup"))))
     check("vositalar → orqaga: yangi xabar yuborilmadi (edit)",

@@ -6,10 +6,11 @@ Bo'limlar:
   * 📊 STATISTIKA — asosiy menyudagi «📊 Statistika» tugmasi ochadigan IXCHAM
     umumiy ko'rsatkichlar ekrani (ss_stats_*) va uning amallari
     [🔄 Yangilash] [◀️ Orqaga] (ss_btn_refresh / ss_btn_back);
-  * ⚙️ SOZLAMALAR — IXCHAM 8 guruhli menyu (2-bosqich):
-    👤 Profil, 🌐 Til / Язык, 🎁 Bonuslar & Ballar, 🎨 Post sozlamalari,
+  * ⚙️ SOZLAMALAR — IXCHAM 7 guruhli menyu (UI/UX polish):
+    🌐 Til / Язык, 🎁 Bonuslar & Taklif, 🎨 Post sozlamalari,
     🔔 Bildirishnomalar, 💳 To'lovlar tarixi, 🧰 Vositalar,
-    ❓ Yordam & Ma'lumot + ◀️ Orqaga (ss_btn_*);
+    ❓ Yordam & Ma'lumot + ◀️ Orqaga (ss_btn_*). «👤 Profil» hub'dan
+    olib tashlangan — hub matnining o'zi profil kartasi;
   * 🎁 BONUSLAR & BALLAR hub'i — 💎 Ballarim, 🔄 Ballar o'tkazish,
     🎁 Kunlik bonus, 👥 Do'stlarni taklif (ss_rewards_title);
   * ❓ YORDAM & MA'LUMOT hub'i — 📖 Qo'llanma & FAQ,
@@ -86,7 +87,7 @@ SETTINGS_STATS_I18N = {
         # cabinet_title'da; Til tugmasi profildan olib tashlangan).
         "ss_profile_sub_pro": "⭐️ Obuna: <b>PRO</b> (muddatigacha: {date})",
         "ss_profile_sub_free": "🆓 Obuna: <b>FREE</b>",
-        "ss_btn_rewards": "🎁 Bonuslar & Ballar",
+        "ss_btn_rewards": "🎁 Bonuslar & Taklif",
         "ss_btn_help_hub": "❓ Yordam & Ma'lumot",
         "ss_btn_notif": "🔔 Bildirishnomalar",
         "ss_btn_post_settings": "🎨 Post sozlamalari",
@@ -237,7 +238,7 @@ SETTINGS_STATS_I18N = {
         "ss_btn_lang": "🌐 Язык / Language",
         "ss_profile_sub_pro": "⭐️ Подписка: <b>PRO</b> (до {date})",
         "ss_profile_sub_free": "🆓 Подписка: <b>FREE</b>",
-        "ss_btn_rewards": "🎁 Бонусы и баллы",
+        "ss_btn_rewards": "🎁 Бонусы и приглашения",
         "ss_btn_help_hub": "❓ Помощь и информация",
         "ss_btn_notif": "🔔 Уведомления",
         "ss_btn_post_settings": "🎨 Настройки постов",
@@ -387,7 +388,7 @@ SETTINGS_STATS_I18N = {
         "ss_btn_lang": "🌐 Language",
         "ss_profile_sub_pro": "⭐️ Subscription: <b>PRO</b> (until {date})",
         "ss_profile_sub_free": "🆓 Subscription: <b>FREE</b>",
-        "ss_btn_rewards": "🎁 Bonuses & Credits",
+        "ss_btn_rewards": "🎁 Bonuses & Invites",
         "ss_btn_help_hub": "❓ Help & Info",
         "ss_btn_notif": "🔔 Notifications",
         "ss_btn_post_settings": "🎨 Post settings",
@@ -504,11 +505,11 @@ SETTINGS_STATS_I18N = {
 SETTINGS_STATS_KEYS = tuple(sorted(SETTINGS_STATS_I18N["uz"].keys()))
 
 # ============================================================
-# ⚙️ SOZLAMALAR MENYUSI — 8 GURUH + ORQAGA
+# ⚙️ SOZLAMALAR MENYUSI — 7 GURUH + ORQAGA (Profil hub'dan olingan)
 # ============================================================
 #: Asosiy hubdagi tugmalar — spetsifikatsiyadagi aniq tartib.
 SETTINGS_MENU_BUTTON_KEYS = (
-    "ss_btn_profile",
+    # 🧹 "ss_btn_profile" olib tashlandi — hub matnining o'zi profil.
     "ss_btn_lang",
     "ss_btn_rewards",
     "ss_btn_post_settings",
@@ -568,9 +569,8 @@ CB_STATS_BACK = "an_close"
 CB_STATS_DETAIL = "an_detail"
 CB_STATS_OVERVIEW = "an_overview"
 
-#: Asosiy 8 guruhli Sozlamalar hub'i.
+#: Asosiy 7 guruhli Sozlamalar hub'i (stgs_profile legacy routing'da).
 CB_SETTINGS_HUB = (
-    "stgs_profile",
     "stgs_lang",
     "stgs_rewards",
     "stgs_post",
