@@ -222,6 +222,20 @@ generate_faq_from_questions = build_faq_draft
 generate_faq_post = build_faq_draft
 
 
+def _load_database():
+    """``database`` modulini kech (lazy) yuklaydi — advisor/team bilan bir xil.
+
+    Modul import qilinmasa ``None`` qaytadi va chaqiruvchi ``db_unavailable``
+    shoxiga tushadi (istisno ko'tarilmaydi).
+    """
+    try:
+        import database
+        return database
+    except Exception:
+        logger.debug("database moduli yuklanmadi (comments analyzer)", exc_info=True)
+        return None
+
+
 async def analyze_comments(channel_id: str | int, user_id: int, comments: Iterable[Any], *,
                            db_module: Any = None, min_occurrences: int = 2,
                            lang: str = "uz") -> dict:
