@@ -264,6 +264,37 @@ from handlers.content_calendar_flow import (
     calendar_duration_callback, calendar_stale_callback,
 )
 
+# 8c. 🚀 AI AUTOPILOT — 7 kunlik to'liq post rejasi (PHASE C, 7-band).
+# Kanal kontekstidan (``ch_ap:``) ochiladi: mavzu → AI reja (Channel DNA +
+# Best Time asosida) → tasdiqlash oynasi ([🚀 Hammasini rejalashtirish] /
+# [✏️ Tahrirlash] / [🔄 Qayta yaratish] / [❌ Bekor qilish]) → 7 post BITTA
+# atomik tranzaksiyada navbatga. FREE navbat limiti qat'iy nazoratda;
+# dublikat detektori 85%+ o'xshashlikda 3 tugmali ogohlantirish beradi.
+from handlers.autopilot import (
+    AUTOPILOT_TOPIC, AUTOPILOT_VIEW, AUTOPILOT_EDIT_DAY, AUTOPILOT_EDIT_INPUT,
+    channel_autopilot_entry, autopilot_topic_received,
+    autopilot_confirm_callback, autopilot_force_callback,
+    autopilot_refresh_callback, autopilot_regen_callback,
+    autopilot_edit_callback, autopilot_edit_day_callback,
+    autopilot_edit_input_received, autopilot_cancel_callback,
+    autopilot_stale_callback,
+)
+
+# 8d. 📋 POST SHABLONLARI — takroriy postlar shablonlari (PHASE C, 9-band).
+# Kanal kontekstidan (``ch_tpl:``) ochiladi: [➕ Yangi shablon] /
+# [📋 Shablonni ishlatish] / [🗑 O'chirish]. Shablon o'zgaruvchilari:
+# {TITLE} {TEXT} {PRICE} {LINK} {CTA} {SOURCE} {DATE}; render natijasi
+# TO'G'RIDAN-TO'G'RI ✍️ oddiy post preview paneliga o'tadi (yuborish /
+# rejalashtirish). IDOR: barcha DB amallari user_id bilan filtrlanadi.
+from handlers.templates import (
+    TPL_MENU, TPL_NEW_NAME, TPL_NEW_CONTENT, TPL_USE_PICK,
+    TPL_USE_VARS, TPL_DEL_PICK,
+    channel_templates_entry, templates_menu_callback,
+    template_name_received, template_content_received,
+    template_pick_callback, template_vars_received,
+    template_remove_callback, templates_stale_callback,
+)
+
 # 9. ANALYTICS MODULI
 from handlers.analytics import (
     start_analytics, analytics_channel_chosen, analytics_view_callback,
@@ -1039,6 +1070,13 @@ def register_all_handlers(app):
             # shuning uchun oqim to'g'ridan-to'g'ri GET_CONTENT holatiga
             # kiradi (entry point bo'lishi SHART — u FSM holati qaytaradi).
             CallbackQueryHandler(channel_new_post_callback, pattern=r"^ch_np:"),
+            # 🚀 PHASE C — Kanallarim → [🚀 AI Avtopilot]: 7 kunlik reja oqimi
+            # (mavzu → AI reja → tasdiqlash → atomik navbat). FSM holatini
+            # qaytaradi — entry point bo'lishi shart.
+            CallbackQueryHandler(channel_autopilot_entry, pattern=r"^ch_ap:"),
+            # 📋 PHASE C — Kanallarim → [📋 Shablonlar]: post shablonlari
+            # menyusi (yangi / ishlatish / o'chirish). FSM holatini qaytaradi.
+            CallbackQueryHandler(channel_templates_entry, pattern=r"^ch_tpl:"),
             # 🔁 Qayta tekshirish: sessiya tugagan bo'lsa ham eski tugma
             # ishlasin — conversation qayta ochiladi yoki yo'riqnoma qaytariladi.
             CallbackQueryHandler(add_channel_retry, pattern=r"^add_channel_retry$"),
@@ -1206,6 +1244,58 @@ def register_all_handlers(app):
                 CallbackQueryHandler(calendar_day_callback, pattern=r"^cal_day:"),
                 CallbackQueryHandler(calendar_duration_callback, pattern=r"^cal_days:"),
                 CallbackQueryHandler(calendar_cancel_callback, pattern=r"^cal_cancel$"),
+            ],
+
+            # 8c. 🚀 AI AUTOPILOT holatlari (PHASE C, 7-band).
+            # ``ap_cancel`` HAR UCH holatda ham ishlaydi (eski tugma bosilganda
+            # ham oqim toza yopiladi, crash bo'lmaydi).
+            AUTOPILOT_TOPIC: all_menu_jumps + [
+                CallbackQueryHandler(autopilot_cancel_callback, pattern=r"^ap_cancel$"),
+                MessageHandler(filters.TEXT & ~filters.COMMAND, autopilot_topic_received),
+            ],
+            AUTOPILOT_VIEW: all_menu_jumps + [
+                CallbackQueryHandler(autopilot_confirm_callback, pattern=r"^ap_confirm$"),
+                CallbackQueryHandler(autopilot_edit_callback, pattern=r"^ap_edit$"),
+                CallbackQueryHandler(autopilot_force_callback, pattern=r"^ap_force$"),
+                CallbackQueryHandler(autopilot_refresh_callback, pattern=r"^ap_refresh$"),
+                CallbackQueryHandler(autopilot_regen_callback, pattern=r"^ap_regen$"),
+                CallbackQueryHandler(autopilot_cancel_callback, pattern=r"^ap_cancel$"),
+                # Yangi mavzu yozilsa — reja to'g'ridan-to'g'ri qayta tuziladi.
+                MessageHandler(filters.TEXT & ~filters.COMMAND, autopilot_topic_received),
+            ],
+            AUTOPILOT_EDIT_DAY: all_menu_jumps + [
+                CallbackQueryHandler(autopilot_edit_day_callback, pattern=r"^ap_eday:"),
+                CallbackQueryHandler(autopilot_confirm_callback, pattern=r"^ap_confirm$"),
+                CallbackQueryHandler(autopilot_cancel_callback, pattern=r"^ap_cancel$"),
+            ],
+            AUTOPILOT_EDIT_INPUT: all_menu_jumps + [
+                CallbackQueryHandler(autopilot_cancel_callback, pattern=r"^ap_cancel$"),
+                MessageHandler(filters.TEXT & ~filters.COMMAND, autopilot_edit_input_received),
+            ],
+
+            # 8d. 📋 POST SHABLONLARI holatlari (PHASE C, 9-band).
+            TPL_MENU: all_menu_jumps + [
+                CallbackQueryHandler(templates_menu_callback, pattern=r"^tpl_"),
+            ],
+            TPL_NEW_NAME: all_menu_jumps + [
+                CallbackQueryHandler(templates_menu_callback, pattern=r"^tpl_cancel$|^tpl_back$"),
+                MessageHandler(filters.TEXT & ~filters.COMMAND, template_name_received),
+            ],
+            TPL_NEW_CONTENT: all_menu_jumps + [
+                CallbackQueryHandler(templates_menu_callback, pattern=r"^tpl_cancel$|^tpl_back$"),
+                MessageHandler(filters.TEXT & ~filters.COMMAND, template_content_received),
+            ],
+            TPL_USE_PICK: all_menu_jumps + [
+                CallbackQueryHandler(template_pick_callback, pattern=r"^tpl_pick:"),
+                CallbackQueryHandler(templates_menu_callback, pattern=r"^tpl_back$|^tpl_cancel$"),
+            ],
+            TPL_USE_VARS: all_menu_jumps + [
+                CallbackQueryHandler(templates_menu_callback, pattern=r"^tpl_cancel$|^tpl_back$"),
+                MessageHandler(filters.TEXT & ~filters.COMMAND, template_vars_received),
+            ],
+            TPL_DEL_PICK: all_menu_jumps + [
+                CallbackQueryHandler(template_remove_callback, pattern=r"^tpl_rmv:"),
+                CallbackQueryHandler(templates_menu_callback, pattern=r"^tpl_back$|^tpl_cancel$"),
             ],
 
             # 9. Analytics holatlari
@@ -1650,6 +1740,11 @@ def register_all_handlers(app):
     # sessiya tugagach yoki boshqa oqim ichida bosilsa — «sessiya eskirgan»
     # toast ko'rsatiladi (xabar o'chirilmaydi, hech qanday crash yo'q).
     app.add_handler(CallbackQueryHandler(calendar_stale_callback, pattern=r"^cal_"))
+    # 🚀 PHASE C — AI Avtopilot stale tugmalari (ap_*): sessiya tugagach
+    # bosilgan eski tasdiq/tahrir tugmasi — muloyim toast, crash yo'q.
+    app.add_handler(CallbackQueryHandler(autopilot_stale_callback, pattern=r"^ap_"))
+    # 📋 PHASE C — Post shablonlari stale tugmalari (tpl_*).
+    app.add_handler(CallbackQueryHandler(templates_stale_callback, pattern=r"^tpl_"))
     # ✨ Magic Post stale tugmalari: sessiya tugagach eski natija/tanlov tugmasi
     # bosilsa — foydalanuvchiga «sessiya eskirgan» toast ko'rsatiladi.
     app.add_handler(CallbackQueryHandler(magic_stale_callback, pattern=r"^mp_"))

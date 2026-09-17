@@ -63,6 +63,11 @@
 #       intelligence_profiles ga UPSERT, AI promptiga ulanadi), Smart Best
 #       Time (soxta raqamlarsiz) + IDOR himoyasi
 #       (tests/channel_intelligence_dna_test.py)
+#   3y) 🚀 PHASE C — AI AUTOPILOT + POST SHABLONLARI + DUBLIKAT DETEKTORI:
+#       7 kunlik atomik rejalashtirish (FREE limit qat'iy), post_templates
+#       (7 o'zgaruvchi, IDOR) va AI'siz dublikat detektori (0.85) manual
+#       postingda 3 tugmali ogohlantirish bilan
+#       (tests/autopilot_templates_and_duplicates_test.py)
 #   4) TO'LIQ regressiya: telegram_bot/tests/run_tests.sh (barcha 30+ test fayli)
 #
 # Har qanday xatoda 1 bilan chiqadi (CI uchun).
@@ -520,6 +525,26 @@ echo "===== 3x) 🧠 PHASE B: CHANNEL INTELLIGENCE — DNA + BEST TIME + MONITOR
 #     ulanishi (faqat egasi kanalga, fail-soft)
 # (tests/channel_intelligence_dna_test.py).
 "$PY" tests/channel_intelligence_dna_test.py || EXIT_CODE=1
+
+echo
+echo "===== 3y) 🚀 PHASE C: AI AUTOPILOT + POST SHABLONLARI + DUBLIKAT DETEKTOR ====="
+# (1) 🚀 AVTOPILOT — mavzu → AI 7 kunlik reja (Dushanba..Yakshanba, har biri
+#     kanal DNA'siga ulangan holda): create_autopilot_plan (AI yiqilsa
+#     muloyim xato, UX buzilmaydi), best-time statistikasiga ulanish;
+#     rejalashtirish FAQAT bitta ATOMIK tranzaksiyada (schedule_week_posts:
+#     yiqilsa ROLLBACK — yarim hafta qolmaydi), FREE navbat limiti
+#     qat'iy (check_week_quota: joy yetmasa xavfsiz ogohlantirish + 💎 PRO);
+# (2) 📋 SHABLONLAR — post_templates jadvali (user_id izolyatsiyasi,
+#     IDOR), 7 o'zgaruvchi ({TITLE}{TEXT}{PRICE}{LINK}{CTA}{DATE}{SOURCE})
+#     aniq almashtirish, kanal panelidan [📋 Shablonlar] oqimi;
+# (3) 🔁 DUBLIKAT DETEKTORI — yengil (AI'siz) algoritm: normalize +
+#     tokenize + Jaccard + containment, 0.85 chegara; manual postingda
+#     85%+ o'xshash post → 3 tugmali ogohlantirish ([🚀 Baribir chiqarish]
+#     [✨ AI bilan yangilash] [❌ Bekor qilish]), fail-soft;
+# (4) FSM 480-490 holatlari boshqa oqimlar bilan to'qnashmaydi, routing,
+#     i18n paritet (uz/ru/en) va 64-bayt callback chegarasi
+# (tests/autopilot_templates_and_duplicates_test.py).
+"$PY" tests/autopilot_templates_and_duplicates_test.py || EXIT_CODE=1
 
 echo
 echo "======== 4) TO'LIQ REGRESSIYA (telegram_bot/tests) ========"
