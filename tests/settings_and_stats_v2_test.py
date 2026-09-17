@@ -588,8 +588,17 @@ def test_settings_menu_structure_and_flows():
     check("bildirishnomalar: toggle DB'ga yozildi (True)",
           fake.set_calls == [(USER_ID, "notify_news", True)], str(fake.set_calls))
     toggled_text = q2.screen.get("text", "")
+    toggled_rows = kb_rows_inline(q2.screen.get("reply_markup"))
+    check("bildirishnomalar: toggle'dan keyin xabar joyida edit qilindi",
+          bool(q2.edits) and not q2.message.sent, f"edits={q2.edits} sent={q2.message.sent}")
+    check("bildirishnomalar: query.answer chaqirildi",
+          len(q2.answered) >= 1, str(q2.answered))
     check("bildirishnomalar: toggle'dan keyin ✅ belgisi",
           "✅" in toggled_text and "Yangiliklar" in toggled_text, toggled_text[:120])
+    check("bildirishnomalar: ixcham tugmalar kesilmaydi",
+          toggled_rows[0][0][0] == "✅ Eslatmalar"
+          and toggled_rows[0][1][0] == "✅ Takliflar",
+          str(toggled_rows[:2]))
 
     # 2f) 🎨 Post sozlamalari — toggle ekrani.
     fake = _FakeDB()
@@ -600,10 +609,17 @@ def test_settings_menu_structure_and_flows():
 
     q = _with_db(fake, _post_set)
     post_text = q.screen.get("text", "")
-    post_cbs = kb_flat_cbs(q.screen.get("reply_markup"))
+    post_markup = q.screen.get("reply_markup")
+    post_cbs = kb_flat_cbs(post_markup)
+    post_rows = kb_rows_inline(post_markup)
     check("post sozlamalari: sarlavha", "Post sozlamalari" in post_text, post_text[:80])
     check("post sozlamalari: watermark/imzo yorliqlari",
           "watermark" in post_text and "imzo" in post_text)
+    check("post sozlamalari: ixcham tugmalar kesilmaydi",
+          post_rows[0][0][0] == "✅ Suv belgisi"
+          and post_rows[0][1][0] == "⬜️ Muallif imzosi"
+          and post_rows[1][0][0] == "◀️ Orqaga",
+          str(post_rows[:2]))
     check("post sozlamalari: toggle callback'lari",
           "stgs_tgl:post:post_watermark" in post_cbs
           and "stgs_tgl:post:post_signature" in post_cbs, str(post_cbs))
