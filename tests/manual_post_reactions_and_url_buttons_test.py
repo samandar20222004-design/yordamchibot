@@ -450,6 +450,103 @@ def test_reactions_flow():
 
 
 # ============================================================================
+# TEST 2b — SMART EMOJI QABUL QILISH (preview + custom) — 2-QISM BUGFIX
+# ============================================================================
+def test_smart_emoji_reception():
+    print("\n== TEST 2b: SMART EMOJI — preview va custom holatida to'g'ridan-to'g'ri emoji ==")
+    # a) MANUAL_PREVIEW holatida to'g'ridan-to'g'ri emoji yuborish (masalan 😎)
+    ctx = _ctx("uz")
+    try:
+        msg, state, fake = _start_manual_flow(ctx)
+        check(f"[preview] holat tayyor", state == MP.MANUAL_PREVIEW, str(state))
+        # Foydalanuvchi to'g'ridan-to'g'ri 😎 yuboradi
+        emoji_msg = _Msg(text="😎")
+        st = _run(MP.manual_preview_emoji_received(_update_msg(emoji_msg), ctx))
+        check("preview'da 😎 qabul qilindi → MANUAL_PREVIEW",
+              st == MP.MANUAL_PREVIEW, str(st))
+        check("preview'da 😎 saqlandi",
+              ctx.user_data.get(MP.UD_REACTIONS) == ["😎"],
+              str(ctx.user_data.get(MP.UD_REACTIONS)))
+        check("preview'da 😎 bilan preview yangilandi",
+              emoji_msg.sent and "😎" in emoji_msg.sent[-1]["text"],
+              str(emoji_msg.sent)[:200] if emoji_msg.sent else "no sent")
+        # Ikki emoji bo'shliq bilan
+        emoji_msg2 = _Msg(text="🔥 👍")
+        st2 = _run(MP.manual_preview_emoji_received(_update_msg(emoji_msg2), ctx))
+        check("preview'da '🔥 👍' qabul qilindi → MANUAL_PREVIEW",
+              st2 == MP.MANUAL_PREVIEW, str(st2))
+        check("preview'da '🔥 👍' saqlandi (2 ta)",
+              ctx.user_data.get(MP.UD_REACTIONS) == ["🔥", "👍"],
+              str(ctx.user_data.get(MP.UD_REACTIONS)))
+        # Maksimal 5 tagacha
+        many = _Msg(text="😎 🔥 👍 ❤️ 👏 🎉")  # 6 ta
+        st_many = _run(MP.manual_preview_emoji_received(_update_msg(many), ctx))
+        check("preview'da 6 ta emoji → faqat 5 tasi saqlanadi",
+              st_many == MP.MANUAL_PREVIEW
+              and len(ctx.user_data.get(MP.UD_REACTIONS) or []) == 5,
+              str(ctx.user_data.get(MP.UD_REACTIONS)))
+        # Preview markup'da reaksiya tugmalari bor
+        preview_many = many.sent[-1]
+        pv_labels = [b.text for b in _flat_buttons(preview_many["reply_markup"])]
+        check("preview markup'da 5 ta emoji tugmasi ko'rinadi",
+              all(e in pv_labels for e in (ctx.user_data.get(MP.UD_REACTIONS) or [])[:5]),
+              str(pv_labels))
+    finally:
+        fake.restore()
+
+    # b) MANUAL_REACTION_CUSTOM holatida ham smart emoji (max 5)
+    ctx = _ctx("uz")
+    try:
+        msg, state, fake = _start_manual_flow(ctx)
+        _run(MP.manual_panel_callback(_update_query(_Query(CB_MANUAL_REACT, msg)), ctx))
+        q_add = _Query(CB_MANUAL_REACT_CUSTOM, _Msg())
+        st_add = _run(MP.manual_panel_callback(_update_query(q_add), ctx))
+        check("custom holat ochildi", st_add == MP.MANUAL_REACTION_CUSTOM, str(st_add))
+        # To'g'ridan-to'g'ri 😎
+        direct = _Msg(text="😎")
+        st_direct = _run(MP.manual_reaction_custom_received(_update_msg(direct), ctx))
+        check("custom'da 😎 qabul qilindi → PREVIEW",
+              st_direct == MP.MANUAL_PREVIEW
+              and ctx.user_data.get(MP.UD_REACTIONS) == ["😎"],
+              str(ctx.user_data.get(MP.UD_REACTIONS)))
+        # 🔥 👍
+        ctx.user_data[MP.UD_REACTIONS] = []
+        direct2 = _Msg(text="🔥 👍")
+        st_direct2 = _run(MP.manual_reaction_custom_received(_update_msg(direct2), ctx))
+        check("custom'da '🔥 👍' → 2 ta saqlandi",
+              st_direct2 == MP.MANUAL_PREVIEW
+              and ctx.user_data.get(MP.UD_REACTIONS) == ["🔥", "👍"],
+              str(ctx.user_data.get(MP.UD_REACTIONS)))
+        # 6 ta → 5 tagacha
+        ctx.user_data[MP.UD_REACTIONS] = []
+        # custom holatga qaytish uchun qayta ochamiz
+        q_add2 = _Query(CB_MANUAL_REACT_CUSTOM, _Msg())
+        _run(MP.manual_panel_callback(_update_query(q_add2), ctx))
+        # Endi custom handlerni chaqiramiz (holat CUSTOM bo'lishi shart emas, funksiya o'zi tekshiradi)
+        many2 = _Msg(text="👍 ❤️ 🔥 👏 🎉 😍")
+        st_many2 = _run(MP.manual_reaction_custom_received(_update_msg(many2), ctx))
+        check("custom'da 6 ta emoji → faqat 5 tasi saqlanadi",
+              st_many2 == MP.MANUAL_PREVIEW
+              and len(ctx.user_data.get(MP.UD_REACTIONS) or []) == 5,
+              str(ctx.user_data.get(MP.UD_REACTIONS)))
+    finally:
+        fake.restore()
+
+    # c) FSM routing: MANUAL_PREVIEW holatida TEXT handleri mavjud
+    app = _build_app()
+    conv = _main_conv(app)
+    from telegram.ext import MessageHandler as MH
+    preview_text_handlers = [h for h in conv.states.get(MP.MANUAL_PREVIEW, []) if isinstance(h, MH)]
+    check("MANUAL_PREVIEW'da TEXT handleri mavjud (smart emoji uchun)",
+          len(preview_text_handlers) >= 1,
+          str(preview_text_handlers))
+    # U handler aynan manual_preview_emoji_received ekanini tekshiramiz
+    has_smart = any(getattr(h, 'callback', None) == MP.manual_preview_emoji_received for h in preview_text_handlers)
+    check("MANUAL_PREVIEW TEXT handleri manual_preview_emoji_received ga ulanadi",
+          has_smart, str([getattr(h, 'callback', None).__name__ if hasattr(getattr(h, 'callback', None), '__name__') else str(getattr(h, 'callback', None)) for h in preview_text_handlers]))
+
+
+# ============================================================================
 # TEST 3 — 🔗 HAVOLALI (URL) TUGMA OQIMI (format + xavfsizlik + preview)
 # ============================================================================
 def test_url_button_flow():
@@ -552,8 +649,10 @@ def test_url_button_flow():
                   and not ctx.user_data.get(MP.UD_URL_BTN_URL)
                   and m.sent and m.sent[-1]["text"]
                   == manual_post_t("mp_url_invalid", "uz"), str(st))
-        # Format buzilishi ham rad etiladi.
-        for text in ["shunchaki matn", "https://t.me/kanal", "Batafsil"]:
+        # Format buzilishi ham rad etiladi (faqat matn yoki noto'g'ri format).
+        # SMART URL BUGFIX: endi yakka URL (masalan https://t.me/kanal) qabul qilinadi,
+        # shuning uchun uni bu ro'yxatdan olib tashladik — u alohida testda tekshiriladi.
+        for text in ["shunchaki matn", "Batafsil"]:
             m = _Msg(text=text)
             st = _run(MP.manual_url_received(_update_msg(m), ctx))
             check(f"format buzilishi rad etildi: {text[:24]!r}",
@@ -563,6 +662,60 @@ def test_url_button_flow():
               not fake.calls_of("add_post"), str(fake.calls))
     finally:
         fake.restore()
+
+    # e) SMART URL PARSER — faqat bitta URL yuborilganda avtomatik tugma yasalishi
+    print("\n  -- SMART URL PARSER (yakka URL → avtomatik matn) --")
+    ctx = _ctx("uz")
+    try:
+        msg, state, fake = _start_manual_flow(ctx)
+        _run(MP.manual_panel_callback(_update_query(_Query(CB_MANUAL_URL_BTN, msg)), ctx))
+        # t.me havolasi → "📢 Kanalga o'tish"
+        single_tme = _Msg(text="https://t.me/kanal")
+        st_tme = _run(MP.manual_url_received(_update_msg(single_tme), ctx))
+        check("yakka t.me URL qabul qilindi → PREVIEW",
+              st_tme == MP.MANUAL_PREVIEW
+              and ctx.user_data.get(MP.UD_URL_BTN_URL) == "https://t.me/kanal",
+              str(st_tme))
+        check("yakka t.me URL uchun avtomatik matn '📢 Kanalga o'tish'",
+              ctx.user_data.get(MP.UD_URL_BTN_TEXT) == "📢 Kanalga o'tish",
+              str(ctx.user_data.get(MP.UD_URL_BTN_TEXT)))
+        # preview ostida haqiqiy URL tugma bor
+        preview_tme = single_tme.sent[-1]
+        url_btns_tme = [b for b in _flat_buttons(preview_tme["reply_markup"]) if getattr(b, "url", None)]
+        check("yakka t.me URL preview'da haqiqiy URL tugma",
+              len(url_btns_tme) == 1 and url_btns_tme[0].url == "https://t.me/kanal"
+              and url_btns_tme[0].text == "📢 Kanalga o'tish",
+              str([(b.text, getattr(b, "url", None)) for b in _flat_buttons(preview_tme["reply_markup"])])[:200])
+
+        # Boshqa veb-sayt → "🔗 Batafsil"
+        ctx2 = _ctx("uz")
+        msg2, state2, fake2 = _start_manual_flow(ctx2)
+        _run(MP.manual_panel_callback(_update_query(_Query(CB_MANUAL_URL_BTN, msg2)), ctx2))
+        single_web = _Msg(text="https://sayt.uz/maqola")
+        st_web = _run(MP.manual_url_received(_update_msg(single_web), ctx2))
+        check("yakka veb URL qabul qilindi → PREVIEW",
+              st_web == MP.MANUAL_PREVIEW
+              and ctx2.user_data.get(MP.UD_URL_BTN_URL) == "https://sayt.uz/maqola",
+              str(st_web))
+        check("yakka veb URL uchun avtomatik matn '🔗 Batafsil'",
+              ctx2.user_data.get(MP.UD_URL_BTN_TEXT) == "🔗 Batafsil",
+              str(ctx2.user_data.get(MP.UD_URL_BTN_TEXT)))
+        preview_web = single_web.sent[-1]
+        url_btns_web = [b for b in _flat_buttons(preview_web["reply_markup"]) if getattr(b, "url", None)]
+        check("yakka veb URL preview'da haqiqiy URL tugma",
+              len(url_btns_web) == 1 and url_btns_web[0].url == "https://sayt.uz/maqola"
+              and url_btns_web[0].text == "🔗 Batafsil",
+              str([(b.text, getattr(b, "url", None)) for b in _flat_buttons(preview_web["reply_markup"])])[:200])
+        fake2.restore()
+    finally:
+        try:
+            fake.restore()
+        except:
+            pass
+        try:
+            fake2.restore()
+        except:
+            pass
 
 
 # ============================================================================
@@ -748,6 +901,7 @@ def main():
     print("=" * 70)
     test_panel_four_rows_spec()
     test_reactions_flow()
+    test_smart_emoji_reception()
     test_url_button_flow()
     test_scheduler_delivery_integration()
     test_fsm_routing_i18n_guards()

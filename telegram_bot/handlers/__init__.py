@@ -117,6 +117,7 @@ from handlers.manual_post import (
     manual_post_entry, manual_content_received, manual_edit_received,
     manual_time_received, manual_reaction_custom_received,
     manual_url_received, manual_panel_callback, manual_stale_callback,
+    manual_preview_emoji_received,
     ManualEntryHandler,
     set_application as set_manual_application,
     MANUAL_AWAIT_CONTENT, MANUAL_PREVIEW, MANUAL_CHANNEL_SELECT,
@@ -1211,6 +1212,10 @@ def register_all_handlers(app):
             ],
             MANUAL_PREVIEW: all_menu_jumps + [
                 CallbackQueryHandler(manual_panel_callback, pattern=r"^mnp_"),
+                # SMART EMOJI (2-qism bugfix): preview holatida to'g'ridan-to'g'ri emoji yuborish
+                # (masalan 😎 yoki 🔥 👍) — xato bermasdan reaksiya sifatida qabul qilinadi
+                MessageHandler(filters.TEXT & ~filters.COMMAND,
+                               manual_preview_emoji_received),
             ],
             MANUAL_CHANNEL_SELECT: all_menu_jumps + [
                 CallbackQueryHandler(manual_panel_callback, pattern=r"^mnp_"),
