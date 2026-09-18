@@ -647,6 +647,42 @@ CREATE INDEX IF NOT EXISTS idx_channels_user_id ON channels (user_id);
 CREATE INDEX IF NOT EXISTS idx_post_reactions_post_id ON post_reactions (post_id);
 
 -- ============================================================
+-- 💬 POSTASSIST V2 — 4-QISM: QO'LLAB-QUVVATLASH (ONE-TIME TICKET)
+-- ------------------------------------------------------------
+-- support_tickets — foydalanuvchining BIR MARTALIK murojaati.
+--   [💬 Qo'llab-quvvatlash] FSM holati bitta xabar qabul qiladi va DARHOL
+--   yopiladi (ketma-ket yozish — spam — adminga yetib bormaydi). Murojaat
+--   matni, muallif ID'si va holati shu jadvalda saqlanadi.
+-- support_ticket_deliveries — murojaat admin(lar)ga yuborilganda Telegram
+--   ``message_id`` shu yerga yoziladi. Admin bot yuborgan xabarga
+--   Telegram'ning «Reply» (Javob berish) funksiyasi orqali yozsa, bot
+--   (admin_chat_id, admin_message_id) juftligi orqali murojaat EGASINI
+--   topadi — bot qayta ishga tushgandan keyin ham javob yetib boradi.
+--   UNIQUE (admin_chat_id, admin_message_id): bitta xabar = bitta murojaat.
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS support_tickets (
+    id SERIAL PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    username VARCHAR(64),
+    message_text TEXT NOT NULL,
+    has_media BOOLEAN NOT NULL DEFAULT FALSE,
+    status VARCHAR(16) NOT NULL DEFAULT 'new',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    answered_at TIMESTAMPTZ,
+    answered_by BIGINT
+);
+
+CREATE TABLE IF NOT EXISTS support_ticket_deliveries (
+    id SERIAL PRIMARY KEY,
+    ticket_id INT NOT NULL REFERENCES support_tickets(id) ON DELETE CASCADE,
+    admin_chat_id BIGINT NOT NULL,
+    admin_message_id BIGINT NOT NULL,
+    delivered_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (admin_chat_id, admin_message_id)
+);
+
+-- ============================================================
 -- POSTASSIST V2 — 5-BOSQICH: MA'LUMOTLAR BUTUNLIGI
 -- (composite indekslar + foreign key / check / unique constraintlar)
 -- ------------------------------------------------------------

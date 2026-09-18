@@ -61,6 +61,9 @@ EXPECTED_TABLES = (
     # PHASE E — team membership + aggregate comment insights
     "channel_members",
     "channel_comment_insights",
+    # 💬 4-QISM — Qo'llab-quvvatlash (one-time ticket + admin reply)
+    "support_tickets",
+    "support_ticket_deliveries",
 )
 EXPECTED_INDEXES = (
     "idx_ad_pool_scope",
@@ -110,8 +113,12 @@ def test_schema_file_tables():
     for table in EXPECTED_TABLES:
         check(f"jadval: {table}", f"CREATE TABLE IF NOT EXISTS {table} (" in SCHEMA)
     # PHASE E: team membership + aggregate comment insights → 28.
-    check("jadvallar soni 28",
-          SCHEMA.count("CREATE TABLE IF NOT EXISTS") == 28,
+    # 💬 4-QISM: qo'llab-quvvatlash murojaatlari (support_tickets +
+    # support_ticket_deliveries) → 30. Indekslar soni O'ZGARMAYDI (31):
+    # admin xabar ID'si bo'yicha qidiruv UNIQUE constraint'ning implicit
+    # indeksi orqali ishlaydi.
+    check("jadvallar soni 30",
+          SCHEMA.count("CREATE TABLE IF NOT EXISTS") == 30,
           f"topildi: {SCHEMA.count('CREATE TABLE IF NOT EXISTS')}")
 
 

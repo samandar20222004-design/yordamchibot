@@ -72,6 +72,10 @@ EXPECTED_TABLES = (
     # PHASE E — team membership + aggregate comment insights.
     "channel_members",
     "channel_comment_insights",
+    # 💬 4-QISM — Qo'llab-quvvatlash: bir martalik murojaat (one-time ticket)
+    # va admin javobini murojaat egasiga bog'lovchi yozuvlar.
+    "support_tickets",
+    "support_ticket_deliveries",
 )
 EXPECTED_INDEXES = (
     "idx_ad_pool_scope",
@@ -1975,6 +1979,33 @@ def _init_db_once():
             );
         """)
         cur.execute("CREATE INDEX IF NOT EXISTS idx_comment_insights_channel ON channel_comment_insights (channel_id, occurrence_count DESC);")
+
+        # 💬 4-QISM — schema.sql fallback: qo'llab-quvvatlash murojaatlari va
+        # admin javoblarini bog'lovchi jadvallar kanonik sxema fayli
+        # qo'llanilmagan holatda ham mavjud bo'lishi shart.
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS support_tickets (
+                id SERIAL PRIMARY KEY,
+                user_id BIGINT NOT NULL,
+                username VARCHAR(64),
+                message_text TEXT NOT NULL,
+                has_media BOOLEAN NOT NULL DEFAULT FALSE,
+                status VARCHAR(16) NOT NULL DEFAULT 'new',
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                answered_at TIMESTAMPTZ,
+                answered_by BIGINT
+            );
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS support_ticket_deliveries (
+                id SERIAL PRIMARY KEY,
+                ticket_id INT NOT NULL REFERENCES support_tickets(id) ON DELETE CASCADE,
+                admin_chat_id BIGINT NOT NULL,
+                admin_message_id BIGINT NOT NULL,
+                delivered_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                UNIQUE (admin_chat_id, admin_message_id)
+            );
+        """)
 
         # 3) PostAssist V2 (5-bosqich): scheduler tezligi uchun kompozit indekslar
         # va jadvallararo FK/CHECK/UNIQUE constraintlar. Ikkalasi ham idempotent
@@ -7656,4 +7687,271 @@ def get_audience_question_insights(channel_id: str | int, limit: int = 20) -> li
                     for r in cur.fetchall()]
     except Exception as e:
         logger.error("get_audience_question_insights xatosi: %s", e)
+        return []
+
+
+# ============================================================
+# 💬 POSTASSIST V2 · 4-QISM — QO'LLAB-QUVVATLASH (ONE-TIME TICKET)
+# ------------------------------------------------------------
+# BIR MARTALIK MUROJAAT (one-time ticket) + DIRECT ADMIN REPLY
+# oqimining ma'lumot qatlami.
+#
+#  * ``support_tickets`` — murojaatning O'ZI (matn, muallif, holat).
+#    [💬 Qo'llab-quvvatlash] ekranida foydalanuvchi yozgan BITTA xabar shu
+#    jadvalga tushadi va FSM holati darhol yopiladi (spam to'xtatiladi).
+#  * ``support_ticket_deliveries`` — murojaat har bir adminga yuborilganda
+#    Telegram qaytargan ``message_id`` shu yerga yoziladi. Admin bot
+#    xabariga Telegram'ning «Reply» funksiyasi bilan javob yozganda bot
+#    (admin_chat_id, admin_message_id) → ticket → user_id zanjiri orqali
+#    murojaat egasini topadi. Shu sababli javob bot QAYTA ISHGA
+#    TUSHGANDAN KEYIN ham to'g'ri manzilga yetib boradi (xotiradagi kesh
+#    yo'qolsa ham DB manba bo'lib qoladi).
+#
+# Barcha funksiyalar fail-safe: xato yuz bersa ``0`` / ``None`` / ``False``
+# qaytaradi va faqat log yozadi — qo'llab-quvvatlash oqimi hech qachon
+# yiqilmaydi (foydalanuvchi javobsiz qolmaydi).
+# ============================================================
+
+#: Ruxsat etilgan murojaat holatlari (schema.sql CHECK'i bilan bir xil).
+SUPPORT_TICKET_STATUSES = ("new", "answered")
+
+#: Bazaga yoziladigan murojaat matnining maksimal uzunligi (Telegram 4096 +
+#: admin xabaridagi sarlavha uchun zaxira bilan).
+SUPPORT_TICKET_TEXT_LIMIT = 4000
+
+
+def _support_ticket_row_to_dict(row) -> dict:
+    """``support_tickets`` qatorini dict ko'rinishiga o'giradi."""
+    return {
+        "id": int(row[0]),
+        "user_id": int(row[1] or 0),
+        "username": row[2] or "",
+        "message_text": row[3] or "",
+        "has_media": bool(row[4]),
+        "status": row[5] or "new",
+        "created_at": row[6],
+        "answered_at": row[7],
+        "answered_by": int(row[8]) if row[8] else 0,
+    }
+
+
+def create_support_ticket(
+    user_id: int,
+    username: str | None = None,
+    message_text: str = "",
+    has_media: bool = False,
+) -> int:
+    """Yangi bir martalik murojaatni saqlaydi.
+
+    Qaytadi: ``ticket_id`` yoki ``0`` (xato). Bo'sh murojaat ham qabul
+    qilinadi (rasm + izohsiz holat) — matn o'rniga bo'sh satr yoziladi.
+    """
+    try:
+        uid = int(user_id)
+    except (TypeError, ValueError):
+        return 0
+    if not uid:
+        return 0
+    uname = str(username or "").strip().lstrip("@")[:64]
+    text = str(message_text or "").strip()[:SUPPORT_TICKET_TEXT_LIMIT]
+    try:
+        with db_cursor(commit=True) as cur:
+            cur.execute(
+                """
+                INSERT INTO support_tickets
+                    (user_id, username, message_text, has_media, status)
+                VALUES (%s, %s, %s, %s, 'new')
+                RETURNING id
+                """,
+                (uid, uname or None, text, bool(has_media)),
+            )
+            return int(cur.fetchone()[0])
+    except Exception as e:
+        logger.error("create_support_ticket xatosi (user=%s): %s", uid, e)
+        return 0
+
+
+def attach_support_ticket_delivery(
+    ticket_id: int,
+    admin_chat_id: int,
+    admin_message_id: int,
+) -> bool:
+    """Admin chatidagi yuborilgan xabar ID'sini murojaatga bog'laydi.
+
+    Idempotent: bir xil (admin_chat_id, admin_message_id) qayta yozilsa
+    mavjud qator yangilanadi (UNIQUE cheklovi bilan).
+    """
+    try:
+        tid = int(ticket_id)
+        chat_id = int(admin_chat_id)
+        msg_id = int(admin_message_id)
+    except (TypeError, ValueError):
+        return False
+    if not tid or not chat_id or not msg_id:
+        return False
+    try:
+        with db_cursor(commit=True) as cur:
+            cur.execute(
+                """
+                INSERT INTO support_ticket_deliveries
+                    (ticket_id, admin_chat_id, admin_message_id)
+                VALUES (%s, %s, %s)
+                ON CONFLICT (admin_chat_id, admin_message_id)
+                DO UPDATE SET ticket_id = EXCLUDED.ticket_id,
+                              delivered_at = NOW()
+                """,
+                (tid, chat_id, msg_id),
+            )
+            return True
+    except Exception as e:
+        logger.error("attach_support_ticket_delivery xatosi (ticket=%s): %s", ticket_id, e)
+        return False
+
+
+def get_support_ticket(ticket_id: int) -> dict | None:
+    """Murojaatni ID bo'yicha qaytaradi (topilmasa ``None``)."""
+    try:
+        tid = int(ticket_id)
+    except (TypeError, ValueError):
+        return None
+    if not tid:
+        return None
+    try:
+        with db_cursor() as cur:
+            cur.execute(
+                """
+                SELECT id, user_id, username, message_text, has_media, status,
+                       created_at, answered_at, answered_by
+                  FROM support_tickets
+                 WHERE id = %s
+                """,
+                (tid,),
+            )
+            row = cur.fetchone()
+        return _support_ticket_row_to_dict(row) if row else None
+    except Exception as e:
+        logger.error("get_support_ticket xatosi (ticket=%s): %s", ticket_id, e)
+        return None
+
+
+def get_support_ticket_by_admin_message(
+    admin_chat_id: int,
+    admin_message_id: int,
+) -> dict | None:
+    """Admin chatidagi xabar ID'si orqali murojaatni topadi.
+
+    «Reply» (Javob berish) kuzatuvining YAGONA manbai: admin bot
+    yuborgan murojaat xabariga javob yozganda, bot shu funksiya orqali
+    murojaat egasini (``user_id``) aniqlaydi.
+    """
+    try:
+        chat_id = int(admin_chat_id)
+        msg_id = int(admin_message_id)
+    except (TypeError, ValueError):
+        return None
+    if not chat_id or not msg_id:
+        return None
+    try:
+        with db_cursor() as cur:
+            cur.execute(
+                """
+                SELECT t.id, t.user_id, t.username, t.message_text,
+                       t.has_media, t.status, t.created_at, t.answered_at,
+                       t.answered_by
+                  FROM support_ticket_deliveries d
+                  JOIN support_tickets t ON t.id = d.ticket_id
+                 WHERE d.admin_chat_id = %s AND d.admin_message_id = %s
+                """,
+                (chat_id, msg_id),
+            )
+            row = cur.fetchone()
+        return _support_ticket_row_to_dict(row) if row else None
+    except Exception as e:
+        logger.error(
+            "get_support_ticket_by_admin_message xatosi (chat=%s, msg=%s): %s",
+            admin_chat_id, admin_message_id, e,
+        )
+        return None
+
+
+def mark_support_ticket_answered(ticket_id: int, admin_id: int) -> bool:
+    """Murojaatga javob berilganini qayd etadi (birinchi javob vaqti saqlanadi).
+
+    Takroriy javoblar ham qabul qilinadi: ``answered_at`` faqat BIRINCHI
+    javobda yoziladi (``COALESCE``), ``answered_by`` esa oxirgi javob bergan
+    adminni ko'rsatadi.
+    """
+    try:
+        tid = int(ticket_id)
+        aid = int(admin_id)
+    except (TypeError, ValueError):
+        return False
+    if not tid:
+        return False
+    try:
+        with db_cursor(commit=True) as cur:
+            cur.execute(
+                """
+                UPDATE support_tickets
+                   SET status = 'answered',
+                       answered_at = COALESCE(answered_at, NOW()),
+                       answered_by = %s
+                 WHERE id = %s
+                """,
+                (aid or None, tid),
+            )
+            return cur.rowcount > 0
+    except Exception as e:
+        logger.error("mark_support_ticket_answered xatosi (ticket=%s): %s", ticket_id, e)
+        return False
+
+
+def count_user_support_tickets(user_id: int, since_hours: int = 24) -> int:
+    """Foydalanuvchining oxirgi ``since_hours`` soatdagi murojaatlari soni.
+
+    Anti-spam nazorati uchun (soft limit): chaqiruvchi tomonda ishlatiladi,
+    bu funksiya faqat hisoblaydi va hech qachon istisno ko'tarmaydi.
+    """
+    try:
+        uid = int(user_id)
+        hours = max(1, min(int(since_hours), 24 * 30))
+    except (TypeError, ValueError):
+        return 0
+    try:
+        with db_cursor() as cur:
+            cur.execute(
+                """
+                SELECT COUNT(*) FROM support_tickets
+                 WHERE user_id = %s
+                   AND created_at >= NOW() - make_interval(hours => %s)
+                """,
+                (uid, hours),
+            )
+            return int(cur.fetchone()[0] or 0)
+    except Exception as e:
+        logger.error("count_user_support_tickets xatosi (user=%s): %s", user_id, e)
+        return 0
+
+
+def get_recent_support_tickets(limit: int = 20) -> list[dict]:
+    """Oxirgi murojaatlar ro'yxati (admin panel/diagnostika uchun)."""
+    try:
+        safe_limit = max(1, min(int(limit), 100))
+    except (TypeError, ValueError):
+        safe_limit = 20
+    try:
+        with db_cursor() as cur:
+            cur.execute(
+                """
+                SELECT id, user_id, username, message_text, has_media, status,
+                       created_at, answered_at, answered_by
+                  FROM support_tickets
+                 ORDER BY created_at DESC, id DESC
+                 LIMIT %s
+                """,
+                (safe_limit,),
+            )
+            return [_support_ticket_row_to_dict(r) for r in cur.fetchall()]
+    except Exception as e:
+        logger.error("get_recent_support_tickets xatosi: %s", e)
         return []

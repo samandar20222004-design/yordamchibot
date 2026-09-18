@@ -903,17 +903,18 @@ def render_pending_list(posts: list, user_code: str, lang: str = "uz") -> Inline
 
 
 def _profile_support_button(lang: str) -> InlineKeyboardButton:
-    """💬 Qo'llab-quvvatlash tugmasi (username bo'lsa URL, aks holda callback)."""
-    from config import SUPPORT_USERNAME
+    """💬 Qo'llab-quvvatlash tugmasi → BOT ICHIDAGI yagona murojaat oqimi.
+
+    4-QISM: tugma endi tashqi ``t.me/<username>`` havolasi EMAS, balki
+    ``help_support`` callback'i — u bir martalik murojaat (one-time ticket)
+    FSM oqimini ochadi va admin ``ADMIN_IDS`` orqali to'g'ridan-to'g'ri
+    javob beradi (javob shu chatda keladi).
+    """
     from translations import settings_stats_t
 
-    username = str(SUPPORT_USERNAME or "").strip().lstrip("@")
-    support_kwargs = (
-        {"url": f"https://t.me/{username}"} if username
-        else {"callback_data": "help_support"}
-    )
     return InlineKeyboardButton(
-        settings_stats_t("ss_help_hub_support", lang), **support_kwargs
+        settings_stats_t("ss_help_hub_support", lang),
+        callback_data="help_support",
     )
 
 
@@ -1033,16 +1034,14 @@ def get_settings_help_hub_keyboard(
 ) -> InlineKeyboardMarkup:
     """❓ Yordam & Ma'lumot submenu'si.
 
-    Qo'llab-quvvatlash uchun username bo'lsa Telegram URL tugmasi ishlatiladi;
-    username sozlanmagan test/development muhitida esa ``help_support``
-    callback'i xavfsiz ma'lumot ekranini ochadi.
+    💬 4-QISM: sukut bo'yicha [💬 Qo'llab-quvvatlash] tugmasi BOT ICHIDAGI
+    bir martalik murojaat oqimini ochadi (``help_support`` → one-time ticket
+    FSM → admin javobi shu chatda). Eski tashqi ``t.me`` havolasi kerak
+    bo'lsa ``support_username`` argumenti ATAYLAB uzatiladi (legacy).
     """
-    from config import SUPPORT_USERNAME
     from translations import settings_stats_t
 
-    username = str(
-        SUPPORT_USERNAME if support_username is None else support_username
-    ).strip().lstrip("@")
+    username = str(support_username or "").strip().lstrip("@")
     support_kwargs = (
         {"url": f"https://t.me/{username}"} if username else
         {"callback_data": "help_support"}
@@ -1059,6 +1058,21 @@ def get_settings_help_hub_keyboard(
         [InlineKeyboardButton(settings_stats_t("ss_btn_back", lang),
                               callback_data="stgs_hub")],
     ])
+
+
+def get_support_ticket_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
+    """💬 Qo'llab-quvvatlash — bir martalik murojaat ekranining klaviaturasi.
+
+    Topshiriq bo'yicha AYNAN bitta tugma: [◀️ Orqaga]. U murojaat oqimini
+    yopadi va 👤 Profil (Sozlamalar) hub'iga qaytaradi — foydalanuvchi
+    ekranda qamalib qolmaydi.
+    """
+    from translations import support_t
+
+    return InlineKeyboardMarkup([[
+        InlineKeyboardButton(support_t("sp_btn_back", lang),
+                             callback_data="sup_back"),
+    ]])
 
 
 # O'qilishi oson aliaslar: integratsiyalarda ikkala nomlash uslubi ishlatilgan.
