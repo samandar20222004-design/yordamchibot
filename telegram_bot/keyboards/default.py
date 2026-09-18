@@ -60,19 +60,19 @@ BTN_BACK_EN = get_text("btn_main_menu", "en")
 BTN_CANCEL_EN = get_text("btn_cancel", "en")
 
 # ============================================================
-# 🆕 3-QISM — ASOSIY MENYU: 7 TUGMA / 4 QATOR STANDARTI (uz/ru/en)
+# 🆕 ASOSIY MENYU: KLASSIK 6 TUGMA / 3 QATOR STANDARTI (uz/ru/en)
 # ============================================================
-# Asosiy menyuda FAQAT va FAQAT quyidagi 7 ta tugma chiziladi:
+# Asosiy menyuda FAQAT va FAQAT quyidagi 6 ta tugma chiziladi:
 #   [✨ Kontent yaratish]   [📢 Kanallarim]
 #   [📅 Rejalashtirilgan]   [📊 Statistika]
-#   [💎 PRO]                [👥 Do'stlarni taklif]
-#   [👤 Profil]
+#   [💎 PRO]                [⚙️ Sozlamalar]
 # (+ oddiy foydalanuvchiga KO'RINMAS, faqat ADMIN_IDS uchun alohida
 #   [⚙️ Admin Panel] qatori).
-# «⚙️ Sozlamalar» endi «👤 Profil» (yagona profil ekran), referral esa
-# ichki menyulardan asosiy menyuga ko'tarildi.
+# «👤 Profil» yorlig'i qaytadan «⚙️ Sozlamalar»ga qaytarildi, «👥 Do'stlarni
+# taklif» esa asosiy menyudan olib tashlandi — referral endi Sozlamalar
+# ichki menyusida chiziladi (stgs_referral).
 # Eski yorliqlar ("➕ Yangi post", "✨ AI Studio", "⭐️ Premium",
-# "⚙️ Sozlamalar", "👤 Kabinet & Sozlamalar", "📖 Qo'llanma / Bot haqida",
+# "👤 Kabinet & Sozlamalar", "👤 Profil", "📖 Qo'llanma / Bot haqida",
 # "⚙️ Qo'shimcha funksiyalar" ...) asosiy menyudan olib tashlandi, lekin
 # routing'da alias sifatida saqlanadi — keshda qolgan eski klaviatura
 # xabarlari xavfsiz mos bo'limga yo'naltiriladi (backward compatibility).
@@ -88,8 +88,9 @@ BTN_SCHEDULED_EN = get_text("btn_scheduled", "en")
 BTN_STATISTICS = get_text("btn_statistics", "uz")
 BTN_STATISTICS_RU = get_text("btn_statistics", "ru")
 BTN_STATISTICS_EN = get_text("btn_statistics", "en")
-# 👥 Do'stlarni taklif — referral endi ASOSIY menyuda (3-QISM): ichki
-# «🎁 Bonuslar & Taklif» hub'ida yashirinib qolmaydi.
+# 👥 Do'stlarni taklif — referral asosiy menyuda EMAS: tugma Sozlamalar
+# ichki menyusida chiziladi (stgs_referral). Yorliqlar routing'da alias
+# sifatida saqlanadi (keshdagi eski klaviatura xabarlari uchun).
 BTN_INVITE_FRIENDS = get_text("btn_invite_friends", "uz")
 BTN_INVITE_FRIENDS_RU = get_text("btn_invite_friends", "ru")
 BTN_INVITE_FRIENDS_EN = get_text("btn_invite_friends", "en")
@@ -841,18 +842,18 @@ def get_content_creation_keyboard(lang: str = "uz", context=None):
 
 def get_main_keyboard(is_admin=False, lang="uz", context=None,
                       include_image_post=None, include_post_score=None):
-    """Asosiy reply-klaviatura — 3-QISM: 7 TUGMA / 4 QATOR STANDARTI.
+    """Asosiy reply-klaviatura — KLASSIK 6 TUGMA / 3 QATOR standarti.
 
-    Oddiy foydalanuvchi (3 qator × 2 tugma + 1 yagona tugma):
+    Oddiy foydalanuvchi (3 qator × 2 tugma):
 
         [✨ Kontent yaratish]   [📢 Kanallarim]
         [📅 Rejalashtirilgan]   [📊 Statistika]
-        [💎 PRO]                [👥 Do'stlarni taklif]
-        [👤 Profil]
+        [💎 PRO]                [⚙️ Sozlamalar]
 
-    Admin foydalanuvchi (ADMIN_IDS) — shu 7 ta tugma + pastda alohida
+    Admin foydalanuvchi (ADMIN_IDS) — shu 6 ta tugma + pastda alohida
     [⚙️ Admin Panel] qatori. Oddiy foydalanuvchiga "Admin Panel" HECH
-    QACHON ko'rinmaydi.
+    QACHON ko'rinmaydi. «👥 Do'stlarni taklif» asosiy menyuda chizilmaydi
+    — referral Sozlamalar ichki menyusidan ochiladi.
 
     ``include_image_post`` / ``include_post_score`` parametrlari UX V2 dan
     beri DEPRECATED: asosiy menyuda Magic Post / Image Post / Post Score
@@ -867,8 +868,7 @@ def get_main_keyboard(is_admin=False, lang="uz", context=None,
     keyboard = [
         [get_text("btn_create_content", lang), get_text("btn_my_channels", lang)],
         [get_text("btn_scheduled", lang), get_text("btn_statistics", lang)],
-        [get_text("btn_premium", lang), get_text("btn_invite_friends", lang)],
-        [get_text("btn_settings", lang)],
+        [get_text("btn_premium", lang), get_text("btn_settings", lang)],
     ]
     if is_admin:
         keyboard.append([BTN_ADMIN_PANEL])
@@ -890,9 +890,9 @@ def get_refreshed_main_keyboard(lang="uz", is_admin=False, simple_menu=False,
         context: berilsa, til ``context.user_data['lang']`` dan olinadi
 
     Returns:
-        3-QISM 7-tugma standart klaviatura (tilga mos yorliqlar):
+        Klassik 6-tugma / 3-qator standart klaviatura (tilga mos yorliqlar):
         UZ: "✨ Kontent yaratish", "📢 Kanallarim", "📅 Rejalashtirilgan",
-        "📊 Statistika", "💎 PRO", "👥 Do'stlarni taklif", "👤 Profil" ...
+        "📊 Statistika", "💎 PRO", "⚙️ Sozlamalar" ...
     """
     if context is not None:
         lang = get_lang(context, lang)

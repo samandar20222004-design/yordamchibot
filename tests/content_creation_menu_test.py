@@ -22,7 +22,7 @@ DIQQAT: BOTNI ODDIY (AI'SIZ) POSTINGGA MOSLASH — menyu bo'lingan va chalkash
   TEST 5:  ACTION-FIRST — menyu tashqarisida ovoz → STT oqimi, rasm → Vision
            oqimi, xom matn → «✨ Magic Post» taklifi (qisqa matn eski javob);
            «mnp_» stale entry dialog ichida holatni buzmaydi.
-  TEST 6:  REGRESSIYA QO'RIQONLARI — asosiy menyu 7 tugma (3-QISM),
+  TEST 6:  REGRESSIYA QO'RIQONLARI — asosiy menyu 6 tugma (klassik),
            fallback ENG oxirgi handler, yangi holat/prefikslar unikal,
            eski handlerlar ro'yxati buzilmagan, hardcode matn yo'q.
 
@@ -389,13 +389,13 @@ def test_submenu_keyboard():
         check(f"submenu[{lang}]: eski bo'lingan tugmalar menyuda YO'Q",
               not leaked, str(leaked))
 
-    # Asosiy menyu 7 tugma STANDARTI (submenu unga aralashmaydi).
+    # Asosiy menyu 6 tugma STANDARTI (submenu unga aralashmaydi).
     for lang in LANGS:
         main_flat = kb_flat(get_main_keyboard(False, lang=lang))
-        check(f"main[{lang}]: 7 tugma saqlangan", len(main_flat) == 7, str(main_flat))
+        check(f"main[{lang}]: 6 tugma saqlangan", len(main_flat) == 6, str(main_flat))
         check(f"main[{lang}]: submenu tugmalari asosiy menyuda YO'Q",
               not set(main_flat) & set(kb_flat(get_content_creation_keyboard(lang))))
-    check("main[admin]: 8 tugma (Admin Panel oxirgi qatorda)",
+    check("main[admin]: Admin Panel oxirgi qatorda",
           kb_rows(get_main_keyboard(True, lang="uz"))[-1] == [BTN_ADMIN_PANEL])
 
 
@@ -623,10 +623,10 @@ def test_submenu_flows():
         finally:
             restore()
 
-        # 5) [◀️ Orqaga] → asosiy 7 tugmali menyu.
+        # 5) [◀️ Orqaga] → asosiy 6 tugmali menyu.
         rec = _Rec()
         res = asyncio.run(content_creation_back(_update_msg(rec), _ctx(lang)))
-        check(f"[{lang}] ◀️ Orqaga → asosiy 7 tugmali menyu",
+        check(f"[{lang}] ◀️ Orqaga → asosiy 6 tugmali menyu",
               rec.sent and kb_flat(rec.sent[0]["reply_markup"]) ==
               kb_flat(get_main_keyboard(False, lang=lang)), str(rec.sent))
         check(f"[{lang}] ◀️ Orqaga → dialog yopildi (END)",
@@ -833,10 +833,10 @@ def test_regression_guards():
           conv.allow_reentry is True)
     check("conversation timeout o'zgarmagan", conv.conversation_timeout == 600)
 
-    # Asosiy 7 tugma + reply klaviatura API'lari buzilmagan.
+    # Asosiy 6 tugma + reply klaviatura API'lari buzilmagan.
     for lang in LANGS:
-        check(f"get_main_keyboard[{lang}]: 7 tugma",
-              len(kb_flat(get_main_keyboard(False, lang=lang))) == 7)
+        check(f"get_main_keyboard[{lang}]: 6 tugma",
+              len(kb_flat(get_main_keyboard(False, lang=lang))) == 6)
 
     # Callback data 64-bayt chegarasida (mnp_ch:<id> eng uzuni).
     from keyboards.callback_data import CALLBACK_DATA_MAX_BYTES, callback_byte_len

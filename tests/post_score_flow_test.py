@@ -288,12 +288,12 @@ def test_main_menu_entry():
               bool(re.fullmatch(exact(BTN_POST_SCORE, BTN_POST_SCORE_RU,
                                       BTN_POST_SCORE_EN).pattern, label)))
 
-    # 3-QISM (7-tugma standarti): asosiy menyu aynan 7 tugma; «📊 Post
+    # KLASSIK (6-tugma standarti): asosiy menyu aynan 6 tugma; «📊 Post
     # Score» va «✨ Magic Post» menyu'dan chiqdi (oqimlari yashaydi —
     # routing filtrlari + AI Yordamchi / to'g'ridan-to'g'ri kirishlar).
     kb_ctx = get_main_keyboard(False, lang="uz", context=object())
     texts_ctx = [btn.text for row in kb_ctx.keyboard for btn in row]
-    check("production menyu: 3-QISM — aynan 7 tugma", len(texts_ctx) == 7, str(texts_ctx))
+    check("production menyu: klassik — aynan 6 tugma", len(texts_ctx) == 6, str(texts_ctx))
     check("production menyuda Post Score YO'Q (UX V2)",
           BTN_POST_SCORE not in texts_ctx, str(texts_ctx))
     check("production menyuda Magic Post YO'Q (UX V2)",
@@ -301,8 +301,8 @@ def test_main_menu_entry():
 
     kb_legacy = get_main_keyboard(False, lang="uz")
     legacy_rows = [[btn.text for btn in row] for row in kb_legacy.keyboard]
-    check("context'siz klaviatura: 3-QISM — 4 qator (7 tugma)",
-          len(legacy_rows) == 4, str(legacy_rows))
+    check("context'siz klaviatura: klassik — 3 qator (6 tugma)",
+          len(legacy_rows) == 3, str(legacy_rows))
     check("context'siz klaviaturada Post Score YO'Q",
           BTN_POST_SCORE not in [t for row in legacy_rows for t in row])
 

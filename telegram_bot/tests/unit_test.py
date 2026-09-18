@@ -1071,7 +1071,7 @@ def test_analytics_type_distribution_format():
 
 
 def test_main_menu_layout_v2():
-    """Asosiy menyu tartibi va inline sub-menyular (3-QISM: 7-tugma standarti)."""
+    """Asosiy menyu tartibi va inline sub-menyular (klassik 6-tugma standarti)."""
     print("== Main menu layout v2 ==")
     from keyboards.default import (
         get_main_keyboard, BTN_SETTINGS,
@@ -1083,35 +1083,36 @@ def test_main_menu_layout_v2():
     import keyboards.default as kd
 
     check("AI Yordamchi olib tashlangan", not hasattr(kd, "BTN_AI"))
-    # 3-QISM: «⚙️ Sozlamalar» → «👤 Profil», yangi «👥 Do'stlarni taklif».
-    check("BTN_SETTINGS matni", BTN_SETTINGS == "👤 Profil")
+    # KLASSIK: «👤 Profil» qaytadan «⚙️ Sozlamalar», «👥 Do'stlarni taklif»
+    # asosiy menyuda EMAS (Sozlamalar ichida).
+    check("BTN_SETTINGS matni", BTN_SETTINGS == "⚙️ Sozlamalar")
     check("BTN_INVITE_FRIENDS matni", BTN_INVITE_FRIENDS == "👥 Do'stlarni taklif")
     check("BTN_PREMIUM matni (💎 PRO)", BTN_PREMIUM == "💎 PRO")
     check("BTN_HELP matni", BTN_HELP == "📖 Qo'llanma / Bot haqida")
     check("BTN_EXTRAS matni", BTN_EXTRAS == "⚙️ Qo'shimcha funksiyalar")
 
     rows = [[b.text for b in row] for row in get_main_keyboard(False).keyboard]
-    # 3-QISM: QAT'IY 7 tugma — 3 juftlik qator + yakka Profil.
-    check("user: 4 qator (7 tugma)", len(rows) == 4, str(rows))
+    # KLASSIK: QAT'IY 6 tugma — 3 juftlik qator.
+    check("user: 3 qator (6 tugma)", len(rows) == 3, str(rows))
     check("user row1", rows[0] == [BTN_CREATE_CONTENT, BTN_MY_CHANNELS], str(rows[0]))
     check("user row2", rows[1] == [BTN_SCHEDULED, BTN_STATISTICS], str(rows[1]))
-    check("user row3", rows[2] == [BTN_PREMIUM, BTN_INVITE_FRIENDS], str(rows[2]))
-    check("user row4 (Profil)", rows[3] == [BTN_SETTINGS], str(rows[3]))
+    check("user row3 (PRO + Sozlamalar)", rows[2] == [BTN_PREMIUM, BTN_SETTINGS], str(rows[2]))
     # Eski tarqoq tugmalar asosiy menyudan olingan (Sozlamalar ichidan ochiladi).
     flat = [t for r in rows for t in r]
     check("user: Qo'llanma asosiy menyuda YO'Q", BTN_HELP not in flat, str(flat))
     check("user: Qo'shimcha asosiy menyuda YO'Q", BTN_EXTRAS not in flat, str(flat))
     check("user: Magic Post asosiy menyuda YO'Q", kd.BTN_MAGIC_POST not in flat, str(flat))
+    check("user: Do'stlarni taklif asosiy menyuda YO'Q",
+          BTN_INVITE_FRIENDS not in flat, str(flat))
     check("user: Admin Panel oddiy foydalanuvchida YO'Q",
           BTN_ADMIN_PANEL not in flat, str(flat))
 
     arows = [[b.text for b in row] for row in get_main_keyboard(True).keyboard]
-    check("admin: 5 qator (7 tugma + Admin Panel)", len(arows) == 5, str(arows))
+    check("admin: 4 qator (6 tugma + Admin Panel)", len(arows) == 4, str(arows))
     check("admin row1", arows[0] == [BTN_CREATE_CONTENT, BTN_MY_CHANNELS], str(arows[0]))
     check("admin row2", arows[1] == [BTN_SCHEDULED, BTN_STATISTICS], str(arows[1]))
-    check("admin row3", arows[2] == [BTN_PREMIUM, BTN_INVITE_FRIENDS], str(arows[2]))
-    check("admin row4 (Profil)", arows[3] == [BTN_SETTINGS], str(arows[3]))
-    check("admin row5 (Admin Panel)", arows[4] == [BTN_ADMIN_PANEL], str(arows[4]))
+    check("admin row3 (PRO + Sozlamalar)", arows[2] == [BTN_PREMIUM, BTN_SETTINGS], str(arows[2]))
+    check("admin row4 (Admin Panel)", arows[3] == [BTN_ADMIN_PANEL], str(arows[3]))
 
     ex = [[(b.text, b.callback_data) for b in row] for row in get_extras_inline_keyboard().inline_keyboard]
     ex_cbs = [c for row in ex for _, c in row]
@@ -1122,14 +1123,14 @@ def test_main_menu_layout_v2():
     check("extras: yopish", ex[2][0] == ("❌ Yopish", "extra_close"), str(ex[2]))
 
     cab = [[(b.text, b.callback_data) for b in row] for row in get_cabinet_inline_keyboard().inline_keyboard]
-    # 3-QISM: 👤 Profil — IXCHAM 6 TUGMALI PANEL (Sozlamalar hub'i bilan bir xil).
-    # «🎁 Bonuslar & Taklif» → asosiy menyu («👥 Do'stlarni taklif»),
-    # «❓ Yordam» hub'i → bir «💬 Qo'llab-quvvatlash» tugmasiga aylantirildi.
-    check("kabinet: 4 qator (ixcham 6 tugmali panel)", len(cab) == 4, str(cab))
+    # ⚙️ Sozlamalar — 7 TUGMALI PANEL. «👥 Do'stlarni taklif» asosiy menyudan
+    # shu panelga ko'chirildi, «🎁 Bonuslar & Taklif» → referral ekranidagi
+    # kunlik bonus, «❓ Yordam» hub'i → bir «💬 Qo'llab-quvvatlash» tugmasi.
+    check("kabinet: 4 qator (7 tugmali panel)", len(cab) == 4, str(cab))
     expected = [
         [("🌐 Til / Язык", "stgs_lang"), ("✍️ Post sozlamalari", "stgs_post")],
-        [("🔔 Bildirishnomalar", "stgs_notif"), ("💳 To'lovlar tarixi", "stgs_pay")],
-        [("💬 Qo'llab-quvvatlash", "help_support")],
+        [("🔔 Bildirishnomalar", "stgs_notif"), ("👥 Do'stlarni taklif", "stgs_referral")],
+        [("💳 To'lovlar tarixi", "stgs_pay"), ("💬 Qo'llab-quvvatlash", "help_support")],
         [("❌ Yopish", "stgs_back")],
     ]
     check("kabinet tartibi", cab == expected, str(cab))
@@ -1703,10 +1704,10 @@ def test_ai_studio_keyboard():
     check("studio kb: ◀️ Orqaga label (submenu bilan bir xil)",
           "◀️ Orqaga" in labels, str(labels))
 
-    # 3-QISM: asosiy klaviatura — QAT'IY 7 tugma (free) + admin qatori.
+    # Klassik: asosiy klaviatura — QAT'IY 6 tugma (free) + admin qatori.
     kb_main = get_main_keyboard(False)
     main_texts = [b.text for row in kb_main.keyboard for b in row]
-    check("main kb: 7 ta tugma (free, 3-QISM)", len(main_texts) == 7)
+    check("main kb: 6 ta tugma (free, klassik)", len(main_texts) == 6)
     check("main kb: Kontent yaratish", BTN_CREATE_CONTENT in main_texts)
     check("main kb: Kanallarim", BTN_MY_CHANNELS in main_texts)
     check("main kb: Rejalashtirilgan", BTN_SCHEDULED in main_texts)
@@ -1725,10 +1726,10 @@ def test_ai_studio_keyboard():
     check("main kb: AI Studio yo'q (UX V2)", BTN_AI_STUDIO not in main_texts)
     check("main kb: Yangi post yo'q (UX V2)", BTN_NEW_POST not in main_texts)
 
-    # Admin keyboard — 8 ta tugma (7 + admin)
+    # Admin keyboard — 7 ta tugma (6 + admin)
     kb_admin = get_main_keyboard(True)
     admin_texts = [b.text for row in kb_admin.keyboard for b in row]
-    check("main kb: 8 ta tugma (admin, 3-QISM)", len(admin_texts) == 8)
+    check("main kb: 7 ta tugma (admin, klassik)", len(admin_texts) == 7)
     check("main kb admin: Admin Panel oxirgi qatorda",
           [[b.text for b in r] for r in kb_admin.keyboard][-1] == [BTN_ADMIN_PANEL])
 
@@ -6071,7 +6072,7 @@ def test_cabinet_i18n_suite():
     import sys as _sys
     from pathlib import Path
     from locales.translations import get_text, localize_db_message, TRANSLATIONS
-    from keyboards.default import get_main_keyboard, get_cabinet_keyboard, get_cancel_keyboard, exact, BTN_CHANNELS, BTN_CHANNELS_RU, BTN_CONVERTER, BTN_CONVERTER_RU, BTN_DAILY_BONUS, BTN_DAILY_BONUS_RU, BTN_INVITE, BTN_INVITE_RU, BTN_TRANSFER, BTN_TRANSFER_RU, BTN_BACK, BTN_BACK_RU, BTN_CANCEL, BTN_CANCEL_RU, BTN_SETTINGS_RU
+    from keyboards.default import get_main_keyboard, get_cabinet_keyboard, get_cancel_keyboard, exact, BTN_CHANNELS, BTN_CHANNELS_RU, BTN_CONVERTER, BTN_CONVERTER_RU, BTN_DAILY_BONUS, BTN_DAILY_BONUS_RU, BTN_INVITE, BTN_INVITE_RU, BTN_TRANSFER, BTN_TRANSFER_RU, BTN_BACK, BTN_BACK_RU, BTN_CANCEL, BTN_CANCEL_RU, BTN_PREMIUM_RU, BTN_SETTINGS_RU
     from keyboards.inline import (
         get_cabinet_inline_keyboard, get_cabinet_back_keyboard,
         get_channels_manage_keyboard, render_channels_list, no_channels_hint,
@@ -6141,11 +6142,11 @@ def test_cabinet_i18n_suite():
           [b.text for row in get_cancel_keyboard().keyboard for b in row]
           == [BTN_CANCEL, BTN_BACK])
 
-    # Asosiy klaviatura ham profil tugmasi bilan bir tilda
-    # (3-QISM: 4-qator — juftliklar + yakka Profil).
+    # Asosiy klaviatura ham Sozlamalar tugmasi bilan bir tilda
+    # (klassik: 3-qator — juftliklar, Sozlamalar 3-qatorning o'ng tugmasi).
     main_ru_rows = _rows(get_main_keyboard(False, lang="ru"))
-    check("asosiy menyu ru: profil tugmasi tarjimasi",
-          main_ru_rows[3] == [BTN_SETTINGS_RU], str(main_ru_rows))
+    check("asosiy menyu ru: Sozlamalar tugmasi tarjimasi",
+          main_ru_rows[2] == [BTN_PREMIUM_RU, BTN_SETTINGS_RU], str(main_ru_rows))
 
     # ---------- 3) Kabinet inline-klaviaturasi ----------
     from translations import settings_stats_t
@@ -6155,11 +6156,12 @@ def test_cabinet_i18n_suite():
     check("kabinet inline ru: yorliqlar tarjimasi",
           settings_stats_t("ss_btn_lang", "ru") in cab_texts
           and settings_stats_t("ss_btn_close", "ru") in cab_texts, str(cab_texts))
-    # 3-QISM: kabinet — ixcham 6 tugmali 👤 Profil paneli (hub bilan bir xil);
+    # Sozlamalar — 7 tugmali panel (hub bilan bir xil);
     # eski cab_* va guruh callback'lari FAQAT routing'da saqlanadi.
-    check("kabinet inline ru: callback_data (ixcham panel)",
+    check("kabinet inline ru: callback_data (7 tugmali panel)",
           cab_cbs == ["stgs_lang", "stgs_post", "stgs_notif",
-                      "stgs_pay", "help_support", "stgs_back"], str(cab_cbs))
+                      "stgs_referral", "stgs_pay", "help_support",
+                      "stgs_back"], str(cab_cbs))
     check("kabinet inline uz: default",
           [b.text for row in get_cabinet_inline_keyboard().inline_keyboard for b in row][0]
           == settings_stats_t("ss_btn_lang", "uz"))
@@ -6335,15 +6337,14 @@ def test_i18n_uz_ru():
     check("unknown key fallback", get_text("no_such_key", "ru") == "no_such_key")
     check("unknown lang -> uz", get_text("btn_new_post", "fr") == get_text("btn_new_post", "uz"))
 
-    # 3-QISM (7-tugma standarti): RU klaviatura yangi yorliqlarda.
+    # KLASSIK (6-tugma standarti): RU klaviatura yangi yorliqlarda.
     ru_rows = [[b.text for b in row] for row in get_main_keyboard(False, lang="ru").keyboard]
-    check("ru: 4 qator (7 tugma)", len(ru_rows) == 4, str(ru_rows))
+    check("ru: 3 qator (6 tugma)", len(ru_rows) == 3, str(ru_rows))
     check("ru row1", ru_rows[0] == [BTN_CREATE_CONTENT_RU, BTN_MY_CHANNELS_RU], str(ru_rows[0]))
     check("ru row2", ru_rows[1] == [BTN_SCHEDULED_RU, BTN_STATISTICS_RU], str(ru_rows[1]))
-    check("ru row3", ru_rows[2] == [BTN_PREMIUM_RU, BTN_INVITE_FRIENDS_RU], str(ru_rows[2]))
-    check("ru row4 (Profil)", ru_rows[3] == [BTN_SETTINGS_RU], str(ru_rows[3]))
+    check("ru row3 (PRO + Sozlamalar)", ru_rows[2] == [BTN_PREMIUM_RU, BTN_SETTINGS_RU], str(ru_rows[2]))
     uz_rows = [[b.text for b in row] for row in get_main_keyboard(False).keyboard]
-    check("uz default: 4 qator (7 tugma)", len(uz_rows) == 4, str(uz_rows))
+    check("uz default: 3 qator (6 tugma)", len(uz_rows) == 3, str(uz_rows))
     check("uz default row1", uz_rows[0] == [BTN_CREATE_CONTENT, BTN_MY_CHANNELS], str(uz_rows[0]))
 
     class _Ctx:
@@ -6434,8 +6435,8 @@ def test_i18n_en_menu_buttons_and_fallback():
 
     # ---------- 1) EN lug'at: tugma matnlari va fallback xabarlar ----------
     check("EN btn_new_post", get_text("btn_new_post", "en") == "➕ New post")
-    # 3-QISM: sozlamalar yorlig'i endi «👤 Profile» (eski nom aliasda).
-    check("EN btn_settings", get_text("btn_settings", "en") == "👤 Profile")
+    # KLASSIK: sozlamalar yorlig'i — «⚙️ Settings» (eski nom aliasda).
+    check("EN btn_settings", get_text("btn_settings", "en") == "⚙️ Settings")
     check("EN btn_invite_friends", get_text("btn_invite_friends", "en") == "👥 Invite friends")
     check("EN btn_help", get_text("btn_help", "en") == "📖 Guide / About")
     check("EN btn_extras", get_text("btn_extras", "en") == "⚙️ Extra features")
@@ -6530,17 +6531,15 @@ def test_i18n_en_menu_buttons_and_fallback():
               type(h).__name__)
 
     # ---------- 4) EN klaviaturalar = router qamrovi (tuxunsiz) ----------
-    # 3-QISM: asosiy menyu — QAT'IY 7 TUGMA (EN yorliqlar).
+    # KLASSIK: asosiy menyu — QAT'IY 6 TUGMA (EN yorliqlar).
     en_rows = [[b.text for b in row] for row in get_main_keyboard(False, lang="en").keyboard]
-    check("EN main kb: 4 qator (7 tugma)", len(en_rows) == 4, str(en_rows))
+    check("EN main kb: 3 qator (6 tugma)", len(en_rows) == 3, str(en_rows))
     check("EN main kb row1",
           en_rows[0] == [BTN_CREATE_CONTENT_EN, BTN_MY_CHANNELS_EN], str(en_rows[0]))
     check("EN main kb row2",
           en_rows[1] == [BTN_SCHEDULED_EN, BTN_STATISTICS_EN], str(en_rows[1]))
-    check("EN main kb row3",
-          en_rows[2] == [BTN_PREMIUM_EN, BTN_INVITE_FRIENDS_EN], str(en_rows[2]))
-    check("EN main kb row4 (Profil)",
-          en_rows[3] == [BTN_SETTINGS_EN], str(en_rows[3]))
+    check("EN main kb row3 (PRO + Settings)",
+          en_rows[2] == [BTN_PREMIUM_EN, BTN_SETTINGS_EN], str(en_rows[2]))
     for label in (t for row in en_rows for t in row):
         check(f"EN klaviatura tugmasi router'da: {label[:26]!r}",
               bool(_entry_fn_names(label)))
@@ -6600,11 +6599,11 @@ def test_i18n_en_menu_buttons_and_fallback():
         check("EN fallback: asosiy menyu klaviaturasi bor",
               isinstance(kb, ReplyKeyboardMarkup), type(kb).__name__)
         labels = [b.text for row in kb.keyboard for b in row] if kb is not None else []
-        # 3-QISM: fallback klaviaturasi — 7-tugma standart (EN yorliqlar).
-        check("EN fallback: klaviatura EN tugmalar bilan (3-QISM: 7 tugma)",
-              len(labels) == 7
+        # KLASSIK: fallback klaviaturasi — 6-tugma standart (EN yorliqlar).
+        check("EN fallback: klaviatura EN tugmalar bilan (klassik: 6 tugma)",
+              len(labels) == 6
               and BTN_CREATE_CONTENT_EN in labels and BTN_SETTINGS_EN in labels
-              and BTN_INVITE_FRIENDS_EN in labels, str(labels))
+              and BTN_INVITE_FRIENDS_EN not in labels, str(labels))
 
     # 6b) Dialog ICHIDA: qabul qilinmaydigan xabar turi → EN eslatma,
     #     menyu YUBORILMAYDI, dialog holati buzilmaydi
@@ -8555,8 +8554,8 @@ def test_onboarding_simple_keyboard():
     for btn in (BTN_NEW_POST, BTN_AI_STUDIO, BTN_PREMIUM, BTN_SETTINGS, BTN_HELP, BTN_EXTRAS):
         check(f"sodda kb: asosiy menyu tugmasi yo'q ({btn[:14]})", btn not in flat, str(flat))
     full_flat = [b.text for row in get_main_keyboard(False).keyboard for b in row]
-    # 3-QISM: standart menyu — QAT'IY 7 tugma (Do'stlarni taklif + Profil).
-    check("standart menyu (3-QISM): 7 tugma", len(full_flat) == 7, str(full_flat))
+    # KLASSIK: standart menyu — QAT'IY 6 tugma (Sozlamalar 3-qatorda).
+    check("standart menyu (klassik): 6 tugma", len(full_flat) == 6, str(full_flat))
 
 
 def test_onboarding_resolve_and_quick_handlers():

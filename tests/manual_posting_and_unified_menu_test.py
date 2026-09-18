@@ -703,15 +703,16 @@ def test_unified_content_menu():
 
 
 # ============================================================================
-# TEST 6 — 👤 PROFIL: 3-QISM ixcham menyusi (Til bilan birga)
+# TEST 6 — ⚙️ SOZLAMALAR: 7 tugmali menyusi (Til bilan birga)
 # ============================================================================
 def test_profile_cleanup():
-    print("\n== TEST 6: 👤 Profil — ixcham 6 tugmali menyu (3-QISM) ==")
-    # 1) 👤 Profil inline klaviaturasi — IXCHAM 6 tugma: Til, Post
-    #    sozlamalari, Bildirishnomalar, To'lovlar tarixi, Qo'llab-
-    #    quvvatlash, Yopish. Eski cab_* callback'lari YO'Q.
+    print("\n== TEST 6: ⚙️ Sozlamalar — 7 tugmali menyu ==")
+    # 1) Sozlamalar inline klaviaturasi — 7 tugma: Til, Post
+    #    sozlamalari, Bildirishnomalar, Do'stlarni taklif, To'lovlar
+    #    tarixi, Qo'llab-quvvatlash, Yopish. Eski cab_* callback'lari YO'Q.
     expected_profile_cbs = ["stgs_lang", "stgs_post", "stgs_notif",
-                            "stgs_pay", "help_support", "stgs_back"]
+                            "stgs_referral", "stgs_pay", "help_support",
+                            "stgs_back"]
     for lang in LANGS:
         cbs = [b.callback_data for row in
                get_cabinet_inline_keyboard(lang).inline_keyboard for b in row]
@@ -719,7 +720,7 @@ def test_profile_cleanup():
                   get_cabinet_inline_keyboard(lang).inline_keyboard for b in row]
         check(f"[{lang}] profil klaviaturasida cab_lang YO'Q",
               "cab_lang" not in cbs, str(cbs))
-        check(f"[{lang}] profil: ixcham 6 tugma (3-QISM tartibida)",
+        check(f"[{lang}] profil: 7 tugma (speks tartibida)",
               cbs == expected_profile_cbs, str(cbs))
         check(f"[{lang}] profil: «🌐 Til» birinchi tugma",
               labels and labels[0].startswith("🌐"), str(labels))

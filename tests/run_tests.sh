@@ -264,9 +264,9 @@ echo "===== 3g) 📊 STATISTIKA + ⚙️ SOZLAMALAR + ADMIN RBAC ====="
 # (1) 📊 Statistika — aniq nom + ixcham 4 ko'rsatkich (📢 kanallar /
 # 📝 yaratilgan postlar / 📅 rejalashtirilgan / 🤖 AI so'rovlar & kreditlar)
 # va natija ostida [🔄 Yangilash] [◀️ Orqaga]; (2) ⚙️ Sozlamalar — yagona
-# tartibli menyu: 8 ta guruh (👤 Profil / 🌐 Til / 🎁 Bonuslar & Ballar /
-# 🎨 Post sozlamalari / 🔔 Bildirishnomalar / 💳 To'lovlar tarixi /
-# 🧰 Vositalar / ❓ Yordam & Ma'lumot) + [◀️ Orqaga]; (3) ⚙️ Admin Panel — oddiy
+# tartibli 7 tugmali menyu (🌐 Til / ✍️ Post sozlamalari / 🔔
+# Bildirishnomalar / 👥 Do'stlarni taklif / 💳 To'lovlar tarixi / 💬
+# Qo'llab-quvvatlash / ❌ Yopish); (3) ⚙️ Admin Panel — oddiy
 # foydalanuvchiga MUTLAQO yopiq (RBAC fail-closed), admin kirganda tizim
 # monitoringi (Bot & DB / Scheduler / AI provayderlar / Pending manual
 # to'lovlar); (4) translations/settings_stats.py UZ/RU/EN 100% paritet;
@@ -310,11 +310,10 @@ echo "===== 3j) ⚙️ 3-QADAM REFAKTORI: SOZLAMALAR MENYUSI + VOSITALAR ====="
 # (1) ⚙️ Sozlamalar menyusidagi LEGACY DUBLIKATLAR (📢 Mening kanallarim,
 # 📊 Analitika, 📅 Kutilayotgan/Rejalashtirilgan, 💎 Ballar & reklama rejimi)
 # ko'rinishdan olib tashlandi — ular o'z asosiy menyularida bor; menyu
-# yagona, tartibli va TO'LIQ: 8 guruh + [◀️ Orqaga], UZ/RU/EN da AYNAN
-# bir xil callback'lar bilan:
-#   [👤 Profil] [🌐 Til] / [🎁 Bonuslar & Ballar] [🎨 Post sozlamalari] /
-#   [🔔 Bildirishnomalar] [💳 To'lovlar tarixi] /
-#   [🧰 Vositalar] [❓ Yordam & Ma'lumot] / [◀️ Orqaga];
+# yagona, tartibli va TO'LIQ: 7 tugma, UZ/RU/EN da AYNAN bir xil
+# callback'lar bilan:
+#   [🌐 Til] [✍️ Post sozlamalari] / [🔔 Bildirishnomalar] [👥 Do'stlarni
+#   taklif] / [💳 To'lovlar tarixi] [💬 Qo'llab-quvvatlash] / [❌ Yopish];
 # rewards/help ichki hub'lari eski callback aliaslarini ham saqlaydi;
 # (2) eski cab_* callback'lari O'CHIRILMAGAN — xavfsiz alias/redirect
 # sifatida ishlaydi (crash yo'q); (3) 🧰 Vositalar submenyusi: ilgari
@@ -668,7 +667,7 @@ echo "===== 3H) 💬 4-QISM: QO'LLAB-QUVVATLASH (ONE-TIME TICKET) + ADMIN REPLY 
 #     shaxsiy chatdagi reply'ga mos keladi; not-an-admin murojaat ID'sini
 #     bilsa ham hech narsa yubora olmaydi (fail-closed, ikki qatlam);
 # (5) REGRESSIYA: i18n UZ↔RU↔EN paritet, FSM 540 unikal, schema.sql ↔
-#     database.EXPECTED_TABLES paralleligi, 👤 Profil hub'i o'zgarmagan
+#     database.EXPECTED_TABLES paralleligi, ⚙️ Sozlamalar hub'i o'zgarmagan
 #     (tests/support_ticket_flow_test.py).
 "$PY" tests/support_ticket_flow_test.py || EXIT_CODE=1
 

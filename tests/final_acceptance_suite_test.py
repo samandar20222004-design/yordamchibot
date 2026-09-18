@@ -490,62 +490,62 @@ def _conversation_handlers():
 
 
 # ===========================================================================
-# TEST A..D — ASOSIY MENYU QAT'IY 7 TUGMA (3-QISM)
+# TEST A..D — ASOSIY MENYU QAT'IY 6 TUGMA (KLASSIK STANDART)
 # ===========================================================================
 EXPECTED_MAIN = {
     "uz": ["✨ Kontent yaratish", "📢 Kanallarim", "📅 Rejalashtirilgan",
-           "📊 Statistika", "💎 PRO", "👥 Do'stlarni taklif", "👤 Profil"],
+           "📊 Statistika", "💎 PRO", "⚙️ Sozlamalar"],
     "ru": ["✨ Создать контент", "📢 Мои каналы", "📅 Запланированные",
-           "📊 Статистика", "💎 PRO", "👥 Пригласить друзей", "👤 Профиль"],
+           "📊 Статистика", "💎 PRO", "⚙️ Настройки"],
     "en": ["✨ Create content", "📢 My channels", "📅 Scheduled",
-           "📊 Statistics", "💎 PRO", "👥 Invite friends", "👤 Profile"],
+           "📊 Statistics", "💎 PRO", "⚙️ Settings"],
 }
 
 
 def test_a_main_menu_uz():
-    header("A", "🧭 Asosiy menyu UZ — QAT'IY 7 tugma")
+    header("A", "🧭 Asosiy menyu UZ — QAT'IY 6 tugma")
     kb = get_main_keyboard(False, lang="uz")
     flat = _flat(kb)
-    check("UZ: aynan 7 tugma", len(flat) == 7, str(flat))
-    check("UZ: 4 qator (3 juftlik + Profil)", _rows(kb) == [EXPECTED_MAIN["uz"][i:i + 2] for i in (0, 2, 4, 6)],
+    check("UZ: aynan 6 tugma", len(flat) == 6, str(flat))
+    check("UZ: 3 qator (3 juftlik)", _rows(kb) == [EXPECTED_MAIN["uz"][i:i + 2] for i in (0, 2, 4)],
           str(_rows(kb)))
     check("UZ: kutilgan yorliqlar tartibi", flat == EXPECTED_MAIN["uz"], str(flat))
 
 
 def test_b_main_menu_ru():
-    header("B", "🧭 Asosiy menyu RU — QAT'IY 7 tugma")
+    header("B", "🧭 Asosiy menyu RU — QAT'IY 6 tugma")
     kb = get_main_keyboard(False, lang="ru")
     flat = _flat(kb)
-    check("RU: aynan 7 tugma", len(flat) == 7, str(flat))
-    check("RU: 4 qator (3 juftlik + Profil)", _rows(kb) == [EXPECTED_MAIN["ru"][i:i + 2] for i in (0, 2, 4, 6)],
+    check("RU: aynan 6 tugma", len(flat) == 6, str(flat))
+    check("RU: 3 qator (3 juftlik)", _rows(kb) == [EXPECTED_MAIN["ru"][i:i + 2] for i in (0, 2, 4)],
           str(_rows(kb)))
     check("RU: kutilgan yorliqlar tartibi", flat == EXPECTED_MAIN["ru"], str(flat))
 
 
 def test_c_main_menu_en():
-    header("C", "🧭 Asosiy menyu EN — QAT'IY 7 tugma")
+    header("C", "🧭 Asosiy menyu EN — QAT'IY 6 tugma")
     kb = get_main_keyboard(False, lang="en")
     flat = _flat(kb)
-    check("EN: aynan 7 tugma", len(flat) == 7, str(flat))
-    check("EN: 4 qator (3 juftlik + Profil)", _rows(kb) == [EXPECTED_MAIN["en"][i:i + 2] for i in (0, 2, 4, 6)],
+    check("EN: aynan 6 tugma", len(flat) == 6, str(flat))
+    check("EN: 3 qator (3 juftlik)", _rows(kb) == [EXPECTED_MAIN["en"][i:i + 2] for i in (0, 2, 4)],
           str(_rows(kb)))
     check("EN: kutilgan yorliqlar tartibi", flat == EXPECTED_MAIN["en"], str(flat))
 
 
 def test_d_main_menu_admin_variant_and_parity():
-    header("D", "🧭 Asosiy menyu — admin varianti 7-tugmani saqlaydi + til pariteti")
+    header("D", "🧭 Asosiy menyu — admin varianti 6-tugmani saqlaydi + til pariteti")
     for lang in LANGS:
         user_kb = get_main_keyboard(False, lang=lang)
         admin_kb = get_main_keyboard(True, lang=lang)
-        check(f"[{lang}] admin: birinchi 4 qator = 7-tugma standarti",
-              _rows(admin_kb)[:4] == _rows(user_kb), str(_rows(admin_kb)[:4]))
+        check(f"[{lang}] admin: birinchi 3 qator = 6-tugma standarti",
+              _rows(admin_kb)[:3] == _rows(user_kb), str(_rows(admin_kb)[:3]))
         check(f"[{lang}] admin: oxirgi qator = [⚙️ Admin Panel]",
               _rows(admin_kb)[-1] == [BTN_ADMIN_PANEL], str(_rows(admin_kb)[-1]))
         check(f"[{lang}] oddiy foydalanuvchida Admin Panel YO'Q",
               BTN_ADMIN_PANEL not in _flat(user_kb), str(_flat(user_kb)))
-    # Til pariteti: har uchala til 7 ta, hech biri tarjima qilmay qolmagan.
+    # Til pariteti: har uchala til 6 ta, hech biri tarjima qilmay qolmagan.
     sizes = {lang: len(_flat(get_main_keyboard(False, lang=lang))) for lang in LANGS}
-    check("uz/ru/en tugma soni bir xil (7/7/7)", set(sizes.values()) == {7}, str(sizes))
+    check("uz/ru/en tugma soni bir xil (6/6/6)", set(sizes.values()) == {6}, str(sizes))
     for lang in LANGS:
         check(f"[{lang}] hech bir tugma yorlig'i bo'sh emas",
               all((t or "").strip() for t in _flat(get_main_keyboard(False, lang=lang))))
@@ -766,13 +766,13 @@ def test_k_statistics_isolation():
 
 
 def test_l_settings_menu_compact_profile_hub():
-    # 3-QISM: 👤 Profil — IXCHAM 6 tugma. «🎁 Bonuslar & Taklif» hub'dan
-    # olib tashlandi (👉 asosiy menyuda «👥 Do'stlarni taklif»), 🧰 Vositalar
-    # va ❓ Yordam hub'i ham ko'rinishdan chiqdi (oqimlar routing'da qoladi).
-    header("L", "👤 Profil — ixcham 6 tugma, uchala tilda bir xil")
+    # ⚙️ Sozlamalar — 7 tugma. «👥 Do'stlarni taklif» asosiy menyudan shu
+    # hub'ga ko'chirildi; «🎁 Bonuslar & Taklif», 🧰 Vositalar va ❓ Yordam
+    # hub'i ko'rinishdan chiqdi (oqimlar routing'da qoladi).
+    header("L", "⚙️ Sozlamalar — 7 tugma, uchala tilda bir xil")
     expected_cbs = ["stgs_lang", "stgs_post",
-                    "stgs_notif", "stgs_pay",
-                    "help_support",
+                    "stgs_notif", "stgs_referral",
+                    "stgs_pay", "help_support",
                     "stgs_back"]
     base = None
     for lang in LANGS:
@@ -781,7 +781,7 @@ def test_l_settings_menu_compact_profile_hub():
         labels = _labels(kb)
         if base is None:
             base = cbs
-        check(f"[{lang}] ixcham hub = 6 tugma", len(cbs) == 6, str(cbs))
+        check(f"[{lang}] Sozlamalar hub = 7 tugma", len(cbs) == 7, str(cbs))
         check(f"[{lang}] stgs_profile hub'da YO'Q (matn o'zi profil)",
               "stgs_profile" not in cbs, str(cbs))
         check(f"[{lang}] eski guruhlar (rewards/tools/help_hub) hub'da YO'Q",
@@ -801,7 +801,7 @@ def test_l_settings_menu_compact_profile_hub():
     with _with_db(fake), _quiet():
         _run(start_mod.user_cabinet_menu(_msg_update(msg), _ctx("uz")))
     drawn = _cbs(msg.sent[-1]["reply_markup"]) if msg.sent else []
-    check("user_cabinet_menu: 6 tugmali ixcham Profil klaviaturasini chizdi",
+    check("user_cabinet_menu: 7 tugmali Sozlamalar klaviaturasini chizdi",
           drawn == expected_cbs, str(drawn))
 
 

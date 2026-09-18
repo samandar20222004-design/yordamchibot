@@ -352,7 +352,7 @@ async def support_ticket_entry(update, context: ContextTypes.DEFAULT_TYPE) -> in
 
 
 async def support_back_callback(update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """[◀️ Orqaga] — murojaat oqimi yopiladi va 👤 Profil hub'i qaytadi."""
+    """[◀️ Orqaga] — murojaat oqimi yopiladi va ⚙️ Sozlamalar hub'i qaytadi."""
     query = getattr(update, "callback_query", None)
     user = getattr(update, "effective_user", None)
     user_id = int(getattr(user, "id", 0) or 0)

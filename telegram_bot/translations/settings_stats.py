@@ -510,21 +510,22 @@ SETTINGS_STATS_I18N = {
 SETTINGS_STATS_KEYS = tuple(sorted(SETTINGS_STATS_I18N["uz"].keys()))
 
 # ============================================================
-# 👤 PROFIL — IXCHAM 6 TUGMALI MENYU (3-QISM refaktori)
+# ⚙️ SOZLAMALAR — 7 TUGMALI MENYU
 # ============================================================
-#: Profil hub'idagi tugmalar — spetsifikatsiyadagi aniq tartib:
+#: Sozlamalar hub'idagi tugmalar — spetsifikatsiyadagi aniq tartib:
 #:   [🌐 Til / Язык]        [✍️ Post sozlamalari]
-#:   [🔔 Bildirishnomalar]  [💳 To'lovlar tarixi]
-#:   [💬 Qo'llab-quvvatlash]
+#:   [🔔 Bildirishnomalar]  [👥 Do'stlarni taklif]
+#:   [💳 To'lovlar tarixi]  [💬 Qo'llab-quvvatlash]
 #:   [❌ Yopish]
+#: «👥 Do'stlarni taklif» asosiy menyudan shu hub'ga ko'chirildi;
 #: «🎁 Bonuslar & Taklif», «🧰 Vositalar», «❓ Yordam & Ma'lumot» va
-#: [◀️ Orqaga] hub'dan OLIB TASHLANDI: referral endi asosiy menyuda
-#: (👥 Do'stlarni taklif), kunlik bonus — referral ekranida; eski
-#: stgs_* callback oqimlari esa orqaga moslik uchun saqlanadi.
+#: [◀️ Orqaga] hub'dan OLIB TASHLANDI (kunlik bonus — referral
+#: ekranida); eski stgs_* callback oqimlari orqaga moslik uchun saqlanadi.
 SETTINGS_MENU_BUTTON_KEYS = (
     "ss_btn_lang",
     "ss_btn_post_settings",
     "ss_btn_notif",
+    "ss_rewards_referral",
     "ss_btn_payments",
     "ss_help_hub_support",
     "ss_btn_close",
@@ -579,13 +580,14 @@ CB_STATS_BACK = "an_close"
 CB_STATS_DETAIL = "an_detail"
 CB_STATS_OVERVIEW = "an_overview"
 
-#: 👤 Profil — 3-QISM ixcham 6 tugmali hub (testlar uchun spetsifikatsiya).
+#: ⚙️ Sozlamalar — 7 tugmali hub (testlar uchun spetsifikatsiya).
 #: Eski guruhlar (stgs_rewards / stgs_tools / stgs_help_hub / stgs_profile)
 #: ko'rinishdan olib tashlandi, lekin routing'da legacy sifatida saqlanadi.
 CB_SETTINGS_HUB = (
     "stgs_lang",
     "stgs_post",
     "stgs_notif",
+    "stgs_referral",
     "stgs_pay",
     "help_support",
     "stgs_back",

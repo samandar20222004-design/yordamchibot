@@ -919,17 +919,19 @@ def _profile_support_button(lang: str) -> InlineKeyboardButton:
 
 
 def get_cabinet_inline_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
-    """👤 Profil — IXCHAM 6 TUGMALI inline panel (3-QISM refaktori).
+    """⚙️ Sozlamalar — 7 TUGMALI inline panel.
 
         [🌐 Til / Язык]        [✍️ Post sozlamalari]
-        [🔔 Bildirishnomalar]  [💳 To'lovlar tarixi]
-        [💬 Qo'llab-quvvatlash]
+        [🔔 Bildirishnomalar]  [👥 Do'stlarni taklif]
+        [💳 To'lovlar tarixi]  [💬 Qo'llab-quvvatlash]
         [❌ Yopish]
 
-    🧹 3-QISM TOZALIGI (asosiy menyu va referral bilan dublikatlar):
-      * «🎁 Bonuslar & Taklif» hub'i OLIB TASHLANDI — «👥 Do'stlarni taklif»
-        endi ASOSIY menyuda, «🎁 Kunlik bonus» esa referral ekranidagi
-        inline tugmada (stgs_rewards oqimi eski xabarlar uchun saqlanadi);
+    🧹 TOZA TARTIB (asosiy menyu bilan dublikatlar yo'q):
+      * «👥 Do'stlarni taklif» asosiy menyudan shu panelga ko'chirildi
+        (stgs_referral — referral ekrani + kunlik bonus);
+      * «🎁 Bonuslar & Taklif» hub'i OLIB TASHLANDI — kunlik bonus
+        referral ekranidagi inline tugmada (stgs_rewards oqimi eski
+        xabarlar uchun saqlanadi);
       * «🧰 Vositalar» va «❓ Yordam & Ma'lumot» guruhlari olib tashlandi —
         qo'llab-quvvatlash to'g'ridan-to'g'ri tugmada, qo'llanma esa
         /help buyrug'i orqali (stgs_tools / stgs_help_hub callback'lari
@@ -953,10 +955,12 @@ def get_cabinet_inline_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
         [
             InlineKeyboardButton(settings_stats_t("ss_btn_notif", lang),
                                  callback_data="stgs_notif"),
-            InlineKeyboardButton(settings_stats_t("ss_btn_payments", lang),
-                                 callback_data="stgs_pay"),
+            InlineKeyboardButton(settings_stats_t("ss_rewards_referral", lang),
+                                 callback_data="stgs_referral"),
         ],
         [
+            InlineKeyboardButton(settings_stats_t("ss_btn_payments", lang),
+                                 callback_data="stgs_pay"),
             _profile_support_button(lang),
         ],
         [
@@ -967,37 +971,39 @@ def get_cabinet_inline_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
 
 
 def get_settings_profile_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
-    """👤 Profil ekranining klaviaturasi — ixcham 6 tugmali panel.
+    """👤 Profil ekranining klaviaturasi — 7 tugmali Sozlamalar paneli.
 
-    3-QISM: Profil va Sozlamalar YAGONA ekrga birlashtirildi — bu funksiya
+    Profil va Sozlamalar YAGONA ekranga birlashtirilgan — bu funksiya
     endi ``get_settings_hub_keyboard`` bilan AYNAN bir xil panelni qaytaradi
-    (eski ``stgs_profile`` callback'i bosilganda ham yangi ixcham menyu
-    chiziladi; [◀️ Orqaga] dublikati kerak emas — panelning o'zi hub).
+    (eski ``stgs_profile`` callback'i bosilganda ham yangi menyu chiziladi;
+    [◀️ Orqaga] dublikati kerak emas — panelning o'zi hub).
     """
     return get_settings_hub_keyboard(lang)
 
 
 # ============================================================
-# 👤 PROFIL — IXCHAM 6 TUGMALI HUB (3-QISM refaktori)
+# ⚙️ SOZLAMALAR — 7 TUGMALI HUB
 # ------------------------------------------------------------
-# Asosiy menyudagi [👤 Profil] tugmasi shu panelni ochadi:
+# Asosiy menyudagi [⚙️ Sozlamalar] tugmasi shu panelni ochadi:
 #
 #     [🌐 Til / Язык]         [✍️ Post sozlamalari]
-#     [🔔 Bildirishnomalar]   [💳 To'lovlar tarixi]
-#     [💬 Qo'llab-quvvatlash]
+#     [🔔 Bildirishnomalar]   [👥 Do'stlarni taklif]
+#     [💳 To'lovlar tarixi]   [💬 Qo'llab-quvvatlash]
 #     [❌ Yopish]
 #
-# «🎁 Bonuslar & Taklif» (referral endi asosiy menyuda — 👥 Do'stlarni
-# taklif), «🧰 Vositalar» va «❓ Yordam & Ma'lumot» guruhlari hub'dan
-# olib tashlandi. Eski callback'lar (stgs_rewards / stgs_tools /
-# stgs_help_hub / stgs_profile kabilar) alohida handlerlarda saqlanadi —
-# Telegram chat tarixidagi eski inline tugmalar yangi oqimlarda
-# "o'lik" bo'lib qolmaydi.
+# «👥 Do'stlarni taklif» asosiy menyudan shu hub'ga ko'chirildi,
+# «🎁 Bonuslar & Taklif» (kunlik bonus referral ekranida), «🧰 Vositalar»
+# va «❓ Yordam & Ma'lumot» guruhlari hub'dan olib tashlandi. Eski
+# callback'lar (stgs_rewards / stgs_tools / stgs_help_hub / stgs_profile
+# kabilar) alohida handlerlarda saqlanadi — Telegram chat tarixidagi
+# eski inline tugmalar yangi oqimlarda "o'lik" bo'lib qolmaydi.
 # ============================================================
 
 
 def get_settings_hub_keyboard(lang: str = "uz", include_legacy: bool = False) -> InlineKeyboardMarkup:
-    """👤 Profil asosiy hub'i: ixcham 6 tugma (3-QISM refaktori).
+    """⚙️ Sozlamalar asosiy hub'i: 7 tugma (Til / Post sozlamalari /
+    Bildirishnomalar / Do'stlarni taklif / To'lovlar / Qo'llab-quvvatlash /
+    Yopish).
 
     ``include_legacy`` avvalgi 8-tugmali API bilan chaqiruvchi kodlar uchun
     saqlangan. Legacy tugmalar endi yangi hub'da ko'rsatilmaydi; ularning
@@ -1064,7 +1070,7 @@ def get_support_ticket_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
     """💬 Qo'llab-quvvatlash — bir martalik murojaat ekranining klaviaturasi.
 
     Topshiriq bo'yicha AYNAN bitta tugma: [◀️ Orqaga]. U murojaat oqimini
-    yopadi va 👤 Profil (Sozlamalar) hub'iga qaytaradi — foydalanuvchi
+    yopadi va ⚙️ Sozlamalar hub'iga qaytaradi — foydalanuvchi
     ekranda qamalib qolmaydi.
     """
     from translations import support_t
