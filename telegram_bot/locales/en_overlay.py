@@ -3,10 +3,10 @@
 EN_OVERLAY = {
     "btn_new_post": "➕ New post",
     "btn_ai_studio": "🤖 AI Assistant",
-    # UX V2 (6-button standard) — EN parity (legacy names stay in the
-    # alias lists in keyboards/default.py for backward compatibility).
+    # UX V2 (classic 6-button standard) — EN parity (legacy names stay in
+    # the alias lists in keyboards/default.py for backward compatibility).
     "btn_premium": "💎 PRO",
-    "btn_settings": "👤 Profile",
+    "btn_settings": "⚙️ Settings",
     "btn_help": "📖 Guide / About",
     "btn_extras": "⚙️ Extra features",
     # 🆕 UX V2 main menu — STRICT 6-BUTTON standard (EN):
@@ -547,7 +547,7 @@ EN_OVERLAY = {
         "📖 <b>PostAssistrobot — Complete Guide:</b>\n\n"
         "🔹 <b>1. Connect channel/group:</b>\n"
         "• Add the bot as <b>administrator</b> to your channel (with permission to send messages).\n"
-        "• Go to «👤 Profile» or «📢 My channels» in the main menu and forward any post from the channel or send @username.\n\n"
+        "• Go to «⚙️ Settings» or «📢 My channels» in the main menu and forward any post from the channel or send @username.\n\n"
         "🔹 <b>2. Schedule a new post:</b>\n"
         "• Schedule text, photo, video, audio or <b>album</b> (multiple photos/videos) for any date.\n"
         "• URL buttons, reactions and auto-delete (12, 24, 48, 72 hours).\n"

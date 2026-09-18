@@ -19,20 +19,19 @@ TRANSLATIONS = {
         # Eski «✨ AI Studio» yorliqlari routing'da ALIAS sifatida saqlanadi
         # (keyboards.default AI_STUDIO_ALIASES).
         "btn_ai_studio": "🤖 AI Yordamchi",
-        # UX V2 → 3-QISM: asosiy menyu yorliqlari. "btn_premium" = 💎 PRO,
-        # "btn_settings" endi «👤 Profil» (eski «⚙️ Sozlamalar» nomi routing'da
+        # UX V2 → KLASSIK: asosiy menyu yorliqlari. "btn_premium" = 💎 PRO,
+        # "btn_settings" — «⚙️ Sozlamalar» (eski «👤 Profil» nomi routing'da
         # alias sifatida saqlanadi — keyboards.default PROFILE_ALIASES),
-        # "btn_invite_friends" = 👥 Do'stlarni taklif (referral — endi asosiy
-        # menyuda, ichki menyular qatida yashirinib qolmaydi).
+        # "btn_invite_friends" = 👥 Do'stlarni taklif (referral — asosiy
+        # menyuda emas, Sozlamalar ichida chiziladi).
         "btn_premium": "💎 PRO",
-        "btn_settings": "👤 Profil",
+        "btn_settings": "⚙️ Sozlamalar",
         "btn_help": "📖 Qo'llanma / Bot haqida",
         "btn_extras": "⚙️ Qo'shimcha funksiyalar",
-        # 🆕 3-QISM: asosiy menyu — 7 TUGMA (4 qator) standarti (uz/ru/en paritetda):
+        # KLASSIK ASOSIY MENYU — 6 TUGMA / 3 QATOR standarti (uz/ru/en paritetda):
         #   [✨ Kontent yaratish]   [📢 Kanallarim]
         #   [📅 Rejalashtirilgan]   [📊 Statistika]
-        #   [💎 PRO]                [👥 Do'stlarni taklif]
-        #   [👤 Profil]
+        #   [💎 PRO]                [⚙️ Sozlamalar]
         "btn_create_content": "✨ Kontent yaratish",
         "btn_my_channels": "📢 Kanallarim",
         "btn_scheduled": "📅 Rejalashtirilgan",
@@ -441,7 +440,7 @@ TRANSLATIONS = {
             "📦 Navbatga qo'yildi: <b>{count} ta post</b>\n\n"
             "{days}\n\n"
             "🤖 Postlar har kuni soat <b>12:00</b> da avtomatik chiqadi.\n"
-            "📋 Istalgan postni «👤 Profil» → "
+            "📋 Istalgan postni «⚙️ Sozlamalar» → "
             "«📅 Rejalashtirilgan» bo'limidan tahrirlashingiz yoki "
             "bekor qilishingiz mumkin."
         ),
@@ -1465,7 +1464,7 @@ TRANSLATIONS = {
             "📖 <b>PostAssistrobot — To'liq Qo'llanma:</b>\n\n"
             "🔹 <b>1. Kanal/Guruh ulash:</b>\n"
             "• Botni kanalingizga <b>administrator</b> qilib (xabar yuborish ruxsati bilan) qo'shing.\n"
-            "• «👤 Profil» yoki asosiy menyudagi «📢 Kanallarim» bo'limi orqali kanaldan istalgan xabarni botga forward qiling yoki @username yuboring.\n\n"
+            "• «⚙️ Sozlamalar» yoki asosiy menyudagi «📢 Kanallarim» bo'limi orqali kanaldan istalgan xabarni botga forward qiling yoki @username yuboring.\n\n"
             "🔹 <b>2. Yangi post rejalashtirish:</b>\n"
             "• Matn, rasm, video, audio yoki <b>albom</b> (bir nechta rasm/video) postlarni istalgan sanaga rejalashtirish.\n"
             "• Havola tugmalar (URL button), reaksiyalar va avto-o'chirish (12, 24, 48, 72 soat).\n"
@@ -1509,7 +1508,7 @@ TRANSLATIONS = {
             "<b>4. Reklama qanday o'chadi?</b>\n"
             "⭐️ PRO tarif postlarni va bot javoblarini 100% reklamasiz qiladi (belgi avtomatik o'chadi).\n\n"
             "<b>5. Bot qaysi tillarda ishlaydi?</b>\n"
-            "O'zbek va rus tillarida. Tilni «👤 Profil» → «🌐 Til / Язык» orqali almashtirasiz.\n\n"
+            "O'zbek va rus tillarida. Tilni «⚙️ Sozlamalar» → «🌐 Til / Язык» orqali almashtirasiz.\n\n"
             "{support}"
         ),
         "help_btn_faq": "❓ Tez-tez beriladigan savollar",
@@ -1988,17 +1987,16 @@ TRANSLATIONS = {
         "btn_new_post": "➕ Новый пост",
         # 🤖 AI Помощник (3-QISM refaktori) — eski nomi «AI Studio».
         "btn_ai_studio": "🤖 AI Помощник",
-        # UX V2 → 3-QISM — RU paritet (eski nomlar aliaslar ro'yxatida
-        # saqlanadi — keyboards.default). «👤 Профиль» — eski «⚙️ Настройки».
+        # UX V2 → KLASSIK — RU paritet (eski nomlar aliaslar ro'yxatida
+        # saqlanadi — keyboards.default). «⚙️ Настройки» — eski nom «👤 Профиль».
         "btn_premium": "💎 PRO",
-        "btn_settings": "👤 Профиль",
+        "btn_settings": "⚙️ Настройки",
         "btn_help": "📖 Руководство / О боте",
         "btn_extras": "⚙️ Дополнительные функции",
-        # 🆕 3-QISM: asosiy menyu — 7 TUGMA (4 qator) standarti (RU):
+        # KLASSIK ASOSIY MENYU — 6 TUGMA / 3 QATOR standarti (RU):
         #   [✨ Создать контент]   [📢 Мои каналы]
         #   [📅 Запланированные]   [📊 Статистика]
-        #   [💎 PRO]               [👥 Пригласить друзей]
-        #   [👤 Профиль]
+        #   [💎 PRO]               [⚙️ Настройки]
         "btn_create_content": "✨ Создать контент",
         "btn_my_channels": "📢 Мои каналы",
         "btn_scheduled": "📅 Запланированные",
@@ -3426,7 +3424,7 @@ TRANSLATIONS = {
             "📖 <b>PostAssistrobot — Полное руководство:</b>\n\n"
             "🔹 <b>1. Подключение канала/группы:</b>\n"
             "• Добавьте бота <b>администратором</b> канала (с правом отправки сообщений).\n"
-            "• Через «👤 Профиль» или «📢 Мои каналы» в главном меню перешлите боту любое "
+            "• Через «⚙️ Настройки» или «📢 Мои каналы» в главном меню перешлите боту любое "
             "сообщение из канала или отправьте @username.\n\n"
             "🔹 <b>2. Планирование нового поста:</b>\n"
             "• Текст, фото, видео, аудио или <b>альбом</b> (несколько фото/видео) "
@@ -3475,7 +3473,7 @@ TRANSLATIONS = {
             "⭐️ Тариф PRO делает посты и ответы бота 100% без рекламы (автоматически).\n\n"
             "<b>5. На каких языках работает бот?</b>\n"
             "На узбекском и русском. Язык меняется через "
-            "«👤 Профиль» → «🌐 Til / Язык».\n\n"
+            "«⚙️ Настройки» → «🌐 Til / Язык».\n\n"
             "{support}"
         ),
         "help_btn_faq": "❓ Частые вопросы (FAQ)",

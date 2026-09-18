@@ -3,15 +3,16 @@
 
 Qamrov (3-qadam topshirig'i bo'yicha):
 
-  TEST 1 — 👤 PROFIL (Sozlamalar hub'i) IXCHAMLASHTIRILDI (3-QISM):
-           dublikat guruhlar (🎁 Bonuslar & Taklif → 👥 Do'stlarni taklif
-           asosiy menyuda, 🧰 Vositalar → /tools buyrug'i, ❓ Yordam →
+  TEST 1 — ⚙️ SOZLAMALAR hub'i (KLASSIK 7 tugma):
+           «👥 Do'stlarni taklif» asosiy menyudan shu hub'ga ko'chirildi;
+           dublikat guruhlar (🎁 Bonuslar & Taklif → kunlik bonus referral
+           ekranida, 🧰 Vositalar → /tools buyrug'i, ❓ Yordam →
            💬 Qo'llab-quvvatlash bir tugmaga) menyu KO'RINISHIDAN olib
            tashlandi — ularning oqimlari routing'da saqlanadi. Menyu endi
-           AYNAN 6 tugma + uchala tilda speks tartibida chiziladi:
+           AYNAN 7 tugma + uchala tilda speks tartibida chiziladi:
                [🌐 Til / Язык]        [✍️ Post sozlamalari]
-               [🔔 Bildirishnomalar]  [💳 To'lovlar tarixi]
-                        [💬 Qo'llab-quvvatlash]
+               [🔔 Bildirishnomalar]  [👥 Do'stlarni taklif]
+               [💳 To'lovlar tarixi]  [💬 Qo'llab-quvvatlash]
                            [❌ Yopish]
   TEST 2 — 💎 Ballarim / 🔄 Ballar o'tkazish / 🎁 Kunlik bonus /
            👥 Do'stlarni taklif tugmalari O'Z oqimlarini ochadi:
@@ -110,20 +111,21 @@ def check(label, condition, extra=""):
 # SPEKS: menyu tarkibi va yorliqlari (uchala til)
 # ---------------------------------------------------------------------------
 HUB_LABELS = {
-    # 3-QISM: 👤 Profil — ixcham 6 tugma. «🎁 Bonuslar & Taklif» va
-    # «🧰 Vositalar» hub'dan olib tashlandi (oqimlar routing'da qoladi),
-    # «🎨» → «✍️», «❓ Yordam & Ma'lumot» → bir «💬» tugma, [◀️ Orqaga] → [❌ Yopish].
+    # ⚙️ Sozlamalar — 7 tugma. «👥 Do'stlarni taklif» asosiy menyudan shu
+    # hub'ga ko'chirildi; «🎁 Bonuslar & Taklif» va «🧰 Vositalar» hub'dan
+    # olib tashlandi (oqimlar routing'da qoladi), «🎨» → «✍️», «❓ Yordam &
+    # Ma'lumot» → bir «💬» tugma, [◀️ Orqaga] → [❌ Yopish].
     "uz": (("🌐 Til / Язык", "✍️ Post sozlamalari"),
-           ("🔔 Bildirishnomalar", "💳 To'lovlar tarixi"),
-           ("💬 Qo'llab-quvvatlash",),
+           ("🔔 Bildirishnomalar", "👥 Do'stlarni taklif"),
+           ("💳 To'lovlar tarixi", "💬 Qo'llab-quvvatlash"),
            ("❌ Yopish",)),
     "ru": (("🌐 Язык / Language", "✍️ Настройки постов"),
-           ("🔔 Уведомления", "💳 История платежей"),
-           ("💬 Поддержка",),
+           ("🔔 Уведомления", "👥 Пригласить друзей"),
+           ("💳 История платежей", "💬 Поддержка"),
            ("❌ Закрыть",)),
     "en": (("🌐 Language", "✍️ Post settings"),
-           ("🔔 Notifications", "💳 Payment history"),
-           ("💬 Contact support",),
+           ("🔔 Notifications", "👥 Invite friends"),
+           ("💳 Payment history", "💬 Contact support"),
            ("❌ Close",)),
 }
 
@@ -479,16 +481,16 @@ def _msg_entry_fn_names(app, text, as_command=False):
 # TEST 1 — ⚙️ SOZLAMALAR MENYUSI: LEGACY DUBLIKATLAR YO'Q + SPEKS TARTIBI
 # ===========================================================================
 def test_settings_hub_has_no_legacy_duplicates():
-    print("== TEST 1: 👤 Profil — ixcham 6 tugmali menyu (3-QISM) ==")
+    print("== TEST 1: ⚙️ Sozlamalar — 7 tugmali menyu ==")
 
     for lang in LANGS:
         kb = get_settings_hub_keyboard(lang)
         rows = _rows(kb)
         cbs = _cbs(kb)
 
-        check(f"[{lang}] menyu 4 qator (2 juftlik + Yordam + Yopish)",
+        check(f"[{lang}] menyu 4 qator (3 juftlik + Yopish)",
               len(rows) == 4, str(len(rows)))
-        check(f"[{lang}] 6 tugma AYNAN speks tartibida (ixcham)",
+        check(f"[{lang}] 7 tugma AYNAN speks tartibida",
               [[t for t, _ in row] for row in rows]
               == [list(pair) for pair in HUB_LABELS[lang]],
               str([[t for t, _ in row] for row in rows]))
@@ -497,8 +499,8 @@ def test_settings_hub_has_no_legacy_duplicates():
         check(f"[{lang}] oxirgi qator = [❌ Yopish] → stgs_back",
               rows[-1] == [(settings_stats_t("ss_btn_close", lang), "stgs_back")],
               str(rows[-1]))
-        check(f"[{lang}] jami 6 tugma (ixcham hub, dublikat yo'q)",
-              len(cbs) == 6, str(len(cbs)))
+        check(f"[{lang}] jami 7 tugma (dublikat yo'q)",
+              len(cbs) == 7, str(len(cbs)))
         check(f"[{lang}] stgs_profile hub'da YO'Q (matn o'zi profil)",
               "stgs_profile" not in cbs, str(cbs))
         check(f"[{lang}] callback'lar takrorlanmaydi",
@@ -529,8 +531,8 @@ def test_settings_hub_has_no_legacy_duplicates():
             _run(start_mod.user_cabinet_menu(_msg_update(msg), _ctx(lang)))
         last = msg.sent[-1]
         cbs = _cbs(last["reply_markup"])
-        check(f"[{lang}] hub ekrani 6 tugma bilan ochiladi (ixcham)",
-              len(cbs) == 6, str(cbs))
+        check(f"[{lang}] hub ekrani 7 tugma bilan ochiladi",
+              len(cbs) == 7, str(cbs))
         check(f"[{lang}] hub ekrani legacy tugmasiz",
               not any(cb in cbs for cb in LEGACY_HUB_CALLBACKS), str(cbs))
         check(f"[{lang}] hub profil kartasi bilan (Shaxsiy Kabinet)",
@@ -731,7 +733,7 @@ def test_tools_submenu_wires_converter_and_enhancer():
     with _with_db(_FakeDB()):
         q = _Query("stgs_hub")
         _run(settings_mod.settings_menu_callback(_query_update(q), _ctx("uz")))
-    check("vositalar → orqaga: 👤 Profil 6 tugmasi qaytdi",
+    check("vositalar → orqaga: ⚙️ Sozlamalar 7 tugmasi qaytdi",
           _cbs(q.screen.get("reply_markup")) == list(CB_SETTINGS_HUB),
           str(_cbs(q.screen.get("reply_markup"))))
     check("vositalar → orqaga: yangi xabar yuborilmadi (edit)",

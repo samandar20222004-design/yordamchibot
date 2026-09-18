@@ -69,32 +69,33 @@ EXPECTED_STATS_MARKERS = {
            "📅 Scheduled posts", "🤖 AI requests", "Credits spent"),
 }
 
-# 👤 Profil menyusi — 3-QISM ixcham 6 tugma callback'lari (tartib bilan).
-# «🎁 Bonuslar & Taklif» (stgs_rewards), «🧰 Vositalar» (stgs_tools) va
-# «❓ Yordam & Ma'lumot» (stgs_help_hub) hub'dan OLIB TASHLANDI: referral
-# endi asosiy menyuda (👥 Do'stlarni taklif), kunlik bonus referral
-# ekranida; ularning oqimlari eski xabarlar uchun routing'da qoladi.
+# ⚙️ Sozlamalar menyusi — 7 tugma callback'lari (tartib bilan).
+# «👥 Do'stlarni taklif» asosiy menyudan shu hub'ga ko'chirildi
+# (stgs_referral); «🎁 Bonuslar & Taklif» (stgs_rewards), «🧰 Vositalar»
+# (stgs_tools) va «❓ Yordam & Ma'lumot» (stgs_help_hub) hub'dan OLIB
+# TASHLANDI: kunlik bonus referral ekranida; ularning oqimlari eski
+# xabarlar uchun routing'da qoladi.
 EXPECTED_SETTINGS_CBS = (
     "stgs_lang",
     "stgs_post",
-    "stgs_notif", "stgs_pay",
-    "help_support",
+    "stgs_notif", "stgs_referral",
+    "stgs_pay", "help_support",
     "stgs_back",
 )
 
-# 👤 Profil menyusi yorliqlari — 3-QISM ixcham SPEKS tartibi.
+# ⚙️ Sozlamalar menyusi yorliqlari — SPEKS tartibi (7 tugma / 4 qator).
 EXPECTED_SETTINGS_LABELS = {
     "uz": (("🌐 Til / Язык", "✍️ Post sozlamalari"),
-           ("🔔 Bildirishnomalar", "💳 To'lovlar tarixi"),
-           ("💬 Qo'llab-quvvatlash",),
+           ("🔔 Bildirishnomalar", "👥 Do'stlarni taklif"),
+           ("💳 To'lovlar tarixi", "💬 Qo'llab-quvvatlash"),
            ("❌ Yopish",)),
     "ru": (("🌐 Язык / Language", "✍️ Настройки постов"),
-           ("🔔 Уведомления", "💳 История платежей"),
-           ("💬 Поддержка",),
+           ("🔔 Уведомления", "👥 Пригласить друзей"),
+           ("💳 История платежей", "💬 Поддержка"),
            ("❌ Закрыть",)),
     "en": (("🌐 Language", "✍️ Post settings"),
-           ("🔔 Notifications", "💳 Payment history"),
-           ("💬 Contact support",),
+           ("🔔 Notifications", "👥 Invite friends"),
+           ("💳 Payment history", "💬 Contact support"),
            ("❌ Close",)),
 }
 
@@ -402,7 +403,7 @@ def test_statistics_overview_format():
     closed = q.message.sent[-1]
     check("orqaga: 'Yopildi' xabari", get_text("msg_closed", "uz") in closed["text"])
     main_labels = [b.text for row in closed["reply_markup"].keyboard for b in row]
-    check("orqaga: asosiy 7 tugmali menyu qaytdi", len(main_labels) == 7, str(main_labels))
+    check("orqaga: asosiy 6 tugmali menyu qaytdi", len(main_labels) == 6, str(main_labels))
 
     # 1d) Kanallar yo'q bo'lsa ham statistika ekrani ochiladi (nollar bilan).
     async def _empty():
@@ -420,10 +421,10 @@ def test_statistics_overview_format():
 
 
 # ============================================================================
-# TEST 2 — 👤 PROFIL: IXCHAM 6 TUGMALI MENYU (legacy aliaslar bilan)
+# TEST 2 — ⚙️ SOZLAMALAR: 7 TUGMALI MENYU (legacy aliaslar bilan)
 # ============================================================================
 def test_settings_menu_structure_and_flows():
-    print("\n== TEST 2: 👤 Profil — ixcham 6 tugmali menyu (3-QISM) ==")
+    print("\n== TEST 2: ⚙️ Sozlamalar — 7 tugmali menyu ==")
 
     # Legacy kabinet tezkor tugmalari — menyuda KO'RINMASLIGI shart
     # (ular o'z asosiy menyularida bor: 📢 Kanallarim, 📅 Rejalashtirilgan...).
@@ -435,11 +436,11 @@ def test_settings_menu_structure_and_flows():
         kb = get_settings_hub_keyboard(lang)
         rows = kb_rows_inline(kb)
         expected = EXPECTED_SETTINGS_LABELS[lang]
-        check(f"{lang}: 4 qator = speksdagi ixcham 6 tugma",
+        check(f"{lang}: 4 qator = speksdagi 7 tugma",
               [[t for t, _ in row] for row in rows] == [
                   list(r) for r in expected],
               str(rows))
-        check(f"{lang}: 6 tugma callback tartibi",
+        check(f"{lang}: 7 tugma callback tartibi",
               kb_flat_cbs(kb) == list(EXPECTED_SETTINGS_CBS),
               str(kb_flat_cbs(kb)))
         check(f"{lang}: oxirgi qator = [❌ Yopish] (stgs_back)",
@@ -471,7 +472,7 @@ def test_settings_menu_structure_and_flows():
               get_text("cabinet_title", lang, user_id=USER_ID, user_code="TST777",
                        credits="7", streak="3/7", channels=2, referrals=2,
                        ad_line="").splitlines()[0] in text, text[:80])
-        check(f"{lang}: ixcham 6 tugma callback menyuda",
+        check(f"{lang}: 7 tugma callback menyuda",
               all(cb in cbs for cb in EXPECTED_SETTINGS_CBS), str(cbs))
         check(f"{lang}: stgs_back menyuda", "stgs_back" in cbs)
         check(f"{lang}: stgs_profile hub'da YO'Q (matn o'zi profil)",
@@ -536,10 +537,10 @@ def test_settings_menu_structure_and_flows():
     prof_text = q.screen.get("text", "")
     prof_cbs = kb_flat_cbs(q.screen.get("reply_markup"))
     check("profil: cabinet_title matni", "Profil" in prof_text, prof_text[:80])
-    # 3-QISM: profil ekrani endi IXCHAM 6 TUGMALI panel (Til / Post
-    # sozlamalari / Bildirishnomalar / To'lovlar / Qo'llab-quvvatlash /
+    # Profil ekrani endi 7 TUGMALI panel (Til / Post sozlamalari /
+    # Bildirishnomalar / Do'stlarni taklif / To'lovlar / Qo'llab-quvvatlash /
     # Yopish) — Sozlamalar hub'i bilan AYNAN bir xil (yagona ekran).
-    check("profil: ixcham 6 tugmali panel (stgs_back = ❌ Yopish)",
+    check("profil: 7 tugmali panel (stgs_back = ❌ Yopish)",
           prof_cbs == list(EXPECTED_SETTINGS_CBS), str(prof_cbs))
     check("profil: eski cab_* dublikatlari panel'da YO'Q",
           not any(cb in prof_cbs for cb in ("cab_channels", "cab_analytics",
@@ -744,7 +745,7 @@ def test_settings_menu_structure_and_flows():
     check("orqaga: 'Yopildi' + asosiy menyu",
           get_text("msg_closed", "uz") in closed["text"])
     main_labels = [b.text for row in closed["reply_markup"].keyboard for b in row]
-    check("orqaga: asosiy menyu 7 tugma", len(main_labels) == 7, str(main_labels))
+    check("orqaga: asosiy menyu 6 tugma", len(main_labels) == 6, str(main_labels))
 
 
 # ============================================================================
@@ -763,8 +764,8 @@ def test_admin_panel_rbac_and_health():
                         for b in row]
         check(f"{lang}: oddiy foydalanuvchida Admin Panel YO'Q",
               BTN_ADMIN_PANEL not in user_labels, str(user_labels))
-        check(f"{lang}: adminda Admin Panel bor (8 tugma)",
-              BTN_ADMIN_PANEL in admin_labels and len(admin_labels) == 8,
+        check(f"{lang}: adminda Admin Panel bor (7 tugma)",
+              BTN_ADMIN_PANEL in admin_labels and len(admin_labels) == 7,
               str(admin_labels))
 
     # 3b) admin_panel_menu: oddiy foydalanuvchi — JIM rad (fail-closed).
@@ -974,11 +975,11 @@ def test_regression_guards():
     from telegram.ext import CallbackQueryHandler, ConversationHandler
     import handlers as H
 
-    # 5a) Asosiy menyu — QAT'IY 7 tugma (3-QISM standarti).
+    # 5a) Asosiy menyu — QAT'IY 6 tugma (klassik standart).
     for lang in LANGS:
         labels = [b.text for row in get_main_keyboard(False, lang=lang).keyboard
                   for b in row]
-        check(f"{lang}: asosiy menyu 7 tugma", len(labels) == 7, str(labels))
+        check(f"{lang}: asosiy menyu 6 tugma", len(labels) == 6, str(labels))
         check(f"{lang}: statistika tugmasi 2-qator 2-ustun",
               get_main_keyboard(False, lang=lang).keyboard[1][1].text
               == get_text("btn_statistics", lang))

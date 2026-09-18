@@ -364,22 +364,22 @@ def build_daily_bonus_text(res: dict, lang: str = "uz") -> str:
 
 
 async def user_cabinet_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """👤 Profil — profil kartasi + IXCHAM 6 TUGMALI MENYU (3-QISM).
+    """⚙️ Sozlamalar — profil kartasi + 7 TUGMALI MENYU.
 
-    Asosiy menyudagi [👤 Profil] tugmasi (eski nomi — «⚙️ Sozlamalar»)
-    bosilganda foydalanuvchi ma'lumotlari (ID, maxsus kod, AI so'rovlar,
-    kunlik seriya, kanallar, takliflar) bilan birga YAGONA ixcham menyu
-    chiqadi (handlers/settings.py — ``stgs_*`` callback'lari):
+    Asosiy menyudagi [⚙️ Sozlamalar] tugmasi bosilganda foydalanuvchi
+    ma'lumotlari (ID, maxsus kod, AI so'rovlar, kunlik seriya, kanallar,
+    takliflar) bilan birga YAGONA menyu chiqadi
+    (handlers/settings.py — ``stgs_*`` callback'lari):
 
         [🌐 Til / Язык]        [✍️ Post sozlamalari]
-        [🔔 Bildirishnomalar]  [💳 To'lovlar tarixi]
-        [💬 Qo'llab-quvvatlash]
+        [🔔 Bildirishnomalar]  [👥 Do'stlarni taklif]
+        [💳 To'lovlar tarixi]  [💬 Qo'llab-quvvatlash]
         [❌ Yopish]
 
     «⚙️ Sozlamalar» va «👤 Shaxsiy kabinet» ikki xil profil chalkashligi
-    tugatildi: endi BITTA «👤 Profil» ekran bor. Referral (👥 Do'stlarni
-    taklif) asosiy menyuga ko'chdi; 🎁 Kunlik bonus referral ekranida.
-    Mavjud kabinet oqimlari (``cab_*``) esa eski xabarlar uchun saqlanadi.
+    tugatildi: endi BITTA «⚙️ Sozlamalar» ekran bor. Referral (👥 Do'stlarni
+    taklif) shu menyuda; 🎁 Kunlik bonus referral ekranida. Mavjud kabinet
+    oqimlari (``cab_*``) esa eski xabarlar uchun saqlanadi.
     """
     clear_fsm_data(context)
     user = update.effective_user

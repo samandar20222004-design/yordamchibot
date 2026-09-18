@@ -1,16 +1,15 @@
-"""👤 PROFIL — ixcham 6 tugmali hub (3-QISM refaktori).
+"""⚙️ SOZLAMALAR — 7 tugmali hub.
 
-Asosiy menyudan [👤 Profil] (eski nomi — «⚙️ Sozlamalar») bosilganda
-quyidagi IXCHAM menyu chiqadi:
+Asosiy menyudan [⚙️ Sozlamalar] bosilganda quyidagi menyu chiqadi:
 
     [🌐 Til / Язык]        [✍️ Post sozlamalari]
-    [🔔 Bildirishnomalar]  [💳 To'lovlar tarixi]
-    [💬 Qo'llab-quvvatlash]
+    [🔔 Bildirishnomalar]  [👥 Do'stlarni taklif]
+    [💳 To'lovlar tarixi]  [💬 Qo'llab-quvvatlash]
     [❌ Yopish]
 
 «⚙️ Sozlamalar» / «👤 Shaxsiy kabinet» chalkashligi tugatildi: endi YAGONA
-Profil ekran bor. Ichki [◀️ Orqaga] tugmalari ``stgs_hub`` orqali shu asosiy
-Profil ekraniga qaytadi.
+Sozlamalar ekran bor. Ichki [◀️ Orqaga] tugmalari ``stgs_hub`` orqali shu
+asosiy Sozlamalar ekraniga qaytadi.
 
 Qoidalar:
   * 3-qadam refaktori: eski kabinet tezkor tugmalari (📢 Mening kanallarim,
@@ -19,20 +18,21 @@ Qoidalar:
     ``cab_*`` callback'lari O'CHIRILMAGAN: eski xabarlardagi tugmalar uchun
     xavfsiz alias/redirect sifatida ``handlers.start.cabinet_callback`` da
     ishlashda davom etadi (crash yo'q);
-  * 3-QISM: «🎁 Bonuslar & Taklif», «🧰 Vositalar» va «❓ Yordam &
-    Ma'lumot» guruhlari PROFIL hub'idan OLIB TASHLANDI — referral endi
-    asosiy menyuda (👥 Do'stlarni taklif), kunlik bonus referral ekranida.
-    Ularning oqimlari (stgs_rewards / stgs_tools / stgs_help_hub /
-    stgs_credits / stgs_transfer / claim_bonus / referral_hub /
-    stgs_about / help_hub) eski xabarlardagi tugmalar uchun saqlanadi;
+  * «👥 Do'stlarni taklif» asosiy menyudan SOZLAMALAR hub'iga ko'chirildi
+    (stgs_referral — referral havolasi + kunlik bonus shu yerda ochiladi);
+    «🎁 Bonuslar & Taklif», «🧰 Vositalar» va «❓ Yordam & Ma'lumot»
+    guruhlari hub'dan OLIB TASHLANDI. Ularning oqimlari (stgs_rewards /
+    stgs_tools / stgs_help_hub / stgs_credits / stgs_transfer /
+    claim_bonus / referral_hub / stgs_about / help_hub) eski xabarlardagi
+    tugmalar uchun saqlanadi;
   * mavjud PROFIL (kabinet) va TIL almashtirish oqimlari buzilmaydi:
-    [👤 Profil] eski kabinet ekranini, [🌐 Til / Язык] esa avvalgi til
+    [⚙️ Sozlamalar] eski kabinet ekranini, [🌐 Til / Язык] esa avvalgi til
     klaviaturasini ochadi (cab_lang_* callback'lari o'zgarmagan);
   * [🔄 Ballar o'tkazish] mavjud TRANSFER_TARGET → TRANSFER_AMOUNT FSM
     oqimini ochadi (yangi holat yo'q — ``handlers.start.transfer_inline_entry``);
   * [🧰 Vositalar] — yordamchi vositalar submenyusi (``handlers.tools``):
     Konverter va Post Enhancer endi ko'rinadigan mantiqiy joyida;
-  * 🔔 Bildirishnomalar va 🎨 Post sozlamalari — foydalanuvchi sozlamalari
+  * 🔔 Bildirishnomalar va ✍️ Post sozlamalari — foydalanuvchi sozlamalari
     ``user_settings`` jadvaliga saqlanadi (kalitlar OQ RO'YXAT bilan
     cheklanadi — payload'dan ixtiyoriy kalit yozib bo'lmaydi);
   * barcha matnlar UZ/RU/EN — ``translations/settings_stats.py`` (paritet
@@ -158,7 +158,7 @@ async def build_settings_hub_text(user_id: int, lang: str, is_admin: bool,
 
 async def render_settings_hub(update_message, context, user_id: int,
                               lang: str, is_admin: bool) -> None:
-    """👤 Profil hub ekranini yuboradi (profil matni + ixcham menyu)."""
+    """⚙️ Sozlamalar hub ekranini yuboradi (profil matni + 7 tugmali menyu)."""
     text = await build_settings_hub_text(user_id, lang, is_admin)
     await update_message.reply_text(
         text,
@@ -169,7 +169,7 @@ async def render_settings_hub(update_message, context, user_id: int,
 
 async def _render_hub_screen(query, context, user_id: int, lang: str,
                              is_admin: bool) -> None:
-    """👤 Profil hub'ini qayta chizadi (stgs_hub → shu ekran)."""
+    """⚙️ Sozlamalar hub'ini qayta chizadi (stgs_hub → shu ekran)."""
     try:
         context.user_data.pop("settings_help_flow", None)
     except Exception:
@@ -260,10 +260,10 @@ async def _render_profile_screen(query, context, user_id: int, lang: str,
                                  is_admin: bool) -> None:
     """👤 Profil — ID, obuna holati, balans/kreditlar va asosiy hisob ma'lumotlari.
 
-    3-QISM: Profil va Sozlamalar birlashdi — bu endi YAGONA Profil ekrani:
-    cabinet_title (ID, so'rovlar, seriya) + obuna holati + ixcham 6 tugmali
-    inline menyu (Til / Post sozlamalari / Bildirishnomalar / To'lovlar
-    tarixi / Qo'llab-quvvatlash / Yopish).
+    3-QISM: Profil va Sozlamalar birlashdi — bu endi YAGONA Sozlamalar
+    ekrani: cabinet_title (ID, so'rovlar, seriya) + obuna holati + 7
+    tugmali inline menyu (Til / Post sozlamalari / Bildirishnomalar /
+    Do'stlarni taklif / To'lovlar tarixi / Qo'llab-quvvatlash / Yopish).
     """
     from handlers.start import build_cabinet_text, cabinet_credits_text
     from utils.helpers import get_smart_reply_ad_async

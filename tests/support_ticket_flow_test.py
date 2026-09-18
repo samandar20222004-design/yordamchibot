@@ -54,7 +54,7 @@ Qamrov (topshiriq bandlari bo'yicha):
            * callback'lar ≤64 bayt, FSM holati 540 boshqa oqimlar bilan
              to'qnashmaydi (530–539 manbalar, 601+ to'lovlar);
            * schema.sql ↔ database.EXPECTED_TABLES paralleligi;
-           * 👤 Profil klaviaturasi o'zgarmagan (6 tugma, help_support);
+           * ⚙️ Sozlamalar klaviaturasi o'zgarmagan (7 tugma, help_support);
            * admin Reply handler ro'yxatda va catch-all
              ``expired_session_callback`` dan OLDIN turadi.
 
@@ -585,7 +585,7 @@ def test_one_time_ticket_flow():
     check("matnsiz xabarda holat ochiq qoladi (540)",
           state4 == sup.SUPPORT_TICKET_INPUT == 540, str(state4))
 
-    # 1g) [◀️ Orqaga] — oqim yopiladi va 👤 Profil hub'i qaytadi.
+    # 1g) [◀️ Orqaga] — oqim yopiladi va ⚙️ Sozlamalar hub'i qaytadi.
     bot5 = _Bot()
     ctx5 = _ctx(bot=bot5)
     query = _Query(sup.CB_SUPPORT_BACK)
@@ -593,7 +593,7 @@ def test_one_time_ticket_flow():
         state5 = _run(sup.support_back_callback(_cb_update(query), ctx5))
     check("[◀️ Orqaga] → ConversationHandler.END",
           state5 == ConversationHandler.END, str(state5))
-    check("[◀️ Orqaga] → 👤 Profil hub'i qayta chizildi",
+    check("[◀️ Orqaga] → ⚙️ Sozlamalar hub'i qayta chizildi",
           bool(query.edits) and "help_support" in _flat_cbs(query.screen.get("markup")),
           str(_flat_cbs(query.screen.get("markup"))))
 
@@ -981,15 +981,15 @@ def test_regression_and_parity():
         check(f"database.{fn_name}() mavjud",
               callable(getattr(db_mod, fn_name, None)))
 
-    # 👤 Profil hub'i o'zgarmagan (6 tugma, help_support o'z joyida).
+    # ⚙️ Sozlamalar hub'i o'zgarmagan (7 tugma, help_support o'z joyida).
     from keyboards.inline import (get_cabinet_inline_keyboard,
                                   get_settings_hub_keyboard,
                                   get_support_ticket_keyboard)
 
     hub_cbs = _flat_cbs(get_settings_hub_keyboard("uz"))
-    check("hub: ixcham 6 tugma saqlangan",
-          hub_cbs == ["stgs_lang", "stgs_post", "stgs_notif", "stgs_pay",
-                      "help_support", "stgs_back"], str(hub_cbs))
+    check("hub: 7 tugma saqlangan",
+          hub_cbs == ["stgs_lang", "stgs_post", "stgs_notif", "stgs_referral",
+                      "stgs_pay", "help_support", "stgs_back"], str(hub_cbs))
     profile_buttons = [b for row in get_cabinet_inline_keyboard("uz").inline_keyboard
                        for b in row if b.text.endswith("Qo'llab-quvvatlash")]
     check("profil: 💬 tugmasi bot ICHIDAGI oqimni ochadi (URL emas)",
