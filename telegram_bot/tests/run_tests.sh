@@ -183,4 +183,13 @@ echo "===== PRODUCTION FINAL ACCEPTANCE (11-BOSQICH, 18 SSENARIY) ====="
 "$PY" tests/production_final_acceptance_test.py || exit 1
 
 echo
+echo "===== CHANNEL DNA & MONITORING TEST (FAZA 8,9,22) ====="
+# Channel DNA kengaytirilgan metrikalari (language, tone, topics, avg_length,
+# emoji_density, best_hours, best_weekdays, high_performing_formats) har bir
+# metrika sample_size, confidence (0.0-1.0), updated_at bilan; kichik sample
+# da past confidence; oddiy postda AI chaqirilmasligi (faqat DB agregatsiyasi);
+# migratsiyalar idempotency.
+"$PY" tests/channel_dna_and_monitoring_test.py || exit 1
+
+echo
 echo "BARCHA TESTLAR MUVOFFAQIYATLI ✔"

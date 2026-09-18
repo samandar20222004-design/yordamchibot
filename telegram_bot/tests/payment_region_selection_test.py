@@ -522,8 +522,8 @@ def test_schema_and_database_additive():
     # ``idx_ai_reservations_user`` qo'shildi → 18 → 19; PHASE C refaktorida
     # ``idx_post_templates_user`` qo'shildi → 23 → 24; PHASE D (11, 12-bandlar)
     # da kontent manbalari indekslari qo'shildi → 24 → 28.
-    check("schema.sql: indekslar soni schema_test parallelligiga mos (31)",
-          schema.count("CREATE INDEX IF NOT EXISTS") == 31,
+    check("schema.sql: indekslar soni schema_test parallelligiga mos (33)",
+          schema.count("CREATE INDEX IF NOT EXISTS") == 33,
           schema.count("CREATE INDEX IF NOT EXISTS"))
     check("database.py: ichki fallback DDL ham payment_method'ni oladi",
           "payment_method VARCHAR(32) NOT NULL DEFAULT 'international_stars'"

@@ -419,10 +419,8 @@ ALTER TABLE channel_intelligence_profiles ADD COLUMN IF NOT EXISTS formatting_st
 ALTER TABLE channel_post_events ADD COLUMN IF NOT EXISTS media_type VARCHAR(32);
 ALTER TABLE channel_post_events ADD COLUMN IF NOT EXISTS media_file_id VARCHAR(255);
 ALTER TABLE channel_post_events ADD COLUMN IF NOT EXISTS emoji_density DOUBLE PRECISION;
-CREATE INDEX IF NOT EXISTS idx_channel_post_events_channel
-    ON channel_post_events (channel_id);
-CREATE INDEX IF NOT EXISTS idx_channel_post_events_created
-    ON channel_post_events (created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_channel_post_events_channel ON channel_post_events (channel_id);
+CREATE INDEX IF NOT EXISTS idx_channel_post_events_created ON channel_post_events (created_at DESC);
 
 CREATE TABLE IF NOT EXISTS channel_insights (
     id SERIAL PRIMARY KEY,
@@ -437,6 +435,46 @@ CREATE INDEX IF NOT EXISTS idx_channel_insights_channel
     ON channel_insights (channel_id);
 CREATE INDEX IF NOT EXISTS idx_channel_insights_dismissed
     ON channel_insights (is_dismissed, created_at DESC);
+
+-- ============================================================
+-- 🧬 FAZA 8,9,22 — KENGAYTIRILGAN CHANNEL DNA (channel_dna)
+-- Har bir metrika: language, tone, topics, avg_length, emoji_density,
+-- best_hours, best_weekdays, high_performing_formats — profile JSONB da
+-- sample_size, confidence (0.0-1.0), updated_at bilan.
+-- Idempotent: IF NOT EXISTS + ON CONFLICT DO NOTHING bilan xavfsiz.
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS channel_dna (
+    channel_id VARCHAR(255) PRIMARY KEY,
+    language VARCHAR(16),
+    tone VARCHAR(32),
+    topics JSONB,
+    avg_length INTEGER,
+    emoji_density DOUBLE PRECISION,
+    best_hours JSONB,
+    best_weekdays JSONB,
+    high_performing_formats JSONB,
+    sample_size INTEGER,
+    confidence DOUBLE PRECISION,
+    profile JSONB DEFAULT '{}'::jsonb,
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+-- Eski bazalar uchun yangi ustunlar (idempotent)
+ALTER TABLE channel_dna ADD COLUMN IF NOT EXISTS language VARCHAR(16);
+ALTER TABLE channel_dna ADD COLUMN IF NOT EXISTS tone VARCHAR(32);
+ALTER TABLE channel_dna ADD COLUMN IF NOT EXISTS topics JSONB;
+ALTER TABLE channel_dna ADD COLUMN IF NOT EXISTS avg_length INTEGER;
+ALTER TABLE channel_dna ADD COLUMN IF NOT EXISTS emoji_density DOUBLE PRECISION;
+ALTER TABLE channel_dna ADD COLUMN IF NOT EXISTS best_hours JSONB;
+ALTER TABLE channel_dna ADD COLUMN IF NOT EXISTS best_weekdays JSONB;
+ALTER TABLE channel_dna ADD COLUMN IF NOT EXISTS high_performing_formats JSONB;
+ALTER TABLE channel_dna ADD COLUMN IF NOT EXISTS sample_size INTEGER;
+ALTER TABLE channel_dna ADD COLUMN IF NOT EXISTS confidence DOUBLE PRECISION;
+ALTER TABLE channel_dna ADD COLUMN IF NOT EXISTS profile JSONB DEFAULT '{}'::jsonb;
+ALTER TABLE channel_dna ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+
+CREATE INDEX IF NOT EXISTS idx_channel_dna_channel ON channel_dna (channel_id);
+CREATE INDEX IF NOT EXISTS idx_channel_dna_updated ON channel_dna (updated_at DESC);
 
 -- PHASE E — Audience Question Engine aggregate.
 -- Only an opaque fingerprint and counters are persisted: raw comments,
@@ -825,3 +863,59 @@ BEGIN
     END LOOP;
 END
 $postassist_integrity$;
+
+-- ============================================================
+-- 🧬 FAZA 8,9,22 — CHANNEL DNA, MONITORING VA DB HARDENING
+-- (idempotent migratsiya — hech narsa noldan qayta yozilmaydi)
+-- ------------------------------------------------------------
+-- 1) channel_dna va channel_* jadvallari uchun FK (yetim yozuvlar oldini olish)
+-- 2) channel_id, created_at, updated_at indekslari (ON CONFLICT DO NOTHING bilan xavfsiz)
+-- 3) Barcha indekslar IF NOT EXISTS bilan — idempotent
+-- 4) FK lar NOT VALID fallback bilan — eski ma'lumot buzilmaydi, yangi yozuvlar himoyalanadi
+-- ============================================================
+
+-- Qo'shimcha indekslar allaqachon yuqorida idempotent yaratilgan (channel_dna va boshqalar)
+-- Channel jadvallari uchun FK hardening (idempotent, NOT VALID fallback)
+DO $postassist_channel_dna_hardening$
+DECLARE
+    spec RECORD;
+BEGIN
+    FOR spec IN
+        SELECT * FROM (VALUES
+            ('channel_post_events', 'fk_channel_post_events_channel', 'fk', 'FOREIGN KEY (channel_id) REFERENCES channels(channel_id) ON DELETE CASCADE'),
+            ('channel_intelligence_profiles', 'fk_channel_intelligence_profiles_channel', 'fk', 'FOREIGN KEY (channel_id) REFERENCES channels(channel_id) ON DELETE CASCADE'),
+            ('channel_insights', 'fk_channel_insights_channel', 'fk', 'FOREIGN KEY (channel_id) REFERENCES channels(channel_id) ON DELETE CASCADE'),
+            ('channel_dna', 'fk_channel_dna_channel', 'fk', 'FOREIGN KEY (channel_id) REFERENCES channels(channel_id) ON DELETE CASCADE'),
+            ('channel_comment_insights', 'fk_channel_comment_insights_channel', 'fk', 'FOREIGN KEY (channel_id) REFERENCES channels(channel_id) ON DELETE CASCADE'),
+            ('channel_members', 'fk_channel_members_channel', 'fk', 'FOREIGN KEY (channel_id) REFERENCES channels(channel_id) ON DELETE CASCADE')
+        ) AS t(tbl, cname, kind, cdef)
+    LOOP
+        IF to_regclass(spec.tbl) IS NULL THEN
+            RAISE NOTICE 'channel_hardening: % jadvali topilmadi -- % otkazib yuborildi', spec.tbl, spec.cname;
+            CONTINUE;
+        END IF;
+        IF EXISTS (
+            SELECT 1 FROM pg_constraint c
+             WHERE c.conrelid = spec.tbl::regclass AND c.conname = spec.cname
+        ) THEN
+            CONTINUE;  -- idempotent: allaqachon mavjud
+        END IF;
+        BEGIN
+            EXECUTE format('ALTER TABLE %I ADD CONSTRAINT %I %s', spec.tbl, spec.cname, spec.cdef);
+            RAISE NOTICE 'channel_hardening: %.% qoshildi', spec.tbl, spec.cname;
+        EXCEPTION
+            WHEN foreign_key_violation THEN
+                BEGIN
+                    EXECUTE format('ALTER TABLE %I ADD CONSTRAINT %I %s NOT VALID',
+                                   spec.tbl, spec.cname, spec.cdef);
+                    RAISE WARNING 'channel_hardening: %.% NOT VALID holatda qoshildi (yetim yozuvlar bor) -- VALIDATE CONSTRAINT orqali tekshirish tugallanadi',
+                                  spec.tbl, spec.cname;
+                EXCEPTION WHEN OTHERS THEN
+                    RAISE WARNING 'channel_hardening: %.% qoshilmadi: %', spec.tbl, spec.cname, SQLERRM;
+                END;
+            WHEN OTHERS THEN
+                RAISE WARNING 'channel_hardening: %.% qoshilmadi: %', spec.tbl, spec.cname, SQLERRM;
+        END;
+    END LOOP;
+END
+$postassist_channel_dna_hardening$;

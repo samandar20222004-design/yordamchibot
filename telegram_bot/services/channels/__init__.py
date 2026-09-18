@@ -1,14 +1,19 @@
-"""🧠 Channel Intelligence (PostAssist V2 — PHASE B).
+"""🧠 Channel Intelligence (PostAssist V2 — PHASE B + FAZA 8,9,22).
 
 Kanal monitoringi va aqlli tahlil qatlami:
 
 * :mod:`services.channels.monitoring` — kanal postlarining metama'lumotlarini
   ``channel_post_events`` jadvaliga IDEMPOTENT (ON CONFLICT DO NOTHING) yozish
   — asinxron va bloklamaydigan rejimda (channel post handler ichida task sifatida);
+* :mod:`services.channels.monitor` — FAZA 8,9,22: yengil xom ma'lumot olish,
+  DB event yozish (AI'siz), batch agregatsiya — har bir post uchun AI chaqirilmaydi;
 * :mod:`services.channels.dna` — Channel DNA profili (average_post_length,
   emoji_level, cta_style, formatting_style, sample_size, confidence_score)
-  hisoblash, ``channel_intelligence_profiles`` ga saqlash va AI orkestrator
-  promptiga ixcham system-prompt bloki sifatida ulash;
+  hisoblash, ``channel_intelligence_profiles`` va ``channel_dna`` ga saqlash
+  va AI orkestrator promptiga ixcham system-prompt bloki sifatida ulash;
+  Kengaytirilgan profil: language, tone, topics, avg_length, emoji_density,
+  best_hours, best_weekdays, high_performing_formats — har bir metrika
+  sample_size, confidence (0.0-1.0), updated_at bilan;
 * :mod:`services.channels.best_time` — post chiqarish statistikasi bo'yicha
   eng maqbul vaqt oynalari (soxta raqamlar UYDIRMAYDI — yetarli ma'lumot
   bo'lmasa "insufficient data" holati qaytadi);
@@ -35,10 +40,27 @@ from services.channels.best_time import (  # noqa: F401
 )
 from services.channels.dna import (  # noqa: F401
     MIN_POSTS_FOR_DNA,
+    INSUFFICIENT_DATA_MESSAGE,
     attach_dna_to_context,
     build_dna_system_prompt,
+    build_dna_system_prompt_extended,
+    classify_cta_style,
+    classify_emoji_level,
+    classify_formatting_style,
+    classify_tone_extended,
+    compute_best_hours,
+    compute_best_weekdays,
     compute_channel_dna,
+    compute_channel_dna_extended,
+    compute_channel_dna_v2,
+    compute_high_performing_formats,
+    confidence_float,
+    confidence_from_sample,
+    detect_language,
+    detect_language_from_events,
+    extract_topics,
     get_channel_dna,
+    get_channel_dna_extended,
 )
 from services.channels.duplicate_detector import (  # noqa: F401
     DUPLICATE_THRESHOLD,
@@ -57,6 +79,12 @@ from services.channels.monitoring import (  # noqa: F401
     extract_event_metadata,
     ingest_channel_post_event,
     schedule_post_event_ingest,
+)
+from services.channels.monitor import (  # noqa: F401
+    ChannelMonitor,
+    batch_aggregate_channel,
+    extract_lightweight_metadata,
+    get_aggregated_metrics,
 )
 from services.channels.team import (  # noqa: F401
     ApprovalButtons, ApprovalService, ApprovalWorkflow, ChannelMember,
@@ -95,6 +123,7 @@ __all__ = [
     "MIN_AGE_DAYS",
     "MIN_POSTS_FOR_BEST_TIME",
     "MIN_POSTS_FOR_DNA",
+    "INSUFFICIENT_DATA_MESSAGE",
     "ApprovalButtons",
     "ApprovalService",
     "ApprovalWorkflow",
@@ -104,6 +133,7 @@ __all__ = [
     "ChannelMember",
     "ChannelMemberService",
     "ChannelRole",
+    "ChannelMonitor",
     "CommentAnalysisService",
     "CommentInsightService",
     "TeamService",
@@ -112,31 +142,42 @@ __all__ = [
     "analyze_comments",
     "analyze_repeated_questions",
     "authorize",
+    "batch_aggregate_channel",
+    "build_dna_system_prompt",
+    "build_dna_system_prompt_extended",
     "build_faq_draft",
     "build_weekly_report",
     "can_role",
     "check_permission",
+    "classify_cta_style",
+    "classify_emoji_level",
+    "classify_formatting_style",
+    "classify_tone_extended",
     "has_channel_permission",
     "comment_to_content",
-    "compute_weekly_insights",
-    "redact_personal_data",
-    "render_report_card",
-    "resolve_member_role",
-    "attach_dna_to_context",
-    "build_dna_system_prompt",
-    "build_recycle_prompt",
-    "check_duplicate",
-    "compose_refreshed",
-    "compute_best_time",
+    "compute_best_hours",
+    "compute_best_weekdays",
     "compute_channel_dna",
+    "compute_channel_dna_extended",
+    "compute_channel_dna_v2",
+    "compute_high_performing_formats",
+    "compute_weekly_insights",
+    "confidence_float",
+    "confidence_from_sample",
     "containment_ratio",
     "detect_cta",
+    "detect_language",
+    "detect_language_from_events",
     "emoji_density",
     "engagement_score",
     "extract_event_metadata",
+    "extract_lightweight_metadata",
+    "extract_topics",
     "format_hour",
+    "get_aggregated_metrics",
     "get_best_time",
     "get_channel_dna",
+    "get_channel_dna_extended",
     "hour_window",
     "ingest_channel_post_event",
     "is_blind_repost",
