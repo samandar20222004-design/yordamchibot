@@ -107,14 +107,20 @@ def normalize_question(text: Any) -> str:
 
 
 def question_fingerprint(text: Any) -> str:
-    """Opaque, stable fingerprint; never use a raw comment as a DB key."""
+    """Opaque intent fingerprint; equivalent price questions share one cluster."""
     normalized = normalize_question(text)
+    intent = classify_question(normalized)
+    # These high-volume intents are semantic clusters, not exact quotations.
+    # This keeps “Narxi?”, “Qancha?” and “Цена?” in the same aggregate.
+    if intent in {"price", "delivery", "access", "support"}:
+        normalized = "intent:" + intent
     return hashlib.sha256(normalized.encode("utf-8")).hexdigest() if normalized else ""
 
 
 def classify_question(text: Any, lang: str | None = None) -> str:
+    """Return a small, stable intent vocabulary for audience comments."""
     value = str(text or "").casefold()
-    if any(token in value for token in ("narx", "qancha", "price", "cost", "сколько", "цена", "тариф")):
+    if any(token in value for token in ("narx", "qancha", "necha pul", "price", "cost", "сколько", "цена", "тариф")):
         return "price"
     if any(token in value for token in ("yetkaz", "delivery", "достав", "qachon kel", "when will")):
         return "delivery"
@@ -123,6 +129,27 @@ def classify_question(text: Any, lang: str | None = None) -> str:
     if any(token in value for token in ("kirish", "qanday foydalan", "how to", "как пользоваться", "login", "parol")):
         return "access"
     return "general"
+
+
+COMMENT_INTENTS = ("QUESTION", "COMPLAINT", "PRAISE", "REQUEST", "OBJECTION", "PURCHASE_INTENT")
+
+
+def classify_comment(text: Any) -> str:
+    """Cheap multilingual classifier; deliberately does not identify authors."""
+    value = str(text or "").casefold().strip()
+    if not value:
+        return "QUESTION"
+    if any(x in value for x in ("shikoyat", "muammo", "xato", "ishlamay", "жалоб", "не работает", "bad", "broken")):
+        return "COMPLAINT"
+    if any(x in value for x in ("rahmat", "zo'r", "ajoyib", "yaxshi", "спасибо", "отлично", "thank", "great")):
+        return "PRAISE"
+    if any(x in value for x in ("buyurtma", "olmoqch", "sotib", "buy", "order", "заказ", "купить")):
+        return "PURCHASE_INTENT"
+    if any(x in value for x in ("iltimos", "kerak", "qo'shing", "нужно", "please", "add")):
+        return "REQUEST"
+    if any(x in value for x in ("lekin", "ammo", "qimmat", "rozi emas", "дорого", "но", "however")):
+        return "OBJECTION"
+    return "QUESTION" if is_question(value) else "REQUEST"
 
 
 def is_question(text: Any, lang: str | None = None) -> bool:
@@ -217,7 +244,28 @@ def suggest_comment_to_content(repeated_questions: Iterable[dict], *, lang: str 
     return {"suggested": True, "reason": "repeated_questions", "draft": draft}
 
 comment_to_content = suggest_comment_to_content
+
 generate_faq_draft = build_faq_draft
+
+
+async def generate_ai_content_draft(repeated_questions: Iterable[dict], *, lang: str = "uz") -> dict:
+    """Turn an aggregate FAQ opportunity into a draft through the canonical AI engine."""
+    draft = build_faq_draft(repeated_questions, lang=lang)
+    if not draft:
+        return {"ok": False, "reason": "not_enough_repeated_questions"}
+    try:
+        from services.ai_engine import gateway
+        prompt = "Create a concise FAQ draft from these redacted audience intents. Keep placeholders for answers and require editor review:\n" + draft["content"]
+        result = await gateway.generate(prompt, task="simple_post", lang=lang,
+                                        system_instruction="Return a safe FAQ draft only; never infer personal data or promises.")
+        if getattr(result, "ok", False) and getattr(result, "text", "").strip():
+            draft["content"] = result.text.strip()
+            draft["ai_generated"] = True
+            return draft
+    except Exception:
+        logger.debug("AI FAQ draft unavailable; returning editorial draft", exc_info=True)
+    draft["ai_generated"] = False
+    return draft
 generate_faq_from_questions = build_faq_draft
 generate_faq_post = build_faq_draft
 
@@ -255,6 +303,18 @@ async def analyze_comments(channel_id: str | int, user_id: int, comments: Iterab
                 return {"ok": False, "error": "forbidden", "questions": [], "privacy": "raw_comments_not_stored"}
     except Exception:
         return {"ok": False, "error": "forbidden", "questions": [], "privacy": "raw_comments_not_stored"}
+    # Opt-out is fail-closed: a channel explicitly disabling analysis produces
+    # no derived data and no persistence call.
+    settings_fn = getattr(db, "get_channel_settings", None)
+    if callable(settings_fn):
+        try:
+            settings = await _call(db, settings_fn, channel) or {}
+            if settings.get("enable_comment_analysis") is False:
+                return {"ok": True, "channel_id": channel, "questions": [],
+                        "opted_out": True, "privacy": "comment_analysis_disabled"}
+        except Exception:
+            return {"ok": False, "error": "settings_unavailable", "questions": [],
+                    "privacy": "raw_comments_not_stored"}
     questions = analyze_repeated_questions(comments, min_occurrences=min_occurrences, lang=lang)
     saver = getattr(db, "upsert_audience_question", None)
     if callable(saver):
@@ -296,7 +356,7 @@ class CommentAnalysisService(AudienceQuestionEngine):
 __all__ = [
     "AudienceQuestion", "AudienceQuestionEngine", "CommentAnalysisService", "CommentInsightService", "QuestionSignal", "analyze_comments",
     "analyze_repeated_questions", "anonymize_comment", "build_faq_draft",
-    "classify_question", "comment_to_content", "detect_language", "extract_question_signal",
+    "COMMENT_INTENTS", "classify_comment", "classify_question", "comment_to_content", "detect_language", "extract_question_signal",
     "extract_repeated_questions", "find_repeated_questions", "generate_faq_draft", "generate_faq_from_questions", "generate_faq_post",
     "is_question", "normalize_question", "question_fingerprint", "redact_personal_data",
     "suggest_comment_to_content",

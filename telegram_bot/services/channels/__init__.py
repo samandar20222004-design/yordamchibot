@@ -98,8 +98,9 @@ from services.channels.comments import (  # noqa: F401
     comment_to_content, redact_personal_data,
 )
 from services.channels.advisor import (  # noqa: F401
-    ChannelAdvisor, ChannelAdvisorService, build_weekly_report,
-    compute_weekly_insights, render_report_card,
+    ChannelAdvisor, ChannelAdvisorService, ProactiveInsightLimiter,
+    build_weekly_report, compute_weekly_insights, generate_ai_advice,
+    proactive_insight, render_report_card,
 )
 from services.channels.recycle import (  # noqa: F401
     MAX_REUSE_SIMILARITY,
@@ -130,6 +131,8 @@ __all__ = [
     "AudienceQuestionEngine",
     "ChannelAdvisor",
     "ChannelAdvisorService",
+    "ProactiveInsightLimiter",
+    "proactive_insight",
     "ChannelMember",
     "ChannelMemberService",
     "ChannelRole",
@@ -162,6 +165,7 @@ __all__ = [
     "compute_channel_dna_v2",
     "compute_high_performing_formats",
     "compute_weekly_insights",
+    "generate_ai_advice",
     "confidence_float",
     "confidence_from_sample",
     "containment_ratio",

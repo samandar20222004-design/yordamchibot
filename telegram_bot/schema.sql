@@ -40,8 +40,11 @@ CREATE TABLE IF NOT EXISTS channels (
     channel_id VARCHAR(255) UNIQUE NOT NULL,
     channel_title VARCHAR(255),
     is_active BOOLEAN DEFAULT TRUE,
+    -- Privacy opt-out: comment monitoring is enabled only by channel choice.
+    enable_comment_analysis BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+ALTER TABLE channels ADD COLUMN IF NOT EXISTS enable_comment_analysis BOOLEAN NOT NULL DEFAULT TRUE;
 
 -- ============================================================
 -- PHASE E — KANAL JAMOASI (team roles)
