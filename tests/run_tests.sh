@@ -102,6 +102,14 @@
 #       promptlardan chiqarilgan, FSM 434/435/436 noyob va Phase A-E
 #       xavfsizlik filtrlari joyida
 #       (tests/ai_clarification_and_intent_test.py)
+#   3J) 🚦 AI ENGINE V2 — YAGONA KANONIK AI SHLYUZ (DEEP AUDIT, Faza 1/2/3/21):
+#       gateway (generate/analyze/vision + legacy adapter), model router
+#       (FAST/QUALITY/REASONING/VISION), Fast Path (qat'iy timeout + kesh),
+#       circuit breaker (429/timeout/5xx → sog'lom provayderga avto-fallback,
+#       legacy _BREAKERS mirror), deterministik kesh, handler izolyatsiyasi
+#       (hech bir handler provayderga to'g'ridan-to'g'ri bog'lanmaydi) va
+#       dead-end tuzoqlari ([❌ Bekor qilish] tugmalari)
+#       (tests/ai_engine_v2_test.py)
 #   4) TO'LIQ regressiya: telegram_bot/tests/run_tests.sh (barcha 30+ test fayli)
 #
 # Har qanday xatoda 1 bilan chiqadi (CI uchun).
@@ -645,6 +653,33 @@ echo "===== 3G) 🧭 3-QADAM: ANIQLASHTIRISH + FORMAT + FLUFF-GUARD ====="
 #     xavfsizlik filtrlari buzilmagan
 #     (tests/ai_clarification_and_intent_test.py).
 "$PY" tests/ai_clarification_and_intent_test.py || EXIT_CODE=1
+
+echo
+echo "===== 3J) 🚦 AI ENGINE V2: YAGONA SHLYUZ + ROUTER + CIRCUIT BREAKER ====="
+# (1) MODEL ROUTER — vazifaga qarab lane tanlash: qayta yozish/oddiy post/
+#     tuzatish → FAST (eng tez provayder birinchi, 10-15s qat'iy timeout,
+#     kesh-first); audit/tahlil → QUALITY; kanal tahlili/haftalik reja →
+#     REASONING; rasm tahlili → VISION; SMM Intent Router bilan sinxron;
+# (2) DETERMINISTIK KESH — bir xil so'rov → aynan bir xil kalit
+#     (provayder tartibidan mustaqil), TTL + LRU, hit provayderga
+#     CHIQMAYDI (Fast Path);
+# (3) CIRCUIT BREAKER — 429/timeout/5xx klassifikatsiyasi, ketma-ket xato
+#     chegarrasi → provayder vaqtincha ochiladi, sog'lom provayder
+#     RO'YXAT BOSHINGA (avto-fallback), legacy _BREAKERS mirror (yagona
+#     sog'liq holati);
+# (4) GATEWAY — fail-soft (xato = istisno EMAS, muloyim xabar), 429 →
+#     keyingi sog'lom provayder, force_refresh, Fast Path qat'iy timeout;
+# (5) LEGACY ADAPTER — utils.ai_agent eski chaqiruvlari shlyuz orqali
+#     (backward compatibility: provider/provider_chain shakli va eski
+#     monkeypatch nuqtalari buzilmaydi);
+# (6) HANDLER IZOLYATSIYASI — hech bir handler provayder qatlamiga
+#     to'g'ridan-to'g'ri bog'lanmaydi (hammasi gateway yoki legacy
+#     adapter orqali);
+# (7) DEAD-END TUZOQLAR — aniqlashtirish wizard'i (aip_cancel) va Magic
+#     Post uslub menyusida (mp_cancel) [❌ Bekor qilish] tugmasi, i18n
+#     paritet, 64-bayt callback xavfsizligi
+#     (tests/ai_engine_v2_test.py).
+"$PY" tests/ai_engine_v2_test.py || EXIT_CODE=1
 
 echo
 echo "===== 3H) 💬 4-QISM: QO'LLAB-QUVVATLASH (ONE-TIME TICKET) + ADMIN REPLY ====="

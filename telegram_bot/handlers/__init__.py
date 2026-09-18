@@ -209,7 +209,7 @@ from handlers.magic_post import (
     magic_post_entry, magic_text_received, magic_style_callback,
     magic_send_now_callback, magic_channel_picked_callback,
     magic_schedule_callback, magic_restyle_callback, magic_stale_callback,
-    magic_back_callback,
+    magic_back_callback, magic_cancel_callback,
     MAGIC_INPUT, MAGIC_STYLE_SELECT, MAGIC_RESULT, MAGIC_SEND_CHOOSE,
 )
 
@@ -218,7 +218,8 @@ from handlers.magic_post import (
 # parametrlari so'rovi. Modul faqat handlers.magic_post / handlers.ai_assistant
 # funksiyalarini LAZY import qiladi — aylanma import YO'Q.
 from handlers.ai_post import (
-    ai_post_format_callback, ai_post_back_callback, ai_post_stale_callback,
+    ai_post_format_callback, ai_post_back_callback, ai_post_cancel_callback,
+    ai_post_stale_callback,
     ai_post_sales_input_received, ai_post_custom_input_received,
     AI_POST_CLARIFY, AI_POST_SALES_INPUT, AI_POST_CUSTOM_INPUT,
 )
@@ -1626,6 +1627,10 @@ def register_all_handlers(app):
             MAGIC_STYLE_SELECT: all_menu_jumps + [
                 CallbackQueryHandler(magic_style_callback, pattern=r"^mp_style:"),
                 CallbackQueryHandler(magic_restyle_callback, pattern=r"^mp_restyle$"),
+                # ❌ Bekor qilish (DEEP AUDIT: dead-end trap tuzatildi) —
+                # uslub menyusidan chiqish; sessiya tozalanadi, kredit
+                # tegilmaydi (hech narsa bron qilinmagan).
+                CallbackQueryHandler(magic_cancel_callback, pattern=r"^mp_cancel$"),
             ],
             MAGIC_RESULT: all_menu_jumps + [
                 CallbackQueryHandler(magic_send_now_callback, pattern=r"^mp_send$"),
@@ -1658,6 +1663,9 @@ def register_all_handlers(app):
             AI_POST_CLARIFY: all_menu_jumps + [
                 CallbackQueryHandler(ai_post_format_callback, pattern=r"^aip_fmt:"),
                 CallbackQueryHandler(ai_post_back_callback, pattern=r"^aip_back$"),
+                # ❌ Bekor qilish (DEEP AUDIT: dead-end trap tuzatildi) —
+                # wizard to'liq yopiladi, foydalanuvchi band qolmaydi.
+                CallbackQueryHandler(ai_post_cancel_callback, pattern=r"^aip_cancel$"),
             ],
             AI_POST_SALES_INPUT: all_menu_jumps + [
                 MessageHandler(filters.TEXT & ~filters.COMMAND, ai_post_sales_input_received),

@@ -4,7 +4,7 @@ Oqim (FSM)::
 
     [📊 Post Score] tugmasi (asosiy menyu)
         └─ POST_SCORE_INPUT: foydalanuvchi post matnini yuboradi
-        └─ baholash — ``services.ai_service.score_post`` (BEPUL: kredit
+        └─ baholash — ``services.ai_engine.gateway.score_post`` (BEPUL: kredit
            yechilmaydi, kunlik kvota sarflanmaydi) — 6 mezon (1–10) +
            100 ballik umumiy natija + 1–2 jumlalik tavsiya
         └─ POST_SCORE_RESULT: vizual natija ekrani + amallar
@@ -66,7 +66,7 @@ from services.ai_quota import (
     reserve_for_flow,
     take_reservation_id,
 )
-from services.ai_service import improve_post_to_95, score_post
+from services.ai_engine.gateway import improve_post_to_95, score_post
 from translations import (
     POST_SCORE_CRITERIA_KEYS,
     post_score_advice,

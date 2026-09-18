@@ -82,6 +82,14 @@ def main():
         "services.ai.audit",
         "services.ai.planner",
         "services.ai",
+        # 🚦 AI ENGINE V2 — yagona kanonik AI shlyuz (gateway/router/health/
+        # cache/providers). Barcha AI chaqiruvlari shu paket orqali yuradi.
+        "services.ai_engine",
+        "services.ai_engine.router",
+        "services.ai_engine.providers",
+        "services.ai_engine.health",
+        "services.ai_engine.cache",
+        "services.ai_engine.gateway",
     ]
     for mod in modules:
         try:

@@ -865,8 +865,8 @@ def test_regression_guard():
     # Magic natija matni/klaviaturasi va voice/image tugmalari joyida.
     check("Magic natija ekrani saqlangan",
           "Magic Post tayyor" in mp._magic_result_text("<b>x</b>", "sales", "uz"))
-    check("Magic uslub klaviaturasi 5 uslub", len(kb_buttons(
-        mp._magic_style_keyboard("uz"))) == 5)
+    check("Magic uslub klaviaturasi 5 uslub + bekor", len(kb_buttons(
+        mp._magic_style_keyboard("uz"))) == 6)
     check("Magic send callback'i o'zgarmagan", mp.MP_SEND == "mp_send")
 
     # Post Score callback'lari kanonik va 64 bayt chegarasida.

@@ -20,8 +20,9 @@ Ushbu test quyidagilarni QAT'IY kafolatlaydi:
            bo'lsa → mahsulot nomi/narxi/xususiyati so'rovi (spetsifikatsiya
            matni aynan); tafsilotli sotuv mavzusi to'silmaydi.
   TEST 4 — WIZARD UI: "📌 Qaysi yo'nalish ..." savoli aynan; 5 tugma
-           (📰/💡/🔥/🛒/✍️) yorliq + callback'lar aynan; 2+2+1 layout;
-           64-bayt xavfsizlik; uz/ru/en paritet.
+           (📰/💡/🔥/🛒/✍️) + [❌ Bekor qilish] (aip_cancel — DEEP AUDIT
+           dead-end trap tuzatishi); 2+2+1+1 layout; 64-bayt xavfsizlik;
+           uz/ru/en paritet.
   TEST 5 — HANDLER INTEGRATSIYA: Magic Post'da "sport" → CLARIFY + wizard
            klaviatura; batafsil mavzu → STYLE_SELECT (regressiya yo'q);
            format callback'lar → to'g'ri holat + to'g'ri matn; sotuv/aniq
@@ -355,13 +356,20 @@ def test_wizard_ui():
           repr(aip.clarification_text("uz")))
 
     buttons = aip.clarification_keyboard_buttons("uz")
-    check("5 ta tugma chiqadi", len(buttons) == 5, str(buttons))
+    check("6 ta tugma chiqadi (5 yo'nalish + bekor)",
+          len(buttons) == 6, str(buttons))
     for (exp_label, exp_cb), (label, cb_data) in zip(SPEC_BUTTONS_UZ, buttons):
         check(f"tugma «{exp_label}»", label == exp_label and cb_data == exp_cb,
               f"{label!r} / {cb_data!r}")
+    # DEEP AUDIT tuzatishi: [❌ Bekor qilish] dead-end trap tugmasi.
+    cancel_label, cancel_cb = buttons[-1]
+    check("bekor tugmasi oxirida va aynan",
+          cancel_label == "❌ Bekor qilish" and cancel_cb == "aip_cancel",
+          f"{cancel_label!r} / {cancel_cb!r}")
 
     markup = aip.build_clarification_keyboard("uz")
-    check("layout 2+2+1", kb_rows(markup) == [2, 2, 1], str(kb_rows(markup)))
+    check("layout 2+2+1+1 (oxirgi qator — bekor)",
+          kb_rows(markup) == [2, 2, 1, 1], str(kb_rows(markup)))
 
     for lang in LANGS:
         for label, cb_data in aip.clarification_keyboard_buttons(lang):
@@ -375,9 +383,9 @@ def test_wizard_ui():
     labels_en = [t for t, _ in aip.clarification_keyboard_buttons("en")]
     check("uz/ru/en tugmalar farqli (tarjima)",
           len({tuple(labels_uz), tuple(labels_ru), tuple(labels_en)}) == 3)
-    # Har bir tilda 5 tasi ham noyob.
+    # Har bir tilda 6 tasi ham noyob (5 yo'nalish + bekor).
     for lang, labels in (("uz", labels_uz), ("ru", labels_ru), ("en", labels_en)):
-        check(f"tugmalar [{lang}] takrorlanmaydi", len(set(labels)) == 5)
+        check(f"tugmalar [{lang}] takrorlanmaydi", len(set(labels)) == 6)
 
 
 # ===========================================================================
@@ -415,7 +423,8 @@ def test_handler_integration():
     check("savol matni bor", SPEC_CLARIFY_UZ in reply.get("text", ""),
           reply.get("text", "")[:80])
     cbs = [d for _t, d in kb_buttons(reply.get("reply_markup"))]
-    check("5 ta aip_fmt tugma chiqdi", cbs == [c for _t, c in SPEC_BUTTONS_UZ], str(cbs))
+    check("5 ta aip_fmt + bekor tugmasi chiqdi",
+          cbs == [c for _t, c in SPEC_BUTTONS_UZ] + ["aip_cancel"], str(cbs))
     check("mavzu user_data'da saqlandi", ctx.user_data.get("aip_topic") == "sport")
     check("origin=magic saqlandi", ctx.user_data.get("aip_origin") == "magic")
 
@@ -428,8 +437,9 @@ def test_handler_integration():
           str(state2))
     check("xom matn saqlandi", ctx2.user_data.get("magic_raw_text") == raw)
     cbs2 = [d for _t, d in kb_buttons(msg2.replies[0]["reply_markup"])]
-    check("5 uslub tugmasi (mp_style:*) chiqdi",
-          {c.split(':')[0] for c in cbs2} == {"mp_style"} and len(cbs2) == 5, str(cbs2))
+    check("5 uslub + bekor tugmasi chiqdi",
+          {c.split(':')[0] for c in cbs2} == {"mp_style", "mp_cancel"}
+          and len(cbs2) == 6, str(cbs2))
 
     # 5c) RU batafsil mavzu → STYLE_SELECT (regressiya yo'q).
     ctx_ru = FakeContext(lang="ru")
@@ -459,8 +469,10 @@ def test_handler_integration():
           bool(ctx4.user_data.get("aip_format_hint")),
           repr(ctx4.user_data.get("aip_format_hint")))
     menu_cbs = [d for _t, d in kb_buttons(q_news.edits[-1].get("reply_markup"))]
-    check("uslublar menyusi chizildi", len(menu_cbs) == 5
-          and all(c.startswith("mp_style:") for c in menu_cbs), str(menu_cbs))
+    check("uslublar menyusi chizildi (5 uslub + bekor)",
+          len(menu_cbs) == 6
+          and all(c.startswith("mp_style:") or c == "mp_cancel" for c in menu_cbs),
+          str(menu_cbs))
 
     # 5f) Hint generatsiya materialiga ulanadi (display toza qoladi).
     ctx5 = FakeContext(lang="uz")
@@ -694,6 +706,7 @@ def test_fsm_safety_and_phase_regression():
     src = _inspect.getsource(_handlers_pkg)
     check("aip_fmt callback ro'yxatda", "aip_fmt:" in src)
     check("aip_back callback ro'yxatda", "aip_back" in src)
+    check("aip_cancel (❌ Bekor qilish) ro'yxatda", "aip_cancel" in src)
     check("aip stale qo'riqchi ro'yxatda", "^aip_" in src)
     check("AI_POST_CLARIFY holati ro'yxatda", "AI_POST_CLARIFY" in src)
 
