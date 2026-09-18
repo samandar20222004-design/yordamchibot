@@ -174,6 +174,25 @@ def compute_weekly_insights(items: Iterable[dict], *, now: datetime | None = Non
     return report
 
 
+async def generate_ai_advice(report: dict, *, lang: str = "uz") -> dict:
+    """Explain measured insights with the canonical AI Engine (fail-soft)."""
+    try:
+        from services.ai_engine import gateway
+        prompt = "Explain this channel report in plain language: " + str({
+            "published_posts": report.get("published_posts", 0),
+            "formats": report.get("formats", []),
+            "topics": report.get("topic_distribution", {}),
+            "recommendations": report.get("recommendations", []),
+        })
+        result = await gateway.generate(prompt, task="channel_analysis", lang=lang,
+                                        system_instruction="Give cautious, actionable channel-owner advice. Do not claim causation.")
+        if getattr(result, "ok", False):
+            return {"ok": True, "text": result.text, "provider": result.provider}
+    except Exception:
+        logger.debug("AI advisor unavailable; deterministic report remains valid", exc_info=True)
+    return {"ok": False, "text": "AI maslahatchi hozircha mavjud emas; kuzatilgan hisobotdan foydalaning."}
+
+
 # Public pure aliases
 build_weekly_report = compute_weekly_insights
 analyze_weekly = compute_weekly_insights
@@ -218,6 +237,40 @@ async def _db_call(db: Any, name: str, *args, **kwargs):
         return await runner(fn, *args, **kwargs)
     value = fn(*args, **kwargs)
     return await value if asyncio.iscoroutine(value) else value
+
+
+class ProactiveInsightLimiter:
+    """Per-channel daily limiter: at most one useful signal, never a spam loop."""
+    def __init__(self):
+        self._sent: dict[str, datetime] = {}
+
+    def allow(self, channel_id: str, *, now: datetime | None = None) -> bool:
+        current = now or datetime.now(timezone.utc)
+        previous = self._sent.get(str(channel_id))
+        if previous and current.date() == previous.date():
+            return False
+        self._sent[str(channel_id)] = current
+        return True
+
+
+_DEFAULT_INSIGHT_LIMITER = ProactiveInsightLimiter()
+
+
+def proactive_insight(report: dict, *, channel_id: str | int, now=None, limiter=None) -> dict | None:
+    """Return one actionable warning when repetition or posting silence is observed."""
+    limiter = limiter or _DEFAULT_INSIGHT_LIMITER
+    current = now or datetime.now(timezone.utc)
+    posts = int(report.get("published_posts", report.get("posts_published", 0)) or 0)
+    formats = report.get("format_distribution") or {}
+    if posts == 0:
+        signal = "📣 Kanalda 7 kundan beri post ko'rinmadi. Kichik reja tuzish vaqti keldi."
+    elif formats and max(formats.values()) / max(1, posts) >= 0.8:
+        signal = "🔁 Kontent formatlari bir xillashib qoldi; boshqa formatni ehtiyotkorlik bilan sinab ko'ring."
+    else:
+        return None
+    if not limiter.allow(str(channel_id), now=current):
+        return None
+    return {"type": "proactive_insight", "channel_id": str(channel_id), "text": signal, "date": current.date().isoformat()}
 
 
 class ChannelAdvisor:
@@ -271,9 +324,9 @@ report_card = render_report_card
 
 
 __all__ = [
-    "CAUSAL_LANGUAGE", "ChannelAdvisor", "ChannelAdvisorService",
+    "CAUSAL_LANGUAGE", "ChannelAdvisor", "ChannelAdvisorService", "ProactiveInsightLimiter", "proactive_insight",
     "FORBIDDEN_CAUSAL_PHRASES", "analyze_weekly", "build_channel_advice",
-    "build_weekly_advisor_report", "build_weekly_report", "compute_weekly_insights",
+    "build_weekly_advisor_report", "build_weekly_report", "compute_weekly_insights", "generate_ai_advice",
     "format_weekly_report", "generate_weekly_report", "get_channel_advice",
     "render_report_card", "report_card",
 ]

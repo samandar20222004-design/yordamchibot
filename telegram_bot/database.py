@@ -6485,6 +6485,29 @@ def count_admin_audit_logs(admin_id=None, action=None) -> int:
 # istisno ko'tarmaydi — fail-soft (qo'ng'iroqchiga bo'sh natija).
 # ============================================================
 
+def get_channel_settings(channel_id: str | int) -> dict:
+    """Return privacy settings without exposing channel member data."""
+    try:
+        with db_cursor() as cur:
+            cur.execute("SELECT enable_comment_analysis FROM channels WHERE channel_id = %s", (str(channel_id),))
+            row = cur.fetchone()
+            return {"enable_comment_analysis": bool(row[0])} if row else {}
+    except Exception as e:
+        logger.error("get_channel_settings xatosi: %s", e)
+        return {}
+
+
+def set_comment_analysis(channel_id: str | int, enabled: bool) -> bool:
+    """Owner-controlled privacy switch; no comment data is touched."""
+    try:
+        with db_cursor(commit=True) as cur:
+            cur.execute("UPDATE channels SET enable_comment_analysis = %s WHERE channel_id = %s", (bool(enabled), str(channel_id)))
+            return cur.rowcount > 0
+    except Exception as e:
+        logger.error("set_comment_analysis xatosi: %s", e)
+        return False
+
+
 def get_channel_owner_id(channel_id: str | int) -> int | None:
     """Kanalning egasini (user_id) qaytaradi. Yo'q bo'lsa None (fail-soft).
 
