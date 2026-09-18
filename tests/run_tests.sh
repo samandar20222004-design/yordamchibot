@@ -90,6 +90,11 @@
 #       to'g'ri, eskirgan gemini-1.5-flash QIYMAT'da yo'q va kod o'qiydigan
 #       barcha production env o'zgaruvchilari hujjatlangan
 #       (tests/env_docs_parity_test.py)
+#   3H) 💬 4-QISM (SO'NGGI QISM) — QO'LLAB-QUVVATLASH: bir martalik murojaat
+#       (one-time ticket FSM — bitta xabar, holat darhol yopiladi), adminga
+#       ADMIN_IDS orqali yetkazish, adminning Telegram «Reply» javobini
+#       foydalanuvchiga dispatcher orqali qaytarish va not-an-admin
+#       himoyasi (tests/support_ticket_flow_test.py)
 #   3G) 🧭 3-QADAM (UI/UX POLISH) — MAVZU ANIQLIGI, FORMAT VA SIFAT:
 #       qisqa/umumiy mavzuda aniqlashtirish wizard'i (📰/💡/🔥/🛒/✍️),
 #       "yangiliklar" hech qachon Sotuv oqimiga tushmaydi, sotuvda
@@ -641,6 +646,31 @@ echo "===== 3G) 🧭 3-QADAM: ANIQLASHTIRISH + FORMAT + FLUFF-GUARD ====="
 #     xavfsizlik filtrlari buzilmagan
 #     (tests/ai_clarification_and_intent_test.py).
 "$PY" tests/ai_clarification_and_intent_test.py || EXIT_CODE=1
+
+echo
+echo "===== 3H) 💬 4-QISM: QO'LLAB-QUVVATLASH (ONE-TIME TICKET) + ADMIN REPLY ====="
+# (1) BIR MARTALIK MUROJAAT FSM'i: [💬 Qo'llab-quvvatlash] →
+#     «Savol yoki muammoingizni bitta xabarda to'liq yozib qoldiring…»
+#     + [◀️ Orqaga]; foydalanuvchi matn (yoki rasm+izoh) yuborganda holat
+#     DARHOL yopiladi (ketma-ket yozish = adminga SPAM emas) va
+#     «✅ Murojaatingiz adminga yetkazildi. Javob shu yerda keladi.»
+#     tasdig'i beriladi;
+# (2) ADMINGA YUBORISH: murojaat .env dagi ADMIN_IDS dagi HAR BIR adminga
+#     «📩 Yangi murojaat! / 👤 Kimdan: @username (ID: <code>...</code>) /
+#     📝 Xabar: …» shaklida boradi; Reply kuzatuvi uchun
+#     (admin_chat_id, admin_message_id) juftligi support_ticket_deliveries
+#     jadvaliga va xotiradagi keshga yoziladi;
+# (3) ADMIN REPLY DISPATCHER: admin bot xabariga Telegram «Reply» orqali
+#     yozsa — javob murojaat egasiga «💬 Qo'llab-quvvatlash xizmati javobi:»
+#     sarlavhasi bilan yetib boradi va adminga «✅ Javob foydalanuvchiga
+#     yetkazildi» tasdig'i qaytadi (bot restart'dan keyin ham — DB kuzatuvi);
+# (4) XAVFSIZLIK: SUPPORT_ADMIN_REPLY_FILTER faqat ADMIN_IDS va faqat
+#     shaxsiy chatdagi reply'ga mos keladi; not-an-admin murojaat ID'sini
+#     bilsa ham hech narsa yubora olmaydi (fail-closed, ikki qatlam);
+# (5) REGRESSIYA: i18n UZ↔RU↔EN paritet, FSM 540 unikal, schema.sql ↔
+#     database.EXPECTED_TABLES paralleligi, 👤 Profil hub'i o'zgarmagan
+#     (tests/support_ticket_flow_test.py).
+"$PY" tests/support_ticket_flow_test.py || EXIT_CODE=1
 
 echo
 echo "======== 4) TO'LIQ REGRESSIYA (telegram_bot/tests) ========"

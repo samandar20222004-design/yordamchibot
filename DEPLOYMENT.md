@@ -35,6 +35,15 @@ AI_ALLOW_MOCK=0            # Mock (shablon) javoblar production'da O'CHIQ
 To'lovlar uchun (ixtiyoriy): `CARD_NUMBER`, `CARD_HOLDER`, `PAYMENT_ADMIN_USERNAME`
 — karta rekvizitlari **kodda yo'q**, faqat shu o'zgaruvchilardan olinadi.
 
+**💬 Qo'llab-quvvatlash (4-QISM) — adminlar uchun muhim:** foydalanuvchi
+`👤 Profil → [💬 Qo'llab-quvvatlash]` orqali **bitta xabar** yozadi (FSM darhol
+yopiladi — ketma-ket yozish adminga spam bo'lib bormaydi) va murojaat
+`ADMIN_IDS` ro'yxatidagi **har bir** adminga yuboriladi. Javob berish uchun
+admin oddiy Telegram **«Reply»** funksiyasidan foydalanadi — javob avtomatik
+ravishda foydalanuvchiga yetib boradi. Shu sababli productionda `ADMIN_IDS`
+(bir nechta admin) to'ldirilgan bo'lishi tavsiya etiladi; bo'sh bo'lsa
+foydalanuvchiga murojaat yetib bormaganini bildiruvchi halol javob qaytadi.
+
 ---
 
 ## 1. A variant — Render (Native Python, tavsiya etilgan)

@@ -17,6 +17,9 @@ Modullar:
     channels_queue — 📢 KANALLARIM + 📅 REJALASHTIRILGAN: CHANNELS_QUEUE_I18N
                  lug'ati, ``channels_queue_t``, kanal boshqaruv/post amal
                  tugma kalitlari va paritet hisoboti (PostAssist V2, 4-qadam).
+    support — 💬 QO'LLAB-QUVVATLASH: SUPPORT_I18N lug'ati, ``support_t``,
+                 bir martalik murojaat (one-time ticket) va admin javobi
+                 matnlari hamda paritet hisoboti (PostAssist V2, 4-QISM).
     settings_stats — ⚙️ SOZLAMALAR + 📊 STATISTIKA + 🧰 VOSITALAR:
                  SETTINGS_STATS_I18N lug'ati, ``settings_stats_t``, sozlamalar
                  menyu (8 guruh + Orqaga), rewards/help submenu'lari, vositalar
@@ -123,6 +126,14 @@ from translations.sources import (  # noqa: F401
     sources_parity_report,
     sources_t,
 )
+from translations.support import (  # noqa: F401
+    SUPPORT_BUTTON_KEYS,
+    SUPPORT_EMPTY_MESSAGE_KEYS,
+    SUPPORT_I18N,
+    SUPPORT_KEYS,
+    support_parity_report,
+    support_t,
+)
 
 __all__ = [
     "MAGIC_POST_I18N",
@@ -184,4 +195,10 @@ __all__ = [
     "SOURCES_BUTTON_KEYS",
     "sources_t",
     "sources_parity_report",
+    "SUPPORT_I18N",
+    "SUPPORT_KEYS",
+    "SUPPORT_BUTTON_KEYS",
+    "SUPPORT_EMPTY_MESSAGE_KEYS",
+    "support_t",
+    "support_parity_report",
 ]

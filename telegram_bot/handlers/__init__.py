@@ -374,6 +374,23 @@ from handlers.settings import (
     settings_rewards_callback,
 )
 
+# 10b. 💬 QO'LLAB-QUVVATLASH — 4-QISM: bir martalik murojaat (one-time ticket)
+# FSM'i va adminning «Reply» javobini foydalanuvchiga yetkazuvchi dispatcher.
+# Ro'yxatga olish tartibi MUHIM:
+#   * ``support_ticket_entry`` — main_conv ENTRY POINT'i (``help_support``);
+#   * ``support_admin_reply`` — global MessageHandler, FAQAT ADMIN_IDS uchun
+#     va FAQAT Telegram «Reply» xabarlariga (oddiy foydalanuvchi ta'sir
+#     qila olmaydi; boshqa reply'lar eski fallback'ga o'tadi).
+from handlers.support import (
+    SUPPORT_ADMIN_REPLY_ENABLED,
+    SUPPORT_ADMIN_REPLY_FILTER,
+    SUPPORT_TICKET_INPUT,
+    support_admin_reply,
+    support_back_callback,
+    support_message_received,
+    support_ticket_entry,
+)
+
 # 11. CHANNEL EXTRACT MODULI
 from handlers.channel_extract import (
     start_extract, extract_username_received, extract_post_chosen,
@@ -1114,6 +1131,14 @@ def register_all_handlers(app):
             CallbackQueryHandler(edit_post_btn_start, pattern=r"^p_btn:"),
             CallbackQueryHandler(edit_post_react_start, pattern=r"^p_react:"),
             CallbackQueryHandler(add_channel_inline_entry, pattern=r"^add_channel_start$"),
+            # 💬 4-QISM — [💬 Qo'llab-quvvatlash]: BIR MARTALIK murojaat oqimi
+            # (bir xabar → FSM darhol yopiladi → adminga yetkaziladi).
+            # ``allow_reentry=True`` tufayli tugma boshqa FSM ichidan ham
+            # xavfsiz qayta ochiladi; eski xabarlardagi tugma esa global
+            # ``stgs_`` handleriga tushadi (legacy ma'lumot ekrani).
+            CallbackQueryHandler(
+                support_ticket_entry, pattern=r"^help_support$",
+            ),
             # 📢 Kanallarim → [➕ Post yaratish]: kanal ALLAQACHON tanlangan,
             # shuning uchun oqim to'g'ridan-to'g'ri GET_CONTENT holatiga
             # kiradi (entry point bo'lishi SHART — u FSM holati qaytaradi).
@@ -1737,6 +1762,17 @@ def register_all_handlers(app):
                 CallbackQueryHandler(post_score_new_callback, pattern=r"^ps_new$"),
             ],
 
+            # 💬 4-QISM — QO'LLAB-QUVVATLASH: bir martalik murojaat holati.
+            #   * [◀️ Orqaga] — oqim yopiladi va 👤 Profil hub'i qaytadi;
+            #   * foydalanuvchi xabari (matn yoki rasm+izoh) — murojaat
+            #     adminga yuboriladi va holat DARHOL yopiladi (END), ya'ni
+            #     ketma-ket yozish adminga spam bo'lib bormaydi.
+            SUPPORT_TICKET_INPUT: all_menu_jumps + [
+                CallbackQueryHandler(support_back_callback, pattern=r"^sup_back$"),
+                MessageHandler(filters.ALL & ~filters.COMMAND,
+                               support_message_received),
+            ],
+
             # 8. Queue holatlari
             QUEUE_MENU: all_menu_jumps + [
                 CallbackQueryHandler(queue_page_callback, pattern=r"^qpage:"),
@@ -1951,6 +1987,18 @@ def register_all_handlers(app):
     # ✨ Postga Tugma & Reaksiya: sessiya tugagach eski prevyu/hub tugmalari bosilsa —
     # xabarni buzmasdan jim javob (edit qilinmaydi).
     app.add_handler(CallbackQueryHandler(enh_stale_callback, pattern=r"^enh:"))
+    # 💬 4-QISM — qo'llab-quvvatlash: FSM sessiyasidan tashqarida bosilgan
+    # [◀️ Orqaga] (``sup_back``) tugmasi — xabar buzilmaydi, 👤 Profil hub'i
+    # qayta chiziladi (o'lik tugma qolmaydi).
+    app.add_handler(CallbackQueryHandler(support_back_callback, pattern=r"^sup_back$"))
+    # 💬 4-QISM — ADMIN REPLY DISPATCHER: admin bot yuborgan murojaat xabariga
+    # Telegram'ning «Reply» funksiyasi bilan yozsa, javob murojaat egasiga
+    # yetkaziladi. Handler FAQAT adminlar uchun va FAQAT reply xabarlariga
+    # mos keladi (``SUPPORT_ADMIN_REPLY_FILTER``), shuning uchun oddiy
+    # foydalanuvchi oqimiga yoki boshqa oqimlarga ta'sir qilmaydi.
+    # MUHIM: catch-all ``expired_session_callback`` dan OLDIN turadi.
+    if SUPPORT_ADMIN_REPLY_ENABLED:
+        app.add_handler(MessageHandler(SUPPORT_ADMIN_REPLY_FILTER, support_admin_reply))
     # 💳 Karta cheki Admin Approval Flow — admin ✅/❌ tugmalari. Conversation
     # faol bo'lmasa ham ishlashi uchun global reyestrda ro'yxatdan o'tadi.
     # MUHIM: catch-all ``expired_session_callback`` dan OLDIN turishi kerak —
