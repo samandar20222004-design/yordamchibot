@@ -1105,6 +1105,12 @@ TRANSLATIONS = {
             "⚠️ Format xato!\nMasalan: <code>Batafsil | https://sayt.uz</code>\n"
             "Yoki o'chirish: <code>yo'q</code>"
         ),
+        "pend_btn_unsafe": (
+            "⚠️ <b>Bu havola xavfsiz emas.</b>\n"
+            "Faqat ommaviy <code>https://</code> havolalar ruxsat etiladi — "
+            "ichki tarmoq manzillari (localhost, 127.x, 10.x, 192.168.x, "
+            "metadata) qabul qilinmaydi."
+        ),
         "pend_react_ask": (
             "👍 <b>Post reaksiyalarini o'zgartirish:</b>\n\n"
             "Quyidagidan birini tanlang:"
@@ -3066,6 +3072,12 @@ TRANSLATIONS = {
         "pend_btn_format": (
             "⚠️ Ошибка формата!\nНапример: <code>Подробнее | https://sayt.uz</code>\n"
             "Или удалить: <code>нет</code>"
+        ),
+        "pend_btn_unsafe": (
+            "⚠️ <b>Эта ссылка небезопасна.</b>\n"
+            "Разрешены только публичные <code>https://</code> ссылки — "
+            "адреса внутренней сети (localhost, 127.x, 10.x, 192.168.x, "
+            "metadata) не принимаются."
         ),
         "pend_react_ask": (
             "👍 <b>Изменить реакции поста:</b>\n\nВыберите один из вариантов:"

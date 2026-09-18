@@ -123,6 +123,14 @@
 #       (hech bir handler provayderga to'g'ridan-to'g'ri bog'lanmaydi) va
 #       dead-end tuzoqlari ([❌ Bekor qilish] tugmalari)
 #       (tests/ai_engine_v2_test.py)
+#   3L) 🛡⚡ FAZA 23/25/27/28/29 — PRODUCTION HARDENING (8-sprint, yakuniy):
+#       SECURITY & IDOR (pending.py callback'larida egalik guard'i,
+#       fail-closed), SSRF — localhost/127.x/10.x/192.168.x/169.254.x
+#       metadata tugmalar va manbalarda QAT'IY bloklanadi, maxfiy kalitlar
+#       loglarga tushmaydi; handler watchdog (UPDATE_HANDLER_TIMEOUT_SECONDS)
+#       va fon vazifalari leak-free; parallel foydalanuvchi + concurrent AI
+#       yuklama simulyatsiyasi (PASS/FAIL/NOT TESTED — faqat aniq faktlar)
+#       (tests/production_hardening_and_concurrency_test.py)
 #   4) TO'LIQ regressiya: telegram_bot/tests/run_tests.sh (barcha 30+ test fayli)
 #
 # Har qanday xatoda 1 bilan chiqadi (CI uchun).
@@ -775,6 +783,28 @@ echo "===== 3I) 🧭 FAZA 17/18/19/26 — UI/UX STANDARTLARI, CALLBACK REGISTRY,
 #     CHANNEL_LIMIT_MSG/PRO_UPGRADE_KEYBOARD/parse_channel_target orqaga
 #     mosligi 3 tilda (tests/ui_ux_and_navigation_standards_test.py).
 "$PY" tests/ui_ux_and_navigation_standards_test.py || EXIT_CODE=1
+
+echo
+echo "===== 3L) 🛡⚡ FAZA 23/25/27/28/29: PRODUCTION HARDENING & CONCURRENCY ====="
+# 8-sprint yakuniy bosqich (tests/production_hardening_and_concurrency_test.py):
+# (1) 🛡 FAZA 23 — SECURITY & IDOR: pending.py dagi edit_post_time_start /
+#     edit_post_content_start / edit_post_btn_start / edit_post_react_start
+#     callback'lari post ID olingan ZAHOTI egalik tekshiruvidan o'tadi
+#     (begona/yo'q/DB-xato → fail-closed rad, FSM o'rnatilmaydi); SSRF —
+#     localhost, 127.0.0.1, 10.*, 172.16-31.*, 192.168.*, 169.254.*
+#     metadata havolali tugmalarda VA manbalarda QAT'IY bloklanadi
+#     (o'nlik/hex/sakkizlik/[::1] chetlab o'tish shakllari ham);
+#     maxfiy kalitlar xato loglariga tushmaydi (real log oqimi tekshiruvi).
+# (2) ⚡ FAZA 25 — TIMEOUTS: UPDATE_HANDLER_TIMEOUT_SECONDS watchdog
+#     GuardedApplication update zanjirida; fon vazifalari intake'ni
+#     bloklamaydi, timeout'da bekor bo'ladi va tozalanadi (leak yo'q).
+# (3) 🚀 FAZA 28/29 — CONCURRENCY/LOAD: parallel virtual foydalanuvchilar
+#     (semafor peak ≤ limit), bounded queue fail-closed, 40 parallel
+#     IDOR hujumi rad etiladi, 16 parallel sekin provayder timeout'da
+#     kesiladi, asyncio task-leak tekshiruvi.
+# (4) Har bir natija FAQAT aniq fakt bilan belgilanadi: PASS / FAIL /
+#     NOT TESTED (soxta PASS taqiqlanadi).
+"$PY" tests/production_hardening_and_concurrency_test.py || EXIT_CODE=1
 
 echo
 echo "======== 4) TO'LIQ REGRESSIYA (telegram_bot/tests) ========"

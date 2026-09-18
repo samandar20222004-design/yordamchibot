@@ -1330,6 +1330,12 @@ EN_OVERLAY = {
         "⚠️ Wrong format!\nE.g.: <code>Details | https://sayt.uz</code>\n"
         "Or delete: <code>no</code>"
     ),
+    "pend_btn_unsafe": (
+        "⚠️ <b>This link is unsafe.</b>\n"
+        "Only public <code>https://</code> links are allowed — internal "
+        "network addresses (localhost, 127.x, 10.x, 192.168.x, metadata) "
+        "are not accepted."
+    ),
     "pend_react_ask": (
         "👍 <b>Change post reactions:</b>\n\nPick one of the options:"
     ),

@@ -116,6 +116,21 @@ FREE_DAILY_AI = _int_env("FREE_DAILY_AI", 5)
 PRO_MAX_CHANNELS = _int_env("PRO_MAX_CHANNELS", 999)
 PRO_DAILY_AI = _int_env("PRO_DAILY_AI", 999)
 
+# --- FAZA 25: Update handler va fon vazifalari uchun timeout chegaralari ---
+# UPDATE_HANDLER_TIMEOUT_SECONDS — bitta Telegram update handlerining
+# bajarilishiga berilgan QAT'IY maksimal vaqt (soniya). Og'ir AI/tahlil
+# chaqiruvlari adatda bu chegaradan ancha pastraq muddatga ega
+# (provider darajasidagi alohida timeout'lar); bu chegara "osilib qolgan"
+# handler butun qabul zanjirini to'xtatib qo'ymasligi uchun SO'NGGI himoya
+# chizig'i (watchdog). Chegaradan oshsa — bekor qilinadi, foydalanuvchiga
+# xushmuomala javob beriladi, batafsil log scrubber orqali yoziladi.
+UPDATE_HANDLER_TIMEOUT_SECONDS = _int_env("UPDATE_HANDLER_TIMEOUT_SECONDS", 110)
+# BACKGROUND_TASK_TIMEOUT_SECONDS — fon (fire-and-forget) vazifalarining
+# umumiy maksimal bajarilish muddati (soniya). Fon vazifalari asosiy qabul
+# zanjirini (update intake) bloklamaydi va shu chegaradan oshsa
+# bekor qilinadi — resurs sizmalari (task leak) oldi olinadi.
+BACKGROUND_TASK_TIMEOUT_SECONDS = _int_env("BACKGROUND_TASK_TIMEOUT_SECONDS", 300)
+
 STARS_PLANS = {
     "stars_1m": {
         "key": "1m",
