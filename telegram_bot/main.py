@@ -7,8 +7,9 @@ import pytz  # noqa: F401 — vaqt zonasi bilan ishlovchi modullar uchun saqlana
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from telegram.ext import ApplicationBuilder, Application
 from telegram import BotCommand
-from config import BOT_TOKEN
+from config import BOT_TOKEN, UPDATE_HANDLER_TIMEOUT_SECONDS
 from utils.telegram_delivery import create_safe_bot
+from utils.handler_timeout import await_with_timeout
 import database as db
 from handlers import register_all_handlers
 from scheduler import (
@@ -161,7 +162,30 @@ class GuardedApplication(Application):
             except Exception:
                 logger.exception("Guard himoyasida xatolik — update davom ettirilmoqda")
 
-            return await super().process_update(update)
+            # FAZA 25: QAT'IY asinxron xavfsizlik chegarasi (watchdog).
+            # Og'ir AI/tahlil chaqiruvlari ta'sirida handler cheksiz "osilib"
+            # qolsa, per-user lock shu foydalanuvchining keyingi update'larini
+            # ham, umumiy qabul zanjirini ham zo'riqtirmasligi uchun handler
+            # ``UPDATE_HANDLER_TIMEOUT_SECONDS`` ichida tugatilishi SHART.
+            # Chegaradan oshsa: vazifa bekor qilinadi, foydalanuvchi
+            # xushmuomala javob oladi, batafsil (scrubberdan o'tgan) logga
+            # yoziladi — lekin bot qolgan update'larni qabul qilishda
+            # davom etadi (fon vazifalari intake'ni to'xtatmaydi).
+            try:
+                return await await_with_timeout(
+                    super().process_update(update),
+                    UPDATE_HANDLER_TIMEOUT_SECONDS,
+                    label=f"update:{getattr(update, 'update_id', '?')}",
+                )
+            except asyncio.TimeoutError:
+                logger.critical(
+                    "FAZA25: update handler timeout (%ss) — update bekor qilindi "
+                    "(user_id=%s, update_id=%s)",
+                    UPDATE_HANDLER_TIMEOUT_SECONDS,
+                    getattr(getattr(update, "effective_user", None), "id", None),
+                    getattr(update, "update_id", None))
+                await self._answer_timeout(update)
+                return None
 
     @staticmethod
     async def _answer_rate_limited(update):
@@ -192,6 +216,45 @@ class GuardedApplication(Application):
                 )
             except Exception:
                 pass
+
+    @staticmethod
+    async def _resolve_user_language(update) -> str:
+        """Update yuborgan foydalanuvchi tilini aniqlaydi (xavfsiz fallback uz)."""
+        lang = "uz"
+        user = getattr(update, "effective_user", None)
+        if user is not None and getattr(user, "id", None):
+            try:
+                import database as _db
+                lang = await _db.run_db(_db.get_user_language, user.id)
+            except Exception:
+                lang = "uz"
+        return lang or "uz"
+
+    @staticmethod
+    async def _answer_timeout(update):
+        """FAZA 25: handler timeout bo'lganda foydalanuvchiga xushmuomala,
+        tilga mos javob — bot boshqa update'larni qabulda davom etadi.
+
+        Ichki xatolik tafsilotlari HECH QACHON ko'rsatilmaydi; faqat
+        lug'atdagi qisqa «kutib turing» xabari yuboriladi (callback'lar
+        uchun toast, xabarlar uchun reply) — tugma/handler «qotmaydi».
+        """
+        lang = await GuardedApplication._resolve_user_language(update)
+        try:
+            from locales.translations import get_text
+            text = get_text("sys_wait_short", lang)
+        except Exception:
+            text = "⏳"
+        try:
+            query = getattr(update, "callback_query", None)
+            if query is not None:
+                await query.answer(text, show_alert=False)
+                return
+            msg = getattr(update, "effective_message", None)
+            if msg is not None:
+                await msg.reply_text(text)
+        except Exception:
+            pass
 
 
 # Orqaga mos (backward-compatible) nom: asosiy mantiq endi

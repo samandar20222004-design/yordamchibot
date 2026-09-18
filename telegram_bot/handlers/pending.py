@@ -11,6 +11,7 @@ from keyboards.inline import (
 from keyboards.default import get_cancel_keyboard, get_main_keyboard, get_reactions_keyboard
 from locales.translations import clear_fsm_data, get_lang, get_text
 from utils.date_format import format_datetime
+from utils.security import validate_button_url
 from utils.helpers import (
     html_escape, check_rate_limit,
     NAV_RATE_LIMIT_MAX, parse_reactions_input,
@@ -108,6 +109,52 @@ async def refresh_pending_callback(update: Update, context: ContextTypes.DEFAULT
 # Postni tahrirlash oqimlari
 # ============================================================
 
+def _owner_id_of(post) -> "int | None":
+    """Post qatoridan egasining user_id sini qaytaradi (get_post_by_id: [1] = user_id)."""
+    try:
+        return int(post[1])
+    except Exception:
+        return None
+
+
+async def _callback_owns_post(query, post_id: int, user_id: int, lang: str) -> bool:
+    """FAZA 23 (IDOR): tugma bosilgan ZAHOTI post egaligini tekshiradi (fail-closed).
+
+    Callback'dan olingan ``post_id`` foydalanuvchi yuborgan ixtiyoriy butun
+    son — Telegram uni server tomonida tekshirmaydi, shu sababli FSM holati
+    o'rnatishdan va tahrirlash so'rovini yuborishdan OLDIN post egasi
+    tasdiqlanadi:
+
+    * post topilmasa → rad etiladi;
+    * post begonasiniki bo'lsa → rad etiladi (ichki ``post[1] != user_id``);
+    * DB xatosi bo'lsa → HAM rad etiladi (fail-closed — hech qachon
+      ``except`` ichida "ruxsat" yo'li ochilmaydi).
+
+    Rad etilganda foydalanuvchi faqat lokalizatsiya qilingan xushmuomala
+    alert ko'radi (ichki ma'lumotlar sizdirilmaydi) va hech qanday FSM
+    holati o'rnatilmaydi.
+    """
+    try:
+        post = await db.run_db(db.get_post_by_id, post_id)
+    except Exception:
+        # Fail-closed: DB xatosida ham "ruxsat" yo'li ochilmaydi.
+        logger.warning(
+            "IDOR guard: egalik tekshiruvi xatosi (user_id=%s) — rad etildi",
+            user_id)
+        post = {}
+    if not post or _owner_id_of(post) != user_id:
+        try:
+            await query.answer(
+                get_text("pend_not_owned", lang), show_alert=True)
+        except Exception:
+            pass
+        logger.warning(
+            "IDOR urinishi bloklandi: user_id=%s, so'ralgan post_id=%s",
+            user_id, post_id)
+        return False
+    return True
+
+
 async def _get_owned_post(post_id: int, user_id: int, update: Update, lang: str = "uz"):
     """Post mavjudligi va egasini tekshiradi. Muvaffaqiyatsiz bo'lsa None qaytadi."""
     post = await db.run_db(db.get_post_by_id, post_id)
@@ -129,6 +176,11 @@ async def edit_post_time_start(update: Update, context: ContextTypes.DEFAULT_TYP
     lang = get_lang(context)
     parts = query.data.split(":")
     post_id = int(parts[1])
+
+    # FAZA 23 (IDOR): post ID olingan zahoti egalik tekshiruvi — begona
+    # post uchun FSM holati ham o'rnatilmaydi (fail-closed).
+    if not await _callback_owns_post(query, post_id, query.from_user.id, lang):
+        return ConversationHandler.END
 
     context.user_data["editing_post_id"] = post_id
     context.user_data["edit_mode"] = "time"
@@ -191,6 +243,11 @@ async def edit_post_content_start(update: Update, context: ContextTypes.DEFAULT_
     parts = query.data.split(":")
     post_id = int(parts[1])
 
+    # FAZA 23 (IDOR): post ID olingan zahoti egalik tekshiruvi — begona
+    # post uchun FSM holati ham o'rnatilmaydi (fail-closed).
+    if not await _callback_owns_post(query, post_id, query.from_user.id, lang):
+        return ConversationHandler.END
+
     context.user_data["editing_post_id"] = post_id
     context.user_data["edit_mode"] = "content"
     await query.answer()
@@ -234,6 +291,11 @@ async def edit_post_btn_start(update: Update, context: ContextTypes.DEFAULT_TYPE
     parts = query.data.split(":")
     post_id = int(parts[1])
 
+    # FAZA 23 (IDOR): post ID olingan zahoti egalik tekshiruvi — begona
+    # post uchun FSM holati ham o'rnatilmaydi (fail-closed).
+    if not await _callback_owns_post(query, post_id, query.from_user.id, lang):
+        return ConversationHandler.END
+
     context.user_data["editing_post_id"] = post_id
     context.user_data["edit_mode"] = "btn"
     await query.answer()
@@ -265,6 +327,17 @@ async def edit_post_btn_received(update: Update, context: ContextTypes.DEFAULT_T
             btn_link = f"https://t.me/{btn_link.lstrip('@')}"
         elif not btn_link.startswith(("http://", "https://", "t.me/")):
             btn_link = "https://" + btn_link
+        # FAZA 23 (SSRF): havolali tugma manzili saqlashdan OLDIN qat'iy
+        # tekshiriladi — javascript:/data: kabi xavfli sxemalar va ichki
+        # tarmoq manzillari (localhost, 127.0.0.1, 10.*, 192.168.*,
+        # 169.254.* metadata) saqlanmaydi.
+        if not validate_button_url(btn_link):
+            await update.message.reply_text(
+                get_text("pend_btn_unsafe", lang)
+                or get_text("pend_btn_format", lang),
+                parse_mode="HTML",
+            )
+            return EDIT_POST_BTN
         updated = await db.run_db(db.update_post_content, post_id, update.effective_user.id, btn_text=btn_title, btn_url=btn_link)
         msg = get_text("pend_btn_updated", lang, text=html_escape(btn_title))
     else:
@@ -291,6 +364,11 @@ async def edit_post_react_start(update: Update, context: ContextTypes.DEFAULT_TY
     lang = get_lang(context)
     parts = query.data.split(":")
     post_id = int(parts[1])
+
+    # FAZA 23 (IDOR): post ID olingan zahoti egalik tekshiruvi — begona
+    # post uchun FSM holati ham o'rnatilmaydi (fail-closed).
+    if not await _callback_owns_post(query, post_id, query.from_user.id, lang):
+        return ConversationHandler.END
 
     context.user_data["editing_post_id"] = post_id
     context.user_data["edit_mode"] = "react"

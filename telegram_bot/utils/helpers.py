@@ -257,6 +257,13 @@ def validate_button_url(url: str) -> tuple[bool, str]:
             )
         if reason == "credentials":
             return False, "Havolada login/parol ko'rsatilishi mumkin emas."
+        if reason == "private_address":
+            # FAZA 23 (SSRF): ichki tarmoq manzillari (localhost, 127.x,
+            # 10.x, 192.168.x, 169.254.x metadata) bloklangan.
+            return False, (
+                "Ichki tarmoq manzillari (localhost, 127.x, 10.x, "
+                "192.168.x, metadata) havolada ishlatilishi mumkin emas."
+            )
         return False, "Havola domeni noto'g'ri (masalan: https://t.me/kanal)."
     return True, ""
 
