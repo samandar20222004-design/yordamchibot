@@ -207,6 +207,272 @@ CANONICAL_PREFIXES = (
 )
 
 
+# ===========================================================================
+# 🗝 FAZA 19 — YAGONA CALLBACK REGISTRY (kanonik, fail-closed xavfsizlik)
+# ---------------------------------------------------------------------------
+# Telegram callback_query.data foydalanuvchi qo'lida bo'ladi: u eskirgan
+# xabardagi TUGMANI bosishi (legitim) yoki API/bot nanny orqali SOXTA
+# (tampered) qiymat yuborishi mumkin. Shu sababli bot BUHMODULDA yagona
+# ro'yxatdan o'tmagan HAR QANDAY callback'ni xavfsiz rad etadi (fail-closed):
+# ishlov hech qanday handler'ga bormaydi, foydalanuvchiga esa tildagi
+# muloyim ogohlantirish ko'rsatiladi (handlers.expired_session_callback).
+#
+# Registry IKKI qatlamdan iborat:
+#   1. REGISTERED_NAMESPACES  — dinamik payload'li prefikslar (``adm_``,
+#      ``stgs_``, ``mnp_``, ``aip_``, ``cab_``, ``adp:`` va h.k.);
+#   2. REGISTERED_STATIC_CALLBACKS — payload'siz aniq tokenlar
+#      (``noop``, ``close_msg``, ``stgs_hub`` ...).
+# Yangi callback qo'shilganda SHU YERGA yoziladi — handler ``pattern``i ham,
+# testlar ham shu ro'yxatdan tekshiradi (single source of truth).
+# ===========================================================================
+
+#: Dinamik payload'li (prefiks + ``:id``/``:qiymat``) kanonik nomlar.
+REGISTERED_NAMESPACES = (
+    # 👑 Admin panel va reklama rotatsiyasi (handlers/admin.py).
+    "adm_", "adp:",
+    # 💳 Admin moderatsiya: to'lov cheklari (rc_ok:/rc_no:) va qo'lda rasm
+    # tekshirish (cph:a:/cph:r: — PRO tasdiqlash, photo_check oqimi).
+    "rc_ok:", "rc_no:", "cph:",
+    # ⚙️ Sozlamalar hub'i va ichki oqimlari (handlers/settings.py).
+    "stgs_", "claim_bonus", "referral_hub", "help",
+    # 👤 Kabinet (eski ``cab_*`` xabarlar uchun routing aliasi).
+    "cab_", "close_cabinet",
+    # ✍️ ODDIY post (manual) paneli — universal amallar.
+    "mnp_",
+    # ✨ AI Post wizard (yo'nalish + format tanlash).
+    "aip_",
+    # 🧩 Kontent yaratish submenu (Magic/Enhancer takliflari).
+    "cc_",
+    # 🤖 AI Studio (AI Yordamchi) hub'i, ichki amallari va kontent-reja
+    # oqimi (plan_back / plan_refresh / plan_ch:<id> / plan_day:<kun> ...).
+    "studio_", "ai_", "plan_",
+    # 📊 Statistika/analitika (shaxsiy + kanal bo'yicha).
+    "an_",
+    # 🗓 Smart content calendar + AI Avtopilot + shablonlar (stale oqimlar).
+    "cal_", "ap_", "tpl_",
+    # ✨ Magic Post / 📊 Post Score / 🎙 Voice / 📸 Image→Post / Vision.
+    "mp_", "ps_", "vp_", "image_", "img_", "photo_",
+    # 📢 Kanallarim (kanal kontekstli barcha amallar).
+    "ch_", "sp_del:",
+    # 📥 Kontent manbalari (URL→post, RSS, recycle, qoralamalar).
+    "src_",
+    # 📅 Rejalashtirilgan post kartochkasi amallari + navbat.
+    "p_", "qview:", "qdel:", "qpush:", "qpage:", "qclose", "qslots:",
+    "nprt:", "react:", "sched_br:",
+    # 👥 Team approval kartochkalari.
+    "team_",
+    # 🔔 Majburiy obuna / PRO tarif oqimi.
+    "sub_", "check_sub",
+    # 🧰 Vositalar: Konvertor + Post Enhancer.
+    "enh:", "ext_", "extra_", "conv_",
+    # ❓ Qo'llanma ichki navigatsiyasi + qo'llab-quvvatlash.
+    "sup_",
+    # ✍️ Yangi post oqimi (eski new_post panellari) — tahrir maydonlari.
+    "edit_field:", "confirm_post:", "album_choice:",
+    # ➕ Kanal ulash ConversationHandler (retry/start).
+    "add_channel_",
+)
+
+#: Payload'siz (aniq) kanonik callback tokenlari.
+REGISTERED_STATIC_CALLBACKS = frozenset({
+    "noop",                      # ma'lumot toast tugmasi
+    "close_msg",                 # ❌ Yopish — vaqtinchalik xabarni yopish
+    "close_cabinet",             # kabinet ekranini yopish
+    "cache_clear",               # 🗑 admin: keshni tozalash
+    "pending_refresh",           # 🔄 rejalashtirilgan ro'yxatini yangilash
+    "check_sub_status",          # 🔔 obuna holatini qayta tekshirish
+    "check_subscription",
+    "add_channel_start",         # ➕ kanal ulash oqimini boshlash
+    "add_channel_retry",         # 🔁 kanal tekshiruvini qayta urinish
+    "help_hub", "help_support",  # ❓ qo'llanma / 💬 qo'llab-quvvatlash
+    "claim_bonus",               # 🎁 kunlik bonus
+    "referral_hub",              # 👥 referral ekran
+    # ⚙️ Sozlamalar — payload'siz amallar (``stgs_`` ham qamraydi).
+    "stgs_back", "stgs_hub", "stgs_lang", "stgs_post", "stgs_notif",
+    "stgs_referral", "stgs_pay", "stgs_credits", "stgs_transfer",
+    "stgs_points", "stgs_bonus", "stgs_tools", "stgs_profile",
+    "stgs_rewards", "stgs_help_hub", "stgs_help", "stgs_about",
+    # 👤 Kabinet (legacy routing aliaslari).
+    "cab_main", "cab_lang", "cab_lang_uz", "cab_lang_ru", "cab_lang_en",
+    "cab_channels", "cab_channels_delete", "cab_analytics", "cab_converter",
+    "cab_bonus", "cab_referral", "cab_balance", "cab_pending", "cab_queue",
+    "cab_guide",
+    # ✍️ Manual post paneli (payload'siz amallar).
+    "mnp_now", "mnp_time", "mnp_24h", "mnp_repeat", "mnp_edit",
+    "mnp_cancel", "mnp_panel", "mnp_react", "mnp_url", "mnp_radd",
+    "mnp_rback", "mnp_dup_go", "mnp_dup_ai",
+    # ✨ AI Post wizard (payload'siz).
+    "aip_back", "aip_cancel", "ai_post_cancel", "ai_post_retry",
+    "ai_post_schedule", "ai_close", "ai_back_to_content", "ai_back_to_menu",
+    "ai_menu", "ai_studio_sched",
+    # 🤖 AI Studio (payload'siz).
+    "studio_close", "studio_ai_post", "studio_ai_audit", "studio_extract",
+    "studio_content_plan", "studio_ai_photo",
+    # 🧩 Kontent yaratish submenu (payload'siz).
+    "cc_magic", "cc_menu",
+    # 📊 Statistika/analitika (payload'siz).
+    "an_close", "an_detail", "an_other", "an_overview", "an_refresh",
+    # 🗓 Calendar / Avtopilot / Shablonlar (payload'siz stale amallar).
+    "cal_cancel", "ap_cancel", "ap_confirm", "ap_edit", "ap_force",
+    "ap_refresh", "ap_regen", "tpl_back", "tpl_cancel",
+    # ✨ Magic Post / Post Score / Voice / Image (payload'siz amallar).
+    "mp_back", "mp_cancel", "mp_restyle", "mp_sched", "mp_send",
+    "ps_improve", "ps_send", "ps_sched", "ps_new", "ps_chall",
+    "vp_cancel", "image_back", "image_cancel", "img_cancel",
+    "image_restyle", "image_schedule", "image_send",
+    "photo_edit", "photo_rewrite", "photo_schedule",
+    # 📅 Yangi post oqimi (eski panellarning payload'siz amallari).
+    "plan_back", "plan_back_to_list", "plan_cancel", "plan_create_post",
+    "plan_refresh", "plan_regenerate",
+    # 🔔 Obuna / PRO (payload'siz).
+    "sub_open", "sub_back", "sub_back_main", "sub_card_pay",
+    "sub_send_receipt", "sub_promo",
+    # 🧰 Vositalar (payload'siz).
+    "extra_close", "extra_converter", "extra_enhancer",
+    "ext_back", "ext_cancel", "ext_refresh", "ext_rewrite", "ext_schedule",
+    "conv_close",
+})
+
+# ---------------------------------------------------------------------------
+# 🧭 FAZA 17 — NAVIGATSIYA SEMANTIKASI (registry bilan bitta joyda)
+# ---------------------------------------------------------------------------
+#: ◀️/⬅️ Orqaga — oldingi (parent) oyna.
+NAV_SEMANTIC_BACK = "back"
+#: ❌ Bekor qilish — joriy FSM harakatini to'xtatish (kontekst tozalanadi).
+NAV_SEMANTIC_CANCEL = "cancel"
+#: 🏠/🔙 Asosiy menyu — bosh menyuga qaytish.
+NAV_SEMANTIC_HOME = "home"
+#: ❌ Yopish — vaqtinchalik inline xabarni o'chirish/yopish.
+NAV_SEMANTIC_CLOSE = "close"
+
+#: Kanonik callback → navigatsiya semantikasi.
+#: ``*`` bilan tugagan yozuvlar REGISTERED_NAMESPACES'dagi prefiksga mos
+#: keladi (masalan ``adp:*:back`` uchun ``adp:`` prefiks qayta ishlanadi).
+CALLBACK_SEMANTICS = {
+    # --- ◀️/⬅️ Orqaga (parent screen) ---
+    "adm_back": NAV_SEMANTIC_BACK,        # admin dashboard (parent hub)
+    "stgs_hub": NAV_SEMANTIC_BACK,        # ⚙️ Sozlamalar hub'i
+    "ch_back": NAV_SEMANTIC_BACK,         # kanallar ro'yxati
+    "src_back": NAV_SEMANTIC_BACK,        # manbalar menyusi
+    "an_close": NAV_SEMANTIC_BACK,        # statistika ekranidan chiqish
+    "an_overview": NAV_SEMANTIC_BACK,     # kanal analitikasi → shaxsiy
+    "cab_main": NAV_SEMANTIC_BACK,        # kabinet ichki → profil hub
+    "mnp_panel": NAV_SEMANTIC_BACK,       # kanal tanlash → preview panel
+    "mnp_rback": NAV_SEMANTIC_BACK,       # reaksiyalar → preview panel
+    "plan_back": NAV_SEMANTIC_BACK,
+    "plan_back_to_list": NAV_SEMANTIC_BACK,
+    "sub_back": NAV_SEMANTIC_BACK,
+    "ext_back": NAV_SEMANTIC_BACK,
+    "edit_field:back": NAV_SEMANTIC_BACK,
+    "help:guide": NAV_SEMANTIC_BACK,      # FAQ → Qo'llanma
+    "ai_back_to_menu": NAV_SEMANTIC_BACK,  # AI ichki ekran → AI Studio hub
+    "ai_back_to_content": NAV_SEMANTIC_BACK,  # AI Studio → Kontent submenyu
+    # --- ❌ Bekor qilish (FSM to'xtatish) ---
+    "adm_cancel": NAV_SEMANTIC_CANCEL,
+    "mnp_cancel": NAV_SEMANTIC_CANCEL,
+    "mp_cancel": NAV_SEMANTIC_CANCEL,
+    "aip_cancel": NAV_SEMANTIC_CANCEL,
+    "ai_close": NAV_SEMANTIC_CANCEL,
+    "ai_post_cancel": NAV_SEMANTIC_CANCEL,
+    "vp_cancel": NAV_SEMANTIC_CANCEL,
+    "image_cancel": NAV_SEMANTIC_CANCEL,
+    "img_cancel": NAV_SEMANTIC_CANCEL,
+    "cal_cancel": NAV_SEMANTIC_CANCEL,
+    "ap_cancel": NAV_SEMANTIC_CANCEL,
+    "tpl_cancel": NAV_SEMANTIC_CANCEL,
+    "plan_cancel": NAV_SEMANTIC_CANCEL,
+    "ext_cancel": NAV_SEMANTIC_CANCEL,
+    "src_cancel": NAV_SEMANTIC_CANCEL,
+    "enh:cancel": NAV_SEMANTIC_CANCEL,
+    "confirm_post:cancel": NAV_SEMANTIC_CANCEL,
+    # --- 🏠/🔙 Asosiy menyu ---
+    "studio_close": NAV_SEMANTIC_HOME,
+    "cc_menu": NAV_SEMANTIC_HOME,
+    # --- ❌ Yopish (vaqtinchalik xabarni yopish) ---
+    "close_msg": NAV_SEMANTIC_CLOSE,
+    "qclose": NAV_SEMANTIC_CLOSE,
+    "stgs_back": NAV_SEMANTIC_CLOSE,      # sozlamalar oynasini yopish
+    "close_cabinet": NAV_SEMANTIC_CLOSE,
+    "conv_close": NAV_SEMANTIC_CLOSE,
+    "extra_close": NAV_SEMANTIC_CLOSE,
+    "enh:home": NAV_SEMANTIC_CLOSE,       # enhancer preview'ni yopish
+}
+
+#: Noma'lum (registry'da yo'q) callback uchun xavfsiz rad javobi —
+#: uchala tilda (FAZA 26: foydalanuvchi ko'radigan xabar i18n orqali).
+CALLBACK_REJECT_KEY = "callback_rejected"
+
+
+def match_registered_namespace(data) -> str | None:
+    """``data`` mos tushadigan kanonik nomlar prefiksin qaytaradi (yo'qsa None)."""
+    if not data:
+        return None
+    text = str(data)
+    for ns in REGISTERED_NAMESPACES:
+        if text.startswith(ns):
+            return ns
+    return None
+
+
+def is_registered_callback(data) -> bool:
+    """Callback REGISTRY'DA bormi? (kanonik prefiks yoki aniq token).
+
+    Soxtalashtirilgan (tampered) yoki noma'lum qiymatlar uchun ``False`` —
+    chaqiruvchi (dispatcher catch-all) bunday callback'ni fail-closed rad etadi.
+    """
+    if not data:
+        return False
+    text = str(data)
+    if text in REGISTERED_STATIC_CALLBACKS:
+        return True
+    return match_registered_namespace(text) is not None
+
+
+def callback_semantic(data) -> str | None:
+    """Callback'ning navigatsiya semantikasi (back/cancel/home/close yoki None).
+
+    Avval aniq token, keyin dinamik prefiks qoidalari tekshiriladi
+    (masalan ``adp:channel:back`` → ``back``).
+    """
+    if not data:
+        return None
+    text = str(data)
+    exact = CALLBACK_SEMANTICS.get(text)
+    if exact:
+        return exact
+    # Dinamik prefiks qoidalari: ``adp:<scope>:back`` va ``src_act:*`` kabi.
+    if text.startswith("adp:") and text.endswith(":back"):
+        return NAV_SEMANTIC_BACK
+    if text.startswith("adp:") and text.endswith(":cancel"):
+        return NAV_SEMANTIC_CANCEL
+    if text.startswith("src_") and text.endswith("cancel"):
+        return NAV_SEMANTIC_CANCEL
+    return CALLBACK_SEMANTICS.get(text.rsplit(":", 1)[0])
+
+
+def validate_callback(data) -> bool:
+    """Fail-closed kombinatsiyalangan tekshiruv: registry + 64-bayt limiti.
+
+    ``True`` — callback qonuniy va Telegram chegarasida; aks holda ``False``
+    (dispatcher bunday tugmani ishlov bermasdan rad etadi).
+    """
+    if not is_registered_callback(data):
+        return False
+    return is_callback_safe(data)
+
+
+def callback_registry_report() -> dict:
+    """Registry xulosasi (test/audit uchun): nomlar va tokenlar soni."""
+    return {
+        "namespaces": len(REGISTERED_NAMESPACES),
+        "static_callbacks": len(REGISTERED_STATIC_CALLBACKS),
+        "canonical_prefixes": len(CANONICAL_PREFIXES),
+        "semantics": len(CALLBACK_SEMANTICS),
+        "total_registered": len(REGISTERED_NAMESPACES)
+        + len(REGISTERED_STATIC_CALLBACKS),
+    }
+
+
 def callback_byte_len(data) -> int:
     """``callback_data`` ning UTF-8 dagi bayt uzunligi (None → 0)."""
     if data is None:

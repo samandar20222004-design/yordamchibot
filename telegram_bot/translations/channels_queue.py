@@ -133,6 +133,12 @@ CHANNELS_QUEUE_I18N = {
             "⚠️ Kanal topilmadi yoki u sizga tegishli emas.\n"
             "Ro'yxatni yangilab, qaytadan urinib ko'ring."
         ),
+        # --- 📊 Channel Advisor (FAZA 26 — avval qotirilgan edi) ---
+        "cq_advice_pick_title": "📊 Kanal uchun haftalik hisobotni tanlang:",
+        "cq_advice_unavailable": "📊 Kanal tahlili hozircha mavjud emas.",
+        "cq_advice_build_error": "📊 Haftalik hisobotni hozircha tuzib bo'lmadi.",
+        "cq_channel_generic_title": "Kanal {channel}",
+        "cq_channel_generic_name": "Kanal",
         "cq_ch_post_intro": (
             "✍️ <b>{channel}</b> uchun post matnini yoki mediasini yuboring.\n\n"
             "<i>Matn, rasm, video, hujjat yoki albom — hammasi qabul qilinadi.</i>"
@@ -267,6 +273,12 @@ CHANNELS_QUEUE_I18N = {
             "⚠️ Канал не найден или не принадлежит вам.\n"
             "Обновите список и попробуйте снова."
         ),
+        # --- 📊 Channel Advisor (FAZA 26 — раньше было зашито) ---
+        "cq_advice_pick_title": "📊 Выберите канал для недельного отчёта:",
+        "cq_advice_unavailable": "📊 Аналитика по каналу пока недоступна.",
+        "cq_advice_build_error": "📊 Недельный отчёт пока не удалось сформировать.",
+        "cq_channel_generic_title": "Канал {channel}",
+        "cq_channel_generic_name": "Канал",
         "cq_ch_post_intro": (
             "✍️ Отправьте текст или медиа поста для <b>{channel}</b>.\n\n"
             "<i>Текст, фото, видео, документ или альбом — принимается всё.</i>"
@@ -390,6 +402,12 @@ CHANNELS_QUEUE_I18N = {
             "⚠️ Channel not found or it does not belong to you.\n"
             "Refresh the list and try again."
         ),
+        # --- 📊 Channel Advisor (FAZA 26 — previously hardcoded) ---
+        "cq_advice_pick_title": "📊 Pick a channel for the weekly report:",
+        "cq_advice_unavailable": "📊 Channel analytics is not available yet.",
+        "cq_advice_build_error": "📊 The weekly report could not be built yet.",
+        "cq_channel_generic_title": "Channel {channel}",
+        "cq_channel_generic_name": "Channel",
         "cq_ch_post_intro": (
             "✍️ Send the post text or media for <b>{channel}</b>.\n\n"
             "<i>Text, photo, video, document or album — all are accepted.</i>"

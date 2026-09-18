@@ -7517,15 +7517,30 @@ def test_extras_help_i18n_suite():
     m_src = open(main_mod.__file__, encoding="utf-8").read()
     check("main: error_handler lokalize qilingan", "sys_unexpected_error" in m_src)
 
-    # expired_session_callback — tilga mos toast
+    # expired_session_callback — 🗝 FAZA 19: IKKI QATLAMLI xatti-harakat.
+    # (1) Registry'da BOR, lekin eskirgan (stale) tugma → tilga mos toast.
     async def _expired_run():
-        q = _FakeQuery("some:stale", _FakeMsg(60, 111))
+        q = _FakeQuery("stgs_lang", _FakeMsg(60, 111))
         await h_mod.expired_session_callback(_UpdQ(q), _FakeCtx(_FakeBot(), {"lang": "ru"}))
         return q
 
     q_exp = asyncio.run(_expired_run())
     check("expired session: RU toast (bot qayta yuklangan)",
           q_exp.answers and "перезапущен" in (q_exp.answers[0][0] or ""), str(q_exp.answers))
+
+    # (2) Registry'da YO'Q (noma'lum/soxta) callback → FAIL-CLOSED rad javobi
+    #     (show_alert=True) — hech qanday handler ishga tushmaydi.
+    async def _tampered_run():
+        q = _FakeQuery("some:stale", _FakeMsg(61, 111))
+        await h_mod.expired_session_callback(_UpdQ(q), _FakeCtx(_FakeBot(), {"lang": "ru"}))
+        return q
+
+    q_tam = asyncio.run(_tampered_run())
+    check("expired session: tampered callback → RU rad javobi (fail-closed)",
+          q_tam.answers and q_tam.answers[0][1] is True
+          and "недоступно" in (q_tam.answers[0][0] or ""), str(q_tam.answers))
+    check("expired session: tamperda xabar tahrirlanmadi",
+          not q_tam.edits, str(q_tam.edits))
 
     # main.error_handler — foydalanuvchiga RU xabar
     class _UpdEH:

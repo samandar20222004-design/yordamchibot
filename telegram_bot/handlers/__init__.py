@@ -589,10 +589,43 @@ async def expired_session_callback(update, context):
 
     Chatda yangi xabar yuborILMAYDI: menyular orasida eski tugma bosilganda
     phantom xabarlar paydo bo'lmasligi uchun faqat callback toast.
+
+    🗝 FAZA 19 — CALLBACK REGISTRY VA FAIL-CLOSED XAVFSIZLIK:
+    bu handler ENG PASTKI catch-all bo'lgani uchun shu yerga FAQAT registry'da
+    (``keyboards.callback_data.REGISTERED_NAMESPACES`` /
+    ``REGISTERED_STATIC_CALLBACKS``) yo'q callback'lar tushadi — ya'ni
+    soxtalashtirilgan (tampered) yoki noma'lum qiymatlar. Bunday callback:
+      * hech qanday ishlovga o'tmaydi (fail-closed — hech qanday holat
+        o'zgarmaydi, hech narsa o'chirilmaydi/edit qilinmaydi);
+      * foydalanuvchiga O'Z TILIDA xavfsizlik ogohlantirishi ko'rsatiladi
+        (``show_alert=True``);
+      * logger.warning orqali ``callback_tampering`` belgisi bilan yoziladi
+        (audit/monitoring uchun: user_id + callback_data kesmasi).
+    Registry'da BOR, lekin eskirgan (stale) tugmalar esa o'zgarmagan holda
+    muloyim «eskirgan tugma» toastini oladi.
     """
+    from keyboards.callback_data import CALLBACK_REJECT_KEY, is_registered_callback
+
     query = update.callback_query
+    data = getattr(query, "data", None) or ""
+    lang = get_lang(context)
+
+    if not is_registered_callback(data):
+        # ⛔ FAIL-CLOSED: noma'lum/soxta callback — ishlov YO'Q.
+        logger.warning(
+            "callback_tampering: registry'da yo'q callback rad etildi "
+            "(user_id=%s, data=%r)",
+            getattr(getattr(query, "from_user", None), "id", None),
+            str(data)[:64],
+        )
+        try:
+            await query.answer(get_text(CALLBACK_REJECT_KEY, lang), show_alert=True)
+        except Exception:
+            pass
+        return
+
     try:
-        await query.answer(get_text("sys_stale_button", get_lang(context)))
+        await query.answer(get_text("sys_stale_button", lang))
     except Exception:
         pass
 

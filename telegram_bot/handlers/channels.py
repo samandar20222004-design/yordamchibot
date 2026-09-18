@@ -37,27 +37,24 @@ _T_ME_INVITE_RE = re.compile(
 )
 
 
-def parse_channel_target(text: str):
+def parse_channel_target(text: str, lang: str = "uz"):
     """Matndan kanal manbasini ajratadi: (target, xato_html|None).
 
     Qaytadi:
       * ``(-1001234567890, None)`` — raqamli ID;
       * ``("@kanal", None)`` — username (t.me/kanal ham shunga aylantiriladi);
       * ``(None, xato)`` — tushunarsiz yoki yopiq (invite) havola.
+
+    🧹 FAZA 26: xato matnlari endi i18n kalitlaridan (``ch_empty_target`` /
+    ``ch_invite_blocked`` — uz/ru/en) olinadi; ``lang`` sukut bo'yicha ``uz``
+    (orqaga moslik — eski chaqiruvlar o'zgarmaydi).
     """
     text = (text or "").strip()
+    code = normalize_lang(lang)
     if not text:
-        return None, (
-            "❌ Bo'sh xabar qabul qilindi. Kanalni <b>forward</b> qiling, "
-            "<code>@username</code>, ID yoki <code>t.me/kanal</code> havolasini yuboring."
-        )
+        return None, safe_t("ch_empty_target", code)
     if _T_ME_INVITE_RE.match(text):
-        return None, (
-            "🔒 <b>Yopiq kanal (invite) havolasi orqali ulab bo'lmaydi.</b>\n\n"
-            "Bot kanalda administrator bo'lgani uchun <code>@username</code> "
-            "yoki kanaldan istalgan xabarni <b>forward</b> qiling — shunda "
-            "kanalni aniqlaymiz."
-        )
+        return None, safe_t("ch_invite_blocked", code)
     m = _T_ME_LINK_RE.match(text)
     if m:
         return f"@{m.group(1)}", None
@@ -82,16 +79,14 @@ def _retry_verify_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
     ]])
 
 # Tarif limiti (FREE vs PRO) tugaganda ko'rsatiladigan xabar va PRO tugmasi.
-# (eski chaqiruvlar uchun o'zbekcha konstanta saqlanadi)
-CHANNEL_LIMIT_MSG = (
-    "🚫 <b>Kanal limiti tugadi!</b>\n\n"
-    "Sizda hozir <b>{current}/{max}</b> ta kanal ulangan.\n"
-    "Free tarifida maksimal <b>{max}</b> ta kanal ulash mumkin.\n\n"
-    "⭐️ Ushbu imkoniyatdan cheksiz foydalanish uchun PRO tarifiga o'ting."
-)
+# 🧹 FAZA 26: eski QOTIRILGAN (uz-only) konstantalar endi yagona i18n
+# lug'atidan olinadi (``ch_limit_msg`` / ``ch_pro_btn`` — uz/ru/en). Jonli
+# oqimlar tilga mos variantlarni ishlatadi (_channel_limit_text /
+# _pro_upgrade_keyboard); bu konstantalar esa orqaga moslik uchun saqlanadi.
+CHANNEL_LIMIT_MSG = safe_t("ch_limit_msg", "uz")
 
 PRO_UPGRADE_KEYBOARD = InlineKeyboardMarkup([
-    [InlineKeyboardButton("⭐️ PRO tarifga o'tish", callback_data="sub_open")],
+    [InlineKeyboardButton(safe_t("ch_pro_btn", "uz"), callback_data="sub_open")],
 ])
 
 
@@ -147,10 +142,18 @@ async def _owned_channel(user_id: int, channel_id: str):
     return None
 
 
-def _channel_title(channel) -> str:
-    """Kanal sarlavhasi — HTML-xavfsiz, bo'sh bo'lsa ham tugma buzilmaydi."""
+def _channel_title(channel, lang: str = "uz") -> str:
+    """Kanal sarlavhasi — HTML-xavfsiz, bo'sh bo'lsa ham tugma buzilmaydi.
+
+    🧹 FAZA 26: ``"Kanal"`` fallback'i endi i18n'dan
+    (``cq_channel_generic_name`` — uz/ru/en) olinadi.
+    """
+    from translations import channels_queue_t
+
     title = (channel[1] if channel and len(channel) > 1 else "") or ""
-    return html_escape(title.strip() or "Kanal")
+    return html_escape(
+        title.strip() or channels_queue_t("cq_channel_generic_name", lang)
+    )
 
 
 async def _send_channels_list(msg, user_id: int, lang: str):
@@ -392,18 +395,21 @@ async def channel_advice_callback(update: Update, context: ContextTypes.DEFAULT_
             return ConversationHandler.END
         # Owner title is available through the legacy isolated query.  For an
         # analyst member, use a neutral title rather than leaking channel data.
-        title = f"Kanal {html_escape(channel_id)}"
+        # 🧹 FAZA 26: neytral sarlavha endi i18n'dan (cq_channel_generic_title).
+        title = channels_queue_t(
+            "cq_channel_generic_title", lang, channel=html_escape(channel_id),
+        )
         try:
             owned = await _owned_channel(user_id, channel_id)
             if owned:
-                title = _channel_title(owned)
+                title = _channel_title(owned, lang)
         except Exception:
             pass
         await _safe_edit(query, render_report_card(result, lang=lang, channel_title=title),
                          render_channel_panel(channel_id, lang))
     except Exception:
         logger.exception("Channel Advisor kartasini qurishda xato (channel=%s)", channel_id)
-        await _safe_edit(query, "📊 Haftalik hisobotni hozircha tuzib bo'lmadi.",
+        await _safe_edit(query, channels_queue_t("cq_advice_build_error", lang),
                          render_channel_panel(channel_id, lang))
     return ConversationHandler.END
 
@@ -417,14 +423,16 @@ async def channel_advice_command(update: Update, context: ContextTypes.DEFAULT_T
         await update.message.reply_text(channels_queue_t("cq_ch_empty", lang), parse_mode="HTML")
         return ConversationHandler.END
     if len(channels) > 1:
-        await update.message.reply_text("📊 Kanal uchun haftalik hisobotni tanlang:",
-                                        reply_markup=render_channel_advice_menu(channels, lang))
+        # 🧹 FAZA 26: matn foydalanuvchi tilida (cq_advice_pick_title).
+        await update.message.reply_text(
+            channels_queue_t("cq_advice_pick_title", lang),
+            reply_markup=render_channel_advice_menu(channels, lang))
         return ConversationHandler.END
-    channel_id, title = channels[0][0], _channel_title(channels[0])
+    channel_id, title = channels[0][0], _channel_title(channels[0], lang)
     from services.channels.advisor import ChannelAdvisor, render_report_card
     result = await ChannelAdvisor(db).advice(channel_id, user_id, lang=lang)
     if not result.get("ok"):
-        await update.message.reply_text("📊 Kanal tahlili hozircha mavjud emas.")
+        await update.message.reply_text(channels_queue_t("cq_advice_unavailable", lang))
         return ConversationHandler.END
     await update.message.reply_text(render_report_card(result, lang=lang, channel_title=title),
                                      parse_mode="HTML",
@@ -576,7 +584,10 @@ async def channel_new_post_callback(update: Update, context: ContextTypes.DEFAUL
 
     title = _channel_title(channel)
     context.user_data["selected_channel_id"] = str(channel_id)
-    context.user_data["selected_channel_title"] = (channel[1] or "Kanal")
+    # 🧹 FAZA 26: fallback nom foydalanuvchi tilida.
+    context.user_data["selected_channel_title"] = (
+        channel[1] or channels_queue_t("cq_channel_generic_name", lang)
+    )
     try:
         await query.message.reply_text(
             channels_queue_t("cq_ch_post_intro", lang, channel=title),
@@ -699,7 +710,7 @@ async def channel_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if forward_chat_id is not None:
             raw_target = forward_chat_id
         elif msg.text:
-            target, err = parse_channel_target(msg.text)
+            target, err = parse_channel_target(msg.text, lang)
             if err:
                 await msg.reply_text(
                     err, reply_markup=get_cancel_keyboard(lang), parse_mode="HTML",
@@ -915,7 +926,9 @@ async def on_bot_chat_member_update(update: Update, context: ContextTypes.DEFAUL
                     await context.bot.send_message(
                         chat_id=user_id,
                         text=safe_t("ch_no_perm_dm", lang,
-                                      channel=html_escape(chat.title or "Kanal")),
+                                      channel=html_escape(
+                        chat.title
+                        or channels_queue_t("cq_channel_generic_name", lang))),
                         parse_mode="HTML",
                     )
                 except TelegramError:
@@ -947,7 +960,9 @@ async def on_bot_chat_member_update(update: Update, context: ContextTypes.DEFAUL
                 await context.bot.send_message(
                     chat_id=user_id,
                     text=safe_t("ch_autoconnect_success", lang,
-                                  channel=html_escape(chat.title or "Kanal"),
+                                  channel=html_escape(
+                    chat.title
+                    or channels_queue_t("cq_channel_generic_name", lang)),
                                   channel_id=chat.id),
                     parse_mode="HTML",
                 )
