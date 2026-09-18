@@ -90,6 +90,14 @@ def main():
         "services.ai_engine.health",
         "services.ai_engine.cache",
         "services.ai_engine.gateway",
+        # 📢 FAZA 15 & 16: REKLAMA DVIGATELI + REKLAMA AUDITI — 4 xil format
+        # (native/short/educational/soft), NO FABRICATION filtri va audit.
+        # services.ai (orchestrator/kvota/sanitizer) va services.channels.dna
+        # ustiga qurilgan, yangi parallel AI quyi tizimi YO'Q.
+        "services.ads",
+        "services.ads.templates",
+        "services.ads.engine",
+        "services.ads.audit",
     ]
     for mod in modules:
         try:

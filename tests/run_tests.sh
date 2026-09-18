@@ -90,6 +90,12 @@
 #       to'g'ri, eskirgan gemini-1.5-flash QIYMAT'da yo'q va kod o'qiydigan
 #       barcha production env o'zgaruvchilari hujjatlangan
 #       (tests/env_docs_parity_test.py)
+#   3K) 📢 FAZA 15 & 16 — REKLAMA DVIGATELI VA REKLAMA AUDITI: 4 xil reklama
+#       varianti (🧬 native / ⚡ short / 🎓 educational / 🌿 soft), NO
+#       FABRICATION (to'qima narx/kafolat/reyting/sertifikat postga tushmaydi),
+#       4 mezonli reklama auditi (DNA mosligi, CTA aniqligi, asossiz da'volar,
+#       o'qilish) va FAIL-CLOSED nashr darvozasi (admin tasdig'isiz reklama
+#       chiqmaydi) (tests/advertisement_engine_and_audit_test.py)
 #   3H) 💬 4-QISM (SO'NGGI QISM) — QO'LLAB-QUVVATLASH: bir martalik murojaat
 #       (one-time ticket FSM — bitta xabar, holat darhol yopiladi), adminga
 #       ADMIN_IDS orqali yetkazish, adminning Telegram «Reply» javobini
@@ -682,6 +688,32 @@ echo "===== 3J) 🚦 AI ENGINE V2: YAGONA SHLYUZ + ROUTER + CIRCUIT BREAKER ====
 #     paritet, 64-bayt callback xavfsizligi
 #     (tests/ai_engine_v2_test.py).
 "$PY" tests/ai_engine_v2_test.py || EXIT_CODE=1
+
+echo
+echo "===== 3K) 📢 FAZA 15 & 16: REKLAMA DVIGATELI + REKLAMA AUDITI ====="
+# (1) 📢 REKLAMA DVIGATELI (FAZA 15) — bitta briefdan AYNAN 4 ta variant:
+#     🧬 native (Channel DNA ohangiga to'liq mos), ⚡ short, 🎓 educational,
+#     🌿 soft; variantlar bir-birining sinonimi EMAS; brief validatsiyasi
+#     (mahsulotsiz/faktsiz reklama YARATILMAYDI, xavfli havola rad etiladi);
+#     CTA + havola har bir variantga tushadi; chiqish sanitize + 4096 chunk.
+# (2) 🚫 NO FABRICATION — AI narx (120 000 so'm), chegirma (50%), kafolat
+#     («100% natijaga kafolat»), reyting (4.9 yulduz, №1), sertifikat
+#     (ISO 9001) va statistika (10 000+ mijoz) to'qib chiqarsa, bu da'volar
+#     POSTGA TUSHMAYDI (jumla darajasida olib tashlanadi + removed_claims
+#     qayd etiladi). Ijobiy nazorat: faktlarda BOR narx/muddat to'qima emas;
+#     fallback shablonlar ham raqamsiz.
+# (3) 🛡 REKLAMA AUDITI (FAZA 16) — 4 mezon: 🧬 DNA mosligi, 📣 CTA aniqligi,
+#     🚫 asossiz da'volar, 📖 uzunlik/o'qilish; ballar deterministik (model
+#     o'z reklamasiga «100/100» yoza olmaydi); DNA yetarli bo'lmasa mezon
+#     SKIP (soxta baho yo'q); hisobot sanitize qilinadi.
+# (4) ⛔ NASHR DARVOZASI — audit muammoli bo'lsa reklama ADMIN tasdig'isiz
+#     CHIQMAYDI (fail-closed); admin tasdiqlasa approved_by bilan ruxsat;
+#     audit yo'q/bajarilmagan bo'lsa — admin tasdig'i bilan ham to'siladi.
+# (5) ♻️ POYDEVOR — Phase 3 orchestrator, Phase 2 ATOMIK kvota (4 AI chaqiruvi
+#     uchun 1 bron, rad etilsa AI'ga chiqilmaydi, AI yiqilsa refund), Phase 2
+#     sanitizer va services.channels.dna qayta ishlatiladi; uz/ru/en paritet.
+#     (tests/advertisement_engine_and_audit_test.py).
+"$PY" tests/advertisement_engine_and_audit_test.py || EXIT_CODE=1
 
 echo
 echo "===== 3H) 💬 4-QISM: QO'LLAB-QUVVATLASH (ONE-TIME TICKET) + ADMIN REPLY ====="
