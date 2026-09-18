@@ -97,6 +97,11 @@ class AIOutputValidator:
                 needs_retry=False,  # Buni kesish (truncate) orqali hal qilish mumkin
             )
 
+        from services.ai_engine.validator import quality_error
+        error = quality_error(clean_text, expected_lang)
+        if error:
+            return ValidationResult(False, error, "Output quality check failed", True)
+
         # 5. Til mosligi tekshiruvi (agar ko'rsatilgan bo'lsa)
         if expected_lang:
             lang_code = expected_lang.lower().strip()

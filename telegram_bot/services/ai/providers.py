@@ -138,7 +138,10 @@ class GeminiProvider(AIProvider):
         try:
             from services.ai_service import GeminiProvider as CoreGemini
             provider = CoreGemini()
-            result = await provider.call(prompt, system_prompt=ctx.get("system_prompt", ""), lang=lang)
+            from services.ai_engine.prompts import PromptEngine
+            safe_prompt, safe_system = PromptEngine.build(
+                prompt, system=ctx.get("system_prompt", ""), lang=lang)
+            result = await provider.call(safe_prompt, system_prompt=safe_system, lang=lang)
             if isinstance(result, dict):
                 text = result.get("content") or result.get("post_text") or result.get("response") or ""
             else:
@@ -171,7 +174,10 @@ class GroqProvider(AIProvider):
         try:
             from services.ai_service import GroqProvider as CoreGroq
             provider = CoreGroq()
-            result = await provider.call(prompt, system_prompt=ctx.get("system_prompt", ""), lang=lang)
+            from services.ai_engine.prompts import PromptEngine
+            safe_prompt, safe_system = PromptEngine.build(
+                prompt, system=ctx.get("system_prompt", ""), lang=lang)
+            result = await provider.call(safe_prompt, system_prompt=safe_system, lang=lang)
             if isinstance(result, dict):
                 text = result.get("content") or result.get("post_text") or result.get("response") or ""
             else:
@@ -204,7 +210,10 @@ class OpenRouterProvider(AIProvider):
         try:
             from services.ai_service import OpenRouterProvider as CoreOpenRouter
             provider = CoreOpenRouter()
-            result = await provider.call(prompt, system_prompt=ctx.get("system_prompt", ""), lang=lang)
+            from services.ai_engine.prompts import PromptEngine
+            safe_prompt, safe_system = PromptEngine.build(
+                prompt, system=ctx.get("system_prompt", ""), lang=lang)
+            result = await provider.call(safe_prompt, system_prompt=safe_system, lang=lang)
             if isinstance(result, dict):
                 text = result.get("content") or result.get("post_text") or result.get("response") or ""
             else:
