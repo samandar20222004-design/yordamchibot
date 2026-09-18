@@ -52,6 +52,8 @@ EXPECTED_TABLES = (
     "channel_intelligence_profiles",
     "channel_post_events",
     "channel_insights",
+    # FAZA 8,9,22 — Kengaytirilgan Channel DNA (idempotent)
+    "channel_dna",
     # PHASE C — Post shablonlari (7/9/10-bandlar refaktori)
     "post_templates",
     # PHASE D — Kontent manbalari (11, 12-bandlar): RSS/ATOM oqimi
@@ -94,6 +96,9 @@ EXPECTED_INDEXES = (
     "idx_channel_post_events_created",
     "idx_channel_insights_channel",
     "idx_channel_insights_dismissed",
+    # FAZA 8,9,22 — Kengaytirilgan Channel DNA indekslari
+    "idx_channel_dna_channel",
+    "idx_channel_dna_updated",
     # PHASE C — Post shablonlari indeksi
     "idx_post_templates_user",
     # PHASE D — Kontent manbalari indekslari (11, 12-bandlar)
@@ -114,11 +119,12 @@ def test_schema_file_tables():
         check(f"jadval: {table}", f"CREATE TABLE IF NOT EXISTS {table} (" in SCHEMA)
     # PHASE E: team membership + aggregate comment insights → 28.
     # 💬 4-QISM: qo'llab-quvvatlash murojaatlari (support_tickets +
-    # support_ticket_deliveries) → 30. Indekslar soni O'ZGARMAYDI (31):
+    # support_ticket_deliveries) → 30. FAZA 8,9,22: channel_dna → 31.
+    # Indekslar soni: 31 → 33 (channel_dna uchun 2 yangi indeks).
     # admin xabar ID'si bo'yicha qidiruv UNIQUE constraint'ning implicit
     # indeksi orqali ishlaydi.
-    check("jadvallar soni 30",
-          SCHEMA.count("CREATE TABLE IF NOT EXISTS") == 30,
+    check("jadvallar soni 31",
+          SCHEMA.count("CREATE TABLE IF NOT EXISTS") == 31,
           f"topildi: {SCHEMA.count('CREATE TABLE IF NOT EXISTS')}")
 
 
@@ -150,9 +156,9 @@ def test_schema_file_indexes():
     print("== schema.sql: indekslar ==")
     for index in EXPECTED_INDEXES:
         check(f"indeks: {index}", f"CREATE INDEX IF NOT EXISTS {index}" in SCHEMA)
-    # PHASE E: team membership + aggregate comment insight indexes → 31.
-    check("indekslar soni 31",
-          SCHEMA.count("CREATE INDEX IF NOT EXISTS") == 31,
+    # PHASE E + FAZA 8,9,22: team membership + aggregate comment insight + channel_dna indexes → 33.
+    check("indekslar soni 33",
+          SCHEMA.count("CREATE INDEX IF NOT EXISTS") == 33,
           f"topildi: {SCHEMA.count('CREATE INDEX IF NOT EXISTS')}")
     # 5-bosqich: kompozit indekslar scheduler/bot tezligi uchun
     for name, columns in (

@@ -63,6 +63,8 @@ EXPECTED_TABLES = (
     "channel_intelligence_profiles",
     "channel_post_events",
     "channel_insights",
+    # FAZA 8,9,22 — Kengaytirilgan Channel DNA (idempotent).
+    "channel_dna",
     # PHASE C — Post shablonlari (7/9/10-bandlar refaktori).
     "post_templates",
     # PHASE D — Kontent manbalari (11, 12-bandlar): RSS/ATOM oqimi.
@@ -106,6 +108,9 @@ EXPECTED_INDEXES = (
     "idx_channel_post_events_created",
     "idx_channel_insights_channel",
     "idx_channel_insights_dismissed",
+    # FAZA 8,9,22 — Kengaytirilgan Channel DNA indekslari.
+    "idx_channel_dna_channel",
+    "idx_channel_dna_updated",
     # PHASE C — Post shablonlari indeksi.
     "idx_post_templates_user",
     # PHASE D — Kontent manbalari indekslari (RSS/ATOM oqimi).
@@ -224,6 +229,49 @@ INTEGRITY_CONSTRAINTS = (
         "definition": "FOREIGN KEY (user_id) REFERENCES users(user_id)",
         "note": "har bir AI bron (kvota/kredit) mavjud foydalanuvchiga tegishli",
     },
+    # FAZA 8,9,22 — Channel DNA va bog'liq jadvallar uchun FK (yetim yozuvlar oldini olish)
+    {
+        "table": "channel_post_events",
+        "name": "fk_channel_post_events_channel",
+        "kind": "fk",
+        "definition": "FOREIGN KEY (channel_id) REFERENCES channels(channel_id) ON DELETE CASCADE",
+        "note": "kanal post eventlari faqat mavjud kanalga bog'lanadi (yetim yo'q)",
+    },
+    {
+        "table": "channel_intelligence_profiles",
+        "name": "fk_channel_intelligence_profiles_channel",
+        "kind": "fk",
+        "definition": "FOREIGN KEY (channel_id) REFERENCES channels(channel_id) ON DELETE CASCADE",
+        "note": "intelligence profil faqat mavjud kanalga tegishli",
+    },
+    {
+        "table": "channel_insights",
+        "name": "fk_channel_insights_channel",
+        "kind": "fk",
+        "definition": "FOREIGN KEY (channel_id) REFERENCES channels(channel_id) ON DELETE CASCADE",
+        "note": "kanal insightlari faqat mavjud kanalga tegishli",
+    },
+    {
+        "table": "channel_dna",
+        "name": "fk_channel_dna_channel",
+        "kind": "fk",
+        "definition": "FOREIGN KEY (channel_id) REFERENCES channels(channel_id) ON DELETE CASCADE",
+        "note": "kengaytirilgan DNA profili faqat mavjud kanalga tegishli (FAZA 8,9,22)",
+    },
+    {
+        "table": "channel_comment_insights",
+        "name": "fk_channel_comment_insights_channel",
+        "kind": "fk",
+        "definition": "FOREIGN KEY (channel_id) REFERENCES channels(channel_id) ON DELETE CASCADE",
+        "note": "izoh insightlari faqat mavjud kanalga tegishli",
+    },
+    {
+        "table": "channel_members",
+        "name": "fk_channel_members_channel",
+        "kind": "fk",
+        "definition": "FOREIGN KEY (channel_id) REFERENCES channels(channel_id) ON DELETE CASCADE",
+        "note": "jamoa a'zolari faqat mavjud kanalga bog'lanadi",
+    },
 )
 
 #: Startup'da mavjudligi tekshiriladigan constraintlar (schema.sql bilan bir xil).
@@ -275,6 +323,35 @@ INTEGRITY_INDEXES = (
         "columns": "(post_id)",
         "ddl": "CREATE INDEX IF NOT EXISTS idx_deliveries_post ON post_deliveries (post_id)",
         "note": "post o'chirilganda cascade tekshiruvi uchun",
+    },
+    # FAZA 8,9,22 — Channel DNA va event indekslari (channel_id, created_at)
+    {
+        "name": "idx_channel_post_events_channel",
+        "table": "channel_post_events",
+        "columns": "(channel_id)",
+        "ddl": "CREATE INDEX IF NOT EXISTS idx_channel_post_events_channel ON channel_post_events (channel_id)",
+        "note": "kanal post eventlari channel_id bo'yicha tez qidiruv (FAZA 8)",
+    },
+    {
+        "name": "idx_channel_post_events_created",
+        "table": "channel_post_events",
+        "columns": "(created_at DESC)",
+        "ddl": "CREATE INDEX IF NOT EXISTS idx_channel_post_events_created ON channel_post_events (created_at DESC)",
+        "note": "kanal post eventlari created_at bo'yicha saralash (FAZA 8)",
+    },
+    {
+        "name": "idx_channel_dna_channel",
+        "table": "channel_dna",
+        "columns": "(channel_id)",
+        "ddl": "CREATE INDEX IF NOT EXISTS idx_channel_dna_channel ON channel_dna (channel_id)",
+        "note": "kengaytirilgan DNA profili channel_id bo'yicha (FAZA 8,9,22)",
+    },
+    {
+        "name": "idx_channel_dna_updated",
+        "table": "channel_dna",
+        "columns": "(updated_at DESC)",
+        "ddl": "CREATE INDEX IF NOT EXISTS idx_channel_dna_updated ON channel_dna (updated_at DESC)",
+        "note": "DNA yangilanish vaqti bo'yicha saralash (FAZA 8,9,22)",
     },
 )
 INTEGRITY_INDEX_NAMES = tuple(item["name"] for item in INTEGRITY_INDEXES)
@@ -1864,6 +1941,50 @@ def _init_db_once():
         cur.execute(
             "CREATE INDEX IF NOT EXISTS idx_channel_insights_dismissed "
             "ON channel_insights (is_dismissed);"
+        )
+
+        # 🧬 FAZA 8,9,22 — KENGAYTIRILGAN CHANNEL DNA (channel_dna)
+        # Har bir metrika: language, tone, topics, avg_length, emoji_density,
+        # best_hours, best_weekdays, high_performing_formats — profile JSONB da
+        # sample_size, confidence, updated_at bilan saqlanadi.
+        # Idempotent: CREATE TABLE IF NOT EXISTS + indekslar IF NOT EXISTS.
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS channel_dna (
+                channel_id VARCHAR(255) PRIMARY KEY,
+                language VARCHAR(16),
+                tone VARCHAR(32),
+                topics JSONB,
+                avg_length INTEGER,
+                emoji_density DOUBLE PRECISION,
+                best_hours JSONB,
+                best_weekdays JSONB,
+                high_performing_formats JSONB,
+                sample_size INTEGER,
+                confidence DOUBLE PRECISION,
+                profile JSONB DEFAULT '{}'::jsonb,
+                updated_at TIMESTAMPTZ DEFAULT NOW()
+            );
+        """)
+        # Eski bazalar uchun yangi ustunlar (idempotent)
+        cur.execute("ALTER TABLE channel_dna ADD COLUMN IF NOT EXISTS language VARCHAR(16);")
+        cur.execute("ALTER TABLE channel_dna ADD COLUMN IF NOT EXISTS tone VARCHAR(32);")
+        cur.execute("ALTER TABLE channel_dna ADD COLUMN IF NOT EXISTS topics JSONB;")
+        cur.execute("ALTER TABLE channel_dna ADD COLUMN IF NOT EXISTS avg_length INTEGER;")
+        cur.execute("ALTER TABLE channel_dna ADD COLUMN IF NOT EXISTS emoji_density DOUBLE PRECISION;")
+        cur.execute("ALTER TABLE channel_dna ADD COLUMN IF NOT EXISTS best_hours JSONB;")
+        cur.execute("ALTER TABLE channel_dna ADD COLUMN IF NOT EXISTS best_weekdays JSONB;")
+        cur.execute("ALTER TABLE channel_dna ADD COLUMN IF NOT EXISTS high_performing_formats JSONB;")
+        cur.execute("ALTER TABLE channel_dna ADD COLUMN IF NOT EXISTS sample_size INTEGER;")
+        cur.execute("ALTER TABLE channel_dna ADD COLUMN IF NOT EXISTS confidence DOUBLE PRECISION;")
+        cur.execute("ALTER TABLE channel_dna ADD COLUMN IF NOT EXISTS profile JSONB DEFAULT '{}'::jsonb;")
+        cur.execute("ALTER TABLE channel_dna ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();")
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_channel_dna_channel "
+            "ON channel_dna (channel_id);"
+        )
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_channel_dna_updated "
+            "ON channel_dna (updated_at DESC);"
         )
 
         # 📋 PHASE C — POST SHABLONLARI (7/9/10-bandlar refaktori).
@@ -6596,6 +6717,228 @@ def get_channel_intelligence_profile(channel_id: str | int) -> dict | None:
     except Exception as e:
         logger.error("get_channel_intelligence_profile xatosi (%s): %s", ch_id, e)
         return None
+
+
+# ============================================================
+# 🧬 FAZA 8,9,22 — KENGAYTIRILGAN CHANNEL DNA (channel_dna)
+# Har bir metrika: language, tone, topics, avg_length, emoji_density,
+# best_hours, best_weekdays, high_performing_formats — profile JSONB da
+# sample_size, confidence (0.0-1.0), updated_at bilan.
+# ============================================================
+
+def save_channel_dna_profile(
+    channel_id: str | int,
+    profile: dict | None = None,
+    sample_size: int | None = None,
+    confidence: float | None = None,
+    language: str | None = None,
+    tone: str | None = None,
+    topics: list | None = None,
+    avg_length: int | None = None,
+    emoji_density: float | None = None,
+    best_hours: list | None = None,
+    best_weekdays: list | None = None,
+    high_performing_formats: list | None = None,
+) -> bool:
+    """Kengaytirilgan Channel DNA profilini ``channel_dna`` jadvaliga saqlaydi (UPSERT).
+
+    Qat'iy qoidalar:
+      * Idempotent: ON CONFLICT (channel_id) DO UPDATE
+      * Har bir metrika sample_size, confidence, updated_at bilan (profile JSONB da)
+      * Yetim yozuvlar oldini olish uchun FK: channels(channel_id) ON DELETE CASCADE
+        (schema.sql va INTEGRITY_CONSTRAINTS da)
+      * Indekslar: channel_id, updated_at (ON CONFLICT DO NOTHING bilan xavfsiz)
+    """
+    ch_id = str(channel_id or "").strip()
+    if not ch_id:
+        return False
+    try:
+        import json as _json
+
+        # Normalize profile
+        prof = dict(profile) if isinstance(profile, dict) else {}
+        # Extract values from wrapped metrics if present
+        def _extract_value(key, default=None):
+            if key in prof:
+                v = prof[key]
+                if isinstance(v, dict) and "value" in v:
+                    return v["value"]
+                return v
+            return default
+
+        lang_val = language or _extract_value("language_value") or (_extract_value("language") if isinstance(_extract_value("language"), str) else None)
+        if isinstance(prof.get("language"), dict):
+            lang_val = prof["language"].get("value") or lang_val
+        tone_val = tone or _extract_value("tone_value") or _extract_value("tone")
+        if isinstance(prof.get("tone"), dict):
+            tone_val = prof["tone"].get("value") or tone_val
+        topics_val = topics if topics is not None else _extract_value("topics_value") or _extract_value("topics")
+        if isinstance(prof.get("topics"), dict):
+            topics_val = prof["topics"].get("value") or topics_val
+        avg_len_val = avg_length
+        if avg_len_val is None:
+            avg_len_val = _extract_value("avg_length_value") or _extract_value("average_post_length") or _extract_value("avg_length")
+            if isinstance(prof.get("avg_length"), dict):
+                avg_len_val = prof["avg_length"].get("value") or avg_len_val
+        emoji_dens_val = emoji_density
+        if emoji_dens_val is None:
+            emoji_dens_val = _extract_value("emoji_density_value") or _extract_value("emoji_density")
+            if isinstance(prof.get("emoji_density"), dict):
+                emoji_dens_val = prof["emoji_density"].get("value") or emoji_dens_val
+        best_hours_val = best_hours if best_hours is not None else _extract_value("best_hours_value") or _extract_value("best_hours")
+        if isinstance(prof.get("best_hours"), dict):
+            best_hours_val = prof["best_hours"].get("value") or best_hours_val
+        best_weekdays_val = best_weekdays if best_weekdays is not None else _extract_value("best_weekdays_value") or _extract_value("best_weekdays")
+        if isinstance(prof.get("best_weekdays"), dict):
+            best_weekdays_val = prof["best_weekdays"].get("value") or best_weekdays_val
+        high_formats_val = high_performing_formats if high_performing_formats is not None else _extract_value("high_performing_formats_value") or _extract_value("high_performing_formats")
+        if isinstance(prof.get("high_performing_formats"), dict):
+            high_formats_val = prof["high_performing_formats"].get("value") or high_formats_val
+
+        # Normalize types
+        lang_str = str(lang_val or "")[:16] or None
+        tone_str = str(tone_val or "")[:32] or None
+        topics_json = _json.dumps(topics_val or [], ensure_ascii=False)
+        # But topics column is JSONB, best to keep as JSON string for ::jsonb cast
+        best_hours_json = _json.dumps(best_hours_val or [], ensure_ascii=False)
+        best_weekdays_json = _json.dumps(best_weekdays_val or [], ensure_ascii=False)
+        high_formats_json = _json.dumps(high_formats_val or [], ensure_ascii=False)
+        profile_json = _json.dumps(prof or {}, ensure_ascii=False, default=str)
+
+        sample = int(sample_size) if sample_size is not None else (int(prof.get("sample_size") or 0) if isinstance(prof.get("sample_size"), int) else None)
+        if sample is None:
+            # Try from metrics
+            for k in ("avg_length", "language", "overall"):
+                mv = prof.get(k)
+                if isinstance(mv, dict) and "sample_size" in mv:
+                    try:
+                        sample = int(mv["sample_size"])
+                        break
+                    except Exception:
+                        pass
+
+        conf = None
+        if confidence is not None:
+            try:
+                conf = float(confidence)
+                conf = max(0.0, min(1.0, conf))
+            except Exception:
+                conf = None
+        if conf is None and isinstance(prof.get("confidence"), (int, float)):
+            try:
+                c = float(prof["confidence"])
+                # If it's 0-100, convert to 0-1
+                if c > 1.0:
+                    c = c / 100.0
+                conf = max(0.0, min(1.0, c))
+            except Exception:
+                pass
+
+        with db_cursor(commit=True) as cur:
+            cur.execute(
+                """
+                INSERT INTO channel_dna (
+                    channel_id, language, tone, topics, avg_length, emoji_density,
+                    best_hours, best_weekdays, high_performing_formats,
+                    sample_size, confidence, profile, updated_at
+                )
+                VALUES (%s, %s, %s, %s::jsonb, %s, %s, %s::jsonb, %s::jsonb, %s::jsonb, %s, %s, %s::jsonb, NOW())
+                ON CONFLICT (channel_id) DO UPDATE SET
+                    language = EXCLUDED.language,
+                    tone = EXCLUDED.tone,
+                    topics = EXCLUDED.topics,
+                    avg_length = EXCLUDED.avg_length,
+                    emoji_density = EXCLUDED.emoji_density,
+                    best_hours = EXCLUDED.best_hours,
+                    best_weekdays = EXCLUDED.best_weekdays,
+                    high_performing_formats = EXCLUDED.high_performing_formats,
+                    sample_size = EXCLUDED.sample_size,
+                    confidence = EXCLUDED.confidence,
+                    profile = EXCLUDED.profile,
+                    updated_at = NOW()
+                """,
+                (
+                    ch_id,
+                    lang_str,
+                    tone_str,
+                    topics_json,
+                    int(avg_len_val) if avg_len_val is not None else None,
+                    float(emoji_dens_val) if emoji_dens_val is not None else None,
+                    best_hours_json,
+                    best_weekdays_json,
+                    high_formats_json,
+                    sample,
+                    conf,
+                    profile_json,
+                ),
+            )
+            return True
+    except Exception as e:
+        logger.error("save_channel_dna_profile xatosi (%s): %s", ch_id, e)
+        return False
+
+
+def get_channel_dna_profile(channel_id: str | int) -> dict | None:
+    """Saqlangan kengaytirilgan Channel DNA profilini qaytaradi (yo'q bo'lsa None)."""
+    ch_id = str(channel_id or "").strip()
+    if not ch_id:
+        return None
+    try:
+        import json as _json
+        with db_cursor() as cur:
+            cur.execute(
+                """
+                SELECT channel_id, language, tone, topics, avg_length, emoji_density,
+                       best_hours, best_weekdays, high_performing_formats,
+                       sample_size, confidence, profile, updated_at
+                FROM channel_dna
+                WHERE channel_id = %s
+                """,
+                (ch_id,),
+            )
+            row = cur.fetchone()
+        if not row:
+            return None
+
+        def _parse_jsonb(val):
+            if val is None:
+                return None
+            if isinstance(val, str):
+                try:
+                    return _json.loads(val)
+                except Exception:
+                    return val
+            return val
+
+        topics = _parse_jsonb(row[3])
+        best_hours = _parse_jsonb(row[5])
+        best_weekdays = _parse_jsonb(row[6])
+        high_formats = _parse_jsonb(row[7])
+        profile_raw = _parse_jsonb(row[11])
+
+        return {
+            "channel_id": row[0],
+            "language": row[1],
+            "tone": row[2],
+            "topics": topics if isinstance(topics, list) else [],
+            "avg_length": int(row[4]) if row[4] is not None else None,
+            "emoji_density": float(row[5]) if row[5] is not None else None,
+            "best_hours": best_hours if isinstance(best_hours, list) else [],
+            "best_weekdays": best_weekdays if isinstance(best_weekdays, list) else [],
+            "high_performing_formats": high_formats if isinstance(high_formats, list) else [],
+            "sample_size": int(row[9]) if row[9] is not None else None,
+            "confidence": float(row[10]) if row[10] is not None else None,
+            "profile": profile_raw if isinstance(profile_raw, dict) else {},
+            "updated_at": row[12].isoformat() if row[12] else "",
+        }
+    except Exception as e:
+        logger.error("get_channel_dna_profile xatosi (%s): %s", ch_id, e)
+        return None
+
+
+# Alias for backward compatibility
+save_channel_dna = save_channel_dna_profile
+get_channel_dna = get_channel_dna_profile
 
 
 # ============================================================

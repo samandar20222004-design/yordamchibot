@@ -120,7 +120,7 @@ def test_python_metadata_matches_schema():
     print("== database.py ↔ schema.sql paralligi ==")
     import database as db_mod
 
-    check("INTEGRITY_CONSTRAINTS 10 ta obyekt", len(db_mod.INTEGRITY_CONSTRAINTS) == 10,
+    check("INTEGRITY_CONSTRAINTS 16 ta obyekt (FAZA 8,9,22 bilan)", len(db_mod.INTEGRITY_CONSTRAINTS) == 16,
           str(len(db_mod.INTEGRITY_CONSTRAINTS)))
     for item in db_mod.INTEGRITY_CONSTRAINTS:
         check(f"constraint ro'yxatda: {item['name']}",
