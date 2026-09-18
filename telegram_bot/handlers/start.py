@@ -364,20 +364,22 @@ def build_daily_bonus_text(res: dict, lang: str = "uz") -> str:
 
 
 async def user_cabinet_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """⚙️ Sozlamalar — profil kartasi + YAGONA TARTIBLI MENYU (PostAssist V2).
+    """👤 Profil — profil kartasi + IXCHAM 6 TUGMALI MENYU (3-QISM).
 
-    PostAssist V2 (5-mikro qadam): [⚙️ Sozlamalar] bosilganda profil
-    ma'lumotlari bilan birga barcha foydali guruhlar bitta hub'da chiqadi
-    (handlers/settings.py — ``stgs_*`` callback'lari):
+    Asosiy menyudagi [👤 Profil] tugmasi (eski nomi — «⚙️ Sozlamalar»)
+    bosilganda foydalanuvchi ma'lumotlari (ID, maxsus kod, AI so'rovlar,
+    kunlik seriya, kanallar, takliflar) bilan birga YAGONA ixcham menyu
+    chiqadi (handlers/settings.py — ``stgs_*`` callback'lari):
 
-        [👤 Profil]             [🌐 Til / Язык]
-        [🎁 Bonuslar & Ballar]  [🎨 Post sozlamalari]
-        [🔔 Bildirishnomalar]   [💳 To'lovlar tarixi]
-        [🧰 Vositalar]          [❓ Yordam & Ma'lumot]
-                     [◀️ Orqaga]
+        [🌐 Til / Язык]        [✍️ Post sozlamalari]
+        [🔔 Bildirishnomalar]  [💳 To'lovlar tarixi]
+        [💬 Qo'llab-quvvatlash]
+        [❌ Yopish]
 
-    Bonuslar/ballar va yordam/ma'lumot ichki submenu'larda ochiladi. Mavjud
-    kabinet oqimlari (``cab_*``) esa eski xabarlar uchun saqlanadi.
+    «⚙️ Sozlamalar» va «👤 Shaxsiy kabinet» ikki xil profil chalkashligi
+    tugatildi: endi BITTA «👤 Profil» ekran bor. Referral (👥 Do'stlarni
+    taklif) asosiy menyuga ko'chdi; 🎁 Kunlik bonus referral ekranida.
+    Mavjud kabinet oqimlari (``cab_*``) esa eski xabarlar uchun saqlanadi.
     """
     clear_fsm_data(context)
     user = update.effective_user
@@ -430,6 +432,19 @@ async def daily_bonus_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
         )
 
 async def user_invite_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """👥 Do'stlarni taklif — ASOSIY MENYU tugmasi (3-QISM refaktori).
+
+    Referral endi ichki «🎁 Bonuslar & Taklif» hub'ida yashirinib
+    qolmaydi: asosiy menyudan to'g'ridan-to'g'ri ochiladi va ekranda
+    darhol:
+      * referal havolasi,
+      * taklif qilingan do'stlar soni,
+      * ishlangan AI ballar
+    chiqadi. Inline tugmalar (``get_referral_share_keyboard``):
+      * [📲 Do'stlarga ulashish] — ``switch_inline_query`` orqali chat
+        tanlash oynasi ochiladi (inline natija — referal havola);
+      * [🎁 Kunlik bonus] — mavjud ``claim_bonus`` oqimi.
+    """
     clear_fsm_data(context)
     user = update.effective_user
     is_admin = (user.id in ADMIN_IDS_SET)
@@ -449,6 +464,51 @@ async def user_invite_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=get_referral_share_keyboard(ref_link, lang),
         parse_mode="HTML"
     )
+
+
+async def referral_inline_query_handler(update: Update,
+                                        context: ContextTypes.DEFAULT_TYPE):
+    """📲 Do'stlarga ulashish — ``switch_inline_query`` inline natijasi.
+
+    Referral ekranidagi [📲 Do'stlarga ulashish] tugmasi Telegram'da chat
+    tanlash oynasini ochadi; foydalanuvchi chat tanlagach bot shu handler
+    orqali JAVOB QAYTARADI — inline natija (referal havola + taklif matni)
+    tanlangan chatga yuboriladi. Natija ``is_personal`` (har bir
+    foydalanuvchi O'Z havolasini ko'radi) va ``cache_time=0``.
+    """
+    from telegram import (
+        InlineQueryResultArticle,
+        InputTextMessageContent,
+    )
+
+    query = getattr(update, "inline_query", None)
+    if query is None:
+        return
+    user_id = query.from_user.id
+    lang = await ensure_user_lang(context, user_id)
+    try:
+        bot_obj = await context.bot.get_me()
+    except Exception:
+        return
+    ref_link = f"https://t.me/{bot_obj.username}?start=ref_{user_id}"
+    share_text = get_text("ref_share_text", lang)
+    try:
+        await query.answer(
+            [
+                InlineQueryResultArticle(
+                    id=f"ref_{user_id}",
+                    title=get_text("btn_share_referral", lang),
+                    description=ref_link,
+                    input_message_content=InputTextMessageContent(
+                        f"{share_text}\n{ref_link}"
+                    ),
+                )
+            ],
+            cache_time=0,
+            is_personal=True,
+        )
+    except Exception:
+        logger.exception("Referral inline query javobida xato")
 
 async def _begin_transfer_flow(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """🔄 Ballar o'tkazish oqimining YAGONA kirish nuqtasi (uz/ru/en).

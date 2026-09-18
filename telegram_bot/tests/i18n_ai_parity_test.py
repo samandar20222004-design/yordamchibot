@@ -220,9 +220,9 @@ def test_button_labels_3_langs():
         inline_labels = [
             b.text for row in get_cabinet_inline_keyboard(code).inline_keyboard for b in row
         ]
-        # 🧹 UI/UX POLISH (1-qadam): kabinet — ixcham 5 tugmali panel.
-        check(f"{code}: kabinet inline menyusi to'liq (5 ta tugma — ixcham panel)",
-              len(inline_labels) == 5 and all(str(x).strip() for x in inline_labels),
+        # 3-QISM: kabinet — ixcham 6 tugmali 👤 Profil paneli (hub bilan bir xil).
+        check(f"{code}: kabinet inline menyusi to'liq (6 ta tugma — ixcham panel)",
+              len(inline_labels) == 6 and all(str(x).strip() for x in inline_labels),
               str(inline_labels[:3]))
         lang_cbs = [
             b.callback_data
@@ -711,11 +711,12 @@ def test_language_callback_scenario():
                 inline_cbs = [
                     b.callback_data for row in inline_kb.inline_keyboard for b in row
                 ]
-                # 🧹 UI/UX POLISH (1-qadam): kabinet — ixcham 5 tugmali panel;
-                # birinchi tugma («🎁 Bonuslar & Taklif») tarjimasi til
+                # 3-QISM: kabinet — ixcham 6 tugmali 👤 Profil paneli;
+                # birinchi tugma («🌐 Til / Язык») tarjimasi til
                 # to'g'riligini tekshiradi.
+                from translations import settings_stats_t
                 check(f"{data}: inline menyu yangi tilda",
-                      labels and labels[0] == safe_t("cab_bonus_invite", code),
+                      labels and labels[0] == settings_stats_t("ss_btn_lang", code),
                       str(labels[:4]))
                 check(f"{data}: inline menyuda til tugmasi YO'Q (faqat Sozlamalarda)",
                       "cab_lang" not in inline_cbs, str(inline_cbs))

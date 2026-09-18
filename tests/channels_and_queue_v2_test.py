@@ -20,7 +20,7 @@ Qamrov (topshiriq spetsifikatsiyasi bilan birma-bir):
   TEST 5:  🌐 I18N — UZ/RU/EN 100% paritet; eskirgan texnik nomlar
            («Postlar navbati», «Очередь постов», «Queued posts») foydalanuvchi
            matnlaridan olib tashlandi, lekin ALIAS sifatida routing'da qoldi.
-  TEST 6:  🛡 REGRESSIYA QO'RIQONLARI — asosiy menyu 6 tugma o'zgarmadi,
+  TEST 6:  🛡 REGRESSIYA QO'RIQONLARI — asosiy menyu 7 tugma (3-QISM),
            fallback ENG oxirgi handler, eski callback'lar (ch_del:/ch_set:/
            qdel:/qpush:/qview:) va FSM dialoglari buzilmadi.
 
@@ -792,11 +792,11 @@ def test_regression_guards():
     all_h = _all_handlers(app)
     conv = [h for h in all_h if isinstance(h, ConversationHandler)][0]
 
-    # (1) Asosiy menyu — QAT'IY 6 tugma (UX V2 standarti buzilmadi).
+    # (1) Asosiy menyu — QAT'IY 7 tugma (3-QISM standarti buzilmadi).
     for lang in LANGS:
         rows = [[b.text for b in r] for r in get_main_keyboard(False, lang=lang).keyboard]
         flat = [t for r in rows for t in r]
-        check(f"asosiy menyu[{lang}]: 6 tugma", len(flat) == 6, str(flat))
+        check(f"asosiy menyu[{lang}]: 7 tugma", len(flat) == 7, str(flat))
         check(f"asosiy menyu[{lang}]: 📢 Kanallarim + 📅 Rejalashtirilgan",
               get_text("btn_my_channels", lang) in flat
               and get_text("btn_scheduled", lang) in flat, str(flat))

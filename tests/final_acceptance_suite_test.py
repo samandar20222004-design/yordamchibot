@@ -98,7 +98,7 @@ from locales.translations import get_text  # noqa: E402
 from translations import (  # noqa: E402
     channels_queue_parity_report, content_menu_parity_report,
     content_menu_t, magic_post_parity_report, post_score_parity_report,
-    settings_stats_parity_report, voice_post_parity_report,
+    settings_stats_parity_report, settings_stats_t, voice_post_parity_report,
 )
 
 LANGS = ("uz", "ru", "en")
@@ -490,62 +490,62 @@ def _conversation_handlers():
 
 
 # ===========================================================================
-# TEST A..D — ASOSIY MENYU QAT'IY 6 TUGMA
+# TEST A..D — ASOSIY MENYU QAT'IY 7 TUGMA (3-QISM)
 # ===========================================================================
 EXPECTED_MAIN = {
     "uz": ["✨ Kontent yaratish", "📢 Kanallarim", "📅 Rejalashtirilgan",
-           "📊 Statistika", "💎 PRO", "⚙️ Sozlamalar"],
+           "📊 Statistika", "💎 PRO", "👥 Do'stlarni taklif", "👤 Profil"],
     "ru": ["✨ Создать контент", "📢 Мои каналы", "📅 Запланированные",
-           "📊 Статистика", "💎 PRO", "⚙️ Настройки"],
+           "📊 Статистика", "💎 PRO", "👥 Пригласить друзей", "👤 Профиль"],
     "en": ["✨ Create content", "📢 My channels", "📅 Scheduled",
-           "📊 Statistics", "💎 PRO", "⚙️ Settings"],
+           "📊 Statistics", "💎 PRO", "👥 Invite friends", "👤 Profile"],
 }
 
 
 def test_a_main_menu_uz():
-    header("A", "🧭 Asosiy menyu UZ — QAT'IY 6 tugma")
+    header("A", "🧭 Asosiy menyu UZ — QAT'IY 7 tugma")
     kb = get_main_keyboard(False, lang="uz")
     flat = _flat(kb)
-    check("UZ: aynan 6 tugma", len(flat) == 6, str(flat))
-    check("UZ: 3 qator × 2 tugma", _rows(kb) == [EXPECTED_MAIN["uz"][i:i + 2] for i in (0, 2, 4)],
+    check("UZ: aynan 7 tugma", len(flat) == 7, str(flat))
+    check("UZ: 4 qator (3 juftlik + Profil)", _rows(kb) == [EXPECTED_MAIN["uz"][i:i + 2] for i in (0, 2, 4, 6)],
           str(_rows(kb)))
     check("UZ: kutilgan yorliqlar tartibi", flat == EXPECTED_MAIN["uz"], str(flat))
 
 
 def test_b_main_menu_ru():
-    header("B", "🧭 Asosiy menyu RU — QAT'IY 6 tugma")
+    header("B", "🧭 Asosiy menyu RU — QAT'IY 7 tugma")
     kb = get_main_keyboard(False, lang="ru")
     flat = _flat(kb)
-    check("RU: aynan 6 tugma", len(flat) == 6, str(flat))
-    check("RU: 3 qator × 2 tugma", _rows(kb) == [EXPECTED_MAIN["ru"][i:i + 2] for i in (0, 2, 4)],
+    check("RU: aynan 7 tugma", len(flat) == 7, str(flat))
+    check("RU: 4 qator (3 juftlik + Profil)", _rows(kb) == [EXPECTED_MAIN["ru"][i:i + 2] for i in (0, 2, 4, 6)],
           str(_rows(kb)))
     check("RU: kutilgan yorliqlar tartibi", flat == EXPECTED_MAIN["ru"], str(flat))
 
 
 def test_c_main_menu_en():
-    header("C", "🧭 Asosiy menyu EN — QAT'IY 6 tugma")
+    header("C", "🧭 Asosiy menyu EN — QAT'IY 7 tugma")
     kb = get_main_keyboard(False, lang="en")
     flat = _flat(kb)
-    check("EN: aynan 6 tugma", len(flat) == 6, str(flat))
-    check("EN: 3 qator × 2 tugma", _rows(kb) == [EXPECTED_MAIN["en"][i:i + 2] for i in (0, 2, 4)],
+    check("EN: aynan 7 tugma", len(flat) == 7, str(flat))
+    check("EN: 4 qator (3 juftlik + Profil)", _rows(kb) == [EXPECTED_MAIN["en"][i:i + 2] for i in (0, 2, 4, 6)],
           str(_rows(kb)))
     check("EN: kutilgan yorliqlar tartibi", flat == EXPECTED_MAIN["en"], str(flat))
 
 
 def test_d_main_menu_admin_variant_and_parity():
-    header("D", "🧭 Asosiy menyu — admin varianti 6-tugmani saqlaydi + til pariteti")
+    header("D", "🧭 Asosiy menyu — admin varianti 7-tugmani saqlaydi + til pariteti")
     for lang in LANGS:
         user_kb = get_main_keyboard(False, lang=lang)
         admin_kb = get_main_keyboard(True, lang=lang)
-        check(f"[{lang}] admin: birinchi 3 qator = 6-tugma standarti",
-              _rows(admin_kb)[:3] == _rows(user_kb), str(_rows(admin_kb)[:3]))
+        check(f"[{lang}] admin: birinchi 4 qator = 7-tugma standarti",
+              _rows(admin_kb)[:4] == _rows(user_kb), str(_rows(admin_kb)[:4]))
         check(f"[{lang}] admin: oxirgi qator = [⚙️ Admin Panel]",
               _rows(admin_kb)[-1] == [BTN_ADMIN_PANEL], str(_rows(admin_kb)[-1]))
         check(f"[{lang}] oddiy foydalanuvchida Admin Panel YO'Q",
               BTN_ADMIN_PANEL not in _flat(user_kb), str(_flat(user_kb)))
-    # Til pariteti: har uchala til 6 ta, hech biri tarjima qilmay qolmagan.
+    # Til pariteti: har uchala til 7 ta, hech biri tarjima qilmay qolmagan.
     sizes = {lang: len(_flat(get_main_keyboard(False, lang=lang))) for lang in LANGS}
-    check("uz/ru/en tugma soni bir xil (6/6/6)", set(sizes.values()) == {6}, str(sizes))
+    check("uz/ru/en tugma soni bir xil (7/7/7)", set(sizes.values()) == {7}, str(sizes))
     for lang in LANGS:
         check(f"[{lang}] hech bir tugma yorlig'i bo'sh emas",
               all((t or "").strip() for t in _flat(get_main_keyboard(False, lang=lang))))
@@ -765,12 +765,14 @@ def test_k_statistics_isolation():
               user_text.count("\n") >= 5, user_text[:80])
 
 
-def test_l_settings_menu_8_groups_plus_back():
-    # 🧹 UI/UX POLISH (1-qadam): «👤 Profil» hub'dan OLIB TASHLANDI —
-    # hub matnining o'zi profil kartasi. Endi 7 guruh + [◀️ Orqaga] = 8.
-    header("L", "⚙️ Sozlamalar — 7 guruh + [◀️ Orqaga] = 8, uchala tilda bir xil")
-    expected_cbs = ["stgs_lang", "stgs_rewards", "stgs_post",
-                    "stgs_notif", "stgs_pay", "stgs_tools", "stgs_help_hub",
+def test_l_settings_menu_compact_profile_hub():
+    # 3-QISM: 👤 Profil — IXCHAM 6 tugma. «🎁 Bonuslar & Taklif» hub'dan
+    # olib tashlandi (👉 asosiy menyuda «👥 Do'stlarni taklif»), 🧰 Vositalar
+    # va ❓ Yordam hub'i ham ko'rinishdan chiqdi (oqimlar routing'da qoladi).
+    header("L", "👤 Profil — ixcham 6 tugma, uchala tilda bir xil")
+    expected_cbs = ["stgs_lang", "stgs_post",
+                    "stgs_notif", "stgs_pay",
+                    "help_support",
                     "stgs_back"]
     base = None
     for lang in LANGS:
@@ -779,13 +781,16 @@ def test_l_settings_menu_8_groups_plus_back():
         labels = _labels(kb)
         if base is None:
             base = cbs
-        check(f"[{lang}] 7 guruh + Orqaga = 8 (Profil yo'q)", len(cbs) == 8, str(cbs))
+        check(f"[{lang}] ixcham hub = 6 tugma", len(cbs) == 6, str(cbs))
         check(f"[{lang}] stgs_profile hub'da YO'Q (matn o'zi profil)",
               "stgs_profile" not in cbs, str(cbs))
+        check(f"[{lang}] eski guruhlar (rewards/tools/help_hub) hub'da YO'Q",
+              not any(cb in cbs for cb in ("stgs_rewards", "stgs_tools",
+                                           "stgs_help_hub")), str(cbs))
         check(f"[{lang}] callback'lar kutilgan ro'yxat bilan AYNAN bir xil",
               cbs == expected_cbs, str(cbs))
-        check(f"[{lang}] oxirgi tugma — [◀️ Orqaga] (stgs_back)",
-              cbs[-1] == "stgs_back" and labels[-1] == content_menu_t("cm_btn_back", lang),
+        check(f"[{lang}] oxirgi tugma — [❌ Yopish] (stgs_back)",
+              cbs[-1] == "stgs_back" and labels[-1] == settings_stats_t("ss_btn_close", lang),
               str(labels[-1]))
         check(f"[{lang}] callback'lar UZ bilan bir xil (tilga bog'liq emas)",
               cbs == base, str(cbs))
@@ -796,7 +801,7 @@ def test_l_settings_menu_8_groups_plus_back():
     with _with_db(fake), _quiet():
         _run(start_mod.user_cabinet_menu(_msg_update(msg), _ctx("uz")))
     drawn = _cbs(msg.sent[-1]["reply_markup"]) if msg.sent else []
-    check("user_cabinet_menu: 8 tugmali sozlamalar klaviaturasini chizdi",
+    check("user_cabinet_menu: 6 tugmali ixcham Profil klaviaturasini chizdi",
           drawn == expected_cbs, str(drawn))
 
 
@@ -834,9 +839,11 @@ def test_n_tools_submenu_opens():
         check(f"[{lang}] Orqaga → sozlamalar hubi (stgs_hub)",
               cbs[-1] == "stgs_hub", str(cbs))
         check(f"[{lang}] callback'lar UZ bilan bir xil", cbs == base, str(cbs))
-    # Sozlamalar menyusidan [🧰 Vositalar] aynan shu submenyuga olib boradi.
-    check("Sozlamalar menyusida [🧰 Vositalar] = stgs_tools mavjud",
-          "stgs_tools" in _cbs(get_settings_hub_keyboard("uz")))
+    # 3-QISM: [🧰 Vositalar] endi hub'da emas, lekin eski xabarlar uchun
+    # stgs_tools callback'i routing'da saqlangan (xavfsiz orqaga moslik).
+    check("stgs_tools callback'i routing'da saqlangan (hub'da YO'Q)",
+          bool(_callback_handler_names("stgs_tools"))
+          and "stgs_tools" not in _cbs(get_settings_hub_keyboard("uz")))
 
 
 # ===========================================================================
@@ -895,6 +902,7 @@ MAIN_ROUTES = {
     "btn_scheduled": "queue_menu",
     "btn_statistics": "statistics_button",
     "btn_premium": "start_subscription",
+    "btn_invite_friends": "user_invite_menu",
     "btn_settings": "user_cabinet_menu",
 }
 
@@ -1055,7 +1063,9 @@ def test_w_legacy_buttons_still_route():
     header("W", "♻️ Eski tugmalar (backward compatibility) hali ham ishlaydi")
     legacy_routes = (
         ("btn_new_post", "start_new_post"),
-        ("btn_ai_studio", "ai_studio_menu_entry"),
+        # 3-QISM: 🤖 AI Yordamchi (AI Studio nomi o'zgardi) — kontent
+        # submenu'ning ko'rinadigan tugmasi, AI hub'ga olib boradi.
+        ("btn_ai_studio", "ai_studio_hub_entry"),
         ("btn_help", "help_command"),
         ("btn_extras", "extras_menu"),
     )
@@ -1549,7 +1559,8 @@ def _i18n_key_for(label):
     """Yorliq uchun i18n kalitini izlaydi (get_text orqali tiklanadi)."""
     for lang in LANGS:
         for key in ("btn_create_content", "btn_my_channels", "btn_scheduled",
-                    "btn_statistics", "btn_premium", "btn_settings",
+                    "btn_statistics", "btn_premium", "btn_invite_friends",
+                    "btn_settings",
                     "btn_cancel", "btn_main_menu", "btn_new_post",
                     "btn_ai_studio", "btn_help", "btn_extras", "btn_admin_panel"):
             try:
@@ -1663,7 +1674,7 @@ def main():
         test_i_channel_panel_management_screen,
         test_j_queue_menu_navigation,
         test_k_statistics_isolation,
-        test_l_settings_menu_8_groups_plus_back,
+        test_l_settings_menu_compact_profile_hub,
         test_m_pro_subscription_opens,
         test_n_tools_submenu_opens,
         test_o_no_duplicate_visible_buttons,

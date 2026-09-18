@@ -4,7 +4,7 @@ PostAssist V2 · 1-2 mikro qadamlar: asosiy menyudagi «✨ Kontent yaratish»
 tugmasi endi 5 ta yaratish yo'lini ochuvchi ICHKI MENYUni chizadi:
 
   * tugma yorliqlari (``cm_btn_*``) — birlashtirilgan menyu: ✍️ Oddiy post
-    (AI'siz) / ✨ AI bilan yaratish (Magic Post) / 🤖 AI Studio / ◀️ Orqaga
+    (AI'siz) / ✨ AI bilan yaratish (Magic Post) / 🤖 AI Yordamchi / ◀️ Orqaga
     (+ eski 📝 Matn → Post, 📸 Rasm → Post, 🎙 Ovoz → Post, 🤖 AI Yordamchi
     yorliqlari FAQAT routing aliasi sifatida saqlanadi);
   * submenu yo'riqnomasi (``cm_menu_intro``) — har bir yo'l nima qilishi
@@ -44,16 +44,16 @@ CONTENT_MENU_I18N = {
     "uz": {
         # --- Submenu tugma yorliqlari (reply klaviatura) ---
         # 🆕 BIRLASHTIRILGAN MENYU: bo'lingan va chalkash tugmalar 3 ta mantiqiy
-        # yo'nalishga birlashtirildi (Oddiy post / AI bilan yaratish / AI Studio).
+        # yo'nalishga birlashtirildi (Oddiy post / AI bilan yaratish / AI Yordamchi).
         "cm_btn_manual": "✍️ Oddiy post (AI'siz)",
         "cm_btn_magic": "✨ AI bilan yaratish (Magic Post)",
-        "cm_btn_studio": "🤖 AI Studio",
+        "cm_btn_studio": "🤖 AI Yordamchi",
         "cm_btn_back": "◀️ Orqaga",
         # --- ESKI (menyudan olib tashlangan, FAQAT routing alias) yorliqlar ---
         # Chat tarixidagi eski klaviatura xabarlari bosilsa ham foydalanuvchi
         # to'g'ri oqimga tushadi: 📝 Matn → Post endi Oddiy post oqimiga,
         # 📸 Rasm → Post va 🎙 Ovoz → Post o'z AI oqimlariga, 🤖 AI Yordamchi
-        # esa AI Studio bo'limiga olib boradi.
+        # esa AI Yordamchi bo'limiga olib boradi.
         "cm_btn_text": "📝 Matn → Post",
         "cm_btn_image": "📸 Rasm → Post",
         "cm_btn_voice": "🎙 Ovoz → Post",
@@ -67,11 +67,11 @@ CONTENT_MENU_I18N = {
             "✨ <b>AI bilan yaratish (Magic Post)</b> — g'oyani yozing yoki "
             "ovozingizni yuboring, AI noldan professional post generatsiya "
             "qiladi.\n"
-            "🤖 <b>AI Studio</b> — audit, tahlil va boshqa intellektual "
+            "🤖 <b>AI Yordamchi</b> — audit, tahlil va boshqa intellektual "
             "vositalar.\n\n"
             "<i>Yoki darhol rasm, ovoz yoki matn yuboring — oqim o'zi tanlaydi.</i>"
         ),
-        # --- 🤖 AI Yordamchi (AI Studio bo'limi) yo'riqnomasi ---
+        # --- 🤖 AI Yordamchi bo'limi yo'riqnomasi ---
         "cm_ai_hint": (
             "💬 Kerakli tugmani bosing yoki topiriqni erkin yozib yuboring: "
             "matn yozish, qayta yozish, tarjima va g'oya — barchasi bitta "
@@ -96,7 +96,7 @@ CONTENT_MENU_I18N = {
     "ru": {
         "cm_btn_manual": "✍️ Обычный пост (без AI)",
         "cm_btn_magic": "✨ Создать с AI (Magic Post)",
-        "cm_btn_studio": "🤖 AI Studio",
+        "cm_btn_studio": "🤖 AI Помощник",
         "cm_btn_back": "◀️ Назад",
         # --- СТАРЫЕ (убраны из меню, только алиасы маршрутизации) ---
         "cm_btn_text": "📝 Текст → Пост",
@@ -110,7 +110,7 @@ CONTENT_MENU_I18N = {
             "или планируется в канале.\n"
             "✨ <b>Создать с AI (Magic Post)</b> — опишите идею или отправьте "
             "голосовое: AI с нуля сгенерирует профессиональный пост.\n"
-            "🤖 <b>AI Studio</b> — аудит, анализ и другие интеллектуальные "
+            "🤖 <b>AI Помощник</b> — аудит, анализ и другие интеллектуальные "
             "инструменты.\n\n"
             "<i>Или сразу отправьте фото, голос или текст — режим выберется сам.</i>"
         ),
@@ -135,7 +135,7 @@ CONTENT_MENU_I18N = {
     "en": {
         "cm_btn_manual": "✍️ Regular post (no AI)",
         "cm_btn_magic": "✨ Create with AI (Magic Post)",
-        "cm_btn_studio": "🤖 AI Studio",
+        "cm_btn_studio": "🤖 AI Assistant",
         "cm_btn_back": "◀️ Back",
         # --- LEGACY (removed from the menu, routing aliases only) ---
         "cm_btn_text": "📝 Text → Post",
@@ -149,7 +149,7 @@ CONTENT_MENU_I18N = {
             "your channel right away.\n"
             "✨ <b>Create with AI (Magic Post)</b> — describe the idea or send "
             "a voice note: AI generates a professional post from scratch.\n"
-            "🤖 <b>AI Studio</b> — audit, analysis and other smart tools.\n\n"
+            "🤖 <b>AI Assistant</b> — audit, analysis and other smart tools.\n\n"
             "<i>Or just send a photo, voice note or text right now — the flow "
             "will be picked for you.</i>"
         ),

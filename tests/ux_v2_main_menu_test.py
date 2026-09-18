@@ -1,25 +1,28 @@
 #!/usr/bin/env python3
-"""UX V2 (2-MIKRO QADAM) — ASOSIY MENYU QAT'IY 6 TUGMA STANDARTI.
+"""UX V2 → 3-QISM — ASOSIY MENYU 7 TUGMA / 4 QATOR STANDARTI.
 
 Qamrov (topshiriq spetsifikatsiyasi bilan birma-bir):
 
-  TEST 1:  Asosiy menyuda FAQAT va FAQAT 6 ta tugma (UZ/RU/EN):
+  TEST 1:  Asosiy menyuda FAQAT va FAQAT 7 ta tugma (UZ/RU/EN):
            [✨ Kontent yaratish]   [📢 Kanallarim]
            [📅 Rejalashtirilgan]   [📊 Statistika]
-           [💎 PRO]                [⚙️ Sozlamalar]
+           [💎 PRO]                [👥 Do'stlarni taklif]
+           [👤 Profil]
   TEST 2:  Oddiy foydalanuvchiga HECH QACHON "Admin Panel" ko'rinmaydi;
-           faqat ADMIN_IDS a'zolariga 6 tugma + alohida [⚙️ Admin Panel].
+           faqat ADMIN_IDS a'zolariga 7 tugma + alohida [⚙️ Admin Panel].
            Eski tarqoq tugmalar (Qo'llanma / Qo'shimcha funksiyalar /
            Yangi post / AI Studio / Magic Post / Image Post / Post Score /
-           eski PRO & Kabinet yorliqlari) asosiy menyuda YO'Q.
-  TEST 3:  ROUTING — yangi 6 tugma va barcha ESKI tugmalar (keshda qolgan
+           eski PRO & Sozlamalar yorliqlari) asosiy menyuda YO'Q.
+  TEST 3:  ROUTING — yangi 7 tugma va barcha ESKI tugmalar (keshda qolgan
            eski xabarlar uchun) real router'da to'g'ri bo'limga tushadi,
-           fallback'ga emas (backward compatibility).
+           fallback'ga emas (backward compatibility). «🤖 AI Yordamchi»
+           (eski «AI Studio») → AI vositalar hub'i; eski «✨ AI Studio»
+           asosiy menyu yorlig'i → Kontent yaratish submenyusi.
   TEST 4:  STARS_PLANS SSOT — handlers/subscription.py da lokal shadowing
            YO'Q; precheckout (_validate_stars_payload) va PaymentService
            config.STARS_PLANS (yagona manba) bilan to'liq mos.
   TEST 5:  /start ONBOARDING — 3 tilda ixcham matn (PostAssist + rasm/matn/
-           ovoz) + standart 6-tugma menyu; admin 7-tugma; qayta foydalanuvchi
+           ovoz) + standart 7-tugma menyu; admin 8-tugma; qayta foydalanuvchi
            start_hello matnini oladi.
 
 Ishga tushirish:
@@ -54,22 +57,25 @@ failures = 0
 ADMIN_ID = int(os.environ.get("ADMIN_ID", "123456789"))
 LANGS = ("uz", "ru", "en")
 
-# Asosiy menyu — QAT'IY 6 TUGMA (3 tilda, tartibi bilan).
+# Asosiy menyu — QAT'IY 7 TUGMA / 4 QATOR (3 tilda, tartibi bilan).
 EXPECTED_MAIN = {
     "uz": (
         "✨ Kontent yaratish", "📢 Kanallarim",
         "📅 Rejalashtirilgan", "📊 Statistika",
-        "💎 PRO", "⚙️ Sozlamalar",
+        "💎 PRO", "👥 Do'stlarni taklif",
+        "👤 Profil",
     ),
     "ru": (
         "✨ Создать контент", "📢 Мои каналы",
         "📅 Запланированные", "📊 Статистика",
-        "💎 PRO", "⚙️ Настройки",
+        "💎 PRO", "👥 Пригласить друзей",
+        "👤 Профиль",
     ),
     "en": (
         "✨ Create content", "📢 My channels",
         "📅 Scheduled", "📊 Statistics",
-        "💎 PRO", "⚙️ Settings",
+        "💎 PRO", "👥 Invite friends",
+        "👤 Profile",
     ),
 }
 
@@ -132,24 +138,26 @@ from services.payment_service import PaymentService       # noqa: E402
 # ============================================================================
 # TEST 1 — QAT'IY 6 TUGMA (UZ/RU/EN, oddiy foydalanuvchi)
 # ============================================================================
-def test_strict_six_buttons():
-    print("\n== TEST 1: asosiy menyu — QAT'IY 6 tugma (uz/ru/en) ==")
+def test_strict_seven_buttons():
+    print("\n== TEST 1: asosiy menyu — QAT'IY 7 tugma / 4 qator (uz/ru/en) ==")
     for lang in LANGS:
         expected = EXPECTED_MAIN[lang]
         kb = get_main_keyboard(False, lang=lang)
         rows = kb_rows(kb)
         flat = kb_flat(kb)
-        check(f"user[{lang}]: aynan 6 tugma", len(flat) == 6, str(flat))
-        check(f"user[{lang}]: 3 qator x 2 tugma",
-              rows == [list(expected[0:2]), list(expected[2:4]), list(expected[4:6])],
+        check(f"user[{lang}]: aynan 7 tugma", len(flat) == 7, str(flat))
+        check(f"user[{lang}]: 4 qator (3 juftlik + yagona Profil)",
+              rows == [list(expected[0:2]), list(expected[2:4]),
+                       list(expected[4:6]), [expected[6]]],
               str(rows))
-        # Production yo'li (context bilan) ham aynan 6 tugma.
+        # Production yo'li (context bilan) ham aynan 7 tugma.
         kb_ctx = get_main_keyboard(False, lang=lang, context=object())
-        check(f"user[{lang}]: context bilan ham aynan 6 tugma",
+        check(f"user[{lang}]: context bilan ham aynan 7 tugma",
               kb_flat(kb_ctx) == list(expected), str(kb_flat(kb_ctx)))
         # I18n paritet: klaviatura lug'at kalitlaridan chizilgan.
         keys = ("btn_create_content", "btn_my_channels", "btn_scheduled",
-                "btn_statistics", "btn_premium", "btn_settings")
+                "btn_statistics", "btn_premium", "btn_invite_friends",
+                "btn_settings")
         check(f"user[{lang}]: yorliqlar lug'atdan (get_text)",
               flat == [get_text(k, lang) for k in keys], str(flat))
 
@@ -167,16 +175,17 @@ def test_admin_panel_visibility_and_removals():
         # Oddiy foydalanuvchiga Admin Panel HECH QACHON.
         check(f"user[{lang}]: Admin Panel ko'rinmaydi",
               BTN_ADMIN_PANEL not in user_flat, str(user_flat))
-        # Admin: 6 tugma + alohida Admin Panel qatori (oxirida).
-        check(f"admin[{lang}]: 6 tugma + Admin Panel = 7",
-              len(admin_flat) == 7, str(admin_flat))
+        # Admin: 7 tugma + alohida Admin Panel qatori (oxirida).
+        check(f"admin[{lang}]: 7 tugma + Admin Panel = 8",
+              len(admin_flat) == 8, str(admin_flat))
         check(f"admin[{lang}]: oxirgi qator = [Admin Panel]",
               admin_rows[-1] == [BTN_ADMIN_PANEL], str(admin_rows[-1]))
-        check(f"admin[{lang}]: birinchi 3 qator = 6-tugma standart",
-              admin_rows[:3] == [[EXPECTED_MAIN[lang][0], EXPECTED_MAIN[lang][1]],
+        check(f"admin[{lang}]: birinchi 4 qator = 7-tugma standarti",
+              admin_rows[:4] == [[EXPECTED_MAIN[lang][0], EXPECTED_MAIN[lang][1]],
                                  [EXPECTED_MAIN[lang][2], EXPECTED_MAIN[lang][3]],
-                                 [EXPECTED_MAIN[lang][4], EXPECTED_MAIN[lang][5]]],
-              str(admin_rows[:3]))
+                                 [EXPECTED_MAIN[lang][4], EXPECTED_MAIN[lang][5]],
+                                 [EXPECTED_MAIN[lang][6]]],
+              str(admin_rows[:4]))
         # Eski tarqoq tugmalar asosiy menyudan olingan (user VA admin).
         for old in OLD_MAIN_BUTTONS[lang]:
             check(f"user[{lang}]: eski tugma yo'q — {old!r}", old not in user_flat)
@@ -235,16 +244,17 @@ def _targets(H, handlers, label):
 
 
 def test_routing_new_and_legacy_buttons():
-    print("\n== TEST 3: routing — yangi 6 tugma + eski tugmalar (fallback EMAS) ==")
+    print("\n== TEST 3: routing — yangi 7 tugma + eski tugmalar (fallback EMAS) ==")
     H, handlers = _menu_handlers()
 
-    # Yangi 6-tugma standarti — HAR BIR TILDA aniq bir maqsadga.
+    # Yangi 7-tugma standarti — HAR BIR TILDA aniq bir maqsadga.
     new_routes = (
         ("btn_create_content", "ai_studio_menu_entry"),
         ("btn_my_channels", "channels_menu"),
         ("btn_scheduled", "queue_menu"),
         ("btn_statistics", "statistics_button"),
         ("btn_premium", "start_subscription"),
+        ("btn_invite_friends", "user_invite_menu"),
         ("btn_settings", "user_cabinet_menu"),
     )
     for key, expected in new_routes:
@@ -255,9 +265,12 @@ def test_routing_new_and_legacy_buttons():
                   names == {expected}, str(sorted(names)))
 
     # Eski (keshda qolgan) tugmalar — xavfsiz mos bo'limga yo'naltiriladi.
+    # 3-QISM: «🤖 AI Yordamchi» (eski «AI Studio» kontent-submenu tugmasi)
+    # endi AI vositalar HUB'ini ochadi; lug'at kaliti btn_ai_studio ham shu
+    # oqimga ulangan (nom AI Studio → AI Yordamchi deb o'zgardi).
     legacy_routes = (
         ("btn_new_post", "start_new_post"),
-        ("btn_ai_studio", "ai_studio_menu_entry"),
+        ("btn_ai_studio", "ai_studio_hub_entry"),
         ("btn_help", "help_command"),
         ("btn_extras", "extras_menu"),
     )
@@ -274,9 +287,15 @@ def test_routing_new_and_legacy_buttons():
         ("👤 Kabinet & Sozlamalar", "user_cabinet_menu"),
         ("👤 Кабинет & Настройки", "user_cabinet_menu"),
         ("👤 Account & Settings", "user_cabinet_menu"),
+        ("⚙️ Sozlamalar", "user_cabinet_menu"),
+        ("⚙️ Настройки", "user_cabinet_menu"),
+        ("⚙️ Settings", "user_cabinet_menu"),
+        ("✨ AI Studio", "ai_studio_menu_entry"),
         ("✨ Magic Post", "magic_post_entry"),
         ("📸 Rasm → Post", "image_post_entry"),
         ("📊 Post Score", "post_score_entry"),
+        ("🚀 Do'stlarni taklif qilish", "user_invite_menu"),
+        ("🚀 Пригласить друзей", "user_invite_menu"),
     )
     for label, expected in hard_legacy:
         names = _targets(H, handlers, label)
@@ -383,7 +402,7 @@ def _run_start(is_new: bool, lang: str, user_id: int):
 
 
 def test_start_onboarding_three_langs():
-    print("\n== TEST 5: /start onboarding (uz/ru/en) + 6-tugma menyu ==")
+    print("\n== TEST 5: /start onboarding (uz/ru/en) + 7-tugma menyu ==")
     for lang in LANGS:
         onb = get_text("start_onboarding", lang)
         # Matn: ixcham, tushunarli, 3 kirish usulini ko'rsatadi.
@@ -391,13 +410,13 @@ def test_start_onboarding_three_langs():
         check(f"onboarding[{lang}]: rasm/matn/ovoz (📸🎙) bor",
               "📸" in onb and "📝" in onb and "🎙" in onb, onb)
 
-        # Yangi foydalanuvchi — onboarding matni + standart 6-tugma menyu.
+        # Yangi foydalanuvchi — onboarding matni + standart 7-tugma menyu.
         text, markup, parse_mode = _run_start(True, lang, 900001)
         check(f"/start[{lang}]: onboarding matni boshida",
               text.startswith(onb), text[:80])
         check(f"/start[{lang}]: HTML parse_mode", parse_mode == "HTML")
         labels = kb_flat(markup)
-        check(f"/start[{lang}]: oddiy foydalanuvchida aynan 6 tugma",
+        check(f"/start[{lang}]: oddiy foydalanuvchida aynan 7 tugma",
               labels == list(EXPECTED_MAIN[lang]), str(labels))
         check(f"/start[{lang}]: Admin Panel YO'Q",
               BTN_ADMIN_PANEL not in labels, str(labels))
@@ -409,16 +428,16 @@ def test_start_onboarding_three_langs():
               text2[:80])
         check(f"/start qayta[{lang}]: onboarding matni YO'Q",
               onb not in text2)
-        check(f"/start qayta[{lang}]: menyu aynan 6 tugma",
+        check(f"/start qayta[{lang}]: menyu aynan 7 tugma",
               kb_flat(markup2) == list(EXPECTED_MAIN[lang]), str(kb_flat(markup2)))
 
-    # Admin — 6 tugma + Admin Panel.
+    # Admin — 7 tugma + Admin Panel.
     text_a, markup_a, _ = _run_start(True, "uz", ADMIN_ID)
     labels_a = kb_flat(markup_a)
-    check("/start[admin]: 6 tugma + Admin Panel = 7", len(labels_a) == 7, str(labels_a))
+    check("/start[admin]: 7 tugma + Admin Panel = 8", len(labels_a) == 8, str(labels_a))
     check("/start[admin]: Admin Panel bor", BTN_ADMIN_PANEL in labels_a)
-    check("/start[admin]: 6-tugma standart saqlangan",
-          labels_a[:6] == list(EXPECTED_MAIN["uz"]), str(labels_a[:6]))
+    check("/start[admin]: 7-tugma standart saqlangan",
+          labels_a[:7] == list(EXPECTED_MAIN["uz"]), str(labels_a[:7]))
 
     # 3-til paritet: yorliqlar har tilda farqli (PRO brend-nomi mustasno).
     for key in ("btn_create_content", "btn_my_channels", "btn_scheduled",
@@ -434,7 +453,7 @@ def main():
     print("=" * 62)
     print(" UX V2 — ASOSIY MENYU 6-TUGMA STANDARTI REGRESSIYA TESTLARI")
     print("=" * 62)
-    test_strict_six_buttons()
+    test_strict_seven_buttons()
     test_admin_panel_visibility_and_removals()
     test_routing_new_and_legacy_buttons()
     test_stars_plans_ssot()

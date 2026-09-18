@@ -6,11 +6,12 @@ Bo'limlar:
   * 📊 STATISTIKA — asosiy menyudagi «📊 Statistika» tugmasi ochadigan IXCHAM
     umumiy ko'rsatkichlar ekrani (ss_stats_*) va uning amallari
     [🔄 Yangilash] [◀️ Orqaga] (ss_btn_refresh / ss_btn_back);
-  * ⚙️ SOZLAMALAR — IXCHAM 7 guruhli menyu (UI/UX polish):
-    🌐 Til / Язык, 🎁 Bonuslar & Taklif, 🎨 Post sozlamalari,
-    🔔 Bildirishnomalar, 💳 To'lovlar tarixi, 🧰 Vositalar,
-    ❓ Yordam & Ma'lumot + ◀️ Orqaga (ss_btn_*). «👤 Profil» hub'dan
-    olib tashlangan — hub matnining o'zi profil kartasi;
+  * 👤 PROFIL — IXCHAM 6 tugmali menyu (3-QISM refaktori):
+    🌐 Til / Язык, ✍️ Post sozlamalari, 🔔 Bildirishnomalar,
+    💳 To'lovlar tarixi, 💬 Qo'llab-quvvatlash, ❌ Yopish (ss_btn_*).
+    Eski guruhlar (🎁 Bonuslar & Taklif, 🧰 Vositalar, ❓ Yordam &
+    Ma'lumot) hub'dan olib tashlandi — ularning stgs_* oqimlari
+    orqaga moslik uchun saqlanadi;
   * 🎁 BONUSLAR & BALLAR hub'i — 💎 Ballarim, 🔄 Ballar o'tkazish,
     🎁 Kunlik bonus, 👥 Do'stlarni taklif (ss_rewards_title);
   * ❓ YORDAM & MA'LUMOT hub'i — 📖 Qo'llanma & FAQ,
@@ -61,6 +62,8 @@ SETTINGS_STATS_I18N = {
         ),
         "ss_btn_refresh": "🔄 Yangilash",
         "ss_btn_back": "◀️ Orqaga",
+        # 3-QISM: 👤 Profil ixcham menyusining yopish tugmasi.
+        "ss_btn_close": "❌ Yopish",
         "ss_stats_refreshing": "🔄 Yangilanmoqda…",
 
         # --- 📊 SHAXSIY STATISTIKA: asosiy menyudagi «📊 Statistika» ekrani.
@@ -78,7 +81,7 @@ SETTINGS_STATS_I18N = {
 
         # --- ⚙️ SOZLAMALAR: yagona tartibli menyu ---
         "ss_menu_title": (
-            "⚙️ <b>Sozlamalar</b>\n\n"
+            "👤 <b>Profil</b>\n\n"
             "Kerakli bo'limni tanlang 👇"
         ),
         "ss_btn_profile": "👤 Profil",
@@ -90,7 +93,7 @@ SETTINGS_STATS_I18N = {
         "ss_btn_rewards": "🎁 Bonuslar & Taklif",
         "ss_btn_help_hub": "❓ Yordam & Ma'lumot",
         "ss_btn_notif": "🔔 Bildirishnomalar",
-        "ss_btn_post_settings": "🎨 Post sozlamalari",
+        "ss_btn_post_settings": "✍️ Post sozlamalari",
         "ss_btn_payments": "💳 To'lovlar tarixi",
         "ss_btn_referral": "🎁 Do'stlarni taklif qilish",
         "ss_btn_help": "❓ Yordam",
@@ -218,6 +221,7 @@ SETTINGS_STATS_I18N = {
         ),
         "ss_btn_refresh": "🔄 Обновить",
         "ss_btn_back": "◀️ Назад",
+        "ss_btn_close": "❌ Закрыть",
         "ss_stats_refreshing": "🔄 Обновляется…",
 
         # --- 📊 ЛИЧНАЯ СТАТИСТИКА: экран «📊 Статистика» главного меню.
@@ -231,7 +235,7 @@ SETTINGS_STATS_I18N = {
 
         # --- ⚙️ НАСТРОЙКИ: единое упорядоченное меню ---
         "ss_menu_title": (
-            "⚙️ <b>Настройки</b>\n\n"
+            "👤 <b>Профиль</b>\n\n"
             "Выберите раздел 👇"
         ),
         "ss_btn_profile": "👤 Профиль",
@@ -241,7 +245,7 @@ SETTINGS_STATS_I18N = {
         "ss_btn_rewards": "🎁 Бонусы и приглашения",
         "ss_btn_help_hub": "❓ Помощь и информация",
         "ss_btn_notif": "🔔 Уведомления",
-        "ss_btn_post_settings": "🎨 Настройки постов",
+        "ss_btn_post_settings": "✍️ Настройки постов",
         "ss_btn_payments": "💳 История платежей",
         "ss_btn_referral": "🎁 Пригласить друзей",
         "ss_btn_help": "❓ Помощь",
@@ -368,6 +372,7 @@ SETTINGS_STATS_I18N = {
         ),
         "ss_btn_refresh": "🔄 Refresh",
         "ss_btn_back": "◀️ Back",
+        "ss_btn_close": "❌ Close",
         "ss_stats_refreshing": "🔄 Refreshing…",
 
         # --- 📊 PERSONAL STATISTICS: the main menu "📊 Statistics" screen.
@@ -381,7 +386,7 @@ SETTINGS_STATS_I18N = {
 
         # --- ⚙️ SETTINGS: single ordered menu ---
         "ss_menu_title": (
-            "⚙️ <b>Settings</b>\n\n"
+            "👤 <b>Profile</b>\n\n"
             "Pick a section 👇"
         ),
         "ss_btn_profile": "👤 Profile",
@@ -391,7 +396,7 @@ SETTINGS_STATS_I18N = {
         "ss_btn_rewards": "🎁 Bonuses & Invites",
         "ss_btn_help_hub": "❓ Help & Info",
         "ss_btn_notif": "🔔 Notifications",
-        "ss_btn_post_settings": "🎨 Post settings",
+        "ss_btn_post_settings": "✍️ Post settings",
         "ss_btn_payments": "💳 Payment history",
         "ss_btn_referral": "🎁 Invite friends",
         "ss_btn_help": "❓ Help",
@@ -505,19 +510,24 @@ SETTINGS_STATS_I18N = {
 SETTINGS_STATS_KEYS = tuple(sorted(SETTINGS_STATS_I18N["uz"].keys()))
 
 # ============================================================
-# ⚙️ SOZLAMALAR MENYUSI — 7 GURUH + ORQAGA (Profil hub'dan olingan)
+# 👤 PROFIL — IXCHAM 6 TUGMALI MENYU (3-QISM refaktori)
 # ============================================================
-#: Asosiy hubdagi tugmalar — spetsifikatsiyadagi aniq tartib.
+#: Profil hub'idagi tugmalar — spetsifikatsiyadagi aniq tartib:
+#:   [🌐 Til / Язык]        [✍️ Post sozlamalari]
+#:   [🔔 Bildirishnomalar]  [💳 To'lovlar tarixi]
+#:   [💬 Qo'llab-quvvatlash]
+#:   [❌ Yopish]
+#: «🎁 Bonuslar & Taklif», «🧰 Vositalar», «❓ Yordam & Ma'lumot» va
+#: [◀️ Orqaga] hub'dan OLIB TASHLANDI: referral endi asosiy menyuda
+#: (👥 Do'stlarni taklif), kunlik bonus — referral ekranida; eski
+#: stgs_* callback oqimlari esa orqaga moslik uchun saqlanadi.
 SETTINGS_MENU_BUTTON_KEYS = (
-    # 🧹 "ss_btn_profile" olib tashlandi — hub matnining o'zi profil.
     "ss_btn_lang",
-    "ss_btn_rewards",
     "ss_btn_post_settings",
     "ss_btn_notif",
     "ss_btn_payments",
-    "ss_btn_tools",
-    "ss_btn_help_hub",
-    "ss_btn_back",
+    "ss_help_hub_support",
+    "ss_btn_close",
 )
 
 #: 🎁 Bonuslar & Ballar submenu'si tugma kalitlari.
@@ -569,15 +579,15 @@ CB_STATS_BACK = "an_close"
 CB_STATS_DETAIL = "an_detail"
 CB_STATS_OVERVIEW = "an_overview"
 
-#: Asosiy 7 guruhli Sozlamalar hub'i (stgs_profile legacy routing'da).
+#: 👤 Profil — 3-QISM ixcham 6 tugmali hub (testlar uchun spetsifikatsiya).
+#: Eski guruhlar (stgs_rewards / stgs_tools / stgs_help_hub / stgs_profile)
+#: ko'rinishdan olib tashlandi, lekin routing'da legacy sifatida saqlanadi.
 CB_SETTINGS_HUB = (
     "stgs_lang",
-    "stgs_rewards",
     "stgs_post",
     "stgs_notif",
     "stgs_pay",
-    "stgs_tools",
-    "stgs_help_hub",
+    "help_support",
     "stgs_back",
 )
 

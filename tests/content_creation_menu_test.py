@@ -8,7 +8,7 @@ DIQQAT: BOTNI ODDIY (AI'SIZ) POSTINGGA MOSLASH — menyu bo'lingan va chalkash
            yo'nalish + ◀️ Orqaga bo'ladi va qatorlar speksdagi tartibda:
                [✍️ Oddiy post (AI'siz)]
                [✨ AI bilan yaratish (Magic Post)]
-               [🤖 AI Studio]
+               [🤖 AI Yordamchi]
                    [◀️ Orqaga]
   TEST 2:  PARITY — barcha tugmalar UZ / RU / EN tillarida to'liq sinxron
            (registry + klaviatura + parity hisobotlari).
@@ -22,7 +22,7 @@ DIQQAT: BOTNI ODDIY (AI'SIZ) POSTINGGA MOSLASH — menyu bo'lingan va chalkash
   TEST 5:  ACTION-FIRST — menyu tashqarisida ovoz → STT oqimi, rasm → Vision
            oqimi, xom matn → «✨ Magic Post» taklifi (qisqa matn eski javob);
            «mnp_» stale entry dialog ichida holatni buzmaydi.
-  TEST 6:  REGRESSIYA QO'RIQONLARI — asosiy menyu 6 tugma o'zgarmadi,
+  TEST 6:  REGRESSIYA QO'RIQONLARI — asosiy menyu 7 tugma (3-QISM),
            fallback ENG oxirgi handler, yangi holat/prefikslar unikal,
            eski handlerlar ro'yxati buzilmagan, hardcode matn yo'q.
 
@@ -60,15 +60,15 @@ LANGS = ("uz", "ru", "en")
 EXPECTED_SUBMENU = {
     "uz": [["✍️ Oddiy post (AI'siz)"],
            ["✨ AI bilan yaratish (Magic Post)"],
-           ["🤖 AI Studio"],
+           ["🤖 AI Yordamchi"],
            ["◀️ Orqaga"]],
     "ru": [["✍️ Обычный пост (без AI)"],
            ["✨ Создать с AI (Magic Post)"],
-           ["🤖 AI Studio"],
+           ["🤖 AI Помощник"],
            ["◀️ Назад"]],
     "en": [["✍️ Regular post (no AI)"],
            ["✨ Create with AI (Magic Post)"],
-           ["🤖 AI Studio"],
+           ["🤖 AI Assistant"],
            ["◀️ Back"]],
 }
 
@@ -86,7 +86,7 @@ LEGACY_ROUTE = {
     "cm_btn_text": "manual_post_entry",      # 📝 Matn → Post → Oddiy post
     "cm_btn_image": "image_post_entry",      # 📸 Rasm → Post (Vision)
     "cm_btn_voice": "voice_post_entry",      # 🎙 Ovoz → Post (STT)
-    "cm_btn_ai": "ai_studio_hub_entry",      # 🤖 AI Yordamchi → AI Studio
+    "cm_btn_ai": "ai_studio_hub_entry",      # eski 🤖 AI Yordamchi aliasi
 }
 
 
@@ -363,31 +363,39 @@ def test_submenu_keyboard():
               rows[0] == [content_menu_t("cm_btn_manual", lang)])
         check(f"submenu[{lang}]: 2-qator ✨ AI bilan yaratish (Magic Post)",
               rows[1] == [content_menu_t("cm_btn_magic", lang)])
-        check(f"submenu[{lang}]: 3-qator 🤖 AI Studio",
+        check(f"submenu[{lang}]: 3-qator 🤖 AI Yordamchi",
               rows[2] == [content_menu_t("cm_btn_studio", lang)])
         check(f"submenu[{lang}]: 4-qator ◀️ Orqaga",
               rows[3] == [content_menu_t("cm_btn_back", lang)])
 
-    # ESKI bo'lingan tugmalar (Matn/Rasm/Ovoz → Post, AI Yordamchi) endi
-    # ko'rinadigan menyuda YO'Q — ular faqat routing alias'i.
+    # ESKI bo'lingan tugmalar (Matn/Rasm/Ovoz → Post) endi ko'rinadigan
+    # menyuda YO'Q — ular faqat routing alias'i. ESKI «🤖 AI Yordamchi»
+    # yorlig'i esa 3-QISMda ataylab QAYTA ishlatildi (AI Studio → AI
+    # Yordamchi nomi qaytdi), shuning uchun uning uz/en qiymatlari yangi
+    # ko'rinadigan tugma bilan AYNAN bir xil — bu dublikat EMAS.
+    visible_now = {
+        content_menu_t(key, lang)
+        for key in ("cm_btn_manual", "cm_btn_magic", "cm_btn_studio", "cm_btn_back")
+        for lang in LANGS
+    }
     legacy_labels = {
         content_menu_t(key, lang)
         for key in ("cm_btn_text", "cm_btn_image", "cm_btn_voice", "cm_btn_ai")
         for lang in LANGS
-    }
+    } - visible_now
     for lang in LANGS:
         visible = set(kb_flat(get_content_creation_keyboard(lang)))
         leaked = visible & legacy_labels
         check(f"submenu[{lang}]: eski bo'lingan tugmalar menyuda YO'Q",
               not leaked, str(leaked))
 
-    # Asosiy menyu 6 tugma STANDARTI o'zgarmadi (submenu unga aralashmaydi).
+    # Asosiy menyu 7 tugma STANDARTI (submenu unga aralashmaydi).
     for lang in LANGS:
         main_flat = kb_flat(get_main_keyboard(False, lang=lang))
-        check(f"main[{lang}]: 6 tugma saqlangan", len(main_flat) == 6, str(main_flat))
+        check(f"main[{lang}]: 7 tugma saqlangan", len(main_flat) == 7, str(main_flat))
         check(f"main[{lang}]: submenu tugmalari asosiy menyuda YO'Q",
               not set(main_flat) & set(kb_flat(get_content_creation_keyboard(lang))))
-    check("main[admin]: 7 tugma (Admin Panel oxirgi qatorda)",
+    check("main[admin]: 8 tugma (Admin Panel oxirgi qatorda)",
           kb_rows(get_main_keyboard(True, lang="uz"))[-1] == [BTN_ADMIN_PANEL])
 
 
@@ -409,21 +417,32 @@ def test_i18n_parity():
         check(f"{key}: kalit tugma klaviaturasiga kiradi",
               all(v in kb_flat(get_content_creation_keyboard(c))
                   for c, v in zip(LANGS, vals)), str(vals))
-    # «🤖 AI Studio» brend — uchala tilda bir xil; qolganlari farq qiladi.
-    check("cm_btn_studio: brend nomi 3 tilda bir xil",
-          {CONTENT_MENU_I18N[c]["cm_btn_studio"] for c in LANGS} == {"🤖 AI Studio"})
+    # 3-QISM: «AI Studio» → «AI Yordamchi» — endi UCHALA TILDA tarjima
+    # qilinadi (🤖 AI Yordamchi / 🤖 AI Помощник / 🤖 AI Assistant).
+    check("cm_btn_studio: 3 tilda tarjima (AI Yordamchi)",
+          {CONTENT_MENU_I18N[c]["cm_btn_studio"] for c in LANGS} ==
+          {"🤖 AI Yordamchi", "🤖 AI Помощник", "🤖 AI Assistant"},
+          str({CONTENT_MENU_I18N[c]["cm_btn_studio"] for c in LANGS}))
+    check("cm_btn_studio: 'Studio' so'zi qolmadi",
+          all("Studio" not in CONTENT_MENU_I18N[c]["cm_btn_studio"] for c in LANGS))
     for key in ("cm_btn_manual", "cm_btn_magic", "cm_btn_back"):
         vals = {CONTENT_MENU_I18N[c][key] for c in LANGS}
         check(f"{key}: 3 tilda farqli (sinxron tarjima)", len(vals) == 3, str(vals))
 
     # ESKI yorliqlar lug'atda SAQLANADI (routing alias manbasi).
-    legacy_keys = ("cm_btn_text", "cm_btn_image", "cm_btn_voice", "cm_btn_ai")
+    # cm_btn_ai (eski «🤖 AI Yordamchi») 3-QISMda yangi nom bilan
+    # ataylib birlashtirildi — uning uz/en qiymatlari ko'rinadigan
+    # tugmaga AYNAN teng, shuning uchun «CHIZILMAYDI» tekshiruvi
+    # faqat haqiqiy alohida aliaslarga qo'llaniladi.
+    legacy_keys = ("cm_btn_text", "cm_btn_image", "cm_btn_voice")
     for key in legacy_keys:
         check(f"{key}: alias lug'atda saqlangan (3 til)",
               all(CONTENT_MENU_I18N[c].get(key) for c in LANGS), key)
         check(f"{key}: alias menyuda CHIZILMAYDI",
               all(CONTENT_MENU_I18N[c][key] not in kb_flat(get_content_creation_keyboard(c))
                   for c in LANGS), key)
+    check("cm_btn_ai: alias lug'atda saqlangan (3 til)",
+          all(CONTENT_MENU_I18N[c].get("cm_btn_ai") for c in LANGS), "cm_btn_ai")
 
     # MENU_TEXTS registry: yangi oilalar uchala tilda to'liq.
     fams = {
@@ -434,8 +453,9 @@ def test_i18n_parity():
             "📝 Matn → Post", "📝 Текст → Пост", "📝 Text → Post",
         },
         "content_studio": {
-            "🤖 AI Studio",
-            "🤖 AI Yordamchi", "🤖 AI-помощник", "🤖 AI Assistant",
+            "🤖 AI Studio",  # eski submenu yorlig'i (routing alias)
+            "🤖 AI Yordamchi", "🤖 AI Помощник", "🤖 AI Assistant",
+            "🤖 AI-помощник",
         },
         "content_voice_post": {"🎙 Ovoz → Post", "🎙 Голос → Пост", "🎙 Voice → Post"},
         "content_back": {"◀️ Orqaga", "◀️ Назад", "◀️ Back"},
@@ -486,17 +506,23 @@ def test_submenu_routing():
             check(f"[{lang}] eski {label!r} → {expected} (alias)",
                   names == {expected}, str(sorted(names)))
 
-    # «✨ Kontent yaratish» (va meros «✨ AI Studio») submenu'ni ochadi.
+    # «✨ Kontent yaratish» (va meros «✨ AI Studio» asosiy menyu yorlig'i)
+    # submenu'ni ochadi.
     for lang in LANGS:
-        for key in ("btn_create_content", "btn_ai_studio"):
+        for key in ("btn_create_content",):
             label = get_text(key, lang)
             names = _targets(regex, label)
             check(f"[{lang}] {label!r} → ai_studio_menu_entry (submenu)",
                   names == {"ai_studio_menu_entry"}, str(sorted(names)))
+    for label in ("✨ AI Studio", "✨ AI Студия", "✨ Studio"):
+        names = _targets(regex, label)
+        check(f"eski asosiy menyu {label!r} → ai_studio_menu_entry (alias)",
+              names == {"ai_studio_menu_entry"}, str(sorted(names)))
 
-    # «🤖 AI Studio» endi AI Studio HUB'iga boradi (asosiy menyu entry'siga
-    # EMAS) — birlashtirish paytidagi to'qnashuv yechimini tekshiradi.
-    for label in ("🤖 AI Studio", "🤖 AI Yordamchi"):
+    # «🤖 AI Yordamchi» (eski «🤖 AI Studio» submenu yorlig'i) AI
+    # Yordamchi HUB'iga boradi (asosiy menyu entry'siga EMAS).
+    for label in ("🤖 AI Studio", "🤖 AI Yordamchi", "🤖 AI Помощник",
+                  "🤖 AI Assistant", "🤖 AI-помощник"):
         names = _targets(regex, label)
         check(f"{label!r} faqat ai_studio_hub_entry ga boradi",
               names == {"ai_studio_hub_entry"}, str(sorted(names)))
@@ -583,12 +609,12 @@ def test_submenu_flows():
         check(f"[{lang}] ✨ AI bilan yaratish yo'riqnomasi chiqdi",
               len(rec.sent) == 1 and rec.sent[0]["text"], str(rec.sent))
 
-        # 4) [🤖 AI Studio] → audit/tahlil vositalari bo'limi.
+        # 4) [🤖 AI Yordamchi] → audit/tahlil vositalari bo'limi.
         restore = _patch_db({"is_premium": False, "get_user_credits": 7})
         try:
             rec = _Rec()
             res = asyncio.run(ai_studio_hub_entry(_update_msg(rec), _ctx(lang)))
-            check(f"[{lang}] 🤖 AI Studio → AI bo'limi ochildi",
+            check(f"[{lang}] 🤖 AI Yordamchi → AI bo'limi ochildi",
                   res == AI_MENU_STATE and len(rec.sent) == 1, f"{res} {rec.sent}")
             labels = [b.text for row in rec.sent[0]["reply_markup"].inline_keyboard for b in row]
             check(f"[{lang}] AI bo'limida audit vositasi bor",
@@ -597,10 +623,10 @@ def test_submenu_flows():
         finally:
             restore()
 
-        # 5) [◀️ Orqaga] → asosiy 6 tugmali menyu.
+        # 5) [◀️ Orqaga] → asosiy 7 tugmali menyu.
         rec = _Rec()
         res = asyncio.run(content_creation_back(_update_msg(rec), _ctx(lang)))
-        check(f"[{lang}] ◀️ Orqaga → asosiy 6 tugmali menyu",
+        check(f"[{lang}] ◀️ Orqaga → asosiy 7 tugmali menyu",
               rec.sent and kb_flat(rec.sent[0]["reply_markup"]) ==
               kb_flat(get_main_keyboard(False, lang=lang)), str(rec.sent))
         check(f"[{lang}] ◀️ Orqaga → dialog yopildi (END)",
@@ -807,10 +833,10 @@ def test_regression_guards():
           conv.allow_reentry is True)
     check("conversation timeout o'zgarmagan", conv.conversation_timeout == 600)
 
-    # Asosiy 6 tugma + reply klaviatura API'lari buzilmagan.
+    # Asosiy 7 tugma + reply klaviatura API'lari buzilmagan.
     for lang in LANGS:
-        check(f"get_main_keyboard[{lang}]: 6 tugma",
-              len(kb_flat(get_main_keyboard(False, lang=lang))) == 6)
+        check(f"get_main_keyboard[{lang}]: 7 tugma",
+              len(kb_flat(get_main_keyboard(False, lang=lang))) == 7)
 
     # Callback data 64-bayt chegarasida (mnp_ch:<id> eng uzuni).
     from keyboards.callback_data import CALLBACK_DATA_MAX_BYTES, callback_byte_len

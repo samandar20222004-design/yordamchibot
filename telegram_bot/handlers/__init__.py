@@ -13,17 +13,20 @@ from telegram.ext import (
     CallbackQueryHandler,
     ConversationHandler,
     ChatMemberHandler,
+    InlineQueryHandler,
     PreCheckoutQueryHandler,
     filters,
 )
 from config import ADMIN_IDS_SET
 from keyboards.default import (
     exact,
-    # 🆕 UX V2 — asosiy menyu QAT'IY 6 TUGMA standarti (uz/ru/en):
+    # 🆕 3-QISM — asosiy menyu 7 TUGMA / 4 QATOR standarti (uz/ru/en):
     #   [✨ Kontent yaratish] [📢 Kanallarim]
     #   [📅 Rejalashtirilgan] [📊 Statistika]
-    #   [💎 PRO]              [⚙️ Sozlamalar]  (+ admin: ⚙️ Admin Panel)
+    #   [💎 PRO]              [👥 Do'stlarni taklif]
+    #   [👤 Profil]  (+ admin: ⚙️ Admin Panel)
     BTN_CREATE_CONTENT, BTN_CREATE_CONTENT_RU, BTN_CREATE_CONTENT_EN,
+    BTN_INVITE_FRIENDS, BTN_INVITE_FRIENDS_RU, BTN_INVITE_FRIENDS_EN,
     BTN_MY_CHANNELS, BTN_MY_CHANNELS_RU, BTN_MY_CHANNELS_EN,
     BTN_SCHEDULED, BTN_SCHEDULED_RU, BTN_SCHEDULED_EN,
     BTN_STATISTICS, BTN_STATISTICS_RU, BTN_STATISTICS_EN,
@@ -63,7 +66,7 @@ from keyboards.default import (
     # ✨ MAGIC POST — killer feature tugmasi (uz/ru/en)
     BTN_MAGIC_POST, BTN_MAGIC_POST_RU, BTN_MAGIC_POST_EN,
     # 🧩 BIRLASHTIRILGAN KONTENT YARATISH menyusi (3 yo'nalish + Orqaga):
-    #   ✍️ Oddiy post (AI'siz) / ✨ AI bilan yaratish (Magic Post) / 🤖 AI Studio.
+    #   ✍️ Oddiy post (AI'siz) / ✨ AI bilan yaratish (Magic Post) / 🤖 AI Yordamchi.
     # Eski bo'lingan yorliqlar (📝 Matn → Post, 🎙 Ovoz → Post, 🤖 AI
     # Yordamchi) ``MENU_TEXTS`` registry orqali ALIAS sifatida avtomatik
     # taniladi — ular uchun alohida konstanta import qilinmaydi.
@@ -81,6 +84,9 @@ from handlers.start import (
     start, user_cabinet_menu, user_invite_menu, daily_bonus_handler, start_transfer_credits, transfer_target_received, transfer_amount_received,
     help_command, help_menu_callback, cancel_handler, subscription_check_callback, check_user_subscribed,
     cabinet_callback, extras_menu, extras_close_callback,
+    # 👥 Do'stlarni taklif — [📲 Do'stlarga ulashish] (switch_inline_query)
+    # tugmasining inline natijasi (3-QISM refaktori).
+    referral_inline_query_handler,
     # ⚙️ Sozlamalar menyusidagi [🔄 Ballar o'tkazish] inline kirishi
     # (PostAssist V2 · 3-qadam) — mavjud TRANSFER FSM oqimini ochadi.
     transfer_inline_entry,
@@ -846,6 +852,10 @@ def register_all_handlers(app):
         MessageHandler(exact(BTN_BACK, BTN_MAIN_MENU, BTN_BACK_RU), lambda u, c: guard_menu(u, c, start)),
         MessageHandler(exact(BTN_BACK_EN), lambda u, c: guard_menu(u, c, start)),
         MessageHandler(exact(BTN_SETTINGS, BTN_CABINET, BTN_SETTINGS_RU, BTN_SETTINGS_EN), lambda u, c: guard_menu(u, c, user_cabinet_menu)),
+        # 👥 Do'stlarni taklif — referral endi ASOSIY menyuda (3-QISM):
+        # to'g'ridan-to'g'ri havola + takliflar soni + ballar va inline
+        # [📲 Do'stlarga ulashish] / [🎁 Kunlik bonus] tugmalari chiqadi.
+        MessageHandler(exact(BTN_INVITE_FRIENDS, BTN_INVITE_FRIENDS_RU, BTN_INVITE_FRIENDS_EN), lambda u, c: guard_menu(u, c, user_invite_menu)),
         MessageHandler(exact(BTN_HELP, BTN_HELP_RU, BTN_HELP_EN), lambda u, c: guard_menu(u, c, help_command)),
         MessageHandler(exact(BTN_EXTRAS, BTN_EXTRAS_RU, BTN_EXTRAS_EN), lambda u, c: guard_menu(u, c, extras_menu)),
         # --- Kabinet ichki tugmalari (uz/ru/en) ---
@@ -945,26 +955,28 @@ def register_all_handlers(app):
         MessageHandler(exact(BTN_CACHE_DB), lambda u, c: guard_entry(u, c, cache_db_menu)),
     ]
 
-    # 7. AI Studio (inline sub-menu — conversation ICHIDA doimiy navigatsiya)
-    # "✨ AI Studio" hozircha uchala tilda ham bir xil matn, lekin EN variant
-    # alohida qator sifatida saqlanadi — keyinchalik tarjima farqlansa ham
-    # routing buzilmaydi.
+    # 7. 🤖 AI Yordamchi (inline sub-menu — conversation ICHIDA doimiy
+    # navigatsiya). 3-QISM: «AI Studio» nomi «AI Yordamchi»ga o'zgardi —
+    # endi bu tugmalar audit/tahlil vositalari HUB'ini ochadi (kontent
+    # menyusidagi 🤖 tugmasi bilan AYNAN bir xil oqim). Eski «✨ AI Studio»
+    # asosiy menyu yorliqlari esa "create_content" oilasi orqali kontent
+    # yaratish submenyusiga yo'naltiriladi (oqim o'zgarmaydi).
     ai_handlers = [
-        MessageHandler(exact(BTN_AI_STUDIO, BTN_AI_STUDIO_RU), lambda u, c: guard_entry(u, c, ai_studio_menu_entry)),
-        MessageHandler(exact(BTN_AI_STUDIO_EN), lambda u, c: guard_entry(u, c, ai_studio_menu_entry)),
-        # 🆕 UX V2: "✨ Kontent yaratish" — asosiy menyu 6-tugma standarti
-        # kirish nuqtasi (kontent yaratish markazi = AI Studio oqimi).
+        MessageHandler(exact(BTN_AI_STUDIO, BTN_AI_STUDIO_RU), lambda u, c: guard_entry(u, c, ai_studio_hub_entry)),
+        MessageHandler(exact(BTN_AI_STUDIO_EN), lambda u, c: guard_entry(u, c, ai_studio_hub_entry)),
+        # 🆕 UX V2 → 3-QISM: "✨ Kontent yaratish" — asosiy menyu tugmasi,
+        # kontent yaratish markazi (submenyu) kirish nuqtasi.
         MessageHandler(exact(BTN_CREATE_CONTENT, BTN_CREATE_CONTENT_RU, BTN_CREATE_CONTENT_EN),
                        lambda u, c: guard_entry(u, c, ai_studio_menu_entry)),
     ]
 
     # 7c. 🧩 BIRLASHTIRILGAN KONTENT YARATISH menyusi (PostAssist V2).
-    # Submenu'ning o'zi «✨ Kontent yaratish» / «✨ AI Studio» tugmasi orqali
-    # ochiladi (ai_handlers'dagi yuqoridagi qator). Menyu 3 ta mantiqiy
-    # yo'nalishga birlashtirildi:
+    # Submenu'ning o'zi «✨ Kontent yaratish» tugmasi orqali ochiladi
+    # (ai_handlers'dagi yuqoridagi qator). Menyu 3 ta mantiqiy yo'nalishga
+    # birlashtirildi:
     #   ✍️ Oddiy post (AI'siz) → manual_post_entry (AI aralashuvisiz);
     #   ✨ AI bilan yaratish (Magic Post) → magic_handlers (o'z yorlig'i);
-    #   🤖 AI Studio → ai_studio_hub_entry (audit/tahlil vositalari).
+    #   🤖 AI Yordamchi → ai_studio_hub_entry (audit/tahlil vositalari).
     # Eski bo'lingan yorliqlar (📝 Matn → Post, 🎙 Ovoz → Post, 🤖 AI
     # Yordamchi) menyudan olib tashlandi, lekin ``exact()`` ularni MENU_TEXTS
     # registry orqali AVTOMATIK taniydi — chat tarixidagi eski tugmalar ham
@@ -1767,6 +1779,11 @@ def register_all_handlers(app):
     # 1. Global Buyruqlar
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("profile", user_cabinet_menu))
+    # 👥 Do'stlar taklif — inline rejim: [📲 Do'stlarga ulashish]
+    # (switch_inline_query) tanlangan chatda referal havola natijasini
+    # ulashadi (3-QISM). Botda BotFather orqali inline mode yoqilgan
+    # bo'lishi kerak.
+    app.add_handler(InlineQueryHandler(referral_inline_query_handler))
     # 👤 Profil / Sozlamalar — klaviatura matnini qo'lda yozish o'rniga
     # buyruq orqali ham kabinetga kirish mumkin (uz/ru/en — bitta yo'l).
     app.add_handler(CommandHandler("settings", user_cabinet_menu))

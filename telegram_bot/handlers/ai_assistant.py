@@ -84,9 +84,10 @@ AI_PHOTO_EDIT_INPUT = 410  # Foydalanuvchi tahrirlash talabini matn sifatida yub
 # 🎨 Rasm → post: taklif qilinadigan 3 xil uslub (rasmiy / do'stona / qisqa).
 PHOTO_VARIANT_STYLES = ("formal", "friendly", "concise")
 
-# AI Studio menyusi matni (⬅️ Orqaga shu xabarga qaytadi)
+# AI Yordamchi menyusi matni (⬅️ Orqaga shu xabarga qaytadi; aski nomi —
+# AI Studio, 3-QISM refaktorida «AI Yordamchi»ga o'zgartirildi).
 AI_STUDIO_MENU_TEXT = (
-    "🤖 <b>PostAssist AI Studio</b>\n\n"
+    "🤖 <b>PostAssist AI Yordamchi</b>\n\n"
     "Kanal kontentini yaratish uchun kerakli vositani tanlang:"
 )
 
@@ -276,7 +277,7 @@ def _ai_tone_label(tone: str, lang: str = "uz") -> str:
 
 
 async def _studio_menu_text(user_id: int, lang: str) -> str:
-    """AI Studio asosiy menyu matni (kirish yo'riqnomasi + AI ball ko'rsatkichi).
+    """AI Yordamchi asosiy menyu matni (kirish yo'riqnomasi + AI ball ko'rsatkichi).
 
     Foydalanuvchi tiliga (lang) mos tarjima qilinadi; admin/PRO uchun
     „♾ Cheksiz“, oddiy foydalanuvchi uchun mavjud ballar ko'rsatiladi.
