@@ -109,6 +109,12 @@ async def execute_provider(
         raise ai_service.AIProviderError(
             0, f"{handle.name}: javob formati noto'g'ri ({type(result).__name__})",
             provider=handle.name)
+    from .validator import validate_output, OutputQualityError
+    from .gateway import extract_text
+    checked = validate_output(extract_text(result), lang=lang)
+    if not checked.is_valid:
+        raise OutputQualityError(checked.error_code)
+    result = {"text": checked.text}
     logger.info("AI Engine: %s %.2fs ichida javob berdi", handle.name,
                 time.monotonic() - started)
     return result

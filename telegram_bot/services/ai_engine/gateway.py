@@ -130,6 +130,10 @@ class GatewayResult:
     #: Sinovdan o'tgan provayderlar (tartib bilan, diagnostika).
     provider_chain: list[str] = field(default_factory=list)
 
+    def structured_result(self, model):
+        from .schemas import parse_result
+        return parse_result(self.text, model)
+
     def json_result(self) -> dict | None:
         """Javob matnidan JSON dict ajratadi (bo'lmasa ``None``).
 
@@ -208,6 +212,8 @@ async def generate(
     force_refresh: bool = False,
     tone: str = "",
     is_pro: bool = False,
+    schema=None,
+    channel_context: str = "",
 ) -> GatewayResult:
     """Barcha AI matn so'rovlari uchun YAGONA kirish nuqtasi.
 
@@ -230,6 +236,13 @@ async def generate(
     started = time.monotonic()
     resolved_lane = resolve_lane(task=task, lane=lane, prompt=prompt)
     cache_enabled = resolved_lane.default_cache if use_cache is None else bool(use_cache)
+
+    from .prompts import PromptEngine
+    prompt, system_instruction = PromptEngine.build(
+        prompt, system=system_instruction or default_system_instruction(resolved_lane),
+        lang=lang, task=task or "Create the requested content.",
+        channel_context=channel_context, schema=schema,
+    )
 
     # 1) KESH TEKSHIRUVI (Fast Path birinchi qadam — provayderga chiqmasdan).
     key = ""
@@ -272,7 +285,7 @@ async def generate(
     async def _run() -> GatewayResult:
         return await _generate_via_chain(
             prompt, sys_instr, resolved_lane, lang,
-            overall=overall, started=started, task=str(task or ""),
+            overall=overall, started=started, task=str(task or ""), schema=schema,
         )
 
     try:
@@ -311,6 +324,7 @@ async def _generate_via_chain(
     overall: float,
     started: float,
     task: str = "",
+    schema=None,
 ) -> GatewayResult:
     """Lane tartibida provayderlar zanjiri + circuit breaker avto-fallback.
 
@@ -343,12 +357,33 @@ async def _generate_via_chain(
         per_provider = min(per_provider_cap, remaining)
         chain_tried.append(name)
         try:
-            result = await _providers.execute_provider(
-                handle, prompt, system_instruction, lang=lang, timeout=per_provider,
-            )
-            text = extract_text(result)
-            if not text:
-                raise RuntimeError(f"{name}: bo'sh javob")
+            from .validator import validate_output
+            for attempt in range(2):
+                remaining = overall - (time.monotonic() - started)
+                if remaining <= 0:
+                    raise asyncio.TimeoutError()
+                from .validator import OutputQualityError, QualityResult
+                from .safety import contains_leak
+                try:
+                    result = await _providers.execute_provider(
+                        handle, prompt, system_instruction + (
+                            "\nRegenerate: correct schema, language and substantive content."
+                            if attempt else ""), lang=lang, timeout=min(per_provider, remaining),
+                    )
+                    text = extract_text(result)
+                    # Generic text is validated at the real provider boundary;
+                    # typed contracts are additionally validated here.
+                    checked = (validate_output(text, lang=lang, schema=schema) if schema
+                               else QualityResult(bool(text) and not contains_leak(text), text))
+                except OutputQualityError:
+                    checked = QualityResult(False, error_code="INVALID_OUTPUT")
+                if checked.is_valid:
+                    break
+            if not checked.is_valid:
+                raise ValueError(checked.error_code or "INVALID_OUTPUT")
+            text = checked.text
+            # Never retain unsanitized aliases in raw/cache.
+            result = {"text": text}
             monitor.record_success(name)
             logger.info("AI Engine [%s]: javob %s provayderidan (%.2fs)",
                         lane.value, name, time.monotonic() - started)
@@ -438,7 +473,7 @@ async def vision_analyze(
         logger.warning("AI Engine [VISION]: tahlil xatosi: %s", exc)
         return GatewayResult(
             ok=False, lane=lane, task="vision", elapsed=time.monotonic() - started,
-            raw={"error": str(exc)}, error=str(exc) or None,
+            raw={}, error=_graceful_error(lang),
         )
 
 
@@ -537,3 +572,18 @@ __all__ = [
     "Lane",
     "LaneSpec",
 ]
+
+
+async def generate_post(prompt: str, **kwargs) -> GatewayResult:
+    from .schemas import PostResult
+    return await generate(prompt, task="simple_post", schema=PostResult, **kwargs)
+
+
+async def audit(prompt: str, **kwargs) -> GatewayResult:
+    from .schemas import AuditResult
+    return await generate(prompt, task="audit", schema=AuditResult, **kwargs)
+
+
+async def plan(prompt: str, **kwargs) -> GatewayResult:
+    from .schemas import PlanResult
+    return await generate(prompt, task="weekly_plan", schema=PlanResult, **kwargs)

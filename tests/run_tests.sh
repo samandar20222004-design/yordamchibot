@@ -148,6 +148,8 @@ PY=$(resolve_py)
 echo "[INFO] Python interpreter: $PY ($($PY --version 2>&1 || echo 'unknown'))"
 EXIT_CODE=0
 
+"$PY" tests/ai_quality_and_prompt_engine_test.py || EXIT_CODE=1
+
 # --- P0-A: TEST MUHITI ------------------------------------------------------
 # Barcha testlar OFFLINE (tashqi AI kalitisiz, MockProvider bilan) ishlaydi,
 # shuning uchun Mock ruxsat etilgan muhit e'lon qilinadi.
