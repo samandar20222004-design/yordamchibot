@@ -502,8 +502,42 @@ def _extract_user_id(update):
     return _as_int(getattr(user, "id", None))
 
 
+#: 🧹 FAZA 26 — dekorator ``message`` maydoni uchun i18n belgisi:
+#: ``"adm:<kalit>"`` shaklidagi xabarlar yuborishdan OLDIN foydalanuvchi
+#: (admin) tilidagi matnga aylantiriladi (``translations.admin_panel.admin_t``).
+I18N_MESSAGE_PREFIX = "adm:"
+
+
+def _resolve_denied_message(message, user_id=None) -> str:
+    """``adm:<kalit>`` belgisini admin tilidagi matnga aylantiradi (fail-soft).
+
+    Oddiy satrlar o'zgarmaydi (orqaga moslik). Til aniqlanmasa — ``uz``.
+    """
+    if not isinstance(message, str) or not message.startswith(I18N_MESSAGE_PREFIX):
+        return message if isinstance(message, str) else str(message or "")
+    try:
+        from translations import admin_t
+        from locales.translations import normalize_lang
+
+        lang = "uz"
+        if user_id:
+            try:
+                import database as _db
+                lang = normalize_lang(_db.get_user_language(user_id))
+            except Exception:  # pragma: no cover — DB/cache xatosi ham o'lmaydi
+                lang = "uz"
+        return admin_t(message[len(I18N_MESSAGE_PREFIX):], lang)
+    except Exception:  # pragma: no cover — i18n ham yiqilsa marker qaytadi
+        return message
+
+
 async def _send_denied(update, message: str) -> None:
-    """Rad javobini foydalanuvchiga yetkazadi (xato bo'lsa jim o'tadi)."""
+    """Rad javobini foydalanuvchiga yetkazadi (xato bo'lsa jim o'tadi).
+
+    🧹 FAZA 26: ``adm:<kalit>`` markerli xabarlar avval foydalanuvchi
+    tilidagi matnga aylantiriladi (admin panel i18n pariteti).
+    """
+    message = _resolve_denied_message(message, _extract_user_id(update))
     try:
         query = getattr(update, "callback_query", None)
         if query is not None:

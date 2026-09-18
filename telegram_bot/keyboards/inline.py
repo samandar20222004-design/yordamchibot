@@ -38,6 +38,7 @@ from keyboards.callback_data import (  # noqa: F401 — re-export (eski importla
     cb,
     is_callback_safe,
 )
+from keyboards.nav import nav_button  # 🧭 FAZA 17 — kanonik navigatsiya tugmalari
 
 # Telegram tugma matni bo'sh bo'lishi mumkin emas (BadRequest) va juda uzun
 # nom tugmani buzadi — shuning uchun barcha yorliqlar shu yerdan o'tkaziladi.
@@ -126,7 +127,8 @@ def get_cache_actions_keyboard() -> InlineKeyboardMarkup:
     """DB/kesh holati oynasi uchun tugmalar."""
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("🗑 Keshlarni tozalash", callback_data="cache_clear")],
-        [InlineKeyboardButton("❌ Yopish", callback_data="close_msg")],
+        # 🧭 FAZA 17: kanonik [❌ Yopish] (vaqtinchalik oynani yopish).
+        [nav_button("close")],
     ])
 
 
@@ -139,7 +141,8 @@ def get_sponsors_delete_keyboard(sponsors: list) -> InlineKeyboardMarkup:
             InlineKeyboardButton(f"❌ {label} (O'chirish)", callback_data=cb(CB_SPONSOR_DELETE, s_id))
         ])
     # Ro'yxat oynasini yopish tugmasi — admin ekranda keraksiz xabar qolib ketmasligi uchun
-    keyboard.append([InlineKeyboardButton("❌ Yopish", callback_data="close_msg")])
+    # 🧭 FAZA 17: kanonik [❌ Yopish].
+    keyboard.append([nav_button("close")])
     return InlineKeyboardMarkup(keyboard)
 
 
@@ -156,8 +159,9 @@ def get_admin_sponsors_keyboard(sponsors: list) -> InlineKeyboardMarkup:
         InlineKeyboardButton("➕ Yangi kanal qo'shish", callback_data="adm_add_sponsor")
     ])
     keyboard.append([
-        InlineKeyboardButton("⬅️ Orqaga", callback_data="adm_back"),
-        InlineKeyboardButton("❌ Yopish", callback_data="close_msg"),
+        # 🧭 FAZA 17: kanonik [⬅️ Orqaga] (dashboard) + [❌ Yopish].
+        nav_button("back", "adm_back"),
+        nav_button("close"),
     ])
     return InlineKeyboardMarkup(keyboard)
 
@@ -205,8 +209,9 @@ def get_ad_hub_keyboard(channel_total: int = 0, channel_active: int = 0,
             InlineKeyboardButton(f"🔘 {ch_status}", callback_data="adm_channel_ad_toggle"),
         ],
         [
-            InlineKeyboardButton("⬅️ Orqaga", callback_data="adm_back"),
-            InlineKeyboardButton("❌ Bekor qilish", callback_data="adm_cancel"),
+            # 🧭 FAZA 17: kanonik [⬅️ Orqaga] + [❌ Bekor qilish].
+            nav_button("back", "adm_back"),
+            nav_button("cancel", "adm_cancel"),
         ],
     ]
     return InlineKeyboardMarkup(keyboard)
@@ -216,7 +221,8 @@ def get_hub_back_keyboard() -> InlineKeyboardMarkup:
     """Reklama hub'iga qaytish + bekor qilish (matn kutish ekranlari uchun)."""
     return InlineKeyboardMarkup([[
         InlineKeyboardButton("🎯 Markazga", callback_data="adm_adhub"),
-        InlineKeyboardButton("❌ Bekor qilish", callback_data="adm_cancel"),
+        # 🧭 FAZA 17: kanonik [❌ Bekor qilish].
+        nav_button("cancel", "adm_cancel"),
     ]])
 
 
@@ -292,8 +298,9 @@ def get_admin_monitoring_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("📜 Audit | 👥 Rollar", callback_data="adm_audit_roles")],
         [
-            InlineKeyboardButton("⬅️ Orqaga", callback_data="adm_back"),
-            InlineKeyboardButton("❌ Yopish", callback_data="close_msg"),
+            # 🧭 FAZA 17: kanonik [⬅️ Orqaga] + [❌ Yopish].
+            nav_button("back", "adm_back"),
+            nav_button("close"),
         ],
     ])
 
@@ -303,12 +310,16 @@ def get_admin_back_keyboard(cancel: bool = True) -> InlineKeyboardMarkup:
 
     ``adm_cancel`` — jarayonni (FSM holatini) to'liq bekor qiladi va admin
     panelga qaytaradi. Shu sababli har bir tahrirlash ekranida mavjud.
+
+    🧭 FAZA 17: yorliqlar kanonik navigatsiya standartidan (``keyboards.nav``)
+    olinadi — «⬅️ Orqaga» = parent oyna, «❌ Bekor qilish» = FSM to'xtatish,
+    «❌ Yopish» = vaqtinchalik oynani yopish.
     """
-    row = [InlineKeyboardButton("⬅️ Orqaga", callback_data="adm_back")]
+    row = [nav_button("back", "adm_back")]
     if cancel:
-        row.append(InlineKeyboardButton("❌ Bekor qilish", callback_data="adm_cancel"))
+        row.append(nav_button("cancel", "adm_cancel"))
     else:
-        row.append(InlineKeyboardButton("❌ Yopish", callback_data="close_msg"))
+        row.append(nav_button("close"))
     return InlineKeyboardMarkup([row])
 
 
@@ -355,7 +366,8 @@ def get_ad_pool_menu_keyboard(scope: str, ads: list = None,
     # dashboard'ga emas, Reklama markaziga qaytadi (bitta yagona oqim).
     keyboard.append([
         InlineKeyboardButton("🎯 Markazga", callback_data="adm_adhub"),
-        InlineKeyboardButton("❌ Bekor qilish", callback_data="adm_cancel"),
+        # 🧭 FAZA 17: kanonik [❌ Bekor qilish].
+        nav_button("cancel", "adm_cancel"),
     ])
     return InlineKeyboardMarkup(keyboard)
 
@@ -385,7 +397,8 @@ def get_ad_edit_keyboard(ad: dict, scope: str) -> InlineKeyboardMarkup:
     keyboard.append([InlineKeyboardButton("🗑 Reklamani o'chirish", callback_data=cb(f"adp:{scope}:rm:{ad_id}"))])
     keyboard.append([
         InlineKeyboardButton("⬅️ Menyuga", callback_data=cb(f"adp:{scope}:back")),
-        InlineKeyboardButton("❌ Bekor qilish", callback_data="adm_cancel"),
+        # 🧭 FAZA 17: kanonik [❌ Bekor qilish].
+        nav_button("cancel", "adm_cancel"),
     ])
     return InlineKeyboardMarkup(keyboard)
 
@@ -400,7 +413,8 @@ def get_ad_interval_keyboard(scope: str = "channel", current: int = None) -> Inl
         row,
         [
             InlineKeyboardButton("⬅️ Menyuga", callback_data=cb(f"adp:{scope}:back")),
-            InlineKeyboardButton("❌ Bekor qilish", callback_data="adm_cancel"),
+            # 🧭 FAZA 17: kanonik [❌ Bekor qilish].
+            nav_button("cancel", "adm_cancel"),
         ],
     ])
 
@@ -418,8 +432,9 @@ def get_ad_pool_delete_keyboard(ads: list, scope: str) -> InlineKeyboardMarkup:
             InlineKeyboardButton(f"❌ {label}", callback_data=cb(f"adp:{scope}:rm:{ad_id}"))
         ])
     keyboard.append([
-        InlineKeyboardButton("⬅️ Orqaga", callback_data=cb(f"adp:{scope}:back")),
-        InlineKeyboardButton("❌ Bekor qilish", callback_data="adm_cancel"),
+        # 🧭 FAZA 17: kanonik [⬅️ Orqaga] + [❌ Bekor qilish].
+        nav_button("back", cb(f"adp:{scope}:back")),
+        nav_button("cancel", "adm_cancel"),
     ])
     return InlineKeyboardMarkup(keyboard)
 
@@ -429,7 +444,8 @@ def get_ad_pool_back_keyboard(scope: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
         [
             InlineKeyboardButton("⬅️ Menyuga", callback_data=cb(f"adp:{scope}:back")),
-            InlineKeyboardButton("❌ Bekor qilish", callback_data="adm_cancel"),
+            # 🧭 FAZA 17: kanonik [❌ Bekor qilish].
+            nav_button("cancel", "adm_cancel"),
         ],
     ])
 
@@ -512,7 +528,10 @@ def get_ai_studio_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
             # 🧭 4-qadam: ◀️ Orqaga → Kontent yaratish submenyusi.
             InlineKeyboardButton(_content_back_label(lang), callback_data="ai_back_to_content"),
             # 🏠 Asosiy menyu → asosiy 6 tugmali menyu (eski studio_close).
-            InlineKeyboardButton(get_text("ai_btn_main_menu", lang), callback_data="studio_close"),
+            # 🧭 FAZA 17: yagona kanonik yorliq — get_ai_studio_plan_keyboard
+            # bilan AYNAN bir xil (avval «⬅️ Asosiy menyu», endi «🔙 Asosiy
+            # menyu» — bir xil vazifa, bir xil tugma).
+            InlineKeyboardButton(get_text("btn_main_menu", lang), callback_data="studio_close"),
         ],
     ]
     return InlineKeyboardMarkup(keyboard)
@@ -918,8 +937,14 @@ def _profile_support_button(lang: str) -> InlineKeyboardButton:
     )
 
 
-def get_cabinet_inline_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
-    """⚙️ Sozlamalar — 7 TUGMALI inline panel.
+def get_settings_profile_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
+    """⚙️ Sozlamalar — 7 TUGMALI inline panel (KANONIK QURUVCHI).
+
+    🧹 FAZA 18 — DUBLIKAT KLAVIATURALAR TOZALANDI: bu funksiya profil/
+    kabinet/sozlamalar panelining YAGONA MANBASI. Boshqa barcha nomlar
+    (``get_cabinet_inline_keyboard``, ``get_settings_hub_keyboard``) endi
+    AYNAN SHU funksiyaga yo'naltiriladi — panel bir joyda, bitta tavsifda
+    saqlanadi, ikkita alohida nusxa paydo bo'lishi imkonsiz.
 
         [🌐 Til / Язык]        [✍️ Post sozlamalari]
         [🔔 Bildirishnomalar]  [👥 Do'stlarni taklif]
@@ -970,15 +995,16 @@ def get_cabinet_inline_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
     ])
 
 
-def get_settings_profile_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
-    """👤 Profil ekranining klaviaturasi — 7 tugmali Sozlamalar paneli.
+def get_cabinet_inline_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
+    """👤 Kabinet inline paneli — KANONIK ``get_settings_profile_keyboard``.
 
-    Profil va Sozlamalar YAGONA ekranga birlashtirilgan — bu funksiya
-    endi ``get_settings_hub_keyboard`` bilan AYNAN bir xil panelni qaytaradi
-    (eski ``stgs_profile`` callback'i bosilganda ham yangi menyu chiziladi;
-    [◀️ Orqaga] dublikati kerak emas — panelning o'zi hub).
+    🧹 FAZA 18: bu funksiya endi MANTIQNI SAQLAMAYDI — u to'liq kanonik
+    quruvchiga yo'naltirilgan (delegation). Chat tarixidagi eski chaqiruvlar
+    va testlar uchun API nomi saqlanadi; panel AYNAN bir xil qoladi
+    (7 tugma: Til / Post sozlamalari / Bildirishnomalar / Do'stlarni taklif /
+    To'lovlar / Qo'llab-quvvatlash / ❌ Yopish).
     """
-    return get_settings_hub_keyboard(lang)
+    return get_settings_profile_keyboard(lang)
 
 
 # ============================================================
@@ -1001,15 +1027,18 @@ def get_settings_profile_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
 
 
 def get_settings_hub_keyboard(lang: str = "uz", include_legacy: bool = False) -> InlineKeyboardMarkup:
-    """⚙️ Sozlamalar asosiy hub'i: 7 tugma (Til / Post sozlamalari /
-    Bildirishnomalar / Do'stlarni taklif / To'lovlar / Qo'llab-quvvatlash /
-    Yopish).
+    """⚙️ Sozlamalar asosiy hub'i — KANONIK ``get_settings_profile_keyboard``.
+
+    🧹 FAZA 18: yagona manba endi ``get_settings_profile_keyboard`` — bu
+    funksiya ham faqat yo'naltiruvchi (delegation). 7 tugma: Til / Post
+    sozlamalari / Bildirishnomalar / Do'stlarni taklif / To'lovlar /
+    Qo'llab-quvvatlash / Yopish.
 
     ``include_legacy`` avvalgi 8-tugmali API bilan chaqiruvchi kodlar uchun
     saqlangan. Legacy tugmalar endi yangi hub'da ko'rsatilmaydi; ularning
     callback'lari esa routing'da qo'llab-quvvatlanadi.
     """
-    return get_cabinet_inline_keyboard(lang)
+    return get_settings_profile_keyboard(lang)
 
 
 def get_settings_rewards_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:

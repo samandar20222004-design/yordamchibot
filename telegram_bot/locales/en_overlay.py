@@ -607,6 +607,11 @@ EN_OVERLAY = {
         "♻️ This button is stale (the bot was restarted). "
         "Open the menu again: /start"
     ),
+    # 🗝 FAZA 19 — fail-closed rejection for unknown/tampered callbacks.
+    "callback_rejected": (
+        "⛔ This action is unavailable or failed the security check. "
+        "Please use the menu: /start"
+    ),
     "sys_unexpected_error": (
         "⚠️ <b>An unexpected error occurred.</b>\n"
         "Please try again a bit later or tap /start."

@@ -25,6 +25,9 @@ from keyboards.inline import (
 )
 from utils import ai_agent
 from locales.translations import clear_fsm_data, get_lang, get_text
+# 👑 FAZA 26 — admin panelning BARCHA matnlari yagona i18n lug'atidan
+# (translations/admin_panel.py — uz/ru/en 100% paritet) olinadi.
+from translations import admin_t
 # 6-bosqich: RBAC (rollar/ruxsatlar) va admin harakatlari auditi.
 from keyboards.callback_data import CB_SPONSOR_DELETE
 from services.rbac_service import (
@@ -92,27 +95,35 @@ def _telegram_text_length(text: str) -> int:
     return len(text.encode("utf-16-le")) // 2
 
 
-def format_admin_channels_list(channels: list) -> str:
-    """Eng so'nggi kanallar uchun HTML-xavfsiz, 4096 dan oshmaydigan matn."""
+def format_admin_channels_list(channels: list, lang: str = "uz") -> str:
+    """Eng so'nggi kanallar uchun HTML-xavfsiz, 4096 dan oshmaydigan matn.
+
+    🧹 FAZA 26: barcha yorliqlar i18n'dan (``admin_t``) — foydalanuvchi
+    (admin) tanlagan tilda.
+    """
     header = (
-        f"📋 <b>Eng so'nggi {len(channels)} ta ulangan kanal "
-        f"(ko'pi bilan {ADMIN_CHANNELS_LIMIT}):</b>\n\n"
+        admin_t("channels_recent_header", lang,
+                count=len(channels), limit=ADMIN_CHANNELS_LIMIT)
+        + "\n\n"
     )
     entries = []
     for channel_id, title, user_id, username in channels:
-        title = _short_text(title or "Kanal", 160)
+        title = _short_text(title or admin_t("channel_generic_title", lang), 160)
         channel_id = _short_text(channel_id, 64)
         owner = f"@{_short_text(username, 64)}" if username else f"ID:{user_id}"
         entries.append(
-            f"📢 <b>{html_escape(title)}</b> (<code>{html_escape(channel_id)}</code>)\n"
-            f"   👤 Egasi: {html_escape(owner)}\n\n"
+            admin_t("channels_entry", lang,
+                    title=html_escape(title),
+                    channel=html_escape(channel_id),
+                    owner=html_escape(owner))
+            + "\n\n"
         )
 
     visible_entries = entries[:]
     while True:
         omitted = len(entries) - len(visible_entries)
         footer = (
-            f"… {omitted} ta kanal Telegramning 4096 belgilik limiti sabab ko'rsatilmagan."
+            admin_t("channels_omitted_footer", lang, count=omitted)
             if omitted else ""
         )
         text = header + "".join(visible_entries) + footer
@@ -122,76 +133,81 @@ def format_admin_channels_list(channels: list) -> str:
         visible_entries.pop()
 
 
-# Admin panelda ko'rsatiladigan AI parametrlari (kalit -> (DB key, UI belgi, tavsif))
+# Admin panelda ko'rsatiladigan AI parametrlari (kalit -> (DB key, UI belgi,
+# i18n tavsif kaliti)). 🧹 FAZA 26: tavsiflar endi ``admin_t()`` orqali
+# uchala tilda (uz/ru/en) chiziladi — UI belgilari texnik atamalar.
 AI_SETTINGS_KEYS = {
-    "temperature": ("ai_temperature", "🌡 temperature", "0.0–2.0 (0.2 = aniq)"),
-    "max_tokens": ("ai_max_tokens", "📄 max_tokens", "128–8192 (1024) yoki off"),
-    "top_p": ("ai_top_p", "🎯 top_p", "0.0–1.0 (1.0) yoki off"),
-    "max_prompt_chars": ("ai_max_prompt_chars", "🧩 prompt limiti", "500–12000 belgi (3000)"),
-    "context_chars": ("ai_context_chars", "💬 kontekst hajmi", "500–20000 belgi (4000)"),
-    "context_messages": ("ai_context_messages", "🧠 kontekst xabarlari", "0–20 dona (6)"),
-    "extra_context": ("ai_extra_context", "📌 qo'shimcha ko'rsatma", "matn (bo'sh qoldirsangiz o'chadi)"),
+    "temperature": ("ai_temperature", "🌡 temperature", "ai_hint_temperature"),
+    "max_tokens": ("ai_max_tokens", "📄 max_tokens", "ai_hint_max_tokens"),
+    "top_p": ("ai_top_p", "🎯 top_p", "ai_hint_top_p"),
+    "max_prompt_chars": ("ai_max_prompt_chars", "🧩 prompt limiti", "ai_hint_max_prompt_chars"),
+    "context_chars": ("ai_context_chars", "💬 kontekst hajmi", "ai_hint_context_chars"),
+    "context_messages": ("ai_context_messages", "🧠 kontekst xabarlari", "ai_hint_context_messages"),
+    "extra_context": ("ai_extra_context", "📌 qo'shimcha ko'rsatma", "ai_hint_extra_context"),
 }
 
 
-def _ai_settings_text() -> str:
+def _ai_settings_text(lang: str = "uz") -> str:
     params = ai_agent.get_runtime_params()
     lines = []
-    for key, (db_key, label, hint) in AI_SETTINGS_KEYS.items():
+    for key, (db_key, label, hint_key) in AI_SETTINGS_KEYS.items():
         value = params.get(key)
         value_text = "-" if value in (None, "") else str(value)
+        hint = admin_t(hint_key, lang)
         lines.append(f"   • <b>{label}</b> = <code>{html_escape(value_text)}</code>  <i>({hint})</i>")
     return "\n".join(lines)
 
 
-def _build_dashboard_text(stats: dict) -> str:
-    """Admin dashboard matnini yaratadi."""
+def _build_dashboard_text(stats: dict, lang: str = "uz") -> str:
+    """Admin dashboard matnini yaratadi (admin tilida — FAZA 26)."""
     return (
-        "👑 <b>Admin Boshqaruv Paneli</b>\n"
+        admin_t("dash_title", lang) + "\n"
         "━━━━━━━━━━━━━━━━━\n"
-        f"👥 Jami foydalanuvchilar: <b>{stats['users']} ta</b>\n"
-        f"⭐️ PRO obunachilar: <b>{stats['pro_subscribers']} ta</b>\n"
-        f"📢 Ulangan faol kanallar: <b>{stats['channels']} ta</b>\n"
-        f"📝 Bugun chiqarilgan postlar: <b>{stats['posts_today']} ta</b>\n"
-        f"⏳ Navbatdagi postlar: <b>{stats['pending_posts']} ta</b>\n"
-        f"⭐️ Telegram Stars tushumi: <b>{stats['stars_revenue']} XTR</b>\n"
+        + admin_t("dash_users", lang, users=stats['users']) + "\n"
+        + admin_t("dash_pro", lang, pro=stats['pro_subscribers']) + "\n"
+        + admin_t("dash_channels", lang, channels=stats['channels']) + "\n"
+        + admin_t("dash_posts_today", lang, posts=stats['posts_today']) + "\n"
+        + admin_t("dash_pending", lang, pending=stats['pending_posts']) + "\n"
+        + admin_t("dash_stars", lang, stars=stats['stars_revenue']) + "\n"
         "━━━━━━━━━━━━━━━━━\n\n"
-        "Kerakli bo'limni tanlang 👇"
+        + admin_t("dash_pick_section", lang)
     )
 
 
-def _build_full_stats_text(stats: dict) -> str:
+def _build_full_stats_text(stats: dict, lang: str = "uz") -> str:
     """📊 YAGONA «To'liq statistika» ekrani (4-qadam: dublikatlar birlashdi).
 
     Bir vaqtda UCHTA dublikat handler bu matnni chizardi (``adm_stats``
     callback'i, ``/admin_stats`` buyrug'i va «📊 Statistika» reply-tugmasi /
     ``/stats``). Endi hammasi SHU bitta builder'ga ulangan — ekran ham,
     raqamlar ham har doim bir xil (eski yo'llar alias sifatida ishlaydi).
+    FAZA 26: matn admin tilida (``lang``) chiziladi.
     """
     return (
-        "📊 <b>To'liq Statistika:</b>\n\n"
-        f"👥 Jami foydalanuvchilar: <b>{stats['users']} ta</b>\n"
-        f"📢 Ulangan kanallar: <b>{stats['channels']} ta</b>\n"
-        f"📢 Homiy kanallar: <b>{stats['sponsors']} ta</b>\n"
-        f"⏳ Kutilayotgan postlar: <b>{stats['pending']} ta</b>\n"
-        f"✅ Yuborilgan postlar: <b>{stats['sent']} ta</b>\n"
-        f"🚫 Bekor qilingan: <b>{stats['cancelled']} ta</b>\n"
-        f"⚠️ Xatolik: <b>{stats['failed']} ta</b>"
+        admin_t("fs_title", lang) + "\n\n"
+        + admin_t("fs_users", lang, users=stats['users']) + "\n"
+        + admin_t("fs_channels", lang, channels=stats['channels']) + "\n"
+        + admin_t("fs_sponsors", lang, sponsors=stats['sponsors']) + "\n"
+        + admin_t("fs_pending", lang, pending=stats['pending']) + "\n"
+        + admin_t("fs_sent", lang, sent=stats['sent']) + "\n"
+        + admin_t("fs_cancelled", lang, cancelled=stats['cancelled']) + "\n"
+        + admin_t("fs_failed", lang, failed=stats['failed'])
     )
 
 
-def _build_admin_posts_text(posts: list) -> str:
+def _build_admin_posts_text(posts: list, lang: str = "uz") -> str:
     """📋 YAGONA «Barcha postlar» ekrani (``adm_posts`` + eski reply-tugma).
 
     ``posts`` — ``db.get_recent_posts`` natijasi (pid, uid, title, ptype,
     stime, status). Bo'sh ro'yxat uchun ham xavfsiz matn qaytaradi.
     """
     if not posts:
-        return "📋 <b>Barcha postlar</b>\n\n<i>Hozircha hech qanday post mavjud emas.</i>"
-    text = f"📋 <b>Oxirgi {len(posts)} ta post:</b>\n\n"
+        return (admin_t("posts_empty_title", lang) + "\n\n"
+                + admin_t("posts_empty_body", lang))
+    text = admin_t("posts_recent_header", lang, count=len(posts)) + "\n\n"
     for p in posts:
         pid, uid, title, ptype, stime, status = (list(p) + [None] * 6)[:6]
-        title_str = title or "Noma'lum kanal"
+        title_str = title or admin_t("posts_unknown_channel", lang)
         status_emoji = "⏳" if status == "pending" else ("✅" if status == "posted" else "🚫")
         text += (
             f"{status_emoji} <b>#{pid}</b> | {html_escape(str(title_str))}"
@@ -200,19 +216,39 @@ def _build_admin_posts_text(posts: list) -> str:
     return text
 
 
-def _build_dbcache_text(status: dict) -> str:
-    """🗄️ YAGONA «DB / Kesh holati» ekrani (``adm_dbcache`` + eski reply-tugma)."""
-    collapsed_label = "yo'q" if status.get("collapsed") else "ha"
-    cache_label = "yoqilgan" if status.get("cache_enabled") else "o'chirilgan"
-    pool_label = "✅ ishlayapti" if status.get("ready") else "⏳ hali ochilmagan"
+def _dbcache_labels(status: dict, lang: str = "uz") -> dict:
+    """🗄️ DB/Kesh ekranining tilga mos yorliqlari (3 xil chaqiruvchi uchun umumiy)."""
+    return {
+        "collapsed": admin_t("lbl_no", lang) if status.get("collapsed") else admin_t("lbl_yes", lang),
+        "cache": (admin_t("lbl_cache_on", lang) if status.get("cache_enabled")
+                  else admin_t("lbl_cache_off", lang)),
+        "pool": (admin_t("lbl_pool_ready", lang) if status.get("ready")
+                 else admin_t("lbl_pool_init", lang)),
+    }
+
+
+def _build_dbcache_text(status: dict, lang: str = "uz",
+                        pool_message: bool = True, cleared: bool = False) -> str:
+    """🗄️ YAGONA «DB / Kesh holati» ekrani (``adm_dbcache`` + eski reply-tugma).
+
+    🧹 FAZA 26: ``cache_db_menu`` va ``cache_clear_callback`` ham shu
+    builder'dan foydalanadi — dublikat matn bloklari yo'q; matn admin
+    tilida. ``cleared=True`` — kesh tozalangach ko'rsatiladigan footer.
+    """
+    labels = _dbcache_labels(status, lang)
+    pool_line = admin_t("dbc_pool", lang, pool=labels["pool"],
+                        message=status.get("message", "")) if pool_message else (
+        f"   • Pool: <b>{labels['pool']}</b>\n")
+    footer = admin_t("dbc_cleared_footer", lang) if cleared else admin_t("dbc_footer", lang)
     return (
-        "🗄️ <b>DB Pool va Kesh holati:</b>\n\n"
-        f"   • Pool: <b>{pool_label}</b> ({status.get('message', '')})\n"
-        f"   • Min/Maks: <b>{status.get('min')} / {status.get('max')}</b>\n"
-        f"   • Band: <b>{status.get('used')}</b> | Bo'sh: <b>{status.get('available')}</b>"
-        f" | Yopiq: <b>{collapsed_label}</b>\n"
-        f"   • Kesh: <b>{cache_label}</b> — <b>{status.get('cache_entries')} ta</b> yozuv\n\n"
-        "Kesh TTL o'zgarishlarsiz avtomatik eskiradi. Tozalash kerak bo'lsa pastdagi tugmani bosing."
+        admin_t("dbc_title", lang) + "\n\n"
+        + pool_line
+        + admin_t("dbc_minmax", lang, minv=status.get("min"), maxv=status.get("max")) + "\n"
+        + admin_t("dbc_usage", lang, used=status.get("used"),
+                  available=status.get("available"), collapsed=labels["collapsed"]) + "\n"
+        + admin_t("dbc_cache", lang, cache=labels["cache"],
+                  entries=status.get("cache_entries")) + "\n\n"
+        + footer
     )
 
 
@@ -355,7 +391,7 @@ async def admin_panel_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     from handlers.navigation import remember_section, SECTION_ADMIN
     remember_section(context, SECTION_ADMIN)
     stats = await db.run_db(db.get_admin_dashboard_stats)
-    text = _build_dashboard_text(stats)
+    text = _build_dashboard_text(stats, get_lang(context))
     # 🩺 Tizim monitoringi — faqat adminlar ko'radi (health hech qachon
     # istisno ko'tarmaydi; xato bo'lsa dashboard baribir chiqadi).
     health_block = await build_admin_health_block(get_lang(context))
@@ -381,7 +417,7 @@ async def admin_stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE
     _remember_admin_section(context)
     stats = await db.run_db(db.get_system_stats)
     await update.message.reply_text(
-        _build_full_stats_text(stats),
+        _build_full_stats_text(stats, get_lang(context)),
         reply_markup=get_admin_back_keyboard(),
         parse_mode="HTML",
     )
@@ -402,14 +438,14 @@ async def _admin_edit(query, text: str, reply_markup=None):
             logger.debug("Admin ekranini ko'rsatib bo'lmadi")
 
 
-async def _build_audit_roles_text(limit: int = 10) -> str:
+async def _build_audit_roles_text(limit: int = 10, lang: str = "uz") -> str:
     """📜 YAGONA «Audit | Rollar» ekrani matni (``adm_audit_roles``).
 
     Ikki blok: (1) oxirgi admin harakatlari — ``/audit`` buyrug'i bilan
     AYNAN bir xil format; (2) ``admin_roles`` jadvalidagi faol rollar.
     DB xatosida ham crash qilmaydi — bo'sh blok matni qaytaradi.
     """
-    lines = ["📜 <b>Audit jurnali</b> (oxirgi harakatlar)",
+    lines = [admin_t("audit_log_title", lang),
              "━━━━━━━━━━━━━━━━━"]
     try:
         rows = await db.run_db(db.get_admin_audit_logs, limit=limit) or []
@@ -434,9 +470,9 @@ async def _build_audit_roles_text(limit: int = 10) -> str:
                 f"   {html_escape(str(row.get('action')))}{target}"
             )
     else:
-        lines.append("<i>Audit jurnali hozircha bo'sh.</i>")
+        lines.append(admin_t("audit_empty_inline", lang))
 
-    lines += ["", "👥 <b>Rollar</b> (RBAC — /setrole, /delrole)",
+    lines += ["", admin_t("audit_roles_title", lang),
               "━━━━━━━━━━━━━━━━━"]
     try:
         roles = await db.run_db(db.list_admin_roles, limit=20) or []
@@ -449,11 +485,11 @@ async def _build_audit_roles_text(limit: int = 10) -> str:
                 f"👤 <code>{r.get('user_id')}</code> — 🎖 <b>{html_escape(str(r.get('role')))}</b>"
             )
     else:
-        lines.append("<i>Qo'shimcha rollar berilmagan (faqat legacy ADMIN_IDS).</i>")
+        lines.append(admin_t("audit_roles_empty", lang))
     return "\n".join(lines)
 
 
-async def _ad_hub_render() -> tuple[str, InlineKeyboardMarkup]:
+async def _ad_hub_render(lang: str = "uz") -> tuple[str, InlineKeyboardMarkup]:
     """Reklama boshqaruvi ekrani — FAQAT 3 ta asosiy bo'lim.
 
     1) 📢 Majburiy obuna (Sponsor kanallar)
@@ -474,26 +510,25 @@ async def _ad_hub_render() -> tuple[str, InlineKeyboardMarkup]:
     reply_interval = settings.get("auto_ad_interval", 4)
 
     def _mark(on: bool) -> str:
-        return "✅ Yoqilgan" if on else "❌ O'chirilgan"
+        return admin_t("lbl_on", lang) if on else admin_t("lbl_off", lang)
 
     lines = [
-        "🎯 <b>Reklama boshqaruvi</b> — 3 ta asosiy bo'lim",
+        admin_t("ad_hub_title", lang),
         "━━━━━━━━━━━━━━━━━",
-        f"<b>1) 📢 Majburiy obuna (Sponsor kanallar)</b>\n"
-        f"   Ulangan kanallar: <b>{len(sponsors)} ta</b> — "
-        "matn/tugma va o'chirish bo'lim ichida.",
+        admin_t("ad_hub_s1_title", lang) + "\n"
+        + admin_t("ad_hub_s1_line", lang, count=len(sponsors)),
         "━━━━━━━━━━━━━━━━━",
-        f"<b>2) 🤖 3-5 ta javobda chiqadigan reklama</b>\n"
-        f"   Matn: pulda <b>{rp_active}</b>/{len(reply_ads)} ta faol\n"
-        f"   Oraliq: har <b>{reply_interval}</b> ta javobda\n"
-        f"   Holat: {_mark(reply_status)}",
+        admin_t("ad_hub_s2_title", lang) + "\n"
+        + admin_t("ad_hub_pool_line", lang, active=rp_active, total=len(reply_ads)) + "\n"
+        + admin_t("ad_hub_interval_reply", lang, interval=reply_interval) + "\n"
+        + admin_t("ad_hub_state_line", lang, state=_mark(reply_status)),
         "━━━━━━━━━━━━━━━━━",
-        f"<b>3) 📢 Kanal postlariga reklama qo'shish</b>\n"
-        f"   Matn: pulda <b>{ch_active}</b>/{len(channel_ads)} ta faol\n"
-        f"   Oraliq: har <b>{interval}</b>-postda (har kanal uchun alohida)\n"
-        f"   Holat: {_mark(channel_status)}",
+        admin_t("ad_hub_s3_title", lang) + "\n"
+        + admin_t("ad_hub_pool_line", lang, active=ch_active, total=len(channel_ads)) + "\n"
+        + admin_t("ad_hub_interval_channel", lang, interval=interval) + "\n"
+        + admin_t("ad_hub_state_line", lang, state=_mark(channel_status)),
         "━━━━━━━━━━━━━━━━━",
-        "Bo'limni tanlang 👇 Matn yuborsangiz 📢 Kanal posti puliga qo'shiladi.",
+        admin_t("ad_hub_pick", lang),
     ]
     markup = get_ad_hub_keyboard(
         channel_total=len(channel_ads), channel_active=ch_active,
@@ -513,6 +548,34 @@ async def _ad_hub_render() -> tuple[str, InlineKeyboardMarkup]:
 # (kanal post sanagichlari, reklama holati) olib tashlandi.
 
 
+def _build_sponsor_manage_text(sponsors: list, lang: str = "uz") -> str:
+    """📢 Sponsor kanallar boshqaruvi matni (``adm_sponsors`` + ``del_sponsor``).
+
+    🧹 FAZA 26: ikkala handler AYNAN shu builder'dan foydalanadi — dublikat
+    matn bloklari yo'q; matn admin tilida (uz/ru/en).
+    """
+    sponsors = sponsors or []
+    count = len(sponsors)
+    text = (
+        admin_t("sp_manage_title", lang) + "\n"
+        "━━━━━━━━━━━━━━━━━\n"
+        + admin_t("sp_count", lang, count=count) + "\n\n"
+    )
+    if sponsors:
+        for idx, s in enumerate(sponsors, 1):
+            s_id, ch_id, ch_title, username, ch_url = unpack_sponsor(s)
+            u_info = f" (@{username})" if username else ""
+            link_info = f"\n   🔗 {ch_url}" if ch_url else ""
+            text += (
+                f"{idx}. <b>{html_escape(ch_title)}</b>{u_info} "
+                f"(<code>{ch_id}</code>){link_info}\n\n"
+            )
+    else:
+        text += admin_t("sp_empty_inline", lang) + "\n\n"
+    text += "━━━━━━━━━━━━━━━━━\n" + admin_t("sp_manage_footer", lang)
+    return text
+
+
 async def admin_dashboard_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Admin dashboard inline tugmalari.
 
@@ -522,20 +585,22 @@ async def admin_dashboard_callback(update: Update, context: ContextTypes.DEFAULT
     """
     query = update.callback_query
     if not is_admin(query.from_user.id):
-        await query.answer("Ruxsat yo'q.", show_alert=True)
+        await query.answer(admin_t("rbac_denied", get_lang(context)), show_alert=True)
         return ConversationHandler.END
     # 11-bosqich (P0): server-side RBAC — payload emas, from_user.id hal qiladi.
     if not verify_admin_callback(update):
-        await query.answer("Ruxsat yo'q.", show_alert=True)
+        await query.answer(admin_t("rbac_denied", get_lang(context)), show_alert=True)
         return ConversationHandler.END
     data = query.data
+    # 🧹 FAZA 26: butun dashboard adminning TANLANGAN tilida chiziladi.
+    lang = get_lang(context)
 
     if data == "adm_cancel":
         # Universal "Bekor qilish": FSM tozalanadi va dashboard qaytariladi.
-        await query.answer("🚫 Bekor qilindi")
+        await query.answer(admin_t("cancelled_toast", lang))
         clear_fsm_data(context)
         stats = await db.run_db(db.get_admin_dashboard_stats)
-        await _admin_edit(query, _build_dashboard_text(stats), get_admin_dashboard_keyboard())
+        await _admin_edit(query, _build_dashboard_text(stats, lang), get_admin_dashboard_keyboard())
         return ConversationHandler.END
 
     if data == "adm_stats":
@@ -543,7 +608,7 @@ async def admin_dashboard_callback(update: Update, context: ContextTypes.DEFAULT
         stats = await db.run_db(db.get_system_stats)
         # 4-qadam: YAGONA statistika ekrani (reply-tugma va /admin_stats
         # buyrug'i ham aynan shu matnni chiqaradi).
-        await _admin_edit(query, _build_full_stats_text(stats), get_admin_back_keyboard())
+        await _admin_edit(query, _build_full_stats_text(stats, lang), get_admin_back_keyboard())
         context.user_data.pop("admin_flow", None)
         return ConversationHandler.END
 
@@ -551,9 +616,10 @@ async def admin_dashboard_callback(update: Update, context: ContextTypes.DEFAULT
         await query.answer()
         channels = await db.run_db(db.get_all_channels, ADMIN_CHANNELS_LIMIT)
         if channels:
-            text = format_admin_channels_list(channels)
+            text = format_admin_channels_list(channels, lang)
         else:
-            text = "📋 <b>Ulangan kanallar</b>\n\n<i>Hozircha hech qanday kanal ulanmagan.</i>"
+            text = (admin_t("channels_empty_title", lang) + "\n\n"
+                    + admin_t("channels_empty_body", lang))
         await _admin_edit(query, text, get_admin_back_keyboard())
         context.user_data.pop("admin_flow", None)
         return ConversationHandler.END
@@ -564,7 +630,7 @@ async def admin_dashboard_callback(update: Update, context: ContextTypes.DEFAULT
         # reply-klaviatura to'liq dashboard'ga integratsiya qilindi).
         await query.answer()
         recent_posts = await db.run_db(db.get_recent_posts, 15)
-        await _admin_edit(query, _build_admin_posts_text(recent_posts),
+        await _admin_edit(query, _build_admin_posts_text(recent_posts, lang),
                           get_admin_back_keyboard())
         context.user_data.pop("admin_flow", None)
         return ConversationHandler.END
@@ -579,11 +645,10 @@ async def admin_dashboard_callback(update: Update, context: ContextTypes.DEFAULT
         current_tag = await db.run_db(db.get_setting, "post_tag_text", "")
         await _admin_edit(
             query,
-            "🏷 <b>Post nishoni (watermark):</b>\n\n"
-            "Hozirgi qiymat: <code>" + html_escape(current_tag or "(bo'sh — nishon yo'q)") + "</code>\n\n"
-            "Postlar oxiriga qo'shiladigan matnni yuboring.\n"
-            "Masalan: <code>@PostAssistrobot</code>\n"
-            "O'chirish uchun <code>clear</code> deb yozing.",
+            admin_t("tag_title", lang) + "\n\n"
+            + admin_t("tag_current", lang, value=html_escape(
+                current_tag or admin_t("tag_empty_value", lang))) + "\n\n"
+            + admin_t("tag_howto", lang),
             get_admin_back_keyboard(),
         )
         context.user_data.pop("admin_flow", None)
@@ -597,16 +662,10 @@ async def admin_dashboard_callback(update: Update, context: ContextTypes.DEFAULT
         await query.answer()
         await _admin_edit(
             query,
-            "⚙️ <b>AI parametrlarni boshqarish:</b>\n\n"
-            f"{_ai_settings_text()}\n\n"
-            "O'zgartirish uchun quyidagi formatda satrlarni yuboring:\n"
-            "<code>kalit=qiymat</code>\n\n"
-            "Masalan:\n"
-            "<code>temperature=0.4</code>\n"
-            "<code>max_tokens=2048</code>\n"
-            "<code>context_messages=8</code>\n"
-            "<code>max_tokens=off</code>  <i>(parametr umuman yuborilmaydi)</i>\n\n"
-            "👉 Hammasini defaultga qaytarish uchun <code>reset</code> deb yozing.",
+            admin_t("ai_title", lang) + "\n\n"
+            f"{_ai_settings_text(lang)}\n\n"
+            + admin_t("ai_howto", lang) + "\n\n"
+            + admin_t("ai_reset_hint", lang),
             get_admin_back_keyboard(),
         )
         context.user_data.pop("admin_flow", None)
@@ -618,7 +677,7 @@ async def admin_dashboard_callback(update: Update, context: ContextTypes.DEFAULT
         # (``cache_clear`` — OWNER ruxsati bilan fail-closed).
         await query.answer()
         status = await db.run_db(db.get_db_pool_status)
-        await _admin_edit(query, _build_dbcache_text(status),
+        await _admin_edit(query, _build_dbcache_text(status, lang),
                           get_cache_actions_keyboard())
         context.user_data.pop("admin_flow", None)
         return ConversationHandler.END
@@ -628,11 +687,11 @@ async def admin_dashboard_callback(update: Update, context: ContextTypes.DEFAULT
         # RBAC rollari ro'yxati. Faqat OWNER/SUPER_ADMIN (``/audit`` bilan
         # bir xil qoida — ``admin_audit_command`` dekoratori).
         if not has_role(query.from_user.id, Role.SUPER_ADMIN):
-            await query.answer("❌ Audit jurnalini faqat OWNER yoki SUPER_ADMIN ko'ra oladi.",
+            await query.answer(admin_t("audit_denied", lang),
                                show_alert=True)
             return ConversationHandler.END
         await query.answer()
-        await _admin_edit(query, await _build_audit_roles_text(),
+        await _admin_edit(query, await _build_audit_roles_text(lang=lang),
                           get_admin_back_keyboard())
         context.user_data.pop("admin_flow", None)
         return ConversationHandler.END
@@ -643,13 +702,12 @@ async def admin_dashboard_callback(update: Update, context: ContextTypes.DEFAULT
         # faqat system_settings ruxsati (RBAC) bo'lgan adminlarga ochiladi
         # (/health buyrug'i bilan bir xil qoida — fail-closed).
         if not has_permission(query.from_user.id, PERM_SYSTEM_SETTINGS):
-            await query.answer("❌ Sizda tizim holatini ko'rish uchun ruxsat yo'q.",
+            await query.answer(admin_t("perm_health", lang),
                                show_alert=True)
             return ConversationHandler.END
         await query.answer()
         from services.health_service import format_health_report
 
-        lang = get_lang(context)
         try:
             text = await format_health_report(lang=lang)
         except Exception as e:
@@ -664,18 +722,13 @@ async def admin_dashboard_callback(update: Update, context: ContextTypes.DEFAULT
 
     if data == "adm_promo":
         if not has_permission(query.from_user.id, PERM_MANAGE_PROMOS):
-            await query.answer("❌ Sizda promo-kod boshqaruvi uchun ruxsat yo'q.",
+            await query.answer(admin_t("perm_promo", lang),
                                show_alert=True)
             return ConversationHandler.END
         await query.answer()
         await _admin_edit(
             query,
-            "🎁 <b>Promo-kod yaratish:</b>\n\n"
-            "Format: <code>KOD KUNLAR [MAKS_ISHLATISH]</code>\n\n"
-            "Masalan:\n"
-            "• <code>MAXSUS30 30 50</code> — 30 kun PRO, 50 marta\n"
-            "• <code>YANGI2026 30</code> — 30 kun PRO, cheksiz\n\n"
-            "Promo-kodni yozing:",
+            admin_t("promo_title", lang) + "\n\n" + admin_t("promo_howto", lang),
             get_admin_back_keyboard(),
         )
         context.user_data["admin_flow"] = "promo_create"
@@ -683,16 +736,13 @@ async def admin_dashboard_callback(update: Update, context: ContextTypes.DEFAULT
 
     if data == "adm_grant_pro":
         if not has_permission(query.from_user.id, PERM_MANAGE_USERS):
-            await query.answer("❌ Sizda foydalanuvchilarga PRO berish uchun ruxsat yo'q.",
+            await query.answer(admin_t("perm_grant_pro", lang),
                                show_alert=True)
             return ConversationHandler.END
         await query.answer()
         await _admin_edit(
             query,
-            "⭐️ <b>Foydalanuvchiga PRO berish:</b>\n\n"
-            "Format: <code>USER_ID KUNLAR</code>\n\n"
-            "Masalan: <code>123456789 30</code>\n\n"
-            "User ID va kunlar sonini yozing:",
+            admin_t("gp_title", lang) + "\n\n" + admin_t("gp_howto", lang),
             get_admin_back_keyboard(),
         )
         context.user_data["admin_flow"] = "grant_pro"
@@ -700,14 +750,13 @@ async def admin_dashboard_callback(update: Update, context: ContextTypes.DEFAULT
 
     if data == "adm_broadcast":
         if not has_permission(query.from_user.id, PERM_MANAGE_USERS):
-            await query.answer("❌ Sizda broadcast yuborish uchun ruxsat yo'q.",
+            await query.answer(admin_t("perm_broadcast", lang),
                                show_alert=True)
             return ConversationHandler.END
         await query.answer()
         await _admin_edit(
             query,
-            "✉️ <b>Barcha foydalanuvchilarga xabar yuborish:</b>\n\n"
-            "Yuboriladigan xabar matnini yozing:",
+            admin_t("bc_title", lang) + "\n\n" + admin_t("bc_prompt", lang),
             get_admin_back_keyboard(),
         )
         context.user_data["admin_flow"] = "broadcast"
@@ -716,21 +765,7 @@ async def admin_dashboard_callback(update: Update, context: ContextTypes.DEFAULT
     if data == "adm_sponsors":
         await query.answer()
         sponsors = await db.run_db(db.get_sponsor_channels) or []
-        count = len(sponsors)
-        text = (
-            "📢 <b>Majburiy obuna (Sponsor kanallar) boshqaruvi:</b>\n"
-            "━━━━━━━━━━━━━━━━━\n"
-            f"Ulangan kanallar soni: <b>{count} ta</b>\n\n"
-        )
-        if sponsors:
-            for idx, s in enumerate(sponsors, 1):
-                s_id, ch_id, ch_title, username, ch_url = unpack_sponsor(s)
-                u_info = f" (@{username})" if username else ""
-                link_info = f"\n   🔗 {ch_url}" if ch_url else ""
-                text += f"{idx}. <b>{html_escape(ch_title)}</b>{u_info} (<code>{ch_id}</code>){link_info}\n\n"
-        else:
-            text += "<i>Hozircha hech qanday sponsor kanal ulanmagan.</i>\n\n"
-        text += "━━━━━━━━━━━━━━━━━\nKanalni o'chirish uchun tegishli tugmani bosing yoki yangi kanal qo'shing 👇"
+        text = _build_sponsor_manage_text(sponsors, lang)
         await _admin_edit(query, text, get_admin_sponsors_keyboard(sponsors))
         context.user_data.pop("admin_flow", None)
         return ConversationHandler.END
@@ -739,13 +774,8 @@ async def admin_dashboard_callback(update: Update, context: ContextTypes.DEFAULT
         await query.answer()
         await _admin_edit(
             query,
-            "➕ <b>Yangi majburiy obuna kanali qo'shish:</b>\n\n"
-            "Kanalning <code>@username</code>ini yoki kanal ID sini "
-            "(masalan: <code>-1001234567890</code>) yuboring.\n\n"
-            "⚠️ <b>Muhim shartlar:</b>\n"
-            "1. Bot ushbu kanalda <b>administrator</b> bo'lishi shart.\n"
-            "2. Botga kanal a'zolarini ko'rish huquqi berilgan bo'lishi kerak.\n\n"
-            "Bekor qilish uchun ❌ Bekor qilish tugmasini bosing.",
+            admin_t("sp_add_inline_title", lang) + "\n\n"
+            + admin_t("sp_add_inline_howto", lang),
             get_admin_back_keyboard(),
         )
         context.user_data["admin_flow"] = "add_sponsor"
@@ -755,7 +785,7 @@ async def admin_dashboard_callback(update: Update, context: ContextTypes.DEFAULT
         # Yagona Reklama markazi. ``adm_auto_ad`` — eski xabarlar uchun
         # orqaga moslik aliasi (dashboard eski versiyasida shu tugma bor edi).
         await query.answer()
-        text, markup = await _ad_hub_render()
+        text, markup = await _ad_hub_render(lang)
         await _admin_edit(query, text, markup)
         context.user_data.pop("admin_flow", None)
         return ConversationHandler.END
@@ -765,12 +795,12 @@ async def admin_dashboard_callback(update: Update, context: ContextTypes.DEFAULT
         new_status = not ad_settings.get("auto_ad_status", False)
         await db.run_db(db.set_ad_status, new_status)
         await query.answer(
-            "Javoblar reklamasi yoqildi ✅" if new_status
-            else "Javoblar reklamasi o'chirildi ❌"
+            admin_t("ad_toggle_on", lang) if new_status
+            else admin_t("ad_toggle_off", lang)
         )
         # Holat o'zgach to'liq hub qayta chiziladi — eski alohida ekran
         # (Har 3-5 javob reklamasi) endi mavjud emas.
-        text, markup = await _ad_hub_render()
+        text, markup = await _ad_hub_render(lang)
         await _admin_edit(query, text, markup)
         return ConversationHandler.END
 
@@ -780,17 +810,17 @@ async def admin_dashboard_callback(update: Update, context: ContextTypes.DEFAULT
         new_status = not ad_settings.get("channel_ad_status", True)
         await db.run_db(db.set_channel_ad_status, new_status)
         await query.answer(
-            "Kanal posti reklamasi yoqildi ✅" if new_status
-            else "Kanal posti reklamasi o'chirildi ❌"
+            admin_t("ch_ad_toggle_on", lang) if new_status
+            else admin_t("ch_ad_toggle_off", lang)
         )
-        text, markup = await _ad_hub_render()
+        text, markup = await _ad_hub_render(lang)
         await _admin_edit(query, text, markup)
         return ConversationHandler.END
 
     if data == "adm_back":
         await query.answer()
         stats = await db.run_db(db.get_admin_dashboard_stats)
-        await _admin_edit(query, _build_dashboard_text(stats), get_admin_dashboard_keyboard())
+        await _admin_edit(query, _build_dashboard_text(stats, lang), get_admin_dashboard_keyboard())
         context.user_data.pop("admin_flow", None)
         context.user_data.pop("ad_edit", None)
         return ConversationHandler.END
@@ -806,6 +836,8 @@ async def admin_inline_text_handler(update: Update, context: ContextTypes.DEFAUL
 
     flow = context.user_data.get("admin_flow")
     text = update.message.text.strip()
+    # 🧹 FAZA 26: rad/xato xabarlari admin tilida.
+    lang = get_lang(context)
 
     # "Bekor qilish"/"Asosiy menyu" har qanday admin oqimida va UCHALA TILDA
     # ishlashi kerak (admin klaviaturasi ham tilga qarab chiziladi).
@@ -816,7 +848,7 @@ async def admin_inline_text_handler(update: Update, context: ContextTypes.DEFAUL
         if is_menu_text(text, "cancel"):
             stats = await db.run_db(db.get_admin_dashboard_stats)
             await update.message.reply_text(
-                "🚫 <b>Jarayon bekor qilindi.</b>\n\n" + _build_dashboard_text(stats),
+                admin_t("cancelled_html", lang) + "\n\n" + _build_dashboard_text(stats, lang),
                 reply_markup=get_admin_dashboard_keyboard(),
                 parse_mode="HTML",
             )
@@ -824,7 +856,7 @@ async def admin_inline_text_handler(update: Update, context: ContextTypes.DEFAUL
             from handlers.navigation import clear_section
             clear_section(context)
             await update.message.reply_text(
-                "🚫 <b>Jarayon bekor qilindi.</b>",
+                admin_t("cancelled_html", lang),
                 reply_markup=get_main_keyboard(
                     update.effective_user.id in ADMIN_IDS_SET,
                     lang=get_lang(context),
@@ -840,7 +872,7 @@ async def admin_inline_text_handler(update: Update, context: ContextTypes.DEFAUL
     if flow == "grant_pro":
         if not has_permission(update.effective_user.id, PERM_MANAGE_USERS):
             await update.message.reply_text(
-                "❌ Sizda foydalanuvchilarga PRO berish uchun ruxsat yo'q.",
+                admin_t("perm_grant_pro", lang),
                 reply_markup=get_admin_back_keyboard(),
             )
             context.user_data.pop("admin_flow", None)
@@ -848,7 +880,7 @@ async def admin_inline_text_handler(update: Update, context: ContextTypes.DEFAUL
         parts = text.split()
         if len(parts) < 2:
             await update.message.reply_text(
-                "❌ Noto'g'ri format. <code>USER_ID KUNLAR</code> deb yozing.",
+                admin_t("gp_bad_format", lang),
                 reply_markup=get_admin_back_keyboard(),
                 parse_mode="HTML",
             )
@@ -858,14 +890,14 @@ async def admin_inline_text_handler(update: Update, context: ContextTypes.DEFAUL
             days = int(parts[1])
         except ValueError:
             await update.message.reply_text(
-                "❌ Raqamlar noto'g'ri. <code>USER_ID KUNLAR</code> deb yozing.",
+                admin_t("gp_bad_numbers", lang),
                 reply_markup=get_admin_back_keyboard(),
                 parse_mode="HTML",
             )
             return ADMIN_GRANT_PRO
         if days <= 0:
             await update.message.reply_text(
-                "❌ Kunlar soni 0 dan katta bo'lishi kerak.",
+                admin_t("days_positive", lang),
                 reply_markup=get_admin_back_keyboard(),
                 parse_mode="HTML",
             )
@@ -874,27 +906,21 @@ async def admin_inline_text_handler(update: Update, context: ContextTypes.DEFAUL
                                   admin_id=update.effective_user.id)
         if success:
             await update.message.reply_text(
-                f"✅ <b>PRO tarif berildi!</b>\n\n"
-                f"👤 Foydalanuvchi: <code>{target_id}</code>\n"
-                f"📅 Muddat: <b>{days} kun</b>",
+                admin_t("gp_granted", lang, user=target_id, days=days),
                 reply_markup=get_admin_back_keyboard(),
                 parse_mode="HTML",
             )
             try:
                 await context.bot.send_message(
                     chat_id=target_id,
-                    text=(
-                        f"🎉 <b>Tabriklaymiz!</b>\n\n"
-                        f"Sizga <b>{days} kunlik PRO tarif</b> berildi!\n"
-                        f"Barcha PRO imkoniyatlardan foydalanishingiz mumkin."
-                    ),
+                    text=admin_t("gp_user_notice", lang, days=days),
                     parse_mode="HTML",
                 )
             except Exception:
                 pass
         else:
             await update.message.reply_text(
-                "❌ Xatolik yuz berdi. User ID to'g'riligini tekshiring.",
+                admin_t("gp_error", lang),
                 reply_markup=get_admin_back_keyboard(),
                 parse_mode="HTML",
             )
@@ -904,7 +930,7 @@ async def admin_inline_text_handler(update: Update, context: ContextTypes.DEFAUL
     if flow == "promo_create":
         if not has_permission(update.effective_user.id, PERM_MANAGE_PROMOS):
             await update.message.reply_text(
-                "❌ Sizda promo-kod yaratish uchun ruxsat yo'q.",
+                admin_t("perm_promo_create", lang),
                 reply_markup=get_admin_back_keyboard(),
             )
             context.user_data.pop("admin_flow", None)
@@ -912,7 +938,7 @@ async def admin_inline_text_handler(update: Update, context: ContextTypes.DEFAUL
         parts = text.split()
         if len(parts) < 2:
             await update.message.reply_text(
-                "❌ Noto'g'ri format. <code>KOD KUNLAR [MAKS]</code> deb yozing.",
+                admin_t("promo_bad_format", lang),
                 reply_markup=get_admin_back_keyboard(),
                 parse_mode="HTML",
             )
@@ -922,7 +948,7 @@ async def admin_inline_text_handler(update: Update, context: ContextTypes.DEFAUL
             days = int(parts[1])
         except ValueError:
             await update.message.reply_text(
-                "❌ Kunlar soni raqam bo'lishi kerak.",
+                admin_t("promo_days_not_number", lang),
                 reply_markup=get_admin_back_keyboard(),
                 parse_mode="HTML",
             )
@@ -933,14 +959,14 @@ async def admin_inline_text_handler(update: Update, context: ContextTypes.DEFAUL
                 max_uses = int(parts[2])
             except ValueError:
                 await update.message.reply_text(
-                    "❌ Maks ishlatish soni raqam bo'lishi kerak.",
+                    admin_t("promo_max_not_number", lang),
                     reply_markup=get_admin_back_keyboard(),
                     parse_mode="HTML",
                 )
                 return ADMIN_PROMO_CREATE
         if days <= 0:
             await update.message.reply_text(
-                "❌ Kunlar soni 0 dan katta bo'lishi kerak.",
+                admin_t("days_positive", lang),
                 reply_markup=get_admin_back_keyboard(),
                 parse_mode="HTML",
             )
@@ -948,18 +974,16 @@ async def admin_inline_text_handler(update: Update, context: ContextTypes.DEFAUL
         success = await db.run_db(db.create_promo_code, code, "pro", days, max_uses,
                                   admin_id=update.effective_user.id)
         if success:
-            max_str = f"{max_uses} marta" if max_uses else "cheksiz"
+            max_str = (admin_t("lbl_times_n", lang, count=max_uses) if max_uses
+                       else admin_t("lbl_unlimited", lang))
             await update.message.reply_text(
-                f"✅ <b>Promo-kod yaratildi!</b>\n\n"
-                f"🏷 Kod: <code>{code}</code>\n"
-                f"📅 Muddat: <b>{days} kun</b> PRO\n"
-                f"🔢 Maks ishlatish: <b>{max_str}</b>",
+                admin_t("promo_created", lang, code=code, days=days, max_str=max_str),
                 reply_markup=get_admin_back_keyboard(),
                 parse_mode="HTML",
             )
         else:
             await update.message.reply_text(
-                "❌ Promo-kod yaratishda xatolik. Bu kod allaqachon mavjud bo'lishi mumkin.",
+                admin_t("promo_exists", lang),
                 reply_markup=get_admin_back_keyboard(),
                 parse_mode="HTML",
             )
@@ -969,15 +993,14 @@ async def admin_inline_text_handler(update: Update, context: ContextTypes.DEFAUL
     if flow == "broadcast":
         if not has_permission(update.effective_user.id, PERM_MANAGE_USERS):
             await update.message.reply_text(
-                "❌ Sizda broadcast yuborish uchun ruxsat yo'q.",
+                admin_t("perm_broadcast", lang),
                 reply_markup=get_admin_back_keyboard(),
             )
             context.user_data.pop("admin_flow", None)
             return ConversationHandler.END
         user_ids = await db.run_db(db.get_all_user_ids)
         await update.message.reply_text(
-            f"⏳ Xabar <b>{len(user_ids)} ta</b> foydalanuvchiga yuborilmoqda...\n"
-            f"<i>Bu fon rejimida, batch'lar bilan yuboriladi.</i>",
+            admin_t("bc_started", lang, count=len(user_ids)),
             parse_mode="HTML",
         )
         async def _broadcast_task():
@@ -996,9 +1019,8 @@ async def admin_inline_text_handler(update: Update, context: ContextTypes.DEFAUL
                 success = await db.run_db(db.add_sponsor_channel, ch_id, title=title, invite_link=url)
                 if success:
                     await update.message.reply_text(
-                        f"✅ <b>Homiy kanal muvaffaqiyatli qo'shildi!</b>\n\n"
-                        f"📢 <b>{html_escape(title)}</b> (<code>{ch_id}</code>)\n"
-                        f"🔗 {url}",
+                        admin_t("sp_added", lang, title=html_escape(title),
+                                channel=ch_id, url=url),
                         reply_markup=get_admin_back_keyboard(),
                         parse_mode="HTML",
                     )
@@ -1006,7 +1028,7 @@ async def admin_inline_text_handler(update: Update, context: ContextTypes.DEFAUL
                     return ConversationHandler.END
                 else:
                     await update.message.reply_text(
-                        "❌ Saqlashda xatolik yuz berdi.",
+                        admin_t("sp_save_error", lang),
                         reply_markup=get_admin_back_keyboard(),
                     )
                     return ADMIN_SPONSOR_ADD
@@ -1028,9 +1050,11 @@ async def admin_inline_text_handler(update: Update, context: ContextTypes.DEFAUL
             bot_member = await context.bot.get_chat_member(chat_id=chat.id, user_id=context.bot.id)
             if bot_member.status not in ("administrator", "creator"):
                 await update.message.reply_text(
-                    f"❌ <b>Bot bu kanalda admin emas!</b>\n\n"
-                    f"Kanal: <b>{html_escape(chat.title or '')}</b> (<code>{chat.id}</code>)\n\n"
-                    "Iltimos, avval botni ushbu kanalga <b>admin</b> qilib qo'shing va qaytadan yuboring:",
+                    admin_t("sp_not_admin_title", lang) + "\n\n"
+                    + admin_t("sp_not_admin_channel", lang,
+                              title=html_escape(chat.title or ""),
+                              chat=chat.id) + "\n\n"
+                    + admin_t("sp_not_admin_howto", lang),
                     reply_markup=get_admin_back_keyboard(),
                     parse_mode="HTML",
                 )
@@ -1049,7 +1073,7 @@ async def admin_inline_text_handler(update: Update, context: ContextTypes.DEFAUL
             if not invite_link:
                 invite_link = f"https://t.me/c/{str(chat.id).replace('-100', '')}"
 
-            title = chat.title or "Sponsor Kanal"
+            title = chat.title or admin_t("sp_generic_title", lang)
             username = chat.username or ""
 
             success = await db.run_db(
@@ -1062,11 +1086,9 @@ async def admin_inline_text_handler(update: Update, context: ContextTypes.DEFAUL
             if success:
                 user_line = f"👤 @{username}\n" if username else ""
                 await update.message.reply_text(
-                    f"✅ <b>Sponsor kanal muvaffaqiyatli qo'shildi!</b>\n\n"
-                    f"📢 <b>{html_escape(title)}</b>\n"
-                    f"🆔 <code>{chat.id}</code>\n"
-                    f"{user_line}"
-                    f"🔗 {invite_link}",
+                    admin_t("sp_added_detailed", lang,
+                            title=html_escape(title), channel=chat.id,
+                            user=user_line, url=invite_link),
                     reply_markup=get_admin_back_keyboard(),
                     parse_mode="HTML",
                 )
@@ -1074,16 +1096,17 @@ async def admin_inline_text_handler(update: Update, context: ContextTypes.DEFAUL
                 return ConversationHandler.END
             else:
                 await update.message.reply_text(
-                    "❌ Bazaga saqlashda xatolik yuz berdi.",
+                    admin_t("sp_db_save_error", lang),
                     reply_markup=get_admin_back_keyboard(),
                 )
                 return ADMIN_SPONSOR_ADD
         except Exception as e:
-            logger.error(f"Sponsor kanal tekshirish xatosi: {e}")
+            logger.error("Sponsor kanal tekshirish xatosi: %s", e)
             await update.message.reply_text(
-                f"❌ <b>Kanal topilmadi yoki bot u yerda admin emas!</b>\n\n"
-                f"Xatolik tafsiloti: <i>{html_escape(str(e))}</i>\n\n"
-                "Iltimos, botni kanalga admin qilganingizga ishonch hosil qilib, @username yoki ID sini qayta yuboring:",
+                admin_t("sp_not_found_title", lang) + "\n\n"
+                + admin_t("sp_not_found_details", lang,
+                          error=html_escape(str(e))) + "\n\n"
+                + admin_t("sp_retry_hint", lang),
                 reply_markup=get_admin_back_keyboard(),
                 parse_mode="HTML",
             )
@@ -1106,18 +1129,13 @@ async def ai_settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id):
         return ConversationHandler.END
     _remember_admin_section(context)
+    lang = get_lang(context)
     await update.message.reply_text(
-        "⚙️ <b>AI parametrlarni boshqarish:</b>\n\n"
-        f"{_ai_settings_text()}\n\n"
-        "O'zgartirish uchun quyidagi formatda satrlarni yuboring:\n"
-        "<code>kalit=qiymat</code>\n\n"
-        "Masalan:\n"
-        "<code>temperature=0.4</code>\n"
-        "<code>max_tokens=2048</code>\n"
-        "<code>context_messages=8</code>\n"
-        "<code>max_tokens=off</code>  <i>(parametr umuman yuborilmaydi)</i>\n\n"
-        "👉 Hammasini defaultga qaytarish uchun <code>reset</code> deb yozing.\n"
-        "Bekor qilish uchun asosiy menyu tugmasini bosing.",
+        admin_t("ai_title", lang) + "\n\n"
+        f"{_ai_settings_text(lang)}\n\n"
+        + admin_t("ai_howto", lang) + "\n\n"
+        + admin_t("ai_reset_hint", lang) + "\n"
+        + admin_t("ai_cancel_hint", lang),
         reply_markup=get_admin_back_keyboard(),
         parse_mode="HTML",
     )
@@ -1125,7 +1143,7 @@ async def ai_settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 @require_permission(PERM_SYSTEM_SETTINGS,
-                    message="❌ AI parametrlarini faqat bot egasi (OWNER) o'zgartira oladi.")
+                    message="adm:ai_denied_owner")
 async def ai_settings_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id):
         return ConversationHandler.END
@@ -1140,9 +1158,10 @@ async def ai_settings_received(update: Update, context: ContextTypes.DEFAULT_TYP
         for db_key, *_ in AI_SETTINGS_KEYS.values():
             await db.run_db(db.set_setting, db_key, "")
         await ai_agent.reload_runtime_params()
+        lang = get_lang(context)
         await update.message.reply_text(
-            "✅ <b>Barcha AI parametrlar default holatga qaytarildi.</b>\n\n"
-            f"{_ai_settings_text()}",
+            admin_t("ai_reset_done", lang) + "\n\n"
+            f"{_ai_settings_text(lang)}",
             reply_markup=get_admin_back_keyboard(),
             parse_mode="HTML",
         )
@@ -1158,19 +1177,21 @@ async def ai_settings_received(update: Update, context: ContextTypes.DEFAULT_TYP
         key = key.strip().lower()
         value = value.strip()
         if key not in AI_SETTINGS_KEYS:
-            errors.append(f"<code>{html_escape(key)}</code> — noma'lum kalit")
+            errors.append(admin_t("ai_err_unknown_key", lang, key=html_escape(key)))
             continue
         import utils.ai_agent as _agent
         valid = _agent._set_runtime_param(key, value)
         if not valid:
-            errors.append(f"<code>{html_escape(key)}</code> = <code>{html_escape(value)}</code> — noto'g'ri qiymat")
+            errors.append(admin_t("ai_err_bad_value", lang,
+                                  key=html_escape(key), value=html_escape(value)))
             continue
         updates[AI_SETTINGS_KEYS[key][0]] = value.strip()
         updates["__ui_key__"] = key
 
+    lang = get_lang(context)
     if errors:
         await update.message.reply_text(
-            "⚠️ <b>Quyidagi kalitlarni o'zgartirib bo'lmadi:</b>\n" + "\n".join(errors),
+            admin_t("ai_err_header", lang) + "\n" + "\n".join(errors),
             reply_markup=get_admin_back_keyboard(),
             parse_mode="HTML",
         )
@@ -1182,14 +1203,14 @@ async def ai_settings_received(update: Update, context: ContextTypes.DEFAULT_TYP
         # Runtime parametrlarni DB value'lar asosida yangilaymiz.
         await ai_agent.reload_runtime_params()
         await update.message.reply_text(
-            "✅ <b>AI parametrlar yangilandi:</b>\n\n"
-            f"{_ai_settings_text()}",
+            admin_t("ai_updated", lang) + "\n\n"
+            f"{_ai_settings_text(lang)}",
             reply_markup=get_admin_back_keyboard(),
             parse_mode="HTML",
         )
     elif not errors:
         await update.message.reply_text(
-            "⚠️ Hech qanday kalit kiritilmadi. <code>kalit=qiymat</code> formatida yuboring.",
+            admin_t("ai_err_nothing", lang),
             reply_markup=get_admin_back_keyboard(),
             parse_mode="HTML",
         )
@@ -1201,20 +1222,9 @@ async def cache_db_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return ConversationHandler.END
     _remember_admin_section(context)
     status = await db.run_db(db.get_db_pool_status)
-    collapsed_label = "yo'q" if status.get("collapsed") else "ha"
-    cache_label = "yoqilgan" if status.get("cache_enabled") else "o'chirilgan"
-    pool_label = "✅ ishlayapti" if status.get("ready") else "⏳ hali ochilmagan"
-    text = (
-        "🗄️ <b>DB Pool va Kesh holati:</b>\n\n"
-        f"   • Pool: <b>{pool_label}</b> ({status.get('message', '')})\n"
-        f"   • Min/Maks: <b>{status.get('min')} / {status.get('max')}</b>\n"
-        f"   • Band: <b>{status.get('used')}</b> | Bo'sh: <b>{status.get('available')}</b>"
-        f" | Yopiq: <b>{collapsed_label}</b>\n"
-        f"   • Kesh: <b>{cache_label}</b> — <b>{status.get('cache_entries')} ta</b> yozuv\n\n"
-        "Kesh TTL o'zgarishlarsiz avtomatik eskiradi. Tozalash kerak bo'lsa pastdagi tugmani bosing."
-    )
+    # 🧹 FAZA 26: matn endi yagona builder'dan va admin tilida.
     await update.message.reply_text(
-        text,
+        _build_dbcache_text(status, get_lang(context)),
         reply_markup=get_cache_actions_keyboard(),
         parse_mode="HTML",
     )
@@ -1222,30 +1232,24 @@ async def cache_db_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 @require_permission(PERM_SYSTEM_SETTINGS,
-                    message="❌ Keshni faqat bot egasi (OWNER) tozalay oladi.")
+                    message="adm:cache_denied_owner")
 async def cache_clear_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     if not is_admin(query.from_user.id):
-        await query.answer("Ruxsat yo'q.", show_alert=True)
+        await query.answer(admin_t("rbac_denied", get_lang(context)), show_alert=True)
         return
+    lang = get_lang(context)
     await db.run_db(AuditService.log_action, query.from_user.id, "system_settings",
                     target_type="system_settings", target_id="cache_clear",
                     new_value={"action": "cache_clear"})
     await db.run_db(db.cache_clear)
     status = await db.run_db(db.get_db_pool_status)
-    await query.answer("✅ Kesh tozalandi.")
-    collapsed_label = "yo'q" if status.get("collapsed") else "ha"
-    cache_label = "yoqilgan" if status.get("cache_enabled") else "o'chirilgan"
-    pool_label = "✅ ishlayapti" if status.get("ready") else "⏳ hali ochilmagan"
+    await query.answer(admin_t("cache_clear_toast", lang))
     try:
         await query.edit_message_text(
-            "🗄️ <b>DB Pool va Kesh holati:</b>\n\n"
-            f"   • Pool: <b>{pool_label}</b>\n"
-            f"   • Min/Maks: <b>{status.get('min')} / {status.get('max')}</b>\n"
-            f"   • Band: <b>{status.get('used')}</b> | Bo'sh: <b>{status.get('available')}</b>"
-            f" | Yopiq: <b>{collapsed_label}</b>\n"
-            f"   • Kesh: <b>{cache_label}</b> — <b>{status.get('cache_entries')} ta</b> yozuv\n\n"
-            "✅ <b>Kesh tozalandi.</b>",
+            # 🧹 FAZA 26: yagona builder (pool xabari bu yerda qisqa ko'rsatiladi)
+            # + "tozalandi" footeri.
+            _build_dbcache_text(status, lang, pool_message=False, cleared=True),
             reply_markup=get_cache_actions_keyboard(),
             parse_mode="HTML",
         )
@@ -1257,13 +1261,13 @@ async def start_set_post_tag(update: Update, context: ContextTypes.DEFAULT_TYPE)
     if not is_admin(update.effective_user.id):
         return ConversationHandler.END
     _remember_admin_section(context)
+    lang = get_lang(context)
     current_tag = await db.run_db(db.get_setting, "post_tag_text", "")
     await update.message.reply_text(
-        "🏷 <b>Post nishoni (watermark):</b>\n\n"
-        "Hozirgi qiymat: <code>" + html_escape(current_tag or "(bo'sh — nishon yo'q)") + "</code>\n\n"
-        "Postlar oxiriga qo'shiladigan matnni yuboring.\n"
-        "Masalan: <code>@PostAssistrobot</code>\n"
-        "O'chirish uchun <code>clear</code> deb yozing.",
+        admin_t("tag_title", lang) + "\n\n"
+        + admin_t("tag_current", lang, value=html_escape(
+            current_tag or admin_t("tag_empty_value", lang))) + "\n\n"
+        + admin_t("tag_howto", lang),
         reply_markup=get_admin_back_keyboard(),
         parse_mode="HTML",
     )
@@ -1271,10 +1275,11 @@ async def start_set_post_tag(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 
 @require_permission(PERM_SYSTEM_SETTINGS,
-                    message="❌ Post nishonini faqat bot egasi (OWNER) o'zgartira oladi.")
+                    message="adm:tag_denied_owner")
 async def post_tag_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id):
         return ConversationHandler.END
+    lang = get_lang(context)
     text = update.message.text.strip()
     # 6-bosqich: eski qiymat audit uchun (o'zgarishdan oldin o'qiladi).
     old_tag = await db.run_db(db.get_setting, "post_tag_text", "")
@@ -1286,7 +1291,7 @@ async def post_tag_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         old_value={"post_tag_text": old_tag},
                         new_value={"post_tag_text": ""})
         await update.message.reply_text(
-            "✅ <b>Post nishoni o'chirildi</b> — postlar toza chiqadi.",
+            admin_t("tag_cleared", lang),
             reply_markup=get_admin_dashboard_keyboard(),
             parse_mode="HTML",
         )
@@ -1299,7 +1304,7 @@ async def post_tag_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         old_value={"post_tag_text": old_tag},
                         new_value={"post_tag_text": text})
         await update.message.reply_text(
-            f"✅ <b>Post nishoni saqlandi:</b>\n\n<code>{html_escape(text)}</code>",
+            admin_t("tag_saved", lang, value=html_escape(text)),
             reply_markup=get_admin_dashboard_keyboard(),
             parse_mode="HTML",
         )
@@ -1307,7 +1312,7 @@ async def post_tag_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 @require_role(Role.OWNER, strict=True,
-              message="❌ Rol berish/olishni faqat OWNER (bot egasi) bajaradi.")
+              message="adm:role_denied_grant")
 async def admin_set_role_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """`/setrole <user_id> <rol>` — admin rolini berish (faqat OWNER).
 
@@ -1316,75 +1321,69 @@ async def admin_set_role_command(update: Update, context: ContextTypes.DEFAULT_T
     jadvaliga yoziladi (``set_role`` / ``remove_role``).
     """
     args = getattr(context, "args", None) or []
+    # 🧹 FAZA 26: barcha javoblar buyruq yozgan admin tilida.
+    lang = get_lang(context)
     if len(args) < 2:
         await update.message.reply_text(
-            "📝 Foydalanish: <code>/setrole &lt;user_id&gt; &lt;rol&gt;</code>\n\n"
-            "Rollar: <code>owner</code>, <code>super_admin</code>, <code>admin</code>, "
-            "<code>moderator</code>, <code>finance</code>\n"
-            "Rolni olib tashlash uchun <code>user</code> yozing.",
+            admin_t("role_usage_set", lang),
             parse_mode="HTML",
         )
         return
     try:
         target_id = int(args[0])
     except (TypeError, ValueError):
-        await update.message.reply_text(
-            "❌ Noto'g'ri foydalanuvchi ID. Masalan: /setrole 123456789 admin"
-        )
+        await update.message.reply_text(admin_t("role_bad_id", lang))
         return
     role = parse_role(args[1])
     if role is None:
-        await update.message.reply_text(
-            "❌ Noma'lum rol. Mumkin: owner, super_admin, admin, moderator, finance, user."
-        )
+        await update.message.reply_text(admin_t("role_unknown", lang))
         return
     admin_id = update.effective_user.id
     ok = await db.run_db(set_role, target_id, role, granted_by=admin_id)
     if not ok:
-        await update.message.reply_text("❌ Rolni saqlab bo'lmadi (baza bilan aloqa).")
+        await update.message.reply_text(admin_t("role_save_failed", lang))
         return
     if role is Role.USER:
-        text = (f"✅ <b>Rol olib tashlandi.</b>\n\n"
-                f"👤 Foydalanuvchi: <code>{target_id}</code>")
+        text = admin_t("role_removed", lang, user=target_id)
     else:
         perms = ", ".join(required_permissions(role)) or "—"
-        text = (f"✅ <b>Rol berildi.</b>\n\n"
-                f"👤 Foydalanuvchi: <code>{target_id}</code>\n"
-                f"🎖 Rol: <b>{html_escape(role.value.upper())}</b>\n"
-                f"🔑 Ruxsatlar: <code>{html_escape(perms)}</code>")
+        text = admin_t("role_granted", lang, user=target_id,
+                       role=html_escape(role.value.upper()),
+                       perms=html_escape(perms))
     await update.message.reply_text(text, parse_mode="HTML")
 
 
 @require_role(Role.OWNER, strict=True,
-              message="❌ Rol olishni faqat OWNER (bot egasi) bajaradi.")
+              message="adm:role_denied_revoke")
 async def admin_del_role_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """`/delrole <user_id>` — admin rolini olib tashlash (faqat OWNER)."""
     args = getattr(context, "args", None) or []
+    lang = get_lang(context)
     if not args:
         await update.message.reply_text(
-            "📝 Foydalanish: <code>/delrole &lt;user_id&gt;</code>", parse_mode="HTML",
+            admin_t("role_usage_del", lang), parse_mode="HTML",
         )
         return
     try:
         target_id = int(args[0])
     except (TypeError, ValueError):
-        await update.message.reply_text("❌ Noto'g'ri foydalanuvchi ID.")
+        await update.message.reply_text(admin_t("role_bad_id_short", lang))
         return
     admin_id = update.effective_user.id
     ok = await db.run_db(remove_role, target_id, granted_by=admin_id)
     if not ok:
         await update.message.reply_text(
-            f"❌ <code>{target_id}</code> foydalanuvchida DB'dagi rol topilmadi."
+            admin_t("role_not_found", lang, user=target_id)
         )
         return
     await update.message.reply_text(
-        f"✅ <b>Rol olib tashlandi.</b>\n\n👤 Foydalanuvchi: <code>{target_id}</code>",
+        admin_t("role_removed", lang, user=target_id),
         parse_mode="HTML",
     )
 
 
 @require_role(Role.SUPER_ADMIN,
-              message="❌ Audit jurnalini faqat OWNER yoki SUPER_ADMIN ko'ra oladi.")
+              message="adm:audit_denied")
 async def admin_audit_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """`/audit [N]` — oxirgi admin harakatlari (6-bosqich auditi).
 
@@ -1398,15 +1397,15 @@ async def admin_audit_command(update: Update, context: ContextTypes.DEFAULT_TYPE
             limit = max(1, min(int(args[0]), 50))
         except (TypeError, ValueError):
             limit = 10
+    lang = get_lang(context)
     rows = await db.run_db(db.get_admin_audit_logs, limit=limit)
     if not rows:
         await update.message.reply_text(
-            "📝 <b>Audit jurnali hozircha bo'sh.</b>\n"
-            "<i>Admin harakatlari (chek, PRO, promo, sozlamalar) shu yerda ko'rinadi.</i>",
+            admin_t("audit_cmd_empty", lang),
             parse_mode="HTML",
         )
         return
-    lines = [f"📝 <b>Oxirgi admin harakatlari</b> (jami {len(rows)} ta):",
+    lines = [admin_t("audit_cmd_header", lang, count=len(rows)),
              "━━━━━━━━━━━━━━━━━"]
     for row in rows:
         created = row.get("created_at")
@@ -1439,7 +1438,7 @@ async def show_statistics(update: Update, context: ContextTypes.DEFAULT_TYPE):
     _remember_admin_section(context)
     stats = await db.run_db(db.get_system_stats)
     await update.message.reply_text(
-        _build_full_stats_text(stats),
+        _build_full_stats_text(stats, get_lang(context)),
         reply_markup=get_admin_dashboard_keyboard(),
         parse_mode="HTML",
     )
@@ -1452,7 +1451,7 @@ async def admin_all_posts(update: Update, context: ContextTypes.DEFAULT_TYPE):
     _remember_admin_section(context)
     recent_posts = await db.run_db(db.get_recent_posts, 15)
     await update.message.reply_text(
-        _build_admin_posts_text(recent_posts),
+        _build_admin_posts_text(recent_posts, get_lang(context)),
         reply_markup=get_admin_dashboard_keyboard(),
         parse_mode="HTML",
     )
@@ -1464,11 +1463,14 @@ async def admin_all_channels(update: Update, context: ContextTypes.DEFAULT_TYPE)
         return
     _remember_admin_section(context)
     channels = await db.run_db(db.get_all_channels, ADMIN_CHANNELS_LIMIT)
+    lang = get_lang(context)
     if not channels:
-        await update.message.reply_text("Hozircha ulangan kanallar yo'q.", reply_markup=get_admin_dashboard_keyboard())
+        await update.message.reply_text(
+            admin_t("channels_none_legacy", lang),
+            reply_markup=get_admin_dashboard_keyboard())
         return
 
-    text = format_admin_channels_list(channels)
+    text = format_admin_channels_list(channels, lang)
     await update.message.reply_text(text, reply_markup=get_admin_dashboard_keyboard(), parse_mode="HTML")
 
 
@@ -1476,24 +1478,28 @@ async def sponsors_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id):
         return
     _remember_admin_section(context)
+    lang = get_lang(context)
     sponsors = await db.run_db(db.get_sponsor_channels)
     if sponsors is None:
         await update.message.reply_text(
-            "⚠️ Homiy kanallarni bazadan o'qib bo'lmadi. Keyinroq urinib ko'ring.",
+            admin_t("sp_db_error", lang),
             reply_markup=get_admin_dashboard_keyboard(),
         )
         return
     count = len(sponsors)
-    text = f"📢 <b>Majburiy a'zolik (Homiy) kanallari ({count} ta):</b>\n━━━━━━━━━━━━━━━━━\n"
+    text = (admin_t("sp_list_header", lang, count=count)
+            + "\n━━━━━━━━━━━━━━━━━\n")
     if sponsors:
         for idx, s in enumerate(sponsors, 1):
             s_id, ch_id, ch_title, username, ch_url = unpack_sponsor(s)
             u_info = f" (@{username})" if username else ""
-            text += f"{idx}. 🔹 <b>{html_escape(ch_title)}</b>{u_info} (<code>{ch_id}</code>)\n   🔗 Havola: {ch_url}\n\n"
+            text += admin_t("sp_list_entry", lang, idx=idx,
+                            title=html_escape(ch_title), user=u_info,
+                            channel=ch_id, url=ch_url) + "\n\n"
     else:
-        text += "Hozircha hech qanday homiy kanal qo'shilmagan.\n\n"
+        text += admin_t("sp_list_empty", lang) + "\n\n"
 
-    text += "━━━━━━━━━━━━━━━━━\nO'chirish uchun pastdagi ro'yxatdan tanlang yoki yangi kanal qo'shing 👇"
+    text += "━━━━━━━━━━━━━━━━━\n" + admin_t("sp_list_footer", lang)
     await update.message.reply_text(text, reply_markup=get_admin_sponsors_keyboard(sponsors), parse_mode="HTML")
 
 
@@ -1501,11 +1507,9 @@ async def start_add_sponsor(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id):
         return ConversationHandler.END
     _remember_admin_section(context)
+    lang = get_lang(context)
     await update.message.reply_text(
-        "➕ <b>Homiy kanal qo'shish:</b>\n\n"
-        "Kanalning <code>@username</code>ini, ID sini (masalan: <code>-1001234567890</code>) yoki formatda yuboring:\n"
-        "<code>KANAL_ID|KANAL_NOMI|HAVOLA</code>\n\n"
-        "⚠️ <i>Bot ushbu kanalda administrator bo'lishi shart.</i>",
+        admin_t("sp_add_title", lang) + "\n\n" + admin_t("sp_add_howto", lang),
         reply_markup=get_admin_back_keyboard(),
         parse_mode="HTML"
     )
@@ -1515,6 +1519,7 @@ async def start_add_sponsor(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def sponsor_channel_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id):
         return ConversationHandler.END
+    lang = get_lang(context)
     text = update.message.text.strip()
 
     if "|" in text:
@@ -1524,12 +1529,13 @@ async def sponsor_channel_received(update: Update, context: ContextTypes.DEFAULT
             success = await db.run_db(db.add_sponsor_channel, ch_id, title=title, invite_link=url)
             if success:
                 await update.message.reply_text(
-                    f"✅ Homiy kanal qo'shildi: <b>{html_escape(title)}</b>",
+                    admin_t("sp_added_short", lang, title=html_escape(title)),
                     reply_markup=get_admin_dashboard_keyboard(),
                     parse_mode="HTML",
                 )
             else:
-                await update.message.reply_text("❌ Saqlashda xatolik yuz berdi.", reply_markup=get_admin_dashboard_keyboard())
+                await update.message.reply_text(admin_t("sp_save_error", lang),
+                                                reply_markup=get_admin_dashboard_keyboard())
             return ConversationHandler.END
 
     raw_target = text
@@ -1548,9 +1554,10 @@ async def sponsor_channel_received(update: Update, context: ContextTypes.DEFAULT
         bot_member = await context.bot.get_chat_member(chat_id=chat.id, user_id=context.bot.id)
         if bot_member.status not in ("administrator", "creator"):
             await update.message.reply_text(
-                f"❌ <b>Bot bu kanalda admin emas!</b>\n\n"
-                f"Kanal: <b>{html_escape(chat.title or '')}</b> (<code>{chat.id}</code>)\n\n"
-                "Iltimos, avval botni ushbu kanalga <b>admin</b> qiling va qayta yuboring:",
+                admin_t("sp_not_admin_title", lang) + "\n\n"
+                + admin_t("sp_not_admin_channel", lang,
+                          title=html_escape(chat.title or ""), chat=chat.id) + "\n\n"
+                + admin_t("sp_not_admin_howto_short", lang),
                 reply_markup=get_admin_back_keyboard(),
                 parse_mode="HTML",
             )
@@ -1569,7 +1576,7 @@ async def sponsor_channel_received(update: Update, context: ContextTypes.DEFAULT
         if not invite_link:
             invite_link = f"https://t.me/c/{str(chat.id).replace('-100', '')}"
 
-        title = chat.title or "Sponsor Kanal"
+        title = chat.title or admin_t("sp_generic_title", lang)
         username = chat.username or ""
 
         success = await db.run_db(
@@ -1581,16 +1588,17 @@ async def sponsor_channel_received(update: Update, context: ContextTypes.DEFAULT
         )
         if success:
             await update.message.reply_text(
-                f"✅ Homiy kanal muvaffaqiyatli qo'shildi: <b>{html_escape(title)}</b>",
+                admin_t("sp_added_full", lang, title=html_escape(title)),
                 reply_markup=get_admin_dashboard_keyboard(),
                 parse_mode="HTML",
             )
         else:
-            await update.message.reply_text("❌ Saqlashda xatolik yuz berdi.", reply_markup=get_admin_dashboard_keyboard())
+            await update.message.reply_text(admin_t("sp_save_error", lang),
+                                            reply_markup=get_admin_dashboard_keyboard())
     except Exception as e:
-        logger.error(f"Sponsor kanal tekshirish xatosi: {e}")
+        logger.error("Sponsor kanal tekshirish xatosi: %s", e)
         await update.message.reply_text(
-            f"❌ Kanal topilmadi yoki bot u yerda admin emas ({html_escape(str(e))}). Qaytadan kiriting:",
+            admin_t("sp_not_found_legacy", lang, error=html_escape(str(e))),
             reply_markup=get_admin_back_keyboard(),
         )
         return ADD_SPONSOR_CHANNEL
@@ -1607,7 +1615,7 @@ async def del_sponsor_callback(update: Update, context: ContextTypes.DEFAULT_TYP
 
     if not is_admin(query.from_user.id):
         try:
-            await query.message.reply_text("🚫 Ruxsat yo'q.")
+            await query.message.reply_text(admin_t("rbac_denied_msg", get_lang(context)))
         except Exception:
             pass
         return
@@ -1616,29 +1624,16 @@ async def del_sponsor_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         (s_id,) = admin_callback_guard(update, CB_SPONSOR_DELETE, 1)
     except CallbackTampering:
         return
+    lang = get_lang(context)
     removed = await db.run_db(db.remove_sponsor_channel, s_id)
     if not removed:
         try:
-            await query.message.reply_text("⚠️ Homiy kanal o'chirilmadi. Qayta urinib ko'ring.")
+            await query.message.reply_text(admin_t("sp_delete_failed", lang))
         except Exception:
             pass
-    # Yangilangan ro'yxatni qayta chizamiz
+    # Yangilangan ro'yxatni qayta chizamiz (yagona builder — FAZA 26).
     sponsors = await db.run_db(db.get_sponsor_channels) or []
-    count = len(sponsors)
-    text = (
-        "📢 <b>Majburiy obuna (Sponsor kanallar) boshqaruvi:</b>\n"
-        "━━━━━━━━━━━━━━━━━\n"
-        f"Ulangan kanallar soni: <b>{count} ta</b>\n\n"
-    )
-    if sponsors:
-        for idx, s in enumerate(sponsors, 1):
-            s_id_item, ch_id, ch_title, username, ch_url = unpack_sponsor(s)
-            u_info = f" (@{username})" if username else ""
-            link_info = f"\n   🔗 {ch_url}" if ch_url else ""
-            text += f"{idx}. <b>{html_escape(ch_title)}</b>{u_info} (<code>{ch_id}</code>){link_info}\n\n"
-    else:
-        text += "<i>Hozircha hech qanday sponsor kanal ulanmagan.</i>\n\n"
-    text += "━━━━━━━━━━━━━━━━━\nKanalni o'chirish uchun tegishli tugmani bosing yoki yangi kanal qo'shing 👇"
+    text = _build_sponsor_manage_text(sponsors, lang)
 
     try:
         await query.edit_message_text(
@@ -1662,23 +1657,29 @@ async def del_sponsor_callback(update: Update, context: ContextTypes.DEFAULT_TYP
 #   • o'chirish.
 # Kanal postlarida reklama har nechanchi postda chiqishi ham shu yerda
 # sozlanadi (har 3-, 4- yoki 5-post) — sanagich HAR BIR KANAL uchun alohida.
+# 🧹 FAZA 26: scope sarlavhalari endi i18n kalitlari (``ad_scope_*``) —
+# matn ``admin_t()`` orqali tilga mos chiziladi.
 AD_SCOPE_META = {
     "channel": {
-        "title": "📢 Kanal postlari",
+        "title": "ad_scope_channel",
         "state": SET_CHANNEL_AD,
     },
     "reply": {
-        "title": "🤖 Bot javoblari",
+        "title": "ad_scope_reply",
         "state": SET_BOT_REPLY_AD,
     },
 }
 
-AD_HTML_HINT = (
-    "💡 <b>HTML formatlash mumkin:</b>\n"
-    "<code>&lt;b&gt;qalin&lt;/b&gt;</code>, <code>&lt;i&gt;kursiv&lt;/i&gt;</code>, "
-    "<code>&lt;u&gt;tagchiziq&lt;/u&gt;</code>, "
-    "<code>&lt;a href=\"https://t.me/kanal\"&gt;havola&lt;/a&gt;</code>"
-)
+
+def _ad_scope_title(scope: str, lang: str = "uz") -> str:
+    """Scope sarlavhasi — i18n orqali (uz/ru/en)."""
+    meta = AD_SCOPE_META.get(scope) or {}
+    return admin_t(meta.get("title", "ad_scope_channel"), lang)
+
+
+def _ad_html_hint(lang: str = "uz") -> str:
+    """HTML formatlash yo'riqnomasi — i18n (uz/ru/en)."""
+    return admin_t("ad_html_hint", lang)
 
 
 def _ad_scope_state(scope: str):
@@ -1686,10 +1687,10 @@ def _ad_scope_state(scope: str):
     return AD_SCOPE_META.get(scope, {}).get("state", SET_CHANNEL_AD)
 
 
-def _format_ad_pool(ads) -> str:
+def _format_ad_pool(ads, lang: str = "uz") -> str:
     """Rotatsiya puli ro'yxatini HTML-xavfsiz matn ko'rinishida chiqaradi."""
     if not ads:
-        return "   <i>(Hozircha hech qanday reklama yo'q)</i>"
+        return admin_t("ad_pool_empty", lang)
     lines = []
     for ad in ads:
         if isinstance(ad, dict):
@@ -1706,54 +1707,54 @@ def _format_ad_pool(ads) -> str:
     return "\n".join(lines)
 
 
-def _format_ad_card(ad: dict, scope: str) -> str:
+def _format_ad_card(ad: dict, scope: str, lang: str = "uz") -> str:
     """Bitta reklama kartochkasi (tahrirlash ekrani uchun)."""
     ad = ad or {}
-    title = AD_SCOPE_META.get(scope, {}).get("title", scope)
-    status = "🟢 Faol (Active)" if ad.get("is_active", True) else "🔴 O'chirilgan (Inactive)"
+    title = _ad_scope_title(scope, lang)
+    status = (admin_t("ad_status_active", lang) if ad.get("is_active", True)
+              else admin_t("ad_status_inactive", lang))
     btn_text = (ad.get("button_text") or "").strip()
     btn_url = (ad.get("button_url") or "").strip()
     if btn_text and btn_url:
         button_line = f"<b>{html_escape(btn_text)}</b> → {html_escape(btn_url)}"
     else:
-        button_line = "<i>(tugma yo'q)</i>"
+        button_line = admin_t("ad_button_none", lang)
     return (
-        f"✏️ <b>Reklamani tahrirlash</b> — {title}\n"
+        admin_t("ad_card_title", lang, title=title) + "\n"
         "━━━━━━━━━━━━━━━━━\n"
-        f"🆔 ID: <code>{ad.get('id', 0)}</code>\n"
-        f"📊 Holat: {status}\n"
-        f"🔗 Inline tugma: {button_line}\n"
+        + admin_t("ad_card_id", lang, id=ad.get('id', 0)) + "\n"
+        + admin_t("ad_card_status", lang, status=status) + "\n"
+        + admin_t("ad_card_button", lang, button=button_line) + "\n"
         "━━━━━━━━━━━━━━━━━\n"
-        f"📝 <b>Matn (HTML):</b>\n<code>{html_escape(ad.get('text') or '')}</code>\n\n"
-        "👁 <b>Ko'rinishi:</b>\n"
-        f"{safe_html(ad.get('text') or '')}\n\n"
-        "Quyidagi tugmalar orqali tahrirlang 👇"
+        + admin_t("ad_card_text", lang, text=html_escape(ad.get('text') or '')) + "\n\n"
+        + admin_t("ad_card_preview", lang) + "\n"
+        + f"{safe_html(ad.get('text') or '')}\n\n"
+        + admin_t("ad_card_edit_hint", lang)
     )
 
 
-async def _ad_pool_menu_text(scope: str) -> str:
+async def _ad_pool_menu_text(scope: str, lang: str = "uz") -> str:
     """Reklama puli menyusi uchun matn (sarlavha + ro'yxat + yo'riqnoma)."""
     ads = await db.run_db(db.get_ads_full, scope, True)
-    meta = AD_SCOPE_META.get(scope, {})
-    title = meta.get("title", scope)
+    title = _ad_scope_title(scope, lang)
     active = sum(1 for a in ads if a.get("is_active", True))
     text = (
-        f"{title} — <b>avto-rotatsiya</b>\n"
+        admin_t("ad_pool_title", lang, title=title) + "\n"
         "━━━━━━━━━━━━━━━━━\n"
-        f"📦 Jami: <b>{len(ads)} ta</b>  |  🟢 Faol: <b>{active} ta</b>\n"
+        + admin_t("ad_pool_counts", lang, total=len(ads), active=active) + "\n"
     )
     if scope == "channel":
         interval = await db.run_db(db.get_channel_ad_interval)
-        text += f"⏱ Reklama oralig'i: <b>har {interval}-post</b> (kanal bo'yicha alohida)\n"
+        text += admin_t("ad_pool_interval_channel", lang, interval=interval) + "\n"
     else:
         settings = await db.run_db(db.get_ad_settings)
         interval = settings.get("auto_ad_interval", 4)
-        text += f"⏱ Reklama oralig'i: <b>har {interval} javob</b>\n"
+        text += admin_t("ad_pool_interval_reply", lang, interval=interval) + "\n"
     text += (
         "━━━━━━━━━━━━━━━━━\n"
-        f"<b>Reklama puli:</b>\n{_format_ad_pool(ads)}\n\n"
-        "Reklamani tahrirlash uchun uning ustiga bosing. "
-        "Bot faqat 🟢 <b>faol</b> reklamalarni navbatma-navbat qo'shadi."
+        + admin_t("ad_pool_list_title", lang) + "\n"
+        + _format_ad_pool(ads, lang) + "\n\n"
+        + admin_t("ad_pool_footer", lang)
     )
     return text
 
@@ -1769,9 +1770,9 @@ async def _ad_pool_menu_markup(scope: str):
     return get_ad_pool_menu_keyboard(scope, ads=ads, interval=interval)
 
 
-async def _show_ad_pool_menu(query, scope: str):
+async def _show_ad_pool_menu(query, scope: str, lang: str = "uz"):
     """Reklama puli menyusini (matn + klaviatura) qayta chizadi."""
-    text = await _ad_pool_menu_text(scope)
+    text = await _ad_pool_menu_text(scope, lang)
     markup = await _ad_pool_menu_markup(scope)
     await _edit_or_send(query, text, markup)
 
@@ -1787,13 +1788,14 @@ async def _edit_or_send(query, text: str, reply_markup=None):
             logger.debug("Reklama menyusini ko'rsatib bo'lmadi")
 
 
-async def _show_ad_card(query, scope: str, ad_id: int) -> bool:
+async def _show_ad_card(query, scope: str, ad_id: int, lang: str = "uz") -> bool:
     """Bitta reklama kartochkasini ko'rsatadi. Topilmasa False."""
     ad = await db.run_db(db.get_ad, ad_id)
     if not ad:
-        await _show_ad_pool_menu(query, scope)
+        await _show_ad_pool_menu(query, scope, lang)
         return False
-    await _edit_or_send(query, _format_ad_card(ad, scope), get_ad_edit_keyboard(ad, scope))
+    await _edit_or_send(query, _format_ad_card(ad, scope, lang),
+                        get_ad_edit_keyboard(ad, scope))
     return True
 
 
@@ -1813,22 +1815,28 @@ async def admin_ad_hub_entry(update: Update, context: ContextTypes.DEFAULT_TYPE)
         return ConversationHandler.END
     _remember_admin_section(context)
     context.user_data.pop("ad_edit", None)
-    text, markup = await _ad_hub_render()
+    text, markup = await _ad_hub_render(get_lang(context))
     await update.message.reply_text(text, reply_markup=markup, parse_mode="HTML")
     return SET_CHANNEL_AD
+
+
+async def _ad_new_text_prompt(lang: str) -> str:
+    """«Yangi reklama matnini yozing» yo'riqnomasi (i18n, FAZA 26)."""
+    return (admin_t("ad_new_prompt", lang) + "\n"
+            + _ad_html_hint(lang) + "\n\n"
+            + admin_t("ad_cancel_hint", lang))
 
 
 async def start_set_channel_ad(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id):
         return ConversationHandler.END
     context.user_data.pop("ad_edit", None)
-    text = await _ad_pool_menu_text("channel")
+    lang = get_lang(context)
+    text = await _ad_pool_menu_text("channel", lang)
     markup = await _ad_pool_menu_markup("channel")
     await update.message.reply_text(text, reply_markup=markup, parse_mode="HTML")
     await update.message.reply_text(
-        "Yangi reklama matnini shu yerga yozib yuborishingiz mumkin (pulga qo'shiladi).\n"
-        f"{AD_HTML_HINT}\n\n"
-        "Bekor qilish uchun ❌ Bekor qilish tugmasini bosing.",
+        _ad_new_text_prompt(lang),
         reply_markup=get_admin_back_keyboard(),
         parse_mode="HTML",
     )
@@ -1839,13 +1847,12 @@ async def start_set_bot_reply_ad(update: Update, context: ContextTypes.DEFAULT_T
     if not is_admin(update.effective_user.id):
         return ConversationHandler.END
     context.user_data.pop("ad_edit", None)
-    text = await _ad_pool_menu_text("reply")
+    lang = get_lang(context)
+    text = await _ad_pool_menu_text("reply", lang)
     markup = await _ad_pool_menu_markup("reply")
     await update.message.reply_text(text, reply_markup=markup, parse_mode="HTML")
     await update.message.reply_text(
-        "Yangi reklama matnini shu yerga yozib yuborishingiz mumkin (pulga qo'shiladi).\n"
-        f"{AD_HTML_HINT}\n\n"
-        "Bekor qilish uchun ❌ Bekor qilish tugmasini bosing.",
+        _ad_new_text_prompt(lang),
         reply_markup=get_admin_back_keyboard(),
         parse_mode="HTML",
     )
@@ -1861,25 +1868,28 @@ async def _ad_text_received(update, context, scope: str):
     state = _ad_scope_state(scope)
     text = (update.message.text or "").strip()
     pending = context.user_data.get("ad_edit") or {}
+    # 🧹 FAZA 26: barcha javoblar admin tilida (uz/ru/en).
+    lang = get_lang(context)
 
     # --- 1. Mavjud reklamaning inline URL tugmasini tahrirlash ---
     if pending.get("field") == "button" and pending.get("scope") == scope:
-        if text.lower() in ("clear", "-", "yo'q", "yoq"):
+        # 🌐 FAZA 26: "tozalash" buyrug'i uchala tilda ham qabul qilinadi
+        # (bu Foydalanuvchi KIRITISH tokenlari — ko'rsatiladigan matn emas).
+        if text.lower() in ("clear", "-", "yo'q", "yoq", "нет", "no", "none"):
             await db.run_db(db.update_ad, pending["id"], None, "", "")
             context.user_data.pop("ad_edit", None)
             await update.message.reply_text(
-                "🚫 <b>Inline tugma olib tashlandi.</b>",
+                admin_t("ad_btn_removed", lang),
                 reply_markup=get_admin_dashboard_keyboard(),
                 parse_mode="HTML",
             )
-            await _send_ad_card(update, context, scope, pending["id"])
+            await _send_ad_card(update, context, scope, pending["id"], lang)
             return state
 
         btn_text, btn_url = parse_button_input(text)
         if not btn_text or not btn_url:
             await update.message.reply_text(
-                "❌ Noto'g'ri format. <code>Tugma matni | https://havola</code> ko'rinishida yuboring.\n"
-                "Tugmani olib tashlash uchun <code>clear</code> deb yozing.",
+                admin_t("ad_btn_bad_format", lang),
                 reply_markup=get_admin_back_keyboard(),
                 parse_mode="HTML",
             )
@@ -1897,14 +1907,15 @@ async def _ad_text_received(update, context, scope: str):
         context.user_data.pop("ad_edit", None)
         if saved:
             await update.message.reply_text(
-                f"✅ <b>Inline tugma saqlandi:</b> {html_escape(btn_text)} → {html_escape(btn_url)}",
+                admin_t("ad_btn_saved", lang, text=html_escape(btn_text),
+                        url=html_escape(btn_url)),
                 reply_markup=get_admin_dashboard_keyboard(),
                 parse_mode="HTML",
             )
         else:
-            await update.message.reply_text("❌ Saqlashda xatolik yuz berdi.",
+            await update.message.reply_text(admin_t("sp_save_error", lang),
                                             reply_markup=get_admin_dashboard_keyboard())
-        await _send_ad_card(update, context, scope, pending["id"])
+        await _send_ad_card(update, context, scope, pending["id"], lang)
         return state
 
     # --- 2. Mavjud reklama matnini tahrirlash ---
@@ -1912,7 +1923,7 @@ async def _ad_text_received(update, context, scope: str):
         ok, err = validate_ad_html(text, max_len=db.AD_TEXT_MAX_LEN)
         if not ok:
             await update.message.reply_text(
-                f"❌ {err}\n\n{AD_HTML_HINT}",
+                f"❌ {err}\n\n{_ad_html_hint(lang)}",
                 reply_markup=get_admin_back_keyboard(),
                 parse_mode="HTML",
             )
@@ -1921,14 +1932,14 @@ async def _ad_text_received(update, context, scope: str):
         context.user_data.pop("ad_edit", None)
         if saved:
             await update.message.reply_text(
-                "✅ <b>Reklama matni yangilandi!</b>",
+                admin_t("ad_text_updated", lang),
                 reply_markup=get_admin_dashboard_keyboard(),
                 parse_mode="HTML",
             )
         else:
-            await update.message.reply_text("❌ Saqlashda xatolik yuz berdi.",
+            await update.message.reply_text(admin_t("sp_save_error", lang),
                                             reply_markup=get_admin_dashboard_keyboard())
-        await _send_ad_card(update, context, scope, pending["id"])
+        await _send_ad_card(update, context, scope, pending["id"], lang)
         return state
 
     # --- 3. Kanal reklama oralig'ini qo'lda kiritish ---
@@ -1937,38 +1948,39 @@ async def _ad_text_received(update, context, scope: str):
             value = int(text)
         except ValueError:
             await update.message.reply_text(
-                "❌ Faqat butun son kiriting (masalan: 3, 4 yoki 5).",
+                admin_t("ad_iv_bad_number", lang),
                 reply_markup=get_admin_back_keyboard(),
             )
             return state
         if value < db.AD_INTERVAL_MIN or value > db.AD_INTERVAL_MAX:
             await update.message.reply_text(
-                f"❌ Oraliq {db.AD_INTERVAL_MIN} va {db.AD_INTERVAL_MAX} orasida bo'lishi kerak.",
+                admin_t("ad_iv_out_of_range", lang,
+                        min=db.AD_INTERVAL_MIN, max=db.AD_INTERVAL_MAX),
                 reply_markup=get_admin_back_keyboard(),
             )
             return state
         if scope == "channel":
             await db.run_db(db.set_channel_ad_interval, value)
-            unit = "post"
+            unit = admin_t("ad_unit_post", lang)
         else:
             await db.run_db(db.set_ad_interval, value)
-            unit = "javob"
+            unit = admin_t("ad_unit_reply", lang)
         context.user_data.pop("ad_edit", None)
         await update.message.reply_text(
-            f"✅ <b>Reklama oralig'i yangilandi:</b> endi har <b>{value}-{unit}da</b> reklama chiqadi.\n"
-            + ("<i>Sanagich har bir kanal uchun alohida yuritiladi.</i>"
-               if scope == "channel" else "<i>Har bir foydalanuvchi uchun alohida hisoblanadi.</i>"),
+            admin_t("ad_iv_updated", lang, value=value, unit=unit) + "\n"
+            + (admin_t("ad_iv_counter_channel", lang) if scope == "channel"
+               else admin_t("ad_iv_counter_user", lang)),
             reply_markup=get_admin_dashboard_keyboard(),
             parse_mode="HTML",
         )
-        await _send_ad_menu(update, context, scope)
+        await _send_ad_menu(update, context, scope, lang)
         return state
 
     # --- 4. Yangi reklama qo'shish ---
     if text.lower() == "clear":
         removed = await db.run_db(db.clear_ads, scope)
         await update.message.reply_text(
-            f"🧹 Reklamalar tozalandi ({removed} ta).",
+            admin_t("ad_cleared_msg", lang, count=removed),
             reply_markup=get_admin_dashboard_keyboard(),
         )
         return ConversationHandler.END
@@ -1976,7 +1988,7 @@ async def _ad_text_received(update, context, scope: str):
     ok, err = validate_ad_html(text, max_len=db.AD_TEXT_MAX_LEN)
     if not ok:
         await update.message.reply_text(
-            f"❌ {err}\n\n{AD_HTML_HINT}",
+            f"❌ {err}\n\n{_ad_html_hint(lang)}",
             reply_markup=get_admin_back_keyboard(),
             parse_mode="HTML",
         )
@@ -1985,33 +1997,32 @@ async def _ad_text_received(update, context, scope: str):
     ad_id = await db.run_db(db.add_ad, scope, text)
     if ad_id > 0:
         await update.message.reply_text(
-            "✅ <b>Reklama rotatsiya puliga qo'shildi!</b>\n"
-            "Inline URL tugma qo'shish uchun ro'yxatdan uni tanlang.",
+            admin_t("ad_added", lang),
             reply_markup=get_admin_dashboard_keyboard(),
             parse_mode="HTML",
         )
     else:
-        await update.message.reply_text("❌ Saqlashda xatolik yuz berdi.",
+        await update.message.reply_text(admin_t("sp_save_error", lang),
                                         reply_markup=get_admin_dashboard_keyboard())
-    await _send_ad_menu(update, context, scope)
+    await _send_ad_menu(update, context, scope, lang)
     return state
 
 
-async def _send_ad_menu(update, context, scope: str):
+async def _send_ad_menu(update, context, scope: str, lang: str = "uz"):
     """Yangilangan reklama menyusini yangi xabar sifatida yuboradi."""
-    menu = await _ad_pool_menu_text(scope)
+    menu = await _ad_pool_menu_text(scope, lang)
     markup = await _ad_pool_menu_markup(scope)
     await update.message.reply_text(menu, reply_markup=markup, parse_mode="HTML")
 
 
-async def _send_ad_card(update, context, scope: str, ad_id: int):
+async def _send_ad_card(update, context, scope: str, ad_id: int, lang: str = "uz"):
     """Tahrirlangan reklama kartochkasini yangi xabar sifatida yuboradi."""
     ad = await db.run_db(db.get_ad, ad_id)
     if not ad:
-        await _send_ad_menu(update, context, scope)
+        await _send_ad_menu(update, context, scope, lang)
         return
     await update.message.reply_text(
-        _format_ad_card(ad, scope),
+        _format_ad_card(ad, scope, lang),
         reply_markup=get_ad_edit_keyboard(ad, scope),
         parse_mode="HTML",
     )
@@ -2060,7 +2071,9 @@ async def ad_pool_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     meta = AD_SCOPE_META.get(scope)
     if not meta:
         return ConversationHandler.END
-    title = meta["title"]
+    # 🧹 FAZA 26: sarlavha va barcha matnlar admin tilida (uz/ru/en).
+    lang = get_lang(context)
+    title = _ad_scope_title(scope, lang)
     state = meta["state"]
 
     def _ad_id():
@@ -2072,9 +2085,9 @@ async def ad_pool_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if action == "add":
         context.user_data.pop("ad_edit", None)
         text = (
-            f"✍️ <b>{title}</b> — yangi reklama matnini yozing.\n\n"
-            f"{AD_HTML_HINT}\n\n"
-            "<i>Barcha reklamalarni o'chirish uchun</i> <code>clear</code> <i>deb yozing.</i>"
+            admin_t("ad_add_new_title", lang, title=title) + "\n\n"
+            + _ad_html_hint(lang) + "\n\n"
+            + admin_t("ad_add_clear_hint", lang)
         )
         await _edit_or_send(query, text, get_ad_pool_back_keyboard(scope))
         return state
@@ -2083,25 +2096,26 @@ async def ad_pool_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ad_id = _ad_id()
         context.user_data.pop("ad_edit", None)
         if ad_id is None:
-            await _show_ad_pool_menu(query, scope)
+            await _show_ad_pool_menu(query, scope, lang)
             return state
-        await _show_ad_card(query, scope, ad_id)
+        await _show_ad_card(query, scope, ad_id, lang)
         return state
 
     if action == "et":
         ad_id = _ad_id()
         if ad_id is None:
-            await _show_ad_pool_menu(query, scope)
+            await _show_ad_pool_menu(query, scope, lang)
             return state
         ad = await db.run_db(db.get_ad, ad_id)
         if not ad:
-            await _show_ad_pool_menu(query, scope)
+            await _show_ad_pool_menu(query, scope, lang)
             return state
         context.user_data["ad_edit"] = {"id": ad_id, "field": "text", "scope": scope}
         text = (
-            f"✏️ <b>#{ad_id} — yangi matnni yuboring:</b>\n\n"
-            f"<b>Hozirgi matn:</b>\n<code>{html_escape(ad.get('text') or '')}</code>\n\n"
-            f"{AD_HTML_HINT}"
+            admin_t("ad_et_title", lang, id=ad_id) + "\n\n"
+            + admin_t("ad_et_current", lang,
+                      text=html_escape(ad.get('text') or '')) + "\n\n"
+            + _ad_html_hint(lang)
         )
         await _edit_or_send(query, text, get_ad_pool_back_keyboard(scope))
         return state
@@ -2109,25 +2123,22 @@ async def ad_pool_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if action == "eb":
         ad_id = _ad_id()
         if ad_id is None:
-            await _show_ad_pool_menu(query, scope)
+            await _show_ad_pool_menu(query, scope, lang)
             return state
         ad = await db.run_db(db.get_ad, ad_id)
         if not ad:
-            await _show_ad_pool_menu(query, scope)
+            await _show_ad_pool_menu(query, scope, lang)
             return state
         context.user_data["ad_edit"] = {"id": ad_id, "field": "button", "scope": scope}
         current = ""
         if (ad.get("button_text") or "").strip():
-            current = (
-                f"<b>Hozirgi tugma:</b> {html_escape(ad['button_text'])} → "
-                f"{html_escape(ad.get('button_url') or '')}\n\n"
-            )
+            current = admin_t("ad_eb_current", lang,
+                              text=html_escape(ad['button_text']),
+                              url=html_escape(ad.get('button_url') or '')) + "\n\n"
         text = (
-            f"🔗 <b>#{ad_id} — inline URL tugma:</b>\n\n"
-            f"{current}"
-            "Quyidagi formatda yuboring:\n"
-            "<code>Tugma matni | https://t.me/kanal</code>\n\n"
-            "Tugmani olib tashlash uchun <code>clear</code> deb yozing."
+            admin_t("ad_eb_title", lang, id=ad_id) + "\n\n"
+            + current
+            + admin_t("ad_eb_howto", lang)
         )
         await _edit_or_send(query, text, get_ad_pool_back_keyboard(scope))
         return state
@@ -2137,23 +2148,24 @@ async def ad_pool_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if ad_id is not None:
             await db.run_db(db.update_ad, ad_id, None, "", "")
             context.user_data.pop("ad_edit", None)
-            await _show_ad_card(query, scope, ad_id)
+            await _show_ad_card(query, scope, ad_id, lang)
         return state
 
     if action == "tg":
         ad_id = _ad_id()
         if ad_id is None:
-            await _show_ad_pool_menu(query, scope)
+            await _show_ad_pool_menu(query, scope, lang)
             return state
         new_status = await db.run_db(db.toggle_ad_active, ad_id)
         if new_status is None:
-            await _show_ad_pool_menu(query, scope)
+            await _show_ad_pool_menu(query, scope, lang)
             return state
         try:
-            await query.answer("🟢 Reklama faollashtirildi" if new_status else "🔴 Reklama o'chirildi")
+            await query.answer(admin_t("ad_tg_on_toast", lang) if new_status
+                               else admin_t("ad_tg_off_toast", lang))
         except Exception:
             pass
-        await _show_ad_card(query, scope, ad_id)
+        await _show_ad_card(query, scope, ad_id, lang)
         return state
 
     if action == "rm":
@@ -2161,12 +2173,13 @@ async def ad_pool_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if ad_id is not None:
             await db.run_db(db.delete_ad, ad_id)
             context.user_data.pop("ad_edit", None)
-        await _show_ad_pool_menu(query, scope)
+        await _show_ad_pool_menu(query, scope, lang)
         return state
 
     if action == "del":
         ads = await db.run_db(db.get_ads_full, scope, True)
-        text = f"🗑 <b>{title}</b> — o'chiriladigan reklamani tanlang:\n\n{_format_ad_pool(ads)}"
+        text = (admin_t("ad_del_pick", lang, title=title) + "\n\n"
+                + _format_ad_pool(ads, lang))
         await _edit_or_send(query, text, get_ad_pool_delete_keyboard(ads, scope))
         return state
 
@@ -2174,17 +2187,18 @@ async def ad_pool_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         removed = await db.run_db(db.clear_ads, scope)
         context.user_data.pop("ad_edit", None)
         try:
-            await query.answer(f"🧹 {removed} ta reklama o'chirildi")
+            await query.answer(admin_t("ad_clear_toast", lang, count=removed))
         except Exception:
             pass
-        await _show_ad_pool_menu(query, scope)
+        await _show_ad_pool_menu(query, scope, lang)
         return state
 
     if action == "iv":
         # Reklama oralig'i — HAR BIR BO'LIM uchun o'z sozlamasi:
         #   channel → har nechanchi POSTDA,  reply → har nechta JAVOBDA.
         is_channel = (scope == "channel")
-        unit = "post" if is_channel else "javob"
+        unit = (admin_t("ad_unit_post", lang) if is_channel
+                else admin_t("ad_unit_reply", lang))
         if arg is not None:
             value = db.clamp_ad_interval(arg, 3 if is_channel else 4)
             if is_channel:
@@ -2193,10 +2207,10 @@ async def ad_pool_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await db.run_db(db.set_ad_interval, value)
             context.user_data.pop("ad_edit", None)
             try:
-                await query.answer(f"✅ Endi har {value}-{unit}da reklama chiqadi")
+                await query.answer(admin_t("ad_iv_toast", lang, value=value, unit=unit))
             except Exception:
                 pass
-            await _show_ad_pool_menu(query, scope)
+            await _show_ad_pool_menu(query, scope, lang)
             return state
 
         if is_channel:
@@ -2206,23 +2220,15 @@ async def ad_pool_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             current = settings.get("auto_ad_interval", 4)
         context.user_data["ad_edit"] = {"id": 0, "field": "interval", "scope": scope}
         if is_channel:
-            explain = (
-                "Bot har nechanchi postda reklama qo'shsin? Sanagich <b>har bir "
-                "kanal uchun alohida</b> yuritiladi — bir kanaldagi postlar "
-                "boshqasiga ta'sir qilmaydi."
-            )
+            explain = admin_t("ad_iv_explain_channel", lang)
         else:
-            explain = (
-                "Bot har nechta javobda reklama qo'shsin? Standart qiymat: "
-                "<b>4</b> (ya'ni har 3-5 ta javobda)."
-            )
+            explain = admin_t("ad_iv_explain_reply", lang)
         text = (
-            "⏱ <b>Reklama oralig'ini sozlash</b>\n"
+            admin_t("ad_iv_title", lang) + "\n"
             "━━━━━━━━━━━━━━━━━\n"
-            f"Hozirgi qiymat: <b>har {current}-{unit}</b>\n\n"
-            f"{explain}\n\n"
-            f"Tugmalardan tanlang yoki {db.AD_INTERVAL_MIN}–{db.AD_INTERVAL_MAX} "
-            "oralig'idagi sonni yozib yuboring."
+            + admin_t("ad_iv_current", lang, value=current, unit=unit) + "\n\n"
+            + f"{explain}\n\n"
+            + admin_t("ad_iv_hint", lang, min=db.AD_INTERVAL_MIN, max=db.AD_INTERVAL_MAX)
         )
         await _edit_or_send(query, text, get_ad_interval_keyboard(scope, current))
         return state
@@ -2231,26 +2237,17 @@ async def ad_pool_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         interval_line = ""
         if scope == "channel":
             interval = await db.run_db(db.get_channel_ad_interval)
-            interval_line = (
-                f"• Kanal postlari: har <b>{interval}-postda</b> bitta reklama "
-                "(sanagich har bir kanal uchun alohida).\n"
-            )
+            interval_line = admin_t("ad_info_interval_channel", lang, interval=interval)
         text = (
-            f"ℹ️ <b>{title} — avto-rotatsiya</b>\n\n"
-            "Pulga bir nechta reklama qo'shsangiz, bot ularni navbatma-navbat "
-            "(round-robin) qo'shadi.\n"
-            f"{interval_line}"
-            "• Bot javoblari: har 3-xabarga bitta reklama.\n"
-            "• 🔴 holatdagi reklamalar rotatsiyada qatnashmaydi.\n"
-            "• Har bir reklamaga inline URL tugma biriktirish mumkin.\n\n"
-            "Pul bo'sh bo'lsa eski yagona reklama ishlashda davom etadi."
+            admin_t("ad_info_title", lang, title=title) + "\n\n"
+            + admin_t("ad_info_body", lang, interval_line=interval_line)
         )
         await _edit_or_send(query, text, get_ad_pool_back_keyboard(scope))
         return state
 
     if action == "back":
         context.user_data.pop("ad_edit", None)
-        await _show_ad_pool_menu(query, scope)
+        await _show_ad_pool_menu(query, scope, lang)
         return state
 
     return state
@@ -2260,8 +2257,9 @@ async def broadcast_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id):
         return ConversationHandler.END
     _remember_admin_section(context)
+    lang = get_lang(context)
     await update.message.reply_text(
-        "✉️ <b>Barcha foydalanuvchilarga xabar yuborish:</b>\n\nYuboriladigan xabar matnini yozing:",
+        admin_t("bc_title", lang) + "\n\n" + admin_t("bc_prompt", lang),
         reply_markup=get_admin_back_keyboard(),
         parse_mode="HTML"
     )
@@ -2272,17 +2270,17 @@ async def broadcast_send(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id):
         return ConversationHandler.END
 
+    lang = get_lang(context)
     # Avvalgi broadcast hali davom etayotgan bo'lsa — takroriy ishga tushirmaymiz
     if _broadcast_lock.locked():
         await update.message.reply_text(
-            "⏳ <b>Avvalgi xabar yuborilishi hali davom etmoqda.</b>\n"
-            "Iltimos, yakunlanishini kuting (natija haqida xabar keladi).",
+            admin_t("bc_busy", lang),
             parse_mode="HTML"
         )
         return ConversationHandler.END
 
     if not has_permission(update.effective_user.id, PERM_MANAGE_USERS):
-        await update.message.reply_text("❌ Sizda broadcast yuborish uchun ruxsat yo'q.")
+        await update.message.reply_text(admin_t("perm_broadcast", lang))
         return ConversationHandler.END
 
     text = update.message.text
@@ -2290,8 +2288,7 @@ async def broadcast_send(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_ids = await db.run_db(db.get_all_user_ids)
 
     await update.message.reply_text(
-        f"⏳ Xabar <b>{len(user_ids)} ta</b> foydalanuvchiga yuborilmoqda...\n"
-        f"<i>Bu fon rejimida, batch'lar bilan yuboriladi.</i>",
+        admin_t("bc_started", lang, count=len(user_ids)),
         parse_mode="HTML"
     )
 
@@ -2299,13 +2296,13 @@ async def broadcast_send(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # bemalol ishlatishi mumkin, Telegram esa rate-limitga tushmaydi.
     async def _broadcast_task():
         async with _broadcast_lock:
-            await _run_broadcast(context.bot, user_ids, text, update.effective_user.id)
+            await _run_broadcast(context.bot, user_ids, text, update.effective_user.id, lang)
 
     asyncio.create_task(_broadcast_task())
     return ConversationHandler.END
 
 
-async def _run_broadcast(bot, user_ids, text, admin_id):
+async def _run_broadcast(bot, user_ids, text, admin_id, lang: str = "uz"):
     """Broadcastni batch'lar bilan, rate-limit va retry bilan yuborish."""
     sent = 0
     failed = 0
@@ -2355,11 +2352,7 @@ async def _run_broadcast(bot, user_ids, text, admin_id):
     try:
         await bot.send_message(
             chat_id=admin_id,
-            text=(
-                f"✅ <b>Xabar tarqatildi!</b>\n\n"
-                f"Yetib bordi: <b>{sent} / {len(user_ids)}</b> ta foydalanuvchiga.\n"
-                f"❌ Yuborilmagan: <b>{failed} ta</b>."
-            ),
+            text=admin_t("bc_done", lang, sent=sent, total=len(user_ids), failed=failed),
             parse_mode="HTML"
         )
     except Exception:

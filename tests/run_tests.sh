@@ -101,6 +101,13 @@
 #       ADMIN_IDS orqali yetkazish, adminning Telegram «Reply» javobini
 #       foydalanuvchiga dispatcher orqali qaytarish va not-an-admin
 #       himoyasi (tests/support_ticket_flow_test.py)
+#   3I) 🧭 FAZA 17/18/19/26 — UI/UX STANDARTLARI: asosiy Reply menyu QAT'IY
+#       3 qator/6 tugma; kanonik navigatsiya (Orqaga/Bekor/Asosiy menyu/
+#       Yopish — bir xil vazifali ikkita tugma TAQIQLANADI); inline
+#       dublikatlar kanonik get_settings_profile_keyboard ga yo'naltirilgan;
+#       CALLBACK REGISTRY + tampering FAIL-CLOSED rad etish; handlers/admin.py
+#       va handlers/channels.py da hardcoded matn YO'Q + UZ/RU/EN 100% i18n
+#       paritet (tests/ui_ux_and_navigation_standards_test.py)
 #   3G) 🧭 3-QADAM (UI/UX POLISH) — MAVZU ANIQLIGI, FORMAT VA SIFAT:
 #       qisqa/umumiy mavzuda aniqlashtirish wizard'i (📰/💡/🔥/🛒/✍️),
 #       "yangiliklar" hech qachon Sotuv oqimiga tushmaydi, sotuvda
@@ -739,6 +746,35 @@ echo "===== 3H) 💬 4-QISM: QO'LLAB-QUVVATLASH (ONE-TIME TICKET) + ADMIN REPLY 
 #     database.EXPECTED_TABLES paralleligi, ⚙️ Sozlamalar hub'i o'zgarmagan
 #     (tests/support_ticket_flow_test.py).
 "$PY" tests/support_ticket_flow_test.py || EXIT_CODE=1
+
+echo
+echo "===== 3I) 🧭 FAZA 17/18/19/26 — UI/UX STANDARTLARI, CALLBACK REGISTRY, I18N PARITET ====="
+# (1) 🏠 Asosiy Reply menyu QAT'IY 3 qator / 6 tugma (uz/ru/en; 4-qator
+#     TAQIQLANADI, admin variantida faqat [⚙️ Admin Panel] qatori qo'shiladi);
+# (2) 🧭 FAZA 17 — KANONIK NAVIGATSIYA: ◀️/⬅️ Orqaga = parent oyna,
+#     ❌ Bekor qilish = FSM to'xtatish, 🏠/🔙 Asosiy menyu = bosh menyu,
+#     ❌ Yopish = vaqtinchalik xabarni yopish; BUTUN klaviatura parki
+#     (inline+default, 3 tilda) — bir xil vazifali IKKITA tugma YO'Q
+#     (find_nav_conflicts == 0) va yorliq↔callback semantikasi mos;
+# (3) 🧹 FAZA 18 — get_cabinet_inline_keyboard / get_settings_hub_keyboard
+#     dublikatlari KANONIK get_settings_profile_keyboard ga yo'naltirilgan
+#     (7 tugma, oxirgi qator [❌ Yopish], callback'lar tilga bog'liq emas);
+# (4) 🗝 FAZA 19 — CALLBACK REGISTRY: barcha klaviatura callback'lari
+#     registry'da; noma'lum/soxta (tampered) callback FAIL-CLOSED rad
+#     etiladi (show_alert=True, xabar o'chirilmaydi/tahrirlanmaydi,
+#     callback_tampering logi); 64-bayt limiti buzilgan qiymat rad etiladi;
+#     namespace ostidagi soxta payload handler OQ RO'YXATI/RBAC bilan
+#     zararsizlantiriladi (ikki qatlam);
+# (5) 🌐 FAZA 26 — I18N 100% PARITET: handlers/admin.py va
+#     handlers/channels.py da foydalanuvchi ko'radigan QOTIRILGAN o'zbekcha
+#     satrlar YO'Q (AST-skaner); translations/admin_panel.py (216 kalit)
+#     UZ↔RU↔EN in_sync=True; channels_queue/settings_stats/asosiy lug'at
+#     pariteti buzilmagan; RBAC rad javoblari 'adm:' i18n markeri orqali;
+# (6) ♻️ REGRESSIYA: uz chiqishlari migratsiyagacha bo'lgan matnlar bilan
+#     bir xil (dashboard/stats/dbcache/posts/sponsors oltin fragmentlari),
+#     CHANNEL_LIMIT_MSG/PRO_UPGRADE_KEYBOARD/parse_channel_target orqaga
+#     mosligi 3 tilda (tests/ui_ux_and_navigation_standards_test.py).
+"$PY" tests/ui_ux_and_navigation_standards_test.py || EXIT_CODE=1
 
 echo
 echo "======== 4) TO'LIQ REGRESSIYA (telegram_bot/tests) ========"

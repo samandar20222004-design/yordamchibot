@@ -134,6 +134,12 @@ from translations.support import (  # noqa: F401
     support_parity_report,
     support_t,
 )
+# 👑 FAZA 26 — admin panel i18n (handlers/admin.py matnlari, uz/ru/en).
+from translations.admin_panel import (  # noqa: F401
+    ADMIN_PANEL_I18N,
+    admin_panel_parity_report,
+    admin_t,
+)
 
 __all__ = [
     "MAGIC_POST_I18N",
@@ -201,4 +207,7 @@ __all__ = [
     "SUPPORT_EMPTY_MESSAGE_KEYS",
     "support_t",
     "support_parity_report",
+    "ADMIN_PANEL_I18N",
+    "admin_t",
+    "admin_panel_parity_report",
 ]

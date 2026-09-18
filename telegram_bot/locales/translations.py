@@ -1541,6 +1541,12 @@ TRANSLATIONS = {
             "♻️ Bu tugma eskirgan (bot qayta ishga tushirilgan). "
             "Menyuni qaytadan oching: /start"
         ),
+        # 🗝 FAZA 19 — registry'da yo'q (soxtalashtirilgan/noma'lum) callback
+        # uchun fail-closed rad javobi (foydalanuvchi tilida).
+        "callback_rejected": (
+            "⛔ Bu amal mavjud emas yoki xavfsizlik tekshiruvidan o'tmadi. "
+            "Iltimos, menyudan foydalaning: /start"
+        ),
         "sys_unexpected_error": (
             "⚠️ <b>Kutilmagan xatolik yuz berdi.</b>\n"
             "Iltimos, birozdan so'ng qayta urinib ko'ring yoki /start bosing."
@@ -2425,7 +2431,10 @@ TRANSLATIONS = {
             "Выберите следующий шаг 👇"
         ),
         "ai_btn_back": "⬅️ Назад",
-        "ai_btn_close": "❌ Закрыть",
+        # 🧭 FAZA 17: bu tugma FSM'ni TO'XTATADI (ai_close = Bekor qilish),
+        # shuning uchun RU yorlig'i ham kanonik «Отмена» (UZ «❌ Bekor
+        # qilish» / EN «❌ Cancel» bilan bir xil ma'noda).
+        "ai_btn_close": "❌ Отмена",
         "ai_btn_main_menu": "⬅️ Главное меню",
         "ai_confirm_schedule": "✅ Запланировать в канал",
         "ai_confirm_edit": "📝 Редактировать текст",
@@ -3505,6 +3514,11 @@ TRANSLATIONS = {
         "sys_stale_button": (
             "♻️ Эта кнопка устарела (бот был перезапущен). "
             "Откройте меню заново: /start"
+        ),
+        # 🗝 FAZA 19 — отказ для неизвестного/поддельного callback (fail-closed).
+        "callback_rejected": (
+            "⛔ Это действие недоступно или не прошло проверку безопасности. "
+            "Пожалуйста, пользуйтесь меню: /start"
         ),
         "sys_unexpected_error": (
             "⚠️ <b>Произошла непредвиденная ошибка.</b>\n"
