@@ -14,23 +14,30 @@ LANG_KEY = "lang"
 TRANSLATIONS = {
     "uz": {
         "btn_new_post": "➕ Yangi post",
-        "btn_ai_studio": "✨ AI Studio",
-        # UX V2 (6-tugma standarti): asosiy menyu yorliqlari. "btn_premium" =
-        # 💎 PRO, "btn_settings" = ⚙️ Sozlamalar — eski nomlar routing'da alias
-        # sifatida saqlanadi (keyboards.default PREMIUM_ALIASES /
-        # PROFILE_ALIASES), shuning uchun eski klaviatura xabarlari buzilmaydi.
+        # 🤖 AI YORDAMCHI (3-QISM refaktori): «AI Studio» nomi foydalanuvchi
+        # uchun notanish edi — uchala tilda «AI Yordamchi»ga o'zgartirildi.
+        # Eski «✨ AI Studio» yorliqlari routing'da ALIAS sifatida saqlanadi
+        # (keyboards.default AI_STUDIO_ALIASES).
+        "btn_ai_studio": "🤖 AI Yordamchi",
+        # UX V2 → 3-QISM: asosiy menyu yorliqlari. "btn_premium" = 💎 PRO,
+        # "btn_settings" endi «👤 Profil» (eski «⚙️ Sozlamalar» nomi routing'da
+        # alias sifatida saqlanadi — keyboards.default PROFILE_ALIASES),
+        # "btn_invite_friends" = 👥 Do'stlarni taklif (referral — endi asosiy
+        # menyuda, ichki menyular qatida yashirinib qolmaydi).
         "btn_premium": "💎 PRO",
-        "btn_settings": "⚙️ Sozlamalar",
+        "btn_settings": "👤 Profil",
         "btn_help": "📖 Qo'llanma / Bot haqida",
         "btn_extras": "⚙️ Qo'shimcha funksiyalar",
-        # 🆕 UX V2 asosiy menyu — QAT'IY 6 TUGMA standarti (uz/ru/en paritetda):
+        # 🆕 3-QISM: asosiy menyu — 7 TUGMA (4 qator) standarti (uz/ru/en paritetda):
         #   [✨ Kontent yaratish]   [📢 Kanallarim]
         #   [📅 Rejalashtirilgan]   [📊 Statistika]
-        #   [💎 PRO]                [⚙️ Sozlamalar]
+        #   [💎 PRO]                [👥 Do'stlarni taklif]
+        #   [👤 Profil]
         "btn_create_content": "✨ Kontent yaratish",
         "btn_my_channels": "📢 Kanallarim",
         "btn_scheduled": "📅 Rejalashtirilgan",
         "btn_statistics": "📊 Statistika",
+        "btn_invite_friends": "👥 Do'stlarni taklif",
         "start_hello": (
             "Salom, <b>{name}</b>! 👋\n\n"
             "🤖 @PostAssistrobot — kanallarga postlarni vaqtida joylash, "
@@ -102,7 +109,7 @@ TRANSLATIONS = {
         ),
         "daily_bonus_guide": (
             "🎁 Kunlik bepul AI ballaringizni olish uchun "
-            "'Kabinet & Sozlamalar' → '🎁 Kunlik bonus' bo'limiga kiring."
+            "'👥 Do'stlarni taklif' → '🎁 Kunlik bonus' bo'limiga kiring."
         ),
         "no_credits": (
             "⚠️ <b>Sizda bepul AI so'rovlari soni tugadi!</b>\n\n"
@@ -290,7 +297,7 @@ TRANSLATIONS = {
         "cabinet_credits_admin": "♾ Cheksiz (Super Admin)",
         "cabinet_streak": "🔥 <b>{streak}/7 kun</b>",
         "cabinet_title": (
-            "👤 <b>Shaxsiy Kabinet:</b>\n\n"
+            "👤 <b>Profil:</b>\n\n"
             "🆔 Sizning ID: <code>{user_id}</code>\n"
             "🔑 Maxsus kodingiz: <code>{user_code}</code>\n"
             "💎 Mavjud AI so'rovlar soni: {credits}\n"
@@ -374,9 +381,9 @@ TRANSLATIONS = {
         "transfer_error": "❌ <b>Xatolik:</b> {msg}",
         "transfer_default_name": "Do'stingiz",
 
-        # --- 2-QISM: ✨ AI Studio i18n ---
+        # --- 2-QISM: 🤖 AI Yordamchi i18n (eski nomi — AI Studio) ---
         "ai_studio_menu": (
-            "🤖 <b>PostAssist AI Studio</b>\n\n"
+            "🤖 <b>PostAssist AI Yordamchi</b>\n\n"
             "💎 Mavjud AI so'rovlari: {credits}\n\n"
             "Kanal kontentini yaratish uchun kerakli vositani tanlang 👇"
         ),
@@ -434,7 +441,7 @@ TRANSLATIONS = {
             "📦 Navbatga qo'yildi: <b>{count} ta post</b>\n\n"
             "{days}\n\n"
             "🤖 Postlar har kuni soat <b>12:00</b> da avtomatik chiqadi.\n"
-            "📋 Istalgan postni «👤 Kabinet & Sozlamalar» → "
+            "📋 Istalgan postni «👤 Profil» → "
             "«📅 Rejalashtirilgan» bo'limidan tahrirlashingiz yoki "
             "bekor qilishingiz mumkin."
         ),
@@ -539,7 +546,7 @@ TRANSLATIONS = {
         "ai_photo_rewrite_keep": "⚠️ AI qayta yozishda post tayyorlay olmadi. Asl post saqlanib qoldi.",
         "ai_tone_applying": "🎨 <i>{tone} uslubi qo'llanmoqda...</i>",
         "ai_schedule_need_post": "⚠️ Avval post yarating. Mavzuni yozing:",
-        "ai_close_session": "❌ AI Studio sessiyasi yakunlandi.",
+        "ai_close_session": "❌ AI Yordamchi sessiyasi yakunlandi.",
         "ai_close_main_menu": "🏠 Asosiy menyu.",
         "ai_not_found": "Kechirasiz, javob topa olmadim.",
         "ai_tone_unknown": "⚠️ Sessiya eskirgan. Mavzuni qaytadan yuboring.",
@@ -1458,12 +1465,12 @@ TRANSLATIONS = {
             "📖 <b>PostAssistrobot — To'liq Qo'llanma:</b>\n\n"
             "🔹 <b>1. Kanal/Guruh ulash:</b>\n"
             "• Botni kanalingizga <b>administrator</b> qilib (xabar yuborish ruxsati bilan) qo'shing.\n"
-            "• «👤 Kabinet & Sozlamalar» → «📢 Mening kanallarim» orqali kanaldan istalgan xabarni botga forward qiling yoki @username yuboring.\n\n"
+            "• «👤 Profil» yoki asosiy menyudagi «📢 Kanallarim» bo'limi orqali kanaldan istalgan xabarni botga forward qiling yoki @username yuboring.\n\n"
             "🔹 <b>2. Yangi post rejalashtirish:</b>\n"
             "• Matn, rasm, video, audio yoki <b>albom</b> (bir nechta rasm/video) postlarni istalgan sanaga rejalashtirish.\n"
             "• Havola tugmalar (URL button), reaksiyalar va avto-o'chirish (12, 24, 48, 72 soat).\n"
             "• <i>PRO tarifda postlar avtomatik reklamasiz (100% toza) chiqadi!</i>\n\n"
-            "🔹 <b>3. ✨ AI Studio:</b>\n"
+            "🔹 <b>3. 🤖 AI Yordamchi:</b>\n"
             "• AI Post yaratish, rasmdan post (Vision), AI post auditi va kontent-reja.\n"
             "• Savol bering yoki matn/rasm/forward yuboring — professional post va she'rlar tayyorlanadi.\n"
             "• Erkin tilda buyruq: <i>«ertaga ertalab 9 ga hamma kanalga rejalashtir»</i>.\n"
@@ -1477,7 +1484,7 @@ TRANSLATIONS = {
             "⚙️ <b>Tezkor buyruqlar:</b>\n"
             "/start — Bosh menyu\n"
             "/newpost — Yangi post\n"
-            "/profile — Kabinet\n"
+            "/profile — Profil\n"
             "/help — Qo'llanma\n"
             "/cancel — Bekor qilish\n\n"
             "{support}"
@@ -1497,12 +1504,12 @@ TRANSLATIONS = {
             "Har kuni «🎁 Kunlik bonus» tugmasini bosing, do'stlaringizni taklif qiling "
             "(1–3-do'st: +3, keyingilar: +1) yoki ⭐️ PRO tarifga o'ting — PRO'da AI cheksiz.\n\n"
             "<b>3. Rejalashtirilgan postni tahrirlash mumkinmi?</b>\n"
-            "Ha — «👤 Kabinet & Sozlamalar» → «📅 Kutilayotgan postlar» bo'limida vaqt, matn, "
+            "Ha — «📅 Rejalashtirilgan» bo'limida vaqt, matn, "
             "tugma va reaksiyalarni alohida o'zgartirasiz.\n\n"
             "<b>4. Reklama qanday o'chadi?</b>\n"
             "⭐️ PRO tarif postlarni va bot javoblarini 100% reklamasiz qiladi (belgi avtomatik o'chadi).\n\n"
             "<b>5. Bot qaysi tillarda ishlaydi?</b>\n"
-            "O'zbek va rus tillarida. Tilni «👤 Kabinet & Sozlamalar» → «🌐 Til / Язык» orqali almashtirasiz.\n\n"
+            "O'zbek va rus tillarida. Tilni «👤 Profil» → «🌐 Til / Язык» orqali almashtirasiz.\n\n"
             "{support}"
         ),
         "help_btn_faq": "❓ Tez-tez beriladigan savollar",
@@ -1514,7 +1521,7 @@ TRANSLATIONS = {
             "🔹 <b>1. Yangi post rejalashtirish:</b>\n"
             "• Matn, rasm, video, audio yoki <b>albom</b> postlarni istalgan sanaga rejalashtirish.\n"
             "• Havola tugmalar, reaksiyalar va avto-o'chirish.\n\n"
-            "🔹 <b>2. AI Yordamchi:</b>\n"
+            "🔹 <b>2. 🤖 AI Yordamchi:</b>\n"
             "• Savol bering yoki matn/rasm yuboring — professional post tayyorlaydi.\n"
             "• Erkin tilda: <i>\"ertaga ertalab 9 ga hamma kanalga\"</i>.\n\n"
             "🔹 <b>3. Ballar va Kunlik Seriya:</b>\n"
@@ -1551,11 +1558,11 @@ TRANSLATIONS = {
         ),
         "ai_menu_stale": (
             "⚠️ <b>Bu menyu eskirgan.</b>\n"
-            "Davom etish uchun ✨ AI Studio tugmasini qaytadan bosing."
+            "Davom etish uchun 🤖 AI Yordamchi tugmasini qaytadan bosing."
         ),
         "ai_photo_stale": (
             "⚠️ <b>Bu menyu eskirgan.</b>\n"
-            "Rasmdan post yaratish uchun ✨ AI Studio → 🖼 Rasmdan post "
+            "Rasmdan post yaratish uchun 🤖 AI Yordamchi → 🖼 Rasmdan post "
             "yaratish bo'limini qaytadan tanlang."
         ),
         "conv_timeout_msg": (
@@ -1642,7 +1649,7 @@ TRANSLATIONS = {
 
         # --- Umumiy operatsiyalar ---
         "op_cancelled": "❌ Bekor qilindi.",
-        "btn_share_referral": "🚀 Do'stlarga ulashish",
+        "btn_share_referral": "📲 Do'stlarga ulashish",
         "btn_check_subscription": "✅ Obunani tekshirish",
         "ref_share_text": "Salom! Ushbu bot orqali Telegram kanallaringizga postlarni avtomatik va qulay rejalashtiring:",
         "sub_sponsor_fallback": "Homiy kanal",
@@ -1906,7 +1913,7 @@ TRANSLATIONS = {
     # ============================================================
     "dt_today": "Bugun",
     "dt_tomorrow": "Ertaga",
-    # ── 🤖 AI Studio / Vision ──
+    # ── 🤖 AI Yordamchi / Vision ──
     "ai_photo_unavailable": "⚠️ AI rasmni tahlil qila olmadi. Iltimos, birozdan so'ng qayta urinib ko'ring.",
     "ai_target_all_line": "🌐 <b>Kanal:</b> Barcha ulangan kanallarga",
     "ai_target_all_name": "Barcha ulangan kanallarga",
@@ -1979,21 +1986,24 @@ TRANSLATIONS = {
     },
     "ru": {
         "btn_new_post": "➕ Новый пост",
-        "btn_ai_studio": "✨ AI Studio",
-        # UX V2 (6-tugma standarti) — RU paritet (eski nomlar aliaslar
-        # ro'yxatida saqlanadi — keyboards.default).
+        # 🤖 AI Помощник (3-QISM refaktori) — eski nomi «AI Studio».
+        "btn_ai_studio": "🤖 AI Помощник",
+        # UX V2 → 3-QISM — RU paritet (eski nomlar aliaslar ro'yxatida
+        # saqlanadi — keyboards.default). «👤 Профиль» — eski «⚙️ Настройки».
         "btn_premium": "💎 PRO",
-        "btn_settings": "⚙️ Настройки",
+        "btn_settings": "👤 Профиль",
         "btn_help": "📖 Руководство / О боте",
         "btn_extras": "⚙️ Дополнительные функции",
-        # 🆕 UX V2 asosiy menyu — QAT'IY 6 TUGMA standarti (RU):
+        # 🆕 3-QISM: asosiy menyu — 7 TUGMA (4 qator) standarti (RU):
         #   [✨ Создать контент]   [📢 Мои каналы]
         #   [📅 Запланированные]   [📊 Статистика]
-        #   [💎 PRO]               [⚙️ Настройки]
+        #   [💎 PRO]               [👥 Пригласить друзей]
+        #   [👤 Профиль]
         "btn_create_content": "✨ Создать контент",
         "btn_my_channels": "📢 Мои каналы",
         "btn_scheduled": "📅 Запланированные",
         "btn_statistics": "📊 Статистика",
+        "btn_invite_friends": "👥 Пригласить друзей",
         "start_hello": (
             "Привет, <b>{name}</b>! 👋\n\n"
             "🤖 @PostAssistrobot — умный помощник для своевременной публикации "
@@ -2065,7 +2075,7 @@ TRANSLATIONS = {
         ),
         "daily_bonus_guide": (
             "🎁 Чтобы получить ежедневные бесплатные ИИ-баллы, откройте "
-            "«Кабинет & Настройки» → «🎁 Ежедневный бонус»."
+            "«👥 Пригласить друзей» → «🎁 Ежедневный бонус»."
         ),
         "no_credits": (
             "⚠️ <b>У вас закончились бесплатные ИИ-запросы!</b>\n\n"
@@ -2243,7 +2253,7 @@ TRANSLATIONS = {
         "cabinet_credits_admin": "♾ Безлимитно (Супер-админ)",
         "cabinet_streak": "🔥 <b>{streak}/7 дней</b>",
         "cabinet_title": (
-            "👤 <b>Личный кабинет:</b>\n\n"
+            "👤 <b>Профиль:</b>\n\n"
             "🆔 Ваш ID: <code>{user_id}</code>\n"
             "🔑 Ваш код: <code>{user_code}</code>\n"
             "💎 Доступно ИИ-запросов: {credits}\n"
@@ -2328,9 +2338,9 @@ TRANSLATIONS = {
         "transfer_error": "❌ <b>Ошибка:</b> {msg}",
         "transfer_default_name": "Ваш друг",
 
-        # --- 2-QISM: ✨ AI Studio i18n (RU) ---
+        # --- 2-QISM: 🤖 AI Помощник i18n (RU, eski nomi — AI Studio) ---
         "ai_studio_menu": (
-            "🤖 <b>PostAssist AI Studio</b>\n\n"
+            "🤖 <b>PostAssist AI Помощник</b>\n\n"
             "💎 Доступно ИИ-запросов: {credits}\n\n"
             "Выберите нужный инструмент для создания контента канала 👇"
         ),
@@ -2492,7 +2502,7 @@ TRANSLATIONS = {
         "ai_photo_rewrite_keep": "⚠️ ИИ не смог переписать пост. Исходный пост сохранён.",
         "ai_tone_applying": "🎨 <i>Применяется стиль: {tone}...</i>",
         "ai_schedule_need_post": "⚠️ Сначала создайте пост. Напишите тему:",
-        "ai_close_session": "❌ Сессия AI Studio завершена.",
+        "ai_close_session": "❌ Сессия AI Помощника завершена.",
         "ai_close_main_menu": "🏠 Главное меню.",
         "ai_not_found": "Извините, не смог найти ответ.",
         "ai_tone_unknown": "⚠️ Сессия устарела. Отправьте тему заново.",
@@ -3416,14 +3426,14 @@ TRANSLATIONS = {
             "📖 <b>PostAssistrobot — Полное руководство:</b>\n\n"
             "🔹 <b>1. Подключение канала/группы:</b>\n"
             "• Добавьте бота <b>администратором</b> канала (с правом отправки сообщений).\n"
-            "• Через «👤 Кабинет & Настройки» → «📢 Мои каналы» перешлите боту любое "
+            "• Через «👤 Профиль» или «📢 Мои каналы» в главном меню перешлите боту любое "
             "сообщение из канала или отправьте @username.\n\n"
             "🔹 <b>2. Планирование нового поста:</b>\n"
             "• Текст, фото, видео, аудио или <b>альбом</b> (несколько фото/видео) "
             "на любую дату.\n"
             "• URL-кнопки, реакции и авто-удаление (12, 24, 48, 72 часа).\n"
             "• <i>На тарифе PRO посты автоматически выходят без рекламы (100% чистые)!</i>\n\n"
-            "🔹 <b>3. ✨ AI Studio:</b>\n"
+            "🔹 <b>3. 🤖 AI Помощник:</b>\n"
             "• Создание AI-поста, пост из фото (Vision), AI-аудит поста и контент-план.\n"
             "• Задайте вопрос или отправьте текст/фото/репост — получите "
             "профессиональный пост и стихи.\n"
@@ -3439,7 +3449,7 @@ TRANSLATIONS = {
             "⚙️ <b>Быстрые команды:</b>\n"
             "/start — Главное меню\n"
             "/newpost — Новый пост\n"
-            "/profile — Кабинет\n"
+            "/profile — Профиль\n"
             "/help — Руководство\n"
             "/cancel — Отмена\n\n"
             "{support}"
@@ -3459,13 +3469,13 @@ TRANSLATIONS = {
             "Нажимайте «🎁 Ежедневный бонус» каждый день, приглашайте друзей "
             "(за 1–3-го: +3, далее: +1) или перейдите на ⭐️ PRO — там AI безлимитный.\n\n"
             "<b>3. Можно ли отредактировать запланированный пост?</b>\n"
-            "Да — в разделе «👤 Кабинет & Настройки» → «📅 Ожидающие посты» время, "
+            "Да — в разделе «📅 Запланированные» время, "
             "текст, кнопку и реакции меняются отдельно.\n\n"
             "<b>4. Как отключить рекламу?</b>\n"
             "⭐️ Тариф PRO делает посты и ответы бота 100% без рекламы (автоматически).\n\n"
             "<b>5. На каких языках работает бот?</b>\n"
             "На узбекском и русском. Язык меняется через "
-            "«👤 Кабинет & Настройки» → «🌐 Til / Язык».\n\n"
+            "«👤 Профиль» → «🌐 Til / Язык».\n\n"
             "{support}"
         ),
         "help_btn_faq": "❓ Частые вопросы (FAQ)",
@@ -3477,14 +3487,14 @@ TRANSLATIONS = {
             "🔹 <b>1. Планирование нового поста:</b>\n"
             "• Текст, фото, видео, аудио или <b>альбом</b> на любую дату.\n"
             "• URL-кнопки, реакции и авто-удаление.\n\n"
-            "🔹 <b>2. AI-помощник:</b>\n"
+            "🔹 <b>2. 🤖 AI Помощник:</b>\n"
             "• Задайте вопрос или отправьте текст/фото — получите профессиональный пост.\n"
             "• Свободным текстом: <i>«завтра в 9 утра — во все каналы»</i>.\n\n"
             "🔹 <b>3. Баллы и ежедневная серия:</b>\n"
             "• Заходите каждый день и получайте бонус (на 7-й день +4 балла).\n\n"
             "⚙️ <b>Быстрые команды:</b>\n"
             "/start — Главное меню\n"
-            "/profile — Кабинет\n"
+            "/profile — Профиль\n"
             "/help — Руководство\n"
             "/cancel — Отмена"
         ),
@@ -3513,11 +3523,11 @@ TRANSLATIONS = {
         ),
         "ai_menu_stale": (
             "⚠️ <b>Это меню устарело.</b>\n"
-            "Чтобы продолжить, нажмите кнопку ✨ AI Studio ещё раз."
+            "Чтобы продолжить, нажмите кнопку 🤖 AI Помощник ещё раз."
         ),
         "ai_photo_stale": (
             "⚠️ <b>Это меню устарело.</b>\n"
-            "Чтобы создать пост из изображения, выберите ✨ AI Studio → "
+            "Чтобы создать пост из изображения, выберите 🤖 AI Помощник → "
             "🖼 Создать пост из изображения ещё раз."
         ),
         "conv_timeout_msg": (
@@ -3603,7 +3613,7 @@ TRANSLATIONS = {
 
         # --- Общие операции ---
         "op_cancelled": "❌ Отменено.",
-        "btn_share_referral": "🚀 Поделиться с друзьями",
+        "btn_share_referral": "📲 Поделиться с друзьями",
         "btn_check_subscription": "✅ Проверить подписку",
         "ref_share_text": "Привет! Планируйте посты для своих Telegram-каналов автоматически и удобно с помощью этого бота:",
         "sub_sponsor_fallback": "Спонсорский канал",
@@ -3864,7 +3874,7 @@ TRANSLATIONS = {
     # ============================================================
     "dt_today": "Сегодня",
     "dt_tomorrow": "Завтра",
-    # ── 🤖 AI Studio / Vision ──
+    # ── 🤖 AI Yordamchi / Vision ──
     "ai_photo_unavailable": "⚠️ ИИ не смог проанализировать это изображение. Попробуйте ещё раз через минуту.",
     "ai_target_all_line": "🌐 <b>Канал:</b> Все подключённые каналы",
     "ai_target_all_name": "Все подключённые каналы",

@@ -1,15 +1,16 @@
-"""⚙️ SOZLAMALAR — ixcham 8 guruhli hub (PostAssist V2, 2-bosqich).
+"""👤 PROFIL — ixcham 6 tugmali hub (3-QISM refaktori).
 
-Asosiy menyudan [⚙️ Sozlamalar] bosilganda quyidagi guruhlar chiqadi:
+Asosiy menyudan [👤 Profil] (eski nomi — «⚙️ Sozlamalar») bosilganda
+quyidagi IXCHAM menyu chiqadi:
 
-    [👤 Profil]             [🌐 Til / Язык]
-    [🎁 Bonuslar & Ballar]  [🎨 Post sozlamalari]
-    [🔔 Bildirishnomalar]   [💳 To'lovlar tarixi]
-    [🧰 Vositalar]          [❓ Yordam & Ma'lumot]
-                 [◀️ Orqaga]
+    [🌐 Til / Язык]        [✍️ Post sozlamalari]
+    [🔔 Bildirishnomalar]  [💳 To'lovlar tarixi]
+    [💬 Qo'llab-quvvatlash]
+    [❌ Yopish]
 
-Bonuslar/ballar va yordam/ma'lumot o'z submenu'lariga ega; barcha ichki
-[◀️ Orqaga] tugmalari ``stgs_hub`` orqali shu asosiy settings ekraniga qaytadi.
+«⚙️ Sozlamalar» / «👤 Shaxsiy kabinet» chalkashligi tugatildi: endi YAGONA
+Profil ekran bor. Ichki [◀️ Orqaga] tugmalari ``stgs_hub`` orqali shu asosiy
+Profil ekraniga qaytadi.
 
 Qoidalar:
   * 3-qadam refaktori: eski kabinet tezkor tugmalari (📢 Mening kanallarim,
@@ -18,10 +19,12 @@ Qoidalar:
     ``cab_*`` callback'lari O'CHIRILMAGAN: eski xabarlardagi tugmalar uchun
     xavfsiz alias/redirect sifatida ``handlers.start.cabinet_callback`` da
     ishlashda davom etadi (crash yo'q);
-  * «🎁 Bonuslar & Ballar» hamda «❓ Yordam & Ma'lumot» parent ekranlari
-    alohida ochiladi; ichki oqimlar eski callback aliaslari bilan ishlaydi
-    (stgs_credits / stgs_transfer / claim_bonus / referral_hub /
-    stgs_about / help_hub);
+  * 3-QISM: «🎁 Bonuslar & Taklif», «🧰 Vositalar» va «❓ Yordam &
+    Ma'lumot» guruhlari PROFIL hub'idan OLIB TASHLANDI — referral endi
+    asosiy menyuda (👥 Do'stlarni taklif), kunlik bonus referral ekranida.
+    Ularning oqimlari (stgs_rewards / stgs_tools / stgs_help_hub /
+    stgs_credits / stgs_transfer / claim_bonus / referral_hub /
+    stgs_about / help_hub) eski xabarlardagi tugmalar uchun saqlanadi;
   * mavjud PROFIL (kabinet) va TIL almashtirish oqimlari buzilmaydi:
     [👤 Profil] eski kabinet ekranini, [🌐 Til / Язык] esa avvalgi til
     klaviaturasini ochadi (cab_lang_* callback'lari o'zgarmagan);
@@ -155,7 +158,7 @@ async def build_settings_hub_text(user_id: int, lang: str, is_admin: bool,
 
 async def render_settings_hub(update_message, context, user_id: int,
                               lang: str, is_admin: bool) -> None:
-    """⚙️ Sozlamalar hub ekranini yuboradi (profil matni + yagona menyu)."""
+    """👤 Profil hub ekranini yuboradi (profil matni + ixcham menyu)."""
     text = await build_settings_hub_text(user_id, lang, is_admin)
     await update_message.reply_text(
         text,
@@ -166,7 +169,7 @@ async def render_settings_hub(update_message, context, user_id: int,
 
 async def _render_hub_screen(query, context, user_id: int, lang: str,
                              is_admin: bool) -> None:
-    """⚙️ Sozlamalar hub'ini qayta chizadi (stgs_hub → shu ekran)."""
+    """👤 Profil hub'ini qayta chizadi (stgs_hub → shu ekran)."""
     try:
         context.user_data.pop("settings_help_flow", None)
     except Exception:
@@ -257,9 +260,10 @@ async def _render_profile_screen(query, context, user_id: int, lang: str,
                                  is_admin: bool) -> None:
     """👤 Profil — ID, obuna holati, balans/kreditlar va asosiy hisob ma'lumotlari.
 
-    🧹 TOZALANDI: «🌐 Til» tugmasi profildan olib tashlangan (til faqat
-    Sozlamalar → «🌐 Til / Язык» ichida). Obuna holati (PRO muddati yoki
-    FREE) profil kartasiga qo'shildi.
+    3-QISM: Profil va Sozlamalar birlashdi — bu endi YAGONA Profil ekrani:
+    cabinet_title (ID, so'rovlar, seriya) + obuna holati + ixcham 6 tugmali
+    inline menyu (Til / Post sozlamalari / Bildirishnomalar / To'lovlar
+    tarixi / Qo'llab-quvvatlash / Yopish).
     """
     from handlers.start import build_cabinet_text, cabinet_credits_text
     from utils.helpers import get_smart_reply_ad_async
@@ -470,7 +474,7 @@ async def _render_payments(query, user_id: int, lang: str) -> None:
 
 async def _render_referral(query, context, user_id: int, lang: str,
                            is_admin: bool) -> None:
-    """🎁 Do'stlarni taklif qilish — referral menyu (share + orqaga)."""
+    """👥 Do'stlarni taklif qilish — referral menyu (ulashish + kunlik bonus)."""
     from handlers.start import cabinet_credits_text
 
     bot_obj = await context.bot.get_me()

@@ -249,11 +249,13 @@ def test_reply_buttons_route_to_handlers():
           len(menu_handlers) >= 30, str(len(menu_handlers)))
 
     # Klaviatura tugma kaliti → kutilgan handler funksiyasi.
-    # (AI Studio oqimlari "✨ AI Studio" tugmasidan ochiladi.)
+    # (3-QISM: «🤖 AI Yordamchi» — AI hub'ga olib boradi; «👥 Do'stlarni
+    # taklif» referral ekranini ochadi; «👤 Profil» — ixcham profil paneli.)
     routes = {
         "btn_new_post": "start_new_post",
-        "btn_ai_studio": "ai_studio_menu_entry",
+        "btn_ai_studio": "ai_studio_hub_entry",
         "btn_premium": "start_subscription",
+        "btn_invite_friends": "user_invite_menu",
         "btn_settings": "user_cabinet_menu",
         "btn_help": "help_command",
         "btn_extras": "extras_menu",
@@ -357,7 +359,7 @@ def test_keyboard_refresh_on_language_change():
         get_main_keyboard, get_refreshed_main_keyboard, get_simple_keyboard,
     )
 
-    # UX V2 (6-tugma standarti): asosiy menyuda 6 ta yangi yorliq 3 tilda
+    # 3-QISM (7-tugma standarti): asosiy menyuda 7 ta yorliq 3 tilda
     # chiziladi — har biri foydalanuvchi tilida.
     for lang in LANGS:
         kb = get_main_keyboard(False, lang=lang)
@@ -366,8 +368,8 @@ def test_keyboard_refresh_on_language_change():
               get_text("btn_create_content", lang) in row_texts, str(row_texts))
         check(f"main_keyboard[{lang}] sozlamalar tugmasi yangi tilda",
               get_text("btn_settings", lang) in row_texts)
-        check(f"main_keyboard[{lang}] FAQAT 6 tugma (UX V2 standarti)",
-              len(row_texts) == 6, str(row_texts))
+        check(f"main_keyboard[{lang}] FAQAT 7 tugma (3-QISM standarti)",
+              len(row_texts) == 7, str(row_texts))
 
     refreshed = get_refreshed_main_keyboard("en", is_admin=False)
     texts = [btn.text for row in refreshed.keyboard for btn in row]

@@ -3,20 +3,16 @@
 
 Qamrov (3-qadam topshirig'i bo'yicha):
 
-  TEST 1 — ⚙️ SOZLAMALAR menyusidagi LEGACY DUBLIKATLAR tozalandi:
-           eski kabinet tezkor tugmalari (📢 Mening kanallarim, 📊 Analitika,
-           📅 Kutilayotgan/Rejalashtirilgan, 💎 Ballar & reklama rejimi,
-           🎁 bonus) menyu KO'RINISHIDAN olib tashlandi — ular o'z asosiy
-           menyularida bor. Menyu yagona, tartibli va TO'LIQ ko'rinishga
-           (8 guruh + [◀️ Orqaga]) keltirildi va bu uchala tilda AYNAN
-           speks tartibida chiziladi:
-               [👤 Profil]            [🌐 Til / Язык]
-               [💎 Ballarim]          [🔄 Ballar o'tkazish]
-               [🎁 Kunlik bonus]      [👥 Do'stlarni taklif]
-               [🔔 Bildirishnomalar]  [🎨 Post sozlamalari]
-               [💳 To'lovlar tarixi]  [🧰 Vositalar]
-               [❓ Yordam]            [ℹ️ Bot haqida]
-                            [◀️ Orqaga]
+  TEST 1 — 👤 PROFIL (Sozlamalar hub'i) IXCHAMLASHTIRILDI (3-QISM):
+           dublikat guruhlar (🎁 Bonuslar & Taklif → 👥 Do'stlarni taklif
+           asosiy menyuda, 🧰 Vositalar → /tools buyrug'i, ❓ Yordam →
+           💬 Qo'llab-quvvatlash bir tugmaga) menyu KO'RINISHIDAN olib
+           tashlandi — ularning oqimlari routing'da saqlanadi. Menyu endi
+           AYNAN 6 tugma + uchala tilda speks tartibida chiziladi:
+               [🌐 Til / Язык]        [✍️ Post sozlamalari]
+               [🔔 Bildirishnomalar]  [💳 To'lovlar tarixi]
+                        [💬 Qo'llab-quvvatlash]
+                           [❌ Yopish]
   TEST 2 — 💎 Ballarim / 🔄 Ballar o'tkazish / 🎁 Kunlik bonus /
            👥 Do'stlarni taklif tugmalari O'Z oqimlarini ochadi:
            Ballar o'tkazish mavjud TRANSFER_TARGET → TRANSFER_AMOUNT FSM
@@ -114,20 +110,21 @@ def check(label, condition, extra=""):
 # SPEKS: menyu tarkibi va yorliqlari (uchala til)
 # ---------------------------------------------------------------------------
 HUB_LABELS = {
-    # 🧹 UI/UX POLISH (1-qadam): «👤 Profil» yo'q — hub matnining o'zi profil;
-    # «🎁 Bonuslar & Ballar» → yagona «🎁 Bonuslar & Taklif».
-    "uz": (("🌐 Til / Язык", "🎁 Bonuslar & Taklif"),
-           ("🎨 Post sozlamalari", "🔔 Bildirishnomalar"),
-           ("💳 To'lovlar tarixi", "🧰 Vositalar"),
-           ("❓ Yordam & Ma'lumot",)),
-    "ru": (("🌐 Язык / Language", "🎁 Бонусы и приглашения"),
-           ("🎨 Настройки постов", "🔔 Уведомления"),
-           ("💳 История платежей", "🧰 Инструменты"),
-           ("❓ Помощь и информация",)),
-    "en": (("🌐 Language", "🎁 Bonuses & Invites"),
-           ("🎨 Post settings", "🔔 Notifications"),
-           ("💳 Payment history", "🧰 Tools"),
-           ("❓ Help & Info",)),
+    # 3-QISM: 👤 Profil — ixcham 6 tugma. «🎁 Bonuslar & Taklif» va
+    # «🧰 Vositalar» hub'dan olib tashlandi (oqimlar routing'da qoladi),
+    # «🎨» → «✍️», «❓ Yordam & Ma'lumot» → bir «💬» tugma, [◀️ Orqaga] → [❌ Yopish].
+    "uz": (("🌐 Til / Язык", "✍️ Post sozlamalari"),
+           ("🔔 Bildirishnomalar", "💳 To'lovlar tarixi"),
+           ("💬 Qo'llab-quvvatlash",),
+           ("❌ Yopish",)),
+    "ru": (("🌐 Язык / Language", "✍️ Настройки постов"),
+           ("🔔 Уведомления", "💳 История платежей"),
+           ("💬 Поддержка",),
+           ("❌ Закрыть",)),
+    "en": (("🌐 Language", "✍️ Post settings"),
+           ("🔔 Notifications", "💳 Payment history"),
+           ("💬 Contact support",),
+           ("❌ Close",)),
 }
 
 #: Legacy kabinet callback'lari — menyu KO'RINISHIDA bo'lmasligi shart
@@ -482,26 +479,26 @@ def _msg_entry_fn_names(app, text, as_command=False):
 # TEST 1 — ⚙️ SOZLAMALAR MENYUSI: LEGACY DUBLIKATLAR YO'Q + SPEKS TARTIBI
 # ===========================================================================
 def test_settings_hub_has_no_legacy_duplicates():
-    print("== TEST 1: ⚙️ Sozlamalar menyusi — 8 guruh + Orqaga ==")
+    print("== TEST 1: 👤 Profil — ixcham 6 tugmali menyu (3-QISM) ==")
 
     for lang in LANGS:
         kb = get_settings_hub_keyboard(lang)
         rows = _rows(kb)
         cbs = _cbs(kb)
 
-        check(f"[{lang}] menyu 5 qator (3 juftlik + Yordam + ◀️ Orqaga)",
-              len(rows) == 5, str(len(rows)))
-        check(f"[{lang}] 7 guruh AYNAN speks tartibida (Profil olib tashlangan)",
-              [[t for t, _ in row] for row in rows[:4]]
+        check(f"[{lang}] menyu 4 qator (2 juftlik + Yordam + Yopish)",
+              len(rows) == 4, str(len(rows)))
+        check(f"[{lang}] 6 tugma AYNAN speks tartibida (ixcham)",
+              [[t for t, _ in row] for row in rows]
               == [list(pair) for pair in HUB_LABELS[lang]],
-              str([[t for t, _ in row] for row in rows[:4]]))
+              str([[t for t, _ in row] for row in rows]))
         check(f"[{lang}] callback tartibi speks bilan bir xil",
-              cbs[:7] == list(CB_SETTINGS_HUB[:7]), str(cbs))
-        check(f"[{lang}] oxirgi qator = [◀️ Orqaga] → stgs_back",
-              rows[-1] == [(settings_stats_t("ss_btn_back", lang), "stgs_back")],
+              cbs == list(CB_SETTINGS_HUB), str(cbs))
+        check(f"[{lang}] oxirgi qator = [❌ Yopish] → stgs_back",
+              rows[-1] == [(settings_stats_t("ss_btn_close", lang), "stgs_back")],
               str(rows[-1]))
-        check(f"[{lang}] jami 8 tugma (7 + Orqaga, Profil yo'q)",
-              len(cbs) == 8, str(len(cbs)))
+        check(f"[{lang}] jami 6 tugma (ixcham hub, dublikat yo'q)",
+              len(cbs) == 6, str(len(cbs)))
         check(f"[{lang}] stgs_profile hub'da YO'Q (matn o'zi profil)",
               "stgs_profile" not in cbs, str(cbs))
         check(f"[{lang}] callback'lar takrorlanmaydi",
@@ -532,8 +529,8 @@ def test_settings_hub_has_no_legacy_duplicates():
             _run(start_mod.user_cabinet_menu(_msg_update(msg), _ctx(lang)))
         last = msg.sent[-1]
         cbs = _cbs(last["reply_markup"])
-        check(f"[{lang}] hub ekrani 8 tugma bilan ochiladi (Profil yo'q)",
-              len(cbs) == 8, str(cbs))
+        check(f"[{lang}] hub ekrani 6 tugma bilan ochiladi (ixcham)",
+              len(cbs) == 6, str(cbs))
         check(f"[{lang}] hub ekrani legacy tugmasiz",
               not any(cb in cbs for cb in LEGACY_HUB_CALLBACKS), str(cbs))
         check(f"[{lang}] hub profil kartasi bilan (Shaxsiy Kabinet)",
@@ -542,10 +539,13 @@ def test_settings_hub_has_no_legacy_duplicates():
                        ad_line="").splitlines()[0] in (last["text"] or ""),
               (last["text"] or "")[:80])
 
-    # 1e) 8 guruh — rewards/help parent callback'lari ko'rinadi.
+    # 1e) 3-QISM: eski guruh tugmalari hub'da YO'Q — ularning oqimlari
+    #     faqat routing'da qoladi (TEST 2 shu callback'lar bilan tekshiradi).
     uz_cbs = _cbs(get_settings_hub_keyboard("uz"))
     for cb in ("stgs_rewards", "stgs_tools", "stgs_help_hub"):
-        check(f"hub: {cb} tugmasi mavjud", cb in uz_cbs, str(uz_cbs))
+        check(f"hub: {cb} tugmasi YO'Q (ixcham)", cb not in uz_cbs, str(uz_cbs))
+    check("hub: help_support (💬 Qo'llab-quvvatlash) mavjud",
+          "help_support" in uz_cbs, str(uz_cbs))
 
 
 # ===========================================================================
@@ -731,7 +731,7 @@ def test_tools_submenu_wires_converter_and_enhancer():
     with _with_db(_FakeDB()):
         q = _Query("stgs_hub")
         _run(settings_mod.settings_menu_callback(_query_update(q), _ctx("uz")))
-    check("vositalar → orqaga: sozlamalar 8 tugmasi qaytdi",
+    check("vositalar → orqaga: 👤 Profil 6 tugmasi qaytdi",
           _cbs(q.screen.get("reply_markup")) == list(CB_SETTINGS_HUB),
           str(_cbs(q.screen.get("reply_markup"))))
     check("vositalar → orqaga: yangi xabar yuborilmadi (edit)",
@@ -917,9 +917,11 @@ def test_i18n_parity_and_callback_safety():
                   and callback_byte_len(cbdata) <= CALLBACK_DATA_MAX_BYTES, "")
 
     # 5d) Yangi callback'lar kanonik `stgs_` prefiksida (fail-closed routing).
+    #     💬 Qo'llab-quvvatlash — yagona yodda tutilgan help_support istisnosi.
     for cbdata in list(CB_SETTINGS_HUB) + list(CB_TOOLS_HUB):
         check(f"kanonik prefiks: {cbdata}",
-              cbdata.startswith("stgs_") or cbdata.startswith("extra_"), cbdata)
+              cbdata.startswith("stgs_") or cbdata.startswith("extra_")
+              or cbdata == "help_support", cbdata)
 
 
 # ===========================================================================

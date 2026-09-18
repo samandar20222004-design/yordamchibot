@@ -739,8 +739,8 @@ def test_t8_channel_analytics_round_trip():
     closed = q4.message.sent[-1] if q4.message.sent else {}
     closed_labels = [b.text for row in (closed.get("reply_markup").keyboard
                                         if closed.get("reply_markup") else []) for b in row]
-    check("T8: an_close — asosiy 6 tugmali menyu qaytdi",
-          len(closed_labels) == 6, str(closed_labels))
+    check("T8: an_close — asosiy 7 tugmali menyu qaytdi",
+          len(closed_labels) == 7, str(closed_labels))
 
 
 # ===========================================================================

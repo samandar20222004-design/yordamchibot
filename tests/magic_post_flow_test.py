@@ -196,16 +196,16 @@ def test_styles_menu_flow():
     ctx = FakeContext(lang="uz")
     msg = FakeMessage()
 
-    # 1a) UX V2 (6-tugma standarti): «✨ Magic Post» asosiy menyuda endi
+    # 1a) 3-QISM (7-tugma standarti): «✨ Magic Post» asosiy menyuda endi
     # YO'Q — lekin oqimi yashaydi: routing filtri eski yorliqni hali ham
     # taniydi (keshdagi eski klaviatura xabarlari uchun backward
-    # compatibility) va asosiy menyu aynan 6 tugma.
+    # compatibility) va asosiy menyu aynan 7 tugma.
     for lang, btn in (("uz", BTN_MAGIC_POST), ("ru", BTN_MAGIC_POST_RU),
                       ("en", BTN_MAGIC_POST_EN)):
         kb = get_main_keyboard(False, lang=lang)
         texts = [b.text for row in kb.keyboard for b in row]
-        check(f"asosiy menyu '{lang}': UX V2 — aynan 6 tugma",
-              len(texts) == 6, str(texts))
+        check(f"asosiy menyu '{lang}': 3-QISM — aynan 7 tugma",
+              len(texts) == 7, str(texts))
         check(f"asosiy menyu '{lang}': «✨ Magic Post» menyu'dan chiqdi",
               btn not in texts, str(texts))
     pattern = exact(BTN_MAGIC_POST).pattern
@@ -254,7 +254,7 @@ def test_styles_menu_flow():
     state = run(mp.magic_text_received(FakeUpdate(message=photo_msg), ctx3))
     check("rasm yuborilsa MAGIC_INPUT'da qoladi", state == mp.MAGIC_INPUT)
     check("media uchun yo'riqnoma (mp_media_hint)",
-          len(photo_msg.replies) == 1 and "AI Studio" in photo_msg.replies[0]["text"])
+          len(photo_msg.replies) == 1 and "AI Yordamchi" in photo_msg.replies[0]["text"])
 
     # 1e) RU tilida ham menyu to'liq (3 tildalik interfeys).
     ctx_ru = FakeContext(lang="ru")

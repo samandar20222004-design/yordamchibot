@@ -47,7 +47,7 @@ MAGIC_POST_I18N = {
         "mp_media_hint": (
             "🎙📸 Ovoz va rasm alohida oqimlarda ishlanadi: ularni <b>Magic Post</b>dan "
             "chiqib (◀️ Orqaga) to'g'ridan-to'g'ri yuboring — bot avtomatik "
-            "«🎙 Ovoz → Post» / «📸 Rasm → Post» (AI Studio Vision) oqimini ochadi.\n\n"
+            "«🎙 Ovoz → Post» / «📸 Rasm → Post» (AI Yordamchi Vision) oqimini ochadi.\n\n"
             "Hozir esa post mavzusini <b>matn</b> bilan yozing:"
         ),
         "mp_choose_style": "🎯 <b>Qaysi uslubda tayyorlaymiz?</b>\n\n<b>Matningiz:</b>\n",
@@ -123,7 +123,7 @@ MAGIC_POST_I18N = {
         "mp_media_hint": (
             "🎙📸 Голос и фото обрабатываются отдельными потоками: выйдите из "
             "<b>Magic Post</b> (◀️ Назад) и отправьте их напрямую — бот сам откроет "
-            "«🎙 Голос → Пост» / «📸 Фото → Пост» (AI Studio Vision).\n\n"
+            "«🎙 Голос → Пост» / «📸 Фото → Пост» (AI Помощник, Vision).\n\n"
             "А сейчас напишите тему поста <b>текстом</b>:"
         ),
         "mp_choose_style": "🎯 <b>В каком стиле подготовим?</b>\n\n<b>Ваш текст:</b>\n",
@@ -199,7 +199,7 @@ MAGIC_POST_I18N = {
         "mp_media_hint": (
             "🎙📸 Voice and photos are handled by their own flows: leave "
             "<b>Magic Post</b> (◀️ Back) and send them directly — the bot opens "
-            "«🎙 Voice → Post» / «📸 Image → Post» (AI Studio Vision) automatically.\n\n"
+            "«🎙 Voice → Post» / «📸 Image → Post» (AI Assistant Vision) automatically.\n\n"
             "For now, type the post topic as <b>text</b>:"
         ),
         "mp_choose_style": "🎯 <b>Which style shall we use?</b>\n\n<b>Your text:</b>\n",

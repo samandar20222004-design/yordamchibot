@@ -2,11 +2,11 @@
 
 EN_OVERLAY = {
     "btn_new_post": "➕ New post",
-    "btn_ai_studio": "✨ AI Studio",
+    "btn_ai_studio": "🤖 AI Assistant",
     # UX V2 (6-button standard) — EN parity (legacy names stay in the
     # alias lists in keyboards/default.py for backward compatibility).
     "btn_premium": "💎 PRO",
-    "btn_settings": "⚙️ Settings",
+    "btn_settings": "👤 Profile",
     "btn_help": "📖 Guide / About",
     "btn_extras": "⚙️ Extra features",
     # 🆕 UX V2 main menu — STRICT 6-BUTTON standard (EN):
@@ -17,6 +17,7 @@ EN_OVERLAY = {
     "btn_my_channels": "📢 My channels",
     "btn_scheduled": "📅 Scheduled",
     "btn_statistics": "📊 Statistics",
+    "btn_invite_friends": "👥 Invite friends",
     "start_hello": (
         "Hi, <b>{name}</b>! 👋\n\n"
         "🤖 @PostAssistrobot — schedule posts on time, write copy and content plans with AI.\n\n"
@@ -158,7 +159,7 @@ EN_OVERLAY = {
     "cabinet_credits_admin": "♾ Unlimited (Super Admin)",
     "cabinet_streak": "🔥 <b>{streak}/7 days</b>",
     "cabinet_title": (
-        "👤 <b>Personal Account:</b>\n\n"
+        "👤 <b>Profile:</b>\n\n"
         "🆔 Your ID: <code>{user_id}</code>\n"
         "🔑 Your code: <code>{user_code}</code>\n"
         "💎 Available AI requests: {credits}\n"
@@ -339,9 +340,9 @@ EN_OVERLAY = {
         "<code>{link}</code>"
     ),
     "daily_bonus_guide": (
-        "🎁 To claim your daily free AI credits, open 'Account & Settings' → '🎁 Daily bonus'."
+        "🎁 To claim your daily free AI credits, open '👥 Invite friends' → '🎁 Daily bonus'."
     ),
-    # AI Studio / post enhancer promptlari (PRO rejasi matnlari)
+    # AI Assistant / post enhancer promptlari (PRO rejasi matnlari)
     "ai_prompt_hint": "✍️ Write the post topic or send a photo/file:",
     "ai_audit_prompt_hint": "🔍 Send the post text you want audited:",
     "ai_time_prompt_hint": "Please write the publishing time (e.g.: <i>“tomorrow at 10:00”</i>):",
@@ -546,12 +547,12 @@ EN_OVERLAY = {
         "📖 <b>PostAssistrobot — Complete Guide:</b>\n\n"
         "🔹 <b>1. Connect channel/group:</b>\n"
         "• Add the bot as <b>administrator</b> to your channel (with permission to send messages).\n"
-        "• Go to «👤 Account & Settings» → «📢 My channels» and forward any post from the channel or send @username.\n\n"
+        "• Go to «👤 Profile» or «📢 My channels» in the main menu and forward any post from the channel or send @username.\n\n"
         "🔹 <b>2. Schedule a new post:</b>\n"
         "• Schedule text, photo, video, audio or <b>album</b> (multiple photos/videos) for any date.\n"
         "• URL buttons, reactions and auto-delete (12, 24, 48, 72 hours).\n"
         "• <i>PRO posts are automatically 100% ad-free!</i>\n\n"
-        "🔹 <b>3. ✨ AI Studio:</b>\n"
+        "🔹 <b>3. 🤖 AI Assistant:</b>\n"
         "• Create AI post, photo-to-post (Vision), AI audit and content plan.\n"
         "• Ask a question or send text/photo/forward — get a professional post.\n"
         "• Free-form command: <i>«schedule to all channels tomorrow at 9 am»</i>.\n"
@@ -565,7 +566,7 @@ EN_OVERLAY = {
         "⚙️ <b>Quick commands:</b>\n"
         "/start — Main menu\n"
         "/newpost — New post\n"
-        "/profile — Account\n"
+        "/profile — Profile\n"
         "/help — Guide\n"
         "/cancel — Cancel\n\n"
         "{support}"
@@ -592,7 +593,7 @@ EN_OVERLAY = {
         "• Open bot daily and claim bonus (Day 7 +4 credits).\n\n"
         "⚙️ <b>Quick commands:</b>\n"
         "/start — Main menu\n"
-        "/profile — Account\n"
+        "/profile — Profile\n"
         "/help — Guide\n"
         "/cancel — Cancel"
     ),
@@ -621,11 +622,11 @@ EN_OVERLAY = {
     ),
     "ai_menu_stale": (
         "⚠️ <b>This menu is stale.</b>\n"
-        "To continue, tap the ✨ AI Studio button again."
+        "To continue, tap the 🤖 AI Assistant button again."
     ),
     "ai_photo_stale": (
         "⚠️ <b>This menu is stale.</b>\n"
-        "To create a post from an image, open ✨ AI Studio → 🖼 Post from "
+        "To create a post from an image, open 🤖 AI Assistant → 🖼 Post from "
         "image again."
     ),
 
@@ -657,7 +658,7 @@ EN_OVERLAY = {
     "health_tasks": "• Active asyncio tasks: {count}",
 
     # ============================================================
-    # FULL EN COVERAGE — batch A: new-post entry, AI Studio, content plan
+    # FULL EN COVERAGE — batch A: new-post entry, AI Assistant, content plan
     # (PostAssist V2 i18n audit: every key below was falling back to UZ.)
     # ============================================================
     "new_post_no_channels": (
@@ -673,7 +674,7 @@ EN_OVERLAY = {
         "<b>\"My channels\"</b> section."
     ),
     "ai_studio_menu": (
-        "🤖 <b>PostAssist AI Studio</b>\n\n"
+        "🤖 <b>PostAssist AI Assistant</b>\n\n"
         "💎 Available AI requests: {credits}\n\n"
         "Pick a tool to create channel content 👇"
     ),
@@ -821,7 +822,7 @@ EN_OVERLAY = {
     "ai_photo_rewrite_keep": "⚠️ AI could not rewrite the post. The original post is kept.",
     "ai_tone_applying": "🎨 <i>Applying the {tone} style...</i>",
     "ai_schedule_need_post": "⚠️ Create a post first. Write the topic:",
-    "ai_close_session": "❌ AI Studio session finished.",
+    "ai_close_session": "❌ AI Assistant session finished.",
     "ai_close_main_menu": "🏠 Main menu.",
     "ai_not_found": "Sorry, I could not find an answer.",
     "ai_tone_unknown": "⚠️ Session expired. Send the topic again.",
@@ -1616,7 +1617,7 @@ EN_OVERLAY = {
     # FULL EN COVERAGE — batch K: shared / legacy AI / extract
     # ============================================================
     "op_cancelled": "❌ Cancelled.",
-    "btn_share_referral": "🚀 Share with friends",
+    "btn_share_referral": "📲 Share with friends",
     "btn_check_subscription": "✅ Check subscription",
     "ref_share_text": "Hi! Schedule posts for your Telegram channels automatically and easily with this bot:",
     "sub_sponsor_fallback": "Sponsor channel",
@@ -1876,7 +1877,7 @@ EN_OVERLAY = {
     # ============================================================
     "dt_today": "Today",
     "dt_tomorrow": "Tomorrow",
-    # ── 🤖 AI Studio / Vision ──
+    # ── 🤖 AI Assistant / Vision ──
     "ai_photo_unavailable": "⚠️ AI couldn't analyze this image. Please try again in a moment.",
     "ai_target_all_line": "🌐 <b>Channel:</b> All connected channels",
     "ai_target_all_name": "All connected channels",

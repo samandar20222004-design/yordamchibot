@@ -75,7 +75,7 @@ from keyboards.default import (  # noqa: F401  (qayta eksport — API)
 CONTENT_CREATION_BUTTONS = (
     "✍️ Oddiy post (AI'siz)",
     "✨ AI bilan yaratish (Magic Post)",
-    "🤖 AI Studio",
+    "🤖 AI Yordamchi",
 )
 
 __all__ = [

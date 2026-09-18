@@ -20,11 +20,12 @@ Qamrov (topshiriq spetsifikatsiyasi bilan birma-bir):
   TEST 4:  Universal panel speksdagi BARCHA tugmalarga ega: 🚀 / 📅 / 🗑 /
            🔄 / ✏️ / ❌ — va ularning har biri real amalga ulangan.
   TEST 5:  BIRLASHTIRILGAN MENYU — Kontent yaratish menyusida aynan 3 ta
-           yo'nalish (✍️ Oddiy post / ✨ AI bilan yaratish / 🤖 AI Studio)
+           yo'nalish (✍️ Oddiy post / ✨ AI bilan yaratish / 🤖 AI Yordamchi)
            + ◀️ Orqaga; eski tugmalar faqat routing aliasi.
-  TEST 6:  PROFIL TOZALIGI — «👤 Profil»dan takroriy «🌐 Til» tugmasi
-           chiqarilgan; til faqat Sozlamalar ichida (stgs_lang) qolgan;
-           profilda ID/obuna/balans ma'lumotlari bor.
+  TEST 6:  PROFIL — 3-QISM ixcham menyusi: [🌐 Til] [✍️ Post sozlamalari] /
+           [🔔 Bildirishnomalar] [💳 To'lovlar tarixi] / [💬 Qo'llab-
+           quvvatlash] / [❌ Yopish]; profilda ID/obuna/balans ma'lumotlari
+           bor; Sozlamalar bilan dublikat tugmalar tozalangan.
   TEST 7:  i18n PARITET — manual_post va content_menu lug'atlari UZ/RU/EN
            100% sinxron; regressiya qo'riqonlari (FSM noyobligi, 64 bayt).
 
@@ -615,15 +616,15 @@ def test_unified_content_menu():
     expected = {
         "uz": [["✍️ Oddiy post (AI'siz)"],
                ["✨ AI bilan yaratish (Magic Post)"],
-               ["🤖 AI Studio"],
+               ["🤖 AI Yordamchi"],
                ["◀️ Orqaga"]],
         "ru": [["✍️ Обычный пост (без AI)"],
                ["✨ Создать с AI (Magic Post)"],
-               ["🤖 AI Studio"],
+               ["🤖 AI Помощник"],
                ["◀️ Назад"]],
         "en": [["✍️ Regular post (no AI)"],
                ["✨ Create with AI (Magic Post)"],
-               ["🤖 AI Studio"],
+               ["🤖 AI Assistant"],
                ["◀️ Back"]],
     }
     for lang in LANGS:
@@ -634,9 +635,10 @@ def test_unified_content_menu():
         flat = [t for row in kb.keyboard for t in row]
         check(f"[{lang}] dublikat tugma yo'q", len(flat) == len(set(flat)), str(flat))
 
-    # Eski chalkash tugmalar (AI Yordamchi, bir nechta Rasm->Post ...) endi
-    # ko'rinadigan menyuda YO'Q.
-    legacy = {"📝 Matn → Post", "📸 Rasm → Post", "🎙 Ovoz → Post", "🤖 AI Yordamchi"}
+    # Eski chalkash tugmalar (bir nechta Rasm->Post, eski AI Studio ...)
+    # endi ko'rinadigan menyuda YO'Q. «🤖 AI Yordamchi» 3-QISMda ataylib
+    # qaytarildi (AI Studio → AI Yordamchi), shuning uchun u ro'yxatda EMAS.
+    legacy = {"📝 Matn → Post", "📸 Rasm → Post", "🎙 Ovoz → Post", "🤖 AI Studio"}
     visible = {t for lang in LANGS for t in
                [b for row in get_content_creation_keyboard(lang).keyboard for b in row]}
     check("eski bo'lingan tugmalar menyudan olib tashlangan",
@@ -701,11 +703,15 @@ def test_unified_content_menu():
 
 
 # ============================================================================
-# TEST 6 — PROFIL TOZALIGI: Til tugmasi profildan chiqarilgan
+# TEST 6 — 👤 PROFIL: 3-QISM ixcham menyusi (Til bilan birga)
 # ============================================================================
 def test_profile_cleanup():
-    print("\n== TEST 6: profil tozaligi — Til faqat Sozlamalar ichida ==")
-    # 1) 👤 Profil inline klaviaturasida «🌐 Til» tugmasi YO'Q.
+    print("\n== TEST 6: 👤 Profil — ixcham 6 tugmali menyu (3-QISM) ==")
+    # 1) 👤 Profil inline klaviaturasi — IXCHAM 6 tugma: Til, Post
+    #    sozlamalari, Bildirishnomalar, To'lovlar tarixi, Qo'llab-
+    #    quvvatlash, Yopish. Eski cab_* callback'lari YO'Q.
+    expected_profile_cbs = ["stgs_lang", "stgs_post", "stgs_notif",
+                            "stgs_pay", "help_support", "stgs_back"]
     for lang in LANGS:
         cbs = [b.callback_data for row in
                get_cabinet_inline_keyboard(lang).inline_keyboard for b in row]
@@ -713,16 +719,23 @@ def test_profile_cleanup():
                   get_cabinet_inline_keyboard(lang).inline_keyboard for b in row]
         check(f"[{lang}] profil klaviaturasida cab_lang YO'Q",
               "cab_lang" not in cbs, str(cbs))
-        check(f"[{lang}] profil yorliqlarida 'Til/Язык/Language' YO'Q",
-              not any(("Til" in lb and "🌐" in lb) or ("Язык" in lb and "🌐" in lb)
-                      or (lb.strip().startswith("🌐")) for lb in labels), str(labels))
+        check(f"[{lang}] profil: ixcham 6 tugma (3-QISM tartibida)",
+              cbs == expected_profile_cbs, str(cbs))
+        check(f"[{lang}] profil: «🌐 Til» birinchi tugma",
+              labels and labels[0].startswith("🌐"), str(labels))
+        check(f"[{lang}] profil: «❌ Yopish» oxirgi tugma",
+              labels and labels[-1].startswith("❌"), str(labels))
+        check(f"[{lang}] profil: dublikat yo'q",
+              len(labels) == len(set(labels)), str(labels))
 
-    # 2) 🌐 Til Sozlamalar hub'ida SAQLANGAN (yagona joy).
+    # 2) 👤 Profil hub'i (Sozlamalar bilan birlashgan) — bir xil panel.
     for lang in LANGS:
         hub_cbs = [b.callback_data for row in
                    get_settings_hub_keyboard(lang).inline_keyboard for b in row]
-        check(f"[{lang}] sozlamalar hub'ida stgs_lang bor",
+        check(f"[{lang}] profil hub'ida stgs_lang bor",
               "stgs_lang" in hub_cbs, str(hub_cbs))
+        check(f"[{lang}] profil hub'i = cabinet paneli (yagona ekran)",
+              hub_cbs == expected_profile_cbs, str(hub_cbs))
 
     # 3) Til almashtirish oqimi (cab_lang_*) o'zgarmagan — routing saqlanadi.
     from keyboards.inline import get_language_keyboard
@@ -756,7 +769,8 @@ def test_profile_cleanup():
         check("profil ekran: balans/kredit ko'rsatiladi", "12" in text, text[:160])
         check("profil ekran: klaviaturada cab_lang YO'Q",
               "cab_lang" not in cbs, str(cbs))
-        check("profil ekran: stgs_hub orqaga tugmasi bor", "stgs_hub" in cbs, str(cbs))
+        check("profil ekran: ixcham menyu (stgs_back = ❌ Yopish) bor",
+              "stgs_back" in cbs and "stgs_hub" not in cbs, str(cbs))
     finally:
         fake.restore()
 

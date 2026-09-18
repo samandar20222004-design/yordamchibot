@@ -124,7 +124,9 @@ def test_i18n_new_keys():
             assert get_text(key, lang) != key, (key, lang)
         guide = get_text("daily_bonus_guide", lang)
         assert "🎁" in guide and "🎁" in get_text("no_credits", lang, guide=guide, link="x")
-    assert "Kabinet & Sozlamalar" in get_text("daily_bonus_guide", "uz")
+    # 3-QISM: kunlik bonus yo'lanishi — «👥 Do'stlarni taklif» (eski
+    # «Kabinet & Sozlamalar» o'rniga).
+    assert "Do'stlarni taklif" in get_text("daily_bonus_guide", "uz")
     assert "Kunlik bonus" in get_text("daily_bonus_guide", "uz")
 
 
@@ -226,17 +228,16 @@ def test_ru_cabinet_after_switch_no_crash():
             await st_mod.user_cabinet_menu(_Upd(msg, _User()), ctx)
             assert msg.replies, "kabinet javob bermadi"
             text, markup = msg.replies[0]
-            assert "Личный кабинет" in text, text[:120]
+            assert "<b>Профиль:</b>" in text, text[:120]
             assert ctx.user_data.get("lang") == "ru", ctx.user_data  # DB'dan hydrate
             labels = [b.text for row in markup.inline_keyboard for b in row]
-            # ⚙️ SOZLAMALAR (UI/UX polish): kabinet ekrani 7 ta guruhli
-            # hub — «👤 Profil» olib tashlandi (hub matnining o'zi profil),
-            # rewards/help ichki bo'limlari alohida ochiladi.
+            # 3-QISM: kabinet ekrani — IXCHAM 6 tugmali 👤 Profil paneli
+            # (rewards/tools/help guruhlari hub'dan olib tashlandi).
             cbs = [b.callback_data for row in markup.inline_keyboard for b in row]
             assert cbs == [
-                "stgs_lang", "stgs_rewards", "stgs_post",
-                "stgs_notif", "stgs_pay", "stgs_tools", "stgs_help_hub",
-                "stgs_back",
+                "stgs_lang", "stgs_post",
+                "stgs_notif", "stgs_pay",
+                "help_support", "stgs_back",
             ], cbs
             assert "cab_channels" not in cbs, cbs
             assert "stgs_profile" not in cbs, cbs
@@ -304,8 +305,8 @@ def test_ru_cabinet_keys_format_without_missing_key():
         for key, kw in samples.items():
             out = get_text(key, lang, **kw)
             assert "{" not in out and "}" not in out, (lang, key, out)
-    # Kabinet RU sarlavhasi rus tilida
-    assert "Личный кабинет" in get_text("cabinet_title", "ru")
+    # Kabinet RU sarlavhasi rus tilida (3-QISM: «👤 Профиль»)
+    assert "<b>Профиль:</b>" in get_text("cabinet_title", "ru")
 
 
 def test_card_payment_tariff_and_receipt_flow():
@@ -887,8 +888,8 @@ def test_unknown_fallback_replies_in_user_language_with_main_menu():
             kb = sent[0]["reply_markup"]
             assert isinstance(kb, ReplyKeyboardMarkup)
             labels = [b.text for row in kb.keyboard for b in row]
-            # UX V2: fallback'dagi asosiy menyu — aynan 6 tugma.
-            assert len(labels) == 6, labels
+            # 3-QISM: fallback'dagi asosiy menyu — aynan 7 tugma.
+            assert len(labels) == 7, labels
             assert (BTN_CREATE_CONTENT_RU if lang == "ru" else BTN_CREATE_CONTENT) in labels
     finally:
         restore()
@@ -1026,11 +1027,11 @@ def test_send_main_menu_helper_renders_hint_and_keyboard():
         kb = sent[0]["reply_markup"]
         assert isinstance(kb, ReplyKeyboardMarkup)
         labels = [b.text for row in kb.keyboard for b in row]
-        # UX V2: standart menyu — aynan 6 tugma; «✨ Kontent yaratish» chiqadi,
+        # 3-QISM: standart menyu — aynan 7 tugma; «✨ Kontent yaratish» chiqadi,
         # eski «➕ Yangi post» asosiy menyuda yo'q.
         assert (BTN_CREATE_CONTENT_RU if lang == "ru" else BTN_CREATE_CONTENT) in labels
         assert (BTN_NEW_POST_RU if lang == "ru" else BTN_NEW_POST) not in labels
-        assert len(labels) == 6, labels
+        assert len(labels) == 7, labels
 
 
 def test_subscription_check_callback_localized_ru():
@@ -2004,7 +2005,7 @@ def _run_start(is_new: bool, lang: str):
 def test_start_first_time_user_gets_onboarding_and_main_menu():
     """Birinchi marta kirgan (is_new=True) → onboarding matni + bosh menyu.
 
-    UX V2: standart menyu aynan 6 tugma — «✨ Kontent yaratish» chiqishi
+    3-QISM: standart menyu aynan 7 tugma — «✨ Kontent yaratish» chiqishi
     shart (eski «➕ Yangi post» asosiy menyuda yo'q).
     """
     from telegram import ReplyKeyboardMarkup
@@ -2018,9 +2019,9 @@ def test_start_first_time_user_gets_onboarding_and_main_menu():
         assert isinstance(markup, ReplyKeyboardMarkup)
         labels = [b.text for row in markup.keyboard for b in row]
         assert btn in labels, (lang, labels)
-        # UX V2: eski asosiy menyu yorliqlari standart klaviaturada yo'q.
+        # 3-QISM: eski asosiy menyu yorliqlari standart klaviaturada yo'q.
         assert (BTN_NEW_POST if lang == "uz" else BTN_NEW_POST_RU) not in labels
-        assert len(labels) == 6, (lang, labels)
+        assert len(labels) == 7, (lang, labels)
 
 
 def test_start_returning_user_gets_standard_greeting():

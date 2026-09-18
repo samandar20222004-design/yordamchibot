@@ -125,14 +125,14 @@ def test_main_menu_button_3_langs():
     from locales.translations import get_text
     from keyboards.default import get_main_keyboard, BTN_SETTINGS, BTN_SETTINGS_RU
 
-    # UX V2 (6-tugma standarti): yorliq endi «⚙️ Sozlamalar» (eski
-    # «👤 Kabinet & Sozlamalar» routing'da alias sifatida saqlanadi).
-    check("uz: BTN_SETTINGS = '⚙️ Sozlamalar'",
-          BTN_SETTINGS == "⚙️ Sozlamalar")
-    check("ru: BTN_SETTINGS_RU = '⚙️ Настройки'",
-          BTN_SETTINGS_RU == "⚙️ Настройки")
-    check("en: btn_settings = '⚙️ Settings'",
-          get_text("btn_settings", "en") == "⚙️ Settings")
+    # 3-QISM: yorliq endi «👤 Profil» (eski «⚙️ Sozlamalar» routing'da
+    # alias sifatida saqlanadi); yangi «👥 Do'stlarni taklif» tugmasi ham bor.
+    check("uz: BTN_SETTINGS = '👤 Profil'",
+          BTN_SETTINGS == "👤 Profil")
+    check("ru: BTN_SETTINGS_RU = '👤 Профиль'",
+          BTN_SETTINGS_RU == "👤 Профиль")
+    check("en: btn_settings = '👤 Profile'",
+          get_text("btn_settings", "en") == "👤 Profile")
 
     # Reply-klaviaturalarda tugma bor
     for lang in ("uz", "ru", "en"):
@@ -149,10 +149,10 @@ def test_main_menu_button_3_langs():
 def test_cabinet_inline_keyboard_3_langs():
     """Kabinet inline klaviaturasi 3 tilda to'g'ri yorliqlar va bir xil callback.
 
-    🧹 UI/UX POLISH (1-qadam): kabinet endi IXCHAM 5 tugmali panel:
-    tarqoq bonus/referral tugmalari YAGONA «🎁 Bonuslar & Taklif» ga
-    birlashtirildi; pastki menyu dublikatlari (kanallar, rejalashtirilgan)
-    va qayta «Profil»/«Til» tugmalari olib tashlandi.
+    3-QISM: kabinet endi IXCHAM 6 tugmali 👤 Profil paneli (Sozlamalar
+    hub'i bilan bir xil): Til / Post sozlamalari / Bildirishnomalar /
+    To'lovlar tarixi / Qo'llab-quvvatlash / Yopish. «🎁 Bonuslar & Taklif»
+    asosiy menyuga («👥 Do'stlarni taklif») ko'chirildi.
     """
     print("== Kabinet inline klaviaturasi (uz/ru/en) ==")
     from keyboards.inline import get_cabinet_inline_keyboard
@@ -160,35 +160,35 @@ def test_cabinet_inline_keyboard_3_langs():
     # UZ inline keyboard
     kb_uz = get_cabinet_inline_keyboard("uz")
     rows_uz = [[(b.text, b.callback_data) for b in row] for row in kb_uz.inline_keyboard]
-    check("uz kabinet: 3 qator (ixcham 5 tugmali panel)",
-          len(rows_uz) == 3, str(len(rows_uz)))
-    check("uz kabinet: Bonuslar & Taklif + To'lovlar tarixi",
-          rows_uz[0] == [("🎁 Bonuslar & Taklif", "stgs_rewards"),
-                         ("💳 To'lovlar tarixi", "stgs_pay")], str(rows_uz[0]))
-    check("uz kabinet: Bildirishnomalar + Yordam & Qo'llanma",
+    check("uz kabinet: 4 qator (ixcham 6 tugmali panel)",
+          len(rows_uz) == 4, str(len(rows_uz)))
+    check("uz kabinet: Til + Post sozlamalari",
+          rows_uz[0] == [("🌐 Til / Язык", "stgs_lang"),
+                         ("✍️ Post sozlamalari", "stgs_post")], str(rows_uz[0]))
+    check("uz kabinet: Bildirishnomalar + To'lovlar tarixi",
           rows_uz[1] == [("🔔 Bildirishnomalar", "stgs_notif"),
-                         ("❓ Yordam & Qo'llanma", "stgs_help_hub")], str(rows_uz[1]))
+                         ("💳 To'lovlar tarixi", "stgs_pay")], str(rows_uz[1]))
+    check("uz kabinet: Qo'llab-quvvatlash",
+          rows_uz[2] == [("💬 Qo'llab-quvvatlash", "help_support")], str(rows_uz[2]))
     check("uz kabinet: Yopish",
-          rows_uz[2] == [("❌ Yopish", "close_cabinet")], str(rows_uz[2]))
-    check("uz kabinet: Til tugmasi kabinetda YO'Q",
-          all(cb != "cab_lang" for row in rows_uz for _label, cb in row))
+          rows_uz[3] == [("❌ Yopish", "stgs_back")], str(rows_uz[3]))
 
     # RU inline keyboard
     kb_ru = get_cabinet_inline_keyboard("ru")
     rows_ru = [[(b.text, b.callback_data) for b in row] for row in kb_ru.inline_keyboard]
-    check("ru kabinet: 3 qator (ixcham 5 tugmali panel)", len(rows_ru) == 3)
-    check("ru kabinet: Бонусы и приглашения tugmasi",
-          rows_ru[0][0] == ("🎁 Бонусы и приглашения", "stgs_rewards"), str(rows_ru[0]))
-    check("ru kabinet: Til tugmasi kabinetda YO'Q",
+    check("ru kabinet: 4 qator (ixcham 6 tugmali panel)", len(rows_ru) == 4)
+    check("ru kabinet: Язык tugmasi",
+          rows_ru[0][0] == ("🌐 Язык / Language", "stgs_lang"), str(rows_ru[0]))
+    check("ru kabinet: eski Til (cab_lang) tugmasi YO'Q",
           all(cb != "cab_lang" for row in rows_ru for _label, cb in row))
 
     # EN inline keyboard
     kb_en = get_cabinet_inline_keyboard("en")
     rows_en = [[(b.text, b.callback_data) for b in row] for row in kb_en.inline_keyboard]
-    check("en kabinet: 3 qator (ixcham 5 tugmali panel)", len(rows_en) == 3)
-    check("en kabinet: Bonuses & Invites tugmasi",
-          rows_en[0][0] == ("🎁 Bonuses & Invites", "stgs_rewards"), str(rows_en[0]))
-    check("en kabinet: Language tugmasi kabinetda YO'Q",
+    check("en kabinet: 4 qator (ixcham 6 tugmali panel)", len(rows_en) == 4)
+    check("en kabinet: Language tugmasi",
+          rows_en[0][0] == ("🌐 Language", "stgs_lang"), str(rows_en[0]))
+    check("en kabinet: eski Til (cab_lang) tugmasi YO'Q",
           all(cb != "cab_lang" for row in rows_en for _label, cb in row))
 
     # Callback data 3 tilda ham bir xil (tilga bog'liq emas)
@@ -198,15 +198,18 @@ def test_cabinet_inline_keyboard_3_langs():
     check("callback_data uz == ru", cbs_uz == cbs_ru)
     check("callback_data ru == en", cbs_ru == cbs_en)
 
-    # Har bir callback mavjud (barchasi MAVJUD stgs_*/yopish oqimlariga ulanadi)
-    # 🧹 Eski cab_* dublikat callback'lari (cab_channels, cab_analytics,
-    # cab_pending, cab_queue, cab_balance, cab_bonus, cab_referral) panel-
-    # dan OLIB TASHLANDI — routing'da esa eski xabarlar uchun saqlanadi.
+    # Har bir callback mavjud (barchasi MAVJUD stgs_*/help oqimlariga ulanadi)
+    # 3-QISM: ixcham panel — Til/Post/Notif/Pay/Support/Yopish.
+    # Eski guruh tugmalari (stgs_rewards, stgs_tools, stgs_help_hub) va
+    # cab_* dublikatlari paneldan OLIB TASHLANDI — routing'da saqlanadi.
     expected_cbs = [
-        "stgs_rewards", "stgs_pay", "stgs_notif", "stgs_help_hub", "close_cabinet",
+        "stgs_lang", "stgs_post", "stgs_pay", "stgs_notif",
+        "help_support", "stgs_back",
     ]
     for cb in expected_cbs:
         check(f"callback '{cb}' mavjud", cb in cbs_uz)
+    for cb in ("stgs_rewards", "stgs_tools", "stgs_help_hub", "close_cabinet"):
+        check(f"eski guruh callback '{cb}' kabinetda YO'Q", cb not in cbs_uz)
     removed_cbs = [
         "cab_channels", "cab_analytics", "cab_pending", "cab_queue",
         "cab_balance", "cab_bonus", "cab_referral", "cab_lang",
@@ -235,13 +238,13 @@ def test_cabinet_screen_text():
         check(f"{lang}: credits ko'rsatilgan", "5" in text)
         check(f"{lang}: channels ko'rsatilgan", "2" in text)
 
-    # Har til o'z tilida
-    check("uz: 'Shaxsiy Kabinet'",
-          "Shaxsiy Kabinet" in get_text("cabinet_title", "uz", **test_params))
-    check("ru: 'Личный кабинет'",
-          "Личный кабинет" in get_text("cabinet_title", "ru", **test_params))
-    check("en: 'Personal Account'",
-          "Personal Account" in get_text("cabinet_title", "en", **test_params))
+    # Har til o'z tilida (3-QISM: «👤 Profil» — eski «Shaxsiy Kabinet»)
+    check("uz: 'Profil'",
+          "<b>Profil:</b>" in get_text("cabinet_title", "uz", **test_params))
+    check("ru: 'Профиль'",
+          "<b>Профиль:</b>" in get_text("cabinet_title", "ru", **test_params))
+    check("en: 'Profile'",
+          "<b>Profile:</b>" in get_text("cabinet_title", "en", **test_params))
 
 
 # ================================================================
