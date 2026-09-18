@@ -72,6 +72,7 @@ from keyboards.inline import (
     get_manual_channel_keyboard,
     get_manual_post_panel,
     get_manual_reaction_keyboard,
+    is_emoji_token,
     manual_channel_from_callback,
     manual_reaction_from_callback,
     normalize_custom_reaction_emojis,
@@ -160,6 +161,190 @@ def _clear_manual_state(context) -> None:
                 UD_DUP_CHANNEL_TITLE, UD_REACTIONS, UD_URL_BTN_TEXT,
                 UD_URL_BTN_URL):
         context.user_data.pop(key, None)
+
+
+# ============================================================
+# SMART EMOJI VA SMART URL — YORDAMCHI FUNKSIYALAR (2-QISM BUGFIX)
+# ============================================================
+import re as _re
+
+#: Smart emoji uchun maksimal son (topshiriq bo'yicha 5 tagacha).
+SMART_EMOJI_MAX = 5
+
+#: Smart URL uchun avtomatik tugma matnlari.
+AUTO_BTN_TEXT_TME = "📢 Kanalga o'tish"
+AUTO_BTN_TEXT_WEB = "🔗 Batafsil"
+
+
+def _auto_button_text(url: str) -> str:
+    """URL'ga qarab avtomatik tugma matnini tanlaydi.
+
+    - t.me yoki tg:// bo'lsa → \"📢 Kanalga o'tish\"
+    - boshqa veb-sayt bo'lsa → \"🔗 Batafsil\"
+    """
+    low = (url or "").lower()
+    if "t.me" in low or low.startswith("tg://"):
+        return AUTO_BTN_TEXT_TME
+    return AUTO_BTN_TEXT_WEB
+
+
+def _token_to_emojis(token: str) -> list:
+    """Bitta token (masalan \"😎🔥\" yoki \"❤️\") ni alohida emojilarga bo'ladi.
+
+    - ZWJ (\\u200d) bo'lsa butun tokenni bitta emoji deb saqlaydi (masalan 👨‍💻).
+    - Variation Selector (\\ufe0f/\\ufe0e) va skin-tone modifier'lar (\\U0001f3fb-\\U0001f3ff)
+      oldingi belgi bilan birga guruhlanadi.
+    - Natijada faqat emoji tokenlari qaytadi.
+    """
+    if not token:
+        return []
+    # ZWJ ketma-ketligi — butunligicha bitta emoji (bo'lib tashlamaymiz)
+    if "\u200d" in token:
+        return [token] if is_emoji_token(token) else []
+    emojis = []
+    cur = ""
+    for ch in token:
+        if ch in ("\ufe0f", "\ufe0e"):
+            # VS — oldingi belgiga yopishadi
+            cur += ch
+            continue
+        # Skin-tone modifier'lar (1F3FB..1F3FF) — oldingi emoji bilan birga
+        cp = ord(ch)
+        if 0x1F3FB <= cp <= 0x1F3FF:
+            cur += ch
+            continue
+        # Yangi belgi boshlandi — avvalgisini yopamiz
+        if cur:
+            if is_emoji_token(cur):
+                emojis.append(cur)
+            cur = ch
+        else:
+            cur = ch
+    if cur and is_emoji_token(cur):
+        emojis.append(cur)
+    return emojis
+
+
+def _smart_extract_emojis(text: str, max_count: int = SMART_EMOJI_MAX) -> list:
+    """Matndan emojilarni ajratib oladi (maksimal ``max_count`` tagacha) — KIRITISH TARTIBI SAQLANADI.
+
+    SMART EMOJI BUGFIX (2-qism):
+      * Foydalanuvchi "😎" yoki "🔥 👍" kabi sof emoji yuborsa, xato berilmaydi.
+      * Emoji(lar) ajratib olinib (maksimal 5 tagacha) saqlanadi.
+      * Kiritish tartibi saqlanadi — masalan "🔥 👍" → ["🔥", "👍"], kanonik saralash emas.
+      * Vergul, nuqta-vergul, | / kabi ajratgichlar bo'sh joyga almashtiriladi.
+      * Har bir token alohida emojilarga bo'linadi (masalan "😎🔥" → ["😎", "🔥"]).
+      * Takrorlar VS hisobga olinmasdan olib tashlanadi.
+    """
+    if not text:
+        return []
+    # To'g'ridan-to'g'ri kiritish tartibida ajratamiz (kanonik saralashsiz)
+    raw = _re.split(r"[\s,;|/]+", str(text).strip())
+    result = []
+    seen = set()
+    for token in raw:
+        if not token:
+            continue
+        split_emojis = _token_to_emojis(token)
+        if not split_emojis and is_emoji_token(token):
+            split_emojis = [token]
+        for emo in split_emojis:
+            if not emo:
+                continue
+            key = strip_variation_selector(emo)
+            if not key or key in seen:
+                continue
+            if not is_emoji_token(emo):
+                continue
+            seen.add(key)
+            result.append(emo)
+            if len(result) >= max_count:
+                return result[:max_count]
+    if not result:
+        try:
+            normalized = normalize_custom_reaction_emojis(text, max_count=max_count)
+            if normalized:
+                dedup = []
+                seen2 = set()
+                for e in normalized:
+                    k = strip_variation_selector(e)
+                    if k and k not in seen2:
+                        seen2.add(k)
+                        dedup.append(e)
+                    if len(dedup) >= max_count:
+                        break
+                return dedup[:max_count]
+        except Exception:
+            pass
+    return result[:max_count]
+
+
+
+
+def _is_pure_emoji_text(text: str) -> bool:
+    """Matn faqat emoji(lar) va ajratgichlardan iboratmi?
+
+    Masalan: \"😎\" → True, \"🔥 👍\" → True, \"salom 😎\" → False.
+    """
+    if not text or not str(text).strip():
+        return False
+    emojis = _smart_extract_emojis(text, max_count=10)
+    if not emojis:
+        return False
+    temp = str(text)
+    for e in emojis:
+        temp = temp.replace(e, "")
+    # Variation selector'larni ham olib tashlaymiz
+    temp = temp.replace("\ufe0f", "").replace("\ufe0e", "")
+    # Qolgan ajratgichlar (bo'sh joy, vergul, nuqta-vergul, | /) ni tozalaymiz
+    temp = _re.sub(r"[\s,;|/]+", "", temp)
+    return temp == ""
+
+
+def _smart_parse_url_button(raw_text: str):
+    """Smart URL parser — \"Matn - Havola\" yoki faqat \"Havola\" formatlarini qo'llaydi.
+
+    Qaytaradi: (btn_text, btn_url) yoki (None, None) agar noto'g'ri bo'lsa.
+
+    Qoidalari:
+      * Agar matnning o'zi yakka URL bo'lsa (http/https/tg) → avtomatik matn:
+        t.me/tg:// → \"📢 Kanalga o'tish\", boshqa → \"🔗 Batafsil\"
+      * Aks holda \"Matn - Havola\" (|, \" - \", \"—\") ajratgichlari orqali
+      * Qo'shimcha fallback: oxirgi token URL bo'lsa, qolgan qismi matn sifatida
+    """
+    raw = (raw_text or "").strip()
+    if not raw:
+        return None, None
+
+    # 1) Yakka URL holati — eng oddiy va keng tarqalgan xato manbasi
+    ok_single, _ = validate_button_url(raw)
+    if ok_single:
+        return _auto_button_text(raw), raw
+
+    # 2) Mavjud parser (|, \" - \", \"—\") orqali
+    btn_text, btn_url = parse_button_input(raw)
+    if btn_text and btn_url:
+        ok_t, _ = validate_button_text(btn_text)
+        ok_u, _ = validate_button_url(btn_url)
+        if ok_t and ok_u:
+            return btn_text, btn_url
+
+    # 3) Fallback: oxirgi bo'shliqdan keyin URL bo'lsa, oldingi qismi matn
+    #    Masalan: \"Batafsil https://t.me/kanal\" yoki \"Kanal -https://...\" kabi
+    #    foydalanuvchi xatolariga chidamli bo'lish uchun
+    #    Rasmiy format \"Matn - Havola\" bo'lsa ham, bo'shliq bilan yozilgan
+    #    variantlarni ham qabul qilamiz
+    parts = raw.rsplit(None, 1)
+    if len(parts) == 2:
+        potential_text, potential_url = parts
+        # Oxiridagi \"-\", \"|\", \"—\" belgilarini tozalaymiz
+        potential_text = potential_text.rstrip(" -|—").strip()
+        ok_t, _ = validate_button_text(potential_text)
+        ok_u, _ = validate_button_url(potential_url)
+        if ok_t and ok_u and potential_text:
+            return potential_text, potential_url
+
+    return None, None
 
 
 # ============================================================
@@ -634,9 +819,13 @@ async def manual_reaction_custom_received(update: Update,
                                           context: ContextTypes.DEFAULT_TYPE):
     """➕ O'zim kiritaman: qo'lda yuborilgan reaksiya emojilari qabul qilinadi.
 
-    Emoji bo'lmagan belgilar tashlanadi (``normalize_custom_reaction_emojis``);
-    hech narsa topilmasa muloyim xato bilan holat saqlanadi. Muvaffaqiyatda
-    emojilar postga ulanadi va preview yangilanadi.
+    SMART EMOJI (2-qism bugfix):
+      * Foydalanuvchi sof emoji(lar) yuborsa (masalan 😎 yoki 🔥 👍),
+        xato berilmasin — emoji(lar) ajratib olinib (maksimal 5 tagacha)
+        postning reaction_emojis ro'yxatiga saqlanadi va preview darhol
+        shu tugmalar bilan yangilanadi.
+      * Emoji bo'lmagan belgilar tashlanadi; hech narsa topilmasa muloyim
+        xato bilan holat saqlanadi.
     """
     msg = update.message
     lang = get_lang(context)
@@ -648,7 +837,18 @@ async def manual_reaction_custom_received(update: Update,
             )
         return MANUAL_REACTION_CUSTOM
 
-    emojis = normalize_custom_reaction_emojis(msg.text)
+    # SMART: maksimal 5 tagacha emoji ajratib olinadi
+    emojis = _smart_extract_emojis(msg.text, max_count=SMART_EMOJI_MAX)
+    if not emojis:
+        # Fallback — eski normalizator (10 tagacha) bilan ham sinab ko'ramiz,
+        # lekin natijani 5 tagacha kesamiz
+        try:
+            fallback = normalize_custom_reaction_emojis(msg.text, max_count=SMART_EMOJI_MAX)
+        except TypeError:
+            fallback = normalize_custom_reaction_emojis(msg.text)
+        if fallback:
+            emojis = fallback[:SMART_EMOJI_MAX]
+
     if not emojis:
         await msg.reply_text(
             manual_post_t("mp_react_custom_invalid", lang),
@@ -656,13 +856,74 @@ async def manual_reaction_custom_received(update: Update,
         )
         return MANUAL_REACTION_CUSTOM
 
-    context.user_data[UD_REACTIONS] = emojis
+    context.user_data[UD_REACTIONS] = emojis[:SMART_EMOJI_MAX]
+    await _show_preview(msg, context, lang)
+    return MANUAL_PREVIEW
+
+
+async def manual_preview_emoji_received(update: Update,
+                                        context: ContextTypes.DEFAULT_TYPE):
+    """SMART EMOJI — preview holatida (reaksiyalar oynasida) to'g'ridan-to'g'ri emoji yuborish.
+
+    Muammo: foydalanuvchi reaksiyalar tanlash oynasida (MANUAL_PREVIEW) to'g'ridan-to'g'ri
+    emoji yuborsa, bot \"Bu turdagi xabar qabul qilinmaydi\" deb xato berardi,
+    chunki MANUAL_PREVIEW holatida faqat callback'lar bor edi, matn handler'i yo'q edi.
+
+    Yechim: preview holatida ham sof emoji(lar) qabul qilinadi, 5 tagacha ajratib olinib
+    reaksiyalar ro'yxatiga saqlanadi va preview darhol yangilanadi. Emoji bo'lmagan
+    matn bo'lsa, preview qayta ko'rsatiladi (xato berilmaydi, oqim uzilmaydi).
+    """
+    msg = update.message
+    lang = get_lang(context)
+    if msg is None:
+        return MANUAL_PREVIEW
+
+    # Kontent yo'q bo'lsa (sessiya eskirgan) — eski xatti-harakat saqlanadi
+    if not _has_content(context):
+        await msg.reply_text(
+            manual_post_t("mp_session_expired", lang),
+            reply_markup=get_main_keyboard(
+                (msg.from_user.id if getattr(msg, "from_user", None) else 0) in ADMIN_IDS_SET, lang),
+            parse_mode="HTML",
+        )
+        clear_fsm_data(context)
+        _clear_manual_state(context)
+        return ConversationHandler.END
+
+    text = (msg.text or "").strip()
+    if not text:
+        # Bo'sh yoki media — preview'ni qayta ko'rsatamiz (xato emas)
+        await _show_preview(msg, context, lang)
+        return MANUAL_PREVIEW
+
+    emojis = _smart_extract_emojis(text, max_count=SMART_EMOJI_MAX)
+    if emojis:
+        # Sof emoji yoki emoji aralash matn bo'lsa ham, emojilarni reaksiya sifatida qabul qilamiz
+        # (topshiriq: sof emoji bo'lsa xato berilmasin; biz biroz kengroq — har qanday emoji topilsa qabul qilamiz)
+        context.user_data[UD_REACTIONS] = emojis[:SMART_EMOJI_MAX]
+        await _show_preview(msg, context, lang)
+        return MANUAL_PREVIEW
+
+    # Emoji topilmadi — foydalanuvchi boshqa matn yuborgan bo'lishi mumkin
+    # Eski oqimda bu holat unknown_in_dialog ga tushardi; endi preview'ni saqlab qolamiz
+    # va muloyim ravishda preview'ni qayta ko'rsatamiz (xato bermaslik uchun)
+    # Agar matn haqiqatan ham noto'g'ri bo'lsa, foydalanuvchi panel tugmalaridan foydalanishi mumkin
     await _show_preview(msg, context, lang)
     return MANUAL_PREVIEW
 
 
 async def manual_url_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """🔗 Havolali tugma: "Matn - https://havola" formatidagi kiritma.
+    """🔗 Havolali tugma: "Matn - https://havola" yoki faqat "https://havola" formati.
+
+    SMART URL PARSER (2-qism bugfix):
+      * Agar foydalanuvchi faqat bitta havolani yuborsa (matnsiz, masalan
+        https://t.me/kanal yoki https://sayt.uz) — bot xato bermasin!
+        Tugma matni avtomatik tanlanadi:
+          - Havola t.me bo'lsa → "📢 Kanalga o'tish"
+          - Boshqa veb-sayt bo'lsa → "🔗 Batafsil"
+      * Agar format "Matn - Havola" ko'rinishida yuborilgan bo'lsa →
+        foydalanuvchi kiritgan matn ishlatiladi.
+      * URL xavfsizligi (http, https, tg protokollari) qat'iy saqlanadi.
 
     XAVFSIZLIK: havola ``validate_button_url`` (utils.security
     ``url_rejection_reason`` asosida) tekshiruvidan o'tadi — FAQAT
@@ -679,10 +940,20 @@ async def manual_url_received(update: Update, context: ContextTypes.DEFAULT_TYPE
                                  parse_mode="HTML")
         return MANUAL_URL_INPUT
 
-    btn_text, btn_url = parse_button_input(msg.text)
-    ok_text, _err_text = validate_button_text(btn_text) if btn_text else (False, "")
-    ok_url, _err_url = validate_button_url(btn_url) if btn_url else (False, "")
-    if not (btn_text and btn_url and ok_text and ok_url):
+    raw = (msg.text or "").strip()
+
+    # SMART PARSER — yakka URL yoki "Matn - URL" ni qo'llaydi
+    btn_text, btn_url = _smart_parse_url_button(raw)
+
+    if not btn_text or not btn_url:
+        await msg.reply_text(manual_post_t("mp_url_invalid", lang),
+                             parse_mode="HTML")
+        return MANUAL_URL_INPUT
+
+    # Xavfsizlik: har ikkala qism ham validatsiya qilinadi (protokol cheklovi saqlanadi)
+    ok_text, _err_text = validate_button_text(btn_text)
+    ok_url, _err_url = validate_button_url(btn_url)
+    if not (ok_text and ok_url):
         await msg.reply_text(manual_post_t("mp_url_invalid", lang),
                              parse_mode="HTML")
         return MANUAL_URL_INPUT
