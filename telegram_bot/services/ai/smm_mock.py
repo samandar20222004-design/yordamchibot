@@ -19,7 +19,10 @@ uchun tillar haqiqiy tilida yozilgan.
 from __future__ import annotations
 
 import json
+import logging
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 #: MockProvider tanib oladigan rejimler.
 SMM_MODE_VARIANTS = "VARIANTS"
@@ -30,9 +33,11 @@ SMM_MODE_PLANNER = "PLANNER"
 SMM_MODE_URL_POST = "URL_POST"
 SMM_MODE_RSS = "RSS_DIGEST"
 SMM_MODE_RECYCLE = "RECYCLE"
+# 📢 FAZA 15 — REKLAMA DVIGATELI (services/ads): 4 xil format, NO FABRICATION.
+SMM_MODE_ADS = "ADS"
 SMM_MODES = (SMM_MODE_VARIANTS, SMM_MODE_REPURPOSE, SMM_MODE_AUDIT,
              SMM_MODE_PLANNER, SMM_MODE_URL_POST, SMM_MODE_RSS,
-             SMM_MODE_RECYCLE)
+             SMM_MODE_RECYCLE, SMM_MODE_ADS)
 
 _LANGS = ("uz", "ru", "en")
 
@@ -617,4 +622,19 @@ def smm_mock_reply(context: dict | None, topic: str = "") -> str | None:
         return rss_digest_text(lang, topic)
     if mode == SMM_MODE_RECYCLE:
         return recycle_json(lang, topic)
+
+    # 📢 FAZA 15 — REKLAMA (4 xil format). Bank services/ads/templates da:
+    # u FAQAT brief'dagi faktlardan yig'iladi, shuning uchun mock rejimda ham
+    # narx/kafolat/reyting UYDIRILMAYDI (NO FABRICATION).
+    if mode == SMM_MODE_ADS:
+        try:
+            from services.ads.templates import build_ad_text_from_payload
+        except Exception as exc:  # noqa: BLE001 — mock hech qachon yiqilmaydi
+            logger.debug("ADS banki yuklanmadi: %s", exc)
+            return None
+        return build_ad_text_from_payload(
+            context.get("smm_ads_brief"),
+            str(context.get("smm_ads_format") or "native"),
+            lang,
+        )
     return None
