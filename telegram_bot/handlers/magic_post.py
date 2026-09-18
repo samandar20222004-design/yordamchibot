@@ -80,6 +80,7 @@ MP_SEND = "mp_send"
 MP_SCHED = "mp_sched"
 MP_RESTYLE = "mp_restyle"
 MP_BACK = "mp_back"
+MP_CANCEL = "mp_cancel"
 MP_CHANNEL_PREFIX = "mp_ch:"
 MP_SEND_ALL = "mp_chall"
 
@@ -94,7 +95,14 @@ _MAGIC_RESULT_POST_LIMIT = 3600
 # KLAVIATURALAR
 # ============================================================
 def _magic_style_keyboard(lang: str) -> InlineKeyboardMarkup:
-    """5 uslub tugmasi (3+2 qator) — callback ``mp_style:<style>``."""
+    """5 uslub tugmasi (3+2 qator) + [❌ Bekor qilish] — ``mp_style:<style>``.
+
+    DEEP AUDIT tuzatishi (dead-end trap): ilgari uslub menyusida HECH QANDAY
+    chiqish tugmasi yo'q edi — foydalanuvchi oqimdan chiqish uchun matn
+    yozishi yoki /start bosishi kerak edi. Endi ``mp_cancel`` tugmasi
+    sessiyani to'liq yopadi (kredit/limit TIYILMAYDI — uslub hali
+    tanlanmagani uchun hech narsa bron qilinmagan).
+    """
     buttons = [
         InlineKeyboardButton(
             magic_t(label_key, lang),
@@ -102,7 +110,10 @@ def _magic_style_keyboard(lang: str) -> InlineKeyboardMarkup:
         )
         for style, (label_key, _desc_key) in MAGIC_STYLE_KEYS.items()
     ]
-    return InlineKeyboardMarkup([buttons[:3], buttons[3:]])
+    cancel = InlineKeyboardButton(
+        magic_t("mp_btn_cancel", lang), callback_data=MP_CANCEL
+    )
+    return InlineKeyboardMarkup([buttons[:3], buttons[3:], [cancel]])
 
 
 def _magic_action_keyboard(lang: str) -> InlineKeyboardMarkup:
@@ -722,6 +733,40 @@ async def magic_back_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
         )
     except Exception:
         pass
+    return ConversationHandler.END
+
+
+# ============================================================
+# ❌ BEKOR QILISH: uslub menyusidagi dead-end trap tuzatishi
+# ============================================================
+async def magic_cancel_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """[❌ Bekor qilish]: Magic sessiyasi TO'LIQ yopiladi (``mp_cancel``).
+
+    DEEP AUDIT tuzatishi: uslub menyusi ``❌`` tugmasiz "tuzoq" edi. Endi:
+
+    * sessiya kalitlari tozalanadi (``magic_raw_text`` va h.k.) — ``mp_back``
+      bilan bir xil ro'yxat, qoldiq holat qolmaydi;
+    * ``clear_fsm_data`` — FSM konteksti yopiladi;
+    * kredit/limit TIYILMAYDI (uslub tanlanmagach hech narsa bron
+      qilinmagan);
+    * ``ConversationHandler.END`` — foydalanuvchi band holatda qolmaydi
+      (keyingi ``/start`` yoki tugma erkin ishlaydi).
+    """
+    query = update.callback_query
+    await query.answer()
+    lang = get_lang(context)
+    for key in ("magic_raw_text", "magic_post_text", "magic_style",
+                "magic_channels", "magic_usage_counted"):
+        context.user_data.pop(key, None)
+    clear_fsm_data(context)
+    try:
+        await query.edit_message_text(magic_t("mp_cancel_done", lang), parse_mode="HTML")
+    except Exception:
+        try:
+            await query.message.reply_text(magic_t("mp_cancel_done", lang),
+                                           parse_mode="HTML")
+        except Exception:
+            pass
     return ConversationHandler.END
 
 

@@ -74,6 +74,8 @@ MAGIC_POST_I18N = {
         "mp_btn_restyle": "🔄 Boshqa uslub",
         "mp_btn_rewrite": "✏️ Qayta yozish / Uslub",
         "mp_btn_back": "◀️ Orqaga",
+        "mp_btn_cancel": "❌ Bekor qilish",
+        "mp_cancel_done": "❌ <b>Bekor qilindi.</b>\n\nMatn yoki g'oyani qayta yuborsangiz, Magic Post qaytadan boshlanadi.",
         "mp_send_choose": "📢 <b>Postni qaysi kanalga yuboramiz?</b>\nKanalni tanlang 👇",
         "mp_send_all": "📣 Barcha kanallarga ({count})",
         "mp_sent_ok": (
@@ -150,6 +152,8 @@ MAGIC_POST_I18N = {
         "mp_btn_restyle": "🔄 Другой стиль",
         "mp_btn_rewrite": "✏️ Переписать / Стиль",
         "mp_btn_back": "◀️ Назад",
+        "mp_btn_cancel": "❌ Отмена",
+        "mp_cancel_done": "❌ <b>Отменено.</b>\n\nОтправьте текст или идею ещё раз — Magic Post начнётся заново.",
         "mp_send_choose": "📢 <b>В какой канал отправить пост?</b>\nВыберите канал 👇",
         "mp_send_all": "📣 Во все каналы ({count})",
         "mp_sent_ok": (
@@ -226,6 +230,8 @@ MAGIC_POST_I18N = {
         "mp_btn_restyle": "🔄 Other style",
         "mp_btn_rewrite": "✏️ Rewrite / Style",
         "mp_btn_back": "◀️ Back",
+        "mp_btn_cancel": "❌ Cancel",
+        "mp_cancel_done": "❌ <b>Cancelled.</b>\n\nSend your text or idea again to start Magic Post over.",
         "mp_send_choose": "📢 <b>Which channel should we send it to?</b>\nPick a channel 👇",
         "mp_send_all": "📣 To all channels ({count})",
         "mp_sent_ok": (

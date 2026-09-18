@@ -43,7 +43,7 @@ from services.ai_quota import (
     release_ai_quota,
     reserve_ai_quota,
 )
-from services.ai_service import generate_image_post
+from services.ai_engine.gateway import generate_image_post
 from utils.ai_agent import pick_supported_kwargs
 from utils.telegram_sanitizer import sanitize_html, TELEGRAM_CAPTION_LIMIT
 from utils.helpers import html_escape, telegram_html_payload, parse_schedule_input

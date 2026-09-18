@@ -2160,9 +2160,18 @@ async def _run_ai_chain(prompt: str, system_instruction: str, lang: str = None) 
     🌐 3 TILLIK: ``lang`` berilsa, orkestrator (``services/ai_service.py``)
     tizim promptiga qat'iy til qoidasini BIRIKTIRADI (idempotent). Til
     bloki shu yerda ham oldindan qo'shilgan bo'ladi — ikki qavatli himoya.
+
+    🚦 AI ENGINE V2 (kanonik shlyuz): bu funksiya endi to'g'ridan-to'g'ri
+    ``services.ai_service`` ga emas, balki YAGONA kanonik shlyuz —
+    ``services.ai_engine.gateway.legacy_chain`` adapteri orqali yuradi.
+    Adapter o'zi aynan shu legacy zanjirni (8 provayder, qat'iy timeout,
+    circuit breaker) ishga tushiradi, shuning uchun xatti-harakat va
+    ``provider``/``provider_chain`` javob shakli O'ZGARMAYDI (backward
+    compatibility). Barcha AI chaqiruvlari endi bitta shlyuz nuqtasidan
+    ko'rinadi — marshrutlash/kesh/breaker boshqaruvi yagona joyda.
     """
-    from services import ai_service
-    runner = ai_service.run_ai_chain
+    from services.ai_engine import gateway
+    runner = gateway.legacy_chain
     if lang and _chain_accepts_lang(runner):
         return await runner(prompt, system_instruction, lang=normalize_ai_lang(lang))
     return await runner(prompt, system_instruction)

@@ -247,7 +247,7 @@ async def generate_calendar_items(business: str, days: int, lang: str = "uz") ->
     chaqiriladi, shuning uchun testlar uni almashtirib tarmoqsiz ishlaydi.
     """
     try:
-        from services.ai_service import run_ai_chain
+        from services.ai_engine import gateway
         from utils.ai_agent import _extract_json
     except Exception:  # pragma: no cover - import xatosi (test muhiti)
         return []
@@ -263,7 +263,7 @@ async def generate_calendar_items(business: str, days: int, lang: str = "uz") ->
         "rubrika (qisqa), mavzu (aniq post g'oyasi) va bitta amaliy tavsiya."
     )
     try:
-        result = await run_ai_chain(prompt, system, lang)
+        result = await gateway.legacy_chain(prompt, system, lang)
     except Exception:
         logger.warning("Kontent-kalendar AI xatosi", exc_info=True)
         return []

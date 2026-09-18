@@ -43,7 +43,7 @@ Qoidalar (repo konventsiyalari):
 import logging
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
-from telegram.ext import ContextTypes
+from telegram.ext import ContextTypes, ConversationHandler
 
 from keyboards.callback_data import cb
 from locales.translations import get_lang
@@ -72,6 +72,7 @@ AI_POST_CUSTOM_INPUT = 436  # foydalanuvchi aniq mavzu yozishi kutilmoqda
 AIP_FMT_PREFIX = "aip_fmt:"
 AIP_FMT_CUSTOM = "custom"
 AIP_BACK = "aip_back"
+AIP_CANCEL = "aip_cancel"
 
 #: Wizard qayerdan ochilgani (qaytish manzili).
 AI_POST_ORIGIN_MAGIC = "magic"
@@ -166,6 +167,16 @@ _AIP_TEXTS: dict[str, dict[str, str]] = {
         "ru": "⚠️ Сессия устарела — отправьте тему заново.",
         "en": "⚠️ Session expired — please send the topic again.",
     },
+    "cancel_button": {
+        "uz": "❌ Bekor qilish",
+        "ru": "❌ Отмена",
+        "en": "❌ Cancel",
+    },
+    "cancel_done": {
+        "uz": "❌ <b>Bekor qilindi.</b>\n\nKerak bo'lsa mavzuni qayta yuboring — wizard qaytadan boshlanadi.",
+        "ru": "❌ <b>Отменено.</b>\n\nПри необходимости отправьте тему заново — мастер начнётся с начала.",
+        "en": "❌ <b>Cancelled.</b>\n\nSend the topic again anytime — the wizard will restart.",
+    },
 }
 
 
@@ -205,7 +216,14 @@ def _topic_echo(topic: str, lang: str = "uz") -> str:
 # KLAVIATURA
 # ============================================================
 def build_clarification_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
-    """Yo'nalish tanlovi: [📰|💡] [🔥|🛒] [✍️] (2+2+1 layout)."""
+    """Yo'nalish tanlovi: [📰|💡] [🔥|🛒] [✍️] + [❌ Bekor qilish] (2+2+1+1).
+
+    DEEP AUDIT tuzatishi (dead-end trap): ilgari wizard'da HECH QANDAY
+    chiqish tugmasi yo'q edi (``aip_back`` callback'i ro'yxatda bor, lekin
+    unga bog'langan tugma YO'Q edi). Endi ``aip_cancel`` tugmasi wizard'ni
+    to'liq yopadi — foydalanuvchi band holatda qolmaydi. Kvota/kredit
+    tegilmaydi (wizard bron QILMAYDI).
+    """
     news = InlineKeyboardButton(
         aip_t("fmt_news", lang), callback_data=cb(AIP_FMT_PREFIX, FORMAT_NEWS))
     tips = InlineKeyboardButton(
@@ -216,7 +234,8 @@ def build_clarification_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
         aip_t("fmt_sales", lang), callback_data=cb(AIP_FMT_PREFIX, FORMAT_SALES))
     custom = InlineKeyboardButton(
         aip_t("fmt_custom", lang), callback_data=cb(AIP_FMT_PREFIX, AIP_FMT_CUSTOM))
-    return InlineKeyboardMarkup([[news, tips], [short, sales], [custom]])
+    cancel = InlineKeyboardButton(aip_t("cancel_button", lang), callback_data=AIP_CANCEL)
+    return InlineKeyboardMarkup([[news, tips], [short, sales], [custom], [cancel]])
 
 
 def clarification_keyboard_buttons(lang: str = "uz") -> list[tuple[str, str]]:
@@ -488,6 +507,35 @@ async def ai_post_back_callback(update: Update, context: ContextTypes.DEFAULT_TY
     return _origin_input_state(origin)
 
 
+async def ai_post_cancel_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """``aip_cancel``: [❌ Bekor qilish] — wizard TO'LIQ yopiladi.
+
+    DEEP AUDIT tuzatishi: aniqlashtirish wizard'i ``❌`` tugmasiz "tuzoq"
+    edi. Endi barcha wizard kalitlari tozalanadi, FSM yopiladi va
+    foydalanuvchi erkin holatga qaytadi (``ConversationHandler.END``).
+    Kvota/kredit tegilmaydi — wizard bron QILMAYDI.
+    """
+    query = update.callback_query
+    await query.answer()
+    lang = get_lang(context)
+    for key in (AIP_TOPIC_KEY, AIP_ORIGIN_KEY, AIP_FORMAT_KEY, AIP_HINT_KEY):
+        context.user_data.pop(key, None)
+    try:
+        from middlewares.fsm_cleaner import clear_user_fsm
+    except ImportError:
+        from telegram_bot.middlewares.fsm_cleaner import clear_user_fsm
+    clear_user_fsm(context)
+    try:
+        await query.edit_message_reply_markup(reply_markup=None)
+    except Exception:
+        pass
+    try:
+        await query.message.reply_text(aip_t("cancel_done", lang), parse_mode="HTML")
+    except Exception:
+        pass
+    return ConversationHandler.END
+
+
 # ============================================================
 # MATN: sotuv parametrlari / aniq mavzu qabul qilindi
 # ============================================================
@@ -624,6 +672,8 @@ __all__ = [
     "maybe_start_clarification",
     "ai_post_format_callback",
     "ai_post_back_callback",
+    "ai_post_cancel_callback",
+    "AIP_CANCEL",
     "ai_post_sales_input_received",
     "ai_post_custom_input_received",
     "ai_post_stale_callback",

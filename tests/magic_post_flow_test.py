@@ -229,7 +229,7 @@ def test_styles_menu_flow():
           intro_text.count("\n") <= 4 and "AIDA" not in intro_text
           and "🔥" not in intro_text, repr(intro_text))
 
-    # 1c) Xom matn yuborildi → uslublar menyusi (5 tugma).
+    # 1c) Xom matn yuborildi → uslublar menyusi (5 uslub + ❌ Bekor qilish).
     raw = "Yangi koffemiz 20% chegirma bilan sotilmoqda, dizayner stakanlar"
     msg2 = FakeMessage(text=raw)
     upd2 = FakeUpdate(message=msg2)
@@ -241,8 +241,12 @@ def test_styles_menu_flow():
     check("uslublar menyusi yuborildi", len(msg2.replies) == 1)
     menu_markup = msg2.replies[0]["reply_markup"]
     cbs = [d for _t, d in kb_buttons(menu_markup)]
-    expected = {f"mp_style:{s}" for s in MAGIC_POST_STYLES}
-    check(f"5 uslub tugmasi chiqdi {sorted(cbs)}", set(cbs) == expected, str(cbs))
+    expected = {f"mp_style:{s}" for s in MAGIC_POST_STYLES} | {"mp_cancel"}
+    check(f"5 uslub + bekor tugmasi chiqdi {sorted(cbs)}",
+          set(cbs) == expected, str(cbs))
+    cancel_labels = [t2 for t2, d in kb_buttons(menu_markup) if d == "mp_cancel"]
+    check("[❌ Bekor qilish] tugmasi bor (dead-end trap tuzatildi)",
+          cancel_labels == ["❌ Bekor qilish"], str(cancel_labels))
     menu_text = msg2.replies[0]["text"]
     check("menyuda uslub tushuntirishlari bor (AIDA/PAS, premium, blogger)",
           "AIDA" in menu_text and "premium" in menu_text.lower()
@@ -570,7 +574,7 @@ def test_result_actions_integration():
     check("restyle ekranida 'saqlandi' xabari bor",
           "saqlab qolindi" in q5.edits[-1].get("text", ""))
     restyle_cbs = [d for _t, d in kb_buttons(q5.edits[-1].get("reply_markup"))]
-    check("restyle ekranida yana 5 uslub", len(restyle_cbs) == 5)
+    check("restyle ekranida yana 5 uslub + bekor", len(restyle_cbs) == 6)
 
     # --- 3f) Stale tugma — sessiyadan tashqarida bosilsa toast beriladi ---
     q6 = FakeQuery("mp_send")
