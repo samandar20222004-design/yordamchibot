@@ -1,11 +1,12 @@
-"""⚙️ SOZLAMALAR — 7 tugmali hub.
+"""⚙️ SOZLAMALAR — 8 tugmali hub (4 qator × 2 tugma).
 
-Asosiy menyudan [⚙️ Sozlamalar] bosilganda quyidagi menyu chiqadi:
+Asosiy menyudan [⚙️ Sozlamalar] bosilganda quyidagi SIMMETRIK menyu chiqadi
+(hech bir tugma yolg'iz qatorda qolmaydi):
 
-    [🌐 Til / Язык]        [✍️ Post sozlamalari]
-    [🔔 Bildirishnomalar]  [👥 Do'stlarni taklif]
-    [💳 To'lovlar tarixi]  [💬 Qo'llab-quvvatlash]
-    [❌ Yopish]
+    [🌐 Til / Язык]         [✍️ Post sozlamalari]
+    [🔔 Bildirishnomalar]   [👥 Do'stlarni taklif]
+    [💳 To'lovlar tarixi]   [ℹ️ Bot haqida]
+    [💬 Qo'llab-quvvatlash] [❌ Yopish]
 
 «⚙️ Sozlamalar» / «👤 Shaxsiy kabinet» chalkashligi tugatildi: endi YAGONA
 Sozlamalar ekran bor. Ichki [◀️ Orqaga] tugmalari ``stgs_hub`` orqali shu
@@ -44,7 +45,7 @@ import logging
 from telegram import InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 
-from config import ADMIN_IDS_SET, SUPPORT_USERNAME
+from config import ADMIN_IDS_SET, BOT_VERSION, SUPPORT_USERNAME
 import database as db
 from keyboards.callback_data import cb
 from keyboards.default import get_main_keyboard
@@ -158,7 +159,7 @@ async def build_settings_hub_text(user_id: int, lang: str, is_admin: bool,
 
 async def render_settings_hub(update_message, context, user_id: int,
                               lang: str, is_admin: bool) -> None:
-    """⚙️ Sozlamalar hub ekranini yuboradi (profil matni + 7 tugmali menyu)."""
+    """⚙️ Sozlamalar hub ekranini yuboradi (profil matni + 8 tugmali menyu)."""
     text = await build_settings_hub_text(user_id, lang, is_admin)
     await update_message.reply_text(
         text,
@@ -515,11 +516,13 @@ async def _render_help(query, lang: str, context=None) -> None:
 
 
 async def _render_about(query, lang: str) -> None:
-    """ℹ️ Bot haqida — bot imkoniyatlari + qo'llab-quvvatlash."""
+    """ℹ️ Bot haqida — bot versiyasi, maqsadi va qisqa yo'riqnoma."""
     support = f"@{SUPPORT_USERNAME}" if SUPPORT_USERNAME else get_text(
         "help_admin_fallback", lang
     )
-    text = settings_stats_t("ss_about_text", lang, support=support)
+    text = settings_stats_t(
+        "ss_about_text", lang, support=support, version=BOT_VERSION,
+    )
     await _edit_or_reply(query, text, get_settings_back_keyboard(lang))
 
 

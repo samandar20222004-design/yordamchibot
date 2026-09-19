@@ -15,7 +15,7 @@ Tashqi Telegram/Gemini/Neon xizmatlari mock qilingan (offline). Qamrov:
   6. Matn asosidagi tahlil → ``generate_image_post`` Magic Post generatoriga
      uzatadi (Vision prompt emas), uslub mapping to'g'ri;
   7. Natija klaviaturasi Magic Post bilan bir xil ixcham layout:
-     [📢 Kanalga yuborish] [📅 Rejalashtirish] / [✏️ Qayta yozish / Uslub]
+     [📢 Kanalga yuborish] [📅 Rejalashtirish] / [✏️ Qayta yozish]
      [📊 Baholash] / [◀️ Orqaga] — eski callback'lar saqlangan;
   8. i18n: yangi kalitlar UZ/RU/EN da mavjud, umumiy paritet buzilmagan;
   9. FSM: IMAGE_TOPIC_INPUT (525) noyob va handlers'da ro'yxatdan o'tgan.
@@ -534,7 +534,7 @@ def test_result_keyboard_layout_and_back():
         check(f"[{lang}] 1-qator: Kanalga yuborish / Rejalashtirish",
               rows[0] == [(safe_t("image_btn_send", lang), ip.IMAGE_SEND),
                           (safe_t("image_btn_schedule", lang), ip.IMAGE_SCHEDULE)], str(rows[0]))
-        check(f"[{lang}] 2-qator: Qayta yozish / Uslub + Baholash",
+        check(f"[{lang}] 2-qator: Qayta yozish + Baholash",
               rows[1] == [(magic_t("mp_btn_rewrite", lang), ip.IMAGE_RESTYLE),
                           (post_score_t("ps_btn_eval", lang), "ps_eval:image")], str(rows[1]))
         check(f"[{lang}] 3-qator: Orqaga", rows[2] == [(magic_t("mp_btn_back", lang), ip.IMAGE_BACK)], str(rows[2]))
@@ -547,7 +547,7 @@ def test_result_keyboard_layout_and_back():
           [[t for t, _ in r] for r in [[(b.text, b.callback_data) for b in row]
                                        for row in ip.image_action_keyboard("uz").inline_keyboard]]
           == [["📢 Kanalga yuborish", "📅 Rejalashtirish"],
-              ["✏️ Qayta yozish / Uslub", "📊 Baholash"], ["◀️ Orqaga"]])
+              ["✏️ Qayta yozish", "📊 Baholash"], ["◀️ Orqaga"]])
 
     # [◀️ Orqaga] — sessiya tozalanadi, Kontent yaratish menyusi, END
     ctx = FakeContext(FakeBot(JPEG))

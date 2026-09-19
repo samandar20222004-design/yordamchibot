@@ -61,32 +61,32 @@ OTHER_CH_ID = "-1009999999999"
 # Kanal boshqaruv ekranining QAT'IY layouti (har tilda bir xil tartib).
 # 🧠 PHASE B: [🧠 Kanal DNA] va [⏰ Eng yaxshi vaqt] tugmalari qo'shildi
 # (Channel Intelligence — DNA profili va optimal post vaqti).
-# 📥 PHASE D (2/2): [📥 Kontent manbalari] — URL→post, RSS/ATOM oqimi va
+# 📥 PHASE D (2/2): [📥 Manbalar] — URL→post, RSS/ATOM oqimi va
 # Content Recycle (alohida qator, to'liq eni).
 EXPECTED_PANEL = {
     "uz": [["➕ Post yaratish"],
            ["📅 Rejalashtirilgan", "📊 Statistika"],
            ["🧠 Kanal DNA", "⏰ Eng yaxshi vaqt"],
            ["🚀 AI Avtopilot", "📋 Shablonlar"],
-           ["📥 Kontent manbalari"],
-           ["⚙️ Kanal sozlamalari", "◀️ Orqaga"]],
+           ["📥 Manbalar"],
+           ["⚙️ Sozlamalar", "◀️ Orqaga"]],
     "ru": [["➕ Создать пост"],
            ["📅 Запланированные", "📊 Статистика"],
            ["🧠 DNA канала", "⏰ Лучшее время"],
            ["🚀 AI Автопилот", "📋 Шаблоны"],
-           ["📥 Источники контента"],
-           ["⚙️ Настройки канала", "◀️ Назад"]],
+           ["📥 Источники"],
+           ["⚙️ Настройки", "◀️ Назад"]],
     "en": [["➕ Create post"],
            ["📅 Scheduled", "📊 Statistics"],
            ["🧠 Channel DNA", "⏰ Best time"],
            ["🚀 AI Autopilot", "📋 Templates"],
            ["📥 Content sources"],
-           ["⚙️ Channel settings", "◀️ Back"]],
+           ["⚙️ Settings", "◀️ Back"]],
 }
 
 # Rejalashtirilgan post amallari (3 ta, speks tartibida).
 EXPECTED_ACTIONS = {
-    "uz": ["✏️ Tahrirlash", "⏰ Vaqtni o'zgartirish", "🗑 O'chirish"],
+    "uz": ["✏️ Tahrirlash", "⏰ Vaqt", "🗑 O'chirish"],
     "ru": ["✏️ Редактировать", "⏰ Изменить время", "🗑 Удалить"],
     "en": ["✏️ Edit", "⏰ Change time", "🗑 Delete"],
 }

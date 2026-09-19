@@ -87,7 +87,7 @@ def test_ai_studio_plan_keyboard():
     check("plan kb ru: ai_studio_post label",
           ru_labels[0] == get_text("ai_studio_post", "ru"))
     check("plan kb ru: label tarjimasi (rus)",
-          "Написать" in ru_labels[0], ru_labels[0])
+          "Пост (AI)" in ru_labels[0], ru_labels[0])
 
     check("plan kb: qayta urinish tugmasi", "plan_refresh" in uz_cbs, "plan_refresh not found")
 

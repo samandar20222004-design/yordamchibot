@@ -766,14 +766,14 @@ def test_k_statistics_isolation():
 
 
 def test_l_settings_menu_compact_profile_hub():
-    # ⚙️ Sozlamalar — 7 tugma. «👥 Do'stlarni taklif» asosiy menyudan shu
-    # hub'ga ko'chirildi; «🎁 Bonuslar & Taklif», 🧰 Vositalar va ❓ Yordam
+    # ⚙️ Sozlamalar — 8 tugma (4x2). «👥 Do'stlarni taklif» asosiy menyudan
+    # shu hub'ga ko'chirildi; «🎁 Bonuslar & Taklif», 🧰 Vositalar va ❓ Yordam
     # hub'i ko'rinishdan chiqdi (oqimlar routing'da qoladi).
-    header("L", "⚙️ Sozlamalar — 7 tugma, uchala tilda bir xil")
+    header("L", "⚙️ Sozlamalar — 8 tugma (4x2), uchala tilda bir xil")
     expected_cbs = ["stgs_lang", "stgs_post",
                     "stgs_notif", "stgs_referral",
-                    "stgs_pay", "help_support",
-                    "stgs_back"]
+                    "stgs_pay", "stgs_about",
+                    "help_support", "stgs_back"]
     base = None
     for lang in LANGS:
         kb = get_settings_hub_keyboard(lang)
@@ -781,7 +781,7 @@ def test_l_settings_menu_compact_profile_hub():
         labels = _labels(kb)
         if base is None:
             base = cbs
-        check(f"[{lang}] Sozlamalar hub = 7 tugma", len(cbs) == 7, str(cbs))
+        check(f"[{lang}] Sozlamalar hub = 8 tugma", len(cbs) == 8, str(cbs))
         check(f"[{lang}] stgs_profile hub'da YO'Q (matn o'zi profil)",
               "stgs_profile" not in cbs, str(cbs))
         check(f"[{lang}] eski guruhlar (rewards/tools/help_hub) hub'da YO'Q",
@@ -801,7 +801,7 @@ def test_l_settings_menu_compact_profile_hub():
     with _with_db(fake), _quiet():
         _run(start_mod.user_cabinet_menu(_msg_update(msg), _ctx("uz")))
     drawn = _cbs(msg.sent[-1]["reply_markup"]) if msg.sent else []
-    check("user_cabinet_menu: 7 tugmali Sozlamalar klaviaturasini chizdi",
+    check("user_cabinet_menu: 8 tugmali Sozlamalar klaviaturasini chizdi",
           drawn == expected_cbs, str(drawn))
 
 
@@ -1090,13 +1090,13 @@ def test_w_legacy_buttons_still_route():
         check(f"eski yorliq {label!r} → {expected}",
               expected in names and len(names) == 1, str(sorted(names)))
 
-    # «🖼 Rasmdan post yaratish» — reply-tugma EMAS, AI Studio INLINE tugmasi.
+    # «🖼 Rasmdan post» — reply-tugma EMAS, AI Studio INLINE tugmasi.
     # Shu sababli uni MessageHandler emas, studio_ai_photo callback'i olib boradi.
     ai_labels = _labels(get_ai_studio_keyboard("uz"))
-    check("AI Studio inline yorlig'i '🖼 Rasmdan post yaratish' ko'rinadigan joyda",
-          "🖼 Rasmdan post yaratish" in ai_labels, str(ai_labels))
+    check("AI Studio inline yorlig'i '🖼 Rasmdan post' ko'rinadigan joyda",
+          "🖼 Rasmdan post" in ai_labels, str(ai_labels))
     check("AI Studio inline tugmasi → studio_ai_photo (yagona rasm oqimi)",
-          _cbs(get_ai_studio_keyboard("uz"))[ai_labels.index("🖼 Rasmdan post yaratish")]
+          _cbs(get_ai_studio_keyboard("uz"))[ai_labels.index("🖼 Rasmdan post")]
           == "studio_ai_photo",
           str(_cbs(get_ai_studio_keyboard("uz"))))
     check("studio_ai_photo → image_post_entry oqimiga ulangan",
@@ -1452,11 +1452,11 @@ def test_ag_admin_single_inline_panel():
     rows = _inline_rows(get_admin_dashboard_keyboard())
     expected_labels = (
         ("📊 Bot statistikasi", "📢 Ommaviy xabar"),
-        ("🎯 Reklama markazi", "📋 Kanallar ro'yxati"),
-        ("📋 Barcha postlar", "🎁 Promo-kod yaratish"),
+        ("🎯 Reklama markazi", "📋 Kanallar"),
+        ("📋 Barcha postlar", "🎁 Promo-kod"),
         ("⭐️ PRO berish", "🏷 Post nishoni"),
-        ("⚙️ AI parametrlari", "🗄️ DB / Kesh holati"),
-        ("🩺 Tizim monitoringi", "❌ Yopish"),
+        ("⚙️ AI parametrlari", "🗄️ DB / Kesh"),
+        ("🩺 Monitoring", "❌ Yopish"),
     )
     got_labels = tuple(tuple(t for t, _cb in row) for row in rows)
     check("AG2: layout AYNAN topshiriq bo'yicha (6 qator × 2)",

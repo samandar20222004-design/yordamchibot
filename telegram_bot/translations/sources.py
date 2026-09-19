@@ -50,8 +50,8 @@ SOURCES_I18N = {
         ),
         "src_btn_url": "🔗 Havoladan post",
         "src_btn_rss": "📡 RSS oqim",
-        "src_btn_recycle": "♻️ Eski postni yangilash",
-        "src_btn_drafts": "🗂 Qoralamalar ({count})",
+        "src_btn_recycle": "♻️ Eski post",
+        "src_btn_drafts": "🗂 Qoralamalar",
         "src_btn_back": "◀️ Orqaga",
         "src_btn_cancel": "❌ Bekor qilish",
         "src_stale": "Sessiya eskirgan — manbalar bo'limini qaytadan oching.",
@@ -124,12 +124,12 @@ SOURCES_I18N = {
             "avtomatik qoralama bo'ladi."
         ),
         "src_rss_btn_add": "➕ Manba qo'shish",
-        "src_rss_btn_check": "🔄 Hoziroq tekshirish",
+        "src_rss_btn_check": "🔄 Tekshirish",
         "src_rss_btn_toggle_on": "▶️ Yoqish",
         "src_rss_btn_toggle_off": "⏸ To'xtatish",
         "src_rss_btn_delete": "🗑 O'chirish",
-        "src_rss_btn_auto_on": "🤖 Avtopublish: YOQILGAN",
-        "src_rss_btn_auto_off": "🤖 Avtopublish: O'CHIQ",
+        "src_rss_btn_auto_on": "🤖 Auto: YOQILGAN",
+        "src_rss_btn_auto_off": "🤖 Auto: O'CHIQ",
         "src_rss_source_item": "{icon} {title} · har {minutes} daq.",
         "src_rss_ask_url": (
             "📡 <b>Manba havolasini yuboring</b>\n\n"
@@ -193,7 +193,7 @@ SOURCES_I18N = {
             "ℹ️ Kanalda ko'rish/reaksiya ma'lumoti kam — nomzodlar yoshi "
             "bo'yicha ko'rsatildi."
         ),
-        "src_rec_item": "♻️ {views} ko'rish · {age} kun oldin · {preview}",
+        "src_rec_item": "♻️ {views} · {age}k · {preview}",
         "src_rec_generating": "♻️ Eski post yangilanmoqda...",
         "src_rec_done": (
             "♻️ <b>YANGILANGAN POST</b>\n\n{text}\n\n"
@@ -226,8 +226,8 @@ SOURCES_I18N = {
         ),
         "src_btn_url": "🔗 Пост из ссылки",
         "src_btn_rss": "📡 RSS-поток",
-        "src_btn_recycle": "♻️ Обновить старый пост",
-        "src_btn_drafts": "🗂 Черновики ({count})",
+        "src_btn_recycle": "♻️ Старый пост",
+        "src_btn_drafts": "🗂 Черновики",
         "src_btn_back": "◀️ Назад",
         "src_btn_cancel": "❌ Отмена",
         "src_stale": "Сессия устарела — откройте раздел источников заново.",
@@ -266,7 +266,7 @@ SOURCES_I18N = {
             "\n\n👇 Выберите <b>запланировать</b> или <b>опубликовать сейчас</b>."
         ),
         "src_btn_schedule": "📅 Запланировать",
-        "src_btn_publish": "🚀 Опубликовать сейчас",
+        "src_btn_publish": "🚀 Опубликовать",
         "src_btn_regen": "🔄 Другой вариант",
         "src_schedule_prompt": (
             "📅 <b>Когда опубликовать?</b>\n\n"
@@ -295,13 +295,13 @@ SOURCES_I18N = {
             "Начните с кнопки [➕ Добавить источник] — новые материалы "
             "автоматически станут черновиками."
         ),
-        "src_rss_btn_add": "➕ Добавить источник",
+        "src_rss_btn_add": "➕ Источник",
         "src_rss_btn_check": "🔄 Проверить сейчас",
         "src_rss_btn_toggle_on": "▶️ Включить",
         "src_rss_btn_toggle_off": "⏸ Остановить",
         "src_rss_btn_delete": "🗑 Удалить",
-        "src_rss_btn_auto_on": "🤖 Автопубликация: ВКЛ",
-        "src_rss_btn_auto_off": "🤖 Автопубликация: ВЫКЛ",
+        "src_rss_btn_auto_on": "🤖 Авто: ВКЛ",
+        "src_rss_btn_auto_off": "🤖 Авто: ВЫКЛ",
         "src_rss_source_item": "{icon} {title} · каждые {minutes} мин.",
         "src_rss_ask_url": (
             "📡 <b>Отправьте ссылку источника</b>\n\n"
@@ -364,7 +364,7 @@ SOURCES_I18N = {
             "ℹ️ В канале мало данных о просмотрах/реакциях — кандидаты "
             "показаны по возрасту."
         ),
-        "src_rec_item": "♻️ {views} просмотров · {age} дн. назад · {preview}",
+        "src_rec_item": "♻️ {views} · {age} дн. · {preview}",
         "src_rec_generating": "♻️ Обновляем старый пост...",
         "src_rec_done": (
             "♻️ <b>ОБНОВЛЁННЫЙ ПОСТ</b>\n\n{text}\n\n"
@@ -397,8 +397,8 @@ SOURCES_I18N = {
         ),
         "src_btn_url": "🔗 Post from link",
         "src_btn_rss": "📡 RSS feed",
-        "src_btn_recycle": "♻️ Refresh an old post",
-        "src_btn_drafts": "🗂 Drafts ({count})",
+        "src_btn_recycle": "♻️ Refresh post",
+        "src_btn_drafts": "🗂 Drafts",
         "src_btn_back": "◀️ Back",
         "src_btn_cancel": "❌ Cancel",
         "src_stale": "Session expired — reopen the sources section.",
@@ -534,7 +534,7 @@ SOURCES_I18N = {
             "ℹ️ The channel has little views/reactions data — candidates are "
             "listed by age."
         ),
-        "src_rec_item": "♻️ {views} views · {age} days ago · {preview}",
+        "src_rec_item": "♻️ {views} · {age}d · {preview}",
         "src_rec_generating": "♻️ Refreshing the old post...",
         "src_rec_done": (
             "♻️ <b>REFRESHED POST</b>\n\n{text}\n\n"

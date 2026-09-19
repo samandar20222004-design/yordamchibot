@@ -360,8 +360,8 @@ def test_score_text_flow():
           == expected_overall)
     check("baholanayotgan matn saqlandi", ctx.user_data.get("ps_text") == SAMPLE_POST)
     btns = kb_buttons(msg.last_markup)
-    check("[✨ 95/100 ga yaxshilash] tugmasi bor",
-          ("✨ 95/100 ga yaxshilash", ps.PS_IMPROVE) in btns, str(btns))
+    check("[✨ Yaxshilash] tugmasi bor",
+          ("✨ Yaxshilash", ps.PS_IMPROVE) in btns, str(btns))
     check("[📢 Kanalga yuborish] tugmasi bor",
           ("📢 Kanalga yuborish", ps.PS_SEND) in btns, str(btns))
     check("[📅 Rejalashtirish] tugmasi bor",
@@ -453,7 +453,7 @@ def test_eval_buttons_in_all_flows():
           str(kb_buttons(mp._magic_action_keyboard("uz"))))
     check("Magic klaviaturasi asosiy amallarini saqlagan (2-BOSQICH ixcham layout)",
           {("📢 Kanalga yuborish", "mp_send"), ("📅 Rejalashtirish", "mp_sched"),
-           ("✏️ Qayta yozish / Uslub", "mp_restyle"), ("◀️ Orqaga", "mp_back")} <=
+           ("✏️ Qayta yozish", "mp_restyle"), ("◀️ Orqaga", "mp_back")} <=
           set(kb_buttons(mp._magic_action_keyboard("uz"))))
 
     voice_btns = kb_buttons(vh._voice_action_keyboard("uz"))
@@ -568,12 +568,12 @@ def test_improve_charges_exactly_one_credit():
     check("yaxshilash promptida post matni bor", "Yangi kofe" in ai_calls[0]["prompt"])
     check("maqsadli ball konstantasi 95", TARGET_SCORE == 95)
 
-    # «✨ 95/100 ga yaxshilash» tugmasi matni topshiriqdagidek (3 til).
-    check("tugma matni uz: «✨ 95/100 ga yaxshilash»",
-          post_score_t("ps_btn_improve", "uz") == "✨ 95/100 ga yaxshilash")
+    # «✨ Yaxshilash» tugmasi matni (3 til, qisqa variant).
+    check("tugma matni uz: «✨ Yaxshilash»",
+          post_score_t("ps_btn_improve", "uz") == "✨ Yaxshilash")
     check("tugma matni ru/en ham mavjud",
-          "95/100" in post_score_t("ps_btn_improve", "ru")
-          and "95/100" in post_score_t("ps_btn_improve", "en"))
+          "Улучшить" in post_score_t("ps_btn_improve", "ru")
+          and "Improve" in post_score_t("ps_btn_improve", "en"))
 
 
 def test_improve_refunds_on_ai_failure():
@@ -811,7 +811,7 @@ def test_i18n_parity():
     # Topshiriqdagi tugma matnlari (uz) aynan shunday.
     uz = POST_SCORE_I18N["uz"]
     check("«📊 Baholash» (uz)", uz["ps_btn_eval"] == "📊 Baholash")
-    check("«✨ 95/100 ga yaxshilash» (uz)", uz["ps_btn_improve"] == "✨ 95/100 ga yaxshilash")
+    check("«✨ Yaxshilash» (uz)", uz["ps_btn_improve"] == "✨ Yaxshilash")
     check("«📢 Kanalga yuborish» (uz)", uz["ps_btn_send"] == "📢 Kanalga yuborish")
     check("«📅 Rejalashtirish» (uz)", uz["ps_btn_schedule"] == "📅 Rejalashtirish")
 

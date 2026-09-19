@@ -807,6 +807,25 @@ echo "===== 3L) 🛡⚡ FAZA 23/25/27/28/29: PRODUCTION HARDENING & CONCURRENCY 
 "$PY" tests/production_hardening_and_concurrency_test.py || EXIT_CODE=1
 
 echo
+echo "===== 3M) 🪄 POSTASSIST POLISH: DINAMIK SANA + 8 TUGMA + BOT HAQIDA + 18-BELGI ====="
+# PostAssist POLISH qabul testi (tests/postassist_polish_test.py):
+# (1) 🤖 AI PROMPT: PromptEngine har chaqiruvda joriy sanani tizimga
+#     uzatadi («Joriy yil va sana: YYYY-MM-DD»); 2024 yoki undan eski
+#     voqealarni hozirgi kunda sodir bo'lgandek taqdim etish taqiqlangan;
+#     aniq fakt berilmaganda soxta statistika/natija ixtiro qilinmaydi;
+#     «Kanalga obuna bo'ling» / «bizning kanal eng yaxshisi» kabi quruq
+#     shablon CTA'lar butunlay taqiqlangan; now= injeksiyasi bilan
+#     deterministik sana tekshiruvi.
+# (2) ⚙️ SOZLAMALAR: simmetrik 8 tugma / 4 qator × 2 (3 tilda) —
+#     hech bir tugma yolg'iz qatorda qolmaydi; r4 = [💬 Qo'llab-quvvatlash
+#     | ❌ Yopish]; callback'lar tilga bog'liq emas, KANONIK tartibda.
+# (3) ℹ️ BOT HAQIDA: stgs_about ekrani bot versiyasini (config.BOT_VERSION),
+#     maqsadni va qisqa yo'riqnomani ko'rsatadi.
+# (4) 📏 18-BELGI STANDARTI: barcha statik inline tugma yorliqlari va
+#     45+ kanonik klaviatura render'da ≤18 belgi (vizual uzunlik).
+"$PY" tests/postassist_polish_test.py || EXIT_CODE=1
+
+echo
 echo "======== 4) TO'LIQ REGRESSIYA (telegram_bot/tests) ========"
 # PY'ni aniq uzatamiz: ichki runner ham shu interpreter (venv) bilan ishlasin.
 ( cd telegram_bot && PYTHON="$PY" bash tests/run_tests.sh ) || EXIT_CODE=1

@@ -157,8 +157,8 @@ MANUAL_POST_I18N = {
             "o'xshaydi.\n\nO'xshashlik: <b>{score}%</b>\n\n"
             "<i>Kanalning oxirgi postidan parcha:</i>\n{preview}"
         ),
-        "mp_dup_btn_force": "🚀 Baribir chiqarish",
-        "mp_dup_btn_ai": "✨ AI bilan yangilash",
+        "mp_dup_btn_force": "🚀 Baribir",
+        "mp_dup_btn_ai": "✨ AI bilan",
         "mp_dup_ai_failed": (
             "⚠️ AI bilan yangilash hozircha ishlamadi. Postni qo'lda "
             "tahrirlashingiz ([✏️ Tahrirlash]) yoki baribir chiqarishingiz "
@@ -203,8 +203,8 @@ MANUAL_POST_I18N = {
         "mp_btn_schedule": "📅 Указать время",
         "mp_btn_reactions": "❤️ Реакции",
         "mp_btn_url_btn": "🔗 Кнопка-ссылка",
-        "mp_btn_24h": "🗑 Объявление на 24 часа",
-        "mp_btn_repeat": "🔄 Повторяемое объявление",
+        "mp_btn_24h": "🗑 24 soat",
+        "mp_btn_repeat": "🔄 Takroriy",
         "mp_btn_edit": "✏️ Редактировать",
         "mp_btn_cancel": "❌ Отмена",
         "mp_btn_back_panel": "◀️ Назад",
@@ -294,8 +294,8 @@ MANUAL_POST_I18N = {
             "\n\nСходство: <b>{score}%</b>\n\n"
             "<i>Фрагмент последнего поста канала:</i>\n{preview}"
         ),
-        "mp_dup_btn_force": "🚀 Всё равно опубликовать",
-        "mp_dup_btn_ai": "✨ Обновить с помощью AI",
+        "mp_dup_btn_force": "🚀 Всё равно",
+        "mp_dup_btn_ai": "✨ Обновить (AI)",
         "mp_dup_ai_failed": (
             "⚠️ Обновление через AI сейчас не сработало. Вы можете "
             "отредактировать пост вручную ([✏️ Изменить]) или опубликовать "
@@ -340,8 +340,8 @@ MANUAL_POST_I18N = {
         "mp_btn_schedule": "📅 Set time",
         "mp_btn_reactions": "❤️ Reactions",
         "mp_btn_url_btn": "🔗 Link button",
-        "mp_btn_24h": "🗑 24-hour announcement",
-        "mp_btn_repeat": "🔄 Recurring announcement",
+        "mp_btn_24h": "🗑 24-hour",
+        "mp_btn_repeat": "🔄 Recurring",
         "mp_btn_edit": "✏️ Edit",
         "mp_btn_cancel": "❌ Cancel",
         "mp_btn_back_panel": "◀️ Back",

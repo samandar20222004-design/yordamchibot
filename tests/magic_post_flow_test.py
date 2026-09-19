@@ -434,8 +434,8 @@ def test_result_actions_integration():
           ("📢 Kanalga yuborish", "mp_send") in btns, str(btns))
     check("[📅 Rejalashtirish] tugmasi bor",
           ("📅 Rejalashtirish", "mp_sched") in btns)
-    check("[✏️ Qayta yozish / Uslub] tugmasi bor (mp_restyle callback saqlangan)",
-          ("✏️ Qayta yozish / Uslub", "mp_restyle") in btns, str(btns))
+    check("[✏️ Qayta yozish] tugmasi bor (mp_restyle callback saqlangan)",
+          ("✏️ Qayta yozish", "mp_restyle") in btns, str(btns))
     check("[◀️ Orqaga] tugmasi bor (mp_back)",
           ("◀️ Orqaga", "mp_back") in btns, str(btns))
     check("natija klaviaturasi ixcham layout: 2+2+1",

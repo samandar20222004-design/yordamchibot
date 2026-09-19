@@ -246,7 +246,7 @@ def source_list_keyboard(sources: list, channel_id: str,
         rows.append([InlineKeyboardButton(
             sources_t("src_rss_source_item", lang, icon=icon,
                       title=(item.get("title") or item.get("source_url")
-                             or "—")[:32],
+                             or "—")[:16],
                       minutes=int(item.get("interval_minutes")
                                   or DEFAULT_INTERVAL_MINUTES)),
             callback_data=cb(CB_SOURCE_RSS_CHECK, source_id),
@@ -291,7 +291,7 @@ def recycle_keyboard(candidates: list, lang: str = "uz") -> InlineKeyboardMarkup
     """♻️ Eski post nomzodlari (har biri alohida tugma + Orqaga)."""
     rows: list[list[InlineKeyboardButton]] = []
     for index, item in enumerate(candidates or []):
-        preview = html_escape(str(item.get("text") or "")[:40])
+        preview = html_escape(str(item.get("text") or "")[:12])
         rows.append([InlineKeyboardButton(
             sources_t("src_rec_item", lang,
                       views=int(item.get("views") or 0),

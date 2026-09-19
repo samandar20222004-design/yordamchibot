@@ -793,8 +793,8 @@ def test_autopilot_handler_flow():
     check("tasdiqlash oynasi: 4 tugma SPEKS bo'yicha",
           _cbs(confirm_kb) == ["ap_confirm", "ap_edit", "ap_regen", "ap_cancel"],
           str(_cbs(confirm_kb)))
-    check("SPEKS yorliqlari: Hammasini rejalashtirish/Tahrirlash/Qayta yaratish/Bekor qilish",
-          _labels(confirm_kb) == ["🚀 Hammasini rejalashtirish", "✏️ Tahrirlash",
+    check("SPEKS yorliqlari: Hammasi/Tahrirlash/Qayta yaratish/Bekor qilish",
+          _labels(confirm_kb) == ["🚀 Hammasi", "✏️ Tahrirlash",
                                   "🔄 Qayta yaratish", "❌ Bekor qilish"],
           str(_labels(confirm_kb)))
 
@@ -1107,7 +1107,7 @@ def test_templates_handler_flow():
           str(menu_cbs))
     check("menyu: SPEKS yorliqlari",
           _labels(q.screen.get("reply_markup")) == ["➕ Yangi shablon",
-                                                    "📋 Shablonni ishlatish",
+                                                    "📋 Ishlatish",
                                                     "🗑 O'chirish", "◀️ Orqaga"],
           str(_labels(q.screen.get("reply_markup"))))
 

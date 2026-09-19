@@ -336,7 +336,7 @@ def test_ui_compactness_and_i18n():
     uz_texts = [b.text for r in mp._magic_action_keyboard("uz").inline_keyboard for b in r]
     check("UZ yorliqlar topshiriqdagidek",
           uz_texts == ["📢 Kanalga yuborish", "📅 Rejalashtirish",
-                       "✏️ Qayta yozish / Uslub", "📊 Baholash", "◀️ Orqaga"], str(uz_texts))
+                       "✏️ Qayta yozish", "📊 Baholash", "◀️ Orqaga"], str(uz_texts))
 
     rep = magic_post_parity_report()
     check("magic_post i18n pariteti in_sync (yangi kalitlar 3 tilda)", rep["in_sync"] is True, str(rep))

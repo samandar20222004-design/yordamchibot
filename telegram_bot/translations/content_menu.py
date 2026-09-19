@@ -87,7 +87,7 @@ CONTENT_MENU_I18N = {
             "<i>Masofadan: «📝 Matn → Post» — tayyor matnni o'zgarishsiz "
             "eshlaydi, «🎙 Ovoz → Post» — ovozni matnga o'giradi.</i>"
         ),
-        "cm_offer_magic": "✨ Magic Post bilan tayyorlash",
+        "cm_offer_magic": "✨ Magic Post",
         "cm_offer_menu": "🔙 Asosiy menyu",
     },
     # ------------------------------------------------------------
@@ -126,7 +126,7 @@ CONTENT_MENU_I18N = {
             "<i>Напоминание: «📝 Текст → Пост» публикует текст без изменений, "
             "«🎙 Голос → Пост» переводит голос в текст.</i>"
         ),
-        "cm_offer_magic": "✨ Сделать Magic Post",
+        "cm_offer_magic": "✨ Magic Post",
         "cm_offer_menu": "🔙 Главное меню",
     },
     # ------------------------------------------------------------
@@ -165,7 +165,7 @@ CONTENT_MENU_I18N = {
             "<i>Reminder: “📝 Text → Post” publishes the text unchanged, "
             "“🎙 Voice → Post” transcribes voice.</i>"
         ),
-        "cm_offer_magic": "✨ Turn it into a Magic Post",
+        "cm_offer_magic": "✨ Magic Post",
         "cm_offer_menu": "🔙 Main menu",
     },
 }

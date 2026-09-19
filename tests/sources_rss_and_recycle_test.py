@@ -1329,8 +1329,8 @@ def test_drafts_flow():
                   [f"{CB_SOURCE_DRAFT}ok:21", f"{CB_SOURCE_DRAFT}del:21",
                    "src_back"],
                   str(_cbs(q_drf.screen.get("reply_markup"))))
-            check("🗂 HUB badge: qoralamalar soni",
-                  "🗂 Qoralamalar (1)" in str(_labels(SRC.sources_hub_keyboard(
+            check("🗂 HUB: qoralamalar tugmasi (qisqa yorliq)",
+                  "🗂 Qoralamalar" in str(_labels(SRC.sources_hub_keyboard(
                       CH_ID, 1, "uz"))), str(_labels(SRC.sources_hub_keyboard(
                           CH_ID, 1, "uz"))))
 
@@ -1494,8 +1494,11 @@ def test_ui_routing_i18n():
     for lang in LANGS:
         labels = _labels(SRC.sources_hub_keyboard(CH_ID, 2, lang))
         check(f"[{lang}] HUB: 5 ta tugma", len(labels) == 5, str(labels))
-        check(f"[{lang}] HUB: qoralamalar soni badge'da",
-              any(ch.isdigit() for ch in "".join(labels)))
+        drafts_labels = [l for l in labels
+                         if "Qoralamalar" in l or "Черновики" in l or "Drafts" in l]
+        check(f"[{lang}] HUB: qoralamalar tugmasi qisqa yorliqda",
+              drafts_labels and not any(ch.isdigit() for ch in drafts_labels[0]),
+              str(labels))
 
     # --- 64 bayt: dinamik payload'li tugmalar ---
     samples = [

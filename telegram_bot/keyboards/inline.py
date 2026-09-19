@@ -114,7 +114,7 @@ def get_subscription_check_keyboard(unsubscribed_channels: list, lang: str = "uz
         s_id, ch_id, ch_title, username, ch_url = unpack_sponsor(sponsor)
         url = ch_url or (f"https://t.me/{username}" if username else "")
         keyboard.append([
-            InlineKeyboardButton(f"➕ {btn_label(ch_title, sponsor_fallback)}", url=url)
+            InlineKeyboardButton(f"➕ {btn_label(ch_title, sponsor_fallback, max_length=14)}", url=url)
         ])
     keyboard.append([
         InlineKeyboardButton(
@@ -126,7 +126,7 @@ def get_subscription_check_keyboard(unsubscribed_channels: list, lang: str = "uz
 def get_cache_actions_keyboard() -> InlineKeyboardMarkup:
     """DB/kesh holati oynasi uchun tugmalar."""
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("🗑 Keshlarni tozalash", callback_data="cache_clear")],
+        [InlineKeyboardButton("🗑 Keshni tozalash", callback_data="cache_clear")],
         # 🧭 FAZA 17: kanonik [❌ Yopish] (vaqtinchalik oynani yopish).
         [nav_button("close")],
     ])
@@ -136,9 +136,9 @@ def get_sponsors_delete_keyboard(sponsors: list) -> InlineKeyboardMarkup:
     keyboard = []
     for sponsor in (sponsors or []):
         s_id, ch_id, ch_title, username, ch_url = unpack_sponsor(sponsor)
-        label = btn_label(ch_title, "Homiy kanal", max_length=28)
+        label = btn_label(ch_title, "Homiy kanal", max_length=16)
         keyboard.append([
-            InlineKeyboardButton(f"❌ {label} (O'chirish)", callback_data=cb(CB_SPONSOR_DELETE, s_id))
+            InlineKeyboardButton(f"❌ {label}", callback_data=cb(CB_SPONSOR_DELETE, s_id))
         ])
     # Ro'yxat oynasini yopish tugmasi — admin ekranda keraksiz xabar qolib ketmasligi uchun
     # 🧭 FAZA 17: kanonik [❌ Yopish].
@@ -151,12 +151,12 @@ def get_admin_sponsors_keyboard(sponsors: list) -> InlineKeyboardMarkup:
     keyboard = []
     for sponsor in (sponsors or []):
         s_id, ch_id, ch_title, username, ch_url = unpack_sponsor(sponsor)
-        label = btn_label(ch_title, "Kanal", max_length=24)
+        label = btn_label(ch_title, "Kanal", max_length=16)
         keyboard.append([
-            InlineKeyboardButton(f"🗑 {label} (O'chirish)", callback_data=cb(CB_SPONSOR_DELETE, s_id))
+            InlineKeyboardButton(f"🗑 {label}", callback_data=cb(CB_SPONSOR_DELETE, s_id))
         ])
     keyboard.append([
-        InlineKeyboardButton("➕ Yangi kanal qo'shish", callback_data="adm_add_sponsor")
+        InlineKeyboardButton("➕ Kanal", callback_data="adm_add_sponsor")
     ])
     keyboard.append([
         # 🧭 FAZA 17: kanonik [⬅️ Orqaga] (dashboard) + [❌ Yopish].
@@ -190,21 +190,21 @@ def get_ad_hub_keyboard(channel_total: int = 0, channel_active: int = 0,
     ch_status = "✅ Yoqilgan" if channel_status else "❌ O'chirilgan"
     keyboard = [
         # --- 1) Majburiy obuna ---
-        [InlineKeyboardButton(f"📢 Majburiy obuna ({sponsors_count} ta kanal)",
+        [InlineKeyboardButton("📢 Majburiy obuna",
                               callback_data="adm_sponsors")],
         # --- 2) Bot javoblari reklamasi ---
-        [InlineKeyboardButton(f"🤖 Javoblar reklamasi: matn ({reply_active}/{reply_total})",
+        [InlineKeyboardButton("🤖 Javob reklamasi",
                               callback_data="adp:reply:back")],
         [
-            InlineKeyboardButton(f"⏱ Oraliq: har {auto_interval} javob",
+            InlineKeyboardButton(f"⏱ Har {auto_interval} javob",
                                  callback_data="adp:reply:iv"),
             InlineKeyboardButton(f"🔘 {reply_status}", callback_data="adm_ad_toggle"),
         ],
         # --- 3) Kanal postlari reklamasi ---
-        [InlineKeyboardButton(f"📢 Kanal posti reklamasi: matn ({channel_active}/{channel_total})",
+        [InlineKeyboardButton("📢 Post reklamasi",
                               callback_data="adp:channel:back")],
         [
-            InlineKeyboardButton(f"⏱ Oraliq: har {channel_interval}-post",
+            InlineKeyboardButton(f"⏱ Har {channel_interval}-post",
                                  callback_data="adp:channel:iv"),
             InlineKeyboardButton(f"🔘 {ch_status}", callback_data="adm_channel_ad_toggle"),
         ],
@@ -236,20 +236,20 @@ def get_hub_back_keyboard() -> InlineKeyboardMarkup:
 #     [🎯 Reklama markazi]    [📋 Kanallar ro'yxati]
 #     [📋 Barcha postlar]     [🎁 Promo-kod yaratish]
 #     [⭐️ PRO berish]        [🏷 Post nishoni]
-#     [⚙️ AI parametrlari]    [🗄️ DB / Kesh holati]
+#     [⚙️ AI parametrlari]    [🗄️ DB / Kesh]
 #     [🩺 Tizim monitoringi]  [❌ Yopish]
 ADMIN_DASHBOARD_ROWS = (
     (("📊 Bot statistikasi", "adm_stats"),
      ("📢 Ommaviy xabar", "adm_broadcast")),
     (("🎯 Reklama markazi", "adm_adhub"),
-     ("📋 Kanallar ro'yxati", "adm_channels")),
+     ("📋 Kanallar", "adm_channels")),
     (("📋 Barcha postlar", "adm_posts"),
-     ("🎁 Promo-kod yaratish", "adm_promo")),
+     ("🎁 Promo-kod", "adm_promo")),
     (("⭐️ PRO berish", "adm_grant_pro"),
      ("🏷 Post nishoni", "adm_tag")),
     (("⚙️ AI parametrlari", "adm_ai"),
-     ("🗄️ DB / Kesh holati", "adm_dbcache")),
-    (("🩺 Tizim monitoringi", "adm_health"),
+     ("🗄️ DB / Kesh", "adm_dbcache")),
+    (("🩺 Monitoring", "adm_health"),
      ("❌ Yopish", "close_msg")),
 )
 
@@ -271,7 +271,7 @@ def get_admin_dashboard_keyboard() -> InlineKeyboardMarkup:
         [🎯 Reklama markazi]    [📋 Kanallar ro'yxati]  ← /channels boshqaruvi
         [📋 Barcha postlar]     [🎁 Promo-kod yaratish] ← /allposts
         [⭐️ PRO berish]        [🏷 Post nishoni]       ← /grant_pro
-        [⚙️ AI parametrlari]    [🗄️ DB / Kesh holati]  ← /ai parametrlari
+        [⚙️ AI parametrlari]    [🗄️ DB / Kesh]  ← /ai parametrlari
         [🩺 Tizim monitoringi]  [❌ Yopish]             ← /health (+ Audit|Rollar
                                                           shu ekran ichida)
 
@@ -340,27 +340,27 @@ def get_ad_pool_menu_keyboard(scope: str, ads: list = None,
         ad_text = ad.get("text") if isinstance(ad, dict) else ad[1]
         is_active = ad.get("is_active", True) if isinstance(ad, dict) else True
         badge = "🟢" if is_active else "🔴"
-        label = btn_label(ad_text, "Reklama", max_length=24)
+        label = btn_label(ad_text, "Reklama", max_length=16)
         keyboard.append([
             InlineKeyboardButton(f"{badge} {label}", callback_data=cb(f"adp:{scope}:e:{ad_id}"))
         ])
 
-    keyboard.append([InlineKeyboardButton("➕ Yangi reklama qo'shish", callback_data=cb(f"adp:{scope}:add"))])
+    keyboard.append([InlineKeyboardButton("➕ Reklama", callback_data=cb(f"adp:{scope}:add"))])
     # Oraliq har ikkala bo'limda ham shu yerdan sozlanadi (yagona joy).
     if scope == "channel":
         label = (
-            f"⏱ Reklama oralig'i: har {interval}-post"
-            if interval else "⏱ Reklama oralig'ini sozlash"
+            f"⏱ Har {interval}-post"
+            if interval else "⏱ Oraliqni sozlash"
         )
     else:
         label = (
-            f"⏱ Reklama oralig'i: har {interval} javob"
-            if interval else "⏱ Reklama oralig'ini sozlash"
+            f"⏱ Har {interval} javob"
+            if interval else "⏱ Oraliqni sozlash"
         )
     keyboard.append([InlineKeyboardButton(label, callback_data=cb(f"adp:{scope}:iv"))])
     keyboard.append([
-        InlineKeyboardButton("🧹 Hammasini tozalash", callback_data=cb(f"adp:{scope}:clear")),
-        InlineKeyboardButton("ℹ️ Rotatsiya haqida", callback_data=cb(f"adp:{scope}:info")),
+        InlineKeyboardButton("🧹 Tozalash", callback_data=cb(f"adp:{scope}:clear")),
+        InlineKeyboardButton("ℹ️ Rotatsiya", callback_data=cb(f"adp:{scope}:info")),
     ])
     # Barcha reklama ekranlari endi yagona hub ostida ishlaydi: "Orqaga"
     # dashboard'ga emas, Reklama markaziga qaytadi (bitta yagona oqim).
@@ -382,19 +382,19 @@ def get_ad_edit_keyboard(ad: dict, scope: str) -> InlineKeyboardMarkup:
     ad_id = ad.get("id", 0)
     is_active = bool(ad.get("is_active", True))
     has_button = bool((ad.get("button_text") or "").strip() and (ad.get("button_url") or "").strip())
-    toggle_label = "🔴 O'chirish (Inactive)" if is_active else "🟢 Faollashtirish (Active)"
-    button_label = "🔗 Tugmani tahrirlash" if has_button else "🔗 Inline tugma qo'shish"
+    toggle_label = "🔴 O'chirish" if is_active else "🟢 Faol qilish"
+    button_label = "🔗 Tugmani tahr." if has_button else "🔗 Tugma qo'shish"
 
     keyboard = [
-        [InlineKeyboardButton("✏️ Matnni tahrirlash", callback_data=cb(f"adp:{scope}:et:{ad_id}"))],
+        [InlineKeyboardButton("✏️ Matn", callback_data=cb(f"adp:{scope}:et:{ad_id}"))],
         [InlineKeyboardButton(button_label, callback_data=cb(f"adp:{scope}:eb:{ad_id}"))],
     ]
     if has_button:
         keyboard.append([
-            InlineKeyboardButton("🚫 Tugmani olib tashlash", callback_data=cb(f"adp:{scope}:bx:{ad_id}"))
+            InlineKeyboardButton("🚫 Tugmani olish", callback_data=cb(f"adp:{scope}:bx:{ad_id}"))
         ])
     keyboard.append([InlineKeyboardButton(toggle_label, callback_data=cb(f"adp:{scope}:tg:{ad_id}"))])
-    keyboard.append([InlineKeyboardButton("🗑 Reklamani o'chirish", callback_data=cb(f"adp:{scope}:rm:{ad_id}"))])
+    keyboard.append([InlineKeyboardButton("🗑 O'chirish", callback_data=cb(f"adp:{scope}:rm:{ad_id}"))])
     keyboard.append([
         InlineKeyboardButton("⬅️ Menyuga", callback_data=cb(f"adp:{scope}:back")),
         # 🧭 FAZA 17: kanonik [❌ Bekor qilish].
@@ -427,7 +427,7 @@ def get_ad_pool_delete_keyboard(ads: list, scope: str) -> InlineKeyboardMarkup:
             ad_id, text = ad.get("id"), ad.get("text")
         else:
             ad_id, text = ad[0], ad[1]
-        label = btn_label(text, "Reklama", max_length=28)
+        label = btn_label(text, "Reklama", max_length=26)
         keyboard.append([
             InlineKeyboardButton(f"❌ {label}", callback_data=cb(f"adp:{scope}:rm:{ad_id}"))
         ])
@@ -634,7 +634,7 @@ def render_channels_list(channels: list, lang: str = "uz") -> InlineKeyboardMark
         tone = ch[2] if len(ch) > 2 else "friendly"
         tone_emoji = {"formal": "👔", "friendly": "😊", "concise": "⚡️", "engaging": "🎉"}.get(tone, "😊")
         keyboard.append([
-            InlineKeyboardButton(f"📢 {btn_label(ch_title)}", callback_data="noop"),
+            InlineKeyboardButton(f"📢 {btn_label(ch_title, max_length=14)}", callback_data="noop"),
             InlineKeyboardButton(get_text("cab_remove_channel", lang), callback_data=cb(CB_CHANNEL_DELETE, ch_id)),
         ])
         keyboard.append([
@@ -671,7 +671,7 @@ def render_my_channels_list(channels: list, lang: str = "uz") -> InlineKeyboardM
     for ch in channels:
         ch_id, ch_title = (list(ch) + [None, None])[:2]
         keyboard.append([InlineKeyboardButton(
-            f"📢 {btn_label(ch_title)}",
+            f"📢 {btn_label(ch_title, max_length=14)}",
             callback_data=cb(CB_CHANNEL_OPEN, ch_id),
         )])
     keyboard.append([InlineKeyboardButton(
@@ -752,7 +752,7 @@ def render_channel_advice_menu(channels, lang: str = "uz") -> InlineKeyboardMark
     for channel in channels or []:
         try:
             channel_id = channel[0]
-            title = str(channel[1] or channel_id)[:40]
+            title = str(channel[1] or channel_id)[:14]
         except (IndexError, TypeError):
             continue
         rows.append([InlineKeyboardButton(f"📊 {title}",
@@ -938,7 +938,7 @@ def _profile_support_button(lang: str) -> InlineKeyboardButton:
 
 
 def get_settings_profile_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
-    """⚙️ Sozlamalar — 7 TUGMALI inline panel (KANONIK QURUVCHI).
+    """⚙️ Sozlamalar — 4 QATOR × 2 TUGMA = 8 TUGMALI inline panel (KANONIK).
 
     🧹 FAZA 18 — DUBLIKAT KLAVIATURALAR TOZALANDI: bu funksiya profil/
     kabinet/sozlamalar panelining YAGONA MANBASI. Boshqa barcha nomlar
@@ -946,10 +946,13 @@ def get_settings_profile_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
     AYNAN SHU funksiyaga yo'naltiriladi — panel bir joyda, bitta tavsifda
     saqlanadi, ikkita alohida nusxa paydo bo'lishi imkonsiz.
 
-        [🌐 Til / Язык]        [✍️ Post sozlamalari]
-        [🔔 Bildirishnomalar]  [👥 Do'stlarni taklif]
-        [💳 To'lovlar tarixi]  [💬 Qo'llab-quvvatlash]
-        [❌ Yopish]
+    POSTASSIST POLISH — SIMMETRIK JUFT LAYOUT (har qatorda aynan 2 ta
+    tugma, hech bir tugma yolg'iz qatorda QOLMAYDI):
+
+        [🌐 Til / Язык]         [✍️ Post sozlamalari]
+        [🔔 Bildirishnomalar]   [👥 Do'stlarni taklif]
+        [💳 To'lovlar tarixi]   [ℹ️ Bot haqida]
+        [💬 Qo'llab-quvvatlash] [❌ Yopish]
 
     🧹 TOZA TARTIB (asosiy menyu bilan dublikatlar yo'q):
       * «👥 Do'stlarni taklif» asosiy menyudan shu panelga ko'chirildi
@@ -961,7 +964,9 @@ def get_settings_profile_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
         qo'llab-quvvatlash to'g'ridan-to'g'ri tugmada, qo'llanma esa
         /help buyrug'i orqali (stgs_tools / stgs_help_hub callback'lari
         eski xabarlar uchun routing'da qoladi);
-      * «👤 Profil» alohida tugmasi YO'Q — panel matnining o'zi profil.
+      * «👤 Profil» alohida tugmasi YO'Q — panel matnining o'zi profil;
+      * «ℹ️ Bot haqida» (``stgs_about``) — bot versiyasi, maqsadi va qisqa
+        yo'riqnoma (mavjud handler — yangi oqim KIRITILMADI).
 
     Callback'lar MAVJUD, sinovdan o'tgan ``stgs_*`` oqimlariga ulanadi —
     yangi handler/routing KIRITILMADI. Eski ``cab_*`` callback'lari chat
@@ -986,9 +991,11 @@ def get_settings_profile_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
         [
             InlineKeyboardButton(settings_stats_t("ss_btn_payments", lang),
                                  callback_data="stgs_pay"),
-            _profile_support_button(lang),
+            InlineKeyboardButton(settings_stats_t("ss_help_hub_about", lang),
+                                 callback_data="stgs_about"),
         ],
         [
+            _profile_support_button(lang),
             InlineKeyboardButton(settings_stats_t("ss_btn_close", lang),
                                  callback_data="stgs_back"),
         ],
@@ -1001,21 +1008,21 @@ def get_cabinet_inline_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
     🧹 FAZA 18: bu funksiya endi MANTIQNI SAQLAMAYDI — u to'liq kanonik
     quruvchiga yo'naltirilgan (delegation). Chat tarixidagi eski chaqiruvlar
     va testlar uchun API nomi saqlanadi; panel AYNAN bir xil qoladi
-    (7 tugma: Til / Post sozlamalari / Bildirishnomalar / Do'stlarni taklif /
-    To'lovlar / Qo'llab-quvvatlash / ❌ Yopish).
+    (8 tugma: Til / Post sozlamalari / Bildirishnomalar / Do'stlarni taklif /
+    To'lovlar / Bot haqida / Qo'llab-quvvatlash / ❌ Yopish).
     """
     return get_settings_profile_keyboard(lang)
 
 
 # ============================================================
-# ⚙️ SOZLAMALAR — 7 TUGMALI HUB
+# ⚙️ SOZLAMALAR — 8 TUGMALI HUB (4 qator × 2 tugma)
 # ------------------------------------------------------------
 # Asosiy menyudagi [⚙️ Sozlamalar] tugmasi shu panelni ochadi:
 #
 #     [🌐 Til / Язык]         [✍️ Post sozlamalari]
 #     [🔔 Bildirishnomalar]   [👥 Do'stlarni taklif]
-#     [💳 To'lovlar tarixi]   [💬 Qo'llab-quvvatlash]
-#     [❌ Yopish]
+#     [💳 To'lovlar tarixi]   [ℹ️ Bot haqida]
+#     [💬 Qo'llab-quvvatlash] [❌ Yopish]
 #
 # «👥 Do'stlarni taklif» asosiy menyudan shu hub'ga ko'chirildi,
 # «🎁 Bonuslar & Taklif» (kunlik bonus referral ekranida), «🧰 Vositalar»
@@ -1030,9 +1037,9 @@ def get_settings_hub_keyboard(lang: str = "uz", include_legacy: bool = False) ->
     """⚙️ Sozlamalar asosiy hub'i — KANONIK ``get_settings_profile_keyboard``.
 
     🧹 FAZA 18: yagona manba endi ``get_settings_profile_keyboard`` — bu
-    funksiya ham faqat yo'naltiruvchi (delegation). 7 tugma: Til / Post
-    sozlamalari / Bildirishnomalar / Do'stlarni taklif / To'lovlar /
-    Qo'llab-quvvatlash / Yopish.
+    funksiya ham faqat yo'naltiruvchi (delegation). 8 tugma (4 qator × 2):
+    Til / Post sozlamalari / Bildirishnomalar / Do'stlarni taklif /
+    To'lovlar / Bot haqida / Qo'llab-quvvatlash / Yopish.
 
     ``include_legacy`` avvalgi 8-tugmali API bilan chaqiruvchi kodlar uchun
     saqlangan. Legacy tugmalar endi yangi hub'da ko'rsatilmaydi; ularning
@@ -1402,7 +1409,7 @@ def get_manual_channel_keyboard(channels: list, lang: str = "uz") -> InlineKeybo
     from translations import manual_post_t
 
     keyboard = [
-        [InlineKeyboardButton(f"📢 {btn_label(ch_title)}",
+        [InlineKeyboardButton(f"📢 {btn_label(ch_title, max_length=14)}",
                               callback_data=manual_channel_callback(ch_id))]
         for ch_id, ch_title in [(c[0], c[1]) for c in (channels or [])]
     ]

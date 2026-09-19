@@ -1117,21 +1117,21 @@ def test_main_menu_layout_v2():
     ex = [[(b.text, b.callback_data) for b in row] for row in get_extras_inline_keyboard().inline_keyboard]
     ex_cbs = [c for row in ex for _, c in row]
     check("extras: 3 qator (tezkor tugmali post olib tashlangan)", len(ex) == 3, str(ex))
-    check("extras: post kuchaytirgich", ex[0][0] == ("✨ Postga Tugma & Reaksiya qo'shish", "extra_enhancer"), str(ex[0]))
-    check("extras: konvertor", ex[1][0] == ("🔤 Krill-Lotin konvertor", "extra_converter"), str(ex[1]))
+    check("extras: post kuchaytirgich", ex[0][0] == ("✨ Tugma & Reaksiya", "extra_enhancer"), str(ex[0]))
+    check("extras: konvertor", ex[1][0] == ("🔤 Konvertor", "extra_converter"), str(ex[1]))
     check("extras: tezkor tugmali post YO'Q", "extra_quick_btn" not in ex_cbs, str(ex_cbs))
     check("extras: yopish", ex[2][0] == ("❌ Yopish", "extra_close"), str(ex[2]))
 
     cab = [[(b.text, b.callback_data) for b in row] for row in get_cabinet_inline_keyboard().inline_keyboard]
-    # ⚙️ Sozlamalar — 7 TUGMALI PANEL. «👥 Do'stlarni taklif» asosiy menyudan
-    # shu panelga ko'chirildi, «🎁 Bonuslar & Taklif» → referral ekranidagi
-    # kunlik bonus, «❓ Yordam» hub'i → bir «💬 Qo'llab-quvvatlash» tugmasi.
-    check("kabinet: 4 qator (7 tugmali panel)", len(cab) == 4, str(cab))
+    # ⚙️ Sozlamalar — 8 TUGMALI PANEL (4x2). «👥 Do'stlarni taklif» asosiy
+    # menyudan shu panelga ko'chirildi, «🎁 Bonuslar & Taklif» → referral
+    # ekranidagi kunlik bonus, «❓ Yordam» hub'i → «💬 Qo'llab-quvvatlash».
+    check("kabinet: 4 qator (8 tugmali panel)", len(cab) == 4, str(cab))
     expected = [
         [("🌐 Til / Язык", "stgs_lang"), ("✍️ Post sozlamalari", "stgs_post")],
         [("🔔 Bildirishnomalar", "stgs_notif"), ("👥 Do'stlarni taklif", "stgs_referral")],
-        [("💳 To'lovlar tarixi", "stgs_pay"), ("💬 Qo'llab-quvvatlash", "help_support")],
-        [("❌ Yopish", "stgs_back")],
+        [("💳 To'lovlar tarixi", "stgs_pay"), ("ℹ️ Bot haqida", "stgs_about")],
+        [("💬 Qo'llab-quvvatlash", "help_support"), ("❌ Yopish", "stgs_back")],
     ]
     check("kabinet tartibi", cab == expected, str(cab))
     check("kabinet: cab_lang tugmasi YO'Q",
@@ -1297,9 +1297,9 @@ def test_stars_keyboard():
     check("stars kb: 1y bor", "sub_pay:stars_1y" in cbs)
     check("stars kb: back bor", "sub_back" in cbs)
     check("stars kb: 5 ta tugma", len(cbs) == 5)
-    check("stars kb: 75 Stars label", any("75 Stars" in t for t in labels))
-    check("stars kb: 175 Stars label", any("175 Stars" in t for t in labels))
-    check("stars kb: 550 Stars label", any("550 Stars" in t for t in labels))
+    check("stars kb: 75★ label", any("75★" in t for t in labels))
+    check("stars kb: 175★ label", any("175★" in t for t in labels))
+    check("stars kb: 550★ label", any("550★" in t for t in labels))
 
 
 def test_referral_pro_functions():
@@ -1382,9 +1382,9 @@ def test_subscription_keyboard_stars():
     check("free kb: stars_1y bor", "sub_pay:stars_1y" in cbs)
     check("free kb: promo bor", "sub_promo" in cbs)
     check("free kb: back_main bor", "sub_back_main" in cbs)
-    check("free kb: 75 Stars label", any("75 Stars" in t for t in labels))
-    check("free kb: 175 Stars label", any("175 Stars" in t for t in labels))
-    check("free kb: 550 Stars label", any("550 Stars" in t for t in labels))
+    check("free kb: 75★ label", any("75★" in t for t in labels))
+    check("free kb: 175★ label", any("175★" in t for t in labels))
+    check("free kb: 550★ label", any("550★" in t for t in labels))
 
     # PRO da Stars yo'q
     kb_pro = _get_subscription_keyboard("pro")
@@ -1952,8 +1952,8 @@ def test_photo_to_post_flow():
     check("photo: doimiy nav (orqaga/bekor)",
           "ai_back_to_menu" in pcbs and "ai_close" in pcbs)
     plabels = [b.text for row in pk.inline_keyboard for b in row]
-    check("photo: [Kanalga rejalashtirish] label",
-          any("Kanalga rejalashtirish" in t for t in plabels))
+    check("photo: [Rejalashtirish] label",
+          any("Rejalashtirish" in t for t in plabels))
     check("photo: studio menyuda tugma bor",
           "studio_ai_photo" in [
               b.callback_data for row in get_ai_studio_keyboard().inline_keyboard for b in row
@@ -2937,7 +2937,7 @@ def test_reaction_toggle_keyboard_and_normalize():
     check("tanlangan 👍 ✅", any(str(t) == "👍 ✅" for t in labels2), str(labels2))
     check("tanlangan 🤔 ✅", any(str(t) == "🤔 ✅" for t in labels2), str(labels2))
     check("tanlanmagan 🔥 ✅ yo'q", not any(str(t) == "🔥 ✅" for t in labels2), str(labels2))
-    check("done label hisoblagich (2 ta)", any("Davom etish (2 ta)" in str(t) for t in labels2), str(labels2))
+    check("done label", any("Davom etish" in str(t) for t in labels2), str(labels2))
 
     # 4. normalize_reaction_emojis
     check("normalize: satr", normalize_reaction_emojis("👍 ❤️ 🔥") == ["👍", "❤️", "🔥"])
@@ -3211,10 +3211,10 @@ def test_five_fixes_suite():
     kb_cbs = [b.callback_data for row in kb.inline_keyboard for b in row]
     kb_labels = [b.text for row in kb.inline_keyboard for b in row]
     check("kanal: '➕ Kanal qo'shish' tugmasi bor", "add_channel_start" in kb_cbs, str(kb_cbs))
-    check("kanal: '🗑 Kanalni o'chirish' tugmasi bor",
+    check("kanal: '🗑 O'chirish' tugmasi bor",
           "cab_channels_delete" in kb_cbs, str(kb_cbs))
     check("kanal: tugma yorliqlari to'g'ri",
-          "➕ Kanal qo'shish" in kb_labels and "🗑 Kanalni o'chirish" in kb_labels,
+          "➕ Kanal qo'shish" in kb_labels and "🗑 O'chirish" in kb_labels,
           str(kb_labels))
     check("kanal: yo'naltiruvchi matn to'g'ri",
           "Mening kanallarim" in NO_CHANNELS_HINT, NO_CHANNELS_HINT)
@@ -3397,8 +3397,8 @@ def test_auto_ad_injector_suite():
 
     # 1-bo'lim: Majburiy obuna
     check("1-bo'lim: majburiy obuna", "adm_sponsors" in ad_cbs, str(ad_cbs))
-    check("1-bo'lim: sponsorlar soni ko'rsatilgan",
-          any("Majburiy obuna (2 ta kanal)" in t for t in labels), str(labels))
+    check("1-bo'lim: majburiy obuna tugmasi (qisqa yorliq)",
+          any("Majburiy obuna" in t for t in labels), str(labels))
     # 2-bo'lim: javoblar reklamasi (matn + oraliq + yoqish/o'chirish)
     check("2-bo'lim: javoblar matni (pul)", "adp:reply:back" in ad_cbs, str(ad_cbs))
     check("2-bo'lim: javoblar oralig'i", "adp:reply:iv" in ad_cbs, str(ad_cbs))
@@ -3409,8 +3409,9 @@ def test_auto_ad_injector_suite():
     check("3-bo'lim: kanal yoqish/o'chirish", "adm_channel_ad_toggle" in ad_cbs, str(ad_cbs))
 
     check("hub kb: dashboard'ga orqaga", "adm_back" in ad_cbs, str(ad_cbs))
-    check("hub kb: sonlar ko'rsatilgan",
-          any("1/2" in t for t in labels) and any("3/3" in t for t in labels), str(labels))
+    check("hub kb: oralik tugmalari ko'rsatilgan",
+          any("Har 4 javob" in t for t in labels)
+          and any("Har 3-post" in t for t in labels), str(labels))
 
     # Chalkash/dublikat tugmalar olib tashlangan
     check("eski javob matni tugmasi yo'q", "adm_ad_edit_text" not in ad_cbs, str(ad_cbs))
@@ -3484,11 +3485,11 @@ def test_admin_dashboard_layout_suite():
     tashlangan, admin boshqaruvi FAQAT shu inline panel orqali — 12 ta
     tugma (6 qator × 2):
         [📊 Bot statistikasi]   [📢 Ommaviy xabar]
-        [🎯 Reklama markazi]    [📋 Kanallar ro'yxati]
-        [📋 Barcha postlar]     [🎁 Promo-kod yaratish]
+        [🎯 Reklama markazi]    [📋 Kanallar]
+        [📋 Barcha postlar]     [🎁 Promo-kod]
         [⭐️ PRO berish]        [🏷 Post nishoni]
-        [⚙️ AI parametrlari]    [🗄️ DB / Kesh holati]
-        [🩺 Tizim monitoringi]  [❌ Yopish]
+        [⚙️ AI parametrlari]    [🗄️ DB / Kesh]
+        [🩺 Monitoring]         [❌ Yopish]
     «📜 Audit | 👥 Rollar» shu panelning 🩺 Tizim monitoringi ekraniga
     ko'chirildi. Eski reply-tugmalar va /buyruqlar esa routing ALIAS'i
     sifatida ishlaydi (lekin klaviaturada chizilmaydi).
@@ -3521,11 +3522,11 @@ def test_admin_dashboard_layout_suite():
     check("row 0 btn 0 yorlig'i «📊 Bot statistikasi»",
           rows[0][0].text == "📊 Bot statistikasi", rows[0][0].text)
 
-    # Qator 2: Reklama markazi & Kanallar ro'yxati
+    # Qator 2: Reklama markazi & Kanallar
     check("row 1 btn 0: adm_adhub", rows[1][0].callback_data == "adm_adhub")
     check("row 1 btn 1: adm_channels", rows[1][1].callback_data == "adm_channels")
 
-    # Qator 3: Barcha postlar & Promo-kod yaratish
+    # Qator 3: Barcha postlar & Promo-kod
     check("row 2 btn 0: adm_posts", rows[2][0].callback_data == "adm_posts")
     check("row 2 btn 1: adm_promo", rows[2][1].callback_data == "adm_promo")
 
@@ -3540,8 +3541,8 @@ def test_admin_dashboard_layout_suite():
     # Qator 6: Tizim monitoringi & Yopish (audit endi shu ekran ichida).
     check("row 5 btn 0: adm_health", rows[5][0].callback_data == "adm_health")
     check("row 5 btn 1: close_msg", rows[5][1].callback_data == "close_msg")
-    check("row 5 btn 0 yorlig'i «🩺 Tizim monitoringi»",
-          rows[5][0].text == "🩺 Tizim monitoringi", rows[5][0].text)
+    check("row 5 btn 0 yorlig'i «🩺 Monitoring»",
+          rows[5][0].text == "🩺 Monitoring", rows[5][0].text)
 
     # Audit | Rollar — 🩺 Tizim monitoringi ekranida (yo'qolmagan!).
     mon_cbs = [b.callback_data for row in get_admin_monitoring_keyboard().inline_keyboard
@@ -3566,7 +3567,7 @@ def test_admin_dashboard_layout_suite():
     check("label: Post nishoni", any("Post nishoni" in t for t in labels))
     check("label: AI parametrlari", any("AI parametrlari" in t for t in labels))
     check("label: DB / Kesh holati", any("DB / Kesh" in t for t in labels))
-    check("label: Tizim monitoringi", any("Tizim monitoringi" in t for t in labels), str(labels))
+    check("label: Monitoring", any("Monitoring" in t for t in labels), str(labels))
     check("label: eski «Tizim salomatligi» yorlig'i qolmadi",
           not any("Tizim salomatligi" in t for t in labels), str(labels))
     check("label: Audit | Rollar dashboard'da emas, monitoringda",
@@ -3578,7 +3579,7 @@ def test_admin_dashboard_layout_suite():
     check("label: Tizim sozlamalari yo'q",
           not any("tizim sozlamalari" in t.lower() for t in labels), str(labels))
     check("label: Reklama markazi", any("reklama markazi" in t.lower() for t in labels), str(labels))
-    check("label: Kanallar ro'yxati", any("kanallar ro'yxati" in t.lower() for t in labels), str(labels))
+    check("label: Kanallar", any("kanallar" in t.lower() for t in labels), str(labels))
     check("label: Promo-kod", any("promo" in t.lower() for t in labels))
     check("label: PRO obuna", any("pro" in t.lower() for t in labels))
     check("label: Yopish", any("yopish" in t.lower() for t in labels))
@@ -3898,7 +3899,7 @@ def test_post_enhancer_ux_overhaul():
     ex = [[(b.text, b.callback_data) for b in row]
           for row in get_extras_inline_keyboard().inline_keyboard]
     check("extras menyu yozuvi yangilandi",
-          ex[0][0] == ("✨ Postga Tugma & Reaksiya qo'shish", "extra_enhancer"), str(ex[0]))
+          ex[0][0] == ("✨ Tugma & Reaksiya", "extra_enhancer"), str(ex[0]))
 
     # --- 2. Reaksiyalarni probel bilan BATCH kiritish ---
     r = pe.apply_reaction_batch([], "👍 ❤️ 🔥 👏 🎉")
@@ -4002,8 +4003,8 @@ def test_post_enhancer_ux_overhaul():
     check("btns: '➕ Yangi tugma' shablon ekranini ochadi",
           any(b.callback_data == "enh:btn:add" for b in bflat))
     cont = [b for b in bflat if b.callback_data == "enh:screen:channel"]
-    check("btns: [➡️ Tasdiqlash va Kanalga yuborish]",
-          cont and "Tasdiqlash va Kanalga yuborish" in cont[0].text, str([b.text for b in cont]))
+    check("btns: [➡️ Yuborish]",
+          cont and cont[0].text == "➡️ Yuborish", str([b.text for b in cont]))
     check("btns: Orqaga/Bekor qatori",
           any(b.callback_data == "enh:cancel" for b in bflat)
           and any((b.text or "").startswith("⬅️") for b in bflat))
@@ -4680,7 +4681,7 @@ def test_ad_pool_keyboards():
     check("menyu: nofaol reklama 🔴", any(t.startswith("🔴") for t in labels), str(labels))
     check("menyu: qo'shish tugmasi", "adp:channel:add" in cbs)
     check("menyu: interval tugmasi", "adp:channel:iv" in cbs)
-    check("menyu: intervalda joriy qiymat", any("har 4-post" in t for t in labels), str(labels))
+    check("menyu: intervalda joriy qiymat", any("har 4-post" in t.lower() for t in labels), str(labels))
     check("menyu: tozalash", "adp:channel:clear" in cbs)
     check("menyu: bekor qilish", "adm_cancel" in cbs)
     check("menyu: orqaga → Reklama markazi (hub)", "adm_adhub" in cbs, str(cbs))
@@ -4690,7 +4691,7 @@ def test_ad_pool_keyboards():
     labels_reply = [b.text for row in kb_reply.inline_keyboard for b in row]
     check("bot javoblarida ham oraliq tugmasi bor", "adp:reply:iv" in cbs_reply, str(cbs_reply))
     check("bot javoblari oralig'i javobda o'lchanadi",
-          any("har 4 javob" in t for t in labels_reply), str(labels_reply))
+          any("har 4 javob" in t.lower() for t in labels_reply), str(labels_reply))
     check("bo'sh pul menyusi ham ishlaydi",
           len(get_ad_pool_menu_keyboard("channel", ads=[]).inline_keyboard) >= 3)
 
@@ -4705,15 +4706,15 @@ def test_ad_pool_keyboards():
     check("tahrir: o'chirish", "adp:channel:rm:1" in ecbs)
     check("tahrir: bekor qilish", "adm_cancel" in ecbs)
     check("tahrir: faol reklamada 'O'chirish' yozuvi",
-          any("Inactive" in t for t in elabels), str(elabels))
+          any("O'chirish" in t for t in elabels), str(elabels))
 
     # Nofaol + tugmali reklama
     edit_kb2 = get_ad_edit_keyboard(ads[1], "reply")
     ecbs2 = [b.callback_data for row in edit_kb2.inline_keyboard for b in row]
     elabels2 = [b.text for row in edit_kb2.inline_keyboard for b in row]
     check("tahrir: tugmani olib tashlash bor", "adp:reply:bx:2" in ecbs2)
-    check("tahrir: nofaol reklamada 'Faollashtirish'",
-          any("Active" in t and "Inactive" not in t for t in elabels2), str(elabels2))
+    check("tahrir: nofaol reklamada 'Faol qilish'",
+          any("Faol qilish" in t for t in elabels2), str(elabels2))
 
     # Interval klaviaturasi
     ikb = get_ad_interval_keyboard("channel", current=4)
@@ -6156,12 +6157,12 @@ def test_cabinet_i18n_suite():
     check("kabinet inline ru: yorliqlar tarjimasi",
           settings_stats_t("ss_btn_lang", "ru") in cab_texts
           and settings_stats_t("ss_btn_close", "ru") in cab_texts, str(cab_texts))
-    # Sozlamalar — 7 tugmali panel (hub bilan bir xil);
+    # Sozlamalar — 8 tugmali panel (4x2, hub bilan bir xil);
     # eski cab_* va guruh callback'lari FAQAT routing'da saqlanadi.
-    check("kabinet inline ru: callback_data (7 tugmali panel)",
+    check("kabinet inline ru: callback_data (8 tugmali panel)",
           cab_cbs == ["stgs_lang", "stgs_post", "stgs_notif",
-                      "stgs_referral", "stgs_pay", "help_support",
-                      "stgs_back"], str(cab_cbs))
+                      "stgs_referral", "stgs_pay", "stgs_about",
+                      "help_support", "stgs_back"], str(cab_cbs))
     check("kabinet inline uz: default",
           [b.text for row in get_cabinet_inline_keyboard().inline_keyboard for b in row][0]
           == settings_stats_t("ss_btn_lang", "uz"))
@@ -6678,7 +6679,7 @@ def test_ai_studio_i18n_suite():
           uz_labels[0] == get_text("ai_studio_post", "uz"))
     check("studio kb ru: ai_studio_post label",
           ru_labels[0] == get_text("ai_studio_post", "ru"))
-    check("studio kb ru: label tarjimasi (rus)", "Написать" in ru_labels[0], ru_labels[0])
+    check("studio kb ru: label tarjimasi (rus)", "Пост (AI)" in ru_labels[0], ru_labels[0])
 
     # 3) Tone of Voice klaviaturasi — RU tarjimasi
     tk_ru = get_ai_tone_keyboard("friendly", "ru")
@@ -7117,7 +7118,8 @@ def test_extras_help_i18n_suite():
           all(k in ru for k in part4_keys),
           str([k for k in part4_keys if k not in ru][:5]))
     # Faqat-shablon kalitlari (tildan mustaqil formatlar) — teng bo'lishi mumkin
-    lang_neutral = {"enh_btns_line", "enh_btn_entry_edit"}
+    # help_btn_faq: «❓ FAQ» — umumxalqaro qisqartma, 3 tilda ham bir xil.
+    lang_neutral = {"enh_btns_line", "enh_btn_entry_edit", "help_btn_faq"}
     diff_keys = [k for k in part4_keys if k not in lang_neutral]
     check("4-qism kalitlari tarjima qilingan (uz != ru)",
           all(uz[k] != ru[k] for k in diff_keys),
@@ -7131,8 +7133,8 @@ def test_extras_help_i18n_suite():
     ru_rows = [[(b.text, b.callback_data) for b in row] for row in kb_ru.inline_keyboard]
     check("extras kb uz: 3 qator, uz yorliqlar",
           uz_rows == [
-              [("✨ Postga Tugma & Reaksiya qo'shish", "extra_enhancer")],
-              [("🔤 Krill-Lotin konvertor", "extra_converter")],
+              [("✨ Tugma & Reaksiya", "extra_enhancer")],
+              [("🔤 Konvertor", "extra_converter")],
               [("❌ Yopish", "extra_close")],
           ], str(uz_rows))
     check("extras kb ru: callback'lar bir xil",
@@ -7152,9 +7154,9 @@ def test_extras_help_i18n_suite():
           "O'girgich" in get_text("conv_intro", "uz")
           and "Конвертер" in get_text("conv_intro", "ru"))
     check("conv: tugma yorliqlari",
-          get_text("conv_btn_cyr", "uz") == "🔤 Kirillcha nusxasi"
+          get_text("conv_btn_cyr", "uz") == "🔤 Kirillcha"
           and get_text("conv_btn_lat", "uz") == "🔤 Lotincha nusxasi"
-          and get_text("conv_btn_cyr", "ru") == "🔤 Кириллическая версия"
+          and get_text("conv_btn_cyr", "ru") == "🔤 Кириллица"
           and get_text("conv_btn_lat", "ru") == "🔤 Латинская версия")
     check("conv: natija/matn topilmadi/xato",
           "Natija" in get_text("conv_result_title", "uz")
@@ -7187,9 +7189,9 @@ def test_extras_help_i18n_suite():
           "Tez-tez beriladigan savollar" in faq_uz and faq_uz.count("<b>") >= 6, faq_uz[:60])
     check("help_faq ru: sarlavha",
           "Часто задаваемые вопросы" in faq_ru)
-    check("support tugma yorliqlari (Bog'lanish / Связаться с поддержкой)",
+    check("support tugma yorliqlari (Bog'lanish / Поддержка)",
           get_text("help_btn_support", "uz") == "💬 Bog'lanish"
-          and get_text("help_btn_support", "ru") == "💬 Связаться с поддержкой")
+          and get_text("help_btn_support", "ru") == "💬 Поддержка")
     check("support line uz/ru",
           "{admin}" not in get_text("help_support_line", "uz", admin="@x")
           and "@x" in get_text("help_support_line", "ru", admin="@x"))
@@ -9092,7 +9094,7 @@ def test_content_plan_week_times():
 
 
 def test_content_plan_week_keyboard():
-    """2️⃣ Reja ekrani klaviaturasi: [🚀 Barchasini 7 kunga rejalashtirish] + kunlar."""
+    """2️⃣ Reja ekrani klaviaturasi: [🚀 Barchasini 7 kun] + kunlar."""
     print("== content plan: hafta klaviaturasi ==")
     from locales.translations import get_text
     from handlers.content_plan import (
@@ -9113,7 +9115,7 @@ def test_content_plan_week_keyboard():
     check("week kb uz: birinchi qator — rejalashtirish tugmasi",
           rows[0][0].callback_data == CB_PLAN_SCHEDULE_ALL, str(rows[0]))
     check("week kb uz: tugma yozuvi talabdagidek",
-          rows[0][0].text == "🚀 Barchasini 7 kunga rejalashtirish", rows[0][0].text)
+          rows[0][0].text == "🚀 Barchasini 7 kun", rows[0][0].text)
     check("week kb uz: tugma lug'atdan olinadi",
           rows[0][0].text == get_text("plan_btn_schedule_all", "uz"))
     check("week kb uz: kun tugmalari saqlangan",
@@ -9124,7 +9126,7 @@ def test_content_plan_week_keyboard():
 
     rows_ru = _get_plan_week_keyboard(items, "ru").inline_keyboard
     check("week kb ru: ruscha yozuv",
-          rows_ru[0][0].text == "🚀 Запланировать все на 7 дней", rows_ru[0][0].text)
+          rows_ru[0][0].text == "🚀 Всё на 7 дней", rows_ru[0][0].text)
     check("week kb ru: callback_data bir xil",
           rows_ru[0][0].callback_data == CB_PLAN_SCHEDULE_ALL)
 
@@ -9183,7 +9185,7 @@ class _PlanUpdate:
 
 
 def test_content_plan_schedule_all_flow():
-    """2️⃣ '🚀 Barchasini 7 kunga rejalashtirish' — runtime oqim."""
+    """2️⃣ '🚀 Barchasini 7 kun' — runtime oqim."""
     print("== content plan: 7 kunni navbatga qo'yish (runtime) ==")
     import asyncio
     import importlib

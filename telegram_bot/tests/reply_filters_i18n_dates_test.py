@@ -321,13 +321,13 @@ def test_new_post_flow_buttons_three_languages():
         "np_time_5m": ("⚡ 5 daqiqa", "⚡ 5 минут", "⚡ 5 minutes"),
         "np_time_15m": ("⚡ 15 daqiqa", "⚡ 15 минут", "⚡ 15 minutes"),
         "np_time_1h": ("⚡ 1 soat", "⚡ 1 час", "⚡ 1 hour"),
-        "np_time_daily": ("🔁 Har kuni (bir vaqtda)", "🔁 Ежедневно (в одно время)", "🔁 Daily (same time)"),
+        "np_time_daily": ("🔁 Har kuni", "🔁 Ежедневно", "🔁 Daily"),
         "np_del_24h": ("⏳ 24 soat (1 kun)", "⏳ 24 часа (1 день)", "⏳ 24 hours (1 day)"),
         "np_del_never": ("❌ O'chirilmasin (Doimiy)", "❌ Не удалять (постоянно)", "❌ Never delete (Permanent)"),
         "np_dur_1w": ("1 hafta", "1 неделя", "1 week"),
         "np_dur_inf": ("♾ Cheksiz", "♾ Бессрочно", "♾ Forever"),
         "np_url_add": ("🔗 URL tugma qo'shish", "🔗 Добавить URL-кнопку", "🔗 Add URL button"),
-        "np_all_channels": ("🌐 Barchasiga birdaniga", "🌐 Сразу во все", "🌐 To all at once"),
+        "np_all_channels": ("🌐 Barchasiga", "🌐 Сразу во все", "🌐 To all at once"),
         "np_ai_assistant": ("✨ AI Yordamchi", "✨ ИИ-помощник", "✨ AI Assistant"),
     }
     for action, labels in flows.items():

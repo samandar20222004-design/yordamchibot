@@ -57,7 +57,7 @@ QUEUE_LIMIT_MSG = (
 )
 
 PRO_UPGRADE_KEYBOARD = InlineKeyboardMarkup([
-    [InlineKeyboardButton("⭐️ PRO tarifga o'tish", callback_data="sub_open")],
+    [InlineKeyboardButton("⭐️ PRO tarif", callback_data="sub_open")],
 ])
 
 # States
