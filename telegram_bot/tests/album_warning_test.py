@@ -5,8 +5,8 @@ Telegram Bot API qoidasi: sendMediaGroup'ga inline_keyboard (URL tugma yoki
 reaksiya) ulab bo'lmaydi. Foydalanuvchi bir nechta rasmli albom yuborgani
 dalolatida tugma/reaksiya bosqichiga yetganda bot xushmuomala ogohlantirish
 beradi va 2 ta tanlov taklif etadi:
-  [🖼 1-rasm qolsin + tugma qo'shilsin] — post bitta rasmga aylanadi;
-  [⏩ Tugmalarsiz to'liq albom chiqsin] — 10 tagacha to'liq albom chiqadi.
+  [🖼 1-rasm + tugma] — post bitta rasmga aylanadi;
+  [⏩ To'liq albom] — 10 tagacha to'liq albom chiqadi.
 
 Qo'shimcha: kanalga faqat foydalanuvchining ASL matni (caption/text) chiqishi
 kerak — "Postni tasdiqlang:", "Kanal:", "Turi: Albom...", "Tugma:",
@@ -256,12 +256,12 @@ def test_warning_i18n_keys():
     check("ru: 'По правилам Telegram' bor", "По правилам Telegram" in ru, ru)
     check("ru: 'нельзя добавить' ogohlantirishi", "нельзя добавить" in ru, ru)
     check("uz: 1-rasm tanlovi aniq",
-          get_text("np_album_choice_first_photo", "uz") == "🖼 1-rasm qolsin + tugma qo'shilsin")
+          get_text("np_album_choice_first_photo", "uz") == "🖼 1-rasm + tugma")
     check("uz: to'liq albom tanlovi aniq",
-          get_text("np_album_choice_full", "uz") == "⏩ Tugmalarsiz to'liq albom chiqsin")
+          get_text("np_album_choice_full", "uz") == "⏩ To'liq albom")
     check("ru: tanlov tugmalari mavjud",
-          "Оставить 1 фото" in get_text("np_album_choice_first_photo", "ru")
-          and "альбом без кнопок" in get_text("np_album_choice_full", "ru"))
+          "1 фото" in get_text("np_album_choice_first_photo", "ru")
+          and "Полный альбом" in get_text("np_album_choice_full", "ru"))
 
 
 # ----------------------------------------------------------------------
@@ -299,10 +299,10 @@ def test_album_choice_keyboard():
     rows = _warn_markup(kb)
     check("2 qator", len(rows) == 2, str(rows))
     check("1-tugma: 1-rasm + callback",
-          rows and rows[0] == [("🖼 1-rasm qolsin + tugma qo'shilsin", "album_choice:first_photo")],
+          rows and rows[0] == [("🖼 1-rasm + tugma", "album_choice:first_photo")],
           str(rows))
     check("2-tugma: to'liq albom + callback",
-          rows and len(rows) > 1 and rows[1] == [("⏩ Tugmalarsiz to'liq albom chiqsin", "album_choice:full_album")],
+          rows and len(rows) > 1 and rows[1] == [("⏩ To'liq albom", "album_choice:full_album")],
           str(rows))
 
     kb_ru = _album_choice_keyboard("ru")

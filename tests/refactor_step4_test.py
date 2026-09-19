@@ -643,8 +643,8 @@ def test_admin_dashboard_single_center():
     label_map = {t: c for row in rows for t, c in row}
     check("1-yorliq: «📊 Bot statistikasi» → adm_stats",
           label_map.get("📊 Bot statistikasi") == "adm_stats", str(label_map))
-    check("oxirgi qator: «🩺 Tizim monitoringi» → adm_health",
-          rows[-1][0] == ("🩺 Tizim monitoringi", "adm_health"), str(rows[-1]))
+    check("oxirgi qator: «🩺 Monitoring» → adm_health",
+          rows[-1][0] == ("🩺 Monitoring", "adm_health"), str(rows[-1]))
     check("oxirgi qator: «❌ Yopish» → close_msg",
           rows[-1][1] == ("❌ Yopish", "close_msg"), str(rows[-1]))
     check("eski «📊 To'liq statistika» yorlig'i dashboard'da emas (alias bo'lib qoldi)",

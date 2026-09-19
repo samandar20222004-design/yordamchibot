@@ -169,7 +169,7 @@ VOICE_POST_I18N = {
         ),
         "vp_result_header": "🎙 <b>Пост из вашего голоса готов ({style})!</b>\n\n",
         "vp_result_foot": "\n\n<i>Что делаем с постом?</i>",
-        "vp_btn_send_channel": "📢 Отправить в канал",
+        "vp_btn_send_channel": "📢 В канал",
         "vp_btn_schedule": "📅 Запланировать",
         "vp_btn_restyle": "🔄 Другой стиль",
         "vp_send_choose": (

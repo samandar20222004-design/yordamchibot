@@ -981,15 +981,16 @@ def test_regression_and_parity():
         check(f"database.{fn_name}() mavjud",
               callable(getattr(db_mod, fn_name, None)))
 
-    # ⚙️ Sozlamalar hub'i o'zgarmagan (7 tugma, help_support o'z joyida).
+    # ⚙️ Sozlamalar hub'i — 8 tugma (4x2), help_support o'z joyida.
     from keyboards.inline import (get_cabinet_inline_keyboard,
                                   get_settings_hub_keyboard,
                                   get_support_ticket_keyboard)
 
     hub_cbs = _flat_cbs(get_settings_hub_keyboard("uz"))
-    check("hub: 7 tugma saqlangan",
+    check("hub: 8 tugma (4x2) saqlangan",
           hub_cbs == ["stgs_lang", "stgs_post", "stgs_notif", "stgs_referral",
-                      "stgs_pay", "help_support", "stgs_back"], str(hub_cbs))
+                      "stgs_pay", "stgs_about", "help_support", "stgs_back"],
+          str(hub_cbs))
     profile_buttons = [b for row in get_cabinet_inline_keyboard("uz").inline_keyboard
                        for b in row if b.text.endswith("Qo'llab-quvvatlash")]
     check("profil: 💬 tugmasi bot ICHIDAGI oqimni ochadi (URL emas)",

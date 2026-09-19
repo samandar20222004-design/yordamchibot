@@ -79,24 +79,24 @@ EXPECTED_SETTINGS_CBS = (
     "stgs_lang",
     "stgs_post",
     "stgs_notif", "stgs_referral",
-    "stgs_pay", "help_support",
-    "stgs_back",
+    "stgs_pay", "stgs_about",
+    "help_support", "stgs_back",
 )
 
 # ⚙️ Sozlamalar menyusi yorliqlari — SPEKS tartibi (7 tugma / 4 qator).
 EXPECTED_SETTINGS_LABELS = {
     "uz": (("🌐 Til / Язык", "✍️ Post sozlamalari"),
            ("🔔 Bildirishnomalar", "👥 Do'stlarni taklif"),
-           ("💳 To'lovlar tarixi", "💬 Qo'llab-quvvatlash"),
-           ("❌ Yopish",)),
+           ("💳 To'lovlar tarixi", "ℹ️ Bot haqida"),
+           ("💬 Qo'llab-quvvatlash", "❌ Yopish")),
     "ru": (("🌐 Язык / Language", "✍️ Настройки постов"),
            ("🔔 Уведомления", "👥 Пригласить друзей"),
-           ("💳 История платежей", "💬 Поддержка"),
-           ("❌ Закрыть",)),
+           ("💳 История платежей", "ℹ️ О боте"),
+           ("💬 Поддержка", "❌ Закрыть")),
     "en": (("🌐 Language", "✍️ Post settings"),
            ("🔔 Notifications", "👥 Invite friends"),
-           ("💳 Payment history", "💬 Contact support"),
-           ("❌ Close",)),
+           ("💳 Payment history", "ℹ️ About the bot"),
+           ("💬 Contact support", "❌ Close")),
 }
 
 
@@ -424,7 +424,7 @@ def test_statistics_overview_format():
 # TEST 2 — ⚙️ SOZLAMALAR: 7 TUGMALI MENYU (legacy aliaslar bilan)
 # ============================================================================
 def test_settings_menu_structure_and_flows():
-    print("\n== TEST 2: ⚙️ Sozlamalar — 7 tugmali menyu ==")
+    print("\n== TEST 2: ⚙️ Sozlamalar — 8 tugmali menyu (4x2) ==")
 
     # Legacy kabinet tezkor tugmalari — menyuda KO'RINMASLIGI shart
     # (ular o'z asosiy menyularida bor: 📢 Kanallarim, 📅 Rejalashtirilgan...).
@@ -436,15 +436,16 @@ def test_settings_menu_structure_and_flows():
         kb = get_settings_hub_keyboard(lang)
         rows = kb_rows_inline(kb)
         expected = EXPECTED_SETTINGS_LABELS[lang]
-        check(f"{lang}: 4 qator = speksdagi 7 tugma",
+        check(f"{lang}: 4 qator = speksdagi 8 tugma",
               [[t for t, _ in row] for row in rows] == [
                   list(r) for r in expected],
               str(rows))
-        check(f"{lang}: 7 tugma callback tartibi",
+        check(f"{lang}: 8 tugma callback tartibi",
               kb_flat_cbs(kb) == list(EXPECTED_SETTINGS_CBS),
               str(kb_flat_cbs(kb)))
-        check(f"{lang}: oxirgi qator = [❌ Yopish] (stgs_back)",
-              rows[-1] == [(settings_stats_t("ss_btn_close", lang), "stgs_back")],
+        check(f"{lang}: oxirgi qator = [💬 Qo'llab-quvvatlash | ❌ Yopish]",
+              rows[-1] == [(settings_stats_t("ss_help_hub_support", lang), "help_support"),
+                          (settings_stats_t("ss_btn_close", lang), "stgs_back")],
               str(rows[-1]))
         check(f"{lang}: legacy cab_* dublikatlar YO'Q",
               not any(cb in kb_flat_cbs(kb) for cb in legacy_cbs),
@@ -537,10 +538,10 @@ def test_settings_menu_structure_and_flows():
     prof_text = q.screen.get("text", "")
     prof_cbs = kb_flat_cbs(q.screen.get("reply_markup"))
     check("profil: cabinet_title matni", "Profil" in prof_text, prof_text[:80])
-    # Profil ekrani endi 7 TUGMALI panel (Til / Post sozlamalari /
-    # Bildirishnomalar / Do'stlarni taklif / To'lovlar / Qo'llab-quvvatlash /
-    # Yopish) — Sozlamalar hub'i bilan AYNAN bir xil (yagona ekran).
-    check("profil: 7 tugmali panel (stgs_back = ❌ Yopish)",
+    # Profil ekrani endi 8 TUGMALI panel (4x2: Til / Post sozlamalari /
+    # Bildirishnomalar / Do'stlarni taklif / To'lovlar / Bot haqida /
+    # Qo'llab-quvvatlash / Yopish) — Sozlamalar hub'i bilan AYNAN bir xil.
+    check("profil: 8 tugmali panel (stgs_back = ❌ Yopish)",
           prof_cbs == list(EXPECTED_SETTINGS_CBS), str(prof_cbs))
     check("profil: eski cab_* dublikatlari panel'da YO'Q",
           not any(cb in prof_cbs for cb in ("cab_channels", "cab_analytics",

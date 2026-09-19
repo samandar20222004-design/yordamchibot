@@ -364,7 +364,7 @@ def build_daily_bonus_text(res: dict, lang: str = "uz") -> str:
 
 
 async def user_cabinet_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """⚙️ Sozlamalar — profil kartasi + 7 TUGMALI MENYU.
+    """⚙️ Sozlamalar — profil kartasi + 8 TUGMALI MENYU (4 qator × 2 tugma).
 
     Asosiy menyudagi [⚙️ Sozlamalar] tugmasi bosilganda foydalanuvchi
     ma'lumotlari (ID, maxsus kod, AI so'rovlar, kunlik seriya, kanallar,

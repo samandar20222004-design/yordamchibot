@@ -36,10 +36,10 @@ POST_SCORE_I18N = {
     "uz": {
         "ps_btn_menu": "📊 Post Score",
         "ps_btn_eval": "📊 Baholash",
-        "ps_btn_improve": "✨ 95/100 ga yaxshilash",
+        "ps_btn_improve": "✨ Yaxshilash",
         "ps_btn_send": "📢 Kanalga yuborish",
         "ps_btn_schedule": "📅 Rejalashtirish",
-        "ps_btn_again": "📊 Boshqa postni baholash",
+        "ps_btn_again": "📊 Boshqa post",
         "ps_intro": (
             "📊 <b>Post Score — post kuchini o'lchang!</b>\n\n"
             "Postingizni yuboring — AI uni <b>6 mezon</b> bo'yicha 1–10 ball "
@@ -139,7 +139,7 @@ POST_SCORE_I18N = {
             "Kreditni «👤 Kabinet & Sozlamalar» bo'limida to'ldirish mumkin."
         ),
         "ps_send_choose": "📢 <b>Postni qaysi kanalga yuboramiz?</b>\nKanalni tanlang 👇",
-        "ps_send_all": "📣 Barcha kanallarga ({count})",
+        "ps_send_all": "📣 Barcha kanallar",
         "ps_sent_ok": (
             "🚀 <b>Post muvaffaqiyatli yuborildi!</b>\n\n"
             "📢 Kanallar: {channels}\n"
@@ -170,10 +170,10 @@ POST_SCORE_I18N = {
     "ru": {
         "ps_btn_menu": "📊 Post Score",
         "ps_btn_eval": "📊 Оценить",
-        "ps_btn_improve": "✨ Улучшить до 95/100",
-        "ps_btn_send": "📢 Отправить в канал",
+        "ps_btn_improve": "✨ Улучшить",
+        "ps_btn_send": "📢 Отправить",
         "ps_btn_schedule": "📅 Запланировать",
-        "ps_btn_again": "📊 Оценить другой пост",
+        "ps_btn_again": "📊 Другой пост",
         "ps_intro": (
             "📊 <b>Post Score — измерьте силу поста!</b>\n\n"
             "Отправьте пост — ИИ оценит его по <b>6 критериям</b> от 1 до 10 "
@@ -273,7 +273,7 @@ POST_SCORE_I18N = {
             "разделе «👤 Кабинет & Настройки»."
         ),
         "ps_send_choose": "📢 <b>В какой канал отправим пост?</b>\nВыберите канал 👇",
-        "ps_send_all": "📣 Во все каналы ({count})",
+        "ps_send_all": "📣 Все каналы",
         "ps_sent_ok": (
             "🚀 <b>Пост успешно отправлен!</b>\n\n"
             "📢 Каналы: {channels}\n"
@@ -304,10 +304,10 @@ POST_SCORE_I18N = {
     "en": {
         "ps_btn_menu": "📊 Post Score",
         "ps_btn_eval": "📊 Rate post",
-        "ps_btn_improve": "✨ Improve to 95/100",
+        "ps_btn_improve": "✨ Improve",
         "ps_btn_send": "📢 Send to channel",
         "ps_btn_schedule": "📅 Schedule",
-        "ps_btn_again": "📊 Rate another post",
+        "ps_btn_again": "📊 Rate other",
         "ps_intro": (
             "📊 <b>Post Score — measure your post's power!</b>\n\n"
             "Send your post — AI rates it on <b>6 criteria</b> from 1 to 10 "
@@ -407,7 +407,7 @@ POST_SCORE_I18N = {
             "«👤 Account & Settings»."
         ),
         "ps_send_choose": "📢 <b>Which channel should we send it to?</b>\nPick a channel 👇",
-        "ps_send_all": "📣 Send to all channels ({count})",
+        "ps_send_all": "📣 All channels",
         "ps_sent_ok": (
             "🚀 <b>Post sent successfully!</b>\n\n"
             "📢 Channels: {channels}\n"

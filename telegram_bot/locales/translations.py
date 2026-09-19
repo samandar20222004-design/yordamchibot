@@ -129,7 +129,7 @@ TRANSLATIONS = {
         "ad_mode_admin": "👑 <b>Admin</b> — reklamasiz",
         "ad_mode_pro": "✨ <b>PRO</b> — postlar va bot javoblari avtomatik 100% reklamasiz",
         "ad_mode_free": "🆓 <b>Bepul</b> — belgilangan oraliqda reklama chiqadi (PRO'da avtomatik o'chadi)",
-        "btn_card_payment": "💳 Karta orqali to'lov (Uzcard / Humo)",
+        "btn_card_payment": "💳 Uzcard / Humo",
         "btn_back": "⬅️ Orqaga",
         "card_payment_title": "💳 <b>Karta orqali to'lov (Uzcard / Humo)</b>",
         "card_payment_prices": (
@@ -173,19 +173,20 @@ TRANSLATIONS = {
             "💳 <b>To'lov mintaqasini tanlang</b>\n\n"
             "🌐 To'lov usuli tilingizga bog'liq EMAS — istalgan til "
             "sozlamasida istalgan mintaqadan to'lashingiz mumkin.\n"
+            "🇺🇿 O'zbekiston — Uzcard / Humo • 🌍 Xalqaro — Stars / Crypto / Karta\n"
             "📌 Qaysi mintaqada to'laysiz? 👇"
         ),
-        "pay_region_uz": "🇺🇿 O'zbekiston (Uzcard / Humo)",
-        "pay_region_intl": "🌍 Xalqaro (Stars / Crypto / Card)",
+        "pay_region_uz": "🇺🇿 O'zbekiston",
+        "pay_region_intl": "🌍 Xalqaro",
         "pay_region_selected": "🎫 Tanlangan tarif: <b>{tarif}</b>",
         "intl_payment_title": (
             "🌍 <b>Xalqaro to'lov</b>\n\n"
             "⭐️ Telegram Stars — bir zumda to'lov va PRO avtomatik yoqiladi.\n"
             "🪙 Crypto (USDT) va 💳 xalqaro kartalar (Visa / Mastercard)."
         ),
-        "intl_tariff_1m": "⭐️ 1 oy — 75 Stars (~$1.5)",
-        "intl_tariff_3m": "⭐️ 3 oy — 175 Stars (~$3.5)",
-        "intl_tariff_1y": "⭐️ 1 yil — 550 Stars (~$11.0)",
+        "intl_tariff_1m": "⭐️ 1 oy — 75★",
+        "intl_tariff_3m": "⭐️ 3 oy — 175★",
+        "intl_tariff_1y": "⭐️ 1 yil — 550★",
         "intl_payment_selected": (
             "🎫 Tanlangan tarif: <b>{tarif}</b>\n"
             "⭐️ Narx: <b>{stars} Stars</b> (~${usd})"
@@ -270,11 +271,10 @@ TRANSLATIONS = {
         "cab_notifications": "🔔 Bildirishnomalar",
         "cab_help_guide": "❓ Yordam & Qo'llanma",
         "cab_add_channel": "➕ Kanal qo'shish",
-        "cab_del_channel": "🗑 Kanalni o'chirish",
-        "cab_del_channel": "🗑 Kanalni o'chirish",
+        "cab_del_channel": "🗑 O'chirish",
         "cab_remove_channel": "❌ O'chirish",
         "cab_tone": "Uslub",
-        "cab_add_channel_alt": "➕ Yangi kanal/guruh ulash",
+        "cab_add_channel_alt": "➕ Kanal ulash",
         "cab_channels_delete_empty": (
             "📢 <b>Mening kanallarim:</b>\n\n"
             "Hozircha o'chirish uchun kanal yo'q.\n\n"
@@ -386,9 +386,9 @@ TRANSLATIONS = {
             "💎 Mavjud AI so'rovlari: {credits}\n\n"
             "Kanal kontentini yaratish uchun kerakli vositani tanlang 👇"
         ),
-        "ai_studio_post": "✍️ AI Post yaratish",
-        "ai_studio_photo": "🖼 Rasmdan post yaratish",
-        "ai_studio_extract": "📢 Ochiq kanaldan olish",
+        "ai_studio_post": "✍️ AI Post",
+        "ai_studio_photo": "🖼 Rasmdan post",
+        "ai_studio_extract": "📢 Kanaldan olish",
         "ai_studio_audit": "🔍 AI Post auditi",
         "ai_studio_content_plan": "🧠 Kontent-reja",
         "ai_studio_post_intro": (
@@ -429,7 +429,7 @@ TRANSLATIONS = {
             "📢 Kanallar bo'limidan kanal ulang."
         ),
         # 🚀 7 KUNLIK KONTENT-REJANI BITTA TUGMA BILAN NAVBATGA QO'YISH
-        "plan_btn_schedule_all": "🚀 Barchasini 7 kunga rejalashtirish",
+        "plan_btn_schedule_all": "🚀 Barchasini 7 kun",
         "plan_week_hint": "\n\n🚀 <i>Yoki bitta tugma bilan butun haftani "
                         "navbatga qo'ying.</i>",
         "plan_sched_busy": "⏳ 7 kunlik postlar navbatga qo'yilmoqda...",
@@ -460,8 +460,8 @@ TRANSLATIONS = {
         "ai_tone_friendly": "😊 Do'stona",
         "ai_tone_concise": "⚡️ Qisqa",
         "ai_tone_engaging": "🎉 Jozibali",
-        "ai_tone_schedule": "➡️ Rejalashtirishga o'tish",
-        "ai_photo_schedule": "📅 Kanalga rejalashtirish",
+        "ai_tone_schedule": "➡️ Rejalashtirish",
+        "ai_photo_schedule": "📅 Rejalashtirish",
         "ai_photo_rewrite": "🔄 Qayta yozish",
         "ai_photo_edit": "✏️ Tahrirlash",
         "ai_photo_result_title": "🖼 <b>Rasmdan tayyorlangan post:</b>\n\n",
@@ -472,8 +472,8 @@ TRANSLATIONS = {
         "ai_btn_back": "⬅️ Orqaga",
         "ai_btn_close": "❌ Bekor qilish",
         "ai_btn_main_menu": "⬅️ Asosiy menyu",
-        "ai_confirm_schedule": "✅ Kanalga rejalashtirish",
-        "ai_confirm_edit": "📝 Matnni tahrirlash",
+        "ai_confirm_schedule": "✅ Rejalashtirish",
+        "ai_confirm_edit": "📝 Tahrirlash",
         "ai_preview_title": "✨ <b>AI Post tayyor!</b>\n\n",
         "ai_preview_foot": (
             "\n\n🎨 <b>Uslub:</b> {tone}{media}\n\n"
@@ -640,8 +640,8 @@ TRANSLATIONS = {
         "np_btn_time_5m": "⚡ 5 daqiqa",
         "np_btn_time_15m": "⚡ 15 daqiqa",
         "np_btn_time_1h": "⚡ 1 soat",
-        "np_btn_time_daily": "🔁 Har kuni (bir vaqtda)",
-        "np_btn_time_weekly": "📅 Har hafta (ma'lum kuni)",
+        "np_btn_time_daily": "🔁 Har kuni",
+        "np_btn_time_weekly": "📅 Har hafta",
         "np_btn_dur_1w": "1 hafta",
         "np_btn_dur_1m": "1 oy",
         "np_btn_dur_3m": "3 oy",
@@ -656,7 +656,7 @@ TRANSLATIONS = {
         "np_weekday_5": "Shanba",
         "np_weekday_6": "Yakshanba",
         "np_btn_back_confirm": "🔙 Orqaga",
-        "np_btn_all_channels": "🌐 Barchasiga birdaniga",
+        "np_btn_all_channels": "🌐 Barchasiga",
         "np_label_today": "Bugun",
         "np_label_tomorrow": "Ertaga",
 
@@ -723,8 +723,8 @@ TRANSLATIONS = {
             "ℹ️ Hech qanday reaksiya tanlanmadi — post reaksiyalarsiz chiqadi."
         ),
         "np_react_done": "➡️ Davom etish",
-        "np_react_done_count": "➡️ Davom etish ({count} ta)",
-        "np_react_skip": "⏭ Reaksiyasiz o'tish",
+        "np_react_done_count": "➡️ Davom etish",
+        "np_react_skip": "⏭ Reaksiyasiz",
         "np_auto_delete_ask": (
             "🗑️ <b>Post kanalda qancha vaqt tursin?</b>\n\n"
             "Belgilangan vaqt o'tgach, bot uni kanaldan avtomatik o'chirib tashlaydi:"
@@ -812,8 +812,8 @@ TRANSLATIONS = {
         "np_confirm_reactions": "👍 Reaksiyalar: {emojis}",
         "np_confirm_reactions_on": "👍 Reaksiyalar: Yoqilgan",
         "np_confirm_auto_delete": "⏳ Avto-o'chirish: {hours} soat",
-        "np_confirm_ok_btn": "✅ Tasdiqlash va rejalashtirish",
-        "np_confirm_queue_btn": "⏳ Navbatga qo'shish",
+        "np_confirm_ok_btn": "✅ Rejalashtirish",
+        "np_confirm_queue_btn": "⏳ Navbatga",
         "np_confirm_edit_btn": "✏️ Tahrirlash",
         "np_confirm_cancel_btn": "❌ Bekor qilish",
 
@@ -826,8 +826,8 @@ TRANSLATIONS = {
             "reaksiya tugmalarini qo'shib bo'lmaydi. \n"
             "Tugma yoki reaksiya faqat 1 ta rasm (yoki oddiy matn) uchun ishlaydi."
         ),
-        "np_album_choice_first_photo": "🖼 1-rasm qolsin + tugma qo'shilsin",
-        "np_album_choice_full": "⏩ Tugmalarsiz to'liq albom chiqsin",
+        "np_album_choice_first_photo": "🖼 1-rasm + tugma",
+        "np_album_choice_full": "⏩ To'liq albom",
         "np_album_first_photo_done": (
             "✅ Post bitta rasmga o'zgartirildi — endi tugma yoki reaksiya qo'sha olasiz."
         ),
@@ -841,7 +841,7 @@ TRANSLATIONS = {
         "np_edit_channel_btn": "📢 Kanal",
         "np_edit_time_btn": "⏰ Vaqt",
         "np_edit_button_btn": "🔘 Tugma",
-        "np_edit_back_btn": "⬅️ Orqaga (tasdiqlashga)",
+        "np_edit_back_btn": "⬅️ Orqaga",
         "np_edit_content_ask": "📝 <b>Yangi matn yuboring:</b>",
         "np_edit_channel_ask": "📢 <b>Qaysi kanal?</b>",
         "np_edit_time_ask": "🕒 <b>Yangi vaqt:</b> <code>{example}</code>",
@@ -903,7 +903,7 @@ TRANSLATIONS = {
         "np_ai_btn_back": "⬅️ Orqaga",
         "np_ai_btn_accept": "✅ Qabul qilish",
         "np_ai_btn_retry": "🔄 Qayta urinish",
-        "np_ai_btn_revert": "❌ Asl holatga qaytarish",
+        "np_ai_btn_revert": "❌ Aslga qaytarish",
 
         # --- 3-QISM: 📢 Mening kanallarim i18n (UZ) ---
         "ch_empty_title": (
@@ -921,7 +921,7 @@ TRANSLATIONS = {
             "📢 <b>Barcha kanallar o'chirildi.</b>\n\n"
             "Yangi kanal ulash uchun quyidagi tugmani bosing 👇"
         ),
-        "ch_add_btn": "➕ Kanal/Guruh ulash",
+        "ch_add_btn": "➕ Kanal/Guruh",
         "ch_add_instructions": (
             "➕ <b>Yangi kanal yoki guruh ulash:</b>\n\n"
             "1. Botni (<code>@{bot}</code>) kanalingizga yoki guruhingizga "
@@ -933,7 +933,7 @@ TRANSLATIONS = {
             "   • kanal ID raqami (masalan: <code>-1001234567890</code>).\n\n"
             "<i>Bekor qilish uchun '🔙 Asosiy menyu' tugmasini bosing.</i>"
         ),
-        "ch_retry_btn": "🔁 Botni admin qildim — qayta tekshirish",
+        "ch_retry_btn": "🔁 Qayta tekshirish",
         "ch_empty_target": (
             "❌ Bo'sh xabar qabul qilindi. Kanalni <b>forward</b> qiling, "
             "<code>@username</code>, ID yoki <code>t.me/kanal</code> havolasini yuboring."
@@ -991,7 +991,7 @@ TRANSLATIONS = {
             "Free tarifida maksimal <b>{max}</b> ta kanal ulash mumkin.\n\n"
             "⭐️ Ushbu imkoniyatdan cheksiz foydalanish uchun PRO tarifiga o'ting."
         ),
-        "ch_pro_btn": "⭐️ PRO tarifga o'tish",
+        "ch_pro_btn": "⭐️ PRO tarif",
         "ch_success": (
             "✅ <b>Kanal muvaffaqiyatli ulandi!</b>\n\n"
             "📢 Nomi: <b>{title}</b>\n"
@@ -1036,7 +1036,7 @@ TRANSLATIONS = {
             "Endi AI postlarni shu uslubda tayyorlaydi."
         ),
         "ch_tone_error": "❌ Uslubni saqlashda xatolik. Qaytadan urinib ko'ring.",
-        "ch_voice_btn": "🎙 Kanal ovozi tahlili",
+        "ch_voice_btn": "🎙 Ovoz tahlili",
         "ch_voice_analyzing": (
             "🎙 <b>Kanal ovozi tahlil qilinmoqda...</b>\n\n"
             "AI kanaldagi so'nggi postlarni o'rganib, kanal uslubini aniqlaydi."
@@ -1163,10 +1163,10 @@ TRANSLATIONS = {
         "queue_btn_push": "⏩ Surish",
         "queue_btn_prev": "⬅️ Oldingi",
         "queue_btn_next": "Keyingi ➡️",
-        "queue_btn_slots": "⚙️ Slotlarni sozlash",
+        "queue_btn_slots": "⚙️ Slotlar",
         "queue_btn_close": "❌ Yopish",
-        "queue_btn_back": "⬅️ Ro'yxatga qaytish",
-        "queue_btn_add_slot": "➕ Yangi slot qo'shish",
+        "queue_btn_back": "⬅️ Ro'yxat",
+        "queue_btn_add_slot": "➕ Yangi slot",
         "queue_btn_reset_slots": "🔄 Default slotlar",
         "queue_slots_title": (
             "⚙️ <b>Slot sozlamalari</b>\n\n"
@@ -1213,8 +1213,8 @@ TRANSLATIONS = {
             "🔤 <b>Krill-Lotin konvertor</b> — matnlarni ikki alifbo orasida o'girish\n\n"
             "Kerakli vositani tanlang 👇"
         ),
-        "extras_btn_enhancer": "✨ Postga Tugma & Reaksiya qo'shish",
-        "extras_btn_converter": "🔤 Krill-Lotin konvertor",
+        "extras_btn_enhancer": "✨ Tugma & Reaksiya",
+        "extras_btn_converter": "🔤 Konvertor",
         "extras_closed": "✅ <b>Qo'shimcha funksiyalar</b> bo'limi yopildi.",
 
         # 🔤 Lotin ⇄ Kirill matn konvertori oqimi
@@ -1231,7 +1231,7 @@ TRANSLATIONS = {
             "📝 <b>Matn qabul qilindi!</b>\n\n"
             "Qaysi alifboga o'girmoqchisiz? Quyidagi tugmalardan birini tanlang 👇"
         ),
-        "conv_btn_cyr": "🔤 Kirillcha nusxasi",
+        "conv_btn_cyr": "🔤 Kirillcha",
         "conv_btn_lat": "🔤 Lotincha nusxasi",
         "conv_no_saved_text": "⚠️ Matn topilmadi, iltimos qaytadan yuboring.",
         "conv_result_title": "📋 <b>Natija:</b>",
@@ -1283,11 +1283,11 @@ TRANSLATIONS = {
             "{notice}\n\n"
             "Kerakli qadamni tanlang 👇"
         ),
-        "enh_hub_btn_reacts": "👍 1. Reaksiyalar ({n}/{max})",
-        "enh_hub_btn_buttons": "🔗 2. URL tugmalar ({n}/{max})",
+        "enh_hub_btn_reacts": "👍 Reaksiyalar",
+        "enh_hub_btn_buttons": "🔗 URL tugmalar",
         "enh_btn_preview": "👁️ Prevyu",
         "enh_btn_send_channel": "🚀 Kanalga yuborish",
-        "enh_btn_replace": "🔁 Postni almashtirish",
+        "enh_btn_replace": "🔁 Almashtirish",
         # ✨ PRO 2-bosqichli AI audit — tugma FAQAT PRO foydalanuvchilarga
         # ko'rinadi va post matni faqat foydalanuvchi o'zi bosganda o'zgaradi.
         "enh_btn_ai_audit": "✨ AI audit (PRO)",
@@ -1325,9 +1325,9 @@ TRANSLATIONS = {
         "enh_btns_empty": "<i>Hozircha tugmalar yo'q — shablon tanlang yoki qo'lda kiriting.</i>",
         "enh_btns_line": "{mark} <b>{text}</b> → <code>{url}</code>",
         "enh_btn_fallback": "Tugma",
-        "enh_btn_add_new": "➕ Yangi tugma qo'shish",
+        "enh_btn_add_new": "➕ Tugma",
         "enh_btn_manual": "✍️ Qo'lda kiritish",
-        "enh_btn_confirm_send": "➡️ Tasdiqlash va Kanalga yuborish",
+        "enh_btn_confirm_send": "➡️ Yuborish",
         "enh_btn_entry_edit": "✏️ {num}. {text}",
         "enh_btn_add_title": (
             "➕ <b>Yangi URL tugma</b> (<b>{n}/{max}</b>)\n\n"
@@ -1343,9 +1343,9 @@ TRANSLATIONS = {
             "{notice}"
         ),
         "enh_channel_fallback": "Kanal",
-        "enh_channels_more": "…va yana {n} ta (kanal qo'shish bo'limi orqali tanlang)",
+        "enh_channels_more": "…va yana {n} ta",
         "enh_confirm_no_channel": "⚠️ <b>Kanal tanlanmagan.</b>\n\nRo'yxatdan kanalni tanlang.",
-        "enh_btn_channel_list": "📢 Kanallar ro'yxati",
+        "enh_btn_channel_list": "📢 Kanallar",
         "enh_confirm_title": (
             "📢 <b>Yuborishni tasdiqlang</b>\n\n"
             "Ushbu post <b>{channel}</b>ga yuborilsinmi?\n\n"
@@ -1517,7 +1517,7 @@ TRANSLATIONS = {
             "O'zbek va rus tillarida. Tilni «⚙️ Sozlamalar» → «🌐 Til / Язык» orqali almashtirasiz.\n\n"
             "{support}"
         ),
-        "help_btn_faq": "❓ Tez-tez beriladigan savollar",
+        "help_btn_faq": "❓ FAQ",
         "help_btn_support": "💬 Bog'lanish",
         "help_support_line": "👨‍💻 <b>Yordam kerakmi?</b> {admin} bilan bog'laning.",
         "help_admin_fallback": "bot administratori",
@@ -1652,16 +1652,16 @@ TRANSLATIONS = {
         # Vaqt mintaqasi tanlash (Timezone)
         "tz_prompt": "🌍 <b>Vaqt mintaqangizni tanlang:</b>",
         "tz_changed": "✅ Vaqt mintaqasi <b>{tz}</b> ga o'zgartirildi.",
-        "tz_btn_tashkent": "🇺🇿 Toshkent (UTC+5)",
+        "tz_btn_tashkent": "🇺🇿 Toshkent +5",
         "tz_btn_moscow": "🇷🇺 Moskva (UTC+3)",
         "tz_btn_utc": "🌐 UTC (UTC+0)",
-        "tz_btn_samarkand": "🇺🇿 Samarqand (UTC+5)",
+        "tz_btn_samarkand": "🇺🇿 Samarqand +5",
         "tz_current": "🌍 Vaqt mintaqasi: <b>{tz}</b>",
 
         # --- Umumiy operatsiyalar ---
         "op_cancelled": "❌ Bekor qilindi.",
-        "btn_share_referral": "📲 Do'stlarga ulashish",
-        "btn_check_subscription": "✅ Obunani tekshirish",
+        "btn_share_referral": "📲 Ulashish",
+        "btn_check_subscription": "✅ Tekshirish",
         "ref_share_text": "Salom! Ushbu bot orqali Telegram kanallaringizga postlarni avtomatik va qulay rejalashtiring:",
         "sub_sponsor_fallback": "Homiy kanal",
         "pr_no_permission": "❌ Sizda to'lovni tasdiqlash uchun ruxsat yo'q.",
@@ -1702,7 +1702,7 @@ TRANSLATIONS = {
             "bot sahifani o'qib, AI tahlilini tayyorlaydi.\n\n"
             "<i>Faqat ochiq kanallar uchun ishlaydi.</i>"
         ),
-        "ext_btn_other_post": "🔙 Boshqa post tanlash",
+        "ext_btn_other_post": "🔙 Boshqa post",
         "ext_btn_rewrite": "🔄 Qayta yozish",
         "ext_btn_refresh": "🔄 Yangilash",
         "ext_media_preview": "🖼 Rasm/Video",
@@ -1764,9 +1764,9 @@ TRANSLATIONS = {
 
         # --- Kontent reja (content plan) ---
         "cp_btn_create_post": "📝 Post yaratish",
-        "cp_btn_regenerate": "🔄 Qayta generatsiya",
+        "cp_btn_regenerate": "🔄 Qayta yaratish",
         "cp_btn_back": "🔙 Orqaga",
-        "cp_btn_create_on_topic": "📝 Shu mavzuda post yaratish",
+        "cp_btn_create_on_topic": "📝 Shu mavzuda post",
         "cp_no_channel": (
             "⚠️ <b>Avval kanal ulang.</b>\n\n"
             "Kontent-reja tuzish uchun kamida bitta kanal bo'lishi kerak.\n"
@@ -1826,13 +1826,13 @@ TRANSLATIONS = {
 
         # --- Obuna / to'lov (subscription) ---
         "sub_pay_1m": "⭐️ 1 oy (75 Stars)",
-        "sub_pay_3m": "⭐️ 3 oy (175 Stars)",
-        "sub_pay_1y": "⭐️ 1 yil (550 Stars)",
-        "sub_pay_1m_full": "⭐️ 1 oylik (75 Stars)",
-        "sub_pay_3m_full": "⭐️ 3 oylik (175 Stars)",
-        "sub_pay_1y_full": "⭐️ 1 yillik (550 Stars)",
-        "sub_btn_promo": "🎁 Promo-kod kiritish",
-        "sub_btn_send_receipt_admin": "✉️ Adminga chek yuborish",
+        "sub_pay_3m": "⭐️ 3 oy (175★)",
+        "sub_pay_1y": "⭐️ 1 yil (550★)",
+        "sub_pay_1m_full": "⭐️ 1 oy (75★)",
+        "sub_pay_3m_full": "⭐️ 3 oy (175★)",
+        "sub_pay_1y_full": "⭐️ 1 yil (550★)",
+        "sub_btn_promo": "🎁 Promo-kod",
+        "sub_btn_send_receipt_admin": "✉️ Adminga chek",
         "sub_inv_title_1m": "⭐️ PostAssist PRO (1 oy)",
         "sub_inv_title_3m": "⭐️ PostAssist PRO (3 oy)",
         "sub_inv_title_1y": "⭐️ PostAssist PRO (1 yil)",
@@ -2106,7 +2106,7 @@ TRANSLATIONS = {
         "ad_mode_admin": "👑 <b>Админ</b> — без рекламы",
         "ad_mode_pro": "✨ <b>PRO</b> — посты и ответы бота автоматически 100% без рекламы",
         "ad_mode_free": "🆓 <b>Бесплатный</b> — реклама показывается с заданным интервалом (в PRO отключается автоматически)",
-        "btn_card_payment": "💳 Оплата картой (Uzcard / Humo)",
+        "btn_card_payment": "💳 Uzcard / Humo",
         "btn_back": "⬅️ Назад",
         "card_payment_title": "💳 <b>Оплата картой (Uzcard / Humo)</b>",
         "card_payment_prices": (
@@ -2147,19 +2147,20 @@ TRANSLATIONS = {
             "💳 <b>Выберите регион оплаты</b>\n\n"
             "🌐 Способ оплаты НЕ зависит от языка — платить в любом регионе "
             "можно при любых языковых настройках.\n"
+            "🇺🇿 Узбекистан — Uzcard / Humo • 🌍 Международная — Stars / Крипта / Карты\n"
             "📌 В каком регионе будете платить? 👇"
         ),
-        "pay_region_uz": "🇺🇿 Узбекистан (Uzcard / Humo)",
-        "pay_region_intl": "🌍 Международная (Stars / Crypto / Card)",
+        "pay_region_uz": "🇺🇿 Узбекистан",
+        "pay_region_intl": "🌍 Международная",
         "pay_region_selected": "🎫 Выбранный тариф: <b>{tarif}</b>",
         "intl_payment_title": (
             "🌍 <b>Международная оплата</b>\n\n"
             "⭐️ Telegram Stars — мгновенная оплата, PRO включается сразу.\n"
             "🪙 Крипта (USDT) и 💳 международные карты (Visa / Mastercard)."
         ),
-        "intl_tariff_1m": "⭐️ 1 месяц — 75 Stars (~$1.5)",
-        "intl_tariff_3m": "⭐️ 3 месяца — 175 Stars (~$3.5)",
-        "intl_tariff_1y": "⭐️ 1 год — 550 Stars (~$11.0)",
+        "intl_tariff_1m": "⭐️ 1 мес — 75★",
+        "intl_tariff_3m": "⭐️ 3 мес — 175★",
+        "intl_tariff_1y": "⭐️ 1 год — 550★",
         "intl_payment_selected": (
             "🎫 Выбранный тариф: <b>{tarif}</b>\n"
             "⭐️ Цена: <b>{stars} Stars</b> (~${usd})"
@@ -2242,7 +2243,7 @@ TRANSLATIONS = {
         "cab_del_channel": "🗑 Удалить канал",
         "cab_remove_channel": "❌ Удалить",
         "cab_tone": "Стиль",
-        "cab_add_channel_alt": "➕ Подключить канал/группу",
+        "cab_add_channel_alt": "➕ Канал/группа",
         "cab_channels_delete_empty": (
             "📢 <b>Мои каналы:</b>\n\n"
             "Пока нет каналов для удаления.\n\n"
@@ -2354,9 +2355,9 @@ TRANSLATIONS = {
             "💎 Доступно ИИ-запросов: {credits}\n\n"
             "Выберите нужный инструмент для создания контента канала 👇"
         ),
-        "ai_studio_post": "✍️ Написать пост (AI)",
-        "ai_studio_photo": "🖼 Создать пост из фото",
-        "ai_studio_extract": "📢 Из открытого канала",
+        "ai_studio_post": "✍️ Пост (AI)",
+        "ai_studio_photo": "🖼 Пост из фото",
+        "ai_studio_extract": "📢 Из канала",
         "ai_studio_audit": "🔍 Аудит поста (ИИ)",
         "ai_studio_content_plan": "💡 Контент-план",
         "ai_studio_post_intro": (
@@ -2397,7 +2398,7 @@ TRANSLATIONS = {
             "Подключите канал в разделе «Каналы»."
         ),
         # 🚀 ПЛАНИРОВАНИЕ ВСЕГО КОНТЕНТ-ПЛАНА НА 7 ДНЕЙ ОДНОЙ КНОПКОЙ
-        "plan_btn_schedule_all": "🚀 Запланировать все на 7 дней",
+        "plan_btn_schedule_all": "🚀 Всё на 7 дней",
         "plan_week_hint": "\n\n🚀 <i>Или поставьте всю неделю в очередь "
                         "одной кнопкой.</i>",
         "plan_sched_busy": "⏳ Добавляем 7 постов в очередь...",
@@ -2427,8 +2428,8 @@ TRANSLATIONS = {
         "ai_tone_friendly": "😊 Дружелюбный",
         "ai_tone_concise": "⚡️ Кратко",
         "ai_tone_engaging": "🎉 Привлекательный",
-        "ai_tone_schedule": "➡️ Перейти к планированию",
-        "ai_photo_schedule": "📅 Запланировать в канал",
+        "ai_tone_schedule": "➡️ К планированию",
+        "ai_photo_schedule": "📅 Запланировать",
         "ai_photo_rewrite": "🔄 Переписать",
         "ai_photo_edit": "✏️ Редактировать",
         "ai_photo_result_title": "🖼 <b>Пост, подготовленный по фото:</b>\n\n",
@@ -2442,8 +2443,8 @@ TRANSLATIONS = {
         # qilish» / EN «❌ Cancel» bilan bir xil ma'noda).
         "ai_btn_close": "❌ Отмена",
         "ai_btn_main_menu": "⬅️ Главное меню",
-        "ai_confirm_schedule": "✅ Запланировать в канал",
-        "ai_confirm_edit": "📝 Редактировать текст",
+        "ai_confirm_schedule": "✅ Запланировать",
+        "ai_confirm_edit": "📝 Редактировать",
         "ai_preview_title": "✨ <b>ИИ-пост готов!</b>\n\n",
         "ai_preview_foot": (
             "\n\n🎨 <b>Стиль:</b> {tone}{media}\n\n"
@@ -2610,8 +2611,8 @@ TRANSLATIONS = {
         "np_btn_time_5m": "⚡ 5 минут",
         "np_btn_time_15m": "⚡ 15 минут",
         "np_btn_time_1h": "⚡ 1 час",
-        "np_btn_time_daily": "🔁 Ежедневно (в одно время)",
-        "np_btn_time_weekly": "📅 Еженедельно (в определённый день)",
+        "np_btn_time_daily": "🔁 Ежедневно",
+        "np_btn_time_weekly": "📅 Еженедельно",
         "np_btn_dur_1w": "1 неделя",
         "np_btn_dur_1m": "1 месяц",
         "np_btn_dur_3m": "3 месяца",
@@ -2693,8 +2694,8 @@ TRANSLATIONS = {
             "ℹ️ Реакции не выбраны — пост выйдет без кнопок-реакций."
         ),
         "np_react_done": "➡️ Продолжить",
-        "np_react_done_count": "➡️ Продолжить ({count} шт.)",
-        "np_react_skip": "⏭ Пропустить реакции",
+        "np_react_done_count": "➡️ Продолжить",
+        "np_react_skip": "⏭ Пропустить",
         "np_auto_delete_ask": (
             "🗑️ <b>Сколько времени пост должен оставаться в канале?</b>\n\n"
             "По истечении времени бот автоматически удалит его из канала:"
@@ -2783,8 +2784,8 @@ TRANSLATIONS = {
         "np_confirm_reactions": "👍 Реакции: {emojis}",
         "np_confirm_reactions_on": "👍 Реакции: Включены",
         "np_confirm_auto_delete": "⏳ Авто-удаление: {hours} ч.",
-        "np_confirm_ok_btn": "✅ Подтвердить и запланировать",
-        "np_confirm_queue_btn": "⏳ Добавить в очередь",
+        "np_confirm_ok_btn": "✅ Запланировать",
+        "np_confirm_queue_btn": "⏳ В очередь",
         "np_confirm_edit_btn": "✏️ Редактировать",
         "np_confirm_cancel_btn": "❌ Отмена",
 
@@ -2797,8 +2798,8 @@ TRANSLATIONS = {
             "кнопку-ссылку или кнопки реакций. \n"
             "Кнопка или реакции работают только для 1 фото (или простого текста)."
         ),
-        "np_album_choice_first_photo": "🖼 Оставить 1 фото + добавить кнопку",
-        "np_album_choice_full": "⏩ Опубликовать полный альбом без кнопок",
+        "np_album_choice_first_photo": "🖼 1 фото + кнопка",
+        "np_album_choice_full": "⏩ Полный альбом",
         "np_album_first_photo_done": (
             "✅ Пост изменён до одного фото — теперь можно добавить кнопку или реакции."
         ),
@@ -2812,7 +2813,7 @@ TRANSLATIONS = {
         "np_edit_channel_btn": "📢 Канал",
         "np_edit_time_btn": "⏰ Время",
         "np_edit_button_btn": "🔘 Кнопка",
-        "np_edit_back_btn": "⬅️ Назад (к подтверждению)",
+        "np_edit_back_btn": "⬅️ Назад",
         "np_edit_content_ask": "📝 <b>Отправьте новый текст:</b>",
         "np_edit_channel_ask": "📢 <b>Какой канал?</b>",
         "np_edit_time_ask": "🕒 <b>Новое время:</b> <code>{example}</code>",
@@ -2867,7 +2868,7 @@ TRANSLATIONS = {
         "np_ai_reverted_alert": "❌ Возвращён исходный текст!",
         "np_ai_revert_msg": "❌ <b>Исходный текст возвращён.</b>",
         "np_ai_retrying": "🔄 Повторная попытка...",
-        "np_ai_action_grammar": "✍️ Орфография и стиль",
+        "np_ai_action_grammar": "✍️ Орфография",
         "np_ai_action_emoji": "🎨 Эмодзи",
         "np_ai_action_hashtags": "🏷 Хештеги",
         "np_ai_action_tldr": "✂️ Сократить",
@@ -2891,7 +2892,7 @@ TRANSLATIONS = {
             "📢 <b>Все каналы удалены.</b>\n\n"
             "Чтобы подключить новый канал, нажмите кнопку ниже 👇"
         ),
-        "ch_add_btn": "➕ Подключить канал/группу",
+        "ch_add_btn": "➕ Подключить канал",
         "ch_add_instructions": (
             "➕ <b>Подключение нового канала или группы:</b>\n\n"
             "1. Добавьте бота (<code>@{bot}</code>) в свой канал или группу "
@@ -2903,7 +2904,7 @@ TRANSLATIONS = {
             "   • ID канала (например: <code>-1001234567890</code>).\n\n"
             "<i>Для отмены нажмите '🔙 Главное меню'.</i>"
         ),
-        "ch_retry_btn": "🔁 Я сделал бота админом — проверить снова",
+        "ch_retry_btn": "🔁 Проверить снова",
         "ch_empty_target": (
             "❌ Получено пустое сообщение. <b>Перешлите</b> сообщение из канала, "
             "отправьте <code>@username</code>, ID или ссылку <code>t.me/kanal</code>."
@@ -3126,9 +3127,9 @@ TRANSLATIONS = {
         "queue_btn_next": "Вперёд ➡️",
         "queue_btn_slots": "⚙️ Настроить слоты",
         "queue_btn_close": "❌ Закрыть",
-        "queue_btn_back": "⬅️ Вернуться к списку",
+        "queue_btn_back": "⬅️ К списку",
         "queue_btn_add_slot": "➕ Добавить слот",
-        "queue_btn_reset_slots": "🔄 Слоты по умолчанию",
+        "queue_btn_reset_slots": "🔄 Сброс слотов",
         "queue_slots_title": (
             "⚙️ <b>Настройки слотов</b>\n\n"
             "Текущие слоты: <code>{slots}</code>\n\n"
@@ -3179,8 +3180,8 @@ TRANSLATIONS = {
             "двумя алфавитами\n\n"
             "Выберите нужный инструмент 👇"
         ),
-        "extras_btn_enhancer": "✨ Кнопки и реакции к посту",
-        "extras_btn_converter": "🔤 Конвертер Кириллица-Латиница",
+        "extras_btn_enhancer": "✨ Кнопки/Реакции",
+        "extras_btn_converter": "🔤 Конвертер",
         "extras_closed": "✅ Раздел <b>«Дополнительные функции»</b> закрыт.",
 
         # 🔤 Конвертер Латиница ⇄ Кириллица
@@ -3198,7 +3199,7 @@ TRANSLATIONS = {
             "📝 <b>Текст получен!</b>\n\n"
             "В какой алфавит конвертировать? Выберите одну из кнопок ниже 👇"
         ),
-        "conv_btn_cyr": "🔤 Кириллическая версия",
+        "conv_btn_cyr": "🔤 Кириллица",
         "conv_btn_lat": "🔤 Латинская версия",
         "conv_no_saved_text": "⚠️ Текст не найден, отправьте его ещё раз.",
         "conv_result_title": "📋 <b>Результат:</b>",
@@ -3252,10 +3253,10 @@ TRANSLATIONS = {
             "{notice}\n\n"
             "Выберите нужный шаг 👇"
         ),
-        "enh_hub_btn_reacts": "👍 1. Реакции ({n}/{max})",
-        "enh_hub_btn_buttons": "🔗 2. URL-кнопки ({n}/{max})",
+        "enh_hub_btn_reacts": "👍 Реакции",
+        "enh_hub_btn_buttons": "🔗 URL-кнопки",
         "enh_btn_preview": "👁️ Превью",
-        "enh_btn_send_channel": "🚀 Отправить в канал",
+        "enh_btn_send_channel": "🚀 Отправить",
         "enh_btn_replace": "🔁 Заменить пост",
         # ✨ PRO: двухэтапный AI-аудит — кнопка видна ТОЛЬКО PRO-пользователям,
         # текст поста меняется лишь когда пользователь нажал её сам.
@@ -3294,9 +3295,9 @@ TRANSLATIONS = {
         "enh_btns_empty": "<i>Пока кнопок нет — выберите шаблон или введите вручную.</i>",
         "enh_btns_line": "{mark} <b>{text}</b> → <code>{url}</code>",
         "enh_btn_fallback": "Кнопка",
-        "enh_btn_add_new": "➕ Добавить новую кнопку",
+        "enh_btn_add_new": "➕ Кнопка",
         "enh_btn_manual": "✍️ Ввести вручную",
-        "enh_btn_confirm_send": "➡️ Подтвердить и отправить в канал",
+        "enh_btn_confirm_send": "➡️ Отправить",
         "enh_btn_entry_edit": "✏️ {num}. {text}",
         "enh_btn_add_title": (
             "➕ <b>Новая URL-кнопка</b> (<b>{n}/{max}</b>)\n\n"
@@ -3313,7 +3314,7 @@ TRANSLATIONS = {
             "{notice}"
         ),
         "enh_channel_fallback": "Канал",
-        "enh_channels_more": "…и ещё {n} шт. (выберите через раздел добавления каналов)",
+        "enh_channels_more": "…и ещё {n}",
         "enh_confirm_no_channel": "⚠️ <b>Канал не выбран.</b>\n\nВыберите канал из списка.",
         "enh_btn_channel_list": "📢 Список каналов",
         "enh_confirm_title": (
@@ -3497,8 +3498,8 @@ TRANSLATIONS = {
             "«⚙️ Настройки» → «🌐 Til / Язык».\n\n"
             "{support}"
         ),
-        "help_btn_faq": "❓ Частые вопросы (FAQ)",
-        "help_btn_support": "💬 Связаться с поддержкой",
+        "help_btn_faq": "❓ FAQ",
+        "help_btn_support": "💬 Поддержка",
         "help_support_line": "👨‍💻 <b>Нужна помощь?</b> Напишите: {admin}",
         "help_admin_fallback": "администратору бота",
         "cab_guide_text": (
@@ -3632,13 +3633,13 @@ TRANSLATIONS = {
         "tz_btn_tashkent": "🇺🇿 Ташкент (UTC+5)",
         "tz_btn_moscow": "🇷🇺 Москва (UTC+3)",
         "tz_btn_utc": "🌐 UTC (UTC+0)",
-        "tz_btn_samarkand": "🇺🇿 Самарканд (UTC+5)",
+        "tz_btn_samarkand": "🇺🇿 Самарканд +5",
         "tz_current": "🌍 Часовой пояс: <b>{tz}</b>",
 
         # --- Общие операции ---
         "op_cancelled": "❌ Отменено.",
-        "btn_share_referral": "📲 Поделиться с друзьями",
-        "btn_check_subscription": "✅ Проверить подписку",
+        "btn_share_referral": "📲 Поделиться",
+        "btn_check_subscription": "✅ Проверить",
         "ref_share_text": "Привет! Планируйте посты для своих Telegram-каналов автоматически и удобно с помощью этого бота:",
         "sub_sponsor_fallback": "Спонсорский канал",
         "pr_no_permission": "❌ У вас нет прав для подтверждения оплаты.",
@@ -3679,7 +3680,7 @@ TRANSLATIONS = {
             "бот прочитает страницу и подготовит AI-анализ.\n\n"
             "<i>Работает только для открытых каналов.</i>"
         ),
-        "ext_btn_other_post": "🔙 Выбрать другой пост",
+        "ext_btn_other_post": "🔙 Другой пост",
         "ext_btn_rewrite": "🔄 Переписать",
         "ext_btn_refresh": "🔄 Обновить",
         "ext_media_preview": "🖼 Фото/Видео",
@@ -3743,7 +3744,7 @@ TRANSLATIONS = {
         "cp_btn_create_post": "📝 Создать пост",
         "cp_btn_regenerate": "🔄 Перегенерировать",
         "cp_btn_back": "🔙 Назад",
-        "cp_btn_create_on_topic": "📝 Создать пост на эту тему",
+        "cp_btn_create_on_topic": "📝 Пост на тему",
         "cp_no_channel": (
             "⚠️ <b>Сначала подключите канал.</b>\n\n"
             "Для составления контент-плана нужен хотя бы один канал.\n"
@@ -3802,14 +3803,14 @@ TRANSLATIONS = {
         ),
 
         # --- Подписка / оплата (subscription) ---
-        "sub_pay_1m": "⭐️ 1 месяц (75 Stars)",
-        "sub_pay_3m": "⭐️ 3 месяца (175 Stars)",
-        "sub_pay_1y": "⭐️ 1 год (550 Stars)",
-        "sub_pay_1m_full": "⭐️ На 1 месяц (75 Stars)",
-        "sub_pay_3m_full": "⭐️ На 3 месяца (175 Stars)",
-        "sub_pay_1y_full": "⭐️ На 1 год (550 Stars)",
+        "sub_pay_1m": "⭐️ 1 мес (75★)",
+        "sub_pay_3m": "⭐️ 3 мес (175★)",
+        "sub_pay_1y": "⭐️ 1 год (550★)",
+        "sub_pay_1m_full": "⭐️ 1 мес (75★)",
+        "sub_pay_3m_full": "⭐️ 3 мес (175★)",
+        "sub_pay_1y_full": "⭐️ 1 год (550★)",
         "sub_btn_promo": "🎁 Ввести промокод",
-        "sub_btn_send_receipt_admin": "✉️ Отправить чек администратору",
+        "sub_btn_send_receipt_admin": "✉️ Чек админу",
         "sub_inv_title_1m": "⭐️ PostAssist PRO (1 месяц)",
         "sub_inv_title_3m": "⭐️ PostAssist PRO (3 месяца)",
         "sub_inv_title_1y": "⭐️ PostAssist PRO (1 год)",
@@ -3933,7 +3934,7 @@ TRANSLATIONS = {
     "image_style_discount": "📢 Скидка/Акция",
     "image_style_review": "📰 Обзор",
     "image_btn_cancel": "❌ Отмена",
-    "image_btn_send": "📢 Отправить в канал",
+    "image_btn_send": "📢 В канал",
     "image_btn_schedule": "📅 Запланировать",
     "image_btn_restyle": "🔄 Другой стиль",
     "image_btn_send_all": "📢 Во все каналы ({count})",

@@ -35,7 +35,7 @@ ANALYTICS_VIEW = 502
 # PRO tarifga o'tish tugmasi (free foydalanuvchilar analitikani to'liq ko'rmaydi).
 # UZ standarti (testlar import qiladi); handler'lar tilga mos variantni ishlatadi.
 PRO_UPGRADE_KEYBOARD = InlineKeyboardMarkup([
-    [InlineKeyboardButton("⭐️ PRO tarifga o'tish", callback_data="sub_open")],
+    [InlineKeyboardButton("⭐️ PRO tarif", callback_data="sub_open")],
 ])
 
 ANALYTICS_FREE_HINT = (

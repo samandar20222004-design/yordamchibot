@@ -168,12 +168,21 @@ def test_region_buttons_all_languages():
         flat = _flat_kb(kb)
         labels = [b.text for b in flat]
         cbs = [b.callback_data for b in flat]
-        check(f"[{lang}] 🇺🇿 tugma mahalliy usulni ko'rsatadi",
-              labels[0] == get_text("pay_region_uz", lang)
-              and "Uzcard" in labels[0] and "Humo" in labels[0], labels)
-        check(f"[{lang}] 🌍 tugma xalqaro usullarni ko'rsatadi",
-              labels[1] == get_text("pay_region_intl", lang)
-              and "Stars" in labels[1] and "Crypto" in labels[1], labels)
+        check(f"[{lang}] 🇺🇿 tugma = mahalliy mintaqa (qisqa yorliq, ≤18)",
+              labels[0] == get_text("pay_region_uz", lang), labels)
+        check(f"[{lang}] 🌍 tugma = xalqaro mintaqa (qisqa yorliq, ≤18)",
+              labels[1] == get_text("pay_region_intl", lang), labels)
+        # To'lov USULLARI (Uzcard/Humo, Stars/Crypto) — tugmada emas,
+        # to'lov ekrani MATNIDA (18-belgi inline standarti).
+        check(f"[{lang}] karta to'lov ekrani: Uzcard + Humo mavjud",
+              "Uzcard" in get_text("card_payment_title", lang)
+              and "Humo" in get_text("card_payment_title", lang),
+              get_text("card_payment_title", lang))
+        crypto_word = {"uz": "Crypto", "ru": "Крипта", "en": "Crypto"}[lang]
+        check(f"[{lang}] xalqaro to'lov ekrani: Stars + {crypto_word} mavjud",
+              "Stars" in get_text("intl_payment_title", lang)
+              and crypto_word in get_text("intl_payment_title", lang),
+              get_text("intl_payment_title", lang))
         check(f"[{lang}] callback_data routing", cbs == ["sub_region:uz", "sub_region:intl", "sub_back"], cbs)
         check(f"[{lang}] callback_data 64 baytdan oshmaydi",
               all(len(str(c).encode("utf-8")) <= 64 for c in cbs), cbs)
@@ -192,8 +201,10 @@ def test_region_buttons_all_languages():
           len({tuple(labels_by_lang[c]) for c in LANGS}) == 3, labels_by_lang)
     check("Callback_data 3 tilda IDENTIK (til bo'yicha taqiq YO'Q)",
           len({tuple(cbs_by_lang[c]) for c in LANGS}) == 1, cbs_by_lang)
-    check("RU foydalanuvchi ham Uzcard/Humo tugmasini oladi (mahalliy cheklov yo'q)",
-          "Узбекистан" in labels_by_lang["ru"][0] and "Uzcard" in labels_by_lang["ru"][0])
+    check("RU foydalanuvchi ham mahalliy (Uzcard/Humo) to'lovini oladi (cheklov yo'q)",
+          "Узбекистан" in labels_by_lang["ru"][0]
+          and "Uzcard" in get_text("card_payment_title", "ru")
+          and "Humo" in get_text("card_payment_title", "ru"))
     check("EN foydalanuvchi ham xalqaro tugmani oladi",
           "International" in labels_by_lang["en"][1])
 
@@ -352,8 +363,8 @@ def test_international_flow_hides_local_cards():
     check("Stars tarif tugmasi bosilganda invoice yo'q — avval mintaqa so'raladi",
           not bot5.invoices and len(q5.edits) == 1
           and "Select your payment region" in screen5
-          and "Uzbekistan (Uzcard / Humo)" in screen5
-          and "International (Stars / Crypto / Card)" in screen5,
+          and "Uzbekistan — Uzcard / Humo" in screen5
+          and "International — Stars / Crypto" in screen5,
           screen5[:160])
 
 

@@ -6,6 +6,9 @@ logger = logging.getLogger(__name__)
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 BOT_USERNAME = os.getenv("BOT_USERNAME", "PostAssistrobot")
 
+# Bot versiyasi — «ℹ️ Bot haqida» ekrani va admin monitoring'da ko'rsatiladi.
+BOT_VERSION = os.getenv("BOT_VERSION", "2.0")
+
 # --- Ko'p adminli boshqaruv ---
 # ADMIN_ID: eski, bitta raqam (orqaga mos kelish uchun saqlanadi)
 # ADMIN_IDS: vergul bilan ajratilgan raqamlar ro'yxati, masalan: "123456,789012"

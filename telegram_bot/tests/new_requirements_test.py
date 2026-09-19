@@ -231,14 +231,14 @@ def test_ru_cabinet_after_switch_no_crash():
             assert "<b>Профиль:</b>" in text, text[:120]
             assert ctx.user_data.get("lang") == "ru", ctx.user_data  # DB'dan hydrate
             labels = [b.text for row in markup.inline_keyboard for b in row]
-            # Sozlamalar ekrani — 7 tugmali panel (rewards/tools/help
-            # guruhlari hub'dan olib tashlandi, referral shu yerda).
+            # Sozlamalar ekrani — 8 tugmali simmetrik panel (4x2;
+            # rewards/tools/help guruhlari hub'dan olib tashlandi).
             cbs = [b.callback_data for row in markup.inline_keyboard for b in row]
             assert cbs == [
                 "stgs_lang", "stgs_post",
                 "stgs_notif", "stgs_referral",
-                "stgs_pay", "help_support",
-                "stgs_back",
+                "stgs_pay", "stgs_about",
+                "help_support", "stgs_back",
             ], cbs
             assert "cab_channels" not in cbs, cbs
             assert "stgs_profile" not in cbs, cbs

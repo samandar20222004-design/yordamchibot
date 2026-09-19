@@ -77,7 +77,7 @@ SETTINGS_STATS_I18N = {
         "ss_my_created": "📝 Yaratilgan postlaringiz: <b>{n} ta</b>",
         "ss_my_scheduled": "📅 Rejalashtirilgan postlar: <b>{n} ta</b>",
         "ss_my_credits": "💎 Qolgan AI kreditlaringiz: <b>{n} ta</b>",
-        "ss_btn_channel_detail": "📈 Kanal bo'yicha batafsil",
+        "ss_btn_channel_detail": "📈 Batafsil",
 
         # --- ⚙️ SOZLAMALAR: yagona tartibli menyu ---
         "ss_menu_title": (
@@ -90,12 +90,12 @@ SETTINGS_STATS_I18N = {
         # cabinet_title'da; Til tugmasi profildan olib tashlangan).
         "ss_profile_sub_pro": "⭐️ Obuna: <b>PRO</b> (muddatigacha: {date})",
         "ss_profile_sub_free": "🆓 Obuna: <b>FREE</b>",
-        "ss_btn_rewards": "🎁 Bonuslar & Taklif",
-        "ss_btn_help_hub": "❓ Yordam & Ma'lumot",
+        "ss_btn_rewards": "🎁 Bonuslar",
+        "ss_btn_help_hub": "❓ Yordam",
         "ss_btn_notif": "🔔 Bildirishnomalar",
         "ss_btn_post_settings": "✍️ Post sozlamalari",
         "ss_btn_payments": "💳 To'lovlar tarixi",
-        "ss_btn_referral": "🎁 Do'stlarni taklif qilish",
+        "ss_btn_referral": "🎁 Taklif qilish",
         "ss_btn_help": "❓ Yordam",
         "ss_btn_about": "ℹ️ Bot haqida",
         "ss_settings_legacy": "🗂 Tezkor bo'limlar",
@@ -116,8 +116,8 @@ SETTINGS_STATS_I18N = {
             "✨ <b>Tugma &amp; Reaksiyalar</b> — tayyor postga URL tugma va reaksiya qo'shadi.\n\n"
             "Kerakli vositani tanlang 👇"
         ),
-        "ss_tools_btn_converter": "🔤 Kirill-Lotin Konvertor",
-        "ss_tools_btn_enhancer": "✨ Tugma & Reaksiyalar (Post Enhancer)",
+        "ss_tools_btn_converter": "🔤 Konvertor",
+        "ss_tools_btn_enhancer": "✨ Tugma & Reaksiya",
 
         # --- 🎁 Bonuslar & Ballar submenu ---
         "ss_rewards_title": (
@@ -182,12 +182,16 @@ SETTINGS_STATS_I18N = {
 
         # --- ℹ️ Bot haqida ekrani ---
         "ss_about_text": (
-            "ℹ️ <b>PostAssist — Telegram kanallar uchun AI yordamchi</b>\n\n"
-            "Bot imkoniyatlari:\n"
+            "ℹ️ <b>PostAssist v{version} — Telegram kanallar uchun AI yordamchi</b>\n\n"
+            "Maqsad: post yaratish, rejalashtirish va statistika tahlilini "
+            "AI bilan osonlashtirish.\n\n"
+            "Imkoniyatlar:\n"
             "• ✨ Magic Post — g'oyadan 1 daqiqada professional post;\n"
-            "• 🎙 Ovoz → Post va 📸 Rasm → Post (STT + Vision);\n"
+            "• 🎙 Ovoz → Post, 📸 Rasm → Post (STT + Vision);\n"
             "• 📅 Rejalashtirish va avtomatik yuborish;\n"
             "• 📊 Statistika va kanal analitikasi.\n\n"
+            "📖 Qisqa yo'riqnoma: bosh menyudan ✨ Kontent yaratish → "
+            "matn/rasm/ovoz yuboring → AI post tayyorlaydi → kanalingizga yuboring.\n\n"
             "Savollar bo'lsa — ❓ Yordam bo'limiga o'ting yoki "
             "{support} bilan bog'laning."
         ),
@@ -201,7 +205,7 @@ SETTINGS_STATS_I18N = {
         "ss_health_ai": "🤖 AI provayderlar",
         "ss_health_ai_row": "   • {name}: {status}",
         "ss_health_pending_pays": "💳 Pending manual to'lovlar: <b>{n} ta</b>",
-        "ss_health_btn": "🩺 Tizim monitoringi",
+        "ss_health_btn": "🩺 Monitoring",
     },
 
     # ------------------------------------------------------------
@@ -242,12 +246,12 @@ SETTINGS_STATS_I18N = {
         "ss_btn_lang": "🌐 Язык / Language",
         "ss_profile_sub_pro": "⭐️ Подписка: <b>PRO</b> (до {date})",
         "ss_profile_sub_free": "🆓 Подписка: <b>FREE</b>",
-        "ss_btn_rewards": "🎁 Бонусы и приглашения",
-        "ss_btn_help_hub": "❓ Помощь и информация",
+        "ss_btn_rewards": "🎁 Бонусы",
+        "ss_btn_help_hub": "❓ Помощь",
         "ss_btn_notif": "🔔 Уведомления",
         "ss_btn_post_settings": "✍️ Настройки постов",
         "ss_btn_payments": "💳 История платежей",
-        "ss_btn_referral": "🎁 Пригласить друзей",
+        "ss_btn_referral": "🎁 Приглашения",
         "ss_btn_help": "❓ Помощь",
         "ss_btn_about": "ℹ️ О боте",
         "ss_settings_legacy": "🗂 Быстрые разделы",
@@ -267,8 +271,8 @@ SETTINGS_STATS_I18N = {
             "✨ <b>Кнопки &amp; Реакции</b> — добавляет URL-кнопки и реакции к готовому посту.\n\n"
             "Выберите нужный инструмент 👇"
         ),
-        "ss_tools_btn_converter": "🔤 Конвертер Кириллица-Латиница",
-        "ss_tools_btn_enhancer": "✨ Кнопки & Реакции (Post Enhancer)",
+        "ss_tools_btn_converter": "🔤 Конвертер",
+        "ss_tools_btn_enhancer": "✨ Кнопки & Реакции",
 
         # --- 🎁 Подменю «Бонусы и баллы» ---
         "ss_rewards_title": (
@@ -285,7 +289,7 @@ SETTINGS_STATS_I18N = {
             "❓ <b>Помощь и информация</b>\n\n"
             "Выберите нужный раздел 👇"
         ),
-        "ss_help_hub_guide": "📖 Руководство и FAQ",
+        "ss_help_hub_guide": "📖 Руководство",
         "ss_help_hub_support": "💬 Поддержка",
         "ss_help_hub_about": "ℹ️ О боте",
 
@@ -333,12 +337,16 @@ SETTINGS_STATS_I18N = {
 
         # --- ℹ️ О боте ---
         "ss_about_text": (
-            "ℹ️ <b>PostAssist — AI-помощник для Telegram-каналов</b>\n\n"
-            "Возможности бота:\n"
+            "ℹ️ <b>PostAssist v{version} — AI-помощник для Telegram-каналов</b>\n\n"
+            "Цель: упростить создание постов, планирование и аналитику "
+            "с помощью ИИ.\n\n"
+            "Возможности:\n"
             "• ✨ Magic Post — профессиональный пост из идеи за 1 минуту;\n"
-            "• 🎙 Голос → Пост и 📸 Фото → Пост (STT + Vision);\n"
+            "• 🎙 Голос → Пост, 📸 Фото → Пост (STT + Vision);\n"
             "• 📅 Планирование и автопубликация;\n"
             "• 📊 Статистика и аналитика каналов.\n\n"
+            "📖 Короткая инструкция: в главном меню ✨ Создание контента → "
+            "отправьте текст/фото/голос → ИИ подготовит пост → отправьте в свой канал.\n\n"
             "Если есть вопросы — откройте раздел ❓ Помощь или "
             "напишите {support}."
         ),
@@ -352,7 +360,7 @@ SETTINGS_STATS_I18N = {
         "ss_health_ai": "🤖 AI-провайдеры",
         "ss_health_ai_row": "   • {name}: {status}",
         "ss_health_pending_pays": "💳 Ожидают ручной проверки: <b>{n}</b>",
-        "ss_health_btn": "🩺 Мониторинг системы",
+        "ss_health_btn": "🩺 Мониторинг",
     },
 
     # ------------------------------------------------------------
@@ -382,7 +390,7 @@ SETTINGS_STATS_I18N = {
         "ss_my_created": "📝 Your posts created: <b>{n}</b>",
         "ss_my_scheduled": "📅 Scheduled posts: <b>{n}</b>",
         "ss_my_credits": "💎 AI credits remaining: <b>{n}</b>",
-        "ss_btn_channel_detail": "📈 Per-channel details",
+        "ss_btn_channel_detail": "📈 Per-channel",
 
         # --- ⚙️ SETTINGS: single ordered menu ---
         "ss_menu_title": (
@@ -393,7 +401,7 @@ SETTINGS_STATS_I18N = {
         "ss_btn_lang": "🌐 Language",
         "ss_profile_sub_pro": "⭐️ Subscription: <b>PRO</b> (until {date})",
         "ss_profile_sub_free": "🆓 Subscription: <b>FREE</b>",
-        "ss_btn_rewards": "🎁 Bonuses & Invites",
+        "ss_btn_rewards": "🎁 Bonuses",
         "ss_btn_help_hub": "❓ Help & Info",
         "ss_btn_notif": "🔔 Notifications",
         "ss_btn_post_settings": "✍️ Post settings",
@@ -418,8 +426,8 @@ SETTINGS_STATS_I18N = {
             "✨ <b>Buttons &amp; Reactions</b> — adds URL buttons and reactions to a ready post.\n\n"
             "Pick a tool below 👇"
         ),
-        "ss_tools_btn_converter": "🔤 Cyrillic-Latin Converter",
-        "ss_tools_btn_enhancer": "✨ Buttons & Reactions (Post Enhancer)",
+        "ss_tools_btn_converter": "🔤 Converter",
+        "ss_tools_btn_enhancer": "✨ Enhance post",
 
         # --- 🎁 Bonuses & Credits submenu ---
         "ss_rewards_title": (
@@ -484,12 +492,16 @@ SETTINGS_STATS_I18N = {
 
         # --- ℹ️ About ---
         "ss_about_text": (
-            "ℹ️ <b>PostAssist — AI assistant for Telegram channels</b>\n\n"
+            "ℹ️ <b>PostAssist v{version} — AI assistant for Telegram channels</b>\n\n"
+            "Purpose: simplify post creation, scheduling and analytics "
+            "with AI.\n\n"
             "What the bot can do:\n"
             "• ✨ Magic Post — a professional post from an idea in 1 minute;\n"
-            "• 🎙 Voice → Post and 📸 Image → Post (STT + Vision);\n"
+            "• 🎙 Voice → Post, 📸 Image → Post (STT + Vision);\n"
             "• 📅 Scheduling and auto-publishing;\n"
             "• 📊 Statistics and channel analytics.\n\n"
+            "📖 Quick guide: in the main menu pick ✨ Create content → "
+            "send a text/photo/voice → AI prepares the post → publish it to your channel.\n\n"
             "Questions? Open the ❓ Help section or contact {support}."
         ),
 
@@ -502,7 +514,7 @@ SETTINGS_STATS_I18N = {
         "ss_health_ai": "🤖 AI providers",
         "ss_health_ai_row": "   • {name}: {status}",
         "ss_health_pending_pays": "💳 Pending manual payments: <b>{n}</b>",
-        "ss_health_btn": "🩺 System monitoring",
+        "ss_health_btn": "🩺 Monitoring",
     },
 }
 
@@ -510,13 +522,14 @@ SETTINGS_STATS_I18N = {
 SETTINGS_STATS_KEYS = tuple(sorted(SETTINGS_STATS_I18N["uz"].keys()))
 
 # ============================================================
-# ⚙️ SOZLAMALAR — 7 TUGMALI MENYU
+# ⚙️ SOZLAMALAR — 8 TUGMALI MENYU (4 qator × 2 tugma)
 # ============================================================
-#: Sozlamalar hub'idagi tugmalar — spetsifikatsiyadagi aniq tartib:
-#:   [🌐 Til / Язык]        [✍️ Post sozlamalari]
-#:   [🔔 Bildirishnomalar]  [👥 Do'stlarni taklif]
-#:   [💳 To'lovlar tarixi]  [💬 Qo'llab-quvvatlash]
-#:   [❌ Yopish]
+#: Sozlamalar hub'idagi tugmalar — spetsifikatsiyadagi aniq tartib
+#: (POSTASSIST POLISH: simmetrik 4 qator × 2 tugma):
+#:   [🌐 Til / Язык]         [✍️ Post sozlamalari]
+#:   [🔔 Bildirishnomalar]   [👥 Do'stlarni taklif]
+#:   [💳 To'lovlar tarixi]   [ℹ️ Bot haqida]
+#:   [💬 Qo'llab-quvvatlash] [❌ Yopish]
 #: «👥 Do'stlarni taklif» asosiy menyudan shu hub'ga ko'chirildi;
 #: «🎁 Bonuslar & Taklif», «🧰 Vositalar», «❓ Yordam & Ma'lumot» va
 #: [◀️ Orqaga] hub'dan OLIB TASHLANDI (kunlik bonus — referral
@@ -527,6 +540,7 @@ SETTINGS_MENU_BUTTON_KEYS = (
     "ss_btn_notif",
     "ss_rewards_referral",
     "ss_btn_payments",
+    "ss_help_hub_about",
     "ss_help_hub_support",
     "ss_btn_close",
 )
@@ -580,7 +594,7 @@ CB_STATS_BACK = "an_close"
 CB_STATS_DETAIL = "an_detail"
 CB_STATS_OVERVIEW = "an_overview"
 
-#: ⚙️ Sozlamalar — 7 tugmali hub (testlar uchun spetsifikatsiya).
+#: ⚙️ Sozlamalar — 8 tugmali hub (testlar uchun spetsifikatsiya).
 #: Eski guruhlar (stgs_rewards / stgs_tools / stgs_help_hub / stgs_profile)
 #: ko'rinishdan olib tashlandi, lekin routing'da legacy sifatida saqlanadi.
 CB_SETTINGS_HUB = (
@@ -589,6 +603,7 @@ CB_SETTINGS_HUB = (
     "stgs_notif",
     "stgs_referral",
     "stgs_pay",
+    "stgs_about",
     "help_support",
     "stgs_back",
 )

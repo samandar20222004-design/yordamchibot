@@ -70,11 +70,11 @@ CHANNELS_QUEUE_I18N = {
         # 🧠 PHASE B — Channel Intelligence (DNA + Best Time)
         "cq_ch_btn_dna": "🧠 Kanal DNA",
         "cq_ch_btn_best_time": "⏰ Eng yaxshi vaqt",
-        "cq_ch_btn_advice": "📊 Haftalik AI hisobot",
+        "cq_ch_btn_advice": "📊 Haftalik hisobot",
         "cq_ch_btn_autopilot": "🚀 AI Avtopilot",
         "cq_ch_btn_templates": "📋 Shablonlar",
-        "cq_ch_btn_sources": "📥 Kontent manbalari",
-        "cq_ch_btn_settings": "⚙️ Kanal sozlamalari",
+        "cq_ch_btn_sources": "📥 Manbalar",
+        "cq_ch_btn_settings": "⚙️ Sozlamalar",
         "cq_ch_btn_back": "◀️ Orqaga",
         # --- 📢 Kanallarim: 🧠 Kanal DNA kartochkasi ---
         "cq_dna_title": (
@@ -120,7 +120,7 @@ CHANNELS_QUEUE_I18N = {
             "Uslub (tone of voice), AI tahlil va kanalni uzish shu yerda."
         ),
         "cq_ch_btn_tone": "🎨 Uslub",
-        "cq_ch_btn_voice": "🎙 Kanal ovozi tahlili",
+        "cq_ch_btn_voice": "🎙 Ovoz tahlili",
         "cq_ch_btn_delete": "🗑 Kanalni uzish",
         # --- 📢 Kanallarim: kanal statistikasi ---
         "cq_ch_stats_empty": (
@@ -166,7 +166,7 @@ CHANNELS_QUEUE_I18N = {
         ),
         # --- 📅 Rejalashtirilgan: post amallari ---
         "cq_sch_btn_edit": "✏️ Tahrirlash",
-        "cq_sch_btn_time": "⏰ Vaqtni o'zgartirish",
+        "cq_sch_btn_time": "⏰ Vaqt",
         "cq_sch_btn_delete": "🗑 O'chirish",
         # --- 📅 Rejalashtirilgan: YAGONA ro'yxat amallari (B1) ---
         # Har bir post ostida TO'LIQ to'plam: [👁 Ko'rish] [✏️ Tahrirlash]
@@ -214,11 +214,11 @@ CHANNELS_QUEUE_I18N = {
         # 🧠 PHASE B — Channel Intelligence (DNA + Best Time)
         "cq_ch_btn_dna": "🧠 DNA канала",
         "cq_ch_btn_best_time": "⏰ Лучшее время",
-        "cq_ch_btn_advice": "📊 Недельный AI-отчёт",
+        "cq_ch_btn_advice": "📊 AI-отчёт",
         "cq_ch_btn_autopilot": "🚀 AI Автопилот",
         "cq_ch_btn_templates": "📋 Шаблоны",
-        "cq_ch_btn_sources": "📥 Источники контента",
-        "cq_ch_btn_settings": "⚙️ Настройки канала",
+        "cq_ch_btn_sources": "📥 Источники",
+        "cq_ch_btn_settings": "⚙️ Настройки",
         "cq_ch_btn_back": "◀️ Назад",
         # --- 📢 Мои каналы: 🧠 DNA канала ---
         "cq_dna_title": (
@@ -263,7 +263,7 @@ CHANNELS_QUEUE_I18N = {
             "Стиль (tone of voice), AI-анализ и отключение канала — здесь."
         ),
         "cq_ch_btn_tone": "🎨 Стиль",
-        "cq_ch_btn_voice": "🎙 Анализ голоса канала",
+        "cq_ch_btn_voice": "🎙 Анализ голоса",
         "cq_ch_btn_delete": "🗑 Отключить канал",
         "cq_ch_stats_empty": (
             "📊 <b>{channel}</b>\n\n"
@@ -347,7 +347,7 @@ CHANNELS_QUEUE_I18N = {
         "cq_ch_btn_autopilot": "🚀 AI Autopilot",
         "cq_ch_btn_templates": "📋 Templates",
         "cq_ch_btn_sources": "📥 Content sources",
-        "cq_ch_btn_settings": "⚙️ Channel settings",
+        "cq_ch_btn_settings": "⚙️ Settings",
         "cq_ch_btn_back": "◀️ Back",
         # --- 📢 My channels: 🧠 Channel DNA card ---
         "cq_dna_title": (
@@ -392,8 +392,8 @@ CHANNELS_QUEUE_I18N = {
             "Tone of voice, AI analysis and disconnecting live here."
         ),
         "cq_ch_btn_tone": "🎨 Tone",
-        "cq_ch_btn_voice": "🎙 Channel voice analysis",
-        "cq_ch_btn_delete": "🗑 Disconnect channel",
+        "cq_ch_btn_voice": "🎙 Voice analysis",
+        "cq_ch_btn_delete": "🗑 Disconnect",
         "cq_ch_stats_empty": (
             "📊 <b>{channel}</b>\n\n"
             "No statistics for this channel yet — schedule your first post."

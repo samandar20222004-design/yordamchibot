@@ -30,7 +30,7 @@ AUTOPILOT_I18N = {
                     "➖➖➖➖➖➖➖➖➖➖➖➖➖\n",
         "confirm_hint": "👇 Rejani tasdiqlang:",
         # --- Tugmalar ---
-        "btn_schedule_all": "🚀 Hammasini rejalashtirish",
+        "btn_schedule_all": "🚀 Hammasi",
         "btn_edit": "✏️ Tahrirlash",
         "btn_regen": "🔄 Qayta yaratish",
         "btn_cancel": "❌ Bekor qilish",
@@ -61,8 +61,8 @@ AUTOPILOT_I18N = {
         "dup_days": "\n\nTa'sirlangan kunlar: {days}\nO'xshashlik: {score}%",
         "dup_match": "\n\n<i>Kanalning oxirgi postidan parcha:</i>\n"
                      "<blockquote>{preview}</blockquote>",
-        "btn_dup_force": "🚀 Baribir chiqarish",
-        "btn_dup_refresh": "✨ AI bilan yangilash",
+        "btn_dup_force": "🚀 Baribir",
+        "btn_dup_refresh": "✨ AI bilan",
         "dup_refreshing": "⏳ O'xshash postlar AI bilan yangilanmoqda...",
         "dup_refresh_done": "✨ Ta'sirlangan postlar yangilandi — endi "
                             "boshqacha. Qayta tekshirib ko'ring.",
@@ -96,7 +96,7 @@ AUTOPILOT_I18N = {
                     "<i>Формат: {fmt}</i>\n\n{post}\n\n"
                     "➖➖➖➖➖➖➖➖➖➖➖➖➖\n",
         "confirm_hint": "👇 Подтвердите план:",
-        "btn_schedule_all": "🚀 Запланировать всё",
+        "btn_schedule_all": "🚀 Всё",
         "btn_edit": "✏️ Изменить",
         "btn_regen": "🔄 Создать заново",
         "btn_cancel": "❌ Отмена",
@@ -123,8 +123,8 @@ AUTOPILOT_I18N = {
         "dup_days": "\n\nЗатронутые дни: {days}\nСходство: {score}%",
         "dup_match": "\n\n<i>Фрагмент последнего поста канала:</i>\n"
                      "<blockquote>{preview}</blockquote>",
-        "btn_dup_force": "🚀 Всё равно опубликовать",
-        "btn_dup_refresh": "✨ Обновить с помощью AI",
+        "btn_dup_force": "🚀 Всё равно",
+        "btn_dup_refresh": "✨ Обновить (AI)",
         "dup_refreshing": "⏳ Похожие посты обновляются с помощью AI...",
         "dup_refresh_done": "✨ Похожие посты обновлены — теперь другие. "
                             "Проверьте ещё раз.",
@@ -157,7 +157,7 @@ AUTOPILOT_I18N = {
                     "<i>Format: {fmt}</i>\n\n{post}\n\n"
                     "➖➖➖➖➖➖➖➖➖➖➖➖➖\n",
         "confirm_hint": "👇 Confirm the plan:",
-        "btn_schedule_all": "🚀 Schedule all posts",
+        "btn_schedule_all": "🚀 Schedule all",
         "btn_edit": "✏️ Edit",
         "btn_regen": "🔄 Regenerate",
         "btn_cancel": "❌ Cancel",
@@ -166,7 +166,7 @@ AUTOPILOT_I18N = {
         "edit_prompt": "✏️ Send the new post text for <b>day {n} "
                        "({weekday})</b> (including the CTA):",
         "edit_done": "✅ Day {n} post updated.",
-        "edit_back": "◀️ Back to the plan",
+        "edit_back": "◀️ Back",
         "quota_full": "⚠️ <b>Queue limit</b>\n\nCurrently in queue: "
                       "<b>{current}/{max}</b> posts.\nThere is not enough "
                       "room for a 7-day plan (at least <b>{needed}</b> free "

@@ -199,15 +199,15 @@ AI_AUDIT_SYSTEM = (
 
 # AI postini saqlashdan keyin "yana post yaratish" uchun savol beriladi
 AI_CONFIRM_KEYBOARD = InlineKeyboardMarkup([
-    [InlineKeyboardButton("✅ Kanalga rejalashtirish", callback_data="ai_post_schedule")],
-    [InlineKeyboardButton("📝 Matnni tahrirlash", callback_data="ai_post_retry")],
+    [InlineKeyboardButton("✅ Rejalashtirish", callback_data="ai_post_schedule")],
+    [InlineKeyboardButton("📝 Tahrirlash", callback_data="ai_post_retry")],
     [InlineKeyboardButton("🚫 Bekor qilish", callback_data="ai_post_cancel")],
 ])
 
 # Tarif limiti (FREE vs PRO) tugaganda ko'rsatiladigan PRO tugmasi.
 # UZ standarti (testlar import qiladi); handler'lar tilga mos variantni ishlatadi.
 PRO_UPGRADE_KEYBOARD = InlineKeyboardMarkup([
-    [InlineKeyboardButton("⭐️ PRO tarifga o'tish", callback_data="sub_open")],
+    [InlineKeyboardButton("⭐️ PRO tarif", callback_data="sub_open")],
 ])
 
 

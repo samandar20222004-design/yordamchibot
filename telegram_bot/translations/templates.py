@@ -9,7 +9,7 @@ TEMPLATES_I18N = {
                       "Takroriy postlaringizni shablon qilib saqlang — "
                       "o'zgaruvchilarni to'ldirib 1 soniyada qayta ishlating.",
         "btn_new": "➕ Yangi shablon",
-        "btn_use": "📋 Shablonni ishlatish",
+        "btn_use": "📋 Ishlatish",
         "btn_delete": "🗑 O'chirish",
         "btn_back": "◀️ Orqaga",
         "btn_cancel": "❌ Bekor qilish",
@@ -55,7 +55,7 @@ TEMPLATES_I18N = {
                       "Сохраняйте повторяющиеся посты как шаблоны — "
                       "заполните переменные и используйте заново за секунду.",
         "btn_new": "➕ Новый шаблон",
-        "btn_use": "📋 Использовать шаблон",
+        "btn_use": "📋 Использовать",
         "btn_delete": "🗑 Удалить",
         "btn_back": "◀️ Назад",
         "btn_cancel": "❌ Отмена",

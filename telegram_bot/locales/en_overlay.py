@@ -128,7 +128,7 @@ EN_OVERLAY = {
     "cab_del_channel": "🗑 Delete channel",
     "cab_remove_channel": "❌ Delete",
     "cab_tone": "Style",
-    "cab_add_channel_alt": "➕ Connect new channel/group",
+    "cab_add_channel_alt": "➕ Connect channel",
 
     # My channels list
     "my_channels_title": "📢 <b>My channels:</b>",
@@ -285,7 +285,7 @@ EN_OVERLAY = {
     ),
     "ch_tone_error": "❌ Error saving style. Please try again.",
 
-    "ch_voice_btn": "🎙 Channel voice analysis",
+    "ch_voice_btn": "🎙 Voice analysis",
     "ch_voice_analyzing": (
         "🎙 <b>Analyzing channel voice...</b>\n\n"
         "AI is studying the channel's recent posts to determine its style."
@@ -304,10 +304,10 @@ EN_OVERLAY = {
     # Timezone selection
     "tz_prompt": "🌍 <b>Choose your timezone:</b>",
     "tz_changed": "✅ Timezone changed to <b>{tz}</b>.",
-    "tz_btn_tashkent": "🇺🇿 Tashkent (UTC+5)",
+    "tz_btn_tashkent": "🇺🇿 Tashkent +5",
     "tz_btn_moscow": "🇷🇺 Moscow (UTC+3)",
     "tz_btn_utc": "🌐 UTC (UTC+0)",
-    "tz_btn_samarkand": "🇺🇿 Samarkand (UTC+5)",
+    "tz_btn_samarkand": "🇺🇿 Samarkand +5",
     "tz_current": "🌍 Timezone: <b>{tz}</b>",
 
     # ============================================================
@@ -382,7 +382,7 @@ EN_OVERLAY = {
         "<i>Full format also works: <code>Label - https://site.com</code></i>"
     ),
     # 💳 Karta orqali to'lov oqimi
-    "btn_card_payment": "💳 Card payment (Uzcard / Humo)",
+    "btn_card_payment": "💳 Card payment",
     "card_tariff_title": "💳 <b>Card payment</b>\n\n📌 Which plan are you paying for? Pick a plan 👇",
     "card_plan_1m": "1 month",
     "card_plan_3m": "3 months",
@@ -412,19 +412,20 @@ EN_OVERLAY = {
         "💳 <b>Select your payment region</b>\n\n"
         "🌐 The payment method does NOT depend on your language — you can "
         "pay in any region no matter which language is set.\n"
+        "🇺🇿 Uzbekistan — Uzcard / Humo • 🌍 International — Stars / Crypto / Card\n"
         "📌 Which region will you pay from? 👇"
     ),
-    "pay_region_uz": "🇺🇿 Uzbekistan (Uzcard / Humo)",
-    "pay_region_intl": "🌍 International (Stars / Crypto / Card)",
+    "pay_region_uz": "🇺🇿 Uzbekistan",
+    "pay_region_intl": "🌍 International",
     "pay_region_selected": "🎫 Selected plan: <b>{tarif}</b>",
     "intl_payment_title": (
         "🌍 <b>International payment</b>\n\n"
         "⭐️ Telegram Stars — instant payment, PRO turns on automatically.\n"
         "🪙 Crypto (USDT) and 💳 international cards (Visa / Mastercard)."
     ),
-    "intl_tariff_1m": "⭐️ 1 month — 75 Stars (~$1.5)",
-    "intl_tariff_3m": "⭐️ 3 months — 175 Stars (~$3.5)",
-    "intl_tariff_1y": "⭐️ 1 year — 550 Stars (~$11.0)",
+    "intl_tariff_1m": "⭐️ 1 mo — 75★",
+    "intl_tariff_3m": "⭐️ 3 mo — 175★",
+    "intl_tariff_1y": "⭐️ 1 yr — 550★",
     "intl_payment_selected": (
         "🎫 Selected plan: <b>{tarif}</b>\n"
         "⭐️ Price: <b>{stars} Stars</b> (~${usd})"
@@ -509,8 +510,8 @@ EN_OVERLAY = {
         "🔤 <b>Cyrillic-Latin converter</b> — convert texts between two alphabets\n\n"
         "Pick a tool below 👇"
     ),
-    "extras_btn_enhancer": "✨ Add Buttons & Reactions to post",
-    "extras_btn_converter": "🔤 Cyrillic-Latin converter",
+    "extras_btn_enhancer": "✨ Enhance post",
+    "extras_btn_converter": "🔤 Converter",
     "extras_closed": "✅ <b>Extra features</b> section closed.",
     "conv_intro": (
         "🔤 <b>Latin ⇄ Cyrillic Text Converter:</b>\n\n"
@@ -577,7 +578,7 @@ EN_OVERLAY = {
         "/broadcast — Broadcast\n"
         "/stats — Statistics"
     ),
-    "help_btn_faq": "❓ Frequently asked questions",
+    "help_btn_faq": "❓ FAQ",
     "help_btn_support": "💬 Contact support",
     "help_support_line": "👨‍💻 <b>Need help?</b> Contact {admin}.",
     "help_admin_fallback": "bot administrator",
@@ -685,7 +686,7 @@ EN_OVERLAY = {
     ),
     "ai_studio_post": "✍️ Create AI post",
     "ai_studio_photo": "🖼 Post from photo",
-    "ai_studio_extract": "📢 Take from public channel",
+    "ai_studio_extract": "📢 From channel",
     "ai_studio_audit": "🔍 AI post audit",
     "ai_studio_post_intro": (
         "✍️ <b>Create AI post</b>\n\n"
@@ -721,7 +722,7 @@ EN_OVERLAY = {
         "You need at least one channel to build a content plan.\n"
         "Connect a channel in the 📢 Channels section."
     ),
-    "plan_btn_schedule_all": "🚀 Schedule all for 7 days",
+    "plan_btn_schedule_all": "🚀 Schedule all, 7d",
     "plan_week_hint": "\n\n🚀 <i>Or queue the whole week with one tap.</i>",
     "plan_sched_busy": "⏳ Queueing 7 days of posts...",
     "plan_sched_done_alert": "✅ 7 days of posts queued!",
@@ -754,8 +755,8 @@ EN_OVERLAY = {
     "ai_tone_friendly": "😊 Friendly",
     "ai_tone_concise": "⚡️ Short",
     "ai_tone_engaging": "🎉 Engaging",
-    "ai_tone_schedule": "➡️ Go to scheduling",
-    "ai_photo_schedule": "📅 Schedule to channel",
+    "ai_tone_schedule": "➡️ Schedule",
+    "ai_photo_schedule": "📅 Schedule",
     "ai_photo_rewrite": "🔄 Rewrite",
     "ai_photo_edit": "✏️ Edit",
     "ai_photo_result_title": "🖼 <b>Post made from photo:</b>\n\n",
@@ -766,7 +767,7 @@ EN_OVERLAY = {
     "ai_btn_back": "⬅️ Back",
     "ai_btn_close": "❌ Cancel",
     "ai_btn_main_menu": "⬅️ Main menu",
-    "ai_confirm_schedule": "✅ Schedule to channel",
+    "ai_confirm_schedule": "✅ Schedule",
     "ai_confirm_edit": "📝 Edit text",
     "ai_preview_title": "✨ <b>AI post is ready!</b>\n\n",
     "ai_preview_foot": (
@@ -922,8 +923,8 @@ EN_OVERLAY = {
     "np_btn_time_5m": "⚡ 5 minutes",
     "np_btn_time_15m": "⚡ 15 minutes",
     "np_btn_time_1h": "⚡ 1 hour",
-    "np_btn_time_daily": "🔁 Daily (same time)",
-    "np_btn_time_weekly": "📅 Weekly (same weekday)",
+    "np_btn_time_daily": "🔁 Daily",
+    "np_btn_time_weekly": "📅 Weekly",
     "np_btn_dur_1w": "1 week",
     "np_btn_dur_1m": "1 month",
     "np_btn_dur_3m": "3 months",
@@ -1005,7 +1006,7 @@ EN_OVERLAY = {
     # ============================================================
     "np_reactions_none": "ℹ️ No reactions selected — the post will go out without reactions.",
     "np_react_done": "➡️ Continue",
-    "np_react_done_count": "➡️ Continue ({count})",
+    "np_react_done_count": "➡️ Continue",
     "np_react_skip": "⏭ Skip reactions",
     "np_auto_delete_ask": (
         "🗑️ <b>How long should the post stay in the channel?</b>\n\n"
@@ -1087,7 +1088,7 @@ EN_OVERLAY = {
     "np_confirm_reactions": "👍 Reactions: {emojis}",
     "np_confirm_reactions_on": "👍 Reactions: On",
     "np_confirm_auto_delete": "⏳ Auto-delete: {hours} h",
-    "np_confirm_ok_btn": "✅ Confirm & schedule",
+    "np_confirm_ok_btn": "✅ Schedule",
     "np_confirm_queue_btn": "⏳ Add to queue",
     "np_confirm_edit_btn": "✏️ Edit",
     "np_album_warning": (
@@ -1095,8 +1096,8 @@ EN_OVERLAY = {
         "to multi-photo albums. \n"
         "Buttons or reactions only work for 1 photo (or plain text)."
     ),
-    "np_album_choice_first_photo": "🖼 Keep 1st photo + add button",
-    "np_album_choice_full": "⏩ Publish full album without buttons",
+    "np_album_choice_first_photo": "🖼 1 photo + button",
+    "np_album_choice_full": "⏩ Full album",
     "np_album_first_photo_done": (
         "✅ Post changed to a single photo — now you can add a button or reactions."
     ),
@@ -1108,7 +1109,7 @@ EN_OVERLAY = {
     "np_edit_channel_btn": "📢 Channel",
     "np_edit_time_btn": "⏰ Time",
     "np_edit_button_btn": "🔘 Button",
-    "np_edit_back_btn": "⬅️ Back (to confirmation)",
+    "np_edit_back_btn": "⬅️ Back",
     "np_edit_content_ask": "📝 <b>Send the new text:</b>",
     "np_edit_channel_ask": "📢 <b>Which channel?</b>",
     "np_edit_time_ask": "🕒 <b>New time:</b> <code>{example}</code>",
@@ -1158,14 +1159,14 @@ EN_OVERLAY = {
     "np_ai_reverted_alert": "❌ Reverted to original!",
     "np_ai_revert_msg": "❌ <b>Original text restored.</b>",
     "np_ai_retrying": "🔄 Retrying...",
-    "np_ai_action_grammar": "✍️ Spelling & style",
+    "np_ai_action_grammar": "✍️ Spelling",
     "np_ai_action_emoji": "🎨 Emojis",
     "np_ai_action_hashtags": "🏷 Hashtags",
     "np_ai_action_tldr": "✂️ Shorten",
     "np_ai_btn_back": "⬅️ Back",
     "np_ai_btn_accept": "✅ Accept",
     "np_ai_btn_retry": "🔄 Retry",
-    "np_ai_btn_revert": "❌ Revert to original",
+    "np_ai_btn_revert": "❌ Revert",
 
     # ============================================================
     # FULL EN COVERAGE — batch F: channels
@@ -1184,7 +1185,7 @@ EN_OVERLAY = {
         "📢 <b>All channels removed.</b>\n\n"
         "Tap the button below to connect a new channel 👇"
     ),
-    "ch_add_btn": "➕ Connect channel/group",
+    "ch_add_btn": "➕ Connect channel",
     "ch_add_instructions": (
         "➕ <b>Connect a new channel or group:</b>\n\n"
         "1. Add the bot (<code>@{bot}</code>) to your channel or group as an "
@@ -1196,7 +1197,7 @@ EN_OVERLAY = {
         "   • channel ID (e.g.: <code>-1001234567890</code>).\n\n"
         "<i>To cancel, tap '🔙 Main menu'.</i>"
     ),
-    "ch_retry_btn": "🔁 I made the bot admin — check again",
+    "ch_retry_btn": "🔁 Check again",
     "ch_empty_target": (
         "❌ Empty message received. <b>Forward</b> a message from the channel, "
         "or send <code>@username</code>, ID or a <code>t.me/channel</code> link."
@@ -1463,8 +1464,8 @@ EN_OVERLAY = {
         "{note}{notice}\n\n"
         "Pick a step 👇"
     ),
-    "enh_hub_btn_reacts": "👍 1. Reactions ({n}/{max})",
-    "enh_hub_btn_buttons": "🔗 2. URL buttons ({n}/{max})",
+    "enh_hub_btn_reacts": "👍 Reactions",
+    "enh_hub_btn_buttons": "🔗 URL buttons",
     "enh_btn_preview": "👁️ Preview",
     "enh_btn_send_channel": "🚀 Send to channel",
     "enh_btn_replace": "🔁 Replace post",
@@ -1505,7 +1506,7 @@ EN_OVERLAY = {
     "enh_btn_fallback": "Button",
     "enh_btn_add_new": "➕ Add new button",
     "enh_btn_manual": "✍️ Enter manually",
-    "enh_btn_confirm_send": "➡️ Confirm & Send to channel",
+    "enh_btn_confirm_send": "➡️ Send",
     "enh_btn_entry_edit": "✏️ {num}. {text}",
     "enh_btn_add_title": (
         "➕ <b>New URL button</b> (<b>{n}/{max}</b>)\n\n"
@@ -1521,7 +1522,7 @@ EN_OVERLAY = {
         "{notice}"
     ),
     "enh_channel_fallback": "Channel",
-    "enh_channels_more": "…and {n} more (pick via the add-channel section)",
+    "enh_channels_more": "…and {n} more",
     "enh_confirm_no_channel": "⚠️ <b>Channel not selected.</b>\n\nPick a channel from the list.",
     "enh_btn_channel_list": "📢 Channel list",
 
@@ -1545,7 +1546,7 @@ EN_OVERLAY = {
     ),
     "enh_success_where": "\n📢 <b>Channel:</b> {channel}",
     "enh_btn_home": "🏠 Main menu",
-    "enh_btn_other_channel": "📢 To another channel",
+    "enh_btn_other_channel": "📢 Other channel",
     "enh_btn_new_post": "🚀 New post",
     "enh_btn_finish": "❌ Finish",
     "enh_note_admin": "👑 <i>Admin — the post goes out clean.</i>\n",
@@ -1628,8 +1629,8 @@ EN_OVERLAY = {
     # FULL EN COVERAGE — batch K: shared / legacy AI / extract
     # ============================================================
     "op_cancelled": "❌ Cancelled.",
-    "btn_share_referral": "📲 Share with friends",
-    "btn_check_subscription": "✅ Check subscription",
+    "btn_share_referral": "📲 Share",
+    "btn_check_subscription": "✅ Check",
     "ref_share_text": "Hi! Schedule posts for your Telegram channels automatically and easily with this bot:",
     "sub_sponsor_fallback": "Sponsor channel",
     "pr_no_permission": "❌ You don't have permission to confirm payments.",
@@ -1666,7 +1667,7 @@ EN_OVERLAY = {
         "the bot will read the page and prepare an AI analysis.\n\n"
         "<i>Works for public channels only.</i>"
     ),
-    "ext_btn_other_post": "🔙 Choose another post",
+    "ext_btn_other_post": "🔙 Another post",
     "ext_btn_rewrite": "🔄 Rewrite",
     "ext_btn_refresh": "🔄 Refresh",
     "ext_media_preview": "🖼 Photo/Video",
@@ -1732,7 +1733,7 @@ EN_OVERLAY = {
     "cp_btn_create_post": "📝 Create post",
     "cp_btn_regenerate": "🔄 Regenerate",
     "cp_btn_back": "🔙 Back",
-    "cp_btn_create_on_topic": "📝 Create a post on this topic",
+    "cp_btn_create_on_topic": "📝 Post on topic",
     "cp_no_channel": (
         "⚠️ <b>Connect a channel first.</b>\n\n"
         "You need at least one channel to build a content plan.\n"
@@ -1793,14 +1794,14 @@ EN_OVERLAY = {
     # ============================================================
     # FULL EN COVERAGE — batch M: subscription / analytics
     # ============================================================
-    "sub_pay_1m": "⭐️ 1 month (75 Stars)",
-    "sub_pay_3m": "⭐️ 3 months (175 Stars)",
-    "sub_pay_1y": "⭐️ 1 year (550 Stars)",
-    "sub_pay_1m_full": "⭐️ For 1 month (75 Stars)",
-    "sub_pay_3m_full": "⭐️ For 3 months (175 Stars)",
-    "sub_pay_1y_full": "⭐️ For 1 year (550 Stars)",
-    "sub_btn_promo": "🎁 Enter promo code",
-    "sub_btn_send_receipt_admin": "✉️ Send receipt to admin",
+    "sub_pay_1m": "⭐️ 1 mo (75★)",
+    "sub_pay_3m": "⭐️ 3 mo (175★)",
+    "sub_pay_1y": "⭐️ 1 yr (550★)",
+    "sub_pay_1m_full": "⭐️ 1 mo (75★)",
+    "sub_pay_3m_full": "⭐️ 3 mo (175★)",
+    "sub_pay_1y_full": "⭐️ 1 yr (550★)",
+    "sub_btn_promo": "🎁 Promo code",
+    "sub_btn_send_receipt_admin": "✉️ Send receipt",
     "sub_inv_title_1m": "⭐️ PostAssist PRO (1 month)",
     "sub_inv_title_3m": "⭐️ PostAssist PRO (3 months)",
     "sub_inv_title_1y": "⭐️ PostAssist PRO (1 year)",
