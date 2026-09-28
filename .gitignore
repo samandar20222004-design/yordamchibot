@@ -13,9 +13,38 @@ venv/
 env/
 
 # --- Maxfiy sozlamalar (hech qachon commit qilinmaydi) ---
+# `.env`, `.env.*` va `*.env` — barcha shakllar (`.env.local`, `.env.prod`,
+# `prod.env`, ...). `!.env.example` MUSTAQOID kelganda ORTIDA turadi:
+# `.env.*` bilan birga kelganda faqat shu qoida `.env.example` ni qayta
+# ko'rsatadi (Render Root Directory = telegram_bot bo'lgani uchun ikkala
+# nusxa ham kuzatilishi shart).
 .env
 .env.*
+*.env
 !.env.example
+
+# --- Maxfiy kalitlar / sertifikatlar (qo'shimcha to'siq) ---
+# Dsn/Parol/JWT kalitlari, xizmat hisob kalitlari, Render/Aiven JSON
+# eksportlari hech qachon repozitoriyaga tushmasligi kerak.
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+.netrc
+.pgpass
+secrets/
+.secrets/
+credentials*.json
+service-account*.json
+*_rsa.json
+*.enc
+
+# Git keshidagi o'chirishdan keyin qoladigan mahalliy nusxa
+.env.removed
+env_backup/
+env-backup/
 
 # --- Ma'lumotlar bazasi / lokal fayllar ---
 *.db

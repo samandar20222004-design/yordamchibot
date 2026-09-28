@@ -167,7 +167,9 @@ class ReferralService:
             {"is_new": bool,            # True — yangi yozuv yaratildi
              "referrer_id": int | None, # yakundagi referrer (yoki None)
              "reward": int,             # berilgan bonus (takroriy'da 0)
-             "reason": str}             # REASON_* sabab
+             "reason": str,             # REASON_* sabab
+             "language_code": str}      # saqlangan til (1-BOSQICH: /start
+                                       # bitta so'rovda is_new + til oladi)
         """
         try:
             user_id = int(user_id)
@@ -178,8 +180,13 @@ class ReferralService:
         try:
             with db.db_transaction() as cur:
                 # --- Takroriy referral himoyasi (birinchi tekshiruv) --------
+                # 1-BOSQICH: ``language_code`` ham SHU bir so'rovda olinadi —
+                # /start da eski foydalanuvchi uchun alohida
+                # ``get_user_language`` chaqiruvi (2-urishli round-trip)
+                # kerak bo'lmasligi kerak.
                 cur.execute(
-                    "SELECT user_id, referrer_id FROM users WHERE user_id = %s",
+                    "SELECT user_id, referrer_id, language_code "
+                    "FROM users WHERE user_id = %s",
                     (user_id,),
                 )
                 existing = cur.fetchone()
@@ -187,6 +194,7 @@ class ReferralService:
                     # Foydalanuvchi allaqachon botda (created_at eski) —
                     # bonus BERILMAYDI va referrer O'ZGARMAYDI.
                     existing_ref = existing[1]
+                    existing_lang = existing[2] if len(existing) > 2 else None
                     reason = (
                         REASON_ALREADY_REREFERRED
                         if existing_ref else REASON_EXISTING_USER
@@ -202,6 +210,7 @@ class ReferralService:
                         "referrer_id": int(existing_ref) if existing_ref else None,
                         "reward": 0,
                         "reason": reason,
+                        "language_code": existing_lang,
                     }
 
                 # --- Anti-abuse: self-referral / noma'lum referrer ----------
@@ -239,6 +248,7 @@ class ReferralService:
                     "referrer_id": valid_ref,
                     "reward": reward,
                     "reason": reason,
+                    "language_code": lang,
                 }
         except Exception as e:
             # Tranzaksiya avtomatik ROLLBACK bo'ldi — yarim yozuv qolmaydi.

@@ -153,6 +153,28 @@ UPDATE_HANDLER_TIMEOUT_SECONDS = _int_env("UPDATE_HANDLER_TIMEOUT_SECONDS", 110)
 # bekor qilinadi — resurs sizmalari (task leak) oldi olinadi.
 BACKGROUND_TASK_TIMEOUT_SECONDS = _int_env("BACKGROUND_TASK_TIMEOUT_SECONDS", 300)
 
+# --- 1-BOSQICH: Render Free tezligi va kechikishni yo'qotish -----------
+# STALE_UPDATE_SECONDS — bot o'chgan paytda Telegram serverida yig'ilib
+# qolgan ESKI xabarlarni filtrlash chegarasi (soniya). Bot o'chganda
+# foydalanuvchilar xabar yuboraveradi; ular Render'da qayta ishga
+# tushganda birdan kelib tushadi va har biri qayta ishlovchi bot
+# javobini kutadi. Eski update'lar muqaddas 600 soniyadan (10 daqiqa)
+# kattasiga INDIRO'LADI — ular hech qachon foydalanuvchiga ko'rinmaydi.
+# 0 = filtr yo'q (barcha update'lar bajariladi). Telegram getUpdates
+# navbati 24 soat; 600s xavfsiz chegara (jonli xabarlar bir soniyada
+# yuboriladi, shuning uchun chegara hech qachon haqiqiy xabarni
+# kesib tashlamaydi).
+STALE_UPDATE_SECONDS = max(0, _int_env("STALE_UPDATE_SECONDS", 600))
+# KEEP_ALIVE_URL — Render/Aiven free-tier da instance'ni «uyqudan»
+# chiqarish uchun ixtiyoriy tashqi ping manzili (masalan UptimeRobot
+# yoki cron-job.org GET so'rovi). Bo'sh = keep-alive O'CHIRILGAN.
+# Bot har 10 daqiqada (600s) shu manzilga aiohttp orqali GET yuboradi.
+# DIQQAT: URL'ga maxfiy token QO'YMANG (u Render loglarida ko'rinadi);
+# hech bo'lmasa ping maxfiy kalitsiz bo'lsin.
+KEEP_ALIVE_URL = _str_env("KEEP_ALIVE_URL", "")
+# KEEP_ALIVE_INTERVAL_SECONDS — ping orasidagi interval (soniya).
+KEEP_ALIVE_INTERVAL_SECONDS = max(60, _int_env("KEEP_ALIVE_INTERVAL_SECONDS", 600))
+
 STARS_PLANS = {
     "stars_1m": {
         "key": "1m",
