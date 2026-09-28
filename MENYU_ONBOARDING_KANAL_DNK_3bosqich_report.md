@@ -233,3 +233,40 @@ ko'rsatkichlar + o'z kanali tavsiyasi (admin maydonlari **yo'q**).
   `settings_stats_parity_report().in_sync`), hardcoded matn yo'q.
 * **FSM:** yangi holat **qo'shilmadi** (namuna ham, taklif ham holda emas) —
   `tests/fsm_navigation_safety_test.py` buzilmadi.
+
+---
+
+## 7. Qo'shimcha: CI pariteti tuzatishi (PR tekshiruvi)
+
+PR ochilgach CI (`PostAssist V2 CI`, `.github/workflows/ci.yml`) qizil bo'ldi.
+Sabab: CI `telegram_bot` working-directory'dan **ichki** runner'ni chaqiradi
+(`telegram_bot/tests/run_tests.sh`, 34 ta test fayli), repo ildizidagi to'liq
+runner (`tests/run_tests.sh`) esa undagi fayllarni **o'z ichiga olmaydi**.
+Shu sababli 3 ta ichki test faylidagi eski menyu kutilmalari yangilanishdan
+chetda qolgan edi:
+
+| Fayl | Muammo | Tuzatish |
+|---|---|---|
+| `new_requirements_test.py` | Sozlamalar paneli **8** tugma deb kutilgan (4 ta joyda asosiy menyu **6** tugma) | **10** tugma (`sub_open`, `stgs_help_hub` qo'shildi); asosiy menyu **5** tugma |
+| `i18n_ai_parity_test.py` | Birinchi tugma `✨ Kontent yaratish`; kabinet inline menyusi **8** tugma | `✍️ Post yaratish` (uz/ru/en); **10** tugma |
+| `i18n_full_parity_test.py` | `main_keyboard` da **6** tugma | **5** tugma |
+
+`new_requirements_test.py` birinchi xatoda to'xtaydi (`for test in tests:
+test()`), shu sababli undan keyingi 3 ta eski kutilma ham ko'rinmagan edi —
+hammasi bir yo'la tuzatildi (endilikda **61/61** test o'tadi).
+
+**Yakuniy qiyoslash (asosiy commit `366f78e` ↔ PR):**
+
+| To'plam | Base | PR |
+|---|---|---|
+| Ichki runner (34 fayl, yakka-yakka) | 2 ta FAIL | **aynan o'sha 2 ta FAIL** (yangi regressiya **0**) |
+| To'liq runner (`tests/run_tests.sh`) | 17 ta FAIL qatori | **aynan o'sha 17 ta** (yangi regressiya **0**) |
+| Lint gate (`ruff` + `flake8`, `E9,F63,F7,F82`) | — | **toza** |
+
+Qolgan yagona xatolar asosiy commit'da ham mavjud, 3-bosqichga aloqasiz:
+`.env.example` ORPHAN kalitlari, `FakeMessage.chat_id`, `♻️ nomzod yo'q` bo'sh
+ekran, `adm_health` DB bo'limi, `Fast Path` / `ai_fallback` timing-flaky.
+
+> **Tavsiya (alohida vazifa):** ildiz runner'ga ichki testlarni (yoki CI bilan
+> bir xil runner'ni) ulash — shunda bunday farq mahalliy tekshiruvda darhol
+> ko'rinadi.
