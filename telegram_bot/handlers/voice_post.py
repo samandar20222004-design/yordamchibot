@@ -528,11 +528,21 @@ async def voice_style_callback(update: Update, context: ContextTypes.DEFAULT_TYP
             return VOICE_STYLE_SELECT
 
     context.user_data["voice_style"] = style
+    # 2-BOSQICH UX: typing + placeholder edit_text
+    chat_id = query.message.chat_id
     try:
-        await context.bot.send_chat_action(chat_id=query.message.chat_id, action="typing")
+        await context.bot.send_chat_action(chat_id=chat_id, action="typing")
     except Exception:
         pass
-    await _safe_edit(query, "⏳ Post tayyorlanmoqda, iltimos kuting...", None)
+    try:
+        await query.edit_message_text("⏳ Post tayyorlanmoqda, iltimos kuting...")
+        wait_msg = query.message
+    except Exception:
+        wait_msg = None
+        try:
+            wait_msg = await query.message.reply_text("⏳ Post tayyorlanmoqda, iltimos kuting...")
+        except Exception:
+            pass
 
     # --- ✨ AI generatsiya (Magic Post prompti: sarlavha, CTA, emoji, hashtag) ---
     try:
@@ -544,16 +554,15 @@ async def voice_style_callback(update: Update, context: ContextTypes.DEFAULT_TYP
     if not isinstance(result, dict) or result.get("error") or not (result.get("post_text") or "").strip():
         logger.warning("Voice→Post AI xatosi (style=%s, lang=%s): %s",
                        style, lang, (result or {}).get("error"))
-        # ♻️ Refund: ball va kunlik kvota qaytariladi.
-        await _voice_refund(
-            user_id, is_admin, is_pro,
-            take_reservation_id(context, "voice"),
-        )
-        await _safe_edit(
-            query,
-            voice_t("vp_error", lang),
-            _voice_style_keyboard(lang),
-        )
+        await _voice_refund(user_id, is_admin, is_pro, take_reservation_id(context, "voice"))
+        err_text = voice_t("vp_error", lang)
+        if wait_msg is not None and hasattr(wait_msg, "edit_text"):
+            try:
+                await wait_msg.edit_text(err_text, reply_markup=_voice_style_keyboard(lang), parse_mode="HTML")
+                return VOICE_STYLE_SELECT
+            except Exception:
+                pass
+        await _safe_edit(query, err_text, _voice_style_keyboard(lang))
         return VOICE_STYLE_SELECT
 
     post_text = (result.get("post_text") or "").strip()
@@ -561,8 +570,15 @@ async def voice_style_callback(update: Update, context: ContextTypes.DEFAULT_TYP
     context.user_data["voice_style"] = result.get("style", style)
     context.user_data["voice_usage_counted"] = False
 
-    await _safe_edit(query, _voice_result_text(post_text, result.get("style", style), lang),
-                     _voice_action_keyboard(lang))
+    result_text = _voice_result_text(post_text, result.get("style", style), lang)
+    result_markup = _voice_action_keyboard(lang)
+    if wait_msg is not None and hasattr(wait_msg, "edit_text"):
+        try:
+            await wait_msg.edit_text(result_text, reply_markup=result_markup, parse_mode="HTML")
+            return VOICE_RESULT
+        except Exception:
+            pass
+    await _safe_edit(query, result_text, result_markup)
     return VOICE_RESULT
 
 

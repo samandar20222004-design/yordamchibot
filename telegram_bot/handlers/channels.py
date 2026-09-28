@@ -1251,9 +1251,10 @@ async def channel_voice_analysis_callback(update: Update, context: ContextTypes.
                 pass
         return await query.message.reply_text(text, **kwargs)
 
-    # 1) AI kutish holati: typing darhol, natija shu xabarda ko'rsatiladi.
+    # 1) AI kutish holati: typing darhol, natija shu xabarda ko'rsatiladi (2-BOSQICH).
+    chat_id = query.message.chat_id
     try:
-        await context.bot.send_chat_action(chat_id=query.message.chat_id, action="typing")
+        await context.bot.send_chat_action(chat_id=chat_id, action="typing")
     except Exception:
         pass
     try:

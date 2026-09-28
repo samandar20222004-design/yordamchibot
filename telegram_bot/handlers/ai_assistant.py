@@ -509,8 +509,10 @@ async def ai_input_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return ConversationHandler.END
 
+    # 2-BOSQICH UX: real-time typing + placeholder edit_text
+    chat_id = msg.chat_id
     try:
-        await context.bot.send_chat_action(chat_id=msg.chat_id, action="typing")
+        await context.bot.send_chat_action(chat_id=chat_id, action="typing")
     except Exception:
         pass
     msg_wait = await msg.reply_text("⏳ Post tayyorlanmoqda, iltimos kuting...")
@@ -1196,8 +1198,10 @@ async def _studio_generate_and_preview(update: Update, context: ContextTypes.DEF
         # Limit/blok xabari allaqachon yuborildi — foydalanuvchi menyuga qaytadi
         return AI_MENU_STATE
 
+    # 2-BOSQICH UX: real-time typing + placeholder edit_text
+    chat_id = msg.chat_id
     try:
-        await context.bot.send_chat_action(chat_id=msg.chat_id, action="typing")
+        await context.bot.send_chat_action(chat_id=chat_id, action="typing")
     except Exception:
         pass
     msg_wait = await msg.reply_text("⏳ Post tayyorlanmoqda, iltimos kuting...")
@@ -1307,8 +1311,10 @@ async def ai_tone_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"(mazmun va faktlarni saqlang):\n\n{current_post}"
     )
 
+    # 2-BOSQICH UX: real-time typing + placeholder edit_text
+    chat_id = query.message.chat_id
     try:
-        await context.bot.send_chat_action(chat_id=query.message.chat_id, action="typing")
+        await context.bot.send_chat_action(chat_id=chat_id, action="typing")
     except Exception:
         pass
     try:
@@ -1417,8 +1423,10 @@ async def ai_audit_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not ok:
         return AI_MENU_STATE
 
+    # 2-BOSQICH UX: real-time typing + placeholder edit_text
+    chat_id = msg.chat_id
     try:
-        await context.bot.send_chat_action(chat_id=msg.chat_id, action="typing")
+        await context.bot.send_chat_action(chat_id=chat_id, action="typing")
     except Exception:
         pass
     msg_wait = await msg.reply_text("⏳ Post tayyorlanmoqda, iltimos kuting...")
@@ -1792,8 +1800,10 @@ async def ai_photo_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not ok:
         return AI_MENU_STATE
 
+    # 2-BOSQICH UX: real-time typing + placeholder edit_text
+    chat_id = msg.chat_id
     try:
-        await context.bot.send_chat_action(chat_id=msg.chat_id, action="typing")
+        await context.bot.send_chat_action(chat_id=chat_id, action="typing")
     except Exception:
         pass
     msg_wait = await msg.reply_text("⏳ Post tayyorlanmoqda, iltimos kuting...")
@@ -1938,8 +1948,9 @@ async def ai_photo_result_callback(update: Update, context: ContextTypes.DEFAULT
             "uslubda (yangi sarlavha, yangi CTA va yangi hashtaglar bilan) qayta yozing:\n\n"
             f"{post_text}"
         )
+        chat_id = query.message.chat_id
         try:
-            await context.bot.send_chat_action(chat_id=query.message.chat_id, action="typing")
+            await context.bot.send_chat_action(chat_id=chat_id, action="typing")
         except Exception:
             pass
         try:
@@ -1996,8 +2007,10 @@ async def ai_photo_edit_received(update: Update, context: ContextTypes.DEFAULT_T
     if not ok:
         return AI_MENU_STATE
 
+    # 2-BOSQICH UX: real-time typing + placeholder edit_text
+    chat_id = msg.chat_id
     try:
-        await context.bot.send_chat_action(chat_id=msg.chat_id, action="typing")
+        await context.bot.send_chat_action(chat_id=chat_id, action="typing")
     except Exception:
         pass
     msg_wait = await msg.reply_text("⏳ Post tayyorlanmoqda, iltimos kuting...")

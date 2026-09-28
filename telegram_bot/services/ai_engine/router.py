@@ -155,10 +155,17 @@ LANE_SPECS: dict[Lane, LaneSpec] = {
 # ---------------------------------------------------------------------------
 TASK_LANES: dict[str, Lane] = {
     # --- FAST: oddiy, tez javob talab qiladigan vazifalar -------------------
+    # 2-BOSQICH: qisqa/tezkor vazifalar eng kam kechikishli provayder (Groq)
+    # birinchi navbatda sinadi — umumiy zanjir 12-15s, har bir provayder 6-8s.
     "rewrite": Lane.FAST,
     "restyle": Lane.FAST,
+    "qayta_yozish": Lane.FAST,
     "simple_post": Lane.FAST,
     "short_post": Lane.FAST,
+    "qisqa_post": Lane.FAST,
+    "title": Lane.FAST,
+    "sarlavha": Lane.FAST,
+    "headline": Lane.FAST,
     "fix": Lane.FAST,
     "clarify": Lane.FAST,
     "shorten": Lane.FAST,

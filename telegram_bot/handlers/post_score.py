@@ -347,8 +347,10 @@ async def post_score_text_received(update: Update, context: ContextTypes.DEFAULT
             pass
         return POST_SCORE_INPUT
 
+    # 2-BOSQICH UX: typing + placeholder edit_text
+    chat_id = msg.chat_id
     try:
-        await context.bot.send_chat_action(chat_id=msg.chat_id, action="typing")
+        await context.bot.send_chat_action(chat_id=chat_id, action="typing")
     except Exception:
         pass
     status = await msg.reply_text("⏳ Post tayyorlanmoqda, iltimos kuting...")
@@ -411,8 +413,9 @@ async def post_score_eval_callback(update: Update, context: ContextTypes.DEFAULT
         await _toast(query, safe_t("ai_rate_limit_alert", lang))
         return _return_state(context)
 
+    chat_id = query.message.chat_id
     try:
-        await context.bot.send_chat_action(chat_id=query.message.chat_id, action="typing")
+        await context.bot.send_chat_action(chat_id=chat_id, action="typing")
     except Exception:
         pass
     try:
@@ -493,12 +496,17 @@ async def post_score_improve_callback(update: Update, context: ContextTypes.DEFA
                                  post_score_action_keyboard(lang))
             return _return_state(context)
 
+    # 2-BOSQICH UX: typing + placeholder edit_text
+    chat_id = query.message.chat_id
     try:
-        await context.bot.send_chat_action(chat_id=query.message.chat_id, action="typing")
+        await context.bot.send_chat_action(chat_id=chat_id, action="typing")
     except Exception:
         pass
-    await _safe_edit(query, "⏳ Post tayyorlanmoqda, iltimos kuting...", None)
-
+    try:
+        await query.edit_message_text("⏳ Post tayyorlanmoqda, iltimos kuting...")
+        wait_msg = query.message
+    except Exception:
+        wait_msg = None
     try:
         result = await improve_post_to_95(source_text, lang=lang, is_pro=is_pro)
     except Exception as e:  # noqa: BLE001 — hech qachon yiqilmaydi
@@ -510,13 +518,15 @@ async def post_score_improve_callback(update: Update, context: ContextTypes.DEFA
         logger.warning("Post Score improve bajarilmadi (lang=%s): %s",
                        lang, (result or {}).get("error"))
         if not is_admin and not is_pro:
-            await _add_credit_back(
-                user_id, take_reservation_id(context, "score"))
-        await _safe_edit(
-            query,
-            post_score_t("ps_improve_error", lang),
-            post_score_action_keyboard(lang),
-        )
+            await _add_credit_back(user_id, take_reservation_id(context, "score"))
+        err_text = post_score_t("ps_improve_error", lang)
+        if wait_msg is not None and hasattr(wait_msg, "edit_text"):
+            try:
+                await wait_msg.edit_text(err_text, reply_markup=post_score_action_keyboard(lang), parse_mode="HTML")
+                return _return_state(context)
+            except Exception:
+                pass
+        await _safe_edit(query, err_text, post_score_action_keyboard(lang))
         return _return_state(context)
 
     score_payload = (result or {}).get("score") or {}
@@ -524,14 +534,15 @@ async def post_score_improve_callback(update: Update, context: ContextTypes.DEFA
     context.user_data["ps_score"] = score_payload
     context.user_data["ps_improved"] = True
 
-    await _safe_edit(
-        query,
-        post_score_result_text(
-            score_payload, lang, header_key="ps_improved_header",
-            post_text=improved_text,
-        ),
-        post_score_action_keyboard(lang),
-    )
+    result_text = post_score_result_text(score_payload, lang, header_key="ps_improved_header", post_text=improved_text)
+    result_markup = post_score_action_keyboard(lang)
+    if wait_msg is not None and hasattr(wait_msg, "edit_text"):
+        try:
+            await wait_msg.edit_text(result_text, reply_markup=result_markup, parse_mode="HTML")
+            return _return_state(context)
+        except Exception:
+            pass
+    await _safe_edit(query, result_text, result_markup)
     return _return_state(context)
 
 

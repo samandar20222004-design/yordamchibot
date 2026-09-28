@@ -95,8 +95,8 @@ def provider_http_timeout() -> aiohttp.ClientTimeout:
 
 
 def provider_total_timeout() -> float:
-    """Provayder sinovining qat'iy umumiy muddati (wait_for chegarasi)."""
-    return min(7.0, max(0.1, float(AI_PROVIDER_TOTAL_TIMEOUT)))
+    """Provayder sinovining qat'iy umumiy muddati (2-BOSQICH: 6-8s, default 7s)."""
+    return min(8.0, max(6.0, float(AI_PROVIDER_TOTAL_TIMEOUT)))
 
 
 # ============================================================

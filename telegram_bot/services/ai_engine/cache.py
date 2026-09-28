@@ -45,9 +45,11 @@ def cache_ttl() -> float:
 
 
 def cache_max_entries() -> int:
-    """Maksimal yozuvlar soni (LRU); env qiymatiga ham yuqori chegara bor."""
+    """Maksimal yozuvlar soni (LRU); 2-BOSQICH: 512MB limit uchun qat'iy chegara."""
     try:
-        return min(4096, max(1, int(os.getenv("AI_CACHE_MAX_ENTRIES", "512"))))
+        # 2-BOSQICH: LRU maxsize — Render 512MB limitini himoya qilish.
+        # Xavfsiz default 512, hard cap 1024 (8MB bytes limiti bilan birga).
+        return min(1024, max(1, int(os.getenv("AI_CACHE_MAX_ENTRIES", "512"))))
     except (TypeError, ValueError):
         return 512
 
@@ -127,7 +129,8 @@ class AIResponseCache:
 
     def __init__(self, max_entries: int | None = None, ttl: float | None = None,
                  max_bytes: int | None = None):
-        self.max_entries = min(4096, max(1, int(max_entries or cache_max_entries())))
+        # 2-BOSQICH: qat'iy LRU chegara — cheksiz o'sish YO'Q (512MB himoyasi).
+        self.max_entries = min(1024, max(1, int(max_entries or cache_max_entries())))
         self.ttl = min(86400.0, max(0.0, float(ttl if ttl is not None else cache_ttl())))
         self.max_bytes = min(64 * 1024 * 1024, max(1024, int(max_bytes or cache_max_bytes())))
         self._entries: OrderedDict[str, tuple[float, Any]] = OrderedDict()

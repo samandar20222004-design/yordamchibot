@@ -508,8 +508,10 @@ async def image_photo_received(update: Update, context: ContextTypes.DEFAULT_TYP
     # tayyor post AYNAN shu rasm bilan yuboriladi.
     context.user_data["image_post_file_id"] = getattr(media, "file_id", None)
     context.user_data["image_post_caption"] = caption
+    # 2-BOSQICH UX: typing + placeholder
+    chat_id = message.chat_id
     try:
-        await context.bot.send_chat_action(chat_id=message.chat_id, action="typing")
+        await context.bot.send_chat_action(chat_id=chat_id, action="typing")
     except Exception:
         pass
     wait_msg = await message.reply_text("⏳ Post tayyorlanmoqda, iltimos kuting...")
@@ -758,11 +760,17 @@ async def image_style_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         return IMAGE_STYLE_SELECT
     context.user_data["image_post_credit_reserved"] = True
 
+    # 2-BOSQICH UX: typing + placeholder edit_text
+    chat_id = query.message.chat_id
     try:
-        await context.bot.send_chat_action(chat_id=query.message.chat_id, action="typing")
+        await context.bot.send_chat_action(chat_id=chat_id, action="typing")
     except Exception:
         pass
-    await _safe_edit(query, "⏳ Post tayyorlanmoqda, iltimos kuting...", None)
+    try:
+        await query.edit_message_text("⏳ Post tayyorlanmoqda, iltimos kuting...")
+        wait_msg = query.message
+    except Exception:
+        wait_msg = None
     try:
         generator = globals().get("generate_image_post") or generate_image_post
         result = await generator(
@@ -784,16 +792,29 @@ async def image_style_callback(update: Update, context: ContextTypes.DEFAULT_TYP
     if not isinstance(result, dict) or result.get("error") or not str(result.get("post_text") or "").strip():
         await _refund_one_ai_credit(user_id, is_admin, is_pro, context)
         context.user_data["image_post_credit_reserved"] = False
-        await _safe_edit(query, safe_t("image_generation_error", lang), image_style_keyboard(lang))
+        err_text = safe_t("image_generation_error", lang)
+        if wait_msg is not None and hasattr(wait_msg, "edit_text"):
+            try:
+                await wait_msg.edit_text(err_text, reply_markup=image_style_keyboard(lang), parse_mode="HTML")
+                return IMAGE_STYLE_SELECT
+            except Exception:
+                pass
+        await _safe_edit(query, err_text, image_style_keyboard(lang))
         return IMAGE_STYLE_SELECT
 
     post_text = str(result.get("post_text") or "").strip()
     context.user_data["image_post_text"] = post_text
     context.user_data["image_post_style"] = style
-    # Credit already spent once. Subsequent action buttons do not call reserve.
     context.user_data["image_post_credit_reserved"] = False
 
-    await _safe_edit(query, safe_t("image_preview_ready", lang), None)
+    # 2-BOSQICH: placeholder aynan shu xabar edit_text bilan almashtiriladi.
+    if wait_msg is not None and hasattr(wait_msg, "edit_text"):
+        try:
+            await wait_msg.edit_text(safe_t("image_preview_ready", lang), parse_mode="HTML")
+        except Exception:
+            await _safe_edit(query, safe_t("image_preview_ready", lang), None)
+    else:
+        await _safe_edit(query, safe_t("image_preview_ready", lang), None)
     try:
         await _send_photo_preview(
             query.message,
