@@ -35,10 +35,29 @@ if ADMIN_ID:
 # ADMIN_IDS_SET — barcha adminlar to'plami (is_admin() tekshiruvi uchun)
 ADMIN_IDS_SET: frozenset[int] = frozenset(_parsed_ids)
 
-DATABASE_URL = os.getenv("DATABASE_URL")
-# Render ba'zan eski postgres:// formatini beradi; psycopg2 uchun standart sxemaga o'tkazamiz.
-if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
-    DATABASE_URL = "postgresql://" + DATABASE_URL[len("postgres://"):]
+def normalize_database_url(url: str | None) -> str | None:
+    """Muhitdan kelgan PostgreSQL DSN ni psycopg2/asyncpg uchun moslashtiradi.
+
+    * atrofdagi bo'shliq va qo'shtirnoqlarni olib tashlaydi;
+    * Aiven/Heroku/Render ``postgres://`` yoki ``postgresql://`` berishi mumkin —
+      drayverlar uchun prefiks ``postgresql://`` ga keltiriladi
+      (``DATABASE_URL.replace("postgres://", "postgresql://", 1)``).
+    Hardcoded host (neon.tech, aivencloud.com, ...) YO'Q — faqat env qiymati.
+    """
+    if url is None:
+        return None
+    url = str(url).strip().strip("\"'")
+    if not url:
+        return None
+    # postgres:// → postgresql:// (faqat prefiks, 1 marta). Mixed-case ham.
+    if url.lower().startswith("postgres://"):
+        url = url.replace("postgres://", "postgresql://", 1)
+        if url.lower().startswith("postgres://"):
+            url = "postgresql://" + url.split("://", 1)[1]
+    return url
+
+
+DATABASE_URL = normalize_database_url(os.getenv("DATABASE_URL"))
 
 raw_port = os.getenv("PORT", "10000").strip()
 try:
@@ -352,8 +371,8 @@ _init_log_scrubber()
 _init_sentry()
 
 if not BOT_TOKEN:
-    raise RuntimeError("BOT_TOKEN topilmadi! Render Environment bo'limida BOT_TOKEN ni kiriting.")
+    raise RuntimeError("BOT_TOKEN topilmadi! Muhit o'zgaruvchisida BOT_TOKEN ni kiriting.")
 if not DATABASE_URL:
-    raise RuntimeError("DATABASE_URL topilmadi! Render Environment bo'limida DATABASE_URL ni kiriting.")
+    raise RuntimeError("DATABASE_URL topilmadi! Muhit o'zgaruvchisida DATABASE_URL ni kiriting.")
 if not ADMIN_IDS_SET:
     logger.warning("ADMIN_ID/ADMIN_IDS sozlanmagan! Faqat admin paneli ko'rinmaydi.")

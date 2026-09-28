@@ -2,8 +2,8 @@
 # PostAssist V2 — Docker Compose (10-BOSQICH)
 #
 # Development:  docker compose up -d          (bot + lokal PostgreSQL)
-# Production:   .env da DATABASE_URL Neon'ga qarasa, bot to'g'ridan-to'g'ri
-#               Neon bilan ishlaydi; lokal postgres xizmati development uchun.
+# Production:   .env da DATABASE_URL Aiven'ga qarasa, bot to'g'ridan-to'g'ri
+#               Aiven bilan ishlaydi; lokal postgres xizmati development uchun.
 #
 # Majburiy env: .env faylini ildizda yarating (namuna: .env.example).
 # ============================================================

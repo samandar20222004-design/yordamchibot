@@ -301,7 +301,7 @@ async def set_bot_commands(application):
 #      5–10 soniya (SHUTDOWN_GRACE_SECONDS) beriladi; ular BEKOR QILINMAYDI;
 #   5) application.stop()/shutdown() — PTB navbatdagi update'larni tugatadi;
 #   6) scheduler.shutdown(wait=False), web server cleanup;
-#   7) db.close_pool() + close_ai_session() — Neon pool va aiohttp
+#   7) db.close_pool() + close_ai_session() — DB pool va aiohttp
 #      sessiyalari toza yopiladi;
 #   8) jarayon exit code 0 bilan chiqadi.
 # Ikkinchi signal (masalan, ikki marta Ctrl+C) yopilishni qayta boshlamaydi.
@@ -436,7 +436,7 @@ async def graceful_shutdown(application=None, scheduler=None, web_runner=None,
             logger.exception("Web serverni yopishda xatolik")
             _step("web_server_closed", ok=False)
 
-    # 7) Neon DB pool va aiohttp ClientSession'lar — HAR DOIM yopiladi.
+    # 7) DB pool va aiohttp ClientSession'lar — HAR DOIM yopiladi.
     try:
         db.close_pool()
         _step("db_pool_closed")

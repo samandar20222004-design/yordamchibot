@@ -642,7 +642,7 @@ EN_OVERLAY = {
     "health_checked_at": "🕐 Checked: {time} (UTC)",
     "health_uptime": "⏱ Uptime: {uptime}",
     "health_db_title": "🗄 <b>Database:</b> {status}",
-    "health_db_latency": "• Neon DB response time: {latency} ms",
+    "health_db_latency": "• PostgreSQL response time: {latency} ms",
     "health_db_error": "• Error: {error}",
     "health_db_pool": "• Connection pool: {used}/{max} in use ({available} free)",
     "health_scheduler_title": "⏰ <b>Scheduler (apscheduler):</b> {status}",

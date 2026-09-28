@@ -3,7 +3,7 @@
 Tizimning barcha asosiy komponentlarini bitta so'rovda tekshiradi va
 adminlarga chiroyli, tilga mos (uz/ru/en) hisobot qaytaradi:
 
-1. **Database**      — Neon DB ga oddiy ``SELECT 1`` ping + javob vaqti (ms)
+1. **Database**      — PostgreSQL ga oddiy ``SELECT 1`` ping + javob vaqti (ms)
                        va ulanishlar pool'i holati (``db.get_db_pool_status``).
 2. **Scheduler**     — apscheduler ishlayotgani, faol joblar soni,
                        pending/processing/failed/stale postlar va
@@ -165,7 +165,7 @@ def format_uptime(seconds: float = None) -> str:
 # 1) DATABASE
 # ──────────────────────────────────────────────────────────────
 async def _check_database() -> dict:
-    """Neon DB holati: SELECT 1 ping, latency va pool holati."""
+    """PostgreSQL holati: SELECT 1 ping, latency va pool holati."""
     result = {
         "component": "database",
         "status": STATUS_UNKNOWN,

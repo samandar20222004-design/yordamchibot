@@ -20,12 +20,12 @@ tashkent_tz = pytz.timezone("Asia/Tashkent")
 
 logger = logging.getLogger(__name__)
 
-# Render Free PostgreSQL uchun ulanishlar soni cheklangan (odatda 5 ta).
-# DB_POOL_MAX ni oshirishdan oldin Render'da Postgres ulanish limitini tekshiring.
+# Boshqariladigan PostgreSQL (Aiven va h.k.) uchun ulanishlar soni cheklangan.
+# DB_POOL_MAX ni oshirishdan oldin xizmatning ulanish limitini tekshiring.
 DB_POOL_MIN = max(0, int(os.getenv("DB_POOL_MIN", "0")))
 DB_POOL_MAX = max(DB_POOL_MIN + 1, int(os.getenv("DB_POOL_MAX", "5")))
 # PostAssist V2 (10-BOSQICH): DB_POOL_SIZE — pool hajmi uchun qulay alias.
-# Berilgan bo'lsa DB_POOL_MAX o'rniga shu qiymat ishlatiladi (Neon pooler
+# Berilgan bo'lsa DB_POOL_MAX o'rniga shu qiymat ishlatiladi (Aiven ulanish
 # cheklovlariga moslash uchun). Noto'g'ri qiymat e'tiborga olinmaydi.
 _raw_pool_size = os.getenv("DB_POOL_SIZE", "").strip()
 if _raw_pool_size:
@@ -365,8 +365,8 @@ def resolve_sslmode(url: str = None) -> str:
       2) ``DB_SSLMODE`` env berilgan bo'lsa — aynan shu ishlatiladi
          (masalan: disable | allow | prefer | require | verify-full).
       3) Aks holda avtomatik: lokal host (localhost/127.0.0.1/::1) uchun
-         ``prefer``, masofaviy host (Neon, Render va h.k.) uchun ``require`` —
-         Neon TLS'siz ulanishni umuman qabul qilmaydi.
+         ``prefer``, masofaviy host (Aiven, Render va h.k.) uchun ``require`` —
+         Aiven TLS'siz ulanishni umuman qabul qilmaydi.
     """
     url = DATABASE_URL if url is None else url
     url = url or ""
@@ -389,7 +389,7 @@ def resolve_sslmode(url: str = None) -> str:
 def _connect_kwargs() -> dict:
     """psycopg2.connect()/ThreadedConnectionPool uchun umumiy parametrlar.
 
-    SSL (Neon talab qiladi) va TCP keepalive'lar (serverless bazalar bo'sh
+    SSL (Aiven talab qiladi) va TCP keepalive'lar (managed bazalar bo'sh
     turuvchi ulanishlarni o'chirib qo'yadi — keepalive buni yumshatadi).
     """
     kwargs = {
@@ -418,6 +418,19 @@ _pool = None
 _pool_lock = threading.Lock()
 _pool_sem = None
 
+
+def _pool_dsn() -> str:
+    """Pool uchun DSN: config.DATABASE_URL + postgres:// → postgresql:// himoya.
+
+    Aiven havolasi ``postgres://`` yoki ``postgresql://`` bilan kelishi mumkin.
+    config.normalize_database_url allaqachon ishlagan bo'lsa ham, bu yerda
+    qayta moslashtirish xavfsiz (idempotent) va hardcoded host YO'Q.
+    """
+    url = (DATABASE_URL or "").strip()
+    if url.startswith("postgres://"):
+        url = url.replace("postgres://", "postgresql://", 1)
+    return url
+
 # Kesh holati. ``_CACHE[key] = (expiry_timestamp, value)``
 _CACHE = {}
 _CACHE_LOCK = threading.Lock()
@@ -431,7 +444,7 @@ def _get_pool() -> ThreadedConnectionPool:
         with _pool_lock:
             if _pool is None:
                 _pool = ThreadedConnectionPool(
-                    DB_POOL_MIN, DB_POOL_MAX, DATABASE_URL,
+                    DB_POOL_MIN, DB_POOL_MAX, _pool_dsn(),
                     **_connect_kwargs(),
                 )
     return _pool
@@ -453,7 +466,12 @@ def _get_semaphore() -> threading.BoundedSemaphore:
 
 
 def _reset_pool():
-    global _pool, _pool_sem
+    """Pool'ni yopib qayta yaratishga tayyorlaydi.
+
+    Semafor SAQLANADI: in-flight ``acquire``/``release`` juftligi buzilmasin
+    (Aiven uzilganda pool qayta quriladi, lekin band joylar hisobi saqlanadi).
+    """
+    global _pool
     with _pool_lock:
         if _pool is not None:
             try:
@@ -461,12 +479,14 @@ def _reset_pool():
             except Exception:
                 pass
             _pool = None
-        _pool_sem = None
 
 
 def close_pool():
     """Bot to'xtatilganda barcha DB ulanishlarini yopish."""
+    global _pool_sem
     _reset_pool()
+    with _pool_lock:
+        _pool_sem = None
     logger.info("DB pool yopildi.")
 
 
@@ -567,18 +587,50 @@ def get_db_pool_status() -> dict:
         }
 
 
+def _connection_is_usable(conn) -> bool:
+    """Pool'dan olingan ulanish hali tirikligini tekshiradi.
+
+    Aiven (va boshqa managed PG) bo'sh turgan TCP sessiyalarni uzishi mumkin.
+    ``closed`` yoki ``rollback()`` xatosi — ulanishni tashlab, qayta ulanamiz.
+    """
+    try:
+        if getattr(conn, "closed", 0) in (1, True):
+            return False
+        conn.rollback()
+        return True
+    except (psycopg2.OperationalError, psycopg2.InterfaceError):
+        return False
+
+
 def _acquire_connection():
-    """Pool'dan ulanish olish (maks. 15 soniya kutish). Xatolikda qayta urinadi."""
+    """Pool'dan ulanish olish (maks. 15 soniya). O'lik ulanishda qayta urinadi."""
     sem = _get_semaphore()
     if not sem.acquire(timeout=15):
         raise TimeoutError("DB pool band: 15 soniya ichida bo'sh ulanish topilmadi")
     try:
-        try:
-            return _get_pool().getconn()
-        except Exception as e:
-            logger.warning("DB pool xatosi (%s); pool qayta qurilmoqda...", e)
+        last_err = None
+        for attempt in range(2):
+            try:
+                conn = _get_pool().getconn()
+            except Exception as e:
+                last_err = e
+                logger.warning("DB pool xatosi (%s); pool qayta qurilmoqda...", e)
+                _reset_pool()
+                continue
+            if _connection_is_usable(conn):
+                return conn
+            logger.warning(
+                "DB ulanishi uzilgan (urinish %s/2); qayta ulanilmoqda...",
+                attempt + 1,
+            )
+            try:
+                conn.close()
+            except Exception:
+                pass
             _reset_pool()
-            return _get_pool().getconn()
+        if last_err is not None:
+            raise last_err
+        raise psycopg2.OperationalError("DB ulanish olinmadi")
     except Exception:
         sem.release()
         raise
@@ -918,7 +970,7 @@ def ping_db() -> bool:
 # ============================================================
 
 def ping_db_with_latency() -> dict:
-    """Neon DB ga oddiy ``SELECT 1`` ping + javob vaqti (latency ms).
+    """PostgreSQL ga oddiy ``SELECT 1`` ping + javob vaqti (latency ms).
 
     Returns:
         dict: ``{"ok": bool, "latency_ms": float | None, "error": str | None}``
@@ -1317,7 +1369,11 @@ def _verify_schema(cur) -> None:
     """
     cur.execute("SELECT version()")
     server = str((cur.fetchone() or [""])[0])
-    provider = "Neon" if "Neon" in server else server.split(",")[0]
+    provider = server.split(",")[0]
+    if "Neon" in server:
+        provider = "Neon"
+    elif "aiven" in server.lower():
+        provider = "Aiven"
     logger.info("DB server: %s", provider)
 
     cur.execute(

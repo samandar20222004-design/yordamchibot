@@ -6,8 +6,9 @@
 -- (IF NOT EXISTS), shuning uchun faylni istalgancha qayta
 -- bajarish mumkin — mavjud ma'lumotlarga zarar yetmaydi.
 --
--- Neon/Render kabi boshqariladigan PostgreSQL'da bo'sh bazani
--- to'ldirish uchun ham shu fayldan foydalaniladi:
+-- Aiven/Render kabi boshqariladigan PostgreSQL'da bo'sh bazani
+-- to'ldirish uchun ham shu fayldan foydalaniladi (barcha CREATE
+-- TABLE / INDEX operatorlari IF NOT EXISTS — qayta bajarish xavfsiz):
 --     psql "$DATABASE_URL" -f telegram_bot/schema.sql
 -- ============================================================
 
