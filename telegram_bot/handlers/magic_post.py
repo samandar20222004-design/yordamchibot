@@ -433,11 +433,22 @@ async def magic_style_callback(update: Update, context: ContextTypes.DEFAULT_TYP
             return MAGIC_STYLE_SELECT
 
     context.user_data["magic_style"] = style
+    # 2-BOSQICH UX: AI chaqiruvi boshida typing + placeholder, natija edit_text bilan.
+    chat_id = query.message.chat_id
     try:
-        await context.bot.send_chat_action(chat_id=query.message.chat_id, action="typing")
+        await context.bot.send_chat_action(chat_id=chat_id, action="typing")
     except Exception:
         pass
-    await _safe_edit(query, "⏳ Post tayyorlanmoqda, iltimos kuting...", None)
+    # Placeholder — xuddi shu xabar keyin edit_text bilan almashtiriladi (yangi xabar YO'Q).
+    try:
+        await query.edit_message_text("⏳ Post tayyorlanmoqda, iltimos kuting...")
+        wait_msg = query.message
+    except Exception:
+        wait_msg = None
+        try:
+            wait_msg = await query.message.reply_text("⏳ Post tayyorlanmoqda, iltimos kuting...")
+        except Exception:
+            pass
 
     # 🧭 3-QADAM (UI/UX POLISH): wizard'da tanlangan format ko'rsatmasi
     # generatsiya materialiga ulanadi (bir martalik — iste'mol qilinadi).
@@ -459,11 +470,15 @@ async def magic_style_callback(update: Update, context: ContextTypes.DEFAULT_TYP
             user_id, is_admin, is_pro,
             take_reservation_id(context, "magic"),
         )
-        await _safe_edit(
-            query,
-            magic_t("mp_error", lang),
-            _magic_style_keyboard(lang),
-        )
+        err_text = magic_t("mp_error", lang)
+        # 2-BOSQICH: placeholder aynan shu xabar edit_text bilan almashtiriladi.
+        if wait_msg is not None and hasattr(wait_msg, "edit_text"):
+            try:
+                await wait_msg.edit_text(err_text, reply_markup=_magic_style_keyboard(lang), parse_mode="HTML")
+                return MAGIC_STYLE_SELECT
+            except Exception:
+                pass
+        await _safe_edit(query, err_text, _magic_style_keyboard(lang))
         return MAGIC_STYLE_SELECT
 
     post_text = (result.get("post_text") or "").strip()
@@ -471,8 +486,15 @@ async def magic_style_callback(update: Update, context: ContextTypes.DEFAULT_TYP
     context.user_data["magic_style"] = result.get("style", style)
     context.user_data["magic_usage_counted"] = False
 
-    await _safe_edit(query, _magic_result_text(post_text, result.get("style", style), lang),
-                     _magic_action_keyboard(lang))
+    result_text = _magic_result_text(post_text, result.get("style", style), lang)
+    result_markup = _magic_action_keyboard(lang)
+    if wait_msg is not None and hasattr(wait_msg, "edit_text"):
+        try:
+            await wait_msg.edit_text(result_text, reply_markup=result_markup, parse_mode="HTML")
+            return MAGIC_RESULT
+        except Exception:
+            pass
+    await _safe_edit(query, result_text, result_markup)
     return MAGIC_RESULT
 
 

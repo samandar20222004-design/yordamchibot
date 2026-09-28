@@ -63,17 +63,19 @@ logger = logging.getLogger(__name__)
 
 
 def fast_path_timeout() -> float:
-    """FAST so'rovi uchun umumiy limit (hard cap: 15 soniya)."""
+    """FAST so'rovi uchun umumiy limit (hard cap: 12-15s, 2-BOSQICH)."""
     try:
-        return min(15.0, max(1.0, float(os.getenv("AI_FAST_PATH_TIMEOUT", "12"))))
+        # 2-BOSQICH: umumiy zanjir 12-15s — env xavfsiz default 12s.
+        return min(15.0, max(12.0, float(os.getenv("AI_FAST_PATH_TIMEOUT", "12"))))
     except (TypeError, ValueError):
         return 12.0
 
 
 def provider_timeout_cap() -> float:
-    """Bitta provayderga beriladigan muddat (fallback 6–8s da boshlanadi)."""
+    """Bitta provayderga beriladigan muddat (2-BOSQICH: 6–8s, env default 7s)."""
     try:
-        return min(8.0, max(1.0, float(os.getenv("AI_ENGINE_PROVIDER_TIMEOUT", "7"))))
+        # 2-BOSQICH: per-provider 6-8s — 429/500 da darhol fallback.
+        return min(8.0, max(6.0, float(os.getenv("AI_ENGINE_PROVIDER_TIMEOUT", "7"))))
     except (TypeError, ValueError):
         return 7.0
 
@@ -82,30 +84,42 @@ def lane_default_timeout(lane: Lane) -> float:
     """Lane standart timeout'i (``AI_<LANE>_TIMEOUT`` env bilan bekor qilinadi)."""
     env_name = f"AI_{lane.value}_TIMEOUT"
     try:
-        return min(15.0, max(1.0, float(os.getenv(env_name, str(LANE_SPECS[lane].default_timeout)))))
+        # 2-BOSQICH: har lane 6-15s oynasida, umumiy zanjir 15s dan oshmaydi.
+        return min(15.0, max(6.0, float(os.getenv(env_name, str(LANE_SPECS[lane].default_timeout)))))
     except (TypeError, ValueError):
         return LANE_SPECS[lane].default_timeout
 
 
 # ---------------------------------------------------------------------------
-# Lane standart tizim promptlari (qisqa, til yo'nalishi bilan mustahkamlanadi)
+# Lane standart tizim promptlari (2-BOSQICH: tabiiy toza o'zbek lotin + SMM)
 # ---------------------------------------------------------------------------
+# 2-BOSQICH TALABI: barcha promptlar faqat tabiiy, toza o'zbek tili
+# (lotin) va SMM talablariga mos post tuzilishini (hook → qiymat →
+# o'qiladigan paragraflar → tabiiy CTA → hashtag) mustahkamlaydi.
 _LANE_SYSTEMS: dict[Lane, str] = {
     Lane.FAST: (
-        "Siz professional SMM copywriter'siz. Faqat tayyor post matnini "
-        "qaytaring — izoh, sarlavha va qo'shimcha tushuntirishsiz."
+        "Siz professional SMM copywriter'siz. Faqat tabiiy, toza o'zbek "
+        "tilida (lotin alifbosida) yozing — ruscha/inglizcha aralashtirmang. "
+        "Post tuzilishi: kuchli hook (qalin sarlavha + 1 emoji), 2-4 qisqa "
+        "abzasda aniq qiymat, o'qiladigan Telegram paragraflari, tabiiy CTA "
+        "va 3-5 hashtag. Faqat tayyor post matnini qaytaring."
     ),
     Lane.QUALITY: (
-        "Siz professional SMM copywriter va tahlilchisiz. Sifatli, aniq va "
-        "foydalanuvchi tilida javob qaytaring."
+        "Siz professional SMM copywriter va tahlilchisiz. Faqat tabiiy, "
+        "toza o'zbek tilida (lotin) yozing. Sifatli, aniq va ravon post: "
+        "kuchli hook, foydali asosiy qism, o'qiladigan paragraflar, tabiiy "
+        "CTA va hashtaglar. Soxta fakt, shablon va keraksiz reklamasiz."
     ),
     Lane.REASONING: (
-        "Siz tajribali SMM kontent-strateg va analitiksisz. Chuqur, asoslangan "
-        "tahlil va reja qaytaring; umumiy 'suv' gaplardan qoching."
+        "Siz tajribali SMM kontent-strateg va analitiksiz. Faqat tabiiy, "
+        "toza o'zbek tilida (lotin) yozing. Chuqur, asoslangan tahlil va "
+        "reja qaytaring; umumiy 'suv' gaplardan qoching. Har bir xulosa "
+        "aniq, o'qiladigan va SMMga mos bo'lsin."
     ),
     Lane.VISION: (
-        "Siz vizual kontent tahlilchisisiz. Rasm mazmunini aniq va ixcham "
-        "tahlil qiling."
+        "Siz vizual kontent tahlilchisisiz. Faqat tabiiy, toza o'zbek tilida "
+        "(lotin) va ixcham, o'qiladigan paragraflarda rasm mazmunini tahlil "
+        "qiling. SMM talablariga mos, keraksiz bezaksiz."
     ),
 }
 

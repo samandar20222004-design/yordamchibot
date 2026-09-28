@@ -65,8 +65,8 @@ class PromptEngine:
             'reliable source). Every sentence must carry real value.\n'
             + system
             + '\n[LANGUAGE]\n' + {'uz': 'Uzbek', 'ru': 'Russian', 'en': 'English'}.get(lang, 'Uzbek')
-            + ('\nWrite Uzbek only in Latin script, in natural, fluent, grammatically correct Uzbek. '
-               'For SMM content, use a clear hook, useful central message, and readable Telegram paragraphs; '
+            + ('\n2-BOSQICH SMM TALABI: Write Uzbek ONLY in Latin script — never Cyrillic, never mix Russian/English. Use natural, fluent, grammatically correct Uzbek (lotin). '
+               'For SMM content, use a clear hook (bold headline + 1 emoji), 2-4 short paragraphs with real value, readable Telegram paragraphs (blank line between), natural CTA and 3-5 hashtags at the end; '
                'avoid fabricated facts, generic filler, and irrelevant promotion. Use a call to action only when natural and relevant.'
                if str(lang or '').lower().startswith('uz') else '')
             + '\n[TASK]\n' + task
