@@ -1011,7 +1011,26 @@ async def _execute_send(bot, post):
         btn_text, btn_url, enable_reactions, scheduled_time,
         recurrence_type, recurrence_day, recurrence_time, end_date,
         delete_after_hours, reaction_emojis
-    ) = post
+    ) = tuple(post)[:16]
+
+    # ⚙️ QO'SHIMCHA SOZLAMALAR (DELIVERY OPTIONS) — ``get_due_posts``
+    # oxiriga qo'shilgan 3 ustun (16: disable_notification, 17:
+    # protect_content, 18: auto_pin). Eski 16 maydonli tuple'lar (fake/
+    # legacy adapterlar) bilan orqaga muvofiqlik: ustun bo'lmasa FALSE.
+    def _post_flag(idx: int) -> bool:
+        return len(post) > idx and bool(post[idx])
+
+    disable_notification = _post_flag(16)  # 🔇 ovozsiz yuborish
+    protect_content = _post_flag(17)       # 🔒 forward/nusxa olish taqiqlangan
+    auto_pin = _post_flag(18)              # 📌 chiqqach avtomatik qadash
+    # FALSE qiymatlar uzatilmaydi: Telegram API default'i ham FALSE —
+    # API so'rovi mazmunan o'zgarmaydi (eski oqim bit-for-bit saqlanadi).
+    delivery_kwargs = {
+        key: value for key, value in (
+            ("disable_notification", disable_notification),
+            ("protect_content", protect_content),
+        ) if value
+    }
 
     # 0. IDEMPOTENTLIK GUARD'I: bu post allaqachon Telegramga chiqqan, faqat DB
     #    markeri yozilmay qolgan bo'lsa (masalan, stale-recovery uni 'pending' ga
@@ -1173,40 +1192,48 @@ async def _execute_send(bot, post):
                 # Bitta element — oddiy media (tugmalar ishlashi uchun)
                 only = items[0]
                 sent_msg = await _send_single_media(
-                    bot, target_chat, only["type"], only["file_id"], safe_final_content, reply_markup, final_parse_mode
+                    bot, target_chat, only["type"], only["file_id"], safe_final_content, reply_markup, final_parse_mode,
+                    delivery_kwargs=delivery_kwargs,
                 )
             else:
                 media = _build_album_media(items, final_content)
                 album_api_started = True
-                sent_group = await bot.send_media_group(chat_id=target_chat, media=media)
+                sent_group = await bot.send_media_group(chat_id=target_chat, media=media, **delivery_kwargs)
                 album_api_started = False
                 sent_msg = sent_group[0] if sent_group else None
                 extra_ids = [m.message_id for m in (sent_group or [])[1:] if getattr(m, "message_id", None)]
                 # sendMediaGroup reply_markup'ni qo'llab-quvvatlamaydi — tugmalarni alohida xabar
                 if reply_markup:
+                    # 🔗 yordamchi xabar ham himoyalangan post bilan bir xil
+                    # protect_content rejimida chiqadi (mazmuni o'ymasin).
+                    follow_kwargs = (
+                        {"protect_content": protect_content}
+                        if protect_content else {}
+                    )
                     follow = await bot.send_message(
-                        chat_id=target_chat, text="🔗", reply_markup=reply_markup
+                        chat_id=target_chat, text="🔗", reply_markup=reply_markup,
+                        **follow_kwargs
                     )
                     if follow and follow.message_id:
                         extra_ids.append(follow.message_id)
         elif pt == "photo":
-            sent_msg = await bot.send_photo(chat_id=target_chat, photo=file_id, caption=safe_final_content, reply_markup=reply_markup, parse_mode=final_parse_mode)
+            sent_msg = await bot.send_photo(chat_id=target_chat, photo=file_id, caption=safe_final_content, reply_markup=reply_markup, parse_mode=final_parse_mode, **delivery_kwargs)
         elif pt == "video":
-            sent_msg = await bot.send_video(chat_id=target_chat, video=file_id, caption=safe_final_content, reply_markup=reply_markup, parse_mode=final_parse_mode)
+            sent_msg = await bot.send_video(chat_id=target_chat, video=file_id, caption=safe_final_content, reply_markup=reply_markup, parse_mode=final_parse_mode, **delivery_kwargs)
         elif pt == "animation":
-            sent_msg = await bot.send_animation(chat_id=target_chat, animation=file_id, caption=safe_final_content, reply_markup=reply_markup, parse_mode=final_parse_mode)
+            sent_msg = await bot.send_animation(chat_id=target_chat, animation=file_id, caption=safe_final_content, reply_markup=reply_markup, parse_mode=final_parse_mode, **delivery_kwargs)
         elif pt == "document":
-            sent_msg = await bot.send_document(chat_id=target_chat, document=file_id, caption=safe_final_content, reply_markup=reply_markup, parse_mode=final_parse_mode)
+            sent_msg = await bot.send_document(chat_id=target_chat, document=file_id, caption=safe_final_content, reply_markup=reply_markup, parse_mode=final_parse_mode, **delivery_kwargs)
         elif pt == "audio":
-            sent_msg = await bot.send_audio(chat_id=target_chat, audio=file_id, caption=safe_final_content, reply_markup=reply_markup, parse_mode=final_parse_mode)
+            sent_msg = await bot.send_audio(chat_id=target_chat, audio=file_id, caption=safe_final_content, reply_markup=reply_markup, parse_mode=final_parse_mode, **delivery_kwargs)
         elif pt == "voice":
-            sent_msg = await bot.send_voice(chat_id=target_chat, voice=file_id, caption=safe_final_content, reply_markup=reply_markup, parse_mode=final_parse_mode)
+            sent_msg = await bot.send_voice(chat_id=target_chat, voice=file_id, caption=safe_final_content, reply_markup=reply_markup, parse_mode=final_parse_mode, **delivery_kwargs)
         elif pt == "sticker":
             sent_msg = await bot.send_sticker(
-                chat_id=target_chat, sticker=file_id, reply_markup=reply_markup
+                chat_id=target_chat, sticker=file_id, reply_markup=reply_markup, **delivery_kwargs
             )
         else:
-            sent_msg = await bot.send_message(chat_id=target_chat, text=safe_final_content or " ", reply_markup=reply_markup, parse_mode=final_parse_mode)
+            sent_msg = await bot.send_message(chat_id=target_chat, text=safe_final_content or " ", reply_markup=reply_markup, parse_mode=final_parse_mode, **delivery_kwargs)
 
         sent_msg_id = sent_msg.message_id if sent_msg else None
         # Post Telegramga muvaffaqiyatli yuborildi! Bundan keyin HECH QANDAY
@@ -1298,18 +1325,40 @@ async def _execute_send(bot, post):
     # uchun yuborilgan post hech qachon _requeue_post ga tushmaydi.
     await _persist_sent_marker(sent_marker)
 
+    # ⚙️ AUTO PIN: post kanalga chiqqach DARHOL avtomatik qadiladi.
+    # Fail-soft: qadash huquqi bo'lmasa (not enough rights) xato faqat
+    # log'lanadi — YUBORILGAN postga va delivery markeriga ta'sir qilmaydi.
+    if auto_pin and sent_msg_id:
+        try:
+            await bot.pin_chat_message(
+                chat_id=target_chat, message_id=sent_msg_id,
+                disable_notification=True,
+            )
+        except Exception as e:
+            logger.warning(
+                "Auto-pin bajarilmadi (Post ID: %s, kanal %s): %s",
+                post_id, channel_id, e,
+            )
 
-async def _send_single_media(bot, target_chat, kind, file_id, caption, reply_markup, parse_mode="HTML"):
+
+async def _send_single_media(bot, target_chat, kind, file_id, caption, reply_markup, parse_mode="HTML", delivery_kwargs=None):
+    """Bitta media xabarni yuboradi (albomning yagona elementi uchun).
+
+    ``delivery_kwargs`` — ⚙️ Qo'shimcha sozlamalar (disable_notification /
+    protect_content); qiymatlar Telegram send metodiga to'g'ridan-to'g'ri
+    uzatiladi (bo'sh dict — o'zgarishsiz eski xatti-harakat).
+    """
+    delivery_kwargs = delivery_kwargs or {}
     kind = (kind or "photo").lower()
     if kind == "video":
-        return await bot.send_video(chat_id=target_chat, video=file_id, caption=caption, reply_markup=reply_markup, parse_mode=parse_mode)
+        return await bot.send_video(chat_id=target_chat, video=file_id, caption=caption, reply_markup=reply_markup, parse_mode=parse_mode, **delivery_kwargs)
     if kind == "document":
-        return await bot.send_document(chat_id=target_chat, document=file_id, caption=caption, reply_markup=reply_markup, parse_mode=parse_mode)
+        return await bot.send_document(chat_id=target_chat, document=file_id, caption=caption, reply_markup=reply_markup, parse_mode=parse_mode, **delivery_kwargs)
     if kind == "audio":
-        return await bot.send_audio(chat_id=target_chat, audio=file_id, caption=caption, reply_markup=reply_markup, parse_mode=parse_mode)
+        return await bot.send_audio(chat_id=target_chat, audio=file_id, caption=caption, reply_markup=reply_markup, parse_mode=parse_mode, **delivery_kwargs)
     if kind == "animation":
-        return await bot.send_animation(chat_id=target_chat, animation=file_id, caption=caption, reply_markup=reply_markup, parse_mode=parse_mode)
-    return await bot.send_photo(chat_id=target_chat, photo=file_id, caption=caption, reply_markup=reply_markup, parse_mode=parse_mode)
+        return await bot.send_animation(chat_id=target_chat, animation=file_id, caption=caption, reply_markup=reply_markup, parse_mode=parse_mode, **delivery_kwargs)
+    return await bot.send_photo(chat_id=target_chat, photo=file_id, caption=caption, reply_markup=reply_markup, parse_mode=parse_mode, **delivery_kwargs)
 
 
 async def check_and_delete_expired_posts(bot):

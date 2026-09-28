@@ -81,9 +81,9 @@ import handlers.settings as STG  # noqa: E402
 import database as db_mod  # noqa: E402
 from keyboards.default import get_main_keyboard  # noqa: E402
 from keyboards.inline import (  # noqa: E402
-    CB_MANUAL_24H, CB_MANUAL_CANCEL, CB_MANUAL_CHANNEL, CB_MANUAL_EDIT,
-    CB_MANUAL_NOW, CB_MANUAL_PANEL, CB_MANUAL_REACT, CB_MANUAL_REPEAT,
-    CB_MANUAL_TIME, CB_MANUAL_URL_BTN,
+    CB_MANUAL_24H, CB_MANUAL_CANCEL, CB_MANUAL_CHANNEL, CB_MANUAL_DELIVERY,
+    CB_MANUAL_EDIT, CB_MANUAL_NOW, CB_MANUAL_PANEL, CB_MANUAL_REACT,
+    CB_MANUAL_REPEAT, CB_MANUAL_TIME, CB_MANUAL_URL_BTN,
     get_cabinet_inline_keyboard, get_manual_post_panel,
     get_settings_hub_keyboard, manual_channel_callback,
 )
@@ -281,7 +281,8 @@ def test_direct_preview_without_ai():
                   and _panel_callbacks(msg.sent[0]["reply_markup"]) == [
                       CB_MANUAL_NOW, CB_MANUAL_TIME, CB_MANUAL_REACT,
                       CB_MANUAL_URL_BTN, CB_MANUAL_24H,
-                      CB_MANUAL_REPEAT, CB_MANUAL_EDIT, CB_MANUAL_CANCEL],
+                      CB_MANUAL_REPEAT, CB_MANUAL_EDIT, CB_MANUAL_CANCEL,
+                      CB_MANUAL_DELIVERY],
                   str(msg.sent[0].get("reply_markup")))
             # AI chaqiruvi UMUMAN bo'lmadi.
             check(f"[{lang}] AI/analiz chaqiruvi YO'Q (DB faqat kanal o'qidi)",

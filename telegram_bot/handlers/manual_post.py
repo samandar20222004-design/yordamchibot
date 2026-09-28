@@ -10,6 +10,7 @@ DARHOL preview chiqaradi. Preview ostida universal boshqaruv paneli
     [❤️ Reaksiyalar]           [🔗 Havolali tugma]
     [🗑 24 soatlik e'lon]      [🔄 Takroriy e'lon]
     [✏️ Tahrirlash]            [❌ Bekor qilish]
+    [⚙️ Qo'shimcha sozlamalar]
 
 Amallar (barchasi mavjud, sinovdan o'tgan infratuzilmaga tayanadi):
   * 🚀 Hozir yuborish — post tanlangan kanalga darhol chiqadi
@@ -54,6 +55,9 @@ from keyboards.inline import (
     CB_MANUAL_24H,
     CB_MANUAL_CANCEL,
     CB_MANUAL_CHANNEL,
+    CB_MANUAL_DELIVERY,
+    CB_MANUAL_DLV_BACK,
+    CB_MANUAL_DLV_TOGGLE,
     CB_MANUAL_DUP_AI,
     CB_MANUAL_DUP_FORCE,
     CB_MANUAL_EDIT,
@@ -68,8 +72,10 @@ from keyboards.inline import (
     CB_MANUAL_URL_BTN,
     CUSTOM_REACTION_MAX,
     build_reaction_button_rows,
+    delivery_toggle_key_from_callback,
     get_duplicate_warning_keyboard,
     get_manual_channel_keyboard,
+    get_manual_delivery_keyboard,
     get_manual_post_panel,
     get_manual_reaction_keyboard,
     is_emoji_token,
@@ -127,6 +133,13 @@ UD_DUP_CHANNEL_TITLE = "mnp_dup_title"  # ogohlantirilgan kanal (nomi)
 UD_REACTIONS = "mnp_reactions"  # tanlangan reaksiya emojilari (list[str])
 UD_URL_BTN_TEXT = "mnp_url_text"  # havolali tugma matni
 UD_URL_BTN_URL = "mnp_url_url"    # havolali tugma URL'i (xavfsiz protokol)
+# ⚙️ QO'SHIMCHA SOZLAMALAR (DELIVERY OPTIONS) — Telegram API
+# parametrlari: post ma'lumotlariga (dict/state) biriktiriladi, DB'ga
+# ``scheduled_posts`` ustunlari orqali yoziladi va scheduler tomonidan
+# to'g'ridan-to'g'ri Telegram send/pin metodlariga uzatiladi.
+UD_DISABLE_NOTIFICATION = "mnp_disable_notification"  # 🔇 ovozsiz yuborish
+UD_PROTECT_CONTENT = "mnp_protect_content"            # 🔒 forward himoyasi
+UD_AUTO_PIN = "mnp_auto_pin"                          # 📌 avtomatik qadash
 
 #: Qabul qilinadigan media turlari → post_type.
 _SUPPORTED_MEDIA = ("photo", "video", "animation", "document")
@@ -159,7 +172,8 @@ def _clear_manual_state(context) -> None:
     for key in (UD_CONTENT, UD_POST_TYPE, UD_FILE_ID, UD_MODE, UD_WHEN,
                 UD_REPEAT_TIME, UD_DUP_FORCE, UD_DUP_CHANNEL_ID,
                 UD_DUP_CHANNEL_TITLE, UD_REACTIONS, UD_URL_BTN_TEXT,
-                UD_URL_BTN_URL):
+                UD_URL_BTN_URL, UD_DISABLE_NOTIFICATION, UD_PROTECT_CONTENT,
+                UD_AUTO_PIN):
         context.user_data.pop(key, None)
 
 
@@ -365,12 +379,29 @@ def _manual_url_button(context):
     return None
 
 
+def _delivery_options(context) -> dict:
+    """⚙️ Saqlangan delivery options — ``{"dn": bool, "pc": bool, "ap": bool}``.
+
+    Kalitlar: ``dn`` = disable_notification (ovozsiz), ``pc`` =
+    protect_content (forward/nusxa taqiqlangan), ``ap`` = auto_pin
+    (chiqqach avtomatik qadash). Klaviatura, preview xulosasi va
+    ``db.add_post`` aynan shu bir xil kalitlardan foydalanadi.
+    """
+    return {
+        "dn": bool(context.user_data.get(UD_DISABLE_NOTIFICATION, False)),
+        "pc": bool(context.user_data.get(UD_PROTECT_CONTENT, False)),
+        "ap": bool(context.user_data.get(UD_AUTO_PIN, False)),
+    }
+
+
 def _manual_preview_markup(context, lang: str) -> InlineKeyboardMarkup:
     """Preview ostidagi to'liq markup: URL tugma + reaksiyalar + panel.
 
     Tartib: (1) havolali tugma (haqiqiy URL button), (2) reaksiya
     emojilari (ko'rinish uchun neytral ``enh:noop`` callback'li preview
-    tugmalar), (3) 4 qatorli universal boshqaruv paneli.
+    tugmalar), (3) 4 qatorli universal boshqaruv paneli, (4) ⚙️
+    Qo'shimcha sozlamalar (delivery options) to'liq qator — panel
+    o'zining 4 qatorli speksi buzilmaydi.
     """
     rows = []
     url_btn = _manual_url_button(context)
@@ -380,6 +411,10 @@ def _manual_preview_markup(context, lang: str) -> InlineKeyboardMarkup:
     if reactions:
         rows.extend(build_reaction_button_rows(None, reactions, preview=True))
     rows.extend(get_manual_post_panel(lang).inline_keyboard)
+    rows.append([InlineKeyboardButton(
+        manual_post_t("mp_btn_delivery", lang),
+        callback_data=CB_MANUAL_DELIVERY,
+    )])
     return InlineKeyboardMarkup(rows)
 
 
@@ -395,6 +430,18 @@ def _manual_extras_text(context, lang: str) -> str:
         lines.append(manual_post_t(
             "mp_url_on", lang, text=html_escape(url_btn[0]),
             url=html_escape(url_btn[1])))
+    # ⚙️ Delivery options xulosasi — faqat kamida bittasi yoqilganda.
+    opts = _delivery_options(context)
+    chosen = []
+    if opts["dn"]:
+        chosen.append(manual_post_t("mp_dlv_opt_silent", lang))
+    if opts["pc"]:
+        chosen.append(manual_post_t("mp_dlv_opt_protected", lang))
+    if opts["ap"]:
+        chosen.append(manual_post_t("mp_dlv_opt_autopin", lang))
+    if chosen:
+        lines.append(manual_post_t(
+            "mp_extras_delivery", lang, options=", ".join(chosen)))
     if not lines:
         return ""
     return "\n\n" + "\n".join(lines)
@@ -557,6 +604,11 @@ async def _publish(target_msg, context, user_id: int, channel_id,
     reactions = _manual_reactions(context)
     url_btn = _manual_url_button(context)
 
+    # ⚙️ Delivery options — Telegram yuborish parametrlari DB'ga yoziladi;
+    # scheduler (_execute_send) ularni send_* metodlariga to'g'ridan-to'g'ri
+    # uzatadi va auto_pin bo'lsa post chiqqach qadab qo'yadi.
+    delivery_opts = _delivery_options(context)
+
     ok = False
     try:
         pid = await db.run_db(
@@ -576,6 +628,9 @@ async def _publish(target_msg, context, user_id: int, channel_id,
             enable_reactions=bool(reactions),
             delete_after_hours=delete_after_hours,
             reaction_emojis=(" ".join(reactions) if reactions else None),
+            disable_notification=delivery_opts["dn"],
+            protect_content=delivery_opts["pc"],
+            auto_pin=delivery_opts["ap"],
         )
         ok = bool(pid)
     except Exception:
@@ -1062,6 +1117,42 @@ async def manual_panel_callback(update: Update, context: ContextTypes.DEFAULT_TY
             parse_mode="HTML",
         )
         return MANUAL_URL_INPUT
+
+    # --- ⚙️ QO'SHIMCHA SOZLAMALAR (delivery options) ---
+    if data == CB_MANUAL_DELIVERY:
+        # Sozlamalar oynasi: 3 ta toggle (🔇/🔒/📌) + ◀️ Orqaga.
+        await query.message.reply_text(
+            manual_post_t("mp_dlv_title", lang),
+            reply_markup=get_manual_delivery_keyboard(
+                _delivery_options(context), lang),
+            parse_mode="HTML",
+        )
+        return MANUAL_PREVIEW
+
+    if data.startswith(CB_MANUAL_DLV_TOGGLE):
+        # Toggle On/Off: holat user_data'ga (post dict/state) yoziladi va
+        # klaviatura to'liq qayta chiziladi (✅/❌ yangilandi).
+        key = delivery_toggle_key_from_callback(data)
+        opts = _delivery_options(context)
+        if key == "dn":
+            context.user_data[UD_DISABLE_NOTIFICATION] = not opts["dn"]
+        elif key == "pc":
+            context.user_data[UD_PROTECT_CONTENT] = not opts["pc"]
+        elif key == "ap":
+            context.user_data[UD_AUTO_PIN] = not opts["ap"]
+        try:
+            await query.edit_message_reply_markup(
+                reply_markup=get_manual_delivery_keyboard(
+                    _delivery_options(context), lang))
+        except Exception:
+            logger.debug("Qo'shimcha sozlamalar klaviaturasini "
+                         "yangilab bo'lmadi", exc_info=True)
+        return MANUAL_PREVIEW
+
+    if data == CB_MANUAL_DLV_BACK:
+        # ◀️ Orqaga — tanlangan sozlamalar bilan preview yangilanadi.
+        await _show_preview(query.message, context, lang)
+        return MANUAL_PREVIEW
 
     if data == CB_MANUAL_TIME:
         context.user_data[UD_MODE] = MODE_TIME

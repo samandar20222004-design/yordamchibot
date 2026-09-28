@@ -276,6 +276,23 @@ echo "===== 3e3) ❤️ REAKSIYALAR + 🔗 HAVOLALI TUGMA — MANUAL PREVIEW BOY
 "$PY" tests/manual_post_reactions_and_url_buttons_test.py || EXIT_CODE=1
 
 echo
+echo "===== 3e4) ⚙️ QO'SHIMCHA SOZLAMALAR (DELIVERY OPTIONS) ====="
+# Kanalga post yuborishning professional sozlamalari
+# (tests/delivery_options_test.py):
+# (1) 🔇 disable_notification (ovozsiz yuborish), 🔒 protect_content
+#     (forward/nusxa olishni taqiqlash), 📌 auto_pin (chiqqach
+#     avtomatik qadash) — preview'dagi «⚙️ Qo'shimcha sozlamalar»
+#     tugmasi orqali Toggle On/Off (uz/ru/en paritet);
+# (2) parametrlar post state'iga (user_data) va scheduled_posts
+#     ustunlariga biriktiriladi (backward-compatible migratsiya);
+# (3) scheduler: flaglar Telegram send_* metodlariga to'g'ridan-to'g'ri
+#     uzatiladi; auto_pin bo'lsa post chiqqach
+#     pin_chat_message(disable_notification=True) chaqiriladi (fail-soft);
+# (4) 4 qatorli universal panel speksi va eski 16 maydonli post
+#     tuple'lari (eski xatti-harakat) buzilmaydi.
+"$PY" tests/delivery_options_test.py || EXIT_CODE=1
+
+echo
 echo "===== 3f) 📢 KANALLARIM + 📅 REJALASHTIRILGAN ====="
 # (1) [📢 Kanallarim] → ulangan kanallar ro'yxati + [➕ Kanal qo'shish];
 # (2) kanal tanlanganda QAT'IY boshqaruv ekrani: [➕ Post yaratish] /

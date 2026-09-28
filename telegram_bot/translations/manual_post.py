@@ -91,6 +91,22 @@ MANUAL_POST_I18N = {
             "<code>tg://</code> havolalariga ruxsat beriladi."
         ),
         "mp_url_on": "🔗 Tugma: {text} → {url}",
+        # --- ⚙️ Qo'shimcha sozlamalar (delivery options) oqimi ---
+        "mp_btn_delivery": "⚙️ Qo'shimcha sozlamalar",
+        "mp_dlv_title": (
+            "⚙️ <b>Qo'shimcha sozlamalar.</b>\n\n"
+            "Post kanalga QANDAY chiqishini tanlang — tugmani bosing, "
+            "parametr yoqiladi yoki o'chiriladi (✅/❌):"
+        ),
+        "mp_dlv_notification": "🔇 Ovozsiz yuborish",
+        "mp_dlv_protect": "🔒 Forward/nusxa olishni taqiqlash",
+        "mp_dlv_pin": "📌 Chiqqach avtomatik qadash",
+        "mp_dlv_on": "✅ Yoqilgan",
+        "mp_dlv_off": "❌ O'chirilgan",
+        "mp_extras_delivery": "⚙️ Qo'shimcha: {options}",
+        "mp_dlv_opt_silent": "ovozsiz",
+        "mp_dlv_opt_protected": "himoyalangan",
+        "mp_dlv_opt_autopin": "avto-qadash",
         # --- Kanal tanlash ---
         "mp_choose_channel": "📢 <b>Qaysi kanalga chiqaramiz?</b>",
         # --- Vaqt so'rash ---
@@ -238,6 +254,22 @@ MANUAL_POST_I18N = {
             "<code>https://</code> и <code>tg://</code>."
         ),
         "mp_url_on": "🔗 Кнопка: {text} → {url}",
+        # --- ⚙️ Дополнительные настройки (delivery options) ---
+        "mp_btn_delivery": "⚙️ Доп. настройки",
+        "mp_dlv_title": (
+            "⚙️ <b>Дополнительные настройки.</b>\n\n"
+            "Выберите, КАК пост выйдет в канал — нажмите на переключатель, "
+            "чтобы включить или выключить (✅/❌):"
+        ),
+        "mp_dlv_notification": "🔇 Отправить без звука",
+        "mp_dlv_protect": "🔒 Запретить пересылку/копирование",
+        "mp_dlv_pin": "📌 Закрепить после публикации",
+        "mp_dlv_on": "✅ Вкл",
+        "mp_dlv_off": "❌ Выкл",
+        "mp_extras_delivery": "⚙️ Дополнительно: {options}",
+        "mp_dlv_opt_silent": "без звука",
+        "mp_dlv_opt_protected": "защищён",
+        "mp_dlv_opt_autopin": "авто-закрепление",
         "mp_choose_channel": "📢 <b>В какой канал публикуем?</b>",
         "mp_time_prompt": (
             "📅 <b>Указать время.</b>\n\n"
@@ -375,6 +407,22 @@ MANUAL_POST_I18N = {
             "<code>tg://</code> links are allowed."
         ),
         "mp_url_on": "🔗 Button: {text} → {url}",
+        # --- ⚙️ Extra settings (delivery options) flow ---
+        "mp_btn_delivery": "⚙️ Extra settings",
+        "mp_dlv_title": (
+            "⚙️ <b>Extra delivery settings.</b>\n\n"
+            "Choose HOW the post appears in the channel — tap a toggle to "
+            "switch it on or off (✅/❌):"
+        ),
+        "mp_dlv_notification": "🔇 Send silently",
+        "mp_dlv_protect": "🔒 Protect from forwarding/copying",
+        "mp_dlv_pin": "📌 Auto-pin after publishing",
+        "mp_dlv_on": "✅ On",
+        "mp_dlv_off": "❌ Off",
+        "mp_extras_delivery": "⚙️ Extra: {options}",
+        "mp_dlv_opt_silent": "silent",
+        "mp_dlv_opt_protected": "protected",
+        "mp_dlv_opt_autopin": "auto-pin",
         "mp_choose_channel": "📢 <b>Which channel do we publish to?</b>",
         "mp_time_prompt": (
             "📅 <b>Set the time.</b>\n\n"

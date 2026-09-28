@@ -1264,6 +1264,33 @@ CB_MANUAL_REACT_TOGGLE = "mnp_rt:"   # mnp_rt:<emoji> — preset reaksiya toggle
 CB_MANUAL_REACT_CUSTOM = "mnp_radd"  # ➕ O'zim kiritaman (qo'lda emoji kiritish)
 CB_MANUAL_REACT_BACK = "mnp_rback"   # ◀️ Orqaga (preview'ga qaytish)
 
+# ⚙️ QO'SHIMCHA SOZLAMALAR (DELIVERY OPTIONS) — post kanalga QANDAY
+# chiqishini boshqaruv 3 parametr: ovozsiz yuborish (disable_notification),
+# forward/nusxa olishni taqiqlash (protect_content) va chiqqach avtomatik
+# qadash (auto_pin). Callback'lar ham ``mnp_`` prefiksida — mavjud panel
+# handler'i (``^mnp_``) va stale himoyasi ularni o'zi qamrab oladi.
+CB_MANUAL_DELIVERY = "mnp_dlv"        # ⚙️ Qo'shimcha sozlamalar menyusi
+CB_MANUAL_DLV_TOGGLE = "mnp_dlt:"     # mnp_dlt:<key> — parametr toggle
+CB_MANUAL_DLV_BACK = "mnp_dlb"        # ◀️ Orqaga (preview'ga qaytish)
+
+#: Toggle kalitlari: dn=disable_notification, pc=protect_content,
+#: ap=auto_pin (user_data/DB ustunlari bilan bir xil ma'no).
+DELIVERY_TOGGLE_KEYS = ("dn", "pc", "ap")
+
+
+def manual_delivery_toggle_callback(key: str) -> str:
+    """``mnp_dlt:<key>`` callback'i (64-bayt kafolatli ``cb`` orqali)."""
+    return cb(CB_MANUAL_DLV_TOGGLE[:-1], str(key))
+
+
+def delivery_toggle_key_from_callback(data: str):
+    """``mnp_dlt:ap`` → 'ap' (DELIVERY_TOGGLE_KEYS'dan); yaroqsiz bo'lsa None."""
+    prefix = CB_MANUAL_DLV_TOGGLE
+    if not isinstance(data, str) or not data.startswith(prefix):
+        return None
+    key = data[len(prefix):].strip()
+    return key if key in DELIVERY_TOGGLE_KEYS else None
+
 # ❤️ Reaksiya presetlari — spets bo'yicha 2 guruh: [👍 / 👎] va [🔥 / ❤️ / 👏].
 MANUAL_REACTION_PRESETS = (("👍", "👎"), ("🔥", "❤️", "👏"))
 
@@ -1378,6 +1405,43 @@ def get_manual_reaction_keyboard(selected=None, lang: str = "uz") -> InlineKeybo
         InlineKeyboardButton(manual_post_t("mp_btn_back_panel", lang),
                              callback_data=CB_MANUAL_REACT_BACK),
     ])
+    return InlineKeyboardMarkup(rows)
+
+
+def get_manual_delivery_keyboard(state: dict, lang: str = "uz") -> InlineKeyboardMarkup:
+    """⚙️ Qo'shimcha sozlamalar (DELIVERY OPTIONS) klaviaturasi::
+
+        [🔇 Ovozsiz yuborish: ✅/❌]
+        [🔒 Forward/nusxa taqiqlash: ✅/❌]
+        [📌 Chiqqach avtomatik qadash: ✅/❌]
+        [◀️ Orqaga]
+
+    ``state`` — ``{"dn": bool, "pc": bool, "ap": bool}``. Har bir toggle
+    bosilganda klaviatura TO'LIQ qayta chiziladi (✅/❌ holat yangilanadi).
+    Yorliqlar ``translations/manual_post.py`` dan (uz/ru/en paritet);
+    ``callback_data`` tilga bog'liq emas.
+    """
+    from translations import manual_post_t
+
+    state = state or {}
+    on_txt = manual_post_t("mp_dlv_on", lang)
+    off_txt = manual_post_t("mp_dlv_off", lang)
+    rows = []
+    for label_key, flag_key in (
+        ("mp_dlv_notification", "dn"),
+        ("mp_dlv_protect", "pc"),
+        ("mp_dlv_pin", "ap"),
+    ):
+        value = bool(state.get(flag_key))
+        rows.append([InlineKeyboardButton(
+            f"{manual_post_t(label_key, lang)}: "
+            f"{on_txt if value else off_txt}",
+            callback_data=manual_delivery_toggle_callback(flag_key),
+        )])
+    rows.append([InlineKeyboardButton(
+        manual_post_t("mp_btn_back_panel", lang),
+        callback_data=CB_MANUAL_DLV_BACK,
+    )])
     return InlineKeyboardMarkup(rows)
 
 

@@ -1659,6 +1659,12 @@ def _init_db_once():
                 recurrence_day INTEGER,
                 recurrence_time TIME,
                 end_date TIMESTAMP WITH TIME ZONE,
+                -- ⚙️ Qo'shimcha sozlamalar (delivery options): scheduler
+                -- bu qiymatlarni Telegram send_* metodlariga to'g'ridan-to'g'ri
+                -- uzatadi; auto_pin bo'lsa post chiqqach qadab qo'yadi.
+                disable_notification BOOLEAN DEFAULT FALSE,
+                protect_content BOOLEAN DEFAULT FALSE,
+                auto_pin BOOLEAN DEFAULT FALSE,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
         """)
@@ -1857,6 +1863,11 @@ def _init_db_once():
             "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS end_date TIMESTAMP WITH TIME ZONE;",
             "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;",
             "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS processing_started_at TIMESTAMP WITH TIME ZONE;",
+            # ⚙️ Qo'shimcha sozlamalar (delivery options): eski yozuvlar
+            # FALSE default bilan — xatti-harakat o'zgarmaydi.
+            "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS disable_notification BOOLEAN DEFAULT FALSE;",
+            "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS protect_content BOOLEAN DEFAULT FALSE;",
+            "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS auto_pin BOOLEAN DEFAULT FALSE;",
             "ALTER TABLE scheduled_posts ALTER COLUMN file_id TYPE TEXT;",
             "ALTER TABLE channels ADD COLUMN IF NOT EXISTS tone_of_voice VARCHAR(30) DEFAULT 'friendly';",
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS plan_type VARCHAR(20) DEFAULT 'free';",
@@ -3714,7 +3725,10 @@ def add_post(
     btn_url: str = None,
     enable_reactions: bool = False,
     delete_after_hours: int = 0,
-    reaction_emojis=None
+    reaction_emojis=None,
+    disable_notification: bool = False,
+    protect_content: bool = False,
+    auto_pin: bool = False
 ) -> int:
     # reaction_emojis: ro'yxat yoki bo'sh joy bilan ajratilgan satr — DB'da
     # bo'sh joy bilan ajratilgan satr ko'rinishida saqlanadi ("👍 ❤️ 🔥").
@@ -3740,13 +3754,15 @@ def add_post(
                 INSERT INTO scheduled_posts
                     (user_id, channel_id, post_type, content, file_id, inline_button_text, inline_button_url,
                      enable_reactions, reaction_emojis, delete_after_hours, scheduled_time, status, user_post_number,
-                     recurrence_type, recurrence_day, recurrence_time, end_date)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'pending', %s, %s, %s, %s, %s)
+                     recurrence_type, recurrence_day, recurrence_time, end_date,
+                     disable_notification, protect_content, auto_pin)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'pending', %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id
             """, (
                 user_id, str(channel_id), post_type, content, file_id, btn_text, btn_url,
                 enable_reactions, reaction_emojis, delete_after_hours, scheduled_time, next_num,
-                recurrence_type, recurrence_day, recurrence_time, end_date
+                recurrence_type, recurrence_day, recurrence_time, end_date,
+                bool(disable_notification), bool(protect_content), bool(auto_pin)
             ))
             post_id = cur.fetchone()[0]
         _invalidate_user(user_id)
@@ -4201,7 +4217,8 @@ def get_due_posts(now) -> list:
                 RETURNING sp.id, sp.user_id, sp.channel_id, sp.post_type, sp.content, sp.file_id,
                           sp.inline_button_text, sp.inline_button_url, sp.enable_reactions,
                           sp.scheduled_time, sp.recurrence_type, sp.recurrence_day,
-                          sp.recurrence_time, sp.end_date, sp.delete_after_hours, sp.reaction_emojis
+                          sp.recurrence_time, sp.end_date, sp.delete_after_hours, sp.reaction_emojis,
+                          sp.disable_notification, sp.protect_content, sp.auto_pin
             """, (now, POST_BATCH_SIZE))
             rows = cur.fetchall()
         _cache_clear("system_stats")

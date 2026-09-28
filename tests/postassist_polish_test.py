@@ -269,6 +269,7 @@ WHITELIST_LABELS = {
     "👥 Пригласить друзей",  # 19 — speskda aniq yozilgan (ru)
     "✍️ Post sozlamalari",        # 19 — speskda aniq yozilgan (uz)
     "✍️ Настройки постов",  # 19 — speskning ru varianti
+    "⚙️ Qo'shimcha sozlamalar",  # 23 — delivery options speksida aniq yozilgan
 }
 
 TRANSLATION_MODULES = [
