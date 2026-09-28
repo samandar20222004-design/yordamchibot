@@ -113,6 +113,9 @@ MODE_24H = "24h"        # 🗑 24 soatlik e'lon
 MODE_REPEAT = "repeat"  # 🔄 Takroriy e'lon
 
 #: user_data kalitlari (bir joyda — testlar va handlerlar uchun yagona manba).
+from utils.delivery_options import DELIVERY_KEYS, delivery_labels, delivery_markup
+
+UD_DELIVERY = "mnp_delivery"
 UD_CONTENT = "mnp_content"
 UD_POST_TYPE = "mnp_post_type"
 UD_FILE_ID = "mnp_file_id"
@@ -159,7 +162,7 @@ def _clear_manual_state(context) -> None:
     for key in (UD_CONTENT, UD_POST_TYPE, UD_FILE_ID, UD_MODE, UD_WHEN,
                 UD_REPEAT_TIME, UD_DUP_FORCE, UD_DUP_CHANNEL_ID,
                 UD_DUP_CHANNEL_TITLE, UD_REACTIONS, UD_URL_BTN_TEXT,
-                UD_URL_BTN_URL):
+                UD_URL_BTN_URL, UD_DELIVERY):
         context.user_data.pop(key, None)
 
 
@@ -379,6 +382,7 @@ def _manual_preview_markup(context, lang: str) -> InlineKeyboardMarkup:
     reactions = _manual_reactions(context)
     if reactions:
         rows.extend(build_reaction_button_rows(None, reactions, preview=True))
+    rows.append([InlineKeyboardButton(delivery_labels(lang)["title"], callback_data="mnp_delivery")])
     rows.extend(get_manual_post_panel(lang).inline_keyboard)
     return InlineKeyboardMarkup(rows)
 
@@ -561,6 +565,7 @@ async def _publish(target_msg, context, user_id: int, channel_id,
     try:
         pid = await db.run_db(
             db.add_post,
+            delivery_options=context.user_data.get(UD_DELIVERY, {}),
             user_id=user_id,
             channel_id=channel_id,
             post_type=context.user_data.get(UD_POST_TYPE, "text"),
@@ -984,6 +989,16 @@ async def manual_panel_callback(update: Update, context: ContextTypes.DEFAULT_TY
         )
         clear_fsm_data(context)
         return ConversationHandler.END
+
+    if data == "mnp_delivery" or data.startswith("mnp_delivery:"):
+        options = context.user_data.setdefault(UD_DELIVERY, {})
+        if ":" in data:
+            key = data.split(":", 1)[1]
+            if key not in DELIVERY_KEYS:
+                return MANUAL_PREVIEW
+            options[key] = not options.get(key, False)
+        await query.edit_message_reply_markup(reply_markup=delivery_markup(options, lang))
+        return MANUAL_PREVIEW
 
     if data == CB_MANUAL_CANCEL:
         try:
