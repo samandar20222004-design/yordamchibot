@@ -22,7 +22,12 @@ logger = logging.getLogger(__name__)
 
 # Boshqariladigan PostgreSQL (Aiven va h.k.) uchun ulanishlar soni cheklangan.
 # DB_POOL_MAX ni oshirishdan oldin xizmatning ulanish limitini tekshiring.
-DB_POOL_MIN = max(0, int(os.getenv("DB_POOL_MIN", "0")))
+# 1-BOSQICH: DB_POOL_MIN standart 0 -> 2. Sabab: Aiven/Render free-tier
+# da birinchi so'rov har doim TLS handshake + autentifikatsiyani TO'LIQ
+# to'lashdan keyin chiqadi (300-800 ms). ``min`` ulanishlar ``init_db``
+# paytida ``warm_pool()`` orqali ochiladi va ISITILADI — ya'ni foydalanuvchi
+# birinchi /start yuborganda ulanish ALLTA tayyor turadi, 0-dan emas.
+DB_POOL_MIN = max(0, int(os.getenv("DB_POOL_MIN", "2")))
 DB_POOL_MAX = max(DB_POOL_MIN + 1, int(os.getenv("DB_POOL_MAX", "5")))
 # PostAssist V2 (10-BOSQICH): DB_POOL_SIZE — pool hajmi uchun qulay alias.
 # Berilgan bo'lsa DB_POOL_MAX o'rniga shu qiymat ishlatiladi (Aiven ulanish
@@ -39,7 +44,15 @@ if _raw_pool_size:
 # Har bir scheduler ishlashida ko'pi bilan shuncha post yuboriladi
 # (ulkan navbat bitta tick'ni to'sib qo'ymasligi uchun).
 POST_BATCH_SIZE = max(1, int(os.getenv("POST_BATCH_SIZE", "100")))
-DB_CONNECT_TIMEOUT = int(os.getenv("DB_CONNECT_TIMEOUT", "20"))
+# 1-BOSQICH: standart 20s -> 8s. Ulanish osilib qolganda 20 soniya kutish
+# botni «o'lik» ko'rsatadi; Aiven/Render free-tier da ulanish 8 soniyadan
+# oshsa allaqasi muvaffaqiyatsiz bo'ladi, shunda tez urinish (retry) bilan
+# qayta ulanish tezroq natija beradi.
+DB_CONNECT_TIMEOUT = max(1, int(os.getenv("DB_CONNECT_TIMEOUT", "8")))
+# 1-BOSQICH: Aiven idle-timeout ulanishni «o'lik» qilganda avtomatik
+# QAYTA ulanish urinishlari soni (standart 1 = bir marta qayta urinadi,
+# jami 2 urinish). 0 = faqat bir urinish, qayta urinish yo'q.
+DB_RECONNECT_RETRIES = max(0, int(os.getenv("DB_RECONNECT_RETRIES", "1")))
 
 # Kanonik sxema fayli (database.py bilan bir katalogda yuradi).
 SCHEMA_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "schema.sql")
@@ -603,13 +616,21 @@ def _connection_is_usable(conn) -> bool:
 
 
 def _acquire_connection():
-    """Pool'dan ulanish olish (maks. 15 soniya). O'lik ulanishda qayta urinadi."""
+    """Pool'dan ulanish olish (maks. 15 soniya). O'lik ulanishda qayta urinadi.
+
+    1-BOSQICH: urinishlar soni endi ``DB_RECONNECT_RETRIES`` (standart 1 →
+    jami 2 urinish) orqali boshqariladi. Har bir muvaffaqiyatsiz urinishdan
+    keyin pool BUTUNLAY qayta quriladi (``_reset_pool``) — Aiven idle
+    timeout barcha havuzdagi ulanishlarni birdan o'ldiradi, shuning uchun
+    bitta ulanishni tiklash yetarli emas.
+    """
     sem = _get_semaphore()
     if not sem.acquire(timeout=15):
         raise TimeoutError("DB pool band: 15 soniya ichida bo'sh ulanish topilmadi")
+    attempts = DB_RECONNECT_RETRIES + 1
     try:
         last_err = None
-        for attempt in range(2):
+        for attempt in range(attempts):
             try:
                 conn = _get_pool().getconn()
             except Exception as e:
@@ -620,8 +641,8 @@ def _acquire_connection():
             if _connection_is_usable(conn):
                 return conn
             logger.warning(
-                "DB ulanishi uzilgan (urinish %s/2); qayta ulanilmoqda...",
-                attempt + 1,
+                "DB ulanishi uzilgan (urinish %s/%s); qayta ulanilmoqda...",
+                attempt + 1, attempts,
             )
             try:
                 conn.close()
@@ -634,6 +655,74 @@ def _acquire_connection():
     except Exception:
         sem.release()
         raise
+
+
+def warm_pool() -> bool:
+    """Ulashishlar havuzini «isitadi» — bitta ``SELECT 1;`` bilan.
+
+    Render/Aiven free-tier da muammo shu: bot qayta ishga tushgach birinchi
+    biror so'rov uchun TLS handshake, autentifikatsiya va PostgreSQL plan
+    keshi sovuq bo'ladi — bu foydalanuvchi hissidan 0.3–1.0 soniya yuk qo'shadi.
+    Bu funksiya:
+
+      1. ``ThreadedConnectionPool(min, max, ...)`` yaratadi (``min`` ta
+         ulanish shu zahoti ochiladi);
+      2. havuzdagi har bir ulanishga bitta ``SELECT 1;`` yuboradi — server
+         ham, havuz ham «ishlaydi»;
+      3. uzilgan ulanishlarni tashlab, ``_acquire_connection`` orqali
+         ``DB_RECONNECT_RETRIES`` marta qayta urinadi.
+
+    ``init_db()`` dan OLDIN chaqiriladi: jadvallar yaratilgandan keyin
+    degani qimmat ``CREATE TABLE IF NOT EXISTS`` bloklari ham sovuq ulanish
+    ustida emas, iliq ulanish ustida ishlaydi.
+
+    Qaytadi: ``True`` — havuz isitildi; ``False`` — DB hali ko'tarilmagan
+    (bot ishlashda davom etadi, ``init_db`` o'z urinishlarini qiladi).
+    """
+    warmed = 0
+    for attempt in range(DB_RECONNECT_RETRIES + 1):
+        try:
+            pool = _get_pool()
+        except Exception as e:
+            logger.warning("DB pool yaratib bo'lmadi (%s/%s): %s",
+                           attempt + 1, DB_RECONNECT_RETRIES + 1, e)
+            _time.sleep(0.5)
+            continue
+        warmed = 0
+        for _ in range(max(1, DB_POOL_MIN)):
+            conn = None
+            try:
+                conn = pool.getconn()
+                with conn.cursor() as cur:
+                    cur.execute("SELECT 1;")
+                    cur.fetchone()
+                warmed += 1
+            except (psycopg2.OperationalError, psycopg2.InterfaceError) as e:
+                logger.warning("Warm-up ulanishi uzildi: %s", e)
+                _reset_pool()
+                break
+            except Exception as e:  # pragma: no cover — kutilmagan
+                logger.warning("Warm-up ulanishida xato: %s", e)
+                break
+            finally:
+                if conn is not None:
+                    try:
+                        pool.putconn(conn)
+                    except Exception:
+                        try:
+                            conn.close()
+                        except Exception:
+                            pass
+        if warmed >= max(1, DB_POOL_MIN):
+            logger.info(
+                "DB pool isitildi: %s ulanish tayyor (min=%s, max=%s).",
+                warmed, DB_POOL_MIN, DB_POOL_MAX,
+            )
+            return True
+        _time.sleep(0.5)
+    logger.warning("DB pool isitilmadi — bot ishlashda davom etadi "
+                   "(init_db o'z urinishlarini qiladi).")
+    return False
 
 
 def _release_connection(conn):
@@ -1058,6 +1147,11 @@ def get_post_health_counts() -> dict:
     return counts
 
 def init_db():
+    # 1-BOSQICH: avval havuzni «isitish» — jadvallarni yaratishdan oldin
+    # ``SELECT 1;`` bilan ulanishlar tayyorlanadi, shunda startup'dagi
+    # eng qimmat SQL (CREATE TABLE/INDEX) sovuq ulanish ustida emas,
+    # iliq ulanish ustida bajariladi va Render port 0-dan tez ochiladi.
+    warm_pool()
     last_err = None
     for attempt in range(3):
         try:
@@ -2999,6 +3093,38 @@ def total_referral_reward(friends_count: int) -> int:
     return sum(referral_reward_for(i) for i in range(1, n + 1))
 
 
+class _UserSaveResult(int):
+    """``save_user`` natijasi — ``bool`` bilan TO'LIQ mos, ammo boy maydonli.
+
+    Nega ``int`` subclassi (1-BOSQICH): eski chaqiruvchilar natijani
+    ``if save_user(...):`` / ``== True`` / ``bool()`` shaklida ishlatadi —
+    ``int`` merosxo'rligi shu qarorlarni O'ZGARMAGAN qiladi, shu bilan
+    birga yangi maydonlar (``.lang``) orqali /start ikkinchi DB so'rovini
+    (``get_user_language``) umuman qisqartirishga imkon beradi.
+
+    ``lang`` — saqlangan til. Yangi foydalanuvchida ``language_code``
+    dan, eskisida ``users.language_code`` ustunidan (bir xil tranzaksiya
+    ichida) olinadi. ``None`` bo'lsa — bazada til yo'q, xato emas.
+
+    (``__slots__`` ishlatilmaydi: ``int`` kabi o'lchamli (variable-length)
+    built-in turga bo'sh bo'lmagan ``__slots__`` qo'yib bo'lmaydi. Bu obyekt
+    faqat /start da bir marta yaratiladi — xotira muammosi yo'q.)
+    """
+
+    def __new__(cls, is_new: bool, lang=None, referrer_id=None,
+                reward: int = 0, reason: str = ""):
+        obj = super().__new__(cls, 1 if is_new else 0)
+        obj.lang = _normalize_language_code(lang) if lang else None
+        obj.referrer_id = referrer_id
+        obj.reward = int(reward or 0)
+        obj.reason = reason or ""
+        return obj
+
+    def __repr__(self) -> str:  # pragma: no cover — log/debug uchun
+        return (f"_UserSaveResult(is_new={bool(self)}, lang={self.lang!r}, "
+                f"reward={self.reward})")
+
+
 def save_user(user_id: int, username: str, full_name: str = "", referrer_id: int = None,
               language_code: str = None) -> bool:
     """Foydalanuvchini saqlaydi: yangi — ro'yxatdan o'tkazadi, eski — yangilaydi.
@@ -3010,7 +3136,12 @@ def save_user(user_id: int, username: str, full_name: str = "", referrer_id: int
     ``referral_reward_for(n)`` (1-3 do'st +3, keyingilar +1 — PRO berilmaydi)
     va har bir bonus ``credits_ledger`` jadvaliga audit yozuvi tushadi.
 
-    Returns: True — yangi foydalanuvchi yaratildi (False — allaqachon bor).
+    1-BOSQICH: natija ``_UserSaveResult`` — ``bool`` ga mos (orqa moslik),
+    lekin ``.lang`` maydoni ham beriladi. Shu bilan ``/start`` da
+    ``get_user_language`` uchun ALOHIDA (ikkinchi) DB so'rovi kerak bo'lmaydi:
+    bitta upsert = bitta round-trip.
+
+    Returns: ``_UserSaveResult`` — True/False ga teng (``bool()`` ishlaydi).
     """
     from services.referral_service import ReferralService
     try:
@@ -3018,10 +3149,24 @@ def save_user(user_id: int, username: str, full_name: str = "", referrer_id: int
             user_id, username, full_name=full_name,
             referrer_id=referrer_id, language_code=language_code,
         )
-        return bool(result.get("is_new"))
+        is_new = bool(result.get("is_new"))
+        # Tilni TTL keshga yozamiz — keyingi ``get_user_language`` chaqiruvi
+        # (boshqa ekranlar: /cabinet, til tanlash) KESHDAN o'qiladi va
+        # qo'shimcha DB so'rovi qilmaydi.
+        lang = result.get("language_code")
+        if lang:
+            _cache_set(f"user_lang:{int(user_id)}",
+                       _normalize_language_code(lang), DB_USER_CACHE_TTL)
+        return _UserSaveResult(
+            is_new=is_new,
+            lang=lang,
+            referrer_id=result.get("referrer_id"),
+            reward=result.get("reward"),
+            reason=result.get("reason"),
+        )
     except Exception as e:
         logger.error(f"User saqlash xatosi: {e}")
-        return False
+        return _UserSaveResult(False)
 
 def _today_tashkent():
     """Toshkent vaqtidagi bugungi sana (Render serveri UTC da bo'lgani uchun

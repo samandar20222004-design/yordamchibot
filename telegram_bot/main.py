@@ -1,5 +1,7 @@
 import asyncio
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
+from urllib.parse import urlsplit
 import logging
 import signal
 import sys
@@ -7,7 +9,13 @@ import pytz  # noqa: F401 — vaqt zonasi bilan ishlovchi modullar uchun saqlana
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from telegram.ext import ApplicationBuilder, Application
 from telegram import BotCommand
-from config import BOT_TOKEN, UPDATE_HANDLER_TIMEOUT_SECONDS
+from config import (
+    BOT_TOKEN,
+    UPDATE_HANDLER_TIMEOUT_SECONDS,
+    STALE_UPDATE_SECONDS,
+    KEEP_ALIVE_URL,
+    KEEP_ALIVE_INTERVAL_SECONDS,
+)
 from utils.telegram_delivery import create_safe_bot
 from utils.handler_timeout import await_with_timeout
 import database as db
@@ -127,7 +135,44 @@ class GuardedApplication(Application):
         super().__init__(*args, **kwargs)
         self._lock_manager = UpdateLockManager()
 
+    @staticmethod
+    def is_stale_update(update) -> bool:
+        """Bu update ESKIMI (Render Free'da bot o'chgan paytda yig'ilgan)?
+
+        Render free-tier instance'i 15 daqiqa faol bo'lmasa O'CHADI va
+        keyin xabar kelganda QAYTA OCHILADI (bu "cold start"). O'chgan
+        paytda foydalanuvchilar yuborgan xabarlar Telegram serverida
+        jamlanadi va qayta ishga tushganda birdan kelib tushadi — ular
+        ``/start``, stiker, matn bo'lishi mumkin. Agar hammasi
+        bajarilsa, bot bir vaqtda yuzlab xabarni qayta ishlaydi va birinchi
+        foydalanuvchining javobi kechikadi.
+
+        ``STALE_UPDATE_SECONDS`` (standart 600s = 10 daqiqa) dan eski
+        update'lar INDIRO'LADI: ular hech qachon foydalanuvchiga ko'rinmaydi
+        va navbatni to'smaydi. Jonli xabarlar Telegram'da bir necha soniyada
+        yuboriladi, shuning uchun chegara haqiqiy xabarni kesib tashlamaydi.
+        """
+        if STALE_UPDATE_SECONDS <= 0:
+            return False
+        stamp = getattr(update, "date", None)
+        if not isinstance(stamp, datetime):
+            return False
+        if stamp.tzinfo is None:  # PTB har doim tz-aware UTC beradi
+            stamp = stamp.replace(tzinfo=timezone.utc)
+        age = (datetime.now(timezone.utc) - stamp).total_seconds()
+        return age > STALE_UPDATE_SECONDS
+
     async def process_update(self, update):
+        # 1-BOSQICH: eski update filtri — per-user lockni OLISHDAN OLDIN,
+        # shunda o'lik xabarlar navbatni umuman band qilmaydi.
+        if self.is_stale_update(update):
+            logger.info(
+                "Eski update filtrlandi (yosh: %.0fs > STALE_UPDATE_SECONDS=%s, "
+                "update_id=%s)", (datetime.now(timezone.utc) - update.date).total_seconds(),
+                STALE_UPDATE_SECONDS, getattr(update, "update_id", "?"),
+            )
+            return None
+
         lock_key = get_update_lock_key(update)
         async with self._lock_manager.lock(lock_key):
             try:
@@ -268,6 +313,48 @@ class GuardedApplication(Application):
 #   * kritik xatolar (DB down, fatal) logda [CRITICAL_HEALTH] bilan
 #     ajratilib, admin audit jurnaliga best-effort yoziladi.
 error_handler = global_error_handler
+
+
+# ============================================================
+# 📡 1-BOSQICH: KEEP-ALIVE (Render/Aiven free-tier)
+# ------------------------------------------------------------
+# Render free-tier'da instance faol bo'lmasa «sleep»ga ketadi. Tashqi
+# ping (UptimeRobot / cron-job.org) uni har 10 daqiqada uyg'otib turadi —
+# bot bir kun ham o'lib qolmaydi va Telegram'da kechikish bo'lmaydi.
+# ============================================================
+
+
+async def keep_alive_task() -> None:
+    """``KEEP_ALIVE_URL`` ga har ``KEEP_ALIVE_INTERVAL_SECONDS`` da GET yuboradi.
+
+    Bo'sh ``KEEP_ALIVE_URL`` da bu vazifa HECH QACHON ishga tushmaydi.
+    Xato (tarmoq, 5xx, timeout) botni TO'XTATMAYDI — keyingi sikl
+    yana urinadi, faqat logga yoziladi.
+    """
+    if not KEEP_ALIVE_URL:
+        return
+    # Maxfiyatlik: URL'ga token qo'yilishi mumkin (Render loglari ochiq) —
+    # logga faqat HOST yoziladi, to'liq URL emas.
+    try:
+        host = urlsplit(KEEP_ALIVE_URL).netloc or "?"
+    except Exception:  # pragma: no cover
+        host = "?"
+    import aiohttp
+
+    while True:
+        await asyncio.sleep(KEEP_ALIVE_INTERVAL_SECONDS)
+        try:
+            timeout = aiohttp.ClientTimeout(total=20)
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.get(KEEP_ALIVE_URL) as response:
+                    await response.read()
+                    logger.info("Keep-alive %s -> HTTP %s", host, response.status)
+        except asyncio.CancelledError:
+            logger.info("Keep-alive vazifasi to'xtatildi (%s).", host)
+            raise
+        except Exception as e:
+            # Keep-alive MUHIM EMAS — xato botni halokatga olib kelmasin.
+            logger.warning("Keep-alive so'rovi muvaffaqiyatsiz (%s): %s", host, e)
 
 
 async def set_bot_commands(application):
@@ -460,7 +547,46 @@ async def graceful_shutdown(application=None, scheduler=None, web_runner=None,
 
 
 async def main():
-    db.init_db()
+    # ================================================================
+    # 1-BOSQICH: PORT AVVAL OCHILADI (0-s readiness)
+    # ------------------------------------------------------------
+    # Render web service «Deploy successful» deguncha PORT ga ulanishni
+    # tekshiradi. ``start_web_server()`` ``db.init_db()`` dan OLDIN
+    # ishga tushadi — chunki ``init_db()`` og'ir: TCP + TLS handshake,
+    # 3 urinish (3s kutish), ``CREATE TABLE/INDEX IF NOT EXISTS`` va
+    # integrity tekshiruvi. Aiven/Render free-tier da bu 5–30 soniya
+    # oladi; port shu vaqt YOPIQ bo'lsa, Render deploy'ni muvaffaqiyatsiz
+    # deb belgilaydi (health check timeout) yoki bot "sekin start" bo'ladi.
+    #
+    # ``/health/live`` baza bilan UMUMAN bog'lanmaydi (faqat process
+    # tirikligi), shuning uchun bu endpoint DB bo'lmagan holatda ham
+    # darhol 200 qaytaradi. DB tekshiruvi faqat ``/health/ready`` da.
+    # ================================================================
+    web_runner = await start_web_server()
+
+    # Havzani isitish + jadvallarni yaratish. Bu endi KECHIKMAYDI, chunki
+    # port allaqachon ochiq — Render darhol 200 oladi va bot init_db
+    # tugagach Telegram'ni oladi.
+    #
+    # ⚠️ MUHIM: ``db.init_db()`` SINXRON (psycopg2) funksiya — uni to'g'ridan
+    # chaqirsak, u event loop'ni BUTUNLAY bloklaydi. Socket bound bo'lsa ham,
+    # aiohttp server javob BEROLMAYDIGAN edi (loop band) va Render yana
+    # health-check timeout olardi. Shuning uchun ``asyncio.to_thread`` —
+    # DB ishi worker thread'da, event loop esa shu vaqt /health/live ga
+    # javob berishda davom etadi.
+    try:
+        await asyncio.to_thread(db.init_db)
+    except BaseException:
+        # DB ko'tarilmadi: ochiq portni YOPAMIZ. Aks holda Render bot
+        # o'lganini sezmasdan «healthy» deb qolardi va deploy muvaffaqiyatli
+        # ko'rinirdi (lekin Telegram'da javob yo'q bo'lardi).
+        logger.critical("DB ishga tushirilmadi — web server yopilmoqda, "
+                        "bot to'xtaydi (Render deploy muvaffaqiyatsiz bo'ladi).")
+        try:
+            await web_runner.cleanup()
+        except Exception:
+            logger.exception("Web serverni yopishda xatolik")
+        raise
 
     # 11-bosqich (P0) restart recovery: avvalgi jarayon 'processing' da
     # qoldirgan postlar — Telegramga chiqqanlari 'posted' (qayta yuborilmaydi),
@@ -473,11 +599,26 @@ async def main():
     except Exception:
         logger.exception("AI runtime parametrlarni yuklashda xatolik (defaultlar ishlatiladi)")
 
-    web_runner = None
+    # ``web_runner`` yuqorida (init_db'dan oldin) tayinlangan — uni QAYTA
+    # null qilmaymiz, aks holda graceful_shutdown uni yopa olmasdi.
     scheduler = None
     stop_event = asyncio.Event()
     loop = asyncio.get_running_loop()
     installed_signals = install_signal_handlers(loop, stop_event)
+    # 1-BOSQICH: keep-alive fon vazifasi (KEEP_ALIVE_URL bo'lmasa
+    # ishga tushmaydi). Uzoq umrli sikl — ``run_background_task``ning
+    # timeout'i uni o'ldirishi mumkin, shuning uchun oddiy
+    # ``create_task`` + kuchli havolani saqlash ishlatiladi.
+    keep_alive_handle = None
+    if KEEP_ALIVE_URL:
+        keep_alive_handle = asyncio.create_task(keep_alive_task())
+        try:
+            keep_alive_handle.set_name("keep-alive")
+        except Exception:  # pragma: no cover — eski Python
+            pass
+        logger.info("Keep-alive yoqildi: %s da %ss oralig'ida.",
+                    urlsplit(KEEP_ALIVE_URL).netloc or "?",
+                    KEEP_ALIVE_INTERVAL_SECONDS)
     application = (
         ApplicationBuilder()
         .bot(create_safe_bot(BOT_TOKEN))
@@ -494,7 +635,8 @@ async def main():
     register_error_handlers(application)
 
     register_all_handlers(application)
-    web_runner = await start_web_server()
+    # 1-BOSQICH: ``start_web_server()`` endi ``init_db()`` dan OLDIN
+    # chaqirilgan (yuqorida) — bu yerda QAYTARIB chaqirilmaydi.
 
     # Scheduler: har bir ish (job) maks. 1 marta parallel ishlaydi (max_instances=1),
     # o'tkazib yuborilgan ishlar birlashtiriladi (coalesce), va bot qayta
@@ -562,7 +704,18 @@ async def main():
         await application.initialize()
         await application.start()
         await set_bot_commands(application)
-        await application.updater.start_polling(drop_pending_updates=True)
+        await application.updater.start_polling(
+            # 1-BOSQICH: ``False`` — eski xabarlar YO'Q QILINMAYDI.
+            # Sabab: Render/Aiven kechikishida foydalanuvchi yuborgan
+            # xabar (masalan /start) o'chgan paytda navbatda turadi; agar
+            # uni tashlab yuborilsa, foydalanuvchi "javob yo'q" deb qoladi.
+            # Eski xabarlar endi ikki bosqichli himoya bilan filtrlanadi:
+            #   1) ``GuardedApplication.is_stale_update`` —
+            #      STALE_UPDATE_SECONDS (600s) dan eskisi INDIRO'LADI;
+            #   2) ``recover_on_startup()`` — 'processing' qolgan postlar
+            #      tiklanadi (qayta yuborilmaydi).
+            drop_pending_updates=False,
+        )
 
         # Scheduler'ni app to'liq ishga tushgandan keyin boshlaymiz —
         # shunda birinchi ishlash ham to'liq tayyor muhitda bo'ladi.
@@ -592,6 +745,15 @@ async def main():
         # ochilgan resurslar yopilishi kerak (shuning uchun None-tekshiruv).
         # graceful_shutdown har bosqichni alohida himoyalaydi — asl xato
         # yashirilmaydi, DB pool va aiohttp sessiyalari DOIM yopiladi.
+        # 1-BOSQICH: keep-alive siklini to'xtatamiz (u ``while True`` —
+        # to'xtatilmasa event loop'da osilib qoladi va "Task was destroyed
+        # but it is pending" ogohlantirishlari chiqadi).
+        if keep_alive_handle is not None and not keep_alive_handle.done():
+            keep_alive_handle.cancel()
+            try:
+                await keep_alive_handle
+            except (asyncio.CancelledError, Exception):
+                pass
         remove_signal_handlers(loop, installed_signals)
         await graceful_shutdown(application, scheduler, web_runner)
 

@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import time
 from telegram import Update, InlineKeyboardMarkup
@@ -26,6 +27,7 @@ from locales.translations import (
     localize_db_message, normalize_lang, LANG_KEY,
 )
 from utils.helpers import html_escape, get_smart_reply_ad_async
+from utils.handler_timeout import run_background_task
 
 logger = logging.getLogger(__name__)
 
@@ -169,6 +171,59 @@ async def check_user_subscribed(bot, user_id: int) -> tuple[bool, list | None]:
 check_user_sponsorship = check_user_subscribed
 
 
+# ============================================================
+# 🚀 1-BOSQICH: /start da IKKILAMCHI ISHLARNI FONGA YUKLASH
+# ------------------------------------------------------------
+# /start — eng ko'p chaqiriladigan buyruq. U holda:
+#   1) save_user  (upsert)                    — 1 DB so'rovi
+#   2) get_user_language (eski user uchun)    — OLIB TASHLANDI, (1) bilan
+#   3) obuna tekshiruvi (sponsorlar)           — 1 DB + Telegram so'rovi
+#   4) reklama satri                           — 1-3 DB so'rovi
+#   5) referral mukofoti xabari (REFERERR chat'iga)  — 2 DB + Telegram
+#   6) statistika keshlari                     — 2 DB so'rovi
+# (3) va (4) bir-biriga bog'liq EMAS — ular ``asyncio.gather`` bilan
+# PARALLEL bajariladi (ketma-ket emas). (5) va (6) esa foydalanuvchining
+# javobiga bog'liq EMAS — ular ``run_background_task`` bilan javobdan
+# KEYIN fonda ishlaydi. Natijada /start ning kritik yo'li 3 DB + 1
+# Telegram so'roviga (ketma-ket 5 + Telegram o'rniga) qisqaradi.
+# ============================================================
+
+async def _notify_referrer_reward(context, referrer_id: int) -> None:
+    """Referrer'ga bonus haqidagi xabarni yuboradi (FONDA, javobdan keyin).
+
+    8-bosqich: self-referral rad etilgani uchun bonus YO'Q — "siz bonus
+    yutdingiz" xabarini ham yubormaymiz (referrer == user bo'lsa).
+    Bu qadam foydalanuvchining /start javobini UZMAYDI: u boshqa chat'ga
+    yuboriladigan xabar, shuning uchun kechiktirilishi mumkin.
+    """
+    try:
+        ref_stats = await db.run_db(db.get_referral_stats, referrer_id)
+        ref_count = int((ref_stats or {}).get("referrals_count", 0))
+        reward = db.referral_reward_for(ref_count)
+        ref_lang = await db.run_db(db.get_user_language, referrer_id)
+        await context.bot.send_message(
+            chat_id=referrer_id,
+            text=get_text("referral_reward_notice", ref_lang, reward=reward),
+            parse_mode="HTML"
+        )
+    except Exception:
+        logger.debug("Referrer mukofoti xabari yuborilmadi (user=%s)", referrer_id)
+
+
+async def _warm_user_stats(user_id: int) -> None:
+    """Kabinet/statistika ekranlari uchun DB keshlarini isitadi (FONDA).
+
+    /start dan keyin foydalanuvchi ko'pincha «Kabinet» yoki «Statistika»ga
+    bosadi. Shu ekranlarning 3 ta yirik SELECT'i shu yerda oldindan
+    bajarilib, TTL keshga yoziladi — keyingi bosilishda 0 ta DB so'rovi.
+    """
+    try:
+        await db.run_db(db.get_referral_stats, user_id)
+        await db.run_db(db.get_user_code, user_id)
+    except Exception:
+        logger.debug("Statistika keshini isitib bo'lmadi (user=%s)", user_id)
+
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     clear_fsm_data(context)
     user = update.effective_user
@@ -183,33 +238,47 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             except ValueError:
                 referrer_id = None
 
-    is_new = await db.run_db(
+    # 1-BOSQICH: BITTA so'rov. ``db.save_user`` endi ``is_new`` va saqlangan
+    # tilni BIRGA qaytaradi (``_UserSaveResult``), shuning uchun eski
+    # foydalanuvchi uchun alohida ``get_user_language`` chaqiruvi (2-urishli
+    # round-trip) kerak emas. Eski test stub'lari ``bool`` qaytarsa,
+    # ``getattr(..., "lang", None)`` None beradi va ``get_user_language``
+    # chaqiriladi — orqa moslik saqlanadi.
+    result = await db.run_db(
         db.save_user, user.id, user.username or "", user.full_name or "",
         referrer_id=referrer_id, language_code=detected,
     )
-    if is_new:
-        lang = detected
-    else:
-        lang = await db.run_db(db.get_user_language, user.id)
+    is_new = bool(result)
+    lang = getattr(result, "lang", None)
+    if not lang:
+        lang = detected if is_new else await db.run_db(db.get_user_language, user.id)
     set_lang_cache(context, lang)
 
-    # 8-bosqich: self-referral rad etilgani uchun bonus YO'Q — "siz bonus
-    # yutdingiz" xabarini ham yubormaymiz (referrer == user bo'lsa).
-    if is_new and referrer_id and referrer_id != user.id:
-        try:
-            ref_stats = await db.run_db(db.get_referral_stats, referrer_id)
-            ref_count = int((ref_stats or {}).get("referrals_count", 0))
-            reward = db.referral_reward_for(ref_count)
-            ref_lang = await db.run_db(db.get_user_language, referrer_id)
-            await context.bot.send_message(
-                chat_id=referrer_id,
-                text=get_text("referral_reward_notice", ref_lang, reward=reward),
-                parse_mode="HTML"
-            )
-        except Exception:
-            pass
+    is_admin = (user.id in ADMIN_IDS_SET)
 
-    is_sub, unsubs = await check_user_subscribed(context.bot, user.id)
+    # 1-BOSQICH: obuna tekshiruvi va reklama bir-biriga bog'liq EMAS — ikkala
+    # bir vaqtda (gather) ishga tushadi, shunda ularning DB so'rovlari ketma-
+    # ket kutilmaydi. Reklama javob MATNIGA qo'shilgani uchun u kritik
+    # yo'lda qoladi (javobdan keyinga ko'chirilsa, alohida xabar yuborish
+    # kerak bo'lardi — bu UX o'zgarishi). ``return_exceptions`` bitta
+    # so'rovning xatosi ikkinchisini YO'QOTMAYDI.
+    sub_result, ad_result = await asyncio.gather(
+        check_user_subscribed(context.bot, user.id),
+        get_smart_reply_ad_async(user.id),
+        return_exceptions=True,
+    )
+    if isinstance(sub_result, BaseException):
+        # Obuna tekshiruvi MUHIM — xato bo'lsa fail-closed (tizim xatosi).
+        logger.warning("Obuna tekshiruvida xato: %s", sub_result)
+        is_sub, unsubs = False, None
+    else:
+        is_sub, unsubs = sub_result
+    if isinstance(ad_result, BaseException):
+        logger.debug("Reklama satrini olishda xato: %s", ad_result)
+        ad_line = ""
+    else:
+        ad_line = ad_result or ""
+
     if unsubs is None:
         await update.message.reply_text(
             get_text("sys_busy", lang),
@@ -224,8 +293,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return ConversationHandler.END
 
-    is_admin = (user.id in ADMIN_IDS_SET)
-    ad_line = await get_smart_reply_ad_async(user.id)
     # 🚀 BIRINCHI MARTA kirgan foydalanuvchi (bazada yangi yozuv yaratildi) —
     # qisqa, harakatga undovchi onboarding matni ko'rsatiladi. Qayta kirganda
     # (/start) esa odatdagi standart salomlashish chiqadi.
@@ -243,6 +310,23 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"{greeting}{ad_line}",
         reply_markup=reply_markup,
         parse_mode="HTML"
+    )
+
+    # 🚀 FONDAGI ISHLAR — foydalanuvchining javobi YUBORILGACH. Ular
+    # javobga bog'liq emas, shuning uchun /start ning kritik yo'lini
+    # to'smaydi. run_background_task: kuchli havolani ushlab turadi (task
+    # GC bo'lmaydi), BACKGROUND_TASK_TIMEOUT_SECONDS bilan cheksiz osilib
+    # qolishdan qat'iyat qiladi va xatoni LOGGA yozadi (jimgina "failed
+    # silently" bo'lmaydi).
+    # 8-bosqich: self-referral rad etilgani uchun bonus YO'Q.
+    if is_new and referrer_id and referrer_id != user.id:
+        run_background_task(
+            _notify_referrer_reward(context, referrer_id),
+            name=f"start:referrer-reward:{referrer_id}",
+        )
+    run_background_task(
+        _warm_user_stats(user.id),
+        name=f"start:warm-stats:{user.id}",
     )
     return ConversationHandler.END
 

@@ -663,6 +663,19 @@ echo "===== 3F) 🧾 DEPLOYMENT READINESS: .env.example KANONIK HOLAT + PARITET 
 "$PY" tests/env_docs_parity_test.py || EXIT_CODE=1
 
 echo
+echo "===== 3F-bis) 🛡 MAXFIY KALIT SIZISH GARD'I ====="
+# XAVFSIZLIK gate (import'siz, DB/tarmoq'siz):
+# (1) git indeksida maxfiy .env / *.env / sertifikat fayli YO'Q;
+# (2) .gitignore .env, .env.*, *.env, *.pem, .netrc, secrets/ ni qamraydi,
+#     lekin .env.example ni ochiq qoldiradi (Render Root Directory = telegram_bot);
+# (3) kodda haqiqiy bo'lishi mumkin bo'lgan Telegram token yo'q va config.py
+#     BOT_TOKEN'ni faqat os.getenv dan oladi (hardcoded default yo'q);
+# (4) .env.example dagi maxfiy kalit qiymatlari bo'sh;
+# (5) TO'LIQ git tarixida (barcha refs) haqiqiy token namuna yo'q
+#     (tests/secret_leak_scan_test.py).
+"$PY" tests/secret_leak_scan_test.py || EXIT_CODE=1
+
+echo
 echo "===== 3G) 🧭 3-QADAM: ANIQLASHTIRISH + FORMAT + FLUFF-GUARD ====="
 # (1) Qisqa (< 3 so'z) / umumiy mavzu darhol generatsiyaga emas —
 #     aniqlashtirish wizard'iga (📌 Qaysi yo'nalish ... + 5 tugma);
