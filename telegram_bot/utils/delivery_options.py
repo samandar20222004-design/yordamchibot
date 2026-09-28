@@ -1,5 +1,6 @@
 """Localized, per-post delivery controls (off by default)."""
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+from keyboards.callback_data import cb
 
 DELIVERY_KEYS = ("disable_notification", "protect_content", "auto_pin")
 _LABELS = {
@@ -35,7 +36,7 @@ def delivery_markup(options, lang):
     labels = delivery_labels(lang)
     rows = [[InlineKeyboardButton(
         f"{labels[key]}: {labels['yes'] if options.get(key) else labels['no']}",
-        callback_data=f"mnp_delivery:{key}",
+        callback_data=cb("mnp_delivery:", key),
     )] for key in DELIVERY_KEYS]
     rows.append([InlineKeyboardButton(labels["back"], callback_data="mnp_panel")])
     return InlineKeyboardMarkup(rows)

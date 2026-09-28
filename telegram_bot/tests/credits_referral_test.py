@@ -351,7 +351,7 @@ def test_live(self_db):
     print("== 8-bosqich (live): 1) SELF-REFERRAL rad etiladi ==")
     # save_user orqali (haqiqiy /start oqimi)
     new = db_mod.save_user(SELF_A, "self_a", "Self A", referrer_id=SELF_A)
-    check("self-referral: foydalanuvchi yaratiladi", new is True)
+    check("self-referral: foydalanuvchi yaratiladi", bool(new) is True)
     check("self-referral: referrer biriktirilmadi", _ref(db_mod, SELF_A) is None)
     check("self-referral: bonus berilmadi (balans 5)", _balance(db_mod, SELF_A) == 5)
     check("self-referral: ledger yozuvi yo'q", _ledger(db_mod, SELF_A) == [])

@@ -584,7 +584,7 @@ class StressBot:
         self.on_send = on_send
         self._seq = 0
 
-    async def send_message(self, chat_id, text=None, reply_markup=None, parse_mode=None):
+    async def send_message(self, chat_id, text=None, reply_markup=None, parse_mode=None, **kwargs):
         if self.delay:
             await asyncio.sleep(self.delay)
         with self.lock:
@@ -619,7 +619,7 @@ class StressBot:
     async def send_sticker(self, chat_id, sticker=None, **kw):
         return await self.send_message(chat_id, text="sticker")
 
-    async def send_media_group(self, chat_id, media):
+    async def send_media_group(self, chat_id, media, **kwargs):
         out = []
         for m in media:
             out.append(await self.send_message(chat_id, text=getattr(m, "caption", None) or "album"))
