@@ -354,6 +354,12 @@ async def voice_message_received(update: Update, context: ContextTypes.DEFAULT_T
     if media is None:
         return ConversationHandler.END
 
+    # 📢 Kanal ulanmagan bo'lsa — ovoz qabul qilinib javobsiz qolmasligi
+    # uchun DARHOL yo'naltiruvchi xabar + kanal ulash tugmasi chiqadi.
+    from utils.helpers import send_no_channel_media_guard
+    if await send_no_channel_media_guide(update, context):
+        return ConversationHandler.END
+
     # Tilni bazadan keshga yuklaymiz (bot restartidan keyin ham to'g'ri til).
     try:
         lang = await ensure_user_lang(context, user_id)

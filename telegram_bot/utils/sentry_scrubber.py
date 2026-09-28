@@ -55,8 +55,12 @@ REDACTED_CARD = "[REDACTED:CARD]"
 # REGEX ANIQLAGICHLAR
 # ──────────────────────────────────────────────────────────────
 
-# Telegram bot token: 123456789:AA... (8-10 xona + ':' + 30+ belgi)
-_BOT_TOKEN_RE = re.compile(r"\b\d{8,10}:[A-Za-z0-9_-]{30,64}\b")
+# Telegram bot token: 123456789:AA... (8-10 xona + ':' + 30+ belgi).
+# \b ATAYLAB YO'Q: URL ichidagi token (.../bot123456789:AA.../getUpdates)
+# oldida harf tursa yoki token '-'/'_' bilan tugasa \b mos kelmaydi va
+# token log/Sentry'da ochiq qolar edi; chegara belgilarisiz regex har qanday
+# matn ichidagi tokenni (bot<token> shaklini ham) ushlaydi.
+_BOT_TOKEN_RE = re.compile(r"\d{8,10}:[A-Za-z0-9_-]{30,64}")
 
 # DB ulanish URL'idagi parol: postgresql://user:PAROL@host
 _DB_PASSWORD_RE = re.compile(

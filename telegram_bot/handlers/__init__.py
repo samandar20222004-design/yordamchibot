@@ -6,6 +6,7 @@ from keyboards.callback_data import (
     CB_CHANNEL_BEST_TIME,
     CB_CHANNEL_DNA,
     CB_CHANNEL_VOICE,
+    CB_SET_STYLE,
 )
 from telegram.ext import (
     CommandHandler,
@@ -141,7 +142,7 @@ from handlers.post_enhancer import (
 from handlers.channels import (
     channels_menu, start_add_channel, channel_received, add_channel_retry,
     remove_channel_callback, on_bot_chat_member_update, add_channel_inline_entry,
-    tone_menu_callback, tone_chosen, on_channel_post,
+    tone_menu_callback, tone_chosen, tone_chosen_callback, on_channel_post,
     channel_voice_analysis_callback,
     # 📢 KANALLARIM — kanal boshqaruv ekrani (PostAssist V2, 4-mikro qadam)
     channel_open_callback, channel_new_post_callback, channel_scheduled_callback,
@@ -805,6 +806,18 @@ async def unknown_message_fallback(update, context):
 
     app = getattr(context, "application", None)
     in_dialog = _active_conversation_state(app, update) is not None if app is not None else False
+    if not in_dialog:
+        # 📢 KANAL ULANMAGAN + MEDIA: foydalanuvchi rasm/video/ovoz yuborsa
+        # va birorta faol kanal bo'lmasa — bot jim qolmasligi uchun darhol
+        # «avval Kanallarim bo'limida kanal ulang» xabari + tugma chiqadi
+        # (guard faqat media xabarlarini tekshiradi — matnga ta'sir qilmaydi).
+        try:
+            from utils.helpers import send_no_channel_media_guide
+            if await send_no_channel_media_guide(update, context):
+                return None
+        except Exception:
+            logger.debug("no_channel_media_guide: yo'naltirish xatosi",
+                         exc_info=True)
     try:
         if in_dialog:
             await msg.reply_text(get_text("unknown_in_dialog", lang), parse_mode="HTML")
@@ -1331,6 +1344,11 @@ def register_all_handlers(app):
             # 3. Kanal holatlari
             ADD_CHANNEL: all_menu_jumps + [
                 CallbackQueryHandler(add_channel_retry, pattern=r"^add_channel_retry$"),
+                # 📢 FORWARD — ustuvor tekshiruv: kanaldan forward qilingan
+                # istalgan post (matn/rasm/video) darhol channel_received'ga
+                # tushadi; forward_origin / forward_from_chat dan ID+title
+                # ajratiladi (FSM faqat matn kutib «tushunmadim» bermaydi).
+                MessageHandler(filters.FORWARDED, channel_received),
                 MessageHandler(filters.ALL & ~filters.COMMAND, channel_received),
             ],
             SET_TONE: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, tone_chosen)],
@@ -1932,6 +1950,13 @@ def register_all_handlers(app):
     # tugmadan bosilsa avvalgidek USLUB menyusini ochadi — orqaga moslik
     # buzilmaydi (ichida tone_menu_callback chaqiriladi).
     app.add_handler(CallbackQueryHandler(channel_settings_callback, pattern=r"^ch_set:"))
+    # 🎨 Kanal uslubi (Tone of Voice) INLINE tanlash: ``set_style:<id>:<tone>``.
+    # Global reyestrda turadi — FSM holatidan qat'i nazar bosilganda darhol
+    # javob beriladi: query.answer() + uslub bazaga saqlanadi + xabar edit
+    # qilinadi (eski reply-klaviatura oqimidagi «tushunmadim» xatosi yo'q).
+    app.add_handler(CallbackQueryHandler(
+        tone_chosen_callback, pattern=r"^" + re.escape(CB_SET_STYLE),
+    ))
     app.add_handler(CallbackQueryHandler(channel_open_callback, pattern=r"^ch_op:"))
     app.add_handler(CallbackQueryHandler(channel_scheduled_callback, pattern=r"^ch_sch:"))
     app.add_handler(CallbackQueryHandler(channel_stats_callback, pattern=r"^ch_st:"))

@@ -454,6 +454,11 @@ async def image_photo_received(update: Update, context: ContextTypes.DEFAULT_TYP
     message = getattr(update, "message", None)
     if message is None:
         return IMAGE_POST_INPUT
+    # 📢 Kanal ulanmagan bo'lsa — rasm qabul qilinib javobsiz qolmasligi
+    # uchun DARHOL yo'naltiruvchi xabar + kanal ulash tugmasi chiqadi.
+    from utils.helpers import send_no_channel_media_guide
+    if await send_no_channel_media_guide(update, context):
+        return ConversationHandler.END
     lang = get_lang(context)
     media, declared_mime = _extract_image_media(message)
     if media is None:
