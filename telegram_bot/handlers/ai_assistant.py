@@ -26,7 +26,7 @@ from utils.ai_agent import (
     VisionError, download_telegram_media_to_temp, cleanup_temp_media,
     generate_vision_post,
     refine_post_pro,
-    PRO_TWO_STAGE_ENABLED,
+    PRO_TWO_STAGE_ENABLED, PRO_AUDIT_TIMEOUT,
 )
 # 🧩 Kontent yaratish bo'limi matnlari (uz/ru/en, paritet auditlangan).
 from translations import content_menu_t
@@ -51,7 +51,7 @@ from handlers.navigation import (
 from utils.date_format import format_datetime
 from utils.telegram_sanitizer import sanitize_html, html_length
 from utils.helpers import (
-    html_escape, safe_html, check_ai_rate_limit, check_ai_daily_limit, parse_future_time,
+    html_escape, safe_html, check_ai_rate_limit, parse_future_time,
     get_auto_ad_injection_async, parse_schedule_input,
 )
 
@@ -254,6 +254,17 @@ async def _keep_typing(bot, chat_id: int, stop_event: asyncio.Event):
             break
 
 
+async def _edit_wait_message(wait_message, fallback_message, text: str, **kwargs):
+    """Kutish xabarini joyida yangilaydi; test/minimal adapterlarda reply fallback."""
+    editor = getattr(wait_message, "edit_text", None)
+    if callable(editor):
+        try:
+            return await editor(text, **kwargs)
+        except Exception:
+            logger.debug("AI wait message edit failed; using reply fallback", exc_info=True)
+    return await fallback_message.reply_text(text, **kwargs)
+
+
 def _ai_quota_temp_error_text(lang: str = "uz") -> str:
     """DB/pool xatosida AI kvotasini fail-closed rad etish uchun muloyim xabar.
 
@@ -454,14 +465,6 @@ async def ai_input_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin:
         is_pro = await db.run_db(db.is_premium, user_id)
 
-    # Kunlik limit (in-memory, tezkor himoya) — faqat free uchun.
-    if not is_admin and not is_pro and check_ai_daily_limit(user_id, max_per_day=30):
-        await msg.reply_text(
-            safe_t("ai_daily_limit", lang),
-            parse_mode="HTML",
-        )
-        return AI_INPUT
-
     # 🔒 PHASE 2 / 1-QADAM: tarif bo'yicha kunlik kvota (database.PLAN_LIMITS)
     # va AI balli BITTA atomik tranzaksiyada bron qilinadi —
     # ``database.reserve_ai_request`` qatorni ``SELECT ... FOR UPDATE`` bilan
@@ -506,7 +509,11 @@ async def ai_input_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return ConversationHandler.END
 
-    msg_wait = await msg.reply_text(safe_t("ai_analyzing", lang), parse_mode="HTML")
+    try:
+        await context.bot.send_chat_action(chat_id=msg.chat_id, action="typing")
+    except Exception:
+        pass
+    msg_wait = await msg.reply_text("⏳ Post tayyorlanmoqda, iltimos kuting...")
 
     # Typing animatsiyasini fonda ishga tushiramiz
     stop_typing = asyncio.Event()
@@ -518,10 +525,6 @@ async def ai_input_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     finally:
         stop_typing.set()
         typing_task.cancel()
-        try:
-            await msg_wait.delete()
-        except Exception:
-            pass
 
     if "error" in result:
         if not is_admin:
@@ -538,7 +541,7 @@ async def ai_input_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         await db.run_db(db.refund_ai_usage, user_id)
                     except Exception:
                         pass
-        await msg.reply_text(
+        await _edit_wait_message(msg_wait, msg,
             f"⚠️ {localize_service_error(result['error'], lang)}",
             reply_markup=get_cancel_keyboard(lang),
             parse_mode="HTML",
@@ -551,7 +554,7 @@ async def ai_input_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if intent == "faq":
         reply = result.get("reply", "") or safe_t("ai_legacy_faq_fallback", lang)
         ad_line = await get_auto_ad_injection_async(user_id)
-        await msg.reply_text(
+        await _edit_wait_message(msg_wait, msg,
             f"🤖 {safe_html(reply)}"
             f"{safe_t('ai_legacy_faq_footer', lang)}{ad_line}",
             reply_markup=get_cancel_keyboard(lang),
@@ -563,7 +566,7 @@ async def ai_input_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     post_text = result.get("post_text", "") or ""
     if not post_text:
         reply = result.get("reply", "") or safe_t("ai_legacy_no_post", lang)
-        await msg.reply_text(
+        await _edit_wait_message(msg_wait, msg,
             safe_html(reply), reply_markup=get_cancel_keyboard(lang), parse_mode="HTML"
         )
         return AI_INPUT
@@ -585,7 +588,11 @@ async def ai_input_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
             sched_time, has_explicit = None, False
 
     if not has_explicit or not sched_time:
-        await _show_time_prompt(msg, post_text, file_id, post_type, lang)
+        header = (safe_t("ai_schedule_header", lang)
+                  + sanitize_html(post_text, 1500) + safe_t("ai_schedule_foot", lang))
+        await _edit_wait_message(msg_wait, msg,
+            header, reply_markup=get_ai_time_keyboard(lang), parse_mode="HTML"
+        )
         return AI_GET_TIME
 
     target_info = safe_t("ai_legacy_target_all", lang) if target_all else ""
@@ -593,8 +600,8 @@ async def ai_input_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "ai_confirm_title", lang, post=sanitize_html(post_text, 3000),
         time=sched_time, target=target_info,
     )
-    await _send_preview(
-        msg, preview, file_id, post_type, get_ai_confirm_keyboard(lang), lang
+    await _edit_wait_message(msg_wait, msg,
+        preview, reply_markup=get_ai_confirm_keyboard(lang), parse_mode="HTML"
     )
     return AI_CONFIRM
 
@@ -908,15 +915,6 @@ async def _studio_ai_preflight(update: Update, context: ContextTypes.DEFAULT_TYP
     if not is_admin:
         is_pro = await db.run_db(db.is_premium, user_id)
 
-    # Kunlik limit (in-memory, tezkor himoya) — faqat free uchun.
-    if not is_admin and not is_pro and check_ai_daily_limit(user_id, max_per_day=30):
-        await msg.reply_text(
-            safe_t("ai_daily_limit", lang),
-            reply_markup=get_ai_back_keyboard(lang),
-            parse_mode="HTML",
-        )
-        return False, is_admin, is_pro
-
     # 🔒 PHASE 2 / 1-QADAM: kunlik kvota va AI balli BITTA atomik
     # tranzaksiyada bron qilinadi (qator qulfi + credits_ledger auditi +
     # ai_reservations bron qatori). Avvalgi ikki alohida tranzaksiya
@@ -1198,29 +1196,31 @@ async def _studio_generate_and_preview(update: Update, context: ContextTypes.DEF
         # Limit/blok xabari allaqachon yuborildi — foydalanuvchi menyuga qaytadi
         return AI_MENU_STATE
 
-    msg_wait = await msg.reply_text(safe_t("ai_wait_post", lang), parse_mode="HTML")
+    try:
+        await context.bot.send_chat_action(chat_id=msg.chat_id, action="typing")
+    except Exception:
+        pass
+    msg_wait = await msg.reply_text("⏳ Post tayyorlanmoqda, iltimos kuting...")
     stop_typing = asyncio.Event()
     typing_task = asyncio.create_task(_keep_typing(context.bot, msg.chat_id, stop_typing))
+    ai_deadline = asyncio.get_running_loop().time() + 15.0
     try:
-        # 25 soniyalik qat'iy timeout utils.ai_agent ichida o'rnatilgan
-        # b2c01d1: FREE vs PRO post enhancement
         # 🌐 Til: AI post/javobni foydalanuvchi tilida yozadi.
-        result = await generate_ai_response(text_input, is_pro=is_pro, lang=lang)
+        result = await generate_ai_response(
+            text_input, is_pro=is_pro, lang=lang,
+            timeout=max(0.1, ai_deadline - asyncio.get_running_loop().time()),
+        )
     except Exception as e:
         logger.error("AI Generation Error: %s", e)
         result = {"error": AI_UNAVAILABLE_MSG}
     finally:
         stop_typing.set()
         typing_task.cancel()
-        try:
-            await msg_wait.delete()
-        except Exception:
-            pass
 
     if "error" in result:
         # context beriladi → bron ID'si bo'yicha ATOMIK, IDEMPOTENT refund.
         await _studio_ai_refund(user_id, is_admin, is_pro, context)
-        await msg.reply_text(
+        await _edit_wait_message(msg_wait, msg,
             safe_t("ai_unavailable", lang),
             reply_markup=get_ai_back_keyboard(lang),
             parse_mode="HTML",
@@ -1232,7 +1232,7 @@ async def _studio_generate_and_preview(update: Update, context: ContextTypes.DEF
     # Savol-javob — javobni ko'rsatib, menyuga qaytaramiz (flow uzilmaydi)
     if intent == "faq":
         reply = result.get("reply", "") or safe_t("ai_not_found", lang)
-        await msg.reply_text(
+        await _edit_wait_message(msg_wait, msg,
             f"🤖 {safe_html(reply)}{safe_t('ai_faq_footer', lang)}",
             reply_markup=get_ai_back_keyboard(lang),
             parse_mode="HTML",
@@ -1242,7 +1242,7 @@ async def _studio_generate_and_preview(update: Update, context: ContextTypes.DEF
     post_text = (result.get("post_text") or "").strip()
     if not post_text:
         await _studio_ai_refund(user_id, is_admin, is_pro, context)
-        await msg.reply_text(
+        await _edit_wait_message(msg_wait, msg,
             safe_t("ai_no_post_text", lang),
             reply_markup=get_ai_back_keyboard(lang),
         )
@@ -1253,19 +1253,21 @@ async def _studio_generate_and_preview(update: Update, context: ContextTypes.DEF
     # FREE: bitta bosqich — tezlik/xarajat.
     # Fallback: refine xato/timeout/bo'sh bo'lsa stage1 post saqlanadi.
     if is_pro and PRO_TWO_STAGE_ENABLED and post_text:
-        try:
-            refined = await refine_post_pro(post_text, lang=lang)
-            improved = str((refined or {}).get("post_text") or "").strip()
-            if improved:
-                post_text = improved
-        except Exception as _e:
-            logger.warning("AI Studio auto audit (PRO) xatosi: %s", _e)
+        remaining = min(PRO_AUDIT_TIMEOUT, ai_deadline - asyncio.get_running_loop().time())
+        if remaining > 0.1:
+            try:
+                refined = await refine_post_pro(post_text, lang=lang, timeout=remaining)
+                improved = str((refined or {}).get("post_text") or "").strip()
+                if improved:
+                    post_text = improved
+            except Exception as _e:
+                logger.warning("AI Studio auto audit (PRO) xatosi: %s", _e)
 
     context.user_data["studio_topic"] = text_input
     context.user_data["studio_post_text"] = post_text
     context.user_data["studio_tone"] = "friendly"
 
-    await msg.reply_text(
+    await _edit_wait_message(msg_wait, msg,
         _studio_preview_text(post_text, "friendly", context.user_data.get("studio_file_id"), lang),
         reply_markup=get_ai_tone_keyboard("friendly", lang),
         parse_mode="HTML",
@@ -1306,18 +1308,21 @@ async def ai_tone_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
     try:
-        await query.edit_message_text(
-            safe_t("ai_tone_applying", lang, tone=_ai_tone_label(tone, lang)),
-            parse_mode="HTML",
-        )
+        await context.bot.send_chat_action(chat_id=query.message.chat_id, action="typing")
+    except Exception:
+        pass
+    try:
+        await query.edit_message_text("⏳ Post tayyorlanmoqda, iltimos kuting...")
     except Exception:
         pass
 
+    ai_deadline = asyncio.get_running_loop().time() + 15.0
     try:
         # b2c01d1: is_pro flag for enhancement
         is_pro_tone = await db.run_db(db.is_premium, user_id)
         result = await generate_ai_response(
-            prompt, tone=tone, is_pro=is_pro_tone, lang=lang
+            prompt, tone=tone, is_pro=is_pro_tone, lang=lang,
+            timeout=max(0.1, ai_deadline - asyncio.get_running_loop().time()),
         )
         post_text = (result.get("post_text") or "").strip()
         if not post_text:
@@ -1325,25 +1330,23 @@ async def ai_tone_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         # ✨ PRO 2-bosqichli auto audit (tone o'zgartirishda ham)
         if is_pro_tone and PRO_TWO_STAGE_ENABLED and post_text:
-            try:
-                refined = await refine_post_pro(post_text, lang=lang)
-                improved = str((refined or {}).get("post_text") or "").strip()
-                if improved:
-                    post_text = improved
-            except Exception as _e:
-                logger.warning("AI Studio tone auto audit (PRO) xatosi: %s", _e)
+            remaining = min(PRO_AUDIT_TIMEOUT, ai_deadline - asyncio.get_running_loop().time())
+            if remaining > 0.1:
+                try:
+                    refined = await refine_post_pro(post_text, lang=lang, timeout=remaining)
+                    improved = str((refined or {}).get("post_text") or "").strip()
+                    if improved:
+                        post_text = improved
+                except Exception as _e:
+                    logger.warning("AI Studio tone auto audit (PRO) xatosi: %s", _e)
 
     except Exception as e:
         # SPEKS: xato log'lanadi, foydalanuvchi doimiy nav-tugmaga qaytadi
         logger.error("AI Generation Error: %s", e)
-        try:
-            await query.edit_message_reply_markup(reply_markup=None)
-        except Exception:
-            pass
-        await query.message.reply_text(
+        await _safe_edit(
+            query,
             safe_t("ai_unavailable", lang),
-            reply_markup=get_ai_back_keyboard(lang),
-            parse_mode="HTML",
+            get_ai_back_keyboard(lang),
         )
         return AI_MENU_STATE
 
@@ -1414,7 +1417,11 @@ async def ai_audit_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not ok:
         return AI_MENU_STATE
 
-    msg_wait = await msg.reply_text(safe_t("ai_wait_audit", lang), parse_mode="HTML")
+    try:
+        await context.bot.send_chat_action(chat_id=msg.chat_id, action="typing")
+    except Exception:
+        pass
+    msg_wait = await msg.reply_text("⏳ Post tayyorlanmoqda, iltimos kuting...")
     stop_typing = asyncio.Event()
     typing_task = asyncio.create_task(_keep_typing(context.bot, msg.chat_id, stop_typing))
     try:
@@ -1427,14 +1434,10 @@ async def ai_audit_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     finally:
         stop_typing.set()
         typing_task.cancel()
-        try:
-            await msg_wait.delete()
-        except Exception:
-            pass
 
     if "error" in result:
-        await _studio_ai_refund(user_id, is_admin, is_pro)
-        await msg.reply_text(
+        await _studio_ai_refund(user_id, is_admin, is_pro, context)
+        await _edit_wait_message(msg_wait, msg,
             safe_t("ai_unavailable", lang),
             reply_markup=get_ai_back_keyboard(lang),
             parse_mode="HTML",
@@ -1455,8 +1458,8 @@ async def ai_audit_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 break
 
     if not audit:
-        await _studio_ai_refund(user_id, is_admin, is_pro)
-        await msg.reply_text(
+        await _studio_ai_refund(user_id, is_admin, is_pro, context)
+        await _edit_wait_message(msg_wait, msg,
             safe_t("ai_audit_no_result", lang),
             reply_markup=get_ai_back_keyboard(lang),
         )
@@ -1467,7 +1470,7 @@ async def ai_audit_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await db.run_db(db.increment_ai_usage, user_id)
 
     ad_line = await get_auto_ad_injection_async(user_id)
-    await msg.reply_text(
+    await _edit_wait_message(msg_wait, msg,
         safe_t("ai_audit_result_title", lang) + sanitize_html(audit, 3500) + ad_line,
         reply_markup=get_ai_back_keyboard(lang),
         parse_mode="HTML",
@@ -1789,7 +1792,11 @@ async def ai_photo_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not ok:
         return AI_MENU_STATE
 
-    msg_wait = await msg.reply_text(safe_t("ai_wait_photo", lang), parse_mode="HTML")
+    try:
+        await context.bot.send_chat_action(chat_id=msg.chat_id, action="typing")
+    except Exception:
+        pass
+    msg_wait = await msg.reply_text("⏳ Post tayyorlanmoqda, iltimos kuting...")
     stop_typing = asyncio.Event()
     typing_task = asyncio.create_task(_keep_typing(context.bot, msg.chat_id, stop_typing))
     try:
@@ -1799,14 +1806,10 @@ async def ai_photo_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     finally:
         stop_typing.set()
         typing_task.cancel()
-        try:
-            await msg_wait.delete()
-        except Exception:
-            pass
 
     if not variants:
-        await _studio_ai_refund(user_id, is_admin, is_pro)
-        await msg.reply_text(
+        await _studio_ai_refund(user_id, is_admin, is_pro, context)
+        await _edit_wait_message(msg_wait, msg,
             f"{first_error}\n\n"
             f"{safe_t('ai_photo_retry_hint', lang)}",
             reply_markup=get_ai_back_keyboard(lang),
@@ -1831,7 +1834,7 @@ async def ai_photo_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if len(variants) == 1:
         # Faqat bitta variant chiqdi (qolganlari xato) — darhol natija ekrani.
-        await msg.reply_text(
+        await _edit_wait_message(msg_wait, msg,
             _photo_result_text(post_text, lang),
             reply_markup=get_ai_photo_keyboard(lang),
             parse_mode="HTML",
@@ -1839,7 +1842,7 @@ async def ai_photo_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return AI_PHOTO_RESULT
 
     # 3 xil uslub tayyor — foydalanuvchi variantni tanlaydi.
-    await msg.reply_text(
+    await _edit_wait_message(msg_wait, msg,
         _photo_variants_text(variants, lang),
         reply_markup=_photo_variants_keyboard(variants, lang),
         parse_mode="HTML",
@@ -1936,28 +1939,24 @@ async def ai_photo_result_callback(update: Update, context: ContextTypes.DEFAULT
             f"{post_text}"
         )
         try:
-            await query.edit_message_text(
-                safe_t("ai_photo_rewrite_wait", lang),
-                parse_mode="HTML",
-            )
+            await context.bot.send_chat_action(chat_id=query.message.chat_id, action="typing")
+        except Exception:
+            pass
+        try:
+            await query.edit_message_text("⏳ Post tayyorlanmoqda, iltimos kuting...")
         except Exception:
             pass
         result = await _vision_run(file_id, extra, rewrite_context=rewrite_ctx, lang=lang)
         if "error" in result:
-            await _safe_edit(query, _photo_result_text(post_text, lang), get_ai_photo_keyboard(lang))
-            await query.message.reply_text(
-                f"⚠️ {result['error']}",
-                reply_markup=get_ai_back_keyboard(lang),
-                parse_mode="HTML",
+            await _safe_edit(
+                query, f"⚠️ {result['error']}", get_ai_back_keyboard(lang)
             )
             return AI_PHOTO_RESULT
 
         new_text = (result.get("post_text") or "").strip()
         if not new_text:
-            await _safe_edit(query, _photo_result_text(post_text, lang), get_ai_photo_keyboard(lang))
-            await query.message.reply_text(
-                safe_t("ai_photo_rewrite_keep", lang),
-                reply_markup=get_ai_back_keyboard(lang),
+            await _safe_edit(
+                query, safe_t("ai_photo_rewrite_keep", lang), get_ai_back_keyboard(lang)
             )
             return AI_PHOTO_RESULT
 
@@ -1997,7 +1996,11 @@ async def ai_photo_edit_received(update: Update, context: ContextTypes.DEFAULT_T
     if not ok:
         return AI_MENU_STATE
 
-    msg_wait = await msg.reply_text(safe_t("ai_wait_edit", lang), parse_mode="HTML")
+    try:
+        await context.bot.send_chat_action(chat_id=msg.chat_id, action="typing")
+    except Exception:
+        pass
+    msg_wait = await msg.reply_text("⏳ Post tayyorlanmoqda, iltimos kuting...")
     stop_typing = asyncio.Event()
     typing_task = asyncio.create_task(_keep_typing(context.bot, msg.chat_id, stop_typing))
     try:
@@ -2014,14 +2017,10 @@ async def ai_photo_edit_received(update: Update, context: ContextTypes.DEFAULT_T
     finally:
         stop_typing.set()
         typing_task.cancel()
-        try:
-            await msg_wait.delete()
-        except Exception:
-            pass
 
     if "error" in result:
-        await _studio_ai_refund(user_id, is_admin, is_pro)
-        await msg.reply_text(
+        await _studio_ai_refund(user_id, is_admin, is_pro, context)
+        await _edit_wait_message(msg_wait, msg,
             f"⚠️ {result['error']}",
             reply_markup=get_ai_back_keyboard(lang),
             parse_mode="HTML",
@@ -2041,8 +2040,8 @@ async def ai_photo_edit_received(update: Update, context: ContextTypes.DEFAULT_T
                 break
 
     if not new_text:
-        await _studio_ai_refund(user_id, is_admin, is_pro)
-        await msg.reply_text(
+        await _studio_ai_refund(user_id, is_admin, is_pro, context)
+        await _edit_wait_message(msg_wait, msg,
             safe_t("ai_photo_edit_no_result", lang),
             reply_markup=get_ai_back_keyboard(lang),
         )
@@ -2052,7 +2051,7 @@ async def ai_photo_edit_received(update: Update, context: ContextTypes.DEFAULT_T
     if not is_admin and not is_pro:
         await db.run_db(db.increment_ai_usage, user_id)
 
-    await msg.reply_text(
+    await _edit_wait_message(msg_wait, msg,
         _photo_result_text(new_text, lang),
         reply_markup=get_ai_photo_keyboard(lang),
         parse_mode="HTML",

@@ -23,6 +23,7 @@ from __future__ import annotations
 import hashlib
 import logging
 import os
+import sys
 import threading
 import time
 import unicodedata
@@ -44,11 +45,39 @@ def cache_ttl() -> float:
 
 
 def cache_max_entries() -> int:
-    """Maksimal yozuvlar soni (LRU). ``AI_CACHE_MAX_ENTRIES`` env (default 512)."""
+    """Maksimal yozuvlar soni (LRU); env qiymatiga ham yuqori chegara bor."""
     try:
-        return max(1, int(os.getenv("AI_CACHE_MAX_ENTRIES", "512")))
+        return min(4096, max(1, int(os.getenv("AI_CACHE_MAX_ENTRIES", "512"))))
     except (TypeError, ValueError):
         return 512
+
+
+def cache_max_bytes() -> int:
+    """Keshning taxminiy xotira limiti (default 8 MiB, env bilan sozlanadi)."""
+    try:
+        value = int(os.getenv("AI_CACHE_MAX_BYTES", str(8 * 1024 * 1024)))
+        return min(64 * 1024 * 1024, max(1024, value))
+    except (TypeError, ValueError):
+        return 8 * 1024 * 1024
+
+
+def _value_size(value: Any) -> int:
+    """Qiymatning taxminiy heap hajmi; nested javoblarni ham hisobga oladi."""
+    seen: set[int] = set()
+
+    def visit(item: Any) -> int:
+        identity = id(item)
+        if identity in seen:
+            return 0
+        seen.add(identity)
+        size = sys.getsizeof(item)
+        if isinstance(item, dict):
+            size += sum(visit(k) + visit(v) for k, v in item.items())
+        elif isinstance(item, (list, tuple, set, frozenset)):
+            size += sum(visit(child) for child in item)
+        return size
+
+    return visit(value)
 
 
 def canonical_prompt(text: str | None) -> str:
@@ -96,10 +125,14 @@ def cache_key(
 class AIResponseCache:
     """Kichik, thread-safe, TTL + LRU javob keshi."""
 
-    def __init__(self, max_entries: int | None = None, ttl: float | None = None):
-        self.max_entries = int(max_entries or cache_max_entries())
-        self.ttl = float(ttl if ttl is not None else cache_ttl())
+    def __init__(self, max_entries: int | None = None, ttl: float | None = None,
+                 max_bytes: int | None = None):
+        self.max_entries = min(4096, max(1, int(max_entries or cache_max_entries())))
+        self.ttl = min(86400.0, max(0.0, float(ttl if ttl is not None else cache_ttl())))
+        self.max_bytes = min(64 * 1024 * 1024, max(1024, int(max_bytes or cache_max_bytes())))
         self._entries: OrderedDict[str, tuple[float, Any]] = OrderedDict()
+        self._entry_sizes: dict[str, int] = {}
+        self._bytes = 0
         self._lock = threading.Lock()
         # Telemetriya (kesh samaradorligini kuzatish uchun).
         self.hits = 0
@@ -110,6 +143,11 @@ class AIResponseCache:
     def get(self, key: str) -> Any | None:
         """Keshdan oladi (muddati o'tgan/yo'q → ``None``)."""
         with self._lock:
+            now = time.time()
+            for old_key, (expires, _) in list(self._entries.items()):
+                if expires <= now:
+                    self._entries.pop(old_key, None)
+                    self._bytes -= self._entry_sizes.pop(old_key, 0)
             entry = self._entries.get(key)
             if entry is None:
                 self.misses += 1
@@ -117,6 +155,7 @@ class AIResponseCache:
             expires, value = entry
             if expires <= time.time():
                 self._entries.pop(key, None)
+                self._bytes -= self._entry_sizes.pop(key, 0)
                 self.misses += 1
                 return None
             # LRU: yaqinda ishlatilganni oxiriga suramiz.
@@ -125,24 +164,41 @@ class AIResponseCache:
             return value
 
     def set(self, key: str, value: Any, ttl: float | None = None) -> None:
-        """Keshga yozadi (TTL tugagan yozuvlar darhol o'chiriladi)."""
+        """Keshga yozadi; entry soni va umumiy xotira LRU bilan cheklanadi."""
+        size = _value_size(value)
         with self._lock:
-            expires = time.time() + float(self.ttl if ttl is None else ttl)
-            self._entries[key] = (expires, value)
-            self._entries.move_to_end(key)
-            while len(self._entries) > self.max_entries:
-                self._entries.popitem(last=False)
+            now = time.time()
+            # Muddati o'tgan entry'larni tozalash, keshni faol yozuvlar bilan to'ldirish.
+            for old_key, (expires, _) in list(self._entries.items()):
+                if expires <= now:
+                    self._entries.pop(old_key, None)
+                    self._bytes -= self._entry_sizes.pop(old_key, 0)
+            if key in self._entries:
+                self._entries.pop(key, None)
+                self._bytes -= self._entry_sizes.pop(key, 0)
+            if size > self.max_bytes:
+                return  # juda katta javob keshga olinmaydi
+            ttl_value = self.ttl if ttl is None else min(86400.0, max(0.0, float(ttl)))
+            self._entries[key] = (now + ttl_value, value)
+            self._entry_sizes[key] = size
+            self._bytes += size
+            while len(self._entries) > self.max_entries or self._bytes > self.max_bytes:
+                oldest, _ = self._entries.popitem(last=False)
+                self._bytes -= self._entry_sizes.pop(oldest, 0)
                 self.evictions += 1
 
     def invalidate(self, key: str) -> None:
         """Bitta kalitni o'chiradi."""
         with self._lock:
             self._entries.pop(key, None)
+            self._bytes -= self._entry_sizes.pop(key, 0)
 
     def clear(self) -> None:
         """Butun keshni tozalaydi (testlar/admin)."""
         with self._lock:
             self._entries.clear()
+            self._entry_sizes.clear()
+            self._bytes = 0
             self.hits = 0
             self.misses = 0
             self.evictions = 0
@@ -154,6 +210,8 @@ class AIResponseCache:
             return {
                 "entries": len(self._entries),
                 "max_entries": self.max_entries,
+                "max_bytes": self.max_bytes,
+                "bytes": self._bytes,
                 "ttl": self.ttl,
                 "hits": self.hits,
                 "misses": self.misses,
@@ -193,6 +251,7 @@ __all__ = [
     "cache_key",
     "cache_ttl",
     "cache_max_entries",
+    "cache_max_bytes",
     "canonical_prompt",
     "default_cache",
     "reset_cache",

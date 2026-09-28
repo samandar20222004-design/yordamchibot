@@ -70,7 +70,6 @@ from utils.audio_transcriber import (
     transcribe_voice,
 )
 from utils.helpers import (
-    check_ai_daily_limit,
     check_ai_rate_limit,
     html_escape,
 )
@@ -500,13 +499,6 @@ async def voice_style_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         except Exception:
             is_pro = False
 
-    if not is_admin and not is_pro and check_ai_daily_limit(user_id, max_per_day=30):
-        try:
-            await query.answer(safe_t("ai_daily_limit", lang), show_alert=True)
-        except Exception:
-            pass
-        return VOICE_STYLE_SELECT
-
     # 🔒 PHASE 2 / 1-QADAM: kunlik kvota YOKI kredit BITTA atomik
     # tranzaksiyada bron qilinadi (qator qulfi + credits_ledger auditi).
     # Avvalgi ikki qadam alohida tranzaksiyalar edi → race condition va
@@ -530,8 +522,11 @@ async def voice_style_callback(update: Update, context: ContextTypes.DEFAULT_TYP
             return VOICE_STYLE_SELECT
 
     context.user_data["voice_style"] = style
-    style_label = magic_t(MAGIC_STYLE_KEYS[style][0], lang)
-    await _safe_edit(query, voice_t("vp_generating", lang, style=style_label), None)
+    try:
+        await context.bot.send_chat_action(chat_id=query.message.chat_id, action="typing")
+    except Exception:
+        pass
+    await _safe_edit(query, "⏳ Post tayyorlanmoqda, iltimos kuting...", None)
 
     # --- ✨ AI generatsiya (Magic Post prompti: sarlavha, CTA, emoji, hashtag) ---
     try:

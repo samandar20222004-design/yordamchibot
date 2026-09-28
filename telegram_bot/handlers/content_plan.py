@@ -42,6 +42,17 @@ PLAN_WEEK_DAYS = 7
 CB_PLAN_SCHEDULE_ALL = "plan_sched_all"
 
 
+async def _edit_wait_message(wait_message, fallback_message, text: str, **kwargs):
+    """Edit the wait placeholder, with a reply fallback for minimal adapters."""
+    editor = getattr(wait_message, "edit_text", None)
+    if callable(editor):
+        try:
+            return await editor(text, **kwargs)
+        except Exception:
+            logger.debug("Wait message edit failed; using reply fallback", exc_info=True)
+    return await fallback_message.reply_text(text, **kwargs)
+
+
 def week_schedule_times(count: int = PLAN_WEEK_DAYS,
                         hour: int = PLAN_SCHEDULE_HOUR,
                         minute: int = PLAN_SCHEDULE_MINUTE,
@@ -257,8 +268,6 @@ async def plan_topic_received(update: Update, context: ContextTypes.DEFAULT_TYPE
         history = await db.run_db(db.get_channel_posts_history, channel_id, 5)
         recent_posts = [p.get("text") for p in history if p.get("text") and not p.get("text").startswith("[")]
 
-    await update.message.reply_text(safe_t("cp_ai_building", lang))
-
     from utils.ai_agent import generate_content_plan
     # Indikator darhol ko'rinsin, keyin uzoq AI so'rovi davomida yangilanib tursin.
     chat_id = update.effective_chat.id
@@ -266,6 +275,7 @@ async def plan_topic_received(update: Update, context: ContextTypes.DEFAULT_TYPE
         await context.bot.send_chat_action(chat_id=chat_id, action="typing")
     except Exception:
         pass
+    wait_msg = await update.message.reply_text("⏳ Post tayyorlanmoqda, iltimos kuting...")
     async with keep_typing(context.bot, chat_id):
         # 🌐 Kontent-reja foydalanuvchi tilida (uz/ru/en).
         result = await generate_content_plan(
@@ -273,7 +283,7 @@ async def plan_topic_received(update: Update, context: ContextTypes.DEFAULT_TYPE
         )
 
     if "error" in result:
-        await update.message.reply_text(
+        await _edit_wait_message(wait_msg, update.message,
             localize_service_error(result["error"], lang),
             reply_markup=get_main_keyboard(user_id in ADMIN_IDS_SET, lang=lang),
             parse_mode="HTML",
@@ -282,7 +292,7 @@ async def plan_topic_received(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     plan_items = result.get("plan", [])
     if not plan_items:
-        await update.message.reply_text(
+        await _edit_wait_message(wait_msg, update.message,
             safe_t("cp_ai_failed_retry", lang),
             reply_markup=get_main_keyboard(user_id in ADMIN_IDS_SET, lang=lang),
         )
@@ -316,7 +326,7 @@ async def plan_topic_received(update: Update, context: ContextTypes.DEFAULT_TYPE
     plan_text += f"{ad_line}" + safe_t("cp_plan_footer", lang)
     plan_text += safe_t("plan_week_hint", lang)
 
-    await update.message.reply_text(
+    await _edit_wait_message(wait_msg, update.message,
         plan_text,
         reply_markup=_plan_list_keyboard(plan_items, context, lang),
         parse_mode="HTML",
@@ -498,20 +508,21 @@ async def plan_view_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
             await context.bot.send_chat_action(chat_id=chat_id, action="typing")
         except Exception:
             pass
+        wait_msg = await query.message.reply_text("⏳ Post tayyorlanmoqda, iltimos kuting...")
         async with keep_typing(context.bot, chat_id):
             result = await generate_content_plan(
                 topic, channel_title, tone, recent_posts=recent_posts, lang=lang
             )
 
         if "error" in result:
-            await query.message.reply_text(
+            await _edit_wait_message(wait_msg, query.message,
                 localize_service_error(result["error"], lang), parse_mode="HTML"
             )
             return PLAN_VIEW
 
         plan_items = result.get("plan", [])
         if not plan_items:
-            await query.message.reply_text(safe_t("cp_ai_failed", lang))
+            await _edit_wait_message(wait_msg, query.message, safe_t("cp_ai_failed", lang))
             return PLAN_VIEW
 
         context.user_data["plan_items"] = plan_items
@@ -536,7 +547,7 @@ async def plan_view_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 plan_text += safe_t("cp_plan_idea", lang, idea=html_escape(idea[:150]))
             plan_text += "\n"
 
-        await query.message.reply_text(
+        await _edit_wait_message(wait_msg, query.message,
             plan_text,
             reply_markup=_plan_list_keyboard(plan_items, context, lang),
             parse_mode="HTML",

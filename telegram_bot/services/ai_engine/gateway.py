@@ -63,17 +63,26 @@ logger = logging.getLogger(__name__)
 
 
 def fast_path_timeout() -> float:
+    """FAST so'rovi uchun umumiy limit (hard cap: 15 soniya)."""
     try:
-        return max(1.0, float(os.getenv("AI_FAST_PATH_TIMEOUT", "12")))
+        return min(15.0, max(1.0, float(os.getenv("AI_FAST_PATH_TIMEOUT", "12"))))
     except (TypeError, ValueError):
         return 12.0
+
+
+def provider_timeout_cap() -> float:
+    """Bitta provayderga beriladigan muddat (fallback 6–8s da boshlanadi)."""
+    try:
+        return min(8.0, max(1.0, float(os.getenv("AI_ENGINE_PROVIDER_TIMEOUT", "7"))))
+    except (TypeError, ValueError):
+        return 7.0
 
 
 def lane_default_timeout(lane: Lane) -> float:
     """Lane standart timeout'i (``AI_<LANE>_TIMEOUT`` env bilan bekor qilinadi)."""
     env_name = f"AI_{lane.value}_TIMEOUT"
     try:
-        return max(1.0, float(os.getenv(env_name, str(LANE_SPECS[lane].default_timeout))))
+        return min(15.0, max(1.0, float(os.getenv(env_name, str(LANE_SPECS[lane].default_timeout)))))
     except (TypeError, ValueError):
         return LANE_SPECS[lane].default_timeout
 
@@ -268,7 +277,7 @@ async def generate(
     sys_instr = _language_directive(sys_instr, lang)
 
     # 3) QAT'IY UMUMIY MUDDAT.
-    overall = float(timeout) if timeout else (
+    overall = min(15.0, max(1.0, float(timeout))) if timeout else (
         fast_path_timeout() if resolved_lane is Lane.FAST
         else lane_default_timeout(resolved_lane)
     )
@@ -338,7 +347,7 @@ async def _generate_via_chain(
     order = monitor.healthy_order(wanted)
     handles = _providers.build_provider_handles()
 
-    per_provider_cap = lane_default_timeout(lane)
+    per_provider_cap = min(provider_timeout_cap(), lane_default_timeout(lane))
     chain_tried: list[str] = []
     last_errors: list[str] = []
 

@@ -1117,11 +1117,23 @@ async def channel_voice_analysis_callback(update: Update, context: ContextTypes.
             pass
         return ConversationHandler.END
 
-    # 1) Tahlil jarayoni haqida xabar
+    async def _finish_wait(text, **kwargs):
+        editor = getattr(analyzing_msg, "edit_text", None) if analyzing_msg is not None else None
+        if callable(editor):
+            try:
+                return await editor(text, **kwargs)
+            except Exception:
+                pass
+        return await query.message.reply_text(text, **kwargs)
+
+    # 1) AI kutish holati: typing darhol, natija shu xabarda ko'rsatiladi.
+    try:
+        await context.bot.send_chat_action(chat_id=query.message.chat_id, action="typing")
+    except Exception:
+        pass
     try:
         analyzing_msg = await query.message.reply_text(
-            safe_t("ch_voice_analyzing", lang),
-            parse_mode="HTML",
+            "⏳ Post tayyorlanmoqda, iltimos kuting..."
         )
     except Exception:
         analyzing_msg = None
@@ -1138,17 +1150,11 @@ async def channel_voice_analysis_callback(update: Update, context: ContextTypes.
         logger.warning("Kanal ovozi tahlili chaqiruv xatosi (%s): %s", channel_id, e)
         result = {"error": safe_t("ch_voice_error", lang)}
 
-    if analyzing_msg is not None:
-        try:
-            await analyzing_msg.delete()
-        except Exception:
-            pass
-
     tone = (result or {}).get("tone")
     if not tone:
         error_text = (result or {}).get("error") or safe_t("ch_voice_error", lang)
         try:
-            await query.message.reply_text(
+            await _finish_wait(
                 f"{error_text}",
                 reply_markup=get_main_keyboard(is_admin, lang=lang),
                 parse_mode="HTML",
@@ -1164,9 +1170,10 @@ async def channel_voice_analysis_callback(update: Update, context: ContextTypes.
     tone_label = labels.get(tone, labels["friendly"])
     reason = (result.get("reason") or "").strip()
     try:
-        await query.message.reply_text(
-            safe_t("ch_voice_result", lang, tone=html_escape(tone_label),
-                     reason=html_escape(reason)),
+        result_text = safe_t("ch_voice_result", lang, tone=html_escape(tone_label),
+                             reason=html_escape(reason))
+        await _finish_wait(
+            result_text,
             reply_markup=get_main_keyboard(is_admin, lang=lang),
             parse_mode="HTML",
         )

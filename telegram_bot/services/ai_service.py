@@ -72,9 +72,9 @@ logger = logging.getLogger(__name__)
 # ============================================================
 # QAT'IY PROVAyder TIMEOUT (soniya) — har bir provayder alohida
 # ============================================================
-# Bitta osilib qolgan provayder butun zanjirni ushlab qolmasin:
-# ulanish 3s, javob o'qish 8s, jami 10s — undan so'ng keyingi
-# provayderga o'tiladi (foydalanuvchiga hech qanday xato ko'rsatilmasdan).
+# Eski HTTP timeout atributlari status/API orqaga mosligi uchun qoldi.
+# Haqiqiy per-provider wait_for deadline'i provider_total_timeout() orqali
+# 7s bilan cheklanadi (keyin fallback darhol davom etadi).
 AI_PROVIDER_CONNECT_TIMEOUT = max(1, int(os.getenv("AI_PROVIDER_CONNECT_TIMEOUT", "3")))
 AI_PROVIDER_READ_TIMEOUT = max(1, int(os.getenv("AI_PROVIDER_READ_TIMEOUT", "8")))
 AI_PROVIDER_TOTAL_TIMEOUT = max(2, int(os.getenv("AI_PROVIDER_TOTAL_TIMEOUT", "10")))
@@ -96,7 +96,7 @@ def provider_http_timeout() -> aiohttp.ClientTimeout:
 
 def provider_total_timeout() -> float:
     """Provayder sinovining qat'iy umumiy muddati (wait_for chegarasi)."""
-    return float(AI_PROVIDER_TOTAL_TIMEOUT)
+    return min(7.0, max(0.1, float(AI_PROVIDER_TOTAL_TIMEOUT)))
 
 
 # ============================================================
@@ -555,9 +555,12 @@ class AIFallbackService:
 
         errors: list[str] = []
         chain: list[str] = []
+        chain_deadline = _time.monotonic() + 15.0
 
         async with aa._AI_SEMAPHORE:
             for provider in self.providers:
+                if chain_deadline - _time.monotonic() <= 0.1:
+                    break
                 name = provider.name
 
                 if aa._breaker_open(name):
@@ -575,7 +578,10 @@ class AIFallbackService:
                 # QAT'IY byudjet: deadline adapter'ga uzatiladi (har bir
                 # model/urinishdan oldin tekshiriladi) + wait_for — ikki
                 # qavatli qat'iy chegara.
-                deadline = _time.monotonic() + provider_total_timeout()
+                deadline = min(
+                    chain_deadline,
+                    _time.monotonic() + provider_total_timeout(),
+                )
                 try:
                     from services.ai_engine.safety import contains_leak, sanitize
                     def clean_payload(value):

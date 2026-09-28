@@ -50,6 +50,7 @@ import json
 import logging
 import os
 import re
+import time
 
 from utils.ai_agent import (
     ensure_magic_hashtags,
@@ -85,8 +86,8 @@ TARGET_SCORE = 95
 POST_SCORE_MIN_CHARS = max(10, int(os.getenv("POST_SCORE_MIN_CHARS", "20")))
 #: AI'ga yuboriladigan matnning maksimal uzunligi (Telegram posti chegarasi).
 POST_SCORE_MAX_CHARS = max(200, int(os.getenv("POST_SCORE_MAX_CHARS", "3500")))
-#: Baholash uchun qat'iy timeout (tezkor operatsiya — 20s).
-POST_SCORE_TIMEOUT = max(5.0, float(os.getenv("POST_SCORE_TIMEOUT", "20")))
+#: Har bir Post Score oqimining umumiy qat'iy chegarasi (hard cap: 15s).
+POST_SCORE_TIMEOUT = min(15.0, max(1.0, float(os.getenv("POST_SCORE_TIMEOUT", "15"))))
 #: Yaxshilash jarayonida maksimal urinishlar soni (eng sara variant tanlanadi).
 IMPROVE_MAX_ATTEMPTS = max(1, min(3, int(os.getenv("POST_SCORE_IMPROVE_ATTEMPTS", "2"))))
 
@@ -676,7 +677,9 @@ async def score_post(text: str, lang: str = "uz", timeout: float = None,
         try:
             result = await _call_ai(
                 prompt, system, code,
-                timeout=timeout if timeout is not None else POST_SCORE_TIMEOUT,
+                timeout=min(15.0, max(0.1, float(
+                    timeout if timeout is not None else POST_SCORE_TIMEOUT
+                ))),
             )
         except Exception as e:  # noqa: BLE001 — baholash hech qachon yiqilmaydi
             logger.warning("Post Score AI chaqiruv xatosi: %s", e)
@@ -751,6 +754,9 @@ async def improve_post_to_95(text: str, lang: str = "uz", is_pro: bool = False,
 
     tries = attempts if isinstance(attempts, int) and attempts > 0 else IMPROVE_MAX_ATTEMPTS
     tries = max(1, min(3, tries))
+    deadline = time.monotonic() + min(
+        15.0, max(0.1, float(timeout if timeout is not None else POST_SCORE_TIMEOUT))
+    )
 
     baseline = score_post_locally(clean, code)
     system = with_language(build_improve_system_prompt(), code)
@@ -758,6 +764,9 @@ async def improve_post_to_95(text: str, lang: str = "uz", is_pro: bool = False,
     best_text, best_score, best_meta = "", None, {}
     last_error = ""
     for attempt in range(1, tries + 1):
+        remaining = deadline - time.monotonic()
+        if remaining <= 0.1:
+            break
         prompt = build_improve_prompt(clean, baseline.get("scores"), code)
         if attempt > 1:
             prompt += (
@@ -767,7 +776,7 @@ async def improve_post_to_95(text: str, lang: str = "uz", is_pro: bool = False,
         try:
             result = await _call_ai(
                 prompt, system, code,
-                timeout=timeout if timeout is not None else POST_SCORE_TIMEOUT,
+                timeout=min(15.0, remaining),
                 is_pro=is_pro,
             )
         except Exception as e:  # noqa: BLE001
