@@ -244,6 +244,10 @@ def test_database_ssl_pool():
     check("TCP keepalive'lar yoqilgan", "keepalives" in DB_SOURCE)
     check("pool _connect_kwargs() dan foydalanadi", "**_connect_kwargs()" in DB_SOURCE)
     check("URL'dagi sslmode= ustun bo'ladi", '"sslmode=" in url' in DB_SOURCE)
+    check("postgres:// → postgresql:// moslashtirish",
+          'replace("postgres://", "postgresql://", 1)' in DB_SOURCE)
+    check("o'lik ulanish tekshiruvi bor", "def _connection_is_usable(" in DB_SOURCE)
+    check("pool qayta ulanish (reconnection)", "_reset_pool()" in DB_SOURCE)
 
 
 def test_database_schema_checks():
@@ -270,9 +274,9 @@ def test_resolve_sslmode():
     old = os.environ.pop("DB_SSLMODE", None)
     try:
         check("URL'da sslmode= → aralashmaslik",
-              db_mod.resolve_sslmode("postgresql://u:p@ep-x.neon.tech/db?sslmode=require") == "")
-        check("Neon host → require",
-              db_mod.resolve_sslmode("postgresql://u:p@ep-x-pooler.eu-central-1.aws.neon.tech/db") == "require")
+              db_mod.resolve_sslmode("postgresql://u:p@pg-x.a.aivencloud.com/db?sslmode=require") == "")
+        check("Aiven host → require",
+              db_mod.resolve_sslmode("postgresql://u:p@pg-xxx.a.aivencloud.com:12345/defaultdb") == "require")
         check("Render host → require",
               db_mod.resolve_sslmode("postgresql://u:p@dpg-xyz-a.frankfurt-postgres.render.com/db") == "require")
         check("localhost → prefer",
@@ -282,7 +286,7 @@ def test_resolve_sslmode():
 
         os.environ["DB_SSLMODE"] = "disable"
         check("DB_SSLMODE=disable ustun",
-              db_mod.resolve_sslmode("postgresql://u:p@ep-x.neon.tech/db") == "disable")
+              db_mod.resolve_sslmode("postgresql://u:p@pg-x.a.aivencloud.com/db") == "disable")
         os.environ["DB_SSLMODE"] = "verify-full"
         check("DB_SSLMODE=verify-full ustun",
               db_mod.resolve_sslmode("postgresql://u:p@localhost/db") == "verify-full")
@@ -295,6 +299,32 @@ def test_resolve_sslmode():
             os.environ["DB_SSLMODE"] = old
         else:
             os.environ.pop("DB_SSLMODE", None)
+
+
+def test_database_url_normalization():
+    print("== DATABASE_URL faqat env + postgres:// moslashtirish ==")
+    from config import normalize_database_url
+
+    cfg = (ROOT / "config.py").read_text(encoding="utf-8")
+    check("DATABASE_URL faqat os.getenv(\"DATABASE_URL\")",
+          'os.getenv("DATABASE_URL")' in cfg)
+    check("hardcoded neon.tech DSN yo'q",
+          "neon.tech" not in cfg.lower() or "hardcoded host" in cfg.lower())
+    check("postgres:// → postgresql://",
+          normalize_database_url("postgres://u:p@host:12345/db")
+          == "postgresql://u:p@host:12345/db")
+    check("postgresql:// o'zgarmaydi",
+          normalize_database_url("postgresql://u:p@host/db")
+          == "postgresql://u:p@host/db")
+    check("bo'shliq va qo'shtirnoq olinadi",
+          normalize_database_url('  "postgres://u:p@h/db"  ')
+          == "postgresql://u:p@h/db")
+    check("Aiven sslmode saqlanadi",
+          normalize_database_url(
+              "postgres://avnadmin:x@pg.a.aivencloud.com:21699/defaultdb?sslmode=require"
+          ) == "postgresql://avnadmin:x@pg.a.aivencloud.com:21699/defaultdb?sslmode=require")
+    check("None → None", normalize_database_url(None) is None)
+    check("bo'sh satr → None", normalize_database_url("   ") is None)
 
 
 def test_live_postgres():
@@ -370,6 +400,7 @@ if __name__ == "__main__":
     test_database_ssl_pool()
     test_database_schema_checks()
     test_resolve_sslmode()
+    test_database_url_normalization()
     test_live_postgres()
 
     print()
