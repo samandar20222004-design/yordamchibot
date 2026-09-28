@@ -15,12 +15,13 @@ from keyboards.callback_data import (
 from keyboards.inline import (
     render_channel_panel, render_channel_settings, render_channels_list,
     render_my_channels_list, render_channel_advice_menu,
+    render_dna_onboarding_keyboard,
 )
 from locales.translations import get_lang, safe_t, normalize_lang
 from translations import channels_queue_t
 from utils.helpers import html_escape
 from utils.fsm_state import active_conversation_state
-from utils.ai_agent import analyze_channel_voice
+from utils.ai_agent import analyze_channel_voice, generate_dna_sample_post
 from utils.channel_reader import read_channel_posts
 
 logger = logging.getLogger(__name__)
@@ -781,6 +782,168 @@ async def add_channel_retry(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return await _link_channel(update, context, raw_target)
 
 
+# ============================================================
+# 🧠 3-BOSQICH — ONBOARDING: KANAL DNK SINOVI TAKLIFI
+# ------------------------------------------------------------
+# Eski xulq: kanal ulandi → «✅ Kanal muvaffaqiyatli ulandi!» → tugadi.
+# Yangi xulq: birinchi kanal ulangach «✅ ulandi» dan KEYIN darhol
+# kanal ovozini (Tone of Voice) o'rganish taklifi yuboriladi va
+# «🎙 Ovoz tahlili» bosilganda 1 ta BEPUL namunaviy qoralama
+# generatsiya qilinadi (:func:`channel_voice_analysis_callback`).
+#
+# Taklif FAQAT bir marta beriladi: (a) bu — foydalanuvchining birinchi
+# kanali; (b) uning ``tone_of_voice`` hali bo'sh (avval tahlil qilinmagan).
+# Shu sababli taklif hech qachon takrorlanmaydi (spam yo'q) va DB xatosida
+# JIM qoladi (fail-safe — foydalanuvchiga noto'g'ri taklif yuborilmaydi).
+# ============================================================
+
+
+async def _dna_prompt_block(channel_id, user_id: int) -> str:
+    """Kanal DNA profilidan AI uchun ixcham uslub bloki (ixtiyoriy).
+
+    Ma'lumot yetarli bo'lmasa yoki xato bo'lsa — bo'sh qator qaytadi
+    (namuna faqat ``tone`` bo'yicha yoziladi). Hech qachon istisno bermaydi.
+    """
+    try:
+        from services.channels.dna import (
+            build_dna_system_prompt_extended, get_channel_dna,
+        )
+
+        res = await get_channel_dna(channel_id, user_id=user_id)
+        if not res.get("ok") or res.get("insufficient"):
+            return ""
+        profile = res.get("profile") or {}
+        if not profile:
+            return ""
+        return (build_dna_system_prompt_extended(profile, lang="uz") or "").strip()
+    except Exception:
+        logger.debug("DNA blokini olishda xato (channel=%s)", channel_id,
+                     exc_info=True)
+        return ""
+
+
+async def _send_dna_sample(update: Update, context: ContextTypes.DEFAULT_TYPE,
+                           user_id: int, channel_id: str, tone: str,
+                           lang: str = "uz") -> bool:
+    """Kanal uslubiga mos 1 ta BEPUL namunaviy qoralama post yuboradi.
+
+    Narx: 1 AI birlik (``reserve_for_flow`` — ATO'MIK kvota/kredit bron).
+    Xato yoki rad holatida bron IDEMPOTENT qaytariladi (fail-closed refund):
+    foydalanuvchi hech qachon pul/kredit yo'qotmaydi.
+
+    AI zanjiri + Channel DNA profili ishlatiladi: uslub tahlildan (``tone``)
+    va o'lchangan DNA metrikalaridan (uzunlik/emoji/CTA/shakl) olinadi.
+    """
+    from services.ai_quota import (
+        release_ai_quota, reserve_for_flow, take_reservation_id,
+    )
+
+    # --- 1) Atomik bron (1 birlik). Rad bo'lsa — namunani chiqarmaymiz. ---
+    reservation = await reserve_for_flow(
+        db, context, user_id, "dna_sample", "dna", 1)
+    if not reservation.get("allowed"):
+        logger.info("DNK namunasi bron ololmadi (reason=%s)",
+                    reservation.get("reason"))
+        return False
+    reservation_id = take_reservation_id(context, "dna")
+
+    # --- 2) DNA profili + AI zanjiri orqali namunaviy matn ---
+    dna_block = await _dna_prompt_block(channel_id, user_id)
+    title = ""
+    try:
+        channels = await db.run_db(db.get_user_channels_with_tone, user_id)
+        for ch in channels or []:
+            if str(ch[0]) == str(channel_id):
+                title = ch[1] or ""
+                break
+    except Exception:
+        pass
+    if not title:
+        title = _channel_title((channel_id, ""), lang)
+
+    try:
+        sample = await generate_dna_sample_post(
+            channel_title=title, tone=tone, dna_block=dna_block, lang=lang,
+        )
+    except Exception:
+        logger.warning("DNK namunasi generatsiyasi xatosi (%s)", channel_id,
+                       exc_info=True)
+        sample = {"error": "ai"}
+
+    text = (sample or {}).get("post_text")
+    if not text:
+        # Xato → BRON QAYTARILADI (fail-closed refund) va muloyim izoh
+        # beriladi: uslub saqlangan, namona keyinroq tayyor bo'ladi.
+        await release_ai_quota(db, user_id, reservation_id)
+        try:
+            await update.effective_message.reply_text(
+                safe_t("ch_dna_sample_error", lang), parse_mode="HTML",
+            )
+        except Exception:
+            pass
+        return False
+
+    # --- 3) Ko'rsatish (bepul namunaviy qoralama) ---
+    try:
+        await update.effective_message.reply_text(
+            "\n".join((
+                safe_t("ch_dna_sample_title", lang),
+                "",
+                html_escape(text),
+                "",
+                f"<i>{safe_t('ch_dna_sample_footer', lang)}</i>",
+            )),
+            parse_mode="HTML",
+        )
+        return True
+    except Exception:
+        # Yuborib bo'lmadi → pulni qaytaramiz (adolatli: foydalanuvchi
+        # hech narsa olmadi, demak to'lamadi ham).
+        await release_ai_quota(db, user_id, reservation_id)
+        return False
+
+
+async def _should_offer_dna(user_id: int, channel_id) -> bool:
+    """Bu kanal uchun DNK taklifi kerakmi (birinchi kanal + uslub yo'q)?"""
+    try:
+        channels = await db.run_db(db.get_user_channels_with_tone, user_id)
+    except Exception:
+        logger.debug("DNK taklif: kanal ro'yxatini o'qib bo'lmadi", exc_info=True)
+        return False
+    if not channels or len(channels) != 1:
+        return False
+    row = channels[0]
+    if str(row[0]) != str(channel_id):
+        return False
+    tone = row[2] if len(row) > 2 else None
+    return not str(tone or "").strip()
+
+
+async def _send_dna_offer(send, channel_id, lang: str = "uz") -> bool:
+    """DNK taklif xabarini yuboradi (``send`` — reply_text/send_message).
+
+    ``send`` qabul qilinadi, chunki bu xabar ikki yo'lning ikkalasida ham
+    kerak: ``Message.reply_text`` (oddiy ulash) va
+    ``Bot.send_message`` (avtomatik ulash / my_chat_member). Xato bo'lsa
+    JIM qolamiz — onboarding hech qachon asosiy oqimni buzmaydi.
+    """
+    try:
+        await send(
+            safe_t("ch_dna_offer", lang,
+                   btn=html_escape(safe_t("ch_voice_btn", lang))),
+            reply_markup=render_dna_onboarding_keyboard(channel_id, lang),
+            parse_mode="HTML",
+        )
+        return True
+    except Exception:
+        # Taklif — onboardingning bir qismi, lekin uning nosozligi kanal
+        # ulash natijasini hech qachon bekor qilmaydi. Operator uchun
+        # WARNING (jim yutilgan bug bo'lib qolmasin).
+        logger.warning("DNK taklifi yuborilmadi (channel=%s)", channel_id,
+                       exc_info=True)
+        return False
+
+
 async def _link_channel(update: Update, context: ContextTypes.DEFAULT_TYPE,
                         raw_target, title_hint: str | None = None):
     """Umumiy ulash oqimi: tekshirish → limit → saqlash → natija ro'yxati.
@@ -856,6 +1019,11 @@ async def _link_channel(update: Update, context: ContextTypes.DEFAULT_TYPE,
                 )
             except TelegramError:
                 pass
+
+        # 🧠 3-BOSQICH: birinchi kanal ulangan bo'lsa — kanal DNK sinovi
+        # taklifini darhol yuboramiz (bot «✅ ulandi» bilan to'xtab qolmaydi).
+        if await _should_offer_dna(user_id, channel_id):
+            await _send_dna_offer(msg.reply_text, channel_id, lang)
 
     elif reason == "taken":
         context.user_data.pop("add_channel_pending", None)
@@ -990,6 +1158,15 @@ async def on_bot_chat_member_update(update: Update, context: ContextTypes.DEFAUL
                 )
             except TelegramError:
                 pass
+            # 🧠 3-BOSQICH: avtomatik ulashda ham birinchi kanal uchun DNK
+            # sinovi taklifi yuboriladi (foydalanuvchi forward qilishi
+            # shart emas — bot admin bo'lishi yetarli).
+            if await _should_offer_dna(user_id, str(chat.id)):
+                await _send_dna_offer(
+                    lambda text, **kw: context.bot.send_message(
+                        chat_id=user_id, text=text, **kw),
+                    str(chat.id), lang,
+                )
         elif reason == "taken":
             logger.info("Kanal %s boshqa foydalanuvchiga tegishli — avto-ulash o'tkazib yuborildi", chat.id)
         return
@@ -1305,6 +1482,20 @@ async def channel_voice_analysis_callback(update: Update, context: ContextTypes.
         )
     except Exception:
         pass
+
+    # 4) 🧠 3-BOSQICH: 1 ta BEPUL namunaviy qoralama (Tone of Voice Activation).
+    #    Tahlil yakunlangach foydalanuvchi darhol «soxta tasdiq» emas, kanal
+    #    ohangida YOZILGAN namunani ko'radi — bu onboardingning asosiy
+    #    va'dasi. Butun blok try/except ichida: namuna xatosi hech qachon
+    #    tahlil natijasini yoki asosiy oqimni buzmaydi.
+    try:
+        await _send_dna_sample(update, context, user_id, channel_id, tone, lang)
+    except Exception:
+        # Kutilmagan xatolik (masalan, kelajakdagi API o'zgarishi) tahlil
+        # natijasini yoki asosiy oqimni BUZMAYDI — lekin operator ko'rishi
+        # uchun WARNING yozamiz (jim yutilgan bug bo'lib qolmasin).
+        logger.warning("DNK namunasi yuborilmadi (channel=%s)", channel_id,
+                       exc_info=True)
 
     # Dialog ICHIDA bo'lmasa kanal ro'yxatini yangilangan uslub bilan qayta
     # ko'rsatamiz (dialog bo'lsa foydalanuvchi holatini buzmaymiz).

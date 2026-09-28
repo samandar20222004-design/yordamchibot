@@ -60,22 +60,24 @@ BTN_BACK_EN = get_text("btn_main_menu", "en")
 BTN_CANCEL_EN = get_text("btn_cancel", "en")
 
 # ============================================================
-# 🆕 ASOSIY MENYU: KLASSIK 6 TUGMA / 3 QATOR STANDARTI (uz/ru/en)
+# 🆕 ASOSIY MENYU: IXCHAM 5 TUGMA / 3 QATOR STANDARTI (uz/ru/en)
 # ============================================================
-# Asosiy menyuda FAQAT va FAQAT quyidagi 6 ta tugma chiziladi:
-#   [✨ Kontent yaratish]   [📢 Kanallarim]
-#   [📅 Rejalashtirilgan]   [📊 Statistika]
-#   [💎 PRO]                [⚙️ Sozlamalar]
+# 3-BOSQICH: asosiy menyuda FAQAT va FAQAT quyidagi 5 ta tugma chiziladi:
+#   [✍️ Post yaratish]       [📢 Kanallarim]
+#   [📅 Rejalashtirilgan]     [📊 Statistika]
+#   [⚙️ Sozlamalar / Ko'proq]
 # (+ oddiy foydalanuvchiga KO'RINMAS, faqat ADMIN_IDS uchun alohida
 #   [⚙️ Admin Panel] qatori).
-# «👤 Profil» yorlig'i qaytadan «⚙️ Sozlamalar»ga qaytarildi, «👥 Do'stlarni
-# taklif» esa asosiy menyudan olib tashlandi — referral endi Sozlamalar
-# ichki menyusida chiziladi (stgs_referral).
-# Eski yorliqlar ("➕ Yangi post", "✨ AI Studio", "⭐️ Premium",
-# "👤 Kabinet & Sozlamalar", "👤 Profil", "📖 Qo'llanma / Bot haqida",
-# "⚙️ Qo'shimcha funksiyalar" ...) asosiy menyudan olib tashlandi, lekin
-# routing'da alias sifatida saqlanadi — keshda qolgan eski klaviatura
-# xabarlari xavfsiz mos bo'limga yo'naltiriladi (backward compatibility).
+# «💎 PRO», «❓ Yordam», «👥 Do'stlarni taklif» va boshqa IKKILAMCHI
+# bo'limlar reply-klaviaturasidan olib tashlandi — ular endi
+# «⚙️ Sozlamalar / Ko'proq» tugmasi ostidagi KANONIK inline hub'da
+# chiziladi (keyboards.inline.get_settings_profile_keyboard).
+# Eski yorliqlar ("➕ Yangi post", "✨ AI Studio", "✨ Kontent yaratish",
+# "⚙️ Sozlamalar", "⭐️ Premium", "👤 Kabinet & Sozlamalar", "👤 Profil",
+# "📖 Qo'llanma / Bot haqida", "⚙️ Qo'shimcha funksiyalar" ...) asosiy
+# menyudan olib tashlangan yoki rename qilingan, lekin routing'da ALIAS
+# sifatida saqlanadi — keshda qolgan eski klaviatura xabarlari xavfsiz
+# mos bo'limga yo'naltiriladi (backward compatibility).
 BTN_CREATE_CONTENT = get_text("btn_create_content", "uz")
 BTN_CREATE_CONTENT_RU = get_text("btn_create_content", "ru")
 BTN_CREATE_CONTENT_EN = get_text("btn_create_content", "en")
@@ -534,6 +536,15 @@ EXTRAS_ALIASES = (
 AI_STUDIO_ALIASES = (
     "✨ AI Studio", "✨ AI Студия", "✨ Studio",
 )
+# 3-BOSQICH: asosiy menyudagi «✨ Kontent yaratish» tugmasi endi
+# «✍️ Post yaratish» deb ataladi (emoji + nom aniqroq: foydalanuvchi
+# nima qilmoqchi, shu ko'rinadi). Oqim O'ZGARMADI — shu sababli eski
+# yorliqlar shu oilada routing ALIAS'i bo'lib qoladi: chat tarixidagi
+# eski klaviatura xabarlari bosilsa, foydalanuvchi xuddi shu
+# kontent-yaratish submenyusiga tushadi.
+CREATE_CONTENT_LEGACY_ALIASES = (
+    "✨ Kontent yaratish", "✨ Создать контент", "✨ Create content",
+)
 NEW_POST_ALIASES = (
     "➕ Post yaratish", "➕ Создать пост", "➕ Новый пост",
     "➕ Yangi post yozish", "➕ Create post",
@@ -617,9 +628,12 @@ MENU_TEXTS = {
         CONTENT_STUDIO_ALIASES, CONTENT_AI_ALIASES,
         CONTENT_STUDIO_LEGACY_ALIASES,
     ),
-    # ✨ Kontent yaratish — asosiy menyu tugmasining O'Z oilasi (+ eski
-    # «✨ AI Studio» asosiy menyu yorliqlari routing aliasi sifatida).
-    "create_content": button_texts("btn_create_content", extra=AI_STUDIO_ALIASES),
+    # ✍️ Post yaratish — asosiy menyu tugmasining O'Z oilasi (+ eski
+    # «✨ Kontent yaratish» va «✨ AI Studio» asosiy menyu yorliqlari
+    # routing aliasi sifatida — 3-BOSQICH rename'i).
+    "create_content": button_texts("btn_create_content",
+                                   extra=CREATE_CONTENT_LEGACY_ALIASES
+                                   + AI_STUDIO_ALIASES),
     # 👥 Do'stlarni taklif — referral endi asosiy menyuda (3-QISM).
     "invite_friends": button_texts("btn_invite_friends"),
     # 🧩 BIRLASHTIRILGAN KONTENT YARATISH menyusi (PostAssist V2):
@@ -842,23 +856,36 @@ def get_content_creation_keyboard(lang: str = "uz", context=None):
 
 def get_main_keyboard(is_admin=False, lang="uz", context=None,
                       include_image_post=None, include_post_score=None):
-    """Asosiy reply-klaviatura — KLASSIK 6 TUGMA / 3 QATOR standarti.
+    """Asosiy reply-klaviatura — IXCHAM 5 TUGMA / 3 QATOR standarti.
 
-    Oddiy foydalanuvchi (3 qator × 2 tugma):
+    3-BOSQICH: menyu maksimal 4-5 tugmaga qisqartirildi — foydalanuvchi
+    endi chalkash 6 ta yorliqni emas, BITTA asosiy harakat, ikki qatorli
+    yo'l va bitta «hammasi shu yerda» tugmasini ko'radi::
 
-        [✨ Kontent yaratish]   [📢 Kanallarim]
-        [📅 Rejalashtirilgan]   [📊 Statistika]
-        [💎 PRO]                [⚙️ Sozlamalar]
+        [✍️ Post yaratish]       [📢 Kanallarim]
+        [📅 Rejalashtirilgan]     [📊 Statistika]
+        [⚙️ Sozlamalar / Ko'proq]
 
-    Admin foydalanuvchi (ADMIN_IDS) — shu 6 ta tugma + pastda alohida
+    IKKILAMCHI bo'limlar («💎 PRO», «❓ Yordam», «👥 Do'stlarni taklif»,
+    «ℹ️ Bot haqida», «💳 To'lovlar tarixi») reply-klaviaturadan
+    OLIB TASHLANDI va «⚙️ Sozlamalar / Ko'proq» tugmasi ostidagi
+    KANONIK inline hub'ga ko'chirildi
+    (:func:`keyboards.inline.get_settings_profile_keyboard`). Ularning
+    barcha routing yorliqlari va callback'leri saqlanadi — eski
+    klaviatura xabarlari ham to'g'ri bo'limga tushadi.
+
+    «✍️ Post yaratish» — eski «✨ Kontent yaratish» tugmasining aynan
+    o'zi (content_creation submenyusi): oqim, yo'nalishlar va routing
+    o'zgarmadi, faqat yorliq aniqroq bo'ldi.
+
+    Admin foydalanuvchi (ADMIN_IDS) — shu 5 ta tugma + pastda alohida
     [⚙️ Admin Panel] qatori. Oddiy foydalanuvchiga "Admin Panel" HECH
-    QACHON ko'rinmaydi. «👥 Do'stlarni taklif» asosiy menyuda chizilmaydi
-    — referral Sozlamalar ichki menyusidan ochiladi.
+    QACHON ko'rinmaydi.
 
     ``include_image_post`` / ``include_post_score`` parametrlari UX V2 dan
     beri DEPRECATED: asosiy menyuda Magic Post / Image Post / Post Score
     tugmalari chizilmaydi — ularning oqimlari hali ham ishlaydi (keshdagi
-    eski klaviatura xabarlari, "✨ Kontent yaratish" ichidagi AI Yordamchi
+    eski klaviatura xabarlari, «✍️ Post yaratish» ichidagi AI Yordamchi
     sub-menyusi, to'g'ridan-to'g'ri rasm/ovoz yuborish). Parametrlar eski
     chaqiruvchilarni buzmaslik uchun API'da saqlanib qolgan (e'tibor
     qilinmaydi).
@@ -868,7 +895,7 @@ def get_main_keyboard(is_admin=False, lang="uz", context=None,
     keyboard = [
         [get_text("btn_create_content", lang), get_text("btn_my_channels", lang)],
         [get_text("btn_scheduled", lang), get_text("btn_statistics", lang)],
-        [get_text("btn_premium", lang), get_text("btn_settings", lang)],
+        [get_text("btn_settings", lang)],
     ]
     if is_admin:
         keyboard.append([BTN_ADMIN_PANEL])
@@ -890,9 +917,9 @@ def get_refreshed_main_keyboard(lang="uz", is_admin=False, simple_menu=False,
         context: berilsa, til ``context.user_data['lang']`` dan olinadi
 
     Returns:
-        Klassik 6-tugma / 3-qator standart klaviatura (tilga mos yorliqlar):
-        UZ: "✨ Kontent yaratish", "📢 Kanallarim", "📅 Rejalashtirilgan",
-        "📊 Statistika", "💎 PRO", "⚙️ Sozlamalar" ...
+        Ixcham 5-tugma / 3-qator standart klaviatura (tilga mos yorliqlar):
+        UZ: "✍️ Post yaratish", "📢 Kanallarim", "📅 Rejalashtirilgan",
+        "📊 Statistika", "⚙️ Sozlamalar / Ko'proq" ...
     """
     if context is not None:
         lang = get_lang(context, lang)

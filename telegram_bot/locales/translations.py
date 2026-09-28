@@ -25,14 +25,21 @@ TRANSLATIONS = {
         # "btn_invite_friends" = 👥 Do'stlarni taklif (referral — asosiy
         # menyuda emas, Sozlamalar ichida chiziladi).
         "btn_premium": "💎 PRO",
-        "btn_settings": "⚙️ Sozlamalar",
+        # 3-BOSQICH: «⚙️ Sozlamalar» endi «⚙️ Sozlamalar / Ko'proq» —
+        # PRO, Yordam va Referral kabi IKKILAMCHI bo'limlar shu tugma
+        # ostidagi inline hub'ga ko'chirilgan (keyboards.inline
+        # get_settings_profile_keyboard). Eski «⚙️ Sozlamalar» yorlig'i
+        # routing alias'i sifatida saqlanadi (PROFILE_ALIASES).
+        "btn_settings": "⚙️ Sozlamalar / Ko'proq",
         "btn_help": "📖 Qo'llanma / Bot haqida",
         "btn_extras": "⚙️ Qo'shimcha funksiyalar",
-        # KLASSIK ASOSIY MENYU — 6 TUGMA / 3 QATOR standarti (uz/ru/en paritetda):
-        #   [✨ Kontent yaratish]   [📢 Kanallarim]
+        # 🧭 IXCHAM ASOSIY MENYU — 5 TUGMA / 3 QATOR standarti (uz/ru/en):
+        #   [✍️ Post yaratish]     [📢 Kanallarim]
         #   [📅 Rejalashtirilgan]   [📊 Statistika]
-        #   [💎 PRO]                [⚙️ Sozlamalar]
-        "btn_create_content": "✨ Kontent yaratish",
+        #   [⚙️ Sozlamalar / Ko'proq]
+        # «✨ Kontent yaratish» (eski yorliq) routing alias'i bo'lib qoladi
+        # (keyboards.default CREATE_CONTENT_LEGACY_ALIASES).
+        "btn_create_content": "✍️ Post yaratish",
         "btn_my_channels": "📢 Kanallarim",
         "btn_scheduled": "📅 Rejalashtirilgan",
         "btn_statistics": "📊 Statistika",
@@ -1051,6 +1058,30 @@ TRANSLATIONS = {
             "Bu uslub kanal profilingizga saqlandi va keyingi AI generatsiyalarda ishlatiladi."
         ),
         "ch_voice_error": "⚠️ Kanal ovozi tahlilini bajarib bo'lmadi. Bir ozdan so'ng qayta urinib ko'ring.",
+        # 🧠 3-BOSQICH — ONBOARDING: KANAL DNK SINOVI. Kanal birinchi marta
+        # ulanganda bot «✅ ulandi» bilan to'xtab qolmaydi — darhol kanal
+        # ovozini (Tone of Voice) o'rganish taklifini beradi.
+        "ch_dna_offer": (
+            "🎉 <b>Kanalingiz ulandi!</b>\n\n"
+            "Men kanalingizdagi oxirgi postlarni tahlil qilib, uning <b>ovoz "
+            "uslubini (Tone of Voice)</b> o'rgana olaman.\n\n"
+            "Buning uchun «{btn}» tugmasini bosing yoki menga kanalingizdan "
+            "3 ta postni forward qiling."
+        ),
+        "ch_dna_offer_later": "⏭️ Keyinroq",
+        "ch_dna_sample_title": "🎨 <b>Namuna — sizning kanal ohangingizda:</b>",
+        "ch_dna_sample_footer": (
+            "Bu matn kanal uslubingizga moslashtirildi va keyingi AI "
+            "generatsiyalarida ham shu ohangda yoziladi."
+        ),
+        "ch_dna_sample_error": (
+            "⚠️ Namuna tayyorlab bo'lmadi. Kanal uslubi saqlandi — keyinroq "
+            "«🎙 Ovoz tahlili» orqali qayta urinib ko'ring."
+        ),
+        "ch_dna_already_done": (
+            "🧠 <b>Kanal DNKsi faol.</b> Namunaviy post va kanal uslubingiz "
+            "allaqachon sozlandi — endi AI har bir postni shu ohangda yozadi."
+        ),
 
         # --- 3-QISM: 📅 Kutilayotgan postlar i18n (UZ) ---
         "pend_empty": "⏳ <b>Sizda kutilayotgan faol postlar mavjud emas.</b>",
@@ -2006,14 +2037,17 @@ TRANSLATIONS = {
         # UX V2 → KLASSIK — RU paritet (eski nomlar aliaslar ro'yxatida
         # saqlanadi — keyboards.default). «⚙️ Настройки» — eski nom «👤 Профиль».
         "btn_premium": "💎 PRO",
-        "btn_settings": "⚙️ Настройки",
+        # 3-БОСҚИЧ: «⚙️ Настройки» → «⚙️ Настройки / Ещё» — PRO, Помощь и
+        # Рефералы перенесены в inline-hub этой кнопки. Старое имя сохранено
+        # как routing-алиас (PROFILE_ALIASES).
+        "btn_settings": "⚙️ Настройки / Ещё",
         "btn_help": "📖 Руководство / О боте",
         "btn_extras": "⚙️ Дополнительные функции",
-        # KLASSIK ASOSIY MENYU — 6 TUGMA / 3 QATOR standarti (RU):
-        #   [✨ Создать контент]   [📢 Мои каналы]
+        # 🧭 КОМПАКТНОЕ ГЛАВНОЕ МЕНЮ — 5 КНОПОК / 3 РЯДА (RU):
+        #   [✍️ Создать пост]      [📢 Мои каналы]
         #   [📅 Запланированные]   [📊 Статистика]
-        #   [💎 PRO]               [⚙️ Настройки]
-        "btn_create_content": "✨ Создать контент",
+        #   [⚙️ Настройки / Ещё]
+        "btn_create_content": "✍️ Создать пост",
         "btn_my_channels": "📢 Мои каналы",
         "btn_scheduled": "📅 Запланированные",
         "btn_statistics": "📊 Статистика",
@@ -3024,6 +3058,29 @@ TRANSLATIONS = {
             "Стиль сохранён в профиле канала и будет использоваться в генерациях ИИ."
         ),
         "ch_voice_error": "⚠️ Не удалось выполнить анализ голоса канала. Попробуйте ещё раз чуть позже.",
+        # 🧠 3-БОСҚИЧ — ОНБОРДИНГ: ТЕСТ ДНК КАНАЛА. После первой привязки
+        # канала бот не останавливается на «✅ подключено», а сразу
+        # предлагает изучить Tone of Voice канала.
+        "ch_dna_offer": (
+            "🎉 <b>Канал подключён!</b>\n\n"
+            "Я проанализирую последние посты вашего канала и выучу его "
+            "<b>стиль голоса (Tone of Voice)</b>.\n\n"
+            "Нажмите «{btn}» или перешлите мне 3 поста из канала."
+        ),
+        "ch_dna_offer_later": "⏭️ Позже",
+        "ch_dna_sample_title": "🎨 <b>Пример в стиле вашего канала:</b>",
+        "ch_dna_sample_footer": (
+            "Текст адаптирован под стиль вашего канала — дальше ИИ пишет "
+            "в том же тоне."
+        ),
+        "ch_dna_sample_error": (
+            "⚠️ Не удалось подготовить пример. Стиль канала сохранён — "
+            "попробуйте позже через «🎙 Анализ голоса»."
+        ),
+        "ch_dna_already_done": (
+            "🧠 <b>ДНК канала активна.</b> Пример поста и стиль канала уже "
+            "настроены — ИИ пишет каждый пост в этом тоне."
+        ),
 
         # --- 3-QISM: 📅 Ожидающие посты i18n (RU) ---
         "pend_empty": "⏳ <b>У вас нет ожидающих активных постов.</b>",

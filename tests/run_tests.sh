@@ -15,7 +15,15 @@
 #        (tests/image_post_fallback_test.py)
 #   3b) 🎙 VOICE → POST — Killer Feature #2 (tests/voice_to_post_flow_test.py)
 #   3c) 📊 POST SCORE & IMPROVER — Killer Feature #4 (tests/post_score_flow_test.py)
-#   3d) 🧭 UX V2 — asosiy menyu qat'iy 6 tugma standarti (tests/ux_v2_main_menu_test.py)
+#   3d) 🧭 UX V2 — asosiy menyu 3-BOSQICH IXCHAM 5 TUGMA standarti
+#       (tests/ux_v2_main_menu_test.py)
+#   3d2) 🧭 3-BOSQICH — MENYU IXCHAMLIGI + ONBOARDING (KANAL DNK):
+#       asosiy reply-menyu 5 tugma (uz/ru/en), PRO/Yordam/Referral
+#       «⚙️ Sozlamalar / Ko'proq» inline hub'ida (10 tugma),
+#       backward compatibility (eski yorliqlar routingda), kanal
+#       birinchi ulanganda Kanal DNK sinovi taklifi + 1 ta bepul
+#       namunaviy qoralama (atomik bron/refund) va statistikada
+#       💡 aniq tavsiya (tests/main_menu_and_dna_onboarding_test.py)
 #   3e) 🧩 BIRLASHTIRILGAN KONTENT YARATISH menyusi + ACTION-FIRST
 #       (tests/content_creation_menu_test.py)
 #   3e2) ✍️ ODDIY (AI'SIZ) POSTING + universal panel + profil tozaligi
@@ -102,7 +110,7 @@
 #       foydalanuvchiga dispatcher orqali qaytarish va not-an-admin
 #       himoyasi (tests/support_ticket_flow_test.py)
 #   3I) 🧭 FAZA 17/18/19/26 — UI/UX STANDARTLARI: asosiy Reply menyu QAT'IY
-#       3 qator/6 tugma; kanonik navigatsiya (Orqaga/Bekor/Asosiy menyu/
+#       3 qator/5 tugma; kanonik navigatsiya (Orqaga/Bekor/Asosiy menyu/
 #       Yopish — bir xil vazifali ikkita tugma TAQIQLANADI); inline
 #       dublikatlar kanonik get_settings_profile_keyboard ga yo'naltirilgan;
 #       CALLBACK REGISTRY + tampering FAIL-CLOSED rad etish; handlers/admin.py
@@ -241,6 +249,14 @@ echo "===== 3d) 🧭 UX V2 — ASOSIY MENYU QAT'IY 6 TUGMA STANDARTI ====="
 # (backward compatibility); (4) STARS_PLANS — yagona manba (config.STARS_PLANS:
 # precheckout + PaymentService, shadowing yo'q); (5) /start onboarding 3 tilda.
 "$PY" tests/ux_v2_main_menu_test.py || EXIT_CODE=1
+
+echo
+echo "======= 3d2) 🧭 MENYU IXCHAMLIGI + ONBOARDING (KANAL DNK) ======="
+# 5-tugma ixcham menyu, Sozlamalar/Ko'proq inline hub (PRO + Yordam),
+# backward compatibility, Kanal DNK taklifi + bepul namunaviy
+# qoralama (atomik bron + fail-closed refund) va statistikada
+# 💡 aniq tavsiya — uchala tilda (tests/main_menu_and_dna_onboarding_test.py).
+"$PY" tests/main_menu_and_dna_onboarding_test.py || EXIT_CODE=1
 
 echo
 echo "===== 3e) 🧩 KONTENT YARATISH SUBMENYUSI + ACTION-FIRST ====="
@@ -388,10 +404,11 @@ echo "===== 3k) 🧭 4-QADAM + 3-BOSQICH: NAVIGATSIYA + YAGONA INLINE ADMIN PANE
 echo
 echo "===== 3l) 🏁 YAKUNIY ACCEPTANCE SUITE (TEST A..AG — 33 TEKSHIRUV) ====="
 # Loyihadagi BARCHA majburiy tekshiruvlar bitta qabul yuzasida:
-# (A..D) asosiy menyu QAT'IY 6 tugma UZ/RU/EN; (E..G) Kontent va AI Studio
+# (A..D) asosiy menyu QAT'IY 5 tugma UZ/RU/EN; (E..G) Kontent va AI Studio
 # submenu pariteti (in_sync: True); (H..J) Kanallarim + Rejalashtirilgan
 # navigatsiyasi; (K..N) 📊 Statistika — FAQAT shaxsiy hisobot (ADMIN
-# STATISTIKASI IZOLYATSIYASI), ⚙️ Sozlamalar 8 guruh + Orqaga, 💎 PRO, 🧰 Vositalar;
+# STATISTIKASI IZOLYATSIYASI), ⚙️ Sozlamalar / Ko'proq 10 tugma + Orqaga, 💎 PRO,
+# 🧰 Vositalar;
 # (O) ko'rinadigan menyularda dublikat yo'q; (P..S) har bir tugma ishchi
 # handler/callback'ga ega (uchala tilda); (T..V) Back/Cancel/Exit stacki;
 # (W..X) eski tugma va callback'lar (backward compatibility); (Y) FSM

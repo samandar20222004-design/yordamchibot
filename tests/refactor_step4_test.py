@@ -15,7 +15,7 @@ Qamrov (4-qadam topshirig'i bo'yicha):
              BO'LIM BOSHIGA qaytadi (AI oqimida — AI Studio hub'i, Kontent
              oqimida — Kontent submenyusi, admin oqimida — dashboard);
            * Oddiy ko'rishda [◀️ Orqaga] — parent menyuga qaytadi;
-           * [🏠 Asosiy menyu] — istalgan joydan asosiy 6 tugmali menyuga;
+           * [🏠 Asosiy menyu] — istalgan joydan asosiy 5 tugmali menyuga;
            * bo'lim yozuvi (``nav_section``) FSM tozalanishidan omon qoladi.
 
   TEST 3 — 👑 ADMIN DASHBOARD YAGONA INLINE PANEL (12 tugma):
@@ -526,7 +526,7 @@ def test_back_cancel_main_menu_separation():
           state == ConversationHandler.END and bool(q_exit.message.sent),
           str(state))
     exit_kb = _rows(q_exit.message.sent[-1]["reply_markup"])
-    check("[🏠 Asosiy menyu] → 6 tugmali asosiy klaviatura",
+    check("[🏠 Asosiy menyu] → 5 tugmali asosiy klaviatura",
           exit_kb == [[b.text for b in row] for row in
                       get_main_keyboard(False, lang="uz").keyboard],
           str(exit_kb))
