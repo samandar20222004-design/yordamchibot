@@ -58,7 +58,6 @@ from utils.ai_agent import (
 from telegram.error import BadRequest
 from utils.telegram_sanitizer import html_to_text, sanitize_html
 from utils.helpers import (
-    check_ai_daily_limit,
     check_ai_rate_limit,
     html_escape,
     telegram_html_payload,
@@ -411,13 +410,6 @@ async def magic_style_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         except Exception:
             is_pro = False
 
-    if not is_admin and not is_pro and check_ai_daily_limit(user_id, max_per_day=30):
-        try:
-            await query.answer(safe_t("ai_daily_limit", lang), show_alert=True)
-        except Exception:
-            pass
-        return MAGIC_STYLE_SELECT
-
     # 🔒 PHASE 2 / 1-QADAM: kunlik kvota YOKI kredit BITTA atomik
     # tranzaksiyada bron qilinadi (qator qulfi + credits_ledger auditi).
     # Avvalgi ikki qadam (check_ai_limit + use_user_credit) alohida
@@ -441,8 +433,11 @@ async def magic_style_callback(update: Update, context: ContextTypes.DEFAULT_TYP
             return MAGIC_STYLE_SELECT
 
     context.user_data["magic_style"] = style
-    style_label = magic_t(MAGIC_STYLE_KEYS[style][0], lang)
-    await _safe_edit(query, magic_t("mp_generating", lang, style=style_label), None)
+    try:
+        await context.bot.send_chat_action(chat_id=query.message.chat_id, action="typing")
+    except Exception:
+        pass
+    await _safe_edit(query, "⏳ Post tayyorlanmoqda, iltimos kuting...", None)
 
     # 🧭 3-QADAM (UI/UX POLISH): wizard'da tanlangan format ko'rsatmasi
     # generatsiya materialiga ulanadi (bir martalik — iste'mol qilinadi).

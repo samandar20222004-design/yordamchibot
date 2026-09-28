@@ -20,6 +20,17 @@ EXTRACT_USERNAME = 701
 EXTRACT_CHOOSE_POST = 702
 
 
+async def _edit_wait_message(wait_message, fallback_message, text: str, **kwargs):
+    """Edit the wait placeholder, with a reply fallback for minimal adapters."""
+    editor = getattr(wait_message, "edit_text", None)
+    if callable(editor):
+        try:
+            return await editor(text, **kwargs)
+        except Exception:
+            logger.debug("Wait message edit failed; using reply fallback", exc_info=True)
+    return await fallback_message.reply_text(text, **kwargs)
+
+
 def _get_post_list_keyboard(
     posts: list[dict], channel: str, lang: str = "uz",
 ) -> InlineKeyboardMarkup:
@@ -118,8 +129,6 @@ async def _handle_website_link(update: Update, context: ContextTypes.DEFAULT_TYP
     context.user_data["extract_post_link"] = site_url
     context.user_data["extract_posts"] = []
 
-    await update.message.reply_text(safe_t("ext_ai_analyzing_page", lang))
-
     from utils.ai_agent import rewrite_channel_post, pick_supported_kwargs
     tone = await _get_user_tone(user_id)
 
@@ -129,6 +138,7 @@ async def _handle_website_link(update: Update, context: ContextTypes.DEFAULT_TYP
     except Exception:
         pass
 
+    wait_msg = await update.message.reply_text("⏳ Post tayyorlanmoqda, iltimos kuting...")
     async with keep_typing(context.bot, chat_id):
         # 🌐 Qayta yozilgan post foydalanuvchi tilida (uz/ru/en).
         result = await rewrite_channel_post(
@@ -137,14 +147,14 @@ async def _handle_website_link(update: Update, context: ContextTypes.DEFAULT_TYP
         )
 
     if "error" in result:
-        await update.message.reply_text(
+        await _edit_wait_message(wait_msg, update.message,
             localize_service_error(result["error"], lang), parse_mode="HTML"
         )
         return EXTRACT_USERNAME
 
     rewritten = result.get("post_text", "")
     if not rewritten:
-        await update.message.reply_text(safe_t("ext_ai_page_failed", lang))
+        await wait_msg.edit_text(safe_t("ext_ai_page_failed", lang))
         return EXTRACT_USERNAME
 
     context.user_data["extract_rewritten"] = rewritten
@@ -157,7 +167,7 @@ async def _handle_website_link(update: Update, context: ContextTypes.DEFAULT_TYP
         preview += "…"
 
     ad_line = await get_auto_ad_injection_async(user_id)
-    await update.message.reply_text(
+    await wait_msg.edit_text(
         safe_t(
             "ext_ai_proposal_src", lang,
             src=html_escape(source), text=safe_html(preview),
@@ -328,8 +338,6 @@ async def extract_post_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE
 
         tone = await _get_user_tone(user_id)
 
-        await query.message.reply_text(safe_t("ext_ai_rewriting", lang))
-
         from utils.ai_agent import rewrite_channel_post, pick_supported_kwargs
         # Indikator darhol ko'rinsin, keyin uzoq AI so'rovi davomida yangilanib tursin.
         chat_id = query.message.chat_id
@@ -337,6 +345,7 @@ async def extract_post_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE
             await context.bot.send_chat_action(chat_id=chat_id, action="typing")
         except Exception:
             pass
+        wait_msg = await query.message.reply_text("⏳ Post tayyorlanmoqda, iltimos kuting...")
         async with keep_typing(context.bot, chat_id):
             result = await rewrite_channel_post(
                 original_text, username, post_link, tone,
@@ -344,14 +353,14 @@ async def extract_post_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE
             )
 
         if "error" in result:
-            await query.message.reply_text(
+            await _edit_wait_message(wait_msg, query.message,
                 localize_service_error(result["error"], lang), parse_mode="HTML"
             )
             return EXTRACT_CHOOSE_POST
 
         rewritten = result.get("post_text", "")
         if not rewritten:
-            await query.message.reply_text(safe_t("ext_ai_rewrite_failed", lang))
+            await _edit_wait_message(wait_msg, query.message, safe_t("ext_ai_rewrite_failed", lang))
             return EXTRACT_CHOOSE_POST
 
         context.user_data["extract_rewritten"] = rewritten
@@ -364,7 +373,7 @@ async def extract_post_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE
             preview += "…"
 
         ad_line = await get_auto_ad_injection_async(user_id)
-        await query.message.reply_text(
+        await _edit_wait_message(wait_msg, query.message,
             safe_t("ext_ai_proposal", lang, text=safe_html(preview)) + ad_line,
             reply_markup=_get_rewrite_result_keyboard(lang=lang),
             parse_mode="HTML",
@@ -380,12 +389,13 @@ async def extract_post_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE
         tone = await _get_user_tone(user_id)
 
         from utils.ai_agent import rewrite_channel_post, pick_supported_kwargs
-        # Indikator darhol ko'rinsin, keyin uzoq AI so'rovi davomida yangilanib tursin.
+        # Indikator darhol ko'rinsin, natija shu xabarda yangilanadi.
         chat_id = query.message.chat_id
         try:
             await context.bot.send_chat_action(chat_id=chat_id, action="typing")
         except Exception:
             pass
+        wait_msg = await query.message.reply_text("⏳ Post tayyorlanmoqda, iltimos kuting...")
         async with keep_typing(context.bot, chat_id):
             result = await rewrite_channel_post(
                 original_text, username, post_link, tone,
@@ -393,7 +403,7 @@ async def extract_post_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE
             )
 
         if "error" in result:
-            await query.message.reply_text(
+            await _edit_wait_message(wait_msg, query.message,
                 localize_service_error(result["error"], lang), parse_mode="HTML"
             )
             return EXTRACT_CHOOSE_POST
@@ -409,7 +419,7 @@ async def extract_post_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE
             if len(rewritten) > 500:
                 preview += "…"
 
-            await query.message.reply_text(
+            await _edit_wait_message(wait_msg, query.message,
                 safe_t("np_ai_retry_proposal", lang, new=safe_html(preview)),
                 reply_markup=_get_rewrite_result_keyboard(lang=lang),
                 parse_mode="HTML",

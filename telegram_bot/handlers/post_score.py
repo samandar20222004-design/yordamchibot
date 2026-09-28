@@ -75,7 +75,6 @@ from translations import (
     post_score_t,
 )
 from utils.helpers import (
-    check_ai_daily_limit,
     check_ai_rate_limit,
     html_escape,
     safe_html,
@@ -348,7 +347,11 @@ async def post_score_text_received(update: Update, context: ContextTypes.DEFAULT
             pass
         return POST_SCORE_INPUT
 
-    status = await msg.reply_text(post_score_t("ps_scoring", lang), parse_mode="HTML")
+    try:
+        await context.bot.send_chat_action(chat_id=msg.chat_id, action="typing")
+    except Exception:
+        pass
+    status = await msg.reply_text("⏳ Post tayyorlanmoqda, iltimos kuting...")
 
     try:
         payload = await score_post(clean, lang=lang)
@@ -409,13 +412,23 @@ async def post_score_eval_callback(update: Update, context: ContextTypes.DEFAULT
         return _return_state(context)
 
     try:
+        await context.bot.send_chat_action(chat_id=query.message.chat_id, action="typing")
+    except Exception:
+        pass
+    try:
+        await query.edit_message_text("⏳ Post tayyorlanmoqda, iltimos kuting...")
+    except Exception:
+        pass
+
+    try:
         payload = await score_post(post_text, lang=lang)
     except Exception as e:  # noqa: BLE001
         logger.error("Post Score (eval) xatosi: %s", e)
         payload = {"error": "score_failed"}
 
     if (payload or {}).get("error"):
-        await _toast(query, post_score_t("ps_score_error", lang))
+        await _safe_edit(query, post_score_t("ps_score_error", lang),
+                         post_score_action_keyboard(lang))
         return _return_state(context)
 
     context.user_data["ps_text"] = post_text
@@ -424,7 +437,11 @@ async def post_score_eval_callback(update: Update, context: ContextTypes.DEFAULT
     context.user_data["ps_improved"] = False
     context.user_data["ps_origin"] = source
 
-    await _send_score_screen(query.message, payload, lang)
+    await _safe_edit(
+        query,
+        post_score_result_text(payload, lang),
+        post_score_action_keyboard(lang),
+    )
     return _return_state(context)
 
 
@@ -456,10 +473,6 @@ async def post_score_improve_callback(update: Update, context: ContextTypes.DEFA
         except Exception:
             is_pro = False
 
-    if not is_admin and not is_pro and check_ai_daily_limit(user_id, max_per_day=30):
-        await _toast(query, safe_t("ai_daily_limit", lang))
-        return _return_state(context)
-
     # 🔒 PHASE 2 / 1-QADAM: kunlik kvota YOKI AYNAN 1 kredit BITTA atomik
     # tranzaksiyada bron qilinadi (qator qulfi + credits_ledger auditi).
     # Avvalgi ikki alohida tranzaksiya race condition va yarim bron xavfini
@@ -480,7 +493,11 @@ async def post_score_improve_callback(update: Update, context: ContextTypes.DEFA
                                  post_score_action_keyboard(lang))
             return _return_state(context)
 
-    await _safe_edit(query, post_score_t("ps_improving", lang), None)
+    try:
+        await context.bot.send_chat_action(chat_id=query.message.chat_id, action="typing")
+    except Exception:
+        pass
+    await _safe_edit(query, "⏳ Post tayyorlanmoqda, iltimos kuting...", None)
 
     try:
         result = await improve_post_to_95(source_text, lang=lang, is_pro=is_pro)

@@ -405,8 +405,19 @@ def _is_recoverable_vision_error(exc: BaseException | None) -> bool:
     return True
 
 
+async def _edit_wait_message(status_message, fallback_message, text: str, **kwargs):
+    """Edit the wait placeholder, with a reply fallback for minimal adapters."""
+    editor = getattr(status_message, "edit_text", None)
+    if callable(editor):
+        try:
+            return await editor(text, **kwargs)
+        except Exception:
+            pass
+    return await fallback_message.reply_text(text, **kwargs)
+
+
 async def _start_style_select(message, context, analysis: dict, lang: str,
-                              notice_key: str | None = None):
+                              notice_key: str | None = None, status_message=None):
     """Tahlil (Vision yoki matn) tayyor — uslub menyusini chiqaradi."""
     context.user_data["image_post_analysis"] = analysis
     context.user_data["image_post_source"] = analysis.get("source") or "vision"
@@ -418,15 +429,21 @@ async def _start_style_select(message, context, analysis: dict, lang: str,
         parts.append(safe_t(notice_key, lang))
     parts.append(_analysis_summary(analysis, lang))
     parts.append(safe_t("image_choose_style", lang))
-    await message.reply_text(
-        "\n\n".join(parts),
-        reply_markup=image_style_keyboard(lang),
-        parse_mode="HTML",
-    )
+    text = "\n\n".join(parts)
+    if status_message is not None:
+        await _edit_wait_message(
+            status_message, message, text,
+            reply_markup=image_style_keyboard(lang), parse_mode="HTML"
+        )
+    else:
+        await message.reply_text(
+            text, reply_markup=image_style_keyboard(lang), parse_mode="HTML"
+        )
     return IMAGE_STYLE_SELECT
 
 
-async def _vision_fallback(message, context, caption: str, lang: str):
+async def _vision_fallback(message, context, caption: str, lang: str,
+                           status_message=None):
     """MUSTAHKAM FALLBACK — Vision xatosi foydalanuvchiga quruq xato bo'lib
     qaytmaydi:
 
@@ -437,9 +454,15 @@ async def _vision_fallback(message, context, caption: str, lang: str):
     if caption:
         analysis = analysis_from_text(caption, TEXT_SOURCE_CAPTION)
         return await _start_style_select(
-            message, context, analysis, lang, notice_key="image_vision_fallback_caption",
+            message, context, analysis, lang,
+            notice_key="image_vision_fallback_caption", status_message=status_message,
         )
-    await message.reply_text(safe_t("image_topic_prompt", lang), parse_mode="HTML")
+    if status_message is not None:
+        await _edit_wait_message(
+            status_message, message, safe_t("image_topic_prompt", lang), parse_mode="HTML"
+        )
+    else:
+        await message.reply_text(safe_t("image_topic_prompt", lang), parse_mode="HTML")
     return IMAGE_TOPIC_INPUT
 
 
@@ -480,6 +503,11 @@ async def image_photo_received(update: Update, context: ContextTypes.DEFAULT_TYP
     # tayyor post AYNAN shu rasm bilan yuboriladi.
     context.user_data["image_post_file_id"] = getattr(media, "file_id", None)
     context.user_data["image_post_caption"] = caption
+    try:
+        await context.bot.send_chat_action(chat_id=message.chat_id, action="typing")
+    except Exception:
+        pass
+    wait_msg = await message.reply_text("⏳ Post tayyorlanmoqda, iltimos kuting...")
 
     result = None
     failure: BaseException | None = None
@@ -503,18 +531,22 @@ async def image_photo_received(update: Update, context: ContextTypes.DEFAULT_TYP
 
     if failure is not None:
         if not _is_recoverable_vision_error(failure):
-            await message.reply_text(_analysis_error_text(failure, lang), parse_mode="HTML")
+            await _edit_wait_message(
+                wait_msg, message, _analysis_error_text(failure, lang), parse_mode="HTML"
+            )
             return IMAGE_POST_INPUT
         logger.info("Image Post: Vision ishlamadi (%s) — fallback", type(failure).__name__)
-        return await _vision_fallback(message, context, caption, lang)
+        return await _vision_fallback(message, context, caption, lang, wait_msg)
 
     if not isinstance(result, dict) or result.get("error"):
         logger.info("Image Post: Vision natijasi xato — fallback")
-        return await _vision_fallback(message, context, caption, lang)
+        return await _vision_fallback(message, context, caption, lang, wait_msg)
 
     analysis = result.get("analysis") if isinstance(result.get("analysis"), dict) else result
     analysis = normalize_analysis(analysis, caption=caption)
-    return await _start_style_select(message, context, analysis, lang)
+    return await _start_style_select(
+        message, context, analysis, lang, status_message=wait_msg
+    )
 
 
 async def image_topic_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -721,7 +753,11 @@ async def image_style_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         return IMAGE_STYLE_SELECT
     context.user_data["image_post_credit_reserved"] = True
 
-    await _safe_edit(query, safe_t("image_generating", lang, style=_style_label(style, lang)), None)
+    try:
+        await context.bot.send_chat_action(chat_id=query.message.chat_id, action="typing")
+    except Exception:
+        pass
+    await _safe_edit(query, "⏳ Post tayyorlanmoqda, iltimos kuting...", None)
     try:
         generator = globals().get("generate_image_post") or generate_image_post
         result = await generator(

@@ -125,7 +125,7 @@ LANE_SPECS: dict[Lane, LaneSpec] = {
         label="QUALITY",
         description="Sifatli generatsiya va audit",
         provider_order=_with_deep_chain(PROVIDER_GEMINI, PROVIDER_GROQ),
-        default_timeout=25.0,
+        default_timeout=15.0,
         tags=("quality-first",),
     ),
     # REASONING: chuqur tahlil — Gemini (katta kontekst) birinchi, keyin
@@ -135,7 +135,7 @@ LANE_SPECS: dict[Lane, LaneSpec] = {
         description="Murakkab tahlil: kanal tahlili, haftalik reja",
         provider_order=_with_deep_chain(
             PROVIDER_GEMINI, PROVIDER_OPENROUTER, PROVIDER_GROQ),
-        default_timeout=30.0,
+        default_timeout=15.0,
         tags=("deep-analysis", "planning"),
     ),
     # VISION: rasm tahlili — faqat vision-qobiliyatli provayderlar mazmunli
@@ -144,7 +144,7 @@ LANE_SPECS: dict[Lane, LaneSpec] = {
         label="VISION",
         description="Rasm tahlili (Gemini Vision)",
         provider_order=_with_deep_chain(PROVIDER_GEMINI),
-        default_timeout=25.0,
+        default_timeout=15.0,
         tags=("image", "gemini-vision"),
     ),
 }

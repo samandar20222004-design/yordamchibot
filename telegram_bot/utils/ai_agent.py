@@ -341,6 +341,7 @@ BREAKER_COOLDOWN = 600  # 10 daqiqa
 # AI chaqiruvlarining QAT'IY umumiy muddati (soniya): butun provayder zanjiri
 # shu vaqt ichida javob berishi shart — aks holda asyncio.wait_for bekor qiladi.
 # Har bir alohida HTTP urinish uchun AI_HTTP_TIMEOUT (total=35s) alohida ishlaydi.
+# 25s is retained as a backward-compatible setting value; the runtime hard-caps requests at 15s.
 AI_HARD_TIMEOUT = max(5.0, float(os.getenv("AI_HARD_TIMEOUT", "25")))
 
 # === AI parametr defaultlari ===
@@ -1045,7 +1046,7 @@ _FREE_POST_HINT_BY_LANG = {
 # ============================================================
 
 #: 2-bosqichga ajratiladigan vaqt (default: AI_HARD_TIMEOUT bilan bir xil).
-PRO_AUDIT_TIMEOUT = max(5.0, float(os.getenv("AI_PRO_AUDIT_TIMEOUT", str(AI_HARD_TIMEOUT))))
+PRO_AUDIT_TIMEOUT = min(15.0, max(1.0, float(os.getenv("AI_PRO_AUDIT_TIMEOUT", str(AI_HARD_TIMEOUT)))))
 
 #: Butunlay o'chirish: ``AI_PRO_TWO_STAGE=0`` (ops/sinchiklab tekshirish uchun).
 PRO_TWO_STAGE_ENABLED = os.getenv("AI_PRO_TWO_STAGE", "1").strip().lower() not in (
@@ -2191,7 +2192,7 @@ async def _call_chain(prompt: str, system_instruction: str, lang: str = None) ->
 
 
 async def _run_with_hard_timeout(coro, timeout: float = None, lang: str = None) -> dict:
-    """AI zanjirini QAT'IY vaqt chegarasi (default 25s) bilan ishga tushiradi.
+    """AI zanjirini QAT'IY 15s gacha bo'lgan vaqt chegarasi bilan ishga tushiradi.
 
     Provayderlar zanjiri (Gemini → Groq → ...) eng yomon holatda daqiqalar
     olishi mumkin — foydalanuvchi cheksiz "AI yozmoqda..." holatida qolib
@@ -2201,7 +2202,9 @@ async def _run_with_hard_timeout(coro, timeout: float = None, lang: str = None) 
     🌐 ``lang`` berilsa, timeout xabari foydalanuvchi tilida chiqadi
     (``ai_timeout_message``); 'uz' uchun matn o'zgarishsiz qoladi.
     """
-    hard = float(timeout or AI_HARD_TIMEOUT)
+    # Barcha legacy AI oqimlari ham qat'iy 15 soniya ichida tugaydi;
+    # env yoki chaqiruvchi bundan yuqori limit bera olmaydi.
+    hard = min(15.0, max(0.1, float(timeout or AI_HARD_TIMEOUT)))
     try:
         return await asyncio.wait_for(coro, timeout=hard)
     except asyncio.TimeoutError:
@@ -2218,7 +2221,7 @@ async def generate_ai_response(
     is_pro: bool = False,
     lang: str = "uz",
 ) -> dict:
-    """Umumiy AI chaqiruv (AI Studio) — 25 soniyalik qat'iy timeout bilan.
+    """Umumiy AI chaqiruv (AI Studio) — maksimal 15 soniyalik qat'iy timeout bilan.
 
     Args:
         prompt: foydalanuvchi xabari/mavzusi
@@ -2333,7 +2336,8 @@ async def analyze_user_prompt(prompt: str, user_id: int = 0, is_pro: bool = Fals
     if ctx_text:
         prompt = f"{ctx_text}\n\nHozirgi xabar:\n{raw_prompt}"
 
-    # 25 soniyalik QAT'IY timeout — foydalanuvchi cheksiz kutib qolmaydi.
+    # Butun oqim (jumladan PRO audit fallback'i) uchun qat'iy 15 soniyalik muddat.
+    overall_deadline = _time.monotonic() + 15.0
     # FREE vs PRO: PRO uchun AIDA/PAS professional uslub
     # 🌐 Til: router prompti foydalanuvchi tilida (to'liq, aralashuvsiz).
     code = normalize_ai_lang(lang)
@@ -2355,7 +2359,16 @@ async def analyze_user_prompt(prompt: str, user_id: int = 0, is_pro: bool = Fals
     # yakuniy variant ko'rsatiladi. 2-bosqich xato/timeout bersa — 1-bosqich
     # posti xavfsiz qaytadi. FREE tarifda bu qadam UMUMAN chaqirilmaydi.
     if is_pro:
-        normalized = await apply_pro_audit_stage(normalized, lang=code)
+        audit_budget = min(
+            overall_deadline - _time.monotonic(), PRO_AUDIT_TIMEOUT
+        )
+        if audit_budget > 0.1:
+            normalized = await apply_pro_audit_stage(
+                normalized, lang=code, timeout=audit_budget
+            )
+        else:
+            normalized["audit_applied"] = False
+            normalized["audit_error"] = "overall_timeout"
 
     # Muvaffaqiyatli suhbatgina eslab qolinadi: foydalanuvchi xabari + bot javobi.
     # Kontekstga YAKUNIY (audit qilingan) post yoziladi — keyingi so'rovda
@@ -3348,7 +3361,7 @@ _VISION_SYSTEM = (
     "kanali uchun TO'LIQ TAYYOR post yozasiz (faqat rasm tahlil qilinadi — "
     "video tahlil qilinmaydi).\n\n"
     "QAT'IY TALABLAR:\n"
-    "- Barcha matn O'ZBEK tilida bo'lsin (ruscha/inglizcha aralashmasin).\n"
+    "- Barcha matn tabiiy, ravon O'ZBEK tilida va faqat lotin yozuvida bo'lsin (ruscha/inglizcha aralashmasin).\n"
     "- 1-QATOR — SARLAVHA: diqqat tortuvchi, qisqa sarlavha <b>...</b> HTML "
     "bilan qalin qilib yozilsin.\n"
     "- Rasm mazmunini chuqur tahlil qiling: nima tasvirlangan, kimga mo'ljallangan, "
@@ -3372,7 +3385,7 @@ _VISION_REWRITE_SYSTEM = (
     "rasmni YANA BIR BOR chuqur tahlil qilib, avvalgi postni butunlay BOSHQA "
     "uslubda qayta yozasiz (yangi sarlavha, yangi CTA va yangi hashtaglar bilan).\n\n"
     "QAT'IY TALABLAR:\n"
-    "- O'ZBEK tilida, <b>...</b> sarlavha bilan, (•) bandlar va mos emojilar bilan.\n"
+    "- Tabiiy, ravon O'ZBEK tilida va lotin yozuvida, <b>...</b> sarlavha, (•) bandlar va mos emojilar bilan yozing.\n"
     "- Faktlarni saqlang, yolg'on ma'lumot QO'SHMANG.\n"
     "- Oxirida harakatga chaqiruv (CTA) va 3-5 ta mos hashtag.\n"
     "- Telegram HTML: faqat <b> va <i>.\n\n"
@@ -3902,7 +3915,7 @@ async def generate_vision_post(
             _call_gemini_vision(
                 image_b64, mime_type, prompt, system_instruction, gemini_key
             ),
-            timeout=float(timeout or VISION_HARD_TIMEOUT),
+            timeout=min(15.0, max(0.1, float(timeout or VISION_HARD_TIMEOUT))),
         )
     except asyncio.TimeoutError:
         logger.warning("Vision javobi %.0fs ichida kelmadi (hard timeout)", VISION_HARD_TIMEOUT)
@@ -4655,6 +4668,9 @@ async def generate_magic_post(
     """
     code = normalize_ai_lang(lang)
     st = normalize_magic_style(style)
+    operation_deadline = _time.monotonic() + min(
+        15.0, max(0.1, float(timeout or AI_HARD_TIMEOUT))
+    )
     material = str(raw_text or "").strip()
     if not material:
         return {"error": localize_ai_error(
@@ -4683,7 +4699,7 @@ async def generate_magic_post(
     result = await generate_ai_response(
         material,
         system_instruction=system_instruction,
-        timeout=timeout,
+        timeout=max(0.1, operation_deadline - _time.monotonic()),
         is_pro=is_pro,
         lang=code,
     )
@@ -4705,7 +4721,8 @@ async def generate_magic_post(
     # Ikkinchi urinish ham yupqa bo'lsa, undan yaxshirog'i foydalanuvchiga
     # baribir yetkaziladi (oqim hech qachon bo'sh qolmaydi).
     retried = False
-    if is_magic_post_too_thin(post_text):
+    retry_budget = operation_deadline - _time.monotonic()
+    if is_magic_post_too_thin(post_text) and retry_budget > 0.1:
         retried = True
         logger.info("Magic Post: yupqa javob (style=%s, lang=%s) — qayta urinish", st, code)
         retry_system = (
@@ -4715,7 +4732,7 @@ async def generate_magic_post(
             retry = await generate_ai_response(
                 material,
                 system_instruction=retry_system,
-                timeout=timeout,
+                timeout=max(0.1, operation_deadline - _time.monotonic()),
                 is_pro=is_pro,
                 lang=code,
             )
