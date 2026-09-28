@@ -48,7 +48,7 @@ class DeliveryTests(unittest.IsolatedAsyncioTestCase):
                     options = dict.fromkeys(DELIVERY_KEYS, enabled)
                     async def run_db(fn, *args):
                         if fn is db.get_post_delivery_options:
-                            return options
+                            return options if enabled else None
                         if fn is db.get_setting:
                             return ''
                         return True
@@ -75,6 +75,16 @@ class DeliveryTests(unittest.IsolatedAsyncioTestCase):
                         bot.pin_chat_message.assert_awaited_once_with(chat_id=-100123, message_id=9, disable_notification=True)
                     else:
                         bot.pin_chat_message.assert_not_awaited()
+
+    async def test_settings_read_failure_stops_delivery(self):
+        bot = SimpleNamespace(send_message=AsyncMock())
+        post = (1, 123456789, '-100123', 'text', 'Hello', None, None, None,
+                False, None, 'none', None, None, None, 0, None)
+        with patch.object(db, 'run_db', AsyncMock(side_effect=RuntimeError('DB unavailable'))), \
+             patch.object(sched, 'is_sent_but_unpersisted', return_value=False):
+            with self.assertRaisesRegex(RuntimeError, 'DB unavailable'):
+                await sched._execute_send(bot, post)
+        bot.send_message.assert_not_awaited()
 
     async def test_single_album_item_options(self):
         bot = SimpleNamespace(send_photo=AsyncMock())

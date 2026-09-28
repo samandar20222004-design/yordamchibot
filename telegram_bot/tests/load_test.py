@@ -102,7 +102,7 @@ class FakeBot:
         self._blocked = set()       # chat_id lar: TelegramError tashlaydi
         self._bad_html = set()      # chat_id lar: HTML bilan BadRequest, oddiy matn bilan ishlaydi
 
-    async def send_message(self, chat_id, text=None, reply_markup=None, parse_mode=None):
+    async def send_message(self, chat_id, text=None, reply_markup=None, parse_mode=None, **kwargs):
         if self.delay:
             await asyncio.sleep(self.delay)
         if chat_id in self._blocked:
@@ -115,28 +115,28 @@ class FakeBot:
             self.sent.append((chat_id, text))
         return SimpleNamespace(message_id=len(self.sent))
 
-    async def send_photo(self, chat_id, photo=None, caption=None, reply_markup=None, parse_mode=None):
+    async def send_photo(self, chat_id, photo=None, caption=None, reply_markup=None, parse_mode=None, **kwargs):
         return await self.send_message(chat_id, text=caption, reply_markup=reply_markup, parse_mode=parse_mode)
 
-    async def send_video(self, chat_id, video=None, caption=None, reply_markup=None, parse_mode=None):
+    async def send_video(self, chat_id, video=None, caption=None, reply_markup=None, parse_mode=None, **kwargs):
         return await self.send_message(chat_id, text=caption, reply_markup=reply_markup, parse_mode=parse_mode)
 
-    async def send_animation(self, chat_id, animation=None, caption=None, reply_markup=None, parse_mode=None):
+    async def send_animation(self, chat_id, animation=None, caption=None, reply_markup=None, parse_mode=None, **kwargs):
         return await self.send_message(chat_id, text=caption, reply_markup=reply_markup, parse_mode=parse_mode)
 
-    async def send_document(self, chat_id, document=None, caption=None, reply_markup=None, parse_mode=None):
+    async def send_document(self, chat_id, document=None, caption=None, reply_markup=None, parse_mode=None, **kwargs):
         return await self.send_message(chat_id, text=caption, reply_markup=reply_markup, parse_mode=parse_mode)
 
-    async def send_audio(self, chat_id, audio=None, caption=None, reply_markup=None, parse_mode=None):
+    async def send_audio(self, chat_id, audio=None, caption=None, reply_markup=None, parse_mode=None, **kwargs):
         return await self.send_message(chat_id, text=caption, reply_markup=reply_markup, parse_mode=parse_mode)
 
-    async def send_voice(self, chat_id, voice=None, caption=None, reply_markup=None, parse_mode=None):
+    async def send_voice(self, chat_id, voice=None, caption=None, reply_markup=None, parse_mode=None, **kwargs):
         return await self.send_message(chat_id, text=caption, reply_markup=reply_markup, parse_mode=parse_mode)
 
-    async def send_sticker(self, chat_id, sticker=None):
+    async def send_sticker(self, chat_id, sticker=None, **kwargs):
         return await self.send_message(chat_id, text="sticker")
 
-    async def send_media_group(self, chat_id, media):
+    async def send_media_group(self, chat_id, media, **kwargs):
         msgs = []
         for m in media:
             cap = getattr(m, "caption", None)
@@ -356,7 +356,7 @@ def test_retry_on_rate_limit(db):
             super().__init__()
             self.calls = 0
 
-        async def send_message(self, chat_id, text=None, reply_markup=None, parse_mode=None):
+        async def send_message(self, chat_id, text=None, reply_markup=None, parse_mode=None, **kwargs):
             self.calls += 1
             if self.calls == 1:
                 from telegram.error import RetryAfter
@@ -409,7 +409,7 @@ def test_broadcast_retryafter_exhausted(db):
             self.calls = 0
             self.admin_calls = 0
 
-        async def send_message(self, chat_id=None, text=None, reply_markup=None, parse_mode=None):
+        async def send_message(self, chat_id=None, text=None, reply_markup=None, parse_mode=None, **kwargs):
             if chat_id == 777000:
                 # Admin'ga yuboriladigan yakuniy hisobot normal ishlaydi
                 self.admin_calls += 1

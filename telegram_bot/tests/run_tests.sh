@@ -28,6 +28,10 @@ echo "==================== SYNTAX TEST ===================="
 "$PY" tests/syntax_test.py || exit 1
 
 echo
+echo "================ DELIVERY OPTIONS TEST ==============="
+"$PY" ../tests/delivery_options_test.py || exit 1
+
+echo
 echo "==================== UNIT TEST ======================"
 "$PY" tests/unit_test.py || exit 1
 

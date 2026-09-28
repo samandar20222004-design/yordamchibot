@@ -1024,7 +1024,9 @@ async def _execute_send(bot, post):
         await _persist_sent_marker(_UNPERSISTED_SENT[int(post_id)], retry_delays=())
         return
 
-    delivery_options = await db.run_db(db.get_post_delivery_options, post_id)
+    # Legacy adapters may return None for posts without delivery settings.
+    # Database exceptions still propagate; never hide a failed settings read.
+    delivery_options = await db.run_db(db.get_post_delivery_options, post_id) or {}
     delivery_kwargs = {
         key: delivery_options.get(key) is True
         for key in ("disable_notification", "protect_content")

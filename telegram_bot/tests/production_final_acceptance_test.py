@@ -335,6 +335,8 @@ def test_05_album_timeout():
     async def fake_run_db(fn, *args, **kw):
         name = getattr(fn, "__name__", "")
         calls.append((name, args))
+        if name == "get_post_delivery_options":
+            return {}
         if name == "claim_post_for_delivery":
             if state["delivery"] == "unknown":
                 return {"claimed": False, "unknown": True, "status": "unknown"}
@@ -398,6 +400,8 @@ def test_05_album_timeout():
     async def fake_run_db2(fn, *args, **kw):
         name = getattr(fn, "__name__", "")
         calls.append((name, args))
+        if name == "get_post_delivery_options":
+            return {}
         if name == "claim_post_for_delivery":
             return {"claimed": True, "status": "processing", "attempt_count": 0, "idempotency_key": "k5b"}
         if name == "mark_failed_by_key":
@@ -830,6 +834,8 @@ def test_13_restart_recovery():
     async def fake_run_db2(fn, *args, **kw):
         name = getattr(fn, "__name__", "")
         calls.append((name, args))
+        if name == "get_post_delivery_options":
+            return {}
         if name == "claim_post_for_delivery":
             return {"claimed": True, "status": "processing", "attempt_count": 0, "idempotency_key": "k13"}
         if name in ("mark_post_as_sent", "mark_post_status", "reschedule_recurring_post"):
@@ -1037,6 +1043,8 @@ def test_17_floodwait_stable():
         calls.append((name, args))
         if name == "get_due_posts":
             return due
+        if name == "get_post_delivery_options":
+            return {}
         if name == "claim_post_for_delivery":
             return {"claimed": True, "status": "processing", "attempt_count": 0, "idempotency_key": f"k{args[0]}"}
         if name == "mark_failed_by_key":

@@ -355,7 +355,7 @@ async def voice_message_received(update: Update, context: ContextTypes.DEFAULT_T
 
     # 📢 Kanal ulanmagan bo'lsa — ovoz qabul qilinib javobsiz qolmasligi
     # uchun DARHOL yo'naltiruvchi xabar + kanal ulash tugmasi chiqadi.
-    from utils.helpers import send_no_channel_media_guard
+    from utils.helpers import send_no_channel_media_guide
     if await send_no_channel_media_guide(update, context):
         return ConversationHandler.END
 
