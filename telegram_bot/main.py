@@ -61,6 +61,12 @@ try:
     install_logging_scrubber()
 except Exception:  # pragma: no cover
     pass
+# 1-QISM (LOG XAVFSIZLIGI): httpx/httpcore har bir Telegram API so'rovini
+# INFO darajasida log qiladi — so'rov URL'ida BOT TOKENI bor
+# (https://api.telegram.org/bot<TOKEN>/...). Darajani WARNING ga tushirish
+# va yuqoridagi scrubber-filtr birgalikda token logga tushishini to'sadi.
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 # ⏰ Vaqt zonasi YAGONA manbadan (scheduler.tashkent_tz) olinadi — bot,
 # APScheduler va DB hisob-kitoblari hech qachon ajralib ketmasligi uchun.

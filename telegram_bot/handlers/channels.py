@@ -9,7 +9,9 @@ from keyboards.default import (
     get_cancel_keyboard, get_main_keyboard, get_tone_keyboard,
     is_menu_text, tone_from_text, tone_labels,
 )
-from keyboards.callback_data import CB_CHANNEL_VOICE, CB_CHANNEL_ADVICE, cb
+from keyboards.callback_data import (
+    CB_CHANNEL_VOICE, CB_CHANNEL_ADVICE, CB_SET_STYLE, cb,
+)
 from keyboards.inline import (
     render_channel_panel, render_channel_settings, render_channels_list,
     render_my_channels_list, render_channel_advice_menu,
@@ -669,29 +671,37 @@ async def _verify_channel_permissions(bot, chat_id, user_id: int, is_admin_user:
     return True, "", real_id, title
 
 
-def _extract_forward_chat_id(msg):
-    """Forward qilingan xabardan manba kanal/chat ID sini xavfsiz ajratadi.
+def _extract_forward_chat(msg):
+    """Forward qilingan xabardan manba kanal/chat ID si VA sarlavhasini ajratadi.
 
     Bot API 7.0+ / python-telegram-bot 20+ da ``Message.forward_from_chat``
     olib tashlangan (o'rniga ``forward_origin`` keldi) — eski atributga
     to'g'ridan-to'g'ri murojaat qilish ``AttributeError`` bilan tugaydi va
     butun ``ADD_CHANNEL`` holati "qotib" qoladi (foydalanuvchiga javob
     yubormay handler ichida yiqiladi). Shu sababli ikkala API'ni ham
-    ``getattr`` bilan, xatosiz tekshiramiz.
+    ``getattr`` bilan, xatosiz tekshiramiz:
+
+      * ``forward_origin.chat``        — kanal/guruhdan forward (asosiy yo'l);
+      * ``forward_origin.sender_chat`` — sender-chat forward'lari (fallback);
+      * ``forward_from_chat``          — juda eski PTB versiyalari uchun.
+
+    Qaytadi: ``(chat_id, title)`` — ma'lumot yo'q bo'lsa ``(None, None)``.
     """
     origin = getattr(msg, "forward_origin", None)
     if origin is not None:
-        chat = getattr(origin, "chat", None)
-        if chat is not None:
-            return chat.id
-        sender_chat = getattr(origin, "sender_chat", None)
-        if sender_chat is not None:
-            return sender_chat.id
+        chat = getattr(origin, "chat", None) or getattr(origin, "sender_chat", None)
+        if chat is not None and getattr(chat, "id", None) is not None:
+            return chat.id, getattr(chat, "title", None)
     # Orqaga moslik: juda eski python-telegram-bot versiyalari uchun.
     legacy_chat = getattr(msg, "forward_from_chat", None)
-    if legacy_chat is not None:
-        return legacy_chat.id
-    return None
+    if legacy_chat is not None and getattr(legacy_chat, "id", None) is not None:
+        return legacy_chat.id, getattr(legacy_chat, "title", None)
+    return None, None
+
+
+def _extract_forward_chat_id(msg):
+    """Forward qilingan xabardan manba kanal/chat ID sini xavfsiz ajratadi."""
+    return _extract_forward_chat(msg)[0]
 
 
 async def channel_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -706,9 +716,14 @@ async def channel_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     lang = get_lang(context)
     try:
         raw_target = None
-        forward_chat_id = _extract_forward_chat_id(msg)
+        title_hint = None
+        # 📢 FORWARD: kanaldan forward qilingan istalgan post (matn/rasm/
+        # video) shu yerda taniladi — forward_origin (PTB 20+/Bot API 7+)
+        # yoki eski forward_from_chat dan ID va title ajratiladi.
+        forward_chat_id, forward_title = _extract_forward_chat(msg)
         if forward_chat_id is not None:
             raw_target = forward_chat_id
+            title_hint = forward_title
         elif msg.text:
             target, err = parse_channel_target(msg.text, lang)
             if err:
@@ -731,7 +746,8 @@ async def channel_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return ADD_CHANNEL
 
-        return await _link_channel(update, context, raw_target)
+        return await _link_channel(update, context, raw_target,
+                                   title_hint=title_hint)
     except Exception:
         logger.exception("channel_received: kutilmagan xatolik — foydalanuvchi qayta urinishga yo'naltirilmoqda")
         try:
@@ -765,12 +781,16 @@ async def add_channel_retry(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return await _link_channel(update, context, raw_target)
 
 
-async def _link_channel(update: Update, context: ContextTypes.DEFAULT_TYPE, raw_target):
+async def _link_channel(update: Update, context: ContextTypes.DEFAULT_TYPE,
+                        raw_target, title_hint: str | None = None):
     """Umumiy ulash oqimi: tekshirish → limit → saqlash → natija ro'yxati.
 
     ``channel_received`` (yangi manba) va ``add_channel_retry`` (qayta
     tekshirish) shu bitta funksiyadan foydalanadi — ikkala yo'l bir xil
     xatolik/omad xabarlarini beradi.
+
+    ``title_hint`` — forward qilingan xabardan ajratilgan kanal sarlavhasi
+    (``get_chat`` sarlavhani qaytarmasa, zaxira sifatida ishlatiladi).
     """
     msg = update.effective_message
     user_id = update.effective_user.id
@@ -780,6 +800,8 @@ async def _link_channel(update: Update, context: ContextTypes.DEFAULT_TYPE, raw_
     ok, err, channel_id, channel_title = await _verify_channel_permissions(
         context.bot, raw_target, user_id, is_admin, lang
     )
+    if ok and title_hint and not str(channel_title or "").strip():
+        channel_title = title_hint
     if not ok:
         # Manzilni saqlab qo'yamiz: botga ruxsat berilgach 🔁 tugmasi bilan
         # tekshirish mumkin (xabarni qayta yuborish shart emas).
@@ -980,6 +1002,43 @@ async def on_bot_chat_member_update(update: Update, context: ContextTypes.DEFAUL
 # CHANNEL TONE OF VOICE
 # ============================================================
 
+def _tone_inline_keyboard(channel_id: str, lang: str) -> InlineKeyboardMarkup:
+    """Kanal uslubi (Tone of Voice) INLINE tugmalari.
+
+    Har bir tugma aniq ``callback_data=set_style:<channel_id>:<tone>`` olib
+    yuradi: bosilganda callback FSM holatidan QAT'I NAZAR maxsus
+    ``CallbackQueryHandler`` (``tone_chosen_callback``) tomonidan tutiladi,
+    ``query.answer()`` qilinadi, uslub bazaga saqlanadi va xabar edit
+    qilinadi. Reply-klaviatura matni FSM'ga tushmay «tushunmadim» bergan
+    eski xato shu yo'l bilan bartaraf etilgan.
+    """
+    labels = tone_labels(lang)
+    return InlineKeyboardMarkup(
+        [
+            [
+                InlineKeyboardButton(
+                    labels["formal"],
+                    callback_data=cb(CB_SET_STYLE, channel_id, "formal"),
+                ),
+                InlineKeyboardButton(
+                    labels["friendly"],
+                    callback_data=cb(CB_SET_STYLE, channel_id, "friendly"),
+                ),
+            ],
+            [
+                InlineKeyboardButton(
+                    labels["concise"],
+                    callback_data=cb(CB_SET_STYLE, channel_id, "concise"),
+                ),
+                InlineKeyboardButton(
+                    labels["engaging"],
+                    callback_data=cb(CB_SET_STYLE, channel_id, "engaging"),
+                ),
+            ],
+        ]
+    )
+
+
 async def tone_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Inline 'Uslub' tugmasi bosilganda — uslub tanlash menyusini ko'rsatadi."""
     query = update.callback_query
@@ -996,7 +1055,7 @@ async def tone_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     await query.message.reply_text(
         safe_t("ch_tone_title", lang, current=current_label),
-        reply_markup=get_tone_keyboard(lang),
+        reply_markup=_tone_inline_keyboard(channel_id, lang),
         parse_mode="HTML",
     )
     return SET_TONE
@@ -1043,6 +1102,72 @@ async def tone_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     context.user_data.pop("tone_channel_id", None)
     return ConversationHandler.END
+
+
+async def tone_chosen_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """🎨 Inline uslub tugmasi (``set_style:<channel_id>:<tone>``) bosilganda.
+
+    Global ``CallbackQueryHandler`` — FSM holatidan QAT'I NAZAR ishlaydi:
+      1. ``query.answer()`` darhol qilinadi (tugma «yuklanishda» qotmaydi);
+      2. tanlangan uslub bazaga saqlanadi (``db.set_channel_tone``);
+      3. natija xabari EDIT qilinadi (yangi xabar spam qilinmaydi).
+
+    Ownership fail-closed: boshqa foydalanuvchining kanali uslubini
+    o'zgartirib bo'lmaydi (admin bundan mustasno).
+    """
+    query = update.callback_query
+    try:
+        await query.answer()
+    except Exception:
+        pass
+    lang = get_lang(context)
+    data = query.data or ""
+    if not data.startswith(CB_SET_STYLE):
+        return None
+    payload = data[len(CB_SET_STYLE):]
+    channel_id, _, tone = payload.rpartition(":")
+    labels = tone_labels(lang)
+    if not channel_id or tone not in labels:
+        try:
+            await query.edit_message_text(
+                safe_t("ch_tone_invalid", lang), parse_mode="HTML",
+            )
+        except Exception:
+            pass
+        return None
+
+    user_id = query.from_user.id
+    is_admin = user_id in ADMIN_IDS_SET
+    # Kanal aynan shu foydalanuvchiga tegishlimi (fail-closed).
+    owned = await _owned_channel(user_id, channel_id)
+    if owned is None and not is_admin:
+        try:
+            await query.edit_message_text(
+                safe_t("ch_tone_error", lang), parse_mode="HTML",
+            )
+        except Exception:
+            pass
+        return None
+
+    try:
+        success = await db.run_db(db.set_channel_tone, channel_id, tone)
+    except Exception:
+        logger.exception("set_channel_tone: DB xatosi (channel_id=%s)", channel_id)
+        success = False
+
+    if success:
+        text = safe_t("ch_tone_success", lang, tone=labels[tone])
+    else:
+        text = safe_t("ch_tone_error", lang)
+    try:
+        await query.edit_message_text(text, parse_mode="HTML")
+    except Exception:
+        try:
+            await query.message.reply_text(text, parse_mode="HTML")
+        except Exception:
+            pass
+    context.user_data.pop("tone_channel_id", None)
+    return None
 
 
 async def _fetch_public_posts_fallback(context, channel_id: str) -> list:

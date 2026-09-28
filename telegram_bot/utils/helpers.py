@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import re
 import threading
 import time
@@ -1186,3 +1187,67 @@ async def keep_typing(bot, chat_id: int, interval: float = TYPING_INTERVAL):
             pass  # fon vazifasi bekor qilindi — normal yakun
         except Exception:
             pass
+
+
+_logger = logging.getLogger(__name__)
+
+#: Media turi tekshiriladigan Message atributlari (rasm/video/ovoz/hujjat).
+_MEDIA_ATTRS = ("photo", "video", "voice", "audio", "video_note",
+                  "document", "animation")
+
+
+def message_has_media(msg) -> bool:
+    """Xabarda birorta media (rasm/video/ovoz/hujjat/GIF) bormi?
+
+    Matnli xabar media EMAS (caption emas — aynan ``text`` tekshiriladi):
+    media uchun caption bo'lishi mumkin, lekin text maydoni bo'sh bo'ladi.
+    """
+    if msg is None or getattr(msg, "text", None):
+        return False
+    return any(getattr(msg, attr, None) for attr in _MEDIA_ATTRS)
+
+
+async def send_no_channel_media_guide(update, context) -> bool:
+    """📢 Kanal ulanmagan foydalanuvchi MEDIA yuborganda yo'naltirish.
+
+    Foydalanuvchida birorta FAOL kanal bo'lmasa, bot mediani qabul qilib
+    javobsiz qolib ketmasligi uchun DARHOL «Post chiqarish uchun avval
+    «Kanallarim» bo'limida kanal ulang» xabari va kanal ulash tugmasi
+    (``add_channel_start`` callback'i) yuboriladi.
+
+    Faqat MEDIA xabarlarida ishlaydi (matn/menu xabarlari oqimini
+    BUZMAYDI). Qaytadi: ``True`` — kanal YO'Q va yo'naltirish yuborildi;
+    ``False`` — media emas, kamida bitta kanal bor yoki tekshirib bo'lmadi
+    (fail-open: oqim bloklanmaydi, eski xulq davom etadi).
+    """
+    user = getattr(update, "effective_user", None)
+    user_id = getattr(user, "id", None)
+    msg = (getattr(update, "effective_message", None)
+           or getattr(update, "message", None))
+    if not user_id or msg is None or not message_has_media(msg):
+        return False
+    try:
+        channels = await db.run_db(db.get_user_channels, user_id)
+    except Exception:
+        return False  # DB xatosida foydalanuvchini bloklamaymiz
+    # ``None`` — holat aniq emas (fail-open); bo'sh RO'YXAT — kanal YO'Q.
+    if channels is None or channels:
+        return False
+    try:
+        from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+        from locales.translations import get_lang, get_text
+        lang = get_lang(context)
+        await msg.reply_text(
+            get_text("no_channel_media_guide", lang),
+            reply_markup=InlineKeyboardMarkup([[
+                InlineKeyboardButton(
+                    get_text("cab_add_channel", lang),
+                    callback_data="add_channel_start",
+                ),
+            ]]),
+            parse_mode="HTML",
+        )
+    except Exception:
+        _logger.debug("no_channel_media_guide: xabar yuborib bo'lmadi",
+                      exc_info=True)
+    return True

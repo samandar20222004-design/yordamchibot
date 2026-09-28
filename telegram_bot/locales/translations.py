@@ -1971,6 +1971,10 @@ TRANSLATIONS = {
     "image_cancelled": "❌ Image → Post jarayoni bekor qilindi. Kredit sarflanmadi.",
     "image_session_expired": "⚠️ Image → Post sessiyasi tugagan. Rasmni qaytadan yuboring.",
     "image_no_channels": "⚠️ Avval kamida bitta kanal ulang.",
+    "no_channel_media_guide": (
+        "📢 <b>Birorta kanal ulanmagan.</b>\n\n"
+        "Post chiqarish uchun avval «📢 Kanallarim» bo'limida kanal ulang."
+    ),
     "image_choose_channel": "📢 Qaysi kanalga yuboramiz?",
     "image_sent_ok": "✅ Rasmli post {count} ta kanalga yuborildi.",
     "image_send_error": "❌ Kanalga yuborib bo'lmadi. Qayta urinib ko'ring.",
@@ -3946,6 +3950,10 @@ TRANSLATIONS = {
     "image_cancelled": "❌ Процесс Фото → Пост отменён. Балл не списан.",
     "image_session_expired": "⚠️ Сессия Фото → Пост завершилась. Отправьте фото снова.",
     "image_no_channels": "⚠️ Сначала подключите хотя бы один канал.",
+    "no_channel_media_guide": (
+        "📢 <b>Не подключён ни один канал.</b>\n\n"
+        "Чтобы публиковать посты, сначала подключите канал в разделе «📢 Мои каналы»."
+    ),
     "image_choose_channel": "📢 В какой канал отправить?",
     "image_sent_ok": "✅ Пост с фото отправлен в {count} канал(а).",
     "image_send_error": "❌ Не удалось отправить в канал. Попробуйте ещё раз.",

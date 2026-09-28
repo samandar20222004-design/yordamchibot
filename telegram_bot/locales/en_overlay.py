@@ -1936,6 +1936,10 @@ EN_OVERLAY = {
     "image_cancelled": "❌ Image → Post cancelled. No credit was spent.",
     "image_session_expired": "⚠️ The Image → Post session expired. Send the photo again.",
     "image_no_channels": "⚠️ Connect at least one channel first.",
+    "no_channel_media_guide": (
+        "📢 <b>No channel connected.</b>\n\n"
+        "To publish posts, first connect a channel in the «📢 My channels» section."
+    ),
     "image_choose_channel": "📢 Which channel should receive it?",
     "image_sent_ok": "✅ Photo post sent to {count} channel(s).",
     "image_send_error": "❌ Could not send to the channel. Please try again.",

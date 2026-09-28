@@ -42,6 +42,11 @@ CALLBACK_PREFIX_MAX_BYTES = 16
 CB_CHANNEL_DELETE = "ch_del:"
 CB_CHANNEL_SETTINGS = "ch_set:"
 
+# 🎨 Kanal uslubi (Tone of Voice) INLINE tanlash (avval: reply-klaviatura
+# SET_TONE oqimi — FSM holati global callback'dan o'rnatilmay «tushunmadim»
+# xatosi bergan). Payload: ``set_style:<channel_id>:<tone>``.
+CB_SET_STYLE = "set_style:"
+
 # Rejalashtirilgan post kartochkasi (avval: edit_time: / edit_content: / ...)
 CB_POST_TIME = "p_time:"
 CB_POST_EDIT = "p_edit:"
@@ -155,6 +160,7 @@ CB_POST_SCORE_SEND_ALL = "ps_chall"
 CANONICAL_PREFIXES = (
     CB_CHANNEL_DELETE,
     CB_CHANNEL_SETTINGS,
+    CB_SET_STYLE,
     CB_POST_TIME,
     CB_POST_EDIT,
     CB_POST_BTN,
@@ -271,6 +277,8 @@ REGISTERED_NAMESPACES = (
     "edit_field:", "confirm_post:", "album_choice:",
     # ➕ Kanal ulash ConversationHandler (retry/start).
     "add_channel_",
+    # 🎨 Kanal uslubi (Tone of Voice) inline tanlash: set_style:<id>:<tone>.
+    "set_style:",
 )
 
 #: Payload'siz (aniq) kanonik callback tokenlari.
