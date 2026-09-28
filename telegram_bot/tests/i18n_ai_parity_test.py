@@ -193,11 +193,11 @@ def test_button_labels_3_langs():
     print("== 5. Tugma yorliqlari (reply + inline) ==")
     from keyboards.default import get_refreshed_main_keyboard
 
-    # UX V2 (6-tugma standarti): birinchi tugma — «✨ Kontent yaratish».
+    # 3-BOSQICH (5-tugma standarti): birinchi tugma — «✍️ Post yaratish».
     expected_first = {
-        "uz": "✨ Kontent yaratish",
-        "ru": "✨ Создать контент",
-        "en": "✨ Create content",
+        "uz": "✍️ Post yaratish",
+        "ru": "✍️ Создать пост",
+        "en": "✍️ Create post",
     }
     for code, expected in expected_first.items():
         kb = get_refreshed_main_keyboard(code)
@@ -220,9 +220,9 @@ def test_button_labels_3_langs():
         inline_labels = [
             b.text for row in get_cabinet_inline_keyboard(code).inline_keyboard for b in row
         ]
-        # Sozlamalar — 8 tugmali simmetrik panel (hub bilan bir xil, 4x2).
-        check(f"{code}: kabinet inline menyusi to'liq (8 ta tugma)",
-              len(inline_labels) == 8 and all(str(x).strip() for x in inline_labels),
+        # Sozlamalar — 10 tugmali simmetrik panel (hub bilan bir xil, 5x2).
+        check(f"{code}: kabinet inline menyusi to'liq (10 ta tugma)",
+              len(inline_labels) == 10 and all(str(x).strip() for x in inline_labels),
               str(inline_labels[:3]))
         lang_cbs = [
             b.callback_data
@@ -626,11 +626,11 @@ def test_language_switch_keyboard():
     orig = db_mod.run_db
     db_mod.run_db = fake_run_db
     try:
-        # UX V2 (6-tugma standarti): birinchi tugma — «✨ Kontent yaratish».
+        # 3-BOSQICH (5-tugma standarti): birinchi tugma — «✍️ Post yaratish».
         expected = {
-            "uz": "✨ Kontent yaratish",
-            "ru": "✨ Создать контент",
-            "en": "✨ Create content",
+            "uz": "✍️ Post yaratish",
+            "ru": "✍️ Создать пост",
+            "en": "✍️ Create post",
         }
         for code, first_btn in expected.items():
             ctx = _FakeContext({"lang": "uz"})
@@ -684,11 +684,11 @@ def test_language_callback_scenario():
     orig = db_mod.run_db
     db_mod.run_db = fake_run_db
     try:
-        # UX V2 (6-tugma standarti): birinchi tugma — «✨ Kontent yaratish».
+        # 3-BOSQICH (5-tugma standarti): birinchi tugma — «✍️ Post yaratish».
         expectations = {
-            "cab_lang_uz": ("uz", "✨ Kontent yaratish", "🌐 Til / Язык"),
-            "cab_lang_ru": ("ru", "✨ Создать контент", "🌐 Til / Язык"),
-            "cab_lang_en": ("en", "✨ Create content", "🌐 Language"),
+            "cab_lang_uz": ("uz", "✍️ Post yaratish", "🌐 Til / Язык"),
+            "cab_lang_ru": ("ru", "✍️ Создать пост", "🌐 Til / Язык"),
+            "cab_lang_en": ("en", "✍️ Create post", "🌐 Language"),
         }
         for data, (code, first_btn, lang_btn) in expectations.items():
             calls.clear()
@@ -749,7 +749,7 @@ def test_language_change_then_texts():
                      for b in row]
         cancel_labels = [b.text for row in get_cancel_keyboard(get_lang(ctx)).keyboard
                          for b in row]
-        # UX V2: birinchi tugma — «✨ Kontent yaratish» (tilga mos).
+        # 3-BOSQICH: birinchi tugma — «✍️ Post yaratish» (tilga mos).
         check(f"{code}: menyu matni '{safe_t('btn_create_content', code)}'",
               kb_labels[0] == safe_t("btn_create_content", code), str(kb_labels[:2]))
         check(f"{code}: bekor qilish tugmasi tarjimasi",

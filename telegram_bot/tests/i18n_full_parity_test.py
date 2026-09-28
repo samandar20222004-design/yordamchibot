@@ -360,7 +360,7 @@ def test_keyboard_refresh_on_language_change():
         get_main_keyboard, get_refreshed_main_keyboard, get_simple_keyboard,
     )
 
-    # KLASSIK (6-tugma standarti): asosiy menyuda 6 ta yorliq 3 tilda
+    # 3-BOSQICH (5-tugma standarti): asosiy menyuda 5 ta yorliq 3 tilda
     # chiziladi — har biri foydalanuvchi tilida.
     for lang in LANGS:
         kb = get_main_keyboard(False, lang=lang)
@@ -369,8 +369,8 @@ def test_keyboard_refresh_on_language_change():
               get_text("btn_create_content", lang) in row_texts, str(row_texts))
         check(f"main_keyboard[{lang}] sozlamalar tugmasi yangi tilda",
               get_text("btn_settings", lang) in row_texts)
-        check(f"main_keyboard[{lang}] FAQAT 6 tugma (klassik standart)",
-              len(row_texts) == 6, str(row_texts))
+        check(f"main_keyboard[{lang}] FAQAT 5 tugma (ixcham standart)",
+              len(row_texts) == 5, str(row_texts))
 
     refreshed = get_refreshed_main_keyboard("en", is_admin=False)
     texts = [btn.text for row in refreshed.keyboard for btn in row]
