@@ -1902,6 +1902,7 @@ def _init_db_once():
             "ALTER TABLE payment_receipts ADD COLUMN IF NOT EXISTS amount_uzs INT DEFAULT 0;",
             "ALTER TABLE payment_receipts ADD COLUMN IF NOT EXISTS order_id TEXT;",
             # PHASE E — approval metadata (additive; existing single-owner rows unchanged).
+            "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS delivery_options JSONB NOT NULL DEFAULT '{}'::jsonb;",
             "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS created_by BIGINT;",
             "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS approval_requested_at TIMESTAMPTZ;",
             "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS approved_by BIGINT;",
@@ -3714,7 +3715,8 @@ def add_post(
     btn_url: str = None,
     enable_reactions: bool = False,
     delete_after_hours: int = 0,
-    reaction_emojis=None
+    reaction_emojis=None,
+    delivery_options=None
 ) -> int:
     # reaction_emojis: ro'yxat yoki bo'sh joy bilan ajratilgan satr — DB'da
     # bo'sh joy bilan ajratilgan satr ko'rinishida saqlanadi ("👍 ❤️ 🔥").
@@ -3740,13 +3742,15 @@ def add_post(
                 INSERT INTO scheduled_posts
                     (user_id, channel_id, post_type, content, file_id, inline_button_text, inline_button_url,
                      enable_reactions, reaction_emojis, delete_after_hours, scheduled_time, status, user_post_number,
-                     recurrence_type, recurrence_day, recurrence_time, end_date)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'pending', %s, %s, %s, %s, %s)
+                     recurrence_type, recurrence_day, recurrence_time, end_date, delivery_options)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'pending', %s, %s, %s, %s, %s, %s::jsonb)
                 RETURNING id
             """, (
                 user_id, str(channel_id), post_type, content, file_id, btn_text, btn_url,
                 enable_reactions, reaction_emojis, delete_after_hours, scheduled_time, next_num,
-                recurrence_type, recurrence_day, recurrence_time, end_date
+                recurrence_type, recurrence_day, recurrence_time, end_date,
+                json.dumps({key: (delivery_options or {}).get(key) is True for key in
+                            ("disable_notification", "protect_content", "auto_pin")})
             ))
             post_id = cur.fetchone()[0]
         _invalidate_user(user_id)
@@ -3755,6 +3759,15 @@ def add_post(
     except Exception as e:
         logger.error(f"Post saqlash xatosi: {e}")
         return 0
+
+
+def get_post_delivery_options(post_id: int) -> dict:
+    # Keep the scheduler's existing 16-column tuple contract unchanged.
+    # DB failures must propagate: never silently drop content protection.
+    with db_cursor() as cur:
+        cur.execute("SELECT delivery_options FROM scheduled_posts WHERE id = %s", (post_id,))
+        row = cur.fetchone()
+    return row[0] if row and isinstance(row[0], dict) else {}
 
 
 def schedule_week_posts(user_id: int, channel_id: str, posts: list,

@@ -279,6 +279,7 @@ def test_direct_preview_without_ai():
             check(f"[{lang}] preview'da universal panel bor",
                   msg.sent[0].get("reply_markup") is not None
                   and _panel_callbacks(msg.sent[0]["reply_markup"]) == [
+                      "mnp_delivery",
                       CB_MANUAL_NOW, CB_MANUAL_TIME, CB_MANUAL_REACT,
                       CB_MANUAL_URL_BTN, CB_MANUAL_24H,
                       CB_MANUAL_REPEAT, CB_MANUAL_EDIT, CB_MANUAL_CANCEL],

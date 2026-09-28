@@ -130,6 +130,7 @@ CREATE TABLE IF NOT EXISTS scheduled_posts (
     inline_button_url TEXT,
     enable_reactions BOOLEAN DEFAULT FALSE,
     reaction_emojis TEXT,
+    delivery_options JSONB NOT NULL DEFAULT '{}'::jsonb,
     delete_after_hours INTEGER DEFAULT 0,
     sent_message_id BIGINT,
     scheduled_time TIMESTAMP WITH TIME ZONE NOT NULL,
