@@ -368,46 +368,62 @@ oddiy "➕ Yangi post rejalashtirish" oqimi orqali ishlaydi.
 
 ### 🧭 UX V2 — Asosiy menyu (QAT'IY 6 TUGMA standarti)
 
-Asosiy reply-menyuda **faqat va faqat** 6 ta tugma chiziladi (UZ/RU/EN paritetda):
+### 🧭 3-BOSQICH — IXCHAM ASOSIY MENYU (5 tugma / 3 qator)
+
+Asosiy reply-menyuda **faqat va faqat** 5 ta tugma chiziladi (UZ/RU/EN paritetda):
 
 | # | UZ | RU | EN | Bo'lim |
 |---|----|----|----|--------|
-| 1 | ✨ Kontent yaratish | ✨ Создать контент | ✨ Create content | 🧩 Kontent yaratish **ichki menyusi** (5 yo'l + ◀️ Orqaga) |
+| 1 | ✍️ Post yaratish | ✍️ Создать пост | ✍️ Create post | 🧩 Kontent yaratish **ichki menyusi** (yo'nalishlar + ◀️ Orqaga) |
 | 2 | 📢 Kanallarim | 📢 Мои каналы | 📢 My channels | Kanallar ro'yxati |
 | 3 | 📅 Rejalashtirilgan | 📅 Запланированные | 📅 Scheduled | Queue (navbat) |
-| 4 | 📊 Statistika | 📊 Статистика | 📊 Statistics | Admin → bot statistikasi; oddiy foydalanuvchi → o'z analitikasi |
-| 5 | 💎 PRO | 💎 PRO | 💎 PRO | To'lov / obuna |
-| 6 | ⚙️ Sozlamalar | ⚙️ Настройки | ⚙️ Settings | Kabinet & Sozlamalar |
+| 4 | 📊 Statistika | 📊 Статистика | 📊 Statistics | Faqat **shaxsiy** hisobot + 💡 aniq tavsiya |
+| 5 | ⚙️ Sozlamalar / Ko'proq | ⚙️ Настройки / Ещё | ⚙️ Settings / More | 10 tugmali inline hub (PRO, Yordam, Referral ...) |
 
-- **Admin Panel** — faqat `ADMIN_IDS` a'zolari uchun 6-tugma ostida alohida
+- **IKKILAMCHI bo'limlar** (`💎 PRO`, `📖 Qo'llanma / Bot haqida`,
+  `⚙️ Qo'shimcha funksiyalar`, `👥 Do'stlarni taklif`) reply-menyudan **olib
+  tashlandi** va «⚙️ Sozlamalar / Ko'proq» tugmasi ostidagi **kanonik inline
+  hub**ga ko'chirildi (`keyboards.inline.get_settings_profile_keyboard`:
+  `[💎 PRO]` → `sub_open`, `[❓ Yordam]` → `stgs_help_hub`). Bir menyu —
+  bitta manba, dublikat inline klaviatura yo'q.
+- **Admin Panel** — faqat `ADMIN_IDS` a'zolari uchun 5-tugma ostida alohida
   `[⚙️ Admin Panel]` qatori; oddiy foydalanuvchiga **hech qachon** ko'rinmaydi.
-- Eski tarqoq tugmalar (`➕ Yangi post`, `✨ AI Studio`, `⭐️ Premium`,
-  `📖 Qo'llanma / Bot haqida`, `⚙️ Qo'shimcha funksiyalar`, `✨ Magic Post`,
-  `📸 Rasm → Post`, `📊 Post Score` ...) asosiy menyudan **olindi**, lekin
-  routing'da **alias** sifatida saqlanadi: keshda qolgan eski klaviatura
-  xabarlari xavfsiz mos bo'limga yo'naltiriladi (backward compatibility).
-  Qo'llanma / Qo'shimcha funksiyalar keyinchalik `⚙️ Sozlamalar` ichidan
-  ochiladi.
+- **Backward compatibility:** `✨ Kontent yaratish`, `⚙️ Sozlamalar`,
+  `⭐️ Premium`, `✨ AI Studio`, `➕ Yangi post`, `📖 Qo'llanma`,
+  `⚙️ Qo'shimcha funksiyalar` va boshqa eski yorliqlar routing'da **alias**
+  sifatida saqlanadi — keshda qolgan eski klaviatura xabarlari ham to'g'ri
+  bo'limga yo'naltiriladi (registr: `keyboards.default.MENU_TEXTS`).
+- **Onboarding — Kanal DNK sinovi:** kanal **birinchi** marta ulanganda bot
+  «✅ ulandi» bilan to'xtab qolmaydi: darhol «🎙 Ovoz tahlili» taklifi
+  yuboriladi; tahlil yakunlangach kanal ohangiga moslashtirilgan **1 ta bepul
+  namunaviy qoralama** generatsiya qilinadi (1 AI birlik atomik bron qilinadi,
+  xatoda fail-closed refund).
 - `/start` (yangi foydalanuvchi) — ixcham onboarding matni (rasm / matn / ovoz
-  + va'da) + ushbu 6-tugma menyu; 3 tilda sinxron.
+  + va'da) + ushbu 5-tugma menyu; 3 tilda sinxron.
 - `keyboards/default.get_main_keyboard()` — yagona quruvchi;
-  regression testlari: `tests/ux_v2_main_menu_test.py`.
+  regression testlari: `tests/ux_v2_main_menu_test.py`,
+  `tests/main_menu_and_dna_onboarding_test.py`.
 
-#### ⚙️ Sozlamalar — yagona tartibli menyu (12 tugma) + 🧰 Vositalar (3-qadam)
+#### ⚙️ Sozlamalar / Ko'proq — yagona tartibli menyu (10 tugma) + 🧰 Vositalar
 
-`⚙️ Sozlamalar` profil kartasi bilan birga **bitta tartibli, to'liq menyu**
-ochadi (`keyboards/inline.get_settings_hub_keyboard`, `stgs_*` callback'lari,
-matnlar `translations/settings_stats.py` — UZ/RU/EN 100% paritet):
+`⚙️ Sozlamalar / Ko'proq` profil kartasi bilan birga **bitta tartibli, to'liq
+menyu** ochadi (`keyboards/inline.get_settings_profile_keyboard` —
+`get_settings_hub_keyboard` / `get_cabinet_inline_keyboard` ham AYNAN shuni
+qaytaradi; `stgs_*` / `sub_*` callback'lari, matnlar
+`translations/settings_stats.py` — UZ/RU/EN 100% paritet, SSOT:
+`CB_SETTINGS_HUB`):
 
 | | |
 |---|---|
-| 👤 Profil | 🌐 Til / Язык |
-| 💎 Ballarim | 🔄 Ballar o'tkazish |
-| 🎁 Kunlik bonus | 👥 Do'stlarni taklif |
-| 🔔 Bildirishnomalar | 🎨 Post sozlamalari |
-| 💳 To'lovlar tarixi | 🧰 Vositalar |
-| ❓ Yordam | ℹ️ Bot haqida |
-| | ◀️ Orqaga |
+| 🌐 Til / Язык | ✍️ Post sozlamalari |
+| 🔔 Bildirishnomalar | 👥 Do'stlarni taklif |
+| 💳 To'lovlar tarixi | ℹ️ Bot haqida |
+| 💎 PRO | ❓ Yordam |
+| 💬 Qo'llab-quvvatlash | ❌ Yopish |
+
+> 3-BOSQICH: `[💎 PRO]` (`sub_open`) va `[❓ Yordam]` (`stgs_help_hub`)
+> asosiy reply-menudan shu hub'ga ko'chirildi — asosiy menyu 5 tugmaga
+> qisqardi, oqimlar va callback'lar o'zgarmadi.
 
 - **Legacy dublikatlar yo'q:** eski kabinet tezkor tugmalari (📢 Mening
   kanallarim, 📊 Analitika, 📅 Kutilayotgan/Rejalashtirilgan, 💎 Ballar &
@@ -742,8 +758,8 @@ Kabinet → «🌐 Til» → `uz | ru | en` bosilishi bilan:
 1. til Neon DB (`set_user_language`) va keshga (`user_data['lang']`) yoziladi;
 2. **inline menyu** shu xabarning o'zida yangi tilda qayta chiziladi;
 3. **pastki doimiy ReplyKeyboard** alohida xabar bilan darhol yangi tilda
-   yuboriladi (UX V2 6-tugma standart klaviatura: UZ: `✨ Kontent yaratish`,
-   RU: `✨ Создать контент`, EN: `✨ Create content` ...).
+   yuboriladi (3-BOSQICH ixcham 5-tugma standart klaviatura:
+   UZ: `✍️ Post yaratish`, `⚙️ Sozlamalar / Ko'proq` ...).
 
 Yordamchilar: `handlers/start.switch_user_language()`,
 `handlers/start.send_language_reply_keyboard()`,
@@ -858,7 +874,8 @@ bash tests/run_tests.sh
 | `i18n_ai_parity_test.py` (UZ/RU/EN lug'at pariteti, AI tizim promptlarining tilga moslashuvi, til o'zgarganda klaviatura yangilanishi) | 243 |
 | `account_settings_i18n_test.py` (Kabinet & Sozlamalar — 3 til) | 352 |
 | `new_post_i18n_test.py` + `ai_studio_plan_i18n_test.py` | 84 |
-| repo ildizi: `tests/ux_v2_main_menu_test.py` (UX V2 — asosiy menyu 6-tugma standarti, STARS_PLANS SSOT, /start onboarding 3 til) | 167 |
+| repo ildizi: `tests/ux_v2_main_menu_test.py` (UX V2 → 3-BOSQICH — asosiy menyu 5-tugma standarti, STARS_PLANS SSOT, /start onboarding 3 til) | 206 |
+| repo ildizi: `tests/main_menu_and_dna_onboarding_test.py` (3-BOSQICH — ixcham menyu, Sozlamalar/Ko'proq hub'i, Kanal DNK onboarding + bepul namuna, 💡 statistika tavsiyasi) | 221 |
 
 `bash tests/run_tests.sh` to'liq to'plami (pgserver bilan): **5000+ ta test, 0 xato**.
 

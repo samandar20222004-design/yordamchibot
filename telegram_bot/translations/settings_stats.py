@@ -79,6 +79,39 @@ SETTINGS_STATS_I18N = {
         "ss_my_credits": "💎 Qolgan AI kreditlaringiz: <b>{n} ta</b>",
         "ss_btn_channel_detail": "📈 Batafsil",
 
+        # --- 💡 3-BOSQICH: ANIQ TAVSIYA (kuruq raqamlar EMAS) ---
+        # Shaxsiy statistika ekrani endi faqat raqamlarni emas, KANALDAGI
+        # haqiqiy faollik signali asosida amaliy tavsiyani ko'rsatadi.
+        # Matn ``build_advice_line`` (handlers/statistics.py) da PURE
+        # funksiya orqali quriladi — soxta raqam hech qachon uydirilmaydi:
+        # ma'lumot yetarli bo'lmasa alohida "ma'lumot yetarli emas" qatori.
+        "ss_my_advice_title": "💡 <b>Tavsiya:</b>",
+        "ss_my_advice_best_time": (
+            "Kanalingiz auditoriyasi kechki payt faolroq. Bugun <b>{time}</b> "
+            "oralig'ida yangi post rejalashtirishni tavsiya qilamiz."
+        ),
+        "ss_my_advice_idle": (
+            "Hozircha rejalashtirilgan post yo'q. Kanal faolligiga mos kelgan "
+            "<b>{time}</b> oralig'ida birinchi postni joylashtiring."
+        ),
+        "ss_my_advice_no_channel": (
+            "Aniq tavsiya uchun avval kanalni ulang — uning faollik "
+            "soatlarini tahlil qilib, aniq vaqtni aytib beramiz."
+        ),
+        "ss_my_advice_insufficient": (
+            "Hali yetarli ma'lumot yo'q. Kanalda bir necha post joylashtirgach "
+            "tahlil ishlaydi va aniq vaqt tavsiya qilamiz."
+        ),
+        "ss_my_advice_low_credits": (
+            "AI kreditlaringiz tugab qolmoqda. Yangi postlar uchun PRO "
+            "tarifga o'tishni tavsiya qilamiz."
+        ),
+
+        # --- ⚙️ 3-BOSQICH: «⚙️ Sozlamalar / Ko'proq» inline hub qatorlari ---
+        # PRO va Yordam asosiy reply-menudan shu panelga ko'chirildi.
+        "ss_btn_premium": "💎 PRO",
+        "ss_btn_help": "❓ Yordam",
+
         # --- ⚙️ SOZLAMALAR: yagona tartibli menyu ---
         "ss_menu_title": (
             "👤 <b>Profil</b>\n\n"
@@ -237,6 +270,33 @@ SETTINGS_STATS_I18N = {
         "ss_my_credits": "💎 Осталось AI-кредитов: <b>{n}</b>",
         "ss_btn_channel_detail": "📈 Детали по каналу",
 
+        # --- 💡 ШАГ 3: КОНКРЕТНАЯ РЕКОМЕНДАЦИЯ (не сухие цифры) ---
+        "ss_my_advice_title": "💡 <b>Рекомендация:</b>",
+        "ss_my_advice_best_time": (
+            "Аудитория вашего канала активнее вечером. Рекомендуем "
+            "запланировать новый пост на сегодня в промежутке <b>{time}</b>."
+        ),
+        "ss_my_advice_idle": (
+            "Запланированных постов пока нет. Опубликуйте первый пост в "
+            "промежутке <b>{time}</b> — время подобрано по активности канала."
+        ),
+        "ss_my_advice_no_channel": (
+            "Чтобы дать точную рекомендацию, сначала подключите канал — мы "
+            "проанализируем часы активности и назовём лучшее время."
+        ),
+        "ss_my_advice_insufficient": (
+            "Пока недостаточно данных. Опубликуйте несколько постов — "
+            "анализ включится и даст точное время."
+        ),
+        "ss_my_advice_low_credits": (
+            "AI-кредиты на исходе. Рекомендуем перейти на тариф PRO для новых "
+            "постов."
+        ),
+
+        # --- ⚙️ ШАГ 3: строки inline-hub «⚙️ Настройки / Ещё» ---
+        "ss_btn_premium": "💎 PRO",
+        "ss_btn_help": "❓ Помощь",
+
         # --- ⚙️ НАСТРОЙКИ: единое упорядоченное меню ---
         "ss_menu_title": (
             "👤 <b>Профиль</b>\n\n"
@@ -391,6 +451,34 @@ SETTINGS_STATS_I18N = {
         "ss_my_scheduled": "📅 Scheduled posts: <b>{n}</b>",
         "ss_my_credits": "💎 AI credits remaining: <b>{n}</b>",
         "ss_btn_channel_detail": "📈 Per-channel",
+
+        # --- 💡 STEP 3: ACTIONABLE RECOMMENDATION (not dry numbers) ---
+        "ss_my_advice_title": "💡 <b>Tip:</b>",
+        "ss_my_advice_best_time": (
+            "Your channel's audience is more active in the evening. We "
+            "recommend scheduling a new post for today between <b>{time}</b>."
+        ),
+        "ss_my_advice_idle": (
+            "Nothing scheduled yet. Publish your first post between "
+            "<b>{time}</b> — the window is picked from your channel's "
+            "activity."
+        ),
+        "ss_my_advice_no_channel": (
+            "For a precise tip, connect a channel first — we'll analyse its "
+            "active hours and tell you the best time."
+        ),
+        "ss_my_advice_insufficient": (
+            "Not enough data yet. Publish a few posts — the analysis will "
+            "start and give you an exact time."
+        ),
+        "ss_my_advice_low_credits": (
+            "Your AI credits are running low. Consider the PRO plan for new "
+            "posts."
+        ),
+
+        # --- ⚙️ STEP 3: inline-hub rows for «⚙️ Settings / More» ---
+        "ss_btn_premium": "💎 PRO",
+        "ss_btn_help": "❓ Help",
 
         # --- ⚙️ SETTINGS: single ordered menu ---
         "ss_menu_title": (
@@ -597,6 +685,8 @@ CB_STATS_OVERVIEW = "an_overview"
 #: ⚙️ Sozlamalar — 8 tugmali hub (testlar uchun spetsifikatsiya).
 #: Eski guruhlar (stgs_rewards / stgs_tools / stgs_help_hub / stgs_profile)
 #: ko'rinishdan olib tashlandi, lekin routing'da legacy sifatida saqlanadi.
+#: 3-BOSQICH: «💎 PRO» (sub_open) va «❓ Yordam» (stgs_help_hub) asosiy
+#: reply-menudan shu KANONIK hub'ga ko'chirildi — jami 10 tugma / 5 qator.
 CB_SETTINGS_HUB = (
     "stgs_lang",
     "stgs_post",
@@ -604,6 +694,8 @@ CB_SETTINGS_HUB = (
     "stgs_referral",
     "stgs_pay",
     "stgs_about",
+    "sub_open",
+    "stgs_help_hub",
     "help_support",
     "stgs_back",
 )

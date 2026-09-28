@@ -3,9 +3,11 @@
 
 1-QADAM kabinet dublikatlarini tozalagan edi; 3-QADAM hub'ni yanada
 ixchamlashtirdi, KLASSIK qaytarish esa «👥 Do'stlarni taklif» tugmasini
-asosiy menyudan Sozlamalar hub'iga ko'chirdi. Jami 7 tugma:
+asosiy menyudan Sozlamalar hub'iga ko'chirdi. 3-BOSQICH: «💎 PRO» va «❓ Yordam» ham
+asosiy reply-menudan shu hub'ga ko'chirildi. Jami 10 tugma:
 Til | Post sozlamalari | Bildirishnomalar | Do'stlarni taklif |
-To'lovlar | Qo'llab-quvvatlash | Yopish."""
+To'lovlar | Bot haqida | PRO | Yordam |
+Qo'llab-quvvatlash | Yopish."""
 import os, sys
 os.environ.setdefault("BOT_TOKEN", "123456:TEST")
 os.environ.setdefault("ADMIN_ID", "123")
@@ -24,7 +26,9 @@ def test():
         # QAT'IY: 7 tugma (⚙️ Sozlamalar):
         # Til | Post sozlamalari | Bildirishnomalar | Do'stlarni taklif |
         # To'lovlar | Qo'llab-quvvatlash | Yopish
-        assert len(cbs)==7, f"[{lang}] 7 tugma kerak, {len(cbs)} topildi"
+        assert len(cbs)==10, f"[{lang}] 10 tugma kerak, {len(cbs)} topildi"
+        assert "sub_open" in cbs, f"[{lang}] PRO tugmasi hub'da yo'q: {cbs}"
+        assert "stgs_help_hub" in cbs, f"[{lang}] Yordam tugmasi hub'da yo'q: {cbs}"
         # QAT'IY: eski cab_* yo'q
         for cb in cbs:
             assert not cb.startswith("cab_"), f"[{lang}] Eski cab_ callback topildi: {cb}"
@@ -46,12 +50,13 @@ def test():
         # Yangi 7 tugma to'liqligi
         assert "stgs_hub" not in cbs  # hub o'zi callback emas, yopish stgs_back
         for cb in ("stgs_lang", "stgs_post", "stgs_notif", "stgs_referral",
-                   "stgs_pay", "help_support", "stgs_back"):
+                   "stgs_pay", "stgs_about", "sub_open", "stgs_help_hub",
+                   "help_support", "stgs_back"):
             assert cb in cbs, f"[{lang}] {cb} topilmadi: {cbs}"
         # Eski guruh parent'lari ko'rinishdan chiqdi (routing'da qoladi)
-        for cb in ("stgs_rewards", "stgs_tools", "stgs_help_hub"):
+        for cb in ("stgs_rewards", "stgs_tools"):
             assert cb not in cbs, f"[{lang}] {cb} hub'da qolib ketdi: {cbs}"
-    print("✅ ⚙️ Sozlamalar — 7 tugma (referral shu yerda), dublikat guruhlar yo'q, Qo'llab-quvvatlash bir tugmada")
+    print("✅ ⚙️ Sozlamalar — 10 tugma (PRO + Yordam shu yerda), dublikat guruhlar yo'q, Qo'llab-quvvatlash bir tugmada")
 
 if __name__=="__main__":
     test()

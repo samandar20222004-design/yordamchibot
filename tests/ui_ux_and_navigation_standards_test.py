@@ -107,17 +107,29 @@ from translations import (                                  # noqa: E402
     settings_stats_parity_report, settings_stats_t,
 )
 
-# Asosiy menyu — QAT'IY 6 TUGMA / 3 QATOR (ux_v2 testi bilan bir xil speks).
+# Asosiy menyu — 3-BOSQICH IXCHAM 5 TUGMA / 3 QATOR
+# (ux_v2 testi bilan bir xil speks).
 EXPECTED_MAIN = {
-    "uz": ("✨ Kontent yaratish", "📢 Kanallarim",
+    "uz": ("✍️ Post yaratish", "📢 Kanallarim",
            "📅 Rejalashtirilgan", "📊 Statistika",
-           "💎 PRO", "⚙️ Sozlamalar"),
-    "ru": ("✨ Создать контент", "📢 Мои каналы",
+           "⚙️ Sozlamalar / Ko'proq"),
+    "ru": ("✍️ Создать пост", "📢 Мои каналы",
            "📅 Запланированные", "📊 Статистика",
-           "💎 PRO", "⚙️ Настройки"),
-    "en": ("✨ Create content", "📢 My channels",
+           "⚙️ Настройки / Ещё"),
+    "en": ("✍️ Create post", "📢 My channels",
            "📅 Scheduled", "📊 Statistics",
-           "💎 PRO", "⚙️ Settings"),
+           "⚙️ Settings / More"),
+}
+EXPECTED_MAIN_ROWS = {
+    "uz": [["✍️ Post yaratish", "📢 Kanallarim"],
+           ["📅 Rejalashtirilgan", "📊 Statistika"],
+           ["⚙️ Sozlamalar / Ko'proq"]],
+    "ru": [["✍️ Создать пост", "📢 Мои каналы"],
+           ["📅 Запланированные", "📊 Статистика"],
+           ["⚙️ Настройки / Ещё"]],
+    "en": [["✍️ Create post", "📢 My channels"],
+           ["📅 Scheduled", "📊 Statistics"],
+           ["⚙️ Settings / More"]],
 }
 
 
@@ -165,30 +177,34 @@ def render_all_keyboards(lang):
 # TEST 1 — ASOSIY REPLY MENYU: QAT'IY 3 QATOR / 6 TUGMA
 # ============================================================================
 def test_1_main_reply_menu_strict_6_buttons():
-    header("1", "🏠 Asosiy Reply menyu — QAT'IY 3 qator / 6 tugma (4-qator TAQIQLANADI)")
+    header("1", "🏠 Asosiy Reply menyu — 3-BOSQICH: QAT'IY 3 qator / 5 tugma (4-qator TAQIQLANADI)")
     for lang in LANGS:
         expected = EXPECTED_MAIN[lang]
+        expected_rows = EXPECTED_MAIN_ROWS[lang]
         kb = KD.get_main_keyboard(False, lang=lang)
         rows = kb_rows_reply(kb)
         flat = [t for row in rows for t in row]
-        check(f"[{lang}] aynan 6 tugma", len(flat) == 6, str(flat))
-        check(f"[{lang}] aynan 3 qator × 2 tugma",
-              rows == [list(expected[0:2]), list(expected[2:4]), list(expected[4:6])],
-              str(rows))
+        check(f"[{lang}] aynan 5 tugma", len(flat) == 5, str(flat))
+        check(f"[{lang}] aynan 3 qator (2+2+1)", rows == expected_rows, str(rows))
+        # IKKILAMCHI bo'limlar asosiy reply-menuda YO'Q — ular endi
+        # «⚙️ Sozlamalar / Ko'proq» inline hub'ida.
+        for key in ("btn_premium", "btn_invite_friends", "btn_help", "btn_extras"):
+            check(f"[{lang}] {key} asosiy reply-menuda yo'q",
+                  get_text(key, lang) not in flat, str(flat))
         # Admin varianti: birinchi 3 qator AYNAN saqlanadi + faqat Admin Panel.
         kb_adm = KD.get_main_keyboard(True, lang=lang)
         rows_adm = kb_rows_reply(kb_adm)
-        check(f"[{lang}] admin: 6+1 (faqat Admin Panel qatori qo'shiladi)",
+        check(f"[{lang}] admin: 5+1 (faqat Admin Panel qatori qo'shiladi)",
               rows_adm[:3] == rows and len(rows_adm) == 4
               and rows_adm[3] == [KD.BTN_ADMIN_PANEL], str(rows_adm))
-    # Deprecated parametrlar ham 6-tugma standartini buzmaydi.
+    # Deprecated parametrlar ham 5-tugma standartini buzmaydi.
     kb_dep = KD.get_main_keyboard(False, lang="uz", include_image_post=True,
                                   include_post_score=True)
-    check("deprecated flaglar 6 tugmani o'zgartirmaydi",
-          len([t for r in kb_rows_reply(kb_dep) for t in r]) == 6)
+    check("deprecated flaglar 5 tugmani o'zgartirmaydi",
+          len([t for r in kb_rows_reply(kb_dep) for t in r]) == 5)
     # get_refreshed_main_keyboard ham bir xil standartda.
     kb_ref = KD.get_refreshed_main_keyboard("ru", is_admin=False)
-    check("refreshed menyu (ru) — bir xil 6 tugma",
+    check("refreshed menyu (ru) — bir xil 5 tugma",
           [t for r in kb_rows_reply(kb_ref) for t in r] == list(EXPECTED_MAIN["ru"]))
 
 
@@ -322,12 +338,13 @@ def test_3_inline_duplicates_removed():
         check(f"[{lang}] get_settings_hub_keyboard == kanonik panel", hub == canon)
         check(f"[{lang}] include_legacy=True ham dublikat tugma qo'shmaydi",
               hub_legacy == canon)
-        # Kanonik panel tuzilishi: 8 tugma, 4 qator × 2 (simmetrik); oxirgi qator
+        # Kanonik panel tuzilishi (3-BOSQICH): 10 tugma, 5 qator × 2
+    # (simmetrik); oxirgi qator
         # [💬 Qo'llab-quvvatlash | ❌ Yopish].
         rows = KI.get_settings_profile_keyboard(lang).inline_keyboard
         flat = [t for t, _ in canon]
-        check(f"[{lang}] panel: 8 tugma / 4 qator (har birida aynan 2 ta)",
-              len(flat) == 8 and len(rows) == 4
+        check(f"[{lang}] panel: 10 tugma / 5 qator (har birida aynan 2 ta)",
+              len(flat) == 10 and len(rows) == 5
               and all(len(r) == 2 for r in rows),
               str(rows))
         check(f"[{lang}] panel: oxirgi qator [Qo'llab-quvvatlash | ❌ Yopish]",
@@ -337,7 +354,8 @@ def test_3_inline_duplicates_removed():
         cbs = [c for _, c in canon]
         check(f"[{lang}] panel: callback'lar tilga bog'liq emas",
               cbs == ["stgs_lang", "stgs_post", "stgs_notif", "stgs_referral",
-                      "stgs_pay", "stgs_about", "help_support", "stgs_back"],
+                      "stgs_pay", "stgs_about", "sub_open", "stgs_help_hub",
+                      "help_support", "stgs_back"],
               str(cbs))
     # Eski alias-funksiyalar ham kanonik manbaga tushadi.
     for fn in (KI.get_stgs_rewards_keyboard, KI.get_rewards_keyboard):

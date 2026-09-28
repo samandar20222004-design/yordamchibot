@@ -6,14 +6,16 @@ EN_OVERLAY = {
     # UX V2 (classic 6-button standard) — EN parity (legacy names stay in
     # the alias lists in keyboards/default.py for backward compatibility).
     "btn_premium": "💎 PRO",
-    "btn_settings": "⚙️ Settings",
+    # Step 3: PRO / Help / Referral moved into the inline hub under this
+    # button; the old «⚙️ Settings» label stays a routing alias.
+    "btn_settings": "⚙️ Settings / More",
     "btn_help": "📖 Guide / About",
     "btn_extras": "⚙️ Extra features",
-    # 🆕 UX V2 main menu — STRICT 6-BUTTON standard (EN):
-    #   [✨ Create content]  [📢 My channels]
+    # 🧭 COMPACT MAIN MENU — STRICT 5-BUTTON standard (EN):
+    #   [✍️ Create post]     [📢 My channels]
     #   [📅 Scheduled]       [📊 Statistics]
-    #   [💎 PRO]             [⚙️ Settings]
-    "btn_create_content": "✨ Create content",
+    #   [⚙️ Settings / More]
+    "btn_create_content": "✍️ Create post",
     "btn_my_channels": "📢 My channels",
     "btn_scheduled": "📅 Scheduled",
     "btn_statistics": "📊 Statistics",
@@ -300,6 +302,29 @@ EN_OVERLAY = {
         "This style has been saved to your channel profile and will be used in future AI generations."
     ),
     "ch_voice_error": "⚠️ Could not perform channel voice analysis. Please try again later.",
+    # 🧠 STEP 3 — ONBOARDING: CHANNEL DNA ACTIVATION. Right after the first
+    # channel link the bot does not stop at "✅ connected" — it immediately
+    # offers to learn the channel's Tone of Voice.
+    "ch_dna_offer": (
+        "🎉 <b>Your channel is connected!</b>\n\n"
+        "I can analyse your latest posts and learn the channel's "
+        "<b>tone of voice</b>.\n\n"
+        "Tap «{btn}» or forward me 3 posts from the channel."
+    ),
+    "ch_dna_offer_later": "⏭️ Later",
+    "ch_dna_sample_title": "🎨 <b>Sample in your channel's voice:</b>",
+    "ch_dna_sample_footer": (
+        "This text is adapted to your channel style — future AI posts "
+        "will use the same tone."
+    ),
+    "ch_dna_sample_error": (
+        "⚠️ Could not prepare the sample. The channel style is saved — try "
+        "again later via «🎙 Voice analysis»."
+    ),
+    "ch_dna_already_done": (
+        "🧠 <b>Channel DNA is active.</b> The sample post and your channel "
+        "style are already configured — AI writes every post in this tone."
+    ),
 
     # Timezone selection
     "tz_prompt": "🌍 <b>Choose your timezone:</b>",

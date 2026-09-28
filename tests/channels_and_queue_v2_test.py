@@ -792,11 +792,14 @@ def test_regression_guards():
     all_h = _all_handlers(app)
     conv = [h for h in all_h if isinstance(h, ConversationHandler)][0]
 
-    # (1) Asosiy menyu — QAT'IY 6 tugma (klassik standart buzilmadi).
+    # (1) Asosiy menyu — 3-BOSQICH IXCHAM 5 tugma (standart buzilmadi).
     for lang in LANGS:
         rows = [[b.text for b in r] for r in get_main_keyboard(False, lang=lang).keyboard]
         flat = [t for r in rows for t in r]
-        check(f"asosiy menyu[{lang}]: 6 tugma", len(flat) == 6, str(flat))
+        check(f"asosiy menyu[{lang}]: 5 tugma", len(flat) == 5, str(flat))
+        check(f"asosiy menyu[{lang}]: PRO asosiy reply-menuda YO'Q "
+              f"(sozlamalar hub'ida)",
+              get_text("btn_premium", lang) not in flat, str(flat))
         check(f"asosiy menyu[{lang}]: 📢 Kanallarim + 📅 Rejalashtirilgan",
               get_text("btn_my_channels", lang) in flat
               and get_text("btn_scheduled", lang) in flat, str(flat))

@@ -2876,6 +2876,131 @@ async def analyze_channel_voice(recent_posts: list, lang: str = "uz") -> dict:
 
 
 # ============================================================
+# 🧠 3-BOSQICH — KANAL DNK NAMUNASI (birinchi bepul qoralama)
+# ============================================================
+# Kanal ovozi tahlili yakunlangach foydalanuvchi "SOXTA tasdiq" olmaydi:
+# darhol kanal uslubiga moslashtirilgan 1 ta NAMUNAVIY qoralama post
+# ko'rsatiladi. Bu funksiya FAQAT matn yaratadi — kvota/kredit va
+# narx (1 birlik) ``handlers.channels`` da ``reserve_for_flow`` orqali
+# ATO'MIK bron qilinadi va xatoda ``release_ai_quota`` bilan QAYTARILADI
+# (fail-closed refund).
+
+_DNA_SAMPLE_SYSTEMS = {
+    "uz": (
+        "Siz Telegram kanali uchun post yozuvchi professional muharrir "
+        "SIZ.\n\n"
+        "QOIDALAR:\n"
+        "- Javob FAQAT tayyor post matni bo'lsin (izoh, sarlavha yorlig'i "
+        "yoki izohsiz qisqartirish YO'Q).\n"
+        "- Matn KISQA bo'lsin: 600-1200 belgi.\n"
+        "- Kanal uslubiga qat'iy amal qiling: uzunlik, emoji darajasi, "
+        "shakl va CTA uslubi berilgan DNA profiliga mos bo'lsin.\n"
+        "- O'zbek tilida yozing.\n"
+    ),
+    "ru": (
+        "Вы — профессиональный копирайтер для Telegram-канала.\n\n"
+        "ПРАВИЛА:\n"
+        "- Ответ — ТОЛЬКО готовый текст поста (без комментариев и пояснений).\n"
+        "- Текст КОРОТКИЙ: 600–1200 символов.\n"
+        "- Строго держитесь стиля канала: длина, уровень эмодзи, "
+        "форматирование и CTA — по профилю ДНК.\n"
+        "- Пишите на русском языке.\n"
+    ),
+    "en": (
+        "You are a professional copywriter for a Telegram channel.\n\n"
+        "RULES:\n"
+        "- The answer must be ONLY the ready post text (no comments, no notes).\n"
+        "- Keep it SHORT: 600–1200 characters.\n"
+        "- Strictly follow the channel style: length, emoji level, formatting "
+        "and CTA must match the given DNA profile.\n"
+        "- Write in English.\n"
+    ),
+}
+
+#: Namuna post mavzusiga yo'naltiruvchi qisqa so'rov — 3 tilda.
+_DNA_SAMPLE_PROMPT = {
+    "uz": (
+        "Kanal: {channel}\n"
+        "Mavzu: kanalga mos, umumiy qiziqarli va foydali bitta post.\n\n"
+        "Yuqoridagi uslub qoidalariga amal qilib TAYYOR POST MATNINI yozing."
+    ),
+    "ru": (
+        "Канал: {channel}\n"
+        "Тема: одна универсально интересная и полезная запись для канала.\n\n"
+        "Соблюдая стиль выше, напишите ГОТОВЫЙ ТЕКСТ ПОСТА."
+    ),
+    "en": (
+        "Channel: {channel}\n"
+        "Topic: one broadly interesting and useful post for the channel.\n\n"
+        "Following the style rules above, write the READY POST TEXT."
+    ),
+}
+
+
+async def generate_dna_sample_post(channel_title: str, tone: str = "friendly",
+                                  dna_block: str = "", lang: str = "uz") -> dict:
+    """Kanal uslubiga moslashtirilgan 1 ta NAMUNAVIY qoralama post.
+
+    3-BOSQICH onboarding: tahlildan keyin foydalanuvchi darhol ko'radigan
+    «bepul namuna». ``dna_block`` — ``services.channels.dna
+    .build_dna_system_prompt_extended`` dan kelgan ixcham DNA blokı
+    (bo'sh bo'lsa, faqat ``tone`` ishlatiladi).
+
+    Returns:
+        ``{"post_text": "..."}`` yoki ``{"error": "..."}`` — hech qachon
+        istisno qaytarmaydi (handler hech qachon «qotib» qolmaydi).
+    """
+    code = normalize_ai_lang(lang)
+    system_instruction = _inject_tone(
+        _DNA_SAMPLE_SYSTEMS.get(code) or _DNA_SAMPLE_SYSTEMS["uz"],
+        tone, code,
+    )
+    block = (dna_block or "").strip()
+    if block:
+        # DNA profili TIZIM promptiga ulanadi — shu sababli AI uslubni
+        # «o'ylab» topadi, ko'chirib qo'yib emas.
+        system_instruction = f"{system_instruction}\n{block}"
+    title = (channel_title or "").strip() or "Telegram"
+    prompt = (_DNA_SAMPLE_PROMPT.get(code) or _DNA_SAMPLE_PROMPT["uz"]).format(
+        channel=title[:120]
+    )
+
+    try:
+        result = await _call_chain(
+            prompt, with_language(system_instruction, code), lang=code
+        )
+    except Exception as e:
+        logger.warning("Kanal DNK namunasi AI xatosi: %s", e)
+        return {"error": localize_ai_error(
+            "⚠️ AI xizmatida vaqtinchalik uzilish. Qaytadan urinib ko'ring.", code
+        )}
+
+    if not isinstance(result, dict):
+        return {"error": localize_ai_error("⚠️ AI javob bermadi.", code)}
+    if "error" in result:
+        return result
+
+    post_text = (
+        result.get("post_text")
+        or result.get("text")
+        or result.get("post")
+        or result.get("reply")
+        or ""
+    )
+    if not post_text:
+        for value in result.values():
+            if isinstance(value, str) and len(value) > 20:
+                post_text = value
+                break
+    post_text = (post_text or "").strip()
+    if not post_text:
+        return {"error": localize_ai_error(
+            "⚠️ AI post matni tayyorlay olmadi.", code
+        )}
+    return {"post_text": post_text}
+
+
+# ============================================================
 # CONTENT PLAN GENERATOR
 # ============================================================
 

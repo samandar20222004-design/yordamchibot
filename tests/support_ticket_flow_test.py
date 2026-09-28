@@ -981,15 +981,17 @@ def test_regression_and_parity():
         check(f"database.{fn_name}() mavjud",
               callable(getattr(db_mod, fn_name, None)))
 
-    # ⚙️ Sozlamalar hub'i — 8 tugma (4x2), help_support o'z joyida.
+    # ⚙️ Sozlamalar / Ko'proq hub'i — 10 tugma (5x2), help_support o'z joyida.
+    #    (3-BOSQICH: PRO va Yordam asosiy reply-menudan shu hub'ga ko'chirildi.)
     from keyboards.inline import (get_cabinet_inline_keyboard,
                                   get_settings_hub_keyboard,
                                   get_support_ticket_keyboard)
 
     hub_cbs = _flat_cbs(get_settings_hub_keyboard("uz"))
-    check("hub: 8 tugma (4x2) saqlangan",
+    check("hub: 10 tugma (5x2) saqlangan",
           hub_cbs == ["stgs_lang", "stgs_post", "stgs_notif", "stgs_referral",
-                      "stgs_pay", "stgs_about", "help_support", "stgs_back"],
+                      "stgs_pay", "stgs_about", "sub_open", "stgs_help_hub",
+                      "help_support", "stgs_back"],
           str(hub_cbs))
     profile_buttons = [b for row in get_cabinet_inline_keyboard("uz").inline_keyboard
                        for b in row if b.text.endswith("Qo'llab-quvvatlash")]

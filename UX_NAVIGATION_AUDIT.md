@@ -1,4 +1,4 @@
-# 🧭 UX NAVIGATION AUDIT — 3 QATORLI 6 TUGMA STANDARTI + CALLBACK REGISTRY
+# 🧭 UX NAVIGATION AUDIT — IXCHAM 5 TUGMA STANDARTI + CALLBACK REGISTRY
 
 > **Holat:** ✅ PASS — `tests/ui_ux_and_navigation_standards_test.py`
 > (FAZA 17/18/19/26), `tests/ux_v2_main_menu_test.py`,
@@ -10,15 +10,20 @@ xavfsizligining yakuniy holatini qayd etadi.
 
 ---
 
-## 1. Asosiy Reply menyu — QAT'IY 3 qator / 6 tugma
+## 1. Asosiy Reply menyu — IXCHAM 3 qator / 5 tugma
 
 Uchala tilda (uz/ru/en) aynan:
 
 ```
-[✨ Kontent yaratish]  [📢 Kanallarim]
+[✍️ Post yaratish]     [📢 Kanallarim]
 [📅 Rejalashtirilgan]  [📊 Statistika]
-[💎 PRO]               [⚙️ Sozlamalar]
+[⚙️ Sozlamalar / Ko'proq]
 ```
+
+> **3-BOSQICH:** `💎 PRO`, `❓ Yordam` va `👥 Do'stlarni taklif` kabi
+> ikkilamchi bo'limlar reply-menyudan olib tashlanib, «⚙️ Sozlamalar /
+> Ko'proq» inline hub'iga (10 tugma / 5 qator) ko'chirildi. Barcha eski
+> yorliqlar routing aliasi sifatida saqlanadi.
 
 - **4-qator TAQIQLANADI** — admin variantida faqat `[⚙️ Admin Panel]`
   qatori qo'shiladi (va faqat ADMIN_IDS uchun RO'YXATdan ko'rinadi —
@@ -90,7 +95,8 @@ Uchala tilda (uz/ru/en) aynan:
 | Suite | Natija |
 |---|---|
 | `tests/ui_ux_and_navigation_standards_test.py` (1–6 band: menyu, navigatsiya, registry, i18n, regressiya) | ✅ PASS (175) |
-| `tests/ux_v2_main_menu_test.py` (6 tugma, RBAC, onboarding) | ✅ PASS |
+| `tests/ux_v2_main_menu_test.py` (5 tugma, RBAC, onboarding) | ✅ PASS (206) |
+| `tests/main_menu_and_dna_onboarding_test.py` (3-BOSQICH: menyu, hub, DNK onboarding, tavsiya) | ✅ PASS (221) |
 | `tests/final_acceptance_suite_test.py` (TEST A..AG — 33 tekshiruv) | ✅ PASS |
 | `tests/fsm_navigation_safety_test.py` | ✅ PASS |
 | FAZA 23/25: `pend_btn_unsafe` i18n, `_answer_timeout` | ✅ PASS (126 ichida) |

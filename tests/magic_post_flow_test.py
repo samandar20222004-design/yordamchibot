@@ -196,16 +196,16 @@ def test_styles_menu_flow():
     ctx = FakeContext(lang="uz")
     msg = FakeMessage()
 
-    # 1a) 3-QISM (7-tugma standarti): «✨ Magic Post» asosiy menyuda endi
-    # YO'Q — lekin oqimi yashaydi: routing filtri eski yorliqni hali ham
-    # taniydi (keshdagi eski klaviatura xabarlari uchun backward
-    # compatibility) va asosiy menyu aynan 6 tugma.
+    # 1a) 3-BOSQICH (ixcham 5-tugma standarti): «✨ Magic Post» asosiy
+    # menyuda endi YO'Q — lekin oqimi yashaydi: routing filtri eski
+    # yorliqni hali ham taniydi (keshdagi eski klaviatura xabarlari uchun
+    # backward compatibility) va asosiy menyu aynan 5 tugma.
     for lang, btn in (("uz", BTN_MAGIC_POST), ("ru", BTN_MAGIC_POST_RU),
                       ("en", BTN_MAGIC_POST_EN)):
         kb = get_main_keyboard(False, lang=lang)
         texts = [b.text for row in kb.keyboard for b in row]
-        check(f"asosiy menyu '{lang}': klassik — aynan 6 tugma",
-              len(texts) == 6, str(texts))
+        check(f"asosiy menyu '{lang}': ixcham — aynan 5 tugma",
+              len(texts) == 5, str(texts))
         check(f"asosiy menyu '{lang}': «✨ Magic Post» menyu'dan chiqdi",
               btn not in texts, str(texts))
     pattern = exact(BTN_MAGIC_POST).pattern

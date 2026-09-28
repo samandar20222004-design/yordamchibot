@@ -740,6 +740,27 @@ def render_channel_panel(channel_id, lang: str = "uz") -> InlineKeyboardMarkup:
         ],
     ])
 
+
+def render_dna_onboarding_keyboard(channel_id, lang: str = "uz") -> InlineKeyboardMarkup:
+    """🧠 3-BOSQICH ONBOARDING — Kanal DNK sinovi taklif klaviaturası.
+
+    Kanal BIRINCHI marta ulanganda «✅ ulandi» dan keyin darhol shu
+    taklif yuboriladi: bot kanal ovozini (Tone of Voice) o'rganib, kanal
+    uslubiga mos 1 ta bepul qoralama namunasini generatsiya qiladi.
+
+    Yagona tugma — ``ch_voice:<channel_id>`` — ``handlers.channels
+    .channel_voice_analysis_callback`` ga ulanadi (registry'da bor, 64-bayt
+    chegarasi va IDOR himoyasi ishlangan). Boshqa yo'l (3 ta postni
+    forward qilish) TUGMASIZ: matn xabarida ko'rsatilgan — klaviatura
+    shu sababli qasddan yalang'on, navigatsiya konflikti ham bo'lmaydi
+    («◀️ Orqaga»/«❌ Bekor qilish»/«❌ Yopish» semantikalariga tegilmaydi).
+    """
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton(get_text("ch_voice_btn", lang),
+                              callback_data=cb(CB_CHANNEL_VOICE, channel_id))],
+    ])
+
+
 def render_channel_advice_menu(channels, lang: str = "uz") -> InlineKeyboardMarkup:
     """Inline selector used by ``/channel_advice`` (kept outside legacy panel).
 
@@ -938,7 +959,7 @@ def _profile_support_button(lang: str) -> InlineKeyboardButton:
 
 
 def get_settings_profile_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
-    """⚙️ Sozlamalar — 4 QATOR × 2 TUGMA = 8 TUGMALI inline panel (KANONIK).
+    """⚙️ Sozlamalar / Ko'proq — 5 QATOR × 2 TUGMA = 10 TUGMALI panel (KANONIK).
 
     🧹 FAZA 18 — DUBLIKAT KLAVIATURALAR TOZALANDI: bu funksiya profil/
     kabinet/sozlamalar panelining YAGONA MANBASI. Boshqa barcha nomlar
@@ -946,32 +967,37 @@ def get_settings_profile_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
     AYNAN SHU funksiyaga yo'naltiriladi — panel bir joyda, bitta tavsifda
     saqlanadi, ikkita alohida nusxa paydo bo'lishi imkonsiz.
 
-    POSTASSIST POLISH — SIMMETRIK JUFT LAYOUT (har qatorda aynan 2 ta
-    tugma, hech bir tugma yolg'iz qatorda QOLMAYDI):
+    3-BOSQICH — SIMMETRIK JUFT LAYOUT (har qatorda aynan 2 ta tugma,
+    hech bir tugma yolg'iz qatorda QOLMAYDI):
 
         [🌐 Til / Язык]         [✍️ Post sozlamalari]
         [🔔 Bildirishnomalar]   [👥 Do'stlarni taklif]
         [💳 To'lovlar tarixi]   [ℹ️ Bot haqida]
+        [💎 PRO]                [❓ Yordam]
         [💬 Qo'llab-quvvatlash] [❌ Yopish]
 
-    🧹 TOZA TARTIB (asosiy menyu bilan dublikatlar yo'q):
-      * «👥 Do'stlarni taklif» asosiy menyudan shu panelga ko'chirildi
-        (stgs_referral — referral ekrani + kunlik bonus);
-      * «🎁 Bonuslar & Taklif» hub'i OLIB TASHLANDI — kunlik bonus
-        referral ekranidagi inline tugmada (stgs_rewards oqimi eski
-        xabarlar uchun saqlanadi);
-      * «🧰 Vositalar» va «❓ Yordam & Ma'lumot» guruhlari olib tashlandi —
-        qo'llab-quvvatlash to'g'ridan-to'g'ri tugmada, qo'llanma esa
-        /help buyrug'i orqali (stgs_tools / stgs_help_hub callback'lari
-        eski xabarlar uchun routing'da qoladi);
-      * «👤 Profil» alohida tugmasi YO'Q — panel matnining o'zi profil;
-      * «ℹ️ Bot haqida» (``stgs_about``) — bot versiyasi, maqsadi va qisqa
-        yo'riqnoma (mavjud handler — yangi oqim KIRITILMADI).
+    🧭 NIMA O'ZGARDI: asosiy reply-menudan chiqarilgan IKKILAMCHI
+    bo'limlar shu panelga ko'chirildi — shu bilan foydalanuvchi uchun
+    bitta «hammasi» nuqtasi qoldi, asosiy menyu esa ixcham (5 tugma):
 
-    Callback'lar MAVJUD, sinovdan o'tgan ``stgs_*`` oqimlariga ulanadi —
-    yangi handler/routing KIRITILMADI. Eski ``cab_*`` callback'lari chat
-    tarixidagi eski xabarlar uchun routing'da saqlanadi (backward compat).
-    ``lang`` foydalanuvchi tili (uz/ru/en); callback_data tilga bog'liq emas.
+      * «💎 PRO» (``sub_open``) — asosiy menyudagi «💎 PRO» tugmasi
+        o'rniga shu qator; eski reply-tugma routing'da saqlanadi;
+      * «❓ Yordam» (``stgs_help_hub``) — qo'llanma/FAQ submenyusi.
+
+    🧹 TOZA TARTIB (asosiy menyu bilan dublikatlar yo'q):
+      * «👥 Do'stlarni taklif» asosiy menyudan shu panelga ko'chirilgan
+        (stgs_referral — referral ekrani + kunlik bonus);
+      * «🎁 Bonuslar & Taklif» va «🧰 Vositalar» guruhlari olib
+        tashlangan — kunlik bonus referral ekranida, vositalar esa
+        o'z submenyusida (stgs_rewards / stgs_tools oqimlari eski
+        xabarlar uchun routing'da qoladi);
+      * «👤 Profil» alohida tugmasi YO'Q — panel matnining o'zi profil.
+
+    Callback'lar MAVJUD, sinovdan o'tgan ``stgs_*`` / ``sub_*`` oqimlariga
+    ulanadi — yangi handler/routing KIRITILMADI. Eski ``cab_*``
+    callback'lari chat tarixidagi eski xabarlar uchun routing'da
+    saqlanadi (backward compat). ``lang`` — foydalanuvchi tili
+    (uz/ru/en); callback_data tilga bog'liq emas.
     """
     from translations import settings_stats_t
 
@@ -995,6 +1021,12 @@ def get_settings_profile_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
                                  callback_data="stgs_about"),
         ],
         [
+            InlineKeyboardButton(settings_stats_t("ss_btn_premium", lang),
+                                 callback_data="sub_open"),
+            InlineKeyboardButton(settings_stats_t("ss_btn_help", lang),
+                                 callback_data="stgs_help_hub"),
+        ],
+        [
             _profile_support_button(lang),
             InlineKeyboardButton(settings_stats_t("ss_btn_close", lang),
                                  callback_data="stgs_back"),
@@ -1008,38 +1040,39 @@ def get_cabinet_inline_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
     🧹 FAZA 18: bu funksiya endi MANTIQNI SAQLAMAYDI — u to'liq kanonik
     quruvchiga yo'naltirilgan (delegation). Chat tarixidagi eski chaqiruvlar
     va testlar uchun API nomi saqlanadi; panel AYNAN bir xil qoladi
-    (8 tugma: Til / Post sozlamalari / Bildirishnomalar / Do'stlarni taklif /
-    To'lovlar / Bot haqida / Qo'llab-quvvatlash / ❌ Yopish).
+    (10 tugma: Til / Post sozlamalari / Bildirishnomalar / Do'stlarni
+    taklif / To'lovlar / Bot haqida / PRO / Yordam / Qo'llab-quvvatlash /
+    ❌ Yopish).
     """
     return get_settings_profile_keyboard(lang)
 
 
 # ============================================================
-# ⚙️ SOZLAMALAR — 8 TUGMALI HUB (4 qator × 2 tugma)
+# ⚙️ SOZLAMALAR / KO'PROQ — 10 TUGMALI HUB (5 qator × 2 tugma)
 # ------------------------------------------------------------
-# Asosiy menyudagi [⚙️ Sozlamalar] tugmasi shu panelni ochadi:
+# Asosiy menyudagi [⚙️ Sozlamalar / Ko'proq] tugmasi shu panelni ochadi:
 #
 #     [🌐 Til / Язык]         [✍️ Post sozlamalari]
 #     [🔔 Bildirishnomalar]   [👥 Do'stlarni taklif]
 #     [💳 To'lovlar tarixi]   [ℹ️ Bot haqida]
+#     [💎 PRO]                [❓ Yordam]
 #     [💬 Qo'llab-quvvatlash] [❌ Yopish]
 #
-# «👥 Do'stlarni taklif» asosiy menyudan shu hub'ga ko'chirildi,
-# «🎁 Bonuslar & Taklif» (kunlik bonus referral ekranida), «🧰 Vositalar»
-# va «❓ Yordam & Ma'lumot» guruhlari hub'dan olib tashlandi. Eski
-# callback'lar (stgs_rewards / stgs_tools / stgs_help_hub / stgs_profile
+# 3-BOSQICH: «💎 PRO» va «❓ Yordam» asosiy reply-menudan shu hub'ga
+# ko'chirildi. Eski callback'lar (stgs_rewards / stgs_tools / stgs_profile
 # kabilar) alohida handlerlarda saqlanadi — Telegram chat tarixidagi
 # eski inline tugmalar yangi oqimlarda "o'lik" bo'lib qolmaydi.
 # ============================================================
 
 
 def get_settings_hub_keyboard(lang: str = "uz", include_legacy: bool = False) -> InlineKeyboardMarkup:
-    """⚙️ Sozlamalar asosiy hub'i — KANONIK ``get_settings_profile_keyboard``.
+    """⚙️ Sozlamalar / Ko'proq hub'i — KANONIK ``get_settings_profile_keyboard``.
 
     🧹 FAZA 18: yagona manba endi ``get_settings_profile_keyboard`` — bu
-    funksiya ham faqat yo'naltiruvchi (delegation). 8 tugma (4 qator × 2):
-    Til / Post sozlamalari / Bildirishnomalar / Do'stlarni taklif /
-    To'lovlar / Bot haqida / Qo'llab-quvvatlash / Yopish.
+    funksiya ham faqat yo'naltiruvchi (delegation). 10 tugma
+    (5 qator × 2): Til / Post sozlamalari / Bildirishnomalar /
+    Do'stlarni taklif / To'lovlar / Bot haqida / PRO / Yordam /
+    Qo'llab-quvvatlash / Yopish.
 
     ``include_legacy`` avvalgi 8-tugmali API bilan chaqiruvchi kodlar uchun
     saqlangan. Legacy tugmalar endi yangi hub'da ko'rsatilmaydi; ularning

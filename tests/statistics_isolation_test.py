@@ -381,9 +381,15 @@ def _assert_personal_only(tag, text):
     check(f"{tag}: qolgan kreditlar (17) ko'rsatilgan", str(MY_CREDITS) in plain, plain[:200])
     check(f"{tag}: sarflangan kreditlar (12) ekranda YO'Q — faqat QOLGAN kredit",
           "Sarflangan" not in plain and "Потрачено" not in plain, plain[:200])
-    # Shaxsiy ekran aynan 5 qatordan iborat: sarlavha + 4 ta ko'rsatkich.
-    check(f"{tag}: ekran 5 qatordan iborat (sarlavha + 4 ko'rsatkich)",
-          len([ln for ln in text.split("\n") if ln.strip()]) == 5, repr(text)[:300])
+    # Shaxsiy ekran aynan 6 qatordan iborat: sarlavha + 4 ta ko'rsatkich
+    # + 3-BOSQICHning ANIQ tavsiya qatori (kuruq raqamlar EMAS).
+    check(f"{tag}: ekran 6 qatordan iborat (sarlavha + 4 ko'rsatkich + tavsiya)",
+          len([ln for ln in text.split("\n") if ln.strip()]) == 6, repr(text)[:300])
+    check(f"{tag}: 💡 aniq tavsiya qatori bor",
+          settings_stats_t("ss_my_advice_title", "uz") in text
+          or settings_stats_t("ss_my_advice_title", "ru") in text
+          or settings_stats_t("ss_my_advice_title", "en") in text,
+          repr(text)[:300])
 
 
 # ===========================================================================
@@ -478,14 +484,30 @@ def test_t4_builder_is_pure():
         text = statistics_mod.build_user_overview_text(MY_STATS, MY_CREDITS, lang)
         leaked = [m for m in ADMIN_STATS_MARKERS if m in text]
         check(f"T4[{lang}]: admin markeri yo'q", not leaked, str(leaked))
-        check(f"T4[{lang}]: 5 qator (sarlavha + 4)", len(text.split("\n")) == 5, repr(text)[:240])
+        # `advice` berilmagan holda eski 5-qatorli xulq saqlanadi
+        # (backward compatibility: barcha eski chaqiruvchilar o'zgarmaydi).
+        check(f"T4[{lang}]: advice berilmasa — 5 qator (sarlavha + 4)",
+              len(text.split("\n")) == 5, repr(text)[:240])
+        # 3-BOSQICH: advice berilganda +1 tavsiya qatori (soxta raqam yo'q).
+        advised = statistics_mod.build_user_overview_text(
+            MY_STATS, MY_CREDITS, lang,
+            {"kind": "best_time", "time": "19:00 - 21:00"})
+        check(f"T4[{lang}]: advice bilan — 6 qator (sarlavha + 4 + tavsiya)",
+              len(advised.split("\n")) == 6, repr(advised)[:240])
+        check(f"T4[{lang}]: tavsiya 3 tilda farqli",
+              len({statistics_mod.build_user_overview_text(
+                  MY_STATS, MY_CREDITS, c,
+                  {"kind": "best_time", "time": "19:00 - 21:00"})
+                  for c in LANGS}) == 3, "")
         check(f"T4[{lang}]: sarlavha ss_my_title",
               text.split("\n")[0] == settings_stats_t("ss_my_title", lang), text.split("\n")[0])
 
     # Bo'sh / None ma'lumot ham xavfsiz — nollar chiziladi, crash yo'q.
     empty = statistics_mod.build_user_overview_text(None, None, "uz")
     check("T4: stats=None xavfsiz (nollar)", "0" in _plain(empty), _plain(empty)[:160])
-    check("T4: stats=None — 5 qator", len(empty.split("\n")) == 5, repr(empty)[:240])
+    # stats=None → credits=0 → «PRO ga o'tish» tavsiyasi qo'shiladi (6 qator).
+    check("T4: stats=None — 6 qator (+ low-credits tavsiyasi)",
+          len(empty.split("\n")) == 6, repr(empty)[:240])
 
     # Admin builder'i esa O'Z navbatida shaxsiy qatorlarni chizmaydi —
     # ikki ekran matnshunosligi hech qayerda kesishmaydi.
@@ -525,7 +547,7 @@ def test_t5_admin_panel_full_stats():
           "adm_stats" in [b.callback_data for row in get_admin_dashboard_keyboard().inline_keyboard
                           for b in row])
 
-    # Asosiy 6 tugmali menyuda esa faqat shaxsiy «📊 Statistika» turadi.
+    # Asosiy 5 tugmali menyuda esa faqat shaxsiy «📊 Statistika» turadi.
     for lang in LANGS:
         for is_admin in (False, True):
             menu = get_main_keyboard(is_admin, lang=lang)
@@ -731,7 +753,7 @@ def test_t8_channel_analytics_round_trip():
     check("T8: qaytgan ekran tugmalari an_detail/an_close",
           _cbs(back_kb) == [CB_STATS_DETAIL, "an_close"], str(_cbs(back_kb)))
 
-    # 4) an_close — asosiy 6 tugmali menyuga chiqadi.
+    # 4) an_close — asosiy 5 tugmali menyuga chiqadi.
     q4 = _Query("an_close", message=msg)
     with _with_db(fake), _quiet():
         state4 = _run(analytics_mod.analytics_view_callback(_query_update(q4), _ctx("uz")))
@@ -739,8 +761,8 @@ def test_t8_channel_analytics_round_trip():
     closed = q4.message.sent[-1] if q4.message.sent else {}
     closed_labels = [b.text for row in (closed.get("reply_markup").keyboard
                                         if closed.get("reply_markup") else []) for b in row]
-    check("T8: an_close — asosiy 6 tugmali menyu qaytdi",
-          len(closed_labels) == 6, str(closed_labels))
+    check("T8: an_close — asosiy 5 tugmali menyu qaytdi",
+          len(closed_labels) == 5, str(closed_labels))
 
 
 # ===========================================================================
