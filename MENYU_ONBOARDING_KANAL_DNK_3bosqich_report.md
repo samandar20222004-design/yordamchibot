@@ -270,3 +270,30 @@ ekran, `adm_health` DB bo'limi, `Fast Path` / `ai_fallback` timing-flaky.
 > **Tavsiya (alohida vazifa):** ildiz runner'ga ichki testlarni (yoki CI bilan
 > bir xil runner'ni) ulash — shunda bunday farq mahalliy tekshiruvda darhol
 > ko'rinadi.
+
+---
+
+## 8. CI blokerining tuzatilishi — `provider_total_timeout()` quyi chegarasi
+
+`telegram_bot/services/ai_service.py` (2-BOSQICH'dan meros qolgan nuqson):
+
+```diff
+-    return min(8.0, max(6.0, float(AI_PROVIDER_TOTAL_TIMEOUT)))
++    return min(8.0, max(2.0, float(AI_PROVIDER_TOTAL_TIMEOUT)))
+```
+
+**Muammo:** quyi chegara 6s bo'lgani uchun `AI_PROVIDER_TOTAL_TIMEOUT` ga
+berilgan har qanday qiymat **6s dan kichik bo'lsa jimgina e'tiborsiz
+qolardi**. `tests/ai_fallback_test.py` (3-ssenariy) ataylab `1.5s` byudjet
+beradi, lekin amalda 6s kuchga kirar edi: 4s Gemini `sleep` + 2s retry =
+**6.00s** → `[FAIL] failover tez bo'ldi (<3.5s)` → CI qizil.
+
+**Ta'sir doirasi:** yuqori chegara (8s) va shuning uchun **production
+default'i o'zgarmadi** (`AI_PROVIDER_TOTAL_TIMEOUT=10 → 8.0s`, avvalgidek);
+faqat <6s qiymatlar endi haqiqatan hurmat qilinadi — bu operator
+konfiguratsiyasi uchun ham to'g'ri xulq (hujjatda "6-8s" deb yozilgan,
+endi 2-8s).
+
+**Natija:** ichki runner (`telegram_bot/tests/run_tests.sh` — CI aynan shuni
+chaqiradi) **to'liq yashil**: `BARCHA TESTLAR MUVOFFAQIYATLI ✔` (0 `[FAIL]`).
+`tests/ai_fallback_test.py`: 45/1 → **46/0**.

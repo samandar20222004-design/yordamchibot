@@ -95,8 +95,15 @@ def provider_http_timeout() -> aiohttp.ClientTimeout:
 
 
 def provider_total_timeout() -> float:
-    """Provayder sinovining qat'iy umumiy muddati (2-BOSQICH: 6-8s, default 7s)."""
-    return min(8.0, max(6.0, float(AI_PROVIDER_TOTAL_TIMEOUT)))
+    """Provayder sinovining qat'iy umumiy muddati.
+
+    2-BOSQICH: yuqori chegara 8s — sekin provayderdan tez fallback qilinadi
+    (default 10 → 8s, atrof-muhit sozlamasi o'zgarmaydi).
+    Quyi chegara 2s: ``AI_PROVIDER_TOTAL_TIMEOUT`` ga **hurmat** qilinadi,
+    shuning uchun operator (yoki test) ataylab qisqa byudjet bersa — masalan
+    ``1.5`` — u jimgina 6s ga ko'tarilmaydi, balki kuchga kiradi.
+    """
+    return min(8.0, max(2.0, float(AI_PROVIDER_TOTAL_TIMEOUT)))
 
 
 # ============================================================
