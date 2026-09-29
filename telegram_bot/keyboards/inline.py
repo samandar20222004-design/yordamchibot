@@ -2,7 +2,7 @@ import unicodedata
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
-from locales.translations import get_text
+from locales.translations import get_text, normalize_lang
 from keyboards.callback_data import (  # noqa: F401 — re-export (eski importlar uchun)
     CALLBACK_DATA_MAX_BYTES,
     CB_CHANNEL_AUTOPILOT,
@@ -959,7 +959,7 @@ def _profile_support_button(lang: str) -> InlineKeyboardButton:
 
 
 def get_settings_profile_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
-    """⚙️ Sozlamalar / Ko'proq — 5 QATOR × 2 TUGMA = 10 TUGMALI panel (KANONIK).
+    """⚙️ Sozlamalar / Ko'proq — 4 QATOR × 2 TUGMA = 8 TUGMALI panel (KANONIK).
 
     🧹 FAZA 18 — DUBLIKAT KLAVIATURALAR TOZALANDI: bu funksiya profil/
     kabinet/sozlamalar panelining YAGONA MANBASI. Boshqa barcha nomlar
@@ -972,9 +972,8 @@ def get_settings_profile_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
 
         [🌐 Til / Язык]         [✍️ Post sozlamalari]
         [🔔 Bildirishnomalar]   [👥 Do'stlarni taklif]
-        [💳 To'lovlar tarixi]   [ℹ️ Bot haqida]
-        [💎 PRO]                [❓ Yordam]
-        [💬 Qo'llab-quvvatlash] [❌ Yopish]
+        [💳 To'lovlar tarixi]   [💎 PRO]
+        [ℹ️ Yordam va Qo'llanma] [❌ Yopish]
 
     🧭 NIMA O'ZGARDI: asosiy reply-menudan chiqarilgan IKKILAMCHI
     bo'limlar shu panelga ko'chirildi — shu bilan foydalanuvchi uchun
@@ -982,7 +981,7 @@ def get_settings_profile_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
 
       * «💎 PRO» (``sub_open``) — asosiy menyudagi «💎 PRO» tugmasi
         o'rniga shu qator; eski reply-tugma routing'da saqlanadi;
-      * «❓ Yordam» (``stgs_help_hub``) — qo'llanma/FAQ submenyusi.
+      * «ℹ️ Yordam va Qo'llanma» (``stgs_help_hub``) — yagona yordam oynasi.
 
     🧹 TOZA TARTIB (asosiy menyu bilan dublikatlar yo'q):
       * «👥 Do'stlarni taklif» asosiy menyudan shu panelga ko'chirilgan
@@ -1017,17 +1016,15 @@ def get_settings_profile_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
         [
             InlineKeyboardButton(settings_stats_t("ss_btn_payments", lang),
                                  callback_data="stgs_pay"),
-            InlineKeyboardButton(settings_stats_t("ss_help_hub_about", lang),
-                                 callback_data="stgs_about"),
-        ],
-        [
             InlineKeyboardButton(settings_stats_t("ss_btn_premium", lang),
                                  callback_data="sub_open"),
-            InlineKeyboardButton(settings_stats_t("ss_btn_help", lang),
-                                 callback_data="stgs_help_hub"),
         ],
         [
-            _profile_support_button(lang),
+            InlineKeyboardButton({
+                "uz": "ℹ️ Yordam va Qo'llanma",
+                "ru": "ℹ️ Помощь и руководство",
+                "en": "ℹ️ Help and Guide",
+            }[normalize_lang(lang)], callback_data="stgs_help_hub"),
             InlineKeyboardButton(settings_stats_t("ss_btn_close", lang),
                                  callback_data="stgs_back"),
         ],
@@ -1040,9 +1037,8 @@ def get_cabinet_inline_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
     🧹 FAZA 18: bu funksiya endi MANTIQNI SAQLAMAYDI — u to'liq kanonik
     quruvchiga yo'naltirilgan (delegation). Chat tarixidagi eski chaqiruvlar
     va testlar uchun API nomi saqlanadi; panel AYNAN bir xil qoladi
-    (10 tugma: Til / Post sozlamalari / Bildirishnomalar / Do'stlarni
-    taklif / To'lovlar / Bot haqida / PRO / Yordam / Qo'llab-quvvatlash /
-    ❌ Yopish).
+    (8 tugma: Til / Post sozlamalari / Bildirishnomalar / Do'stlarni
+    taklif / To'lovlar / PRO / Yordam va Qo'llanma / ❌ Yopish).
     """
     return get_settings_profile_keyboard(lang)
 
@@ -1125,11 +1121,7 @@ def get_settings_help_hub_keyboard(
         settings_stats_t("ss_help_hub_support", lang), **support_kwargs
     )
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton(settings_stats_t("ss_help_hub_guide", lang),
-                              callback_data="help_hub")],
         [support_button],
-        [InlineKeyboardButton(settings_stats_t("ss_help_hub_about", lang),
-                              callback_data="stgs_about")],
         [InlineKeyboardButton(settings_stats_t("ss_btn_back", lang),
                               callback_data="stgs_hub")],
     ])
@@ -1386,6 +1378,7 @@ def get_manual_reaction_keyboard(selected=None, lang: str = "uz") -> InlineKeybo
         [👍] [👎]
         [🔥] [❤️] [👏]
         [➕ O'zim kiritaman] [◀️ Orqaga]
+        [✅ Saqlash va davom etish]
 
     Har bir preset tugma bosilganda TANLANADI/O'CHIRILADI (toggle) va
     tanlanganlar ``✅`` belgisi bilan ko'rsatiladi. [◀️ Orqaga] preview'ga
@@ -1411,6 +1404,11 @@ def get_manual_reaction_keyboard(selected=None, lang: str = "uz") -> InlineKeybo
         InlineKeyboardButton(manual_post_t("mp_btn_back_panel", lang),
                              callback_data=CB_MANUAL_REACT_BACK),
     ])
+    rows.append([InlineKeyboardButton({
+        "uz": "✅ Saqlash va davom etish",
+        "ru": "✅ Сохранить и продолжить",
+        "en": "✅ Save and continue",
+    }[normalize_lang(lang)], callback_data=CB_MANUAL_REACT_BACK)])
     return InlineKeyboardMarkup(rows)
 
 
