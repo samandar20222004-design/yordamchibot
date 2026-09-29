@@ -119,6 +119,7 @@ UD_DELIVERY = "mnp_delivery"
 UD_CONTENT = "mnp_content"
 UD_POST_TYPE = "mnp_post_type"
 UD_FILE_ID = "mnp_file_id"
+UD_MEDIA_GROUP = "mnp_media_group"
 UD_MODE = "mnp_mode"
 UD_WHEN = "mnp_when"            # ISO datetime (rejalashtirish uchun)
 UD_REPEAT_TIME = "mnp_repeat_time"  # "HH:MM" (takroriy e'lon uchun)
@@ -159,7 +160,7 @@ def _has_content(context) -> bool:
 
 def _clear_manual_state(context) -> None:
     """Oddiy post oqimi ma'lumotlarini tozalaydi (FSM kontekstidan tashqari)."""
-    for key in (UD_CONTENT, UD_POST_TYPE, UD_FILE_ID, UD_MODE, UD_WHEN,
+    for key in (UD_CONTENT, UD_POST_TYPE, UD_FILE_ID, UD_MEDIA_GROUP, UD_MODE, UD_WHEN,
                 UD_REPEAT_TIME, UD_DUP_FORCE, UD_DUP_CHANNEL_ID,
                 UD_DUP_CHANNEL_TITLE, UD_REACTIONS, UD_URL_BTN_TEXT,
                 UD_URL_BTN_URL, UD_DELIVERY):
@@ -353,6 +354,13 @@ def _smart_parse_url_button(raw_text: str):
 # ============================================================
 # PREVIEW — postning o'zi (AI'siz, o'zgarishsiz) + universal panel
 # ============================================================
+def _manual_album_warning(context, lang: str) -> str:
+    """Albomda tugma/reaksiya sozlanganda cheklov eslatmasi."""
+    if not context.user_data.get(UD_MEDIA_GROUP):
+        return ""
+    return "\n\n" + manual_post_t("mp_album_warning", lang)
+
+
 def _manual_reactions(context) -> list:
     """Saqlangan reaksiya emojilari (normal, takrorsiz ro'yxat)."""
     return normalize_custom_reaction_emojis(
@@ -747,6 +755,7 @@ async def manual_content_received(update: Update, context: ContextTypes.DEFAULT_
     context.user_data[UD_CONTENT] = text_input
     context.user_data[UD_POST_TYPE] = post_type if file_id else "text"
     context.user_data[UD_FILE_ID] = file_id
+    context.user_data[UD_MEDIA_GROUP] = bool(getattr(msg, "media_group_id", None))
 
     await _show_preview(msg, context, lang)
     return MANUAL_PREVIEW
@@ -769,6 +778,7 @@ async def manual_edit_received(update: Update, context: ContextTypes.DEFAULT_TYP
     if file_id:
         context.user_data[UD_POST_TYPE] = post_type
         context.user_data[UD_FILE_ID] = file_id
+        context.user_data[UD_MEDIA_GROUP] = bool(getattr(msg, "media_group_id", None))
     context.user_data[UD_CONTENT] = text_input
 
     await _show_preview(msg, context, lang)
@@ -1027,7 +1037,8 @@ async def manual_panel_callback(update: Update, context: ContextTypes.DEFAULT_TY
         # Preset tanlash oynasi: [👍/👎] | [🔥/❤️/👏] + ➕ O'zim kiritaman
         # + ◀️ Orqaga. Tanlov shu xabarning o'zida (toggle) yangilanadi.
         await query.message.reply_text(
-            manual_post_t("mp_react_prompt", lang),
+            manual_post_t("mp_react_prompt", lang)
+            + _manual_album_warning(context, lang),
             reply_markup=get_manual_reaction_keyboard(
                 _manual_reactions(context), lang),
             parse_mode="HTML",
@@ -1072,7 +1083,8 @@ async def manual_panel_callback(update: Update, context: ContextTypes.DEFAULT_TY
     # --- 🔗 HAVOLALI (URL) TUGMA (2-qadam UI/UX polish) ---
     if data == CB_MANUAL_URL_BTN:
         await query.message.reply_text(
-            manual_post_t("mp_url_prompt", lang),
+            manual_post_t("mp_url_prompt", lang)
+            + _manual_album_warning(context, lang),
             reply_markup=get_cancel_keyboard(lang),
             parse_mode="HTML",
         )
