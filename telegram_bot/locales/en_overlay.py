@@ -1060,6 +1060,9 @@ EN_OVERLAY = {
         "• <code>in 2 hours</code>\n\n"
         "🕒 <i>All times are Tashkent time (UTC+5).</i>"
     ),
+    "np_time_set": (
+        "🕒 Time set: {time}. You can still change reactions, link or settings."
+    ),
     "np_daily_time_ask": (
         "🔁 <b>What time should it go out daily?</b>\n"
         "E.g.: <code>10:00</code> or <code>18:30</code>"

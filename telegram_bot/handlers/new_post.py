@@ -39,6 +39,7 @@ from utils.helpers import (
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from locales.translations import clear_fsm_data, get_lang, get_text
 from utils.date_format import format_datetime, format_time, weekday_label
+from keyboards.callback_data import cb as _cb_safe
 
 tashkent_tz = pytz.timezone("Asia/Tashkent")
 
@@ -1710,7 +1711,7 @@ async def confirm_post_callback(update: Update, context: ContextTypes.DEFAULT_TY
         keyboard = []
         for ch_id, ch_title in channels:
             label = btn_label(ch_title, max_length=20)
-            keyboard.append([InlineKeyboardButton(f"📢 {label}", callback_data=f"confirm_post:ch:{ch_id}")])
+            keyboard.append([InlineKeyboardButton(f"📢 {label}", callback_data=_cb_safe("confirm_post:ch", ch_id))])
         keyboard.append([InlineKeyboardButton(get_text("np_edit_back_btn", lang), callback_data="confirm_post:back")])
         await query.message.reply_text(
             get_text("new_post_choose_channel", lang),
@@ -1786,7 +1787,7 @@ async def confirm_post_callback(update: Update, context: ContextTypes.DEFAULT_TY
                     keyboard = []
                     for ch_id, ch_title in channels:
                         label = btn_label(ch_title, max_length=20)
-                        keyboard.append([InlineKeyboardButton(f"📢 {label}", callback_data=f"confirm_post:ch:{ch_id}")])
+                        keyboard.append([InlineKeyboardButton(f"📢 {label}", callback_data=_cb_safe("confirm_post:ch", ch_id))])
                     keyboard.append([InlineKeyboardButton(get_text("np_edit_back_btn", lang), callback_data="confirm_post:back")])
                     await query.message.reply_text(
                         get_text("new_post_choose_channel", lang),
@@ -1928,7 +1929,7 @@ async def confirm_post_callback(update: Update, context: ContextTypes.DEFAULT_TY
             keyboard = []
             for ch_id, ch_title in channels:
                 label = btn_label(ch_title, max_length=20)
-                keyboard.append([InlineKeyboardButton(f"📢 {label}", callback_data=f"confirm_post:ch:{ch_id}")])
+                keyboard.append([InlineKeyboardButton(f"📢 {label}", callback_data=_cb_safe("confirm_post:ch", ch_id))])
             keyboard.append([InlineKeyboardButton(get_text("np_edit_back_btn", lang), callback_data="confirm_post:back")])
             await query.message.reply_text(
                 get_text("new_post_choose_channel", lang),

@@ -759,6 +759,9 @@ TRANSLATIONS = {
             "• <code>2 soatdan keyin</code>\n\n"
             "🕒 <i>Barcha vaqtlar Toshkent vaqti (UTC+5) bo'yicha.</i>"
         ),
+        "np_time_set": (
+            "🕒 Vaqt belgilandi: {time}. Yana reaksiya, havola yoki sozlamalarni o'zgartirishingiz mumkin."
+        ),
         "np_daily_time_ask": (
             "🔁 <b>Har kuni soat nechida chiqsin?</b>\n"
             "Masalan: <code>10:00</code> yoki <code>18:30</code>"
@@ -2764,6 +2767,9 @@ TRANSLATIONS = {
             "• <code>завтра 18:00</code>\n"
             "• <code>через 2 часа</code>\n\n"
             "🕒 <i>Всё время указывается по Ташкенту (UTC+5).</i>"
+        ),
+        "np_time_set": (
+            "🕒 Время установлено: {time}. Вы можете изменить реакции, ссылку или настройки."
         ),
         "np_daily_time_ask": (
             "🔁 <b>Во сколько выходить ежедневно?</b>\n"
