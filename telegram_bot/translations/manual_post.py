@@ -78,6 +78,11 @@ MANUAL_POST_I18N = {
             "masalan: <code>👍 ❤️ 🔥</code>."
         ),
         "mp_reactions_on": "❤️ Reaksiyalar: {emojis}",
+        "mp_album_warning": (
+            "⚠️ Diqqat: Telegram qoidasiga ko'ra, tugmali postlar faqat bitta "
+            "rasm yoki video bilan yuboriladi. Agar albomga tugma qo'shsangiz, "
+            "faqat birinchi media tanlanadi."
+        ),
         # --- 🔗 Havolali (URL) tugma oqimi ---
         "mp_url_prompt": (
             "🔗 <b>Havolali tugma.</b>\n\n"
@@ -225,6 +230,11 @@ MANUAL_POST_I18N = {
             "<code>👍 ❤️ 🔥</code>."
         ),
         "mp_reactions_on": "❤️ Реакции: {emojis}",
+        "mp_album_warning": (
+            "⚠️ Внимание: по правилам Telegram посты с кнопками отправляются "
+            "только с одним фото или видео. Если добавить кнопку к альбому, "
+            "будет выбрано только первое медиа."
+        ),
         # --- 🔗 Поток кнопки-ссылки ---
         "mp_url_prompt": (
             "🔗 <b>Кнопка-ссылка.</b>\n\n"
@@ -362,6 +372,11 @@ MANUAL_POST_I18N = {
             "<code>👍 ❤️ 🔥</code>."
         ),
         "mp_reactions_on": "❤️ Reactions: {emojis}",
+        "mp_album_warning": (
+            "⚠️ Attention: according to Telegram's rules, posts with buttons can "
+            "be sent with only one photo or video. If you add a button to an "
+            "album, only the first media item will be selected."
+        ),
         # --- 🔗 URL button flow ---
         "mp_url_prompt": (
             "🔗 <b>Link button.</b>\n\n"
