@@ -15,7 +15,7 @@ Qamrov (topshiriq spetsifikatsiyasi bilan birma-bir):
            [✏️ Tahrirlash | ❌ Bekor qilish]
            (uz/ru/en yorliqlar, 64-bayt kafolati).
   TEST 2:  ❤️ REAKSIYALAR oqimi — preset klaviatura ([👍/👎] | [🔥/❤️/👏]
-           | [➕ O'zim kiritaman | ◀️ Orqaga]), toggle tanlash, qo'lda
+           | [➕ O'zim kiritaman | ◀️ Orqaga] | [✅ Saqlash va davom etish]), toggle, qo'lda
            kiritish, preview yangilanishi va add_post'ga uzatilishi.
   TEST 3:  🔗 HAVOLALI TUGMA oqimi — format yo'riqnomasi, to'g'ri kiritma
            qabuli (preview'da HAQIQIY URL tugma), XAVFLI URL'larning
@@ -311,7 +311,7 @@ def test_panel_four_rows_spec():
 def test_reactions_flow():
     print("\n== TEST 2: ❤️ Reaksiyalar — presetlar, toggle, preview, publish ==")
     # a) [❤️ Reaksiyalar] → preset klaviatura (SPEKS: [👍/👎] | [🔥/❤️/👏]
-    #    | [➕ O'zim kiritaman | ◀️ Orqaga]).
+    #    | [➕ O'zim kiritaman | ◀️ Orqaga] | [✅ Saqlash va davom etish]).
     for lang in LANGS:
         ctx = _ctx(lang)
         try:
@@ -328,8 +328,8 @@ def test_reactions_flow():
             kb = prompt.get("reply_markup")
             check(f"[{lang}] reaksiya klaviaturasi bor", kb is not None, "")
             rows = _markup_rows(kb)
-            check(f"[{lang}] preset: 3 qator (2 / 3 / 2 tugma)",
-                  [len(r) for r in rows] == [2, 3, 2], str([len(r) for r in rows]))
+            check(f"[{lang}] preset: 4 qator (2 / 3 / 2 / 1 tugma)",
+                  [len(r) for r in rows] == [2, 3, 2, 1], str([len(r) for r in rows]))
             check(f"[{lang}] qator1: 👍 va 👎",
                   [b.callback_data for b in rows[0]] == [
                       manual_reaction_toggle_callback("👍"),

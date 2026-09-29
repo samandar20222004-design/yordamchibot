@@ -594,7 +594,7 @@ def test_one_time_ticket_flow():
     check("[◀️ Orqaga] → ConversationHandler.END",
           state5 == ConversationHandler.END, str(state5))
     check("[◀️ Orqaga] → ⚙️ Sozlamalar hub'i qayta chizildi",
-          bool(query.edits) and "help_support" in _flat_cbs(query.screen.get("markup")),
+          bool(query.edits) and "stgs_help_hub" in _flat_cbs(query.screen.get("markup")),
           str(_flat_cbs(query.screen.get("markup"))))
 
     # 1g-2) Router darajasidagi isbot: 540 holatida HAM matn, HAM rasm+izoh
@@ -981,21 +981,20 @@ def test_regression_and_parity():
         check(f"database.{fn_name}() mavjud",
               callable(getattr(db_mod, fn_name, None)))
 
-    # ⚙️ Sozlamalar / Ko'proq hub'i — 10 tugma (5x2), help_support o'z joyida.
+    # ⚙️ Sozlamalar / Ko'proq — 8 tugma (4x2), support yordam oynasida.
     #    (3-BOSQICH: PRO va Yordam asosiy reply-menudan shu hub'ga ko'chirildi.)
-    from keyboards.inline import (get_cabinet_inline_keyboard,
+    from keyboards.inline import (get_settings_help_hub_keyboard,
                                   get_settings_hub_keyboard,
                                   get_support_ticket_keyboard)
 
     hub_cbs = _flat_cbs(get_settings_hub_keyboard("uz"))
-    check("hub: 10 tugma (5x2) saqlangan",
+    check("hub: 8 tugma (4x2), yagona yordam kirishi",
           hub_cbs == ["stgs_lang", "stgs_post", "stgs_notif", "stgs_referral",
-                      "stgs_pay", "stgs_about", "sub_open", "stgs_help_hub",
-                      "help_support", "stgs_back"],
+                      "stgs_pay", "sub_open", "stgs_help_hub", "stgs_back"],
           str(hub_cbs))
-    profile_buttons = [b for row in get_cabinet_inline_keyboard("uz").inline_keyboard
+    profile_buttons = [b for row in get_settings_help_hub_keyboard("uz").inline_keyboard
                        for b in row if b.text.endswith("Qo'llab-quvvatlash")]
-    check("profil: 💬 tugmasi bot ICHIDAGI oqimni ochadi (URL emas)",
+    check("yordam: 💬 tugmasi bot ICHIDAGI oqimni ochadi (URL emas)",
           profile_buttons and profile_buttons[0].callback_data == "help_support"
           and not profile_buttons[0].url, str(profile_buttons))
     for lang in LANGS:

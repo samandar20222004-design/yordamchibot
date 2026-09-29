@@ -1020,11 +1020,8 @@ def get_settings_profile_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
                                  callback_data="sub_open"),
         ],
         [
-            InlineKeyboardButton({
-                "uz": "ℹ️ Yordam va Qo'llanma",
-                "ru": "ℹ️ Помощь и руководство",
-                "en": "ℹ️ Help and Guide",
-            }[normalize_lang(lang)], callback_data="stgs_help_hub"),
+            InlineKeyboardButton(settings_stats_t("ss_btn_help", lang),
+                                 callback_data="stgs_help_hub"),
             InlineKeyboardButton(settings_stats_t("ss_btn_close", lang),
                                  callback_data="stgs_back"),
         ],

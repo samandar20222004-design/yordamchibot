@@ -1127,17 +1127,13 @@ def test_main_menu_layout_v2():
     check("extras: yopish", ex[2][0] == ("❌ Yopish", "extra_close"), str(ex[2]))
 
     cab = [[(b.text, b.callback_data) for b in row] for row in get_cabinet_inline_keyboard().inline_keyboard]
-    # ⚙️ Sozlamalar / KO'PROQ — 10 TUGMALI PANEL (5x2). «👥 Do'stlarni
-    # taklif» va 3-BOSQICHda «💎 PRO» hamda «❓ Yordam» asosiy menyudan
-    # shu panelga ko'chirildi; «🎁 Bonuslar & Taklif» → referral
-    # ekranidagi kunlik bonus, «💬 Qo'llab-quvvatlash» → ichki oqim.
-    check("kabinet: 5 qator (10 tugmali panel)", len(cab) == 5, str(cab))
+    # Yordam, bot haqida va support bitta yordam oynasiga birlashtirilgan.
+    check("kabinet: 4 qator (8 tugmali panel)", len(cab) == 4, str(cab))
     expected = [
         [("🌐 Til / Язык", "stgs_lang"), ("✍️ Post sozlamalari", "stgs_post")],
         [("🔔 Bildirishnomalar", "stgs_notif"), ("👥 Do'stlarni taklif", "stgs_referral")],
-        [("💳 To'lovlar tarixi", "stgs_pay"), ("ℹ️ Bot haqida", "stgs_about")],
-        [("💎 PRO", "sub_open"), ("❓ Yordam", "stgs_help_hub")],
-        [("💬 Qo'llab-quvvatlash", "help_support"), ("❌ Yopish", "stgs_back")],
+        [("💳 To'lovlar tarixi", "stgs_pay"), ("💎 PRO", "sub_open")],
+        [("ℹ️ Yordam va Qo'llanma", "stgs_help_hub"), ("❌ Yopish", "stgs_back")],
     ]
     check("kabinet tartibi", cab == expected, str(cab))
     check("kabinet: cab_lang tugmasi YO'Q",
@@ -6169,13 +6165,12 @@ def test_cabinet_i18n_suite():
     check("kabinet inline ru: yorliqlar tarjimasi",
           settings_stats_t("ss_btn_lang", "ru") in cab_texts
           and settings_stats_t("ss_btn_close", "ru") in cab_texts, str(cab_texts))
-    # Sozlamalar / Ko'proq — 10 tugmali panel (5x2, hub bilan bir xil);
+    # Sozlamalar / Ko'proq — 8 tugmali panel (4x2, hub bilan bir xil);
     # eski cab_* va guruh callback'lari FAQAT routing'da saqlanadi.
-    check("kabinet inline ru: callback_data (10 tugmali panel)",
+    check("kabinet inline ru: callback_data (8 tugmali panel)",
           cab_cbs == ["stgs_lang", "stgs_post", "stgs_notif",
-                      "stgs_referral", "stgs_pay", "stgs_about",
-                      "sub_open", "stgs_help_hub",
-                      "help_support", "stgs_back"], str(cab_cbs))
+                      "stgs_referral", "stgs_pay", "sub_open",
+                      "stgs_help_hub", "stgs_back"], str(cab_cbs))
     check("kabinet inline uz: default",
           [b.text for row in get_cabinet_inline_keyboard().inline_keyboard for b in row][0]
           == settings_stats_t("ss_btn_lang", "uz"))

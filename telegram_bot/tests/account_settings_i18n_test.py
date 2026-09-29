@@ -150,11 +150,8 @@ def test_main_menu_button_3_langs():
 def test_cabinet_inline_keyboard_3_langs():
     """Kabinet inline klaviaturasi 3 tilda to'g'ri yorliqlar va bir xil callback.
 
-    Sozlamalar / Ko'proq endi 10 tugmali simmetrik panel (hub bilan bir xil,
-    5x2): Til / Post sozlamalari / Bildirishnomalar / Do'stlarni taklif /
-    To'lovlar tarixi / Bot haqida / PRO / Yordam / Qo'llab-quvvatlash /
-    Yopish. (3-BOSQICH: PRO va Yordam asosiy reply-menudan shu panelga
-    ko'chirildi.)
+    Sozlamalar / Ko'proq — 8 tugma (4x2). Yordam, bot haqida va
+    qo'llab-quvvatlash yagona yordam oynasida.
     """
     print("== Kabinet inline klaviaturasi (uz/ru/en) ==")
     from keyboards.inline import get_cabinet_inline_keyboard
@@ -162,28 +159,25 @@ def test_cabinet_inline_keyboard_3_langs():
     # UZ inline keyboard
     kb_uz = get_cabinet_inline_keyboard("uz")
     rows_uz = [[(b.text, b.callback_data) for b in row] for row in kb_uz.inline_keyboard]
-    check("uz kabinet: 5 qator (10 tugmali panel)",
-          len(rows_uz) == 5, str(len(rows_uz)))
+    check("uz kabinet: 4 qator (8 tugmali panel)",
+          len(rows_uz) == 4, str(len(rows_uz)))
     check("uz kabinet: Til + Post sozlamalari",
           rows_uz[0] == [("🌐 Til / Язык", "stgs_lang"),
                          ("✍️ Post sozlamalari", "stgs_post")], str(rows_uz[0]))
     check("uz kabinet: Bildirishnomalar + Do'stlarni taklif",
           rows_uz[1] == [("🔔 Bildirishnomalar", "stgs_notif"),
                          ("👥 Do'stlarni taklif", "stgs_referral")], str(rows_uz[1]))
-    check("uz kabinet: To'lovlar tarixi + Bot haqida",
+    check("uz kabinet: To'lovlar tarixi + PRO",
           rows_uz[2] == [("💳 To'lovlar tarixi", "stgs_pay"),
-                         ("ℹ️ Bot haqida", "stgs_about")], str(rows_uz[2]))
-    check("uz kabinet: PRO + Yordam (asosiy menudan ko'chirilgan)",
-          rows_uz[3] == [("💎 PRO", "sub_open"),
-                         ("❓ Yordam", "stgs_help_hub")], str(rows_uz[3]))
-    check("uz kabinet: Qo'llab-quvvatlash + Yopish",
-          rows_uz[4] == [("💬 Qo'llab-quvvatlash", "help_support"),
-                         ("❌ Yopish", "stgs_back")], str(rows_uz[4]))
+                         ("💎 PRO", "sub_open")], str(rows_uz[2]))
+    check("uz kabinet: Yordam va Qo'llanma + Yopish",
+          rows_uz[3] == [("ℹ️ Yordam va Qo'llanma", "stgs_help_hub"),
+                         ("❌ Yopish", "stgs_back")], str(rows_uz[3]))
 
     # RU inline keyboard
     kb_ru = get_cabinet_inline_keyboard("ru")
     rows_ru = [[(b.text, b.callback_data) for b in row] for row in kb_ru.inline_keyboard]
-    check("ru kabinet: 5 qator (10 tugmali panel)", len(rows_ru) == 5)
+    check("ru kabinet: 4 qator (8 tugmali panel)", len(rows_ru) == 4)
     check("ru kabinet: Язык tugmasi",
           rows_ru[0][0] == ("🌐 Язык / Language", "stgs_lang"), str(rows_ru[0]))
     check("ru kabinet: eski Til (cab_lang) tugmasi YO'Q",
@@ -192,7 +186,7 @@ def test_cabinet_inline_keyboard_3_langs():
     # EN inline keyboard
     kb_en = get_cabinet_inline_keyboard("en")
     rows_en = [[(b.text, b.callback_data) for b in row] for row in kb_en.inline_keyboard]
-    check("en kabinet: 5 qator (10 tugmali panel)", len(rows_en) == 5)
+    check("en kabinet: 4 qator (8 tugmali panel)", len(rows_en) == 4)
     check("en kabinet: Language tugmasi",
           rows_en[0][0] == ("🌐 Language", "stgs_lang"), str(rows_en[0]))
     check("en kabinet: eski Til (cab_lang) tugmasi YO'Q",
@@ -206,19 +200,14 @@ def test_cabinet_inline_keyboard_3_langs():
     check("callback_data ru == en", cbs_ru == cbs_en)
 
     # Har bir callback mavjud (barchasi MAVJUD stgs_*/help oqimlariga ulanadi)
-    # 10 tugmali panel — Til/Post/Notif/Referral/Pay/About/PRO/Yordam/
-    # Support/Yopish. Eski GURUH tugmalari (stgs_rewards, stgs_tools) va
-    # cab_* dublikatlari paneldan OLIB TASHLANDI — routing'da saqlanadi.
-    # 3-BOSQICH: «❓ Yordam» (stgs_help_hub) endi ATAYLAB panelda —
-    # asosiy reply-menudan shu yerda chiziladi.
+    # Eski about/support callback'lari routing'da qoladi, hub'da esa YO'Q.
     expected_cbs = [
         "stgs_lang", "stgs_post", "stgs_pay", "stgs_notif",
-        "stgs_referral", "stgs_about", "sub_open", "stgs_help_hub",
-        "help_support", "stgs_back",
+        "stgs_referral", "sub_open", "stgs_help_hub", "stgs_back",
     ]
     for cb in expected_cbs:
         check(f"callback '{cb}' mavjud", cb in cbs_uz)
-    for cb in ("stgs_rewards", "stgs_tools", "close_cabinet"):
+    for cb in ("stgs_rewards", "stgs_tools", "close_cabinet", "stgs_about", "help_support"):
         check(f"eski guruh callback '{cb}' kabinetda YO'Q", cb not in cbs_uz)
     removed_cbs = [
         "cab_channels", "cab_analytics", "cab_pending", "cab_queue",

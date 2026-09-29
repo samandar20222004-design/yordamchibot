@@ -134,14 +134,13 @@ def test_1_prompt_dynamic_date_and_anti_hallucination():
 
 
 # ---------------------------------------------------------------------------
-# TEST 2 — ⚙️ SOZLAMALAR / KO'PROQ: SIMMETRIK 10 TUGMA / 5 QATOR × 2
-# (3-BOSQICH: «💎 PRO» va «❓ Yordam» asosiy reply-menudan shu hub'ga
-#  ko'chirildi — panel 8 tadan 10 tagacha kengaydi.)
+# TEST 2 — ⚙️ SOZLAMALAR / KO'PROQ: SIMMETRIK 8 TUGMA / 4 QATOR × 2
+# About/guide/support yagona yordam oynasiga birlashtirildi.
 # ---------------------------------------------------------------------------
 EXPECTED_SETTINGS_CBS = (
     "stgs_lang", "stgs_post", "stgs_notif", "stgs_referral",
-    "stgs_pay", "stgs_about", "sub_open", "stgs_help_hub",
-    "help_support", "stgs_back",
+    "stgs_pay", "sub_open", "stgs_help_hub",
+    "stgs_back",
 )
 
 
@@ -150,7 +149,7 @@ def _kb_rows(kb):
 
 
 def test_2_settings_symmetric_8_button_layout():
-    header("2", "⚙️ SOZLAMALAR / KO'PROQ — SIMMETRIK 10 TUGMA / 5×2 (3 TIL)")
+    header("2", "⚙️ SOZLAMALAR / KO'PROQ — SIMMETRIK 8 TUGMA / 4×2 (3 TIL)")
     from keyboards.inline import (get_cabinet_inline_keyboard,
                                   get_settings_hub_keyboard,
                                   get_settings_profile_keyboard)
@@ -161,30 +160,23 @@ def test_2_settings_symmetric_8_button_layout():
         rows = _kb_rows(kb)
         cbs = [c for row in rows for _t, c in row]
 
-        check(f"[{lang}] 5 qator, har birida AYNAN 2 tugma",
-              len(rows) == 5 and all(len(r) == 2 for r in rows), str(rows))
-        check(f"[{lang}] jami 10 tugma", len(cbs) == 10, str(cbs))
+        check(f"[{lang}] 4 qator, har birida AYNAN 2 tugma",
+              len(rows) == 4 and all(len(r) == 2 for r in rows), str(rows))
+        check(f"[{lang}] jami 8 tugma", len(cbs) == 8, str(cbs))
         check(f"[{lang}] callback'lar KANONIK tartibda",
               cbs == list(EXPECTED_SETTINGS_CBS), str(cbs))
         check(f"[{lang}] r1: [Til | Post sozlamalari]",
               rows[0][0][1] == "stgs_lang" and rows[0][1][1] == "stgs_post", str(rows[0]))
         check(f"[{lang}] r2: [Bildirishnomalar | Do'stlarni taklif]",
               rows[1][0][1] == "stgs_notif" and rows[1][1][1] == "stgs_referral", str(rows[1]))
-        check(f"[{lang}] r3: [To'lovlar | Bot haqida]",
-              rows[2][0][1] == "stgs_pay" and rows[2][1][1] == "stgs_about", str(rows[2]))
-        # 3-BOSQICH: r4 = [💎 PRO | ❓ Yordam] — asosiy reply-menudan
-        # ko'chirilgan ikkilamchi bo'limlar.
-        check(f"[{lang}] r4: [PRO | Yordam]",
-              rows[3][0][1] == "sub_open" and rows[3][1][1] == "stgs_help_hub",
-              str(rows[3]))
-        check(f"[{lang}] r4 yorliqlari i18n'dan (premium/help)",
-              rows[3][0][0] == settings_stats_t("ss_btn_premium", lang)
-              and rows[3][1][0] == settings_stats_t("ss_btn_help", lang), str(rows[3]))
-        check(f"[{lang}] r5: [Qo'llab-quvvatlash | Yopish]",
-              rows[4][0][1] == "help_support" and rows[4][1][1] == "stgs_back", str(rows[4]))
-        check(f"[{lang}] r5 yorliqlari i18n'dan (support/close)",
-              rows[4][0][0] == settings_stats_t("ss_help_hub_support", lang)
-              and rows[4][1][0] == settings_stats_t("ss_btn_close", lang), str(rows[4]))
+        check(f"[{lang}] r3: [To'lovlar | PRO]",
+              rows[2] == [(settings_stats_t("ss_btn_payments", lang), "stgs_pay"),
+                          (settings_stats_t("ss_btn_premium", lang), "sub_open")], str(rows[2]))
+        check(f"[{lang}] r4: [Yordam va Qo'llanma | Yopish]",
+              rows[3] == [(settings_stats_t("ss_btn_help", lang), "stgs_help_hub"),
+                          (settings_stats_t("ss_btn_close", lang), "stgs_back")], str(rows[3]))
+        check(f"[{lang}] alohida about/support tugmalari YO'Q",
+              "stgs_about" not in cbs and "help_support" not in cbs, str(cbs))
 
     # Kanonik manba — barcha alias'larni bir panel qaytaradi.
     canon = get_settings_profile_keyboard("uz")
@@ -276,6 +268,13 @@ def vlen(label: str) -> int:
 
 # Foydalanuvchi chizgan SPEKSDAGI yorliqlar (imtiyozli ro'yxat):
 WHITELIST_LABELS = {
+    # UX part 1 explicitly requires these descriptive labels (uz/ru/en).
+    "ℹ️ Yordam va Qo'llanma",
+    "ℹ️ Помощь и руководство",
+    "ℹ️ Help and Guide",
+    "✅ Saqlash va davom etish",
+    "✅ Сохранить и продолжить",
+    "✅ Save and continue",
     "💬 Qo'llab-quvvatlash",      # 20 — speskda aniq yozilgan
     "👥 Do'stlarni taklif",        # 19 — speskda aniq yozilgan (uz)
     "👥 Пригласить друзей",  # 19 — speskda aniq yozilgan (ru)
