@@ -207,4 +207,14 @@ echo "===== DB POOL (_WarmPool) + PROFIL KESH TEST ====="
 "$PY" tests/pool_profile_cache_test.py || exit 1
 
 echo
+echo "===== 🛡 URL SECURITY GATEWAY — SSRF HIMOYASI (PHASE 1) ====="
+# Markazlashtirilgan URL shlyuzi: qat'iy SSRF validatsiyasi (127.0.0.1,
+# localhost, 10/172.16/192.168, bulut metadata 169.254.169.254 — blok),
+# DNS-rebinding himoyasi (ulanish tasdiqlangan IP'ga «pin»), ≤10 MB / 5–7 s
+# chegaralar, redirect'lar qayta tekshiruvi, yagona xavfsiz xato xabari,
+# veb-skreyping (channel_reader) integratsiyasi va url_extractor pariteti.
+# Tarmoq KERAK EMAS — DNS stub, transport fake (deterministik).
+"$PY" tests/url_security_gateway_test.py || exit 1
+
+echo
 echo "BARCHA TESTLAR MUVOFFAQIYATLI ✔"

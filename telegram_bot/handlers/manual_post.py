@@ -384,6 +384,51 @@ def _manual_album_warning(context, lang: str) -> str:
     return "\n\n" + manual_post_t("mp_album_warning", lang)
 
 
+# ============================================================
+# FSM INPUT FALLBACK (PHASE 1) — yumshoq bosqich eslatmasi
+# ============================================================
+def _stage_hint(lang: str) -> str:
+    """💡 Bosqich eslatmasi — tugma bosish kutilganda (yumshoq ogohlantirish)."""
+    try:
+        return manual_post_t("mp_stage_hint", lang)
+    except Exception:  # noqa: BLE001 — pragma: no cover, tarjima topilmasa
+        return ("💡 Hozirgi bosqichda quyidagi tugmalardan birini "
+                "tanlashingiz kerak:")
+
+
+async def _reply_stage_hint(msg, lang: str) -> None:
+    """💡 yumshoq ogohlantirishni yuboradi (xatoda oqim uzilmaydi)."""
+    try:
+        await msg.reply_text(_stage_hint(lang), parse_mode="HTML")
+    except Exception:  # eslatma muhim emas — oqim davom etadi
+        logger.debug("Bosqich eslatmasi yuborilmadi", exc_info=True)
+
+
+async def _preview_soft_fallback(msg, context, lang: str) -> int:
+    """💡 eslatma + joriy Preview menyusini qayta ko'rsatish.
+
+    FSM holati (MANUAL_PREVIEW) BEKOR BO'LIB KETMAYDI: foydalanuvchi tugma
+    bosish o'rniga adashib erkin matn yozsa yoki media tashlasa, bot quruq
+    «qabul qilinmaydi» deb to'xtab qolmaydi — yumshoq ogohlantirish beradi
+    va mavjud panelni qayta ko'rsatadi. Sessiya eskirgan bo'lsa (kontent
+    yo'q) — eski xulq: muloyim xabar + asosiy menyu + END.
+    """
+    if not _has_content(context):
+        await msg.reply_text(
+            manual_post_t("mp_session_expired", lang),
+            reply_markup=get_main_keyboard(
+                (msg.from_user.id if getattr(msg, "from_user", None) else 0)
+                in ADMIN_IDS_SET, lang),
+            parse_mode="HTML",
+        )
+        clear_fsm_data(context)
+        _clear_manual_state(context)
+        return ConversationHandler.END
+    await _reply_stage_hint(msg, lang)
+    await _show_preview(msg, context, lang)
+    return MANUAL_PREVIEW
+
+
 def _manual_reactions(context) -> list:
     """Saqlangan reaksiya emojilari (normal, takrorsiz ro'yxat)."""
     return normalize_custom_reaction_emojis(
@@ -988,7 +1033,8 @@ async def manual_preview_emoji_received(update: Update,
 
     Yechim: preview holatida ham sof emoji(lar) qabul qilinadi, 5 tagacha ajratib olinib
     reaksiyalar ro'yxatiga saqlanadi va preview darhol yangilanadi. Emoji bo'lmagan
-    matn bo'lsa, preview qayta ko'rsatiladi (xato berilmaydi, oqim uzilmaydi).
+    matn bo'lsa — FSM INPUT FALLBACK (PHASE 1): 💡 yumshoq eslatma + preview qayta
+    ko'rsatiladi (xato berilmaydi, oqim va FSM holati uzilmaydi).
     """
     msg = update.message
     lang = get_lang(context)
@@ -1009,9 +1055,8 @@ async def manual_preview_emoji_received(update: Update,
 
     text = (msg.text or "").strip()
     if not text:
-        # Bo'sh yoki media — preview'ni qayta ko'rsatamiz (xato emas)
-        await _show_preview(msg, context, lang)
-        return MANUAL_PREVIEW
+        # Media — FSM INPUT FALLBACK: 💡 eslatma + preview qayta (holat saqlanadi)
+        return await _preview_soft_fallback(msg, context, lang)
 
     emojis = _smart_extract_emojis(text, max_count=SMART_EMOJI_MAX)
     if emojis:
@@ -1021,12 +1066,27 @@ async def manual_preview_emoji_received(update: Update,
         await _show_preview(msg, context, lang)
         return MANUAL_PREVIEW
 
-    # Emoji topilmadi — foydalanuvchi boshqa matn yuborgan bo'lishi mumkin
-    # Eski oqimda bu holat unknown_in_dialog ga tushardi; endi preview'ni saqlab qolamiz
-    # va muloyim ravishda preview'ni qayta ko'rsatamiz (xato bermaslik uchun)
-    # Agar matn haqiqatan ham noto'g'ri bo'lsa, foydalanuvchi panel tugmalaridan foydalanishi mumkin
-    await _show_preview(msg, context, lang)
-    return MANUAL_PREVIEW
+    # Emoji topilmadi — foydalanuvchi erkin matn yozib yubordi.
+    # FSM INPUT FALLBACK (PHASE 1): quruq javob YO'Q — 💡 yumshoq eslatma
+    # beriladi va mavjud Preview menyusi (inline boshqaruv paneli) qayta
+    # ko'rsatiladi; foydalanuvchi panel tugmalaridan foydalanadi.
+    return await _preview_soft_fallback(msg, context, lang)
+
+
+async def manual_preview_media_received(update: Update,
+                                        context: ContextTypes.DEFAULT_TYPE):
+    """MEDIA (rasm/video/stiker...) preview bosqichida — yumshoq fallback.
+
+    Foydalanuvchi [Post preview] panelida tugma bosish o'rniga adashib media
+    tashlab yuborsa: bot quruq «xabar qabul qilinmaydi» deb to'xtab qolmaydi —
+    💡 yumshoq ogohlantirish beriladi, mavjud Preview menyusi qayta ko'rsatiladi
+    va FSM holati (MANUAL_PREVIEW) bekor bo'lib ketmaydi.
+    """
+    msg = update.message
+    if msg is None:
+        return MANUAL_PREVIEW
+    lang = get_lang(context)
+    return await _preview_soft_fallback(msg, context, lang)
 
 
 async def manual_url_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1079,6 +1139,91 @@ async def manual_url_received(update: Update, context: ContextTypes.DEFAULT_TYPE
     context.user_data[UD_URL_BTN_URL] = btn_url
     await _show_preview(msg, context, lang)
     return MANUAL_PREVIEW
+
+
+# ============================================================
+# FSM INPUT FALLBACK (PHASE 1) — kiritish bosqichlari uchun
+# yumshoq eslatma + joriy menyuni qayta ko'rsatish (holat saqlanadi)
+# ============================================================
+async def manual_channel_select_fallback(update: Update,
+                                         context: ContextTypes.DEFAULT_TYPE):
+    """Kanal tanlash bosqichida erkin matn/media — yumshoq fallback.
+
+    MANUAL_CHANNEL_SELECT holatida inline kanal tugmalari kutilmoqda;
+    foydalanuvchi adashib matn yozsa yoki media tashsa — bot quruq javob
+    bilan to'xtab qolmaydi: 💡 yumshoq eslatma beriladi, kanal tanlov
+    klaviaturasi qayta ko'rsatiladi va FSM holati bekor bo'lib ketmaydi.
+    """
+    msg = update.message
+    if msg is None:
+        return MANUAL_CHANNEL_SELECT
+    user_id = update.effective_user.id if update.effective_user else 0
+    lang = get_lang(context)
+    await _reply_stage_hint(msg, lang)
+    try:
+        channels = await db.run_db(db.get_user_channels, user_id) or []
+    except Exception:
+        logger.debug("Kanal ro'yxatini o'qishda xato", exc_info=True)
+        channels = []
+    if not channels:
+        # Kanallar mavjud bo'lmasa — oqimni muloyim yopamiz (eski xulq).
+        await _finalize(msg, context, user_id, lang,
+                        manual_post_t("mp_no_channels", lang))
+        return ConversationHandler.END
+    try:
+        prompt = manual_post_t("mp_channel_prompt", lang)
+    except Exception:  # noqa: BLE001 — zaxira matn bilan davom etamiz
+        prompt = manual_post_t("mp_choose_channel", lang)
+    await msg.reply_text(
+        prompt,
+        reply_markup=get_manual_channel_keyboard(channels, lang),
+        parse_mode="HTML",
+    )
+    return MANUAL_CHANNEL_SELECT
+
+
+async def manual_reaction_custom_media_received(
+        update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """➕ Reaksiya kiritish bosqichida MEDIA — yumshoq fallback.
+
+    Emoji kutilmoqda, lekin rasm/video tashlandi: 💡 eslatma + kiritish
+    yo'riqnomasi qayta ko'rsatiladi, FSM holati (MANUAL_REACTION_CUSTOM)
+    bekor bo'lib ketmaydi.
+    """
+    msg = update.message
+    if msg is None:
+        return MANUAL_REACTION_CUSTOM
+    lang = get_lang(context)
+    await _reply_stage_hint(msg, lang)
+    await msg.reply_text(
+        manual_post_t("mp_react_custom_prompt", lang)
+        + _manual_album_warning(context, lang),
+        reply_markup=get_cancel_keyboard(lang),
+        parse_mode="HTML",
+    )
+    return MANUAL_REACTION_CUSTOM
+
+
+async def manual_url_media_received(update: Update,
+                                    context: ContextTypes.DEFAULT_TYPE):
+    """🔗 Havolali tugma kiritish bosqichida MEDIA — yumshoq fallback.
+
+    «Matn - havola» kutilmoqda, lekin rasm/video tashlandi: 💡 eslatma +
+    kiritish yo'riqnomasi qayta ko'rsatiladi, FSM holati (MANUAL_URL_INPUT)
+    bekor bo'lib ketmaydi.
+    """
+    msg = update.message
+    if msg is None:
+        return MANUAL_URL_INPUT
+    lang = get_lang(context)
+    await _reply_stage_hint(msg, lang)
+    await msg.reply_text(
+        manual_post_t("mp_url_prompt", lang)
+        + _manual_album_warning(context, lang),
+        reply_markup=get_cancel_keyboard(lang),
+        parse_mode="HTML",
+    )
+    return MANUAL_URL_INPUT
 
 
 async def manual_panel_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):

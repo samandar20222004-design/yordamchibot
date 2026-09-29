@@ -125,6 +125,10 @@ from handlers.manual_post import (
     manual_time_received, manual_reaction_custom_received,
     manual_url_received, manual_panel_callback, manual_stale_callback,
     manual_preview_emoji_received,
+    # FSM INPUT FALLBACK (PHASE 1) — bosqichda tugma/matn kutganda adashib
+    # yuborilgan matn/media uchun yumshoq eslatma + menyuni qayta ko'rsatish.
+    manual_preview_media_received, manual_channel_select_fallback,
+    manual_reaction_custom_media_received, manual_url_media_received,
     ManualEntryHandler,
     set_application as set_manual_application,
     MANUAL_AWAIT_CONTENT, MANUAL_PREVIEW, MANUAL_CHANNEL_SELECT,
@@ -1301,9 +1305,19 @@ def register_all_handlers(app):
                 # (masalan 😎 yoki 🔥 👍) — xato bermasdan reaksiya sifatida qabul qilinadi
                 MessageHandler(filters.TEXT & ~filters.COMMAND,
                                manual_preview_emoji_received),
+                # FSM INPUT FALLBACK (PHASE 1): preview bosqichida adashib
+                # MEDIA tashlansa — 💡 yumshoq eslatma + Preview menyusi qayta
+                # ko'rsatiladi, FSM holati bekor bo'lib ketmaydi.
+                MessageHandler(~filters.TEXT & ~filters.COMMAND,
+                               manual_preview_media_received),
             ],
             MANUAL_CHANNEL_SELECT: all_menu_jumps + [
                 CallbackQueryHandler(manual_panel_callback, pattern=r"^mnp_"),
+                # FSM INPUT FALLBACK (PHASE 1): kanal tanlash bosqichida erkin
+                # matn/media — 💡 eslatma + tanlov klaviaturasi qayta (holat
+                # saqlanadi, bot quruq javob bilan to'xtab qolmaydi).
+                MessageHandler(filters.ALL & ~filters.COMMAND,
+                               manual_channel_select_fallback),
             ],
             MANUAL_TIME_INPUT: all_menu_jumps + [
                 CallbackQueryHandler(manual_panel_callback, pattern=r"^mnp_"),
@@ -1319,11 +1333,19 @@ def register_all_handlers(app):
                 CallbackQueryHandler(manual_panel_callback, pattern=r"^mnp_"),
                 MessageHandler(filters.TEXT & ~filters.COMMAND,
                                manual_reaction_custom_received),
+                # FSM INPUT FALLBACK (PHASE 1): emoji o'rniga media tashlansa —
+                # 💡 eslatma + yo'rixnoma qayta (holat saqlanadi).
+                MessageHandler(~filters.TEXT & ~filters.COMMAND,
+                               manual_reaction_custom_media_received),
             ],
             MANUAL_URL_INPUT: all_menu_jumps + [
                 CallbackQueryHandler(manual_panel_callback, pattern=r"^mnp_"),
                 MessageHandler(filters.TEXT & ~filters.COMMAND,
                                manual_url_received),
+                # FSM INPUT FALLBACK (PHASE 1): "Matn - havola" o'rniga media
+                # tashlansa — 💡 eslatma + yo'riqnoma qayta (holat saqlanadi).
+                MessageHandler(~filters.TEXT & ~filters.COMMAND,
+                               manual_url_media_received),
             ],
             GET_TIME: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, time_received)],
             DAILY_TIME: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, daily_time_received)],

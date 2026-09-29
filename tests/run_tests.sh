@@ -292,6 +292,19 @@ echo "===== 3e3) ❤️ REAKSIYALAR + 🔗 HAVOLALI TUGMA — MANUAL PREVIEW BOY
 "$PY" tests/manual_post_reactions_and_url_buttons_test.py || EXIT_CODE=1
 
 echo
+echo "===== 3e4) 💡 FSM INPUT FALLBACK — BOSQICHLARDA YUMSHOQ JAVOB (PHASE 1) ====="
+# Foydalanuvchi «Post preview» yoki sozlash bosqichida (kanal tanlash,
+# reaksiya kiritish, havolali tugma) turganda tugma bosish o'rniga adashib
+# erkin matn yozsa yoki media tashsa: bot quruq «qabul qilinmaydi» deb
+# to'xtab QOLMAYDI — 💡 yumshoq ogohlantirish («Hozirgi bosqichda quyidagi
+# tugmalardan birini tanlashingiz kerak:») + joriy menyuni qayta ko'rsatadi
+# va FSM holati BEKOR BO'LIB KETMAYDI; smart emoji va eski aniq xato
+# xabarlari (mp_url_invalid/mp_react_custom_invalid/mp_time_invalid)
+# o'zgarmaydi; mp_stage_hint uz/ru/en paritetda
+# (tests/manual_post_fsm_fallback_test.py).
+"$PY" tests/manual_post_fsm_fallback_test.py || EXIT_CODE=1
+
+echo
 echo "===== 3f) 📢 KANALLARIM + 📅 REJALASHTIRILGAN ====="
 # (1) [📢 Kanallarim] → ulangan kanallar ro'yxati + [➕ Kanal qo'shish];
 # (2) kanal tanlanganda QAT'IY boshqaruv ekrani: [➕ Post yaratish] /
