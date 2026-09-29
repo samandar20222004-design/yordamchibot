@@ -29,6 +29,12 @@ Foydalanuvchi ommaviy maqola havolasini yuboradi; xizmat:
 Modul tarmoqqa faqat aniq ruxsat berilgan ``http(s)`` manzillar orqali
 chiqadi; barcha funksiyalar xatoda ISTISNO KO'TARMAYDI (fail-soft, aniq
 ``error_code`` qaytaradi).
+
+PHASE 1 (URL Security Gateway): standart HTTP transport endi markazlashtirilgan
+``services/url_security_gateway.PinnedUrllibClient`` orqali ishlaydi —
+ulanish aynan tasdiqlangan IP'ga «pin» qilinadi (DNS rebinding himoyasi) va
+har bir redirect qayta tekshiriladi. Bu modulning o'z validatsiyasi, xato
+kodlari va xabarlari O'ZGARMAGAN (orqaga moslik).
 """
 
 from __future__ import annotations
@@ -483,7 +489,11 @@ def fetch_url(
          "error_code": None}
 
     ``client`` — test uchun almashtiriladigan klient (``.open(request,
-    timeout=...)``). Standart holatda ``UrllibHttpClient``.
+    timeout=...)``). Standart holatda MARKAZIY URL SECURITY GATEWAY
+    transporti (:class:`~services.url_security_gateway.PinnedUrllibClient`)
+    ishlatiladi: validatsiya bilan ulanish orasida DNS javobi almashtirilishi
+    (DNS rebinding) mumkin emas — TCP ulanishi aynan tasdiqlangan IP'ga
+    «pin» qilinadi, redirect'lar ham qayta tekshirilib qayta pin qilinadi.
     """
     check = validate_public_url(url, resolver=resolver)
     if not check.get("ok"):
@@ -491,8 +501,17 @@ def fetch_url(
                 "message": check.get("message"), "url": str(url or ""),
                 "text": "", "status": None, "bytes": 0}
 
-    http = client if client is not None else UrllibHttpClient(resolver=resolver)
     request = build_request(check["url"])
+    if client is not None:
+        http = client
+    else:
+        # PHASE 1 — URL Security Gateway: DNS-rebinding himoyasi bilan
+        # yagona transport. Pin allaqachon validate_public_url natijasidan
+        # olinadi (ikkinchi DNS so'rovi kerak emas).
+        from ..url_security_gateway import PinnedUrllibClient
+        http = PinnedUrllibClient(resolver=resolver)
+        if check.get("addresses"):
+            request.pinned_ip = check["addresses"][0]
     try:
         response = http.open(request, timeout=timeout)
     except urlerror.HTTPError as exc:

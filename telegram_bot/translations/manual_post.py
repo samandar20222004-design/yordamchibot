@@ -107,6 +107,12 @@ MANUAL_POST_I18N = {
         "mp_url_on": "🔗 Tugma: {text} → {url}",
         # --- Kanal tanlash ---
         "mp_choose_channel": "📢 <b>Qaysi kanalga chiqaramiz?</b>",
+        # --- PHASE 1 (FSM input fallback): bosqichda tugma kutganda —
+        #     yumshoq eslatma + joriy menyuni qayta ko'rsatish ---
+        "mp_stage_hint": (
+            "💡 Hozirgi bosqichda quyidagi tugmalardan birini "
+            "tanlashingiz kerak:"
+        ),
         # --- Vaqt so'rash ---
         "mp_time_prompt": (
             "📅 <b>Vaqtni belgilash.</b>\n\n"
@@ -264,6 +270,11 @@ MANUAL_POST_I18N = {
         ),
         "mp_url_on": "🔗 Кнопка: {text} → {url}",
         "mp_choose_channel": "📢 <b>В какой канал публикуем?</b>",
+        # --- PHASE 1 (FSM input fallback): мягкое напоминание на шаге,
+        #     где ожидается нажатие кнопки ---
+        "mp_stage_hint": (
+            "💡 На текущем шаге нужно выбрать одну из кнопок ниже:"
+        ),
         "mp_time_prompt": (
             "📅 <b>Указать время.</b>\n\n"
             "Когда должен выйти пост? Например: <code>19:30</code>, "
@@ -412,6 +423,11 @@ MANUAL_POST_I18N = {
         ),
         "mp_url_on": "🔗 Button: {text} → {url}",
         "mp_choose_channel": "📢 <b>Which channel do we publish to?</b>",
+        # --- PHASE 1 (FSM input fallback): gentle hint on a step where a
+        #     button press is expected ---
+        "mp_stage_hint": (
+            "💡 At this step, please choose one of the buttons below:"
+        ),
         "mp_time_prompt": (
             "📅 <b>Set the time.</b>\n\n"
             "When should the post go out? For example: <code>19:30</code>, "

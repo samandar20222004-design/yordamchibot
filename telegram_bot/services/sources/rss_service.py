@@ -13,7 +13,10 @@ Kafolatlar:
     element uchun qoralama YARATILMAYDI (DB darajasida ham,
     ``filter_new_items`` bilan xotirada ham);
   * **SSRF himoyasi**: oqim manzili ham ``url_extractor`` orqali tekshiriladi
-    (localhost/ichki IP/redirect — bloklanadi, 5 MB / 10 s);
+    (localhost/ichki IP/redirect — bloklanadi, 5 MB / 10 s); PHASE 1'dan
+    boshlab transport markazlashtirilgan ``services/url_security_gateway``
+    shlyuzi orqali ishlaydi — ulanish tasdiqlangan IP'ga «pin» qilinadi
+    (DNS-rebinding himoyasi);
   * **Autopublish**: yoqilgan manbalarda qoralama reja navbatiga
     (``scheduled_posts``) yuboriladi; o'chirilgan bo'lsa — tasdiqlash uchun
     egasiga/adminga ko'rsatiladi (``source_drafts`` status='pending');

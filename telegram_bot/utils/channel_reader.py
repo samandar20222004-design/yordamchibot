@@ -14,18 +14,24 @@ Imkoniyatlar:
   * ``read_webpage_for_ai`` — oddiy sayt havolasi (masalan https://kun.uz/)
     uchun <title>, <meta name="description"> va asosiy matnni (1000 belgigacha)
     AI tahlili uchun tayyorlaydi.
+
+🛡 PHASE 1 (URL Security Gateway): barcha tashqi HTTP so'rovlar
+``_fetch_html`` orqali markazlashtirilgan ``services/url_security_gateway``
+shlyuziga uzatiladi — qat'iy SSRF himoyasi (localhost/ichki IP/bulut
+metadata bloklanadi), DNS-rebinding himoyasi (IP'ga «pin»), 2 MB hajm va
+5–7 soniya qat'iy timeout chegarasi.
 """
+import asyncio
 import html as _html
 import logging
 import re
 from datetime import datetime
 
-import aiohttp
-
 logger = logging.getLogger(__name__)
 
-# --- HTTP sozlamalari ---
-_CHANNEL_FETCH_TIMEOUT = aiohttp.ClientTimeout(total=15, connect=8)
+# --- HTTP sozlamalari (barcha so'rovlar URL SECURITY GATEWAY orqali) ---
+# Qat'iy timeout: gateway siyosati 5–7 soniya (PHASE 1).
+CHANNEL_FETCH_TIMEOUT = 7.0
 _HTTP_HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -303,25 +309,54 @@ def _parse_channel_page(html: str, channel_username: str) -> list[dict]:
 # HTTP (testlarda mock qilinadigan yagona nuqta)
 # ============================================================
 
+class GatewayBlockedError(OSError):
+    """URL Security Gateway havolani rad etdi (SSF/xavfsizlik).
+
+    ``error_code`` — gateway xato kodi (``private_address``, ``blocked_host``…),
+    ``message`` — foydalanuvchi uchun XAVFSIZ umumiy xabar (ichki tafsilotlar
+    chiqmaydi).
+    """
+
+    def __init__(self, error_code: str = "blocked", message: str = ""):
+        super().__init__(str(error_code or "blocked"))
+        self.error_code = str(error_code or "blocked")
+        self.message = str(message or "")
+
+
 async def _fetch_html(url: str) -> tuple[int, str, str]:
-    """URL ga HTTP GET so'rovi yuboradi.
+    """URL ga HTTP GET so'rovi — MARKAZIY URL SECURITY GATEWAY orqali.
+
+    PHASE 1: barcha tashqi so'rovlar (t.me/s/ veb-skreyping va foydalanuvchi
+    yuborgan sayt havolalari) yagona xavfsiz fetcher'dan o'tadi — qat'iy SSRF
+    tekshiruvi (localhost/ichki IP/bulut metadata bloklanadi), DNS-rebinding
+    himoyasi (ulanish aynan tasdiqlangan IP'ga «pin» qilinadi), har bir
+    redirect qayta tekshiriladi, hajm ``_MAX_HTML_BYTES`` va timeout
+    ``CHANNEL_FETCH_TIMEOUT`` (5–7 s) bilan cheklanadi.
 
     Returns:
         (status_code, html_text, content_type)
+
+    Raises:
+        GatewayBlockedError: gateway havolani XAVFSIZLIK sababi bilan rad etdi;
+        OSError: qolgan tarmoq/olcham/timeout xatolari.
     """
-    async with aiohttp.ClientSession(timeout=_CHANNEL_FETCH_TIMEOUT) as session:
-        async with session.get(url, headers=_HTTP_HEADERS, allow_redirects=True) as resp:
-            body = await resp.content.read(_MAX_HTML_BYTES)
-            content_type = resp.headers.get("Content-Type", "")
-            charset = "utf-8"
-            m = re.search(r"charset=([\w-]+)", content_type, re.IGNORECASE)
-            if m:
-                charset = m.group(1)
-            try:
-                text = body.decode(charset, errors="replace")
-            except (LookupError, UnicodeDecodeError):
-                text = body.decode("utf-8", errors="replace")
-            return resp.status, text, content_type
+    from services import url_security_gateway as _gateway
+
+    result = await asyncio.to_thread(
+        _gateway.safe_fetch, url,
+        timeout=CHANNEL_FETCH_TIMEOUT,
+        max_bytes=_MAX_HTML_BYTES,
+        headers=_HTTP_HEADERS,
+    )
+    if not result.get("ok"):
+        code = str(result.get("error_code") or "network_error")
+        if code in _gateway.SECURITY_ERROR_CODES:
+            raise GatewayBlockedError(
+                code, result.get("message") or _gateway.SAFE_ERROR_MESSAGE)
+        raise OSError(f"url_gateway: {code}")
+    return (int(result.get("status") or 0),
+            result.get("text", ""),
+            result.get("content_type") or "")
 
 
 # ============================================================
@@ -536,6 +571,13 @@ async def read_webpage_for_ai(url: str, max_chars: int = 1000) -> dict:
 
     try:
         status_code, html, content_type = await _fetch_html(raw)
+    except GatewayBlockedError as e:
+        # SSRF/xavfsizlik rad etilishi — XAVFSIZ umumiy xabar: ichki IP,
+        # DNS yoki port tafsilotlari foydalanuvchiga chiqmaydi.
+        logger.warning("Sayt havolasi gateway tomonidan bloklandi (%s): %s",
+                       raw, e.error_code)
+        return {"error": e.message
+                or "⚠️ Saytga ulanib bo'lmadi. Manzilni tekshirib, qayta yuboring."}
     except Exception as e:
         logger.warning("Sayt o'qish xatosi (%s): %s", raw, e)
         return {"error": "⚠️ Saytga ulanib bo'lmadi. Manzilni tekshirib, qayta yuboring."}
