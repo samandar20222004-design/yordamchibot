@@ -9,6 +9,7 @@ import random
 import string
 import threading
 import time as _time
+from collections import OrderedDict
 from datetime import datetime, timedelta
 from contextlib import contextmanager, asynccontextmanager
 import psycopg2
@@ -19,6 +20,7 @@ from config import DATABASE_URL, PLAN_LIMITS as CONFIG_PLAN_LIMITS
 tashkent_tz = pytz.timezone("Asia/Tashkent")
 
 logger = logging.getLogger(__name__)
+PoolError = getattr(psycopg2.pool, "PoolError", RuntimeError)  # CI'dagi psycopg2 stub'ida PoolError yo'q
 
 # Boshqariladigan PostgreSQL (Aiven va h.k.) uchun ulanishlar soni cheklangan.
 # DB_POOL_MAX ni oshirishdan oldin xizmatning ulanish limitini tekshiring.
@@ -28,7 +30,8 @@ logger = logging.getLogger(__name__)
 # paytida ``warm_pool()`` orqali ochiladi va ISITILADI — ya'ni foydalanuvchi
 # birinchi /start yuborganda ulanish ALLTA tayyor turadi, 0-dan emas.
 DB_POOL_MIN = max(0, int(os.getenv("DB_POOL_MIN", "2")))
-DB_POOL_MAX = max(DB_POOL_MIN + 1, int(os.getenv("DB_POOL_MAX", "5")))
+# minconn=2, maxconn=10 (ThreadedConnectionPool). Aiven ulanish limitini tekshiring.
+DB_POOL_MAX = max(DB_POOL_MIN + 1, int(os.getenv("DB_POOL_MAX", "10")))
 # PostAssist V2 (10-BOSQICH): DB_POOL_SIZE — pool hajmi uchun qulay alias.
 # Berilgan bo'lsa DB_POOL_MAX o'rniga shu qiymat ishlatiladi (Aiven ulanish
 # cheklovlariga moslash uchun). Noto'g'ri qiymat e'tiborga olinmaydi.
@@ -53,6 +56,11 @@ DB_CONNECT_TIMEOUT = max(1, int(os.getenv("DB_CONNECT_TIMEOUT", "8")))
 # QAYTA ulanish urinishlari soni (standart 1 = bir marta qayta urinadi,
 # jami 2 urinish). 0 = faqat bir urinish, qayta urinish yo'q.
 DB_RECONNECT_RETRIES = max(0, int(os.getenv("DB_RECONNECT_RETRIES", "1")))
+# ``_WarmPool``: bo'sh ulanish PING_AFTER soniyadan keyin ishlatishdan OLDIN 1 RTT
+# (``SELECT 1``) bilan tekshiriladi; ``minconn`` dan ortiqchasi IDLE_TTL soniyadan
+# keyin yopiladi (0 = o'chirilgan).
+DB_POOL_PING_AFTER = 30
+DB_POOL_IDLE_TTL = 300
 
 # Kanonik sxema fayli (database.py bilan bir katalogda yuradi).
 SCHEMA_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "schema.sql")
@@ -426,6 +434,9 @@ DB_SETTINGS_CACHE_TTL = max(1, int(os.getenv("DB_SETTINGS_CACHE_TTL", "60")))
 DB_SPONSORS_CACHE_TTL = max(1, int(os.getenv("DB_SPONSORS_CACHE_TTL", "30")))
 DB_USER_CACHE_TTL = max(1, int(os.getenv("DB_USER_CACHE_TTL", "15")))
 DB_STATS_CACHE_TTL = max(1, int(os.getenv("DB_STATS_CACHE_TTL", "30")))
+# Foydalanuvchi PROFILI (til, PRO, ball, kanallar soni ...) RAM'da shuncha soniya
+# turadi (standart 5 daqiqa; 30..3600). Faqat haqiqiy o'zgarishda yangilanadi.
+DB_PROFILE_CACHE_TTL = max(30, min(3600, int(os.getenv("DB_PROFILE_CACHE_TTL", "300"))))
 
 _pool = None
 _pool_lock = threading.Lock()
@@ -450,13 +461,162 @@ _CACHE_LOCK = threading.Lock()
 _MISS = object()
 
 
+def _close_quietly(conns):
+    for c in conns:
+        try:
+            c.close()
+        except Exception:
+            pass
+
+
+class _WarmPool(ThreadedConnectionPool):
+    """``ThreadedConnectionPool`` (psycopg2 2.9.x) ning 3 ta sekinlashtiruvchi xatti-harakatini tuzatadi:
+
+    1. ``minconn`` dan ortiqcha qaytgan ulanishni YOPMAYDI (``maxconn`` gacha saqlaydi,
+       ``DB_POOL_IDLE_TTL`` dan keyin ``minconn`` gacha qisqaradi) — aks holda har yuklama
+       to'lqinida TCP+TLS+auth handshake (0.5-1 s) qayta to'lanadi;
+    2. yangi ulanish ochish, ROLLBACK va ping (tarmoq round-trip) umumiy lock TASHQARISIDA —
+       standart pool ularni lock ichida bajarib, butun jarayondagi DB chaqiruvlarini ketma-ketlashtiradi;
+    3. ``DB_POOL_PING_AFTER`` dan uzoq bo'sh turgan ulanish beriladan oldin ``SELECT 1`` bilan tekshiriladi.
+    """
+
+    def __init__(self, minconn, maxconn, *args, **kwargs):
+        self._idle_since = {}   # id(conn) -> poolga qaytgan vaqt (monotonic)
+        self._opening = 0       # hozir ochilayotgan ulanishlar (maxconn hisobi uchun)
+        super().__init__(minconn, maxconn, *args, **kwargs)
+        now = _time.monotonic()
+        for conn in list(getattr(self, "_pool", ())):
+            self._idle_since[id(conn)] = now
+
+    def getconn(self, key=None):
+        while True:
+            conn, idle_for, victims = None, 0.0, []
+            try:
+                with self._lock:
+                    if self.closed:
+                        raise PoolError("connection pool is closed")
+                    if key is None:
+                        key = self._getkey()
+                    if key in self._used:
+                        return self._used[key]
+                    self._reap_idle(victims)
+                    if self._pool:
+                        conn = self._pool.pop()  # LIFO: eng «iliq» ulanish
+                        now = _time.monotonic()
+                        idle_for = now - self._idle_since.pop(id(conn), now)
+                        self._used[key] = conn
+                        self._rused[id(conn)] = key
+                    elif len(self._used) + self._opening >= self.maxconn:
+                        raise PoolError("connection pool exhausted")
+                    else:
+                        self._opening += 1
+            finally:
+                _close_quietly(victims)
+            if conn is None:
+                return self._open(key)
+            if not conn.closed and (
+                not DB_POOL_PING_AFTER or idle_for < DB_POOL_PING_AFTER or self._ping(conn)
+            ):
+                return conn
+            with self._lock:  # o'lik ulanish — faqat o'zi tashlanadi
+                self._used.pop(key, None)
+                self._rused.pop(id(conn), None)
+            _close_quietly([conn])
+
+    def putconn(self, conn=None, key=None, close=False):
+        with self._lock:
+            if self.closed:
+                raise PoolError("connection pool is closed")
+            if key is None:
+                key = self._rused.get(id(conn))
+            if key is None:
+                raise PoolError("trying to put unkeyed connection")
+        keep = (not close) and self._clean(conn)  # ROLLBACK (tarmoq) — lock TASHQARISIDA
+        victims = []
+        try:
+            with self._lock:
+                if self.closed:
+                    raise PoolError("connection pool is closed")
+                self._used.pop(key, None)
+                self._rused.pop(id(conn), None)
+                if keep and len(self._pool) < self.maxconn:
+                    self._pool.append(conn)
+                    self._idle_since[id(conn)] = _time.monotonic()
+                else:
+                    victims.append(conn)
+                self._reap_idle(victims)
+        finally:
+            _close_quietly(victims)
+
+    def _open(self, key):
+        """Yangi ulanish — lock TASHQARISIDA (sekin handshake boshqa thread'larni to'smaydi)."""
+        try:
+            conn = psycopg2.connect(*self._args, **self._kwargs)
+        except BaseException:
+            with self._lock:
+                self._opening -= 1
+            raise
+        with self._lock:
+            self._opening -= 1
+            if not self.closed:
+                self._used[key] = conn
+                self._rused[id(conn)] = key
+                return conn
+        _close_quietly([conn])
+        raise PoolError("connection pool is closed")
+
+    def _reap_idle(self, victims):
+        """``minconn`` dan ortiqcha, ``DB_POOL_IDLE_TTL`` dan uzoq bo'sh ulanishlarni yig'adi (lock ichida)."""
+        if not DB_POOL_IDLE_TTL:
+            return
+        now = _time.monotonic()
+        while len(self._pool) > self.minconn:
+            oldest = self._pool[0]
+            if now - self._idle_since.get(id(oldest), now) < DB_POOL_IDLE_TTL:
+                break
+            self._pool.pop(0)
+            self._idle_since.pop(id(oldest), None)
+            victims.append(oldest)
+
+    @staticmethod
+    def _ping(conn) -> bool:
+        """Bo'sh ulanish tirikmi? Autocommit — BEGIN'siz atigi 1 RTT."""
+        try:
+            conn.autocommit = True
+            try:
+                with conn.cursor() as cur:
+                    cur.execute("SELECT 1")
+                    cur.fetchone()
+            finally:
+                conn.autocommit = False
+            return True
+        except Exception:
+            return False
+
+    @staticmethod
+    def _clean(conn) -> bool:
+        """Qaytgan ulanishni tayyorlaydi (ochiq tranzaksiya → ROLLBACK). Yaroqsiz bo'lsa ``False``."""
+        from psycopg2 import extensions as ext
+        try:
+            if conn.closed:
+                return False
+            status = conn.info.transaction_status
+            if status == ext.TRANSACTION_STATUS_UNKNOWN:
+                return False
+            if status != ext.TRANSACTION_STATUS_IDLE:
+                conn.rollback()
+            return not conn.closed
+        except Exception:
+            return False
+
+
 def _get_pool() -> ThreadedConnectionPool:
     """Pool'ni yaratib beradi (bir marta, keyin qayta ishlatiladi)."""
     global _pool
     if _pool is None:
         with _pool_lock:
             if _pool is None:
-                _pool = ThreadedConnectionPool(
+                _pool = _WarmPool(
                     DB_POOL_MIN, DB_POOL_MAX, _pool_dsn(),
                     **_connect_kwargs(),
                 )
@@ -528,6 +688,8 @@ def _cache_set(key, value, ttl):
 
 def _cache_clear(prefix=None):
     """Keshni tozalash. ``prefix`` berilsa faqat shu old qo'shimchali kalitlar o'chadi."""
+    if prefix is None:
+        _profile_clear_all()
     with _CACHE_LOCK:
         if prefix is None:
             _CACHE.clear()
@@ -548,10 +710,176 @@ def cache_clear():
 
 
 def _invalidate_user(user_id: int):
-    """Bitta foydalanuvchiga tegishli kesh yozuvlarini tozalash."""
-    for prefix in ("user_credits", "user_code", "user_channels", "user_stats",
-                   "user_lang", "user_overview_stats"):
-        _cache_clear(f"{prefix}:{user_id}")
+    """Bitta foydalanuvchiga tegishli kesh yozuvlarini (profil keshi bilan) tozalash.
+
+    Servislar buni tranzaksiya ICHIDA (COMMIT'dan oldin) chaqiradi: shu oraliqda
+    boshqa thread eski qiymatni qayta o'qib, uni 5 daqiqaga keshlab qo'yishi
+    mumkin. Shuning uchun tozalash COMMIT'dan KEYIN yana bir marta bajariladi.
+    """
+    def _clear():
+        for prefix in ("user_credits", "user_code", "user_channels", "user_stats",
+                       "user_lang", "user_overview_stats"):
+            _cache_clear(f"{prefix}:{user_id}")
+        _profile_invalidate(user_id)
+
+    _clear()
+    _after_commit(_clear)
+
+
+def _after_commit(fn):
+    """``fn`` ni joriy tranzaksiya COMMIT bo'lgach chaqiradi (faol tranzaksiya yo'q
+    bo'lsa — hech narsa: chaqiruvchi tozalashni allaqachon bajargan)."""
+    tx = _TX_CTX.get()
+    while tx is not None and tx.parent is not None:
+        tx = tx.parent
+    if tx is not None and tx.conn is not None and tx.commit:
+        tx.after_commit.append(fn)
+
+
+# ============================================================
+# 👤 FOYDALANUVCHI PROFILI — RAM keshi (5 daqiqa)
+# /start va «⚙️ Sozlamalar» til, PRO, ball, seriya, takliflar va kanallar sonini
+# 4-6 ta ketma-ket so'rov bilan o'qirdi (har biri ~3 RTT). Endi BITTA birlashgan
+# so'rov + RAM kesh: ``peek_user_profile`` faqat RAM (event loop'da xavfsiz),
+# ``get_user_profile`` — RAM yoki 1 so'rov. Faqat o'zgarganda yangilanadi
+# (``_invalidate_user``, til almashtirish, ``_cache_clear()``, kanal o'chirilishi).
+# Kesh faqat KO'RSATISH uchun: limit/kvota/to'lov qarorlari doim bazadan.
+# ============================================================
+_PROFILE = OrderedDict()         # user_id -> (muddat_monotonic, snapshot)
+_PROFILE_STAMPS = OrderedDict()  # user_id -> oxirgi bekor qilish vaqti
+_PROFILE_LOCK = threading.Lock()
+_PROFILE_MAX = 20000             # LRU chegarasi (~10 MB)
+_PROFILE_STAMPS_MAX = 4096
+_profile_cleared_at = 0.0
+
+_PROFILE_SQL = """
+    SELECT u.language_code, u.user_code, u.username, u.full_name,
+           u.ai_credits, u.streak_days, u.plan_type, u.subscription_expires_at,
+           (SELECT COUNT(*) FROM users r WHERE r.referrer_id = u.user_id),
+           (SELECT COUNT(*) FROM channels c WHERE c.user_id = u.user_id AND c.is_active = TRUE)
+      FROM users u WHERE u.user_id = %s
+"""
+
+
+def _profile_uid(user_id):
+    try:
+        return int(user_id)
+    except (TypeError, ValueError):
+        return None
+
+
+def _profile_invalidate(user_id, **fields):
+    """Profilni bekor qiladi; ``fields`` berilsa (write-through) keshdagi nusxa o'chirilmay yangilanadi.
+
+    Ikkala holatda ham shu payt YUKLANAYOTGAN (eskirgan bo'lishi mumkin) natija
+    keshga yozilmaydi (``_profile_store`` vaqt belgisini tekshiradi).
+    """
+    uid = _profile_uid(user_id)
+    if uid is None:
+        return
+    with _PROFILE_LOCK:
+        if not fields:
+            _PROFILE.pop(uid, None)
+        elif uid in _PROFILE:
+            _PROFILE[uid][1].update(fields)
+        _PROFILE_STAMPS[uid] = _time.monotonic()
+        _PROFILE_STAMPS.move_to_end(uid)
+        while len(_PROFILE_STAMPS) > _PROFILE_STAMPS_MAX:
+            _PROFILE_STAMPS.popitem(last=False)
+
+
+def _profile_clear_all():
+    global _profile_cleared_at
+    with _PROFILE_LOCK:
+        _PROFILE.clear()
+        _profile_cleared_at = _time.monotonic()
+
+
+def _profile_store(uid, snap, started):
+    with _PROFILE_LOCK:
+        if started <= _profile_cleared_at or _PROFILE_STAMPS.get(uid, 0.0) >= started:
+            return  # yuklash paytida bekor qilingan — eskirgan natijani keshlamaymiz
+        _PROFILE[uid] = (_time.monotonic() + DB_PROFILE_CACHE_TTL, snap)
+        _PROFILE.move_to_end(uid)
+        while len(_PROFILE) > _PROFILE_MAX:
+            _PROFILE.popitem(last=False)
+
+
+def _plan_is_pro(plan_type, expires_at) -> bool:
+    """``SubscriptionService.get_status`` bilan bir xil qoida (faqat KO'RSATISH uchun):
+    PRO/enterprise va muddati o'tmagan. Muddat o'qish paytida hisoblanadi."""
+    if (plan_type or "free") not in ("pro", "enterprise"):
+        return False
+    if expires_at is None:
+        return True
+    from datetime import timezone as _tz
+    try:
+        return expires_at > datetime.now(_tz.utc)
+    except TypeError:  # tz-siz datetime
+        return expires_at > datetime.utcnow()
+
+
+def peek_user_profile(user_id):
+    """Profil RAM'da bo'lsa NUSXASINI, aks holda ``None`` qaytaradi.
+
+    DB'ga, thread'ga va tarmoqqa HECH QACHON tegmaydi — event loop ichida
+    to'g'ridan-to'g'ri chaqirish xavfsiz (0 ms).
+    """
+    uid = _profile_uid(user_id)
+    if uid is None or not DB_CACHE_ENABLED:
+        return None
+    with _PROFILE_LOCK:
+        item = _PROFILE.get(uid)
+        if item is None:
+            return None
+        if item[0] <= _time.monotonic():
+            del _PROFILE[uid]
+            return None
+        _PROFILE.move_to_end(uid)
+        prof = dict(item[1])
+    prof["is_pro"] = _plan_is_pro(prof["plan_type"], prof["expires_at"])
+    return prof
+
+
+def get_user_profile(user_id: int):
+    """Profil: RAM'dan (0 DB) yoki BITTA birlashgan so'rov bilan (oldin 4-6 ta so'rov).
+
+    Qaytadi (nusxa): ``user_id, lang, user_code, username, full_name, ai_credits,
+    streak, referrals_count, channels_count, plan_type, expires_at, is_pro``;
+    foydalanuvchi yo'q yoki DB xatosi bo'lsa ``None`` (chaqiruvchi eski yo'lga qaytadi).
+    """
+    prof = peek_user_profile(user_id)
+    if prof is not None:
+        return prof
+    uid = _profile_uid(user_id)
+    if uid is None:
+        return None
+    started = _time.monotonic()
+    try:
+        with db_cursor() as cur:
+            cur.execute(_PROFILE_SQL, (uid,))
+            row = cur.fetchone()
+    except Exception as e:
+        logger.error(f"Profil o'qish xatosi: {e}")
+        return None
+    if not row:
+        return None
+    snap = {
+        "user_id": uid,
+        "lang": _normalize_language_code(row[0]),
+        "user_code": row[1] or str(uid),
+        "username": row[2] or "",
+        "full_name": row[3] or "",
+        "ai_credits": row[4] if row[4] is not None else 0,
+        "streak": row[5] if row[5] is not None else 0,
+        "plan_type": row[6] or "free",
+        "expires_at": row[7],
+        "referrals_count": int(row[8] or 0),
+        "channels_count": int(row[9] or 0),
+    }
+    if DB_CACHE_ENABLED:
+        _profile_store(uid, snap, started)
+    return dict(snap, is_pro=_plan_is_pro(snap["plan_type"], snap["expires_at"]))
 
 
 def get_db_pool_status() -> dict:
@@ -619,10 +947,12 @@ def _acquire_connection():
     """Pool'dan ulanish olish (maks. 15 soniya). O'lik ulanishda qayta urinadi.
 
     1-BOSQICH: urinishlar soni endi ``DB_RECONNECT_RETRIES`` (standart 1 →
-    jami 2 urinish) orqali boshqariladi. Har bir muvaffaqiyatsiz urinishdan
-    keyin pool BUTUNLAY qayta quriladi (``_reset_pool``) — Aiven idle
-    timeout barcha havuzdagi ulanishlarni birdan o'ldiradi, shuning uchun
-    bitta ulanishni tiklash yetarli emas.
+    jami 2 urinish) orqali boshqariladi. Yaroqsiz ulanish FAQAT o'zi tashlanadi;
+    pool BUTUNLAY qayta qurilmaydi: ``_reset_pool`` band ulanishlarni ham
+    yopadi va yangi pool ``minconn`` ta ulanishni ketma-ket (har biri
+    handshake) ochguncha hamma DB chaqiruvlari to'xtab qolardi (10-15 s
+    «qotish»). Uzoq bo'sh turgan o'lik ulanishlarni ``_WarmPool`` o'zi aniqlaydi.
+    Pool obyektining o'zi buzilgan bo'lsa (yopilgan va h.k.) — qayta quriladi.
     """
     sem = _get_semaphore()
     if not sem.acquire(timeout=15):
@@ -631,12 +961,15 @@ def _acquire_connection():
     try:
         last_err = None
         for attempt in range(attempts):
+            pool = None
             try:
-                conn = _get_pool().getconn()
+                pool = _get_pool()
+                conn = pool.getconn()
             except Exception as e:
                 last_err = e
-                logger.warning("DB pool xatosi (%s); pool qayta qurilmoqda...", e)
-                _reset_pool()
+                logger.warning("DB pool xatosi (%s); qayta urinilmoqda...", e)
+                if not isinstance(e, psycopg2.OperationalError):
+                    _reset_pool()  # ulanish emas, pool o'zi yaroqsiz
                 continue
             if _connection_is_usable(conn):
                 return conn
@@ -645,10 +978,12 @@ def _acquire_connection():
                 attempt + 1, attempts,
             )
             try:
-                conn.close()
+                pool.putconn(conn, close=True)  # faqat shu ulanish; band boshqalarga tegilmaydi
             except Exception:
-                pass
-            _reset_pool()
+                try:
+                    conn.close()
+                except Exception:
+                    pass
         if last_err is not None:
             raise last_err
         raise psycopg2.OperationalError("DB ulanish olinmadi")
@@ -792,7 +1127,7 @@ class _Transaction:
     """
 
     __slots__ = ("commit", "isolation_level", "readonly", "conn", "cur",
-                 "savepoint", "parent", "owns_conn", "_token")
+                 "savepoint", "parent", "owns_conn", "_token", "after_commit")
 
     def __init__(self, commit: bool = True, isolation_level: str = None,
                  readonly: bool = False):
@@ -811,6 +1146,7 @@ class _Transaction:
         self.parent = None
         self.owns_conn = True
         self._token = None
+        self.after_commit = []  # COMMIT'dan keyin chaqiriladigan funksiyalar (kesh tozalash)
 
     # ---- kirish -------------------------------------------------------
     def enter(self):
@@ -890,6 +1226,7 @@ class _Transaction:
                 raise
             else:
                 self._retire(conn, broken=False)
+                self._run_after_commit()
             return
         # Xatolik yo'li: rollback, keyin ulanishni saqlab qolish.
         if isinstance(exc, (psycopg2.OperationalError, psycopg2.InterfaceError)):
@@ -903,6 +1240,14 @@ class _Transaction:
         self._retire(conn, broken=False)
 
     # ---- ichki yordamchilar -------------------------------------------
+    def _run_after_commit(self):
+        hooks, self.after_commit = self.after_commit, []
+        for fn in hooks:
+            try:
+                fn()
+            except Exception:  # kesh tozalash tranzaksiya natijasini buzmasligi kerak
+                logger.debug("after_commit ilgagi xato berdi", exc_info=True)
+
     def _reset_ctx(self):
         token, self._token = self._token, None
         if token is not None:
@@ -3362,6 +3707,12 @@ def get_referral_stats(user_id: int) -> dict:
     cached = _cache_get(cache_key)
     if cached is not _MISS:
         return cached
+    # Profil RAM'da bo'lsa — 0 DB; sovuq bo'lsa BITTA birlashgan so'rov (bu
+    # profilni ham keshga yuklaydi: keyingi kod/kanal/til/PRO o'qishlari RAM'dan).
+    prof = get_user_profile(user_id)
+    if prof is not None:
+        return {"referrals_count": prof["referrals_count"],
+                "ai_credits": prof["ai_credits"], "streak": prof["streak"]}
     try:
         with db_cursor() as cur:
             cur.execute("SELECT COUNT(*) FROM users WHERE referrer_id = %s", (user_id,))
@@ -3392,6 +3743,9 @@ def get_user_language(user_id: int) -> str:
     cached = _cache_get(cache_key)
     if cached is not _MISS:
         return cached
+    prof = peek_user_profile(user_id)
+    if prof is not None:
+        return prof["lang"]
     try:
         with db_cursor() as cur:
             cur.execute("SELECT language_code FROM users WHERE user_id = %s", (user_id,))
@@ -3415,6 +3769,7 @@ def set_user_language(user_id: int, language_code: str) -> bool:
             )
             updated = cur.rowcount > 0
         _cache_clear(f"user_lang:{user_id}")
+        _profile_invalidate(user_id, lang=lang)  # write-through: RAM profil yangi tilda qoladi
         return updated
     except Exception as e:
         logger.error(f"User tilini saqlash xatosi: {e}")
@@ -3500,6 +3855,9 @@ def get_user_code(user_id: int) -> str:
     cached = _cache_get(cache_key)
     if cached is not _MISS:
         return cached
+    prof = peek_user_profile(user_id)
+    if prof is not None:
+        return prof["user_code"]
     try:
         with db_cursor() as cur:
             cur.execute("SELECT user_code FROM users WHERE user_id = %s", (user_id,))
@@ -3616,6 +3974,7 @@ def deactivate_channel_by_id(channel_id: str) -> bool:
             )
             changed = cur.rowcount > 0
         _cache_clear("user_channels:")
+        _profile_clear_all()  # kanal egasi noma'lum — kanallar soni barcha profillarda qayta o'qiladi
         _cache_clear("system_stats")
         return changed
     except Exception as e:
@@ -5820,7 +6179,9 @@ def set_user_plan(user_id: int, plan: str, days: int = None,
                     "WHERE user_id = %s",
                     (plan, user_id),
                 )
-                return cur.rowcount > 0
+                updated = cur.rowcount > 0
+            _invalidate_user(user_id)
+            return updated
         except Exception as e:
             logger.error(f"set_user_plan xatosi: {e}")
             return False

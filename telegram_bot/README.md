@@ -204,7 +204,7 @@ Bot [Neon](https://neon.tech) serverless PostgreSQL bilan ham ishlaydi:
    ```
 2. Bu URL'ni Render → Environment'dagi `DATABASE_URL` ga qo'ying.
 3. SSL avtomatik: URL'da `sslmode=` bo'lsa o'sha ishlatiladi, bo'lmasa kod masofaviy host uchun `require` ni o'zi qo'yadi (`DB_SSLMODE` env bilan qo'lda boshqarish ham mumkin: `disable|allow|prefer|require`).
-4. Neon bepul rejada ulanishlar soni cheklangan — `DB_POOL_MAX=5` (default) qoldirilsa yetarli.
+4. Neon bepul rejada ulanishlar soni cheklangan — kerak bo'lsa `DB_POOL_MAX=5` (va `DB_POOL_SIZE=5`) qilib cheklang (default `2..10`).
 5. Sxema (`telegram_bot/schema.sql`) bot har ishga tushganda avtomatik qo'llanadi — barcha operatorlar `IF NOT EXISTS` bilan idempotent, mavjud ma'lumotlar buzilmaydi. Bo'sh bazani qo'lda to'ldirish kerak bo'lsa:
    ```bash
    psql "$DATABASE_URL" -f telegram_bot/schema.sql
@@ -672,7 +672,8 @@ Kalitlarni Render → Environment bo'limiga qo'shing va botni qayta ishga tushir
 
 ### Render Free uchun optimallashtirish
 
-- **PostgreSQL connection pool** — har bir so'rovda yangi ulanish ochilmaydi; ulanishlar qayta ishlatiladi (`DB_POOL_MAX=5`).
+- **PostgreSQL connection pool** — `ThreadedConnectionPool` (`DB_POOL_MIN=2`, `DB_POOL_MAX=10`); bo'sh ulanishlar `maxconn` gacha saqlanadi va qayta ishlatiladi, connect/ROLLBACK umumiy lock ichida bajarilmaydi.
+- **Profil keshi** — til, PRO, ball, kanallar soni RAM'da 5 daqiqa (`DB_PROFILE_CACHE_TTL`) saqlanadi: `/start` va «⚙️ Sozlamalar» keshdan DB'siz javob beradi; faqat o'zgarganda (til almashtirish, to'lov, kanal qo'shish/o'chirish ...) yangilanadi.
 - **TTL kesh** — tez-tez so'raladigan sozlamalar, homiy kanallar, foydalanuvchi ballari/kanallari va statistika kichik TTL keshida saqlanadi (`DB_CACHE_ENABLED=1`, `DB_SETTINGS_CACHE_TTL`, `DB_USER_CACHE_TTL`, `DB_STATS_CACHE_TTL`). Yozishlar keshlarni avtomatik tozalaydi.
 - **Event loop bloklanmaydi** — scheduler va og'ir DB operatsiyalari alohida thread'da bajariladi.
 - **Telegram timeout/retry** — rate-limit va tarmoq xatolarida postlar yo'qolmaydi, keyingi urinish uchun navbatga qaytadi.

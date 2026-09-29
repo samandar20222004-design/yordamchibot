@@ -200,4 +200,11 @@ echo "===== CHANNEL DNA & MONITORING TEST (FAZA 8,9,22) ====="
 "$PY" tests/channel_dna_and_monitoring_test.py || exit 1
 
 echo
+echo "===== DB POOL (_WarmPool) + PROFIL KESH TEST ====="
+# Pool bo'sh ulanishlarni maxconn gacha saqlashi, ROLLBACK/connect umumiy lock'ni
+# ushlamasligi, o'lik ulanish ping'i; profil keshi (TTL, invalidatsiya, COMMIT'dan
+# keyingi bekor qilish) va /start + Sozlamalar keshdan DB'siz javob berishi.
+"$PY" tests/pool_profile_cache_test.py || exit 1
+
+echo
 echo "BARCHA TESTLAR MUVOFFAQIYATLI ✔"

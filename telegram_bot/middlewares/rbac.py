@@ -5,6 +5,7 @@ qat'iy tekshiriladi (server-side from_user.id asosida).
 """
 
 from __future__ import annotations
+import asyncio
 import logging
 from functools import wraps
 from typing import Callable, Any
@@ -50,7 +51,8 @@ def admin_rbac_required(func: Callable) -> Callable:
         user = getattr(query, "from_user", None) or getattr(update, "effective_user", None)
         user_id = getattr(user, "id", None)
 
-        if not is_admin_user(user_id):
+        # is_admin_user kesh o'tib ketsa DB'ga sinxron boradi — event loop'ni qotirmaslik uchun thread'da.
+        if not await asyncio.to_thread(is_admin_user, user_id):
             logger.warning(
                 "RBAC VIOLATION: Unauthorized user %s attempted admin callback '%s'",
                 user_id,

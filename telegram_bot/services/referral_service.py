@@ -155,7 +155,8 @@ class ReferralService:
     # ──────────────────────────────────────────────────────────────
     @staticmethod
     def register_new_user(user_id, username: str, full_name: str = "",
-                          referrer_id=None, language_code: str = None) -> dict:
+                          referrer_id=None, language_code: str = None,
+                          _retry: int = 3) -> dict:
         """Foydalanuvchini ro'yxatdan o'tkazadi (yoki ma'lumotini yangilaydi).
 
         Butun oqim BITTA atomik tranzaksiyada: anti-abuse tekshiruvi +
@@ -251,6 +252,11 @@ class ReferralService:
                     "language_code": lang,
                 }
         except Exception as e:
+            # Parallel /start da tasodifiy user_code to'qnashsa (UNIQUE, 6760 ta kod) tranzaksiya
+            # to'liq ROLLBACK bo'lgan — yangi kod bilan qayta uriniladi (foydalanuvchi yo'qolmaydi).
+            if _retry > 0 and "users_user_code_key" in str(e):
+                return ReferralService.register_new_user(
+                    user_id, username, full_name, referrer_id, language_code, _retry - 1)
             # Tranzaksiya avtomatik ROLLBACK bo'ldi — yarim yozuv qolmaydi.
             logger.error("ReferralService.register_new_user xatosi (user=%s): %s",
                          user_id, e)

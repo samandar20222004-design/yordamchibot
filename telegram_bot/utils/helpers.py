@@ -661,7 +661,9 @@ async def get_smart_reply_ad_async(user_id: int) -> str:
     if user_id in ADMIN_IDS_SET:
         return ""
     try:
-        if await db.run_db(db.is_premium, user_id):
+        prof = db.peek_user_profile(user_id)  # RAM profil: 0 DB (faqat ko'rsatish uchun)
+        is_pro = prof["is_pro"] if prof is not None else await db.run_db(db.is_premium, user_id)
+        if is_pro:
             return ""
     except Exception:
         pass
