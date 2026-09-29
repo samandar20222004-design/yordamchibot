@@ -1117,9 +1117,8 @@ EN_OVERLAY = {
     "np_confirm_queue_btn": "⏳ Add to queue",
     "np_confirm_edit_btn": "✏️ Edit",
     "np_album_warning": (
-        "⚠️ Per Telegram rules, link or reaction buttons cannot be added "
-        "to multi-photo albums. \n"
-        "Buttons or reactions only work for 1 photo (or plain text)."
+        "⚠️ Due to Telegram limits, posts with buttons are sent with only 1 media. "
+        "If you add a button, only the first media will be sent."
     ),
     "np_album_choice_first_photo": "🖼 1 photo + button",
     "np_album_choice_full": "⏩ Full album",
@@ -1695,6 +1694,11 @@ EN_OVERLAY = {
     "ext_btn_other_post": "🔙 Another post",
     "ext_btn_rewrite": "🔄 Rewrite",
     "ext_btn_refresh": "🔄 Refresh",
+    "ext_btn_adapt": "🎯 Adapt to my channel",
+    "ext_btn_manual_edit": "✏️ Edit manually",
+    "ext_adapting": "🎯 Adapting...",
+    "ext_edit_prompt": "✏️ <b>Manual edit.</b>\n\nCurrent text:\n<i>{text}</i>\n\nSend your new text — preview will update.",
+    "ext_edit_empty": "⚠️ Empty text is not allowed. Please send new text.",
     "ext_media_preview": "🖼 Photo/Video",
     "ext_reading_site": "⏳ Reading the site...",
     "ext_site_read_failed": "⚠️ Could not read text from the site. Check the address and resend.",

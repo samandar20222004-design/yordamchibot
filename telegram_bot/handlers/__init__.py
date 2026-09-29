@@ -396,7 +396,8 @@ from handlers.support import (
 # 11. CHANNEL EXTRACT MODULI
 from handlers.channel_extract import (
     start_extract, extract_username_received, extract_post_chosen,
-    EXTRACT_USERNAME, EXTRACT_CHOOSE_POST
+    extract_edit_received,
+    EXTRACT_USERNAME, EXTRACT_CHOOSE_POST, EXTRACT_EDIT
 )
 
 # 12. QUEUE MODULI
@@ -1547,6 +1548,10 @@ def register_all_handlers(app):
                 CallbackQueryHandler(ai_back_to_menu, pattern=r"^ai_back_to_menu$"),
                 CallbackQueryHandler(ai_back_to_content, pattern=r"^ai_back_to_content$"),
                 CallbackQueryHandler(ai_close, pattern=r"^ai_close$"),
+            ],
+            EXTRACT_EDIT: all_menu_jumps + [
+                CallbackQueryHandler(extract_post_chosen, pattern=r"^ext_"),
+                MessageHandler(filters.TEXT & ~filters.COMMAND, extract_edit_received),
             ],
 
             # 4. Kutilayotgan postlarni tahrirlash holatlari

@@ -730,16 +730,43 @@ def _build_preview_text(context) -> str:
     )
 
 
-def _get_confirm_keyboard(lang="uz"):
-    """Tasdiqlash ekranidagi inline tugmalar (uz/ru)."""
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton(get_text("np_confirm_ok_btn", lang), callback_data="confirm_post:ok")],
-        [InlineKeyboardButton(get_text("np_confirm_queue_btn", lang), callback_data="confirm_post:queue")],
-        [
-            InlineKeyboardButton(get_text("np_confirm_edit_btn", lang), callback_data="confirm_post:edit"),
-            InlineKeyboardButton(get_text("np_confirm_cancel_btn", lang), callback_data="confirm_post:cancel"),
-        ],
+def _get_confirm_keyboard(lang="uz", channel_title: str = None):
+    """Tasdiqlash ekranidagi inline tugmalar (uz/ru) — 1-vazifa: kanal tanlash tugmasi.
+
+    Agar ``channel_title`` berilgan bo'lsa, birinchi qatorda
+    "📢 Kanal: [name]" ko'rsatiladi, aks holda "📢 Kanalni tanlash".
+    """
+    rows = []
+    # 1-vazifa: kanal tanlash tugmasi
+    if channel_title:
+        try:
+            from keyboards.inline import btn_label
+            label = btn_label(channel_title, max_length=20)
+        except Exception:
+            label = str(channel_title)[:20]
+        ch_btn_text = f"📢 Kanal: {label}"
+        # Try i18n if available
+        try:
+            from locales.translations import get_text as _gt
+            # Use manual_post_t style if exists, fallback to raw
+            ch_btn_text = f"📢 Kanal: {label}"
+        except Exception:
+            pass
+    else:
+        ch_btn_text = "📢 Kanalni tanlash"
+        try:
+            from translations import manual_post_t
+            ch_btn_text = manual_post_t("mp_btn_channel_select", lang)
+        except Exception:
+            pass
+    rows.append([InlineKeyboardButton(ch_btn_text, callback_data="confirm_post:channel")])
+    rows.append([InlineKeyboardButton(get_text("np_confirm_ok_btn", lang), callback_data="confirm_post:ok")])
+    rows.append([InlineKeyboardButton(get_text("np_confirm_queue_btn", lang), callback_data="confirm_post:queue")])
+    rows.append([
+        InlineKeyboardButton(get_text("np_confirm_edit_btn", lang), callback_data="confirm_post:edit"),
+        InlineKeyboardButton(get_text("np_confirm_cancel_btn", lang), callback_data="confirm_post:cancel"),
     ])
+    return InlineKeyboardMarkup(rows)
 
 
 def _get_edit_confirm_keyboard(lang="uz"):
@@ -839,7 +866,8 @@ async def _show_confirmation(target_msg, context):
     preview = _build_preview_text(context)
     post_type = context.user_data.get("post_type", "text")
     file_id = context.user_data.get("file_id")
-    keyboard = _get_confirm_keyboard(get_lang(context))
+    ch_title = context.user_data.get("selected_channel_title") or context.user_data.get("confirm_channel_title")
+    keyboard = _get_confirm_keyboard(get_lang(context), channel_title=ch_title)
 
     bot = context.bot if getattr(context, "bot", None) is not None else target_msg
     chat_id = target_msg.chat_id
@@ -1485,12 +1513,20 @@ async def time_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return GET_TIME
 
-    # Confirmation ekranini ko'rsatish
+    # 3-vazifa: vaqt saqlanadi va preview qayta ko'rsatiladi, FSM yopilmaydi
     context.user_data["confirm_post_time"] = post_time
     context.user_data["confirm_recurrence_type"] = "none"
     context.user_data["confirm_recurrence_day"] = None
     context.user_data["confirm_recurrence_time_str"] = None
     context.user_data["confirm_end_date"] = None
+    try:
+        time_str = format_datetime(post_time, lang)
+        await update.message.reply_text(
+            get_text("np_time_set", lang, time=time_str),
+            parse_mode="HTML",
+        )
+    except Exception:
+        pass
     await _show_confirmation(update.message, context)
     return CONFIRM_POST
 
@@ -1515,6 +1551,16 @@ async def daily_time_received(update: Update, context: ContextTypes.DEFAULT_TYPE
     context.user_data["rec_type"] = "daily"
     context.user_data["rec_time_str"] = f"{hh:02d}:{mm:02d}:00"
     context.user_data["rec_day"] = None
+
+    # 3-vazifa: vaqt belgilandi xabari (FSM yopilmaydi)
+    try:
+        time_str = format_time(f"{hh:02d}:{mm:02d}:00", lang)
+        await update.message.reply_text(
+            get_text("np_time_set", lang, time=time_str),
+            parse_mode="HTML",
+        )
+    except Exception:
+        pass
 
     await update.message.reply_text(
         get_text("np_duration_ask_daily", lang),
@@ -1568,6 +1614,16 @@ async def recur_time_received(update: Update, context: ContextTypes.DEFAULT_TYPE
     context.user_data["rec_type"] = "weekly"
     context.user_data["rec_time_str"] = f"{hh:02d}:{mm:02d}:00"
 
+    # 3-vazifa: vaqt belgilandi xabari
+    try:
+        time_str = format_time(f"{hh:02d}:{mm:02d}:00", lang)
+        await update.message.reply_text(
+            get_text("np_time_set", lang, time=time_str),
+            parse_mode="HTML",
+        )
+    except Exception:
+        pass
+
     await update.message.reply_text(
         get_text("np_duration_ask_weekly", lang),
         reply_markup=get_duration_keyboard(lang),
@@ -1613,7 +1669,7 @@ async def duration_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ============================================================
 
 async def confirm_post_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Tasdiqlash ekranidagi tugmalar: OK / Queue / Edit / Cancel."""
+    """Tasdiqlash ekranidagi tugmalar: OK / Queue / Edit / Cancel / Channel (1-vazifa)."""
     query = update.callback_query
     user_id = update.effective_user.id
     if check_callback_throttle(user_id):
@@ -1627,11 +1683,71 @@ async def confirm_post_callback(update: Update, context: ContextTypes.DEFAULT_TY
         return
     await query.answer()
     data = query.data
+    # action may contain sub-action like "ch:-100123"
     action = data.split(":", 1)[1] if ":" in data else ""
     user_id = query.from_user.id
     is_admin = (user_id in ADMIN_IDS_SET)
 
     lang = get_lang(context)
+
+    # 1-vazifa: kanal tanlash tugmasi bosildi
+    if action == "channel":
+        channels = await db.run_db(db.get_user_channels, user_id)
+        if not channels:
+            await query.message.reply_text(
+                get_text("new_post_no_channels", lang),
+                reply_markup=get_main_keyboard(is_admin, context=context),
+                parse_mode="HTML",
+            )
+            return ConversationHandler.END
+        if len(channels) == 1:
+            context.user_data["selected_channel_id"] = channels[0][0]
+            context.user_data["selected_channel_title"] = channels[0][1]
+            await _show_confirmation(query.message, context)
+            return CONFIRM_POST
+        # Ko'p kanal — inline ro'yxat
+        from keyboards.inline import btn_label
+        keyboard = []
+        for ch_id, ch_title in channels:
+            label = btn_label(ch_title, max_length=20)
+            keyboard.append([InlineKeyboardButton(f"📢 {label}", callback_data=f"confirm_post:ch:{ch_id}")])
+        keyboard.append([InlineKeyboardButton(get_text("np_edit_back_btn", lang), callback_data="confirm_post:back")])
+        await query.message.reply_text(
+            get_text("new_post_choose_channel", lang),
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode="HTML",
+        )
+        return CONFIRM_POST
+
+    if action.startswith("ch:"):
+        # Kanal tanlandi: confirm_post:ch:<id>
+        raw_id = action[3:].strip()
+        channels = await db.run_db(db.get_user_channels, user_id) or []
+        # Find title
+        found = None
+        for cid, ctitle in channels:
+            if str(cid) == raw_id:
+                found = (cid, ctitle)
+                break
+        if not found:
+            # Try int conversion
+            try:
+                int_id = int(raw_id)
+                for cid, ctitle in channels:
+                    if cid == int_id:
+                        found = (cid, ctitle)
+                        break
+            except Exception:
+                pass
+        if found:
+            context.user_data["selected_channel_id"] = found[0]
+            context.user_data["selected_channel_title"] = found[1]
+        await _show_confirmation(query.message, context)
+        return CONFIRM_POST
+
+    if action == "back":
+        await _show_confirmation(query.message, context)
+        return CONFIRM_POST
 
     if action == "cancel":
         clear_fsm_data(context)
@@ -1658,13 +1774,33 @@ async def confirm_post_callback(update: Update, context: ContextTypes.DEFAULT_TY
     if action == "queue":
         selected_channel_id = context.user_data.get("selected_channel_id")
         if not selected_channel_id:
-            await query.message.reply_text(
-                get_text("np_no_channel", lang),
-                reply_markup=get_main_keyboard(is_admin, context=context),
-                parse_mode="HTML",
-            )
-            clear_fsm_data(context)
-            return ConversationHandler.END
+            # 1-vazifa: kanal tanlanmagan bo'lsa — ro'yxatni ko'rsatish
+            channels = await db.run_db(db.get_user_channels, user_id)
+            if channels and len(channels) == 1:
+                context.user_data["selected_channel_id"] = channels[0][0]
+                context.user_data["selected_channel_title"] = channels[0][1]
+                selected_channel_id = channels[0][0]
+            else:
+                if channels:
+                    from keyboards.inline import btn_label
+                    keyboard = []
+                    for ch_id, ch_title in channels:
+                        label = btn_label(ch_title, max_length=20)
+                        keyboard.append([InlineKeyboardButton(f"📢 {label}", callback_data=f"confirm_post:ch:{ch_id}")])
+                    keyboard.append([InlineKeyboardButton(get_text("np_edit_back_btn", lang), callback_data="confirm_post:back")])
+                    await query.message.reply_text(
+                        get_text("new_post_choose_channel", lang),
+                        reply_markup=InlineKeyboardMarkup(keyboard),
+                        parse_mode="HTML",
+                    )
+                    return CONFIRM_POST
+                await query.message.reply_text(
+                    get_text("np_no_channel", lang),
+                    reply_markup=get_main_keyboard(is_admin, context=context),
+                    parse_mode="HTML",
+                )
+                clear_fsm_data(context)
+                return ConversationHandler.END
 
         now = datetime.now(tashkent_tz)
         slots = await db.run_db(db.get_queue_slots, user_id)
@@ -1779,6 +1915,35 @@ async def confirm_post_callback(update: Update, context: ContextTypes.DEFAULT_TY
 
     selected_channel_id = context.user_data.get("selected_channel_id")
     channel_title = context.user_data.get("selected_channel_title", "Kanal")
+    # 1-vazifa: kanal tanlanmagan bo'lsa — ro'yxatni ko'rsatish
+    if not selected_channel_id:
+        channels = await db.run_db(db.get_user_channels, user_id)
+        if channels and len(channels) == 1:
+            context.user_data["selected_channel_id"] = channels[0][0]
+            context.user_data["selected_channel_title"] = channels[0][1]
+            selected_channel_id = channels[0][0]
+            channel_title = channels[0][1]
+        elif channels:
+            from keyboards.inline import btn_label
+            keyboard = []
+            for ch_id, ch_title in channels:
+                label = btn_label(ch_title, max_length=20)
+                keyboard.append([InlineKeyboardButton(f"📢 {label}", callback_data=f"confirm_post:ch:{ch_id}")])
+            keyboard.append([InlineKeyboardButton(get_text("np_edit_back_btn", lang), callback_data="confirm_post:back")])
+            await query.message.reply_text(
+                get_text("new_post_choose_channel", lang),
+                reply_markup=InlineKeyboardMarkup(keyboard),
+                parse_mode="HTML",
+            )
+            return CONFIRM_POST
+        else:
+            await query.message.reply_text(
+                get_text("np_no_channel", lang),
+                reply_markup=get_main_keyboard(is_admin, context=context),
+                parse_mode="HTML",
+            )
+            clear_fsm_data(context)
+            return ConversationHandler.END
     # 🖼 ALBOM: sendMediaGroup'ga inline_keyboard ulanmaydi — albom uchun
     # tugma/reaksiya opsiyalari DB'ga yozilmaydi.
     _strip_unsupported_album_options(context)

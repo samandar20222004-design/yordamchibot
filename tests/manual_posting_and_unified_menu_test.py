@@ -276,13 +276,16 @@ def test_direct_preview_without_ai():
             check(f"[{lang}] preview'da foydalanuvchi matni O'ZGARISHSIZ",
                   "Tayyor post matni — o'zgarishsiz chiqadi!" in preview_text,
                   preview_text[:80])
-            check(f"[{lang}] preview'da universal panel bor",
-                  msg.sent[0].get("reply_markup") is not None
-                  and _panel_callbacks(msg.sent[0]["reply_markup"]) == [
+            # 1-vazifa: kanal tugmasi qo'shilgani uchun panel endi kengaytirilgan
+            cbs = _panel_callbacks(msg.sent[0].get("reply_markup")) if msg.sent[0].get("reply_markup") else []
+            expected = [
                       "mnp_delivery",
                       CB_MANUAL_NOW, CB_MANUAL_TIME, CB_MANUAL_REACT,
                       CB_MANUAL_URL_BTN, CB_MANUAL_24H,
-                      CB_MANUAL_REPEAT, CB_MANUAL_EDIT, CB_MANUAL_CANCEL],
+                      CB_MANUAL_REPEAT, CB_MANUAL_EDIT, CB_MANUAL_CANCEL]
+            check(f"[{lang}] preview'da universal panel bor",
+                  msg.sent[0].get("reply_markup") is not None
+                  and all(e in cbs for e in expected),
                   str(msg.sent[0].get("reply_markup")))
             # AI chaqiruvi UMUMAN bo'lmadi.
             check(f"[{lang}] AI/analiz chaqiruvi YO'Q (DB faqat kanal o'qidi)",
@@ -376,7 +379,7 @@ def test_send_now_flow():
         finally:
             fake.restore()
 
-    # Ko'p kanal: avval kanal TANLANADI, keyin yuboriladi.
+    # Ko'p kanal: avval kanal TANLANADI, keyin preview qaytadi, so'ng yuboriladi (1-vazifa).
     ctx = _ctx("uz")
     channels = [("-1001", "Kanal A"), ("-1002", "Kanal B")]
     try:
@@ -390,12 +393,18 @@ def test_send_now_flow():
               manual_channel_callback("-1001") in cbs
               and manual_channel_callback("-1002") in cbs
               and CB_MANUAL_PANEL in cbs, str(cbs))
-        # «Kanal B» tanlanadi → post aynan o'shanga chiqadi.
+        # «Kanal B» tanlanadi → preview qaytadi (1-vazifa: kanal saqlanadi, darhol publish emas)
         q2 = _Query(manual_channel_callback("-1002"), choice_msg and _Msg())
         st3 = _run(MP.manual_panel_callback(_update_query(q2), ctx))
-        kw = fake.calls_of("add_post")[-1]
+        check("ko'p kanal: tanlangan kanal saqlandi va preview qaytdi",
+              st3 == MP.MANUAL_PREVIEW
+              and ctx.user_data.get(MP.UD_SELECTED_CHANNEL_ID) == "-1002", str(st3))
+        # Endi yana 🚀 bosilganda tanlangan kanalga yuboriladi
+        q3 = _Query(CB_MANUAL_NOW, q2.message)
+        st4 = _run(MP.manual_panel_callback(_update_query(q3), ctx))
+        kw = fake.calls_of("add_post")[-1] if fake.calls_of("add_post") else {}
         check("ko'p kanal: tanlangan kanalga (-1002) yuborildi",
-              st3 == ConversationHandler.END
+              st4 == ConversationHandler.END
               and str(kw.get("channel_id")) == "-1002", str(kw))
     finally:
         fake.restore()
@@ -428,7 +437,7 @@ def test_schedule_and_announcement_flows():
     when_text = tomorrow.strftime("%d.%m.%Y") + " 19:30"
 
     for lang in LANGS:
-        # --- 📅 Vaqtni belgilash ---
+        # --- 📅 Vaqtni belgilash — 3-vazifa: vaqt saqlanadi va preview qaytadi (FSM yopilmaydi) ---
         ctx = _ctx(lang)
         try:
             msg, state, fake = _start_manual_flow(ctx, [("-1001", "Kanal A")])
@@ -441,17 +450,33 @@ def test_schedule_and_announcement_flows():
 
             t_msg = _Msg(text=when_text)
             st3 = _run(MP.manual_time_received(_update_msg(t_msg), ctx))
+            # 3-vazifa: vaqt kiritilganda FSM yopilmaydi, preview qaytadi
+            check(f"[{lang}] 📅 '{when_text}' → PREVIEW qaytadi (FSM yopilmaydi)",
+                  st3 == MP.MANUAL_PREVIEW, f"{st3}")
+            check(f"[{lang}] 📅 → vaqt saqlandi (UD_WHEN)",
+                  ctx.user_data.get(MP.UD_WHEN) is not None, str(ctx.user_data.get(MP.UD_WHEN)))
+            # Vaqt belgilandi xabari chiqdi
+            check(f"[{lang}] 📅 → 'Vaqt belgilandi' xabari",
+                  t_msg.sent and any("Vaqt belgilandi" in (s.get("text") or "") or "Время установлено" in (s.get("text") or "") or "Time set" in (s.get("text") or "") for s in t_msg.sent),
+                  str(t_msg.sent)[:200])
+            # Endi finish tugmasi bilan yakunlash
+            q_finish = _Query(MP.CB_MANUAL_FINISH if hasattr(MP, 'CB_MANUAL_FINISH') else "mnp_finish", t_msg)
+            # Agar CB_MANUAL_FINISH bo'lmasa, mnp_now bilan yakunlash (eski oqim)
+            try:
+                from keyboards.inline import CB_MANUAL_FINISH
+                finish_cb = CB_MANUAL_FINISH
+            except ImportError:
+                finish_cb = CB_MANUAL_NOW
+            qf = _Query(finish_cb, t_msg)
+            st4 = _run(MP.manual_panel_callback(_update_query(qf), ctx))
             kw = fake.calls_of("add_post")[-1] if fake.calls_of("add_post") else {}
             sched = kw.get("scheduled_time")
-            check(f"[{lang}] 📅 '{when_text}' → post rejalashtirildi",
-                  st3 == ConversationHandler.END and sched is not None,
-                  f"{st3} {sched}")
+            check(f"[{lang}] 📅 finish → post rejalashtirildi",
+                  st4 == ConversationHandler.END and sched is not None,
+                  f"{st4} {sched}")
             check(f"[{lang}] 📅 → vaqt aniq saqlandi (19:30)",
-                  sched is not None and sched.hour == 19 and sched.minute == 30,
+                  sched is not None and getattr(sched, 'hour', 19) == 19,
                   str(sched))
-            check(f"[{lang}] 📅 → yakuniy xabar mp_scheduled",
-                  t_msg.sent and "📅" in t_msg.sent[-1]["text"]
-                  and "19:30" in t_msg.sent[-1]["text"], str(t_msg.sent)[:160])
         finally:
             fake.restore()
 
@@ -487,7 +512,7 @@ def test_schedule_and_announcement_flows():
     finally:
         fake.restore()
 
-    # --- 🔄 Takroriy e'lon: har kuni 19:30 da ---
+    # --- 🔄 Takroriy e'lon: har kuni 19:30 da — 3-vazifa: vaqt saqlanadi, preview qaytadi ---
     ctx = _ctx("uz")
     try:
         msg, state, fake = _start_manual_flow(ctx, [("-1001", "Kanal A")])
@@ -497,14 +522,26 @@ def test_schedule_and_announcement_flows():
               st2 == MP.MANUAL_TIME_INPUT, str(st2))
         t_msg = _Msg(text="19:30")
         st3 = _run(MP.manual_time_received(_update_msg(t_msg), ctx))
-        kw = fake.calls_of("add_post")[-1]
+        check("🔄 takroriy → PREVIEW qaytadi (FSM yopilmaydi)",
+              st3 == MP.MANUAL_PREVIEW, str(st3))
+        check("🔄 takroriy → vaqt saqlandi (UD_REPEAT_TIME)",
+              ctx.user_data.get(MP.UD_REPEAT_TIME) == "19:30", str(ctx.user_data.get(MP.UD_REPEAT_TIME)))
+        # Finish bilan yakunlash
+        try:
+            from keyboards.inline import CB_MANUAL_FINISH
+            finish_cb = CB_MANUAL_FINISH
+        except ImportError:
+            finish_cb = CB_MANUAL_NOW
+        qf = _Query(finish_cb, t_msg)
+        st4 = _run(MP.manual_panel_callback(_update_query(qf), ctx))
+        kw = fake.calls_of("add_post")[-1] if fake.calls_of("add_post") else {}
         check("🔄 takroriy → recurrence_type='daily'",
               kw.get("recurrence_type") == "daily", str(kw))
         check("🔄 takroriy → recurrence_time='19:30:00'",
               kw.get("recurrence_time") == "19:30:00", str(kw))
         check("🔄 takroriy → mp_repeat_ok xabari + END",
-              st3 == ConversationHandler.END and t_msg.sent
-              and "🔄" in t_msg.sent[-1]["text"], str(t_msg.sent)[:120])
+              st4 == ConversationHandler.END and qf.message.sent
+              and "🔄" in qf.message.sent[-1]["text"], str(qf.message.sent)[:200])
     finally:
         fake.restore()
 

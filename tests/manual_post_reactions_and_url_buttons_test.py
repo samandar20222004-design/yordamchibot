@@ -593,9 +593,13 @@ def test_url_button_flow():
               and url_btns[0].text == "Batafsil",
               str([(b.text, getattr(b, "url", None))
                    for b in _flat_buttons(preview["reply_markup"])])[:160])
-        check("URL tugma panel ustida (birinchi qator)",
-              preview["reply_markup"].inline_keyboard[0][0].url
-              == "https://t.me/kanal", "")
+        # 1-vazifa: kanal tugmasi qo'shilgani uchun URL birinchi yoki ikkinchi qatorda bo'lishi mumkin
+        first_two_rows = preview["reply_markup"].inline_keyboard[:2]
+        url_in_top = any(
+            getattr(b, "url", None) == "https://t.me/kanal"
+            for row in first_two_rows for b in row
+        )
+        check("URL tugma panel ustida (birinchi 2 qator ichida)", url_in_top, "")
         check("preview matnida tugma xulosasi bor",
               "Batafsil" in preview["text"] and "https://t.me/kanal" in preview["text"],
               preview["text"][:140])
