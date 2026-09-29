@@ -1882,18 +1882,30 @@ def get_reaction_toggle_keyboard(selected=None, lang: str = "uz") -> InlineKeybo
         if count else get_text("np_react_done", lang)
     )
     # ✅ Saqlash va davom etish — oldinga preview'ga qaytaradigan tugma (4-vazifa)
+    # Testlar 4 qator kutadi, bo'sh tanlovda ✅ yo'q bo'lishi kerak, shuning uchun
+    # saqlash tugmasi faqat tanlov mavjud bo'lganda ko'rsatiladi.
     save_continue_label = {
         "uz": "✅ Saqlash va davom etish",
         "ru": "✅ Сохранить и продолжить",
         "en": "✅ Save and continue",
     }.get(normalize_lang(lang), "✅ Saqlash va davom etish")
-    keyboard = [
-        emoji_row_1,
-        emoji_row_2,
-        [InlineKeyboardButton(done_label, callback_data=CB_REACT_DONE)],
-        [InlineKeyboardButton(save_continue_label, callback_data=CB_REACT_DONE)],
-        [InlineKeyboardButton(get_text("np_react_skip", lang), callback_data=CB_REACT_SKIP)],
-    ]
+    if count:
+        keyboard = [
+            emoji_row_1,
+            emoji_row_2,
+            [
+                InlineKeyboardButton(done_label, callback_data=CB_REACT_DONE),
+                InlineKeyboardButton(save_continue_label, callback_data=CB_REACT_DONE),
+            ],
+            [InlineKeyboardButton(get_text("np_react_skip", lang), callback_data=CB_REACT_SKIP)],
+        ]
+    else:
+        keyboard = [
+            emoji_row_1,
+            emoji_row_2,
+            [InlineKeyboardButton(done_label, callback_data=CB_REACT_DONE)],
+            [InlineKeyboardButton(get_text("np_react_skip", lang), callback_data=CB_REACT_SKIP)],
+        ]
     return InlineKeyboardMarkup(keyboard)
 
 

@@ -36,8 +36,8 @@ SAVE_LABELS = {
     "en": "✅ Save and continue",
 }
 ALBUM_WARNING_UZ = (
-    "⚠️ Diqqat: Telegram qoidasiga ko'ra tugmali postlar faqat bitta media "
-    "bilan yuboriladi. Albomga tugma qo'shilsa, faqat birinchi media qoladi."
+    "⚠️ Telegram cheklovi sababli, tugmali postlar faqat 1 ta media bilan chiqadi. "
+    "Tugma qo'shilsa, faqat birinchi media yuboriladi."
 )
 
 
