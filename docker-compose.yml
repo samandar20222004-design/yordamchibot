@@ -68,6 +68,27 @@ services:
     networks:
       - postassist
 
+  # PHASE 2 · ixtiyoriy REDIS (distributed state / rate limiting).
+  # O'chirilgan (opt-in):  docker compose --profile redis up -d
+  # So'nra .env da:  REDIS_URL=redis://redis:6379/0
+  # Bot Redis'siz ham TO'LIQ ishlaydi — state faqat In-Memory'da qoladi
+  # (services/cache_backend.py: circuit breaker bilan avtomatik fallback).
+  redis:
+    image: redis:7-alpine
+    container_name: postassist-redis
+    restart: unless-stopped
+    profiles: ["redis"]
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    ports:
+      - "6379:6379"
+    networks:
+      - postassist
+
 volumes:
   pg_data:
   bot_data:

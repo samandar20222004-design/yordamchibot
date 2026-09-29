@@ -139,6 +139,13 @@
 #       va fon vazifalari leak-free; parallel foydalanuvchi + concurrent AI
 #       yuklama simulyatsiyasi (PASS/FAIL/NOT TESTED — faqat aniq faktlar)
 #       (tests/production_hardening_and_concurrency_test.py)
+#   3N) 🔒 PHASE 2 — RATE LIMITING VA REDIS / DISTRIBUTED STATE:
+#       yagona CacheBackend interfeysi (get/set/delete/incr/expire) +
+#       ixtiyoriy Redis backend + TTL/LRU In-Memory backend (512 MB RAM
+#       chegarasi) + circuit breaker bilan avtomatik fallback; har bir
+#       harakat uchun ALOHIDA TTL (matn, (user_id, callback_action), AI,
+#       URL/RSS fetch), global tozalash yo'q
+#       (tests/rate_limiter_redis_test.py)
 #   4) TO'LIQ regressiya: telegram_bot/tests/run_tests.sh (barcha 30+ test fayli)
 #
 # Har qanday xatoda 1 bilan chiqadi (CI uchun).
@@ -867,6 +874,26 @@ echo "===== 3M) 🪄 POSTASSIST POLISH: DINAMIK SANA + 8 TUGMA + BOT HAQIDA + 18
 # (4) 📏 18-BELGI STANDARTI: barcha statik inline tugma yorliqlari va
 #     45+ kanonik klaviatura render'da ≤18 belgi (vizual uzunlik).
 "$PY" tests/postassist_polish_test.py || EXIT_CODE=1
+
+echo
+echo "===== 3N) 🔒 PHASE 2: RATE LIMITING + REDIS / DISTRIBUTED STATE ====="
+# (1) 🗄 STATE & CACHE ADAPTER (services/cache_backend.py): yagona
+#     CacheBackend interfeysi (get/set/delete/incr/expire), Redis backend
+#     (ixtiyoriy, `redis` paketi), TTL+LRU In-Memory backend (maxsize/
+#     max_total_bytes — 512 MB RAM chegarasi) va CIRCUIT BREAKER bilan
+#     avtomatik In-Memory fallback (Redis uzilsa bot QULAMAYDI);
+# (2) ⏱ GRANULAR RATE LIMITING (middlewares/rate_limiter.py): global
+#     tozalash o'rniga har bir harakat uchun ALOHIDA kalit + ALOHIDA TTL —
+#     matn (1 s / 2 ta), callback (user_id, callback_action), qimmatli AI
+#     so'rovi (4 s / 1 ta) va URL/RSS fetch (SSRF/DoS);
+# (3) 🔘 Bir xil tugma ketma-ket bosilsa BLOKLANADI, boshqa tugma esa
+#     bemalol bosiladi (turli action'larning chegaralari aralashmaydi);
+# (4) 🔗 Redis holati instance'lar arasida UMUMIY (multi-instance), yo'q
+#     bo'lsa yoki uzilib qolsa — In-Memory + fail-open (testlar);
+# (5) ⚙️ .env.example: REDIS_URL (ixtiyoriy), REDIS_ENABLED bayrog'i va
+#     RATE_LIMIT_* kalitlari — ikkala nusxada paritetli
+#     (tests/rate_limiter_redis_test.py).
+"$PY" tests/rate_limiter_redis_test.py || EXIT_CODE=1
 
 echo
 echo "======== 4) TO'LIQ REGRESSIYA (telegram_bot/tests) ========"

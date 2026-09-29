@@ -415,7 +415,14 @@ def check_rate_limit(user_id: int, max_requests: int = 3, window_seconds: float 
 
 
 def is_callback_throttled(user_id: int, data: str = "", window: float = None) -> bool:
-    """Same user + callback_data within 1.5s → True (debounce)."""
+    """Same user + callback_data within 1.5s → True (debounce).
+
+    ⚠️ PHASE 2: bu yordamchi **eskirgan (legacy)** — yangi, granula
+    chegaralar ``middlewares/rate_limiter.py`` da (``(user_id,
+    callback_action)`` bo'yicha, Redis bilan multi-instance).
+    Bot endi shu qatlam orqali throttle qilinadi; bu funksiya
+    orqaga moslik (backward compatibility) uchun saqlanadi.
+    """
     now = time.time()
     win = CALLBACK_THROTTLE_SECONDS if window is None else float(window)
     key = (int(user_id or 0), str(data or "")[:80])

@@ -11,6 +11,15 @@ from .rbac import (
     check_callback_rbac,
     RBAC_DENIED_MESSAGE,
 )
+from .rate_limiter import (
+    RateLimitMiddleware,
+    RateLimiter,
+    RatePolicy,
+    RateDecision,
+    rate_limiter,
+    get_rate_limiter,
+    set_rate_limiter,
+)
 
 __all__ = [
     "clear_user_fsm",
@@ -22,4 +31,11 @@ __all__ = [
     "admin_rbac_required",
     "check_callback_rbac",
     "RBAC_DENIED_MESSAGE",
+    "RateLimitMiddleware",
+    "RateLimiter",
+    "RatePolicy",
+    "RateDecision",
+    "rate_limiter",
+    "get_rate_limiter",
+    "set_rate_limiter",
 ]

@@ -120,6 +120,26 @@ def _int_env(name: str, default: int) -> int:
     except ValueError:
         logger.warning("%s noto'g'ri qiymatga ega: %r. %s deb olindi.", name, raw, default)
         return default
+
+
+def _env_float(name: str, default: float) -> float:
+    """Muhitdan float (soniya/foiz) o'qiydi — noto'g'ri bo'lsa ``default``."""
+    raw = os.getenv(name, "").strip()
+    try:
+        return float(raw) if raw else default
+    except ValueError:
+        logger.warning("%s noto'g'ri qiymatga ega: %r. %s deb olindi.", name, raw, default)
+        return default
+
+
+def _env_flag(name: str, default: bool) -> bool:
+    """Muhitdan boolean bayroq o'qiydi (``1/true/yes/on`` — True)."""
+    raw = os.getenv(name, "").strip().lower()
+    if not raw:
+        return default
+    return raw in {"1", "true", "yes", "on"}
+
+
 PAYMENT_PRICE_1M_UZS = _int_env("PAYMENT_PRICE_1M_UZS", 19000)
 PAYMENT_PRICE_3M_UZS = _int_env("PAYMENT_PRICE_3M_UZS", 45000)
 PAYMENT_PRICE_1Y_UZS = _int_env("PAYMENT_PRICE_1Y_UZS", 140000)
@@ -174,6 +194,70 @@ STALE_UPDATE_SECONDS = max(0, _int_env("STALE_UPDATE_SECONDS", 600))
 KEEP_ALIVE_URL = _str_env("KEEP_ALIVE_URL", "")
 # KEEP_ALIVE_INTERVAL_SECONDS — ping orasidagi interval (soniya).
 KEEP_ALIVE_INTERVAL_SECONDS = max(60, _int_env("KEEP_ALIVE_INTERVAL_SECONDS", 600))
+
+# ============================================================================
+# PHASE 2 · DISTRIBUTED STATE / CACHE (Redis) + GRANULAR RATE LIMITING
+# ----------------------------------------------------------------------------
+# Bot bir necha instance'da (Render/Docker: 2+ replica) ishlayotgan holat
+# uchun holat (rate limit sanagichlari, kesh) UMUMIY manbada saqlanishi
+# kerak. Redis — ixtiyoriy: `redis` paketi o'rnatilmasa yoki `REDIS_URL`
+# bo'sh bo'lsa, tizim butunlay In-Memory rejimda ishlaydi
+# (services/cache_backend.py — circuit breaker bilan avtomatik fallback).
+# ============================================================================
+# REDIS_URL — masalan `redis://localhost:6379/0` yoki
+# `rediss://user:parol@host:6380/0`. BO'SH = Redis ishlatilmaydi.
+# DIQQAT: parol DSN ichida — uni loglarga yozmang (.env faylida saqlang).
+REDIS_URL = _str_env("REDIS_URL", "")
+# REDIS_ENABLED — bayroq. Bo'sh bo'lsa avtomatik: URL bor bo'lsa 1,
+# yo'q bo'lsa 0 (fail-safe: tasodifan URL yozilib qolsa ham bot ishlaydi).
+# `0` = atayin In-Memory (Redis ulanmagan bo'lsa ham).
+REDIS_ENABLED = (
+    os.getenv("REDIS_ENABLED", "").strip()
+    or ("1" if REDIS_URL else "0")
+)
+# REDIS_KEY_PREFIX — boshqa ilovalar bilan to'qnashmasligi uchun.
+REDIS_KEY_PREFIX = _str_env("REDIS_KEY_PREFIX", "postassist")
+# REDIS_SOCKET_TIMEOUT — ulanish/buyruq timeout'i (soniya). Bot startini
+# kechiktirmaslik uchun qisqa (Redis o'lganda fallback tez ishga tushadi).
+REDIS_SOCKET_TIMEOUT = _env_float("REDIS_SOCKET_TIMEOUT", 2.0)
+# REDIS_MAX_CONNECTIONS — connection pool hajmi.
+REDIS_MAX_CONNECTIONS = _int_env("REDIS_MAX_CONNECTIONS", 10)
+# REDIS_CIRCUIT_FAILURES — shuncha ketma-ket xatodan keyin breaker OCHILADI
+# (Redis o'lgan bo'lsa har bir so'rov timeout bo'lib botni sekinlashtirmasin).
+REDIS_CIRCUIT_FAILURES = _int_env("REDIS_CIRCUIT_FAILURES", 3)
+# REDIS_CIRCUIT_COOLDOWN — breaker ochiq turgan davr (soniya); keyin
+# yarim-ochiq (half-open) proba yuboriladi.
+REDIS_CIRCUIT_COOLDOWN = _env_float("REDIS_CIRCUIT_COOLDOWN", 30.0)
+# MEM_CACHE_MAX_ENTRIES / MEM_CACHE_MAX_VALUE_BYTES / MEM_CACHE_MAX_TOTAL_BYTES
+# — In-Memory backend chegaralari (Render 512 MB RAM himoyasi):
+# LRU yozuvlar soni, bitta qiymatning maksimal hajmi va umumiy hajm.
+MEM_CACHE_MAX_ENTRIES = _int_env("MEM_CACHE_MAX_ENTRIES", 20000)
+MEM_CACHE_MAX_VALUE_BYTES = _int_env("MEM_CACHE_MAX_VALUE_BYTES", 65536)
+MEM_CACHE_MAX_TOTAL_BYTES = _int_env("MEM_CACHE_MAX_TOTAL_BYTES", 33554432)
+
+# --- Granular rate limiting (middlewares/rate_limiter.py) -----------------
+# Har bir harakat uchun ALOHIDA kalit + ALOHIDA TTL (global tozalash yo'q).
+# RATE_LIMIT_ENABLED=0 — barcha granullar o'chiriladi (diagnostika uchun).
+RATE_LIMIT_ENABLED = _env_flag("RATE_LIMIT_ENABLED", True)
+# Matnli xabarlar: 1 soniyada ko'pi bilan 2 ta.
+RATE_LIMIT_MESSAGE_MAX = _int_env("RATE_LIMIT_MESSAGE_MAX", 2)
+RATE_LIMIT_MESSAGE_WINDOW = _env_float("RATE_LIMIT_MESSAGE_WINDOW", 1.0)
+# Callback throttling: (user_id, callback_action) — bir xil tugma bloklanadi,
+# BOSHQA tugma erkin (masalan: "◀️ Orqaga" → "📊 Statistika" o'ta oladi).
+RATE_LIMIT_CALLBACK_MAX = _int_env("RATE_LIMIT_CALLBACK_MAX", 1)
+RATE_LIMIT_CALLBACK_WINDOW = _env_float("RATE_LIMIT_CALLBACK_WINDOW", 1.5)
+# Qimmatli AI generatsiyasi: 4 soniyada 1 ta so'rov.
+RATE_LIMIT_AI_MAX = _int_env("RATE_LIMIT_AI_MAX", 1)
+RATE_LIMIT_AI_WINDOW = _env_float("RATE_LIMIT_AI_WINDOW", 4.0)
+# URL / RSS fetch (SSRF + DoS): foydalanuvchi bo'yicha 60 s da 5 ta,
+# butun bot bo'yicha 60 s da 120 ta (Redis bilan — barcha instance uchun).
+RATE_LIMIT_FETCH_MAX = _int_env("RATE_LIMIT_FETCH_MAX", 5)
+RATE_LIMIT_FETCH_WINDOW = _env_float("RATE_LIMIT_FETCH_WINDOW", 60.0)
+RATE_LIMIT_FETCH_GLOBAL_MAX = _int_env("RATE_LIMIT_FETCH_GLOBAL_MAX", 120)
+# RATE_LIMIT_AI_ACTIONS / RATE_LIMIT_FETCH_ACTIONS — vergul bilan ajratilgan
+# callback action ro'yxati (bo'sh = modulning o'z standartlari).
+RATE_LIMIT_AI_ACTIONS = _str_env("RATE_LIMIT_AI_ACTIONS", "")
+RATE_LIMIT_FETCH_ACTIONS = _str_env("RATE_LIMIT_FETCH_ACTIONS", "")
 
 STARS_PLANS = {
     "stars_1m": {
