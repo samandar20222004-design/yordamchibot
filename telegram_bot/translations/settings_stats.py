@@ -110,7 +110,7 @@ SETTINGS_STATS_I18N = {
         # --- ⚙️ 3-BOSQICH: «⚙️ Sozlamalar / Ko'proq» inline hub qatorlari ---
         # PRO va Yordam asosiy reply-menudan shu panelga ko'chirildi.
         "ss_btn_premium": "💎 PRO",
-        "ss_btn_help": "❓ Yordam",
+        "ss_btn_help": "ℹ️ Yordam va Qo'llanma",
 
         # --- ⚙️ SOZLAMALAR: yagona tartibli menyu ---
         "ss_menu_title": (
@@ -129,7 +129,7 @@ SETTINGS_STATS_I18N = {
         "ss_btn_post_settings": "✍️ Post sozlamalari",
         "ss_btn_payments": "💳 To'lovlar tarixi",
         "ss_btn_referral": "🎁 Taklif qilish",
-        "ss_btn_help": "❓ Yordam",
+        "ss_btn_help": "ℹ️ Yordam va Qo'llanma",
         "ss_btn_about": "ℹ️ Bot haqida",
         "ss_settings_legacy": "🗂 Tezkor bo'limlar",
         # --- 3-qadam: hub'ning yangi (to'liq) tugmalari ---
@@ -295,7 +295,7 @@ SETTINGS_STATS_I18N = {
 
         # --- ⚙️ ШАГ 3: строки inline-hub «⚙️ Настройки / Ещё» ---
         "ss_btn_premium": "💎 PRO",
-        "ss_btn_help": "❓ Помощь",
+        "ss_btn_help": "ℹ️ Помощь и руководство",
 
         # --- ⚙️ НАСТРОЙКИ: единое упорядоченное меню ---
         "ss_menu_title": (
@@ -312,7 +312,7 @@ SETTINGS_STATS_I18N = {
         "ss_btn_post_settings": "✍️ Настройки постов",
         "ss_btn_payments": "💳 История платежей",
         "ss_btn_referral": "🎁 Приглашения",
-        "ss_btn_help": "❓ Помощь",
+        "ss_btn_help": "ℹ️ Помощь и руководство",
         "ss_btn_about": "ℹ️ О боте",
         "ss_settings_legacy": "🗂 Быстрые разделы",
         # --- Шаг 3: новые (полные) кнопки хаба ---
@@ -478,7 +478,7 @@ SETTINGS_STATS_I18N = {
 
         # --- ⚙️ STEP 3: inline-hub rows for «⚙️ Settings / More» ---
         "ss_btn_premium": "💎 PRO",
-        "ss_btn_help": "❓ Help",
+        "ss_btn_help": "ℹ️ Help and Guide",
 
         # --- ⚙️ SETTINGS: single ordered menu ---
         "ss_menu_title": (
@@ -495,7 +495,7 @@ SETTINGS_STATS_I18N = {
         "ss_btn_post_settings": "✍️ Post settings",
         "ss_btn_payments": "💳 Payment history",
         "ss_btn_referral": "🎁 Invite friends",
-        "ss_btn_help": "❓ Help",
+        "ss_btn_help": "ℹ️ Help and Guide",
         "ss_btn_about": "ℹ️ About",
         "ss_settings_legacy": "🗂 Quick sections",
         # --- Step 3: new (full) hub buttons ---
@@ -616,8 +616,8 @@ SETTINGS_STATS_KEYS = tuple(sorted(SETTINGS_STATS_I18N["uz"].keys()))
 #: (POSTASSIST POLISH: simmetrik 4 qator × 2 tugma):
 #:   [🌐 Til / Язык]         [✍️ Post sozlamalari]
 #:   [🔔 Bildirishnomalar]   [👥 Do'stlarni taklif]
-#:   [💳 To'lovlar tarixi]   [ℹ️ Bot haqida]
-#:   [💬 Qo'llab-quvvatlash] [❌ Yopish]
+#:   [💳 To'lovlar tarixi]   [💎 PRO]
+#:   [ℹ️ Yordam va Qo'llanma] [❌ Yopish]
 #: «👥 Do'stlarni taklif» asosiy menyudan shu hub'ga ko'chirildi;
 #: «🎁 Bonuslar & Taklif», «🧰 Vositalar», «❓ Yordam & Ma'lumot» va
 #: [◀️ Orqaga] hub'dan OLIB TASHLANDI (kunlik bonus — referral
@@ -628,8 +628,8 @@ SETTINGS_MENU_BUTTON_KEYS = (
     "ss_btn_notif",
     "ss_rewards_referral",
     "ss_btn_payments",
-    "ss_help_hub_about",
-    "ss_help_hub_support",
+    "ss_btn_premium",
+    "ss_btn_help",
     "ss_btn_close",
 )
 
@@ -645,9 +645,7 @@ REWARDS_MENU_BUTTON_KEYS = SETTINGS_REWARDS_BUTTON_KEYS
 
 #: ❓ Yordam & Ma'lumot submenu'si tugma kalitlari.
 SETTINGS_HELP_HUB_BUTTON_KEYS = (
-    "ss_help_hub_guide",
     "ss_help_hub_support",
-    "ss_help_hub_about",
     "ss_btn_back",
 )
 HELP_HUB_BUTTON_KEYS = SETTINGS_HELP_HUB_BUTTON_KEYS
@@ -682,21 +680,17 @@ CB_STATS_BACK = "an_close"
 CB_STATS_DETAIL = "an_detail"
 CB_STATS_OVERVIEW = "an_overview"
 
-#: ⚙️ Sozlamalar — 8 tugmali hub (testlar uchun spetsifikatsiya).
-#: Eski guruhlar (stgs_rewards / stgs_tools / stgs_help_hub / stgs_profile)
-#: ko'rinishdan olib tashlandi, lekin routing'da legacy sifatida saqlanadi.
-#: 3-BOSQICH: «💎 PRO» (sub_open) va «❓ Yordam» (stgs_help_hub) asosiy
-#: reply-menudan shu KANONIK hub'ga ko'chirildi — jami 10 tugma / 5 qator.
+#: ⚙️ Sozlamalar — 8 tugmali hub (4 qator × 2 tugma).
+#: About/guide/support yagona stgs_help_hub oynasiga birlashtirilgan;
+#: eski callback'lar routing'da orqaga moslik uchun saqlanadi.
 CB_SETTINGS_HUB = (
     "stgs_lang",
     "stgs_post",
     "stgs_notif",
     "stgs_referral",
     "stgs_pay",
-    "stgs_about",
     "sub_open",
     "stgs_help_hub",
-    "help_support",
     "stgs_back",
 )
 
@@ -712,9 +706,7 @@ CB_REWARDS_HUB = CB_SETTINGS_REWARDS
 
 #: ❓ Yordam & Ma'lumot submenu'si.
 CB_SETTINGS_HELP_HUB = (
-    "help_hub",
     "help_support",
-    "stgs_about",
     "stgs_hub",
 )
 CB_HELP_HUB = CB_SETTINGS_HELP_HUB

@@ -4,10 +4,9 @@
 1-QADAM kabinet dublikatlarini tozalagan edi; 3-QADAM hub'ni yanada
 ixchamlashtirdi, KLASSIK qaytarish esa «👥 Do'stlarni taklif» tugmasini
 asosiy menyudan Sozlamalar hub'iga ko'chirdi. 3-BOSQICH: «💎 PRO» va «❓ Yordam» ham
-asosiy reply-menudan shu hub'ga ko'chirildi. Jami 10 tugma:
+asosiy reply-menudan shu hub'ga ko'chirildi. Jami 8 tugma:
 Til | Post sozlamalari | Bildirishnomalar | Do'stlarni taklif |
-To'lovlar | Bot haqida | PRO | Yordam |
-Qo'llab-quvvatlash | Yopish."""
+To'lovlar | PRO | Yordam va Qo'llanma | Yopish."""
 import os, sys
 os.environ.setdefault("BOT_TOKEN", "123456:TEST")
 os.environ.setdefault("ADMIN_ID", "123")
@@ -23,10 +22,10 @@ def test():
         kb = get_settings_hub_keyboard(lang)
         cbs = [b.callback_data for row in kb.inline_keyboard for b in row]
         texts = [b.text for row in kb.inline_keyboard for b in row]
-        # QAT'IY: 7 tugma (⚙️ Sozlamalar):
+        # QAT'IY: 8 tugma (⚙️ Sozlamalar):
         # Til | Post sozlamalari | Bildirishnomalar | Do'stlarni taklif |
-        # To'lovlar | Qo'llab-quvvatlash | Yopish
-        assert len(cbs)==10, f"[{lang}] 10 tugma kerak, {len(cbs)} topildi"
+        # To'lovlar | PRO | Yordam va Qo'llanma | Yopish
+        assert len(cbs)==8, f"[{lang}] 8 tugma kerak, {len(cbs)} topildi"
         assert "sub_open" in cbs, f"[{lang}] PRO tugmasi hub'da yo'q: {cbs}"
         assert "stgs_help_hub" in cbs, f"[{lang}] Yordam tugmasi hub'da yo'q: {cbs}"
         # QAT'IY: eski cab_* yo'q
@@ -47,16 +46,16 @@ def test():
         assert not any("Bonuslar & Ballar" in t or "Бонусы и баллы" in t
                        or "Vositalar" in t or "Инструменты" in t or "Tools" in t
                        for t in texts), texts
-        # Yangi 7 tugma to'liqligi
+        # Yangi 8 tugma to'liqligi
         assert "stgs_hub" not in cbs  # hub o'zi callback emas, yopish stgs_back
         for cb in ("stgs_lang", "stgs_post", "stgs_notif", "stgs_referral",
-                   "stgs_pay", "stgs_about", "sub_open", "stgs_help_hub",
-                   "help_support", "stgs_back"):
+                   "stgs_pay", "sub_open", "stgs_help_hub",
+                   "stgs_back"):
             assert cb in cbs, f"[{lang}] {cb} topilmadi: {cbs}"
         # Eski guruh parent'lari ko'rinishdan chiqdi (routing'da qoladi)
         for cb in ("stgs_rewards", "stgs_tools"):
             assert cb not in cbs, f"[{lang}] {cb} hub'da qolib ketdi: {cbs}"
-    print("✅ ⚙️ Sozlamalar — 10 tugma (PRO + Yordam shu yerda), dublikat guruhlar yo'q, Qo'llab-quvvatlash bir tugmada")
+    print("✅ ⚙️ Sozlamalar — 8 tugma (PRO + Yordam shu yerda), dublikat guruhlar yo'q, Qo'llab-quvvatlash bir tugmada")
 
 if __name__=="__main__":
     test()

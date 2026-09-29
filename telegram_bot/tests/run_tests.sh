@@ -36,6 +36,10 @@ echo "==================== UNIT TEST ======================"
 "$PY" tests/unit_test.py || exit 1
 
 echo
+echo "==================== UX MENU TEST ===================="
+"$PY" tests/ux_menu_test.py || exit 1
+
+echo
 echo "==================== SERVICES TEST ===================="
 "$PY" tests/services_test.py || exit 1
 

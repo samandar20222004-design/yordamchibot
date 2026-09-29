@@ -111,25 +111,22 @@ def check(label, condition, extra=""):
 # SPEKS: menyu tarkibi va yorliqlari (uchala til)
 # ---------------------------------------------------------------------------
 HUB_LABELS = {
-    # ⚙️ Sozlamalar / Ko'proq — 10 tugma. 3-BOSQICH: asosiy reply-menudan
+    # ⚙️ Sozlamalar / Ko'proq — 8 tugma. 3-BOSQICH: asosiy reply-menudan
     # olib tashlangan «💎 PRO» va «❓ Yordam» shu hub'ga ko'chirildi;
     # «🎁 Bonuslar & Taklif» va «🧰 Vositalar» hub'dan olib tashlandi
     # (oqimlar routing'da qoladi), [◀️ Orqaga] → [❌ Yopish].
     "uz": (("🌐 Til / Язык", "✍️ Post sozlamalari"),
            ("🔔 Bildirishnomalar", "👥 Do'stlarni taklif"),
-           ("💳 To'lovlar tarixi", "ℹ️ Bot haqida"),
-           ("💎 PRO", "❓ Yordam"),
-           ("💬 Qo'llab-quvvatlash", "❌ Yopish")),
+           ("💳 To'lovlar tarixi", "💎 PRO"),
+           ("ℹ️ Yordam va Qo'llanma", "❌ Yopish")),
     "ru": (("🌐 Язык / Language", "✍️ Настройки постов"),
            ("🔔 Уведомления", "👥 Пригласить друзей"),
-           ("💳 История платежей", "ℹ️ О боте"),
-           ("💎 PRO", "❓ Помощь"),
-           ("💬 Поддержка", "❌ Закрыть")),
+           ("💳 История платежей", "💎 PRO"),
+           ("ℹ️ Помощь и руководство", "❌ Закрыть")),
     "en": (("🌐 Language", "✍️ Post settings"),
            ("🔔 Notifications", "👥 Invite friends"),
-           ("💳 Payment history", "ℹ️ About the bot"),
-           ("💎 PRO", "❓ Help"),
-           ("💬 Contact support", "❌ Close")),
+           ("💳 Payment history", "💎 PRO"),
+           ("ℹ️ Help and Guide", "❌ Close")),
 }
 
 #: Legacy kabinet callback'lari — menyu KO'RINISHIDA bo'lmasligi shart
@@ -491,20 +488,20 @@ def test_settings_hub_has_no_legacy_duplicates():
         rows = _rows(kb)
         cbs = _cbs(kb)
 
-        check(f"[{lang}] menyu 5 qator (4 juftlik + Yopish)",
-              len(rows) == 5, str(len(rows)))
-        check(f"[{lang}] 10 tugma AYNAN speks tartibida",
+        check(f"[{lang}] menyu 4 qator (har birida 2 tugma)",
+              len(rows) == 4, str(len(rows)))
+        check(f"[{lang}] 8 tugma AYNAN speks tartibida",
               [[t for t, _ in row] for row in rows]
               == [list(pair) for pair in HUB_LABELS[lang]],
               str([[t for t, _ in row] for row in rows]))
         check(f"[{lang}] callback tartibi speks bilan bir xil",
               cbs == list(CB_SETTINGS_HUB), str(cbs))
-        check(f"[{lang}] oxirgi qator = [💬 Qo'llab-quvvatlash | ❌ Yopish]",
-              rows[-1] == [(settings_stats_t("ss_help_hub_support", lang), "help_support"),
+        check(f"[{lang}] oxirgi qator = [ℹ️ Yordam va Qo'llanma | ❌ Yopish]",
+              rows[-1] == [(settings_stats_t("ss_btn_help", lang), "stgs_help_hub"),
                           (settings_stats_t("ss_btn_close", lang), "stgs_back")],
               str(rows[-1]))
-        check(f"[{lang}] jami 10 tugma (dublikat yo'q)",
-              len(cbs) == 10, str(len(cbs)))
+        check(f"[{lang}] jami 8 tugma (dublikat yo'q)",
+              len(cbs) == 8, str(len(cbs)))
         check(f"[{lang}] stgs_profile hub'da YO'Q (matn o'zi profil)",
               "stgs_profile" not in cbs, str(cbs))
         check(f"[{lang}] callback'lar takrorlanmaydi",
@@ -535,8 +532,8 @@ def test_settings_hub_has_no_legacy_duplicates():
             _run(start_mod.user_cabinet_menu(_msg_update(msg), _ctx(lang)))
         last = msg.sent[-1]
         cbs = _cbs(last["reply_markup"])
-        check(f"[{lang}] hub ekrani 10 tugma bilan ochiladi",
-              len(cbs) == 10, str(cbs))
+        check(f"[{lang}] hub ekrani 8 tugma bilan ochiladi",
+              len(cbs) == 8, str(cbs))
         check(f"[{lang}] hub ekrani legacy tugmasiz",
               not any(cb in cbs for cb in LEGACY_HUB_CALLBACKS), str(cbs))
         check(f"[{lang}] hub profil kartasi bilan (Shaxsiy Kabinet)",
@@ -556,8 +553,8 @@ def test_settings_hub_has_no_legacy_duplicates():
           "stgs_help_hub" in uz_cbs, str(uz_cbs))
     check("hub: sub_open («💎 PRO») BOR — asosiy menudan ko'chirildi",
           "sub_open" in uz_cbs, str(uz_cbs))
-    check("hub: help_support (💬 Qo'llab-quvvatlash) mavjud",
-          "help_support" in uz_cbs, str(uz_cbs))
+    check("hub: alohida help_support tugmasi YO'Q",
+          "help_support" not in uz_cbs, str(uz_cbs))
 
 
 # ===========================================================================
@@ -743,7 +740,7 @@ def test_tools_submenu_wires_converter_and_enhancer():
     with _with_db(_FakeDB()):
         q = _Query("stgs_hub")
         _run(settings_mod.settings_menu_callback(_query_update(q), _ctx("uz")))
-    check("vositalar → orqaga: ⚙️ Sozlamalar 10 tugmasi qaytdi",
+    check("vositalar → orqaga: ⚙️ Sozlamalar 8 tugmasi qaytdi",
           _cbs(q.screen.get("reply_markup")) == list(CB_SETTINGS_HUB),
           str(_cbs(q.screen.get("reply_markup"))))
     check("vositalar → orqaga: yangi xabar yuborilmadi (edit)",

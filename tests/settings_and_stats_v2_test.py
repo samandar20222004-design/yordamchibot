@@ -76,33 +76,29 @@ EXPECTED_STATS_MARKERS = {
 # TASHLANDI: kunlik bonus referral ekranida; ularning oqimlari eski
 # xabarlar uchun routing'da qoladi.
 # 3-BOSQICH: «💎 PRO» va «❓ Yordam» asosiy reply-menudan shu hub'ga
-# ko'chirildi — jami 10 tugma / 5 qator.
+# ko'chirildi — jami 8 tugma / 4 qator.
 EXPECTED_SETTINGS_CBS = (
     "stgs_lang",
     "stgs_post",
     "stgs_notif", "stgs_referral",
-    "stgs_pay", "stgs_about",
-    "sub_open", "stgs_help_hub",
-    "help_support", "stgs_back",
+    "stgs_pay", "sub_open", "stgs_help_hub",
+    "stgs_back",
 )
 
-# ⚙️ Sozlamalar menyusi yorliqlari — SPEKS tartibi (10 tugma / 5 qator).
+# ⚙️ Sozlamalar menyusi yorliqlari — SPEKS tartibi (8 tugma / 4 qator).
 EXPECTED_SETTINGS_LABELS = {
     "uz": (("🌐 Til / Язык", "✍️ Post sozlamalari"),
            ("🔔 Bildirishnomalar", "👥 Do'stlarni taklif"),
-           ("💳 To'lovlar tarixi", "ℹ️ Bot haqida"),
-           ("💎 PRO", "❓ Yordam"),
-           ("💬 Qo'llab-quvvatlash", "❌ Yopish")),
+           ("💳 To'lovlar tarixi", "💎 PRO"),
+           ("ℹ️ Yordam va Qo'llanma", "❌ Yopish")),
     "ru": (("🌐 Язык / Language", "✍️ Настройки постов"),
            ("🔔 Уведомления", "👥 Пригласить друзей"),
-           ("💳 История платежей", "ℹ️ О боте"),
-           ("💎 PRO", "❓ Помощь"),
-           ("💬 Поддержка", "❌ Закрыть")),
+           ("💳 История платежей", "💎 PRO"),
+           ("ℹ️ Помощь и руководство", "❌ Закрыть")),
     "en": (("🌐 Language", "✍️ Post settings"),
            ("🔔 Notifications", "👥 Invite friends"),
-           ("💳 Payment history", "ℹ️ About the bot"),
-           ("💎 PRO", "❓ Help"),
-           ("💬 Contact support", "❌ Close")),
+           ("💳 Payment history", "💎 PRO"),
+           ("ℹ️ Help and Guide", "❌ Close")),
 }
 
 
@@ -442,15 +438,15 @@ def test_settings_menu_structure_and_flows():
         kb = get_settings_hub_keyboard(lang)
         rows = kb_rows_inline(kb)
         expected = EXPECTED_SETTINGS_LABELS[lang]
-        check(f"{lang}: 5 qator = speksdagi 10 tugma",
+        check(f"{lang}: 4 qator = speksdagi 8 tugma",
               [[t for t, _ in row] for row in rows] == [
                   list(r) for r in expected],
               str(rows))
-        check(f"{lang}: 10 tugma callback tartibi",
+        check(f"{lang}: 8 tugma callback tartibi",
               kb_flat_cbs(kb) == list(EXPECTED_SETTINGS_CBS),
               str(kb_flat_cbs(kb)))
-        check(f"{lang}: oxirgi qator = [💬 Qo'llab-quvvatlash | ❌ Yopish]",
-              rows[-1] == [(settings_stats_t("ss_help_hub_support", lang), "help_support"),
+        check(f"{lang}: oxirgi qator = [ℹ️ Yordam va Qo'llanma | ❌ Yopish]",
+              rows[-1] == [(settings_stats_t("ss_btn_help", lang), "stgs_help_hub"),
                           (settings_stats_t("ss_btn_close", lang), "stgs_back")],
               str(rows[-1]))
         check(f"{lang}: legacy cab_* dublikatlar YO'Q",
@@ -497,7 +493,7 @@ def test_settings_menu_structure_and_flows():
     # eski callback nomlari/oqimi saqlanadi (backward compatibility).
     reward_cbs = ["stgs_credits", "stgs_transfer", "claim_bonus",
                   "referral_hub", "stgs_hub"]
-    help_cbs_expected = ["help_hub", "help_support", "stgs_about", "stgs_hub"]
+    help_cbs_expected = ["help_support", "stgs_hub"]
     for lang in LANGS:
         reward_kb = get_settings_rewards_keyboard(lang)
         help_kb = get_settings_help_hub_keyboard(lang, support_username="")
@@ -544,11 +540,11 @@ def test_settings_menu_structure_and_flows():
     prof_text = q.screen.get("text", "")
     prof_cbs = kb_flat_cbs(q.screen.get("reply_markup"))
     check("profil: cabinet_title matni", "Profil" in prof_text, prof_text[:80])
-    # Profil ekrani endi 10 TUGMALI panel (5x2: Til / Post sozlamalari /
-    # Bildirishnomalar / Do'stlarni taklif / To'lovlar / Bot haqida /
-    # PRO / Yordam / Qo'llab-quvvatlash / Yopish) — Sozlamalar hub'i bilan
+    # Profil ekrani endi 8 TUGMALI panel (4x2: Til / Post sozlamalari /
+    # Bildirishnomalar / Do'stlarni taklif / To'lovlar /
+    # PRO / Yordam va Qo'llanma / Yopish) — Sozlamalar hub'i bilan
     # AYNAN bir xil.
-    check("profil: 10 tugmali panel (stgs_back = ❌ Yopish)",
+    check("profil: 8 tugmali panel (stgs_back = ❌ Yopish)",
           prof_cbs == list(EXPECTED_SETTINGS_CBS), str(prof_cbs))
     check("profil: eski cab_* dublikatlari panel'da YO'Q",
           not any(cb in prof_cbs for cb in ("cab_channels", "cab_analytics",
