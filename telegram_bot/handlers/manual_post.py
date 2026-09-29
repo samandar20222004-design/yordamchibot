@@ -358,6 +358,12 @@ def _manual_album_warning(context, lang: str) -> str:
     """Albomda tugma/reaksiya sozlanganda cheklov eslatmasi."""
     if not context.user_data.get(UD_MEDIA_GROUP):
         return ""
+    from locales.translations import normalize_lang
+
+    if normalize_lang(lang) == "uz":
+        return ("\n\n⚠️ Diqqat: Telegram qoidasiga ko'ra tugmali postlar faqat "
+                "bitta media bilan yuboriladi. Albomga tugma qo'shilsa, "
+                "faqat birinchi media qoladi.")
     return "\n\n" + manual_post_t("mp_album_warning", lang)
 
 
@@ -1046,7 +1052,7 @@ async def manual_panel_callback(update: Update, context: ContextTypes.DEFAULT_TY
         return MANUAL_PREVIEW
 
     if data == CB_MANUAL_REACT_BACK:
-        # ◀️ Orqaga — tanlangan reaksiyalar bilan preview yangilanadi.
+        # Saqlash / Orqaga — tanlangan reaksiyalar bilan preview yangilanadi.
         await _show_preview(query.message, context, lang)
         return MANUAL_PREVIEW
 

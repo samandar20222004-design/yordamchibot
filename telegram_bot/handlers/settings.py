@@ -59,7 +59,7 @@ from keyboards.inline import (
     get_settings_hub_keyboard,
     get_settings_rewards_keyboard,
 )
-from locales.translations import get_text, localize_db_message
+from locales.translations import get_text, localize_db_message, normalize_lang
 from translations import settings_stats_t
 from utils.helpers import html_escape
 
@@ -191,10 +191,26 @@ async def _render_rewards_hub(query, lang: str) -> None:
 
 
 async def _render_help_hub(query, lang: str) -> None:
-    """❓ Yordam & Ma'lumot submenu'sini ko'rsatadi."""
+    """Bot haqida, qo'llanma va admin aloqasi — bitta xabarda."""
+    from handlers.start import _help_support_line
+
+    about = {
+        "uz": "ℹ️ <b>PostAssist</b> — Telegram kanallari uchun post yaratish, "
+              "rejalashtirish va statistika bo'yicha AI yordamchi.",
+        "ru": "ℹ️ <b>PostAssist</b> — AI-помощник для создания постов, "
+              "планирования и статистики Telegram-каналов.",
+        "en": "ℹ️ <b>PostAssist</b> — an AI assistant for creating posts, "
+              "scheduling and statistics for Telegram channels.",
+    }[normalize_lang(lang)]
+    support = _help_support_line(lang)
+    username = str(SUPPORT_USERNAME or "").strip().lstrip("@")
+    if username:
+        admin = html_escape(username)
+        support = get_text("help_support_line", lang,
+                           admin=f'<a href="https://t.me/{admin}">@{admin}</a>')
     await _edit_or_reply(
         query,
-        settings_stats_t("ss_help_hub_title", lang),
+        about + "\n\n" + get_text("help_guide", lang, support=support),
         get_settings_help_hub_keyboard(lang),
     )
 
