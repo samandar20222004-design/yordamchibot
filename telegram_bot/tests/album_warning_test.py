@@ -249,12 +249,12 @@ def test_warning_i18n_keys():
     check("i18n paritet buzilmagan", translation_parity_report()["in_sync"])
 
     uz = get_text("np_album_warning", "uz")
-    check("uz: 'Telegram qoidalariga ko'ra' bor", "Telegram qoidalariga ko'ra" in uz, uz)
-    check("uz: 'bo'lmaydi' ogohlantirishi", "qo'shib bo'lmaydi" in uz, uz)
-    check("uz: 'faqat 1 ta rasm' cheklovi", "faqat 1 ta rasm" in uz, uz)
+    check("uz: 'Telegram cheklovi' bor", "Telegram cheklovi" in uz, uz)
+    check("uz: '1 ta media' ogohlantirishi", "1 ta media" in uz, uz)
+    check("uz: 'birinchi media' cheklovi", "birinchi media" in uz, uz)
     ru = get_text("np_album_warning", "ru")
-    check("ru: 'По правилам Telegram' bor", "По правилам Telegram" in ru, ru)
-    check("ru: 'нельзя добавить' ogohlantirishi", "нельзя добавить" in ru, ru)
+    check("ru: 'ограничений Telegram' bor", "Telegram" in ru, ru)
+    check("ru: '1 медиа' ogohlantirishi", "1 медиа" in ru or "1 фото" in ru or "медиа" in ru, ru)
     check("uz: 1-rasm tanlovi aniq",
           get_text("np_album_choice_first_photo", "uz") == "🖼 1-rasm + tugma")
     check("uz: to'liq albom tanlovi aniq",

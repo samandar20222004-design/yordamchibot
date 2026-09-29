@@ -309,6 +309,7 @@ REGISTERED_STATIC_CALLBACKS = frozenset({
     "mnp_now", "mnp_time", "mnp_24h", "mnp_repeat", "mnp_edit",
     "mnp_cancel", "mnp_panel", "mnp_react", "mnp_url", "mnp_radd",
     "mnp_rback", "mnp_dup_go", "mnp_dup_ai",
+    "mnp_ch_sel", "mnp_finish",
     # ✨ AI Post wizard (payload'siz).
     "aip_back", "aip_cancel", "ai_post_cancel", "ai_post_retry",
     "ai_post_schedule", "ai_close", "ai_back_to_content", "ai_back_to_menu",
@@ -338,6 +339,8 @@ REGISTERED_STATIC_CALLBACKS = frozenset({
     # 🧰 Vositalar (payload'siz).
     "extra_close", "extra_converter", "extra_enhancer",
     "ext_back", "ext_cancel", "ext_refresh", "ext_rewrite", "ext_schedule",
+    "ext_adapt", "ext_edit",
+    "confirm_post:channel", "confirm_post:ok", "confirm_post:queue",
     "conv_close",
 })
 

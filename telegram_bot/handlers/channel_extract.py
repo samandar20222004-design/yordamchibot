@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 # States
 EXTRACT_USERNAME = 701
 EXTRACT_CHOOSE_POST = 702
+EXTRACT_EDIT = 703  # 2-vazifa: qo'lda tahrirlash holati
 
 
 async def _edit_wait_message(wait_message, fallback_message, text: str, **kwargs):
@@ -29,6 +30,141 @@ async def _edit_wait_message(wait_message, fallback_message, text: str, **kwargs
         except Exception:
             logger.debug("Wait message edit failed; using reply fallback", exc_info=True)
     return await fallback_message.reply_text(text, **kwargs)
+
+
+import re
+
+# 2-vazifa: begona havolalar, reklamalar, imzolarni tozalash uchun regexlar
+_FOREIGN_TME_RE = re.compile(r'(?:https?://)?t\.me/[A-Za-z0-9_]+(?:/[^\s]*)?', re.IGNORECASE)
+_MENTION_RE = re.compile(r'@([A-Za-z0-9_]{3,32})')
+_URL_RE = re.compile(r'https?://[^\s]+', re.IGNORECASE)
+_AD_KEYWORDS = [
+    "reklama", "reklamalar", "obuna bo'ling", "kanalga obuna", "a'zo bo'ling",
+    "подпишитесь на канал", "реклама", "subscribe", "join channel",
+    "manba:", "manba ", "source:", "via @", "via:", "ko'proq", "batafsil",
+]
+_SIGNATURE_LINES_RE = re.compile(r'(?im)^.*(manba\s*:|source\s*:|via\s*@|@\w+\s*$|t\.me/\w+).*$')
+
+
+async def _get_user_channels_info(user_id: int):
+    """Foydalanuvchi kanallari ro'yxati (id, title) — adapt uchun."""
+    try:
+        channels = await db.run_db(db.get_user_channels, user_id)
+        return channels or []
+    except Exception:
+        return []
+
+
+def _clean_foreign_content(text: str, user_channels: list) -> str:
+    """Begona havolalar, reklamalar, imzolarni tozalash (regex asosida, fail-safe)."""
+    if not text:
+        return text
+    # Foydalanuvchi kanallarining username'larini ajratib olamiz (agar title @ bo'lsa)
+    own_usernames = set()
+    for _, title in (user_channels or []):
+        if not title:
+            continue
+        # title dan @username ajratishga harakat
+        m = _MENTION_RE.search(title)
+        if m:
+            own_usernames.add(m.group(1).lower())
+        # t.me/username ham
+        m2 = _FOREIGN_TME_RE.search(title)
+        if m2:
+            try:
+                uname = m2.group(0).split('/')[-1].split('?')[0].lower()
+                own_usernames.add(uname)
+            except Exception:
+                pass
+
+    cleaned = text
+
+    # 1) Begona t.me havolalarini olib tashlash (o'z kanalimizdan tashqari)
+    def _tme_repl(match):
+        url = match.group(0)
+        try:
+            uname = url.split('/')[-1].split('?')[0].lower().lstrip('@')
+            if uname in own_usernames:
+                return url  # o'z kanalimiz — saqlaymiz
+        except Exception:
+            pass
+        return ""  # begona — o'chiramiz
+
+    cleaned = _FOREIGN_TME_RE.sub(_tme_repl, cleaned)
+
+    # 2) @mention'larni tozalash (o'z kanalimizdan tashqari)
+    def _mention_repl(match):
+        uname = match.group(1).lower()
+        if uname in own_usernames:
+            return match.group(0)
+        return ""
+
+    cleaned = _MENTION_RE.sub(_mention_repl, cleaned)
+
+    # 3) Reklama kalit so'zlari bo'lgan qatorlarni olib tashlash
+    lines = cleaned.split('\n')
+    filtered_lines = []
+    for line in lines:
+        low = line.lower()
+        is_ad = False
+        for kw in _AD_KEYWORDS:
+            if kw in low and len(line.strip()) < 120:  # qisqa reklama qatorlari
+                # Agar qatorda asosiy kontent ham bo'lsa, saqlaymiz
+                if any(x in low for x in ["reklama", "obuna", "manba", "source"]):
+                    # Faqat reklama/imzo qatori bo'lsa o'chiramiz
+                    if len(line.strip().split()) <= 8:
+                        is_ad = True
+                        break
+        if not is_ad:
+            filtered_lines.append(line)
+    cleaned = '\n'.join(filtered_lines)
+
+    # 4) Ortig'ini tozalash: ko'p bo'sh qatorlar, ortiqcha bo'shliqlar
+    cleaned = re.sub(r'\n{3,}', '\n\n', cleaned)
+    cleaned = re.sub(r'[ \t]{2,}', ' ', cleaned)
+    return cleaned.strip()
+
+
+async def _adapt_post_with_ai(original_text: str, user_channels: list, tone: str, lang: str) -> str:
+    """AI orqali begona kontentni tozalab, foydalanuvchi kanaliga moslash.
+
+    2-vazifa: "🎯 Kanalimga moslash" — begona havolalar, reklamalar, imzolarni
+    tozalab, foydalanuvchi kanali uslubiga moslab qayta yozish.
+    """
+    # Avval regex bilan tozalash (fail-safe)
+    cleaned = _clean_foreign_content(original_text, user_channels)
+
+    # Foydalanuvchi kanali haqida ma'lumot
+    channel_info = ""
+    if user_channels:
+        titles = ", ".join([t for _, t in user_channels[:3] if t])
+        channel_info = f"Foydalanuvchi kanallari: {titles}. " if titles else ""
+
+    # AI orqali moslash — agar AI mavjud bo'lsa
+    try:
+        from utils.ai_agent import rewrite_channel_post, pick_supported_kwargs
+        prompt_extra = (
+            f"{channel_info}Quyidagi postni BEGONA havolalar, reklamalar, imzolar, "
+            f"manba ko'rsatkichlari (@username, t.me/...) dan TOZALAB, "
+            f"foydalanuvchi kanali uslubiga moslab qayta yoz. "
+            f"O'z kanaliga oid bo'lmagan har qanday havola, reklama, imzo olib tashlansin. "
+            f"Oxirida foydalanuvchi kanali havolasi yoki nomi tabiiy ravishda qo'shilishi mumkin, "
+            f"lekin majburiy emas. Faqat toza, moslashtirilgan post matnini qaytar."
+        )
+        # rewrite_channel_post mavjud — uni adapt uchun ishlatamiz
+        result = await rewrite_channel_post(
+            cleaned, "user_channel", "", tone,
+            **pick_supported_kwargs(rewrite_channel_post, lang=lang),
+        )
+        if isinstance(result, dict) and not result.get("error"):
+            new_text = str(result.get("post_text") or result.get("text") or "").strip()
+            if new_text:
+                return new_text
+    except Exception as e:
+        logger.debug(f"AI adapt xatosi: {e}", exc_info=True)
+
+    # AI ishlamasa — regex tozalangan variantni qaytaramiz
+    return cleaned
 
 
 def _get_post_list_keyboard(
@@ -58,8 +194,20 @@ def _get_post_list_keyboard(
 
 
 def _get_rewrite_result_keyboard(show_back: bool = True, lang: str = "uz") -> InlineKeyboardMarkup:
-    """AI natijasi uchun keyboard (sayt oqimida 'Boshqa post' tugmasi yashirinadi)."""
+    """AI natijasi uchun keyboard — 2-vazifa: adapt + manual edit tugmalari qo'shildi."""
+    # 2-vazifa: yangi tugmalar
+    try:
+        adapt_text = safe_t("ext_btn_adapt", lang)
+    except Exception:
+        adapt_text = {"uz": "🎯 Kanalimga moslash", "ru": "🎯 Адаптировать под мой канал", "en": "🎯 Adapt to my channel"}.get(lang, "🎯 Kanalimga moslash")
+    try:
+        edit_text = safe_t("ext_btn_manual_edit", lang)
+    except Exception:
+        edit_text = {"uz": "✏️ Qo'lda tahrirlash", "ru": "✏️ Редактировать вручную", "en": "✏️ Edit manually"}.get(lang, "✏️ Qo'lda tahrirlash")
+
     rows = [
+        [InlineKeyboardButton(adapt_text, callback_data="ext_adapt")],
+        [InlineKeyboardButton(edit_text, callback_data="ext_edit")],
         [InlineKeyboardButton(safe_t("ai_confirm_schedule", lang), callback_data="ext_schedule")],
         [InlineKeyboardButton(safe_t("ext_btn_rewrite", lang), callback_data="ext_rewrite")],
     ]
@@ -426,6 +574,60 @@ async def extract_post_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE
             )
         return EXTRACT_CHOOSE_POST
 
+    # 2-vazifa: 🎯 Kanalimga moslash — begona havolalar/reklamalarni tozalash
+    if data == "ext_adapt":
+        await query.answer(safe_t("ext_adapting", lang) if "ext_adapting" in safe_t.__code__.co_varnames else "🎯 Moslashtirilmoqda...")
+        original = context.user_data.get("extract_original") or context.user_data.get("extract_rewritten") or ""
+        if not original:
+            await query.message.reply_text(safe_t("ext_no_post_text", lang))
+            return EXTRACT_CHOOSE_POST
+
+        tone = await _get_user_tone(user_id)
+        user_channels = await _get_user_channels_info(user_id)
+
+        chat_id = query.message.chat_id
+        try:
+            await context.bot.send_chat_action(chat_id=chat_id, action="typing")
+        except Exception:
+            pass
+        wait_msg = await query.message.reply_text("⏳ Kanalga moslashtirilmoqda, iltimos kuting...")
+
+        async with keep_typing(context.bot, chat_id):
+            adapted = await _adapt_post_with_ai(original, user_channels, tone, lang)
+
+        if not adapted:
+            adapted = _clean_foreign_content(original, user_channels)
+
+        context.user_data["extract_rewritten"] = adapted
+        context.user_data["content"] = adapted
+
+        preview = adapted[:500]
+        if len(adapted) > 500:
+            preview += "…"
+
+        ad_line = await get_auto_ad_injection_async(user_id)
+        await _edit_wait_message(wait_msg, query.message,
+            safe_t("ext_ai_proposal", lang, text=safe_html(preview)) + ad_line,
+            reply_markup=_get_rewrite_result_keyboard(lang=lang),
+            parse_mode="HTML",
+        )
+        return EXTRACT_CHOOSE_POST
+
+    # 2-vazifa: ✏️ Qo'lda tahrirlash — matnni yuborib, qo'lda tahrirlash
+    if data == "ext_edit":
+        await query.answer()
+        current = context.user_data.get("extract_rewritten") or context.user_data.get("extract_original") or ""
+        if not current:
+            await query.message.reply_text(safe_t("ext_no_post_text", lang))
+            return EXTRACT_CHOOSE_POST
+
+        # Hozirgi matnni yuborib, tahrirlashni so'rash
+        await query.message.reply_text(
+            safe_t("ext_edit_prompt", lang, text=safe_html(current[:3500])),
+            parse_mode="HTML",
+        )
+        return EXTRACT_EDIT
+
     if data == "ext_schedule":
         await query.answer()
         rewritten = context.user_data.get("extract_rewritten", "")
@@ -446,4 +648,31 @@ async def extract_post_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE
         from handlers.new_post import GET_BTN_TITLE
         return GET_BTN_TITLE
 
+    return EXTRACT_CHOOSE_POST
+
+
+async def extract_edit_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """✏️ Qo'lda tahrirlash — foydalanuvchi yangi matn yubordi (2-vazifa)."""
+    lang = get_lang(context)
+    user_id = update.effective_user.id
+
+    text = (update.message.text or "").strip()
+    if not text:
+        await update.message.reply_text(safe_t("ext_edit_empty", lang))
+        return EXTRACT_EDIT
+
+    # Yangi matnni saqlash
+    context.user_data["extract_rewritten"] = text
+    context.user_data["content"] = text
+
+    preview = text[:500]
+    if len(text) > 500:
+        preview += "…"
+
+    ad_line = await get_auto_ad_injection_async(user_id)
+    await update.message.reply_text(
+        safe_t("ext_ai_proposal", lang, text=safe_html(preview)) + (ad_line or ""),
+        reply_markup=_get_rewrite_result_keyboard(lang=lang),
+        parse_mode="HTML",
+    )
     return EXTRACT_CHOOSE_POST

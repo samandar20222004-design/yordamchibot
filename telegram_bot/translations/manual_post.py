@@ -79,9 +79,18 @@ MANUAL_POST_I18N = {
         ),
         "mp_reactions_on": "❤️ Reaksiyalar: {emojis}",
         "mp_album_warning": (
-            "⚠️ Diqqat: Telegram qoidasiga ko'ra, tugmali postlar faqat bitta "
-            "rasm yoki video bilan yuboriladi. Agar albomga tugma qo'shsangiz, "
-            "faqat birinchi media tanlanadi."
+            "⚠️ Telegram cheklovi sababli, tugmali postlar faqat 1 ta media bilan chiqadi. "
+            "Tugma qo'shilsa, faqat birinchi media yuboriladi."
+        ),
+        # --- 1-vazifa: kanal tanlash tugmalari ---
+        "mp_btn_channel": "📢 Kanal: {name}",
+        "mp_btn_channel_select": "📢 Kanalni tanlash",
+        "mp_channel_prompt": "📢 <b>Qaysi kanalga chiqsin?</b>",
+        "mp_btn_finish": "✅ Rejalashtirishni yakunlash",
+        # --- 3-vazifa: vaqt belgilandi xabari ---
+        "mp_time_set": (
+            "🕒 Vaqt belgilandi: {time}. Yana reaksiya, havola yoki sozlamalarni "
+            "o'zgartirishingiz mumkin."
         ),
         # --- 🔗 Havolali (URL) tugma oqimi ---
         "mp_url_prompt": (
@@ -231,9 +240,15 @@ MANUAL_POST_I18N = {
         ),
         "mp_reactions_on": "❤️ Реакции: {emojis}",
         "mp_album_warning": (
-            "⚠️ Внимание: по правилам Telegram посты с кнопками отправляются "
-            "только с одним фото или видео. Если добавить кнопку к альбому, "
-            "будет выбрано только первое медиа."
+            "⚠️ Из-за ограничений Telegram посты с кнопками отправляются только с 1 медиа. "
+            "Если добавить кнопку, будет отправлено только первое медиа."
+        ),
+        "mp_btn_channel": "📢 Канал: {name}",
+        "mp_btn_channel_select": "📢 Выбрать канал",
+        "mp_channel_prompt": "📢 <b>В какой канал публикуем?</b>",
+        "mp_btn_finish": "✅ Завершить планирование",
+        "mp_time_set": (
+            "🕒 Время установлено: {time}. Вы можете изменить реакции, ссылку или настройки."
         ),
         # --- 🔗 Поток кнопки-ссылки ---
         "mp_url_prompt": (
@@ -373,9 +388,15 @@ MANUAL_POST_I18N = {
         ),
         "mp_reactions_on": "❤️ Reactions: {emojis}",
         "mp_album_warning": (
-            "⚠️ Attention: according to Telegram's rules, posts with buttons can "
-            "be sent with only one photo or video. If you add a button to an "
-            "album, only the first media item will be selected."
+            "⚠️ Due to Telegram limits, posts with buttons are sent with only 1 media. "
+            "If you add a button, only the first media will be sent."
+        ),
+        "mp_btn_channel": "📢 Channel: {name}",
+        "mp_btn_channel_select": "📢 Select channel",
+        "mp_channel_prompt": "📢 <b>Which channel should it go to?</b>",
+        "mp_btn_finish": "✅ Finish scheduling",
+        "mp_time_set": (
+            "🕒 Time set: {time}. You can still change reactions, link or settings."
         ),
         # --- 🔗 URL button flow ---
         "mp_url_prompt": (

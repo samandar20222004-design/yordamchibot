@@ -829,9 +829,8 @@ TRANSLATIONS = {
         # tugma yoki reaksiya) ulab bo'lmaydi — albom yuborilganda foydalanuvchi
         # xushmuomala ogohlantirish + 2 ta tanlov oladi.
         "np_album_warning": (
-            "⚠️ Telegram qoidalariga ko'ra bir nechta rasmli albomlarga havola yoki "
-            "reaksiya tugmalarini qo'shib bo'lmaydi. \n"
-            "Tugma yoki reaksiya faqat 1 ta rasm (yoki oddiy matn) uchun ishlaydi."
+            "⚠️ Telegram cheklovi sababli, tugmali postlar faqat 1 ta media bilan chiqadi. "
+            "Tugma qo'shilsa, faqat birinchi media yuboriladi."
         ),
         "np_album_choice_first_photo": "🖼 1-rasm + tugma",
         "np_album_choice_full": "⏩ To'liq albom",
@@ -1736,6 +1735,11 @@ TRANSLATIONS = {
         "ext_btn_other_post": "🔙 Boshqa post",
         "ext_btn_rewrite": "🔄 Qayta yozish",
         "ext_btn_refresh": "🔄 Yangilash",
+        "ext_btn_adapt": "🎯 Kanalimga moslash",
+        "ext_btn_manual_edit": "✏️ Qo'lda tahrirlash",
+        "ext_adapting": "🎯 Moslashtirilmoqda...",
+        "ext_edit_prompt": "✏️ <b>Qo'lda tahrirlash.</b>\n\nHozirgi matn:\n<i>{text}</i>\n\nYangi matningizni yuboring — preview yangilanadi.",
+        "ext_edit_empty": "⚠️ Bo'sh matn yuborib bo'lmaydi. Iltimos, yangi matn yuboring.",
         "ext_media_preview": "🖼 Rasm/Video",
         "ext_reading_site": "⏳ Sayt o'qilmoqda...",
         "ext_site_read_failed": "⚠️ Saytdan matn o'qib bo'lmadi. Manzilni tekshirib, qayta yuboring.",
@@ -2831,10 +2835,9 @@ TRANSLATIONS = {
         # Правило Telegram Bot API: к sendMediaGroup нельзя привязать
         # inline_keyboard (URL-кнопку или реакции) — при отправке альбома
         # пользователь получает предупреждение + 2 варианта выбора.
-        "np_album_warning": (
-            "⚠️ По правилам Telegram к альбому из нескольких фото нельзя добавить "
-            "кнопку-ссылку или кнопки реакций. \n"
-            "Кнопка или реакции работают только для 1 фото (или простого текста)."
+                "np_album_warning": (
+            "⚠️ Из-за ограничений Telegram посты с кнопками отправляются только с 1 медиа. "
+            "Если добавить кнопку, будет отправлено только первое медиа."
         ),
         "np_album_choice_first_photo": "🖼 1 фото + кнопка",
         "np_album_choice_full": "⏩ Полный альбом",
@@ -3744,6 +3747,11 @@ TRANSLATIONS = {
         "ext_btn_other_post": "🔙 Другой пост",
         "ext_btn_rewrite": "🔄 Переписать",
         "ext_btn_refresh": "🔄 Обновить",
+        "ext_btn_adapt": "🎯 Адаптировать под мой канал",
+        "ext_btn_manual_edit": "✏️ Редактировать вручную",
+        "ext_adapting": "🎯 Адаптирую...",
+        "ext_edit_prompt": "✏️ <b>Ручное редактирование.</b>\n\nТекущий текст:\n<i>{text}</i>\n\nОтправьте новый текст — предпросмотр обновится.",
+        "ext_edit_empty": "⚠️ Пустой текст нельзя отправлять. Пожалуйста, отправьте новый текст.",
         "ext_media_preview": "🖼 Фото/Видео",
         "ext_reading_site": "⏳ Читаю сайт...",
         "ext_site_read_failed": "⚠️ Не удалось прочитать текст с сайта. Проверьте адрес и отправьте снова.",

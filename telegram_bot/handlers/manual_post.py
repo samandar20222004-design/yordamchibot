@@ -54,9 +54,11 @@ from keyboards.inline import (
     CB_MANUAL_24H,
     CB_MANUAL_CANCEL,
     CB_MANUAL_CHANNEL,
+    CB_MANUAL_CH_SELECTOR,
     CB_MANUAL_DUP_AI,
     CB_MANUAL_DUP_FORCE,
     CB_MANUAL_EDIT,
+    CB_MANUAL_FINISH,
     CB_MANUAL_NOW,
     CB_MANUAL_PANEL,
     CB_MANUAL_REACT,
@@ -68,6 +70,7 @@ from keyboards.inline import (
     CB_MANUAL_URL_BTN,
     CUSTOM_REACTION_MAX,
     build_reaction_button_rows,
+    btn_label,
     get_duplicate_warning_keyboard,
     get_manual_channel_keyboard,
     get_manual_post_panel,
@@ -131,6 +134,9 @@ UD_DUP_CHANNEL_TITLE = "mnp_dup_title"  # ogohlantirilgan kanal (nomi)
 UD_REACTIONS = "mnp_reactions"  # tanlangan reaksiya emojilari (list[str])
 UD_URL_BTN_TEXT = "mnp_url_text"  # havolali tugma matni
 UD_URL_BTN_URL = "mnp_url_url"    # havolali tugma URL'i (xavfsiz protokol)
+# 📢 Kanal tanlash — target channel selector (1-vazifa)
+UD_SELECTED_CHANNEL_ID = "mnp_ch_id"
+UD_SELECTED_CHANNEL_TITLE = "mnp_ch_title"
 
 #: Qabul qilinadigan media turlari → post_type.
 _SUPPORTED_MEDIA = ("photo", "video", "animation", "document")
@@ -163,8 +169,24 @@ def _clear_manual_state(context) -> None:
     for key in (UD_CONTENT, UD_POST_TYPE, UD_FILE_ID, UD_MEDIA_GROUP, UD_MODE, UD_WHEN,
                 UD_REPEAT_TIME, UD_DUP_FORCE, UD_DUP_CHANNEL_ID,
                 UD_DUP_CHANNEL_TITLE, UD_REACTIONS, UD_URL_BTN_TEXT,
-                UD_URL_BTN_URL, UD_DELIVERY):
+                UD_URL_BTN_URL, UD_DELIVERY, UD_SELECTED_CHANNEL_ID,
+                UD_SELECTED_CHANNEL_TITLE):
         context.user_data.pop(key, None)
+
+
+def _get_selected_channel(context):
+    """Saqlangan tanlangan kanalni qaytaradi (id, title) yoki None."""
+    ch_id = context.user_data.get(UD_SELECTED_CHANNEL_ID)
+    ch_title = context.user_data.get(UD_SELECTED_CHANNEL_TITLE)
+    if ch_id:
+        return ch_id, ch_title or str(ch_id)
+    return None
+
+
+def _set_selected_channel(context, channel_id, channel_title):
+    """Tanlangan kanalni saqlaydi."""
+    context.user_data[UD_SELECTED_CHANNEL_ID] = str(channel_id)
+    context.user_data[UD_SELECTED_CHANNEL_TITLE] = str(channel_title or channel_id)
 
 
 # ============================================================
@@ -358,12 +380,7 @@ def _manual_album_warning(context, lang: str) -> str:
     """Albomda tugma/reaksiya sozlanganda cheklov eslatmasi."""
     if not context.user_data.get(UD_MEDIA_GROUP):
         return ""
-    from locales.translations import normalize_lang
-
-    if normalize_lang(lang) == "uz":
-        return ("\n\n⚠️ Diqqat: Telegram qoidasiga ko'ra tugmali postlar faqat "
-                "bitta media bilan yuboriladi. Albomga tugma qo'shilsa, "
-                "faqat birinchi media qoladi.")
+    # 5-vazifa: aniq ogohlantirish matni (uz/ru/en)
     return "\n\n" + manual_post_t("mp_album_warning", lang)
 
 
@@ -383,13 +400,34 @@ def _manual_url_button(context):
 
 
 def _manual_preview_markup(context, lang: str) -> InlineKeyboardMarkup:
-    """Preview ostidagi to'liq markup: URL tugma + reaksiyalar + panel.
+    """Preview ostidagi to'liq markup: kanal tugmasi + URL + reaksiyalar + panel.
 
-    Tartib: (1) havolali tugma (haqiqiy URL button), (2) reaksiya
-    emojilari (ko'rinish uchun neytral ``enh:noop`` callback'li preview
-    tugmalar), (3) 4 qatorli universal boshqaruv paneli.
+    Tartib: (0) 📢 Kanal: [name] (1-vazifa), (1) havolali tugma,
+    (2) reaksiya emojilari, (3) delivery, (4) 4 qatorli universal panel,
+    (5) agar vaqt belgilangan bo'lsa — ✅ Rejalashtirishni yakunlash.
     """
     rows = []
+    # 1-vazifa: 📢 Kanal: [Tanlangan kanal nomi] tugmasi
+    selected = _get_selected_channel(context)
+    if selected:
+        ch_id, ch_title = selected
+        try:
+            ch_label = btn_label(ch_title, max_length=20)
+        except Exception:
+            ch_label = str(ch_title)[:20]
+        # mp_btn_channel = "📢 Kanal: {name}" — tarjima orqali
+        try:
+            channel_btn_text = manual_post_t("mp_btn_channel", lang, name=ch_label)
+        except Exception:
+            channel_btn_text = f"📢 Kanal: {ch_label}"
+        rows.append([InlineKeyboardButton(channel_btn_text, callback_data=CB_MANUAL_CH_SELECTOR)])
+    else:
+        try:
+            sel_text = manual_post_t("mp_btn_channel_select", lang)
+        except Exception:
+            sel_text = "📢 Kanalni tanlash"
+        rows.append([InlineKeyboardButton(sel_text, callback_data=CB_MANUAL_CH_SELECTOR)])
+
     url_btn = _manual_url_button(context)
     if url_btn:
         rows.append([InlineKeyboardButton(url_btn[0], url=url_btn[1])])
@@ -398,6 +436,13 @@ def _manual_preview_markup(context, lang: str) -> InlineKeyboardMarkup:
         rows.extend(build_reaction_button_rows(None, reactions, preview=True))
     rows.append([InlineKeyboardButton(delivery_labels(lang)["title"], callback_data="mnp_delivery")])
     rows.extend(get_manual_post_panel(lang).inline_keyboard)
+    # 3-vazifa: agar vaqt belgilangan bo'lsa — yakunlash tugmasi
+    if context.user_data.get(UD_WHEN) or context.user_data.get(UD_REPEAT_TIME):
+        try:
+            finish_text = manual_post_t("mp_btn_finish", lang)
+        except Exception:
+            finish_text = "✅ Rejalashtirishni yakunlash"
+        rows.append([InlineKeyboardButton(finish_text, callback_data=CB_MANUAL_FINISH)])
     return InlineKeyboardMarkup(rows)
 
 
@@ -413,6 +458,9 @@ def _manual_extras_text(context, lang: str) -> str:
         lines.append(manual_post_t(
             "mp_url_on", lang, text=html_escape(url_btn[0]),
             url=html_escape(url_btn[1])))
+    # 5-vazifa: albom + tugma cheklovi haqida ogohlantirish
+    if context.user_data.get(UD_MEDIA_GROUP) and (reactions or url_btn):
+        lines.append(manual_post_t("mp_album_warning", lang))
     if not lines:
         return ""
     return "\n\n" + "\n".join(lines)
@@ -456,10 +504,18 @@ async def _show_preview(target_msg, context, lang: str):
 
 
 async def _choose_channel_or_act(query_msg, context, user_id: int, lang: str):
-    """Kanal tanlash: bitta bo'lsa darhol amal, ko'p bo'lsa inline tanlov.
+    """Kanal tanlash: tanlangan kanal bo'lsa darhol amal, bo'lmasa inline tanlov.
 
+    1-vazifa: agar kanal tanlanmagan bo'lsa — "Qaysi kanalga chiqsin?" deb so'rash.
+    Bitta kanal bo'lsa avtomatik tanlanadi.
     Qaytaradi: keyingi FSM holati (MANUAL_CHANNEL_SELECT yoki END).
     """
+    # Avval saqlangan tanlangan kanalni tekshiramiz
+    selected = _get_selected_channel(context)
+    if selected:
+        ch_id, ch_title = selected
+        return await _publish(query_msg, context, user_id, ch_id, ch_title, lang)
+
     channels = await db.run_db(db.get_user_channels, user_id)
     if not channels:
         clear_fsm_data(context)
@@ -471,10 +527,19 @@ async def _choose_channel_or_act(query_msg, context, user_id: int, lang: str):
         )
         return ConversationHandler.END
     if len(channels) == 1:
+        _set_selected_channel(context, channels[0][0], channels[0][1])
         return await _publish(query_msg, context, user_id, channels[0][0],
                               channels[0][1], lang)
+    # Ko'p kanal — tanlash so'rovi (1-vazifa: "Qaysi kanalga chiqsin?")
+    try:
+        prompt = manual_post_t("mp_channel_prompt", lang)
+    except Exception:
+        try:
+            prompt = manual_post_t("mp_choose_channel", lang)
+        except Exception:
+            prompt = "📢 Qaysi kanalga chiqsin?"
     await query_msg.reply_text(
-        manual_post_t("mp_choose_channel", lang),
+        prompt,
         reply_markup=get_manual_channel_keyboard(channels, lang),
         parse_mode="HTML",
     )
@@ -728,6 +793,10 @@ async def manual_post_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return ConversationHandler.END
 
+    # 1-vazifa: bitta kanal bo'lsa avtomatik tanlash, lekin nomini ko'rsatish
+    if len(channels) == 1:
+        _set_selected_channel(context, channels[0][0], channels[0][1])
+
     await update.message.reply_text(
         manual_post_t("mp_intro", lang),
         reply_markup=get_cancel_keyboard(lang),
@@ -762,6 +831,15 @@ async def manual_content_received(update: Update, context: ContextTypes.DEFAULT_
     context.user_data[UD_POST_TYPE] = post_type if file_id else "text"
     context.user_data[UD_FILE_ID] = file_id
     context.user_data[UD_MEDIA_GROUP] = bool(getattr(msg, "media_group_id", None))
+
+    # 1-vazifa: agar kanal hali tanlanmagan bo'lsa va bitta kanal bo'lsa — auto-select
+    if not _get_selected_channel(context):
+        try:
+            chs = await db.run_db(db.get_user_channels, msg.from_user.id)
+            if chs and len(chs) == 1:
+                _set_selected_channel(context, chs[0][0], chs[0][1])
+        except Exception:
+            pass
 
     await _show_preview(msg, context, lang)
     return MANUAL_PREVIEW
@@ -815,7 +893,6 @@ async def manual_time_received(update: Update, context: ContextTypes.DEFAULT_TYP
     if mode == MODE_REPEAT:
         parsed = parse_daily_time_input(text)
         if parsed is None:
-            # "ertaga 9 da" kabi ifodani ham qabul qilamiz.
             candidate, _reason = parse_schedule_input(text)
             parsed = (candidate.hour, candidate.minute) if candidate else None
         if parsed is None:
@@ -823,8 +900,16 @@ async def manual_time_received(update: Update, context: ContextTypes.DEFAULT_TYP
                                  parse_mode="HTML")
             return MANUAL_TIME_INPUT
         hh, mm = parsed
-        context.user_data[UD_REPEAT_TIME] = f"{hh:02d}:{mm:02d}"
-        return await _choose_channel_or_act(msg, context, user_id, lang)
+        time_str = f"{hh:02d}:{mm:02d}"
+        context.user_data[UD_REPEAT_TIME] = time_str
+        # 3-vazifa: FSM yopilmaydi, vaqt saqlanadi va preview qayta ko'rsatiladi
+        try:
+            time_msg = manual_post_t("mp_time_set", lang, time=time_str)
+        except Exception:
+            time_msg = f"🕒 Vaqt belgilandi: {time_str}. Yana reaksiya, havola yoki sozlamalarni o'zgartirishingiz mumkin."
+        await msg.reply_text(time_msg, parse_mode="HTML")
+        await _show_preview(msg, context, lang)
+        return MANUAL_PREVIEW
 
     candidate, _reason = parse_schedule_input(text)
     if candidate is None:
@@ -833,7 +918,18 @@ async def manual_time_received(update: Update, context: ContextTypes.DEFAULT_TYP
         return MANUAL_TIME_INPUT
 
     context.user_data[UD_WHEN] = candidate.strftime("%Y-%m-%d %H:%M")
-    return await _choose_channel_or_act(msg, context, user_id, lang)
+    # 3-vazifa: FSM yopilmaydi, vaqt saqlanadi va preview qayta ko'rsatiladi
+    try:
+        display_time = format_datetime(candidate, lang) if 'format_datetime' in globals() else candidate.strftime("%Y-%m-%d %H:%M")
+    except Exception:
+        display_time = candidate.strftime("%Y-%m-%d %H:%M")
+    try:
+        time_msg = manual_post_t("mp_time_set", lang, time=display_time)
+    except Exception:
+        time_msg = f"🕒 Vaqt belgilandi: {display_time}. Yana reaksiya, havola yoki sozlamalarni o'zgartirishingiz mumkin."
+    await msg.reply_text(time_msg, parse_mode="HTML")
+    await _show_preview(msg, context, lang)
+    return MANUAL_PREVIEW
 
 
 async def manual_reaction_custom_received(update: Update,
@@ -1114,6 +1210,39 @@ async def manual_panel_callback(update: Update, context: ContextTypes.DEFAULT_TY
         )
         return MANUAL_TIME_INPUT
 
+    # 1-vazifa: 📢 Kanal: [name] tugmasi — kanal ro'yxatini ochish
+    if data == CB_MANUAL_CH_SELECTOR:
+        channels = await db.run_db(db.get_user_channels, user_id) or []
+        if not channels:
+            await query.message.reply_text(
+                manual_post_t("mp_no_channels", lang),
+                reply_markup=get_main_keyboard(user_id in ADMIN_IDS_SET, lang),
+                parse_mode="HTML",
+            )
+            return ConversationHandler.END
+        if len(channels) == 1:
+            _set_selected_channel(context, channels[0][0], channels[0][1])
+            await _show_preview(query.message, context, lang)
+            return MANUAL_PREVIEW
+        try:
+            prompt = manual_post_t("mp_channel_prompt", lang)
+        except Exception:
+            prompt = manual_post_t("mp_choose_channel", lang)
+        await query.message.reply_text(
+            prompt,
+            reply_markup=get_manual_channel_keyboard(channels, lang),
+            parse_mode="HTML",
+        )
+        return MANUAL_CHANNEL_SELECT
+
+    # 3-vazifa: ✅ Rejalashtirishni yakunlash — vaqt belgilangan bo'lsa publish
+    if data == CB_MANUAL_FINISH:
+        # Vaqt belgilanganmi tekshiramiz
+        if not (context.user_data.get(UD_WHEN) or context.user_data.get(UD_REPEAT_TIME)):
+            await _show_preview(query.message, context, lang)
+            return MANUAL_PREVIEW
+        return await _choose_channel_or_act(query.message, context, user_id, lang)
+
     if data == CB_MANUAL_NOW:
         context.user_data[UD_MODE] = MODE_NOW
         return await _choose_channel_or_act(query.message, context, user_id, lang)
@@ -1124,9 +1253,6 @@ async def manual_panel_callback(update: Update, context: ContextTypes.DEFAULT_TY
 
     # 🔁 PHASE C — dublikat ogohlantirishi amallari (SPEKS: 3 tugma).
     if data == CB_MANUAL_DUP_FORCE:
-        # [🚀 Baribir chiqarish] — ogohlantirishga qaramay xuddi shu kanalga
-        # yozamiz (kanal saqlangan bo'lishi shart — payload manipulyatsiyasi
-        # imkonsiz: faqat _publish o'zi yozgan kanal ishlatiladi).
         context.user_data[UD_DUP_FORCE] = True
         dup_channel = context.user_data.get(UD_DUP_CHANNEL_ID)
         dup_title = str(context.user_data.get(UD_DUP_CHANNEL_TITLE) or "")
@@ -1137,8 +1263,6 @@ async def manual_panel_callback(update: Update, context: ContextTypes.DEFAULT_TY
                                             lang)
 
     if data == CB_MANUAL_DUP_AI:
-        # [✨ AI bilan yangilash] — matnni AI boshqacha qilib qayta yozadi
-        # (foydalanuvchi O'ZI bosgan holda; oddiy oqim AI'siz qoladi).
         return await _dup_ai_refresh(query, context, user_id, lang)
 
     if data.startswith(CB_MANUAL_CHANNEL):
@@ -1150,16 +1274,24 @@ async def manual_panel_callback(update: Update, context: ContextTypes.DEFAULT_TY
         title = next((t for cid, t in channels if str(cid) == str(channel_id)),
                      "")
         if not title and channels:
-            # Payload manipulyatsiyasi — foydalanuvchiga TEGISHLI kanalni
-            # tanlatamiz (fail-closed: o'zga kanalga post chiqmaydi).
             await query.message.reply_text(
                 manual_post_t("mp_choose_channel", lang),
                 reply_markup=get_manual_channel_keyboard(channels, lang),
                 parse_mode="HTML",
             )
             return MANUAL_CHANNEL_SELECT
-        return await _publish(query.message, context, user_id, channel_id,
-                              title, lang)
+        # 1-vazifa: kanalni saqlab, preview'ga qaytish (darhol publish emas)
+        _set_selected_channel(context, channel_id, title)
+        # Agar oldin biror amal (masalan Hozir yuborish) bosilgan bo'lsa va endi kanal tanlangan bo'lsa,
+        # keyingi qadamda foydalanuvchi yana Hozir yuborish bosishi kerakmi yoki darhol publish?
+        # Talab: kanal tanlangach preview ko'rsatilsin, foydalanuvchi yana reaksiya/havola o'zgartirishi mumkin.
+        # Shuning uchun avval preview qaytaramiz. Agar mode NOW/24H bo'lsa va foydalanuvchi kanal tanlash
+        # orqali kelgan bo'lsa, darhol publish qilmasdan preview ko'rsatamiz — bu 1-vazifa talabiga mos.
+        # Ammo agar foydalanuvchi avval "Hozir yuborish" bosib, kanal tanlashga o'tgan bo'lsa,
+        # biz channel tanlangach darhol publish qilmaymiz, balki preview ko'rsatamiz.
+        # Foydalanuvchi istasa yana "Hozir yuborish" bosadi — bu aniq UX.
+        await _show_preview(query.message, context, lang)
+        return MANUAL_PREVIEW
 
     return MANUAL_PREVIEW
 

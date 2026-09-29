@@ -1285,6 +1285,8 @@ CB_MANUAL_URL_BTN = "mnp_url"        # 🔗 Havolali tugma (manual_add_url_btn)
 CB_MANUAL_REACT_TOGGLE = "mnp_rt:"   # mnp_rt:<emoji> — preset reaksiya toggle
 CB_MANUAL_REACT_CUSTOM = "mnp_radd"  # ➕ O'zim kiritaman (qo'lda emoji kiritish)
 CB_MANUAL_REACT_BACK = "mnp_rback"   # ◀️ Orqaga (preview'ga qaytish)
+CB_MANUAL_CH_SELECTOR = "mnp_ch_sel"  # 📢 Kanal: [name] → kanal ro'yxatini ochish
+CB_MANUAL_FINISH = "mnp_finish"       # ✅ Rejalashtirishni yakunlash (vaqt belgilangan)
 
 # ❤️ Reaksiya presetlari — spets bo'yicha 2 guruh: [👍 / 👎] va [🔥 / ❤️ / 👏].
 MANUAL_REACTION_PRESETS = (("👍", "👎"), ("🔥", "❤️", "👏"))
@@ -1879,10 +1881,17 @@ def get_reaction_toggle_keyboard(selected=None, lang: str = "uz") -> InlineKeybo
         get_text("np_react_done_count", lang, count=count)
         if count else get_text("np_react_done", lang)
     )
+    # ✅ Saqlash va davom etish — oldinga preview'ga qaytaradigan tugma (4-vazifa)
+    save_continue_label = {
+        "uz": "✅ Saqlash va davom etish",
+        "ru": "✅ Сохранить и продолжить",
+        "en": "✅ Save and continue",
+    }.get(normalize_lang(lang), "✅ Saqlash va davom etish")
     keyboard = [
         emoji_row_1,
         emoji_row_2,
         [InlineKeyboardButton(done_label, callback_data=CB_REACT_DONE)],
+        [InlineKeyboardButton(save_continue_label, callback_data=CB_REACT_DONE)],
         [InlineKeyboardButton(get_text("np_react_skip", lang), callback_data=CB_REACT_SKIP)],
     ]
     return InlineKeyboardMarkup(keyboard)
