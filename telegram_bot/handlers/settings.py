@@ -141,19 +141,24 @@ async def build_settings_hub_text(user_id: int, lang: str, is_admin: bool,
     Agar ``user_code`` / ``channels`` / ``stats`` argumentlari berilmasa,
     ma'lumotlar bazadan o'qiladi (ekran qayta chizilganda qayta o'qish uchun).
     """
-    from handlers.start import build_cabinet_text, cabinet_credits_text
+    from handlers.start import build_cabinet_text, cabinet_credits_text, load_cabinet_data
 
-    if stats is None:
-        stats = await db.run_db(db.get_referral_stats, user_id)
-    if channels is None:
-        channels = await db.run_db(db.get_user_channels, user_id)
-    if user_code is None:
-        user_code = await db.run_db(db.get_user_code, user_id)
+    if stats is None and channels is None and user_code is None:
+        # Odatdagi yo'l: RAM profil (0 DB) yoki BITTA birlashgan so'rov.
+        stats, channels_count, user_code = await load_cabinet_data(user_id)
+    else:
+        if stats is None:
+            stats = await db.run_db(db.get_referral_stats, user_id)
+        if channels is None:
+            channels = await db.run_db(db.get_user_channels, user_id)
+        if user_code is None:
+            user_code = await db.run_db(db.get_user_code, user_id)
+        channels_count = len(channels)
     credits_text = cabinet_credits_text(is_admin, stats["ai_credits"], lang)
     streak_text = get_text("cabinet_streak", lang, streak=stats.get("streak", 0))
     return build_cabinet_text(
         user_id, user_code, credits_text, streak_text,
-        len(channels), stats["referrals_count"], lang, ad_line,
+        channels_count, stats["referrals_count"], lang, ad_line,
     )
 
 
@@ -282,12 +287,12 @@ async def _render_profile_screen(query, context, user_id: int, lang: str,
     tugmali inline menyu (Til / Post sozlamalari / Bildirishnomalar /
     Do'stlarni taklif / To'lovlar tarixi / Qo'llab-quvvatlash / Yopish).
     """
-    from handlers.start import build_cabinet_text, cabinet_credits_text
+    from handlers.start import (
+        build_cabinet_text, cabinet_credits_text, load_cabinet_data, peek_profile,
+    )
     from utils.helpers import get_smart_reply_ad_async
 
-    stats = await db.run_db(db.get_referral_stats, user_id)
-    channels = await db.run_db(db.get_user_channels, user_id)
-    user_code = await db.run_db(db.get_user_code, user_id)
+    stats, channels_count, user_code = await load_cabinet_data(user_id)
     credits_text = cabinet_credits_text(is_admin, stats["ai_credits"], lang)
     streak_text = get_text("cabinet_streak", lang, streak=stats.get("streak", 0))
     try:
@@ -296,15 +301,19 @@ async def _render_profile_screen(query, context, user_id: int, lang: str,
         ad_line = ""
     text = build_cabinet_text(
         user_id, user_code, credits_text, streak_text,
-        len(channels), stats["referrals_count"], lang, ad_line,
+        channels_count, stats["referrals_count"], lang, ad_line,
     )
 
     # ⭐️ Obuna holati — profil kartasining majburiy qismi (spek: ID, obuna
     # holati, balans/kreditlar va asosiy hisob ma'lumotlari).
-    try:
-        plan = await db.run_db(db.get_user_plan, user_id)
-    except Exception:
-        plan = {"plan_type": "free", "expires_at": None}
+    prof = peek_profile(user_id)
+    if prof is not None:  # RAM profil (0 DB); faqat ko'rsatish uchun
+        plan = {"plan_type": prof["plan_type"], "expires_at": prof["expires_at"]}
+    else:
+        try:
+            plan = await db.run_db(db.get_user_plan, user_id)
+        except Exception:
+            plan = {"plan_type": "free", "expires_at": None}
     plan_type = str((plan or {}).get("plan_type") or "free").lower()
     expires_at = (plan or {}).get("expires_at")
     if plan_type in ("pro", "enterprise") and expires_at:

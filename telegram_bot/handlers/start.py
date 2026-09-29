@@ -99,6 +99,41 @@ async def ensure_user_lang(context, user_id: int) -> str:
         lang = None
     return set_lang_cache(context, lang or "uz")
 
+
+def peek_profile(user_id: int):
+    """Foydalanuvchi profili RAM keshda bo'lsa nusxasi, aks holda ``None``.
+
+    DB'ga tegmaydi (0 ms, event loop'da xavfsiz). Har qanday xatoda ``None`` —
+    chaqiruvchi eski (DB) yo'lga qaytadi.
+    """
+    try:
+        return db.peek_user_profile(user_id)
+    except Exception:
+        return None
+
+
+async def load_cabinet_data(user_id: int):
+    """Kabinet/Sozlamalar/Profil ekrani uchun ``(stats, channels_count, user_code)``.
+
+    Profil RAM'da bo'lsa — 0 ta DB so'rovi. Sovuq bo'lsa ``get_referral_stats``
+    uni BITTA birlashgan so'rov bilan yuklaydi (oldin 3-5 ta ketma-ket so'rov).
+    Profil yuklanmasa (DB xatosi) — eski uchta chaqiruv.
+    """
+    prof = peek_profile(user_id)
+    stats = None
+    if prof is None:
+        stats = await db.run_db(db.get_referral_stats, user_id)
+        prof = peek_profile(user_id)
+    if prof is not None:
+        return ({"ai_credits": prof["ai_credits"], "streak": prof["streak"],
+                 "referrals_count": prof["referrals_count"]},
+                prof["channels_count"], prof["user_code"])
+    if stats is None:
+        stats = await db.run_db(db.get_referral_stats, user_id)
+    channels = await db.run_db(db.get_user_channels, user_id)
+    user_code = await db.run_db(db.get_user_code, user_id)
+    return stats, len(channels), user_code
+
 # Eslatma: 501-502 ANALYTICS bilan to'qnashgan edi — endi 511-512 unikal.
 TRANSFER_TARGET = 511
 TRANSFER_AMOUNT = 512
@@ -217,8 +252,10 @@ async def _warm_user_stats(user_id: int) -> None:
     bosadi. Shu ekranlarning 3 ta yirik SELECT'i shu yerda oldindan
     bajarilib, TTL keshga yoziladi — keyingi bosilishda 0 ta DB so'rovi.
     """
+    if peek_profile(user_id) is not None:
+        return  # profil allaqachon RAM'da (5 daqiqa)
     try:
-        await db.run_db(db.get_referral_stats, user_id)
+        await db.run_db(db.get_referral_stats, user_id)  # profilni ham BITTA so'rov bilan yuklaydi
         await db.run_db(db.get_user_code, user_id)
     except Exception:
         logger.debug("Statistika keshini isitib bo'lmadi (user=%s)", user_id)
@@ -244,14 +281,24 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # round-trip) kerak emas. Eski test stub'lari ``bool`` qaytarsa,
     # ``getattr(..., "lang", None)`` None beradi va ``get_user_language``
     # chaqiriladi — orqa moslik saqlanadi.
-    result = await db.run_db(
-        db.save_user, user.id, user.username or "", user.full_name or "",
-        referrer_id=referrer_id, language_code=detected,
-    )
-    is_new = bool(result)
-    lang = getattr(result, "lang", None)
-    if not lang:
-        lang = detected if is_new else await db.run_db(db.get_user_language, user.id)
+    #
+    # Profil RAM'da (5 daqiqa) bo'lsa, ism/username o'zgarmagan va ref-havola
+    # yo'q bo'lsa — qayta /start da DB'ga UMUMAN tegilmaydi (save_user upsert'i
+    # har safar qator qulfi + yozuv + kesh tozalash edi).
+    profile = peek_profile(user.id)
+    if (profile is not None and referrer_id is None
+            and profile.get("username") == (user.username or "")
+            and profile.get("full_name") == (user.full_name or "")):
+        is_new, lang = False, profile["lang"]
+    else:
+        result = await db.run_db(
+            db.save_user, user.id, user.username or "", user.full_name or "",
+            referrer_id=referrer_id, language_code=detected,
+        )
+        is_new = bool(result)
+        lang = getattr(result, "lang", None)
+        if not lang:
+            lang = detected if is_new else await db.run_db(db.get_user_language, user.id)
     set_lang_cache(context, lang)
 
     is_admin = (user.id in ADMIN_IDS_SET)
@@ -477,9 +524,7 @@ async def user_cabinet_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     from handlers.navigation import remember_section, SECTION_SETTINGS
     remember_section(context, SECTION_SETTINGS)
     is_admin = (user.id in ADMIN_IDS_SET)
-    stats = await db.run_db(db.get_referral_stats, user.id)
-    channels = await db.run_db(db.get_user_channels, user.id)
-    user_code = await db.run_db(db.get_user_code, user.id)
+    stats, channels_count, user_code = await load_cabinet_data(user.id)
 
     credits_text = cabinet_credits_text(is_admin, stats['ai_credits'], lang)
     streak_text = get_text("cabinet_streak", lang, streak=stats.get('streak', 0))
@@ -487,7 +532,7 @@ async def user_cabinet_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     text = build_cabinet_text(
         user.id, user_code, credits_text, streak_text,
-        len(channels), stats['referrals_count'], lang, ad_line,
+        channels_count, stats['referrals_count'], lang, ad_line,
     )
     await update.message.reply_text(text, reply_markup=get_settings_hub_keyboard(lang), parse_mode="HTML")
 
