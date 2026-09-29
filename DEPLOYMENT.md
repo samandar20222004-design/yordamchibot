@@ -186,6 +186,33 @@ docker compose logs -f bot
 * Parolni hujjatga qoldirmang: `docker compose` lokal uchun; prod aks holda
   external PostgreSQL / Neon.
 
+### 3.1 🗄 Redis — Ixtiyoriy (multi-instance uchun)
+
+Rate limitlar va nozik holatlar **bir instance** ichida saqlansa, 2+ replica
+ishlatilganda chegaralar yarim qoladi. Buning uchun Redis **opt-in**:
+
+```bash
+# lokal: compose faylida ixtiyoriy redis xizmati bor (prof bilan)
+docker compose --profile redis up -d
+# .env ga:
+#   REDIS_ENABLED=1
+#   REDIS_URL=redis://redis:6379/0          # docker-compose ichida
+#   REDIS_URL=redis://localhost:6379/0      # lokal/VPS
+# paketni o'rnatish (ixtiyoriy):
+pip install "redis>=5.0"
+```
+
+Muhim qoidalar:
+
+* **Redis yo'q bo'lsa ham bot to'liq ishlaydi** — holat In-Memory da qoladi
+  (`services/cache_backend.py`, LRU + TTL, 512 MB RAM uchun chegarali).
+* **Redis uzilsa bot qulamaydi**: avtomatik In-Memory fallback + circuit
+  breaker (`REDIS_CIRCUIT_FAILURES` / `REDIS_CIRCUIT_COOLDOWN`).
+* Tekshirish: bot logida `cache: Redis faol (prefix=postassist)` yoki
+  `cache: Redis o'chirilgan — In-Memory rejim` qatori chiqadi.
+* Render'da tashqi Redis (Upstash/Redis Cloud) `REDIS_URL=rediss://…` shaklida
+  beriladi; `.env` da parol saqlanadi, loglarga chiqmaydi.
+
 ---
 
 ## 4. Yangilash va rollback

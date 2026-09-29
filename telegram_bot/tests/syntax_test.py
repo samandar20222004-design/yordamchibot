@@ -98,6 +98,11 @@ def main():
         "services.ads.templates",
         "services.ads.engine",
         "services.ads.audit",
+        # 🗄 PHASE 2: State & Cache adapter (Redis ⇄ In-Memory, ixtiyoriy
+        # ulanish + circuit breaker) va uning ustida granular rate limiting.
+        "services.cache_backend",
+        "middlewares",
+        "middlewares.rate_limiter",
     ]
     for mod in modules:
         try:

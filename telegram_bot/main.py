@@ -36,8 +36,10 @@ from scheduler import (
 from utils.web_server import start_web_server
 from utils.ai_agent import close_ai_session, reload_runtime_params
 from utils.helpers import (
-    check_global_flood, check_rate_limit, is_duplicate_message, is_callback_throttled,
+    check_global_flood, check_rate_limit, is_duplicate_message,
 )
+from services import cache_backend as cache_backend_svc
+from middlewares.rate_limiter import RateLimitMiddleware
 from handlers.error_handler import (
     global_error_handler,
     register_error_handlers,
@@ -186,15 +188,16 @@ class GuardedApplication(Application):
                 if check_global_flood():
                     await asyncio.sleep(0.4)
 
-                # 1b) Callback 1.5s debounce — tugma spam / double-tap
-                query = getattr(update, "callback_query", None)
-                user = getattr(update, "effective_user", None)
-                if query is not None and user is not None:
-                    if is_callback_throttled(user.id):
-                        await self._answer_callback_wait(update)
-                        return None
+                # 1b) Callback debounce (tugma spam / double-tap) endi
+                # GRANULAR qatlamda: ``RateLimitMiddleware`` uni
+                # ``(user_id, callback_action)`` bo'yicha hisoblaydi — ya'ni
+                # bir xil tugma ketma-ket bosilganda bloklanadi, boshqa
+                # tugma esa bemalol bosiladi (avval barcha tugmalar bir
+                # savatda hisoblanardi). Multi-instance holatda hisoblagich
+                # Redis'da umumiy saqlanadi (services/cache_backend.py).
 
                 # 2) Foydalanuvchi bo'yicha burst (hujum/flood)
+                user = getattr(update, "effective_user", None)
                 if user is not None:
                     blocked, _ = check_rate_limit(user.id, max_requests=20, window_seconds=2.0)
                     if blocked:
@@ -542,6 +545,14 @@ async def graceful_shutdown(application=None, scheduler=None, web_runner=None,
     except Exception:
         logger.exception("AI (aiohttp) sessiyasini yopishda xatolik")
         _step("ai_session_closed", ok=False)
+    # 7b) PHASE 2: cache/Redis ulanishi (ixtiyoriy — yo'q bo'lsa ham
+    # xavfsiz, In-Memory backend hech narsa bilan bog'lanmagan).
+    try:
+        await cache_backend_svc.close_cache_backend()
+        _step("cache_closed")
+    except Exception:
+        logger.exception("Cache backendni yopishda xatolik")
+        _step("cache_closed", ok=False)
 
     report["clean"] = not report["errors"]
     logger.info(
@@ -599,6 +610,17 @@ async def main():
     # UNKNOWN_DELIVERY bo'lganlari 'unknown', qolganlari 'pending'.
     await recover_on_startup()
 
+    # PHASE 2 · Distributed state: Redis (ixtiyoriy) / In-Memory backend.
+    # `REDIS_URL` + `REDIS_ENABLED` bo'lsa va ulanish muvaffaqiyatli bo'lsa —
+    # state (rate limit sanagichlari) BARCHA instance'lar uchun umumiy;
+    # aks holda (yoki Redis uzilib qolsa) — In-Memory + circuit breaker.
+    # Bu qadam hech qachon botni to'xtatmaydi (muvaffaqiyatsiz bo'lsa
+    # jim In-Memory rejimga qaytadi).
+    try:
+        await cache_backend_svc.init_cache_backend()
+    except Exception:
+        logger.exception("Cache backend ishga tushirilmadi — In-Memory rejimda davom etamiz")
+
     # Admin panelda o'zgartirilgan AI parametrlarini ishga tushirishda yuklaymiz.
     try:
         await reload_runtime_params()
@@ -639,6 +661,14 @@ async def main():
     # (handlers/error_handler.py): strukturalli log + tilga mos xushmuomala
     # foydalanuvchi xabari + kritik xatolarni auditga yozish.
     register_error_handlers(application)
+
+    # PHASE 2 · Granular rate limiting — barcha handler'lardan OLDIN
+    # (group=-1) ishlaydi. Har bir harakat uchun alohida kalit + TTL:
+    # matn xabarlari, (user_id, callback_action) throttling, qimmatli AI
+    # amallari va URL/RSS fetch. Sanagichlar Redis'da (ixtiyoriy) —
+    # aks holda In-Memory; Redis uzilsa avtomatik fallback (circuit
+    # breaker, services/cache_backend.py).
+    application.add_handler(RateLimitMiddleware(), group=-1)
 
     register_all_handlers(application)
     # 1-BOSQICH: ``start_web_server()`` endi ``init_db()`` dan OLDIN

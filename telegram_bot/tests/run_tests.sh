@@ -217,4 +217,12 @@ echo "===== 🛡 URL SECURITY GATEWAY — SSRF HIMOYASI (PHASE 1) ====="
 "$PY" tests/url_security_gateway_test.py || exit 1
 
 echo
+echo "===== 🗄 STATE & CACHE ADAPTER — REDIS ⇄ IN-MEMORY (PHASE 2) ====="
+# Yagona CacheBackend interfeysi (get/set/delete/incr/expire), Redis backend
+# (ixtiyoriy `redis` paketi), TTL+LRU In-Memory backend (512 MB RAM uchun
+# maxsize nazorati) va circuit-breaker bilan avtomatik In-Memory fallback.
+# Tarmoq KERAK EMAS — sun'iy redis.asyncio mijozi (deterministik).
+"$PY" tests/cache_backend_test.py || exit 1
+
+echo
 echo "BARCHA TESTLAR MUVOFFAQIYATLI ✔"
