@@ -982,10 +982,12 @@ def test_real_pending_retry_filter(db_mod):
 
 def test_claim_sql_row_lock_fallback():
     print("== Claim SQL kafolati (FOR UPDATE — parallel serialize) ==")
+    import inspect
     import database as db_mod
 
-    src = Path(db_mod.__file__).read_text(encoding="utf-8")
-    body = src.split("def claim_post_delivery", 1)[1].split("\ndef ", 1)[0]
+    # PHASE 4: claim SQL endi repositories/scheduler_repository.py da —
+    # manbani ``inspect`` orqali topamiz (faylga bog'liq EMAS).
+    body = inspect.getsource(db_mod.claim_post_delivery)
     check("claim SELECT ... FOR UPDATE", "FOR UPDATE" in body)
     check("dead_letter himoyasi", "dead_letter" in body)
     check("retry_pending himoyasi", "retry_pending" in body)

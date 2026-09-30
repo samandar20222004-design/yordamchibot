@@ -2677,6 +2677,7 @@ def test_confirmation_queue_integration():
 def test_payments_audit_table():
     """To'lovlar uchun alohida payments jadvali va log_stars_payment."""
     print("== payments audit table + log_stars_payment ==")
+    import inspect
     import database as db_mod
     source = open(db_mod.__file__).read()
 
@@ -2692,10 +2693,15 @@ def test_payments_audit_table():
     check("log_stars_payment callable", callable(db_mod.log_stars_payment))
     check("log_stars_payment -> payments jadvaliga yozadi", "INSERT INTO payments" in source)
     # log_stars_payment endi promo_codes ga yozmaydi (STARS_ yozuvlari olib tashlandi)
-    fn_body = source.split("def log_stars_payment", 1)[1].split("\n\n", 1)[0]
+    # PHASE 4: SQL endi repositories/payments_repository.py da — funksiya
+    # manbasini ``inspect`` orqali topamiz (faylga bog'liq EMAS).
+    fn_body = inspect.getsource(db_mod.log_stars_payment)
     check("log_stars_payment promo_codes dan ajratildi", "promo_codes" not in fn_body)
     # Admin dashboard stars_revenue endi payments dan olinadi
-    check("admin dashboard: stars_revenue payments dan", "SUM(amount), 0) FROM payments" in source)
+    # (PHASE 4: dashboard SQL endi repositories/audit_repository.py da)
+    check("admin dashboard: stars_revenue payments dan",
+          "SUM(amount), 0) FROM payments" in
+          inspect.getsource(db_mod.get_admin_dashboard_stats))
 
 
 def test_stars_invoice_provider_token():
@@ -3078,7 +3084,7 @@ def test_reaction_emojis_db_schema():
     check("migration: ADD COLUMN IF NOT EXISTS reaction_emojis",
           "ADD COLUMN IF NOT EXISTS reaction_emojis" in source)
     check("get_due_posts: reaction_emojis qaytaradi",
-          "sp.delete_after_hours, sp.reaction_emojis" in source)
+          "sp.delete_after_hours, sp.reaction_emojis" in inspect.getsource(db_mod.get_due_posts))
 
     sig = inspect.signature(db_mod.add_post)
     check("add_post: reaction_emojis parametri", "reaction_emojis" in sig.parameters)
@@ -3271,10 +3277,12 @@ def test_five_fixes_suite():
           in open(queue_mod.__file__, encoding="utf-8").read())
     check("navbat: cabinet handleri xatoni ushlaydi (qotmaydi)",
           "Post navbati ekranini qurishda xato" in src_start)
-    # scheduled_posts jadvalidan o'qiladi
+    # scheduled_posts jadvalidan o'qiladi (PHASE 4: SQL repositories/posts_repository.py da)
     db_src = open(db_mod.__file__, encoding="utf-8").read()
+    import inspect as _inspect
+    queue_src = _inspect.getsource(db_mod.get_queue_posts)
     check("navbat: scheduled_posts jadvalidan o'qiladi",
-          "FROM scheduled_posts sp" in db_src and "def get_queue_posts" in db_src)
+          "FROM scheduled_posts sp" in queue_src or "FROM scheduled_posts sp" in db_src)
     check("navbat: faqat pending postlar", "status = 'pending'" in db_src)
 
     # ---------- 5) ADMIN: 3 ta asosiy bo'lim ----------
@@ -3680,11 +3688,16 @@ def test_post_enhancer_flow():
     check("new_post: BTN_* nomlari (BTN_BACK) NameError'siz", not _np_missing, str(_np_missing))
     check("new_post: uch tilli tugma registry'si ishlatilgan",
           "is_menu_text" in np_src and "from keyboards.default import" in np_src)
-    db_src = open(__import__("database").__file__, encoding="utf-8").read()
-    check("db: update_post_content inline_button_text ustuni", "inline_button_text = %s" in db_src)
-    check("db: update_post_content inline_button_url ustuni", "inline_button_url = %s" in db_src)
+    # PHASE 4: SQL endi repositories/posts_repository.py da — funksiya
+    # manbasini ``inspect`` orqali topamiz (faylga bog'liq EMAS).
+    import inspect as _inspect2
+    upd_src = _inspect2.getsource(__import__("database").update_post_content)
+    check("db: update_post_content inline_button_text ustuni",
+          "inline_button_text = %s" in upd_src)
+    check("db: update_post_content inline_button_url ustuni",
+          "inline_button_url = %s" in upd_src)
     check("db: update_post_content reaction_emojis parametri",
-          "reaction_emojis = %s" in db_src.split("def update_post_content")[1].split("def cancel_post")[0])
+          "reaction_emojis = %s" in upd_src)
     import inspect
     check("db: update_post_content sig reaction_emojis",
           "reaction_emojis" in inspect.signature(__import__("database").update_post_content).parameters)
@@ -8999,8 +9012,10 @@ def test_onboarding_db_and_schema():
           '"ALTER TABLE users ADD COLUMN IF NOT EXISTS full_menu_unlocked' in src)
     check("database.py: postlar soni status='posted' bo'yicha",
           "status = 'posted'" in src)
+    # PHASE 4: onboarding keshi repositories/users_repository.py da
     check("database.py: onboarding keshi tozalanadi",
-          "invalidate_simple_menu" in src)
+          "invalidate_simple_menu" in
+          inspect.getsource(db_mod.set_user_full_menu_unlocked))
 
 
 # ============================================================

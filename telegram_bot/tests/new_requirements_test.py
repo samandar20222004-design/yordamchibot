@@ -658,11 +658,14 @@ def test_scheduler_idempotency_on_db_error_after_send():
 
 def test_recover_stale_processing_posts_idempotent():
     """Stale processing postlarni tiklash: yuborilganlar 'posted', yuborilmaganlar 'pending' bo'ladi."""
-    src = (ROOT / "database.py").read_text(encoding="utf-8")
-    assert "def recover_stale_processing_posts" in src
-    assert "def mark_post_processing" in src
-    assert "SET status = 'posted'" in src
-    assert "SET status = 'pending', processing_started_at = NULL" in src
+    import inspect
+    import database as db_mod
+    # PHASE 4: SQL endi repositories/scheduler_repository.py da — funksiya
+    # manbasini ``inspect`` orqali topamiz (faylga bog'liq EMAS).
+    rec = inspect.getsource(db_mod.recover_stale_processing_posts)
+    assert "SET status = 'posted'" in rec
+    assert "SET status = 'pending', processing_started_at = NULL" in rec
+    assert inspect.getsource(db_mod.mark_post_processing)
 
 
 def test_env_card_config_and_fallback():
@@ -1176,15 +1179,18 @@ def test_scheduler_restart_does_not_resend_after_transient_db_error():
     'pending' ni oladi; recover_stale_processing_posts esa sent_message_id /
     sent_post_messages bo'yicha 'posted' ga o'tkazadi — 'pending' ga qaytarmaydi."""
     sch_mod = _sch_isolated()
-    db_src = (ROOT / "database.py").read_text(encoding="utf-8")
+    import inspect
+    import database as db_mod
     sch_src = (ROOT / "scheduler.py").read_text(encoding="utf-8")
 
+    # PHASE 4: DB funksiyalari endi repositories/ paketida — manbani
+    # ``inspect.getsource`` orqali topamiz (faylga bog'liq EMAS).
     # get_due_posts faqat pending'ni oladi (processing qayta olinmaydi)
-    body = db_src.split("def get_due_posts", 1)[1].split("\ndef ", 1)[0]
+    body = inspect.getsource(db_mod.get_due_posts)
     assert "status = 'pending'" in body and "FOR UPDATE SKIP LOCKED" in body
     assert "SET status = 'processing'" in body
     # recover: yuborilganlar posted, faqat yuborilmaganlar pending
-    rec = db_src.split("def recover_stale_processing_posts", 1)[1].split("\ndef ", 1)[0]
+    rec = inspect.getsource(db_mod.recover_stale_processing_posts)
     assert "SET status = 'posted'" in rec and "sent_post_messages" in rec
     assert "sent_message_id IS NULL" in rec
     # scheduler: processing send'dan oldin; send'dan keyin marker backoff bilan
@@ -1193,7 +1199,7 @@ def test_scheduler_restart_does_not_resend_after_transient_db_error():
     assert "await flush_unpersisted_sent_markers()" in sch_src
     # DB yozuv funksiyalari natija qaytaradi (False = xato) — scheduler shunga tayanadi
     for fn in ("mark_post_processing", "mark_post_status", "mark_post_as_sent"):
-        fn_body = db_src.split(f"def {fn}(", 1)[1].split("\ndef ", 1)[0]
+        fn_body = inspect.getsource(getattr(db_mod, fn))
         assert "return True" in fn_body and "return False" in fn_body, fn
 
     calls = []
