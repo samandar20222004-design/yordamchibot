@@ -220,6 +220,13 @@ REQUIRED_P0_TABLES = ("promo_redemptions", "post_deliveries")
 
 REQUIRED_P0_INDEXES = ("idx_deliveries_sched", "idx_deliveries_retry", "uq_payments_telegram_charge_id")
 
+# PHASE 6 — AI xarajat/telemetriya jurnali (schema.sql'dagi bilan bir xil).
+# ``EXPECTED_TABLES`` ro'yxatiga ATAYLAB qo'shilmagan: u tarixiy (frozen)
+# ro'yxat bo'lib, schema_test.py dagi 31/33 hisoblagichlari bilan
+# qulflangan. PHASE 5 dagi ``REQUIRED_P0_TABLES`` kabi alohida tekshiriladi.
+AI_USAGE_TABLES = ("ai_usage_events",)
+AI_USAGE_INDEXES = ("idx_ai_usage_user_time", "idx_ai_usage_channel_time")
+
 # PHASE E names are also kept in separate lists for migration tooling and
 # deployment diagnostics; EXPECTED_* above includes them for startup parity.
 PHASE_E_TABLES = ("channel_members", "channel_comment_insights")
@@ -1970,14 +1977,14 @@ def _verify_schema(cur) -> None:
         "WHERE table_schema = current_schema()"
     )
     tables = {row[0] for row in cur.fetchall()}
-    required_tables = (*EXPECTED_TABLES, *REQUIRED_P0_TABLES)
+    required_tables = (*EXPECTED_TABLES, *REQUIRED_P0_TABLES, *AI_USAGE_TABLES)
     missing_tables = [t for t in required_tables if t not in tables]
 
     cur.execute(
         "SELECT indexname FROM pg_indexes WHERE schemaname = current_schema()"
     )
     indexes = {row[0] for row in cur.fetchall()}
-    required_indexes = (*EXPECTED_INDEXES, *REQUIRED_P0_INDEXES)
+    required_indexes = (*EXPECTED_INDEXES, *REQUIRED_P0_INDEXES, *AI_USAGE_INDEXES)
     missing_indexes = [i for i in required_indexes if i not in indexes]
 
     if missing_indexes:
@@ -2515,6 +2522,45 @@ def _init_db_once():
             "ON ai_reservations(user_id, created_at);"
         )
 
+        # 🧾 PHASE 6 — AI xarajat/telemetriya jurnali. schema.sql fayli
+        # topilmasa ham bu jadval albatta yaratiladi (aks holda xarajat
+        # hisoboti va limit nazorati ko'r bo'lib qolardi). Barcha operatorlar
+        # IF NOT EXISTS — qayta-qayta bajarish xavfsiz.
+        cur.execute('''
+            CREATE TABLE IF NOT EXISTS ai_usage_events (
+                id BIGSERIAL PRIMARY KEY,
+                user_id BIGINT,
+                channel_id BIGINT,
+                task VARCHAR(64) NOT NULL DEFAULT '',
+                lane VARCHAR(16) NOT NULL DEFAULT '',
+                operation_type VARCHAR(32) NOT NULL DEFAULT '',
+                provider VARCHAR(32) NOT NULL DEFAULT 'none',
+                model VARCHAR(64) NOT NULL DEFAULT '',
+                input_tokens INT NOT NULL DEFAULT 0,
+                output_tokens INT NOT NULL DEFAULT 0,
+                latency_ms INT NOT NULL DEFAULT 0,
+                estimated_cost NUMERIC(12, 6) NOT NULL DEFAULT 0,
+                priced BOOLEAN NOT NULL DEFAULT FALSE,
+                status VARCHAR(16) NOT NULL DEFAULT 'failed',
+                error_code VARCHAR(64),
+                cached BOOLEAN NOT NULL DEFAULT FALSE,
+                attempts INT NOT NULL DEFAULT 0,
+                prompt_hash VARCHAR(32) NOT NULL DEFAULT '',
+                reservation_id BIGINT,
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                CONSTRAINT chk_ai_usage_status
+                    CHECK (status IN ('success', 'failed'))
+            );
+        ''')
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_ai_usage_user_time "
+            "ON ai_usage_events(user_id, created_at DESC);"
+        )
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_ai_usage_channel_time "
+            "ON ai_usage_events(channel_id, created_at DESC);"
+        )
+
         # 🧠 PHASE A — Channel Intelligence baza poydevori (idempotent).
         # schema.sql fayli topilmasa ham bu jadvallar albatta yaratiladi
         # (aks holda analytics/audit oqimi ishlamasdi). Barcha CREATE TABLE
@@ -2957,12 +3003,14 @@ from repositories.payments_repository import (  # noqa: F401
 )
 # --- 🔐 AUDIT — xavfsizlik ro'llari, audit loglari, qo'llab-quvvatlash
 from repositories.audit_repository import (  # noqa: F401
+    AI_USAGE_NO_CHANNEL, AI_USAGE_PERIODS,
     AUDIT_ACTION_MAX_LEN, AUDIT_FIELD_MAX_LEN, SUPPORT_TICKET_TEXT_LIMIT,
-    _support_ticket_row_to_dict, _valid_admin_role,
+    _ai_usage_window_sql, _support_ticket_row_to_dict, _valid_admin_role,
     attach_support_ticket_delivery, count_admin_audit_logs,
     count_user_support_tickets, create_support_ticket, delete_admin_role,
     get_admin_audit_logs, get_admin_dashboard_stats, get_admin_role,
-    get_recent_support_tickets, get_support_ticket,
+    get_ai_usage_report, get_recent_support_tickets, get_support_ticket,
     get_support_ticket_by_admin_message, get_system_stats, list_admin_roles,
-    log_admin_action, mark_support_ticket_answered, set_admin_role
+    log_admin_action, mark_support_ticket_answered, purge_ai_usage_events,
+    save_ai_usage_event, set_admin_role
 )
