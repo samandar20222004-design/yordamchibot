@@ -241,4 +241,15 @@ echo "===== 🔐 PHASE 3 — RBAC MARKAZLASHUVI + IDOR HIMOYASI ====="
 "$PY" ../tests/phase3_rbac_idor_test.py || exit 1
 
 echo
+echo "===== 📮 PHASE 5 — TELEGRAM DELIVERY ENGINE ====="
+# Markaziy yetkazib berish dvigateli (services/delivery): 1 post/s kanal +
+# 30 msg/s umumiy rate-limit, RetryAfter aniq kutish + jitter (defer rejim
+# scheduler uchun), failure classification (permanent → dead_letter,
+# ambiguous → UNKNOWN, blind retry yo'q), idempotency state machine
+# (PENDING → SENDING → DELIVERED, crash-safe 0 duplikat) va integratsiya
+# (scheduler / broadcast / manual: enhancer, image, magic) + bulk send
+# kontraktlari (3 urinish, HTML fallback).
+"$PY" tests/delivery_engine_test.py || exit 1
+
+echo
 echo "BARCHA TESTLAR MUVOFFAQIYATLI ✔"

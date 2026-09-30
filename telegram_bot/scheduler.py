@@ -16,7 +16,7 @@ from telegram import (
 from telegram.error import TelegramError, RetryAfter, TimedOut, NetworkError
 from config import ADMIN_IDS_SET, BOT_USERNAME
 import database as db
-from services.scheduler_service import SchedulerService
+from services.delivery import delivery_service
 from services import lifecycle_service as lifecycle
 from services.cleanup_service import cleanup_old_records
 from keyboards.inline import (
@@ -251,7 +251,7 @@ async def _apply_sent_marker(marker: dict) -> bool:
         delivery_ok = False
         try:
             delivery_ok = _db_ok(await db.run_db(
-                SchedulerService.mark_sent_by_key, delivery_key, marker.get("message_id")
+                delivery_service.mark_sent_by_key, delivery_key, marker.get("message_id")
             ))
         except Exception as e:
             logger.exception("Delivery sent marker yozilmadi (Post ID: %s): %s", pid, e)
@@ -283,7 +283,7 @@ async def _apply_sent_marker_legacy(marker: dict) -> bool:
     if delivery_key and not marker.get("delivery_done"):
         try:
             if not _db_ok(await db.run_db(
-                SchedulerService.mark_sent_by_key, delivery_key, marker.get("message_id")
+                delivery_service.mark_sent_by_key, delivery_key, marker.get("message_id")
             )):
                 return False
         except Exception as e:
@@ -400,6 +400,20 @@ def flood_wait_inline_sleep(wait_seconds: float) -> float:
 
 def _channel_key(channel_id) -> str:
     return str(channel_id) if channel_id is not None else ""
+
+
+async def _delivery_send(bot, method: str, **kwargs):
+    """YAGONA delivery engine orqali Telegram yuborish (PHASE 5).
+
+    Barcha kanal postlari ``services.delivery`` dvigatelidan o'tadi:
+    1 post/s (kanal) + 30 msg/s (umumiy) rate-limit, RetryAfter tasnifi va
+    dead-letter klassifikatsiyasi shu yerda. Scheduler ``defer`` rejimini
+    tanlaydi (``inline_max_wait=0``): dvigatel 429 da inline kutmaydi —
+    aniq kutish + jitter DB'dagi ``retry_post``/kanal sovutishida
+    (``flood_wait_seconds`` + jitter) boshqariladi, shu bilan navbat
+    hech qachon muzmaydi va dublikat chiqmaydi.
+    """
+    return await delivery_service.execute(bot, method, inline_max_wait=0.0, **kwargs)
 
 
 def mark_channel_flood(channel_id, wait_seconds: float) -> None:
@@ -884,7 +898,9 @@ async def check_and_send_posts(bot):
                 if wait_seconds - inline_sleep > 0:
                     mark_channel_flood(channel_id, wait_seconds - inline_sleep)
                 await asyncio.sleep(inline_sleep)
-                await _requeue_post(post, wait_seconds)
+                # Aniq kutish (DB) + jitter — parallel schedulerlar bir xil
+                # soniyada birga qayta urinib 429 ni takrorlamasin.
+                await _requeue_post(post, wait_seconds + delivery_service.retry_jitter())
             except Exception:
                 logger.exception("Post yuborishda kutilmagan xato (Post ID: %s)", post[0] if post else "?")
                 # Xatolik yuz berganda post 'processing' da qolib ketmasligi uchun qayta navbatga qo'yamiz.
@@ -936,14 +952,14 @@ async def _mark_delivery_failed(delivery_key, error, is_transient: bool = True):
 
     PostAssist V2: vaqtinchalik xatoda backoff (30s/2m/5m/15m) qo'yiladi,
     doimiy xatoda yoki 5-urinishda ham xato bo'lsa ``dead_letter`` bo'ladi.
-    Qaytadi: SchedulerService natijasi (dict) yoki None (kalit yo'q / DB xatosi).
+    Qaytadi: delivery_service natijasi (dict) yoki None (kalit yo'q / DB xatosi).
     ``None`` — chaqiruvchi eski oqimda davom etishi kerak (qayta navbat).
     """
     if not delivery_key:
         return None
     try:
         return await db.run_db(
-            SchedulerService.mark_failed_by_key, delivery_key, error,
+            delivery_service.mark_failed_by_key, delivery_key, error,
             is_transient,
         )
     except Exception:
@@ -954,7 +970,7 @@ async def _mark_delivery_failed(delivery_key, error, is_transient: bool = True):
 def _delivery_is_dead(result) -> bool:
     """Delivery natijasi 'dead_letter' ekanligini tekshiradi (None-safe)."""
     return isinstance(result, dict) and (
-        result.get("status") == SchedulerService.STATUS_DEAD_LETTER
+        result.get("status") == delivery_service.STATUS_DEAD_LETTER
         or result.get("dead") is True
     )
 
@@ -975,7 +991,7 @@ async def _mark_delivery_unknown(post_id, delivery_key, error) -> bool:
     if delivery_key:
         try:
             ok_delivery = _db_ok(await db.run_db(
-                SchedulerService.mark_unknown_by_key, delivery_key, error
+                delivery_service.mark_unknown_by_key, delivery_key, error
             ))
         except Exception:
             logger.exception("Delivery unknown markeri yozilmadi (%s)", delivery_key)
@@ -1043,10 +1059,10 @@ async def _execute_send(bot, post):
     # restart/crash va parallel schedulerlar orasida aynan Telegram
     # delivery'sini claim qilish kerak. post_deliveries 'sent' bo'lsa
     # Telegramga qayta murojaat qilmaymiz (0 duplikat kafolati).
-    delivery_key = SchedulerService.build_idempotency_key(post_id, channel_id, scheduled_time)
+    delivery_key = delivery_service.build_idempotency_key(post_id, channel_id, scheduled_time)
     delivery_marker_key = None
     delivery_claim = await db.run_db(
-        SchedulerService.claim_post_for_delivery, post_id, channel_id, scheduled_time
+        delivery_service.claim_post_for_delivery, post_id, channel_id, scheduled_time
     )
     if isinstance(delivery_claim, dict):
         claim_status = delivery_claim.get("status")
@@ -1186,35 +1202,37 @@ async def _execute_send(bot, post):
             else:
                 media = _build_album_media(items, final_content)
                 album_api_started = True
-                sent_group = await bot.send_media_group(chat_id=target_chat, **delivery_kwargs, media=media)
+                sent_group = await _delivery_send(bot, "send_media_group", chat_id=target_chat, **delivery_kwargs, media=media)
                 album_api_started = False
                 sent_msg = sent_group[0] if sent_group else None
                 extra_ids = [m.message_id for m in (sent_group or [])[1:] if getattr(m, "message_id", None)]
-                # sendMediaGroup reply_markup'ni qo'llab-quvvatlamaydi — tugmalarni alohida xabar
+                # sendMediaGroup reply_markup'ni qo'llab quvvatlamaydi — tugmalarni alohida xabar
                 if reply_markup:
-                    follow = await bot.send_message(
+                    follow = await _delivery_send(
+                        bot, "send_message",
                         chat_id=target_chat, **delivery_kwargs, text="🔗", reply_markup=reply_markup
                     )
                     if follow and follow.message_id:
                         extra_ids.append(follow.message_id)
         elif pt == "photo":
-            sent_msg = await bot.send_photo(chat_id=target_chat, **delivery_kwargs, photo=file_id, caption=safe_final_content, reply_markup=reply_markup, parse_mode=final_parse_mode)
+            sent_msg = await _delivery_send(bot, "send_photo", chat_id=target_chat, **delivery_kwargs, photo=file_id, caption=safe_final_content, reply_markup=reply_markup, parse_mode=final_parse_mode)
         elif pt == "video":
-            sent_msg = await bot.send_video(chat_id=target_chat, **delivery_kwargs, video=file_id, caption=safe_final_content, reply_markup=reply_markup, parse_mode=final_parse_mode)
+            sent_msg = await _delivery_send(bot, "send_video", chat_id=target_chat, **delivery_kwargs, video=file_id, caption=safe_final_content, reply_markup=reply_markup, parse_mode=final_parse_mode)
         elif pt == "animation":
-            sent_msg = await bot.send_animation(chat_id=target_chat, **delivery_kwargs, animation=file_id, caption=safe_final_content, reply_markup=reply_markup, parse_mode=final_parse_mode)
+            sent_msg = await _delivery_send(bot, "send_animation", chat_id=target_chat, **delivery_kwargs, animation=file_id, caption=safe_final_content, reply_markup=reply_markup, parse_mode=final_parse_mode)
         elif pt == "document":
-            sent_msg = await bot.send_document(chat_id=target_chat, **delivery_kwargs, document=file_id, caption=safe_final_content, reply_markup=reply_markup, parse_mode=final_parse_mode)
+            sent_msg = await _delivery_send(bot, "send_document", chat_id=target_chat, **delivery_kwargs, document=file_id, caption=safe_final_content, reply_markup=reply_markup, parse_mode=final_parse_mode)
         elif pt == "audio":
-            sent_msg = await bot.send_audio(chat_id=target_chat, **delivery_kwargs, audio=file_id, caption=safe_final_content, reply_markup=reply_markup, parse_mode=final_parse_mode)
+            sent_msg = await _delivery_send(bot, "send_audio", chat_id=target_chat, **delivery_kwargs, audio=file_id, caption=safe_final_content, reply_markup=reply_markup, parse_mode=final_parse_mode)
         elif pt == "voice":
-            sent_msg = await bot.send_voice(chat_id=target_chat, **delivery_kwargs, voice=file_id, caption=safe_final_content, reply_markup=reply_markup, parse_mode=final_parse_mode)
+            sent_msg = await _delivery_send(bot, "send_voice", chat_id=target_chat, **delivery_kwargs, voice=file_id, caption=safe_final_content, reply_markup=reply_markup, parse_mode=final_parse_mode)
         elif pt == "sticker":
-            sent_msg = await bot.send_sticker(
+            sent_msg = await _delivery_send(
+                bot, "send_sticker",
                 chat_id=target_chat, **delivery_kwargs, sticker=file_id, reply_markup=reply_markup
             )
         else:
-            sent_msg = await bot.send_message(chat_id=target_chat, **delivery_kwargs, text=safe_final_content or " ", reply_markup=reply_markup, parse_mode=final_parse_mode)
+            sent_msg = await _delivery_send(bot, "send_message", chat_id=target_chat, **delivery_kwargs, text=safe_final_content or " ", reply_markup=reply_markup, parse_mode=final_parse_mode)
 
         sent_msg_id = sent_msg.message_id if sent_msg else None
         # Post Telegramga muvaffaqiyatli yuborildi! Bundan keyin HECH QANDAY
@@ -1252,7 +1270,11 @@ async def _execute_send(bot, post):
             )
             await db.run_db(db.mark_post_status, post_id, "failed")
             return
-        retry_at = now_tashkent() + timedelta(seconds=wait_seconds)
+        # Aniq kutish vaqti + jitter (PHASE 5): DB retry vaqtiga 0..0.25s
+        # tasodifiy oraliq qo'shiladi — thundering-herd 429 oldini oladi.
+        retry_at = now_tashkent() + timedelta(
+            seconds=wait_seconds + delivery_service.retry_jitter()
+        )
         await db.run_db(db.retry_post, post_id, retry_at)
         return
     except (TimedOut, NetworkError) as e:
@@ -1318,14 +1340,14 @@ async def _execute_send(bot, post):
 async def _send_single_media(bot, target_chat, kind, file_id, caption, reply_markup, parse_mode="HTML", **delivery_kwargs):
     kind = (kind or "photo").lower()
     if kind == "video":
-        return await bot.send_video(chat_id=target_chat, **delivery_kwargs, video=file_id, caption=caption, reply_markup=reply_markup, parse_mode=parse_mode)
+        return await _delivery_send(bot, "send_video", chat_id=target_chat, **delivery_kwargs, video=file_id, caption=caption, reply_markup=reply_markup, parse_mode=parse_mode)
     if kind == "document":
-        return await bot.send_document(chat_id=target_chat, **delivery_kwargs, document=file_id, caption=caption, reply_markup=reply_markup, parse_mode=parse_mode)
+        return await _delivery_send(bot, "send_document", chat_id=target_chat, **delivery_kwargs, document=file_id, caption=caption, reply_markup=reply_markup, parse_mode=parse_mode)
     if kind == "audio":
-        return await bot.send_audio(chat_id=target_chat, **delivery_kwargs, audio=file_id, caption=caption, reply_markup=reply_markup, parse_mode=parse_mode)
+        return await _delivery_send(bot, "send_audio", chat_id=target_chat, **delivery_kwargs, audio=file_id, caption=caption, reply_markup=reply_markup, parse_mode=parse_mode)
     if kind == "animation":
-        return await bot.send_animation(chat_id=target_chat, **delivery_kwargs, animation=file_id, caption=caption, reply_markup=reply_markup, parse_mode=parse_mode)
-    return await bot.send_photo(chat_id=target_chat, **delivery_kwargs, photo=file_id, caption=caption, reply_markup=reply_markup, parse_mode=parse_mode)
+        return await _delivery_send(bot, "send_animation", chat_id=target_chat, **delivery_kwargs, animation=file_id, caption=caption, reply_markup=reply_markup, parse_mode=parse_mode)
+    return await _delivery_send(bot, "send_photo", chat_id=target_chat, **delivery_kwargs, photo=file_id, caption=caption, reply_markup=reply_markup, parse_mode=parse_mode)
 
 
 async def check_and_delete_expired_posts(bot):

@@ -44,6 +44,7 @@ from services.ai_quota import (
     reserve_ai_quota,
 )
 from services.ai_engine.gateway import generate_image_post
+from services.delivery import delivery_service  # PHASE 5: yagona delivery engine
 from utils.ai_agent import pick_supported_kwargs
 from utils.telegram_sanitizer import sanitize_html, TELEGRAM_CAPTION_LIMIT
 from utils.helpers import html_escape, telegram_html_payload, parse_schedule_input
@@ -700,6 +701,7 @@ async def _send_photo_preview(target, file_id: str, caption: str,
 
 
 async def _send_photo_to_chat(bot, chat_id, file_id: str, caption: str):
+    """Kanalga rasm yuborish — PHASE 5: yagona delivery engine orqali."""
     payload, parse_mode = telegram_html_payload(caption or "", TELEGRAM_CAPTION_LIMIT)
     kwargs = {
         "chat_id": chat_id,
@@ -708,10 +710,10 @@ async def _send_photo_to_chat(bot, chat_id, file_id: str, caption: str):
         "parse_mode": parse_mode,
     }
     try:
-        return await bot.send_photo(**kwargs)
+        return await delivery_service.send_photo(bot, **kwargs)
     except TypeError:
         kwargs.pop("parse_mode", None)
-        return await bot.send_photo(**kwargs)
+        return await delivery_service.send_photo(bot, **kwargs)
 
 
 async def image_style_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):

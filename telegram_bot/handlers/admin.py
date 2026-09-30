@@ -1,7 +1,7 @@
 import asyncio
 import logging
 from telegram import Update, InlineKeyboardMarkup
-from telegram.error import TelegramError, RetryAfter, TimedOut, NetworkError, BadRequest
+from telegram.error import TelegramError, BadRequest
 from telegram.ext import ContextTypes, ConversationHandler
 from config import ADMIN_IDS_SET
 import database as db
@@ -30,6 +30,7 @@ from locales.translations import clear_fsm_data, get_lang, get_text
 from translations import admin_t
 # 6-bosqich: RBAC (rollar/ruxsatlar) va admin harakatlari auditi.
 from keyboards.callback_data import CB_SPONSOR_DELETE
+from services.delivery import delivery_service, BROADCAST_INLINE_MAX_WAIT  # PHASE 5: yagona delivery engine
 from services.rbac_service import (
     Role,
     CallbackTampering,
@@ -2303,46 +2304,41 @@ async def broadcast_send(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def _run_broadcast(bot, user_ids, text, admin_id, lang: str = "uz"):
-    """Broadcastni batch'lar bilan, rate-limit va retry bilan yuborish."""
+    """Broadcastni batch'lar bilan, rate-limit va retry bilan yuborish.
+
+    PHASE 5: har bir yuborish yagona ``delivery_service`` orqali o'tadi —
+    30 msg/s umumiy limit, RetryAfter uchun aniq kutish + jitter va
+    failure classification dvigatel ichida. Bu funksiya faqat natija
+    hisobini (sent/failed) boshqaradi.
+    """
     sent = 0
     failed = 0
     parse_mode = "HTML"
 
     for i, uid in enumerate(user_ids):
-        delivered = False
-        for attempt in range(3):
+        try:
+            # 3 urinish: RetryAfter (aniq kutish + jitter) va tarmoq
+            # xatolari fonda qayta uriniladi; doimiy xatolar birinchi
+            # urinishda to'xtaydi (dead classification).
+            await delivery_service.send_message(
+                bot, chat_id=uid, text=text, parse_mode=parse_mode,
+                max_attempts=3, inline_max_wait=BROADCAST_INLINE_MAX_WAIT,
+                retry_network=True,
+            )
+            sent += 1
+        except BadRequest:
+            # HTML xato bo'lsa — oddiy matn sifatida BIR marta qayta yuboramiz
             try:
-                await bot.send_message(chat_id=uid, text=text, parse_mode=parse_mode)
+                await delivery_service.send_message(
+                    bot, chat_id=uid, text=text, parse_mode=None, max_attempts=1,
+                )
                 sent += 1
-                delivered = True
-                break
-            except RetryAfter as e:
-                # Telegram aytgan vaqtgacha kutamiz va qayta urinamiz
-                wait = min(max(int(getattr(e, "retry_after", 2) or 2), 1), 30)
-                await asyncio.sleep(wait)
-            except BadRequest:
-                # HTML xato bo'lsa — oddiy matn sifatida qayta yuboramiz
-                try:
-                    await bot.send_message(chat_id=uid, text=text)
-                    sent += 1
-                except TelegramError:
-                    failed += 1
-                delivered = True
-                break
-            except (TimedOut, NetworkError):
-                if attempt == 2:
-                    failed += 1
-                    delivered = True  # 3 ta urinish ham tugadi
-                else:
-                    await asyncio.sleep(1 + attempt)
-            except TelegramError:
-                # Bot bloklangan / xabar qabul qilinmagan
+            except Exception:
                 failed += 1
-                delivered = True
-                break
-        # Barcha 3 urinish RetryAfter bilan tugasa ham foydalanuvchi
-        # "yuborilmagan" hisobiga kiritilishi kerak (jim o'tib ketmasligi uchun).
-        if not delivered:
+        except Exception:
+            # RetryAfter 3 urinishdan keyin, tarmoq xatosi (3 urinish) yoki
+            # doimiy xato (bot bloklangan) — foydalanuvchi "yuborilmagan"
+            # hisobiga olinishi kerak (jim o'tib ketmasligi uchun).
             failed += 1
 
         # Har batch'da qisqa pauza — Telegram'ning 30 msg/s limitidan oshmaymiz
@@ -2350,10 +2346,10 @@ async def _run_broadcast(bot, user_ids, text, admin_id, lang: str = "uz"):
             await asyncio.sleep(BROADCAST_BATCH_DELAY)
 
     try:
-        await bot.send_message(
-            chat_id=admin_id,
+        await delivery_service.send_message(
+            bot, chat_id=admin_id,
             text=admin_t("bc_done", lang, sent=sent, total=len(user_ids), failed=failed),
-            parse_mode="HTML"
+            parse_mode="HTML",
         )
     except Exception:
         logger.exception("Broadcast yakuni haqida admin xabari yuborilmadi")
