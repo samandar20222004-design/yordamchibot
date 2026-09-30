@@ -118,6 +118,10 @@ class FakeMessage:
         self.caption = caption
         self.text = text
         self.replies = []
+        # Real python-telegram-bot Message obyektida `chat_id` property
+        # mavjud — handler (handlers/image_post.py) typing indikatori va
+        # yetkazish uchun aynan `message.chat_id` dan foydalanadi.
+        self.chat_id = 777
         if forward:
             self.forward_origin = SimpleNamespace(type="channel")
             self.forward_date = 1
