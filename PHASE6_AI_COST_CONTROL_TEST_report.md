@@ -85,6 +85,28 @@ BARCHA TESTLAR 100% YASHIL ✔
 SUITE_EXIT=0
 ```
 
+### 3.0 Main (PHASE 5) ustiga rebase'dan keyingi tasdiqlash ✅
+
+`main` shoxobchasi PHASE 5 (markaziy Telegram delivery engine) commit'i
+(`958a618`) bilan oldinga surilgach, PHASE 6 kommitlari **to'g'ridan-to'g'ri
+`origin/main` ustiga rebase qilindi** — tarix chiziqli (merge commit'siz),
+shuning uchun GitHub'da «Rebase and merge» ham ishlaydi.
+
+Konflikt faqat `telegram_bot/tests/run_tests.sh` da edi — **ikkala bo'lim ham
+saqlandi** (PHASE 5 delivery-engine testi + PHASE 6 ning ikkala testi).
+Rebase'dan keyingi kod daraxti avval tekshirilgan daraxt bilan **aynan bir
+xil** (`git diff <eski> <yangi> --stat` bo'sh), ya'ni quyidagi natijalar
+o'sha kodga tegishli.
+
+| Tekshiruv | Natija |
+|---|---|
+| Lokal to'liq regressiya (`bash tests/run_tests.sh`, main ustiga qo'shilgandan keyin) | **14 457 `[OK]`, 0 `[FAIL]`, `SUITE_EXIT=0`** — `BARCHA TESTLAR 100% YASHIL ✔` |
+| Lint gate (CI bilan bir xil): `ruff --select=E9,F63,F7,F82` | `All checks passed!` |
+| Lint gate: `flake8 --select=E9,F63,F7,F82` | `0` |
+| GitHub Actions «PostAssist V2 CI» (`test`) | **✓ pass** |
+| Tarix | `958a618` (main) → `e531774` (PHASE 6) → report commit — chiziqli |
+| Log | `/tmp/p6merge.log` |
+
 ### 3.1 Yo'l-yo'lakay topilgan va tuzatilgan muammolar
 
 1. **`ai_usage_events` yozuvi commit qilinmasdi** — `db_cursor()` o'qish rejimida
