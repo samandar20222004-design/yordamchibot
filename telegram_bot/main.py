@@ -43,6 +43,7 @@ from utils.helpers import (
 )
 from services import cache_backend as cache_backend_svc
 from middlewares.rate_limiter import RateLimitMiddleware
+from middlewares.rbac import install_resource_middleware
 from handlers.error_handler import (
     global_error_handler,
     register_error_handlers,
@@ -735,6 +736,19 @@ async def main():
     # aks holda In-Memory; Redis uzilsa avtomatik fallback (circuit
     # breaker, services/cache_backend.py).
     application.add_handler(RateLimitMiddleware(), group=-1)
+
+    # PHASE 3 · Resurs (kanal/post) darajasidagi RBAC + IDOR qatlami.
+    # PTB har bir GURUHDA faqat bitta handler ishlatadi, shu sababli bu
+    # middleware ALOHIDA guruhga (-2) qo'yiladi: avval ruxsat, keyin rate
+    # limiter (-1), keyin haqiqiy handler'lar (0).  Ruxsat bo'lmasa handler'lar
+    # UMUMAN chaqirilmaydi (ApplicationHandlerStop) va foydalanuvchi
+    # "Permission Denied" alert oladi; ruxsat bo'lsa — update odatdagi
+    # zanjirda davom etadi.  Handler ichidagi tekshiruvlar BARIBIR ishlaydi
+    # (chuqur himoya).  Middleware'ni ``RBAC_RESOURCE_MIDDLEWARE=0`` bilan
+    # o'chirish mumkin.
+    # MUHIM: RateLimitMiddleware ``group=-1`` da qoladi —
+    # tests/rate_limiter_redis_test.py shu ro'yxatga olishni qulflaydi.
+    install_resource_middleware(application, group=-2)
 
     register_all_handlers(application)
     # 1-BOSQICH: ``start_web_server()`` endi ``init_db()`` dan OLDIN

@@ -400,6 +400,24 @@ async def queue_delete_callback(update: Update, context: ContextTypes.DEFAULT_TY
     user_id = query.from_user.id
     post_id = int(query.data.split(":")[1])
 
+    # 🔐 PHASE 3 — IDOR: callback'dagi ``post_id`` ga ISHONILMAYDI.  O'chirishdan
+    # OLDIN post AYNAN shu foydalanuvchiga tegishli ekani qayta tekshiriladi
+    # (``get_queue_post_detail`` so'rovi ``user_id`` bo'yicha filtrlaydi).
+    # Begona post topilmasa — DB'ga yozuv amali UMUMAN yuborilmaydi.
+    owned = await db.run_db(db.get_queue_post_detail, post_id, user_id)
+    if not owned:
+        logger.warning(
+            "RBAC/IDOR: navbatdagi postni o'chirish rad etildi "
+            "(user=%s, post=%s) — post topilmadi/egasi boshqa",
+            user_id, post_id,
+        )
+        try:
+            await query.message.reply_text(
+                channels_queue_t("cq_sch_not_found", lang), parse_mode="HTML")
+        except Exception:
+            pass
+        return QUEUE_MENU
+
     await db.run_db(db.cancel_post, post_id, user_id)
 
     # Ro'yxatni yangilash

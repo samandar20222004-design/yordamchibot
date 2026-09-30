@@ -592,6 +592,36 @@ async def _choose_channel_or_act(query_msg, context, user_id: int, lang: str):
 
 
 # ============================================================
+# PHASE 3 — RBAC/IDOR YORDAMCHISI (markaziy ruxsat tekshiruvi)
+# ============================================================
+async def manual_channel_guard(user_id: int, channel_id, action: str = "create") -> bool:
+    """Foydalanuvchi AYNAN shu kanal ustida amal bajara oladimi?
+
+    Markaziy nuqta — ``services.rbac_service.can(...)`` (resurs rollari:
+    OWNER | EDITOR | SCHEDULER | ANALYST).  Fail-closed: RBAC moduli yoki DB
+    xato bersa — ruxsat BERILMAYDI.
+
+    Foydalanish::
+
+        if not await manual_channel_guard(user_id, channel_id, "create"):
+            ...  # Permission Denied — so'rov yopiq rad etiladi
+    """
+    from services import rbac_service
+
+    try:
+        return await rbac_service.can(
+            user_id, resource_type="channel", resource_id=channel_id,
+            action=action,
+        )
+    except Exception:  # pragma: no cover — kutilmagan xato ham ruxsat bermaydi
+        logger.exception(
+            "RBAC tekshiruvi xatosi (user=%s, channel=%s) — fail-closed",
+            user_id, str(channel_id)[:64],
+        )
+        return False
+
+
+# ============================================================
 # YUBORISH/REJALASHTIRISH — yagona publish nuqtasi (db.add_post)
 # ============================================================
 async def _publish(target_msg, context, user_id: int, channel_id,
@@ -611,6 +641,21 @@ async def _publish(target_msg, context, user_id: int, channel_id,
     """
     is_admin = user_id in ADMIN_IDS_SET
     mode = context.user_data.get(UD_MODE, MODE_NOW)
+
+    # --- 🔐 PHASE 3: IDOR HIMOYASI (markaziy RBAC) ---------------------------
+    # Kanal ID'si callback payload'idan yoki ``user_data`` dan kelishi mumkin —
+    # unga ISHONIB BO'LMAYDI.  Yozishdan OLDIN foydalanuvchi AYNAN shu kanal
+    # ustida post yaratish huquqiga ega ekani qayta tekshiriladi
+    # (``services.rbac_service.can``: owner/editor → ruxsat, scheduler/analyst
+    # va begona foydalanuvchi → rad).
+    if not await manual_channel_guard(user_id, channel_id, "create"):
+        logger.warning(
+            "RBAC/IDOR: oddiy post rad etildi (user=%s, channel=%s) — ruxsat yo'q",
+            user_id, str(channel_id)[:64],
+        )
+        await _finalize(target_msg, context, user_id, lang,
+                        manual_post_t("mp_no_access", lang))
+        return ConversationHandler.END
 
     # --- 🔁 DUBLIKAT TEKSHIRUVI (bir marta; "Baribir chiqarish" o'tkazib yuboradi)
     if not context.user_data.get(UD_DUP_FORCE):
