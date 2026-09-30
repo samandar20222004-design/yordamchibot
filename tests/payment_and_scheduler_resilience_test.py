@@ -210,6 +210,50 @@ def _ensure_scheduler_stubs():
         clean_mod = ModuleType("services.cleanup_service")
         clean_mod.cleanup_old_records = lambda *a, **k: {}
         sys.modules["services.cleanup_service"] = clean_mod
+    # services.delivery (PHASE 5: markaziy Telegram delivery engine).
+    # scheduler.py endi yagona engine orqali yuboradi — sandbox yuklashida
+    # ham shu modul mavjud bo'lishi shart. State-machine funksiyalari
+    # scheduler_service stub'ining BIR xil funksiyalari (__name__ saqlanadi).
+    if "services.delivery" not in sys.modules:
+        del_mod = ModuleType("services.delivery")
+
+        _base = getattr(
+            sys.modules.get("services.scheduler_service"), "SchedulerService", None
+        )
+
+        class _DeliveryServiceStub:
+            global_per_second = 30.0
+            channel_per_second = 1.0
+            STATUS_PENDING = "pending"
+            STATUS_PROCESSING = "processing"
+            STATUS_SENT = "sent"
+            STATUS_FAILED = "failed"
+            STATUS_DEAD_LETTER = "dead_letter"
+            STATUS_UNKNOWN = "unknown"
+
+            async def execute(self, bot, method, *, inline_max_wait=None,
+                              max_attempts=None, retry_network=False, **kwargs):
+                # Test stub: rate-limit'siz xom chaqiruv (PTB kontrakti saqlanadi)
+                return await getattr(bot, method)(**kwargs)
+
+            @staticmethod
+            def retry_jitter():
+                return 0.0
+
+            def __init__(self):
+                if _base is not None:
+                    self.claim_post_for_delivery = _base.claim_post_for_delivery
+                    self.build_idempotency_key = _base.build_idempotency_key
+                    self.mark_sent_by_key = _base.mark_sent_by_key
+                    self.mark_failed_by_key = _base.mark_failed_by_key
+                    self.mark_unknown_by_key = _base.mark_unknown_by_key
+
+        del_mod.delivery_service = _DeliveryServiceStub()
+        del_mod.TelegramDeliveryService = _DeliveryServiceStub
+        sys.modules["services.delivery"] = del_mod
+        parent = sys.modules.get("services")
+        if parent is not None:
+            parent.delivery = del_mod
     # keyboards.inline
     if "keyboards.inline" not in sys.modules:
         ki_mod = ModuleType("keyboards.inline")

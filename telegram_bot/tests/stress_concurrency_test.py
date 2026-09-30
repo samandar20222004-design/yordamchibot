@@ -712,7 +712,13 @@ def test_live_100_posts_5_workers(db_mod):
     dc = _delivery_counts(db_mod, STRESS_USER)
     check("post_deliveries: 100 ta 'sent', boshqa status yo'q", dc == {"sent": 100}, str(dc))
     check("post_deliveries: har post uchun aynan 1 ta 'sent'", _max_sent_per_post(db_mod, STRESS_USER) == 1)
-    check("1 daqiqa ichida tugadi", elapsed < 60, f"{elapsed:.1f}s")
+    # PHASE 5: delivery engine Telegram'ning RASMIY limitini nazorat qiladi —
+    # 1 post/soniya bitta kanalga. 100 post bitta kanalga ≈ 99s (5 worker
+    # parallel bo'lsa ham kanal slotlari ketma-ket). Eski 60s chegarа
+    # rate-limit'siz davr uchun yozilgan edi; dublikat/batch kontraktlari
+    # O'ZGARMADI — faqat haqiqiy 1/s limit hisobga olindi.
+    check("100 post haqiqiy 1 post/s kanal limitida tugadi (≤150s)",
+          elapsed < 150, f"{elapsed:.1f}s")
     check("in-flight hisob nolga qaytdi", lc.inflight_count() == 0)
 
     # Ikkinchi to'lqin (restart taqlidi): hech narsa qayta yuborilmaydi

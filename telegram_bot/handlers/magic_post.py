@@ -51,6 +51,7 @@ from services.ai_quota import (
     take_reservation_id,
 )
 from translations import MAGIC_STYLE_KEYS, content_menu_t, magic_t, post_score_t
+from services.delivery import delivery_service  # PHASE 5: yagona delivery engine
 from utils.ai_agent import (
     generate_magic_post,
     normalize_magic_style,
@@ -502,11 +503,17 @@ async def magic_style_callback(update: Update, context: ContextTypes.DEFAULT_TYP
 # YUBORISH: kanalga darhol jo'natish
 # ============================================================
 async def _magic_deliver_one(bot, chat_id, post_text: str) -> bool:
-    """Bitta kanalga post yuboradi (safe HTML, xato bo'lsa plain-text fallback)."""
+    """Bitta kanalga post yuboradi (safe HTML, xato bo'lsa plain-text fallback).
+
+    PHASE 5: yagona ``delivery_service`` orqali — rate-limit (1 post/s kanal)
+    va RetryAfter aniq kutish + jitter dvigatel tomonida boshqariladi.
+    Tarmoq xatosida blind retry YO'Q (ikkinchi yuborish dublikat chiqarishi
+    mumkin) — xato hanuz False sifatida qaytadi.
+    """
     payload, parse_mode = telegram_html_payload(post_text)
     try:
-        await bot.send_message(
-            chat_id=chat_id, text=payload or " ", parse_mode=parse_mode
+        await delivery_service.send_message(
+            bot, chat_id=chat_id, text=payload or " ", parse_mode=parse_mode
         )
         return True
     except BadRequest as exc:
@@ -521,7 +528,9 @@ async def _magic_deliver_one(bot, chat_id, post_text: str) -> bool:
     # Fallback: HTML'siz oddiy matn (Telegram parseri umuman ishga tushmaydi).
     try:
         plain = html_to_text(post_text, 4096) or " "
-        await bot.send_message(chat_id=chat_id, text=plain, parse_mode=None)
+        await delivery_service.send_message(
+            bot, chat_id=chat_id, text=plain, parse_mode=None, max_attempts=1
+        )
         return True
     except Exception as e:
         logger.warning("Magic Post yuborish xatosi (chat=%s): %s", chat_id, e)

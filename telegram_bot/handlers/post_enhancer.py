@@ -53,6 +53,7 @@ from telegram.ext import ContextTypes, ConversationHandler
 
 from config import ADMIN_IDS_SET, BOT_USERNAME
 import database as db
+from services.delivery import delivery_service  # PHASE 5: yagona delivery engine
 from keyboards.default import get_cancel_keyboard, get_main_keyboard
 from keyboards.callback_data import cb
 from keyboards.inline import (
@@ -1632,7 +1633,12 @@ def _build_album_media_local(items: list, caption: str, parse_mode: str = "HTML"
 
 
 async def _dispatch_message(bot, chat_id, ptype, file_id, text, markup, html=True, album_items=None):
-    """Xabarni turiga qarab yuboradi. HTML parse xatosi bo'lsa — oddiy matn bilan qayta urinish."""
+    """Xabarni turiga qarab yuboradi. HTML parse xatosi bo'lsa — oddiy matn bilan qayta urinish.
+
+    PHASE 5: barcha kanal yuborishlari yagona ``delivery_service`` orqali
+    o'tadi (1 post/s kanal + 30 msg/s umumiy limit, RetryAfter aniq kutish
+    + jitter, permanent xatolar qayta urinilmaydi).
+    """
     parse = "HTML" if html else None
     try:
         if ptype == "album":
@@ -1644,27 +1650,27 @@ async def _dispatch_message(bot, chat_id, ptype, file_id, text, markup, html=Tru
                 return await _dispatch_message(bot, chat_id, only.get("type") or "photo",
                                                only.get("file_id"), text, markup, html=html)
             media = _build_album_media_local(items, text, parse_mode=parse)
-            group = await bot.send_media_group(chat_id=chat_id, media=media)
+            group = await delivery_service.send_media_group(bot, chat_id=chat_id, media=media)
             if markup:
-                follow = await bot.send_message(chat_id=chat_id, text="🔗", reply_markup=markup)
+                follow = await delivery_service.send_message(bot, chat_id=chat_id, text="🔗", reply_markup=markup)
                 extra = [follow.message_id] if follow and follow.message_id else []
                 return _GroupResult(group, extra)
             return _GroupResult(group, [])
         if ptype == "photo":
-            return await bot.send_photo(chat_id=chat_id, photo=file_id, caption=text or None, reply_markup=markup, parse_mode=parse)
+            return await delivery_service.send_photo(bot, chat_id=chat_id, photo=file_id, caption=text or None, reply_markup=markup, parse_mode=parse)
         if ptype == "video":
-            return await bot.send_video(chat_id=chat_id, video=file_id, caption=text or None, reply_markup=markup, parse_mode=parse)
+            return await delivery_service.send_video(bot, chat_id=chat_id, video=file_id, caption=text or None, reply_markup=markup, parse_mode=parse)
         if ptype == "animation":
-            return await bot.send_animation(chat_id=chat_id, animation=file_id, caption=text or None, reply_markup=markup, parse_mode=parse)
+            return await delivery_service.send_animation(bot, chat_id=chat_id, animation=file_id, caption=text or None, reply_markup=markup, parse_mode=parse)
         if ptype == "document":
-            return await bot.send_document(chat_id=chat_id, document=file_id, caption=text or None, reply_markup=markup, parse_mode=parse)
+            return await delivery_service.send_document(bot, chat_id=chat_id, document=file_id, caption=text or None, reply_markup=markup, parse_mode=parse)
         if ptype == "audio":
-            return await bot.send_audio(chat_id=chat_id, audio=file_id, caption=text or None, reply_markup=markup, parse_mode=parse)
+            return await delivery_service.send_audio(bot, chat_id=chat_id, audio=file_id, caption=text or None, reply_markup=markup, parse_mode=parse)
         if ptype == "voice":
-            return await bot.send_voice(chat_id=chat_id, voice=file_id, caption=text or None, reply_markup=markup, parse_mode=parse)
+            return await delivery_service.send_voice(bot, chat_id=chat_id, voice=file_id, caption=text or None, reply_markup=markup, parse_mode=parse)
         if ptype == "sticker":
-            return await bot.send_sticker(chat_id=chat_id, sticker=file_id)
-        return await bot.send_message(chat_id=chat_id, text=text or " ", reply_markup=markup, parse_mode=parse)
+            return await delivery_service.send_sticker(bot, chat_id=chat_id, sticker=file_id)
+        return await delivery_service.send_message(bot, chat_id=chat_id, text=text or " ", reply_markup=markup, parse_mode=parse)
     except TelegramError as e:
         # HTML teg xatosi bo'lsa — matnni BUZMASDAN, oddiy rejimda qayta yuboramiz.
         if html and "can't parse entities" in str(e).lower():
