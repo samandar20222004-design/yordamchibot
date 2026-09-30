@@ -47,6 +47,29 @@ _ENV_READ = re.compile(
 )
 _KEY_LINE = re.compile(r"(?m)^([A-Z0-9_]+)=(.*)$")
 
+# f-string orqali DINAMIK quriladigan env nomlari (masalan
+# ``env_name = f"AI_{lane.value}_TIMEOUT"``) statik matn skaneri uchun
+# ko'rinmaydi. Kengaytirish: enum a'zolari odatda "O'ZI = O'ZI" shaklida
+# e'lon qilinadi (masalan Lane: ``FAST = "FAST"``) — shu konstantalardan
+# konkrit nomlar rejası chiqariladi (AI_FAST_TIMEOUT, ... AI_VISION_TIMEOUT).
+_ENV_TEMPLATE = re.compile(r'f"([A-Z][A-Z0-9_]*)\{(\w+)\.value\}([A-Z0-9_]*)"')
+_SELF_NAMED = re.compile(r'(?m)^\s+([A-Z][A-Z0-9_]*)\s*=\s*"\1"\s*(?:#.*)?$')
+
+
+def _dynamic_env_names(blob: str) -> set[str]:
+    """Kodda f-string bilan quriladigan env nomlarini kengaytiradi.
+
+    ``f"AI_{lane.value}_TIMEOUT"`` shabloni + ``Lane`` a'zolari
+    (FAST/QUALITY/REASONING/VISION) → {AI_FAST_TIMEOUT, AI_QUALITY_TIMEOUT,
+    AI_REASONING_TIMEOUT, AI_VISION_TIMEOUT}. Bu HAQIQIY ishlatiladigan
+    kalitlarning orphan deb xato belgilanishini oldini oladi.
+    """
+    names: set[str] = set()
+    members = sorted(set(_SELF_NAMED.findall(blob)))
+    for prefix, _var, suffix in _ENV_TEMPLATE.findall(blob):
+        names.update(f"{prefix}{member}{suffix}" for member in members)
+    return names
+
 # 3) Majburiy deb hisoblanadigan kalitlar (deploy uchun shart).
 REQUIRED_KEYS = (
     "BOT_TOKEN", "BOT_USERNAME", "DATABASE_URL", "DB_SSLMODE", "ADMIN_ID",
@@ -214,7 +237,10 @@ def test_env_coverage(parsed: dict[str, dict[str, str]]) -> None:
         check(not undocumented,
               f"{rel}: kod o'qiydigan HAMMA o'zgaruvchi hujjatlangan",
               f"yetishmayapti: {undocumented}")
-        orphans = sorted(k for k in kv if k not in blob)
+        documented = sorted(k for k in kv)
+        dynamic = _dynamic_env_names(blob)
+        orphans = sorted(k for k in documented
+                         if k not in blob and k not in dynamic)
         check(not orphans, f"{rel}: hujjatda ORPHAN (kodda ishlatilmaydigan) kalit yo'q",
               f"orphan: {orphans}")
 
