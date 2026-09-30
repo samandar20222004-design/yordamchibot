@@ -18,6 +18,10 @@ from keyboards.inline import (
     render_dna_onboarding_keyboard,
 )
 from locales.translations import get_lang, safe_t, normalize_lang
+# 🔐 PHASE 3 — resurs (kanal) darajasidagi RBAC va IDOR himoyasi: markaziy
+# tekshiruv nuqtasi ``services.rbac_service.can()`` — handler ichida
+# takrorlanmaydi, faqat shu qatlam orqali chaqiriladi.
+from middlewares.rbac import enforce_resource_access
 from translations import channels_queue_t
 from utils.helpers import html_escape
 from utils.fsm_state import active_conversation_state
@@ -143,6 +147,29 @@ async def _owned_channel(user_id: int, channel_id: str):
         if str(ch[0]) == target:
             return ch
     return None
+
+
+async def _rbac_channel_allowed(update, channel_id, action: str, *,
+                                context=None, allow_admin: bool = False,
+                                notify: bool = False) -> bool:
+    """🔐 PHASE 3 — kanal ustida amalga ruxsat (markaziy RBAC, fail-closed).
+
+    ``_owned_channel`` — kanal YOZUVINI oladi (egasi uchun); bu funksiya esa
+    RUXSATNI tekshiradi: kanal egasi (``owner``) yoki ``channel_members``
+    orqali qo'shilgan a'zo (``editor``/``scheduler``/``analyst``) — faqat
+    o'z rolida ruxsat etilgan amallar.  Begona foydalanuvchi va noma'lum
+    kanal — rad etiladi (yopiq rad: ekran ochilmaydi, DB o'zgarmaydi).
+    """
+    try:
+        return await enforce_resource_access(
+            update, resource_type="channel", resource_id=channel_id,
+            action=action, allow_admin=allow_admin, notify=notify,
+            context=context,
+        )
+    except Exception:  # pragma: no cover — kutilmagan xato ham ruxsat bermaydi
+        logger.exception("RBAC tekshiruvi xatosi (channel=%s, action=%s)",
+                         str(channel_id)[:64], action)
+        return False
 
 
 def _channel_title(channel, lang: str = "uz") -> str:
@@ -546,6 +573,13 @@ async def channel_settings_callback(update: Update, context: ContextTypes.DEFAUL
     except Exception:
         pass
 
+    # 🔐 PHASE 3 — sozlamalar ekrani ham resurs ruxsatidan o'tadi (``view``):
+    # begona kanal uchun ekran ochilmaydi (DB'dan uslub ham o'qilmaydi) —
+    # so'rov YOPIQ rad etiladi va foydalanuvchi "Permission Denied" oladi.
+    if not await _rbac_channel_allowed(update, channel_id, "view",
+                                       context=context, notify=True):
+        return ConversationHandler.END
+
     channel = await _owned_channel(user_id, channel_id)
     if channel is None:
         # Kanal ro'yxatda yo'q (eski xabar / boshqa foydalanuvchi) — eski
@@ -576,6 +610,15 @@ async def channel_new_post_callback(update: Update, context: ContextTypes.DEFAUL
     lang = get_lang(context)
     user_id = query.from_user.id
     channel_id = (query.data or "").split(":", 1)[1] if ":" in (query.data or "") else ""
+
+    # 🔐 PHASE 3 — IDOR: yangi post oqimini ochishdan OLDIN resurs ruxsati
+    # (``create``) tekshiriladi.  Rad etilsa — begona kanal uchun ekran
+    # ochilmaydi (quyidagi "topilmadi" ekrani ko'rsatiladi).
+    if not await _rbac_channel_allowed(update, channel_id, "create",
+                                       context=context):
+        await _safe_edit(query, channels_queue_t("cq_ch_not_found", lang),
+                         _empty_channels_keyboard(lang))
+        return ConversationHandler.END
 
     channel = await _owned_channel(user_id, channel_id)
     if channel is None:
@@ -1054,6 +1097,15 @@ async def remove_channel_callback(update: Update, context: ContextTypes.DEFAULT_
     is_admin = (user_id in ADMIN_IDS_SET)
 
     lang = get_lang(context)
+    # 🔐 PHASE 3 — IDOR: kanalni uzish FAQAT kanal egasi (yoki admin) uchun.
+    # Callback payload'idagi ID'ga ishonilmaydi: ruxsat server-side
+    # ``from_user.id`` bo'yicha qayta tekshiriladi.  Rad etilsa — DB'ga
+    # UMUMAN murojaat qilinmaydi va so'rov yopiq rad etiladi.
+    if not await _rbac_channel_allowed(update, channel_id, "delete_channel",
+                                       context=context, allow_admin=True,
+                                       notify=True):
+        return ConversationHandler.END
+
     removed = await db.run_db(db.remove_channel, user_id, channel_id, is_admin)
     channels = await db.run_db(db.get_user_channels, user_id)
     if not removed:
@@ -1313,11 +1365,13 @@ async def tone_chosen_callback(update: Update, context: ContextTypes.DEFAULT_TYP
             pass
         return None
 
-    user_id = query.from_user.id
-    is_admin = user_id in ADMIN_IDS_SET
-    # Kanal aynan shu foydalanuvchiga tegishlimi (fail-closed).
-    owned = await _owned_channel(user_id, channel_id)
-    if owned is None and not is_admin:
+    # Eslatma: amalni bajaruvchi ID **faqat** server-side ``from_user.id`` dan
+    # olinadi (``_rbac_channel_allowed``) — payload'dagi ID'larga ishonilmaydi.
+    # 🔐 PHASE 3 — markaziy RBAC: kanal ustida ``edit`` (uslub almashtirish)
+    # huquqi.  Admin override eski xulq-atvorni saqlaydi.
+    if not await _rbac_channel_allowed(update, channel_id, "edit",
+                                       context=context, allow_admin=True,
+                                       notify=False):
         try:
             await query.edit_message_text(
                 safe_t("ch_tone_error", lang), parse_mode="HTML",
@@ -1403,6 +1457,20 @@ async def channel_voice_analysis_callback(update: Update, context: ContextTypes.
         return ConversationHandler.END
     channel_id = data[len(CB_CHANNEL_VOICE):].strip()
     if not channel_id:
+        return ConversationHandler.END
+
+    # 🔐 PHASE 3 — IDOR: tahlil natijasi kanal profiliga YOZILADI, shuning
+    # uchun avval markaziy RBAC (``edit``) tekshiruvi.
+    if not await _rbac_channel_allowed(update, channel_id, "edit",
+                                       context=context):
+        try:
+            await query.message.reply_text(
+                safe_t("ch_voice_error", lang),
+                reply_markup=get_main_keyboard(is_admin, lang=lang),
+                parse_mode="HTML",
+            )
+        except Exception:
+            pass
         return ConversationHandler.END
 
     # Kanal foydalanuvchining o'z kanali ekanini tekshiramiz (fail-closed).

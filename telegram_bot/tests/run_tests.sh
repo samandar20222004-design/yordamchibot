@@ -227,4 +227,18 @@ echo "===== 🗄 STATE & CACHE ADAPTER — REDIS ⇄ IN-MEMORY (PHASE 2) ====="
 "$PY" tests/phase2_admission_test.py || exit 1
 
 echo
+echo "===== 🔐 PHASE 3 — RBAC MARKAZLASHUVI + IDOR HIMOYASI ====="
+# (1) Resurs rollari (OWNER|EDITOR|SCHEDULER|ANALYST) va yagona markaziy
+#     tekshiruv nuqtasi: rbac_service.can(user_id, resource_type,
+#     resource_id, action) — fail-closed;
+# (2) IDOR himoyasi: manual post, kanallar (uzish/uslub/AI tahlil),
+#     avtopilot, team approval va navbat callback'larida foydalanuvchi
+#     AYNAN shu kanal/post ustida amalga huquqli ekani QAYTA tekshiriladi;
+#     ruxsat bo'lmasa — yopiq rad (Permission Denied), DB'ga yozuv yo'q;
+# (3) Middleware qatlami (middlewares/rbac.py): payload validatsiyasi,
+#     enforce_resource_access, resource_guard va ResourceRBACMiddleware
+#     (ApplicationHandlerStop).
+"$PY" ../tests/phase3_rbac_idor_test.py || exit 1
+
+echo
 echo "BARCHA TESTLAR MUVOFFAQIYATLI ✔"

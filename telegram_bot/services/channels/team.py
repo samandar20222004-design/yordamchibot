@@ -199,7 +199,24 @@ class TeamService:
         return await resolve_member_role(channel_id, user_id, self.db)
 
     async def can(self, channel_id, user_id, action) -> bool:
-        return bool((await authorize(channel_id, user_id, action, self.db)).allowed)
+        """Ruxsat — PHASE 3 markaziy nuqtasi (``services.rbac_service.can``).
+
+        Barcha tekshiruvlar BITTA joyda (``rbac_service``) turadi: resurs
+        rollari, kanal egaligi, ``channel_members`` a'zoligi va amal
+        matritsasi.  Markaziy modul mavjud bo'lmasa yoki xato bersa —
+        zaxira sifatida modul ichidagi (fail-closed) ``authorize`` ishlaydi.
+        """
+        try:
+            from services import rbac_service
+
+            return await rbac_service.can(
+                user_id, resource_type="channel", resource_id=channel_id,
+                action=action, db_module=self.db,
+            )
+        except Exception:  # pragma: no cover — zaxira yo'l (fail-closed)
+            logger.debug("Markaziy RBAC ishlamadi — zaxira tekshiruv",
+                         exc_info=True)
+            return bool((await authorize(channel_id, user_id, action, self.db)).allowed)
 
     async def add_member(self, channel_id, actor_id, member_id, role: str = "editor") -> dict:
         if not await self.can(channel_id, actor_id, "manage_members"):
@@ -338,7 +355,17 @@ def _post_channel(post: Any) -> str | None:
 
 # Stateless helper names are convenient for handler code and hidden integrations.
 async def check_permission(channel_id, user_id, action, db_module=None) -> bool:
-    return bool((await authorize(channel_id, user_id, action, db_module)).allowed)
+    """PHASE 3 — markaziy RBAC orqali ruxsat (zaxira: lokal ``authorize``)."""
+    try:
+        from services import rbac_service
+
+        return await rbac_service.can(
+            user_id, resource_type="channel", resource_id=channel_id,
+            action=action, db_module=db_module,
+        )
+    except Exception:  # pragma: no cover — zaxira yo'l (fail-closed)
+        logger.debug("Markaziy RBAC ishlamadi — zaxira tekshiruv", exc_info=True)
+        return bool((await authorize(channel_id, user_id, action, db_module)).allowed)
 
 
 def approval_keyboard_labels() -> ApprovalButtons:

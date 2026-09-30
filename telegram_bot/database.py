@@ -4001,6 +4001,11 @@ def remove_channel(user_id: int, channel_id: str, is_admin: bool = False) -> boo
         _invalidate_user(user_id)
         if owner_id is not None and owner_id != user_id:
             _invalidate_user(owner_id)
+        # 🔐 PHASE 3: kanal uzildi — RBAC resurs keshini ham bekor qilamiz
+        # (aks holda egasi TTL tugagunicha "owner" bo'lib qolaverardi).
+        _invalidate_rbac_resource_cache(user_id, channel_id)
+        if owner_id is not None and owner_id != user_id:
+            _invalidate_rbac_resource_cache(owner_id, channel_id)
         _cache_clear("system_stats")
         return changed
     except Exception as e:
@@ -8314,6 +8319,20 @@ TEAM_ROLES = ("owner", "editor", "scheduler", "analyst")
 APPROVAL_STATUSES = ("draft", "pending_approval", "approved", "scheduled", "published")
 
 
+def _invalidate_rbac_resource_cache(user_id=None, channel_id=None) -> None:
+    """PHASE 3 — RBAC resurs (kanal) keshini bekor qiladi.
+
+    A'zolik yoki kanal egaligi o'zgarganda chaqiriladi: rol o'zgarishi darhol
+    kuchga kirishi kerak (kesh TTL'i kutib o'tirilmaydi).  Import sikli va
+    xatolar jim yutiladi — bu shunchaki kesh, biznes amal emas.
+    """
+    try:
+        from services import rbac_service
+        rbac_service.invalidate_resource_cache(user_id, channel_id)
+    except Exception:  # pragma: no cover - kesh xatosi amalni to'xtatmaydi
+        logger.debug("RBAC resurs keshini tozalab bo'lmadi", exc_info=True)
+
+
 def _member_role_valid(role):
     value = str(role or "").strip().lower()
     return value if value in TEAM_ROLES else None
@@ -8381,7 +8400,10 @@ def add_channel_member(channel_id: str | int, user_id: int, role: str = "editor"
                    RETURNING id, channel_id, user_id, role, created_at""",
                 (ch, int(user_id), normalized),
             )
-            return cur.fetchone()
+            row = cur.fetchone()
+        # 🔐 PHASE 3: rol darhol kuchga kirishi uchun RBAC keshini bekor qilamiz.
+        _invalidate_rbac_resource_cache(user_id, ch)
+        return row
     except Exception as e:
         logger.error("add_channel_member xatosi: %s", e)
         return None
@@ -8398,7 +8420,11 @@ def remove_channel_member(channel_id: str | int, user_id: int,
         with db_cursor(commit=True) as cur:
             cur.execute("DELETE FROM channel_members WHERE channel_id = %s AND user_id = %s",
                         (ch, int(user_id)))
-            return cur.rowcount > 0
+            removed = cur.rowcount > 0
+        if removed:
+            # 🔐 PHASE 3: a'zolik olib tashlandi — ruxsat darhol bekor bo'lsin.
+            _invalidate_rbac_resource_cache(user_id, ch)
+        return removed
     except Exception as e:
         logger.error("remove_channel_member xatosi: %s", e)
         return False
@@ -8417,7 +8443,11 @@ def set_channel_member_role(channel_id: str | int, user_id: int, role: str,
         with db_cursor(commit=True) as cur:
             cur.execute("UPDATE channel_members SET role = %s WHERE channel_id = %s AND user_id = %s",
                         (normalized, str(channel_id), int(user_id)))
-            return cur.rowcount > 0
+            changed = cur.rowcount > 0
+        if changed:
+            # 🔐 PHASE 3: yangi rol darhol kuchga kirishi kerak.
+            _invalidate_rbac_resource_cache(user_id, channel_id)
+        return changed
     except Exception as e:
         logger.error("set_channel_member_role xatosi: %s", e)
         return False

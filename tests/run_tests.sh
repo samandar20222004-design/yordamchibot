@@ -896,6 +896,25 @@ echo "===== 3N) 🔒 PHASE 2: RATE LIMITING + REDIS / DISTRIBUTED STATE ====="
 "$PY" tests/rate_limiter_redis_test.py || EXIT_CODE=1
 
 echo
+echo "===== 3O) 🔐 PHASE 3: RBAC MARKAZLASHUVI + IDOR HIMOYASI ====="
+# (1) 🎭 Resurs rollari (OWNER | EDITOR | SCHEDULER | ANALYST) va yagona
+#     markaziy tekshiruv nuqtasi —
+#     ``await services.rbac_service.can(user_id=..., resource_type=...,
+#     resource_id=..., action=...)``; noma'lum resurs/amal, begona
+#     foydalanuvchi va DB uzilishi — barchasi FAIL-CLOSED (rad);
+# (2) 🛡 IDOR himoyasi: state-changing callback'larda faqat ``user_id`` yoki
+#     ``post_id`` borligiga TAYANILMAYDI — foydalanuvchi AYNAN shu kanal/post
+#     ustida amalga huquqli ekani qayta tekshiriladi; ruxsat bo'lmasa so'rov
+#     YOPIQ rad etiladi (Permission Denied) va DB'ga yozuv bo'lmaydi:
+#     manual post (``_publish``), kanallar (``ch_del:``, ``set_style:``,
+#     ``ch_voice:``, ``ch_np:``), avtopilot (``ch_ap:`` + navbatga yozish),
+#     team approval (``team_ok:/team_no:/team_edit:``) va navbat (``qdel:``);
+# (3) 🧱 Middleware qatlami (middlewares/rbac.py): resurs ID validatsiyasi,
+#     ``enforce_resource_access`` (alertli yopiq rad), ``resource_guard``
+#     dekoratori va ``ResourceRBACMiddleware`` (ApplicationHandlerStop).
+"$PY" tests/phase3_rbac_idor_test.py || EXIT_CODE=1
+
+echo
 echo "======== 4) TO'LIQ REGRESSIYA (telegram_bot/tests) ========"
 # PY'ni aniq uzatamiz: ichki runner ham shu interpreter (venv) bilan ishlasin.
 ( cd telegram_bot && PYTHON="$PY" bash tests/run_tests.sh ) || EXIT_CODE=1

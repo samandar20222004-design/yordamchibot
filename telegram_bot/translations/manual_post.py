@@ -196,6 +196,11 @@ MANUAL_POST_I18N = {
             "⚠️ Postni saqlashda xatolik yuz berdi. Iltimos, qayta urinib "
             "ko'ring."
         ),
+        # PHASE 3 — RBAC/IDOR: begona kanal ustida amal — yopiq rad etish.
+        "mp_no_access": (
+            "⛔ Ruxsat yo'q (Permission Denied). Bu kanal ustida ushbu "
+            "amalni bajarish huquqingiz yo'q."
+        ),
     },
     # ------------------------------------------------------------
     # 🇷🇺 RUS TILI
@@ -348,6 +353,11 @@ MANUAL_POST_I18N = {
         "mp_save_error": (
             "⚠️ Ошибка при сохранении поста. Попробуйте ещё раз."
         ),
+        # PHASE 3 — RBAC/IDOR: чужой канал — закрытый отказ.
+        "mp_no_access": (
+            "⛔ Нет доступа (Permission Denied). У вас нет прав на это "
+            "действие в этом канале."
+        ),
     },
     # ------------------------------------------------------------
     # 🇬🇧 INGLIZ TILI
@@ -499,6 +509,11 @@ MANUAL_POST_I18N = {
         ),
         "mp_save_error": (
             "⚠️ An error occurred while saving the post. Please try again."
+        ),
+        # PHASE 3 — RBAC/IDOR: foreign channel — closed rejection.
+        "mp_no_access": (
+            "⛔ Permission denied. You are not allowed to perform this "
+            "action on this channel."
         ),
     },
 }

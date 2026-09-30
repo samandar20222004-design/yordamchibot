@@ -72,6 +72,11 @@ AUTOPILOT_I18N = {
         "cancel_done": "❌ Avtopilot bekor qilindi.",
         "stale": "Sessiya eskirgan — avtopilotni qaytadan boshlang.",
         "no_channel": "Kanal topilmadi.",
+        # PHASE 3 — RBAC/IDOR: ruxsatsiz avtopilot urinishi (yopiq rad).
+        "no_permission": (
+            "⛔ Ruxsat yo'q (Permission Denied). Bu kanalda avtopilot "
+            "rejasini rejalashtirish huquqingiz yo'q."
+        ),
     },
     "ru": {
         "intro": "🚀 <b>AI АВТОПИЛОТ</b>\n\nКанал: <b>{channel}</b>\n\n"
@@ -133,6 +138,11 @@ AUTOPILOT_I18N = {
         "cancel_done": "❌ Автопилот отменён.",
         "stale": "Сессия устарела — начните автопилот заново.",
         "no_channel": "Канал не найден.",
+        # PHASE 3 — RBAC/IDOR: отказ в доступе (закрытое отклонение).
+        "no_permission": (
+            "⛔ Нет доступа (Permission Denied). У вас нет прав "
+            "планировать автопилот в этом канале."
+        ),
     },
     "en": {
         "intro": "🚀 <b>AI AUTOPILOT</b>\n\nChannel: <b>{channel}</b>\n\n"
@@ -194,6 +204,11 @@ AUTOPILOT_I18N = {
         "cancel_done": "❌ Autopilot cancelled.",
         "stale": "Session expired — start the autopilot again.",
         "no_channel": "Channel not found.",
+        # PHASE 3 — RBAC/IDOR: permission denied (closed rejection).
+        "no_permission": (
+            "⛔ Permission denied. You are not allowed to schedule the "
+            "autopilot plan in this channel."
+        ),
     },
 }
 

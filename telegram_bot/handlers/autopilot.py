@@ -47,6 +47,8 @@ from services.autopilot import (
 )
 from services.channels.best_time import WEEKDAY_NAMES
 from services.channels.duplicate_detector import DUPLICATE_WARNING_MESSAGE
+# 🔐 PHASE 3 — markaziy RBAC: avtopilot kanal ustida amal bajaradi.
+from services import rbac_service
 from translations import autopilot_t
 from utils.helpers import html_escape
 
@@ -253,6 +255,14 @@ async def channel_autopilot_entry(update: Update,
     channel_id = (query.data or "").split(":", 1)[1] if ":" in (query.data or "") else ""
 
     from handlers.channels import _owned_channel, _channel_title
+    # 🔐 PHASE 3 — IDOR: avtopilot faqat kanal ustida ``create`` huquqi
+    # bo'lgan foydalanuvchi uchun ochiladi (owner/editor; scheduler/analyst
+    # va begona foydalanuvchi — rad).
+    if not await autopilot_channel_guard(user_id, channel_id, "create"):
+        from keyboards.inline import render_channel_panel
+        await _safe_edit(query, autopilot_t("no_permission", lang),
+                         render_channel_panel(channel_id, lang))
+        return ConversationHandler.END
     channel = await _owned_channel(user_id, channel_id)
     if channel is None:
         from keyboards.inline import render_channel_panel
@@ -271,6 +281,27 @@ async def channel_autopilot_entry(update: Update,
         get_cancel_keyboard(lang),
     )
     return AUTOPILOT_TOPIC
+
+
+# ============================================================
+# PHASE 3 — RBAC/IDOR YORDAMCHISI
+# ============================================================
+async def autopilot_channel_guard(user_id: int, channel_id, action: str) -> bool:
+    """Foydalanuvchi AYNAN shu kanalda amal bajara oladimi (markaziy RBAC)?
+
+    Fail-closed: RBAC/DB xatosi — ruxsat BERILMAYDI.  ``channel_id``
+    server-side ``user_data`` dan (yoki tekshirilgan callback payload'idan)
+    olinadi; payload'dagi ID'ga hech qachon ishonilmaydi.
+    """
+    try:
+        return await rbac_service.can(
+            user_id, resource_type="channel", resource_id=channel_id,
+            action=action,
+        )
+    except Exception:  # pragma: no cover — fail-closed
+        logger.exception("RBAC tekshiruvi xatosi (user=%s, action=%s)",
+                         user_id, action)
+        return False
 
 
 # ============================================================
@@ -415,6 +446,18 @@ async def _schedule_and_finish(query, context, user_id: int, days: list,
                                lang: str) -> int:
     """7 postni bitta atomik tranzaksiyada navbatga qo'yadi + yakuniy ekran."""
     channel_id = str(context.user_data.get(UD_CHANNEL) or "")
+    # 🔐 PHASE 3 — IDOR: yozishdan OLDIN kanal ustida ``schedule`` huquqi
+    # qayta tekshiriladi (kanal ``user_data`` da bo'lsa ham — sessiya
+    # eskirgan yoki a'zolik olib tashlangan bo'lishi mumkin).
+    if not await autopilot_channel_guard(user_id, channel_id, "schedule"):
+        logger.warning(
+            "RBAC/IDOR: avtopilot rejalashtirish rad etildi (user=%s, channel=%s)",
+            user_id, channel_id[:64],
+        )
+        await _safe_edit(query, autopilot_t("no_permission", lang),
+                         get_cancel_keyboard(lang))
+        clear_autopilot_session(context)
+        return ConversationHandler.END
     result = await schedule_autopilot_week(user_id, channel_id, days)
     if not result.get("success"):
         logger.error("Avtopilot: navbatga qo'yilmadi (user=%s): %s",
