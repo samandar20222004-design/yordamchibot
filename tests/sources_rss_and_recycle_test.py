@@ -185,13 +185,20 @@ class FakeStore:
 
     # -- yordamchilar --------------------------------------------------------
     def add_history(self, channel_id, text, views=500, reactions=6, days_old=20):
+        # ANKOR — REAL VAQT: recycle servisi post yoshini production
+        # soati (datetime.now) bilan solishtiradi. Qotirilgan bazaviy
+        # sana (_now) vaqt o'tishi bilan "3 kunlik" postni 14+ kunga
+        # aylantirib qo'yardi (vaqtga bog'liq yashil test buzilardi).
+        # Shu sababli tarix sanalari real hozirgi vaqtga nisbatan
+        # hisoblanadi — kunlar soni HAMESHA ma'no saqlaydi.
+        base = TZ.localize(datetime.now())
         self.history.setdefault(channel_id, []).append({
             "id": 5000 + len(self.history.get(channel_id, [])),
             "message_id": 9000 + len(self.history.get(channel_id, [])),
             "content": text,
             "views": views,
             "reactions": reactions,
-            "post_date": _now() - timedelta(days=days_old),
+            "post_date": base - timedelta(days=days_old),
         })
 
     # -- SQL emulyatsiyasi ---------------------------------------------------
