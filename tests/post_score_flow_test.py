@@ -86,6 +86,9 @@ class FakeMessage:
         self.text = text
         self.caption = caption
         self.chat = SimpleNamespace(id=555000)
+        # PTB v21 Message.chat_id property'si — handlerlar typing/
+        # yetkazish uchun aynan shundan foydalanadi (fake double kontrakti).
+        self.chat_id = 555000
         self.replies = []
         self.edits = []
 
@@ -491,9 +494,10 @@ def test_eval_buttons_in_all_flows():
     check("eval: post qayta yozilmasdan baholandi",
           ctx.user_data.get("ps_text") == SAMPLE_POST)
     check("eval: baholash ekrani yuborildi",
-          any("Post Score natijasi" in r["text"] for r in query.message.replies),
-          str(query.message.replies)[:200])
-    score_btns = kb_buttons(query.message.last_markup)
+          "Post Score natijasi" in query.edits[-1]["text"],
+          str(query.edits[-1])[:200])
+    # 2-BOSQICH UX: placeholder xabari NATIJA ekraniga edit qilinadi.
+    score_btns = kb_buttons(query.edits[-1]["reply_markup"])
     check("eval: natija ostida 3 amal tugmasi bor",
           {ps.PS_IMPROVE, ps.PS_SEND, ps.PS_SCHED} <= {d for _t, d in score_btns},
           str(score_btns))
@@ -550,13 +554,15 @@ def test_improve_charges_exactly_one_credit():
     check("ps_improved = True", ctx.user_data.get("ps_improved") is True)
     check("yangi ball sessiyada", (ctx.user_data.get("ps_score") or {}).get("overall", 0) > 0)
 
-    out = query.edits[-1]["text"]
+    # 2-BOSQICH UX: «⏳ tayyorlanmoqda» placeholder xabari yakuniy natijaga
+    # EDIT qilinadi (query.edits faqat placeholder'ni saqlaydi).
+    out = query.message.last_text
     check("yaxshilangan matn foydalanuvchiga ko'rsatildi", "Yangi kofe" in out)
     check("yangi ball sarlavhasi ko'rsatildi",
           "yaxshilandi" in out.lower() and "/100" in out)
     check("natija ostida amallar tugmalari bor",
           {ps.PS_IMPROVE, ps.PS_SEND, ps.PS_SCHED} <=
-          {d for _t, d in kb_buttons(query.edits[-1]["reply_markup"])})
+          {d for _t, d in kb_buttons(query.message.last_markup)})
 
     # AI takomillashtirish prompti: 95+ maqsad + sarlavha/CTA/hashtag qoidalari.
     system = ai_calls[0]["system"]
@@ -591,11 +597,12 @@ def test_improve_refunds_on_ai_failure():
     check("xatoda kredit QAYTARILDI (add_user_credit)",
           fake_db.calls.count("add_user_credit") == 1, str(fake_db.calls))
     check("foydalanuvchiga refund haqida xabar berildi",
-          "qaytarildi" in query.edits[-1]["text"].lower(), query.edits[-1]["text"][:120])
+          "qaytarildi" in query.message.last_text.lower(),
+          query.message.last_text[:120])
     check("ps_post bo'sh qoldi (yaroqsiz matn saqlanmadi)",
           not (ctx.user_data.get("ps_post") or ""))
     check("oqim davom eta oladi (tugmalar qaytarildi)",
-          ps.PS_IMPROVE in {d for _t, d in kb_buttons(query.edits[-1]["reply_markup"])})
+          ps.PS_IMPROVE in {d for _t, d in kb_buttons(query.message.last_markup)})
 
 
 def test_improve_without_credits():
