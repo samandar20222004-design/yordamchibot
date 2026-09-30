@@ -86,7 +86,7 @@ MANUAL_POST_I18N = {
         "mp_btn_channel": "📢 Kanal: {name}",
         "mp_btn_channel_select": "📢 Kanalni tanlash",
         "mp_channel_prompt": "📢 <b>Qaysi kanalga chiqsin?</b>",
-        "mp_btn_finish": "✅ Rejalashtirishni yakunlash",
+        "mp_btn_finish": "✅ Yakunlash",
         # --- 3-vazifa: vaqt belgilandi xabari ---
         "mp_time_set": (
             "🕒 Vaqt belgilandi: {time}. Yana reaksiya, havola yoki sozlamalarni "
@@ -257,7 +257,7 @@ MANUAL_POST_I18N = {
         "mp_btn_channel": "📢 Канал: {name}",
         "mp_btn_channel_select": "📢 Выбрать канал",
         "mp_channel_prompt": "📢 <b>В какой канал публикуем?</b>",
-        "mp_btn_finish": "✅ Завершить планирование",
+        "mp_btn_finish": "✅ Завершить",
         "mp_time_set": (
             "🕒 Время установлено: {time}. Вы можете изменить реакции, ссылку или настройки."
         ),
@@ -415,7 +415,7 @@ MANUAL_POST_I18N = {
         "mp_btn_channel": "📢 Channel: {name}",
         "mp_btn_channel_select": "📢 Select channel",
         "mp_channel_prompt": "📢 <b>Which channel should it go to?</b>",
-        "mp_btn_finish": "✅ Finish scheduling",
+        "mp_btn_finish": "✅ Finish",
         "mp_time_set": (
             "🕒 Time set: {time}. You can still change reactions, link or settings."
         ),

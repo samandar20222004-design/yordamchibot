@@ -1697,7 +1697,7 @@ EN_OVERLAY = {
     "ext_btn_other_post": "🔙 Another post",
     "ext_btn_rewrite": "🔄 Rewrite",
     "ext_btn_refresh": "🔄 Refresh",
-    "ext_btn_adapt": "🎯 Adapt to my channel",
+    "ext_btn_adapt": "🎯 Fit my channel",
     "ext_btn_manual_edit": "✏️ Edit manually",
     "ext_adapting": "🎯 Adapting...",
     "ext_edit_prompt": "✏️ <b>Manual edit.</b>\n\nCurrent text:\n<i>{text}</i>\n\nSend your new text — preview will update.",

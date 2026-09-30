@@ -486,7 +486,7 @@ def _manual_preview_markup(context, lang: str) -> InlineKeyboardMarkup:
         try:
             finish_text = manual_post_t("mp_btn_finish", lang)
         except Exception:
-            finish_text = "✅ Rejalashtirishni yakunlash"
+            finish_text = "✅ Yakunlash"
         rows.append([InlineKeyboardButton(finish_text, callback_data=CB_MANUAL_FINISH)])
     return InlineKeyboardMarkup(rows)
 
