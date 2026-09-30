@@ -639,3 +639,262 @@ def get_recent_support_tickets(limit: int = 20) -> list[dict]:
     except Exception as e:
         logger.error("get_recent_support_tickets xatosi: %s", e)
         return []
+
+# ====================================================================
+# 🧾 PHASE 6 — AI XARAJAT VA TELEMETRIYA JURNALI (ai_usage_events)
+# ====================================================================
+# Har bir AI so'rovi (muvaffaqiyat ham, xato ham) shu jadvalga yoziladi:
+# model, provayder, input/output tokenlar, kechikish, taxminiy xarajat va
+# status. Kunlik/oylik hisobot foydalanuvchi va kanal kesimida yig'iladi.
+# Modul boshqa repository funksiyalari kabi yadroga ``repositories.runtime``
+# orqali kech bog'lanadi (mock nuqtalari saqlanadi).
+
+#: Ruxsat etilgan davrlar (``get_ai_usage_report``).
+AI_USAGE_PERIODS = ("daily", "monthly", "all")
+
+#: Kanal konteksti bo'lmagan yozuvlar uchun shartli qiymat (SQL'da
+#: ``channel_id IS NULL`` — "kanalga bog'lanmagan so'rov").
+AI_USAGE_NO_CHANNEL = "no_channel"
+
+
+def save_ai_usage_event(
+    user_id=None,
+    channel_id=None,
+    task: str = "",
+    lane: str = "",
+    operation_type: str = "",
+    provider: str = "none",
+    model: str = "",
+    input_tokens: int = 0,
+    output_tokens: int = 0,
+    latency_ms: int = 0,
+    estimated_cost: float = 0.0,
+    priced: bool = False,
+    status: str = "failed",
+    error_code=None,
+    cached: bool = False,
+    attempts: int = 0,
+    prompt_hash: str = "",
+    reservation_id=None,
+):
+    """AI so'rovi telemetriyasini saqlaydi va yozuv ID'sini qaytaradi.
+
+    Xato bo'lsa ``None`` (telemetriya hech qachon AI oqimini buza olmaydi).
+    Status CHECK'i bilan mos bo'lmagan qiymatlar xavfsiz 'failed' ga
+    tushiriladi (DB'ga yaroqsiz yozuv ketmaydi).
+    """
+    try:
+        uid = int(user_id) if user_id is not None else None
+    except (TypeError, ValueError):
+        uid = None
+    try:
+        cid = int(channel_id) if channel_id is not None else None
+    except (TypeError, ValueError):
+        cid = None
+    safe_status = status if status in ("success", "failed") else "failed"
+    try:
+        with db_cursor(commit=True) as cur:
+            cur.execute(
+                """
+                INSERT INTO ai_usage_events (
+                    user_id, channel_id, task, lane, operation_type, provider,
+                    model, input_tokens, output_tokens, latency_ms,
+                    estimated_cost, priced, status, error_code, cached,
+                    attempts, prompt_hash, reservation_id
+                ) VALUES (
+                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                    %s, %s, %s, %s
+                )
+                RETURNING id
+                """,
+                (
+                    uid, cid, str(task or "")[:64], str(lane or "")[:16],
+                    str(operation_type or "")[:32], str(provider or "none")[:32],
+                    str(model or "")[:64], max(0, int(input_tokens or 0)),
+                    max(0, int(output_tokens or 0)), max(0, int(latency_ms or 0)),
+                    max(0.0, float(estimated_cost or 0.0)), bool(priced),
+                    safe_status, (str(error_code)[:64] if error_code else None),
+                    bool(cached), max(0, int(attempts or 0)),
+                    str(prompt_hash or "")[:32],
+                    int(reservation_id) if reservation_id else None,
+                ),
+            )
+            row = cur.fetchone()
+            return int(row[0]) if row else None
+    except Exception as e:
+        logger.error("save_ai_usage_event xatosi (user=%s): %s", user_id, e)
+        return None
+
+
+def _ai_usage_window_sql(period: str) -> str:
+    """Davr uchun SQL oynasi (faqat ruxsat etilgan qiymatlar — injection yo'q)."""
+    if period == "monthly":
+        return ("AND created_at >= date_trunc('month', NOW() AT TIME ZONE 'UTC')"
+                " AT TIME ZONE 'UTC'")
+    if period == "all":
+        return ""
+    return "AND created_at >= date_trunc('day', NOW() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'"
+
+
+def get_ai_usage_report(user_id=None, channel_id=None, period: str = "daily",
+                        limit: int = 200):
+    """Kunlik/oylik xarajat va foydalanish hisoboti (user/kanal kesimida).
+
+    Returns:
+        dict::
+
+            {
+              "period": "daily" | "monthly" | "all",
+              "scope": {"user_id": ..., "channel_id": ...},
+              "totals": {requests, successes, failures, cache_hits,
+                         input_tokens, output_tokens, total_tokens,
+                         estimated_cost_usd, priced_requests,
+                         unpriced_requests, avg_latency_ms},
+              "by_provider": {...}, "by_model": {...}, "by_task": {...},
+              "by_lane": {...}, "by_day": [...]
+            }
+
+        Xatoda ``None`` (hisobot best-effort — AI oqimiga ta'sir qilmaydi).
+    """
+    safe_period = period if period in AI_USAGE_PERIODS else "daily"
+    try:
+        safe_limit = max(1, min(int(limit), 500))
+    except (TypeError, ValueError):
+        safe_limit = 200
+    window = _ai_usage_window_sql(safe_period)
+    where = []
+    params: list = []
+    if user_id is not None:
+        where.append("user_id = %s")
+        params.append(int(user_id))
+    if channel_id is not None:
+        where.append("channel_id = %s")
+        params.append(int(channel_id))
+    where_sql = (" AND ".join(where)) if where else "TRUE"
+
+    def _fetch(cur, group_sql: str, order_sql: str = "estimated_cost DESC"):
+        """Guruhlangan agregat (provider/model/task/lane/kun)."""
+        cur.execute(
+            f"""
+            SELECT {group_sql},
+                   COUNT(*) AS requests,
+                   COUNT(*) FILTER (WHERE status = 'success') AS successes,
+                   COUNT(*) FILTER (WHERE status = 'failed') AS failures,
+                   COUNT(*) FILTER (WHERE cached) AS cache_hits,
+                   COALESCE(SUM(input_tokens), 0) AS input_tokens,
+                   COALESCE(SUM(output_tokens), 0) AS output_tokens,
+                   COALESCE(SUM(estimated_cost), 0) AS estimated_cost,
+                   COALESCE(AVG(latency_ms), 0) AS avg_latency_ms
+              FROM ai_usage_events
+             WHERE {where_sql} {window}
+             GROUP BY {group_sql}
+             ORDER BY {order_sql}
+             LIMIT %s
+            """,
+            (*params, safe_limit),
+        )
+        return cur.fetchall()
+
+    def _bucket(row) -> dict:
+        """Guruh qatorini kanonik ko'rsatkichlar lug'atiga aylantiradi."""
+        return {
+            "requests": int(row[1] or 0),
+            "successes": int(row[2] or 0),
+            "failures": int(row[3] or 0),
+            "cache_hits": int(row[4] or 0),
+            "input_tokens": int(row[5] or 0),
+            "output_tokens": int(row[6] or 0),
+            "total_tokens": int(row[5] or 0) + int(row[6] or 0),
+            "estimated_cost_usd": round(float(row[7] or 0.0), 6),
+            "avg_latency_ms": round(float(row[8] or 0.0), 1),
+        }
+
+    def _grouped(cur, group_sql: str, order_sql: str = "estimated_cost DESC") -> dict:
+        """Agregatni NOM bo'yicha lug'at sifatida qaytaradi (yagona shakl)."""
+        grouped: dict = {}
+        for row in _fetch(cur, group_sql, order_sql):
+            key = row[0]
+            grouped["noma'lum" if key in (None, "") else str(key)] = _bucket(row)
+        return grouped
+
+    try:
+        with db_cursor() as cur:
+            by_provider = _grouped(cur, "provider")
+            by_model = _grouped(cur, "model")
+            by_task = _grouped(cur, "task")
+            by_lane = _grouped(cur, "lane")
+            by_day = (_grouped(cur, "DATE_TRUNC('day', created_at)::date", "1 ASC")
+                      if safe_period == "monthly" else {})
+            cur.execute(
+                f"""
+                SELECT COUNT(*),
+                       COUNT(*) FILTER (WHERE status = 'success'),
+                       COUNT(*) FILTER (WHERE status = 'failed'),
+                       COUNT(*) FILTER (WHERE cached),
+                       COALESCE(SUM(input_tokens), 0),
+                       COALESCE(SUM(output_tokens), 0),
+                       COALESCE(SUM(estimated_cost), 0),
+                       COALESCE(AVG(latency_ms), 0),
+                       COUNT(*) FILTER (WHERE status = 'success' AND priced AND NOT cached),
+                       COUNT(*) FILTER (WHERE status = 'success' AND (NOT priced OR cached))
+                  FROM ai_usage_events
+                 WHERE {where_sql} {window}
+                """,
+                tuple(params),
+            )
+            totals_row = cur.fetchone() or (0,) * 10
+        return {
+            "period": safe_period,
+            "scope": {"user_id": user_id, "channel_id": channel_id},
+            "totals": {
+                "requests": int(totals_row[0] or 0),
+                "successes": int(totals_row[1] or 0),
+                "failures": int(totals_row[2] or 0),
+                "cache_hits": int(totals_row[3] or 0),
+                "input_tokens": int(totals_row[4] or 0),
+                "output_tokens": int(totals_row[5] or 0),
+                "total_tokens": int(totals_row[4] or 0) + int(totals_row[5] or 0),
+                "estimated_cost_usd": round(float(totals_row[6] or 0.0), 6),
+                "avg_latency_ms": round(float(totals_row[7] or 0.0), 1),
+                "priced_requests": int(totals_row[8] or 0),
+                "unpriced_requests": int(totals_row[9] or 0),
+            },
+            "by_provider": by_provider,
+            "by_model": by_model,
+            "by_task": by_task,
+            "by_lane": by_lane,
+            "by_day": by_day,
+        }
+    except Exception as e:
+        logger.error("get_ai_usage_report xatosi (period=%s): %s", safe_period, e)
+        return None
+
+
+def purge_ai_usage_events(days: int = 180, limit: int = 5000) -> int:
+    """Eskirgan AI telemetriya yozuvlarini o'chiradi (retention/cleanup).
+
+    Returns: o'chirilgan qatorlar soni (xatoda 0).
+    """
+    try:
+        safe_days = max(7, min(int(days), 3650))
+        safe_limit = max(1, min(int(limit), 50000))
+    except (TypeError, ValueError):
+        safe_days, safe_limit = 180, 5000
+    try:
+        with db_cursor(commit=True) as cur:
+            cur.execute(
+                """
+                DELETE FROM ai_usage_events
+                 WHERE id IN (
+                    SELECT id FROM ai_usage_events
+                     WHERE created_at < NOW() - make_interval(days => %s)
+                     ORDER BY created_at ASC
+                     LIMIT %s
+                 )
+                """,
+                (safe_days, safe_limit),
+            )
+            return int(cur.rowcount or 0)
+    except Exception as e:
+        logger.error("purge_ai_usage_events xatosi: %s", e)
+        return 0

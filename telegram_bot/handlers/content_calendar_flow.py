@@ -240,14 +240,25 @@ async def check_calendar_entitlement(user_id: int, days: int, recent_count: int 
         return False, "pro_required"
 
 
-async def generate_calendar_items(business: str, days: int, lang: str = "uz") -> list:
+async def generate_calendar_items(business: str, days: int, lang: str = "uz",
+                                  *, user_id: int | None = None,
+                                  channel_id: int | None = None,
+                                  operation_type: str = "content_calendar") -> list:
     """AI orqali ``days`` ta kunlik mavzu ro'yxatini oladi (xatoda — []).
+
+    PHASE 6: birinchi navbatda KANONIK shlyuz (``services.ai_engine.
+    ai_gateway`` — kesh/breaker/retry/telemetriya) ishlatiladi va
+    ``user_id``/``channel_id`` telemetriya konteksti sifatida uzatiladi.
+    Kanonik yo'l javob bermasa — eski legacy zanjir (``gateway.legacy_chain``)
+    zaxira bo'lib qoladi (backward compatibility, hech narsa olib
+    tashlanmagan).
 
     Test/mock uchun yagona patch nuqtasi: funksiya modul atributi sifatida
     chaqiriladi, shuning uchun testlar uni almashtirib tarmoqsiz ishlaydi.
     """
     try:
         from services.ai_engine import gateway
+        from services.ai_engine import ai_gateway
         from utils.ai_agent import _extract_json
     except Exception:  # pragma: no cover - import xatosi (test muhiti)
         return []
@@ -262,15 +273,32 @@ async def generate_calendar_items(business: str, days: int, lang: str = "uz") ->
         f"{int(days)} kunlik kontent-reja tuzing: har bir kun uchun "
         "rubrika (qisqa), mavzu (aniq post g'oyasi) va bitta amaliy tavsiya."
     )
+    # 1) KANONIK SHLYUZ (yagona interfeys — telemetriya user/kanal bilan).
+    text = ""
     try:
-        result = await gateway.legacy_chain(prompt, system, lang)
-    except Exception:
-        logger.warning("Kontent-kalendar AI xatosi", exc_info=True)
-        return []
+        canonical = await ai_gateway.generate(
+            prompt, task="content_plan", lane="premium", lang=lang,
+            system_instruction=system, user_id=user_id, channel_id=channel_id,
+            operation_type=operation_type, use_cache=False,
+            require_quality=False,
+        )
+        if canonical.ok:
+            text = canonical.text or ""
+    except Exception:  # noqa: BLE001 — kanonik yo'l ishlamasa legacy zaxira
+        logger.debug("Kontent-kalendar: kanonik shlyuz xatosi", exc_info=True)
 
-    if not isinstance(result, dict) or result.get("error"):
-        return []
-    text = result.get("text") or result.get("content") or ""
+    # 2) LEGACY ZAXIRA (eski zanjir — o'zgarmagan xatti-harakat).
+    if not text:
+        try:
+            result = await gateway.legacy_chain(prompt, system, lang)
+        except Exception:
+            logger.warning("Kontent-kalendar AI xatosi", exc_info=True)
+            return []
+
+        if not isinstance(result, dict) or result.get("error"):
+            return []
+        text = result.get("text") or result.get("content") or ""
+
     if not text:
         return []
     try:
@@ -385,7 +413,17 @@ async def calendar_duration_callback(update: Update, context: ContextTypes.DEFAU
 
     await _safe_edit(query, calendar_t("generating", lang), None)
 
-    items = await generate_calendar_items(business, days, lang)
+    # Telemetriya konteksti FAQAT funksiya qabul qilsa uzatiladi: testlar
+    # ``generate_calendar_items`` ni eski imzoli mock bilan almashtirishi
+    # mumkin — bunday holatda chaqiruv avvalgidek ishlaydi (backward compat).
+    try:
+        from utils.ai_agent import pick_supported_kwargs
+
+        context_kwargs = pick_supported_kwargs(
+            generate_calendar_items, user_id=user_id, channel_id=None)
+    except Exception:  # pragma: no cover — yordamchi import qilinmasa
+        context_kwargs = {}
+    items = await generate_calendar_items(business, days, lang, **context_kwargs)
     if not items:
         await _safe_edit(query, calendar_t("error", lang), get_cabinet_back_keyboard(lang))
         return CALENDAR_VIEW

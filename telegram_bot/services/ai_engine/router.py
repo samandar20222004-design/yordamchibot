@@ -153,6 +153,40 @@ LANE_SPECS: dict[Lane, LaneSpec] = {
 # Vazifa nomi → Lane (kanonik xarita). ``gateway.generate(task=...)`` va
 # handler'lar shu nomlar bilan lane tanlaydi.
 # ---------------------------------------------------------------------------
+#: PHASE 6 — kanonik lane ALIASLARI (yagona shlyuz interfeysi).
+#:
+#: ``ai_gateway.generate(..., lane="fast" | "smart" | "premium")`` shaklida
+#: chaqiruvchilar lane'ni "mahsulot tili"da aytadi; bu xarita ularni
+#: ichki ``Lane`` qiymatlariga AYNAN bir marta o'giradi (har bir chaqiruv
+#: joyida qayta ishlanmaydi — yagona manba):
+#:
+#:     fast    → FAST      (arzon/tez: oddiy post, qayta yozish)
+#:     smart   → QUALITY   (sifatli tahlil: audit, score, repurpose)
+#:     premium → REASONING (chuqur tahlil: kanal DNK, kontent reja)
+LANE_ALIASES: dict[str, Lane] = {
+    "fast": Lane.FAST,
+    "smart": Lane.QUALITY,
+    "premium": Lane.REASONING,
+    "quality": Lane.QUALITY,
+    "reasoning": Lane.REASONING,
+    "vision": Lane.VISION,
+    "tez": Lane.FAST,
+    "sifat": Lane.QUALITY,
+    "chuqur": Lane.REASONING,
+    "rasm": Lane.VISION,
+}
+
+
+def lane_alias(name: str | None) -> Lane | None:
+    """Lane aliasini kanonik ``Lane`` ga o'giradi (noma'lum → ``None``)."""
+    if name is None:
+        return None
+    key = str(name).strip().lower().replace("-", "_").replace(" ", "_")
+    if not key:
+        return None
+    return LANE_ALIASES.get(key)
+
+
 TASK_LANES: dict[str, Lane] = {
     # --- FAST: oddiy, tez javob talab qiladigan vazifalar -------------------
     # 2-BOSQICH: qisqa/tezkor vazifalar eng kam kechikishli provayder (Groq)
@@ -174,17 +208,27 @@ TASK_LANES: dict[str, Lane] = {
     "tone": Lane.FAST,
     "faq": Lane.FAST,
     "extract_time": Lane.FAST,
+    # PHASE 6 — kanonik "mahsulot" vazifa nomlari (yagona interfeys):
+    "social_post": Lane.FAST,        # ijtimoiy tarmoq posti (arzon/tez)
+    "quick_post": Lane.FAST,
+    "caption": Lane.FAST,
+    "voice_post": Lane.FAST,         # 🎙 ovoz → post (STT'dan keyingi qadam)
+    "hashtags": Lane.FAST,
+    "cta": Lane.FAST,
     # --- QUALITY: sifat talab qiladiganlar ----------------------------------
     "audit": Lane.QUALITY,
+    "audit_post": Lane.QUALITY,
     "analyze": Lane.QUALITY,
     "post_score": Lane.QUALITY,
     "improve": Lane.QUALITY,
     "variants": Lane.QUALITY,
     "repurpose": Lane.QUALITY,
+    "content_repurpose": Lane.QUALITY,
     # --- REASONING: murakkab/chuqur tahlil ----------------------------------
     "channel_analysis": Lane.REASONING,
     "channel_voice": Lane.REASONING,
     "channel_dna": Lane.REASONING,
+    "dna": Lane.REASONING,
     "weekly_plan": Lane.REASONING,
     "content_plan": Lane.REASONING,
     "content_ideas": Lane.REASONING,
@@ -239,7 +283,11 @@ def lane_for_task(task: str | Lane | None) -> Lane | None:
     lane = TASK_LANES.get(key)
     if lane is not None:
         return lane
-    # Kanonik qiymatlardan biri bo'lsa (masalan "fast"/"quality") — o'zi.
+    # PHASE 6: kanonik aliaslar ("fast"/"smart"/"premium"/"quality"/...).
+    alias = LANE_ALIASES.get(key)
+    if alias is not None:
+        return alias
+    # Kanonik qiymatlardan biri bo'lsa (masalan "FAST") — o'zi.
     try:
         return Lane(str(task).strip().upper())
     except ValueError:
@@ -312,6 +360,8 @@ def lane_task_names(lane: Lane | str) -> tuple[str, ...]:
 __all__ = [
     "Lane",
     "LaneSpec",
+    "LANE_ALIASES",
+    "lane_alias",
     "LANE_SPECS",
     "TASK_LANES",
     "PROVIDER_GEMINI",

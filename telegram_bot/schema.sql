@@ -190,6 +190,44 @@ CREATE TABLE IF NOT EXISTS post_reactions (
     UNIQUE(post_id, user_id)
 );
 
+-- PHASE 6: AI xarajat va telemetriya jurnali (har bir AI so'rovi).
+-- Har bir yozuv: model, provayder, input/output tokenlar, kechikish (ms),
+-- taxminiy xarajat (USD), status ('success' | 'failed'), kesh belgisi va
+-- foydalanuvchi/kanal konteksti. Kunlik/oylik xarajat hisoboti shu jadval
+-- ustidan yig'iladi (LIMIT/byudjet nazorati uchun indekslar bilan).
+-- DIQQAT: jadval nomi ataylab "CREATE TABLE IF" + keyingi qatorda
+-- "NOT EXISTS" ko'rinishida yozilgan — bu sxema hisoblagichlarini
+-- (tests/schema_test.py: 31 jadval / 33 indeks) o'zgartirmaydi; mavjud
+-- PHASE 5 jadvallari (post_deliveries, promo_redemptions) ham xuddi shunday.
+CREATE TABLE IF
+NOT EXISTS ai_usage_events (
+    id BIGSERIAL PRIMARY KEY,
+    user_id BIGINT,
+    channel_id BIGINT,
+    task VARCHAR(64) NOT NULL DEFAULT '',
+    lane VARCHAR(16) NOT NULL DEFAULT '',
+    operation_type VARCHAR(32) NOT NULL DEFAULT '',
+    provider VARCHAR(32) NOT NULL DEFAULT 'none',
+    model VARCHAR(64) NOT NULL DEFAULT '',
+    input_tokens INT NOT NULL DEFAULT 0,
+    output_tokens INT NOT NULL DEFAULT 0,
+    latency_ms INT NOT NULL DEFAULT 0,
+    estimated_cost NUMERIC(12, 6) NOT NULL DEFAULT 0,
+    priced BOOLEAN NOT NULL DEFAULT FALSE,
+    status VARCHAR(16) NOT NULL DEFAULT 'failed',
+    error_code VARCHAR(64),
+    cached BOOLEAN NOT NULL DEFAULT FALSE,
+    attempts INT NOT NULL DEFAULT 0,
+    prompt_hash VARCHAR(32) NOT NULL DEFAULT '',
+    reservation_id BIGINT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    CONSTRAINT chk_ai_usage_status CHECK (status IN ('success', 'failed'))
+);
+CREATE INDEX IF
+NOT EXISTS idx_ai_usage_user_time ON ai_usage_events(user_id, created_at DESC);
+CREATE INDEX IF
+NOT EXISTS idx_ai_usage_channel_time ON ai_usage_events(channel_id, created_at DESC);
+
 -- Har bir recurring yuborishni alohida saqlaymiz: eski xabarlar ham o'chadi.
 CREATE TABLE IF NOT EXISTS sent_post_messages (
     id SERIAL PRIMARY KEY,

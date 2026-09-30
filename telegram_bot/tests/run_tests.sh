@@ -250,6 +250,44 @@ echo "===== 📮 PHASE 5 — TELEGRAM DELIVERY ENGINE ====="
 # (scheduler / broadcast / manual: enhancer, image, magic) + bulk send
 # kontraktlari (3 urinish, HTML fallback).
 "$PY" tests/delivery_engine_test.py || exit 1
+echo "===== 💰 PHASE 6 — AI GATEWAY + XARAJAT NAZORATI (COST CONTROL) ====="
+# (1) KANONIK INTERFEYS: `from services import ai_gateway` — yagona kirish;
+#     `ai_gateway.generate(task=..., prompt=..., user_id=..., channel_id=...,
+#     lane="fast"|"smart"|"premium")`; eski delegatlar (backward compat);
+# (2) ROUTER: social_post/channel_dna/post_score/repurpose → FAST/QUALITY/
+#     REASONING; lane aliaslari (tez/sifat/chuqur/rasm);
+# (3) TELEMETRIYA/XARAJAT: model, provider, input/output tokenlar, latency,
+#     estimated_cost, status (success/failed) — har bir so'rov uchun; kunlik
+#     va oylik hisobot foydalanuvchi/kanal kesimida; kesh hitlari 0 xarajat;
+# (4) APPLICATION SERVICE: atomik kvota bron → shlyuz → xatoda TO'LIQ refund
+#     + DB telemetriya yozuvi + quota_status;
+# (5) MOCK SIYOSATI: production'da DEFAULT O'CHIQ (zanjirga umuman kirmaydi),
+#     test/dev alohida rejim, AI_ALLOW_MOCK=1 ochiq override;
+# (6) RETRY/FALLBACK/BREAKER: 429/timeout/server/network → 1 retry (jitter'li
+#     backoff byudjetga mos), dasturiy xato → darhol keyingi provayder,
+#     breaker ochilgach provayder o'tkazib yuboriladi;
+# (7) PROMPT GUARD + QAT'IY VALIDATOR: kirish/chiqish himoyasi, "length >= 20"
+#     sun'iy bypass YO'Q (statik + dinamik), sxema buzilsa INVALID_SCHEMA;
+# (8) HANDLER IZOLYATSIYASI: provayder qatlamiga to'g'ridan-to'g'ri
+#     bog'lanish yo'q; legacy adapter (services.ai_service.run_ai_chain)
+#     o'zgarmagan; kanal-kalendar kanonik shlyuzga o'tgan.
+"$PY" tests/ai_gateway_cost_control_test.py || exit 1
+
+echo
+echo "===== 💰 PHASE 6 — AI XARAJAT JURNALI + HISOBOT (REAL POSTGRESQL) ====="
+# (1) 🧱 SCHEMA: `ai_usage_events` jadvali (model, provider, input/output
+#     tokenlar, latency_ms, estimated_cost, priced, status success|failed,
+#     error_code, cached, attempts, prompt_hash, reservation_id) va 2 ta
+#     indeks (user/kanal kesimi) — schema.sql + ichki migratsiya + real baza;
+# (2) 💾 YOZUV: `database.save_ai_usage_event(...)` parametrlangan INSERT,
+#     ID qaytaradi, noma'lum model `priced=False` (to'qima raqam YO'Q);
+# (3) 📊 HISOBOT: `database.get_ai_usage_report(user_id=..., period=daily)`
+#     va kanal kesimi — requests/successes/failures/tokenlar/xarajat;
+# (4) 🗓 DAVRLAR: daily / monthly (by_day bilan) / all;
+# (5) 🧹 RETENTION: `purge_ai_usage_events(days=...)` eski yozuvlarni o'chiradi;
+# (6) 🔌 APPLICATION SERVICE: `run_ai_task(...)` real adapterga telemetriya
+#     yozadi va `usage_id` qaytaradi.
+"$PY" tests/ai_cost_tracking_db_test.py || exit 1
 
 echo
 echo "BARCHA TESTLAR MUVOFFAQIYATLI ✔"
