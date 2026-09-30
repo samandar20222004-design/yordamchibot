@@ -469,8 +469,10 @@ def test_monitoring_metadata_extraction():
 def test_event_idempotency():
     print("\n== TEST 2: 🔁 Idempotency — ON CONFLICT DO NOTHING (funksional) ==")
     store = FakeChannelStore()
-    db_src = (ROOT / "database.py").read_text(encoding="utf-8")
-    ins_sql = db_src.split("def insert_channel_post_event", 1)[1].split("\ndef ", 1)[0]
+    # PHASE 4: SQL endi repositories/channels_repository.py da — funksiya
+    # manbasini ``inspect`` orqali topamiz (faylga bog'liq EMAS).
+    import inspect
+    ins_sql = inspect.getsource(db_mod.insert_channel_post_event)
     check("SQL: ON CONFLICT (channel_id, message_id) DO NOTHING",
           "ON CONFLICT (channel_id, message_id) DO NOTHING" in ins_sql, ins_sql[:300])
 

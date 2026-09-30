@@ -578,7 +578,9 @@ def test_schema_and_database_additive():
           and calls[1][1][-1] == "international_stars", calls)
 
     # database.process_stars_payment wrapper servisga delegat (API saqlangan).
-    src = (ROOT / "database.py").read_text(encoding="utf-8")
+    # PHASE 4: wrapper endi repositories/payments_repository.py da —
+    # manbani ``inspect`` orqali topamiz (faylga bog'liq EMAS).
+    src = inspect.getsource(db_mod.process_stars_payment)
     check("database.process_stars_payment → PaymentService delegati saqlangan",
           "PaymentService.process_stars_payment" in src)
     # Handler routing: yangi callback'lar ^sub_ patterni ostida.

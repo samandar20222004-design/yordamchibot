@@ -517,11 +517,17 @@ def test_audit_hooks_in_sources():
         check(f"{fn}: audit {action}", action in body and "cur=cur" in body)
 
     db_src = (ROOT / "database.py").read_text(encoding="utf-8")
-    check("database: log_admin_action mavjud", "def log_admin_action(" in db_src)
-    check("database: admin_audit_logs INSERT", "INSERT INTO admin_audit_logs" in db_src)
-    check("set_user_plan: admin_id uzatiladi", "admin_id=admin_id" in db_src)
+    # PHASE 4: bu funksiyalar endi repositories/ paketida — manbani
+    # ``inspect.getsource`` orqali topamiz (faylga bog'liq EMAS).
+    import inspect
+    import database as db_mod
+    audit_src = inspect.getsource(db_mod.log_admin_action)
+    check("database: log_admin_action mavjud", callable(db_mod.log_admin_action))
+    check("database: admin_audit_logs INSERT", "INSERT INTO admin_audit_logs" in audit_src)
+    check("set_user_plan: admin_id uzatiladi",
+          "admin_id=admin_id" in inspect.getsource(db_mod.set_user_plan))
     check("create_promo_code: admin_id uzatiladi",
-          "plan_type, admin_id=admin_id" in db_src)
+          "plan_type, admin_id=admin_id" in inspect.getsource(db_mod.create_promo_code))
 
 
 def test_schema_declares_rbac_audit():

@@ -146,6 +146,15 @@
 #       harakat uchun ALOHIDA TTL (matn, (user_id, callback_action), AI,
 #       URL/RSS fetch), global tozalash yo'q
 #       (tests/rate_limiter_redis_test.py)
+#   3P) 🗂 PHASE 4 — DATABASE MODULLASHUVI + REPOSITORY PATTERN:
+#       8 928 qatorli God module (`database.py`) yadroga (pool · tranzaksiya ·
+#       kesh · sxema) + toza FACADE ga bo'ldi; domain SQL 8 ta repository
+#       moduliga ko'chdi (settings/users/channels/posts/scheduler/teams/
+#       payments/audit). `database.X` — `repositories.<mod>.X` bilan bir xil
+#       obyekt (backward compatibility), `patch("database.db_cursor")`
+#       mock nuqtasi kech bog'lanish orqali saqlanadi, import sikli yo'q;
+#       `db_atomic` tranzaksiya dekroratori + ulanish/offload leak
+#       o'lchovlari (tests/repository_layering_test.py)
 #   4) TO'LIQ regressiya: telegram_bot/tests/run_tests.sh (barcha 30+ test fayli)
 #
 # Har qanday xatoda 1 bilan chiqadi (CI uchun).
@@ -913,6 +922,33 @@ echo "===== 3O) 🔐 PHASE 3: RBAC MARKAZLASHUVI + IDOR HIMOYASI ====="
 #     ``enforce_resource_access`` (alertli yopiq rad), ``resource_guard``
 #     dekoratori va ``ResourceRBACMiddleware`` (ApplicationHandlerStop).
 "$PY" tests/phase3_rbac_idor_test.py || EXIT_CODE=1
+
+echo
+echo "===== 3P) 🗂 PHASE 4: DATABASE MODULLASHUVI + REPOSITORY PATTERN ====="
+# (1) 🧩 GOD MODULE BO'LDI: 8 928 qatorli `telegram_bot/database.py` yadroga
+#     (pool · tranzaksiya · kesh · sxema) + FACADE ga bo'lindi. Domain
+#     ma'lumotlariga kirish 8 ta repository moduliga ko'chdi:
+#     settings / users / channels / posts / scheduler / teams / payments /
+#     audit. `database.X` — `repositories.<mod>.X` bilan AYNAN bir xil
+#     obyekt, shuning uchun `import database as db` va
+#     `from database import X` chaqiruvlari o'zgarishsiz ishlaydi;
+# (2) 🎯 MOCK NUQTASI SAQLANDI: repository yadroga `from database import`
+#     emas, `repositories.runtime` orqali KECH bog'lanadi — shuning uchun
+#     `patch("database.db_cursor")` repository ichidagi SQL'gacha yetib
+#     boradi (cross-repository chaqiruvlar uchun ham);
+# (3) 🔄 IMPORT TARTIBI ERKIN: `repositories/__init__.py` avval yadroni
+#     yuklaydi — import sikli yo'q (ikki tartib ham ishlaydi, test 5);
+# (4) 🧱 QATLAM INTIZOMI: core'da domain SQL yo'q, repository'da pool
+#     mexanikasi yo'q, proksi o'z ta'rifi bilan to'qnashmaydi;
+# (5) 🔒 TRANZAKSIYA KAFOLATI: `db_atomic` yangi dekoratori +
+#     `db_transaction`/async `transaction` — BEGIN/COMMIT/ROLLBACK va
+#     SAVEPOINT chegaralari soxta ulanish orqali tekshiriladi; uchta
+#     kritik oqim (post rejalashtirish / to'lov qabul qilish / kvota
+#     yechish) bitta atomik blokda ekanligi tasdiqlanadi;
+# (6) 💧 LEAK HIMOYASI: ulanish hisobi (`conn_balance()`), offload
+#     (thread pool saturation) o'lchovi va ular `get_db_pool_status()`
+#     ga ulandi (tests/repository_layering_test.py).
+"$PY" tests/repository_layering_test.py || EXIT_CODE=1
 
 echo
 echo "======== 4) TO'LIQ REGRESSIYA (telegram_bot/tests) ========"

@@ -533,8 +533,10 @@ def test_scheduled_list_format_and_actions():
           Q._format_queue_item(_post_row(103, None), 3, "uz").startswith("3. "))
 
     # --- Vaqt bo'yicha TARTIB (DB ORDER BY + ro'yxat tartibi) ---
-    db_src = (ROOT / "database.py").read_text(encoding="utf-8")
-    q_body = db_src.split("def get_queue_posts(", 1)[1].split("\ndef ", 1)[0]
+    # PHASE 4: SQL endi repositories/posts_repository.py da — funksiya
+    # manbasini ``inspect`` orqali topamiz (faylga bog'liq EMAS).
+    import inspect
+    q_body = inspect.getsource(db_mod.get_queue_posts)
     check("tartib: get_queue_posts ORDER BY scheduled_time ASC",
           "ORDER BY sp.scheduled_time ASC" in q_body, q_body[:200])
 
@@ -646,8 +648,8 @@ def test_safety_and_ownership():
     check("begona kanal: callback darhol answer qilindi", len(q.answered) == 1)
 
     # 🗑 O'chirish — begona post o'chirilmaydi (DB o'zi user_id bo'yicha filtrlaydi).
-    db_src = (ROOT / "database.py").read_text(encoding="utf-8")
-    cancel_body = db_src.split("def cancel_post(", 1)[1].split("\ndef ", 1)[0]
+    import inspect
+    cancel_body = inspect.getsource(db_mod.cancel_post)
     check("🗑 O'chirish: DB so'rovi user_id bo'yicha filtrlaydi",
           "AND user_id = %s" in cancel_body, cancel_body[:200])
     check("🗑 O'chirish: faqat 'pending' postga tegadi",
