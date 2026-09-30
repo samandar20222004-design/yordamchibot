@@ -59,14 +59,20 @@ logger = logging.getLogger(__name__)
 # Sozlash (ENV — .env.example'da hujjatlangan; chaqiruv paytida o'qiladi,
 # shuning uchun testlar/runtime'da o'zgartirish mumkin).
 # ---------------------------------------------------------------------------
-#: Fast Path qat'iy umumiy timeout'i (soniya) — spetsifikatsiya: 10-15s.
+#: Fast Path qat'iy umumiy timeout'i (soniya) — standart 12s (10-15s oyna).
+#: ``AI_FAST_PATH_TIMEOUT`` bilan sozlanadi — qat'iy muddat kafolati uchun
+#: qabul oynasi 1.0–15.0s (explicit ``timeout=`` argumenti bilan bir xil floк).
 
 
 def fast_path_timeout() -> float:
-    """FAST so'rovi uchun umumiy limit (hard cap: 12-15s, 2-BOSQICH)."""
+    """FAST so'rovi uchun umumiy limit (env sozlanadigan, 1–15s).
+
+    Standart 12s (Fast Path spetsifikatsiyasi: 10-15s). ``env`` qiymati
+    HURMAT qilinadi — past qiymat (masalan 0.5s) testlar va, kerak bo'lsa,
+    tajriba rejimlari uchun haqiqiy qat'iy muddat beradi (max(1.0)).
+    """
     try:
-        # 2-BOSQICH: umumiy zanjir 12-15s — env xavfsiz default 12s.
-        return min(15.0, max(12.0, float(os.getenv("AI_FAST_PATH_TIMEOUT", "12"))))
+        return min(15.0, max(1.0, float(os.getenv("AI_FAST_PATH_TIMEOUT", "12"))))
     except (TypeError, ValueError):
         return 12.0
 
