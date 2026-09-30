@@ -1077,3 +1077,34 @@ tekshiradi (static qismlar doim, live qismlar pgserver bilan):
 | 8 | Health check status | hech qachon istisno ko'tarmaydi |
 | 9 | Credits ledger audit | balans ↔ ledger zanjiri doim mos |
 | 10 | Graceful shutdown handler | SIGTERM/SIGINT tartibli yopilish |
+
+## Phase 2 — admission control integratsiyasi
+
+Kodning yagona ildizi `telegram_bot/`; parallel `bot/` paket kerak emas.
+`GuardedApplication` zanjiri: stale filter → **local admission** →
+**granular rate limit** → per-user lock → legacy burst/dedup → handler watchdog.
+`RateLimitMiddleware()` ning `group=-1` registratsiyasi saqlangan; bitta update
+hisoblagichga ikki marta yozilmaydi. Oddiy PTB Application ichida ham ishlaydi.
+
+- `UPDATE_ADMISSION_MAX_PENDING=128`: bitta processdagi faol + kutuvchi update'lar.
+- `UPDATE_ADMISSION_MAX_PER_USER=20`: bitta user/chat uchun faol + kutuvchi update'lar.
+  Albom hajmi va real trafik bo'yicha sozlang; ortiqcha update'lar rad etiladi.
+- Callback rad javobi DB'ga bormaydi; keshdagi til, 1 soniyalik javob timeout'i.
+- Redis hisoblagichi bitta Lua `EVAL` orqali `INCRBY` + TTL bajaradi. Redis ACL
+  `EVAL`, `INCRBY`, `TTL`, `EXPIRE` buyruqlariga ruxsat berishi kerak. Mavjud TTL
+  uzaytirilmaydi; eski muddatsiz hisoblagichga TTL tiklanadi. Cache API saqlangan.
+- Redis uchun `pip install redis` kerak (ixtiyoriy). Redis yo'q/uzilganida mavjud
+  In-Memory fallback qoladi; bu paytda global multi-instance limit kafolatlanmaydi.
+
+**Chegara:** bu patch Phase 2'ning update qabul qatlamini tuzatadi, Phase 3 RBAC'ni
+boshlamaydi. Admission/FSM lock process-local; PTB transport navbati, barcha
+AI/fetch servislaridagi alohida admission hamda distributed FSM kafolatlarini
+ushbu patch yakunlangan deb hisoblamaydi. RBAC, manual-post va DB API o'zgarmagan.
+
+Repo ildizidan regressiya tekshiruvlari:
+
+```bash
+python telegram_bot/tests/phase2_admission_test.py
+python telegram_bot/tests/cache_backend_test.py
+python tests/rate_limiter_redis_test.py
+```

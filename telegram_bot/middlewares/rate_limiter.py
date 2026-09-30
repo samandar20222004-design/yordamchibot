@@ -59,6 +59,8 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
+from contextlib import asynccontextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass
 from typing import Any, Iterable
 
@@ -412,6 +414,11 @@ def set_rate_limiter(limiter: RateLimiter | None) -> None:
     rate_limiter = limiter or RateLimiter()
 
 
+@dataclass
+class _AdmissionScope:
+    update: Any
+
+
 class RateLimitMiddleware(BaseHandler):
     """PTB middleware — update boshqaruv zanjirida granullarni tekshiradi.
 
@@ -431,9 +438,32 @@ class RateLimitMiddleware(BaseHandler):
 
     def __init__(self, limiter: RateLimiter | None = None, enabled: bool | None = None):
         super().__init__(callback=self._dispatch, block=True)
+        self._admitted_update: ContextVar[_AdmissionScope | None] = ContextVar(
+            "rate_admitted_update", default=None
+        )
         self.limiter = limiter if limiter is not None else rate_limiter
         if enabled is not None:
             self.limiter.enabled = bool(enabled)
+
+    @asynccontextmanager
+    async def admission(self, update: Any, context: Any = None):
+        """Pre-lock check, scoped to this middleware and update object.
+
+        Standalone BaseHandler usage still checks normally. Admitted updates
+        count once even if cancelled while waiting for the user lock.
+        """
+        if await self.process_update(update, context):
+            yield False
+            return
+        scope = _AdmissionScope(update)
+        token = self._admitted_update.set(scope)
+        try:
+            yield True
+        finally:
+            # Child/background tasks inherit ContextVars. Invalidate their
+            # marker too, and do not retain this update after dispatch exits.
+            scope.update = None
+            self._admitted_update.reset(token)
 
     # --- PTB handler interfeysi ----------------------------------------
     def check_update(self, update: Any) -> bool:
@@ -469,7 +499,7 @@ class RateLimitMiddleware(BaseHandler):
         except Exception:  # noqa: BLE001 — i18n nosoz bo'lsa — standart matn
             pass
         try:
-            await query.answer(text, show_alert=False)
+            await asyncio.wait_for(query.answer(text, show_alert=False), timeout=1.0)
         except Exception:  # noqa: BLE001 — javob yuborib bo'lmasa — jim
             logger.debug("rate_limiter: callback javobi yuborilmadi.", exc_info=True)
 
@@ -479,11 +509,19 @@ class RateLimitMiddleware(BaseHandler):
         Qaytaradi: ``True`` — update bloklandi (handler ishlamaydi),
         ``False`` — davom etish mumkin.
         """
+        scope = self._admitted_update.get()
+        if update is not None and scope is not None and scope.update is update:
+            return False
         limiter = self.limiter
         if not limiter.enabled:
             return False
         try:
-            decision = await limiter.evaluate(update)
+            # Admission now precedes the handler watchdog; bound the entire
+            # multi-bucket check, not only individual Redis socket operations.
+            decision = await asyncio.wait_for(
+                limiter.evaluate(update),
+                timeout=max(0.1, float(_cfg("REDIS_SOCKET_TIMEOUT", 2.0))),
+            )
         except asyncio.CancelledError:
             raise
         except Exception as exc:  # noqa: BLE001 — limiter botni to'xtatmasin

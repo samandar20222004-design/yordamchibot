@@ -1,7 +1,8 @@
 import asyncio
-from contextlib import asynccontextmanager
+from contextlib import AsyncExitStack, asynccontextmanager
 from datetime import datetime, timezone
 from urllib.parse import urlsplit
+from types import SimpleNamespace
 import logging
 import signal
 import sys
@@ -15,6 +16,8 @@ from config import (
     STALE_UPDATE_SECONDS,
     KEEP_ALIVE_URL,
     KEEP_ALIVE_INTERVAL_SECONDS,
+    UPDATE_ADMISSION_MAX_PENDING,
+    UPDATE_ADMISSION_MAX_PER_USER,
 )
 from utils.telegram_delivery import create_safe_bot
 from utils.handler_timeout import await_with_timeout
@@ -74,6 +77,10 @@ logger = logging.getLogger(__name__)
 # APScheduler va DB hisob-kitoblari hech qachon ajralib ketmasligi uchun.
 
 
+class UpdateAdmissionError(RuntimeError):
+    """Local update capacity is full; do not wait for a user lock."""
+
+
 class UpdateLockManager:
     """Per-user / per-chat lock menejeri.
 
@@ -86,10 +93,39 @@ class UpdateLockManager:
     foydalanilmagan lock'lar darhol tozalanadi.
     """
 
-    def __init__(self):
+    def __init__(self, max_pending=UPDATE_ADMISSION_MAX_PENDING,
+                 max_per_user=UPDATE_ADMISSION_MAX_PER_USER):
+        self._max_pending = max(1, int(max_pending))
+        self._max_per_user = max(1, int(max_per_user))
+        self._pending = 0
+        self._pending_by_key: dict[str, int] = {}
         self._locks: dict[str, asyncio.Lock] = {}
         self._counts: dict[str, int] = {}
         self._meta_lock = asyncio.Lock()
+
+    @asynccontextmanager
+    async def admit(self, key: str | None):
+        """Bound active + waiting updates before any I/O (one event loop).
+
+        This is local memory protection, NOT a distributed FSM/user lock.
+        Cancellation, rejection and handler errors always return the slot.
+        """
+        count = self._pending_by_key.get(key, 0) if key else 0
+        if self._pending >= self._max_pending or (key and count >= self._max_per_user):
+            raise UpdateAdmissionError
+        self._pending += 1
+        if key:
+            self._pending_by_key[key] = count + 1
+        try:
+            yield
+        finally:
+            self._pending -= 1
+            if key:
+                remaining = self._pending_by_key[key] - 1
+                if remaining:
+                    self._pending_by_key[key] = remaining
+                else:
+                    self._pending_by_key.pop(key, None)
 
     @asynccontextmanager
     async def lock(self, key: str | None):
@@ -104,15 +140,16 @@ class UpdateLockManager:
             self._counts[key] += 1
             user_lock = self._locks[key]
 
-        async with user_lock:
-            try:
+        try:
+            async with user_lock:
                 yield
-            finally:
-                async with self._meta_lock:
-                    self._counts[key] -= 1
-                    if self._counts[key] <= 0:
-                        self._locks.pop(key, None)
-                        self._counts.pop(key, None)
+        finally:
+            # Include cancellation WHILE WAITING, not just inside the lock.
+            async with self._meta_lock:
+                self._counts[key] -= 1
+                if self._counts[key] <= 0:
+                    self._locks.pop(key, None)
+                    self._counts.pop(key, None)
 
 
 def get_update_lock_key(update) -> str | None:
@@ -132,6 +169,7 @@ class GuardedApplication(Application):
     """Hujum/ortiqcha yuklama himoyasi va per-user concurrency locking qo'shilgan Application.
 
     Har bir update process_update() orqali o'tadi:
+    0. Bounded local admission + granular rate limiting BEFORE user locks.
     1. Per-user / per-chat lock: bir foydalanuvchining parallel so'rovlari (double click / race condition)
        seriyalashtiriladi, shunda ConversationHandler va context.user_data kutilmagan bosqichga sakrab ketmaydi.
     2. Global flood bo'lsa — qisqa pauza (backpressure) bilan sekinlashtiramiz.
@@ -182,6 +220,32 @@ class GuardedApplication(Application):
             return None
 
         lock_key = get_update_lock_key(update)
+        user_id = getattr(getattr(update, "effective_user", None), "id", None)
+        # Read cached language only: rejecting overload must not query the DB
+        # or create new user_data entries for every rejected sender.
+        context = SimpleNamespace(user_data=getattr(self, "user_data", {}).get(user_id, {}))
+        try:
+            async with self._lock_manager.admit(lock_key), AsyncExitStack() as stack:
+                # Keep standalone group=-1 middleware registration compatible.
+                # Its scoped marker prevents a second hit during PTB dispatch.
+                groups = list(getattr(self, "handlers", {}).items())
+                for _, handlers in sorted(groups):
+                    for handler in list(handlers):
+                        if isinstance(handler, RateLimitMiddleware):
+                            match = handler.check_update(update)
+                            if match is None or match is False:
+                                continue
+                            admitted = await stack.enter_async_context(
+                                handler.admission(update, context)
+                            )
+                            if not admitted:
+                                return None
+                return await self._process_admitted_update(update, lock_key)
+        except UpdateAdmissionError:
+            await RateLimitMiddleware._reject(update, context)
+            return None
+
+    async def _process_admitted_update(self, update, lock_key):
         async with self._lock_manager.lock(lock_key):
             try:
                 # 1) Global flood — botni to'xtatib qo'ymasdan, yukni sekinlashtiramiz
@@ -663,7 +727,9 @@ async def main():
     register_error_handlers(application)
 
     # PHASE 2 · Granular rate limiting — barcha handler'lardan OLDIN
-    # (group=-1) ishlaydi. Har bir harakat uchun alohida kalit + TTL:
+    # GuardedApplication admits BEFORE the user lock; group=-1 dispatch
+    # skips only that already-checked update (no double counting).
+    # Har bir harakat uchun alohida kalit + TTL:
     # matn xabarlari, (user_id, callback_action) throttling, qimmatli AI
     # amallari va URL/RSS fetch. Sanagichlar Redis'da (ixtiyoriy) —
     # aks holda In-Memory; Redis uzilsa avtomatik fallback (circuit

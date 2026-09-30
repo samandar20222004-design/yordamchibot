@@ -140,6 +140,16 @@ class FakeRedis:
         self.expiry.pop(key, None)
         return 1 if self.store.pop(key, None) is not None else 0
 
+    async def eval(self, script, numkeys, key, amount, ttl):
+        self._check("EVAL")
+        assert numkeys == 1
+        assert "INCRBY" in script and "EXPIRE" in script
+        value = int(self.store.get(key, 0)) + int(amount)
+        self.store[key] = str(value)
+        if int(ttl) > 0 and key not in self.expiry:
+            self.expiry[key] = int(ttl)
+        return value
+
     async def incrby(self, key, amount):
         self._check("INCR")
         value = int(self.store.get(key, 0)) + int(amount)
@@ -591,7 +601,7 @@ def test_circuit_breaker_graceful():
               bool(await limiter.allow_callback(90, "btn"))
               and resilient.circuit_open is False)
         check("tuzilgach: yana Redis ishlatilmoqda",
-              primary.client.commands[-1] in {"INCR", "EXPIRE"},
+              primary.client.commands[-1] in {"EVAL"},
               primary.client.commands[-1])
         await resilient.close()
 

@@ -95,6 +95,16 @@ class FakeRedisClient:
         self.ttls.pop(key, None)
         return 1 if self.values.pop(key, None) is not None else 0
 
+    async def eval(self, script, numkeys, key, amount, ttl):
+        self._guard("eval")
+        assert numkeys == 1
+        assert "INCRBY" in script and "EXPIRE" in script
+        value = int(self.values.get(key, 0)) + int(amount)
+        self.values[key] = str(value)
+        if int(ttl) > 0 and key not in self.ttls:
+            self.ttls[key] = int(ttl)
+        return value
+
     async def incrby(self, key, amount):
         self._guard("incrby")
         new = int(self.values.get(key, 0)) + int(amount)
