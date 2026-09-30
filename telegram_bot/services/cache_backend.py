@@ -372,11 +372,20 @@ class RedisCacheBackend(CacheBackend):
       yaratilmaydi, factory avvaldan In-Memory rejimga o'tadi;
     * har bir istisno ``CacheUnavailableError`` ga aylantiriladi —
       :class:`ResilientCacheBackend` shuni ushlab, In-Memory'ga qaytadi;
-    * ``setex``/``expire``/``incrby`` — Redis'ning o'z atomar
-      buyruqlari (fixed window oyna ``incr`` + birinchi marta ``expire``).
+    * ``incr`` uses one Lua command: increment + TTL are atomic, including
+      repair of counters left without expiry by older deployments.
     """
 
     name = "redis"
+
+    _INCR_SCRIPT = """
+local value = redis.call('INCRBY', KEYS[1], ARGV[1])
+local ttl = tonumber(ARGV[2])
+if ttl > 0 and redis.call('TTL', KEYS[1]) < 0 then
+    redis.call('EXPIRE', KEYS[1], ttl)
+end
+return value
+"""
 
     def __init__(
         self,
@@ -436,12 +445,11 @@ class RedisCacheBackend(CacheBackend):
                 step = int(amount)
             except (TypeError, ValueError):
                 step = 1
-            value = int(await self._client.incrby(full, step))
-            # Fixed window: TTL faqat kalit birinchi marta yaratilganda.
-            if value == step:
-                ex = self._expiry_for(ttl)
-                if ex is not None:
-                    await self._client.expire(full, ex)
+            # Do not fall back to separate INCR/EXPIRE: cancellation or a
+            # disconnect between them can leave an immortal rate-limit key.
+            value = int(await self._client.eval(
+                self._INCR_SCRIPT, 1, full, step, self._expiry_for(ttl) or 0,
+            ))
         except Exception as exc:  # noqa: BLE001
             raise CacheUnavailableError(f"redis.incr: {exc}") from exc
         return int(value)

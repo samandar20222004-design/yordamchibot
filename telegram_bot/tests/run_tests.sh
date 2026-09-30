@@ -223,6 +223,8 @@ echo "===== 🗄 STATE & CACHE ADAPTER — REDIS ⇄ IN-MEMORY (PHASE 2) ====="
 # maxsize nazorati) va circuit-breaker bilan avtomatik In-Memory fallback.
 # Tarmoq KERAK EMAS — sun'iy redis.asyncio mijozi (deterministik).
 "$PY" tests/cache_backend_test.py || exit 1
+"$PY" ../tests/rate_limiter_redis_test.py || exit 1
+"$PY" tests/phase2_admission_test.py || exit 1
 
 echo
 echo "BARCHA TESTLAR MUVOFFAQIYATLI ✔"

@@ -235,6 +235,11 @@ MEM_CACHE_MAX_ENTRIES = _int_env("MEM_CACHE_MAX_ENTRIES", 20000)
 MEM_CACHE_MAX_VALUE_BYTES = _int_env("MEM_CACHE_MAX_VALUE_BYTES", 65536)
 MEM_CACHE_MAX_TOTAL_BYTES = _int_env("MEM_CACHE_MAX_TOTAL_BYTES", 33554432)
 
+# Local admission: includes active updates and user-lock waiters. These are
+# per-process RAM limits, not distributed Redis locks. Always enabled.
+UPDATE_ADMISSION_MAX_PENDING = max(1, _int_env("UPDATE_ADMISSION_MAX_PENDING", 128))
+UPDATE_ADMISSION_MAX_PER_USER = max(1, _int_env("UPDATE_ADMISSION_MAX_PER_USER", 20))
+
 # --- Granular rate limiting (middlewares/rate_limiter.py) -----------------
 # Har bir harakat uchun ALOHIDA kalit + ALOHIDA TTL (global tozalash yo'q).
 # RATE_LIMIT_ENABLED=0 — barcha granullar o'chiriladi (diagnostika uchun).
