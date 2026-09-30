@@ -77,6 +77,9 @@ class FakeMessage:
         self.text = text
         self.caption = caption
         self.chat = SimpleNamespace(id=555000)
+        # PTB v21 Message.chat_id property'si — handlerlar typing/
+        # yetkazish uchun aynan shundan foydalanadi (fake double kontrakti).
+        self.chat_id = 555000
         self.replies = []
 
     async def reply_text(self, text, reply_markup=None, parse_mode=None, **kwargs):
