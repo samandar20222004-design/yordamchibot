@@ -1,4 +1,4 @@
-"""🚀 AI AUTOPILOT matnlari (UZ/RU/EN, bir xil kalitlar — PHASE C, 7-band)."""
+"""🚀 AI AUTOPILOT matnlari (UZ/RU/EN, bir xil kalitlar — PHASE C + PHASE 8 V2)."""
 
 from locales.translations import normalize_lang
 
@@ -77,6 +77,50 @@ AUTOPILOT_I18N = {
             "⛔ Ruxsat yo'q (Permission Denied). Bu kanalda avtopilot "
             "rejasini rejalashtirish huquqingiz yo'q."
         ),
+        # --- PHASE 8: 7-Day Autopilot V2 (Strategy & Approval Modes) ---
+        "v2_strategy_box": (
+            "\n\n🧭 <b>Strategiya (V2):</b>\n"
+            "• 🎯 Maqsad: <b>{goal}</b>\n"
+            "• 📊 Chastota: <b>{frequency}x / kun</b>\n"
+            "• 🛡 Rejim: <b>{mode}</b>\n"
+            "• 🌙 Tinchlik soati: <b>{quiet}</b>"
+        ),
+        "v2_post_card": (
+            "📄 <b>Post #{n} · {weekday} ({date}) — {time}</b>\n"
+            "📌 Mavzu: <b>{topic}</b>\n"
+            "🏷 Format: <i>{fmt}</i> · ⭐ Sifat: <b>{score}%</b>\n"
+            "📌 Holat: <b>{status}</b>{quiet_note}\n\n"
+            "{post}"
+        ),
+        "v2_quiet_shifted": "\n🌙 <i>Quiet Hours sababli ertalabki optimal vaqtga ko'chirildi</i>",
+        "v2_status_pending": "⏳ Tasdiq kutmoqda",
+        "v2_status_approved": "✅ Jadvalda",
+        "v2_status_auto": "⚡ Avto-jadvalda",
+        "v2_status_review": "⚠️ Ko'rib chiqish kerak",
+        "v2_semi_summary": (
+            "⚡ <b>SEMI-AUTO:</b> yuqori sifatli (≥80%) <b>{auto_count}</b> ta post "
+            "avtomatik rejalashtirildi; <b>{review_count}</b> ta post tasdiq kutmoqda."
+        ),
+        "v2_auto_pro_only": (
+            "🔒 <b>AUTO rejimi faqat 💎 PRO foydalanuvchilar uchun!</b>\n"
+            "PRO tarifiga o'ting yoki MANUAL / SEMI-AUTO rejimini tanlang."
+        ),
+        "v2_post_approved": "✅ {n}-post tasdiqlandi va jadvalga qo'yildi!",
+        "v2_post_deleted": "🗑 {n}-post rejadan o'chirildi.",
+        "v2_post_regenerated": "🔄 {n}-post AI bilan yangilandi.",
+        "btn_post_approve": "✅ Tasdiqlash",
+        "btn_post_edit": "✏️ Tahrirlash",
+        "btn_post_regen": "🔄 Yangilash",
+        "btn_post_delete": "🗑 O'chirish",
+        "btn_goal_growth": "📈 O'sish",
+        "btn_goal_sales": "💰 Sotuv",
+        "btn_goal_engagement": "💬 Faollik",
+        "btn_goal_expertise": "🎯 Ekspertiza",
+        "btn_mode_manual": "👁 Manual",
+        "btn_mode_semi": "⚡ Semi-Auto",
+        "btn_mode_auto": "🤖 Auto (PRO)",
+        "btn_quiet_on": "🌙 23:00-08:00",
+        "btn_quiet_off": "🔔 Tinchlik: Yo'q",
     },
     "ru": {
         "intro": "🚀 <b>AI АВТОПИЛОТ</b>\n\nКанал: <b>{channel}</b>\n\n"
@@ -143,6 +187,50 @@ AUTOPILOT_I18N = {
             "⛔ Нет доступа (Permission Denied). У вас нет прав "
             "планировать автопилот в этом канале."
         ),
+        # --- PHASE 8: 7-Day Autopilot V2 (Strategy & Approval Modes) ---
+        "v2_strategy_box": (
+            "\n\n🧭 <b>Стратегия (V2):</b>\n"
+            "• 🎯 Цель: <b>{goal}</b>\n"
+            "• 📊 Частота: <b>{frequency}x / день</b>\n"
+            "• 🛡 Режим: <b>{mode}</b>\n"
+            "• 🌙 Тихие часы: <b>{quiet}</b>"
+        ),
+        "v2_post_card": (
+            "📄 <b>Пост #{n} · {weekday} ({date}) — {time}</b>\n"
+            "📌 Тема: <b>{topic}</b>\n"
+            "🏷 Формат: <i>{fmt}</i> · ⭐ Качество: <b>{score}%</b>\n"
+            "📌 Статус: <b>{status}</b>{quiet_note}\n\n"
+            "{post}"
+        ),
+        "v2_quiet_shifted": "\n🌙 <i>Перенесён на утро из-за тихих часов</i>",
+        "v2_status_pending": "⏳ Ожидает одобрения",
+        "v2_status_approved": "✅ Запланирован",
+        "v2_status_auto": "⚡ Авто-запланирован",
+        "v2_status_review": "⚠️ Требует проверки",
+        "v2_semi_summary": (
+            "⚡ <b>SEMI-AUTO:</b> высококачественных (≥80%) постов запланировано: "
+            "<b>{auto_count}</b>; ожидают подтверждения: <b>{review_count}</b>."
+        ),
+        "v2_auto_pro_only": (
+            "🔒 <b>Режим AUTO доступен только для 💎 PRO!</b>\n"
+            "Перейдите на PRO или выберите режим MANUAL / SEMI-AUTO."
+        ),
+        "v2_post_approved": "✅ Пост #{n} одобрен и поставлен в очередь!",
+        "v2_post_deleted": "🗑 Пост #{n} удалён из плана.",
+        "v2_post_regenerated": "🔄 Пост #{n} обновлён с помощью AI.",
+        "btn_post_approve": "✅ Одобрить",
+        "btn_post_edit": "✏️ Изменить",
+        "btn_post_regen": "🔄 Обновить",
+        "btn_post_delete": "🗑 Удалить",
+        "btn_goal_growth": "📈 Рост",
+        "btn_goal_sales": "💰 Продажи",
+        "btn_goal_engagement": "💬 Актив",
+        "btn_goal_expertise": "🎯 Эксперт",
+        "btn_mode_manual": "👁 Вручную",
+        "btn_mode_semi": "⚡ Полуавто",
+        "btn_mode_auto": "🤖 Авто (PRO)",
+        "btn_quiet_on": "🌙 23:00-08:00",
+        "btn_quiet_off": "🔔 Тишина: Нет",
     },
     "en": {
         "intro": "🚀 <b>AI AUTOPILOT</b>\n\nChannel: <b>{channel}</b>\n\n"
@@ -209,6 +297,50 @@ AUTOPILOT_I18N = {
             "⛔ Permission denied. You are not allowed to schedule the "
             "autopilot plan in this channel."
         ),
+        # --- PHASE 8: 7-Day Autopilot V2 (Strategy & Approval Modes) ---
+        "v2_strategy_box": (
+            "\n\n🧭 <b>Strategy (V2):</b>\n"
+            "• 🎯 Goal: <b>{goal}</b>\n"
+            "• 📊 Frequency: <b>{frequency}x / day</b>\n"
+            "• 🛡 Mode: <b>{mode}</b>\n"
+            "• 🌙 Quiet Hours: <b>{quiet}</b>"
+        ),
+        "v2_post_card": (
+            "📄 <b>Post #{n} · {weekday} ({date}) — {time}</b>\n"
+            "📌 Topic: <b>{topic}</b>\n"
+            "🏷 Format: <i>{fmt}</i> · ⭐ Quality: <b>{score}%</b>\n"
+            "📌 Status: <b>{status}</b>{quiet_note}\n\n"
+            "{post}"
+        ),
+        "v2_quiet_shifted": "\n🌙 <i>Shifted to morning optimal time due to Quiet Hours</i>",
+        "v2_status_pending": "⏳ Pending approval",
+        "v2_status_approved": "✅ Scheduled",
+        "v2_status_auto": "⚡ Auto-scheduled",
+        "v2_status_review": "⚠️ Needs review",
+        "v2_semi_summary": (
+            "⚡ <b>SEMI-AUTO:</b> high-quality (≥80%) posts auto-scheduled: "
+            "<b>{auto_count}</b>; awaiting approval: <b>{review_count}</b>."
+        ),
+        "v2_auto_pro_only": (
+            "🔒 <b>AUTO mode is available for 💎 PRO users only!</b>\n"
+            "Upgrade to PRO or choose MANUAL / SEMI-AUTO mode."
+        ),
+        "v2_post_approved": "✅ Post #{n} approved and scheduled!",
+        "v2_post_deleted": "🗑 Post #{n} deleted from the plan.",
+        "v2_post_regenerated": "🔄 Post #{n} regenerated with AI.",
+        "btn_post_approve": "✅ Approve",
+        "btn_post_edit": "✏️ Edit",
+        "btn_post_regen": "🔄 Regenerate",
+        "btn_post_delete": "🗑 Delete",
+        "btn_goal_growth": "📈 Growth",
+        "btn_goal_sales": "💰 Sales",
+        "btn_goal_engagement": "💬 Engage",
+        "btn_goal_expertise": "🎯 Expert",
+        "btn_mode_manual": "👁 Manual",
+        "btn_mode_semi": "⚡ Semi-Auto",
+        "btn_mode_auto": "🤖 Auto (PRO)",
+        "btn_quiet_on": "🌙 23:00-08:00",
+        "btn_quiet_off": "🔔 Quiet: Off",
     },
 }
 
