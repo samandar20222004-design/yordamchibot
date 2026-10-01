@@ -290,4 +290,17 @@ echo "===== 💰 PHASE 6 — AI XARAJAT JURNALI + HISOBOT (REAL POSTGRESQL) ====
 "$PY" tests/ai_cost_tracking_db_test.py || exit 1
 
 echo
+echo "===== 🚀 PHASE 8 — 7-DAY AUTOPILOT V2 (STRATEGY & APPROVAL MODES) ====="
+# (1) ContentLoop + Channel DNA + Gaps asosida 7 kunlik strategik kontent reja
+#     (goal: growth/sales/engagement/expertise; frequency: 1, 2, 3 post/kun);
+# (2) Tasdiqlash rejimlari (MANUAL, SEMI_AUTO >= 0.8, AUTO faqat PRO uchun);
+# (3) Quiet Hours (23:00 - 08:00) va Smart Rescheduling (ertalabki optimal
+#     vaqtga avtomatik ko'chirish);
+# (4) Dublikat tekshiruvi: 7 kunlik reja ichida (intra-plan) va so'nggi 30
+#     kunlik kanal postlari bilan mavzular hamda matnlar o'xshashligi;
+# (5) Handler/UX: har bir postni ko'rish (View), tasdiqlash (Approve),
+#     tahrirlash (Edit), qayta yaratish (Regenerate) va o'chirish (Delete).
+"$PY" tests/autopilot_v2_test.py || exit 1
+
+echo
 echo "BARCHA TESTLAR MUVOFFAQIYATLI ✔"

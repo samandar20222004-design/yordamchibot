@@ -322,8 +322,8 @@ REGISTERED_STATIC_CALLBACKS = frozenset({
     # 📊 Statistika/analitika (payload'siz).
     "an_close", "an_detail", "an_other", "an_overview", "an_refresh",
     # 🗓 Calendar / Avtopilot / Shablonlar (payload'siz stale amallar).
-    "cal_cancel", "ap_cancel", "ap_confirm", "ap_edit", "ap_force",
-    "ap_refresh", "ap_regen", "tpl_back", "tpl_cancel",
+    "cal_cancel", "ap_back", "ap_cancel", "ap_cfg", "ap_confirm", "ap_edit",
+    "ap_force", "ap_posts", "ap_refresh", "ap_regen", "tpl_back", "tpl_cancel",
     # ✨ Magic Post / Post Score / Voice / Image (payload'siz amallar).
     "mp_back", "mp_cancel", "mp_restyle", "mp_sched", "mp_send",
     "ps_improve", "ps_send", "ps_sched", "ps_new", "ps_chall",
@@ -372,6 +372,8 @@ CALLBACK_SEMANTICS = {
     "mnp_rback": NAV_SEMANTIC_BACK,       # reaksiyalar → preview panel
     "plan_back": NAV_SEMANTIC_BACK,
     "plan_back_to_list": NAV_SEMANTIC_BACK,
+    "ap_back": NAV_SEMANTIC_BACK,
+    "ap_eday:back": NAV_SEMANTIC_BACK,
     "sub_back": NAV_SEMANTIC_BACK,
     "ext_back": NAV_SEMANTIC_BACK,
     "edit_field:back": NAV_SEMANTIC_BACK,

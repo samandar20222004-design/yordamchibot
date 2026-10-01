@@ -304,12 +304,16 @@ from handlers.content_calendar_flow import (
 # dublikat detektori 85%+ o'xshashlikda 3 tugmali ogohlantirish beradi.
 from handlers.autopilot import (
     AUTOPILOT_TOPIC, AUTOPILOT_VIEW, AUTOPILOT_EDIT_DAY, AUTOPILOT_EDIT_INPUT,
-    channel_autopilot_entry, autopilot_topic_received,
+    channel_autopilot_entry, autopilot_strategy_callback,
+    autopilot_topic_received,
     autopilot_confirm_callback, autopilot_force_callback,
     autopilot_refresh_callback, autopilot_regen_callback,
     autopilot_edit_callback, autopilot_edit_day_callback,
-    autopilot_edit_input_received, autopilot_cancel_callback,
-    autopilot_stale_callback,
+    autopilot_edit_input_received, autopilot_back_to_plan_callback,
+    autopilot_post_view_callback, autopilot_post_approve_callback,
+    autopilot_post_edit_callback, autopilot_post_regen_callback,
+    autopilot_post_delete_callback,
+    autopilot_cancel_callback, autopilot_stale_callback,
 )
 
 # 8d. 📋 POST SHABLONLARI — takroriy postlar shablonlari (PHASE C, 9-band).
@@ -1419,6 +1423,10 @@ def register_all_handlers(app):
             # ``ap_cancel`` HAR UCH holatda ham ishlaydi (eski tugma bosilganda
             # ham oqim toza yopiladi, crash bo'lmaydi).
             AUTOPILOT_TOPIC: all_menu_jumps + [
+                CallbackQueryHandler(
+                    autopilot_strategy_callback,
+                    pattern=r"^ap_(?:goal|freq|mode|quiet):",
+                ),
                 CallbackQueryHandler(autopilot_cancel_callback, pattern=r"^ap_cancel$"),
                 MessageHandler(filters.TEXT & ~filters.COMMAND, autopilot_topic_received),
             ],
@@ -1428,16 +1436,33 @@ def register_all_handlers(app):
                 CallbackQueryHandler(autopilot_force_callback, pattern=r"^ap_force$"),
                 CallbackQueryHandler(autopilot_refresh_callback, pattern=r"^ap_refresh$"),
                 CallbackQueryHandler(autopilot_regen_callback, pattern=r"^ap_regen$"),
+                CallbackQueryHandler(autopilot_post_view_callback, pattern=r"^ap_pview:"),
+                CallbackQueryHandler(autopilot_post_approve_callback, pattern=r"^ap_papp:"),
+                CallbackQueryHandler(autopilot_post_edit_callback, pattern=r"^ap_pedit:"),
+                CallbackQueryHandler(autopilot_post_regen_callback, pattern=r"^ap_pregen:"),
+                CallbackQueryHandler(autopilot_post_delete_callback, pattern=r"^ap_pdel:"),
+                CallbackQueryHandler(autopilot_back_to_plan_callback, pattern=r"^ap_back$"),
                 CallbackQueryHandler(autopilot_cancel_callback, pattern=r"^ap_cancel$"),
                 # Yangi mavzu yozilsa — reja to'g'ridan-to'g'ri qayta tuziladi.
                 MessageHandler(filters.TEXT & ~filters.COMMAND, autopilot_topic_received),
             ],
             AUTOPILOT_EDIT_DAY: all_menu_jumps + [
                 CallbackQueryHandler(autopilot_edit_day_callback, pattern=r"^ap_eday:"),
+                CallbackQueryHandler(autopilot_post_view_callback, pattern=r"^ap_pview:"),
+                CallbackQueryHandler(autopilot_post_approve_callback, pattern=r"^ap_papp:"),
+                CallbackQueryHandler(autopilot_post_edit_callback, pattern=r"^ap_pedit:"),
+                CallbackQueryHandler(autopilot_post_regen_callback, pattern=r"^ap_pregen:"),
+                CallbackQueryHandler(autopilot_post_delete_callback, pattern=r"^ap_pdel:"),
+                CallbackQueryHandler(autopilot_back_to_plan_callback, pattern=r"^ap_back$"),
                 CallbackQueryHandler(autopilot_confirm_callback, pattern=r"^ap_confirm$"),
                 CallbackQueryHandler(autopilot_cancel_callback, pattern=r"^ap_cancel$"),
             ],
             AUTOPILOT_EDIT_INPUT: all_menu_jumps + [
+                CallbackQueryHandler(autopilot_post_approve_callback, pattern=r"^ap_papp:"),
+                CallbackQueryHandler(autopilot_post_edit_callback, pattern=r"^ap_pedit:"),
+                CallbackQueryHandler(autopilot_post_regen_callback, pattern=r"^ap_pregen:"),
+                CallbackQueryHandler(autopilot_post_delete_callback, pattern=r"^ap_pdel:"),
+                CallbackQueryHandler(autopilot_back_to_plan_callback, pattern=r"^ap_back$|^ap_eday:back$"),
                 CallbackQueryHandler(autopilot_cancel_callback, pattern=r"^ap_cancel$"),
                 MessageHandler(filters.TEXT & ~filters.COMMAND, autopilot_edit_input_received),
             ],
