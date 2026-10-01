@@ -156,6 +156,20 @@ CB_POST_SCORE_SCHEDULE = "ps_sched"
 CB_POST_SCORE_NEW = "ps_new"
 CB_POST_SCORE_SEND_ALL = "ps_chall"
 
+# 🧭 PHASE 9 — Kontekstual menyular va 2 daqiqalik Instant-Value Onboarding.
+CB_CTX_POST = "ctx_post:"
+CB_CTX_AI_POST = "ctx_post:ai"
+CB_CTX_MANUAL_POST = "ctx_post:manual"
+CB_CTX_IMAGE_POST = "ctx_post:image"
+CB_CTX_VOICE_POST = "ctx_post:voice"
+CB_CTX_LINK_POST = "ctx_post:url"
+CB_CTX_RECYCLE_POST = "ctx_post:recycle"
+CB_CTX_AI_ASSISTANT = "ctx_post:assistant"
+CB_CTX_POST_SCORE = "ctx_post:score"
+CB_CHANNEL_PLAN = "ch_plan:"
+CB_CHANNEL_TEAM = "ch_team:"
+CB_ONB_PLAN = "onb_plan:"
+
 #: Barcha kanonik prefikslar (test va audit uchun).
 CANONICAL_PREFIXES = (
     CB_CHANNEL_DELETE,
@@ -210,6 +224,11 @@ CANONICAL_PREFIXES = (
     # 📊 Post Score — dinamik payload qo'shiladigan prefikslar.
     CB_POST_SCORE_EVAL,
     CB_POST_SCORE_CHANNEL,
+    # 🧭 PHASE 9 — Contextual menus & Instant-Value Onboarding.
+    CB_CTX_POST,
+    CB_CHANNEL_PLAN,
+    CB_CHANNEL_TEAM,
+    CB_ONB_PLAN,
 )
 
 
@@ -267,6 +286,8 @@ REGISTERED_NAMESPACES = (
     "nprt:", "react:", "sched_br:",
     # 👥 Team approval kartochkalari.
     "team_",
+    # 🧭 PHASE 9 — Kontekstual menyular va Instant-Value Onboarding.
+    "ctx_post:", "onb_plan:",
     # 🔔 Majburiy obuna / PRO tarif oqimi.
     "sub_", "check_sub",
     # 🧰 Vositalar: Konvertor + Post Enhancer.
@@ -322,8 +343,8 @@ REGISTERED_STATIC_CALLBACKS = frozenset({
     # 📊 Statistika/analitika (payload'siz).
     "an_close", "an_detail", "an_other", "an_overview", "an_refresh",
     # 🗓 Calendar / Avtopilot / Shablonlar (payload'siz stale amallar).
-    "cal_cancel", "ap_cancel", "ap_confirm", "ap_edit", "ap_force",
-    "ap_refresh", "ap_regen", "tpl_back", "tpl_cancel",
+    "cal_cancel", "ap_back", "ap_cancel", "ap_cfg", "ap_confirm", "ap_edit",
+    "ap_force", "ap_posts", "ap_refresh", "ap_regen", "tpl_back", "tpl_cancel",
     # ✨ Magic Post / Post Score / Voice / Image (payload'siz amallar).
     "mp_back", "mp_cancel", "mp_restyle", "mp_sched", "mp_send",
     "ps_improve", "ps_send", "ps_sched", "ps_new", "ps_chall",
@@ -372,6 +393,8 @@ CALLBACK_SEMANTICS = {
     "mnp_rback": NAV_SEMANTIC_BACK,       # reaksiyalar → preview panel
     "plan_back": NAV_SEMANTIC_BACK,
     "plan_back_to_list": NAV_SEMANTIC_BACK,
+    "ap_back": NAV_SEMANTIC_BACK,
+    "ap_eday:back": NAV_SEMANTIC_BACK,
     "sub_back": NAV_SEMANTIC_BACK,
     "ext_back": NAV_SEMANTIC_BACK,
     "edit_field:back": NAV_SEMANTIC_BACK,

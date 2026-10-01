@@ -19,6 +19,18 @@ from keyboards.callback_data import (  # noqa: F401 — re-export (eski importla
     CB_CHANNEL_STATS,
     CB_CHANNEL_TEMPLATES,
     CB_CHANNEL_VOICE,
+    CB_CHANNEL_PLAN,
+    CB_CHANNEL_TEAM,
+    CB_CTX_POST,
+    CB_CTX_AI_POST,
+    CB_CTX_MANUAL_POST,
+    CB_CTX_IMAGE_POST,
+    CB_CTX_VOICE_POST,
+    CB_CTX_LINK_POST,
+    CB_CTX_RECYCLE_POST,
+    CB_CTX_AI_ASSISTANT,
+    CB_CTX_POST_SCORE,
+    CB_ONB_PLAN,
     CB_SCHED_BTN_REACT,
     CB_SCHED_DELETE,
     CB_SCHED_EDIT,
@@ -681,63 +693,113 @@ def render_my_channels_list(channels: list, lang: str = "uz") -> InlineKeyboardM
     return InlineKeyboardMarkup(keyboard)
 
 
-def render_channel_panel(channel_id, lang: str = "uz") -> InlineKeyboardMarkup:
-    """📢 Kanal boshqaruv ekrani — master plan speksidagi QAT'IY layout::
+def get_post_creation_contextual_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
+    """✍️ PHASE 9 — `[✍️ Post yaratish]` bosilganda chiqadigan kontekstual menyu::
 
-        [➕ Post yaratish]
-        [📅 Rejalashtirilgan]   [📊 Statistika]
-        [🧠 Kanal DNA]          [⏰ Eng yaxshi vaqt]
-        [🚀 AI Avtopilot]       [📋 Shablonlar]
-        [⚙️ Kanal sozlamalari]  [◀️ Orqaga]
+        [⚡ AI Post]        [📝 Oddiy Post]
+        [🖼 Rasmdan Post]   [🎙 Ovozdan Post]
+        [🔗 Havoladan Post] [♻️ Qayta ishlash]
+        [🤖 AI Yordamchi]   [📊 Post Score]
 
-    Barcha tugmalar kanal KONTEKSTINI (``channel_id``) olib yuradi, shuning
-    uchun ichki amallar asosiy menyuga chiqib ketmaydi; [◀️ Orqaga] esa
-    kanallar ro'yxatiga qaytaradi (``ch_back``).
+    Barcha tugma yorliqlari ≤ 18 belgi va 3 tilda (UZ/RU/EN) to'liq sinxron.
+    """
+    from translations import content_menu_t
 
-    🧠 PHASE B: yangi [🧠 Kanal DNA] va [⏰ Eng yaxshi vaqt] tugmalari —
-    kanal uslubiy profili va optimal post vaqti (ownership himoyalangan).
+    return InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton(content_menu_t("ctx_btn_ai_post", lang),
+                                 callback_data=CB_CTX_AI_POST),
+            InlineKeyboardButton(content_menu_t("ctx_btn_manual_post", lang),
+                                 callback_data=CB_CTX_MANUAL_POST),
+        ],
+        [
+            InlineKeyboardButton(content_menu_t("ctx_btn_image_post", lang),
+                                 callback_data=CB_CTX_IMAGE_POST),
+            InlineKeyboardButton(content_menu_t("ctx_btn_voice_post", lang),
+                                 callback_data=CB_CTX_VOICE_POST),
+        ],
+        [
+            InlineKeyboardButton(content_menu_t("ctx_btn_link_post", lang),
+                                 callback_data=CB_CTX_LINK_POST),
+            InlineKeyboardButton(content_menu_t("ctx_btn_recycle", lang),
+                                 callback_data=CB_CTX_RECYCLE_POST),
+        ],
+        [
+            InlineKeyboardButton(content_menu_t("ctx_btn_assistant", lang),
+                                 callback_data=CB_CTX_AI_ASSISTANT),
+            InlineKeyboardButton(content_menu_t("ctx_btn_post_score", lang),
+                                 callback_data=CB_CTX_POST_SCORE),
+        ],
+    ])
 
-    🚀 PHASE C: [🚀 AI Avtopilot] (7 kunlik reja, DNA + best time asosida)
-    va [📋 Shablonlar] (post shablonlari menyusi) — ikkalasi ham kanal
-    egaligi (IDOR) tekshiruvi bilan ochiladi.
 
-    📥 PHASE D (2/2): [📥 Kontent manbalari] — 🔗 havoladan post (URL → 4
-    format), 📡 RSS/ATOM oqimi va ♻️ eski postni yangilash (recycle). Hammasi
-    shu kanal kontekstida, IDOR himoyasi bilan.
+render_post_creation_menu = get_post_creation_contextual_keyboard
+
+
+def get_channel_contextual_keyboard(channel_id, lang: str = "uz") -> InlineKeyboardMarkup:
+    """📢 PHASE 9 — `[📢 Kanallarim]` ichida har bir kanal uchun kontekstual menyu::
+
+        [➕ Kanal qo‘shish]
+        [🚀 Autopilot]   [📋 Kontent reja]
+        [🧬 Channel DNA] [📊 Analytics]
+        [👥 Team]        [⚙️ Sozlamalar]
+        [◀️ Orqaga]
+
+    Barcha tugmalar ≤ 18 belgi, 3 tilda (UZ/RU/EN) va ``channel_id`` kontekstini
+    olib yuradi (IDOR tekshiruvi bilan).
     """
     from translations import channels_queue_t
 
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton(channels_queue_t("cq_ch_btn_create_post", lang),
-                              callback_data=cb(CB_CHANNEL_NEW_POST, channel_id))],
+        [InlineKeyboardButton(channels_queue_t("cq_ch_ctx_add", lang),
+                              callback_data="add_channel_start")],
         [
-            InlineKeyboardButton(channels_queue_t("cq_ch_btn_scheduled", lang),
-                                 callback_data=cb(CB_CHANNEL_SCHEDULED, channel_id)),
-            InlineKeyboardButton(channels_queue_t("cq_ch_btn_stats", lang),
+            InlineKeyboardButton(channels_queue_t("cq_ch_ctx_autopilot", lang),
+                                 callback_data=cb(CB_CHANNEL_AUTOPILOT, channel_id)),
+            InlineKeyboardButton(channels_queue_t("cq_ch_ctx_plan", lang),
+                                 callback_data=cb(CB_CHANNEL_PLAN, channel_id)),
+        ],
+        [
+            InlineKeyboardButton(channels_queue_t("cq_ch_ctx_dna", lang),
+                                 callback_data=cb(CB_CHANNEL_DNA, channel_id)),
+            InlineKeyboardButton(channels_queue_t("cq_ch_ctx_analytics", lang),
                                  callback_data=cb(CB_CHANNEL_STATS, channel_id)),
         ],
         [
-            InlineKeyboardButton(channels_queue_t("cq_ch_btn_dna", lang),
-                                 callback_data=cb(CB_CHANNEL_DNA, channel_id)),
-            InlineKeyboardButton(channels_queue_t("cq_ch_btn_best_time", lang),
-                                 callback_data=cb(CB_CHANNEL_BEST_TIME, channel_id)),
-        ],
-        [
-            InlineKeyboardButton(channels_queue_t("cq_ch_btn_autopilot", lang),
-                                 callback_data=cb(CB_CHANNEL_AUTOPILOT, channel_id)),
-            InlineKeyboardButton(channels_queue_t("cq_ch_btn_templates", lang),
-                                 callback_data=cb(CB_CHANNEL_TEMPLATES, channel_id)),
-        ],
-        # 📥 PHASE D (2/2) — kontent manbalari: URL→post, RSS/ATOM oqimi va
-        # Content Recycle (kanal konteksti bilan, alohida qator — to'liq eni).
-        [InlineKeyboardButton(channels_queue_t("cq_ch_btn_sources", lang),
-                              callback_data=cb(CB_CHANNEL_SOURCES, channel_id))],
-        [
-            InlineKeyboardButton(channels_queue_t("cq_ch_btn_settings", lang),
+            InlineKeyboardButton(channels_queue_t("cq_ch_ctx_team", lang),
+                                 callback_data=cb(CB_CHANNEL_TEAM, channel_id)),
+            InlineKeyboardButton(channels_queue_t("cq_ch_ctx_settings", lang),
                                  callback_data=cb(CB_CHANNEL_SETTINGS, channel_id)),
-            InlineKeyboardButton(channels_queue_t("cq_ch_btn_back", lang),
-                                 callback_data=CB_CHANNEL_BACK),
         ],
+        [InlineKeyboardButton(channels_queue_t("cq_ch_btn_back", lang),
+                              callback_data=CB_CHANNEL_BACK)],
+    ])
+
+
+render_channel_contextual_panel = get_channel_contextual_keyboard
+
+
+def render_channel_panel(channel_id, lang: str = "uz") -> InlineKeyboardMarkup:
+    """📢 Kanal boshqaruv ekrani — PHASE 9 kontekstual menyusi::
+
+        [➕ Kanal qo‘shish]
+        [🚀 Autopilot]   [📋 Kontent reja]
+        [🧬 Channel DNA] [📊 Analytics]
+        [👥 Team]        [⚙️ Sozlamalar]
+        [◀️ Orqaga]
+
+    Barcha tugmalar kanal KONTEKSTINI (``channel_id``) olib yuradi, shuning
+    uchun ichki amallar asosiy menyuga chiqib ketmaydi; [◀️ Orqaga] esa
+    kanallar ro'yxatiga qaytaradi (``ch_back``).
+    """
+    return get_channel_contextual_keyboard(channel_id, lang)
+
+
+def render_instant_plan_offer_keyboard(channel_id, lang: str = "uz") -> InlineKeyboardMarkup:
+    """🚀 PHASE 9 — 2 daqiqalik Instant-Value Onboarding: 1-click 7 kunlik reja tugmasi."""
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton(get_text("onb_btn_7day_plan", lang),
+                              callback_data=cb(CB_ONB_PLAN, channel_id))],
     ])
 
 

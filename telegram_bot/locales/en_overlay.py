@@ -1993,6 +1993,34 @@ EN_OVERLAY = {
     "pc_bad_callback": "Invalid callback data.",
     "pc_bad_user_id": "Invalid user ID.",
     "pc_db_error": "Something went wrong.",
+    # ── 🛡 PHASE 9 — Error UX & Instant-Value Onboarding (EN) ──
+    "err_ux_ai_busy": "AI is currently busy. Please try again in 20 seconds.",
+    "err_ux_telegram_flood": "Telegram rate limit reached. Your message has been queued.",
+    "err_ux_url_failed": "Could not safely download this link.",
+    "onb_instant_steps": (
+        "🚀 <b>First result in 2 minutes:</b>\n"
+        "1️⃣ Short greeting\n"
+        "2️⃣ <b>Connect your Telegram channel</b>\n"
+        "3️⃣ Automatic quick Channel DNA analysis\n"
+        "4️⃣ Brief summary & “Shall we build a 7-day content plan?” offer\n"
+        "5️⃣ Get your first useful result with a single button!"
+    ),
+    "onb_dna_summary_card": (
+        "🧬 <b>Quick Channel DNA analysis is ready!</b>\n\n"
+        "📢 Channel: <b>{channel}</b>\n"
+        "🎨 Style: <b>{style}</b>\n"
+        "📏 Average length: <b>{length} chars</b>\n"
+        "💡 Summary: <i>{summary}</i>\n\n"
+        "📋 <b>Shall we build a 7-day content plan?</b>\n"
+        "Tap the single button below to get a ready 7-day plan 👇"
+    ),
+    "onb_btn_7day_plan": "📋 7-day plan",
+    "onb_plan_ready_header": (
+        "🎉 <b>Your first 7-day content plan is ready!</b>\n"
+        "📢 Channel: <b>{channel}</b> (based on Channel DNA)\n\n"
+        "{plan}\n\n"
+        "<i>🚀 Schedule all posts into the queue with a single button below 👇</i>"
+    ),
 
 
 }

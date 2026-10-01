@@ -548,6 +548,75 @@ async def _build_best_time_card(channel_id: str, title: str, lang: str) -> str:
         return channels_queue_t("cq_btm_error", lang)
 
 
+async def channel_plan_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """📋 [Kontent reja] — kanal ichidan kontent-reja tuzish oqimini ochadi (PHASE 9)."""
+    from handlers.content_plan import PLAN_GET_TOPIC
+
+    query = update.callback_query
+    try:
+        await query.answer()
+    except Exception:
+        pass
+    lang = get_lang(context)
+    user_id = query.from_user.id
+    channel_id = (query.data or "").split(":", 1)[1] if ":" in (query.data or "") else ""
+
+    if not await _rbac_channel_allowed(
+        update, channel_id, "view", context=context, allow_admin=True, notify=True
+    ):
+        return ConversationHandler.END
+
+    channel = await _owned_channel(user_id, channel_id)
+    if channel is None:
+        await _safe_edit(query, channels_queue_t("cq_ch_not_found", lang),
+                         _empty_channels_keyboard(lang))
+        return ConversationHandler.END
+
+    title = (channel[1] if len(channel) > 1 and channel[1] else None) or str(channel_id)
+    context.user_data["plan_channel_id"] = str(channel_id)
+    context.user_data["plan_channel_title"] = title
+
+    msg = getattr(query, "message", None) or getattr(update, "effective_message", None)
+    if msg is not None:
+        await msg.reply_text(
+            safe_t("cp_topic_ask", lang, channel=_channel_title(channel, lang)),
+            reply_markup=get_cancel_keyboard(lang),
+            parse_mode="HTML",
+        )
+    return PLAN_GET_TOPIC
+
+
+async def channel_team_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """👥 [Team] — kanal jamoasi va rol boshqaruvi ekrani (PHASE 9)."""
+    query = update.callback_query
+    try:
+        await query.answer()
+    except Exception:
+        pass
+    lang = get_lang(context)
+    user_id = query.from_user.id
+    channel_id = (query.data or "").split(":", 1)[1] if ":" in (query.data or "") else ""
+
+    if not await _rbac_channel_allowed(
+        update, channel_id, "view", context=context, allow_admin=True, notify=True
+    ):
+        return ConversationHandler.END
+
+    channel = await _owned_channel(user_id, channel_id)
+    if channel is None:
+        await _safe_edit(query, channels_queue_t("cq_ch_not_found", lang),
+                         _empty_channels_keyboard(lang))
+        return ConversationHandler.END
+
+    title = _channel_title(channel, lang)
+    await _safe_edit(
+        query,
+        channels_queue_t("cq_ch_team_title", lang, channel=title),
+        render_channel_panel(channel_id, lang),
+    )
+    return ConversationHandler.END
+
+
 async def channel_settings_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """⚙️ Kanal sozlamalari — uslub / AI ovoz tahlili / kanalni uzish.
 
@@ -1063,10 +1132,20 @@ async def _link_channel(update: Update, context: ContextTypes.DEFAULT_TYPE,
             except TelegramError:
                 pass
 
-        # 🧠 3-BOSQICH: birinchi kanal ulangan bo'lsa — kanal DNK sinovi
-        # taklifini darhol yuboramiz (bot «✅ ulandi» bilan to'xtab qolmaydi).
+        # 🧠 3-BOSQICH & 🚀 PHASE 9: birinchi kanal ulangan bo'lsa — kanal DNK
+        # sinovi taklifini va 2 daqiqalik Instant-Value Onboarding (avtomatik
+        # tezkor Channel DNA tahlili + qisqa xulosa + "7 kunlik kontent reja
+        # tuzamizmi?" 1-click tugmasi) darhol yuboramiz.
         if await _should_offer_dna(user_id, channel_id):
             await _send_dna_offer(msg.reply_text, channel_id, lang)
+            from handlers.onboarding import run_instant_dna_onboarding
+            await run_instant_dna_onboarding(
+                msg.reply_text,
+                user_id=user_id,
+                channel_id=str(channel_id),
+                channel_title=str(channel_title or ""),
+                lang=lang,
+            )
 
     elif reason == "taken":
         context.user_data.pop("add_channel_pending", None)
@@ -1210,14 +1289,24 @@ async def on_bot_chat_member_update(update: Update, context: ContextTypes.DEFAUL
                 )
             except TelegramError:
                 pass
-            # 🧠 3-BOSQICH: avtomatik ulashda ham birinchi kanal uchun DNK
-            # sinovi taklifi yuboriladi (foydalanuvchi forward qilishi
-            # shart emas — bot admin bo'lishi yetarli).
+            # 🧠 3-BOSQICH & 🚀 PHASE 9: avtomatik ulashda ham birinchi kanal
+            # uchun DNK sinovi taklifi + 2 daqiqalik Instant-Value Onboarding
+            # (tezkor DNA xulosasi + "7 kunlik kontent reja tuzamizmi?")
+            # yuboriladi (foydalanuvchi forward qilishi shart emas).
             if await _should_offer_dna(user_id, str(chat.id)):
-                await _send_dna_offer(
-                    lambda text, **kw: context.bot.send_message(
-                        chat_id=user_id, text=text, **kw),
-                    str(chat.id), lang,
+                async def _dm_send(text, **kw):
+                    return await context.bot.send_message(
+                        chat_id=user_id, text=text, **kw
+                    )
+
+                await _send_dna_offer(_dm_send, str(chat.id), lang)
+                from handlers.onboarding import run_instant_dna_onboarding
+                await run_instant_dna_onboarding(
+                    _dm_send,
+                    user_id=user_id,
+                    channel_id=str(chat.id),
+                    channel_title=str(chat.title or ""),
+                    lang=lang,
                 )
         elif reason == "taken":
             logger.info("Kanal %s boshqa foydalanuvchiga tegishli — avto-ulash o'tkazib yuborildi", chat.id)

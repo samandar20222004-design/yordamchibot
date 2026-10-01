@@ -253,6 +253,124 @@ async def _audit_critical_error(user_id, summary: dict, handler_name: str) -> No
 
 
 # ──────────────────────────────────────────────────────────────
+# PHASE 9 — ERROR UX VA USER COMMUNICATION (ANIQ VA MULOYIM XABARLAR)
+# ──────────────────────────────────────────────────────────────
+_RAW_TECHNICAL_MARKERS = (
+    "exception occurred",
+    "traceback (most recent call last)",
+    "unhandled exception",
+    "psycopg2.",
+    "operationalerror",
+    "interfaceerror",
+    "syntaxerror:",
+    "keyerror:",
+    "attributeerror:",
+    "typeerror:",
+    "valueerror:",
+)
+
+_AI_ERROR_MARKERS = (
+    "openai",
+    "gemini",
+    "groq",
+    "anthropic",
+    "ai_service",
+    "ai_chain",
+    "ai busy",
+    "ai_busy",
+    "model overloaded",
+    "rate_limit_exceeded",
+    "insufficient_quota",
+)
+
+_FLOOD_ERROR_MARKERS = (
+    "retryafter",
+    "retry after",
+    "flood control",
+    "too many requests: retry after",
+    "telegram_flood",
+    "flood limit",
+)
+
+_URL_ERROR_MARKERS = (
+    "urlsecurity",
+    "safefetch",
+    "url_security_gateway",
+    "url_extractor",
+    "ssrf",
+    "invalid_url",
+    "blocked_host",
+    "blocked_scheme",
+    "private_address",
+    "url_error",
+)
+
+
+def classify_user_error_kind(error) -> str:
+    """Foydalanuvchi UX uchun xato turini aniqlaydi (PHASE 9):
+
+    - ``"ai_busy"``        → AI band / javob bermadi
+    - ``"telegram_flood"`` → Telegram flood / RetryAfter
+    - ``"url_error"``      → Havolani xavfsiz yuklab bo'lmadi
+    - ``"general"``        → Boshqa xatolar (muloyim umumiy xabar)
+    """
+    if error is None:
+        return "general"
+    etype = type(error).__name__.lower()
+    emod = (getattr(type(error), "__module__", "") or "").lower()
+    try:
+        emsg = str(error).lower()
+    except Exception:
+        emsg = ""
+    combined = f"{etype} {emod} {emsg}"
+
+    if etype == "retryafter" or any(m in combined for m in _FLOOD_ERROR_MARKERS):
+        return "telegram_flood"
+    if any(m in combined for m in _URL_ERROR_MARKERS):
+        return "url_error"
+    if any(m in combined for m in _AI_ERROR_MARKERS):
+        return "ai_busy"
+    return "general"
+
+
+def format_user_error_message(error, lang: str | None = "uz") -> str:
+    """Har bir xato uchun aniq, muloyim va harakatga yo'naltirilgan xabar (PHASE 9).
+
+    Hech qachon texnik ``Exception occurred`` yoki stacktrace qaytarmaydi:
+      - AI band bo'lsa: "AI hozir band. 20 soniyadan keyin qayta urinib ko‘ring."
+      - Telegram flood bo'lsa: "Telegram tezlik limitini berdi. Xabaringiz navbatga qo‘yildi."
+      - URL xato bo'lsa: "Bu havolani xavfsiz yuklab bo‘lmadi."
+    """
+    kind = classify_user_error_kind(error)
+    key_map = {
+        "ai_busy": "err_ux_ai_busy",
+        "telegram_flood": "err_ux_telegram_flood",
+        "url_error": "err_ux_url_failed",
+    }
+    i18n_key = key_map.get(kind, "sys_unexpected_error")
+    try:
+        from locales.translations import get_text
+        return get_text(i18n_key, lang or "uz")
+    except Exception:
+        if kind == "ai_busy":
+            return "AI hozir band. 20 soniyadan keyin qayta urinib ko‘ring."
+        if kind == "telegram_flood":
+            return "Telegram tezlik limitini berdi. Xabaringiz navbatga qo‘yildi."
+        if kind == "url_error":
+            return "Bu havolani xavfsiz yuklab bo‘lmadi."
+        return "⚠️ Xatolik yuz berdi. Iltimos, birozdan so'ng qayta urinib ko'ring."
+
+
+def sanitize_user_error_text(text: str, lang: str | None = "uz") -> str:
+    """Texnik 'Exception occurred' yoki traceback matnini muloyim xabar bilan almashtiradi."""
+    raw = str(text or "").strip()
+    lowered = raw.lower()
+    if not raw or any(marker in lowered for marker in _RAW_TECHNICAL_MARKERS):
+        return format_user_error_message(None, lang=lang)
+    return raw
+
+
+# ──────────────────────────────────────────────────────────────
 # FOYDALANUVCHIGA XUSHMUOMALA XABAR (traceback'SIZ)
 # ──────────────────────────────────────────────────────────────
 async def _notify_user(update, context) -> None:
@@ -280,11 +398,8 @@ async def _notify_user(update, context) -> None:
         except Exception:
             lang = None
 
-    try:
-        from locales.translations import get_text
-        text = get_text("sys_unexpected_error", lang)
-    except Exception:
-        text = "⚠️ Xatolik yuz berdi. Iltimos, birozdan so'ng qayta urinib ko'ring."
+    error = getattr(context, "error", None) if context is not None else None
+    text = sanitize_user_error_text(format_user_error_message(error, lang), lang=lang)
 
     if message is not None:
         try:
@@ -296,11 +411,15 @@ async def _notify_user(update, context) -> None:
             logger.debug("error_handler: foydalanuvchiga javob yuborilmadi: %s", e)
     if query is not None:
         # 🌐 Qisqa xato toast'i ham foydalanuvchi tilida (uz/ru/en).
-        try:
-            from locales.translations import get_text as _get_text
-            short = _get_text("sys_error_short", lang)
-        except Exception:
-            short = "⚠️ Xatolik yuz berdi"
+        kind = classify_user_error_kind(error)
+        if kind in ("ai_busy", "telegram_flood", "url_error"):
+            short = text[:200]
+        else:
+            try:
+                from locales.translations import get_text as _get_text
+                short = _get_text("sys_error_short", lang)
+            except Exception:
+                short = "⚠️ Xatolik yuz berdi"
         try:
             await query.answer(short, show_alert=False)
         except TypeError:

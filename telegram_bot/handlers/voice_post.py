@@ -318,7 +318,17 @@ async def voice_post_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
     action-first kirish ham (``VoiceEntryHandler``) BITTА oqimdan foydalanadi.
     Hech qanday kredit/limit bu bosqichda yechilmaydi.
     """
-    msg = getattr(update, "message", None)
+    query = getattr(update, "callback_query", None)
+    if query is not None:
+        try:
+            await query.answer()
+        except Exception:
+            pass
+    msg = (
+        getattr(update, "message", None)
+        or getattr(update, "effective_message", None)
+        or getattr(query, "message", None)
+    )
     if msg is None:
         return ConversationHandler.END
     lang = get_lang(context)

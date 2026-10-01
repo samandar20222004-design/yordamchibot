@@ -27,6 +27,8 @@ from keyboards.default import (
     #   [💎 PRO]              [👥 Do'stlarni taklif]
     #   [👤 Profil]  (+ admin: ⚙️ Admin Panel)
     BTN_CREATE_CONTENT, BTN_CREATE_CONTENT_RU, BTN_CREATE_CONTENT_EN,
+    BTN_POST_CREATE, BTN_POST_CREATE_RU, BTN_POST_CREATE_EN,
+    BTN_SETTINGS_CORE, BTN_SETTINGS_CORE_RU, BTN_SETTINGS_CORE_EN,
     BTN_INVITE_FRIENDS, BTN_INVITE_FRIENDS_RU, BTN_INVITE_FRIENDS_EN,
     BTN_MY_CHANNELS, BTN_MY_CHANNELS_RU, BTN_MY_CHANNELS_EN,
     BTN_SCHEDULED, BTN_SCHEDULED_RU, BTN_SCHEDULED_EN,
@@ -97,8 +99,9 @@ from handlers.start import (
 # 1b. 🆕 ONBOARDING — yangi foydalanuvchilar uchun sodda (3 tugmali) klaviatura
 from handlers.onboarding import (
     quick_ai_post_entry, quick_photo_post_entry, quick_add_channel_entry,
-    open_full_menu,
+    open_full_menu, onboarding_quick_plan_callback,
 )
+from handlers.content_menu import contextual_post_menu_callback
 
 # 2. NEW POST MODULI
 from handlers.new_post import (
@@ -154,6 +157,8 @@ from handlers.channels import (
     # 🧠 PHASE B — Channel Intelligence (DNA + Best Time)
     channel_dna_callback, channel_best_time_callback, channel_advice_callback,
     channel_advice_command,
+    # 🚀 PHASE 9 — Kontekstual kanal menyusi ([📋 Kontent reja] va [👥 Team])
+    channel_plan_callback, channel_team_callback,
     ADD_CHANNEL, SET_TONE
 )
 
@@ -304,12 +309,16 @@ from handlers.content_calendar_flow import (
 # dublikat detektori 85%+ o'xshashlikda 3 tugmali ogohlantirish beradi.
 from handlers.autopilot import (
     AUTOPILOT_TOPIC, AUTOPILOT_VIEW, AUTOPILOT_EDIT_DAY, AUTOPILOT_EDIT_INPUT,
-    channel_autopilot_entry, autopilot_topic_received,
+    channel_autopilot_entry, autopilot_strategy_callback,
+    autopilot_topic_received,
     autopilot_confirm_callback, autopilot_force_callback,
     autopilot_refresh_callback, autopilot_regen_callback,
     autopilot_edit_callback, autopilot_edit_day_callback,
-    autopilot_edit_input_received, autopilot_cancel_callback,
-    autopilot_stale_callback,
+    autopilot_edit_input_received, autopilot_back_to_plan_callback,
+    autopilot_post_view_callback, autopilot_post_approve_callback,
+    autopilot_post_edit_callback, autopilot_post_regen_callback,
+    autopilot_post_delete_callback,
+    autopilot_cancel_callback, autopilot_stale_callback,
 )
 
 # 8d. 📋 POST SHABLONLARI — takroriy postlar shablonlari (PHASE C, 9-band).
@@ -920,7 +929,13 @@ def register_all_handlers(app):
         MessageHandler(exact(BTN_CANCEL_EN), cancel_handler),
         MessageHandler(exact(BTN_BACK, BTN_MAIN_MENU, BTN_BACK_RU), lambda u, c: guard_menu(u, c, start)),
         MessageHandler(exact(BTN_BACK_EN), lambda u, c: guard_menu(u, c, start)),
-        MessageHandler(exact(BTN_SETTINGS, BTN_CABINET, BTN_SETTINGS_RU, BTN_SETTINGS_EN), lambda u, c: guard_menu(u, c, user_cabinet_menu)),
+        MessageHandler(
+            exact(
+                BTN_SETTINGS, BTN_CABINET, BTN_SETTINGS_RU, BTN_SETTINGS_EN,
+                BTN_SETTINGS_CORE, BTN_SETTINGS_CORE_RU, BTN_SETTINGS_CORE_EN,
+            ),
+            lambda u, c: guard_menu(u, c, user_cabinet_menu),
+        ),
         # 👥 Do'stlarni taklif — referral endi ASOSIY menyuda (3-QISM):
         # to'g'ridan-to'g'ri havola + takliflar soni + ballar va inline
         # [📲 Do'stlarga ulashish] / [🎁 Kunlik bonus] tugmalari chiqadi.
@@ -1033,10 +1048,15 @@ def register_all_handlers(app):
     ai_handlers = [
         MessageHandler(exact(BTN_AI_STUDIO, BTN_AI_STUDIO_RU), lambda u, c: guard_entry(u, c, ai_studio_hub_entry)),
         MessageHandler(exact(BTN_AI_STUDIO_EN), lambda u, c: guard_entry(u, c, ai_studio_hub_entry)),
-        # 🆕 UX V2 → 3-QISM: "✨ Kontent yaratish" — asosiy menyu tugmasi,
-        # kontent yaratish markazi (submenyu) kirish nuqtasi.
-        MessageHandler(exact(BTN_CREATE_CONTENT, BTN_CREATE_CONTENT_RU, BTN_CREATE_CONTENT_EN),
-                       lambda u, c: guard_entry(u, c, ai_studio_menu_entry)),
+        # 🆕 UX V2 → 3-QISM & PHASE 9: "✍️ Post yaratish" / "✨ Kontent yaratish"
+        # — asosiy menyu tugmasi, kontent yaratish kontekstual menyusi kirish nuqtasi.
+        MessageHandler(
+            exact(
+                BTN_CREATE_CONTENT, BTN_CREATE_CONTENT_RU, BTN_CREATE_CONTENT_EN,
+                BTN_POST_CREATE, BTN_POST_CREATE_RU, BTN_POST_CREATE_EN,
+            ),
+            lambda u, c: guard_entry(u, c, ai_studio_menu_entry),
+        ),
     ]
 
     # 7c. 🧩 BIRLASHTIRILGAN KONTENT YARATISH menyusi (PostAssist V2).
@@ -1195,6 +1215,12 @@ def register_all_handlers(app):
             # shuning uchun oqim to'g'ridan-to'g'ri GET_CONTENT holatiga
             # kiradi (entry point bo'lishi SHART — u FSM holati qaytaradi).
             CallbackQueryHandler(channel_new_post_callback, pattern=r"^ch_np:"),
+            # ✍️ PHASE 9 — `[✍️ Post yaratish]` kontekstual menyusi (8 ta inline tugma)
+            CallbackQueryHandler(contextual_post_menu_callback, pattern=r"^ctx_post:"),
+            # 📋 PHASE 9 — `[📢 Kanallarim]` → `[📋 Kontent reja]`
+            CallbackQueryHandler(channel_plan_callback, pattern=r"^ch_plan:"),
+            # 🚀 PHASE 9 — 2 daqiqalik Instant-Value Onboarding → 1-click 7 kunlik reja
+            CallbackQueryHandler(onboarding_quick_plan_callback, pattern=r"^onb_plan:"),
             # 🚀 PHASE C — Kanallarim → [🚀 AI Avtopilot]: 7 kunlik reja oqimi
             # (mavzu → AI reja → tasdiqlash → atomik navbat). FSM holatini
             # qaytaradi — entry point bo'lishi shart.
@@ -1419,6 +1445,10 @@ def register_all_handlers(app):
             # ``ap_cancel`` HAR UCH holatda ham ishlaydi (eski tugma bosilganda
             # ham oqim toza yopiladi, crash bo'lmaydi).
             AUTOPILOT_TOPIC: all_menu_jumps + [
+                CallbackQueryHandler(
+                    autopilot_strategy_callback,
+                    pattern=r"^ap_(?:goal|freq|mode|quiet):",
+                ),
                 CallbackQueryHandler(autopilot_cancel_callback, pattern=r"^ap_cancel$"),
                 MessageHandler(filters.TEXT & ~filters.COMMAND, autopilot_topic_received),
             ],
@@ -1428,16 +1458,33 @@ def register_all_handlers(app):
                 CallbackQueryHandler(autopilot_force_callback, pattern=r"^ap_force$"),
                 CallbackQueryHandler(autopilot_refresh_callback, pattern=r"^ap_refresh$"),
                 CallbackQueryHandler(autopilot_regen_callback, pattern=r"^ap_regen$"),
+                CallbackQueryHandler(autopilot_post_view_callback, pattern=r"^ap_pview:"),
+                CallbackQueryHandler(autopilot_post_approve_callback, pattern=r"^ap_papp:"),
+                CallbackQueryHandler(autopilot_post_edit_callback, pattern=r"^ap_pedit:"),
+                CallbackQueryHandler(autopilot_post_regen_callback, pattern=r"^ap_pregen:"),
+                CallbackQueryHandler(autopilot_post_delete_callback, pattern=r"^ap_pdel:"),
+                CallbackQueryHandler(autopilot_back_to_plan_callback, pattern=r"^ap_back$"),
                 CallbackQueryHandler(autopilot_cancel_callback, pattern=r"^ap_cancel$"),
                 # Yangi mavzu yozilsa — reja to'g'ridan-to'g'ri qayta tuziladi.
                 MessageHandler(filters.TEXT & ~filters.COMMAND, autopilot_topic_received),
             ],
             AUTOPILOT_EDIT_DAY: all_menu_jumps + [
                 CallbackQueryHandler(autopilot_edit_day_callback, pattern=r"^ap_eday:"),
+                CallbackQueryHandler(autopilot_post_view_callback, pattern=r"^ap_pview:"),
+                CallbackQueryHandler(autopilot_post_approve_callback, pattern=r"^ap_papp:"),
+                CallbackQueryHandler(autopilot_post_edit_callback, pattern=r"^ap_pedit:"),
+                CallbackQueryHandler(autopilot_post_regen_callback, pattern=r"^ap_pregen:"),
+                CallbackQueryHandler(autopilot_post_delete_callback, pattern=r"^ap_pdel:"),
+                CallbackQueryHandler(autopilot_back_to_plan_callback, pattern=r"^ap_back$"),
                 CallbackQueryHandler(autopilot_confirm_callback, pattern=r"^ap_confirm$"),
                 CallbackQueryHandler(autopilot_cancel_callback, pattern=r"^ap_cancel$"),
             ],
             AUTOPILOT_EDIT_INPUT: all_menu_jumps + [
+                CallbackQueryHandler(autopilot_post_approve_callback, pattern=r"^ap_papp:"),
+                CallbackQueryHandler(autopilot_post_edit_callback, pattern=r"^ap_pedit:"),
+                CallbackQueryHandler(autopilot_post_regen_callback, pattern=r"^ap_pregen:"),
+                CallbackQueryHandler(autopilot_post_delete_callback, pattern=r"^ap_pdel:"),
+                CallbackQueryHandler(autopilot_back_to_plan_callback, pattern=r"^ap_back$|^ap_eday:back$"),
                 CallbackQueryHandler(autopilot_cancel_callback, pattern=r"^ap_cancel$"),
                 MessageHandler(filters.TEXT & ~filters.COMMAND, autopilot_edit_input_received),
             ],
@@ -1993,6 +2040,9 @@ def register_all_handlers(app):
     # ownership (fail-closed) tekshiruvi bilan himoyalangan (IDOR xavfsizligi).
     app.add_handler(CallbackQueryHandler(
         channel_dna_callback, pattern="^" + re.escape(CB_CHANNEL_DNA),
+    ))
+    app.add_handler(CallbackQueryHandler(
+        channel_team_callback, pattern=r"^ch_team:",
     ))
     app.add_handler(CallbackQueryHandler(
         channel_best_time_callback, pattern="^" + re.escape(CB_CHANNEL_BEST_TIME),

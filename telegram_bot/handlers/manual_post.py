@@ -867,16 +867,30 @@ async def manual_post_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
     Kanal ulanmagan bo'lsa oqim ochilmaydi (muloyim yo'riqnoma + asosiy
     menyu). HECH QANDAY AI tekshiruvi/limiti YO'Q — bu oddiy posting.
     """
+    query = getattr(update, "callback_query", None)
+    if query is not None:
+        try:
+            await query.answer()
+        except Exception:
+            pass
+    msg = (
+        getattr(update, "message", None)
+        or getattr(update, "effective_message", None)
+        or getattr(query, "message", None)
+    )
+    if msg is None:
+        return ConversationHandler.END
     clear_fsm_data(context)
     _clear_manual_state(context)
-    user_id = update.effective_user.id
+    user = getattr(update, "effective_user", None) or getattr(query, "from_user", None)
+    user_id = user.id if user else 0
     lang = get_lang(context)
     from handlers.navigation import SECTION_CONTENT, remember_section
     remember_section(context, SECTION_CONTENT)
 
     channels = await db.run_db(db.get_user_channels, user_id)
     if not channels:
-        await update.message.reply_text(
+        await msg.reply_text(
             manual_post_t("mp_no_channels", lang),
             reply_markup=get_main_keyboard(user_id in ADMIN_IDS_SET, lang),
             parse_mode="HTML",
@@ -887,7 +901,7 @@ async def manual_post_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if len(channels) == 1:
         _set_selected_channel(context, channels[0][0], channels[0][1])
 
-    await update.message.reply_text(
+    await msg.reply_text(
         manual_post_t("mp_intro", lang),
         reply_markup=get_cancel_keyboard(lang),
         parse_mode="HTML",
