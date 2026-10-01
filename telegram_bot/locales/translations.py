@@ -2034,6 +2034,34 @@ TRANSLATIONS = {
     "pc_bad_callback": "Noto'g'ri callback data.",
     "pc_bad_user_id": "User ID xatosi.",
     "pc_db_error": "Xatolik yuz berdi.",
+    # ── 🛡 PHASE 9 — Error UX & Instant-Value Onboarding ──
+    "err_ux_ai_busy": "AI hozir band. 20 soniyadan keyin qayta urinib ko‘ring.",
+    "err_ux_telegram_flood": "Telegram tezlik limitini berdi. Xabaringiz navbatga qo‘yildi.",
+    "err_ux_url_failed": "Bu havolani xavfsiz yuklab bo‘lmadi.",
+    "onb_instant_steps": (
+        "🚀 <b>2 daqiqada birinchi natija:</b>\n"
+        "1️⃣ Qisqa salomlashuv\n"
+        "2️⃣ <b>Telegram kanalingizni ulang</b>\n"
+        "3️⃣ Avtomatik tezkor Channel DNA tahlili\n"
+        "4️⃣ Qisqa xulosa va «7 kunlik kontent reja tuzamizmi?» taklifi\n"
+        "5️⃣ Bitta tugma bilan birinchi foydali natija!"
+    ),
+    "onb_dna_summary_card": (
+        "🧬 <b>Tezkor Channel DNA tahlili tayyor!</b>\n\n"
+        "📢 Kanal: <b>{channel}</b>\n"
+        "🎨 Uslub: <b>{style}</b>\n"
+        "📏 O'rtacha uzunlik: <b>{length} belgi</b>\n"
+        "💡 Xulosa: <i>{summary}</i>\n\n"
+        "📋 <b>7 kunlik kontent reja tuzamizmi?</b>\n"
+        "Quyidagi bitta tugmani bosing va tayyor 7 kunlik rejani oling 👇"
+    ),
+    "onb_btn_7day_plan": "📋 7 kunlik reja",
+    "onb_plan_ready_header": (
+        "🎉 <b>Birinchi 7 kunlik kontent rejangiz tayyor!</b>\n"
+        "📢 Kanal: <b>{channel}</b> (Channel DNA asosida)\n\n"
+        "{plan}\n\n"
+        "<i>🚀 Bitta tugma bilan barcha postlarni navbatga qo'yishingiz mumkin 👇</i>"
+    ),
 
     # ============================================================
     },
@@ -4047,6 +4075,34 @@ TRANSLATIONS = {
     "pc_bad_user_id": "Ошибка ID пользователя.",
     "pc_db_error": "Произошла ошибка.",
         "an_type_album": "Альбом",
+    # ── 🛡 PHASE 9 — Error UX & Instant-Value Onboarding (RU) ──
+    "err_ux_ai_busy": "AI сейчас занят. Попробуйте снова через 20 секунд.",
+    "err_ux_telegram_flood": "Telegram установил лимит скорости. Ваше сообщение поставлено в очередь.",
+    "err_ux_url_failed": "Не удалось безопасно загрузить эту ссылку.",
+    "onb_instant_steps": (
+        "🚀 <b>Первый результат за 2 минуты:</b>\n"
+        "1️⃣ Короткое приветствие\n"
+        "2️⃣ <b>Подключите ваш Telegram-канал</b>\n"
+        "3️⃣ Автоматический быстрый анализ Channel DNA\n"
+        "4️⃣ Краткое резюме и предложение «Составим 7-дневный контент-план?»\n"
+        "5️⃣ Первый полезный результат одной кнопкой!"
+    ),
+    "onb_dna_summary_card": (
+        "🧬 <b>Быстрый анализ Channel DNA готов!</b>\n\n"
+        "📢 Канал: <b>{channel}</b>\n"
+        "🎨 Стиль: <b>{style}</b>\n"
+        "📏 Средняя длина: <b>{length} симв.</b>\n"
+        "💡 Резюме: <i>{summary}</i>\n\n"
+        "📋 <b>Составим 7-дневный контент-план?</b>\n"
+        "Нажмите одну кнопку ниже и получите готовый план на 7 дней 👇"
+    ),
+    "onb_btn_7day_plan": "📋 План на 7 дней",
+    "onb_plan_ready_header": (
+        "🎉 <b>Ваш первый 7-дневный контент-план готов!</b>\n"
+        "📢 Канал: <b>{channel}</b> (на основе Channel DNA)\n\n"
+        "{plan}\n\n"
+        "<i>🚀 Одной кнопкой вы можете поставить все посты в очередь 👇</i>"
+    ),
 
     },
 }

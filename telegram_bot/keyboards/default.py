@@ -81,6 +81,21 @@ BTN_CANCEL_EN = get_text("btn_cancel", "en")
 BTN_CREATE_CONTENT = get_text("btn_create_content", "uz")
 BTN_CREATE_CONTENT_RU = get_text("btn_create_content", "ru")
 BTN_CREATE_CONTENT_EN = get_text("btn_create_content", "en")
+# PHASE 9 kanonik nomlar — 5 ta yadro tugma:
+# [✍️ Post yaratish], [📢 Kanallarim], [📅 Rejalashtirilgan], [📊 Statistika], [⚙️ Sozlamalar]
+BTN_POST_CREATE = BTN_CREATE_CONTENT
+BTN_POST_CREATE_RU = BTN_CREATE_CONTENT_RU
+BTN_POST_CREATE_EN = BTN_CREATE_CONTENT_EN
+BTN_SETTINGS_CORE = "⚙️ Sozlamalar"
+BTN_SETTINGS_CORE_RU = "⚙️ Настройки"
+BTN_SETTINGS_CORE_EN = "⚙️ Settings"
+CORE_MAIN_MENU_KEYS = (
+    "btn_create_content",
+    "btn_my_channels",
+    "btn_scheduled",
+    "btn_statistics",
+    "btn_settings",
+)
 BTN_MY_CHANNELS = get_text("btn_my_channels", "uz")
 BTN_MY_CHANNELS_RU = get_text("btn_my_channels", "ru")
 BTN_MY_CHANNELS_EN = get_text("btn_my_channels", "en")
@@ -892,10 +907,41 @@ def get_main_keyboard(is_admin=False, lang="uz", context=None,
     """
     if context is not None:
         lang = get_lang(context, lang)
+    ud = getattr(context, "user_data", None) if context is not None else None
+    if isinstance(ud, dict) and ud.get("phase9_core_menu"):
+        return get_phase9_main_keyboard(is_admin=is_admin, lang=lang)
     keyboard = [
         [get_text("btn_create_content", lang), get_text("btn_my_channels", lang)],
         [get_text("btn_scheduled", lang), get_text("btn_statistics", lang)],
         [get_text("btn_settings", lang)],
+    ]
+    if is_admin:
+        keyboard.append([BTN_ADMIN_PANEL])
+    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+
+
+def get_phase9_main_keyboard(is_admin=False, lang="uz", context=None):
+    """PHASE 9 — 5 ta yadro tugmali asosiy menyu (ixcham Sozlamalar yorlig'i bilan).
+
+    Yadro tugmalar:
+        [✍️ Post yaratish]   [📢 Kanallarim]
+        [📅 Rejalashtirilgan] [📊 Statistika]
+        [⚙️ Sozlamalar]
+    Admin tugmalari ([⚙️ Admin Panel]) faqat ``is_admin=True`` bo'lganda ko'rinadi.
+    Barcha murakkab funksiyalar Inline/Contextual menyular ichida yashiringan.
+    """
+    if context is not None:
+        lang = get_lang(context, lang)
+    code = normalize_lang(lang)
+    settings_label = {
+        "uz": BTN_SETTINGS_CORE,
+        "ru": BTN_SETTINGS_CORE_RU,
+        "en": BTN_SETTINGS_CORE_EN,
+    }.get(code, BTN_SETTINGS_CORE)
+    keyboard = [
+        [get_text("btn_create_content", code), get_text("btn_my_channels", code)],
+        [get_text("btn_scheduled", code), get_text("btn_statistics", code)],
+        [settings_label],
     ]
     if is_admin:
         keyboard.append([BTN_ADMIN_PANEL])

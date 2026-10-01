@@ -341,10 +341,15 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return ConversationHandler.END
 
     # 🚀 BIRINCHI MARTA kirgan foydalanuvchi (bazada yangi yozuv yaratildi) —
-    # qisqa, harakatga undovchi onboarding matni ko'rsatiladi. Qayta kirganda
-    # (/start) esa odatdagi standart salomlashish chiqadi.
+    # qisqa, harakatga undovchi onboarding matni + 2 daqiqalik Instant-Value
+    # Onboarding qadamlari ko'rsatiladi. Qayta kirganda (/start) esa odatdagi
+    # standart salomlashish chiqadi.
     if is_new:
-        greeting = get_text("start_onboarding", lang)
+        greeting = (
+            get_text("start_onboarding", lang)
+            + "\n\n"
+            + get_text("onb_instant_steps", lang)
+        )
     else:
         greeting = get_text("start_hello", lang, name=html_escape(user.first_name))
     # 🆕 YANGI FOYDALANUVCHI (ro'yxatdan o'tganiga 3 kundan kam YOKI hali 3 ta

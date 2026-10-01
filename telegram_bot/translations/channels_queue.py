@@ -187,6 +187,23 @@ CHANNELS_QUEUE_I18N = {
         ),
         "cq_sch_deleted_alert": "🗑 Post rejadan olib tashlandi.",
         "cq_sch_not_found": "⚠️ Post topilmadi — u allaqachon chiqib ketgan yoki o'chirilgan.",
+        # --- PHASE 9: [📢 Kanallarim] Contextual Channel Menu ---
+        "cq_ch_ctx_add": "➕ Kanal qo‘shish",
+        "cq_ch_ctx_autopilot": "🚀 Autopilot",
+        "cq_ch_ctx_plan": "📋 Kontent reja",
+        "cq_ch_ctx_dna": "🧬 Channel DNA",
+        "cq_ch_ctx_analytics": "📊 Analytics",
+        "cq_ch_ctx_team": "👥 Team",
+        "cq_ch_ctx_settings": "⚙️ Sozlamalar",
+        "cq_ch_team_title": (
+            "👥 <b>Team — {channel}</b>\n\n"
+            "Kanal jamoasi va rol boshqaruvi:\n"
+            "• 👑 <b>Owner</b> — to'liq boshqaruv\n"
+            "• ✍️ <b>Editor</b> — post yaratish va tahrirlash\n"
+            "• 📅 <b>Scheduler</b> — rejalashtirish\n"
+            "• 📊 <b>Analyst</b> — statistika va tahlil\n\n"
+            "<i>Rol berish:</i> <code>/setrole &lt;user_id&gt; &lt;role&gt;</code>"
+        ),
     },
     # ------------------------------------------------------------
     # 🇷🇺 RUS TILI
@@ -316,6 +333,23 @@ CHANNELS_QUEUE_I18N = {
         ),
         "cq_sch_deleted_alert": "🗑 Пост снят с расписания.",
         "cq_sch_not_found": "⚠️ Пост не найден — он уже опубликован или удалён.",
+        # --- PHASE 9: [📢 Мои каналы] Contextual Channel Menu (RU) ---
+        "cq_ch_ctx_add": "➕ Добавить канал",
+        "cq_ch_ctx_autopilot": "🚀 Автопилот",
+        "cq_ch_ctx_plan": "📋 Контент-план",
+        "cq_ch_ctx_dna": "🧬 Channel DNA",
+        "cq_ch_ctx_analytics": "📊 Аналитика",
+        "cq_ch_ctx_team": "👥 Команда",
+        "cq_ch_ctx_settings": "⚙️ Настройки",
+        "cq_ch_team_title": (
+            "👥 <b>Команда — {channel}</b>\n\n"
+            "Управление командой и ролями канала:\n"
+            "• 👑 <b>Owner</b> — полное управление\n"
+            "• ✍️ <b>Editor</b> — создание и редактирование постов\n"
+            "• 📅 <b>Scheduler</b> — планирование\n"
+            "• 📊 <b>Analyst</b> — аналитика и отчёты\n\n"
+            "<i>Назначить роль:</i> <code>/setrole &lt;user_id&gt; &lt;role&gt;</code>"
+        ),
     },
     # ------------------------------------------------------------
     # 🇬🇧 INGLIZ TILI
@@ -444,6 +478,23 @@ CHANNELS_QUEUE_I18N = {
         ),
         "cq_sch_deleted_alert": "🗑 Post removed from the schedule.",
         "cq_sch_not_found": "⚠️ Post not found — it was already published or deleted.",
+        # --- PHASE 9: [📢 My channels] Contextual Channel Menu (EN) ---
+        "cq_ch_ctx_add": "➕ Add channel",
+        "cq_ch_ctx_autopilot": "🚀 Autopilot",
+        "cq_ch_ctx_plan": "📋 Content plan",
+        "cq_ch_ctx_dna": "🧬 Channel DNA",
+        "cq_ch_ctx_analytics": "📊 Analytics",
+        "cq_ch_ctx_team": "👥 Team",
+        "cq_ch_ctx_settings": "⚙️ Settings",
+        "cq_ch_team_title": (
+            "👥 <b>Team — {channel}</b>\n\n"
+            "Channel team and role management:\n"
+            "• 👑 <b>Owner</b> — full control\n"
+            "• ✍️ <b>Editor</b> — create and edit posts\n"
+            "• 📅 <b>Scheduler</b> — schedule posts\n"
+            "• 📊 <b>Analyst</b> — analytics and reports\n\n"
+            "<i>Assign role:</i> <code>/setrole &lt;user_id&gt; &lt;role&gt;</code>"
+        ),
     },
 }
 

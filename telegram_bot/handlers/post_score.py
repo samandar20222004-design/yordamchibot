@@ -301,7 +301,17 @@ async def _send_score_screen(target, payload: dict, lang: str,
 # ============================================================
 async def post_score_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Post Score oqimini ochadi: yo'riqnoma + matn kutilmoqda."""
-    msg = update.message
+    query = getattr(update, "callback_query", None)
+    if query is not None:
+        try:
+            await query.answer()
+        except Exception:
+            pass
+    msg = (
+        getattr(update, "message", None)
+        or getattr(update, "effective_message", None)
+        or getattr(query, "message", None)
+    )
     if msg is None:
         return ConversationHandler.END
     lang = get_lang(context)

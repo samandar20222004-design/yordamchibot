@@ -156,6 +156,20 @@ CB_POST_SCORE_SCHEDULE = "ps_sched"
 CB_POST_SCORE_NEW = "ps_new"
 CB_POST_SCORE_SEND_ALL = "ps_chall"
 
+# 🧭 PHASE 9 — Kontekstual menyular va 2 daqiqalik Instant-Value Onboarding.
+CB_CTX_POST = "ctx_post:"
+CB_CTX_AI_POST = "ctx_post:ai"
+CB_CTX_MANUAL_POST = "ctx_post:manual"
+CB_CTX_IMAGE_POST = "ctx_post:image"
+CB_CTX_VOICE_POST = "ctx_post:voice"
+CB_CTX_LINK_POST = "ctx_post:url"
+CB_CTX_RECYCLE_POST = "ctx_post:recycle"
+CB_CTX_AI_ASSISTANT = "ctx_post:assistant"
+CB_CTX_POST_SCORE = "ctx_post:score"
+CB_CHANNEL_PLAN = "ch_plan:"
+CB_CHANNEL_TEAM = "ch_team:"
+CB_ONB_PLAN = "onb_plan:"
+
 #: Barcha kanonik prefikslar (test va audit uchun).
 CANONICAL_PREFIXES = (
     CB_CHANNEL_DELETE,
@@ -210,6 +224,11 @@ CANONICAL_PREFIXES = (
     # 📊 Post Score — dinamik payload qo'shiladigan prefikslar.
     CB_POST_SCORE_EVAL,
     CB_POST_SCORE_CHANNEL,
+    # 🧭 PHASE 9 — Contextual menus & Instant-Value Onboarding.
+    CB_CTX_POST,
+    CB_CHANNEL_PLAN,
+    CB_CHANNEL_TEAM,
+    CB_ONB_PLAN,
 )
 
 
@@ -267,6 +286,8 @@ REGISTERED_NAMESPACES = (
     "nprt:", "react:", "sched_br:",
     # 👥 Team approval kartochkalari.
     "team_",
+    # 🧭 PHASE 9 — Kontekstual menyular va Instant-Value Onboarding.
+    "ctx_post:", "onb_plan:",
     # 🔔 Majburiy obuna / PRO tarif oqimi.
     "sub_", "check_sub",
     # 🧰 Vositalar: Konvertor + Post Enhancer.
