@@ -89,6 +89,19 @@ CONTENT_MENU_I18N = {
         ),
         "cm_offer_magic": "✨ Magic Post",
         "cm_offer_menu": "🔙 Asosiy menyu",
+        # --- PHASE 9: [✍️ Post yaratish] Contextual Inline Menu ---
+        "ctx_post_intro": (
+            "✍️ <b>Post yaratish</b> — kerakli formatni tanlang 👇\n\n"
+            "<i>Yoki darhol rasm, ovoz yoxud matn yuboring.</i>"
+        ),
+        "ctx_btn_ai_post": "⚡ AI Post",
+        "ctx_btn_manual_post": "📝 Oddiy Post",
+        "ctx_btn_image_post": "🖼 Rasmdan Post",
+        "ctx_btn_voice_post": "🎙 Ovozdan Post",
+        "ctx_btn_link_post": "🔗 Havoladan Post",
+        "ctx_btn_recycle": "♻️ Qayta ishlash",
+        "ctx_btn_assistant": "🤖 AI Yordamchi",
+        "ctx_btn_post_score": "📊 Post Score",
     },
     # ------------------------------------------------------------
     # 🇷🇺 RUS TILI
@@ -128,6 +141,19 @@ CONTENT_MENU_I18N = {
         ),
         "cm_offer_magic": "✨ Magic Post",
         "cm_offer_menu": "🔙 Главное меню",
+        # --- PHASE 9: [✍️ Создать пост] Contextual Inline Menu (RU) ---
+        "ctx_post_intro": (
+            "✍️ <b>Создать пост</b> — выберите нужный формат 👇\n\n"
+            "<i>Или сразу отправьте фото, голосовое либо текст.</i>"
+        ),
+        "ctx_btn_ai_post": "⚡ AI Пост",
+        "ctx_btn_manual_post": "📝 Обычный пост",
+        "ctx_btn_image_post": "🖼 Пост из фото",
+        "ctx_btn_voice_post": "🎙 Пост из голоса",
+        "ctx_btn_link_post": "🔗 Пост по ссылке",
+        "ctx_btn_recycle": "♻️ Переработка",
+        "ctx_btn_assistant": "🤖 AI Помощник",
+        "ctx_btn_post_score": "📊 Post Score",
     },
     # ------------------------------------------------------------
     # 🇬🇧 INGLIZ TILI
@@ -167,6 +193,19 @@ CONTENT_MENU_I18N = {
         ),
         "cm_offer_magic": "✨ Magic Post",
         "cm_offer_menu": "🔙 Main menu",
+        # --- PHASE 9: [✍️ Create post] Contextual Inline Menu (EN) ---
+        "ctx_post_intro": (
+            "✍️ <b>Create post</b> — choose a format 👇\n\n"
+            "<i>Or send a photo, voice note or text right away.</i>"
+        ),
+        "ctx_btn_ai_post": "⚡ AI Post",
+        "ctx_btn_manual_post": "📝 Regular Post",
+        "ctx_btn_image_post": "🖼 Image to Post",
+        "ctx_btn_voice_post": "🎙 Voice to Post",
+        "ctx_btn_link_post": "🔗 Link to Post",
+        "ctx_btn_recycle": "♻️ Recycle Post",
+        "ctx_btn_assistant": "🤖 AI Assistant",
+        "ctx_btn_post_score": "📊 Post Score",
     },
 }
 

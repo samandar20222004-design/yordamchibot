@@ -533,7 +533,8 @@ async def url_text_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # 1) SSRF GUARD — havola bazaga/AI ga borishdan OLDIN tekshiriladi.
     guard = validate_public_url(raw)
     if not guard.get("ok"):
-        await _safe_send(message, sources_t("src_rss_invalid_url", lang),
+        from locales.translations import get_text
+        await _safe_send(message, get_text("err_ux_url_failed", lang),
                          get_cancel_keyboard(lang))
         return SRC_URL_INPUT
 
@@ -549,8 +550,8 @@ async def url_text_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
         loaded = {"ok": False, "error_code": "network_error"}
 
     if not loaded.get("ok"):
-        await _safe_send(message, loaded.get("message")
-                         or sources_t("src_rss_invalid_url", lang),
+        from locales.translations import get_text
+        await _safe_send(message, get_text("err_ux_url_failed", lang),
                          get_cancel_keyboard(lang))
         return SRC_URL_INPUT
 

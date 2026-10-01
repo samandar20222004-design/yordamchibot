@@ -303,4 +303,18 @@ echo "===== 🚀 PHASE 8 — 7-DAY AUTOPILOT V2 (STRATEGY & APPROVAL MODES) ====
 "$PY" tests/autopilot_v2_test.py || exit 1
 
 echo
+echo "===== 🎯 PHASE 9 — UX, ONBOARDING VA CONTEXTUAL MENUS ====="
+# (1) Asosiy menyu konsolidatsiyasi: 5 ta asosiy tugma ([✍️ Post yaratish],
+#     [📢 Kanallarim], [📅 Rejalashtirilgan], [📊 Statistika], [⚙️ Sozlamalar]),
+#     admin tugmalari faqat adminga ko'rinadi;
+# (2) Contextual menyular: [✍️ Post yaratish] (4x2, 8 tugma) va [📢 Kanallarim]
+#     (Autopilot, Kontent reja, Channel DNA, Analytics, Team, Sozlamalar);
+# (3) 2 daqiqalik Instant-Value Onboarding (5 qadam: salomlashuv -> kanal ulash
+#     -> tezkor DNA -> qisqa xulosa + "7 kunlik kontent reja tuzamizmi?" ->
+#     1-click 7 kunlik reja);
+# (4) Error UX va User Communication ("Exception occurred" yo'q; AI band,
+#     Telegram flood va URL xato uchun aniq muloyim xabarlar).
+"$PY" tests/phase9_ux_onboarding_contextual_test.py || exit 1
+
+echo
 echo "BARCHA TESTLAR MUVOFFAQIYATLI ✔"
