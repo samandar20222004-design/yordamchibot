@@ -316,9 +316,22 @@ Health endpoint `200` va JSON qaytaradi. UptimeRobot bot polling'ini emas, Rende
 
 | Endpoint | Vazifasi |
 |---|---|
-| `/health/live` | Bot jarayoni ishlayaptimi — doim `200` (UptimeRobot shu yerga qaraydi) |
-| `/health/ready` | Bot ishlashga tayyormi — baza bilan aloqa tekshiradi (`200` yoki `503`) |
-| `/health`, `/` | `/health/live` bilan bir xil (eski havolalar ishlashda davom etadi) |
+| `/health/live` | Public, process-only liveness probe — tashqi dependency'larni tekshirmaydi, ishlayotgan jarayonda `200` qaytaradi (UptimeRobot shu yerga qaraydi) |
+| `/health/ready` | Ichki readiness probe — DB ping/pool, Redis PING va scheduler holati (`200` yoki `503`); faqat autentifikatsiyadan keyin |
+| `/health`, `/` | `/health/live` bilan bir xil; metrics yoki dependency tafsilotlari qaytarmaydi |
+
+`/health/ready` uchun deployment'da alohida, uzun tasodifiy `HEALTH_READY_TOKEN`
+secretini bering va probe'da `Authorization: Bearer <token>` (yoki
+`X-Health-Token`) yuboring. Token sozlanmagan bo'lsa endpoint fail-closed
+`404`; token noto'g'ri bo'lsa `401`. Javobda faqat `database`, `redis`,
+`scheduler` holatlari bor — DSN, exception matni, user ma'lumoti yoki metrikalar
+hech qachon ochiq endpoint'dan chiqmaydi. `/metrics` public route mavjud emas.
+
+Production metriclar faqat OWNER'ning ichki `/health` bot buyrug'ida
+ko'rsatiladi: rolling 24h/30d active users, AI request/success/latency/cost,
+Telegram API requests/429, scheduled/sent/failed posts, update/AI/scheduled
+queue depth, DB pool usage, Redis status va pending/failed payments. Telegram
+API counters process-local; DB-backed agregatlar restartlar orasida saqlanadi.
 
 ### AI sozlamalari (kamida bitta bepul kalit; 8 ta provayder navbatma-navbat ishlaydi)
 
@@ -922,7 +935,16 @@ Botga `/health` yuborib tizimning to'liq holatini ko'rish mumkin:
   (Gemini → Groq → OpenRouter) holati: `OK` / `DEGRADED` (circuit-breaker
   ochiq) / `UNCONFIGURED` (kalit yo'q);
 - **🖥 Tizim** — bot uptime, faol ulanishlar, asyncio vazifalari va oxirgi
-  1 soat / 24 soatdagi xatolar soni.
+  1 soat / 24 soatdagi xatolar soni;
+- **📈 Production metrics (PHASE 10)** — rolling 24h/30d faol userlar, AI
+  request/success/latency/cost, Telegram API request va 429, scheduled/sent/
+  failed postlar, queue depth, DB pool ishlatilishi, Redis holati hamda pending/
+  failed paymentlar.
+
+Structured stdout loglari JSON Lines formatida (`timestamp`, `level`, `event`,
+`user_id`, `channel_id`, `latency_ms`, `error_code`) chiqadi. Bot/API tokenlar,
+DB parollari, bearer credentiallar, karta/to'lov maydonlari va boshqa maxfiy
+qiymatlar Sentry yoki oddiy loggerlarga uzatilishidan oldin scrub qilinadi.
 
 Umumiy holat: **HEALTHY** (hammasi joyida) / **DEGRADED** (scheduler to'xtagan,
 dead-letter/failed postlar chegara oshgan, stale processing yoki asosiy AI

@@ -1,4 +1,4 @@
-"""HealthService — PostAssist V2 (7-BOSQICH): System Health Check.
+"""HealthService — PostAssist V2 (7-BOSQICH + PHASE 10): Health & Observability.
 
 Tizimning barcha asosiy komponentlarini bitta so'rovda tekshiradi va
 adminlarga chiroyli, tilga mos (uz/ru/en) hisobot qaytaradi:
@@ -15,6 +15,11 @@ adminlarga chiroyli, tilga mos (uz/ru/en) hisobot qaytaradi:
                        vazifalari va oxirgi 1 soat/24 soatdagi xatolar soni
                        (global error handler statistikasidan).
 5. **Umumiy holat**  — ``HEALTHY`` / ``DEGRADED`` / ``UNHEALTHY``.
+6. **PHASE 10 metrics** — rolling DAU/MAU, AI request/latency/cost,
+                       Telegram 429, post/delivery queue, DB pool, Redis va
+                       payment aggregates (faqat ichki/admin iste'molchilar).
+7. **HTTP probes** — public liveness process-only; protected readiness DB,
+                       Redis va scheduler worker'ni tekshiradi.
 
 **Qat'iy qoida:** health tekshiruvi HECH QACHON istisno ko'tarmaydi va botning
 asosiy ishini SEKINLASHTIRMAYDI — har bir komponent alohida
@@ -48,9 +53,11 @@ import logging
 import os
 import threading
 import time
+from collections import OrderedDict
 from datetime import datetime, timezone
 
 import database as db
+from services import observability as process_metrics
 
 logger = logging.getLogger(__name__)
 
@@ -100,6 +107,12 @@ _START_TIME_UTC = datetime.now(timezone.utc)
 _registry_lock = threading.Lock()
 _registered_scheduler = None
 _registered_application = None
+_activity_lock = threading.Lock()
+_activity_flush_done = threading.Event()
+_activity_flush_done.set()
+_pending_user_activity: OrderedDict[int, float] = OrderedDict()
+_activity_flush_running = False
+_MAX_PENDING_ACTIVITY = 10_000
 
 
 def mark_bot_started() -> None:
@@ -126,6 +139,79 @@ def register_application(application) -> None:
 def get_registered_scheduler():
     with _registry_lock:
         return _registered_scheduler
+
+
+def record_user_activity(user_id) -> None:
+    """Update a bounded in-memory batch; no database I/O on the update path."""
+    try:
+        uid = int(user_id)
+    except (TypeError, ValueError):
+        return
+    if uid <= 0:
+        return
+    now = time.monotonic()
+    with _activity_lock:
+        _pending_user_activity[uid] = now
+        _pending_user_activity.move_to_end(uid)
+        if len(_pending_user_activity) > _MAX_PENDING_ACTIVITY:
+            _pending_user_activity.popitem(last=False)
+    process_metrics.record_active_user(uid)
+
+
+async def flush_user_activity() -> int:
+    """Persist a coalesced batch of active user IDs (every scheduler tick).
+
+    Updates are debounced in RAM so incoming Telegram updates never block on a
+    write. Unregistered users (notably a first ``/start``) are retried briefly;
+    database failures never interrupt scheduler or bot handlers.
+    """
+    global _activity_flush_running
+    wait_for_current = False
+    with _activity_lock:
+        if _activity_flush_running:
+            wait_for_current = True
+        elif not _pending_user_activity:
+            return 0
+        else:
+            _activity_flush_running = True
+            _activity_flush_done.clear()
+            batch = dict(_pending_user_activity)
+            for uid, marker in batch.items():
+                if _pending_user_activity.get(uid) == marker:
+                    _pending_user_activity.pop(uid, None)
+    if wait_for_current:
+        try:
+            await asyncio.wait_for(asyncio.to_thread(_activity_flush_done.wait), timeout=10.0)
+        except Exception:
+            return 0
+        # Shutdown flushes must pick up IDs that arrived during the previous
+        # batch; the scheduler is paused by then, so this is bounded.
+        return await flush_user_activity()
+
+    updated_ids = set()
+    try:
+        updater = getattr(db, "touch_user_activity", None)
+        if callable(updater):
+            result = await db.run_db(updater, list(batch))
+            updated_ids = {int(uid) for uid in (result or [])}
+        return len(updated_ids)
+    except Exception:
+        logger.warning("Faol foydalanuvchilar batch'i saqlanmadi", extra={
+            "event": "user_activity_flush_failed",
+            "error_code": "USER_ACTIVITY_DB_ERROR",
+        })
+        return 0
+    finally:
+        now = time.monotonic()
+        with _activity_lock:
+            # Retry only briefly, and never overwrite a newer activity marker.
+            for uid, marker in batch.items():
+                if uid in updated_ids or uid in _pending_user_activity:
+                    continue
+                if now - marker < 300:
+                    _pending_user_activity[uid] = marker
+            _activity_flush_running = False
+            _activity_flush_done.set()
 
 
 def get_uptime_seconds() -> float:
@@ -192,6 +278,98 @@ async def _check_database() -> dict:
         logger.debug("health: pool holati o'qilmadi: %s", e)
         result["pool"] = {}
     return result
+
+
+async def _check_redis() -> dict:
+    """Redis PING holati; ixtiyoriy in-memory fallback maxfiy ma'lumotsiz."""
+    result = {
+        "status": "unknown", "ok": False, "configured": False,
+        "backend": "unknown", "using_fallback": False,
+        "failures": 0, "ping_latency_ms": None,
+    }
+    try:
+        from services.cache_backend import CacheSettings, get_cache_backend
+
+        settings = CacheSettings()
+        backend = get_cache_backend()
+        result["configured"] = bool(settings.enabled and settings.url)
+        ping_started = time.perf_counter()
+        try:
+            ping_ok = bool(await asyncio.wait_for(backend.ping(), timeout=2.5))
+        except Exception:
+            ping_ok = False
+        result["ping_latency_ms"] = round((time.perf_counter() - ping_started) * 1000, 1)
+        try:
+            stats = dict(backend.stats() or {})
+        except Exception:
+            stats = {}
+        raw_backend = str(stats.get("backend") or "unknown").lower()
+        result["backend"] = raw_backend if raw_backend in {"redis", "memory", "resilient"} else "unknown"
+        result["using_fallback"] = bool(stats.get("using_fallback"))
+        try:
+            result["failures"] = max(0, min(1_000_000, int(stats.get("failures") or 0)))
+        except (TypeError, ValueError):
+            result["failures"] = 0
+
+        if not result["configured"]:
+            # Redis o'chirilgan — RAM backend ping'i muvaffaqiyatli bo'lsa bu
+            # deployment uchun normal, degraded holat emas.
+            result["ok"] = ping_ok
+            result["status"] = "disabled" if ping_ok else "unavailable"
+            return result
+
+        using_fallback = bool(stats.get("using_fallback"))
+        primary = str(stats.get("primary") or stats.get("backend") or "")
+        redis_selected = primary == "redis" or stats.get("backend") in {"redis", "resilient"}
+        result["ok"] = ping_ok and redis_selected and not using_fallback
+        if result["ok"]:
+            result["status"] = "ok"
+        elif using_fallback:
+            result["status"] = "degraded"
+        else:
+            result["status"] = "unavailable"
+    except Exception:
+        result["status"] = "unavailable"
+        result["ok"] = False
+    return result
+
+
+async def get_readiness_status() -> dict:
+    """Ichki probe: DB pool/ping, Redis ping va scheduler worker statusi.
+
+    Public liveness bu funksiyani chaqirmaydi. Javobda faqat komponent holati
+    bor; business metriclar, konfiguratsiya, host yoki xato tafsiloti yo'q.
+    """
+    checks = {"database": "error", "redis": "unavailable", "scheduler": "error"}
+    database_ok = False
+    try:
+        ping = await asyncio.wait_for(db.run_db(db.ping_db), timeout=5.0)
+        pool = await asyncio.wait_for(db.run_db(db.get_db_pool_status), timeout=5.0)
+        database_ok = bool(ping) and bool((pool or {}).get("ready")) \
+            and not bool((pool or {}).get("collapsed"))
+    except Exception:
+        database_ok = False
+    checks["database"] = "ok" if database_ok else "error"
+
+    redis = await _check_redis()
+    checks["redis"] = redis["status"]
+
+    scheduler = get_registered_scheduler()
+    try:
+        scheduler_ok = scheduler is not None and bool(scheduler.running)
+        if scheduler_ok:
+            try:
+                from apscheduler.schedulers.base import STATE_PAUSED
+                scheduler_ok = getattr(scheduler, "state", None) != STATE_PAUSED
+            except Exception:
+                scheduler_ok = scheduler_ok and getattr(scheduler, "state", None) != 2
+    except Exception:
+        scheduler_ok = False
+    checks["scheduler"] = "ok" if scheduler_ok else "error"
+
+    ready = database_ok and bool(redis.get("ok")) and scheduler_ok
+    return {"ready": ready, "status": "ready" if ready else "not_ready",
+            "checks": checks}
 
 
 # ──────────────────────────────────────────────────────────────
@@ -459,6 +637,150 @@ def _compute_overall_status(database: dict, scheduler: dict,
     return STATUS_DEGRADED if reasons else STATUS_HEALTHY
 
 
+async def get_observability_metrics(database_info=None, post_counts=None,
+                                    payments_info=None) -> dict:
+    """Production metrics snapshot for protected admin/internal consumers.
+
+    Durable aggregates come from PostgreSQL. Telegram request counts and the
+    short activity/AI fallback come from the bounded process-local registry.
+    This function is never attached to a public HTTP endpoint.
+    """
+    post_counts = post_counts or {}
+    payments_info = payments_info or {}
+    local = process_metrics.snapshot()
+    persisted = None
+    # During offline unit tests / early startup no pool exists yet; do not
+    # create an extra connection attempt just for optional metrics.
+    should_query_database = database_info is None or getattr(db, "_pool", None) is not None
+    if should_query_database:
+        try:
+            persisted = await db.run_db(db.get_observability_metrics)
+        except Exception:
+            persisted = None
+    persisted = persisted if isinstance(persisted, dict) else {}
+    persisted_ok = bool(persisted.get("available"))
+
+    def durable_or_local(key, local_key=None, default=0):
+        if persisted_ok and key in persisted:
+            return persisted.get(key, default)
+        return local.get(local_key or key, default)
+
+    active_daily = int(persisted.get("active_users_daily") or 0) if persisted_ok else 0
+    active_monthly = int(persisted.get("active_users_monthly") or 0) if persisted_ok else 0
+    local_active = local.get("active_users") or {}
+    active_users = {
+        "daily": max(active_daily, int(local_active.get("daily") or 0)),
+        "monthly": max(active_monthly, int(local_active.get("monthly") or 0)),
+    }
+
+    ai_requests = int(durable_or_local("ai_requests", default=0) or 0)
+    ai_successes = int(durable_or_local("ai_successes", default=0) or 0)
+    ai_requests_monthly = int(durable_or_local("ai_requests_monthly", default=0) or 0)
+    ai_successes_monthly = int(durable_or_local("ai_successes_monthly", default=0) or 0)
+    ai_success_rate = (
+        ai_successes / ai_requests if ai_requests else 0.0
+    ) if persisted_ok else float(local.get("ai_success_rate") or 0.0)
+    ai_success_rate_monthly = (
+        ai_successes_monthly / ai_requests_monthly if ai_requests_monthly else 0.0
+    ) if persisted_ok else float(local.get("ai_success_rate_monthly") or 0.0)
+    if persisted_ok:
+        ai_latency = float(persisted.get("ai_latency_ms") or 0.0)
+        ai_cost = float(persisted.get("ai_cost_usd") or 0.0)
+        ai_latency_monthly = float(persisted.get("ai_latency_ms_monthly") or 0.0)
+        ai_cost_monthly = float(persisted.get("ai_cost_usd_monthly") or 0.0)
+    else:
+        ai_latency = float(local.get("ai_latency_ms") or 0.0)
+        ai_cost = float(local.get("ai_cost_usd") or 0.0)
+        ai_latency_monthly = float(local.get("ai_latency_ms_monthly") or 0.0)
+        ai_cost_monthly = float(local.get("ai_cost_usd_monthly") or 0.0)
+
+    scheduled = int(persisted.get("scheduled_posts") or 0) if persisted_ok else int(post_counts.get("pending") or 0)
+    delivery_queue = int(persisted.get("delivery_queue_depth") or 0) if persisted_ok else int(
+        post_counts.get("delivery_queue_depth") or 0
+    )
+    sent = int(persisted.get("sent_posts") or 0) if persisted_ok else int(post_counts.get("sent") or 0)
+    failed = int(persisted.get("failed_posts") or 0) if persisted_ok else (
+        int(post_counts.get("failed") or 0) + int(post_counts.get("dead_letter") or 0)
+    )
+    pending_receipts = int(persisted.get("payment_pending_receipts") or 0) if persisted_ok else int(
+        payments_info.get("pending_receipts") or 0
+    )
+    pending_orders = int(persisted.get("payment_pending_orders") or 0) if persisted_ok else 0
+    payment_failures = int(persisted.get("payment_failures") or 0) if persisted_ok else int(
+        local.get("payment_failures") or 0
+    )
+
+    pool = (database_info or {}).get("pool") or {}
+    try:
+        pool_max = max(0, int(pool.get("max") or 0))
+        pool_used = max(0, int(pool.get("used") or 0))
+        pool_available = max(0, int(pool.get("available") or 0))
+    except (TypeError, ValueError):
+        pool_max = pool_used = pool_available = 0
+    pool_usage = {
+        "used": pool_used,
+        "max": pool_max,
+        "available": pool_available,
+        "usage_ratio": round(min(1.0, pool_used / pool_max), 4) if pool_max else None,
+    }
+
+    update_queue = 0
+    application = None
+    with _registry_lock:
+        application = _registered_application
+    try:
+        manager = getattr(application, "_lock_manager", None)
+        update_queue = max(0, int(getattr(manager, "_pending", 0) or 0))
+    except (TypeError, ValueError):
+        update_queue = 0
+    ai_queue = 0
+    try:
+        from services.ai.concurrency import ai_concurrency_manager
+        ai_queue = max(0, int(ai_concurrency_manager.waiting_count))
+    except Exception:
+        pass
+    queue_depth = max(0, update_queue) + max(0, ai_queue) + max(0, delivery_queue)
+    redis = await _check_redis()
+
+    return {
+        "window": {"daily": "rolling_24h", "monthly": "rolling_30d"},
+        "source": "database" if persisted_ok else "process_fallback",
+        "active_users": active_users,
+        "ai_requests": ai_requests,
+        "ai_requests_monthly": ai_requests_monthly,
+        "ai_success_rate": round(ai_success_rate, 4),
+        "ai_success_rate_monthly": round(ai_success_rate_monthly, 4),
+        "ai_latency_ms": round(ai_latency, 1),
+        "ai_latency_ms_monthly": round(ai_latency_monthly, 1),
+        "ai_cost_usd": round(ai_cost, 6),
+        "ai_cost_usd_monthly": round(ai_cost_monthly, 6),
+        "telegram_requests": int(local.get("telegram_requests") or 0),
+        "telegram_429": int(local.get("telegram_429") or 0),
+        "telegram_latency_ms": float(local.get("telegram_latency_ms") or 0.0),
+        "scheduled_posts": scheduled,
+        "sent_posts": sent,
+        "failed_posts": failed,
+        "failed_deliveries": int(persisted.get("failed_deliveries") or 0)
+            if persisted_ok else int(post_counts.get("delivery_failed") or 0),
+        "delivery_queue_depth": delivery_queue,
+        "queue_depth": queue_depth,
+        "queue_components": {
+            "updates": update_queue, "ai_waiting": ai_queue,
+            "deliveries": delivery_queue, "scheduled_posts": scheduled,
+        },
+        "db_pool_usage": pool_usage,
+        "redis_status": redis.get("status", "unavailable"),
+        "redis_backend": redis.get("backend", "unknown"),
+        "redis_using_fallback": bool(redis.get("using_fallback")),
+        "redis_failures": int(redis.get("failures") or 0),
+        "redis_ping_latency_ms": redis.get("ping_latency_ms"),
+        "payment_pending": pending_receipts + pending_orders,
+        "payment_pending_receipts": pending_receipts,
+        "payment_pending_orders": pending_orders,
+        "payment_failures": payment_failures,
+    }
+
+
 async def get_system_health() -> dict:
     """Barcha komponentlarni tekshirib, yagona health hisobotini qaytaradi.
 
@@ -475,15 +797,25 @@ async def get_system_health() -> dict:
         }
     """
     database_info = await _check_database()
-    post_counts = await db.run_db(db.get_post_health_counts)
+    try:
+        post_counts = await db.run_db(db.get_post_health_counts)
+    except Exception as e:
+        logger.warning("health: post metrikalari olinmadi (%s)", type(e).__name__)
+        post_counts = {"pending": 0, "processing": 0, "failed": 0,
+                       "delivery_failed": 0, "dead_letter": 0}
     scheduler_info = await _check_scheduler(post_counts or {})
     ai_info = _check_ai_providers()
     try:
         payments_info = await _check_payments()
     except Exception as e:  # hech qachon health'ni yiqitmasin
-        logger.warning("health: payments tekshiruvi yiqildi: %s", e)
+        logger.warning("health: payments tekshiruvi yiqildi (%s)", type(e).__name__)
         payments_info = {"component": "payments", "status": STATUS_UNKNOWN,
-                         "error": f"{type(e).__name__}: {e}"[:200]}
+                         "error": "payment_check_failed"}
+    try:
+        metrics = await get_observability_metrics(database_info, post_counts or {}, payments_info)
+    except Exception as e:
+        logger.warning("health: observability metrikasi olinmadi (%s)", type(e).__name__)
+        metrics = process_metrics.snapshot()
     system_info = _check_system()
 
     overall = _compute_overall_status(database_info, scheduler_info, ai_info, payments_info)
@@ -496,6 +828,7 @@ async def get_system_health() -> dict:
         "scheduler": scheduler_info,
         "ai_providers": ai_info,
         "payments": payments_info,
+        "metrics": metrics,
         "system": system_info,
     }
 
@@ -673,5 +1006,32 @@ async def format_health_report(lang: str = "uz", health: dict = None) -> str:
     tasks = system.get("asyncio_tasks")
     if tasks is not None:
         lines.append(get_text("health_tasks", lang).format(count=_fmt_num(tasks)))
+
+    # ── PHASE 10: protected production observability metrics ──
+    metrics = health.get("metrics") or {}
+    active = metrics.get("active_users") or {}
+    pool_usage = metrics.get("db_pool_usage") or {}
+    lines.extend((
+        "",
+        "📈 <b>Production metrics</b> <i>(rolling 24h / 30d)</i>",
+        f"• Active users DAU/MAU: {_fmt_num(active.get('daily'))} / {_fmt_num(active.get('monthly'))}",
+        f"• AI requests/success: {_fmt_num(metrics.get('ai_requests'))} / "
+        f"{float(metrics.get('ai_success_rate') or 0.0):.1%} | "
+        f"latency {_fmt_num(metrics.get('ai_latency_ms'))} ms | "
+        f"cost ${float(metrics.get('ai_cost_usd') or 0.0):.6f}",
+        f"• Telegram API requests / 429: {_fmt_num(metrics.get('telegram_requests'))} / "
+        f"{_fmt_num(metrics.get('telegram_429'))}",
+        f"• Posts scheduled / sent / failed: {_fmt_num(metrics.get('scheduled_posts'))} / "
+        f"{_fmt_num(metrics.get('sent_posts'))} / {_fmt_num(metrics.get('failed_posts'))}",
+        f"• Queue depth: {_fmt_num(metrics.get('queue_depth'))} "
+        f"(deliveries {_fmt_num(metrics.get('delivery_queue_depth'))}) | "
+        f"DB pool: {_fmt_num(pool_usage.get('used'))}/{_fmt_num(pool_usage.get('max'))} | "
+        f"Redis: {_html.escape(str(metrics.get('redis_status') or 'unknown'))}/"
+        f"{_html.escape(str(metrics.get('redis_backend') or 'unknown'))} "
+        f"({_fmt_num(metrics.get('redis_ping_latency_ms'))} ms, "
+        f"fallback={bool(metrics.get('redis_using_fallback'))})",
+        f"• Payments pending / failures (24h): {_fmt_num(metrics.get('payment_pending'))} / "
+        f"{_fmt_num(metrics.get('payment_failures'))}",
+    ))
 
     return "\n".join(lines)

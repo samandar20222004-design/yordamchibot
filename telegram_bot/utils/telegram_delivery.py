@@ -5,6 +5,7 @@ PTB resolves Defaults and api_kwargs, BEFORE rate limiting/network I/O. No
 retry is introduced here (a network timeout may mean delivery succeeded).
 """
 from copy import copy
+import time
 
 from telegram import TelegramObject
 from telegram.ext import ExtBot
@@ -63,7 +64,27 @@ class SafeHTMLBot(ExtBot):
     """Production bot: one mandatory SSOT pass for every HTML request."""
 
     async def _do_post(self, endpoint, data, **kwargs):
-        return await super()._do_post(endpoint, sanitize_api_payload(data), **kwargs)
+        # Count outgoing Bot API attempts without recording endpoint payloads,
+        # chat contents, token-bearing URLs, or method arguments.
+        safe_data = sanitize_api_payload(data)
+        started = time.perf_counter()
+        error = None
+        try:
+            return await super()._do_post(endpoint, safe_data, **kwargs)
+        except Exception as exc:
+            error = exc
+            raise
+        finally:
+            try:
+                from services.observability import record_telegram_request
+                record_telegram_request(
+                    status_code=getattr(error, "error_code", None),
+                    error=error,
+                    latency_ms=(time.perf_counter() - started) * 1000,
+                )
+            except Exception:
+                # Metrics must never alter Telegram request semantics.
+                pass
 
 
 def create_safe_bot(token):

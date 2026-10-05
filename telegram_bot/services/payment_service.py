@@ -101,6 +101,15 @@ RECEIPT_STATUS_APPROVED = "approved"
 RECEIPT_STATUS_REJECTED = "rejected"
 
 
+def _record_payment_failure_metric() -> None:
+    """Best-effort counter; never log or retain payment identifiers/payloads."""
+    try:
+        from services.observability import record_payment_failure
+        record_payment_failure()
+    except Exception:
+        pass
+
+
 class PaymentService:
     """To'lovlarni boshqarish: Stars, karta chek, tasdiqlash."""
 
@@ -197,6 +206,7 @@ class PaymentService:
             duration_days = 0
 
         if not charge_id or duration_days <= 0:
+            _record_payment_failure_metric()
             return {"ok": False, "duplicate": False, "reason": "invalid_payment"}
 
         if str(payload or "").startswith("sub_"):
@@ -205,6 +215,7 @@ class PaymentService:
                 currency=currency or "XTR",
             )
             if plan_info is None:
+                _record_payment_failure_metric()
                 return {
                     "ok": False, "duplicate": False,
                     "reason": payload_err or "invalid_payload",
@@ -227,6 +238,7 @@ class PaymentService:
                 # 1) User qatorini qulflash (mavjudlik + parallel update himoyasi)
                 cur.execute("SELECT 1 FROM users WHERE user_id = %s FOR UPDATE", (user_id,))
                 if not cur.fetchone():
+                    _record_payment_failure_metric()
                     return {"ok": False, "duplicate": False, "reason": "user_not_found"}
 
                 # 2) PHASE 9: charge_id bo'yicha atomar qulf — bitta charge bilan
@@ -275,6 +287,7 @@ class PaymentService:
                     (plan, str(int(duration_days)), user_id),
                 )
                 if cur.rowcount == 0:
+                    _record_payment_failure_metric()
                     return {"ok": False, "duplicate": False, "reason": "user_not_found"}
 
             _invalidate_user(user_id)
@@ -283,6 +296,7 @@ class PaymentService:
             return {"ok": True, "duplicate": False, "days": int(duration_days),
                     "payment_method": method, "currency": curcy}
         except Exception as e:
+            _record_payment_failure_metric()
             logger.error("PaymentService.process_stars_payment xatosi: %s", e)
             return {"ok": False, "duplicate": False, "reason": "database_error"}
 

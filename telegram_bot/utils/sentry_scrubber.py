@@ -29,8 +29,10 @@ Foydalanish::
 
 from __future__ import annotations
 
+import json
 import re
 import threading
+from datetime import datetime, timezone
 
 __all__ = [
     "REDACTED",
@@ -42,6 +44,10 @@ __all__ = [
     "scrub_text",
     "scrub_value",
     "scrub_event",
+    "SecretScrubbingFilter",
+    "JsonLogFormatter",
+    "install_logging_scrubber",
+    "configure_structured_logging",
 ]
 
 #: Noma'lum sezgir qiymat o'rniga qo'yiladigan belgi.
@@ -62,10 +68,11 @@ REDACTED_CARD = "[REDACTED:CARD]"
 # matn ichidagi tokenni (bot<token> shaklini ham) ushlaydi.
 _BOT_TOKEN_RE = re.compile(r"\d{8,10}:[A-Za-z0-9_-]{30,64}")
 
-# DB ulanish URL'idagi parol: postgresql://user:PAROL@host
+# DB/broker URL'laridagi to'liq credential bo'lagi. Username ham identifikator
+# bo'lishi mumkin; production loglarda butun user:password qismi yashiriladi.
 _DB_PASSWORD_RE = re.compile(
-    r"(?i)\b(postgres(?:ql)?|mysql|redis|amqp|mongodb(?:\+srv)?)://"
-    r"([^:/@\s]+):([^@\s]+)@"
+    r"(?i)\b(postgres(?:ql)?|mysql|redis|rediss|amqp|amqps|"
+    r"mongodb(?:\+srv)?)://[^/@\s]+(?::[^/@\s]*)?@"
 )
 
 # Karta raqami: 16 xona, 4 talik guruhda (bo'shliq/defis ixtiyoriy)
@@ -79,7 +86,33 @@ _API_KEY_RE = re.compile(
     r"\b(?:sk-[A-Za-z0-9_-]{16,}|AIza[0-9A-Za-z_-]{30,}|"
     r"ghp_[A-Za-z0-9]{20,}|xox[baprs]-[A-Za-z0-9-]{10,}|"
     r"gsk_[A-Za-z0-9_-]{20,}|csk-[A-Za-z0-9_-]{20,}|"
-    r"sk-or-v1-[A-Za-z0-9]{20,})\b"
+    r"sk-or-v1-[A-Za-z0-9]{20,}|ya29\.[A-Za-z0-9_-]{20,}|"
+    r"AKIA[0-9A-Z]{16})\b"
+)
+
+# Matnli log ichiga tasodifan qo'shilgan .env/JSON/query parametrlari.
+# Qiymat vergul, ampersand, whitespace yoki yopuvchi JSON belgigacha kesiladi.
+_SECRET_ASSIGNMENT_KEY = (
+    r"(?:password|passwd|pwd|secret|token|"
+    r"(?:[a-z0-9_-]+[_-])?api[_-]?key|authorization|access[_-]?token|"
+    r"refresh[_-]?token|client[_-]?secret|private[_-]?key|"
+    r"payment[_-]?(?:details|payload|id|order[_-]?id|receipt[_-]?id|charge[_-]?id)|"
+    r"telegram[_-]?payment[_-]?charge[_-]?id|provider[_-]?payment[_-]?charge[_-]?id|"
+    r"credit[_-]?card|card[_-]?(?:number|holder|details)|"
+    r"pan|cvv2?|cvc|iban|account[_-]?number)"
+)
+_QUOTED_SECRET_ASSIGNMENT_RE = re.compile(
+    r"(?i)(?P<prefix>['\"]?" + _SECRET_ASSIGNMENT_KEY
+    + r"['\"]?\s*[:=]\s*)(?P<quote>['\"])(?!\[REDACTED\b)(?P<value>.*?)(?P=quote)"
+)
+_SECRET_ASSIGNMENT_RE = re.compile(
+    r"(?i)(?P<prefix>['\"]?" + _SECRET_ASSIGNMENT_KEY
+    + r"['\"]?\s*[:=]\s*)(?!['\"]|\[REDACTED\b)(?P<value>[^\s&;,\"'\]}]+)"
+)
+_BEARER_RE = re.compile(r"(?i)(\bBearer\s+)[A-Za-z0-9._~+/-]{8,}={0,2}")
+_PRIVATE_KEY_RE = re.compile(
+    r"-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----.*?-----END [A-Z0-9 ]*PRIVATE KEY-----",
+    re.DOTALL,
 )
 
 # ──────────────────────────────────────────────────────────────
@@ -95,8 +128,13 @@ SENSITIVE_KEYS = frozenset({
     "password", "passwd", "pwd", "secret", "token", "bot_token",
     "api_key", "apikey", "api-key", "access_token", "refresh_token",
     "authorization", "auth", "cookie", "cookies", "session",
-    "card_number", "cardnumber", "card_holder", "pan", "cvv", "cvc",
-    "dsn", "database_url", "private_key", "credential", "credentials",
+    "card", "card_number", "cardnumber", "card_holder", "cardholder",
+    "card_details", "credit_card", "payment_details", "payment_payload",
+    "payment_id", "payment_order_id", "payment_receipt_id", "charge_id",
+    "telegram_payment_charge_id", "provider_payment_charge_id", "receipt_id",
+    "receipt_file_id", "invoice_payload", "order_id", "pan", "cvv", "cvv2",
+    "cvc", "iban", "account_number", "bank_account", "dsn", "database_url",
+    "connection_string", "private_key", "credential", "credentials",
     "x-api-key", "set-cookie",
 })
 
@@ -162,17 +200,34 @@ def scrub_text(text: str) -> str:
         if secret and secret in text:
             text = text.replace(secret, f"{REDACTED}:{label}")
 
-    # 2) DB URL parollari.
-    text = _DB_PASSWORD_RE.sub(r"\1://\2:" + REDACTED + "@", text)
+    # 2) DB/broker URL credentiallari (username + parol).
+    text = _DB_PASSWORD_RE.sub(r"\1://[REDACTED]@", text)
 
-    # 3) Bot tokenlari.
-    text = _BOT_TOKEN_RE.sub(REDACTED_TOKEN, text)
-
-    # 4) Karta raqamlari (guruhlangan va uzluksiz).
+    # 3) Payment PAN raqamlarini assignment'dan OLDIN yutib olamiz — aks
+    # holda whitespace bilan guruhlangan karta raqami bo'laklarga ajralardi.
     text = _CARD_GROUPED_RE.sub(REDACTED_CARD, text)
     text = _CARD_PLAIN_RE.sub(REDACTED_CARD, text)
 
-    # 5) Ma'lum API kalit formatlari.
+    # 4) Bot tokenni umumiy ``token=...`` assignment'dan OLDIN aniqlaymiz,
+    # maxsus BOT_TOKEN markerini saqlash uchun.
+    text = _BOT_TOKEN_RE.sub(REDACTED_TOKEN, text)
+
+    # 5) .env/JSON/query-string ko'rinishida yozilib qolgan maxfiy qiymatlar.
+    text = _QUOTED_SECRET_ASSIGNMENT_RE.sub(
+        lambda match: (match.group("prefix") + match.group("quote")
+                       + REDACTED + match.group("quote")), text
+    )
+    text = _SECRET_ASSIGNMENT_RE.sub(
+        lambda match: match.group("prefix") + REDACTED, text
+    )
+    text = _BEARER_RE.sub(r"\1" + REDACTED, text)
+    text = _PRIVATE_KEY_RE.sub(REDACTED, text)
+
+    # 6) Karta raqamlariga ikkinchi himoya o'tishi.
+    text = _CARD_GROUPED_RE.sub(REDACTED_CARD, text)
+    text = _CARD_PLAIN_RE.sub(REDACTED_CARD, text)
+
+    # 7) Ma'lum API kalit formatlari.
     text = _API_KEY_RE.sub(REDACTED, text)
 
     return text
@@ -186,8 +241,21 @@ _MAX_DEPTH = 12
 
 
 def _is_sensitive_key(key) -> bool:
+    """Dictionary/log field nomidagi secretlarni aniq va kompozit ko'rinishda topadi."""
     try:
-        return str(key).lower().strip() in SENSITIVE_KEYS
+        raw = str(key).lower().strip()
+        normalized = re.sub(r"[^a-z0-9]+", "_", raw).strip("_")
+        if raw in SENSITIVE_KEYS or normalized in SENSITIVE_KEYS:
+            return True
+        # ``openai_api_key``, ``gemini_access_token`` va shunga o'xshash
+        # vendor-prefiksli maydonlar ham kalit bo'yicha tozalanadi.
+        return any(marker in normalized for marker in (
+            "password", "passwd", "secret", "token", "api_key",
+            "authorization", "private_key", "credential", "card_number",
+            "card_holder", "payment_details", "payment_payload", "payment_id",
+            "charge_id", "receipt_id", "invoice_payload", "order_id",
+            "account_number", "bank_account",
+        )) or normalized in {"pan", "cvv", "cvv2", "cvc", "iban", "card"}
     except Exception:
         return False
 
@@ -298,31 +366,49 @@ def scrub_event(event, hint=None):
 
 import logging as _logging
 
+_STANDARD_LOG_RECORD_FIELDS = frozenset(
+    set(_logging.LogRecord("", 0, "", 0, "", (), None).__dict__)
+    | {"message", "asctime"}
+)
+
 
 class SecretScrubbingFilter(_logging.Filter):
-    """LogRecord xabari, argumentlari va istisno matnini tozalaydi."""
+    """LogRecord xabari, argumentlari, konteksti va istisno matnini tozalaydi."""
 
     def filter(self, record: _logging.LogRecord) -> bool:  # noqa: A003
         try:
-            if isinstance(record.msg, str):
-                record.msg = scrub_text(record.msg)
-            elif record.msg is not None and not isinstance(record.msg, (int, float)):
-                record.msg = scrub_text(str(record.msg))
+            # First scrub arguments by structure, then render the message and
+            # scrub the final text. Scrubbing ``token=%s`` in the template
+            # before %-formatting would consume a placeholder and trigger a
+            # logging formatting error (and could silently drop the event).
             if record.args:
                 if isinstance(record.args, dict):
                     record.args = {k: scrub_value(v) for k, v in record.args.items()}
                 elif isinstance(record.args, tuple):
                     record.args = tuple(_scrub_arg(a) for a in record.args)
+            try:
+                rendered_message = record.getMessage()
+            except Exception:
+                rendered_message = str(record.msg)
+            record.msg = scrub_text(str(rendered_message))
+            record.args = ()
             if record.exc_info and record.exc_info[1] is not None:
                 exc = record.exc_info[1]
                 try:
-                    new_args = tuple(_scrub_arg(a) for a in exc.args)
-                    if new_args != exc.args:
-                        exc.args = new_args
+                    exc.args = tuple(_scrub_arg(a) for a in exc.args)
                 except Exception:
                     pass
             if getattr(record, "exc_text", None):
                 record.exc_text = scrub_text(record.exc_text)
+
+            # logger.info(..., extra={...}) orqali uzatilgan barcha maydonlar
+            # ham JSON formatterga yetib borishdan oldin tozalanadi.
+            for key, value in tuple(record.__dict__.items()):
+                if key in _STANDARD_LOG_RECORD_FIELDS or key.startswith("_"):
+                    continue
+                record.__dict__[key] = (
+                    REDACTED if _is_sensitive_key(key) else scrub_value(value)
+                )
         except Exception:
             # Filtr HECH QACHON logni yiqitmasin.
             pass
@@ -346,15 +432,130 @@ def _scrub_arg(value):
 _LOG_FILTER = SecretScrubbingFilter("secret_scrubber")
 
 
+def _iter_loggers(logger_obj=None):
+    if logger_obj is not None:
+        yield logger_obj
+        return
+    yield _logging.getLogger()
+    for candidate in _logging.Logger.manager.loggerDict.values():
+        if isinstance(candidate, _logging.Logger):
+            yield candidate
+
+
 def install_logging_scrubber(logger_obj: _logging.Logger = None) -> _logging.Filter:
-    """Filtrni root (yoki berilgan) logger va uning handler'lariga o'rnatadi."""
-    target = logger_obj or _logging.getLogger()
-    if _LOG_FILTER not in target.filters:
-        target.addFilter(_LOG_FILTER)
-    for handler in list(target.handlers):
-        if _LOG_FILTER not in handler.filters:
-            handler.addFilter(_LOG_FILTER)
+    """Maxfiylik filtrini root/child loggerlar va mavjud handlerlarga o'rnatadi.
+
+    Handler darajasidagi filter muhim: log record'lar child loggerdan root'ga
+    propagate qilganda root loggerning filteri qayta ishlamasligi mumkin.
+    """
+    for target in _iter_loggers(logger_obj):
+        if _LOG_FILTER not in target.filters:
+            target.addFilter(_LOG_FILTER)
+        for handler in list(target.handlers):
+            if _LOG_FILTER not in handler.filters:
+                handler.addFilter(_LOG_FILTER)
     return _LOG_FILTER
+
+
+class JsonLogFormatter(_logging.Formatter):
+    """Har bir LogRecord uchun maxfiylikdan o'tgan, bir qatorli JSON yozuv."""
+
+    def format(self, record: _logging.LogRecord) -> str:
+        now = datetime.fromtimestamp(record.created, tz=timezone.utc)
+        timestamp = now.isoformat(timespec="milliseconds").replace("+00:00", "Z")
+        try:
+            message = record.getMessage()
+        except Exception:
+            message = "[log message unavailable]"
+        message = scrub_text(str(message))
+
+        embedded = None
+        marker = "[BOT_ERROR] "
+        if message.startswith(marker):
+            try:
+                candidate = json.loads(message[len(marker):])
+                if isinstance(candidate, dict):
+                    embedded = candidate
+            except Exception:
+                embedded = None
+
+        raw_event = getattr(record, "event", None)
+        if raw_event is None and embedded:
+            raw_event = embedded.get("event")
+        event = raw_event if isinstance(raw_event, str) else message
+        event = scrub_text(str(event))
+
+        user_id = getattr(record, "user_id", None)
+        channel_id = getattr(record, "channel_id", None)
+        latency_ms = getattr(record, "latency_ms", None)
+        error_code = getattr(record, "error_code", None)
+        if embedded:
+            user_id = user_id if user_id is not None else embedded.get("user_id")
+            channel_id = channel_id if channel_id is not None else embedded.get("channel_id")
+            latency_ms = latency_ms if latency_ms is not None else embedded.get("latency_ms")
+            error_code = error_code or embedded.get("error_code") or embedded.get("exception_type")
+        if error_code is None and record.exc_info and record.exc_info[1] is not None:
+            error_code = type(record.exc_info[1]).__name__
+
+        payload = {
+            "timestamp": timestamp,
+            "level": record.levelname,
+            "event": event,
+            "user_id": scrub_value(user_id),
+            "channel_id": scrub_value(channel_id),
+            "latency_ms": scrub_value(latency_ms),
+            "error_code": scrub_value(error_code),
+            "logger": record.name,
+        }
+
+        context = {}
+        reserved = {
+            "name", "msg", "args", "levelname", "levelno", "pathname",
+            "filename", "module", "exc_info", "exc_text", "stack_info",
+            "lineno", "funcName", "created", "msecs", "relativeCreated",
+            "thread", "threadName", "processName", "process", "message",
+            "asctime", "user_id", "channel_id", "latency_ms", "error_code",
+            "event",
+        }
+        for key, value in record.__dict__.items():
+            if key not in _STANDARD_LOG_RECORD_FIELDS and key not in reserved and not key.startswith("_"):
+                context[key] = REDACTED if _is_sensitive_key(key) else scrub_value(value)
+        if embedded:
+            context["error"] = scrub_value(embedded)
+        if context:
+            payload["context"] = context
+        if record.exc_info:
+            try:
+                payload["stack_trace"] = scrub_text(self.formatException(record.exc_info))
+            except Exception:
+                payload["stack_trace"] = "[REDACTED]"
+        elif record.stack_info:
+            payload["stack_trace"] = scrub_text(self.formatStack(record.stack_info))
+
+        try:
+            return json.dumps(payload, ensure_ascii=False, separators=(",", ":"), default=str)
+        except Exception:
+            return json.dumps({
+                "timestamp": timestamp, "level": "ERROR", "event": "log_format_error",
+                "user_id": None, "channel_id": None, "latency_ms": None,
+                "error_code": "LOG_FORMAT_ERROR",
+            }, separators=(",", ":"))
+
+
+def configure_structured_logging(level: int = _logging.INFO,
+                                 logger_obj: _logging.Logger = None):
+    """Markaziy stdout loggerini JSON Lines + secrets scrubber bilan sozlaydi."""
+    target = logger_obj or _logging.getLogger()
+    if not target.handlers:
+        target.addHandler(_logging.StreamHandler())
+    target.setLevel(level)
+    install_logging_scrubber(target if logger_obj is not None else None)
+    for owner in _iter_loggers(target if logger_obj is not None else None):
+        for handler in list(owner.handlers):
+            handler.setFormatter(JsonLogFormatter())
+            if _LOG_FILTER not in handler.filters:
+                handler.addFilter(_LOG_FILTER)
+    return target
 
 
 def scrub_log_line(text: str) -> str:

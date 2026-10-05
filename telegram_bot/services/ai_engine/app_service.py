@@ -369,6 +369,16 @@ class AITaskService:
                 self.recorder.record(event)
             except Exception:  # pragma: no cover — himoya
                 pass
+        try:
+            from services.observability import record_ai_request
+            record_ai_request(
+                success=str(event_dict.get("status") or "").lower() == "success"
+                    or bool(result.ok),
+                latency_ms=event_dict.get("latency_ms") or 0,
+                cost_usd=event_dict.get("estimated_cost") or 0.0,
+            )
+        except Exception:  # metrics never interrupt the AI request flow
+            pass
         usage_id = None
         if persist_usage:
             usage_id = await self._save_usage(db, event_dict, reservation)
