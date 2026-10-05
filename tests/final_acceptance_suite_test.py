@@ -91,8 +91,9 @@ from keyboards.inline import (  # noqa: E402
     get_tools_keyboard, get_user_stats_keyboard, render_channel_panel,
 )
 from keyboards.callback_data import (  # noqa: E402
-    CALLBACK_DATA_MAX_BYTES, CB_CHANNEL_BACK, CB_CHANNEL_OPEN, callback_byte_len,
-    is_callback_safe,
+    CALLBACK_DATA_MAX_BYTES, CB_CHANNEL_AUTOPILOT, CB_CHANNEL_BACK,
+    CB_CHANNEL_DNA, CB_CHANNEL_OPEN, CB_CHANNEL_PLAN, CB_CHANNEL_SETTINGS,
+    CB_CHANNEL_STATS, CB_CHANNEL_TEAM, callback_byte_len, is_callback_safe,
 )
 from locales.translations import get_text  # noqa: E402
 from translations import (  # noqa: E402
@@ -217,10 +218,13 @@ def _run(coro):
 
 
 def _rows(markup):
-    """Reply klaviatura qatorlari (matn ro'yxati)."""
+    """Reply/inline klaviatura qatorlari (matn ro'yxati; PTB v20/v21)."""
     if markup is None:
         return []
-    return [[b.text for b in row] for row in markup.keyboard]
+    rows = getattr(markup, "keyboard", None)
+    if rows is None:
+        rows = getattr(markup, "inline_keyboard", ())
+    return [[b.text for b in row] for row in (rows or ())]
 
 
 def _flat(markup):
@@ -647,18 +651,38 @@ def test_h_channels_menu_opens():
 
 
 def test_i_channel_panel_management_screen():
-    header("I", "📢 Kanal boshqaruv ekrani — kanal ichida qoladi (asosiy menyuga chiqmaydi)")
+    header("I", "📢 Kanal boshqaruv ekrani — PHASE 9 contextual panel")
     kb = render_channel_panel(CH_ID, "uz")
     cbs = _cbs(kb)
     labels = _labels(kb)
-    check("Panel: [➕ Post yaratish] mavjud", any(c.startswith("ch_np:") for c in cbs), str(cbs))
-    check("Panel: [📅 Rejalashtirilgan] mavjud", any(c.startswith("ch_sch:") for c in cbs), str(cbs))
-    check("Panel: [📊 Statistika] (kanal darajasi) mavjud",
-          any(c.startswith("ch_st:") for c in cbs), str(cbs))
-    check("Panel: [⚙️ Kanal sozlamalari] mavjud", any(c.startswith("ch_set:") for c in cbs), str(cbs))
+    expected_callbacks = [
+        "add_channel_start",
+        f"{CB_CHANNEL_AUTOPILOT}{CH_ID}",
+        f"{CB_CHANNEL_PLAN}{CH_ID}",
+        f"{CB_CHANNEL_DNA}{CH_ID}",
+        f"{CB_CHANNEL_STATS}{CH_ID}",
+        f"{CB_CHANNEL_TEAM}{CH_ID}",
+        f"{CB_CHANNEL_SETTINGS}{CH_ID}",
+        CB_CHANNEL_BACK,
+    ]
+    expected_rows = [
+        ["➕ Kanal qo‘shish"],
+        ["🚀 Autopilot", "📋 Kontent reja"],
+        ["🧬 Channel DNA", "📊 Analytics"],
+        ["👥 Team", "⚙️ Sozlamalar"],
+        ["◀️ Orqaga"],
+    ]
+    check("Panel: PHASE 9 contextual callback'lari tartibda",
+          cbs == expected_callbacks, str(cbs))
+    check("Panel: 5 qatorli kontekstual layout to'g'ri",
+          _rows(kb) == expected_rows, str(_rows(kb)))
+    check("Panel: kanal statistikasi va sozlamalari mavjud",
+          f"{CB_CHANNEL_STATS}{CH_ID}" in cbs
+          and f"{CB_CHANNEL_SETTINGS}{CH_ID}" in cbs, str(cbs))
     check("Panel: [◀️ Orqaga] = ch_back", CB_CHANNEL_BACK in cbs, str(cbs))
-    check("Panel: channel_id har bir amalga o'ralgan",
-          all(CH_ID in c for c in cbs if c.startswith(("ch_np", "ch_sch", "ch_st", "ch_set"))))
+    check("Panel: barcha kontekstli amallar channel_id olib yuradi",
+          all(CH_ID in c for c in cbs if c not in ("add_channel_start", CB_CHANNEL_BACK)),
+          str(cbs))
     # Kanal ichidagi amallar asosiy menyu yorlig'ini CHIZMAYDI.
     check("Panel: asosiy menyu yorlig'i yo'q (kanal ichida qoladi)",
           get_text("btn_create_content", "uz") not in labels, str(labels))
