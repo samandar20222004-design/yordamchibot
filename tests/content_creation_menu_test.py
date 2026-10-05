@@ -72,6 +72,30 @@ EXPECTED_SUBMENU = {
            ["◀️ Back"]],
 }
 
+# PHASE 9: the current post-entry handler renders the compact inline action
+# panel. Keep the older 3+1 reply-menu contract above for its dedicated
+# keyboard/i18n tests, but validate this handler against its actual 4x2 UI.
+EXPECTED_CONTEXTUAL_MENU = {
+    "uz": [["⚡ AI Post", "📝 Oddiy Post"],
+           ["🖼 Rasmdan Post", "🎙 Ovozdan Post"],
+           ["🔗 Havoladan Post", "♻️ Qayta ishlash"],
+           ["🤖 AI Yordamchi", "📊 Post Score"]],
+    "ru": [["⚡ AI Пост", "📝 Обычный пост"],
+           ["🖼 Пост из фото", "🎙 Пост из голоса"],
+           ["🔗 Пост по ссылке", "♻️ Переработка"],
+           ["🤖 AI Помощник", "📊 Post Score"]],
+    "en": [["⚡ AI Post", "📝 Regular Post"],
+           ["🖼 Image to Post", "🎙 Voice to Post"],
+           ["🔗 Link to Post", "♻️ Recycle Post"],
+           ["🤖 AI Assistant", "📊 Post Score"]],
+}
+EXPECTED_CONTEXTUAL_CALLBACKS = [
+    ["ctx_post:ai", "ctx_post:manual"],
+    ["ctx_post:image", "ctx_post:voice"],
+    ["ctx_post:url", "ctx_post:recycle"],
+    ["ctx_post:assistant", "ctx_post:score"],
+]
+
 # Har bir submenu tugmasi ochishi KERAK BO'LGAN oqim handleri.
 EXPECTED_ROUTE = {
     "cm_btn_manual": "manual_post_entry",
@@ -100,8 +124,26 @@ def check(name, cond, extra=""):
         print(f"  [FAIL] {name} {extra}")
 
 
+def _keyboard_rows(markup):
+    """Read reply and inline markups across PTB v20/v21 (and newer).
+
+    ``ReplyKeyboardMarkup`` exposes ``keyboard`` while
+    ``InlineKeyboardMarkup`` exposes ``inline_keyboard``; they are not
+    interchangeable attributes in python-telegram-bot.
+    """
+    rows = getattr(markup, "keyboard", None)
+    if rows is None:
+        rows = getattr(markup, "inline_keyboard", ())
+    return rows or ()
+
+
 def kb_rows(markup):
-    return [[b.text for b in row] for row in markup.keyboard]
+    return [[b.text for b in row] for row in _keyboard_rows(markup)]
+
+
+def kb_callbacks(markup):
+    return [[getattr(button, "callback_data", None) for button in row]
+            for row in _keyboard_rows(markup)]
 
 
 def kb_flat(markup):
@@ -568,10 +610,17 @@ def test_submenu_flows():
         rec = _Rec()
         res = asyncio.run(ai_studio_menu_entry(_update_msg(rec), _ctx(lang)))
         sent = rec.sent
-        check(f"[{lang}] ✨ Kontent yaratish → submenu chiqdi", len(sent) == 1, str(sent))
-        check(f"[{lang}] submenu klaviaturasi aniq 3+1 tugma",
-              sent and kb_rows(sent[0]["reply_markup"]) == EXPECTED_SUBMENU[lang],
-              str(kb_rows(sent[0]["reply_markup"]) if sent else None))
+        check(f"[{lang}] ✍️ Post yaratish → contextual menu chiqdi", len(sent) == 1, str(sent))
+        markup = sent[0].get("reply_markup") if sent else None
+        check(f"[{lang}] post-entry inline klaviatura (PTB inline_keyboard)",
+              markup is not None and hasattr(markup, "inline_keyboard"),
+              type(markup).__name__ if markup is not None else "missing markup")
+        check(f"[{lang}] contextual menyu 4x2 tartibda",
+              bool(sent) and kb_rows(markup) == EXPECTED_CONTEXTUAL_MENU[lang],
+              str(kb_rows(markup) if markup is not None else None))
+        check(f"[{lang}] contextual callback'lar action-first oqimlarga ulangan",
+              bool(sent) and kb_callbacks(markup) == EXPECTED_CONTEXTUAL_CALLBACKS,
+              str(kb_callbacks(markup) if markup is not None else None))
         check(f"[{lang}] submenu dialog OCHMAYDI (action-first saqlanadi)",
               res == ConversationHandler.END, str(res))
 

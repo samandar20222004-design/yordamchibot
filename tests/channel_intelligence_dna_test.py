@@ -818,18 +818,35 @@ def _handler_for(app, update):
 def test_ui_and_integration():
     print("\n== TEST 7: 🎛 UI — tugmalar, routing, orkestrator DNA ulanishi ==")
 
-    # --- Panel: ikkala yangi tugma 3 tilda ---
+    # --- PHASE 9 compact panel: DNA remains visible; Best Time's legacy
+    # callback is still routed/tested below, but is not a top-level shortcut. ---
+    expected_panel_rows = {
+        "uz": [["➕ Kanal qo‘shish"],
+               ["🚀 Autopilot", "📋 Kontent reja"],
+               ["🧬 Channel DNA", "📊 Analytics"],
+               ["👥 Team", "⚙️ Sozlamalar"],
+               ["◀️ Orqaga"]],
+        "ru": [["➕ Добавить канал"],
+               ["🚀 Автопилот", "📋 Контент-план"],
+               ["🧬 Channel DNA", "📊 Аналитика"],
+               ["👥 Команда", "⚙️ Настройки"],
+               ["◀️ Назад"]],
+        "en": [["➕ Add channel"],
+               ["🚀 Autopilot", "📋 Content plan"],
+               ["🧬 Channel DNA", "📊 Analytics"],
+               ["👥 Team", "⚙️ Settings"],
+               ["◀️ Back"]],
+    }
     for lang in LANGS:
         kb = render_channel_panel(CH_ID, lang)
+        rows = [[b.text for b in row] for row in kb.inline_keyboard]
         cbs = [b.callback_data for row in kb.inline_keyboard for b in row]
-        labels = [b.text for row in kb.inline_keyboard for b in row]
+        check(f"[{lang}] PHASE 9 kanal paneli (qatorlar va tarjimalar)",
+              rows == expected_panel_rows[lang], str(rows))
         check(f"[{lang}] panel: 🧠 Kanal DNA tugmasi",
               f"{CB_CHANNEL_DNA}{CH_ID}" in cbs, str(cbs))
-        check(f"[{lang}] panel: ⏰ Eng yaxshi vaqt tugmasi",
-              f"{CB_CHANNEL_BEST_TIME}{CH_ID}" in cbs, str(cbs))
-        check(f"[{lang}] yorliqlar tarjima qilingan",
-              any("DNA" in t for t in labels) and any("⏰" in t for t in labels),
-              str(labels))
+        check(f"[{lang}] Best Time eski callback'i panelga qo'shilmagan",
+              f"{CB_CHANNEL_BEST_TIME}{CH_ID}" not in cbs, str(cbs))
 
     # --- 64 bayt chegarasi (uzun kanal ID) ---
     long_id = "-100" + "9" * 40

@@ -66,6 +66,7 @@ ROOT = Path(__file__).resolve().parent.parent / "telegram_bot"
 sys.path.insert(0, str(ROOT))
 
 import pytz  # noqa: E402
+from locales.translations import get_text  # noqa: E402
 
 import database as db_mod  # noqa: E402
 import handlers as H  # noqa: E402
@@ -74,6 +75,13 @@ import scheduler as SCHED  # noqa: E402
 from keyboards.callback_data import (  # noqa: E402
     CALLBACK_DATA_MAX_BYTES,
     CALLBACK_PREFIX_MAX_BYTES,
+    CB_CHANNEL_AUTOPILOT,
+    CB_CHANNEL_BACK,
+    CB_CHANNEL_DNA,
+    CB_CHANNEL_PLAN,
+    CB_CHANNEL_SETTINGS,
+    CB_CHANNEL_STATS,
+    CB_CHANNEL_TEAM,
     CB_CHANNEL_SOURCES,
     CB_SOURCE_ACTION,
     CB_SOURCE_CANCEL,
@@ -901,9 +909,10 @@ def test_url_post_flow():
                   state == SRC.SRC_URL_INPUT, str(state))
             check("SSRF: tarmoqqa chiqilmadi (fetch 0 marta)",
                   fetch_calls == [], str(fetch_calls))
-            check("SSRF: foydalanuvchiga aniq xabar",
-                  "src_rss_invalid_url" in _sent_text(msg)
-                  or "⚠️" in _sent_text(msg), _sent_text(msg)[:80])
+            expected_ssrf_message = get_text("err_ux_url_failed", "uz")
+            check("SSRF: foydalanuvchiga aniq, i18n URL xato xabari",
+                  _sent_text(msg) == expected_ssrf_message,
+                  f"actual={_sent_text(msg)!r}; expected={expected_ssrf_message!r}")
 
             # --- 3) to'g'ri havola → 4 format ---
             msg2 = _Msg(text=ARTICLE_URL)
@@ -1470,15 +1479,26 @@ def test_scheduler_integration():
 def test_ui_routing_i18n():
     print("\n== TEST 7: 🧱 UI panel, routing, i18n paritet, FSM unikalligi ==")
 
-    # --- kanal panelida [📥 Kontent manbalari] ---
+    # --- PHASE 9 channel overview: content-source screens remain reachable
+    # through registered callbacks, while the compact panel exposes its
+    # canonical contextual actions (not the legacy ch_src shortcut). ---
+    expected_panel_callbacks = [
+        "add_channel_start",
+        f"{CB_CHANNEL_AUTOPILOT}{CH_ID}",
+        f"{CB_CHANNEL_PLAN}{CH_ID}",
+        f"{CB_CHANNEL_DNA}{CH_ID}",
+        f"{CB_CHANNEL_STATS}{CH_ID}",
+        f"{CB_CHANNEL_TEAM}{CH_ID}",
+        f"{CB_CHANNEL_SETTINGS}{CH_ID}",
+        CB_CHANNEL_BACK,
+    ]
     for lang in LANGS:
         kb = render_channel_panel(CH_ID, lang)
         cbs = _cbs(kb)
-        check(f"[{lang}] panel: [📥 Kontent manbalari] tugmasi",
-              f"{CB_CHANNEL_SOURCES}{CH_ID}" in cbs, str(cbs))
-        check(f"[{lang}] panel: eski tugmalar saqlangan (ap/tpl/st/back)",
-              f"ch_ap:{CH_ID}" in cbs and f"ch_tpl:{CH_ID}" in cbs
-              and "ch_back" in cbs, str(cbs))
+        check(f"[{lang}] panel: PHASE 9 contextual callback'lari",
+              cbs == expected_panel_callbacks, str(cbs))
+        check(f"[{lang}] panel: legacy ch_src shortcut overview'da yo'q",
+              not any(c.startswith(CB_CHANNEL_SOURCES) for c in cbs), str(cbs))
 
     long_id = "-100" + "7" * 40
     kb_long = render_channel_panel(long_id, "ru")

@@ -80,9 +80,10 @@ import handlers.autopilot as AP  # noqa: E402
 import handlers.templates as TP  # noqa: E402
 import handlers.manual_post as MP  # noqa: E402
 from keyboards.callback_data import (  # noqa: E402
-    CALLBACK_DATA_MAX_BYTES, CB_CHANNEL_AUTOPILOT, CB_CHANNEL_TEMPLATES,
-    CB_CHANNEL_BACK, CB_CHANNEL_DNA, CB_CHANNEL_BEST_TIME,
-    callback_byte_len,
+    CALLBACK_DATA_MAX_BYTES, CB_CHANNEL_AUTOPILOT, CB_CHANNEL_BACK,
+    CB_CHANNEL_BEST_TIME, CB_CHANNEL_DNA, CB_CHANNEL_PLAN,
+    CB_CHANNEL_SETTINGS, CB_CHANNEL_STATS, CB_CHANNEL_TEAM,
+    CB_CHANNEL_TEMPLATES, callback_byte_len,
 )
 from keyboards.inline import (  # noqa: E402
     get_duplicate_warning_keyboard, get_manual_post_panel,
@@ -1450,24 +1451,46 @@ def test_schema_ui_routing():
     check("database.py: EXPECTED_INDEXES'da idx_post_templates_user",
           "idx_post_templates_user" in db_mod.EXPECTED_INDEXES)
 
-    # --- kanal paneli: yangi tugmalar ---
+    # --- PHASE 9 compact channel overview ---
+    # Autopilot and Content Plan are visible; template/Best-Time callbacks
+    # remain backward-compatible routes but are not top-level shortcuts.
+    panel_rows = {
+        "uz": [["➕ Kanal qo‘shish"],
+               ["🚀 Autopilot", "📋 Kontent reja"],
+               ["🧬 Channel DNA", "📊 Analytics"],
+               ["👥 Team", "⚙️ Sozlamalar"],
+               ["◀️ Orqaga"]],
+        "ru": [["➕ Добавить канал"],
+               ["🚀 Автопилот", "📋 Контент-план"],
+               ["🧬 Channel DNA", "📊 Аналитика"],
+               ["👥 Команда", "⚙️ Настройки"],
+               ["◀️ Назад"]],
+        "en": [["➕ Add channel"],
+               ["🚀 Autopilot", "📋 Content plan"],
+               ["🧬 Channel DNA", "📊 Analytics"],
+               ["👥 Team", "⚙️ Settings"],
+               ["◀️ Back"]],
+    }
     for lang in LANGS:
         kb = render_channel_panel(CH_ID, lang)
         cbs = _cbs(kb)
         labels = _labels(kb)
+        rows = [[b.text for b in row] for row in kb.inline_keyboard]
+        check(f"[{lang}] panel: PHASE 9 qisqa layout va tarjima",
+              rows == panel_rows[lang], str(labels))
         check(f"[{lang}] panel: [🚀 AI Avtopilot] tugmasi",
               f"{CB_CHANNEL_AUTOPILOT}{CH_ID}" in cbs, str(cbs))
-        check(f"[{lang}] panel: [📋 Shablonlar] tugmasi",
-              f"{CB_CHANNEL_TEMPLATES}{CH_ID}" in cbs, str(cbs))
-        check(f"[{lang}] panel: eski tugmalar saqlangan (DNA/BestTime/Sozlamalar/Orqaga)",
+        check(f"[{lang}] panel: [📋 Kontent reja] tugmasi",
+              f"{CB_CHANNEL_PLAN}{CH_ID}" in cbs, str(cbs))
+        check(f"[{lang}] panel: Shablonlar/Best-Time top-level shortcut emas",
+              f"{CB_CHANNEL_TEMPLATES}{CH_ID}" not in cbs
+              and f"{CB_CHANNEL_BEST_TIME}{CH_ID}" not in cbs, str(cbs))
+        check(f"[{lang}] panel: DNA/Analytics/Team/Sozlamalar/Orqaga saqlangan",
               f"{CB_CHANNEL_DNA}{CH_ID}" in cbs
-              and f"{CB_CHANNEL_BEST_TIME}{CH_ID}" in cbs
+              and f"{CB_CHANNEL_STATS}{CH_ID}" in cbs
+              and f"{CB_CHANNEL_TEAM}{CH_ID}" in cbs
+              and f"{CB_CHANNEL_SETTINGS}{CH_ID}" in cbs
               and CB_CHANNEL_BACK in cbs, str(cbs))
-        check(f"[{lang}] panel: yorliqlar tarjima qilingan",
-              any("Avtopilot" in t or "Автопилот" in t or "Autopilot" in t
-                  for t in labels)
-              and any("Shablon" in t or "Шаблон" in t or "Template" in t
-                      for t in labels), str(labels))
 
     # 64 bayt chegarasi (uzun kanal id)
     long_id = "-100" + "7" * 40

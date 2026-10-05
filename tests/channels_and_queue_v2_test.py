@@ -58,30 +58,26 @@ CH_ID = "-1001234567890"
 CH_TITLE = "Mening kanalim"
 OTHER_CH_ID = "-1009999999999"
 
-# Kanal boshqaruv ekranining QAT'IY layouti (har tilda bir xil tartib).
-# 🧠 PHASE B: [🧠 Kanal DNA] va [⏰ Eng yaxshi vaqt] tugmalari qo'shildi
-# (Channel Intelligence — DNA profili va optimal post vaqti).
-# 📥 PHASE D (2/2): [📥 Manbalar] — URL→post, RSS/ATOM oqimi va
-# Content Recycle (alohida qator, to'liq eni).
+# Kanal boshqaruv ekranining kanonik PHASE 9 kontekstual inline layouti.
+# Eski ch_np/ch_sch/ch_btm/ch_tpl/ch_src callback'lari alohida routing
+# testlarida backward compatibility sifatida tekshiriladi; ular overview'da
+# chizilmaydi.
 EXPECTED_PANEL = {
-    "uz": [["➕ Post yaratish"],
-           ["📅 Rejalashtirilgan", "📊 Statistika"],
-           ["🧠 Kanal DNA", "⏰ Eng yaxshi vaqt"],
-           ["🚀 AI Avtopilot", "📋 Shablonlar"],
-           ["📥 Manbalar"],
-           ["⚙️ Sozlamalar", "◀️ Orqaga"]],
-    "ru": [["➕ Создать пост"],
-           ["📅 Запланированные", "📊 Статистика"],
-           ["🧠 DNA канала", "⏰ Лучшее время"],
-           ["🚀 AI Автопилот", "📋 Шаблоны"],
-           ["📥 Источники"],
-           ["⚙️ Настройки", "◀️ Назад"]],
-    "en": [["➕ Create post"],
-           ["📅 Scheduled", "📊 Statistics"],
-           ["🧠 Channel DNA", "⏰ Best time"],
-           ["🚀 AI Autopilot", "📋 Templates"],
-           ["📥 Content sources"],
-           ["⚙️ Settings", "◀️ Back"]],
+    "uz": [["➕ Kanal qo‘shish"],
+           ["🚀 Autopilot", "📋 Kontent reja"],
+           ["🧬 Channel DNA", "📊 Analytics"],
+           ["👥 Team", "⚙️ Sozlamalar"],
+           ["◀️ Orqaga"]],
+    "ru": [["➕ Добавить канал"],
+           ["🚀 Автопилот", "📋 Контент-план"],
+           ["🧬 Channel DNA", "📊 Аналитика"],
+           ["👥 Команда", "⚙️ Настройки"],
+           ["◀️ Назад"]],
+    "en": [["➕ Add channel"],
+           ["🚀 Autopilot", "📋 Content plan"],
+           ["🧬 Channel DNA", "📊 Analytics"],
+           ["👥 Team", "⚙️ Settings"],
+           ["◀️ Back"]],
 }
 
 # Rejalashtirilgan post amallari (3 ta, speks tartibida).
@@ -127,11 +123,12 @@ import handlers as H  # noqa: E402
 import handlers.channels as CH  # noqa: E402
 import handlers.queue as Q  # noqa: E402
 from keyboards.callback_data import (  # noqa: E402
-    CALLBACK_DATA_MAX_BYTES, CB_CHANNEL_BACK, CB_CHANNEL_BEST_TIME,
-    CB_CHANNEL_DELETE, CB_CHANNEL_DNA, CB_CHANNEL_NEW_POST, CB_CHANNEL_OPEN,
+    CALLBACK_DATA_MAX_BYTES, CB_CHANNEL_AUTOPILOT, CB_CHANNEL_BACK,
+    CB_CHANNEL_BEST_TIME, CB_CHANNEL_DELETE, CB_CHANNEL_DNA,
+    CB_CHANNEL_NEW_POST, CB_CHANNEL_OPEN, CB_CHANNEL_PLAN,
     CB_CHANNEL_SCHEDULED, CB_CHANNEL_SETTINGS, CB_CHANNEL_STATS,
-    CB_CHANNEL_VOICE, CB_SCHED_DELETE, CB_SCHED_EDIT, CB_SCHED_TIME,
-    callback_byte_len,
+    CB_CHANNEL_TEAM, CB_CHANNEL_VOICE, CB_SCHED_DELETE, CB_SCHED_EDIT,
+    CB_SCHED_TIME, callback_byte_len,
 )
 from keyboards.default import (  # noqa: E402
     BTN_QUEUE, BTN_QUEUE_RU, MENU_TEXTS, QUEUE_ALIASES, get_main_keyboard,
@@ -391,24 +388,25 @@ def test_channels_list_screen():
 # TEST 2 — 📢 KANAL SUBMENYUSI (speksdagi QAT'IY layout + amallar)
 # ============================================================================
 def test_channel_panel_layout_and_actions():
-    print("\n== TEST 2: 📢 Kanal boshqaruv ekrani (7 tugma + amallar) ==")
+    print("\n== TEST 2: 📢 Kanal boshqaruv ekrani (PHASE 9 contextual panel) ==")
 
+    expected_callbacks = [
+        "add_channel_start",
+        f"{CB_CHANNEL_AUTOPILOT}{CH_ID}",
+        f"{CB_CHANNEL_PLAN}{CH_ID}",
+        f"{CB_CHANNEL_DNA}{CH_ID}",
+        f"{CB_CHANNEL_STATS}{CH_ID}",
+        f"{CB_CHANNEL_TEAM}{CH_ID}",
+        f"{CB_CHANNEL_SETTINGS}{CH_ID}",
+        CB_CHANNEL_BACK,
+    ]
     for lang in LANGS:
         kb = render_channel_panel(CH_ID, lang)
         rows = kb_rows(kb)
         check(f"[{lang}] layout speksdagidek", rows == EXPECTED_PANEL[lang], str(rows))
         cbs = cb_flat(kb)
-        check(f"[{lang}] har tugma KANAL kontekstini olib yuradi",
-              cbs == [f"{CB_CHANNEL_NEW_POST}{CH_ID}",
-                      f"{CB_CHANNEL_SCHEDULED}{CH_ID}",
-                      f"{CB_CHANNEL_STATS}{CH_ID}",
-                      f"{CB_CHANNEL_DNA}{CH_ID}",
-                      f"{CB_CHANNEL_BEST_TIME}{CH_ID}",
-                      f"ch_ap:{CH_ID}",
-                      f"ch_tpl:{CH_ID}",
-                      f"ch_src:{CH_ID}",
-                      f"{CB_CHANNEL_SETTINGS}{CH_ID}",
-                      CB_CHANNEL_BACK], str(cbs))
+        check(f"[{lang}] contextual callback'lar va kanal konteksti to'g'ri",
+              cbs == expected_callbacks, str(cbs))
 
     # --- Kanal tanlash → boshqaruv ekrani ---
     fake = _FakeDB()
@@ -419,7 +417,7 @@ def test_channel_panel_layout_and_actions():
           len(q.edits) == 1 and not q.message.sent, str(q.edits))
     check("kanal tanlandi: sarlavhada kanal nomi",
           CH_TITLE in q.screen["text"], q.screen["text"][:80])
-    check("kanal tanlandi: 7 tugmali panel (PHASE C: +Avtopilot, +Shablonlar)",
+    check("kanal tanlandi: Phase 9 contextual panel chizildi",
           kb_rows(q.screen["reply_markup"]) == EXPECTED_PANEL["uz"],
           str(kb_rows(q.screen["reply_markup"])))
 
