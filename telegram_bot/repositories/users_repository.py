@@ -394,6 +394,43 @@ def get_referral_stats(user_id: int) -> dict:
         return {"referrals_count": 0, "ai_credits": 0, "streak": 0}
 
 
+def touch_user_activity(user_ids) -> list[int]:
+    """Berilgan foydalanuvchilarning faolligini vaqt bilan belgilaydi.
+
+    Faqat ID va timestamp saqlanadi — update matni, username yoki chat payloadi
+    saqlanmaydi. ``RETURNING`` foydalanuvchi hali ro'yxatdan o'tmagan bo'lsa
+    health_service'ga keyingi flush uchun qayta urinish imkonini beradi.
+    """
+    try:
+        ids = []
+        for raw_id in user_ids or []:
+            uid = int(raw_id)
+            if uid > 0 and uid not in ids:
+                ids.append(uid)
+            if len(ids) >= 1000:
+                break
+    except (TypeError, ValueError):
+        return []
+    if not ids:
+        return []
+    try:
+        with db_cursor(commit=True) as cur:
+            cur.execute(
+                "UPDATE users SET last_active_at = GREATEST("
+                "COALESCE(last_active_at, NOW()), NOW()) "
+                "WHERE user_id = ANY(%s) RETURNING user_id",
+                (ids,),
+            )
+            rows = cur.fetchall() or []
+        return [int(row[0]) for row in rows if row and row[0] is not None]
+    except Exception:
+        logger.warning("Foydalanuvchi faolligini yangilashda xato", extra={
+            "event": "user_activity_flush_failed",
+            "error_code": "USER_ACTIVITY_DB_ERROR",
+        })
+        return []
+
+
 def get_all_user_ids() -> list:
     try:
         with db_cursor() as cur:

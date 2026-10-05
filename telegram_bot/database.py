@@ -2063,6 +2063,7 @@ def _init_db_once():
                 streak_days INTEGER DEFAULT 0,
                 last_bonus_date DATE,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                last_active_at TIMESTAMP WITH TIME ZONE,
                 full_menu_unlocked BOOLEAN DEFAULT FALSE
             );
         """)
@@ -2345,6 +2346,7 @@ def _init_db_once():
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS streak_days INTEGER DEFAULT 0;",
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS last_bonus_date DATE;",
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;",
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS last_active_at TIMESTAMP WITH TIME ZONE;",
             "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS inline_button_text VARCHAR(255);",
             "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS inline_button_url TEXT;",
             "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS enable_reactions BOOLEAN DEFAULT FALSE;",
@@ -2914,6 +2916,7 @@ from repositories.users_repository import (  # noqa: F401
     claim_daily_streak_bonus, create_promo_code,
     downgrade_expired_subscriptions, find_user_by_target, get_all_user_ids,
     get_referral_stats, get_referrer_id, get_user_channel_list_for_analytics,
+    touch_user_activity,
     get_user_code, get_user_credits, get_user_language, get_user_onboarding,
     get_user_overview_stats, get_user_plan, get_user_setting,
     get_user_settings_bulk, increment_ai_usage, invalidate_user_overview_stats,
@@ -3009,7 +3012,7 @@ from repositories.audit_repository import (  # noqa: F401
     attach_support_ticket_delivery, count_admin_audit_logs,
     count_user_support_tickets, create_support_ticket, delete_admin_role,
     get_admin_audit_logs, get_admin_dashboard_stats, get_admin_role,
-    get_ai_usage_report, get_recent_support_tickets, get_support_ticket,
+    get_ai_usage_report, get_observability_metrics, get_recent_support_tickets, get_support_ticket,
     get_support_ticket_by_admin_message, get_system_stats, list_admin_roles,
     log_admin_action, mark_support_ticket_answered, purge_ai_usage_events,
     save_ai_usage_event, set_admin_role

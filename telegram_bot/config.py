@@ -413,6 +413,8 @@ def _register_known_secrets() -> None:
     try:
         from utils.sentry_scrubber import register_secret
 
+        _openai_key_env = "OPENAI_API_KEY"
+        _ready_token_env = "HEALTH_READY_TOKEN"
         _sensitive = (
             (BOT_TOKEN, "BOT_TOKEN"),
             (CARD_NUMBER, "CARD_NUMBER"),
@@ -425,6 +427,13 @@ def _register_known_secrets() -> None:
             (CEREBRAS_API_KEY, "CEREBRAS_API_KEY"),
             (SAMBANOVA_API_KEY, "SAMBANOVA_API_KEY"),
             (CLOUDFLARE_API_TOKEN, "CLOUDFLARE_API_TOKEN"),
+            (os.getenv("GOOGLE_API_KEY", ""), "GOOGLE_API_KEY"),
+            (REDIS_URL, "REDIS_URL"),
+            (SENTRY_DSN, "SENTRY_DSN"),
+            # Optional compatibility keys are registered without making them
+            # required application settings or expanding public config output.
+            (os.environ.get(_openai_key_env, ""), "OPENAI_API_KEY"),
+            (os.environ.get(_ready_token_env, ""), "HEALTH_READY_TOKEN"),
         )
         for value, label in _sensitive:
             register_secret(value, label)

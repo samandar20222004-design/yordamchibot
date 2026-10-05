@@ -56,17 +56,20 @@ from services.cleanup_service import (
     CLEANUP_JOB_ID,
 )
 
-logging.basicConfig(
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    level=logging.INFO
-)
-# 11-bosqich (P0): basicConfig yaratgan handler'ga ham maxfiylik filtri —
-# bot token / DB parol / karta raqami / API kalit loglarga tushmaydi.
+# PHASE 10: barcha production stdout loglari JSON Lines formatida. Formatter
+# bir xil timestamp/level/event/user/channel/latency/error_code maydonlarini
+# chiqaradi va handlerlar secrets scrubber bilan birga o'rnatiladi.
 try:
-    from utils.sentry_scrubber import install_logging_scrubber
+    from utils.sentry_scrubber import (
+        configure_structured_logging, install_logging_scrubber,
+    )
     install_logging_scrubber()
-except Exception:  # pragma: no cover
-    pass
+    configure_structured_logging(level=logging.INFO)
+except Exception:  # pragma: no cover - xavfsiz fallback, token scrubber config'da ham bor
+    logging.basicConfig(
+        format="%(asctime)s %(levelname)s %(name)s %(message)s",
+        level=logging.INFO,
+    )
 # 1-QISM (LOG XAVFSIZLIGI): httpx/httpcore har bir Telegram API so'rovini
 # INFO darajasida log qiladi — so'rov URL'ida BOT TOKENI bor
 # (https://api.telegram.org/bot<TOKEN>/...). Darajani WARNING ga tushirish
@@ -222,6 +225,10 @@ class GuardedApplication(Application):
 
         lock_key = get_update_lock_key(update)
         user_id = getattr(getattr(update, "effective_user", None), "id", None)
+        if user_id is not None:
+            # Debounced, memory-only mark here; DB writes happen in a periodic
+            # worker and never block Telegram update admission.
+            health_service.record_user_activity(user_id)
         # Read cached language only: rejecting overload must not query the DB
         # or create new user_data entries for every rejected sender.
         context = SimpleNamespace(user_data=getattr(self, "user_data", {}).get(user_id, {}))
@@ -588,6 +595,18 @@ async def graceful_shutdown(application=None, scheduler=None, web_runner=None,
             logger.exception("Scheduler'ni yopishda xatolik")
             _step("scheduler_shutdown", ok=False)
 
+    # 5b) PHASE 10: qolgan coalesced faol user ID'larini DB pool yopilishidan
+    # oldin bir marta flush qilamiz. Xato shutdown jarayonini to'xtatmaydi.
+    try:
+        await health_service.flush_user_activity()
+        _step("user_activity_flushed")
+    except Exception:
+        logger.warning("Shutdown vaqtida user activity flush bajarilmadi", extra={
+            "event": "shutdown_user_activity_flush_failed",
+            "error_code": "USER_ACTIVITY_DB_ERROR",
+        })
+        _step("user_activity_flushed", ok=False)
+
     # 6) Web server (health endpointlari).
     if web_runner is not None:
         try:
@@ -763,6 +782,13 @@ async def main():
     scheduler = AsyncIOScheduler(
         timezone=tashkent_tz,
         job_defaults={"max_instances": 1, "coalesce": True, "misfire_grace_time": 300},
+    )
+    # PHASE 10: update yo'li DB write qilmaydi; aktiv user ID'lari 30s da bir
+    # batch bilan flush qilinadi (graceful shutdown'da ham qo'shimcha flush bor).
+    scheduler.add_job(
+        health_service.flush_user_activity, 'interval', seconds=30,
+        id="flush_user_activity", timezone=tashkent_tz,
+        max_instances=1, coalesce=True, misfire_grace_time=60,
     )
     scheduler.add_job(
         check_and_send_posts, 'interval', minutes=1, args=[application.bot],

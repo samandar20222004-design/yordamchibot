@@ -142,6 +142,10 @@ echo "====== HEALTH & MONITORING TEST (7-BOSQICH) ======"
 "$PY" tests/health_monitoring_test.py || exit 1
 
 echo
+echo "===== PHASE 10 — STRUCTURED OBSERVABILITY + PRIVATE READINESS ====="
+"$PY" tests/observability_test.py || exit 1
+
+echo
 echo "============ CREDITS LEDGER & REFERRAL TEST (8-BOSQICH) =========="
 "$PY" tests/credits_referral_test.py || exit 1
 

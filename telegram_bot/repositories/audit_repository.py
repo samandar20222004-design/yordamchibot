@@ -61,6 +61,118 @@ def get_system_stats() -> dict:
     return stats
 
 
+def get_observability_metrics() -> dict:
+    """Production metric aggregates from durable rows (rolling 24h/30d).
+
+    This is one scalar-aggregate query and returns counts only: no prompt,
+    payment payload, message body, usernames, or secret configuration leaves
+    the repository. On missing/temporarily unavailable schema it fails closed
+    to ``available=False`` and never interrupts bot work.
+    """
+    empty = {
+        "available": False,
+        "active_users_daily": 0, "active_users_monthly": 0,
+        "ai_requests": 0, "ai_successes": 0, "ai_latency_ms": 0.0,
+        "ai_cost_usd": 0.0, "ai_requests_monthly": 0,
+        "ai_successes_monthly": 0, "ai_latency_ms_monthly": 0.0,
+        "ai_cost_usd_monthly": 0.0,
+        "scheduled_posts": 0, "sent_posts": 0, "failed_posts": 0,
+        "failed_deliveries": 0, "delivery_queue_depth": 0,
+        "payment_pending_receipts": 0, "payment_pending_orders": 0,
+        "payment_failures": 0,
+    }
+    try:
+        with db_cursor() as cur:
+            cur.execute("""
+                SELECT
+                    (SELECT COUNT(*) FROM users
+                      WHERE last_active_at >= NOW() - INTERVAL '24 hours'),
+                    (SELECT COUNT(*) FROM users
+                      WHERE last_active_at >= NOW() - INTERVAL '30 days'),
+                    (SELECT COUNT(*) FROM ai_usage_events
+                      WHERE created_at >= NOW() - INTERVAL '24 hours'),
+                    (SELECT COUNT(*) FROM ai_usage_events
+                      WHERE status = 'success'
+                        AND created_at >= NOW() - INTERVAL '24 hours'),
+                    (SELECT COALESCE(AVG(latency_ms), 0) FROM ai_usage_events
+                      WHERE created_at >= NOW() - INTERVAL '24 hours'),
+                    (SELECT COALESCE(SUM(estimated_cost), 0) FROM ai_usage_events
+                      WHERE created_at >= NOW() - INTERVAL '24 hours'),
+                    (SELECT COUNT(*) FROM ai_usage_events
+                      WHERE created_at >= NOW() - INTERVAL '30 days'),
+                    (SELECT COUNT(*) FROM ai_usage_events
+                      WHERE status = 'success'
+                        AND created_at >= NOW() - INTERVAL '30 days'),
+                    (SELECT COALESCE(AVG(latency_ms), 0) FROM ai_usage_events
+                      WHERE created_at >= NOW() - INTERVAL '30 days'),
+                    (SELECT COALESCE(SUM(estimated_cost), 0) FROM ai_usage_events
+                      WHERE created_at >= NOW() - INTERVAL '30 days'),
+                    (SELECT COUNT(*) FROM scheduled_posts
+                      WHERE status IN ('pending', 'scheduled')),
+                    (SELECT COUNT(*) FROM scheduled_posts
+                      WHERE status IN ('posted', 'published', 'sent')),
+                    (SELECT COUNT(*) FROM scheduled_posts
+                      WHERE status = 'failed') +
+                    (SELECT COUNT(DISTINCT pd.post_id) FROM post_deliveries pd
+                      WHERE pd.status IN ('failed', 'dead_letter')
+                        AND NOT EXISTS (
+                            SELECT 1 FROM scheduled_posts sp
+                             WHERE sp.id = pd.post_id AND sp.status = 'failed'
+                        )),
+                    (SELECT COUNT(*) FROM post_deliveries
+                      WHERE status IN ('failed', 'dead_letter')),
+                    (SELECT COUNT(*) FROM post_deliveries
+                      WHERE status IN ('pending', 'processing', 'failed')),
+                    (SELECT COUNT(*) FROM payment_receipts WHERE status = 'pending'),
+                    (SELECT COUNT(*) FROM payment_orders WHERE status = 'pending'),
+                    (SELECT COUNT(*) FROM payments
+                      WHERE status = 'failed'
+                        AND created_at >= NOW() - INTERVAL '24 hours') +
+                    (SELECT COUNT(*) FROM payment_orders
+                      WHERE status = 'failed'
+                        AND created_at >= NOW() - INTERVAL '24 hours') +
+                    (SELECT COUNT(*) FROM payment_receipts
+                      WHERE status = 'rejected'
+                        AND created_at >= NOW() - INTERVAL '24 hours')
+            """)
+            row = cur.fetchone()
+        if not row or len(row) < 18:
+            return empty
+        values = list(row)
+        result = dict(empty)
+        result["available"] = True
+        int_fields = (
+            "active_users_daily", "active_users_monthly", "ai_requests",
+            "ai_successes", "ai_requests_monthly", "ai_successes_monthly",
+            "scheduled_posts", "sent_posts", "failed_posts", "failed_deliveries",
+            "delivery_queue_depth", "payment_pending_receipts", "payment_pending_orders",
+            "payment_failures",
+        )
+        positions = {
+            "active_users_daily": 0, "active_users_monthly": 1,
+            "ai_requests": 2, "ai_successes": 3, "ai_latency_ms": 4,
+            "ai_cost_usd": 5, "ai_requests_monthly": 6,
+            "ai_successes_monthly": 7, "ai_latency_ms_monthly": 8,
+            "ai_cost_usd_monthly": 9, "scheduled_posts": 10,
+            "sent_posts": 11, "failed_posts": 12, "failed_deliveries": 13,
+            "delivery_queue_depth": 14,
+            "payment_pending_receipts": 15, "payment_pending_orders": 16,
+            "payment_failures": 17,
+        }
+        for field in int_fields:
+            result[field] = max(0, int(values[positions[field]] or 0))
+        for field in ("ai_latency_ms", "ai_latency_ms_monthly",
+                      "ai_cost_usd", "ai_cost_usd_monthly"):
+            result[field] = max(0.0, float(values[positions[field]] or 0.0))
+        return result
+    except Exception:
+        logger.warning("Production observability agregati olinmadi", extra={
+            "event": "observability_db_metrics_unavailable",
+            "error_code": "OBSERVABILITY_DB_ERROR",
+        })
+        return empty
+
+
 def get_admin_dashboard_stats() -> dict:
     """Admin panel dashboard uchun kengaytirilgan statistika."""
     cache_key = "admin_dashboard_stats"

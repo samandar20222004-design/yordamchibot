@@ -26,6 +26,8 @@ CREATE TABLE IF NOT EXISTS users (
     streak_days INTEGER DEFAULT 0,
     last_bonus_date DATE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    -- PHASE 10: so'nggi faol update vaqti (DAU/MAU, xom xabar saqlanmaydi).
+    last_active_at TIMESTAMP WITH TIME ZONE,
     language_code VARCHAR(10) DEFAULT 'uz',
     -- 🆕 Onboarding: foydalanuvchi "⚙️ To'liq menyuni ochish" tugmasini bosganmi?
     -- TRUE bo'lsa yangi foydalanuvchi ham darhol standart bosh menyuni ko'radi.
@@ -656,6 +658,8 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS ad_free_active BOOLEAN DEFAULT TRUE;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS streak_days INTEGER DEFAULT 0;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS last_bonus_date DATE;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+-- PHASE 10: DAU/MAU faoliyat belgilari (matn yoki boshqa PII yozilmaydi).
+ALTER TABLE users ADD COLUMN IF NOT EXISTS last_active_at TIMESTAMP WITH TIME ZONE;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS plan_type VARCHAR(20) DEFAULT 'free';
 ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_expires_at TIMESTAMP WITH TIME ZONE;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS ai_requests_today INTEGER DEFAULT 0;
