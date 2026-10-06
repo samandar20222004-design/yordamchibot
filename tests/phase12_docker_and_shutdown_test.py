@@ -166,7 +166,7 @@ def test_dockerfile() -> None:
     di = REPO_ROOT / ".dockerignore"
     check(".dockerignore mavjud", di.is_file(), "")
     dtext = di.read_text(encoding="utf-8") if di.is_file() else ""
-    for pattern in (".git", ".env", "__pycache__", "telegram_bot/tests/"):
+    for pattern in (".git", ".env", "__pycache__", "tests/"):
         check(f".dockerignore: '{pattern}' chiqarib tashlangan", pattern in dtext, "")
 
     # --- deep healthcheck hujjatlashtirilgan (og'ir tekshiruv HEALTHCHECK emas) ---

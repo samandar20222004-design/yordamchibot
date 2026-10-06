@@ -11,7 +11,7 @@
 #                           -r tests/requirements-test.txt
 #
 # Nima uchun kerak:
-#   pytest    — telegram_bot/tests/p0_concurrency_test.py (real PostgreSQL
+#   pytest    — tests/p0_concurrency_test.py (real PostgreSQL
 #               row-lock/unique constraint testlari) shu runner orqali yuradi;
 #               bo'lmasa suite "pytest topilmadi" deb o'tkazib yuboriladi.
 #   pgserver  — lokal vaqtinchalik PostgreSQL ko'taradi. Bo'lmasa live DB

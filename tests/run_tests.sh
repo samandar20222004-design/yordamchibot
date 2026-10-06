@@ -6,7 +6,7 @@
 #     bash tests/run_tests.sh
 #
 # Bosqichlar:
-#   1) Sintaksis darsi (telegram_bot/tests/syntax_test.py)
+#   1) Sintaksis darsi (tests/syntax_test.py)
 #   2) 3-BOSQICH PRODUCTION ACCEPTANCE SUITE — 18 majburiy ssenariy
 #      (tests/production_acceptance_suite_test.py — deterministik, mock asosida)
 #   3) ✨ MAGIC POST oqimi — Killer Feature #1 (tests/magic_post_flow_test.py)
@@ -155,7 +155,8 @@
 #       mock nuqtasi kech bog'lanish orqali saqlanadi, import sikli yo'q;
 #       `db_atomic` tranzaksiya dekroratori + ulanish/offload leak
 #       o'lchovlari (tests/repository_layering_test.py)
-#   4) TO'LIQ regressiya: telegram_bot/tests/run_tests.sh (barcha 30+ test fayli)
+#   4) TO'LIQ regressiya: ilgari telegram_bot/tests/ ostidagi barcha suite'lar
+#      endi yagona tests/ katalogidan ishga tushadi.
 #
 # Har qanday xatoda 1 bilan chiqadi (CI uchun).
 # ============================================================================
@@ -191,6 +192,9 @@ resolve_py() {
 }
 PY=$(resolve_py)
 echo "[INFO] Python interpreter: $PY ($($PY --version 2>&1 || echo 'unknown'))"
+# Barcha importlar yagona telegram_bot paketidan (va tests.* helperlaridan) kelsin.
+REPO_ROOT="$(pwd)"
+export PYTHONPATH="${REPO_ROOT}/telegram_bot:${REPO_ROOT}${PYTHONPATH:+:$PYTHONPATH}"
 EXIT_CODE=0
 
 "$PY" tests/ai_quality_and_prompt_engine_test.py || EXIT_CODE=1
@@ -210,7 +214,7 @@ echo "=============================================================="
 
 echo
 echo "==================== 1) SYNTAX TEST ===================="
-( cd telegram_bot && "$PY" tests/syntax_test.py ) || EXIT_CODE=1
+"$PY" tests/syntax_test.py || EXIT_CODE=1
 
 echo
 echo "======= 2) 3-BOSQICH PRODUCTION ACCEPTANCE SUITE (18) ======="
@@ -988,9 +992,186 @@ echo "===== 3P) 🗂 PHASE 4: DATABASE MODULLASHUVI + REPOSITORY PATTERN ====="
 "$PY" tests/repository_layering_test.py || EXIT_CODE=1
 
 echo
-echo "======== 4) TO'LIQ REGRESSIYA (telegram_bot/tests) ========"
-# PY'ni aniq uzatamiz: ichki runner ham shu interpreter (venv) bilan ishlasin.
-( cd telegram_bot && PYTHON="$PY" bash tests/run_tests.sh ) || EXIT_CODE=1
+echo "======== 4) TO'LIQ REGRESSIYA (yagona tests/ katalogi) ========"
+# Ilgari telegram_bot/tests/run_tests.sh ichida bo'lgan suite'lar. Takrorlar
+# (syntax, rate_limiter_redis, phase3_rbac_idor) yuqorida allaqachon yuguradi.
+
+echo
+echo "================ DELIVERY OPTIONS TEST ==============="
+"$PY" tests/delivery_options_test.py || EXIT_CODE=1
+
+echo
+echo "==================== UNIT TEST ======================"
+"$PY" tests/unit_test.py || EXIT_CODE=1
+
+echo
+echo "==================== UX MENU TEST ===================="
+"$PY" tests/ux_menu_test.py || EXIT_CODE=1
+
+echo
+echo "==================== SERVICES TEST ===================="
+"$PY" tests/services_test.py || EXIT_CODE=1
+
+echo
+echo "================ SCHEDULER SERVICE TEST =============="
+"$PY" tests/scheduler_service_test.py || EXIT_CODE=1
+
+echo
+echo "================ NEW REQUIREMENTS TEST ==============="
+"$PY" tests/new_requirements_test.py || EXIT_CODE=1
+
+echo
+echo "================= ALBOM & SKIP TEST ================="
+"$PY" tests/album_skip_test.py || EXIT_CODE=1
+
+echo "=========== ALBOM OG'HOHLANTIRISH + TOZA KANAL ==========="
+"$PY" tests/album_warning_test.py || EXIT_CODE=1
+
+echo "================= PHOTO LEAK & VOICE TEST ===================="
+"$PY" tests/photo_leak_test.py || EXIT_CODE=1
+
+echo
+echo "================= STICKER REACTION TEST ================="
+"$PY" tests/sticker_reaction_test.py || EXIT_CODE=1
+
+echo
+echo "=============== PREMIUM / EN i18n TEST ==============="
+"$PY" tests/premium_i18n_en_test.py || EXIT_CODE=1
+
+echo
+echo "===== TO'LOV MINTAQASI TANLOVI (UZ/RU/EN) ====="
+"$PY" tests/payment_region_selection_test.py || EXIT_CODE=1
+
+echo
+echo "========= 3 TILLIK (UZ/RU/EN) + AI TIL PARITETI ========="
+"$PY" tests/i18n_ai_parity_test.py || EXIT_CODE=1
+
+echo
+echo "=========== ACCOUNT & SETTINGS i18n TEST ============"
+"$PY" tests/account_settings_i18n_test.py || EXIT_CODE=1
+
+echo
+echo "====== REPLY TUGMA FILTRLARI (uz/ru/en) + SANA ======"
+"$PY" tests/reply_filters_i18n_dates_test.py || EXIT_CODE=1
+
+echo "========= UZ/RU/EN TO'LIQ PARITET AUDITI ========="
+"$PY" tests/i18n_full_parity_test.py || EXIT_CODE=1
+
+echo "=============== NEW POST / AI STUDIO i18n TEST ==============="
+"$PY" tests/new_post_i18n_test.py || EXIT_CODE=1
+"$PY" tests/ai_studio_plan_i18n_test.py || EXIT_CODE=1
+
+echo
+echo "==================== SCHEMA TEST ===================="
+"$PY" tests/schema_test.py || EXIT_CODE=1
+
+echo
+echo "============ DB INTEGRITY TEST (5-BOSQICH) ============"
+"$PY" tests/db_integrity_test.py || EXIT_CODE=1
+
+echo
+echo "==================== AI MOCK TEST ==================="
+"$PY" tests/ai_mock_test.py || EXIT_CODE=1
+
+echo
+echo "=========== PRODUCTION AI SECURITY P0/P1 TEST ==========="
+"$PY" tests/production_ai_security_p0_test.py || EXIT_CODE=1
+
+echo
+echo "==================== AI FALLBACK TEST (4-BOSQICH) ================"
+"$PY" tests/ai_fallback_test.py || EXIT_CODE=1
+
+echo
+echo "=========== PRO 2-BOSQICHLI AUDIT + FREE PROMPT STRUKTURASI ==========="
+"$PY" tests/post_enhancer_audit_test.py || EXIT_CODE=1
+
+echo
+echo "============== RBAC & SECURITY TEST (6-BOSQICH) =============="
+"$PY" tests/rbac_security_test.py || EXIT_CODE=1
+
+echo
+echo "====== HEALTH & MONITORING TEST (7-BOSQICH) ======"
+"$PY" tests/health_monitoring_test.py || EXIT_CODE=1
+
+echo
+echo "===== PHASE 10 — STRUCTURED OBSERVABILITY + PRIVATE READINESS ====="
+"$PY" tests/observability_test.py || EXIT_CODE=1
+
+echo
+echo "============ CREDITS LEDGER & REFERRAL TEST (8-BOSQICH) =========="
+"$PY" tests/credits_referral_test.py || EXIT_CODE=1
+
+echo
+echo "==================== P0 CONCURRENCY TEST ============="
+if "$PY" -c "import pytest" 2>/dev/null; then
+    "$PY" -m pytest tests/p0_concurrency_test.py -q || EXIT_CODE=1
+else
+    echo "pytest topilmadi — P0 concurrency-test o'tkazib yuboriladi."
+fi
+
+echo
+echo "==================== LOAD TEST ======================"
+if "$PY" -c "import pgserver" 2>/dev/null; then
+    "$PY" tests/load_test.py || EXIT_CODE=1
+else
+    echo "pgserver topilmadi — load-test o'tkazib yuboriladi (pip install pgserver)."
+fi
+
+echo
+echo "===== PHASE 11 — MOCK TELEGRAM YUKLAMA/STRESS ====="
+"$PY" tests/load_stress_mock_test.py || EXIT_CODE=1
+
+echo
+echo "===== STRESS & CONCURRENCY TEST (9-BOSQICH) ====="
+"$PY" tests/stress_concurrency_test.py || EXIT_CODE=1
+
+echo
+echo "===== YAKUNIY ACCEPTANCE TEST (10-BOSQICH) ====="
+"$PY" tests/final_acceptance_test.py || EXIT_CODE=1
+
+echo
+echo "===== PRODUCTION PAYMENTS P0 (SSOT / IDEMPOTENCY) ====="
+"$PY" tests/production_payments_p0_test.py || EXIT_CODE=1
+
+echo
+echo "===== PRODUCTION FINAL ACCEPTANCE (11-BOSQICH) ====="
+"$PY" tests/production_final_acceptance_test.py || EXIT_CODE=1
+
+echo
+echo "===== CHANNEL DNA & MONITORING TEST ====="
+"$PY" tests/channel_dna_and_monitoring_test.py || EXIT_CODE=1
+
+echo
+echo "===== DB POOL + PROFIL KESH TEST ====="
+"$PY" tests/pool_profile_cache_test.py || EXIT_CODE=1
+
+echo
+echo "===== URL SECURITY GATEWAY — SSRF HIMOYASI ====="
+"$PY" tests/url_security_gateway_test.py || EXIT_CODE=1
+
+echo
+echo "===== STATE & CACHE ADAPTER — REDIS ⇄ IN-MEMORY ====="
+"$PY" tests/cache_backend_test.py || EXIT_CODE=1
+"$PY" tests/phase2_admission_test.py || EXIT_CODE=1
+
+echo
+echo "===== PHASE 5 — TELEGRAM DELIVERY ENGINE ====="
+"$PY" tests/delivery_engine_test.py || EXIT_CODE=1
+
+echo "===== PHASE 6 — AI GATEWAY + XARAJAT NAZORATI ====="
+"$PY" tests/ai_gateway_cost_control_test.py || EXIT_CODE=1
+
+echo
+echo "===== PHASE 6 — AI XARAJAT JURNALI + HISOBOT ====="
+"$PY" tests/ai_cost_tracking_db_test.py || EXIT_CODE=1
+
+echo
+echo "===== PHASE 8 — 7-DAY AUTOPILOT V2 ====="
+"$PY" tests/autopilot_v2_test.py || EXIT_CODE=1
+
+echo
+echo "===== PHASE 9 — UX, ONBOARDING VA CONTEXTUAL MENUS ====="
+"$PY" tests/phase9_ux_onboarding_contextual_test.py || EXIT_CODE=1
 
 echo
 echo "=============================================================="

@@ -940,7 +940,7 @@ async def test_regression_and_i18n():
     runner = (ROOT / "tests" / "run_tests.sh").read_text(encoding="utf-8")
     check("advertisement_engine_and_audit_test.py" in runner,
           "tests/run_tests.sh yangi test qamrovini chaqiradi")
-    syntax = (ROOT / "telegram_bot" / "tests" / "syntax_test.py").read_text(
+    syntax = (ROOT / "tests" / "syntax_test.py").read_text(
         encoding="utf-8")
     check("services.ads" in syntax,
           "syntax_test services.ads modullarini import tekshiruvidan o'tkazadi")

@@ -13,7 +13,7 @@ venv/
 .pytest_cache/
 .ruff_cache/
 # Test ma'lumotlari image'ga kerak emas
-telegram_bot/tests/
+tests/
 # Hujjatlar va CI
 *.md
 .github/

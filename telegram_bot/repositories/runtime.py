@@ -9,7 +9,7 @@ Bu moduli shu maqsadda:
 
 * **Mock qobiliyati saqlanadi.** Ishlab chiqarish va test kodida
   ``database.db_cursor`` ``unittest.mock.patch`` bilan almashtiriladi
-  (``telegram_bot/tests/scheduler_service_test.py`` shuni qiladi). Agar
+  (``tests/scheduler_service_test.py`` shuni qiladi). Agar
   repository ``from database import db_cursor`` desa, u ORIGINAL
   funksiyaga bog'lanib qolardi va patch kuchsizlanardi. Bu modul esa har
   chaqiruvda ``database`` modulining **joriy** atributiga qarab yuradi —
