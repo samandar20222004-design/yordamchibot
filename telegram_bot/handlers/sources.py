@@ -84,11 +84,14 @@ from services.sources.rss_service import (
     parse_interval_input,
 )
 from services.sources.url_extractor import (
+    ERR_TELEGRAM_CHANNEL_ONLY,
     FORMAT_KEYS,
     UrlPostService,
     format_label,
+    normalize_input_url,
     validate_public_url,
 )
+from services.sources.url_extractor import user_message as url_error_message
 from translations import sources_t
 from utils.date_format import format_datetime
 from utils.helpers import html_escape
@@ -531,6 +534,8 @@ async def url_text_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return SRC_URL_INPUT
 
     # 1) SSRF GUARD — havola bazaga/AI ga borishdan OLDIN tekshiriladi.
+    # Sxemasiz telegram havola (t.me/kanal/123) ham qabul qilinadi.
+    raw = normalize_input_url(raw)
     guard = validate_public_url(raw)
     if not guard.get("ok"):
         from locales.translations import get_text
@@ -551,8 +556,15 @@ async def url_text_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if not loaded.get("ok"):
         from locales.translations import get_text
-        await _safe_send(message, get_text("err_ux_url_failed", lang),
-                         get_cancel_keyboard(lang))
+        if loaded.get("error_code") == ERR_TELEGRAM_CHANNEL_ONLY:
+            # Kanal-only havola (t.me/kanal) — AI xatosi EMAS: foydalanuvchidan
+            # aniq bitta post havolasi so'raladi.
+            await _safe_send(
+                message, url_error_message(ERR_TELEGRAM_CHANNEL_ONLY, lang),
+                get_cancel_keyboard(lang))
+        else:
+            await _safe_send(message, get_text("err_ux_url_failed", lang),
+                             get_cancel_keyboard(lang))
         return SRC_URL_INPUT
 
     article = dict(loaded.get("article") or {})
@@ -593,11 +605,11 @@ async def url_text_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return SRC_URL_FORMATS
 
 
-def fetch_article_safe(url: str) -> dict:
+def fetch_article_safe(url: str, lang: str = "uz") -> dict:
     """Havolani o'qiydi (thread'da chaqiriladi, istisno tashlamaydi)."""
     try:
         from services.sources.url_extractor import fetch_and_extract
-        return fetch_and_extract(url)
+        return fetch_and_extract(url, lang=lang)
     except Exception as exc:  # noqa: BLE001
         logger.info("manbalar: havola o'qishda xato: %s", exc)
         return {"ok": False, "error_code": "network_error", "message": None}

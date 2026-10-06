@@ -44,6 +44,7 @@ __all__ = [
     "EXACT_ONLY_KEYWORDS",
     "FORBIDDEN_FLUFF_PHRASES",
     "QUALITY_RULES",
+    "TELEGRAM_POST_STRUCTURE",
     "FORMAT_SYSTEMS",
     "FORMAT_TO_MAGIC_STYLE",
     "normalize_topic",
@@ -325,53 +326,105 @@ def prompts_contain_fluff(prompts: dict) -> dict[str, list[str]]:
 
 
 # ---------------------------------------------------------------------------
+# TELEGRAM POST TUZILISHI (majburiy 4 blok — quruq matn TAQIQLANADI)
+# ---------------------------------------------------------------------------
+#: Har bir Telegram posti aynan shu tartibda yoziladi:
+#: [SARLAVHA] + [ASOSIY MA'LUMOT] + [FOYDALI XULOSA] + emoji/hashtag.
+TELEGRAM_POST_STRUCTURE: dict[str, str] = {
+    "uz": (
+        "TELEGRAM POST TUZILISHI (majburiy 4 blok):\n"
+        "1) [SARLAVHA] — 1-qator: <b>qalin sarlavha</b> + mavzuga mos emoji "
+        "(keskin fakt, raqam yoki savol). O'quvchi shu qatorda to'xtashi kerak.\n"
+        "2) [ASOSIY MA'LUMOT] — 3-5 ta ANIQ punkt (• yoki raqamlangan): har "
+        "biri fakt, raqam, amaliy qadam yoki hayotiy misol. Umumiy gap YO'Q.\n"
+        "3) [FOYDALI XULOSA] — o'quvchi uchun bitta vaznli, ishonchli gap + "
+        "mavzuga xos ANIQ savol (muhokama chaqirig'i, alohida qatorda).\n"
+        "4) [EMOJI + HASHTAG] — matn davomida o'rinli emojilar; eng oxirgi "
+        "qatorda 3-5 ta mavzuga mos hashtag."
+    ),
+    "ru": (
+        "СТРУКТУРА TELEGRAM-ПОСТА (обязательные 4 блока):\n"
+        "1) [ЗАГОЛОВОК] — 1-я строка: <b>жирный заголовок</b> + уместное эмодзи "
+        "(резкий факт, цифра или вопрос). Читатель должен остановиться на ней.\n"
+        "2) [ОСНОВНАЯ ИНФОРМАЦИЯ] — 3-5 КОНКРЕТНЫХ пунктов (• или нумерованных): "
+        "каждый с фактом, цифрой, практическим шагом или жизненным примером. "
+        "Общих фраз НЕТ.\n"
+        "3) [ПОЛЕЗНЫЙ ВЫВОД] — одна весомая уверенная фраза для читателя + "
+        "КОНКРЕТНЫЙ вопрос по теме (призыв к обсуждению, отдельной строкой).\n"
+        "4) [ЭМОДЗИ + ХЭШТЕГИ] — уместные эмодзи по ходу текста; самой последней "
+        "строкой 3-5 тематических хэштегов."
+    ),
+    "en": (
+        "TELEGRAM POST STRUCTURE (mandatory 4 blocks):\n"
+        "1) [HEADLINE] — line 1: a <b>bold headline</b> + a fitting emoji "
+        "(a sharp fact, a number or a question). The reader must stop on it.\n"
+        "2) [MAIN INFO] — 3-5 CONCRETE points (• or numbered): each with a fact, "
+        "a number, a practical step or a real-life example. NO generic phrases.\n"
+        "3) [USEFUL TAKEAWAY] — one weighty, confident line for the reader + "
+        "a CONCRETE topical question (discussion invite, on its own line).\n"
+        "4) [EMOJI + HASHTAGS] — fitting emojis along the text; 3-5 topical "
+        "hashtags on the very last line."
+    ),
+}
+
+
+# ---------------------------------------------------------------------------
 # SIFAT STANDARTI (barcha formatlar uchun umumiy)
 # ---------------------------------------------------------------------------
 QUALITY_RULES: dict[str, str] = {
     "uz": (
         "SIFAT STANDARTI (barcha formatlar uchun majburiy):\n"
-        "1) Kuchli HOOK — 1-qator: <b>qalin sarlavha</b> + mavzuga mos emoji "
-        "(savol, keskin fakt yoki raqam). Undan keyin bo'sh qator.\n"
+        "Tuzilma: [SARLAVHA] + [ASOSIY MA'LUMOT] + [FOYDALI XULOSA] + "
+        "emoji/hashtag — quruq matn TAQIQLANADI.\n"
+        "1) Kuchli HOOK — 1-qator [SARLAVHA]: <b>qalin sarlavha</b> + mavzuga "
+        "mos emoji (savol, keskin fakt yoki raqam). Undan keyin bo'sh qator.\n"
         "2) Faqat Telegram HTML: <b>qalin</b> va <i>kursiv</i> teglari; "
         "markdown (**, ##, __, ```) QAT'IY TAQIQLANADI.\n"
-        "3) Asosiy mazmun • ro'yxatlar yoki raqamlangan punktlar bilan — "
+        "3) [ASOSIY MA'LUMOT] • ro'yxatlar yoki raqamlangan punktlar bilan — "
         "kamida 3 ta mustaqil punkt.\n"
         "4) Har bir punkt ANIQ mazmun beradi: fakt, raqam, amaliy maslahat "
         "yoki hayotiy misol. Umumiy gaplar yozilmaydi.\n"
         "5) Quruq 'suv' gaplar va yod bo'lib ketgan umumiy qoliplar "
         "TAQIQLANADI — har bir jumla o'quvchiga real qiymat bersin.\n"
-        "6) Yakunda mavzuga xos ANIQ savol yoki muhokama chaqirig'i "
-        "(alohida qatorda), eng oxirda 3-5 ta mavzuga mos hashtag."
+        "6) [FOYDALI XULOSA] — yakunda mavzuga xos ANIQ savol yoki muhokama "
+        "chaqirig'i (alohida qatorda), eng oxirda 3-5 ta mavzuga mos hashtag."
     ),
     "ru": (
         "СТАНДАРТ КАЧЕСТВА (обязателен для всех форматов):\n"
-        "1) Сильный ХУК — 1-я строка: <b>жирный заголовок</b> + уместное эмодзи "
-        "(вопрос, резкий факт или цифра). Затем пустая строка.\n"
+        "Структура: [ЗАГОЛОВОК] + [ОСНОВНАЯ ИНФОРМАЦИЯ] + [ПОЛЕЗНЫЙ ВЫВОД] + "
+        "эмодзи/хэштеги — сухой текст ЗАПРЕЩЁН.\n"
+        "1) Сильный ХУК — 1-я строка [ЗАГОЛОВОК]: <b>жирный заголовок</b> + "
+        "уместное эмодзи (вопрос, резкий факт или цифра). Затем пустая строка.\n"
         "2) Только Telegram HTML: теги <b>жирный</b> и <i>курсив</i>; "
         "markdown (**, ##, __, ```) СТРОГО ЗАПРЕЩЁН.\n"
-        "3) Основное содержание — списками • или нумерованными пунктами, "
+        "3) [ОСНОВНАЯ ИНФОРМАЦИЯ] — списками • или нумерованными пунктами, "
         "минимум 3 самостоятельных пункта.\n"
         "4) Каждый пункт даёт КОНКРЕТНОЕ содержание: факт, цифру, практический "
         "совет или жизненный пример. Общих фраз нет.\n"
         "5) Пустые «водянистые» фразы и заезженные общие шаблоны ЗАПРЕЩЕНЫ — "
         "каждое предложение несёт реальную пользу.\n"
-        "6) В конце — КОНКРЕТНЫЙ вопрос по теме или призыв к обсуждению "
-        "(отдельной строкой), самой последней строкой 3-5 тематических хэштегов."
+        "6) [ПОЛЕЗНЫЙ ВЫВОД] — в конце КОНКРЕТНЫЙ вопрос по теме или призыв "
+        "к обсуждению (отдельной строкой), самой последней строкой 3-5 "
+        "тематических хэштегов."
     ),
     "en": (
         "QUALITY STANDARD (mandatory for every format):\n"
-        "1) A strong HOOK — line 1: a <b>bold headline</b> + a fitting emoji "
-        "(a question, a sharp fact or a number). Then a blank line.\n"
+        "Structure: [HEADLINE] + [MAIN INFO] + [USEFUL TAKEAWAY] + "
+        "emoji/hashtags — dry text is FORBIDDEN.\n"
+        "1) A strong HOOK — line 1 [HEADLINE]: a <b>bold headline</b> + "
+        "a fitting emoji (a question, a sharp fact or a number). "
+        "Then a blank line.\n"
         "2) Telegram HTML only: <b>bold</b> and <i>italic</i> tags; "
         "markdown (**, ##, __, ```) is STRICTLY FORBIDDEN.\n"
-        "3) Main body as • bullet lists or numbered points — at least 3 "
+        "3) [MAIN INFO] as • bullet lists or numbered points — at least 3 "
         "standalone points.\n"
         "4) Every point delivers CONCRETE substance: a fact, a number, a "
         "practical tip or a real-life example. No generic statements.\n"
         "5) Empty filler phrases and worn-out generic templates are FORBIDDEN — "
         "every sentence must carry real value.\n"
-        "6) Close with a CONCRETE topical question or discussion invite "
-        "(on its own line), with 3-5 topical hashtags on the very last line."
+        "6) [USEFUL TAKEAWAY] — close with a CONCRETE topical question or "
+        "discussion invite (on its own line), with 3-5 topical hashtags "
+        "on the very last line."
     ),
 }
 
@@ -535,13 +588,14 @@ def _normalize_lang(lang) -> str:
 
 
 def build_format_system(format_key, lang="uz") -> str:
-    """Format va til bo'yicha to'liq tizim prompti (sifat + format)."""
+    """Format va til bo'yicha to'liq tizim prompti (format + tuzilma + sifat)."""
     key = str(format_key or "").strip().lower()
     if key not in FORMAT_SYSTEMS:
         key = FORMAT_NEWS
     code = _normalize_lang(lang)
     format_block = FORMAT_SYSTEMS[key][code]
-    return f"{format_block}\n\n{QUALITY_RULES[code]}"
+    structure_block = TELEGRAM_POST_STRUCTURE[code]
+    return f"{format_block}\n\n{structure_block}\n\n{QUALITY_RULES[code]}"
 
 
 def format_hint_line(format_key, lang="uz") -> str:

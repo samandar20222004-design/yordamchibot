@@ -110,6 +110,19 @@ SUPPORT_TICKET_COOLDOWN_SEC = 20.0
 #: 24 soat ichida yuborilishi mumkin bo'lgan murojaatlar soni (soft limit).
 SUPPORT_TICKET_DAILY_LIMIT = 5
 
+#: Murojaat yuborilgach yangi ticket blok turadigan muddat (soniya) —
+#: admin javob bersa blok DARHOL olinadi, aks holda 30 daqiqadan keyin.
+SUPPORT_TICKET_REPLY_WAIT_SEC = 30 * 60
+
+#: Flood uchun blok muddati (soniya) — 24 soat.
+SUPPORT_TICKET_FLOOD_BLOCK_SEC = 24 * 3600
+
+#: Bloklangan holatda nechta urinishdan keyin flood hisoblanadi.
+SUPPORT_TICKET_FLOOD_THRESHOLD = 3
+
+#: Flood urinishlari sanaladigan oyna (soniya) — 10 daqiqa.
+SUPPORT_TICKET_FLOOD_WINDOW_SEC = 10 * 60
+
 #: Admin rasmi bilan yuborilganda caption chegarasi (Telegram: 1024 belgi).
 SUPPORT_CAPTION_LIMIT = 1000
 
@@ -126,6 +139,16 @@ _ADMIN_DELIVERIES: dict[tuple[int, int], dict] = {}
 
 #: user_id → oxirgi murojaat vaqti (``time.monotonic()``).
 _LAST_TICKET_AT: dict[int, float] = {}
+
+#: user_id → ochiq (javobsiz) ticket yuborilgan vaqt (``time.monotonic()``).
+#: Admin javob bersa yozuv o'chiriladi, aks holda 30 daqiqada eskiradi.
+_OPEN_TICKET_AT: dict[int, float] = {}
+
+#: user_id → bloklangan holatdagi urinish vaqtlari (flood aniqlash uchun).
+_BLOCK_HITS: dict[int, list[float]] = {}
+
+#: user_id → flood blok tugash vaqti (``time.monotonic()``).
+_FLOOD_BLOCK_UNTIL: dict[int, float] = {}
 
 
 def _remember_delivery(admin_chat_id: int, admin_message_id: int, ticket: dict) -> None:
@@ -155,6 +178,9 @@ def reset_support_runtime_state() -> None:
     """Kesh va cooldown'larni tozalaydi (testlar/diagnostika uchun)."""
     _ADMIN_DELIVERIES.clear()
     _LAST_TICKET_AT.clear()
+    _OPEN_TICKET_AT.clear()
+    _BLOCK_HITS.clear()
+    _FLOOD_BLOCK_UNTIL.clear()
 
 
 def _remember_ticket_time(user_id: int, when: float | None = None) -> None:
@@ -180,6 +206,85 @@ def _cooldown_active(user_id: int) -> bool:
     if last is None:
         return False
     return (time.monotonic() - last) < SUPPORT_TICKET_COOLDOWN_SEC
+
+
+def _flood_block_remaining(user_id: int) -> float:
+    """Flood blokidan qolgan soniyalar (blok bo'lmasa 0)."""
+    try:
+        until = _FLOOD_BLOCK_UNTIL.get(int(user_id))
+    except (TypeError, ValueError):
+        return 0.0
+    if until is None:
+        return 0.0
+    remaining = float(until) - time.monotonic()
+    if remaining <= 0:
+        _FLOOD_BLOCK_UNTIL.pop(int(user_id), None)
+        return 0.0
+    return remaining
+
+
+def _open_ticket_remaining(user_id: int) -> float:
+    """Ochiq ticket kutilayotgan bo'lsa qolgan soniyalar (aks holda 0)."""
+    try:
+        opened = _OPEN_TICKET_AT.get(int(user_id))
+    except (TypeError, ValueError):
+        return 0.0
+    if opened is None:
+        return 0.0
+    remaining = float(opened) + SUPPORT_TICKET_REPLY_WAIT_SEC - time.monotonic()
+    if remaining <= 0:
+        _OPEN_TICKET_AT.pop(int(user_id), None)
+        return 0.0
+    return remaining
+
+
+def _register_block_hit(user_id: int) -> bool:
+    """Bloklangan urinishni qayd qiladi; flood bo'lsa True (24 soat blok).
+
+    Oynada (10 daqiqa) ``SUPPORT_TICKET_FLOOD_THRESHOLD`` martadan ko'p
+    uringan foydalanuvchi 24 soatga bloklanadi.
+    """
+    try:
+        uid = int(user_id)
+    except (TypeError, ValueError):
+        return False
+    if not uid:
+        return False
+    now = time.monotonic()
+    hits = [t for t in _BLOCK_HITS.get(uid, [])
+            if now - t < SUPPORT_TICKET_FLOOD_WINDOW_SEC]
+    hits.append(now)
+    if len(_BLOCK_HITS) > 20000:
+        for old_uid in list(_BLOCK_HITS)[:2000]:
+            _BLOCK_HITS.pop(old_uid, None)
+    _BLOCK_HITS[uid] = hits
+    if len(hits) >= SUPPORT_TICKET_FLOOD_THRESHOLD:
+        _FLOOD_BLOCK_UNTIL[uid] = now + SUPPORT_TICKET_FLOOD_BLOCK_SEC
+        _BLOCK_HITS.pop(uid, None)
+        return True
+    return False
+
+
+def _remember_open_ticket(user_id: int) -> None:
+    """Yangi ochiq ticket belgilaydi (admin javobi yoki 30 daqiqa kutiladi)."""
+    try:
+        uid = int(user_id)
+    except (TypeError, ValueError):
+        return
+    if not uid:
+        return
+    if len(_OPEN_TICKET_AT) > 20000:
+        for old_uid in list(_OPEN_TICKET_AT)[:2000]:
+            _OPEN_TICKET_AT.pop(old_uid, None)
+    _OPEN_TICKET_AT[uid] = time.monotonic()
+
+
+def _clear_open_ticket(user_id: int) -> None:
+    """Ochiq ticket blokini oladi (admin javob berdi)."""
+    try:
+        _OPEN_TICKET_AT.pop(int(user_id), None)
+    except (TypeError, ValueError):
+        pass
 
 
 # ---------------------------------------------------------------------------
@@ -331,6 +436,38 @@ async def support_ticket_entry(update, context: ContextTypes.DEFAULT_TYPE) -> in
     user_id = int(getattr(user, "id", 0) or 0)
     lang = await _safe_lang(context, user_id)
 
+    # --- Bloklar: flood (24 soat) yoki ochiq ticket (admin javobi/30 daq) ---
+    # Murojaat yuborilgach YANGI ticket ochilmaydi — INPUT holatiga o'tilmaydi.
+    if _flood_block_remaining(user_id) > 0:
+        text = support_t("sp_flood_block", lang)
+        if query is not None:
+            await _answer(query)
+            await _edit_or_reply(query, text,
+                                 get_support_ticket_keyboard(lang))
+        else:
+            msg = getattr(update, "effective_message", None)
+            if msg is not None:
+                await _reply_text(msg, text,
+                                  get_support_ticket_keyboard(lang))
+        return ConversationHandler.END
+    wait_remaining = _open_ticket_remaining(user_id)
+    if wait_remaining > 0:
+        minutes = max(1, int((wait_remaining + 59) // 60))
+        if _register_block_hit(user_id):
+            text = support_t("sp_flood_block", lang)
+        else:
+            text = support_t("sp_wait_reply", lang, minutes=minutes)
+        if query is not None:
+            await _answer(query)
+            await _edit_or_reply(query, text,
+                                 get_support_ticket_keyboard(lang))
+        else:
+            msg = getattr(update, "effective_message", None)
+            if msg is not None:
+                await _reply_text(msg, text,
+                                  get_support_ticket_keyboard(lang))
+        return ConversationHandler.END
+
     # 🧭 Navigatsiya: [◀️ Orqaga] Sozlamalar/Profil hub'iga qaytaradi.
     try:
         from handlers.navigation import remember_section, SECTION_SETTINGS
@@ -400,6 +537,20 @@ async def support_message_received(update, context: ContextTypes.DEFAULT_TYPE) -
         await _reply_text(msg, support_t("sp_need_text_user", lang))
         return SUPPORT_TICKET_INPUT  # iltimos qilindi — oqim ochiq qoladi
 
+    # --- Bloklar: flood (24 soat) yoki ochiq ticket (admin javobi/30 daq) ---
+    if _flood_block_remaining(user_id) > 0:
+        await _reply_text(msg, support_t("sp_flood_block", lang))
+        return ConversationHandler.END
+    wait_remaining = _open_ticket_remaining(user_id)
+    if wait_remaining > 0:
+        minutes = max(1, int((wait_remaining + 59) // 60))
+        if _register_block_hit(user_id):
+            await _reply_text(msg, support_t("sp_flood_block", lang))
+        else:
+            await _reply_text(
+                msg, support_t("sp_wait_reply", lang, minutes=minutes))
+        return ConversationHandler.END
+
     # --- Anti-spam: qisqa cooldown va kunlik soft-limit ---
     if _cooldown_active(user_id):
         await _reply_text(msg, support_t("sp_cooldown", lang))
@@ -449,6 +600,9 @@ async def support_message_received(update, context: ContextTypes.DEFAULT_TYPE) -
         await _reply_text(msg, support_t("sp_failed", lang))
     else:
         _remember_ticket_time(user_id)
+        # Ochiq ticket belgilandi: yangi ticket admin javobi yoki 30 daqiqadan
+        # keyin ochiladi (flood/unintended dublikatlar to'xtaydi).
+        _remember_open_ticket(user_id)
         await _reply_text(msg, support_t("sp_confirm", lang))
 
     # FSM DARHOL yopiladi: keyingi xabarlar adminga BORMASLIGI kafolatlanadi.
@@ -584,6 +738,10 @@ async def support_admin_reply(update, context: ContextTypes.DEFAULT_TYPE):
         except Exception as e:
             logger.debug("Murojaat holatini yangilab bo'lmadi: %s", e)
 
+    # Admin javob berdi — foydalanuvchining ochiq ticket bloki OLINADI:
+    # yangi murojaat darhol ochilishi mumkin.
+    _clear_open_ticket(target_user_id)
+
     await _reply_text(msg, support_t("sp_admin_delivered", lang))
     return None
 
@@ -595,6 +753,10 @@ __all__ = [
     "SUPPORT_ADMIN_REPLY_FILTER",
     "SUPPORT_TICKET_COOLDOWN_SEC",
     "SUPPORT_TICKET_DAILY_LIMIT",
+    "SUPPORT_TICKET_REPLY_WAIT_SEC",
+    "SUPPORT_TICKET_FLOOD_BLOCK_SEC",
+    "SUPPORT_TICKET_FLOOD_THRESHOLD",
+    "SUPPORT_TICKET_FLOOD_WINDOW_SEC",
     "build_admin_ticket_text",
     "cached_delivery",
     "has_submittable_content",

@@ -41,7 +41,7 @@ from telegram.ext import (
 
 from config import ADMIN_IDS_SET
 from keyboards.default import get_main_keyboard
-from locales.translations import get_lang
+from locales.translations import clear_fsm_data, get_lang
 from translations import content_menu_t
 
 logger = logging.getLogger(__name__)
@@ -121,11 +121,21 @@ async def offer_magic_post_for_direct_text(msg, context, user_id: int,
     if not looks_like_post_material(text):
         return False
     remember_direct_text(user_id, text)
-    await msg.reply_text(
+    sent = await msg.reply_text(
         content_menu_t("cm_offer_text", lang),
         reply_markup=content_offer_keyboard(lang),
         parse_mode="HTML",
     )
+    # Taklif oynasi ID'si saqlanadi — [◀️ Orqaga]/[❌ Bekor qilish]'da eski
+    # oyna o'chiriladi (ochiq qolmaydi).
+    try:
+        user_data = getattr(context, "user_data", None)
+        if user_data is not None and hasattr(user_data, "__setitem__"):
+            user_data["cc_offer_msg_id"] = getattr(sent, "message_id", None)
+            chat = getattr(sent, "chat", None)
+            user_data["cc_offer_chat_id"] = getattr(chat, "id", None)
+    except Exception:  # pragma: no cover - kesh ixtiyoriy
+        pass
     return True
 
 
@@ -172,8 +182,43 @@ class ContentOfferEntryHandler(CallbackQueryHandler):
 # ============================================================
 # HANDLERLAR
 # ============================================================
+async def _close_old_offer_window(context, query=None) -> bool:
+    """Eski taklif oynasini yopadi (ochiq qolmaydi) — fail-soft.
+
+    ``query`` berilgan bo'lsa (inline tugma) — o'sha xabar o'chiriladi;
+    aks holda saqlangan ``cc_offer_msg_id`` orqali o'chirishga uriniladi.
+    Har qanday xatoda jim o'tiladi (asosiy menyu baribir yuboriladi).
+
+    Qaytadi: ``True`` — query xabari O'CHIRILGAN (unga reply ishlamaydi,
+    chatga yangi xabar yuborish kerak), ``False`` — aks holda.
+    """
+    if query is not None:
+        try:
+            deleter = getattr(getattr(query, "message", None), "delete", None)
+            if callable(deleter):
+                await deleter()
+                return True
+        except Exception:
+            pass
+        try:
+            await query.edit_message_reply_markup(reply_markup=None)
+        except Exception:
+            pass
+        return False
+    try:
+        user_data = getattr(context, "user_data", None)
+        msg_id = user_data.pop("cc_offer_msg_id", None) if user_data is not None else None
+        chat_id = user_data.pop("cc_offer_chat_id", None) if user_data is not None else None
+        if msg_id and chat_id:
+            deleter = getattr(getattr(context, "bot", None), "delete_message", None)
+            if callable(deleter):
+                await deleter(chat_id=chat_id, message_id=msg_id)
+    except Exception:
+        pass
+
+
 async def content_creation_back(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """[◀️ Orqaga] — asosiy 6 tugmali menyuga qaytadi (submenu yopiladi)."""
+    """[◀️ Orqaga] — FSM tozalanadi, asosiy menyuga qaytiladi (uzil-kesil)."""
     msg = getattr(update, "message", None)
     if msg is None:
         return ConversationHandler.END
@@ -181,10 +226,82 @@ async def content_creation_back(update: Update, context: ContextTypes.DEFAULT_TY
     user = getattr(update, "effective_user", None)
     user_id = getattr(user, "id", 0) or 0
     _DIRECT_TEXT.pop(user_id, None)
+    # FSM UZIL-KESIL tozalanadi (til keshi omon qoladi).
+    try:
+        clear_fsm_data(context)
+    except Exception:  # pragma: no cover
+        pass
     # 🧭 4-qadam: submenu yopildi — foydalanuvchi asosiy menyuda (bo'lim
     # yozuvi tozalanadi, keyingi [❌ Bekor qilish] asosiy menyuga qaytadi).
     from handlers.navigation import clear_section
     clear_section(context)
+    # Eski taklif oynasi ochiq qolgan bo'lsa — yopiladi.
+    await _close_old_offer_window(context)
+    await msg.reply_text(
+        content_menu_t("cm_back_done", lang),
+        reply_markup=get_main_keyboard(user_id in ADMIN_IDS_SET, lang=lang),
+        parse_mode="HTML",
+    )
+    return ConversationHandler.END
+
+
+async def content_creation_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """[❌ Bekor qilish] — FSM tozalanadi, TO'G'RIDAN-TO'G'RI asosiy menyu.
+
+    Ham reply-tugma (``message``), ham inline-tugma (``callback_query``)
+    ko'rinishida ishlaydi. Eski oyna (taklif/submenu xabari) yopiladi —
+    ochiq qolmaydi. Har qanday holatda ``ConversationHandler.END``.
+    """
+    query = getattr(update, "callback_query", None)
+    msg = getattr(update, "message", None) or getattr(update, "effective_message", None)
+    user = getattr(update, "effective_user", None)
+    user_id = getattr(user, "id", 0) or 0
+    lang = get_lang(context)
+    _DIRECT_TEXT.pop(user_id, None)
+    try:
+        clear_fsm_data(context)
+    except Exception:  # pragma: no cover
+        pass
+    try:
+        from handlers.navigation import clear_section
+        clear_section(context)
+    except Exception:  # pragma: no cover
+        pass
+    if query is not None:
+        try:
+            await query.answer()
+        except Exception:
+            pass
+        await _close_old_offer_window(context, query)
+        try:
+            chat = getattr(getattr(query, "message", None), "chat", None)
+            chat_id = getattr(chat, "id", None) or user_id
+            sender = getattr(getattr(context, "bot", None), "send_message", None)
+            if callable(sender) and chat_id:
+                await sender(
+                    chat_id=chat_id,
+                    text=content_menu_t("cm_back_done", lang),
+                    reply_markup=get_main_keyboard(
+                        user_id in ADMIN_IDS_SET, lang=lang),
+                    parse_mode="HTML",
+                )
+                return ConversationHandler.END
+        except Exception:
+            pass
+        if msg is not None:
+            try:
+                await msg.reply_text(
+                    content_menu_t("cm_back_done", lang),
+                    reply_markup=get_main_keyboard(
+                        user_id in ADMIN_IDS_SET, lang=lang),
+                    parse_mode="HTML",
+                )
+            except Exception:  # pragma: no cover
+                pass
+        return ConversationHandler.END
+    if msg is None:
+        return ConversationHandler.END
+    await _close_old_offer_window(context)
     await msg.reply_text(
         content_menu_t("cm_back_done", lang),
         reply_markup=get_main_keyboard(user_id in ADMIN_IDS_SET, lang=lang),
@@ -211,6 +328,35 @@ async def content_offer_callback(update: Update, context: ContextTypes.DEFAULT_T
 
     if data == CC_MENU:
         _DIRECT_TEXT.pop(user_id, None)
+        # FSM uzil-kesil tozalanadi — to'g'ridan-to'g'ri asosiy menyu.
+        try:
+            clear_fsm_data(context)
+        except Exception:  # pragma: no cover
+            pass
+        try:
+            from handlers.navigation import clear_section
+            clear_section(context)
+        except Exception:  # pragma: no cover
+            pass
+        # Eski oyna yopiladi (taklif klaviaturasi ochiq qolmaydi).
+        deleted = await _close_old_offer_window(context, query)
+        if deleted:
+            # O'chgan xabarga reply ishlamaydi — chatga yangi xabar.
+            try:
+                chat = getattr(getattr(query, "message", None), "chat", None)
+                chat_id = getattr(chat, "id", None) or user_id
+                sender = getattr(getattr(context, "bot", None), "send_message", None)
+                if callable(sender) and chat_id:
+                    await sender(
+                        chat_id=chat_id,
+                        text=content_menu_t("cm_back_done", lang),
+                        reply_markup=get_main_keyboard(
+                            user_id in ADMIN_IDS_SET, lang=lang),
+                        parse_mode="HTML",
+                    )
+                    return ConversationHandler.END
+            except Exception:
+                pass
         try:
             await query.message.reply_text(
                 content_menu_t("cm_back_done", lang),

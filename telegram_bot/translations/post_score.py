@@ -54,6 +54,8 @@ POST_SCORE_I18N = {
             "ℹ️ Baholash <b>bepul</b> va bir necha soniyada bajariladi — "
             "kredit yechilmaydi. Faqat «✨ 95/100 ga yaxshilash» bosilganda "
             "1 kredit yechiladi.\n\n"
+            "Post matnini yuboring, AI uning kuchi va kamchiliklarini "
+            "tahlil qilib beradi.\n\n"
             "✍️ Postingizni yuboring:"
         ),
         "ps_warn_empty": (
@@ -188,6 +190,8 @@ POST_SCORE_I18N = {
             "ℹ️ Оценка <b>бесплатная</b> и занимает несколько секунд — "
             "кредит не списывается. Кредит списывается только при нажатии "
             "«✨ Улучшить до 95/100».\n\n"
+            "Отправьте текст поста — ИИ проанализирует его сильные "
+            "и слабые стороны.\n\n"
             "✍️ Отправьте текст поста:"
         ),
         "ps_warn_empty": (
@@ -322,6 +326,8 @@ POST_SCORE_I18N = {
             "ℹ️ Scoring is <b>free</b> and takes a few seconds — no credits "
             "are spent. A credit is charged only when you press "
             "«✨ Improve to 95/100».\n\n"
+            "Send your post text — AI will analyze its strengths "
+            "and weaknesses.\n\n"
             "✍️ Send your post text:"
         ),
         "ps_warn_empty": (

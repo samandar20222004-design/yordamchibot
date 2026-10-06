@@ -41,6 +41,7 @@ Qoidalar:
 """
 
 import logging
+import time
 
 from telegram import InlineKeyboardMarkup
 from telegram.ext import ContextTypes
@@ -64,6 +65,56 @@ from translations import settings_stats_t
 from utils.helpers import html_escape
 
 logger = logging.getLogger(__name__)
+
+# ============================================================
+# STATIK MATNLAR KESHI (qo'llanma/yordam/sozlamalar — ~0.2s ochilish)
+# ============================================================
+#: Kesh TTL (soniya). Statik matnlar deyarli o'zgarmaydi; konfig
+#: (SUPPORT_USERNAME/BOT_VERSION) o'zgarsa kesh kalitining o'zi yangilanadi.
+_STATIC_TEXT_TTL_SEC = 600
+#: (nom, til, support_username, bot_version) → (matn, yozilgan_vaqt).
+_STATIC_TEXT_CACHE: dict[tuple, tuple[str, float]] = {}
+
+
+def _static_cache_key(name: str, lang: str) -> tuple:
+    """Kesh kaliti — konfig qiymatlari bilan (patch/test xavfsizligi)."""
+    try:
+        username = str(SUPPORT_USERNAME or "")
+    except Exception:
+        username = ""
+    try:
+        version = str(BOT_VERSION or "")
+    except Exception:
+        version = ""
+    return (str(name), normalize_lang(lang), username, version)
+
+
+def _cached_static_text(name: str, lang: str, builder) -> str:
+    """Statik matnni keshlab qaytaradi (``builder`` — ``() -> str``).
+
+    Birinchi ochilishda quriladi, keyingi ochilishlarda xotiradan olinadi
+    (~0.2 soniyada, DB/formatlashsiz). TTL tugasa yoki konfig o'zgarsa
+    qayta quriladi. ``builder`` xatosi yuqoriga uzatiladi (fail-loud —
+    renderer'ning o'z try/except'i uni ushlaydi).
+    """
+    key = _static_cache_key(name, lang)
+    now = time.monotonic()
+    hit = _STATIC_TEXT_CACHE.get(key)
+    if hit is not None:
+        text, ts = hit
+        if now - ts < _STATIC_TEXT_TTL_SEC:
+            return text
+    text = str(builder() or "")
+    if len(_STATIC_TEXT_CACHE) > 200:
+        _STATIC_TEXT_CACHE.clear()
+    _STATIC_TEXT_CACHE[key] = (text, now)
+    return text
+
+
+def clear_settings_static_cache() -> None:
+    """Statik matnlar keshini tozalaydi (testlar/diagnostika uchun)."""
+    _STATIC_TEXT_CACHE.clear()
+
 
 # ============================================================
 # SOZLAMALAR OQ RO'YXATI (payload'dan boshqa kalit yozilmaydi)
@@ -188,9 +239,13 @@ async def _render_hub_screen(query, context, user_id: int, lang: str,
 
 async def _render_rewards_hub(query, lang: str) -> None:
     """🎁 Bonuslar & Ballar submenu'sini ko'rsatadi."""
+    text = _cached_static_text(
+        "rewards_title", lang,
+        lambda: settings_stats_t("ss_rewards_title", lang),
+    )
     await _edit_or_reply(
         query,
-        settings_stats_t("ss_rewards_title", lang),
+        text,
         get_settings_rewards_keyboard(lang),
     )
 
@@ -199,23 +254,28 @@ async def _render_help_hub(query, lang: str) -> None:
     """Bot haqida, qo'llanma va admin aloqasi — bitta xabarda."""
     from handlers.start import _help_support_line
 
-    about = {
-        "uz": "ℹ️ <b>PostAssist</b> — Telegram kanallari uchun post yaratish, "
-              "rejalashtirish va statistika bo'yicha AI yordamchi.",
-        "ru": "ℹ️ <b>PostAssist</b> — AI-помощник для создания постов, "
-              "планирования и статистики Telegram-каналов.",
-        "en": "ℹ️ <b>PostAssist</b> — an AI assistant for creating posts, "
-              "scheduling and statistics for Telegram channels.",
-    }[normalize_lang(lang)]
-    support = _help_support_line(lang)
-    username = str(SUPPORT_USERNAME or "").strip().lstrip("@")
-    if username:
-        admin = html_escape(username)
-        support = get_text("help_support_line", lang,
-                           admin=f'<a href="https://t.me/{admin}">@{admin}</a>')
+    def _build() -> str:
+        about = {
+            "uz": "ℹ️ <b>PostAssist</b> — Telegram kanallari uchun post yaratish, "
+                  "rejalashtirish va statistika bo'yicha AI yordamchi.",
+            "ru": "ℹ️ <b>PostAssist</b> — AI-помощник для создания постов, "
+                  "планирования и статистики Telegram-каналов.",
+            "en": "ℹ️ <b>PostAssist</b> — an AI assistant for creating posts, "
+                  "scheduling and statistics for Telegram channels.",
+        }[normalize_lang(lang)]
+        support = _help_support_line(lang)
+        username = str(SUPPORT_USERNAME or "").strip().lstrip("@")
+        if username:
+            admin = html_escape(username)
+            support = get_text(
+                "help_support_line", lang,
+                admin=f'<a href="https://t.me/{admin}">@{admin}</a>')
+        return about + "\n\n" + get_text("help_guide", lang, support=support)
+
+    text = _cached_static_text("help_hub", lang, _build)
     await _edit_or_reply(
         query,
-        about + "\n\n" + get_text("help_guide", lang, support=support),
+        text,
         get_settings_help_hub_keyboard(lang),
     )
 
@@ -224,9 +284,12 @@ async def _render_support(query, lang: str) -> None:
     """💬 Qo'llab-quvvatlash sahifasi (username bo'lmasa ham javob beradi)."""
     from handlers.start import _help_support_line
 
+    text = _cached_static_text(
+        "support", lang, lambda: _help_support_line(lang),
+    )
     await _edit_or_reply(
         query,
-        _help_support_line(lang),
+        text,
         get_settings_back_keyboard(lang),
     )
 
@@ -532,7 +595,11 @@ async def _render_help(query, lang: str, context=None) -> None:
             context.user_data["settings_help_flow"] = True
         except Exception:
             pass
-    text = get_text("help_guide", lang, support=_help_support_line(lang))
+    text = _cached_static_text(
+        "help", lang,
+        lambda: get_text("help_guide", lang,
+                         support=_help_support_line(lang)),
+    )
     help_kb = get_help_keyboard(SUPPORT_USERNAME, lang)
     combined = InlineKeyboardMarkup(
         help_kb.inline_keyboard + get_settings_back_keyboard(lang).inline_keyboard
@@ -542,12 +609,15 @@ async def _render_help(query, lang: str, context=None) -> None:
 
 async def _render_about(query, lang: str) -> None:
     """ℹ️ Bot haqida — bot versiyasi, maqsadi va qisqa yo'riqnoma."""
-    support = f"@{SUPPORT_USERNAME}" if SUPPORT_USERNAME else get_text(
-        "help_admin_fallback", lang
-    )
-    text = settings_stats_t(
-        "ss_about_text", lang, support=support, version=BOT_VERSION,
-    )
+    def _build() -> str:
+        support = f"@{SUPPORT_USERNAME}" if SUPPORT_USERNAME else get_text(
+            "help_admin_fallback", lang
+        )
+        return settings_stats_t(
+            "ss_about_text", lang, support=support, version=BOT_VERSION,
+        )
+
+    text = _cached_static_text("about", lang, _build)
     await _edit_or_reply(query, text, get_settings_back_keyboard(lang))
 
 

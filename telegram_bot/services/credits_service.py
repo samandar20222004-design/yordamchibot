@@ -35,6 +35,7 @@ Foydalanish::
 """
 
 import logging
+from datetime import datetime, timedelta, timezone
 
 import database as db
 
@@ -57,6 +58,10 @@ OP_ADMIN = "admin"               # admin tomonidan berilgan/olingan ball
 #: alohida qator: yechilgan tomon manfiy, qabul qilgan tomon musbat).
 OP_TRANSFER = "transfer"
 
+#: Avtomatik faollik bonusi — kuniga 5+ faol AI so'rovdan keyin +2
+#: (tugma bosilmaydi; ``maybe_grant_activity_bonus`` orqali beriladi).
+OP_ACTIVITY_BONUS = "activity_bonus"
+
 #: Ruxsat etilgan ``operation_type`` to'plami (oq ro'yxat — ledger'ga
 #: noma'lum tur yozib bo'lmaydi).
 VALID_OPERATION_TYPES = (
@@ -67,7 +72,42 @@ VALID_OPERATION_TYPES = (
     OP_PROMO,
     OP_ADMIN,
     OP_TRANSFER,
+    OP_ACTIVITY_BONUS,
 )
+
+#: Faollik bonusi chegarasi: bir kunda kamida 5 ta faol AI so'rov.
+ACTIVITY_BONUS_THRESHOLD = 5
+#: Faollik bonusi miqdori: avtomatik +2 AI-so'rov (kredit).
+ACTIVITY_BONUS_AMOUNT = 2
+
+#: Avtomatik bonus bildirishnomasi (3 til) — ``{amount}`` o'rniga miqdor.
+ACTIVITY_BONUS_TEXTS = {
+    "uz": ("🎁 <b>Tabriklaymiz!</b> Bugun 5 ta faol AI so'rov bajardingiz — "
+           "sizga avtomatik <b>+{amount} ta AI-so'rov</b> bonusi qo'shildi!"),
+    "ru": ("🎁 <b>Поздравляем!</b> Сегодня вы выполнили 5 активных ИИ-запросов — "
+           "вам автоматически начислен бонус <b>+{amount} ИИ-запроса</b>!"),
+    "en": ("🎁 <b>Congratulations!</b> You've made 5 active AI requests today — "
+           "a bonus of <b>+{amount} AI requests</b> has been added automatically!"),
+}
+
+
+def activity_bonus_text(lang: str = "uz", amount: int = ACTIVITY_BONUS_AMOUNT) -> str:
+    """Avtomatik faollik bonusi bildirishnomasi matni (3 til)."""
+    code = str(lang or "uz").strip().lower().split("-")[0]
+    template = ACTIVITY_BONUS_TEXTS.get(code) or ACTIVITY_BONUS_TEXTS["uz"]
+    try:
+        return template.format(amount=int(amount))
+    except (TypeError, ValueError):
+        return template.format(amount=ACTIVITY_BONUS_AMOUNT)
+
+
+def _today_tashkent_str() -> str:
+    """Bugungi sana (Asia/Tashkent, YYYY-MM-DD) — ref_id uchun."""
+    try:
+        now = datetime.now(timezone.utc) + timedelta(hours=5)
+        return now.strftime("%Y-%m-%d")
+    except Exception:  # pragma: no cover
+        return datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
 #: ``get_user_history`` limit chegaralari (1..100).
 HISTORY_LIMIT_MIN = 1
@@ -104,6 +144,7 @@ class CreditsService:
     OP_PROMO = OP_PROMO
     OP_ADMIN = OP_ADMIN
     OP_TRANSFER = OP_TRANSFER
+    OP_ACTIVITY_BONUS = OP_ACTIVITY_BONUS
 
     # ──────────────────────────────────────────────────────────────
     # YAKUNIY API (chaqiruvchi tranzaksiyadan mustaqil)
@@ -218,6 +259,113 @@ class CreditsService:
         except Exception as e:
             logger.error("credits_ledger o'qish xatosi (user=%s): %s", user_id, e)
             return []
+
+    # ──────────────────────────────────────────────────────────────
+    # AVTOMATIK FAOLLIK BONUSI (kuniga 5+ faol so'rov → +2, tugmasiz)
+    # ──────────────────────────────────────────────────────────────
+    @staticmethod
+    def count_today_ai_requests(user_id, cur=None) -> int:
+        """Bugungi faol AI so'rovlar soni (kvota + kredit yo'llari birga).
+
+        ``ai_reservations`` dagi ``status='active'`` qatorlar sanaladi —
+        refund qilingan (muvaffaqiyatsiz) bronlar hisobga kirmaydi.
+        Xatoda (jadval yo'q, DB uzilgan) ``0`` qaytadi — bonus oqimi
+        hech qachon asosiy so'rovni to'xtatmaydi (fail-soft).
+        """
+        try:
+            uid = int(user_id)
+        except (TypeError, ValueError):
+            return 0
+        sql = (
+            "SELECT COUNT(*) FROM ai_reservations WHERE user_id = %s "
+            "AND status = 'active' AND "
+            "(created_at AT TIME ZONE 'Asia/Tashkent')::date = "
+            "((NOW() AT TIME ZONE 'Asia/Tashkent'))::date"
+        )
+        try:
+            if cur is not None:
+                cur.execute(sql, (uid,))
+                row = cur.fetchone()
+                return int((row or [0])[0] or 0)
+            with db.db_transaction(commit=False) as own_cur:
+                own_cur.execute(sql, (uid,))
+                row = own_cur.fetchone()
+                return int((row or [0])[0] or 0)
+        except Exception:
+            logger.debug("faollik bonusi: kunlik so'rov soni o'qilmadi",
+                         exc_info=True)
+            return 0
+
+    @staticmethod
+    def maybe_grant_activity_bonus(user_id, cur=None) -> dict:
+        """5+ faol so'rovdan keyin +2 bonusni AVTOMATIK beradi (kuniga 1 marta).
+
+        Tugma bosilmaydi — AI bronidan keyin chaqiriladi. Idempotent:
+        bir kunda ikkinchi marta chaqirilsa ``granted=False`` qaytadi.
+        Hech qachon istisno ko'tarmaydi (fail-soft)::
+
+            {"granted": True, "amount": 2, "balance_after": 12,
+             "count": 5, "ledger_id": 77}
+            {"granted": False, "reason": "threshold_not_reached",
+             "count": 3}
+        """
+        try:
+            uid = int(user_id)
+        except (TypeError, ValueError):
+            return {"granted": False, "reason": "bad_user"}
+        try:
+            if cur is not None:
+                return CreditsService._maybe_grant_activity_bonus_in_tx(
+                    cur, uid)
+            with db.db_transaction() as own_cur:
+                result = CreditsService._maybe_grant_activity_bonus_in_tx(
+                    own_cur, uid)
+            if result.get("granted"):
+                CreditsService._invalidate(uid)
+            return result
+        except Exception as e:
+            logger.debug("faollik bonusi berilmadi (fail-soft): %s", e)
+            return {"granted": False, "reason": "db_error"}
+
+    @staticmethod
+    def _maybe_grant_activity_bonus_in_tx(cur, user_id: int) -> dict:
+        """Tranzaksiya ichidagi bonus yadrosi (hech qachon tashlamaydi)."""
+        try:
+            uid = int(user_id)
+            # 1) Bugun allaqachon berilganmi (kuniga 1 marta — idempotent)?
+            cur.execute(
+                "SELECT 1 FROM credits_ledger WHERE user_id = %s AND "
+                "operation_type = %s AND "
+                "(created_at AT TIME ZONE 'Asia/Tashkent')::date = "
+                "((NOW() AT TIME ZONE 'Asia/Tashkent'))::date LIMIT 1",
+                (uid, OP_ACTIVITY_BONUS),
+            )
+            if cur.fetchone():
+                return {"granted": False, "reason": "already_granted_today"}
+            # 2) Faol so'rovlar chegaraga yetganmi?
+            count = CreditsService.count_today_ai_requests(uid, cur=cur)
+            if int(count or 0) < ACTIVITY_BONUS_THRESHOLD:
+                return {"granted": False, "reason": "threshold_not_reached",
+                        "count": int(count or 0)}
+            # 3) +2 avtomatik grant (shu tranzaksiyada, ledger auditi bilan).
+            grant = CreditsService._add_in_tx(
+                cur, uid, ACTIVITY_BONUS_AMOUNT, OP_ACTIVITY_BONUS,
+                ref_id=f"activity_auto:{_today_tashkent_str()}")
+            if not grant.get("success"):
+                return {"granted": False, "reason": "grant_failed",
+                        "count": int(count or 0)}
+            logger.info("faollik bonusi: user=%s +2 (kunlik so'rov=%s)",
+                        uid, count)
+            return {
+                "granted": True,
+                "amount": ACTIVITY_BONUS_AMOUNT,
+                "balance_after": int(grant.get("balance_after") or 0),
+                "count": int(count or 0),
+                "ledger_id": int(grant.get("ledger_id") or 0),
+            }
+        except Exception as e:
+            logger.debug("faollik bonusi yadrosi (fail-soft): %s", e)
+            return {"granted": False, "reason": "db_error"}
 
     # ──────────────────────────────────────────────────────────────
     # TRANZAKSIYA ICHIDAGI YADRO (cur — chaqiruvchining kursori)

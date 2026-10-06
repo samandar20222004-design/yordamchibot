@@ -1312,6 +1312,9 @@ def reserve_ai_request(user_id: int, operation_type: str = "other",
         _invalidate_user(uid)
     except Exception:
         pass
+    # Eslatma: avtomatik faollik bonusi (+2) shu primitivada EMAS —
+    # ``services.ai_quota.reserve_ai_quota`` choke point'da beriladi. Bu
+    # funksiya qattiq kvota semantikasi uchun TOZA qoladi (race testlar).
     return {
         "allowed": True,
         "reason": AI_RESERVE_OK,

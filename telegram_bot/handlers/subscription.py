@@ -61,6 +61,39 @@ CARD_TARIFF_ORDER = ("1m", "3m", "1y")
 # Eski yozuvlar uchun days -> plan_key zaxira xaritasi (migratsiyasiz to'g'ri ishlaydi)
 _DAYS_TO_PLAN = {30: "1m", 90: "3m", 365: "1y"}
 
+#: 💳 Karta to'lovi ekranida — TO'LOVDAN OLDIN ko'rsatiladigan to'liq PRO
+#: afzalliklari (3 til). Foydalanuvchi 19 000 so'm to'lashdan oldin nimaga
+#: ega bo'lishini aniq ko'radi.
+PRO_CARD_BENEFITS = {
+    "uz": (
+        "⭐️ <b>PRO imkoniyatlari:</b>\n"
+        "• 🤖 Kuniga 50 ta AI post\n"
+        "• 🧬 Cheksiz Channel DNA tahlili\n"
+        "• ✈️ 7 kunlik Avtopilot\n"
+        "• 📢 3 tagacha kanal ulash"
+    ),
+    "ru": (
+        "⭐️ <b>Возможности PRO:</b>\n"
+        "• 🤖 50 ИИ-постов в день\n"
+        "• 🧬 Безлимитный анализ Channel DNA\n"
+        "• ✈️ Автопилот на 7 дней\n"
+        "• 📢 Подключение до 3 каналов"
+    ),
+    "en": (
+        "⭐️ <b>PRO features:</b>\n"
+        "• 🤖 50 AI posts per day\n"
+        "• 🧬 Unlimited Channel DNA analysis\n"
+        "• ✈️ 7-day Autopilot\n"
+        "• 📢 Up to 3 channels"
+    ),
+}
+
+
+def pro_card_benefits_text(lang: str = "uz") -> str:
+    """Karta to'lovi ekrani uchun PRO afzalliklari bloki (to'lovdan oldin)."""
+    code = str(lang or "uz").strip().lower().split("-")[0]
+    return PRO_CARD_BENEFITS.get(code) or PRO_CARD_BENEFITS["uz"]
+
 
 def _fmt_uzs(amount: int) -> str:
     """19000 → '19 000' (so'm formatida)."""
@@ -480,6 +513,9 @@ def _build_card_payment_text(
     price = _fmt_uzs(plan["amount"])
     parts = [
         get_text("card_payment_title", lang),
+        "",
+        # To'lovdan OLDIN — to'liq PRO afzalliklari (nima uchun to'lashi aniq).
+        pro_card_benefits_text(lang),
         "",
         get_text("card_payment_selected", lang, tarif=plan_name, summa=price),
         "",
