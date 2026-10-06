@@ -82,6 +82,13 @@ WORKDIR /app
 # Tayyor virtualenv (builder'dan) + ilova kodi (appuser egaligida).
 COPY --from=builder /opt/venv /opt/venv
 COPY --chown=appuser:appgroup telegram_bot/ /app/
+# Deploy/bootstrap skriptlari (preflight, DB migratsiya/schema check,
+# smoke test) — konteyner ichida ham tekshirish mumkin:
+#     docker exec postassist-bot bash scripts/start_production.sh --check-only
+#     docker exec postassist-bot python scripts/db_migrate.py --check-only
+# CMD O'ZGARMAYDI (`python main.py`): skriptlar ixtiyoriy qatlam, botning
+# o'z ishga tushish yo'li va HEALTHCHECK kontrakti bir xil qoladi.
+COPY --chown=appuser:appgroup scripts/ /app/scripts/
 
 # Sent-journal (post idempotentlik jurnali) va loglar uchun yoziladigan papka.
 RUN mkdir -p /app/data && chown -R appuser:appgroup /app

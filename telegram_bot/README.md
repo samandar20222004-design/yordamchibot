@@ -890,8 +890,11 @@ bash tests/run_tests.sh
 | `new_post_i18n_test.py` + `ai_studio_plan_i18n_test.py` | 84 |
 | repo ildizi: `tests/ux_v2_main_menu_test.py` (UX V2 → 3-BOSQICH — asosiy menyu 5-tugma standarti, STARS_PLANS SSOT, /start onboarding 3 til) | 206 |
 | repo ildizi: `tests/main_menu_and_dna_onboarding_test.py` (3-BOSQICH — ixcham menyu, Sozlamalar/Ko'proq hub'i, Kanal DNK onboarding + bepul namuna, 💡 statistika tavsiyasi) | 221 |
+| repo ildizi: `tests/smoke_test.py` (PRODUCTION RUNTIME & DEPLOYMENT VERIFICATION — deploy artefaktlari kontrakti, MOCK/LIVE Telegram `getMe`, polling + webhook, APScheduler workerlari, `/health/live` + `/health/ready` JSON kontrakti; `--offline` CI'da, `--live` serverda) | 64 |
 
 `bash tests/run_tests.sh` to'liq to'plami (pgserver bilan): **5000+ ta test, 0 xato**.
+
+Deploy/bootstrap skriptlari (repo ildizi): `scripts/preflight_env.py` (muhit auditi), `scripts/db_migrate.py` (xavfsiz migratsiya + schema check), `scripts/start_production.sh` (entrypoint), `scripts/deploy.sh` (1-komandalik deploy + verification) — batafsil: [DEPLOYMENT.md](../DEPLOYMENT.md).
 
 ## Bot "doim ishlashi" uchun
 

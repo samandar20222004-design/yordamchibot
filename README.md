@@ -36,6 +36,14 @@ python main.py                      # bot + web health-server 0.0.0.0:$PORT
 
 Serverga chiqarish (Render / VPS / Docker) — **[DEPLOYMENT.md](DEPLOYMENT.md)**.
 
+**⚡️ Serverda 1 komanda bilan production deploy** (preflight → migratsiya →
+health → smoke test):
+
+```bash
+cp .env.example .env && nano .env      # BOT_TOKEN, DATABASE_URL, HEALTH_READY_TOKEN
+bash scripts/deploy.sh                 # natija: logs/deploy-*.log + logs/smoke-*.json
+```
+
 ## ✅ Testlar va lint (repozitoriy ildizida)
 
 ```bash
