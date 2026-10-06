@@ -65,6 +65,7 @@ import random
 import time
 import weakref
 
+from services import lifecycle_service as lifecycle
 from services.scheduler_service import SchedulerService
 
 logger = logging.getLogger(__name__)
@@ -333,36 +334,41 @@ class TelegramDeliveryService:
             inline_max = max(0.0, float(inline_max_wait))
         chat_id = kwargs.get("chat_id")
         attempt = 0
-        while True:
-            attempt += 1
-            await self._acquire(bot, chat_id)
-            try:
-                func = getattr(bot, method)
-                return await func(**kwargs)
-            except Exception as exc:
-                cls = self.classify(exc)
-                if cls == FAILURE_RATE_LIMIT and attempt < attempts:
-                    wait = self.retry_wait_with_jitter(exc)
-                    if inline_max > 0 and wait <= inline_max:
+        # PHASE 12 · GRACEFUL SHUTDOWN: yuborilayotgan har bir xabar "delivery"
+        # navbatida band hisoblanadi. Shutdown boshlanganda main.py aynan shu
+        # hisoblagichni kutib turadi (lifecycle.wait_for_queues) — navbat
+        # drenajsiz konteyner yopilmaydi (post yarim yo'lda tashlanmaydi).
+        with lifecycle.track_queue("delivery"):
+            while True:
+                attempt += 1
+                await self._acquire(bot, chat_id)
+                try:
+                    func = getattr(bot, method)
+                    return await func(**kwargs)
+                except Exception as exc:
+                    cls = self.classify(exc)
+                    if cls == FAILURE_RATE_LIMIT and attempt < attempts:
+                        wait = self.retry_wait_with_jitter(exc)
+                        if inline_max > 0 and wait <= inline_max:
+                            logger.info(
+                                "Delivery: Telegram 429 — %.2fs aniq kutish + jitter "
+                                "(urinish %d/%d, chat=%s)", wait, attempt, attempts, chat_id,
+                            )
+                            await self._sleep(wait)
+                            continue
+                        # Defer rejim (scheduler) yoki juda uzun kutish:
+                        # aniq kutish chaqiruvchi tomonida (DB retry_post + jitter).
+                        raise
+                    if cls == FAILURE_AMBIGUOUS and retry_network and attempt < attempts:
+                        delay = min(NETWORK_BACKOFF_BASE * attempt, NETWORK_BACKOFF_MAX) + self.retry_jitter()
                         logger.info(
-                            "Delivery: Telegram 429 — %.2fs aniq kutish + jitter "
-                            "(urinish %d/%d, chat=%s)", wait, attempt, attempts, chat_id,
+                            "Delivery: tarmoq xatosi — %.2fs backoff bilan qayta urinish "
+                            "(%d/%d, chat=%s)", delay, attempt, attempts, chat_id,
                         )
-                        await self._sleep(wait)
+                        await self._sleep(delay)
                         continue
-                    # Defer rejim (scheduler) yoki juda uzun kutish:
-                    # aniq kutish chaqiruvchi tomonida (DB retry_post + jitter).
+                    # Doimiy xato yoki urinishlar tugadi — ASL istisno qaytadi.
                     raise
-                if cls == FAILURE_AMBIGUOUS and retry_network and attempt < attempts:
-                    delay = min(NETWORK_BACKOFF_BASE * attempt, NETWORK_BACKOFF_MAX) + self.retry_jitter()
-                    logger.info(
-                        "Delivery: tarmoq xatosi — %.2fs backoff bilan qayta urinish "
-                        "(%d/%d, chat=%s)", delay, attempt, attempts, chat_id,
-                    )
-                    await self._sleep(delay)
-                    continue
-                # Doimiy xato yoki urinishlar tugadi — ASL istisno qaytadi.
-                raise
 
     async def send_message(self, bot, **kwargs):
         return await self._send_via("send_message", bot, **kwargs)

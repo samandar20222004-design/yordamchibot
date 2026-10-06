@@ -166,6 +166,14 @@ else
 fi
 
 echo
+echo "===== 📨 PHASE 11 — MOCK TELEGRAM YUKLAMA/STRESS (10/100/1000) ====="
+# HAQIQIY Telegram Bot API'ga SO'ROV YO'Q: in-process mock Telegram server
+# (staging/mock_telegram_server.py) ustida 10 logical user → 100 concurrent
+# user → 1000 concurrent request profillari; RPS / p50-p95-p99 / xato foizi /
+# RSS o'sishi (memory leak) / graceful shutdown drenaji o'lchanadi.
+"$PY" tests/load_stress_mock_test.py || exit 1
+
+echo
 echo "===== STRESS & CONCURRENCY TEST (9-BOSQICH) ====="
 # Static qismi (graceful shutdown, cleanup lojikasi) DOIM ishlaydi; real
 # PostgreSQL qismi (100 post / 5 worker, 50 parallel credits+referral,

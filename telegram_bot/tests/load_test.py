@@ -954,6 +954,125 @@ def test_week_posts_delivered_by_scheduler(db):
           f"{before} → {len(bot.sent)}")
 
 
+# ============================================================
+# PHASE 11 — MOCK TELEGRAM YUKLAMASI + DB POOL O'LCHOVLARI
+# ============================================================
+# Maqsad: HAQIQIY PostgreSQL + MOCK Telegram server bilan "haqiqiy kun"
+# yuklamasini simulyatsiya qilish:
+#   * 50 parallel "post yaratish (DB yozuvi) → kanalga yuborish (Telegram)"
+#     sikli — hammasi bir vaqtda;
+#   * Telegram Bot API o'rniga mock server (`staging.mock_telegram_server`) —
+#     haqiqiy API'ga BIRORTA ham so'rov ketmaydi;
+#   * o'lchovlar: RPS, latency p50/p95/p99, error rate (transport) va
+#     **DB pool usage** (used/available/max, peak) + ulanish balansi (leak).
+def test_phase11_mock_load_and_db_pool(db):
+    import asyncio
+    from datetime import datetime, timedelta
+
+    import pytz
+
+    from tests.load_harness import Metrics, make_mock_bot, start_mock_telegram
+    from services.delivery import TelegramDeliveryService
+
+    print("\n== PHASE 11: mock Telegram yuklamasi + DB pool metrikalari ==")
+
+    # 100 parallel foydalanuvchi: har biri DB'ga post yozadi + mock Telegram'ga
+    # xabar yuboradi — staging muhitiga eng yaqin ARALASH yuklama. DB pool
+    # (DB_POOL_MAX=5) to'yintiriladi: peak/leak metrikalari shu yerda o'lchanadi.
+    total = 100
+    marker = "Phase11 mock yuklamasi"
+    future = datetime.now(pytz.timezone("Asia/Tashkent")) + timedelta(days=30)
+
+    async def _run():
+        server = await start_mock_telegram()
+        bot = await make_mock_bot(server.base_url, pool_size=32)
+        # bot.initialize() → getMe: yuklama hisobidan chiqarib tashlanadi.
+        mock_baseline = server.state.requests_total
+        delivery = TelegramDeliveryService(global_per_second=1000.0,
+                                           channel_per_second=100.0)
+        metrics = Metrics(name="mock+db")
+        pool_peak = {"used": 0, "available": 0, "max": 0}
+        stop_sampler = asyncio.Event()
+
+        async def _sampler():
+            while not stop_sampler.is_set():
+                status = db.get_db_pool_status()
+                pool_peak["used"] = max(pool_peak["used"], int(status.get("used") or 0))
+                pool_peak["available"] = max(
+                    pool_peak["available"], int(status.get("available") or 0))
+                pool_peak["max"] = max(pool_peak["max"], int(status.get("max") or 0))
+                await asyncio.sleep(0.02)
+
+        async def _one(i: int):
+            started = time.perf_counter()
+            try:
+                post_id = await db.run_db(
+                    db.add_post, user_id=990001,
+                    channel_id=f"-100parallel{i % PARALLEL_CHANNELS}",
+                    post_type="text",
+                    content=f"{marker} #{i}",
+                    file_id=None, scheduled_time=future)
+                await delivery.send_message(
+                    bot, chat_id=-1009900 - i,
+                    text=f"<b>Post #{post_id}</b> navbatga qo'yildi",
+                    parse_mode="HTML")
+            except Exception as exc:  # noqa: BLE001 — yuklama ostida har qanday xato
+                metrics.record_error(exc, (time.perf_counter() - started) * 1000)
+                return
+            metrics.record_ok((time.perf_counter() - started) * 1000)
+
+        sampler = asyncio.create_task(_sampler())
+        try:
+            before_balance = db.conn_balance()
+            await asyncio.gather(*(_one(i) for i in range(total)))
+            metrics.finish()
+        finally:
+            stop_sampler.set()
+            await asyncio.gather(sampler, return_exceptions=True)
+            await bot.shutdown()
+            await server.stop()
+        return (metrics, pool_peak,
+                server.state.requests_total - mock_baseline, before_balance)
+
+    metrics, pool_peak, mock_requests, before_balance = asyncio.run(_run())
+    after_balance = db.conn_balance()
+    pool = db.get_db_pool_status()
+
+    print(f"  → {metrics.summary_line()}")
+    print(f"  → DB pool: peak used={pool_peak['used']} / max={pool_peak['max']} "
+          f"(available peak={pool_peak['available']})")
+    print(f"  → ulanish balansi: oldin={before_balance} keyin={after_balance}")
+
+    check(f"PHASE11: mock yuklamada {total} so'rov muvaffaqiyatli",
+          metrics.total == total and metrics.failed == 0,
+          f"ok={metrics.ok} failed={metrics.failed} {metrics.errors[:3]}")
+    check("PHASE11: error rate 0%", metrics.error_rate == 0.0, str(metrics.error_rate))
+    check("PHASE11: latency p50/p95/p99 o'lchandi",
+          all(metrics.latency().get(k, 0) > 0 for k in ("p50", "p95", "p99")),
+          str(metrics.latency()))
+    check("PHASE11: throughput (RPS) o'lchandi", metrics.rps > 0,
+          f"{metrics.rps} RPS")
+    check("PHASE11: DB pool HAQIQATAN ishlatildi (peak ≥ 2 ulanish)",
+          pool_peak["used"] >= 2, str(pool_peak))
+    check("PHASE11: pool chegaradan oshmadi (peak ≤ DB_POOL_MAX)",
+          pool_peak["max"] > 0 and pool_peak["used"] <= pool_peak["max"],
+          str(pool_peak))
+    check("PHASE11: DB ulanish oqimi (leak) YO'Q (balans 0)",
+          after_balance == 0, f"balance={after_balance}")
+    check("PHASE11: pool holati sog'lom", bool(pool.get("ready"))
+          and not pool.get("collapsed"), str(pool)[:140])
+    check("PHASE11: mock server barcha so'rovni qabul qildi",
+          mock_requests == total, str(mock_requests))
+
+    # DB yozuvlari haqiqatan saqlangan (mock yuklama DB'ni chetlab o'tmadi).
+    with db.db_cursor() as cur:
+        cur.execute("SELECT COUNT(*) FROM scheduled_posts WHERE content LIKE %s",
+                    (f"{marker}%",))
+        written = int(cur.fetchone()[0])
+    check(f"PHASE11: {total} ta post DB'da haqiqatan yozildi",
+          written == total, str(written))
+
+
 def main():
     try:
         import pgserver
@@ -1051,6 +1170,9 @@ def main():
     test_user_onboarding_real_db(db)
     test_schedule_week_posts_real_db(db)
     test_week_posts_delivered_by_scheduler(db)
+
+    # 13. ⚡ PHASE 11 — mock Telegram yuklamasi + DB pool metrikalari
+    test_phase11_mock_load_and_db_pool(db)
 
     db.close_pool()
     server.cleanup()

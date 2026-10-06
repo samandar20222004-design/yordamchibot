@@ -11,6 +11,8 @@ from telegram import TelegramObject
 from telegram.ext import ExtBot
 from telegram.request import HTTPXRequest
 
+import config
+
 from utils.telegram_sanitizer import (
     sanitize_html, TELEGRAM_TEXT_LIMIT, TELEGRAM_CAPTION_LIMIT,
 )
@@ -88,9 +90,18 @@ class SafeHTMLBot(ExtBot):
 
 
 def create_safe_bot(token):
-    """Preserve the application's existing network timeout/pool settings."""
+    """Preserve the application's existing network timeout/pool settings.
+
+    STAGING (ixtiyoriy): ``TELEGRAM_API_BASE_URL`` to'ldirilgan bo'lsa, bot
+    HAQIQIY Telegram API o'rniga shu manzilga (mock Telegram server) gapiradi
+    — yuklama testlari production API'ga spam yubormaydi. Bo'sh bo'lsa
+    xatti-harakat o'zgarmaydi (default ``https://api.telegram.org/bot``).
+    """
+    base_url = getattr(config, "TELEGRAM_API_BASE_URL", "") or ""
+    extra = {"base_url": base_url} if base_url else {}
     return SafeHTMLBot(
         token=token,
+        **extra,
         request=HTTPXRequest(
             connect_timeout=15, read_timeout=15, write_timeout=30,
             media_write_timeout=60, pool_timeout=5, connection_pool_size=8,
