@@ -1126,7 +1126,7 @@ ushbu patch yakunlangan deb hisoblamaydi. RBAC, manual-post va DB API o'zgarmaga
 Repo ildizidan regressiya tekshiruvlari:
 
 ```bash
-python telegram_bot/tests/phase2_admission_test.py
-python telegram_bot/tests/cache_backend_test.py
+python tests/phase2_admission_test.py
+python tests/cache_backend_test.py
 python tests/rate_limiter_redis_test.py
 ```

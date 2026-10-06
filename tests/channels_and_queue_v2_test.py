@@ -863,7 +863,7 @@ def test_regression_guards():
           detail_cbs == ["qdel:7", "qpush:7", "qpage:0"], str(detail_cbs))
 
     # (7) i18n modul ro'yxatga olingan (syntax_test importi).
-    syn_src = (ROOT / "tests" / "syntax_test.py").read_text(encoding="utf-8")
+    syn_src = (ROOT.parent / "tests" / "syntax_test.py").read_text(encoding="utf-8")
     check("syntax_test: translations.channels_queue import ro'yxatida",
           '"translations.channels_queue"' in syn_src)
     check("CHANNELS_QUEUE_KEYS to'liq (27+ kalit)",
