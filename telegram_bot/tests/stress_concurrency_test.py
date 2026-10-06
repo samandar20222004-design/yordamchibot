@@ -319,6 +319,11 @@ def test_static_main_shutdown():
           str(events))
     check("graceful_shutdown: report clean=True", rep.get("clean") is True, str(rep))
     check("graceful_shutdown: inflight_drained hisoboti bor", "inflight_drained" in rep)
+    # PHASE 12: navbat drenaji ham hisobotda bo'lishi shart (delivery queue).
+    check("graceful_shutdown: queues_drained hisoboti bor", "queues_drained" in rep)
+    check("graceful_shutdown: queues_drained natijasi dict",
+          isinstance(rep.get("queues_drained"), dict)
+          and "drained" in rep["queues_drained"], str(rep.get("queues_drained")))
 
     events.clear()
     db_mod.close_pool = lambda: events.append("db_pool")

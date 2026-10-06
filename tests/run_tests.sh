@@ -598,6 +598,43 @@ echo "===== 3v) ⚡️ PHASE 13: YUKLAMA VA KONKURENTLIK (39-band) ====="
 "$PY" tests/concurrency_load_test.py || EXIT_CODE=1
 
 echo
+echo "===== 3v2) 🌀 PHASE 11: CHAOS & SECURITY — FAIL-CLOSED (DB/REDIS/AI/TG/SSRF) ====="
+# Chaos & security suite (mock Telegram + in-memory, tarmoqqa chiqmaydi):
+# (1) 🗄 DB uzildi → AI kvota FAIL-CLOSED, to'lov fail-closed, ping/readiness
+#     xavfsiz, 50 parallel so'rovda 0 istisno, muloyim xato matni;
+# (2) 🔌 Redis uzildi → circuit-breaker In-Memory fallback (yozuv yo'qolmaydi,
+#     rate-limit fail-open, backend yopilishi xatosiz);
+# (3) 🤖 Barcha AI provayderlar 500/timeout → GatewayResult ok=False + 3 tildagi
+#     MULOYM xabar, soxta matn YO'Q, quota refund (run_ai_task);
+# (4) 📨 Telegram 429 flood / 500 / tarmoq uzilishi / 60 parallel flood storm —
+#     aniq retry_after kutish, defer rejimi, blind retry YO'Q, navbat drenaji;
+# (5) 🛡 SSRF: 21 ta ichki/aylanma manzil (localhost, 127.0.0.1, 10/172.16/
+#     192.168.*, 169.254.169.254, o'nlik/sakkizlik/hex, [::1], [::ffff:127.0.0.1],
+#     [fd00::1], file:/gopher:/ftp:) BLOKLANADI + yagona URL Security Gateway
+#     statik skaneri (shlyuzsiz urlopen YO'Q);
+# (6) ♻️ Dublikat callback (rate-limiter), 10 parallel dublikat Stars to'lov
+#     (1 ta yangi + 9 duplicate + 1 ledger yozuvi), stale update indirolanishi;
+# (7) 💧 resurs holati: asyncio task leak yo'q, navbatlar bo'sh.
+"$PY" tests/phase11_chaos_security_test.py || EXIT_CODE=1
+
+echo
+echo "===== 3v3) 🐳 PHASE 12: PRODUCTION DOCKERFILE + GRACEFUL SHUTDOWN ====="
+# (1) Dockerfile: multi-stage (builder+runtime), non-root appuser UID/GID 10001,
+#     HEALTHCHECK curl /health/live, STOPSIGNAL SIGTERM, tini, rm -rf apt
+#     keshlari, sir/secret YO'Q, .dockerignore (.git/.env/tests);
+# (2) compose: dev (bot+postgres+redis profili, stop_grace_period 20s) va
+#     STAGING override — mock-telegram xizmati + TELEGRAM_API_BASE_URL=
+#     http://mock-telegram:8080/bot (yuklama testlari haqiqiy Telegram'ga
+#     tegmaydi);
+# (3) graceful shutdown (xulq-atvor): SIGINT/SIGTERM loop handlerlari haqiqiy
+#     signal bilan sinaladi; 12 bosqich AYNAN tartibda (updater → scheduler
+#     pause → inflight drenaj → NAVBAT drenaji → application → scheduler →
+#     user-activity flush → web → DB pool → AI sessiya → Redis/cache);
+#     standart byudjet 15 s [5..30], timeout'da ishlar BEKOR QILINMAYDI;
+# (4) env hujjatlari pariteti (SHUTDOWN_GRACE_SECONDS=15).
+"$PY" tests/phase12_docker_and_shutdown_test.py || EXIT_CODE=1
+
+echo
 echo "===== 3w) 🛡 PHASE A: PRODUCTION SAFETY & VALIDATOR HARDENING (P0-A/B/C) ====="
 # (1) P0-A — Mock production siyosati: ENVIRONMENT=production (default) + kalitlar
 #     yo'q bo'lsa MockProvider ISHLATILMAYDI (hatto aniq uzatilganda ham);

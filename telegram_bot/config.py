@@ -9,6 +9,15 @@ BOT_USERNAME = os.getenv("BOT_USERNAME", "PostAssistrobot")
 # Bot versiyasi — «ℹ️ Bot haqida» ekrani va admin monitoring'da ko'rsatiladi.
 BOT_VERSION = os.getenv("BOT_VERSION", "2.0")
 
+# --- 🧪 STAGING: Telegram Bot API manzili (mock Telegram server) ---
+# Bo'sh (standart) = haqiqiy https://api.telegram.org. Faqat STAGING/LOAD
+# sinovlarida to'ldiriladi — masalan:
+#   TELEGRAM_API_BASE_URL=http://mock-telegram:8080/bot
+# Bu bilan bot HAQIQIY Telegram API'ga so'rov yubormaydi (spam yo'q), lekin
+# butun tarmoq zanjiri (PTB → HTTPX → JSON) haqiqiy bo'lib qoladi.
+# Production'da BU O'ZGARUVCHI BO'SH QOLDIRILADI (fail-safe default).
+TELEGRAM_API_BASE_URL = (os.getenv("TELEGRAM_API_BASE_URL", "") or "").strip()
+
 # --- Ko'p adminli boshqaruv ---
 # ADMIN_ID: eski, bitta raqam (orqaga mos kelish uchun saqlanadi)
 # ADMIN_IDS: vergul bilan ajratilgan raqamlar ro'yxati, masalan: "123456,789012"

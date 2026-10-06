@@ -6,6 +6,7 @@ from types import SimpleNamespace
 import logging
 import signal
 import sys
+import time
 import pytz  # noqa: F401 — vaqt zonasi bilan ishlovchi modullar uchun saqlanadi
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from telegram.ext import ApplicationBuilder, Application
@@ -465,12 +466,15 @@ async def set_bot_commands(application):
 #   2) updater.stop()                — Telegramdan yangi update olish to'xtaydi;
 #   3) scheduler.pause()             — navbatdagi joblar ishga tushmaydi,
 #      ayni paytda bajarilayotgan yuborishlar davom etadi;
-#   4) lifecycle.wait_for_inflight() — faol postlarga tugallanish uchun
-#      5–10 soniya (SHUTDOWN_GRACE_SECONDS) beriladi; ular BEKOR QILINMAYDI;
+#   4) lifecycle.wait_for_inflight() + lifecycle.wait_for_queues() — faol
+#      postlar va navbatlar (delivery + scheduler ishlari) uchun jami
+#      SHUTDOWN_GRACE_SECONDS byudjeti beriladi (PHASE 12: standart **15
+#      soniya**); ular BEKOR QILINMAYDI — timeout tugasa DB'dagi
+#      'processing' holati stale-recovery bilan tiklanadi;
 #   5) application.stop()/shutdown() — PTB navbatdagi update'larni tugatadi;
 #   6) scheduler.shutdown(wait=False), web server cleanup;
-#   7) db.close_pool() + close_ai_session() — DB pool va aiohttp
-#      sessiyalari toza yopiladi;
+#   7) db.close_pool() + close_ai_session() + cache (Redis) backend —
+#      DB va Redis connection pool'lari toza yopiladi;
 #   8) jarayon exit code 0 bilan chiqadi.
 # Ikkinchi signal (masalan, ikki marta Ctrl+C) yopilishni qayta boshlamaydi.
 # ============================================================
@@ -529,6 +533,7 @@ async def graceful_shutdown(application=None, scheduler=None, web_runner=None,
     Qaytadi: bosqichlar hisoboti (testlar/diagnostika uchun).
     """
     report = {"steps": [], "errors": []}
+    shutdown_started = time.monotonic()
 
     def _step(name, ok=True, extra=None):
         report["steps"].append(name)
@@ -536,6 +541,17 @@ async def graceful_shutdown(application=None, scheduler=None, web_runner=None,
             report["errors"].append(name)
         if extra is not None:
             report[name] = extra
+
+    def _remaining_budget() -> float:
+        """Drenaj byudjetining qolgan qismi (soniya).
+
+        ``grace_seconds`` berilmagan bo'lsa PHASE 12 standarti —
+        ``lifecycle.SHUTDOWN_GRACE_SECONDS`` (**15 soniya**); env orqali
+        sozlanadi va [5, 30] oralig'iga qisiladi.
+        """
+        total = (lifecycle.SHUTDOWN_GRACE_SECONDS if grace_seconds is None
+                 else max(0.0, float(grace_seconds)))
+        return max(0.0, total - (time.monotonic() - shutdown_started))
 
     lifecycle.request_shutdown("graceful_shutdown")
 
@@ -560,13 +576,28 @@ async def graceful_shutdown(application=None, scheduler=None, web_runner=None,
             logger.exception("Scheduler'ni pauza qilishda xatolik")
             _step("scheduler_paused", ok=False)
 
-    # 3) Faol vazifalarga tugallanish uchun 5–10 soniya (bekor qilinmaydi).
+    # 3) Faol vazifalarga tugallanish uchun byudjet beriladi (PHASE 12:
+    #    standart 15 soniya, `grace_seconds` aniq berilsa o'sha). Vazifalar
+    #    BEKOR QILINMAYDI — faqat kutiladi.
     try:
         drain = await lifecycle.wait_for_inflight(grace_seconds)
         _step("inflight_drained", ok=drain.get("drained", False), extra=drain)
     except Exception:
         logger.exception("Faol vazifalarni kutishda xatolik")
         _step("inflight_drained", ok=False)
+
+    # 3b) PHASE 12 · NAVBAT DRENAJI (delivery queue + scheduler ishlari).
+    #    In-flight kutish tugagach, navbatlarda qolgan birliklar (masalan,
+    #    Telegramga yuborilayotgan xabar yoki RetryAfter kutayotgan delivery)
+    #    uchun qolgan byudjet sarflanadi. Navbatdagi ishlar ham BEKOR
+    #    QILINMAYDI: timeout tugasa ular DB'da 'processing' bo'lib qoladi va
+    #    keyingi ishga tushishda stale-recovery ularni xavfsiz tiklaydi.
+    try:
+        queues = await lifecycle.wait_for_queues(_remaining_budget())
+        _step("queues_drained", ok=queues.get("drained", False), extra=queues)
+    except Exception:
+        logger.exception("Navbatlar drenajini kutishda xatolik")
+        _step("queues_drained", ok=False)
 
     # 4) PTB application: navbatdagi update'lar ishlanadi, so'ng yopiladi.
     if application is not None:

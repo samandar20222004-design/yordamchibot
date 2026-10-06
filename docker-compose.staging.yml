@@ -1,0 +1,63 @@
+# ============================================================
+# PostAssist V2 — STAGING override (PHASE 11)
+#
+# Maqsad: yuklama/chaos sinovlarini HAQIQIY Telegram Bot API'ga
+# tegmasdan o'tkazish. `bot` xizmati mock Telegram serverga
+# (staging/mock_telegram_server.py) ulanadi — `getMe`, `sendMessage`,
+# `editMessageText`, `answerCallbackQuery`, `getUpdates` va h.k.
+# shu serverda bajariladi. 429/500/timeout/network nosozliklarini
+# in'yeksiya qilish ham mumkin (`POST /__fault`).
+#
+# Ishga tushirish:
+#     docker compose -f docker-compose.yml -f docker-compose.staging.yml up -d --build
+#     curl -s http://127.0.0.1:8081/__stats | python -m json.tool
+#     docker compose -f docker-compose.yml -f docker-compose.staging.yml down
+#
+# MUHIM: bu fayl FAQAT staging/test uchun. Production'da ishlatilmaydi —
+# `TELEGRAM_API_BASE_URL` bo'sh bo'lganda bot rasmiy api.telegram.org
+# manziliga qaytadi (config.py: TELEGRAM_API_BASE_URL="").
+# ============================================================
+
+services:
+  # --- Mock Telegram Bot API server (haqiqiy tarmoq API'si o'rniga) ---
+  mock-telegram:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: postassist-bot:latest
+    container_name: postassist-mock-telegram
+    restart: unless-stopped
+    # Runtime image'dagi kod (staging/mock_telegram_server.py) ishga tushadi —
+    # qo'shimcha image kerak emas.
+    command: ["python", "-m", "staging.mock_telegram_server", "--host", "0.0.0.0", "--port", "8080"]
+    environment:
+      # Mock server uchun bot tokeni muhim emas (istalgan token qabul
+      # qilinadi), lekin config validatsiyasi uchun to'ldiramiz.
+      BOT_TOKEN: ${BOT_TOKEN:-123456:STAGING_MOCK_TOKEN}
+      ADMIN_ID: ${ADMIN_ID:-777000}
+      DATABASE_URL: ${DATABASE_URL:-postgresql://postassist:postassist@postgres:5432/postassist}
+      ENVIRONMENT: staging
+    # PHASE 12: SIGTERM → graceful shutdown uchun 20 s byudjet
+    # (15 s drenaj + zaxira) — konteyner yarim yo'lda o'chirilmaydi.
+    stop_grace_period: 20s
+    healthcheck:
+      # Mock serverning o'z health endpointi (Bot API emas).
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/__health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    networks:
+      - postassist
+
+  bot:
+    environment:
+      # ⬇️ YAGONA farq: barcha Bot API so'rovlari mock serverga ketadi —
+      # yuklama/chaos sinovlari Telegram'ga SPAM yubormaydi.
+      # `/bot` prefiksini PTB o'zi qo'shadi (base_url + "/bot").
+      TELEGRAM_API_BASE_URL: http://mock-telegram:8080/bot
+    depends_on:
+      # Mock server sog'lom bo'lgach bot ishga tushadi (mock hali
+      # ko'tarilmagan bo'lsa getMe xato bermasin).
+      mock-telegram:
+        condition: service_healthy

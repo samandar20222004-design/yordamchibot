@@ -16,6 +16,10 @@ services:
     image: postassist-bot:latest
     container_name: postassist-bot
     restart: unless-stopped
+    # PHASE 12: `docker stop` → SIGTERM → lifecycle drenaji (delivery navbati
+    # + scheduler ishlari, standart 15 s). 20 s > 15 s — yarim yo'lda
+    # o'chirish yo'q (Dockerfile'dagi STOPSIGNAL SIGTERM bilan bir xil).
+    stop_grace_period: 20s
     env_file:
       - .env
     environment:
