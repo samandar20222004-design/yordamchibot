@@ -2974,11 +2974,13 @@ from repositories.posts_repository import (  # noqa: F401
 )
 # --- ⏰ SCHEDULER — rejalashtirish, delivery jobs, tiklash, tozalash
 from repositories.scheduler_repository import (  # noqa: F401
-    DELIVERY_MAX_ATTEMPTS, DELIVERY_STALE_PROCESSING_SECONDS,
-    _delivery_channel_number, _delivery_processing_is_stale,
+    DELIVERY_MAX_ATTEMPTS, DELIVERY_STALE_PROCESSING_SECONDS, DELIVERY_VERIFY_MARKER,
+    _DELIVERY_VERIFY_RE, _delivery_channel_number, _delivery_processing_is_stale,
     build_delivery_idempotency_key, claim_post_delivery, cleanup_old_data,
+    clear_post_delivery_verify_pending, delivery_verify_attempt, delivery_verify_pending,
     find_next_queue_slot, mark_post_delivery_failed, mark_post_delivery_sent,
-    mark_post_delivery_unknown, recover_processing_posts_on_startup,
+    mark_post_delivery_unknown, mark_post_delivery_verify_pending,
+    recover_processing_posts_on_startup,
     recover_stale_processing_posts, schedule_week_posts
 )
 # --- 👥 TEAMS — jamoa a'zolari, rollar, taklif/tasdiq oqimi, audens insight

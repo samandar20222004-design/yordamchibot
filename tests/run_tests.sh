@@ -1158,6 +1158,14 @@ echo
 echo "===== PHASE 5 — TELEGRAM DELIVERY ENGINE ====="
 "$PY" tests/delivery_engine_test.py || EXIT_CODE=1
 
+echo
+echo "===== P0 (VAZIFA 2) — NOANIQ YETKAZIB BERISH + POST DEDUPLIKATSIYASI ====="
+# TimedOut/NetworkError (noaniq holat) → kanal fingerprint tekshiruvi, SHA256
+# imzo, idempotent delivery lock (SET NX) va _execute_send integratsiyasi:
+# post kanalda bo'lsa 0 duplikat (DELIVERED), yo'qligi tasdiqlansa xavfsiz
+# retry, aks holda verify_pending/UNKNOWN (ko'r-ko'rrona retry YO'Q).
+"$PY" tests/ambiguous_delivery_dedup_test.py || EXIT_CODE=1
+
 echo "===== PHASE 6 — AI GATEWAY + XARAJAT NAZORATI ====="
 "$PY" tests/ai_gateway_cost_control_test.py || EXIT_CODE=1
 
