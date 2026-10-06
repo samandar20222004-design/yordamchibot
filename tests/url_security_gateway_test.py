@@ -203,8 +203,19 @@ def test_limits():
 # ======================================================================
 def test_dns_pinning():
     print("\n== TEST 4: 📌 DNS pin — TCP aynan tasdiqlangan IP'ga ulanadi ==")
-    # a) connector HOSTNI IGNORAB, pin qilingan IP'ga ulanadi.
+    from urllib import error as urlerror
+    from urllib import request as urlrequest
+
+    # a) Connector hostname o'rniga IP'ga ulanadi, lekin HTTP Host authority
+    #    asl URL nomi bo'lib qoladi.
     conn = gw._PinnedHTTPConnection("evil.example.com", pinned_ip=PUBLIC_IP)
+    check("pin: HTTPConnection.host asl hostname bo'lib qoladi",
+          conn.host == "evil.example.com", str(conn.host))
+    host_request = gw.build_safe_request(
+        "https://original.example/path", {"Host": "attacker.internal"})
+    check("request: caller Host header'i authority'ni almashtira olmaydi",
+          not any(str(key).lower() == "host" for key in host_request.headers),
+          str(host_request.headers))
     with patch("socket.create_connection") as mock_cc:
         mock_cc.return_value = "SOCK"
         sock = conn._create_connection(("evil.example.com", 80), 6.0, None)
@@ -232,15 +243,53 @@ def test_dns_pinning():
     check("client: timeout uzatildi", captured.get("timeout") == 6.5, "")
     check("client: opener natijasi qaytdi", result == "RESPONSE", "")
 
-    # c) Oldindan pin qo'yilgan so'rov — qayta validatsiya QILINMAYDI.
+    # c) Request ichidagi pin ishonchli emas: soxta qiymat qayta resolve
+    #    qilinib, faqat gateway tekshirgan xavfsiz IP bilan almashtiriladi.
     req2 = gw.build_safe_request("https://example.com/y")
-    req2.pinned_ip = "1.2.3.4"
+    req2.pinned_ip = "127.0.0.1"  # caller qo'shgan SSRF pin
+    req2.add_header("Host", "attacker.internal")
     captured.clear()
     client.open(req2, timeout=6)
-    check("client: oldindan pin qilingan so'rov o'zgarmaydi",
-          captured.get("pinned_ip") == "1.2.3.4", str(captured))
+    check("client: caller pin'i e'tiborsiz, tasdiqlangan IP bilan almashtirildi",
+          captured.get("pinned_ip") == PUBLIC_IP, str(captured))
+    check("client: forged Host header transportdan olib tashlandi",
+          not any(str(key).lower() == "host" for key in req2.headers),
+          str(req2.headers))
 
-    # d) Bloklangan havola — tarmoqqa chiqilmaydi (URLError).
+    # d) Socket darajasi: DNS birinchi safar public, keyingi safar private
+    #    bo'lsa ham, connect() hostname emas, public IP-pin bilan chaqiriladi.
+    dns_calls = []
+
+    def rebound_resolver(host, port=None):
+        dns_calls.append((host, port))
+        return [PUBLIC_IP] if len(dns_calls) == 1 else ["127.0.0.1"]
+
+    pinned_client = gw.PinnedUrllibClient(resolver=rebound_resolver)
+    req3 = gw.build_safe_request("http://rebind.example.net/private")
+    dialed = []
+
+    def stop_before_socket(address, timeout=None, source_address=None, **kwargs):
+        dialed.append(address)
+        raise OSError("intentional no-network test stop")
+
+    try:
+        with patch("socket.create_connection", side_effect=stop_before_socket):
+            pinned_client.open(req3, timeout=6)
+    except (OSError, urlerror.URLError):
+        pass
+    check("DNS rebind: connect faqat oldindan tekshirilgan IP'ga uzatildi",
+          dialed == [(PUBLIC_IP, 80)] and len(dns_calls) == 1,
+          f"dialed={dialed}; DNS={dns_calls}")
+
+    # Proxy environment variable ham hostname resolve'ini boshqa mashinaga
+    # ko'chira olmaydi; gateway opener'da proxy transport mutlaqo o'chirilgan.
+    proxy_handlers = [h for h in client._opener.handlers
+                      if isinstance(h, urlrequest.ProxyHandler)]
+    check("client: HTTP_PROXY/HTTPS_PROXY transporti o'chirilgan",
+          not proxy_handlers,
+          str([getattr(h, "proxies", None) for h in proxy_handlers]))
+
+    # e) Bloklangan havola — tarmoqqa chiqilmaydi (URLError).
     import urllib.error as urlerror
     blocked_client = gw.PinnedUrllibClient(resolver=stub_resolver())
     try:
@@ -259,7 +308,8 @@ def test_dns_pinning():
     try:
         handler.redirect_request(
             base_req, None, 302, "Found",
-            {"Location": "http://169.254.169.254/latest/"}, "http://127.0.0.1/x")
+            {"Location": "http://169.254.169.254/latest/"},
+            "http://169.254.169.254/latest/")
         check("redirect: metadata nishon BLOKLANADI", False, "o'tib ketdi")
     except urlerror.HTTPError as exc:
         check("redirect: metadata nishon BLOKLANADI",
@@ -270,6 +320,89 @@ def test_dns_pinning():
     check("redirect: ommaviy nishon ruxsat + QAYTA PIN",
           newreq is not None and getattr(newreq, "pinned_ip", None) == PUBLIC_IP,
           str(getattr(newreq, "pinned_ip", None)))
+
+    # f) urllib'ning haqiqiy redirect-dispatch metodi bilan tekshirish:
+    #    har bir 30x statusda ichki target parent.open/socket'ga yetmasin.
+    from email.message import Message
+
+    class RedirectBody:
+        def read(self, *_args, **_kwargs):
+            return b""
+
+        def close(self):
+            return None
+
+    for code in (301, 302, 303, 307, 308):
+        redirects = gw.ValidatingRedirectHandler(resolver=stub_resolver())
+        opened = []
+        redirects.parent = SimpleNamespace(
+            open=lambda request, timeout=None: opened.append(request))
+        origin = urlrequest.Request("http://origin.example/start")
+        origin.timeout = 6
+        for target in ("http://127.0.0.1/admin",
+                       "http://169.254.169.254/latest/meta-data/"):
+            location_headers = Message()
+            location_headers["Location"] = target
+            try:
+                redirects.http_error_302(origin, RedirectBody(), code, "Found",
+                                         location_headers)
+                blocked = False
+            except urlerror.HTTPError as exc:
+                blocked = "blocked redirect" in str(exc)
+            check(f"redirect SSRF: {code} → {target.split('/')[2]} socket'ga bormaydi",
+                  blocked and not opened, str(opened))
+
+    # g) Public redirect ham stdlib dispatch'dan o'tadi, lekin keyingi
+    #    so'rov o'z hostname'i va qayta tekshirilgan IP pin'ini saqlaydi.
+    redirects = gw.ValidatingRedirectHandler(resolver=stub_resolver())
+    followed = []
+    redirects.parent = SimpleNamespace(
+        open=lambda request, timeout=None: followed.append(request) or request)
+    origin = urlrequest.Request("http://origin.example/start")
+    origin.timeout = 6
+    location_headers = Message()
+    location_headers["Location"] = "https://ok.example.com/next"
+    next_req = redirects.http_error_302(origin, RedirectBody(), 302, "Found",
+                                        location_headers)
+    check("redirect: stdlib follow-up asl host + qayta pin bilan",
+          followed and followed[0] is next_req
+          and next_req.full_url == "https://ok.example.com/next"
+          and next_req.pinned_ip == PUBLIC_IP,
+          str((next_req.full_url, getattr(next_req, "pinned_ip", None))))
+
+    # h) Limit parametridan qat'i nazar, gateway hech qachon 3 tadan ko'p
+    #    redirectga ruxsat bermaydi (0 esa redirectni o'chiradi).
+    check("redirect: max_redirects parametrining yuqori chegarasi 3",
+          gw.ValidatingRedirectHandler(max_redirects=999).max_redirections == 3
+          and gw.ValidatingRedirectHandler(max_redirects=0).max_redirections == 0,
+          str((gw.ValidatingRedirectHandler(max_redirects=999).max_redirections,
+               gw.ValidatingRedirectHandler(max_redirects=0).max_redirections)))
+
+    # Amalda ham uchta follow-up o'tadi, to'rtinchisi yangi socket ochmaydi.
+    chain = gw.ValidatingRedirectHandler(resolver=stub_resolver(),
+                                         max_redirects=999)
+    followed_urls = []
+
+    def follow_chain(request, timeout=None):
+        request.timeout = timeout
+        followed_urls.append(request.full_url)
+        headers = Message()
+        headers["Location"] = f"http://redirect{len(followed_urls)}.example/next"
+        return chain.http_error_302(request, RedirectBody(), 302, "Found", headers)
+
+    chain.parent = SimpleNamespace(open=follow_chain)
+    origin = urlrequest.Request("http://origin.example/start")
+    origin.timeout = 6
+    first_headers = Message()
+    first_headers["Location"] = "http://redirect0.example/next"
+    try:
+        chain.http_error_302(origin, RedirectBody(), 302, "Found", first_headers)
+        chain_limited = False
+    except urlerror.HTTPError as exc:
+        chain_limited = exc.code == 302
+    check("redirect: zanjir aniq 3 qadamdan keyin to'xtaydi",
+          chain_limited and len(followed_urls) == 3,
+          str((chain_limited, followed_urls)))
 
 
 # ======================================================================
@@ -340,6 +473,26 @@ def test_safe_fetch():
           client.calls and client.calls[0][2] == PUBLIC_IP, str(client.calls))
     check("fetch: timeout qat'iy oralig'ga clamp qilindi",
           client.calls and 5.0 <= client.calls[0][1] <= 7.0, str(client.calls))
+
+    # DNS tekshiruvi va real transport orasida manzil private'ga almashsa,
+    # transport qayta validatsiya qiladi va socket'ga umuman bormaydi.
+    rebind_answers = iter(([PUBLIC_IP], ["169.254.169.254"]))
+    rebind_checks = []
+
+    def rebind_resolver(host, port=None):
+        rebind_checks.append((host, port))
+        return next(rebind_answers, ["169.254.169.254"])
+
+    no_dials = []
+    with patch("socket.create_connection",
+               side_effect=lambda address, **kwargs: no_dials.append(address)):
+        rebound = gw.safe_fetch("https://rebind.example.com/secret",
+                                resolver=rebind_resolver)
+    check("fetch: DNS rebinding private javobi transportdan oldin bloklandi",
+          rebound.get("ok") is False
+          and rebound.get("error_code") == "private_address"
+          and len(rebind_checks) == 2 and not no_dials,
+          str((rebound.get("error_code"), rebind_checks, no_dials)))
 
     # b) Hajm oshishi — Content-Length oldindan tekshiriladi.
     big = FakeResponse(200, b"x" * 100, "text/html")
@@ -571,6 +724,10 @@ def test_parity_with_extractor():
     check("url_extractor.fetch_url: text/bytes/final_url shakli",
           res.get("text") == "<html>maqola</html>"
           and res.get("bytes") == 19 and "final_url" in res, str(res))
+    legacy_http = ux.UrllibHttpClient(resolver=resolver)
+    check("url_extractor eski UrllibHttpClient ham gateway transportidan foydalanadi",
+          isinstance(legacy_http._pinned_client, gw.PinnedUrllibClient),
+          type(legacy_http._pinned_client).__name__)
     res2 = ux.fetch_url("http://127.0.0.1/secret", client=FakeClient())
     check("url_extractor.fetch_url: SSRF rad (o'z xabarlari bilan)",
           res2.get("ok") is False
