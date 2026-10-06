@@ -429,14 +429,21 @@ class SafeRedirectHandler(urlrequest.HTTPRedirectHandler):
 
 
 class UrllibHttpClient:
-    """Standart HTTP klient (``urllib``) — redirect himoyasi bilan."""
+    """Backward-compatible HTTP klient — gateway IP-pin transportidan foydalanadi."""
 
     def __init__(self, resolver=None):
         self.resolver = resolver
-        self._opener = urlrequest.build_opener(SafeRedirectHandler(resolver))
+        # Keep the legacy public class/API, but never fall back to the old
+        # hostname-resolving urllib transport. The central client pins each
+        # socket to its validated public IP and revalidates all redirects.
+        from ..url_security_gateway import PinnedUrllibClient
+
+        self._pinned_client = PinnedUrllibClient(
+            resolver=resolver, max_redirects=MAX_REDIRECTS)
+        self._opener = self._pinned_client._opener  # legacy attribute parity
 
     def open(self, request, timeout: float = FETCH_TIMEOUT_SECONDS):
-        return self._opener.open(request, timeout=timeout)
+        return self._pinned_client.open(request, timeout=timeout)
 
 
 def build_request(url: str) -> urlrequest.Request:

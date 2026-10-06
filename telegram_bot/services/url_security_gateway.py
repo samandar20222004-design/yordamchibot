@@ -23,11 +23,12 @@ Qat'iy SSRF siyosati (fail-closed):
      o'tish shakllari (``2130706433``, ``0x7f000001``, ``0177.0.0.1``,
      ``127.1``) kanonik ko'rinishga keltirilib tekshiriladi;
   4. **DNS REBINDING HIMOYASI**: host barcha A/AAAA yozuvlari bo'yicha
-     tekshirilgandan so'ng TCP ulanishi AYNAN O'SHA tasdiqlangan IP'ga
-     «pin» qilinadi (``PinnedUrllibClient``) — validatsiya bilan ulanish
-     orasida DNS javobini almashtirib yuborish (TOCTOU) samarasiz;
-  5. **Redirect'lar**: har bir yo'naltirish nishoni QAYTA tekshiriladi va
-     qayta pin qilinadi (3 marta chegarasi bilan);
+     tekshirilgandan so'ng TCP ulanishi AYNAN tasdiqlangan IP'ga pin qilinadi
+     (``PinnedUrllibClient``); HTTP proxy'lar o'chirilgan, shuning uchun
+     pinlangan hostname emas, tasdiqlangan IP socket'ga uzatiladi;
+  5. **Redirect'lar**: avtomatik redirect faqat gateway handler'i orqali
+     o'tadi; har bir manzil qayta tekshiriladi va qayta pin qilinadi (ko'pi
+     bilan 3 qadam);
   6. **Chegaralar**: javob hajmi ≤ 10 MB (``MAX_RESPONSE_BYTES``), qat'iy
      timeout 5–7 soniya (``MIN/MAX_TIMEOUT_SECONDS`` orasida clamp);
   7. **Xavfsiz xatolik xabari**: foydalanuvchiga ichki tafsilotlar (IP,
@@ -329,65 +330,127 @@ def safe_url_or_none(url: str, **kwargs) -> str | None:
 # ---------------------------------------------------------------------------
 # 4) DNS REBINDING HIMOYASI — tasdiqlangan IP'ga «pin» qilingan ulanish
 # ---------------------------------------------------------------------------
+def _public_pin_or_none(address: Any) -> str | None:
+    """Pin uchun faqat kanonik, public IP qabul qiladi (fail-closed)."""
+    try:
+        text = str(address or "").strip()
+        if not text or "%" in text:  # IPv6 zone-id tarmoq interfeysiga bog'liq
+            return None
+        canonical = str(ipaddress.ip_address(text))
+    except (TypeError, ValueError):
+        return None
+    return None if is_blocked_ip(canonical) else canonical
+
+
+def _redirect_limit(value: Any) -> int:
+    """Redirect sonini 0..MAX_REDIRECTS oralig'ida qat'iy cheklaydi."""
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError, OverflowError):
+        parsed = MAX_REDIRECTS
+    return min(MAX_REDIRECTS, max(0, parsed))
+
+
+class _GatewayBlockedURLError(urlerror.URLError):
+    """Transport validatsiyasi rad etgan URL uchun mashina-o'qiydigan xato."""
+
+    def __init__(self, error_code: str):
+        self.error_code = error_code
+        super().__init__(f"blocked_by_gateway: {error_code}")
+
+
 def _pinned_connector(pinned_ip: str) -> Callable[..., socket.socket]:
-    """``socket.create_connection`` o'rnini bosuvchi — HOST'NI IGNORAB QILIB,
-    aynan tasdiqlangan IP'ga ulanadi (DNS rebinding / TOCTOU himoyasi)."""
+    """``socket.create_connection`` o'rnini bosuvchi — hostname'ni e'tiborsiz
+    qoldirib, faqat kanonik tasdiqlangan public IP'ga ulanadi.
+
+    ``socket.create_connection`` IP literaliga yana ``getaddrinfo`` chaqirishi
+    mumkin; bu DNS hostname'ni qayta resolve qilmaydi va TOCTOU'ni ochmaydi.
+    """
+    pin = _public_pin_or_none(pinned_ip)
+    if pin is None:
+        raise ValueError("a validated public IP pin is required")
 
     def _connect(address, timeout=socket._GLOBAL_DEFAULT_TIMEOUT,
                  source_address=None, **kwargs):
         _host, port = address
+        if port not in (80, 443):
+            raise OSError("URL gateway: blocked destination port")
         return socket.create_connection(
-            (pinned_ip, port), timeout=timeout, source_address=source_address)
+            (pin, port), timeout=timeout, source_address=source_address)
 
     return _connect
 
 
 class _PinnedHTTPConnection(http.client.HTTPConnection):
-    """HTTP ulanishi — TCP ``pinned_ip`` manziliga qotirilgan."""
+    """HTTP ulanishi — TCP faqat ``pinned_ip`` manziliga qotirilgan."""
 
     def __init__(self, host, port=None, *, pinned_ip=None, **kwargs):
+        pin = _public_pin_or_none(pinned_ip)
+        if pin is None:
+            raise ValueError("a validated public IP pin is required")
         super().__init__(host, port=port, **kwargs)
-        self.pinned_ip = pinned_ip
-        if pinned_ip:
-            self._create_connection = _pinned_connector(pinned_ip)
+        self.pinned_ip = pin
+        self._create_connection = _pinned_connector(pin)
 
 
 class _PinnedHTTPSConnection(http.client.HTTPSConnection):
-    """HTTPS ulanishi — TCP ``pinned_ip`` ga qotirilgan, SNI va sertifikat
-    tekshiruvi ASL host nomi bilan qoladi (xavfsizlik buzilmaydi)."""
+    """TCP public ``pinned_ip`` ga qotiriladi; SNI/sertifikat asl host bilan."""
 
     def __init__(self, host, port=None, *, pinned_ip=None, **kwargs):
+        pin = _public_pin_or_none(pinned_ip)
+        if pin is None:
+            raise ValueError("a validated public IP pin is required")
         super().__init__(host, port=port, **kwargs)
-        self.pinned_ip = pinned_ip
-        if pinned_ip:
-            self._create_connection = _pinned_connector(pinned_ip)
+        self.pinned_ip = pin
+        self._create_connection = _pinned_connector(pin)
+
+
+def _strip_host_override(request) -> None:
+    """HTTP Host qiymatini doim URL authority'sidan olishga majbur qiladi."""
+    for attr in ("headers", "unredirected_hdrs"):
+        headers_obj = getattr(request, attr, None)
+        if not isinstance(headers_obj, dict):
+            continue
+        for key in tuple(headers_obj):
+            if str(key).strip().lower() == "host":
+                headers_obj.pop(key, None)
+
+
+def _require_request_pin(req) -> str:
+    pin = _public_pin_or_none(getattr(req, "pinned_ip", None))
+    if pin is None:
+        raise _GatewayBlockedURLError(ERR_PRIVATE_ADDRESS)
+    # Keep the canonical value attached for the connection constructor.
+    req.pinned_ip = pin
+    _strip_host_override(req)
+    return pin
 
 
 class PinnedHTTPHandler(urlrequest.HTTPHandler):
-    """So'rovda ``pinned_ip`` bo'lsa — ulanish o'sha IP'ga qotiriladi."""
+    """HTTP'ni pin qilmasdan (DNS fallback bilan) yuborishga YO'L QO'YMAYDI."""
 
     def http_open(self, req):
         return self.do_open(_PinnedHTTPConnection, req,
-                            pinned_ip=getattr(req, "pinned_ip", None))
+                            pinned_ip=_require_request_pin(req))
 
 
 class PinnedHTTPSHandler(urlrequest.HTTPSHandler):
-    """So'rovda ``pinned_ip`` bo'lsa — ulanish o'sha IP'ga qotiriladi."""
+    """HTTPS'ni pin qilmasdan yubormaydi; TLS hostname/SNI asl holda qoladi."""
 
     def https_open(self, req):
         return self.do_open(_PinnedHTTPSConnection, req,
                             context=self._context,
                             check_hostname=self._check_hostname,
-                            pinned_ip=getattr(req, "pinned_ip", None))
+                            pinned_ip=_require_request_pin(req))
 
 
 class ValidatingRedirectHandler(urlrequest.HTTPRedirectHandler):
-    """Har bir redirect nishoni QAYTA tekshiriladi va QAYTA pin qilinadi."""
+    """Har bir redirect nishoni qayta tekshiriladi va qayta IP-pin qilinadi."""
 
     def __init__(self, resolver=None, max_redirects: int = MAX_REDIRECTS):
         super().__init__()
         self.resolver = resolver
-        self.max_redirections = max(1, int(max_redirects))
+        self.max_redirections = _redirect_limit(max_redirects)
 
     def redirect_request(self, req, fp, code, msg, headers, newurl, *args):
         check = validate_public_url(newurl, resolver=self.resolver)
@@ -398,10 +461,18 @@ class ValidatingRedirectHandler(urlrequest.HTTPRedirectHandler):
             raise urlerror.HTTPError(
                 newurl, code,
                 f"blocked redirect: {check.get('error_code')}", headers, fp)
+        addresses = check.get("addresses") or []
+        pin = _public_pin_or_none(addresses[0]) if addresses else None
+        if pin is None:
+            # No unpinned follow-up is ever permitted, even if a future URL
+            # validator accidentally returns ok=True without a DNS answer.
+            raise urlerror.HTTPError(
+                newurl, code, "blocked redirect: missing safe IP pin", headers, fp)
         newreq = super().redirect_request(req, fp, code, msg, headers,
                                           check["url"], *args)
-        if newreq is not None and check.get("addresses"):
-            newreq.pinned_ip = check["addresses"][0]
+        if newreq is not None:
+            newreq.pinned_ip = pin
+            _strip_host_override(newreq)
         return newreq
 
 
@@ -421,23 +492,35 @@ class PinnedUrllibClient:
         self._redirect = ValidatingRedirectHandler(resolver, max_redirects)
         self._http = PinnedHTTPHandler()
         self._https = PinnedHTTPSHandler()
+        # Never let urllib honor HTTP_PROXY/HTTPS_PROXY: a proxy would resolve
+        # the hostname on a different machine and bypass this socket pin.
+        self._proxy = urlrequest.ProxyHandler({})
         self._opener = urlrequest.build_opener(
-            self._http, self._https, self._redirect)
+            self._proxy, self._http, self._https, self._redirect)
 
     def open(self, request, timeout: float = FETCH_TIMEOUT_SECONDS):
-        pin = getattr(request, "pinned_ip", None)
-        if not pin:
-            url = str(getattr(request, "full_url", "") or "")
-            check = validate_public_url(url, resolver=self.resolver)
-            if not check.get("ok"):
-                logger.warning("URL gateway: havola bloklandi (%s): %s",
-                               check.get("host") or url,
-                               check.get("error_code"))
-                raise urlerror.URLError(
-                    f"blocked_by_gateway: {check.get('error_code')}")
-            pin = (check.get("addresses") or [None])[0]
-            if pin:
-                request.pinned_ip = pin
+        if isinstance(request, str):
+            request = build_safe_request(request)
+        url = str(getattr(request, "full_url", "") or "")
+        # A Request is mutable and callers can set arbitrary attributes. Never
+        # trust a caller-provided ``pinned_ip``; resolve and validate the URL
+        # here, immediately before handing it to the socket transport.
+        with contextlib.suppress(AttributeError):
+            delattr(request, "pinned_ip")
+        check = validate_public_url(url, resolver=self.resolver)
+        if not check.get("ok"):
+            error_code = check.get("error_code") or ERR_INVALID_URL
+            logger.warning("URL gateway: havola bloklandi (%s): %s",
+                           check.get("host") or url, error_code)
+            raise _GatewayBlockedURLError(error_code)
+        addresses = check.get("addresses") or []
+        pin = _public_pin_or_none(addresses[0]) if addresses else None
+        if pin is None:
+            logger.warning("URL gateway: xavfsiz IP pini topilmadi (%s)",
+                           check.get("host") or url)
+            raise _GatewayBlockedURLError(ERR_DNS_FAILURE)
+        request.pinned_ip = pin
+        _strip_host_override(request)
         return self._opener.open(request, timeout=timeout)
 
 
@@ -451,7 +534,7 @@ def build_safe_request(url: str,
         "Accept-Language": "uz,ru;q=0.8,en;q=0.6",
     }
     for key, value in (extra_headers or {}).items():
-        if key and value is not None:
+        if key and value is not None and str(key).strip().lower() != "host":
             headers[str(key)] = str(value)
     return urlrequest.Request(url, headers=headers)
 
@@ -552,9 +635,14 @@ def safe_fetch(
         request.pinned_ip = pinned_ip
 
     http = client if client is not None else PinnedUrllibClient(
-        resolver=resolver, max_redirects=max_redirects)
+        resolver=resolver, max_redirects=_redirect_limit(max_redirects))
     try:
         response = http.open(request, timeout=strict_timeout)
+        # The built-in transport revalidates immediately before connect and
+        # replaces the preflight pin. Preserve that exact pin in the result.
+        if client is None:
+            pinned_ip = _public_pin_or_none(
+                getattr(request, "pinned_ip", None)) or pinned_ip
     except urlerror.HTTPError as exc:
         code = getattr(exc, "code", None)
         reason = str(getattr(exc, "reason", "") or "")
@@ -569,6 +657,15 @@ def safe_fetch(
                 "text": "", "bytes": 0}
     except urlerror.URLError as exc:
         reason = getattr(exc, "reason", None)
+        gateway_error = getattr(exc, "error_code", None)
+        if gateway_error in SECURITY_ERROR_CODES:
+            logger.warning("URL gateway: transport qayta tekshiruvi rad etdi (%s)",
+                           gateway_error)
+            return {"ok": False, "error_code": gateway_error,
+                    "message": SAFE_ERROR_MESSAGE, "url": check["url"],
+                    "final_url": "", "host": check.get("host"),
+                    "pinned_ip": None, "status": None, "content_type": "",
+                    "text": "", "bytes": 0}
         if isinstance(reason, TimeoutError) or isinstance(exc, TimeoutError):
             logger.info("URL gateway: timeout (%s)", check["url"])
             return {"ok": False, "error_code": ERR_TIMEOUT,
