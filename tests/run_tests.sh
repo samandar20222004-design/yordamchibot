@@ -1174,6 +1174,30 @@ echo "===== PHASE 9 — UX, ONBOARDING VA CONTEXTUAL MENUS ====="
 "$PY" tests/phase9_ux_onboarding_contextual_test.py || EXIT_CODE=1
 
 echo
+echo "======== 🧪 PRODUCTION RUNTIME & DEPLOYMENT VERIFICATION ========"
+# RUNTIME TELEGRAM SMOKE TEST (tests/smoke_test.py) — bot SERVERDA qanday
+# ko'tarilishini CI'da ham tekshiradi (soxta PASS yo'q):
+#   (0) deploy artefaktlari kontrakti: scripts/preflight_env.py,
+#       scripts/db_migrate.py, scripts/start_production.sh, scripts/deploy.sh
+#       mavjud + sintaksis toza (bash -n / compile), .env.example ikkala
+#       nusxada paritet, DEPLOYMENT.md 1-komandalik yo'riqnomaga ega;
+#   (1) Telegram getMe — MOCK Bot API server orqali HAQIQIY tarmoq zanjiri
+#       (PTB → HTTPX → HTTP → JSON); token haqiqiy va tarmoq ochiq bo'lsa
+#       LIVE api.telegram.org ham tekshiriladi (imkonsiz bo'lsa — halol
+#       [NOT TESTED], soxta PASS berilmaydi);
+#   (2) POLLING rejimi: production bot klassi (SafeHTMLBot) bilan
+#       start_polling → update in'yeksiyasi → handler + sendMessage javobi →
+#       graceful stop; webhook API kontrakti (setWebhook/getWebhookInfo/
+#       deleteWebhook) ham mock serverda sinaladi;
+#   (3) BACKGROUND WORKERLAR: APScheduler job'lari (postlar, tozalash, RSS,
+#       obuna sweep, haftalik hisobot) ro'yxatga olinadi va fon vazifasi
+#       HAQIQATAN bajariladi;
+#   (4) HEALTH endpointlari: /health/live 200 {"status":"live"} +
+#       Cache-Control: no-store; /health/ready fail-closed (token yo'q → 404,
+#       noto'g'ri → 401, to'g'ri → 200/503 + checks) va javobda secret yo'q.
+"$PY" tests/smoke_test.py --offline || EXIT_CODE=1
+
+echo
 echo "=============================================================="
 if [ "$EXIT_CODE" -eq 0 ]; then
     echo "BARCHA TESTLAR 100% YASHIL ✔"

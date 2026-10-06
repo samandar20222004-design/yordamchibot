@@ -46,6 +46,60 @@ foydalanuvchiga murojaat yetib bormaganini bildiruvchi halol javob qaytadi.
 
 ---
 
+## ⚡️ TEZKOR YO'L — serverda 1 komanda bilan ishga tushirish (tavsiya)
+
+Production (VPS yoki Docker) uchun **bitta buyruq** yetadi — u muhitni
+tekshiradi, bazani migratsiya qiladi, botni ko'taradi, health va Telegram
+smoke testini o'tkazadi:
+
+```bash
+cd /opt/postassist                 # repo klonlangan papka (1-bo'limga qarang)
+cp .env.example .env && nano .env  # faqat 3 ta qiymat majburiy:
+                                   #   BOT_TOKEN, DATABASE_URL, HEALTH_READY_TOKEN
+bash scripts/deploy.sh             # ⚡️ PREFLIGHT → MIGRATION → START → HEALTH → SMOKE
+```
+
+`bash scripts/deploy.sh` ichida nima bo'ladi:
+
+| # | Bosqich | Nima tekshiriladi / bajariladi |
+|---|---|---|
+| 1 | 🛫 **Preflight** | `.env` to'liqligi: `BOT_TOKEN`, `DATABASE_URL` (+`sslmode`), `REDIS_URL`, `HEALTH_READY_TOKEN`, `ENVIRONMENT`/`AI_ALLOW_MOCK` (P0-A fail-closed), `PORT`, `ADMIN_*`, AI provayder kalitlari, DB pool izchilligi, quiet hours formati (`scripts/preflight_env.py`) |
+| 2 | 🗄 **Migration** | `schema.sql` **idempotent** qo'llaniladi + schema check (jadvallar/indekslar/integrity; baza "cold start"da retry) — `scripts/db_migrate.py` |
+| 3 | 🚀 **Start** | `telegram_bot/main.py`: web health-server `0.0.0.0:$PORT` (standart **8080**), Telegram polling, APScheduler workerlari (postlar, tozalash, RSS, obuna sweep) — parallel |
+| 4 | 🩺 **Health** | `GET /health/live` 200 (`{"status":"live"}`) bo'lguncha kutadi (standart 60 s) |
+| 5 | 🧪 **Smoke test** | `tests/smoke_test.py`: Telegram `getMe`, polling/webhook rejimi, `/health/live` + `/health/ready` JSON kontraktlari → natija `logs/smoke-<sana>.json` |
+
+Foydali rejimlar:
+
+```bash
+bash scripts/deploy.sh --check-only      # faqat preflight + migratsiya (bot yo'q)
+bash scripts/deploy.sh --verify-only     # ko'taradi, tekshiradi, to'xtatadi (CI/staging)
+bash scripts/deploy.sh --offline-smoke   # smoke testni mock Telegram bilan (tashqi tarmoqsiz)
+bash scripts/deploy.sh --strict          # ogohlantirish ham deploy'ni to'xtatadi
+bash scripts/deploy.sh --no-smoke        # smoke testni o'tkazib yuborish
+```
+
+Alohida skriptlar (deploy.sh ularni o'zi chaqiradi):
+
+```bash
+bash scripts/start_production.sh                # preflight → migratsiya → bot (foreground)
+bash scripts/start_production.sh --check-only   # tekshiruv: preflight + migratsiya + port band emas
+python3 scripts/preflight_env.py --strict --json   # env auditi (secret qiymatlari chiqmaydi)
+python3 scripts/db_migrate.py --check-only         # sxema holati (hech narsa yozilmaydi)
+```
+
+Smoke testni qo'lda (ishlayotgan serverga qarshi):
+
+```bash
+python3 tests/smoke_test.py --base-url http://127.0.0.1:8080 --wait-health 60
+python3 tests/smoke_test.py --live --strict-live --base-url http://127.0.0.1:8080   # haqiqiy getMe
+```
+
+Chiqish kodlari: `0` — muvaffaqiyat; `1` — preflight/migratsiya/health/smoke xatosi.
+Loglar: `logs/deploy-<sana>.log` (git'ga tushmaydi — `.gitignore`).
+
+---
+
 ## 1. A variant — Render (Native Python, tavsiya etilgan)
 
 1. **New + → Web Service** → GitHub repozitoriysini ulang (`samandar20222004-design/yordamchibot`).
@@ -127,9 +181,12 @@ Wants=network-online.target
 [Service]
 Type=simple
 User=www-data
-WorkingDirectory=/opt/postassist/telegram_bot
+WorkingDirectory=/opt/postassist
 EnvironmentFile=/etc/postassist.env
-ExecStart=/opt/postassist/venv/bin/python main.py
+# TAVSIYA: bootstrap skripti — preflight (env to'liqligi) → DB migratsiya/schema
+# check → bot start. Muqobil (o'zgarishsiz): ExecStart=/opt/postassist/venv/bin/python main.py
+# (WorkingDirectory=/opt/postassist/telegram_bot bilan).
+ExecStart=/bin/bash /opt/postassist/scripts/start_production.sh
 Restart=always
 RestartSec=5
 # SIGTERM → graceful shutdown (lifecycle + in-flight postlar)
@@ -150,7 +207,8 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now postassist
 sudo systemctl status postassist --no-pager
 journalctl -u postassist -f          # loglar
-curl -fsS localhost:10000/health/live   # {"status":"ok",...}
+curl -fsS localhost:8080/health/live    # {"status":"live",...}  (PORT berilmasa — 8080)
+python3 tests/smoke_test.py --base-url http://127.0.0.1:8080   # to'liq smoke
 ```
 
 Xavfsizlik devori: bot **long polling** ishlatadi — tashqaridan kiruvchi
@@ -173,6 +231,9 @@ cd telegram_bot && ../venv/bin/python main.py
 git clone https://github.com/samandar20222004-design/yordamchibot.git && cd yordamchibot
 cp .env.example .env && nano .env            # DATABASE_URL Neon'ga qaratilsa: postgres xizmati ortiqcha
 docker compose up -d                          # bot + lokal postgres (development)
+docker compose ps                             # bot "healthy" bo'lishi kerak (HEALTHCHECK /health/live)
+# Konteyner ICHIDA bootstrap/tekshiruv (image'da scripts/ ham bor):
+docker exec postassist-bot bash scripts/start_production.sh --check-only
 docker compose ps                             # healthcheck: "healthy"
 docker compose logs -f bot
 ```
@@ -233,7 +294,11 @@ sudo systemctl restart postassist             # graceful: in-flight postlar tuga
 ## 5. Yakuniy tekshiruv checklisti
 
 - [ ] `systemctl status postassist` → `active (running)` (Render: service `Live`).
-- [ ] `curl localhost:10000/health/live` → 200; `/health/ready` → 200 (DB OK).
+- [ ] `curl localhost:8080/health/live` → 200 `{"status":"live"}` (Docker/Render'da $PORT);
+      `/health/ready` token bilan → 200 `{"status":"ready"}` (DB OK), tokensiz → 401
+      (token o'rnatilmagan bo'lsa → 404, fail-closed).
+- [ ] `bash scripts/deploy.sh --verify-only` → preflight + migratsiya + health +
+      smoke test: **0 [FAIL]** (hisobot: `logs/smoke-*.json`).
 - [ ] Telegram: `/start` menyuda 6 ta tugma; `/health` (OWNER) → **HEALTHY**
       (DB latency, scheduler, AI provayderlar holati, xatolar soni).
 - [ ] Sinov posti: `/newpost` → kanalga chiqdi; `pending` da qolib ketmadi.

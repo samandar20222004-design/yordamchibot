@@ -40,6 +40,7 @@ from __future__ import annotations
 
 import inspect
 import logging
+import os
 import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -72,7 +73,25 @@ DEFAULT_POST_HOUR = 19
 DEFAULT_MORNING_OPTIMAL_HOUR = 9
 
 #: Standart tinchlik soatlari (23:00 dan 08:00 gacha).
-DEFAULT_QUIET_HOURS = "23:00 - 08:00"
+#: `AUTOPILOT_QUIET_HOURS` env orqali o'zgartiriladi (deploy/operator
+#: siyosati); bo'sh yoki noto'g'ri formatda bo'lsa — xavfsiz standart, ya'ni
+#: "23:00 - 08:00". Foydalanuvchi avtopilot menyusida o'z qiymatini berishi
+#: mumkin — bu faqat STANDART (boshlang'ich) qiymat.
+_QUIET_RE = re.compile(
+    r"(\d{1,2})(?::(\d{2}))?\s*[-–—to]+\s*(\d{1,2})(?::(\d{2}))?",
+    re.IGNORECASE,
+)
+_QUIET_HOURS_FALLBACK = "23:00 - 08:00"
+_QUIET_HOURS_ENV = (os.getenv("AUTOPILOT_QUIET_HOURS", "") or "").strip()
+DEFAULT_QUIET_HOURS = (
+    _QUIET_HOURS_ENV if _QUIET_HOURS_ENV and _QUIET_RE.search(_QUIET_HOURS_ENV)
+    else _QUIET_HOURS_FALLBACK
+)
+if _QUIET_HOURS_ENV and DEFAULT_QUIET_HOURS != _QUIET_HOURS_ENV:
+    logger.warning(
+        "AUTOPILOT_QUIET_HOURS=%r formati noto'g'ri — standart %r ishlatiladi.",
+        _QUIET_HOURS_ENV, _QUIET_HOURS_FALLBACK,
+    )
 
 #: SEMI_AUTO rejimida avtomatik rejalashtirish uchun minimal sifat balli.
 SEMI_AUTO_QUALITY_THRESHOLD = 0.8
@@ -181,7 +200,6 @@ def normalize_approval_mode(mode: Any) -> str:
 # ---------------------------------------------------------------------------
 # PURE: Quiet Hours va Smart Rescheduling
 # ---------------------------------------------------------------------------
-_QUIET_RE = re.compile(r"(\d{1,2})(?::(\d{2}))?\s*[-–—to]+\s*(\d{1,2})(?::(\d{2}))?", re.IGNORECASE)
 
 
 def parse_quiet_hours(quiet_hours: Any) -> tuple[int, int] | None:

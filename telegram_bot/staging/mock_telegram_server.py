@@ -10,7 +10,8 @@ bilan sinash (PTB → HTTPX → HTTP → JSON).
 Mock server Bot API'ning shimoli:
   * ``POST /bot<TOKEN>/<method>`` — barcha metodlar uchun umumiy handler
     (``sendMessage``, ``sendPhoto``, ``getUpdates``, ``deleteMessage``,
-    ``answerCallbackQuery``, ``setMyCommands``, ``getMe`` ...);
+    ``answerCallbackQuery``, ``setMyCommands``, ``getMe``, ``setWebhook``,
+    ``getWebhookInfo``, ``deleteWebhook`` ...);
   * ``GET  /__stats``  — to'plangan metrikalar (JSON): so'rovlar soni,
     metodlar kesimi, HTTP status gistogrammasi, latency p50/p95/p99;
   * ``POST /__reset``  — metrikalar va holatni nolga qaytarish;
@@ -76,6 +77,9 @@ class MockTelegramState:
         self.fault: dict[str, Any] = {"mode": "off"}
         self.sent_messages: dict[str, int] = {}
         self.deleted_messages = 0
+        #: Oxirgi o'rnatilgan webhook manzili (``setWebhook`` → ``getWebhookInfo``
+        #: → ``deleteWebhook`` kontraktini real sinash uchun).
+        self.webhook_url: str = ""
         #: Oxirgi (sanitizatsiyadan o'tgan) matnlar — yuklama testlari bot
         #: yuborgan ANIQ matnni tekshirishi uchun (cheklangan uzunlikda).
         self.last_texts: list[str] = []
@@ -115,6 +119,7 @@ class MockTelegramState:
             "fault": dict(self.fault),
             "sent_messages": dict(self.sent_messages),
             "deleted_messages": self.deleted_messages,
+            "webhook_url": self.webhook_url,
         }
 
     def reset(self) -> None:
@@ -128,6 +133,7 @@ class MockTelegramState:
         self.fault = {"mode": "off"}
         self.sent_messages.clear()
         self.deleted_messages = 0
+        self.webhook_url = ""
 
     # ---- Bot API semantikasi ---------------------------------------
     def next_message_id(self) -> int:
@@ -308,8 +314,18 @@ class MockTelegramServer:
             return True
         if method == "answerCallbackQuery":
             return True
-        if method in ("setMyCommands", "deleteWebhook", "setWebhook",
-                      "sendChatAction", "deleteMessage", "close", "logOut",
+        if method == "setWebhook":
+            self.state.webhook_url = str(payload.get("url") or "")
+            return True
+        if method == "deleteWebhook":
+            self.state.webhook_url = ""
+            return True
+        if method == "getWebhookInfo":
+            return {"url": self.state.webhook_url, "has_custom_certificate": False,
+                    "pending_update_count": len(self.state.updates),
+                    "max_connections": 40, "allowed_updates": None}
+        if method in ("setMyCommands", "sendChatAction", "deleteMessage",
+                      "close", "logOut",
                       "getChat", "getChatMember", "leaveChat",
                       "pinChatMessage", "unpinChatMessage",
                       "setChatMenuButton", "promoteChatMember",
