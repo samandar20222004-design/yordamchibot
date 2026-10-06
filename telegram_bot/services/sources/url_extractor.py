@@ -106,6 +106,9 @@ ERR_PAYWALL = "paywall"
 ERR_EMPTY_CONTENT = "empty_content"
 ERR_AI_FAILED = "ai_failed"
 ERR_QUOTA = "quota_denied"
+#: Telegram kanal-only havola (t.me/kanal — post ID'siz): foydalanuvchidan
+#: aniq bitta post havolasi so'raladi (AI xatosi EMAS, yo'riqnoma).
+ERR_TELEGRAM_CHANNEL_ONLY = "telegram_channel_only"
 
 ERROR_MESSAGES: dict[str, dict[str, str]] = {
     ERR_INVALID_URL: {
@@ -196,6 +199,21 @@ ERROR_MESSAGES: dict[str, dict[str, str]] = {
         "uz": "⚠️ AI limiti tugagan. 💎 PRO oling yoki ertaga qayta urinib ko'ring.",
         "ru": "⚠️ Лимит ИИ исчерпан. Оформите 💎 PRO или попробуйте завтра.",
         "en": "⚠️ AI limit reached. Get 💎 PRO or try again tomorrow.",
+    },
+    ERR_TELEGRAM_CHANNEL_ONLY: {
+        "uz": ("📩 Iltimos, aniq bitta post havolasini yuboring\n"
+               "(masalan: t.me/kanal/123).\n\n"
+               "Kanal sahifasining o'zidan (t.me/kanal) bitta postni "
+               "ajratib bo'lmaydi — post ochilgan holatidagi havolani "
+               "nusxalang."),
+        "ru": ("📩 Пожалуйста, отправьте ссылку на конкретный пост\n"
+               "(например: t.me/kanal/123).\n\n"
+               "Из страницы канала (t.me/kanal) нельзя выделить один пост — "
+               "скопируйте ссылку открытого поста."),
+        "en": ("📩 Please send a link to a specific post\n"
+               "(e.g. t.me/kanal/123).\n\n"
+               "A single post cannot be picked out of a channel page "
+               "(t.me/kanal) — copy the link of the opened post."),
     },
 }
 
@@ -401,6 +419,183 @@ def safe_url_or_none(url: str, **kwargs) -> str | None:
     """Tekshiruvdan o'tgan havola (aks holda ``None``) — qisqa yordamchi."""
     result = validate_public_url(url, **kwargs)
     return result["url"] if result.get("ok") else None
+
+
+# ---------------------------------------------------------------------------
+# 3b) TELEGRAM HAVOLALARI (t.me/kanal/post_id → t.me/s/... preview)
+# ---------------------------------------------------------------------------
+#: Telegram veb-xostlar (ochiq preview faqat shularda).
+TELEGRAM_HOSTS = frozenset({
+    "t.me", "www.t.me", "telegram.me", "www.telegram.me",
+    "telegram.dog", "www.telegram.dog",
+})
+
+#: Sxemasiz kiritilgan telegram havola (``t.me/kanal/123``) — avtomatik
+#: ``https://`` qo'shib normalizatsiya qilinadi.
+_TELEGRAM_BARE_RE = re.compile(
+    r"^(?:www\.)?(?:t\.me|telegram\.me|telegram\.dog)/", re.IGNORECASE)
+
+#: Telegram yo'l tahlili: /[s/]<kanal>[/<post_id>][?query]
+_TELEGRAM_PATH_RE = re.compile(
+    r"^/(?:s/)?(?P<channel>[A-Za-z0-9_]{5,32})(?:/(?P<post_id>\d{1,12}))?/?(?:[?#].*)?$")
+
+#: Preview HTML'dagi post bloki (``utils.channel_reader`` bilan bir naqsh).
+_TELEGRAM_POST_MARK_RE = re.compile(
+    r'data-post="(?P<channel>[^"/\s]+)/(?P<post_id>\d+)"')
+_TELEGRAM_WRAP_SPLIT_RE = re.compile(
+    r'<div[^>]*class="tgme_widget_message_wrap')
+_TELEGRAM_MSG_TEXT_RE = re.compile(
+    r'<div[^>]*class="tgme_widget_message_text[^"]*"[^>]*>(?P<body>.*?)</div>',
+    re.DOTALL)
+_TELEGRAM_TITLE_RE = re.compile(
+    r'<meta[^>]+property="og:title"[^>]+content="(?P<title>[^"]+)"', re.IGNORECASE)
+_TELEGRAM_BR_RE = re.compile(r"<br\s*/?>", re.IGNORECASE)
+_TELEGRAM_TAG_RE = re.compile(r"<[^>]+>")
+
+#: Telegram post matni uchun minimal mazmun (umumiy 80 belgidan yumshoqroq —
+#: qisqa e'lon postlari ham qabul qilinadi).
+TELEGRAM_MIN_POST_CHARS = 10
+
+
+def normalize_input_url(url: str) -> str:
+    """Sxemasiz ``t.me/...`` havolaga ``https://`` qo'shadi (PURE).
+
+    Boshqa havolalar o'zgartirilmaydi. ``validate_public_url`` ga uzatishdan
+    OLDIN chaqiriladi — aks holda ``t.me/kanal/123`` sxema yo'qligi uchun
+    rad etiladi.
+    """
+    raw = str(url or "").strip()
+    if _TELEGRAM_BARE_RE.match(raw):
+        return "https://" + raw
+    return raw
+
+
+def parse_telegram_url(url: str) -> dict:
+    """Telegram havolani tahlil qiladi (PURE, tarmoqqa chiqmaydi).
+
+    Qaytadi::
+
+        {"is_telegram": False}  — telegram havola emas
+        {"is_telegram": True, "is_post": True, "is_channel_only": False,
+         "channel": "kanal", "post_id": 123, "preview_url": "https://t.me/s/..."}
+        {"is_telegram": True, "is_post": False, "is_channel_only": True,
+         "channel": "kanal", "post_id": None, "preview_url": ...}
+    """
+    raw = str(url or "").strip()
+    if not raw:
+        return {"is_telegram": False}
+    candidate = normalize_input_url(raw)
+    try:
+        parsed = urlparse.urlsplit(candidate)
+    except Exception:  # noqa: BLE001 — noto'g'ri havola
+        return {"is_telegram": False}
+    host = _normalize_host(parsed.hostname or "")
+    if host not in TELEGRAM_HOSTS:
+        return {"is_telegram": False}
+    match = _TELEGRAM_PATH_RE.match(parsed.path or "")
+    if not match:
+        # /joinchat, /addstickers, /share, /iv va h.k. — post manbai emas.
+        return {"is_telegram": True, "is_post": False,
+                "is_channel_only": False, "channel": "",
+                "post_id": None, "preview_url": ""}
+    channel = (match.group("channel") or "").strip()
+    post_raw = (match.group("post_id") or "").strip()
+    post_id = int(post_raw) if post_raw.isdigit() else None
+    if post_id is not None:
+        return {
+            "is_telegram": True, "is_post": True, "is_channel_only": False,
+            "channel": channel, "post_id": post_id,
+            "preview_url": build_telegram_preview_url(channel, post_id),
+        }
+    return {
+        "is_telegram": True, "is_post": False, "is_channel_only": True,
+        "channel": channel, "post_id": None,
+        "preview_url": build_telegram_preview_url(channel, None),
+    }
+
+
+def is_telegram_post_url(url: str) -> bool:
+    """``t.me/kanal/123`` ko'rinishidagi aniq post havolami (PURE)."""
+    return bool(parse_telegram_url(url).get("is_post"))
+
+
+def is_telegram_channel_only_url(url: str) -> bool:
+    """``t.me/kanal`` ko'rinishidagi kanal-only havolami (PURE)."""
+    return bool(parse_telegram_url(url).get("is_channel_only"))
+
+
+def build_telegram_preview_url(channel: str, post_id: int | None = None) -> str:
+    """Ochiq preview manzili: ``https://t.me/s/<kanal>[/<post_id>]`` (PURE)."""
+    name = str(channel or "").strip().lstrip("@")
+    if post_id is not None:
+        try:
+            return f"https://t.me/s/{name}/{int(post_id)}"
+        except (TypeError, ValueError):
+            pass
+    return f"https://t.me/s/{name}"
+
+
+def _strip_telegram_html(fragment: str) -> str:
+    """Telegram post parchasidagi HTML'ni matnga aylantiradi (PURE)."""
+    value = _TELEGRAM_BR_RE.sub("\n", str(fragment or ""))
+    value = _TELEGRAM_TAG_RE.sub("", value)
+    return clean_text(value)
+
+
+def extract_telegram_post_from_html(html: str, channel: str,
+                                    post_id: int | str) -> dict:
+    """Preview HTML'dan ANIQ bitta post matnini ajratadi (PURE).
+
+    ``html`` — ``https://t.me/s/<kanal>/<post_id>`` sahifasi manbai.
+    ``data-post="<kanal>/<post_id>"`` belgili blok topilib, uning
+    ``tgme_widget_message_text`` qismidan matn olinadi.
+
+    Qaytadi: ``{"ok": True, "text": ..., "title": ...}`` yoki
+    ``{"ok": False, "error_code": "empty_content"}``.
+    """
+    html_text = str(html or "")
+    name = str(channel or "").strip().lstrip("@")
+    try:
+        wanted_id = str(int(post_id))
+    except (TypeError, ValueError):
+        wanted_id = str(post_id or "").strip()
+    if not html_text or not name or not wanted_id:
+        return {"ok": False, "error_code": ERR_EMPTY_CONTENT}
+
+    target_block = ""
+    parts = _TELEGRAM_WRAP_SPLIT_RE.split(html_text)
+    if len(parts) > 1:
+        for chunk in parts[1:]:
+            mark = _TELEGRAM_POST_MARK_RE.search(chunk[:4000])
+            if (mark and mark.group("channel").lower() == name.lower()
+                    and mark.group("post_id") == wanted_id):
+                target_block = chunk
+                break
+    if not target_block:
+        # Zaxira: butun sahifadan belgi izlanadi (wrap bo'linmagan HTML).
+        pattern = re.compile(
+            r'data-post="%s/%s"' % (re.escape(name), re.escape(wanted_id)),
+            re.IGNORECASE)
+        found = pattern.search(html_text)
+        if found:
+            target_block = html_text[found.start():found.start() + 40000]
+    if not target_block:
+        return {"ok": False, "error_code": ERR_EMPTY_CONTENT}
+
+    text_match = _TELEGRAM_MSG_TEXT_RE.search(target_block)
+    if not text_match:
+        return {"ok": False, "error_code": ERR_EMPTY_CONTENT}
+    text = _strip_telegram_html(text_match.group("body") or "")
+    if len(text) < TELEGRAM_MIN_POST_CHARS:
+        return {"ok": False, "error_code": ERR_EMPTY_CONTENT}
+
+    title = ""
+    title_match = _TELEGRAM_TITLE_RE.search(html_text[:20000])
+    if title_match:
+        title = clean_text(title_match.group("title") or "")[:MAX_TITLE_CHARS]
+    if not title:
+        title = clean_text(text.split("\n", 1)[0])[:MAX_TITLE_CHARS]
+    return {"ok": True, "error_code": None, "text": text, "title": title}
 
 
 # ---------------------------------------------------------------------------
@@ -852,9 +1047,82 @@ def _host_from_url(url: str) -> str:
 
 
 def fetch_and_extract(url: str, **kwargs) -> dict:
-    """Havolani yuklab, maqola matnini qaytaradi (bitta chaqiruvda)."""
+    """Havolani yuklab, maqola matnini qaytaradi (bitta chaqiruvda).
+
+    Telegram havolalar (``t.me/kanal/123``) ochiq ``t.me/s/...`` preview
+    orqali o'qiladi; kanal-only havola (``t.me/kanal``) esa
+    ``telegram_channel_only`` kodi bilan qaytadi — handler foydalanuvchidan
+    aniq post havolasini so'raydi (AI xatosi ko'rsatilmaydi).
+    """
+    lang = kwargs.pop("lang", "uz") if "lang" in kwargs else "uz"
     fetch_kwargs = {k: kwargs.pop(k) for k in
                     ("client", "resolver", "timeout", "max_bytes") if k in kwargs}
+    raw_input = str(url or "").strip()
+    normalized = normalize_input_url(raw_input)
+
+    # --- Telegram yo'li (SSRF himoyasi fetch_url ichida saqlanadi) ---
+    tg = parse_telegram_url(normalized)
+    if tg.get("is_telegram"):
+        if tg.get("is_channel_only"):
+            return {"ok": False, "error_code": ERR_TELEGRAM_CHANNEL_ONLY,
+                    "message": user_message(ERR_TELEGRAM_CHANNEL_ONLY, lang),
+                    "article": None, "injection_signals": [],
+                    "telegram": tg}
+        if tg.get("is_post"):
+            preview_url = tg.get("preview_url") or build_telegram_preview_url(
+                tg.get("channel"), tg.get("post_id"))
+            fetched = fetch_url(preview_url, **fetch_kwargs)
+            if not fetched.get("ok"):
+                return {"ok": False, "error_code": fetched.get("error_code"),
+                        "message": fetched.get("message"), "article": None,
+                        "injection_signals": [], "telegram": tg}
+            single = extract_telegram_post_from_html(
+                fetched.get("text", ""), tg.get("channel"), tg.get("post_id"))
+            if not single.get("ok"):
+                # Zaxira: preview HTML'dan umumiy ajratish (kanal tavsifi va
+                # h.k. bo'lishi mumkin) — bo'lmasa aniq ``empty_content``.
+                generic = extract_article(
+                    fetched.get("text", ""),
+                    base_url=fetched.get("final_url") or preview_url)
+                if generic.get("ok"):
+                    text = generic.get("text", "")
+                    signals = detect_prompt_injection(text)
+                    generic["source_url"] = normalized
+                    generic["injection_signals"] = signals
+                    generic["telegram"] = tg
+                    return {"ok": True, "error_code": None, "message": None,
+                            "article": generic, "injection_signals": signals,
+                            "telegram": tg}
+                return {"ok": False, "error_code": ERR_EMPTY_CONTENT,
+                        "message": user_message(ERR_EMPTY_CONTENT, lang),
+                        "article": None, "injection_signals": [],
+                        "telegram": tg}
+            text = str(single.get("text") or "")
+            title = str(single.get("title") or "")[:MAX_TITLE_CHARS]
+            if not title:
+                title = f"Telegram post {tg.get('channel')}/{tg.get('post_id')}"
+            article = {
+                "title": title,
+                "text": text[:MAX_ARTICLE_CHARS],
+                "summary": clean_text(text)[:MAX_SUMMARY_CHARS],
+                "chars": len(text),
+                "source": str(tg.get("channel") or ""),
+                "source_url": normalized,
+                "preview_url": preview_url,
+                "telegram": tg,
+                "paywall": {"detected": False, "signals": []},
+            }
+            signals = detect_prompt_injection(text)
+            article["injection_signals"] = signals
+            return {"ok": True, "error_code": None, "message": None,
+                    "article": article, "injection_signals": signals,
+                    "telegram": tg}
+        # /joinchat, /share va h.k. — post manbai emas.
+        return {"ok": False, "error_code": ERR_TELEGRAM_CHANNEL_ONLY,
+                "message": user_message(ERR_TELEGRAM_CHANNEL_ONLY, lang),
+                "article": None, "injection_signals": [], "telegram": tg}
+
+    # --- Oddiy veb-havola yo'li (o'zgarmagan) ---
     fetched = fetch_url(url, **fetch_kwargs)
     if not fetched.get("ok"):
         return {"ok": False, "error_code": fetched.get("error_code"),

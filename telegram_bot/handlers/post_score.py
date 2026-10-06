@@ -31,6 +31,7 @@ Qoidalar (repo konventsiyalari):
 from __future__ import annotations
 
 import logging
+import time
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes, ConversationHandler
@@ -79,7 +80,7 @@ from utils.helpers import (
     html_escape,
     safe_html,
 )
-from utils.post_scorer import score_bar
+from utils.post_scorer import score_bar, validate_post_text
 
 logger = logging.getLogger(__name__)
 
@@ -118,6 +119,44 @@ _PS_SESSION_KEYS = (
     "ps_text", "ps_post", "ps_score", "ps_improved", "ps_channels",
     "ps_origin", "ps_usage_counted",
 )
+
+#: Noto'g'ri format ogohlantirishlari takrorlanishiga qarshi sovutish
+#: (soniya). Bir xil foydalanuvchiga bir xil matn uchun bir xil
+#: ogohlantirish shu muddat ichida FAQAT 1 marta yuboriladi.
+_PS_WARN_COOLDOWN_SEC = 3.0
+_PS_LAST_WARN: dict[tuple[int, str, str], float] = {}
+
+
+def _ps_warn_suppressed(user_id: int, warn_key: str, text_sig: str) -> bool:
+    """Bir xil ogohlantirish yaqinda yuborilganmi (4x dublikat himoyasi)."""
+    try:
+        key = (int(user_id or 0), str(warn_key), str(text_sig or "")[:80])
+    except (TypeError, ValueError):
+        return False
+    now = time.monotonic()
+    last = _PS_LAST_WARN.get(key, 0.0)
+    if now - last < _PS_WARN_COOLDOWN_SEC:
+        return True
+    _PS_LAST_WARN[key] = now
+    if len(_PS_LAST_WARN) > 5000:
+        # Xotira chegarasi — eng eski yozuvlar tozalanadi.
+        for old_key in sorted(_PS_LAST_WARN, key=_PS_LAST_WARN.get)[:1000]:
+            _PS_LAST_WARN.pop(old_key, None)
+    return False
+
+
+def reset_post_score_warn_state() -> None:
+    """Ogohlantirish keshini tozalaydi (testlar/diagnostika uchun)."""
+    _PS_LAST_WARN.clear()
+
+
+async def _ps_send_warn(msg, user_id: int, warn_key: str, lang: str,
+                        text_sig: str = "") -> bool:
+    """Ogohlantirishni dublikat himoyasi bilan yuboradi (True=yuborildi)."""
+    if _ps_warn_suppressed(user_id, warn_key, text_sig):
+        return False
+    await msg.reply_text(post_score_t(warn_key, lang), parse_mode="HTML")
+    return True
 
 #: «📊 Baholash» tugmasi qaysi oqim natijasidan bosilgani → FSM holati.
 _PS_ORIGIN_STATES = {
@@ -341,16 +380,31 @@ async def post_score_text_received(update: Update, context: ContextTypes.DEFAULT
         # Matn umuman yuborilmagan (rasm/stiker/fayl) → media yo'riqnomasi;
         # faqat bo'sh joy yuborilgan bo'lsa → «bo'sh post» ogohlantirishi.
         key = "ps_warn_media" if not raw_text else "ps_warn_empty"
-        await msg.reply_text(post_score_t(key, lang), parse_mode="HTML")
+        await _ps_send_warn(msg, user_id, key, lang, raw_text or "media")
         return POST_SCORE_INPUT
 
     clean = text.strip()
     if len(clean) < 2:
-        await msg.reply_text(post_score_t("ps_warn_empty", lang), parse_mode="HTML")
+        await _ps_send_warn(msg, user_id, "ps_warn_empty", lang, clean)
+        return POST_SCORE_INPUT
+
+    # Mahalliy validatsiya (AI chaqiruvisiz, placeholder'siz): yaroqsiz matn
+    # uchun ogohlantirish DARHOL va BITTA xabarda yuboriladi — «⏳ ...»
+    # placeholder + edit zanjiri endi faqat YAROQLI matnlar uchun.
+    _valid_text, validation_error = validate_post_text(clean)
+    if validation_error:
+        hint_key = {
+            "empty": "ps_warn_empty",
+            "too_short": "ps_warn_short",
+            "no_content": "ps_warn_short",
+        }.get(str(validation_error), "ps_warn_short")
+        await _ps_send_warn(msg, user_id, hint_key, lang, clean)
         return POST_SCORE_INPUT
 
     # Rate-limit: baholash bepul, lekin AI provayderini flooddan himoya qilamiz.
     if user_id and user_id not in ADMIN_IDS_SET and check_ai_rate_limit(user_id, max_per_minute=6):
+        if _ps_warn_suppressed(user_id, "ai_rate_limit", "rate"):
+            return POST_SCORE_INPUT
         try:
             await msg.reply_text(safe_t("ai_rate_limit_alert", lang), parse_mode="HTML")
         except Exception:

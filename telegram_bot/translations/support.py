@@ -70,6 +70,16 @@ SUPPORT_I18N = {
             "⏳ Iltimos, biroz kutib turing — oldingi murojaatingiz "
             "ko'rib chiqilmoqda."
         ),
+        "sp_wait_reply": (
+            "⏳ Murojaatingiz adminga yetkazilgan va javob kutilmoqda.\n\n"
+            "Iltimos, admin javobini kuting — yangi murojaat taxminan "
+            "{minutes} daqiqadan keyin yoki javob kelishi bilanoq ochiladi."
+        ),
+        "sp_flood_block": (
+            "⛔️ Juda ko'p murojaat yuborishga urindingiz.\n\n"
+            "Spam himoyasi uchun yangi murojaatlar 24 soatga bloklandi. "
+            "Shoshilinch holatda keyinroq qayta urinib ko'ring."
+        ),
         # --- Admin xabari ---
         "sp_admin_new": (
             "📩 Yangi murojaat!\n"
@@ -131,6 +141,16 @@ SUPPORT_I18N = {
             "⏳ Подождите немного — ваше предыдущее обращение "
             "уже рассматривается."
         ),
+        "sp_wait_reply": (
+            "⏳ Ваше обращение доставлено администратору, ожидается ответ.\n\n"
+            "Пожалуйста, дождитесь ответа — новое обращение откроется "
+            "примерно через {minutes} мин. или сразу после ответа."
+        ),
+        "sp_flood_block": (
+            "⛔️ Вы попытались отправить слишком много обращений.\n\n"
+            "Новые обращения заблокированы на 24 часа для защиты от спама. "
+            "В срочном случае попробуйте позже."
+        ),
         "sp_admin_new": (
             "📩 Новое обращение!\n"
             "👤 От: {username} (ID: <code>{user_id}</code>)\n"
@@ -187,6 +207,16 @@ SUPPORT_I18N = {
         "sp_cooldown": (
             "⏳ Please wait a moment — your previous request "
             "is already under review."
+        ),
+        "sp_wait_reply": (
+            "⏳ Your ticket has been delivered to the admin, awaiting a reply.\n\n"
+            "Please wait for the answer — a new ticket will open in about "
+            "{minutes} min. or right after the reply."
+        ),
+        "sp_flood_block": (
+            "⛔️ You tried to send too many tickets.\n\n"
+            "New tickets are blocked for 24 hours as spam protection. "
+            "For urgent matters, please try again later."
         ),
         "sp_admin_new": (
             "📩 New support request!\n"

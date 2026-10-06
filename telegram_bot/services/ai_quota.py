@@ -334,7 +334,40 @@ async def reserve_for_flow(db_module, context, user_id: int,
     if reservation.get("allowed") and user_data is not None:
         user_data[id_key] = reservation.get("reservation_id")
         user_data[source_key] = reservation.get("source")
+    if reservation.get("allowed"):
+        # 🎁 Faollik bonusi bildirishnomasi (markazlashgan, avtomatik):
+        # 5-so'rov bronida bonus berilgan bo'lsa foydalanuvchi DARHOL
+        # xabardor qilinadi — hech qanday tugma bosilmaydi.
+        await _notify_activity_bonus(context, user_id, reservation)
     return reservation
+
+
+async def _notify_activity_bonus(context, user_id: int,
+                                 reservation: dict) -> bool:
+    """Avtomatik +2 bonus bildirishnomasini yuboradi (fail-soft).
+
+    Qaytadi: ``True`` — xabarnoma yuborildi, ``False`` — bonus yo'q yoki
+    yuborib bo'lmadi. Hech qachon istisno ko'tarmaydi.
+    """
+    try:
+        bonus = (reservation or {}).get("activity_bonus") or {}
+        if not bonus.get("granted"):
+            return False
+        user_data = getattr(context, "user_data", None) or {}
+        try:
+            lang = str(user_data.get("lang") or "uz")
+        except Exception:
+            lang = "uz"
+        from services.credits_service import activity_bonus_text
+
+        text = activity_bonus_text(lang, bonus.get("amount", 2))
+        sender = getattr(getattr(context, "bot", None), "send_message", None)
+        if not callable(sender) or not text:
+            return False
+        await sender(chat_id=int(user_id), text=text, parse_mode="HTML")
+        return True
+    except Exception:
+        return False
 
 
 def take_reservation_id(context, ctx_prefix: str):
