@@ -169,6 +169,43 @@ class CacheBackend(abc.ABC):
         """Kalitga yangi muddat o'rnatadi. ``False`` — kalit yo'q."""
 
     # --- ixtiyoriy qulaylik metodlari ----------------------------------
+    async def set_if_absent(self, key: str, value: Any, ttl: float | None = None) -> bool:
+        """Kalit YO'Q bo'lsa yozadi (``SET NX`` semantikasi).
+
+        Atomik "claiming/lock" primitivi: ``True`` — qiymat yozildi (kalit
+        bizniki), ``False`` — kalit allaqachon mavjud (uni boshqa egasi
+        ushlab turibdi).
+
+        DIQQAT: bu yerdagi standart implementatsiya ``get`` + ``set`` dan
+        iborat — **atomik emas**, faqat interfeysni to'ldirish uchun.
+        :class:`MemoryCacheBackend` (RLock ostida) va
+        :class:`RedisCacheBackend` (``SET NX``) uni HAQIQIY atomik qilib
+        qayta yuklaydi; Redis mavjud bo'lmaganda esa lock baribir DB
+        darajasidagi claim bilan kafolatlanadi.
+        """
+        try:
+            if await self.get(key) is not None:
+                return False
+        except Exception:  # noqa: BLE001 — backend javob bermasa: yozishga urinamiz
+            pass
+        return bool(await self.set(key, value, ttl=ttl))
+
+    async def compare_and_delete(self, key: str, value: Any) -> bool:
+        """Kalit qiymati ``value`` ga TENG bo'lsa o'chiradi (lock release).
+
+        Standart implementatsiya atomik emas (Redis uchun ``Lua``/``WATCH``
+        talab qilinadi) — u yerda ham bu yetarli: lock egasi o'z TTL'i
+        bilan baribir bo'shaydi, xato o'chirish ehtimoli esa faqat
+        bir xil token bilan chegaralanadi.
+        """
+        try:
+            current = await self.get(key)
+        except Exception:  # noqa: BLE001
+            return False
+        if current is None or current != _to_str(value):
+            return False
+        return bool(await self.delete(key))
+
     async def ping(self) -> bool:
         """Backend javob bermoqda (health/diagnostika)."""
         return True
@@ -331,6 +368,40 @@ class MemoryCacheBackend(CacheBackend):
                 self._store(key, value, expires_at)
         return True
 
+    async def set_if_absent(self, key: str, value: Any, ttl: float | None = None) -> bool:
+        """Atomik ``SET NX``: RLock ostida tekshirish + yozish bir amalda."""
+        key = str(key)
+        text = _to_str(value)
+        if len(text.encode("utf-8", "ignore")) > self._max_value_bytes:
+            logger.warning("cache: qiymat limitdan katta, saqlanmadi (key=%s)", key[:64])
+            return False
+        now = time.monotonic()
+        with self._lock:
+            item = self._data.get(key)
+            if item is not None:
+                if self._expired(item[1], now):
+                    self._drop(key)
+                    self._expirations += 1
+                else:
+                    self._data.move_to_end(key)
+                    self._hits += 1
+                    return False
+            self._store(key, text, self._expiry_for(ttl, now))
+        return True
+
+    async def compare_and_delete(self, key: str, value: Any) -> bool:
+        """Atomik: qiymat mos kelsagina o'chiradi (RLock ostida)."""
+        key = str(key)
+        expected = _to_str(value)
+        with self._lock:
+            item = self._data.get(key)
+            if item is None or self._expired(item[1], time.monotonic()):
+                return False
+            if item[0] != expected:
+                return False
+            self._drop(key)
+        return True
+
     # --- diagnostika / test --------------------------------------------
     async def ping(self) -> bool:
         return True
@@ -464,6 +535,38 @@ return value
             return bool(await self._client.expire(full, ex))
         except Exception as exc:  # noqa: BLE001
             raise CacheUnavailableError(f"redis.expire: {exc}") from exc
+
+    async def set_if_absent(self, key: str, value: Any, ttl: float | None = None) -> bool:
+        """``SET key value NX EX ttl`` — Redis darajasida ATOMIK lock.
+
+        Kalit mavjud bo'lsa ``None`` qaytadi (``False``) — lock boshqa
+        worker/instansiyada. TTL o'rnatilgani uchun jarayon crash bo'lsa
+        lock o'z-o'zidan bo'shaydi (deadlock yo'q).
+        """
+        ex = self._expiry_for(ttl)
+        try:
+            kwargs: dict[str, Any] = {"nx": True}
+            if ex:
+                kwargs["ex"] = ex
+            stored = await self._client.set(self.full_key(key), _to_str(value), **kwargs)
+        except Exception as exc:  # noqa: BLE001
+            raise CacheUnavailableError(f"redis.set_if_absent: {exc}") from exc
+        return bool(stored)
+
+    async def compare_and_delete(self, key: str, value: Any) -> bool:
+        """Faqat qiymat mos kelsa o'chiradi (lock egasi tekshiruvi)."""
+        full = self.full_key(key)
+        try:
+            current = await self._client.get(full)
+        except Exception as exc:  # noqa: BLE001
+            raise CacheUnavailableError(f"redis.compare_and_delete: {exc}") from exc
+        if current is None or _from_str(current) != _to_str(value):
+            return False
+        try:
+            removed = await self._client.delete(full)
+        except Exception as exc:  # noqa: BLE001
+            raise CacheUnavailableError(f"redis.compare_and_delete: {exc}") from exc
+        return bool(removed)
 
     async def ping(self) -> bool:
         try:
@@ -638,6 +741,12 @@ class ResilientCacheBackend(CacheBackend):
 
     async def expire(self, key: str, ttl: float | None) -> bool:
         return await self._run("expire", key, ttl)
+
+    async def set_if_absent(self, key: str, value: Any, ttl: float | None = None) -> bool:
+        return bool(await self._run("set_if_absent", key, value, ttl))
+
+    async def compare_and_delete(self, key: str, value: Any) -> bool:
+        return bool(await self._run("compare_and_delete", key, value))
 
     async def ping(self) -> bool:
         if self.using_fallback:

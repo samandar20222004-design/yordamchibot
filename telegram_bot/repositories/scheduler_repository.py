@@ -19,6 +19,7 @@ nuqtalari bu modulga ko'chirilgandan keyin ham kuchini yo'qotmaydi.
 import hashlib
 from datetime import datetime, timedelta
 import logging
+import re
 
 
 from database import tashkent_tz
@@ -125,6 +126,107 @@ def build_delivery_idempotency_key(post_id: int, channel_id, scheduled_timestamp
     return f"post_{int(post_id)}_{channel_id}_{timestamp}"
 
 
+#: P0 (VAZIFA 2): ``post_deliveries.last_error`` ichidagi "kanal tekshiruvi
+#: kutilmoqda" belgisi. Format: ``AMBIGUOUS_VERIFY attempt=<n> | <xato>``.
+#: Shu markerli yozuv avtomatik (ko'r-ko'rrona) qayta yuborilmaydi.
+DELIVERY_VERIFY_MARKER = "AMBIGUOUS_VERIFY"
+_DELIVERY_VERIFY_RE = re.compile(re.escape(DELIVERY_VERIFY_MARKER) + r"\s+attempt=(\d+)")
+
+
+def delivery_verify_pending(last_error) -> bool:
+    """Yozuvda "verify kutilmoqda" markeri bormi (sof funksiya)."""
+    return bool(_DELIVERY_VERIFY_RE.search(str(last_error or "")))
+
+
+def delivery_verify_attempt(last_error) -> int:
+    """Markerdagi tekshiruv urinish raqami (marker yo'q bo'lsa ``0``)."""
+    match = _DELIVERY_VERIFY_RE.search(str(last_error or ""))
+    if not match:
+        return 0
+    try:
+        return max(0, int(match.group(1)))
+    except (TypeError, ValueError):
+        return 0
+
+
+def mark_post_delivery_verify_pending(idempotency_key: str, error, attempt: int = 1,
+                                      delay_seconds: float = 30.0) -> dict:
+    """Noaniq (ambiguous) delivery'ni "kanal tekshiruvi kutilmoqda" holatiga o'tkazadi.
+
+    Yozuv ``failed`` bo'lib qoladi (claim uni ``next_retry_at`` dan keyin
+    qayta oladi), lekin ``last_error`` da :data:`DELIVERY_VERIFY_MARKER`
+    turadi — scheduler shu belgi bo'yicha Telegramga YUBORMASDAN avval
+    kanalni tekshiradi (dublikat oldini olish).
+
+    ``sent``/``dead_letter``/``unknown`` yozuvlar ustidan hech qachon yozmaydi.
+    """
+    try:
+        key = str(idempotency_key or "")
+        if not key:
+            return {"ok": False, "reason": "missing_key"}
+        try:
+            attempt = max(1, int(attempt))
+        except (TypeError, ValueError):
+            attempt = 1
+        try:
+            delay = max(1.0, float(delay_seconds))
+        except (TypeError, ValueError):
+            delay = 30.0
+        with db_cursor(commit=True) as cur:
+            cur.execute(
+                "SELECT status FROM post_deliveries WHERE idempotency_key = %s FOR UPDATE",
+                (key,),
+            )
+            row = cur.fetchone()
+            if not row:
+                return {"ok": False, "reason": "missing", "idempotency_key": key}
+            status = row[0]
+            if status in ("sent", "dead_letter", "unknown"):
+                return {"ok": False, "reason": f"status_{status}",
+                        "idempotency_key": key}
+            marker = f"{DELIVERY_VERIFY_MARKER} attempt={attempt}"
+            detail = str(error or "")[:300]
+            if detail:
+                marker = f"{marker} | {detail}"
+            cur.execute(
+                "UPDATE post_deliveries SET status = 'failed', "
+                "attempt_count = GREATEST(COALESCE(attempt_count, 0), %s), "
+                "last_error = %s, next_retry_at = NOW() + (%s || ' seconds')::INTERVAL, "
+                "updated_at = NOW() WHERE idempotency_key = %s",
+                (attempt, marker, str(int(delay)), key),
+            )
+        _cache_clear("system_stats")
+        return {"ok": True, "status": "failed", "verify_pending": True,
+                "attempt": attempt, "retry_in": int(delay), "idempotency_key": key}
+    except Exception as e:
+        logger.error("Delivery verify_pending marker xatosi (%s): %s", idempotency_key, e)
+        return {"ok": False, "reason": "database_error", "idempotency_key": str(idempotency_key or "")}
+
+
+def clear_post_delivery_verify_pending(idempotency_key: str) -> bool:
+    """"Verify kutilmoqda" belgisini olib tashlaydi (post yo'qligi tasdiqlanganda).
+
+    Yozuv ``failed`` + ``next_retry_at = NOW()`` bo'ladi — keyingi claim uni
+    darhol oladi va xavfsiz qayta yuboradi. ``sent``/``dead_letter`` ustidan
+    yozilmaydi (0 duplikat kafolati saqlanadi).
+    """
+    try:
+        key = str(idempotency_key or "")
+        if not key:
+            return False
+        with db_cursor(commit=True) as cur:
+            cur.execute(
+                "UPDATE post_deliveries SET status = 'failed', last_error = NULL, "
+                "next_retry_at = NOW(), updated_at = NOW() "
+                "WHERE idempotency_key = %s AND status NOT IN ('sent', 'dead_letter')",
+                (key,),
+            )
+            return True
+    except Exception as e:
+        logger.error("Delivery verify_pending tozalash xatosi (%s): %s", idempotency_key, e)
+        return False
+
+
 DELIVERY_MAX_ATTEMPTS = 5
 
 
@@ -148,6 +250,13 @@ def claim_post_delivery(post_id: int, channel_id, scheduled_timestamp) -> dict:
     key = build_delivery_idempotency_key(post_id, channel_id, scheduled_timestamp)
     try:
         with db_cursor(commit=True) as cur:
+            # P0 (VAZIFA 2) ATOMIK CLAIM: post darajasidagi advisory lock
+            # (transaction ichida) — bir xil post uchun TURLI idempotency
+            # kalitlari bilan kelgan parallel worker'lar ham serialize bo'ladi.
+            cur.execute(
+                "SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))",
+                (f"post_delivery:{int(post_id)}",),
+            )
             cur.execute(
                 "INSERT INTO post_deliveries "
                 "(post_id, channel_id, status, idempotency_key, scheduled_time) "
@@ -156,14 +265,24 @@ def claim_post_delivery(post_id: int, channel_id, scheduled_timestamp) -> dict:
                  scheduled_timestamp),
             )
             cur.execute(
-                "SELECT status, attempt_count, telegram_message_id, next_retry_at, updated_at "
+                "SELECT status, attempt_count, telegram_message_id, next_retry_at, updated_at, "
+                "last_error "
                 "FROM post_deliveries WHERE idempotency_key = %s FOR UPDATE",
                 (key,),
             )
             row = cur.fetchone()
             if not row:
                 return {"claimed": False, "status": "missing", "idempotency_key": key}
-            status, attempt_count, message_id, next_retry_at, updated_at = row
+            status, attempt_count, message_id, next_retry_at, updated_at = row[:5]
+            last_error = row[5] if len(row) > 5 else None
+            verify_pending = delivery_verify_pending(last_error)
+            verify_attempt = delivery_verify_attempt(last_error)
+
+            def _verify_fields():
+                """Claim natijasiga verify_pending holatini qo'shadi (P0)."""
+                return {"last_error": last_error, "verify_pending": verify_pending,
+                        "verify_attempt": verify_attempt}
+
             if status == "sent":
                 return {"claimed": False, "sent": True, "status": status,
                         "message_id": message_id, "idempotency_key": key}
@@ -179,7 +298,7 @@ def claim_post_delivery(post_id: int, channel_id, scheduled_timestamp) -> dict:
             if status == "processing":
                 if not _delivery_processing_is_stale(updated_at):
                     return {"claimed": False, "sent": False, "status": status,
-                            "idempotency_key": key}
+                        "idempotency_key": key, **_verify_fields()}
                 # Crash: avvalgi worker 'processing' da qolib ketgan. Urinishni
                 # hisobga olamiz — cheksiz crash-loop bo'lmasligi uchun limit
                 # oshsa to'g'ridan-to'g'ri 'dead_letter' qilinadi.
@@ -204,7 +323,7 @@ def claim_post_delivery(post_id: int, channel_id, scheduled_timestamp) -> dict:
                 )
                 return {"claimed": True, "sent": False, "status": "processing",
                         "attempt_count": new_attempt, "stale_reclaim": True,
-                        "idempotency_key": key}
+                        "idempotency_key": key, **_verify_fields()}
             if status == "failed" and next_retry_at is not None:
                 from datetime import timezone as _tz
                 now_utc = datetime.now(_tz.utc)
@@ -216,16 +335,20 @@ def claim_post_delivery(post_id: int, channel_id, scheduled_timestamp) -> dict:
                     return {"claimed": False, "sent": False, "status": status,
                             "retry_pending": True, "next_retry_at": next_retry_at,
                             "attempt_count": attempt_count or 0,
-                            "idempotency_key": key}
+                            "idempotency_key": key, **_verify_fields()}
             cur.execute(
+                # P0: verify_pending markeri (AMBIGUOUS_VERIFY...) SAQLANADI —
+                # ishchi crash bo'lsa ham keyingi claim uni ko'radi va telegramga
+                # yuborishdan oldin kanal tekshiruvini o'tkazadi.
                 "UPDATE post_deliveries SET status = 'processing', "
-                "last_error = NULL, updated_at = NOW() "
+                "last_error = CASE WHEN last_error LIKE %s THEN last_error "
+                "ELSE NULL END, updated_at = NOW() "
                 "WHERE idempotency_key = %s",
-                (key,),
+                (DELIVERY_VERIFY_MARKER + "%", key),
             )
             return {"claimed": True, "sent": False, "status": "processing",
                     "attempt_count": attempt_count or 0,
-                    "idempotency_key": key}
+                    "idempotency_key": key, **_verify_fields()}
     except Exception as e:
         logger.error("Delivery claim xatosi (post=%s, channel=%s): %s", post_id, channel_id, e)
         return {"claimed": False, "error": str(e), "idempotency_key": key}

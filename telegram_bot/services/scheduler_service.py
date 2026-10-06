@@ -36,10 +36,15 @@ from database import (
     build_delivery_idempotency_key,
     _delivery_channel_number,
     claim_post_delivery,
+    clear_post_delivery_verify_pending,
+    delivery_verify_attempt,
+    delivery_verify_pending,
     mark_post_delivery_sent,
     mark_post_delivery_unknown,
+    mark_post_delivery_verify_pending,
     DELIVERY_BACKOFF_SECONDS,
     DELIVERY_MAX_ATTEMPTS,
+    DELIVERY_VERIFY_MARKER,
 )
 
 logger = logging.getLogger(__name__)
@@ -269,6 +274,35 @@ class SchedulerService:
         except Exception as e:
             logger.error("SchedulerService.mark_unknown_by_key xatosi: %s", e)
             return False
+
+    @staticmethod
+    def mark_verify_pending_by_key(idempotency_key: str, error=None, attempt: int = 1,
+                                   delay_seconds: float = 30.0) -> dict:
+        """P0: noaniq delivery'ni "kanal tekshiruvi kutilmoqda" holatiga o'tkazadi.
+
+        Blind retry TAQIQLANADI: yozuv ``failed`` bo'lib qoladi, lekin
+        ``last_error`` da ``AMBIGUOUS_VERIFY attempt=<n>`` markeri turadi —
+        scheduler keyingi claim'da Telegramga yuborishdan OLDIN kanalni
+        tekshiradi (dublikat chiqmaydi).
+        """
+        return mark_post_delivery_verify_pending(
+            str(idempotency_key or ""), error, attempt, delay_seconds
+        )
+
+    @staticmethod
+    def clear_verify_pending_by_key(idempotency_key: str) -> bool:
+        """P0: post kanalda YO'Q ekani tasdiqlanganda markerni olib tashlaydi."""
+        return bool(clear_post_delivery_verify_pending(str(idempotency_key or "")))
+
+    @staticmethod
+    def delivery_verify_pending(last_error) -> bool:
+        """``last_error`` da verify_pending markeri bormi (sof funksiya)."""
+        return bool(delivery_verify_pending(last_error))
+
+    @staticmethod
+    def delivery_verify_attempt(last_error) -> int:
+        """Markerdagi tekshiruv urinish raqami (yo'q bo'lsa 0)."""
+        return int(delivery_verify_attempt(last_error))
 
     @staticmethod
     def mark_sent_by_key(idempotency_key: str, telegram_message_id) -> bool:

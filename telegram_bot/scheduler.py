@@ -1009,6 +1009,193 @@ async def _mark_delivery_unknown(post_id, delivery_key, error) -> bool:
     return bool(ok_delivery and ok_post)
 
 
+# ============================================================================
+# P0 (VAZIFA 2): NOANIQ YETKAZIB BERISH — KANAL DEDUPLIKATSIYASI
+# ----------------------------------------------------------------------------
+# TimedOut/NetworkError'da so'rov Telegramga ketgan bo'lishi mumkin. Bunday
+# holatda ko'r-ko'rrona qayta yuborish bitta postni kanalga IKKI MARTA chiqaradi.
+# Yechim: qayta urinishdan OLDIN kanalning oxirgi xabarlari o'qiladi va post
+# matni/mediasi SHA256 fingerprint bo'yicha solishtiriladi:
+#   * topilsa        → delivery 'sent' (DELIVERED), qayta yuborilmaydi;
+#   * yo'qligi aniq  → xavfsiz qayta yuborish;
+#   * tasdiqlanmasa  → verify_pending (keyingi tekshiruvgacha YUBORILMAYDI),
+#                      urinishlar tugagach — UNKNOWN (admin ko'radi).
+AMBIGUOUS_PROBE_TIMEOUT = 8.0          # kanal o'qish uchun qat'iy timeout (soniya)
+
+
+def _post_media_count(post_type, file_id) -> int:
+    """Postdagi media elementlari soni (albom uchun ro'yxat uzunligi)."""
+    return int(delivery_service.post_media_count(post_type, file_id))
+
+
+def _build_post_signature(post_type, content, file_id, marker=None) -> dict:
+    """Kanal tekshiruvi uchun post imzosi (SHA256 to'plami)."""
+    return delivery_service.build_delivery_signature(
+        content, media_count=_post_media_count(post_type, file_id), marker=marker
+    )
+
+
+async def _probe_channel_recent_posts(bot, channel_id, limit: int = None) -> dict:
+    """Kanalning oxirgi xabarlarini o'qish (dedup tekshiruvi uchun).
+
+    Manbalar: (1) bot admin bo'lgan kanallar uchun ``channel_posts_history``
+    (DB), (2) ochiq kanallar uchun ``t.me/s/<username>`` veb-preview (username
+    Telegram ``getChat`` orqali aniqlanadi). Hech qanday holatda istisno
+    ko'tarmaydi — o'qib bo'lmasa ``{"status": "unavailable"}`` qaytadi va
+    chaqiruvchi ko'r-ko'rrona retry QILMAYDI.
+    """
+    from utils.channel_reader import read_channel_posts, STATUS_OK
+
+    limit = int(limit or delivery_service.AMBIGUOUS_VERIFY_LIMIT)
+    targets = []
+    try:
+        chat = await bot.get_chat(channel_id)
+        username = getattr(chat, "username", None)
+        if username:
+            targets.append(f"@{username}")
+    except Exception as exc:
+        logger.debug("Kanal username aniqlanmadi (%s): %s", channel_id, exc)
+    targets.append(str(channel_id))
+
+    for target in targets:
+        try:
+            result = await asyncio.wait_for(
+                read_channel_posts(target, limit), timeout=AMBIGUOUS_PROBE_TIMEOUT
+            )
+        except Exception as exc:
+            logger.debug("Kanal tekshiruvi o'qilmadi (%s): %s", target, exc)
+            continue
+        if (isinstance(result, dict) and result.get("status") == STATUS_OK
+                and result.get("posts")):
+            return {"status": "ok", "items": list(result["posts"]), "source": target}
+    return {"status": "unavailable", "items": []}
+
+
+async def _resolve_ambiguous_delivery(bot, post_id, channel_id, post_type, content,
+                                      file_id, delivery_key, attempt: int, error,
+                                      max_attempts: int = None) -> str:
+    """Noaniq (TimedOut/NetworkError) holatni kanal tekshiruvi bilan hal qiladi.
+
+    Qaytadi: ``"delivered"`` — kanalda topildi (qayta YUBORILMAYDI),
+             ``"ready"``     — yo'qligi tasdiqlandi (xavfsiz qayta urinish),
+             ``"pending"``   — tasdiqlanmadi (keyinroq yana tekshiriladi),
+             ``"unknown"``   — urinishlar tugadi (admin ko'radi).
+    """
+    signature = _build_post_signature(post_type, content, file_id)
+    probe = await _probe_channel_recent_posts(bot, channel_id)
+    kwargs = {}
+    if max_attempts is not None:
+        kwargs["max_attempts"] = max(1, int(max_attempts))
+    decision = await delivery_service.resolve_ambiguous(
+        probe=probe, channel_id=channel_id, signature=signature,
+        attempt=attempt, key=delivery_key, error=error, run=db.run_db, **kwargs,
+    )
+    status = decision.get("status")
+
+    if status == delivery_service.STATUS_SENT:
+        try:
+            await db.run_db(db.mark_post_status, post_id, "posted")
+        except Exception:
+            logger.exception("Post %s 'posted' statusi yozilmadi (dedup)", post_id)
+        return "delivered"
+
+    if status == "verify_pending":
+        retry_in = float(decision.get("retry_in") or delivery_service.AMBIGUOUS_VERIFY_DELAY)
+        try:
+            await db.run_db(
+                db.retry_post, post_id, now_tashkent() + timedelta(seconds=retry_in)
+            )
+        except Exception:
+            logger.exception("Post %s verify_pending retry vaqti yozilmadi", post_id)
+        return "pending"
+
+    if status == delivery_service.STATUS_UNKNOWN:
+        try:
+            await db.run_db(db.mark_post_status, post_id, UNKNOWN_DELIVERY)
+        except Exception:
+            logger.exception("Post %s 'unknown' statusi yozilmadi", post_id)
+        return "unknown"
+
+    if status == "ready":
+        return "ready"
+    return "unavailable"
+
+
+async def _handle_ambiguous_send_error(bot, post_id, channel_id, post_type, content,
+                                       file_id, delivery_key, delivery_marker_key,
+                                       album_api_started, error, verify_attempt: int = 1):
+    """TimedOut/NetworkError oqimi: ko'r-ko'rrona retry YO'Q (P0).
+
+    Eski xatti-harakat (regressiya yo'q): oddiy matn/media postda xato
+    avvalgidek ``failed`` + ``retry_post`` bo'ladi, albomda esa — UNKNOWN.
+    Farqi: qayta yuborishdan oldin kanal tekshiriladi va post kanalda
+    topilsa — DELIVERED (0 duplikat); tekshirib bo'lmasa — verify_pending
+    (yuborish kechiktiriladi, ko'r-ko'rrona yuborilmaydi).
+    """
+    key = delivery_marker_key or delivery_key
+    try:
+        attempt = max(1, int(verify_attempt) + 1)
+    except (TypeError, ValueError):
+        attempt = 1
+
+    # Albom (media group) uchun: "tasdiqlanmadi" darhol UNKNOWN bo'ladi —
+    # verify_pending bilan kechiktirish YO'Q (qisman chiqqan albom xavfi).
+    outcome = await _resolve_ambiguous_delivery(
+        bot, post_id, channel_id, post_type, content, file_id, key, attempt, error,
+        max_attempts=1 if album_api_started else None,
+    )
+
+    if outcome == "delivered":
+        logger.warning(
+            "Post %s: noaniq yuborish ANIQLANDI — post kanalda allaqachon bor, "
+            "qayta yuborilmaydi (0 duplikat).", post_id,
+        )
+        return
+
+    # Albom: qisman chiqqan bo'lishi mumkin — eski konservativ yo'l (UNKNOWN),
+    # lekin post kanalda TOPILSA yuqorida allaqachon 'delivered' bo'lgan.
+    if album_api_started:
+        await _mark_delivery_unknown(post_id, key, error)
+        return
+
+    delivery_result = await _mark_delivery_failed(delivery_key, error, is_transient=True)
+    if _delivery_is_dead(delivery_result):
+        logger.warning(
+            "Post %s: tarmoq urinishlari tugadi (dead_letter) — 'failed' deb yakunlanadi.",
+            post_id,
+        )
+        await db.run_db(db.mark_post_status, post_id, "failed")
+        return
+
+    if outcome in ("pending", "unknown"):
+        # Tasdiqlanmadi: Telegramga yuborilmaydi; post keyingi tekshiruvga
+        # qayta navbatga qo'yiladi (marker delivery yozuvida saqlanadi).
+        if outcome == "pending" and key:
+            await db.run_db(
+                delivery_service.mark_verify_pending_by_key, key, error, attempt,
+                delivery_service.AMBIGUOUS_VERIFY_DELAY,
+            )
+        logger.warning(
+            "Post %s: noaniq yetkazib berish tasdiqlanmadi (%s) — ko'r-ko'rrona retry "
+            "qilinmaydi, keyingi tekshiruvga qoldirildi.", post_id, outcome,
+        )
+        if outcome == "pending":
+            await db.run_db(
+                db.retry_post, post_id,
+                now_tashkent() + timedelta(seconds=delivery_service.AMBIGUOUS_VERIFY_DELAY),
+            )
+        return
+
+    # "ready" — post kanalda YO'Q ekani tasdiqlandi: xavfsiz qayta yuborish.
+    logger.warning(
+        "Telegram tarmoq xatosi (Post ID: %s): %s; post kanalda yo'qligi tasdiqlandi — "
+        "qayta uriniladi", post_id, error,
+    )
+    delay = _delivery_retry_delay(delivery_result, NETWORK_RETRY_DELAY)
+    retry_at = now_tashkent() + timedelta(seconds=delay)
+    await db.run_db(db.retry_post, post_id, retry_at)
+
+
 def _delivery_retry_delay(result, fallback: float) -> float:
     """Delivery natijasidagi backoff (soniya) yoki fallback qiymat."""
     if isinstance(result, dict):
@@ -1063,6 +1250,11 @@ async def _execute_send(bot, post):
     delivery_marker_key = None
     delivery_claim = await db.run_db(
         delivery_service.claim_post_for_delivery, post_id, channel_id, scheduled_time
+    )
+    # P0: avvalgi noaniq urinishdan qolgan "kanal tekshiruvi kutilmoqda"
+    # markeri (bo'lsa) — yuborishdan oldin dedup tekshiruvi o'tkaziladi.
+    delivery_claim_verify_attempt = delivery_service.delivery_verify_attempt(
+        delivery_claim.get("last_error") if isinstance(delivery_claim, dict) else None
     )
     if isinstance(delivery_claim, dict):
         claim_status = delivery_claim.get("status")
@@ -1163,6 +1355,10 @@ async def _execute_send(bot, post):
     # Albom (media group) uchun: Telegram API chaqiruvi BOSHLANGAN, lekin javob
     # kelmagan bo'lsa (TimedOut/NetworkError) — xabar chiqqan bo'lishi mumkin.
     album_api_started = False
+    # P0: kanal tekshiruvi (fingerprint) uchun YAKUNIY kanal matni; xato
+    # yuborishdan oldin ham yuz bersa qiymat bo'sh qolmasligi uchun oldindan
+    # e'lon qilinadi.
+    final_content = ""
     try:
         # Telegram caption limiti 1024, oddiy matn limiti 4096 belgidan iborat.
         # Limit compose_post_text ichida qo'llanadi — nishon kesishdan KEYIN
@@ -1179,6 +1375,48 @@ async def _execute_send(bot, post):
     except Exception:
         logger.exception("Post matnini tayyorlashda xatolik (Post ID: %s)", post_id)
         await db.run_db(db.mark_post_status, post_id, "failed")
+        return
+
+    # ── P0 (VAZIFA 2): YUBORISHDAN OLDIN DEDUP TEKSHIRUVI ──────────────────
+    # Avvalgi urinish TimedOut/NetworkError bilan noaniq qolgan bo'lsa
+    # (delivery'da AMBIGUOUS_VERIFY markeri), Telegramga YUBORMASDAN avval
+    # kanal tekshiriladi: post allaqachon chiqqan bo'lsa — DELIVERED
+    # (dublikat YO'Q), yo'qligi tasdiqlansa — xavfsiz yuborish davom etadi.
+    if delivery_marker_key and delivery_service.delivery_verify_pending(
+            delivery_claim.get("last_error") if isinstance(delivery_claim, dict) else None):
+        gate_attempt = delivery_claim_verify_attempt + 1
+        gate_outcome = await _resolve_ambiguous_delivery(
+            bot, post_id, channel_id, post_type, final_content, file_id,
+            delivery_marker_key, gate_attempt,
+            RuntimeError("ambiguous delivery (verify pending)"),
+        )
+        if gate_outcome == "delivered":
+            logger.warning(
+                "Post %s: kanal tekshiruvi post ALLAQACHON kanalda ekanini aniqladi — "
+                "qayta yuborilmaydi (0 duplikat).", post_id,
+            )
+            return
+        if gate_outcome in ("pending", "unknown"):
+            return
+        # "ready" — post kanalda YO'Q ekani tasdiqlandi: xavfsiz yuborish.
+
+    # ── P0: IDEMPOTENT DELIVERY LOCK ───────────────────────────────────────
+    # DB claim allaqachon atomik; bu qo'shimcha qatlam bir jarayondagi
+    # tasklar (va Redis mavjud bo'lsa — instansiyalar) orasida bir xil postni
+    # IKKI MARTA yuborishni to'sadi.
+    delivery_lock_key = delivery_marker_key or delivery_key
+    lock_token = await delivery_service.acquire_delivery_lock(delivery_lock_key)
+    if lock_token is None:
+        logger.warning(
+            "Post %s: delivery lock band (boshqa worker yubormoqda) — qayta navbatga.",
+            post_id,
+        )
+        await _mark_delivery_failed(delivery_key, RuntimeError("delivery lock busy"),
+                                    is_transient=True)
+        await db.run_db(
+            db.retry_post, post_id,
+            now_tashkent() + timedelta(seconds=delivery_service.DELIVERY_LOCK_RETRY_DELAY),
+        )
         return
 
     try:
@@ -1278,24 +1516,15 @@ async def _execute_send(bot, post):
         await db.run_db(db.retry_post, post_id, retry_at)
         return
     except (TimedOut, NetworkError) as e:
-        if album_api_started:
-            # P0: albom so'rovi Telegramga ketgan, javob kelmagan — xabar
-            # kanalga chiqqan bo'lishi MUMKIN. Blind retry dublikat albom
-            # chiqaradi → UNKNOWN_DELIVERY, qayta yuborilmaydi.
-            await _mark_delivery_unknown(post_id, delivery_key, e)
-            return
-        delivery_result = await _mark_delivery_failed(delivery_key, e, is_transient=True)
-        if _delivery_is_dead(delivery_result):
-            logger.warning(
-                "Post %s: tarmoq urinishlari tugadi (dead_letter) — 'failed' deb yakunlanadi.",
-                post_id,
-            )
-            await db.run_db(db.mark_post_status, post_id, "failed")
-            return
-        logger.warning(f"Telegram tarmoq xatosi (Post ID: {post_id}): {e}; qayta uriniladi")
-        delay = _delivery_retry_delay(delivery_result, NETWORK_RETRY_DELAY)
-        retry_at = now_tashkent() + timedelta(seconds=delay)
-        await db.run_db(db.retry_post, post_id, retry_at)
+        # P0 (VAZIFA 2): noaniq holat — ko'r-ko'rrona retry TAQIQLANADI. Avval
+        # kanalning oxirgi xabarlari tekshiriladi (SHA256 fingerprint):
+        # topilsa DELIVERED, yo'qligi tasdiqlansa xavfsiz retry, aks holda
+        # verify_pending (yuborilmaydi) → urinishlar tugagach UNKNOWN.
+        await _handle_ambiguous_send_error(
+            bot, post_id, channel_id, post_type, final_content, file_id,
+            delivery_key, delivery_marker_key, album_api_started, e,
+            verify_attempt=delivery_claim_verify_attempt,
+        )
         return
     except TelegramError as e:
         # Noma'lum Telegram xatosi (masalan BadRequest): odatda doimiy
@@ -1322,6 +1551,11 @@ async def _execute_send(bot, post):
             await db.run_db(db.mark_post_status, post_id, "failed")
             return
         raise
+    finally:
+        # P0: idempotent delivery lock HAR QANDAY holatda bo'shatiladi
+        # (xato/return/cancel — barchasida). DB'dagi 'processing' claim'i
+        # marker yozilgunga qadar qo'shimcha himoya bo'lib qoladi.
+        await delivery_service.release_delivery_lock(delivery_lock_key, lock_token)
 
     # Yuborildi → marker (posted / takrorlanuvchi: keyingi vaqt + pending /
     # muddati tugagan: completed). Hech qachon istisno tashlamaydi — shuning

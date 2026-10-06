@@ -113,6 +113,28 @@ KUNUZ_HTML = """<!DOCTYPE html><html><head>
 # ======================================================================
 # Mock infratuzilma
 # ======================================================================
+class _SentMessage:
+    """``send_message`` natijasi: real PTB ``Message`` kabi ``edit_text``/``delete``.
+
+    ``channel_extract._handle_website_link`` kutish xabarini ``wait_msg.edit_text``
+    orqali tahrirlaydi — shuning uchun fixture oddiy ``SimpleNamespace`` emas,
+    tahrirlashni qo'llab-quvvatlaydigan obyekt qaytarishi kerak.
+    """
+
+    def __init__(self, bot, chat_id, message_id):
+        self._bot = bot
+        self.chat_id = chat_id
+        self.message_id = message_id
+
+    async def edit_text(self, text=None, reply_markup=None, parse_mode=None, **kw):
+        self._bot.sent.append({"kind": "edit", "chat_id": self.chat_id,
+                               "text": text, "reply_markup": reply_markup})
+        return self
+
+    async def delete(self, **kw):
+        return True
+
+
 class _RecBot:
     """Handler chaqiruvlarini yozib boruvchi bot."""
     id = 1
@@ -129,7 +151,7 @@ class _RecBot:
                            parse_mode=None, **kw):
         self.sent.append({"kind": "message", "chat_id": chat_id, "text": text,
                           "reply_markup": reply_markup})
-        return SimpleNamespace(message_id=len(self.sent))
+        return _SentMessage(self, chat_id, len(self.sent))
 
     async def send_chat_action(self, chat_id=None, action=None, **kw):
         self.actions.append((chat_id, action))
