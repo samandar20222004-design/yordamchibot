@@ -1312,18 +1312,9 @@ def reserve_ai_request(user_id: int, operation_type: str = "other",
         _invalidate_user(uid)
     except Exception:
         pass
-    # 🎁 Faollik bonusi (AVTOMATIK, tugmasiz): kuniga 5+ faol so'rov → +2.
-    # Alohida tranzaksiyada, to'liq fail-soft — asosiy bron bunga bog'liq emas.
-    activity_bonus: dict = {"granted": False}
-    try:
-        from services.credits_service import CreditsService
-
-        activity_bonus = (
-            CreditsService.maybe_grant_activity_bonus(uid)
-            or {"granted": False}
-        )
-    except Exception:
-        activity_bonus = {"granted": False}
+    # Eslatma: avtomatik faollik bonusi (+2) shu primitivada EMAS —
+    # ``services.ai_quota.reserve_ai_quota`` choke point'da beriladi. Bu
+    # funksiya qattiq kvota semantikasi uchun TOZA qoladi (race testlar).
     return {
         "allowed": True,
         "reason": AI_RESERVE_OK,
@@ -1333,7 +1324,6 @@ def reserve_ai_request(user_id: int, operation_type: str = "other",
         "used": used_before,
         "max_ai": max_ai,
         "credits_left": credits_after,
-        "activity_bonus": activity_bonus,
     }
 
 

@@ -158,6 +158,15 @@ async def reserve_ai_quota(db_module, user_id: int,
                 return _deny(REASON_DB_ERROR, used=-1)
             if isinstance(result, dict) and "allowed" in result:
                 result.setdefault("legacy", False)
+                if result.get("allowed"):
+                    # 🎁 Faollik bonusi (AVTOMATIK, tugmasiz): kuniga 5+ faol
+                    # so'rov → +2 kredit. Repository primitiva
+                    # (``reserve_ai_request``) qattiq kvota semantikasi uchun
+                    # TOZA qoladi (race testlar) — bonus faqat shu service
+                    # choke point'da (barcha handler/SMM oqimlari uchun umumiy)
+                    # beriladi. To'liq fail-soft: bron bunga bog'liq emas.
+                    result["activity_bonus"] = (
+                        _grant_activity_bonus_best_effort(user_id))
                 return result
             # Adapter kutilmagan javob qaytardi → ruxsat YO'Q (fail-closed).
             logger.error("reserve_ai_quota: kutilmagan javob shakli: %r", result)
@@ -338,11 +347,26 @@ async def reserve_for_flow(db_module, context, user_id: int,
         # 🎁 Faollik bonusi bildirishnomasi (markazlashgan, avtomatik):
         # 5-so'rov bronida bonus berilgan bo'lsa foydalanuvchi DARHOL
         # xabardor qilinadi — hech qanday tugma bosilmaydi.
-        await _notify_activity_bonus(context, user_id, reservation)
+        await notify_activity_bonus(context, user_id, reservation)
     return reservation
 
 
-async def _notify_activity_bonus(context, user_id: int,
+def _grant_activity_bonus_best_effort(user_id: int) -> dict:
+    """Avtomatik +2 faollik bonusini beradi (fail-soft).
+
+    Hech qachon istisno ko'tarmaydi — bonus berilmasa ham bron kuchida
+    qoladi (asosiy oqim bunga bog'liq emas).
+    """
+    try:
+        from services.credits_service import CreditsService
+
+        return (CreditsService.maybe_grant_activity_bonus(user_id)
+                or {"granted": False})
+    except Exception:
+        return {"granted": False}
+
+
+async def notify_activity_bonus(context, user_id: int,
                                  reservation: dict) -> bool:
     """Avtomatik +2 bonus bildirishnomasini yuboradi (fail-soft).
 

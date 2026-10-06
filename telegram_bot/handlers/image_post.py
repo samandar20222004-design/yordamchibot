@@ -40,6 +40,7 @@ from translations import content_menu_t, magic_t, post_score_t
 from services.ai_quota import (
     ai_quota_temp_error_text,
     is_balance_reason,
+    notify_activity_bonus,
     release_ai_quota,
     reserve_ai_quota,
 )
@@ -828,6 +829,11 @@ async def image_style_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         # Minimal test/adapters may not expose reply_photo; still keep the
         # result usable via text and action keyboard.
         await _safe_edit(query, sanitize_html(post_text, 4096), image_action_keyboard(lang))
+    # 🎁 Faollik bonusi bildirishnomasi (5-so'rovda avtomatik +2 berilgan bo'lsa).
+    try:
+        await notify_activity_bonus(context, user_id, reservation or {})
+    except Exception:
+        pass
     return IMAGE_POST_RESULT
 
 
