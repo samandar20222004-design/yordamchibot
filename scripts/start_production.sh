@@ -23,8 +23,9 @@
 # ISHLATISH (repo ildizidan):
 #     cp .env.example .env && nano .env      # BOT_TOKEN, DATABASE_URL, ...
 #     bash scripts/start_production.sh                    # preflight → migratsiya → bot
-#     bash scripts/start_production.sh --check-only       # faqat tekshiruv (bot yo'q)
-#     bash scripts/start_production.sh --skip-migrate     # migratsiyasiz start
+#     bash scripts/start_production.sh --migrate-only      # migratsiya HAQIQATAN bajariladi, bot yo'q
+#     bash scripts/start_production.sh --check-only        # read-only holat tekshiruvi (yozmaydi)
+#     bash scripts/start_production.sh --skip-migrate      # migratsiyasiz start
 #     PORT=8080 bash scripts/start_production.sh          # portni majburan berish
 #
 # EXIT: 0 — toza yopilish / tekshiruv OK; 1 — preflight yoki migratsiya xatosi.
@@ -40,6 +41,7 @@ DEFAULT_HEALTH_PORT=8080
 STRICT="${DEPLOY_STRICT:-0}"
 SKIP_MIGRATE=0
 CHECK_ONLY=0
+MIGRATE_ONLY=0
 VALIDATE_INTEGRITY=0
 MIGRATE_RETRIES="${DEPLOY_MIGRATE_RETRIES:-5}"
 MIGRATE_RETRY_DELAY="${DEPLOY_MIGRATE_RETRY_DELAY:-3}"
@@ -60,7 +62,11 @@ Opsiyalar:
   --port N               Healthcheck/ilova porti (standart: PORT env yoki 8080)
   --strict               Preflight ogohlantirishlari ham to'xtatadi
   --skip-migrate         DB migratsiya/schema check bosqichini o'tkazib yuboradi
-  --check-only           Faqat preflight + migratsiya; bot ISHGA TUSHMAYDI
+  --check-only           Faqat READ-ONLY tekshiruv: preflight + sxema HOLATI
+                         (schema.sql YOZILMAYDI) + port band emas; bot yo'q
+  --migrate-only         Preflight + HAQIQIY migratsiya (schema.sql idempotent
+                         qo'llaniladi + schema check) + port tekshiruvi;
+                         bot ISHGA TUSHMAYDI (deploy.sh shu rejimdan foydalanadi)
   --validate-integrity   NOT VALID constraintlarni VALIDATE qiladi (qulf bo'lishi mumkin)
   --migrate-retries N    Baza ulanish urinishlari (standart 5)
   -h | --help            Ushbu yordam
@@ -77,12 +83,17 @@ while [ $# -gt 0 ]; do
         --strict)           STRICT=1; shift ;;
         --skip-migrate)     SKIP_MIGRATE=1; shift ;;
         --check-only)       CHECK_ONLY=1; shift ;;
+        --migrate-only)     MIGRATE_ONLY=1; shift ;;
         --validate-integrity) VALIDATE_INTEGRITY=1; shift ;;
         --migrate-retries)  MIGRATE_RETRIES="${2:?--migrate-retries uchun qiymat kerak}"; shift 2 ;;
         -h|--help)          usage; exit 0 ;;
         *) die "Noma'lum argument: $1 (--help ni ko'ring)" ;;
     esac
 done
+
+if [ "$CHECK_ONLY" = "1" ] && [ "$MIGRATE_ONLY" = "1" ]; then
+    die "--check-only va --migrate-only birga ishlatilmaydi (check-only HECH NARSA yozmaydi)."
+fi
 
 # --- 0) Python interpreter --------------------------------------------------
 resolve_python() {
@@ -180,6 +191,11 @@ else
     MIGRATE_ARGS=(--env-file "$ENV_FILE"
                   --retries "$MIGRATE_RETRIES"
                   --retry-delay "$MIGRATE_RETRY_DELAY")
+    # `--check-only` → db_migrate HECH NARSA yozmaydi (read-only holat tekshiruvi).
+    # `--migrate-only` → HAQIQIY migratsiya (schema.sql idempotent qo'llaniladi),
+    # faqat "bot ishga tushmasin" degani — deploy.sh shuni kutadi (1-komandalik
+    # deploy'da 2-bosqich HAQIQATAN migratsiya qilishi shart, aks holda YANGI
+    # (bo'sh) bazada schema check yiqilib, birinchi deploy umuman ishlamaydi).
     if [ "$CHECK_ONLY" = "1" ]; then
         MIGRATE_ARGS+=(--check-only)
     fi
@@ -192,8 +208,8 @@ else
     fi
 fi
 
-# --- 5) CHECK-ONLY: port bandligini ham tekshiramiz ------------------------
-if [ "$CHECK_ONLY" = "1" ]; then
+# --- 5) CHECK-ONLY / MIGRATE-ONLY: port bandligini ham tekshiramiz ---------
+if [ "$CHECK_ONLY" = "1" ] || [ "$MIGRATE_ONLY" = "1" ]; then
     if "$PY" - "$PORT" <<'PY'
 import socket, sys
 port = int(sys.argv[1])
@@ -212,7 +228,11 @@ PY
     else
         warn "Port $PORT BAND (boshqa instance ishlayapti?) — startda bind xatosi bo'ladi."
     fi
-    log "✅ CHECK-ONLY OK — preflight va migratsiya o'tdi, bot ishga tushirilmadi."
+    if [ "$CHECK_ONLY" = "1" ]; then
+        log "✅ CHECK-ONLY OK — preflight va sxema HOLATI o'tdi (hech narsa yozilmadi), bot ishga tushirilmadi."
+    else
+        log "✅ MIGRATE-ONLY OK — preflight, migratsiya va port o'tdi, bot ishga tushirilmadi."
+    fi
     exit 0
 fi
 

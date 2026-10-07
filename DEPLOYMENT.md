@@ -72,7 +72,7 @@ bash scripts/deploy.sh             # ⚡️ PREFLIGHT → MIGRATION → START �
 Foydali rejimlar:
 
 ```bash
-bash scripts/deploy.sh --check-only      # faqat preflight + migratsiya (bot yo'q)
+bash scripts/deploy.sh --check-only      # preflight + HAQIQIY migratsiya (schema.sql qo'llaniladi); bot yo'q
 bash scripts/deploy.sh --verify-only     # ko'taradi, tekshiradi, to'xtatadi (CI/staging)
 bash scripts/deploy.sh --offline-smoke   # smoke testni mock Telegram bilan (tashqi tarmoqsiz)
 bash scripts/deploy.sh --strict          # ogohlantirish ham deploy'ni to'xtatadi
@@ -83,10 +83,19 @@ Alohida skriptlar (deploy.sh ularni o'zi chaqiradi):
 
 ```bash
 bash scripts/start_production.sh                # preflight → migratsiya → bot (foreground)
-bash scripts/start_production.sh --check-only   # tekshiruv: preflight + migratsiya + port band emas
+bash scripts/start_production.sh --migrate-only # preflight + HAQIQIY migratsiya + port band emas (bot yo'q)
+bash scripts/start_production.sh --check-only   # READ-ONLY: preflight + sxema HOLATI + port band emas (hech narsa yozilmaydi)
 python3 scripts/preflight_env.py --strict --json   # env auditi (secret qiymatlari chiqmaydi)
 python3 scripts/db_migrate.py --check-only         # sxema holati (hech narsa yozilmaydi)
 ```
+
+> ⚠️ **`--check-only` va `--migrate-only` farqi.**
+> `--check-only` **hech narsa yozmaydi** (faqat mavjud sxemani tekshiradi) — bo'sh
+> bazada u "schema_tables yetishmayapti" deb qaytaradi, bu **xato emas**, read-only
+> rejimning tabiiy natijasi. Sxemani **qo'llash** kerak bo'lsa `--migrate-only`
+> (yoki oddiy `start_production.sh`) ishlatiladi. `bash scripts/deploy.sh` 2-bosqichda
+> aynan `--migrate-only` dan foydalanadi — shu sababli **yangi (bo'sh) bazada ham
+> 1-komandalik deploy ishlaydi**.
 
 Smoke testni qo'lda (ishlayotgan serverga qarshi):
 
@@ -344,9 +353,4 @@ echo "BASH EXIT CODE: $?"                      # kutilgani: 0
 | Belgisi | Sabab va yechim |
 |---|---|
 | `RuntimeError: BOT_TOKEN topilmadi!` | Env fayl systemd `EnvironmentFile`da ko'rsatilmagan yoki `.env` ni o'qishga urinish — `EnvironmentFile=/etc/postassist.env`. |
-| `server closed the connection unexpectedly` / SSL xatosi | `DATABASE_URL` da `?sslmode=require` yo'q yoki Neon **pooler** bo'lmagan manzil ishlatilgan. |
-| Bot javob bermaydi, logda `Unauthorized` | `BOT_TOKEN` noto'g'ri/almashirilgan. |
-| Postlar chiqmaydi, kanalga `Forbidden` | Bot kanal admini emas yoki "Post Messages" huquqi yo'q. |
-| `AI hozirda mavjud emas` | Hech bir AI kaliti ishlamayapti (rate-limit/balan). `ENVIRONMENT=production` da bu **to'g'ri xatti-harakat** — `AI_ALLOW_MOCK` ni yoqmang. |
-| Restart'dan keyin postlar kechikadi | Scheduler har 1 daqiqada `check_and_send_posts` ni tekshiradi va `recover_on_startup()` stale postlarni tiklaydi; Free/ECO Render uxlashida davom etmaydi → Always-on instance. |
-| `pip install pgserver` xatosi | Test uchun (`tests/requirements-test.txt` — `pgserver>=0.1.4`); prod image'da kerak emas. |
+| `server closed the connection unexpectedly` / SSL xatosi | `DATABASE_URL` da `?sslmode=require` yo'q yoki Neon **pooler** bo'lmagan manzil ishlatilgan
