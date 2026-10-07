@@ -21,6 +21,10 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from services.channels.advisor import compute_weekly_insights
+from services.channels.analytics import (
+    attach_analytics_summary,
+    summarize_posts_locally,
+)
 from services.channels.best_time import get_best_time
 from services.channels.dna import (
     build_dna_system_prompt,
@@ -437,6 +441,26 @@ class ContentLoop:
         recent_texts = [p["content"] for p in recent_posts_30d if p.get("content")]
         recent_topics = [p["topic"] for p in recent_posts_30d if p.get("topic")]
 
+        # 📊 P1 (5-qadam): Content Learning Loop uchun agregatlangan xulosa —
+        # o'rtacha ko'rishlar va eng yaxshi formatlar DB DARAJASIDA (bitta
+        # batch so'rov). Postlar soni qancha bo'lsa ham qo'shimcha so'rov
+        # soni O'ZGARMAYDI (N+1 query yo'q); DB agregatsiyasi mavjud
+        # bo'lmasa — lokal (PURE) hisob-kitob ishlatiladi.
+        analytics_summary = None
+        analytics_source = "local_fallback"
+        if self.db is not None and hasattr(self.db, "get_channel_analytics_summary"):
+            try:
+                raw_summary = await _db_call(
+                    self.db, self.db.get_channel_analytics_summary, ch_id, 30
+                )
+                if isinstance(raw_summary, dict) and raw_summary:
+                    analytics_summary = raw_summary
+                    analytics_source = "db_aggregate"
+            except Exception:
+                logger.debug("ContentLoop: DB agregatsiyasi olinmadi", exc_info=True)
+        if analytics_summary is None:
+            analytics_summary = summarize_posts_locally(recent_posts_30d, days=30)
+
         # Weekly advisor insights & gaps
         weekly_insights = compute_weekly_insights(recent_posts_30d, now=now, days=30)
         freq = max(1, min(3, int(frequency or 1)))
@@ -466,8 +490,15 @@ class ContentLoop:
                 except (TypeError, ValueError):
                     continue
 
+        # Prompt uchun profil: DB agregatsiyasi bergan eng yaxshi formatlar
+        # FAQAT yetishmayotgan kalitni to'ldiradi (mavjud DNA qiymatlari
+        # hech qachon qayta yozilmaydi).
+        prompt_profile = merged_profile if dna_result.get("profile") else None
+        if analytics_summary and analytics_source == "db_aggregate":
+            prompt_profile = attach_analytics_summary(prompt_profile, analytics_summary)
+
         prompt_block = build_content_loop_prompt_block(
-            merged_profile if dna_result.get("profile") else None,
+            prompt_profile,
             gaps_info=gaps_info,
             goal=goal,
             frequency=freq,
@@ -491,6 +522,13 @@ class ContentLoop:
             "recent_posts_30d": recent_posts_30d,
             "recent_texts": recent_texts,
             "recent_topics": recent_topics,
+            # 📊 P1 (5-qadam): DB darajasidagi agregatsiya (o'rtacha
+            # ko'rishlar, eng yaxshi formatlar) — mavjud kalitlar
+            # o'zgarmagan, bu QO'SHIMCHA ma'lumot.
+            "analytics_summary": analytics_summary,
+            "analytics_source": analytics_source,
+            "avg_views": (analytics_summary or {}).get("avg_views", 0.0),
+            "best_formats": list((analytics_summary or {}).get("best_formats") or []),
             "prompt_block": prompt_block,
         }
 

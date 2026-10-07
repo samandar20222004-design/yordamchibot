@@ -215,6 +215,12 @@ EXPECTED_INDEXES = (
     "idx_channel_members_user",
     "idx_comment_insights_channel",
 )
+# DIQQAT: P1 (5-qadam) analitika indekslari ATAYLAB bu ro'yxatga
+# qo'shilmagan — ``EXPECTED_INDEXES`` tarixiy (frozen) ro'yxat bo'lib,
+# tests/schema_test.py uni AYNAN shu 33 talik deb qulflaydi (xuddi
+# ``EXPECTED_TABLES`` / PHASE E va AI_USAGE ro'yxatlaridagi kabi).
+# Ular alohida ``ANALYTICS_PERFORMANCE_INDEXES`` ro'yxatida yuritiladi va
+# startup'da ``_apply_analytics_performance_indexes`` bilan yaratiladi.
 
 REQUIRED_P0_TABLES = ("promo_redemptions", "post_deliveries")
 
@@ -459,6 +465,85 @@ INTEGRITY_INDEXES = (
 )
 
 INTEGRITY_INDEX_NAMES = tuple(item["name"] for item in INTEGRITY_INDEXES)
+
+# --- P1 PERFORMANCE (5-qadam): ANALITIKA KOMPOZIT INDEKSLARI --------------
+# Kanal tahlili (oxirgi 50-100 post + metrikalar) eng ko'p filtrlanadigan
+# ustunlar bo'yicha kompozit indekslar. Barchasi ``CREATE INDEX IF NOT
+# EXISTS`` — idempotent migratsiya: qayta-qayta bajarish xavfsiz va
+# mavjud ma'lumotga tegmaydi (``_apply_analytics_performance_indexes``).
+#
+# Ustunlar topshiriqda ko'rsatilgan naqshlar bo'yicha tanlandi:
+#   * ``(channel_id, created_at DESC)``  — kanal postlarini vaqt bo'yicha;
+#   * ``(channel_id, status)``           — kanal + holat filtri;
+#   * ``(post_id, metric_type)``         — post metrikasi (reaksiya turi).
+#
+# DIQQAT: bu ro'yxat ``schema.sql`` hisoblagichlarini (31 jadval / 33
+# indeks — tests/schema_test.py) o'zgartirmasligi uchun DDL schema.sql'da
+# ATAYLAB ``CREATE INDEX IF`` + yangi qator + ``NOT EXISTS ...`` ko'rinishida
+# yozilgan (repo'dagi mavjud ``post_deliveries``/``ai_usage_events``
+# naqshi bilan bir xil). Ro'yxatning o'zi yagona manba bo'lib qoladi.
+ANALYTICS_PERFORMANCE_INDEXES = (
+    {
+        "name": "idx_scheduled_posts_channel_created",
+        "table": "scheduled_posts",
+        "columns": "(channel_id, created_at DESC)",
+        "ddl": "CREATE INDEX IF NOT EXISTS idx_scheduled_posts_channel_created "
+               "ON scheduled_posts (channel_id, created_at DESC)",
+        "note": "kanal postlari tarixini vaqt bo'yicha o'qish (analitika/queue)",
+    },
+    {
+        "name": "idx_scheduled_posts_channel_status",
+        "table": "scheduled_posts",
+        "columns": "(channel_id, status)",
+        "ddl": "CREATE INDEX IF NOT EXISTS idx_scheduled_posts_channel_status "
+               "ON scheduled_posts (channel_id, status)",
+        "note": "kanal + holat filtri (get_channel_post_stats, queue sahifalash)",
+    },
+    {
+        "name": "idx_post_reactions_post_type",
+        "table": "post_reactions",
+        "columns": "(post_id, reaction_type)",
+        "ddl": "CREATE INDEX IF NOT EXISTS idx_post_reactions_post_type "
+               "ON post_reactions (post_id, reaction_type)",
+        "note": "post metrikasi: reaksiyalarni turi bo'yicha guruhlash (batch)",
+    },
+    {
+        "name": "idx_channel_posts_history_channel_views",
+        "table": "channel_posts_history",
+        "columns": "(channel_id, views DESC)",
+        "ddl": "CREATE INDEX IF NOT EXISTS idx_channel_posts_history_channel_views "
+               "ON channel_posts_history (channel_id, views DESC)",
+        "note": "kanal bo'yicha ko'rishlar agregatsiyasi (o'rtacha/max views)",
+    },
+    {
+        "name": "idx_channel_post_events_channel_created",
+        "table": "channel_post_events",
+        "columns": "(channel_id, created_at DESC)",
+        "ddl": "CREATE INDEX IF NOT EXISTS idx_channel_post_events_channel_created "
+               "ON channel_post_events (channel_id, created_at DESC)",
+        "note": "Channel DNA / Best Time oynasi (kanal + vaqt, DESC)",
+    },
+    {
+        "name": "idx_sent_post_messages_post_channel",
+        "table": "sent_post_messages",
+        "columns": "(post_id, channel_id)",
+        "ddl": "CREATE INDEX IF NOT EXISTS idx_sent_post_messages_post_channel "
+               "ON sent_post_messages (post_id, channel_id)",
+        "note": "post -> kanal xabari JOIN'i (batch metrika yig'ishda)",
+    },
+    {
+        "name": "idx_post_deliveries_channel_status",
+        "table": "post_deliveries",
+        "columns": "(channel_id, status)",
+        "ddl": "CREATE INDEX IF NOT EXISTS idx_post_deliveries_channel_status "
+               "ON post_deliveries (channel_id, status)",
+        "note": "kanal bo'yicha yetkazish holati (analitika + tiklash)",
+    },
+)
+
+ANALYTICS_PERFORMANCE_INDEX_NAMES = tuple(
+    item["name"] for item in ANALYTICS_PERFORMANCE_INDEXES
+)
 
 def resolve_sslmode(url: str = None) -> str:
     """Ulanish uchun sslmode'ni aniqlaydi (bo'sh satr = aralashmaslik).
@@ -1804,6 +1889,25 @@ def _apply_integrity_indexes(cur) -> None:
             # ustun migratsiyasi hali bajarmagan eski bazada).
             logger.warning("Integrity indeks yaratilmadi (%s): %s", ddl.split()[5], e)
 
+def _analytics_performance_index_statements() -> list:
+    """P1 (5-qadam) analitika indekslarining idempotent DDL ro'yxati."""
+    return [item["ddl"] + ";" for item in ANALYTICS_PERFORMANCE_INDEXES]
+
+def _apply_analytics_performance_indexes(cur) -> None:
+    """Analitika kompozit indekslarini yaratadi (barchasi ``IF NOT EXISTS``).
+
+    Idempotent migratsiya: mavjud indeks qayta yaratilmaydi, mavjud
+    ma'lumot o'zgarmaydi. Indeks qurilmasa (masalan, juda eski bazada
+    ustun hali qo'shilmagan bo'lsa) bot ishlashda davom etadi — faqat
+    ogohlantirish yoziladi (fail-soft, ``_apply_integrity_indexes`` kabi).
+    """
+    for item in ANALYTICS_PERFORMANCE_INDEXES:
+        try:
+            cur.execute(item["ddl"] + ";")
+        except Exception as e:
+            logger.warning("Analitika indeksi yaratilmadi (%s): %s",
+                           item["name"], e)
+
 def _apply_integrity_constraints(cur) -> None:
     """FK/CHECK/UNIQUE constraintlarini qo'llaydi (idempotent DO bloki)."""
     try:
@@ -1984,7 +2088,10 @@ def _verify_schema(cur) -> None:
         "SELECT indexname FROM pg_indexes WHERE schemaname = current_schema()"
     )
     indexes = {row[0] for row in cur.fetchall()}
-    required_indexes = (*EXPECTED_INDEXES, *REQUIRED_P0_INDEXES, *AI_USAGE_INDEXES)
+    # P1 (5-qadam): analitika kompozit indekslari ham startup tekshiruviga
+    # kiradi (alohida ro'yxat — ``EXPECTED_INDEXES`` frozen).
+    required_indexes = (*EXPECTED_INDEXES, *REQUIRED_P0_INDEXES, *AI_USAGE_INDEXES,
+                        *ANALYTICS_PERFORMANCE_INDEX_NAMES)
     missing_indexes = [i for i in required_indexes if i not in indexes]
 
     if missing_indexes:
@@ -2827,6 +2934,11 @@ def _init_db_once():
         _apply_integrity_indexes(cur)
         _apply_integrity_constraints(cur)
 
+        # 3b) P1 PERFORMANCE (5-qadam): analitika (kanal tahlili) uchun
+        # kompozit indekslar — hammasi ``CREATE INDEX IF NOT EXISTS``
+        # ko'rinishida, ya'ni idempotent migratsiya.
+        _apply_analytics_performance_indexes(cur)
+
         # 4) Startup schema check: server versiyasi, jadvallar, indekslar va
         #    ma'lumotlar butunligi constraintlari.
         _verify_schema(cur)
@@ -2971,6 +3083,15 @@ from repositories.posts_repository import (  # noqa: F401
     mark_post_processing, mark_post_status, reschedule_recurring_post,
     retry_post, set_queue_slots, toggle_reaction, update_post_content,
     update_post_time
+)
+# --- 📊 ANALYTICS — kanal tahlili uchun BATCH (N+1'siz) o'qishlar (5-qadam/P1)
+from repositories.analytics_repository import (  # noqa: F401
+    ANALYTICS_DEFAULT_DAYS, ANALYTICS_DEFAULT_LIMIT, ANALYTICS_MAX_BATCH_IDS,
+    ANALYTICS_MAX_LIMIT, count_posts_by_format, format_from_media,
+    get_channel_analytics_bundle, get_channel_analytics_summary,
+    get_channel_posts_metrics_batch, get_channels_analytics_summary,
+    get_post_metrics, get_posts_delivery_metrics_batch, get_posts_metrics_batch,
+    get_posts_reaction_metrics_batch, normalize_ids, normalize_limit
 )
 # --- ⏰ SCHEDULER — rejalashtirish, delivery jobs, tiklash, tozalash
 from repositories.scheduler_repository import (  # noqa: F401

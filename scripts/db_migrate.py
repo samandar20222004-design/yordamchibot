@@ -223,7 +223,11 @@ def main(argv: list[str] | None = None) -> int:
 
     # ── 3) Schema check: jadvallar + indekslar ───────────────────────────
     required_tables = (*db.EXPECTED_TABLES, *db.REQUIRED_P0_TABLES, *db.AI_USAGE_TABLES)
-    required_indexes = (*db.EXPECTED_INDEXES, *db.REQUIRED_P0_INDEXES, *db.AI_USAGE_INDEXES)
+    # P1 (5-qadam): analitika kompozit indekslari ham tekshiriladi (ular
+    # alohida ro'yxatda — ``EXPECTED_INDEXES`` tarixiy/frozen ro'yxat).
+    required_indexes = (*db.EXPECTED_INDEXES, *db.REQUIRED_P0_INDEXES,
+                        *db.AI_USAGE_INDEXES,
+                        *getattr(db, "ANALYTICS_PERFORMANCE_INDEX_NAMES", ()))
     try:
         with db.db_cursor() as cur:  # readonly (commit yo'q)
             cur.execute(
