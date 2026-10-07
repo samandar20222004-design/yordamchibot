@@ -1162,6 +1162,10 @@ echo "===== PHASE 5 — TELEGRAM DELIVERY ENGINE ====="
 "$PY" tests/delivery_engine_test.py || EXIT_CODE=1
 
 echo
+echo "===== P1 (VAZIFA 4) — QUIET HOURS STAGGERING + ANTI-429 ====="
+"$PY" tests/quiet_hours_anti_flood_test.py || EXIT_CODE=1
+
+echo
 echo "===== P0 (VAZIFA 2) — NOANIQ YETKAZIB BERISH + POST DEDUPLIKATSIYASI ====="
 # TimedOut/NetworkError (noaniq holat) → kanal fingerprint tekshiruvi, SHA256
 # imzo, idempotent delivery lock (SET NX) va _execute_send integratsiyasi:
