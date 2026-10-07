@@ -182,6 +182,24 @@ UPDATE_HANDLER_TIMEOUT_SECONDS = _int_env("UPDATE_HANDLER_TIMEOUT_SECONDS", 110)
 # bekor qilinadi — resurs sizmalari (task leak) oldi olinadi.
 BACKGROUND_TASK_TIMEOUT_SECONDS = _int_env("BACKGROUND_TASK_TIMEOUT_SECONDS", 300)
 
+# --- PR #190: analytics N+1 / batch guard ---------------------------------
+# Bir foydalanuvchi uchun analitika menyusida qaytariladigan faol kanal ID'lari
+# chegarasi. Bu DB so'rovini va Telegram klaviaturasini cheksiz kattalashishidan
+# himoya qiladi; 0 emas, musbat qiymat bo'lishi shart.
+ANALYTICS_MAX_BATCH_IDS = max(1, _int_env("ANALYTICS_MAX_BATCH_IDS", 100))
+
+# --- 4-qadam: quiet-hours thundering-herd staggering -----------------------
+# 08:00 dagi navbatni yoyish oynasi va bir kanal ichidagi minimum masofa.
+# scheduler bu qiymatlarni yana xavfsiz diapazonga qisadi.
+QUIET_STAGGER_MIN_SECONDS = max(0.0, _env_float("QUIET_STAGGER_MIN_SECONDS", 30.0))
+QUIET_STAGGER_MAX_SECONDS = max(
+    QUIET_STAGGER_MIN_SECONDS,
+    _env_float("QUIET_STAGGER_MAX_SECONDS", 180.0),
+)
+CHANNEL_STAGGER_MIN_SECONDS = max(
+    0.0, _env_float("CHANNEL_STAGGER_MIN_SECONDS", 60.0)
+)
+
 # --- 1-BOSQICH: Render Free tezligi va kechikishni yo'qotish -----------
 # STALE_UPDATE_SECONDS — bot o'chgan paytda Telegram serverida yig'ilib
 # qolgan ESKI xabarlarni filtrlash chegarasi (soniya). Bot o'chganda

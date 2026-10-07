@@ -15,7 +15,13 @@ from telegram import (
     InputMediaAudio,
 )
 from telegram.error import TelegramError, RetryAfter, TimedOut, NetworkError
-from config import ADMIN_IDS_SET, BOT_USERNAME
+from config import (
+    ADMIN_IDS_SET,
+    BOT_USERNAME,
+    QUIET_STAGGER_MIN_SECONDS,
+    QUIET_STAGGER_MAX_SECONDS,
+    CHANNEL_STAGGER_MIN_SECONDS,
+)
 import database as db
 from services.delivery import delivery_service
 from services import lifecycle_service as lifecycle
@@ -60,9 +66,11 @@ SEND_MICRO_DELAY = 0.08  # soniya — 0.05..0.1 oralig'ida
 # 08:00:00 ga yig'ilgan postlar DB navbatida 30..180 soniyalik oynalar bilan
 # tarqatiladi. Bir kanal postlari orasidagi qat'iy minimum — 60 soniya.
 QUIET_HERD_HOUR = 8
-QUIET_STAGGER_MIN_SECONDS = 30.0
-QUIET_STAGGER_MAX_SECONDS = 180.0
-CHANNEL_STAGGER_MIN_SECONDS = 60.0
+# Config qiymatlari yuqoridan olinadi; runtime'da haddan tashqari keng
+# oynani qabul qilmaslik uchun yuqori cap saqlanadi.
+QUIET_STAGGER_MIN_SECONDS = min(QUIET_STAGGER_MIN_SECONDS, 3600.0)
+QUIET_STAGGER_MAX_SECONDS = min(max(QUIET_STAGGER_MIN_SECONDS, QUIET_STAGGER_MAX_SECONDS), 3600.0)
+CHANNEL_STAGGER_MIN_SECONDS = min(CHANNEL_STAGGER_MIN_SECONDS, 3600.0)
 
 # Telegram RetryAfter bergan kanal Telegram aytgan muddatdan keyin ham kichik
 # xavfsizlik buferi davomida muzlatiladi.

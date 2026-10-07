@@ -575,16 +575,20 @@ def get_user_code(user_id: int) -> str:
 
 
 def get_user_channel_list_for_analytics(user_id: int) -> list:
-    """Foydalanuvchi kanallarini analitika uchun qaytaradi.
+    """Foydalanuvchi kanallarini analitika uchun bitta bounded query'da qaytaradi.
 
-    Returns: [(channel_id, channel_title), ...]
+    Returns: [(channel_id, channel_title), ...].  ``LIMIT`` N+1/oversized
+    keyboard regressiyalaridan himoya qiladi; detail view keyingi so'rovni
+    faqat tanlangan kanal uchun bajaradi.
     """
     try:
+        from config import ANALYTICS_MAX_BATCH_IDS
         with db_cursor() as cur:
             cur.execute(
                 "SELECT channel_id, channel_title FROM channels "
-                "WHERE user_id = %s AND is_active = TRUE ORDER BY id ASC",
-                (user_id,),
+                "WHERE user_id = %s AND is_active = TRUE "
+                "ORDER BY id ASC LIMIT %s",
+                (user_id, ANALYTICS_MAX_BATCH_IDS),
             )
             return cur.fetchall()
     except Exception as e:
