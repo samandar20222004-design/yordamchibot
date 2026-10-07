@@ -619,6 +619,20 @@ def get_queue_post_detail(post_id: int, user_id: int):
 def get_channel_post_stats(user_id: int, channel_id: str = None) -> dict:
     """Kanal post statistikasini qaytaradi.
 
+    P1 PERFORMANCE (5-qadam): ilgari bu funksiya **8 ta ketma-ket SQL**
+    yuborardi (har bir ko'rsatkich uchun alohida SELECT — N+1 uslubi).
+    Endi barcha hisob-kitob **DB darajasida agregatsiya** qilinadi va
+    jami **3 ta so'rov** ketadi:
+
+      1) barcha COUNT'lar (7 kun / 30 kun / jami / pending) — bitta
+         ``COUNT(*) FILTER (WHERE ...)`` so'rovida;
+      2) eng faol soatlar + post turi taqsimoti — bitta ``GROUPING SETS``
+         so'rovida (ilgari 2 ta alohida GROUP BY edi);
+      3) ``channel_posts_history`` ko'rishlar statistikasi (o'zgarmagan).
+
+    Qaytariladigan lug'at kalitlari va qiymatlari AYNAN o'sha —
+    orqaga moslik 100% (handler'lar o'zgartirilmagan).
+
     Args:
         user_id: foydalanuvchi ID
         channel_id: kanal ID (None bo'lsa — barcha kanallar)
@@ -629,6 +643,7 @@ def get_channel_post_stats(user_id: int, channel_id: str = None) -> dict:
             "pending": int,
             "peak_hours": [(hour, count), ...],
             "type_distribution": {"text": N, "photo": N, ...},
+            "history_count": int, "total_views": int, "avg_views": float,
         }
     """
     result = {
@@ -642,54 +657,58 @@ def get_channel_post_stats(user_id: int, channel_id: str = None) -> dict:
             ch_filter = "AND sp.channel_id = %s" if channel_id else ""
             params_base = (user_id, str(channel_id)) if channel_id else (user_id,)
 
-            # Sent counts by period
-            for period, key in [("7", "sent_7d"), ("30", "sent_30d")]:
-                q = (
-                    f"SELECT COUNT(*) FROM scheduled_posts sp "
-                    f"WHERE sp.user_id = %s AND sp.status = 'posted' "
-                    f"AND sp.scheduled_time >= NOW() - INTERVAL '{period} days' "
-                    f"{ch_filter}"
-                )
-                cur.execute(q, params_base)
-                result[key] = cur.fetchone()[0]
-
-            # All-time sent
+            # (1) BARCHA davr COUNT'lari — BITTA so'rov (conditional aggregation).
             q = (
-                f"SELECT COUNT(*) FROM scheduled_posts sp "
-                f"WHERE sp.user_id = %s AND sp.status = 'posted' {ch_filter}"
+                f"SELECT "
+                f"COUNT(*) FILTER (WHERE sp.status = 'posted' "
+                f"  AND sp.scheduled_time >= NOW() - INTERVAL '7 days') AS sent_7d, "
+                f"COUNT(*) FILTER (WHERE sp.status = 'posted' "
+                f"  AND sp.scheduled_time >= NOW() - INTERVAL '30 days') AS sent_30d, "
+                f"COUNT(*) FILTER (WHERE sp.status = 'posted') AS sent_all, "
+                f"COUNT(*) FILTER (WHERE sp.status = 'pending') AS pending "
+                f"FROM scheduled_posts sp "
+                f"WHERE sp.user_id = %s {ch_filter}"
             )
             cur.execute(q, params_base)
-            result["sent_all"] = cur.fetchone()[0]
+            row = cur.fetchone()
+            if row:
+                result["sent_7d"] = int(row[0] or 0)
+                result["sent_30d"] = int(row[1] or 0)
+                result["sent_all"] = int(row[2] or 0)
+                result["pending"] = int(row[3] or 0)
 
-            # Pending
+            # (2) Peak hours (top 3) + post type distribution — BITTA so'rov.
+            #     `GROUPING(...)` ustuni qaysi guruhlash to'plamidan kelganini
+            #     ko'rsatadi (1 = bu so'rovda hisoblanmagan).
             q = (
-                f"SELECT COUNT(*) FROM scheduled_posts sp "
-                f"WHERE sp.user_id = %s AND sp.status = 'pending' {ch_filter}"
-            )
-            cur.execute(q, params_base)
-            result["pending"] = cur.fetchone()[0]
-
-            # Peak hours (top 3)
-            q = (
-                f"SELECT EXTRACT(HOUR FROM sp.scheduled_time)::int AS h, COUNT(*) AS cnt "
+                f"SELECT EXTRACT(HOUR FROM sp.scheduled_time)::int AS hour_bucket, "
+                f"sp.post_type AS post_type, "
+                f"GROUPING(EXTRACT(HOUR FROM sp.scheduled_time)::int) AS hour_grouped, "
+                f"GROUPING(sp.post_type) AS type_grouped, "
+                f"COUNT(*) AS cnt "
                 f"FROM scheduled_posts sp "
                 f"WHERE sp.user_id = %s AND sp.status = 'posted' {ch_filter} "
-                f"GROUP BY h ORDER BY cnt DESC LIMIT 3"
+                f"GROUP BY GROUPING SETS ("
+                f"  (EXTRACT(HOUR FROM sp.scheduled_time)::int), (sp.post_type))"
             )
             cur.execute(q, params_base)
-            result["peak_hours"] = [(row[0], row[1]) for row in cur.fetchall()]
-
-            # Post type distribution
-            q = (
-                f"SELECT sp.post_type, COUNT(*) AS cnt "
-                f"FROM scheduled_posts sp "
-                f"WHERE sp.user_id = %s AND sp.status = 'posted' {ch_filter} "
-                f"GROUP BY sp.post_type ORDER BY cnt DESC"
+            peak = []
+            type_dist = {}
+            for stat_row in cur.fetchall() or []:
+                values = list(stat_row) + [None] * 5
+                cnt = int(values[4] or 0)
+                if int(values[2] or 0) == 0 and values[0] is not None:
+                    peak.append((int(values[0]), cnt))
+                elif int(values[3] or 0) == 0 and values[1] is not None:
+                    type_dist[str(values[1])] = cnt
+            peak.sort(key=lambda item: (-item[1], item[0]))
+            result["peak_hours"] = peak[:3]
+            result["type_distribution"] = dict(
+                sorted(type_dist.items(), key=lambda item: (-item[1], item[0]))
             )
-            cur.execute(q, params_base)
-            result["type_distribution"] = {row[0]: row[1] for row in cur.fetchall()}
 
-            # Real vaqtli kanal postlari tarixi statistikasi (views, count)
+            # (3) Real vaqtli kanal postlari tarixi statistikasi (views, count)
+            #     — DB darajasidagi agregatsiya (o'zgarmagan).
             try:
                 if channel_id:
                     cur.execute(

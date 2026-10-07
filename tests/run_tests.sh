@@ -44,6 +44,16 @@
 #   3j) ⚙️ POSTASSIST V2 3-QADAM REFAKTORI — sozlamalar menyusi (legacy
 #       dublikatlarsiz, 8 guruh + rewards/help hub) + 🧰 Vositalar submenyusi
 #       (Konvertor va Post Enhancer) (tests/refactor_step3_test.py)
+#   3j2) ⚡️ POSTASSIST V2 5-QADAM (P1 PERFORMANCE & DB OPTIMIZATION) —
+#       ANALYTICS N+1 → BATCH: kanalning 50/100/500 ta posti metrikasi
+#       bitta JOIN+GROUP BY da, ko'p post `= ANY(%s)` batch'da, ko'p kanal
+#       bitta so'rovda; agregatsiya (o'rtacha ko'rishlar, eng yaxshi
+#       formatlar, eng faol soat) DB DARAJASIDA; `get_channel_post_stats`
+#       8 → 3 so'rov (COUNT FILTER + GROUPING SETS); kompozit indekslar
+#       (channel_id, created_at DESC) / (channel_id, status) /
+#       (post_id, reaction_type) — IDEMPOTENT (CREATE INDEX IF NOT EXISTS);
+#       IDOR fail-closed, DB xatosida fail-soft, mavjud interfeys 100%
+#       saqlangan (tests/refactor_step5_test.py)
 #   3n) ✨ 2-BOSQICH AI PROMPT VA MAGIC POST SIFATI — prompt validation,
 #       sifat validatori, yupqa javobda qayta urinish, ixcham UI
 #       (tests/ai_prompt_quality_test.py)
@@ -433,6 +443,34 @@ echo "===== 3k) 🧭 4-QADAM + 3-BOSQICH: NAVIGATSIYA + YAGONA INLINE ADMIN PANE
 #     🩺 Tizim monitoringi ekraniga ko'chirildi
 #     (tests/refactor_step4_test.py → TEST 3/3b).
 "$PY" tests/refactor_step4_test.py || EXIT_CODE=1
+
+echo
+echo "===== 3k2) ⚡️ 5-QADAM (P1): ANALYTICS N+1 + INDEX TUNING ====="
+# (1) 🚫 N+1 QUERY YO'Q: kanalning 50/100/500 ta posti tahlil qilinganda
+#     DB so'rovlari soni QAT'IY cheklangan (50 ta post uchun 50 ta emas,
+#     atigi 2 ta) — postlar soni oshsa ham so'rov soni O'ZGARMAYDI;
+#     postlar metrikasi bitta JOIN + GROUP BY da (1 SQL), ko'p post uchun
+#     `= ANY(%s)` batch (2 SQL), 10 kanal uchun bitta so'rov (N+1 emas);
+# (2) 🧮 AGREGATSIYA DB DARAJASIDA: o'rtacha/umumiy ko'rishlar,
+#     eng yaxshi formatlar (AVG(views) bo'yicha ARRAY_AGG) va eng faol
+#     soat SQL'da hisoblanadi (Python katta ro'yxatni ko'chirmaydi);
+#     Channel DNA va Content Learning Loop shu xulosani oladi;
+# (3) ⚡️ INDEX TUNING: `scheduled_posts` (channel_id, created_at DESC) /
+#     (channel_id, status), `post_reactions` (post_id, reaction_type),
+#     `channel_posts_history` (channel_id, views DESC),
+#     `channel_post_events` (channel_id, created_at DESC),
+#     `sent_post_messages` (post_id, channel_id),
+#     `post_deliveries` (channel_id, status) — barchasi IDEMPOTENT
+#     (CREATE INDEX IF NOT EXISTS; ikki marta qo'llash xavfsiz, xato
+#     bo'lsa fail-soft), schema.sql hisoblagichlari o'zgarmagan;
+# (4) 📊 `get_channel_post_stats` 8 ta ketma-ket SQL → 3 ta
+#     (COUNT(*) FILTER + GROUPING SETS + history agregati), qaytadigan
+#     lug'at kalitlari AYNAN o'sha;
+# (5) 🔁 REGRESSIYA: ContentLoop.analyze / get_channel_dna_extended /
+#     database facade / services.channels eksportlari va eski kalitlar
+#     100% saqlangan; IDOR fail-closed; DB xatosida fail-soft
+#     (tests/refactor_step5_test.py).
+"$PY" tests/refactor_step5_test.py || EXIT_CODE=1
 
 echo
 echo "===== 3l) 🏁 YAKUNIY ACCEPTANCE SUITE (TEST A..AG — 33 TEKSHIRUV) ====="

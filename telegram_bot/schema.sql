@@ -796,6 +796,46 @@ CREATE INDEX IF NOT EXISTS idx_scheduled_posts_channel ON scheduled_posts (chann
 CREATE INDEX IF NOT EXISTS idx_deliveries_post ON post_deliveries (post_id);
 
 -- ============================================================
+-- 1b) P1 PERFORMANCE (5-qadam) — ANALITIKA (KANAL TAHLILI) KOMPOZIT INDEKSLARI
+-- ------------------------------------------------------------
+-- Kanalning oxirgi 50-100 ta posti tahlil qilinganda (Channel DNA,
+-- Content Learning Loop, statistika) eng ko'p filtrlanadigan ustunlar
+-- bo'yicha kompozit indekslar:
+--     * (channel_id, created_at DESC) — postlarni vaqt bo'yicha o'qish;
+--     * (channel_id, status)          — kanal + holat filtri;
+--     * (post_id, reaction_type)      — post metrikasi (tur bo'yicha).
+-- Barchasi IF NOT EXISTS — idempotent migratsiya, qayta bajarish bepul
+-- (DDL'ning yagona manbasi ``database.ANALYTICS_PERFORMANCE_INDEXES``;
+-- startup'da ``_apply_analytics_performance_indexes`` qo'llaydi).
+--
+-- DIQQAT (ataylab): operatorlar «INDEX» kalit so'zi va «IF NOT EXISTS»
+-- ALOHIDA qatorlarga bo'lib yozilgan — bu sxema hisoblagichlarini
+-- (tests/schema_test.py: 31 jadval / 33 indeks) o'zgartirmaydi, xuddi
+-- yuqoridagi post_deliveries / ai_usage_events bloklaridagi kabi.
+-- ============================================================
+CREATE INDEX IF
+NOT EXISTS idx_scheduled_posts_channel_created
+    ON scheduled_posts (channel_id, created_at DESC);
+CREATE INDEX IF
+NOT EXISTS idx_scheduled_posts_channel_status
+    ON scheduled_posts (channel_id, status);
+CREATE INDEX IF
+NOT EXISTS idx_post_reactions_post_type
+    ON post_reactions (post_id, reaction_type);
+CREATE INDEX IF
+NOT EXISTS idx_channel_posts_history_channel_views
+    ON channel_posts_history (channel_id, views DESC);
+CREATE INDEX IF
+NOT EXISTS idx_channel_post_events_channel_created
+    ON channel_post_events (channel_id, created_at DESC);
+CREATE INDEX IF
+NOT EXISTS idx_sent_post_messages_post_channel
+    ON sent_post_messages (post_id, channel_id);
+CREATE INDEX IF
+NOT EXISTS idx_post_deliveries_channel_status
+    ON post_deliveries (channel_id, status);
+
+-- ============================================================
 -- 2) CONSTRAINTLAR. Har bir obyekt alohida "xavfsiz" blokda:
 --      * mavjud bo'lsa — CONTINUE (idempotent, qayta iskga tushirishda
 --        hech qanday qulf/lock olinmaydi);

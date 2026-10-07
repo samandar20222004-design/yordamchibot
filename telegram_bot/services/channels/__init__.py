@@ -17,6 +17,11 @@ Kanal monitoringi va aqlli tahlil qatlami:
 * :mod:`services.channels.best_time` — post chiqarish statistikasi bo'yicha
   eng maqbul vaqt oynalari (soxta raqamlar UYDIRMAYDI — yetarli ma'lumot
   bo'lmasa "insufficient data" holati qaytadi);
+* :mod:`services.channels.analytics` — ⚡️ P1 (5-qadam): kanal tahlili N+1
+  query'siz — oxirgi 50–100 post metrikasi ``repositories.analytics_repository``
+  orqali BITTA batch so'rovda (JOIN + GROUP BY), agregatsiya (o'rtacha
+  ko'rishlar, eng yaxshi formatlar, eng faol soat) DB DARAJASIDA; so'rovlar
+  soni postlar soniga bog'liq emas (IDOR fail-closed, DB xatosida fail-soft);
 * :mod:`services.channels.duplicate_detector` — post kanalga
   rejalashtirilishidan/chiqarilishidan oldin kanalning oxirgi postlari bilan
   YENGIL (AI'siz, Jaccard/token-overlap) o'xshashlik tekshiruvi (PHASE C);
@@ -115,6 +120,15 @@ from services.channels.content_loop import (  # noqa: F401
     filter_posts_last_n_days,
     normalize_strategic_goal,
 )
+from services.channels.analytics import (  # noqa: F401
+    DEFAULT_ANALYTICS_DAYS,
+    DEFAULT_ANALYTICS_LIMIT,
+    MIN_POSTS_FOR_ANALYTICS,
+    analyze_channel_posts,
+    attach_analytics_summary,
+    get_channel_analytics_snapshot,
+    summarize_posts_locally,
+)
 from services.channels.recycle import (  # noqa: F401
     MAX_REUSE_SIMILARITY,
     MIN_AGE_DAYS,
@@ -131,6 +145,13 @@ from services.channels.recycle import (  # noqa: F401
 )
 
 __all__ = [
+    "DEFAULT_ANALYTICS_DAYS",
+    "DEFAULT_ANALYTICS_LIMIT",
+    "MIN_POSTS_FOR_ANALYTICS",
+    "analyze_channel_posts",
+    "attach_analytics_summary",
+    "get_channel_analytics_snapshot",
+    "summarize_posts_locally",
     "DUPLICATE_THRESHOLD",
     "DUPLICATE_WARNING_MESSAGE",
     "MAX_REUSE_SIMILARITY",

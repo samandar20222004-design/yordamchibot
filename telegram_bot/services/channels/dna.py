@@ -949,6 +949,19 @@ async def get_channel_dna_extended(
     events = await _db_call(db, db.get_channel_post_events, ch_id, 500)
     result = compute_channel_dna_extended(events)
 
+    # 📊 P1 (5-qadam): DB darajasidagi agregatsiya — o'rtacha ko'rishlar va
+    # eng yaxshi formatlar BITTA batch so'rovda (N+1 query YO'Q). Faqat
+    # qo'shimcha kalit sifatida qaytariladi: eski iste'molchilar va profil
+    # saqlash formati o'zgarmaydi. DB'da funksiya bo'lmasa — None.
+    analytics_summary = None
+    if hasattr(db, "get_channel_analytics_summary"):
+        try:
+            raw_summary = await _db_call(db, db.get_channel_analytics_summary, ch_id, 30)
+            if isinstance(raw_summary, dict) and raw_summary:
+                analytics_summary = raw_summary
+        except Exception:
+            logger.debug("Channel DNA extended: analitika xulosasi olinmadi", exc_info=True)
+
     if result["insufficient"]:
         return {
             "ok": True,
@@ -962,6 +975,7 @@ async def get_channel_dna_extended(
             "metrics": result.get("metrics"),
             "overall": result.get("overall"),
             "saved": False,
+            "analytics_summary": analytics_summary,
         }
 
     profile = result["profile"]
@@ -1005,6 +1019,7 @@ async def get_channel_dna_extended(
         "metrics": result.get("metrics"),
         "overall": result.get("overall"),
         "saved": saved,
+        "analytics_summary": analytics_summary,
     }
 
 
