@@ -1057,6 +1057,9 @@ echo "====== REPLY TUGMA FILTRLARI (uz/ru/en) + SANA ======"
 echo "========= UZ/RU/EN TO'LIQ PARITET AUDITI ========="
 "$PY" tests/i18n_full_parity_test.py || EXIT_CODE=1
 
+echo "===== AI MENU I18N + HARDCODED UI AST SCANNER ====="
+"$PY" tests/i18n_hardcoded_scanner_test.py || EXIT_CODE=1
+
 echo "=============== NEW POST / AI STUDIO i18n TEST ==============="
 "$PY" tests/new_post_i18n_test.py || EXIT_CODE=1
 "$PY" tests/ai_studio_plan_i18n_test.py || EXIT_CODE=1

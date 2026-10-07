@@ -42,6 +42,13 @@ CONTENT_MENU_I18N = {
     # 🇺🇿 O'ZBEK TILI
     # ------------------------------------------------------------
     "uz": {
+        # --- AI Studio vositalari (eski AI menyu yorliqlari) ---
+        "ai_chat": "💬 AI Chat",
+        "ai_audit": "🔍 Post auditi",
+        "ai_improve": "✏️ Postni yaxshilash",
+        "ai_ideas": "💡 Kontent g'oyalari",
+        "ai_plan": "🧠 Kontent reja",
+        "ai_analysis": "📊 Kanal tahlili",
         # --- Submenu tugma yorliqlari (reply klaviatura) ---
         # 🆕 BIRLASHTIRILGAN MENYU: bo'lingan va chalkash tugmalar 3 ta mantiqiy
         # yo'nalishga birlashtirildi (Oddiy post / AI bilan yaratish / AI Yordamchi).
@@ -107,6 +114,13 @@ CONTENT_MENU_I18N = {
     # 🇷🇺 RUS TILI
     # ------------------------------------------------------------
     "ru": {
+        # --- Инструменты AI Studio (старые подписи AI-меню) ---
+        "ai_chat": "💬 AI Чат",
+        "ai_audit": "🔍 Аудит поста",
+        "ai_improve": "✏️ Улучшить пост",
+        "ai_ideas": "💡 Идеи контента",
+        "ai_plan": "🧠 Контент-план",
+        "ai_analysis": "📊 Анализ канала",
         "cm_btn_manual": "✍️ Обычный пост (без AI)",
         "cm_btn_magic": "✨ Создать с AI (Magic Post)",
         "cm_btn_studio": "🤖 AI Помощник",
@@ -159,6 +173,13 @@ CONTENT_MENU_I18N = {
     # 🇬🇧 INGLIZ TILI
     # ------------------------------------------------------------
     "en": {
+        # --- AI Studio tools (legacy AI menu labels) ---
+        "ai_chat": "💬 AI Chat",
+        "ai_audit": "🔍 Post audit",
+        "ai_improve": "✏️ Improve post",
+        "ai_ideas": "💡 Content ideas",
+        "ai_plan": "🧠 Content plan",
+        "ai_analysis": "📊 Channel analysis",
         "cm_btn_manual": "✍️ Regular post (no AI)",
         "cm_btn_magic": "✨ Create with AI (Magic Post)",
         "cm_btn_studio": "🤖 AI Assistant",
