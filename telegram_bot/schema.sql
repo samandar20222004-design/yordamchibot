@@ -49,6 +49,13 @@ CREATE TABLE IF NOT EXISTS channels (
 );
 ALTER TABLE channels ADD COLUMN IF NOT EXISTS enable_comment_analysis BOOLEAN NOT NULL DEFAULT TRUE;
 
+-- 🔐 SPRINT 1 (Privacy & GDPR): "Ma'lumotlarimni o'chirish" soft-delete
+-- belgilari. Hisob va kanal darhol bloklanadi, lekin moliyaviy audit
+-- (payments/credits_ledger) saqlanib qoladi — qaytarib bo'lmaydigan
+-- DELETE o'rniga anonimlashtirilgan soft-delete.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+ALTER TABLE channels ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+
 -- ============================================================
 -- PHASE E — KANAL JAMOASI (team roles)
 -- ------------------------------------------------------------

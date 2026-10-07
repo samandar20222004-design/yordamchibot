@@ -37,6 +37,8 @@ from middlewares.rbac import (
 )
 from services.channels.team import TeamService
 
+from utils.silent_errors import log_silent_failure
+
 logger = logging.getLogger(__name__)
 
 #: Post bo'yicha ish oqimi amali → talab qilinadigan RBAC ruxsati.
@@ -67,8 +69,8 @@ def _post_id(query) -> int | None:
 async def _finish(query, text: str):
     try:
         await query.answer(text[:180], show_alert=False)
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.team:_finish", _silent_exc)
     try:
         await query.edit_message_text(text, parse_mode="HTML", reply_markup=None)
     except Exception:

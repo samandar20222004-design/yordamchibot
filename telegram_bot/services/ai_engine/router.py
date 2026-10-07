@@ -31,6 +31,8 @@ import re
 from dataclasses import dataclass, field
 from enum import Enum
 
+from utils.silent_errors import log_silent_failure
+
 # ---------------------------------------------------------------------------
 # Kanonik provayder nomlari (services/ai_service.py bilan bir xil — yagona
 # manba; bu yerda faqat "o'qiydigan" nusxa, o'zgartirish uchun emas).
@@ -346,8 +348,8 @@ def resolve_lane(
                 return Lane.QUALITY
             if intent is SMMIntent.CONTENT_IDEAS:
                 return Lane.REASONING
-        except Exception:  # pragma: no cover — router bo'lmasa ham ishlaydi
-            pass
+        except Exception as _silent_exc:  # pragma: no cover — router bo'lmasa ham ishlaydi
+            log_silent_failure("services.ai_engine.router:resolve_lane", _silent_exc)
     return Lane.QUALITY
 
 

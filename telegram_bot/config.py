@@ -44,6 +44,20 @@ if ADMIN_ID:
 # ADMIN_IDS_SET — barcha adminlar to'plami (is_admin() tekshiruvi uchun)
 ADMIN_IDS_SET: frozenset[int] = frozenset(_parsed_ids)
 
+# SPRINT 1 (ADMIN_ID ⇄ ADMIN_IDS nomuvofiqligi): KANONIK nom — ``ADMIN_IDS``.
+#
+# Ilgari config faqat ``ADMIN_ID`` (legacy, bitta raqam) va ``ADMIN_IDS_SET``
+# ni eksport qilardi; ``from config import ADMIN_IDS`` qilgan modullar esa
+# (masalan ``services/autopilot/planner.py::check_user_is_pro``) ImportError
+# olib, adminni PRO deb tanimasdi — bu JIM nosozlik edi (endi
+# ``log_silent_failure`` bilan ham ko'rinadi). Endi:
+#   * ``ADMIN_IDS`` — kanonik nom (frozenset[int]); env'dagi vergul bilan
+#     ajratilgan ``ADMIN_IDS`` ro'yxati + legacy ``ADMIN_ID`` shu to'plamga
+#     qo'shiladi (orqaga mos kelish SAQLANADI);
+#   * ``ADMIN_IDS_SET`` — eski ichki nom (alias, o'sha obyekt);
+#   * ``ADMIN_ID`` — legacy raqam, o'zgarishsiz qoladi.
+ADMIN_IDS: frozenset[int] = ADMIN_IDS_SET
+
 def normalize_database_url(url: str | None) -> str | None:
     """Muhitdan kelgan PostgreSQL DSN ni psycopg2/asyncpg uchun moslashtiradi.
 

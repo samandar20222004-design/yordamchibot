@@ -44,6 +44,8 @@ from keyboards.default import get_main_keyboard
 from locales.translations import clear_fsm_data, get_lang
 from translations import content_menu_t
 
+from utils.silent_errors import log_silent_failure
+
 logger = logging.getLogger(__name__)
 
 # ============================================================
@@ -134,8 +136,8 @@ async def offer_magic_post_for_direct_text(msg, context, user_id: int,
             user_data["cc_offer_msg_id"] = getattr(sent, "message_id", None)
             chat = getattr(sent, "chat", None)
             user_data["cc_offer_chat_id"] = getattr(chat, "id", None)
-    except Exception:  # pragma: no cover - kesh ixtiyoriy
-        pass
+    except Exception as _silent_exc:  # pragma: no cover - kesh ixtiyoriy
+        log_silent_failure("handlers.content_creation:offer_magic_post_for_direct_text", _silent_exc, user_id=user_id, lang=lang)
     return True
 
 
@@ -198,12 +200,12 @@ async def _close_old_offer_window(context, query=None) -> bool:
             if callable(deleter):
                 await deleter()
                 return True
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.content_creation:_close_old_offer_window:201", _silent_exc)
         try:
             await query.edit_message_reply_markup(reply_markup=None)
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.content_creation:_close_old_offer_window:205", _silent_exc)
         return False
     try:
         user_data = getattr(context, "user_data", None)
@@ -213,8 +215,8 @@ async def _close_old_offer_window(context, query=None) -> bool:
             deleter = getattr(getattr(context, "bot", None), "delete_message", None)
             if callable(deleter):
                 await deleter(chat_id=chat_id, message_id=msg_id)
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.content_creation:_close_old_offer_window:216", _silent_exc)
 
 
 async def content_creation_back(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -229,8 +231,8 @@ async def content_creation_back(update: Update, context: ContextTypes.DEFAULT_TY
     # FSM UZIL-KESIL tozalanadi (til keshi omon qoladi).
     try:
         clear_fsm_data(context)
-    except Exception:  # pragma: no cover
-        pass
+    except Exception as _silent_exc:  # pragma: no cover
+        log_silent_failure("handlers.content_creation:content_creation_back", _silent_exc, user_id=user_id, lang=lang)
     # 🧭 4-qadam: submenu yopildi — foydalanuvchi asosiy menyuda (bo'lim
     # yozuvi tozalanadi, keyingi [❌ Bekor qilish] asosiy menyuga qaytadi).
     from handlers.navigation import clear_section
@@ -260,18 +262,18 @@ async def content_creation_cancel(update: Update, context: ContextTypes.DEFAULT_
     _DIRECT_TEXT.pop(user_id, None)
     try:
         clear_fsm_data(context)
-    except Exception:  # pragma: no cover
-        pass
+    except Exception as _silent_exc:  # pragma: no cover
+        log_silent_failure("handlers.content_creation:content_creation_cancel:263", _silent_exc, user_id=user_id, lang=lang)
     try:
         from handlers.navigation import clear_section
         clear_section(context)
-    except Exception:  # pragma: no cover
-        pass
+    except Exception as _silent_exc:  # pragma: no cover
+        log_silent_failure("handlers.content_creation:content_creation_cancel:268", _silent_exc, user_id=user_id, lang=lang)
     if query is not None:
         try:
             await query.answer()
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.content_creation:content_creation_cancel:273", _silent_exc)
         await _close_old_offer_window(context, query)
         try:
             chat = getattr(getattr(query, "message", None), "chat", None)
@@ -286,8 +288,8 @@ async def content_creation_cancel(update: Update, context: ContextTypes.DEFAULT_
                     parse_mode="HTML",
                 )
                 return ConversationHandler.END
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.content_creation:content_creation_cancel:289", _silent_exc)
         if msg is not None:
             try:
                 await msg.reply_text(
@@ -296,8 +298,8 @@ async def content_creation_cancel(update: Update, context: ContextTypes.DEFAULT_
                         user_id in ADMIN_IDS_SET, lang=lang),
                     parse_mode="HTML",
                 )
-            except Exception:  # pragma: no cover
-                pass
+            except Exception as _silent_exc:  # pragma: no cover
+                log_silent_failure("handlers.content_creation:content_creation_cancel:299", _silent_exc)
         return ConversationHandler.END
     if msg is None:
         return ConversationHandler.END
@@ -331,13 +333,13 @@ async def content_offer_callback(update: Update, context: ContextTypes.DEFAULT_T
         # FSM uzil-kesil tozalanadi — to'g'ridan-to'g'ri asosiy menyu.
         try:
             clear_fsm_data(context)
-        except Exception:  # pragma: no cover
-            pass
+        except Exception as _silent_exc:  # pragma: no cover
+            log_silent_failure("handlers.content_creation:content_offer_callback:334", _silent_exc)
         try:
             from handlers.navigation import clear_section
             clear_section(context)
-        except Exception:  # pragma: no cover
-            pass
+        except Exception as _silent_exc:  # pragma: no cover
+            log_silent_failure("handlers.content_creation:content_offer_callback:339", _silent_exc)
         # Eski oyna yopiladi (taklif klaviaturasi ochiq qolmaydi).
         deleted = await _close_old_offer_window(context, query)
         if deleted:
@@ -355,8 +357,8 @@ async def content_offer_callback(update: Update, context: ContextTypes.DEFAULT_T
                         parse_mode="HTML",
                     )
                     return ConversationHandler.END
-            except Exception:
-                pass
+            except Exception as _silent_exc:
+                log_silent_failure("handlers.content_creation:content_offer_callback:358", _silent_exc)
         try:
             await query.message.reply_text(
                 content_menu_t("cm_back_done", lang),
@@ -384,8 +386,8 @@ async def content_offer_callback(update: Update, context: ContextTypes.DEFAULT_T
         # oqimini bo'sh holida ochamiz (foydalanuvchi matnni qayta yozadi).
         try:
             await query.message.reply_text(magic_t("mp_intro", lang), parse_mode="HTML")
-        except Exception:  # pragma: no cover
-            pass
+        except Exception as _silent_exc:  # pragma: no cover
+            log_silent_failure("handlers.content_creation:content_offer_callback:387", _silent_exc)
         return MAGIC_INPUT
 
     context.user_data["magic_raw_text"] = text

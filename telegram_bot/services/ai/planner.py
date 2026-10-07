@@ -43,6 +43,8 @@ from .smm_common import (
     strip_html,
 )
 
+from utils.silent_errors import log_silent_failure
+
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
@@ -278,8 +280,8 @@ def resolve_start_date(value: Any) -> date:
     if text:
         try:
             return date.fromisoformat(text[:10])
-        except (ValueError, TypeError):
-            pass
+        except (ValueError, TypeError) as _silent_exc:
+            log_silent_failure("services.ai.planner:resolve_start_date", _silent_exc)
     return datetime.now(timezone.utc).date()
 
 

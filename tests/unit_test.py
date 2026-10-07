@@ -1128,11 +1128,13 @@ def test_main_menu_layout_v2():
 
     cab = [[(b.text, b.callback_data) for b in row] for row in get_cabinet_inline_keyboard().inline_keyboard]
     # Yordam, bot haqida va support bitta yordam oynasiga birlashtirilgan.
-    check("kabinet: 4 qator (8 tugmali panel)", len(cab) == 4, str(cab))
+    # SPRINT 1: 5-qatorga 🔐 Maxfiylik + 🗑 O'chirish qo'shildi (10 tugma).
+    check("kabinet: 5 qator (10 tugmali panel)", len(cab) == 5, str(cab))
     expected = [
         [("🌐 Til / Язык", "stgs_lang"), ("✍️ Post sozlamalari", "stgs_post")],
         [("🔔 Bildirishnomalar", "stgs_notif"), ("👥 Do'stlarni taklif", "stgs_referral")],
         [("💳 To'lovlar tarixi", "stgs_pay"), ("💎 PRO", "sub_open")],
+        [("🔐 Maxfiylik", "stgs_privacy"), ("🗑 O'chirish", "stgs_delete_data")],
         [("ℹ️ Yordam va Qo'llanma", "stgs_help_hub"), ("❌ Yopish", "stgs_back")],
     ]
     check("kabinet tartibi", cab == expected, str(cab))
@@ -6178,11 +6180,13 @@ def test_cabinet_i18n_suite():
     check("kabinet inline ru: yorliqlar tarjimasi",
           settings_stats_t("ss_btn_lang", "ru") in cab_texts
           and settings_stats_t("ss_btn_close", "ru") in cab_texts, str(cab_texts))
-    # Sozlamalar / Ko'proq — 8 tugmali panel (4x2, hub bilan bir xil);
-    # eski cab_* va guruh callback'lari FAQAT routing'da saqlanadi.
-    check("kabinet inline ru: callback_data (8 tugmali panel)",
+    # Sozlamalar / Ko'proq — 10 tugmali panel (5x2, hub bilan bir xil;
+    # SPRINT 1: 🔐 Maxfiylik + 🗑 O'chirish); eski cab_* va guruh
+    # callback'lari FAQAT routing'da saqlanadi.
+    check("kabinet inline ru: callback_data (10 tugmali panel)",
           cab_cbs == ["stgs_lang", "stgs_post", "stgs_notif",
                       "stgs_referral", "stgs_pay", "sub_open",
+                      "stgs_privacy", "stgs_delete_data",
                       "stgs_help_hub", "stgs_back"], str(cab_cbs))
     check("kabinet inline uz: default",
           [b.text for row in get_cabinet_inline_keyboard().inline_keyboard for b in row][0]

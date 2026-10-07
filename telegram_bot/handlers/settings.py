@@ -64,6 +64,8 @@ from locales.translations import get_text, localize_db_message, normalize_lang
 from translations import settings_stats_t
 from utils.helpers import html_escape
 
+from utils.silent_errors import log_silent_failure
+
 logger = logging.getLogger(__name__)
 
 # ============================================================
@@ -229,8 +231,8 @@ async def _render_hub_screen(query, context, user_id: int, lang: str,
     """⚙️ Sozlamalar hub'ini qayta chizadi (stgs_hub → shu ekran)."""
     try:
         context.user_data.pop("settings_help_flow", None)
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.settings:_render_hub_screen", _silent_exc, user_id=user_id, lang=lang)
     text = await build_settings_hub_text(user_id, lang, is_admin)
     await _edit_or_reply(
         query, text, get_settings_hub_keyboard(lang),
@@ -593,8 +595,8 @@ async def _render_help(query, lang: str, context=None) -> None:
     if context is not None:
         try:
             context.user_data["settings_help_flow"] = True
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.settings:_render_help", _silent_exc, lang=lang)
     text = _cached_static_text(
         "help", lang,
         lambda: get_text("help_guide", lang,
@@ -644,22 +646,22 @@ async def settings_menu_callback(update, context: ContextTypes.DEFAULT_TYPE):
 
     try:
         await query.answer()
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.settings:settings_menu_callback:647", _silent_exc, user_id=user_id, lang=lang)
 
     if data == "stgs_back":
         # ◀️ Orqaga — sozlamalar yopiladi va asosiy menyu qaytadi.
         try:
             await query.message.delete()
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.settings:settings_menu_callback:654", _silent_exc)
         try:
             await query.message.reply_text(
                 get_text("msg_closed", lang),
                 reply_markup=get_main_keyboard(is_admin, lang=lang),
             )
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.settings:settings_menu_callback:661", _silent_exc)
         return
 
     if data == "stgs_rewards":
@@ -668,6 +670,21 @@ async def settings_menu_callback(update, context: ContextTypes.DEFAULT_TYPE):
 
     if data == "stgs_help_hub":
         await _render_help_hub(query, lang)
+        return
+
+    if data == "stgs_privacy":
+        # 🔐 SPRINT 1: maxfiylik siyosati ekrani (matn — translations/privacy.py).
+        from handlers.privacy import _render_policy
+
+        await _render_policy(query, context, user_id, lang)
+        return
+
+    if data in ("stgs_delete_data", "stgs_privacy_del"):
+        # 🗑 O'chirish oqimi: AVVAL tasdiq ekrani (ma'lumot hali tegilmaydi),
+        # bajarish esa alohida handlerda (``stgs_privacy_del_ok``).
+        from handlers.privacy import _render_delete_confirm
+
+        await _render_delete_confirm(query, context, user_id, lang)
         return
 
     if data == "stgs_profile":
@@ -743,8 +760,8 @@ async def settings_menu_callback(update, context: ContextTypes.DEFAULT_TYPE):
             logger.warning("Sozlamani saqlab bo'lmadi: user_id=%s key=%s", user_id, key)
         try:
             await query.answer(settings_stats_t(toast_key, lang), show_alert=False)
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.settings:settings_menu_callback:746", _silent_exc)
         return
 
     if data == "stgs_pay":

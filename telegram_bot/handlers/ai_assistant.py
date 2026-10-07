@@ -55,6 +55,8 @@ from utils.helpers import (
     get_auto_ad_injection_async, parse_schedule_input,
 )
 
+from utils.silent_errors import log_silent_failure
+
 logger = logging.getLogger(__name__)
 
 # b2c01d1 compatibility: get_user_subscription fallback
@@ -248,8 +250,8 @@ async def _keep_typing(bot, chat_id: int, stop_event: asyncio.Event):
             break
         try:
             await asyncio.wait_for(asyncio.shield(stop_event.wait()), timeout=_TYPING_INTERVAL)
-        except asyncio.TimeoutError:
-            pass
+        except asyncio.TimeoutError as _silent_exc:
+            log_silent_failure("handlers.ai_assistant:_keep_typing", _silent_exc, chat_id=chat_id)
         except Exception:
             break
 
@@ -513,8 +515,8 @@ async def ai_input_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = msg.chat_id
     try:
         await context.bot.send_chat_action(chat_id=chat_id, action="typing")
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.ai_assistant:ai_input_received:516", _silent_exc, user_id=user_id, chat_id=chat_id, lang=lang)
     msg_wait = await msg.reply_text("⏳ Post tayyorlanmoqda, iltimos kuting...")
 
     # Typing animatsiyasini fonda ishga tushiramiz
@@ -541,8 +543,8 @@ async def ai_input_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 if not is_pro and hasattr(db, "refund_ai_usage"):
                     try:
                         await db.run_db(db.refund_ai_usage, user_id)
-                    except Exception:
-                        pass
+                    except Exception as _silent_exc:
+                        log_silent_failure("handlers.ai_assistant:ai_input_received:544", _silent_exc)
         await _edit_wait_message(msg_wait, msg,
             f"⚠️ {localize_service_error(result['error'], lang)}",
             reply_markup=get_cancel_keyboard(lang),
@@ -680,8 +682,8 @@ async def ai_time_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 typing_task2.cancel()
                 try:
                     await msg_wait.delete()
-                except Exception:
-                    pass
+                except Exception as _silent_exc:
+                    log_silent_failure("handlers.ai_assistant:ai_time_received", _silent_exc)
 
             if "error" not in ai_res:
                 if ai_res.get("has_explicit_time") and ai_res.get("scheduled_time"):
@@ -751,8 +753,8 @@ async def ai_confirm_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
         remember_section(context, SECTION_AI_STUDIO)
         try:
             await query.edit_message_reply_markup(reply_markup=None)
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.ai_assistant:ai_confirm_callback:754", _silent_exc)
         await query.message.reply_text(
             safe_t("ai_post_cancelled", lang),
             reply_markup=get_ai_studio_keyboard(lang),
@@ -763,8 +765,8 @@ async def ai_confirm_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
         await query.answer()
         try:
             await query.edit_message_reply_markup(reply_markup=None)
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.ai_assistant:ai_confirm_callback:766", _silent_exc)
         await query.message.reply_text(
             safe_t("ai_post_retry", lang),
             reply_markup=get_cancel_keyboard(lang),
@@ -832,8 +834,8 @@ async def ai_confirm_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
         ad_line = await get_auto_ad_injection_async(user_id)
         try:
             await query.edit_message_reply_markup(reply_markup=None)
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.ai_assistant:ai_confirm_callback:835", _silent_exc)
         await query.message.reply_text(
             safe_t(
                 "ai_scheduled_ok", lang,
@@ -971,17 +973,17 @@ async def _studio_ai_refund(user_id: int, is_admin: bool, is_pro: bool,
     if reservation_id:
         try:
             await release_ai_quota(db, user_id, reservation_id)
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.ai_assistant:_studio_ai_refund:974", _silent_exc, user_id=user_id)
         return
     await db.run_db(db.add_user_credit, user_id)
     if hasattr(db, "refund_ai_usage"):
         try:
             await db.run_db(db.refund_ai_usage, user_id)
-        except Exception:
+        except Exception as _silent_exc:
             # Eski test/fake DB adapterlari bu helperni bilmasligi mumkin;
             # kredit refund'i saqlanadi, production DB'da quota ham qaytariladi.
-            pass
+            log_silent_failure("handlers.ai_assistant:_studio_ai_refund:981", _silent_exc, user_id=user_id)
 
 
 def _studio_preview_text(post_text: str, tone: str, file_id=None, lang: str = "uz") -> str:
@@ -1035,8 +1037,8 @@ async def ai_studio_hub_entry(update: Update, context: ContextTypes.DEFAULT_TYPE
     if query is not None:
         try:
             await query.answer()
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.ai_assistant:ai_studio_hub_entry", _silent_exc)
     msg = (
         getattr(update, "message", None)
         or getattr(update, "effective_message", None)
@@ -1204,8 +1206,8 @@ async def _studio_generate_and_preview(update: Update, context: ContextTypes.DEF
     chat_id = msg.chat_id
     try:
         await context.bot.send_chat_action(chat_id=chat_id, action="typing")
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.ai_assistant:_studio_generate_and_preview", _silent_exc, user_id=user_id, chat_id=chat_id, lang=lang)
     msg_wait = await msg.reply_text("⏳ Post tayyorlanmoqda, iltimos kuting...")
     stop_typing = asyncio.Event()
     typing_task = asyncio.create_task(_keep_typing(context.bot, msg.chat_id, stop_typing))
@@ -1317,12 +1319,12 @@ async def ai_tone_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = query.message.chat_id
     try:
         await context.bot.send_chat_action(chat_id=chat_id, action="typing")
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.ai_assistant:ai_tone_callback:1320", _silent_exc, user_id=user_id, chat_id=chat_id, lang=lang)
     try:
         await query.edit_message_text("⏳ Post tayyorlanmoqda, iltimos kuting...")
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.ai_assistant:ai_tone_callback:1324", _silent_exc, user_id=user_id, chat_id=chat_id, lang=lang)
 
     ai_deadline = asyncio.get_running_loop().time() + 15.0
     try:
@@ -1393,8 +1395,8 @@ async def ai_studio_schedule_callback(update: Update, context: ContextTypes.DEFA
     # Eski tone tugmalari endi keraksiz — lekin xabar o'chirilmaydi
     try:
         await query.edit_message_reply_markup(reply_markup=None)
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.ai_assistant:ai_studio_schedule_callback", _silent_exc, lang=lang)
 
     await _show_time_prompt(
         query.message,
@@ -1429,8 +1431,8 @@ async def ai_audit_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = msg.chat_id
     try:
         await context.bot.send_chat_action(chat_id=chat_id, action="typing")
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.ai_assistant:ai_audit_received", _silent_exc, user_id=user_id, chat_id=chat_id, lang=lang)
     msg_wait = await msg.reply_text("⏳ Post tayyorlanmoqda, iltimos kuting...")
     stop_typing = asyncio.Event()
     typing_task = asyncio.create_task(_keep_typing(context.bot, msg.chat_id, stop_typing))
@@ -1544,8 +1546,8 @@ async def ai_exit_to_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer(safe_t("ai_close_session", lang))  # SPEKS: darhol answer
     try:
         await query.edit_message_text(safe_t("ai_close_session", lang), reply_markup=None)
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.ai_assistant:ai_exit_to_menu", _silent_exc, lang=lang)
     clear_ai_context(query.from_user.id)
     clear_fsm_data(context)
     # Asosiy menyuga chiqdik — bo'lim yozuvi tozalanadi.
@@ -1806,8 +1808,8 @@ async def ai_photo_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = msg.chat_id
     try:
         await context.bot.send_chat_action(chat_id=chat_id, action="typing")
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.ai_assistant:ai_photo_received", _silent_exc, user_id=user_id, chat_id=chat_id, lang=lang)
     msg_wait = await msg.reply_text("⏳ Post tayyorlanmoqda, iltimos kuting...")
     stop_typing = asyncio.Event()
     typing_task = asyncio.create_task(_keep_typing(context.bot, msg.chat_id, stop_typing))
@@ -1910,8 +1912,8 @@ async def ai_photo_result_callback(update: Update, context: ContextTypes.DEFAULT
                     reply_markup=get_ai_photo_keyboard(lang),
                     parse_mode="HTML",
                 )
-            except Exception:
-                pass
+            except Exception as _silent_exc:
+                log_silent_failure("handlers.ai_assistant:ai_photo_result_callback:1913", _silent_exc)
         return AI_PHOTO_RESULT
 
     # --- 1) Kanalga rejalashtirish → mavjud AI_GET_TIME → AI_CONFIRM oqimi ---
@@ -1923,8 +1925,8 @@ async def ai_photo_result_callback(update: Update, context: ContextTypes.DEFAULT
         context.user_data.pop("ai_target_all", None)
         try:
             await query.edit_message_reply_markup(reply_markup=None)
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.ai_assistant:ai_photo_result_callback:1926", _silent_exc)
         await _show_time_prompt(query.message, post_text, file_id, "photo", lang)
         return AI_GET_TIME
 
@@ -1953,12 +1955,12 @@ async def ai_photo_result_callback(update: Update, context: ContextTypes.DEFAULT
         chat_id = query.message.chat_id
         try:
             await context.bot.send_chat_action(chat_id=chat_id, action="typing")
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.ai_assistant:ai_photo_result_callback:1956", _silent_exc, chat_id=chat_id)
         try:
             await query.edit_message_text("⏳ Post tayyorlanmoqda, iltimos kuting...")
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.ai_assistant:ai_photo_result_callback:1960", _silent_exc, chat_id=chat_id)
         result = await _vision_run(file_id, extra, rewrite_context=rewrite_ctx, lang=lang)
         if "error" in result:
             await _safe_edit(
@@ -2013,8 +2015,8 @@ async def ai_photo_edit_received(update: Update, context: ContextTypes.DEFAULT_T
     chat_id = msg.chat_id
     try:
         await context.bot.send_chat_action(chat_id=chat_id, action="typing")
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.ai_assistant:ai_photo_edit_received", _silent_exc, user_id=user_id, chat_id=chat_id, lang=lang)
     msg_wait = await msg.reply_text("⏳ Post tayyorlanmoqda, iltimos kuting...")
     stop_typing = asyncio.Event()
     typing_task = asyncio.create_task(_keep_typing(context.bot, msg.chat_id, stop_typing))

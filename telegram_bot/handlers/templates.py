@@ -48,6 +48,8 @@ from services.templates import (
 from translations import templates_t
 from utils.helpers import html_escape
 
+from utils.silent_errors import log_silent_failure
+
 logger = logging.getLogger(__name__)
 
 # ============================================================
@@ -162,8 +164,8 @@ async def channel_templates_entry(update: Update,
         return ConversationHandler.END
     try:
         await query.answer()
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.templates:channel_templates_entry", _silent_exc)
     lang = _lang(context)
     user_id = query.from_user.id
     channel_id = (query.data or "").split(":", 1)[1] if ":" in (query.data or "") else ""
@@ -200,8 +202,8 @@ async def templates_menu_callback(update: Update,
         return TPL_MENU
     try:
         await query.answer()
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.templates:templates_menu_callback:203", _silent_exc)
     lang = _lang(context)
     user_id = query.from_user.id
     data = str(getattr(query, "data", "") or "")
@@ -231,8 +233,8 @@ async def templates_menu_callback(update: Update,
         try:
             await query.edit_message_text(templates_t("cancel_done", lang),
                                           parse_mode="HTML")
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.templates:templates_menu_callback:234", _silent_exc)
         return ConversationHandler.END
 
     if data == CB_TPL_NEW:
@@ -356,8 +358,8 @@ async def template_pick_callback(update: Update,
         return TPL_USE_PICK
     try:
         await query.answer()
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.templates:template_pick_callback", _silent_exc)
     lang = _lang(context)
     user_id = query.from_user.id
     data = str(getattr(query, "data", "") or "")
@@ -482,8 +484,8 @@ async def template_remove_callback(update: Update,
         return TPL_DEL_PICK
     try:
         await query.answer()
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.templates:template_remove_callback", _silent_exc)
     lang = _lang(context)
     user_id = query.from_user.id
     data = str(getattr(query, "data", "") or "")
@@ -521,8 +523,8 @@ async def templates_stale_callback(update: Update,
         return ConversationHandler.END
     try:
         await query.answer(templates_t("stale", get_lang(context)))
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.templates:templates_stale_callback", _silent_exc)
     return ConversationHandler.END
 
 

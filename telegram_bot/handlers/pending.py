@@ -18,6 +18,8 @@ from utils.helpers import (
     parse_schedule_input, schedule_time_example, SCHEDULE_ERR_PAST,
 )
 
+from utils.silent_errors import log_silent_failure
+
 logger = logging.getLogger(__name__)
 
 tashkent_tz = pytz.timezone("Asia/Tashkent")
@@ -68,8 +70,8 @@ async def cancel_post_callback(update: Update, context: ContextTypes.DEFAULT_TYP
     # Darhol javob — DB ishi tugaguncha tugma muzlab qolmasligi uchun.
     try:
         await query.answer()
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.pending:cancel_post_callback:71", _silent_exc, user_id=user_id, lang=lang)
 
     try:
         parts = query.data.split(":")
@@ -81,8 +83,8 @@ async def cancel_post_callback(update: Update, context: ContextTypes.DEFAULT_TYP
     except Exception as e:
         try:
             await query.message.reply_text(get_text("pend_error", lang, error=e))
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.pending:cancel_post_callback:84", _silent_exc)
 
 
 async def refresh_pending_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -146,8 +148,8 @@ async def _callback_owns_post(query, post_id: int, user_id: int, lang: str) -> b
         try:
             await query.answer(
                 get_text("pend_not_owned", lang), show_alert=True)
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.pending:_callback_owns_post", _silent_exc, user_id=user_id, post_id=post_id, lang=lang)
         logger.warning(
             "IDOR urinishi bloklandi: user_id=%s, so'ralgan post_id=%s",
             user_id, post_id)

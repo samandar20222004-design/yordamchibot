@@ -32,6 +32,8 @@ from collections import Counter, defaultdict
 from datetime import datetime, timezone
 from typing import Any
 
+from utils.silent_errors import log_silent_failure
+
 logger = logging.getLogger(__name__)
 
 #: DNA hisoblash uchun minimal post soni.
@@ -766,8 +768,8 @@ def build_dna_system_prompt(profile: dict, lang: str = "uz") -> str:
                 weekdays=", ".join(str(d) for d in weekdays_val[:3]) if weekdays_val else "—",
                 formats=", ".join(formats_val[:3]) if formats_val else "—",
             )
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("services.channels.dna:build_dna_system_prompt", _silent_exc, lang=lang)
     # Fallback to legacy template
     return _DNA_PROMPT_TEMPLATES[code].format(
         length=int(length),
@@ -1069,8 +1071,8 @@ async def attach_dna_to_context(
                 dna_profile = await _db_call(db, db.get_channel_dna_profile, ch_id)
                 if isinstance(dna_profile, dict):
                     profile = dna_profile.get("profile") or dna_profile
-            except Exception:
-                pass
+            except Exception as _silent_exc:
+                log_silent_failure("services.channels.dna:attach_dna_to_context", _silent_exc, user_id=user_id)
         if not isinstance(profile, dict) or not profile:
             return ctx
         sample = profile.get("sample_size")

@@ -59,6 +59,8 @@ from urllib import error as urlerror
 from urllib import parse as urlparse
 from urllib import request as urlrequest
 
+from utils.silent_errors import log_silent_failure
+
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
@@ -202,8 +204,8 @@ def _ip_literal(host: str) -> str | None:
         return None
     try:
         return str(ipaddress.ip_address(text))
-    except ValueError:
-        pass
+    except ValueError as _silent_exc:
+        log_silent_failure("services.url_security_gateway:_ip_literal", _silent_exc)
     try:
         packed = socket.inet_aton(text)
     except OSError:
@@ -571,8 +573,8 @@ def _decode_body(raw: bytes, charset: str | None) -> str:
     if charset:
         try:
             return raw.decode(charset, errors="replace")
-        except (LookupError, TypeError, ValueError):
-            pass
+        except (LookupError, TypeError, ValueError) as _silent_exc:
+            log_silent_failure("services.url_security_gateway:_decode_body", _silent_exc)
     for candidate in ("utf-8", "cp1251", "latin-1"):
         try:
             return raw.decode(candidate, errors="replace")

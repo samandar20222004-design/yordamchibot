@@ -37,6 +37,8 @@ from datetime import date as _date, datetime, time as _time
 
 import pytz
 
+from utils.silent_errors import log_silent_failure
+
 __all__ = (
     "DEFAULT_LANG",
     "MONTH_NAMES",
@@ -341,8 +343,8 @@ def _today_word(code: str) -> str:
         text = get_text("dt_today", code)
         if text and text != "dt_today":
             return text
-    except Exception:  # pragma: no cover
-        pass
+    except Exception as _silent_exc:  # pragma: no cover
+        log_silent_failure("utils.date_format:_today_word", _silent_exc)
     return {"ru": "Сегодня", "en": "Today"}.get(code, "Bugun")
 
 
@@ -352,8 +354,8 @@ def _tomorrow_word(code: str) -> str:
         text = get_text("dt_tomorrow", code)
         if text and text != "dt_tomorrow":
             return text
-    except Exception:  # pragma: no cover
-        pass
+    except Exception as _silent_exc:  # pragma: no cover
+        log_silent_failure("utils.date_format:_tomorrow_word", _silent_exc)
     return {"ru": "Завтра", "en": "Tomorrow"}.get(code, "Ertaga")
 
 
@@ -380,8 +382,8 @@ def weekday_label(day_index, lang=DEFAULT_LANG) -> str:
         label = (table or {}).get(idx)
         if label:
             return str(label)
-    except Exception:  # pragma: no cover - keyboards importi sinsa
-        pass
+    except Exception as _silent_exc:  # pragma: no cover - keyboards importi sinsa
+        log_silent_failure("utils.date_format:weekday_label", _silent_exc, lang=lang)
     # 2) Zaxira: shu modulning o'zidagi nomlar.
     names = WEEKDAY_NAMES.get(code) or WEEKDAY_NAMES[DEFAULT_LANG]
     return names[idx]

@@ -16,6 +16,8 @@ from collections import OrderedDict
 from datetime import datetime, timedelta, timezone
 
 
+from utils.silent_errors import log_silent_failure
+
 _LOCK = threading.RLock()
 _MAX_ACTIVE_USERS = 100_000
 _MAX_AGE_SECONDS = 31 * 24 * 60 * 60
@@ -101,16 +103,16 @@ def record_telegram_request(*, status_code=None, error=None, latency_ms=0) -> No
     is_rate_limited = False
     try:
         is_rate_limited = int(status_code) == 429
-    except (TypeError, ValueError):
-        pass
+    except (TypeError, ValueError) as _silent_exc:
+        log_silent_failure("services.observability:record_telegram_request:104", _silent_exc)
     if error is not None:
         is_rate_limited = is_rate_limited or type(error).__name__ in {
             "RetryAfter", "RetryAfterError", "TooManyRequests",
         }
         try:
             is_rate_limited = is_rate_limited or int(getattr(error, "error_code", 0)) == 429
-        except (TypeError, ValueError):
-            pass
+        except (TypeError, ValueError) as _silent_exc:
+            log_silent_failure("services.observability:record_telegram_request:112", _silent_exc)
     latency = max(0.0, _number(latency_ms))
     with _LOCK:
         _telegram_requests += 1

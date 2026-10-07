@@ -15,6 +15,8 @@ from locales.translations import (
 from utils.date_format import format_datetime, weekday_label
 from utils.helpers import html_escape, safe_html, get_auto_ad_injection_async, keep_typing
 
+from utils.silent_errors import log_silent_failure
+
 logger = logging.getLogger(__name__)
 
 # States
@@ -273,8 +275,8 @@ async def plan_topic_received(update: Update, context: ContextTypes.DEFAULT_TYPE
     chat_id = update.effective_chat.id
     try:
         await context.bot.send_chat_action(chat_id=chat_id, action="typing")
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.content_plan:plan_topic_received", _silent_exc, user_id=user_id, channel_id=channel_id, chat_id=chat_id, lang=lang)
     wait_msg = await update.message.reply_text("⏳ Post tayyorlanmoqda, iltimos kuting...")
     async with keep_typing(context.bot, chat_id):
         # 🌐 Kontent-reja foydalanuvchi tilida (uz/ru/en).
@@ -361,16 +363,16 @@ async def plan_schedule_all(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not plan_items:
         try:
             await query.answer(safe_t("plan_sched_stale", lang), show_alert=True)
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.content_plan:plan_schedule_all:364", _silent_exc)
         return PLAN_VIEW
 
     # 2) Ikki marta rejalashtirish himoyasi.
     if context.user_data.get("plan_scheduled"):
         try:
             await query.answer(safe_t("plan_sched_already", lang), show_alert=True)
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.content_plan:plan_schedule_all:372", _silent_exc)
         return PLAN_VIEW
 
     # 3) Kanal foydalanuvchiga tegishli ekanini tekshiramiz (xavfsizlik:
@@ -386,15 +388,15 @@ async def plan_schedule_all(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not channel_id or str(channel_id) not in owned:
         try:
             await query.answer(safe_t("plan_sched_no_channel", lang), show_alert=True)
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.content_plan:plan_schedule_all:389", _silent_exc)
         return PLAN_VIEW
 
     # Darhol javob — DB yozuvi tugaguncha tugma "yopishib" qolmaydi.
     try:
         await query.answer(safe_t("plan_sched_busy", lang))
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.content_plan:plan_schedule_all:396", _silent_exc, user_id=user_id, channel_id=channel_id, lang=lang)
 
     # 4) Dushanba → yakshanba, har kuni 12:00 (Toshkent).
     times = week_schedule_times(len(plan_items))
@@ -452,8 +454,8 @@ async def plan_schedule_all(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_reply_markup(
             reply_markup=_get_plan_day_keyboard(plan_items, lang)
         )
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.content_plan:plan_schedule_all:455", _silent_exc, user_id=user_id, channel_id=channel_id, lang=lang)
     return PLAN_VIEW
 
 
@@ -506,8 +508,8 @@ async def plan_view_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
         chat_id = query.message.chat_id
         try:
             await context.bot.send_chat_action(chat_id=chat_id, action="typing")
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.content_plan:plan_view_callback:509", _silent_exc, channel_id=channel_id, chat_id=chat_id)
         wait_msg = await query.message.reply_text("⏳ Post tayyorlanmoqda, iltimos kuting...")
         async with keep_typing(context.bot, chat_id):
             result = await generate_content_plan(
@@ -624,8 +626,8 @@ async def plan_view_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
         chat_id = query.message.chat_id
         try:
             await context.bot.send_chat_action(chat_id=chat_id, action="typing")
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.content_plan:plan_view_callback:627", _silent_exc, channel_id=channel_id, chat_id=chat_id)
         async with keep_typing(context.bot, chat_id):
             result = await generate_post_from_plan(topic, title, idea, tone, lang=lang)
 

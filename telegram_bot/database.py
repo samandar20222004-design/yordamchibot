@@ -78,6 +78,8 @@ import pytz
 
 from config import DATABASE_URL
 
+from utils.silent_errors import log_silent_failure
+
 tashkent_tz = pytz.timezone("Asia/Tashkent")
 
 logger = logging.getLogger(__name__)
@@ -567,8 +569,8 @@ def resolve_sslmode(url: str = None) -> str:
     try:
         from urllib.parse import urlparse
         host = (urlparse(url).hostname or "").lower()
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("database:resolve_sslmode", _silent_exc)
     if host in ("", "localhost", "127.0.0.1", "::1"):
         return "prefer"
     return "require"
@@ -638,8 +640,8 @@ def _close_quietly(conns):
     for c in conns:
         try:
             c.close()
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("database:_close_quietly", _silent_exc)
 
 class _WarmPool(ThreadedConnectionPool):
     """``ThreadedConnectionPool`` (psycopg2 2.9.x) ning 3 ta sekinlashtiruvchi xatti-harakatini tuzatadi:
@@ -818,8 +820,8 @@ def _reset_pool():
         if _pool is not None:
             try:
                 _pool.closeall()
-            except Exception:
-                pass
+            except Exception as _silent_exc:
+                log_silent_failure("database:_reset_pool", _silent_exc)
             _pool = None
 
 def close_pool():
@@ -1229,8 +1231,8 @@ def _acquire_connection():
             except Exception:
                 try:
                     conn.close()
-                except Exception:
-                    pass
+                except Exception as _silent_exc:
+                    log_silent_failure("database:_acquire_connection", _silent_exc)
         if last_err is not None:
             raise last_err
         raise psycopg2.OperationalError("DB ulanish olinmadi")
@@ -1292,8 +1294,8 @@ def warm_pool() -> bool:
                     except Exception:
                         try:
                             conn.close()
-                        except Exception:
-                            pass
+                        except Exception as _silent_exc:
+                            log_silent_failure("database:warm_pool", _silent_exc)
         if warmed >= max(1, DB_POOL_MIN):
             logger.info(
                 "DB pool isitildi: %s ulanish tayyor (min=%s, max=%s).",
@@ -1326,8 +1328,8 @@ def _discard_connection(conn):
         except Exception:
             try:
                 conn.close()
-            except Exception:
-                pass
+            except Exception as _silent_exc:
+                log_silent_failure("database:_discard_connection", _silent_exc)
     finally:
         _conn_released()
         sem.release()
@@ -1426,8 +1428,8 @@ class _Transaction:
             self._reset_ctx()
             try:
                 _discard_connection(conn)
-            except Exception:
-                pass
+            except Exception as _silent_exc:
+                log_silent_failure("database:_Transaction.enter", _silent_exc)
             self.conn = None
             raise
         return self.cur
@@ -1456,8 +1458,8 @@ class _Transaction:
             return
         try:
             self._close_cursor()
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("database:_Transaction.finish", _silent_exc)
         if exc is None:
             try:
                 if self.commit:
@@ -1498,8 +1500,8 @@ class _Transaction:
         if token is not None:
             try:
                 _TX_CTX.reset(token)
-            except Exception:
-                pass
+            except Exception as _silent_exc:
+                log_silent_failure("database:_Transaction._reset_ctx", _silent_exc)
 
     def _close_cursor(self):
         cur, self.cur = self.cur, None
@@ -1507,8 +1509,8 @@ class _Transaction:
             return
         try:
             cur.close()
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("database:_Transaction._close_cursor", _silent_exc)
 
     @staticmethod
     def _retire(conn, broken: bool):
@@ -1520,8 +1522,8 @@ class _Transaction:
         except Exception:
             try:
                 conn.close()
-            except Exception:
-                pass
+            except Exception as _silent_exc:
+                log_silent_failure("database:_Transaction._retire", _silent_exc)
 
 @contextmanager
 def db_transaction(commit: bool = True, isolation_level: str = None,
@@ -2051,8 +2053,8 @@ def validate_integrity_constraints(names=None) -> dict:
                     try:
                         cur.execute(f"ROLLBACK TO SAVEPOINT validate_{name}")
                         cur.execute(f"RELEASE SAVEPOINT validate_{name}")
-                    except Exception:
-                        pass
+                    except Exception as _silent_exc:
+                        log_silent_failure("database:validate_integrity_constraints", _silent_exc)
                     result[name] = f"xato: {e}"
                     logger.warning("VALIDATE CONSTRAINT %s xatosi: %s", name, e)
     except Exception as e:
@@ -3013,19 +3015,22 @@ from repositories.settings_repository import (  # noqa: F401
 )
 # --- 👤 USERS — profil, til, tier, kvota, kredits, referallar, onboarding
 from repositories.users_repository import (  # noqa: F401
+    ACCOUNT_DELETE_RETAINED_TABLES,
     AI_OPERATION_TYPES, AI_RESERVATION_ACTIVE, AI_RESERVATION_REFUNDED,
     AI_RESERVE_COST_MAX, AI_RESERVE_COST_MIN, AI_RESERVE_DB_ERROR,
     AI_RESERVE_INSUFFICIENT, AI_RESERVE_INVALID_REQUEST, AI_RESERVE_OK,
     AI_RESERVE_SOURCE_CREDIT, AI_RESERVE_SOURCE_QUOTA,
     AI_RESERVE_USER_NOT_FOUND, FREE_QUEUE_MAX_POSTS, PLAN_LIMITS,
     REFERRAL_BASE_REWARD, REFERRAL_TOP_TIER_FRIENDS, REFERRAL_TOP_TIER_REWARD,
+    _ACCOUNT_DELETE_CHANNEL_SCOPED,
     _AI_QUOTA_RESERVATIONS, _AI_QUOTA_RESERVATIONS_LOCK,
     _InsufficientBalanceSignal, _UserSaveResult, _consume_ai_quota_reservation,
+    _delete_user_channels_data,
     _deny_ai_reserve, _effective_plan, _effective_plan_strict,
     _ensure_limit_reset, _generate_user_code, _normalize_language_code,
     _remember_ai_quota_reservation, _subscription_expired, _today_tashkent,
     add_user_credit, check_ai_limit, check_channel_limit, check_queue_limit,
-    claim_daily_streak_bonus, create_promo_code,
+    claim_daily_streak_bonus, create_promo_code, delete_user_data,
     downgrade_expired_subscriptions, find_user_by_target, get_all_user_ids,
     get_referral_stats, get_referrer_id, get_user_channel_list_for_analytics,
     touch_user_activity,

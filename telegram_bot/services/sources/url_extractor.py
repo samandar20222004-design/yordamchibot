@@ -52,6 +52,8 @@ from urllib import request as urlrequest
 
 from ..ai.smm_common import SMMFeatureService, clip, sanitize_html, strip_html
 
+from utils.silent_errors import log_silent_failure
+
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
@@ -307,8 +309,8 @@ def _ip_literal(host: str) -> str | None:
         return None
     try:
         return str(ipaddress.ip_address(text))
-    except ValueError:
-        pass
+    except ValueError as _silent_exc:
+        log_silent_failure("services.sources.url_extractor:_ip_literal", _silent_exc)
     try:
         packed = socket.inet_aton(text)
     except OSError:
@@ -530,8 +532,8 @@ def build_telegram_preview_url(channel: str, post_id: int | None = None) -> str:
     if post_id is not None:
         try:
             return f"https://t.me/s/{name}/{int(post_id)}"
-        except (TypeError, ValueError):
-            pass
+        except (TypeError, ValueError) as _silent_exc:
+            log_silent_failure("services.sources.url_extractor:build_telegram_preview_url", _silent_exc, post_id=post_id)
     return f"https://t.me/s/{name}"
 
 
@@ -657,8 +659,8 @@ def _decode_body(raw: bytes, charset: str | None) -> str:
     if charset:
         try:
             return raw.decode(charset, errors="replace")
-        except (LookupError, TypeError, ValueError):
-            pass
+        except (LookupError, TypeError, ValueError) as _silent_exc:
+            log_silent_failure("services.sources.url_extractor:_decode_body", _silent_exc)
     for candidate in ("utf-8", "cp1251", "latin-1"):
         try:
             return raw.decode(candidate, errors="replace")
@@ -777,8 +779,8 @@ def fetch_url(
     finally:
         try:
             response.close()
-        except Exception:  # pragma: no cover
-            pass
+        except Exception as _silent_exc:  # pragma: no cover
+            log_silent_failure("services.sources.url_extractor:fetch_url", _silent_exc)
 
     base_type = (content_type.split(";", 1)[0] or "").strip().lower()
     allowed = tuple(allowed_content_types)

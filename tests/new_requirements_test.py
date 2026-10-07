@@ -237,8 +237,9 @@ def test_ru_cabinet_after_switch_no_crash():
             assert cbs == [
                 "stgs_lang", "stgs_post",
                 "stgs_notif", "stgs_referral",
-                "stgs_pay", "sub_open", "stgs_help_hub",
-                "stgs_back",
+                "stgs_pay", "sub_open",
+                "stgs_privacy", "stgs_delete_data",
+                "stgs_help_hub", "stgs_back",
             ], cbs
             assert "cab_channels" not in cbs, cbs
             assert "stgs_profile" not in cbs, cbs

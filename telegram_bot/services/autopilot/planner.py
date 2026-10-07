@@ -61,6 +61,8 @@ from services.channels.content_loop import (
     normalize_strategic_goal,
 )
 
+from utils.silent_errors import log_silent_failure
+
 logger = logging.getLogger(__name__)
 
 #: Rejadagi kunlar soni (Dushanba → Yakshanba).
@@ -570,14 +572,14 @@ def normalize_ai_plan(payload: Any, days: int = AUTOPILOT_DAYS) -> list[dict]:
                 if qs > 1.0 and qs <= 100.0:
                     qs = qs / 100.0
                 entry["quality_score"] = round(max(0.0, min(1.0, qs)), 4)
-            except (TypeError, ValueError):
-                pass
+            except (TypeError, ValueError) as _silent_exc:
+                log_silent_failure("services.autopilot.planner:normalize_ai_plan:573", _silent_exc)
         if item.get("hour") is not None or item.get("scheduled_hour") is not None:
             raw_h = item.get("hour") if item.get("hour") is not None else item.get("scheduled_hour")
             try:
                 entry["hour"] = int(raw_h) % 24
-            except (TypeError, ValueError):
-                pass
+            except (TypeError, ValueError) as _silent_exc:
+                log_silent_failure("services.autopilot.planner:normalize_ai_plan:579", _silent_exc)
         normalized.append(entry)
     if len(normalized) != int(days) or len(normalized) == 0:
         return []
@@ -609,8 +611,8 @@ def compute_post_quality_score(
             if qs > 1.0 and qs <= 100.0:
                 qs = qs / 100.0
             return round(max(0.0, min(1.0, qs)), 4)
-        except (TypeError, ValueError):
-            pass
+        except (TypeError, ValueError) as _silent_exc:
+            log_silent_failure("services.autopilot.planner:compute_post_quality_score:612", _silent_exc, lang=lang)
 
     if isinstance(item, dict):
         content = str(item.get("content") or "").strip()
@@ -634,8 +636,8 @@ def compute_post_quality_score(
         local_res = score_post_locally(post_text, lang=lang)
         overall_100 = float(local_res.get("overall") or 65.0)
         base_score = max(0.1, min(1.0, overall_100 / 100.0))
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("services.autopilot.planner:compute_post_quality_score:637", _silent_exc, lang=lang)
 
     bonus = 0.0
     if len(post_text) >= 60:
@@ -985,8 +987,8 @@ def build_week_plan(
                 else:
                     slot_hour = custom_h
                     rescheduled = False
-            except (TypeError, ValueError):
-                pass
+            except (TypeError, ValueError) as _silent_exc:
+                log_silent_failure("services.autopilot.planner:build_week_plan", _silent_exc)
 
         day_date = monday_date + timedelta(days=day_idx)
         moment = tashkent_tz.localize(
@@ -1071,11 +1073,13 @@ async def check_user_is_pro(user_id: int, db_module: Any = None) -> bool:
     """Foydalanuvchi PRO (yoki admin) ekanini tekshiradi (fail-closed: False)."""
     db = db_module if db_module is not None else _import_database()
     try:
-        from config import ADMIN_IDS
-        if int(user_id) in (ADMIN_IDS or ()):
+        # KANONIK manba — ``ADMIN_IDS_SET`` (config). Eski ``ADMIN_IDS`` nomi
+        # ham mavjud (alias), lekin bu yerda yagona to'plamdan foydalanamiz.
+        from config import ADMIN_IDS_SET
+        if int(user_id) in ADMIN_IDS_SET:
             return True
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("services.autopilot.planner:check_user_is_pro", _silent_exc, user_id=user_id)
     if db is None:
         return False
     try:

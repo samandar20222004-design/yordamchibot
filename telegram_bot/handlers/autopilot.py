@@ -90,6 +90,8 @@ from services import rbac_service
 from translations import autopilot_t
 from utils.helpers import html_escape
 
+from utils.silent_errors import log_silent_failure
+
 logger = logging.getLogger(__name__)
 
 # ============================================================
@@ -560,8 +562,8 @@ async def channel_autopilot_entry(update: Update,
         return ConversationHandler.END
     try:
         await query.answer()
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.autopilot:channel_autopilot_entry", _silent_exc)
     lang = _lang(context)
     user_id = query.from_user.id
     channel_id = (query.data or "").split(":", 1)[1] if ":" in (query.data or "") else ""
@@ -613,8 +615,8 @@ async def autopilot_strategy_callback(
     if not channel_id:
         try:
             await query.answer(autopilot_t("stale", lang), show_alert=True)
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.autopilot:autopilot_strategy_callback:616", _silent_exc)
         return ConversationHandler.END
 
     cfg = _get_or_init_config(context, channel_id=channel_id)
@@ -636,8 +638,8 @@ async def autopilot_strategy_callback(
                         autopilot_t("v2_auto_pro_only", lang)[:190],
                         show_alert=True,
                     )
-                except Exception:
-                    pass
+                except Exception as _silent_exc:
+                    log_silent_failure("handlers.autopilot:autopilot_strategy_callback:639", _silent_exc)
                 await _safe_edit(
                     query,
                     autopilot_t("v2_auto_pro_only", lang),
@@ -656,8 +658,8 @@ async def autopilot_strategy_callback(
 
     try:
         await query.answer()
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.autopilot:autopilot_strategy_callback:659", _silent_exc, user_id=user_id, channel_id=channel_id, lang=lang)
 
     title = str(context.user_data.get(UD_TITLE) or "Kanal")
     await _safe_edit(
@@ -836,8 +838,8 @@ async def autopilot_confirm_callback(update: Update,
         return AUTOPILOT_VIEW
     try:
         await query.answer()
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.autopilot:autopilot_confirm_callback", _silent_exc)
     lang = _lang(context)
     user_id = query.from_user.id
     days = _stored_days(context)
@@ -944,8 +946,8 @@ async def autopilot_force_callback(update: Update,
         return AUTOPILOT_VIEW
     try:
         await query.answer()
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.autopilot:autopilot_force_callback", _silent_exc)
     lang = _lang(context)
     user_id = query.from_user.id
     days = _stored_days(context)
@@ -977,8 +979,8 @@ async def autopilot_refresh_callback(update: Update,
         return AUTOPILOT_VIEW
     try:
         await query.answer()
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.autopilot:autopilot_refresh_callback", _silent_exc)
     lang = _lang(context)
     days = _stored_days(context)
     flagged = context.user_data.get(UD_DUP_FLAGGED) or []
@@ -1027,8 +1029,8 @@ async def autopilot_regen_callback(update: Update,
         return AUTOPILOT_VIEW
     try:
         await query.answer()
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.autopilot:autopilot_regen_callback", _silent_exc)
     lang = _lang(context)
     user_id = query.from_user.id
     topic = str(context.user_data.get(UD_TOPIC) or "")
@@ -1076,8 +1078,8 @@ async def autopilot_edit_callback(update: Update,
         return AUTOPILOT_VIEW
     try:
         await query.answer()
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.autopilot:autopilot_edit_callback", _silent_exc)
     lang = _lang(context)
     days = _stored_days(context)
     if not days:
@@ -1098,8 +1100,8 @@ async def autopilot_back_to_plan_callback(
         return AUTOPILOT_VIEW
     try:
         await query.answer()
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.autopilot:autopilot_back_to_plan_callback", _silent_exc)
     lang = _lang(context)
     days = _stored_days(context)
     if not days:
@@ -1123,8 +1125,8 @@ async def autopilot_edit_day_callback(update: Update,
         return AUTOPILOT_EDIT_DAY
     try:
         await query.answer()
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.autopilot:autopilot_edit_day_callback", _silent_exc)
     lang = _lang(context)
     data = str(getattr(query, "data", "") or "")
     arg = data.split(":", 1)[1] if ":" in data else ""
@@ -1207,8 +1209,8 @@ async def autopilot_post_view_callback(
         return AUTOPILOT_VIEW
     try:
         await query.answer()
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.autopilot:autopilot_post_view_callback", _silent_exc)
     lang = _lang(context)
     days = _stored_days(context)
     if not days:
@@ -1245,8 +1247,8 @@ async def autopilot_post_approve_callback(
         return AUTOPILOT_VIEW
     try:
         await query.answer()
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.autopilot:autopilot_post_approve_callback", _silent_exc)
     lang = _lang(context)
     user_id = query.from_user.id
     days = _stored_days(context)
@@ -1310,8 +1312,8 @@ async def autopilot_post_edit_callback(
         return AUTOPILOT_EDIT_INPUT
     try:
         await query.answer()
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.autopilot:autopilot_post_edit_callback", _silent_exc)
     lang = _lang(context)
     days = _stored_days(context)
     data = str(getattr(query, "data", "") or "")
@@ -1351,8 +1353,8 @@ async def autopilot_post_regen_callback(
         return AUTOPILOT_VIEW
     try:
         await query.answer()
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.autopilot:autopilot_post_regen_callback", _silent_exc)
     lang = _lang(context)
     user_id = query.from_user.id
     days = _stored_days(context)
@@ -1416,8 +1418,8 @@ async def autopilot_post_delete_callback(
         return AUTOPILOT_VIEW
     try:
         await query.answer()
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.autopilot:autopilot_post_delete_callback", _silent_exc)
     lang = _lang(context)
     days = _stored_days(context)
     if not days:
@@ -1460,8 +1462,8 @@ async def autopilot_cancel_callback(update: Update,
         return ConversationHandler.END
     try:
         await query.answer()
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.autopilot:autopilot_cancel_callback", _silent_exc)
     lang = _lang(context)
     clear_autopilot_session(context)
     text = autopilot_t("cancel_done", lang)
@@ -1481,8 +1483,8 @@ async def autopilot_stale_callback(update: Update,
         return ConversationHandler.END
     try:
         await query.answer(autopilot_t("stale", get_lang(context)))
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.autopilot:autopilot_stale_callback", _silent_exc)
     return ConversationHandler.END
 
 

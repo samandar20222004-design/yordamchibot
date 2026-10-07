@@ -38,6 +38,8 @@ import unicodedata
 from dataclasses import dataclass, field
 from typing import Any, Iterable
 
+from utils.silent_errors import log_silent_failure
+
 logger = logging.getLogger(__name__)
 
 #: Telegram text message qat'iy chegarasi (decoded UTF-16 birliklari).
@@ -607,8 +609,8 @@ class SMMFeatureService:
     def _log(self, message: str, *args) -> None:
         try:
             logger.info(f"[smm:{self.feature}] {message}", *args)
-        except Exception:  # pragma: no cover
-            pass
+        except Exception as _silent_exc:  # pragma: no cover
+            log_silent_failure("services.ai.smm_common:SMMFeatureService._log", _silent_exc)
 
 
 def result_payload(result: Any) -> dict:

@@ -33,6 +33,8 @@ tozalanadi va kerak bo'lsa bo'lim QAYTA yoziladi (``keep_section_after_clear``).
 
 import logging
 
+from utils.silent_errors import log_silent_failure
+
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
@@ -89,8 +91,8 @@ def clear_section(context) -> None:
         ud = getattr(context, "user_data", None)
         if ud is not None:
             ud.pop(NAV_KEY, None)
-    except Exception:  # pragma: no cover
-        pass
+    except Exception as _silent_exc:  # pragma: no cover
+        log_silent_failure("handlers.navigation:clear_section", _silent_exc)
 
 
 def keep_section_after_clear(context) -> str:

@@ -988,9 +988,10 @@ def test_regression_and_parity():
                                   get_support_ticket_keyboard)
 
     hub_cbs = _flat_cbs(get_settings_hub_keyboard("uz"))
-    check("hub: 8 tugma (4x2), yagona yordam kirishi",
+    check("hub: 10 tugma (5x2), yagona yordam kirishi",
           hub_cbs == ["stgs_lang", "stgs_post", "stgs_notif", "stgs_referral",
-                      "stgs_pay", "sub_open", "stgs_help_hub", "stgs_back"],
+                      "stgs_pay", "sub_open", "stgs_privacy", "stgs_delete_data",
+                      "stgs_help_hub", "stgs_back"],
           str(hub_cbs))
     profile_buttons = [b for row in get_settings_help_hub_keyboard("uz").inline_keyboard
                        for b in row if b.text.endswith("Qo'llab-quvvatlash")]

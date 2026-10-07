@@ -97,6 +97,8 @@ from utils.date_format import format_datetime
 from utils.helpers import html_escape
 from utils.telegram_sanitizer import sanitize_html
 
+from utils.silent_errors import log_silent_failure
+
 logger = logging.getLogger(__name__)
 
 tashkent_tz = pytz.timezone("Asia/Tashkent")
@@ -362,8 +364,8 @@ async def channel_sources_entry(update: Update,
         return ConversationHandler.END
     try:
         await query.answer()
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.sources:channel_sources_entry", _silent_exc)
     lang = _lang(context)
     user_id = query.from_user.id
     channel_id = _payload(query.data)
@@ -406,8 +408,8 @@ async def sources_hub_callback(update: Update,
         return ConversationHandler.END
     try:
         await query.answer()
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.sources:sources_hub_callback", _silent_exc)
     lang = _lang(context)
     user_id = query.from_user.id
     data = str(getattr(query, "data", "") or "")
@@ -453,8 +455,8 @@ async def sources_back_callback(update: Update,
         return ConversationHandler.END
     try:
         await query.answer()
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.sources:sources_back_callback", _silent_exc)
     lang = _lang(context)
     user_id = query.from_user.id
     channel_id = str(context.user_data.get(UD_CHANNEL) or "")
@@ -484,8 +486,8 @@ async def source_cancel_callback(update: Update,
     if query is not None:
         try:
             await query.answer()
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.sources:source_cancel_callback:487", _silent_exc)
     lang = _lang(context)
     clear_sources_session(context)
     if query is not None:
@@ -493,8 +495,8 @@ async def source_cancel_callback(update: Update,
             await query.edit_message_text(sources_t("src_cancel_done", lang),
                                           parse_mode="HTML")
             return ConversationHandler.END
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.sources:source_cancel_callback:496", _silent_exc)
         await _safe_edit(query, sources_t("src_cancel_done", lang))
     return ConversationHandler.END
 
@@ -623,8 +625,8 @@ async def url_format_callback(update: Update,
         return SRC_URL_FORMATS
     try:
         await query.answer()
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.sources:url_format_callback", _silent_exc)
     lang = _lang(context)
     key = _payload(query.data)
     drafts = list(context.user_data.get(UD_DRAFTS) or [])
@@ -686,8 +688,8 @@ async def preview_action_callback(update: Update,
         return SRC_PREVIEW
     try:
         await query.answer()
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.sources:preview_action_callback", _silent_exc)
     lang = _lang(context)
     user_id = query.from_user.id
     action = _payload(query.data)
@@ -909,8 +911,8 @@ async def rss_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return SRC_RSS_MENU
     try:
         await query.answer()
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.sources:rss_menu_callback", _silent_exc)
     lang = _lang(context)
     user_id = query.from_user.id
     data = str(getattr(query, "data", "") or "")
@@ -1147,8 +1149,8 @@ async def recycle_pick_callback(update: Update,
         return SRC_RECYCLE_LIST
     try:
         await query.answer()
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.sources:recycle_pick_callback", _silent_exc)
     lang = _lang(context)
     user_id = query.from_user.id
     channel_id = str(context.user_data.get(UD_CHANNEL) or "")
@@ -1234,8 +1236,8 @@ async def draft_action_callback(update: Update,
         return SRC_DRAFTS
     try:
         await query.answer()
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.sources:draft_action_callback", _silent_exc)
     lang = _lang(context)
     user_id = query.from_user.id
     channel_id = str(context.user_data.get(UD_CHANNEL) or "")

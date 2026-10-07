@@ -24,6 +24,8 @@ from config import (
     SAMBANOVA_API_KEY, CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID,
 )
 
+from utils.silent_errors import log_silent_failure
+
 logger = logging.getLogger(__name__)
 tashkent_tz = pytz.timezone("Asia/Tashkent")
 
@@ -1680,8 +1682,8 @@ def _retry_after_seconds(resp: aiohttp.ClientResponse, fallback: float = 3.0) ->
         raw = resp.headers.get("Retry-After")
         if raw:
             return min(max(float(raw), 1.0), 10.0)
-    except (TypeError, ValueError):
-        pass
+    except (TypeError, ValueError) as _silent_exc:
+        log_silent_failure("utils.ai_agent:_retry_after_seconds", _silent_exc)
     return fallback
 
 
@@ -3728,8 +3730,8 @@ def _parse_vision_text(raw_text: str) -> dict:
             )
             if post and str(post).strip():
                 return {"post_text": str(post).strip()}
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("utils.ai_agent:_parse_vision_text", _silent_exc)
     # JSON bo'lmagan to'g'ri matn — to'g'ridan-to'g'ri qaytaramiz
     return {"post_text": text}
 
@@ -3947,8 +3949,8 @@ def cleanup_temp_media(path: str):
             and os.path.isdir(parent)
         ):
             os.rmdir(parent)
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("utils.ai_agent:cleanup_temp_media", _silent_exc)
 
 
 async def generate_vision_post(
@@ -4818,8 +4820,8 @@ async def generate_magic_post(
                 and "СТАНДАРТ КАЧЕСТВА" not in system_instruction \
                 and "SIFAT STANDARTI" not in system_instruction:
             system_instruction = f"{system_instruction}\n\n{_quality_block}"
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("utils.ai_agent:generate_magic_post", _silent_exc, lang=lang)
 
     result = await generate_ai_response(
         material,

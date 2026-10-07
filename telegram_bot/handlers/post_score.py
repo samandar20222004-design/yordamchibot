@@ -82,6 +82,8 @@ from utils.helpers import (
 )
 from utils.post_scorer import score_bar, validate_post_text
 
+from utils.silent_errors import log_silent_failure
+
 logger = logging.getLogger(__name__)
 
 # ============================================================
@@ -303,8 +305,8 @@ async def _add_credit_back(user_id: int, reservation_id=None) -> None:
     if hasattr(db, "refund_ai_usage"):
         try:
             await db.run_db(db.refund_ai_usage, user_id)
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.post_score:_add_credit_back", _silent_exc, user_id=user_id)
 
 
 async def _toast(query, text: str) -> None:
@@ -314,8 +316,8 @@ async def _toast(query, text: str) -> None:
     except Exception:
         try:
             await query.answer()
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.post_score:_toast", _silent_exc)
 
 
 async def _send_score_screen(target, payload: dict, lang: str,
@@ -330,8 +332,8 @@ async def _send_score_screen(target, payload: dict, lang: str,
         try:
             await reply_text(text, reply_markup=markup, parse_mode="HTML")
             return
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.post_score:_send_score_screen", _silent_exc, lang=lang)
     await _safe_edit(target, text, markup)
 
 
@@ -344,8 +346,8 @@ async def post_score_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if query is not None:
         try:
             await query.answer()
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.post_score:post_score_entry", _silent_exc)
     msg = (
         getattr(update, "message", None)
         or getattr(update, "effective_message", None)
@@ -407,16 +409,16 @@ async def post_score_text_received(update: Update, context: ContextTypes.DEFAULT
             return POST_SCORE_INPUT
         try:
             await msg.reply_text(safe_t("ai_rate_limit_alert", lang), parse_mode="HTML")
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.post_score:post_score_text_received:410", _silent_exc)
         return POST_SCORE_INPUT
 
     # 2-BOSQICH UX: typing + placeholder edit_text
     chat_id = msg.chat_id
     try:
         await context.bot.send_chat_action(chat_id=chat_id, action="typing")
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.post_score:post_score_text_received:418", _silent_exc, user_id=user_id, chat_id=chat_id, lang=lang)
     status = await msg.reply_text("⏳ Post tayyorlanmoqda, iltimos kuting...")
 
     try:
@@ -480,12 +482,12 @@ async def post_score_eval_callback(update: Update, context: ContextTypes.DEFAULT
     chat_id = query.message.chat_id
     try:
         await context.bot.send_chat_action(chat_id=chat_id, action="typing")
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.post_score:post_score_eval_callback:483", _silent_exc, user_id=user_id, chat_id=chat_id, lang=lang)
     try:
         await query.edit_message_text("⏳ Post tayyorlanmoqda, iltimos kuting...")
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.post_score:post_score_eval_callback:487", _silent_exc, user_id=user_id, chat_id=chat_id, lang=lang)
 
     try:
         payload = await score_post(post_text, lang=lang)
@@ -564,8 +566,8 @@ async def post_score_improve_callback(update: Update, context: ContextTypes.DEFA
     chat_id = query.message.chat_id
     try:
         await context.bot.send_chat_action(chat_id=chat_id, action="typing")
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.post_score:post_score_improve_callback:567", _silent_exc, user_id=user_id, chat_id=chat_id, lang=lang)
     try:
         await query.edit_message_text("⏳ Post tayyorlanmoqda, iltimos kuting...")
         wait_msg = query.message
@@ -588,8 +590,8 @@ async def post_score_improve_callback(update: Update, context: ContextTypes.DEFA
             try:
                 await wait_msg.edit_text(err_text, reply_markup=post_score_action_keyboard(lang), parse_mode="HTML")
                 return _return_state(context)
-            except Exception:
-                pass
+            except Exception as _silent_exc:
+                log_silent_failure("handlers.post_score:post_score_improve_callback:591", _silent_exc)
         await _safe_edit(query, err_text, post_score_action_keyboard(lang))
         return _return_state(context)
 
@@ -604,8 +606,8 @@ async def post_score_improve_callback(update: Update, context: ContextTypes.DEFA
         try:
             await wait_msg.edit_text(result_text, reply_markup=result_markup, parse_mode="HTML")
             return _return_state(context)
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.post_score:post_score_improve_callback:607", _silent_exc)
     await _safe_edit(query, result_text, result_markup)
     return _return_state(context)
 
@@ -652,16 +654,16 @@ async def _finish_send(query, context, targets: list) -> int:
             if not reservation_source(context, "score"):
                 try:
                     await db.run_db(db.increment_ai_usage, user_id)
-                except Exception:
-                    pass
+                except Exception as _silent_exc:
+                    log_silent_failure("handlers.post_score:_finish_send:655", _silent_exc)
         try:
             await query.edit_message_text(
                 post_score_t("ps_sent_ok", lang,
                              channels=", ".join(sent_names[:5]), count=sent),
                 parse_mode="HTML",
             )
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.post_score:_finish_send:663", _silent_exc)
         clear_fsm_data(context)
         return sent
 
@@ -671,8 +673,8 @@ async def _finish_send(query, context, targets: list) -> int:
             reply_markup=post_score_action_keyboard(lang),
             parse_mode="HTML",
         )
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.post_score:_finish_send:674", _silent_exc, user_id=user_id, lang=lang)
     return 0
 
 
@@ -759,8 +761,8 @@ async def post_score_schedule_callback(update: Update, context: ContextTypes.DEF
 
     try:
         await query.edit_message_reply_markup(reply_markup=None)
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.post_score:post_score_schedule_callback", _silent_exc, lang=lang)
 
     await _show_time_prompt(query.message, post_text, None, "text", lang)
     return AI_GET_TIME
@@ -777,8 +779,8 @@ async def post_score_stale_callback(update: Update, context: ContextTypes.DEFAUL
     except Exception:
         try:
             await query.answer()
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.post_score:post_score_stale_callback", _silent_exc)
 
 
 __all__ = [

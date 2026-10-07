@@ -94,6 +94,8 @@ from utils.helpers import (
 )
 from utils.telegram_sanitizer import sanitize_html
 
+from utils.silent_errors import log_silent_failure
+
 logger = logging.getLogger(__name__)
 
 tashkent_tz = pytz.timezone("Asia/Tashkent")
@@ -300,8 +302,8 @@ def _smart_extract_emojis(text: str, max_count: int = SMART_EMOJI_MAX) -> list:
                     if len(dedup) >= max_count:
                         break
                 return dedup[:max_count]
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.manual_post:_smart_extract_emojis", _silent_exc)
     return result[:max_count]
 
 
@@ -834,8 +836,8 @@ async def _dup_ai_refresh(query, context, user_id: int, lang: str) -> int:
     try:
         await query.message.reply_text(
             manual_post_t("mp_dup_ai_done", lang), parse_mode="HTML")
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.manual_post:_dup_ai_refresh", _silent_exc, user_id=user_id, lang=lang)
     await _show_preview(query.message, context, lang)
     return MANUAL_PREVIEW
 
@@ -871,8 +873,8 @@ async def manual_post_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if query is not None:
         try:
             await query.answer()
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.manual_post:manual_post_entry", _silent_exc)
     msg = (
         getattr(update, "message", None)
         or getattr(update, "effective_message", None)
@@ -942,8 +944,8 @@ async def manual_content_received(update: Update, context: ContextTypes.DEFAULT_
             chs = await db.run_db(db.get_user_channels, msg.from_user.id)
             if chs and len(chs) == 1:
                 _set_selected_channel(context, chs[0][0], chs[0][1])
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.manual_post:manual_content_received", _silent_exc)
 
     await _show_preview(msg, context, lang)
     return MANUAL_PREVIEW
@@ -1319,8 +1321,8 @@ async def manual_panel_callback(update: Update, context: ContextTypes.DEFAULT_TY
     if data == CB_MANUAL_CANCEL:
         try:
             await query.edit_message_reply_markup(reply_markup=None)
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.manual_post:manual_panel_callback", _silent_exc)
         await _finalize(query.message, context, user_id, lang,
                         manual_post_t("mp_cancelled", lang))
         return ConversationHandler.END
@@ -1513,8 +1515,8 @@ async def manual_stale_callback(update: Update, context: ContextTypes.DEFAULT_TY
     user_id = query.from_user.id
     try:
         await query.answer()
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.manual_post:manual_stale_callback:1516", _silent_exc, user_id=user_id, lang=lang)
     clear_fsm_data(context)
     _clear_manual_state(context)
     try:
@@ -1523,8 +1525,8 @@ async def manual_stale_callback(update: Update, context: ContextTypes.DEFAULT_TY
             reply_markup=get_main_keyboard(user_id in ADMIN_IDS_SET, lang),
             parse_mode="HTML",
         )
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.manual_post:manual_stale_callback:1526", _silent_exc, user_id=user_id, lang=lang)
     return ConversationHandler.END
 
 

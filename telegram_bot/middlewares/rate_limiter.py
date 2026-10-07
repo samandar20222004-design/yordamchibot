@@ -66,6 +66,8 @@ from typing import Any, Iterable
 
 from telegram.ext import ApplicationHandlerStop, BaseHandler
 
+from utils.silent_errors import log_silent_failure
+
 logger = logging.getLogger(__name__)
 
 #: ``services.cache_backend`` moduli yuklanmaganda ham ishlashi uchun
@@ -496,8 +498,8 @@ class RateLimitMiddleware(BaseHandler):
             if context is not None:
                 lang = get_lang(context) or "uz"
             text = get_text("sys_wait_short", lang) or text
-        except Exception:  # noqa: BLE001 — i18n nosoz bo'lsa — standart matn
-            pass
+        except Exception as _silent_exc:  # noqa: BLE001 — i18n nosoz bo'lsa — standart matn
+            log_silent_failure("middlewares.rate_limiter:RateLimitMiddleware._reject", _silent_exc)
         try:
             await asyncio.wait_for(query.answer(text, show_alert=False), timeout=1.0)
         except Exception:  # noqa: BLE001 — javob yuborib bo'lmasa — jim

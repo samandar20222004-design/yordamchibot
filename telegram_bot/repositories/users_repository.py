@@ -16,6 +16,7 @@ sabab ``unittest.mock.patch("database.db_cursor")`` kabi mavjud mock
 nuqtalari bu modulga ko'chirilgandan keyin ham kuchini yo'qotmaydi.
 """
 
+import json
 import random
 import string
 import threading
@@ -31,6 +32,8 @@ from repositories.runtime import (  # noqa: F401
     _profile_invalidate, db_cursor, db_transaction, get_user_profile,
     peek_user_profile
 )
+
+from utils.silent_errors import log_silent_failure
 
 logger = logging.getLogger(__name__)
 
@@ -546,8 +549,8 @@ def set_user_full_menu_unlocked(user_id: int, unlocked: bool = True) -> bool:
             try:
                 import onboarding
                 onboarding.invalidate_simple_menu(user_id)
-            except Exception:
-                pass
+            except Exception as _silent_exc:
+                log_silent_failure("repositories.users_repository:set_user_full_menu_unlocked", _silent_exc, user_id=user_id)
         return updated
     except Exception as e:
         logger.error(f"To'liq menyu belgisini saqlash xatosi: {e}")
@@ -666,8 +669,8 @@ def invalidate_user_overview_stats(user_id: int) -> None:
     """«🔄 Yangilash» bosilganda foydalanuvchi statistikasi keshini tozalaydi."""
     try:
         _cache_clear(f"user_overview_stats:{user_id}")
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("repositories.users_repository:invalidate_user_overview_stats", _silent_exc, user_id=user_id)
 
 
 # ============================================================
@@ -915,8 +918,8 @@ def _effective_plan(cur, plan: str, user_id: int) -> str:
                 "UPDATE users SET plan_type = 'free' WHERE user_id = %s",
                 (user_id,),
             )
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("repositories.users_repository:_effective_plan", _silent_exc, user_id=user_id)
         return "free"
     return plan
 
@@ -1314,8 +1317,8 @@ def reserve_ai_request(user_id: int, operation_type: str = "other",
     # Kesh tranzaksiyadan KEYIN tozalanadi (eski balans ko'rinib qolmasin).
     try:
         _invalidate_user(uid)
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("repositories.users_repository:reserve_ai_request", _silent_exc, user_id=user_id)
     # Eslatma: avtomatik faollik bonusi (+2) shu primitivada EMAS —
     # ``services.ai_quota.reserve_ai_quota`` choke point'da beriladi. Bu
     # funksiya qattiq kvota semantikasi uchun TOZA qoladi (race testlar).
@@ -1445,8 +1448,8 @@ def refund_ai_request(user_id: int, reservation_id) -> dict:
 
     try:
         _invalidate_user(uid)
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("repositories.users_repository:refund_ai_request", _silent_exc, user_id=user_id)
     return {"success": True, "reason": "refunded",
             "reservation_id": rid, "source": source}
 
@@ -1564,3 +1567,259 @@ def get_referrer_id(user_id: int) -> int | None:
     except Exception as e:
         logger.error(f"get_referrer_id xatosi: {e}")
         return None
+
+
+# ============================================================
+# 🔐 SPRINT 1 — MAXFIYLIK: «MA'LUMOTLARIMNI O'CHIRISH» (GDPR)
+# ============================================================
+#: Foydalanuvchi o'chirganda SAQLANADIGAN (qonuniy audit) jadvallar.
+#: Bu ro'yxat matnda ham (``translations/privacy.py``), testlarda ham
+#: qo'riqlanadi — o'zgartirilsa, uchala joy yangilanishi shart.
+ACCOUNT_DELETE_RETAINED_TABLES = (
+    "payments", "payment_receipts", "payment_orders", "credits_ledger",
+)
+
+#: Kanal darajasida (``channel_id`` orqali) tozalanadigan jadvallar.
+#: ``(jadval, ustun, channel_id_turi)`` — turi ``str`` bo'lsa VARCHAR(255),
+#: ``int`` bo'lsa BIGINT (schema.sql bilan bir xil).
+_ACCOUNT_DELETE_CHANNEL_SCOPED = (
+    ("channel_dna", "channel_id", str),
+    ("channel_insights", "channel_id", str),
+    ("channel_comment_insights", "channel_id", str),
+    ("channel_intelligence_profiles", "channel_id", str),
+    ("channel_post_events", "channel_id", str),
+    ("channel_post_counters", "channel_id", str),
+    ("channel_posts_history", "channel_id", str),
+    ("sent_post_messages", "channel_id", str),
+    ("post_deliveries", "channel_id", int),
+)
+
+
+def _delete_user_channels_data(cur, user_id: int, channel_ids: list) -> dict:
+    """Kanal-darajali tahlil/navbat ma'lumotlarini o'chiradi (helper).
+
+    Faqat shu foydalanuvchiga tegishli kanallar bo'yicha ishlaydi —
+    boshqa egalikdagi kanal ma'lumotiga tegilmaydi.
+    """
+    counts: dict = {}
+    if not channel_ids:
+        return counts
+    as_text = [str(c) for c in channel_ids]
+    as_int = []
+    for value in channel_ids:
+        try:
+            as_int.append(int(str(value)))
+        except (TypeError, ValueError):
+            continue
+    for table, column, kind in _ACCOUNT_DELETE_CHANNEL_SCOPED:
+        values = as_text if kind is str else as_int
+        if not values:
+            continue
+        try:
+            cur.execute(
+                f"DELETE FROM {table} WHERE {column} = ANY(%s)",  # noqa: S608 — jadval nomi kod-konstanta
+                (values,),
+            )
+            counts[table] = int(cur.rowcount or 0)
+        except Exception as table_exc:  # noqa: BLE001 — bitta jadval xatosi qolganini to'xtatmaydi
+            logger.warning(
+                "delete_user_data: %s tozalanmadi (user=%s): %s",
+                table, user_id, table_exc,
+            )
+            counts[table] = 0
+    return counts
+
+
+def delete_user_data(user_id: int) -> dict:
+    """«🗑 Ma'lumotlarimni o'chirish» — kaskadli/soft-delete (GDPR).
+
+    Bitta atomik tranzaksiyada:
+      1. ``users`` — soft-delete + anonimlashtirish (ism/username/referrer/
+         rol tozalanadi, ``deleted_at`` qo'yiladi; ``user_id`` audit uchun
+         qoladi);
+      2. ``channels`` — soft-delete (``is_active=FALSE``, nom va tur
+         tozalanadi);
+      3. post matnlari — qoralamalar/navbat bekor qilinadi, matn/media
+         maydonlari NULL qilinadi (yuborilgan postlar tarixi ham);
+      4. AI tarixi — ``ai_usage_events`` (uchinchi tomon so'rov telemetriyasi)
+         va ``ai_reservations`` o'chiriladi;
+      5. kanal-darajali tahlil jadvallari, shablonlar, manbalar, qo'llab-
+         quvvatlash murojaatlari, sozlamalar va jamoa a'zoligi tozalanadi.
+
+    SAQLANADI (qonuniy/buxgalteriya auditi): ``payments``,
+    ``payment_receipts``, ``payment_orders``, ``credits_ledger`` —
+    ``ACCOUNT_DELETE_RETAINED_TABLES``.
+
+    Qaytaradi::
+
+        {"ok": True, "channels": N, "posts": N, "ai_events": N,
+         "already_deleted": bool, "cleaned": {jadval: qatorlar}}
+
+    Xatoda: ``{"ok": False, "reason": "..."}`` — handler foydalanuvchiga
+    xavfsiz xabar qaytaradi, xato esa log/Sentry'da ko'rinadi.
+    """
+    try:
+        uid = int(user_id)
+    except (TypeError, ValueError):
+        logger.error("delete_user_data: noto'g'ri user_id=%r", user_id)
+        return {"ok": False, "reason": "invalid_user_id"}
+    if uid <= 0:
+        logger.error("delete_user_data: musbat bo'lmagan user_id=%s", uid)
+        return {"ok": False, "reason": "invalid_user_id"}
+
+    summary = {
+        "ok": True, "user_id": uid, "channels": 0, "posts": 0,
+        "ai_events": 0, "already_deleted": False, "cleaned": {},
+    }
+    try:
+        with db_transaction() as cur:
+            cur.execute("SELECT deleted_at FROM users WHERE user_id = %s", (uid,))
+            row = cur.fetchone()
+            if row is not None and row[0] is not None:
+                summary["already_deleted"] = True
+                summary["cleaned"] = {}
+                return summary
+
+            cur.execute(
+                "SELECT channel_id FROM channels WHERE user_id = %s", (uid,))
+            channel_ids = [r[0] for r in (cur.fetchall() or [])]
+            summary["channels"] = len(channel_ids)
+
+            # --- 1) Post matnlari: navbat bekor + matn/media tozalanadi ---
+            cur.execute(
+                """
+                UPDATE scheduled_posts
+                   SET content = NULL, file_id = NULL,
+                       inline_button_text = NULL, inline_button_url = NULL,
+                       reaction_emojis = NULL,
+                       delivery_options = '{}'::jsonb
+                 WHERE user_id = %s
+                """,
+                (uid,),
+            )
+            summary["cleaned"]["scheduled_posts"] = int(cur.rowcount or 0)
+            cur.execute(
+                """
+                UPDATE scheduled_posts SET status = 'cancelled'
+                 WHERE user_id = %s
+                   AND status IN ('draft', 'pending_approval', 'approved',
+                                  'scheduled', 'pending', 'processing',
+                                  'failed', 'unknown')
+                """,
+                (uid,),
+            )
+            summary["posts"] = int(cur.rowcount or 0)
+            # Navbatdagi yuborilishlar (post_deliveries CHECK'i 'cancelled'ni
+            # bilmaydi) — PENDING qatorlar o'chiriladi (qayta yuborilmasin).
+            cur.execute(
+                """
+                DELETE FROM post_deliveries
+                 WHERE status IN ('pending', 'processing', 'failed')
+                   AND post_id IN (SELECT id FROM scheduled_posts WHERE user_id = %s)
+                """,
+                (uid,),
+            )
+            summary["cleaned"]["post_deliveries_pending"] = int(cur.rowcount or 0)
+
+            # --- 2) Kanal-darajali tahlil/navbat ma'lumotlari ---
+            summary["cleaned"].update(
+                _delete_user_channels_data(cur, uid, channel_ids))
+
+            # --- 3) Foydalanuvchi-darajali jadvallar ---
+            channel_members = 0
+            if channel_ids:
+                cur.execute(
+                    "DELETE FROM channel_members "
+                    "WHERE user_id = %s OR channel_id = ANY(%s)",
+                    (uid, [str(c) for c in channel_ids]),
+                )
+                channel_members = int(cur.rowcount or 0)
+            else:
+                cur.execute("DELETE FROM channel_members WHERE user_id = %s", (uid,))
+                channel_members = int(cur.rowcount or 0)
+            summary["cleaned"]["channel_members"] = channel_members
+
+            # Manbalar: avval ularga bog'langan item/draft, keyin manba.
+            cur.execute(
+                "DELETE FROM source_drafts WHERE user_id = %s", (uid,))
+            summary["cleaned"]["source_drafts"] = int(cur.rowcount or 0)
+            cur.execute(
+                """
+                DELETE FROM source_items
+                 WHERE source_id IN (SELECT id FROM content_sources WHERE user_id = %s)
+                """,
+                (uid,),
+            )
+            summary["cleaned"]["source_items"] = int(cur.rowcount or 0)
+            cur.execute(
+                "DELETE FROM content_sources WHERE user_id = %s", (uid,))
+            summary["cleaned"]["content_sources"] = int(cur.rowcount or 0)
+
+            for table in ("post_templates", "user_settings", "ai_reservations",
+                          "promo_redemptions", "admin_roles"):
+                cur.execute(f"DELETE FROM {table} WHERE user_id = %s", (uid,))  # noqa: S608
+                summary["cleaned"][table] = int(cur.rowcount or 0)
+
+            cur.execute(
+                "DELETE FROM support_tickets WHERE user_id = %s", (uid,))
+            summary["cleaned"]["support_tickets"] = int(cur.rowcount or 0)
+
+            # --- 4) AI tarixi (uchinchi tomon so'rov telemetriyasi) ---
+            cur.execute(
+                "DELETE FROM ai_usage_events WHERE user_id = %s", (uid,))
+            summary["ai_events"] = int(cur.rowcount or 0)
+            summary["cleaned"]["ai_usage_events"] = summary["ai_events"]
+
+            # --- 5) Kanal ulanishlari: soft-delete + anonimlashtirish ---
+            cur.execute(
+                """
+                UPDATE channels
+                   SET is_active = FALSE, channel_title = NULL,
+                       deleted_at = NOW()
+                 WHERE user_id = %s
+                """,
+                (uid,),
+            )
+            summary["cleaned"]["channels_soft_deleted"] = int(cur.rowcount or 0)
+
+            # --- 6) Hisob: soft-delete + anonimlashtirish ---
+            cur.execute(
+                """
+                UPDATE users
+                   SET username = NULL, full_name = NULL, referrer_id = NULL,
+                       ai_credits = 0, role = 'user', language_code = 'uz',
+                       last_active_at = NULL, deleted_at = NOW()
+                 WHERE user_id = %s
+                """,
+                (uid,),
+            )
+            summary["cleaned"]["users_anonymized"] = int(cur.rowcount or 0)
+
+            # --- 7) Audit izi (self-service: actor = foydalanuvchining o'zi) ---
+            cur.execute(
+                """
+                INSERT INTO admin_audit_logs
+                    (admin_id, action, target_type, target_id, ip_or_metadata)
+                VALUES (%s, 'user_data_deleted', 'user', %s, %s::jsonb)
+                """,
+                (uid, str(uid), json.dumps({
+                    "self_service": True,
+                    "channels": summary["channels"],
+                    "posts": summary["posts"],
+                    "ai_events": summary["ai_events"],
+                    "retained": list(ACCOUNT_DELETE_RETAINED_TABLES),
+                }, ensure_ascii=False)),
+            )
+
+        # Kesh tozalash — tranzaksiya COMMIT bo'lgach (eskirgan profil qolmasin).
+        _invalidate_user(uid)
+        try:
+            _cache_clear("user_lang")
+        except Exception as cache_exc:  # noqa: BLE001
+            logger.warning(
+                "delete_user_data: kesh tozalanmadi (user=%s): %s", uid, cache_exc)
+        return summary
+    except Exception as exc:  # noqa: BLE001 — handler'ga xavfsiz xabar qaytadi
+        logger.error(
+            "delete_user_data xatosi (user=%s): %s", uid, exc, exc_info=True)
+        return {"ok": False, "reason": "db_error", "user_id": uid}

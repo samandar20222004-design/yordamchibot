@@ -32,6 +32,8 @@ from dataclasses import dataclass, field
 from . import telemetry
 from .gateway import AIGateway, GatewayResult, ai_gateway
 
+from utils.silent_errors import log_silent_failure
+
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
@@ -367,8 +369,8 @@ class AITaskService:
             event_dict = event.as_dict()
             try:
                 self.recorder.record(event)
-            except Exception:  # pragma: no cover — himoya
-                pass
+            except Exception as _silent_exc:  # pragma: no cover — himoya
+                log_silent_failure("services.ai_engine.app_service:AITaskService.run:370", _silent_exc, user_id=user_id, channel_id=channel_id, lang=lang)
         try:
             from services.observability import record_ai_request
             record_ai_request(
@@ -377,8 +379,8 @@ class AITaskService:
                 latency_ms=event_dict.get("latency_ms") or 0,
                 cost_usd=event_dict.get("estimated_cost") or 0.0,
             )
-        except Exception:  # metrics never interrupt the AI request flow
-            pass
+        except Exception as _silent_exc:  # metrics never interrupt the AI request flow
+            log_silent_failure("services.ai_engine.app_service:AITaskService.run:380", _silent_exc, user_id=user_id, channel_id=channel_id, lang=lang)
         usage_id = None
         if persist_usage:
             usage_id = await self._save_usage(db, event_dict, reservation)

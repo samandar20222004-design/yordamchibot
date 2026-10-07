@@ -35,6 +35,8 @@ from services.rbac_service import (
     require_permission,
 )
 
+from utils.silent_errors import log_silent_failure
+
 logger = logging.getLogger(__name__)
 
 # States
@@ -276,8 +278,8 @@ async def _edit_or_reply(query, text: str, markup: InlineKeyboardMarkup) -> None
     except Exception:
         try:
             await query.message.reply_text(text, reply_markup=markup, parse_mode="HTML")
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.subscription:_edit_or_reply", _silent_exc)
 
 
 async def _show_local_card_payment(query, context, user_id: int, lang: str, plan_key: str) -> None:
@@ -322,8 +324,8 @@ async def _show_intl_payment(query, context, user_id: int, lang: str, plan_key: 
     if not ok:
         try:
             await query.message.reply_text(get_text("sub_invoice_error", lang))
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.subscription:_show_intl_payment", _silent_exc, user_id=user_id, lang=lang)
         return
     # Tanlov bajarildi — kutilayotgan tarifni tozalaymiz.
     _remember_payment_choice(context, PAYMENT_REGION_INTL, "")
@@ -617,8 +619,8 @@ async def subscription_callback(update: Update, context: ContextTypes.DEFAULT_TY
     # ayniqsa send_invoice sekin ishlasa yoki xatolik bersa.
     try:
         await query.answer()
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.subscription:subscription_callback:620", _silent_exc)
 
     data = query.data
     user_id = query.from_user.id
@@ -643,8 +645,8 @@ async def subscription_callback(update: Update, context: ContextTypes.DEFAULT_TY
         # Xabarni o'chirib, asosiy menyuni yuboramiz
         try:
             await query.message.delete()
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.subscription:subscription_callback:646", _silent_exc)
         await context.bot.send_message(
             chat_id=query.message.chat_id,
             text=get_text("main_menu_hint", lang),
@@ -664,8 +666,8 @@ async def subscription_callback(update: Update, context: ContextTypes.DEFAULT_TY
                 reply_markup=_get_subscription_keyboard(plan, get_lang(context)),
                 parse_mode="HTML",
             )
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.subscription:subscription_callback:667", _silent_exc)
         return SUBSCRIPTION_VIEW
 
     if data.startswith("sub_pay:"):
@@ -772,8 +774,8 @@ async def subscription_callback(update: Update, context: ContextTypes.DEFAULT_TY
                 ),
                 parse_mode="HTML",
             )
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.subscription:subscription_callback:775", _silent_exc)
         return RECEIPT_WAIT
 
     if data == "sub_back":
@@ -913,8 +915,8 @@ async def grant_pro_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 text=get_text("sub_pro_granted", target_lang, days=days),
                 parse_mode="HTML",
             )
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.subscription:grant_pro_command", _silent_exc)
     else:
         await update.message.reply_text("❌ Xatolik yuz berdi. User ID to'g'riligini tekshiring.")
 

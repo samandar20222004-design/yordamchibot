@@ -62,6 +62,8 @@ import time
 import database as db
 from services import lifecycle_service as lifecycle
 
+from utils.silent_errors import log_silent_failure
+
 logger = logging.getLogger(__name__)
 
 
@@ -245,8 +247,8 @@ async def cleanup_old_records(batch_size: int = None, max_batches: int = None,
     if summary["total"]:
         try:
             db._cache_clear("system_stats")
-        except Exception:  # noqa: BLE001
-            pass
+        except Exception as _silent_exc:  # noqa: BLE001
+            log_silent_failure("services.cleanup_service:cleanup_old_records", _silent_exc)
     level = logging.WARNING if summary["errors"] else logging.INFO
     logger.log(
         level,

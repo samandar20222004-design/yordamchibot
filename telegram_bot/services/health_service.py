@@ -59,6 +59,8 @@ from datetime import datetime, timezone
 import database as db
 from services import observability as process_metrics
 
+from utils.silent_errors import log_silent_failure
+
 logger = logging.getLogger(__name__)
 
 # ──────────────────────────────────────────────────────────────
@@ -426,8 +428,8 @@ def _payments_configured() -> dict:
     try:
         from config import CARD_NUMBER  # lazy — testlarda config almashtirilishi mumkin
         info["card_enabled"] = bool((CARD_NUMBER or "").strip())
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("services.health_service:_payments_configured", _silent_exc)
     return info
 
 
@@ -592,8 +594,8 @@ def _check_system() -> dict:
     }
     try:
         system["asyncio_tasks"] = len(asyncio.all_tasks())
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("services.health_service:_check_system", _silent_exc)
     stats = _error_stats_safe()
     system["errors_last_hour"] = stats.get("last_hour")
     system["errors_last_24h"] = stats.get("last_24h")
@@ -737,8 +739,8 @@ async def get_observability_metrics(database_info=None, post_counts=None,
     try:
         from services.ai.concurrency import ai_concurrency_manager
         ai_queue = max(0, int(ai_concurrency_manager.waiting_count))
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("services.health_service:get_observability_metrics", _silent_exc)
     queue_depth = max(0, update_queue) + max(0, ai_queue) + max(0, delivery_queue)
     redis = await _check_redis()
 

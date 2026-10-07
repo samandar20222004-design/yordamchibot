@@ -42,6 +42,8 @@ from translations import channels_queue_t
 from utils.date_format import format_datetime, format_list_datetime
 from utils.helpers import html_escape
 
+from utils.silent_errors import log_silent_failure
+
 logger = logging.getLogger(__name__)
 tashkent_tz = pytz.timezone("Asia/Tashkent")
 
@@ -323,8 +325,8 @@ async def queue_page_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
                     get_text("queue_btn_close", lang), callback_data="qclose")]]),
                 parse_mode="HTML",
             )
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.queue:queue_page_callback:326", _silent_exc)
         return QUEUE_MENU
 
     posts = await db.run_db(db.get_queue_posts, user_id, offset, QUEUE_PAGE_SIZE)
@@ -338,8 +340,8 @@ async def queue_page_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
     keyboard = _get_queue_list_keyboard(posts, offset, total, lang)
     try:
         await query.edit_message_text(text, reply_markup=keyboard, parse_mode="HTML")
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.queue:queue_page_callback:341", _silent_exc, user_id=user_id, lang=lang)
     return QUEUE_MENU
 
 
@@ -355,8 +357,8 @@ async def queue_view_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
     if not post:
         try:
             await query.edit_message_text(channels_queue_t("cq_sch_not_found", lang))
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.queue:queue_view_callback:358", _silent_exc)
         return QUEUE_MENU
 
     (pid, uid, ch_id, ch_title, post_type, content, file_id,
@@ -387,8 +389,8 @@ async def queue_view_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
     keyboard = _get_post_detail_keyboard(pid, lang)
     try:
         await query.edit_message_text(text[:4096], reply_markup=keyboard, parse_mode="HTML")
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.queue:queue_view_callback:390", _silent_exc, user_id=user_id, uid=uid, post_id=post_id, lang=lang)
     return QUEUE_MENU
 
 
@@ -414,8 +416,8 @@ async def queue_delete_callback(update: Update, context: ContextTypes.DEFAULT_TY
         try:
             await query.message.reply_text(
                 channels_queue_t("cq_sch_not_found", lang), parse_mode="HTML")
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.queue:queue_delete_callback:417", _silent_exc)
         return QUEUE_MENU
 
     await db.run_db(db.cancel_post, post_id, user_id)
@@ -430,8 +432,8 @@ async def queue_delete_callback(update: Update, context: ContextTypes.DEFAULT_TY
                     get_text("queue_btn_close", lang), callback_data="qclose")]]),
                 parse_mode="HTML",
             )
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.queue:queue_delete_callback:433", _silent_exc)
         return QUEUE_MENU
 
     posts = await db.run_db(db.get_queue_posts, user_id, 0, QUEUE_PAGE_SIZE)
@@ -443,8 +445,8 @@ async def queue_delete_callback(update: Update, context: ContextTypes.DEFAULT_TY
     keyboard = _get_queue_list_keyboard(posts, 0, total, lang)
     try:
         await query.edit_message_text(text, reply_markup=keyboard, parse_mode="HTML")
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.queue:queue_delete_callback:446", _silent_exc, user_id=user_id, post_id=post_id, lang=lang)
     return QUEUE_MENU
 
 
@@ -459,16 +461,16 @@ async def queue_push_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
     # qolmasligi uchun (surish jarayoni bir necha marta DB'ga murojaat qiladi).
     try:
         await query.answer()
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.queue:queue_push_callback:462", _silent_exc, user_id=user_id, post_id=post_id, lang=lang)
 
     post = await db.run_db(db.get_queue_post_detail, post_id, user_id)
     if not post:
         try:
             await query.message.reply_text(
                 channels_queue_t("cq_sch_not_found", lang), parse_mode="HTML")
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.queue:queue_push_callback:470", _silent_exc)
         return QUEUE_MENU
 
     ch_id = post[2]
@@ -495,8 +497,8 @@ async def queue_push_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
         try:
             await query.message.reply_text(
                 get_text("queue_no_slot", lang), parse_mode="HTML")
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.queue:queue_push_callback:498", _silent_exc)
         return QUEUE_MENU
 
     await db.run_db(db.update_post_time, post_id, slot_dt, user_id=user_id)
@@ -512,8 +514,8 @@ async def queue_push_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
     keyboard = _get_queue_list_keyboard(posts, 0, total, lang)
     try:
         await query.edit_message_text(text, reply_markup=keyboard, parse_mode="HTML")
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.queue:queue_push_callback:515", _silent_exc, user_id=user_id, post_id=post_id, lang=lang)
     return QUEUE_MENU
 
 
@@ -533,8 +535,8 @@ async def scheduled_btn_react_callback(update: Update, context: ContextTypes.DEF
         return QUEUE_MENU
     try:
         await query.answer()
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.queue:scheduled_btn_react_callback:536", _silent_exc)
     lang = get_lang(context)
     user_id = query.from_user.id
     try:
@@ -551,8 +553,8 @@ async def scheduled_btn_react_callback(update: Update, context: ContextTypes.DEF
         try:
             await query.edit_message_text(
                 channels_queue_t("cq_sch_not_found", lang), parse_mode="HTML")
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.queue:scheduled_btn_react_callback:554", _silent_exc)
         return QUEUE_MENU
 
     try:
@@ -561,8 +563,8 @@ async def scheduled_btn_react_callback(update: Update, context: ContextTypes.DEF
             reply_markup=scheduled_btn_react_keyboard(post_id, lang),
             parse_mode="HTML",
         )
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.queue:scheduled_btn_react_callback:564", _silent_exc, user_id=user_id, lang=lang)
     return QUEUE_MENU
 
 
@@ -572,8 +574,8 @@ async def queue_close_callback(update: Update, context: ContextTypes.DEFAULT_TYP
     await query.answer()
     try:
         await query.edit_message_reply_markup(reply_markup=None)
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.queue:queue_close_callback", _silent_exc)
     return ConversationHandler.END
 
 
@@ -601,8 +603,8 @@ async def queue_slots_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         keyboard = _get_slots_keyboard(slots, lang)
         try:
             await query.edit_message_text(text, reply_markup=keyboard, parse_mode="HTML")
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.queue:queue_slots_callback:604", _silent_exc)
         return SLOT_ADD
 
     if action == "rm":
@@ -623,8 +625,8 @@ async def queue_slots_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         keyboard = _get_slots_keyboard(slots, lang)
         try:
             await query.edit_message_text(text, reply_markup=keyboard, parse_mode="HTML")
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.queue:queue_slots_callback:626", _silent_exc)
         return SLOT_ADD
 
     if action == "add":
@@ -645,8 +647,8 @@ async def queue_slots_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         keyboard = _get_slots_keyboard(slots, lang)
         try:
             await query.edit_message_text(text, reply_markup=keyboard, parse_mode="HTML")
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.queue:queue_slots_callback:648", _silent_exc)
         return SLOT_ADD
 
     return SLOT_ADD

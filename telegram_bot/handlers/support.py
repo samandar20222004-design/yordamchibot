@@ -70,6 +70,8 @@ from locales.translations import get_lang
 from translations import support_t
 from utils.helpers import html_escape
 
+from utils.silent_errors import log_silent_failure
+
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
@@ -283,8 +285,8 @@ def _clear_open_ticket(user_id: int) -> None:
     """Ochiq ticket blokini oladi (admin javob berdi)."""
     try:
         _OPEN_TICKET_AT.pop(int(user_id), None)
-    except (TypeError, ValueError):
-        pass
+    except (TypeError, ValueError) as _silent_exc:
+        log_silent_failure("handlers.support:_clear_open_ticket", _silent_exc, user_id=user_id)
 
 
 # ---------------------------------------------------------------------------
@@ -315,8 +317,8 @@ async def _edit_or_reply(query, text: str, reply_markup=None) -> None:
     try:
         await query.edit_message_text(text, reply_markup=reply_markup, parse_mode="HTML")
         return
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.support:_edit_or_reply", _silent_exc)
     try:
         await query.message.reply_text(text, reply_markup=reply_markup, parse_mode="HTML")
     except Exception:
@@ -326,8 +328,8 @@ async def _edit_or_reply(query, text: str, reply_markup=None) -> None:
 async def _answer(query, text: str = "", alert: bool = False) -> None:
     try:
         await query.answer(text or None, show_alert=alert)
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.support:_answer", _silent_exc)
 
 
 async def _reply_text(msg, text: str, reply_markup=None) -> None:
@@ -473,8 +475,8 @@ async def support_ticket_entry(update, context: ContextTypes.DEFAULT_TYPE) -> in
         from handlers.navigation import remember_section, SECTION_SETTINGS
 
         remember_section(context, SECTION_SETTINGS)
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.support:support_ticket_entry", _silent_exc, user_id=user_id, lang=lang)
 
     if query is not None:
         await _answer(query)

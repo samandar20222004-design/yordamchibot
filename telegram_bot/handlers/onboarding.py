@@ -33,6 +33,8 @@ from keyboards.inline import get_ai_back_keyboard, render_instant_plan_offer_key
 from locales.translations import get_lang, get_text
 from utils.helpers import html_escape
 
+from utils.silent_errors import log_silent_failure
+
 logger = logging.getLogger(__name__)
 
 
@@ -386,8 +388,8 @@ async def onboarding_quick_plan_callback(
         return ConversationHandler.END
     try:
         await query.answer()
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.onboarding:onboarding_quick_plan_callback", _silent_exc)
 
     user = getattr(update, "effective_user", None) or getattr(query, "from_user", None)
     user_id = user.id if user else 0
@@ -455,4 +457,3 @@ async def onboarding_quick_plan_callback(
             reply_markup=autopilot_confirm_keyboard(lang),
         )
     return AUTOPILOT_VIEW
-

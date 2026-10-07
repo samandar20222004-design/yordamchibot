@@ -64,6 +64,8 @@ from utils.helpers import (
     telegram_html_payload,
 )
 
+from utils.silent_errors import log_silent_failure
+
 logger = logging.getLogger(__name__)
 
 # ============================================================
@@ -203,8 +205,8 @@ async def _safe_edit(query, text: str, reply_markup=None):
     except Exception:
         try:
             await query.message.reply_text(text, reply_markup=reply_markup, parse_mode="HTML")
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.magic_post:_safe_edit", _silent_exc)
 
 
 # ============================================================
@@ -224,18 +226,18 @@ async def _magic_refund(user_id: int, is_admin: bool, is_pro: bool,
     if reservation_id:
         try:
             await release_ai_quota(db, user_id, reservation_id)
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.magic_post:_magic_refund:227", _silent_exc, user_id=user_id)
         return
     try:
         await db.run_db(db.add_user_credit, user_id)
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.magic_post:_magic_refund:232", _silent_exc, user_id=user_id)
     if hasattr(db, "refund_ai_usage"):
         try:
             await db.run_db(db.refund_ai_usage, user_id)
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.magic_post:_magic_refund:237", _silent_exc, user_id=user_id)
 
 
 # ============================================================
@@ -294,8 +296,8 @@ async def magic_post_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if query is not None:
         try:
             await query.answer()
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.magic_post:magic_post_entry", _silent_exc)
     msg = (
         getattr(update, "message", None)
         or getattr(update, "effective_message", None)
@@ -410,8 +412,8 @@ async def magic_style_callback(update: Update, context: ContextTypes.DEFAULT_TYP
     if not is_admin and check_ai_rate_limit(user_id, max_per_minute=4):
         try:
             await query.answer(safe_t("ai_rate_limit_alert", lang), show_alert=True)
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.magic_post:magic_style_callback:413", _silent_exc)
         return MAGIC_STYLE_SELECT
 
     is_pro = False
@@ -448,8 +450,8 @@ async def magic_style_callback(update: Update, context: ContextTypes.DEFAULT_TYP
     chat_id = query.message.chat_id
     try:
         await context.bot.send_chat_action(chat_id=chat_id, action="typing")
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.magic_post:magic_style_callback:451", _silent_exc, user_id=user_id, chat_id=chat_id, lang=lang)
     # Placeholder — xuddi shu xabar keyin edit_text bilan almashtiriladi (yangi xabar YO'Q).
     try:
         await query.edit_message_text("⏳ Post tayyorlanmoqda, iltimos kuting...")
@@ -458,8 +460,8 @@ async def magic_style_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         wait_msg = None
         try:
             wait_msg = await query.message.reply_text("⏳ Post tayyorlanmoqda, iltimos kuting...")
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.magic_post:magic_style_callback:461", _silent_exc)
 
     # 🧭 3-QADAM (UI/UX POLISH): wizard'da tanlangan format ko'rsatmasi
     # generatsiya materialiga ulanadi (bir martalik — iste'mol qilinadi).
@@ -487,8 +489,8 @@ async def magic_style_callback(update: Update, context: ContextTypes.DEFAULT_TYP
             try:
                 await wait_msg.edit_text(err_text, reply_markup=_magic_style_keyboard(lang), parse_mode="HTML")
                 return MAGIC_STYLE_SELECT
-            except Exception:
-                pass
+            except Exception as _silent_exc:
+                log_silent_failure("handlers.magic_post:magic_style_callback:490", _silent_exc)
         await _safe_edit(query, err_text, _magic_style_keyboard(lang))
         return MAGIC_STYLE_SELECT
 
@@ -503,8 +505,8 @@ async def magic_style_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         try:
             await wait_msg.edit_text(result_text, reply_markup=result_markup, parse_mode="HTML")
             return MAGIC_RESULT
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.magic_post:magic_style_callback:506", _silent_exc)
     await _safe_edit(query, result_text, result_markup)
     return MAGIC_RESULT
 
@@ -577,8 +579,8 @@ async def _magic_finish_send(query, context, targets: list) -> int:
             if not reservation_source(context, "magic"):
                 try:
                     await db.run_db(db.increment_ai_usage, user_id)
-                except Exception:
-                    pass
+                except Exception as _silent_exc:
+                    log_silent_failure("handlers.magic_post:_magic_finish_send:580", _silent_exc)
         try:
             await query.edit_message_text(
                 magic_t(
@@ -588,8 +590,8 @@ async def _magic_finish_send(query, context, targets: list) -> int:
                 ),
                 parse_mode="HTML",
             )
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.magic_post:_magic_finish_send:591", _silent_exc)
         # Sessiya tugadi — kontekst tozalanadi (til saqlanadi).
         clear_fsm_data(context)
         return sent
@@ -600,8 +602,8 @@ async def _magic_finish_send(query, context, targets: list) -> int:
             reply_markup=_magic_action_keyboard(lang),
             parse_mode="HTML",
         )
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.magic_post:_magic_finish_send:603", _silent_exc, user_id=user_id, lang=lang)
     return 0
 
 
@@ -615,8 +617,8 @@ async def magic_send_now_callback(update: Update, context: ContextTypes.DEFAULT_
     if not post_text:
         try:
             await query.answer(magic_t("mp_stale", lang), show_alert=True)
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.magic_post:magic_send_now_callback:618", _silent_exc)
         return ConversationHandler.END
 
     try:
@@ -628,8 +630,8 @@ async def magic_send_now_callback(update: Update, context: ContextTypes.DEFAULT_
     if not channels:
         try:
             await query.answer(magic_t("mp_no_channels", lang), show_alert=True)
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.magic_post:magic_send_now_callback:631", _silent_exc)
         return MAGIC_RESULT
 
     context.user_data["magic_channels"] = channels
@@ -654,8 +656,8 @@ async def magic_channel_picked_callback(update: Update, context: ContextTypes.DE
     if not post_text or not channels:
         try:
             await query.answer(magic_t("mp_stale", get_lang(context)), show_alert=True)
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.magic_post:magic_channel_picked_callback", _silent_exc)
         return ConversationHandler.END
 
     if data == MP_SEND_ALL:
@@ -690,8 +692,8 @@ async def magic_schedule_callback(update: Update, context: ContextTypes.DEFAULT_
     if not post_text:
         try:
             await query.answer(magic_t("mp_stale", lang), show_alert=True)
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.magic_post:magic_schedule_callback:693", _silent_exc)
         return ConversationHandler.END
 
     # Scheduler oqimi (ai_time_received/ai_confirm_callback) kutgan kalitlar:
@@ -707,8 +709,8 @@ async def magic_schedule_callback(update: Update, context: ContextTypes.DEFAULT_
 
     try:
         await query.edit_message_reply_markup(reply_markup=None)
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.magic_post:magic_schedule_callback:710", _silent_exc, lang=lang)
 
     await _show_time_prompt(query.message, post_text, None, "text", lang)
     return AI_GET_TIME
@@ -755,20 +757,20 @@ async def magic_back_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
         from handlers.navigation import SECTION_CONTENT, remember_section
 
         remember_section(context, SECTION_CONTENT)
-    except Exception:  # pragma: no cover - navigatsiya moduli bo'lmasa ham ishlaydi
-        pass
+    except Exception as _silent_exc:  # pragma: no cover - navigatsiya moduli bo'lmasa ham ishlaydi
+        log_silent_failure("handlers.magic_post:magic_back_callback:758", _silent_exc, lang=lang)
     try:
         await query.edit_message_reply_markup(reply_markup=None)
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.magic_post:magic_back_callback:762", _silent_exc, lang=lang)
     try:
         await query.message.reply_text(
             content_menu_t("cm_menu_intro", lang),
             reply_markup=get_content_creation_keyboard(lang),
             parse_mode="HTML",
         )
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.magic_post:magic_back_callback:770", _silent_exc, lang=lang)
     return ConversationHandler.END
 
 
@@ -801,8 +803,8 @@ async def magic_cancel_callback(update: Update, context: ContextTypes.DEFAULT_TY
         try:
             await query.message.reply_text(magic_t("mp_cancel_done", lang),
                                            parse_mode="HTML")
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.magic_post:magic_cancel_callback", _silent_exc)
     return ConversationHandler.END
 
 
@@ -818,5 +820,5 @@ async def magic_stale_callback(update: Update, context: ContextTypes.DEFAULT_TYP
     except Exception:
         try:
             await query.answer()
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.magic_post:magic_stale_callback", _silent_exc)

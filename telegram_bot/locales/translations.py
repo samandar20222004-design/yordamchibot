@@ -7,6 +7,8 @@ Foydalanish:
 import re
 import string
 
+from utils.silent_errors import log_silent_failure
+
 DEFAULT_LANG = "uz"
 SUPPORTED_LANGS = ("uz", "ru", "en")
 LANG_KEY = "lang"
@@ -4191,8 +4193,8 @@ def get_text(key, lang=DEFAULT_LANG, **kwargs) -> str:
                 if isinstance(alt, str) and alt != text:
                     try:
                         return alt.format(**kwargs)
-                    except (KeyError, IndexError, ValueError, TypeError, AttributeError):
-                        pass
+                    except (KeyError, IndexError, ValueError, TypeError, AttributeError) as _silent_exc:
+                        log_silent_failure("locales.translations:get_text", _silent_exc, lang=lang)
     return text
 
 
@@ -4565,8 +4567,8 @@ def set_lang_cache(context, lang: str) -> str:
     try:
         if context is not None and getattr(context, "user_data", None) is not None:
             context.user_data[LANG_KEY] = lang
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("locales.translations:set_lang_cache", _silent_exc, lang=lang)
     return lang
 
 

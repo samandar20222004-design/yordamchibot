@@ -41,6 +41,8 @@ from locales.translations import clear_fsm_data, get_lang, get_text
 from utils.date_format import format_datetime, format_time, weekday_label
 from keyboards.callback_data import cb as _cb_safe
 
+from utils.silent_errors import log_silent_failure
+
 tashkent_tz = pytz.timezone("Asia/Tashkent")
 
 # Albom (media_group) yig'ish: bir nechta rasm/video bitta post bo'lishi uchun.
@@ -456,10 +458,10 @@ async def _album_collector(key, bot, chat_id, lang, user_data):
                 reply_markup=get_button_prompt_keyboard(lang),
                 parse_mode="HTML",
             )
-    except Exception:
+    except Exception as _silent_exc:
         # Xabar yuborib bo'lmasa ham post ma'lumotlari saqlanadi —
         # foydalanuvchi keyingi xabarni yuborganda oqim davom etadi.
-        pass
+        log_silent_failure("handlers.new_post:_album_collector", _silent_exc, chat_id=chat_id, lang=lang)
 
 
 def _build_album_summary(items: list, lang: str) -> str:
@@ -681,8 +683,8 @@ def _build_preview_text(context) -> str:
             items = json.loads(context.user_data.get("file_id") or "[]")
             if isinstance(items, list) and items:
                 type_text = _build_album_summary(items, lang)
-        except (TypeError, ValueError, json.JSONDecodeError):
-            pass
+        except (TypeError, ValueError, json.JSONDecodeError) as _silent_exc:
+            log_silent_failure("handlers.new_post:_build_preview_text", _silent_exc)
 
     # 📝 To'liq matn: 300 belgida UZIB QOLINMAYDI. Telegram chegarasi
     # (matn 4096 / caption 1024) doirasida to'liq ko'rsatiladi; undan uzun
@@ -751,15 +753,15 @@ def _get_confirm_keyboard(lang="uz", channel_title: str = None):
             from locales.translations import get_text as _gt
             # Use manual_post_t style if exists, fallback to raw
             ch_btn_text = f"📢 Kanal: {label}"
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.new_post:_get_confirm_keyboard:754", _silent_exc, lang=lang)
     else:
         ch_btn_text = "📢 Kanalni tanlash"
         try:
             from translations import manual_post_t
             ch_btn_text = manual_post_t("mp_btn_channel_select", lang)
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.new_post:_get_confirm_keyboard:761", _silent_exc, lang=lang)
     rows.append([InlineKeyboardButton(ch_btn_text, callback_data="confirm_post:channel")])
     rows.append([InlineKeyboardButton(get_text("np_confirm_ok_btn", lang), callback_data="confirm_post:ok")])
     rows.append([InlineKeyboardButton(get_text("np_confirm_queue_btn", lang), callback_data="confirm_post:queue")])
@@ -846,8 +848,8 @@ async def _send_confirm_card(target_msg, context, preview, keyboard, post_type, 
             else:
                 sent = await bot.send_animation(chat_id=chat_id, animation=file_id, caption=cap, reply_markup=keyboard, parse_mode="HTML")
             return sent.message_id, post_type
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.new_post:_send_confirm_card", _silent_exc)
     sent = await bot.send_message(chat_id=chat_id, text=preview[:4096], reply_markup=keyboard, parse_mode="HTML")
     return sent.message_id, "text"
 
@@ -884,16 +886,16 @@ async def _show_confirmation(target_msg, context):
         # Tahrirlab bo'lmadi (xabar o'chirilgan va h.k.) — eskisini tozalab, yangi yuboramiz.
         try:
             await bot.delete_message(chat_id=chat_id, message_id=old_id)
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.new_post:_show_confirmation:887", _silent_exc)
         context.user_data["confirm_msg_id"] = None
 
     # 2) Tur o'zgargan (matn↔media) yoki karta yo'q — yangi karta yuboramiz.
     if old_id and old_type != new_card_type:
         try:
             await bot.delete_message(chat_id=chat_id, message_id=old_id)
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.new_post:_show_confirmation:895", _silent_exc)
         context.user_data["confirm_msg_id"] = None
 
     new_id, sent_type = await _send_confirm_card(target_msg, context, preview, keyboard, post_type, file_id)
@@ -1300,8 +1302,8 @@ async def reaction_toggle_callback(update: Update, context: ContextTypes.DEFAULT
                 text=get_text("np_callback_wait", get_lang(context)),
                 show_alert=False
         )
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.new_post:reaction_toggle_callback:1303", _silent_exc)
         return
     await query.answer()
     data = query.data or ""
@@ -1320,8 +1322,8 @@ async def reaction_toggle_callback(update: Update, context: ContextTypes.DEFAULT
         await query.edit_message_reply_markup(
             reply_markup=get_reaction_toggle_keyboard(selected, get_lang(context))
         )
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.new_post:reaction_toggle_callback:1323", _silent_exc, user_id=user_id)
     return GET_REACTIONS
 
 
@@ -1335,8 +1337,8 @@ async def reactions_done_callback(update: Update, context: ContextTypes.DEFAULT_
                 text=get_text("np_callback_wait", get_lang(context)),
                 show_alert=False
         )
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.new_post:reactions_done_callback", _silent_exc)
         return
     await query.answer()
     # Qo'lda kiritilgan (kanondan tashqari) emojilar ham saqlanib qoladi.
@@ -1359,8 +1361,8 @@ async def reactions_skip_callback(update: Update, context: ContextTypes.DEFAULT_
                 text=get_text("np_callback_wait", get_lang(context)),
                 show_alert=False
         )
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.new_post:reactions_skip_callback", _silent_exc)
         return
     await query.answer()
     context.user_data["selected_reactions"] = []
@@ -1398,8 +1400,8 @@ async def album_choice_callback(update: Update, context: ContextTypes.DEFAULT_TY
         ud.pop("_album_count", None)
         try:
             await query.edit_message_reply_markup(reply_markup=None)
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.new_post:album_choice_callback:1401", _silent_exc, stage=stage)
         await query.message.reply_text(
             get_text("np_album_first_photo_done", lang),
             parse_mode="HTML",
@@ -1419,8 +1421,8 @@ async def album_choice_callback(update: Update, context: ContextTypes.DEFAULT_TY
         ud["selected_reactions"] = []
         try:
             await query.edit_message_reply_markup(reply_markup=None)
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.new_post:album_choice_callback:1422", _silent_exc)
         await query.message.reply_text(
             get_text("np_album_full_done", lang, count=count),
             parse_mode="HTML",
@@ -1431,8 +1433,8 @@ async def album_choice_callback(update: Update, context: ContextTypes.DEFAULT_TY
     # yo'q, faqat tugmalar yashiriladi.
     try:
         await query.edit_message_reply_markup(reply_markup=None)
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.new_post:album_choice_callback:1434", _silent_exc, lang=lang)
     return GET_BTN_TITLE
 
 async def auto_delete_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1526,8 +1528,8 @@ async def time_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
             get_text("np_time_set", lang, time=time_str),
             parse_mode="HTML",
         )
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.new_post:time_received", _silent_exc, lang=lang)
     await _show_confirmation(update.message, context)
     return CONFIRM_POST
 
@@ -1560,8 +1562,8 @@ async def daily_time_received(update: Update, context: ContextTypes.DEFAULT_TYPE
             get_text("np_time_set", lang, time=time_str),
             parse_mode="HTML",
         )
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.new_post:daily_time_received", _silent_exc, lang=lang)
 
     await update.message.reply_text(
         get_text("np_duration_ask_daily", lang),
@@ -1622,8 +1624,8 @@ async def recur_time_received(update: Update, context: ContextTypes.DEFAULT_TYPE
             get_text("np_time_set", lang, time=time_str),
             parse_mode="HTML",
         )
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.new_post:recur_time_received", _silent_exc, lang=lang)
 
     await update.message.reply_text(
         get_text("np_duration_ask_weekly", lang),
@@ -1679,8 +1681,8 @@ async def confirm_post_callback(update: Update, context: ContextTypes.DEFAULT_TY
                 text=get_text("np_callback_wait", get_lang(context)),
                 show_alert=False
         )
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.new_post:confirm_post_callback:1682", _silent_exc)
         return
     await query.answer()
     data = query.data
@@ -1738,8 +1740,8 @@ async def confirm_post_callback(update: Update, context: ContextTypes.DEFAULT_TY
                     if cid == int_id:
                         found = (cid, ctitle)
                         break
-            except Exception:
-                pass
+            except Exception as _silent_exc:
+                log_silent_failure("handlers.new_post:confirm_post_callback:1741", _silent_exc)
         if found:
             context.user_data["selected_channel_id"] = found[0]
             context.user_data["selected_channel_title"] = found[1]
@@ -1755,8 +1757,8 @@ async def confirm_post_callback(update: Update, context: ContextTypes.DEFAULT_TY
         cancel_album_collections(user_id)
         try:
             await query.edit_message_reply_markup(reply_markup=None)
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.new_post:confirm_post_callback:1758", _silent_exc)
         await query.message.reply_text(
             get_text("np_cancelled", lang),
             reply_markup=get_main_keyboard(is_admin, context=context),
@@ -1869,13 +1871,13 @@ async def confirm_post_callback(update: Update, context: ContextTypes.DEFAULT_TY
                 )
                 if pid:
                     ok_count += 1
-            except Exception:
-                pass
+            except Exception as _silent_exc:
+                log_silent_failure("handlers.new_post:confirm_post_callback:1872", _silent_exc)
 
         try:
             await query.edit_message_reply_markup(reply_markup=None)
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.new_post:confirm_post_callback:1877", _silent_exc)
 
         if ok_count:
             time_str = format_time(slot_dt, lang)
@@ -1977,13 +1979,13 @@ async def confirm_post_callback(update: Update, context: ContextTypes.DEFAULT_TY
             )
             if pid:
                 ok_count += 1
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.new_post:confirm_post_callback:1980", _silent_exc)
 
     try:
         await query.edit_message_reply_markup(reply_markup=None)
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.new_post:confirm_post_callback:1985", _silent_exc, user_id=user_id, lang=lang)
 
     if ok_count:
         if recurrence_type == "daily" and recurrence_time_str:
@@ -2026,8 +2028,8 @@ async def edit_confirm_field_callback(update: Update, context: ContextTypes.DEFA
                 text=get_text("np_callback_wait", get_lang(context)),
                 show_alert=False
         )
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.new_post:edit_confirm_field_callback", _silent_exc)
         return
     await query.answer()
     data = query.data
@@ -2226,8 +2228,8 @@ async def ai_action_menu_callback(update: Update, context: ContextTypes.DEFAULT_
                 text=get_text("np_callback_wait", get_lang(context)),
                 show_alert=False
         )
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.new_post:ai_action_menu_callback", _silent_exc)
         return
     await query.answer()
     lang = get_lang(context)
@@ -2260,8 +2262,8 @@ async def ai_action_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 text=get_text("np_callback_wait", get_lang(context)),
                 show_alert=False
         )
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.new_post:ai_action_callback", _silent_exc)
         return
     data = query.data
     lang = get_lang(context)
@@ -2326,8 +2328,8 @@ async def ai_result_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 text=get_text("np_callback_wait", get_lang(context)),
                 show_alert=False
         )
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.new_post:ai_result_callback", _silent_exc)
         return
     data = query.data
     lang = get_lang(context)

@@ -111,21 +111,25 @@ def check(label, condition, extra=""):
 # SPEKS: menyu tarkibi va yorliqlari (uchala til)
 # ---------------------------------------------------------------------------
 HUB_LABELS = {
-    # ⚙️ Sozlamalar / Ko'proq — 8 tugma. 3-BOSQICH: asosiy reply-menudan
-    # olib tashlangan «💎 PRO» va «❓ Yordam» shu hub'ga ko'chirildi;
-    # «🎁 Bonuslar & Taklif» va «🧰 Vositalar» hub'dan olib tashlandi
-    # (oqimlar routing'da qoladi), [◀️ Orqaga] → [❌ Yopish].
+    # ⚙️ Sozlamalar / Ko'proq — 10 tugma (SPRINT 1: 🔐 Maxfiylik siyosati va
+    # 🗑 Ma'lumotlarimni o'chirish 4-qatorga qo'shildi). 3-BOSQICH: asosiy
+    # reply-menudan olib tashlangan «💎 PRO» va «❓ Yordam» shu hub'ga
+    # ko'chirildi; «🎁 Bonuslar & Taklif» va «🧰 Vositalar» hub'dan olib
+    # tashlandi (oqimlar routing'da qoladi), [◀️ Orqaga] → [❌ Yopish].
     "uz": (("🌐 Til / Язык", "✍️ Post sozlamalari"),
            ("🔔 Bildirishnomalar", "👥 Do'stlarni taklif"),
            ("💳 To'lovlar tarixi", "💎 PRO"),
+           ("🔐 Maxfiylik", "🗑 O'chirish"),
            ("ℹ️ Yordam va Qo'llanma", "❌ Yopish")),
     "ru": (("🌐 Язык / Language", "✍️ Настройки постов"),
            ("🔔 Уведомления", "👥 Пригласить друзей"),
            ("💳 История платежей", "💎 PRO"),
+           ("🔐 Приватность", "🗑 Удалить данные"),
            ("ℹ️ Помощь и руководство", "❌ Закрыть")),
     "en": (("🌐 Language", "✍️ Post settings"),
            ("🔔 Notifications", "👥 Invite friends"),
            ("💳 Payment history", "💎 PRO"),
+           ("🔐 Privacy", "🗑 Delete data"),
            ("ℹ️ Help and Guide", "❌ Close")),
 }
 
@@ -481,16 +485,16 @@ def _msg_entry_fn_names(app, text, as_command=False):
 # TEST 1 — ⚙️ SOZLAMALAR MENYUSI: LEGACY DUBLIKATLAR YO'Q + SPEKS TARTIBI
 # ===========================================================================
 def test_settings_hub_has_no_legacy_duplicates():
-    print("== TEST 1: ⚙️ Sozlamalar — 8 tugmali menyu (4x2) ==")
+    print("== TEST 1: ⚙️ Sozlamalar — 10 tugmali menyu (5x2) ==")
 
     for lang in LANGS:
         kb = get_settings_hub_keyboard(lang)
         rows = _rows(kb)
         cbs = _cbs(kb)
 
-        check(f"[{lang}] menyu 4 qator (har birida 2 tugma)",
-              len(rows) == 4, str(len(rows)))
-        check(f"[{lang}] 8 tugma AYNAN speks tartibida",
+        check(f"[{lang}] menyu 5 qator (har birida 2 tugma)",
+              len(rows) == 5, str(len(rows)))
+        check(f"[{lang}] 10 tugma AYNAN speks tartibida",
               [[t for t, _ in row] for row in rows]
               == [list(pair) for pair in HUB_LABELS[lang]],
               str([[t for t, _ in row] for row in rows]))
@@ -500,8 +504,8 @@ def test_settings_hub_has_no_legacy_duplicates():
               rows[-1] == [(settings_stats_t("ss_btn_help", lang), "stgs_help_hub"),
                           (settings_stats_t("ss_btn_close", lang), "stgs_back")],
               str(rows[-1]))
-        check(f"[{lang}] jami 8 tugma (dublikat yo'q)",
-              len(cbs) == 8, str(len(cbs)))
+        check(f"[{lang}] jami 10 tugma (dublikat yo'q)",
+              len(cbs) == 10, str(len(cbs)))
         check(f"[{lang}] stgs_profile hub'da YO'Q (matn o'zi profil)",
               "stgs_profile" not in cbs, str(cbs))
         check(f"[{lang}] callback'lar takrorlanmaydi",
@@ -532,8 +536,8 @@ def test_settings_hub_has_no_legacy_duplicates():
             _run(start_mod.user_cabinet_menu(_msg_update(msg), _ctx(lang)))
         last = msg.sent[-1]
         cbs = _cbs(last["reply_markup"])
-        check(f"[{lang}] hub ekrani 8 tugma bilan ochiladi",
-              len(cbs) == 8, str(cbs))
+        check(f"[{lang}] hub ekrani 10 tugma bilan ochiladi",
+              len(cbs) == 10, str(cbs))
         check(f"[{lang}] hub ekrani legacy tugmasiz",
               not any(cb in cbs for cb in LEGACY_HUB_CALLBACKS), str(cbs))
         check(f"[{lang}] hub profil kartasi bilan (Shaxsiy Kabinet)",

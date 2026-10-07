@@ -9,6 +9,8 @@ from html import escape, unescape
 from html.parser import HTMLParser
 import re
 
+from utils.silent_errors import log_silent_failure
+
 TELEGRAM_TEXT_LIMIT = 4096
 TELEGRAM_CAPTION_LIMIT = 1024
 ALLOWED_TAGS = frozenset({
@@ -195,16 +197,16 @@ def _parse(text, max_length):
     try:
         parser.feed(raw)
         parser.close()
-    except _LimitReached:
-        pass
+    except _LimitReached as _silent_exc:
+        log_silent_failure("utils.telegram_sanitizer:_parse:198", _silent_exc)
     except (AssertionError, ValueError):
         # HTMLParser can reject malformed declarations. Fail closed to text,
         # never return the original unsafe fragment.
         parser = _Sanitizer(limit)
         try:
             parser.handle_data(raw)
-        except _LimitReached:
-            pass
+        except _LimitReached as _silent_exc:
+            log_silent_failure("utils.telegram_sanitizer:_parse:206", _silent_exc)
     while parser.stack:
         parser._close()
     return parser

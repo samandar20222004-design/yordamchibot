@@ -15,6 +15,8 @@ import pytz
 from aiohttp import web
 from config import PORT
 
+from utils.silent_errors import log_silent_failure
+
 logger = logging.getLogger(__name__)
 tashkent_tz = pytz.timezone("Asia/Tashkent")
 START_TIME = datetime.now(tashkent_tz)
@@ -103,8 +105,8 @@ async def start_web_server():
         try:
             from utils.sentry_scrubber import register_secret
             register_secret(token, "HEALTH_READY_TOKEN")
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("utils.web_server:start_web_server", _silent_exc)
 
     app = web.Application()
     app.router.add_get("/", health_live_handler)

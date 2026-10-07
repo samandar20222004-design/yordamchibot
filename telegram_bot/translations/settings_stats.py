@@ -111,6 +111,10 @@ SETTINGS_STATS_I18N = {
         # PRO va Yordam asosiy reply-menudan shu panelga ko'chirildi.
         "ss_btn_premium": "💎 PRO",
         "ss_btn_help": "ℹ️ Yordam va Qo'llanma",
+        # 🔐 SPRINT 1 (Privacy & GDPR): yangi qator — maxfiylik siyosati
+        # va "Ma'lumotlarimni o'chirish" (Sozlamalar hub'i 5-qator).
+        "ss_btn_privacy": "🔐 Maxfiylik",
+        "ss_btn_delete_data": "🗑 O'chirish",
 
         # --- ⚙️ SOZLAMALAR: yagona tartibli menyu ---
         "ss_menu_title": (
@@ -296,6 +300,9 @@ SETTINGS_STATS_I18N = {
         # --- ⚙️ ШАГ 3: строки inline-hub «⚙️ Настройки / Ещё» ---
         "ss_btn_premium": "💎 PRO",
         "ss_btn_help": "ℹ️ Помощь и руководство",
+        # 🔐 SPRINT 1: политика конфиденциальности и удаление данных.
+        "ss_btn_privacy": "🔐 Приватность",
+        "ss_btn_delete_data": "🗑 Удалить данные",
 
         # --- ⚙️ НАСТРОЙКИ: единое упорядоченное меню ---
         "ss_menu_title": (
@@ -479,6 +486,9 @@ SETTINGS_STATS_I18N = {
         # --- ⚙️ STEP 3: inline-hub rows for «⚙️ Settings / More» ---
         "ss_btn_premium": "💎 PRO",
         "ss_btn_help": "ℹ️ Help and Guide",
+        # 🔐 SPRINT 1: privacy policy and data deletion entry.
+        "ss_btn_privacy": "🔐 Privacy",
+        "ss_btn_delete_data": "🗑 Delete data",
 
         # --- ⚙️ SETTINGS: single ordered menu ---
         "ss_menu_title": (
@@ -610,13 +620,15 @@ SETTINGS_STATS_I18N = {
 SETTINGS_STATS_KEYS = tuple(sorted(SETTINGS_STATS_I18N["uz"].keys()))
 
 # ============================================================
-# ⚙️ SOZLAMALAR — 8 TUGMALI MENYU (4 qator × 2 tugma)
+# ⚙️ SOZLAMALAR — 10 TUGMALI MENYU (5 qator × 2 tugma)
 # ============================================================
 #: Sozlamalar hub'idagi tugmalar — spetsifikatsiyadagi aniq tartib
-#: (POSTASSIST POLISH: simmetrik 4 qator × 2 tugma):
+#: (POSTASSIST POLISH: simmetrik juft qatorlar; SPRINT 1 — 5-qator
+#: maxfiylik siyosati va ma'lumotlarni o'chirish bilan kengaytirildi):
 #:   [🌐 Til / Язык]         [✍️ Post sozlamalari]
 #:   [🔔 Bildirishnomalar]   [👥 Do'stlarni taklif]
 #:   [💳 To'lovlar tarixi]   [💎 PRO]
+#:   [🔐 Maxfiylik]        [🗑 O'chirish]
 #:   [ℹ️ Yordam va Qo'llanma] [❌ Yopish]
 #: «👥 Do'stlarni taklif» asosiy menyudan shu hub'ga ko'chirildi;
 #: «🎁 Bonuslar & Taklif», «🧰 Vositalar», «❓ Yordam & Ma'lumot» va
@@ -629,6 +641,8 @@ SETTINGS_MENU_BUTTON_KEYS = (
     "ss_rewards_referral",
     "ss_btn_payments",
     "ss_btn_premium",
+    "ss_btn_privacy",
+    "ss_btn_delete_data",
     "ss_btn_help",
     "ss_btn_close",
 )
@@ -680,8 +694,9 @@ CB_STATS_BACK = "an_close"
 CB_STATS_DETAIL = "an_detail"
 CB_STATS_OVERVIEW = "an_overview"
 
-#: ⚙️ Sozlamalar — 8 tugmali hub (4 qator × 2 tugma).
+#: ⚙️ Sozlamalar — 10 tugmali hub (5 qator × 2 tugma).
 #: About/guide/support yagona stgs_help_hub oynasiga birlashtirilgan;
+#: 🔐 Maxfiylik / 🗑 O'chirish (SPRINT 1) oxirgi juftlikdan oldin turadi;
 #: eski callback'lar routing'da orqaga moslik uchun saqlanadi.
 CB_SETTINGS_HUB = (
     "stgs_lang",
@@ -690,6 +705,8 @@ CB_SETTINGS_HUB = (
     "stgs_referral",
     "stgs_pay",
     "sub_open",
+    "stgs_privacy",
+    "stgs_delete_data",
     "stgs_help_hub",
     "stgs_back",
 )

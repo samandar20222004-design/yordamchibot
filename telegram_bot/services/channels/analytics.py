@@ -27,6 +27,8 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from utils.silent_errors import log_silent_failure
+
 logger = logging.getLogger(__name__)
 
 #: Ishonchli xulosa chiqarish uchun minimal postlar soni (soxta raqam YO'Q).
@@ -106,8 +108,8 @@ def summarize_posts_locally(posts, days: int = DEFAULT_ANALYTICS_DAYS) -> dict:
         views.append(post_views)
         try:
             total_reactions += int(post.get("reactions") or 0)
-        except (TypeError, ValueError):
-            pass
+        except (TypeError, ValueError) as _silent_exc:
+            log_silent_failure("services.channels.analytics:summarize_posts_locally", _silent_exc)
         fmt = str(post.get("format") or "text").strip().lower() or "text"
         format_distribution[fmt] = format_distribution.get(fmt, 0) + 1
         hour = post.get("post_hour")

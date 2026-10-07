@@ -35,6 +35,8 @@ from database import (
 from services.audit_service import AuditService
 from config import STARS_PLANS as CONFIG_STARS_PLANS
 
+from utils.silent_errors import log_silent_failure
+
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
@@ -106,8 +108,8 @@ def _record_payment_failure_metric() -> None:
     try:
         from services.observability import record_payment_failure
         record_payment_failure()
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("services.payment_service:_record_payment_failure_metric", _silent_exc)
 
 
 class PaymentService:
@@ -254,10 +256,10 @@ class PaymentService:
                         # Allaqachon to'langan — duplicate, PRO qayta berilmaydi
                         return {"ok": True, "duplicate": True, "days": 0,
                                 "payment_method": method, "currency": curcy}
-                except Exception:
+                except Exception as _silent_exc:
                     # Eski adapter / jadval hali migratsiyalanmagan bo'lsa ham
                     # davom etamiz — ON CONFLICT baribir duplicate'ni ushlaydi
-                    pass
+                    log_silent_failure("services.payment_service:PaymentService.process_stars_payment", _silent_exc, user_id=user_id)
 
                 # 3) Idempotent yozuv — usul va valyuta bilan
                 cur.execute(
@@ -459,9 +461,9 @@ class PaymentService:
                             order_status = orow[0]
                             if order_status != "pending":
                                 return {"ok": False, "reason": "already_reviewed"}
-                    except Exception:
+                    except Exception as _silent_exc:
                         # payment_orders jadvali yo'q yoki eski adapter — davom etamiz
-                        pass
+                        log_silent_failure("services.payment_service:PaymentService._approve_receipt:462", _silent_exc, receipt_id=receipt_id)
                 else:
                     # order_id yo'q bo'lsa ham, receipt_id orqali bog'langan
                     # order'larni qulflab, pending ekanini tekshiramiz
@@ -478,8 +480,8 @@ class PaymentService:
                             # Birinchi pending order_id ni eslab qolamiz (status update uchun)
                             if not order_id:
                                 order_id = oid
-                    except Exception:
-                        pass
+                    except Exception as _silent_exc:
+                        log_silent_failure("services.payment_service:PaymentService._approve_receipt:481", _silent_exc, receipt_id=receipt_id)
 
                 grant_days = int(default_days or 30)
                 if grant_days <= 0:
@@ -503,8 +505,8 @@ class PaymentService:
                             "WHERE order_id = %s AND status = 'pending'",
                             (str(order_id),),
                         )
-                    except Exception:
-                        pass
+                    except Exception as _silent_exc:
+                        log_silent_failure("services.payment_service:PaymentService._approve_receipt:506", _silent_exc, receipt_id=receipt_id)
 
                 # 5) PRO berish: max(current_expiry, NOW()) + days (additive)
                 cur.execute(

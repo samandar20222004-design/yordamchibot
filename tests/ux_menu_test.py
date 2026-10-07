@@ -62,7 +62,7 @@ class UXMenuTests(unittest.IsolatedAsyncioTestCase):
             with self.subTest(lang=lang):
                 panel = kb.get_settings_profile_keyboard(lang)
                 flat = buttons(panel)
-                self.assertEqual([len(row) for row in panel.inline_keyboard], [2] * 4)
+                self.assertEqual([len(row) for row in panel.inline_keyboard], [2] * 5)
                 self.assertEqual([b.callback_data for b in flat], list(CB_SETTINGS_HUB))
                 self.assertEqual([b.text for b in flat], [
                     settings_stats_t(key, lang) for key in SETTINGS_MENU_BUTTON_KEYS

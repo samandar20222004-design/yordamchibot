@@ -13,6 +13,8 @@ from utils.channel_reader import (
     extract_channel_username, is_website_link,
 )
 
+from utils.silent_errors import log_silent_failure
+
 logger = logging.getLogger(__name__)
 
 # States
@@ -74,8 +76,8 @@ def _clean_foreign_content(text: str, user_channels: list) -> str:
             try:
                 uname = m2.group(0).split('/')[-1].split('?')[0].lower()
                 own_usernames.add(uname)
-            except Exception:
-                pass
+            except Exception as _silent_exc:
+                log_silent_failure("handlers.channel_extract:_clean_foreign_content", _silent_exc)
 
     cleaned = text
 
@@ -86,8 +88,8 @@ def _clean_foreign_content(text: str, user_channels: list) -> str:
             uname = url.split('/')[-1].split('?')[0].lower().lstrip('@')
             if uname in own_usernames:
                 return url  # o'z kanalimiz — saqlaymiz
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.channel_extract:_clean_foreign_content._tme_repl", _silent_exc)
         return ""  # begona — o'chiramiz
 
     cleaned = _FOREIGN_TME_RE.sub(_tme_repl, cleaned)
@@ -240,8 +242,8 @@ async def _get_user_tone(user_id: int) -> str:
         if channels:
             ch_id = channels[0][0]
             tone = await db.run_db(db.get_channel_tone, ch_id)
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.channel_extract:_get_user_tone", _silent_exc, user_id=user_id)
     return tone
 
 
@@ -283,8 +285,8 @@ async def _handle_website_link(update: Update, context: ContextTypes.DEFAULT_TYP
     chat_id = update.effective_chat.id
     try:
         await context.bot.send_chat_action(chat_id=chat_id, action="typing")
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.channel_extract:_handle_website_link", _silent_exc, user_id=user_id, chat_id=chat_id, lang=lang)
 
     wait_msg = await update.message.reply_text("⏳ Post tayyorlanmoqda, iltimos kuting...")
     async with keep_typing(context.bot, chat_id):
@@ -491,8 +493,8 @@ async def extract_post_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE
         chat_id = query.message.chat_id
         try:
             await context.bot.send_chat_action(chat_id=chat_id, action="typing")
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.channel_extract:extract_post_chosen:494", _silent_exc, chat_id=chat_id)
         wait_msg = await query.message.reply_text("⏳ Post tayyorlanmoqda, iltimos kuting...")
         async with keep_typing(context.bot, chat_id):
             result = await rewrite_channel_post(
@@ -541,8 +543,8 @@ async def extract_post_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE
         chat_id = query.message.chat_id
         try:
             await context.bot.send_chat_action(chat_id=chat_id, action="typing")
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.channel_extract:extract_post_chosen:544", _silent_exc, chat_id=chat_id)
         wait_msg = await query.message.reply_text("⏳ Post tayyorlanmoqda, iltimos kuting...")
         async with keep_typing(context.bot, chat_id):
             result = await rewrite_channel_post(
@@ -588,8 +590,8 @@ async def extract_post_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE
         chat_id = query.message.chat_id
         try:
             await context.bot.send_chat_action(chat_id=chat_id, action="typing")
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.channel_extract:extract_post_chosen:591", _silent_exc, chat_id=chat_id)
         wait_msg = await query.message.reply_text("⏳ Kanalga moslashtirilmoqda, iltimos kuting...")
 
         async with keep_typing(context.bot, chat_id):

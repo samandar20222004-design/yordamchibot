@@ -13,11 +13,11 @@ Qamrov (topshiriq spetsifikatsiyasi bilan birma-bir):
            generatsiyada butunlay TAQIQLANGAN. ``now=`` injeksiyasi bilan
            sana muqtada (deterministik) ham tekshiriladi.
 
-  TEST 2 — ⚙️ SOZLAMALAR: SIMMETRIK 8 TUGMA / 4 QATOR × 2 (3 TILDA):
+  TEST 2 — ⚙️ SOZLAMALAR: SIMMETRIK 10 TUGMA / 5 QATOR × 2 (3 TILDA):
            r1 [🌐 Til][✍️ Post sozlamalari]; r2 [🔔 Bildirishnomalar]
-           [👥 Do'stlarni taklif]; r3 [💳 To'lovlar tarixi][ℹ️ Bot haqida];
-           r4 [💎 PRO][❓ Yordam] va r5 [💬 Qo'llab-quvvatlash][❌ Yopish].
-           Yolg'iz tugmali qator
+           [👥 Do'stlarni taklif]; r3 [💳 To'lovlar tarixi][💎 PRO];
+           r4 [🔐 Maxfiylik][🗑 O'chirish] (SPRINT 1) va
+           r5 [ℹ️ Yordam va Qo'llanma][❌ Yopish]. Yolg'iz tugmali qator
            YO'Q; callback'lar tilga bog'liq emas va KANONIK tartibda.
 
   TEST 3 — ℹ️ BOT HAQIDA (stgs_about):
@@ -139,7 +139,8 @@ def test_1_prompt_dynamic_date_and_anti_hallucination():
 # ---------------------------------------------------------------------------
 EXPECTED_SETTINGS_CBS = (
     "stgs_lang", "stgs_post", "stgs_notif", "stgs_referral",
-    "stgs_pay", "sub_open", "stgs_help_hub",
+    "stgs_pay", "sub_open", "stgs_privacy", "stgs_delete_data",
+    "stgs_help_hub",
     "stgs_back",
 )
 
@@ -149,7 +150,7 @@ def _kb_rows(kb):
 
 
 def test_2_settings_symmetric_8_button_layout():
-    header("2", "⚙️ SOZLAMALAR / KO'PROQ — SIMMETRIK 8 TUGMA / 4×2 (3 TIL)")
+    header("2", "⚙️ SOZLAMALAR / KO'PROQ — SIMMETRIK 10 TUGMA / 5×2 (3 TIL)")
     from keyboards.inline import (get_cabinet_inline_keyboard,
                                   get_settings_hub_keyboard,
                                   get_settings_profile_keyboard)
@@ -160,9 +161,9 @@ def test_2_settings_symmetric_8_button_layout():
         rows = _kb_rows(kb)
         cbs = [c for row in rows for _t, c in row]
 
-        check(f"[{lang}] 4 qator, har birida AYNAN 2 tugma",
-              len(rows) == 4 and all(len(r) == 2 for r in rows), str(rows))
-        check(f"[{lang}] jami 8 tugma", len(cbs) == 8, str(cbs))
+        check(f"[{lang}] 5 qator, har birida AYNAN 2 tugma",
+              len(rows) == 5 and all(len(r) == 2 for r in rows), str(rows))
+        check(f"[{lang}] jami 10 tugma", len(cbs) == 10, str(cbs))
         check(f"[{lang}] callback'lar KANONIK tartibda",
               cbs == list(EXPECTED_SETTINGS_CBS), str(cbs))
         check(f"[{lang}] r1: [Til | Post sozlamalari]",
@@ -172,9 +173,13 @@ def test_2_settings_symmetric_8_button_layout():
         check(f"[{lang}] r3: [To'lovlar | PRO]",
               rows[2] == [(settings_stats_t("ss_btn_payments", lang), "stgs_pay"),
                           (settings_stats_t("ss_btn_premium", lang), "sub_open")], str(rows[2]))
-        check(f"[{lang}] r4: [Yordam va Qo'llanma | Yopish]",
-              rows[3] == [(settings_stats_t("ss_btn_help", lang), "stgs_help_hub"),
-                          (settings_stats_t("ss_btn_close", lang), "stgs_back")], str(rows[3]))
+        check(f"[{lang}] r4: [🔐 Maxfiylik | 🗑 O'chirish] (SPRINT 1)",
+              rows[3] == [(settings_stats_t("ss_btn_privacy", lang), "stgs_privacy"),
+                          (settings_stats_t("ss_btn_delete_data", lang),
+                           "stgs_delete_data")], str(rows[3]))
+        check(f"[{lang}] r5: [Yordam va Qo'llanma | Yopish]",
+              rows[4] == [(settings_stats_t("ss_btn_help", lang), "stgs_help_hub"),
+                          (settings_stats_t("ss_btn_close", lang), "stgs_back")], str(rows[4]))
         check(f"[{lang}] alohida about/support tugmalari YO'Q",
               "stgs_about" not in cbs and "help_support" not in cbs, str(cbs))
 

@@ -19,6 +19,8 @@ from telegram.ext import (
     ConversationHandler,
 )
 
+from utils.silent_errors import log_silent_failure
+
 logger = logging.getLogger(__name__)
 
 # Default access denied alert message
@@ -34,15 +36,15 @@ def is_admin_user(user_id: int | None) -> bool:
         from config import ADMIN_IDS_SET
         if user_id in ADMIN_IDS_SET:
             return True
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("middlewares.rbac:is_admin_user:37", _silent_exc, user_id=user_id)
 
     try:
         from services.rbac_service import is_admin as rbac_is_admin
         if rbac_is_admin(user_id):
             return True
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("middlewares.rbac:is_admin_user:44", _silent_exc, user_id=user_id)
 
     return False
 
@@ -68,13 +70,13 @@ def admin_rbac_required(func: Callable) -> Callable:
             if query:
                 try:
                     await query.answer(text=RBAC_DENIED_MESSAGE, show_alert=True)
-                except Exception:
-                    pass
+                except Exception as _silent_exc:
+                    log_silent_failure("middlewares.rbac:admin_rbac_required.wrapper:71", _silent_exc)
             elif getattr(update, "effective_message", None):
                 try:
                     await update.effective_message.reply_text(RBAC_DENIED_MESSAGE)
-                except Exception:
-                    pass
+                except Exception as _silent_exc:
+                    log_silent_failure("middlewares.rbac:admin_rbac_required.wrapper:76", _silent_exc)
             return ConversationHandler.END
 
         return await func(update, context, *args, **kwargs)
@@ -137,8 +139,8 @@ def _actor_lang(update: Update, context: Any = None) -> str:
         lang = str(user_data.get("lang") or "").strip().lower()
         if lang in RBAC_DENIED_TEXTS:
             return lang
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("middlewares.rbac:_actor_lang", _silent_exc)
     return "uz"
 
 
@@ -230,10 +232,10 @@ async def _notify_denied(update: Update, context: Any = None, message: str | Non
             try:
                 await query.answer(text[:190])
                 return
-            except Exception:
-                pass
-        except Exception:
-            pass
+            except Exception as _silent_exc:
+                log_silent_failure("middlewares.rbac:_notify_denied:233", _silent_exc)
+        except Exception as _silent_exc:
+            log_silent_failure("middlewares.rbac:_notify_denied:235", _silent_exc)
     msg = getattr(update, "effective_message", None) or getattr(update, "message", None)
     if msg is not None:
         try:

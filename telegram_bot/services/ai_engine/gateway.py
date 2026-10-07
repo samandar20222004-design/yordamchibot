@@ -76,6 +76,8 @@ from .telemetry import (
     default_recorder,
 )
 
+from utils.silent_errors import log_silent_failure
+
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
@@ -159,8 +161,8 @@ def mock_mode() -> str:
         from services.ai.providers import _TRUTHY_VALUES, AI_ALLOW_MOCK_VAR
 
         allow_mock_var, truthy = AI_ALLOW_MOCK_VAR, _TRUTHY_VALUES
-    except Exception:  # pragma: no cover — izolyatsiyalangan muhit
-        pass
+    except Exception as _silent_exc:  # pragma: no cover — izolyatsiyalangan muhit
+        log_silent_failure("services.ai_engine.gateway:mock_mode", _silent_exc)
     flag = (os.getenv(allow_mock_var, "0") or "").strip().lower()
     if flag in truthy:
         return MOCK_MODE_FORCED
@@ -215,8 +217,8 @@ def resolve_model(provider: str | None, result: dict | None = None) -> str:
         models = getattr(aa, attr, None)
         if isinstance(models, (list, tuple)) and models and isinstance(models[0], str):
             return models[0]
-    except Exception:  # pragma: no cover — model nomi ixtiyoriy
-        pass
+    except Exception as _silent_exc:  # pragma: no cover — model nomi ixtiyoriy
+        log_silent_failure("services.ai_engine.gateway:resolve_model", _silent_exc, provider=provider)
     return ""
 
 
@@ -743,8 +745,8 @@ def _guard_prompt(prompt: str) -> str:
             cleaned = strip_instruction_leaks(text)
             logger.warning("AI Engine prompt guard: kirishdan ko'rsatma bloklari olib tashlandi")
             return cleaned
-    except Exception:  # pragma: no cover — himoya
-        pass
+    except Exception as _silent_exc:  # pragma: no cover — himoya
+        log_silent_failure("services.ai_engine.gateway:_guard_prompt", _silent_exc)
     return text
 
 

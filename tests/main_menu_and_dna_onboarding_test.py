@@ -14,7 +14,7 @@ Topshiriq spetsifikatsiyasi bilan birma-bir:
       Admin uchun faqat oxirga [⚙️ Admin Panel] qatori qo'shiladi.
 
   TEST 2 — ⚙️ SOZLAMALAR / KO'PROQ HUB'I
-      get_settings_profile_keyboard = 8 tugma / 4 qator (simmetrik 2+2),
+      get_settings_profile_keyboard = 10 tugma / 5 qator (simmetrik 2+2),
       [💎 PRO] (sub_open) va [❓ Yordam] (stgs_help_hub) qatorlari bilan;
       get_cabinet_inline_keyboard va get_settings_hub_keyboard AYNAN shu
       panelni qaytaradi (dublikat inline klaviatura YO'Q).
@@ -208,8 +208,8 @@ def test_2_settings_more_hub():
         rows = ik_rows(kb)
         cbs = [cb for _, cb in ik_flat(kb)]
         labels = [t for t, _ in ik_flat(kb)]
-        check(f"[{lang}] 8 tugma / 4 qator (simmetrik 2+2)",
-              len(labels) == 8 and len(rows) == 4
+        check(f"[{lang}] 10 tugma / 5 qator (simmetrik 2+2)",
+              len(labels) == 10 and len(rows) == 5
               and all(len(r) == 2 for r in rows), str(rows))
         check(f"[{lang}] callback tartibi SSOT bilan bir xil",
               cbs == list(CB_SETTINGS_HUB), str(cbs))
