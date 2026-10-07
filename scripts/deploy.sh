@@ -22,7 +22,7 @@
 # ISHLATISH (repo ildizidan):
 #     bash scripts/deploy.sh                       # deploy + verify + foreground
 #     bash scripts/deploy.sh --verify-only         # tekshirib, botni to'xtatadi
-#     bash scripts/deploy.sh --check-only          # faqat preflight + migratsiya
+#     bash scripts/deploy.sh --check-only          # preflight + HAQIQIY migratsiya (bot yo'q)
 #     bash scripts/deploy.sh --no-smoke            # smoke testni o'tkazib yuborish
 #
 # EXIT: 0 — muvaffaqiyat; 1 — preflight/migratsiya/health/smoke xatosi.
@@ -64,7 +64,8 @@ Opsiyalar:
   --env-file FILE     Muhit fayli (standart: .env)
   --port N            Healthcheck porti (standart: PORT env yoki 8080)
   --strict            Preflight ogohlantirishlari ham to'xtatadi
-  --check-only        Faqat preflight + DB migratsiya (bot ishga tushmaydi)
+  --check-only        Preflight + DB migratsiya (schema.sql qo'llaniladi);
+                      bot ishga tushmaydi
   --verify-only       Botni ko'tarib tekshiradi va to'xtatadi (CI/staging uchun)
   --no-smoke          Smoke testni o'tkazib yuboradi
   --offline-smoke     Smoke testni faqat mock Telegram bilan (tashqi tarmoqsiz)
@@ -241,16 +242,22 @@ PY
 }
 
 # ============================================================================
-# 1) PREFLIGHT + 2) MIGRATION (start_production.sh --check-only orqali)
+# 1) PREFLIGHT + 2) MIGRATION (start_production.sh --migrate-only orqali)
 # ============================================================================
 log "1/5 PREFLIGHT + 2/5 DB MIGRASYON + SCHEMA CHECK"
-CHECK_ARGS=(--check-only)
+# DIQQAT: bu yerda `--migrate-only` ishlatiladi (`--check-only` EMAS).
+# `--check-only` read-only: db_migrate.py schemani YOZMAYDI — natijada YANGI
+# (bo'sh) bazada schema check "yetishmayapti" deb yiqilardi va 1-komandalik
+# deploy birinchi marta umuman ishlamasdi (P1 tuzatildi). `--migrate-only`
+# esa preflight + HAQIQIY idempotent migratsiya + port tekshiruvini bajaradi
+# va botni ishga tushirmaydi (uni deploy.sh o'zi ko'taradi).
+CHECK_ARGS=(--migrate-only)
 [ "$STRICT" = "1" ] && CHECK_ARGS+=(--strict)
 bash "$REPO_ROOT/scripts/start_production.sh" --env-file "$ENV_FILE" "${CHECK_ARGS[@]}" \
     || die "Preflight/migratsiya bosqichi yiqildi — bot ishga tushirilmadi."
 
 if [ "$CHECK_ONLY" = "1" ]; then
-    log "✅ CHECK-ONLY yakunlandi — deploy uchun hamma narsa tayyor (bot ishga tushirilmadi)."
+    log "✅ CHECK-ONLY yakunlandi — preflight + migratsiya (schema.sql qo'llanildi) bajarildi; bot ishga tushirilmadi."
     exit 0
 fi
 

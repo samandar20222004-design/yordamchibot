@@ -1251,6 +1251,19 @@ echo "======== 🧪 PRODUCTION RUNTIME & DEPLOYMENT VERIFICATION ========"
 "$PY" tests/smoke_test.py --offline || EXIT_CODE=1
 
 echo
+echo "===== 🚀 DEPLOY BOOTSTRAP — YANGI (BO'SH) BAZADA 1-KOMANDALIK DEPLOY ====="
+# P1 REGRESSION: ilgari `deploy.sh` barcha rejimlarda start_production.sh ga
+# `--check-only` uzatardi → db_migrate.py schema.sql NI YOZMASDAN "schema_tables
+# yetishmayapti" deb yiqilardi va YANGI bazada (birinchi deploy / yangi muhit /
+# falokatdan tiklash) 1-komandalik deploy UMUMAN ishlamasdi.
+# Endi: deploy.sh → start_production.sh --migrate-only (HAQIQIY idempotent
+# migratsiya + port tekshiruvi, bot ko'tarilmaydi), `--check-only` esa
+# o'zgarishsiz READ-ONLY bo'lib qoldi. Suite statik kontraktni VA haqiqiy
+# PostgreSQL (pgserver) ustidagi live xulq-atvorni tekshiradi (bo'sh baza →
+# migratsiya qo'llaniladi → idempotentlik → read-only rejim yozmaydi).
+"$PY" tests/deploy_bootstrap_fresh_db_test.py || EXIT_CODE=1
+
+echo
 echo "=============================================================="
 if [ "$EXIT_CODE" -eq 0 ]; then
     echo "BARCHA TESTLAR 100% YASHIL ✔"
