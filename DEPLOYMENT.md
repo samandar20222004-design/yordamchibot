@@ -148,6 +148,30 @@ Dockerfile = `Dockerfile`. Render yig'adi `python:3.11-slim` + `tini` +
 
 ## 2. B variant — VPS (Ubuntu 22.04/24.04, systemd)
 
+### P0/P1 hardening runtime sozlamalari
+
+`.env.example` dagi quyidagi qiymatlar production'da ham aniq ko'rsatilishi kerak:
+
+| O'zgaruvchi | Standart | Vazifasi |
+|---|---:|---|
+| `ANALYTICS_MAX_BATCH_IDS` | `100` | Analytics channel picker uchun bitta bounded query limiti; N+1 va haddan tashqari katta klaviatura oldini oladi. |
+| `QUIET_STAGGER_MIN_SECONDS` | `30` | Quiet-hours tugashida postlar orasidagi minimal qadam. |
+| `QUIET_STAGGER_MAX_SECONDS` | `180` | Quiet-hours herd oynasining yuqori chegarasi. |
+| `CHANNEL_STAGGER_MIN_SECONDS` | `60` | Bir kanal ketma-ket postlari orasidagi minimum. |
+
+Qiymatlar `config.py` da parse qilinadi, scheduler staggering oynasini
+0–3600 soniya bilan chegaralaydi. `ANALYTICS_MAX_BATCH_IDS` kamida 1 bo'lishi
+kerak. Deploydan oldin migration'ni idempotent qayta tekshiring:
+
+```bash
+python3 scripts/db_migrate.py --check-only
+bash scripts/deploy.sh --verify-only --offline-smoke
+```
+
+`--verify-only` preflight, schema migration/check, bot start, liveness health
+va smoke bosqichlarini ketma-ket bajaradi. `schema.sql` canonical manba,
+`init_db()` fallback DDL esa compatibility safety-net hisoblanadi.
+
 ```bash
 # 1) Kerakli paketlar
 sudo apt-get update && sudo apt-get install -y git python3-venv python3-pip
