@@ -17,6 +17,8 @@ from utils.telegram_sanitizer import (
     sanitize_html, TELEGRAM_TEXT_LIMIT, TELEGRAM_CAPTION_LIMIT,
 )
 
+from utils.silent_errors import log_silent_failure
+
 _NESTED = ("media", "results", "input_message_content")
 _FIELDS = ("text", "message_text", "caption", "parse_mode", "entities",
            "caption_entities", *_NESTED)
@@ -84,9 +86,9 @@ class SafeHTMLBot(ExtBot):
                     error=error,
                     latency_ms=(time.perf_counter() - started) * 1000,
                 )
-            except Exception:
+            except Exception as _silent_exc:
                 # Metrics must never alter Telegram request semantics.
-                pass
+                log_silent_failure("utils.telegram_delivery:SafeHTMLBot._do_post", _silent_exc)
 
 
 def create_safe_bot(token):

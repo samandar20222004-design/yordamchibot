@@ -34,6 +34,8 @@ import re
 import threading
 from datetime import datetime, timezone
 
+from utils.silent_errors import log_silent_failure
+
 __all__ = [
     "REDACTED",
     "REDACTED_TOKEN",
@@ -396,8 +398,8 @@ class SecretScrubbingFilter(_logging.Filter):
                 exc = record.exc_info[1]
                 try:
                     exc.args = tuple(_scrub_arg(a) for a in exc.args)
-                except Exception:
-                    pass
+                except Exception as _silent_exc:
+                    log_silent_failure("utils.sentry_scrubber:SecretScrubbingFilter.filter:399", _silent_exc)
             if getattr(record, "exc_text", None):
                 record.exc_text = scrub_text(record.exc_text)
 
@@ -409,9 +411,9 @@ class SecretScrubbingFilter(_logging.Filter):
                 record.__dict__[key] = (
                     REDACTED if _is_sensitive_key(key) else scrub_value(value)
                 )
-        except Exception:
+        except Exception as _silent_exc:
             # Filtr HECH QACHON logni yiqitmasin.
-            pass
+            log_silent_failure("utils.sentry_scrubber:SecretScrubbingFilter.filter:412", _silent_exc)
         return True
 
 
@@ -423,8 +425,8 @@ def _scrub_arg(value):
     if isinstance(value, BaseException):
         try:
             value.args = tuple(_scrub_arg(a) for a in value.args)
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("utils.sentry_scrubber:_scrub_arg", _silent_exc)
         return value
     return value
 

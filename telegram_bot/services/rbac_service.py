@@ -83,6 +83,8 @@ import time
 from config import ADMIN_ID, ADMIN_IDS_SET
 import database as db
 
+from utils.silent_errors import log_silent_failure
+
 logger = logging.getLogger(__name__)
 
 
@@ -220,8 +222,8 @@ def legacy_role(user_id) -> "Role | None":
     try:
         if ADMIN_ID and uid == int(ADMIN_ID):
             return Role.OWNER
-    except (TypeError, ValueError):  # pragma: no cover - config himoyasi
-        pass
+    except (TypeError, ValueError) as _silent_exc:  # pragma: no cover - config himoyasi
+        log_silent_failure("services.rbac_service:legacy_role", _silent_exc, user_id=user_id, uid=uid)
     if uid in ADMIN_IDS_SET:
         return Role.SUPER_ADMIN
     return None
@@ -361,8 +363,8 @@ def get_role(user_id, use_cache: bool = True) -> Role:
     try:
         if ADMIN_ID and uid == int(ADMIN_ID):
             return Role.OWNER
-    except (TypeError, ValueError):  # pragma: no cover
-        pass
+    except (TypeError, ValueError) as _silent_exc:  # pragma: no cover
+        log_silent_failure("services.rbac_service:get_role", _silent_exc, user_id=user_id, uid=uid)
 
     stored = _MISS
     if use_cache:

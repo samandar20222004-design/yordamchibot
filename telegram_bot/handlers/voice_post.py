@@ -74,6 +74,8 @@ from utils.helpers import (
     html_escape,
 )
 
+from utils.silent_errors import log_silent_failure
+
 logger = logging.getLogger(__name__)
 
 # ============================================================
@@ -281,18 +283,18 @@ async def _voice_refund(user_id: int, is_admin: bool, is_pro: bool,
     if reservation_id:
         try:
             await release_ai_quota(db, user_id, reservation_id)
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.voice_post:_voice_refund:284", _silent_exc, user_id=user_id)
         return
     try:
         await db.run_db(db.add_user_credit, user_id)
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.voice_post:_voice_refund:289", _silent_exc, user_id=user_id)
     if hasattr(db, "refund_ai_usage"):
         try:
             await db.run_db(db.refund_ai_usage, user_id)
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.voice_post:_voice_refund:294", _silent_exc, user_id=user_id)
 
 
 def _extract_voice_media(msg):
@@ -322,8 +324,8 @@ async def voice_post_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if query is not None:
         try:
             await query.answer()
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.voice_post:voice_post_entry", _silent_exc)
     msg = (
         getattr(update, "message", None)
         or getattr(update, "effective_message", None)
@@ -504,8 +506,8 @@ async def voice_style_callback(update: Update, context: ContextTypes.DEFAULT_TYP
     if not is_admin and check_ai_rate_limit(user_id, max_per_minute=4):
         try:
             await query.answer(safe_t("ai_rate_limit_alert", lang), show_alert=True)
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.voice_post:voice_style_callback:507", _silent_exc)
         return VOICE_STYLE_SELECT
 
     is_pro = False
@@ -542,8 +544,8 @@ async def voice_style_callback(update: Update, context: ContextTypes.DEFAULT_TYP
     chat_id = query.message.chat_id
     try:
         await context.bot.send_chat_action(chat_id=chat_id, action="typing")
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.voice_post:voice_style_callback:545", _silent_exc, user_id=user_id, chat_id=chat_id, lang=lang)
     try:
         await query.edit_message_text("⏳ Post tayyorlanmoqda, iltimos kuting...")
         wait_msg = query.message
@@ -551,8 +553,8 @@ async def voice_style_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         wait_msg = None
         try:
             wait_msg = await query.message.reply_text("⏳ Post tayyorlanmoqda, iltimos kuting...")
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.voice_post:voice_style_callback:554", _silent_exc)
 
     # --- ✨ AI generatsiya (Magic Post prompti: sarlavha, CTA, emoji, hashtag) ---
     try:
@@ -570,8 +572,8 @@ async def voice_style_callback(update: Update, context: ContextTypes.DEFAULT_TYP
             try:
                 await wait_msg.edit_text(err_text, reply_markup=_voice_style_keyboard(lang), parse_mode="HTML")
                 return VOICE_STYLE_SELECT
-            except Exception:
-                pass
+            except Exception as _silent_exc:
+                log_silent_failure("handlers.voice_post:voice_style_callback:573", _silent_exc)
         await _safe_edit(query, err_text, _voice_style_keyboard(lang))
         return VOICE_STYLE_SELECT
 
@@ -586,8 +588,8 @@ async def voice_style_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         try:
             await wait_msg.edit_text(result_text, reply_markup=result_markup, parse_mode="HTML")
             return VOICE_RESULT
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.voice_post:voice_style_callback:589", _silent_exc)
     await _safe_edit(query, result_text, result_markup)
     return VOICE_RESULT
 
@@ -608,8 +610,8 @@ async def voice_cancel_callback(update: Update, context: ContextTypes.DEFAULT_TY
             await query.message.reply_text(
                 voice_t("vp_cancel_done", lang), parse_mode="HTML"
             )
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.voice_post:voice_cancel_callback", _silent_exc)
     # Sessiya yopildi — yangi ovoz entry point orqali qaytadan boshlanadi.
     return ConversationHandler.END
 
@@ -646,8 +648,8 @@ async def _voice_finish_send(query, context, targets: list) -> int:
             if not reservation_source(context, "voice"):
                 try:
                     await db.run_db(db.increment_ai_usage, user_id)
-                except Exception:
-                    pass
+                except Exception as _silent_exc:
+                    log_silent_failure("handlers.voice_post:_voice_finish_send:649", _silent_exc)
         try:
             await query.edit_message_text(
                 voice_t(
@@ -657,8 +659,8 @@ async def _voice_finish_send(query, context, targets: list) -> int:
                 ),
                 parse_mode="HTML",
             )
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.voice_post:_voice_finish_send:660", _silent_exc)
         # Sessiya tugadi — kontekst tozalanadi (til saqlanadi).
         clear_fsm_data(context)
         return sent
@@ -669,8 +671,8 @@ async def _voice_finish_send(query, context, targets: list) -> int:
             reply_markup=_voice_action_keyboard(lang),
             parse_mode="HTML",
         )
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.voice_post:_voice_finish_send:672", _silent_exc, user_id=user_id, lang=lang)
     return 0
 
 
@@ -684,8 +686,8 @@ async def voice_send_now_callback(update: Update, context: ContextTypes.DEFAULT_
     if not post_text:
         try:
             await query.answer(voice_t("vp_stale", lang), show_alert=True)
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.voice_post:voice_send_now_callback:687", _silent_exc)
         return VOICE_RESULT
 
     try:
@@ -697,8 +699,8 @@ async def voice_send_now_callback(update: Update, context: ContextTypes.DEFAULT_
     if not channels:
         try:
             await query.answer(voice_t("vp_no_channels", lang), show_alert=True)
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.voice_post:voice_send_now_callback:700", _silent_exc)
         return VOICE_RESULT
 
     context.user_data["voice_channels"] = channels
@@ -723,8 +725,8 @@ async def voice_channel_picked_callback(update: Update, context: ContextTypes.DE
     if not post_text or not channels:
         try:
             await query.answer(voice_t("vp_stale", get_lang(context)), show_alert=True)
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.voice_post:voice_channel_picked_callback", _silent_exc)
         return VOICE_SEND_CHOOSE
 
     if data == VP_SEND_ALL:
@@ -754,8 +756,8 @@ async def voice_schedule_callback(update: Update, context: ContextTypes.DEFAULT_
     if not post_text:
         try:
             await query.answer(voice_t("vp_stale", lang), show_alert=True)
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.voice_post:voice_schedule_callback:757", _silent_exc)
         return VOICE_RESULT
 
     # Scheduler oqimi (ai_time_received/ai_confirm_callback) kutgan kalitlar:
@@ -768,8 +770,8 @@ async def voice_schedule_callback(update: Update, context: ContextTypes.DEFAULT_
 
     try:
         await query.edit_message_reply_markup(reply_markup=None)
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.voice_post:voice_schedule_callback:771", _silent_exc, lang=lang)
 
     await _show_time_prompt(query.message, post_text, None, "text", lang)
     return AI_GET_TIME
@@ -811,5 +813,5 @@ async def voice_stale_callback(update: Update, context: ContextTypes.DEFAULT_TYP
     except Exception:
         try:
             await query.answer()
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.voice_post:voice_stale_callback", _silent_exc)

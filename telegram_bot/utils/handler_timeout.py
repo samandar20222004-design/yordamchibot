@@ -23,6 +23,8 @@ import asyncio
 import logging
 import time
 
+from utils.silent_errors import log_silent_failure
+
 logger = logging.getLogger(__name__)
 
 DEFAULT_HANDLER_TIMEOUT = 110.0
@@ -105,8 +107,8 @@ def run_background_task(coro, *, name: str | None = None,
     if name:
         try:
             task.set_name(name)
-        except Exception:  # pragma: no cover — eski Python
-            pass
+        except Exception as _silent_exc:  # pragma: no cover — eski Python
+            log_silent_failure("utils.handler_timeout:run_background_task", _silent_exc)
     _background_tasks.add(task)
 
     def _on_done(done_task: asyncio.Task) -> None:
@@ -125,8 +127,8 @@ def run_background_task(coro, *, name: str | None = None,
         if on_error is not None and exc is not None:
             try:
                 on_error(exc)
-            except Exception:  # pragma: no cover — callback xatosi yashirin
-                pass
+            except Exception as _silent_exc:  # pragma: no cover — callback xatosi yashirin
+                log_silent_failure("utils.handler_timeout:run_background_task._on_done", _silent_exc)
 
     task.add_done_callback(_on_done)
     return task

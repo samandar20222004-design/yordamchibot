@@ -73,6 +73,8 @@ from datetime import datetime, timezone
 from services import lifecycle_service as lifecycle
 from services.scheduler_service import SchedulerService
 
+from utils.silent_errors import log_silent_failure
+
 logger = logging.getLogger(__name__)
 
 # ── Rate limit (Telegram rasmiy limitlari) ─────────────────────────────────
@@ -749,8 +751,8 @@ class TelegramDeliveryService:
             if key:
                 try:
                     await run(self.clear_verify_pending_by_key, key)
-                except Exception:  # noqa: BLE001
-                    pass
+                except Exception as _silent_exc:  # noqa: BLE001
+                    log_silent_failure("services.delivery.engine:TelegramDeliveryService.resolve_ambiguous:752", _silent_exc, channel_id=channel_id)
             logger.warning(
                 "Delivery ANIQLANDI: post kanalda allaqachon bor (kanal=%s, "
                 "message_id=%s) — qayta yuborilmaydi (0 duplikat).",
@@ -765,8 +767,8 @@ class TelegramDeliveryService:
             if key:
                 try:
                     await run(self.clear_verify_pending_by_key, key)
-                except Exception:  # noqa: BLE001
-                    pass
+                except Exception as _silent_exc:  # noqa: BLE001
+                    log_silent_failure("services.delivery.engine:TelegramDeliveryService.resolve_ambiguous:768", _silent_exc, channel_id=channel_id)
             logger.info(
                 "Delivery tekshirildi: post kanalda YO'Q (kanal=%s) — xavfsiz qayta urinish.",
                 channel_id,
@@ -901,8 +903,8 @@ class TelegramDeliveryService:
         if lock is not None and lock.locked():
             try:
                 lock.release()
-            except RuntimeError:  # pragma: no cover — boshqa loop/task
-                pass
+            except RuntimeError as _silent_exc:  # pragma: no cover — boshqa loop/task
+                log_silent_failure("services.delivery.engine:TelegramDeliveryService.release_delivery_lock", _silent_exc)
 
     # ──────────────────────────────────────────────────────────────
     # STATE MACHINE — PENDING → SENDING → DELIVERED (idempotent)

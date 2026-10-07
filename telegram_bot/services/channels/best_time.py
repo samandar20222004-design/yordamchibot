@@ -19,6 +19,8 @@ import logging
 from collections import Counter
 from typing import Any
 
+from utils.silent_errors import log_silent_failure
+
 logger = logging.getLogger(__name__)
 
 #: Aniq tavsiya berish uchun minimal kuzatilgan post soni.
@@ -123,8 +125,8 @@ def compute_best_time(events: list[dict]) -> dict:
             weekday_counter[d] += 1
         try:
             lengths.append(max(0, int(e.get("length") or 0)))
-        except (TypeError, ValueError):
-            pass
+        except (TypeError, ValueError) as _silent_exc:
+            log_silent_failure("services.channels.best_time:compute_best_time", _silent_exc)
         if e.get("has_media"):
             media_count += 1
 

@@ -29,6 +29,8 @@ import time
 from dataclasses import dataclass, field
 from typing import Iterable
 
+from utils.silent_errors import log_silent_failure
+
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
@@ -79,8 +81,8 @@ def classify_exception(exc: BaseException | str | None) -> str:
 
         if isinstance(exc, asyncio.TimeoutError):
             return FAILURE_TIMEOUT
-    except Exception:  # pragma: no cover — asyncio har doim bor
-        pass
+    except Exception as _silent_exc:  # pragma: no cover — asyncio har doim bor
+        log_silent_failure("services.ai_engine.health:classify_exception", _silent_exc)
     text = str(exc).lower()
     # Tartib muhim: 429 "500" belgisini o'z ichiga olmaydi, lekin timeout
     # matnida boshqa raqamlar bo'lishi mumkin — avval maxsus turlar.
@@ -236,8 +238,8 @@ class ProviderHealthMonitor:
                 legacy.pop(name, None)
             else:
                 legacy[name] = {"fails": int(st.fails), "until": float(st.open_until)}
-        except Exception:  # pragma: no cover — mirror majburiy emas
-            pass
+        except Exception as _silent_exc:  # pragma: no cover — mirror majburiy emas
+            log_silent_failure("services.ai_engine.health:ProviderHealthMonitor._mirror_legacy", _silent_exc)
 
 
 # ---------------------------------------------------------------------------

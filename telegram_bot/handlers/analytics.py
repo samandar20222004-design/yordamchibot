@@ -26,6 +26,8 @@ from locales.translations import get_lang, get_text, has_key
 from translations import settings_stats_t
 from utils.helpers import html_escape
 
+from utils.silent_errors import log_silent_failure
+
 logger = logging.getLogger(__name__)
 
 # States
@@ -371,8 +373,8 @@ async def analytics_view_callback(update: Update, context: ContextTypes.DEFAULT_
         if context.user_data.get("analytics_overview"):
             try:
                 db.invalidate_user_overview_stats(user_id)
-            except Exception:
-                pass
+            except Exception as _silent_exc:
+                log_silent_failure("handlers.analytics:analytics_view_callback", _silent_exc)
             stats = await db.run_db(db.get_user_overview_stats, user_id)
             overview_text = build_user_stats_text(stats, lang)
             overview_kb = get_user_stats_keyboard(lang)

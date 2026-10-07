@@ -29,6 +29,8 @@ from locales.translations import (
 from utils.helpers import html_escape, get_smart_reply_ad_async
 from utils.handler_timeout import run_background_task
 
+from utils.silent_errors import log_silent_failure
+
 logger = logging.getLogger(__name__)
 
 
@@ -413,8 +415,8 @@ async def subscription_check_callback(update: Update, context: ContextTypes.DEFA
     # Darhol javob
     try:
         await query.answer()
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.start:subscription_check_callback:416", _silent_exc)
 
     is_sub, unsubs = await check_user_subscribed(context.bot, user.id)
 
@@ -425,8 +427,8 @@ async def subscription_check_callback(update: Update, context: ContextTypes.DEFA
     if is_sub:
         try:
             await query.message.delete()
-        except TelegramError:
-            pass
+        except TelegramError as _silent_exc:
+            log_silent_failure("handlers.start:subscription_check_callback:428", _silent_exc)
         is_admin = (user.id in ADMIN_IDS_SET)
         # Obuna tasdiqlangach — tabrik + main_menu_hint + asosiy menyu (uz/ru).
         # Yangi foydalanuvchi bo'lsa sodda (3 tugmali) klaviatura biriktiriladi.
@@ -442,19 +444,19 @@ async def subscription_check_callback(update: Update, context: ContextTypes.DEFA
     else:
         try:
             await query.answer(get_text("sub_not_yet_alert", lang), show_alert=True)
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.start:subscription_check_callback:445", _silent_exc)
         try:
             await query.edit_message_reply_markup(reply_markup=get_subscription_check_keyboard(unsubs, lang))
-        except TelegramError:
-            pass
+        except TelegramError as _silent_exc:
+            log_silent_failure("handlers.start:subscription_check_callback:449", _silent_exc)
         try:
             await query.message.reply_text(
                 get_text("sub_not_yet_msg", lang),
                 parse_mode="HTML",
             )
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.start:subscription_check_callback:456", _silent_exc)
 
 
 def cabinet_credits_text(is_admin: bool, credits, lang: str = "uz") -> str:
@@ -699,8 +701,8 @@ async def transfer_inline_entry(update: Update, context: ContextTypes.DEFAULT_TY
     if query is not None:
         try:
             await query.answer()
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.start:transfer_inline_entry", _silent_exc)
     clear_fsm_data(context)
     return await _begin_transfer_flow(update, context)
 
@@ -774,8 +776,8 @@ async def transfer_amount_received(update: Update, context: ContextTypes.DEFAULT
                 ),
                 parse_mode="HTML"
             )
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.start:transfer_amount_received", _silent_exc)
     else:
         await update.message.reply_text(
             get_text("transfer_error", lang, msg=localize_db_message(msg, lang)),
@@ -865,8 +867,8 @@ async def extras_close_callback(update: Update, context: ContextTypes.DEFAULT_TY
     lang = await ensure_user_lang(context, query.from_user.id)
     try:
         await query.message.delete()
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.start:extras_close_callback", _silent_exc, lang=lang)
     await query.message.reply_text(
         get_text("msg_closed", lang),
         reply_markup=get_main_keyboard(is_admin, lang=lang),
@@ -888,8 +890,8 @@ async def cancel_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         from handlers.new_post import cancel_album_collections
         cancel_album_collections(user_id)
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.start:cancel_handler", _silent_exc, user_id=user_id)
     is_admin = (user_id in ADMIN_IDS_SET)
     lang = await ensure_user_lang(context, user_id)
     # 🧭 Bo'limni FSM tozalanishidan OLDIN o'qib olamiz (clear_fsm_data
@@ -935,8 +937,8 @@ async def cabinet_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.answer()
         try:
             await query.message.delete()
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.start:cabinet_callback:938", _silent_exc)
         await query.message.reply_text(
             get_text("msg_closed", lang),
             reply_markup=get_main_keyboard(is_admin, lang=lang),
@@ -988,8 +990,8 @@ async def cabinet_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     reply_markup=get_language_keyboard(lang),
                     parse_mode="HTML",
                 )
-            except Exception:
-                pass
+            except Exception as _silent_exc:
+                log_silent_failure("handlers.start:cabinet_callback:991", _silent_exc)
 
         # 3) Pastki doimiy ReplyKeyboard DARHOL yangi tilda yuboriladi
         #    (UZ: "➕ Yangi post", RU: "➕ Новый пост", EN: "➕ New post").
@@ -1155,8 +1157,8 @@ async def cabinet_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # xabar sifatida yuboramiz (eski xatti-harakat saqlanadi).
         try:
             await query.message.delete()
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.start:cabinet_callback:1158", _silent_exc)
         from handlers.queue import scheduled_view
         text, markup = await scheduled_view(user_id, lang, is_admin)
         await query.message.reply_text(text, reply_markup=markup, parse_mode="HTML")
@@ -1167,8 +1169,8 @@ async def cabinet_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Eski (alias) `cab_queue` callback'i ham o'sha yagona ekranga boradi.
         try:
             await query.message.delete()
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.start:cabinet_callback:1170", _silent_exc)
         from handlers.queue import scheduled_view
         try:
             text, markup = await scheduled_view(user_id, lang, is_admin)

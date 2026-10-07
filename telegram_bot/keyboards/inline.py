@@ -1021,7 +1021,7 @@ def _profile_support_button(lang: str) -> InlineKeyboardButton:
 
 
 def get_settings_profile_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
-    """⚙️ Sozlamalar / Ko'proq — 4 QATOR × 2 TUGMA = 8 TUGMALI panel (KANONIK).
+    """⚙️ Sozlamalar / Ko'proq — 5 QATOR × 2 TUGMA = 10 TUGMALI panel (KANONIK).
 
     🧹 FAZA 18 — DUBLIKAT KLAVIATURALAR TOZALANDI: bu funksiya profil/
     kabinet/sozlamalar panelining YAGONA MANBASI. Boshqa barcha nomlar
@@ -1035,7 +1035,12 @@ def get_settings_profile_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
         [🌐 Til / Язык]         [✍️ Post sozlamalari]
         [🔔 Bildirishnomalar]   [👥 Do'stlarni taklif]
         [💳 To'lovlar tarixi]   [💎 PRO]
+        [🔐 Maxfiylik siyosati] [🗑 Ma'lumotlarimni o'chirish]
         [ℹ️ Yordam va Qo'llanma] [❌ Yopish]
+
+    🔐 SPRINT 1 (Privacy & GDPR): 4-qator — «Maxfiylik siyosati» va
+    «Ma'lumotlarimni o'chirish» (tasdiqlab, kaskadli soft-delete;
+    to'lov yozuvlari qonuniy audit uchun saqlanadi).
 
     🧭 NIMA O'ZGARDI: asosiy reply-menudan chiqarilgan IKKILAMCHI
     bo'limlar shu panelga ko'chirildi — shu bilan foydalanuvchi uchun
@@ -1082,6 +1087,14 @@ def get_settings_profile_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
                                  callback_data="sub_open"),
         ],
         [
+            # 🔐 SPRINT 1 (Privacy & GDPR): maxfiylik siyosati va
+            # "Ma'lumotlarimni o'chirish" — Sozlamalar hub'ining 5-qatori.
+            InlineKeyboardButton(settings_stats_t("ss_btn_privacy", lang),
+                                 callback_data="stgs_privacy"),
+            InlineKeyboardButton(settings_stats_t("ss_btn_delete_data", lang),
+                                 callback_data="stgs_delete_data"),
+        ],
+        [
             InlineKeyboardButton(settings_stats_t("ss_btn_help", lang),
                                  callback_data="stgs_help_hub"),
             InlineKeyboardButton(settings_stats_t("ss_btn_close", lang),
@@ -1096,8 +1109,9 @@ def get_cabinet_inline_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
     🧹 FAZA 18: bu funksiya endi MANTIQNI SAQLAMAYDI — u to'liq kanonik
     quruvchiga yo'naltirilgan (delegation). Chat tarixidagi eski chaqiruvlar
     va testlar uchun API nomi saqlanadi; panel AYNAN bir xil qoladi
-    (8 tugma: Til / Post sozlamalari / Bildirishnomalar / Do'stlarni
-    taklif / To'lovlar / PRO / Yordam va Qo'llanma / ❌ Yopish).
+    (10 tugma: Til / Post sozlamalari / Bildirishnomalar / Do'stlarni
+    taklif / To'lovlar / PRO / 🔐 Maxfiylik / 🗑 O'chirish /
+    Yordam va Qo'llanma / ❌ Yopish).
     """
     return get_settings_profile_keyboard(lang)
 

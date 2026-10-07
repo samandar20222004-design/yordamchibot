@@ -39,6 +39,8 @@ from datetime import datetime, timedelta, timezone
 
 import database as db
 
+from utils.silent_errors import log_silent_failure
+
 logger = logging.getLogger(__name__)
 
 # ──────────────────────────────────────────────────────────────
@@ -493,5 +495,5 @@ class CreditsService:
         try:
             db._invalidate_user(int(user_id))
             db._cache_clear("system_stats")
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("services.credits_service:CreditsService._invalidate", _silent_exc, user_id=user_id)

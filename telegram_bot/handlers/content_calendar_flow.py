@@ -47,6 +47,8 @@ from handlers.content_calendar import (
     selected_topic_for_magic_post,
 )
 
+from utils.silent_errors import log_silent_failure
+
 logger = logging.getLogger(__name__)
 
 # ============================================================
@@ -82,8 +84,8 @@ def _log(*args) -> None:
     """Debug yordamchisi (handlerlar hech qachon istisno tashlamasligi uchun)."""
     try:
         logger.debug(*args)
-    except Exception:  # pragma: no cover
-        pass
+    except Exception as _silent_exc:  # pragma: no cover
+        log_silent_failure("handlers.content_calendar_flow:_log", _silent_exc)
 
 
 def clear_calendar_session(context) -> None:
@@ -113,8 +115,8 @@ def remember_plan(user_id: int, now: float = None) -> None:
         _RECENT_PLANS.setdefault(int(user_id), []).append(
             float(now if now is not None else time.time())
         )
-    except Exception:  # pragma: no cover
-        pass
+    except Exception as _silent_exc:  # pragma: no cover
+        log_silent_failure("handlers.content_calendar_flow:remember_plan", _silent_exc, user_id=user_id)
 
 
 def reset_plan_counters() -> None:
@@ -344,8 +346,8 @@ async def content_calendar_entry(update: Update, context: ContextTypes.DEFAULT_T
     if query is not None:
         try:
             await query.answer()
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.content_calendar_flow:content_calendar_entry", _silent_exc)
         await _safe_edit(query, text, keyboard)
         return CALENDAR_BUSINESS
 
@@ -385,8 +387,8 @@ async def calendar_duration_callback(update: Update, context: ContextTypes.DEFAU
         return CALENDAR_DURATION
     try:
         await query.answer()
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.content_calendar_flow:calendar_duration_callback", _silent_exc)
     lang = _lang(context)
     data = str(getattr(query, "data", "") or "")
     if data == CB_CAL_CANCEL:
@@ -452,8 +454,8 @@ async def calendar_day_callback(update: Update, context: ContextTypes.DEFAULT_TY
         return CALENDAR_VIEW
     try:
         await query.answer()
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.content_calendar_flow:calendar_day_callback", _silent_exc)
     lang = _lang(context)
     data = str(getattr(query, "data", "") or "")
     if data == CB_CAL_CANCEL:
@@ -499,8 +501,8 @@ async def calendar_cancel_callback(update: Update, context: ContextTypes.DEFAULT
         return ConversationHandler.END
     try:
         await query.answer()
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.content_calendar_flow:calendar_cancel_callback", _silent_exc)
     lang = _lang(context)
     clear_calendar_session(context)
     text = safe_t("cancel_done", lang)
@@ -519,8 +521,8 @@ async def calendar_stale_callback(update: Update, context: ContextTypes.DEFAULT_
         return ConversationHandler.END
     try:
         await query.answer(safe_t("sys_stale_button", get_lang(context)))
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.content_calendar_flow:calendar_stale_callback", _silent_exc)
     return ConversationHandler.END
 
 

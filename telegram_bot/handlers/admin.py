@@ -56,6 +56,8 @@ from utils.helpers import (
     parse_button_input,
 )
 
+from utils.silent_errors import log_silent_failure
+
 logger = logging.getLogger(__name__)
 
 BROADCAST_MESSAGE = 801
@@ -917,8 +919,8 @@ async def admin_inline_text_handler(update: Update, context: ContextTypes.DEFAUL
                     text=admin_t("gp_user_notice", lang, days=days),
                     parse_mode="HTML",
                 )
-            except Exception:
-                pass
+            except Exception as _silent_exc:
+                log_silent_failure("handlers.admin:admin_inline_text_handler:920", _silent_exc)
         else:
             await update.message.reply_text(
                 admin_t("gp_error", lang),
@@ -1067,8 +1069,8 @@ async def admin_inline_text_handler(update: Update, context: ContextTypes.DEFAUL
             if not invite_link:
                 try:
                     invite_link = await context.bot.export_chat_invite_link(chat_id=chat.id)
-                except Exception:
-                    pass
+                except Exception as _silent_exc:
+                    log_silent_failure("handlers.admin:admin_inline_text_handler:1070", _silent_exc)
             if not invite_link and chat.username:
                 invite_link = f"https://t.me/{chat.username}"
             if not invite_link:
@@ -1254,8 +1256,8 @@ async def cache_clear_callback(update: Update, context: ContextTypes.DEFAULT_TYP
             reply_markup=get_cache_actions_keyboard(),
             parse_mode="HTML",
         )
-    except TelegramError:
-        pass
+    except TelegramError as _silent_exc:
+        log_silent_failure("handlers.admin:cache_clear_callback", _silent_exc, lang=lang)
 
 
 async def start_set_post_tag(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1570,8 +1572,8 @@ async def sponsor_channel_received(update: Update, context: ContextTypes.DEFAULT
         if not invite_link:
             try:
                 invite_link = await context.bot.export_chat_invite_link(chat_id=chat.id)
-            except Exception:
-                pass
+            except Exception as _silent_exc:
+                log_silent_failure("handlers.admin:sponsor_channel_received", _silent_exc)
         if not invite_link and chat.username:
             invite_link = f"https://t.me/{chat.username}"
         if not invite_link:
@@ -1611,14 +1613,14 @@ async def del_sponsor_callback(update: Update, context: ContextTypes.DEFAULT_TYP
     query = update.callback_query
     try:
         await query.answer()
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.admin:del_sponsor_callback:1614", _silent_exc)
 
     if not is_admin(query.from_user.id):
         try:
             await query.message.reply_text(admin_t("rbac_denied_msg", get_lang(context)))
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.admin:del_sponsor_callback:1620", _silent_exc)
         return
     # 11-bosqich (P0): payload ID qat'iy tekshiriladi (tampering himoyasi).
     try:
@@ -1630,8 +1632,8 @@ async def del_sponsor_callback(update: Update, context: ContextTypes.DEFAULT_TYP
     if not removed:
         try:
             await query.message.reply_text(admin_t("sp_delete_failed", lang))
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.admin:del_sponsor_callback:1633", _silent_exc)
     # Yangilangan ro'yxatni qayta chizamiz (yagona builder — FAZA 26).
     sponsors = await db.run_db(db.get_sponsor_channels) or []
     text = _build_sponsor_manage_text(sponsors, lang)
@@ -1642,8 +1644,8 @@ async def del_sponsor_callback(update: Update, context: ContextTypes.DEFAULT_TYP
             reply_markup=get_admin_sponsors_keyboard(sponsors),
             parse_mode="HTML",
         )
-    except TelegramError:
-        pass
+    except TelegramError as _silent_exc:
+        log_silent_failure("handlers.admin:del_sponsor_callback:1645", _silent_exc, lang=lang)
 
 
 # ============================================================
@@ -2052,8 +2054,8 @@ async def ad_pool_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     try:
         await query.answer()
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.admin:ad_pool_callback:2055", _silent_exc)
     if not is_admin(query.from_user.id):
         return ConversationHandler.END
     # 11-bosqich (P0): server-side RBAC (payload'ga ishonilmaydi).
@@ -2164,8 +2166,8 @@ async def ad_pool_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         try:
             await query.answer(admin_t("ad_tg_on_toast", lang) if new_status
                                else admin_t("ad_tg_off_toast", lang))
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.admin:ad_pool_callback:2167", _silent_exc)
         await _show_ad_card(query, scope, ad_id, lang)
         return state
 
@@ -2189,8 +2191,8 @@ async def ad_pool_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data.pop("ad_edit", None)
         try:
             await query.answer(admin_t("ad_clear_toast", lang, count=removed))
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.admin:ad_pool_callback:2192", _silent_exc)
         await _show_ad_pool_menu(query, scope, lang)
         return state
 
@@ -2209,8 +2211,8 @@ async def ad_pool_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             context.user_data.pop("ad_edit", None)
             try:
                 await query.answer(admin_t("ad_iv_toast", lang, value=value, unit=unit))
-            except Exception:
-                pass
+            except Exception as _silent_exc:
+                log_silent_failure("handlers.admin:ad_pool_callback:2212", _silent_exc)
             await _show_ad_pool_menu(query, scope, lang)
             return state
 

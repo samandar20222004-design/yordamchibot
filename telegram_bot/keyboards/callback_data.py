@@ -426,6 +426,7 @@ CALLBACK_SEMANTICS = {
     "close_msg": NAV_SEMANTIC_CLOSE,
     "qclose": NAV_SEMANTIC_CLOSE,
     "stgs_back": NAV_SEMANTIC_CLOSE,      # sozlamalar oynasini yopish
+    "stgs_privacy_cancel": NAV_SEMANTIC_CANCEL,  # 🗑 o'chirishni bekor qilish
     "close_cabinet": NAV_SEMANTIC_CLOSE,
     "conv_close": NAV_SEMANTIC_CLOSE,
     "extra_close": NAV_SEMANTIC_CLOSE,

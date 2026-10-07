@@ -30,6 +30,8 @@ from repositories.runtime import (  # noqa: F401
     _invalidate_user, _profile_clear_all, db_cursor
 )
 
+from utils.silent_errors import log_silent_failure
+
 logger = logging.getLogger(__name__)
 
 
@@ -1397,8 +1399,8 @@ def save_channel_dna_profile(
                     try:
                         sample = int(mv["sample_size"])
                         break
-                    except Exception:
-                        pass
+                    except Exception as _silent_exc:
+                        log_silent_failure("repositories.channels_repository:save_channel_dna_profile:1400", _silent_exc, channel_id=channel_id)
 
         conf = None
         if confidence is not None:
@@ -1414,8 +1416,8 @@ def save_channel_dna_profile(
                 if c > 1.0:
                     c = c / 100.0
                 conf = max(0.0, min(1.0, c))
-            except Exception:
-                pass
+            except Exception as _silent_exc:
+                log_silent_failure("repositories.channels_repository:save_channel_dna_profile:1417", _silent_exc, channel_id=channel_id)
 
         with db_cursor(commit=True) as cur:
             cur.execute(

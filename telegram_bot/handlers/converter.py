@@ -6,6 +6,8 @@ from utils.converter import to_cyrillic, to_latin
 from utils.helpers import html_escape, get_auto_ad_injection_async
 from locales.translations import clear_fsm_data, get_lang, get_text
 
+from utils.silent_errors import log_silent_failure
+
 logger = logging.getLogger(__name__)
 
 # State (Holat): Matn yoki media kutish
@@ -34,8 +36,8 @@ async def converter_inline_entry(update: Update, context: ContextTypes.DEFAULT_T
     lang = get_lang(context)
     try:
         await query.message.delete()
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.converter:converter_inline_entry", _silent_exc, lang=lang)
     await query.message.reply_text(
         get_text("conv_intro", lang),
         reply_markup=get_cancel_keyboard(lang),
@@ -120,8 +122,8 @@ async def converter_close_callback(update: Update, context: ContextTypes.DEFAULT
             await query.edit_message_text(
                 get_text("msg_closed", get_lang(context)), reply_markup=None
             )
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.converter:converter_close_callback", _silent_exc)
 
 
 def _split_smartly(text: str, max_first_len: int = 950) -> tuple[str, str]:

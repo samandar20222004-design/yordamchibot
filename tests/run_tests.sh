@@ -54,6 +54,13 @@
 #       (post_id, reaction_type) — IDEMPOTENT (CREATE INDEX IF NOT EXISTS);
 #       IDOR fail-closed, DB xatosida fail-soft, mavjud interfeys 100%
 #       saqlangan (tests/refactor_step5_test.py)
+#   3m) 🔐 MAXFIYLIK SIYOSATI + 🗑 MA'LUMOTLARNI O'CHIRISH (SPRINT 1, GDPR):
+#       /privacy buyrug'i va Sozlamalar hub'idagi «🔐 Maxfiylik siyosati»
+#       bo'limi bot saqlaydigan ma'lumotlarni OCHIQ ko'rsatadi (kanal ID,
+#       post matnlari, AI telemetriyasi, to'lov yozuvlari); «🗑 Ma'lumotlarimni
+#       o'chirish» IKKI BOSQICHLI tasdiqdan keyin hisobni, bog'langan kanallarni
+#       va uchinchi tomon AI tarixini o'chiradi, TO'LOV tranzaksiyalari esa
+#       qonuniy audit uchun SAQLANADI (tests/privacy_and_data_deletion_test.py)
 #   3n) ✨ 2-BOSQICH AI PROMPT VA MAGIC POST SIFATI — prompt validation,
 #       sifat validatori, yupqa javobda qayta urinish, ixcham UI
 #       (tests/ai_prompt_quality_test.py)
@@ -1249,6 +1256,26 @@ echo "======== 🧪 PRODUCTION RUNTIME & DEPLOYMENT VERIFICATION ========"
 #       Cache-Control: no-store; /health/ready fail-closed (token yo'q → 404,
 #       noto'g'ri → 401, to'g'ri → 200/503 + checks) va javobda secret yo'q.
 "$PY" tests/smoke_test.py --offline || EXIT_CODE=1
+
+echo
+echo "===== 🔐 MAXFIYLIK SIYOSATI + 🗑 MA'LUMOTLARNI O'CHIRISH (SPRINT 1, GDPR) ====="
+# Yangi majburiy imkoniyat: /privacy buyrug'i + Sozlamalar hub'idagi
+# «🔐 Maxfiylik siyosati» va «🗑 Ma'lumotlarimni o'chirish». Test AYNAN:
+#   (1) i18n paritet uz/ru/en (bo'sh qiymat yo'q, placeholder bir xil);
+#   (2) siyosat matni nima saqlanishini OCHIQ aytadi (kanal ID, post matni,
+#       AI telemetriyasi, to'lovlar) va HTML uchun xavfsiz;
+#   (3) klaviaturalar: siyosat [🗑 O'chirish|◀️ Orqaga], tasdiq
+#       [✅ Ha|❌ Bekor], hub'da stgs_privacy + stgs_delete_data;
+#   (4) /privacy handleri uchala tilda ishlaydi;
+#   (5) IKKI BOSQICHLI himoya: bir bosishda o'chmaydi (avval tasdiq);
+#   (6) tasdiqlangach delete_user_data chaqiriladi + hisobot qaytadi,
+#       DB xatosida foydalanuvchiga xavfsiz xabar (jim yutilmaydi);
+#   (7) SQL kontrakti (fake cursor): users/channels soft-delete, post matni
+#       NULL, ai_usage_events DELETE, audit 'user_data_deleted';
+#       TO'LOV jadvallari (payments/payment_receipts/payment_orders/
+#       credits_ledger) SAQLANADI (qonuniy audit);
+#   (8) idempotentlik (already_deleted) va FAIL-CLOSED noto'g'ri user_id.
+"$PY" tests/privacy_and_data_deletion_test.py || EXIT_CODE=1
 
 echo
 echo "===== 🚀 DEPLOY BOOTSTRAP — YANGI (BO'SH) BAZADA 1-KOMANDALIK DEPLOY ====="

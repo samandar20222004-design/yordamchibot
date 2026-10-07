@@ -61,6 +61,8 @@ from utils.vision_analyzer import (
     validate_image,
 )
 
+from utils.silent_errors import log_silent_failure
+
 logger = logging.getLogger(__name__)
 
 # FSM qiymatlari boshqa oqimlardan ajratilgan (AI 401–410, moderation 604).
@@ -360,8 +362,8 @@ async def image_post_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # «edit → yo'riqnoma» xatti-harakati buzilardi.
         try:
             await query.answer()
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.image_post:image_post_entry", _silent_exc)
         edited = False
         try:
             await query.edit_message_text(text, reply_markup=keyboard, parse_mode="HTML")
@@ -413,8 +415,8 @@ async def _edit_wait_message(status_message, fallback_message, text: str, **kwar
     if callable(editor):
         try:
             return await editor(text, **kwargs)
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.image_post:_edit_wait_message", _silent_exc)
     return await fallback_message.reply_text(text, **kwargs)
 
 
@@ -514,8 +516,8 @@ async def image_photo_received(update: Update, context: ContextTypes.DEFAULT_TYP
     chat_id = message.chat_id
     try:
         await context.bot.send_chat_action(chat_id=chat_id, action="typing")
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.image_post:image_photo_received", _silent_exc, chat_id=chat_id, lang=lang)
     wait_msg = await message.reply_text("⏳ Post tayyorlanmoqda, iltimos kuting...")
 
     result = None
@@ -649,18 +651,18 @@ async def _refund_one_ai_credit(user_id: int, is_admin: bool, is_pro: bool,
     if reservation_id:
         try:
             await release_ai_quota(db, user_id, reservation_id)
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.image_post:_refund_one_ai_credit:652", _silent_exc, user_id=user_id)
         return
     try:
         await db.run_db(db.add_user_credit, user_id)
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.image_post:_refund_one_ai_credit:657", _silent_exc, user_id=user_id)
     if hasattr(db, "refund_ai_usage"):
         try:
             await db.run_db(db.refund_ai_usage, user_id)
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.image_post:_refund_one_ai_credit:662", _silent_exc, user_id=user_id)
 
 
 async def _safe_edit(query, text: str, reply_markup=None):
@@ -668,12 +670,12 @@ async def _safe_edit(query, text: str, reply_markup=None):
     try:
         await query.edit_message_text(text, reply_markup=reply_markup, parse_mode="HTML")
         return
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.image_post:_safe_edit:671", _silent_exc)
     try:
         await query.message.reply_text(text, reply_markup=reply_markup, parse_mode="HTML")
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.image_post:_safe_edit:675", _silent_exc)
 
 
 async def _send_photo_preview(target, file_id: str, caption: str,
@@ -767,8 +769,8 @@ async def image_style_callback(update: Update, context: ContextTypes.DEFAULT_TYP
     chat_id = query.message.chat_id
     try:
         await context.bot.send_chat_action(chat_id=chat_id, action="typing")
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.image_post:image_style_callback:770", _silent_exc, user_id=user_id, chat_id=chat_id, lang=lang)
     try:
         await query.edit_message_text("⏳ Post tayyorlanmoqda, iltimos kuting...")
         wait_msg = query.message
@@ -800,8 +802,8 @@ async def image_style_callback(update: Update, context: ContextTypes.DEFAULT_TYP
             try:
                 await wait_msg.edit_text(err_text, reply_markup=image_style_keyboard(lang), parse_mode="HTML")
                 return IMAGE_STYLE_SELECT
-            except Exception:
-                pass
+            except Exception as _silent_exc:
+                log_silent_failure("handlers.image_post:image_style_callback:803", _silent_exc)
         await _safe_edit(query, err_text, image_style_keyboard(lang))
         return IMAGE_STYLE_SELECT
 
@@ -832,8 +834,8 @@ async def image_style_callback(update: Update, context: ContextTypes.DEFAULT_TYP
     # 🎁 Faollik bonusi bildirishnomasi (5-so'rovda avtomatik +2 berilgan bo'lsa).
     try:
         await notify_activity_bonus(context, user_id, reservation or {})
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.image_post:image_style_callback:835", _silent_exc, user_id=user_id, chat_id=chat_id, lang=lang)
     return IMAGE_POST_RESULT
 
 
@@ -887,8 +889,8 @@ async def image_send_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
     if not channels:
         try:
             await query.answer(safe_t("image_no_channels", lang), show_alert=True)
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.image_post:image_send_callback", _silent_exc)
         return IMAGE_POST_RESULT
     context.user_data["image_post_channels"] = channels
     if len(channels) == 1:
@@ -954,8 +956,8 @@ async def image_schedule_callback(update: Update, context: ContextTypes.DEFAULT_
     if not channels:
         try:
             await query.answer(safe_t("image_no_channels", lang), show_alert=True)
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.image_post:image_schedule_callback", _silent_exc)
         return IMAGE_POST_RESULT
     context.user_data["image_post_channels"] = channels
     await _safe_edit(query, safe_t("image_schedule_prompt", lang), None)
@@ -1017,20 +1019,20 @@ async def image_back_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
     query = update.callback_query
     try:
         await query.answer()
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.image_post:image_back_callback:1020", _silent_exc)
     lang = get_lang(context)
     _clear_image_session(context)
     try:
         from handlers.navigation import SECTION_CONTENT, remember_section
 
         remember_section(context, SECTION_CONTENT)
-    except Exception:  # pragma: no cover - navigatsiya moduli bo'lmasa ham ishlaydi
-        pass
+    except Exception as _silent_exc:  # pragma: no cover - navigatsiya moduli bo'lmasa ham ishlaydi
+        log_silent_failure("handlers.image_post:image_back_callback:1028", _silent_exc, lang=lang)
     try:
         await query.edit_message_reply_markup(reply_markup=None)
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.image_post:image_back_callback:1032", _silent_exc, lang=lang)
     try:
         from keyboards.default import get_content_creation_keyboard
 
@@ -1039,8 +1041,8 @@ async def image_back_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
             reply_markup=get_content_creation_keyboard(lang),
             parse_mode="HTML",
         )
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.image_post:image_back_callback:1042", _silent_exc, lang=lang)
     return ConversationHandler.END
 
 

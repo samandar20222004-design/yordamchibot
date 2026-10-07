@@ -31,6 +31,8 @@ from services.rbac_service import (
     PERM_MANAGE_USERS, has_permission, CallbackTampering, admin_callback_guard,
 )
 
+from utils.silent_errors import log_silent_failure
+
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
@@ -143,8 +145,8 @@ def _clear_moderation_marker(context) -> None:
     if ud is not None:
         try:
             ud.pop(UD_PHOTO_CHECK_WAIT, None)
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.photo_check:_clear_moderation_marker", _silent_exc)
 
 
 def admin_photo_keyboard(user_id: int, lang: str = "uz") -> InlineKeyboardMarkup:
@@ -223,8 +225,8 @@ async def handle_user_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_lang = await _photo_lang(update, context)
     try:
         await update.message.reply_text(_pc_text("pc_sent_user", user_lang))
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.photo_check:handle_user_photo", _silent_exc, user_id=user_id)
 
     # Bitta moderatsiya so'rovi bitta rasm uchun — marker tozalanadi,
     # conversation (agar shu holatda bo'lsa) yakunlanadi.
@@ -279,8 +281,8 @@ async def handle_admin_check_photo_callback(update: Update, context: ContextType
                     text=_pc_text("pc_pro_granted", user_lang),
                     parse_mode="HTML",
                 )
-            except Exception:
-                pass
+            except Exception as _silent_exc:
+                log_silent_failure("handlers.photo_check:handle_admin_check_photo_callback", _silent_exc)
             # Confirm to admin
             await query.edit_message_text(
                 text=_pc_text("pc_approved_admin", admin_lang).replace(

@@ -201,8 +201,11 @@ class ReferralService:
                         if existing_ref else REASON_EXISTING_USER
                     )
                     cur.execute(
-                        "UPDATE users SET username = %s, full_name = %s "
-                        "WHERE user_id = %s",
+                        # 🔐 SPRINT 1: ilgari "Ma'lumotlarimni o'chirish" bilan
+                        # soft-delete qilingan hisob qaytsa — belgi olinadi
+                        # (balans/credits qayta BERILMAYDI: suiiste'moldan himoya).
+                        "UPDATE users SET username = %s, full_name = %s, "
+                        "deleted_at = NULL WHERE user_id = %s",
                         (username or "", full_name or "", user_id),
                     )
                     db._invalidate_user(user_id)

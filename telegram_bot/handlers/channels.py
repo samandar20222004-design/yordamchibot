@@ -28,6 +28,8 @@ from utils.fsm_state import active_conversation_state
 from utils.ai_agent import analyze_channel_voice, generate_dna_sample_post
 from utils.channel_reader import read_channel_posts
 
+from utils.silent_errors import log_silent_failure
+
 logger = logging.getLogger(__name__)
 
 ADD_CHANNEL = 301
@@ -243,8 +245,8 @@ async def channels_list_callback(update: Update, context: ContextTypes.DEFAULT_T
     query = update.callback_query
     try:
         await query.answer()
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.channels:channels_list_callback", _silent_exc)
     lang = get_lang(context)
     user_id = query.from_user.id
     channels = await db.run_db(db.get_user_channels_with_tone, user_id)
@@ -265,8 +267,8 @@ async def channel_open_callback(update: Update, context: ContextTypes.DEFAULT_TY
     query = update.callback_query
     try:
         await query.answer()
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.channels:channel_open_callback", _silent_exc)
     lang = get_lang(context)
     user_id = query.from_user.id
     channel_id = (query.data or "").split(":", 1)[1] if ":" in (query.data or "") else ""
@@ -295,8 +297,8 @@ async def channel_scheduled_callback(update: Update, context: ContextTypes.DEFAU
     query = update.callback_query
     try:
         await query.answer()
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.channels:channel_scheduled_callback", _silent_exc)
     lang = get_lang(context)
     user_id = query.from_user.id
     channel_id = (query.data or "").split(":", 1)[1] if ":" in (query.data or "") else ""
@@ -322,8 +324,8 @@ async def channel_stats_callback(update: Update, context: ContextTypes.DEFAULT_T
     query = update.callback_query
     try:
         await query.answer()
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.channels:channel_stats_callback", _silent_exc)
     lang = get_lang(context)
     user_id = query.from_user.id
     channel_id = (query.data or "").split(":", 1)[1] if ":" in (query.data or "") else ""
@@ -360,8 +362,8 @@ async def channel_dna_callback(update: Update, context: ContextTypes.DEFAULT_TYP
     query = update.callback_query
     try:
         await query.answer()
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.channels:channel_dna_callback", _silent_exc)
     lang = get_lang(context)
     user_id = query.from_user.id
     channel_id = (query.data or "").split(":", 1)[1] if ":" in (query.data or "") else ""
@@ -388,8 +390,8 @@ async def channel_best_time_callback(update: Update, context: ContextTypes.DEFAU
     query = update.callback_query
     try:
         await query.answer()
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.channels:channel_best_time_callback", _silent_exc)
     lang = get_lang(context)
     user_id = query.from_user.id
     channel_id = (query.data or "").split(":", 1)[1] if ":" in (query.data or "") else ""
@@ -411,8 +413,8 @@ async def channel_advice_callback(update: Update, context: ContextTypes.DEFAULT_
     query = update.callback_query
     try:
         await query.answer()
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.channels:channel_advice_callback:414", _silent_exc)
     lang = get_lang(context)
     user_id = query.from_user.id
     channel_id = (query.data or "").split(":", 1)[1] if ":" in (query.data or "") else ""
@@ -433,8 +435,8 @@ async def channel_advice_callback(update: Update, context: ContextTypes.DEFAULT_
             owned = await _owned_channel(user_id, channel_id)
             if owned:
                 title = _channel_title(owned, lang)
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.channels:channel_advice_callback:436", _silent_exc)
         await _safe_edit(query, render_report_card(result, lang=lang, channel_title=title),
                          render_channel_panel(channel_id, lang))
     except Exception:
@@ -555,8 +557,8 @@ async def channel_plan_callback(update: Update, context: ContextTypes.DEFAULT_TY
     query = update.callback_query
     try:
         await query.answer()
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.channels:channel_plan_callback", _silent_exc)
     lang = get_lang(context)
     user_id = query.from_user.id
     channel_id = (query.data or "").split(":", 1)[1] if ":" in (query.data or "") else ""
@@ -591,8 +593,8 @@ async def channel_team_callback(update: Update, context: ContextTypes.DEFAULT_TY
     query = update.callback_query
     try:
         await query.answer()
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.channels:channel_team_callback", _silent_exc)
     lang = get_lang(context)
     user_id = query.from_user.id
     channel_id = (query.data or "").split(":", 1)[1] if ":" in (query.data or "") else ""
@@ -639,8 +641,8 @@ async def channel_settings_callback(update: Update, context: ContextTypes.DEFAUL
 
     try:
         await query.answer()
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.channels:channel_settings_callback", _silent_exc, user_id=user_id, channel_id=channel_id, lang=lang)
 
     # 🔐 PHASE 3 — sozlamalar ekrani ham resurs ruxsatidan o'tadi (``view``):
     # begona kanal uchun ekran ochilmaydi (DB'dan uslub ham o'qilmaydi) —
@@ -674,8 +676,8 @@ async def channel_new_post_callback(update: Update, context: ContextTypes.DEFAUL
     query = update.callback_query
     try:
         await query.answer()
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.channels:channel_new_post_callback", _silent_exc)
     lang = get_lang(context)
     user_id = query.from_user.id
     channel_id = (query.data or "").split(":", 1)[1] if ":" in (query.data or "") else ""
@@ -738,8 +740,8 @@ async def add_channel_inline_entry(update: Update, context: ContextTypes.DEFAULT
     await query.answer()
     try:
         await query.edit_message_reply_markup(reply_markup=None)
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.channels:add_channel_inline_entry", _silent_exc)
     context.user_data.pop("add_channel_pending", None)
     await _send_add_channel_instructions(context.bot, query.from_user.id, get_lang(context))
     return ADD_CHANNEL
@@ -869,8 +871,8 @@ async def channel_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 reply_markup=get_cancel_keyboard(lang),
                 parse_mode="HTML",
             )
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.channels:channel_received", _silent_exc)
         return ADD_CHANNEL
 
 
@@ -883,8 +885,8 @@ async def add_channel_retry(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     try:
         await query.answer()
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.channels:add_channel_retry", _silent_exc)
     raw_target = context.user_data.get("add_channel_pending")
     if raw_target is None:
         # Kutilayotgan manzil yo'q (masalan, sessiya muddati tugagan) —
@@ -968,8 +970,8 @@ async def _send_dna_sample(update: Update, context: ContextTypes.DEFAULT_TYPE,
             if str(ch[0]) == str(channel_id):
                 title = ch[1] or ""
                 break
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.channels:_send_dna_sample:971", _silent_exc, user_id=user_id, channel_id=channel_id, lang=lang)
     if not title:
         title = _channel_title((channel_id, ""), lang)
 
@@ -991,8 +993,8 @@ async def _send_dna_sample(update: Update, context: ContextTypes.DEFAULT_TYPE,
             await update.effective_message.reply_text(
                 safe_t("ch_dna_sample_error", lang), parse_mode="HTML",
             )
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.channels:_send_dna_sample:994", _silent_exc, user_id=user_id, channel_id=channel_id, lang=lang)
         return False
 
     # --- 3) Ko'rsatish (bepul namunaviy qoralama) ---
@@ -1129,8 +1131,8 @@ async def _link_channel(update: Update, context: ContextTypes.DEFAULT_TYPE,
                     reply_markup=list_markup,
                     parse_mode="HTML",
                 )
-            except TelegramError:
-                pass
+            except TelegramError as _silent_exc:
+                log_silent_failure("handlers.channels:_link_channel", _silent_exc)
 
         # 🧠 3-BOSQICH & 🚀 PHASE 9: birinchi kanal ulangan bo'lsa — kanal DNK
         # sinovi taklifini va 2 daqiqalik Instant-Value Onboarding (avtomatik
@@ -1168,8 +1170,8 @@ async def remove_channel_callback(update: Update, context: ContextTypes.DEFAULT_
     # Darhol javob — DB so'rovlaridan oldin, tugma muzlab qolmasligi uchun.
     try:
         await query.answer()
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.channels:remove_channel_callback:1171", _silent_exc)
 
     channel_id = query.data.split(":")[1]
     user_id = query.from_user.id
@@ -1193,8 +1195,8 @@ async def remove_channel_callback(update: Update, context: ContextTypes.DEFAULT_
                 safe_t("ch_remove_not_found", lang),
                 parse_mode="HTML",
             )
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.channels:remove_channel_callback:1196", _silent_exc)
 
     # Ro'yxatni qayta chizamiz — qolgan kanallar va tugmalar ko'rinib tursin
     try:
@@ -1210,8 +1212,8 @@ async def remove_channel_callback(update: Update, context: ContextTypes.DEFAULT_
                 reply_markup=_empty_channels_keyboard(lang),
                 parse_mode="HTML",
             )
-    except TelegramError:
-        pass
+    except TelegramError as _silent_exc:
+        log_silent_failure("handlers.channels:remove_channel_callback:1213", _silent_exc, user_id=user_id, channel_id=channel_id, lang=lang)
 
 
 async def on_bot_chat_member_update(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1252,8 +1254,8 @@ async def on_bot_chat_member_update(update: Update, context: ContextTypes.DEFAUL
                         or channels_queue_t("cq_channel_generic_name", lang))),
                         parse_mode="HTML",
                     )
-                except TelegramError:
-                    pass
+                except TelegramError as _silent_exc:
+                    log_silent_failure("handlers.channels:on_bot_chat_member_update:1255", _silent_exc)
                 return
 
         is_admin = (user_id in ADMIN_IDS_SET)
@@ -1269,8 +1271,8 @@ async def on_bot_chat_member_update(update: Update, context: ContextTypes.DEFAUL
                         reply_markup=_pro_upgrade_keyboard(lang),
                         parse_mode="HTML",
                     )
-                except TelegramError:
-                    pass
+                except TelegramError as _silent_exc:
+                    log_silent_failure("handlers.channels:on_bot_chat_member_update:1272", _silent_exc)
                 return
         success, reason = await db.run_db(
             db.save_channel, user_id, str(chat.id),
@@ -1287,8 +1289,8 @@ async def on_bot_chat_member_update(update: Update, context: ContextTypes.DEFAUL
                                   channel_id=chat.id),
                     parse_mode="HTML",
                 )
-            except TelegramError:
-                pass
+            except TelegramError as _silent_exc:
+                log_silent_failure("handlers.channels:on_bot_chat_member_update:1290", _silent_exc)
             # 🧠 3-BOSQICH & 🚀 PHASE 9: avtomatik ulashda ham birinchi kanal
             # uchun DNK sinovi taklifi + 2 daqiqalik Instant-Value Onboarding
             # (tezkor DNA xulosasi + "7 kunlik kontent reja tuzamizmi?")
@@ -1436,8 +1438,8 @@ async def tone_chosen_callback(update: Update, context: ContextTypes.DEFAULT_TYP
     query = update.callback_query
     try:
         await query.answer()
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.channels:tone_chosen_callback:1439", _silent_exc)
     lang = get_lang(context)
     data = query.data or ""
     if not data.startswith(CB_SET_STYLE):
@@ -1450,8 +1452,8 @@ async def tone_chosen_callback(update: Update, context: ContextTypes.DEFAULT_TYP
             await query.edit_message_text(
                 safe_t("ch_tone_invalid", lang), parse_mode="HTML",
             )
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.channels:tone_chosen_callback:1453", _silent_exc)
         return None
 
     # Eslatma: amalni bajaruvchi ID **faqat** server-side ``from_user.id`` dan
@@ -1465,8 +1467,8 @@ async def tone_chosen_callback(update: Update, context: ContextTypes.DEFAULT_TYP
             await query.edit_message_text(
                 safe_t("ch_tone_error", lang), parse_mode="HTML",
             )
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.channels:tone_chosen_callback:1468", _silent_exc)
         return None
 
     try:
@@ -1484,8 +1486,8 @@ async def tone_chosen_callback(update: Update, context: ContextTypes.DEFAULT_TYP
     except Exception:
         try:
             await query.message.reply_text(text, parse_mode="HTML")
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.channels:tone_chosen_callback:1487", _silent_exc)
     context.user_data.pop("tone_channel_id", None)
     return None
 
@@ -1535,8 +1537,8 @@ async def channel_voice_analysis_callback(update: Update, context: ContextTypes.
     query = update.callback_query
     try:
         await query.answer()
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.channels:channel_voice_analysis_callback:1538", _silent_exc)
     lang = get_lang(context)
     user_id = query.from_user.id
     is_admin = user_id in ADMIN_IDS_SET
@@ -1558,8 +1560,8 @@ async def channel_voice_analysis_callback(update: Update, context: ContextTypes.
                 reply_markup=get_main_keyboard(is_admin, lang=lang),
                 parse_mode="HTML",
             )
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.channels:channel_voice_analysis_callback:1561", _silent_exc)
         return ConversationHandler.END
 
     # Kanal foydalanuvchining o'z kanali ekanini tekshiramiz (fail-closed).
@@ -1572,8 +1574,8 @@ async def channel_voice_analysis_callback(update: Update, context: ContextTypes.
                 reply_markup=get_main_keyboard(is_admin, lang=lang),
                 parse_mode="HTML",
             )
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.channels:channel_voice_analysis_callback:1575", _silent_exc)
         return ConversationHandler.END
 
     async def _finish_wait(text, **kwargs):
@@ -1581,16 +1583,16 @@ async def channel_voice_analysis_callback(update: Update, context: ContextTypes.
         if callable(editor):
             try:
                 return await editor(text, **kwargs)
-            except Exception:
-                pass
+            except Exception as _silent_exc:
+                log_silent_failure("handlers.channels:channel_voice_analysis_callback._finish_wait", _silent_exc)
         return await query.message.reply_text(text, **kwargs)
 
     # 1) AI kutish holati: typing darhol, natija shu xabarda ko'rsatiladi (2-BOSQICH).
     chat_id = query.message.chat_id
     try:
         await context.bot.send_chat_action(chat_id=chat_id, action="typing")
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.channels:channel_voice_analysis_callback:1592", _silent_exc, user_id=user_id, channel_id=channel_id, chat_id=chat_id, lang=lang)
     try:
         analyzing_msg = await query.message.reply_text(
             "⏳ Post tayyorlanmoqda, iltimos kuting..."
@@ -1619,8 +1621,8 @@ async def channel_voice_analysis_callback(update: Update, context: ContextTypes.
                 reply_markup=get_main_keyboard(is_admin, lang=lang),
                 parse_mode="HTML",
             )
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.channels:channel_voice_analysis_callback:1622", _silent_exc)
         return ConversationHandler.END
 
     # 3) Natijani kanal profiliga saqlaymiz (tone_of_voice)
@@ -1637,8 +1639,8 @@ async def channel_voice_analysis_callback(update: Update, context: ContextTypes.
             reply_markup=get_main_keyboard(is_admin, lang=lang),
             parse_mode="HTML",
         )
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.channels:channel_voice_analysis_callback:1640", _silent_exc, user_id=user_id, channel_id=channel_id, chat_id=chat_id, lang=lang)
 
     # 4) 🧠 3-BOSQICH: 1 ta BEPUL namunaviy qoralama (Tone of Voice Activation).
     #    Tahlil yakunlangach foydalanuvchi darhol «soxta tasdiq» emas, kanal
@@ -1665,8 +1667,8 @@ async def channel_voice_analysis_callback(update: Update, context: ContextTypes.
                     reply_markup=render_channels_list(fresh, lang),
                     parse_mode="HTML",
                 )
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.channels:channel_voice_analysis_callback:1668", _silent_exc)
     return ConversationHandler.END
 
 

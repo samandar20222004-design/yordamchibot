@@ -10,6 +10,8 @@ Modullar:
     voice_post — 🎙 VOICE → POST: VOICE_POST_I18N lug'ati, ``voice_t`` va paritet hisoboti.
     post_score — 📊 POST SCORE & IMPROVER: POST_SCORE_I18N lug'ati, ``post_score_t``,
                  mezon yorliqlari/darajalari va paritet hisoboti (Killer Feature #4).
+    privacy — 🔐 MAXFIYLIK SIYOSATI + MA'LUMOTLARNI O'CHIRISH (SPRINT 1,
+                 GDPR): PRIVACY_I18N lug'ati, ``privacy_t`` va paritet hisoboti.
     content_menu — 🧩 KONTENT YARATISH submenu: CONTENT_MENU_I18N lug'ati,
                  ``content_menu_t`` va paritet hisoboti (PostAssist V2).
     manual_post — ✍️ ODDIY POST (AI'SIZ): MANUAL_POST_I18N lug'ati,
@@ -134,6 +136,16 @@ from translations.support import (  # noqa: F401
     support_parity_report,
     support_t,
 )
+# 🔐 SPRINT 1 (Privacy & GDPR) — maxfiylik siyosati + "Ma'lumotlarimni
+# o'chirish" oqimi matnlari (handlers/privacy.py, keyboards/inline.py).
+from translations.privacy import (  # noqa: F401
+    PRIVACY_DELETE_KEYS,
+    PRIVACY_I18N,
+    PRIVACY_KEYS,
+    PRIVACY_POLICY_KEYS,
+    privacy_parity_report,
+    privacy_t,
+)
 # 👑 FAZA 26 — admin panel i18n (handlers/admin.py matnlari, uz/ru/en).
 from translations.admin_panel import (  # noqa: F401
     ADMIN_PANEL_I18N,
@@ -210,4 +222,10 @@ __all__ = [
     "ADMIN_PANEL_I18N",
     "admin_t",
     "admin_panel_parity_report",
+    "PRIVACY_I18N",
+    "PRIVACY_KEYS",
+    "PRIVACY_DELETE_KEYS",
+    "PRIVACY_POLICY_KEYS",
+    "privacy_t",
+    "privacy_parity_report",
 ]

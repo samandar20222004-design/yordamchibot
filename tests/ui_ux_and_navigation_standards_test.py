@@ -338,13 +338,13 @@ def test_3_inline_duplicates_removed():
         check(f"[{lang}] get_settings_hub_keyboard == kanonik panel", hub == canon)
         check(f"[{lang}] include_legacy=True ham dublikat tugma qo'shmaydi",
               hub_legacy == canon)
-        # Kanonik panel tuzilishi (3-BOSQICH): 8 tugma, 4 qator × 2
-    # (simmetrik); oxirgi qator
+        # Kanonik panel tuzilishi (3-BOSQICH + SPRINT 1): 10 tugma,
+        # 5 qator × 2 (simmetrik); oxirgi qator
         # [ℹ️ Yordam va Qo'llanma | ❌ Yopish].
         rows = KI.get_settings_profile_keyboard(lang).inline_keyboard
         flat = [t for t, _ in canon]
-        check(f"[{lang}] panel: 8 tugma / 4 qator (har birida aynan 2 ta)",
-              len(flat) == 8 and len(rows) == 4
+        check(f"[{lang}] panel: 10 tugma / 5 qator (har birida aynan 2 ta)",
+              len(flat) == 10 and len(rows) == 5
               and all(len(r) == 2 for r in rows),
               str(rows))
         check(f"[{lang}] panel: oxirgi qator [Yordam va Qo'llanma | ❌ Yopish]",
@@ -352,10 +352,10 @@ def test_3_inline_duplicates_removed():
               and canon[-1] == (settings_stats_t("ss_btn_close", lang), "stgs_back"),
               str(canon[-2:]))
         cbs = [c for _, c in canon]
-        check(f"[{lang}] panel: callback'lar tilga bog'liq emas",
+        check(f"[{lang}] panel: 10 callback (SPRINT 1 bilan)",
               cbs == ["stgs_lang", "stgs_post", "stgs_notif", "stgs_referral",
-                      "stgs_pay", "sub_open", "stgs_help_hub",
-                      "stgs_back"],
+                      "stgs_pay", "sub_open", "stgs_privacy", "stgs_delete_data",
+                      "stgs_help_hub", "stgs_back"],
               str(cbs))
     # Eski alias-funksiyalar ham kanonik manbaga tushadi.
     for fn in (KI.get_stgs_rewards_keyboard, KI.get_rewards_keyboard):

@@ -25,6 +25,8 @@ from repositories.runtime import (  # noqa: F401
     _cache_get, _cache_set, db_cursor
 )
 
+from utils.silent_errors import log_silent_failure
+
 logger = logging.getLogger(__name__)
 
 
@@ -314,8 +316,8 @@ def set_admin_role(user_id, role, granted_by=None) -> bool:
         try:
             from services.rbac_service import invalidate_role_cache
             invalidate_role_cache(uid)
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("repositories.audit_repository:set_admin_role", _silent_exc, user_id=user_id)
         return True
     except Exception as e:
         logger.error("set_admin_role xatosi (user=%s, role=%s): %s", uid, parsed, e)
@@ -342,8 +344,8 @@ def delete_admin_role(user_id) -> bool:
         try:
             from services.rbac_service import invalidate_role_cache
             invalidate_role_cache(uid)
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("repositories.audit_repository:delete_admin_role", _silent_exc, user_id=user_id)
         return bool(deleted)
     except Exception as e:
         logger.error("delete_admin_role xatosi (user=%s): %s", uid, e)
@@ -448,8 +450,8 @@ def get_admin_audit_logs(limit: int = 50, admin_id=None, action=None) -> list:
         try:
             where.append("admin_id = %s")
             params.append(int(admin_id))
-        except (TypeError, ValueError):
-            pass
+        except (TypeError, ValueError) as _silent_exc:
+            log_silent_failure("repositories.audit_repository:get_admin_audit_logs", _silent_exc)
     if action:
         where.append("action = %s")
         params.append(str(action).strip()[:AUDIT_ACTION_MAX_LEN])
@@ -493,8 +495,8 @@ def count_admin_audit_logs(admin_id=None, action=None) -> int:
         try:
             where.append("admin_id = %s")
             params.append(int(admin_id))
-        except (TypeError, ValueError):
-            pass
+        except (TypeError, ValueError) as _silent_exc:
+            log_silent_failure("repositories.audit_repository:count_admin_audit_logs", _silent_exc)
     if action:
         where.append("action = %s")
         params.append(str(action).strip()[:AUDIT_ACTION_MAX_LEN])

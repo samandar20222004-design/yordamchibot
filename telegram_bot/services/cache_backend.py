@@ -56,6 +56,8 @@ import time
 from collections import OrderedDict
 from typing import Any
 
+from utils.silent_errors import log_silent_failure
+
 logger = logging.getLogger(__name__)
 
 #: Barcha kalitlar ostidagi umumiy prefiks (Redis'ning boshqa ilovalar
@@ -186,8 +188,8 @@ class CacheBackend(abc.ABC):
         try:
             if await self.get(key) is not None:
                 return False
-        except Exception:  # noqa: BLE001 — backend javob bermasa: yozishga urinamiz
-            pass
+        except Exception as _silent_exc:  # noqa: BLE001 — backend javob bermasa: yozishga urinamiz
+            log_silent_failure("services.cache_backend:CacheBackend.set_if_absent", _silent_exc)
         return bool(await self.set(key, value, ttl=ttl))
 
     async def compare_and_delete(self, key: str, value: Any) -> bool:
@@ -584,8 +586,8 @@ return value
                 result = closer()
                 if asyncio.iscoroutine(result):
                     await result
-            except Exception:  # noqa: BLE001 — yopish xatosi botni to'xtatmasin
-                pass
+            except Exception as _silent_exc:  # noqa: BLE001 — yopish xatosi botni to'xtatmasin
+                log_silent_failure("services.cache_backend:RedisCacheBackend.close", _silent_exc)
             return
 
 

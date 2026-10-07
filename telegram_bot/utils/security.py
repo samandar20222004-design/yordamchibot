@@ -11,6 +11,8 @@ import socket
 import unicodedata
 from urllib.parse import urlsplit
 
+from utils.silent_errors import log_silent_failure
+
 logger = logging.getLogger(__name__)
 
 # ============================================================
@@ -139,8 +141,8 @@ def _canonical_ip_literal(host: str):
         return None
     try:
         return ipaddress.ip_address(text)
-    except ValueError:
-        pass
+    except ValueError as _silent_exc:
+        log_silent_failure("utils.security:_canonical_ip_literal", _silent_exc)
     try:
         packed = socket.inet_aton(text)
     except OSError:

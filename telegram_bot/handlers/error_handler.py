@@ -36,6 +36,8 @@ import traceback
 from collections import deque
 from datetime import datetime, timezone
 
+from utils.silent_errors import log_silent_failure
+
 logger = logging.getLogger(__name__)
 
 try:  # psycopg2 doim mavjud (requirements), lekin himoyalangan import
@@ -138,8 +140,8 @@ def _extract_user_info(update) -> dict:
             info["update_type"] = "channel_post"
         elif getattr(update, "pre_checkout_query", None) is not None:
             info["update_type"] = "pre_checkout_query"
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.error_handler:_extract_user_info", _silent_exc)
     return info
 
 
@@ -162,8 +164,8 @@ def _extract_handler_name(context) -> str:
                 func = frame.f_code.co_name
                 short = module.split(".")[-1] if module else module
                 return f"{short}.{func}"
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.error_handler:_extract_handler_name", _silent_exc)
     return "unknown"
 
 
@@ -425,10 +427,10 @@ async def _notify_user(update, context) -> None:
         except TypeError:
             try:
                 await query.answer(short)
-            except Exception:
-                pass
-        except Exception:
-            pass
+            except Exception as _silent_exc:
+                log_silent_failure("handlers.error_handler:_notify_user:428", _silent_exc)
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.error_handler:_notify_user:430", _silent_exc)
 
 
 # ──────────────────────────────────────────────────────────────
@@ -491,8 +493,8 @@ async def global_error_handler(update, context) -> None:
         # Eng oxirgi himoya: error handler o'zi yiqilib botni to'xtatmasin.
         try:
             logger.exception("error_handler ichida kutilmagan xato")
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.error_handler:global_error_handler", _silent_exc)
 
 
 #: Qisqa alias (eski ``main.error_handler`` mos kelishi uchun).

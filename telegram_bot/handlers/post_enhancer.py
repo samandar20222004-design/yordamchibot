@@ -87,6 +87,8 @@ from handlers.new_post import (
     normalize_button_url as _np_normalize_button_url,
 )
 
+from utils.silent_errors import log_silent_failure
+
 logger = logging.getLogger(__name__)
 tashkent_tz = pytz.timezone("Asia/Tashkent")
 
@@ -798,9 +800,9 @@ async def _render(context, chat_id: int, target_msg=None, watermark_note: str = 
     if old_id:
         try:
             await context.bot.delete_message(chat_id=chat_id, message_id=old_id)
-        except TelegramError:
+        except TelegramError as _silent_exc:
             # Xabar o'chirilgan yoki muddati o'tgan bo'lishi mumkin.
-            pass
+            log_silent_failure("handlers.post_enhancer:_render", _silent_exc, chat_id=chat_id)
         finally:
             enh["hub_msg_id"] = None
 
@@ -837,13 +839,13 @@ async def post_enhancer_start(update: Update, context: ContextTypes.DEFAULT_TYPE
     if query is not None:
         try:
             await query.answer()
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.post_enhancer:post_enhancer_start:840", _silent_exc)
         msg = query.message
         try:
             await msg.delete()
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.post_enhancer:post_enhancer_start:845", _silent_exc)
     else:
         msg = update.message
 
@@ -1099,8 +1101,8 @@ async def _answer(query, text: str = None, alert: bool = False):
             await query.answer(text, show_alert=alert)
         else:
             await query.answer()
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.post_enhancer:_answer", _silent_exc)
 
 
 async def _audit_post_step(update, context, query, enh):
@@ -1154,8 +1156,8 @@ async def _audit_post_step(update, context, query, enh):
             try:
                 await context.bot.delete_message(
                     chat_id=chat_id, message_id=wait_msg.message_id)
-            except TelegramError:
-                pass
+            except TelegramError as _silent_exc:
+                log_silent_failure("handlers.post_enhancer:_audit_post_step", _silent_exc)
 
     improved = str((refined or {}).get("post_text") or "").strip()
     plan_note = await _plan_note(user_id, lang)
@@ -1205,8 +1207,8 @@ async def enh_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         clear_fsm_data(context)
         try:
             await query.message.delete()
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.post_enhancer:enh_callback:1208", _silent_exc, lang=lang)
         text = (get_text("enh_home_msg", lang)
                 if action == "home"
                 else get_text("extras_closed", lang))
@@ -1242,8 +1244,8 @@ async def enh_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if old_id and old_id != enh.get("success_msg_id"):
                 try:
                     await context.bot.delete_message(chat_id=chat_id, message_id=old_id)
-                except Exception:
-                    pass
+                except Exception as _silent_exc:
+                    log_silent_failure("handlers.post_enhancer:enh_callback:1245", _silent_exc)
             enh["hub_msg_id"] = None
             return ENH_POST
         enh["step"] = arg if arg in _VIEWS else "hub"
@@ -1484,8 +1486,8 @@ async def _drop_preview(context, chat_id: int, enh: dict):
             continue
         try:
             await context.bot.delete_message(chat_id=chat_id, message_id=mid)
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.post_enhancer:_drop_preview", _silent_exc, chat_id=chat_id)
     enh["preview_msg_id"] = None
     enh["preview_type"] = None
     enh["preview_extra_ids"] = []
@@ -1610,8 +1612,8 @@ async def _send_preview(context, chat_id: int, enh: dict, create: bool = True):
                 chat_id=chat_id,
                 text=get_text("enh_preview_error", get_lang(context)),
             )
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.post_enhancer:_send_preview", _silent_exc, chat_id=chat_id)
         return None
 
 
@@ -1813,5 +1815,5 @@ async def enh_stale_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await update.callback_query.answer(
             get_text("enh_stale_notice", get_lang(context))
         )
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.post_enhancer:enh_stale_callback", _silent_exc)

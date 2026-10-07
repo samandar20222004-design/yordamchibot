@@ -81,23 +81,29 @@ EXPECTED_SETTINGS_CBS = (
     "stgs_lang",
     "stgs_post",
     "stgs_notif", "stgs_referral",
-    "stgs_pay", "sub_open", "stgs_help_hub",
+    "stgs_pay", "sub_open",
+    "stgs_privacy", "stgs_delete_data",
+    "stgs_help_hub",
     "stgs_back",
 )
 
-# ⚙️ Sozlamalar menyusi yorliqlari — SPEKS tartibi (8 tugma / 4 qator).
+# ⚙️ Sozlamalar menyusi yorliqlari — SPEKS tartibi (10 tugma / 5 qator,
+# SPRINT 1: 4-qatorga 🔐 Maxfiylik + 🗑 O'chirish qo'shildi).
 EXPECTED_SETTINGS_LABELS = {
     "uz": (("🌐 Til / Язык", "✍️ Post sozlamalari"),
            ("🔔 Bildirishnomalar", "👥 Do'stlarni taklif"),
            ("💳 To'lovlar tarixi", "💎 PRO"),
+           ("🔐 Maxfiylik", "🗑 O'chirish"),
            ("ℹ️ Yordam va Qo'llanma", "❌ Yopish")),
     "ru": (("🌐 Язык / Language", "✍️ Настройки постов"),
            ("🔔 Уведомления", "👥 Пригласить друзей"),
            ("💳 История платежей", "💎 PRO"),
+           ("🔐 Приватность", "🗑 Удалить данные"),
            ("ℹ️ Помощь и руководство", "❌ Закрыть")),
     "en": (("🌐 Language", "✍️ Post settings"),
            ("🔔 Notifications", "👥 Invite friends"),
            ("💳 Payment history", "💎 PRO"),
+           ("🔐 Privacy", "🗑 Delete data"),
            ("ℹ️ Help and Guide", "❌ Close")),
 }
 
@@ -426,7 +432,7 @@ def test_statistics_overview_format():
 # TEST 2 — ⚙️ SOZLAMALAR: 7 TUGMALI MENYU (legacy aliaslar bilan)
 # ============================================================================
 def test_settings_menu_structure_and_flows():
-    print("\n== TEST 2: ⚙️ Sozlamalar — 8 tugmali menyu (4x2) ==")
+    print("\n== TEST 2: ⚙️ Sozlamalar — 10 tugmali menyu (5x2) ==")
 
     # Legacy kabinet tezkor tugmalari — menyuda KO'RINMASLIGI shart
     # (ular o'z asosiy menyularida bor: 📢 Kanallarim, 📅 Rejalashtirilgan...).
@@ -438,11 +444,11 @@ def test_settings_menu_structure_and_flows():
         kb = get_settings_hub_keyboard(lang)
         rows = kb_rows_inline(kb)
         expected = EXPECTED_SETTINGS_LABELS[lang]
-        check(f"{lang}: 4 qator = speksdagi 8 tugma",
+        check(f"{lang}: 5 qator = speksdagi 10 tugma",
               [[t for t, _ in row] for row in rows] == [
                   list(r) for r in expected],
               str(rows))
-        check(f"{lang}: 8 tugma callback tartibi",
+        check(f"{lang}: 10 tugma callback tartibi",
               kb_flat_cbs(kb) == list(EXPECTED_SETTINGS_CBS),
               str(kb_flat_cbs(kb)))
         check(f"{lang}: oxirgi qator = [ℹ️ Yordam va Qo'llanma | ❌ Yopish]",
@@ -540,11 +546,11 @@ def test_settings_menu_structure_and_flows():
     prof_text = q.screen.get("text", "")
     prof_cbs = kb_flat_cbs(q.screen.get("reply_markup"))
     check("profil: cabinet_title matni", "Profil" in prof_text, prof_text[:80])
-    # Profil ekrani endi 8 TUGMALI panel (4x2: Til / Post sozlamalari /
-    # Bildirishnomalar / Do'stlarni taklif / To'lovlar /
-    # PRO / Yordam va Qo'llanma / Yopish) — Sozlamalar hub'i bilan
-    # AYNAN bir xil.
-    check("profil: 8 tugmali panel (stgs_back = ❌ Yopish)",
+    # Profil ekrani endi 10 TUGMALI panel (5x2: Til / Post sozlamalari /
+    # Bildirishnomalar / Do'stlarni taklif / To'lovlar / PRO /
+    # Maxfiylik / O'chirish (SPRINT 1) / Yordam va Qo'llanma /
+    # Yopish) — Sozlamalar hub'i bilan AYNAN bir xil.
+    check("profil: 10 tugmali panel (stgs_back = ❌ Yopish)",
           prof_cbs == list(EXPECTED_SETTINGS_CBS), str(prof_cbs))
     check("profil: eski cab_* dublikatlari panel'da YO'Q",
           not any(cb in prof_cbs for cb in ("cab_channels", "cab_analytics",

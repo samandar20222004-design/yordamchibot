@@ -40,6 +40,8 @@ import time
 
 import aiohttp
 
+from utils.silent_errors import log_silent_failure
+
 logger = logging.getLogger(__name__)
 
 # ============================================================
@@ -190,8 +192,8 @@ async def _groq_transcribe(session, data: bytes, filename: str) -> str:
             body = ""
             try:
                 body = (await resp.text())[:300]
-            except Exception:  # pragma: no cover — himoya
-                pass
+            except Exception as _silent_exc:  # pragma: no cover — himoya
+                log_silent_failure("utils.audio_transcriber:_groq_transcribe", _silent_exc)
             raise RuntimeError(f"Groq STT HTTP {resp.status}: {body}")
         payload = await resp.json(content_type=None)
     text = ""
@@ -227,8 +229,8 @@ async def _gemini_transcribe(session, data: bytes, filename: str) -> str:
             body = ""
             try:
                 body = (await resp.text())[:300]
-            except Exception:  # pragma: no cover — himoya
-                pass
+            except Exception as _silent_exc:  # pragma: no cover — himoya
+                log_silent_failure("utils.audio_transcriber:_gemini_transcribe", _silent_exc)
             raise RuntimeError(f"Gemini STT HTTP {resp.status}: {body}")
         result = await resp.json(content_type=None)
     text = ""

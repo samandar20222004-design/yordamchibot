@@ -389,6 +389,16 @@ from handlers.settings import (
     settings_rewards_callback,
 )
 
+# 10d. 🔐 SPRINT 1 — MAXFIYLIK SIYOSATI + «MA'LUMOTLARIMNI O'CHIRISH»
+# (GDPR): ``/privacy`` buyrug'i va Sozlamalar hub'idagi 4-qator tugmalari.
+# O'chirish faqat TASDIQLANGAN callback (``stgs_privacy_del_ok``) orqali
+# bajariladi; user_id har doim ``update.effective_user`` dan olinadi.
+from handlers.privacy import (
+    privacy_cancel,
+    privacy_command,
+    privacy_delete_confirm,
+)
+
 # 10b. 💬 QO'LLAB-QUVVATLASH — 4-QISM: bir martalik murojaat (one-time ticket)
 # FSM'i va adminning «Reply» javobini foydalanuvchiga yetkazuvchi dispatcher.
 # Ro'yxatga olish tartibi MUHIM:
@@ -439,6 +449,8 @@ from utils.helpers import (
     REACTION_RATE_LIMIT_MAX,
 )
 
+from utils.silent_errors import log_silent_failure
+
 logger = logging.getLogger(__name__)
 
 CONVERSATION_TIMEOUT_SEC = 600
@@ -478,8 +490,8 @@ async def guard_entry(update, context, fn):
             elif update.callback_query:
                 try:
                     await update.callback_query.answer(wait_msg, show_alert=False)
-                except Exception:
-                    pass
+                except Exception as _silent_exc:
+                    log_silent_failure("handlers.__init__:guard_entry", _silent_exc)
             return ConversationHandler.END
         # Tugallanmagan albom yig'uvchi task'lari ham tozalanadi — ular yangi
         # konversatsiya user_data'iga eski postni yozib qo'ymasligi uchun.
@@ -503,8 +515,8 @@ async def guard_menu(update, context, fn):
             elif update.callback_query:
                 try:
                     await update.callback_query.answer(wait_msg, show_alert=False)
-                except Exception:
-                    pass
+                except Exception as _silent_exc:
+                    log_silent_failure("handlers.__init__:guard_menu", _silent_exc)
             return ConversationHandler.END
         cancel_album_collections(user.id)
 
@@ -572,8 +584,8 @@ async def reaction_callback(update, context):
                     new_row.append(btn)
             keyboard.append(new_row)
         await query.edit_message_reply_markup(reply_markup=query.message.reply_markup.__class__(keyboard))
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.__init__:reaction_callback", _silent_exc, user_id=user_id)
 
 
 async def close_msg_callback(update, context):
@@ -586,8 +598,8 @@ async def close_msg_callback(update, context):
             await query.edit_message_text(
                 get_text("msg_closed", get_lang(context)), reply_markup=None
             )
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.__init__:close_msg_callback", _silent_exc)
 
 
 async def noop_callback(update, context):
@@ -635,14 +647,14 @@ async def expired_session_callback(update, context):
         )
         try:
             await query.answer(get_text(CALLBACK_REJECT_KEY, lang), show_alert=True)
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.__init__:expired_session_callback:638", _silent_exc)
         return
 
     try:
         await query.answer(get_text("sys_stale_button", lang))
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.__init__:expired_session_callback:644", _silent_exc, lang=lang)
 
 
 async def ai_studio_callback(update, context):
@@ -662,8 +674,8 @@ async def ai_studio_callback(update, context):
             reply_markup=None,
             parse_mode="HTML",
         )
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.__init__:ai_studio_callback", _silent_exc)
 
 
 async def ai_photo_stale_callback(update, context):
@@ -681,8 +693,8 @@ async def ai_photo_stale_callback(update, context):
             reply_markup=None,
             parse_mode="HTML",
         )
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.__init__:ai_photo_stale_callback", _silent_exc)
 
 
 # Rasm/hujjat captionidagi `/ai` (yoki `/ai@Bot`) buyrug'i uchun filtr
@@ -869,8 +881,8 @@ async def conversation_timeout_handler(update, context):
                 reply_markup=__import__("keyboards.default", fromlist=["get_main_keyboard"]).get_main_keyboard(is_admin, lang=lang),
                 parse_mode="HTML",
             )
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.__init__:conversation_timeout_handler", _silent_exc)
 
 
 def _admin_flow_state(text_handler, menu_jumps):
@@ -1957,6 +1969,9 @@ def register_all_handlers(app):
     # buyruq orqali ham kabinetga kirish mumkin (uz/ru/en — bitta yo'l).
     app.add_handler(CommandHandler("settings", user_cabinet_menu))
     app.add_handler(CommandHandler("help", help_command))
+    # 🔐 SPRINT 1 (Privacy & GDPR): /privacy — bot qanday ma'lumotlarni
+    # saqlashini ochiq ko'rsatadi (uz/ru/en) va o'chirish tugmasini beradi.
+    app.add_handler(CommandHandler("privacy", privacy_command))
     app.add_handler(CommandHandler("admin", admin_panel_menu))
     app.add_handler(CommandHandler("stats", show_statistics))
     # PHASE E — kanal egasi yoki analyst uchun ehtimolli haftalik maslahatlar.
@@ -2119,6 +2134,17 @@ def register_all_handlers(app):
     ))
     app.add_handler(CallbackQueryHandler(
         settings_help_hub_callback, pattern=r"^stgs_help_hub$",
+    ))
+    # 🔐 SPRINT 1 — o'chirishni TASDIQLASH va BEKOR QILISH. MUHIM: aniq
+    # naqshlar generic ``stgs_`` handler'dan OLDIN ro'yxatdan o'tadi —
+    # PTB handlerlarni qo'shilish tartibida tekshiradi, aks holda
+    # ``stgs_privacy_del_ok`` generic menyuga tushib qolardi (ma'lumot
+    # o'chmay qolardi — jim nosozlik).
+    app.add_handler(CallbackQueryHandler(
+        privacy_delete_confirm, pattern=r"^stgs_privacy_del_ok$",
+    ))
+    app.add_handler(CallbackQueryHandler(
+        privacy_cancel, pattern=r"^stgs_privacy_cancel$",
     ))
     app.add_handler(CallbackQueryHandler(
         settings_menu_callback,

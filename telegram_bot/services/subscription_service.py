@@ -24,6 +24,8 @@ from database import (
 # 6-bosqich: admin harakatlari auditi (PRO berish/bekor qilish).
 from services.audit_service import AuditService
 
+from utils.silent_errors import log_silent_failure
+
 logger = logging.getLogger(__name__)
 
 
@@ -193,8 +195,8 @@ class SubscriptionService:
                             "UPDATE users SET plan_type = 'free' WHERE user_id = %s",
                             (user_id,),
                         )
-                except Exception:
-                    pass
+                except Exception as _silent_exc:
+                    log_silent_failure("services.subscription_service:SubscriptionService.get_status", _silent_exc, user_id=user_id)
                 return {
                     "is_pro": False,
                     "plan_type": "free",

@@ -25,6 +25,8 @@ from repositories.runtime import (  # noqa: F401
     _cache_clear, _invalidate_user, db_cursor, get_setting, set_setting
 )
 
+from utils.silent_errors import log_silent_failure
+
 logger = logging.getLogger(__name__)
 
 
@@ -525,8 +527,8 @@ def get_queue_slots(user_id: int) -> list:
         slots = _json.loads(raw)
         if isinstance(slots, list) and all(isinstance(s, str) for s in slots):
             return slots
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("repositories.posts_repository:get_queue_slots", _silent_exc, user_id=user_id)
     return list(DEFAULT_QUEUE_SLOTS)
 
 
@@ -729,8 +731,8 @@ def get_channel_post_stats(user_id: int, channel_id: str = None) -> dict:
                     result["history_count"] = int(h_row[0] or 0)
                     result["total_views"] = int(h_row[1] or 0)
                     result["avg_views"] = round(float(h_row[2] or 0), 1)
-            except Exception:
-                pass
+            except Exception as _silent_exc:
+                log_silent_failure("repositories.posts_repository:get_channel_post_stats", _silent_exc, user_id=user_id, channel_id=channel_id)
 
     except Exception as e:
         logger.error(f"Channel post stats xatosi: {e}")

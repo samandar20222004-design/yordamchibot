@@ -57,6 +57,8 @@ from services.cleanup_service import (
     CLEANUP_JOB_ID,
 )
 
+from utils.silent_errors import log_silent_failure
+
 # PHASE 10: barcha production stdout loglari JSON Lines formatida. Formatter
 # bir xil timestamp/level/event/user/channel/latency/error_code maydonlarini
 # chiqaradi va handlerlar secrets scrubber bilan birga o'rnatiladi.
@@ -341,8 +343,8 @@ class GuardedApplication(Application):
                 await query.answer(
                     get_text("sys_wait_short", lang), show_alert=False
                 )
-            except Exception:
-                pass
+            except Exception as _silent_exc:
+                log_silent_failure("main:GuardedApplication._answer_callback_wait", _silent_exc)
 
     @staticmethod
     async def _resolve_user_language(update) -> str:
@@ -380,8 +382,8 @@ class GuardedApplication(Application):
             msg = getattr(update, "effective_message", None)
             if msg is not None:
                 await msg.reply_text(text)
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("main:GuardedApplication._answer_timeout", _silent_exc, lang=lang)
 
 
 # Orqaga mos (backward-compatible) nom: asosiy mantiq endi
@@ -520,8 +522,8 @@ def remove_signal_handlers(loop, installed) -> None:
     for sig in installed or ():
         try:
             loop.remove_signal_handler(sig)
-        except (NotImplementedError, RuntimeError, ValueError):
-            pass
+        except (NotImplementedError, RuntimeError, ValueError) as _silent_exc:
+            log_silent_failure("main:remove_signal_handlers", _silent_exc)
 
 
 async def graceful_shutdown(application=None, scheduler=None, web_runner=None,
@@ -757,8 +759,8 @@ async def main():
         keep_alive_handle = asyncio.create_task(keep_alive_task())
         try:
             keep_alive_handle.set_name("keep-alive")
-        except Exception:  # pragma: no cover — eski Python
-            pass
+        except Exception as _silent_exc:  # pragma: no cover — eski Python
+            log_silent_failure("main:main:760", _silent_exc)
         logger.info("Keep-alive yoqildi: %s da %ss oralig'ida.",
                     urlsplit(KEEP_ALIVE_URL).netloc or "?",
                     KEEP_ALIVE_INTERVAL_SECONDS)
@@ -925,8 +927,8 @@ async def main():
             keep_alive_handle.cancel()
             try:
                 await keep_alive_handle
-            except (asyncio.CancelledError, Exception):
-                pass
+            except (asyncio.CancelledError, Exception) as _silent_exc:
+                log_silent_failure("main:main:928", _silent_exc)
         remove_signal_handlers(loop, installed_signals)
         await graceful_shutdown(application, scheduler, web_runner)
 
@@ -935,10 +937,10 @@ def run() -> int:
     """Botni ishga tushiradi; toza yopilishda 0 qaytaradi (exit code)."""
     try:
         asyncio.run(main())
-    except (KeyboardInterrupt, SystemExit):
+    except (KeyboardInterrupt, SystemExit) as _silent_exc:
         # Signal handlerlar o'rnatilgan bo'lsa bu yerga kelinmaydi; fallback
         # muhitda ham yopilish main() ning finally blokida tugallangan.
-        pass
+        log_silent_failure("main:run", _silent_exc)
     return 0
 
 

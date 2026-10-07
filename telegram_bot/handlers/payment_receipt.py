@@ -26,6 +26,8 @@ from handlers.subscription import (
 )
 from handlers.start import ensure_user_lang
 
+from utils.silent_errors import log_silent_failure
+
 logger = logging.getLogger(__name__)
 
 # Inline callback prefikslari (har qanday tilda bir xil callback_data).
@@ -274,8 +276,8 @@ async def receipt_admin_callback(update: Update, context: ContextTypes.DEFAULT_T
     query = update.callback_query
     try:
         await query.answer()
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.payment_receipt:receipt_admin_callback:277", _silent_exc)
 
     admin_id = query.from_user.id
     # 11-bosqich (P0) — callback tampering himoyasi: kim bosgani FAQAT
@@ -291,8 +293,8 @@ async def receipt_admin_callback(update: Update, context: ContextTypes.DEFAULT_T
         try:
             await query.answer("❌ Sizda to'lovni tasdiqlash uchun ruxsat yo'q.",
                                show_alert=True)
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.payment_receipt:receipt_admin_callback:294", _silent_exc)
         return None
 
     data = query.data or ""
@@ -321,8 +323,8 @@ async def receipt_admin_callback(update: Update, context: ContextTypes.DEFAULT_T
                 logger.warning("Tasdiqlash tabrigini yuborishda xato: %s", e)
             try:
                 await query.answer(get_text("receipt_admin_done_ok", lang))
-            except Exception:
-                pass
+            except Exception as _silent_exc:
+                log_silent_failure("handlers.payment_receipt:receipt_admin_callback:324", _silent_exc)
         else:
             reason = res.get("reason", "")
             if reason == "already_approved":
@@ -330,8 +332,8 @@ async def receipt_admin_callback(update: Update, context: ContextTypes.DEFAULT_T
             else:
                 try:
                     await query.answer("❌ Xatolik yuz berdi.", show_alert=False)
-                except Exception:
-                    pass
+                except Exception as _silent_exc:
+                    log_silent_failure("handlers.payment_receipt:receipt_admin_callback:333", _silent_exc)
             await _clear_decision_markup(query)
             return None
     elif data.startswith(CB_RECEIPT_REJECT):
@@ -349,8 +351,8 @@ async def receipt_admin_callback(update: Update, context: ContextTypes.DEFAULT_T
                 logger.warning("Rad etish xabarini yuborishda xato: %s", e)
             try:
                 await query.answer(get_text("receipt_admin_done_reject", lang))
-            except Exception:
-                pass
+            except Exception as _silent_exc:
+                log_silent_failure("handlers.payment_receipt:receipt_admin_callback:352", _silent_exc)
         else:
             await _clear_decision_markup(query)
             return None
@@ -365,13 +367,13 @@ async def receipt_admin_callback(update: Update, context: ContextTypes.DEFAULT_T
 async def _notify_already_reviewed(query, lang: str):
     try:
         await query.answer(get_text("receipt_admin_already", lang), show_alert=True)
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.payment_receipt:_notify_already_reviewed", _silent_exc, lang=lang)
 
 
 async def _clear_decision_markup(query):
     """Admin xabaridan inline tugmalarni olib tashlaydi (idempotent)."""
     try:
         await query.message.edit_reply_markup(reply_markup=None)
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.payment_receipt:_clear_decision_markup", _silent_exc)

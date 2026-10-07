@@ -28,6 +28,8 @@ import aiohttp
 
 from config import GEMINI_API_KEY
 
+from utils.silent_errors import log_silent_failure
+
 logger = logging.getLogger(__name__)
 
 # Telegram Bot API botga 20 MB gacha fayl berishi mumkin, lekin Vision oqimi
@@ -297,8 +299,8 @@ def _parse_json_text(text: str) -> dict:
             try:
                 value = json.loads(raw[start:end + 1])
                 return value if isinstance(value, dict) else {}
-            except (TypeError, ValueError, json.JSONDecodeError):
-                pass
+            except (TypeError, ValueError, json.JSONDecodeError) as _silent_exc:
+                log_silent_failure("utils.vision_analyzer:_parse_json_text", _silent_exc)
     return {}
 
 

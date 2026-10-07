@@ -59,6 +59,8 @@ from services.ai.prompts import (
     should_ask_sales_params,
 )
 
+from utils.silent_errors import log_silent_failure
+
 logger = logging.getLogger(__name__)
 
 # ============================================================
@@ -341,8 +343,8 @@ async def _resume_magic_style_menu(update: Update, context, topic: str, lang: st
             try:
                 await query.message.reply_text(
                     sanitize_html(text), reply_markup=markup, parse_mode="HTML")
-            except Exception:
-                pass
+            except Exception as _silent_exc:
+                log_silent_failure("handlers.ai_post:_resume_magic_style_menu", _silent_exc, lang=lang)
     elif update is not None and update.message is not None:
         await update.message.reply_text(text, reply_markup=markup, parse_mode="HTML")
     return MAGIC_STYLE_SELECT
@@ -359,8 +361,8 @@ async def _resume_studio_generation(update: Update, context, topic: str, lang: s
         # Wizard xabaridagi klaviaturani yopamiz (ikki marta bosilmaydi).
         try:
             await query.edit_message_reply_markup(reply_markup=None)
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.ai_post:_resume_studio_generation", _silent_exc, lang=lang)
         msg = query.message
     else:
         msg = update.message if update is not None else None
@@ -431,8 +433,8 @@ async def ai_post_format_callback(update: Update, context: ContextTypes.DEFAULT_
     if not topic:
         try:
             await query.answer(aip_t("stale", lang), show_alert=True)
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.ai_post:ai_post_format_callback:434", _silent_exc)
         return _origin_input_state(origin)
 
     if fmt == AIP_FMT_CUSTOM:
@@ -447,8 +449,8 @@ async def ai_post_format_callback(update: Update, context: ContextTypes.DEFAULT_
             try:
                 await query.message.reply_text(
                     aip_t("custom_prompt", lang), parse_mode="HTML")
-            except Exception:
-                pass
+            except Exception as _silent_exc:
+                log_silent_failure("handlers.ai_post:ai_post_format_callback:450", _silent_exc)
         return AI_POST_CUSTOM_INPUT
 
     if fmt == FORMAT_SALES:
@@ -463,8 +465,8 @@ async def ai_post_format_callback(update: Update, context: ContextTypes.DEFAULT_
             try:
                 await query.message.reply_text(
                     sales_params_text(lang), parse_mode="HTML")
-            except Exception:
-                pass
+            except Exception as _silent_exc:
+                log_silent_failure("handlers.ai_post:ai_post_format_callback:466", _silent_exc)
         return AI_POST_SALES_INPUT
 
     if fmt in (FORMAT_NEWS, FORMAT_TIPS, FORMAT_SHORT):
@@ -483,8 +485,8 @@ async def ai_post_format_callback(update: Update, context: ContextTypes.DEFAULT_
     # Noma'lum callback — wizard ochiq qoladi.
     try:
         await query.answer(aip_t("stale", lang), show_alert=True)
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.ai_post:ai_post_format_callback:486", _silent_exc, lang=lang)
     return AI_POST_CLARIFY
 
 
@@ -498,12 +500,12 @@ async def ai_post_back_callback(update: Update, context: ContextTypes.DEFAULT_TY
         context.user_data.pop(key, None)
     try:
         await query.edit_message_reply_markup(reply_markup=None)
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.ai_post:ai_post_back_callback:501", _silent_exc, lang=lang)
     try:
         await query.message.reply_text(aip_t("input_hint", lang))
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.ai_post:ai_post_back_callback:505", _silent_exc, lang=lang)
     return _origin_input_state(origin)
 
 
@@ -527,12 +529,12 @@ async def ai_post_cancel_callback(update: Update, context: ContextTypes.DEFAULT_
     clear_user_fsm(context)
     try:
         await query.edit_message_reply_markup(reply_markup=None)
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.ai_post:ai_post_cancel_callback:530", _silent_exc, lang=lang)
     try:
         await query.message.reply_text(aip_t("cancel_done", lang), parse_mode="HTML")
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.ai_post:ai_post_cancel_callback:534", _silent_exc, lang=lang)
     return ConversationHandler.END
 
 
@@ -647,8 +649,8 @@ async def ai_post_stale_callback(update: Update, context: ContextTypes.DEFAULT_T
     except Exception:
         try:
             await query.answer()
-        except Exception:
-            pass
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.ai_post:ai_post_stale_callback", _silent_exc)
 
 
 __all__ = [

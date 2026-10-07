@@ -11,6 +11,8 @@ import database as db
 from utils.security import url_rejection_reason
 from utils import telegram_sanitizer as _telegram_html
 
+from utils.silent_errors import log_silent_failure
+
 tashkent_tz = pytz.timezone("Asia/Tashkent")
 
 
@@ -60,8 +62,8 @@ async def apply_post_watermark(text: str, user_id: int, bot_username: str) -> st
         is_pro = await db.run_db(db.is_premium, user_id)
         if is_pro:
             return text
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("utils.helpers:apply_post_watermark", _silent_exc, user_id=user_id)
 
     # Username'ni tozalash va formatlash
     clean_username = bot_username if bot_username.startswith("@") else f"@{bot_username}"
@@ -541,8 +543,8 @@ async def get_auto_ad_injection_async(user_id: int) -> str:
         is_pro = await db.run_db(db.is_premium, user_id)
         if is_pro:
             return ""
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("utils.helpers:get_auto_ad_injection_async", _silent_exc, user_id=user_id)
 
     try:
         settings = await db.run_db(db.get_ad_settings)
@@ -577,8 +579,8 @@ def get_auto_ad_injection(user_id: int) -> str:
     try:
         if db.is_premium(user_id):
             return ""
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("utils.helpers:get_auto_ad_injection", _silent_exc, user_id=user_id)
     try:
         settings = db.get_ad_settings()
     except Exception:
@@ -647,8 +649,8 @@ def get_smart_reply_ad(user_id: int) -> str:
     try:
         if db.is_premium(user_id):
             return ""
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("utils.helpers:get_smart_reply_ad", _silent_exc, user_id=user_id)
     ads = db.get_ads_full(db.AD_SCOPE_REPLY) or []
     if ads:
         ad = _next_ad_full(ads, db.AD_SCOPE_REPLY)
@@ -672,8 +674,8 @@ async def get_smart_reply_ad_async(user_id: int) -> str:
         is_pro = prof["is_pro"] if prof is not None else await db.run_db(db.is_premium, user_id)
         if is_pro:
             return ""
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("utils.helpers:get_smart_reply_ad_async", _silent_exc, user_id=user_id)
     ads = (await db.run_db(db.get_ads_full, db.AD_SCOPE_REPLY)) or []
     if ads:
         ad = _next_ad_full(ads, db.AD_SCOPE_REPLY)
@@ -1192,10 +1194,10 @@ async def keep_typing(bot, chat_id: int, interval: float = TYPING_INTERVAL):
         task.cancel()
         try:
             await task
-        except asyncio.CancelledError:
-            pass  # fon vazifasi bekor qilindi — normal yakun
-        except Exception:
-            pass
+        except asyncio.CancelledError as _silent_exc:
+            log_silent_failure("utils.helpers:keep_typing:1195", _silent_exc, chat_id=chat_id)  # fon vazifasi bekor qilindi — normal yakun
+        except Exception as _silent_exc:
+            log_silent_failure("utils.helpers:keep_typing:1197", _silent_exc, chat_id=chat_id)
 
 
 _logger = logging.getLogger(__name__)

@@ -43,6 +43,8 @@ from locales.translations import get_lang
 from translations import sources_t
 from utils.helpers import html_escape
 
+from utils.silent_errors import log_silent_failure
+
 logger = logging.getLogger(__name__)
 
 
@@ -57,8 +59,8 @@ async def _ensure_first_channel(query, context, user_id: int, lang: str):
         if msg is not None:
             try:
                 await msg.reply_text(sources_t("src_no_channels", lang), parse_mode="HTML")
-            except Exception:
-                pass
+            except Exception as _silent_exc:
+                log_silent_failure("handlers.content_menu:_ensure_first_channel", _silent_exc, user_id=user_id, lang=lang)
         return None, None
     ch_id = str(channels[0][0])
     ch_title = str(channels[0][1] or "Kanal") if len(channels[0]) > 1 else "Kanal"
@@ -77,8 +79,8 @@ async def contextual_post_menu_callback(
         return ConversationHandler.END
     try:
         await query.answer()
-    except Exception:
-        pass
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.content_menu:contextual_post_menu_callback:80", _silent_exc)
 
     data = str(getattr(query, "data", "") or "")
     lang = get_lang(context)
@@ -110,8 +112,8 @@ async def contextual_post_menu_callback(
                     reply_markup=get_cancel_keyboard(lang),
                     parse_mode="HTML",
                 )
-            except Exception:
-                pass
+            except Exception as _silent_exc:
+                log_silent_failure("handlers.content_menu:contextual_post_menu_callback:113", _silent_exc)
         return SRC_URL_INPUT
 
     if data == CB_CTX_RECYCLE_POST:

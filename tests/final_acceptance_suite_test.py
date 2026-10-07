@@ -804,15 +804,16 @@ def test_k_statistics_isolation():
 
 
 def test_l_settings_menu_compact_profile_hub():
-    # ⚙️ Sozlamalar / Ko'proq — 8 tugma (4x2). 3-BOSQICH: «💎 PRO» va
+    # ⚙️ Sozlamalar / Ko'proq — 10 tugma (5x2). 3-BOSQICH: «💎 PRO» va
     # «❓ Yordam» asosiy reply-menudan shu hub'ga ko'chirildi; «🎁 Bonuslar &
     # Taklif» va 🧰 Vositalar esa ko'rinishdan chiqdi (oqimlar routing'da
     # qoladi).
-    header("L", "⚙️ Sozlamalar — 8 tugma (4x2), uchala tilda bir xil")
+    header("L", "⚙️ Sozlamalar — 10 tugma (5x2), uchala tilda bir xil")
     expected_cbs = ["stgs_lang", "stgs_post",
                     "stgs_notif", "stgs_referral",
-                    "stgs_pay", "sub_open", "stgs_help_hub",
-                    "stgs_back"]
+                    "stgs_pay", "sub_open",
+                    "stgs_privacy", "stgs_delete_data",
+                    "stgs_help_hub", "stgs_back"]
     base = None
     for lang in LANGS:
         kb = get_settings_hub_keyboard(lang)
@@ -820,7 +821,7 @@ def test_l_settings_menu_compact_profile_hub():
         labels = _labels(kb)
         if base is None:
             base = cbs
-        check(f"[{lang}] Sozlamalar hub = 8 tugma", len(cbs) == 8, str(cbs))
+        check(f"[{lang}] Sozlamalar hub = 10 tugma", len(cbs) == 10, str(cbs))
         check(f"[{lang}] stgs_profile hub'da YO'Q (matn o'zi profil)",
               "stgs_profile" not in cbs, str(cbs))
         # 3-BOSQICH: eski GURUHLAR (rewards/tools) hub'da yo'q; «❓ Yordam»
@@ -846,7 +847,7 @@ def test_l_settings_menu_compact_profile_hub():
     with _with_db(fake), _quiet():
         _run(start_mod.user_cabinet_menu(_msg_update(msg), _ctx("uz")))
     drawn = _cbs(msg.sent[-1]["reply_markup"]) if msg.sent else []
-    check("user_cabinet_menu: 8 tugmali Sozlamalar klaviaturasini chizdi",
+    check("user_cabinet_menu: 10 tugmali Sozlamalar klaviaturasini chizdi",
           drawn == expected_cbs, str(drawn))
 
 
