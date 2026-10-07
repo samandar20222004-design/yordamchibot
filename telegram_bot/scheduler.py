@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import os
+import random
 import re
 from datetime import datetime, timedelta
 import pytz
@@ -54,6 +55,18 @@ NETWORK_RETRY_DELAY = 30
 SEND_MICRO_DELAY_MIN = 0.05
 SEND_MICRO_DELAY_MAX = 0.1
 SEND_MICRO_DELAY = 0.08  # soniya — 0.05..0.1 oralig'ida
+
+# Quiet Hours tugashi (08:00) uchun thundering-herd himoyasi. Bir tickda
+# 08:00:00 ga yig'ilgan postlar DB navbatida 30..180 soniyalik oynalar bilan
+# tarqatiladi. Bir kanal postlari orasidagi qat'iy minimum — 60 soniya.
+QUIET_HERD_HOUR = 8
+QUIET_STAGGER_MIN_SECONDS = 30.0
+QUIET_STAGGER_MAX_SECONDS = 180.0
+CHANNEL_STAGGER_MIN_SECONDS = 60.0
+
+# Telegram RetryAfter bergan kanal Telegram aytgan muddatdan keyin ham kichik
+# xavfsizlik buferi davomida muzlatiladi.
+FLOOD_WAIT_SAFETY_SECONDS = 5.0
 
 # FloodWait kutishining yuqori chegarasi: Telegram juda katta `retry_after`
 # qaytarsa (masalan 900s) scheduler ishini butunlay muzlatib qo'ymaymiz —
@@ -446,6 +459,51 @@ def clear_channel_flood(channel_id=None) -> None:
         _CHANNEL_FLOOD_UNTIL.clear()
     else:
         _CHANNEL_FLOOD_UNTIL.pop(_channel_key(channel_id), None)
+
+
+def stagger_quiet_hour_posts(posts, now=None, *, uniform=None):
+    """08:00:00 herd paketiga persistent, kanal-xavfsiz vaqtlar beradi.
+
+    Birinchi post darhol qoladi; keyingilar oldingi global slotdan 30..180s
+    keyin joylashadi. Shu kanalning avvalgi slotidan kamida 60s o'tishi ham
+    kafolatlanadi. Faqat aynan 08:00:00 ga qo'yilgan postlar o'zgartiriladi;
+    shu sababli DB'ga bir marta ko'chirilgan post keyingi tickda qayta jitter
+    qilinmaydi. ``uniform`` injectable bo'lib testlarni deterministik qiladi.
+    """
+    now = _as_tashkent(now or now_tashkent())
+    rand = uniform or random.uniform
+    result = []
+    herd_offset = 0.0
+    herd_seen = 0
+    channel_offsets = {}
+
+    for post in posts or ():
+        scheduled = _as_tashkent(post[9] if post and len(post) > 9 else None)
+        is_herd = bool(
+            scheduled
+            and scheduled.hour == QUIET_HERD_HOUR
+            and scheduled.minute == 0
+            and scheduled.second == 0
+            and scheduled.microsecond == 0
+        )
+        if not is_herd:
+            result.append((post, None))
+            continue
+
+        base = max(scheduled, now)
+        channel = _channel_key(post[2] if len(post) > 2 else None)
+        if herd_seen:
+            step = max(QUIET_STAGGER_MIN_SECONDS, min(float(rand(
+                QUIET_STAGGER_MIN_SECONDS, QUIET_STAGGER_MAX_SECONDS
+            )), QUIET_STAGGER_MAX_SECONDS))
+            herd_offset += step
+        channel_floor = channel_offsets.get(channel, -CHANNEL_STAGGER_MIN_SECONDS)
+        herd_offset = max(herd_offset, channel_floor + CHANNEL_STAGGER_MIN_SECONDS)
+        channel_offsets[channel] = herd_offset
+        target = base + timedelta(seconds=herd_offset)
+        result.append((post, target if herd_seen else None))
+        herd_seen += 1
+    return result
 
 
 # --- Avto-o'chirish xatolarini tasniflash -----------------------------------
@@ -859,6 +917,22 @@ async def check_and_send_posts(bot):
         due_posts = await db.run_db(db.get_due_posts, now)
         if due_posts:
             logger.info("Yuboriladigan postlar soni: %d", len(due_posts))
+
+        # Quiet Hours oxiridagi 08:00 herd'ni Telegramga tegmasdan oldin DB'da
+        # tarqatamiz. get_due_posts qatorlarni allaqachon processing qilgan;
+        # kelajak slotlari retry_post orqali pending holatiga atomik qaytadi.
+        ready_posts = []
+        for post, stagger_at in stagger_quiet_hour_posts(due_posts, now):
+            if stagger_at is not None and stagger_at > now:
+                await db.run_db(db.retry_post, post[0], stagger_at)
+                logger.info(
+                    "Quiet-hours stagger: post %s (kanal %s) → %s",
+                    post[0], post[2], stagger_at.isoformat(),
+                )
+            else:
+                ready_posts.append(post)
+        due_posts = ready_posts
+
         for index, post in enumerate(due_posts):
             # 1) Mikro-kechikish — birinchi postdan keyin har safar.
             if index:
@@ -894,13 +968,19 @@ async def check_and_send_posts(bot):
                     post[0] if post else "?", wait_seconds, channel_id,
                 )
                 inline_sleep = flood_wait_inline_sleep(wait_seconds)
-                # Inline kutishdan ORTIQ qolgan muddat kanal sovutishiga o'tadi.
-                if wait_seconds - inline_sleep > 0:
-                    mark_channel_flood(channel_id, wait_seconds - inline_sleep)
+                # Freeze darhol boshlanadi va Telegram RetryAfter + 5s xavfsizlik
+                # buferini to'liq qamraydi. Kalit kanalga xos: boshqa kanallar
+                # mustaqil davom etadi.
+                mark_channel_flood(
+                    channel_id, wait_seconds + FLOOD_WAIT_SAFETY_SECONDS
+                )
                 await asyncio.sleep(inline_sleep)
-                # Aniq kutish (DB) + jitter — parallel schedulerlar bir xil
-                # soniyada birga qayta urinib 429 ni takrorlamasin.
-                await _requeue_post(post, wait_seconds + delivery_service.retry_jitter())
+                # DB retry ham aynan RetryAfter + 5s (+ kichik collision jitter).
+                await _requeue_post(
+                    post,
+                    wait_seconds + FLOOD_WAIT_SAFETY_SECONDS
+                    + delivery_service.retry_jitter(),
+                )
             except Exception:
                 logger.exception("Post yuborishda kutilmagan xato (Post ID: %s)", post[0] if post else "?")
                 # Xatolik yuz berganda post 'processing' da qolib ketmasligi uchun qayta navbatga qo'yamiz.
@@ -1498,8 +1578,9 @@ async def _execute_send(bot, post):
         # Scheduler BLOKLANMAYDI: kanal sovutishga qo'yiladi, tick ichida faqat
         # qisqa pauza; to'liq kutish DB'dagi retry vaqtida.
         inline_sleep = flood_wait_inline_sleep(wait_seconds)
-        if wait_seconds - inline_sleep > 0:
-            mark_channel_flood(channel_id, wait_seconds - inline_sleep)
+        mark_channel_flood(
+            channel_id, wait_seconds + FLOOD_WAIT_SAFETY_SECONDS
+        )
         await asyncio.sleep(inline_sleep)
         if _delivery_is_dead(delivery_result):
             logger.warning(
@@ -1511,7 +1592,8 @@ async def _execute_send(bot, post):
         # Aniq kutish vaqti + jitter (PHASE 5): DB retry vaqtiga 0..0.25s
         # tasodifiy oraliq qo'shiladi — thundering-herd 429 oldini oladi.
         retry_at = now_tashkent() + timedelta(
-            seconds=wait_seconds + delivery_service.retry_jitter()
+            seconds=wait_seconds + FLOOD_WAIT_SAFETY_SECONDS
+            + delivery_service.retry_jitter()
         )
         await db.run_db(db.retry_post, post_id, retry_at)
         return

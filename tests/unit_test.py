@@ -8202,15 +8202,15 @@ def test_floodwait_and_ai_timeout_protection():
         sch.asyncio.sleep = orig_sleep
         sch.db.run_db = orig_run_db
 
-    check("navbat: FloodWait navbatni to'xtatmadi (101 va 103 yuborildi)",
-          state["sent"] == [101, 103], str(state["sent"]))
+    check("navbat: FloodWait faqat shu kanalning keyingi postini muzlatdi",
+          state["sent"] == [101], str(state["sent"]))
     micro = [s for s in state["sleeps"] if s == sch.SEND_MICRO_DELAY]
     check("navbat: postlar orasida mikro-kechikish qo'yildi",
           len(micro) == 2, str(state["sleeps"]))
     check("navbat: RetryAfter → asyncio.sleep(retry_after)",
           3.0 in state["sleeps"], str(state["sleeps"]))
-    check("navbat: FloodWait bo'lgan post qayta navbatga qo'yildi",
-          state["requeued"] == [102], str(state["requeued"]))
+    check("navbat: 429 post va shu kanalning keyingi posti qayta navbatga qo'yildi",
+          state["requeued"] == [102, 103], str(state["requeued"]))
 
     # --- Manba kodi darajasidagi kafolatlar ---
     root = Path(__file__).resolve().parent.parent / "telegram_bot"
