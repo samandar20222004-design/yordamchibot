@@ -3089,6 +3089,7 @@ from repositories.users_repository import (  # noqa: F401
     touch_user_activity,
     get_user_code, get_user_credits, get_user_language, get_user_onboarding,
     get_user_overview_stats, get_user_plan, get_user_setting,
+    get_retention_cohort,
     get_user_settings_bulk, increment_ai_usage, invalidate_user_overview_stats,
     is_premium, redeem_promo_code, referral_reward_for, refund_ai_request,
     refund_ai_usage, reserve_ai_request, save_user,

@@ -381,6 +381,13 @@ class AITaskService:
             )
         except Exception as _silent_exc:  # metrics never interrupt the AI request flow
             log_silent_failure("services.ai_engine.app_service:AITaskService.run:380", _silent_exc, user_id=user_id, channel_id=channel_id, lang=lang)
+        # 💰 SPRINT 4 — UNIT ECONOMICS: foydalanuvchi kesimida kunlik/oylik sarf
+        # (USD + UZS). Best-effort: xarajat hisobi AI javobini to'xtatmaydi.
+        try:
+            from services.ai.cost_tracker import record_usage_event
+            record_usage_event(event_dict)
+        except Exception as _silent_exc:  # noqa: BLE001
+            log_silent_failure("services.ai_engine.app_service:AITaskService.run:cost", _silent_exc, user_id=user_id, channel_id=channel_id, lang=lang)
         usage_id = None
         if persist_usage:
             usage_id = await self._save_usage(db, event_dict, reservation)

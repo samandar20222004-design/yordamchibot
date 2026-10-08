@@ -1295,6 +1295,49 @@ echo "===== SPRINT 3 — DAILY DIGEST + UZBEKISTAN CALENDAR + AI PROGRESS ====="
 "$PY" tests/daily_retention_calendar_test.py || EXIT_CODE=1
 
 echo
+echo "===== 💰 SPRINT 4 — UNIT ECONOMICS (AI XARAJAT / PRO RENTABELLIK) ====="
+# (1) Narx jadvali: Gemini/OpenAI/Groq ($/1K token), noma'lum model → 0.0
+#     (soxta raqam YO'Q, `unpriced_requests` orqali ko'rinadi);
+# (2) Xarajat matematikasi + USD⇄UZS kursi (env USD_UZS_RATE);
+# (3) Foydalanuvchi ledger'i (kunlik/oylik, LRU chegara, reset) va
+#     `user_ai_costs` (baza bo'lsa ai_usage_events agregati);
+# (4) `economics_summary`: o'rtacha faol foydalanuvchi sarfi, PRO tarif
+#     19 000 so'm marjasi, rentabellik xulosasi, zararsizlik nuqtasi;
+# (5) /economics buyrug'i uchala tilda, faqat admin, real PTB registratsiyasi;
+# (6) Live PostgreSQL: real ai_usage_events → user_ai_costs + economics.
+"$PY" tests/unit_economics_test.py || EXIT_CODE=1
+
+echo
+echo "===== 🚪 SPRINT 4 — YOPIQ BETA DARVOZASI (CLOSED BETA ACCESS) ====="
+# (1) BETA_INVITE_ONLY / BETA_MAX_USERS env sozlamalari (fail-safe: ochiq);
+# (2) Qaror mantiqi: open_mode / existing_user / admin_access / invite_code /
+#     admin_approved / pending_approval / invalid_code / code_exhausted /
+#     beta_full — ESKI foydalanuvchilar uzluksiz ishlaydi;
+# (3) Kodlar (yaratish, limit, o'chirish, normalizatsiya) va navbat
+#     (approve/reject, urinishlar, o'rinlar hisobi);
+# (4) Persistence: JSON holat, xotira ombori va real PostgreSQL
+#     (system_settings → beta_gate_state);
+# (5) /start integratsiyasi: haqiqiy handler — kod bilan kiritish, kodsiz
+#     navbat, `ref_<id>` + kod birgalikda;
+# (6) /beta admin buyrug'i: holat/kod/navbat/tasdiq/runtime on-off-reset;
+# (7) Hujjat: ikkala .env.example'da yangi kalitlar (parity).
+"$PY" tests/beta_gate_test.py || EXIT_CODE=1
+
+echo
+echo "===== ⏱ SPRINT 4 — ONBOARDING TELEMETRIYASI (TTFP + D1/D7) ====="
+# (1) parse_moment / ttfp_seconds (manfiy → 0.0, bo'sh → None);
+# (2) summarize_ttfp: o'rtacha, mediana, p90 (nearest-rank), 1h/24h ulushlari;
+# (3) retention_rates: D1/D7 formulasi (`last_active_at >= created_at + N kun`);
+# (4) build_report (dict va tuple qatorlar), jarayon xotirasi (record_start /
+#     record_first_post / in_memory_report) va TTL kesh;
+# (5) Admin statistikasidagi TTFP/D1/D7 bloki uchala tilda (pure matn) va
+#     eski «To'liq statistika» matni O'ZGARMASLIGI (regressiya qo'riqoni);
+# (6) Hooklar: /start → record_start, add_post → record_first_post
+#     (telemetriya xatosi post yaratishni buzmaydi);
+# (7) Live PostgreSQL: real users/scheduled_posts → kohorta hisoboti.
+"$PY" tests/onboarding_telemetry_test.py || EXIT_CODE=1
+
+echo
 echo "=============================================================="
 if [ "$EXIT_CODE" -eq 0 ]; then
     echo "BARCHA TESTLAR 100% YASHIL ✔"

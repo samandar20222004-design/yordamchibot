@@ -263,6 +263,36 @@ async def _warm_user_stats(user_id: int) -> None:
         logger.debug("Statistika keshini isitib bo'lmadi (user=%s)", user_id)
 
 
+async def _beta_gate_decision(update: Update, context: ContextTypes.DEFAULT_TYPE,
+                              user, *, is_new: bool, is_admin: bool):
+    """🚪 SPRINT 4 — ``/start`` uchun beta darvoza qarori.
+
+    Returns:
+        Qaror lug'ati (davom etish mumkin) yoki ``None`` (javob yuborildi —
+        ``/start`` to'xtatilishi kerak). Darvoza o'chiq bo'lsa — darhol
+        "ochiq" qarori qaytadi (qo'shimcha DB so'rovisiz).
+    """
+    try:
+        from handlers.beta_access import enforce_beta_gate
+        from services import beta_gate as gate_service
+
+        invite_code = ""
+        try:
+            from handlers.beta_access import extract_invite_code
+
+            invite_code = extract_invite_code(context)
+        except Exception:
+            invite_code = ""
+        return await enforce_beta_gate(
+            update, context, user=user, is_new=is_new, is_admin=is_admin,
+            invite_code=invite_code, gate=gate_service.default_gate(),
+        )
+    except Exception as exc:  # noqa: BLE001 — darvoza xatosi /start ni to'xtatmaydi
+        logger.warning("Beta darvozasi tekshiruvida xato: %s", exc)
+        return {"allowed": True, "reason": "open_mode", "code": None,
+                "seats_left": None, "invite_only": False, "attempts": 0}
+
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     clear_fsm_data(context)
     user = update.effective_user
@@ -342,6 +372,28 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return ConversationHandler.END
 
+    # 🚪 SPRINT 4 — YOPIQ BETA DARVOZASI (closed beta access).
+    # BETA_INVITE_ONLY=false (standart) bo'lsa qaror darhol "ochiq" bo'ladi
+    # (qo'shimcha DB so'rovi YO'Q). Yoqilganda:
+    #   * eski (beta'gacha ro'yxatdan o'tgan) foydalanuvchi — uzluksiz ishlaydi;
+    #   * admin — har doim o'tadi;
+    #   * yangi foydalanuvchi — taklif kodi yoki admin tasdig'i bilan.
+    # Kod ``/start BETA-XXXX`` (yoki ``ref_<id>`` bilan birga) orqali keladi.
+    gate_decision = await _beta_gate_decision(update, context, user,
+                                              is_new=is_new, is_admin=is_admin)
+    if gate_decision is None:
+        return ConversationHandler.END
+
+    # ⏱ SPRINT 4 — TTFP (Time To First Post) hisobi uchun start belgisi
+    # (birinchi post ``db.add_post`` da belgilanadi). Best-effort.
+    if is_new:
+        try:
+            from services.onboarding_telemetry import record_start
+
+            record_start(user.id)
+        except Exception:
+            logger.debug("TTFP start belgisi qo'yilmadi (user=%s)", user.id)
+
     # 🚀 BIRINCHI MARTA kirgan foydalanuvchi (bazada yangi yozuv yaratildi) —
     # qisqa, harakatga undovchi onboarding matni + 2 daqiqalik Instant-Value
     # Onboarding qadamlari ko'rsatiladi. Qayta kirganda (/start) esa odatdagi
@@ -354,6 +406,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
     else:
         greeting = get_text("start_hello", lang, name=html_escape(user.first_name))
+    # 🚪 Taklif kodi bilan kirgan yangi foydalanuvchi uchun tasdiq qatori.
+    if is_new and (gate_decision or {}).get("reason") == "invite_code":
+        greeting = get_text("beta_code_accepted", lang) + "\n\n" + greeting
     # 🆕 YANGI FOYDALANUVCHI (ro'yxatdan o'tganiga 3 kundan kam YOKI hali 3 ta
     # post chiqarmagan) — murakkab 6 talik menyu o'rniga 3 ta katta tugmali
     # sodda klaviatura + qisqa yo'riqnoma. "⚙️ To'liq menyuni ochish" bosilsa

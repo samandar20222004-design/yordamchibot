@@ -444,6 +444,60 @@ def get_all_user_ids() -> list:
         return []
 
 
+def get_retention_cohort(days: int = 30, limit: int = 5000) -> list:
+    """SPRINT 4 — onboarding/retention kohortasi (TTFP + D1/D7 uchun xom qatorlar).
+
+    Har bir foydalanuvchi uchun: ro'yxatdan o'tish (``created_at``), oxirgi
+    faollik (``last_active_at``) va BIRINCHI post vaqti
+    (``scheduled_posts.created_at`` ning eng kichigi). Yangi jadval YO'Q —
+    mavjud ma'lumotlardan o'qiladi, hisob-kitob
+    ``services.onboarding_telemetry`` da (pure funksiyalar).
+
+    Returns:
+        ``[{"user_id", "created_at", "last_active_at", "first_post_at"}, ...]``
+        (xatoda — bo'sh ro'yxat; statistika ekrani yiqilmaydi).
+    """
+    try:
+        window = max(1, min(int(days), 365))
+    except (TypeError, ValueError):
+        window = 30
+    try:
+        safe_limit = max(1, min(int(limit), 50_000))
+    except (TypeError, ValueError):
+        safe_limit = 5000
+    try:
+        with db_cursor() as cur:
+            cur.execute(
+                """
+                SELECT u.user_id, u.created_at, u.last_active_at, fp.first_post_at
+                  FROM users u
+                  LEFT JOIN LATERAL (
+                        SELECT MIN(sp.created_at) AS first_post_at
+                          FROM scheduled_posts sp
+                         WHERE sp.user_id = u.user_id
+                  ) fp ON TRUE
+                 WHERE u.created_at >= NOW() - make_interval(days => %s)
+                   AND u.deleted_at IS NULL
+                 ORDER BY u.created_at DESC
+                 LIMIT %s
+                """,
+                (window, safe_limit),
+            )
+            rows = cur.fetchall() or []
+        return [
+            {
+                "user_id": row[0],
+                "created_at": row[1],
+                "last_active_at": row[2],
+                "first_post_at": row[3],
+            }
+            for row in rows
+        ]
+    except Exception as e:
+        logger.warning(f"Retention kohortasini olish xatosi: {e}")
+        return []
+
+
 def get_user_language(user_id: int) -> str:
     """Foydalanuvchi tilini qaytaradi ('uz' yoki 'ru'). Topilmasa 'uz'."""
     cache_key = f"user_lang:{user_id}"

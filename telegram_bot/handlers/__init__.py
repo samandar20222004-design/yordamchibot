@@ -446,6 +446,14 @@ from handlers.queue import (
 # 13. 🩺 TIZIM HOLATI MONITORINGI (7-BOSQICH)
 from handlers.health import health_command
 
+# 13b. 🚪💰 SPRINT 4 — YOPIQ BETA DARVOZASI + UNIT ECONOMICS.
+# ``/beta`` — beta rejimi, taklif kodlari va tasdiqlash (faqat admin);
+# ``/economics`` — AI xarajati va PRO tarif rentabelligi (faqat admin).
+# Ikkala modul ham faqat admin buyruqlari bilan ishlaydi (qo'shimcha
+# conversation/FSM yo'q — mavjud oqimlar o'zgarmaydi).
+from handlers.beta_access import beta_admin_command
+from handlers.economics import economics_command
+
 import database as db
 from handlers.photo_check import (
     register as register_photo_check,
@@ -2053,6 +2061,11 @@ def _register_global_commands(app):
     app.add_handler(CommandHandler("delrole", admin_del_role_command))
     # 🖼 /ai — AI Studio'ni ochadi; shundan keyin rasm yuborilsa Vision ishlaydi
     app.add_handler(CommandHandler("ai", lambda u, c: guard_entry(u, c, ai_studio_menu_entry)))
+    # 🚪 SPRINT 4 — yopiq beta darvozasi (faqat admin): rejim, kodlar,
+    # navbatdagi so'rovlarni tasdiqlash/rad etish.
+    app.add_handler(CommandHandler("beta", beta_admin_command))
+    # 💰 SPRINT 4 — unit economics: AI xarajati, o'rtacha sarf va PRO marjasi.
+    app.add_handler(CommandHandler("economics", economics_command))
 
     # Stars to'lov handlerlari — Telegram Stars (XTR) to'lovlari uchun.
     # BotSubscriptionUpdated alohida Update.subscription maydoni bilan keladi;
