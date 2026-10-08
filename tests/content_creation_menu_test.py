@@ -812,13 +812,48 @@ def test_action_first_entry_points():
 def test_regression_guards():
     print("\n== TEST 6: regressiya qo'riqonlari (mavjud oqimlar buzilmagan) ==")
     src = (ROOT / "handlers/__init__.py").read_text(encoding="utf-8")
-    body = src.split("def register_all_handlers(app):", 1)[1]
+    # SPRINT 2 (VAZIFA 2): `register_all_handlers` endi faqat orkestratsiya
+    # qiladi — haqiqiy mazmun (navigatsiya ro'yxatlari, asosiy FSM, barcha
+    # `app.add_handler(...)` chaqiruvlari) `_build_all_menu_jumps` dan
+    # boshlanib `register_all_handlers` bilan tugaydigan bitta uzluksiz
+    # funksiyalar blokida joylashgan (fayl oxirigacha). Shu sababli skanerlash
+    # shu blokning BOSHIDAN olinadi, faqat `register_all_handlers`dan emas.
+    body = src.split("def _build_all_menu_jumps():", 1)[1]
 
     # Fallback ENG oxirida qolishi shart (speks talabi).
-    i_fallback = body.rfind("unknown_message_fallback")
-    i_last_add = body.rfind("app.add_handler(")
+    # SPRINT 2: haqiqiy `app.add_handler(...)` chaqiruvlari endi bir nechta
+    # `_register_*` sub-funksiyalariga bo'lingan; shuning uchun TEKSHIRUV
+    # ikki bosqichli: (1) `unknown_message_fallback` o'z funksiyasi —
+    # `_register_channel_realtime_and_fallback` — ICHIDA eng oxirgi
+    # `app.add_handler(` bo'lishi, VA (2) o'sha funksiya
+    # `register_all_handlers` orkestratorida ENG OXIRGI chaqiriluvchi
+    # `_register_*` funksiyasi bo'lishi shart.
+    fn_marker = "def _register_channel_realtime_and_fallback(app):"
+    i_fn = body.find(fn_marker)
+    i_fn_end = body.find("\ndef ", i_fn + 1) if i_fn != -1 else -1
+    fn_body = body[i_fn:i_fn_end] if i_fn != -1 and i_fn_end != -1 else body[i_fn:]
+    i_fallback = fn_body.rfind("unknown_message_fallback")
+    i_last_add = fn_body.rfind("app.add_handler(")
+    orchestrator_marker = "def register_all_handlers(app):"
+    i_orch = body.find(orchestrator_marker)
+    orchestrator_body = body[i_orch:] if i_orch != -1 else ""
+    last_register_call = max(
+        orchestrator_body.rfind(name)
+        for name in (
+            "_register_global_commands(app)",
+            "_register_global_menu_fallback_handlers(app",
+            "_register_content_and_queue_callbacks(app)",
+            "_register_channel_callbacks(app)",
+            "_register_ai_and_media_callbacks(app)",
+            "_register_settings_and_support_callbacks(app)",
+        )
+    )
+    i_fallback_fn_call = orchestrator_body.rfind("_register_channel_realtime_and_fallback(app)")
     check("unknown_message_fallback oxirgi add_handler",
-          i_last_add < i_fallback and i_fallback != -1)
+          i_fn != -1
+          and i_last_add < i_fallback and i_fallback != -1
+          and i_fallback_fn_call != -1
+          and i_fallback_fn_call > last_register_call)
     check("post_score_handlers all_menu_jumps ichida", "post_score_handlers +" in body)
     check("birlashtirilgan submenu guruhi all_menu_jumps ichida",
           "content_creation_handlers +" in body)

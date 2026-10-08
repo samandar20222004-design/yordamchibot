@@ -25,6 +25,7 @@ from config import (
 import database as db
 from services.delivery import delivery_service
 from services import lifecycle_service as lifecycle
+from services import event_tracker
 from services.cleanup_service import cleanup_old_records
 from keyboards.inline import (
     normalize_custom_reaction_emojis,
@@ -1296,7 +1297,20 @@ def _delivery_retry_delay(result, fallback: float) -> float:
     return float(fallback)
 
 
-async def _execute_send(bot, post):
+async def _send_precheck_and_claim(bot, post):
+    """1/3 — PRE-SEND CHECKS & DEDUP VERIFICATION (SPRINT 2 decomposition).
+
+    ``_execute_send`` avvalgi 360+ qatorlik monolitining BIRINCHI mas'uliyati:
+    idempotentlik guard'i, holatni "processing" belgilash va delivery claim
+    (atomik bron — 0 duplikat kafolati). Hech narsa Telegramga YUBORILMAYDI.
+
+    Returns:
+        ``None`` — chaqiruvchi SHU YERDA to'xtashi kerak (post allaqachon
+        yuborilgan / boshqa worker claim qilgan / retry kutilmoqda va h.k.,
+        asl monolit xatti-harakati bilan AYNAN bir xil).
+        ``dict`` ("ctx") — keyingi ikki bosqich (payload va post-send) uchun
+        kerakli barcha holat.
+    """
     (
         post_id, user_id, channel_id, post_type, content, file_id,
         btn_text, btn_url, enable_reactions, scheduled_time,
@@ -1313,7 +1327,7 @@ async def _execute_send(bot, post):
             post_id,
         )
         await _persist_sent_marker(_UNPERSISTED_SENT[int(post_id)], retry_delays=())
-        return
+        return None
 
     # Legacy adapters may return None for posts without delivery settings.
     # Database exceptions still propagate; never hide a failed settings read.
@@ -1348,7 +1362,7 @@ async def _execute_send(bot, post):
         claim_status = delivery_claim.get("status")
         if delivery_claim.get("sent") or claim_status == "sent":
             await db.run_db(db.mark_post_status, post_id, "posted")
-            return
+            return None
         if _delivery_is_dead(delivery_claim):
             # Doimiy xato yoki urinishlar tugagan — post hech qachon
             # yuborilmaydi, navbatda ('processing') qolib ketmasligi uchun
@@ -1357,7 +1371,7 @@ async def _execute_send(bot, post):
                 "Post %s delivery'si dead_letter — qayta urinilmaydi.", post_id,
             )
             await db.run_db(db.mark_post_status, post_id, "failed")
-            return
+            return None
         if _delivery_is_unknown(delivery_claim):
             # UNKNOWN_DELIVERY: avvalgi urinishda Telegram javobi olinmagan —
             # xabar kanalda bo'lishi mumkin. Blind retry TAQIQLANADI.
@@ -1366,18 +1380,18 @@ async def _execute_send(bot, post):
                 post_id,
             )
             await db.run_db(db.mark_post_status, post_id, UNKNOWN_DELIVERY)
-            return
+            return None
         if not delivery_claim.get("claimed"):
             if claim_status == "processing":
                 # Boshqa scheduler instance hozir yuborayotgan bo'lishi mumkin.
-                return
+                return None
             if delivery_claim.get("retry_pending"):
                 # Backoff hali o'tmagan — postni retry vaqtiga qaytaramiz.
                 retry_at = delivery_claim.get("next_retry_at") or (
                     now_tashkent() + timedelta(seconds=NETWORK_RETRY_DELAY)
                 )
                 await db.run_db(db.retry_post, post_id, retry_at)
-                return
+                return None
             raise RuntimeError(
                 f"Delivery claim bajarilmadi (Post ID: {post_id}, "
                 f"status={claim_status})"
@@ -1388,6 +1402,81 @@ async def _execute_send(bot, post):
     elif delivery_claim is True:
         # Minimal fake/legacy DB adapterlari uchun ham marker ishlaydi.
         delivery_marker_key = delivery_key
+
+    return {
+        "post_id": post_id, "user_id": user_id, "channel_id": channel_id,
+        "post_type": post_type, "content": content, "file_id": file_id,
+        "btn_text": btn_text, "btn_url": btn_url,
+        "enable_reactions": enable_reactions, "scheduled_time": scheduled_time,
+        "recurrence_type": recurrence_type, "recurrence_day": recurrence_day,
+        "recurrence_time": recurrence_time, "end_date": end_date,
+        "delete_after_hours": delete_after_hours, "reaction_emojis": reaction_emojis,
+        "delivery_options": delivery_options, "delivery_kwargs": delivery_kwargs,
+        "delivery_key": delivery_key, "delivery_marker_key": delivery_marker_key,
+        "delivery_claim": delivery_claim,
+        "delivery_claim_verify_attempt": delivery_claim_verify_attempt,
+    }
+
+
+async def _verify_no_duplicate_before_send(bot, ctx: dict, final_content: str) -> bool:
+    """1b/3 — YUBORISHDAN OLDIN DEDUP TEKSHIRUVI (pre-send checks guruhi).
+
+    Avvalgi urinish TimedOut/NetworkError bilan noaniq qolgan bo'lsa (delivery
+    ``AMBIGUOUS_VERIFY`` markeri), Telegramga YUBORMASDAN avval kanal
+    tekshiriladi: post allaqachon chiqqan bo'lsa — DELIVERED (dublikat YO'Q),
+    yo'qligi tasdiqlansa — xavfsiz yuborish davom etadi.
+
+    Returns:
+        ``True`` — xavfsiz, yuborish davom etishi mumkin.
+        ``False`` — chaqiruvchi SHU YERDA to'xtashi kerak (allaqachon
+        yuborilgan yoki hali noaniq).
+    """
+    delivery_marker_key = ctx["delivery_marker_key"]
+    delivery_claim = ctx["delivery_claim"]
+    if not (delivery_marker_key and delivery_service.delivery_verify_pending(
+            delivery_claim.get("last_error") if isinstance(delivery_claim, dict) else None)):
+        return True
+
+    gate_attempt = ctx["delivery_claim_verify_attempt"] + 1
+    gate_outcome = await _resolve_ambiguous_delivery(
+        bot, ctx["post_id"], ctx["channel_id"], ctx["post_type"], final_content, ctx["file_id"],
+        delivery_marker_key, gate_attempt,
+        RuntimeError("ambiguous delivery (verify pending)"),
+    )
+    if gate_outcome == "delivered":
+        logger.warning(
+            "Post %s: kanal tekshiruvi post ALLAQACHON kanalda ekanini aniqladi — "
+            "qayta yuborilmaydi (0 duplikat).", ctx["post_id"],
+        )
+        return False
+    if gate_outcome in ("pending", "unknown"):
+        return False
+    # "ready" — post kanalda YO'Q ekani tasdiqlandi: xavfsiz yuborish.
+    return True
+
+
+async def _build_send_payload(ctx: dict):
+    """2/3 — PAYLOAD FORMATTING & MEDIA HANDLING (SPRINT 2 decomposition).
+
+    Tugmalar (link/reklama/reaksiya), watermark, ichki texnik qatorlarni
+    tozalash va Telegram caption/matn limitiga moslashtirilgan YAKUNIY matn
+    shu yerda tayyorlanadi. Haqiqiy Telegram API chaqiruvi bu yerda
+    QILINMAYDI (buning uchun :func:`_dispatch_post_to_telegram`).
+
+    Returns:
+        ``None`` — matn tayyorlashda xato (post 'failed' deb belgilandi,
+        chaqiruvchi shu yerda to'xtaydi).
+        ``dict`` — ``reply_markup``, ``final_content``, ``text_limit``.
+    """
+    post_id = ctx["post_id"]
+    user_id = ctx["user_id"]
+    channel_id = ctx["channel_id"]
+    post_type = ctx["post_type"]
+    content = ctx["content"]
+    btn_text = ctx["btn_text"]
+    btn_url = ctx["btn_url"]
+    enable_reactions = ctx["enable_reactions"]
+    reaction_emojis = ctx["reaction_emojis"]
 
     buttons = []
     if btn_text and btn_url:
@@ -1438,60 +1527,171 @@ async def _execute_send(bot, post):
     # WATERMARK: Bepul foydalanuvchilar postlariga bot username qo'shish
     watermarked_content = await apply_post_watermark(clean_content, user_id, BOT_USERNAME)
 
-    sent_msg = None
-    extra_ids = []
-    # Albom (media group) uchun: Telegram API chaqiruvi BOSHLANGAN, lekin javob
-    # kelmagan bo'lsa (TimedOut/NetworkError) — xabar chiqqan bo'lishi mumkin.
-    album_api_started = False
-    # P0: kanal tekshiruvi (fingerprint) uchun YAKUNIY kanal matni; xato
-    # yuborishdan oldin ham yuz bersa qiymat bo'sh qolmasligi uchun oldindan
-    # e'lon qilinadi.
-    final_content = ""
+    # Telegram caption limiti 1024, oddiy matn limiti 4096 belgidan iborat.
+    # Limit compose_post_text ichida qo'llanadi — nishon kesishdan KEYIN
+    # qo'shiladi, shuning uchun u hech qachon kesilib ketmaydi.
+    pt_for_limit = str(post_type).lower()
+    text_limit = (
+        TELEGRAM_CAPTION_LIMIT if pt_for_limit in
+        ("photo", "video", "animation", "document", "audio", "voice", "album")
+        else TELEGRAM_TEXT_LIMIT
+    )
     try:
-        # Telegram caption limiti 1024, oddiy matn limiti 4096 belgidan iborat.
-        # Limit compose_post_text ichida qo'llanadi — nishon kesishdan KEYIN
-        # qo'shiladi, shuning uchun u hech qachon kesilib ketmaydi.
-        pt_for_limit = str(post_type).lower()
-        text_limit = (
-            TELEGRAM_CAPTION_LIMIT if pt_for_limit in
-            ("photo", "video", "animation", "document", "audio", "voice", "album")
-            else TELEGRAM_TEXT_LIMIT
-        )
         final_content = compose_post_text(
             watermarked_content, has_ad_free, channel_ad, brand_text, limit=text_limit
         )
     except Exception:
         logger.exception("Post matnini tayyorlashda xatolik (Post ID: %s)", post_id)
         await db.run_db(db.mark_post_status, post_id, "failed")
+        return None
+
+    return {
+        "reply_markup": reply_markup,
+        "final_content": final_content,
+        "text_limit": text_limit,
+    }
+
+
+async def _dispatch_post_to_telegram(bot, ctx: dict, payload: dict, send_state: dict):
+    """2b/3 — MEDIA TURI BO'YICHA YUBORISH (payload/media handling davomi).
+
+    Album/photo/video/... Telegram API chaqiruvlari shu yerda. Xatolarni
+    ATAYLAB ushlamaydi — chaqiruvchi (:func:`_execute_send`) tashqi
+    ``try/except`` zanjirida FloodWait/TimedOut/TelegramError'ni markaziy
+    boshqaradi (xatti-harakat eski monolit bilan bir xil).
+
+    ``send_state`` — o'zgaruvchan konteyner: ``album_api_started`` xato
+    chiqib ketgan taqdirda ham chaqiruvchiga ma'lum bo'lishi uchun (albom
+    ``send_media_group`` chaqiruvi BOSHLANGAN, lekin javob kelmagan bo'lishi
+    mumkin — ambiguous-delivery boshqaruvi shu bayroqqa qaraydi).
+    """
+    post_id = ctx["post_id"]
+    channel_id = ctx["channel_id"]
+    post_type = ctx["post_type"]
+    file_id = ctx["file_id"]
+    delivery_kwargs = ctx["delivery_kwargs"]
+    final_content = payload["final_content"]
+    text_limit = payload["text_limit"]
+    reply_markup = payload["reply_markup"]
+
+    pt = str(post_type).lower()
+    target_chat = int(channel_id) if str(channel_id).lstrip('-').isdigit() else channel_id
+
+    safe_final_content, final_parse_mode = telegram_html_payload(final_content or "", text_limit)
+
+    sent_msg = None
+    extra_ids = []
+
+    if pt == "album":
+        items = parse_album_items(file_id)
+        if not items:
+            logger.error("Albom tarkibi bo'sh (Post ID: %s)", post_id)
+            await db.run_db(db.mark_post_status, post_id, "failed")
+            return {"stop": True, "target_chat": target_chat, "sent_msg": None, "extra_ids": []}
+        if len(items) == 1:
+            # Bitta element — oddiy media (tugmalar ishlashi uchun)
+            only = items[0]
+            sent_msg = await _send_single_media(
+                bot, target_chat, only["type"], only["file_id"], safe_final_content, reply_markup, final_parse_mode, **delivery_kwargs
+            )
+        else:
+            media = _build_album_media(items, final_content)
+            send_state["album_api_started"] = True
+            sent_group = await _delivery_send(bot, "send_media_group", chat_id=target_chat, **delivery_kwargs, media=media)
+            send_state["album_api_started"] = False
+            sent_msg = sent_group[0] if sent_group else None
+            extra_ids = [m.message_id for m in (sent_group or [])[1:] if getattr(m, "message_id", None)]
+            # sendMediaGroup reply_markup'ni qo'llab quvvatlamaydi — tugmalarni alohida xabar
+            if reply_markup:
+                follow = await _delivery_send(
+                    bot, "send_message",
+                    chat_id=target_chat, **delivery_kwargs, text="🔗", reply_markup=reply_markup
+                )
+                if follow and follow.message_id:
+                    extra_ids.append(follow.message_id)
+    elif pt == "photo":
+        sent_msg = await _delivery_send(bot, "send_photo", chat_id=target_chat, **delivery_kwargs, photo=file_id, caption=safe_final_content, reply_markup=reply_markup, parse_mode=final_parse_mode)
+    elif pt == "video":
+        sent_msg = await _delivery_send(bot, "send_video", chat_id=target_chat, **delivery_kwargs, video=file_id, caption=safe_final_content, reply_markup=reply_markup, parse_mode=final_parse_mode)
+    elif pt == "animation":
+        sent_msg = await _delivery_send(bot, "send_animation", chat_id=target_chat, **delivery_kwargs, animation=file_id, caption=safe_final_content, reply_markup=reply_markup, parse_mode=final_parse_mode)
+    elif pt == "document":
+        sent_msg = await _delivery_send(bot, "send_document", chat_id=target_chat, **delivery_kwargs, document=file_id, caption=safe_final_content, reply_markup=reply_markup, parse_mode=final_parse_mode)
+    elif pt == "audio":
+        sent_msg = await _delivery_send(bot, "send_audio", chat_id=target_chat, **delivery_kwargs, audio=file_id, caption=safe_final_content, reply_markup=reply_markup, parse_mode=final_parse_mode)
+    elif pt == "voice":
+        sent_msg = await _delivery_send(bot, "send_voice", chat_id=target_chat, **delivery_kwargs, voice=file_id, caption=safe_final_content, reply_markup=reply_markup, parse_mode=final_parse_mode)
+    elif pt == "sticker":
+        sent_msg = await _delivery_send(
+            bot, "send_sticker",
+            chat_id=target_chat, **delivery_kwargs, sticker=file_id, reply_markup=reply_markup
+        )
+    else:
+        sent_msg = await _delivery_send(bot, "send_message", chat_id=target_chat, **delivery_kwargs, text=safe_final_content or " ", reply_markup=reply_markup, parse_mode=final_parse_mode)
+
+    return {"stop": False, "target_chat": target_chat, "sent_msg": sent_msg, "extra_ids": extra_ids}
+
+
+async def _finalize_sent_post(bot, ctx: dict, sent_marker: dict, sent_msg_id, target_chat) -> None:
+    """3/3 — POST-SEND STATE UPDATE & ANALYTICS TRIGGER (SPRINT 2 decomposition).
+
+    Telegramga muvaffaqiyatli yuborilgandan KEYIN bajariladigan ishlar:
+    doimiy marker yozish (``posted`` + ``sent_message_id`` + takrorlash
+    rejasi), ixtiyoriy auto-pin va YENGIL/ASINXRON foydalanuvchi hodisasi
+    (``services.event_tracker``) — qaysi post turlari ko'p yuborilayotganini
+    kuzatish uchun. Hech qachon istisno otmaydi (eski monolit kafolati
+    saqlanadi — yuborilgan post hech qachon qayta navbatga tushmaydi).
+    """
+    await _persist_sent_marker(sent_marker)
+    if sent_msg_id and ctx["delivery_options"].get("auto_pin") is True:
+        try:
+            await bot.pin_chat_message(
+                chat_id=target_chat, message_id=sent_msg_id, disable_notification=True
+            )
+        except Exception:
+            # Pinning failure must never retry an already delivered post.
+            logger.warning("Auto-pin failed (Post ID: %s)", ctx["post_id"], exc_info=True)
+
+    # 📊 SPRINT 2 (VAZIFA 3) — engil/asinxron analitika: qaysi post turi
+    # qancha yuborilgani (shu orqali eng ko'p/kam ishlatilgan formatlar
+    # keyinchalik ``event_tracker.usage_report()`` bilan aniqlanadi).
+    event_tracker.track(ctx["user_id"], f"post_sent:{str(ctx['post_type']).lower()}")
+
+
+async def _execute_send(bot, post):
+    """Postni Telegramga yetkazish — 3 bosqichli orkestrator (SPRINT 2):
+
+      1) :func:`_send_precheck_and_claim` — idempotentlik, holat, delivery
+         claim (+ :func:`_verify_no_duplicate_before_send` — dedup gate);
+      2) :func:`_build_send_payload` + :func:`_dispatch_post_to_telegram` —
+         kontent/tugmalar tayyorlash va media turi bo'yicha Telegram API
+         chaqiruvi;
+      3) :func:`_finalize_sent_post` — doimiy marker, auto-pin, analitika.
+
+    Xatti-harakat avvalgi (monolit) ``_execute_send`` bilan AYNAN bir xil —
+    bu FAQAT kod tashkilotini (Single Responsibility) yaxshilaydi.
+    """
+    ctx = await _send_precheck_and_claim(bot, post)
+    if ctx is None:
         return
 
+    payload = await _build_send_payload(ctx)
+    if payload is None:
+        return
+
+    final_content = payload["final_content"]
+
     # ── P0 (VAZIFA 2): YUBORISHDAN OLDIN DEDUP TEKSHIRUVI ──────────────────
-    # Avvalgi urinish TimedOut/NetworkError bilan noaniq qolgan bo'lsa
-    # (delivery'da AMBIGUOUS_VERIFY markeri), Telegramga YUBORMASDAN avval
-    # kanal tekshiriladi: post allaqachon chiqqan bo'lsa — DELIVERED
-    # (dublikat YO'Q), yo'qligi tasdiqlansa — xavfsiz yuborish davom etadi.
-    if delivery_marker_key and delivery_service.delivery_verify_pending(
-            delivery_claim.get("last_error") if isinstance(delivery_claim, dict) else None):
-        gate_attempt = delivery_claim_verify_attempt + 1
-        gate_outcome = await _resolve_ambiguous_delivery(
-            bot, post_id, channel_id, post_type, final_content, file_id,
-            delivery_marker_key, gate_attempt,
-            RuntimeError("ambiguous delivery (verify pending)"),
-        )
-        if gate_outcome == "delivered":
-            logger.warning(
-                "Post %s: kanal tekshiruvi post ALLAQACHON kanalda ekanini aniqladi — "
-                "qayta yuborilmaydi (0 duplikat).", post_id,
-            )
-            return
-        if gate_outcome in ("pending", "unknown"):
-            return
-        # "ready" — post kanalda YO'Q ekani tasdiqlandi: xavfsiz yuborish.
+    if not await _verify_no_duplicate_before_send(bot, ctx, final_content):
+        return
 
     # ── P0: IDEMPOTENT DELIVERY LOCK ───────────────────────────────────────
     # DB claim allaqachon atomik; bu qo'shimcha qatlam bir jarayondagi
     # tasklar (va Redis mavjud bo'lsa — instansiyalar) orasida bir xil postni
     # IKKI MARTA yuborishni to'sadi.
+    delivery_key = ctx["delivery_key"]
+    delivery_marker_key = ctx["delivery_marker_key"]
+    post_id = ctx["post_id"]
     delivery_lock_key = delivery_marker_key or delivery_key
     lock_token = await delivery_service.acquire_delivery_lock(delivery_lock_key)
     if lock_token is None:
@@ -1507,58 +1707,17 @@ async def _execute_send(bot, post):
         )
         return
 
+    send_state = {"album_api_started": False}
+    sent_marker = None
+    sent_msg_id = None
+    target_chat = None
     try:
-        pt = str(post_type).lower()
-        target_chat = int(channel_id) if str(channel_id).lstrip('-').isdigit() else channel_id
-
-        safe_final_content, final_parse_mode = telegram_html_payload(final_content or "", text_limit)
-
-        if pt == "album":
-            items = parse_album_items(file_id)
-            if not items:
-                logger.error("Albom tarkibi bo'sh (Post ID: %s)", post_id)
-                await db.run_db(db.mark_post_status, post_id, "failed")
-                return
-            if len(items) == 1:
-                # Bitta element — oddiy media (tugmalar ishlashi uchun)
-                only = items[0]
-                sent_msg = await _send_single_media(
-                    bot, target_chat, only["type"], only["file_id"], safe_final_content, reply_markup, final_parse_mode, **delivery_kwargs
-                )
-            else:
-                media = _build_album_media(items, final_content)
-                album_api_started = True
-                sent_group = await _delivery_send(bot, "send_media_group", chat_id=target_chat, **delivery_kwargs, media=media)
-                album_api_started = False
-                sent_msg = sent_group[0] if sent_group else None
-                extra_ids = [m.message_id for m in (sent_group or [])[1:] if getattr(m, "message_id", None)]
-                # sendMediaGroup reply_markup'ni qo'llab quvvatlamaydi — tugmalarni alohida xabar
-                if reply_markup:
-                    follow = await _delivery_send(
-                        bot, "send_message",
-                        chat_id=target_chat, **delivery_kwargs, text="🔗", reply_markup=reply_markup
-                    )
-                    if follow and follow.message_id:
-                        extra_ids.append(follow.message_id)
-        elif pt == "photo":
-            sent_msg = await _delivery_send(bot, "send_photo", chat_id=target_chat, **delivery_kwargs, photo=file_id, caption=safe_final_content, reply_markup=reply_markup, parse_mode=final_parse_mode)
-        elif pt == "video":
-            sent_msg = await _delivery_send(bot, "send_video", chat_id=target_chat, **delivery_kwargs, video=file_id, caption=safe_final_content, reply_markup=reply_markup, parse_mode=final_parse_mode)
-        elif pt == "animation":
-            sent_msg = await _delivery_send(bot, "send_animation", chat_id=target_chat, **delivery_kwargs, animation=file_id, caption=safe_final_content, reply_markup=reply_markup, parse_mode=final_parse_mode)
-        elif pt == "document":
-            sent_msg = await _delivery_send(bot, "send_document", chat_id=target_chat, **delivery_kwargs, document=file_id, caption=safe_final_content, reply_markup=reply_markup, parse_mode=final_parse_mode)
-        elif pt == "audio":
-            sent_msg = await _delivery_send(bot, "send_audio", chat_id=target_chat, **delivery_kwargs, audio=file_id, caption=safe_final_content, reply_markup=reply_markup, parse_mode=final_parse_mode)
-        elif pt == "voice":
-            sent_msg = await _delivery_send(bot, "send_voice", chat_id=target_chat, **delivery_kwargs, voice=file_id, caption=safe_final_content, reply_markup=reply_markup, parse_mode=final_parse_mode)
-        elif pt == "sticker":
-            sent_msg = await _delivery_send(
-                bot, "send_sticker",
-                chat_id=target_chat, **delivery_kwargs, sticker=file_id, reply_markup=reply_markup
-            )
-        else:
-            sent_msg = await _delivery_send(bot, "send_message", chat_id=target_chat, **delivery_kwargs, text=safe_final_content or " ", reply_markup=reply_markup, parse_mode=final_parse_mode)
+        dispatch_result = await _dispatch_post_to_telegram(bot, ctx, payload, send_state)
+        if dispatch_result["stop"]:
+            return
+        target_chat = dispatch_result["target_chat"]
+        sent_msg = dispatch_result["sent_msg"]
+        extra_ids = dispatch_result["extra_ids"]
 
         sent_msg_id = sent_msg.message_id if sent_msg else None
         # Post Telegramga muvaffaqiyatli yuborildi! Bundan keyin HECH QANDAY
@@ -1566,8 +1725,8 @@ async def _execute_send(bot, post):
         # marker (posted + sent_message_id + takrorlash rejasi) backoff bilan
         # yoziladi; yozilmasa xotira/journal guard'ida qoladi.
         sent_marker = _build_sent_marker(
-            post_id, sent_msg_id, channel_id, delete_after_hours, extra_ids,
-            recurrence_type, recurrence_day, recurrence_time, end_date,
+            post_id, sent_msg_id, ctx["channel_id"], ctx["delete_after_hours"], extra_ids,
+            ctx["recurrence_type"], ctx["recurrence_day"], ctx["recurrence_time"], ctx["end_date"],
             delivery_marker_key,
         )
 
@@ -1581,13 +1740,13 @@ async def _execute_send(bot, post):
         wait_seconds = flood_wait_seconds(e)
         logger.warning(
             "Telegram FloodWait (Post ID: %s, kanal %s): post %.0fs ga kechiktiriladi",
-            post_id, channel_id, wait_seconds,
+            post_id, ctx["channel_id"], wait_seconds,
         )
         # Scheduler BLOKLANMAYDI: kanal sovutishga qo'yiladi, tick ichida faqat
         # qisqa pauza; to'liq kutish DB'dagi retry vaqtida.
         inline_sleep = flood_wait_inline_sleep(wait_seconds)
         mark_channel_flood(
-            channel_id, wait_seconds + FLOOD_WAIT_SAFETY_SECONDS
+            ctx["channel_id"], wait_seconds + FLOOD_WAIT_SAFETY_SECONDS
         )
         await asyncio.sleep(inline_sleep)
         if _delivery_is_dead(delivery_result):
@@ -1611,9 +1770,9 @@ async def _execute_send(bot, post):
         # topilsa DELIVERED, yo'qligi tasdiqlansa xavfsiz retry, aks holda
         # verify_pending (yuborilmaydi) → urinishlar tugagach UNKNOWN.
         await _handle_ambiguous_send_error(
-            bot, post_id, channel_id, post_type, final_content, file_id,
-            delivery_key, delivery_marker_key, album_api_started, e,
-            verify_attempt=delivery_claim_verify_attempt,
+            bot, post_id, ctx["channel_id"], ctx["post_type"], final_content, ctx["file_id"],
+            delivery_key, delivery_marker_key, send_state["album_api_started"], e,
+            verify_attempt=ctx["delivery_claim_verify_attempt"],
         )
         return
     except TelegramError as e:
@@ -1647,18 +1806,7 @@ async def _execute_send(bot, post):
         # marker yozilgunga qadar qo'shimcha himoya bo'lib qoladi.
         await delivery_service.release_delivery_lock(delivery_lock_key, lock_token)
 
-    # Yuborildi → marker (posted / takrorlanuvchi: keyingi vaqt + pending /
-    # muddati tugagan: completed). Hech qachon istisno tashlamaydi — shuning
-    # uchun yuborilgan post hech qachon _requeue_post ga tushmaydi.
-    await _persist_sent_marker(sent_marker)
-    if sent_msg_id and delivery_options.get("auto_pin") is True:
-        try:
-            await bot.pin_chat_message(
-                chat_id=target_chat, message_id=sent_msg_id, disable_notification=True
-            )
-        except Exception:
-            # Pinning failure must never retry an already delivered post.
-            logger.warning("Auto-pin failed (Post ID: %s)", post_id, exc_info=True)
+    await _finalize_sent_post(bot, ctx, sent_marker, sent_msg_id, target_chat)
 
 
 async def _send_single_media(bot, target_chat, kind, file_id, caption, reply_markup, parse_mode="HTML", **delivery_kwargs):

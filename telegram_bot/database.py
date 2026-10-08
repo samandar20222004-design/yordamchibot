@@ -2152,10 +2152,62 @@ def _verify_schema(cur) -> None:
         ok = sum(1 for v in validated.values() if v in ("ok", "validated"))
         logger.info("Integrity VALIDATE: %d/%d tayyor.", ok, len(validated))
 
+def _schema_bootstrap_complete(cur) -> bool:
+    """Arzon (keshlanadigan) tekshiruv: barcha kutilgan jadval/indekslar bor.
+
+    SPRINT 2 (P1 PERFORMANCE) — ``_init_db_once`` ichidagi 700+ qatorlik
+    zaxira DDL bloki (``CREATE TABLE/INDEX IF NOT EXISTS``) mantiqan
+    idempotent bo'lsa-da, Postgres HAR BIR startda ularning barchasini
+    katalogdan qayta tekshiradi — bu normal (schema.sql allaqachon
+    qo'llangan) holatda ortiqcha yuk. Shu funksiya ikkita yengil ``SELECT``
+    so'rovi bilan "sxema allaqachon to'liqmi?" deb so'raydi; ``True`` bo'lsa
+    chaqiruvchi og'ir zaxira blokini BUTUNLAY o'tkazib yuboradi va faqat
+    ``_verify_schema`` (yana ham yengilroq, final tasdiqlash) ishga tushadi.
+    Birinchi (yangi baza) ishga tushganda yoki biror jadval/indeks hali
+    yo'q bo'lsa — ``False`` qaytadi va to'liq DDL zanjiri avvalgidek ishlaydi
+    (hech qanday xatti-harakat regressiyasi yo'q, faqat TAKRORIY ishni
+    keshlash).
+    """
+    try:
+        cur.execute(
+            "SELECT table_name FROM information_schema.tables "
+            "WHERE table_schema = current_schema()"
+        )
+        tables = {row[0] for row in cur.fetchall()}
+        required_tables = (*EXPECTED_TABLES, *REQUIRED_P0_TABLES, *AI_USAGE_TABLES)
+        if any(t not in tables for t in required_tables):
+            return False
+
+        cur.execute(
+            "SELECT indexname FROM pg_indexes WHERE schemaname = current_schema()"
+        )
+        indexes = {row[0] for row in cur.fetchall()}
+        required_indexes = (
+            *EXPECTED_INDEXES, *REQUIRED_P0_INDEXES, *AI_USAGE_INDEXES,
+            *ANALYTICS_PERFORMANCE_INDEX_NAMES,
+        )
+        if any(i not in indexes for i in required_indexes):
+            return False
+        return True
+    except Exception:
+        # Tekshiruv o'zi muvaffaqiyatsiz bo'lsa — xavfsiz tomonga (to'liq DDL
+        # ishga tushadi), hech qachon bootstrap'ni yashirin tarzda o'tkazib
+        # yubormaydi.
+        return False
+
+
 def _init_db_once():
     with db_cursor(commit=True) as cur:
         # 1) Kanonik sxema — schema.sql (barcha operatorlar idempotent).
         _apply_schema_file(cur)
+
+        # 1b) P1 PERFORMANCE (SPRINT 2): sxema allaqachon to'liq bo'lsa (eng
+        # keng tarqalgan holat — har bir oddiy restart/deploy), 700+
+        # qatorlik zaxira DDL blokini (quyida) BUTUNLAY o'tkazib yuboramiz —
+        # faqat yengil final tekshiruv (``_verify_schema``) ishlaydi.
+        if _schema_bootstrap_complete(cur):
+            _verify_schema(cur)
+            return
 
         # 2) Zaxira ichki DDL: schema.sql fayli topilmasa yoki buzilgan bo'lsa
         # ham baza ishlayverishi uchun saqlanadi.

@@ -210,6 +210,16 @@ def _ensure_scheduler_stubs():
         clean_mod = ModuleType("services.cleanup_service")
         clean_mod.cleanup_old_records = lambda *a, **k: {}
         sys.modules["services.cleanup_service"] = clean_mod
+    # services.event_tracker (SPRINT 2 — VAZIFA 3: yengil/asinxron hodisa
+    # analitikasi; scheduler post-send finalizatsiyada chaqiradi).
+    if "services.event_tracker" not in sys.modules:
+        evt_mod = ModuleType("services.event_tracker")
+        evt_mod.track = lambda *a, **k: None
+        evt_mod.track_sync = lambda *a, **k: None
+        evt_mod.event_name_for = lambda fn: getattr(fn, "__name__", "unknown")
+        sys.modules["services.event_tracker"] = evt_mod
+        sys.modules["services"] = sys.modules.get("services") or ModuleType("services")
+        sys.modules["services"].event_tracker = evt_mod
     # services.delivery (PHASE 5: markaziy Telegram delivery engine).
     # scheduler.py endi yagona engine orqali yuboradi — sandbox yuklashida
     # ham shu modul mavjud bo'lishi shart. State-machine funksiyalari

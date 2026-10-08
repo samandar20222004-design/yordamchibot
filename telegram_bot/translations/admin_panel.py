@@ -433,6 +433,15 @@ ADMIN_PANEL_I18N = {
         "role_not_found": "❌ <code>{user}</code> foydalanuvchida DB'dagi rol topilmadi.",
         "role_denied_grant": "❌ Rol berish/olishni faqat OWNER (bot egasi) bajaradi.",
         "role_denied_revoke": "❌ Rol olishni faqat OWNER (bot egasi) bajaradi.",
+
+        # --- 📊 SPRINT 2 (VAZIFA 3): funksiyalar qo'llanilishi (event tracker) ---
+        "fu_title": "📊 <b>Funksiyalar qo'llanilishi</b>",
+        "fu_total_users": "Jami foydalanuvchi (mahraj): <b>{total}</b>",
+        "fu_empty": "Hali hech qanday hodisa qayd etilmagan.",
+        "fu_most_used_header": "🏆 <b>Eng ko'p ishlatilgan:</b>",
+        "fu_row": "  • {name}: {count}x ({users} user, {rate}%)",
+        "fu_least_used_header": "⚠️ <b>Kam ishlatilmoqda (&lt;{threshold}%):</b>",
+        "fu_row_least": "  • {name}: {users} user ({rate}%)",
     },
 }
 
@@ -833,6 +842,15 @@ ADMIN_PANEL_I18N["ru"] = {
     "role_not_found": "❌ У пользователя <code>{user}</code> роль в БД не найдена.",
     "role_denied_grant": "❌ Выдавать/снимать роли может только OWNER (владелец бота).",
     "role_denied_revoke": "❌ Снимать роли может только OWNER (владелец бота).",
+
+    # --- 📊 СПРИНТ 2 (ЗАДАЧА 3): использование функций (event tracker) ---
+    "fu_title": "📊 <b>Использование функций</b>",
+    "fu_total_users": "Всего пользователей (знаменатель): <b>{total}</b>",
+    "fu_empty": "Пока не зафиксировано ни одного события.",
+    "fu_most_used_header": "🏆 <b>Самые используемые:</b>",
+    "fu_row": "  • {name}: {count}x ({users} user, {rate}%)",
+    "fu_least_used_header": "⚠️ <b>Редко используется (&lt;{threshold}%):</b>",
+    "fu_row_least": "  • {name}: {users} user ({rate}%)",
 }
 
 # ---------------------------------------------------------------------------
@@ -1232,6 +1250,15 @@ ADMIN_PANEL_I18N["en"] = {
     "role_not_found": "❌ User <code>{user}</code> has no role in the database.",
     "role_denied_grant": "❌ Only the OWNER (bot owner) can grant/revoke roles.",
     "role_denied_revoke": "❌ Only the OWNER (bot owner) can revoke roles.",
+
+    # --- 📊 SPRINT 2 (TASK 3): feature usage (event tracker) ---
+    "fu_title": "📊 <b>Feature usage</b>",
+    "fu_total_users": "Total users (denominator): <b>{total}</b>",
+    "fu_empty": "No events recorded yet.",
+    "fu_most_used_header": "🏆 <b>Most used:</b>",
+    "fu_row": "  • {name}: {count}x ({users} user, {rate}%)",
+    "fu_least_used_header": "⚠️ <b>Underused (&lt;{threshold}%):</b>",
+    "fu_row_least": "  • {name}: {users} user ({rate}%)",
 }
 
 

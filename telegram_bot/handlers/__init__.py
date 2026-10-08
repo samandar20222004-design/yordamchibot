@@ -193,6 +193,7 @@ from handlers.admin import (
     start_set_post_tag, post_tag_received,
     admin_stats_command, admin_dashboard_callback, admin_inline_text_handler,
     admin_audit_command, admin_set_role_command, admin_del_role_command,
+    admin_feature_usage_command,
     ad_pool_callback,
     BROADCAST_MESSAGE, ADD_SPONSOR_CHANNEL, SET_CHANNEL_AD, SET_BOT_REPLY_AD,
     AI_SETTINGS, SET_POST_TAG, ADMIN_GRANT_PRO, ADMIN_PROMO_CREATE,
@@ -450,6 +451,7 @@ from utils.helpers import (
 )
 
 from utils.silent_errors import log_silent_failure
+from services import event_tracker
 
 logger = logging.getLogger(__name__)
 
@@ -500,6 +502,14 @@ async def guard_entry(update, context, fn):
     if await _deny_if_unsubscribed(update, context):
         return ConversationHandler.END
 
+    # 📊 EVENT TRACKING (SPRINT 2, VAZIFA 3): ``guard_entry`` barcha asosiy
+    # kirish nuqtalarining (tugma/buyruq) markaziy darvozasi — shu yerda
+    # bitta joyda hodisa yozib qo'yilsa, har bir handler alohida
+    # o'zgartirilmasdan ham qamrov ta'minlanadi. Asinxron, bloklamaydi,
+    # hech qachon asosiy oqimga ta'sir qilmaydi (ichida himoyalangan).
+    if user:
+        event_tracker.track(user.id, event_tracker.event_name_for(fn))
+
     clear_fsm_data(context)
     return await fn(update, context)
 
@@ -522,6 +532,9 @@ async def guard_menu(update, context, fn):
 
     if await _deny_if_unsubscribed(update, context):
         return ConversationHandler.END
+
+    if user:
+        event_tracker.track(user.id, event_tracker.event_name_for(fn))
 
     clear_fsm_data(context)
     await fn(update, context)
@@ -898,15 +911,21 @@ def _admin_flow_state(text_handler, menu_jumps):
     ]
 
 
-def register_all_handlers(app):
-    # 🎙 VoiceEntryHandler va 📸 ImageEntryHandler dialog holatini
-    # tekshirishi uchun Application havolasi.
-    set_voice_application(app)
-    set_image_application(app)
-    # 🧩 «cc_» taklif tugmalari ham faol dialogni buzmasligi uchun app kerak.
-    set_content_creation_application(app)
-    # ✍️ «mnp_» eski panel tugmalari ham faol dialogni buzmasligi uchun.
-    set_manual_application(app)
+def _build_all_menu_jumps():
+    """SPRINT 2 — DECOMPOSITION 1/4: "qat'iy navigatsiya" handlerlari ro'yxati.
+
+    Har bir funksional guruh (start/navigatsiya, yangi post, onboarding,
+    kanallar, kutilayotgan postlar, konverter, admin, AI, kontent reja,
+    analitika, obuna, extract, navbat) o'z ro'yxatini quradi; ularning
+    BARCHASI ``all_menu_jumps`` ga birlashtiriladi — bu ro'yxat asosiy
+    FSM (:func:`_build_main_conversation_handler`) ning entry_points'i VA
+    har bir holatiga "istalgan joydan menyuga sakrash" sifatida in'ektsiya
+    qilinadi, shuningdek global (conversation tashqarisidagi) ro'yxatga ham
+    qo'shiladi (:func:`_register_global_menu_fallback_handlers`).
+
+    Avvalgi monolit ``register_all_handlers`` bilan AYNAN bir xil ro'yxat —
+    faqat alohida, bitta mas'uliyatli funksiyaga ajratilgan.
+    """
     # ============================================================
     # QAT'IY NAVIGATSIYA HANDLERLARI RO'YXATI
     # ============================================================
@@ -1184,10 +1203,26 @@ def register_all_handlers(app):
         extract_handlers +
         queue_handlers
     )
+    return all_menu_jumps
 
-    # ============================================================
-    # CONVERSATION HANDLER (Asosiy FSM holatlar boshqaruvi)
-    # ============================================================
+
+def _build_main_conversation_handler(all_menu_jumps):
+    """SPRINT 2 — DECOMPOSITION 2/4: asosiy FSM (``ConversationHandler``).
+
+    Botning deyarli barcha bosqichma-bosqich oqimlari (yangi post, AI
+    vositalar, kanal ulash, sozlamalar sehrgarlari va h.k.) shu YAGONA
+    conversation ichida holatlar (``states``) sifatida yashaydi — bu ataylab
+    saqlangan arxitektura qarori (bitta FSM = bitta foydalanuvchi uchun bir
+    vaqtda bitta faol oqim, holatlar orasida "menyuga sakrash" barcha
+    joylarda bir xil ishlaydi). Shu sababli bu funksiya domenlarga
+    (auth/content/channels/...) YANA bo'linmaydi — bu yagona, ichki izchil
+    mas'uliyat (Single Responsibility = "FSM qurish"). Domenlarga bo'lingan
+    qism — conversation TASHQARISIDAGI global handlerlar — pastdagi
+    ``_register_*`` funksiyalarida.
+
+    Avvalgi monolit ``register_all_handlers`` ichidagi ``main_conv``
+    qurilishi bilan AYNAN bir xil — faqat alohida funksiyaga ko'chirilgan.
+    """
     main_conv = ConversationHandler(
         entry_points=all_menu_jumps + [
             # 🎙 VOICE → POST: ovozli xabar/audio — dialog TASHQARISIDA ovoz
@@ -1956,7 +1991,15 @@ def register_all_handlers(app):
         allow_reentry=True,
         conversation_timeout=CONVERSATION_TIMEOUT_SEC,
     )
+    return main_conv
 
+
+def _register_global_commands(app):
+    """SPRINT 2 — DECOMPOSITION 3/4a: AUTH + global buyruqlar (``/start``,
+    ``/help``, ``/admin``, ``/stats``, rol boshqaruvi va h.k.) hamda Stars
+    TO'LOV (payment) handlerlari (precheckout / successful payment).
+    Conversation'dan MUSTAQIL — har doim ishlaydi.
+    """
     # 1. Global Buyruqlar
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("profile", user_cabinet_menu))
@@ -1980,6 +2023,9 @@ def register_all_handlers(app):
     app.add_handler(CommandHandler("grant_pro", grant_pro_command))
     app.add_handler(CommandHandler("create_promo", create_promo_command))
     app.add_handler(CommandHandler("admin_stats", admin_stats_command))
+    # 📊 SPRINT 2 (VAZIFA 3) — eng ko'p/kam (<5%) ishlatilayotgan tugma va
+    # buyruqlar bo'yicha oddiy ichki agregatsiya (faqat admin).
+    app.add_handler(CommandHandler("feature_usage", admin_feature_usage_command))
     # 📝 6-bosqich: audit jurnali (faqat OWNER/SUPER_ADMIN — RBAC dekoratori)
     app.add_handler(CommandHandler("audit", admin_audit_command))
     # 🩺 7-bosqich: tizim holati (faqat system_settings ruxsati — RBAC dekoratori)
@@ -1996,13 +2042,23 @@ def register_all_handlers(app):
     app.add_handler(PreCheckoutQueryHandler(precheckout_callback))
     app.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_callback))
 
-    # 2. Asosiy ConversationHandler
-    app.add_handler(main_conv)
 
+
+def _register_global_menu_fallback_handlers(app, all_menu_jumps):
+    """SPRINT 2 — DECOMPOSITION 3/4b: ``all_menu_jumps`` — har bir asosiy
+    menyu tugmasini conversation TASHQARISIDA ham (masalan, eski/keshdagi
+    xabarda bosilsa) darhol ishlaydigan qilib global reyestrga qo'shadi.
+    """
     # 3. Global menyu handlerlari (Conversation dan tashqarida bo'lsa darhol ishlashi uchun)
     for mh in all_menu_jumps:
         app.add_handler(mh)
 
+
+
+def _register_content_and_queue_callbacks(app):
+    """SPRINT 2 — DECOMPOSITION 3/4c: CONTENT — obuna (💎 PRO) va
+    📅 Rejalashtirilgan (navbat: ko'rish/o'chirish/surish) inline tugmalari.
+    """
     # 4. Inline Callback Handlerlar
     # Subscription (Premium) tugmalari — conversation faol bo'lmasa ham (masalan,
     # suhbat muddati tugagach eski karta tugmalari bosilsa) Stars invoice ochilishi
@@ -2033,6 +2089,13 @@ def register_all_handlers(app):
     # 🔗 [Tugma/Reaksiya] tanlagichi: mavjud `p_btn:` / `p_react:` oqimlarini ochadi.
     app.add_handler(CallbackQueryHandler(scheduled_btn_react_callback, pattern=r"^sched_br:"))
     app.add_handler(CallbackQueryHandler(remove_channel_callback, pattern=r"^ch_del:"))
+
+
+def _register_channel_callbacks(app):
+    """SPRINT 2 — DECOMPOSITION 3/4d: CHANNELS — 📢 Kanallarim boshqaruvi,
+    kanal uslubi (Tone of Voice), Channel Intelligence (DNA / eng yaxshi
+    vaqt) va kanal ovozi tahlili inline tugmalari.
+    """
     # 📢 KANALLARIM — kanal boshqaruv ekrani (PostAssist V2, 4-mikro qadam).
     # ``ch_set:`` endi channel_settings_callback orqali o'tadi: kanal
     # boshqaruv ekranidan bosilsa SOZLAMALAR ekranini, eski (chat tarixidagi)
@@ -2082,6 +2145,15 @@ def register_all_handlers(app):
     app.add_handler(CallbackQueryHandler(admin_dashboard_callback, pattern=r"^adm_"))
     app.add_handler(CallbackQueryHandler(ad_pool_callback, pattern=r"^adp:"))
     app.add_handler(CallbackQueryHandler(ai_studio_callback, pattern=r"^studio_"))
+
+
+def _register_ai_and_media_callbacks(app):
+    """SPRINT 2 — DECOMPOSITION 3/4e: AI vositalari (Studio/Calendar/
+    Avtopilot/shablonlar/manbalar/Magic Post/AI Post wizard/Post Score/
+    Voice/Image → Post) stale-session tugmalari va rasm/``/ai`` caption
+    oqimi. ``cabinet_callback`` (👤 profil) ham tarixiy sababga ko'ra shu
+    ketma-ketlikda ro'yxatdan o'tadi — tartib o'zgartirilmagan.
+    """
     # AI Studio stale ❌ tugmasi: conversation tashqarisida ham xabar edit qilinadi
     app.add_handler(CallbackQueryHandler(ai_close, pattern=r"^ai_close$"))
     # 🗓 SMART CONTENT CALENDAR stale tugmalari (cal_days: / cal_day: / cal_cancel):
@@ -2125,6 +2197,14 @@ def register_all_handlers(app):
         ai_photo_command_callback,
     ))
     app.add_handler(CallbackQueryHandler(cabinet_callback, pattern=r"^cab_|^close_cabinet"))
+
+
+def _register_settings_and_support_callbacks(app):
+    """SPRINT 2 — DECOMPOSITION 3/4f: SETTINGS — ⚙️ Sozlamalar hub'i,
+    🔐 Privacy/ma'lumot o'chirish tasdiqlash, Qo'llanma, qo'llab-quvvatlash
+    (support) dispatcher hamda 💳 Karta cheki admin approval (payment-adjacent)
+    inline tugmalari.
+    """
     # ⚙️ SOZLAMALAR (PostAssist V2, 2-bosqich) — 8 guruhli hub:
     # stgs_rewards va stgs_help_hub alohida handler sifatida ro'yxatda;
     # boshqa stgs_* callback'lar hamda eski callback aliaslari generic
@@ -2177,6 +2257,15 @@ def register_all_handlers(app):
         receipt_admin_callback,
         pattern=r"^(rc_ok|rc_no):",
     ))
+
+
+def _register_channel_realtime_and_fallback(app):
+    """SPRINT 2 — DECOMPOSITION 3/4g: CHANNELS — ulangan kanallardan real
+    vaqtda post yozib borish HAMDA eng pastki ustuvorlikdagi "notanish
+    xabar" fallback handleri. MUHIM: bu funksiya HAR DOIM
+    ``register_all_handlers`` ketma-ketligida ENG OXIRIDA chaqirilishi
+    shart (PTB bitta guruhda birinchi mos handlerni ishlatadi).
+    """
     # 📢 Ulangan kanallardan yangi postlarni real vaqtda bazaga yozib borish
     app.add_handler(MessageHandler(
         filters.UpdateType.CHANNEL_POST | filters.UpdateType.EDITED_CHANNEL_POST,
@@ -2194,3 +2283,53 @@ def register_all_handlers(app):
     # rasm/to'lov handlerlari) xabarni tanimagandagina shu yerga tushadi.
     # Yangi handler qo'shsangiz — uni SHU QATORDAN YUQORIGA qo'ying.
     app.add_handler(MessageHandler(UNKNOWN_MESSAGE_FILTER, unknown_message_fallback))
+
+
+def register_all_handlers(app):
+    """Botning barcha handlerlarini ro'yxatdan o'tkazadigan YAGONA kirish
+    nuqtasi (``main.py`` shuni chaqiradi).
+
+    SPRINT 2 (VAZIFA 2) — bu funksiya ilgari ~1300 qatorlik monolit edi;
+    endi u faqat KETMA-KETLIKNI boshqaradi, haqiqiy ishni quyidagi
+    funksional sub-register funksiyalariga topshiradi:
+
+      1. :func:`_build_all_menu_jumps`              — navigatsiya ro'yxati
+      2. :func:`_build_main_conversation_handler`    — asosiy FSM (bitta,
+         bo'linmaydigan obyekt — sabab shu funksiya docstring'ida)
+      3. :func:`_register_global_commands`           — auth + global buyruqlar
+      4. ``app.add_handler(main_conv)``              — FSM ro'yxatdan o'tadi
+      5. :func:`_register_global_menu_fallback_handlers`
+      6. :func:`_register_content_and_queue_callbacks`
+      7. :func:`_register_channel_callbacks`
+      8. :func:`_register_ai_and_media_callbacks`
+      9. :func:`_register_settings_and_support_callbacks`
+      10. :func:`_register_channel_realtime_and_fallback` — ENG OXIRIDA
+
+    MUHIM: ``app.add_handler`` chaqiruvlari ANIQ shu tartibda bo'lishi
+    shart — PTB bir guruhda (``group=0``) birinchi mos handlerni ishlatadi,
+    shu sababli tartib o'zgarishi xatti-harakatni (masalan, qaysi callback
+    qaysi handlerga "tushishi"ni) buzishi mumkin. Bu tartib avvalgi
+    monolit versiyadagi bilan AYNAN bir xil — faqat nomlangan funksiyalarga
+    bo'lingan.
+    """
+    # 🎙 VoiceEntryHandler va 📸 ImageEntryHandler dialog holatini
+    # tekshirishi uchun Application havolasi.
+    set_voice_application(app)
+    set_image_application(app)
+    # 🧩 «cc_» taklif tugmalari ham faol dialogni buzmasligi uchun app kerak.
+    set_content_creation_application(app)
+    # ✍️ «mnp_» eski panel tugmalari ham faol dialogni buzmasligi uchun.
+    set_manual_application(app)
+
+    all_menu_jumps = _build_all_menu_jumps()
+    main_conv = _build_main_conversation_handler(all_menu_jumps)
+
+    _register_global_commands(app)
+    # 2. Asosiy ConversationHandler
+    app.add_handler(main_conv)
+    _register_global_menu_fallback_handlers(app, all_menu_jumps)
+    _register_content_and_queue_callbacks(app)
+    _register_channel_callbacks(app)
+    _register_ai_and_media_callbacks(app)
+    _register_settings_and_support_callbacks(app)
+    _register_channel_realtime_and_fallback(app)
