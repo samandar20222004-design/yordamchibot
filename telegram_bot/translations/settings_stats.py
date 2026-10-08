@@ -182,6 +182,8 @@ SETTINGS_STATS_I18N = {
         ),
         "ss_notif_scheduled": "📅 Rejalashtirilgan post eslatmalari",
         "ss_notif_news": "📣 Yangiliklar va PRO takliflari",
+        "ss_notif_morning_digest": "🌅 Ertalabki post g'oyalari",
+        "ss_notif_uzbek_calendar": "🗓 O'zbekiston bayramlari eslatmalari",
         "ss_notif_hint": (
             "<i>Sozlamalar darhol saqlanadi va istalgan payt o'zgartirilishi mumkin.</i>"
         ),
@@ -367,6 +369,8 @@ SETTINGS_STATS_I18N = {
         ),
         "ss_notif_scheduled": "📅 Напоминания о запланированных постах",
         "ss_notif_news": "📣 Новости и предложения PRO",
+        "ss_notif_morning_digest": "🌅 Утренние идеи для постов",
+        "ss_notif_uzbek_calendar": "🗓 Напоминания о праздниках Узбекистана",
         "ss_notif_hint": (
             "<i>Настройки сохраняются сразу, изменить их можно в любой момент.</i>"
         ),
@@ -553,6 +557,8 @@ SETTINGS_STATS_I18N = {
         ),
         "ss_notif_scheduled": "📅 Scheduled post reminders",
         "ss_notif_news": "📣 News and PRO offers",
+        "ss_notif_morning_digest": "🌅 Morning post ideas",
+        "ss_notif_uzbek_calendar": "🗓 Uzbekistan holiday reminders",
         "ss_notif_hint": (
             "<i>Settings are saved instantly and can be changed at any time.</i>"
         ),

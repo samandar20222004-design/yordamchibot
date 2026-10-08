@@ -1291,6 +1291,10 @@ echo "===== 🚀 DEPLOY BOOTSTRAP — YANGI (BO'SH) BAZADA 1-KOMANDALIK DEPLOY =
 "$PY" tests/deploy_bootstrap_fresh_db_test.py || EXIT_CODE=1
 
 echo
+echo "===== SPRINT 3 — DAILY DIGEST + UZBEKISTAN CALENDAR + AI PROGRESS ====="
+"$PY" tests/daily_retention_calendar_test.py || EXIT_CODE=1
+
+echo
 echo "=============================================================="
 if [ "$EXIT_CODE" -eq 0 ]; then
     echo "BARCHA TESTLAR 100% YASHIL ✔"

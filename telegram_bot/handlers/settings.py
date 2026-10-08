@@ -125,6 +125,8 @@ def clear_settings_static_cache() -> None:
 NOTIF_SETTING_KEYS = {
     "notify_scheduled": "ss_notif_scheduled",
     "notify_news": "ss_notif_news",
+    "notify_morning_digest": "ss_notif_morning_digest",
+    "notify_uzbek_calendar": "ss_notif_uzbek_calendar",
 }
 #: 🎨 Post sozlamalari kalitlari → ekrandagi yorliq i18n-kaliti.
 POST_SETTING_KEYS = {
@@ -135,6 +137,8 @@ POST_SETTING_KEYS = {
 SETTING_DEFAULTS = {
     "notify_scheduled": True,
     "notify_news": False,
+    "notify_morning_digest": True,
+    "notify_uzbek_calendar": True,
     "post_watermark": True,
     "post_signature": False,
 }
@@ -149,18 +153,24 @@ COMPACT_TOGGLE_LABELS = {
     "uz": {
         "notify_scheduled": "Eslatmalar",
         "notify_news": "Takliflar",
+        "notify_morning_digest": "Ertalabki g'oyalar",
+        "notify_uzbek_calendar": "Bayram eslatmalari",
         "post_watermark": "Suv belgisi",
         "post_signature": "Muallif imzosi",
     },
     "ru": {
         "notify_scheduled": "Напоминания",
         "notify_news": "Предложения",
+        "notify_morning_digest": "Утренние идеи",
+        "notify_uzbek_calendar": "Праздничные напоминания",
         "post_watermark": "Водяной знак",
         "post_signature": "Подпись автора",
     },
     "en": {
         "notify_scheduled": "Reminders",
         "notify_news": "Offers",
+        "notify_morning_digest": "Morning ideas",
+        "notify_uzbek_calendar": "Holiday reminders",
         "post_watermark": "Watermark",
         "post_signature": "Author signature",
     },

@@ -2525,6 +2525,7 @@ def _init_db_once():
             "ALTER TABLE channels ADD COLUMN IF NOT EXISTS tone_of_voice VARCHAR(30) DEFAULT 'friendly';",
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS plan_type VARCHAR(20) DEFAULT 'free';",
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_expires_at TIMESTAMP WITH TIME ZONE;",
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS stars_subscription_state VARCHAR(16);",
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS ai_requests_today INTEGER DEFAULT 0;",
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS last_limit_reset DATE DEFAULT CURRENT_DATE;",
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS language_code VARCHAR(10) DEFAULT 'uz';",
@@ -3092,7 +3093,7 @@ from repositories.users_repository import (  # noqa: F401
     is_premium, redeem_promo_code, referral_reward_for, refund_ai_request,
     refund_ai_usage, reserve_ai_request, save_user,
     set_user_full_menu_unlocked, set_user_language, set_user_plan,
-    set_user_setting, total_referral_reward, transfer_user_credits,
+    sync_stars_subscription, set_user_setting, total_referral_reward, transfer_user_credits,
     use_user_credit
 )
 # --- 📢 CHANNELS — kanal CRUD, monitoring, Channel DNA, manba/RSS, reklama
@@ -3112,6 +3113,7 @@ from repositories.channels_repository import (  # noqa: F401
     get_channel_owner_id, get_channel_post_count, get_channel_post_counters,
     get_channel_post_events, get_channel_posts_history,
     get_channel_posts_history_stats, get_channel_settings, get_channel_tone,
+    get_channels_for_content_nudges,
     get_content_source, get_due_content_sources, get_recycle_candidates,
     get_source_draft, get_source_item_external_ids, get_sponsor_channels,
     get_user_channels, get_user_channels_with_tone, insert_channel_post_event,

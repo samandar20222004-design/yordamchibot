@@ -10,7 +10,7 @@ import time
 import pytz  # noqa: F401 — vaqt zonasi bilan ishlovchi modullar uchun saqlanadi
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from telegram.ext import ApplicationBuilder, Application
-from telegram import BotCommand
+from telegram import BotCommand, Update
 from config import (
     BOT_TOKEN,
     UPDATE_HANDLER_TIMEOUT_SECONDS,
@@ -31,6 +31,8 @@ from scheduler import (
     cleanup_old_records_job,
     poll_content_sources_job,
     weekly_channel_reports_job,
+    daily_morning_digest_job,
+    uzbekistan_calendar_reminders_job,
     recover_on_startup,
     subscription_sweep_job,
     tashkent_tz,
@@ -857,6 +859,21 @@ async def main():
         id="poll_content_sources", timezone=tashkent_tz,
         max_instances=1, coalesce=True, misfire_grace_time=300,
     )
+    # 🌅 Sprint 3 — har kuni Toshkent vaqti bilan 09:00 da faqat
+    # 48 soatdan beri post chiqmagan va digestga rozilik bergan egalar uchun.
+    scheduler.add_job(
+        daily_morning_digest_job, 'cron', hour=9, minute=0,
+        args=[application.bot], id="daily_morning_digest", timezone=tashkent_tz,
+        max_instances=1, coalesce=True, misfire_grace_time=6 * 3600,
+    )
+    # 🗓 Uch kun oldingi O'zbekiston bayram/mavsum eslatmalari; digest bilan
+    # bir vaqtda ikkita Telegram xabari yubormaslik uchun 09:05 da bajariladi.
+    scheduler.add_job(
+        uzbekistan_calendar_reminders_job, 'cron', hour=9, minute=5,
+        args=[application.bot], id="uzbekistan_calendar_reminders",
+        timezone=tashkent_tz, max_instances=1, coalesce=True,
+        misfire_grace_time=6 * 3600,
+    )
     # PHASE E — ixcham haftalik hisobot: har dushanba 09:00 (Toshkent),
     # faqat kanal egasining shaxsiy chatiga yuboriladi.
     scheduler.add_job(
@@ -889,6 +906,11 @@ async def main():
             #      STALE_UPDATE_SECONDS (600s) dan eskisi INDIRO'LADI;
             #   2) ``recover_on_startup()`` — 'processing' qolgan postlar
             #      tiklanadi (qayta yuborilmaydi).
+            # Bot API 9.2 subscription may not be present in PTB's ALL_TYPES
+            # yet; explicitly request it so recurring payment state updates
+            # are not silently omitted by long polling.
+            allowed_updates=[str(update_type) for update_type in Update.ALL_TYPES]
+            + ["subscription"],
             drop_pending_updates=False,
         )
 

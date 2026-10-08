@@ -4,7 +4,7 @@ import logging
 import os
 import random
 import re
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 import pytz
 from telegram import (
     InlineKeyboardMarkup,
@@ -2083,4 +2083,142 @@ async def weekly_channel_reports_job(bot=None):
         except Exception:
             skipped += 1
             logger.warning("Weekly Channel Advisor: bitta kanal egasiga yuborilmadi", exc_info=True)
+    return {"sent": sent, "skipped": skipped}
+
+
+# ============================================================
+# 🌅 DAILY CONTENT RETENTION + 🗓 UZBEKISTAN CALENDAR
+# ============================================================
+def _nudge_row_values(row):
+    """Normalize one repository nudge row without trusting database strings."""
+    if isinstance(row, dict):
+        return (
+            row.get("channel_id"), row.get("channel_title"), row.get("user_id"),
+            row.get("language_code") or row.get("lang") or "uz",
+            row.get("topics"), row.get("tone") or "",
+        )
+    try:
+        values = list(row)
+        values += [None] * max(0, 6 - len(values))
+        return (values[0], values[1], values[2], values[3] or "uz", values[4], values[5] or "")
+    except (TypeError, IndexError):
+        return (None, None, None, "uz", None, "")
+
+
+async def daily_morning_digest_job(bot=None, now=None):
+    """Send one opt-in 09:00 (Tashkent) content-gap nudge per eligible channel.
+
+    The job does no AI calls and uses Channel DNA topics only when already
+    available. A single SQL anti-join excludes both Bot-posted and observed
+    channel posts newer than the 48-hour cutoff.
+    """
+    if bot is None:
+        return {"sent": 0, "skipped": 0}
+    from services.retention import (
+        DEFAULT_CONTENT_GAP_HOURS,
+        build_content_ideas,
+        build_daily_digest_text,
+        normalize_lang,
+    )
+
+    if isinstance(now, date) and not isinstance(now, datetime):
+        current = tashkent_tz.localize(datetime.combine(now, datetime.min.time()))
+    else:
+        current = _as_tashkent(now) if now is not None else now_tashkent()
+    if current is None:
+        current = now_tashkent()
+    since = current - timedelta(hours=DEFAULT_CONTENT_GAP_HOURS)
+    try:
+        rows = await db.run_db(
+            db.get_channels_for_content_nudges,
+            "notify_morning_digest",
+            since,
+        ) or []
+    except Exception:
+        logger.exception("Daily morning digest: nudge recipients could not be loaded")
+        return {"sent": 0, "skipped": 0, "error": "db"}
+
+    from handlers.daily_retention import build_morning_digest_keyboard
+    sent = skipped = 0
+    for row in rows:
+        channel_id, channel_title, user_id, lang, topics, _tone = _nudge_row_values(row)
+        try:
+            user_id = int(user_id)
+            channel_id = str(channel_id or "").strip()
+            if user_id <= 0 or not channel_id:
+                skipped += 1
+                continue
+            lang = normalize_lang(lang)
+            ideas = build_content_ideas(channel_title or "", topics, lang)
+            await bot.send_message(
+                chat_id=user_id,
+                text=build_daily_digest_text(channel_title or "", ideas, lang),
+                reply_markup=build_morning_digest_keyboard(channel_id, lang),
+                parse_mode="HTML",
+            )
+            sent += 1
+        except Exception:
+            skipped += 1
+            logger.info("Daily morning digest not delivered (user=%s)", user_id,
+                        exc_info=True)
+    logger.info("Daily morning digest completed: sent=%s skipped=%s", sent, skipped)
+    return {"sent": sent, "skipped": skipped}
+
+
+async def uzbekistan_calendar_reminders_job(bot=None, today=None):
+    """Send opt-in localized reminders exactly three days before calendar dates."""
+    if bot is None:
+        return {"sent": 0, "skipped": 0}
+    from services.retention import normalize_lang
+    from services.uzbekistan_calendar import (
+        calendar_reminder_text,
+        get_events_for_reminder,
+    )
+
+    current = today
+    if current is None:
+        current = now_tashkent().date()
+    elif isinstance(current, datetime):
+        current = _as_tashkent(current).date()
+    try:
+        events = get_events_for_reminder(current, 3)
+    except (TypeError, ValueError):
+        events = ()
+    if not events:
+        return {"sent": 0, "skipped": 0}
+
+    try:
+        rows = await db.run_db(
+            db.get_channels_for_content_nudges,
+            "notify_uzbek_calendar",
+            None,
+        ) or []
+    except Exception:
+        logger.exception("Uzbekistan calendar: nudge recipients could not be loaded")
+        return {"sent": 0, "skipped": 0, "error": "db"}
+
+    from handlers.daily_retention import build_calendar_reminder_keyboard
+    sent = skipped = 0
+    for row in rows:
+        channel_id, _channel_title, user_id, lang, _topics, _tone = _nudge_row_values(row)
+        try:
+            user_id = int(user_id)
+            channel_id = str(channel_id or "").strip()
+            if user_id <= 0 or not channel_id:
+                skipped += len(events)
+                continue
+            lang = normalize_lang(lang)
+            for event in events:
+                await bot.send_message(
+                    chat_id=user_id,
+                    text=calendar_reminder_text(event, lang),
+                    reply_markup=build_calendar_reminder_keyboard(event.key, channel_id, lang),
+                    parse_mode="HTML",
+                )
+                sent += 1
+        except Exception:
+            skipped += 1
+            logger.info("Uzbekistan calendar reminder not delivered (user=%s)", user_id,
+                        exc_info=True)
+    logger.info("Uzbekistan calendar reminders completed: sent=%s skipped=%s", sent, skipped)
     return {"sent": sent, "skipped": skipped}

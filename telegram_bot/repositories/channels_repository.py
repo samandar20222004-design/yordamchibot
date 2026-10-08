@@ -739,6 +739,64 @@ def get_all_channels(limit: int = None) -> list:
         return []
 
 
+def get_channels_for_content_nudges(setting_key: str, since=None) -> list:
+    """Return opted-in channel owners for daily digest/calendar reminders.
+
+    ``setting_key`` is restricted to the two user-controlled reminder flags.
+    When ``since`` is provided, channels with a bot-published post or an
+    observed Telegram channel post at/after that timestamp are excluded.
+    The query is one indexed anti-join rather than one database round-trip per
+    user/channel; missing settings default to enabled for backward-compatible
+    rollout.
+
+    Rows are ``(channel_id, channel_title, user_id, language_code, topics, tone)``.
+    """
+    allowed_settings = {"notify_morning_digest", "notify_uzbek_calendar"}
+    key = str(setting_key or "")
+    if key not in allowed_settings:
+        logger.warning("Content nudge query refused unknown setting key: %r", key[:64])
+        return []
+
+    query = """
+        SELECT c.channel_id, c.channel_title, c.user_id,
+               COALESCE(u.language_code, 'uz') AS language_code,
+               COALESCE(d.topics, '[]'::jsonb) AS topics,
+               COALESCE(d.tone, '') AS tone
+        FROM channels c
+        LEFT JOIN users u ON u.user_id = c.user_id
+        LEFT JOIN channel_dna d ON d.channel_id = c.channel_id
+        LEFT JOIN user_settings us
+               ON us.user_id = c.user_id AND us.key = %s
+        WHERE c.is_active = TRUE
+          AND COALESCE(us.value, TRUE) = TRUE
+    """
+    params = [key]
+    if since is not None:
+        query += """
+          AND NOT EXISTS (
+              SELECT 1 FROM scheduled_posts sp
+              WHERE sp.channel_id = c.channel_id
+                AND sp.status = 'posted'
+                AND sp.scheduled_time >= %s
+          )
+          AND NOT EXISTS (
+              SELECT 1 FROM channel_posts_history ph
+              WHERE ph.channel_id = c.channel_id
+                AND ph.post_date >= %s
+          )
+        """
+        params.extend((since, since))
+    query += " ORDER BY c.user_id ASC, c.id ASC"
+
+    try:
+        with db_cursor() as cur:
+            cur.execute(query, tuple(params))
+            return cur.fetchall()
+    except Exception as e:
+        logger.error("Content nudge kanallari olishda xato: %s", e)
+        return []
+
+
 def save_channel(user_id: int, channel_id: str, channel_title: str, is_admin: bool = False) -> tuple[bool, str]:
     """Kanalni foydalanuvchiga ulash.
 

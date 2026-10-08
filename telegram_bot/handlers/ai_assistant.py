@@ -16,6 +16,7 @@ from keyboards.default import (
     is_menu_text,
 )
 from keyboards.callback_data import CB_PHOTO_VARIANT, cb
+from services.ai.progress import AIProgressReporter
 from keyboards.inline import (
     get_ai_studio_keyboard, get_ai_back_keyboard, get_ai_tone_keyboard,
     get_ai_photo_keyboard, get_ai_confirm_keyboard, AI_TONE_KEYS,
@@ -803,7 +804,30 @@ async def ai_confirm_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
         candidate, _reason = parse_schedule_input(sched_time_str, now)
         post_time = candidate if candidate is not None else now
 
-    target_channels = channels if target_all else [channels[0]]
+    channel_pairs = []
+    for channel in channels:
+        if not channel:
+            continue
+        if isinstance(channel, dict):
+            channel_id = channel.get("channel_id")
+            channel_title = channel.get("channel_title") or channel.get("title") or ""
+        else:
+            try:
+                channel_id = channel[0]
+                channel_title = channel[1] if len(channel) > 1 else ""
+            except (IndexError, TypeError):
+                continue
+        if channel_id is not None:
+            channel_pairs.append((channel_id, channel_title))
+
+    selected_channel_id = str(context.user_data.pop("ai_target_channel_id", "") or "")
+    if selected_channel_id:
+        target_channels = [
+            channel for channel in channel_pairs
+            if str(channel[0]) == selected_channel_id
+        ]
+    else:
+        target_channels = channel_pairs if target_all else channel_pairs[:1]
     ok_count = 0
 
     for ch_id, ch_title in target_channels:
@@ -827,9 +851,10 @@ async def ai_confirm_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
         # chaqiriladi.
         if not is_admin and not is_pro:
             await db.run_db(db.increment_ai_usage, user_id)
-        first_title = (channels[0][1] or "").strip() or "Kanal"
+        first_title = (target_channels[0][1] or "").strip() or "Kanal"
         target_name = (
-            safe_t("ai_target_all_name", lang) if target_all else first_title
+            safe_t("ai_target_all_name", lang)
+            if target_all and not selected_channel_id else first_title
         )
         ad_line = await get_auto_ad_injection_async(user_id)
         try:
@@ -1202,28 +1227,45 @@ async def _studio_generate_and_preview(update: Update, context: ContextTypes.DEF
         # Limit/blok xabari allaqachon yuborildi — foydalanuvchi menyuga qaytadi
         return AI_MENU_STATE
 
-    # 2-BOSQICH UX: real-time typing + placeholder edit_text
+    # Real-time localized drafting stages + periodic Telegram typing action.
     chat_id = msg.chat_id
     try:
         await context.bot.send_chat_action(chat_id=chat_id, action="typing")
     except Exception as _silent_exc:
         log_silent_failure("handlers.ai_assistant:_studio_generate_and_preview", _silent_exc, user_id=user_id, chat_id=chat_id, lang=lang)
-    msg_wait = await msg.reply_text("⏳ Post tayyorlanmoqda, iltimos kuting...")
+    progress = AIProgressReporter(lang=lang)
+    msg_wait = await msg.reply_text(progress.current_text)
+
+    async def _edit_progress(text):
+        editor = getattr(msg_wait, "edit_text", None)
+        if callable(editor):
+            return await editor(text)
+        # Minimal test adapters may not expose Message.edit_text; don't send
+        # another message for each stage. Production PTB messages do support it.
+        return None
+
+    progress.editor = _edit_progress
+    progress.last_text = progress.current_text  # initial status was sent, not edited
     stop_typing = asyncio.Event()
     typing_task = asyncio.create_task(_keep_typing(context.bot, msg.chat_id, stop_typing))
     ai_deadline = asyncio.get_running_loop().time() + 15.0
     try:
         # 🌐 Til: AI post/javobni foydalanuvchi tilida yozadi.
-        result = await generate_ai_response(
+        result = await progress.run(generate_ai_response(
             text_input, is_pro=is_pro, lang=lang,
             timeout=max(0.1, ai_deadline - asyncio.get_running_loop().time()),
-        )
+        ))
     except Exception as e:
         logger.error("AI Generation Error: %s", e)
         result = {"error": AI_UNAVAILABLE_MSG}
     finally:
         stop_typing.set()
         typing_task.cancel()
+        try:
+            await typing_task
+        except asyncio.CancelledError:
+            pass
+        await progress.finish()
 
     if "error" in result:
         # context beriladi → bron ID'si bo'yicha ATOMIK, IDEMPOTENT refund.
@@ -1315,44 +1357,58 @@ async def ai_tone_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"(mazmun va faktlarni saqlang):\n\n{current_post}"
     )
 
-    # 2-BOSQICH UX: real-time typing + placeholder edit_text
+    # Tone regeneration is another AI Studio request: retain the same live,
+    # localized stages and rate-limit the result edit as well as progress edits.
     chat_id = query.message.chat_id
     try:
         await context.bot.send_chat_action(chat_id=chat_id, action="typing")
     except Exception as _silent_exc:
         log_silent_failure("handlers.ai_assistant:ai_tone_callback:1320", _silent_exc, user_id=user_id, chat_id=chat_id, lang=lang)
-    try:
-        await query.edit_message_text("⏳ Post tayyorlanmoqda, iltimos kuting...")
-    except Exception as _silent_exc:
-        log_silent_failure("handlers.ai_assistant:ai_tone_callback:1324", _silent_exc, user_id=user_id, chat_id=chat_id, lang=lang)
-
+    progress = AIProgressReporter(editor=query.edit_message_text, lang=lang)
+    stop_typing = asyncio.Event()
+    typing_task = asyncio.create_task(_keep_typing(context.bot, chat_id, stop_typing))
     ai_deadline = asyncio.get_running_loop().time() + 15.0
+    generation_error = None
     try:
-        # b2c01d1: is_pro flag for enhancement
-        is_pro_tone = await db.run_db(db.is_premium, user_id)
-        result = await generate_ai_response(
-            prompt, tone=tone, is_pro=is_pro_tone, lang=lang,
-            timeout=max(0.1, ai_deadline - asyncio.get_running_loop().time()),
-        )
-        post_text = (result.get("post_text") or "").strip()
-        if not post_text:
-            raise RuntimeError(result.get("reply") or "AI bo'sh javob qaytardi")
+        async def _generate_tone_post():
+            # b2c01d1: is_pro flag for enhancement
+            is_pro_tone = await db.run_db(db.is_premium, user_id)
+            generated = await generate_ai_response(
+                prompt, tone=tone, is_pro=is_pro_tone, lang=lang,
+                timeout=max(0.1, ai_deadline - asyncio.get_running_loop().time()),
+            )
+            generated_text = (generated.get("post_text") or "").strip()
+            if not generated_text:
+                raise RuntimeError(generated.get("reply") or "AI bo'sh javob qaytardi")
 
-        # ✨ PRO 2-bosqichli auto audit (tone o'zgartirishda ham)
-        if is_pro_tone and PRO_TWO_STAGE_ENABLED and post_text:
-            remaining = min(PRO_AUDIT_TIMEOUT, ai_deadline - asyncio.get_running_loop().time())
-            if remaining > 0.1:
-                try:
-                    refined = await refine_post_pro(post_text, lang=lang, timeout=remaining)
-                    improved = str((refined or {}).get("post_text") or "").strip()
-                    if improved:
-                        post_text = improved
-                except Exception as _e:
-                    logger.warning("AI Studio tone auto audit (PRO) xatosi: %s", _e)
+            # ✨ PRO 2-bosqichli auto audit (tone o'zgartirishda ham)
+            if is_pro_tone and PRO_TWO_STAGE_ENABLED:
+                remaining = min(PRO_AUDIT_TIMEOUT, ai_deadline - asyncio.get_running_loop().time())
+                if remaining > 0.1:
+                    try:
+                        refined = await refine_post_pro(generated_text, lang=lang, timeout=remaining)
+                        improved = str((refined or {}).get("post_text") or "").strip()
+                        if improved:
+                            generated_text = improved
+                    except Exception as _e:
+                        logger.warning("AI Studio tone auto audit (PRO) xatosi: %s", _e)
+            return generated_text
 
+        post_text = await progress.run(_generate_tone_post())
     except Exception as e:
         # SPEKS: xato log'lanadi, foydalanuvchi doimiy nav-tugmaga qaytadi
         logger.error("AI Generation Error: %s", e)
+        generation_error = e
+    finally:
+        stop_typing.set()
+        typing_task.cancel()
+        try:
+            await typing_task
+        except asyncio.CancelledError:
+            pass
+        await progress.finish()
+
+    if generation_error is not None:
         await _safe_edit(
             query,
             safe_t("ai_unavailable", lang),
