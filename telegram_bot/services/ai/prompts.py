@@ -19,6 +19,13 @@
    TAQIQLANADI (``scan_text_for_fluff()`` bilan qo'riqlanadi).
 5. SIFAT STANDARTI — ``QUALITY_RULES``: kuchli Hook, Telegram HTML
    (``<b>``, ``<i>``), ro'yxatlar (•) va ANIQ mazmun (fakt/raqam/maslahat).
+6. ISHONCHLILIK ESLATMASI (4-vazifa) — ``reliability_note()`` va
+   ``needs_reliability_note()``: AI UMUMIY (axborot: yangilik, sport, voqea,
+   biznes...) mavzudan post tayyorlaganda bot xabari TAGIGA
+   «💡 Eslatma: Ushbu post AI tomonidan tuzildi. Rasmiy manbalardan faktlarni
+   tekshirib olishingiz tavsiya etiladi.» qatori qo'shiladi. Bu matn POST
+   ICHIGA emas — faqat botning ko'rinish xabariga qo'shiladi (faktlar
+   tekshirilishi kerakligi ochiq aytiladi, uydirma manbalar ko'rsatilmaydi).
 
 Bu modul FAQAT stdlib'ga tayanadi (telegram/database import YO'Q) — ham
 handler'lar, ham testlar uni xavfsiz import qila oladi.
@@ -61,6 +68,10 @@ __all__ = [
     "build_format_system",
     "format_hint_line",
     "map_format_to_magic_style",
+    "AI_RELIABILITY_NOTE",
+    "RELIABILITY_NOTES",
+    "reliability_note",
+    "needs_reliability_note",
 ]
 
 
@@ -613,3 +624,69 @@ def map_format_to_magic_style(format_key, default: str = "casual") -> str:
         return default if default in (
             "sales", "premium", "casual", "ads", "informative") else "casual"
     return style
+
+
+# ---------------------------------------------------------------------------
+# 4-VAZIFA — ISHONCHLILIK ESLATMASI (AI umumiy mavzudan post tayyorlaganda)
+# ---------------------------------------------------------------------------
+#: Bot xabari TAGIGA qo'shiladigan eslatma — uchala tilda (foydalanuvchi
+#: tiliga mos). AI bu matnni generatsiya qilmaydi: uni KOD qo'shadi, shu
+#: sababli u hech qachon yo'qolmaydi va o'zgartirilib yuborilmaydi.
+AI_RELIABILITY_NOTE: dict[str, str] = {
+    "uz": (
+        "\U0001f4a1 Eslatma: Ushbu post AI tomonidan tuzildi. "
+        "Rasmiy manbalardan faktlarni tekshirib olishingiz tavsiya etiladi."
+    ),
+    "ru": (
+        "\U0001f4a1 Примечание: этот пост составлен ИИ. "
+        "Рекомендуем проверять факты по официальным источникам."
+    ),
+    "en": (
+        "\U0001f4a1 Note: this post was composed by AI. "
+        "Please verify the facts with official sources."
+    ),
+}
+
+#: Eski nom bilan moslik (testlar/handlerlar shu nomni ham ishlatishi mumkin).
+RELIABILITY_NOTES = AI_RELIABILITY_NOTE
+
+
+def reliability_note(lang: str = "uz") -> str:
+    """Ishonchlilik eslatmasini tilga mos qaytaradi (noma'lum til → o'zbekcha)."""
+    code = str(lang or "").strip().lower()[:2]
+    return AI_RELIABILITY_NOTE.get(code, AI_RELIABILITY_NOTE["uz"])
+
+
+def needs_reliability_note(topic="", format_key=None) -> bool:
+    """Bu post uchun ishonchlilik eslatmasi kerakmi?
+
+    Eslatma FAQAT AI umumiy/axborot mavzudan (yangilik, sport, voqea,
+    biznes, ob-havo ...) post tayyorlaganda qo'shiladi:
+
+    * ``format_key`` aniq berilgan bo'lsa — ``news`` (yoki noma'lum
+      ``general``) formatida ``True``;
+    * aks holda mavzudan format aniqlanadi: ``news`` → ``True``;
+    * mavzu faqat umumiy so'zlardan iborat bo'lsa (``GENERIC_TOPICS``) → ``True``;
+    * sotuv/mahsulot mavzusi (``sales``) → ``False`` (faktlar
+      foydalanuvchining o'zidan keladi, eslatma shart emas).
+    """
+    text = str(topic or "").strip()
+    key = str(format_key or "").strip().lower()
+    if not key:
+        if not text:
+            return False
+        key = detect_post_format(text)
+    if key == FORMAT_NEWS:
+        return True
+    if key in (FORMAT_SALES, FORMAT_TIPS, FORMAT_SHORT):
+        return False
+    # ``general`` yoki noma'lum: umumiy mavzu bo'lsa — eslatma qo'shiladi.
+    normalized = normalize_topic(text)
+    if normalized in GENERIC_TOPICS:
+        # «ob-havo», «sog'liq» kabi qo'shma/defisli umumiy so'zlar — tokenizatsiya
+        # ularni bo'lib tashlaydi, shu sababli to'liq moslik ham tekshiriladi.
+        return True
+    meaningful = meaningful_tokens(text)
+    if meaningful and any(t in GENERIC_TOPICS for t in meaningful):
+        return True
+    return key == FORMAT_GENERAL and not text

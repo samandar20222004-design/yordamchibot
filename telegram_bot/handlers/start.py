@@ -938,6 +938,12 @@ async def cancel_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     O'SHA BO'LIM BOSHIGA qaytadi (masalan, «✨ Kontent yaratish» submenyusi
     yoki «🤖 AI Yordamchi» hub'iga kirib ketgan bo'lsa). Bo'lim noma'lum
     bo'lsa — asosiy menyuga (eski xulq, to'liq orqaga moslik).
+
+    📅 3-VAZIFA (bekor qilish oqimi): REJALASHTIRILGAN postni tahrirlash
+    (``p_edit:`` / ``p_time:`` / ``p_btn:`` / ``p_react:`` — FSM'da
+    ``editing_post_id`` bor) ichida [❌ Bekor qilish] bosilsa, foydalanuvchi
+    «Kontent yaratish» sahifasiga sakrab KETMAYDI — to'g'ridan-to'g'ri
+    📅 Rejalashtirilgan postlar ro'yxatiga qaytadi (FSM tozalanadi).
     """
     user_id = update.effective_user.id
     # Tugallanmagan albom yig'uvchi task'ini ham bekor qilamiz (leak/ustiga
@@ -949,6 +955,21 @@ async def cancel_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         log_silent_failure("handlers.start:cancel_handler", _silent_exc, user_id=user_id)
     is_admin = (user_id in ADMIN_IDS_SET)
     lang = await ensure_user_lang(context, user_id)
+
+    # 📅 3-VAZIFA: rejalashtirilgan postni tahrirlash konteksti — bekor
+    # qilishda 📅 ro'yxatiga qaytamiz (bo'lim stacki bunga ta'sir qilmaydi).
+    editing_post_id = context.user_data.get("editing_post_id")
+    if editing_post_id is not None:
+        from handlers.navigation import render_scheduled_posts_screen
+
+        msg = getattr(update, "effective_message", None) or getattr(update, "message", None)
+        clear_fsm_data(context)
+        if msg is not None and await render_scheduled_posts_screen(
+                msg, user_id, lang, is_admin):
+            return ConversationHandler.END
+        # Fail-safe: ro'yxat chizilmasa — pastdagi standart oqim (bo'lim
+        # boshi / asosiy menyu) ishlaydi, foydalanuvchi javobsiz qolmaydi.
+
     # 🧭 Bo'limni FSM tozalanishidan OLDIN o'qib olamiz (clear_fsm_data
     # user_data ni tozalaydi, lekin nav_section endi omon qoladi).
     from handlers.navigation import (

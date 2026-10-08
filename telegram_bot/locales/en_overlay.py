@@ -1371,6 +1371,16 @@ EN_OVERLAY = {
         "Example: <code>{example}</code> or time only — <code>18:00</code>\n\n"
         "🕒 <i>Tashkent time (UTC+5).</i>"
     ),
+    # ✏️ TASK 2: edit selection menu (p_edit: does not ask for text right away).
+    "pend_edit_menu_title": (
+        "✏️ <b>Edit.</b>\n\n"
+        "What would you like to change? Pick one of the options 👇"
+    ),
+    "pend_edit_btn_text": "📝 Change text",
+    "pend_edit_btn_button": "🔘 Add button",
+    "pend_edit_btn_react": "❤️ Reactions",
+    "pend_edit_btn_time": "⏰ Shift time",
+    "pend_edit_btn_back": "◀️ Back",
     "pend_content_ask": (
         "✏️ <b>Send the new post text:</b>\n\n"
         "HTML tags (<b>bold</b>, <i>italic</i>, <code>code</code>) are supported."
@@ -1967,7 +1977,17 @@ EN_OVERLAY = {
         "🎨 Colour: {color} · 🧵 Material: {material}\n"
         "✨ Design: {design} · Style: {style}{facts}"
     ),
+    # 🎉 TASK 5: image WITHOUT a product (event / interesting content) —
+    # no "colour/material" card, the category is chosen AUTOMATICALLY.
+    "image_event_summary": (
+        "🎉 <b>Event / interesting content post</b>\n"
+        "🗂 Category: {category}\n"
+        "📝 {summary}{facts}"
+    ),
+    "image_product_category": "🛒 Product post",
     "image_choose_style": "Which style should we use for the sales post? 👇",
+    # For an event image the question does not push sales.
+    "image_choose_style_event": "Which style should we use for the post? 👇",
     "image_vision_fallback_caption": (
         "🖼 Image received! The post will be built from the "
         "<b>caption</b> that came with the picture."

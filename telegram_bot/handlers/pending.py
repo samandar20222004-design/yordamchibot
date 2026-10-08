@@ -5,6 +5,7 @@ from telegram import Update
 from telegram.ext import ContextTypes, ConversationHandler
 import database as db
 from keyboards.inline import (
+    get_post_edit_menu_keyboard,
     normalize_custom_reaction_emojis,
     DEFAULT_REACTION_EMOJIS,
 )
@@ -239,7 +240,22 @@ async def edit_post_time_received(update: Update, context: ContextTypes.DEFAULT_
 # ------ Matn tahrirlash ------
 
 async def edit_post_content_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Inline tugma orqali post matnini tahrirlash boshlash."""
+    """``p_edit:<post_id>`` — ✏️ TAHRIRLASH TANLOV MENYUSI (2-vazifa).
+
+    MUHIM (UX tuzatish): ilgari [✏️ Tahrirlash] bosilganda bot DARHOL
+    «yangi matnni yuboring» deb so'rardi — foydalanuvchi boshqa narsani
+    (tugma, reaksiya yoki vaqt) o'zgartirmoqchi bo'lsa ham. Endi avval
+    tanlov oynasi chiqadi::
+
+        [📝 Matnni o'zgartirish]   [🔘 Tugma qo'shish]
+        [❤️ Reaksiyalar]           [⏰ Vaqtni surish]
+                    [◀️ Orqaga]
+
+    Har bir tanlov mavjud, sinovdan o'tgan oqimni ochadi
+    (``p_edtx:`` / ``p_btn:`` / ``p_react:`` / ``p_time:``) — yangi FSM
+    yaratilmaydi. Egalik (IDOR) tekshiruvi o'zgarishsiz: begona post uchun
+    hech qanday holat o'rnatilmaydi (fail-closed).
+    """
     query = update.callback_query
     lang = get_lang(context)
     parts = query.data.split(":")
@@ -247,6 +263,35 @@ async def edit_post_content_start(update: Update, context: ContextTypes.DEFAULT_
 
     # FAZA 23 (IDOR): post ID olingan zahoti egalik tekshiruvi — begona
     # post uchun FSM holati ham o'rnatilmaydi (fail-closed).
+    if not await _callback_owns_post(query, post_id, query.from_user.id, lang):
+        return ConversationHandler.END
+
+    context.user_data["editing_post_id"] = post_id
+    context.user_data["edit_mode"] = "menu"
+    await query.answer()
+    await context.bot.send_message(
+        chat_id=query.from_user.id,
+        text=get_text("pend_edit_menu_title", lang),
+        reply_markup=get_post_edit_menu_keyboard(post_id, lang),
+        parse_mode="HTML",
+    )
+    return EDIT_POST_CONTENT
+
+
+async def edit_post_text_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """``p_edtx:<post_id>`` — «📝 Matnni o'zgartirish» (yangi matn so'raladi).
+
+    Tahrirlash menyusining birinchi tanlovi: AVVALGIDEK matn kutiladi
+    (``pend_content_ask`` + ❌ Bekor qilish klaviaturasi) va FSM
+    ``EDIT_POST_CONTENT`` holatiga o'tadi — matn
+    :func:`edit_post_content_received` orqali saqlanadi.
+    """
+    query = update.callback_query
+    lang = get_lang(context)
+    parts = query.data.split(":")
+    post_id = int(parts[1])
+
+    # FAZA 23 (IDOR): egalik tekshiruvi menyu tugmalarida ham majburiy.
     if not await _callback_owns_post(query, post_id, query.from_user.id, lang):
         return ConversationHandler.END
 
@@ -260,6 +305,37 @@ async def edit_post_content_start(update: Update, context: ContextTypes.DEFAULT_
         parse_mode="HTML",
     )
     return EDIT_POST_CONTENT
+
+
+async def edit_post_menu_back(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """``p_edbk`` — tahrirlash menyusidan [◀️ Orqaga] → 📅 ro'yxatiga qaytish.
+
+    3-vazifa (bekor qilish oqimi): menyu ochilganda FSM faol bo'ladi, shu
+    sababli [◀️ Orqaga] HECH QACHON «Kontent yaratish» sahifasiga olib
+    bormaydi — JORIY xabar 📅 Rejalashtirilgan ro'yxatiga qaytariladi va
+    FSM tozalanadi.
+    """
+    query = update.callback_query
+    if query is None:
+        return ConversationHandler.END
+    lang = get_lang(context)
+    user_id = query.from_user.id
+    try:
+        await query.answer()
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.pending:edit_post_menu_back", _silent_exc,
+                           user_id=user_id, lang=lang)
+
+    from handlers.navigation import render_scheduled_posts_edit
+
+    clear_fsm_data(context)
+    if not await render_scheduled_posts_edit(query, user_id, lang):
+        try:
+            await query.edit_message_reply_markup(reply_markup=None)
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.pending:edit_post_menu_back:cleanup",
+                               _silent_exc, user_id=user_id, lang=lang)
+    return ConversationHandler.END
 
 
 async def edit_post_content_received(update: Update, context: ContextTypes.DEFAULT_TYPE):

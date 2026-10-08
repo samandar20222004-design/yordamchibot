@@ -184,17 +184,33 @@ def _magic_style_menu_text(raw_text: str, lang: str, hint_key: str = "mp_choose_
     )
 
 
-def _magic_result_text(post_text: str, style: str, lang: str) -> str:
-    """Natija ekrani: header + post + footer (post xavfsiz HTML)."""
+def _magic_result_text(post_text: str, style: str, lang: str,
+                       topic: str = "") -> str:
+    """Natija ekrani: header + post + footer (post xavfsiz HTML).
+
+    4-VAZIFA: post UMUMIY (axborot: yangilik, sport, voqea, biznes ...)
+    mavzudan tayyorlangan bo'lsa, bot xabari TAGIGA ishonchlilik eslatmasi
+    qo'shiladi (``services.ai.prompts``). Eslatma kanalga chiqadigan post
+    matniga EMAS — faqat preview xabariga qo'shiladi.
+    """
     style_label = magic_t(
         MAGIC_STYLE_KEYS.get(style, ("mp_style_casual", ""))[0], lang
     )
     post_text = (post_text or "").strip()
     post_text = sanitize_html(post_text, _MAGIC_RESULT_POST_LIMIT)
+    note = ""
+    try:
+        from services.ai.prompts import needs_reliability_note, reliability_note
+
+        if needs_reliability_note(topic):
+            note = "\n\n" + reliability_note(lang)
+    except Exception:
+        logger.debug("Ishonchlilik eslatmasini qo'shib bo'lmadi", exc_info=True)
     return (
         f"{magic_t('mp_result_header', lang, style=style_label)}"
         f"{post_text}"
         f"{magic_t('mp_result_foot', lang)}"
+        f"{note}"
     )
 
 
@@ -518,7 +534,10 @@ async def magic_style_callback(update: Update, context: ContextTypes.DEFAULT_TYP
     context.user_data["magic_style"] = result.get("style", style)
     context.user_data["magic_usage_counted"] = False
 
-    result_text = _magic_result_text(post_text, result.get("style", style), lang)
+    result_text = _magic_result_text(
+        post_text, result.get("style", style), lang,
+        topic=(context.user_data.get("magic_raw_text") or "").strip(),
+    )
     result_markup = _magic_action_keyboard(lang)
     if wait_msg is not None and hasattr(wait_msg, "edit_text"):
         try:

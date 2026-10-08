@@ -253,6 +253,42 @@ def _token_to_emojis(token: str) -> list:
     return emojis
 
 
+def split_custom_reaction_emojis(text: str,
+                                 max_count: int = SMART_EMOJI_MAX) -> list:
+    """Foydalanuvchi yuborgan matnni PROBEL bo'yicha ajratib, emoji ro'yxati qaytaradi.
+
+    1-VAZIFA (reaksiyalar UX): «➕ O'zim kiritaman» bosilgach bot aynan shuni
+    so'raydi — «emojilarni oralariga bo'sh joy (probel) tashlab yuboring
+    (5 tagacha)». Shu sababli matn avval ``split()`` bilan bo'sh joy (probel,
+    tab, yangi qator) bo'yicha bo'linadi, har bir token emoji ekani
+    tekshiriladi, takrorlar olib tashlanadi va natija maksimal
+    ``max_count`` (standart — 5) tagacha KESILADI.
+
+    Emoji bo'lmagan tokenlar (masalan ``salom``) jimgina tashlab yuboriladi;
+    tokenlar orasida bo'sh joy bo'lmasa ham (``🔥❤️👍``) zaxira sifatida
+    :func:`_smart_extract_emojis` ishlaydi — foydalanuvchi hech qachon
+    \"emoji topilmadi\" xatosini bekorga ko'rmaydi.
+    """
+    if not text or not str(text).strip():
+        return []
+    tokens = str(text).split()
+    result: list = []
+    seen: set = set()
+    for token in tokens:
+        for emo in _token_to_emojis(token) or ([token] if is_emoji_token(token) else []):
+            key = strip_variation_selector(emo)
+            if not key or key in seen:
+                continue
+            seen.add(key)
+            result.append(emo)
+            if len(result) >= max_count:
+                return result[:max_count]
+    if result:
+        return result[:max_count]
+    # Zaxira: probelsiz kiritilgan emojilar (masalan ``🔥❤️👍``).
+    return _smart_extract_emojis(text, max_count=max_count)[:max_count]
+
+
 def _smart_extract_emojis(text: str, max_count: int = SMART_EMOJI_MAX) -> list:
     """Matndan emojilarni ajratib oladi (maksimal ``max_count`` tagacha) — KIRITISH TARTIBI SAQLANADI.
 
@@ -1060,8 +1096,10 @@ async def manual_reaction_custom_received(update: Update,
             )
         return MANUAL_REACTION_CUSTOM
 
-    # SMART: maksimal 5 tagacha emoji ajratib olinadi
-    emojis = _smart_extract_emojis(msg.text, max_count=SMART_EMOJI_MAX)
+    # 1-VAZIFA: matn PROBEL bo'yicha ajratiladi va 5 tagacha emoji olinadi
+    # (masalan «🔥 ❤️ 👍 🎉» → 4 ta tugma). Emoji bo'lmagan tokenlar
+    # tashlanadi; hech narsa topilmasa muloyim xato ko'rsatiladi.
+    emojis = split_custom_reaction_emojis(msg.text, max_count=SMART_EMOJI_MAX)
     if not emojis:
         # Fallback — eski normalizator (10 tagacha) bilan ham sinab ko'ramiz,
         # lekin natijani 5 tagacha kesamiz
@@ -1119,7 +1157,7 @@ async def manual_preview_emoji_received(update: Update,
         # Media — FSM INPUT FALLBACK: 💡 eslatma + preview qayta (holat saqlanadi)
         return await _preview_soft_fallback(msg, context, lang)
 
-    emojis = _smart_extract_emojis(text, max_count=SMART_EMOJI_MAX)
+    emojis = split_custom_reaction_emojis(text, max_count=SMART_EMOJI_MAX)
     if emojis:
         # Sof emoji yoki emoji aralash matn bo'lsa ham, emojilarni reaksiya sifatida qabul qilamiz
         # (topshiriq: sof emoji bo'lsa xato berilmasin; biz biroz kengroq — har qanday emoji topilsa qabul qilamiz)
