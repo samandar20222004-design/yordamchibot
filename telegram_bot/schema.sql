@@ -34,7 +34,8 @@ CREATE TABLE IF NOT EXISTS users (
     full_menu_unlocked BOOLEAN DEFAULT FALSE,
     -- 🆕 6-bosqich (RBAC): rol ustuni. DEFAULT 'user' — eski yozuvlarning
     -- barchasi oddiy foydalanuvchi bo'lib qoladi (backward-compatible).
-    role VARCHAR(20) DEFAULT 'user'
+    role VARCHAR(20) DEFAULT 'user',
+    stars_subscription_state VARCHAR(16)
 );
 
 CREATE TABLE IF NOT EXISTS channels (
@@ -669,6 +670,7 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_
 ALTER TABLE users ADD COLUMN IF NOT EXISTS last_active_at TIMESTAMP WITH TIME ZONE;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS plan_type VARCHAR(20) DEFAULT 'free';
 ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_expires_at TIMESTAMP WITH TIME ZONE;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS stars_subscription_state VARCHAR(16);
 ALTER TABLE users ADD COLUMN IF NOT EXISTS ai_requests_today INTEGER DEFAULT 0;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS last_limit_reset DATE DEFAULT CURRENT_DATE;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS language_code VARCHAR(10) DEFAULT 'uz';

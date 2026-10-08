@@ -170,6 +170,13 @@ CB_CHANNEL_PLAN = "ch_plan:"
 CB_CHANNEL_TEAM = "ch_team:"
 CB_ONB_PLAN = "onb_plan:"
 
+# 🌅 Daily retention + 🗓 Uzbekistan calendar reminders.
+CB_MORNING_DIGEST_CREATE = "md_create:"
+CB_MORNING_DIGEST_IDEA = "md_idea:"
+CB_MORNING_DIGEST_DISABLE = "md_disable"
+CB_MORNING_DIGEST_CANCEL = "md_cancel"
+CB_UZ_CALENDAR_CREATE = "uzcal_create:"
+
 #: Barcha kanonik prefikslar (test va audit uchun).
 CANONICAL_PREFIXES = (
     CB_CHANNEL_DELETE,
@@ -229,6 +236,9 @@ CANONICAL_PREFIXES = (
     CB_CHANNEL_PLAN,
     CB_CHANNEL_TEAM,
     CB_ONB_PLAN,
+    CB_MORNING_DIGEST_CREATE,
+    CB_MORNING_DIGEST_IDEA,
+    CB_UZ_CALENDAR_CREATE,
 )
 
 
@@ -288,6 +298,8 @@ REGISTERED_NAMESPACES = (
     "team_",
     # 🧭 PHASE 9 — Kontekstual menyular va Instant-Value Onboarding.
     "ctx_post:", "onb_plan:",
+    # 🌅 Daily content retention and localized calendar reminders.
+    "md_", "uzcal_",
     # 🔔 Majburiy obuna / PRO tarif oqimi.
     "sub_", "check_sub",
     # 🧰 Vositalar: Konvertor + Post Enhancer.
@@ -326,6 +338,9 @@ REGISTERED_STATIC_CALLBACKS = frozenset({
     "cab_channels", "cab_channels_delete", "cab_analytics", "cab_converter",
     "cab_bonus", "cab_referral", "cab_balance", "cab_pending", "cab_queue",
     "cab_guide",
+    # 🌅 Daily retention and localized calendar reminders.
+    CB_MORNING_DIGEST_DISABLE,
+    CB_MORNING_DIGEST_CANCEL,
     # ✍️ Manual post paneli (payload'siz amallar).
     "mnp_now", "mnp_time", "mnp_24h", "mnp_repeat", "mnp_edit",
     "mnp_cancel", "mnp_panel", "mnp_react", "mnp_url", "mnp_radd",
@@ -404,6 +419,7 @@ CALLBACK_SEMANTICS = {
     # --- ❌ Bekor qilish (FSM to'xtatish) ---
     "adm_cancel": NAV_SEMANTIC_CANCEL,
     "mnp_cancel": NAV_SEMANTIC_CANCEL,
+    CB_MORNING_DIGEST_CANCEL: NAV_SEMANTIC_CANCEL,
     "mp_cancel": NAV_SEMANTIC_CANCEL,
     "aip_cancel": NAV_SEMANTIC_CANCEL,
     "ai_close": NAV_SEMANTIC_CANCEL,

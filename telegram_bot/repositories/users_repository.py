@@ -1476,6 +1476,78 @@ def check_queue_limit(user_id: int) -> tuple[bool, int, int]:
         return (True, 0, FREE_QUEUE_MAX_POSTS)
 
 
+def sync_stars_subscription(user_id: int, state: str, expires_at=None) -> bool:
+    """Synchronize a Telegram Stars recurring-subscription update.
+
+    Telegram cancellation stops future renewals, but does not revoke an already
+    paid period. Thus ``canceled``/``failed`` records billing state while PRO
+    remains enabled until ``subscription_expires_at``; the existing expiry
+    sweep downgrades it afterwards. A successful recurring payment supplies an
+    exact Telegram expiration timestamp, which is kept monotonic so delayed
+    updates cannot shorten a later paid period.
+    """
+    try:
+        uid = int(user_id)
+        status = str(state or "").strip().lower()
+    except (TypeError, ValueError):
+        return False
+    if uid <= 0 or status not in {"active", "canceled", "failed"}:
+        return False
+
+    try:
+        with db_cursor(commit=True) as cur:
+            if status == "active" and expires_at is not None:
+                cur.execute(
+                    "UPDATE users SET "
+                    "plan_type = CASE WHEN plan_type = 'enterprise' THEN plan_type ELSE 'pro' END, "
+                    "subscription_expires_at = CASE "
+                    "WHEN plan_type = 'enterprise' THEN subscription_expires_at "
+                    "ELSE GREATEST(COALESCE(subscription_expires_at, %s), %s) END, "
+                    "stars_subscription_state = 'active' "
+                    "WHERE user_id = %s",
+                    (expires_at, expires_at, uid),
+                )
+            elif status == "active":
+                # An "active" BotSubscriptionUpdated update can mean the user
+                # re-enabled auto-renew; it is not a payment and must not grant
+                # a fresh month or create an unbounded PRO plan.
+                cur.execute(
+                    "UPDATE users SET "
+                    "plan_type = CASE "
+                    "WHEN plan_type = 'enterprise' THEN 'enterprise' "
+                    "WHEN subscription_expires_at > NOW() "
+                    "  OR (plan_type = 'pro' AND subscription_expires_at IS NULL) "
+                    "THEN 'pro' ELSE 'free' END, "
+                    "stars_subscription_state = 'active' "
+                    "WHERE user_id = %s",
+                    (uid,),
+                )
+            else:
+                # Cancellation/failed renewal keeps the already-paid period;
+                # expired PRO is downgraded immediately, unlimited enterprise
+                # and manually granted plans (NULL expiry) remain untouched.
+                cur.execute(
+                    "UPDATE users SET "
+                    "plan_type = CASE "
+                    "WHEN plan_type = 'enterprise' THEN 'enterprise' "
+                    "WHEN subscription_expires_at > NOW() "
+                    "  OR (plan_type = 'pro' AND subscription_expires_at IS NULL) "
+                    "THEN 'pro' ELSE 'free' END, "
+                    "stars_subscription_state = %s "
+                    "WHERE user_id = %s",
+                    (status, uid),
+                )
+            updated = cur.rowcount > 0
+        if updated:
+            _invalidate_user(uid)
+            _cache_clear("system_stats")
+            _cache_clear("admin_dashboard_stats")
+        return updated
+    except Exception as e:
+        logger.error("sync_stars_subscription xatosi: %s", e)
+        return False
+
+
 def set_user_plan(user_id: int, plan: str, days: int = None,
                   admin_id: int = None) -> bool:
     """Foydalanuvchi tarifini o'zgartiradi.

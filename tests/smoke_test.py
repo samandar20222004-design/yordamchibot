@@ -466,6 +466,7 @@ async def workers_smoke(timeout: float) -> None:
         "check_and_send_posts", "check_and_delete_expired_posts",
         "cleanup_old_data_job", "cleanup_old_records_job",
         "poll_content_sources_job", "weekly_channel_reports_job",
+        "daily_morning_digest_job", "uzbekistan_calendar_reminders_job",
         "subscription_sweep_job", "recover_on_startup",
     )
     missing = [name for name in worker_names if not hasattr(sched, name)]
@@ -479,6 +480,12 @@ async def workers_smoke(timeout: float) -> None:
         ("scheduler.start()", "main.py: APScheduler ishga tushiriladi"),
         ("concurrent_updates(True)", "main.py: update'lar parallel qabul qilinadi"),
         ("recover_on_startup", "main.py: startup tiklanish (recover) chaqiriladi"),
+        ("daily_morning_digest_job, 'cron', hour=9, minute=0",
+         "main.py: daily digest 09:00 Toshkent cron'i ro'yxatdan o'tadi"),
+        ("uzbekistan_calendar_reminders_job, 'cron', hour=9, minute=5",
+         "main.py: Uzbekistan calendar reminders cron'i ro'yxatdan o'tadi"),
+        ('+ ["subscription"]',
+         "main.py: polling Telegram subscription update turini so'raydi"),
     ):
         check(label, marker in main_src)
 
@@ -494,7 +501,8 @@ async def workers_smoke(timeout: float) -> None:
     jobs = (
         ("check_and_send_posts", 60), ("check_and_delete_expired_posts", 60),
         ("cleanup_old_data", 360), ("subscription_sweep", 15),
-        ("poll_content_sources", 15), ("weekly_channel_reports", None),
+        ("poll_content_sources", 15), ("daily_morning_digest", None),
+        ("uzbekistan_calendar_reminders", None), ("weekly_channel_reports", None),
         ("cleanup_old_records", None), ("flush_user_activity", None),
     )
     for job_id, minutes in jobs:
@@ -507,7 +515,7 @@ async def workers_smoke(timeout: float) -> None:
     scheduler.start()
     try:
         check("workerlar: scheduler ishga tushdi (running)", bool(scheduler.running))
-        check("workerlar: 9 ta job ro'yxatga olindi", len(scheduler.get_jobs()) >= 9,
+        check("workerlar: 11 ta job ro'yxatga olindi", len(scheduler.get_jobs()) >= 11,
               str(len(scheduler.get_jobs())))
         try:
             await asyncio.wait_for(executed.wait(), timeout=max(5.0, timeout))

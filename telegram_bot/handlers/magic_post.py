@@ -43,6 +43,7 @@ from keyboards.default import (
 )
 from keyboards.inline import btn_label
 from locales.translations import clear_fsm_data, get_lang, safe_t
+from services.ai.progress import AIProgressReporter
 from services.ai_quota import (
     denial_message,
     release_ai_quota,
@@ -172,7 +173,7 @@ def _magic_channel_keyboard(channels: list, lang: str) -> InlineKeyboardMarkup:
 def _magic_style_menu_text(raw_text: str, lang: str, hint_key: str = "mp_choose_style") -> str:
     """Uslub tanlash ekrani: sarlavha + matn ko'rinishi + uslublar jadvali."""
     raw_text = (raw_text or "").strip()
-    preview = raw_text[:220] + ("…" if len(raw_text) > 220 else "")
+    preview = html_escape(raw_text[:220] + ("…" if len(raw_text) > 220 else ""))
     legend = "\n".join(
         f"{magic_t(label_key, lang)} — {magic_t(desc_key, lang)}"
         for _style, (label_key, desc_key) in MAGIC_STYLE_KEYS.items()
@@ -446,22 +447,34 @@ async def magic_style_callback(update: Update, context: ContextTypes.DEFAULT_TYP
             return MAGIC_STYLE_SELECT
 
     context.user_data["magic_style"] = style
-    # 2-BOSQICH UX: AI chaqiruvi boshida typing + placeholder, natija edit_text bilan.
+    # 🧠 Real-time AI progress. Stages are localized and the reporter enforces
+    # a >=1.05s edit spacing; Telegram editMessageText is never polled rapidly.
     chat_id = query.message.chat_id
     try:
         await context.bot.send_chat_action(chat_id=chat_id, action="typing")
     except Exception as _silent_exc:
         log_silent_failure("handlers.magic_post:magic_style_callback:451", _silent_exc, user_id=user_id, chat_id=chat_id, lang=lang)
-    # Placeholder — xuddi shu xabar keyin edit_text bilan almashtiriladi (yangi xabar YO'Q).
-    try:
-        await query.edit_message_text("⏳ Post tayyorlanmoqda, iltimos kuting...")
-        wait_msg = query.message
-    except Exception:
-        wait_msg = None
+
+    wait_msg = None
+
+    async def _edit_progress(text):
+        editor = getattr(wait_msg, "edit_text", None) if wait_msg is not None else None
+        if callable(editor):
+            return await editor(text)
+        return await query.edit_message_text(text)
+
+    progress = AIProgressReporter(editor=_edit_progress, lang=lang)
+    await progress.begin()
+    if progress.last_text is None:
+        # If editing the style screen is unavailable, send one progress message
+        # and keep editing that message thereafter (rather than spamming).
         try:
-            wait_msg = await query.message.reply_text("⏳ Post tayyorlanmoqda, iltimos kuting...")
+            wait_msg = await query.message.reply_text(progress.current_text)
+            progress.last_text = progress.current_text
         except Exception as _silent_exc:
             log_silent_failure("handlers.magic_post:magic_style_callback:461", _silent_exc)
+    else:
+        wait_msg = query.message
 
     # 🧭 3-QADAM (UI/UX POLISH): wizard'da tanlangan format ko'rsatmasi
     # generatsiya materialiga ulanadi (bir martalik — iste'mol qilinadi).
@@ -469,12 +482,18 @@ async def magic_style_callback(update: Update, context: ContextTypes.DEFAULT_TYP
     fmt_hint = str(context.user_data.pop("aip_format_hint", "") or "").strip()
     material = raw_text if not fmt_hint else f"{raw_text}\n\n{fmt_hint}"
 
-    # --- ✨ AI generatsiya (Gemini/Groq bepul zanjiri, uslubga xos prompt) ---
+    # --- ✨ AI generation; progress message keeps changing during provider work. ---
     try:
-        result = await generate_magic_post(material, style, lang=lang, is_pro=is_pro)
+        result = await progress.run(
+            generate_magic_post(material, style, lang=lang, is_pro=is_pro)
+        )
     except Exception as e:  # noqa: BLE001 — hech qachon yiqilmaydi
         logger.error("Magic Post generation error: %s", e)
         result = {"error": "exception"}
+    finally:
+        # Ensure the next edit (success/error result) also respects Telegram's
+        # per-message edit rate limit.
+        await progress.finish()
 
     if not isinstance(result, dict) or result.get("error") or not (result.get("post_text") or "").strip():
         logger.warning("Magic Post AI xatosi (style=%s, lang=%s): %s",
@@ -626,6 +645,12 @@ async def magic_send_now_callback(update: Update, context: ContextTypes.DEFAULT_
     except Exception:
         channels = []
     channels = [ch for ch in channels if ch]
+    target_channel_id = str(context.user_data.get("magic_target_channel_id") or "")
+    if target_channel_id:
+        channels = [
+            channel for channel in channels
+            if str(channel.get("channel_id") if isinstance(channel, dict) else channel[0]) == target_channel_id
+        ]
 
     if not channels:
         try:
@@ -702,9 +727,14 @@ async def magic_schedule_callback(update: Update, context: ContextTypes.DEFAULT_
     context.user_data["ai_post_type"] = "text"
     context.user_data.pop("ai_scheduled_time", None)
     context.user_data.pop("ai_target_all", None)
+    target_channel_id = str(context.user_data.get("magic_target_channel_id") or "")
+    if target_channel_id:
+        context.user_data["ai_target_channel_id"] = target_channel_id
+    else:
+        context.user_data.pop("ai_target_channel_id", None)
     # Magic-oqim qoldiqlari endi kerak emas.
     for key in ("magic_raw_text", "magic_post_text", "magic_style",
-                "magic_channels", "magic_usage_counted"):
+                "magic_channels", "magic_usage_counted", "magic_target_channel_id"):
         context.user_data.pop(key, None)
 
     try:

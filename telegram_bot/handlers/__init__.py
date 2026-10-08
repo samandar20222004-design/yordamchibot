@@ -235,6 +235,14 @@ from handlers.ai_post import (
     AI_POST_CLARIFY, AI_POST_SALES_INPUT, AI_POST_CUSTOM_INPUT,
 )
 
+# 🌅 Sprint 3 daily retention and localized Uzbekistan calendar callbacks.
+from handlers.daily_retention import (
+    MORNING_IDEA_SELECT,
+    morning_digest_cancel_callback, morning_digest_create_callback,
+    morning_digest_disable_callback, morning_digest_idea_callback,
+    uzbek_calendar_create_callback,
+)
+
 # 2d. 🎙 VOICE → POST (Killer Feature — ovoz → matn → uslub → tayyor post)
 # MUHIM: shu modul `handlers.magic_post` dan (_safe_edit, _magic_deliver_one),
 # `handlers.ai_assistant` dan (AI_GET_TIME, _show_time_prompt) va
@@ -372,6 +380,7 @@ from handlers.subscription import (
     start_subscription, subscription_callback, promo_code_received,
     grant_pro_command, create_promo_command,
     precheckout_callback, successful_payment_callback,
+    BotSubscriptionUpdatedHandler,
     SUBSCRIPTION_VIEW, PROMO_INPUT, RECEIPT_WAIT
 )
 
@@ -1258,6 +1267,9 @@ def _build_main_conversation_handler(all_menu_jumps):
             CallbackQueryHandler(
                 support_ticket_entry, pattern=r"^help_support$",
             ),
+            # 🌅 Daily digest → idea picker; the selected idea then reuses Magic Post.
+            CallbackQueryHandler(morning_digest_create_callback, pattern=r"^md_create:"),
+            CallbackQueryHandler(uzbek_calendar_create_callback, pattern=r"^uzcal_create:"),
             # 📢 Kanallarim → [➕ Post yaratish]: kanal ALLAQACHON tanlangan,
             # shuning uchun oqim to'g'ridan-to'g'ri GET_CONTENT holatiga
             # kiradi (entry point bo'lishi SHART — u FSM holati qaytaradi).
@@ -1731,6 +1743,12 @@ def _build_main_conversation_handler(all_menu_jumps):
                 CallbackQueryHandler(ai_close, pattern=r"^ai_close$"),
             ],
 
+            # 🌅 Morning digest: select one of the three deterministic ideas.
+            MORNING_IDEA_SELECT: all_menu_jumps + [
+                CallbackQueryHandler(morning_digest_idea_callback, pattern=r"^md_idea:"),
+                CallbackQueryHandler(morning_digest_cancel_callback, pattern=r"^md_cancel$"),
+            ],
+
             # 7b. ✨ AI STUDIO inline oqimi (hardering: xabar edit, doimiy nav-tugmalar)
             # AI_MENU_STATE da rasm yuborilsa — Vision (rasmdan post) darhol ishlaydi
             AI_MENU_STATE: all_menu_jumps + [
@@ -2037,6 +2055,9 @@ def _register_global_commands(app):
     app.add_handler(CommandHandler("ai", lambda u, c: guard_entry(u, c, ai_studio_menu_entry)))
 
     # Stars to'lov handlerlari — Telegram Stars (XTR) to'lovlari uchun.
+    # BotSubscriptionUpdated alohida Update.subscription maydoni bilan keladi;
+    # predicate-handler faqat shu update'ni ushlab, odatiy routing'ga xalal bermaydi.
+    app.add_handler(BotSubscriptionUpdatedHandler())
     # PreCheckoutQuery: foydalanuvchi to'lovni tasdiqlashidan oldin so'raladi.
     # SuccessfulPayment: to'lov muvaffaqiyatli o'tgach PRO tarifni faollashtiramiz.
     app.add_handler(PreCheckoutQueryHandler(precheckout_callback))
@@ -2063,6 +2084,7 @@ def _register_content_and_queue_callbacks(app):
     # Subscription (Premium) tugmalari — conversation faol bo'lmasa ham (masalan,
     # suhbat muddati tugagach eski karta tugmalari bosilsa) Stars invoice ochilishi
     # uchun global reyestr. Faol conversation bo'lsa main_conv birinchi ishlaydi.
+    app.add_handler(CallbackQueryHandler(morning_digest_disable_callback, pattern=r"^md_disable$"))
     app.add_handler(CallbackQueryHandler(subscription_callback, pattern=r"^sub_"))
     app.add_handler(CallbackQueryHandler(converter_callback, pattern=r"^conv_show:"))
     app.add_handler(CallbackQueryHandler(converter_close_callback, pattern=r"^conv_close$"))

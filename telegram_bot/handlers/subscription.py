@@ -1,8 +1,10 @@
 """Subscriptions, Limits & Monetization — tariflar va obuna boshqaruvi."""
 import logging
 import re
+from collections.abc import Mapping
+from datetime import datetime, timezone
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice
-from telegram.ext import ContextTypes, ConversationHandler
+from telegram.ext import BaseHandler, ContextTypes, ConversationHandler
 from config import (
     ADMIN_IDS_SET,
     CARD_NUMBER, CARD_HOLDER, PAYMENT_ADMIN_USERNAME,
@@ -1112,9 +1114,110 @@ async def successful_payment_callback(update: Update, context: ContextTypes.DEFA
         )
         return
 
+    # Telegram's recurring payment event is the source of truth for the paid
+    # period's exact end; the daily/monthly day-count above remains the fallback
+    # for legacy one-off invoices and API versions omitting the timestamp.
+    expiration_raw = getattr(payment, "subscription_expiration_date", None)
+    is_recurring = bool(getattr(payment, "is_recurring", False) or expiration_raw)
+    if is_recurring:
+        expiration = None
+        if expiration_raw is not None:
+            try:
+                expiration = datetime.fromtimestamp(int(expiration_raw), tz=timezone.utc)
+            except (TypeError, ValueError, OverflowError, OSError):
+                logger.warning("Invalid Stars subscription expiration timestamp (user=%s)", user_id)
+        try:
+            await db.run_db(db.sync_stars_subscription, user_id, "active", expiration)
+        except Exception:
+            # Payment has already been granted atomically. Keep the receipt
+            # success path intact and let the regular subscription sweep repair
+            # an expired plan if this best-effort metadata sync fails.
+            logger.exception("Recurring Stars subscription metadata sync failed (user=%s)", user_id)
+
     days = plan["days"]
     await update.message.reply_text(
         get_text("sub_pay_success", lang, stars=total_stars, days=days),
         reply_markup=get_main_keyboard(user_id in ADMIN_IDS_SET, lang=lang),
         parse_mode="HTML",
     )
+
+
+async def bot_subscription_updated_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Apply Telegram's BotSubscriptionUpdated state without over-granting time.
+
+    Telegram sends this update when a user enables/disables recurring Stars
+    billing. It is distinct from a successful renewal payment: only a
+    SuccessfulPayment extends expiry. Cancellation therefore stops renewal but
+    retains already-paid PRO access through the stored expiration date.
+    """
+    subscription = getattr(update, "subscription", None)
+    if subscription is None:
+        # python-telegram-bot versions predating Bot API 9.2 retain unknown
+        # Update fields under api_kwargs rather than as typed attributes.
+        api_kwargs = getattr(update, "api_kwargs", None) or {}
+        subscription = api_kwargs.get("subscription") if isinstance(api_kwargs, Mapping) else None
+    if subscription is None:
+        return False
+
+    if isinstance(subscription, Mapping):
+        user = subscription.get("user") or {}
+        user_id = user.get("id") if isinstance(user, Mapping) else getattr(user, "id", None)
+        payload = subscription.get("invoice_payload", "") or ""
+        state = str(subscription.get("state", "") or "").strip().lower()
+    else:
+        user = getattr(subscription, "user", None)
+        user_id = getattr(user, "id", None)
+        payload = getattr(subscription, "invoice_payload", "") or ""
+        state = str(getattr(subscription, "state", "") or "").strip().lower()
+    if not user_id or state not in {"active", "canceled", "failed"}:
+        logger.warning(
+            "Stars subscription update ignored: user=%r state=%r",
+            user_id, state,
+        )
+        return False
+
+    lang = await ensure_user_lang(context, user_id)
+    plan, error = _validate_stars_payload(payload, user_id, lang=lang)
+    if plan is None:
+        logger.warning(
+            "Stars subscription update rejected: user=%s payload=%r reason=%s",
+            user_id, str(payload)[:80], error or "invalid payload",
+        )
+        return False
+
+    try:
+        synchronized = await db.run_db(
+            db.sync_stars_subscription, int(user_id), state, None,
+        )
+    except Exception:
+        logger.exception("Stars subscription DB synchronization failed (user=%s)", user_id)
+        return False
+    if not synchronized:
+        logger.warning(
+            "Stars subscription state was not synchronized (user=%s state=%s)",
+            user_id, state,
+        )
+    else:
+        logger.info(
+            "Stars subscription state synchronized (user=%s state=%s plan=%s)",
+            user_id, state, plan["plan_key"],
+        )
+    return bool(synchronized)
+
+
+class BotSubscriptionUpdatedHandler(BaseHandler):
+    """PTB handler that only consumes Updates carrying ``subscription``.
+
+    A plain TypeHandler(Update, ...) would shadow every other handler in its
+    group, so this small BaseHandler predicate keeps unrelated messages and
+    callbacks on their normal routing paths.
+    """
+
+    def __init__(self):
+        super().__init__(bot_subscription_updated_callback)
+
+    def check_update(self, update):
+        if getattr(update, "subscription", None) is not None:
+            return True
+        api_kwargs = getattr(update, "api_kwargs", None) or {}
+        return isinstance(api_kwargs, Mapping) and api_kwargs.get("subscription") is not None
