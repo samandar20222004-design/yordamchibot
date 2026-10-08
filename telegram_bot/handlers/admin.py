@@ -24,6 +24,7 @@ from keyboards.inline import (
     unpack_sponsor,
 )
 from utils import ai_agent
+from services import event_tracker
 from locales.translations import clear_fsm_data, get_lang, get_text
 # 👑 FAZA 26 — admin panelning BARCHA matnlari yagona i18n lug'atidan
 # (translations/admin_panel.py — uz/ru/en 100% paritet) olinadi.
@@ -406,6 +407,53 @@ async def admin_panel_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode="HTML",
     )
     return ConversationHandler.END
+
+
+async def admin_feature_usage_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """`/feature_usage` — SPRINT 2 (VAZIFA 3): eng ko'p/kam ishlatilayotgan
+    tugma va buyruqlar bo'yicha oddiy ichki agregatsiya hisobot (faqat admin).
+
+    Ma'lumot manbai — ``services.event_tracker`` (jarayon xotirasidagi
+    yengil, asinxron hodisa jurnali; ``handlers.guard_entry``/``guard_menu``
+    orqali avtomatik to'ldiriladi). Hech qanday yangi DB jadvali kerak emas.
+    """
+    if not is_admin(update.effective_user.id):
+        return
+    try:
+        stats = await db.run_db(db.get_system_stats)
+        total_users = (stats or {}).get("users")
+    except Exception:
+        total_users = None
+    report = event_tracker.usage_report(total_users=total_users)
+    lang = get_lang(context)
+    lines = [
+        admin_t("fu_title", lang),
+        admin_t("fu_total_users", lang, total=report["total_users"]),
+        "",
+    ]
+    if not report["events"]:
+        lines.append(admin_t("fu_empty", lang))
+    else:
+        lines.append(admin_t("fu_most_used_header", lang))
+        for row in report["most_used"]:
+            lines.append(admin_t(
+                "fu_row", lang,
+                name=row["event_name"], count=row["count"],
+                users=row["unique_users"], rate=f"{row['adoption_rate'] * 100:.1f}",
+            ))
+        if report["least_used"]:
+            lines.append("")
+            lines.append(admin_t(
+                "fu_least_used_header", lang,
+                threshold=f"{event_tracker.LOW_USAGE_THRESHOLD * 100:.0f}",
+            ))
+            for row in report["least_used"]:
+                lines.append(admin_t(
+                    "fu_row_least", lang,
+                    name=row["event_name"], users=row["unique_users"],
+                    rate=f"{row['adoption_rate'] * 100:.1f}",
+                ))
+    await update.message.reply_text("\n".join(lines), parse_mode="HTML")
 
 
 async def admin_stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):

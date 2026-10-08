@@ -157,7 +157,14 @@ def test_architecture():
           and delivery_service.STATUS_SENT == "sent")
 
     sch_src = (ROOT / "scheduler.py").read_text(encoding="utf-8")
-    exec_body = sch_src.split("async def _execute_send", 1)[1].split("\nasync def ", 1)[0]
+    # SPRINT 2: _execute_send endi 3 bosqichli orkestrator (pre-checks →
+    # payload/media dispatch → post-send finalize) — haqiqiy Telegram API
+    # chaqiruvlari ``_dispatch_post_to_telegram`` ichida. Invariant bir xil
+    # qoladi: faqat ``_delivery_send(bot,`` orqali yuboriladi, xom
+    # ``bot.send_*`` YO'Q — endi ikkala funksiya tanasi birgalikda tekshiriladi.
+    def _body(name: str) -> str:
+        return sch_src.split(f"async def {name}", 1)[1].split("\nasync def ", 1)[0]
+    exec_body = _body("_execute_send(bot, post)") + _body("_dispatch_post_to_telegram")
     check("scheduler: barcha post yuborishlari _delivery_send orqali",
           "_delivery_send(bot," in exec_body
           and "await bot.send_message" not in exec_body

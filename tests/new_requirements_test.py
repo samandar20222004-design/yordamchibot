@@ -809,14 +809,41 @@ def test_unknown_fallback_registered_last_in_register_all_handlers():
     from telegram.ext import MessageHandler
     from handlers import unknown_message_fallback
     src = (ROOT / "handlers/__init__.py").read_text(encoding="utf-8")
-    body = src.split("def register_all_handlers(app):", 1)[1]
-    i_fallback = body.rfind("unknown_message_fallback")
-    i_last_add = body.rfind("app.add_handler(")
-    assert i_fallback != -1 and i_last_add != -1
-    # Fallback ro'yxatga qo'shish — oxirgi add_handler chaqiruvi
+    # SPRINT 2 (VAZIFA 2): `register_all_handlers` endi faqat orkestratsiya
+    # qiladi; haqiqiy `app.add_handler(...)` chaqiruvlari bir nechta
+    # `_register_*` sub-funksiyalariga bo'lingan (yagona uzluksiz blok,
+    # `_build_all_menu_jumps` dan boshlanib `register_all_handlers` bilan
+    # fayl oxirigacha tugaydi). Fallback handleri aynan
+    # `_register_channel_realtime_and_fallback` ICHIDA eng oxirgi
+    # `app.add_handler(` bo'lishi, VA o'sha funksiya orkestratorda ENG
+    # OXIRGI chaqiriluvchi `_register_*` bo'lishi shart.
+    body = src.split("def _build_all_menu_jumps():", 1)[1]
+    fn_marker = "def _register_channel_realtime_and_fallback(app):"
+    i_fn = body.find(fn_marker)
+    i_fn_end = body.find("\ndef ", i_fn + 1) if i_fn != -1 else -1
+    fn_body = body[i_fn:i_fn_end] if i_fn != -1 and i_fn_end != -1 else body[i_fn:]
+    i_fallback = fn_body.rfind("unknown_message_fallback")
+    i_last_add = fn_body.rfind("app.add_handler(")
+    assert i_fn != -1 and i_fallback != -1 and i_last_add != -1
+    # Fallback ro'yxatga qo'shish — o'z funksiyasi ichida oxirgi add_handler chaqiruvi
     assert i_last_add < i_fallback, "unknown_message_fallback oxirgi add_handler bo'lishi shart"
-    # catch-all expired_session_callback dan ham keyin
-    assert body.rfind("CallbackQueryHandler(expired_session_callback)") < i_fallback
+    # catch-all expired_session_callback dan ham keyin (shu funksiya ichida)
+    assert fn_body.rfind("CallbackQueryHandler(expired_session_callback)") < i_fallback
+    # ... va bu funksiya orkestratorda ENG OXIRGI chaqiriladigan _register_* bo'lishi shart
+    orchestrator_body = body[body.find("def register_all_handlers(app):"):]
+    last_other_register_call = max(
+        orchestrator_body.rfind(name)
+        for name in (
+            "_register_global_commands(app)",
+            "_register_global_menu_fallback_handlers(app",
+            "_register_content_and_queue_callbacks(app)",
+            "_register_channel_callbacks(app)",
+            "_register_ai_and_media_callbacks(app)",
+            "_register_settings_and_support_callbacks(app)",
+        )
+    )
+    i_fallback_fn_call = orchestrator_body.rfind("_register_channel_realtime_and_fallback(app)")
+    assert i_fallback_fn_call != -1 and i_fallback_fn_call > last_other_register_call
 
     app = _build_app()
     groups = sorted(app.handlers)
@@ -1816,7 +1843,12 @@ def test_reactions_not_concatenated_into_published_text():
         src = (ROOT / rel).read_text(encoding="utf-8")
         assert "strip_leading_reaction_glyphs" in src, rel
     sch = (ROOT / "scheduler.py").read_text(encoding="utf-8")
-    exec_body = sch.split("async def _execute_send", 1)[1].split("\nasync def ", 1)[0]
+    # SPRINT 2: payload formatlash (strip + compose) endi ajratilgan
+    # ``_build_send_payload`` yordamchisida — ``_execute_send`` uni chaqiradi.
+    # Invariant o'zgarmagan: ikkala funksiya birgalikda tekshiriladi.
+    def _body(name: str) -> str:
+        return sch.split(f"async def {name}", 1)[1].split("\nasync def ", 1)[0]
+    exec_body = _body("_execute_send(bot, post)") + _body("_build_send_payload")
     assert "strip_leading_reaction_glyphs" in exec_body
     assert "compose_post_text" in exec_body
     # compose_post_text reaksiya emojilarini qo'shmasligi kerak
