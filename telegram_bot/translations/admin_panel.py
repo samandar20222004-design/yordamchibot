@@ -442,6 +442,96 @@ ADMIN_PANEL_I18N = {
         "fu_row": "  • {name}: {count}x ({users} user, {rate}%)",
         "fu_least_used_header": "⚠️ <b>Kam ishlatilmoqda (&lt;{threshold}%):</b>",
         "fu_row_least": "  • {name}: {users} user ({rate}%)",
+
+        # --- 💰 SPRINT 4: unit economics (/economics) ---
+        "eco_title": "💰 <b>Birlik iqtisodiyoti — AI xarajati</b>",
+        "eco_period_monthly": "oylik",
+        "eco_period_daily": "kunlik",
+        "eco_line_period": "🗓 Davr: <b>{period}</b>",
+        "eco_line_requests": "🔢 AI so'rovlar: <b>{requests} ta</b> · tokenlar: <b>{tokens} ta</b>",
+        "eco_line_cost": "💸 Jami xarajat: <b>${usd}</b> ≈ <b>{uzs} so'm</b>",
+        "eco_line_avg": "👤 Bitta faol foydalanuvchi: <b>${usd}</b> ≈ <b>{uzs} so'm</b> ({users} faol)",
+        "eco_line_pro": "💎 PRO tarif (1 oy): <b>{uzs} so'm</b> (~${usd})",
+        "eco_line_margin": "📈 Marja (1 foydalanuvchi): <b>{uzs} so'm</b> ({percent}%)",
+        "eco_line_verdict": "🧾 Xulosa: <b>{verdict}</b> — xarajat ulushi {share}%",
+        "eco_verdict_healthy": "✅ sog'lom",
+        "eco_verdict_watch": "👀 kuzatuvda",
+        "eco_verdict_thin": "⚠️ yupqa marja",
+        "eco_verdict_loss": "🔴 zarar",
+        "eco_line_break_even": (
+            "⚖️ Zararsizlik: bitta PRO to'lovi {users} ta foydalanuvchining "
+            "AI xarajatini qoplaydi"
+        ),
+        "eco_note_unpriced": (
+            "ℹ️ {count} so'rovda model narxi jadvalda yo'q — xarajat "
+            "«noma'lum» deb hisoblandi"
+        ),
+        "eco_note_source": "🔌 Manba: <code>{source}</code> · kurs: 1$ = {rate} so'm",
+        "eco_top_title": "🏆 Eng ko'p sarflaganlar (joriy jarayon):",
+        "eco_top_row": "  • <code>{user_id}</code> — {uzs} so'm ({requests} so'rov)",
+        "eco_unavailable": "⚠️ Xarajat hisobotini olish imkonsiz (baza javob bermadi).",
+
+        # --- 🚪 SPRINT 4: yopiq beta darvozasi (/beta) ---
+        "beta_admin_title": "🚪 <b>Yopiq beta darvozasi</b>",
+        "beta_admin_mode_on": "🔒 Rejim: <b>YOQILGAN</b> — faqat taklif kodi yoki admin tasdig'i",
+        "beta_admin_mode_off": "🔓 Rejim: <b>o'chirilgan</b> — bot ochiq",
+        "beta_admin_source": "⚙️ Manba: <code>{source}</code> (env | runtime)",
+        "beta_admin_seats": "🪑 O'rinlar: <b>{seats}</b> · navbatda: <b>{pending}</b>",
+        "beta_admin_codes": "🎟 Kodlar: <b>{codes} ta</b> (faoli: {active})",
+        "beta_admin_usage": (
+            "Buyruqlar:\n"
+            "<code>/beta</code> — holat\n"
+            "<code>/beta code KOD 3 izoh</code> — kod yaratish\n"
+            "<code>/beta codes</code> — kodlar ro'yxati\n"
+            "<code>/beta delcode KOD</code> — kodni o'chirish\n"
+            "<code>/beta pending</code> — navbatdagi so'rovlar\n"
+            "<code>/beta approve ID</code> — tasdiqlash\n"
+            "<code>/beta reject ID</code> — rad etish\n"
+            "<code>/beta on | off | reset</code> — runtime rejim"
+        ),
+        "beta_admin_code_created": "✅ Kod yaratildi: <code>{code}</code> — {uses} ta foydalanish",
+        "beta_admin_code_exists": "ℹ️ <code>{code}</code> kodi allaqachon mavjud.",
+        "beta_admin_codes_empty": "🎟 Hozircha taklif kodlari yo'q. Yaratish: <code>/beta code</code>",
+        "beta_admin_codes_title": "🎟 <b>Taklif kodlari:</b>",
+        "beta_admin_code_row": "  • <code>{code}</code> — {used}/{total} · {note}",
+        "beta_admin_code_deleted": "🗑 Kod o'chirildi: <code>{code}</code>",
+        "beta_admin_code_missing": "❌ <code>{code}</code> kodi topilmadi.",
+        "beta_admin_pending_empty": "✅ Navbatda so'rov yo'q.",
+        "beta_admin_pending_title": "⏳ <b>Navbatdagi so'rovlar ({count}):</b>",
+        "beta_admin_pending_row": "  • <code>{user_id}</code> — {username} · urinishlar: {attempts}",
+        "beta_admin_pending_hint": (
+            "Tasdiqlash: <code>/beta approve ID</code> · Rad etish: "
+            "<code>/beta reject ID</code>"
+        ),
+        "beta_admin_approved": "✅ Foydalanuvchi <code>{user_id}</code> beta'ga qabul qilindi.",
+        "beta_admin_rejected": "🚫 Foydalanuvchi <code>{user_id}</code> rad etildi.",
+        "beta_admin_reject_missing": "ℹ️ <code>{user_id}</code> navbatda topilmadi.",
+        "beta_admin_mode_changed": "🔒 Yopiq beta rejimi YOQILDI (runtime).",
+        "beta_admin_mode_changed_off": "🔓 Yopiq beta rejimi o'chirildi (runtime).",
+        "beta_admin_mode_env": "⚙️ Rejim env qiymatiga qaytarildi (BETA_INVITE_ONLY).",
+        "beta_admin_new_request": (
+            "🚪 <b>Yangi beta so'rovi</b>\n"
+            "👤 {username} (<code>{user_id}</code>)\n"
+            "🎟 Kod: <code>{code}</code>\n"
+            "📌 Sabab: {reason}"
+        ),
+        "beta_admin_store_error": "⚠️ Holatni saqlash imkonsiz (baza xatosi). Keyinroq urinib ko'ring.",
+
+        # --- ⏱ SPRINT 4: onboarding gauge (TTFP + D1/D7) ---
+        "lg_title": "⏱ <b>Onboarding va retention</b> (oxirgi {days} kun)",
+        "lg_registered": "👥 Kohorta: <b>{users} ta</b> yangi foydalanuvchi",
+        "lg_activated": "✅ Birinchi postni yaratganlar: <b>{activated} ta</b> ({percent}%)",
+        "lg_ttfp": (
+            "⚡️ O'rtacha TTFP: <b>{avg}</b> · median: <b>{median}</b> · "
+            "24 soat ichida: {day_percent}%"
+        ),
+        "lg_d1": "🔁 D1 retention: <b>{percent}%</b> ({returned}/{eligible})",
+        "lg_d7": "🔁 D7 retention: <b>{percent}%</b> ({returned}/{eligible})",
+        "lg_no_data": "ℹ️ Onboarding ma'lumotlari hali yo'q (kohorta bo'sh).",
+        "lg_dur_seconds": "{seconds} soniya",
+        "lg_dur_minutes": "{minutes} daqiqa",
+        "lg_dur_hours": "{hours} soat {minutes} daqiqa",
+        "lg_dur_days": "{days} kun {hours} soat",
     },
 }
 
@@ -851,6 +941,96 @@ ADMIN_PANEL_I18N["ru"] = {
     "fu_row": "  • {name}: {count}x ({users} user, {rate}%)",
     "fu_least_used_header": "⚠️ <b>Редко используется (&lt;{threshold}%):</b>",
     "fu_row_least": "  • {name}: {users} user ({rate}%)",
+
+    # --- 💰 SPRINT 4: юнит-экономика (/economics) ---
+    "eco_title": "💰 <b>Юнит-экономика — расходы на AI</b>",
+    "eco_period_monthly": "за месяц",
+    "eco_period_daily": "за день",
+    "eco_line_period": "🗓 Период: <b>{period}</b>",
+    "eco_line_requests": "🔢 Запросов к AI: <b>{requests}</b> · токенов: <b>{tokens}</b>",
+    "eco_line_cost": "💸 Общий расход: <b>${usd}</b> ≈ <b>{uzs} сум</b>",
+    "eco_line_avg": "👤 На одного активного пользователя: <b>${usd}</b> ≈ <b>{uzs} сум</b> ({users} активных)",
+    "eco_line_pro": "💎 Тариф PRO (1 месяц): <b>{uzs} сум</b> (~${usd})",
+    "eco_line_margin": "📈 Маржа (1 пользователь): <b>{uzs} сум</b> ({percent}%)",
+    "eco_line_verdict": "🧾 Вывод: <b>{verdict}</b> — доля расхода {share}%",
+    "eco_verdict_healthy": "✅ здорово",
+    "eco_verdict_watch": "👀 под наблюдением",
+    "eco_verdict_thin": "⚠️ тонкая маржа",
+    "eco_verdict_loss": "🔴 убыток",
+    "eco_line_break_even": (
+        "⚖️ Точка окупаемости: одного платежа PRO хватает на AI-расходы "
+        "{users} пользователей"
+    ),
+    "eco_note_unpriced": (
+        "ℹ️ Для {count} запросов модели нет в таблице цен — расход помечен "
+        "как «неизвестный»"
+    ),
+    "eco_note_source": "🔌 Источник: <code>{source}</code> · курс: 1$ = {rate} сум",
+    "eco_top_title": "🏆 Больше всех расходуют (текущий процесс):",
+    "eco_top_row": "  • <code>{user_id}</code> — {uzs} сум ({requests} запросов)",
+    "eco_unavailable": "⚠️ Отчёт по расходам недоступен (база не ответила).",
+
+    # --- 🚪 SPRINT 4: шлюз закрытой беты (/beta) ---
+    "beta_admin_title": "🚪 <b>Шлюз закрытой беты</b>",
+    "beta_admin_mode_on": "🔒 Режим: <b>ВКЛЮЧЁН</b> — только код приглашения или одобрение админа",
+    "beta_admin_mode_off": "🔓 Режим: <b>выключен</b> — бот открыт",
+    "beta_admin_source": "⚙️ Источник: <code>{source}</code> (env | runtime)",
+    "beta_admin_seats": "🪑 Мест: <b>{seats}</b> · в очереди: <b>{pending}</b>",
+    "beta_admin_codes": "🎟 Кодов: <b>{codes}</b> (активных: {active})",
+    "beta_admin_usage": (
+        "Команды:\n"
+        "<code>/beta</code> — статус\n"
+        "<code>/beta code КОД 3 заметка</code> — создать код\n"
+        "<code>/beta codes</code> — список кодов\n"
+        "<code>/beta delcode КОД</code> — удалить код\n"
+        "<code>/beta pending</code> — запросы в очереди\n"
+        "<code>/beta approve ID</code> — одобрить\n"
+        "<code>/beta reject ID</code> — отклонить\n"
+        "<code>/beta on | off | reset</code> — режим runtime"
+    ),
+    "beta_admin_code_created": "✅ Код создан: <code>{code}</code> — на {uses} использований",
+    "beta_admin_code_exists": "ℹ️ Код <code>{code}</code> уже существует.",
+    "beta_admin_codes_empty": "🎟 Пока кодов приглашения нет. Создать: <code>/beta code</code>",
+    "beta_admin_codes_title": "🎟 <b>Коды приглашения:</b>",
+    "beta_admin_code_row": "  • <code>{code}</code> — {used}/{total} · {note}",
+    "beta_admin_code_deleted": "🗑 Код удалён: <code>{code}</code>",
+    "beta_admin_code_missing": "❌ Код <code>{code}</code> не найден.",
+    "beta_admin_pending_empty": "✅ В очереди запросов нет.",
+    "beta_admin_pending_title": "⏳ <b>Запросы в очереди ({count}):</b>",
+    "beta_admin_pending_row": "  • <code>{user_id}</code> — {username} · попыток: {attempts}",
+    "beta_admin_pending_hint": (
+        "Одобрить: <code>/beta approve ID</code> · Отклонить: "
+        "<code>/beta reject ID</code>"
+    ),
+    "beta_admin_approved": "✅ Пользователь <code>{user_id}</code> принят в бету.",
+    "beta_admin_rejected": "🚫 Пользователь <code>{user_id}</code> отклонён.",
+    "beta_admin_reject_missing": "ℹ️ <code>{user_id}</code> не найден в очереди.",
+    "beta_admin_mode_changed": "🔒 Режим закрытой беты ВКЛЮЧЁН (runtime).",
+    "beta_admin_mode_changed_off": "🔓 Режим закрытой беты выключен (runtime).",
+    "beta_admin_mode_env": "⚙️ Режим возвращён к значению env (BETA_INVITE_ONLY).",
+    "beta_admin_new_request": (
+        "🚪 <b>Новый запрос в бету</b>\n"
+        "👤 {username} (<code>{user_id}</code>)\n"
+        "🎟 Код: <code>{code}</code>\n"
+        "📌 Причина: {reason}"
+    ),
+    "beta_admin_store_error": "⚠️ Не удалось сохранить состояние (ошибка базы). Попробуйте позже.",
+
+    # --- ⏱ SPRINT 4: onboarding gauge (TTFP + D1/D7) ---
+    "lg_title": "⏱ <b>Onboarding и retention</b> (последние {days} дн.)",
+    "lg_registered": "👥 Когорта: <b>{users}</b> новых пользователей",
+    "lg_activated": "✅ Создали первый пост: <b>{activated}</b> ({percent}%)",
+    "lg_ttfp": (
+        "⚡️ Средний TTFP: <b>{avg}</b> · медиана: <b>{median}</b> · "
+        "в течение 24 часов: {day_percent}%"
+    ),
+    "lg_d1": "🔁 D1 retention: <b>{percent}%</b> ({returned}/{eligible})",
+    "lg_d7": "🔁 D7 retention: <b>{percent}%</b> ({returned}/{eligible})",
+    "lg_no_data": "ℹ️ Данных об onboarding пока нет (когорта пуста).",
+    "lg_dur_seconds": "{seconds} сек.",
+    "lg_dur_minutes": "{minutes} мин.",
+    "lg_dur_hours": "{hours} ч. {minutes} мин.",
+    "lg_dur_days": "{days} д. {hours} ч.",
 }
 
 # ---------------------------------------------------------------------------
@@ -1259,6 +1439,95 @@ ADMIN_PANEL_I18N["en"] = {
     "fu_row": "  • {name}: {count}x ({users} user, {rate}%)",
     "fu_least_used_header": "⚠️ <b>Underused (&lt;{threshold}%):</b>",
     "fu_row_least": "  • {name}: {users} user ({rate}%)",
+
+    # --- 💰 SPRINT 4: unit economics (/economics) ---
+    "eco_title": "💰 <b>Unit economics — AI spend</b>",
+    "eco_period_monthly": "monthly",
+    "eco_period_daily": "daily",
+    "eco_line_period": "🗓 Period: <b>{period}</b>",
+    "eco_line_requests": "🔢 AI requests: <b>{requests}</b> · tokens: <b>{tokens}</b>",
+    "eco_line_cost": "💸 Total cost: <b>${usd}</b> ≈ <b>{uzs} so'm</b>",
+    "eco_line_avg": "👤 Per active user: <b>${usd}</b> ≈ <b>{uzs} so'm</b> ({users} active)",
+    "eco_line_pro": "💎 PRO plan (1 month): <b>{uzs} so'm</b> (~${usd})",
+    "eco_line_margin": "📈 Margin (per user): <b>{uzs} so'm</b> ({percent}%)",
+    "eco_line_verdict": "🧾 Verdict: <b>{verdict}</b> — cost share {share}%",
+    "eco_verdict_healthy": "✅ healthy",
+    "eco_verdict_watch": "👀 watch",
+    "eco_verdict_thin": "⚠️ thin margin",
+    "eco_verdict_loss": "🔴 loss",
+    "eco_line_break_even": (
+        "⚖️ Break-even: one PRO payment covers the AI cost of {users} users"
+    ),
+    "eco_note_unpriced": (
+        "ℹ️ {count} requests used models missing from the price table — cost "
+        "marked as unknown"
+    ),
+    "eco_note_source": "🔌 Source: <code>{source}</code> · rate: $1 = {rate} so'm",
+    "eco_top_title": "🏆 Top spenders (current process):",
+    "eco_top_row": "  • <code>{user_id}</code> — {uzs} so'm ({requests} requests)",
+    "eco_unavailable": "⚠️ The cost report is unavailable (database did not respond).",
+
+    # --- 🚪 SPRINT 4: closed beta gate (/beta) ---
+    "beta_admin_title": "🚪 <b>Closed beta gate</b>",
+    "beta_admin_mode_on": "🔒 Mode: <b>ON</b> — invite code or admin approval only",
+    "beta_admin_mode_off": "🔓 Mode: <b>off</b> — the bot is open",
+    "beta_admin_source": "⚙️ Source: <code>{source}</code> (env | runtime)",
+    "beta_admin_seats": "🪑 Seats: <b>{seats}</b> · pending: <b>{pending}</b>",
+    "beta_admin_codes": "🎟 Codes: <b>{codes}</b> (active: {active})",
+    "beta_admin_usage": (
+        "Commands:\n"
+        "<code>/beta</code> — status\n"
+        "<code>/beta code CODE 3 note</code> — create a code\n"
+        "<code>/beta codes</code> — list codes\n"
+        "<code>/beta delcode CODE</code> — delete a code\n"
+        "<code>/beta pending</code> — queued requests\n"
+        "<code>/beta approve ID</code> — approve\n"
+        "<code>/beta reject ID</code> — reject\n"
+        "<code>/beta on | off | reset</code> — runtime mode"
+    ),
+    "beta_admin_code_created": "✅ Code created: <code>{code}</code> — {uses} uses",
+    "beta_admin_code_exists": "ℹ️ Code <code>{code}</code> already exists.",
+    "beta_admin_codes_empty": "🎟 No invite codes yet. Create one: <code>/beta code</code>",
+    "beta_admin_codes_title": "🎟 <b>Invite codes:</b>",
+    "beta_admin_code_row": "  • <code>{code}</code> — {used}/{total} · {note}",
+    "beta_admin_code_deleted": "🗑 Code deleted: <code>{code}</code>",
+    "beta_admin_code_missing": "❌ Code <code>{code}</code> not found.",
+    "beta_admin_pending_empty": "✅ No pending requests.",
+    "beta_admin_pending_title": "⏳ <b>Pending requests ({count}):</b>",
+    "beta_admin_pending_row": "  • <code>{user_id}</code> — {username} · attempts: {attempts}",
+    "beta_admin_pending_hint": (
+        "Approve: <code>/beta approve ID</code> · Reject: "
+        "<code>/beta reject ID</code>"
+    ),
+    "beta_admin_approved": "✅ User <code>{user_id}</code> was admitted to the beta.",
+    "beta_admin_rejected": "🚫 User <code>{user_id}</code> was rejected.",
+    "beta_admin_reject_missing": "ℹ️ <code>{user_id}</code> was not found in the queue.",
+    "beta_admin_mode_changed": "🔒 Closed beta mode is ON (runtime).",
+    "beta_admin_mode_changed_off": "🔓 Closed beta mode is off (runtime).",
+    "beta_admin_mode_env": "⚙️ Mode was reset to the env value (BETA_INVITE_ONLY).",
+    "beta_admin_new_request": (
+        "🚪 <b>New beta request</b>\n"
+        "👤 {username} (<code>{user_id}</code>)\n"
+        "🎟 Code: <code>{code}</code>\n"
+        "📌 Reason: {reason}"
+    ),
+    "beta_admin_store_error": "⚠️ Could not save the state (database error). Please try again later.",
+
+    # --- ⏱ SPRINT 4: onboarding gauge (TTFP + D1/D7) ---
+    "lg_title": "⏱ <b>Onboarding and retention</b> (last {days} days)",
+    "lg_registered": "👥 Cohort: <b>{users}</b> new users",
+    "lg_activated": "✅ Created their first post: <b>{activated}</b> ({percent}%)",
+    "lg_ttfp": (
+        "⚡️ Average TTFP: <b>{avg}</b> · median: <b>{median}</b> · "
+        "within 24 hours: {day_percent}%"
+    ),
+    "lg_d1": "🔁 D1 retention: <b>{percent}%</b> ({returned}/{eligible})",
+    "lg_d7": "🔁 D7 retention: <b>{percent}%</b> ({returned}/{eligible})",
+    "lg_no_data": "ℹ️ No onboarding data yet (the cohort is empty).",
+    "lg_dur_seconds": "{seconds} sec",
+    "lg_dur_minutes": "{minutes} min",
+    "lg_dur_hours": "{hours} h {minutes} min",
+    "lg_dur_days": "{days} d {hours} h",
 }
 
 

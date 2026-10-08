@@ -633,6 +633,35 @@ EN_OVERLAY = {
         "♻️ This button is stale (the bot was restarted). "
         "Open the menu again: /start"
     ),
+    # 🚪 SPRINT 4 — closed beta access messages.
+    "beta_pending": (
+        "🚪 <b>Closed beta</b>\n\n"
+        "The bot is currently running in a closed test mode — access is only "
+        "by invitation code or admin approval.\n"
+        "Your request has been sent to the admin: once approved, come back "
+        "with /start."
+    ),
+    "beta_invalid_code": (
+        "❌ <b>The invitation code is not valid.</b>\n\n"
+        "Please check the code and send it again: <code>/start CODE</code>\n"
+        "Or wait for admin approval — your request has been queued."
+    ),
+    "beta_code_used": (
+        "⌛️ <b>This invitation code has already been used.</b>\n\n"
+        "Contact the admin if you need another code."
+    ),
+    "beta_beta_full": (
+        "🧑‍🤝‍🧑 <b>All beta seats are taken for now.</b>\n\n"
+        "You have been added to the list for the next wave — we will let you "
+        "know as soon as a seat opens up."
+    ),
+    "beta_code_accepted": (
+        "✅ <b>Invitation code accepted — welcome to the beta!</b>"
+    ),
+    "beta_approved_notice": (
+        "✅ <b>Your request has been approved!</b>\n\n"
+        "To start using the bot, please send /start."
+    ),
     # 🗝 FAZA 19 — fail-closed rejection for unknown/tampered callbacks.
     "callback_rejected": (
         "⛔ This action is unavailable or failed the security check. "

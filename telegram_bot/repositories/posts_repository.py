@@ -171,6 +171,17 @@ def add_post(
             post_id = cur.fetchone()[0]
         _invalidate_user(user_id)
         _cache_clear("system_stats")
+        # ⏱ SPRINT 4 — TTFP (Time To First Post): birinchi post yaratilgan
+        # payt jarayon xotirasida belgilanadi (baza agregati esa
+        # ``users.created_at`` va ``scheduled_posts`` dan hisoblanadi).
+        # Best-effort: analitika post saqlash oqimini HECH QACHON buzdirmaydi.
+        try:
+            from services.onboarding_telemetry import record_first_post
+
+            record_first_post(user_id)
+        except Exception:  # noqa: BLE001 — analitika best-effort
+            logger.debug("TTFP belgilashda xato (post_id=%s)", post_id,
+                         exc_info=True)
         return post_id
     except Exception as e:
         logger.error(f"Post saqlash xatosi: {e}")

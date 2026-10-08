@@ -181,6 +181,23 @@ FREE_DAILY_AI = _int_env("FREE_DAILY_AI", 5)
 PRO_MAX_CHANNELS = _int_env("PRO_MAX_CHANNELS", 999)
 PRO_DAILY_AI = _int_env("PRO_DAILY_AI", 999)
 
+# --- SPRINT 4: 💵 UNIT ECONOMICS (USD → UZS kursi) ---
+# AI xarajati dollar hisobida yig'iladi (``ai_usage_events.estimated_cost``);
+# foydalanuvchiga/admin panelga so'mda ko'rsatish uchun kurs SHU YERDAN
+# o'qiladi (kodda qattiq yozilgan kurs yo'q). Standart: 12 600 so'm/$.
+USD_UZS_RATE = _int_env("USD_UZS_RATE", 12600)
+
+# --- SPRINT 4: 🚪 YOPIQ BETA DARVOZASI (closed beta access) ---
+# BETA_INVITE_ONLY=true  → yangi foydalanuvchi faqat taklif kodi yoki admin
+#                          tasdig'i bilan kiradi (mavjud foydalanuvchilar
+#                          uzluksiz ishlayveradi);
+# BETA_INVITE_ONLY=false → odatiy ochiq rejim (standart, fail-safe: noto'g'ri
+#                          qiymat ham "ochiq" deb o'qiladi — beta rejimi
+#                          tasodifan yoqilib qolmasin).
+# BETA_MAX_USERS — beta o'rinlari soni (30–50 kanal egasi uchun; 0 = cheksiz).
+BETA_INVITE_ONLY = _env_flag("BETA_INVITE_ONLY", False)
+BETA_MAX_USERS = _int_env("BETA_MAX_USERS", 50)
+
 # --- FAZA 25: Update handler va fon vazifalari uchun timeout chegaralari ---
 # UPDATE_HANDLER_TIMEOUT_SECONDS — bitta Telegram update handlerining
 # bajarilishiga berilgan QAT'IY maksimal vaqt (soniya). Og'ir AI/tahlil

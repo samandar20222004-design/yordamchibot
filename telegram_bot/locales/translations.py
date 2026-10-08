@@ -1582,6 +1582,37 @@ TRANSLATIONS = {
             "♻️ Bu tugma eskirgan (bot qayta ishga tushirilgan). "
             "Menyuni qaytadan oching: /start"
         ),
+        # 🚪 SPRINT 4 — YOPIQ BETA DARVOZASI (closed beta access) xabarlari.
+        # Bot 30–50 kanal egasi bilan yopiq sinovda ishlaganda yangi
+        # foydalanuvchi taklif kodi yoki admin tasdig'ini kutadi.
+        "beta_pending": (
+            "🚪 <b>Yopiq beta</b>\n\n"
+            "Bot hozircha yopiq sinov rejimida ishlaydi — kirish faqat taklif "
+            "kodi yoki admin tasdig'i bilan.\n"
+            "So'rovingiz adminga yuborildi: tasdiqlangach, /start bilan "
+            "qayta kiring."
+        ),
+        "beta_invalid_code": (
+            "❌ <b>Taklif kodi noto'g'ri.</b>\n\n"
+            "Kodni tekshirib qayta yuboring: <code>/start KOD</code>\n"
+            "Yoki admin tasdig'ini kuting — so'rovingiz navbatga qo'yildi."
+        ),
+        "beta_code_used": (
+            "⌛️ <b>Bu taklif kodi allaqachon ishlatilgan.</b>\n\n"
+            "Boshqa kod kerak bo'lsa adminga murojaat qiling."
+        ),
+        "beta_beta_full": (
+            "🧑‍🤝‍🧑 <b>Beta o'rinlari hozircha to'lgan.</b>\n\n"
+            "Keyingi to'lqin uchun ro'yxatga olindingiz — joy bo'shashi bilan "
+            "sizga xabar beramiz."
+        ),
+        "beta_code_accepted": (
+            "✅ <b>Taklif kodi qabul qilindi — beta'ga xush kelibsiz!</b>"
+        ),
+        "beta_approved_notice": (
+            "✅ <b>So'rovingiz tasdiqlandi!</b>\n\n"
+            "Botdan to'liq foydalanish uchun /start bosing."
+        ),
         # 🗝 FAZA 19 — registry'da yo'q (soxtalashtirilgan/noma'lum) callback
         # uchun fail-closed rad javobi (foydalanuvchi tilida).
         "callback_rejected": (
@@ -3627,6 +3658,35 @@ TRANSLATIONS = {
         "sys_stale_button": (
             "♻️ Эта кнопка устарела (бот был перезапущен). "
             "Откройте меню заново: /start"
+        ),
+        # 🚪 SPRINT 4 — закрытая бета (доступ только по коду/одобрению).
+        "beta_pending": (
+            "🚪 <b>Закрытая бета</b>\n\n"
+            "Бот пока работает в закрытом тестовом режиме — доступ только по "
+            "коду приглашения или после одобрения администратора.\n"
+            "Ваш запрос отправлен администратору: после одобрения зайдите "
+            "заново через /start."
+        ),
+        "beta_invalid_code": (
+            "❌ <b>Код приглашения неверный.</b>\n\n"
+            "Проверьте код и отправьте снова: <code>/start КОД</code>\n"
+            "Или дождитесь одобрения администратора — запрос добавлен в очередь."
+        ),
+        "beta_code_used": (
+            "⌛️ <b>Этот код приглашения уже использован.</b>\n\n"
+            "Если нужен новый код — обратитесь к администратору."
+        ),
+        "beta_beta_full": (
+            "🧑‍🤝‍🧑 <b>Все места в бете пока заняты.</b>\n\n"
+            "Вы добавлены в список на следующую волну — сообщим, когда "
+            "появится место."
+        ),
+        "beta_code_accepted": (
+            "✅ <b>Код приглашения принят — добро пожаловать в бету!</b>"
+        ),
+        "beta_approved_notice": (
+            "✅ <b>Ваш запрос одобрен!</b>\n\n"
+            "Чтобы начать пользоваться ботом, нажмите /start."
         ),
         # 🗝 FAZA 19 — отказ для неизвестного/поддельного callback (fail-closed).
         "callback_rejected": (

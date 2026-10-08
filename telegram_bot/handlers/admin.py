@@ -187,7 +187,7 @@ def _build_full_stats_text(stats: dict, lang: str = "uz") -> str:
     raqamlar ham har doim bir xil (eski yo'llar alias sifatida ishlaydi).
     FAZA 26: matn admin tilida (``lang``) chiziladi.
     """
-    return (
+    text = (
         admin_t("fs_title", lang) + "\n\n"
         + admin_t("fs_users", lang, users=stats['users']) + "\n"
         + admin_t("fs_channels", lang, channels=stats['channels']) + "\n"
@@ -197,6 +197,107 @@ def _build_full_stats_text(stats: dict, lang: str = "uz") -> str:
         + admin_t("fs_cancelled", lang, cancelled=stats['cancelled']) + "\n"
         + admin_t("fs_failed", lang, failed=stats['failed'])
     )
+    # ⏱ SPRINT 4 — ixtiyoriy launch gauge bloki (TTFP, D1/D7). Blok FAQAT
+    # ``stats["onboarding"]`` mavjud bo'lganda chiziladi — shu sababli eski
+    # chaqiruvlar (7 kalitli lug'at) matni 100% o'zgarmaydi.
+    onboarding = stats.get("onboarding") if isinstance(stats, dict) else None
+    if isinstance(onboarding, dict) and onboarding:
+        block = _build_launch_gauges_text(onboarding, lang)
+        if block:
+            text = f"{text}\n\n{block}"
+    return text
+
+
+#: ⏱ SPRINT 4 — onboarding/retention kohorta oynasi (kun).
+ONBOARDING_WINDOW_DAYS = 30
+
+
+def format_duration(seconds, lang: str = "uz") -> str:
+    """Sekundlarni o'qiladigan muddatga aylantiradi (uz/ru/en — admin_t)."""
+    try:
+        value = max(0, int(round(float(seconds or 0))))
+    except (TypeError, ValueError):
+        value = 0
+    if value < 60:
+        return admin_t("lg_dur_seconds", lang, seconds=value)
+    if value < 3600:
+        return admin_t("lg_dur_minutes", lang, minutes=int(round(value / 60)))
+    if value < 86400:
+        hours = value // 3600
+        minutes = (value % 3600) // 60
+        return admin_t("lg_dur_hours", lang, hours=hours, minutes=minutes)
+    days = value // 86400
+    hours = (value % 86400) // 3600
+    return admin_t("lg_dur_days", lang, days=days, hours=hours)
+
+
+def _build_launch_gauges_text(report: dict, lang: str = "uz") -> str:
+    """⏱ SPRINT 4 — TTFP + D1/D7 bloki (pure: faqat hisobotni chizadi).
+
+    ``report`` — ``services.onboarding_telemetry.build_report`` natijasi.
+    """
+    report = report or {}
+    if not report.get("available"):
+        return admin_t("lg_no_data", lang)
+    ttfp = report.get("ttfp") or {}
+    retention = report.get("retention") or {}
+    d1 = retention.get("d1") or {}
+    d7 = retention.get("d7") or {}
+    lines = [
+        admin_t("lg_title", lang, days=int(report.get("window_days") or 0)),
+        "━━━━━━━━━━━━━━━",
+        admin_t("lg_registered", lang, users=int(report.get("registered") or 0)),
+        admin_t("lg_activated", lang,
+                activated=int(report.get("activated") or 0),
+                percent=f"{float(report.get('activation_rate') or 0.0) * 100:.0f}"),
+    ]
+    if ttfp.get("available"):
+        lines.append(admin_t(
+            "lg_ttfp", lang,
+            avg=format_duration(ttfp.get("avg_seconds"), lang),
+            median=format_duration(ttfp.get("median_seconds"), lang),
+            day_percent=f"{float(ttfp.get('within_24h_rate') or 0.0) * 100:.0f}",
+        ))
+    for key, row in (("lg_d1", d1), ("lg_d7", d7)):
+        lines.append(admin_t(
+            key, lang,
+            percent=f"{float(row.get('rate') or 0.0) * 100:.0f}",
+            returned=int(row.get("returned") or 0),
+            eligible=int(row.get("eligible") or 0),
+        ))
+    return "\n".join(lines)
+
+
+async def enrich_stats_with_onboarding(stats: dict, lang: str = "uz") -> dict:
+    """⏱ SPRINT 4 — statistika lug'atiga ``onboarding`` hisobotini qo'shadi.
+
+    Best-effort: baza xatosi / bo'sh javob bo'lsa lug'at O'ZGARMAYDI
+    (statistika ekrani har doim chiqadi, gauge bloki shunchaki tushmaydi).
+    """
+    enriched = dict(stats or {})
+    if enriched.get("onboarding"):
+        return enriched
+    try:
+        from services import onboarding_telemetry
+
+        report = await db.run_db(onboarding_telemetry.fetch_report, db,
+                                 ONBOARDING_WINDOW_DAYS)
+    except Exception as e:  # noqa: BLE001 — gauge ixtiyoriy blok
+        logger.debug("Onboarding hisoboti olinmadi: %s", e)
+        return enriched
+    if isinstance(report, dict) and report:
+        enriched["onboarding"] = report
+    return enriched
+
+
+async def build_stats_text_with_gauges(stats: dict, lang: str = "uz") -> str:
+    """«📊 To'liq statistika» + SPRINT 4 launch gauge bloki (TTFP, D1/D7).
+
+    Ekran YAGONA builder orqali chiziladi (``_build_full_stats_text``) —
+    shu sababli admin statistikasining uchta yo'li ham AYNAN bir xil matn
+    beradi (dublikat yo'q).
+    """
+    return _build_full_stats_text(await enrich_stats_with_onboarding(stats, lang), lang)
 
 
 def _build_admin_posts_text(posts: list, lang: str = "uz") -> str:
@@ -467,8 +568,10 @@ async def admin_stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE
         return
     _remember_admin_section(context)
     stats = await db.run_db(db.get_system_stats)
+    # ⏱ SPRINT 4: ekranga TTFP + D1/D7 gauge bloki qo'shiladi (best-effort).
+    text = await build_stats_text_with_gauges(stats, get_lang(context))
     await update.message.reply_text(
-        _build_full_stats_text(stats, get_lang(context)),
+        text,
         reply_markup=get_admin_back_keyboard(),
         parse_mode="HTML",
     )
@@ -659,7 +762,8 @@ async def admin_dashboard_callback(update: Update, context: ContextTypes.DEFAULT
         stats = await db.run_db(db.get_system_stats)
         # 4-qadam: YAGONA statistika ekrani (reply-tugma va /admin_stats
         # buyrug'i ham aynan shu matnni chiqaradi).
-        await _admin_edit(query, _build_full_stats_text(stats, lang), get_admin_back_keyboard())
+        text = await build_stats_text_with_gauges(stats, lang)
+        await _admin_edit(query, text, get_admin_back_keyboard())
         context.user_data.pop("admin_flow", None)
         return ConversationHandler.END
 
@@ -1488,8 +1592,10 @@ async def show_statistics(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     _remember_admin_section(context)
     stats = await db.run_db(db.get_system_stats)
+    # ⏱ SPRINT 4: TTFP (o'rtacha/median) va D1/D7 retention shu ekranda.
+    text = await build_stats_text_with_gauges(stats, get_lang(context))
     await update.message.reply_text(
-        _build_full_stats_text(stats, get_lang(context)),
+        text,
         reply_markup=get_admin_dashboard_keyboard(),
         parse_mode="HTML",
     )
