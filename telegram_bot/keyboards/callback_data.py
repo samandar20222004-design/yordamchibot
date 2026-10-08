@@ -53,6 +53,11 @@ CB_POST_EDIT = "p_edit:"
 CB_POST_BTN = "p_btn:"
 CB_POST_REACT = "p_react:"
 CB_POST_CANCEL = "p_cancel:"
+# ✏️ 2-VAZIFA: tahrirlash TANLOV MENYUSI (p_edit: endi darhol matn so'ramaydi).
+# ``p_edtx:`` — menyudagi «📝 Matnni o'zgartirish» (matn kutiladigan oqim);
+# ``p_edbk``  — «◀️ Orqaga» → 📅 Rejalashtirilgan ro'yxati (payload'siz).
+CB_POST_EDIT_TEXT = "p_edtx:"
+CB_POST_EDIT_BACK = "p_edbk"
 # Navbatdagi postni ko'rish. Bu yerda ATAYLAB "p_view:" emas, mavjud "qview:"
 # saqlangan: u allaqachon 6 bayt (p_view: dan ham qisqa) va navbat modulining
 # qolgan callback'lari (qdel:/qpush:/qpage:) bilan bitta nom fazosida turadi.
@@ -321,6 +326,7 @@ REGISTERED_STATIC_CALLBACKS = frozenset({
     "close_cabinet",             # kabinet ekranini yopish
     "cache_clear",               # 🗑 admin: keshni tozalash
     "pending_refresh",           # 🔄 rejalashtirilgan ro'yxatini yangilash
+    CB_POST_EDIT_BACK,           # ◀️ tahrirlash menyusi → 📅 ro'yxatiga qaytish
     "check_sub_status",          # 🔔 obuna holatini qayta tekshirish
     "check_subscription",
     "add_channel_start",         # ➕ kanal ulash oqimini boshlash
@@ -404,6 +410,7 @@ CALLBACK_SEMANTICS = {
     "an_close": NAV_SEMANTIC_BACK,        # statistika ekranidan chiqish
     "an_overview": NAV_SEMANTIC_BACK,     # kanal analitikasi → shaxsiy
     "cab_main": NAV_SEMANTIC_BACK,        # kabinet ichki → profil hub
+    CB_POST_EDIT_BACK: NAV_SEMANTIC_BACK,  # ✏️ tahrirlash menyusi → 📅 ro'yxat
     "mnp_panel": NAV_SEMANTIC_BACK,       # kanal tanlash → preview panel
     "mnp_rback": NAV_SEMANTIC_BACK,       # reaksiyalar → preview panel
     "plan_back": NAV_SEMANTIC_BACK,

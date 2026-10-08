@@ -36,6 +36,8 @@ from keyboards.callback_data import (  # noqa: F401 — re-export (eski importla
     CB_SCHED_EDIT,
     CB_SCHED_TIME,
     CB_POST_BTN,
+    CB_POST_EDIT_BACK,
+    CB_POST_EDIT_TEXT,
     CB_POST_CANCEL,
     CB_POST_EDIT,
     CB_POST_REACT,
@@ -945,6 +947,37 @@ def render_scheduled_full_actions(post_id, lang: str = "uz") -> list:
         [time_btn, btn_react_btn],
         [delete_btn, push_btn],
     ]
+
+
+def get_post_edit_menu_keyboard(post_id, lang: str = "uz") -> InlineKeyboardMarkup:
+    """✏️ TAHRIRLASH TANLOV MENYUSI (2-vazifa — p_edit: endi matn so'ramaydi)::
+
+        [📝 Matnni o'zgartirish]   [🔘 Tugma qo'shish]
+        [❤️ Reaksiyalar]           [⏰ Vaqtni surish]
+                    [◀️ Orqaga]
+
+    Har bir tugma mavjud, sinovdan o'tgan oqimga boradi:
+    ``p_edtx:<post_id>`` (matn), ``p_btn:`` (tugma), ``p_react:`` (reaksiya),
+    ``p_time:`` (vaqt) va ``p_edbk`` (📅 Rejalashtirilgan ro'yxatiga qaytish).
+    """
+    return InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton(get_text("pend_edit_btn_text", lang),
+                                 callback_data=cb(CB_POST_EDIT_TEXT, post_id)),
+            InlineKeyboardButton(get_text("pend_edit_btn_button", lang),
+                                 callback_data=cb(CB_POST_BTN, post_id)),
+        ],
+        [
+            InlineKeyboardButton(get_text("pend_edit_btn_react", lang),
+                                 callback_data=cb(CB_POST_REACT, post_id)),
+            InlineKeyboardButton(get_text("pend_edit_btn_time", lang),
+                                 callback_data=cb(CB_POST_TIME, post_id)),
+        ],
+        [
+            InlineKeyboardButton(get_text("pend_edit_btn_back", lang),
+                                 callback_data=CB_POST_EDIT_BACK),
+        ],
+    ])
 
 
 def scheduled_btn_react_keyboard(post_id, lang: str = "uz") -> InlineKeyboardMarkup:

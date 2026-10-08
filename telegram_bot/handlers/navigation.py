@@ -107,6 +107,53 @@ def keep_section_after_clear(context) -> str:
     return section
 
 
+async def render_scheduled_posts_screen(msg, user_id: int, lang: str,
+                                        is_admin=None) -> bool:
+    """📅 «Rejalashtirilgan» ro'yxatini YANGI xabar sifatida chizadi.
+
+    Rejalashtirilgan postni tahrirlashdan chiqish ([❌ Bekor qilish] yoki
+    [◀️ Orqaga]) uchun yagona manba: matn+klaviatura ``handlers.queue``
+    modulidagi kanonik ``scheduled_view`` dan olinadi (dublikat ekran
+    yaratilmaydi). Xato bo'lsa ``False`` — chaqiruvchi fail-safe ishlaydi.
+    """
+    try:
+        from handlers.queue import scheduled_view
+
+        text, markup = await scheduled_view(user_id, lang, is_admin)
+    except Exception as e:
+        logger.debug("📅 ro'yxatni qurib bo'lmadi (user=%s): %s", user_id, e)
+        return False
+    try:
+        await msg.reply_text(text, reply_markup=markup, parse_mode="HTML")
+        return True
+    except Exception as e:  # pragma: no cover — Telegram/network xatosi
+        logger.debug("📅 ro'yxatni yuborib bo'lmadi (user=%s): %s", user_id, e)
+        return False
+
+
+async def render_scheduled_posts_edit(query, user_id: int, lang: str,
+                                      is_admin=None) -> bool:
+    """📅 «Rejalashtirilgan» ro'yxatini JORIY inline xabar ichida chizadi.
+
+    [◀️ Orqaga] (``p_edbk``) tugmasi uchun: menyu xabari o'rniga ro'yxat
+    ko'rsatiladi. ``False`` — xabar tahrirlanmadi (chaqiruvchi mas'uliyati).
+    """
+    try:
+        from handlers.queue import scheduled_view
+
+        text, markup = await scheduled_view(user_id, lang, is_admin)
+    except Exception as e:
+        logger.debug("📅 ro'yxatni qurib bo'lmadi (user=%s): %s", user_id, e)
+        return False
+    try:
+        await query.edit_message_text(text, reply_markup=markup,
+                                      parse_mode="HTML")
+        return True
+    except Exception as e:  # pragma: no cover — Telegram/network xatosi
+        logger.debug("📅 ro'yxatni tahrirlab bo'lmadi (user=%s): %s", user_id, e)
+        return False
+
+
 async def render_section_start_message(msg, context, user_id: int,
                                        is_admin: bool, lang: str) -> bool:
     """Bo'lim BOSHIGA qaytish ekranini YANGI xabar sifatida yuboradi.

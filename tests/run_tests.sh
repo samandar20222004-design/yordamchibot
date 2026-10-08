@@ -32,6 +32,13 @@
 #       boyitish (4 qatorli panel, reaksiya presetlari, URL xavfsizligi,
 #       scheduler/delivery reply_markup birlashmasi)
 #       (tests/manual_post_reactions_and_url_buttons_test.py)
+#   3e5) 🎨 REAKSIYA EMOJILARI + ✏️ TAHRIRLASH TANLOV MENYUSI + ❌ BEKOR
+#       QILISH OQIMI + 💡 AI ISHONCHLILIK ESLATMASI + 📸 VISION (mahsulot
+#       emas — voqea): probel bilan 5 tagacha emoji, p_edit: → menyu
+#       ([📝 Matn] [🔘 Tugma] [❤️ Reaksiyalar] [⏰ Vaqtni surish] [◀️ Orqaga]),
+#       bekor qilishda 📅 ro'yxatiga qaytish (Kontent yaratishga EMAS),
+#       umumiy mavzuda eslatma va rasm turiga qarab avtomatik toifa
+#       (tests/reactions_edit_cancel_vision_flow_test.py)
 #   3f) 📢 KANALLARIM + 📅 REJALASHTIRILGAN — PostAssist V2 4-qadam
 #       (tests/channels_and_queue_v2_test.py)
 #   3g) 📊 STATISTIKA + ⚙️ SOZLAMALAR + ⚙️ ADMIN PANEL RBAC —
@@ -327,6 +334,29 @@ echo "===== 3e3) ❤️ REAKSIYALAR + 🔗 HAVOLALI TUGMA — MANUAL PREVIEW BOY
 # bilan chiqadi; mavjud oqimlar buzilmaydi
 # (tests/manual_post_reactions_and_url_buttons_test.py).
 "$PY" tests/manual_post_reactions_and_url_buttons_test.py || EXIT_CODE=1
+
+echo
+echo "===== 3e5) 🎨 REAKSIYA EMOJILARI + ✏️ TAHRIRLASH MENYUSI + ❌ BEKOR QILISH ====="
+# 5 TA UX/LOGIKA TUZATISHI (yagona regressiya qo'riqoni):
+#   (1) «➕ O'zim kiritaman» — bot AYNAN «Post ostida chiqadigan emojilarni
+#       oralariga bo'sh joy (probel) tashlab yuboring (5 tagacha). Masalan:
+#       🔥 ❤️ 👍 🎉» ko'rsatmasini chiqaradi; yuborilgan matn PROBEL bo'yicha
+#       ajratilib, 5 tagacha emojidan inline tugmalar yaratiladi;
+#   (2) «✏️ Tahrirlash» (p_edit:) endi DARHOL matn so'ramaydi — TANLOV menyusi
+#       chiqadi: [📝 Matnni o'zgartirish] [🔘 Tugma qo'shish] [❤️ Reaksiyalar]
+#       [⏰ Vaqtni surish] [◀️ Orqaga] (p_edtx:/p_btn:/p_react:/p_time:/p_edbk);
+#   (3) rejalashtirilgan postni tahrirlashda [❌ Bekor qilish] «Kontent
+#       yaratish» sahifasiga sakramaydi — 📅 Rejalashtirilgan ro'yxatiga
+#       qaytadi va FSM tozalanadi;
+#   (4) AI umumiy mavzudan post tayyorlaganda bot xabari tagiga ishonchlilik
+#       eslatmasi qo'shiladi («💡 Eslatma: Ushbu post AI tomonidan tuzildi.
+#       Rasmiy manbalardan faktlarni tekshirib olishingiz tavsiya etiladi.»);
+#   (5) Vision AI mahsulot BO'LMAGAN rasmlarni (mashhur shaxslar, futbol,
+#       yangilik, tabiat) to'g'ri taniydi — «Mahsulot: Rang/Material»
+#       so'ralmaydi, toifa AVTOMATIK tanlanadi («Mahsulot posti» yoki
+#       «Voqea / Qiziqarli kontent posti»).
+#       (tests/reactions_edit_cancel_vision_flow_test.py)
+"$PY" tests/reactions_edit_cancel_vision_flow_test.py || EXIT_CODE=1
 
 echo
 echo "===== 3e4) 💡 FSM INPUT FALLBACK — BOSQICHLARDA YUMSHOQ JAVOB (PHASE 1) ====="

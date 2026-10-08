@@ -50,12 +50,17 @@ from utils.ai_agent import pick_supported_kwargs
 from utils.telegram_sanitizer import sanitize_html, TELEGRAM_CAPTION_LIMIT
 from utils.helpers import html_escape, telegram_html_payload, parse_schedule_input
 from utils.vision_analyzer import (
+    IMAGE_CATEGORY_PRODUCT,
+    IMAGE_TYPE_EVENT,
+    IMAGE_TYPE_PRODUCT,
     MAX_IMAGE_BYTES,
     TEXT_SOURCE_CAPTION,
     TEXT_SOURCE_TOPIC,
     VisionError,
     analysis_from_text,
     analyze_image,
+    image_category_label,
+    is_product_analysis,
     is_text_based_analysis,
     normalize_analysis,
     validate_image,
@@ -273,11 +278,25 @@ def _analysis_summary(analysis: dict, lang: str = "uz") -> str:
             if details.get(key):
                 facts.append(html_escape(str(details[key])))
     fact_line = f"\n📌 {' · '.join(facts)}" if facts else ""
+
+    # 🎉 5-VAZIFA: rasmda kiyim/tovar YO'Q bo'lsa (mashhur shaxslar, futbol,
+    # yangilik, tabiat ...) «Mahsulot: Rang/Material» kartochkasi
+    # KO'RSATILMAYDI — toifa AVTOMATIK «Voqea / Qiziqarli kontent posti»
+    # bo'ladi va faqat voqea tavsifi ko'rsatiladi.
+    if data.get("image_type") == IMAGE_TYPE_EVENT or not is_product_analysis(data):
+        return safe_t(
+            "image_event_summary",
+            lang,
+            category=html_escape(
+                data.get("category") or image_category_label(IMAGE_TYPE_EVENT, lang)),
+            summary=html_escape(data.get("summary") or data.get("product_name") or ""),
+            facts=fact_line,
+        )
     return safe_t(
         "image_analysis_summary",
         lang,
         product=html_escape(data.get("product_name") or "Noma'lum mahsulot"),
-        category=html_escape(data.get("category") or "Noma'lum toifa"),
+        category=html_escape(data.get("category") or IMAGE_CATEGORY_PRODUCT),
         color=html_escape(f.get("color") or "noma'lum"),
         material=html_escape(f.get("material") or "noma'lum"),
         design=html_escape(f.get("design") or "noma'lum"),
@@ -432,7 +451,13 @@ async def _start_style_select(message, context, analysis: dict, lang: str,
     if notice_key:
         parts.append(safe_t(notice_key, lang))
     parts.append(_analysis_summary(analysis, lang))
-    parts.append(safe_t("image_choose_style", lang))
+    # 🎉 5-VAZIFA: mahsulot bo'lmagan rasmda «sotuv posti» savoli berilmaydi —
+    # toifa avtomatik «Voqea / Qiziqarli kontent posti» bo'lgani uchun oddiy
+    # uslub savoli ko'rsatiladi.
+    style_key = ("image_choose_style_event"
+                 if analysis.get("image_type") == IMAGE_TYPE_EVENT
+                 else "image_choose_style")
+    parts.append(safe_t(style_key, lang))
     text = "\n\n".join(parts)
     if status_message is not None:
         await _edit_wait_message(

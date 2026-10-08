@@ -1124,6 +1124,16 @@ TRANSLATIONS = {
             "Namuna: <code>{example}</code> yoki faqat soat — <code>18:00</code>\n\n"
             "🕒 <i>Toshkent vaqti (UTC+5).</i>"
         ),
+        # ✏️ 2-VAZIFA: tahrirlash TANLOV MENYUSI (p_edit: → darhol matn so'ramaydi).
+        "pend_edit_menu_title": (
+            "✏️ <b>Tahrirlash.</b>\n\n"
+            "Nimani o'zgartirmoqchisiz? Quyidagilardan birini tanlang 👇"
+        ),
+        "pend_edit_btn_text": "📝 Matnni o'zgartirish",
+        "pend_edit_btn_button": "🔘 Tugma qo'shish",
+        "pend_edit_btn_react": "❤️ Reaksiyalar",
+        "pend_edit_btn_time": "⏰ Vaqtni surish",
+        "pend_edit_btn_back": "◀️ Orqaga",
         "pend_content_ask": (
             "✏️ <b>Post uchun yangi matnni yuboring:</b>\n\n"
             "HTML teglar (<b>bold</b>, <i>italic</i>, <code>code</code>) qo'llab-quvvatlanadi."
@@ -2012,7 +2022,17 @@ TRANSLATIONS = {
         "🎨 Rang: {color} · 🧵 Material: {material}\n"
         "✨ Dizayn: {design} · Uslub: {style}{facts}"
     ),
+    # 🎉 5-VAZIFA: mahsulot BO'LMAGAN rasm (voqea/qiziqarli kontent) uchun
+    # xulosa — bu yerda «Rang/Material» so'ralmaydi, toifa AVTOMATIK tanlanadi.
+    "image_event_summary": (
+        "🎉 <b>Voqea / Qiziqarli kontent posti</b>\n"
+        "🗂 Toifa: {category}\n"
+        "📝 {summary}{facts}"
+    ),
+    "image_product_category": "🛒 Mahsulot posti",
     "image_choose_style": "Qaysi uslubda sotuv posti tayyorlaymiz? 👇",
+    # Voqea rasmi uchun savol sotuvga chorlamaydi.
+    "image_choose_style_event": "Qaysi uslubda post tayyorlaymiz? 👇",
     "image_vision_fallback_caption": (
         "🖼 Rasm qabul qilindi! Post rasm bilan birga kelgan "
         "<b>tagmatn (caption)</b> asosida tuziladi."
@@ -3189,6 +3209,16 @@ TRANSLATIONS = {
             "Пример: <code>{example}</code> или только время — <code>18:00</code>\n\n"
             "🕒 <i>Время по Ташкенту (UTC+5).</i>"
         ),
+        # ✏️ 2-ЗАДАЧА: меню выбора при редактировании (p_edit: → текст сразу не спрашивается).
+        "pend_edit_menu_title": (
+            "✏️ <b>Редактирование.</b>\n\n"
+            "Что вы хотите изменить? Выберите один из вариантов 👇"
+        ),
+        "pend_edit_btn_text": "📝 Изменить текст",
+        "pend_edit_btn_button": "🔘 Добавить кнопку",
+        "pend_edit_btn_react": "❤️ Реакции",
+        "pend_edit_btn_time": "⏰ Сдвинуть время",
+        "pend_edit_btn_back": "◀️ Назад",
         "pend_content_ask": (
             "✏️ <b>Отправьте новый текст поста:</b>\n\n"
             "Поддерживаются HTML-теги (<b>bold</b>, <i>italic</i>, <code>code</code>)."
@@ -4081,7 +4111,17 @@ TRANSLATIONS = {
         "🎨 Цвет: {color} · 🧵 Материал: {material}\n"
         "✨ Дизайн: {design} · Стиль: {style}{facts}"
     ),
+    # 🎉 5-ЗАДАЧА: изображение БЕЗ товара (событие/интересный контент) —
+    # «Цвет/Материал» не спрашивается, категория выбирается АВТОМАТИЧЕСКИ.
+    "image_event_summary": (
+        "🎉 <b>Пост о событии / интересном контенте</b>\n"
+        "🗂 Категория: {category}\n"
+        "📝 {summary}{facts}"
+    ),
+    "image_product_category": "🛒 Пост о товаре",
     "image_choose_style": "В каком стиле подготовить продающий пост? 👇",
+    # Для изображения-события вопрос не зовёт к продаже.
+    "image_choose_style_event": "В каком стиле подготовить пост? 👇",
     "image_vision_fallback_caption": (
         "🖼 Фото получено! Пост будет составлен на основе "
         "<b>подписи (caption)</b> к изображению."

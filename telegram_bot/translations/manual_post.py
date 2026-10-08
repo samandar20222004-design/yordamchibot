@@ -70,12 +70,12 @@ MANUAL_POST_I18N = {
         "mp_react_custom": "➕ O'zim kiritaman",
         "mp_react_custom_prompt": (
             "➕ <b>O'z reaksiyalaringizni yuboring.</b>\n\n"
-            "Emojilarni xabar qilib yuboring — masalan: "
-            "<code>👍 ❤️ 🔥 😍</code> (10 tagacha)."
+            "Post ostida chiqadigan emojilarni oralariga bo'sh joy (probel) "
+            "tashlab yuboring (5 tagacha). Masalan: 🔥 ❤️ 👍 🎉"
         ),
         "mp_react_custom_invalid": (
-            "⚠️ Emoji topilmadi. Iltimos, faqat emojilar yuboring — "
-            "masalan: <code>👍 ❤️ 🔥</code>."
+            "⚠️ Emoji topilmadi. Iltimos, emojilarni probel bilan ajratib "
+            "yuboring — masalan: 🔥 ❤️ 👍 🎉"
         ),
         "mp_reactions_on": "❤️ Reaksiyalar: {emojis}",
         "mp_album_warning": (
@@ -242,12 +242,12 @@ MANUAL_POST_I18N = {
         "mp_react_custom": "➕ Введу сам",
         "mp_react_custom_prompt": (
             "➕ <b>Отправьте свои реакции.</b>\n\n"
-            "Отправьте эмодзи сообщением — например: "
-            "<code>👍 ❤️ 🔥 😍</code> (до 10 штук)."
+            "Эмодзи, которые появятся под постом, отправьте через пробел "
+            "(до 5 штук). Например: 🔥 ❤️ 👍 🎉"
         ),
         "mp_react_custom_invalid": (
-            "⚠️ Эмодзи не найдены. Отправьте только эмодзи — например: "
-            "<code>👍 ❤️ 🔥</code>."
+            "⚠️ Эмодзи не найдены. Отправьте эмодзи через пробел — "
+            "например: 🔥 ❤️ 👍 🎉"
         ),
         "mp_reactions_on": "❤️ Реакции: {emojis}",
         "mp_album_warning": (
@@ -400,12 +400,12 @@ MANUAL_POST_I18N = {
         "mp_react_custom": "➕ Enter my own",
         "mp_react_custom_prompt": (
             "➕ <b>Send your own reactions.</b>\n\n"
-            "Send the emojis as a message — for example: "
-            "<code>👍 ❤️ 🔥 😍</code> (up to 10)."
+            "Send the emojis shown under the post separated by spaces "
+            "(up to 5). For example: 🔥 ❤️ 👍 🎉"
         ),
         "mp_react_custom_invalid": (
-            "⚠️ No emojis found. Please send emojis only — for example: "
-            "<code>👍 ❤️ 🔥</code>."
+            "⚠️ No emojis found. Please send emojis separated by spaces — "
+            "for example: 🔥 ❤️ 👍 🎉"
         ),
         "mp_reactions_on": "❤️ Reactions: {emojis}",
         "mp_album_warning": (

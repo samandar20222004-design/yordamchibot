@@ -1011,13 +1011,30 @@ async def _studio_ai_refund(user_id: int, is_admin: bool, is_pro: bool,
             log_silent_failure("handlers.ai_assistant:_studio_ai_refund:981", _silent_exc, user_id=user_id)
 
 
-def _studio_preview_text(post_text: str, tone: str, file_id=None, lang: str = "uz") -> str:
-    """AI_TONE_SELECT ekranidagi post preview matni (tilga mos)."""
+def _studio_preview_text(post_text: str, tone: str, file_id=None, lang: str = "uz",
+                         topic: str = "") -> str:
+    """AI_TONE_SELECT ekranidagi post preview matni (tilga mos).
+
+    4-VAZIFA: AI UMUMIY (axborot) mavzudan post tayyorlagan bo'lsa, bot
+    xabari TAGIGA ishonchlilik eslatmasi qo'shiladi
+    (``services.ai.prompts.reliability_note``). Eslatma POST MATNIGA emas,
+    faqat ko'rinish xabariga qo'shiladi — kanalga ketadigan post matni
+    o'zgarmaydi.
+    """
     media_note = safe_t("ai_preview_media_note", lang) if file_id else ""
+    note = ""
+    try:
+        from services.ai.prompts import needs_reliability_note, reliability_note
+
+        if needs_reliability_note(topic):
+            note = "\n\n" + reliability_note(lang)
+    except Exception:
+        logger.debug("Ishonchlilik eslatmasini qo'shib bo'lmadi", exc_info=True)
     return (
         safe_t("ai_preview_title", lang)
         + sanitize_html(post_text, 2400)
         + safe_t("ai_preview_foot", lang, tone=_ai_tone_label(tone, lang), media=media_note)
+        + note
     )
 
 
@@ -1318,7 +1335,9 @@ async def _studio_generate_and_preview(update: Update, context: ContextTypes.DEF
     context.user_data["studio_tone"] = "friendly"
 
     await _edit_wait_message(msg_wait, msg,
-        _studio_preview_text(post_text, "friendly", context.user_data.get("studio_file_id"), lang),
+        _studio_preview_text(post_text, "friendly",
+                             context.user_data.get("studio_file_id"), lang,
+                             topic=text_input),
         reply_markup=get_ai_tone_keyboard("friendly", lang),
         parse_mode="HTML",
     )
@@ -1420,7 +1439,9 @@ async def ai_tone_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["studio_post_text"] = post_text
     await _safe_edit(
         query,
-        _studio_preview_text(post_text, tone, context.user_data.get("studio_file_id"), lang),
+        _studio_preview_text(post_text, tone,
+                             context.user_data.get("studio_file_id"), lang,
+                             topic=context.user_data.get("studio_topic") or ""),
         get_ai_tone_keyboard(tone, lang),
     )
     return AI_TONE_SELECT

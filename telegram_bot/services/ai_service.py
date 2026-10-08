@@ -731,7 +731,13 @@ _IMAGE_POST_STYLE_SPECS = {
 
 
 def _image_analysis_text(analysis: dict) -> str:
-    """Vision schema'sini generation promptiga xavfsiz va ixcham aylantiradi."""
+    """Vision schema'sini generation promptiga xavfsiz va ixcham aylantiradi.
+
+    5-VAZIFA: rasm turi ``product`` bo'lsa — mahsulot kartochkasi (rang,
+    material, dizayn); ``event`` (mashhur shaxslar, futbol, yangilik,
+    tabiat ...) bo'lsa — VOQEA tavsifi beriladi va rang/material kabi
+    mahsulot parametrlari UMUMAN so'ralmaydi (bot ularni o'ylab topmaydi).
+    """
     data = analysis if isinstance(analysis, dict) else {}
     features = data.get("visual_features") or {}
     details = data.get("caption_details") or {}
@@ -740,7 +746,19 @@ def _image_analysis_text(analysis: dict) -> str:
     if not isinstance(details, dict):
         details = {"text": str(details)}
     unknown = "noma'lum"
+    image_type = str(data.get("image_type") or "").strip().lower()
+    if image_type == "event":
+        return (
+            f"Rasm turi: VOQEA / qiziqarli kontent (mahsulot EMAS)\n"
+            f"Toifa: {data.get('category') or unknown}\n"
+            f"Mavzu/obyekt: {data.get('product_name') or unknown}\n"
+            f"Qisqa xulosa: {data.get('summary') or ''}\n"
+            f"Caption ma'lumotlari: {json.dumps(details, ensure_ascii=False, default=str)}\n"
+            f"DIQQAT: bu postda mahsulot sotilmaydi — narx, material, "
+            f"o'lcham yoki yetkazib berish haqida YOZMANG."
+        )
     return (
+        f"Rasm turi: MAHSULOT\n"
         f"Mahsulot nomi: {data.get('product_name') or unknown}\n"
         f"Toifa: {data.get('category') or unknown}\n"
         f"Rang: {features.get('color') or unknown}\n"

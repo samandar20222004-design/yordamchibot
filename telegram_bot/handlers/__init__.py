@@ -172,6 +172,7 @@ from handlers.pending import (
     list_pending_posts, cancel_post_callback, refresh_pending_callback,
     edit_post_time_start, edit_post_time_received,
     edit_post_content_start, edit_post_content_received,
+    edit_post_text_start, edit_post_menu_back,
     edit_post_btn_start, edit_post_btn_received,
     edit_post_react_start, edit_post_react_received,
     EDIT_POST_TIME, EDIT_POST_CONTENT, EDIT_POST_BTN, EDIT_POST_REACT
@@ -1240,6 +1241,18 @@ def _build_main_conversation_handler(all_menu_jumps):
     Avvalgi monolit ``register_all_handlers`` ichidagi ``main_conv``
     qurilishi bilan AYNAN bir xil — faqat alohida funksiyaga ko'chirilgan.
     """
+    # ✏️ 2-VAZIFA — TAHRIRLASH TANLOV MENYUSI callback'lari (yagona manba):
+    # FSM holatlariga ham, entry point'larga ham shu ro'yxat ulanadi.
+    # ``p_edtx:`` — «📝 Matnni o'zgartirish», ``p_edbk`` — «◀️ Orqaga»
+    # (📅 Rejalashtirilgan ro'yxatiga qaytish), qolganlari mavjud oqimlar.
+    _edit_post_menu_handlers = (
+        CallbackQueryHandler(edit_post_text_start, pattern=r"^p_edtx:"),
+        CallbackQueryHandler(edit_post_btn_start, pattern=r"^p_btn:"),
+        CallbackQueryHandler(edit_post_react_start, pattern=r"^p_react:"),
+        CallbackQueryHandler(edit_post_time_start, pattern=r"^p_time:"),
+        CallbackQueryHandler(edit_post_menu_back, pattern=r"^p_edbk$"),
+    )
+
     main_conv = ConversationHandler(
         entry_points=all_menu_jumps + [
             # 🎙 VOICE → POST: ovozli xabar/audio — dialog TASHQARISIDA ovoz
@@ -1263,7 +1276,12 @@ def _build_main_conversation_handler(all_menu_jumps):
             # ICHIDA mos KELMAYDI — faol suhbat holati buzilmaydi).
             ManualEntryHandler(manual_stale_callback, pattern=r"^mnp_"),
             CallbackQueryHandler(edit_post_time_start, pattern=r"^p_time:"),
+            # ✏️ 2-VAZIFA: `p_edit:` endi TANLOV MENYUSINI ochadi; matn so'rovi
+            # menyudagi «📝 Matnni o'zgartirish» (`p_edtx:`) orqali boshlanadi,
+            # «◀️ Orqaga» (`p_edbk`) esa 📅 ro'yxatiga qaytaradi.
             CallbackQueryHandler(edit_post_content_start, pattern=r"^p_edit:"),
+            CallbackQueryHandler(edit_post_text_start, pattern=r"^p_edtx:"),
+            CallbackQueryHandler(edit_post_menu_back, pattern=r"^p_edbk$"),
             CallbackQueryHandler(edit_post_btn_start, pattern=r"^p_btn:"),
             CallbackQueryHandler(edit_post_react_start, pattern=r"^p_react:"),
             CallbackQueryHandler(add_channel_inline_entry, pattern=r"^add_channel_start$"),
@@ -1691,10 +1709,14 @@ def _build_main_conversation_handler(all_menu_jumps):
             ],
 
             # 4. Kutilayotgan postlarni tahrirlash holatlari
-            EDIT_POST_TIME: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, edit_post_time_received)],
-            EDIT_POST_CONTENT: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, edit_post_content_received)],
-            EDIT_POST_BTN: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, edit_post_btn_received)],
-            EDIT_POST_REACT: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, edit_post_react_received)],
+            # ✏️ 2-VAZIFA: tahrirlash TANLOV MENYUSI tugmalari FSM ICHIDA ham
+            # ishlaydi (aks holda menyudan tanlangan amal davom etmasdi):
+            # [📝 Matn] → matn kutiladi, [🔘 Tugma] / [❤️ Reaksiya] /
+            # [⏰ Vaqt] → mavjud oqimlar, [◀️ Orqaga] → 📅 ro'yxati + FSM END.
+            EDIT_POST_TIME: all_menu_jumps + list(_edit_post_menu_handlers) + [MessageHandler(filters.TEXT & ~filters.COMMAND, edit_post_time_received)],
+            EDIT_POST_CONTENT: all_menu_jumps + list(_edit_post_menu_handlers) + [MessageHandler(filters.TEXT & ~filters.COMMAND, edit_post_content_received)],
+            EDIT_POST_BTN: all_menu_jumps + list(_edit_post_menu_handlers) + [MessageHandler(filters.TEXT & ~filters.COMMAND, edit_post_btn_received)],
+            EDIT_POST_REACT: all_menu_jumps + list(_edit_post_menu_handlers) + [MessageHandler(filters.TEXT & ~filters.COMMAND, edit_post_react_received)],
 
             # 5. Konverter holati (Maxsus State)
             CONVERT_INPUT: all_menu_jumps + [MessageHandler(filters.ALL & ~filters.COMMAND, converter_received)],
@@ -2107,6 +2129,10 @@ def _register_content_and_queue_callbacks(app):
     app.add_handler(CallbackQueryHandler(cancel_post_callback, pattern=r"^p_cancel:"))
     app.add_handler(CallbackQueryHandler(refresh_pending_callback, pattern=r"^pending_refresh$"))
     app.add_handler(CallbackQueryHandler(edit_post_content_start, pattern=r"^p_edit:"))
+    # ✏️ 2-VAZIFA: tahrirlash menyusi tugmalari — sessiya (FSM) yopilgach ham
+    # bosilganda ishlaydi: matn so'rovi va 📅 ro'yxatiga qaytish.
+    app.add_handler(CallbackQueryHandler(edit_post_text_start, pattern=r"^p_edtx:"))
+    app.add_handler(CallbackQueryHandler(edit_post_menu_back, pattern=r"^p_edbk$"))
     app.add_handler(CallbackQueryHandler(edit_post_btn_start, pattern=r"^p_btn:"))
     app.add_handler(CallbackQueryHandler(edit_post_react_start, pattern=r"^p_react:"))
     # 📅 YAGONA «📅 Rejalashtirilgan» ro'yxati amallari (PostAssist V2 · 2-qadam,

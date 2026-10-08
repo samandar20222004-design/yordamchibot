@@ -285,6 +285,9 @@ WHITELIST_LABELS = {
     "👥 Пригласить друзей",  # 19 — speskda aniq yozilgan (ru)
     "✍️ Post sozlamalari",        # 19 — speskda aniq yozilgan (uz)
     "✍️ Настройки постов",  # 19 — speskning ru varianti
+    # ✏️ TAHRIRLASH TANLOV MENYUSI (2-vazifa): yorliqlar topshiriq matnida
+    # AYNAN shu ko'rinishda yozilgan («[ 📝 Matnni o'zgartirish ] ...»).
+    "📝 Matnni o'zgartirish",      # 21 — topshiriqda aniq yozilgan (uz)
 }
 
 TRANSLATION_MODULES = [
