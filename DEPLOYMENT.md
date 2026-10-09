@@ -309,6 +309,74 @@ Muhim qoidalar:
 
 ---
 
+### 3.2 ⚡️ Payme webhook — ulash tartibi (avtomatik PRO)
+
+Karta to'lov ekranidagi **«⚡️ Payme orqali to'lash»** tugmasi to'lovni Payme
+callback'lari orqali tasdiqlaydi: PRO **darhol, admin aralashuvisiz** faollashadi.
+Telegram Stars va chek (qo'lda tasdiqlash) usullari **o'zgarmaydi** va yonma-yon
+ishlaydi. Endpoint botning health web-server'i bilan **bir xil `PORT`** da
+ochiladi — alohida jarayon yoki port kerak emas.
+
+**1) `.env` ga yozing** (batafsil izohlar `.env.example` da):
+
+```dotenv
+PAYME_MERCHANT_ID=<kassa id>
+PAYME_KEY=<kassa kaliti>                    # sandbox: test kaliti
+PAYME_CHECKOUT_URL=https://checkout.paycom.uz   # sandbox: https://test.paycom.uz
+PAYME_ALLOW_REFUNDS=0                       # 1 = Payme orqali refund ruxsat
+```
+
+**2) Payme kabinetida** («Merchant API» / «Касса» bo'limi):
+
+| Maydon | Qiymat |
+|---|---|
+| Endpoint (Callback URL) | `https://<sizning-domeningiz>/payments/payme` |
+| Usul | `POST`, JSON-RPC 2.0 |
+| Hisob maydoni (account field) | `order_id` (boshqa nom bo'lsa `PAYME_ACCOUNT_FIELD`) |
+| Avtorizatsiya | `Basic base64(PAYME_LOGIN:PAYME_KEY)`, `PAYME_LOGIN` standart — `Paycom` |
+
+**3) Botni qayta ishga tushiring** — `schema.sql` idempotent ravishda
+`payme_orders` va `payme_transactions` jadvallarini yaratadi
+(`scripts/db_migrate.py` ham ularni tekshiradi):
+
+```bash
+sudo systemctl restart postassist           # yoki: bash scripts/deploy.sh --verify-only
+```
+
+**Tekshirish (3 ta tezkor qadam):**
+
+```bash
+# 1) Endpoint ochiq va Payme protokolida javob qaytadi (HTTP 200 + -32504):
+curl -i -X POST https://<domen>/payments/payme \
+     -H 'Content-Type: application/json' \
+     -d '{"jsonrpc":"2.0","id":1,"method":"CheckTransaction","params":{"id":"x"}}'
+
+# 2) Kassa kaliti to'g'ri ulanganmi (endigina -31003/31050 emas, -32504 bo'lmasligi kerak):
+curl -s -X POST https://<domen>/payments/payme \
+     -u "Paycom:$PAYME_KEY" \
+     -H 'Content-Type: application/json' \
+     -d '{"jsonrpc":"2.0","id":1,"method":"CheckTransaction","params":{"id":"x"}}'
+# kutilgan javob: {"error":{"code":-31003,...}}  → auth o'tdi, tranzaksiya topilmadi
+
+# 3) To'liq smoke test (Payme JSON-RPC + Stars + chek bir vaqtda):
+python3 tests/smoke_test.py --base-url http://127.0.0.1:8080
+```
+
+**Muhim qoidalar:**
+
+* `PAYME_KEY` bo'sh bo'lsa endpoint **barcha** so'rovlarni `-32504` bilan rad
+  etadi (fail-closed) va karta ekranida Payme tugmasi **ko'rsatilmaydi**;
+  karta + chek oqimi avvalgidek ishlayveradi.
+* PRO **aynan bir marta** beriladi: takroriy `PerformTransaction` callback'lari
+  saqlangan natijani qaytaradi (`payme:<id>` ledger kaliti UNIQUE).
+* `PAYME_ALLOW_REFUNDS=0` (standart) — bajarilgan to'lovni Payme orqali bekor
+  qilish `-31007` bilan rad etiladi.
+* Kassa kaliti hech qachon log'ga yozilmaydi (`PaymeConfig.__repr__` va Sentry
+  scrubber uni yashiradi).
+* Batafsil: [docs/reports/PAYME_MERCHANT_API.md](docs/reports/PAYME_MERCHANT_API.md).
+
+---
+
 ## 4. Yangilash va rollback
 
 ```bash
@@ -338,6 +406,10 @@ sudo systemctl restart postassist             # graceful: in-flight postlar tuga
 - [ ] Logda `[BOT_ERROR]` yo'q; Sentry ulangan bo'lsa eventlarda token/parol **yo'q**
       (scrubber ishlaydi).
 - [ ] AI kalitisiz holatda sinov: xavfsiz xabar + kvota qaytadi (soxta matn yo'q).
+- [ ] Xavfsizlik darvozasi (serverda bitta komanda — CI ham aynan shu skriptni
+      ishlatadi): `bash scripts/security_check.sh` → lint gate yashil,
+      `pip-audit` / `bandit` topilmalari ko'rib chiqilgan
+      (`--advisory` faqat hisobot, `--skip-network` oflayn serverlar uchun).
 - [ ] Testlar (repo ildizida) — 100% yashil:
 
 ```bash

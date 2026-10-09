@@ -1,13 +1,37 @@
-# Proposed GitHub Actions workflow (copy over .github/workflows/ci.yml).
-# Not applied in this PR: the GitHub App token lacks the `workflows` permission
-# required to create/update files under .github/workflows/.
+# ============================================================================
+# SPRINT 5 — CI HARDENING TAKLIFI (qo'lda ko'chirish uchun)
+# ----------------------------------------------------------------------------
+# ⚠️ HOLAT (2026-10-09, SPRINT 5): bu fayl `.github/workflows/ci.yml` ustiga
+# QO'LDA ko'chirilishi kerak. Sabab: ushbu sessiyadagi GitHub App tokenida
+# `workflows` ruxsati YO'Q — push quyidagi xato bilan rad etildi:
 #
-# Changes vs current ci.yml:
-#   - pip-audit against telegram_bot/requirements.txt
-#   - bandit -r telegram_bot -ll
-#   - ruff `|| true` bypass removed (Lint Gate still fails on E9/F63/F7/F82;
-#     full ruff / pip-audit / bandit are continue-on-error so pre-existing
-#     aiohttp CVEs and bandit medium findings do not red the job)
+#   ! [remote rejected] ... (refusing to allow a GitHub App to create or update
+#     workflow `.github/workflows/ci.yml` without `workflows` permission)
+#
+# QO'LLASH (repo egasi, 1 daqiqa):
+#     cp docs/ci-hardening.yml .github/workflows/ci.yml   # 6-41-qatorlardan keyingi blok
+#     git add .github/workflows/ci.yml && git commit -m "ci: SPRINT 5 hardening"
+#     git push origin main
+#   Keyin ushbu fayl yuqorisidagi 20 qatorlik sharhni olib tashlash yetarli
+#   (sharh GitHub Actions uchun zararsiz, lekin tozalik uchun tavsiya etiladi).
+#
+# SERVERDA (App ruxsatisiz ham) — bitta komanda:
+#     bash scripts/security_check.sh              # qat'iy rejim (exit 1 = topilma)
+#     bash scripts/security_check.sh --advisory   # faqat hisobot (exit 0)
+#   Skript CI bilan BIR XIL darvozalarni ishga tushiradi (yagona manba).
+#
+# o'zgarishlar (hozirgi ci.yml ga nisbatan):
+#   - pip-audit: telegram_bot/requirements.txt dagi bog'liqliklar CVE tekshiruvi;
+#   - bandit -r telegram_bot -ll: statik xavfsizlik skani;
+#   - qat'iy ruff: avvalgi `ruff check . || true` bypass'i OLIB TASHLANDI —
+#     natija endi yashirilmaydi, log'da ko'rinib turadi;
+#   - `continue-on-error: true` faqat ADVISORY darvozalar uchun: mavjud texnik
+#     qarz (aiohttp CVE'lari, bandit medium topilmalari, to'liq ruff) job'ni
+#     qizartirmaydi; BLOKLOVCHI lint gate (E9/F63/F7/F82) esa avvalgidek
+#     ishlamay qolsa job'ni yiqitadi;
+#   - timeout-minutes 25 → 35 (qo'shimcha skanlar uchun byudjet).
+# ============================================================================
+
 name: PostAssist V2 CI
 
 on:
@@ -26,7 +50,9 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    # SPRINT 5: pip-audit + bandit + to'liq test suite qo'shildi — 25 daqiqa
+    # yetmasligi mumkin, shuning uchun byudjet 35 daqiqaga ko'tarildi.
+    timeout-minutes: 35
 
     defaults:
       run:
@@ -47,29 +73,33 @@ jobs:
           python -m pip install --upgrade pip
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
           pip install ruff==0.6.9 flake8==7.1.1 pytest pytest-asyncio sentry-sdk pgserver
+          # SPRINT 5 (CI hardening): bog'liqliklar zaifligi + statik xavfsizlik.
           pip install pip-audit bandit
 
+      # ------------------------------------------------------------------
+      # BLOKLOVCHI darvoza: sintaksis xatosi va aniqlanmagan nomlar.
+      # Bu yerda hech qanday `|| true` YO'Q — xato bo'lsa job qizaradi.
+      # ------------------------------------------------------------------
       - name: Lint Gate (Syntax & Undefined Names)
         run: |
           ruff check . --output-format=github --select=E9,F63,F7,F82
           flake8 . --count --select=E9,F63,F7,F82 --max-line-length=127 --show-source --statistics
 
-      - name: Full Lint
-        continue-on-error: true
-        run: |
-          ruff check .
-
-      - name: Dependency vulnerability scan (pip-audit)
+      # ------------------------------------------------------------------
+      # SPRINT 5: xavfsizlik darvozalari — yagona manba
+      # scripts/security_check.sh (serverda ham bitta komanda bilan ishlaydi):
+      #   1) lint gate (bloklovchi)  2) to'liq ruff
+      #   3) pip-audit (CVE)         4) bandit -ll
+      # `--advisory` + continue-on-error: mavjud texnik qarz (aiohttp CVE'lari,
+      # bandit medium topilmalari, to'liq ruff) job'ni qizartirmaydi, lekin
+      # har bir topilma log'da KO'RINIB turadi (avvalgi `|| true` bypass'i
+      # natijani butunlay yashirib yuborardi).
+      # ------------------------------------------------------------------
+      - name: Security & lint gates (ruff / pip-audit / bandit)
         continue-on-error: true
         working-directory: ${{ github.workspace }}
         run: |
-          pip-audit -r telegram_bot/requirements.txt --progress-spinner off
-
-      - name: Static security scan (bandit)
-        continue-on-error: true
-        working-directory: ${{ github.workspace }}
-        run: |
-          bandit -r telegram_bot -ll
+          bash scripts/security_check.sh --advisory
 
       - name: Run Test Suite
         env:

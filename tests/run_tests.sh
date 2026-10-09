@@ -1294,7 +1294,19 @@ echo "======== 🧪 PRODUCTION RUNTIME & DEPLOYMENT VERIFICATION ========"
 #       HAQIQATAN bajariladi;
 #   (4) HEALTH endpointlari: /health/live 200 {"status":"live"} +
 #       Cache-Control: no-store; /health/ready fail-closed (token yo'q → 404,
-#       noto'g'ri → 401, to'g'ri → 200/503 + checks) va javobda secret yo'q.
+#       noto'g'ri → 401, to'g'ri → 200/503 + checks) va javobda secret yo'q;
+#   (5) 💳 TO'LOV USULLARI (SPRINT 5): Payme Merchant API JSON-RPC —
+#       CheckPerformTransaction / CreateTransaction / PerformTransaction /
+#       CheckTransaction / CancelTransaction + Basic Auth (-32504) va checkout
+#       havolasi; `POST /payments/payme` production web-app'ga o'rnatilganmi;
+#       ⭐️ Stars (XTR invoice + payload validatori), 🧾 karta cheki
+#       (RECEIPT_WAIT) va ⚡️ Payme BIR VAQTDA ishlashi, PRO "aynan bir marta"
+#       berilishi va usullar bir-biriga aralashmasligi;
+#   (6) 0-bo'limda shuningdek SPRINT 5 kontraktlari: scripts/security_check.sh
+#       mavjud + bash -n toza, docs/ci-hardening.yml da pip-audit/bandit
+#       darvozalari bor, .env.example da PAYME_MERCHANT_ID / PAYME_KEY /
+#       PAYME_CHECKOUT_URL / PAYME_ALLOW_REFUNDS va DEPLOYMENT.md da Payme
+#       webhook ulash tartibi hujjatlangan.
 "$PY" tests/smoke_test.py --offline || EXIT_CODE=1
 
 echo
