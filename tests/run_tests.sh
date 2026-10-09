@@ -116,8 +116,8 @@
 #       "tasdiqdan o'tmagan post chiqmaydi" gradienti va FAQ/haftalik
 #       hisobot + ehtiyotkor advisor matni
 #       (tests/team_approval_and_insights_test.py)
-#   3F) 🧾 DEPLOYMENT READINESS — .env.example KANONIK HOLATI VA PARITETI:
-#       ikkala nusxada dublikat kalit yo'q, ular o'zaro sinxron,
+#   3F) 🧾 DEPLOYMENT READINESS — .env.example KANONIK HOLATI:
+#       yagona ildizdagi nusxada dublikat kalit yo'q, dublikat fayl yo'q,
 #       ENVIRONMENT=production / AI_ALLOW_MOCK=0 (fail-closed) izohlari
 #       to'g'ri, eskirgan gemini-1.5-flash QIYMAT'da yo'q va kod o'qiydigan
 #       barcha production env o'zgaruvchilari hujjatlangan
@@ -1016,7 +1016,7 @@ echo "===== 3N) 🔒 PHASE 2: RATE LIMITING + REDIS / DISTRIBUTED STATE ====="
 # (4) 🔗 Redis holati instance'lar arasida UMUMIY (multi-instance), yo'q
 #     bo'lsa yoki uzilib qolsa — In-Memory + fail-open (testlar);
 # (5) ⚙️ .env.example: REDIS_URL (ixtiyoriy), REDIS_ENABLED bayrog'i va
-#     RATE_LIMIT_* kalitlari — ikkala nusxada paritetli
+#     RATE_LIMIT_* kalitlari — yagona kanonik nusxada
 #     (tests/rate_limiter_redis_test.py).
 "$PY" tests/rate_limiter_redis_test.py || EXIT_CODE=1
 
@@ -1350,7 +1350,7 @@ echo "===== 🚪 SPRINT 4 — YOPIQ BETA DARVOZASI (CLOSED BETA ACCESS) ====="
 # (5) /start integratsiyasi: haqiqiy handler — kod bilan kiritish, kodsiz
 #     navbat, `ref_<id>` + kod birgalikda;
 # (6) /beta admin buyrug'i: holat/kod/navbat/tasdiq/runtime on-off-reset;
-# (7) Hujjat: ikkala .env.example'da yangi kalitlar (parity).
+# (7) Hujjat: yagona .env.example'da yangi kalitlar.
 "$PY" tests/beta_gate_test.py || EXIT_CODE=1
 
 echo

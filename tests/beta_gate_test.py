@@ -18,8 +18,8 @@ Tekshiriladi:
       bilan kiritiladi; kodsiz — navbatga qo'yiladi (javob yuboriladi);
   (7) 🖥 /beta ADMIN BUYRUG'I — holat, kod yaratish, navbat, tasdiq/rad,
       runtime on/off/reset; oddiy foydalanuvchi uchun jim;
-  (8) 📄 HUJJAT — ``.env.example`` (ikkala nusxa) yangi kalitlarni bir xil
-      qiymat bilan saqlaydi.
+  (8) 📄 HUJJAT — ``.env.example`` (yagona kanonik nusxa) yangi kalitlarni
+      saqlaydi.
 """
 import asyncio
 import contextlib
@@ -614,9 +614,8 @@ def test_registration_and_docs():
     check("CommandHandler('beta') ro'yxatdan o'tgan", "beta" in commands,
           sorted(commands))
 
-    # Hujjat: ikkala .env.example ham yangi kalitlarni bir xil saqlaydi.
-    for path in (os.path.join(ROOT, ".env.example"),
-                 os.path.join(BOT, ".env.example")):
+    # Hujjat: yagona kanonik .env.example yangi kalitlarni saqlaydi.
+    for path in (os.path.join(ROOT, ".env.example"),):
         text = open(path, encoding="utf-8").read()
         check(f"{os.path.relpath(path, ROOT)}: BETA_INVITE_ONLY=false",
               "BETA_INVITE_ONLY=false" in text)

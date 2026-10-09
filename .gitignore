@@ -15,9 +15,8 @@ env/
 # --- Maxfiy sozlamalar (hech qachon commit qilinmaydi) ---
 # `.env`, `.env.*` va `*.env` — barcha shakllar (`.env.local`, `.env.prod`,
 # `prod.env`, ...). `!.env.example` MUSTAQOID kelganda ORTIDA turadi:
-# `.env.*` bilan birga kelganda faqat shu qoida `.env.example` ni qayta
-# ko'rsatadi (Render Root Directory = telegram_bot bo'lgani uchun ikkala
-# nusxa ham kuzatilishi shart).
+# `.env.*` bilan birga kelganda faqat shu qoida ildizdagi kanonik
+# `.env.example` ni qayta ko'rsatadi.
 .env
 .env.*
 *.env

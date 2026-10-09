@@ -695,8 +695,8 @@ def test_config_and_env_docs():
           and config.MEM_CACHE_MAX_ENTRIES <= 200000,
           str(config.MEM_CACHE_MAX_TOTAL_BYTES))
 
-    # .env.example — ikkala nusxa ham, bir xil qiymat bilan
-    env_files = (ROOT / ".env.example", BOT / ".env.example")
+    # .env.example — yagona kanonik nusxa (repo ildizi)
+    env_files = (ROOT / ".env.example",)
     parsed = []
     for path in env_files:
         text = path.read_text(encoding="utf-8")
@@ -710,9 +710,8 @@ def test_config_and_env_docs():
               kv.get("REDIS_URL", "") == "")
         check(f"{path.name}: REDIS_ENABLED avtomatik (bo'sh)",
               kv.get("REDIS_ENABLED", "x") == "")
-    check("ikki .env.example PARITYETI saqlangan (bir xil qiymatlar)",
-          parsed[0] == parsed[1],
-          str([k for k in parsed[0] if parsed[0][k] != parsed[1].get(k)][:5]))
+    check("telegram_bot/.env.example dublikati YO'Q",
+          not (BOT / ".env.example").exists())
     text = (ROOT / ".env.example").read_text(encoding="utf-8")
     check("REDIS_URL namunasi hujjatlangan (redis://localhost:6379/0)",
           "redis://localhost:6379/0" in text)

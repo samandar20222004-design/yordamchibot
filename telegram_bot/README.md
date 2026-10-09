@@ -19,9 +19,10 @@ telegram_bot/
 │   ├── post_enhancer.py # ✨ Postga Tugma & Reaksiya qo'shish
 │   ├── pending.py       # Kutilayotgan postlar va bekor qilish
 │   └── channels.py      # Kanal/guruh ulash
-├── requirements.txt
-└── .env.example
+└── requirements.txt
 ```
+
+Kanonik muhit namunasi repo ildizida: [`../.env.example`](../.env.example).
 
 Kelajakda yangi bo'lim qo'shmoqchi bo'lsangiz, `handlers/` ichiga yangi fayl
 qo'shib, uni `main.py` da bitta qator bilan ro'yxatga olasiz. Boshqa
@@ -37,7 +38,8 @@ fayllarga tegish shart emas.
 
 1. Telegram'da **@userinfobot** ga yozing (yoki shunga o'xshash botlardan
    birortasiga).
-2. U sizga ID raqamingizni beradi — bu **ADMIN_ID**.
+2. U sizga ID raqamingizni beradi — bu **ADMIN_IDS** (vergul bilan
+   ajratilgan ro'yxat; eski `ADMIN_ID` ham o'qiladi).
 
 ## 3-qadam: Botni kanalga admin qilib qo'shish
 
@@ -66,11 +68,11 @@ source venv/bin/activate        # Windows: venv\Scripts\activate
 # 4) Kutubxonalarni o'rnatish
 pip install -r requirements.txt
 
-# 5) .env faylini yaratish
-cp .env.example .env
+# 5) .env faylini yaratish (kanonik namuna — repo ildizi)
+cp ../.env.example .env
 # .env faylini oching va o'z qiymatlaringizni kiriting:
 # BOT_TOKEN=...
-# ADMIN_ID=...
+# ADMIN_IDS=...
 # DATABASE_URL=...
 # MUHIM: ilova `python-dotenv` ISHLATMAYDI — .env faylni o'zi o'qimaydi.
 # Lokal ishga tushirishda uni shell'ga eksport qiling (keyingi qadamda ko'rsatilgan)

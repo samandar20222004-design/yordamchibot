@@ -34,7 +34,7 @@ Maqsad: bot SERVERDA (staging/production) ishga tushgandan keyin uni
        javobda token/secret SIZIB CHIQMAYDI.
 
 QO'SHIMCHA (0-bo'lim): deploy artefaktlari kontrakti — ``scripts/``
-skriptlari mavjud/sintaksis toza, ``.env.example`` ikkala nusxada paritet,
+skriptlari mavjud/sintaksis toza, ``.env.example`` (yagona kanonik nusxa),
 ``DEPLOYMENT.md`` 1-komandalik yo'riqnomaga ega, ``run_tests.sh`` shu smoke
 testni chaqiradi.
 
@@ -70,7 +70,7 @@ from typing import Any
 REPO_ROOT = Path(__file__).resolve().parents[1]
 TELEGRAM_DIR = REPO_ROOT / "telegram_bot"
 SCRIPTS_DIR = REPO_ROOT / "scripts"
-ENV_FILES = (REPO_ROOT / ".env.example", TELEGRAM_DIR / ".env.example")
+ENV_FILES = (REPO_ROOT / ".env.example",)
 
 #: Haqiqiy Telegram bot tokeniga o'xshash format (test tokenidan farqlash).
 _REAL_TOKEN_RE = re.compile(r"^\d{6,12}:[A-Za-z0-9_-]{30,}$")
@@ -225,8 +225,8 @@ def section_artifacts() -> None:
         for key in ("HEALTH_READY_TOKEN", "AUTOPILOT_QUIET_HOURS", "REDIS_URL",
                     "DB_POOL_SIZE", "AI_PROVIDER_CHAIN"):
             check(f"{rel}: {key} hujjatlashtirilgan", key in content)
-    if len(texts) == 2:
-        check(".env.example nusxalari AYNAN bir xil (paritet)", texts[0] == texts[1])
+    dup = TELEGRAM_DIR / ".env.example"
+    check("telegram_bot/.env.example dublikati YO'Q", not dup.exists())
 
     # DEPLOYMENT.md — 1-komandalik yo'riqnoma.
     deployment = REPO_ROOT / "DEPLOYMENT.md"

@@ -478,20 +478,15 @@ def test_env_docs() -> None:
     root_env = REPO_ROOT / ".env.example"
     bot_env = TELEGRAM_DIR / ".env.example"
     check(".env.example (root) mavjud", root_env.is_file(), "")
-    check("telegram_bot/.env.example mavjud", bot_env.is_file(), "")
-    if not (root_env.is_file() and bot_env.is_file()):
-        not_tested("env parity", "fayllar topilmadi")
+    check("telegram_bot/.env.example dublikati YO'Q", not bot_env.exists(), "")
+    if not root_env.is_file():
+        not_tested("env docs", "kanonik .env.example topilmadi")
         return
     rtext = root_env.read_text(encoding="utf-8")
-    btext = bot_env.read_text(encoding="utf-8")
     check("env: SHUTDOWN_GRACE_SECONDS=15 (root)",
           "SHUTDOWN_GRACE_SECONDS=15" in rtext, "")
-    check("env: SHUTDOWN_GRACE_SECONDS=15 (bot)",
-          "SHUTDOWN_GRACE_SECONDS=15" in btext, "")
     check("env: TELEGRAM_API_BASE_URL hujjatlashtirilgan (staging uchun)",
-          "TELEGRAM_API_BASE_URL" in rtext and "TELEGRAM_API_BASE_URL" in btext, "")
-    check("env: ikkala namuna fayl AYNAN bir xil",
-          rtext == btext, "")
+          "TELEGRAM_API_BASE_URL" in rtext, "")
 
 
 def main() -> int:
