@@ -19,30 +19,42 @@ BOT_VERSION = os.getenv("BOT_VERSION", "2.0")
 TELEGRAM_API_BASE_URL = (os.getenv("TELEGRAM_API_BASE_URL", "") or "").strip()
 
 # --- Ko'p adminli boshqaruv ---
-# ADMIN_ID: eski, bitta raqam (orqaga mos kelish uchun saqlanadi)
-# ADMIN_IDS: vergul bilan ajratilgan raqamlar ro'yxati, masalan: "123456,789012"
-# Ikkala o'zgaruvchi ham birgalikda ishlaydi.
+# KANONIK: ADMIN_IDS — vergul bilan ajratilgan Telegram user ID'lari
+# (masalan: "123456789,987654321").
+# LEGACY:  ADMIN_ID  — bitta raqam; ADMIN_IDS to'plamiga qo'shiladi
+# (orqaga moslik, o'chirilmaydi). Ikkala o'zgaruvchi birgalikda ishlaydi.
+
+
+def _parse_admin_ids(raw: str, *, source: str) -> set[int]:
+    """Vergul bilan ajratilgan butun son ID'larni xavfsiz o'qiydi.
+
+    Bo'sh qismlar tashlanadi; noto'g'ri qiymat ogohlantirish bilan o'tkaziladi.
+    """
+    parsed: set[int] = set()
+    if not raw:
+        return parsed
+    for part in raw.split(","):
+        part = part.strip()
+        if not part:
+            continue
+        try:
+            parsed.add(int(part))
+        except ValueError:
+            logger.warning("%s ichida noto'g'ri qiymat: %r. O'tkazib yuborildi.", source, part)
+    return parsed
+
+
+raw_admin_ids = os.getenv("ADMIN_IDS", "").strip()
+_parsed_ids: set[int] = _parse_admin_ids(raw_admin_ids, source="ADMIN_IDS")
+
 raw_admin_id = os.getenv("ADMIN_ID", "0").strip()
 try:
     ADMIN_ID = int(raw_admin_id) if raw_admin_id else 0
 except ValueError:
     logger.warning("ADMIN_ID noto'g'ri qiymatga ega: %r. 0 deb olindi.", raw_admin_id)
     ADMIN_ID = 0
-
-raw_admin_ids = os.getenv("ADMIN_IDS", "").strip()
-_parsed_ids: set[int] = set()
-if raw_admin_ids:
-    for part in raw_admin_ids.split(","):
-        part = part.strip()
-        try:
-            if part:
-                _parsed_ids.add(int(part))
-        except ValueError:
-            logger.warning("ADMIN_IDS ichida noto'g'ri qiymat: %r. O'tkazib yuborildi.", part)
 if ADMIN_ID:
     _parsed_ids.add(ADMIN_ID)
-# ADMIN_IDS_SET — barcha adminlar to'plami (is_admin() tekshiruvi uchun)
-ADMIN_IDS_SET: frozenset[int] = frozenset(_parsed_ids)
 
 # SPRINT 1 (ADMIN_ID ⇄ ADMIN_IDS nomuvofiqligi): KANONIK nom — ``ADMIN_IDS``.
 #
@@ -56,7 +68,8 @@ ADMIN_IDS_SET: frozenset[int] = frozenset(_parsed_ids)
 #     qo'shiladi (orqaga mos kelish SAQLANADI);
 #   * ``ADMIN_IDS_SET`` — eski ichki nom (alias, o'sha obyekt);
 #   * ``ADMIN_ID`` — legacy raqam, o'zgarishsiz qoladi.
-ADMIN_IDS: frozenset[int] = ADMIN_IDS_SET
+ADMIN_IDS: frozenset[int] = frozenset(_parsed_ids)
+ADMIN_IDS_SET: frozenset[int] = ADMIN_IDS
 
 def normalize_database_url(url: str | None) -> str | None:
     """Muhitdan kelgan PostgreSQL DSN ni psycopg2/asyncpg uchun moslashtiradi.
@@ -553,4 +566,4 @@ if not BOT_TOKEN:
 if not DATABASE_URL:
     raise RuntimeError("DATABASE_URL topilmadi! Muhit o'zgaruvchisida DATABASE_URL ni kiriting.")
 if not ADMIN_IDS_SET:
-    logger.warning("ADMIN_ID/ADMIN_IDS sozlanmagan! Faqat admin paneli ko'rinmaydi.")
+    logger.warning("ADMIN_IDS (yoki legacy ADMIN_ID) sozlanmagan! Faqat admin paneli ko'rinmaydi.")

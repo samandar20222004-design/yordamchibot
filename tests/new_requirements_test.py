@@ -1503,8 +1503,8 @@ def test_card_config_defaults_env_override_and_no_hardcoded_card():
     assert "CARD_NUMBER" in sub_src and "CARD_HOLDER" in sub_src
     assert "PAYMENT_CARD_NUMBER" not in sub_src
 
-    # .env.example (ikkala fayl) hujjatlashtirilgan
-    for rel in (".env.example", "telegram_bot/.env.example"):
+    # .env.example (yagona kanonik fayl) hujjatlashtirilgan
+    for rel in (".env.example",):
         env_src = (ROOT.parent / rel).read_text(encoding="utf-8")
         assert "CARD_NUMBER=" in env_src and "CARD_HOLDER=" in env_src, rel
 

@@ -536,13 +536,13 @@ def test_handler_timeouts() -> None:
           isinstance(config.BACKGROUND_TASK_TIMEOUT_SECONDS, int)
           and config.BACKGROUND_TASK_TIMEOUT_SECONDS >= 60,
           str(config.BACKGROUND_TASK_TIMEOUT_SECONDS))
-    for env_file in (ROOT / ".env.example",
-                     ROOT / "telegram_bot" / ".env.example"):
+    for env_file in (ROOT / ".env.example",):
         text = env_file.read_text(encoding="utf-8")
-        check(f"{env_file.name} ({env_file.parent.name}): "
-              "timeout o'zgaruvchilari hujjatlangan",
+        check(f"{env_file.name}: timeout o'zgaruvchilari hujjatlangan",
               "UPDATE_HANDLER_TIMEOUT_SECONDS=" in text
               and "BACKGROUND_TASK_TIMEOUT_SECONDS=" in text)
+    check("telegram_bot/.env.example dublikati YO'Q",
+          not (ROOT / "telegram_bot" / ".env.example").exists())
 
     # (2) await_with_timeout — sekin vazifa QAT'IY kesiladi.
     async def _slow_check():

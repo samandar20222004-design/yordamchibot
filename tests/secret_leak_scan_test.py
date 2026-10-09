@@ -10,7 +10,7 @@ Nima uchun (1-BOSQICH XAVFSIZLIK auditi):
     1) Git INDEKSIDA maxfiy `.env` fayli yo'q (faqat `.env.example`);
     2) `.gitignore` maxfiy fayl turlarini qamraydi (`.env`, `*.env`,
        `.env.*`, `.pem`, `.netrc`, ...), lekin `.env.example` ni
-       OCHIB qoldiradi (Render Root Directory = telegram_bot);
+       OCHIB qoldiradi (ildizdagi kanonik `.env.example`);
     3) Kod ichida haqiqiy bo'lishi mumkin bo'lgan Telegram token
        (`<raqam>:<base64>`) YO'Q — soxta/test tokenlaridan farqlanadi;
     4) `.env.example` dagi maxfiy kalitlarning qiymati BO'SH;
@@ -47,7 +47,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-ENV_FILES = (ROOT / ".env.example", ROOT / "telegram_bot" / ".env.example")
+ENV_FILES = (ROOT / ".env.example",)
 PROD_PKG = ROOT / "telegram_bot"
 
 # Telegram bot token: <bot_id 8-10 raqam> ":" <35+ base64url belgi>
@@ -133,10 +133,10 @@ def test_gitignore_rules() -> None:
         check(probe in ignored, f"`.gitignore` ga tushadi: {probe}")
 
     rc, out = git("check-ignore", "--no-index",
-                  ".env.example", "telegram_bot/.env.example")
+                  ".env.example")
     not_ignored = set(out.split()) if rc == 0 else set()
     check(".env.example" not in not_ignored,
-          "`.env.example` esa IGNORE QILINMAYDI (Render uchun kuzatiladi)")
+          "`.env.example` esa IGNORE QILINMAYDI (kanonik namuna)")
 
     text = gi.read_text(encoding="utf-8")
     check("!.env.example" in text,

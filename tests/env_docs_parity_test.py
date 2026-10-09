@@ -5,8 +5,8 @@ Nima uchun (Phase 0 auditi, 2-bo'lim va P2-O/P2-P topilmalari):
   * `.env.example` fayllarida **dublikat parametrlar** paydo bo'lgan edi
     (`GEMINI_VISION_MODEL`, `VISION_MAX_FILE_BYTES`) — ularning birida
     **o'chirilgan model** (`gemini-1.5-flash`) turgan edi;
-  * ildiz va `telegram_bot/` nusxalari **sinxron emas** edi (Render Root
-    Directory = `telegram_bot` bo'lgani uchun STT bo'limi prodda "yo'q" edi);
+  * ildiz va `telegram_bot/` nusxalari **sinxron emas** edi — endi yagona
+    kanonik fayl repo ildizidagi `.env.example` (dublikat olib tashlangan);
   * 25 ta **kodda o'qiladigan** o'zgaruvchi hujjatda **umuman yo'q** edi.
 
 Bu test — hujjat gigiyenasini qulflaydigan statik (import'siz, DB/tarmoq'siz)
@@ -17,7 +17,7 @@ guard. U hech qanday production kodga tegmaydi va doim ishlaydi:
 
 Tekshiruvlar:
   1) har bir faylda dublikat `KEY=` qatori YO'Q;
-  2) ikkala faylning kalitlar TO'PLAMI va QIYMATLARI bir xil (paritet);
+  2) yagona kanonik `.env.example` (telegram_bot/ dublikati YO'Q);
   3) majburiy kalitlar mavjud (BOT_TOKEN, DATABASE_URL, ENVIRONMENT, ...);
   4) P0-A siyosati: ENVIRONMENT=production, AI_ALLOW_MOCK=0 va izohlarda
      fail-closed qoida yozilgan;
@@ -37,7 +37,8 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-ENV_FILES = (ROOT / ".env.example", ROOT / "telegram_bot" / ".env.example")
+ENV_FILES = (ROOT / ".env.example",)
+DUPLICATE_ENV = ROOT / "telegram_bot" / ".env.example"
 PROD_PKG = ROOT / "telegram_bot"
 
 # Kod ichidagi o'qish nuqtalari: os.getenv / os.environ.get / yordamchilar.
@@ -157,20 +158,15 @@ def test_no_duplicates_and_shape() -> dict[str, dict[str, str]]:
     return parsed
 
 
-def test_parity(parsed: dict[str, dict[str, str]]) -> None:
-    print("\n== 2) Ikkala nusxa PARITYETI (Render = telegram_bot, Docker = root) ==")
-    if len(parsed) != 2:
-        check(False, "ikkala fayl ham o'qildi", str(list(parsed)))
-        return
-    (name_a, kv_a), (name_b, kv_b) = parsed.items()
-    only_a = sorted(set(kv_a) - set(kv_b))
-    only_b = sorted(set(kv_b) - set(kv_a))
-    check(not only_a and not only_b,
-          f"{name_a} va {name_b}: bir xil kalitlar to'plami",
-          f"faqat {name_a}: {only_a} | faqat {name_b}: {only_b}")
-    diff = sorted(k for k in set(kv_a) & set(kv_b) if kv_a[k] != kv_b[k])
-    check(not diff, "har bir kalitning QIYMATI ham bir xil",
-          ", ".join(f"{k}: {kv_a[k]!r} vs {kv_b[k]!r}" for k in diff[:5]))
+def test_single_canonical(parsed: dict[str, dict[str, str]]) -> None:
+    print("\n== 2) Yagona kanonik .env.example (dublikat YO'Q) ==")
+    check((ROOT / ".env.example").is_file(), "ildiz .env.example mavjud")
+    check(not DUPLICATE_ENV.exists(),
+          "telegram_bot/.env.example dublikati o'chirilgan")
+    check(".env.example" in parsed, "kanonik fayl o'qildi", str(list(parsed)))
+    kv = parsed.get(".env.example") or {}
+    check("ADMIN_IDS" in kv, "ADMIN_IDS kanonik kalit hujjatlangan")
+    check("ADMIN_ID" in kv, "legacy ADMIN_ID hujjatlangan (orqaga moslik)")
 
 
 def test_required_keys(parsed: dict[str, dict[str, str]]) -> None:
@@ -250,7 +246,7 @@ def main() -> int:
     print(" 🧾 DEPLOYMENT READINESS — .env.example KANONIK HOLAT VA PARITET")
     print("=" * 70)
     parsed = test_no_duplicates_and_shape()
-    test_parity(parsed)
+    test_single_canonical(parsed)
     test_required_keys(parsed)
     test_p0_a_policy(parsed)
     test_models_and_secrets(parsed)

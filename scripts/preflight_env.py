@@ -424,15 +424,19 @@ def check_ai_gateway(env: dict[str, str], report: Report, effective_env: str) ->
 
 def check_admin_and_payments(env: dict[str, str], report: Report) -> None:
     """7-bo'lim: adminlar, to'lov rekvizitlari, quiet hours, shutdown byudjeti."""
-    admin_id = (env.get("ADMIN_ID") or "0").strip()
     admin_ids = [p.strip() for p in (env.get("ADMIN_IDS") or "").split(",") if p.strip()]
-    if (admin_id in ("", "0")) and not admin_ids:
+    admin_id = (env.get("ADMIN_ID") or "0").strip()
+    legacy_ok = admin_id not in ("", "0")
+    if not admin_ids and not legacy_ok:
         report.warn("ADMIN_MISSING",
-                    "ADMIN_ID/ADMIN_IDS sozlanmagan — admin paneli va support "
-                    "murojaatlari yetib bormaydi.")
+                    "ADMIN_IDS sozlanmagan (legacy ADMIN_ID ham yo'q) — admin "
+                    "paneli va support murojaatlari yetib bormaydi.")
     else:
+        extra = 1 if legacy_ok and admin_id not in admin_ids else 0
         report.ok("ADMIN_SET",
-                  f"Adminlar: ADMIN_ID={admin_id or '0'}, ADMIN_IDS={len(admin_ids)} ta.")
+                  f"Adminlar: ADMIN_IDS={len(admin_ids)} ta"
+                  + (f" + legacy ADMIN_ID={admin_id}" if extra else "")
+                  + ".")
 
     card = (env.get("CARD_NUMBER") or "").strip()
     holder = (env.get("CARD_HOLDER") or "").strip()

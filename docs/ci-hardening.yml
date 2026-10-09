@@ -1,0 +1,79 @@
+# Proposed GitHub Actions workflow (copy over .github/workflows/ci.yml).
+# Not applied in this PR: the GitHub App token lacks the `workflows` permission
+# required to create/update files under .github/workflows/.
+#
+# Changes vs current ci.yml:
+#   - pip-audit against telegram_bot/requirements.txt
+#   - bandit -r telegram_bot -ll
+#   - ruff `|| true` bypass removed (Lint Gate still fails on E9/F63/F7/F82;
+#     full ruff / pip-audit / bandit are continue-on-error so pre-existing
+#     aiohttp CVEs and bandit medium findings do not red the job)
+name: PostAssist V2 CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    defaults:
+      run:
+        working-directory: telegram_bot
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          pip install ruff==0.6.9 flake8==7.1.1 pytest pytest-asyncio sentry-sdk pgserver
+          pip install pip-audit bandit
+
+      - name: Lint Gate (Syntax & Undefined Names)
+        run: |
+          ruff check . --output-format=github --select=E9,F63,F7,F82
+          flake8 . --count --select=E9,F63,F7,F82 --max-line-length=127 --show-source --statistics
+
+      - name: Full Lint
+        continue-on-error: true
+        run: |
+          ruff check .
+
+      - name: Dependency vulnerability scan (pip-audit)
+        continue-on-error: true
+        working-directory: ${{ github.workspace }}
+        run: |
+          pip-audit -r telegram_bot/requirements.txt --progress-spinner off
+
+      - name: Static security scan (bandit)
+        continue-on-error: true
+        working-directory: ${{ github.workspace }}
+        run: |
+          bandit -r telegram_bot -ll
+
+      - name: Run Test Suite
+        env:
+          BOT_TOKEN: "123456789:TEST_MOCK_TOKEN"
+          PYTHONPATH: .
+        run: |
+          bash tests/run_tests.sh

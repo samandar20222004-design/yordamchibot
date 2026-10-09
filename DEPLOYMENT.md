@@ -5,8 +5,8 @@
 > **ishlatilmaydi**, `.env` faylini ilova o'zi o'qimaydi — quyga qarang).
 
 Bog'liq fayllar: `telegram_bot/main.py` (kirish nuqtasi) · `Dockerfile` ·
-`docker-compose.yml` · `.env.example` (kononik env hujjati — ikkala nusxa
-bir xil) · `telegram_bot/README.md` (funksiyalar bo'yicha to'liq hujjat).
+`docker-compose.yml` · `.env.example` (yagona kanonik env hujjati) ·
+`telegram_bot/README.md` (funksiyalar bo'yicha to'liq hujjat).
 
 ---
 
@@ -15,7 +15,7 @@ bir xil) · `telegram_bot/README.md` (funksiyalar bo'yicha to'liq hujjat).
 | # | bajariladigan ish |
 |---|---|
 | 1 | **@BotFather** → `/newbot` → `BOT_TOKEN`. |
-| 2 | **@userinfobot** → o'z ID'ingiz → `ADMIN_ID` (bir nechta admin: `ADMIN_IDS=111,222`). |
+| 2 | **@userinfobot** → o'z ID'ingiz → `ADMIN_IDS=111` (bir nechta: `ADMIN_IDS=111,222`; legacy `ADMIN_ID` ham o'qiladi). |
 | 3 | **PostgreSQL**: Neon yoki Render Postgres — `DATABASE_URL` (`?sslmode=require` bilan, pooler-manzil recommended). |
 | 4 | Botni kanalga **admin** qilib qo'shing (kamida *Post Messages*). |
 | 5 | Kamida **bitta AI kaliti** (`GEMINI_API_KEY` / `GROQ_API_KEY` / `OPENROUTER_API_KEY`). |
@@ -123,7 +123,7 @@ Loglar: `logs/deploy-<sana>.log` (git'ga tushmaydi — `.gitignore`).
    | Instance Type | Starter+ (**Free/ECO plan'da service uxlab qoladi → scheduler to'xtaydi**) |
 
 3. **Environment Variables** — `.env.example` faylidagi kalitlarni kiriting.
-   Majburiy: `BOT_TOKEN`, `DATABASE_URL`, `ADMIN_ID` (+ `ENVIRONMENT=production`,
+   Majburiy: `BOT_TOKEN`, `DATABASE_URL`, `ADMIN_IDS` (+ `ENVIRONMENT=production`,
    `AI_ALLOW_MOCK=0`, AI kalitlari, `CARD_*`).
    `PORT` **o'zingiz qo'ymang** — Render o'zi beradi (web-server shu portda
    `0.0.0.0:$PORT` da turadi). Render'ning eski `postgres://…` URL'ini bot
@@ -200,7 +200,7 @@ sudo mkdir -p /opt/postassist/data
 sudo chown -R www-data:www-data /opt/postassist        # service www-data ostida ishlaydi
 sudo cp .env.example /etc/postassist.env
 sudo chmod 600 /etc/postassist.env && sudo chown root:root /etc/postassist.env
-sudo nano /etc/postassist.env      # BOT_TOKEN, DATABASE_URL, ADMIN_ID, AI kalitlari...
+sudo nano /etc/postassist.env      # BOT_TOKEN, DATABASE_URL, ADMIN_IDS, AI kalitlari...
 ```
 
 `/etc/systemd/system/postassist.service`:
