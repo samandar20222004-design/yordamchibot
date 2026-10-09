@@ -78,6 +78,20 @@ _REAL_TOKEN_RE = re.compile(r"^\d{6,12}:[A-Za-z0-9_-]{30,}$")
 _PLACEHOLDER_TOKEN = "123456:SMOKE_TEST_PLACEHOLDER_TOKEN"
 _MOCK_TOKEN = "123456:SMOKE_MOCK_TOKEN"
 
+# --- 💳 TO'LOV USULLARI (6-bo'lim) — faqat xotiradagi soxta kassa ----------
+# HAQIQIY `PAYME_KEY` bu yerga HECH QACHON yozilmaydi: JSON-RPC tekshiruvlari
+# `InMemoryPaymeStore` ustida yuradi (tarmoq va DB kerak emas). Kassa kaliti
+# faqat Basic Auth mantiqini sinash uchun ishlatiladi.
+_PAYME_TEST_MERCHANT = "smoke-merchant-id"
+_PAYME_TEST_KEY = "smoke-payme-merchant-key"
+_PAYME_TEST_LOGIN = "Paycom"
+_PAYME_USER_ID = 5150
+_PAYME_PLAN_DAYS = 30
+_PAYME_PRICE_UZS = 19000
+_PAYME_PRICE_TIYIN = _PAYME_PRICE_UZS * 100
+#: Barqaror (deterministik) soat — 1 760 000 000 000 ms.
+_PAYME_START_MS = 1_760_000_000_000
+
 PASSED = 0
 FAILED = 0
 NOT_TESTED: list[tuple[str, str]] = []
@@ -177,6 +191,9 @@ def section_artifacts() -> None:
         SCRIPTS_DIR / "deploy.sh",
         SCRIPTS_DIR / "preflight_env.py",
         SCRIPTS_DIR / "db_migrate.py",
+        # SPRINT 5 (1-vazifa): serverda bitta komanda bilan ishlaydigan
+        # xavfsizlik darvozasi (ruff / pip-audit / bandit).
+        SCRIPTS_DIR / "security_check.sh",
     )
     for path in required:
         rel = path.relative_to(REPO_ROOT).as_posix()
@@ -206,12 +223,27 @@ def section_artifacts() -> None:
     if bash is None:
         not_tested("bash -n skript sintaksisi", "bash topilmadi")
     else:
-        for script in (SCRIPTS_DIR / "start_production.sh", SCRIPTS_DIR / "deploy.sh"):
+        for script in (SCRIPTS_DIR / "start_production.sh", SCRIPTS_DIR / "deploy.sh",
+                       SCRIPTS_DIR / "security_check.sh"):
             rel = script.relative_to(REPO_ROOT).as_posix()
             proc = subprocess.run([bash, "-n", str(script)], capture_output=True,
                                   text=True, timeout=30)
             check(f"{rel} bash sintaksisi toza (bash -n)", proc.returncode == 0,
                   (proc.stderr or "").strip()[:160])
+
+    # CI hardening taklifi (docs/ci-hardening.yml) saqlanadi — GitHub App
+    # `workflows` ruxsatisiz bo'lganda qo'lda ko'chirish uchun yagona manba.
+    ci_hardening = REPO_ROOT / "docs" / "ci-hardening.yml"
+    if ci_hardening.is_file():
+        text = ci_hardening.read_text(encoding="utf-8")
+        for marker, label in (
+            ("pip-audit", "docs/ci-hardening.yml: pip-audit darvozasi bor"),
+            ("bandit", "docs/ci-hardening.yml: bandit darvozasi bor"),
+            ("scripts/security_check.sh", "docs/ci-hardening.yml: server skripti ulangan"),
+        ):
+            check(label, marker in text)
+    else:
+        check("docs/ci-hardening.yml mavjud", False)
 
     # .env.example pariteti va yangi fazalar kalitlari.
     texts = []
@@ -223,7 +255,10 @@ def section_artifacts() -> None:
         texts.append(path.read_text(encoding="utf-8"))
         content = texts[-1]
         for key in ("HEALTH_READY_TOKEN", "AUTOPILOT_QUIET_HOURS", "REDIS_URL",
-                    "DB_POOL_SIZE", "AI_PROVIDER_CHAIN"):
+                    "DB_POOL_SIZE", "AI_PROVIDER_CHAIN",
+                    # SPRINT 5 (3-vazifa): Payme Merchant API parametrlari.
+                    "PAYME_MERCHANT_ID", "PAYME_KEY", "PAYME_CHECKOUT_URL",
+                    "PAYME_ALLOW_REFUNDS"):
             check(f"{rel}: {key} hujjatlashtirilgan", key in content)
     dup = TELEGRAM_DIR / ".env.example"
     check("telegram_bot/.env.example dublikati YO'Q", not dup.exists())
@@ -237,6 +272,14 @@ def section_artifacts() -> None:
             ("scripts/start_production.sh", "DEPLOYMENT.md: bootstrap skripti ko'rsatilgan"),
             ("tests/smoke_test.py", "DEPLOYMENT.md: smoke test ko'rsatilgan"),
             ("HEALTH_READY_TOKEN", "DEPLOYMENT.md: health token eslatilgan"),
+            # SPRINT 5 (3-vazifa): Payme webhook ulash tartibi.
+            ("/payments/payme", "DEPLOYMENT.md: Payme webhook manzili ko'rsatilgan"),
+            ("PAYME_MERCHANT_ID", "DEPLOYMENT.md: PAYME_MERCHANT_ID eslatilgan"),
+            ("PAYME_KEY", "DEPLOYMENT.md: PAYME_KEY eslatilgan"),
+            ("PAYME_CHECKOUT_URL", "DEPLOYMENT.md: PAYME_CHECKOUT_URL eslatilgan"),
+            ("PAYME_ALLOW_REFUNDS", "DEPLOYMENT.md: PAYME_ALLOW_REFUNDS eslatilgan"),
+            # SPRINT 5 (1-vazifa): serverda bitta komandalik xavfsizlik tekshiruvi.
+            ("scripts/security_check.sh", "DEPLOYMENT.md: security_check.sh eslatilgan"),
         ):
             check(label, marker in text)
     else:
@@ -677,6 +720,405 @@ async def health_smoke(args: argparse.Namespace, *, timeout: float) -> None:
 
 
 # =====================================================================
+# 6) 💳 TO'LOV USULLARI — Payme JSON-RPC + ⭐️ Stars + 🧾 Karta cheki
+# =====================================================================
+# Nima uchun smoke test ichida: deploy'dan keyin to'lovlar HAQIQATAN ishlashi
+# eng kritik tekshiruv. Payme kassasi bot bilan bir port (`PORT`)da,
+# `POST /payments/payme` da turadi — shuning uchun endpoint production
+# web-app'ga o'rnatilganmi, JSON-RPC metodlari (CheckPerformTransaction /
+# CreateTransaction / PerformTransaction) to'g'ri javob beradimi va PRO
+# "aynan bir marta" beriladimi — shu yerda tekshiriladi.
+# Stars (Telegram XTR) va karta cheki (admin tasdiqlovchi) oqimlari ham
+# YONMA-YON ishlashi shart: bir usul qo'shilishi boshqasini buzmasligi kerak.
+def _payme_test_provider():
+    """(provider, store, clock, order) — soxta kassa, faqat xotirada."""
+    from services.payments.memory_store import InMemoryPaymeStore
+    from services.payments.payme_provider import PaymeConfig, PaymeProvider
+
+    store = InMemoryPaymeStore()
+    clock = {"now": _PAYME_START_MS}
+    config = PaymeConfig(
+        merchant_id=_PAYME_TEST_MERCHANT,
+        key=_PAYME_TEST_KEY,
+        login=_PAYME_TEST_LOGIN,
+        account_field="order_id",
+        checkout_url="https://checkout.paycom.uz",
+        allow_refunds=False,
+    )
+    provider = PaymeProvider(store, config, clock=lambda: clock["now"])
+    order = provider.create_order(_PAYME_USER_ID, "1m", _PAYME_PLAN_DAYS, _PAYME_PRICE_UZS)
+    return provider, store, clock, order, config
+
+
+def _payme_auth(login: str = _PAYME_TEST_LOGIN, key: str = _PAYME_TEST_KEY) -> str:
+    from services.payments.payme_provider import basic_auth_header
+    return basic_auth_header(login, key)
+
+
+#: `_payme_rpc(auth=...)` uchun: sarlavha umuman YO'Q holatini farqlash
+#: (``auth=None`` standart → to'g'ri kassa kaliti, ``_NO_AUTH`` → sarlavha yo'q).
+_NO_AUTH = object()
+
+
+def _payme_rpc(provider, method: str, params: dict, *, auth=None, request_id=1):
+    """Bitta JSON-RPC chaqiruv → (response, outcome). Hech qachon raise qilmaydi."""
+    if auth is _NO_AUTH:
+        header = None
+    elif auth is None:
+        header = _payme_auth()
+    else:
+        header = auth
+    outcome = provider.handle(
+        {"jsonrpc": "2.0", "id": request_id, "method": method, "params": params},
+        authorization=header,
+    )
+    return outcome.response, outcome
+
+
+def _payme_err(response) -> object:
+    return (response.get("error") or {}).get("code")
+
+
+def _payme_result(response) -> dict:
+    return response.get("result") or {}
+
+
+def _payme_create_params(order, payme_id: str, clock: dict) -> dict:
+    return {
+        "id": payme_id,
+        "time": clock["now"],
+        "amount": _PAYME_PRICE_TIYIN,
+        "account": {"order_id": order.order_id},
+    }
+
+
+def payme_config_gate() -> None:
+    """6.1) Konfiguratsiya — sozlanmagan kassa FAIL-CLOSED bo'lishi shart."""
+    from services.payments.payme_provider import PaymeConfig
+
+    env_keys = ("PAYME_MERCHANT_ID", "PAYME_KEY", "PAYME_LOGIN",
+                "PAYME_CHECKOUT_URL", "PAYME_ACCOUNT_FIELD", "PAYME_ALLOW_REFUNDS")
+    saved = {key: os.environ.get(key) for key in env_keys}
+    try:
+        for key in env_keys:
+            os.environ[key] = ""
+        empty = PaymeConfig.from_env()
+        check("Payme sozlanmagan → checkout tugmasi YO'Q (fail-closed)",
+              empty.checkout_enabled is False)
+        check("Payme sozlanmagan → callback'lar rad etiladi (auth yopiq)",
+              empty.auth_configured is False)
+
+        os.environ["PAYME_MERCHANT_ID"] = _PAYME_TEST_MERCHANT
+        os.environ["PAYME_KEY"] = _PAYME_TEST_KEY
+        os.environ["PAYME_CHECKOUT_URL"] = "https://test.paycom.uz"
+        os.environ["PAYME_ALLOW_REFUNDS"] = "0"
+        configured = PaymeConfig.from_env()
+        check("PAYME_MERCHANT_ID + PAYME_KEY → checkout yoqiladi",
+              configured.checkout_enabled is True)
+        check("PAYME_CHECKOUT_URL env'dan o'qiladi (sandbox: test.paycom.uz)",
+              configured.checkout_url == "https://test.paycom.uz")
+        check("PAYME_LOGIN bo'sh → standart 'Paycom'",
+              configured.login == "Paycom" and configured.account_field == "order_id")
+        check("PAYME_ALLOW_REFUNDS=0 → refund yopiq (standart)",
+              configured.allow_refunds is False)
+        check("PaymeConfig repr kassa kalitini oshkor qilmaydi",
+              _PAYME_TEST_KEY not in repr(configured))
+    finally:
+        for key, value in saved.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+
+
+def payme_jsonrpc_smoke() -> tuple:
+    """6.2) JSON-RPC: CheckPerformTransaction → CreateTransaction → Perform."""
+    import base64
+
+    from services.payments.payme_provider import build_checkout_url
+
+    provider, store, clock, order, config = _payme_test_provider()
+
+    # --- CheckPerformTransaction (read-only) ------------------------------
+    resp, _ = _payme_rpc(provider, "CheckPerformTransaction",
+                         {"amount": _PAYME_PRICE_TIYIN, "account": {"order_id": order.order_id}})
+    check("CheckPerformTransaction (to'g'ri summa) → {\"allow\": true}",
+          _payme_result(resp) == {"allow": True}, str(resp))
+    resp, _ = _payme_rpc(provider, "CheckPerformTransaction",
+                         {"amount": _PAYME_PRICE_TIYIN + 100, "account": {"order_id": order.order_id}},
+                         request_id=2)
+    check("CheckPerformTransaction (noto'g'ri summa) → -31001",
+          _payme_err(resp) == -31001, str(resp))
+    resp, _ = _payme_rpc(provider, "CheckPerformTransaction",
+                         {"amount": _PAYME_PRICE_TIYIN, "account": {"order_id": "pm-mavjud-emas"}})
+    check("CheckPerformTransaction (buyurtma topilmadi) → -31050",
+          _payme_err(resp) == -31050, str(resp))
+    resp, _ = _payme_rpc(provider, "CheckPerformTransaction",
+                         {"account": {"order_id": order.order_id}})
+    check("CheckPerformTransaction (summa yo'q) → -32600", _payme_err(resp) == -32600)
+    resp, _ = _payme_rpc(provider, "CheckPerformTransaction", {"amount": _PAYME_PRICE_TIYIN})
+    check("CheckPerformTransaction (account yo'q) → -32600", _payme_err(resp) == -32600)
+    check("CheckPerformTransaction tranzaksiya yaratmaydi (read-only)",
+          not store.transactions and not store.grants)
+
+    # --- CreateTransaction ------------------------------------------------
+    params = _payme_create_params(order, "smoke-tx-0001", clock)
+    resp, _ = _payme_rpc(provider, "CreateTransaction", dict(params), request_id=10)
+    result = _payme_result(resp)
+    check("CreateTransaction → state 1 + transaction id",
+          result.get("state") == 1 and bool(result.get("transaction")), str(resp))
+    check("CreateTransaction → create_time qaytarildi",
+          result.get("create_time") == clock["now"], str(result))
+    check("CreateTransaction → hali PRO berilmadi", store.grants == [], str(store.grants))
+    resp, _ = _payme_rpc(provider, "CreateTransaction", dict(params), request_id=11)
+    check("CreateTransaction takrori (ayni Payme id) → idempotent state 1",
+          _payme_result(resp).get("state") == 1, str(resp))
+    resp, _ = _payme_rpc(provider, "CreateTransaction",
+                         {**params, "id": "smoke-tx-0002"}, request_id=12)
+    check("CreateTransaction (ikkinchi faol tranzaksiya) → -31052 band",
+          _payme_err(resp) == -31052, str(resp))
+    resp, _ = _payme_rpc(provider, "CheckTransaction", {"id": "smoke-tx-0001"})
+    check("CheckTransaction → state 1 (pending)", _payme_result(resp).get("state") == 1)
+    check("buyurtmada faqat bitta tranzaksiya saqlandi", len(store.transactions) == 1,
+          str(list(store.transactions)))
+
+    # --- PerformTransaction (PRO aynan bir marta) -------------------------
+    resp, outcome = _payme_rpc(provider, "PerformTransaction", {"id": "smoke-tx-0001"}, request_id=20)
+    check("PerformTransaction → state 2 (paid)", _payme_result(resp).get("state") == 2, str(resp))
+    check("PerformTransaction → perform_time yozildi",
+          bool(_payme_result(resp).get("perform_time")))
+    check("PerformTransaction → PRO aynan 1 marta (30 kun)",
+          store.grants == [(_PAYME_USER_ID, _PAYME_PLAN_DAYS)], str(store.grants))
+    check("ledger kaliti noyob: 'payme:<transaction id>'",
+          "payme:smoke-tx-0001" in store.ledger, str(sorted(store.ledger)))
+    check("buyurtma holati 'paid'", store.orders[order.order_id].status == "paid")
+    check("to'lov hodisasi bildirishnoma uchun qaytarildi",
+          [e.kind for e in outcome.events] == ["paid"])
+
+    repeat = None
+    for _ in range(3):
+        _, repeat = _payme_rpc(provider, "PerformTransaction", {"id": "smoke-tx-0001"}, request_id=21)
+    check("PerformTransaction ×3 (takroriy callback) → PRO baribir 1 marta",
+          store.grants == [(_PAYME_USER_ID, _PAYME_PLAN_DAYS)], str(store.grants))
+    check("takroriy Perform → qo'shimcha bildirishnoma YO'Q",
+          repeat is not None and list(repeat.events) == [])
+    resp, _ = _payme_rpc(provider, "PerformTransaction", {"id": "yoq-bunday-id"})
+    check("PerformTransaction (noma'lum id) → -31003", _payme_err(resp) == -31003)
+    resp, _ = _payme_rpc(provider, "CancelTransaction", {"id": "smoke-tx-0001", "reason": 5})
+    check("refund ruxsati YO'Q → CancelTransaction → -31007", _payme_err(resp) == -31007)
+    check("rad etilgan refund'da PRO olib tashlanmadi",
+          store.grants == [(_PAYME_USER_ID, _PAYME_PLAN_DAYS)])
+
+    # --- Basic Auth (metoddan OLDIN tekshiriladi) -------------------------
+    fresh = _payme_test_provider()
+    check_params = {"amount": _PAYME_PRICE_TIYIN, "account": {"order_id": fresh[3].order_id}}
+    resp, _ = _payme_rpc(fresh[0], "CheckPerformTransaction", dict(check_params),
+                         auth=_payme_auth(key="notogri-kalit"))
+    check("noto'g'ri PAYME_KEY → -32504", _payme_err(resp) == -32504, str(resp))
+    resp, _ = _payme_rpc(fresh[0], "CheckPerformTransaction", dict(check_params), auth=_NO_AUTH)
+    check("Authorization sarlavhasi yo'q → -32504", _payme_err(resp) == -32504, str(resp))
+    resp, _ = _payme_rpc(fresh[0], "CheckPerformTransaction", dict(check_params), auth="Bearer xyz")
+    check("Bearer scheme → -32504", _payme_err(resp) == -32504)
+    check("rad etilgan so'rovda store'ga tegilmadi (to'lov yo'q)",
+          not fresh[1].transactions and not fresh[1].grants)
+    resp, _ = _payme_rpc(provider, "NomaLumMetod", {})
+    check("noma'lum metod → -32601", _payme_err(resp) == -32601)
+
+    # --- Checkout havolasi ------------------------------------------------
+    url = build_checkout_url(config, order, lang="uz")
+    encoded = url.rsplit("/", 1)[-1]
+    decoded = base64.b64decode(encoded).decode("utf-8")
+    check("checkout havolasi PAYME_CHECKOUT_URL asosida quriladi",
+          url.startswith("https://checkout.paycom.uz/"), url[:60])
+    check("checkout parametrlari: m / ac.order_id / a",
+          f"m={_PAYME_TEST_MERCHANT}" in decoded
+          and f"ac.order_id={order.order_id}" in decoded
+          and f"a={_PAYME_PRICE_TIYIN}" in decoded, decoded)
+    return provider, store, clock, order, config
+
+
+async def payme_http_smoke() -> None:
+    """6.3) `POST /payments/payme` production web-app'ga o'rnatilganmi?"""
+    from aiohttp.test_utils import TestClient, TestServer
+
+    from services.payments import payme_webhook
+    from utils.web_server import build_web_app
+
+    provider, store, clock, order, _config = _payme_test_provider()
+    notified: list = []
+
+    async def notifier(event):
+        notified.append(event)
+
+    payme_webhook.set_provider(provider)
+    payme_webhook.set_paid_notifier(notifier)
+    client = TestClient(TestServer(build_web_app()))
+    await client.start_server()
+    try:
+        path = payme_webhook.PAYME_WEBHOOK_PATH
+        check("endpoint production web-app'da mavjud: POST /payments/payme",
+              path == "/payments/payme", path)
+
+        async def post(body=None, *, auth=True, raw=None, request_id=1, method="CheckTransaction",
+                       params=None):
+            headers = {"Content-Type": "application/json"}
+            if auth is True:
+                headers["Authorization"] = _payme_auth()
+            elif isinstance(auth, str):
+                headers["Authorization"] = auth
+            data = raw if raw is not None else json.dumps(
+                body if body is not None else {"jsonrpc": "2.0", "id": request_id,
+                                               "method": method, "params": params or {}}
+            )
+            resp = await client.post(path, data=data, headers=headers)
+            return resp.status, await resp.json(), resp.headers
+
+        resp = await client.get(path)
+        check("GET /payments/payme → HTTP 200 + -32300 (har doim 200)",
+              resp.status == 200 and _payme_err(await resp.json()) == -32300)
+
+        status, body, headers = await post(auth=None)
+        check("auth yo'q → HTTP 200 + -32504 (DB'gacha yetib bormaydi)",
+              status == 200 and _payme_err(body) == -32504, str(body))
+        status, body, headers = await post(auth=_payme_auth(key="yomon-kalit"))
+        check("noto'g'ri kassa kaliti → -32504", _payme_err(body) == -32504)
+        check("javob Cache-Control: no-store", headers.get("Cache-Control") == "no-store")
+
+        status, body, _ = await post(raw="{buzilgan json")
+        check("buzilgan JSON → -32700", status == 200 and _payme_err(body) == -32700, str(body))
+
+        status, body, _ = await post(
+            request_id=31, method="CheckPerformTransaction",
+            params={"amount": _PAYME_PRICE_TIYIN, "account": {"order_id": order.order_id}},
+        )
+        check("HTTP CheckPerformTransaction → allow=True, id aks-sado beradi",
+              status == 200 and body.get("id") == 31 and _payme_result(body) == {"allow": True},
+              str(body))
+
+        status, body, _ = await post(
+            request_id=32, method="CreateTransaction",
+            params=_payme_create_params(order, "smoke-http-tx", clock),
+        )
+        check("HTTP CreateTransaction → state 1",
+              _payme_result(body).get("state") == 1, str(body))
+
+        for _ in range(3):
+            status, body, _ = await post(request_id=33, method="PerformTransaction",
+                                         params={"id": "smoke-http-tx"})
+        await asyncio.sleep(0.05)  # fon bildirishnomasi
+        check("HTTP PerformTransaction ×3 → state 2", _payme_result(body).get("state") == 2)
+        check("HTTP PerformTransaction ×3 → PRO aynan 1 marta",
+              store.grants == [(_PAYME_USER_ID, _PAYME_PLAN_DAYS)], str(store.grants))
+        check("foydalanuvchiga bildirishnoma aynan 1 marta yuborildi",
+              len(notified) == 1 and notified[0].user_id == _PAYME_USER_ID
+              and notified[0].days == _PAYME_PLAN_DAYS, str(notified))
+
+        resp = await client.get("/health/live")
+        check("Payme route'i /health/live ni buzmaydi", resp.status == 200)
+    finally:
+        await client.close()
+        payme_webhook.set_provider(None)
+        payme_webhook.set_paid_notifier(None)
+
+
+async def payment_methods_side_by_side() -> None:
+    """6.4) ⭐️ Stars + 🧾 Karta cheki + ⚡️ Payme BIR VAQTDA to'g'ri ishlaydi.
+
+    Tasdiqlanadigan asosiy xavfsizlik xossasi: bir to'lov usulining
+    qo'shilishi boshqasini BUZMAYDI va ular bir-biriga ARALASHMAYDI
+    (Stars payload'i Payme validatoridan o'tmaydi va aksincha).
+    """
+    from types import SimpleNamespace
+
+    import handlers.payment_receipt as payment_receipt
+    import handlers.subscription as subscription
+    from services.payments.payme_provider import build_checkout_url
+
+    # ---------- ⭐️ Telegram Stars (XTR) ----------
+    sent_invoices: list = []
+
+    class _FakeStarsBot:
+        async def send_invoice(self, **kwargs):
+            sent_invoices.append(kwargs)
+
+    context = SimpleNamespace(bot=_FakeStarsBot(), user_data={})
+    ok = await subscription._send_stars_invoice(
+        context, chat_id=_PAYME_USER_ID, user_id=_PAYME_USER_ID,
+        plan_suffix="1m", lang="uz",
+    )
+    check("Stars: invoice yuborildi", ok is True and len(sent_invoices) == 1)
+    invoice = sent_invoices[-1] if sent_invoices else {}
+    check("Stars: valyuta XTR (Telegram Stars)", invoice.get("currency") == "XTR", str(invoice))
+    check("Stars: payload formati 'sub_stars_<tarif>_<user_id>'",
+          invoice.get("payload") == f"sub_stars_1m_{_PAYME_USER_ID}", str(invoice.get("payload")))
+    check("Stars: provider_token bo'sh satr (PTB 21.x talabi)",
+          invoice.get("provider_token") == "")
+    stars_amount = subscription.INTL_STARS_AMOUNTS.get("1m")
+    plan, error = subscription._validate_stars_payload(
+        invoice.get("payload", ""), _PAYME_USER_ID, stars_amount, "XTR", "uz")
+    check("Stars: payload + summa + valuta qat'iy tekshiruvdan o'tdi",
+          plan is not None and plan.get("days") == _PAYME_PLAN_DAYS, str(error))
+    check("Stars: soxta summa rad etiladi",
+          subscription._validate_stars_payload(
+              invoice.get("payload", ""), _PAYME_USER_ID, 1, "XTR", "uz")[0] is None)
+    check("Stars: boshqa foydalanuvchi payload'i rad etiladi (IDOR)",
+          subscription._validate_stars_payload(
+              invoice.get("payload", ""), _PAYME_USER_ID + 1, stars_amount, "XTR", "uz")[0] is None)
+
+    # ---------- 🧾 Karta cheki (admin tasdiqlaydi) ----------
+    check("Chek: RECEIPT_WAIT holati aniqlangan (603)",
+          getattr(subscription, "RECEIPT_WAIT", None) == 603)
+    check("Chek: receipt_received handler'i mavjud",
+          asyncio.iscoroutinefunction(payment_receipt.receipt_received))
+
+    # ---------- ⚡️ Payme (avtomatik) ----------
+    provider, store, clock, order, config = _payme_test_provider()
+    payme_url = build_checkout_url(config, order, lang="uz")
+
+    # ---------- BIR VAQTDA: karta ekranida Payme + chek yonma-yon ----------
+    keyboard = subscription._get_card_payment_keyboard("uz", "1m", payme_url=payme_url)
+    urls = [btn.url for row in keyboard.inline_keyboard for btn in row if btn.url]
+    callbacks = [btn.callback_data for row in keyboard.inline_keyboard for btn in row
+                 if btn.callback_data]
+    check("Karta ekrani: ⚡️ Payme (avtomatik) tugmasi bor", payme_url in urls)
+    check("Karta ekrani: 🧾 chek yuborish tugmasi Payme BILAN YONMA-YON turibdi",
+          "sub_send_receipt" in callbacks, str(callbacks))
+    check("Karta ekrani: ◀️ Orqaga tugmasi joyida", "sub_back" in callbacks)
+    for lang in ("uz", "ru", "en"):
+        kb = subscription._get_card_payment_keyboard(lang, "1m", payme_url=payme_url)
+        cbs = [btn.callback_data for row in kb.inline_keyboard for btn in row if btn.callback_data]
+        check(f"Karta ekrani ({lang}): chek oqimi saqlangan", "sub_send_receipt" in cbs)
+    disabled = subscription._get_card_payment_keyboard("uz", "1m", payme_url=None)
+    cbs_disabled = [btn.callback_data for row in disabled.inline_keyboard for btn in row
+                    if btn.callback_data]
+    urls_disabled = [btn.url for row in disabled.inline_keyboard for btn in row if btn.url]
+    check("Payme sozlanmaganda tugma KO'RINMAYDI (fail-closed)", payme_url not in urls_disabled)
+    check("Payme sozlanmaganda ham chek oqimi ishlayveradi (fail-safe)",
+          "sub_send_receipt" in cbs_disabled)
+
+    # ---------- UCH USUL BIR PAYTDA: natijalar bir-biriga aralashmaydi ----
+    _payme_rpc(provider, "CreateTransaction",
+               _payme_create_params(order, "smoke-combined-tx", clock))
+    _payme_rpc(provider, "PerformTransaction", {"id": "smoke-combined-tx"})
+    check("BIR VAQTDA: Payme → PRO 30 kun (darhol, adminsiz)",
+          store.grants == [(_PAYME_USER_ID, _PAYME_PLAN_DAYS)], str(store.grants))
+    check("BIR VAQTDA: Stars → tasdiqlangan tarif 30 kun",
+          plan is not None and plan.get("days") == _PAYME_PLAN_DAYS)
+    check("BIR VAQTDA: Chek → RECEIPT_WAIT orqali admin tasdiqlaydi (alohida oqim)",
+          subscription.RECEIPT_WAIT == 603 and subscription.RECEIPT_WAIT != 0)
+    ledger_keys = set(store.ledger)
+    check("Aralashmaydi: Payme ledger'i faqat 'payme:' namespace'ida",
+          bool(ledger_keys) and all(k.startswith("payme:") for k in ledger_keys), str(ledger_keys))
+    check("Aralashmaydi: Stars payload'i Payme ledger'iga tushmaydi",
+          f"sub_stars_1m_{_PAYME_USER_ID}" not in ledger_keys)
+    check("Aralashmaydi: Payme identifikatori Stars validatoridan o'tmaydi",
+          subscription._validate_stars_payload("payme:smoke-combined-tx", _PAYME_USER_ID,
+                                               stars_amount, "XTR", "uz")[0] is None)
+    check("Aralashmaydi: chek oqimi Payme buyurtmasini o'zgartirmaydi",
+          store.orders[order.order_id].status == "paid")
+
+
+# =====================================================================
 # ASOSIY OQIM
 # =====================================================================
 async def run(args: argparse.Namespace) -> int:
@@ -754,6 +1196,16 @@ async def run(args: argparse.Namespace) -> int:
 
     section("5) 🩺 HEALTH ENDPOINTLARI (/health/live, /health/ready)")
     await health_smoke(args, timeout=min(15.0, args.timeout))
+
+    section("6) 💳 TO'LOV USULLARI — Payme JSON-RPC + ⭐️ Stars + 🧾 Karta cheki")
+    # Payme kassasi bot bilan bir port'da (`POST /payments/payme`) turadi,
+    # shuning uchun JSON-RPC kontrakti va PRO "aynan bir marta" berilishi
+    # deploy'dan keyin ham tekshirilishi shart. Stars va karta cheki oqimlari
+    # yonma-yon ishlashi — regressiya qo'riqoni.
+    payme_config_gate()
+    payme_jsonrpc_smoke()
+    await payme_http_smoke()
+    await payment_methods_side_by_side()
 
     if server is not None:
         try:
