@@ -12,6 +12,7 @@ from keyboards.callback_data import cb
 from locales.translations import (
     get_lang, safe_t, is_main_menu_text, localize_service_error,
 )
+from services.ai.progress import AIProgressReporter
 from utils.date_format import format_datetime, weekday_label
 from utils.helpers import html_escape, safe_html, get_auto_ad_injection_async, keep_typing
 
@@ -277,12 +278,17 @@ async def plan_topic_received(update: Update, context: ContextTypes.DEFAULT_TYPE
         await context.bot.send_chat_action(chat_id=chat_id, action="typing")
     except Exception as _silent_exc:
         log_silent_failure("handlers.content_plan:plan_topic_received", _silent_exc, user_id=user_id, channel_id=channel_id, chat_id=chat_id, lang=lang)
-    wait_msg = await update.message.reply_text("⏳ Post tayyorlanmoqda, iltimos kuting...")
+    # 🔎 Localized progress stages (≤1 edit/s — services.ai.progress).
+    progress = await AIProgressReporter.for_reply(update.message, lang, kind="analysis")
+    wait_msg = progress.message
     async with keep_typing(context.bot, chat_id):
-        # 🌐 Kontent-reja foydalanuvchi tilida (uz/ru/en).
-        result = await generate_content_plan(
-            text, channel_title, tone, recent_posts=recent_posts, lang=lang
-        )
+        try:
+            # 🌐 Kontent-reja foydalanuvchi tilida (uz/ru/en).
+            result = await progress.run(generate_content_plan(
+                text, channel_title, tone, recent_posts=recent_posts, lang=lang
+            ))
+        finally:
+            await progress.finish()
 
     if "error" in result:
         await _edit_wait_message(wait_msg, update.message,
@@ -510,11 +516,16 @@ async def plan_view_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
             await context.bot.send_chat_action(chat_id=chat_id, action="typing")
         except Exception as _silent_exc:
             log_silent_failure("handlers.content_plan:plan_view_callback:509", _silent_exc, channel_id=channel_id, chat_id=chat_id)
-        wait_msg = await query.message.reply_text("⏳ Post tayyorlanmoqda, iltimos kuting...")
+        # 🔎 Localized progress stages (≤1 edit/s — services.ai.progress).
+        progress = await AIProgressReporter.for_reply(query.message, lang, kind="analysis")
+        wait_msg = progress.message
         async with keep_typing(context.bot, chat_id):
-            result = await generate_content_plan(
-                topic, channel_title, tone, recent_posts=recent_posts, lang=lang
-            )
+            try:
+                result = await progress.run(generate_content_plan(
+                    topic, channel_title, tone, recent_posts=recent_posts, lang=lang
+                ))
+            finally:
+                await progress.finish()
 
         if "error" in result:
             await _edit_wait_message(wait_msg, query.message,
@@ -617,8 +628,9 @@ async def plan_view_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
         channel_id = context.user_data.get("plan_channel_id", "")
         channel_title = context.user_data.get("plan_channel_title", "")
 
-        # AI dan to'liq post so'raymiz
-        await query.message.reply_text(safe_t("cp_ai_writing", lang))
+        # AI dan to'liq post so'raymiz — jarayon bosqichlari bitta xabarda
+        # (🧠 → ✍️ → ✨), Telegram limiti: ≤1 tahrir/soniya.
+        progress = await AIProgressReporter.for_reply(query.message, lang)
 
         from utils.ai_agent import generate_post_from_plan
         tone = await db.run_db(db.get_channel_tone, channel_id) if channel_id else "friendly"
@@ -629,7 +641,12 @@ async def plan_view_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
         except Exception as _silent_exc:
             log_silent_failure("handlers.content_plan:plan_view_callback:627", _silent_exc, channel_id=channel_id, chat_id=chat_id)
         async with keep_typing(context.bot, chat_id):
-            result = await generate_post_from_plan(topic, title, idea, tone, lang=lang)
+            try:
+                result = await progress.run(
+                    generate_post_from_plan(topic, title, idea, tone, lang=lang)
+                )
+            finally:
+                await progress.finish()
 
         if "error" in result:
             await query.message.reply_text(

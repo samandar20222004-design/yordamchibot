@@ -235,6 +235,13 @@ REQUIRED_P0_INDEXES = ("idx_deliveries_sched", "idx_deliveries_retry", "uq_payme
 AI_USAGE_TABLES = ("ai_usage_events",)
 AI_USAGE_INDEXES = ("idx_ai_usage_user_time", "idx_ai_usage_channel_time")
 
+# 💳 PAYME MERCHANT API — avtomatik to'lov jadvallari (schema.sql). Xuddi
+# ``AI_USAGE_TABLES`` kabi frozen ``EXPECTED_*`` ro'yxatlaridan ALOHIDA:
+# startup / db_migrate tekshiruvi ularni ham talab qiladi (yo'q bo'lsa
+# schema.sql qayta qo'llanadi), 31/33 hisoblagichlari esa o'zgarmaydi.
+PAYME_TABLES = ("payme_orders", "payme_transactions")
+PAYME_INDEXES = ("idx_payme_orders_user", "uq_payme_tx_active_order", "idx_payme_tx_payme_time")
+
 # PHASE E names are also kept in separate lists for migration tooling and
 # deployment diagnostics; EXPECTED_* above includes them for startup parity.
 PHASE_E_TABLES = ("channel_members", "channel_comment_insights")
@@ -2083,7 +2090,8 @@ def _verify_schema(cur) -> None:
         "WHERE table_schema = current_schema()"
     )
     tables = {row[0] for row in cur.fetchall()}
-    required_tables = (*EXPECTED_TABLES, *REQUIRED_P0_TABLES, *AI_USAGE_TABLES)
+    required_tables = (*EXPECTED_TABLES, *REQUIRED_P0_TABLES, *AI_USAGE_TABLES,
+                       *PAYME_TABLES)
     missing_tables = [t for t in required_tables if t not in tables]
 
     cur.execute(
@@ -2093,7 +2101,7 @@ def _verify_schema(cur) -> None:
     # P1 (5-qadam): analitika kompozit indekslari ham startup tekshiruviga
     # kiradi (alohida ro'yxat — ``EXPECTED_INDEXES`` frozen).
     required_indexes = (*EXPECTED_INDEXES, *REQUIRED_P0_INDEXES, *AI_USAGE_INDEXES,
-                        *ANALYTICS_PERFORMANCE_INDEX_NAMES)
+                        *ANALYTICS_PERFORMANCE_INDEX_NAMES, *PAYME_INDEXES)
     missing_indexes = [i for i in required_indexes if i not in indexes]
 
     if missing_indexes:
@@ -2174,7 +2182,8 @@ def _schema_bootstrap_complete(cur) -> bool:
             "WHERE table_schema = current_schema()"
         )
         tables = {row[0] for row in cur.fetchall()}
-        required_tables = (*EXPECTED_TABLES, *REQUIRED_P0_TABLES, *AI_USAGE_TABLES)
+        required_tables = (*EXPECTED_TABLES, *REQUIRED_P0_TABLES, *AI_USAGE_TABLES,
+                       *PAYME_TABLES)
         if any(t not in tables for t in required_tables):
             return False
 
@@ -2184,7 +2193,7 @@ def _schema_bootstrap_complete(cur) -> bool:
         indexes = {row[0] for row in cur.fetchall()}
         required_indexes = (
             *EXPECTED_INDEXES, *REQUIRED_P0_INDEXES, *AI_USAGE_INDEXES,
-            *ANALYTICS_PERFORMANCE_INDEX_NAMES,
+            *ANALYTICS_PERFORMANCE_INDEX_NAMES, *PAYME_INDEXES,
         )
         if any(i not in indexes for i in required_indexes):
             return False

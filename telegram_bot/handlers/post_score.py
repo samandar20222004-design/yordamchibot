@@ -59,6 +59,7 @@ from keyboards.callback_data import (
 from keyboards.default import get_cancel_keyboard
 from keyboards.inline import btn_label
 from locales.translations import clear_fsm_data, get_lang, safe_t
+from services.ai.progress import AIProgressReporter
 from services.ai_quota import (
     ai_quota_temp_error_text,
     is_balance_reason,
@@ -419,13 +420,17 @@ async def post_score_text_received(update: Update, context: ContextTypes.DEFAULT
         await context.bot.send_chat_action(chat_id=chat_id, action="typing")
     except Exception as _silent_exc:
         log_silent_failure("handlers.post_score:post_score_text_received:418", _silent_exc, user_id=user_id, chat_id=chat_id, lang=lang)
-    status = await msg.reply_text("⏳ Post tayyorlanmoqda, iltimos kuting...")
+    # 🔎 Localized analysis stages (≤1 edit/s — services.ai.progress).
+    progress = await AIProgressReporter.for_reply(msg, lang, kind="analysis")
+    status = progress.message
 
     try:
-        payload = await score_post(clean, lang=lang)
+        payload = await progress.run(score_post(clean, lang=lang))
     except Exception as e:  # noqa: BLE001 — oqim hech qachon yiqilmaydi
         logger.error("Post Score xatosi: %s", e)
         payload = {"error": "score_failed"}
+    finally:
+        await progress.finish()
 
     error = (payload or {}).get("error")
     if error:
@@ -484,16 +489,16 @@ async def post_score_eval_callback(update: Update, context: ContextTypes.DEFAULT
         await context.bot.send_chat_action(chat_id=chat_id, action="typing")
     except Exception as _silent_exc:
         log_silent_failure("handlers.post_score:post_score_eval_callback:483", _silent_exc, user_id=user_id, chat_id=chat_id, lang=lang)
-    try:
-        await query.edit_message_text("⏳ Post tayyorlanmoqda, iltimos kuting...")
-    except Exception as _silent_exc:
-        log_silent_failure("handlers.post_score:post_score_eval_callback:487", _silent_exc, user_id=user_id, chat_id=chat_id, lang=lang)
+    # 🔎 Localized analysis stages (≤1 edit/s — services.ai.progress).
+    progress = await AIProgressReporter.for_callback(query, lang, kind="analysis")
 
     try:
-        payload = await score_post(post_text, lang=lang)
+        payload = await progress.run(score_post(post_text, lang=lang))
     except Exception as e:  # noqa: BLE001
         logger.error("Post Score (eval) xatosi: %s", e)
         payload = {"error": "score_failed"}
+    finally:
+        await progress.finish()
 
     if (payload or {}).get("error"):
         await _safe_edit(query, post_score_t("ps_score_error", lang),
@@ -568,16 +573,16 @@ async def post_score_improve_callback(update: Update, context: ContextTypes.DEFA
         await context.bot.send_chat_action(chat_id=chat_id, action="typing")
     except Exception as _silent_exc:
         log_silent_failure("handlers.post_score:post_score_improve_callback:567", _silent_exc, user_id=user_id, chat_id=chat_id, lang=lang)
+    # 🧠 Real-time drafting stages (localized, ≤1 edit/s — services.ai.progress).
+    progress = await AIProgressReporter.for_callback(query, lang)
+    wait_msg = progress.message
     try:
-        await query.edit_message_text("⏳ Post tayyorlanmoqda, iltimos kuting...")
-        wait_msg = query.message
-    except Exception:
-        wait_msg = None
-    try:
-        result = await improve_post_to_95(source_text, lang=lang, is_pro=is_pro)
+        result = await progress.run(improve_post_to_95(source_text, lang=lang, is_pro=is_pro))
     except Exception as e:  # noqa: BLE001 — hech qachon yiqilmaydi
         logger.error("Post Score improve error: %s", e)
         result = {"error": "exception"}
+    finally:
+        await progress.finish()
 
     improved_text = (result or {}).get("post_text") if isinstance(result, dict) else ""
     if not improved_text or (result or {}).get("error"):

@@ -505,6 +505,7 @@ def _register_known_secrets() -> None:
             # required application settings or expanding public config output.
             (os.environ.get(_openai_key_env, ""), "OPENAI_API_KEY"),
             (os.environ.get(_ready_token_env, ""), "HEALTH_READY_TOKEN"),
+            (os.environ.get("PAYME_KEY", ""), "PAYME_KEY"),
         )
         for value, label in _sensitive:
             register_secret(value, label)

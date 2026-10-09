@@ -18,6 +18,7 @@ from keyboards.inline import (
     render_dna_onboarding_keyboard,
 )
 from locales.translations import get_lang, safe_t, normalize_lang
+from services.ai.progress import AIProgressReporter
 # 🔐 PHASE 3 — resurs (kanal) darajasidagi RBAC va IDOR himoyasi: markaziy
 # tekshiruv nuqtasi ``services.rbac_service.can()`` — handler ichida
 # takrorlanmaydi, faqat shu qatlam orqali chaqiriladi.
@@ -1593,11 +1594,12 @@ async def channel_voice_analysis_callback(update: Update, context: ContextTypes.
         await context.bot.send_chat_action(chat_id=chat_id, action="typing")
     except Exception as _silent_exc:
         log_silent_failure("handlers.channels:channel_voice_analysis_callback:1592", _silent_exc, user_id=user_id, channel_id=channel_id, chat_id=chat_id, lang=lang)
+    # 🔎 Localized analysis stages (≤1 edit/s — services.ai.progress).
     try:
-        analyzing_msg = await query.message.reply_text(
-            "⏳ Post tayyorlanmoqda, iltimos kuting..."
-        )
+        progress = await AIProgressReporter.for_reply(query.message, lang, kind="analysis")
+        analyzing_msg = progress.message
     except Exception:
+        progress = AIProgressReporter(lang=lang, kind="analysis")
         analyzing_msg = None
 
     # 2) Kanal postlari tarixini o'qib, AI bilan uslubni aniqlaymiz.
@@ -1607,10 +1609,12 @@ async def channel_voice_analysis_callback(update: Update, context: ContextTypes.
     if not posts:
         posts = await _fetch_public_posts_fallback(context, channel_id)
     try:
-        result = await analyze_channel_voice(posts, lang)
+        result = await progress.run(analyze_channel_voice(posts, lang))
     except Exception as e:
         logger.warning("Kanal ovozi tahlili chaqiruv xatosi (%s): %s", channel_id, e)
         result = {"error": safe_t("ch_voice_error", lang)}
+    finally:
+        await progress.finish()
 
     tone = (result or {}).get("tone")
     if not tone:

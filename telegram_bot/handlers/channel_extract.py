@@ -7,6 +7,7 @@ import database as db
 from keyboards.default import get_cancel_keyboard, get_main_keyboard, get_button_prompt_keyboard
 from keyboards.callback_data import cb
 from locales.translations import safe_t, get_lang, is_main_menu_text, localize_service_error
+from services.ai.progress import AIProgressReporter
 from utils.helpers import html_escape, safe_html, get_auto_ad_injection_async, keep_typing
 from utils.channel_reader import (
     format_post_list, read_channel_posts, read_webpage_for_ai,
@@ -288,13 +289,18 @@ async def _handle_website_link(update: Update, context: ContextTypes.DEFAULT_TYP
     except Exception as _silent_exc:
         log_silent_failure("handlers.channel_extract:_handle_website_link", _silent_exc, user_id=user_id, chat_id=chat_id, lang=lang)
 
-    wait_msg = await update.message.reply_text("⏳ Post tayyorlanmoqda, iltimos kuting...")
+    # 🧠 Real-time drafting stages (localized, ≤1 edit/s — services.ai.progress).
+    progress = await AIProgressReporter.for_reply(update.message, lang)
+    wait_msg = progress.message
     async with keep_typing(context.bot, chat_id):
-        # 🌐 Qayta yozilgan post foydalanuvchi tilida (uz/ru/en).
-        result = await rewrite_channel_post(
-            original_text, source, site_url, tone,
-            **pick_supported_kwargs(rewrite_channel_post, lang=lang),
-        )
+        try:
+            # 🌐 Qayta yozilgan post foydalanuvchi tilida (uz/ru/en).
+            result = await progress.run(rewrite_channel_post(
+                original_text, source, site_url, tone,
+                **pick_supported_kwargs(rewrite_channel_post, lang=lang),
+            ))
+        finally:
+            await progress.finish()
 
     if "error" in result:
         await _edit_wait_message(wait_msg, update.message,
@@ -495,12 +501,17 @@ async def extract_post_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE
             await context.bot.send_chat_action(chat_id=chat_id, action="typing")
         except Exception as _silent_exc:
             log_silent_failure("handlers.channel_extract:extract_post_chosen:494", _silent_exc, chat_id=chat_id)
-        wait_msg = await query.message.reply_text("⏳ Post tayyorlanmoqda, iltimos kuting...")
+        # 🧠 Real-time drafting stages (localized, ≤1 edit/s — services.ai.progress).
+        progress = await AIProgressReporter.for_reply(query.message, lang)
+        wait_msg = progress.message
         async with keep_typing(context.bot, chat_id):
-            result = await rewrite_channel_post(
-                original_text, username, post_link, tone,
-                **pick_supported_kwargs(rewrite_channel_post, lang=lang),
-            )
+            try:
+                result = await progress.run(rewrite_channel_post(
+                    original_text, username, post_link, tone,
+                    **pick_supported_kwargs(rewrite_channel_post, lang=lang),
+                ))
+            finally:
+                await progress.finish()
 
         if "error" in result:
             await _edit_wait_message(wait_msg, query.message,
@@ -545,12 +556,17 @@ async def extract_post_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE
             await context.bot.send_chat_action(chat_id=chat_id, action="typing")
         except Exception as _silent_exc:
             log_silent_failure("handlers.channel_extract:extract_post_chosen:544", _silent_exc, chat_id=chat_id)
-        wait_msg = await query.message.reply_text("⏳ Post tayyorlanmoqda, iltimos kuting...")
+        # 🧠 Real-time drafting stages (localized, ≤1 edit/s — services.ai.progress).
+        progress = await AIProgressReporter.for_reply(query.message, lang)
+        wait_msg = progress.message
         async with keep_typing(context.bot, chat_id):
-            result = await rewrite_channel_post(
-                original_text, username, post_link, tone,
-                **pick_supported_kwargs(rewrite_channel_post, lang=lang),
-            )
+            try:
+                result = await progress.run(rewrite_channel_post(
+                    original_text, username, post_link, tone,
+                    **pick_supported_kwargs(rewrite_channel_post, lang=lang),
+                ))
+            finally:
+                await progress.finish()
 
         if "error" in result:
             await _edit_wait_message(wait_msg, query.message,
@@ -592,10 +608,17 @@ async def extract_post_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE
             await context.bot.send_chat_action(chat_id=chat_id, action="typing")
         except Exception as _silent_exc:
             log_silent_failure("handlers.channel_extract:extract_post_chosen:591", _silent_exc, chat_id=chat_id)
-        wait_msg = await query.message.reply_text("⏳ Kanalga moslashtirilmoqda, iltimos kuting...")
+        # 🧠 Real-time drafting stages (localized, ≤1 edit/s — services.ai.progress).
+        progress = await AIProgressReporter.for_reply(query.message, lang)
+        wait_msg = progress.message
 
         async with keep_typing(context.bot, chat_id):
-            adapted = await _adapt_post_with_ai(original, user_channels, tone, lang)
+            try:
+                adapted = await progress.run(
+                    _adapt_post_with_ai(original, user_channels, tone, lang)
+                )
+            finally:
+                await progress.finish()
 
         if not adapted:
             adapted = _clean_foreign_content(original, user_channels)

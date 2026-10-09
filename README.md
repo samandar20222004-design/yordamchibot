@@ -4,7 +4,7 @@ Telegram kanallar uchun **AI kontent studiyasi + rejalashtiruvchi + monetizatsiy
 boti: Magic Post (5 uslub), 📸 Image→Post, 🎙 Voice→Post, 📊 Post Score,
 URL→Post va RSS manbalar, ♻️ Content Recycle, 🧠 Channel DNA, ⏰ Smart Best Time,
 🚀 7 kunlik Autopilot, 📋 shablonlar, 👥 jamoa rollari va tasdiqlash oqimi,
-💳 Stars + karta (Uzcard/Humo) to'lovlari, RBAC admin paneli, 🩺 health monitoring.
+💳 Stars + karta (Uzcard/Humo) + ⚡️ Payme (avtomatik) to'lovlari, RBAC admin paneli, 🩺 health monitoring.
 
 * **Tillar:** o'zbek / rus / ingliz (100% paritet — `tests/i18n_full_parity_test.py`)
 * **DB:** PostgreSQL (Neon / Render) — `schema.sql` idempotent, `main.py` startda qo'llanadi
@@ -21,6 +21,7 @@ URL→Post va RSS manbalar, ♻️ Content Recycle, 🧠 Channel DNA, ⏰ Smart 
 | **[DEPLOYMENT.md](DEPLOYMENT.md)** | **Serverga chiqarish: Render / VPS (systemd) / Docker — qadam-baqadam** |
 | [.env.example](.env.example) | Barcha muhit o'zgaruvchilari (yagona kanonik nusxa) |
 | **[PHASE2_RATE_LIMITING_REDIS_report.md](docs/archive/reports/PHASE2_RATE_LIMITING_REDIS_report.md)** | **Rate limiting + Redis/Distributed state arxitekturasi (Phase 2)** |
+| [docs/reports/PAYME_MERCHANT_API.md](docs/reports/PAYME_MERCHANT_API.md) | ⚡️ Payme Merchant API: sozlash, oqim, idempotentlik kafolatlari |
 | [telegram_bot/README.md](telegram_bot/README.md) | Funksiyalar, buyruqlar, arxitektura va bosqich bo'yicha to'liq hujjat |
 | [`docs/reports/`](docs/reports/) | Joriy operatsion hujjatlar |
 | [`docs/archive/reports/`](docs/archive/reports/) | Arxiv: audit va bosqich yakunlari (`AUDIT_*.md`, `PHASE*_report.md`, …) |

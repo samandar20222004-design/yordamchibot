@@ -51,6 +51,7 @@ from keyboards.callback_data import CB_POST_SCORE_EVAL, cb
 from keyboards.default import get_cancel_keyboard
 from keyboards.inline import btn_label, get_subscription_check_keyboard
 from locales.translations import clear_fsm_data, get_lang, safe_t
+from services.ai.progress import AIProgressReporter
 from services.ai_quota import (
     denial_message,
     release_ai_quota,
@@ -546,22 +547,21 @@ async def voice_style_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         await context.bot.send_chat_action(chat_id=chat_id, action="typing")
     except Exception as _silent_exc:
         log_silent_failure("handlers.voice_post:voice_style_callback:545", _silent_exc, user_id=user_id, chat_id=chat_id, lang=lang)
-    try:
-        await query.edit_message_text("⏳ Post tayyorlanmoqda, iltimos kuting...")
-        wait_msg = query.message
-    except Exception:
-        wait_msg = None
-        try:
-            wait_msg = await query.message.reply_text("⏳ Post tayyorlanmoqda, iltimos kuting...")
-        except Exception as _silent_exc:
-            log_silent_failure("handlers.voice_post:voice_style_callback:554", _silent_exc)
+    # 🧠 Real-time drafting stages (localized, ≤1 edit/s — services.ai.progress).
+    progress = await AIProgressReporter.for_callback(query, lang)
+    wait_msg = progress.message
 
     # --- ✨ AI generatsiya (Magic Post prompti: sarlavha, CTA, emoji, hashtag) ---
     try:
-        result = await generate_magic_post(raw_text, style, lang=lang, is_pro=is_pro)
+        result = await progress.run(
+            generate_magic_post(raw_text, style, lang=lang, is_pro=is_pro)
+        )
     except Exception as e:  # noqa: BLE001 — hech qachon yiqilmaydi
         logger.error("Voice→Post generation error: %s", e)
         result = {"error": "exception"}
+    finally:
+        # The result edit below must also respect Telegram's edit rate limit.
+        await progress.finish()
 
     if not isinstance(result, dict) or result.get("error") or not (result.get("post_text") or "").strip():
         logger.warning("Voice→Post AI xatosi (style=%s, lang=%s): %s",

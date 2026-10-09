@@ -15,6 +15,7 @@ import pytz
 from aiohttp import web
 from config import PORT
 
+from services.payments.payme_webhook import register_payme_routes
 from utils.silent_errors import log_silent_failure
 
 logger = logging.getLogger(__name__)
@@ -97,6 +98,20 @@ async def health_ready_handler(request):
         )
 
 
+def build_web_app() -> web.Application:
+    """Route table shared by production and the integration tests."""
+    app = web.Application()
+    app.router.add_get("/", health_live_handler)
+    app.router.add_get("/health", health_live_handler)
+    app.router.add_get("/health/live", health_live_handler)
+    app.router.add_get("/health/ready", health_ready_handler)
+    # 💳 Payme Merchant API callbacks (POST /payments/payme). Basic Auth is
+    # enforced inside the handler; without PAYME_KEY every call is rejected
+    # with -32504 (fail closed), so mounting it is always safe.
+    register_payme_routes(app)
+    return app
+
+
 async def start_web_server():
     # A separately provisioned auth token should be scrubbed just like the
     # bot/provider credentials. No value is ever added to logs or responses.
@@ -107,13 +122,15 @@ async def start_web_server():
             register_secret(token, "HEALTH_READY_TOKEN")
         except Exception as _silent_exc:
             log_silent_failure("utils.web_server:start_web_server", _silent_exc)
+    payme_key = (os.environ.get("PAYME_KEY", "") or "").strip()
+    if payme_key:
+        try:
+            from utils.sentry_scrubber import register_secret
+            register_secret(payme_key, "PAYME_KEY")
+        except Exception as _silent_exc:
+            log_silent_failure("utils.web_server:start_web_server:payme", _silent_exc)
 
-    app = web.Application()
-    app.router.add_get("/", health_live_handler)
-    app.router.add_get("/health", health_live_handler)
-    app.router.add_get("/health/live", health_live_handler)
-    app.router.add_get("/health/ready", health_ready_handler)
-
+    app = build_web_app()
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, "0.0.0.0", PORT)

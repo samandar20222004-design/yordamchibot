@@ -518,7 +518,9 @@ async def ai_input_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await context.bot.send_chat_action(chat_id=chat_id, action="typing")
     except Exception as _silent_exc:
         log_silent_failure("handlers.ai_assistant:ai_input_received:516", _silent_exc, user_id=user_id, chat_id=chat_id, lang=lang)
-    msg_wait = await msg.reply_text("⏳ Post tayyorlanmoqda, iltimos kuting...")
+    # 🧠 Real-time drafting stages (localized, ≤1 edit/s — services.ai.progress).
+    progress = await AIProgressReporter.for_reply(msg, lang)
+    msg_wait = progress.message
 
     # Typing animatsiyasini fonda ishga tushiramiz
     stop_typing = asyncio.Event()
@@ -526,10 +528,13 @@ async def ai_input_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     try:
         # 🌐 AI faqat foydalanuvchi tilida javob qaytaradi (uz/ru/en).
-        result = await analyze_user_prompt(prompt, user_id, is_pro=is_pro, lang=lang)
+        result = await progress.run(
+            analyze_user_prompt(prompt, user_id, is_pro=is_pro, lang=lang)
+        )
     finally:
         stop_typing.set()
         typing_task.cancel()
+        await progress.finish()
 
     if "error" in result:
         if not is_admin:
@@ -1250,19 +1255,10 @@ async def _studio_generate_and_preview(update: Update, context: ContextTypes.DEF
         await context.bot.send_chat_action(chat_id=chat_id, action="typing")
     except Exception as _silent_exc:
         log_silent_failure("handlers.ai_assistant:_studio_generate_and_preview", _silent_exc, user_id=user_id, chat_id=chat_id, lang=lang)
-    progress = AIProgressReporter(lang=lang)
-    msg_wait = await msg.reply_text(progress.current_text)
-
-    async def _edit_progress(text):
-        editor = getattr(msg_wait, "edit_text", None)
-        if callable(editor):
-            return await editor(text)
-        # Minimal test adapters may not expose Message.edit_text; don't send
-        # another message for each stage. Production PTB messages do support it.
-        return None
-
-    progress.editor = _edit_progress
-    progress.last_text = progress.current_text  # initial status was sent, not edited
+    # Stage 1 is sent as a new reply and edited in place afterwards (minimal
+    # adapters without Message.edit_text simply get no stage edits).
+    progress = await AIProgressReporter.for_reply(msg, lang)
+    msg_wait = progress.message
     stop_typing = asyncio.Event()
     typing_task = asyncio.create_task(_keep_typing(context.bot, msg.chat_id, stop_typing))
     ai_deadline = asyncio.get_running_loop().time() + 15.0
@@ -1383,7 +1379,7 @@ async def ai_tone_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await context.bot.send_chat_action(chat_id=chat_id, action="typing")
     except Exception as _silent_exc:
         log_silent_failure("handlers.ai_assistant:ai_tone_callback:1320", _silent_exc, user_id=user_id, chat_id=chat_id, lang=lang)
-    progress = AIProgressReporter(editor=query.edit_message_text, lang=lang)
+    progress = AIProgressReporter(editor=query.edit_message_text, lang=lang, chat_id=chat_id)
     stop_typing = asyncio.Event()
     typing_task = asyncio.create_task(_keep_typing(context.bot, chat_id, stop_typing))
     ai_deadline = asyncio.get_running_loop().time() + 15.0
@@ -1510,19 +1506,22 @@ async def ai_audit_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await context.bot.send_chat_action(chat_id=chat_id, action="typing")
     except Exception as _silent_exc:
         log_silent_failure("handlers.ai_assistant:ai_audit_received", _silent_exc, user_id=user_id, chat_id=chat_id, lang=lang)
-    msg_wait = await msg.reply_text("⏳ Post tayyorlanmoqda, iltimos kuting...")
+    # 🔎 Localized analysis stages (≤1 edit/s — services.ai.progress).
+    progress = await AIProgressReporter.for_reply(msg, lang, kind="analysis")
+    msg_wait = progress.message
     stop_typing = asyncio.Event()
     typing_task = asyncio.create_task(_keep_typing(context.bot, msg.chat_id, stop_typing))
     try:
         # b2c01d1: FREE vs PRO audit — audit_post with is_pro
         # 🌐 Audit natijasi foydalanuvchi tilida (uz/ru/en).
-        result = await audit_post(text, is_pro=is_pro, lang=lang)
+        result = await progress.run(audit_post(text, is_pro=is_pro, lang=lang))
     except Exception as e:
         logger.error("AI Generation Error: %s", e)
         result = {"error": AI_UNAVAILABLE_MSG}
     finally:
         stop_typing.set()
         typing_task.cancel()
+        await progress.finish()
 
     if "error" in result:
         await _studio_ai_refund(user_id, is_admin, is_pro, context)
@@ -1887,16 +1886,21 @@ async def ai_photo_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await context.bot.send_chat_action(chat_id=chat_id, action="typing")
     except Exception as _silent_exc:
         log_silent_failure("handlers.ai_assistant:ai_photo_received", _silent_exc, user_id=user_id, chat_id=chat_id, lang=lang)
-    msg_wait = await msg.reply_text("⏳ Post tayyorlanmoqda, iltimos kuting...")
+    # 🧠 Real-time drafting stages (localized, ≤1 edit/s — services.ai.progress).
+    progress = await AIProgressReporter.for_reply(msg, lang)
+    msg_wait = progress.message
     stop_typing = asyncio.Event()
     typing_task = asyncio.create_task(_keep_typing(context.bot, msg.chat_id, stop_typing))
     try:
         # 🎨 Rasm BIR marta yuklanadi va 3 xil uslub (rasmiy/do'stona/qisqa)
         # bo'yicha post variantlari tayyorlanadi — foydalanuvchi birini tanlaydi.
-        variants, first_error = await _vision_run_variants(file_id, extra_prompt, lang)
+        variants, first_error = await progress.run(
+            _vision_run_variants(file_id, extra_prompt, lang)
+        )
     finally:
         stop_typing.set()
         typing_task.cancel()
+        await progress.finish()
 
     if not variants:
         await _studio_ai_refund(user_id, is_admin, is_pro, context)
@@ -2034,11 +2038,14 @@ async def ai_photo_result_callback(update: Update, context: ContextTypes.DEFAULT
             await context.bot.send_chat_action(chat_id=chat_id, action="typing")
         except Exception as _silent_exc:
             log_silent_failure("handlers.ai_assistant:ai_photo_result_callback:1956", _silent_exc, chat_id=chat_id)
+        # 🧠 Real-time drafting stages (localized, ≤1 edit/s — services.ai.progress).
+        progress = await AIProgressReporter.for_callback(query, lang)
         try:
-            await query.edit_message_text("⏳ Post tayyorlanmoqda, iltimos kuting...")
-        except Exception as _silent_exc:
-            log_silent_failure("handlers.ai_assistant:ai_photo_result_callback:1960", _silent_exc, chat_id=chat_id)
-        result = await _vision_run(file_id, extra, rewrite_context=rewrite_ctx, lang=lang)
+            result = await progress.run(
+                _vision_run(file_id, extra, rewrite_context=rewrite_ctx, lang=lang)
+            )
+        finally:
+            await progress.finish()
         if "error" in result:
             await _safe_edit(
                 query, f"⚠️ {result['error']}", get_ai_back_keyboard(lang)
@@ -2094,23 +2101,26 @@ async def ai_photo_edit_received(update: Update, context: ContextTypes.DEFAULT_T
         await context.bot.send_chat_action(chat_id=chat_id, action="typing")
     except Exception as _silent_exc:
         log_silent_failure("handlers.ai_assistant:ai_photo_edit_received", _silent_exc, user_id=user_id, chat_id=chat_id, lang=lang)
-    msg_wait = await msg.reply_text("⏳ Post tayyorlanmoqda, iltimos kuting...")
+    # 🧠 Real-time drafting stages (localized, ≤1 edit/s — services.ai.progress).
+    progress = await AIProgressReporter.for_reply(msg, lang)
+    msg_wait = progress.message
     stop_typing = asyncio.Event()
     typing_task = asyncio.create_task(_keep_typing(context.bot, msg.chat_id, stop_typing))
     try:
-        result = await generate_ai_response(
+        result = await progress.run(generate_ai_response(
             f"Tahrirlanadigan post:\n\n{post_text}\n\n"
             f"Foydalanuvchi talabi:\n{text}",
             system_instruction=_photo_edit_system(lang),
             is_pro=is_pro,
             lang=lang,
-        )
+        ))
     except Exception as e:
         logger.error("Vision edit xatosi: %s", e)
         result = {"error": _photo_unavailable_msg(lang)}
     finally:
         stop_typing.set()
         typing_task.cancel()
+        await progress.finish()
 
     if "error" in result:
         await _studio_ai_refund(user_id, is_admin, is_pro, context)

@@ -206,6 +206,11 @@ TRANSLATIONS = {
             "🪙 Crypto yoki xalqaro karta bo'yicha yordam: {admin}"
         ),
         "btn_send_receipt": "📸 Chek yuborish",
+        "btn_pay_payme": "⚡️ Payme orqali",
+        "payme_paid_notice": (
+            "✅ <b>To'lov qabul qilindi!</b>\n\n"
+            "💎 PRO tarif <b>{days} kun</b>ga faollashtirildi. Rahmat!"
+        ),
         "receipt_prompt": (
             "📸 <b>To'lov chekini yuboring:</b>\n\n"
             "🎫 Tanlangan tarif: {tarif} ({summa} so'm)\n\n"
@@ -2297,6 +2302,11 @@ TRANSLATIONS = {
             "🪙 Помощь по крипте или международной карте: {admin}"
         ),
         "btn_send_receipt": "📸 Отправить чек",
+        "btn_pay_payme": "⚡️ Через Payme",
+        "payme_paid_notice": (
+            "✅ <b>Оплата получена!</b>\n\n"
+            "💎 Тариф PRO активирован на <b>{days} дн.</b> Спасибо!"
+        ),
         "receipt_prompt": (
             "📸 <b>Отправьте чек об оплате:</b>\n\n"
             "🎫 Выбранный тариф: {tarif} ({summa} сум)\n\n"
