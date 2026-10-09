@@ -1118,6 +1118,16 @@ echo "===== TO'LOV MINTAQASI TANLOVI (UZ/RU/EN) ====="
 "$PY" tests/payment_region_selection_test.py || EXIT_CODE=1
 
 echo
+echo "===== ⚡️ PAYME MERCHANT API (JSON-RPC, Basic Auth, idempotentlik) ====="
+# CheckPerform/Create/Perform/Cancel/CheckTransaction/GetStatement oqimi;
+# Basic Auth (Paycom:KEY, fail-closed); takroriy va PARALLEL callback'lar
+# PRO'ni hech qachon ikki marta bermaydi (state machine + UNIQUE
+# payme_transaction_id + buyurtmada bitta faol tx + ledger kaliti);
+# aiohttp endpoint (POST /payments/payme) haqiqiy route jadvalida; real
+# PostgreSQL (pgserver) ustida qulflar va constraint'lar (bo'lmasa SKIP).
+"$PY" tests/payme_merchant_test.py || EXIT_CODE=1
+
+echo
 echo "========= 3 TILLIK (UZ/RU/EN) + AI TIL PARITETI ========="
 "$PY" tests/i18n_ai_parity_test.py || EXIT_CODE=1
 
@@ -1323,6 +1333,13 @@ echo "===== 🚀 DEPLOY BOOTSTRAP — YANGI (BO'SH) BAZADA 1-KOMANDALIK DEPLOY =
 echo
 echo "===== SPRINT 3 — DAILY DIGEST + UZBEKISTAN CALENDAR + AI PROGRESS ====="
 "$PY" tests/daily_retention_calendar_test.py || EXIT_CODE=1
+
+echo
+echo "===== 🧠 AI PROGRESS — lokalizatsiya qilingan bosqichlar, ≤1 edit/s ====="
+# 🧠 → ✍️ → ✨ bosqichlari (uz/ru/en), xabar VA chat bo'yicha umumiy edit
+# soati, 429 RetryAfter (bosqich o'tkaziladi), "not modified", for_reply /
+# for_callback yordamchilari va handler darajasidagi end-to-end vaqt o'lchovi.
+"$PY" tests/ai_progress_stream_test.py || EXIT_CODE=1
 
 echo
 echo "===== 💰 SPRINT 4 — UNIT ECONOMICS (AI XARAJAT / PRO RENTABELLIK) ====="

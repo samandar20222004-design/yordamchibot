@@ -36,6 +36,7 @@ from config import ADMIN_IDS_SET
 from keyboards.callback_data import CB_POST_SCORE_EVAL, cb
 from keyboards.default import get_cancel_keyboard
 from locales.translations import get_lang, safe_t
+from services.ai.progress import AIProgressReporter
 from translations import content_menu_t, magic_t, post_score_t
 from services.ai_quota import (
     ai_quota_temp_error_text,
@@ -543,14 +544,16 @@ async def image_photo_received(update: Update, context: ContextTypes.DEFAULT_TYP
         await context.bot.send_chat_action(chat_id=chat_id, action="typing")
     except Exception as _silent_exc:
         log_silent_failure("handlers.image_post:image_photo_received", _silent_exc, chat_id=chat_id, lang=lang)
-    wait_msg = await message.reply_text("⏳ Post tayyorlanmoqda, iltimos kuting...")
+    # 🔎 Localized analysis stages (≤1 edit/s — services.ai.progress).
+    progress = await AIProgressReporter.for_reply(message, lang, kind="analysis")
+    wait_msg = progress.message
 
     result = None
     failure: BaseException | None = None
     try:
         raw = await _download_image_bytes(context.bot, media)
         analyzer = globals().get("analyze_image") or analyze_image
-        result = await analyzer(
+        result = await progress.run(analyzer(
             raw,
             **pick_supported_kwargs(
                 analyzer,
@@ -558,12 +561,14 @@ async def image_photo_received(update: Update, context: ContextTypes.DEFAULT_TYP
                 mime_type=declared_mime,
                 lang=lang,
             ),
-        )
+        ))
     except VisionError as exc:
         failure = exc
     except Exception as exc:  # noqa: BLE001 - user oqimi yiqilmasin
         logger.exception("Image Post Vision error: %s", exc)
         failure = exc
+    finally:
+        await progress.finish()
 
     if failure is not None:
         if not _is_recoverable_vision_error(failure):
@@ -796,14 +801,12 @@ async def image_style_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         await context.bot.send_chat_action(chat_id=chat_id, action="typing")
     except Exception as _silent_exc:
         log_silent_failure("handlers.image_post:image_style_callback:770", _silent_exc, user_id=user_id, chat_id=chat_id, lang=lang)
-    try:
-        await query.edit_message_text("⏳ Post tayyorlanmoqda, iltimos kuting...")
-        wait_msg = query.message
-    except Exception:
-        wait_msg = None
+    # 🧠 Real-time drafting stages (localized, ≤1 edit/s — services.ai.progress).
+    progress = await AIProgressReporter.for_callback(query, lang)
+    wait_msg = progress.message
     try:
         generator = globals().get("generate_image_post") or generate_image_post
-        result = await generator(
+        result = await progress.run(generator(
             analysis,
             style,
             **pick_supported_kwargs(
@@ -812,12 +815,13 @@ async def image_style_callback(update: Update, context: ContextTypes.DEFAULT_TYP
                 lang=lang,
                 is_pro=is_pro,
             ),
-        )
+        ))
     except Exception as exc:  # noqa: BLE001
         logger.exception("Image Post generation error: %s", exc)
         result = {"error": "generation_error"}
     finally:
         context.user_data.pop("image_post_generating", None)
+        await progress.finish()
 
     if not isinstance(result, dict) or result.get("error") or not str(result.get("post_text") or "").strip():
         await _refund_one_ai_credit(user_id, is_admin, is_pro, context)

@@ -472,6 +472,11 @@ EN_OVERLAY = {
     ),
     # 📸 Chek (receipt) oqimi — foydalanuvchi + admin tomoni
     "btn_send_receipt": "📸 Send receipt",
+    "btn_pay_payme": "⚡️ Pay via Payme",
+    "payme_paid_notice": (
+        "✅ <b>Payment received!</b>\n\n"
+        "💎 PRO is now active for <b>{days} days</b>. Thank you!"
+    ),
     "receipt_prompt": (
         "📸 <b>Send your payment receipt:</b>\n\n"
         "🎫 Selected plan: {tarif} ({summa} so'm)\n\n"

@@ -350,6 +350,67 @@ CREATE INDEX IF NOT EXISTS idx_payment_orders_user
     ON payment_orders (user_id, status);
 ALTER TABLE payment_receipts ADD COLUMN IF NOT EXISTS order_id TEXT;
 
+-- 💳 PAYME MERCHANT API — avtomatik to'lov (services/payments/payme_provider.py).
+-- payme_orders: bot yaratgan bir martalik buyurtma (ac.order_id), summa TIYIN'da.
+-- payme_transactions: Payme tranzaksiyasi — holat mashinasi:
+--   state 1 (pending) → 2 (paid) | -1 (cancelled) ; 2 → -2 (cancelled, refund).
+-- IDEMPOTENTLIK DB darajasida:
+--   * uq_payme_transaction_id — bitta Payme id = bitta qator;
+--   * uq_payme_tx_active_order (partial UNIQUE) — buyurtmada faqat BITTA faol
+--     (state 1/2) tranzaksiya → ikki marta PRO berish imkonsiz;
+--   * chk_payme_tx_status_state — status va state hech qachon ziddiyatli emas;
+--   * ledger qatori payments.telegram_payment_charge_id = 'payme:<id>' (UNIQUE).
+-- DIQQAT: "CREATE TABLE IF" + yangi qator "NOT EXISTS" — sxema hisoblagichlari
+-- (tests/schema_test.py: 31 jadval / 33 indeks) qulflangan; ai_usage_events
+-- naqshi bilan bir xil. Ro'yxat: database.PAYME_TABLES / PAYME_INDEXES.
+CREATE TABLE IF
+NOT EXISTS payme_orders (
+    order_id VARCHAR(64) PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    plan_key VARCHAR(16) NOT NULL,
+    days INTEGER NOT NULL,
+    amount_tiyin BIGINT NOT NULL,
+    status VARCHAR(16) NOT NULL DEFAULT 'pending',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    paid_at TIMESTAMPTZ,
+    cancelled_at TIMESTAMPTZ,
+    CONSTRAINT chk_payme_orders_days CHECK (days > 0),
+    CONSTRAINT chk_payme_orders_amount CHECK (amount_tiyin > 0),
+    CONSTRAINT chk_payme_orders_status CHECK (status IN ('pending', 'paid', 'cancelled'))
+);
+CREATE INDEX IF
+NOT EXISTS idx_payme_orders_user ON payme_orders (user_id, status);
+CREATE TABLE IF
+NOT EXISTS payme_transactions (
+    id BIGSERIAL PRIMARY KEY,
+    payme_transaction_id VARCHAR(64) NOT NULL,
+    order_id VARCHAR(64) NOT NULL REFERENCES payme_orders(order_id),
+    user_id BIGINT NOT NULL,
+    amount_tiyin BIGINT NOT NULL,
+    status VARCHAR(16) NOT NULL DEFAULT 'pending',
+    state SMALLINT NOT NULL DEFAULT 1,
+    reason SMALLINT,
+    payme_time BIGINT NOT NULL,
+    create_time BIGINT NOT NULL,
+    perform_time BIGINT NOT NULL DEFAULT 0,
+    cancel_time BIGINT NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT uq_payme_transaction_id UNIQUE (payme_transaction_id),
+    CONSTRAINT chk_payme_tx_amount CHECK (amount_tiyin > 0),
+    CONSTRAINT chk_payme_tx_status CHECK (status IN ('pending', 'paid', 'cancelled')),
+    CONSTRAINT chk_payme_tx_state CHECK (state IN (1, 2, -1, -2)),
+    CONSTRAINT chk_payme_tx_status_state CHECK (
+        (status = 'pending' AND state = 1)
+        OR (status = 'paid' AND state = 2)
+        OR (status = 'cancelled' AND state IN (-1, -2))
+    )
+);
+CREATE UNIQUE INDEX IF
+NOT EXISTS uq_payme_tx_active_order ON payme_transactions (order_id) WHERE state IN (1, 2);
+CREATE INDEX IF
+NOT EXISTS idx_payme_tx_payme_time ON payme_transactions (payme_time);
+
 -- 🔐 PostAssist V2 (6-bosqich): RBAC rollari.
 -- ``users.role`` ustuni asosiy manba emas — aniq berilgan rollar shu jadvalda
 -- saqlanadi (asosiy admin ``ADMIN_ID`` esa servis qatlamida avtomatik OWNER).

@@ -781,6 +781,15 @@ async def main():
     # foydalanuvchi xabari + kritik xatolarni auditga yozish.
     register_error_handlers(application)
 
+    # 💳 Payme: PerformTransaction muvaffaqiyatli bo'lgach foydalanuvchiga
+    # «PRO faollashtirildi» xabari (post-commit, best-effort). Webhook o'zi
+    # web serverda allaqachon ochiq — bu faqat bildirishnoma ulanishi.
+    try:
+        from services.payments.payme_webhook import build_bot_notifier, set_paid_notifier
+        set_paid_notifier(build_bot_notifier(application.bot))
+    except Exception as _silent_exc:
+        log_silent_failure("main:main:payme_notifier", _silent_exc)
+
     # PHASE 2 · Granular rate limiting — barcha handler'lardan OLDIN
     # GuardedApplication admits BEFORE the user lock; group=-1 dispatch
     # skips only that already-checked update (no double counting).

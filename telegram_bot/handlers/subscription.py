@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice
 from telegram.ext import BaseHandler, ContextTypes, ConversationHandler
 from config import (
-    ADMIN_IDS_SET,
+    ADMIN_IDS_SET, BOT_USERNAME,
     CARD_NUMBER, CARD_HOLDER, PAYMENT_ADMIN_USERNAME,
     PAYMENT_PRICE_1M_UZS, PAYMENT_PRICE_3M_UZS, PAYMENT_PRICE_1Y_UZS,
     STARS_PLANS, SUBSCRIPTION_PLANS,
@@ -301,8 +301,40 @@ async def _show_local_card_payment(query, context, user_id: int, lang: str, plan
         if order_id:
             ud["card_order_id"] = order_id
     text = _build_card_payment_text(user_id, lang, plan_key)
-    markup = _get_card_payment_keyboard(lang, plan_key)
+    payme_url = await _payme_checkout_url(user_id, lang, plan_key)
+    markup = _get_card_payment_keyboard(lang, plan_key, payme_url=payme_url)
     await _edit_or_reply(query, text, markup)
+
+
+async def _payme_checkout_url(user_id: int, lang: str, plan_key: str) -> str | None:
+    """⚡️ Payme avtomatik to'lov havolasi (faqat PAYME_MERCHANT_ID + PAYME_KEY bo'lsa).
+
+    Har safar YANGI bir martalik buyurtma yaratiladi (``payme_orders``) —
+    to'lov Payme callback'i orqali avtomatik tasdiqlanadi va PRO darhol
+    faollashadi (admin chekni ko'rishi shart emas). Sozlanmagan yoki DB
+    xatosida ``None`` — ekran avvalgidek (karta + chek) ishlayveradi.
+    """
+    try:
+        from services.payments.payme_provider import PaymeConfig, build_checkout_url
+        config = PaymeConfig.from_env()
+        if not config.checkout_enabled:
+            return None
+        from repositories.payme_repository import create_payme_order
+        plan_key = plan_key if plan_key in CARD_TARIFFS else "1m"
+        plan = CARD_TARIFFS[plan_key]
+        order = await db.run_db(
+            create_payme_order, user_id, plan_key, plan["days"], plan["amount"],
+        )
+        if order is None:
+            return None
+        bot_username = str(BOT_USERNAME or "").strip().lstrip("@")
+        return build_checkout_url(
+            config, order, lang=lang,
+            return_url=f"https://t.me/{bot_username}" if bot_username else None,
+        )
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.subscription:_payme_checkout_url", _silent_exc, user_id=user_id)
+        return None
 
 
 async def _show_intl_payment(query, context, user_id: int, lang: str, plan_key: str) -> None:
@@ -566,9 +598,14 @@ def _get_card_tariffs_keyboard(
 
 
 def _get_card_payment_keyboard(
-    lang: str = "uz", plan_key: str = "1m"
+    lang: str = "uz", plan_key: str = "1m", payme_url: str | None = None
 ) -> InlineKeyboardMarkup:
     keyboard = []
+    # ⚡️ Payme (avtomatik) — faqat sozlangan bo'lsa; qo'lda chek oqimi saqlanadi.
+    if payme_url:
+        keyboard.append([
+            InlineKeyboardButton(get_text("btn_pay_payme", lang), url=payme_url)
+        ])
     # 📸 Bot tugmasi: foydalanuvchi chekni to'g'ridan-to'g'ri botga yuboradi va
     # u Admin Approval Flow orqali barcha adminlarga yetkaziladi.
     keyboard.append([
