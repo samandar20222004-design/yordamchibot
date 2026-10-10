@@ -22,6 +22,7 @@ from config import (
 )
 from utils.telegram_delivery import create_safe_bot
 from utils.handler_timeout import await_with_timeout
+from utils.callback_ack import schedule_early_ack, cancel_early_ack
 import database as db
 from handlers import register_all_handlers
 from scheduler import (
@@ -228,6 +229,17 @@ class GuardedApplication(Application):
             )
             return None
 
+        # ⚡ DARHOL JAVOB: callback bo'lsa, tugma spinner'i muddatli markaziy
+        # ack bilan (utils/callback_ack.py) — per-user lock kutishi, admission
+        # va handler (DB/AI) ishi buning ORTIDAN bajariladi. Handler o'zi
+        # oldinroq javob bersa, ack vazifasi bekor qilinadi.
+        ack_task = schedule_early_ack(getattr(update, "callback_query", None))
+        try:
+            return await self._process_update_guarded(update)
+        finally:
+            cancel_early_ack(ack_task)
+
+    async def _process_update_guarded(self, update):
         lock_key = get_update_lock_key(update)
         user_id = getattr(getattr(update, "effective_user", None), "id", None)
         if user_id is not None:
@@ -682,7 +694,36 @@ async def graceful_shutdown(application=None, scheduler=None, web_runner=None,
     return report
 
 
+def _install_io_executor() -> None:
+    """⚡ ``run_db`` / ``asyncio.to_thread`` uchun thread pool hajmini sozlaydi.
+
+    Standart asyncio executor ``min(32, cpu+4)`` — kichik (1-2 vCPU) instance'da
+    atigi ~5-6 ta thread. Bir vaqtda 10 ta foydalanuvchi menyu ochsa, DB
+    so'rovlari shu kichik pool'da NAVBATDA kutadi (har biri bir RTT, ustiga
+    navbat). Pool hajmi DB ulanish havzasidan (``DB_POOL_MAX``) kelib chiqadi:
+    DB o'zi baribir ``DB_POOL_MAX`` ta bilan cheklangan (semafor), shuning
+    uchun ortiqcha thread'lar faqat navbatni qisqartiradi. ``BOT_IO_THREADS``
+    orqali qo'lda o'zgartirish mumkin.
+    """
+    import os
+    from concurrent.futures import ThreadPoolExecutor
+
+    try:
+        override = int(os.getenv("BOT_IO_THREADS", "0") or 0)
+    except ValueError:
+        override = 0
+    workers = override if override > 0 else max(8, min(32, db.DB_POOL_MAX + 4))
+    loop = asyncio.get_running_loop()
+    loop.set_default_executor(
+        ThreadPoolExecutor(max_workers=workers, thread_name_prefix="bot-io")
+    )
+    logger.info("I/O thread pool: %s thread (DB_POOL_MAX=%s)", workers, db.DB_POOL_MAX)
+
+
 async def main():
+    # ⚡ Thread pool — barcha DB/offload chaqiruvlaridan OLDIN sozlanadi.
+    _install_io_executor()
+
     # ================================================================
     # 1-BOSQICH: PORT AVVAL OCHILADI (0-s readiness)
     # ------------------------------------------------------------

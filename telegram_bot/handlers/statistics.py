@@ -36,6 +36,7 @@ Amallar: ``[📈 Kanal bo'yicha batafsil]`` ``[◀️ Orqaga]``.
 ochadi; undagi ``[◀️ Orqaga]`` (``an_overview``) esa shu shaxsiy
 ekranga qaytaradi.
 """
+import asyncio
 import logging
 from typing import Optional
 
@@ -174,15 +175,27 @@ async def show_user_statistics(update: Update, context: ContextTypes.DEFAULT_TYP
     user_id = update.effective_user.id
     lang = get_lang(context)
 
-    stats = await db.run_db(db.get_user_overview_stats, user_id)
-    try:
-        credits = await db.run_db(db.get_user_credits, user_id)
-    except Exception as exc:  # pragma: no cover - DB himoyasi
-        logger.debug(f"Shaxsiy statistika: kreditlar o'qilmadi ({exc})")
+    # ⚡ Uchta mustaqil o'qish (umumiy ko'rsatkichlar, kreditlar, tavsiya) BIR
+    # VAQTDA — oldin ketma-ket 3 ta DB RTT edi. Xato semantikasi o'zgarmagan:
+    # ko'rsatkichlar xatosi ko'tariladi, kredit xatosi 0 bilan davom etadi,
+    # tavsiya (``collect_advice``) o'zi hech qachon istisno tashlamaydi.
+    stats_r, credits_r, advice_r = await asyncio.gather(
+        db.run_db(db.get_user_overview_stats, user_id),
+        db.run_db(db.get_user_credits, user_id),
+        collect_advice(user_id),
+        return_exceptions=True,
+    )
+    if isinstance(stats_r, BaseException):
+        raise stats_r
+    stats = stats_r
+    if isinstance(credits_r, BaseException):  # pragma: no cover - DB himoyasi
+        logger.debug(f"Shaxsiy statistika: kreditlar o'qilmadi ({credits_r})")
         credits = 0
+    else:
+        credits = credits_r
 
     # 💡 3-BOSQICH: kanal faollik signali asosida ANIQ tavsiya.
-    advice = await collect_advice(user_id)
+    advice = advice_r if not isinstance(advice_r, BaseException) else {}
 
     # Kanal bo'yicha analitikaga o'tilganda «◀️ Orqaga» shu ekranga qaytishi
     # uchun belgi qo'yamiz (analytics.py shu bayroqqa qarab yo'naltiradi).

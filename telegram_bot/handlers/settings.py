@@ -649,15 +649,15 @@ async def settings_menu_callback(update, context: ContextTypes.DEFAULT_TYPE):
     from handlers.start import ensure_user_lang
 
     query = update.callback_query
+    # ⚡ DARHOL JAVOB: tugma spinner'i til (DB) o'qishdan OLDIN to'xtatiladi.
+    try:
+        await query.answer()
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.settings:settings_menu_callback:647", _silent_exc, user_id=query.from_user.id)
     data = query.data or ""
     user_id = query.from_user.id
     is_admin = user_id in ADMIN_IDS_SET
     lang = await ensure_user_lang(context, user_id)
-
-    try:
-        await query.answer()
-    except Exception as _silent_exc:
-        log_silent_failure("handlers.settings:settings_menu_callback:647", _silent_exc, user_id=user_id, lang=lang)
 
     if data == "stgs_back":
         # ◀️ Orqaga — sozlamalar yopiladi va asosiy menyu qaytadi.

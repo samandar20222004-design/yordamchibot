@@ -192,14 +192,16 @@ async def privacy_delete_confirm(update: Update, context: ContextTypes.DEFAULT_T
     user = update.effective_user
     if user is None:
         return None
+    # ⚡ DARHOL JAVOB: tugma spinner'i DB (til) o'qishdan OLDIN to'xtatiladi.
+    try:
+        await query.answer()
+    except Exception as answer_exc:  # noqa: BLE001
+        log_silent_failure("handlers.privacy:delete_answer", answer_exc,
+                           user_id=user.id)
     from handlers.start import ensure_user_lang
 
     user_id = user.id
     lang = await ensure_user_lang(context, user_id)
-    try:
-        await query.answer()
-    except Exception as answer_exc:  # noqa: BLE001 — toast yuborilmasa ham davom
-        log_silent_failure("handlers.privacy:answer", answer_exc, user_id=user_id)
 
     try:
         result = await db.run_db(db.delete_user_data, user_id)
@@ -254,14 +256,15 @@ async def privacy_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     if user is None:
         return
-    from handlers.start import ensure_user_lang
-
-    lang = await ensure_user_lang(context, user.id)
+    # ⚡ DARHOL JAVOB: DB (til) o'qishdan OLDIN.
     try:
         await query.answer()
     except Exception as answer_exc:  # noqa: BLE001
         log_silent_failure("handlers.privacy:cancel_answer", answer_exc,
                            user_id=user.id)
+    from handlers.start import ensure_user_lang
+
+    lang = await ensure_user_lang(context, user.id)
     await _edit_or_send(
         query, privacy_t("pv_delete_cancelled", lang),
         get_privacy_keyboard(lang), lang,

@@ -147,6 +147,32 @@ _membership_cache = {}
 MEMBERSHIP_CACHE_TTL = 60
 MEMBERSHIP_CACHE_MAX = 20000
 
+async def _fetch_membership(bot, ch_id, user_id: int) -> bool:
+    """Bitta homiy kanal uchun a'zolikni Telegram'dan so'raydi (fail-closed).
+
+    Qaytadi: ``True`` — a'zo yoki tekshirib bo'lmaydigan noto'g'ri sozlama
+    (Forbidden / kanal topilmadi — sponsor o'tkazib yuboriladi, butun bot
+    yopilmaydi); ``False`` — a'zo emas yoki vaqtinchalik Telegram xatosi.
+    """
+    try:
+        target_chat = int(ch_id) if str(ch_id).lstrip('-').isdigit() else ch_id
+        member = await bot.get_chat_member(chat_id=target_chat, user_id=user_id)
+        return member.status in ("creator", "administrator", "member", "restricted")
+    except Forbidden:
+        # Bot homiy kanalga kira olmaydi (noto'g'ri sozlama) — bu sponsorni o'tkazib yuboramiz,
+        # aks holda butun bot yopilib qoladi. Foydalanuvchi tekshiruvi emas.
+        logger.error("Bot homiy kanalga kira olmaydi, o'tkazib yuborildi: %s", ch_id)
+        return True
+    except TelegramError as e:
+        err = str(e).lower()
+        if "chat not found" in err or "bot was kicked" in err:
+            logger.error("Homiy kanal noto'g'ri sozlangan (%s): %s", ch_id, e)
+            return True
+        # Foydalanuvchi holatini aniqlab bo'lmasa — fail-closed (obuna emas).
+        logger.warning("Obuna tekshiruvi fail-closed (%s / %s): %s", ch_id, user_id, e)
+        return False
+
+
 async def check_user_subscribed(bot, user_id: int) -> tuple[bool, list | None]:
     """Homiy obunasini tekshiradi (fail-closed).
 
@@ -163,35 +189,30 @@ async def check_user_subscribed(bot, user_id: int) -> tuple[bool, list | None]:
     if not sponsors:
         return True, []
 
+    # ⚡ Kesh o'tkazib yuborilgan kanallar (cache miss) Telegram'ga BIR VAQTDA
+    # so'raladi (asyncio.gather). Oldin ular ketma-ket edi: 3 ta homiy kanal =
+    # 3 ta to'liq Telegram RTT (/start va sovuq menyu o'tishlarida sekundlar).
+    # Natijalar tartibi va fail-closed qoidalari o'zgarmagan.
     unsubscribed = []
     now = time.time()
-    for s in sponsors:
-        s_id, ch_id, ch_title, username, ch_url = unpack_sponsor(s)
+    results: list = [None] * len(sponsors)
+    pending = []  # (index, cache_key, channel_id)
+    for idx, s in enumerate(sponsors):
+        _s_id, ch_id, _ch_title, _username, _ch_url = unpack_sponsor(s)
         cache_key = (str(ch_id), user_id)
         cached = _membership_cache.get(cache_key)
         if cached and now - cached[0] < MEMBERSHIP_CACHE_TTL:
-            if not cached[1]:
-                unsubscribed.append(s)
+            results[idx] = cached[1]
             continue
-        try:
-            target_chat = int(ch_id) if str(ch_id).lstrip('-').isdigit() else ch_id
-            member = await bot.get_chat_member(chat_id=target_chat, user_id=user_id)
-            is_member = member.status in ("creator", "administrator", "member", "restricted")
-        except Forbidden:
-            # Bot homiy kanalga kira olmaydi (noto'g'ri sozlama) — bu sponsorni o'tkazib yuboramiz,
-            # aks holda butun bot yopilib qoladi. Foydalanuvchi tekshiruvi emas.
-            logger.error("Bot homiy kanalga kira olmaydi, o'tkazib yuborildi: %s", ch_id)
-            is_member = True
-        except TelegramError as e:
-            err = str(e).lower()
-            if "chat not found" in err or "bot was kicked" in err:
-                logger.error("Homiy kanal noto'g'ri sozlangan (%s): %s", ch_id, e)
-                is_member = True
-            else:
-                # Foydalanuvchi holatini aniqlab bo'lmasa — fail-closed (obuna emas).
-                logger.warning("Obuna tekshiruvi fail-closed (%s / %s): %s", ch_id, user_id, e)
-                is_member = False
-        _membership_cache[cache_key] = (now, is_member)
+        pending.append((idx, cache_key, ch_id))
+    if pending:
+        fetched = await asyncio.gather(
+            *(_fetch_membership(bot, ch_id, user_id) for _, _, ch_id in pending)
+        )
+        for (idx, cache_key, _ch_id), is_member in zip(pending, fetched):
+            _membership_cache[cache_key] = (now, is_member)
+            results[idx] = is_member
+    for s, is_member in zip(sponsors, results):
         if not is_member:
             unsubscribed.append(s)
 
@@ -341,9 +362,17 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # yo'lda qoladi (javobdan keyinga ko'chirilsa, alohida xabar yuborish
     # kerak bo'lardi — bu UX o'zgarishi). ``return_exceptions`` bitta
     # so'rovning xatosi ikkinchisini YO'QOTMAYDI.
-    sub_result, ad_result = await asyncio.gather(
+    # ⚡ Uchinchi mustaqil o'qish — «sodda menyu» qarori (onboarding DB). U
+    # ham shu bosqichda parallel yuritiladi va ``user_wants_simple_menu``
+    # keshiga yoziladi; keyingi ``resolve_main_keyboard`` uni keshdan oladi.
+    # Admin uchun klaviatura qarori talab qilinmaydi — o'tkazib yuboriladi.
+    simple_menu_prefetch = (
+        user_wants_simple_menu(user.id, context) if not is_admin else asyncio.sleep(0, result=False)
+    )
+    sub_result, ad_result, _simple_menu = await asyncio.gather(
         check_user_subscribed(context.bot, user.id),
         get_smart_reply_ad_async(user.id),
+        simple_menu_prefetch,
         return_exceptions=True,
     )
     if isinstance(sub_result, BaseException):
@@ -1001,6 +1030,12 @@ async def cancel_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def cabinet_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Kabinet inline tugmalari — barcha ichki bo'limlar inline bilan."""
     query = update.callback_query
+    # ⚡ DARHOL JAVOB: tugma spinner'i kabinet ma'lumotlari (DB) o'qilishidan
+    # OLDIN to'xtatiladi. Keyingi branch'lardagi answer() lar idempotent (no-op).
+    try:
+        await query.answer()
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.start:cabinet_callback:answer", _silent_exc)
     data = query.data
     user_id = query.from_user.id
     is_admin = user_id in ADMIN_IDS_SET

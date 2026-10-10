@@ -1243,6 +1243,10 @@ echo "===== STATE & CACHE ADAPTER — REDIS ⇄ IN-MEMORY ====="
 "$PY" tests/phase2_admission_test.py || EXIT_CODE=1
 
 echo
+echo "===== ⚡ CALLBACK LATENCY + KESHLASH (darhol ack, parallel o'qish, TTL kesh) ====="
+"$PY" tests/callback_latency_cache_test.py || EXIT_CODE=1
+
+echo
 echo "===== PHASE 5 — TELEGRAM DELIVERY ENGINE ====="
 "$PY" tests/delivery_engine_test.py || EXIT_CODE=1
 
