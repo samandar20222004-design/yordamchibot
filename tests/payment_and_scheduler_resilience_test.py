@@ -281,11 +281,11 @@ def _ensure_scheduler_stubs():
     # utils.telegram_sanitizer
     if "utils.telegram_sanitizer" not in sys.modules:
         uts_mod = ModuleType("utils.telegram_sanitizer")
-        uts_mod.sanitize_html = lambda t, l=None: t
+        uts_mod.sanitize_html = lambda t, lbl=None: t
         uts_mod.html_length = lambda t: len(t or "")
         uts_mod.utf16_length = lambda t: len(t or "")
         uts_mod.has_allowed_html = lambda t: False
-        uts_mod.truncate_text = lambda t, l=None: t
+        uts_mod.truncate_text = lambda t, lbl=None: t
         uts_mod.TELEGRAM_TEXT_LIMIT = 4096
         uts_mod.TELEGRAM_CAPTION_LIMIT = 1024
         sys.modules["utils.telegram_sanitizer"] = uts_mod
@@ -297,7 +297,7 @@ def _ensure_scheduler_stubs():
         uh_mod.get_channel_ad_next_full_async = lambda *a, **k: {}
         uh_mod.should_show_channel_ad = lambda *a, **k: False
         uh_mod.apply_post_watermark = lambda c, u, b: c
-        uh_mod.telegram_html_payload = lambda t, l=None: (t, None)
+        uh_mod.telegram_html_payload = lambda t, lbl=None: (t, None)
         sys.modules["utils.helpers"] = uh_mod
 
 _ensure_scheduler_stubs()
@@ -325,13 +325,16 @@ except Exception as e:
     try:
         from telegram.error import TelegramError, RetryAfter, TimedOut, NetworkError
     except Exception:
-        class TelegramError(Exception): pass
+        class TelegramError(Exception):
+            pass
         class RetryAfter(TelegramError):
             def __init__(self, retry_after=5):
                 super().__init__(f"FloodWait {retry_after}")
                 self.retry_after = retry_after
-        class TimedOut(TelegramError): pass
-        class NetworkError(TelegramError): pass
+        class TimedOut(TelegramError):
+            pass
+        class NetworkError(TelegramError):
+            pass
     ns["TelegramError"] = TelegramError
     ns["RetryAfter"] = RetryAfter
     ns["TimedOut"] = TimedOut

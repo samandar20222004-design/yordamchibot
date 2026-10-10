@@ -133,7 +133,7 @@ async def start_web_server():
     app = build_web_app()
     runner = web.AppRunner(app)
     await runner.setup()
-    site = web.TCPSite(runner, "0.0.0.0", PORT)
+    site = web.TCPSite(runner, "0.0.0.0", PORT)  # nosec B104 — konteyner ichida tashqi trafikni qabul qilish uchun ataylab
     await site.start()
     logger.info("Web server started", extra={
         "event": "web_server_started",

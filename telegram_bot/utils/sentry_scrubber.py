@@ -366,7 +366,7 @@ def scrub_event(event, hint=None):
 # handler'lar uchun ``install_logging_scrubber()`` qayta chaqirilishi mumkin
 # (idempotent).
 
-import logging as _logging
+import logging as _logging  # noqa: E402
 
 _STANDARD_LOG_RECORD_FIELDS = frozenset(
     set(_logging.LogRecord("", 0, "", 0, "", (), None).__dict__)

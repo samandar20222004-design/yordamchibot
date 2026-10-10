@@ -2,7 +2,7 @@
 from dataclasses import asdict, dataclass
 import html
 import re
-from .schemas import PostResult, AuditResult, PlanResult, parse_result
+from .schemas import PostResult, AuditResult, PlanResult, parse_result  # noqa: F401
 from .safety import contains_leak, sanitize
 
 
@@ -65,9 +65,12 @@ def validate_output(text: str, *, lang: str | None = None, schema=None) -> Quali
         return QualityResult(False, error_code=error)
     if value:
         def clean(item):
-            if isinstance(item, str): return sanitize(item)
-            if isinstance(item, list): return [clean(x) for x in item]
-            if isinstance(item, dict): return {k: clean(v) for k, v in item.items()}
+            if isinstance(item, str):
+                return sanitize(item)
+            if isinstance(item, list):
+                return [clean(x) for x in item]
+            if isinstance(item, dict):
+                return {k: clean(v) for k, v in item.items()}
             return item
         import json
         value = schema(**clean(asdict(value)))

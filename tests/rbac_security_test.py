@@ -517,7 +517,6 @@ def test_audit_hooks_in_sources():
         body = _function_body(sub_src, fn)
         check(f"{fn}: audit {action}", action in body and "cur=cur" in body)
 
-    db_src = (ROOT / "database.py").read_text(encoding="utf-8")
     # PHASE 4: bu funksiyalar endi repositories/ paketida — manbani
     # ``inspect.getsource`` orqali topamiz (faylga bog'liq EMAS).
     import inspect
@@ -815,9 +814,9 @@ def _live_rbac_audit_tests(db_mod):
         # set_role → audit
         role_logs = AuditService.recent(limit=10, action="set_role")
         check("set_role auditi yozildi",
-              any(l["target_id"] == str(finance_id) for l in role_logs), str(role_logs[:2]))
+              any(lbl["target_id"] == str(finance_id) for lbl in role_logs), str(role_logs[:2]))
         check("set_role auditi: new_value JSONB",
-              any((l["new_value"] or {}).get("role") == "finance" for l in role_logs))
+              any((lbl["new_value"] or {}).get("role") == "finance" for lbl in role_logs))
 
         # Rolni olish
         check("remove_role", remove_role(admin_id, granted_by=finance_id) is True)
@@ -872,7 +871,7 @@ def _live_rbac_audit_tests(db_mod):
         check("chek rad etildi (ok)", rejected.get("ok") is True, str(rejected))
         rej_logs = AuditService.recent(limit=3, action=ACTION_RECEIPT_REJECT)
         check("rad etish auditi yozildi",
-              any(l["target_id"] == str(receipt_no) for l in rej_logs), str(rej_logs[:1]))
+              any(lbl["target_id"] == str(receipt_no) for lbl in rej_logs), str(rej_logs[:1]))
         with db_mod.db_cursor() as cur:
             cur.execute("SELECT status FROM payment_receipts WHERE id = %s", (receipt_no,))
             status = cur.fetchone()[0]
@@ -946,7 +945,7 @@ def _live_rbac_audit_tests(db_mod):
         check("PRO bekor qilindi", revoked is True)
         revoke_logs = AuditService.recent(limit=3, action=ACTION_REVOKE_PRO)
         check("PRO bekor qilish auditi yozildi",
-              any(l["target_id"] == str(user_id) for l in revoke_logs), str(revoke_logs[:1]))
+              any(lbl["target_id"] == str(user_id) for lbl in revoke_logs), str(revoke_logs[:1]))
 
         # admin bo'lmagan (admin_id=None) oqim audit yozmaydi
         before_grant = AuditService.count(action=ACTION_GRANT_PRO)

@@ -471,7 +471,8 @@ def test_text_based_generation_uses_magic_post():
               res.get("post_text") == "chain post" and len(chain_calls) == 1, str(res))
 
         # Oddiy Vision tahlili — Magic Post EMAS, odatiy prompt zanjiri
-        calls.clear(); chain_calls.clear()
+        calls.clear()
+        chain_calls.clear()
         aa.generate_magic_post = fake_magic
         vision = va.normalize_analysis({"product_name": "Sumka", "category": "Aksessuar"})
         res = run(svc.generate_image_post(vision, "sales", lang="uz"))
@@ -583,7 +584,7 @@ def test_i18n_and_fsm_registration():
         check(f"UZ: {key}", key in TRANSLATIONS["uz"])
         check(f"RU: {key}", key in TRANSLATIONS["ru"])
         check(f"EN overlay: {key}", key in EN_OVERLAY)
-        texts = {TRANSLATIONS[l][key] for l in LANGS}
+        texts = {TRANSLATIONS[lbl][key] for lbl in LANGS}
         check(f"{key} uchala tilda har xil (tarjima qilingan)", len(texts) == 3)
     rep = translation_parity_report()
     check("umumiy UZ/RU/EN paritet buzilmagan", rep.get("all_in_sync") is True and rep.get("en_in_sync") is True, str(rep))

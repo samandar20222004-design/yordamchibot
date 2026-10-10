@@ -17,7 +17,7 @@ nuqtalari bu modulga ko'chirilgandan keyin ham kuchini yo'qotmaydi.
 """
 
 import pytz
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta  # noqa: F401
 import logging
 
 
@@ -197,7 +197,7 @@ def update_ad(ad_id: int, text: str = None, button_text: str = None,
     try:
         with db_cursor(commit=True) as cur:
             cur.execute(
-                f"UPDATE ad_pool SET {', '.join(fields)} WHERE id = %s",
+                f"UPDATE ad_pool SET {', '.join(fields)} WHERE id = %s",  # nosec B608 — jadval/ustun nomlari kod-konstanta; qiymatlar parametrlangan
                 tuple(params),
             )
             updated = cur.rowcount > 0

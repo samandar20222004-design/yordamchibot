@@ -175,8 +175,8 @@ from handlers.magic_post import (  # noqa: E402
 )
 import handlers.manual_post as MP_MOD  # noqa: E402
 from handlers.manual_post import (  # noqa: E402
-    MANUAL_AWAIT_CONTENT, MANUAL_CHANNEL_SELECT, MANUAL_EDIT_INPUT,
-    MANUAL_PREVIEW, MANUAL_TIME_INPUT, ManualEntryHandler, manual_post_entry,
+    MANUAL_AWAIT_CONTENT, MANUAL_CHANNEL_SELECT, MANUAL_EDIT_INPUT,  # noqa: F401
+    MANUAL_PREVIEW, MANUAL_TIME_INPUT, ManualEntryHandler, manual_post_entry,  # noqa: F401
 )
 from handlers.new_post import CHOOSE_CHANNEL  # noqa: E402
 from handlers.voice_post import (  # noqa: E402
@@ -190,7 +190,7 @@ from locales.translations import get_text  # noqa: E402
 from translations import (  # noqa: E402
     CONTENT_MENU_I18N, CONTENT_MENU_KEYS, content_menu_parity_report,
     content_menu_t, magic_post_parity_report, voice_post_parity_report,
-    voice_t,
+    voice_t,  # noqa: F401
 )
 
 

@@ -1521,8 +1521,8 @@ def test_ui_routing_i18n():
     for lang in LANGS:
         labels = _labels(SRC.sources_hub_keyboard(CH_ID, 2, lang))
         check(f"[{lang}] HUB: 5 ta tugma", len(labels) == 5, str(labels))
-        drafts_labels = [l for l in labels
-                         if "Qoralamalar" in l or "Черновики" in l or "Drafts" in l]
+        drafts_labels = [lbl for lbl in labels
+                         if "Qoralamalar" in lbl or "Черновики" in lbl or "Drafts" in lbl]
         check(f"[{lang}] HUB: qoralamalar tugmasi qisqa yorliqda",
               drafts_labels and not any(ch.isdigit() for ch in drafts_labels[0]),
               str(labels))

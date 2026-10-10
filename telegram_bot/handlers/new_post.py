@@ -750,7 +750,7 @@ def _get_confirm_keyboard(lang="uz", channel_title: str = None):
         ch_btn_text = f"📢 Kanal: {label}"
         # Try i18n if available
         try:
-            from locales.translations import get_text as _gt
+            from locales.translations import get_text as _gt  # noqa: F401
             # Use manual_post_t style if exists, fallback to raw
             ch_btn_text = f"📢 Kanal: {label}"
         except Exception as _silent_exc:

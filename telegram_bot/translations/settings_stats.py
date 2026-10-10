@@ -133,7 +133,6 @@ SETTINGS_STATS_I18N = {
         "ss_btn_post_settings": "✍️ Post sozlamalari",
         "ss_btn_payments": "💳 To'lovlar tarixi",
         "ss_btn_referral": "🎁 Taklif qilish",
-        "ss_btn_help": "ℹ️ Yordam va Qo'llanma",
         "ss_btn_about": "ℹ️ Bot haqida",
         "ss_settings_legacy": "🗂 Tezkor bo'limlar",
         # --- 3-qadam: hub'ning yangi (to'liq) tugmalari ---
@@ -321,7 +320,6 @@ SETTINGS_STATS_I18N = {
         "ss_btn_post_settings": "✍️ Настройки постов",
         "ss_btn_payments": "💳 История платежей",
         "ss_btn_referral": "🎁 Приглашения",
-        "ss_btn_help": "ℹ️ Помощь и руководство",
         "ss_btn_about": "ℹ️ О боте",
         "ss_settings_legacy": "🗂 Быстрые разделы",
         # --- Шаг 3: новые (полные) кнопки хаба ---
@@ -509,7 +507,6 @@ SETTINGS_STATS_I18N = {
         "ss_btn_post_settings": "✍️ Post settings",
         "ss_btn_payments": "💳 Payment history",
         "ss_btn_referral": "🎁 Invite friends",
-        "ss_btn_help": "ℹ️ Help and Guide",
         "ss_btn_about": "ℹ️ About",
         "ss_settings_legacy": "🗂 Quick sections",
         # --- Step 3: new (full) hub buttons ---

@@ -13,8 +13,8 @@
 #   1) 🚦 LINT GATE     — ruff E9,F63,F7,F82 (sintaksis va aniqlanmagan nomlar)
 #                         + flake8 xuddi shu tanlov bilan. BLOKLOVCHI: bu xato
 #                         bo'lsa ilova ishga tushmaydi.
-#   2) 🧹 FULL RUFF     — to'liq ruff tekshiruvi (hisobot; mavjud texnik qarz
-#                         job'ni qizartirmasligi uchun --advisory rejimda).
+#   2) 🧹 FULL RUFF     — `ruff check .` (ruff.toml). BLOKLOVCHI: lint xatosi
+#                         bo'lsa exit 1 (CI'da `|| true` YO'Q).
 #   3) 🔐 PIP-AUDIT     — telegram_bot/requirements.txt dagi bog'liqliklarning
 #                         ma'lum zaifliklari (CVE).
 #   4) 🛡 BANDIT        — `bandit -r telegram_bot -ll` (o'rtacha va undan
@@ -132,7 +132,7 @@ run_gate() {
         FAILED_GATES+=("$name")
         return 1
     fi
-    bad "$name (exit $rc) — hisobot (job to'xtamaydi)"
+    bad "$name (exit $rc) — hisobot (ADVISORY rejim)"
     FAILED_GATES+=("$name")
     return 0
 }
@@ -153,15 +153,15 @@ fi
 # ---------------------------------------------------------------------------
 section "1) 🚦 LINT GATE — sintaksis / aniqlanmagan nomlar (bloklovchi)"
 if ensure_tool ruff ruff; then
-    run_gate "ruff E9,F63,F7,F82 (telegram_bot)" 1 \
-        $TOOL_CMD check "$TELEGRAM_DIR" --output-format=concise --select=E9,F63,F7,F82
+    run_gate "ruff E9,F63,F7,F82 (repo)" 1 \
+        $TOOL_CMD check "$REPO_ROOT" --output-format=concise --select=E9,F63,F7,F82
 else
     skip "ruff o'rnatilmagan — lint gate tekshirilmadi (pip install ruff==0.6.9)"
     SKIPPED_GATES+=("ruff lint gate")
 fi
 if ensure_tool flake8 flake8; then
-    run_gate "flake8 E9,F63,F7,F82 (telegram_bot)" 1 \
-        $TOOL_CMD "$TELEGRAM_DIR" --count --select=E9,F63,F7,F82 \
+    run_gate "flake8 E9,F63,F7,F82 (repo)" 1 \
+        $TOOL_CMD "$REPO_ROOT" --count --select=E9,F63,F7,F82 \
         --max-line-length=127 --statistics
 else
     skip "flake8 o'rnatilmagan (pip install flake8==7.1.1)"
@@ -171,10 +171,10 @@ fi
 # ---------------------------------------------------------------------------
 # 2) FULL RUFF — to'liq tekshiruv (hisobot)
 # ---------------------------------------------------------------------------
-section "2) 🧹 FULL RUFF — to'liq lint (hisobot)"
+section "2) 🧹 FULL RUFF — to'liq lint (bloklovchi)"
 if resolve_tool ruff ruff; then
-    run_gate "ruff check telegram_bot (to'liq)" 0 \
-        $TOOL_CMD check "$TELEGRAM_DIR" --output-format=concise
+    run_gate "ruff check . (to'liq)" 1 \
+        $TOOL_CMD check "$REPO_ROOT" --output-format=concise
 else
     skip "ruff o'rnatilmagan — to'liq lint hisoboti o'tkazib yuborildi"
     SKIPPED_GATES+=("ruff full")
@@ -191,7 +191,7 @@ elif [ ! -f "$REQUIREMENTS" ]; then
     skip "telegram_bot/requirements.txt topilmadi"
     SKIPPED_GATES+=("pip-audit")
 elif ensure_tool pip_audit pip-audit; then
-    run_gate "pip-audit -r telegram_bot/requirements.txt" 0 \
+    run_gate "pip-audit -r telegram_bot/requirements.txt" 1 \
         $TOOL_CMD -r "$REQUIREMENTS" --progress-spinner off
 else
     skip "pip-audit o'rnatilmagan (pip install pip-audit)"
@@ -203,7 +203,7 @@ fi
 # ---------------------------------------------------------------------------
 section "4) 🛡 BANDIT — statik xavfsizlik skani (-ll)"
 if ensure_tool bandit bandit; then
-    run_gate "bandit -r telegram_bot -ll" 0 \
+    run_gate "bandit -r telegram_bot -ll" 1 \
         $TOOL_CMD -r "$TELEGRAM_DIR" -ll
 else
     skip "bandit o'rnatilmagan (pip install bandit)"

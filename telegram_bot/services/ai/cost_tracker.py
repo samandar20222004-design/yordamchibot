@@ -35,7 +35,7 @@ import logging
 import threading
 import time
 from collections import OrderedDict
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field  # noqa: F401
 from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)

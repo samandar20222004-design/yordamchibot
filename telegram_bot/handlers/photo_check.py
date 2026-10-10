@@ -239,7 +239,7 @@ async def handle_admin_check_photo_callback(update: Update, context: ContextType
     query = update.callback_query
     # Adminga qaratilgan barcha toast/edit matnlari ADMIN tilida bo'ladi.
     admin_lang = get_lang(context)
-    if not query.from_user.id in ADMIN_IDS_SET:
+    if query.from_user.id not in ADMIN_IDS_SET:
         await query.answer(_pc_text("pc_no_permission", admin_lang), show_alert=True)
         return
     if not has_permission(query.from_user.id, PERM_MANAGE_USERS):

@@ -7,7 +7,8 @@ asosiy menyudan Sozlamalar hub'iga ko'chirdi. 3-BOSQICH: «💎 PRO» va «❓ Y
 asosiy reply-menudan shu hub'ga ko'chirildi. Jami 8 tugma:
 Til | Post sozlamalari | Bildirishnomalar | Do'stlarni taklif |
 To'lovlar | PRO | Yordam va Qo'llanma | Yopish."""
-import os, sys
+import os
+import sys
 os.environ.setdefault("BOT_TOKEN", "123456:TEST")
 os.environ.setdefault("ADMIN_ID", "123")
 os.environ.setdefault("DATABASE_URL", "postgresql://user:pass@localhost/test")

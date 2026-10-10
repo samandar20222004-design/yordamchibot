@@ -26,7 +26,7 @@ from telegram import Update, Message, Chat, User, PhotoSize, Video
 from telegram.ext import ApplicationBuilder, ConversationHandler, CallbackContext, MessageHandler  # noqa: F401
 from telegram import InputMediaPhoto, InputMediaVideo
 
-import handlers as h_mod
+import handlers as h_mod  # noqa: F401
 from handlers import register_all_handlers
 import handlers.new_post as np_mod
 from handlers.new_post import GET_CONTENT, GET_BTN_TITLE, GET_BTN_URL, GET_REACTIONS, GET_AUTO_DELETE, content_received, btn_title_received, reactions_received, _build_preview_text, SKIP_BUTTON_TEXTS, is_skip_button_text, cancel_album_collections

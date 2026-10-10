@@ -343,7 +343,7 @@ def test_all_ai_providers_down() -> None:
     from services.ai.providers import ai_unavailable_message
     from services.ai_engine import providers as engine_providers
     from services.ai_engine.router import provider_order as router_order
-    from services.ai_engine.router import resolve_lane
+    from services.ai_engine.router import resolve_lane  # noqa: F401
 
     class Provider500(RuntimeError):
         pass
@@ -457,7 +457,7 @@ def test_all_ai_providers_down() -> None:
         return outcome, refunds
 
     async def _ai_failing_generate(*args, **kwargs):
-        from services.ai_engine.gateway import GatewayResult, resolve_lane
+        from services.ai_engine.gateway import GatewayResult, resolve_lane  # noqa: F811
         return GatewayResult(
             ok=False, lane=resolve_lane(kwargs.get("lane") or "fast"),
             task=kwargs.get("task") or "", elapsed=0.01,
@@ -490,7 +490,7 @@ def test_telegram_flood_and_outage() -> None:
     from staging.mock_telegram_server import MockTelegramServer
     from services.delivery import TelegramDeliveryService
     from tests.load_harness import make_mock_bot
-    from telegram.error import NetworkError, RetryAfter, TelegramError
+    from telegram.error import NetworkError, RetryAfter, TelegramError  # noqa: F401
 
     async def _fault(port: int, payload: dict) -> None:
         import aiohttp

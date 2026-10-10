@@ -29,13 +29,15 @@ from __future__ import annotations
 import hashlib
 import logging
 import re
-import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, Iterable
 from urllib import parse as urlparse
 
 import pytz
+
+# defusedxml: buzilgan/zararli XML (billion-laughs, XXE) dan himoya (bandit B314).
+from defusedxml import ElementTree as ET
 
 from ..ai.smm_common import SMMFeatureService, clip, sanitize_html
 from . import url_extractor as ux

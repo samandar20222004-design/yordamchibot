@@ -19,9 +19,9 @@ from config import (
     # qayta eksport qiladi: runtime'da provayder zanjiri shu nomlar orqali
     # kalitni tekshiradi, testlar esa `ai_agent.<KEY>` ni monkeypatch qiladi
     # (shu sababli ular "ishlatilmagan import" EMAS — public sirt).
-    GROQ_API_KEY, OPENROUTER_API_KEY,
-    MISTRAL_API_KEY, CEREBRAS_API_KEY,
-    SAMBANOVA_API_KEY, CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID,
+    GROQ_API_KEY, OPENROUTER_API_KEY,  # noqa: F401
+    MISTRAL_API_KEY, CEREBRAS_API_KEY,  # noqa: F401
+    SAMBANOVA_API_KEY, CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID,  # noqa: F401
 )
 
 from utils.silent_errors import log_silent_failure

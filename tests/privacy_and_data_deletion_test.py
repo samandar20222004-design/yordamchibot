@@ -288,10 +288,6 @@ def test_5_two_step_confirmation():
         return {"ok": True, "channels": 0, "posts": 0, "ai_events": 0}
 
     query = _Query()
-    update = SimpleNamespace(effective_user=SimpleNamespace(id=USER_ID),
-                             callback_query=query,
-                             effective_message=query.message,
-                             message=None)
     with patch("database.run_db", new=_fake_run_db(_fake_delete)):
         _run(_render_delete_confirm(query, _FakeContext(), USER_ID, "uz"))
         check("tasdiq ekrani: matn tahrirlandi", bool(query.edits), str(query.edits))
@@ -453,7 +449,8 @@ class _FakeTx:
 
 def _run_delete(cur, *, expect_ok=True, patch_core=True):
     """``delete_user_data`` ni fake kursor bilan bajaradi (yadro patch'lari bilan)."""
-    import database
+
+    import database  # noqa: F401
 
     invalidated = []
     cache_cleared = []

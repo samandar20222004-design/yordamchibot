@@ -231,6 +231,11 @@ EXIT_CODE=0
 # bu xatti-harakatni tests/production_safety_and_validator_test.py o'zi
 # ENVIRONMENT=production qilib tekshiradi.
 export ENVIRONMENT=test
+# BETA DARVOZASI: kodning standarti endi YOPIQ (closed beta). Mavjud
+# onboarding/menyu oqimlari testlari ochiq rejim bazasida ishlaydi; beta
+# darvozasining o'zi esa tests/beta_gate_test.py da alohida sinaladi (standart
+# = yopiq, env=false = ochiq, runtime on/off) — u o'z env'ini aniq boshqaradi.
+export BETA_INVITE_ONLY=false
 
 echo "=============================================================="
 echo " PostAssist V2 — TO'LIQ TEST O'TKAZISH (bash tests/run_tests.sh)"

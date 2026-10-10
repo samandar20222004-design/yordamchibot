@@ -179,7 +179,6 @@ def render_all_keyboards(lang):
 def test_1_main_reply_menu_strict_6_buttons():
     header("1", "🏠 Asosiy Reply menyu — 3-BOSQICH: QAT'IY 3 qator / 5 tugma (4-qator TAQIQLANADI)")
     for lang in LANGS:
-        expected = EXPECTED_MAIN[lang]
         expected_rows = EXPECTED_MAIN_ROWS[lang]
         kb = KD.get_main_keyboard(False, lang=lang)
         rows = kb_rows_reply(kb)

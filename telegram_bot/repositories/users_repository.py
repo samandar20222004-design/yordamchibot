@@ -24,7 +24,7 @@ from datetime import datetime, timedelta
 import logging
 
 
-from config import DATABASE_URL, PLAN_LIMITS as CONFIG_PLAN_LIMITS
+from config import DATABASE_URL, PLAN_LIMITS as CONFIG_PLAN_LIMITS  # noqa: F401
 
 from database import DB_STATS_CACHE_TTL, DB_USER_CACHE_TTL, _MISS, tashkent_tz
 from repositories.runtime import (  # noqa: F401
@@ -1743,7 +1743,7 @@ def _delete_user_channels_data(cur, user_id: int, channel_ids: list) -> dict:
             continue
         try:
             cur.execute(
-                f"DELETE FROM {table} WHERE {column} = ANY(%s)",  # noqa: S608 — jadval nomi kod-konstanta
+                f"DELETE FROM {table} WHERE {column} = ANY(%s)",  # noqa: S608 — jadval nomi kod-konstanta  # nosec B608
                 (values,),
             )
             counts[table] = int(cur.rowcount or 0)
@@ -1883,7 +1883,7 @@ def delete_user_data(user_id: int) -> dict:
 
             for table in ("post_templates", "user_settings", "ai_reservations",
                           "promo_redemptions", "admin_roles"):
-                cur.execute(f"DELETE FROM {table} WHERE user_id = %s", (uid,))  # noqa: S608
+                cur.execute(f"DELETE FROM {table} WHERE user_id = %s", (uid,))  # noqa: S608  # nosec B608 — jadval nomi kod-konstanta (DELETE ... WHERE user_id = %s)
                 summary["cleaned"][table] = int(cur.rowcount or 0)
 
             cur.execute(

@@ -69,6 +69,19 @@ def test_calendar_event_coverage_and_localization():
     check(by_key["teachers_day"].date == date(2026, 10, 1), "Teachers' Day date is fixed")
     check(by_key["admission_exam_season"].kind == "season", "admissions/exam entry is seasonal")
 
+    # O'zbekiston milliy sanalari va mavsumiy savdo davrlari (2026-10 to'ldirish).
+    check(by_key["defenders_day"].date == date(2026, 1, 14), "Vatan himoyachilari kuni = 14-yanvar")
+    check(by_key["women_day"].date == date(2026, 3, 8), "Xotin-qizlar kuni = 8-mart")
+    check(by_key["constitution_day"].date == date(2026, 12, 8), "Konstitutsiya kuni = 8-dekabr")
+    check(by_key["defenders_day"].kind == "holiday" and by_key["women_day"].kind == "holiday"
+          and by_key["constitution_day"].kind == "holiday", "yangi milliy sanalar holiday turida")
+    check(by_key["back_to_school"].kind == "season" and by_key["back_to_school"].date.month == 8,
+          "maktabga qaytish — avgust, mavsum (holiday emas)")
+    check("ramadan_prep" in by_key and by_key["ramadan_prep"].kind == "season",
+          "Ramazon tayyorgarligi — hijri hisobda mavsumiy marker")
+    check(all(event.name(lang) for event in events for lang in ("uz", "ru", "en")),
+          "yangi sanalar uchta tilda nomlangan")
+
     target = date(2026, 3, 21)
     reminders = get_events_for_reminder(target - timedelta(days=3), 3)
     check([event.key for event in reminders] == ["navruz"], "Navro'z reminder is exactly three days before")

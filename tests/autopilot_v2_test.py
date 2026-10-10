@@ -32,7 +32,7 @@ if _BOT_DIR not in sys.path:
     sys.path.insert(0, _BOT_DIR)
 
 import pytz  # noqa: E402
-from telegram.ext import ConversationHandler  # noqa: E402
+from telegram.ext import ConversationHandler  # noqa: E402, F401
 
 import handlers.autopilot as AP  # noqa: E402
 from keyboards.nav import find_nav_conflicts  # noqa: E402
@@ -41,7 +41,7 @@ from services.autopilot import (  # noqa: E402
     APPROVAL_MANUAL,
     APPROVAL_SEMI_AUTO,
     ApprovalMode,
-    AutopilotConfig,
+    AutopilotConfig,  # noqa: F401
     AutopilotGoal,
     ContentIntelligenceLoop,
     ContentLoop,
@@ -51,29 +51,29 @@ from services.autopilot import (  # noqa: E402
     apply_quiet_hours,
     approve_single_plan_post,
     build_content_loop_prompt_block,
-    build_daily_slot_hours,
+    build_daily_slot_hours,  # noqa: F401
     build_week_plan,
     check_plan_duplicates,
      compute_content_gaps,
-    compute_post_quality_score,
-    create_autopilot_plan,
+    compute_post_quality_score,  # noqa: F401
+    create_autopilot_plan,  # noqa: F401
     create_autopilot_v2_plan,
-    delete_plan_post,
-    edit_plan_post,
+    delete_plan_post,  # noqa: F401
+    edit_plan_post,  # noqa: F401
     flag_duplicate_days,
     format_quiet_hours,
     is_in_quiet_hours,
-    load_recent_channel_posts_30d,
+    load_recent_channel_posts_30d,  # noqa: F401
     normalize_approval_mode,
     normalize_frequency,
     normalize_goal,
     parse_quiet_hours,
-    partition_by_approval_mode,
-    regenerate_single_plan_post,
+    partition_by_approval_mode,  # noqa: F401
+    regenerate_single_plan_post,  # noqa: F401
     reschedule_from_quiet_hours,
     resolve_morning_optimal_hour,
     validate_approval_mode_access,
-    view_plan_post,
+    view_plan_post,  # noqa: F401
 )
 from services.channels.content_loop import filter_posts_last_n_days  # noqa: E402
 from translations.autopilot import autopilot_parity_report  # noqa: E402
