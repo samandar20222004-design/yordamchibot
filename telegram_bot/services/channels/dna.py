@@ -28,7 +28,7 @@ from __future__ import annotations
 
 import logging
 import re
-from collections import Counter, defaultdict
+from collections import Counter, defaultdict  # noqa: F401
 from datetime import datetime, timezone
 from typing import Any
 
@@ -278,7 +278,7 @@ def classify_tone_extended(events: list[dict], avg_emoji_density: float, cta_rat
     """Kengaytirilgan ohang tasnifi (AI'siz, yengil)."""
     d = float(avg_emoji_density or 0.0)
     cr = float(cta_ratio or 0.0)
-    l = int(avg_length or 0)
+    lbl = int(avg_length or 0)
     # Friendly if high emoji
     if d >= 0.012:
         return "friendly"
@@ -286,9 +286,9 @@ def classify_tone_extended(events: list[dict], avg_emoji_density: float, cta_rat
         return "friendly"
     if cr >= 0.6:
         return "promotional"
-    if l >= 500:
+    if lbl >= 500:
         return "informative"
-    if l <= 120:
+    if lbl <= 120:
         return "casual"
     # Check for formal markers in texts
     formal_markers = ("hurmatli", "iltimos", "rasmiy", "уважаемые", "пожалуйста", "dear", "please")

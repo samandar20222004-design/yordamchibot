@@ -166,7 +166,6 @@ def test_smart_emoji_custom():
         msg, state, fake = _start_flow(ctx)
         q = _Query(CB_MANUAL_REACT, msg)
         _run(MP.manual_panel_callback(_update_query(q), ctx))
-        q2 = _Query(CB_MANUAL_REACT, msg)  # need to open custom? Actually we need custom
         # Open custom
         qc = _Query("mnp_radd", msg)
         stc = _run(MP.manual_panel_callback(_update_query(qc), ctx))
@@ -208,7 +207,7 @@ def test_smart_url_single():
     finally:
         try:
             fake.restore()
-        except:
+        except Exception:
             pass
 
 def test_smart_url_with_text():

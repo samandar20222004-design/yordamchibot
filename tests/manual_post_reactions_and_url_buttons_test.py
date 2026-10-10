@@ -458,7 +458,7 @@ def test_smart_emoji_reception():
     ctx = _ctx("uz")
     try:
         msg, state, fake = _start_manual_flow(ctx)
-        check(f"[preview] holat tayyor", state == MP.MANUAL_PREVIEW, str(state))
+        check("[preview] holat tayyor", state == MP.MANUAL_PREVIEW, str(state))
         # Foydalanuvchi to'g'ridan-to'g'ri 😎 yuboradi
         emoji_msg = _Msg(text="😎")
         st = _run(MP.manual_preview_emoji_received(_update_msg(emoji_msg), ctx))
@@ -714,11 +714,11 @@ def test_url_button_flow():
     finally:
         try:
             fake.restore()
-        except:
+        except Exception:
             pass
         try:
             fake2.restore()
-        except:
+        except Exception:
             pass
 
 

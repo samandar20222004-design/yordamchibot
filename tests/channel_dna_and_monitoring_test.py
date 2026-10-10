@@ -19,7 +19,7 @@ import os
 import sys
 import asyncio
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock  # noqa: F401
 
 os.environ.setdefault("BOT_TOKEN", "123456:TEST_TOKEN")
 os.environ.setdefault("ADMIN_ID", "123456789")
@@ -57,9 +57,9 @@ def test_dna_extended_metrics():
     print("== Channel DNA extended metrikalari ==")
     from services.channels.dna import (
         compute_channel_dna_extended,
-        confidence_float,
-        MIN_POSTS_FOR_DNA,
-        INSUFFICIENT_DATA_MESSAGE,
+        confidence_float,  # noqa: F401
+        MIN_POSTS_FOR_DNA,  # noqa: F401
+        INSUFFICIENT_DATA_MESSAGE,  # noqa: F401
     )
 
     # Test with sufficient data (10 posts)

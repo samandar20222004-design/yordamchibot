@@ -44,7 +44,7 @@ import asyncio
 import json
 import logging
 import os
-import random
+import random  # noqa: F401
 import statistics
 import sys
 import time
@@ -169,7 +169,7 @@ def _message(chat_id: Any, text: str, message_id: int) -> dict:
 class MockTelegramServer:
     """aiohttp asosidagi mock Bot API (in-process yoki alohida jarayon)."""
 
-    def __init__(self, host: str = "0.0.0.0", port: int = 8080,
+    def __init__(self, host: str = "0.0.0.0", port: int = 8080,  # nosec B104 — bu bind emas: standart host parametri (staging mock server)
                  *, state: MockTelegramState | None = None) -> None:
         self.host = host
         self.port = int(port)
@@ -179,12 +179,12 @@ class MockTelegramServer:
     # ---- to'liq URL ------------------------------------------------
     @property
     def base_url(self) -> str:
-        host = "127.0.0.1" if self.host in ("0.0.0.0", "", "::") else self.host
+        host = "127.0.0.1" if self.host in ("0.0.0.0", "", "::") else self.host  # nosec B104 — bu bind emas: faqat URL uchun solishtirish
         return f"http://{host}:{self.port}/bot"
 
     @property
     def stats_url(self) -> str:
-        host = "127.0.0.1" if self.host in ("0.0.0.0", "", "::") else self.host
+        host = "127.0.0.1" if self.host in ("0.0.0.0", "", "::") else self.host  # nosec B104 — bu bind emas: faqat URL uchun solishtirish
         return f"http://{host}:{self.port}/__stats"
 
     # ---- handlerlar -------------------------------------------------
@@ -430,7 +430,7 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     """CLI argumentlari (env o'qilmaydi — staging sozlamasi faqat buyruq satrida,
     shu sababli production `.env` namunasi staging kalitlari bilan ifloslanmaydi)."""
     parser = argparse.ArgumentParser(description="Mock Telegram Bot API server (staging)")
-    parser.add_argument("--host", default="0.0.0.0",
+    parser.add_argument("--host", default="0.0.0.0",  # nosec B104 — staging konteyner tarmog'i uchun ataylab (argparse standarti)
                         help="Bind manzili (standart: 0.0.0.0 — konteyner tarmog'i)")
     parser.add_argument("--port", type=int, default=8080,
                         help="Bind porti (standart: 8080)")

@@ -402,7 +402,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return ConversationHandler.END
 
     # 🚪 SPRINT 4 — YOPIQ BETA DARVOZASI (closed beta access).
-    # BETA_INVITE_ONLY=false (standart) bo'lsa qaror darhol "ochiq" bo'ladi
+    # BETA_INVITE_ONLY=false bo'lsa qaror darhol "ochiq" bo'ladi
     # (qo'shimcha DB so'rovi YO'Q). Yoqilganda:
     #   * eski (beta'gacha ro'yxatdan o'tgan) foydalanuvchi — uzluksiz ishlaydi;
     #   * admin — har doim o'tadi;

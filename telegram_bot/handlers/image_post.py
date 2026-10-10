@@ -53,7 +53,7 @@ from utils.helpers import html_escape, telegram_html_payload, parse_schedule_inp
 from utils.vision_analyzer import (
     IMAGE_CATEGORY_PRODUCT,
     IMAGE_TYPE_EVENT,
-    IMAGE_TYPE_PRODUCT,
+    IMAGE_TYPE_PRODUCT,  # noqa: F401
     MAX_IMAGE_BYTES,
     TEXT_SOURCE_CAPTION,
     TEXT_SOURCE_TOPIC,

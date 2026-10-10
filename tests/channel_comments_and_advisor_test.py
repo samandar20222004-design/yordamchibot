@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """FAZA 10/11/12/13/14/24 smoke tests for comment intelligence."""
 from datetime import datetime, timezone
-import asyncio
-import os, sys
+import asyncio  # noqa: F401
+import os
+import sys
 from pathlib import Path
 
 os.environ.setdefault("BOT_TOKEN", "123456:test")

@@ -4,7 +4,7 @@
 
 Tekshiriladi:
   (1) ⚙️ SOZLAMA — ``BETA_INVITE_ONLY`` env orqali o'qiladi (standart
-      ``false`` — fail-open), ``BETA_MAX_USERS`` o'rinlar soni;
+      ``true`` — closed beta; ``false`` qo'yilganda ochiq), ``BETA_MAX_USERS`` o'rinlar soni;
   (2) 🧠 MANTIQ — qaror sabablari: open_mode / existing_user / admin_access /
       invite_code / admin_approved / pending_approval / invalid_code /
       code_exhausted / beta_full;
@@ -75,14 +75,22 @@ def test_config_env():
     print("\n== TEST 1: BETA_INVITE_ONLY / BETA_MAX_USERS (env) ==")
     env = dict(os.environ)
     env["PYTHONPATH"] = BOT
+    env.pop("BETA_INVITE_ONLY", None)   # haqiqiy kod standarti (run_tests env'ini e'tiborsiz qoldiramiz)
     code = (
         "import config; "
         "print(config.BETA_INVITE_ONLY, config.BETA_MAX_USERS, config.USD_UZS_RATE)"
     )
     default = subprocess.run([sys.executable, "-c", code], env=env,
                              capture_output=True, text=True)
-    check("standart rejim: BETA_INVITE_ONLY = False (ochiq)",
-          default.stdout.strip().startswith("False"), default.stdout)
+    check("standart rejim: BETA_INVITE_ONLY = True (closed beta)",
+          default.stdout.strip().startswith("True"), default.stdout)
+
+    env_open = dict(env)
+    env_open["BETA_INVITE_ONLY"] = "false"
+    opened = subprocess.run([sys.executable, "-c", code], env=env_open,
+                            capture_output=True, text=True)
+    check("env=false → ochiq rejim",
+          opened.stdout.strip().startswith("False"), opened.stdout)
 
     env_on = dict(env)
     env_on.update({"BETA_INVITE_ONLY": "true", "BETA_MAX_USERS": "37",
@@ -219,8 +227,8 @@ def test_admin_flow():
           rt.check(920002, is_new=True)["allowed"] is True)
     check("runtime manbasi statusda ko'rinadi (override)",
           rt.status()["enabled_source"] == "override")
-    check("env'ga qaytarish (None) → test env ochiq",
-          rt.set_enabled(None) is True and rt.invite_only is False)
+    check("env'ga qaytarish (None) → config qiymati (standart: yopiq)",
+          rt.set_enabled(None) is True and rt.invite_only is bg._config_invite_only())
 
     # Kod generatsiyasi.
     code = bg.generate_code(seed=42)
@@ -516,7 +524,7 @@ def test_start_integration():
 # ---------------------------------------------------------------------------
 def test_beta_command():
     print("\n== TEST 7: /beta buyrug'i ==")
-    import database as db_mod
+    import database as db_mod  # noqa: F401
     import importlib
 
     beta_mod = importlib.import_module("handlers.beta_access")
@@ -587,8 +595,8 @@ def test_beta_command():
               gate.check(960001, is_new=True)["allowed"] is True)
         upd, msg = _start_update(ADMIN_ID)
         asyncio.run(beta_mod.beta_admin_command(upd, _start_ctx(args=["reset"])))
-        check("/beta reset — env qiymatiga qaytdi (test env: ochiq)",
-              gate.invite_only is False and gate.status()["enabled_source"] == "env")
+        check("/beta reset — env (config) qiymatiga qaytdi",
+              gate.invite_only is bg._config_invite_only() and gate.status()["enabled_source"] == "env")
 
         # Oddiy foydalanuvchi — jim (javob yo'q, holat o'zgarmaydi).
         upd, msg = _start_update(NEW_USER)
@@ -617,8 +625,8 @@ def test_registration_and_docs():
     # Hujjat: yagona kanonik .env.example yangi kalitlarni saqlaydi.
     for path in (os.path.join(ROOT, ".env.example"),):
         text = open(path, encoding="utf-8").read()
-        check(f"{os.path.relpath(path, ROOT)}: BETA_INVITE_ONLY=false",
-              "BETA_INVITE_ONLY=false" in text)
+        check(f"{os.path.relpath(path, ROOT)}: BETA_INVITE_ONLY=true (default)",
+              "BETA_INVITE_ONLY=true" in text)
         check(f"{os.path.relpath(path, ROOT)}: BETA_MAX_USERS=50",
               "BETA_MAX_USERS=50" in text)
         check(f"{os.path.relpath(path, ROOT)}: USD_UZS_RATE mavjud",

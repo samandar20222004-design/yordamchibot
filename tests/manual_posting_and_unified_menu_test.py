@@ -79,16 +79,16 @@ import handlers as H  # noqa: E402
 import handlers.manual_post as MP  # noqa: E402
 import handlers.settings as STG  # noqa: E402
 import database as db_mod  # noqa: E402
-from keyboards.default import get_main_keyboard  # noqa: E402
+from keyboards.default import get_main_keyboard  # noqa: E402, F401
 from keyboards.inline import (  # noqa: E402
-    CB_MANUAL_24H, CB_MANUAL_CANCEL, CB_MANUAL_CHANNEL, CB_MANUAL_EDIT,
+    CB_MANUAL_24H, CB_MANUAL_CANCEL, CB_MANUAL_CHANNEL, CB_MANUAL_EDIT,  # noqa: F401
     CB_MANUAL_NOW, CB_MANUAL_PANEL, CB_MANUAL_REACT, CB_MANUAL_REPEAT,
     CB_MANUAL_TIME, CB_MANUAL_URL_BTN,
     get_cabinet_inline_keyboard, get_manual_post_panel,
     get_settings_hub_keyboard, manual_channel_callback,
 )
 from translations import (  # noqa: E402
-    MANUAL_POST_I18N, content_menu_parity_report, content_menu_t,
+    MANUAL_POST_I18N, content_menu_parity_report, content_menu_t,  # noqa: F401
     manual_post_parity_report, manual_post_t,
 )
 
@@ -460,7 +460,6 @@ def test_schedule_and_announcement_flows():
                   t_msg.sent and any("Vaqt belgilandi" in (s.get("text") or "") or "Время установлено" in (s.get("text") or "") or "Time set" in (s.get("text") or "") for s in t_msg.sent),
                   str(t_msg.sent)[:200])
             # Endi finish tugmasi bilan yakunlash
-            q_finish = _Query(MP.CB_MANUAL_FINISH if hasattr(MP, 'CB_MANUAL_FINISH') else "mnp_finish", t_msg)
             # Agar CB_MANUAL_FINISH bo'lmasa, mnp_now bilan yakunlash (eski oqim)
             try:
                 from keyboards.inline import CB_MANUAL_FINISH

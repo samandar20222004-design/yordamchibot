@@ -52,7 +52,7 @@ from handlers.new_post import (  # noqa: E402
 )
 from keyboards.default import BTN_SKIP_BUTTON  # noqa: E402
 from locales.translations import get_text, has_key, translation_parity_report  # noqa: E402
-import scheduler as sch  # noqa: E402
+import scheduler as sch  # noqa: E402, F401
 from scheduler import (  # noqa: E402
     sanitize_channel_content, _execute_send, _build_album_media,
 )

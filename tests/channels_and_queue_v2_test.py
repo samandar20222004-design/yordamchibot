@@ -545,7 +545,7 @@ def test_scheduled_list_format_and_actions():
     ]
     fake = _FakeDB(posts=posts)
     text, markup = _with_db(fake, lambda: Q._build_queue_view(USER_ID, False, "uz"))
-    lines = [l for l in text.split("\n") if l.strip().startswith(("1.", "2.", "3."))]
+    lines = [lbl for lbl in text.split("\n") if lbl.strip().startswith(("1.", "2.", "3."))]
     check("ro'yxat: 3 ta post chiqdi", len(lines) == 3, str(lines))
     check("ro'yxat: DB tartibi saqlangan (vaqt bo'yicha o'sish)",
           lines[0].startswith("1. ") and lines[1].startswith("2. ")

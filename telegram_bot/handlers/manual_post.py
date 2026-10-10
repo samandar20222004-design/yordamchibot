@@ -118,7 +118,7 @@ MODE_24H = "24h"        # 🗑 24 soatlik e'lon
 MODE_REPEAT = "repeat"  # 🔄 Takroriy e'lon
 
 #: user_data kalitlari (bir joyda — testlar va handlerlar uchun yagona manba).
-from utils.delivery_options import DELIVERY_KEYS, delivery_labels, delivery_markup
+from utils.delivery_options import DELIVERY_KEYS, delivery_labels, delivery_markup  # noqa: E402
 
 UD_DELIVERY = "mnp_delivery"
 UD_CONTENT = "mnp_content"
@@ -194,7 +194,7 @@ def _set_selected_channel(context, channel_id, channel_title):
 # ============================================================
 # SMART EMOJI VA SMART URL — YORDAMCHI FUNKSIYALAR (2-QISM BUGFIX)
 # ============================================================
-import re as _re
+import re as _re  # noqa: E402
 
 #: Smart emoji uchun maksimal son (topshiriq bo'yicha 5 tagacha).
 SMART_EMOJI_MAX = 5
@@ -677,7 +677,6 @@ async def _publish(target_msg, context, user_id: int, channel_id,
     tozalanadi va asosiy menyu qaytadi. (Dublikat ogohlantirishida:
     MANUAL_PREVIEW.)
     """
-    is_admin = user_id in ADMIN_IDS_SET
     mode = context.user_data.get(UD_MODE, MODE_NOW)
 
     # --- 🔐 PHASE 3: IDOR HIMOYASI (markaziy RBAC) ---------------------------
@@ -1019,7 +1018,6 @@ async def manual_time_received(update: Update, context: ContextTypes.DEFAULT_TYP
     Takroriy rejada faqat KUNLIK VAQT ("HH:MM") olinadi.
     """
     msg = update.message
-    user_id = update.effective_user.id
     lang = get_lang(context)
     mode = context.user_data.get(UD_MODE, MODE_TIME)
 

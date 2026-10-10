@@ -42,9 +42,9 @@ def parse_result(text: str, model=PostResult, *, strict: bool = False):
         values = {}
         for field in fields(model):
             value = data[field.name]
-            if field.type == str:
+            if field.type is str:
                 valid = isinstance(value, str)
-            elif field.type == int:
+            elif field.type is int:
                 valid = type(value) is int and 0 <= value <= 100
             else:
                 item_type = dict if field.name == 'days' else str

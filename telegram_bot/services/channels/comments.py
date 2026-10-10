@@ -11,7 +11,7 @@ import asyncio
 import hashlib
 import logging
 import re
-from collections import Counter, defaultdict
+from collections import Counter, defaultdict  # noqa: F401
 from dataclasses import dataclass
 from typing import Any, Iterable
 

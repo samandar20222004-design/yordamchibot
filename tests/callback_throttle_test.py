@@ -40,16 +40,16 @@ def test_throttle_basic():
     
     # First call should not be throttled
     result1 = check_callback_throttle(uid)
-    check("First call not throttled", result1 == False)
+    check("First call not throttled", result1 is False)
     
     # Second call within 1.5s should be throttled
     result2 = check_callback_throttle(uid)
-    check("Second call within interval throttled", result2 == True)
+    check("Second call within interval throttled", result2 is True)
     
     # Third call after interval should not be throttled
     time.sleep(2)  # Wait more than 1.5s
     result3 = check_callback_throttle(uid)
-    check("Call after interval not throttled", result3 == False)
+    check("Call after interval not throttled", result3 is False)
 
 
 def test_throttle_different_users():
@@ -58,15 +58,15 @@ def test_throttle_different_users():
     
     # User 1
     r1 = check_callback_throttle(11111)
-    check("User 1 first call not throttled", r1 == False)
+    check("User 1 first call not throttled", r1 is False)
     
     # User 2 should be independent
     r2 = check_callback_throttle(22222)
-    check("User 2 first call not throttled", r2 == False)
+    check("User 2 first call not throttled", r2 is False)
     
     # User 1 again - should still be throttled if within interval
     r1b = check_callback_throttle(11111)
-    check("User 1 second call throttled", r1b == True)
+    check("User 1 second call throttled", r1b is True)
 
 
 def test_throttle_reset():
@@ -80,14 +80,14 @@ def test_throttle_reset():
     
     # Immediately another call - should be throttled
     immediate = check_callback_throttle(uid)
-    check("Immediate second call throttled", immediate == True)
+    check("Immediate second call throttled", immediate is True)
     
     # Wait for reset (1.5s + a bit)
     time.sleep(2)
     
     # Now it should not be throttled
     after_wait = check_callback_throttle(uid)
-    check("After wait, not throttled", after_wait == False)
+    check("After wait, not throttled", after_wait is False)
 
 
 # Run tests

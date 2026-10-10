@@ -56,7 +56,7 @@ from services.channels.content_loop import (
     STRATEGIC_GOALS,
     build_content_loop_prompt_block,
     compute_content_gaps,
-    extract_headline_topic,
+    extract_headline_topic,  # noqa: F401
     filter_posts_last_n_days,
     normalize_strategic_goal,
 )
