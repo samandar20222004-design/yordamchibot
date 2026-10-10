@@ -35,7 +35,7 @@ async def _edit_wait_message(wait_message, fallback_message, text: str, **kwargs
     return await fallback_message.reply_text(text, **kwargs)
 
 
-import re
+import re  # noqa: E402
 
 # 2-vazifa: begona havolalar, reklamalar, imzolarni tozalash uchun regexlar
 _FOREIGN_TME_RE = re.compile(r'(?:https?://)?t\.me/[A-Za-z0-9_]+(?:/[^\s]*)?', re.IGNORECASE)
@@ -137,23 +137,9 @@ async def _adapt_post_with_ai(original_text: str, user_channels: list, tone: str
     # Avval regex bilan tozalash (fail-safe)
     cleaned = _clean_foreign_content(original_text, user_channels)
 
-    # Foydalanuvchi kanali haqida ma'lumot
-    channel_info = ""
-    if user_channels:
-        titles = ", ".join([t for _, t in user_channels[:3] if t])
-        channel_info = f"Foydalanuvchi kanallari: {titles}. " if titles else ""
-
     # AI orqali moslash — agar AI mavjud bo'lsa
     try:
         from utils.ai_agent import rewrite_channel_post, pick_supported_kwargs
-        prompt_extra = (
-            f"{channel_info}Quyidagi postni BEGONA havolalar, reklamalar, imzolar, "
-            f"manba ko'rsatkichlari (@username, t.me/...) dan TOZALAB, "
-            f"foydalanuvchi kanali uslubiga moslab qayta yoz. "
-            f"O'z kanaliga oid bo'lmagan har qanday havola, reklama, imzo olib tashlansin. "
-            f"Oxirida foydalanuvchi kanali havolasi yoki nomi tabiiy ravishda qo'shilishi mumkin, "
-            f"lekin majburiy emas. Faqat toza, moslashtirilgan post matnini qaytar."
-        )
         # rewrite_channel_post mavjud — uni adapt uchun ishlatamiz
         result = await rewrite_channel_post(
             cleaned, "user_channel", "", tone,

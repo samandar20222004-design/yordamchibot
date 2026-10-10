@@ -59,21 +59,47 @@ _TEXT = {
         "uz": "Qurbon hayiti", "ru": "Курбан-хайит (Курбан-байрам)",
         "en": "Eid al-Adha",
     },
+    "defenders_day": {
+        "uz": "Vatan himoyachilari kuni", "ru": "День защитников Отечества",
+        "en": "Defenders of the Homeland Day",
+    },
+    "women_day": {
+        "uz": "Xotin-qizlar kuni", "ru": "Международный женский день",
+        "en": "International Women's Day",
+    },
+    "constitution_day": {
+        "uz": "Konstitutsiya kuni", "ru": "День Конституции",
+        "en": "Constitution Day",
+    },
+    "back_to_school": {
+        "uz": "Maktabga qaytish mavsumi", "ru": "Сезон возвращения в школу",
+        "en": "Back-to-school season",
+    },
+    "ramadan_prep": {
+        "uz": "Ramazon tayyorgarligi mavsumi", "ru": "Подготовка к Рамадану",
+        "en": "Ramadan preparation season",
+    },
 }
 
 _FIXED_EVENTS = (
     ("new_year", 1, 1, "holiday"),
+    ("defenders_day", 1, 14, "holiday"),
+    ("women_day", 3, 8, "holiday"),
     ("navruz", 3, 21, "holiday"),
     ("remembrance_day", 5, 9, "holiday"),
     # Start-of-season marker for useful admissions, exam-prep and student
     # guidance posts; it is intentionally not presented as a public holiday.
     ("admission_exam_season", 6, 1, "season"),
+    # Sotuv/kontent mavsumi: maktab yili boshlanishidan oldingi tayyorgarlik.
+    ("back_to_school", 8, 15, "season"),
     ("independence_day", 9, 1, "holiday"),
     ("teachers_day", 10, 1, "holiday"),
+    ("constitution_day", 12, 8, "holiday"),
 )
 
 SUPPORTED_LANGS = ("uz", "ru", "en")
-MOVABLE_EVENT_KEYS = ("eid_al_fitr", "eid_al_adha")
+MOVABLE_EVENT_KEYS = ("eid_al_fitr", "eid_al_adha", "ramadan_prep")
+SEASONAL_MOVABLE_KEYS = frozenset({"ramadan_prep"})
 
 
 def _lang(lang: str | None) -> str:
@@ -138,6 +164,9 @@ def get_calendar_events(year: int, *,
         for key, month, day in (
             ("eid_al_fitr", 10, 1),
             ("eid_al_adha", 12, 10),
+            # Ramazon oyining boshlanishidan ~30 kun oldin (Sha'bon 1) —
+            # tayyorgarlik mavsumi marker'i.
+            ("ramadan_prep", 8, 1),
         ):
             candidate = _hijri_to_gregorian(hijri_year, month, day)
             if candidate.year == year:
@@ -146,7 +175,8 @@ def get_calendar_events(year: int, *,
     for key in MOVABLE_EVENT_KEYS:
         event_date = _coerce_date(overrides.get(key)) or computed.get(key)
         if event_date is not None and event_date.year == year:
-            events.append(UzbekistanCalendarEvent(key, event_date, _TEXT[key], "movable"))
+            kind = "season" if key in SEASONAL_MOVABLE_KEYS else "movable"
+            events.append(UzbekistanCalendarEvent(key, event_date, _TEXT[key], kind))
 
     return tuple(sorted(events, key=lambda item: (item.date, item.key)))
 

@@ -42,7 +42,7 @@ def tidy(path):
 
     if not drop:
         return 0
-    out = [l for i, l in enumerate(lines) if i not in drop]
+    out = [lbl for i, lbl in enumerate(lines) if i not in drop]
     with open(path, "w", encoding="utf-8") as fh:
         fh.write("\n".join(out).rstrip() + "\n")
     return len(drop)

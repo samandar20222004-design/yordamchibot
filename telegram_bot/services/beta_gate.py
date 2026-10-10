@@ -6,7 +6,8 @@ saralangan kanal egasi bilan sinash. Darvoza bitta env bayrog'i bilan
 boshqariladi:
 
     BETA_INVITE_ONLY=true   → faqat taklif kodi yoki admin tasdig'i bilan
-    BETA_INVITE_ONLY=false  → odatiy ochiq rejim (standart)
+    BETA_INVITE_ONLY=false  → ochiq rejim (faqat aniq "false" qo'yilganda)
+    (env berilmasa standart: true — closed beta)
     BETA_MAX_USERS=50       → beta o'rinlari soni (0 = cheksiz)
 
 QOIDALAR (mavjud foydalanuvchilar BUZILMAYDI):

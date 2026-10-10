@@ -1817,7 +1817,8 @@ def build_integrity_block() -> str:
         blokida: bitta muvaffaqiyatsiz constraint qolganlarini va tranzaksiyani
         buzmaydi (faqat RAISE WARNING).
     """
-    return """DO $postassist_integrity$
+    return ("DO $postassist_integrity$"  # nosec B608 — DDL shablon; qiymatlar _sql_literal bilan escape
+            """
 DECLARE
     spec RECORD;
 BEGIN
@@ -1867,7 +1868,7 @@ BEGIN
         END;
     END LOOP;
 END
-$postassist_integrity$;""".format(rows=_integrity_values_rows())
+$postassist_integrity$;""").format(rows=_integrity_values_rows())
 
 #: schema.sql'dagi statik blokning belgisi (testlar shu orqali tekshiradi).
 INTEGRITY_BLOCK_MARKER = "$postassist_integrity$"
@@ -1975,7 +1976,7 @@ def integrity_orphan_counts() -> dict:
                         counts[label] = 0
                         continue
                     cur.execute(
-                        f"SELECT COUNT(*) FROM {child} c "
+                        f"SELECT COUNT(*) FROM {child} c "  # nosec B608 — jadval/ustun nomlari INTEGRITY_ORPHAN_CHECKS konstantasidan
                         f"LEFT JOIN {parent} p ON p.{pcol} = c.{ccol} "
                         f"WHERE p.{pcol} IS NULL AND c.{ccol} IS NOT NULL"
                     )
@@ -3072,11 +3073,11 @@ SUPPORT_TICKET_STATUSES = ("new", "answered")
 # o'zgarishsiz ishlaydi.
 
 # --- ⚙️ SETTINGS — bot sozlamalari (kalit/qiymat) keshi bilan
-from repositories.settings_repository import (  # noqa: F401
+from repositories.settings_repository import (  # noqa: E402, F401
     delete_setting, get_setting, get_settings_map, set_setting
 )
 # --- 👤 USERS — profil, til, tier, kvota, kredits, referallar, onboarding
-from repositories.users_repository import (  # noqa: F401
+from repositories.users_repository import (  # noqa: E402, F401
     ACCOUNT_DELETE_RETAINED_TABLES,
     AI_OPERATION_TYPES, AI_RESERVATION_ACTIVE, AI_RESERVATION_REFUNDED,
     AI_RESERVE_COST_MAX, AI_RESERVE_COST_MIN, AI_RESERVE_DB_ERROR,
@@ -3107,7 +3108,7 @@ from repositories.users_repository import (  # noqa: F401
     use_user_credit
 )
 # --- 📢 CHANNELS — kanal CRUD, monitoring, Channel DNA, manba/RSS, reklama
-from repositories.channels_repository import (  # noqa: F401
+from repositories.channels_repository import (  # noqa: E402, F401
     AD_BUTTON_TEXT_MAX_LEN, AD_BUTTON_URL_MAX_LEN, AD_INTERVAL_MAX,
     AD_INTERVAL_MIN, AD_SCOPES, AD_TEXT_MAX_LEN, CHANNEL_AD_INTERVAL_DEFAULT,
     CHANNEL_AD_INTERVAL_KEY, CONTENT_SOURCES_LIMIT, SOURCE_DRAFTS_LIMIT,
@@ -3140,7 +3141,7 @@ from repositories.channels_repository import (  # noqa: F401
     update_ad_text
 )
 # --- 📝 POSTS — post CRUD, statuslar, media, navbat (queue), shablonlar
-from repositories.posts_repository import (  # noqa: F401
+from repositories.posts_repository import (  # noqa: E402, F401
     DEFAULT_QUEUE_SLOTS, POST_TEMPLATES_LIMIT, _template_row_to_dict, add_post,
     cancel_post, count_post_templates, create_post_template,
     defer_post_deletion, delete_post_template, get_channel_post_stats,
@@ -3154,7 +3155,7 @@ from repositories.posts_repository import (  # noqa: F401
     update_post_time
 )
 # --- 📊 ANALYTICS — kanal tahlili uchun BATCH (N+1'siz) o'qishlar (5-qadam/P1)
-from repositories.analytics_repository import (  # noqa: F401
+from repositories.analytics_repository import (  # noqa: E402, F401
     ANALYTICS_DEFAULT_DAYS, ANALYTICS_DEFAULT_LIMIT, ANALYTICS_MAX_BATCH_IDS,
     ANALYTICS_MAX_LIMIT, count_posts_by_format, format_from_media,
     get_channel_analytics_bundle, get_channel_analytics_summary,
@@ -3163,7 +3164,7 @@ from repositories.analytics_repository import (  # noqa: F401
     get_posts_reaction_metrics_batch, normalize_ids, normalize_limit
 )
 # --- ⏰ SCHEDULER — rejalashtirish, delivery jobs, tiklash, tozalash
-from repositories.scheduler_repository import (  # noqa: F401
+from repositories.scheduler_repository import (  # noqa: E402, F401
     DELIVERY_MAX_ATTEMPTS, DELIVERY_STALE_PROCESSING_SECONDS, DELIVERY_VERIFY_MARKER,
     _DELIVERY_VERIFY_RE, _delivery_channel_number, _delivery_processing_is_stale,
     build_delivery_idempotency_key, claim_post_delivery, cleanup_old_data,
@@ -3174,7 +3175,7 @@ from repositories.scheduler_repository import (  # noqa: F401
     recover_stale_processing_posts, schedule_week_posts
 )
 # --- 👥 TEAMS — jamoa a'zolari, rollar, taklif/tasdiq oqimi, audens insight
-from repositories.teams_repository import (  # noqa: F401
+from repositories.teams_repository import (  # noqa: E402, F401
     TEAM_ROLES, _invalidate_rbac_resource_cache, _member_role_valid,
     add_channel_member, approve_post, approve_workflow_post, create_draft_post,
     create_workflow_post, edit_workflow_post, get_audience_question_insights,
@@ -3185,7 +3186,7 @@ from repositories.teams_repository import (  # noqa: F401
     submit_post_for_approval, upsert_audience_question
 )
 # --- 💳 PAYMENTS — to'lov cheklari, holatlar, orderlar, kvitansiyalar
-from repositories.payments_repository import (  # noqa: F401
+from repositories.payments_repository import (  # noqa: E402, F401
     PAYMENT_METHODS, PAYMENT_METHOD_INTERNATIONAL_STARS,
     PAYMENT_METHOD_UZCARD_HUMO, PAYMENT_STATUSES, PAYMENT_STATUS_SUCCEEDED,
     RECEIPT_STATUS_PENDING, _normalize_payment_method,
@@ -3197,7 +3198,7 @@ from repositories.payments_repository import (  # noqa: F401
     process_stars_payment, reject_payment_receipt, save_payment_receipt
 )
 # --- 🔐 AUDIT — xavfsizlik ro'llari, audit loglari, qo'llab-quvvatlash
-from repositories.audit_repository import (  # noqa: F401
+from repositories.audit_repository import (  # noqa: E402, F401
     AI_USAGE_NO_CHANNEL, AI_USAGE_PERIODS,
     AUDIT_ACTION_MAX_LEN, AUDIT_FIELD_MAX_LEN, SUPPORT_TICKET_TEXT_LIMIT,
     _ai_usage_window_sql, _support_ticket_row_to_dict, _valid_admin_role,

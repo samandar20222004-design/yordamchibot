@@ -95,7 +95,7 @@ class PostgresPaymeUnitOfWork:
 
     def get_order(self, order_id: str, *, lock: bool = False) -> PaymeOrder | None:
         self.cur.execute(
-            f"SELECT {_ORDER_COLUMNS} FROM payme_orders WHERE order_id = %s"
+            f"SELECT {_ORDER_COLUMNS} FROM payme_orders WHERE order_id = %s"  # nosec B608 — jadval/ustun nomlari kod-konstanta; qiymatlar parametrlangan
             + (" FOR UPDATE" if lock else ""),
             (order_id,),
         )
@@ -103,7 +103,7 @@ class PostgresPaymeUnitOfWork:
 
     def get_transaction(self, payme_id: str, *, lock: bool = False) -> PaymeTransaction | None:
         self.cur.execute(
-            f"SELECT {_TX_COLUMNS} FROM payme_transactions WHERE payme_transaction_id = %s"
+            f"SELECT {_TX_COLUMNS} FROM payme_transactions WHERE payme_transaction_id = %s"  # nosec B608 — jadval/ustun nomlari kod-konstanta; qiymatlar parametrlangan
             + (" FOR UPDATE" if lock else ""),
             (payme_id,),
         )
@@ -111,7 +111,7 @@ class PostgresPaymeUnitOfWork:
 
     def get_active_transaction_for_order(self, order_id: str) -> PaymeTransaction | None:
         self.cur.execute(
-            f"SELECT {_TX_COLUMNS} FROM payme_transactions "
+            f"SELECT {_TX_COLUMNS} FROM payme_transactions "  # nosec B608 — jadval/ustun nomlari kod-konstanta; qiymatlar parametrlangan
             "WHERE order_id = %s AND state IN (1, 2) ORDER BY id LIMIT 1 FOR UPDATE",
             (order_id,),
         )
@@ -197,7 +197,7 @@ class PostgresPaymeUnitOfWork:
 
     def list_transactions(self, from_ms: int, to_ms: int) -> list[PaymeTransaction]:
         self.cur.execute(
-            f"SELECT {_TX_COLUMNS} FROM payme_transactions "
+            f"SELECT {_TX_COLUMNS} FROM payme_transactions "  # nosec B608 — jadval/ustun nomlari kod-konstanta; qiymatlar parametrlangan
             "WHERE payme_time BETWEEN %s AND %s ORDER BY payme_time, id",
             (int(from_ms), int(to_ms)),
         )

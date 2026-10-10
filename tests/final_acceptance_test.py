@@ -228,7 +228,10 @@ def test_promo_redemption_live(db_mod):
 
     t1 = threading.Thread(target=redeem, args=(user_a, "a"))
     t2 = threading.Thread(target=redeem, args=(user_b, "b"))
-    t1.start(); t2.start(); t1.join(); t2.join()
+    t1.start()
+    t2.start()
+    t1.join()
+    t2.join()
     wins = [k for k, (ok, _m) in results.items() if ok]
     check("LIVE 2 parallel redemptiondan FAQAT BITTASI yutadi", len(wins) == 1, str(results))
 

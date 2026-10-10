@@ -215,7 +215,7 @@ def test_router():
         check(f"zanjir chuqur zaxiralar bilan tugaydi ({order[-1]})",
               order[-1] == "Pollinations", str(order[-3:]))
     check("hech qanday takroriy provayder yo'q (har lane'da noyob)",
-          all(len(set(provider_order(l))) == len(provider_order(l)) for l in Lane))
+          all(len(set(provider_order(lbl))) == len(provider_order(lbl)) for lbl in Lane))
 
     # 1g) FAST lane — Fast Path siyosati: qat'iy timeout + kesh default.
     check("FAST: kesh default YOQIQ (Fast Path)",

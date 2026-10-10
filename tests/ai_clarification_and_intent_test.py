@@ -182,7 +182,7 @@ from keyboards.callback_data import (                     # noqa: E402
     CALLBACK_DATA_MAX_BYTES, is_callback_safe,
 )
 from services.ai.prompts import (                         # noqa: E402
-    FORBIDDEN_FLUFF_PHRASES, FORMAT_SYSTEMS, QUALITY_RULES,
+    FORBIDDEN_FLUFF_PHRASES, FORMAT_SYSTEMS, QUALITY_RULES,  # noqa: F401
     build_format_system, detect_post_format, format_hint_line,
     has_concrete_details, is_sales_topic, map_format_to_magic_style,
     needs_clarification, scan_text_for_fluff, should_ask_sales_params,

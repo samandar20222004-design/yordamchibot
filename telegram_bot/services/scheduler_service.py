@@ -44,7 +44,7 @@ from database import (
     mark_post_delivery_verify_pending,
     DELIVERY_BACKOFF_SECONDS,
     DELIVERY_MAX_ATTEMPTS,
-    DELIVERY_VERIFY_MARKER,
+    DELIVERY_VERIFY_MARKER,  # noqa: F401
 )
 
 logger = logging.getLogger(__name__)

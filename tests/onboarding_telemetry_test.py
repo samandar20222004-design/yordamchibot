@@ -384,7 +384,6 @@ def test_hooks():
     # (a) /start: yangi foydalanuvchi → record_start chaqiriladi.
     tel.reset()
     recorded = []
-    original_record = start_mod.__dict__.get("record_start", None)
     original = {
         "run_db": db_mod.run_db, "peek_profile": start_mod.peek_profile,
         "check_user_subscribed": start_mod.check_user_subscribed,

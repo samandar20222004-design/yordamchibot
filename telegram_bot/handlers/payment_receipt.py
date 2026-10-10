@@ -39,7 +39,7 @@ from keyboards.callback_data import (  # noqa: E402 — modul boshidagi importla
     cb,
 )
 # 6-bosqich: chek tasdiqlash/rad etish — 'manage_payments' ruxsati.
-from services.rbac_service import (
+from services.rbac_service import (  # noqa: E402
     PERM_MANAGE_PAYMENTS, has_permission,
     CallbackTampering, admin_callback_guard,
 )

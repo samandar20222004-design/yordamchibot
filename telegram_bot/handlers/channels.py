@@ -10,7 +10,7 @@ from keyboards.default import (
     is_menu_text, tone_from_text, tone_labels,
 )
 from keyboards.callback_data import (
-    CB_CHANNEL_VOICE, CB_CHANNEL_ADVICE, CB_SET_STYLE, cb,
+    CB_CHANNEL_VOICE, CB_CHANNEL_ADVICE, CB_SET_STYLE, cb,  # noqa: F401
 )
 from keyboards.inline import (
     render_channel_panel, render_channel_settings, render_channels_list,

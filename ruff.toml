@@ -1,0 +1,17 @@
+# ============================================================================
+# Ruff — CI lint darvozasining yagona konfiguratsiyasi (ci.yml va
+# scripts/security_check.sh shu faylni ishlatadi). Standart qoidalar
+# (E4, E7, E9, F) to'liq MAJBURIY. Faqat quyidagi ataylab istisnolar:
+#
+#   E402 tests/*  — har bir test fayli import'dan OLDIN os.environ / sys.path
+#                   ni sozlaydi (BOT_TOKEN, DATABASE_URL va h.k.). Bu tartib
+#                   testlar uchun zarur.
+#   E402 (database.py, handlers/*) — fasad/re-export importlari circular
+#                   import oldini olish uchun ataylab pastda; har biri
+#                   "# noqa: E402" bilan izohlangan.
+# ============================================================================
+[lint]
+select = ["E4", "E7", "E9", "F"]
+
+[lint.per-file-ignores]
+"tests/*" = ["E402"]

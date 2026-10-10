@@ -108,7 +108,7 @@ def _delete_batch(table: str, where_sql: str, params: tuple,
     """
     assert table in _TABLES_WHITELIST, table
     sql = (
-        f"WITH victims AS ("
+        f"WITH victims AS ("  # nosec B608 — jadval `assert table in _TABLES_WHITELIST` bilan tekshiriladi
         f"    SELECT id FROM {table} WHERE {where_sql} "
         f"    ORDER BY {order_by} LIMIT %s FOR UPDATE SKIP LOCKED"
         f") "

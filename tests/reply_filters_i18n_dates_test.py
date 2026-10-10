@@ -403,7 +403,7 @@ def test_relative_day_labels():
     check("ru uzoq sana — lotin oy nomi EMAS", "Сент" in format_list_datetime(far, "ru", now).title()
           or "сент" in format_list_datetime(far, "ru", now), format_list_datetime(far, "ru", now))
     check("dt_today/dt_tomorrow kalitlari 3 tilda bor",
-          all(has_key("dt_today", l) and has_key("dt_tomorrow", l) for l in LANGS))
+          all(has_key("dt_today", lbl) and has_key("dt_tomorrow", lbl) for lbl in LANGS))
     check("kiritish bo'sh bo'lsa — bo'sh satr", format_list_datetime(None, "en", now) == "")
 
 
@@ -595,7 +595,7 @@ def test_photo_check_is_trilingual():
     # Qaror xabarlari ham uchala tilda va HTML teglar bilan.
     for key in ("pc_approved_admin", "pc_rejected_admin", "pc_pro_granted", "pc_reject_notice",
                 "pc_no_permission", "pc_bad_callback", "pc_db_error"):
-        values = {l: get_text(key, l) for l in LANGS}
+        values = {lbl: get_text(key, lbl) for lbl in LANGS}
         check(f"{key} — 3 tilda to'liq va farqli",
               all(v.strip() and v != key for v in values.values()), str(values))
         check(f"{key} — uz/en qiymatlari bir xil emas",
@@ -612,7 +612,7 @@ def test_ai_vision_messages_localized():
     print("== 14. Vision (rasm tahlili) xabarlari tillarga mos ==")
     from handlers.ai_assistant import AI_PHOTO_UNAVAILABLE_MSG, _photo_unavailable_msg
 
-    msgs = {l: _photo_unavailable_msg(l) for l in LANGS}
+    msgs = {lbl: _photo_unavailable_msg(lbl) for lbl in LANGS}
     check("ai_photo_unavailable[en] inglizcha", "AI couldn't analyze" in msgs["en"], msgs["en"])
     check("ai_photo_unavailable[ru] ruscha", "ИИ не смог" in msgs["ru"], msgs["ru"])
     check("ai_photo_unavailable[uz] o'zbekcha", "rasmni tahlil qila olmadi" in msgs["uz"])
@@ -621,7 +621,7 @@ def test_ai_vision_messages_localized():
     check("noma'lum til → standart til (crash yo'q)", _photo_unavailable_msg("de") == msgs["uz"])
     # Kalitlar topilmasa xabarning o'rnida kalit ko'rinib qolmasin.
     for key in ("ai_photo_unavailable", "ai_target_all_line", "ai_target_all_name"):
-        check(f"{key} 3 tilda mavjud", all(has_key(key, l) for l in LANGS))
+        check(f"{key} 3 tilda mavjud", all(has_key(key, lbl) for lbl in LANGS))
     check("ai_target_all_line[en] HTML bilan",
           "<b>" in get_text("ai_target_all_line", "en") and "All connected channels" in get_text("ai_target_all_line", "en"))
     check("AI klaviaturasi tugmalari ham 3 tilda routing'da",
@@ -643,7 +643,7 @@ def test_translation_parity_intact():
     # Yangi qo'shilgan kalitlar ham ro'yxatda bo'lsin.
     for key in ("dt_today", "dt_tomorrow", "pc_sent_user", "pc_admin_caption",
                 "pc_btn_approve", "pc_btn_reject", "ai_photo_unavailable"):
-        check(f"yangi kalit mavjud: {key}", all(has_key(key, l) for l in LANGS))
+        check(f"yangi kalit mavjud: {key}", all(has_key(key, lbl) for lbl in LANGS))
     # EN tugma yorliqlari o'zbekcha qoldiq bo'lmasin.
     for key in ("btn_new_post", "btn_settings", "btn_pending", "btn_queue", "np_btn_time_5m"):
         en, uz = get_text(key, "en"), get_text(key, "uz")

@@ -556,8 +556,8 @@ def test_button_labels():
 
     labels = build_channel_labels([("-1001", "Kanal A"), ("-1002", "Kanal A"), ("-1003", "")])
     check("takroriy nomlar farqlanadi", len(labels) == 3, str(labels))
-    check("barcha yorliqlar bo'sh emas", all(l.strip() for l in labels), str(labels))
-    check("takroriy nomga ID qo'shiladi", any("-1002" in l for l in labels), str(labels))
+    check("barcha yorliqlar bo'sh emas", all(lbl.strip() for lbl in labels), str(labels))
+    check("takroriy nomga ID qo'shiladi", any("-1002" in lbl for lbl in labels), str(labels))
 
 
 def test_smart_reply_ad_async():
@@ -2936,7 +2936,7 @@ def test_reaction_toggle_keyboard_and_normalize():
     check("toggle kb: 1-emoji qator 3 ta", len(rows[0]) == 3)
     check("toggle kb: 2-emoji qator 3 ta", len(rows[1]) == 3)
     labels = [b.text for row in rows for b in row]
-    check("toggle kb: barcha 6 emoji bor", all(any(str(l).startswith(e) for l in labels) for e in REACTION_EMOJIS), str(labels))
+    check("toggle kb: barcha 6 emoji bor", all(any(str(lbl).startswith(e) for lbl in labels) for e in REACTION_EMOJIS), str(labels))
     cbs = [b.callback_data for row in rows for b in row]
     for emoji in REACTION_EMOJIS:
         check(f"toggle cb: {emoji}", f"{CB_REACT_TOGGLE}{emoji}" in cbs)
@@ -4131,7 +4131,7 @@ def test_post_enhancer_batch_and_preview_runtime():
         check("runtime: 5 ta reaksiya bo'ldi", enh["reactions"] == ["👍", "❤️", "🔥", "👏", "🎉"],
               str(enh["reactions"]))
         check("runtime: yangi prevyu xabari YUBORILMADI",
-              enh["preview_msg_id"] == first_preview_id == None, str(enh["preview_msg_id"]))
+              enh["preview_msg_id"] == first_preview_id and first_preview_id is None, str(enh["preview_msg_id"]))
         check("runtime: panel qayta render qilinadi",
               len(bot.sent_of("send_message")) == before + 1
               and any(c[0] == "delete_message" and c[2] == old_hub_id for c in bot.calls),
@@ -5771,7 +5771,7 @@ def test_channel_add_autodetect_no_hang_suite():
         check(f"{label}: foydalanuvchiga javob yuboriladi", len(replies) >= 1, str(replies))
 
     # Muvaffaqiyatli ulanishda aniq matn: "✅ Kanal muvaffaqiyatli ulandi!"
-    fwd_replies = [r for (l, s, r) in results if l == "forward"][0]
+    fwd_replies = [r for (lbl, s, r) in results if lbl == "forward"][0]
     check("forward: '✅ Kanal muvaffaqiyatli ulandi!' xabari",
           any("Kanal muvaffaqiyatli ulandi" in r for r in fwd_replies), str(fwd_replies))
 
@@ -6095,7 +6095,7 @@ def test_cabinet_i18n_suite():
     import sys as _sys
     from pathlib import Path
     from locales.translations import get_text, localize_db_message, TRANSLATIONS
-    from keyboards.default import get_main_keyboard, get_cabinet_keyboard, get_cancel_keyboard, exact, BTN_CHANNELS, BTN_CHANNELS_RU, BTN_CONVERTER, BTN_CONVERTER_RU, BTN_DAILY_BONUS, BTN_DAILY_BONUS_RU, BTN_INVITE, BTN_INVITE_RU, BTN_TRANSFER, BTN_TRANSFER_RU, BTN_BACK, BTN_BACK_RU, BTN_CANCEL, BTN_CANCEL_RU, BTN_PREMIUM_RU, BTN_SETTINGS_RU
+    from keyboards.default import get_main_keyboard, get_cabinet_keyboard, get_cancel_keyboard, exact, BTN_CHANNELS, BTN_CHANNELS_RU, BTN_CONVERTER, BTN_CONVERTER_RU, BTN_DAILY_BONUS, BTN_DAILY_BONUS_RU, BTN_INVITE, BTN_INVITE_RU, BTN_TRANSFER, BTN_TRANSFER_RU, BTN_BACK, BTN_BACK_RU, BTN_CANCEL, BTN_CANCEL_RU, BTN_PREMIUM_RU, BTN_SETTINGS_RU  # noqa: F401
     from keyboards.inline import (
         get_cabinet_inline_keyboard, get_cabinet_back_keyboard,
         get_channels_manage_keyboard, render_channels_list, no_channels_hint,
@@ -6338,7 +6338,7 @@ def test_i18n_uz_ru():
         get_text, detect_language, normalize_lang, clear_fsm_data,
         SUPPORTED_LANGS, DEFAULT_LANG,
     )
-    from keyboards.default import get_main_keyboard, exact, exact_i18n, BTN_NEW_POST, BTN_NEW_POST_RU, BTN_PREMIUM_RU, BTN_SETTINGS, BTN_SETTINGS_RU, BTN_CREATE_CONTENT, BTN_CREATE_CONTENT_RU, BTN_MY_CHANNELS, BTN_MY_CHANNELS_RU, BTN_SCHEDULED_RU, BTN_STATISTICS_RU, BTN_INVITE_FRIENDS_RU
+    from keyboards.default import get_main_keyboard, exact, exact_i18n, BTN_NEW_POST, BTN_NEW_POST_RU, BTN_PREMIUM_RU, BTN_SETTINGS, BTN_SETTINGS_RU, BTN_CREATE_CONTENT, BTN_CREATE_CONTENT_RU, BTN_MY_CHANNELS, BTN_MY_CHANNELS_RU, BTN_SCHEDULED_RU, BTN_STATISTICS_RU, BTN_INVITE_FRIENDS_RU  # noqa: F401
     from keyboards.inline import get_language_keyboard
     import database as db_mod
     from pathlib import Path

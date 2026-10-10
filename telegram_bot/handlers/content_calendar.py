@@ -25,9 +25,11 @@ def normalize_items(items, days):
     """Keep only bounded, dictionary-shaped AI output; pad nothing silently."""
     result = []
     for item in items if isinstance(items, list) else []:
-        if not isinstance(item, dict): continue
+        if not isinstance(item, dict):
+            continue
         result.append({"rubric": str(item.get("rubric", "Foydali maslahat"))[:120], "topic": str(item.get("topic", item.get("title", "")))[:240], "tip": str(item.get("tip", item.get("idea", "")))[:400]})
-        if len(result) >= days: break
+        if len(result) >= days:
+            break
     return result
 
 def render_calendar(items, business, lang="uz"):

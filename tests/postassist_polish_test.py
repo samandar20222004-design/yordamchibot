@@ -355,25 +355,25 @@ def test_4_static_label_18_char_standard():
           str(total))
     check("barcha statik yorliqlar ≤18 belgi (imtiyozli ro'yxatdan tashqari)",
           not offenders,
-          "; ".join(f"{m}:{k}={l!r}({n})" for m, k, l, n in offenders[:8]))
+          "; ".join(f"{m}:{k}={lbl!r}({n})" for m, k, lbl, n in offenders[:8]))
 
     # KANONIK KLAVIATURALARDA RENDERED yorliqlar (statik ma'lumot bilan) ≤18.
     from telegram import InlineKeyboardMarkup
     from keyboards.inline import (
         get_admin_dashboard_keyboard, get_admin_monitoring_keyboard,
         get_ai_studio_keyboard, get_ai_studio_plan_keyboard,
-        get_ai_photo_keyboard, get_ai_back_keyboard, get_ai_tone_keyboard,
+        get_ai_photo_keyboard, get_ai_back_keyboard, get_ai_tone_keyboard,  # noqa: F401
         get_ai_confirm_keyboard, get_cache_actions_keyboard,
-        get_channels_manage_keyboard, get_close_keyboard,
+        get_channels_manage_keyboard, get_close_keyboard,  # noqa: F401
         get_duplicate_warning_keyboard, get_extras_inline_keyboard,
-        get_help_keyboard, get_language_keyboard, get_manual_post_panel,
+        get_help_keyboard, get_language_keyboard, get_manual_post_panel,  # noqa: F401
         get_manual_reaction_keyboard, get_manual_channel_keyboard,
         get_payment_region_keyboard, get_referral_share_keyboard,
         get_settings_profile_keyboard, get_settings_back_keyboard,
         get_settings_rewards_keyboard, get_settings_help_hub_keyboard,
         get_support_ticket_keyboard, get_subscription_check_keyboard,
         get_sponsors_delete_keyboard, get_admin_sponsors_keyboard,
-        get_hub_back_keyboard, get_ad_hub_keyboard, get_ad_pool_menu_keyboard,
+        get_hub_back_keyboard, get_ad_hub_keyboard, get_ad_pool_menu_keyboard,  # noqa: F401
         get_ad_interval_keyboard, get_ad_pool_back_keyboard,
         get_user_stats_keyboard, get_user_overview_keyboard,
         render_channels_list, render_my_channels_list, render_channel_panel,
@@ -445,7 +445,7 @@ def test_4_static_label_18_char_standard():
                     rendered_off.append((name, b.text, vlen(b.text)))
     check(f"kanonik klaviaturalarda {rendered_total} rendered yorliq ≤18",
           not rendered_off,
-          "; ".join(f"{n}:{t!r}({l})" for n, t, l in rendered_off[:8]))
+          "; ".join(f"{n}:{t!r}({lbl})" for n, t, lbl in rendered_off[:8]))
 
 
 def main() -> int:

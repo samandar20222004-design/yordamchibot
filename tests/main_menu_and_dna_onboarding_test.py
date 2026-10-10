@@ -97,7 +97,7 @@ def header(letter, title):
 import keyboards.callback_data as CB                     # noqa: E402
 import keyboards.default as KD                            # noqa: E402
 import keyboards.inline as KI                             # noqa: E402
-import handlers as H                                      # noqa: E402
+import handlers as H                                      # noqa: E402, F401
 import handlers.channels as HC                            # noqa: E402
 import handlers.statistics as ST                          # noqa: E402
 from locales.translations import get_text, safe_t         # noqa: E402

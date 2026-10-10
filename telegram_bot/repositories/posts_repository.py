@@ -251,11 +251,14 @@ def update_post_time(post_id: int, new_time, recurrence_time=None, user_id: int 
             owner_clause = "" if is_admin else " AND user_id = %s"
             params = [new_time]
             if recurrence_time:
-                query = "UPDATE scheduled_posts SET scheduled_time = %s, recurrence_time = %s WHERE id = %s"; params = [new_time, recurrence_time, post_id]
+                query = "UPDATE scheduled_posts SET scheduled_time = %s, recurrence_time = %s WHERE id = %s"
+                params = [new_time, recurrence_time, post_id]
             else:
-                query = "UPDATE scheduled_posts SET scheduled_time = %s WHERE id = %s"; params = [new_time, post_id]
+                query = "UPDATE scheduled_posts SET scheduled_time = %s WHERE id = %s"
+                params = [new_time, post_id]
             query += owner_clause
-            if not is_admin: params.append(user_id)
+            if not is_admin:
+                params.append(user_id)
             cur.execute(query, tuple(params))
             return cur.rowcount > 0
     except Exception as e:
@@ -300,7 +303,7 @@ def update_post_content(post_id: int, user_id: int,
         if not sets:
             return False
 
-        query = f"UPDATE scheduled_posts SET {', '.join(sets)} WHERE id = %s AND status = 'pending'"
+        query = f"UPDATE scheduled_posts SET {', '.join(sets)} WHERE id = %s AND status = 'pending'"  # nosec B608 — jadval/ustun nomlari kod-konstanta; qiymatlar parametrlangan
         params.append(post_id)
         if not is_admin:
             query += " AND user_id = %s"
@@ -672,7 +675,7 @@ def get_channel_post_stats(user_id: int, channel_id: str = None) -> dict:
 
             # (1) BARCHA davr COUNT'lari — BITTA so'rov (conditional aggregation).
             q = (
-                f"SELECT "
+                f"SELECT "  # nosec B608 — jadval/ustun nomlari kod-konstanta; qiymatlar parametrlangan
                 f"COUNT(*) FILTER (WHERE sp.status = 'posted' "
                 f"  AND sp.scheduled_time >= NOW() - INTERVAL '7 days') AS sent_7d, "
                 f"COUNT(*) FILTER (WHERE sp.status = 'posted' "
@@ -694,7 +697,7 @@ def get_channel_post_stats(user_id: int, channel_id: str = None) -> dict:
             #     `GROUPING(...)` ustuni qaysi guruhlash to'plamidan kelganini
             #     ko'rsatadi (1 = bu so'rovda hisoblanmagan).
             q = (
-                f"SELECT EXTRACT(HOUR FROM sp.scheduled_time)::int AS hour_bucket, "
+                f"SELECT EXTRACT(HOUR FROM sp.scheduled_time)::int AS hour_bucket, "  # nosec B608 — jadval/ustun nomlari kod-konstanta; qiymatlar parametrlangan
                 f"sp.post_type AS post_type, "
                 f"GROUPING(EXTRACT(HOUR FROM sp.scheduled_time)::int) AS hour_grouped, "
                 f"GROUPING(sp.post_type) AS type_grouped, "

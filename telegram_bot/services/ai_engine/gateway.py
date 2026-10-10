@@ -1101,7 +1101,7 @@ def gateway_status(monitor=None) -> dict:
             "default_timeout": spec.default_timeout,
             "cache_by_default": spec.cache_by_default,
             "provider_order": list(spec.provider_order),
-            "tasks": sorted(t for t, l in TASK_LANES.items() if l is lane),
+            "tasks": sorted(t for t, lbl in TASK_LANES.items() if lbl is lane),
         }
     try:
         # PHASE 6: xarajat/telemetriya ko'rsatkichlari (jarayon davomida).

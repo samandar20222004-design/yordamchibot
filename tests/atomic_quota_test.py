@@ -898,8 +898,8 @@ def test_service_adapter():
           aq.is_quota_exhausted({"reason": "insufficient_balance",
                                  "used": 2, "max_ai": 10}) is False)
     check("vaqtinchalik xato matni 3 tilda ham bor (hardcode yo'q)",
-          all(aq.ai_quota_temp_error_text(l) for l in ("uz", "ru", "en"))
-          and len({aq.ai_quota_temp_error_text(l) for l in ("uz", "ru", "en")}) == 3)
+          all(aq.ai_quota_temp_error_text(lbl) for lbl in ("uz", "ru", "en"))
+          and len({aq.ai_quota_temp_error_text(lbl) for lbl in ("uz", "ru", "en")}) == 3)
 
     # 8i) HAQIQIY adapter + HAQIQIY tranzaksiya kodi + handler konteksti:
     # reserve_for_flow bron ID'sini kontekstga yozadi, take_reservation_id

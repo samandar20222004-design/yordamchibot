@@ -204,11 +204,13 @@ USD_UZS_RATE = _int_env("USD_UZS_RATE", 12600)
 # BETA_INVITE_ONLY=true  → yangi foydalanuvchi faqat taklif kodi yoki admin
 #                          tasdig'i bilan kiradi (mavjud foydalanuvchilar
 #                          uzluksiz ishlayveradi);
-# BETA_INVITE_ONLY=false → odatiy ochiq rejim (standart, fail-safe: noto'g'ri
+# BETA_INVITE_ONLY=false → ochiq rejim (faqat aniq "false" qo'yilganda; noto'g'ri
 #                          qiymat ham "ochiq" deb o'qiladi — beta rejimi
 #                          tasodifan yoqilib qolmasin).
+# STANDART (env berilmasa): true — CLOSED BETA. Ommaviy ochilish faqat
+# admin tomonidan BETA_INVITE_ONLY=false qilinganda amalga oshadi.
 # BETA_MAX_USERS — beta o'rinlari soni (30–50 kanal egasi uchun; 0 = cheksiz).
-BETA_INVITE_ONLY = _env_flag("BETA_INVITE_ONLY", False)
+BETA_INVITE_ONLY = _env_flag("BETA_INVITE_ONLY", True)
 BETA_MAX_USERS = _int_env("BETA_MAX_USERS", 50)
 
 # --- FAZA 25: Update handler va fon vazifalari uchun timeout chegaralari ---

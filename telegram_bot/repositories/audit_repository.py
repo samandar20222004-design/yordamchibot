@@ -889,22 +889,20 @@ def get_ai_usage_report(user_id=None, channel_id=None, period: str = "daily",
     def _fetch(cur, group_sql: str, order_sql: str = "estimated_cost DESC"):
         """Guruhlangan agregat (provider/model/task/lane/kun)."""
         cur.execute(
-            f"""
-            SELECT {group_sql},
-                   COUNT(*) AS requests,
-                   COUNT(*) FILTER (WHERE status = 'success') AS successes,
-                   COUNT(*) FILTER (WHERE status = 'failed') AS failures,
-                   COUNT(*) FILTER (WHERE cached) AS cache_hits,
-                   COALESCE(SUM(input_tokens), 0) AS input_tokens,
-                   COALESCE(SUM(output_tokens), 0) AS output_tokens,
-                   COALESCE(SUM(estimated_cost), 0) AS estimated_cost,
-                   COALESCE(AVG(latency_ms), 0) AS avg_latency_ms
-              FROM ai_usage_events
-             WHERE {where_sql} {window}
-             GROUP BY {group_sql}
-             ORDER BY {order_sql}
-             LIMIT %s
-            """,
+            f"SELECT {group_sql}, "  # nosec B608 — group_sql faqat kod-konstanta; qiymatlar parametrlangan
+            "COUNT(*) AS requests, "
+            "COUNT(*) FILTER (WHERE status = 'success') AS successes, "
+            "COUNT(*) FILTER (WHERE status = 'failed') AS failures, "
+            "COUNT(*) FILTER (WHERE cached) AS cache_hits, "
+            "COALESCE(SUM(input_tokens), 0) AS input_tokens, "
+            "COALESCE(SUM(output_tokens), 0) AS output_tokens, "
+            "COALESCE(SUM(estimated_cost), 0) AS estimated_cost, "
+            "COALESCE(AVG(latency_ms), 0) AS avg_latency_ms "
+            "FROM ai_usage_events "
+            f"WHERE {where_sql} {window} "
+            f"GROUP BY {group_sql} "
+            f"ORDER BY {order_sql} "
+            "LIMIT %s",
             (*params, safe_limit),
         )
         return cur.fetchall()
@@ -940,20 +938,18 @@ def get_ai_usage_report(user_id=None, channel_id=None, period: str = "daily",
             by_day = (_grouped(cur, "DATE_TRUNC('day', created_at)::date", "1 ASC")
                       if safe_period == "monthly" else {})
             cur.execute(
-                f"""
-                SELECT COUNT(*),
-                       COUNT(*) FILTER (WHERE status = 'success'),
-                       COUNT(*) FILTER (WHERE status = 'failed'),
-                       COUNT(*) FILTER (WHERE cached),
-                       COALESCE(SUM(input_tokens), 0),
-                       COALESCE(SUM(output_tokens), 0),
-                       COALESCE(SUM(estimated_cost), 0),
-                       COALESCE(AVG(latency_ms), 0),
-                       COUNT(*) FILTER (WHERE status = 'success' AND priced AND NOT cached),
-                       COUNT(*) FILTER (WHERE status = 'success' AND (NOT priced OR cached))
-                  FROM ai_usage_events
-                 WHERE {where_sql} {window}
-                """,
+                f"SELECT COUNT(*), "  # nosec B608 — ustun ifodalari kod-konstanta; qiymatlar parametrlangan
+                "COUNT(*) FILTER (WHERE status = 'success'), "
+                "COUNT(*) FILTER (WHERE status = 'failed'), "
+                "COUNT(*) FILTER (WHERE cached), "
+                "COALESCE(SUM(input_tokens), 0), "
+                "COALESCE(SUM(output_tokens), 0), "
+                "COALESCE(SUM(estimated_cost), 0), "
+                "COALESCE(AVG(latency_ms), 0), "
+                "COUNT(*) FILTER (WHERE status = 'success' AND priced AND NOT cached), "
+                "COUNT(*) FILTER (WHERE status = 'success' AND (NOT priced OR cached)) "
+                "FROM ai_usage_events "
+                f"WHERE {where_sql} {window}",
                 tuple(params),
             )
             totals_row = cur.fetchone() or (0,) * 10

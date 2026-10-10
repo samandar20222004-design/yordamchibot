@@ -342,7 +342,7 @@ def test_ui_compactness_and_i18n():
     check("magic_post i18n pariteti in_sync (yangi kalitlar 3 tilda)", rep["in_sync"] is True, str(rep))
     for key in ("mp_btn_rewrite", "mp_btn_back"):
         check(f"{key} 3 tilda mavjud",
-              all(key in MAGIC_POST_I18N[l] for l in LANGS))
+              all(key in MAGIC_POST_I18N[lbl] for lbl in LANGS))
 
 
 # ============================================================================
