@@ -2206,795 +2206,49 @@ def _schema_bootstrap_complete(cur) -> bool:
 
 
 def _init_db_once():
+    """Bazani bir marta ishga tushirishda tayyorlaydi (idempotent).
+
+    MONOLIT DEKOMPOZITSIYASI: ilgari bu funksiya 801 qator edi — kanonik
+    ``schema.sql`` qo'llanilgach, zaxira sifatida 700+ qatorlik ichki DDL
+    bitta funksiya tanasida ketma-ket yozilgan edi. Endi har bir DOMEN
+    alohida ``_ddl_*`` funksiyada; bu funksiya faqat TARTIBNI boshqaradi:
+
+    1. ``_apply_schema_file`` — kanonik sxema (schema.sql);
+    2. TEZ YO'L: sxema allaqachon to'liq bo'lsa (eng keng tarqalgan holat —
+       har bir oddiy restart/deploy) zaxira DDL BUTUNLAY o'tkazib yuboriladi
+       va faqat yengil ``_verify_schema`` ishlaydi;
+    3. zaxira DDL domen funksiyalari (schema.sql yo'q/buzilgan bo'lsa);
+    4. integritet indekslari/cheklovlari, analitika indekslari va
+       ``_verify_schema``.
+
+    Bajarilish TARTIBI va SQL matnlari O'ZGARMAGAN — bu faqat tuzilma
+    refaktoringi (barcha operatorlar idempotent, shuning uchun tartib
+    muhim, va u saqlangan).
+    """
     with db_cursor(commit=True) as cur:
         # 1) Kanonik sxema — schema.sql (barcha operatorlar idempotent).
         _apply_schema_file(cur)
 
-        # 1b) P1 PERFORMANCE (SPRINT 2): sxema allaqachon to'liq bo'lsa (eng
+        # 2) P1 PERFORMANCE (SPRINT 2): sxema allaqachon to'liq bo'lsa (eng
         # keng tarqalgan holat — har bir oddiy restart/deploy), 700+
-        # qatorlik zaxira DDL blokini (quyida) BUTUNLAY o'tkazib yuboramiz —
+        # qatorlik zaxira DDL blokini BUTUNLAY o'tkazib yuboramiz —
         # faqat yengil final tekshiruv (``_verify_schema``) ishlaydi.
         if _schema_bootstrap_complete(cur):
             _verify_schema(cur)
             return
 
-        # 2) Zaxira ichki DDL: schema.sql fayli topilmasa yoki buzilgan bo'lsa
-        # ham baza ishlayverishi uchun saqlanadi.
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS users (
-                user_id BIGINT PRIMARY KEY,
-                username VARCHAR(255),
-                full_name VARCHAR(255),
-                user_code VARCHAR(8) UNIQUE,
-                referrer_id BIGINT,
-                ai_credits INTEGER DEFAULT 5,
-                ad_free_posts INTEGER DEFAULT 0,
-                ad_free_active BOOLEAN DEFAULT TRUE,
-                streak_days INTEGER DEFAULT 0,
-                last_bonus_date DATE,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                last_active_at TIMESTAMP WITH TIME ZONE,
-                full_menu_unlocked BOOLEAN DEFAULT FALSE
-            );
-        """)
-        
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS channels (
-                id SERIAL PRIMARY KEY,
-                user_id BIGINT NOT NULL,
-                channel_id VARCHAR(255) UNIQUE NOT NULL,
-                channel_title VARCHAR(255),
-                is_active BOOLEAN DEFAULT TRUE,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-        """)
-        
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS sponsor_channels (
-                id SERIAL PRIMARY KEY,
-                channel_id BIGINT UNIQUE,
-                title TEXT,
-                username TEXT,
-                invite_link TEXT,
-                channel_title VARCHAR(255),
-                channel_url VARCHAR(255),
-                is_active BOOLEAN DEFAULT TRUE,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-        """)
-        
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS system_settings (
-                key VARCHAR(100) PRIMARY KEY,
-                value TEXT
-            );
-        """)
+        # 3) Zaxira ichki DDL: schema.sql fayli topilmasa yoki buzilgan bo'lsa
+        # ham baza ishlayverishi uchun saqlanadi (domen bo'yicha bo'lingan).
+        _ddl_core_tables(cur)
+        _ddl_ads_and_posts(cur)
+        _ddl_promo_and_history(cur)
+        _ddl_payments(cur)
+        _ddl_user_settings_and_migrations(cur)
+        _ddl_indexes_admin_credits(cur)
+        _ddl_ai_and_intelligence(cur)
+        _ddl_dna_templates_sources(cur)
+        _ddl_team_and_support(cur)
 
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS bot_settings (
-                key VARCHAR(100) PRIMARY KEY,
-                value TEXT
-            );
-        """)
-
-        # Avtomatik reklama rotatsiya puli. Har bir reklama (kanal posti yoki
-        # bot javobi uchun) alohida qator; bot navbatma-navbat (round-robin)
-        # ishlatadi. scope: 'channel' | 'reply'.
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS ad_pool (
-                id SERIAL PRIMARY KEY,
-                scope VARCHAR(20) NOT NULL,
-                text TEXT NOT NULL,
-                button_text VARCHAR(64),
-                button_url TEXT,
-                is_active BOOLEAN DEFAULT TRUE,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-        """)
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_ad_pool_scope ON ad_pool (scope, is_active);")
-
-        # Har bir kanal uchun yuborilgan postlar sanagichi (reklama oralig'i
-        # shu sanagich bo'yicha hisoblanadi — kanallar bir-biriga ta'sir qilmaydi).
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS channel_post_counters (
-                channel_id VARCHAR(255) PRIMARY KEY,
-                post_count INTEGER NOT NULL DEFAULT 0,
-                ad_count INTEGER NOT NULL DEFAULT 0,
-                last_ad_post_number INTEGER NOT NULL DEFAULT 0,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-        """)
-        cur.execute(
-            "CREATE INDEX IF NOT EXISTS idx_channel_post_counters_updated "
-            "ON channel_post_counters (updated_at DESC);"
-        )
-
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS scheduled_posts (
-                id SERIAL PRIMARY KEY,
-                user_id BIGINT NOT NULL,
-                channel_id VARCHAR(255) NOT NULL,
-                post_type VARCHAR(50) NOT NULL,
-                content TEXT,
-                file_id TEXT,
-                inline_button_text VARCHAR(255),
-                inline_button_url TEXT,
-                enable_reactions BOOLEAN DEFAULT FALSE,
-                reaction_emojis TEXT,
-                delete_after_hours INTEGER DEFAULT 0,
-                sent_message_id BIGINT,
-                scheduled_time TIMESTAMP WITH TIME ZONE NOT NULL,
-                status VARCHAR(50) DEFAULT 'pending',
-                user_post_number INTEGER,
-                recurrence_type VARCHAR(20) DEFAULT 'none',
-                recurrence_day INTEGER,
-                recurrence_time TIME,
-                end_date TIMESTAMP WITH TIME ZONE,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-        """)
-
-        # P0-01: doimiy, DB-backed delivery idempotency registry.
-        # PostAssist V2 (3-bosqich): backoff uchun next_retry_at va kalit
-        # tarkibidagi scheduled_time ustunlari qo'shildi.
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS post_deliveries (
-                id BIGSERIAL PRIMARY KEY,
-                post_id BIGINT NOT NULL,
-                channel_id BIGINT NOT NULL,
-                status VARCHAR(20) NOT NULL DEFAULT 'pending',
-                attempt_count INT DEFAULT 0,
-                telegram_message_id BIGINT,
-                idempotency_key TEXT UNIQUE NOT NULL,
-                last_error TEXT,
-                scheduled_time TIMESTAMPTZ,
-                next_retry_at TIMESTAMPTZ,
-                created_at TIMESTAMPTZ DEFAULT NOW(),
-                updated_at TIMESTAMPTZ DEFAULT NOW()
-            );
-        """)
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_deliveries_sched ON post_deliveries(status, post_id);")
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_deliveries_retry ON post_deliveries(status, next_retry_at);")
-
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS post_reactions (
-                id SERIAL PRIMARY KEY,
-                post_id INTEGER NOT NULL,
-                user_id BIGINT NOT NULL,
-                reaction_type VARCHAR(10) NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE(post_id, user_id)
-            );
-        """)
-        # Har bir recurring yuborishni alohida saqlaymiz: eski xabarlar ham o'chadi.
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS sent_post_messages (
-                id SERIAL PRIMARY KEY,
-                post_id INTEGER NOT NULL,
-                channel_id VARCHAR(255) NOT NULL,
-                message_id BIGINT NOT NULL,
-                delete_at TIMESTAMP WITH TIME ZONE,
-                deleted_at TIMESTAMP WITH TIME ZONE
-            );
-        """)
-
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS promo_codes (
-                id SERIAL PRIMARY KEY,
-                code VARCHAR(50) UNIQUE NOT NULL,
-                plan_type VARCHAR(20) NOT NULL DEFAULT 'pro',
-                duration_days INTEGER NOT NULL DEFAULT 30,
-                max_uses INTEGER DEFAULT NULL,
-                current_uses INTEGER DEFAULT 0,
-                is_active BOOLEAN DEFAULT TRUE,
-                expires_at TIMESTAMPTZ,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-        """)
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS promo_redemptions (
-                id BIGSERIAL PRIMARY KEY,
-                promo_id BIGINT NOT NULL,
-                user_id BIGINT NOT NULL,
-                redeemed_at TIMESTAMPTZ DEFAULT NOW(),
-                CONSTRAINT uq_promo_user UNIQUE (promo_id, user_id)
-            );
-        """)
-
-        # Real vaqtli kanal postlari tarixi
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS channel_posts_history (
-                id SERIAL PRIMARY KEY,
-                channel_id VARCHAR(255) NOT NULL,
-                message_id BIGINT,
-                content TEXT,
-                views INTEGER DEFAULT 0,
-                post_date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-            );
-        """)
-        cur.execute(
-            "CREATE INDEX IF NOT EXISTS idx_channel_posts_history_channel_date "
-            "ON channel_posts_history (channel_id, post_date DESC);"
-        )
-
-        # Stars to'lovlari uchun alohida audit jadvali.
-        # To'lovlar promo_codes jadvaliga yozilmaydi — har bir to'lov o'z
-        # qatori bilan audit qilinadi (summa, valyuta, payload, charge_id).
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS payments (
-                id SERIAL PRIMARY KEY,
-                user_id BIGINT,
-                amount INT,
-                currency VARCHAR(10),
-                payload TEXT,
-                telegram_payment_charge_id TEXT UNIQUE,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                status VARCHAR(20) NOT NULL DEFAULT 'succeeded',
-                payment_method VARCHAR(32) NOT NULL DEFAULT 'international_stars'
-            );
-        """)
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_payments_user_id ON payments (user_id);")
-        cur.execute(
-            "CREATE UNIQUE INDEX IF NOT EXISTS uq_payments_telegram_charge_id "
-            "ON payments (telegram_payment_charge_id) "
-            "WHERE telegram_payment_charge_id IS NOT NULL;"
-        )
-
-        # 💳 Karta orqali to'lov cheklari — Admin Approval Flow.
-        # Foydalanuvchi chek yuborganida pending holatida saqlanadi, adminlarga
-        # yuboriladi. Admin tasdiqlaganda status='approved' + PRO uzaytiriladi.
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS payment_receipts (
-                id SERIAL PRIMARY KEY,
-                user_id BIGINT NOT NULL,
-                username VARCHAR(255),
-                full_name VARCHAR(255),
-                language_code VARCHAR(10) DEFAULT 'uz',
-                media_type VARCHAR(20) DEFAULT 'photo',
-                file_id TEXT,
-                caption TEXT,
-                status VARCHAR(20) DEFAULT 'pending',
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                reviewed_at TIMESTAMP WITH TIME ZONE,
-                decided_by BIGINT,
-                days_granted INTEGER DEFAULT 30,
-                amount_uzs INT DEFAULT 0
-            );
-        """)
-        cur.execute(
-            "CREATE INDEX IF NOT EXISTS idx_payment_receipts_status "
-            "ON payment_receipts (status, created_at);"
-        )
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS payment_orders (
-                order_id TEXT PRIMARY KEY,
-                user_id BIGINT NOT NULL,
-                plan VARCHAR(20) NOT NULL,
-                days INTEGER NOT NULL,
-                amount INT NOT NULL,
-                currency VARCHAR(10) NOT NULL DEFAULT 'UZS',
-                status VARCHAR(20) NOT NULL DEFAULT 'pending',
-                receipt_id INTEGER,
-                created_at TIMESTAMPTZ DEFAULT NOW(),
-                expires_at TIMESTAMPTZ
-            );
-        """)
-        cur.execute(
-            "CREATE INDEX IF NOT EXISTS idx_payment_orders_user "
-            "ON payment_orders (user_id, status);"
-        )
-        cur.execute(
-            "ALTER TABLE payment_receipts ADD COLUMN IF NOT EXISTS order_id TEXT;"
-        )
-
-        # ⚙️ SOZLAMALAR (PostAssist V2, 5-mikro qadam): foydalanuvchining
-        # shaxsiy sozlamalari (🔔 Bildirishnomalar / 🎨 Post sozlamalari).
-        # Kalitlar handler tomonida OQ RO'YXAT bilan cheklanadi — jadvalga
-        # faqat ma'lum kalitlar yoziladi.
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS user_settings (
-                user_id BIGINT NOT NULL,
-                key VARCHAR(64) NOT NULL,
-                value BOOLEAN NOT NULL DEFAULT FALSE,
-                updated_at TIMESTAMPTZ DEFAULT NOW(),
-                PRIMARY KEY (user_id, key)
-            );
-        """)
-
-        migrations = [
-            # P0 backward-compatible migrations (har bir statement savepoint bilan bajariladi).
-            "ALTER TABLE payments ADD COLUMN IF NOT EXISTS telegram_payment_charge_id TEXT UNIQUE;",
-            "ALTER TABLE promo_codes ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ;",
-            "ALTER TABLE users ADD COLUMN IF NOT EXISTS full_name VARCHAR(255);",
-            "ALTER TABLE users ADD COLUMN IF NOT EXISTS user_code VARCHAR(8) UNIQUE;",
-            "ALTER TABLE users ADD COLUMN IF NOT EXISTS referrer_id BIGINT;",
-            "ALTER TABLE users ADD COLUMN IF NOT EXISTS ai_credits INTEGER DEFAULT 5;",
-            "ALTER TABLE users ADD COLUMN IF NOT EXISTS ad_free_posts INTEGER DEFAULT 0;",
-            "ALTER TABLE users ADD COLUMN IF NOT EXISTS ad_free_active BOOLEAN DEFAULT TRUE;",
-            "ALTER TABLE users ADD COLUMN IF NOT EXISTS streak_days INTEGER DEFAULT 0;",
-            "ALTER TABLE users ADD COLUMN IF NOT EXISTS last_bonus_date DATE;",
-            "ALTER TABLE users ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;",
-            "ALTER TABLE users ADD COLUMN IF NOT EXISTS last_active_at TIMESTAMP WITH TIME ZONE;",
-            "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS inline_button_text VARCHAR(255);",
-            "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS inline_button_url TEXT;",
-            "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS enable_reactions BOOLEAN DEFAULT FALSE;",
-            "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS reaction_emojis TEXT;",
-            "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS delete_after_hours INTEGER DEFAULT 0;",
-            "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS sent_message_id BIGINT;",
-            "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS user_post_number INTEGER;",
-            "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS recurrence_type VARCHAR(20) DEFAULT 'none';",
-            "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS recurrence_day INTEGER;",
-            "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS recurrence_time TIME;",
-            "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS end_date TIMESTAMP WITH TIME ZONE;",
-            "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;",
-            "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS processing_started_at TIMESTAMP WITH TIME ZONE;",
-            "ALTER TABLE scheduled_posts ALTER COLUMN file_id TYPE TEXT;",
-            "ALTER TABLE channels ADD COLUMN IF NOT EXISTS tone_of_voice VARCHAR(30) DEFAULT 'friendly';",
-            "ALTER TABLE users ADD COLUMN IF NOT EXISTS plan_type VARCHAR(20) DEFAULT 'free';",
-            "ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_expires_at TIMESTAMP WITH TIME ZONE;",
-            "ALTER TABLE users ADD COLUMN IF NOT EXISTS stars_subscription_state VARCHAR(16);",
-            "ALTER TABLE users ADD COLUMN IF NOT EXISTS ai_requests_today INTEGER DEFAULT 0;",
-            "ALTER TABLE users ADD COLUMN IF NOT EXISTS last_limit_reset DATE DEFAULT CURRENT_DATE;",
-            "ALTER TABLE users ADD COLUMN IF NOT EXISTS language_code VARCHAR(10) DEFAULT 'uz';",
-            # 🆕 Onboarding: "⚙️ To'liq menyuni ochish" bosilganini eslab qolamiz
-            "ALTER TABLE users ADD COLUMN IF NOT EXISTS full_menu_unlocked BOOLEAN DEFAULT FALSE;",
-            # 🆕 6-bosqich (RBAC): foydalanuvchi roli. DEFAULT 'user' — barcha
-            # eski yozuvlar oddiy foydalanuvchi bo'lib qoladi (backward-compatible).
-            "ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(20) DEFAULT 'user';",
-            "ALTER TABLE sponsor_channels ADD COLUMN IF NOT EXISTS title TEXT;",
-            "ALTER TABLE sponsor_channels ADD COLUMN IF NOT EXISTS username TEXT;",
-            "ALTER TABLE sponsor_channels ADD COLUMN IF NOT EXISTS invite_link TEXT;",
-            "ALTER TABLE sponsor_channels ADD COLUMN IF NOT EXISTS channel_title VARCHAR(255);",
-            "ALTER TABLE sponsor_channels ADD COLUMN IF NOT EXISTS channel_url VARCHAR(255);",
-            "ALTER TABLE sponsor_channels ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;",
-            # Reklama puli: HTML matn + inline URL tugma (matn va havola).
-            "ALTER TABLE ad_pool ADD COLUMN IF NOT EXISTS button_text VARCHAR(64);",
-            "ALTER TABLE ad_pool ADD COLUMN IF NOT EXISTS button_url TEXT;",
-            "ALTER TABLE ad_pool ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;",
-            # Kanal postlari tarixi migratsiyalari
-            "ALTER TABLE channel_posts_history ADD COLUMN IF NOT EXISTS message_id BIGINT;",
-            "ALTER TABLE channel_posts_history ADD COLUMN IF NOT EXISTS content TEXT;",
-            "ALTER TABLE channel_posts_history ADD COLUMN IF NOT EXISTS views INTEGER DEFAULT 0;",
-            "ALTER TABLE channel_posts_history ADD COLUMN IF NOT EXISTS post_date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;",
-            "ALTER TABLE channel_posts_history ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;",
-            # PostAssist V2 (3-bosqich): persistent delivery + backoff ustunlari.
-            "ALTER TABLE post_deliveries ADD COLUMN IF NOT EXISTS scheduled_time TIMESTAMPTZ;",
-            "ALTER TABLE post_deliveries ADD COLUMN IF NOT EXISTS next_retry_at TIMESTAMPTZ;",
-            # PostAssist V2 (5-bosqich): to'lov audit holati + idx_payments_user
-            # (user_id, status) shu ustun bilan quriladi. DEFAULT tufayli eski
-            # yozuvlar ham 'succeeded' hisoblanadi (ma'lumot o'zgarmaydi).
-            "ALTER TABLE payments ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'succeeded';",
-            # 💳 To'lov mintaqasi/usuli (hududiy tanlov — tilga bog'liq EMAS):
-            # 'uzcard_humo' (🇺🇿 UZS) | 'international_stars' (🌍 XTR).
-            # ADD COLUMN + DEFAULT: eski (Stars) yozuvlar xuddi shu nom bilan
-            # migratsiyasiz to'g'ri hisoblanadi.
-            "ALTER TABLE payments ADD COLUMN IF NOT EXISTS payment_method VARCHAR(32) NOT NULL DEFAULT 'international_stars';",
-            # 🇺🇿 Karta cheki uchun so'mdagi summa — ledger'ga to'g'ri valyuta
-            # bilan yozish uchun (eski cheklar: 0 — hisob kitobi buzilmaydi).
-            "ALTER TABLE payment_receipts ADD COLUMN IF NOT EXISTS amount_uzs INT DEFAULT 0;",
-            "ALTER TABLE payment_receipts ADD COLUMN IF NOT EXISTS order_id TEXT;",
-            # PHASE E — approval metadata (additive; existing single-owner rows unchanged).
-            "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS delivery_options JSONB NOT NULL DEFAULT '{}'::jsonb;",
-            "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS created_by BIGINT;",
-            "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS approval_requested_at TIMESTAMPTZ;",
-            "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS approved_by BIGINT;",
-            "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS approved_at TIMESTAMPTZ;",
-            "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS rejection_reason TEXT;",
-        ]
-        for index, migration in enumerate(migrations):
-            # Bitta migration xatosi qolgan migrationlarni transaction aborted
-            # holatiga tushirib qo'ymasligi uchun har birini savepoint bilan bajarish.
-            savepoint = f"migration_{index}"
-            try:
-                cur.execute(f"SAVEPOINT {savepoint}")
-                cur.execute(migration)
-                cur.execute(f"RELEASE SAVEPOINT {savepoint}")
-            except Exception as e:
-                cur.execute(f"ROLLBACK TO SAVEPOINT {savepoint}")
-                cur.execute(f"RELEASE SAVEPOINT {savepoint}")
-                logger.warning(f"Migratsiya eslatmasi: {e}")
-
-        # Server crash paytida processing holatida qolgan postlarni qayta navbatga qaytaramiz (idempotent himoya bilan).
-        cur.execute("""
-            UPDATE scheduled_posts
-            SET status = 'posted'
-            WHERE status = 'processing'
-              AND (sent_message_id IS NOT NULL 
-                   OR id IN (SELECT post_id FROM sent_post_messages));
-        """)
-        cur.execute("""
-            UPDATE scheduled_posts
-            SET status = 'pending', processing_started_at = NULL
-            WHERE status = 'processing'
-              AND sent_message_id IS NULL
-              AND id NOT IN (SELECT post_id FROM sent_post_messages)
-              AND processing_started_at < NOW() - INTERVAL '10 minutes';
-        """)
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_scheduled_posts_status_time ON scheduled_posts (status, scheduled_time);")
-        # Eng ko'p ishlatiladigan foydalanuvchi/post qidiruvlari uchun indekslar.
-        # users.user_id PRIMARY KEY bo'lgani uchun u yerda indeks avtomatik mavjud.
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_scheduled_posts_user_id ON scheduled_posts (user_id);")
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_channels_user_id ON channels (user_id);")
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_post_reactions_post_id ON post_reactions (post_id);")
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_channel_posts_history_channel_date ON channel_posts_history (channel_id, post_date DESC);")
-
-        # 2b) PostAssist V2 (6-bosqich): RBAC rollari va admin auditi.
-        # schema.sql fayli topilmasa ham bu jadvallar albatta yaratiladi.
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS admin_roles (
-                user_id BIGINT PRIMARY KEY,
-                role VARCHAR(20) NOT NULL DEFAULT 'admin',
-                granted_by BIGINT,
-                granted_at TIMESTAMPTZ DEFAULT NOW(),
-                updated_at TIMESTAMPTZ DEFAULT NOW()
-            );
-        """)
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS admin_audit_logs (
-                id BIGSERIAL PRIMARY KEY,
-                admin_id BIGINT NOT NULL,
-                action VARCHAR(64) NOT NULL,
-                target_type VARCHAR(64),
-                target_id VARCHAR(64),
-                old_value JSONB,
-                new_value JSONB,
-                ip_or_metadata JSONB,
-                created_at TIMESTAMPTZ DEFAULT NOW()
-            );
-        """)
-        cur.execute(
-            "CREATE INDEX IF NOT EXISTS idx_audit_admin "
-            "ON admin_audit_logs(admin_id, created_at);"
-        )
-
-        # 💰 PostAssist V2 (8-bosqich): credits ledger — AI-ballar auditi.
-        # schema.sql fayli topilmasa ham bu jadval albatta yaratiladi.
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS credits_ledger (
-                id BIGSERIAL PRIMARY KEY,
-                user_id BIGINT NOT NULL,
-                amount INT NOT NULL,
-                balance_after INT NOT NULL,
-                operation_type VARCHAR(32) NOT NULL,
-                reference_id TEXT,
-                created_at TIMESTAMPTZ DEFAULT NOW()
-            );
-        """)
-        cur.execute(
-            "CREATE INDEX IF NOT EXISTS idx_ledger_user "
-            "ON credits_ledger(user_id, created_at);"
-        )
-
-        # 🔒 PHASE 2 / 1-qadam: AI so'rov bronlari (atomik kvota + kredit).
-        # ``reserve_ai_request()`` kunlik kvota YOKI kreditni BITTA
-        # tranzaksiyada band qiladi; ``refund_ai_request()`` esa bronni ID
-        # bo'yicha IDEMPOTENT qaytaradi. schema.sql fayli topilmasa ham bu
-        # jadval albatta yaratiladi (aks holda barcha AI oqimi fail-closed
-        # rad etardi).
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS ai_reservations (
-                id BIGSERIAL PRIMARY KEY,
-                user_id BIGINT NOT NULL,
-                operation_type VARCHAR(32) NOT NULL,
-                cost INT NOT NULL DEFAULT 1,
-                source VARCHAR(16) NOT NULL,
-                status VARCHAR(16) NOT NULL DEFAULT 'active',
-                created_at TIMESTAMPTZ DEFAULT NOW(),
-                refunded_at TIMESTAMPTZ,
-                CONSTRAINT chk_ai_reservations_source
-                    CHECK (source IN ('daily_quota', 'credit')),
-                CONSTRAINT chk_ai_reservations_status
-                    CHECK (status IN ('active', 'refunded')),
-                CONSTRAINT chk_ai_reservations_cost CHECK (cost > 0)
-            );
-        """)
-        cur.execute(
-            "CREATE INDEX IF NOT EXISTS idx_ai_reservations_user "
-            "ON ai_reservations(user_id, created_at);"
-        )
-
-        # 🧾 PHASE 6 — AI xarajat/telemetriya jurnali. schema.sql fayli
-        # topilmasa ham bu jadval albatta yaratiladi (aks holda xarajat
-        # hisoboti va limit nazorati ko'r bo'lib qolardi). Barcha operatorlar
-        # IF NOT EXISTS — qayta-qayta bajarish xavfsiz.
-        cur.execute('''
-            CREATE TABLE IF NOT EXISTS ai_usage_events (
-                id BIGSERIAL PRIMARY KEY,
-                user_id BIGINT,
-                channel_id BIGINT,
-                task VARCHAR(64) NOT NULL DEFAULT '',
-                lane VARCHAR(16) NOT NULL DEFAULT '',
-                operation_type VARCHAR(32) NOT NULL DEFAULT '',
-                provider VARCHAR(32) NOT NULL DEFAULT 'none',
-                model VARCHAR(64) NOT NULL DEFAULT '',
-                input_tokens INT NOT NULL DEFAULT 0,
-                output_tokens INT NOT NULL DEFAULT 0,
-                latency_ms INT NOT NULL DEFAULT 0,
-                estimated_cost NUMERIC(12, 6) NOT NULL DEFAULT 0,
-                priced BOOLEAN NOT NULL DEFAULT FALSE,
-                status VARCHAR(16) NOT NULL DEFAULT 'failed',
-                error_code VARCHAR(64),
-                cached BOOLEAN NOT NULL DEFAULT FALSE,
-                attempts INT NOT NULL DEFAULT 0,
-                prompt_hash VARCHAR(32) NOT NULL DEFAULT '',
-                reservation_id BIGINT,
-                created_at TIMESTAMPTZ DEFAULT NOW(),
-                CONSTRAINT chk_ai_usage_status
-                    CHECK (status IN ('success', 'failed'))
-            );
-        ''')
-        cur.execute(
-            "CREATE INDEX IF NOT EXISTS idx_ai_usage_user_time "
-            "ON ai_usage_events(user_id, created_at DESC);"
-        )
-        cur.execute(
-            "CREATE INDEX IF NOT EXISTS idx_ai_usage_channel_time "
-            "ON ai_usage_events(channel_id, created_at DESC);"
-        )
-
-        # 🧠 PHASE A — Channel Intelligence baza poydevori (idempotent).
-        # schema.sql fayli topilmasa ham bu jadvallar albatta yaratiladi
-        # (aks holda analytics/audit oqimi ishlamasdi). Barcha CREATE TABLE
-        # va indekslar IF NOT EXISTS — qayta-qayta bajarish xavfsiz.
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS channel_intelligence_profiles (
-                channel_id VARCHAR(255) PRIMARY KEY,
-                tone VARCHAR(64),
-                avg_post_length INT,
-                emoji_level VARCHAR(32),
-                cta_style VARCHAR(64),
-                formatting_style VARCHAR(64),
-                top_topics JSONB,
-                confidence INT,
-                sample_size INT,
-                updated_at TIMESTAMPTZ DEFAULT NOW()
-            );
-        """)
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS channel_post_events (
-                id SERIAL PRIMARY KEY,
-                channel_id VARCHAR(255) NOT NULL,
-                message_id BIGINT,
-                post_hour INT,
-                post_weekday INT,
-                has_media BOOLEAN,
-                media_type VARCHAR(32),
-                media_file_id VARCHAR(255),
-                length INT,
-                cta_detected BOOLEAN,
-                emoji_density DOUBLE PRECISION,
-                created_at TIMESTAMPTZ DEFAULT NOW(),
-                CONSTRAINT uq_channel_post_events UNIQUE (channel_id, message_id)
-            );
-        """)
-        # PHASE B: eski (Phase A) bazalar uchun yangi ustunlar — idempotent.
-        # Media fayllarning O'ZI bazaga saqlanmaydi — faqat file_id va turi.
-        cur.execute("ALTER TABLE channel_intelligence_profiles "
-                    "ADD COLUMN IF NOT EXISTS formatting_style VARCHAR(64);")
-        cur.execute("ALTER TABLE channel_post_events "
-                    "ADD COLUMN IF NOT EXISTS media_type VARCHAR(32);")
-        cur.execute("ALTER TABLE channel_post_events "
-                    "ADD COLUMN IF NOT EXISTS media_file_id VARCHAR(255);")
-        cur.execute("ALTER TABLE channel_post_events "
-                    "ADD COLUMN IF NOT EXISTS emoji_density DOUBLE PRECISION;")
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS channel_insights (
-                id SERIAL PRIMARY KEY,
-                channel_id VARCHAR(255) NOT NULL,
-                insight_type VARCHAR(64),
-                text TEXT,
-                severity VARCHAR(32),
-                created_at TIMESTAMPTZ DEFAULT NOW(),
-                is_dismissed BOOLEAN DEFAULT FALSE
-            );
-        """)
-        cur.execute(
-            "CREATE INDEX IF NOT EXISTS idx_channel_post_events_channel "
-            "ON channel_post_events (channel_id);"
-        )
-        cur.execute(
-            "CREATE INDEX IF NOT EXISTS idx_channel_post_events_created "
-            "ON channel_post_events (created_at DESC);"
-        )
-        cur.execute(
-            "CREATE INDEX IF NOT EXISTS idx_channel_insights_channel "
-            "ON channel_insights (channel_id);"
-        )
-        cur.execute(
-            "CREATE INDEX IF NOT EXISTS idx_channel_insights_dismissed "
-            "ON channel_insights (is_dismissed);"
-        )
-
-        # 🧬 FAZA 8,9,22 — KENGAYTIRILGAN CHANNEL DNA (channel_dna)
-        # Har bir metrika: language, tone, topics, avg_length, emoji_density,
-        # best_hours, best_weekdays, high_performing_formats — profile JSONB da
-        # sample_size, confidence, updated_at bilan saqlanadi.
-        # Idempotent: CREATE TABLE IF NOT EXISTS + indekslar IF NOT EXISTS.
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS channel_dna (
-                channel_id VARCHAR(255) PRIMARY KEY,
-                language VARCHAR(16),
-                tone VARCHAR(32),
-                topics JSONB,
-                avg_length INTEGER,
-                emoji_density DOUBLE PRECISION,
-                best_hours JSONB,
-                best_weekdays JSONB,
-                high_performing_formats JSONB,
-                sample_size INTEGER,
-                confidence DOUBLE PRECISION,
-                profile JSONB DEFAULT '{}'::jsonb,
-                updated_at TIMESTAMPTZ DEFAULT NOW()
-            );
-        """)
-        # Eski bazalar uchun yangi ustunlar (idempotent)
-        cur.execute("ALTER TABLE channel_dna ADD COLUMN IF NOT EXISTS language VARCHAR(16);")
-        cur.execute("ALTER TABLE channel_dna ADD COLUMN IF NOT EXISTS tone VARCHAR(32);")
-        cur.execute("ALTER TABLE channel_dna ADD COLUMN IF NOT EXISTS topics JSONB;")
-        cur.execute("ALTER TABLE channel_dna ADD COLUMN IF NOT EXISTS avg_length INTEGER;")
-        cur.execute("ALTER TABLE channel_dna ADD COLUMN IF NOT EXISTS emoji_density DOUBLE PRECISION;")
-        cur.execute("ALTER TABLE channel_dna ADD COLUMN IF NOT EXISTS best_hours JSONB;")
-        cur.execute("ALTER TABLE channel_dna ADD COLUMN IF NOT EXISTS best_weekdays JSONB;")
-        cur.execute("ALTER TABLE channel_dna ADD COLUMN IF NOT EXISTS high_performing_formats JSONB;")
-        cur.execute("ALTER TABLE channel_dna ADD COLUMN IF NOT EXISTS sample_size INTEGER;")
-        cur.execute("ALTER TABLE channel_dna ADD COLUMN IF NOT EXISTS confidence DOUBLE PRECISION;")
-        cur.execute("ALTER TABLE channel_dna ADD COLUMN IF NOT EXISTS profile JSONB DEFAULT '{}'::jsonb;")
-        cur.execute("ALTER TABLE channel_dna ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();")
-        cur.execute(
-            "CREATE INDEX IF NOT EXISTS idx_channel_dna_channel "
-            "ON channel_dna (channel_id);"
-        )
-        cur.execute(
-            "CREATE INDEX IF NOT EXISTS idx_channel_dna_updated "
-            "ON channel_dna (updated_at DESC);"
-        )
-
-        # 📋 PHASE C — POST SHABLONLARI (7/9/10-bandlar refaktori).
-        # Foydalanuvchining takroriy post shablonlari: variables JSONB'da
-        # {TITLE}/{TEXT}/{PRICE}/{LINK}/{CTA}/{SOURCE}/{DATE} ro'yxati
-        # saqlanadi. Barcha so'rovlar user_id bilan filtrlanadi (IDOR).
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS post_templates (
-                id SERIAL PRIMARY KEY,
-                user_id BIGINT NOT NULL,
-                channel_id VARCHAR(255),
-                name VARCHAR(128) NOT NULL,
-                content TEXT NOT NULL,
-                variables JSONB DEFAULT '{}'::jsonb,
-                created_at TIMESTAMPTZ DEFAULT NOW()
-            );
-        """)
-        cur.execute(
-            "CREATE INDEX IF NOT EXISTS idx_post_templates_user "
-            "ON post_templates (user_id, created_at DESC);"
-        )
-
-        # 📥 PHASE D — KONTENT MANBALARI (11, 12-bandlar): RSS/ATOM manbalari,
-        # o'qilgan elementlar (dublikat kaliti UNIQUE(source_id, external_id))
-        # va Channel DNA asosidagi post qoralamalari (source_drafts).
-        # Barcha jadvallar idempotent va foydalanuvchi izolyatsiyasi bilan.
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS content_sources (
-                id SERIAL PRIMARY KEY,
-                user_id BIGINT,
-                channel_id VARCHAR(255),
-                source_url TEXT,
-                title TEXT,
-                enabled BOOLEAN DEFAULT TRUE,
-                interval_minutes INT DEFAULT 60,
-                autopublish BOOLEAN DEFAULT FALSE,
-                last_checked_at TIMESTAMPTZ,
-                created_at TIMESTAMPTZ DEFAULT NOW()
-            );
-        """)
-        cur.execute(
-            "CREATE INDEX IF NOT EXISTS idx_content_sources_user "
-            "ON content_sources (user_id, created_at DESC);"
-        )
-        cur.execute(
-            "CREATE INDEX IF NOT EXISTS idx_content_sources_due "
-            "ON content_sources (enabled, last_checked_at);"
-        )
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS source_items (
-                id SERIAL PRIMARY KEY,
-                source_id INT REFERENCES content_sources(id) ON DELETE CASCADE,
-                external_id TEXT,
-                canonical_url TEXT,
-                title TEXT,
-                summary TEXT,
-                processed_at TIMESTAMPTZ,
-                created_at TIMESTAMPTZ DEFAULT NOW(),
-                UNIQUE(source_id, external_id)
-            );
-        """)
-        cur.execute(
-            "CREATE INDEX IF NOT EXISTS idx_source_items_source "
-            "ON source_items (source_id, created_at DESC);"
-        )
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS source_drafts (
-                id SERIAL PRIMARY KEY,
-                source_id INT REFERENCES content_sources(id) ON DELETE CASCADE,
-                source_item_id INT REFERENCES source_items(id) ON DELETE CASCADE,
-                user_id BIGINT,
-                channel_id VARCHAR(255),
-                title TEXT,
-                content TEXT,
-                status VARCHAR(20) DEFAULT 'pending',
-                scheduled_post_id INT,
-                created_at TIMESTAMPTZ DEFAULT NOW(),
-                UNIQUE(source_item_id)
-            );
-        """)
-        cur.execute(
-            "CREATE INDEX IF NOT EXISTS idx_source_drafts_user "
-            "ON source_drafts (user_id, status, created_at DESC);"
-        )
-
-        # PHASE E — schema.sql fallback: team membership and aggregate audience
-        # insights must still exist if an operator accidentally deploys without
-        # the canonical schema file.
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS channel_members (
-                id SERIAL PRIMARY KEY,
-                channel_id VARCHAR(255) NOT NULL,
-                user_id BIGINT NOT NULL,
-                role VARCHAR(20) NOT NULL,
-                created_at TIMESTAMPTZ DEFAULT NOW(),
-                UNIQUE(channel_id, user_id),
-                CONSTRAINT chk_channel_members_role
-                    CHECK (role IN ('owner', 'editor', 'scheduler', 'analyst'))
-            );
-        """)
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_channel_members_channel ON channel_members (channel_id, role);")
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_channel_members_user ON channel_members (user_id, channel_id);")
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS channel_comment_insights (
-                id BIGSERIAL PRIMARY KEY,
-                channel_id VARCHAR(255) NOT NULL,
-                question_hash CHAR(64) NOT NULL,
-                category VARCHAR(32) NOT NULL DEFAULT 'general',
-                occurrence_count INTEGER NOT NULL DEFAULT 0,
-                first_seen_at TIMESTAMPTZ DEFAULT NOW(),
-                last_seen_at TIMESTAMPTZ DEFAULT NOW(),
-                UNIQUE(channel_id, question_hash)
-            );
-        """)
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_comment_insights_channel ON channel_comment_insights (channel_id, occurrence_count DESC);")
-
-        # 💬 4-QISM — schema.sql fallback: qo'llab-quvvatlash murojaatlari va
-        # admin javoblarini bog'lovchi jadvallar kanonik sxema fayli
-        # qo'llanilmagan holatda ham mavjud bo'lishi shart.
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS support_tickets (
-                id SERIAL PRIMARY KEY,
-                user_id BIGINT NOT NULL,
-                username VARCHAR(64),
-                message_text TEXT NOT NULL,
-                has_media BOOLEAN NOT NULL DEFAULT FALSE,
-                status VARCHAR(16) NOT NULL DEFAULT 'new',
-                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                answered_at TIMESTAMPTZ,
-                answered_by BIGINT
-            );
-        """)
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS support_ticket_deliveries (
-                id SERIAL PRIMARY KEY,
-                ticket_id INT NOT NULL REFERENCES support_tickets(id) ON DELETE CASCADE,
-                admin_chat_id BIGINT NOT NULL,
-                admin_message_id BIGINT NOT NULL,
-                delivered_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                UNIQUE (admin_chat_id, admin_message_id)
-            );
-        """)
-
-        # 3) PostAssist V2 (5-bosqich): scheduler tezligi uchun kompozit indekslar
-        # va jadvallararo FK/CHECK/UNIQUE constraintlar. Ikkalasi ham idempotent
-        # va ma'lumotni o'zgartirmaydi (tafsilot: ``build_integrity_block``).
         _apply_integrity_indexes(cur)
         _apply_integrity_constraints(cur)
 
@@ -3209,3 +2463,876 @@ from repositories.audit_repository import (  # noqa: F401
     log_admin_action, mark_support_ticket_answered, purge_ai_usage_events,
     save_ai_usage_event, set_admin_role
 )
+
+
+
+def _ddl_core_tables(cur):
+    """Asosiy jadvallar: users, channels, sponsor_channels, system/bot_settings.
+
+    Zaxira (fallback) DDL: ``schema.sql`` topilmasa yoki buzilgan bo'lsa
+    ham baza ishlayverishi uchun. Barcha operatorlar idempotent
+    (``IF NOT EXISTS``).
+    """
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            user_id BIGINT PRIMARY KEY,
+            username VARCHAR(255),
+            full_name VARCHAR(255),
+            user_code VARCHAR(8) UNIQUE,
+            referrer_id BIGINT,
+            ai_credits INTEGER DEFAULT 5,
+            ad_free_posts INTEGER DEFAULT 0,
+            ad_free_active BOOLEAN DEFAULT TRUE,
+            streak_days INTEGER DEFAULT 0,
+            last_bonus_date DATE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            last_active_at TIMESTAMP WITH TIME ZONE,
+            full_menu_unlocked BOOLEAN DEFAULT FALSE
+        );
+    """)
+        
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS channels (
+            id SERIAL PRIMARY KEY,
+            user_id BIGINT NOT NULL,
+            channel_id VARCHAR(255) UNIQUE NOT NULL,
+            channel_title VARCHAR(255),
+            is_active BOOLEAN DEFAULT TRUE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+    """)
+        
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS sponsor_channels (
+            id SERIAL PRIMARY KEY,
+            channel_id BIGINT UNIQUE,
+            title TEXT,
+            username TEXT,
+            invite_link TEXT,
+            channel_title VARCHAR(255),
+            channel_url VARCHAR(255),
+            is_active BOOLEAN DEFAULT TRUE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+    """)
+        
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS system_settings (
+            key VARCHAR(100) PRIMARY KEY,
+            value TEXT
+        );
+    """)
+
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS bot_settings (
+            key VARCHAR(100) PRIMARY KEY,
+            value TEXT
+        );
+    """)
+
+    # Avtomatik reklama rotatsiya puli. Har bir reklama (kanal posti yoki
+    # bot javobi uchun) alohida qator; bot navbatma-navbat (round-robin)
+    # ishlatadi. scope: 'channel' | 'reply'.
+
+
+
+
+def _ddl_ads_and_posts(cur):
+    """Reklama puli, post sanagichlari va post/delivery/reaksiya jadvallari.
+
+    Zaxira (fallback) DDL: ``schema.sql`` topilmasa yoki buzilgan bo'lsa
+    ham baza ishlayverishi uchun. Barcha operatorlar idempotent
+    (``IF NOT EXISTS``).
+    """
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS ad_pool (
+            id SERIAL PRIMARY KEY,
+            scope VARCHAR(20) NOT NULL,
+            text TEXT NOT NULL,
+            button_text VARCHAR(64),
+            button_url TEXT,
+            is_active BOOLEAN DEFAULT TRUE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+    """)
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_ad_pool_scope ON ad_pool (scope, is_active);")
+
+    # Har bir kanal uchun yuborilgan postlar sanagichi (reklama oralig'i
+    # shu sanagich bo'yicha hisoblanadi — kanallar bir-biriga ta'sir qilmaydi).
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS channel_post_counters (
+            channel_id VARCHAR(255) PRIMARY KEY,
+            post_count INTEGER NOT NULL DEFAULT 0,
+            ad_count INTEGER NOT NULL DEFAULT 0,
+            last_ad_post_number INTEGER NOT NULL DEFAULT 0,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+    """)
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_channel_post_counters_updated "
+        "ON channel_post_counters (updated_at DESC);"
+    )
+
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS scheduled_posts (
+            id SERIAL PRIMARY KEY,
+            user_id BIGINT NOT NULL,
+            channel_id VARCHAR(255) NOT NULL,
+            post_type VARCHAR(50) NOT NULL,
+            content TEXT,
+            file_id TEXT,
+            inline_button_text VARCHAR(255),
+            inline_button_url TEXT,
+            enable_reactions BOOLEAN DEFAULT FALSE,
+            reaction_emojis TEXT,
+            delete_after_hours INTEGER DEFAULT 0,
+            sent_message_id BIGINT,
+            scheduled_time TIMESTAMP WITH TIME ZONE NOT NULL,
+            status VARCHAR(50) DEFAULT 'pending',
+            user_post_number INTEGER,
+            recurrence_type VARCHAR(20) DEFAULT 'none',
+            recurrence_day INTEGER,
+            recurrence_time TIME,
+            end_date TIMESTAMP WITH TIME ZONE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+    """)
+
+    # P0-01: doimiy, DB-backed delivery idempotency registry.
+    # PostAssist V2 (3-bosqich): backoff uchun next_retry_at va kalit
+    # tarkibidagi scheduled_time ustunlari qo'shildi.
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS post_deliveries (
+            id BIGSERIAL PRIMARY KEY,
+            post_id BIGINT NOT NULL,
+            channel_id BIGINT NOT NULL,
+            status VARCHAR(20) NOT NULL DEFAULT 'pending',
+            attempt_count INT DEFAULT 0,
+            telegram_message_id BIGINT,
+            idempotency_key TEXT UNIQUE NOT NULL,
+            last_error TEXT,
+            scheduled_time TIMESTAMPTZ,
+            next_retry_at TIMESTAMPTZ,
+            created_at TIMESTAMPTZ DEFAULT NOW(),
+            updated_at TIMESTAMPTZ DEFAULT NOW()
+        );
+    """)
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_deliveries_sched ON post_deliveries(status, post_id);")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_deliveries_retry ON post_deliveries(status, next_retry_at);")
+
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS post_reactions (
+            id SERIAL PRIMARY KEY,
+            post_id INTEGER NOT NULL,
+            user_id BIGINT NOT NULL,
+            reaction_type VARCHAR(10) NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(post_id, user_id)
+        );
+    """)
+    # Har bir recurring yuborishni alohida saqlaymiz: eski xabarlar ham o'chadi.
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS sent_post_messages (
+            id SERIAL PRIMARY KEY,
+            post_id INTEGER NOT NULL,
+            channel_id VARCHAR(255) NOT NULL,
+            message_id BIGINT NOT NULL,
+            delete_at TIMESTAMP WITH TIME ZONE,
+            deleted_at TIMESTAMP WITH TIME ZONE
+        );
+    """)
+
+
+
+
+def _ddl_promo_and_history(cur):
+    """Promo kodlar, promo aktivatsiyalar va kanal postlari tarixi.
+
+    Zaxira (fallback) DDL: ``schema.sql`` topilmasa yoki buzilgan bo'lsa
+    ham baza ishlayverishi uchun. Barcha operatorlar idempotent
+    (``IF NOT EXISTS``).
+    """
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS promo_codes (
+            id SERIAL PRIMARY KEY,
+            code VARCHAR(50) UNIQUE NOT NULL,
+            plan_type VARCHAR(20) NOT NULL DEFAULT 'pro',
+            duration_days INTEGER NOT NULL DEFAULT 30,
+            max_uses INTEGER DEFAULT NULL,
+            current_uses INTEGER DEFAULT 0,
+            is_active BOOLEAN DEFAULT TRUE,
+            expires_at TIMESTAMPTZ,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+    """)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS promo_redemptions (
+            id BIGSERIAL PRIMARY KEY,
+            promo_id BIGINT NOT NULL,
+            user_id BIGINT NOT NULL,
+            redeemed_at TIMESTAMPTZ DEFAULT NOW(),
+            CONSTRAINT uq_promo_user UNIQUE (promo_id, user_id)
+        );
+    """)
+
+    # Real vaqtli kanal postlari tarixi
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS channel_posts_history (
+            id SERIAL PRIMARY KEY,
+            channel_id VARCHAR(255) NOT NULL,
+            message_id BIGINT,
+            content TEXT,
+            views INTEGER DEFAULT 0,
+            post_date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        );
+    """)
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_channel_posts_history_channel_date "
+        "ON channel_posts_history (channel_id, post_date DESC);"
+    )
+
+    # Stars to'lovlari uchun alohida audit jadvali.
+    # To'lovlar promo_codes jadvaliga yozilmaydi — har bir to'lov o'z
+    # qatori bilan audit qilinadi (summa, valyuta, payload, charge_id).
+
+
+
+
+def _ddl_payments(cur):
+    """To'lovlar: payments, payment_receipts, payment_orders (+indekslar).
+
+    Zaxira (fallback) DDL: ``schema.sql`` topilmasa yoki buzilgan bo'lsa
+    ham baza ishlayverishi uchun. Barcha operatorlar idempotent
+    (``IF NOT EXISTS``).
+    """
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS payments (
+            id SERIAL PRIMARY KEY,
+            user_id BIGINT,
+            amount INT,
+            currency VARCHAR(10),
+            payload TEXT,
+            telegram_payment_charge_id TEXT UNIQUE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            status VARCHAR(20) NOT NULL DEFAULT 'succeeded',
+            payment_method VARCHAR(32) NOT NULL DEFAULT 'international_stars'
+        );
+    """)
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_payments_user_id ON payments (user_id);")
+    cur.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS uq_payments_telegram_charge_id "
+        "ON payments (telegram_payment_charge_id) "
+        "WHERE telegram_payment_charge_id IS NOT NULL;"
+    )
+
+    # 💳 Karta orqali to'lov cheklari — Admin Approval Flow.
+    # Foydalanuvchi chek yuborganida pending holatida saqlanadi, adminlarga
+    # yuboriladi. Admin tasdiqlaganda status='approved' + PRO uzaytiriladi.
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS payment_receipts (
+            id SERIAL PRIMARY KEY,
+            user_id BIGINT NOT NULL,
+            username VARCHAR(255),
+            full_name VARCHAR(255),
+            language_code VARCHAR(10) DEFAULT 'uz',
+            media_type VARCHAR(20) DEFAULT 'photo',
+            file_id TEXT,
+            caption TEXT,
+            status VARCHAR(20) DEFAULT 'pending',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            reviewed_at TIMESTAMP WITH TIME ZONE,
+            decided_by BIGINT,
+            days_granted INTEGER DEFAULT 30,
+            amount_uzs INT DEFAULT 0
+        );
+    """)
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_payment_receipts_status "
+        "ON payment_receipts (status, created_at);"
+    )
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS payment_orders (
+            order_id TEXT PRIMARY KEY,
+            user_id BIGINT NOT NULL,
+            plan VARCHAR(20) NOT NULL,
+            days INTEGER NOT NULL,
+            amount INT NOT NULL,
+            currency VARCHAR(10) NOT NULL DEFAULT 'UZS',
+            status VARCHAR(20) NOT NULL DEFAULT 'pending',
+            receipt_id INTEGER,
+            created_at TIMESTAMPTZ DEFAULT NOW(),
+            expires_at TIMESTAMPTZ
+        );
+    """)
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_payment_orders_user "
+        "ON payment_orders (user_id, status);"
+    )
+    cur.execute(
+        "ALTER TABLE payment_receipts ADD COLUMN IF NOT EXISTS order_id TEXT;"
+    )
+
+    # ⚙️ SOZLAMALAR (PostAssist V2, 5-mikro qadam): foydalanuvchining
+    # shaxsiy sozlamalari (🔔 Bildirishnomalar / 🎨 Post sozlamalari).
+    # Kalitlar handler tomonida OQ RO'YXAT bilan cheklanadi — jadvalga
+    # faqat ma'lum kalitlar yoziladi.
+
+
+
+
+def _ddl_user_settings_and_migrations(cur):
+    """user_settings jadvali va idempotent ALTER migratsiyalari ro'yxati.
+
+    Zaxira (fallback) DDL: ``schema.sql`` topilmasa yoki buzilgan bo'lsa
+    ham baza ishlayverishi uchun. Barcha operatorlar idempotent
+    (``IF NOT EXISTS``).
+    """
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS user_settings (
+            user_id BIGINT NOT NULL,
+            key VARCHAR(64) NOT NULL,
+            value BOOLEAN NOT NULL DEFAULT FALSE,
+            updated_at TIMESTAMPTZ DEFAULT NOW(),
+            PRIMARY KEY (user_id, key)
+        );
+    """)
+
+    migrations = [
+        # P0 backward-compatible migrations (har bir statement savepoint bilan bajariladi).
+        "ALTER TABLE payments ADD COLUMN IF NOT EXISTS telegram_payment_charge_id TEXT UNIQUE;",
+        "ALTER TABLE promo_codes ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ;",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS full_name VARCHAR(255);",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS user_code VARCHAR(8) UNIQUE;",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS referrer_id BIGINT;",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS ai_credits INTEGER DEFAULT 5;",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS ad_free_posts INTEGER DEFAULT 0;",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS ad_free_active BOOLEAN DEFAULT TRUE;",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS streak_days INTEGER DEFAULT 0;",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS last_bonus_date DATE;",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS last_active_at TIMESTAMP WITH TIME ZONE;",
+        "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS inline_button_text VARCHAR(255);",
+        "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS inline_button_url TEXT;",
+        "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS enable_reactions BOOLEAN DEFAULT FALSE;",
+        "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS reaction_emojis TEXT;",
+        "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS delete_after_hours INTEGER DEFAULT 0;",
+        "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS sent_message_id BIGINT;",
+        "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS user_post_number INTEGER;",
+        "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS recurrence_type VARCHAR(20) DEFAULT 'none';",
+        "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS recurrence_day INTEGER;",
+        "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS recurrence_time TIME;",
+        "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS end_date TIMESTAMP WITH TIME ZONE;",
+        "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;",
+        "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS processing_started_at TIMESTAMP WITH TIME ZONE;",
+        "ALTER TABLE scheduled_posts ALTER COLUMN file_id TYPE TEXT;",
+        "ALTER TABLE channels ADD COLUMN IF NOT EXISTS tone_of_voice VARCHAR(30) DEFAULT 'friendly';",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS plan_type VARCHAR(20) DEFAULT 'free';",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_expires_at TIMESTAMP WITH TIME ZONE;",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS stars_subscription_state VARCHAR(16);",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS ai_requests_today INTEGER DEFAULT 0;",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS last_limit_reset DATE DEFAULT CURRENT_DATE;",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS language_code VARCHAR(10) DEFAULT 'uz';",
+        # 🆕 Onboarding: "⚙️ To'liq menyuni ochish" bosilganini eslab qolamiz
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS full_menu_unlocked BOOLEAN DEFAULT FALSE;",
+        # 🆕 6-bosqich (RBAC): foydalanuvchi roli. DEFAULT 'user' — barcha
+        # eski yozuvlar oddiy foydalanuvchi bo'lib qoladi (backward-compatible).
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(20) DEFAULT 'user';",
+        "ALTER TABLE sponsor_channels ADD COLUMN IF NOT EXISTS title TEXT;",
+        "ALTER TABLE sponsor_channels ADD COLUMN IF NOT EXISTS username TEXT;",
+        "ALTER TABLE sponsor_channels ADD COLUMN IF NOT EXISTS invite_link TEXT;",
+        "ALTER TABLE sponsor_channels ADD COLUMN IF NOT EXISTS channel_title VARCHAR(255);",
+        "ALTER TABLE sponsor_channels ADD COLUMN IF NOT EXISTS channel_url VARCHAR(255);",
+        "ALTER TABLE sponsor_channels ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;",
+        # Reklama puli: HTML matn + inline URL tugma (matn va havola).
+        "ALTER TABLE ad_pool ADD COLUMN IF NOT EXISTS button_text VARCHAR(64);",
+        "ALTER TABLE ad_pool ADD COLUMN IF NOT EXISTS button_url TEXT;",
+        "ALTER TABLE ad_pool ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;",
+        # Kanal postlari tarixi migratsiyalari
+        "ALTER TABLE channel_posts_history ADD COLUMN IF NOT EXISTS message_id BIGINT;",
+        "ALTER TABLE channel_posts_history ADD COLUMN IF NOT EXISTS content TEXT;",
+        "ALTER TABLE channel_posts_history ADD COLUMN IF NOT EXISTS views INTEGER DEFAULT 0;",
+        "ALTER TABLE channel_posts_history ADD COLUMN IF NOT EXISTS post_date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;",
+        "ALTER TABLE channel_posts_history ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;",
+        # PostAssist V2 (3-bosqich): persistent delivery + backoff ustunlari.
+        "ALTER TABLE post_deliveries ADD COLUMN IF NOT EXISTS scheduled_time TIMESTAMPTZ;",
+        "ALTER TABLE post_deliveries ADD COLUMN IF NOT EXISTS next_retry_at TIMESTAMPTZ;",
+        # PostAssist V2 (5-bosqich): to'lov audit holati + idx_payments_user
+        # (user_id, status) shu ustun bilan quriladi. DEFAULT tufayli eski
+        # yozuvlar ham 'succeeded' hisoblanadi (ma'lumot o'zgarmaydi).
+        "ALTER TABLE payments ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'succeeded';",
+        # 💳 To'lov mintaqasi/usuli (hududiy tanlov — tilga bog'liq EMAS):
+        # 'uzcard_humo' (🇺🇿 UZS) | 'international_stars' (🌍 XTR).
+        # ADD COLUMN + DEFAULT: eski (Stars) yozuvlar xuddi shu nom bilan
+        # migratsiyasiz to'g'ri hisoblanadi.
+        "ALTER TABLE payments ADD COLUMN IF NOT EXISTS payment_method VARCHAR(32) NOT NULL DEFAULT 'international_stars';",
+        # 🇺🇿 Karta cheki uchun so'mdagi summa — ledger'ga to'g'ri valyuta
+        # bilan yozish uchun (eski cheklar: 0 — hisob kitobi buzilmaydi).
+        "ALTER TABLE payment_receipts ADD COLUMN IF NOT EXISTS amount_uzs INT DEFAULT 0;",
+        "ALTER TABLE payment_receipts ADD COLUMN IF NOT EXISTS order_id TEXT;",
+        # PHASE E — approval metadata (additive; existing single-owner rows unchanged).
+        "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS delivery_options JSONB NOT NULL DEFAULT '{}'::jsonb;",
+        "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS created_by BIGINT;",
+        "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS approval_requested_at TIMESTAMPTZ;",
+        "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS approved_by BIGINT;",
+        "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS approved_at TIMESTAMPTZ;",
+        "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS rejection_reason TEXT;",
+    ]
+    for index, migration in enumerate(migrations):
+        # Bitta migration xatosi qolgan migrationlarni transaction aborted
+        # holatiga tushirib qo'ymasligi uchun har birini savepoint bilan bajarish.
+        savepoint = f"migration_{index}"
+        try:
+            cur.execute(f"SAVEPOINT {savepoint}")
+            cur.execute(migration)
+            cur.execute(f"RELEASE SAVEPOINT {savepoint}")
+        except Exception as e:
+            cur.execute(f"ROLLBACK TO SAVEPOINT {savepoint}")
+            cur.execute(f"RELEASE SAVEPOINT {savepoint}")
+            logger.warning(f"Migratsiya eslatmasi: {e}")
+
+    # Server crash paytida processing holatida qolgan postlarni qayta navbatga qaytaramiz (idempotent himoya bilan).
+
+
+
+
+def _ddl_indexes_admin_credits(cur):
+    """Qo'shimcha indekslar, admin RBAC jadvallari va kredit ledjeri.
+
+    Zaxira (fallback) DDL: ``schema.sql`` topilmasa yoki buzilgan bo'lsa
+    ham baza ishlayverishi uchun. Barcha operatorlar idempotent
+    (``IF NOT EXISTS``).
+    """
+    cur.execute("""
+        UPDATE scheduled_posts
+        SET status = 'posted'
+        WHERE status = 'processing'
+          AND (sent_message_id IS NOT NULL 
+               OR id IN (SELECT post_id FROM sent_post_messages));
+    """)
+    cur.execute("""
+        UPDATE scheduled_posts
+        SET status = 'pending', processing_started_at = NULL
+        WHERE status = 'processing'
+          AND sent_message_id IS NULL
+          AND id NOT IN (SELECT post_id FROM sent_post_messages)
+          AND processing_started_at < NOW() - INTERVAL '10 minutes';
+    """)
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_scheduled_posts_status_time ON scheduled_posts (status, scheduled_time);")
+    # Eng ko'p ishlatiladigan foydalanuvchi/post qidiruvlari uchun indekslar.
+    # users.user_id PRIMARY KEY bo'lgani uchun u yerda indeks avtomatik mavjud.
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_scheduled_posts_user_id ON scheduled_posts (user_id);")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_channels_user_id ON channels (user_id);")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_post_reactions_post_id ON post_reactions (post_id);")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_channel_posts_history_channel_date ON channel_posts_history (channel_id, post_date DESC);")
+
+    # 2b) PostAssist V2 (6-bosqich): RBAC rollari va admin auditi.
+    # schema.sql fayli topilmasa ham bu jadvallar albatta yaratiladi.
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS admin_roles (
+            user_id BIGINT PRIMARY KEY,
+            role VARCHAR(20) NOT NULL DEFAULT 'admin',
+            granted_by BIGINT,
+            granted_at TIMESTAMPTZ DEFAULT NOW(),
+            updated_at TIMESTAMPTZ DEFAULT NOW()
+        );
+    """)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS admin_audit_logs (
+            id BIGSERIAL PRIMARY KEY,
+            admin_id BIGINT NOT NULL,
+            action VARCHAR(64) NOT NULL,
+            target_type VARCHAR(64),
+            target_id VARCHAR(64),
+            old_value JSONB,
+            new_value JSONB,
+            ip_or_metadata JSONB,
+            created_at TIMESTAMPTZ DEFAULT NOW()
+        );
+    """)
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_audit_admin "
+        "ON admin_audit_logs(admin_id, created_at);"
+    )
+
+    # 💰 PostAssist V2 (8-bosqich): credits ledger — AI-ballar auditi.
+    # schema.sql fayli topilmasa ham bu jadval albatta yaratiladi.
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS credits_ledger (
+            id BIGSERIAL PRIMARY KEY,
+            user_id BIGINT NOT NULL,
+            amount INT NOT NULL,
+            balance_after INT NOT NULL,
+            operation_type VARCHAR(32) NOT NULL,
+            reference_id TEXT,
+            created_at TIMESTAMPTZ DEFAULT NOW()
+        );
+    """)
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_ledger_user "
+        "ON credits_ledger(user_id, created_at);"
+    )
+
+    # 🔒 PHASE 2 / 1-qadam: AI so'rov bronlari (atomik kvota + kredit).
+    # ``reserve_ai_request()`` kunlik kvota YOKI kreditni BITTA
+    # tranzaksiyada band qiladi; ``refund_ai_request()`` esa bronni ID
+    # bo'yicha IDEMPOTENT qaytaradi. schema.sql fayli topilmasa ham bu
+    # jadval albatta yaratiladi (aks holda barcha AI oqimi fail-closed
+    # rad etardi).
+
+
+
+
+def _ddl_ai_and_intelligence(cur):
+    """AI kvota/telemetriya (ai_reservations, ai_usage_events) va kanal intellekti (profil, post voqealari, insights).
+
+    Zaxira (fallback) DDL: ``schema.sql`` topilmasa yoki buzilgan bo'lsa
+    ham baza ishlayverishi uchun. Barcha operatorlar idempotent
+    (``IF NOT EXISTS``).
+    """
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS ai_reservations (
+            id BIGSERIAL PRIMARY KEY,
+            user_id BIGINT NOT NULL,
+            operation_type VARCHAR(32) NOT NULL,
+            cost INT NOT NULL DEFAULT 1,
+            source VARCHAR(16) NOT NULL,
+            status VARCHAR(16) NOT NULL DEFAULT 'active',
+            created_at TIMESTAMPTZ DEFAULT NOW(),
+            refunded_at TIMESTAMPTZ,
+            CONSTRAINT chk_ai_reservations_source
+                CHECK (source IN ('daily_quota', 'credit')),
+            CONSTRAINT chk_ai_reservations_status
+                CHECK (status IN ('active', 'refunded')),
+            CONSTRAINT chk_ai_reservations_cost CHECK (cost > 0)
+        );
+    """)
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_ai_reservations_user "
+        "ON ai_reservations(user_id, created_at);"
+    )
+
+    # 🧾 PHASE 6 — AI xarajat/telemetriya jurnali. schema.sql fayli
+    # topilmasa ham bu jadval albatta yaratiladi (aks holda xarajat
+    # hisoboti va limit nazorati ko'r bo'lib qolardi). Barcha operatorlar
+    # IF NOT EXISTS — qayta-qayta bajarish xavfsiz.
+    cur.execute('''
+        CREATE TABLE IF NOT EXISTS ai_usage_events (
+            id BIGSERIAL PRIMARY KEY,
+            user_id BIGINT,
+            channel_id BIGINT,
+            task VARCHAR(64) NOT NULL DEFAULT '',
+            lane VARCHAR(16) NOT NULL DEFAULT '',
+            operation_type VARCHAR(32) NOT NULL DEFAULT '',
+            provider VARCHAR(32) NOT NULL DEFAULT 'none',
+            model VARCHAR(64) NOT NULL DEFAULT '',
+            input_tokens INT NOT NULL DEFAULT 0,
+            output_tokens INT NOT NULL DEFAULT 0,
+            latency_ms INT NOT NULL DEFAULT 0,
+            estimated_cost NUMERIC(12, 6) NOT NULL DEFAULT 0,
+            priced BOOLEAN NOT NULL DEFAULT FALSE,
+            status VARCHAR(16) NOT NULL DEFAULT 'failed',
+            error_code VARCHAR(64),
+            cached BOOLEAN NOT NULL DEFAULT FALSE,
+            attempts INT NOT NULL DEFAULT 0,
+            prompt_hash VARCHAR(32) NOT NULL DEFAULT '',
+            reservation_id BIGINT,
+            created_at TIMESTAMPTZ DEFAULT NOW(),
+            CONSTRAINT chk_ai_usage_status
+                CHECK (status IN ('success', 'failed'))
+        );
+    ''')
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_ai_usage_user_time "
+        "ON ai_usage_events(user_id, created_at DESC);"
+    )
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_ai_usage_channel_time "
+        "ON ai_usage_events(channel_id, created_at DESC);"
+    )
+
+    # 🧠 PHASE A — Channel Intelligence baza poydevori (idempotent).
+    # schema.sql fayli topilmasa ham bu jadvallar albatta yaratiladi
+    # (aks holda analytics/audit oqimi ishlamasdi). Barcha CREATE TABLE
+    # va indekslar IF NOT EXISTS — qayta-qayta bajarish xavfsiz.
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS channel_intelligence_profiles (
+            channel_id VARCHAR(255) PRIMARY KEY,
+            tone VARCHAR(64),
+            avg_post_length INT,
+            emoji_level VARCHAR(32),
+            cta_style VARCHAR(64),
+            formatting_style VARCHAR(64),
+            top_topics JSONB,
+            confidence INT,
+            sample_size INT,
+            updated_at TIMESTAMPTZ DEFAULT NOW()
+        );
+    """)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS channel_post_events (
+            id SERIAL PRIMARY KEY,
+            channel_id VARCHAR(255) NOT NULL,
+            message_id BIGINT,
+            post_hour INT,
+            post_weekday INT,
+            has_media BOOLEAN,
+            media_type VARCHAR(32),
+            media_file_id VARCHAR(255),
+            length INT,
+            cta_detected BOOLEAN,
+            emoji_density DOUBLE PRECISION,
+            created_at TIMESTAMPTZ DEFAULT NOW(),
+            CONSTRAINT uq_channel_post_events UNIQUE (channel_id, message_id)
+        );
+    """)
+    # PHASE B: eski (Phase A) bazalar uchun yangi ustunlar — idempotent.
+    # Media fayllarning O'ZI bazaga saqlanmaydi — faqat file_id va turi.
+    cur.execute("ALTER TABLE channel_intelligence_profiles "
+                "ADD COLUMN IF NOT EXISTS formatting_style VARCHAR(64);")
+    cur.execute("ALTER TABLE channel_post_events "
+                "ADD COLUMN IF NOT EXISTS media_type VARCHAR(32);")
+    cur.execute("ALTER TABLE channel_post_events "
+                "ADD COLUMN IF NOT EXISTS media_file_id VARCHAR(255);")
+    cur.execute("ALTER TABLE channel_post_events "
+                "ADD COLUMN IF NOT EXISTS emoji_density DOUBLE PRECISION;")
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS channel_insights (
+            id SERIAL PRIMARY KEY,
+            channel_id VARCHAR(255) NOT NULL,
+            insight_type VARCHAR(64),
+            text TEXT,
+            severity VARCHAR(32),
+            created_at TIMESTAMPTZ DEFAULT NOW(),
+            is_dismissed BOOLEAN DEFAULT FALSE
+        );
+    """)
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_channel_post_events_channel "
+        "ON channel_post_events (channel_id);"
+    )
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_channel_post_events_created "
+        "ON channel_post_events (created_at DESC);"
+    )
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_channel_insights_channel "
+        "ON channel_insights (channel_id);"
+    )
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_channel_insights_dismissed "
+        "ON channel_insights (is_dismissed);"
+    )
+
+    # 🧬 FAZA 8,9,22 — KENGAYTIRILGAN CHANNEL DNA (channel_dna)
+    # Har bir metrika: language, tone, topics, avg_length, emoji_density,
+    # best_hours, best_weekdays, high_performing_formats — profile JSONB da
+    # sample_size, confidence, updated_at bilan saqlanadi.
+    # Idempotent: CREATE TABLE IF NOT EXISTS + indekslar IF NOT EXISTS.
+
+
+
+
+def _ddl_dna_templates_sources(cur):
+    """Kanal DNK, post shablonlari va kontent manbalari (URL/RSS/qoralama).
+
+    Zaxira (fallback) DDL: ``schema.sql`` topilmasa yoki buzilgan bo'lsa
+    ham baza ishlayverishi uchun. Barcha operatorlar idempotent
+    (``IF NOT EXISTS``).
+    """
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS channel_dna (
+            channel_id VARCHAR(255) PRIMARY KEY,
+            language VARCHAR(16),
+            tone VARCHAR(32),
+            topics JSONB,
+            avg_length INTEGER,
+            emoji_density DOUBLE PRECISION,
+            best_hours JSONB,
+            best_weekdays JSONB,
+            high_performing_formats JSONB,
+            sample_size INTEGER,
+            confidence DOUBLE PRECISION,
+            profile JSONB DEFAULT '{}'::jsonb,
+            updated_at TIMESTAMPTZ DEFAULT NOW()
+        );
+    """)
+    # Eski bazalar uchun yangi ustunlar (idempotent)
+    cur.execute("ALTER TABLE channel_dna ADD COLUMN IF NOT EXISTS language VARCHAR(16);")
+    cur.execute("ALTER TABLE channel_dna ADD COLUMN IF NOT EXISTS tone VARCHAR(32);")
+    cur.execute("ALTER TABLE channel_dna ADD COLUMN IF NOT EXISTS topics JSONB;")
+    cur.execute("ALTER TABLE channel_dna ADD COLUMN IF NOT EXISTS avg_length INTEGER;")
+    cur.execute("ALTER TABLE channel_dna ADD COLUMN IF NOT EXISTS emoji_density DOUBLE PRECISION;")
+    cur.execute("ALTER TABLE channel_dna ADD COLUMN IF NOT EXISTS best_hours JSONB;")
+    cur.execute("ALTER TABLE channel_dna ADD COLUMN IF NOT EXISTS best_weekdays JSONB;")
+    cur.execute("ALTER TABLE channel_dna ADD COLUMN IF NOT EXISTS high_performing_formats JSONB;")
+    cur.execute("ALTER TABLE channel_dna ADD COLUMN IF NOT EXISTS sample_size INTEGER;")
+    cur.execute("ALTER TABLE channel_dna ADD COLUMN IF NOT EXISTS confidence DOUBLE PRECISION;")
+    cur.execute("ALTER TABLE channel_dna ADD COLUMN IF NOT EXISTS profile JSONB DEFAULT '{}'::jsonb;")
+    cur.execute("ALTER TABLE channel_dna ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();")
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_channel_dna_channel "
+        "ON channel_dna (channel_id);"
+    )
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_channel_dna_updated "
+        "ON channel_dna (updated_at DESC);"
+    )
+
+    # 📋 PHASE C — POST SHABLONLARI (7/9/10-bandlar refaktori).
+    # Foydalanuvchining takroriy post shablonlari: variables JSONB'da
+    # {TITLE}/{TEXT}/{PRICE}/{LINK}/{CTA}/{SOURCE}/{DATE} ro'yxati
+    # saqlanadi. Barcha so'rovlar user_id bilan filtrlanadi (IDOR).
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS post_templates (
+            id SERIAL PRIMARY KEY,
+            user_id BIGINT NOT NULL,
+            channel_id VARCHAR(255),
+            name VARCHAR(128) NOT NULL,
+            content TEXT NOT NULL,
+            variables JSONB DEFAULT '{}'::jsonb,
+            created_at TIMESTAMPTZ DEFAULT NOW()
+        );
+    """)
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_post_templates_user "
+        "ON post_templates (user_id, created_at DESC);"
+    )
+
+    # 📥 PHASE D — KONTENT MANBALARI (11, 12-bandlar): RSS/ATOM manbalari,
+    # o'qilgan elementlar (dublikat kaliti UNIQUE(source_id, external_id))
+    # va Channel DNA asosidagi post qoralamalari (source_drafts).
+    # Barcha jadvallar idempotent va foydalanuvchi izolyatsiyasi bilan.
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS content_sources (
+            id SERIAL PRIMARY KEY,
+            user_id BIGINT,
+            channel_id VARCHAR(255),
+            source_url TEXT,
+            title TEXT,
+            enabled BOOLEAN DEFAULT TRUE,
+            interval_minutes INT DEFAULT 60,
+            autopublish BOOLEAN DEFAULT FALSE,
+            last_checked_at TIMESTAMPTZ,
+            created_at TIMESTAMPTZ DEFAULT NOW()
+        );
+    """)
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_content_sources_user "
+        "ON content_sources (user_id, created_at DESC);"
+    )
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_content_sources_due "
+        "ON content_sources (enabled, last_checked_at);"
+    )
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS source_items (
+            id SERIAL PRIMARY KEY,
+            source_id INT REFERENCES content_sources(id) ON DELETE CASCADE,
+            external_id TEXT,
+            canonical_url TEXT,
+            title TEXT,
+            summary TEXT,
+            processed_at TIMESTAMPTZ,
+            created_at TIMESTAMPTZ DEFAULT NOW(),
+            UNIQUE(source_id, external_id)
+        );
+    """)
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_source_items_source "
+        "ON source_items (source_id, created_at DESC);"
+    )
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS source_drafts (
+            id SERIAL PRIMARY KEY,
+            source_id INT REFERENCES content_sources(id) ON DELETE CASCADE,
+            source_item_id INT REFERENCES source_items(id) ON DELETE CASCADE,
+            user_id BIGINT,
+            channel_id VARCHAR(255),
+            title TEXT,
+            content TEXT,
+            status VARCHAR(20) DEFAULT 'pending',
+            scheduled_post_id INT,
+            created_at TIMESTAMPTZ DEFAULT NOW(),
+            UNIQUE(source_item_id)
+        );
+    """)
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_source_drafts_user "
+        "ON source_drafts (user_id, status, created_at DESC);"
+    )
+
+    # PHASE E — schema.sql fallback: team membership and aggregate audience
+    # insights must still exist if an operator accidentally deploys without
+    # the canonical schema file.
+
+
+
+
+def _ddl_team_and_support(cur):
+    """Jamoa rollari, izohlar analitikasi va qo'llab-quvvatlash murojaatlari.
+
+    Zaxira (fallback) DDL: ``schema.sql`` topilmasa yoki buzilgan bo'lsa
+    ham baza ishlayverishi uchun. Barcha operatorlar idempotent
+    (``IF NOT EXISTS``).
+    """
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS channel_members (
+            id SERIAL PRIMARY KEY,
+            channel_id VARCHAR(255) NOT NULL,
+            user_id BIGINT NOT NULL,
+            role VARCHAR(20) NOT NULL,
+            created_at TIMESTAMPTZ DEFAULT NOW(),
+            UNIQUE(channel_id, user_id),
+            CONSTRAINT chk_channel_members_role
+                CHECK (role IN ('owner', 'editor', 'scheduler', 'analyst'))
+        );
+    """)
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_channel_members_channel ON channel_members (channel_id, role);")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_channel_members_user ON channel_members (user_id, channel_id);")
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS channel_comment_insights (
+            id BIGSERIAL PRIMARY KEY,
+            channel_id VARCHAR(255) NOT NULL,
+            question_hash CHAR(64) NOT NULL,
+            category VARCHAR(32) NOT NULL DEFAULT 'general',
+            occurrence_count INTEGER NOT NULL DEFAULT 0,
+            first_seen_at TIMESTAMPTZ DEFAULT NOW(),
+            last_seen_at TIMESTAMPTZ DEFAULT NOW(),
+            UNIQUE(channel_id, question_hash)
+        );
+    """)
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_comment_insights_channel ON channel_comment_insights (channel_id, occurrence_count DESC);")
+
+    # 💬 4-QISM — schema.sql fallback: qo'llab-quvvatlash murojaatlari va
+    # admin javoblarini bog'lovchi jadvallar kanonik sxema fayli
+    # qo'llanilmagan holatda ham mavjud bo'lishi shart.
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS support_tickets (
+            id SERIAL PRIMARY KEY,
+            user_id BIGINT NOT NULL,
+            username VARCHAR(64),
+            message_text TEXT NOT NULL,
+            has_media BOOLEAN NOT NULL DEFAULT FALSE,
+            status VARCHAR(16) NOT NULL DEFAULT 'new',
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            answered_at TIMESTAMPTZ,
+            answered_by BIGINT
+        );
+    """)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS support_ticket_deliveries (
+            id SERIAL PRIMARY KEY,
+            ticket_id INT NOT NULL REFERENCES support_tickets(id) ON DELETE CASCADE,
+            admin_chat_id BIGINT NOT NULL,
+            admin_message_id BIGINT NOT NULL,
+            delivered_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            UNIQUE (admin_chat_id, admin_message_id)
+        );
+    """)
+
+    # 3) PostAssist V2 (5-bosqich): scheduler tezligi uchun kompozit indekslar
+    # va jadvallararo FK/CHECK/UNIQUE constraintlar. Ikkalasi ham idempotent
+    # va ma'lumotni o'zgartirmaydi (tafsilot: ``build_integrity_block``).
+

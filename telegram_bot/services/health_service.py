@@ -499,7 +499,7 @@ def _check_ai_providers() -> dict:
         "consecutive_errors": 0,
     }
     try:
-        from services.ai_service import build_default_providers  # lazy import
+        from services.ai.fallback import build_default_providers  # lazy import
         from utils import ai_agent as aa
 
         providers = []
