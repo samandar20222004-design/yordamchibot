@@ -32,7 +32,7 @@ from services.subscription_service import SubscriptionService  # noqa: F401
 from services.payment_service import PaymentService  # noqa: F401
 from services.promo_service import PromoService  # noqa: F401
 from services.scheduler_service import SchedulerService  # noqa: F401
-from services.ai_service import AIFallbackService  # noqa: F401
+from services.ai.fallback import AIFallbackService  # noqa: F401
 from services import rbac_service as RBACService  # noqa: F401
 from services.cleanup_service import CleanupService, cleanup_old_records  # noqa: F401
 from services import lifecycle_service  # noqa: F401

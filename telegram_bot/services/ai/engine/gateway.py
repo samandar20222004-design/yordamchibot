@@ -814,7 +814,7 @@ async def _generate_via_chain(
     tartibda sinab ko'riladi: 429/timeout/5xx → qayta urinish (jitter'li
     backoff, siyosat bo'yicha) → keyingi SOG'LOM provayder.
     """
-    from services.ai_engine import providers as _providers
+    from . import providers as _providers
 
     policy = retry_policy or policy_for(lane)
     monitor = default_health_monitor()
@@ -1001,7 +1001,7 @@ async def legacy_chain(prompt: str, system_instruction: str, lang: str | None = 
     bahosi) — legacy oqim "ko'rinmas" sarf bo'lib qolmaydi. Foydalanuvchi
     konteksti yo'q, shuning uchun yozuvda ``task="legacy_chain"`` bo'ladi.
     """
-    from services import ai_service
+    from services.ai import fallback as ai_service
 
     started = time.monotonic()
     result = await ai_service.run_ai_chain(prompt, system_instruction, lang=lang)
@@ -1063,7 +1063,7 @@ async def legacy_chain(prompt: str, system_instruction: str, lang: str | None = 
 # testlarda monkeypatch qilinsa — delegat ham yangi qiymatni ko'radi.
 def _late_bind_service_op(name: str):
     async def _op(*args, **kwargs):
-        from services import ai_service
+        from services.ai import fallback as ai_service
 
         return await getattr(ai_service, name)(*args, **kwargs)
     _op.__name__ = name

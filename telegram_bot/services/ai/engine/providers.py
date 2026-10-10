@@ -47,7 +47,7 @@ def build_provider_handles() -> dict[str, ProviderHandle]:
     ``services.ai_service.build_default_providers()`` YAGONA manba bo'lib
     qoladi — bu yerda provayder kodi TAKRORLANMAYDI.
     """
-    from services import ai_service
+    from services.ai import fallback as ai_service
 
     handles: dict[str, ProviderHandle] = {}
     for adapter in ai_service.build_default_providers():
@@ -94,7 +94,7 @@ async def execute_provider(
     ``post_text``/``content``/``text`` maydonlaridan biri bilan).
     Xato/timeout: istisno ko'tariladi (shlyuz keyingi provayderga o'tadi).
     """
-    from services import ai_service
+    from services.ai import fallback as ai_service
     from utils import ai_agent as aa
 
     params = aa.get_runtime_params()

@@ -881,21 +881,25 @@ def test_prompt_guard_and_validator():
         text = re.sub(r"'''(?:.|\n)*?'''", "", text)
         return re.sub(r"#[^\n]*", "", text)
 
+    # AI STEK DE-BLOAT: kanonik AI shlyuz kodi `services/ai/engine/` ga
+    # ko'chirildi (`services/ai_engine/` — nol-logikali muvofiqlik shimi).
+    # Skanerlanadigan FAYL YO'LLARI yangilandi; tekshiruv mezonlari
+    # (bypass shakli va uzunlik qabul mezoni yo'qligi) O'ZGARMAGAN.
     ai_sources = {}
     for rel in (
         "services/ai/validator.py",
-        "services/ai_engine/validator.py",
-        "services/ai_engine/gateway.py",
-        "services/ai_engine/providers.py",
+        "services/ai/engine/validator.py",
+        "services/ai/engine/gateway.py",
+        "services/ai/engine/providers.py",
         "services/ai/prompt_guard.py",
-        "services/ai_engine/app_service.py",
+        "services/ai/engine/app_service.py",
     ):
         ai_sources[rel] = strip_comments_and_docstrings(
             (ROOT / rel).read_text(encoding="utf-8"))
     for rel, source in ai_sources.items():
         check(f"{rel}: 'is_valid or len(...)' bypass shakli yo'q",
               "is_valid or len(" not in source)
-    for rel in ("services/ai/validator.py", "services/ai_engine/validator.py"):
+    for rel in ("services/ai/validator.py", "services/ai/engine/validator.py"):
         check(f"{rel}: uzunlik (>=20) qabul mezoni yo'q",
               not re.search(r"len\([^)]*\)\s*>=\s*20", ai_sources[rel]))
 

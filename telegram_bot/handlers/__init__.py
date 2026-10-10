@@ -1224,818 +1224,956 @@ def _build_all_menu_jumps():
     return all_menu_jumps
 
 
-def _build_main_conversation_handler(all_menu_jumps):
-    """SPRINT 2 — DECOMPOSITION 2/4: asosiy FSM (``ConversationHandler``).
+def _edit_post_menu_handlers():
+    """2-VAZIFA - tahrirlash tanlov menyusi callback'lari (yagona manba).
 
-    Botning deyarli barcha bosqichma-bosqich oqimlari (yangi post, AI
-    vositalar, kanal ulash, sozlamalar sehrgarlari va h.k.) shu YAGONA
-    conversation ichida holatlar (``states``) sifatida yashaydi — bu ataylab
-    saqlangan arxitektura qarori (bitta FSM = bitta foydalanuvchi uchun bir
-    vaqtda bitta faol oqim, holatlar orasida "menyuga sakrash" barcha
-    joylarda bir xil ishlaydi). Shu sababli bu funksiya domenlarga
-    (auth/content/channels/...) YANA bo'linmaydi — bu yagona, ichki izchil
-    mas'uliyat (Single Responsibility = "FSM qurish"). Domenlarga bo'lingan
-    qism — conversation TASHQARISIDAGI global handlerlar — pastdagi
-    ``_register_*`` funksiyalarida.
-
-    Avvalgi monolit ``register_all_handlers`` ichidagi ``main_conv``
-    qurilishi bilan AYNAN bir xil — faqat alohida funksiyaga ko'chirilgan.
+    FSM holatlariga ham, entry point'larga ham shu ro'yxat ulanadi.
+    ``p_edtx:`` - matnni o'zgartirish, ``p_edbk`` - orqaga
+    (rejalashtirilgan ro'yxatiga qaytish), qolganlari mavjud oqimlar.
     """
-    # ✏️ 2-VAZIFA — TAHRIRLASH TANLOV MENYUSI callback'lari (yagona manba):
-    # FSM holatlariga ham, entry point'larga ham shu ro'yxat ulanadi.
-    # ``p_edtx:`` — «📝 Matnni o'zgartirish», ``p_edbk`` — «◀️ Orqaga»
-    # (📅 Rejalashtirilgan ro'yxatiga qaytish), qolganlari mavjud oqimlar.
-    _edit_post_menu_handlers = (
+    _edit_post_menu = (
         CallbackQueryHandler(edit_post_text_start, pattern=r"^p_edtx:"),
         CallbackQueryHandler(edit_post_btn_start, pattern=r"^p_btn:"),
         CallbackQueryHandler(edit_post_react_start, pattern=r"^p_react:"),
         CallbackQueryHandler(edit_post_time_start, pattern=r"^p_time:"),
         CallbackQueryHandler(edit_post_menu_back, pattern=r"^p_edbk$"),
     )
+    return _edit_post_menu
 
-    main_conv = ConversationHandler(
-        entry_points=all_menu_jumps + [
-            # 🎙 VOICE → POST: ovozli xabar/audio — dialog TASHQARISIDA ovoz
-            # yuborilsa STT oqimi darhol boshlanadi (cheklovlar: FREE ≤60s,
-            # PRO ≤180s, ≤20 MB; transkripsiya BEPUL — kredit yechilmaydi).
-            # VoiceEntryHandler dialog ICHIDA mos KELMAYDI — ovoz eski xulq
-            # bo'yicha unknown_message_fallback'ga tushadi (holat buzilmaydi).
-            VoiceEntryHandler(VOICE_MESSAGE_FILTER, voice_message_received),
-            # 📸 Oddiy private photo ham Image → Post oqimini boshlaydi.
-            # Conversation ichidagi new-post/photo-check holatlari o'zining
-            # state handlerlari bilan ustun turadi — legacy oqimlar buzilmaydi.
-            ImageEntryHandler(filters.PHOTO & filters.ChatType.PRIVATE, image_photo_received),
-            # 🧩 ACTION-FIRST (PostAssist V2, 3-qadam): menyu tashqarisida yozilgan
-            # xom matn uchun yuboriladigan «✨ Magic Post» taklifining tugmalari.
-            # ContentOfferEntryHandler dialog ICHIDA mos KELMAYDI — faol suhbat
-            # holati buzilmaydi; tugma «o'lik» holatda bossa esa oddiy
-            # yo'riqnoma ekrani qaytariladi (eski sessiya toast'i chiqmaydi).
-            ContentOfferEntryHandler(content_offer_callback, pattern=r"^cc_"),
-            # ✍️ ODDIY POST (AI'SIZ): sessiya tugagach bosilgan eski panel
-            # tugmasi — dialog TASHQARISIDA muloyim javob qaytaradi (dialog
-            # ICHIDA mos KELMAYDI — faol suhbat holati buzilmaydi).
-            ManualEntryHandler(manual_stale_callback, pattern=r"^mnp_"),
-            CallbackQueryHandler(edit_post_time_start, pattern=r"^p_time:"),
-            # ✏️ 2-VAZIFA: `p_edit:` endi TANLOV MENYUSINI ochadi; matn so'rovi
-            # menyudagi «📝 Matnni o'zgartirish» (`p_edtx:`) orqali boshlanadi,
-            # «◀️ Orqaga» (`p_edbk`) esa 📅 ro'yxatiga qaytaradi.
-            CallbackQueryHandler(edit_post_content_start, pattern=r"^p_edit:"),
-            CallbackQueryHandler(edit_post_text_start, pattern=r"^p_edtx:"),
-            CallbackQueryHandler(edit_post_menu_back, pattern=r"^p_edbk$"),
-            CallbackQueryHandler(edit_post_btn_start, pattern=r"^p_btn:"),
-            CallbackQueryHandler(edit_post_react_start, pattern=r"^p_react:"),
-            CallbackQueryHandler(add_channel_inline_entry, pattern=r"^add_channel_start$"),
-            # 💬 4-QISM — [💬 Qo'llab-quvvatlash]: BIR MARTALIK murojaat oqimi
-            # (bir xabar → FSM darhol yopiladi → adminga yetkaziladi).
-            # ``allow_reentry=True`` tufayli tugma boshqa FSM ichidan ham
-            # xavfsiz qayta ochiladi; eski xabarlardagi tugma esa global
-            # ``stgs_`` handleriga tushadi (legacy ma'lumot ekrani).
-            CallbackQueryHandler(
-                support_ticket_entry, pattern=r"^help_support$",
-            ),
-            # 🌅 Daily digest → idea picker; the selected idea then reuses Magic Post.
-            CallbackQueryHandler(morning_digest_create_callback, pattern=r"^md_create:"),
-            CallbackQueryHandler(uzbek_calendar_create_callback, pattern=r"^uzcal_create:"),
-            # 📢 Kanallarim → [➕ Post yaratish]: kanal ALLAQACHON tanlangan,
-            # shuning uchun oqim to'g'ridan-to'g'ri GET_CONTENT holatiga
-            # kiradi (entry point bo'lishi SHART — u FSM holati qaytaradi).
-            CallbackQueryHandler(channel_new_post_callback, pattern=r"^ch_np:"),
-            # ✍️ PHASE 9 — `[✍️ Post yaratish]` kontekstual menyusi (8 ta inline tugma)
-            CallbackQueryHandler(contextual_post_menu_callback, pattern=r"^ctx_post:"),
-            # 📋 PHASE 9 — `[📢 Kanallarim]` → `[📋 Kontent reja]`
-            CallbackQueryHandler(channel_plan_callback, pattern=r"^ch_plan:"),
-            # 🚀 PHASE 9 — 2 daqiqalik Instant-Value Onboarding → 1-click 7 kunlik reja
-            CallbackQueryHandler(onboarding_quick_plan_callback, pattern=r"^onb_plan:"),
-            # 🚀 PHASE C — Kanallarim → [🚀 AI Avtopilot]: 7 kunlik reja oqimi
-            # (mavzu → AI reja → tasdiqlash → atomik navbat). FSM holatini
-            # qaytaradi — entry point bo'lishi shart.
-            CallbackQueryHandler(channel_autopilot_entry, pattern=r"^ch_ap:"),
-            # 📋 PHASE C — Kanallarim → [📋 Shablonlar]: post shablonlari
-            # menyusi (yangi / ishlatish / o'chirish). FSM holatini qaytaradi.
-            CallbackQueryHandler(channel_templates_entry, pattern=r"^ch_tpl:"),
-            # 📥 PHASE D (2/2) — Kanallarim → [📥 Kontent manbalari]: URL→post,
-            # RSS/ATOM oqimi, Content Recycle va qoralamalar. FSM holatini
-            # qaytaradi — entry point bo'lishi shart.
-            CallbackQueryHandler(channel_sources_entry, pattern=r"^ch_src:"),
-            # 🔁 Qayta tekshirish: sessiya tugagan bo'lsa ham eski tugma
-            # ishlasin — conversation qayta ochiladi yoki yo'riqnoma qaytariladi.
+
+
+def _main_entry_points(all_menu_jumps):
+    """Asosiy FSM entry point'lari (menyu tugmalari + callback'lar)."""
+    return all_menu_jumps + [
+        # 🎙 VOICE → POST: ovozli xabar/audio — dialog TASHQARISIDA ovoz
+        # yuborilsa STT oqimi darhol boshlanadi (cheklovlar: FREE ≤60s,
+        # PRO ≤180s, ≤20 MB; transkripsiya BEPUL — kredit yechilmaydi).
+        # VoiceEntryHandler dialog ICHIDA mos KELMAYDI — ovoz eski xulq
+        # bo'yicha unknown_message_fallback'ga tushadi (holat buzilmaydi).
+        VoiceEntryHandler(VOICE_MESSAGE_FILTER, voice_message_received),
+        # 📸 Oddiy private photo ham Image → Post oqimini boshlaydi.
+        # Conversation ichidagi new-post/photo-check holatlari o'zining
+        # state handlerlari bilan ustun turadi — legacy oqimlar buzilmaydi.
+        ImageEntryHandler(filters.PHOTO & filters.ChatType.PRIVATE, image_photo_received),
+        # 🧩 ACTION-FIRST (PostAssist V2, 3-qadam): menyu tashqarisida yozilgan
+        # xom matn uchun yuboriladigan «✨ Magic Post» taklifining tugmalari.
+        # ContentOfferEntryHandler dialog ICHIDA mos KELMAYDI — faol suhbat
+        # holati buzilmaydi; tugma «o'lik» holatda bossa esa oddiy
+        # yo'riqnoma ekrani qaytariladi (eski sessiya toast'i chiqmaydi).
+        ContentOfferEntryHandler(content_offer_callback, pattern=r"^cc_"),
+        # ✍️ ODDIY POST (AI'SIZ): sessiya tugagach bosilgan eski panel
+        # tugmasi — dialog TASHQARISIDA muloyim javob qaytaradi (dialog
+        # ICHIDA mos KELMAYDI — faol suhbat holati buzilmaydi).
+        ManualEntryHandler(manual_stale_callback, pattern=r"^mnp_"),
+        CallbackQueryHandler(edit_post_time_start, pattern=r"^p_time:"),
+        # ✏️ 2-VAZIFA: `p_edit:` endi TANLOV MENYUSINI ochadi; matn so'rovi
+        # menyudagi «📝 Matnni o'zgartirish» (`p_edtx:`) orqali boshlanadi,
+        # «◀️ Orqaga» (`p_edbk`) esa 📅 ro'yxatiga qaytaradi.
+        CallbackQueryHandler(edit_post_content_start, pattern=r"^p_edit:"),
+        CallbackQueryHandler(edit_post_text_start, pattern=r"^p_edtx:"),
+        CallbackQueryHandler(edit_post_menu_back, pattern=r"^p_edbk$"),
+        CallbackQueryHandler(edit_post_btn_start, pattern=r"^p_btn:"),
+        CallbackQueryHandler(edit_post_react_start, pattern=r"^p_react:"),
+        CallbackQueryHandler(add_channel_inline_entry, pattern=r"^add_channel_start$"),
+        # 💬 4-QISM — [💬 Qo'llab-quvvatlash]: BIR MARTALIK murojaat oqimi
+        # (bir xabar → FSM darhol yopiladi → adminga yetkaziladi).
+        # ``allow_reentry=True`` tufayli tugma boshqa FSM ichidan ham
+        # xavfsiz qayta ochiladi; eski xabarlardagi tugma esa global
+        # ``stgs_`` handleriga tushadi (legacy ma'lumot ekrani).
+        CallbackQueryHandler(
+            support_ticket_entry, pattern=r"^help_support$",
+        ),
+        # 🌅 Daily digest → idea picker; the selected idea then reuses Magic Post.
+        CallbackQueryHandler(morning_digest_create_callback, pattern=r"^md_create:"),
+        CallbackQueryHandler(uzbek_calendar_create_callback, pattern=r"^uzcal_create:"),
+        # 📢 Kanallarim → [➕ Post yaratish]: kanal ALLAQACHON tanlangan,
+        # shuning uchun oqim to'g'ridan-to'g'ri GET_CONTENT holatiga
+        # kiradi (entry point bo'lishi SHART — u FSM holati qaytaradi).
+        CallbackQueryHandler(channel_new_post_callback, pattern=r"^ch_np:"),
+        # ✍️ PHASE 9 — `[✍️ Post yaratish]` kontekstual menyusi (8 ta inline tugma)
+        CallbackQueryHandler(contextual_post_menu_callback, pattern=r"^ctx_post:"),
+        # 📋 PHASE 9 — `[📢 Kanallarim]` → `[📋 Kontent reja]`
+        CallbackQueryHandler(channel_plan_callback, pattern=r"^ch_plan:"),
+        # 🚀 PHASE 9 — 2 daqiqalik Instant-Value Onboarding → 1-click 7 kunlik reja
+        CallbackQueryHandler(onboarding_quick_plan_callback, pattern=r"^onb_plan:"),
+        # 🚀 PHASE C — Kanallarim → [🚀 AI Avtopilot]: 7 kunlik reja oqimi
+        # (mavzu → AI reja → tasdiqlash → atomik navbat). FSM holatini
+        # qaytaradi — entry point bo'lishi shart.
+        CallbackQueryHandler(channel_autopilot_entry, pattern=r"^ch_ap:"),
+        # 📋 PHASE C — Kanallarim → [📋 Shablonlar]: post shablonlari
+        # menyusi (yangi / ishlatish / o'chirish). FSM holatini qaytaradi.
+        CallbackQueryHandler(channel_templates_entry, pattern=r"^ch_tpl:"),
+        # 📥 PHASE D (2/2) — Kanallarim → [📥 Kontent manbalari]: URL→post,
+        # RSS/ATOM oqimi, Content Recycle va qoralamalar. FSM holatini
+        # qaytaradi — entry point bo'lishi shart.
+        CallbackQueryHandler(channel_sources_entry, pattern=r"^ch_src:"),
+        # 🔁 Qayta tekshirish: sessiya tugagan bo'lsa ham eski tugma
+        # ishlasin — conversation qayta ochiladi yoki yo'riqnoma qaytariladi.
+        CallbackQueryHandler(add_channel_retry, pattern=r"^add_channel_retry$"),
+        # Admin panel inline tugmalari: matn kutuvchi bo'limlar FSM holatini
+        # qaytaradi, shuning uchun ular entry point sifatida ro'yxatdan o'tadi.
+        CallbackQueryHandler(admin_dashboard_callback, pattern=r"^adm_"),
+        CallbackQueryHandler(ad_pool_callback, pattern=r"^adp:"),
+        CallbackQueryHandler(converter_inline_entry, pattern=r"^extra_converter$"),
+        # ✨ Postga Tugma & Reaksiya qo'shish — ⚙️ Qo'shimcha funksiyalar menyusidan
+        CallbackQueryHandler(post_enhancer_start, pattern=r"^extra_enhancer$"),
+        # ✨ AI Studio inline entry'lar — sessiya tugagach eski tugma bossa ham
+        # conversation qayta ochiladi (menu xabari o'chirilmaydi, edit qilinadi)
+        CallbackQueryHandler(
+            lambda u, c: guard_entry(u, c, ai_studio_nav_callback),
+            pattern=r"^studio_(ai_post|ai_audit|extract|content_plan|ai_photo|close)$",
+        ),
+        CallbackQueryHandler(
+            lambda u, c: guard_entry(u, c, ai_back_to_menu),
+            pattern=r"^ai_back_to_menu$",
+        ),
+        # 🧭 4-qadam: AI Yordamchi → [◀️ Orqaga] → Kontent yaratish
+        # submenyusi (eski tugma sessiya tugagach bosilsa ham ishlaydi).
+        CallbackQueryHandler(
+            lambda u, c: guard_entry(u, c, ai_back_to_content),
+            pattern=r"^ai_back_to_content$",
+        ),
+        CommandHandler("newpost", lambda u, c: guard_entry(u, c, start_new_post)),
+        CommandHandler("imagepost", lambda u, c: guard_entry(u, c, image_post_entry)),
+        CommandHandler("broadcast", lambda u, c: guard_entry(u, c, broadcast_start)),
+        CommandHandler("queue", lambda u, c: guard_menu(u, c, queue_menu)),
+    ]
+
+
+
+def _content_states(all_menu_jumps):
+    """Kontent yaratish va rejalashtirish oqimlari holatlari."""
+    return {
+        CHOOSE_CHANNEL: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, channel_chosen)],
+        GET_CONTENT: all_menu_jumps + [
+            # 🖼 ALBOM cheklovi tanlovi: albom yig'uvchi (collector) ogohlantirishni
+            # GET_CONTENT holatida yuboradi — tanlov callback'lari shu yerda.
+            CallbackQueryHandler(album_choice_callback, pattern=r"^album_choice:"),
+            MessageHandler(filters.ALL & ~filters.COMMAND, content_received),
+        ],
+        GET_BTN_TITLE: all_menu_jumps + [
+            # 🚀 "⏩ O'tkazib yuborish" — pastki reply-klaviaturadan bosilsa
+            # xuddi inline callback kabi xavfsiz keyingi bosqichga o'tadi.
+            MessageHandler(filters.Text(SKIP_BUTTON_TEXTS), skip_url_step),
+            # 🖼 ALBOM cheklovi tanlovi: albom yuborilganda tugma bosqichida
+            # ogohlantirish + [🖼 1-rasm] / [⏩ Tugmalarsiz albom] tugmalari.
+            CallbackQueryHandler(album_choice_callback, pattern=r"^album_choice:"),
+            MessageHandler(filters.TEXT & ~filters.COMMAND, btn_title_received),
+            CallbackQueryHandler(ai_action_menu_callback, pattern=r"^ai_menu$"),
+            CallbackQueryHandler(ai_action_callback, pattern=r"^ai_act:"),
+            CallbackQueryHandler(ai_result_callback, pattern=r"^ai_res:"),
+        ],
+        GET_BTN_URL: all_menu_jumps + [
+            MessageHandler(filters.Text(SKIP_BUTTON_TEXTS), skip_url_step),
+            MessageHandler(filters.TEXT & ~filters.COMMAND, btn_url_received),
+        ],
+        GET_REACTIONS: all_menu_jumps + [
+            # 🖼 ALBOM cheklovi tanlovi: albom postida reaksiya bosqichida
+            # ogohlantirish + [🖼 1-rasm] / [⏩ Tugmalarsiz albom] tugmalari.
+            CallbackQueryHandler(album_choice_callback, pattern=r"^album_choice:"),
+            # Multi-select reaksiya (toggle): emoji tanlash + Davom etish / O'tkazib yuborish
+            CallbackQueryHandler(reaction_toggle_callback, pattern=r"^nprt:t:"),
+            CallbackQueryHandler(reactions_done_callback, pattern=r"^nprt:done$"),
+            CallbackQueryHandler(reactions_skip_callback, pattern=r"^nprt:skip$"),
+            # 🚀 "⏩ O'tkazib yuborish" — oldingi bosqichdan qolgan reply
+            # klaviatura bosilsa ham reaksiyasiz davom etadi (crash yo'q).
+            MessageHandler(filters.Text(SKIP_BUTTON_TEXTS), skip_reactions_step),
+            MessageHandler(filters.TEXT & ~filters.COMMAND, reactions_received),
+            # 🎯 Stiker ham reaksiya sifatida qabul qilinadi: stiker
+            # xabari alohida ``handle_reaction_sticker`` handlerga
+            # yo'naltiriladi (reactions_received uni delegatsiya qiladi) —
+            # stikerning emojisi (message.sticker.emoji) tanlovga
+            # qo'shiladi, tasdiq xabari + inline klaviaturada ✅ belgilanadi
+            # va reaksiya HECH QACHON post matniga qo'shilmaydi. Stiker
+            # filtri TEXT handleridan keyin turadi, lekin stiker matn emas —
+            # ikkalasi ham bir-biriga to'sqinlik qilmaydi. Shuning uchun
+            # stiker hech qachon global "tushunmadim" fallback'iga
+            # tushib ketmaydi.
+            MessageHandler(filters.Sticker.ALL, reactions_received),
+        ],
+        # 2b. ✨ Postga Tugma & Reaksiya qo'shish: post qabul qilish + inline ekranlar
+        # (reaksiya/tugma/kanal/tasdiq) — bitta holat, qadamlar user_data'da.
+        ENH_POST: all_menu_jumps + [
+            CallbackQueryHandler(enh_callback, pattern=r"^enh:"),
+            MessageHandler(filters.ALL & ~filters.COMMAND, enh_message_received),
+        ],
+        GET_AUTO_DELETE: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, auto_delete_received)],
+        # 2b. ✍️ ODDIY POST (AI'SIZ) — tayyor kontent preview + universal
+        # boshqaruv paneli. HECH QANDAY AI handler/tekshiruvi YO'Q:
+        # kontent qabul qilindi → darhol preview → panel amallari.
+        MANUAL_AWAIT_CONTENT: all_menu_jumps + [
+            MessageHandler(filters.ALL & ~filters.COMMAND, manual_content_received),
+        ],
+        MANUAL_PREVIEW: all_menu_jumps + [
+            CallbackQueryHandler(manual_panel_callback, pattern=r"^mnp_"),
+            # SMART EMOJI (2-qism bugfix): preview holatida to'g'ridan-to'g'ri emoji yuborish
+            # (masalan 😎 yoki 🔥 👍) — xato bermasdan reaksiya sifatida qabul qilinadi
+            MessageHandler(filters.TEXT & ~filters.COMMAND,
+                           manual_preview_emoji_received),
+            # FSM INPUT FALLBACK (PHASE 1): preview bosqichida adashib
+            # MEDIA tashlansa — 💡 yumshoq eslatma + Preview menyusi qayta
+            # ko'rsatiladi, FSM holati bekor bo'lib ketmaydi.
+            MessageHandler(~filters.TEXT & ~filters.COMMAND,
+                           manual_preview_media_received),
+        ],
+        MANUAL_CHANNEL_SELECT: all_menu_jumps + [
+            CallbackQueryHandler(manual_panel_callback, pattern=r"^mnp_"),
+            # FSM INPUT FALLBACK (PHASE 1): kanal tanlash bosqichida erkin
+            # matn/media — 💡 eslatma + tanlov klaviaturasi qayta (holat
+            # saqlanadi, bot quruq javob bilan to'xtab qolmaydi).
+            MessageHandler(filters.ALL & ~filters.COMMAND,
+                           manual_channel_select_fallback),
+        ],
+        MANUAL_TIME_INPUT: all_menu_jumps + [
+            CallbackQueryHandler(manual_panel_callback, pattern=r"^mnp_"),
+            MessageHandler(filters.ALL & ~filters.COMMAND, manual_time_received),
+        ],
+        MANUAL_EDIT_INPUT: all_menu_jumps + [
+            MessageHandler(filters.ALL & ~filters.COMMAND, manual_edit_received),
+        ],
+        # ✍️ 2-qadam UI/UX polish: ❤️ reaksiya (qo'lda emoji) va
+        # 🔗 havolali tugma kiritish holatlari — callback'lar panel
+        # handlerida (``^mnp_``), matn esa maxsus handlerlarda.
+        MANUAL_REACTION_CUSTOM: all_menu_jumps + [
+            CallbackQueryHandler(manual_panel_callback, pattern=r"^mnp_"),
+            MessageHandler(filters.TEXT & ~filters.COMMAND,
+                           manual_reaction_custom_received),
+            # FSM INPUT FALLBACK (PHASE 1): emoji o'rniga media tashlansa —
+            # 💡 eslatma + yo'rixnoma qayta (holat saqlanadi).
+            MessageHandler(~filters.TEXT & ~filters.COMMAND,
+                           manual_reaction_custom_media_received),
+        ],
+        MANUAL_URL_INPUT: all_menu_jumps + [
+            CallbackQueryHandler(manual_panel_callback, pattern=r"^mnp_"),
+            MessageHandler(filters.TEXT & ~filters.COMMAND,
+                           manual_url_received),
+            # FSM INPUT FALLBACK (PHASE 1): "Matn - havola" o'rniga media
+            # tashlansa — 💡 eslatma + yo'riqnoma qayta (holat saqlanadi).
+            MessageHandler(~filters.TEXT & ~filters.COMMAND,
+                           manual_url_media_received),
+        ],
+        GET_TIME: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, time_received)],
+        DAILY_TIME: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, daily_time_received)],
+        RECUR_DAY: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, recur_day_chosen)],
+        RECUR_TIME: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, recur_time_received)],
+        GET_DURATION: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, duration_chosen)],
+
+        # Confirmation ekran holatlari
+        CONFIRM_POST: all_menu_jumps + [
+            CallbackQueryHandler(confirm_post_callback, pattern=r"^confirm_post:"),
+            MessageHandler(filters.ALL & ~filters.COMMAND, edit_confirm_message_received),
+        ],
+        EDIT_CONFIRM_FIELD: all_menu_jumps + [
+            CallbackQueryHandler(edit_confirm_field_callback, pattern=r"^edit_field:"),
+            MessageHandler(filters.PHOTO | filters.VIDEO | filters.Document.ALL | filters.AUDIO | filters.ANIMATION, edit_confirm_media_received),
+            MessageHandler(filters.TEXT & ~filters.COMMAND, edit_confirm_message_received),
+        ],
+    }
+
+
+
+def _channels_states(all_menu_jumps):
+    """Kanal ulash va kanal uslubi (tone) holatlari."""
+    return {
+        # 3. Kanal holatlari
+        ADD_CHANNEL: all_menu_jumps + [
             CallbackQueryHandler(add_channel_retry, pattern=r"^add_channel_retry$"),
-            # Admin panel inline tugmalari: matn kutuvchi bo'limlar FSM holatini
-            # qaytaradi, shuning uchun ular entry point sifatida ro'yxatdan o'tadi.
+            # 📢 FORWARD — ustuvor tekshiruv: kanaldan forward qilingan
+            # istalgan post (matn/rasm/video) darhol channel_received'ga
+            # tushadi; forward_origin / forward_from_chat dan ID+title
+            # ajratiladi (FSM faqat matn kutib «tushunmadim» bermaydi).
+            MessageHandler(filters.FORWARDED, channel_received),
+            MessageHandler(filters.ALL & ~filters.COMMAND, channel_received),
+        ],
+        SET_TONE: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, tone_chosen)],
+    }
+
+
+
+def _planning_states(all_menu_jumps):
+    """Kontent rejasi, kalendar, avtopilot va shablonlar holatlari."""
+    return {
+        # 8. Content Plan holatlari
+        PLAN_CHOOSE_CHANNEL: all_menu_jumps + [
+            CallbackQueryHandler(plan_channel_chosen, pattern=r"^plan_ch:"),
+            CallbackQueryHandler(plan_view_callback, pattern=r"^plan_cancel$"),
+            CallbackQueryHandler(ai_back_to_menu, pattern=r"^ai_back_to_menu$"),
+            CallbackQueryHandler(ai_back_to_content, pattern=r"^ai_back_to_content$"),
+            CallbackQueryHandler(ai_close, pattern=r"^ai_close$"),
+        ],
+        PLAN_GET_TOPIC: all_menu_jumps + [
+            CallbackQueryHandler(ai_back_to_menu, pattern=r"^ai_back_to_menu$"),
+            CallbackQueryHandler(ai_back_to_content, pattern=r"^ai_back_to_content$"),
+            CallbackQueryHandler(ai_close, pattern=r"^ai_close$"),
+            MessageHandler(filters.TEXT & ~filters.COMMAND, plan_topic_received),
+        ],
+        PLAN_VIEW: all_menu_jumps + [
+            CallbackQueryHandler(plan_view_callback, pattern=r"^plan_"),
+            CallbackQueryHandler(ai_back_to_menu, pattern=r"^ai_back_to_menu$"),
+            CallbackQueryHandler(ai_back_to_content, pattern=r"^ai_back_to_content$"),
+            CallbackQueryHandler(ai_close, pattern=r"^ai_close$"),
+        ],
+
+        # 8b. 🗓 SMART CONTENT CALENDAR holatlari (7/30 kunlik reja).
+        # Eslatma: ``cal_cancel`` HAR UCH holatda ham ishlaydi (eski
+        # tugma bosilganda ham oqim toza yopiladi, crash bo'lmaydi).
+        CALENDAR_BUSINESS: all_menu_jumps + [
+            CallbackQueryHandler(calendar_cancel_callback, pattern=r"^cal_cancel$"),
+            MessageHandler(filters.TEXT & ~filters.COMMAND, calendar_business_received),
+        ],
+        CALENDAR_DURATION: all_menu_jumps + [
+            CallbackQueryHandler(calendar_duration_callback, pattern=r"^cal_days:"),
+            CallbackQueryHandler(calendar_cancel_callback, pattern=r"^cal_cancel$"),
+            MessageHandler(filters.TEXT & ~filters.COMMAND, calendar_business_received),
+        ],
+        CALENDAR_VIEW: all_menu_jumps + [
+            CallbackQueryHandler(calendar_day_callback, pattern=r"^cal_day:"),
+            CallbackQueryHandler(calendar_duration_callback, pattern=r"^cal_days:"),
+            CallbackQueryHandler(calendar_cancel_callback, pattern=r"^cal_cancel$"),
+        ],
+
+        # 8c. 🚀 AI AUTOPILOT holatlari (PHASE C, 7-band).
+        # ``ap_cancel`` HAR UCH holatda ham ishlaydi (eski tugma bosilganda
+        # ham oqim toza yopiladi, crash bo'lmaydi).
+        AUTOPILOT_TOPIC: all_menu_jumps + [
+            CallbackQueryHandler(
+                autopilot_strategy_callback,
+                pattern=r"^ap_(?:goal|freq|mode|quiet):",
+            ),
+            CallbackQueryHandler(autopilot_cancel_callback, pattern=r"^ap_cancel$"),
+            MessageHandler(filters.TEXT & ~filters.COMMAND, autopilot_topic_received),
+        ],
+        AUTOPILOT_VIEW: all_menu_jumps + [
+            CallbackQueryHandler(autopilot_confirm_callback, pattern=r"^ap_confirm$"),
+            CallbackQueryHandler(autopilot_edit_callback, pattern=r"^ap_edit$"),
+            CallbackQueryHandler(autopilot_force_callback, pattern=r"^ap_force$"),
+            CallbackQueryHandler(autopilot_refresh_callback, pattern=r"^ap_refresh$"),
+            CallbackQueryHandler(autopilot_regen_callback, pattern=r"^ap_regen$"),
+            CallbackQueryHandler(autopilot_post_view_callback, pattern=r"^ap_pview:"),
+            CallbackQueryHandler(autopilot_post_approve_callback, pattern=r"^ap_papp:"),
+            CallbackQueryHandler(autopilot_post_edit_callback, pattern=r"^ap_pedit:"),
+            CallbackQueryHandler(autopilot_post_regen_callback, pattern=r"^ap_pregen:"),
+            CallbackQueryHandler(autopilot_post_delete_callback, pattern=r"^ap_pdel:"),
+            CallbackQueryHandler(autopilot_back_to_plan_callback, pattern=r"^ap_back$"),
+            CallbackQueryHandler(autopilot_cancel_callback, pattern=r"^ap_cancel$"),
+            # Yangi mavzu yozilsa — reja to'g'ridan-to'g'ri qayta tuziladi.
+            MessageHandler(filters.TEXT & ~filters.COMMAND, autopilot_topic_received),
+        ],
+        AUTOPILOT_EDIT_DAY: all_menu_jumps + [
+            CallbackQueryHandler(autopilot_edit_day_callback, pattern=r"^ap_eday:"),
+            CallbackQueryHandler(autopilot_post_view_callback, pattern=r"^ap_pview:"),
+            CallbackQueryHandler(autopilot_post_approve_callback, pattern=r"^ap_papp:"),
+            CallbackQueryHandler(autopilot_post_edit_callback, pattern=r"^ap_pedit:"),
+            CallbackQueryHandler(autopilot_post_regen_callback, pattern=r"^ap_pregen:"),
+            CallbackQueryHandler(autopilot_post_delete_callback, pattern=r"^ap_pdel:"),
+            CallbackQueryHandler(autopilot_back_to_plan_callback, pattern=r"^ap_back$"),
+            CallbackQueryHandler(autopilot_confirm_callback, pattern=r"^ap_confirm$"),
+            CallbackQueryHandler(autopilot_cancel_callback, pattern=r"^ap_cancel$"),
+        ],
+        AUTOPILOT_EDIT_INPUT: all_menu_jumps + [
+            CallbackQueryHandler(autopilot_post_approve_callback, pattern=r"^ap_papp:"),
+            CallbackQueryHandler(autopilot_post_edit_callback, pattern=r"^ap_pedit:"),
+            CallbackQueryHandler(autopilot_post_regen_callback, pattern=r"^ap_pregen:"),
+            CallbackQueryHandler(autopilot_post_delete_callback, pattern=r"^ap_pdel:"),
+            CallbackQueryHandler(autopilot_back_to_plan_callback, pattern=r"^ap_back$|^ap_eday:back$"),
+            CallbackQueryHandler(autopilot_cancel_callback, pattern=r"^ap_cancel$"),
+            MessageHandler(filters.TEXT & ~filters.COMMAND, autopilot_edit_input_received),
+        ],
+
+        # 8d. 📋 POST SHABLONLARI holatlari (PHASE C, 9-band).
+        TPL_MENU: all_menu_jumps + [
+            CallbackQueryHandler(templates_menu_callback, pattern=r"^tpl_"),
+        ],
+        TPL_NEW_NAME: all_menu_jumps + [
+            CallbackQueryHandler(templates_menu_callback, pattern=r"^tpl_cancel$|^tpl_back$"),
+            MessageHandler(filters.TEXT & ~filters.COMMAND, template_name_received),
+        ],
+        TPL_NEW_CONTENT: all_menu_jumps + [
+            CallbackQueryHandler(templates_menu_callback, pattern=r"^tpl_cancel$|^tpl_back$"),
+            MessageHandler(filters.TEXT & ~filters.COMMAND, template_content_received),
+        ],
+        TPL_USE_PICK: all_menu_jumps + [
+            CallbackQueryHandler(template_pick_callback, pattern=r"^tpl_pick:"),
+            CallbackQueryHandler(templates_menu_callback, pattern=r"^tpl_back$|^tpl_cancel$"),
+        ],
+        TPL_USE_VARS: all_menu_jumps + [
+            CallbackQueryHandler(templates_menu_callback, pattern=r"^tpl_cancel$|^tpl_back$"),
+            MessageHandler(filters.TEXT & ~filters.COMMAND, template_vars_received),
+        ],
+        TPL_DEL_PICK: all_menu_jumps + [
+            CallbackQueryHandler(template_remove_callback, pattern=r"^tpl_rmv:"),
+            CallbackQueryHandler(templates_menu_callback, pattern=r"^tpl_back$|^tpl_cancel$"),
+        ],
+    }
+
+
+
+def _sources_states(all_menu_jumps):
+    """Kontent manbalari: URL, RSS/ATOM, recycle va qoralamalar holatlari."""
+    return {
+        # 8e. 📥 PHASE D (2/2) — KONTENT MANBALARI holatlari (530–539).
+        # ``src_back`` / ``src_cancel`` HAR BIR holatda ishlaydi (eski
+        # tugma bosilganda ham oqim toza yopiladi, crash bo'lmaydi).
+        SRC_HUB: all_menu_jumps + [
+            CallbackQueryHandler(sources_hub_callback,
+                                 pattern=r"^src_(url|rss|rec|drf):"),
+            CallbackQueryHandler(sources_back_callback, pattern=r"^src_back$"),
+            CallbackQueryHandler(source_cancel_callback, pattern=r"^src_cancel$"),
+        ],
+        SRC_URL_INPUT: all_menu_jumps + [
+            CallbackQueryHandler(sources_back_callback, pattern=r"^src_back$"),
+            CallbackQueryHandler(source_cancel_callback, pattern=r"^src_cancel$"),
+            MessageHandler(filters.TEXT & ~filters.COMMAND, url_text_received),
+        ],
+        SRC_URL_FORMATS: all_menu_jumps + [
+            CallbackQueryHandler(url_format_callback, pattern=r"^src_fmt:"),
+            CallbackQueryHandler(source_cancel_callback, pattern=r"^src_cancel$"),
+        ],
+        SRC_PREVIEW: all_menu_jumps + [
+            CallbackQueryHandler(preview_action_callback, pattern=r"^src_act:"),
+            CallbackQueryHandler(source_cancel_callback, pattern=r"^src_cancel$"),
+        ],
+        SRC_TIME_INPUT: all_menu_jumps + [
+            CallbackQueryHandler(preview_action_callback, pattern=r"^src_act:"),
+            CallbackQueryHandler(source_cancel_callback, pattern=r"^src_cancel$"),
+            MessageHandler(filters.TEXT & ~filters.COMMAND, schedule_time_received),
+        ],
+        SRC_RSS_MENU: all_menu_jumps + [
+            CallbackQueryHandler(rss_menu_callback,
+                                 pattern=r"^src_(add|chk:|tgl:|auto:|del:)"),
+            CallbackQueryHandler(sources_back_callback, pattern=r"^src_back$"),
+            CallbackQueryHandler(source_cancel_callback, pattern=r"^src_cancel$"),
+        ],
+        SRC_RSS_URL: all_menu_jumps + [
+            CallbackQueryHandler(sources_back_callback, pattern=r"^src_back$"),
+            CallbackQueryHandler(source_cancel_callback, pattern=r"^src_cancel$"),
+            MessageHandler(filters.TEXT & ~filters.COMMAND, rss_url_received),
+        ],
+        SRC_RSS_INTERVAL: all_menu_jumps + [
+            CallbackQueryHandler(sources_back_callback, pattern=r"^src_back$"),
+            CallbackQueryHandler(source_cancel_callback, pattern=r"^src_cancel$"),
+            MessageHandler(filters.TEXT & ~filters.COMMAND, rss_interval_received),
+        ],
+        SRC_RECYCLE_LIST: all_menu_jumps + [
+            CallbackQueryHandler(recycle_pick_callback, pattern=r"^src_rp:"),
+            CallbackQueryHandler(sources_back_callback, pattern=r"^src_back$"),
+            CallbackQueryHandler(source_cancel_callback, pattern=r"^src_cancel$"),
+        ],
+        SRC_DRAFTS: all_menu_jumps + [
+            CallbackQueryHandler(draft_action_callback, pattern=r"^src_draft:"),
+            CallbackQueryHandler(sources_back_callback, pattern=r"^src_back$"),
+            CallbackQueryHandler(source_cancel_callback, pattern=r"^src_cancel$"),
+        ],
+    }
+
+
+
+def _insights_billing_states(all_menu_jumps):
+    """Analitika, obuna, promo/to'lov va kassa cheki holatlari."""
+    return {
+        # 9. Analytics holatlari
+        # 📊 Kanal tanlash ro'yxatidagi [◀️ Orqaga] (an_overview) SHAXSIY
+        # statistika ekraniga qaytaradi — shu sababli an_close bilan birga
+        # ro'yxatdan o'tadi (analytics_view_callback ikkalasini ham biladi).
+        ANALYTICS_CHOOSE: all_menu_jumps + [
+            CallbackQueryHandler(analytics_channel_chosen, pattern=r"^an_ch:"),
+            CallbackQueryHandler(
+                analytics_view_callback, pattern=r"^an_close$|^an_overview$"
+            ),
+        ],
+        ANALYTICS_VIEW: all_menu_jumps + [
+            CallbackQueryHandler(analytics_view_callback, pattern=r"^an_"),
+        ],
+
+        # 10. Subscription holatlari
+        SUBSCRIPTION_VIEW: all_menu_jumps + [
+            CallbackQueryHandler(subscription_callback, pattern=r"^sub_"),
+        ],
+        PROMO_INPUT: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, promo_code_received)],
+        # 💳 Karta cheki (rasm/PDF) kutish — Admin Approval Flow
+        RECEIPT_WAIT: all_menu_jumps + [
+            CallbackQueryHandler(subscription_callback, pattern=r"^sub_"),
+            MessageHandler(filters.ALL & ~filters.COMMAND, receipt_received),
+        ],
+
+        # 10c. 🖼 Rasm moderatsiyasi (photo_check) — QAT'IY HOLAT
+        # Rasm adminga FAQAT shu "Moderatsiya" holatida yuboriladi. Global
+        # photo handler (register_photo_check) ichida ham xuddi shu holat/
+        # user_data belgisi tekshiriladi — yangi post oqimi, AI Studio yoki
+        # boshqa dialogda yuborilgan rasmlar hech qachon adminga bormaydi.
+        PHOTO_CHECK_WAIT: all_menu_jumps + [
+            MessageHandler(
+                filters.PHOTO & ~filters.COMMAND & ~_AI_CAPTION_FILTER,
+                handle_user_photo,
+            ),
+        ],
+    }
+
+
+
+def _editing_tools_states(all_menu_jumps, _edit_post_menu_handlers):
+    """Kanaldan post olish, postni tahrirlash va konvertor holatlari."""
+    return {
+        # 11. Channel Extract holatlari
+        EXTRACT_USERNAME: all_menu_jumps + [
+            CallbackQueryHandler(ai_back_to_menu, pattern=r"^ai_back_to_menu$"),
+            CallbackQueryHandler(ai_back_to_content, pattern=r"^ai_back_to_content$"),
+            CallbackQueryHandler(ai_close, pattern=r"^ai_close$"),
+            MessageHandler(filters.TEXT & ~filters.COMMAND, extract_username_received),
+        ],
+        EXTRACT_CHOOSE_POST: all_menu_jumps + [
+            CallbackQueryHandler(extract_post_chosen, pattern=r"^ext_"),
+            CallbackQueryHandler(ai_back_to_menu, pattern=r"^ai_back_to_menu$"),
+            CallbackQueryHandler(ai_back_to_content, pattern=r"^ai_back_to_content$"),
+            CallbackQueryHandler(ai_close, pattern=r"^ai_close$"),
+        ],
+        EXTRACT_EDIT: all_menu_jumps + [
+            CallbackQueryHandler(extract_post_chosen, pattern=r"^ext_"),
+            MessageHandler(filters.TEXT & ~filters.COMMAND, extract_edit_received),
+        ],
+
+        # 4. Kutilayotgan postlarni tahrirlash holatlari
+        # ✏️ 2-VAZIFA: tahrirlash TANLOV MENYUSI tugmalari FSM ICHIDA ham
+        # ishlaydi (aks holda menyudan tanlangan amal davom etmasdi):
+        # [📝 Matn] → matn kutiladi, [🔘 Tugma] / [❤️ Reaksiya] /
+        # [⏰ Vaqt] → mavjud oqimlar, [◀️ Orqaga] → 📅 ro'yxati + FSM END.
+        EDIT_POST_TIME: all_menu_jumps + list(_edit_post_menu_handlers) + [MessageHandler(filters.TEXT & ~filters.COMMAND, edit_post_time_received)],
+        EDIT_POST_CONTENT: all_menu_jumps + list(_edit_post_menu_handlers) + [MessageHandler(filters.TEXT & ~filters.COMMAND, edit_post_content_received)],
+        EDIT_POST_BTN: all_menu_jumps + list(_edit_post_menu_handlers) + [MessageHandler(filters.TEXT & ~filters.COMMAND, edit_post_btn_received)],
+        EDIT_POST_REACT: all_menu_jumps + list(_edit_post_menu_handlers) + [MessageHandler(filters.TEXT & ~filters.COMMAND, edit_post_react_received)],
+
+        # 5. Konverter holati (Maxsus State)
+        CONVERT_INPUT: all_menu_jumps + [MessageHandler(filters.ALL & ~filters.COMMAND, converter_received)],
+    }
+
+
+
+def _admin_states(all_menu_jumps):
+    """Admin panel oqimlari (RBAC) va reklama sozlamalari holatlari."""
+    return {
+        # 6. Admin holatlari
+        TRANSFER_TARGET: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, transfer_target_received)],
+        TRANSFER_AMOUNT: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, transfer_amount_received)],
+        BROADCAST_MESSAGE: all_menu_jumps + [
             CallbackQueryHandler(admin_dashboard_callback, pattern=r"^adm_"),
+            MessageHandler(filters.TEXT & ~filters.COMMAND, broadcast_send),
+        ],
+        ADD_SPONSOR_CHANNEL: all_menu_jumps + [
+            CallbackQueryHandler(admin_dashboard_callback, pattern=r"^adm_"),
+            MessageHandler(filters.TEXT & ~filters.COMMAND, sponsor_channel_received),
+        ],
+        SET_CHANNEL_AD: all_menu_jumps + [
             CallbackQueryHandler(ad_pool_callback, pattern=r"^adp:"),
-            CallbackQueryHandler(converter_inline_entry, pattern=r"^extra_converter$"),
-            # ✨ Postga Tugma & Reaksiya qo'shish — ⚙️ Qo'shimcha funksiyalar menyusidan
-            CallbackQueryHandler(post_enhancer_start, pattern=r"^extra_enhancer$"),
-            # ✨ AI Studio inline entry'lar — sessiya tugagach eski tugma bossa ham
-            # conversation qayta ochiladi (menu xabari o'chirilmaydi, edit qilinadi)
-            CallbackQueryHandler(
-                lambda u, c: guard_entry(u, c, ai_studio_nav_callback),
-                pattern=r"^studio_(ai_post|ai_audit|extract|content_plan|ai_photo|close)$",
-            ),
-            CallbackQueryHandler(
-                lambda u, c: guard_entry(u, c, ai_back_to_menu),
-                pattern=r"^ai_back_to_menu$",
-            ),
-            # 🧭 4-qadam: AI Yordamchi → [◀️ Orqaga] → Kontent yaratish
-            # submenyusi (eski tugma sessiya tugagach bosilsa ham ishlaydi).
-            CallbackQueryHandler(
-                lambda u, c: guard_entry(u, c, ai_back_to_content),
-                pattern=r"^ai_back_to_content$",
-            ),
-            CommandHandler("newpost", lambda u, c: guard_entry(u, c, start_new_post)),
-            CommandHandler("imagepost", lambda u, c: guard_entry(u, c, image_post_entry)),
-            CommandHandler("broadcast", lambda u, c: guard_entry(u, c, broadcast_start)),
-            CommandHandler("queue", lambda u, c: guard_menu(u, c, queue_menu)),
+            CallbackQueryHandler(admin_dashboard_callback, pattern=r"^adm_"),
+            MessageHandler(filters.TEXT & ~filters.COMMAND, channel_ad_received),
         ],
+        SET_BOT_REPLY_AD: all_menu_jumps + [
+            CallbackQueryHandler(ad_pool_callback, pattern=r"^adp:"),
+            CallbackQueryHandler(admin_dashboard_callback, pattern=r"^adm_"),
+            MessageHandler(filters.TEXT & ~filters.COMMAND, bot_reply_ad_received),
+        ],
+        SET_POST_TAG: all_menu_jumps + [
+            # 🧭 4-qadam: [⬅️ Orqaga]/[❌ Bekor qilish] (adm_back/adm_cancel)
+            # holat ICHIDA ham ishlaydi — FSM to'g'ri yopiladi.
+            CallbackQueryHandler(admin_dashboard_callback, pattern=r"^adm_"),
+            MessageHandler(filters.TEXT & ~filters.COMMAND, post_tag_received)],
+        AI_SETTINGS: all_menu_jumps + [
+            CallbackQueryHandler(admin_dashboard_callback, pattern=r"^adm_"),
+            MessageHandler(filters.TEXT & ~filters.COMMAND, ai_settings_received)],
+
+        # Admin inline flow holatlari
+        ADMIN_GRANT_PRO: _admin_flow_state(admin_inline_text_handler, all_menu_jumps),
+        ADMIN_PROMO_CREATE: _admin_flow_state(admin_inline_text_handler, all_menu_jumps),
+        ADMIN_SPONSOR_ADD: _admin_flow_state(admin_inline_text_handler, all_menu_jumps),
+    }
+
+
+
+def _ai_assistant_states(all_menu_jumps):
+    """AI Studio yordamchisi va AI post aniqlashtirish sehrgarlari holatlari."""
+    return {
+        # 7. AI Assistant holatlari (Faqat foydalanuvchi AI ga kirganda ishlaydi!)
+        AI_INPUT: all_menu_jumps + [MessageHandler(filters.ALL & ~filters.COMMAND, ai_input_received)],
+        AI_CONFIRM: all_menu_jumps + [
+            CallbackQueryHandler(ai_confirm_callback, pattern=r"^ai_post_"),
+            CallbackQueryHandler(ai_back_to_menu, pattern=r"^ai_back_to_menu$"),
+            CallbackQueryHandler(ai_back_to_content, pattern=r"^ai_back_to_content$"),
+            CallbackQueryHandler(ai_close, pattern=r"^ai_close$"),
+            MessageHandler(filters.ALL & ~filters.COMMAND, ai_input_received),
+        ],
+        AI_GET_TIME: all_menu_jumps + [
+            MessageHandler(filters.ALL & ~filters.COMMAND, ai_time_received),
+            CallbackQueryHandler(ai_confirm_callback, pattern=r"^ai_post_"),
+            CallbackQueryHandler(ai_back_to_menu, pattern=r"^ai_back_to_menu$"),
+            CallbackQueryHandler(ai_back_to_content, pattern=r"^ai_back_to_content$"),
+            CallbackQueryHandler(ai_close, pattern=r"^ai_close$"),
+        ],
+
+        # 🌅 Morning digest: select one of the three deterministic ideas.
+        MORNING_IDEA_SELECT: all_menu_jumps + [
+            CallbackQueryHandler(morning_digest_idea_callback, pattern=r"^md_idea:"),
+            CallbackQueryHandler(morning_digest_cancel_callback, pattern=r"^md_cancel$"),
+        ],
+
+        # 7b. ✨ AI STUDIO inline oqimi (hardering: xabar edit, doimiy nav-tugmalar)
+        # AI_MENU_STATE da rasm yuborilsa — Vision (rasmdan post) darhol ishlaydi
+        AI_MENU_STATE: all_menu_jumps + [
+            CallbackQueryHandler(ai_studio_nav_callback, pattern=r"^studio_"),
+            CallbackQueryHandler(ai_back_to_menu, pattern=r"^ai_back_to_menu$"),
+            CallbackQueryHandler(ai_back_to_content, pattern=r"^ai_back_to_content$"),
+            CallbackQueryHandler(ai_close, pattern=r"^ai_close$"),
+            MessageHandler(filters.PHOTO | filters.Document.ALL, ai_photo_received),
+        ],
+        AI_PROMPT_INPUT: all_menu_jumps + [
+            CallbackQueryHandler(ai_studio_nav_callback, pattern=r"^studio_"),
+            CallbackQueryHandler(ai_back_to_menu, pattern=r"^ai_back_to_menu$"),
+            CallbackQueryHandler(ai_back_to_content, pattern=r"^ai_back_to_content$"),
+            CallbackQueryHandler(ai_close, pattern=r"^ai_close$"),
+            MessageHandler(filters.ALL & ~filters.COMMAND, ai_prompt_received),
+        ],
+        AI_TONE_SELECT: all_menu_jumps + [
+            CallbackQueryHandler(ai_tone_callback, pattern=r"^ai_tone:"),
+            CallbackQueryHandler(ai_studio_schedule_callback, pattern=r"^ai_studio_sched$"),
+            CallbackQueryHandler(ai_studio_nav_callback, pattern=r"^studio_"),
+            CallbackQueryHandler(ai_back_to_menu, pattern=r"^ai_back_to_menu$"),
+            CallbackQueryHandler(ai_back_to_content, pattern=r"^ai_back_to_content$"),
+            CallbackQueryHandler(ai_close, pattern=r"^ai_close$"),
+            # Yangi mavzu yozilsa — qayta generatsiya
+            MessageHandler(filters.ALL & ~filters.COMMAND, ai_prompt_received),
+        ],
+        AI_AUDIT_INPUT: all_menu_jumps + [
+            CallbackQueryHandler(ai_studio_nav_callback, pattern=r"^studio_"),
+            CallbackQueryHandler(ai_back_to_menu, pattern=r"^ai_back_to_menu$"),
+            CallbackQueryHandler(ai_back_to_content, pattern=r"^ai_back_to_content$"),
+            CallbackQueryHandler(ai_close, pattern=r"^ai_close$"),
+            MessageHandler(filters.ALL & ~filters.COMMAND, ai_audit_received),
+        ],
+
+        # 7c. 🖼 AI STUDIO — RASMDAN POST YARATISH (Vision oqimi)
+        # AI_MENU_STATE da rasm yuborilsa ham vision darhol ishlaydi
+        # (foydalanuvchi /ai dan keyin rasm yuborsa ham).
+        AI_PHOTO_INPUT: all_menu_jumps + [
+            CallbackQueryHandler(ai_studio_nav_callback, pattern=r"^studio_"),
+            CallbackQueryHandler(ai_back_to_menu, pattern=r"^ai_back_to_menu$"),
+            CallbackQueryHandler(ai_back_to_content, pattern=r"^ai_back_to_content$"),
+            CallbackQueryHandler(ai_close, pattern=r"^ai_close$"),
+            MessageHandler(filters.ALL & ~filters.COMMAND, ai_photo_received),
+        ],
+        AI_PHOTO_RESULT: all_menu_jumps + [
+            CallbackQueryHandler(ai_photo_result_callback, pattern=r"^photo_"),
+            CallbackQueryHandler(ai_studio_nav_callback, pattern=r"^studio_"),
+            CallbackQueryHandler(ai_back_to_menu, pattern=r"^ai_back_to_menu$"),
+            CallbackQueryHandler(ai_back_to_content, pattern=r"^ai_back_to_content$"),
+            CallbackQueryHandler(ai_close, pattern=r"^ai_close$"),
+            MessageHandler(filters.ALL & ~filters.COMMAND, ai_photo_received),
+        ],
+        AI_PHOTO_EDIT_INPUT: all_menu_jumps + [
+            CallbackQueryHandler(ai_studio_nav_callback, pattern=r"^studio_"),
+            CallbackQueryHandler(ai_back_to_menu, pattern=r"^ai_back_to_menu$"),
+            CallbackQueryHandler(ai_back_to_content, pattern=r"^ai_back_to_content$"),
+            CallbackQueryHandler(ai_close, pattern=r"^ai_close$"),
+            MessageHandler(filters.PHOTO | filters.Document.ALL, ai_photo_received),
+            MessageHandler(filters.TEXT & ~filters.COMMAND, ai_photo_edit_received),
+        ],
+
+        # 7d-2. 🧭 AI POST — MAVZUNI ANIQLASHTIRISH WIZARD'I (3-qadam).
+        # Magic Post / AI Studio matn kiritishdan shu holatlarga o'tadi:
+        # CLARIFY (yo'nalish tugmalari) → SALES/CUSTOM_INPUT (matn javobi)
+        # → kelib chiqish oqimiga qaytish. Kvota shu holatlarda BRON
+        # QILINMAYDI — faqat generatsiya boshlanganda (eski qoidalar).
+        AI_POST_CLARIFY: all_menu_jumps + [
+            CallbackQueryHandler(ai_post_format_callback, pattern=r"^aip_fmt:"),
+            CallbackQueryHandler(ai_post_back_callback, pattern=r"^aip_back$"),
+            # ❌ Bekor qilish (DEEP AUDIT: dead-end trap tuzatildi) —
+            # wizard to'liq yopiladi, foydalanuvchi band qolmaydi.
+            CallbackQueryHandler(ai_post_cancel_callback, pattern=r"^aip_cancel$"),
+        ],
+        AI_POST_SALES_INPUT: all_menu_jumps + [
+            MessageHandler(filters.TEXT & ~filters.COMMAND, ai_post_sales_input_received),
+        ],
+        AI_POST_CUSTOM_INPUT: all_menu_jumps + [
+            MessageHandler(filters.TEXT & ~filters.COMMAND, ai_post_custom_input_received),
+        ],
+    }
+
+
+
+def _magic_post_states(all_menu_jumps):
+    """Magic Post (uslub tanlash, natija, yuborish) holatlari."""
+    return {
+        # 7d. ✨ MAGIC POST holatlari (Killer Feature #1)
+        MAGIC_INPUT: all_menu_jumps + [
+            MessageHandler(filters.ALL & ~filters.COMMAND, magic_text_received),
+        ],
+        MAGIC_STYLE_SELECT: all_menu_jumps + [
+            CallbackQueryHandler(magic_style_callback, pattern=r"^mp_style:"),
+            CallbackQueryHandler(magic_restyle_callback, pattern=r"^mp_restyle$"),
+            # ❌ Bekor qilish (DEEP AUDIT: dead-end trap tuzatildi) —
+            # uslub menyusidan chiqish; sessiya tozalanadi, kredit
+            # tegilmaydi (hech narsa bron qilinmagan).
+            CallbackQueryHandler(magic_cancel_callback, pattern=r"^mp_cancel$"),
+        ],
+        MAGIC_RESULT: all_menu_jumps + [
+            CallbackQueryHandler(magic_send_now_callback, pattern=r"^mp_send$"),
+            CallbackQueryHandler(magic_schedule_callback, pattern=r"^mp_sched$"),
+            CallbackQueryHandler(magic_channel_picked_callback, pattern=r"^mp_ch"),
+            CallbackQueryHandler(magic_restyle_callback, pattern=r"^mp_restyle$"),
+            # ◀️ Orqaga — Kontent yaratish submenyusiga (sessiya yopiladi).
+            CallbackQueryHandler(magic_back_callback, pattern=r"^mp_back$"),
+            # 📊 Post Score (Killer Feature #4): natijani baholash va
+            # yaxshilash tugmalari shu holatda ham ishlaydi.
+            CallbackQueryHandler(post_score_eval_callback, pattern=r"^ps_eval:"),
+            CallbackQueryHandler(post_score_improve_callback, pattern=r"^ps_improve$"),
+            CallbackQueryHandler(post_score_send_callback, pattern=r"^ps_send$"),
+            CallbackQueryHandler(post_score_schedule_callback, pattern=r"^ps_sched$"),
+            CallbackQueryHandler(post_score_new_callback, pattern=r"^ps_new$"),
+            CallbackQueryHandler(post_score_channel_picked_callback, pattern=r"^ps_ch"),
+            # Yangi matn yuborilsa — yangi oqim (eski natija almashtiriladi)
+            MessageHandler(filters.ALL & ~filters.COMMAND, magic_text_received),
+        ],
+        MAGIC_SEND_CHOOSE: all_menu_jumps + [
+            CallbackQueryHandler(magic_channel_picked_callback, pattern=r"^mp_ch"),
+            CallbackQueryHandler(magic_restyle_callback, pattern=r"^mp_restyle$"),
+        ],
+    }
+
+
+
+def _voice_post_states(all_menu_jumps):
+    """Ovozdan post (VOICE to POST) holatlari."""
+    return {
+        # 7e-0. 🧩 «🎙 Ovoz → Post» bo'limi: ovozli xabar kutiladi.
+        # Ovoz kelishi bilan STT oqimi boshlanadi — menyu tashqarisidagi
+        # VoiceEntryHandler bilan BITTA handler (voice_message_received),
+        # ya'ni ikki kirish yo'li ham bir xil oqimga olib kiradi.
+        VOICE_AWAIT: all_menu_jumps + [
+            MessageHandler(VOICE_MESSAGE_FILTER, voice_message_received),
+        ],
+
+        # 7e. 🎙 VOICE → POST holatlari (Killer Feature — resurs-tejamkor)
+        # VOICE_STYLE_SELECT: transkripsiyalangan matn → 5 uslub + ❌ Bekor.
+        # Uslub tanlanmaguncha HECH QANDAY kredit/limit yechilmaydi;
+        # yangi ovoz kelib qolsa — oqim qaytadan boshlanadi (re-entry).
+        VOICE_STYLE_SELECT: all_menu_jumps + [
+            CallbackQueryHandler(voice_style_callback, pattern=r"^vp_style:"),
+            CallbackQueryHandler(voice_cancel_callback, pattern=r"^vp_cancel$"),
+            MessageHandler(VOICE_MESSAGE_FILTER, voice_message_received),
+        ],
+        VOICE_RESULT: all_menu_jumps + [
+            CallbackQueryHandler(voice_send_now_callback, pattern=r"^vp_send$"),
+            CallbackQueryHandler(voice_schedule_callback, pattern=r"^vp_sched$"),
+            CallbackQueryHandler(voice_restyle_callback, pattern=r"^vp_restyle$"),
+            CallbackQueryHandler(voice_cancel_callback, pattern=r"^vp_cancel$"),
+            # 📊 Post Score (Killer Feature #4): natijani baholash va
+            # yaxshilash tugmalari shu holatda ham ishlaydi.
+            CallbackQueryHandler(post_score_eval_callback, pattern=r"^ps_eval:"),
+            CallbackQueryHandler(post_score_improve_callback, pattern=r"^ps_improve$"),
+            CallbackQueryHandler(post_score_send_callback, pattern=r"^ps_send$"),
+            CallbackQueryHandler(post_score_schedule_callback, pattern=r"^ps_sched$"),
+            CallbackQueryHandler(post_score_new_callback, pattern=r"^ps_new$"),
+            CallbackQueryHandler(post_score_channel_picked_callback, pattern=r"^ps_ch"),
+            MessageHandler(VOICE_MESSAGE_FILTER, voice_message_received),
+        ],
+        VOICE_SEND_CHOOSE: all_menu_jumps + [
+            CallbackQueryHandler(voice_channel_picked_callback, pattern=r"^vp_ch"),
+            MessageHandler(VOICE_MESSAGE_FILTER, voice_message_received),
+        ],
+    }
+
+
+
+def _image_post_states(all_menu_jumps):
+    """Rasmdan post (IMAGE to POST) holatlari."""
+    return {
+        # 7f. 📸 IMAGE → POST holatlari
+        IMAGE_POST_INPUT: all_menu_jumps + [
+            MessageHandler(filters.PHOTO | filters.Document.ALL, image_photo_received),
+            MessageHandler(filters.TEXT & ~filters.COMMAND, image_photo_received),
+        ],
+        # 3-BOSQICH fallback: Vision ishlamadi va caption yo'q — mavzu matni
+        # (yoki yangi rasm) kutiladi; jarayon to'xtab qolmaydi.
+        IMAGE_TOPIC_INPUT: all_menu_jumps + [
+            MessageHandler(filters.PHOTO | filters.Document.ALL, image_photo_received),
+            MessageHandler(filters.TEXT & ~filters.COMMAND, image_topic_received),
+        ],
+        IMAGE_STYLE_SELECT: all_menu_jumps + [
+            CallbackQueryHandler(image_style_callback, pattern=r"^(image_style:|img_style:|image_cancel$|img_cancel$)"),
+            CallbackQueryHandler(image_cancel_callback, pattern=r"^image_cancel$"),
+        ],
+        IMAGE_POST_RESULT: all_menu_jumps + [
+            CallbackQueryHandler(image_send_callback, pattern=r"^image_send$"),
+            CallbackQueryHandler(image_schedule_callback, pattern=r"^image_schedule$"),
+            CallbackQueryHandler(image_restyle_callback, pattern=r"^image_restyle$"),
+            CallbackQueryHandler(image_back_callback, pattern=r"^image_back$"),
+            CallbackQueryHandler(image_cancel_callback, pattern=r"^image_cancel$"),
+            # 📊 Post Score (Killer Feature #4): natijani baholash va
+            # yaxshilash tugmalari shu holatda ham ishlaydi.
+            CallbackQueryHandler(post_score_eval_callback, pattern=r"^ps_eval:"),
+            CallbackQueryHandler(post_score_improve_callback, pattern=r"^ps_improve$"),
+            CallbackQueryHandler(post_score_send_callback, pattern=r"^ps_send$"),
+            CallbackQueryHandler(post_score_schedule_callback, pattern=r"^ps_sched$"),
+            CallbackQueryHandler(post_score_new_callback, pattern=r"^ps_new$"),
+            CallbackQueryHandler(post_score_channel_picked_callback, pattern=r"^ps_ch"),
+        ],
+        IMAGE_SEND_CHOOSE: all_menu_jumps + [
+            CallbackQueryHandler(image_channel_callback, pattern=r"^image_ch:"),
+            CallbackQueryHandler(image_cancel_callback, pattern=r"^image_cancel$"),
+        ],
+        IMAGE_SCHEDULE_INPUT: all_menu_jumps + [
+            MessageHandler(filters.TEXT & ~filters.COMMAND, image_schedule_time_received),
+        ],
+    }
+
+
+
+def _post_score_states(all_menu_jumps):
+    """Post baholash va yaxshilash (Post Score) holatlari."""
+    return {
+        # 7h. 📊 POST SCORE holatlari (Killer Feature #4)
+        # Baholash BEPUL — kredit/kunlik kvota yechilmaydi; «✨ 95/100 ga
+        # yaxshilash» bosilgandagina 1 kredit atomik yechiladi (+refund).
+        POST_SCORE_INPUT: all_menu_jumps + [
+            MessageHandler(filters.ALL & ~filters.COMMAND, post_score_text_received),
+        ],
+        POST_SCORE_RESULT: all_menu_jumps + [
+            CallbackQueryHandler(post_score_improve_callback, pattern=r"^ps_improve$"),
+            CallbackQueryHandler(post_score_send_callback, pattern=r"^ps_send$"),
+            CallbackQueryHandler(post_score_schedule_callback, pattern=r"^ps_sched$"),
+            CallbackQueryHandler(post_score_new_callback, pattern=r"^ps_new$"),
+            CallbackQueryHandler(post_score_eval_callback, pattern=r"^ps_eval:"),
+            CallbackQueryHandler(post_score_channel_picked_callback, pattern=r"^ps_ch"),
+            # Yangi matn yuborilsa — darhol baholash (yangi sessiya).
+            MessageHandler(filters.ALL & ~filters.COMMAND, post_score_text_received),
+        ],
+        POST_SCORE_SEND_CHOOSE: all_menu_jumps + [
+            CallbackQueryHandler(post_score_channel_picked_callback, pattern=r"^ps_ch"),
+            CallbackQueryHandler(post_score_new_callback, pattern=r"^ps_new$"),
+        ],
+    }
+
+
+
+def _support_queue_states(all_menu_jumps):
+    """Qollab-quvvatlash murojaati va navbat menyusi holatlari."""
+    return {
+        # 💬 4-QISM — QO'LLAB-QUVVATLASH: bir martalik murojaat holati.
+        #   * [◀️ Orqaga] — oqim yopiladi va 👤 Profil hub'i qaytadi;
+        #   * foydalanuvchi xabari (matn yoki rasm+izoh) — murojaat
+        #     adminga yuboriladi va holat DARHOL yopiladi (END), ya'ni
+        #     ketma-ket yozish adminga spam bo'lib bormaydi.
+        SUPPORT_TICKET_INPUT: all_menu_jumps + [
+            CallbackQueryHandler(support_back_callback, pattern=r"^sup_back$"),
+            MessageHandler(filters.ALL & ~filters.COMMAND,
+                           support_message_received),
+        ],
+
+        # 8. Queue holatlari
+        QUEUE_MENU: all_menu_jumps + [
+            CallbackQueryHandler(queue_page_callback, pattern=r"^qpage:"),
+            CallbackQueryHandler(queue_view_callback, pattern=r"^qview:"),
+            CallbackQueryHandler(queue_delete_callback, pattern=r"^qdel:"),
+            # 📅 Rejalashtirilgan post amallari: [✏️ Tahrirlash] va
+            # [⏰ Vaqtni o'zgartirish] — mavjud, xavfsiz pending oqimlari
+            # (ular entry_points'da ham bor, bu yerda ATAYLAB oshkora).
+            CallbackQueryHandler(edit_post_content_start, pattern=r"^p_edit:"),
+            CallbackQueryHandler(edit_post_time_start, pattern=r"^p_time:"),
+            CallbackQueryHandler(queue_push_callback, pattern=r"^qpush:"),
+            # 🔗 [Tugma/Reaksiya] — mavjud `p_btn:` / `p_react:` oqimlari
+            # tanlagichi (yangi FSM yaratilmaydi).
+            CallbackQueryHandler(scheduled_btn_react_callback, pattern=r"^sched_br:"),
+            CallbackQueryHandler(queue_slots_callback, pattern=r"^qslots:"),
+            CallbackQueryHandler(queue_close_callback, pattern=r"^qclose$"),
+            MessageHandler(filters.TEXT & ~filters.COMMAND, slot_add_message),
+        ],
+        SLOT_ADD: all_menu_jumps + [
+            CallbackQueryHandler(queue_slots_callback, pattern=r"^qslots:"),
+            CallbackQueryHandler(queue_page_callback, pattern=r"^qpage:"),
+            CallbackQueryHandler(queue_close_callback, pattern=r"^qclose$"),
+            MessageHandler(filters.TEXT & ~filters.COMMAND, slot_add_message),
+        ],
+    }
+
+
+
+def _timeout_state():
+    """FSM timeout - suhbat vaqti tugaganda asosiy menyuga qaytarish."""
+    return {
+        ConversationHandler.TIMEOUT: [MessageHandler(filters.ALL, conversation_timeout_handler)],
+    }
+
+
+
+def _main_fallbacks():
+    """Har qanday holatdan chiqish yo'llari (start / cancel / orqaga)."""
+    return [
+        CommandHandler("start", start),
+        CommandHandler("cancel", cancel_handler),
+        MessageHandler(exact(BTN_CANCEL, BTN_CANCEL_RU), cancel_handler),
+        MessageHandler(exact(BTN_CANCEL_EN), cancel_handler),
+        MessageHandler(exact(BTN_BACK, BTN_MAIN_MENU, BTN_BACK_RU), lambda u, c: guard_menu(u, c, start)),
+        MessageHandler(exact(BTN_BACK_EN), lambda u, c: guard_menu(u, c, start)),
+    ]
+
+
+
+def _build_main_conversation_handler(all_menu_jumps):
+    """SPRINT 2 - DECOMPOSITION 2/4: asosiy FSM (``ConversationHandler``).
+
+    Botning deyarli barcha bosqichma-bosqich oqimlari (yangi post, AI
+    vositalar, kanal ulash, sozlamalar sehrgarlari va h.k.) shu YAGONA
+    conversation ichida holatlar (``states``) sifatida yashaydi - bu ataylab
+    saqlangan arxitektura qarori (bitta FSM = bitta foydalanuvchi uchun bir
+    vaqtda bitta faol oqim, holatlar orasida "menyuga sakrash" barcha
+    joylarda bir xil ishlaydi).
+
+    MONOLIT DEKOMPOZITSIYASI: ilgari bu funksiya 816 qator edi - entry
+    point'lar, 109 ta holat va fallback'lar bitta ``ConversationHandler``
+    chaqiruviga joylashgan edi. Endi har bir DOMEN alohida, kichik quruvchi
+    (builder) funksiyada yashaydi:
+
+    ``_content_states``                   Kontent yaratish va rejalashtirish oqimlari holatlari.
+    ``_channels_states``                  Kanal ulash va kanal uslubi (tone) holatlari.
+    ``_planning_states``                  Kontent rejasi, kalendar, avtopilot va shablonlar holatlari.
+    ``_sources_states``                   Kontent manbalari: URL, RSS/ATOM, recycle va qoralamalar holatlari.
+    ``_insights_billing_states``          Analitika, obuna, promo/to'lov va kassa cheki holatlari.
+    ``_editing_tools_states``             Kanaldan post olish, postni tahrirlash va konvertor holatlari.
+    ``_admin_states``                     Admin panel oqimlari (RBAC) va reklama sozlamalari holatlari.
+    ``_ai_assistant_states``              AI Studio yordamchisi va AI post aniqlashtirish sehrgarlari holatlari.
+    ``_magic_post_states``                Magic Post (uslub tanlash, natija, yuborish) holatlari.
+    ``_voice_post_states``                Ovozdan post (VOICE to POST) holatlari.
+    ``_image_post_states``                Rasmdan post (IMAGE to POST) holatlari.
+    ``_post_score_states``                Post baholash va yaxshilash (Post Score) holatlari.
+    ``_support_queue_states``             Qollab-quvvatlash murojaati va navbat menyusi holatlari.
+    ``_timeout_state``                    FSM timeout - suhbat vaqti tugaganda asosiy menyuga qaytarish.
+    ``_edit_post_menu_handlers``        tahrirlash menyusi callback'lari
+    ``_main_entry_points``              entry point'lar
+    ``_main_fallbacks``                 chiqish yo'llari
+
+    FSM o'zi (bitta ``ConversationHandler``) YAGONA bo'lib qoladi - bo'lingan
+    narsa faqat uning TARKIBI. Holatlar ro'yxati, tartibi va handler'lari
+    O'ZGARMAGAN: ``states`` lug'ati domen lug'atlarini birlashtirishdan hosil
+    qilinadi va kalitlar noyob (dublikat yo'q).
+    """
+    edit_post_menu = _edit_post_menu_handlers()
+    main_conv = ConversationHandler(
+        entry_points=_main_entry_points(all_menu_jumps),
         states={
-            # 2. Yangi post holatlari
-            CHOOSE_CHANNEL: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, channel_chosen)],
-            GET_CONTENT: all_menu_jumps + [
-                # 🖼 ALBOM cheklovi tanlovi: albom yig'uvchi (collector) ogohlantirishni
-                # GET_CONTENT holatida yuboradi — tanlov callback'lari shu yerda.
-                CallbackQueryHandler(album_choice_callback, pattern=r"^album_choice:"),
-                MessageHandler(filters.ALL & ~filters.COMMAND, content_received),
-            ],
-            GET_BTN_TITLE: all_menu_jumps + [
-                # 🚀 "⏩ O'tkazib yuborish" — pastki reply-klaviaturadan bosilsa
-                # xuddi inline callback kabi xavfsiz keyingi bosqichga o'tadi.
-                MessageHandler(filters.Text(SKIP_BUTTON_TEXTS), skip_url_step),
-                # 🖼 ALBOM cheklovi tanlovi: albom yuborilganda tugma bosqichida
-                # ogohlantirish + [🖼 1-rasm] / [⏩ Tugmalarsiz albom] tugmalari.
-                CallbackQueryHandler(album_choice_callback, pattern=r"^album_choice:"),
-                MessageHandler(filters.TEXT & ~filters.COMMAND, btn_title_received),
-                CallbackQueryHandler(ai_action_menu_callback, pattern=r"^ai_menu$"),
-                CallbackQueryHandler(ai_action_callback, pattern=r"^ai_act:"),
-                CallbackQueryHandler(ai_result_callback, pattern=r"^ai_res:"),
-            ],
-            GET_BTN_URL: all_menu_jumps + [
-                MessageHandler(filters.Text(SKIP_BUTTON_TEXTS), skip_url_step),
-                MessageHandler(filters.TEXT & ~filters.COMMAND, btn_url_received),
-            ],
-            GET_REACTIONS: all_menu_jumps + [
-                # 🖼 ALBOM cheklovi tanlovi: albom postida reaksiya bosqichida
-                # ogohlantirish + [🖼 1-rasm] / [⏩ Tugmalarsiz albom] tugmalari.
-                CallbackQueryHandler(album_choice_callback, pattern=r"^album_choice:"),
-                # Multi-select reaksiya (toggle): emoji tanlash + Davom etish / O'tkazib yuborish
-                CallbackQueryHandler(reaction_toggle_callback, pattern=r"^nprt:t:"),
-                CallbackQueryHandler(reactions_done_callback, pattern=r"^nprt:done$"),
-                CallbackQueryHandler(reactions_skip_callback, pattern=r"^nprt:skip$"),
-                # 🚀 "⏩ O'tkazib yuborish" — oldingi bosqichdan qolgan reply
-                # klaviatura bosilsa ham reaksiyasiz davom etadi (crash yo'q).
-                MessageHandler(filters.Text(SKIP_BUTTON_TEXTS), skip_reactions_step),
-                MessageHandler(filters.TEXT & ~filters.COMMAND, reactions_received),
-                # 🎯 Stiker ham reaksiya sifatida qabul qilinadi: stiker
-                # xabari alohida ``handle_reaction_sticker`` handlerga
-                # yo'naltiriladi (reactions_received uni delegatsiya qiladi) —
-                # stikerning emojisi (message.sticker.emoji) tanlovga
-                # qo'shiladi, tasdiq xabari + inline klaviaturada ✅ belgilanadi
-                # va reaksiya HECH QACHON post matniga qo'shilmaydi. Stiker
-                # filtri TEXT handleridan keyin turadi, lekin stiker matn emas —
-                # ikkalasi ham bir-biriga to'sqinlik qilmaydi. Shuning uchun
-                # stiker hech qachon global "tushunmadim" fallback'iga
-                # tushib ketmaydi.
-                MessageHandler(filters.Sticker.ALL, reactions_received),
-            ],
-            # 2b. ✨ Postga Tugma & Reaksiya qo'shish: post qabul qilish + inline ekranlar
-            # (reaksiya/tugma/kanal/tasdiq) — bitta holat, qadamlar user_data'da.
-            ENH_POST: all_menu_jumps + [
-                CallbackQueryHandler(enh_callback, pattern=r"^enh:"),
-                MessageHandler(filters.ALL & ~filters.COMMAND, enh_message_received),
-            ],
-            GET_AUTO_DELETE: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, auto_delete_received)],
-            # 2b. ✍️ ODDIY POST (AI'SIZ) — tayyor kontent preview + universal
-            # boshqaruv paneli. HECH QANDAY AI handler/tekshiruvi YO'Q:
-            # kontent qabul qilindi → darhol preview → panel amallari.
-            MANUAL_AWAIT_CONTENT: all_menu_jumps + [
-                MessageHandler(filters.ALL & ~filters.COMMAND, manual_content_received),
-            ],
-            MANUAL_PREVIEW: all_menu_jumps + [
-                CallbackQueryHandler(manual_panel_callback, pattern=r"^mnp_"),
-                # SMART EMOJI (2-qism bugfix): preview holatida to'g'ridan-to'g'ri emoji yuborish
-                # (masalan 😎 yoki 🔥 👍) — xato bermasdan reaksiya sifatida qabul qilinadi
-                MessageHandler(filters.TEXT & ~filters.COMMAND,
-                               manual_preview_emoji_received),
-                # FSM INPUT FALLBACK (PHASE 1): preview bosqichida adashib
-                # MEDIA tashlansa — 💡 yumshoq eslatma + Preview menyusi qayta
-                # ko'rsatiladi, FSM holati bekor bo'lib ketmaydi.
-                MessageHandler(~filters.TEXT & ~filters.COMMAND,
-                               manual_preview_media_received),
-            ],
-            MANUAL_CHANNEL_SELECT: all_menu_jumps + [
-                CallbackQueryHandler(manual_panel_callback, pattern=r"^mnp_"),
-                # FSM INPUT FALLBACK (PHASE 1): kanal tanlash bosqichida erkin
-                # matn/media — 💡 eslatma + tanlov klaviaturasi qayta (holat
-                # saqlanadi, bot quruq javob bilan to'xtab qolmaydi).
-                MessageHandler(filters.ALL & ~filters.COMMAND,
-                               manual_channel_select_fallback),
-            ],
-            MANUAL_TIME_INPUT: all_menu_jumps + [
-                CallbackQueryHandler(manual_panel_callback, pattern=r"^mnp_"),
-                MessageHandler(filters.ALL & ~filters.COMMAND, manual_time_received),
-            ],
-            MANUAL_EDIT_INPUT: all_menu_jumps + [
-                MessageHandler(filters.ALL & ~filters.COMMAND, manual_edit_received),
-            ],
-            # ✍️ 2-qadam UI/UX polish: ❤️ reaksiya (qo'lda emoji) va
-            # 🔗 havolali tugma kiritish holatlari — callback'lar panel
-            # handlerida (``^mnp_``), matn esa maxsus handlerlarda.
-            MANUAL_REACTION_CUSTOM: all_menu_jumps + [
-                CallbackQueryHandler(manual_panel_callback, pattern=r"^mnp_"),
-                MessageHandler(filters.TEXT & ~filters.COMMAND,
-                               manual_reaction_custom_received),
-                # FSM INPUT FALLBACK (PHASE 1): emoji o'rniga media tashlansa —
-                # 💡 eslatma + yo'rixnoma qayta (holat saqlanadi).
-                MessageHandler(~filters.TEXT & ~filters.COMMAND,
-                               manual_reaction_custom_media_received),
-            ],
-            MANUAL_URL_INPUT: all_menu_jumps + [
-                CallbackQueryHandler(manual_panel_callback, pattern=r"^mnp_"),
-                MessageHandler(filters.TEXT & ~filters.COMMAND,
-                               manual_url_received),
-                # FSM INPUT FALLBACK (PHASE 1): "Matn - havola" o'rniga media
-                # tashlansa — 💡 eslatma + yo'riqnoma qayta (holat saqlanadi).
-                MessageHandler(~filters.TEXT & ~filters.COMMAND,
-                               manual_url_media_received),
-            ],
-            GET_TIME: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, time_received)],
-            DAILY_TIME: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, daily_time_received)],
-            RECUR_DAY: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, recur_day_chosen)],
-            RECUR_TIME: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, recur_time_received)],
-            GET_DURATION: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, duration_chosen)],
-
-            # Confirmation ekran holatlari
-            CONFIRM_POST: all_menu_jumps + [
-                CallbackQueryHandler(confirm_post_callback, pattern=r"^confirm_post:"),
-                MessageHandler(filters.ALL & ~filters.COMMAND, edit_confirm_message_received),
-            ],
-            EDIT_CONFIRM_FIELD: all_menu_jumps + [
-                CallbackQueryHandler(edit_confirm_field_callback, pattern=r"^edit_field:"),
-                MessageHandler(filters.PHOTO | filters.VIDEO | filters.Document.ALL | filters.AUDIO | filters.ANIMATION, edit_confirm_media_received),
-                MessageHandler(filters.TEXT & ~filters.COMMAND, edit_confirm_message_received),
-            ],
-
-            # 3. Kanal holatlari
-            ADD_CHANNEL: all_menu_jumps + [
-                CallbackQueryHandler(add_channel_retry, pattern=r"^add_channel_retry$"),
-                # 📢 FORWARD — ustuvor tekshiruv: kanaldan forward qilingan
-                # istalgan post (matn/rasm/video) darhol channel_received'ga
-                # tushadi; forward_origin / forward_from_chat dan ID+title
-                # ajratiladi (FSM faqat matn kutib «tushunmadim» bermaydi).
-                MessageHandler(filters.FORWARDED, channel_received),
-                MessageHandler(filters.ALL & ~filters.COMMAND, channel_received),
-            ],
-            SET_TONE: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, tone_chosen)],
-
-            # 8. Content Plan holatlari
-            PLAN_CHOOSE_CHANNEL: all_menu_jumps + [
-                CallbackQueryHandler(plan_channel_chosen, pattern=r"^plan_ch:"),
-                CallbackQueryHandler(plan_view_callback, pattern=r"^plan_cancel$"),
-                CallbackQueryHandler(ai_back_to_menu, pattern=r"^ai_back_to_menu$"),
-                CallbackQueryHandler(ai_back_to_content, pattern=r"^ai_back_to_content$"),
-                CallbackQueryHandler(ai_close, pattern=r"^ai_close$"),
-            ],
-            PLAN_GET_TOPIC: all_menu_jumps + [
-                CallbackQueryHandler(ai_back_to_menu, pattern=r"^ai_back_to_menu$"),
-                CallbackQueryHandler(ai_back_to_content, pattern=r"^ai_back_to_content$"),
-                CallbackQueryHandler(ai_close, pattern=r"^ai_close$"),
-                MessageHandler(filters.TEXT & ~filters.COMMAND, plan_topic_received),
-            ],
-            PLAN_VIEW: all_menu_jumps + [
-                CallbackQueryHandler(plan_view_callback, pattern=r"^plan_"),
-                CallbackQueryHandler(ai_back_to_menu, pattern=r"^ai_back_to_menu$"),
-                CallbackQueryHandler(ai_back_to_content, pattern=r"^ai_back_to_content$"),
-                CallbackQueryHandler(ai_close, pattern=r"^ai_close$"),
-            ],
-
-            # 8b. 🗓 SMART CONTENT CALENDAR holatlari (7/30 kunlik reja).
-            # Eslatma: ``cal_cancel`` HAR UCH holatda ham ishlaydi (eski
-            # tugma bosilganda ham oqim toza yopiladi, crash bo'lmaydi).
-            CALENDAR_BUSINESS: all_menu_jumps + [
-                CallbackQueryHandler(calendar_cancel_callback, pattern=r"^cal_cancel$"),
-                MessageHandler(filters.TEXT & ~filters.COMMAND, calendar_business_received),
-            ],
-            CALENDAR_DURATION: all_menu_jumps + [
-                CallbackQueryHandler(calendar_duration_callback, pattern=r"^cal_days:"),
-                CallbackQueryHandler(calendar_cancel_callback, pattern=r"^cal_cancel$"),
-                MessageHandler(filters.TEXT & ~filters.COMMAND, calendar_business_received),
-            ],
-            CALENDAR_VIEW: all_menu_jumps + [
-                CallbackQueryHandler(calendar_day_callback, pattern=r"^cal_day:"),
-                CallbackQueryHandler(calendar_duration_callback, pattern=r"^cal_days:"),
-                CallbackQueryHandler(calendar_cancel_callback, pattern=r"^cal_cancel$"),
-            ],
-
-            # 8c. 🚀 AI AUTOPILOT holatlari (PHASE C, 7-band).
-            # ``ap_cancel`` HAR UCH holatda ham ishlaydi (eski tugma bosilganda
-            # ham oqim toza yopiladi, crash bo'lmaydi).
-            AUTOPILOT_TOPIC: all_menu_jumps + [
-                CallbackQueryHandler(
-                    autopilot_strategy_callback,
-                    pattern=r"^ap_(?:goal|freq|mode|quiet):",
-                ),
-                CallbackQueryHandler(autopilot_cancel_callback, pattern=r"^ap_cancel$"),
-                MessageHandler(filters.TEXT & ~filters.COMMAND, autopilot_topic_received),
-            ],
-            AUTOPILOT_VIEW: all_menu_jumps + [
-                CallbackQueryHandler(autopilot_confirm_callback, pattern=r"^ap_confirm$"),
-                CallbackQueryHandler(autopilot_edit_callback, pattern=r"^ap_edit$"),
-                CallbackQueryHandler(autopilot_force_callback, pattern=r"^ap_force$"),
-                CallbackQueryHandler(autopilot_refresh_callback, pattern=r"^ap_refresh$"),
-                CallbackQueryHandler(autopilot_regen_callback, pattern=r"^ap_regen$"),
-                CallbackQueryHandler(autopilot_post_view_callback, pattern=r"^ap_pview:"),
-                CallbackQueryHandler(autopilot_post_approve_callback, pattern=r"^ap_papp:"),
-                CallbackQueryHandler(autopilot_post_edit_callback, pattern=r"^ap_pedit:"),
-                CallbackQueryHandler(autopilot_post_regen_callback, pattern=r"^ap_pregen:"),
-                CallbackQueryHandler(autopilot_post_delete_callback, pattern=r"^ap_pdel:"),
-                CallbackQueryHandler(autopilot_back_to_plan_callback, pattern=r"^ap_back$"),
-                CallbackQueryHandler(autopilot_cancel_callback, pattern=r"^ap_cancel$"),
-                # Yangi mavzu yozilsa — reja to'g'ridan-to'g'ri qayta tuziladi.
-                MessageHandler(filters.TEXT & ~filters.COMMAND, autopilot_topic_received),
-            ],
-            AUTOPILOT_EDIT_DAY: all_menu_jumps + [
-                CallbackQueryHandler(autopilot_edit_day_callback, pattern=r"^ap_eday:"),
-                CallbackQueryHandler(autopilot_post_view_callback, pattern=r"^ap_pview:"),
-                CallbackQueryHandler(autopilot_post_approve_callback, pattern=r"^ap_papp:"),
-                CallbackQueryHandler(autopilot_post_edit_callback, pattern=r"^ap_pedit:"),
-                CallbackQueryHandler(autopilot_post_regen_callback, pattern=r"^ap_pregen:"),
-                CallbackQueryHandler(autopilot_post_delete_callback, pattern=r"^ap_pdel:"),
-                CallbackQueryHandler(autopilot_back_to_plan_callback, pattern=r"^ap_back$"),
-                CallbackQueryHandler(autopilot_confirm_callback, pattern=r"^ap_confirm$"),
-                CallbackQueryHandler(autopilot_cancel_callback, pattern=r"^ap_cancel$"),
-            ],
-            AUTOPILOT_EDIT_INPUT: all_menu_jumps + [
-                CallbackQueryHandler(autopilot_post_approve_callback, pattern=r"^ap_papp:"),
-                CallbackQueryHandler(autopilot_post_edit_callback, pattern=r"^ap_pedit:"),
-                CallbackQueryHandler(autopilot_post_regen_callback, pattern=r"^ap_pregen:"),
-                CallbackQueryHandler(autopilot_post_delete_callback, pattern=r"^ap_pdel:"),
-                CallbackQueryHandler(autopilot_back_to_plan_callback, pattern=r"^ap_back$|^ap_eday:back$"),
-                CallbackQueryHandler(autopilot_cancel_callback, pattern=r"^ap_cancel$"),
-                MessageHandler(filters.TEXT & ~filters.COMMAND, autopilot_edit_input_received),
-            ],
-
-            # 8d. 📋 POST SHABLONLARI holatlari (PHASE C, 9-band).
-            TPL_MENU: all_menu_jumps + [
-                CallbackQueryHandler(templates_menu_callback, pattern=r"^tpl_"),
-            ],
-            TPL_NEW_NAME: all_menu_jumps + [
-                CallbackQueryHandler(templates_menu_callback, pattern=r"^tpl_cancel$|^tpl_back$"),
-                MessageHandler(filters.TEXT & ~filters.COMMAND, template_name_received),
-            ],
-            TPL_NEW_CONTENT: all_menu_jumps + [
-                CallbackQueryHandler(templates_menu_callback, pattern=r"^tpl_cancel$|^tpl_back$"),
-                MessageHandler(filters.TEXT & ~filters.COMMAND, template_content_received),
-            ],
-            TPL_USE_PICK: all_menu_jumps + [
-                CallbackQueryHandler(template_pick_callback, pattern=r"^tpl_pick:"),
-                CallbackQueryHandler(templates_menu_callback, pattern=r"^tpl_back$|^tpl_cancel$"),
-            ],
-            TPL_USE_VARS: all_menu_jumps + [
-                CallbackQueryHandler(templates_menu_callback, pattern=r"^tpl_cancel$|^tpl_back$"),
-                MessageHandler(filters.TEXT & ~filters.COMMAND, template_vars_received),
-            ],
-            TPL_DEL_PICK: all_menu_jumps + [
-                CallbackQueryHandler(template_remove_callback, pattern=r"^tpl_rmv:"),
-                CallbackQueryHandler(templates_menu_callback, pattern=r"^tpl_back$|^tpl_cancel$"),
-            ],
-
-            # 8e. 📥 PHASE D (2/2) — KONTENT MANBALARI holatlari (530–539).
-            # ``src_back`` / ``src_cancel`` HAR BIR holatda ishlaydi (eski
-            # tugma bosilganda ham oqim toza yopiladi, crash bo'lmaydi).
-            SRC_HUB: all_menu_jumps + [
-                CallbackQueryHandler(sources_hub_callback,
-                                     pattern=r"^src_(url|rss|rec|drf):"),
-                CallbackQueryHandler(sources_back_callback, pattern=r"^src_back$"),
-                CallbackQueryHandler(source_cancel_callback, pattern=r"^src_cancel$"),
-            ],
-            SRC_URL_INPUT: all_menu_jumps + [
-                CallbackQueryHandler(sources_back_callback, pattern=r"^src_back$"),
-                CallbackQueryHandler(source_cancel_callback, pattern=r"^src_cancel$"),
-                MessageHandler(filters.TEXT & ~filters.COMMAND, url_text_received),
-            ],
-            SRC_URL_FORMATS: all_menu_jumps + [
-                CallbackQueryHandler(url_format_callback, pattern=r"^src_fmt:"),
-                CallbackQueryHandler(source_cancel_callback, pattern=r"^src_cancel$"),
-            ],
-            SRC_PREVIEW: all_menu_jumps + [
-                CallbackQueryHandler(preview_action_callback, pattern=r"^src_act:"),
-                CallbackQueryHandler(source_cancel_callback, pattern=r"^src_cancel$"),
-            ],
-            SRC_TIME_INPUT: all_menu_jumps + [
-                CallbackQueryHandler(preview_action_callback, pattern=r"^src_act:"),
-                CallbackQueryHandler(source_cancel_callback, pattern=r"^src_cancel$"),
-                MessageHandler(filters.TEXT & ~filters.COMMAND, schedule_time_received),
-            ],
-            SRC_RSS_MENU: all_menu_jumps + [
-                CallbackQueryHandler(rss_menu_callback,
-                                     pattern=r"^src_(add|chk:|tgl:|auto:|del:)"),
-                CallbackQueryHandler(sources_back_callback, pattern=r"^src_back$"),
-                CallbackQueryHandler(source_cancel_callback, pattern=r"^src_cancel$"),
-            ],
-            SRC_RSS_URL: all_menu_jumps + [
-                CallbackQueryHandler(sources_back_callback, pattern=r"^src_back$"),
-                CallbackQueryHandler(source_cancel_callback, pattern=r"^src_cancel$"),
-                MessageHandler(filters.TEXT & ~filters.COMMAND, rss_url_received),
-            ],
-            SRC_RSS_INTERVAL: all_menu_jumps + [
-                CallbackQueryHandler(sources_back_callback, pattern=r"^src_back$"),
-                CallbackQueryHandler(source_cancel_callback, pattern=r"^src_cancel$"),
-                MessageHandler(filters.TEXT & ~filters.COMMAND, rss_interval_received),
-            ],
-            SRC_RECYCLE_LIST: all_menu_jumps + [
-                CallbackQueryHandler(recycle_pick_callback, pattern=r"^src_rp:"),
-                CallbackQueryHandler(sources_back_callback, pattern=r"^src_back$"),
-                CallbackQueryHandler(source_cancel_callback, pattern=r"^src_cancel$"),
-            ],
-            SRC_DRAFTS: all_menu_jumps + [
-                CallbackQueryHandler(draft_action_callback, pattern=r"^src_draft:"),
-                CallbackQueryHandler(sources_back_callback, pattern=r"^src_back$"),
-                CallbackQueryHandler(source_cancel_callback, pattern=r"^src_cancel$"),
-            ],
-
-            # 9. Analytics holatlari
-            # 📊 Kanal tanlash ro'yxatidagi [◀️ Orqaga] (an_overview) SHAXSIY
-            # statistika ekraniga qaytaradi — shu sababli an_close bilan birga
-            # ro'yxatdan o'tadi (analytics_view_callback ikkalasini ham biladi).
-            ANALYTICS_CHOOSE: all_menu_jumps + [
-                CallbackQueryHandler(analytics_channel_chosen, pattern=r"^an_ch:"),
-                CallbackQueryHandler(
-                    analytics_view_callback, pattern=r"^an_close$|^an_overview$"
-                ),
-            ],
-            ANALYTICS_VIEW: all_menu_jumps + [
-                CallbackQueryHandler(analytics_view_callback, pattern=r"^an_"),
-            ],
-
-            # 10. Subscription holatlari
-            SUBSCRIPTION_VIEW: all_menu_jumps + [
-                CallbackQueryHandler(subscription_callback, pattern=r"^sub_"),
-            ],
-            PROMO_INPUT: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, promo_code_received)],
-            # 💳 Karta cheki (rasm/PDF) kutish — Admin Approval Flow
-            RECEIPT_WAIT: all_menu_jumps + [
-                CallbackQueryHandler(subscription_callback, pattern=r"^sub_"),
-                MessageHandler(filters.ALL & ~filters.COMMAND, receipt_received),
-            ],
-
-            # 10c. 🖼 Rasm moderatsiyasi (photo_check) — QAT'IY HOLAT
-            # Rasm adminga FAQAT shu "Moderatsiya" holatida yuboriladi. Global
-            # photo handler (register_photo_check) ichida ham xuddi shu holat/
-            # user_data belgisi tekshiriladi — yangi post oqimi, AI Studio yoki
-            # boshqa dialogda yuborilgan rasmlar hech qachon adminga bormaydi.
-            PHOTO_CHECK_WAIT: all_menu_jumps + [
-                MessageHandler(
-                    filters.PHOTO & ~filters.COMMAND & ~_AI_CAPTION_FILTER,
-                    handle_user_photo,
-                ),
-            ],
-
-            # 11. Channel Extract holatlari
-            EXTRACT_USERNAME: all_menu_jumps + [
-                CallbackQueryHandler(ai_back_to_menu, pattern=r"^ai_back_to_menu$"),
-                CallbackQueryHandler(ai_back_to_content, pattern=r"^ai_back_to_content$"),
-                CallbackQueryHandler(ai_close, pattern=r"^ai_close$"),
-                MessageHandler(filters.TEXT & ~filters.COMMAND, extract_username_received),
-            ],
-            EXTRACT_CHOOSE_POST: all_menu_jumps + [
-                CallbackQueryHandler(extract_post_chosen, pattern=r"^ext_"),
-                CallbackQueryHandler(ai_back_to_menu, pattern=r"^ai_back_to_menu$"),
-                CallbackQueryHandler(ai_back_to_content, pattern=r"^ai_back_to_content$"),
-                CallbackQueryHandler(ai_close, pattern=r"^ai_close$"),
-            ],
-            EXTRACT_EDIT: all_menu_jumps + [
-                CallbackQueryHandler(extract_post_chosen, pattern=r"^ext_"),
-                MessageHandler(filters.TEXT & ~filters.COMMAND, extract_edit_received),
-            ],
-
-            # 4. Kutilayotgan postlarni tahrirlash holatlari
-            # ✏️ 2-VAZIFA: tahrirlash TANLOV MENYUSI tugmalari FSM ICHIDA ham
-            # ishlaydi (aks holda menyudan tanlangan amal davom etmasdi):
-            # [📝 Matn] → matn kutiladi, [🔘 Tugma] / [❤️ Reaksiya] /
-            # [⏰ Vaqt] → mavjud oqimlar, [◀️ Orqaga] → 📅 ro'yxati + FSM END.
-            EDIT_POST_TIME: all_menu_jumps + list(_edit_post_menu_handlers) + [MessageHandler(filters.TEXT & ~filters.COMMAND, edit_post_time_received)],
-            EDIT_POST_CONTENT: all_menu_jumps + list(_edit_post_menu_handlers) + [MessageHandler(filters.TEXT & ~filters.COMMAND, edit_post_content_received)],
-            EDIT_POST_BTN: all_menu_jumps + list(_edit_post_menu_handlers) + [MessageHandler(filters.TEXT & ~filters.COMMAND, edit_post_btn_received)],
-            EDIT_POST_REACT: all_menu_jumps + list(_edit_post_menu_handlers) + [MessageHandler(filters.TEXT & ~filters.COMMAND, edit_post_react_received)],
-
-            # 5. Konverter holati (Maxsus State)
-            CONVERT_INPUT: all_menu_jumps + [MessageHandler(filters.ALL & ~filters.COMMAND, converter_received)],
-
-            # 6. Admin holatlari
-            TRANSFER_TARGET: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, transfer_target_received)],
-            TRANSFER_AMOUNT: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, transfer_amount_received)],
-            BROADCAST_MESSAGE: all_menu_jumps + [
-                CallbackQueryHandler(admin_dashboard_callback, pattern=r"^adm_"),
-                MessageHandler(filters.TEXT & ~filters.COMMAND, broadcast_send),
-            ],
-            ADD_SPONSOR_CHANNEL: all_menu_jumps + [
-                CallbackQueryHandler(admin_dashboard_callback, pattern=r"^adm_"),
-                MessageHandler(filters.TEXT & ~filters.COMMAND, sponsor_channel_received),
-            ],
-            SET_CHANNEL_AD: all_menu_jumps + [
-                CallbackQueryHandler(ad_pool_callback, pattern=r"^adp:"),
-                CallbackQueryHandler(admin_dashboard_callback, pattern=r"^adm_"),
-                MessageHandler(filters.TEXT & ~filters.COMMAND, channel_ad_received),
-            ],
-            SET_BOT_REPLY_AD: all_menu_jumps + [
-                CallbackQueryHandler(ad_pool_callback, pattern=r"^adp:"),
-                CallbackQueryHandler(admin_dashboard_callback, pattern=r"^adm_"),
-                MessageHandler(filters.TEXT & ~filters.COMMAND, bot_reply_ad_received),
-            ],
-            SET_POST_TAG: all_menu_jumps + [
-                # 🧭 4-qadam: [⬅️ Orqaga]/[❌ Bekor qilish] (adm_back/adm_cancel)
-                # holat ICHIDA ham ishlaydi — FSM to'g'ri yopiladi.
-                CallbackQueryHandler(admin_dashboard_callback, pattern=r"^adm_"),
-                MessageHandler(filters.TEXT & ~filters.COMMAND, post_tag_received)],
-            AI_SETTINGS: all_menu_jumps + [
-                CallbackQueryHandler(admin_dashboard_callback, pattern=r"^adm_"),
-                MessageHandler(filters.TEXT & ~filters.COMMAND, ai_settings_received)],
-
-            # Admin inline flow holatlari
-            ADMIN_GRANT_PRO: _admin_flow_state(admin_inline_text_handler, all_menu_jumps),
-            ADMIN_PROMO_CREATE: _admin_flow_state(admin_inline_text_handler, all_menu_jumps),
-            ADMIN_SPONSOR_ADD: _admin_flow_state(admin_inline_text_handler, all_menu_jumps),
-
-            # 7. AI Assistant holatlari (Faqat foydalanuvchi AI ga kirganda ishlaydi!)
-            AI_INPUT: all_menu_jumps + [MessageHandler(filters.ALL & ~filters.COMMAND, ai_input_received)],
-            AI_CONFIRM: all_menu_jumps + [
-                CallbackQueryHandler(ai_confirm_callback, pattern=r"^ai_post_"),
-                CallbackQueryHandler(ai_back_to_menu, pattern=r"^ai_back_to_menu$"),
-                CallbackQueryHandler(ai_back_to_content, pattern=r"^ai_back_to_content$"),
-                CallbackQueryHandler(ai_close, pattern=r"^ai_close$"),
-                MessageHandler(filters.ALL & ~filters.COMMAND, ai_input_received),
-            ],
-            AI_GET_TIME: all_menu_jumps + [
-                MessageHandler(filters.ALL & ~filters.COMMAND, ai_time_received),
-                CallbackQueryHandler(ai_confirm_callback, pattern=r"^ai_post_"),
-                CallbackQueryHandler(ai_back_to_menu, pattern=r"^ai_back_to_menu$"),
-                CallbackQueryHandler(ai_back_to_content, pattern=r"^ai_back_to_content$"),
-                CallbackQueryHandler(ai_close, pattern=r"^ai_close$"),
-            ],
-
-            # 🌅 Morning digest: select one of the three deterministic ideas.
-            MORNING_IDEA_SELECT: all_menu_jumps + [
-                CallbackQueryHandler(morning_digest_idea_callback, pattern=r"^md_idea:"),
-                CallbackQueryHandler(morning_digest_cancel_callback, pattern=r"^md_cancel$"),
-            ],
-
-            # 7b. ✨ AI STUDIO inline oqimi (hardering: xabar edit, doimiy nav-tugmalar)
-            # AI_MENU_STATE da rasm yuborilsa — Vision (rasmdan post) darhol ishlaydi
-            AI_MENU_STATE: all_menu_jumps + [
-                CallbackQueryHandler(ai_studio_nav_callback, pattern=r"^studio_"),
-                CallbackQueryHandler(ai_back_to_menu, pattern=r"^ai_back_to_menu$"),
-                CallbackQueryHandler(ai_back_to_content, pattern=r"^ai_back_to_content$"),
-                CallbackQueryHandler(ai_close, pattern=r"^ai_close$"),
-                MessageHandler(filters.PHOTO | filters.Document.ALL, ai_photo_received),
-            ],
-            AI_PROMPT_INPUT: all_menu_jumps + [
-                CallbackQueryHandler(ai_studio_nav_callback, pattern=r"^studio_"),
-                CallbackQueryHandler(ai_back_to_menu, pattern=r"^ai_back_to_menu$"),
-                CallbackQueryHandler(ai_back_to_content, pattern=r"^ai_back_to_content$"),
-                CallbackQueryHandler(ai_close, pattern=r"^ai_close$"),
-                MessageHandler(filters.ALL & ~filters.COMMAND, ai_prompt_received),
-            ],
-            AI_TONE_SELECT: all_menu_jumps + [
-                CallbackQueryHandler(ai_tone_callback, pattern=r"^ai_tone:"),
-                CallbackQueryHandler(ai_studio_schedule_callback, pattern=r"^ai_studio_sched$"),
-                CallbackQueryHandler(ai_studio_nav_callback, pattern=r"^studio_"),
-                CallbackQueryHandler(ai_back_to_menu, pattern=r"^ai_back_to_menu$"),
-                CallbackQueryHandler(ai_back_to_content, pattern=r"^ai_back_to_content$"),
-                CallbackQueryHandler(ai_close, pattern=r"^ai_close$"),
-                # Yangi mavzu yozilsa — qayta generatsiya
-                MessageHandler(filters.ALL & ~filters.COMMAND, ai_prompt_received),
-            ],
-            AI_AUDIT_INPUT: all_menu_jumps + [
-                CallbackQueryHandler(ai_studio_nav_callback, pattern=r"^studio_"),
-                CallbackQueryHandler(ai_back_to_menu, pattern=r"^ai_back_to_menu$"),
-                CallbackQueryHandler(ai_back_to_content, pattern=r"^ai_back_to_content$"),
-                CallbackQueryHandler(ai_close, pattern=r"^ai_close$"),
-                MessageHandler(filters.ALL & ~filters.COMMAND, ai_audit_received),
-            ],
-
-            # 7c. 🖼 AI STUDIO — RASMDAN POST YARATISH (Vision oqimi)
-            # AI_MENU_STATE da rasm yuborilsa ham vision darhol ishlaydi
-            # (foydalanuvchi /ai dan keyin rasm yuborsa ham).
-            AI_PHOTO_INPUT: all_menu_jumps + [
-                CallbackQueryHandler(ai_studio_nav_callback, pattern=r"^studio_"),
-                CallbackQueryHandler(ai_back_to_menu, pattern=r"^ai_back_to_menu$"),
-                CallbackQueryHandler(ai_back_to_content, pattern=r"^ai_back_to_content$"),
-                CallbackQueryHandler(ai_close, pattern=r"^ai_close$"),
-                MessageHandler(filters.ALL & ~filters.COMMAND, ai_photo_received),
-            ],
-            AI_PHOTO_RESULT: all_menu_jumps + [
-                CallbackQueryHandler(ai_photo_result_callback, pattern=r"^photo_"),
-                CallbackQueryHandler(ai_studio_nav_callback, pattern=r"^studio_"),
-                CallbackQueryHandler(ai_back_to_menu, pattern=r"^ai_back_to_menu$"),
-                CallbackQueryHandler(ai_back_to_content, pattern=r"^ai_back_to_content$"),
-                CallbackQueryHandler(ai_close, pattern=r"^ai_close$"),
-                MessageHandler(filters.ALL & ~filters.COMMAND, ai_photo_received),
-            ],
-            AI_PHOTO_EDIT_INPUT: all_menu_jumps + [
-                CallbackQueryHandler(ai_studio_nav_callback, pattern=r"^studio_"),
-                CallbackQueryHandler(ai_back_to_menu, pattern=r"^ai_back_to_menu$"),
-                CallbackQueryHandler(ai_back_to_content, pattern=r"^ai_back_to_content$"),
-                CallbackQueryHandler(ai_close, pattern=r"^ai_close$"),
-                MessageHandler(filters.PHOTO | filters.Document.ALL, ai_photo_received),
-                MessageHandler(filters.TEXT & ~filters.COMMAND, ai_photo_edit_received),
-            ],
-
-            # 7d. ✨ MAGIC POST holatlari (Killer Feature #1)
-            MAGIC_INPUT: all_menu_jumps + [
-                MessageHandler(filters.ALL & ~filters.COMMAND, magic_text_received),
-            ],
-            MAGIC_STYLE_SELECT: all_menu_jumps + [
-                CallbackQueryHandler(magic_style_callback, pattern=r"^mp_style:"),
-                CallbackQueryHandler(magic_restyle_callback, pattern=r"^mp_restyle$"),
-                # ❌ Bekor qilish (DEEP AUDIT: dead-end trap tuzatildi) —
-                # uslub menyusidan chiqish; sessiya tozalanadi, kredit
-                # tegilmaydi (hech narsa bron qilinmagan).
-                CallbackQueryHandler(magic_cancel_callback, pattern=r"^mp_cancel$"),
-            ],
-            MAGIC_RESULT: all_menu_jumps + [
-                CallbackQueryHandler(magic_send_now_callback, pattern=r"^mp_send$"),
-                CallbackQueryHandler(magic_schedule_callback, pattern=r"^mp_sched$"),
-                CallbackQueryHandler(magic_channel_picked_callback, pattern=r"^mp_ch"),
-                CallbackQueryHandler(magic_restyle_callback, pattern=r"^mp_restyle$"),
-                # ◀️ Orqaga — Kontent yaratish submenyusiga (sessiya yopiladi).
-                CallbackQueryHandler(magic_back_callback, pattern=r"^mp_back$"),
-                # 📊 Post Score (Killer Feature #4): natijani baholash va
-                # yaxshilash tugmalari shu holatda ham ishlaydi.
-                CallbackQueryHandler(post_score_eval_callback, pattern=r"^ps_eval:"),
-                CallbackQueryHandler(post_score_improve_callback, pattern=r"^ps_improve$"),
-                CallbackQueryHandler(post_score_send_callback, pattern=r"^ps_send$"),
-                CallbackQueryHandler(post_score_schedule_callback, pattern=r"^ps_sched$"),
-                CallbackQueryHandler(post_score_new_callback, pattern=r"^ps_new$"),
-                CallbackQueryHandler(post_score_channel_picked_callback, pattern=r"^ps_ch"),
-                # Yangi matn yuborilsa — yangi oqim (eski natija almashtiriladi)
-                MessageHandler(filters.ALL & ~filters.COMMAND, magic_text_received),
-            ],
-            MAGIC_SEND_CHOOSE: all_menu_jumps + [
-                CallbackQueryHandler(magic_channel_picked_callback, pattern=r"^mp_ch"),
-                CallbackQueryHandler(magic_restyle_callback, pattern=r"^mp_restyle$"),
-            ],
-
-            # 7d-2. 🧭 AI POST — MAVZUNI ANIQLASHTIRISH WIZARD'I (3-qadam).
-            # Magic Post / AI Studio matn kiritishdan shu holatlarga o'tadi:
-            # CLARIFY (yo'nalish tugmalari) → SALES/CUSTOM_INPUT (matn javobi)
-            # → kelib chiqish oqimiga qaytish. Kvota shu holatlarda BRON
-            # QILINMAYDI — faqat generatsiya boshlanganda (eski qoidalar).
-            AI_POST_CLARIFY: all_menu_jumps + [
-                CallbackQueryHandler(ai_post_format_callback, pattern=r"^aip_fmt:"),
-                CallbackQueryHandler(ai_post_back_callback, pattern=r"^aip_back$"),
-                # ❌ Bekor qilish (DEEP AUDIT: dead-end trap tuzatildi) —
-                # wizard to'liq yopiladi, foydalanuvchi band qolmaydi.
-                CallbackQueryHandler(ai_post_cancel_callback, pattern=r"^aip_cancel$"),
-            ],
-            AI_POST_SALES_INPUT: all_menu_jumps + [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, ai_post_sales_input_received),
-            ],
-            AI_POST_CUSTOM_INPUT: all_menu_jumps + [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, ai_post_custom_input_received),
-            ],
-
-            # 7e-0. 🧩 «🎙 Ovoz → Post» bo'limi: ovozli xabar kutiladi.
-            # Ovoz kelishi bilan STT oqimi boshlanadi — menyu tashqarisidagi
-            # VoiceEntryHandler bilan BITTA handler (voice_message_received),
-            # ya'ni ikki kirish yo'li ham bir xil oqimga olib kiradi.
-            VOICE_AWAIT: all_menu_jumps + [
-                MessageHandler(VOICE_MESSAGE_FILTER, voice_message_received),
-            ],
-
-            # 7e. 🎙 VOICE → POST holatlari (Killer Feature — resurs-tejamkor)
-            # VOICE_STYLE_SELECT: transkripsiyalangan matn → 5 uslub + ❌ Bekor.
-            # Uslub tanlanmaguncha HECH QANDAY kredit/limit yechilmaydi;
-            # yangi ovoz kelib qolsa — oqim qaytadan boshlanadi (re-entry).
-            VOICE_STYLE_SELECT: all_menu_jumps + [
-                CallbackQueryHandler(voice_style_callback, pattern=r"^vp_style:"),
-                CallbackQueryHandler(voice_cancel_callback, pattern=r"^vp_cancel$"),
-                MessageHandler(VOICE_MESSAGE_FILTER, voice_message_received),
-            ],
-            VOICE_RESULT: all_menu_jumps + [
-                CallbackQueryHandler(voice_send_now_callback, pattern=r"^vp_send$"),
-                CallbackQueryHandler(voice_schedule_callback, pattern=r"^vp_sched$"),
-                CallbackQueryHandler(voice_restyle_callback, pattern=r"^vp_restyle$"),
-                CallbackQueryHandler(voice_cancel_callback, pattern=r"^vp_cancel$"),
-                # 📊 Post Score (Killer Feature #4): natijani baholash va
-                # yaxshilash tugmalari shu holatda ham ishlaydi.
-                CallbackQueryHandler(post_score_eval_callback, pattern=r"^ps_eval:"),
-                CallbackQueryHandler(post_score_improve_callback, pattern=r"^ps_improve$"),
-                CallbackQueryHandler(post_score_send_callback, pattern=r"^ps_send$"),
-                CallbackQueryHandler(post_score_schedule_callback, pattern=r"^ps_sched$"),
-                CallbackQueryHandler(post_score_new_callback, pattern=r"^ps_new$"),
-                CallbackQueryHandler(post_score_channel_picked_callback, pattern=r"^ps_ch"),
-                MessageHandler(VOICE_MESSAGE_FILTER, voice_message_received),
-            ],
-            VOICE_SEND_CHOOSE: all_menu_jumps + [
-                CallbackQueryHandler(voice_channel_picked_callback, pattern=r"^vp_ch"),
-                MessageHandler(VOICE_MESSAGE_FILTER, voice_message_received),
-            ],
-
-            # 7f. 📸 IMAGE → POST holatlari
-            IMAGE_POST_INPUT: all_menu_jumps + [
-                MessageHandler(filters.PHOTO | filters.Document.ALL, image_photo_received),
-                MessageHandler(filters.TEXT & ~filters.COMMAND, image_photo_received),
-            ],
-            # 3-BOSQICH fallback: Vision ishlamadi va caption yo'q — mavzu matni
-            # (yoki yangi rasm) kutiladi; jarayon to'xtab qolmaydi.
-            IMAGE_TOPIC_INPUT: all_menu_jumps + [
-                MessageHandler(filters.PHOTO | filters.Document.ALL, image_photo_received),
-                MessageHandler(filters.TEXT & ~filters.COMMAND, image_topic_received),
-            ],
-            IMAGE_STYLE_SELECT: all_menu_jumps + [
-                CallbackQueryHandler(image_style_callback, pattern=r"^(image_style:|img_style:|image_cancel$|img_cancel$)"),
-                CallbackQueryHandler(image_cancel_callback, pattern=r"^image_cancel$"),
-            ],
-            IMAGE_POST_RESULT: all_menu_jumps + [
-                CallbackQueryHandler(image_send_callback, pattern=r"^image_send$"),
-                CallbackQueryHandler(image_schedule_callback, pattern=r"^image_schedule$"),
-                CallbackQueryHandler(image_restyle_callback, pattern=r"^image_restyle$"),
-                CallbackQueryHandler(image_back_callback, pattern=r"^image_back$"),
-                CallbackQueryHandler(image_cancel_callback, pattern=r"^image_cancel$"),
-                # 📊 Post Score (Killer Feature #4): natijani baholash va
-                # yaxshilash tugmalari shu holatda ham ishlaydi.
-                CallbackQueryHandler(post_score_eval_callback, pattern=r"^ps_eval:"),
-                CallbackQueryHandler(post_score_improve_callback, pattern=r"^ps_improve$"),
-                CallbackQueryHandler(post_score_send_callback, pattern=r"^ps_send$"),
-                CallbackQueryHandler(post_score_schedule_callback, pattern=r"^ps_sched$"),
-                CallbackQueryHandler(post_score_new_callback, pattern=r"^ps_new$"),
-                CallbackQueryHandler(post_score_channel_picked_callback, pattern=r"^ps_ch"),
-            ],
-            IMAGE_SEND_CHOOSE: all_menu_jumps + [
-                CallbackQueryHandler(image_channel_callback, pattern=r"^image_ch:"),
-                CallbackQueryHandler(image_cancel_callback, pattern=r"^image_cancel$"),
-            ],
-            IMAGE_SCHEDULE_INPUT: all_menu_jumps + [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, image_schedule_time_received),
-            ],
-
-            # 7h. 📊 POST SCORE holatlari (Killer Feature #4)
-            # Baholash BEPUL — kredit/kunlik kvota yechilmaydi; «✨ 95/100 ga
-            # yaxshilash» bosilgandagina 1 kredit atomik yechiladi (+refund).
-            POST_SCORE_INPUT: all_menu_jumps + [
-                MessageHandler(filters.ALL & ~filters.COMMAND, post_score_text_received),
-            ],
-            POST_SCORE_RESULT: all_menu_jumps + [
-                CallbackQueryHandler(post_score_improve_callback, pattern=r"^ps_improve$"),
-                CallbackQueryHandler(post_score_send_callback, pattern=r"^ps_send$"),
-                CallbackQueryHandler(post_score_schedule_callback, pattern=r"^ps_sched$"),
-                CallbackQueryHandler(post_score_new_callback, pattern=r"^ps_new$"),
-                CallbackQueryHandler(post_score_eval_callback, pattern=r"^ps_eval:"),
-                CallbackQueryHandler(post_score_channel_picked_callback, pattern=r"^ps_ch"),
-                # Yangi matn yuborilsa — darhol baholash (yangi sessiya).
-                MessageHandler(filters.ALL & ~filters.COMMAND, post_score_text_received),
-            ],
-            POST_SCORE_SEND_CHOOSE: all_menu_jumps + [
-                CallbackQueryHandler(post_score_channel_picked_callback, pattern=r"^ps_ch"),
-                CallbackQueryHandler(post_score_new_callback, pattern=r"^ps_new$"),
-            ],
-
-            # 💬 4-QISM — QO'LLAB-QUVVATLASH: bir martalik murojaat holati.
-            #   * [◀️ Orqaga] — oqim yopiladi va 👤 Profil hub'i qaytadi;
-            #   * foydalanuvchi xabari (matn yoki rasm+izoh) — murojaat
-            #     adminga yuboriladi va holat DARHOL yopiladi (END), ya'ni
-            #     ketma-ket yozish adminga spam bo'lib bormaydi.
-            SUPPORT_TICKET_INPUT: all_menu_jumps + [
-                CallbackQueryHandler(support_back_callback, pattern=r"^sup_back$"),
-                MessageHandler(filters.ALL & ~filters.COMMAND,
-                               support_message_received),
-            ],
-
-            # 8. Queue holatlari
-            QUEUE_MENU: all_menu_jumps + [
-                CallbackQueryHandler(queue_page_callback, pattern=r"^qpage:"),
-                CallbackQueryHandler(queue_view_callback, pattern=r"^qview:"),
-                CallbackQueryHandler(queue_delete_callback, pattern=r"^qdel:"),
-                # 📅 Rejalashtirilgan post amallari: [✏️ Tahrirlash] va
-                # [⏰ Vaqtni o'zgartirish] — mavjud, xavfsiz pending oqimlari
-                # (ular entry_points'da ham bor, bu yerda ATAYLAB oshkora).
-                CallbackQueryHandler(edit_post_content_start, pattern=r"^p_edit:"),
-                CallbackQueryHandler(edit_post_time_start, pattern=r"^p_time:"),
-                CallbackQueryHandler(queue_push_callback, pattern=r"^qpush:"),
-                # 🔗 [Tugma/Reaksiya] — mavjud `p_btn:` / `p_react:` oqimlari
-                # tanlagichi (yangi FSM yaratilmaydi).
-                CallbackQueryHandler(scheduled_btn_react_callback, pattern=r"^sched_br:"),
-                CallbackQueryHandler(queue_slots_callback, pattern=r"^qslots:"),
-                CallbackQueryHandler(queue_close_callback, pattern=r"^qclose$"),
-                MessageHandler(filters.TEXT & ~filters.COMMAND, slot_add_message),
-            ],
-            SLOT_ADD: all_menu_jumps + [
-                CallbackQueryHandler(queue_slots_callback, pattern=r"^qslots:"),
-                CallbackQueryHandler(queue_page_callback, pattern=r"^qpage:"),
-                CallbackQueryHandler(queue_close_callback, pattern=r"^qclose$"),
-                MessageHandler(filters.TEXT & ~filters.COMMAND, slot_add_message),
-            ],
-
-            ConversationHandler.TIMEOUT: [MessageHandler(filters.ALL, conversation_timeout_handler)],
+            **_content_states(all_menu_jumps),
+            **_channels_states(all_menu_jumps),
+            **_planning_states(all_menu_jumps),
+            **_sources_states(all_menu_jumps),
+            **_insights_billing_states(all_menu_jumps),
+            **_editing_tools_states(all_menu_jumps, edit_post_menu),
+            **_admin_states(all_menu_jumps),
+            **_ai_assistant_states(all_menu_jumps),
+            **_magic_post_states(all_menu_jumps),
+            **_voice_post_states(all_menu_jumps),
+            **_image_post_states(all_menu_jumps),
+            **_post_score_states(all_menu_jumps),
+            **_support_queue_states(all_menu_jumps),
+            **_timeout_state(),
         },
-        fallbacks=[
-            CommandHandler("start", start),
-            CommandHandler("cancel", cancel_handler),
-            MessageHandler(exact(BTN_CANCEL, BTN_CANCEL_RU), cancel_handler),
-            MessageHandler(exact(BTN_CANCEL_EN), cancel_handler),
-            MessageHandler(exact(BTN_BACK, BTN_MAIN_MENU, BTN_BACK_RU), lambda u, c: guard_menu(u, c, start)),
-            MessageHandler(exact(BTN_BACK_EN), lambda u, c: guard_menu(u, c, start)),
-        ],
+        fallbacks=_main_fallbacks(),
         allow_reentry=True,
         conversation_timeout=CONVERSATION_TIMEOUT_SEC,
     )

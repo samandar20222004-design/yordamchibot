@@ -1672,350 +1672,58 @@ async def duration_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ============================================================
 
 async def confirm_post_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Tasdiqlash ekranidagi tugmalar: OK / Queue / Edit / Cancel / Channel (1-vazifa)."""
+    """Tasdiqlash ekranidagi tugmalar: OK / Queue / Edit / Cancel / Channel (1-vazifa).
+
+    MONOLIT DEKOMPOZITSIYASI: ilgari bu funksiya 345+ qator edi va ichida
+    oltita mustaqil amal (kanal tanlash, kanal tasdiqlash, orqaga, bekor
+    qilish, tahrirlash, navbat, darhol/rejali saqlash) hamda UCH marta
+    nusxalangan kanal-tanlov bloki bor edi. Amal mantiqi endi
+    :mod:`handlers.new_post_confirm` dagi kichik, bitta vazifali
+    funksiyalarda; bu funksiya faqat THROTTLE, callback'ni dekodlash va
+    mos amalga yo'naltirish bilan shug'ullanadi (yagona dispatcher).
+    Xatti-harakat, FSM holatlari va javob matnlari O'ZGARMAGAN.
+    """
     query = update.callback_query
     user_id = update.effective_user.id
     if check_callback_throttle(user_id):
         try:
             await update.callback_query.answer(
                 text=get_text("np_callback_wait", get_lang(context)),
-                show_alert=False
-        )
+                show_alert=False,
+            )
         except Exception as _silent_exc:
-            log_silent_failure("handlers.new_post:confirm_post_callback:1682", _silent_exc)
+            log_silent_failure("handlers.new_post:confirm_post_callback:throttle",
+                               _silent_exc)
         return
     await query.answer()
+
+    # Kechikkan import: ``handlers.new_post_confirm`` ushbu moduldan
+    # yordamchilarni oladi — modullik darajasida import qilinsa aylanma
+    # bog'liqlik yuzaga kelardi.
+    from handlers import new_post_confirm as cfm
+
     data = query.data
     # action may contain sub-action like "ch:-100123"
     action = data.split(":", 1)[1] if ":" in data else ""
     user_id = query.from_user.id
     is_admin = (user_id in ADMIN_IDS_SET)
-
     lang = get_lang(context)
 
-    # 1-vazifa: kanal tanlash tugmasi bosildi
     if action == "channel":
-        channels = await db.run_db(db.get_user_channels, user_id)
-        if not channels:
-            await query.message.reply_text(
-                get_text("new_post_no_channels", lang),
-                reply_markup=get_main_keyboard(is_admin, context=context),
-                parse_mode="HTML",
-            )
-            return ConversationHandler.END
-        if len(channels) == 1:
-            context.user_data["selected_channel_id"] = channels[0][0]
-            context.user_data["selected_channel_title"] = channels[0][1]
-            await _show_confirmation(query.message, context)
-            return CONFIRM_POST
-        # Ko'p kanal — inline ro'yxat
-        from keyboards.inline import btn_label
-        keyboard = []
-        for ch_id, ch_title in channels:
-            label = btn_label(ch_title, max_length=20)
-            keyboard.append([InlineKeyboardButton(f"📢 {label}", callback_data=_cb_safe("confirm_post:ch", ch_id))])
-        keyboard.append([InlineKeyboardButton(get_text("np_edit_back_btn", lang), callback_data="confirm_post:back")])
-        await query.message.reply_text(
-            get_text("new_post_choose_channel", lang),
-            reply_markup=InlineKeyboardMarkup(keyboard),
-            parse_mode="HTML",
-        )
-        return CONFIRM_POST
-
+        return await cfm.handle_channel_action(query, context, user_id, is_admin, lang)
     if action.startswith("ch:"):
         # Kanal tanlandi: confirm_post:ch:<id>
-        raw_id = action[3:].strip()
-        channels = await db.run_db(db.get_user_channels, user_id) or []
-        # Find title
-        found = None
-        for cid, ctitle in channels:
-            if str(cid) == raw_id:
-                found = (cid, ctitle)
-                break
-        if not found:
-            # Try int conversion
-            try:
-                int_id = int(raw_id)
-                for cid, ctitle in channels:
-                    if cid == int_id:
-                        found = (cid, ctitle)
-                        break
-            except Exception as _silent_exc:
-                log_silent_failure("handlers.new_post:confirm_post_callback:1741", _silent_exc)
-        if found:
-            context.user_data["selected_channel_id"] = found[0]
-            context.user_data["selected_channel_title"] = found[1]
-        await _show_confirmation(query.message, context)
-        return CONFIRM_POST
-
+        return await cfm.handle_channel_selected(query, context, action[3:].strip())
     if action == "back":
-        await _show_confirmation(query.message, context)
-        return CONFIRM_POST
-
+        return await cfm.handle_back(query, context)
     if action == "cancel":
-        clear_fsm_data(context)
-        cancel_album_collections(user_id)
-        try:
-            await query.edit_message_reply_markup(reply_markup=None)
-        except Exception as _silent_exc:
-            log_silent_failure("handlers.new_post:confirm_post_callback:1758", _silent_exc)
-        await query.message.reply_text(
-            get_text("np_cancelled", lang),
-            reply_markup=get_main_keyboard(is_admin, context=context),
-            parse_mode="HTML",
-        )
-        return ConversationHandler.END
-
+        return await cfm.handle_cancel(query, context, user_id, is_admin, lang)
     if action == "edit":
-        await query.message.reply_text(
-            get_text("np_edit_menu_title", lang),
-            reply_markup=_get_edit_confirm_keyboard(lang),
-            parse_mode="HTML",
-        )
-        return EDIT_CONFIRM_FIELD
-
+        return await cfm.handle_edit(query, lang)
     if action == "queue":
-        selected_channel_id = context.user_data.get("selected_channel_id")
-        if not selected_channel_id:
-            # 1-vazifa: kanal tanlanmagan bo'lsa — ro'yxatni ko'rsatish
-            channels = await db.run_db(db.get_user_channels, user_id)
-            if channels and len(channels) == 1:
-                context.user_data["selected_channel_id"] = channels[0][0]
-                context.user_data["selected_channel_title"] = channels[0][1]
-                selected_channel_id = channels[0][0]
-            else:
-                if channels:
-                    from keyboards.inline import btn_label
-                    keyboard = []
-                    for ch_id, ch_title in channels:
-                        label = btn_label(ch_title, max_length=20)
-                        keyboard.append([InlineKeyboardButton(f"📢 {label}", callback_data=_cb_safe("confirm_post:ch", ch_id))])
-                    keyboard.append([InlineKeyboardButton(get_text("np_edit_back_btn", lang), callback_data="confirm_post:back")])
-                    await query.message.reply_text(
-                        get_text("new_post_choose_channel", lang),
-                        reply_markup=InlineKeyboardMarkup(keyboard),
-                        parse_mode="HTML",
-                    )
-                    return CONFIRM_POST
-                await query.message.reply_text(
-                    get_text("np_no_channel", lang),
-                    reply_markup=get_main_keyboard(is_admin, context=context),
-                    parse_mode="HTML",
-                )
-                clear_fsm_data(context)
-                return ConversationHandler.END
-
-        now = datetime.now(tashkent_tz)
-        slots = await db.run_db(db.get_queue_slots, user_id)
-        ch_id_for_q = selected_channel_id if selected_channel_id != "ALL" else "ALL"
-        occupied = await db.run_db(db.get_queue_occupied_times, user_id, ch_id_for_q, now.date())
-
-        slot_dt, label = db.find_next_queue_slot(slots, occupied, now)
-        if not slot_dt:
-            tomorrow = now + timedelta(days=1)
-            tomorrow_start = tashkent_tz.localize(
-                datetime(tomorrow.year, tomorrow.month, tomorrow.day, 0, 0)
-            )
-            occ_tom = await db.run_db(db.get_queue_occupied_times, user_id, ch_id_for_q, tomorrow.date())
-            slot_dt, label = db.find_next_queue_slot(slots, occ_tom, tomorrow_start)
-
-        if not slot_dt:
-            for day_off in range(2, 8):
-                future_date = now.date() + timedelta(days=day_off)
-                occ = await db.run_db(db.get_queue_occupied_times, user_id, ch_id_for_q, future_date)
-                future_start = tashkent_tz.localize(
-                    datetime(future_date.year, future_date.month, future_date.day, 0, 0)
-                )
-                slot_dt, label = db.find_next_queue_slot(slots, occ, future_start)
-                if slot_dt:
-                    break
-
-        if not slot_dt:
-            await query.message.reply_text(
-                get_text("np_no_slot", lang),
-                reply_markup=get_main_keyboard(is_admin, context=context),
-                parse_mode="HTML",
-            )
-            clear_fsm_data(context)
-            return ConversationHandler.END
-
-        # 🖼 ALBOM: sendMediaGroup'ga inline_keyboard ulanmaydi — albom uchun
-        # tugma/reaksiya opsiyalari DB'ga yozilmaydi.
-        _strip_unsupported_album_options(context)
-        post_type = context.user_data.get("post_type")
-        reaction_emojis = context.user_data.get("reaction_emojis")
-        content = _content_for_db(context.user_data.get("content"), reaction_emojis)
-        file_id = context.user_data.get("file_id")
-        btn_text = context.user_data.get("btn_text")
-        btn_url = context.user_data.get("btn_url")
-        enable_reactions = context.user_data.get("enable_reactions", False)
-        delete_after_hours = context.user_data.get("delete_after_hours", 0)
-        channel_title = context.user_data.get("selected_channel_title", "Kanal")
-
-        channels = (
-            await db.run_db(db.get_user_channels, user_id)
-            if selected_channel_id == "ALL"
-            else [(selected_channel_id, channel_title)]
-        )
-        ok_count = 0
-        for ch_id, _ in channels:
-            try:
-                pid = await db.run_db(
-                    db.add_post,
-                    user_id=user_id, channel_id=ch_id, post_type=post_type, content=content,
-                    file_id=file_id, scheduled_time=slot_dt, recurrence_type='none',
-                    recurrence_day=None, recurrence_time=None, end_date=None,
-                    btn_text=btn_text, btn_url=btn_url, enable_reactions=enable_reactions,
-                    reaction_emojis=reaction_emojis,
-                    delete_after_hours=delete_after_hours
-                )
-                if pid:
-                    ok_count += 1
-            except Exception as _silent_exc:
-                log_silent_failure("handlers.new_post:confirm_post_callback:1872", _silent_exc)
-
-        try:
-            await query.edit_message_reply_markup(reply_markup=None)
-        except Exception as _silent_exc:
-            log_silent_failure("handlers.new_post:confirm_post_callback:1877", _silent_exc)
-
-        if ok_count:
-            time_str = format_time(slot_dt, lang)
-            ad_line = await get_auto_ad_injection_async(user_id)
-            # db.find_next_queue_slot "Bugun"/"Ertaga" qaytaradi — bu yorliq
-            # har bir tilga (uz/ru/en) o'giramiz.
-            label_i18n = _queue_slot_label(label, lang)
-            await query.message.reply_text(
-                get_text("np_queue_added", lang, label=label_i18n, time=time_str,
-                         channel=html_escape(channel_title), ad_line=ad_line or ""),
-                reply_markup=get_main_keyboard(is_admin, context=context),
-                parse_mode="HTML",
-            )
-        else:
-            await query.message.reply_text(
-                get_text("np_queue_error", lang),
-                reply_markup=get_main_keyboard(is_admin, context=context),
-                parse_mode="HTML",
-            )
-        clear_fsm_data(context)
-        return ConversationHandler.END
-
+        return await cfm.handle_queue(query, context, user_id, is_admin, lang)
     # action == "ok"
-    post_time = context.user_data.get("confirm_post_time")
-    recurrence_type = context.user_data.get("confirm_recurrence_type", "none")
-    recurrence_day = context.user_data.get("confirm_recurrence_day")
-    recurrence_time_str = context.user_data.get("confirm_recurrence_time_str")
-    end_date = context.user_data.get("confirm_end_date")
-
-    if not post_time:
-        await query.message.reply_text(
-            get_text("np_no_time", lang),
-            reply_markup=get_main_keyboard(is_admin, context=context),
-            parse_mode="HTML"
-        )
-        clear_fsm_data(context)
-        return ConversationHandler.END
-
-    selected_channel_id = context.user_data.get("selected_channel_id")
-    channel_title = context.user_data.get("selected_channel_title", "Kanal")
-    # 1-vazifa: kanal tanlanmagan bo'lsa — ro'yxatni ko'rsatish
-    if not selected_channel_id:
-        channels = await db.run_db(db.get_user_channels, user_id)
-        if channels and len(channels) == 1:
-            context.user_data["selected_channel_id"] = channels[0][0]
-            context.user_data["selected_channel_title"] = channels[0][1]
-            selected_channel_id = channels[0][0]
-            channel_title = channels[0][1]
-        elif channels:
-            from keyboards.inline import btn_label
-            keyboard = []
-            for ch_id, ch_title in channels:
-                label = btn_label(ch_title, max_length=20)
-                keyboard.append([InlineKeyboardButton(f"📢 {label}", callback_data=_cb_safe("confirm_post:ch", ch_id))])
-            keyboard.append([InlineKeyboardButton(get_text("np_edit_back_btn", lang), callback_data="confirm_post:back")])
-            await query.message.reply_text(
-                get_text("new_post_choose_channel", lang),
-                reply_markup=InlineKeyboardMarkup(keyboard),
-                parse_mode="HTML",
-            )
-            return CONFIRM_POST
-        else:
-            await query.message.reply_text(
-                get_text("np_no_channel", lang),
-                reply_markup=get_main_keyboard(is_admin, context=context),
-                parse_mode="HTML",
-            )
-            clear_fsm_data(context)
-            return ConversationHandler.END
-    # 🖼 ALBOM: sendMediaGroup'ga inline_keyboard ulanmaydi — albom uchun
-    # tugma/reaksiya opsiyalari DB'ga yozilmaydi.
-    _strip_unsupported_album_options(context)
-    post_type = context.user_data.get("post_type")
-    reaction_emojis = context.user_data.get("reaction_emojis")
-    content = _content_for_db(context.user_data.get("content"), reaction_emojis)
-    file_id = context.user_data.get("file_id")
-    btn_text = context.user_data.get("btn_text")
-    btn_url = context.user_data.get("btn_url")
-    enable_reactions = context.user_data.get("enable_reactions", False)
-    delete_after_hours = context.user_data.get("delete_after_hours", 0)
-
-    post_time_tz = post_time.astimezone(tashkent_tz)
-    channels = (
-        await db.run_db(db.get_user_channels, user_id)
-        if selected_channel_id == "ALL"
-        else [(selected_channel_id, channel_title)]
-    )
-    ok_count = 0
-    for ch_id, _ in channels:
-        try:
-            pid = await db.run_db(
-                db.add_post,
-                user_id=user_id, channel_id=ch_id, post_type=post_type, content=content,
-                file_id=file_id, scheduled_time=post_time_tz, recurrence_type=recurrence_type,
-                recurrence_day=recurrence_day, recurrence_time=recurrence_time_str, end_date=end_date,
-                btn_text=btn_text, btn_url=btn_url, enable_reactions=enable_reactions,
-                    reaction_emojis=reaction_emojis,
-                delete_after_hours=delete_after_hours
-            )
-            if pid:
-                ok_count += 1
-        except Exception as _silent_exc:
-            log_silent_failure("handlers.new_post:confirm_post_callback:1980", _silent_exc)
-
-    try:
-        await query.edit_message_reply_markup(reply_markup=None)
-    except Exception as _silent_exc:
-        log_silent_failure("handlers.new_post:confirm_post_callback:1985", _silent_exc, user_id=user_id, lang=lang)
-
-    if ok_count:
-        if recurrence_type == "daily" and recurrence_time_str:
-            when_text = get_text("np_scheduled_when_daily", lang,
-                                 time=format_time(recurrence_time_str, lang))
-        elif recurrence_type == "weekly" and recurrence_time_str:
-            when_text = get_text("np_scheduled_when_weekly", lang,
-                                 day=weekday_label(recurrence_day, lang),
-                                 time=format_time(recurrence_time_str, lang))
-        else:
-            when_text = get_text("np_scheduled_when_single", lang,
-                                 time=format_datetime(post_time_tz, lang))
-        del_info = get_text("np_scheduled_del", lang, hours=delete_after_hours) if delete_after_hours > 0 else ""
-        ad_line = await get_auto_ad_injection_async(user_id)
-        await query.message.reply_text(
-            get_text("np_scheduled_ok", lang,
-                     channel=html_escape(channel_title), when=when_text,
-                     del_info=del_info) + (ad_line or ""),
-            reply_markup=get_main_keyboard(is_admin, context=context),
-            parse_mode="HTML"
-        )
-    else:
-        await query.message.reply_text(
-            get_text("np_save_error_bold", lang),
-            reply_markup=get_main_keyboard(is_admin, context=context),
-            parse_mode="HTML"
-        )
-    cancel_album_collections(user_id)
-    clear_fsm_data(context)
-    return ConversationHandler.END
+    return await cfm.handle_ok(query, context, user_id, is_admin, lang)
 
 
 async def edit_confirm_field_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):

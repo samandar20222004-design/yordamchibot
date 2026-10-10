@@ -120,112 +120,84 @@ class AIProvider(ABC):
         return True
 
 
-class GeminiProvider(AIProvider):
+class _CoreDelegatingProvider(AIProvider):
+    """``services.ai.fallback``dagi Core provayderga delegatsiya qiluvchi asos.
+
+    AI STEK DE-BLOAT: ilgari ``GeminiProvider`` / ``GroqProvider`` /
+    ``OpenRouterProvider`` uchtalasi ham DEYARLI AYNAN BIR XIL ~35 qatorlik
+    ``generate()`` tanasini nusxalab turardi — farq faqat API kaliti nomi,
+    Core klassi va xato matnidagi provayder yorlig'ida edi. Endi mantiq shu
+    BITTA asosda yashaydi; uchala provayder faqat o'z KONFIGURATSIYASINI
+    e'lon qiladi. Xatti-harakat (kalit tekshiruvi, kanonik prompt muhiti,
+    xato matnlari, bo'sh javobni rad etish, kechikkan import) O'ZGARMAGAN.
+    """
+
+    #: Xato matnlarida ko'rinadigan provayder yorlig'i (masalan "Gemini").
+    label: str = ""
+    #: ``services.ai.fallback`` ichidagi Core adapter klassining nomi.
+    core_attr: str = ""
+    #: API kaliti joylashgan muhit o'zgaruvchilari (birortasi topilsa yetarli).
+    key_env: tuple[str, ...] = ()
+
+    def is_available(self) -> bool:
+        return any(bool(os.getenv(var)) for var in self.key_env)
+
+    async def generate(self, prompt: str, context: dict | None = None) -> str:
+        if not self.is_available():
+            raise AIProviderError(f"{self.label} API kaliti topilmadi")
+
+        ctx = context or {}
+        lang = ctx.get("lang", "uz")
+
+        try:
+            # Kechikkan import: aylanma bog'liqlikdan himoya (avvalgidek).
+            from services.ai import fallback as _fallback
+            from services.ai.engine.prompts import PromptEngine
+
+            provider = getattr(_fallback, self.core_attr)()
+            safe_prompt, safe_system = PromptEngine.build(
+                prompt, system=ctx.get("system_prompt", ""), lang=lang)
+            result = await provider.call(safe_prompt, system_prompt=safe_system, lang=lang)
+            if isinstance(result, dict):
+                text = (result.get("content") or result.get("post_text")
+                        or result.get("response") or "")
+            else:
+                text = str(result or "")
+
+            if not text.strip():
+                raise AIProviderError(f"{self.label} bo'sh javob qaytardi")
+            return text.strip()
+        except Exception as e:
+            if isinstance(e, AIProviderError):
+                raise
+            raise AIProviderError(f"{self.label} xatosi: {e}") from e
+
+
+class GeminiProvider(_CoreDelegatingProvider):
     """Google Gemini (Gemini 2.5 Flash) provayderi."""
 
     name = "Gemini 2.5 Flash"
-
-    def is_available(self) -> bool:
-        return bool(os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY"))
-
-    async def generate(self, prompt: str, context: dict | None = None) -> str:
-        if not self.is_available():
-            raise AIProviderError("Gemini API kaliti topilmadi")
-
-        ctx = context or {}
-        lang = ctx.get("lang", "uz")
-
-        try:
-            from services.ai_service import GeminiProvider as CoreGemini
-            provider = CoreGemini()
-            from services.ai_engine.prompts import PromptEngine
-            safe_prompt, safe_system = PromptEngine.build(
-                prompt, system=ctx.get("system_prompt", ""), lang=lang)
-            result = await provider.call(safe_prompt, system_prompt=safe_system, lang=lang)
-            if isinstance(result, dict):
-                text = result.get("content") or result.get("post_text") or result.get("response") or ""
-            else:
-                text = str(result or "")
-
-            if not text.strip():
-                raise AIProviderError("Gemini bo'sh javob qaytardi")
-            return text.strip()
-        except Exception as e:
-            if isinstance(e, AIProviderError):
-                raise
-            raise AIProviderError(f"Gemini xatosi: {e}") from e
+    label = "Gemini"
+    core_attr = "GeminiProvider"
+    key_env = ("GEMINI_API_KEY", "GOOGLE_API_KEY")
 
 
-class GroqProvider(AIProvider):
+class GroqProvider(_CoreDelegatingProvider):
     """Groq Cloud Llama-3 / Mixtral provayderi."""
 
     name = "Groq"
-
-    def is_available(self) -> bool:
-        return bool(os.getenv("GROQ_API_KEY"))
-
-    async def generate(self, prompt: str, context: dict | None = None) -> str:
-        if not self.is_available():
-            raise AIProviderError("Groq API kaliti topilmadi")
-
-        ctx = context or {}
-        lang = ctx.get("lang", "uz")
-
-        try:
-            from services.ai_service import GroqProvider as CoreGroq
-            provider = CoreGroq()
-            from services.ai_engine.prompts import PromptEngine
-            safe_prompt, safe_system = PromptEngine.build(
-                prompt, system=ctx.get("system_prompt", ""), lang=lang)
-            result = await provider.call(safe_prompt, system_prompt=safe_system, lang=lang)
-            if isinstance(result, dict):
-                text = result.get("content") or result.get("post_text") or result.get("response") or ""
-            else:
-                text = str(result or "")
-
-            if not text.strip():
-                raise AIProviderError("Groq bo'sh javob qaytardi")
-            return text.strip()
-        except Exception as e:
-            if isinstance(e, AIProviderError):
-                raise
-            raise AIProviderError(f"Groq xatosi: {e}") from e
+    label = "Groq"
+    core_attr = "GroqProvider"
+    key_env = ("GROQ_API_KEY",)
 
 
-class OpenRouterProvider(AIProvider):
+class OpenRouterProvider(_CoreDelegatingProvider):
     """OpenRouter Free Router (:free) provayderi."""
 
     name = "OpenRouter"
-
-    def is_available(self) -> bool:
-        return bool(os.getenv("OPENROUTER_API_KEY"))
-
-    async def generate(self, prompt: str, context: dict | None = None) -> str:
-        if not self.is_available():
-            raise AIProviderError("OpenRouter API kaliti topilmadi")
-
-        ctx = context or {}
-        lang = ctx.get("lang", "uz")
-
-        try:
-            from services.ai_service import OpenRouterProvider as CoreOpenRouter
-            provider = CoreOpenRouter()
-            from services.ai_engine.prompts import PromptEngine
-            safe_prompt, safe_system = PromptEngine.build(
-                prompt, system=ctx.get("system_prompt", ""), lang=lang)
-            result = await provider.call(safe_prompt, system_prompt=safe_system, lang=lang)
-            if isinstance(result, dict):
-                text = result.get("content") or result.get("post_text") or result.get("response") or ""
-            else:
-                text = str(result or "")
-
-            if not text.strip():
-                raise AIProviderError("OpenRouter bo'sh javob qaytardi")
-            return text.strip()
-        except Exception as e:
-            if isinstance(e, AIProviderError):
-                raise
-            raise AIProviderError(f"OpenRouter xatosi: {e}") from e
+    label = "OpenRouter"
+    core_attr = "OpenRouterProvider"
+    key_env = ("OPENROUTER_API_KEY",)
 
 
 class MockProvider(AIProvider):

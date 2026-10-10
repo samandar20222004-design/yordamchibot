@@ -790,7 +790,7 @@ async def generate_autopilot_week(
 ) -> list[dict]:
     """AI orqali ``days`` ta post rejasini oladi (xatoda — [])."""
     try:
-        from services.ai_service import run_ai_chain
+        from services.ai.fallback import run_ai_chain
         from utils.ai_agent import _extract_json
     except Exception:  # pragma: no cover — import xatosi (test muhiti)
         return []
@@ -859,7 +859,7 @@ async def rewrite_flagged_posts(
     if not flagged:
         return []
     try:
-        from services.ai_service import run_ai_chain
+        from services.ai.fallback import run_ai_chain
         from utils.ai_agent import _extract_json
     except Exception:  # pragma: no cover
         return []

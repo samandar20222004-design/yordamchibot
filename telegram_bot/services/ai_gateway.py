@@ -1,40 +1,29 @@
-"""KANONIK AI SHLYUZ SIRTI — ``from services import ai_gateway`` (PHASE 6).
+"""ESKIRGAN (deprecated) YO'L — ``services.ai_gateway`` → ``services.ai``.
 
-Handler va servislar provayderlar bilan TO'G'RIDAN-TO'G'RI ishlamasin:
-yagona chaqiruv shu modul orqali bo'lsin.
+AI STEK DE-BLOAT (yagona fasad): kanonik AI shlyuz kodi endi
+:mod:`services.ai.engine` da yashaydi va tashqi chaqiruvchilar uchun yagona
+kirish nuqtasi :mod:`services.ai.facade` hisoblanadi.
 
-    from services import ai_gateway
+Bu modul **nol biznes-logikali** muvofiqliq shimi — faqat qayta eksport.
+Eski ``from services import ai_gateway`` / ``from services.ai_gateway import
+run_ai_task`` importlari buzilmasligi uchun saqlangan; eksport ro'yxati
+(``__all__``) avvalgi bilan AYNAN bir xil.
 
-    # 1) To'g'ridan-to'g'ri generatsiya (telemetriya bilan):
-    res = await ai_gateway.generate(
-        prompt="Kofe do'koni uchun post",
-        task="social_post",             # social_post | channel_dna | post_score | repurpose | ...
-        user_id=42, channel_id=-1001001,
-        lane="fast",                    # "fast" | "smart" | "premium"
-    )
-    res.text, res.provider, res.model, res.total_tokens, res.estimated_cost
+Yangi kod uchun::
 
-    # 2) To'liq tsikl (kvota bron + refund + DB telemetriya + hisobot):
-    from services.ai_gateway import run_ai_task
+    from services.ai import facade as ai
 
-    outcome = await run_ai_task(
-        db=db, task="social_post", prompt="...", user_id=42,
-        channel_id=-1001001, lane="smart", context=context, ctx_prefix="magic",
-    )
-    if not outcome.ok:
-        ...
+    res = await ai.generate(prompt="...", task="social_post", user_id=42, lane="fast")
+    outcome = await ai.run_ai_task(db=db, task="social_post", prompt="...", user_id=42)
 
-Oqim: Handler → Application Service (``run_ai_task``) → AI Gateway
-(``ai_gateway``) → Router → Provider Adapter.
-
-Bu modul faqat qayta eksport (facade) — hech qanday yangi logika yo'q;
-haqiqiy kod ``services.ai_engine.{gateway,app_service,router,telemetry}``
-da va u yerda ham yagona nusxada yashaydi (dublikat yo'q).
+Oqim (o'zgarmagan): Handler → Application Service (``run_ai_task``) →
+AI Gateway → Router → Provider adapter.
 """
 
 from __future__ import annotations
 
-from services.ai_engine.app_service import (
+# --- gateway + application service + mock siyosati (kanonik joy) -----------
+from services.ai.engine.app_service import (
     DEFAULT_OPERATION_TYPE,
     TASK_OPERATION_TYPES,
     AITaskOutcome,
@@ -43,8 +32,8 @@ from services.ai_engine.app_service import (
     operation_type_for,
     run_ai_task,
 )
-from services.ai_engine.app_service import usage_report as ai_usage_report
-from services.ai_engine.gateway import (
+from services.ai.engine.app_service import usage_report as ai_usage_report
+from services.ai.engine.gateway import (
     MOCK_MODE_DEVELOPMENT,
     MOCK_MODE_FORCED,
     MOCK_MODE_OFF,
@@ -65,14 +54,14 @@ from services.ai_engine.gateway import (
     provider_allowed,
     vision_analyze,
 )
-from services.ai_engine.router import (
+from services.ai.engine.router import (
     LANE_ALIASES,
     Lane,
     lane_alias,
     lane_for_task,
     resolve_lane,
 )
-from services.ai_engine.telemetry import (
+from services.ai.engine.telemetry import (
     AIUsageEvent,
     PERIOD_ALL,
     PERIOD_DAILY,

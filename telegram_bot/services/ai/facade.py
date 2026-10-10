@@ -1,47 +1,48 @@
-"""SPRINT 2 (VAZIFA 1) — AI STEKI UCHUN YAGONA FASAD (Facade).
+"""AI STEKI UCHUN YAGONA FASAD (Facade) — barcha AI chaqiruvlari shu yerdan.
 
-Botning AI qatlami tarixan to'rtta avlodda rivojlangan:
+AI STEK DE-BLOAT (yagona fasad) natijasida botning AI qatlami BITTA paketga
+yig'ildi: :mod:`services.ai`. Ilgari parallel yashagan to'rtta avlod
+(``utils/ai_agent.py``, ``services/ai_service.py``, ``services/ai_engine/``,
+``services/ai_gateway.py``) endi quyidagicha tartibga solindi:
 
-    1. ``utils/ai_agent.py``        — ENG ESKI qatlam: provayderlarga
-       to'g'ridan-to'g'ri (aiohttp) chaqiruvlar (``_call_gemini``,
-       ``_call_groq``, ``_call_openrouter``, ...) HAMDA botga xos barcha
-       yuqori darajadagi kontent funksiyalari (post yozish, DNA, content
-       plan, vision, Magic Post, audit...). Ko'pchilik handler shu yerdan
-       to'g'ridan-to'g'ri import qiladi.
-    2. ``services/ai_service.py``   — 4-BOSQICH: 8 ta provayderli fallback
-       zanjirini (qat'iy timeout + circuit breaker) markazlashtiradi;
-       haqiqiy HTTP chaqiruvlarni DUBLIKATSIZ — ``utils.ai_agent``dagi
-       xuddi o'sha ``_call_*`` funksiyalarga delegatsiya qiladi (``_ai_agent()``
-       orqali kech import — aylanma importdan himoya).
-    3. ``services/ai_engine/`` (+ fasadi ``services/ai_gateway.py``) —
-       6-BOSQICH: KANONIK shlyuz. Lane (fast/smart/premium), kvota,
-       keshlash, circuit breaker, telemetriya/xarajat hisobi shu yerda.
-       Eski zanjir ``gateway.legacy_chain`` adapteri orqali ham shu
-       shlyuzga ulanadi (``ai_agent._run_ai_chain`` → ``legacy_chain`` →
-       ``ai_service.run_ai_chain`` → ``ai_agent._call_*``) — xatti-harakat
-       O'ZGARMAYDI, faqat marshrut/kesh/telemetriya YAGONA joyda.
-    4. ``services/ai/`` (ushbu paket) — 3/4/5/11/12-BOSQICHLAR: SMM
-       orkestratsiyasi (intent routing, validator, concurrency/navbat) va
-       "Advanced SMM" xizmatlari (ko'p variantli post, repurpose, chuqur
-       audit, PRO content-calendar). Bu paketning ``providers.py``dagi
-       ``GeminiProvider``/``GroqProvider``/``OpenRouterProvider`` klasslari
-       ham DUBLIKAT EMAS — ular ``services.ai_service``dagi "Core"
-       provayderlarga delegatsiya qiladigan yupqa adapterlar.
+==============================  =============================================
+KANONIK joy                     vazifa
+==============================  =============================================
+``services/ai/transport-ish``   —
+``services/ai/fallback.py``     8 provayderli fallback zanjiri
+                                (``AIFallbackService``, ``run_ai_chain``,
+                                Core provayder adapterlari, rasm tahlili,
+                                post-score). Ilgari: ``services/ai_service.py``.
+``services/ai/engine/``         KANONIK shlyuz: lane/router, kesh, circuit
+                                breaker, retry, telemetriya/xarajat, kvota
+                                bron-refund (``run_ai_task``), prompt
+                                muhiti, sxema validatori.
+                                Ilgari: ``services/ai_engine/``.
+``services/ai/*``               SMM orkestratsiyasi (intent router, output
+                                validator, concurrency/navbat) va "Advanced
+                                SMM" xizmatlari (ko'p variantli post,
+                                repurpose, chuqur audit, PRO content-calendar).
+``utils/ai_agent.py``           Botga xos yuqori darajadagi kontent
+                                funksiyalari (post yozish, Magic Post, DNA,
+                                content plan, vision, audit) + provayder
+                                transporti. Bu modulning FAZOViy nomi
+                                (``GEMINI_API_KEY``, ``_session``,
+                                ``_breaker_open``, ``_run_ai_chain`` ...)
+                                testlar monkeypatch qiladigan kontrakt —
+                                shu sababli u joyida qoldirilgan.
+==============================  =============================================
 
-TEKSHIRUV (shu Sprint davomida): yuqoridagi to'rttala qatlam orasida
-provayderga chaqiruv qiluvchi HAQIQIY dublikat kod TOPILMADI — ular
-allaqachon DELEGATSIYA zanjiri orqali bog'langan (yuqoridagi 2/3/4-bandlar).
-Shuning uchun bu Sprintda ularni jismoniy BIRLASHTIRISH (fayllarni
-ko'chirish/o'chirish) — testlar bilan qattiq bog'langan ~6000 qatorlik,
-12+ handler tomonidan ishlatiladigan kodni qayta yozish — mutanosib
-bo'lmagan regressiya xavfini keltirib chiqargan bo'lardi (talab: "eski
-import/API shartnomalarida regressiya BO'LMASIN"). Shu sababli amaliy va
-xavfsiz yechim tanlandi: **bitta FASAD** — quyida — barcha tashqi
-chaqiruvchilar (handler/tasks) uchun YAGONA, hujjatlashtirilgan kirish
-nuqtasi sifatida qo'shildi; TO'RTTALA eski modul o'zgarishsiz qoladi va
-eski importlar ildizidan ishlab turadi.
+Eski import yo'llari O'CHIRILMAGAN, lekin endi **nol biznes-logikali**
+shimlardir (dublikat kod yo'q):
 
-FOYDALANISH (yangi kod uchun tavsiya etiladi)::
+* ``services/ai_engine/``  → ``services.ai.engine`` ni qayta eksport qiladi
+  (submodullar ``sys.modules`` orqali AYNI BIR obyektga bog'langan);
+* ``services/ai_service.py`` → ``services.ai.fallback`` bilan IDENTITY
+  taxallusi (``services.ai_service is services.ai.fallback``) — shu sababli
+  modul o'zgaruvchilariga qilingan monkeypatch ikki tomondan ham ko'rinadi;
+* ``services/ai_gateway.py`` → ``services.ai.engine`` ni qayta eksport qiladi.
+
+FOYDALANISH (yangi kod uchun YAGONA tavsiya etilgan kirish)::
 
     from services.ai import facade as ai
 
@@ -49,9 +50,7 @@ FOYDALANISH (yangi kod uchun tavsiya etiladi)::
     gw = await ai.generate(prompt="...", task="social_post", user_id=42, lane="fast")
     variants = await ai.generate_post_variants(user_id=42, topic="...", lang="uz")
 
-Eski kod ESKICHA ishlayveradi — bu modul faqat QAYTA EKSPORT qiladi,
-hech qanday yangi biznes-logika yo'q (xuddi ``services/ai_gateway.py``
-singari "faqat facade" tamoyili).
+Bu modul faqat QAYTA EKSPORT qiladi — hech qanday yangi biznes-logika yo'q.
 """
 
 from __future__ import annotations
@@ -87,21 +86,31 @@ from utils.ai_agent import (
 )
 
 # ---------------------------------------------------------------------------
-# 3-QATLAM — services/ai_gateway.py: KANONIK shlyuz (lane/kvota/telemetriya).
-# ``services/ai_gateway.py`` o'zi ham faqat facade — shu yerda uning ustiga
-# IKKINCHI qavat qurmasdan, to'g'ridan-to'g'ri qayta eksport qilinadi.
+# KANONIK SHLYUZ — services/ai/engine: lane/kvota/kesh/telemetriya.
+# (``services/ai_gateway.py`` endi shu paketning deprecated shimi.)
 # ---------------------------------------------------------------------------
-from services.ai_gateway import (
+from services.ai.engine.app_service import (
+    DEFAULT_OPERATION_TYPE,
+    TASK_OPERATION_TYPES,
+    AITaskOutcome,
+    AITaskService,
+    ai_tasks,
+    operation_type_for,
+    run_ai_task,
+)
+from services.ai.engine.app_service import usage_report as ai_usage_report
+from services.ai.engine.gateway import (
     AIGateway,
     GatewayResult,
     ai_gateway,
-    ai_usage_report as gateway_usage_report,
     analyze as gateway_analyze,
     gateway_status,
     generate as gateway_generate,
-    run_ai_task,
     vision_analyze as gateway_vision_analyze,
 )
+
+#: Eski ``services.ai_gateway`` sirtidagi nom — backward compatibility.
+gateway_usage_report = ai_usage_report
 
 # ---------------------------------------------------------------------------
 # 4-QATLAM — services/ai (ushbu paket): SMM orkestratsiyasi + "Advanced SMM"
