@@ -631,6 +631,11 @@ async def channel_settings_callback(update: Update, context: ContextTypes.DEFAUL
     xabarlaridagi ``ch_set:`` tugmalari avvalgidek uslub menyusini ochadi.
     """
     query = update.callback_query
+    # ⚡ DARHOL JAVOB: tugma spinner'i keyingi (DB) ishdan OLDIN to'xtatiladi.
+    try:
+        await query.answer()
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.channels:channel_settings_callback:answer", _silent_exc)
     lang = get_lang(context)
     user_id = query.from_user.id
     channel_id = (query.data or "").split(":", 1)[1] if ":" in (query.data or "") else ""

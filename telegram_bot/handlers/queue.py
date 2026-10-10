@@ -23,6 +23,7 @@ PostAssist V2 · 4-mikro qadam. Bo'lim master plan standartiga keltirildi:
 Modul slot sozlamalarini (``qslots:``) ham saqlaydi — u avtomatik
 rejalashtirish vaqtlarini belgilaydi va o'z ekranida ishlaydi.
 """
+import asyncio
 import logging
 from datetime import datetime, timedelta
 import pytz
@@ -192,22 +193,45 @@ def _get_slots_keyboard(slots: list, lang: str = "uz") -> InlineKeyboardMarkup:
 # HANDLERS
 # ============================================================
 
+async def _queue_limit_or_none(user_id: int):
+    """Navbat limiti (can_add, current, max) yoki ``None`` (xato — jim)."""
+    try:
+        return await db.run_db(db.check_queue_limit, user_id)
+    except Exception:
+        logger.debug("check_queue_limit ishlamadi (user=%s)", user_id, exc_info=True)
+        return None
+
+
 async def _build_queue_view(user_id: int, is_admin: bool, lang: str = "uz") -> tuple:
-    """Queue view matni va markup'ni tuzadi (cabinet'dan ham chaqiriladi)."""
-    total = await db.run_db(db.get_queue_post_count, user_id)
+    """Queue view matni va markup'ni tuzadi (cabinet'dan ham chaqiriladi).
+
+    ⚡ Uchta mustaqil o'qish (jami soni, limit, birinchi sahifa) BIR VAQTDA
+    yuboriladi — oldin ketma-ket 2-3 DB RTT edi, endi ~1 RTT. Xato semantikasi
+    o'zgarmagan: ``total`` xatosi ko'tariladi; limit xatosi upsell'siz davom
+    etadi; ``get_queue_posts`` o'zi fail-soft.
+    """
+    total_r, limit_r, posts_r = await asyncio.gather(
+        db.run_db(db.get_queue_post_count, user_id),
+        _queue_limit_or_none(user_id) if not is_admin else asyncio.sleep(0, result=None),
+        db.run_db(db.get_queue_posts, user_id, 0, QUEUE_PAGE_SIZE),
+        return_exceptions=True,
+    )
+    if isinstance(total_r, BaseException):
+        raise total_r
+    total = total_r
 
     # Free foydalanuvchi navbat limitiga yetganda PRO taklifi ko'rsatiladi.
     # DB nostandart javob qaytarsa (None/istisno) — upsell ko'rsatilmaydi va
     # ro'yxat ASLO yiqilmaydi (eski kabinet aliaslari ham shunga tayanadi).
     show_upsell = False
     max_q = 0
-    if not is_admin:
+    if not is_admin and limit_r is not None:
         try:
-            can_add, current, max_q = await db.run_db(db.check_queue_limit, user_id)
+            can_add, _current, max_q = limit_r
             if not can_add:
                 show_upsell = True
         except Exception:
-            logger.debug("check_queue_limit ishlamadi (user=%s)", user_id, exc_info=True)
+            logger.debug("check_queue_limit natijasi noto'g'ri (user=%s)", user_id, exc_info=True)
 
     if total == 0:
         # get_cabinet_back_keyboard keyboards.INLINE'da (default'da emas) —
@@ -218,7 +242,9 @@ async def _build_queue_view(user_id: int, is_admin: bool, lang: str = "uz") -> t
         markup = get_cabinet_back_keyboard(lang)
         return text, markup
 
-    posts = await db.run_db(db.get_queue_posts, user_id, 0, QUEUE_PAGE_SIZE)
+    if isinstance(posts_r, BaseException):
+        raise posts_r
+    posts = posts_r
     text_lines = [channels_queue_t("cq_sch_title", lang, count=total) + "\n"]
     for i, post in enumerate(posts, 1):
         text_lines.append(_format_queue_item(post, i, lang))
