@@ -792,6 +792,79 @@ def set_user_setting(user_id: int, key: str, value: bool) -> bool:
 
 
 # ============================================================
+# 🌍 MAQSAD DAVLAT (target country) — DINAMIK KO'P DAVLATLI KALENDAR
+# ============================================================
+# Bayram/mavsum eslatmalari va AI prompt konteksti foydalanuvchi tanlagan
+# davlatga mos ``telegram_bot/locales/calendars/<cc>.json`` qatlamidan
+# yechiladi (``services.calendar_service.CalendarService``). Qiymat
+# ``users.target_country`` ustunida saqlanadi (``user_settings.value``
+# BOOLEAN bo'lgani uchun matn u yerga sig'maydi).
+#
+# Xavfsizlik: kirish HAR DOIM ``CalendarService.resolve_country`` orqali
+# normalizatsiya qilinadi — payload'dan ixtiyoriy matn bazaga yozilmaydi
+# (faqat ISO-3166-1 alpha-2 shaklidagi kod). Bazaga yozib/o'qib bo'lmasa
+# ham funksiyalar standart davlatni qaytaradi (fail-soft).
+
+#: ``users`` jadvalidagi ustun nomi (``user_settings`` kaliti EMAS — qiymat
+#: BOOLEAN bo'lgani uchun matn u yerga sig'maydi).
+TARGET_COUNTRY_COLUMN = "target_country"
+#: Standart maqsad davlat (``services.calendar_service.DEFAULT_COUNTRY`` bilan bir xil).
+DEFAULT_TARGET_COUNTRY = "UZ"
+#: Ustun kengligi (``VARCHAR(8)``) — ortiqcha belgilar kesiladi.
+TARGET_COUNTRY_MAX_LEN = 8
+
+
+def normalize_target_country(value, default: str = DEFAULT_TARGET_COUNTRY) -> str:
+    """Davlat kirishini ISO-3166-1 alpha-2 kodiga keltiradi (yiqilmaydi).
+
+    ``CalendarService`` mavjud bo'lsa uning to'liq qoidalari ishlaydi
+    (alias/ISO-3 → alpha-2, noma'lum → standart); import muammosida esa
+    oddiy alfavit filtri qo'llanadi.
+    """
+    try:
+        from services.calendar_service import get_calendar_service
+        return get_calendar_service().resolve_country(value) or default
+    except Exception:  # noqa: BLE001 - himoya (import sikli/baza yo'q)
+        raw = "".join(ch for ch in str(value or "") if ch.isalpha()).upper()
+        return raw[:2] if len(raw) == 2 else default
+
+
+def get_user_target_country(user_id: int, default: str = DEFAULT_TARGET_COUNTRY) -> str:
+    """Foydalanuvchining maqsad davlati (saqlanmagan/xato → ``default``)."""
+    try:
+        with db_cursor() as cur:
+            cur.execute(
+                "SELECT target_country FROM users WHERE user_id = %s",
+                (int(user_id),),
+            )
+            row = cur.fetchone()
+    except Exception as e:
+        logger.debug(f"get_user_target_country xatosi (default qaytadi): {e}")
+        return default
+    if not row:
+        return default
+    stored = str(row[0] or "").strip()
+    if not stored:
+        return default
+    return normalize_target_country(stored, default)
+
+
+def set_user_target_country(user_id: int, country) -> bool:
+    """Maqsad davlatni saqlaydi (UPDATE). Muvaffaqiyatda ``True``."""
+    code = normalize_target_country(country)[:TARGET_COUNTRY_MAX_LEN]
+    try:
+        with db_cursor(commit=True) as cur:
+            cur.execute(
+                "UPDATE users SET target_country = %s WHERE user_id = %s",
+                (code, int(user_id)),
+            )
+            return cur.rowcount > 0
+    except Exception as e:
+        logger.error(f"set_user_target_country xatosi: {e}")
+        return False
+
+
+# ============================================================
 # SUBSCRIPTIONS, LIMITS & MONETIZATION
 # ============================================================
 

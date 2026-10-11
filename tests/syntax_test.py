@@ -101,6 +101,15 @@ def main():
         # 🗄 PHASE 2: State & Cache adapter (Redis ⇄ In-Memory, ixtiyoriy
         # ulanish + circuit breaker) va uning ustida granular rate limiting.
         "services.cache_backend",
+        # 🌍 DINAMIK KO'P DAVLATLI KALENDAR — bayram/mavsum ma'lumotlari
+        # `locales/calendars/*.json` da, mantiq esa `CalendarService` da.
+        "services.calendar_service",
+        # 🧠 progress (edit rate-limit) + 🌊 token streaming + 💎 rich
+        # message drafts + 🌍 davlatga mos AI kalendar konteksti.
+        "services.ai.progress",
+        "services.ai.streaming",
+        "services.ai.calendar_context",
+        "services.ai.facade",
         "middlewares",
         "middlewares.rate_limiter",
     ]

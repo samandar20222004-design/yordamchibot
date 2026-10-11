@@ -422,8 +422,15 @@ def build_local_plan(topic: str, days: int, start: date, lang: str = "uz") -> li
     return items
 
 
-def build_plan_prompt(topic: str, days: int, start_day: int, lang: str = "uz") -> str:
-    """AI'dan faqat MAVZU va HOOK so'raladi (batch — 7 kundan oshmaydi)."""
+def build_plan_prompt(topic: str, days: int, start_day: int, lang: str = "uz",
+                      country: Any = None) -> str:
+    """AI'dan faqat MAVZU va HOOK so'raladi (batch — 7 kundan oshmaydi).
+
+    🌍 ``country`` berilsa (masalan foydalanuvchining maqsad davlati),
+    prompt oxiriga o'sha davlatga mos yaqin sanalar bloki qo'shiladi —
+    reja mahalliy bayram/mavsumlarni hisobga oladi. ``country=None``
+    (standart) bo'lsa matn **bittabayt o'zgarmaydi** (orqaga moslik).
+    """
     code = normalize_lang(lang)
     lead = {
         "uz": "Kontent-reja uchun har bir kunga aniq, amaliy mavzu va hook yozing.",
@@ -436,7 +443,7 @@ def build_plan_prompt(topic: str, days: int, start_day: int, lang: str = "uz") -
         "en": f"Days {start_day}-{start_day + days - 1} ({days} days).",
     }[code]
     niche_word = {"uz": "Yo'nalish", "ru": "Направление", "en": "Niche"}[code]
-    return "\n".join([
+    prompt = "\n".join([
         f"[SMM TASK: content_plan — {days} days, starting day {start_day}]",
         lead,
         f"{niche_word}: {escape_literal(clip(topic, 120))}",
@@ -447,6 +454,12 @@ def build_plan_prompt(topic: str, days: int, start_day: int, lang: str = "uz") -
         "Topic 160, hook 180, cta 140 belgidan oshmasin. Hashtag, markdown va "
         "HTML teglari ishlatmang.",
     ])
+    if country is not None:
+        from services.ai.calendar_context import calendar_directive
+        block = calendar_directive(country, code)
+        if block:
+            prompt = f"{prompt}\n\n{block}"
+    return prompt
 
 
 def parse_plan_json(payload: Any, days: int, start_day: int) -> dict[int, dict]:
@@ -565,8 +578,14 @@ class ContentPlanService(SMMFeatureService):
         is_pro: bool | None = None,
         use_ai: bool = True,
         orchestrator: Any = None,
+        country: Any = None,
     ) -> ContentPlanResult:
-        """``days`` kunlik reja tuzadi (mock/offline rejimda ham to'liq)."""
+        """``days`` kunlik reja tuzadi (mock/offline rejimda ham to'liq).
+
+        🌍 ``country`` — foydalanuvchining maqsad davlati (ISO-3166-1 alpha-2
+        yoki alias). Berilsa, AI promptiga o'sha davlatning yaqin bayram/mavsum
+        sanalari qo'shiladi; ``None`` (standart) bo'lsa prompt o'zgarmaydi.
+        """
         code = normalize_lang(lang)
         safe_topic = clip(strip_html(str(topic or "")), 120)
         requested = normalize_days(days)
@@ -611,7 +630,7 @@ class ContentPlanService(SMMFeatureService):
             for start_day in range(1, requested + 1, AI_BATCH_DAYS):
                 batch = min(AI_BATCH_DAYS, requested - start_day + 1)
                 outcome = await self.ask(
-                    build_plan_prompt(safe_topic, batch, start_day, code),
+                    build_plan_prompt(safe_topic, batch, start_day, code, country),
                     user_id=user_id, lang=code,
                     context={
                         "smm_mode": "PLANNER",

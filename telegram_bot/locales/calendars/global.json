@@ -1,0 +1,110 @@
+{
+  "$comment": [
+    "XALQARO (GLOBAL) KONTENT KALENDARI — hech bir davlatga bog'liq bo'lmagan,",
+    "barcha mamlakatlar uchun umumiy sanalar va savdo mavsumlari.",
+    "",
+    "Bu fayl `services.calendar_service.CalendarService` tomonidan o'qiladi.",
+    "Davlatga xos sanalar `locales/calendars/<cc>.json` fayllarida; ular",
+    "`inherits: [\"global\"]` orqali shu bazani meros qilib oladi.",
+    "",
+    "`when` qoidalari (rule registry — services/calendar_service.py):",
+    "  {\"type\": \"fixed\",       \"month\": 1..12, \"day\": 1..31}",
+    "  {\"type\": \"nth_weekday\", \"month\": 1..12, \"weekday\": 0=Mon..6=Sun, \"nth\": N}",
+    "      N > 0 — oy ichidagi N-chi;  N < 0 — oy oxiridan sanalgan",
+    "  {\"type\": \"hijri\",       \"month\": 1..12, \"day\": 1..30}",
+    "      tabulyar islom fuqarolik taqvimi (oy ko'rinishi rasmiy e'londan",
+    "      bir kunga farq qilishi mumkin — `date_overrides` bilan tuzatiladi)"
+  ],
+  "scope": "global",
+  "version": "2026.10",
+  "country": {
+    "code": "",
+    "names": {
+      "uz": "Xalqaro",
+      "ru": "Международный",
+      "en": "International"
+    }
+  },
+  "langs": ["uz", "ru", "en"],
+  "inherits": [],
+  "labels": {
+    "title": {
+      "uz": "Kontent kalendari",
+      "ru": "Контент-календарь",
+      "en": "Content calendar"
+    },
+    "upcoming": {
+      "uz": "Yaqin sanalar",
+      "ru": "Ближайшие даты",
+      "en": "Upcoming dates"
+    },
+    "holiday": {
+      "uz": "Bayram",
+      "ru": "Праздник",
+      "en": "Holiday"
+    },
+    "season": {
+      "uz": "Mavsum",
+      "ru": "Сезон",
+      "en": "Season"
+    },
+    "retail": {
+      "uz": "Savdo mavsumi",
+      "ru": "Сезон распродаж",
+      "en": "Shopping season"
+    },
+    "movable": {
+      "uz": "O'zgaruvchi sana",
+      "ru": "Переходящая дата",
+      "en": "Movable date"
+    },
+    "reminder": {
+      "uz": "Eslatma",
+      "ru": "Напоминание",
+      "en": "Reminder"
+    }
+  },
+  "events": [
+    {
+      "key": "new_year",
+      "kind": "holiday",
+      "names": {
+        "uz": "Yangi yil",
+        "ru": "Новый год",
+        "en": "New Year"
+      },
+      "when": { "type": "fixed", "month": 1, "day": 1 }
+    },
+    {
+      "key": "women_day",
+      "kind": "holiday",
+      "names": {
+        "uz": "Xotin-qizlar kuni",
+        "ru": "Международный женский день",
+        "en": "International Women's Day"
+      },
+      "when": { "type": "fixed", "month": 3, "day": 8 }
+    },
+    {
+      "key": "back_to_school",
+      "kind": "season",
+      "names": {
+        "uz": "Maktabga qaytish mavsumi",
+        "ru": "Сезон возвращения в школу",
+        "en": "Back-to-school season"
+      },
+      "when": { "type": "fixed", "month": 8, "day": 15 }
+    },
+    {
+      "key": "black_friday",
+      "kind": "retail",
+      "names": {
+        "uz": "Qora juma",
+        "ru": "Чёрная пятница",
+        "en": "Black Friday"
+      },
+      "$comment": "AQShdagi Thanksgiving (noyabrning 4-payshanbasi) ertasi kuni = noyabrning OXIRGI jumasi. `nth: -1` shu ma'noni beradi (2024-11-29, 2025-11-28, 2026-11-27).",
+      "when": { "type": "nth_weekday", "month": 11, "weekday": 4, "nth": -1 }
+    }
+  ]
+}

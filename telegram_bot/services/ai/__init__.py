@@ -110,6 +110,45 @@ from .prompts import (
     scan_text_for_fluff,
     should_ask_sales_params,
 )
+# 🧠 PROGRESS — tahrir chastotasi cheklangan bosqich xabarlari (flood-control).
+# Bu o'ram endi token oqimini ham qabul qiladi (:meth:`AIProgressReporter.stream`).
+from .progress import (
+    AI_ANALYSIS_STAGES,
+    AI_PROGRESS_STAGES,
+    CHAT_EDIT_CLOCK,
+    MIN_EDIT_INTERVAL_FLOOR,
+    PROGRESS_STAGE_SETS,
+    AIProgressReporter,
+    ChatEditClock,
+    normalize_progress_language,
+    progress_stages,
+)
+# 🌊 AI STREAMING + 💎 BOY XABAR QORALAMALARI (Bot API 10.1+ tayyorgarlik).
+# Mavjud edit rate-limit o'rami buzilmaydi: streaming moduli progress.py'dagi
+# MIN_EDIT_INTERVAL_FLOOR va CHAT_EDIT_CLOCK ni QAYTA ISHLATADI.
+from .streaming import (
+    AIStreamRenderer,
+    RichButton,
+    RichMessageDraft,
+    RichMessageDraftRender,
+    StreamResult,
+    TokenStreamBuffer,
+    close_open_tags,
+    render_rich_draft,
+    stream_tokens,
+    truncate_message,
+)
+# 🌍 KALENDAR KONTEKSTI — AI promptiga foydalanuvchi davlatiga mos sanalar.
+from .calendar_context import (
+    AI_CALENDAR_MARKER,
+    calendar_context_lines,
+    calendar_directive,
+    calendar_prompt_context,
+    resolve_prompt_country,
+    strip_calendar_directive,
+    supported_countries,
+    with_calendar_context,
+)
 
 __all__ = [
     "SMMIntent",
@@ -197,4 +236,34 @@ __all__ = [
     "prompts_contain_fluff",
     "scan_text_for_fluff",
     "should_ask_sales_params",
+    # --- progress / edit rate-limit ------------------------------------------
+    "AI_ANALYSIS_STAGES",
+    "AI_PROGRESS_STAGES",
+    "CHAT_EDIT_CLOCK",
+    "MIN_EDIT_INTERVAL_FLOOR",
+    "PROGRESS_STAGE_SETS",
+    "AIProgressReporter",
+    "ChatEditClock",
+    "normalize_progress_language",
+    "progress_stages",
+    # --- 🌊 token streaming + 💎 rich message drafts --------------------------
+    "AIStreamRenderer",
+    "RichButton",
+    "RichMessageDraft",
+    "RichMessageDraftRender",
+    "StreamResult",
+    "TokenStreamBuffer",
+    "close_open_tags",
+    "render_rich_draft",
+    "stream_tokens",
+    "truncate_message",
+    # --- 🌍 davlatga mos kalendar konteksti -----------------------------------
+    "AI_CALENDAR_MARKER",
+    "calendar_context_lines",
+    "calendar_directive",
+    "calendar_prompt_context",
+    "resolve_prompt_country",
+    "strip_calendar_directive",
+    "supported_countries",
+    "with_calendar_context",
 ]

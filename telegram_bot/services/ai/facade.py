@@ -109,9 +109,6 @@ from services.ai.engine.gateway import (
     vision_analyze as gateway_vision_analyze,
 )
 
-#: Eski ``services.ai_gateway`` sirtidagi nom — backward compatibility.
-gateway_usage_report = ai_usage_report
-
 # ---------------------------------------------------------------------------
 # 4-QATLAM — services/ai (ushbu paket): SMM orkestratsiyasi + "Advanced SMM"
 # xizmatlari (ko'p variantli post / repurpose / chuqur audit / PRO content
@@ -122,6 +119,59 @@ from services.ai.orchestrator import AIOrchestrationResult, AIOrchestrator
 from services.ai.planner import generate_content_plan as generate_content_plan_pro
 from services.ai.repurpose import repurpose_content
 from services.ai.variants import generate_post_variants
+
+# ---------------------------------------------------------------------------
+# 5-QATLAM — 🧠 PROGRESS + 🌊 TOKEN STREAMING + 💎 BOY XABAR QORALAMALARI
+# (Bot API 10.1+ tayyorgarlik). Muhim: streaming moduli progress.py'dagi
+# ``MIN_EDIT_INTERVAL_FLOOR`` (≥ 1.05 s) va ``CHAT_EDIT_CLOCK`` ni QAYTA
+# ISHLATADI, shuning uchun mavjud edit rate-limit o'ramlari buzilmaydi —
+# progress-reporter va stream bir chatda bitta soatni bo'lishadi.
+# ---------------------------------------------------------------------------
+from services.ai.progress import (
+    AI_ANALYSIS_STAGES,
+    AI_PROGRESS_STAGES,
+    CHAT_EDIT_CLOCK,
+    MIN_EDIT_INTERVAL_FLOOR,
+    PROGRESS_STAGE_SETS,
+    AIProgressReporter,
+    ChatEditClock,
+    normalize_progress_language,
+    progress_stages,
+)
+from services.ai.streaming import (
+    AIStreamRenderer,
+    RichButton,
+    RichMessageDraft,
+    RichMessageDraftRender,
+    StreamResult,
+    TokenStreamBuffer,
+    close_open_tags,
+    render_rich_draft,
+    stream_tokens,
+    truncate_message,
+)
+
+# ---------------------------------------------------------------------------
+# 6-QATLAM — 🌍 DINAMIK KALENDAR KONTEKSTI. AI promptlari foydalanuvchining
+# MAQSAD DAVLATI bo'yicha sanalarni yutadi (standart: UZ). Ma'lumot manbasi:
+# ``telegram_bot/locales/calendars/*.json`` + ``services.calendar_service``.
+# ---------------------------------------------------------------------------
+from services.ai.calendar_context import (
+    AI_CALENDAR_MARKER,
+    calendar_context_lines,
+    calendar_directive,
+    calendar_prompt_context,
+    resolve_prompt_country,
+    strip_calendar_directive,
+    supported_countries,
+    with_calendar_context,
+)
+from services.calendar_service import CalendarService, get_calendar_service
+
+#: Eski ``services.ai_gateway`` sirtidagi nom — backward compatibility.
+#: (Barcha importlardan keyin e'lon qilinadi: importlar orasidagi assignment
+#: ruff E402 ni keltirib chiqarardi.)
+gateway_usage_report = ai_usage_report
 
 
 class AIFacade:
@@ -161,6 +211,18 @@ class AIFacade:
     generate_post_variants = staticmethod(generate_post_variants)
     repurpose_content = staticmethod(repurpose_content)
     generate_content_plan_pro = staticmethod(generate_content_plan_pro)
+
+    # --- 5-qatlam: progress + token streaming + rich message drafts ---------
+    progress_reporter = staticmethod(AIProgressReporter)
+    stream_tokens = staticmethod(stream_tokens)
+    render_rich_draft = staticmethod(render_rich_draft)
+    rich_message_draft = staticmethod(RichMessageDraft)
+
+    # --- 6-qatlam: davlatga mos kalendar konteksti --------------------------
+    with_calendar_context = staticmethod(with_calendar_context)
+    calendar_directive = staticmethod(calendar_directive)
+    supported_countries = staticmethod(supported_countries)
+    calendar_service = staticmethod(get_calendar_service)
 
 
 #: Modul darajasidagi qulay nom — ``from services.ai.facade import ai``.
@@ -218,4 +280,35 @@ __all__ = [
     "generate_content_plan_pro",
     "repurpose_content",
     "generate_post_variants",
+    # 5-qatlam (progress + 🌊 streaming + 💎 rich message drafts)
+    "AI_ANALYSIS_STAGES",
+    "AI_PROGRESS_STAGES",
+    "AIProgressReporter",
+    "AIStreamRenderer",
+    "CHAT_EDIT_CLOCK",
+    "ChatEditClock",
+    "MIN_EDIT_INTERVAL_FLOOR",
+    "PROGRESS_STAGE_SETS",
+    "RichButton",
+    "RichMessageDraft",
+    "RichMessageDraftRender",
+    "StreamResult",
+    "TokenStreamBuffer",
+    "close_open_tags",
+    "normalize_progress_language",
+    "progress_stages",
+    "render_rich_draft",
+    "stream_tokens",
+    "truncate_message",
+    # 6-qatlam (🌍 davlatga mos kalendar konteksti)
+    "AI_CALENDAR_MARKER",
+    "CalendarService",
+    "calendar_context_lines",
+    "calendar_directive",
+    "calendar_prompt_context",
+    "get_calendar_service",
+    "resolve_prompt_country",
+    "strip_calendar_directive",
+    "supported_countries",
+    "with_calendar_context",
 ]

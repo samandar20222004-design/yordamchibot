@@ -35,7 +35,12 @@ CREATE TABLE IF NOT EXISTS users (
     -- 🆕 6-bosqich (RBAC): rol ustuni. DEFAULT 'user' — eski yozuvlarning
     -- barchasi oddiy foydalanuvchi bo'lib qoladi (backward-compatible).
     role VARCHAR(20) DEFAULT 'user',
-    stars_subscription_state VARCHAR(16)
+    stars_subscription_state VARCHAR(16),
+    -- 🌍 DINAMIK KALENDAR (2026-10): foydalanuvchining MAQSAD DAVLATI.
+    -- ISO-3166-1 alpha-2 kodi; bayram/mavsum eslatmalari va AI prompt
+    -- konteksti shu davlatga mos `locales/calendars/<cc>.json` qatlamidan
+    -- yechiladi. NULL/bo'sh → standart 'UZ' (services.calendar_service).
+    target_country VARCHAR(8) DEFAULT 'UZ'
 );
 
 CREATE TABLE IF NOT EXISTS channels (
@@ -741,6 +746,8 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS full_menu_unlocked BOOLEAN DEFAULT FA
 -- DEFAULT 'user' tufayli mavjud yozuvlar oddiy foydalanuvchi bo'lib qoladi,
 -- admin huquqi esa hamon ADMIN_ID/ADMIN_IDS orqali ishlayveradi.
 ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(20) DEFAULT 'user';
+-- 🌍 DINAMIK KALENDAR (2026-10): maqsad davlat (ISO-3166-1 alpha-2).
+ALTER TABLE users ADD COLUMN IF NOT EXISTS target_country VARCHAR(8) DEFAULT 'UZ';
 
 ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS inline_button_text VARCHAR(255);
 ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS inline_button_url TEXT;

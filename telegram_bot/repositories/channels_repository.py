@@ -749,7 +749,10 @@ def get_channels_for_content_nudges(setting_key: str, since=None) -> list:
     user/channel; missing settings default to enabled for backward-compatible
     rollout.
 
-    Rows are ``(channel_id, channel_title, user_id, language_code, topics, tone)``.
+    Rows are ``(channel_id, channel_title, user_id, language_code, topics,
+    tone, target_country)``. ``target_country`` — 🌍 dinamik kalendar uchun
+    foydalanuvchining maqsad davlati (ISO-3166-1 alpha-2); ustun bo'sh yoki
+    baza eski bo'lsa ``'UZ'`` qaytadi (orqaga mos, DEFAULT_COUNTRY).
     """
     allowed_settings = {"notify_morning_digest", "notify_uzbek_calendar"}
     key = str(setting_key or "")
@@ -761,7 +764,8 @@ def get_channels_for_content_nudges(setting_key: str, since=None) -> list:
         SELECT c.channel_id, c.channel_title, c.user_id,
                COALESCE(u.language_code, 'uz') AS language_code,
                COALESCE(d.topics, '[]'::jsonb) AS topics,
-               COALESCE(d.tone, '') AS tone
+               COALESCE(d.tone, '') AS tone,
+               COALESCE(NULLIF(TRIM(u.target_country), ''), 'UZ') AS target_country
         FROM channels c
         LEFT JOIN users u ON u.user_id = c.user_id
         LEFT JOIN channel_dna d ON d.channel_id = c.channel_id
