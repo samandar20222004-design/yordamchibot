@@ -1356,6 +1356,33 @@ echo "===== SPRINT 3 — DAILY DIGEST + UZBEKISTAN CALENDAR + AI PROGRESS ====="
 "$PY" tests/daily_retention_calendar_test.py || EXIT_CODE=1
 
 echo
+echo "===== 🌍 DINAMIK KO'P DAVLATLI KALENDAR + 🌊 AI STREAMING/RICH MESSAGING ====="
+# (1) LOCALE KONFIGURATSIYALARI — bayram/mavsum ma'lumotlari Python'dan
+#     ajratilib `locales/calendars/global.json` (Yangi yil, 8-mart, Qora
+#     juma, maktabga qaytish mavsumi) va `locales/calendars/uz.json`
+#     (O'zbekiston milliy sanalari + hijri Hayitlar) fayllariga ko'chirildi;
+# (2) `CalendarService` — davlat normalizatsiyasi (alias/ISO-3/ISO-2),
+#     qatlam zanjiri (global → <cc>), inheritance/override va FALLBACK
+#     mantiqi: bo'sh → standart UZ, profili yo'q davlat → FAQAT xalqaro
+#     qatlam, tushunarsiz qiymat → fail-safe UZ, buzilgan JSON → fail-soft;
+# (3) KENGAYTIRUVCHANLIK — yangi davlat = YANGI JSON fayl (kod o'zgarmaydi),
+#     `inherits: []` bilan xalqaro blokdan voz kechish, `register_rule`
+#     orqali yangi sana qoidasi, `date_overrides` bilan rasmiy sana tuzatish;
+# (4) ORQAGA MOSLIK — eski `services.uzbekistan_calendar` sirti golden
+#     natija bilan bire-bir (Qora juma haqiqiy sanalari: 2024-11-29 ...);
+# (5) AI PROMPT KONTEKSTI — `with_calendar_context` davlatga mos blokni
+#     idempotent qo'shadi, davlat almashganda eskisini almashtiradi va
+#     "sanalarni o'ylab topma" qo'riqchisini olib yuradi;
+# (6) TOKEN STREAMING + RICH MESSAGE DRAFTS — tahrir chastotasi ≥ 1.05 s,
+#     429/RetryAfter, `AIProgressReporter` bilan BITTA per-chat soat
+#     bo'lishilishi (mavjud edit rate-limit o'rami buzilmaydi), HTML-escape
+#     va 4096 belgi chegarasi (ochiq teglar yopiladi);
+# (7) SCHEDULER — calendar job har bir foydalanuvchining maqsad davlatini
+#     (`users.target_country`) hisobga oladi, "bo'sh kun"da DB'ga tegmaydi
+#     va eski 6-ustunli qator shartnomasini saqlaydi.
+"$PY" tests/calendar_multi_country_test.py || EXIT_CODE=1
+
+echo
 echo "===== 🧠 AI PROGRESS — lokalizatsiya qilingan bosqichlar, ≤1 edit/s ====="
 # 🧠 → ✍️ → ✨ bosqichlari (uz/ru/en), xabar VA chat bo'yicha umumiy edit
 # soati, 429 RetryAfter (bosqich o'tkaziladi), "not modified", for_reply /

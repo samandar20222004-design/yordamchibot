@@ -1,0 +1,149 @@
+{
+  "$comment": [
+    "O'ZBEKISTON (UZ) MILLIY KONTENT KALENDARI.",
+    "",
+    "`inherits: [\"global\"]` — xalqaro sanalar (Yangi yil, 8-mart, maktabga",
+    "qaytish mavsumi, Qora juma) avtomatik meros qilinadi. Shu kalit bilan",
+    "bu faylda e'lon qilingan sana XALQARO sanani BEKOR QILADI (override).",
+    "Xalqaro blokdan butunlay voz kechish uchun `inherits: []` qo'yiladi.",
+    "",
+    "Ro'za va Qurbon hayiti oy taqvimi bo'yicha siljiydi, shuning uchun ular",
+    "`hijri` qoidasi bilan hisoblanadi. Rasmiy e'lon bir kun farq qilsa,",
+    "`date_overrides={\"eid_al_fitr\": date(...)}` bilan tuzatiladi."
+  ],
+  "scope": "uz",
+  "version": "2026.10",
+  "country": {
+    "code": "UZ",
+    "alpha3": "UZB",
+    "aliases": [
+      "uz",
+      "uzb",
+      "uzbekistan",
+      "ozbekiston",
+      "o'zbekiston",
+      "o'zbekiston respublikasi",
+      "узбекистан",
+      "respublika uzbekistan"
+    ],
+    "names": {
+      "uz": "O'zbekiston",
+      "ru": "Узбекистан",
+      "en": "Uzbekistan"
+    }
+  },
+  "langs": ["uz", "ru", "en"],
+  "inherits": ["global"],
+  "labels": {
+    "title": {
+      "uz": "O'zbekiston kontent kalendari",
+      "ru": "Контент-календарь Узбекистана",
+      "en": "Uzbekistan content calendar"
+    }
+  },
+  "events": [
+    {
+      "key": "defenders_day",
+      "kind": "holiday",
+      "names": {
+        "uz": "Vatan himoyachilari kuni",
+        "ru": "День защитников Отечества",
+        "en": "Defenders of the Homeland Day"
+      },
+      "when": { "type": "fixed", "month": 1, "day": 14 }
+    },
+    {
+      "key": "navruz",
+      "kind": "holiday",
+      "names": {
+        "uz": "Navro'z",
+        "ru": "Навруз",
+        "en": "Navruz"
+      },
+      "when": { "type": "fixed", "month": 3, "day": 21 }
+    },
+    {
+      "key": "remembrance_day",
+      "kind": "holiday",
+      "names": {
+        "uz": "Xotira va qadrlash kuni",
+        "ru": "День памяти и почестей",
+        "en": "Day of Remembrance and Honor"
+      },
+      "when": { "type": "fixed", "month": 5, "day": 9 }
+    },
+    {
+      "$comment": "Qabul/imtihon mavsumi boshlanish markeri — ataylab 'season', bayram emas.",
+      "key": "admission_exam_season",
+      "kind": "season",
+      "names": {
+        "uz": "Qabul va imtihon mavsumi",
+        "ru": "Сезон поступления и экзаменов",
+        "en": "Admissions and exam season"
+      },
+      "when": { "type": "fixed", "month": 6, "day": 1 }
+    },
+    {
+      "key": "independence_day",
+      "kind": "holiday",
+      "names": {
+        "uz": "Mustaqillik kuni",
+        "ru": "День независимости",
+        "en": "Independence Day"
+      },
+      "when": { "type": "fixed", "month": 9, "day": 1 }
+    },
+    {
+      "key": "teachers_day",
+      "kind": "holiday",
+      "names": {
+        "uz": "O'qituvchi va murabbiylar kuni",
+        "ru": "День учителя и наставника",
+        "en": "Teachers' and Mentors' Day"
+      },
+      "when": { "type": "fixed", "month": 10, "day": 1 }
+    },
+    {
+      "key": "constitution_day",
+      "kind": "holiday",
+      "names": {
+        "uz": "Konstitutsiya kuni",
+        "ru": "День Конституции",
+        "en": "Constitution Day"
+      },
+      "when": { "type": "fixed", "month": 12, "day": 8 }
+    },
+    {
+      "$comment": "Hijri (oy) taqvimi — rasmiy e'lon bilan `date_overrides` orqali tuzatiladi.",
+      "key": "eid_al_fitr",
+      "kind": "movable",
+      "names": {
+        "uz": "Ro'za hayiti",
+        "ru": "Рамазан-хайит (Ураза-байрам)",
+        "en": "Eid al-Fitr"
+      },
+      "when": { "type": "hijri", "month": 10, "day": 1 }
+    },
+    {
+      "key": "eid_al_adha",
+      "kind": "movable",
+      "names": {
+        "uz": "Qurbon hayiti",
+        "ru": "Курбан-хайит (Курбан-байрам)",
+        "en": "Eid al-Adha"
+      },
+      "when": { "type": "hijri", "month": 12, "day": 10 }
+    },
+    {
+      "$comment": "Sha'bon 1 — Ramazon boshlanishidan ~30 kun oldingi tayyorgarlik mavsumi.",
+      "key": "ramadan_prep",
+      "kind": "season",
+      "names": {
+        "uz": "Ramazon tayyorgarligi mavsumi",
+        "ru": "Подготовка к Рамадану",
+        "en": "Ramadan preparation season"
+      },
+      "when": { "type": "hijri", "month": 8, "day": 1 }
+    }
+  ]
+}

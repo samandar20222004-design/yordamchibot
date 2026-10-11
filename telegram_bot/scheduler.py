@@ -2089,20 +2089,32 @@ async def weekly_channel_reports_job(bot=None):
 # ============================================================
 # 🌅 DAILY CONTENT RETENTION + 🗓 UZBEKISTAN CALENDAR
 # ============================================================
+#: Repository nudge qatoridagi ustunlar soni (🌍 target_country qo'shilgach = 7).
+_NUDGE_ROW_COLUMNS = 7
+
+
 def _nudge_row_values(row):
-    """Normalize one repository nudge row without trusting database strings."""
+    """Normalize one repository nudge row without trusting database strings.
+
+    Qaytariladigan tuple: ``(channel_id, channel_title, user_id, lang, topics,
+    tone, target_country)``. Eski 6 ustunli qatorlar (va mock'lar) ham
+    qabul qilinadi — yetishmayotgan ``target_country`` uchun ``None`` qaytadi
+    va chaqiruvchi uni standart davlatga (``UZ``) yechadi.
+    """
     if isinstance(row, dict):
         return (
             row.get("channel_id"), row.get("channel_title"), row.get("user_id"),
             row.get("language_code") or row.get("lang") or "uz",
             row.get("topics"), row.get("tone") or "",
+            row.get("target_country") or row.get("country"),
         )
     try:
         values = list(row)
-        values += [None] * max(0, 6 - len(values))
-        return (values[0], values[1], values[2], values[3] or "uz", values[4], values[5] or "")
+        values += [None] * max(0, _NUDGE_ROW_COLUMNS - len(values))
+        return (values[0], values[1], values[2], values[3] or "uz", values[4], values[5] or "",
+                values[6])
     except (TypeError, IndexError):
-        return (None, None, None, "uz", None, "")
+        return (None, None, None, "uz", None, "", None)
 
 
 async def daily_morning_digest_job(bot=None, now=None):
@@ -2141,7 +2153,7 @@ async def daily_morning_digest_job(bot=None, now=None):
     from handlers.daily_retention import build_morning_digest_keyboard
     sent = skipped = 0
     for row in rows:
-        channel_id, channel_title, user_id, lang, topics, _tone = _nudge_row_values(row)
+        channel_id, channel_title, user_id, lang, topics, _tone, _country = _nudge_row_values(row)
         try:
             user_id = int(user_id)
             channel_id = str(channel_id or "").strip()
@@ -2166,25 +2178,58 @@ async def daily_morning_digest_job(bot=None, now=None):
 
 
 async def uzbekistan_calendar_reminders_job(bot=None, today=None):
-    """Send opt-in localized reminders exactly three days before calendar dates."""
+    """Send opt-in localized reminders exactly three days before calendar dates.
+
+    🌍 DINAMIK KALENDAR (2026-10): eslatmalar endi har bir foydalanuvchining
+    MAQSAD DAVLATI (``users.target_country``, standart ``UZ``) bo'yicha
+    yechiladi. Sanalar ``locales/calendars/global.json`` + ``<cc>.json``
+    qatlamidan olinadi, shuning uchun O'zbekistondan tashqari davlatni
+    tanlagan foydalanuvchi o'z mamlakatining (profili bo'lmasa faqat
+    xalqaro) sanalarini oladi. Davlatlar bo'yicha sanalar bir marta
+    hisoblanadi va keshlanadi — foydalanuvchi boshiga qo'shimcha DB/AI
+    chaqiruvi YO'Q (N+1 yo'q).
+
+    Eski xatti-harakat saqlangan: **hech bir** mavjud davlatda 3 kundan
+    keyingi sana bo'lmasa DB so'rovi UMUMAN bajarilmaydi.
+    """
     if bot is None:
         return {"sent": 0, "skipped": 0}
     from services.retention import normalize_lang
-    from services.uzbekistan_calendar import (
-        calendar_reminder_text,
-        get_events_for_reminder,
-    )
+    from services.calendar_service import get_calendar_service
+    from services.uzbekistan_calendar import calendar_reminder_text
+
+    calendar_service = get_calendar_service()
 
     current = today
     if current is None:
         current = now_tashkent().date()
     elif isinstance(current, datetime):
         current = _as_tashkent(current).date()
+
+    # Davlat → 3 kundan keyingi sanalar. Mavjud davlatlar soni kichik
+    # (har biri bitta JSON profili), shuning uchun bu hisob arzon va
+    # "bo'sh kun"da DB'ga umuman tegmaslik imkonini beradi.
+    events_by_country: dict[str, tuple] = {}
+
+    def _events_for(country):
+        """Davlat bo'yicha sanalar (kesh bilan; noma'lum kod → fallback)."""
+        try:
+            code = calendar_service.resolve_country(country)
+        except Exception:  # noqa: BLE001 — himoya (taqvim xatosi job'ni buzmaydi)
+            code = calendar_service.default_country
+        if code not in events_by_country:
+            try:
+                events_by_country[code] = calendar_service.events_for_reminder(current, 3, code)
+            except (TypeError, ValueError):
+                events_by_country[code] = ()
+        return events_by_country[code]
+
     try:
-        events = get_events_for_reminder(current, 3)
-    except (TypeError, ValueError):
-        events = ()
-    if not events:
+        for code in calendar_service.available_countries():
+            _events_for(code)
+    except Exception:  # noqa: BLE001 — himoya
+        _events_for(None)
+    if not any(events_by_country.values()):
         return {"sent": 0, "skipped": 0}
 
     try:
@@ -2194,13 +2239,17 @@ async def uzbekistan_calendar_reminders_job(bot=None, today=None):
             None,
         ) or []
     except Exception:
-        logger.exception("Uzbekistan calendar: nudge recipients could not be loaded")
+        logger.exception("Calendar reminders: nudge recipients could not be loaded")
         return {"sent": 0, "skipped": 0, "error": "db"}
+    if not rows:
+        return {"sent": 0, "skipped": 0}
 
     from handlers.daily_retention import build_calendar_reminder_keyboard
     sent = skipped = 0
     for row in rows:
-        channel_id, _channel_title, user_id, lang, _topics, _tone = _nudge_row_values(row)
+        (channel_id, _channel_title, user_id, lang, _topics, _tone,
+         country) = _nudge_row_values(row)
+        events = _events_for(country)
         try:
             user_id = int(user_id)
             channel_id = str(channel_id or "").strip()
@@ -2218,7 +2267,6 @@ async def uzbekistan_calendar_reminders_job(bot=None, today=None):
                 sent += 1
         except Exception:
             skipped += 1
-            logger.info("Uzbekistan calendar reminder not delivered (user=%s)", user_id,
-                        exc_info=True)
-    logger.info("Uzbekistan calendar reminders completed: sent=%s skipped=%s", sent, skipped)
+            logger.info("Calendar reminder not delivered (user=%s)", user_id, exc_info=True)
+    logger.info("Calendar reminders completed: sent=%s skipped=%s", sent, skipped)
     return {"sent": sent, "skipped": skipped}

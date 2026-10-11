@@ -2359,7 +2359,10 @@ from repositories.users_repository import (  # noqa: E402, F401
     refund_ai_usage, reserve_ai_request, save_user,
     set_user_full_menu_unlocked, set_user_language, set_user_plan,
     sync_stars_subscription, set_user_setting, total_referral_reward, transfer_user_credits,
-    use_user_credit
+    use_user_credit,
+    # 🌍 Dinamik kalendar — foydalanuvchining maqsad davlati (ISO-3166-1 alpha-2)
+    DEFAULT_TARGET_COUNTRY, TARGET_COUNTRY_COLUMN, TARGET_COUNTRY_MAX_LEN,
+    normalize_target_country, get_user_target_country, set_user_target_country,
 )
 # --- 📢 CHANNELS — kanal CRUD, monitoring, Channel DNA, manba/RSS, reklama
 from repositories.channels_repository import (  # noqa: E402, F401
@@ -2814,6 +2817,8 @@ def _ddl_user_settings_and_migrations(cur):
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS last_bonus_date DATE;",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS last_active_at TIMESTAMP WITH TIME ZONE;",
+        # 🌍 Dinamik kalendar: maqsad davlat (ISO-3166-1 alpha-2, standart UZ).
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS target_country VARCHAR(8) DEFAULT 'UZ';",
         "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS inline_button_text VARCHAR(255);",
         "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS inline_button_url TEXT;",
         "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS enable_reactions BOOLEAN DEFAULT FALSE;",

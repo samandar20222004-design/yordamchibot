@@ -181,6 +181,7 @@ class AIProgressReporter:
         clock: ChatEditClock | None = None,
     ) -> None:
         self.editor = editor
+        self.lang = normalize_progress_language(lang)
         self.stages = tuple(stages or progress_stages(lang, kind))
         if not self.stages:
             self.stages = AI_PROGRESS_STAGES["uz"]
@@ -331,6 +332,45 @@ class AIProgressReporter:
             if not task.done():
                 task.cancel()
             raise
+
+    async def stream(self, tokens, *, min_delta_chars: int = 24,
+                     cursor: str = "\u258c", final_text: str | None = None,
+                     max_final_wait: float | None = None):
+        """Token oqimini SHU progress xabariga chizadi (Bot API 10.1+ tayyorgarlik).
+
+        Mavjud tahrir qo'riqchilari BUZILMAYDI: stream aynan shu
+        reporter'ning ``editor``/``message``/``chat_id`` va per-chat soatini
+        (``CHAT_EDIT_CLOCK``) ishlatadi, tahrir oralig'i esa ikki tomondan ham
+        qat'iyrog'i bilan olinadi. Oqim tugagach reporter holati
+        (``last_edit_at`` / ``last_text`` / ``edit_count``) yangilanadi —
+        shuning uchun keyingi :meth:`finish` yoki bosqich tahriri ham Telegram
+        limitiga bo'ysunadi.
+        """
+        # Ichki import — circular import'ning oldini oladi (streaming → progress).
+        from services.ai.streaming import AIStreamRenderer
+
+        kwargs = {}
+        if max_final_wait is not None:
+            kwargs["max_final_wait"] = float(max_final_wait)
+        renderer = AIStreamRenderer(
+            editor=self.editor,
+            message=self.message,
+            lang=self.lang,
+            chat_id=self.chat_id,
+            reporter=self,
+            min_delta_chars=min_delta_chars,
+            cursor=cursor,
+            final_text=final_text or "",
+            **kwargs,
+        )
+        result = await renderer.render(tokens)
+        buffer = renderer.buffer
+        if buffer is not None and buffer.last_edit_at is not None:
+            self.last_edit_at = buffer.last_edit_at
+            self.edit_count += buffer.edits
+        if result.text:
+            self.last_text = result.text
+        return result
 
     async def finish(self) -> None:
         """Wait until a subsequent result edit is safe under Telegram limits."""

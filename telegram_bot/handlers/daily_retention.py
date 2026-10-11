@@ -31,10 +31,40 @@ from services.retention import (
     normalize_lang,
     retention_t,
 )
+from services.calendar_service import get_calendar_service
 from services.uzbekistan_calendar import (
     calendar_post_topic,
     get_calendar_event,
 )
+
+
+def resolve_calendar_event(event_key: str, year: int, country=None):
+    """Sana kalitini foydalanuvchi davlati + fallback zanjiri bo'yicha topadi.
+
+    🌍 Dinamik kalendar (2026-10): eslatma tugmasi yuborilgandan keyin
+    foydalanuvchi maqsad davlatini o'zgartirgan bo'lishi mumkin, shuning
+    uchun izlash zanjiri ``country → UZ (standart) → xalqaro qatlam``.
+    Hech qachon istisno bermaydi — topilmasa ``None``.
+    """
+    key = str(event_key or "").strip()
+    if not key:
+        return None
+    try:
+        service = get_calendar_service()
+    except Exception:  # noqa: BLE001 - himoya
+        service = None
+    if service is not None:
+        try:
+            found = service.event_any_scope(key, year, country)
+            if found is not None:
+                return found
+        except (TypeError, ValueError):
+            pass
+    # Oxirgi zaxira: eski UZ-moduli sirti (import muammosida ham ishlaydi).
+    try:
+        return get_calendar_event(key, year)
+    except (TypeError, ValueError):  # pragma: no cover - himoya
+        return None
 
 logger = logging.getLogger(__name__)
 
@@ -246,9 +276,15 @@ async def uzbek_calendar_create_callback(update: Update, context: ContextTypes.D
         return ConversationHandler.END
 
     year = datetime.now(_RETENTION_TZ).year
-    event = get_calendar_event(event_key, year)
+    # 🌍 Foydalanuvchining maqsad davlati (saqlanmagan/xato → standart UZ).
+    try:
+        country = await db.run_db(db.get_user_target_country, query.from_user.id)
+    except Exception:  # noqa: BLE001 - taqvim sozlamasi oqimni buzmaydi
+        logger.debug("Target country lookup failed; falling back to default", exc_info=True)
+        country = None
+    event = resolve_calendar_event(event_key, year, country)
     if event is None:
-        event = get_calendar_event(event_key, year + 1)
+        event = resolve_calendar_event(event_key, year + 1, country)
     if event is None:
         await query.edit_message_text(retention_t("calendar_error", lang), reply_markup=None)
         return ConversationHandler.END
@@ -273,6 +309,7 @@ async def uzbek_calendar_create_callback(update: Update, context: ContextTypes.D
 
 __all__ = [
     "MORNING_IDEA_SELECT",
+    "resolve_calendar_event",
     "build_calendar_reminder_keyboard",
     "build_morning_digest_keyboard",
     "morning_digest_cancel_callback",
