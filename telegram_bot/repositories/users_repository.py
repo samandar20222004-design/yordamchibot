@@ -137,9 +137,14 @@ def save_user(user_id: int, username: str, full_name: str = "", referrer_id: int
     """Foydalanuvchini saqlaydi: yangi — ro'yxatdan o'tkazadi, eski — yangilaydi.
 
     8-bosqich: referal anti-abuse qoidalari (self-referral, takroriy
-    referral, noma'lum referrer) va ball mukofoti
+    referral, noma'lum referrer)
     ``services.referral_service.ReferralService.register_new_user`` orqali
-    BIR atomik tranzaksiyada bajariladi; mukofot formulasi
+    BIR atomik tranzaksiyada bajariladi.
+
+    🌱 STEP 2 (ORGANIC GROWTH): ball mukofoti /start da BERILMAYDI — u
+    taklif qilingan foydalanuvchi birinchi postini yaratgan/rejalashtirgan
+    paytda (``posts_repository.add_post`` hook'i →
+    ``ReferralService.register_first_action``) beriladi. Mukofot formulasi
     ``referral_reward_for(n)`` (1-3 do'st +3, keyingilar +1 — PRO berilmaydi)
     va har bir bonus ``credits_ledger`` jadvaliga audit yozuvi tushadi.
 
@@ -496,6 +501,58 @@ def get_retention_cohort(days: int = 30, limit: int = 5000) -> list:
     except Exception as e:
         logger.warning(f"Retention kohortasini olish xatosi: {e}")
         return []
+
+
+def get_referral_conversion_stats(days: int = 30) -> dict:
+    """🌱 STEP 2 — AKTIV REFERAL KONVERSIYASI (/stats ekrani uchun).
+
+    Oxirgi ``days`` kun ichida ro'yxatdan o'tgan foydalanuvchilar orasida:
+
+    * ``referred_total`` — referrer havolasi bilan kirganlar
+      (``users.referrer_id IS NOT NULL``);
+    * ``converted`` — shulardan BIRINCHI YAROQLI AMALNI (post yaratish/
+      rejalashtirish) bajarganlar (``referral_rewarded_at IS NOT NULL`` —
+      mukofot aynan shu hodisada beriladi, shuning uchun belgi = konversiya);
+    * ``blocked`` — anti-abuse filtri (duplicate account farming) bilan
+      mukofoti bloklanganlar (``referral_block_reason IS NOT NULL``);
+    * ``rate`` — ``converted / referred_total`` (0..1, 4 xona).
+
+    Yangi jadval YO'Q — mavjud ``users`` ustunlaridan o'qiladi (soxta
+    raqam yo'q). Xatoda bo'sh dict qaytadi — statistika ekrani yiqilmaydi.
+    """
+    try:
+        window = max(1, min(int(days), 365))
+    except (TypeError, ValueError):
+        window = 30
+    try:
+        with db_cursor() as cur:
+            cur.execute(
+                """
+                SELECT COUNT(*) FILTER (WHERE referrer_id IS NOT NULL),
+                       COUNT(*) FILTER (WHERE referrer_id IS NOT NULL
+                                        AND referral_rewarded_at IS NOT NULL),
+                       COUNT(*) FILTER (WHERE referrer_id IS NOT NULL
+                                        AND referral_block_reason IS NOT NULL)
+                  FROM users
+                 WHERE created_at >= NOW() - make_interval(days => %s)
+                   AND deleted_at IS NULL
+                """,
+                (window,),
+            )
+            row = cur.fetchone() or (0, 0, 0)
+        referred = int(row[0] or 0)
+        converted = int(row[1] or 0)
+        blocked = int(row[2] or 0)
+        return {
+            "window_days": window,
+            "referred_total": referred,
+            "converted": converted,
+            "blocked": blocked,
+            "rate": round(converted / referred, 4) if referred else 0.0,
+        }
+    except Exception as e:
+        logger.warning(f"Referral konversiya statistikasi xatosi: {e}")
+        return {}
 
 
 def get_user_language(user_id: int) -> str:

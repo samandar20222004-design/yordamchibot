@@ -247,25 +247,29 @@ check_user_sponsorship = check_user_subscribed
 # ============================================================
 
 async def _notify_referrer_reward(context, referrer_id: int) -> None:
-    """Referrer'ga bonus haqidagi xabarni yuboradi (FONDA, javobdan keyin).
+    """Referrer'ga «do'st qo'shildi» xabarini yuboradi (FONDA, javobdan keyin).
 
-    8-bosqich: self-referral rad etilgani uchun bonus YO'Q — "siz bonus
-    yutdingiz" xabarini ham yubormaymiz (referrer == user bo'lsa).
+    🌱 STEP 2 (ORGANIC GROWTH): mukofot /start paytida BERILMAYDI — bonus
+    ball do'st BIRINCHI postini yaratgan/rejalashtirgan paytda tushadi
+    (``ReferralService.register_first_action``; konversiya xabari esa
+    ``scheduler.referral_reward_notices_job`` orqali yuboriladi). Shu
+    sababli bu xabar AXBOROTLI: do'st qo'shildi + mukofot uning birinchi
+    postidan keyin beriladi ("siz bonus yutdingiz" deyilmaydi).
+
+    8-bosqich: self-referral rad etilgani uchun bonus YO'Q — xabar ham
+    yuborilmaydi (referrer == user bo'lsa chaqiruvchi o'zi tekshiradi).
     Bu qadam foydalanuvchining /start javobini UZMAYDI: u boshqa chat'ga
     yuboriladigan xabar, shuning uchun kechiktirilishi mumkin.
     """
     try:
-        ref_stats = await db.run_db(db.get_referral_stats, referrer_id)
-        ref_count = int((ref_stats or {}).get("referrals_count", 0))
-        reward = db.referral_reward_for(ref_count)
         ref_lang = await db.run_db(db.get_user_language, referrer_id)
         await context.bot.send_message(
             chat_id=referrer_id,
-            text=get_text("referral_reward_notice", ref_lang, reward=reward),
+            text=get_text("referral_friend_joined_notice", ref_lang),
             parse_mode="HTML"
         )
     except Exception:
-        logger.debug("Referrer mukofoti xabari yuborilmadi (user=%s)", referrer_id)
+        logger.debug("Referrer xabari yuborilmadi (user=%s)", referrer_id)
 
 
 async def _warm_user_stats(user_id: int) -> None:
@@ -457,6 +461,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # qolishdan qat'iyat qiladi va xatoni LOGGA yozadi (jimgina "failed
     # silently" bo'lmaydi).
     # 8-bosqich: self-referral rad etilgani uchun bonus YO'Q.
+    # 🌱 STEP 2: bu xabar «do'st qo'shildi, mukofot uning birinchi
+    # postidan keyin» deb aytadi (bonus /start da berilmaydi).
     if is_new and referrer_id and referrer_id != user.id:
         run_background_task(
             _notify_referrer_reward(context, referrer_id),

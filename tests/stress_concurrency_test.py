@@ -738,7 +738,8 @@ def test_live_100_posts_5_workers(db_mod):
 
 # ---------------------------------------------------------------- 2
 def test_live_50_parallel_credits_referral(db_mod):
-    print("== LIVE: 50 parallel Credits + Referral — deadlock/starvation yo'q ==")
+    print("== LIVE: 50 parallel Credits + Referral (2 faza: /start → 50 parallel "
+          "birinchi amal) — deadlock/starvation yo'q ==")
     from services.credits_service import CreditsService, InsufficientCreditsError
     from services.referral_service import ReferralService
 
@@ -822,11 +823,61 @@ def test_live_50_parallel_credits_referral(db_mod):
     check("credits: 50 ta user balansi to'g'ri (103)", ok_users == 50, str(ok_users))
     check("credits: har user 3 ta ledger yozuvi (promo/ai_request/transfer)", cr_ledger == 150, str(cr_ledger))
     check("referral: 50 ta yangi user referrer'ga biriktirildi", ref_count == 50, str(ref_count))
-    check("referral: 50 ta referral ledger yozuvi", ref_ledger == 50, str(ref_ledger))
+    # 🌱 STEP 2 — /start fazasida bonus BERILMAYDI (attribution only):
+    check("referral STEP 2: /start fazasida referral ledger bo'sh",
+          ref_ledger == 0, str(ref_ledger))
+    # referrer: 100 + 50*3 (transfer) — mukofotlar hali berilmagan.
+    expected_ref_a = 100 + 50 * 3
+    check("referrer balansi (/start fazasi) = 100 + 150 transfer (bonus yo'q)",
+          ref_credits == expected_ref_a, f"{ref_credits} != {expected_ref_a}")
+
+    # --- 🌱 STEP 2 FAZA B: 50 parallel BIRINCHI AMAL (konversiya → bonus) --
+    # Hot-row poygasi endi SHU fazada: barcha 50 konversiya bitta REFERRER
+    # qatorini FOR UPDATE qulfi ostida ketma-ket tarif hisoblaydi.
+    errors.clear()
+    timings.clear()
+
+    def conversion_job(i):
+        new_uid = REF_NEW_USERS[i]
+        t0 = time.monotonic()
+        try:
+            res = ReferralService.register_first_action(new_uid)
+            if not res.get("granted"):
+                raise RuntimeError(f"konversiya natijasi: {res}")
+        except Exception as e:  # noqa: BLE001
+            errors.append(f"{type(e).__name__}: {e}"[:200])
+        timings.append(time.monotonic() - t0)
+
+    t0 = time.monotonic()
+    with ThreadPoolExecutor(max_workers=50) as ex:
+        list(ex.map(conversion_job, range(50)))
+    elapsed_b = time.monotonic() - t0
+
+    deadlocks_b = [e for e in errors if "deadlock" in e.lower()]
+    starvation_b = [e for e in errors if "pool band" in e.lower() or "TimeoutError" in e]
+    check("50 parallel konversiya: xatolar yo'q", not errors, str(errors[:3]))
+    check("konversiya: deadlock yo'q", not deadlocks_b, str(deadlocks_b[:2]))
+    check("konversiya: pool timeout yo'q", not starvation_b, str(starvation_b[:2]))
+    check("konversiyalar 30 s ichida tugadi", elapsed_b < 30, f"{elapsed_b:.1f}s")
+    check("konversiya: eng sekin so'rov < 15 s", max(timings) < 15,
+          f"{max(timings):.2f}s")
+
+    with db_mod.db_cursor() as cur:
+        cur.execute("SELECT ai_credits FROM users WHERE user_id = %s", (REFERRER,))
+        ref_credits = int(cur.fetchone()[0])
+        cur.execute("SELECT COUNT(*) FROM credits_ledger WHERE user_id = %s AND operation_type = 'referral'", (REFERRER,))
+        ref_ledger = int(cur.fetchone()[0])
+        cur.execute("SELECT COUNT(*) FROM users WHERE referrer_id = %s AND referral_rewarded_at IS NOT NULL", (REFERRER,))
+        rewarded = int(cur.fetchone()[0])
+    check("konversiya: 50 do'st rewarded deb belgilandi", rewarded == 50, str(rewarded))
+    check("konversiya: 50 ta referral ledger yozuvi", ref_ledger == 50, str(ref_ledger))
     # referrer: 100 + 50*3 (transfer) + referral (3+3+3 + 47*1 = 56) = 306
     expected_ref = 100 + 50 * 3 + db_mod.total_referral_reward(50)
     check("referrer balansi = 100 + 150 transfer + referral mukofotlari",
           ref_credits == expected_ref, f"{ref_credits} != {expected_ref}")
+
+    ps2 = db_mod.get_db_pool_status()
+    check("konversiya: pool toza (used=0)", ps2.get("used") == 0, str(ps2))
 
     # Ledger zanjiri: referrer uchun balance_after ketma-ketligi mos (audit)
     with db_mod.db_cursor() as cur:

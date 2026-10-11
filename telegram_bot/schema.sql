@@ -748,6 +748,19 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS full_menu_unlocked BOOLEAN DEFAULT FA
 ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(20) DEFAULT 'user';
 -- 🌍 DINAMIK KALENDAR (2026-10): maqsad davlat (ISO-3166-1 alpha-2).
 ALTER TABLE users ADD COLUMN IF NOT EXISTS target_country VARCHAR(8) DEFAULT 'UZ';
+-- 🌱 STEP 2 (ORGANIC GROWTH): action-based referral mukofoti va anti-abuse.
+-- referral_rewarded_at — taklif qilingan foydalanuvchi BIRINCHI postini
+--   yaratgan/rejalashtirgan payt (referrer mukofoti shu hodisadan keyin
+--   beriladi). IDEMPOTENTLIK belgisi: NULL bo'lmagan qiymat = mukofot
+--   berilgan (takroriy claim imkonsiz) + konversiya metrikasi (/stats).
+-- referral_block_reason — anti-abuse bayrog'i ('duplicate_profile'):
+--   biriktirish saqlanadi (attribution), lekin mukofot BLOKLANADI.
+-- signup_fingerprint — ro'yxatdan o'tish paytidagi SHA-256(username|full_name)
+--   barmog'i: bir xil referrer ostidagi "kopya" hisoblar (device/account
+--   farming) shu belgi orqali aniqlanadi.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS referral_rewarded_at TIMESTAMP WITH TIME ZONE;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS referral_block_reason VARCHAR(32);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS signup_fingerprint VARCHAR(64);
 
 ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS inline_button_text VARCHAR(255);
 ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS inline_button_url TEXT;
@@ -1083,3 +1096,40 @@ BEGIN
     END LOOP;
 END
 $postassist_channel_dna_hardening$;
+
+-- ============================================================
+-- 🌱 STEP 2 (ORGANIC GROWTH) — LEGACY REFERRAL BACKFILL
+-- ------------------------------------------------------------
+-- Eski sxemada mukofot /start paytida BERILGAN (credits_ledger'da
+-- operation_type='referral', reference_id=<taklif qilingan user_id> qatori
+-- bor). Action-based modelga o'tishda o'sha juftliklar uchun
+-- ``users.referral_rewarded_at`` to'ldiriladi — aks holda legacy do'st
+-- keyingi postida referrer IKKINCHI marta mukofot olardi (repeated claim).
+-- Idempotent: belgi allaqachon turgan qatorlar qayta ishlanmaydi.
+-- ============================================================
+DO $postassist_referral_backfill$
+BEGIN
+    IF to_regclass('users') IS NULL OR to_regclass('credits_ledger') IS NULL THEN
+        RAISE NOTICE 'referral_backfill: users/credits_ledger topilmadi -- otkazib yuborildi';
+        RETURN;
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+         WHERE table_name = 'users' AND column_name = 'referral_rewarded_at'
+    ) THEN
+        RAISE NOTICE 'referral_backfill: referral_rewarded_at ustuni mavjud emas -- otkazib yuborildi';
+        RETURN;
+    END IF;
+    UPDATE users u
+       SET referral_rewarded_at = l.created_at
+      FROM credits_ledger l
+     WHERE u.referrer_id IS NOT NULL
+       AND u.referral_rewarded_at IS NULL
+       AND l.user_id = u.referrer_id
+       AND l.operation_type = 'referral'
+       AND l.reference_id = u.user_id::text;
+    IF FOUND THEN
+        RAISE NOTICE 'referral_backfill: legacy mukofot juftliklari belgilandi';
+    END IF;
+END
+$postassist_referral_backfill$;

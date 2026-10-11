@@ -109,9 +109,21 @@ TRANSLATIONS = {
             "Hisobingizga <b>+{reward} ta AI ball</b> qo'shildi. "
             "Birinchi 3 do'st uchun +3 tadan, keyingilar uchun +1 tadan beriladi. 🚀"
         ),
+        # 🌱 STEP 2: /start dagi xabar — «do'st qo'shildi, mukofot uning
+        # birinchi postidan keyin» (ball /start da berilmaydi).
+        "referral_friend_joined_notice": (
+            "👥 <b>Yangi do'st qo'shildi!</b>\n\n"
+            "Taklif havolangiz orqali yangi foydalanuvchi botga kirdi.\n"
+            "🎁 Mukofot AI ballari do'stingiz <b>birinchi postini</b> "
+            "yaratgach hisobingizga tushadi "
+            "(birinchi 3 do'st uchun +3 tadan, keyingilar uchun +1 tadan). 🚀"
+        ),
         "referral_menu": (
             "🚀 <b>Do'stlarni taklif qiling va AI ball oling:</b>\n\n"
-            "🎁 <i>1-, 2- va 3-do'st uchun +3 tadan; 4-do'stdan boshlab har biri uchun +1 AI ball.</i>\n\n"
+            "🎁 <i>1-, 2- va 3-do'st uchun +3 tadan; 4-do'stdan boshlab har biri uchun +1 AI ball.</i>\n"
+            "✅ Ballar do'stingiz havolangiz orqali kirib <b>birinchi postini</b> "
+            "yaratgan yoki rejalashtirgan paytda beriladi "
+            "(shunchaki /start uchun emas — real amal uchun).\n\n"
             "💎 Mavjud AI ballaringiz: {credits}\n👥 Takliflar: <b>{count} ta</b>\n\n"
             "🔗 <b>Taklif havolangiz:</b>\n<code>{link}</code>"
         ),
@@ -485,6 +497,20 @@ TRANSLATIONS = {
         ),
         "ai_btn_back": "⬅️ Orqaga",
         "ai_btn_close": "❌ Bekor qilish",
+        # 🌱 STEP 2 — AI generatsiya preview'sining ACTION tugmalari.
+        "ai_btn_copy": "📋 Nusxalash",
+        "ai_btn_regen": "🔄 Yangi variant",
+        "ai_btn_share_ref": "🔗 Do'stlarga",
+        "ai_copy_done": "📋 Post matni quyida — code-blokni bosib nusxalang.",
+        "ai_copy_empty": "ℹ️ Avval post generatsiya qiling.",
+        "ai_share_ref_text": (
+            "🔗 <b>Do'stlaringizni taklif qiling (ixtiyoriy):</b>\n\n"
+            "<code>{link}</code>\n\n"
+            "Pastdagi «📲 Ulashish» tugmasi havolani istalgan chatga yuboradi.\n"
+            "🎁 Mukofot: do'st birinchi postini yaratgach +3/+1 AI ball.\n"
+            "ℹ️ Bu ixtiyoriy amal — kanal postlaringizga hech qanday reklama "
+            "yoki qo'shimcha matn QO'SHILMAYDI."
+        ),
         "ai_btn_main_menu": "⬅️ Asosiy menyu",
         "ai_confirm_schedule": "✅ Rejalashtirish",
         "ai_confirm_edit": "📝 Tahrirlash",
@@ -2208,9 +2234,21 @@ TRANSLATIONS = {
             "На ваш счёт начислено <b>+{reward} ИИ-балла</b>. "
             "За первых 3 друзей начисляется по +3, за каждого следующего — +1. 🚀"
         ),
+        # 🌱 STEP 2: сообщение при /start друга — «друг присоединился,
+        # награда придёт после его первого поста» (баллы на /start не даются).
+        "referral_friend_joined_notice": (
+            "👥 <b>Присоединился новый друг!</b>\n\n"
+            "По вашей пригласительной ссылке в бота зашёл новый пользователь.\n"
+            "🎁 Награда в ИИ-баллах будет начислена, как только он создаст "
+            "<b>свой первый пост</b> (по +3 за каждого из первых 3 друзей, "
+            "затем по +1). 🚀"
+        ),
         "referral_menu": (
             "🚀 <b>Приглашайте друзей и получайте ИИ-баллы:</b>\n\n"
-            "🎁 <i>За 1-го, 2-го и 3-го друга — по +3; начиная с 4-го — по +1 ИИ-баллу.</i>\n\n"
+            "🎁 <i>За 1-го, 2-го и 3-го друга — по +3; начиная с 4-го — по +1 ИИ-баллу.</i>\n"
+            "✅ Баллы начисляются, когда друг зайдёт по вашей ссылке и создаст "
+            "или запланирует <b>свой первый пост</b> (не просто за /start — "
+            "за реальное действие).\n\n"
             "💎 Ваши ИИ-баллы: {credits}\n👥 Приглашено: <b>{count}</b>\n\n"
             "🔗 <b>Ваша реферальная ссылка:</b>\n<code>{link}</code>"
         ),
@@ -2578,6 +2616,20 @@ TRANSLATIONS = {
         # shuning uchun RU yorlig'i ham kanonik «Отмена» (UZ «❌ Bekor
         # qilish» / EN «❌ Cancel» bilan bir xil ma'noda).
         "ai_btn_close": "❌ Отмена",
+        # 🌱 STEP 2 — кнопки действий AI-превью генерации.
+        "ai_btn_copy": "📋 Копировать",
+        "ai_btn_regen": "🔄 Новый вариант",
+        "ai_btn_share_ref": "🔗 Поделиться",
+        "ai_copy_done": "📋 Текст поста ниже — нажмите на блок кода, чтобы скопировать.",
+        "ai_copy_empty": "ℹ️ Сначала сгенерируйте пост.",
+        "ai_share_ref_text": (
+            "🔗 <b>Пригласите друзей (необязательно):</b>\n\n"
+            "<code>{link}</code>\n\n"
+            "Кнопка «📲 Поделиться» ниже отправит ссылку в любой чат.\n"
+            "🎁 Награда: +3/+1 ИИ-балл, когда друг создаст свой первый пост.\n"
+            "ℹ️ Это необязательное действие — в посты вашего канала НЕ "
+            "добавляется никакая реклама или лишний текст."
+        ),
         "ai_btn_main_menu": "⬅️ Главное меню",
         "ai_confirm_schedule": "✅ Запланировать",
         "ai_confirm_edit": "📝 Редактировать",

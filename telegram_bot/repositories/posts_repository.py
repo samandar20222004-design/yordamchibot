@@ -182,6 +182,19 @@ def add_post(
         except Exception:  # noqa: BLE001 — analitika best-effort
             logger.debug("TTFP belgilashda xato (post_id=%s)", post_id,
                          exc_info=True)
+        # 🌱 STEP 2 (ORGANIC GROWTH) — ACTION-BASED REFERAL MUKOFOTI:
+        # taklif qilingan foydalanuvchining BIRINCHI yaroqli amali (post
+        # yaratish/rejalashtirish) referrerga bonus beradi. Idempotent
+        # (``users.referral_rewarded_at`` shartli UPDATE) va fail-soft:
+        # referal tizimi xatolansa ham post SAQLANADI (hook o'z try'ida,
+        # tranzaksiyadan KEYIN — post yozuvi unga bog'liq emas).
+        try:
+            from services.referral_service import ReferralService
+
+            ReferralService.register_first_action(user_id)
+        except Exception:  # noqa: BLE001 — referal hook'i best-effort
+            logger.debug("Referral konversiya belgilashda xato (post_id=%s)",
+                         post_id, exc_info=True)
         return post_id
     except Exception as e:
         logger.error(f"Post saqlash xatosi: {e}")

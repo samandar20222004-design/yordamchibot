@@ -5,6 +5,9 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from locales.translations import get_text, normalize_lang
 from keyboards.callback_data import (  # noqa: F401 — re-export (eski importlar uchun)
     CALLBACK_DATA_MAX_BYTES,
+    CB_AI_COPY,
+    CB_AI_REGEN,
+    CB_AI_SHARE_REF,
     CB_CHANNEL_AUTOPILOT,
     CB_CHANNEL_BACK,
     CB_CHANNEL_BEST_TIME,
@@ -613,7 +616,14 @@ def get_ai_back_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
 
 
 def get_ai_tone_keyboard(selected: str = None, lang: str = "uz") -> InlineKeyboardMarkup:
-    """AI post uslubini tanlash — tanlangan uslub ✅ bilan belgilanadi."""
+    """AI post uslubini tanlash — tanlangan uslub ✅ bilan belgilanadi.
+
+    🌱 STEP 2 (ORGANIC GROWTH): preview ekrani O'ZGARMAYDI — uslub
+    qatorlari va [📅 Rejalashtirish] o'z joyida. Ostiga intuitiv ACTION
+    tugmalari qo'shildi: [📋 Nusxalash] [🔄 Yangi variant] va IXTIYORIY
+    [🔗 Do'stlarga ulashish] (referal havolasi; ulashish kanal
+    postlariga hech qanday reklama QO'SHMAYDI).
+    """
     buttons = []
     for key, tone_key in AI_TONE_KEYS.items():
         mark = " ✅" if key == selected else ""
@@ -622,6 +632,11 @@ def get_ai_tone_keyboard(selected: str = None, lang: str = "uz") -> InlineKeyboa
         buttons[:2],
         buttons[2:],
         [InlineKeyboardButton(get_text("ai_tone_schedule", lang), callback_data="ai_studio_sched")],
+        [
+            InlineKeyboardButton(get_text("ai_btn_copy", lang), callback_data=CB_AI_COPY),
+            InlineKeyboardButton(get_text("ai_btn_regen", lang), callback_data=CB_AI_REGEN),
+        ],
+        [InlineKeyboardButton(get_text("ai_btn_share_ref", lang), callback_data=CB_AI_SHARE_REF)],
         [
             InlineKeyboardButton(get_text("ai_btn_back", lang), callback_data="ai_back_to_menu"),
             InlineKeyboardButton(get_text("ai_btn_close", lang), callback_data="ai_close"),

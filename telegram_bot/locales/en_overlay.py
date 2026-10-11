@@ -209,9 +209,21 @@ EN_OVERLAY = {
         "<b>+{reward} AI credits</b> were added to your account. "
         "First 3 friends: +3 each, after that: +1 each. 🚀"
     ),
+    # 🌱 STEP 2: notice sent on /start — "friend joined, reward comes after
+    # their first post" (no credits are granted on /start alone).
+    "referral_friend_joined_notice": (
+        "👥 <b>A new friend joined!</b>\n\n"
+        "A new user entered the bot via your referral link.\n"
+        "🎁 The AI credit reward will be granted as soon as they create "
+        "<b>their first post</b> (+3 for each of the first 3 friends, "
+        "then +1 each). 🚀"
+    ),
     "referral_menu": (
         "🚀 <b>Invite friends and earn AI credits:</b>\n\n"
-        "🎁 <i>For the 1st, 2nd and 3rd friend: +3 each; from the 4th: +1 AI credit.</i>\n\n"
+        "🎁 <i>For the 1st, 2nd and 3rd friend: +3 each; from the 4th: +1 AI credit.</i>\n"
+        "✅ Credits are granted when a friend joins via your link and creates "
+        "or schedules <b>their first post</b> (not for /start alone — for a "
+        "real action).\n\n"
         "💎 Your AI credits: {credits}\n👥 Invited: <b>{count}</b>\n\n"
         "🔗 <b>Your referral link:</b>\n<code>{link}</code>"
     ),
@@ -825,6 +837,20 @@ EN_OVERLAY = {
     ),
     "ai_btn_back": "⬅️ Back",
     "ai_btn_close": "❌ Cancel",
+    # 🌱 STEP 2 — action buttons of the AI generation preview.
+    "ai_btn_copy": "📋 Copy text",
+    "ai_btn_regen": "🔄 Regenerate",
+    "ai_btn_share_ref": "🔗 Share referral",
+    "ai_copy_done": "📋 Post text below — tap the code block to copy it.",
+    "ai_copy_empty": "ℹ️ Generate a post first.",
+    "ai_share_ref_text": (
+        "🔗 <b>Invite your friends (optional):</b>\n\n"
+        "<code>{link}</code>\n\n"
+        "The 📲 Share button below sends the link to any chat.\n"
+        "🎁 Reward: +3/+1 AI credits when a friend creates their first post.\n"
+        "ℹ️ This is an optional action — no ads or extra text are ever added "
+        "to your channel posts."
+    ),
     "ai_btn_main_menu": "⬅️ Main menu",
     "ai_confirm_schedule": "✅ Schedule",
     "ai_confirm_edit": "📝 Edit text",
