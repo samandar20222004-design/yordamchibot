@@ -65,7 +65,15 @@ import os
 import time
 from dataclasses import dataclass, field
 
-from .cache import cache_key, default_cache
+from services.ai.budget import (
+    budget_message,
+    default_guard,
+    estimate_request,
+    resolve_tier,
+)
+from services.ai.concurrency import default_user_gate, user_busy_message
+
+from .cache import cache_key, default_cache, model_version
 from .health import FAILURE_OTHER, classify_exception, default_health_monitor
 from .retry import KIND_QUALITY, RetryPolicy, policy_for
 from .router import TASK_LANES, Lane, LaneSpec, LANE_SPECS, provider_order, resolve_lane
@@ -515,6 +523,7 @@ class AIGateway:
                 prompt=built_prompt, lane=resolved_lane.value, task=str(task or ""),
                 lang=lang, tone=tone, is_pro=is_pro,
                 system_instruction=built_system or "",
+                channel_context=channel_context, model_version=model_version(),
             )
             if not force_refresh:
                 cached_value = default_cache().get(key)
@@ -538,77 +547,150 @@ class AIGateway:
                         )
                     return result
 
-        # 2) TIZIM PROMPTI + QAT'IY TIL QOIDASI.
-        sys_instr = built_system or default_system_instruction(resolved_lane)
-        sys_instr = _language_directive(sys_instr, lang)
+        # 1b) STEP 1 — FOYDALANUVCHI KONKURENTLIGI + AI BYUDJETI (FREE/PRO).
+        #     Kesh hiti xarajat qilmaydi → yuqorida (cache) o'tkazib yuboriladi.
+        #     Rad etilsa — provayder CHAQIRILMAYDI, kvota refund (AITaskService).
+        gate = default_user_gate()
+        gated = user_id is not None
+        if gated and not gate.try_acquire(user_id):
+            return self._rejected(
+                resolved_lane, task=task, started=started, user_id=user_id,
+                channel_id=channel_id, lang=lang, prompt=built_prompt,
+                system_instruction=built_system or "", operation_type=operation_type,
+                reason="user_busy", error=user_busy_message(lang),
+                record_usage=record_usage)
+        ticket = None
+        try:
+            if gated:
+                tier = await resolve_tier(user_id, is_pro)
+                est_tokens, est_usd = estimate_request(built_prompt, built_system or "")
+                decision = await default_guard().acquire(user_id, tier, est_tokens, est_usd)
+                if not decision.allowed:
+                    return self._rejected(
+                        resolved_lane, task=task, started=started, user_id=user_id,
+                        channel_id=channel_id, lang=lang, prompt=built_prompt,
+                        system_instruction=built_system or "", operation_type=operation_type,
+                        reason="budget_exceeded",
+                        error=budget_message(lang, decision.period),
+                        record_usage=record_usage)
+                ticket = decision.ticket
+            return await self._execute_admitted(
+                resolved_lane=resolved_lane, task=task, lane=lane, lang=lang,
+                built_prompt=built_prompt, built_system=built_system,
+                system_instruction=system_instruction, timeout=timeout,
+                is_pro=is_pro, schema=schema, retry_policy=retry_policy,
+                require_quality=require_quality, user_id=user_id,
+                channel_id=channel_id, operation_type=operation_type,
+                record_usage=record_usage, key=key, cache_enabled=cache_enabled,
+                started=started,
+            )
+        finally:
+            # Bron/slot HAR DOIM bo'shatiladi (xato, timeout, bekor qilish ham).
+            # Telemetriya (ledger) allaqachon yozilgan — keyin bo'shatiladi.
+            if ticket is not None:
+                default_guard().release(ticket)
+            if gated:
+                gate.release(user_id)
 
-        # 3) QAT'IY UMUMIY MUDDAT.
-        overall = min(15.0, max(1.0, float(timeout))) if timeout else (
-            fast_path_timeout() if resolved_lane is Lane.FAST
-            else lane_default_timeout(resolved_lane)
+    def _rejected(self, lane: Lane, *, task, started: float, user_id, channel_id,
+                  lang: str, prompt: str, system_instruction: str, operation_type: str,
+                  reason: str, error: str, record_usage: bool) -> GatewayResult:
+        """Rad etilgan so'rov: provayder chaqirilmaydi, lekin telemetriyaga yoziladi."""
+        result = GatewayResult(
+            ok=False, lane=lane, task=str(task or ""), elapsed=time.monotonic() - started,
+            error=error, failure_kind=reason, status=STATUS_FAILED,
+            user_id=user_id, channel_id=channel_id,
         )
-
-        # 4) GLOBAL KONKURENTLIK — legacy bilan bir xil semaphore
-        #    (MAX_CONCURRENT_AI; bepul RPM limitlarini himoya qiladi).
-        try:
-            from utils import ai_agent as aa
-
-            semaphore = aa._AI_SEMAPHORE
-        except Exception:  # pragma: no cover — izolyatsiyalangan muhit
-            semaphore = None
-
-        policy = retry_policy or policy_for(resolved_lane)
-
-        async def _run() -> GatewayResult:
-            return await _generate_via_chain(
-                built_prompt, sys_instr, resolved_lane, lang,
-                overall=overall, started=started, task=str(task or ""), schema=schema,
-                retry_policy=policy, require_quality=bool(require_quality or schema),
-                user_id=user_id, channel_id=channel_id,
-            )
-
-        try:
-            if semaphore is not None:
-                async with semaphore:
-                    result = await asyncio.wait_for(_run(), timeout=overall)
-            else:
-                result = await asyncio.wait_for(_run(), timeout=overall)
-        except asyncio.TimeoutError:
-            logger.warning("AI Engine [%s]: %.0fs umumiy muddat oshdi (task=%s)",
-                           resolved_lane.value, overall, task or "-")
-            result = GatewayResult(
-                ok=False, lane=resolved_lane, task=str(task or ""),
-                elapsed=time.monotonic() - started,
-                error=_graceful_error(lang, timeout=True),
-                failure_kind="timeout", status=STATUS_FAILED,
-                user_id=user_id, channel_id=channel_id,
-            )
-        except Exception as exc:  # noqa: BLE001 — fail-soft kafolati
-            logger.warning("AI Engine [%s] kutilmagan xato: %s", resolved_lane.value, exc)
-            result = GatewayResult(
-                ok=False, lane=resolved_lane, task=str(task or ""),
-                elapsed=time.monotonic() - started, error=_graceful_error(lang),
-                failure_kind=classify_exception(exc), status=STATUS_FAILED,
-                user_id=user_id, channel_id=channel_id,
-            )
-
-        result.user_id = user_id
-        result.channel_id = channel_id
-
-        # 5) MUVAFFAQIYAT → KESHGA YOZISH (deterministik kalit).
-        if result.ok and cache_enabled and key:
-            payload = dict(result.raw or {"text": result.text})
-            if result.model:
-                payload.setdefault("model", result.model)
-            default_cache().set(key, payload)
-
-        # 6) TELEMETRIYA — har bir so'rov (xato ham) qayd etiladi.
+        logger.info("AI Engine [%s]: so'rov rad etildi (%s, user=%s)", lane.value, reason, user_id)
         if record_usage:
             result = self._record(
-                result, prompt=built_prompt, system_instruction=sys_instr,
+                result, prompt=prompt, system_instruction=system_instruction,
                 operation_type=operation_type, user_id=user_id, channel_id=channel_id,
             )
         return result
+
+    async def _execute_admitted(self, *, resolved_lane: Lane, task, lane, lang: str,
+                                built_prompt: str, built_system: str,
+                                system_instruction, timeout, is_pro: bool, schema,
+                                retry_policy, require_quality: bool, user_id,
+                                channel_id, operation_type: str, record_usage: bool,
+                                key: str, cache_enabled: bool, started: float) -> GatewayResult:
+        """Qabul qilingan so'rov: provayder zanjiri + kesh yozish + telemetriya."""
+        from services.ai.usage_scope import model_tier_for, usage_scope
+
+        with usage_scope(user_id=user_id, channel_id=channel_id,
+                         model_tier=model_tier_for(task)):
+            # 2) TIZIM PROMPTI + QAT'IY TIL QOIDASI.
+            sys_instr = built_system or default_system_instruction(resolved_lane)
+            sys_instr = _language_directive(sys_instr, lang)
+
+            # 3) QAT'IY UMUMIY MUDDAT.
+            overall = min(15.0, max(1.0, float(timeout))) if timeout else (
+                fast_path_timeout() if resolved_lane is Lane.FAST
+                else lane_default_timeout(resolved_lane)
+            )
+
+            # 4) GLOBAL KONKURENTLIK — legacy bilan bir xil semaphore
+            #    (MAX_CONCURRENT_AI; bepul RPM limitlarini himoya qiladi).
+            try:
+                from utils import ai_agent as aa
+
+                semaphore = aa._AI_SEMAPHORE
+            except Exception:  # pragma: no cover — izolyatsiyalangan muhit
+                semaphore = None
+
+            policy = retry_policy or policy_for(resolved_lane)
+
+            async def _run() -> GatewayResult:
+                return await _generate_via_chain(
+                    built_prompt, sys_instr, resolved_lane, lang,
+                    overall=overall, started=started, task=str(task or ""), schema=schema,
+                    retry_policy=policy, require_quality=bool(require_quality or schema),
+                    user_id=user_id, channel_id=channel_id,
+                )
+
+            try:
+                if semaphore is not None:
+                    async with semaphore:
+                        result = await asyncio.wait_for(_run(), timeout=overall)
+                else:
+                    result = await asyncio.wait_for(_run(), timeout=overall)
+            except asyncio.TimeoutError:
+                logger.warning("AI Engine [%s]: %.0fs umumiy muddat oshdi (task=%s)",
+                               resolved_lane.value, overall, task or "-")
+                result = GatewayResult(
+                    ok=False, lane=resolved_lane, task=str(task or ""),
+                    elapsed=time.monotonic() - started,
+                    error=_graceful_error(lang, timeout=True),
+                    failure_kind="timeout", status=STATUS_FAILED,
+                    user_id=user_id, channel_id=channel_id,
+                )
+            except Exception as exc:  # noqa: BLE001 — fail-soft kafolati
+                logger.warning("AI Engine [%s] kutilmagan xato: %s", resolved_lane.value, exc)
+                result = GatewayResult(
+                    ok=False, lane=resolved_lane, task=str(task or ""),
+                    elapsed=time.monotonic() - started, error=_graceful_error(lang),
+                    failure_kind=classify_exception(exc), status=STATUS_FAILED,
+                    user_id=user_id, channel_id=channel_id,
+                )
+
+            result.user_id = user_id
+            result.channel_id = channel_id
+
+            # 5) MUVAFFAQIYAT → KESHGA YOZISH (deterministik kalit).
+            if result.ok and cache_enabled and key:
+                payload = dict(result.raw or {"text": result.text})
+                if result.model:
+                    payload.setdefault("model", result.model)
+                default_cache().set(key, payload)
+
+            # 6) TELEMETRIYA — har bir so'rov (xato ham) qayd etiladi.
+            if record_usage:
+                result = self._record(
+                    result, prompt=built_prompt, system_instruction=sys_instr,
+                    operation_type=operation_type, user_id=user_id, channel_id=channel_id,
+                )
+            return result
 
     # ------------------------------------------------------------- analyze
     async def analyze(
@@ -653,46 +735,79 @@ class AIGateway:
         qoladi (model zanjiri, 404/429/timeout fallback) — bu yerda ular
         QAYTA YOZILMAYDI, faqat shlyuz kontraktiga o'raladi + telemetriya.
         """
-        started = time.monotonic()
-        lane = Lane.VISION
-        try:
-            from utils import vision_analyzer as va
-
-            analysis = await va.analyze_image(data, caption=caption, lang=lang,
-                                              timeout=timeout)
-            if isinstance(analysis, dict) and analysis.get("error"):
-                result = GatewayResult(
-                    ok=False, lane=lane, task="vision",
-                    elapsed=time.monotonic() - started, raw=dict(analysis),
-                    error=str(analysis.get("error")) or None,
-                    failure_kind="vision_error", status=STATUS_FAILED,
-                    user_id=user_id, channel_id=channel_id,
-                )
-            else:
-                result = GatewayResult(
-                    ok=True, lane=lane, task="vision",
-                    text=str(analysis.get("description") or analysis.get("summary") or ""),
-                    provider=f"Vision:{analysis.get('model', '')}".strip(":"),
-                    model=str(analysis.get("model", "") or ""),
-                    elapsed=time.monotonic() - started,
-                    raw=dict(analysis), status=STATUS_SUCCESS,
-                    user_id=user_id, channel_id=channel_id,
-                )
-        except Exception as exc:  # noqa: BLE001 — Vision xatosi handler fallback'i
-            logger.warning("AI Engine [VISION]: tahlil xatosi: %s", exc)
-            result = GatewayResult(
-                ok=False, lane=lane, task="vision", elapsed=time.monotonic() - started,
-                raw={}, error=_graceful_error(lang),
-                failure_kind=classify_exception(exc), status=STATUS_FAILED,
-                user_id=user_id, channel_id=channel_id,
-            )
-        if record_usage:
-            result = self._record(
-                result, prompt=f"[vision] {caption}".strip(),
+        # 💰 STEP 1: VISION ham foydalanuvchi limiti va AI byudjetiga bo'ysunadi
+        # (rasm tahlili — eng qimmat amallardan biri). Rad etilsa provayder
+        # chaqirilmaydi; telemetriyaga aniq sabab yoziladi.
+        gate = default_user_gate()
+        gated = user_id is not None
+        vision_prompt = f"[vision] {caption}".strip()
+        if gated and not gate.try_acquire(user_id):
+            return self._rejected(
+                Lane.VISION, task="vision", started=time.monotonic(), user_id=user_id,
+                channel_id=channel_id, lang=lang, prompt=vision_prompt,
                 system_instruction="", operation_type=operation_type,
-                user_id=user_id, channel_id=channel_id,
-            )
-        return result
+                reason="user_busy", error=user_busy_message(lang),
+                record_usage=record_usage)
+        ticket = None
+        try:
+            if gated:
+                tier = await resolve_tier(user_id, False)
+                est_tokens, est_usd = estimate_request(caption, "")
+                decision = await default_guard().acquire(user_id, tier, est_tokens, est_usd)
+                if not decision.allowed:
+                    return self._rejected(
+                        Lane.VISION, task="vision", started=time.monotonic(), user_id=user_id,
+                        channel_id=channel_id, lang=lang, prompt=vision_prompt,
+                        system_instruction="", operation_type=operation_type,
+                        reason="budget_exceeded", error=budget_message(lang, decision.period),
+                        record_usage=record_usage)
+                ticket = decision.ticket
+            started = time.monotonic()
+            lane = Lane.VISION
+            try:
+                from utils import vision_analyzer as va
+
+                analysis = await va.analyze_image(data, caption=caption, lang=lang,
+                                                  timeout=timeout)
+                if isinstance(analysis, dict) and analysis.get("error"):
+                    result = GatewayResult(
+                        ok=False, lane=lane, task="vision",
+                        elapsed=time.monotonic() - started, raw=dict(analysis),
+                        error=str(analysis.get("error")) or None,
+                        failure_kind="vision_error", status=STATUS_FAILED,
+                        user_id=user_id, channel_id=channel_id,
+                    )
+                else:
+                    result = GatewayResult(
+                        ok=True, lane=lane, task="vision",
+                        text=str(analysis.get("description") or analysis.get("summary") or ""),
+                        provider=f"Vision:{analysis.get('model', '')}".strip(":"),
+                        model=str(analysis.get("model", "") or ""),
+                        elapsed=time.monotonic() - started,
+                        raw=dict(analysis), status=STATUS_SUCCESS,
+                        user_id=user_id, channel_id=channel_id,
+                    )
+            except Exception as exc:  # noqa: BLE001 — Vision xatosi handler fallback'i
+                logger.warning("AI Engine [VISION]: tahlil xatosi: %s", exc)
+                result = GatewayResult(
+                    ok=False, lane=lane, task="vision", elapsed=time.monotonic() - started,
+                    raw={}, error=_graceful_error(lang),
+                    failure_kind=classify_exception(exc), status=STATUS_FAILED,
+                    user_id=user_id, channel_id=channel_id,
+                )
+            if record_usage:
+                result = self._record(
+                    result, prompt=f"[vision] {caption}".strip(),
+                    system_instruction="", operation_type=operation_type,
+                    user_id=user_id, channel_id=channel_id,
+                )
+            return result
+
+        finally:
+            if ticket is not None:
+                default_guard().release(ticket)
+            if gated:
+                gate.release(user_id)
 
     # ------------------------------------------------------------ telemetriya
     def _record(
@@ -720,6 +835,11 @@ class AIGateway:
             result.priced = event.priced
             result.usage = event.as_dict()
             self.recorder.record(event)
+            # 💰 STEP 1: xarajat ledger'i (kunlik/oylik byudjet va /economics uchun)
+            # — gateway'ga to'g'ridan-to'g'ri murojaat qiluvchilar ham hisobga olinadi.
+            from services.ai.cost_tracker import record_usage_event
+
+            record_usage_event(result.usage)
         except Exception as exc:  # noqa: BLE001 — telemetriya ixtiyoriy qatlam
             logger.warning("AI Engine telemetriya xatosi: %s", exc)
             result.input_tokens = result.input_tokens or 0
@@ -986,6 +1106,13 @@ async def vision_analyze(
 # ---------------------------------------------------------------------------
 # LEGACY ADAPTER — utils/ai_agent.py ning kanonik shlyuzga ulanishi
 # ---------------------------------------------------------------------------
+def _legacy_action_type(scope) -> str:
+    """Legacy yozuv amal turi (post|vision|voice|audit) — kontekstdan."""
+    from services.ai.usage_scope import action_type_for
+
+    return action_type_for("", (scope.action_type or "") if scope is not None else "")
+
+
 async def legacy_chain(prompt: str, system_instruction: str, lang: str | None = None) -> dict:
     """Legacy zanjir adapteri (``utils.ai_agent._run_ai_chain`` delegati).
 
@@ -1002,9 +1129,30 @@ async def legacy_chain(prompt: str, system_instruction: str, lang: str | None = 
     konteksti yo'q, shuning uchun yozuvda ``task="legacy_chain"`` bo'ladi.
     """
     from services.ai import fallback as ai_service
+    from services.ai.admission import admit_ai_request
+    from services.ai.usage_scope import current_scope, usage_scope
 
     started = time.monotonic()
-    result = await ai_service.run_ai_chain(prompt, system_instruction, lang=lang)
+    scope = current_scope()
+    nested = scope is not None and scope.suppress_recording
+    # Qabul (limit/byudjet) — faqat tashqi chaqiruvda; ichki zanjir qayta
+    # tekshirmaydi, telemetriyani esa shu funksiya yozadi (yagona yozuv).
+    admission = None
+    if nested:
+        result = await ai_service.run_ai_chain(prompt, system_instruction, lang=lang)
+    else:
+        admission = await admit_ai_request(prompt, system_instruction or "", lang)
+        if not admission.allowed:
+            result = {"error": admission.error, "provider": "", "provider_chain": [],
+                      "reason": admission.reason}
+        else:
+            try:
+                with usage_scope(suppress_recording=True):
+                    result = await ai_service.run_ai_chain(
+                        prompt, system_instruction, lang=lang)
+            except BaseException:
+                admission.release()
+                raise
     try:
         provider = ""
         text = ""
@@ -1020,12 +1168,15 @@ async def legacy_chain(prompt: str, system_instruction: str, lang: str | None = 
         input_tokens = estimate_tokens(prompt) + estimate_tokens(system_instruction)
         output_tokens = estimate_tokens(text)
         priced = ok and is_priced(provider, model)
+        user_id = scope.user_id if scope is not None else None
+        channel_id = scope.channel_id if scope is not None else None
         entry = {
-            "user_id": None,
-            "channel_id": None,
+            "user_id": user_id,
+            "channel_id": channel_id,
             "task": "legacy_chain",
             "lane": "",
-            "operation_type": "",
+            "operation_type": (scope.action_type or "") if scope is not None else "",
+            "action_type": _legacy_action_type(scope),
             "provider": provider,
             "model": model,
             "input_tokens": input_tokens,
@@ -1047,8 +1198,15 @@ async def legacy_chain(prompt: str, system_instruction: str, lang: str | None = 
 
         event = AIUsageEvent(**entry)
         default_recorder().record(event)
+        # 💰 STEP 1: legacy trafik ham kunlik/oylik byudjet ledger'iga tushadi.
+        from services.ai.cost_tracker import record_usage_event
+
+        record_usage_event(event.as_dict())
     except Exception as exc:  # noqa: BLE001 — telemetriya legacy yo'lni buza olmaydi
         logger.warning("Legacy telemetriya xatosi: %s", exc)
+    finally:
+        if admission is not None:
+            admission.release()
     return result
 
 

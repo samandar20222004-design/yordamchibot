@@ -253,5 +253,86 @@ class AIConcurrencyManager:
             self.unregister_task(uid, gen_id)
 
 
+# ---------------------------------------------------------------------------
+# STEP 1 — HAR FOYDALANUVCHI UCHUN FAOL AI JOBLAR LIMITI
+# ---------------------------------------------------------------------------
+#: Bir foydalanuvchining bir vaqtdagi faol LLM generatsiyalari (standart 2).
+#: Global semafor (``MAX_AI_CONCURRENCY``) bitta foydalanuvchini boshqalardan
+#: ajratmaydi — bitta foydalanuvchi navbatni egallab qo'ymasin deb shu limit.
+AI_USER_MAX_CONCURRENT_JOBS = max(1, int(os.getenv("AI_USER_MAX_CONCURRENT_JOBS", "2")))
+
+
+class UserJobGate:
+    """Foydalanuvchi kesimida faol AI joblar soni (fail-fast, navbatsiz).
+
+    Limitga yetgan foydalanuvchining yangi so'rovi DARHOL rad etiladi (kutib
+    turmaydi): chaqiruvchi ``try_acquire`` → ``False`` olganda AI chaqirmaydi
+    va kvota refund qilinadi. ``release`` har doim ``finally`` da chaqiriladi.
+    Thread-safe (blok qisqa, faqat dict yangilanadi).
+    """
+
+    def __init__(self, max_per_user: int | None = None) -> None:
+        import threading
+
+        self.max_per_user = max(1, int(max_per_user or AI_USER_MAX_CONCURRENT_JOBS))
+        self._lock = threading.Lock()
+        self._active: dict[int, int] = {}
+        self.rejected = 0
+
+    def active(self, user_id) -> int:
+        """Foydalanuvchining hozirgi faol joblar soni."""
+        if user_id is None:
+            return 0
+        with self._lock:
+            return self._active.get(int(user_id), 0)
+
+    def try_acquire(self, user_id) -> bool:
+        """Slot olishga urinadi; limit to'lgan bo'lsa ``False``."""
+        if user_id is None:
+            return True
+        uid = int(user_id)
+        with self._lock:
+            current = self._active.get(uid, 0)
+            if current >= self.max_per_user:
+                self.rejected += 1
+                return False
+            self._active[uid] = current + 1
+            return True
+
+    def release(self, user_id) -> None:
+        """Slotni bo'shatadi (ortiqcha chaqiruv xavfsiz — manfiy bo'lmaydi)."""
+        if user_id is None:
+            return
+        uid = int(user_id)
+        with self._lock:
+            current = self._active.get(uid, 0)
+            if current <= 1:
+                self._active.pop(uid, None)
+            else:
+                self._active[uid] = current - 1
+
+    def status(self) -> dict[str, Any]:
+        with self._lock:
+            return {
+                "max_per_user": self.max_per_user,
+                "tracked_users": len(self._active),
+                "active_jobs": sum(self._active.values()),
+                "rejected": self.rejected,
+            }
+
+
+_user_job_gate = UserJobGate()
+
+
+def default_user_gate() -> UserJobGate:
+    """Jarayon bo'yicha yagona foydalanuvchi-job gate'i."""
+    return _user_job_gate
+
+
+def user_busy_message(lang: str = "uz") -> str:
+    """Foydalanuvchi limiti to'lganda — mavjud «AI band» matni (yangi matn yo'q)."""
+    return get_queue_full_message(lang)
+
+
 # Global yagona Concurrency menejeri
 ai_concurrency_manager = AIConcurrencyManager()

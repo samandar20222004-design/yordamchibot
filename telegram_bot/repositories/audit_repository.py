@@ -865,7 +865,7 @@ def get_ai_usage_report(user_id=None, channel_id=None, period: str = "daily",
                          estimated_cost_usd, priced_requests,
                          unpriced_requests, avg_latency_ms},
               "by_provider": {...}, "by_model": {...}, "by_task": {...},
-              "by_lane": {...}, "by_day": [...]
+              "by_lane": {...}, "by_action": {...}, "by_day": [...]
             }
 
         Xatoda ``None`` (hisobot best-effort — AI oqimiga ta'sir qilmaydi).
@@ -921,6 +921,15 @@ def get_ai_usage_report(user_id=None, channel_id=None, period: str = "daily",
             "avg_latency_ms": round(float(row[8] or 0.0), 1),
         }
 
+    # Amal turi (STEP 1: post|vision|voice|audit) — ``operation_type`` dan SQL'da
+    # hosil qilinadi (kod-konstanta; ustun qo'shilmaydi, sxema o'zgarmaydi).
+    _action_type_sql = (
+        "CASE WHEN operation_type = 'image_post' THEN 'vision' "
+        "WHEN operation_type = 'voice_post' THEN 'voice' "
+        "WHEN operation_type = 'post_score' THEN 'audit' "
+        "ELSE 'post' END"
+    )
+
     def _grouped(cur, group_sql: str, order_sql: str = "estimated_cost DESC") -> dict:
         """Agregatni NOM bo'yicha lug'at sifatida qaytaradi (yagona shakl)."""
         grouped: dict = {}
@@ -935,6 +944,7 @@ def get_ai_usage_report(user_id=None, channel_id=None, period: str = "daily",
             by_model = _grouped(cur, "model")
             by_task = _grouped(cur, "task")
             by_lane = _grouped(cur, "lane")
+            by_action = _grouped(cur, _action_type_sql)
             by_day = (_grouped(cur, "DATE_TRUNC('day', created_at)::date", "1 ASC")
                       if safe_period == "monthly" else {})
             cur.execute(
@@ -947,7 +957,7 @@ def get_ai_usage_report(user_id=None, channel_id=None, period: str = "daily",
                 "COALESCE(SUM(estimated_cost), 0), "
                 "COALESCE(AVG(latency_ms), 0), "
                 "COUNT(*) FILTER (WHERE status = 'success' AND priced AND NOT cached), "
-                "COUNT(*) FILTER (WHERE status = 'success' AND (NOT priced OR cached)) "
+                "COUNT(*) FILTER (WHERE status = 'success' AND NOT priced AND NOT cached) "
                 "FROM ai_usage_events "
                 f"WHERE {where_sql} {window}",
                 tuple(params),
@@ -973,6 +983,7 @@ def get_ai_usage_report(user_id=None, channel_id=None, period: str = "daily",
             "by_model": by_model,
             "by_task": by_task,
             "by_lane": by_lane,
+            "by_action": by_action,
             "by_day": by_day,
         }
     except Exception as e:

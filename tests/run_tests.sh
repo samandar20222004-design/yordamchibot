@@ -1275,6 +1275,14 @@ echo "===== PHASE 6 — AI XARAJAT JURNALI + HISOBOT ====="
 "$PY" tests/ai_cost_tracking_db_test.py || EXIT_CODE=1
 
 echo
+echo "===== STEP 1 — AI XARAJAT HIMOYASI (unpriced, limit, byudjet, dedupe, marja) ====="
+# Telemetriya narx holati (unpriced ≠ \$0), yagona narx jadvali, kesh kaliti
+# (channel_dna + til + model versiyasi), foydalanuvchi parallel-job limiti,
+# FREE/PRO kunlik/oylik byudjet (bron + refund), fallback/legacy dedupe,
+# arzon model marshruti va /economics yalpi marjasi.
+"$PY" tests/ai_cost_protection_test.py || EXIT_CODE=1
+
+echo
 echo "===== PHASE 8 — 7-DAY AUTOPILOT V2 ====="
 "$PY" tests/autopilot_v2_test.py || EXIT_CODE=1
 

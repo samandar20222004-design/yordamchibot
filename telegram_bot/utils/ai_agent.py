@@ -1754,17 +1754,45 @@ async def _post_chat_completion(
             raise
 
 
+def _ordered_models(models) -> list:
+    """Model tartibi: ``cheap`` (oddiy transformatsiya) → arzon modellar oldinda.
+
+    Standart kontekstda ro'yxat o'zgarmaydi. Lazy import (sikl yo'q).
+    """
+    try:
+        from services.ai.usage_scope import prefer_cheap_models
+
+        return prefer_cheap_models(list(models or []))
+    except Exception:  # noqa: BLE001 — tartib ixtiyoriy
+        return list(models or [])
+
+
+def _note_model(model) -> None:
+    """Provayder urinishi ishlatayotgan modelni telemetriyaga qayd etadi (STEP 1).
+
+    Lazy import: ``services.ai`` paketi ``utils.ai_agent`` ni import qiladi — shu
+    sabab modul darajasida import sikl hosil qilardi. Xato AI oqimini buzmaydi.
+    """
+    try:
+        from services.ai.usage_scope import note_model
+
+        note_model(model)
+    except Exception:  # noqa: BLE001 — telemetriya ixtiyoriy
+        return
+
+
 async def _call_gemini(
     prompt: str, api_key: str, system_instruction: str, params: dict = None,
     http_timeout: aiohttp.ClientTimeout = None, deadline: float = None,
 ) -> dict:
     session = await _get_session()
-    models = await _discover_gemini_models(api_key) or GEMINI_MODELS
+    models = _ordered_models(await _discover_gemini_models(api_key) or GEMINI_MODELS)
     params = params or get_runtime_params()
     timeout = http_timeout or AI_HTTP_TIMEOUT
     last_err = ""
 
     for model in models:
+        _note_model(model)
         _check_deadline(deadline)
         url = f"{GEMINI_BASE}/{model}:generateContent?key={api_key}"
         # Faqat o'chirilmagan (None bo'lmagan) parametrlar yuboriladi —
@@ -1832,11 +1860,12 @@ async def _call_groq(
     http_timeout: aiohttp.ClientTimeout = None, deadline: float = None,
 ) -> dict:
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
-    models = await _discover_groq_models(api_key) or GROQ_MODELS
+    models = _ordered_models(await _discover_groq_models(api_key) or GROQ_MODELS)
     params = params or get_runtime_params()
     last_err = ""
 
     for model in models:
+        _note_model(model)
         _check_deadline(deadline)
         payload = {
             "model": model,
@@ -1886,11 +1915,12 @@ async def _call_openrouter(
         "HTTP-Referer": "https://t.me/postassistrobot",  # OpenRouter ranking uchun
         "X-Title": "PostAssist Telegram Bot",
     }
-    models = await _discover_openrouter_models(api_key) or OPENROUTER_MODELS
+    models = _ordered_models(await _discover_openrouter_models(api_key) or OPENROUTER_MODELS)
     params = params or get_runtime_params()
     last_err = ""
 
     for model in models:
+        _note_model(model)
         _check_deadline(deadline)
         payload = {
             "model": model,
@@ -1927,7 +1957,8 @@ async def _call_mistral(
     params = params or get_runtime_params()
     last_err = ""
 
-    for model in MISTRAL_MODELS:
+    for model in _ordered_models(MISTRAL_MODELS):
+        _note_model(model)
         _check_deadline(deadline)
         payload = {
             "model": model,
@@ -1974,7 +2005,8 @@ async def _call_cerebras(
     params = params or get_runtime_params()
     last_err = ""
 
-    for model in CEREBRAS_MODELS:
+    for model in _ordered_models(CEREBRAS_MODELS):
+        _note_model(model)
         _check_deadline(deadline)
         payload = {
             "model": model,
@@ -2011,7 +2043,8 @@ async def _call_sambanova(
     params = params or get_runtime_params()
     last_err = ""
 
-    for model in SAMBANOVA_MODELS:
+    for model in _ordered_models(SAMBANOVA_MODELS):
+        _note_model(model)
         _check_deadline(deadline)
         payload = {
             "model": model,
@@ -2057,7 +2090,8 @@ async def _call_cloudflare(
     params = params or get_runtime_params()
     last_err = ""
 
-    for model in CLOUDFLARE_MODELS:
+    for model in _ordered_models(CLOUDFLARE_MODELS):
+        _note_model(model)
         _check_deadline(deadline)
         payload = {
             "model": model,
@@ -2102,6 +2136,7 @@ async def _call_pollinations(
         ],
     }
     _apply_optional_params(payload, params)
+    _note_model(payload["model"])
     result = await _post_chat_completion(POLLINATIONS_ENDPOINT, None, payload, http_timeout, deadline)
     return _extract_json(result["content"])
 
@@ -3793,6 +3828,7 @@ async def _call_gemini_vision(
     }
 
     async def _try_model(model: str, base_url: str):
+        _note_model(model)
         """Bitta modelga so'rov: natija dict yoki None (keyingi modelga o'tish)."""
         url = f"{base_url}/{model}:generateContent?key={api_key}"
         for attempt in range(MAX_429_RETRIES + 1):
@@ -3839,7 +3875,8 @@ async def _call_gemini_vision(
                 return None
         return None
 
-    for model in models:
+    for model in _ordered_models(models):
+        _note_model(model)
         result = await _try_model(model, GEMINI_BASE)
         if result is not None:
             return result

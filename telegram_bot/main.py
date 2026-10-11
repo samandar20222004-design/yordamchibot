@@ -240,6 +240,17 @@ class GuardedApplication(Application):
             cancel_early_ack(ack_task)
 
     async def _process_update_guarded(self, update):
+        # 💰 STEP 1: shu update ichidagi barcha AI chaqiruvlari foydalanuvchiga
+        # bog'lanadi (telemetriya user_id + har foydalanuvchi limiti/byudjeti).
+        # contextvar — update tugagach avtomatik tiklanadi (token reset).
+        from services.ai.usage_scope import usage_scope
+
+        raw_uid = getattr(getattr(update, "effective_user", None), "id", None)
+        scope_uid = raw_uid if isinstance(raw_uid, int) and not isinstance(raw_uid, bool) else None
+        with usage_scope(user_id=scope_uid):
+            return await self._process_update_guarded_body(update)
+
+    async def _process_update_guarded_body(self, update):
         lock_key = get_update_lock_key(update)
         user_id = getattr(getattr(update, "effective_user", None), "id", None)
         if user_id is not None:
