@@ -28,6 +28,11 @@ Modullar:
                  submenyusi va statistika
                  qator kalitlari hamda paritet hisoboti
                  (PostAssist V2, 5-qadam + 3-qadam refaktori).
+    content_learning — 📚 KONTENT O'RGANISH (STEP 3, Channel DNA 2.0):
+                 CONTENT_LEARNING_I18N lug'ati, ``content_learning_t``, AI
+                 Studio / Post auditi ekranlaridagi lokalizatsiya qilingan
+                 tavsiyalar (yetishmayotgan formatlar: Q&A, tutorial,
+                 ijtimoiy isbot ...) va paritet hisoboti.
 
 Foydalanish:
     from translations import magic_t, MAGIC_STYLE_KEYS
@@ -152,6 +157,14 @@ from translations.admin_panel import (  # noqa: F401
     admin_panel_parity_report,
     admin_t,
 )
+# 📚 STEP 3 (Channel DNA 2.0) — kontent o'rganish tavsiyalari matnlari
+# (AI Studio / Post auditi ekranlari, services/channels/content_learning.py).
+from translations.content_learning import (  # noqa: F401
+    CONTENT_LEARNING_I18N,
+    CONTENT_LEARNING_KEYS,
+    content_learning_parity_report,
+    content_learning_t,
+)
 
 __all__ = [
     "MAGIC_POST_I18N",
@@ -228,4 +241,8 @@ __all__ = [
     "PRIVACY_POLICY_KEYS",
     "privacy_t",
     "privacy_parity_report",
+    "CONTENT_LEARNING_I18N",
+    "CONTENT_LEARNING_KEYS",
+    "content_learning_parity_report",
+    "content_learning_t",
 ]

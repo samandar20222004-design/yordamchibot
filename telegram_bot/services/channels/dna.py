@@ -20,6 +20,12 @@ Kafolatlari:
   * AI orkestrator post generatsiya qilganda (``context`` da ``channel_id``
     bo'lsa va kanal AYNAN shu foydalanuvchining bo'lsa — IDOR himoyasi) DNA
     ixcham system-prompt bloki sifatida ulanadi;
+  * 🧬 CHANNEL DNA 2.0 (STEP 3): ``build_dna_prompt_2`` post generatsiya
+    promptiga kanal **ohangi (tone)**, **uzunlik afzalligi**, **CTA uslubi**
+    va **lug'at cheklovlari (vocabulary limits)** ni FAQAT real profil
+    ma'lumotlaridan AVTOMATIK ulaydi; DNA hali tahlil qilinmagan kanallar
+    uchun ``build_default_tone_prompt`` (standart ohang, uz/ru/en) GRACEFUL
+    FALLBACK bo'lib xizmat qiladi — xatosiz va soxta metrikasiz;
   * Barcha hisob funksiyalari PURE (DB'siz) — deterministik va testlanadi.
   * Kichik sample_size da PAST confidence (0.0-1.0) — soxta yuqori confidence yo'q!
 """
@@ -785,6 +791,364 @@ def build_dna_system_prompt_extended(profile: dict, lang: str = "uz") -> str:
 
 
 # ---------------------------------------------------------------------------
+# 🧬 CHANNEL DNA 2.0 (STEP 3) — TONE + LENGTH + CTA + VOCABULARY LIMITS
+# ---------------------------------------------------------------------------
+# Post generatsiya promptlariga kanalning REAL profilidan olingan 4 ta bo'lim
+# AVTOMATIK ulanadi:
+#   1. ohang (tone)            — kuzatilgan ohang saqlanadi;
+#   2. uzunlik afzalligi       — o'rtacha post uzunligi (±20%);
+#   3. CTA uslubi              — kuzatilgan CTA chastotasiga mos ko'rsatma;
+#   4. lug'at cheklovlari      — til + ohangga mos leksika + mavzu so'zlari.
+# Qat'iy qoida: bo'lim faqat REAL ma'lumot bo'lganda qo'shiladi — ma'lumot
+# bo'lmasa bo'lim O'TKAZIB YUBORILADI (soxta uslub/raqam uydirmaslik).
+# DNA umuman tahlil qilinmagan bo'lsa — ``build_default_tone_prompt``
+# (standart ohang) graceful fallback sifatida ishlatiladi (xatosiz).
+# ---------------------------------------------------------------------------
+
+#: Ohang (tone) yorliqlari — uz/ru/en.
+DNA_TONE_LABELS: dict[str, dict[str, str]] = {
+    "uz": {
+        "friendly": "do'stona",
+        "formal": "rasmiy",
+        "promotional": "reklama-sotuv",
+        "informative": "informativ",
+        "casual": "erkin (kundalik)",
+        "neutral": "neytral",
+    },
+    "ru": {
+        "friendly": "дружелюбный",
+        "formal": "официальный",
+        "promotional": "рекламно-продающий",
+        "informative": "информативный",
+        "casual": "непринуждённый",
+        "neutral": "нейтральный",
+    },
+    "en": {
+        "friendly": "friendly",
+        "formal": "formal",
+        "promotional": "promotional",
+        "informative": "informative",
+        "casual": "casual",
+        "neutral": "neutral",
+    },
+}
+
+#: Til kodlari → tilning lokallashgan nomi (lug'at cheklovlari bo'limi uchun).
+DNA_LANGUAGE_NAMES: dict[str, dict[str, str]] = {
+    "uz": {"uz": "o'zbek", "ru": "rus", "en": "ingliz"},
+    "ru": {"uz": "узбекский", "ru": "русский", "en": "английский"},
+    "en": {"uz": "Uzbek", "ru": "Russian", "en": "English"},
+}
+
+#: CTA uslubi → generatsiya ko'rsatmasi (faqat REAL kuzatilgan uslub uchun).
+CTA_STYLE_INSTRUCTIONS: dict[str, dict[str, str]] = {
+    "uz": {
+        "always": "Har postda ANIQ bitta CTA ishlating — kanal uslubiga mos.",
+        "most": "Postlarning ko'pchiligida bitta aniq CTA ishlating.",
+        "sometimes": "CTA'ni o'rtacha chastotada, faqat mavzuga mos joyda ishlating.",
+        "none": "CTA qo'shmang — kanal postlarida CTA kuzatilmagan.",
+    },
+    "ru": {
+        "always": "В каждом посте используйте ОДИН чёткий CTA — в стиле канала.",
+        "most": "В большинстве постов используйте один чёткий CTA.",
+        "sometimes": "Используйте CTA умеренно, только где это уместно по теме.",
+        "none": "Не добавляйте CTA — в постах канала CTA не наблюдался.",
+    },
+    "en": {
+        "always": "Use ONE clear CTA in every post — matching the channel style.",
+        "most": "Use one clear CTA in most posts.",
+        "sometimes": "Use a CTA moderately, only where it fits the topic.",
+        "none": "Do not add a CTA — no CTA was observed in channel posts.",
+    },
+}
+
+#: Ohangga mos LUG'AT CHEKLOVLARI (vocabulary limits) — uz/ru/en.
+VOCABULARY_RULES: dict[str, dict[str, str]] = {
+    "uz": {
+        "friendly": "samimiy, sodda so'zlar; quruq rasmiyatchilikdan saqlaning",
+        "formal": "rasmiy, hurmatli leksika; slang va qisqartmalar taqiqlanadi",
+        "promotional": "aniq taklif so'zlari; bo'sh va'dalar va bo'rttirilgan maqtov taqiqlanadi",
+        "informative": "aniq terminlar va faktlar; tushunarli izohlar, 'suv' yo'q",
+        "casual": "kundalik, qisqa iboralar; rasmiy klişeler taqiqlanadi",
+        "neutral": "neytral, tushunarli so'zlar; ortiqcha emosionarlik yo'q",
+        "_default": "aniq, tushunarli so'zlar; ortiqcha jargon yo'q",
+    },
+    "ru": {
+        "friendly": "искренние, простые слова; избегайте сухого официоза",
+        "formal": "официальная, уважительная лексика; сленг и сокращения запрещены",
+        "promotional": "слова конкретного предложения; пустые обещания и преувеличения запрещены",
+        "informative": "точные термины и факты; понятные пояснения, без «воды»",
+        "casual": "повседневные, короткие фразы; официальные клише запрещены",
+        "neutral": "нейтральные, понятные слова; без лишней эмоциональности",
+        "_default": "точные, понятные слова; без лишнего жаргона",
+    },
+    "en": {
+        "friendly": "warm, simple words; avoid dry formalism",
+        "formal": "formal, respectful vocabulary; no slang or abbreviations",
+        "promotional": "concrete offer language; no empty promises or hype",
+        "informative": "precise terms and facts; clear explanations, no filler",
+        "casual": "everyday, short phrasing; no formal clichés",
+        "neutral": "neutral, clear words; no excess emotion",
+        "_default": "clear, precise words; no heavy jargon",
+    },
+}
+
+#: DNA 2.0 bo'lim qatorlari shablonlari (uz/ru/en) — 100% lokalizatsiya.
+_DNA2_SECTION_TEMPLATES: dict[str, dict[str, str]] = {
+    "uz": {
+        "tone": "Ohang: {tone} — post davomida SAQLANG.",
+        "length": "Uzunlik afzalligi: ~{length} belgi (±20%) — shu hajmga yaqin yozing.",
+        "cta": "CTA uslubi: {cta_label}. {cta_rule}",
+        "vocab": ("LUG'AT CHEKLOVLARI: til — {language}; {vocab_rule}{topics_rule}; "
+                  "og'ir jargon, klişe va bo'sh va'dalardan saqlaning."),
+        "topics_rule": "; kanal mavzulariga yaqin so'zlar: {topics}",
+        "base_fallback": "KANAL USLUBI (DNA): o'rtacha uzunlik ~{length} belgi.",
+    },
+    "ru": {
+        "tone": "Тон: {tone} — сохраняйте его во всём посте.",
+        "length": "Длина поста: ~{length} символов (±20%) — пишите близко к этому объёму.",
+        "cta": "Стиль CTA: {cta_label}. {cta_rule}",
+        "vocab": ("ОГРАНИЧЕНИЯ ЛЕКСИКИ: язык — {language}; {vocab_rule}{topics_rule}; "
+                  "избегайте тяжёлого жаргона, клише и пустых обещаний."),
+        "topics_rule": "; слова, близкие к темам канала: {topics}",
+        "base_fallback": "СТИЛЬ КАНАЛА (DNA): средняя длина ~{length} символов.",
+    },
+    "en": {
+        "tone": "Tone: {tone} — keep it throughout the post.",
+        "length": "Length preference: ~{length} chars (±20%) — write close to this size.",
+        "cta": "CTA style: {cta_label}. {cta_rule}",
+        "vocab": ("VOCABULARY LIMITS: language — {language}; {vocab_rule}{topics_rule}; "
+                  "avoid heavy jargon, clichés and empty promises."),
+        "topics_rule": "; words close to the channel topics: {topics}",
+        "base_fallback": "CHANNEL STYLE (DNA): avg length ~{length} chars.",
+    },
+}
+
+#: DNA tahlil QILINMAGAN kanallar uchun standart ohang (graceful fallback).
+#: Qat'iy qoida: bu matnda "DNA" so'zi YO'Q (IDOR testlarida begona kanal
+#: prompti o'zgarmaganligini tekshirish uchun) va SOXTA raqam YO'Q — bu faqat
+#: uslubiy ko'rsatma, uchala tilda (uz/ru/en).
+DEFAULT_TONE_PROMPTS: dict[str, str] = {
+    "uz": (
+        "STANDART USLUB: kanal uslubi hali tahlil qilinmagan — aniq, do'stona "
+        "va foydali ohangda yozing; ixcham abzaslar (2-4 qator), bitta aniq "
+        "g'oya; bo'sh va'dalar, quruq maqtov va og'ir jargondan saqlaning."
+    ),
+    "ru": (
+        "СТАНДАРТНЫЙ СТИЛЬ: стиль канала ещё не проанализирован — пишите ясно, "
+        "дружелюбно и по делу; компактные абзацы (2-4 строки), одна чёткая "
+        "мысль; избегайте пустых обещаний, сухих похвал и тяжёлого жаргона."
+    ),
+    "en": (
+        "DEFAULT STYLE: the channel style has not been analysed yet — write "
+        "clearly, in a friendly and useful tone; compact paragraphs (2-4 "
+        "lines), one clear idea; avoid empty promises, hollow praise and "
+        "heavy jargon."
+    ),
+}
+
+
+def _dna_lang_code(lang: str) -> str:
+    """Til kodini kanonlashtiradi (noma'lum → uz; import xatosida → uz)."""
+    try:
+        from locales.translations import normalize_lang
+        code = normalize_lang(lang)
+    except Exception:  # pragma: no cover - himoya
+        code = "uz"
+    return code if code in ("uz", "ru", "en") else "uz"
+
+
+def build_default_tone_prompt(lang: str = "uz") -> str:
+    """DNA tahlil qilinmagan kanal uchun STANDART OHANG bloki (uz/ru/en).
+
+    Graceful fallback: hech qachon xato bermaydi, soxta metrika UYDIRMAYDI —
+    bu faqat uslubiy ko'rsatma. Matnda "DNA" so'zi qatnashmaydi.
+    """
+    code = _dna_lang_code(lang)
+    return DEFAULT_TONE_PROMPTS.get(code) or DEFAULT_TONE_PROMPTS["uz"]
+
+
+def _metric_value(raw: Any) -> Any:
+    """O'ralgan metrikadan (``{"value": ...}``) yoki oddiy qiymatdan qiymatni oladi."""
+    if isinstance(raw, dict) and "value" in raw:
+        return raw.get("value")
+    return raw
+
+
+def normalize_dna_profile(profile: Any) -> dict:
+    """Legacy / extended / ``channel_dna`` flat profilni yagona shaklga keltiradi (PURE).
+
+    Qaytarilgan dict FAQAT REAL ma'lumotni o'z ichiga oladi: topilmagan
+    maydon ``None`` (yoki bo'sh ro'yxat) bo'lib qoladi — hech narsa
+    UYDIRILMAYDI. Qabul qilinadigan shakllar:
+
+      * legacy ``channel_intelligence_profiles`` qatori (average_post_length,
+        emoji_level, cta_style, formatting_style, sample_size);
+      * ``compute_channel_dna_extended`` profili (o'ralgan metrikalar +
+        ``*_value`` maydonlari + legacy maydonlar);
+      * ``get_channel_dna_profile`` flat qatori (language/tone/avg_length ...
+        + ichki ``profile`` JSONB).
+    """
+    if not isinstance(profile, dict) or not profile:
+        return {}
+    src = dict(profile)
+    nested = src.get("profile")
+    if isinstance(nested, dict) and nested:
+        src.update(nested)
+
+    def _to_int(value: Any) -> int | None:
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return None
+
+    def _to_float(value: Any) -> float | None:
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return None
+
+    def _to_list(value: Any) -> list:
+        if isinstance(value, (list, tuple)):
+            return [v for v in value if v is not None]
+        return []
+
+    sample = _metric_value(src.get("sample_size"))
+    if sample is None:
+        overall = src.get("overall")
+        if isinstance(overall, dict):
+            sample = overall.get("sample_size")
+
+    length = _metric_value(src.get("average_post_length"))
+    if length is None:
+        length = _metric_value(src.get("avg_length"))
+    if length is None:
+        length = src.get("avg_length_value")
+
+    tone = _metric_value(src.get("tone"))
+    if tone is None:
+        tone = src.get("tone_value")
+    tone = str(tone).strip().lower()[:32] if tone else None
+
+    language = _metric_value(src.get("language"))
+    if language is None:
+        language = src.get("language_value")
+    language = str(language).strip().lower()[:8] if language else None
+    if language not in ("uz", "ru", "en"):
+        language = None
+
+    topics = _to_list(_metric_value(src.get("topics")))
+    if not topics:
+        topics = _to_list(src.get("topics_value"))
+    if not topics:
+        topics = _to_list(src.get("top_topics"))
+    topics = [str(t).strip()[:64] for t in topics if str(t or "").strip()][:5]
+
+    emoji_density = _to_float(_metric_value(src.get("emoji_density")))
+    if emoji_density is None:
+        emoji_density = _to_float(src.get("emoji_density_value"))
+
+    def _str_or_none(key: str) -> str | None:
+        value = src.get(key)
+        value = str(value).strip().lower()[:32] if value else ""
+        return value or None
+
+    return {
+        "sample_size": _to_int(sample),
+        "average_post_length": _to_int(length),
+        "avg_length_value": _to_int(length),
+        "language_value": language,
+        "tone_value": tone,
+        "topics_value": topics,
+        "emoji_density_value": emoji_density,
+        "best_hours_value": _to_list(_metric_value(src.get("best_hours")))
+        or _to_list(src.get("best_hours_value")),
+        "best_weekdays_value": _to_list(_metric_value(src.get("best_weekdays")))
+        or _to_list(src.get("best_weekdays_value")),
+        "high_performing_formats_value": _to_list(_metric_value(src.get("high_performing_formats")))
+        or _to_list(src.get("high_performing_formats_value")),
+        "emoji_level": _str_or_none("emoji_level"),
+        "cta_style": _str_or_none("cta_style"),
+        "formatting_style": _str_or_none("formatting_style"),
+    }
+
+
+def build_dna_prompt_2(profile: Any, lang: str = "uz") -> str:
+    """🧬 CHANNEL DNA 2.0 — to'liq system-prompt bloki (PURE, deterministik).
+
+    Tarkibi (faqat REAL profil ma'lumotlaridan):
+      1. bazaviy blok (``build_dna_system_prompt`` — legacy kontrakt
+         ``"KANAL USLUBI (DNA)"`` saqlanadi);
+      2. ``Ohang:`` — kuzatilgan tone (bo'lmasa O'TKAZIB YUBORILADI);
+      3. ``Uzunlik afzalligi:`` — o'rtacha uzunlik ±20%;
+      4. ``CTA uslubi:`` — kuzatilgan CTA chastotasi ko'rsatmasi;
+      5. ``LUG'AT CHEKLOVLARI:`` — til + ohang leksikasi + mavzu so'zlari.
+
+    Ma'lumot yetarli bo'lmasa (``sample_size < 5``) BO'SH qator qaytadi —
+    soxta uslub uydirmaslik; chaqiruvchi ``build_default_tone_prompt`` bilan
+    graceful fallback qiladi.
+    """
+    norm = normalize_dna_profile(profile)
+    if not norm:
+        return ""
+    sample = norm.get("sample_size")
+    if sample is None or int(sample) < MIN_POSTS_FOR_DNA:
+        return ""
+    code = _dna_lang_code(lang)
+    templates = _DNA2_SECTION_TEMPLATES[code]
+
+    # 1) Bazaviy blok — legacy/kengaytirilgan shablon (mavjud kontrakt).
+    canonical = {k: v for k, v in norm.items() if v not in (None, [])}
+    base = build_dna_system_prompt(canonical, lang=code)
+    if not base:
+        length = norm.get("average_post_length")
+        if length is None:
+            # Bazasiz hech qanday real ma'lumot yo'q — bo'sh (soxta blok yo'q).
+            return ""
+        base = templates["base_fallback"].format(length=int(length))
+
+    lines = [base]
+
+    # 2) Ohang (tone) — faqat REAL kuzatilgan tone bo'lsa.
+    tone = norm.get("tone_value")
+    tone_labels = DNA_TONE_LABELS[code]
+    if tone and tone in tone_labels:
+        lines.append(templates["tone"].format(tone=tone_labels[tone]))
+
+    # 3) Uzunlik afzalligi — real o'rtacha uzunlikdan.
+    length = norm.get("average_post_length")
+    if length is not None:
+        lines.append(templates["length"].format(length=int(length)))
+
+    # 4) CTA uslubi — faqat REAL kuzatilgan cta_style bo'lsa.
+    cta = norm.get("cta_style")
+    if cta and cta in CTA_STYLE_INSTRUCTIONS[code]:
+        lines.append(templates["cta"].format(
+            cta_label=label_for("cta_style", cta, code),
+            cta_rule=CTA_STYLE_INSTRUCTIONS[code][cta],
+        ))
+
+    # 5) Lug'at cheklovlari — til (profildan yoki so'rov tilidan) + ohang
+    #    leksikasi + real kuzatilgan mavzular (bo'lsa).
+    language_code = norm.get("language_value") or code
+    language_name = DNA_LANGUAGE_NAMES[code].get(language_code, language_code)
+    vocab_rule = VOCABULARY_RULES[code].get(
+        tone or "", VOCABULARY_RULES[code]["_default"])
+    topics = norm.get("topics_value") or []
+    topics_rule = templates["topics_rule"].format(
+        topics=", ".join(str(t) for t in topics[:3])) if topics else ""
+    lines.append(templates["vocab"].format(
+        language=language_name, vocab_rule=vocab_rule, topics_rule=topics_rule))
+
+    return "\n".join(lines)
+
+
+#: Qulay aliaslar (eksport uchun).
+build_channel_dna_prompt = build_dna_prompt_2
+build_dna_system_prompt_v2 = build_dna_prompt_2
+
+
+# ---------------------------------------------------------------------------
 # DB + ownership bilan asinxron xizmatlar — LEGACY + EXTENDED
 # ---------------------------------------------------------------------------
 def _import_database():
@@ -1030,14 +1394,25 @@ async def attach_dna_to_context(
     user_id: int | None,
     db_module: Any = None,
 ) -> dict:
-    """AI orkestrator kontekstiga Channel DNA ni ulaydi (ixcham prompt).
+    """AI orkestrator kontekstiga Channel DNA 2.0 ni ulaydi (ixcham prompt).
+
+    DNA 2.0 (STEP 3): post generatsiya promptiga kanalning **ohangi (tone)**,
+    **uzunlik afzalligi**, **CTA uslubi** va **lug'at cheklovlari** AVTOMATIK
+    ulanadi (``build_dna_prompt_2`` — faqat real profil ma'lumotlaridan).
 
     DNA faqat BARCHA shartlar bajarilganda ulanadi:
       * ``ctx`` da ``channel_id`` bor va ``skip_dna`` o'chirilmagan;
       * DB mavjud;
       * ``user_id`` berilgan bo'lsa — kanal AYNAN shu foydalanuvchining
-        (IDOR himoyasi);
+        (IDOR himoyasi — begona kanalga hech narsa, hatto standart ohang
+        ham ulanmaydi);
       * saqlangan profil mavjud va ``sample_size >= 5``.
+
+    GRACEFUL FALLBACK (STEP 3): kanal EGASI bo'lgan, lekin DNA hali tahlil
+    QILINMAGAN (profil yo'q yoki ``sample_size < 5``) bo'lsa — promptga
+    standart ohang bloki (``build_default_tone_prompt``) qo'shiladi va
+    ``ctx["channel_dna_default_tone"] = True`` belgilanadi. Hech qanday xato
+    ko'tarilmaydi, soxta metrika uydirmaydi.
 
     Natija: ``ctx["system_prompt"]`` ga ixcham DNA bloki QO'SHILADI (eski
     matn saqlanadi) + ``ctx["channel_dna_attached"] = True``. Fail-soft:
@@ -1052,7 +1427,10 @@ async def attach_dna_to_context(
         if not ch_id:
             return ctx
         db = db_module if db_module is not None else _import_database()
-        if db is None or not hasattr(db, "get_channel_intelligence_profile"):
+        if db is None or not (
+            hasattr(db, "get_channel_intelligence_profile")
+            or hasattr(db, "get_channel_dna_profile")
+        ):
             return ctx
         if user_id is not None:
             try:
@@ -1061,36 +1439,48 @@ async def attach_dna_to_context(
                 owner = None
             try:
                 if owner is None or int(owner) != int(user_id):
+                    # IDOR: begona kanal — kontekst O'ZGARMAYDI (standart
+                    # ohang ham ulanmaydi).
                     return ctx
             except (TypeError, ValueError):
                 return ctx
-        profile = await _db_call(db, db.get_channel_intelligence_profile, ch_id)
-        # Fallback to new table
-        if (not isinstance(profile, dict) or not profile) and hasattr(db, "get_channel_dna_profile"):
+
+        # 🧬 DNA 2.0: KENGAYTIRILGAN profil (channel_dna — tone/language/
+        # topics bilan) afzal; bo'lmasa legacy (channel_intelligence_profiles).
+        profile: Any = None
+        if hasattr(db, "get_channel_dna_profile"):
             try:
-                dna_profile = await _db_call(db, db.get_channel_dna_profile, ch_id)
-                if isinstance(dna_profile, dict):
-                    profile = dna_profile.get("profile") or dna_profile
+                dna_row = await _db_call(db, db.get_channel_dna_profile, ch_id)
+                if isinstance(dna_row, dict) and dna_row:
+                    profile = dna_row
             except Exception as _silent_exc:
-                log_silent_failure("services.channels.dna:attach_dna_to_context", _silent_exc, user_id=user_id)
-        if not isinstance(profile, dict) or not profile:
-            return ctx
-        sample = profile.get("sample_size")
-        if isinstance(sample, dict):
-            sample = sample.get("sample_size") or sample.get("value")
-        if sample is None:
-            # Try wrapped
-            al = profile.get("avg_length")
-            if isinstance(al, dict):
-                sample = al.get("sample_size")
-        if sample is None or int(sample) < MIN_POSTS_FOR_DNA:
-            return ctx
-        block = build_dna_system_prompt(profile, lang=str(ctx.get("lang") or "uz"))
-        if not block:
-            return ctx
+                log_silent_failure(
+                    "services.channels.dna:attach_dna_to_context:extended",
+                    _silent_exc, user_id=user_id)
+        if not profile and hasattr(db, "get_channel_intelligence_profile"):
+            try:
+                legacy = await _db_call(
+                    db, db.get_channel_intelligence_profile, ch_id)
+                if isinstance(legacy, dict) and legacy:
+                    profile = legacy
+            except Exception as _silent_exc:
+                log_silent_failure(
+                    "services.channels.dna:attach_dna_to_context:legacy",
+                    _silent_exc, user_id=user_id)
+
+        lang = str(ctx.get("lang") or "uz")
+        block = build_dna_prompt_2(profile, lang=lang) if profile else ""
         base = str(ctx.get("system_prompt") or "").strip()
-        ctx["system_prompt"] = f"{base}\n\n{block}".strip()
-        ctx["channel_dna_attached"] = True
+        if block:
+            ctx["system_prompt"] = f"{base}\n\n{block}".strip()
+            ctx["channel_dna_attached"] = True
+        else:
+            # 🧬 STEP 3 — GRACEFUL FALLBACK: DNA hali tahlil qilinmagan
+            # (yoki ma'lumot kam) — standart ohang bilan xatosiz davom etamiz.
+            default_block = build_default_tone_prompt(lang)
+            if default_block:
+                ctx["system_prompt"] = f"{base}\n\n{default_block}".strip()
+                ctx["channel_dna_default_tone"] = True
     except Exception as e:  # noqa: BLE001 — fail-soft, generatsiya uzilmaydi
         logger.debug("attach_dna_to_context xatosi: %s", e)
     return ctx
