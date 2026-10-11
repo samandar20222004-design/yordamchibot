@@ -38,7 +38,21 @@ from collections import OrderedDict, deque
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta, timezone
 
+from services.ai.cost_tracker import MODEL_PRICES as _COST_MODEL_PRICES
+from services.ai.usage_scope import action_type_for
+
 logger = logging.getLogger(__name__)
+
+#: Xarajat holati (STEP 1): narx jadvalida bor → ``priced``; cache → ``cached``;
+#: xato → ``failed``; narx jadvalida YO'Q model → ``unpriced`` (0 emas — ochiq belgi).
+COST_PRICED = "priced"
+COST_UNPRICED = "unpriced"
+COST_CACHED = "cached"
+COST_FAILED = "failed"
+COST_STATUSES: tuple[str, ...] = (COST_PRICED, COST_UNPRICED, COST_CACHED, COST_FAILED)
+
+#: Bir marta ogohlantirilgan narxsiz (provider, model) juftliklari (log spam yo'q).
+_UNPRICED_WARNED: set[tuple[str, str]] = set()
 
 # ---------------------------------------------------------------------------
 # Status qiymatlari (DB CHECK'i bilan bir xil: schema.sql → ai_usage_events)
@@ -86,28 +100,13 @@ class PriceSpec:
 #: satrida qidiriladi (prefiks mos kelishi yetarli). Jadvalda yo'q model
 #: uchun xarajat ``0.0`` + ``priced=False`` — "noma'lum" deb yoziladi va
 #: hisobotda ``unpriced_requests`` sifatida ajratiladi (soxta raqam yo'q).
-PRICE_TABLE: "OrderedDict[str, PriceSpec]" = OrderedDict([
-    # --- Google Gemini (bepul tarif mavjud; pullik tarif qiymatlari) --------
-    ("gemini-2.5-flash", PriceSpec(0.0003, 0.0025, "Gemini 2.5 Flash (list price)")),
-    ("gemini-2.5-pro", PriceSpec(0.00125, 0.01, "Gemini 2.5 Pro (list price)")),
-    ("gemini-2.0-flash", PriceSpec(0.0001, 0.0004, "Gemini 2.0 Flash (list price)")),
-    ("gemini", PriceSpec(0.0, 0.0, "Gemini — bepul tarif (free tier)")),
-    # --- Groq (Llama oilasi) ----------------------------------------------
-    ("llama-3.3-70b", PriceSpec(0.00059, 0.00079, "Groq Llama 3.3 70B (list price)")),
-    ("llama-3.1-8b", PriceSpec(0.00005, 0.00008, "Groq Llama 3.1 8B (list price)")),
-    ("llama", PriceSpec(0.0002, 0.0003, "Llama oilasi (o'rtacha baho)")),
-    ("groq", PriceSpec(0.0002, 0.0003, "Groq — o'rtacha baho")),
-    # --- OpenRouter / Mistral / Cerebras / SambaNova ----------------------
-    ("openrouter", PriceSpec(0.0005, 0.0015, "OpenRouter — o'rtacha baho")),
-    ("mistral", PriceSpec(0.0002, 0.0006, "Mistral — o'rtacha baho")),
-    ("cerebras", PriceSpec(0.0, 0.0, "Cerebras — bepul tarif")),
-    ("sambanova", PriceSpec(0.0, 0.0, "SambaNova — bepul tarif")),
-    # --- Bepul/belgilanmagan zanjir oxiri --------------------------------
-    ("cloudflare", PriceSpec(0.0, 0.0, "Cloudflare Workers AI — bepul tarif")),
-    ("pollinations", PriceSpec(0.0, 0.0, "Pollinations — bepul (kalitsiz)")),
-    ("mock", PriceSpec(0.0, 0.0, "Mock/soxta provayder — xarajat YO'Q")),
-    ("cache", PriceSpec(0.0, 0.0, "Keshdan javob — xarajat YO'Q")),
-])
+#: YAGONA narx manbai: :data:`services.ai.cost_tracker.MODEL_PRICES`.
+#: Bu jadval undan HOSILA (ikkinchi nusxa yo'q — narxlar ikki joyda farq
+#: qilmasin). Moslik: eng uzun kalit ustun (``price_spec``).
+PRICE_TABLE: "OrderedDict[str, PriceSpec]" = OrderedDict(
+    (key, PriceSpec(price.input_per_1k, price.output_per_1k, price.note))
+    for key, price in _COST_MODEL_PRICES.items()
+)
 
 #: Testlar/ops uchun override (model → PriceSpec); global jadvaldan ustun.
 _PRICE_OVERRIDES: dict[str, PriceSpec] = {}
@@ -133,24 +132,31 @@ def _price_key(provider: str | None, model: str | None) -> str:
     return f"{provider or ''} {model or ''}".strip().lower()
 
 
+def _longest_match(table, haystack: str):
+    best, best_len = None, 0
+    for key, spec in table.items():
+        if key and key in haystack and len(key) > best_len:
+            best, best_len = spec, len(key)
+    return best
+
+
 def price_spec(provider: str | None, model: str | None) -> PriceSpec:
-    """Provayder/model uchun narx (topilmasa — nol narx, ``priced=False``)."""
+    """Provayder/model uchun narx (topilmasa — nol narx, ``priced=False``).
+
+    Override'lar ustun; keyin yagona jadval — eng UZUN moslik.
+    """
     haystack = _price_key(provider, model)
-    for key, spec in _PRICE_OVERRIDES.items():
-        if key and key in haystack:
-            return spec
-    for key, spec in PRICE_TABLE.items():
-        if key in haystack:
-            return spec
+    found = _longest_match(_PRICE_OVERRIDES, haystack) or _longest_match(PRICE_TABLE, haystack)
+    if found is not None:
+        return found
     return PriceSpec(0.0, 0.0, "noma'lum model — narx jadvalda yo'q")
 
 
 def is_priced(provider: str | None, model: str | None) -> bool:
     """Bu juftlik uchun narx jadvalda BORmi (xarajat ma'nolimi)?"""
     haystack = _price_key(provider, model)
-    if any(key and key in haystack for key in _PRICE_OVERRIDES):
-        return True
-    return any(key in haystack for key in PRICE_TABLE)
+    return (_longest_match(_PRICE_OVERRIDES, haystack) is not None
+            or _longest_match(PRICE_TABLE, haystack) is not None)
 
 
 def estimate_cost(
@@ -204,15 +210,25 @@ class AIUsageEvent:
     prompt_hash: str = ""
     reservation_id: int | None = None
     created_at: float = field(default_factory=time.time)
+    #: Amal turi (STEP 1): ``post`` | ``vision`` | ``voice`` | ``audit``.
+    action_type: str = ""
+    #: Xarajat holati: ``priced`` | ``unpriced`` | ``cached`` | ``failed``.
+    cost_status: str = ""
 
     # -------------------------------------------------------------- yordamchi
     @property
     def total_tokens(self) -> int:
         return int(self.input_tokens or 0) + int(self.output_tokens or 0)
 
+    @property
+    def unpriced(self) -> bool:
+        """Muvaffaqiyatli, keshdan emas, lekin narxi noma'lum so'rov."""
+        return self.cost_status == COST_UNPRICED
+
     def as_dict(self) -> dict:
         data = asdict(self)
         data["total_tokens"] = self.total_tokens
+        data["unpriced"] = self.unpriced
         data["created_at_iso"] = datetime.fromtimestamp(
             float(self.created_at or 0), tz=timezone.utc
         ).isoformat()
@@ -254,6 +270,7 @@ def build_usage_event(
     reservation_id: int | None = None,
     latency_ms: int | None = None,
     cached: bool | None = None,
+    action_type: str | None = None,
 ) -> AIUsageEvent:
     """Gateway natijasidan kanonik telemetriya yozuvini quradi (yagona joy).
 
@@ -283,12 +300,36 @@ def build_usage_event(
         prompt_hash=prompt_hash(prompt),
         reservation_id=reservation_id,
     )
+    event.action_type = str(action_type or action_type_for(task, operation_type))
     event.priced = ok and is_priced(provider, model) and not event.cached
     event.estimated_cost = (
         estimate_cost(provider, model, event.input_tokens, event.output_tokens)
         if event.priced else 0.0
     )
+    event.cost_status = cost_status_for(
+        ok=ok, cached=event.cached, provider=provider, model=model)
     return event
+
+
+def cost_status_for(*, ok: bool, cached: bool, provider: str, model: str) -> str:
+    """Xarajat holatini belgilaydi (narxsiz model — ``unpriced``, $0 emas).
+
+    Narx jadvalida yo'q model uchun birinchi marta WARNING yoziladi
+    (``(provider, model)`` juftligi bo'yicha bir marta — log spam yo'q).
+    """
+    if cached:
+        return COST_CACHED
+    if not ok:
+        return COST_FAILED
+    if is_priced(provider, model):
+        return COST_PRICED
+    key = (str(provider or ""), str(model or ""))
+    if key not in _UNPRICED_WARNED:
+        _UNPRICED_WARNED.add(key)
+        logger.warning(
+            "AI narx jadvalida yo'q — xarajat 'unpriced' deb belgilandi "
+            "(provider=%s, model=%s)", key[0] or "-", key[1] or "-")
+    return COST_UNPRICED
 
 
 # ---------------------------------------------------------------------------
@@ -424,6 +465,7 @@ class UsageRecorder:
         by_model: dict[str, dict] = {}
         by_task: dict[str, dict] = {}
         by_lane: dict[str, dict] = {}
+        by_action: dict[str, dict] = {}
         by_day: dict[str, dict] = {}
         priced_requests = 0
         unpriced_requests = 0
@@ -457,10 +499,11 @@ class UsageRecorder:
             _bump(by_model.setdefault(str(event.model or "noma'lum"), _empty_bucket()))
             _bump(by_task.setdefault(str(event.task or "noma'lum"), _empty_bucket()))
             _bump(by_lane.setdefault(str(event.lane or "noma'lum"), _empty_bucket()))
+            _bump(by_action.setdefault(str(event.action_type or "post"), _empty_bucket()))
             if period == PERIOD_MONTHLY:
                 day = datetime.fromtimestamp(created, tz=timezone.utc).strftime("%Y-%m-%d")
                 _bump(by_day.setdefault(day, _empty_bucket()))
-            if event.status == STATUS_SUCCESS:
+            if event.status == STATUS_SUCCESS and not event.cached:
                 if event.priced:
                     priced_requests += 1
                 else:
@@ -489,6 +532,7 @@ class UsageRecorder:
             "by_model": {k: _finish_bucket(v) for k, v in sorted(by_model.items())},
             "by_task": {k: _finish_bucket(v) for k, v in sorted(by_task.items())},
             "by_lane": {k: _finish_bucket(v) for k, v in sorted(by_lane.items())},
+            "by_action": {k: _finish_bucket(v) for k, v in sorted(by_action.items())},
             "by_day": {k: _finish_bucket(v) for k, v in sorted(by_day.items())},
         }
 

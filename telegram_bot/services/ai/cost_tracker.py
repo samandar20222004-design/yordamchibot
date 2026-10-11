@@ -190,15 +190,39 @@ class CostBucket:
     input_tokens: int = 0
     output_tokens: int = 0
     cost_usd: float = 0.0
+    #: Narxi jadvalda bor muvaffaqiyatli so'rovlar (keshdan emas).
+    priced: int = 0
+    #: Narxi jadvalda YO'Q muvaffaqiyatli so'rovlar — ``unpriced`` (0 emas).
+    unpriced: int = 0
+    #: Keshdan qaytgan so'rovlar (xarajat 0 — bu «noma'lum» emas).
+    cached: int = 0
 
     def add(self, *, input_tokens: int, output_tokens: int, cost: float,
-            failed: bool = False) -> None:
+            failed: bool = False, priced: bool = False, unpriced: bool = False,
+            cached: bool = False) -> None:
         self.requests += 1
         if failed:
             self.failures += 1
+        if cached:
+            self.cached += 1
+        elif unpriced:
+            self.unpriced += 1
+        elif priced and not failed:
+            self.priced += 1
         self.input_tokens += max(0, int(input_tokens or 0))
         self.output_tokens += max(0, int(output_tokens or 0))
         self.cost_usd = round(self.cost_usd + max(0.0, float(cost or 0.0)), 6)
+
+    def merge(self, other: "CostBucket") -> None:
+        """Boshqa savat yig'indisini shu savatga qo'shadi."""
+        self.requests += other.requests
+        self.failures += other.failures
+        self.input_tokens += other.input_tokens
+        self.output_tokens += other.output_tokens
+        self.cost_usd = round(self.cost_usd + other.cost_usd, 6)
+        self.priced += other.priced
+        self.unpriced += other.unpriced
+        self.cached += other.cached
 
     def as_dict(self, rate: float | None = None) -> dict:
         return {
@@ -209,6 +233,9 @@ class CostBucket:
             "total_tokens": int(self.input_tokens) + int(self.output_tokens),
             "cost_usd": round(float(self.cost_usd), 6),
             "cost_uzs": usd_to_uzs(self.cost_usd, rate),
+            "priced_requests": int(self.priced),
+            "unpriced_requests": int(self.unpriced),
+            "cached_requests": int(self.cached),
         }
 
 
@@ -241,7 +268,8 @@ class CostLedger:
     def record(self, *, user_id, provider: str = "", model: str = "",
                input_tokens: int = 0, output_tokens: int = 0,
                cost: float | None = None, status: str = "success",
-               cached: bool = False, ts: float | None = None) -> dict:
+               cached: bool = False, ts: float | None = None,
+               cost_status: str | None = None, action_type: str = "") -> dict:
         """Bitta AI so'rovini qayd etadi va yozuv lug'atini qaytaradi.
 
         ``cost`` berilmasa — :func:`cost_usd` orqali narx jadvalidan
@@ -255,6 +283,14 @@ class CostLedger:
         if cost is None:
             cost = cost_usd(provider, model, input_tokens, output_tokens)
         priced = is_priced(provider, model)
+        if cost_status is None:
+            if cached:
+                cost_status = "cached"
+            elif failed:
+                cost_status = "failed"
+            else:
+                cost_status = "priced" if priced else "unpriced"
+        unpriced = (cost_status == "unpriced") and not failed and not cached
         entry = {
             "user_id": int(user_id) if user_id is not None else None,
             "provider": str(provider or ""),
@@ -262,7 +298,10 @@ class CostLedger:
             "input_tokens": max(0, int(input_tokens or 0)),
             "output_tokens": max(0, int(output_tokens or 0)),
             "cost_usd": round(max(0.0, float(cost or 0.0)), 6),
-            "priced": bool(priced),
+            "priced": bool(priced) and not cached,
+            "unpriced": bool(unpriced),
+            "cost_status": str(cost_status),
+            "action_type": str(action_type or ""),
             "status": "failed" if failed else "success",
             "cached": bool(cached),
             "at": moment.isoformat(),
@@ -273,12 +312,14 @@ class CostLedger:
         with self._lock:
             daily = self._touch(self._daily, uid)
             monthly = self._touch(self._monthly, uid)
+            flags = dict(failed=failed, priced=entry["priced"],
+                         unpriced=entry["unpriced"], cached=bool(cached))
             bucket = daily.setdefault(_day_key(moment), CostBucket())
             bucket.add(input_tokens=input_tokens, output_tokens=output_tokens,
-                       cost=entry["cost_usd"], failed=failed)
+                       cost=entry["cost_usd"], **flags)
             month_bucket = monthly.setdefault(_month_key(moment), CostBucket())
             month_bucket.add(input_tokens=input_tokens, output_tokens=output_tokens,
-                             cost=entry["cost_usd"], failed=failed)
+                             cost=entry["cost_usd"], **flags)
             self._trim(daily, self._daily_keep)
             self._trim(monthly, self._monthly_keep)
         return entry
@@ -299,6 +340,8 @@ class CostLedger:
                 cost=(event or {}).get("estimated_cost"),
                 status=(event or {}).get("status") or "success",
                 cached=bool((event or {}).get("cached")),
+                cost_status=(event or {}).get("cost_status") or None,
+                action_type=str((event or {}).get("action_type") or ""),
             )
         except Exception:  # pragma: no cover — himoya
             logger.debug("cost_tracker: yozuvda xato", exc_info=True)
@@ -329,11 +372,7 @@ class CostLedger:
             total = CostBucket()
             with self._lock:
                 for bucket_day in (self._monthly.get(int(user_id)) or {}).values():
-                    total.requests += bucket_day.requests
-                    total.failures += bucket_day.failures
-                    total.input_tokens += bucket_day.input_tokens
-                    total.output_tokens += bucket_day.output_tokens
-                    total.cost_usd = round(total.cost_usd + bucket_day.cost_usd, 6)
+                    total.merge(bucket_day)
             bucket = total
         else:
             bucket = self.user_bucket(user_id, "daily", moment)
@@ -354,11 +393,7 @@ class CostLedger:
                 bucket = user_days.get(key)
                 if bucket is None:
                     continue
-                total.requests += bucket.requests
-                total.failures += bucket.failures
-                total.input_tokens += bucket.input_tokens
-                total.output_tokens += bucket.output_tokens
-                total.cost_usd = round(total.cost_usd + bucket.cost_usd, 6)
+                total.merge(bucket)
         data = total.as_dict(rate)
         data.update({"period": period, "source": "memory"})
         return data

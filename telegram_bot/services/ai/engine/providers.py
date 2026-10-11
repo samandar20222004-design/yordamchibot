@@ -97,14 +97,18 @@ async def execute_provider(
     from services.ai import fallback as ai_service
     from utils import ai_agent as aa
 
+    from services.ai.usage_scope import model_note
+
     params = aa.get_runtime_params()
     started = time.monotonic()
-    result = await asyncio.wait_for(
-        handle.provider.complete(
-            prompt, system_instruction, params, deadline=time.monotonic() + timeout
-        ),
-        timeout=max(0.1, float(timeout)),
-    )
+    # Haqiqiy model izi: adapter ``note_model`` orqali qayd etadi (STEP 1).
+    with model_note() as note:
+        result = await asyncio.wait_for(
+            handle.provider.complete(
+                prompt, system_instruction, params, deadline=time.monotonic() + timeout
+            ),
+            timeout=max(0.1, float(timeout)),
+        )
     if not isinstance(result, dict):
         raise ai_service.AIProviderError(
             0, f"{handle.name}: javob formati noto'g'ri ({type(result).__name__})",
@@ -115,6 +119,8 @@ async def execute_provider(
     if not checked.is_valid:
         raise OutputQualityError(checked.error_code)
     result = {"text": checked.text}
+    if note.model:
+        result["model"] = note.model
     logger.info("AI Engine: %s %.2fs ichida javob berdi", handle.name,
                 time.monotonic() - started)
     return result

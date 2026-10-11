@@ -35,6 +35,39 @@ logger = logging.getLogger(__name__)
 #: Kesh yozuvi prefiksi (diagnostika/loglar uchun qulay).
 KEY_PREFIX = "aicache:"
 
+#: Kesh kalitining sxema versiyasi (kalit tarkibi o'zgarsa — bump qilinadi).
+CACHE_SCHEMA_VERSION = "ck2"
+
+#: Kesh kaliti tarkibiga kiruvchi model-ro'yxat nomlari (birinchi model har provayder).
+_MODEL_LIST_ATTRS: tuple[str, ...] = (
+    "GEMINI_MODELS", "GROQ_MODELS", "OPENROUTER_MODELS", "MISTRAL_MODELS",
+    "CEREBRAS_MODELS", "SAMBANOVA_MODELS", "CLOUDFLARE_MODELS",
+)
+
+
+def model_version() -> str:
+    """Kesh kaliti uchun MODEL VERSIYASI (STEP 1).
+
+    Tarkib: sxema versiyasi + ops tomonidan qo'lda berilgan ``AI_MODEL_VERSION``
+    + har provayderning birlamchi modeli (``utils.ai_agent`` ro'yxatlaridan).
+    Model almashtirilsa (yoki ``AI_MODEL_VERSION`` o'zgartirilsa) eski kesh
+    javoblari YANGI kalit ostida qolib, eski model javobi qaytmaydi.
+    ``utils.ai_agent`` lazy import qilinadi (kalit chaqiruvlar orasida
+    o'zgarmasligi uchun).
+    """
+    tag = str(os.getenv("AI_MODEL_VERSION", "") or "").strip()
+    try:
+        # Lazy import: birinchi chaqiruvda ham, keyingilarda ham BIR XIL qiymat
+        # (modul hali yuklanmagan bo'lsa ham kalit barqaror bo'lsin).
+        from utils import ai_agent as aa
+    except Exception:  # noqa: BLE001 — model ro'yxati bo'lmasa — bo'sh tarkib
+        aa = None
+    primary: list[str] = []
+    for attr in _MODEL_LIST_ATTRS:
+        models = getattr(aa, attr, None) or [] if aa is not None else []
+        primary.append(str(models[0]) if models else "")
+    return "|".join([CACHE_SCHEMA_VERSION, tag, ",".join(primary)])
+
 
 def cache_ttl() -> float:
     """Kesh TTL (soniya). ``AI_CACHE_TTL`` env (default 900s = 15 daqiqa)."""
@@ -103,14 +136,20 @@ def cache_key(
     is_pro: bool = False,
     system_instruction: str = "",
     extra: str = "",
+    channel_context: str = "",
+    model_version: str = "",
 ) -> str:
     """Deterministik kesh kaliti (sha256).
 
-    Bir xil (lane, task, lang, tone, is_pro, system, prompt) → BITTA kalit.
+    Kalit TARKIBI (STEP 1 — qat'iy): ``channel_dna`` konteksti, prompt,
+    til (lang), model versiyasi, shuningdek lane/task/tone/tarif/tizim
+    ko'rsatmasi. Bir xil tarkib → BITTA kalit; boshqa kanal DNA'si, boshqa
+    til yoki boshqa model → BOSHQA kalit (bir-birining javobini qaytarmaydi).
     Provayder nomi ATAYLAB kiritilmagan: fallback boshqa provayderga
-    o'tsa ham javob bir xil kalitga yoziladi.
+    o'tsa ham javob bir xil kalitga yoziladi (model versiyasi bilan).
     """
     payload = "|".join([
+        CACHE_SCHEMA_VERSION,
         str(lane or "").strip().upper(),
         canonical_prompt(task),
         canonical_prompt(lang).lower(),
@@ -119,6 +158,8 @@ def cache_key(
         canonical_prompt(system_instruction),
         canonical_prompt(prompt),
         canonical_prompt(extra),
+        "ch:" + canonical_prompt(channel_context),
+        "mv:" + canonical_prompt(model_version),
     ])
     digest = hashlib.sha256(payload.encode("utf-8")).hexdigest()
     return f"{KEY_PREFIX}{digest}"
