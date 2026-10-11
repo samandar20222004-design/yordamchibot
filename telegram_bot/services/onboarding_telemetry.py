@@ -252,6 +252,21 @@ def record_first_post(user_id, ts: float | None = None) -> None:
         _trim(_first_posts)
 
 
+def record_first_value(user_id, ts: float | None = None) -> None:
+    """🌱 STEP 2 — TTFV (Time-To-First-Value) atama alias'i.
+
+    TTFV = ``/start`` → birinchi post GENERATSIYASI/rejalashtirilishi.
+    O'lchov mexanizmi TTFP bilan AYNAN bir xil (``record_start`` +
+    ``record_first_post``): bu funksiya uni chaqiradi (idempotent —
+    birinchi qiymat ustuvor, keyingilar e'tiborsiz).
+    """
+    record_first_post(user_id, ts=ts)
+
+
+#: 🌱 STEP 2 — TTFV hisobi TTFP formulasi bilan bir xil (atama alias'i).
+ttfv_seconds = ttfp_seconds
+
+
 def _trim(store: dict) -> None:
     while len(store) > _MAX_EVENTS:
         store.pop(next(iter(store)))
@@ -302,6 +317,44 @@ def reset_cache() -> None:
     """Keshni tozalaydi (testlar / yangi ma'lumot uchun)."""
     with _LOCK:
         _cache.update({"at": 0.0, "days": None, "rows": None})
+        _ref_cache.update({"at": 0.0, "days": None, "stats": None})
+
+
+#: 🌱 STEP 2 — referal konversiyasi statistikasi uchun alohida TTL kesh
+#: (kohorta keshi bilan bir xil umr; /stats ketma-ket bosilganda takror
+#: so'rov ketmaydi).
+_ref_cache: dict = {"at": 0.0, "days": None, "stats": None}
+
+
+def fetch_referral_stats(db_module, days: int = DEFAULT_WINDOW_DAYS,
+                         *, ttl: int = FETCH_CACHE_TTL) -> dict:
+    """🌱 STEP 2 — AKTIV REFERAL KONVERSIYASI (``/stats`` ekrani uchun).
+
+    ``db_module.get_referral_conversion_stats(days)`` natijasi: oxirgi
+    ``days`` kunlik kohortada referrer havolasi bilan kirganlar va shulardan
+    BIRINCHI YAROQLI AMALNI (post yaratish/rejalashtirish — mukofot aynan
+    shunda beriladi) bajarganlar ulushi. Funktsiya bazada YO'Q bo'lsa
+    (eski test-fake'lar) yoki xato bersa — bo'sh dict (fail-soft: gauge
+    bloki shunchaki chizilmaydi, ekran yiqilmaydi).
+    """
+    if db_module is None or not hasattr(db_module, "get_referral_conversion_stats"):
+        return {}
+    moment = time.time()
+    with _LOCK:
+        if (_ref_cache["stats"] is not None and _ref_cache["days"] == int(days)
+                and (moment - float(_ref_cache["at"])) < max(0, int(ttl))):
+            return dict(_ref_cache["stats"])
+    try:
+        stats = db_module.get_referral_conversion_stats(int(days))
+    except Exception as exc:  # noqa: BLE001 — best-effort
+        logger.warning("Referral konversiya statistikasini olishda xato: %s", exc)
+        return {}
+    if not isinstance(stats, dict) or not stats:
+        return {}
+    stats = dict(stats)
+    with _LOCK:
+        _ref_cache.update({"at": moment, "days": int(days), "stats": stats})
+    return dict(stats)
 
 
 def fetch_cohort(db_module, days: int = DEFAULT_WINDOW_DAYS,
@@ -330,10 +383,19 @@ def fetch_cohort(db_module, days: int = DEFAULT_WINDOW_DAYS,
 
 def fetch_report(db_module, days: int = DEFAULT_WINDOW_DAYS, *, now=None,
                  ttl: int = FETCH_CACHE_TTL) -> dict:
-    """Kohortadan to'liq hisobot (baza + jarayon xotirasi)."""
+    """Kohortadan to'liq hisobot (baza + jarayon xotirasi).
+
+    🌱 STEP 2: baza moduli ``get_referral_conversion_stats`` ni bilsa,
+    hisobotga ``"referral"`` bloki ham qo'shiladi (aktiv referal
+    konversiyasi — /stats ekrani shu qatordan chizadi). Bilmasa (eski
+    fake'lar) — hisobot O'ZGARMAYDI (orqa moslik).
+    """
     rows = fetch_cohort(db_module, days, ttl=ttl)
     report = build_report(rows, now=now, window_days=days)
     report["source"] = "db"
+    referral = fetch_referral_stats(db_module, days, ttl=ttl)
+    if referral:
+        report["referral"] = referral
     memory = in_memory_report(now=now)
     if memory.get("started"):
         report["memory"] = memory
@@ -347,14 +409,17 @@ __all__ = [
     "SAME_DAY_TTFP_SECONDS",
     "build_report",
     "fetch_cohort",
+    "fetch_referral_stats",
     "fetch_report",
     "in_memory_report",
     "parse_moment",
     "record_first_post",
+    "record_first_value",
     "record_start",
     "reset",
     "reset_cache",
     "retention_rates",
     "summarize_ttfp",
     "ttfp_seconds",
+    "ttfv_seconds",
 ]

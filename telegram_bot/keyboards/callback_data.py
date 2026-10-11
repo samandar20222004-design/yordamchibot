@@ -182,6 +182,16 @@ CB_MORNING_DIGEST_DISABLE = "md_disable"
 CB_MORNING_DIGEST_CANCEL = "md_cancel"
 CB_UZ_CALENDAR_CREATE = "uzcal_create:"
 
+# 🌱 STEP 2 (ORGANIC GROWTH) — AI post GENERATSIYASI preview'sining ACTION
+# tugmalari: [📋 Nusxalash] [🔄 Yangi variant] [🔗 Do'stlarga ulashish
+# (IXTIYORIY)]. [📅 Rejalashtirish] (``ai_studio_sched``) mavjud joyida
+# qoldi — preview ekrani o'zgarmaydi, faqat amallar to'plami to'liqlashdi.
+# Ulashish kanal publishing zanjiriga ULANMAYDI (postlarga reklama/referral
+# matn qo'shilmaydi — NO forced ads).
+CB_AI_COPY = "ai_copy"
+CB_AI_REGEN = "ai_regen"
+CB_AI_SHARE_REF = "ai_share_ref"
+
 #: Barcha kanonik prefikslar (test va audit uchun).
 CANONICAL_PREFIXES = (
     CB_CHANNEL_DELETE,
@@ -356,6 +366,8 @@ REGISTERED_STATIC_CALLBACKS = frozenset({
     "aip_back", "aip_cancel", "ai_post_cancel", "ai_post_retry",
     "ai_post_schedule", "ai_close", "ai_back_to_content", "ai_back_to_menu",
     "ai_menu", "ai_studio_sched",
+    # 🌱 STEP 2 — AI generatsiya preview'sining action tugmalari.
+    "ai_copy", "ai_regen", "ai_share_ref",
     # 🤖 AI Studio (payload'siz).
     "studio_close", "studio_ai_post", "studio_ai_audit", "studio_extract",
     "studio_content_plan", "studio_ai_photo",

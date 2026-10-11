@@ -20,6 +20,7 @@ from services.ai.progress import AIProgressReporter
 from keyboards.inline import (
     get_ai_studio_keyboard, get_ai_back_keyboard, get_ai_tone_keyboard,
     get_ai_photo_keyboard, get_ai_confirm_keyboard, AI_TONE_KEYS,
+    get_referral_share_keyboard,
 )
 from utils.ai_agent import (
     analyze_user_prompt, extract_schedule_time, clear_ai_context,
@@ -1326,6 +1327,17 @@ async def _studio_generate_and_preview(update: Update, context: ContextTypes.DEF
             except Exception as _e:
                 logger.warning("AI Studio auto audit (PRO) xatosi: %s", _e)
 
+    # ⏱ STEP 2 — TTFV (Time-To-First-Value): "birinchi post GENERATSIYASI"
+    # momenti jarayon xotirasida belgilanadi (/start → ``record_start``;
+    # birinchi generatsiya/rejalashtirish → ``record_first_post``).
+    # Best-effort: telemetriya preview oqimini HECH QACHON buzmaydi.
+    try:
+        from services.onboarding_telemetry import record_first_post
+
+        record_first_post(user_id)
+    except Exception:  # noqa: BLE001 — analitika best-effort
+        logger.debug("TTFV generatsiya belgisi qo'yilmadi (user=%s)", user_id)
+
     context.user_data["studio_topic"] = text_input
     context.user_data["studio_post_text"] = post_text
     context.user_data["studio_tone"] = "friendly"
@@ -1341,14 +1353,22 @@ async def _studio_generate_and_preview(update: Update, context: ContextTypes.DEF
 
 
 async def ai_tone_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """AI_TONE_SELECT: tanlangan uslubda postni QAYTA generatsiya qiladi."""
+    """AI_TONE_SELECT: tanlangan uslubda qayta generatsiya qiladi.
+
+    🌱 STEP 2: ``ai_regen`` ([🔄 Yangi variant]) ham shu yadro orqali
+    ishlaydi (kvota/rate-limit qoidalari uslub almashish bilan bir xil).
+    """
     query = update.callback_query
     await query.answer()  # SPEKS: darhol answer — tugma "yopishib" qolmaydi
     user_id = query.from_user.id
     is_admin = (user_id in ADMIN_IDS_SET)
     lang = get_lang(context)
 
-    tone = (query.data or "").split(":", 1)[-1]
+    data = query.data or ""
+    if data == "ai_regen":
+        tone = context.user_data.get("studio_tone") or "friendly"
+    else:
+        tone = data.split(":", 1)[-1]
     if tone not in AI_TONE_KEYS:
         return AI_TONE_SELECT
 
@@ -1479,6 +1499,74 @@ async def ai_studio_schedule_callback(update: Update, context: ContextTypes.DEFA
         lang,
     )
     return AI_GET_TIME
+
+
+#: 🌱 STEP 2 — [📋 Nusxalash] uchun yuboriladigan <code> bloki chegarasi
+#: (Telegram xabar limiti 4096; teg/hint uchun joy qoldiriladi).
+AI_COPY_MAX_CHARS = 3800
+
+
+async def ai_copy_post_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """🌱 STEP 2 — [📋 Nusxalash]: post matni alohida xabarda <code> blokida
+    yuboriladi (bosilsa to'liq nusxalanadi); preview ekrani O'ZGARMAYDI."""
+    query = update.callback_query
+    lang = get_lang(context)
+    post_text = (context.user_data.get("studio_post_text") or "").strip()
+    await query.answer(
+        safe_t("ai_copy_done" if post_text else "ai_copy_empty", lang),
+        show_alert=False,
+    )
+    if not post_text:
+        # Eski sessiya (matn saqlanmagan) — preview buzilmaydi, faqat toast.
+        return AI_TONE_SELECT
+    snippet = post_text[:AI_COPY_MAX_CHARS]
+    try:
+        await query.message.reply_text(
+            f"<code>{html_escape(snippet)}</code>\n\n"
+            f"{safe_t('conv_copy_hint', lang)}",
+            parse_mode="HTML",
+        )
+    except Exception as _silent_exc:
+        log_silent_failure(
+            "handlers.ai_assistant:ai_copy_post_callback", _silent_exc, lang=lang)
+    return AI_TONE_SELECT
+
+
+async def ai_share_referral_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """🌱 STEP 2 — [🔗 Do'stlarga] (IXTIYORIY): referal havolasi alohida
+    xabarda; publishing zanjiri ajratilgan — postlarga reklama QO'SHILMAYDI."""
+    query = update.callback_query
+    await query.answer()  # SPEKS: darhol answer
+    lang = get_lang(context)
+    # XAVFSIZLIK KAFOLATI: bu oqim kanal publishing zanjiridan (scheduler,
+    # ``compose_post_text``, delivery) TO'LIQ AJRATILGAN — ulashish hech
+    # qanday post mazmunini o'zgartirmaydi, kanal postlariga MAJBURIY
+    # REKLAMA yoki referal matn qo'shmaydi va ad_free sozlamalarini
+    # o'zgartirmaydi (NO forced ads in published channel posts).
+    user_id = query.from_user.id
+    bot_username = ""
+    try:
+        bot_obj = await context.bot.get_me()
+        bot_username = str(getattr(bot_obj, "username", "") or "")
+    except Exception as _silent_exc:
+        log_silent_failure(
+            "handlers.ai_assistant:ai_share_referral_callback:get_me",
+            _silent_exc, lang=lang)
+    if not bot_username:
+        await query.answer(safe_t("sys_error_short", lang), show_alert=False)
+        return AI_TONE_SELECT
+    ref_link = f"https://t.me/{bot_username}?start=ref_{user_id}"
+    try:
+        await query.message.reply_text(
+            safe_t("ai_share_ref_text", lang, link=html_escape(ref_link)),
+            reply_markup=get_referral_share_keyboard(ref_link, lang),
+            parse_mode="HTML",
+        )
+    except Exception as _silent_exc:
+        log_silent_failure(
+            "handlers.ai_assistant:ai_share_referral_callback", _silent_exc,
+            lang=lang)
+    return AI_TONE_SELECT
 
 
 async def ai_audit_received(update: Update, context: ContextTypes.DEFAULT_TYPE):

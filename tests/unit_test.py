@@ -6715,8 +6715,16 @@ def test_ai_studio_i18n_suite():
     tk_ru = get_ai_tone_keyboard("friendly", "ru")
     tk_ru_labels = [b.text for row in tk_ru.inline_keyboard for b in row]
     tk_ru_cbs = [b.callback_data for row in tk_ru.inline_keyboard for b in row]
-    check("tone kb ru: 4 uslub + rejalashtirish + 2 nav = 7 tugma",
-          len(tk_ru_cbs) == 7, str(tk_ru_cbs))
+    # 🌱 STEP 2 (ORGANIC GROWTH): tone preview klaviaturasiga ACTION
+    # tugmalari qo'shildi — [📋 Nusxalash] [🔄 Yangi variant] [🔗 Do'stlarga
+    # ulashish]. Uslub qatorlari va [📅 Rejalashtirish] o'z joyida (ekran
+    # o'zgarmadi, faqat amallar to'plami to'liqlashdi): 4 uslub + 1
+    # rejalashtirish + 3 action + 2 nav = 10 tugma.
+    check("tone kb ru: 4 uslub + rejalashtirish + 3 action + 2 nav = 10 tugma",
+          len(tk_ru_cbs) == 10, str(tk_ru_cbs))
+    check("tone kb ru: STEP 2 action tugmalari (copy/regen/share_ref)",
+          all(c in tk_ru_cbs for c in ("ai_copy", "ai_regen", "ai_share_ref")),
+          str(tk_ru_cbs))
     check("tone kb ru: ai_tone callback",
           all(f"ai_tone:{t}" in tk_ru_cbs for t in AI_TONE_KEYS), str(tk_ru_cbs))
     check("tone kb ru: friendly tarjimasi",

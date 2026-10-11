@@ -2270,3 +2270,56 @@ async def uzbekistan_calendar_reminders_job(bot=None, today=None):
             logger.info("Calendar reminder not delivered (user=%s)", user_id, exc_info=True)
     logger.info("Calendar reminders completed: sent=%s skipped=%s", sent, skipped)
     return {"sent": sent, "skipped": skipped}
+
+
+async def referral_reward_notices_job(bot=None):
+    """🌱 STEP 2 — referal KONVERSIYA bildirishnomalari job'i (har 1 daq.).
+
+    ``ReferralService.register_first_action`` (post yaratish/rejalashtirish
+    hook'lari orqali) mukofot haqidagi bildirishnomalarni jarayon ichidagi
+    cheklangan navbatga qo'yadi — repository qatlami ``bot`` obyektini
+    to'g'ridan-to'g'ri ushlab tura olmaydi. Shu job har bir siklda navbatdan
+    ko'pi bilan 25 ta bildirishnomani oladi va referrerga mavjud
+    ``referral_reward_notice`` xabarini yuboradi (do'st BIRINCHI postini
+    yaratdi → bonus hisobga tushdi).
+
+    Kafolatlar:
+    * fail-soft — bitta xabar xatosi (masalan, foydalanuvchi bot'ni bloklagan)
+      job'ni yiqitmaydi;
+    * ``bot`` bo'lmasa / navbat bo'sh bo'lsa — ``{"sent": 0, "skipped": 0}``;
+    * mukofotning O'ZI DB tranzaksiyasida atomik beriladi — bu bildirishnoma
+      shunchaki xushmuomalalik (yetib bormasa ball taqdiriga ta'sir qilmaydi).
+    """
+    if bot is None:
+        return {"sent": 0, "skipped": 0}
+    try:
+        from services.referral_service import pop_reward_notices
+
+        notices = pop_reward_notices(limit=25)
+    except Exception:  # noqa: BLE001 — job hech qachon yiqilmaydi
+        logger.info("Referral bildirishnoma navbatini o'qishda xato", exc_info=True)
+        return {"sent": 0, "skipped": 0}
+    if not notices:
+        return {"sent": 0, "skipped": 0}
+
+    from locales.translations import get_text
+    from services.retention import normalize_lang
+
+    sent = skipped = 0
+    for notice in notices:
+        try:
+            referrer_id = int(notice.get("referrer_id"))
+            reward = int(notice.get("reward") or 0)
+            lang = normalize_lang(await db.run_db(db.get_user_language, referrer_id))
+            await bot.send_message(
+                chat_id=referrer_id,
+                text=get_text("referral_reward_notice", lang, reward=reward),
+                parse_mode="HTML",
+            )
+            sent += 1
+        except Exception:
+            skipped += 1
+            logger.info("Referral mukofot bildirishnomasi yetib bormadi (notice=%s)",
+                        notice, exc_info=True)
+    logger.info("Referral reward notices: sent=%s skipped=%s", sent, skipped)
+    return {"sent": sent, "skipped": skipped}

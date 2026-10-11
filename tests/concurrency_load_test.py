@@ -819,7 +819,12 @@ def test_parallel_payments() -> None:
 
 
 def test_parallel_referral() -> None:
-    print("\n-- DB: 25 parallel /start ref_<bir xil referrer> (bonus race) --")
+    # 🌱 STEP 2 — IKKI FAZALI referal poygasi: (1) 25 parallel /start
+    # ref_<bir xil referrer> — faqat ATTRIBUTION (bonus yo'q); (2) 25
+    # parallel BIRINCHI AMAL (register_first_action) — mukofot shu fazada,
+    # hot-row (referrer) poygasi FOR UPDATE qulfi bilan ketma-ketlashtiriladi.
+    print("\n-- DB: 25 parallel /start + 25 parallel birinchi amal "
+          "(STEP 2 action-based bonus race) --")
     from services.referral_service import ReferralService
 
     referrer = BASE + 930000
@@ -834,6 +839,7 @@ def test_parallel_referral() -> None:
     _db._invalidate_user(referrer)
     cleanup_users(new_users)
 
+    # --- FAZA 1: parallel /start (attribution, bonus YO'Q) -----------------
     results, errors, elapsed = _run_threads(
         [lambda u=u: ReferralService.register_new_user(
             u, f"load_{u}", "Load User", referrer_id=referrer)
@@ -841,8 +847,8 @@ def test_parallel_referral() -> None:
         workers=25, timeout=120.0)
 
     new_ok = [r for r in results if r.get("is_new")]
-    check(f"referral race: deadlock/timeout yo'q ({elapsed:.1f}s)", not errors,
-          str(errors[:2]))
+    check(f"referral race: /start fazasida deadlock/timeout yo'q ({elapsed:.1f}s)",
+          not errors, str(errors[:2]))
     check("referral race: 25 ta yangi foydalanuvchi ro'yxatdan o'tdi",
           len(new_ok) == 25, f"is_new={len(new_ok)}")
     check("referral race: barchasiga referrer biriktirildi",
@@ -851,8 +857,37 @@ def test_parallel_referral() -> None:
         "SELECT COUNT(*) FROM users WHERE referrer_id = %s", (referrer,)))
     check("referral race: bazada 25 ta biriktirilgan do'st", attached == 25,
           f"attached={attached}")
+    check("referral race: STEP 2 — /start da hech kimga bonus berilmadi",
+          all(int(r.get("reward") or 0) == 0 for r in new_ok),
+          str(sorted(int(r.get("reward") or 0) for r in new_ok)))
+    check("referral race: STEP 2 — barchasi pending_first_action",
+          all(r.get("reward_status") == "pending_first_action" for r in new_ok),
+          str({r.get("reward_status") for r in new_ok}))
+    balance0 = int(_scalar("SELECT ai_credits FROM users WHERE user_id = %s",
+                           (referrer,)))
+    ledger0 = int(_scalar(
+        "SELECT COUNT(*) FROM credits_ledger WHERE user_id = %s "
+        "AND operation_type = 'referral'", (referrer,)))
+    check("referral race: /start fazasidan keyin referrer balansi 0, ledger bo'sh",
+          balance0 == 0 and ledger0 == 0,
+          f"balance={balance0} ledger={ledger0}")
 
-    rewards = [int(r.get("reward") or 0) for r in new_ok]
+    # --- FAZA 2: 25 parallel BIRINCHI AMAL (konversiya → bonus) -----------
+    conv_results, conv_errors, conv_elapsed = _run_threads(
+        [lambda u=u: ReferralService.register_first_action(u)
+         for u in new_users],
+        workers=25, timeout=180.0)
+
+    granted = [r for r in conv_results if r.get("granted")]
+    check(f"referral race: amal fazasida deadlock/timeout yo'q "
+          f"({conv_elapsed:.1f}s)", not conv_errors, str(conv_errors[:2]))
+    check("referral race: 25 konversiya — 25 mukofot (har biri 1 marta)",
+          len(granted) == 25, f"granted={len(granted)}")
+    check("referral race: takroriy grant yo'q (granted=False natija yo'q)",
+          all(r.get("granted") for r in conv_results),
+          str([r for r in conv_results if not r.get("granted")][:2]))
+
+    rewards = [int(r.get("reward") or 0) for r in granted]
     expected_total = int(_db.total_referral_reward(25)) if hasattr(
         _db, "total_referral_reward") else sum(
         [3, 3, 3] + [1] * 22)
@@ -875,6 +910,11 @@ def test_parallel_referral() -> None:
         "WHERE s.run <> s.balance_after", (referrer,)))
     check("referral race: ledger balance_after zanjiri uzilmagan", chain_ok == 0,
           f"broken={chain_ok}")
+    rewarded = int(_scalar(
+        "SELECT COUNT(*) FROM users WHERE referrer_id = %s "
+        "AND referral_rewarded_at IS NOT NULL", (referrer,)))
+    check("referral race: 25 do'stning barchasi rewarded deb belgilangan",
+          rewarded == 25, f"rewarded={rewarded}")
     cleanup_users(new_users + [referrer])
 
 

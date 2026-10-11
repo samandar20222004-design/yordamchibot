@@ -265,6 +265,18 @@ def _build_launch_gauges_text(report: dict, lang: str = "uz") -> str:
             returned=int(row.get("returned") or 0),
             eligible=int(row.get("eligible") or 0),
         ))
+    # 🌱 STEP 2 — AKTIV REFERAL KONVERSIYASI: referrer havolasi bilan
+    # kirganlardan nechtaasi BIRINCHI postini yaratgan (mukofot aynan
+    # shu amal uchun beriladi). Blok FAQAT ``report["referral"]``
+    # mavjud bo'lganda chiziladi — eski hisobotlar matni o'zgarmaydi.
+    referral = report.get("referral") or {}
+    if isinstance(referral, dict) and referral.get("referred_total") is not None:
+        lines.append(admin_t(
+            "lg_referral_conv", lang,
+            percent=f"{float(referral.get('rate') or 0.0) * 100:.0f}",
+            converted=int(referral.get("converted") or 0),
+            referred=int(referral.get("referred_total") or 0),
+        ))
     return "\n".join(lines)
 
 

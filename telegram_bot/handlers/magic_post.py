@@ -534,6 +534,16 @@ async def magic_style_callback(update: Update, context: ContextTypes.DEFAULT_TYP
     context.user_data["magic_style"] = result.get("style", style)
     context.user_data["magic_usage_counted"] = False
 
+    # ⏱ STEP 2 — TTFV (Time-To-First-Value): birinchi post GENERATSIYASI
+    # jarayon xotirasida belgilanadi (/start → record_start). Best-effort:
+    # telemetriya xatosi natija ekranini HECH QACHON buzmaydi.
+    try:
+        from services.onboarding_telemetry import record_first_post
+
+        record_first_post(user_id)
+    except Exception:  # noqa: BLE001 — analitika best-effort
+        logger.debug("TTFV generatsiya belgisi qo'yilmadi (user=%s)", user_id)
+
     result_text = _magic_result_text(
         post_text, result.get("style", style), lang,
         topic=(context.user_data.get("magic_raw_text") or "").strip(),

@@ -206,6 +206,7 @@ from handlers.ai_assistant import (
     start_ai_assistant, ai_input_received, ai_confirm_callback, ai_time_received,  # noqa: F401
     ai_studio_menu_entry, ai_studio_hub_entry, ai_studio_nav_callback, ai_prompt_received,
     ai_tone_callback, ai_studio_schedule_callback, ai_audit_received,
+    ai_copy_post_callback, ai_share_referral_callback,
     ai_back_to_menu, ai_close,
     ai_back_to_content, ai_exit_to_menu,  # noqa: F401
     ai_photo_received, ai_photo_result_callback, ai_photo_edit_received,
@@ -1834,6 +1835,13 @@ def _ai_assistant_states(all_menu_jumps):
         AI_TONE_SELECT: all_menu_jumps + [
             CallbackQueryHandler(ai_tone_callback, pattern=r"^ai_tone:"),
             CallbackQueryHandler(ai_studio_schedule_callback, pattern=r"^ai_studio_sched$"),
+            # 🌱 STEP 2 — post generatsiyasi ACTION tugmalari: [🔄 Yangi
+            # variant] (ai_regen → ai_tone_callback yadrosi), [📋 Nusxalash]
+            # va IXTIYORIY [🔗 Do'stlarga ulashish] (postlarga reklama
+            # qo'shmaydi).
+            CallbackQueryHandler(ai_tone_callback, pattern=r"^ai_regen$"),
+            CallbackQueryHandler(ai_copy_post_callback, pattern=r"^ai_copy$"),
+            CallbackQueryHandler(ai_share_referral_callback, pattern=r"^ai_share_ref$"),
             CallbackQueryHandler(ai_studio_nav_callback, pattern=r"^studio_"),
             CallbackQueryHandler(ai_back_to_menu, pattern=r"^ai_back_to_menu$"),
             CallbackQueryHandler(ai_back_to_content, pattern=r"^ai_back_to_content$"),

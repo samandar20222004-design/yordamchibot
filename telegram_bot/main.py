@@ -34,6 +34,7 @@ from scheduler import (
     weekly_channel_reports_job,
     daily_morning_digest_job,
     uzbekistan_calendar_reminders_job,
+    referral_reward_notices_job,
     recover_on_startup,
     subscription_sweep_job,
     tashkent_tz,
@@ -951,6 +952,17 @@ async def main():
         hour=CLEANUP_CRON_HOUR, minute=CLEANUP_CRON_MINUTE,
         id=CLEANUP_JOB_ID, timezone=tashkent_tz,
         max_instances=1, coalesce=True, misfire_grace_time=6 * 3600,
+    )
+    # 🌱 STEP 2 — referal KONVERSIYA bildirishnomalari flush'i: har 1 daqiqada
+    # jarayon ichidagi cheklangan navbatdan (services.referral_service)
+    # bildirishnomalarni olib, referrerlarga «do'st birinchi postini yaratdi
+    # → +N AI ball» xabarini yuboradi. Mukofotning o'zi DB tranzaksiyasida
+    # atomik beriladi — job faqat xabar yetkazadi (fail-soft).
+    scheduler.add_job(
+        referral_reward_notices_job, 'interval', seconds=60,
+        args=[application.bot], id="referral_reward_notices",
+        timezone=tashkent_tz, max_instances=1, coalesce=True,
+        misfire_grace_time=60,
     )
 
     try:

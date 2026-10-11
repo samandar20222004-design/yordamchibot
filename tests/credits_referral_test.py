@@ -17,6 +17,12 @@ Nima tekshiriladi
    - Bir xil foydalanuvchi ikkita referral orqali o'tishga uringanda
      faqat BIRINCHISI hisoblanishi (takroriy kirishda bonus YO'Q,
      referrer o'zgarmaydi);
+   - 🌱 STEP 2 (ACTION-BASED MUKOFOT): bonus /start da EMAS, taklif
+     qilingan foydalanuvchi BIRINCHI yaroqli amalini bajargach berilishi;
+     takroriy amal mukofotni takrorlamasligi (idempotent claim);
+     bir xil referrer ostida bir xil profil barmog'i bilan kopya hisob
+     (duplicate farming) bloklanishi — attribution saqlanadi, mukofot
+     yo'q, tarif hisobiga kirmaydi;
    - Ball yechilganda va qo'shilganda ``credits_ledger`` ga to'liq
      audit yozilishi (amount, balance_after zanjiri, operation_type,
      reference_id, tarix chegaralari);
@@ -75,12 +81,17 @@ REF_MAIN = 80000010
 REF_OTHER = 80000011
 NEW_USER = 80000012
 EXISTING = 80000013
+# 🌱 STEP 2 — action-based mukofot + duplicate-farming ID'lari.
+DUP_A = 80000014
+DUP_B = 80000015
+CONV2 = 80000016
 AUDIT_USER = 80000020
 POOR_USER = 80000030
 ZERO_USER = 80000031
 RACE_USER = 80000040
 ATOMIC_USER = 80000050
 ALL_IDS = (SELF_A, SELF_B, REF_MAIN, REF_OTHER, NEW_USER, EXISTING,
+           DUP_A, DUP_B, CONV2,
            AUDIT_USER, POOR_USER, ZERO_USER, RACE_USER, ATOMIC_USER)
 
 
@@ -365,26 +376,48 @@ def test_live(self_db):
     check("self-referral: reward=0", res["reward"] == 0)
 
     # ------------------------------------------------------------
-    print("== 8-bosqich (live): 2) TAKRORIY REFERRAL — faqat birinchisi ==")
+    print("== 8-bosqich (live): 2) TAKRORIY REFERRAL + STEP 2 ACTION-BASED MUKOFOT ==")
     # Referrerlar avval botda bo'ladi (o'z havolasiz).
     db_mod.save_user(REF_MAIN, "ref_main")
     db_mod.save_user(REF_OTHER, "ref_other")
 
-    # 1-urinish: yangi foydalanuvchi REF_MAIN havolasi bilan — BONUS BERE
+    # 1-urinish: yangi foydalanuvchi REF_MAIN havolasi bilan kirdi (/start).
+    # 🌱 STEP 2: attribution bor, lekin bonus /start da BERILMAYDI —
+    # mukofot birinchi yaroqli amaldan (post yaratish/rejalashtirish) keyin.
     res1 = ReferralService.register_new_user(
         NEW_USER, "newbie", referrer_id=REF_MAIN)
     check("1-taklif: qabul qilindi (reason='ok')",
           res1["is_new"] is True and res1["reason"] == "ok", str(res1))
-    check("1-taklif: reward=3 (birinchi do'st)", res1["reward"] == 3, str(res1))
+    check("1-taklif: STEP 2 reward=0 (/start da ball berilmaydi)",
+          res1["reward"] == 0, str(res1))
+    check("1-taklif: reward_status='pending_first_action'",
+          res1.get("reward_status") == "pending_first_action", str(res1))
     check("1-taklif: referrer saqlandi", _ref(db_mod, NEW_USER) == REF_MAIN)
-    check("1-taklif: referrer balansi 5+3=8", _balance(db_mod, REF_MAIN) == 8)
+    check("1-taklif: referrer balansi hali 5 (ledger bo'sh)",
+          _balance(db_mod, REF_MAIN) == 5 and _ledger(db_mod, REF_MAIN) == [],
+          str(_ledger(db_mod, REF_MAIN)))
+
+    # Birinchi yaroqli AMAL (add_post/schedule_week_posts hook'i chaqiradi)
+    # → mukofot endi beriladi (1-do'st uchun +3).
+    act1 = ReferralService.register_first_action(NEW_USER)
+    check("1-amal: granted=True, reward=3 (birinchi do'st)",
+          act1["granted"] is True and act1["reward"] == 3, str(act1))
+    check("1-amal: referrer balansi 5+3=8", _balance(db_mod, REF_MAIN) == 8)
     rows = _ledger(db_mod, REF_MAIN)
-    check("1-taklif: ledger'ga +3 referral yozuvi",
+    check("1-amal: ledger'ga +3 referral yozuvi (reference=do'st ID)",
           len(rows) == 1 and rows[0]["amount"] == 3
           and rows[0]["balance_after"] == 8
           and rows[0]["operation_type"] == "referral"
           and rows[0]["reference_id"] == str(NEW_USER),
           str(rows))
+
+    # Amal takrorlansa (ikkinchi post) — mukofot TAKRORLANMAYDI (idempotent).
+    act2 = ReferralService.register_first_action(NEW_USER)
+    check("takroriy amal: granted=False (already_rewarded)",
+          act2["granted"] is False and act2["reason"] == "already_rewarded",
+          str(act2))
+    check("takroriy amal: balans/ledger o'zgarmadi (8, 1 yozuv)",
+          _balance(db_mod, REF_MAIN) == 8 and len(_ledger(db_mod, REF_MAIN)) == 1)
 
     # 2-urinish: xuddi shu foydalanuvchi BOSHQA referrer havolasi bilan
     # qayta kirdi (masalan, botni qayta /start qildi) — bonus YO'Q.
@@ -401,6 +434,10 @@ def test_live(self_db):
           len(_ledger(db_mod, REF_MAIN)) == 1 and _ledger(db_mod, REF_OTHER) == [])
     check("2-taklif: sabab 'already_referred'",
           res2["reason"] == "already_referred", str(res2))
+    act3 = ReferralService.register_first_action(NEW_USER)
+    check("2-taklif amalidan keyin: REF_OTHER'ga hech narsa tushmadi",
+          act3["granted"] is False and _ledger(db_mod, REF_OTHER) == []
+          and _balance(db_mod, REF_OTHER) == 5, str(act3))
 
     # 3-urinish: oldindan kirgan (referrersiz) foydalanuvchi keyinroq
     # havola orqali qaytadi — bu ham bonus bermaydi.
@@ -415,6 +452,46 @@ def test_live(self_db):
           res3["reason"] == "existing_user", str(res3))
     check("eski foydalanuvchi: REF_MAIN balansi o'zgarmadi (8)",
           _balance(db_mod, REF_MAIN) == 8)
+    act4 = ReferralService.register_first_action(EXISTING)
+    check("eski foydalanuvchi amali: mukofot yo'q (no_referral)",
+          act4["granted"] is False and act4["reason"] == "no_referral",
+          str(act4))
+
+    # ------------------------------------------------------------
+    print("== 8-bosqich (live): 2b) STEP 2 — DUPLICATE FARMING BLOKLANADI ==")
+    # Bir xil referrer ostida bir xil profil (username|full_name) bilan
+    # ikkinchi hisob: attribution saqlanadi, mukofot DOIMIY bloklanadi.
+    dup1 = ReferralService.register_new_user(
+        DUP_A, "farmer", "Same Profile", referrer_id=REF_OTHER)
+    check("dup: 1-hisob oddiy (pending_first_action)",
+          dup1["is_new"] is True and dup1["reason"] == "ok"
+          and dup1.get("reward_status") == "pending_first_action", str(dup1))
+    dup2 = ReferralService.register_new_user(
+        DUP_B, "FARMER", "same  profile", referrer_id=REF_OTHER)
+    check("dup: 2-hisob bloklandi (reward_status='blocked')",
+          dup2["is_new"] is True and dup2.get("reward_status") == "blocked",
+          str(dup2))
+    check("dup: attribution saqlandi (referrer=REF_OTHER)",
+          _ref(db_mod, DUP_B) == REF_OTHER)
+    act_d1 = ReferralService.register_first_action(DUP_A)
+    check("dup: 1-hisob amali mukofot berdi (+3, REF_OTHER 5→8)",
+          act_d1["granted"] is True and act_d1["reward"] == 3
+          and _balance(db_mod, REF_OTHER) == 8, str(act_d1))
+    act_d2 = ReferralService.register_first_action(DUP_B)
+    check("dup: bloklangan hisob amali mukofot BERMADI",
+          act_d2["granted"] is False and act_d2["reason"] == "duplicate_profile",
+          str(act_d2))
+    check("dup: REF_OTHER balansi o'zgarmadi (8) va 1 ledger qatori",
+          _balance(db_mod, REF_OTHER) == 8 and len(_ledger(db_mod, REF_OTHER)) == 1)
+
+    # Tarif hisobi FAQAT konversiyalar bo'yicha: REF_OTHER'ning 1 konversiyasi
+    # bor (DUP_A). Yangi do'st (CONV2 → REF_OTHER) konversiya qilgach 2-do'st
+    # tarifini oladi (+3), DUP_B bloklangani hisobga KIRMAYDI.
+    db_mod.save_user(CONV2, "conv_two", referrer_id=REF_OTHER)
+    act_c2 = ReferralService.register_first_action(CONV2)
+    check("tarif: 2-konversiya uchun +3 (bloklangan dup hisoblanmadi)",
+          act_c2["granted"] is True and act_c2["reward"] == 3
+          and _balance(db_mod, REF_OTHER) == 11, str(act_c2))
 
     # ------------------------------------------------------------
     print("== 8-bosqich (live): 3) LEDGER — to'liq audit (add + spend) ==")

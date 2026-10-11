@@ -95,6 +95,25 @@ def schedule_week_posts(user_id: int, channel_id: str, posts: list,
         _invalidate_user(user_id)
         _cache_clear("system_stats")
         result.update({"success": True, "count": len(ids), "ids": ids, "times": times})
+        # ⏱ TTFP/TTFV: haftalik reja ham "birinchi post rejalashtirish"
+        # amali hisoblanadi (jarayon xotirasi, best-effort).
+        try:
+            from services.onboarding_telemetry import record_first_post
+
+            record_first_post(user_id)
+        except Exception:  # noqa: BLE001 — analitika best-effort
+            logger.debug("TTFP belgilashda xato (week plan user=%s)", user_id,
+                         exc_info=True)
+        # 🌱 STEP 2 — ACTION-BASED REFERAL MUKOFOTI: birinchi yaroqli amal
+        # (haftalik rejalashtirish) konversiyani ham hisobga oladi.
+        # Idempotent va fail-soft: navbat natijasi hook'dan BOG'LIQ EMAS.
+        try:
+            from services.referral_service import ReferralService
+
+            ReferralService.register_first_action(user_id)
+        except Exception:  # noqa: BLE001 — referal hook'i best-effort
+            logger.debug("Referral konversiya belgilashda xato (user=%s)",
+                         user_id, exc_info=True)
         return result
     except Exception as e:
         logger.error(f"Haftalik postlarni navbatga qo'yish xatosi: {e}")

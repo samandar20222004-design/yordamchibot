@@ -527,6 +527,12 @@ ADMIN_PANEL_I18N = {
         ),
         "lg_d1": "🔁 D1 retention: <b>{percent}%</b> ({returned}/{eligible})",
         "lg_d7": "🔁 D7 retention: <b>{percent}%</b> ({returned}/{eligible})",
+        # 🌱 STEP 2: taklif qilingan do'stlardan birinchi post yaratganlar
+        # (aktiv referal konversiyasi — mukofot aynan shu amal uchun).
+        "lg_referral_conv": (
+            "🤝 Referral konversiyasi: <b>{percent}%</b> "
+            "({converted}/{referred} do'st birinchi post yaratdi)"
+        ),
         "lg_no_data": "ℹ️ Onboarding ma'lumotlari hali yo'q (kohorta bo'sh).",
         "lg_dur_seconds": "{seconds} soniya",
         "lg_dur_minutes": "{minutes} daqiqa",
@@ -1026,6 +1032,11 @@ ADMIN_PANEL_I18N["ru"] = {
     ),
     "lg_d1": "🔁 D1 retention: <b>{percent}%</b> ({returned}/{eligible})",
     "lg_d7": "🔁 D7 retention: <b>{percent}%</b> ({returned}/{eligible})",
+    # 🌱 STEP 2: активная реферальная конверсия (первый пост друга).
+    "lg_referral_conv": (
+        "🤝 Конверсия рефералов: <b>{percent}%</b> "
+        "({converted}/{referred} друзей создали первый пост)"
+    ),
     "lg_no_data": "ℹ️ Данных об onboarding пока нет (когорта пуста).",
     "lg_dur_seconds": "{seconds} сек.",
     "lg_dur_minutes": "{minutes} мин.",
@@ -1523,6 +1534,11 @@ ADMIN_PANEL_I18N["en"] = {
     ),
     "lg_d1": "🔁 D1 retention: <b>{percent}%</b> ({returned}/{eligible})",
     "lg_d7": "🔁 D7 retention: <b>{percent}%</b> ({returned}/{eligible})",
+    # 🌱 STEP 2: active referral conversion (a friend created their first post).
+    "lg_referral_conv": (
+        "🤝 Referral conversion: <b>{percent}%</b> "
+        "({converted}/{referred} friends created their first post)"
+    ),
     "lg_no_data": "ℹ️ No onboarding data yet (the cohort is empty).",
     "lg_dur_seconds": "{seconds} sec",
     "lg_dur_minutes": "{minutes} min",
