@@ -872,7 +872,7 @@ def get_user_settings_and_signature(
 def set_user_setting(user_id: int, key: str, value: bool) -> bool:
     """Sozlamani saqlaydi (UPSERT). Muvaffaqiyatda ``True``."""
     try:
-        with db_cursor() as cur:
+        with db_cursor(commit=True) as cur:
             cur.execute(
                 "INSERT INTO user_settings (user_id, key, value, updated_at) "
                 "VALUES (%s, %s, %s, NOW()) "

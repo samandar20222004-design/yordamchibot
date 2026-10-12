@@ -142,7 +142,7 @@ SCHEMA_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "schema.s
 # tests/schema_test.py buni tekshirib turadi). Legacy ro'yxatlar saqlanadi;
 # P0 obyektlari alohida REQUIRED_P0_* orqali ham startup'da tekshiriladi.
 EXPECTED_TABLES = (
-    "users", "channels", "sponsor_channels", "system_settings",
+    "users", "user_settings", "channels", "sponsor_channels", "system_settings",
     "bot_settings", "ad_pool", "channel_post_counters", "scheduled_posts",
     "post_reactions", "sent_post_messages", "promo_codes", "payments",
     "payment_receipts", "payment_orders", "channel_posts_history",
@@ -1381,7 +1381,8 @@ class _Transaction:
     """
 
     __slots__ = ("commit", "isolation_level", "readonly", "conn", "cur",
-                 "savepoint", "parent", "owns_conn", "_token", "after_commit")
+                 "savepoint", "parent", "owns_conn", "_token", "after_commit",
+                 "fast_read")
 
     def __init__(self, commit: bool = True, isolation_level: str = None,
                  readonly: bool = False):
@@ -1401,10 +1402,26 @@ class _Transaction:
         self.owns_conn = True
         self._token = None
         self.after_commit = []  # COMMIT'dan keyin chaqiriladigan funksiyalar (kesh tozalash)
+        # Oddiy o'qish (commit=False, qo'shimcha sozlamasiz) autocommit rejimida
+        # bajariladi: BEGIN/ROLLBACK yuborilmaydi, har bir so'rov bazaga
+        # 3 emas, 1 marta borib-keladi.
+        self.fast_read = not self.commit and level is None and not self.readonly
 
     # ---- kirish -------------------------------------------------------
     def enter(self):
         parent = _TX_CTX.get()
+        if parent is not None and parent.conn is not None and parent.fast_read:
+            if self.fast_read:
+                # O'qish ichidagi o'qish — tashqi blok ulanishidan foydalanamiz.
+                self.parent = parent
+                self.conn = parent.conn
+                self.owns_conn = False
+                self.cur = self.conn.cursor()
+                self._token = _TX_CTX.set(self)
+                return self.cur
+            # O'qish ichida yozish: tashqi blokda tranzaksiya yo'q, shuning
+            # uchun yozish o'z ulanishida alohida atomik tranzaksiya bo'ladi.
+            parent = None
         if parent is not None and parent.conn is not None:
             # Ich-ma-ich: BITTA ulanish, SAVEPOINT. Alohida kursor ochiladi —
             # shunda tashqi blokning natijalari (fetchone/fetchall) buzilmaydi.
@@ -1420,8 +1437,10 @@ class _Transaction:
         conn = _acquire_connection()
         self.conn = conn
         try:
+            if self.fast_read:
+                conn.autocommit = True
             self.cur = conn.cursor()
-            if getattr(conn, "autocommit", False):
+            if not self.fast_read and getattr(conn, "autocommit", False):
                 # Autocommit ulanishda tranzaksiyani qo'lbella ochamiz.
                 self.cur.execute("BEGIN")
             if self.isolation_level:
@@ -1460,6 +1479,12 @@ class _Transaction:
                 self._close_cursor()
             return
 
+        if self.fast_read and not self.owns_conn:
+            # Ichki o'qish: ulanish tashqi blokka tegishli.
+            self.conn = None
+            self._close_cursor()
+            return
+
         conn, self.conn = self.conn, None
         if conn is None:
             return
@@ -1467,6 +1492,15 @@ class _Transaction:
             self._close_cursor()
         except Exception as _silent_exc:
             log_silent_failure("database:_Transaction.finish", _silent_exc)
+        if self.fast_read:
+            broken = isinstance(exc, (psycopg2.OperationalError, psycopg2.InterfaceError))
+            if not broken:
+                try:
+                    conn.autocommit = False  # pool'ga odatiy holatda qaytadi
+                except Exception:
+                    broken = True
+            self._retire(conn, broken=broken)
+            return
         if exc is None:
             try:
                 if self.commit:
