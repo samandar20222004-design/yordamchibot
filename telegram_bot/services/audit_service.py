@@ -1,4 +1,4 @@
-"""AuditService — PostAssist V2: admin harakatlari auditi.
+"""AuditService: admin harakatlari auditi.
 
 Har bir muhim admin amali ``admin_audit_logs`` jadvaliga yoziladi:
 

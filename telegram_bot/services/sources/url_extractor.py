@@ -1,4 +1,4 @@
-"""🔗 URL → POST — SSRF himoyasi + ochiq matn ajratish (PHASE D, 11-band).
+"""🔗 URL → POST — SSRF himoyasi + ochiq matn ajratish.
 
 Foydalanuvchi ommaviy maqola havolasini yuboradi; xizmat:
 

@@ -8,7 +8,7 @@ AI Concurrency, User Lock, Bounded Queue va Request Cancellation (13, 14, 15, 16
    - Agar navbat to'lib ketgan bo'lsa (QueueFull), fail-closed: foydalanuvchiga muloyim
      xabar qaytariladi: "⏳ AI hozir juda band. Bir necha soniyadan keyin qayta urinib ko'ring."
 
-2. Request Cancellation (15-band):
+2. Request Cancellation:
    - Har bir AI generatsiyasiga unikal generation_id beriladi.
    - Foydalanuvchi "❌ Bekor qilish" bosganda orqa fondagi so'rov asyncio.Task.cancel() qilinadi.
    - Kechikib kelgan natija foydalanuvchiga YUBORILMAYDI va kvota refund_ai_request orqali
@@ -162,7 +162,7 @@ class AIConcurrencyManager:
             return False
 
     async def cancel_user_requests(self, user_id: int, reason: str = "user_cancelled") -> int:
-        """Foydalanuvchining barcha faol AI tasklarini bekor qiladi va kvotasini qaytaradi (15-band)."""
+        """Foydalanuvchining barcha faol AI tasklarini bekor qiladi va kvotasini qaytaradi."""
         uid = int(user_id)
         tasks_map = self._user_tasks.get(uid, {})
         if not tasks_map:

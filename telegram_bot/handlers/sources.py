@@ -1,4 +1,4 @@
-"""📥 KONTENT MANBALARI — handler/klaviatura qatlami (PHASE D, 2/2).
+"""📥 KONTENT MANBALARI — handler/klaviatura qatlami.
 
 PHASE D ning 1/2 qismi (``services/sources/*`` + ``services/channels/recycle.py``)
 faqat **servis** qatlami edi: SSRF himoyali havola o'quvchi, RSS/ATOM oqimi

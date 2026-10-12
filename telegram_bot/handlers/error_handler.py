@@ -1,4 +1,4 @@
-"""Global universal error handler — PostAssist V2.
+"""Global universal error handler.
 
 Telegram ``telegram.ext`` uchun YAGONA markazlashtirilgan xato ushlagich.
 Kafolotlar:

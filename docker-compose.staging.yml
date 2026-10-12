@@ -1,5 +1,5 @@
 # ============================================================
-# PostAssist V2 — STAGING override (PHASE 11)
+# STAGING override
 #
 # Maqsad: yuklama/chaos sinovlarini HAQIQIY Telegram Bot API'ga
 # tegmasdan o'tkazish. `bot` xizmati mock Telegram serverga
@@ -37,7 +37,7 @@ services:
       ADMIN_ID: ${ADMIN_ID:-777000}
       DATABASE_URL: ${DATABASE_URL:-postgresql://postassist:postassist@postgres:5432/postassist}
       ENVIRONMENT: staging
-    # PHASE 12: SIGTERM → graceful shutdown uchun 20 s byudjet
+    # SIGTERM → graceful shutdown uchun 20 s byudjet
     # (15 s drenaj + zaxira) — konteyner yarim yo'lda o'chirilmaydi.
     stop_grace_period: 20s
     healthcheck:

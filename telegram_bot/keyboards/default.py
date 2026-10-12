@@ -499,7 +499,7 @@ SETTINGS_ALIASES = (
 )
 ADMIN_PANEL_ALIASES = ("⚙️ Admin panel", "⚙️ Админ панель", "⚙️ Админ-панель")
 PENDING_ALIASES = ("⏳ Kutilayotgan", "⏳ Ожидающие", "⏳ Pending")
-# 📅 REJALASHTIRILGAN (PostAssist V2, 4-mikro qadam).
+# 📅 REJALASHTIRILGAN.
 # ``btn_queue`` lug'at qiymati endi «📅 Rejalashtirilgan» — eskirgan texnik
 # nomlar («📚 Navbat (Queue)», «📚 Очередь (Queue)», «📚 Queue», «⏳ Postlar
 # navbati (Queue)» ...) shu ro'yxatda ALIAS bo'lib qoladi: chat tarixidagi

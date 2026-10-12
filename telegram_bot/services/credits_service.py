@@ -1,4 +1,4 @@
-"""CreditsService — PostAssist V2: AI-ballar auditi (credits ledger).
+"""CreditsService: AI-ballar auditi (credits ledger).
 
 Har bir ball o'zgarishi — berilganda ham, yechilganda ham — ``credits_ledger``
 jadvaliga doimiy audit qatori qo'shiladi:

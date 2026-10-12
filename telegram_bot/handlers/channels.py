@@ -122,7 +122,7 @@ def _empty_channels_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
 
 
 # ============================================================
-# 📢 KANALLARIM — MASTER PLAN STANDARTI (PostAssist V2, 4-mikro qadam)
+# 📢 KANALLARIM — MASTER PLAN STANDARTI
 # ============================================================
 # Ekran ierarxiyasi (asosiy menyu → bo'lim → kanal → amal):
 #

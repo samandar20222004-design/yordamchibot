@@ -1,4 +1,4 @@
-"""📋 POST SHABLONLARI — render va validatsiya mantig'i (PHASE C, 9-band).
+"""📋 POST SHABLONLARI — render va validatsiya mantig'i.
 
 Shablon o'zgaruvchilari (SPEKS bo'yicha aniq 7 ta)::
 

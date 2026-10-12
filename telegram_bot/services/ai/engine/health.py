@@ -1,4 +1,4 @@
-"""Provider Health — Circuit Breaker (AI ENGINE V2, Faza 1).
+"""Provider Health — Circuit Breaker.
 
 Audit topilmasi: provayder sog'lig'i ikki joyda nazorat qilinar edi —
 ``utils/ai_agent.py`` dagi modul-darajadagi ``_BREAKERS`` lug'ati va

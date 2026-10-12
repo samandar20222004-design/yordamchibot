@@ -8,11 +8,11 @@ Maqsad: botni ishga tushirishdan OLDIN (deploy/bootstrap paytida) muhit
 to'liqligini va xavfsizlik siyosatini tekshirish — yarim sozlangan server
 ishga tushib, keyin foydalanuvchi oldida yiqilib qolmasligi uchun.
 
-Nima tekshiriladi (FAZA: PRODUCTION RUNTIME & DEPLOYMENT VERIFICATION):
+Nima tekshiriladi (PRODUCTION RUNTIME & DEPLOYMENT VERIFICATION):
 
   1) MAJBURIY: ``BOT_TOKEN`` (mavjud + format) · ``DATABASE_URL`` (mavjud +
      sxema/host/baza) · ``PORT`` (1..65535);
-  2) 🛡 P0-A SIYOSATI: ``ENVIRONMENT`` (production|staging|development|test;
+  2) 🛡 MUHIT SIYOSATI: ``ENVIRONMENT`` (production|staging|development|test;
      berilmasa — fail-closed ``production``) va ``AI_ALLOW_MOCK``
      (production'da yoqilgan bo'lsa — ERROR) · ``TELEGRAM_API_BASE_URL``
      production'da BO'SH bo'lishi shart (mock API'ga so'rov taqiqlanadi);
@@ -65,7 +65,7 @@ WARN = "WARN"
 ERROR = "ERROR"
 LEVEL_ORDER = {OK: 0, WARN: 1, ERROR: 2}
 
-#: ``ENVIRONMENT`` uchun ruxsat etilgan qiymatlar (config.py P0-A siyosati).
+#: ``ENVIRONMENT`` uchun ruxsat etilgan qiymatlar (config.py siyosati).
 ALLOWED_ENVIRONMENTS = ("production", "staging", "development", "test")
 #: Berilmagan ``ENVIRONMENT`` — fail-closed default (config.py bilan bir xil).
 FAIL_CLOSED_ENVIRONMENT = "production"
@@ -214,7 +214,7 @@ class Report:
 # TEKSHIRUVLAR
 # ──────────────────────────────────────────────────────────────
 def check_required_and_policy(env: dict[str, str], report: Report) -> str:
-    """1/2-bo'lim: majburiy kalitlar + P0-A muhit siyosati. Effektiv muhitni
+    """1/2-bo'lim: majburiy kalitlar + muhit siyosati. Effektiv muhitni
     qaytaradi (``ENVIRONMENT`` berilmasa — fail-closed ``production``)."""
     token = (env.get("BOT_TOKEN") or "").strip()
     if not token:
@@ -294,7 +294,7 @@ def check_required_and_policy(env: dict[str, str], report: Report) -> str:
     if effective == "production" and _is_truthy(mock):
         report.error("AI_ALLOW_MOCK_FORBIDDEN",
                      "ENVIRONMENT=production bilan AI_ALLOW_MOCK yoqilgan — "
-                     "soxta (shablon) javoblar TAQIQLANGAN (P0-A). AI_ALLOW_MOCK=0 qo'ying.")
+                     "soxta (shablon) javoblar TAQIQLANGAN. AI_ALLOW_MOCK=0 qo'ying.")
     else:
         shown = mock if mock else "<bo'sh>"
         report.ok("AI_ALLOW_MOCK_POLICY",

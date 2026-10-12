@@ -6,7 +6,7 @@ uchun 2 qismni ushlaydi:
   1. ``content_creation_back`` — [◀️ Orqaga] tugmasi: foydalanuvchini asosiy
      6 tugmali menyuga qaytaradi (reply-klaviatura almashtiriladi, FSM
      ma'lumotlari tozalanadi).
-  2. ACTION-FIRST (3-mikro qadam) — menyu tashqarisida xom MATN yuborilsa
+  2. ACTION-FIRST — menyu tashqarisida xom MATN yuborilsa
      ``unknown_message_fallback`` shu modulga murojaat qiladi va foydalanuvchiga
      «✨ Magic Post» taklifi (inline tugmalar) ko'rsatiladi. Taklif bosilsa
      xom matn yo'qolmaydi: to'g'ridan-to'g'ri Magic Post uslub tanlash

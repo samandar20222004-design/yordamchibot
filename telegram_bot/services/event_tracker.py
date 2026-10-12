@@ -1,4 +1,4 @@
-"""📊 EVENT TRACKER — SPRINT 2 (VAZIFA 3): engil, asinxron foydalanuvchi
+"""📊 EVENT TRACKER — SPRINT 2: engil, asinxron foydalanuvchi
 hodisalari analitikasi.
 
 Maqsad — qaysi tugma/buyruqlar eng ko'p (va qaysilari eng kam, <5%)

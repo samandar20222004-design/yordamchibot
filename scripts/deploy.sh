@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ============================================================================
-# PostAssist V2 — 1-KOMANDALIK PRODUCTION DEPLOY (+ verification)
+# 1-KOMANDALIK PRODUCTION DEPLOY (+ verification)
 # ----------------------------------------------------------------------------
 # Bitta buyruq bilan:
 #
@@ -56,7 +56,7 @@ die()  { printf '[deploy][ERROR] %s\n' "$*" >&2; exit 1; }
 
 usage() {
     cat <<'EOF'
-PostAssist V2 — 1-komandalik production deploy (+ verification)
+PostAssist — 1-komandalik production deploy (+ verification)
 
   bash scripts/deploy.sh [opsiyalar]
 

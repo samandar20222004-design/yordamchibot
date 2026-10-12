@@ -718,7 +718,7 @@ class RepurposeResult:
 # XIZMAT
 # ---------------------------------------------------------------------------
 class ContentRepurposeService(SMMFeatureService):
-    """Kontentni 5 platforma formatiga o'tkazish (49-band)."""
+    """Kontentni 5 platforma formatiga o'tkazish."""
 
     feature = "repurpose"
     quota_operation = "magic_post:repurpose"

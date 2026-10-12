@@ -523,7 +523,7 @@ async def admin_panel_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def admin_feature_usage_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """`/feature_usage` — SPRINT 2 (VAZIFA 3): eng ko'p/kam ishlatilayotgan
+    """`/feature_usage` — SPRINT 2: eng ko'p/kam ishlatilayotgan
     tugma va buyruqlar bo'yicha oddiy ichki agregatsiya hisobot (faqat admin).
 
     Ma'lumot manbai — ``services.event_tracker`` (jarayon xotirasidagi

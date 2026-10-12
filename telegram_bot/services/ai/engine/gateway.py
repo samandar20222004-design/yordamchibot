@@ -1,4 +1,4 @@
-"""YAGONA KANONIK AI SHLYUZ — AI ENGINE V2 (Faza 1, 2, 3) + PHASE 6.
+"""YAGONA KANONIK AI SHLYUZ — AI ENGINE V2 + PHASE 6.
 
 DEEP AUDIT muammosi: AI chaqiruvlari IKKIGA bo'lingan edi — eski modullar
 ``utils/ai_agent.py`` ga, yangilari ``services/ai/*`` ga murojaat qilar,

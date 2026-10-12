@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """YOPIQ BETA DARVOZASI (CLOSED BETA ACCESS GATE).
 
-Maqsad (SPRINT 4, 2-band): botni OMMAGA TO'LIQ ochishdan oldin 30–50 ta
+Maqsad: botni OMMAGA TO'LIQ ochishdan oldin 30–50 ta
 saralangan kanal egasi bilan sinash. Darvoza bitta env bayrog'i bilan
 boshqariladi:
 

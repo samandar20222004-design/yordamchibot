@@ -2138,7 +2138,7 @@ def count_source_drafts(user_id: int, status: str = "pending") -> int:
 
 def get_recycle_candidates(channel_id: str | int, min_age_days: int = 14,
                            limit: int = 30) -> list[dict]:
-    """♻️ Recycle uchun eski postlar (PHASE D, 13-band).
+    """♻️ Recycle uchun eski postlar.
 
     ``channel_posts_history`` dan ``min_age_days`` kundan eski postlar
     olinadi (views + reaksiyalar soni bilan). Bu funksiya FAQAT xom

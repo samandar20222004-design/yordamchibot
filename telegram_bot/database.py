@@ -2816,7 +2816,7 @@ def _ddl_payments(cur):
         "ALTER TABLE payment_receipts ADD COLUMN IF NOT EXISTS order_id TEXT;"
     )
 
-    # ⚙️ SOZLAMALAR (PostAssist V2, 5-mikro qadam): foydalanuvchining
+    # ⚙️ SOZLAMALAR: foydalanuvchining
     # shaxsiy sozlamalari (🔔 Bildirishnomalar / 🎨 Post sozlamalari).
     # Kalitlar handler tomonida OQ RO'YXAT bilan cheklanadi — jadvalga
     # faqat ma'lum kalitlar yoziladi.

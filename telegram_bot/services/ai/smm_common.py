@@ -1,7 +1,7 @@
 """Advanced SMM xizmatlari uchun YAGONA poydevor.
 
-``variants.py`` (48-band), ``repurpose.py`` (49-band), ``audit.py`` (33/50-band)
-va ``planner.py`` (51-band) shu modulga taylanadi — to'rt xizmat ham bir xil
+``variants.py``, ``repurpose.py``, ``audit.py``
+va ``planner.py`` shu modulga taylanadi — to'rt xizmat ham bir xil
 kontrakt bo'yachi ishlaydi:
 
 1. **AIOrchestrator (Phase 3)** — barcha AI chaqiruvlari ``orchestrate()``

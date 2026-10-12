@@ -627,7 +627,7 @@ _VERDICTS = {
 
 
 class PostAuditService(SMMFeatureService):
-    """Postni chuqur audit qilish va 6 mezonli hisobot (33/50-band)."""
+    """Postni chuqur audit qilish va 6 mezonli hisobot."""
 
     feature = "audit"
     quota_operation = "post_score:audit"

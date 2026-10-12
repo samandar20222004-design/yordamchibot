@@ -460,7 +460,7 @@ class VariantsResult:
 # XIZMAT
 # ---------------------------------------------------------------------------
 class MultiVariantGenerator(SMMFeatureService):
-    """5 xil burchakdagi postlar generatori (48-band)."""
+    """5 xil burchakdagi postlar generatori."""
 
     feature = "variants"
     #: Atomik bron oq ro'yxatidagi asos: ``magic_post`` (``:variants`` — belgi).

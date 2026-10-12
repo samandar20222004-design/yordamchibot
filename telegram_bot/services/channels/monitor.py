@@ -1,4 +1,4 @@
-"""📡 CHANNEL MONITOR — asinxron monitoring va batch agregatsiya (FAZA 8,9,22).
+"""📡 CHANNEL MONITOR — asinxron monitoring va batch agregatsiya.
 
 Qat'iy qoidalar:
   * Har bir kanal posti kelganda AI CHAQIRILMAYDI!

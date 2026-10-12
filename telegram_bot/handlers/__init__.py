@@ -152,7 +152,7 @@ from handlers.channels import (
     remove_channel_callback, on_bot_chat_member_update, add_channel_inline_entry,
     tone_menu_callback, tone_chosen, tone_chosen_callback, on_channel_post,  # noqa: F401
     channel_voice_analysis_callback,
-    # 📢 KANALLARIM — kanal boshqaruv ekrani (PostAssist V2, 4-mikro qadam)
+    # 📢 KANALLARIM — kanal boshqaruv ekrani
     channel_open_callback, channel_new_post_callback, channel_scheduled_callback,
     channel_stats_callback, channel_settings_callback, channels_list_callback,
     # Channel Intelligence (DNA + Best Time)
@@ -313,7 +313,7 @@ from handlers.content_calendar_flow import (
     calendar_duration_callback, calendar_stale_callback,
 )
 
-# 8c. 🚀 AI AUTOPILOT — 7 kunlik to'liq post rejasi (PHASE C, 7-band).
+# 8c. 🚀 AI AUTOPILOT — 7 kunlik to'liq post rejasi.
 # Kanal kontekstidan (``ch_ap:``) ochiladi: mavzu → AI reja (Channel DNA +
 # Best Time asosida) → tasdiqlash oynasi ([🚀 Hammasini rejalashtirish] /
 # [✏️ Tahrirlash] / [🔄 Qayta yaratish] / [❌ Bekor qilish]) → 7 post BITTA
@@ -333,7 +333,7 @@ from handlers.autopilot import (
     autopilot_cancel_callback, autopilot_stale_callback,
 )
 
-# 8d. 📋 POST SHABLONLARI — takroriy postlar shablonlari (PHASE C, 9-band).
+# 8d. 📋 POST SHABLONLARI — takroriy postlar shablonlari.
 # Kanal kontekstidan (``ch_tpl:``) ochiladi: [➕ Yangi shablon] /
 # [📋 Shablonni ishlatish] / [🗑 O'chirish]. Shablon o'zgaruvchilari:
 # {TITLE} {TEXT} {PRICE} {LINK} {CTA} {SOURCE} {DATE}; render natijasi
@@ -392,7 +392,7 @@ from handlers.payment_receipt import (
     receipt_received, receipt_admin_callback,
 )
 
-# 10c. ⚙️ SOZLAMALAR — yagona tartibli menyu (PostAssist V2, 5-mikro qadam).
+# 10c. ⚙️ SOZLAMALAR — yagona tartibli menyu.
 # «⚙️ Sozlamalar» bosilganda profil kartasi + 8 ta guruh chiqadi
 # (stgs_* callback'lari); rewards/help hub callback'lari alohida patternlar
 # bilan ham ro'yxatdan o'tkaziladi — generic legacy aliaslar saqlanadi.
@@ -526,7 +526,7 @@ async def guard_entry(update, context, fn):
     if await _deny_if_unsubscribed(update, context):
         return ConversationHandler.END
 
-    # 📊 EVENT TRACKING (SPRINT 2, VAZIFA 3): ``guard_entry`` barcha asosiy
+    # 📊 EVENT TRACKING: ``guard_entry`` barcha asosiy
     # kirish nuqtalarining (tugma/buyruq) markaziy darvozasi — shu yerda
     # bitta joyda hodisa yozib qo'yilsa, har bir handler alohida
     # o'zgartirilmasdan ham qamrov ta'minlanadi. Asinxron, bloklamaydi,
@@ -1557,7 +1557,7 @@ def _planning_states(all_menu_jumps):
             CallbackQueryHandler(calendar_cancel_callback, pattern=r"^cal_cancel$"),
         ],
 
-        # 8c. 🚀 AI AUTOPILOT holatlari (PHASE C, 7-band).
+        # 8c. 🚀 AI AUTOPILOT holatlari.
         # ``ap_cancel`` HAR UCH holatda ham ishlaydi (eski tugma bosilganda
         # ham oqim toza yopiladi, crash bo'lmaydi).
         AUTOPILOT_TOPIC: all_menu_jumps + [
@@ -1605,7 +1605,7 @@ def _planning_states(all_menu_jumps):
             MessageHandler(filters.TEXT & ~filters.COMMAND, autopilot_edit_input_received),
         ],
 
-        # 8d. 📋 POST SHABLONLARI holatlari (PHASE C, 9-band).
+        # 8d. 📋 POST SHABLONLARI holatlari.
         TPL_MENU: all_menu_jumps + [
             CallbackQueryHandler(templates_menu_callback, pattern=r"^tpl_"),
         ],
@@ -2352,7 +2352,7 @@ def _register_channel_callbacks(app):
     kanal uslubi (Tone of Voice), Channel Intelligence (DNA / eng yaxshi
     vaqt) va kanal ovozi tahlili inline tugmalari.
     """
-    # 📢 KANALLARIM — kanal boshqaruv ekrani (PostAssist V2, 4-mikro qadam).
+    # 📢 KANALLARIM — kanal boshqaruv ekrani.
     # ``ch_set:`` endi channel_settings_callback orqali o'tadi: kanal
     # boshqaruv ekranidan bosilsa SOZLAMALAR ekranini, eski (chat tarixidagi)
     # tugmadan bosilsa avvalgidek USLUB menyusini ochadi — orqaga moslik

@@ -434,7 +434,7 @@ ADMIN_PANEL_I18N = {
         "role_denied_grant": "❌ Rol berish/olishni faqat OWNER (bot egasi) bajaradi.",
         "role_denied_revoke": "❌ Rol olishni faqat OWNER (bot egasi) bajaradi.",
 
-        # --- 📊 SPRINT 2 (VAZIFA 3): funksiyalar qo'llanilishi (event tracker) ---
+        # --- 📊 SPRINT 2: funksiyalar qo'llanilishi (event tracker) ---
         "fu_title": "📊 <b>Funksiyalar qo'llanilishi</b>",
         "fu_total_users": "Jami foydalanuvchi (mahraj): <b>{total}</b>",
         "fu_empty": "Hali hech qanday hodisa qayd etilmagan.",

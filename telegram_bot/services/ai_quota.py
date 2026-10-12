@@ -1,4 +1,4 @@
-"""AI kvota + kredit bron/qaytarish — PostAssist V2.
+"""AI kvota + kredit bron/qaytarish.
 
 Barcha AI oqimlari (🤖 AI Yordamchi / AI Studio, ✨ Magic Post, 🎙 Ovoz → Post,
 📸 Rasm → Post, 📊 Post Score «95/100 ga yaxshilash») kunlik kvota va AI

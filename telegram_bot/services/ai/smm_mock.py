@@ -43,7 +43,7 @@ _LANGS = ("uz", "ru", "en")
 
 
 # ---------------------------------------------------------------------------
-# 1) MULTI-VARIANT (48-band) — har bir uslub ALOHIDA BURG'UCH (angle)
+# 1) MULTI-VARIANT — har bir uslub ALOHIDA BURG'UCH (angle)
 # ---------------------------------------------------------------------------
 #: style → lang → shablon. ``{topic}`` — foydalanuvchi mavzusi (escape qilingan).
 VARIANT_BANK: dict[str, dict[str, str]] = {
@@ -218,7 +218,7 @@ VARIANT_BANK: dict[str, dict[str, str]] = {
 
 
 # ---------------------------------------------------------------------------
-# 2) REPURPOSE (49-band) — platforma matnining «xom» qismi
+# 2) REPURPOSE — platforma matnining «xom» qismi
 # ---------------------------------------------------------------------------
 PLATFORM_BANK: dict[str, dict[str, str]] = {
     "telegram": {
@@ -275,7 +275,7 @@ PLATFORM_BANK: dict[str, dict[str, str]] = {
 }
 
 
-# 3) AUDIT (33/50-band) — model JSON kontraktsiyasi
+# 3) AUDIT — model JSON kontraktsiyasi
 # ---------------------------------------------------------------------------
 AUDIT_BANK: dict[str, dict[str, Any]] = {
     "uz": {
@@ -351,7 +351,7 @@ AUDIT_BANK: dict[str, dict[str, Any]] = {
 
 
 # ---------------------------------------------------------------------------
-# 4) PLANNER (51-band) — kunlar bo'yicha JSON batch
+# 4) PLANNER — kunlar bo'yicha JSON batch
 # ---------------------------------------------------------------------------
 PLAN_BANK: dict[str, dict[str, list[str]]] = {
     "uz": {

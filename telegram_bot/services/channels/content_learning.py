@@ -1,4 +1,4 @@
-"""📚 CONTENT LEARNING & GAP DETECTION (STEP 3 — Channel DNA 2.0 seriyasi).
+"""📚 CONTENT LEARNING & GAP DETECTION.
 
 Kanalning REAL postlari (``channel_posts_history``) asosida **kontent
 o'rganish** tahlili: qanday post formatlari (Q&A, tutorial/qo'llanma,

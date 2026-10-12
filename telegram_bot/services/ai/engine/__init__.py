@@ -1,4 +1,4 @@
-"""YAGONA KANONIK AI SHLYUZ (Faza 1, 2, 3).
+"""YAGONA KANONIK AI SHLYUZ.
 
 Repo AI qatlamlarining YAGONA kirish nuqtasi:
 

@@ -1,4 +1,4 @@
-"""LifecycleService — PostAssist V2: Graceful Shutdown holati.
+"""LifecycleService: Graceful Shutdown holati.
 
 Bot jarayoni ``SIGINT``/``SIGTERM`` olganda (Render deploy, ``Ctrl+C``,
 ``systemctl stop``) hech qanday ish yarim yo'lda tashlab ketilmasligi kerak:

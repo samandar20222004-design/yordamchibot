@@ -1,4 +1,4 @@
-"""Provider Registry — AI ENGINE V2 (Faza 1).
+"""Provider Registry — AI ENGINE V2.
 
 MUHIM SIYOSAT: **hech narsa noldan qayta yozilmaydi.** Barcha real HTTP
 ishlari sinovdan o'tgan ``services/ai/fallback.py`` provayder adapterlarida

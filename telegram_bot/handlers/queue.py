@@ -96,7 +96,7 @@ def _content_preview(content: str, max_len: int = 40) -> str:
 def _format_queue_item(row, index: int, lang: str = "uz") -> str:
     """Bitta REJALASHTIRILGAN postni ixcham inline qatorga formatlaydi.
 
-    Master plan formati (4-mikro qadam)::
+    Master plan formati::
 
         1. 🕐 Bugun 18:00 — 📝 Yangi mahsulot chegirmasi | 📢 Mening kanalim
 

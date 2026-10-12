@@ -368,7 +368,7 @@ async def analytics_view_callback(update: Update, context: ContextTypes.DEFAULT_
     if data == "an_refresh":
         await query.answer(get_text("an_refreshing", lang))
 
-        # 📊 Statistika (PostAssist V2, 5-mikro qadam): umumiy ko'rsatkichlar
+        # 📊 Statistika: umumiy ko'rsatkichlar
         # ekrani yangilanmoqda — kesh tozalanadi va ma'lumotlar qayta o'qiladi.
         if context.user_data.get("analytics_overview"):
             try:

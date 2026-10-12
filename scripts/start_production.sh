@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ============================================================================
-# PostAssist V2 — PRODUCTION START (entrypoint & bootstrap)
+# PRODUCTION START (entrypoint & bootstrap)
 # ----------------------------------------------------------------------------
 # Botni PRODUCTION tartibida ishga tushiradi:
 #
@@ -53,7 +53,7 @@ die()  { printf '[bootstrap][ERROR] %s\n' "$*" >&2; exit 1; }
 
 usage() {
     cat <<'EOF'
-PostAssist V2 — production start (entrypoint & bootstrap)
+PostAssist — production start (entrypoint & bootstrap)
 
   bash scripts/start_production.sh [opsiyalar]
 

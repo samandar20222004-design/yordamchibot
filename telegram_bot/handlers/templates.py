@@ -1,4 +1,4 @@
-"""📋 POST SHABLONLARI — takroriy postlarni shablon qilib saqlash (PHASE C, 9-band).
+"""📋 POST SHABLONLARI — takroriy postlarni shablon qilib saqlash.
 
 Oqim (📢 Kanallarim → kanal → [📋 Shablonlar])::
 

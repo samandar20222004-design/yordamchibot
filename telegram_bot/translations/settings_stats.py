@@ -1,4 +1,4 @@
-"""⚙️ SOZLAMALAR + 📊 STATISTIKA (PostAssist V2 — 5-mikro qadam) i18n lug'ati.
+"""⚙️ SOZLAMALAR + 📊 STATISTIKA i18n lug'ati.
 
 UZ / RU / EN — 100% paritet (``settings_stats_parity_report`` qo'riqlaydi).
 

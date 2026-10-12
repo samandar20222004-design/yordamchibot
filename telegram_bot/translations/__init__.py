@@ -28,7 +28,7 @@ Modullar:
                  submenyusi va statistika
                  qator kalitlari hamda paritet hisoboti
                  (PostAssist V2, 5-qadam + 3-qadam refaktori).
-    content_learning — 📚 KONTENT O'RGANISH (STEP 3, Channel DNA 2.0):
+    content_learning — 📚 KONTENT O'RGANISH:
                  CONTENT_LEARNING_I18N lug'ati, ``content_learning_t``, AI
                  Studio / Post auditi ekranlaridagi lokalizatsiya qilingan
                  tavsiyalar (yetishmayotgan formatlar: Q&A, tutorial,

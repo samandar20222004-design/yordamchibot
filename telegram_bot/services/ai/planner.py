@@ -560,7 +560,7 @@ def render_plan(items: list[PlanDay], topic: str, lang: str, weeks_header: bool 
 # XIZMAT
 # ---------------------------------------------------------------------------
 class ContentPlanService(SMMFeatureService):
-    """Kontent reja generatori (51-band)."""
+    """Kontent reja generatori."""
 
     feature = "planner"
     quota_operation = "content_calendar:plan"

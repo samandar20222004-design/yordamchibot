@@ -711,7 +711,7 @@ def get_user_channel_list_for_analytics(user_id: int) -> list:
 
 
 def get_user_overview_stats(user_id: int) -> dict:
-    """📊 Statistika (PostAssist V2, 5-mikro qadam) — ixcham umumiy ko'rsatkichlar.
+    """📊 Statistika — ixcham umumiy ko'rsatkichlar.
 
     Asosiy menyudagi «📊 Statistika» ekrani uchun foydalanuvchi darajasidagi
     4 ta asosiy ko'rsatkich:
@@ -785,7 +785,7 @@ def invalidate_user_overview_stats(user_id: int) -> None:
 
 
 # ============================================================
-# ⚙️ FOYDALANUVCHI SOZLAMALARI (PostAssist V2, 5-mikro qadam)
+# ⚙️ FOYDALANUVCHI SOZLAMALARI
 # ============================================================
 # 🔔 Bildirishnomalar va 🎨 Post sozlamalari ekranlari shu jadvaldan
 # o'qiladi/yoziladi (user_settings). Kalitlar handler tomonida OQ RO'YXAT

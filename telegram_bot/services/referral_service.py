@@ -1,4 +1,4 @@
-"""ReferralService — PostAssist V2: referal anti-abuse + ACTION-BASED mukofot.
+"""ReferralService: referal anti-abuse + ACTION-BASED mukofot.
 
 🌱 STEP 2 (ORGANIC GROWTH) refaktori: bonus endi /start paytida EMAS,
 taklif qilingan foydalanuvchi BIRINCHI YAROQLI AMALINI (post yaratish /

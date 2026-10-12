@@ -1,4 +1,4 @@
-"""📡 KANAL MONITORINGI VA EVENT INGESTION (PostAssist V2 — PHASE B, 1-band).
+"""📡 KANAL MONITORINGI VA EVENT INGESTION.
 
 Kanalga yangi post yoki tahrirlangan post tushganda (PTB channel-post
 update'lari) metama'lumotlar ASINXRON VA BLOKLAMAYDIGAN rejimda

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """ONBOARDING VA RETENTION TELEMETRIYASI (TTFP, D1/D7).
 
-Nima o'lchanadi (SPRINT 4, 3-band):
+Nima o'lchanadi:
 
 * **TTFP (Time To First Post)** — foydalanuvchi ``/start`` bosgan paytdan
   (``users.created_at``) birinchi postni YARATGAN/REJALASHTIRGAN paytgacha

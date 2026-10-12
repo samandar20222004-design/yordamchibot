@@ -81,7 +81,7 @@ CB_PHOTO_VARIANT = "photo_v:"
 CB_CHANNEL_VOICE = "ch_voice:"
 
 # ---------------------------------------------------------------------------
-# 📢 KANALLARIM — kanal boshqaruv ekrani (PostAssist V2, 4-mikro qadam)
+# 📢 KANALLARIM — kanal boshqaruv ekrani
 # ---------------------------------------------------------------------------
 # Kanal ro'yxatidan muayyan kanal tanlanganda ochiladigan submenu. Ichki
 # amallar ASOSIY MENYUGA CHIQIB KETMAYDI: har bir tugma shu kanal konteksti

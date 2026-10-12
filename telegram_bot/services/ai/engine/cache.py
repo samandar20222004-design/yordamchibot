@@ -1,4 +1,4 @@
-"""Deterministik AI javob keshi (AI ENGINE V2, Faza 1).
+"""Deterministik AI javob keshi.
 
 Audit topilmasi: "tezkor kesh yo'q" — bir xil so'rov har safar provayderga
 yuborilardi (bepul RPM limitlarini keraksiz yeydi, foydalanuvchi kutardi).

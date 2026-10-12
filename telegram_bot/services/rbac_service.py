@@ -1,4 +1,4 @@
-"""RBACService — PostAssist V2: rollar va ruxsatlar.
+"""RBACService: rollar va ruxsatlar.
 
 Rollar (``Role``)
 -----------------

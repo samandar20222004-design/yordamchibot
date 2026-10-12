@@ -1,4 +1,4 @@
-"""🧠 CHANNEL DNA — uslubiy profil (PostAssist V2 — PHASE B, 2-band + FAZA 8,9,22 kengaytma).
+"""🧠 CHANNEL DNA — uslubiy profil.
 
 Kanalning kuzatilgan postlari (``channel_post_events``) asosida Channel DNA
 profili hisoblanadi:
@@ -6,7 +6,7 @@ profili hisoblanadi:
     average_post_length, emoji_level (kam / o'rtacha / ko'p), cta_style,
     formatting_style, sample_size, confidence_score
 
-Kengaytirilgan profil (FAZA 8,9,22):
+Kengaytirilgan profil:
     language, tone, topics, avg_length, emoji_density, best_hours,
     best_weekdays, high_performing_formats — har bir metrika
     sample_size, confidence (0.0-1.0) va updated_at bilan.
@@ -433,7 +433,7 @@ def compute_high_performing_formats(events: list[dict], top_n: int = 3) -> tuple
 
 
 def compute_channel_dna_extended(events: list[dict], now: str | None = None) -> dict:
-    """Kengaytirilgan Channel DNA (FAZA 8,9,22) — PURE, deterministik, AI'siz.
+    """Kengaytirilgan Channel DNA — PURE, deterministik, AI'siz.
 
     Har bir metrika: value, sample_size, confidence (0.0-1.0), updated_at.
 
@@ -786,7 +786,7 @@ def build_dna_system_prompt(profile: dict, lang: str = "uz") -> str:
 
 
 def build_dna_system_prompt_extended(profile: dict, lang: str = "uz") -> str:
-    """Kengaytirilgan DNA dan boy prompt (FAZA 8,9,22)."""
+    """Kengaytirilgan DNA dan boy prompt."""
     return build_dna_system_prompt(profile, lang=lang)
 
 
@@ -1265,7 +1265,7 @@ async def get_channel_dna_extended(
     user_id: int | None = None,
     db_module: Any = None,
 ) -> dict:
-    """Kengaytirilgan Channel DNA (FAZA 8,9,22) — batch agregatsiya.
+    """Kengaytirilgan Channel DNA — batch agregatsiya.
 
     RBAC/IDOR himoyasi bilan, AI'siz, faqat DB agregatsiyasi.
     """

@@ -1,4 +1,4 @@
-"""HealthService — PostAssist V2: Health & Observability.
+"""HealthService: Health & Observability.
 
 Tizimning barcha asosiy komponentlarini bitta so'rovda tekshiradi va
 adminlarga chiroyli, tilga mos (uz/ru/en) hisobot qaytaradi:

@@ -1,4 +1,4 @@
-"""🧠 Channel Intelligence (PostAssist V2 — PHASE B + FAZA 8,9,22).
+"""🧠 Channel Intelligence.
 
 Kanal monitoringi va aqlli tahlil qatlami:
 
@@ -25,7 +25,7 @@ Kanal monitoringi va aqlli tahlil qatlami:
 * :mod:`services.channels.duplicate_detector` — post kanalga
   rejalashtirilishidan/chiqarilishidan oldin kanalning oxirgi postlari bilan
   YENGIL (AI'siz, Jaccard/token-overlap) o'xshashlik tekshiruvi;
-* :mod:`services.channels.recycle` — ♻️ CONTENT RECYCLE (PHASE D, 13-band):
+* :mod:`services.channels.recycle` — ♻️ CONTENT RECYCLE:
   kanalning **14+ kun** oldingi, yaxshi ko'rsatkichli postlarini aniqlash va
   AI yordamida yangi **hook + sarlavha + CTA** bilan "yangilangan post"
   yaratish. Ko'r-ko'rona repost QAT'IYAN TAQIQLANADI (o'xshashlik chegarasi
