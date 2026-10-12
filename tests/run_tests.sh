@@ -1560,6 +1560,10 @@ echo "===== 📋 ☰ TELEGRAM «MENU» TUGMASI (set_my_commands) + BUYRUQLAR ===
 "$PY" tests/menu_button_and_commands_test.py || fail "tests/menu_button_and_commands_test.py"
 
 echo
+echo "===== 🐢 SEKIN JAVOB LOGI (shaxsiy matn logga tushmaydi) ====="
+"$PY" tests/slow_update_log_test.py || fail "tests/slow_update_log_test.py"
+
+echo
 echo "=============================================================="
 if [ "$EXIT_CODE" -eq 0 ]; then
     echo "BARCHA TESTLAR 100% YASHIL ✔"

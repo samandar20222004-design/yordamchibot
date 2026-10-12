@@ -196,10 +196,14 @@ def _log_if_slow(update, elapsed: float) -> None:
         return
     query = getattr(update, "callback_query", None)
     message = getattr(update, "effective_message", None)
+    # Foydalanuvchi yozgan matn logga TUSHMAYDI (shaxsiy ma'lumot) — faqat
+    # tugma prefiksi, buyruq nomi yoki matn uzunligi.
     if query is not None:
-        what = f"tugma {str(getattr(query, 'data', '') or '')[:40]!r}"
+        what = f"tugma {str(getattr(query, 'data', '') or '').split(':', 1)[0][:32]!r}"
     elif message is not None and getattr(message, "text", None):
-        what = f"matn {message.text[:40]!r}"
+        text = message.text
+        what = (f"buyruq {text.split()[0][:32]!r}" if text.startswith("/")
+                else f"matn ({len(text)} belgi)")
     else:
         what = "boshqa update"
     user = getattr(update, "effective_user", None)

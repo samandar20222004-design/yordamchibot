@@ -123,6 +123,14 @@ def test_process_metrics():
           snap["telegram_requests"] == 2 and snap["telegram_429"] == 1,
           str(snap))
 
+    # Regressiya: status_code=None (oddiy muvaffaqiyatli so'rov) jim xato
+    # yozmasligi va so'rov sifatida hisoblanishi kerak.
+    with patch.object(metrics, "log_silent_failure") as silent:
+        metrics.record_telegram_request(latency_ms=5)
+    check("status_code=None: jim xato yozilmaydi", not silent.called, str(silent.call_args))
+    check("status_code=None: so'rov hisoblanadi",
+          metrics.snapshot()["telegram_requests"] == 3, str(metrics.snapshot()))
+
 
 def test_ai_and_telegram_instrumentation():
     print("== PHASE 10: AI service + Bot API instrumentation ==")

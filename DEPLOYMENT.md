@@ -373,7 +373,7 @@ python3 tests/smoke_test.py --base-url http://127.0.0.1:8080
   qilish `-31007` bilan rad etiladi.
 * Kassa kaliti hech qachon log'ga yozilmaydi (`PaymeConfig.__repr__` va Sentry
   scrubber uni yashiradi).
-* Batafsil: [docs/reports/PAYME_MERCHANT_API.md](docs/reports/PAYME_MERCHANT_API.md).
+* Batafsil: [docs/PAYME.md](docs/PAYME.md).
 
 ---
 

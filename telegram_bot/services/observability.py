@@ -101,10 +101,12 @@ def record_telegram_request(*, status_code=None, error=None, latency_ms=0) -> No
     global _telegram_requests, _telegram_429
     global _telegram_latency_sum_ms, _telegram_latency_count
     is_rate_limited = False
-    try:
-        is_rate_limited = int(status_code) == 429
-    except (TypeError, ValueError) as _silent_exc:
-        log_silent_failure("services.observability:record_telegram_request:104", _silent_exc)
+    # Muvaffaqiyatli so'rovda status_code berilmaydi (None) — bu xato emas.
+    if status_code is not None:
+        try:
+            is_rate_limited = int(status_code) == 429
+        except (TypeError, ValueError) as _silent_exc:
+            log_silent_failure("services.observability:record_telegram_request:104", _silent_exc)
     if error is not None:
         is_rate_limited = is_rate_limited or type(error).__name__ in {
             "RetryAfter", "RetryAfterError", "TooManyRequests",
