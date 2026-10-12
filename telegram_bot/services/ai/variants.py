@@ -1,4 +1,4 @@
-"""✨ MULTI-VARIANT GENERATOR — 48-band (PHASE 11).
+"""✨ MULTI-VARIANT GENERATOR — 48-band.
 
 Bitta post mavzusidan **5 ta bir-biridan farq qiluvchi** post:
 

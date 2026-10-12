@@ -1,14 +1,14 @@
-"""📢 REKLAMA DVIGATELI VA AUDITI — FAZA 15 & 16 (PostAssist V2).
+"""📢 REKLAMA DVIGATELI VA AUDITI — FAZA 15 & 16.
 
 Ikkita qatlam, bitta xavfsizlik siyosati:
 
-* :mod:`services.ads.engine` — **reklama generatsiyasi dvigateli** (FAZA 15):
+* :mod:`services.ads.engine` — **reklama generatsiyasi dvigateli**:
   brief (mahsulot, faktlar, taklif, auditoriya, CTA, havola) → 4 xil format
   (🧬 native / ⚡ short / 🎓 educational / 🌿 soft). ``native`` formati
   kanalning **Channel DNA** profili (``services.channels.dna``) bilan
   bog'lanadi; poydevor sifatida ``services.ai`` orkestratori, Phase 2 atomik
   kvotasi va HTML sanitizeri ishlatiladi (yangi AI quyi tizimi YO'Q).
-* :mod:`services.ads.audit` — **reklama auditi** (FAZA 16): DNA mosligi, CTA
+* :mod:`services.ads.audit` — **reklama auditi**: DNA mosligi, CTA
   aniqligi, **asossiz da'volar** (faktlarda bo'lmagan narx/kafolat/reyting/
   sertifikat) va o'qilish. Muammo bo'lsa ``requires_admin_approval=True`` va
   ``evaluate_publish()`` nashrni FAIL-CLOSED to'sadi.
@@ -85,7 +85,7 @@ from services.ads.templates import (  # noqa: F401
 )
 
 __all__ = [
-    # --- engine (FAZA 15) --------------------------------------------------
+    # --- engine --------------------------------------------------
     "AD_FORMATS",
     "AD_FORMAT_COUNT",
     "AD_FORMAT_INDEX",
@@ -108,7 +108,7 @@ __all__ = [
     "generate_ad_variants",
     "is_safe_link",
     "resolve_format",
-    # --- audit (FAZA 16) ---------------------------------------------------
+    # --- audit ---------------------------------------------------
     "AD_AUDIT_CHECK_KEYS",
     "AD_AUDIT_CRITERIA",
     "AD_AUDIT_WEIGHTS",

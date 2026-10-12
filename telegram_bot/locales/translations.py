@@ -27,7 +27,7 @@ TRANSLATIONS = {
         # "btn_invite_friends" = 👥 Do'stlarni taklif (referral — asosiy
         # menyuda emas, Sozlamalar ichida chiziladi).
         "btn_premium": "💎 PRO",
-        # 3-BOSQICH: «⚙️ Sozlamalar» endi «⚙️ Sozlamalar / Ko'proq» —
+        # «⚙️ Sozlamalar» endi «⚙️ Sozlamalar / Ko'proq» —
         # PRO, Yordam va Referral kabi IKKILAMCHI bo'limlar shu tugma
         # ostidagi inline hub'ga ko'chirilgan (keyboards.inline
         # get_settings_profile_keyboard). Eski «⚙️ Sozlamalar» yorlig'i
@@ -119,7 +119,7 @@ TRANSLATIONS = {
             "Hisobingizga <b>+{reward} ta AI ball</b> qo'shildi. "
             "Birinchi 3 do'st uchun +3 tadan, keyingilar uchun +1 tadan beriladi. 🚀"
         ),
-        # 🌱 STEP 2: /start dagi xabar — «do'st qo'shildi, mukofot uning
+        # /start dagi xabar — «do'st qo'shildi, mukofot uning
         # birinchi postidan keyin» (ball /start da berilmaydi).
         "referral_friend_joined_notice": (
             "👥 <b>Yangi do'st qo'shildi!</b>\n\n"
@@ -275,7 +275,7 @@ TRANSLATIONS = {
             "Afsuski, to'lov chekingiz tasdiqlanmadi. Iltimos, qayta urinib "
             "ko'ring yoki '⭐️ Premium' bo'limidan adminga murojaat qiling."
         ),
-        # --- 1-QISM: Asosiy klaviatura & Kabinet (i18n) ---
+        # Asosiy klaviatura & Kabinet (i18n) ---
         # Umumiy tugmalar (kabinet va jarayon klaviaturalarida ishlatiladi)
         "btn_main_menu": "🔙 Asosiy menyu",
         "btn_cancel": "❌ Bekor qilish",
@@ -291,7 +291,7 @@ TRANSLATIONS = {
         "cab_my_channels": "📢 Mening kanallarim",
         "cab_analytics": "📊 Kanallar analitikasi",
         "cab_pending": "📅 Kutilayotgan postlar",
-        # 📅 REJALASHTIRILGAN (PostAssist V2, 4-qadam): eskirgan «Postlar
+        # 📅 REJALASHTIRILGAN: eskirgan «Postlar
         # navbati (Queue)» nomi yagona «📅 Rejalashtirilgan» ga o'tkazildi.
         # Kalit nomi (cab_queue) va callback (cab_queue) ALIAS sifatida
         # o'zgarishsiz qoladi — eski inline xabarlar ishlayveradi.
@@ -299,7 +299,7 @@ TRANSLATIONS = {
         "cab_balance": "💎 Ballar & Reklama rejimi",
         "cab_referral": "👥 Do'stlarni taklif",
         "cab_close": "❌ Yopish",
-        # 🧹 UI/UX POLISH (1-qadam): yagona Shaxsiy kabinet paneli —
+        # 🧹 UI/UX POLISH: yagona Shaxsiy kabinet paneli —
         # tarqoq bonus/referral tugmalari birlashtirildi (eski cab_balance,
         # cab_bonus, cab_referral callback'lari routing'da saqlanadi).
         "cab_bonus_invite": "🎁 Bonuslar & Taklif",
@@ -416,7 +416,7 @@ TRANSLATIONS = {
         "transfer_error": "❌ <b>Xatolik:</b> {msg}",
         "transfer_default_name": "Do'stingiz",
 
-        # --- 2-QISM: 🤖 AI Yordamchi i18n (eski nomi — AI Studio) ---
+        # 🤖 AI Yordamchi i18n (eski nomi — AI Studio) ---
         "ai_studio_menu": (
             "🤖 <b>PostAssist AI Yordamchi</b>\n\n"
             "💎 Mavjud AI so'rovlari: {credits}\n\n"
@@ -507,7 +507,7 @@ TRANSLATIONS = {
         ),
         "ai_btn_back": "⬅️ Orqaga",
         "ai_btn_close": "❌ Bekor qilish",
-        # 🌱 STEP 2 — AI generatsiya preview'sining ACTION tugmalari.
+        # AI generatsiya preview'sining ACTION tugmalari.
         "ai_btn_copy": "📋 Nusxalash",
         "ai_btn_regen": "🔄 Yangi variant",
         "ai_btn_share_ref": "🔗 Do'stlarga",
@@ -671,7 +671,7 @@ TRANSLATIONS = {
             "🖼 <b>Media qabul qilindi!</b>\n\nEndi post mavzusini yoki matnini yozing."
         ),
 
-        # --- 3-QISM: ➕ Yangi post i18n (UZ) ---
+        # ➕ Yangi post i18n (UZ) ---
         # Tugma yorliqlari (reply klaviatura)
         "np_btn_skip": "➡️ Tugmasiz davom etish",
         "np_btn_skip_url": "⏭ O'tkazib yuborish",
@@ -972,7 +972,7 @@ TRANSLATIONS = {
         "np_ai_btn_retry": "🔄 Qayta urinish",
         "np_ai_btn_revert": "❌ Aslga qaytarish",
 
-        # --- 3-QISM: 📢 Mening kanallarim i18n (UZ) ---
+        # 📢 Mening kanallarim i18n (UZ) ---
         "ch_empty_title": (
             "📢 <b>Sizda hali ulangan kanallar mavjud emas.</b>\n\n"
             "Kanal ulash uchun quyidagi tugmani bosing 👇\n\n"
@@ -1118,7 +1118,7 @@ TRANSLATIONS = {
             "Bu uslub kanal profilingizga saqlandi va keyingi AI generatsiyalarda ishlatiladi."
         ),
         "ch_voice_error": "⚠️ Kanal ovozi tahlilini bajarib bo'lmadi. Bir ozdan so'ng qayta urinib ko'ring.",
-        # 🧠 3-BOSQICH — ONBOARDING: KANAL DNK SINOVI. Kanal birinchi marta
+        # ONBOARDING: KANAL DNK SINOVI. Kanal birinchi marta
         # ulanganda bot «✅ ulandi» bilan to'xtab qolmaydi — darhol kanal
         # ovozini (Tone of Voice) o'rganish taklifini beradi.
         "ch_dna_offer": (
@@ -1143,7 +1143,7 @@ TRANSLATIONS = {
             "allaqachon sozlandi — endi AI har bir postni shu ohangda yozadi."
         ),
 
-        # --- 3-QISM: 📅 Kutilayotgan postlar i18n (UZ) ---
+        # 📅 Kutilayotgan postlar i18n (UZ) ---
         "pend_empty": "⏳ <b>Sizda kutilayotgan faol postlar mavjud emas.</b>",
         "pend_list_title": "⏳ <b>Kutilayotgan postlaringiz ({count} ta):</b>",
         "pend_item": (
@@ -1226,7 +1226,7 @@ TRANSLATIONS = {
         "pend_schedule_once": "⏰ Vaqti: <b>{time}</b>",
         "pend_schedule_unknown": "⏰ Vaqti: Noma'lum",
 
-        # --- 3-QISM: ⏳ Navbat va slotlar i18n (UZ) ---
+        # ⏳ Navbat va slotlar i18n (UZ) ---
         "queue_db_error": (
             "📅 <b>Rejalashtirilgan</b>\n\n"
             "⚠️ Rejalashtirilgan postlarni hozircha o'qib bo'lmadi "
@@ -1302,7 +1302,7 @@ TRANSLATIONS = {
         # yagona «📅 Rejalashtirilgan» nomini ko'rsatadi.
         "btn_queue": "📅 Rejalashtirilgan",
 
-        # --- 4-QISM: ⚙️ Qo'shimcha funksiyalar, 📖 Qo'llanma va tizim xabarlari (i18n) ---
+        # ⚙️ Qo'shimcha funksiyalar, 📖 Qo'llanma va tizim xabarlari (i18n) ---
 
         # ⚙️ Qo'shimcha funksiyalar — inline menyu matni va tugmalari
         "extras_menu_body": (
@@ -1643,7 +1643,7 @@ TRANSLATIONS = {
             "♻️ Bu tugma eskirgan (bot qayta ishga tushirilgan). "
             "Menyuni qaytadan oching: /start"
         ),
-        # 🚪 SPRINT 4 — YOPIQ BETA DARVOZASI (closed beta access) xabarlari.
+        # YOPIQ BETA DARVOZASI (closed beta access) xabarlari.
         # Bot 30–50 kanal egasi bilan yopiq sinovda ishlaganda yangi
         # foydalanuvchi taklif kodi yoki admin tasdig'ini kutadi.
         "beta_pending": (
@@ -1674,7 +1674,7 @@ TRANSLATIONS = {
             "✅ <b>So'rovingiz tasdiqlandi!</b>\n\n"
             "Botdan to'liq foydalanish uchun /start bosing."
         ),
-        # 🗝 FAZA 19 — registry'da yo'q (soxtalashtirilgan/noma'lum) callback
+        # registry'da yo'q (soxtalashtirilgan/noma'lum) callback
         # uchun fail-closed rad javobi (foydalanuvchi tilida).
         "callback_rejected": (
             "⛔ Bu amal mavjud emas yoki xavfsizlik tekshiruvidan o'tmadi. "
@@ -1709,7 +1709,7 @@ TRANSLATIONS = {
         ),
         "msg_closed": "✅ Yopildi.",
 
-        # 🩺 7-BOSQICH: Tizim holati monitoringi (/health — faqat adminlar)
+        # Tizim holati monitoringi (/health — faqat adminlar)
         "health_title": "🩺 <b>TIZIM HOLATI (System Health)</b>",
         "health_overall": "📊 <b>Umumiy holat:</b>",
         "health_checked_at": "🕐 Tekshirildi: {time} (UTC)",
@@ -2260,7 +2260,7 @@ TRANSLATIONS = {
             "На ваш счёт начислено <b>+{reward} ИИ-балла</b>. "
             "За первых 3 друзей начисляется по +3, за каждого следующего — +1. 🚀"
         ),
-        # 🌱 STEP 2: сообщение при /start друга — «друг присоединился,
+        # сообщение при /start друга — «друг присоединился,
         # награда придёт после его первого поста» (баллы на /start не даются).
         "referral_friend_joined_notice": (
             "👥 <b>Присоединился новый друг!</b>\n\n"
@@ -2414,7 +2414,7 @@ TRANSLATIONS = {
             "попробуйте ещё раз или свяжитесь с администратором в разделе "
             "'⭐️ Premium'."
         ),
-        # --- 1-QISM: Asosiy klaviatura & Kabinet (i18n) ---
+        # Asosiy klaviatura & Kabinet (i18n) ---
         # Umumiy tugmalar (kabinet va jarayon klaviaturalarida ishlatiladi)
         "btn_main_menu": "🔙 Главное меню",
         "btn_cancel": "❌ Отмена",
@@ -2434,7 +2434,7 @@ TRANSLATIONS = {
         "cab_balance": "💎 Баллы & Режим рекламы",
         "cab_referral": "👥 Пригласить друзей",
         "cab_close": "❌ Закрыть",
-        # 🧹 UI/UX POLISH (1-qadam): yagona Shaxsiy kabinet paneli.
+        # 🧹 UI/UX POLISH: yagona Shaxsiy kabinet paneli.
         "cab_bonus_invite": "🎁 Бонусы и приглашения",
         "cab_payments": "💳 История платежей",
         "cab_notifications": "🔔 Уведомления",
@@ -2549,7 +2549,7 @@ TRANSLATIONS = {
         "transfer_error": "❌ <b>Ошибка:</b> {msg}",
         "transfer_default_name": "Ваш друг",
 
-        # --- 2-QISM: 🤖 AI Помощник i18n (RU, eski nomi — AI Studio) ---
+        # 🤖 AI Помощник i18n (RU, eski nomi — AI Studio) ---
         "ai_studio_menu": (
             "🤖 <b>PostAssist AI Помощник</b>\n\n"
             "💎 Доступно ИИ-запросов: {credits}\n\n"
@@ -2638,11 +2638,11 @@ TRANSLATIONS = {
             "Выберите следующий шаг 👇"
         ),
         "ai_btn_back": "⬅️ Назад",
-        # 🧭 FAZA 17: bu tugma FSM'ni TO'XTATADI (ai_close = Bekor qilish),
+        # bu tugma FSM'ni TO'XTATADI (ai_close = Bekor qilish),
         # shuning uchun RU yorlig'i ham kanonik «Отмена» (UZ «❌ Bekor
         # qilish» / EN «❌ Cancel» bilan bir xil ma'noda).
         "ai_btn_close": "❌ Отмена",
-        # 🌱 STEP 2 — кнопки действий AI-превью генерации.
+        # кнопки действий AI-превью генерации.
         "ai_btn_copy": "📋 Копировать",
         "ai_btn_regen": "🔄 Новый вариант",
         "ai_btn_share_ref": "🔗 Поделиться",
@@ -2807,7 +2807,7 @@ TRANSLATIONS = {
             "🖼 <b>Медиа получено!</b>\n\nТеперь напишите тему поста или текст."
         ),
 
-        # --- 3-QISM: ➕ Новый пост i18n (RU) ---
+        # ➕ Новый пост i18n (RU) ---
         "np_btn_skip": "➡️ Продолжить без кнопки",
         "np_btn_skip_url": "⏭ Пропустить",
         "np_btn_url_add": "🔗 Добавить URL-кнопку",
@@ -3104,7 +3104,7 @@ TRANSLATIONS = {
         "np_ai_btn_retry": "🔄 Повторить",
         "np_ai_btn_revert": "❌ Вернуть исходный",
 
-        # --- 3-QISM: 📢 Мои каналы i18n (RU) ---
+        # 📢 Мои каналы i18n (RU) ---
         "ch_empty_title": (
             "📢 <b>У вас пока нет подключённых каналов.</b>\n\n"
             "Нажмите кнопку ниже, чтобы подключить канал 👇\n\n"
@@ -3271,7 +3271,7 @@ TRANSLATIONS = {
             "настроены — ИИ пишет каждый пост в этом тоне."
         ),
 
-        # --- 3-QISM: 📅 Ожидающие посты i18n (RU) ---
+        # 📅 Ожидающие посты i18n (RU) ---
         "pend_empty": "⏳ <b>У вас нет ожидающих активных постов.</b>",
         "pend_list_title": "⏳ <b>Ваши ожидающие посты ({count} шт.):</b>",
         "pend_item": (
@@ -3353,7 +3353,7 @@ TRANSLATIONS = {
         "pend_schedule_once": "⏰ Время: <b>{time}</b>",
         "pend_schedule_unknown": "⏰ Время: не указано",
 
-        # --- 3-QISM: ⏳ Очередь и слоты i18n (RU) ---
+        # ⏳ Очередь и слоты i18n (RU) ---
         "queue_title": "📅 <b>Запланированные</b> — постов: {count}:",
         "queue_title_range": "📅 <b>Запланированные</b> — постов: {count} ({start}-{end}):",
         "queue_empty": (
@@ -3779,7 +3779,7 @@ TRANSLATIONS = {
             "♻️ Эта кнопка устарела (бот был перезапущен). "
             "Откройте меню заново: /start"
         ),
-        # 🚪 SPRINT 4 — закрытая бета (доступ только по коду/одобрению).
+        # закрытая бета (доступ только по коду/одобрению).
         "beta_pending": (
             "🚪 <b>Закрытая бета</b>\n\n"
             "Бот пока работает в закрытом тестовом режиме — доступ только по "
@@ -3808,7 +3808,7 @@ TRANSLATIONS = {
             "✅ <b>Ваш запрос одобрен!</b>\n\n"
             "Чтобы начать пользоваться ботом, нажмите /start."
         ),
-        # 🗝 FAZA 19 — отказ для неизвестного/поддельного callback (fail-closed).
+        # отказ для неизвестного/поддельного callback (fail-closed).
         "callback_rejected": (
             "⛔ Это действие недоступно или не прошло проверку безопасности. "
             "Пожалуйста, пользуйтесь меню: /start"
@@ -4764,7 +4764,7 @@ def set_lang_cache(context, lang: str) -> str:
 def clear_fsm_data(context) -> None:
     """FSM holatini tozalaydi, lekin til keshini saqlab qoladi.
 
-    🧭 PostAssist V2 · 4-qadam: ``nav_section`` (navigatsiya stacki) ham
+    4-qadam: ``nav_section`` (navigatsiya stacki) ham
     omon qoladi — FSM tozalanishiga qaramay [❌ Bekor qilish] foydalanuvchi
     QAYSIGA qaytishini bilib turadi (handlers/navigation.py). Qiymatning
     yaroqliligi o'qilayotganda ``current_section`` tomonidan tekshiriladi

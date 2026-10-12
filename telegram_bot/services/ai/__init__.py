@@ -1,8 +1,8 @@
 """AI Engine va SMM Orkestratsiyasi moduli.
 
-PHASE 3: Intent Router, Provider Fallback Chain, Output Validator & Orchestrator.
-PHASE 4 & 5: Concurrency, Bounded Queue va Request Cancellation.
-PHASE 11 & 12: Advanced SMM xizmatlari — multi-variant (48), repurpose (49),
+Intent Router, Provider Fallback Chain, Output Validator & Orchestrator.
+Concurrency, Bounded Queue va Request Cancellation.
+Advanced SMM xizmatlari — multi-variant (48), repurpose (49),
 deep audit & score (33/50) va kontent reja generatori (51).
 
 Advanced SMM xizmatlari shu paketdagi AIOrchestrator/Provider zanjiri,
@@ -25,7 +25,7 @@ from .providers import (
     get_environment,
     mock_is_allowed,
 )
-# 🛡 PHASE A (P0-C) — prompt/retry ko'rsatmalarining sizib chiqishidan himoya.
+# prompt/retry ko'rsatmalarining sizib chiqishidan himoya.
 from .prompt_guard import (
     has_instruction_leak,
     sanitize_output,
@@ -41,7 +41,7 @@ from .concurrency import (
     ai_concurrency_manager,
     get_queue_full_message,
 )
-# 🚀 PHASE 11 & 12 — Advanced SMM xizmatlari (48/49/33+50/51-bandlar).
+# Advanced SMM xizmatlari (48/49/33+50/51-bandlar).
 from .smm_common import (
     QuotaTicket,
     SMMFeatureService,
@@ -86,7 +86,7 @@ from .planner import (
     generate_content_plan,
     plan_entitlement,
 )
-# 🧭 3-QADAM (UI/UX POLISH) — prompt markazi: format aniqlash, fluff-guard,
+# prompt markazi: format aniqlash, fluff-guard,
 # sifat standarti. Faqat stdlib — import zanjiriga ta'sir qilmaydi.
 from .prompts import (
     FORMAT_GENERAL,
@@ -163,7 +163,7 @@ __all__ = [
     "OpenRouterProvider",
     "MockProvider",
     "ProviderChain",
-    # --- PHASE A: production safety (P0-A / P0-C) ----------------------------
+    # production safety ----------------------------
     "get_environment",
     "mock_is_allowed",
     "ai_unavailable_message",
@@ -180,7 +180,7 @@ __all__ = [
     "AIQueueTimeoutError",
     "ai_concurrency_manager",
     "get_queue_full_message",
-    # --- PHASE 11 & 12: advanced SMM -----------------------------------------
+    # advanced SMM -----------------------------------------
     "SMMFeatureService",
     "QuotaTicket",
     "sanitize_html",
@@ -215,7 +215,7 @@ __all__ = [
     "ContentPlanService",
     "plan_entitlement",
     "generate_content_plan",
-    # --- 3-QADAM (UI/UX POLISH): prompt markazi -------------------------------
+    # prompt markazi -------------------------------
     "FORMAT_GENERAL",
     "FORMAT_NEWS",
     "FORMAT_SALES",

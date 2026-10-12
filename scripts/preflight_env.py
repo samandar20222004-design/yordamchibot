@@ -276,7 +276,7 @@ def check_required_and_policy(env: dict[str, str], report: Report) -> str:
         else:
             report.error("PORT_INVALID", f"PORT noto'g'ri: {port_raw!r} (1..65535 bo'lishi kerak).")
 
-    # P0-A: muhit siyosati
+    # muhit siyosati
     raw_env = (env.get("ENVIRONMENT") or "").strip()
     effective = raw_env.lower() or FAIL_CLOSED_ENVIRONMENT
     if raw_env and effective not in ALLOWED_ENVIRONMENTS:

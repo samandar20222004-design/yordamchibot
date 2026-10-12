@@ -1,4 +1,4 @@
-"""🗓 SMART CONTENT CALENDAR — 7/30 kunlik reja oqimi (PostAssist V2 · 2-qadam).
+"""🗓 SMART CONTENT CALENDAR — 7/30 kunlik reja oqimi.
 
 Bu modul sof mantiq moduli (:mod:`handlers.content_calendar` — entitlement,
 normalallashtirish, xavfsiz render) ustiga **FSM qatlamini** qo'yadi va uni
@@ -248,7 +248,7 @@ async def generate_calendar_items(business: str, days: int, lang: str = "uz",
                                   operation_type: str = "content_calendar") -> list:
     """AI orqali ``days`` ta kunlik mavzu ro'yxatini oladi (xatoda — []).
 
-    PHASE 6: birinchi navbatda KANONIK shlyuz (``services.ai.engine.
+    birinchi navbatda KANONIK shlyuz (``services.ai.engine.
     ai_gateway`` — kesh/breaker/retry/telemetriya) ishlatiladi va
     ``user_id``/``channel_id`` telemetriya konteksti sifatida uzatiladi.
     Kanonik yo'l javob bermasa — eski legacy zanjir (``gateway.legacy_chain``)

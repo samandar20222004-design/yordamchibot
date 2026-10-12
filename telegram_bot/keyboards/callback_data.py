@@ -91,23 +91,23 @@ CB_CHANNEL_OPEN = "ch_op:"        # kanalni tanlash → boshqaruv ekrani
 CB_CHANNEL_NEW_POST = "ch_np:"    # ➕ Post yaratish (shu kanal uchun)
 CB_CHANNEL_SCHEDULED = "ch_sch:"  # 📅 Rejalashtirilgan (shu kanal bo'yicha)
 CB_CHANNEL_STATS = "ch_st:"       # 📊 Statistika (shu kanal bo'yicha)
-# 🧠 PHASE B — Channel Intelligence: kanal uslubiy profili va optimal vaqt
+# Channel Intelligence: kanal uslubiy profili va optimal vaqt
 CB_CHANNEL_DNA = "ch_dna:"        # 🧠 Kanal DNA (uslubiy profil kartochkasi)
 CB_CHANNEL_BEST_TIME = "ch_btm:"  # ⏰ Eng yaxshi vaqt (post statistikasi)
-# PHASE E — haftalik Channel Advisor kartasi
+# haftalik Channel Advisor kartasi
 CB_CHANNEL_ADVICE = "ch_adv:"
-# PHASE E — approval card callbacks (post id is appended with ``cb``).
+# approval card callbacks (post id is appended with ``cb``).
 CB_TEAM_APPROVE = "team_ok:"
 CB_TEAM_EDIT = "team_edit:"
 CB_TEAM_REJECT = "team_no:"
-# 🚀 PHASE C — 7 kunlik AI avtopilot va 📋 post shablonlari (kanal kontekstida)
+# 7 kunlik AI avtopilot va 📋 post shablonlari (kanal kontekstida)
 CB_CHANNEL_AUTOPILOT = "ch_ap:"   # 🚀 AI Avtopilot (7 kunlik reja)
 CB_CHANNEL_TEMPLATES = "ch_tpl:"  # 📋 Shablonlar (post shablonlari menyusi)
-# 📥 PHASE D (2/2) — kontent manbalari HUB'i (kanal kontekstida)
+# kontent manbalari HUB'i (kanal kontekstida)
 CB_CHANNEL_SOURCES = "ch_src:"    # 📥 Kontent manbalari (URL→post, RSS, recycle)
 CB_CHANNEL_BACK = "ch_back"       # ◀️ Orqaga → kanallar ro'yxati (payload'siz)
 
-# 📥 PHASE D — kontent manbalari (11, 12, 13-bandlar): URL→post, RSS, recycle.
+# kontent manbalari (11, 12, 13-bandlar): URL→post, RSS, recycle.
 CB_SOURCE_URL = "src_url:"        # 🔗 Havoladan post (URL → post oqimi)
 CB_SOURCE_RSS = "src_rss:"        # 📡 RSS/ATOM oqimi (manbalar ro'yxati)
 CB_SOURCE_RECYCLE = "src_rec:"    # ♻️ Eski postni yangilash (content recycle)
@@ -116,7 +116,7 @@ CB_SOURCE_DRAFTS = "src_drf:"     # 🗂 Tasdiqlash kutayotgan qoralamalar
 CB_SOURCE_DRAFT = "src_draft:"
 CB_SOURCE_BACK = "src_back"       # ◀️ Manbalar menyusiga qaytish (payload'siz)
 CB_SOURCE_CANCEL = "src_cancel"   # ❌ Bekor qilish (payload'siz)
-# 📥 PHASE D (2/2) — ichki amallar (hammasi 16 bayt byudjetida).
+# ichki amallar (hammasi 16 bayt byudjetida).
 CB_SOURCE_FORMAT = "src_fmt:"     # 4 formatdan birini tanlash (news/short/...)
 CB_SOURCE_ACTION = "src_act:"     # preview amallari: sched | now | regen
 CB_SOURCE_RSS_ADD = "src_add"     # ➕ Yangi manba qo'shish (payload'siz)
@@ -127,7 +127,7 @@ CB_SOURCE_RSS_DEL = "src_del:"    # 🗑 Manbani o'chirish (payload: source id)
 CB_SOURCE_REC_PICK = "src_rp:"    # ♻️ Recycle nomzodi (payload: ro'yxat indeksi)
 
 # ---------------------------------------------------------------------------
-# 📅 REJALASHTIRILGAN — post kartochkasi amallari (PostAssist V2, 4-qadam)
+# 📅 REJALASHTIRILGAN — post kartochkasi amallari
 # ---------------------------------------------------------------------------
 # Ro'yxatdagi har bir post ostida [✏️ Tahrirlash] [⏰ Vaqtni o'zgartirish]
 # [🗑 O'chirish]. Tahrirlash/vaqt amallari mavjud, sinovdan o'tgan
@@ -161,7 +161,7 @@ CB_POST_SCORE_SCHEDULE = "ps_sched"
 CB_POST_SCORE_NEW = "ps_new"
 CB_POST_SCORE_SEND_ALL = "ps_chall"
 
-# 🧭 PHASE 9 — Kontekstual menyular va 2 daqiqalik Instant-Value Onboarding.
+# Kontekstual menyular va 2 daqiqalik Instant-Value Onboarding.
 CB_CTX_POST = "ctx_post:"
 CB_CTX_AI_POST = "ctx_post:ai"
 CB_CTX_MANUAL_POST = "ctx_post:manual"
@@ -182,7 +182,7 @@ CB_MORNING_DIGEST_DISABLE = "md_disable"
 CB_MORNING_DIGEST_CANCEL = "md_cancel"
 CB_UZ_CALENDAR_CREATE = "uzcal_create:"
 
-# 🌱 STEP 2 (ORGANIC GROWTH) — AI post GENERATSIYASI preview'sining ACTION
+# AI post GENERATSIYASI preview'sining ACTION
 # tugmalari: [📋 Nusxalash] [🔄 Yangi variant] [🔗 Do'stlarga ulashish
 # (IXTIYORIY)]. [📅 Rejalashtirish] (``ai_studio_sched``) mavjud joyida
 # qoldi — preview ekrani o'zgarmaydi, faqat amallar to'plami to'liqlashdi.
@@ -216,19 +216,19 @@ CANONICAL_PREFIXES = (
     CB_CHANNEL_NEW_POST,
     CB_CHANNEL_SCHEDULED,
     CB_CHANNEL_STATS,
-    # 🧠 PHASE B — Channel Intelligence (DNA + Best Time).
+    # Channel Intelligence (DNA + Best Time).
     CB_CHANNEL_DNA,
     CB_CHANNEL_BEST_TIME,
     CB_CHANNEL_ADVICE,
     CB_TEAM_APPROVE,
     CB_TEAM_EDIT,
     CB_TEAM_REJECT,
-    # 🚀 PHASE C — AI Avtopilot + post shablonlari (kanal kontekstida).
+    # AI Avtopilot + post shablonlari (kanal kontekstida).
     CB_CHANNEL_AUTOPILOT,
     CB_CHANNEL_TEMPLATES,
-    # 📥 PHASE D (2/2) — kontent manbalari HUB'i (kanal kontekstida).
+    # kontent manbalari HUB'i (kanal kontekstida).
     CB_CHANNEL_SOURCES,
-    # 📥 PHASE D — kontent manbalari (URL→post, RSS/ATOM, recycle).
+    # kontent manbalari (URL→post, RSS/ATOM, recycle).
     CB_SOURCE_URL,
     CB_SOURCE_RSS,
     CB_SOURCE_RECYCLE,
@@ -241,12 +241,12 @@ CANONICAL_PREFIXES = (
     CB_SOURCE_RSS_AUTO,
     CB_SOURCE_RSS_DEL,
     CB_SOURCE_REC_PICK,
-    # 📅 REJALASHTIRILGAN — yagona ro'yxat amallari (PostAssist V2 · 2-qadam).
+    # 📅 REJALASHTIRILGAN — yagona ro'yxat amallari.
     CB_SCHED_BTN_REACT,
     # 📊 Post Score — dinamik payload qo'shiladigan prefikslar.
     CB_POST_SCORE_EVAL,
     CB_POST_SCORE_CHANNEL,
-    # 🧭 PHASE 9 — Contextual menus & Instant-Value Onboarding.
+    # Contextual menus & Instant-Value Onboarding.
     CB_CTX_POST,
     CB_CHANNEL_PLAN,
     CB_CHANNEL_TEAM,
@@ -258,7 +258,7 @@ CANONICAL_PREFIXES = (
 
 
 # ===========================================================================
-# 🗝 FAZA 19 — YAGONA CALLBACK REGISTRY (kanonik, fail-closed xavfsizlik)
+# YAGONA CALLBACK REGISTRY (kanonik, fail-closed xavfsizlik)
 # ---------------------------------------------------------------------------
 # Telegram callback_query.data foydalanuvchi qo'lida bo'ladi: u eskirgan
 # xabardagi TUGMANI bosishi (legitim) yoki API/bot nanny orqali SOXTA
@@ -311,7 +311,7 @@ REGISTERED_NAMESPACES = (
     "nprt:", "react:", "sched_br:",
     # 👥 Team approval kartochkalari.
     "team_",
-    # 🧭 PHASE 9 — Kontekstual menyular va Instant-Value Onboarding.
+    # Kontekstual menyular va Instant-Value Onboarding.
     "ctx_post:", "onb_plan:",
     # 🌅 Daily content retention and localized calendar reminders.
     "md_", "uzcal_",
@@ -371,7 +371,7 @@ REGISTERED_STATIC_CALLBACKS = frozenset({
     "aip_back", "aip_cancel", "ai_post_cancel", "ai_post_retry",
     "ai_post_schedule", "ai_close", "ai_back_to_content", "ai_back_to_menu",
     "ai_menu", "ai_studio_sched",
-    # 🌱 STEP 2 — AI generatsiya preview'sining action tugmalari.
+    # AI generatsiya preview'sining action tugmalari.
     "ai_copy", "ai_regen", "ai_share_ref",
     # 🤖 AI Studio (payload'siz).
     "studio_close", "studio_ai_post", "studio_ai_audit", "studio_extract",
@@ -404,7 +404,7 @@ REGISTERED_STATIC_CALLBACKS = frozenset({
 })
 
 # ---------------------------------------------------------------------------
-# 🧭 FAZA 17 — NAVIGATSIYA SEMANTIKASI (registry bilan bitta joyda)
+# NAVIGATSIYA SEMANTIKASI (registry bilan bitta joyda)
 # ---------------------------------------------------------------------------
 #: ◀️/⬅️ Orqaga — oldingi (parent) oyna.
 NAV_SEMANTIC_BACK = "back"

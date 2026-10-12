@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""💳 AI BYUDJET — FREE va PRO tarif uchun kunlik/oylik token + USD limiti (STEP 1).
+"""💳 AI BYUDJET — FREE va PRO tarif uchun kunlik/oylik token + USD limiti.
 
 Nega kerak
 ----------

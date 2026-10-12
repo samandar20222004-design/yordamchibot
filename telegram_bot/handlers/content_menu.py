@@ -1,4 +1,4 @@
-"""🧩 PHASE 9 — `[✍️ Post yaratish]` kontekstual menyusi va dispatcher'i.
+"""`[✍️ Post yaratish]` kontekstual menyusi va dispatcher'i.
 
 `[✍️ Post yaratish]` bosilganda chiqadigan 4x2 kontekstual inline menyu:
   - `[⚡ AI Post]`        | `[📝 Oddiy Post]`

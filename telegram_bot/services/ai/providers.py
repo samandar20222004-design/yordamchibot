@@ -1,14 +1,14 @@
 """AI Providers & Resilient Provider Chain.
 
-PHASE 3: AI Engine va SMM Orkestratsiyasi.
+AI Engine va SMM Orkestratsiyasi.
 
 Barcha provayderlar uchun yagona AIProvider abstract interfeysi:
 - Gemini 2.5 Flash (Primary)
 - Groq (Secondary)
 - OpenRouter (Tertiary)
-- MockProvider (FAQAT dev/test muhitida — P0-A)
+- MockProvider (FAQAT dev/test muhitida)
 
-P0-A — MOCK PRODUCTION SIYOSATI (Phase 0 auditi)
+MOCK PRODUCTION SIYOSATI (Phase 0 auditi)
 ------------------------------------------------
 Auditda topilgan eng xavfli P0 muammo: API kalitlari bo'lmaganda
 ``ProviderChain`` jimgina ``MockProvider`` ga tushib qolardi va
@@ -43,7 +43,7 @@ class AIProviderError(RuntimeError):
 
 
 # ---------------------------------------------------------------------------
-# P0-A — Muhit siyosati (ENVIRONMENT / AI_ALLOW_MOCK)
+# Muhit siyosati (ENVIRONMENT / AI_ALLOW_MOCK)
 # ---------------------------------------------------------------------------
 #: Muhit nomini beruvchi o'zgaruvchi. Default — ``production`` (fail-closed).
 ENVIRONMENT_VAR = "ENVIRONMENT"
@@ -76,7 +76,7 @@ class NoConfiguredProviderError(AIProviderError):
 class AllProvidersFailedError(AIProviderError):
     """Mavjud HAQIQIY provayderlarning barchasi xato berdi (yoki sifat talabiga javob bermadi).
 
-    Mock zaxira sifatida ishlatilmaydi (production siyosati, P0-A).
+    Mock zaxira sifatida ishlatilmaydi (production siyosati).
     """
     pass
 
@@ -88,7 +88,7 @@ def get_environment() -> str:
 
 
 def mock_is_allowed() -> bool:
-    """P0-A: Mock zanjirda qatnashishi mumkinmi?
+    """Mock zanjirda qatnashishi mumkinmi?
 
     ``True`` faqat dev/test muhitida yoki ``AI_ALLOW_MOCK=1`` bo'lganda.
     Qiymat har chaqiruvda o'qiladi (testlar va runtime'da o'zgartirish mumkin).
@@ -203,7 +203,7 @@ class OpenRouterProvider(_CoreDelegatingProvider):
 class MockProvider(AIProvider):
     """Offline, sandbox va test muhitlari uchun deterministik SMM provayderi.
 
-    P0-A: production muhitida Mock SOXTA generatsiya manbai hisoblanadi —
+    production muhitida Mock SOXTA generatsiya manbai hisoblanadi —
     ``ENVIRONMENT=production`` + ``AI_ALLOW_MOCK=0`` bo'lganda u mavjud emas
     deb qaraladi va chaqirilsa ham xato beradi.
     """
@@ -233,12 +233,12 @@ class MockProvider(AIProvider):
         if ctx.get("force_thin_output"):
             return "Qisqa"  # Validator rad etadi
 
-        # P0-C: prompt ichidagi tizim/retry ko'rsatmalari javobga ko'chib
+        # prompt ichidagi tizim/retry ko'rsatmalari javobga ko'chib
         # ketmasligi uchun AVVAL tozalanadi (Mock promptni sarlavha qilib
         # qo'yadi — aynan shu yo'l bilan ko'rsatma sizib chiqardi).
         clean_prompt = strip_instruction_leaks(prompt.strip() if prompt else "") or "Ajoyib mavzu"
 
-        # 🚀 PHASE 11 & 12 — advanced SMM rejimlari (48/49/33+50/51-bandlar):
+        # advanced SMM rejimlari (48/49/33+50/51-bandlar):
         # multi-variant, repurpose, deep audit va content plan. Bu rejimlar
         # FAQAT services/ai/* xizmatlari ctx["smm_mode"] ni yoqqanda ishlaydi,
         # shu sababli quyidagi CREATE_POST / POST_AUDIT / ... javoblari (va
@@ -414,7 +414,7 @@ class ProviderChain:
 
     Gemini 2.5 Flash -> Groq -> OpenRouter (-> Mock, faqat dev/test muhitida).
 
-    P0-A: Mock zaxira provayderi FAQAT ``mock_is_allowed()`` rost bo'lganda
+    Mock zaxira provayderi FAQAT ``mock_is_allowed()`` rost bo'lganda
     (``ENVIRONMENT`` dev/test yoki ``AI_ALLOW_MOCK=1``) zanjirga qo'shiladi va
     chaqiriladi. Production'da esa zanjir oshkora xato bilan tugaydi.
     """
@@ -435,7 +435,7 @@ class ProviderChain:
         """Zanjirdagi haqiqatda ishlatilishi mumkin bo'lgan provayderlar.
 
         - kaliti yo'q (``is_available() is False``) provayderlar o'tkazib yuboriladi;
-        - P0-A: Mock production siyosatiga bo'ysunadi — ruxsat etilmagan muhitda
+        Mock production siyosatiga bo'ysunadi — ruxsat etilmagan muhitda
           zanjirdan BUTUNLAY chiqarib tashlanadi (hatto aniq uzatilgan bo'lsa ham).
         """
         allowed_mock = mock_is_allowed()
@@ -458,7 +458,7 @@ class ProviderChain:
         """Provayderlarni navbat bilan chaqiradi.
         Birinchi muvaffaqiyatli natija va provayder nomini (content, provider_name) qaytaradi.
 
-        P0-A: hech bir HAQIQIY provayder ishlamasa, Mock FAQAT ruxsat etilgan
+        hech bir HAQIQIY provayder ishlamasa, Mock FAQAT ruxsat etilgan
         muhitda (dev/test yoki ``AI_ALLOW_MOCK=1``) zaxira sifatida chaqiriladi;
         aks holda :class:`NoConfiguredProviderError` /
         :class:`AllProvidersFailedError` ko'tariladi (soxta generatsiya YO'Q).
@@ -470,7 +470,7 @@ class ProviderChain:
             try:
                 logger.info("AI Provider chaqirilmoqda: %s", provider.name)
                 result = await provider.generate(prompt, context)
-                # P0-C: javobdagi tizim/retry ko'rsatmalari tozalanadi
+                # javobdagi tizim/retry ko'rsatmalari tozalanadi
                 clean_result, leak_found = sanitize_output(result)
                 if leak_found:
                     logger.warning("P0-C: %s javobidan tizim ko'rsatmasi tozalandi",
@@ -483,7 +483,7 @@ class ProviderChain:
                                provider.name, e)
                 errors.append(f"{provider.name}: {e}")
 
-        # P0-A: Mock zaxira faqat ruxsat etilgan muhitda va zanjirda
+        # Mock zaxira faqat ruxsat etilgan muhitda va zanjirda
         # hali sinalmagan bo'lsa.
         already_tried_mock = any(isinstance(p, MockProvider) for p in providers)
         if mock_is_allowed() and not already_tried_mock:

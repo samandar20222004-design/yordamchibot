@@ -1,4 +1,4 @@
-"""🔄 CONTENT INTELLIGENCE LOOP — Channel DNA + Gaps + Strategy (PHASE 7/8).
+"""🔄 CONTENT INTELLIGENCE LOOP — Channel DNA + Gaps + Strategy.
 
 Kanalning **Channel DNA** profili (``services.channels.dna``), **Weekly
 Advisor / Gaps** tahlili (``services.channels.advisor``) va **Smart Best
@@ -441,7 +441,7 @@ class ContentLoop:
         recent_texts = [p["content"] for p in recent_posts_30d if p.get("content")]
         recent_topics = [p["topic"] for p in recent_posts_30d if p.get("topic")]
 
-        # 📊 P1 (5-qadam): Content Learning Loop uchun agregatlangan xulosa —
+        # Content Learning Loop uchun agregatlangan xulosa —
         # o'rtacha ko'rishlar va eng yaxshi formatlar DB DARAJASIDA (bitta
         # batch so'rov). Postlar soni qancha bo'lsa ham qo'shimcha so'rov
         # soni O'ZGARMAYDI (N+1 query yo'q); DB agregatsiyasi mavjud
@@ -522,7 +522,7 @@ class ContentLoop:
             "recent_posts_30d": recent_posts_30d,
             "recent_texts": recent_texts,
             "recent_topics": recent_topics,
-            # 📊 P1 (5-qadam): DB darajasidagi agregatsiya (o'rtacha
+            # DB darajasidagi agregatsiya (o'rtacha
             # ko'rishlar, eng yaxshi formatlar) — mavjud kalitlar
             # o'zgarmagan, bu QO'SHIMCHA ma'lumot.
             "analytics_summary": analytics_summary,

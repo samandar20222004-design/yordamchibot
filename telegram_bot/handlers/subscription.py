@@ -29,7 +29,7 @@ from locales.translations import (
     get_text, get_lang, is_main_menu_text, localize_db_message,
 )
 from utils.helpers import html_escape
-# 6-bosqich: RBAC — /grant_pro va /create_promo endi ruxsatga bog'langan.
+# RBAC — /grant_pro va /create_promo endi ruxsatga bog'langan.
 from services.rbac_service import (
     PERM_MANAGE_PROMOS,
     PERM_MANAGE_USERS,
@@ -787,7 +787,7 @@ async def subscription_callback(update: Update, context: ContextTypes.DEFAULT_TY
         return SUBSCRIPTION_VIEW
 
     if data == "sub_card_pay":
-        # 1-qadam: 💳 Karta to'lovi tugmasi O'ZI "🇺🇿 O'zbekiston" usulini
+        # 💳 Karta to'lovi tugmasi O'ZI "🇺🇿 O'zbekiston" usulini
         # tanlashdir (yozuvida Uzcard / Humo ko'rsatilgan) — mintaqa darhol
         # qayd etiladi va FAQAT mahalliy tarif tanlagichi (so'mda) chiqadi.
         _remember_payment_choice(context, PAYMENT_REGION_UZ, "")
@@ -800,7 +800,7 @@ async def subscription_callback(update: Update, context: ContextTypes.DEFAULT_TY
         return SUBSCRIPTION_VIEW
 
     if data.startswith("sub_tarif:"):
-        # 2-qadam: tarif tanlandi — LEKIN rekvizitlar faqat mintaqa tanlangan
+        # tarif tanlandi — LEKIN rekvizitlar faqat mintaqa tanlangan
         # bo'lsa chiqadi; mintaqa tanlanmagan bo'lsa avval 2 tugma menyusimiz.
         plan_key = data.split(":", 1)[1]
         if plan_key not in CARD_TARIFFS:

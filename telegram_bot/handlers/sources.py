@@ -340,7 +340,7 @@ async def _safe_send(msg, text: str, markup=None) -> bool:
 async def _dna_block(user_id: int, channel_id: str, lang: str = "uz") -> str:
     """Kanal DNA 2.0 bloki (prompt uchun). Fail-soft: xatoda bo'sh satr.
 
-    🧬 STEP 3: ``build_dna_prompt_2`` — ohang (tone), uzunlik afzalligi,
+    ``build_dna_prompt_2`` — ohang (tone), uzunlik afzalligi,
     CTA uslubi va lug'at cheklovlari AVTOMATIK ulanadi (faqat real profil
     ma'lumotlaridan; ma'lumot kam bo'lsa bo'sh satr — soxta uslub yo'q).
     """

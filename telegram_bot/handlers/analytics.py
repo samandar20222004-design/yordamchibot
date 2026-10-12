@@ -1,6 +1,6 @@
 """Analytics & Post Performance Dashboard — kanal statistikasi va hisobotlar.
 
-PostAssist V2 (5-mikro qadam): asosiy menyudagi «📊 Statistika» tugmasi
+asosiy menyudagi «📊 Statistika» tugmasi
 endi IXCHAM umumiy ko'rsatkichlar ekranini ochadi (uzun va noaniq
 «Kanallar analytics...» nomi o'rniga aniq «📊 Statistika»):
 
@@ -250,7 +250,7 @@ async def _show_user_overview(user_id: int, lang: str, context, reply) -> None:
 
 
 async def start_analytics(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """📊 Statistika — IXCHAM umumiy ko'rsatkichlar ekrani (PostAssist V2).
+    """📊 Statistika — IXCHAM umumiy ko'rsatkichlar ekrani.
 
     Oddiy foydalanuvchiga asosiy ko'rsatkichlar bitta ekranda ko'rsatiladi:
     📢 kanallar / 📝 yaratilgan postlar / 📅 rejalashtirilgan / 🤖 AI

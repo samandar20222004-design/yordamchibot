@@ -1,6 +1,6 @@
-"""Model Router — vazifaga qarab model/provayder tanlash (AI ENGINE V2).
+"""Model Router — vazifaga qarab model/provayder tanlash.
 
-DEEP AUDIT (Faza 2): AI chaqiruvlari ikkiga bo'lingan edi — eski modullar
+AI chaqiruvlari ikkiga bo'lingan edi — eski modullar
 ``utils/ai_agent.py`` ga, yangilari ``services/ai/*`` ga murojaat qilardi va
 yagona marshrutlash yo'q edi. Bu modul barcha lane'lar uchun YAGONA
 marshrutlash qatlamini beradi:
@@ -155,7 +155,7 @@ LANE_SPECS: dict[Lane, LaneSpec] = {
 # Vazifa nomi → Lane (kanonik xarita). ``gateway.generate(task=...)`` va
 # handler'lar shu nomlar bilan lane tanlaydi.
 # ---------------------------------------------------------------------------
-#: PHASE 6 — kanonik lane ALIASLARI (yagona shlyuz interfeysi).
+#kanonik lane ALIASLARI (yagona shlyuz interfeysi).
 #:
 #: ``ai_gateway.generate(..., lane="fast" | "smart" | "premium")`` shaklida
 #: chaqiruvchilar lane'ni "mahsulot tili"da aytadi; bu xarita ularni
@@ -191,7 +191,7 @@ def lane_alias(name: str | None) -> Lane | None:
 
 TASK_LANES: dict[str, Lane] = {
     # --- FAST: oddiy, tez javob talab qiladigan vazifalar -------------------
-    # 2-BOSQICH: qisqa/tezkor vazifalar eng kam kechikishli provayder (Groq)
+    # qisqa/tezkor vazifalar eng kam kechikishli provayder (Groq)
     # birinchi navbatda sinadi — umumiy zanjir 12-15s, har bir provayder 6-8s.
     "rewrite": Lane.FAST,
     "restyle": Lane.FAST,
@@ -210,7 +210,7 @@ TASK_LANES: dict[str, Lane] = {
     "tone": Lane.FAST,
     "faq": Lane.FAST,
     "extract_time": Lane.FAST,
-    # PHASE 6 — kanonik "mahsulot" vazifa nomlari (yagona interfeys):
+    # kanonik "mahsulot" vazifa nomlari (yagona interfeys):
     "social_post": Lane.FAST,        # ijtimoiy tarmoq posti (arzon/tez)
     "quick_post": Lane.FAST,
     "caption": Lane.FAST,
@@ -285,7 +285,7 @@ def lane_for_task(task: str | Lane | None) -> Lane | None:
     lane = TASK_LANES.get(key)
     if lane is not None:
         return lane
-    # PHASE 6: kanonik aliaslar ("fast"/"smart"/"premium"/"quality"/...).
+    # kanonik aliaslar ("fast"/"smart"/"premium"/"quality"/...).
     alias = LANE_ALIASES.get(key)
     if alias is not None:
         return alias

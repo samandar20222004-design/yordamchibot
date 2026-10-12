@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""💰 SPRINT 4 — UNIT ECONOMICS: AI XARAJATINI MODEL BO'YICHA HISOBLASH.
+"""UNIT ECONOMICS: AI XARAJATINI MODEL BO'YICHA HISOBLASH.
 
 Nima uchun bu modul (SPRINT 4, 1-band):
     * ilgari xarajat faqat umumiy ``estimated_cost`` ko'rinishida yozilardi

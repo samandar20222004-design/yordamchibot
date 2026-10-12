@@ -1,6 +1,6 @@
 """FSM Navigation Cleanup Middleware & Utilities.
 
-PHASE 2 · 3-QADAM: FSM tozalash va Menyu xavfsizligi.
+3-QADAM: FSM tozalash va Menyu xavfsizligi.
 
 Foydalanuvchi har qanday oraliq holatda (MAGIC_INPUT, PHOTO_WAITING / IMAGE_POST_INPUT
 va boshqalar) turganda asosiy menyu tugmalarini yoki /start, /cancel ni bossa:

@@ -404,7 +404,7 @@ def reject_payment_receipt(receipt_id: int, admin_id: int) -> dict:
 
 
 def get_payments_health_counts() -> dict:
-    """Health panel uchun to'lov ko'rsatkichlari (11-bosqich).
+    """Health panel uchun to'lov ko'rsatkichlari.
 
     Qaytadi: ``pending_receipts`` (ko'rib chiqilmagan cheklar),
     ``approved_24h`` (so'nggi 24 soatda tasdiqlangan cheklar),

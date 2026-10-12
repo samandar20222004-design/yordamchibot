@@ -1,4 +1,4 @@
-"""🧩 KONTENT YARATISH — submenu navigatsiyasi va ACTION-FIRST kirish (PostAssist V2).
+"""🧩 KONTENT YARATISH — submenu navigatsiyasi va ACTION-FIRST kirish.
 
 Bu modul «✨ Kontent yaratish» ichki menyusi (5 yaratish yo'li + ◀️ Orqaga)
 uchun 2 qismni ushlaydi:
@@ -233,7 +233,7 @@ async def content_creation_back(update: Update, context: ContextTypes.DEFAULT_TY
         clear_fsm_data(context)
     except Exception as _silent_exc:  # pragma: no cover
         log_silent_failure("handlers.content_creation:content_creation_back", _silent_exc, user_id=user_id, lang=lang)
-    # 🧭 4-qadam: submenu yopildi — foydalanuvchi asosiy menyuda (bo'lim
+    # submenu yopildi — foydalanuvchi asosiy menyuda (bo'lim
     # yozuvi tozalanadi, keyingi [❌ Bekor qilish] asosiy menyuga qaytadi).
     from handlers.navigation import clear_section
     clear_section(context)

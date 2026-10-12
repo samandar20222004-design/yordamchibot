@@ -1,4 +1,4 @@
-"""🔄 CONTENT REPURPOSE — 49-band (PHASE 11).
+"""🔄 CONTENT REPURPOSE — 49-band.
 
 Mavjud kontentni (yoki mavzuni) **5 ta platforma formatiga** moslashtirish:
 

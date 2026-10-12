@@ -1,4 +1,4 @@
-"""🗓 KONTENT REJA GENERATORI — 51-band (PHASE 12).
+"""🗓 KONTENT REJA GENERATORI — 51-band.
 
 1, 7, 14 yoki 30 kunlik kontent rejasi: har bir kun uchun
 

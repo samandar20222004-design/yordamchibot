@@ -1,4 +1,4 @@
-"""🚀 AI AUTOPILOT V2 — Strategik 7 kunlik kontent-operator (PHASE C + PHASE 8).
+"""🚀 AI AUTOPILOT V2 — Strategik 7 kunlik kontent-operator.
 
 Phase 8 (7-Day Autopilot V2: Strategy-Driven Scheduler with Approval Modes)
 avtopilotni oddiy 7 post generatoridan **Channel DNA** va **ContentLoop**

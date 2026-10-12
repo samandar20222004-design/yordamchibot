@@ -1,4 +1,4 @@
-"""HealthService — PostAssist V2 (7-BOSQICH + PHASE 10): Health & Observability.
+"""HealthService — PostAssist V2: Health & Observability.
 
 Tizimning barcha asosiy komponentlarini bitta so'rovda tekshiradi va
 adminlarga chiroyli, tilga mos (uz/ru/en) hisobot qaytaradi:
@@ -390,7 +390,7 @@ async def _check_scheduler(post_counts: dict) -> dict:
         "stale_processing": post_counts.get("stale_processing", 0),
         "delivery_failed": post_counts.get("delivery_failed", 0),
         "dead_letter": post_counts.get("dead_letter", 0),
-        # 11-bosqich: UNKNOWN_DELIVERY (albom timeout — qo'lda tekshiruv kerak)
+        # UNKNOWN_DELIVERY (albom timeout — qo'lda tekshiruv kerak)
         "unknown_posts": post_counts.get("unknown_posts", 0),
         "unknown_delivery": post_counts.get("unknown_delivery", 0),
         "error": post_counts.get("error"),
@@ -417,7 +417,7 @@ async def _check_scheduler(post_counts: dict) -> dict:
 
 
 # ──────────────────────────────────────────────────────────────
-# 2b) TO'LOVLAR (11-bosqich)
+# 2b) TO'LOVLAR
 # ──────────────────────────────────────────────────────────────
 STATUS_DISABLED = "DISABLED"
 
@@ -1009,7 +1009,7 @@ async def format_health_report(lang: str = "uz", health: dict = None) -> str:
     if tasks is not None:
         lines.append(get_text("health_tasks", lang).format(count=_fmt_num(tasks)))
 
-    # ── PHASE 10: protected production observability metrics ──
+    # protected production observability metrics ──
     metrics = health.get("metrics") or {}
     active = metrics.get("active_users") or {}
     pool_usage = metrics.get("db_pool_usage") or {}

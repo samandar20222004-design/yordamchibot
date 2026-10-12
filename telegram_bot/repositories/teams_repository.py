@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 # ====================================================================
 
 # ============================================================
-# PHASE E — TEAM ROLES, APPROVAL WORKFLOW & WEEKLY ADVISOR DATA
+# TEAM ROLES, APPROVAL WORKFLOW & WEEKLY ADVISOR DATA
 # ============================================================
 # These CRUD helpers are additive.  Existing single-owner helpers above remain
 # unchanged; the owner is always inferred from channels.user_id when needed.
@@ -39,7 +39,7 @@ TEAM_ROLES = ("owner", "editor", "scheduler", "analyst")
 
 
 def _invalidate_rbac_resource_cache(user_id=None, channel_id=None) -> None:
-    """PHASE 3 — RBAC resurs (kanal) keshini bekor qiladi.
+    """RBAC resurs (kanal) keshini bekor qiladi.
 
     A'zolik yoki kanal egaligi o'zgarganda chaqiriladi: rol o'zgarishi darhol
     kuchga kirishi kerak (kesh TTL'i kutib o'tirilmaydi).  Import sikli va
@@ -120,7 +120,7 @@ def add_channel_member(channel_id: str | int, user_id: int, role: str = "editor"
                 (ch, int(user_id), normalized),
             )
             row = cur.fetchone()
-        # 🔐 PHASE 3: rol darhol kuchga kirishi uchun RBAC keshini bekor qilamiz.
+        # rol darhol kuchga kirishi uchun RBAC keshini bekor qilamiz.
         _invalidate_rbac_resource_cache(user_id, ch)
         return row
     except Exception as e:
@@ -141,7 +141,7 @@ def remove_channel_member(channel_id: str | int, user_id: int,
                         (ch, int(user_id)))
             removed = cur.rowcount > 0
         if removed:
-            # 🔐 PHASE 3: a'zolik olib tashlandi — ruxsat darhol bekor bo'lsin.
+            # a'zolik olib tashlandi — ruxsat darhol bekor bo'lsin.
             _invalidate_rbac_resource_cache(user_id, ch)
         return removed
     except Exception as e:
@@ -164,7 +164,7 @@ def set_channel_member_role(channel_id: str | int, user_id: int, role: str,
                         (normalized, str(channel_id), int(user_id)))
             changed = cur.rowcount > 0
         if changed:
-            # 🔐 PHASE 3: yangi rol darhol kuchga kirishi kerak.
+            # yangi rol darhol kuchga kirishi kerak.
             _invalidate_rbac_resource_cache(user_id, channel_id)
         return changed
     except Exception as e:

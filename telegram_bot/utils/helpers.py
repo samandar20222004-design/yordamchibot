@@ -230,7 +230,7 @@ def validate_ad_html(text: str, max_len: int = 1024) -> tuple[bool, str]:
 def validate_button_url(url: str) -> tuple[bool, str]:
     """Inline tugma havolasini tekshiradi. Qaytadi: ``(ok, xato_xabari)``.
 
-    6-bosqich: protokol/domen tekshiruvi yagona manbadan —
+    protokol/domen tekshiruvi yagona manbadan —
     ``utils.security.url_rejection_reason()`` — olinadi, shu sababli
     ``javascript:``, ``data:`` kabi xavfli protokollar bu yerda ham,
     yangi xavfsizlik modulida ham bir xil rad etiladi.
@@ -252,7 +252,7 @@ def validate_button_url(url: str) -> tuple[bool, str]:
         if reason == "credentials":
             return False, "Havolada login/parol ko'rsatilishi mumkin emas."
         if reason == "private_address":
-            # FAZA 23 (SSRF): ichki tarmoq manzillari (localhost, 127.x,
+            # ichki tarmoq manzillari (localhost, 127.x,
             # 10.x, 192.168.x, 169.254.x metadata) bloklangan.
             return False, (
                 "Ichki tarmoq manzillari (localhost, 127.x, 10.x, "
@@ -410,7 +410,7 @@ def check_rate_limit(user_id: int, max_requests: int = 3, window_seconds: float 
 def is_callback_throttled(user_id: int, data: str = "", window: float = None) -> bool:
     """Same user + callback_data within 1.5s → True (debounce).
 
-    ⚠️ PHASE 2: bu yordamchi **eskirgan (legacy)** — yangi, granula
+    bu yordamchi **eskirgan (legacy)** — yangi, granula
     chegaralar ``middlewares/rate_limiter.py`` da (``(user_id,
     callback_action)`` bo'yicha, Redis bilan multi-instance).
     Bot endi shu qatlam orqali throttle qilinadi; bu funksiya

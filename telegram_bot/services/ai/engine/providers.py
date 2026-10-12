@@ -101,7 +101,7 @@ async def execute_provider(
 
     params = aa.get_runtime_params()
     started = time.monotonic()
-    # Haqiqiy model izi: adapter ``note_model`` orqali qayd etadi (STEP 1).
+    # Haqiqiy model izi: adapter ``note_model`` orqali qayd etadi.
     with model_note() as note:
         result = await asyncio.wait_for(
             handle.provider.complete(

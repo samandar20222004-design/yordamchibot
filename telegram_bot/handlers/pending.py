@@ -35,7 +35,7 @@ _RATE_LIMIT_NOTICE = "⏳ Iltimos, biroz kuting..."
 
 
 async def _build_pending_view(user_id: int, lang: str = "uz"):
-    """DEPRECATED (PostAssist V2 · 2-qadam) — yagona «📅 Rejalashtirilgan».
+    """DEPRECATED — yagona «📅 Rejalashtirilgan».
 
     B1 birlashtiruvidan oldin bu funksiya «Kutilayotgan postlar» ekranini
     chizardi. Endi u ATAYLAB yagona rejalashtirilgan ekraniga (``queue``
@@ -52,7 +52,7 @@ async def _build_pending_view(user_id: int, lang: str = "uz"):
 async def list_pending_posts(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """📅 YAGONA ro'yxat: «⏳ Kutilayotgan postlar» tugmasi ham shu ekranni ochadi.
 
-    PostAssist V2 · 2-qadam (B1): ikkita alohida ekran («Kutilayotgan
+    2-qadam (B1): ikkita alohida ekran («Kutilayotgan
     postlar» va «Rejalashtirilgan postlar») o'rniga bitta «📅
     Rejalashtirilgan» ekrani — har bir post ostida barcha amallar to'liq
     ([👁 Ko'rish] [✏️ Tahrirlash] [⏰ Vaqt] [🔗 Tugma/Reaksiya] [🗑 O'chirish]).
@@ -121,7 +121,7 @@ def _owner_id_of(post) -> "int | None":
 
 
 async def _callback_owns_post(query, post_id: int, user_id: int, lang: str) -> bool:
-    """FAZA 23 (IDOR): tugma bosilgan ZAHOTI post egaligini tekshiradi (fail-closed).
+    """tugma bosilgan ZAHOTI post egaligini tekshiradi (fail-closed).
 
     Callback'dan olingan ``post_id`` foydalanuvchi yuborgan ixtiyoriy butun
     son — Telegram uni server tomonida tekshirmaydi, shu sababli FSM holati
@@ -180,7 +180,7 @@ async def edit_post_time_start(update: Update, context: ContextTypes.DEFAULT_TYP
     parts = query.data.split(":")
     post_id = int(parts[1])
 
-    # FAZA 23 (IDOR): post ID olingan zahoti egalik tekshiruvi — begona
+    # post ID olingan zahoti egalik tekshiruvi — begona
     # post uchun FSM holati ham o'rnatilmaydi (fail-closed).
     if not await _callback_owns_post(query, post_id, query.from_user.id, lang):
         return ConversationHandler.END
@@ -261,7 +261,7 @@ async def edit_post_content_start(update: Update, context: ContextTypes.DEFAULT_
     parts = query.data.split(":")
     post_id = int(parts[1])
 
-    # FAZA 23 (IDOR): post ID olingan zahoti egalik tekshiruvi — begona
+    # post ID olingan zahoti egalik tekshiruvi — begona
     # post uchun FSM holati ham o'rnatilmaydi (fail-closed).
     if not await _callback_owns_post(query, post_id, query.from_user.id, lang):
         return ConversationHandler.END
@@ -291,7 +291,7 @@ async def edit_post_text_start(update: Update, context: ContextTypes.DEFAULT_TYP
     parts = query.data.split(":")
     post_id = int(parts[1])
 
-    # FAZA 23 (IDOR): egalik tekshiruvi menyu tugmalarida ham majburiy.
+    # egalik tekshiruvi menyu tugmalarida ham majburiy.
     if not await _callback_owns_post(query, post_id, query.from_user.id, lang):
         return ConversationHandler.END
 
@@ -369,7 +369,7 @@ async def edit_post_btn_start(update: Update, context: ContextTypes.DEFAULT_TYPE
     parts = query.data.split(":")
     post_id = int(parts[1])
 
-    # FAZA 23 (IDOR): post ID olingan zahoti egalik tekshiruvi — begona
+    # post ID olingan zahoti egalik tekshiruvi — begona
     # post uchun FSM holati ham o'rnatilmaydi (fail-closed).
     if not await _callback_owns_post(query, post_id, query.from_user.id, lang):
         return ConversationHandler.END
@@ -405,7 +405,7 @@ async def edit_post_btn_received(update: Update, context: ContextTypes.DEFAULT_T
             btn_link = f"https://t.me/{btn_link.lstrip('@')}"
         elif not btn_link.startswith(("http://", "https://", "t.me/")):
             btn_link = "https://" + btn_link
-        # FAZA 23 (SSRF): havolali tugma manzili saqlashdan OLDIN qat'iy
+        # havolali tugma manzili saqlashdan OLDIN qat'iy
         # tekshiriladi — javascript:/data: kabi xavfli sxemalar va ichki
         # tarmoq manzillari (localhost, 127.0.0.1, 10.*, 192.168.*,
         # 169.254.* metadata) saqlanmaydi.
@@ -443,7 +443,7 @@ async def edit_post_react_start(update: Update, context: ContextTypes.DEFAULT_TY
     parts = query.data.split(":")
     post_id = int(parts[1])
 
-    # FAZA 23 (IDOR): post ID olingan zahoti egalik tekshiruvi — begona
+    # post ID olingan zahoti egalik tekshiruvi — begona
     # post uchun FSM holati ham o'rnatilmaydi (fail-closed).
     if not await _callback_owns_post(query, post_id, query.from_user.id, lang):
         return ConversationHandler.END

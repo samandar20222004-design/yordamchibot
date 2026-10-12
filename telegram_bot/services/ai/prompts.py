@@ -1,6 +1,6 @@
 """🧭 POSTASSIST — AI PROMPT MARKAZI: formatlar, sifat qoidalari, fluff-guard.
 
-3-QADAM (POSTASSIST UI/UX POLISH) — AI generatsiya sifati:
+AI generatsiya sifati:
 
 1. MAVZU ANIQLIGI — ``needs_clarification()``: 3 so'zdan qisqa yoki umumiy
    mavzu (``"sport"``, ``"yangiliklar"``, ``"biznes"``, ``"sport haqida

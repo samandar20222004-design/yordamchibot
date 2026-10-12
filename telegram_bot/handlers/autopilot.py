@@ -1,4 +1,4 @@
-"""🚀 AI AUTOPILOT V2 — 7 kunlik strategik post rejasini tuzish oqimi (PHASE C + PHASE 8).
+"""🚀 AI AUTOPILOT V2 — 7 kunlik strategik post rejasini tuzish oqimi.
 
 Foydalanuvchi mavzu/yo'nalish va strategiya parametrlarini (`goal`,
 `frequency`, `approval_mode`, `quiet_hours`) kiritadi → AI kanalning
@@ -85,7 +85,7 @@ from services.autopilot import (
 )
 from services.channels.best_time import WEEKDAY_NAMES
 from services.channels.duplicate_detector import DUPLICATE_WARNING_MESSAGE
-# 🔐 PHASE 3 — markaziy RBAC: avtopilot kanal ustida amal bajaradi.
+# markaziy RBAC: avtopilot kanal ustida amal bajaradi.
 from services import rbac_service
 from translations import autopilot_t
 from utils.helpers import html_escape
@@ -113,7 +113,7 @@ CB_AP_CANCEL = "ap_cancel"      # ❌ Bekor qilish
 CB_AP_FORCE = "ap_force"        # 🚀 Baribir chiqarish (dublikatga qaramay)
 CB_AP_REFRESH = "ap_refresh"    # ✨ AI bilan yangilash (dublikat postlar)
 
-# PHASE 8 — Autopilot V2 callback prefikslari:
+# Autopilot V2 callback prefikslari:
 CB_AP_GOAL = "ap_goal:"         # strategik maqsad tanlash (ap_goal:growth|sales|...)
 CB_AP_FREQ = "ap_freq:"         # kunlik chastota (ap_freq:1|2|3)
 CB_AP_MODE = "ap_mode:"         # tasdiqlash rejimi (ap_mode:MANUAL|SEMI_AUTO|AUTO)
@@ -569,7 +569,7 @@ async def channel_autopilot_entry(update: Update,
     channel_id = (query.data or "").split(":", 1)[1] if ":" in (query.data or "") else ""
 
     from handlers.channels import _owned_channel, _channel_title
-    # 🔐 PHASE 3 — IDOR: avtopilot faqat kanal ustida ``create`` huquqi
+    # IDOR: avtopilot faqat kanal ustida ``create`` huquqi
     # bo'lgan foydalanuvchi uchun ochiladi (owner/editor; scheduler/analyst
     # va begona foydalanuvchi — rad).
     if not await autopilot_channel_guard(user_id, channel_id, "create"):
@@ -599,7 +599,7 @@ async def channel_autopilot_entry(update: Update,
 
 
 # ============================================================
-# PHASE 8 — STRATEGIYA SOZLAMALARI CALLBACK (goal / freq / mode / quiet)
+# STRATEGIYA SOZLAMALARI CALLBACK (goal / freq / mode / quiet)
 # ============================================================
 async def autopilot_strategy_callback(
     update: Update,
@@ -671,7 +671,7 @@ async def autopilot_strategy_callback(
 
 
 # ============================================================
-# PHASE 3 — RBAC/IDOR YORDAMCHISI
+# RBAC/IDOR YORDAMCHISI
 # ============================================================
 async def autopilot_channel_guard(user_id: int, channel_id, action: str) -> bool:
     """Foydalanuvchi AYNAN shu kanalda amal bajara oladimi (markaziy RBAC)?
@@ -908,7 +908,7 @@ async def _schedule_and_finish(query, context, user_id: int, days: list,
                                lang: str) -> int:
     """Postlarni bitta atomik tranzaksiyada navbatga qo'yadi + yakuniy ekran."""
     channel_id = str(context.user_data.get(UD_CHANNEL) or "")
-    # 🔐 PHASE 3 — IDOR: yozishdan OLDIN kanal ustida ``schedule`` huquqi
+    # IDOR: yozishdan OLDIN kanal ustida ``schedule`` huquqi
     # qayta tekshiriladi (kanal ``user_data`` da bo'lsa ham — sessiya
     # eskirgan yoki a'zolik olib tashlangan bo'lishi mumkin).
     if not await autopilot_channel_guard(user_id, channel_id, "schedule"):
@@ -1197,7 +1197,7 @@ async def autopilot_edit_input_received(update: Update,
 
 
 # ============================================================
-# PHASE 8 — POST DARAJASIDAGI CALLBACKLAR (View / Approve / Edit / Regen / Delete)
+# POST DARAJASIDAGI CALLBACKLAR (View / Approve / Edit / Regen / Delete)
 # ============================================================
 async def autopilot_post_view_callback(
     update: Update,

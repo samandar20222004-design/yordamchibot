@@ -30,7 +30,7 @@ Modul tarmoqqa faqat aniq ruxsat berilgan ``http(s)`` manzillar orqali
 chiqadi; barcha funksiyalar xatoda ISTISNO KO'TARMAYDI (fail-soft, aniq
 ``error_code`` qaytaradi).
 
-PHASE 1 (URL Security Gateway): standart HTTP transport endi markazlashtirilgan
+standart HTTP transport endi markazlashtirilgan
 ``services/url_security_gateway.PinnedUrllibClient`` orqali ishlaydi —
 ulanish aynan tasdiqlangan IP'ga «pin» qilinadi (DNS rebinding himoyasi) va
 har bir redirect qayta tekshiriladi. Bu modulning o'z validatsiyasi, xato
@@ -699,7 +699,7 @@ def fetch_url(
     if client is not None:
         http = client
     else:
-        # PHASE 1 — URL Security Gateway: DNS-rebinding himoyasi bilan
+        # URL Security Gateway: DNS-rebinding himoyasi bilan
         # yagona transport. Pin allaqachon validate_public_url natijasidan
         # olinadi (ikkinchi DNS so'rovi kerak emas).
         from ..url_security_gateway import PinnedUrllibClient

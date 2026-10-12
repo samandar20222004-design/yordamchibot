@@ -73,7 +73,7 @@ from services.cleanup_service import (
 
 from utils.silent_errors import log_silent_failure
 
-# PHASE 10: barcha production stdout loglari JSON Lines formatida. Formatter
+# barcha production stdout loglari JSON Lines formatida. Formatter
 # bir xil timestamp/level/event/user/channel/latency/error_code maydonlarini
 # chiqaradi va handlerlar secrets scrubber bilan birga o'rnatiladi.
 try:
@@ -87,7 +87,7 @@ except Exception:  # pragma: no cover - xavfsiz fallback, token scrubber config'
         format="%(asctime)s %(levelname)s %(name)s %(message)s",
         level=logging.INFO,
     )
-# 1-QISM (LOG XAVFSIZLIGI): httpx/httpcore har bir Telegram API so'rovini
+# httpx/httpcore har bir Telegram API so'rovini
 # INFO darajasida log qiladi — so'rov URL'ida BOT TOKENI bor
 # (https://api.telegram.org/bot<TOKEN>/...). Darajani WARNING ga tushirish
 # va yuqoridagi scrubber-filtr birgalikda token logga tushishini to'sadi.
@@ -251,7 +251,7 @@ class GuardedApplication(Application):
         return age > STALE_UPDATE_SECONDS
 
     async def process_update(self, update):
-        # 1-BOSQICH: eski update filtri — per-user lockni OLISHDAN OLDIN,
+        # eski update filtri — per-user lockni OLISHDAN OLDIN,
         # shunda o'lik xabarlar navbatni umuman band qilmaydi.
         if self.is_stale_update(update):
             logger.info(
@@ -274,7 +274,7 @@ class GuardedApplication(Application):
             _log_if_slow(update, time.monotonic() - started)
 
     async def _process_update_guarded(self, update):
-        # 💰 STEP 1: shu update ichidagi barcha AI chaqiruvlari foydalanuvchiga
+        # shu update ichidagi barcha AI chaqiruvlari foydalanuvchiga
         # bog'lanadi (telemetriya user_id + har foydalanuvchi limiti/byudjeti).
         # contextvar — update tugagach avtomatik tiklanadi (token reset).
         from services.ai.usage_scope import usage_scope
@@ -350,7 +350,7 @@ class GuardedApplication(Application):
             except Exception:
                 logger.exception("Guard himoyasida xatolik — update davom ettirilmoqda")
 
-            # FAZA 25: QAT'IY asinxron xavfsizlik chegarasi (watchdog).
+            # QAT'IY asinxron xavfsizlik chegarasi (watchdog).
             # Og'ir AI/tahlil chaqiruvlari ta'sirida handler cheksiz "osilib"
             # qolsa, per-user lock shu foydalanuvchining keyingi update'larini
             # ham, umumiy qabul zanjirini ham zo'riqtirmasligi uchun handler
@@ -420,7 +420,7 @@ class GuardedApplication(Application):
 
     @staticmethod
     async def _answer_timeout(update):
-        """FAZA 25: handler timeout bo'lganda foydalanuvchiga xushmuomala,
+        """handler timeout bo'lganda foydalanuvchiga xushmuomala,
         tilga mos javob — bot boshqa update'larni qabulda davom etadi.
 
         Ichki xatolik tafsilotlari HECH QACHON ko'rsatilmaydi; faqat
@@ -459,7 +459,7 @@ error_handler = global_error_handler
 
 
 # ============================================================
-# 📡 1-BOSQICH: KEEP-ALIVE (Render/Aiven free-tier)
+# KEEP-ALIVE (Render/Aiven free-tier)
 # ------------------------------------------------------------
 # Render free-tier'da instance faol bo'lmasa «sleep»ga ketadi. Tashqi
 # ping (UptimeRobot / cron-job.org) uni har 10 daqiqada uyg'otib turadi —
@@ -587,7 +587,7 @@ async def set_bot_commands(application) -> dict:
 
 
 # ============================================================
-# 🛑 GRACEFUL SHUTDOWN (PostAssist V2 — 9-bosqich)
+# 🛑 GRACEFUL SHUTDOWN
 # ------------------------------------------------------------
 # SIGINT (Ctrl+C) va SIGTERM (Render deploy / systemctl stop / docker stop)
 # signallari event loop ichida ushlanadi va yopilish TARTIB BILAN boradi:
@@ -839,7 +839,7 @@ async def main():
     _install_io_executor()
 
     # ================================================================
-    # 1-BOSQICH: PORT AVVAL OCHILADI (0-s readiness)
+    # PORT AVVAL OCHILADI (0-s readiness)
     # ------------------------------------------------------------
     # Render web service «Deploy successful» deguncha PORT ga ulanishni
     # tekshiradi. ``start_web_server()`` ``db.init_db()`` dan OLDIN
@@ -879,12 +879,12 @@ async def main():
             logger.exception("Web serverni yopishda xatolik")
         raise
 
-    # 11-bosqich (P0) restart recovery: avvalgi jarayon 'processing' da
+    # 11-bosqich restart recovery: avvalgi jarayon 'processing' da
     # qoldirgan postlar — Telegramga chiqqanlari 'posted' (qayta yuborilmaydi),
     # UNKNOWN_DELIVERY bo'lganlari 'unknown', qolganlari 'pending'.
     await recover_on_startup()
 
-    # PHASE 2 · Distributed state: Redis (ixtiyoriy) / In-Memory backend.
+    # Distributed state: Redis (ixtiyoriy) / In-Memory backend.
     # `REDIS_URL` + `REDIS_ENABLED` bo'lsa va ulanish muvaffaqiyatli bo'lsa —
     # state (rate limit sanagichlari) BARCHA instance'lar uchun umumiy;
     # aks holda (yoki Redis uzilib qolsa) — In-Memory + circuit breaker.
@@ -907,7 +907,7 @@ async def main():
     stop_event = asyncio.Event()
     loop = asyncio.get_running_loop()
     installed_signals = install_signal_handlers(loop, stop_event)
-    # 1-BOSQICH: keep-alive fon vazifasi (KEEP_ALIVE_URL bo'lmasa
+    # keep-alive fon vazifasi (KEEP_ALIVE_URL bo'lmasa
     # ishga tushmaydi). Uzoq umrli sikl — ``run_background_task``ning
     # timeout'i uni o'ldirishi mumkin, shuning uchun oddiy
     # ``create_task`` + kuchli havolani saqlash ishlatiladi.
@@ -945,7 +945,7 @@ async def main():
     except Exception as _silent_exc:
         log_silent_failure("main:main:payme_notifier", _silent_exc)
 
-    # PHASE 2 · Granular rate limiting — barcha handler'lardan OLDIN
+    # Granular rate limiting — barcha handler'lardan OLDIN
     # GuardedApplication admits BEFORE the user lock; group=-1 dispatch
     # skips only that already-checked update (no double counting).
     # Har bir harakat uchun alohida kalit + TTL:
@@ -955,7 +955,7 @@ async def main():
     # breaker, services/cache_backend.py).
     application.add_handler(RateLimitMiddleware(), group=-1)
 
-    # PHASE 3 · Resurs (kanal/post) darajasidagi RBAC + IDOR qatlami.
+    # Resurs (kanal/post) darajasidagi RBAC + IDOR qatlami.
     # PTB har bir GURUHDA faqat bitta handler ishlatadi, shu sababli bu
     # middleware ALOHIDA guruhga (-2) qo'yiladi: avval ruxsat, keyin rate
     # limiter (-1), keyin haqiqiy handler'lar (0).  Ruxsat bo'lmasa handler'lar
@@ -969,7 +969,7 @@ async def main():
     install_resource_middleware(application, group=-2)
 
     register_all_handlers(application)
-    # 1-BOSQICH: ``start_web_server()`` endi ``init_db()`` dan OLDIN
+    # ``start_web_server()`` endi ``init_db()`` dan OLDIN
     # chaqirilgan (yuqorida) — bu yerda QAYTARIB chaqirilmaydi.
 
     # Scheduler: har bir ish (job) maks. 1 marta parallel ishlaydi (max_instances=1),
@@ -982,7 +982,7 @@ async def main():
         timezone=tashkent_tz,
         job_defaults={"max_instances": 1, "coalesce": True, "misfire_grace_time": 300},
     )
-    # PHASE 10: update yo'li DB write qilmaydi; aktiv user ID'lari 30s da bir
+    # update yo'li DB write qilmaydi; aktiv user ID'lari 30s da bir
     # batch bilan flush qilinadi (graceful shutdown'da ham qo'shimcha flush bor).
     scheduler.add_job(
         health_service.flush_user_activity, 'interval', seconds=30,
@@ -1006,14 +1006,14 @@ async def main():
         id="cleanup_old_data", timezone=tashkent_tz,
         max_instances=1, coalesce=True, misfire_grace_time=3600,
     )
-    # 3-BOSQICH (P1): muddati o'tgan PRO/enterprise obunalarni avtomatik FREE ga
+    # muddati o'tgan PRO/enterprise obunalarni avtomatik FREE ga
     # tushirish — har 15 daqiqada bitta yengil UPDATE (index-friendly).
     scheduler.add_job(
         subscription_sweep_job, 'interval', minutes=15,
         id="subscription_sweep", timezone=tashkent_tz,
         max_instances=1, coalesce=True, misfire_grace_time=300,
     )
-    # 📥 PHASE D (2/2): RSS/ATOM manbalarini avtomatik tekshirish — har 15
+    # RSS/ATOM manbalarini avtomatik tekshirish — har 15
     # daqiqada vaqti kelgan (``interval_minutes``) manbalar o'qiladi, yangi
     # elementlardan qoralama tayyorlanadi (dublikat QAYTA ishlanmaydi) va
     # autopublish yoqilgan bo'lsa navbatga yoziladi. Job hech qachon istisno
@@ -1038,14 +1038,14 @@ async def main():
         timezone=tashkent_tz, max_instances=1, coalesce=True,
         misfire_grace_time=6 * 3600,
     )
-    # PHASE E — ixcham haftalik hisobot: har dushanba 09:00 (Toshkent),
+    # ixcham haftalik hisobot: har dushanba 09:00 (Toshkent),
     # faqat kanal egasining shaxsiy chatiga yuboriladi.
     scheduler.add_job(
         weekly_channel_reports_job, 'cron', day_of_week='mon', hour=9, minute=0,
         args=[application.bot], id="weekly_channel_reports", timezone=tashkent_tz,
         max_instances=1, coalesce=True, misfire_grace_time=6 * 3600,
     )
-    # 9-bosqich: kunlik paketli tozalash worker'i — har 24 soatda 1 marta,
+    # kunlik paketli tozalash worker'i — har 24 soatda 1 marta,
     # kechasi soat 03:00 (Toshkent). LIMIT 1000 paketlar, har paket alohida
     # tranzaksiya (services/cleanup_service.py). misfire_grace_time=6h —
     # bot 03:00 da o'chiq bo'lsa, ertalab ishga tushganda bir marta bajariladi.
@@ -1055,7 +1055,7 @@ async def main():
         id=CLEANUP_JOB_ID, timezone=tashkent_tz,
         max_instances=1, coalesce=True, misfire_grace_time=6 * 3600,
     )
-    # 🌱 STEP 2 — referal KONVERSIYA bildirishnomalari flush'i: har 1 daqiqada
+    # referal KONVERSIYA bildirishnomalari flush'i: har 1 daqiqada
     # jarayon ichidagi cheklangan navbatdan (services.referral_service)
     # bildirishnomalarni olib, referrerlarga «do'st birinchi postini yaratdi
     # → +N AI ball» xabarini yuboradi. Mukofotning o'zi DB tranzaksiyasida
@@ -1072,7 +1072,7 @@ async def main():
         await application.start()
         await set_bot_commands(application)
         await application.updater.start_polling(
-            # 1-BOSQICH: ``False`` — eski xabarlar YO'Q QILINMAYDI.
+            # ``False`` — eski xabarlar YO'Q QILINMAYDI.
             # Sabab: Render/Aiven kechikishida foydalanuvchi yuborgan
             # xabar (masalan /start) o'chgan paytda navbatda turadi; agar
             # uni tashlab yuborilsa, foydalanuvchi "javob yo'q" deb qoladi.
@@ -1117,7 +1117,7 @@ async def main():
         # ochilgan resurslar yopilishi kerak (shuning uchun None-tekshiruv).
         # graceful_shutdown har bosqichni alohida himoyalaydi — asl xato
         # yashirilmaydi, DB pool va aiohttp sessiyalari DOIM yopiladi.
-        # 1-BOSQICH: keep-alive siklini to'xtatamiz (u ``while True`` —
+        # keep-alive siklini to'xtatamiz (u ``while True`` —
         # to'xtatilmasa event loop'da osilib qoladi va "Task was destroyed
         # but it is pending" ogohlantirishlari chiqadi).
         if keep_alive_handle is not None and not keep_alive_handle.done():

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""AI so'rov konteksti: foydalanuvchi, kanal, amal turi va model izi (STEP 1).
+"""AI so'rov konteksti: foydalanuvchi, kanal, amal turi va model izi.
 
 Nega kerak
 ----------

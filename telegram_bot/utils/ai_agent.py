@@ -903,7 +903,7 @@ async def _discover_openrouter_models(api_key: str) -> list | None:
         free_ids = [m.get("id", "") for m in data.get("data", []) if m.get("id", "").endswith(":free")]
         picked = _pick_models(free_ids, OPENROUTER_PREFERRED)
         if not picked and free_ids:
-            # 3-BOSQICH (P1): preferred (free-router) ID'si `:free` bilan
+            # preferred (free-router) ID'si `:free` bilan
             # tugamagani uchun `_pick_models` uni hech qachon topolmaydi —
             # natijada discovery doim bo'sh qaytarib, jonli :free modellar
             # hech qachon ishlatilmas edi. Endi afzal ro'yxat bo'sh qaytsa,
@@ -1037,8 +1037,8 @@ _FREE_POST_HINT_BY_LANG = {
 # ============================================================
 # PRO — 2-BOSQICHLI AVTOMATIK AUDIT OQIMI
 # ============================================================
-# 1-bosqich: post AIDA/PAS asosida generatsiya qilinadi (PRO prompti).
-# 2-bosqich: olingan matn mavjud ``_AUDIT_PRO_SYSTEM`` tizim prompti bilan
+# post AIDA/PAS asosida generatsiya qilinadi (PRO prompti).
+# olingan matn mavjud ``_AUDIT_PRO_SYSTEM`` tizim prompti bilan
 #            ikkinchi AI so'roviga yuboriladi — auditor kuchsiz joylarni
 #            bartaraf etib, TAYYOR yakuniy variantni qaytaradi.
 # Foydalanuvchiga FAQAT 2-bosqichning saralangan natijasi ko'rsatiladi.
@@ -1768,7 +1768,7 @@ def _ordered_models(models) -> list:
 
 
 def _note_model(model) -> None:
-    """Provayder urinishi ishlatayotgan modelni telemetriyaga qayd etadi (STEP 1).
+    """Provayder urinishi ishlatayotgan modelni telemetriyaga qayd etadi.
 
     Lazy import: ``services.ai`` paketi ``utils.ai_agent`` ni import qiladi — shu
     sabab modul darajasida import sikl hosil qilardi. Xato AI oqimini buzmaydi.
@@ -2177,7 +2177,7 @@ async def _run_ai_chain(prompt: str, system_instruction: str, lang: str = None) 
     "Gemini" → "Groq" → "OpenRouter" → "Mistral" → "Cerebras" →
     "SambaNova" → "Cloudflare" → "Pollinations" (kalitsiz)
 
-    4-BOSQICH: orkestratsiya endi ``services/ai/fallback.py`` dagi
+    orkestratsiya endi ``services/ai/fallback.py`` dagi
     ``AIFallbackService`` da — yagona provayderlar boshqaruvi:
 
     - har bir provayder uchun QAT'IY timeout (connect 3s / read 8s / jami 10s);
@@ -2199,7 +2199,7 @@ async def _run_ai_chain(prompt: str, system_instruction: str, lang: str = None) 
     tizim promptiga qat'iy til qoidasini BIRIKTIRADI (idempotent). Til
     bloki shu yerda ham oldindan qo'shilgan bo'ladi — ikki qavatli himoya.
 
-    🚦 AI ENGINE V2 (kanonik shlyuz): bu funksiya endi to'g'ridan-to'g'ri
+    bu funksiya endi to'g'ridan-to'g'ri
     ``services.ai.fallback`` ga emas, balki YAGONA kanonik shlyuz —
     ``services.ai.engine.gateway.legacy_chain`` adapteri orqali yuradi.
     Adapter o'zi aynan shu legacy zanjirni (8 provayder, qat'iy timeout,
@@ -2420,8 +2420,8 @@ async def generate_post_two_stage(prompt: str, user_id: int = 0, is_pro: bool = 
                                   lang: str = "uz", timeout: float = None) -> dict:
     """PRO uchun 2-BOSQICHLI post generatsiyasi (ochiq/tashqi API).
 
-    1-bosqich: ``analyze_user_prompt`` — PRO'da AIDA/PAS professional uslub.
-    2-bosqich: FAQAT PRO'da — ``_AUDIT_PRO_SYSTEM`` auditori postni
+    ``analyze_user_prompt`` — PRO'da AIDA/PAS professional uslub.
+    FAQAT PRO'da — ``_AUDIT_PRO_SYSTEM`` auditori postni
     mukammallashtiradi (``analyze_user_prompt`` ichida avtomatik bajariladi).
     FREE: bitta AI so'rovi (2-bosqich chaqirilmaydi).
 
@@ -2854,7 +2854,7 @@ async def analyze_channel_voice(recent_posts: list, lang: str = "uz") -> dict:
 
 
 # ============================================================
-# 🧠 3-BOSQICH — KANAL DNK NAMUNASI (birinchi bepul qoralama)
+# KANAL DNK NAMUNASI (birinchi bepul qoralama)
 # ============================================================
 # Kanal ovozi tahlili yakunlangach foydalanuvchi "SOXTA tasdiq" olmaydi:
 # darhol kanal uslubiga moslashtirilgan 1 ta NAMUNAVIY qoralama post
@@ -4786,7 +4786,7 @@ async def generate_magic_post(
 
     system_instruction = with_language(build_magic_post_system(st, code), code)
 
-    # 🧭 3-QADAM (UI/UX POLISH): fluff'siz sifat standarti qo'shimchasi —
+    # fluff'siz sifat standarti qo'shimchasi —
     # kuchli Hook, Telegram HTML, ro'yxatlar va aniq mazmun talabi.
     # MAGIC_POST_SYSTEMS o'zgarmaydi (prompt arxitekturasi testlari yashil
     # qoladi) — standart faqat generatsiya chaqiruviga ulanadi.
@@ -4821,7 +4821,7 @@ async def generate_magic_post(
             "⚠️ AI bo'sh javob qaytardi — qayta urinib ko'ring.", code
         )}
 
-    # 🔁 SIFAT NAZORATI (2-BOSQICH): AI 1-2 qatorli quruq/robotik matn
+    # 🔁 SIFAT NAZORATI: AI 1-2 qatorli quruq/robotik matn
     # qaytarsa — kuchaytirilgan ko'rsatma bilan BIR MARTA qayta so'raymiz.
     # Ikkinchi urinish ham yupqa bo'lsa, undan yaxshirog'i foydalanuvchiga
     # baribir yetkaziladi (oqim hech qachon bo'sh qolmaydi).

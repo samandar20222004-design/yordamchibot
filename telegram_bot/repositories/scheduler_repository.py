@@ -104,7 +104,7 @@ def schedule_week_posts(user_id: int, channel_id: str, posts: list,
         except Exception:  # noqa: BLE001 — analitika best-effort
             logger.debug("TTFP belgilashda xato (week plan user=%s)", user_id,
                          exc_info=True)
-        # 🌱 STEP 2 — ACTION-BASED REFERAL MUKOFOTI: birinchi yaroqli amal
+        # ACTION-BASED REFERAL MUKOFOTI: birinchi yaroqli amal
         # (haftalik rejalashtirish) konversiyani ham hisobga oladi.
         # Idempotent va fail-soft: navbat natijasi hook'dan BOG'LIQ EMAS.
         try:
@@ -145,7 +145,7 @@ def build_delivery_idempotency_key(post_id: int, channel_id, scheduled_timestamp
     return f"post_{int(post_id)}_{channel_id}_{timestamp}"
 
 
-#: P0 (VAZIFA 2): ``post_deliveries.last_error`` ichidagi "kanal tekshiruvi
+#``post_deliveries.last_error`` ichidagi "kanal tekshiruvi
 #: kutilmoqda" belgisi. Format: ``AMBIGUOUS_VERIFY attempt=<n> | <xato>``.
 #: Shu markerli yozuv avtomatik (ko'r-ko'rrona) qayta yuborilmaydi.
 DELIVERY_VERIFY_MARKER = "AMBIGUOUS_VERIFY"
@@ -269,7 +269,7 @@ def claim_post_delivery(post_id: int, channel_id, scheduled_timestamp) -> dict:
     key = build_delivery_idempotency_key(post_id, channel_id, scheduled_timestamp)
     try:
         with db_cursor(commit=True) as cur:
-            # P0 (VAZIFA 2) ATOMIK CLAIM: post darajasidagi advisory lock
+            # post darajasidagi advisory lock
             # (transaction ichida) — bir xil post uchun TURLI idempotency
             # kalitlari bilan kelgan parallel worker'lar ham serialize bo'ladi.
             cur.execute(
@@ -298,7 +298,7 @@ def claim_post_delivery(post_id: int, channel_id, scheduled_timestamp) -> dict:
             verify_attempt = delivery_verify_attempt(last_error)
 
             def _verify_fields():
-                """Claim natijasiga verify_pending holatini qo'shadi (P0)."""
+                """Claim natijasiga verify_pending holatini qo'shadi."""
                 return {"last_error": last_error, "verify_pending": verify_pending,
                         "verify_attempt": verify_attempt}
 
@@ -356,7 +356,7 @@ def claim_post_delivery(post_id: int, channel_id, scheduled_timestamp) -> dict:
                             "attempt_count": attempt_count or 0,
                             "idempotency_key": key, **_verify_fields()}
             cur.execute(
-                # P0: verify_pending markeri (AMBIGUOUS_VERIFY...) SAQLANADI —
+                # verify_pending markeri (AMBIGUOUS_VERIFY...) SAQLANADI —
                 # ishchi crash bo'lsa ham keyingi claim uni ko'radi va telegramga
                 # yuborishdan oldin kanal tekshiruvini o'tkazadi.
                 "UPDATE post_deliveries SET status = 'processing', "
@@ -460,7 +460,7 @@ def mark_post_delivery_failed(idempotency_key: str, error: str) -> bool:
 
 
 def recover_processing_posts_on_startup(max_age_seconds: int = 0) -> dict:
-    """Restart recovery (11-bosqich): jarayon qayta ishga tushganda 'processing'
+    """Restart recovery: jarayon qayta ishga tushganda 'processing'
     da qolib ketgan postlarni XAVFSIZ tiklaydi.
 
     Restartdan keyin 'processing' yozuvlar o'lik jarayonga tegishli, shuning
@@ -567,7 +567,7 @@ def cleanup_old_data() -> dict:
     Baza o'sib ketmasligi uchun: yuborilgan/ochilgan xabarlar, 30 kundan eski
     yakunlangan postlar va boshqa qoldiqlar tozalanadi.
 
-    ⚠️ 5-bosqich: ``scheduled_posts.channel_id → channels(channel_id)`` FK'i
+    ``scheduled_posts.channel_id → channels(channel_id)`` FK'i
     ``ON DELETE CASCADE`` bilan, ya'ni kanal qatori o'chirilsa, uning BARCHA
     post tarixi (analitika shu ustunda qurilgan) ham ketadi. Shuning uchun bu
     tozalash endi kanal qatorini faqat unga bog'liq BIRORTA post qolmaganida

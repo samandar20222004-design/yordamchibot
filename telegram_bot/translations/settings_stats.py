@@ -62,7 +62,7 @@ SETTINGS_STATS_I18N = {
         ),
         "ss_btn_refresh": "🔄 Yangilash",
         "ss_btn_back": "◀️ Orqaga",
-        # 3-QISM: 👤 Profil ixcham menyusining yopish tugmasi.
+        # 👤 Profil ixcham menyusining yopish tugmasi.
         "ss_btn_close": "❌ Yopish",
         "ss_stats_refreshing": "🔄 Yangilanmoqda…",
 
@@ -111,7 +111,7 @@ SETTINGS_STATS_I18N = {
         # PRO va Yordam asosiy reply-menudan shu panelga ko'chirildi.
         "ss_btn_premium": "💎 PRO",
         "ss_btn_help": "ℹ️ Yordam va Qo'llanma",
-        # 🔐 SPRINT 1 (Privacy & GDPR): yangi qator — maxfiylik siyosati
+        # yangi qator — maxfiylik siyosati
         # va "Ma'lumotlarimni o'chirish" (Sozlamalar hub'i 5-qator).
         "ss_btn_privacy": "🔐 Maxfiylik",
         "ss_btn_delete_data": "🗑 O'chirish",
@@ -139,7 +139,7 @@ SETTINGS_STATS_I18N = {
         "ss_btn_referral": "🎁 Taklif qilish",
         "ss_btn_about": "ℹ️ Bot haqida",
         "ss_settings_legacy": "🗂 Tezkor bo'limlar",
-        # --- 3-qadam: hub'ning yangi (to'liq) tugmalari ---
+        # hub'ning yangi (to'liq) tugmalari ---
         # «🎁 Kunlik bonus» va «👥 Do'stlarni taklif» — asosiy lug'atdagi
         # yagona manbadan olinadi (``cab_btn_daily_bonus`` / ``cab_referral``),
         # shu sababli bu yerda TAKRORLANMAYDI (settings_stats_t fallback'i
@@ -367,7 +367,7 @@ SETTINGS_STATS_I18N = {
         # --- ⚙️ ШАГ 3: строки inline-hub «⚙️ Настройки / Ещё» ---
         "ss_btn_premium": "💎 PRO",
         "ss_btn_help": "ℹ️ Помощь и руководство",
-        # 🔐 SPRINT 1: политика конфиденциальности и удаление данных.
+        # политика конфиденциальности и удаление данных.
         "ss_btn_privacy": "🔐 Приватность",
         "ss_btn_delete_data": "🗑 Удалить данные",
 
@@ -619,7 +619,7 @@ SETTINGS_STATS_I18N = {
         # --- ⚙️ STEP 3: inline-hub rows for «⚙️ Settings / More» ---
         "ss_btn_premium": "💎 PRO",
         "ss_btn_help": "ℹ️ Help and Guide",
-        # 🔐 SPRINT 1: privacy policy and data deletion entry.
+        # privacy policy and data deletion entry.
         "ss_btn_privacy": "🔐 Privacy",
         "ss_btn_delete_data": "🗑 Delete data",
 

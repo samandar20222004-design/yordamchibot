@@ -1,6 +1,6 @@
 """AI Output Validator.
 
-PHASE 3: AI Engine va SMM Orkestratsiyasi.
+AI Engine va SMM Orkestratsiyasi.
 
 Tekshiruvlar:
 - Bo'sh yoki faqat probellardan iborat javob (EMPTY_OUTPUT);

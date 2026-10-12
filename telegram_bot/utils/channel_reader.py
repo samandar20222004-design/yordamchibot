@@ -15,7 +15,7 @@ Imkoniyatlar:
     uchun <title>, <meta name="description"> va asosiy matnni (1000 belgigacha)
     AI tahlili uchun tayyorlaydi.
 
-🛡 PHASE 1 (URL Security Gateway): barcha tashqi HTTP so'rovlar
+barcha tashqi HTTP so'rovlar
 ``_fetch_html`` orqali markazlashtirilgan ``services/url_security_gateway``
 shlyuziga uzatiladi — qat'iy SSRF himoyasi (localhost/ichki IP/bulut
 metadata bloklanadi), DNS-rebinding himoyasi (IP'ga «pin»), 2 MB hajm va
@@ -30,7 +30,7 @@ from datetime import datetime
 logger = logging.getLogger(__name__)
 
 # --- HTTP sozlamalari (barcha so'rovlar URL SECURITY GATEWAY orqali) ---
-# Qat'iy timeout: gateway siyosati 5–7 soniya (PHASE 1).
+# Qat'iy timeout: gateway siyosati 5–7 soniya.
 CHANNEL_FETCH_TIMEOUT = 7.0
 _HTTP_HEADERS = {
     "User-Agent": (
@@ -326,7 +326,7 @@ class GatewayBlockedError(OSError):
 async def _fetch_html(url: str) -> tuple[int, str, str]:
     """URL ga HTTP GET so'rovi — MARKAZIY URL SECURITY GATEWAY orqali.
 
-    PHASE 1: barcha tashqi so'rovlar (t.me/s/ veb-skreyping va foydalanuvchi
+    barcha tashqi so'rovlar (t.me/s/ veb-skreyping va foydalanuvchi
     yuborgan sayt havolalari) yagona xavfsiz fetcher'dan o'tadi — qat'iy SSRF
     tekshiruvi (localhost/ichki IP/bulut metadata bloklanadi), DNS-rebinding
     himoyasi (ulanish aynan tasdiqlangan IP'ga «pin» qilinadi), har bir

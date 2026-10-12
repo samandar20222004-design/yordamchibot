@@ -113,7 +113,7 @@ def fast_path_timeout() -> float:
 def provider_timeout_cap() -> float:
     """Bitta provayderga beriladigan muddat (2-BOSQICH: 6–8s, env default 7s)."""
     try:
-        # 2-BOSQICH: per-provider 6-8s — 429/500 da darhol fallback.
+        # per-provider 6-8s — 429/500 da darhol fallback.
         return min(8.0, max(6.0, float(os.getenv("AI_ENGINE_PROVIDER_TIMEOUT", "7"))))
     except (TypeError, ValueError):
         return 7.0
@@ -123,7 +123,7 @@ def lane_default_timeout(lane: Lane) -> float:
     """Lane standart timeout'i (``AI_<LANE>_TIMEOUT`` env bilan bekor qilinadi)."""
     env_name = f"AI_{lane.value}_TIMEOUT"
     try:
-        # 2-BOSQICH: har lane 6-15s oynasida, umumiy zanjir 15s dan oshmaydi.
+        # har lane 6-15s oynasida, umumiy zanjir 15s dan oshmaydi.
         return min(15.0, max(6.0, float(
             os.getenv(env_name, str(LANE_SPECS[lane].default_timeout)))))
     except (TypeError, ValueError):
@@ -131,7 +131,7 @@ def lane_default_timeout(lane: Lane) -> float:
 
 
 # ---------------------------------------------------------------------------
-# PHASE 6 — MOCK SIYOSATI (production'da DEFAULT O'CHIQ, test/dev alohida)
+# MOCK SIYOSATI (production'da DEFAULT O'CHIQ, test/dev alohida)
 # ---------------------------------------------------------------------------
 #: Mock provayder nomlari (kanonik + keng tarqalgan variantlar).
 MOCK_PROVIDER_NAMES = frozenset({"mock", "mockprovider", "fake", "stub"})
@@ -201,7 +201,7 @@ def provider_allowed(name: str | None) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# PHASE 6 — MODEL ANIQLASH (telemetriya uchun: qaysi model ishladi)
+# MODEL ANIQLASH (telemetriya uchun: qaysi model ishladi)
 # ---------------------------------------------------------------------------
 _MODEL_FIELDS = ("model", "model_name", "model_used", "used_model")
 
@@ -233,7 +233,7 @@ def resolve_model(provider: str | None, result: dict | None = None) -> str:
 # ---------------------------------------------------------------------------
 # Lane standart tizim promptlari (2-BOSQICH: tabiiy toza o'zbek lotin + SMM)
 # ---------------------------------------------------------------------------
-# 2-BOSQICH TALABI: barcha promptlar faqat tabiiy, toza o'zbek tili
+# barcha promptlar faqat tabiiy, toza o'zbek tili
 # (lotin) va SMM talablariga mos post tuzilishini (hook → qiymat →
 # o'qiladigan paragraflar → tabiiy CTA → hashtag) mustahkamlaydi.
 _LANE_SYSTEMS: dict[Lane, str] = {
@@ -298,7 +298,7 @@ class GatewayResult:
     raw: dict = field(default_factory=dict)
     #: Sinovdan o'tgan provayderlar (tartib bilan, diagnostika).
     provider_chain: list[str] = field(default_factory=list)
-    # --- PHASE 6: telemetriya (xarajat/token/model/status) ----------------
+    # telemetriya (xarajat/token/model/status) ----------------
     #: Ishlatilgan model nomi (aniqlanmasa — bo'sh satr).
     model: str = ""
     #: Kirish tokenlari (baho — ``telemetry.estimate_tokens``).
@@ -396,7 +396,7 @@ def _language_directive(system_instruction: str, lang: str | None) -> str:
 
 
 def _output_leaks_instructions(text: str) -> bool:
-    """Javobda tizim/retry ko'rsatmasi sizib chiqqanmi (P0-C, PHASE 6)?
+    """Javobda tizim/retry ko'rsatmasi sizib chiqqanmi?
 
     ``services.ai.prompt_guard`` — shu repo'ning kanonik guard'i; u mavjud
     bo'lmasa (izolyatsiyalangan muhit) faqat ``safety.contains_leak``
@@ -491,7 +491,7 @@ class AIGateway:
             tone/is_pro: kesh kaliti konteksti.
             schema: qat'iy sxema (``PostResult``/``AuditResult``/``PlanResult``).
             channel_context: kanal konteksti (untrusted_input blokida).
-            user_id/channel_id: telemetriya va hisobot konteksti (PHASE 6).
+            user_id/channel_id: telemetriya va hisobot konteksti.
             operation_type: kvota turi (``magic_post``/``ai_studio``/...).
             retry_policy: qayta urinish siyosati (bo'lmasa lane siyosati).
             require_quality: ``True`` bo'lsa qat'iy sifat validatori
@@ -735,7 +735,7 @@ class AIGateway:
         qoladi (model zanjiri, 404/429/timeout fallback) — bu yerda ular
         QAYTA YOZILMAYDI, faqat shlyuz kontraktiga o'raladi + telemetriya.
         """
-        # 💰 STEP 1: VISION ham foydalanuvchi limiti va AI byudjetiga bo'ysunadi
+        # VISION ham foydalanuvchi limiti va AI byudjetiga bo'ysunadi
         # (rasm tahlili — eng qimmat amallardan biri). Rad etilsa provayder
         # chaqirilmaydi; telemetriyaga aniq sabab yoziladi.
         gate = default_user_gate()
@@ -835,7 +835,7 @@ class AIGateway:
             result.priced = event.priced
             result.usage = event.as_dict()
             self.recorder.record(event)
-            # 💰 STEP 1: xarajat ledger'i (kunlik/oylik byudjet va /economics uchun)
+            # xarajat ledger'i (kunlik/oylik byudjet va /economics uchun)
             # — gateway'ga to'g'ridan-to'g'ri murojaat qiluvchilar ham hisobga olinadi.
             from services.ai.cost_tracker import record_usage_event
 
@@ -850,7 +850,7 @@ class AIGateway:
 def _guard_prompt(prompt: str) -> str:
     """Kirish promptidan tizim/retry ko'rsatma bloklarini olib tashlaydi.
 
-    Bu — prompt-injection himoyasining BIRINCHI qatlami (PHASE 6): foydalanuvchi
+    Bu — prompt-injection himoyasining BIRINCHI qatlami: foydalanuvchi
     matniga yopishtirilgan ko'rsatmalar modelga "tizim" kabi ko'rinmaydi;
     ikkinchi qatlam — chiqishni tekshirish (``contains_leak``) va
     ``PromptEngine`` ning ``untrusted_input`` bloklari.
@@ -953,7 +953,7 @@ async def _generate_via_chain(
         handle = handles.get(name)
         if handle is None:
             continue
-        # PHASE 6 (P0-A): Mock FAQAT dev/test rejimida zanjirga tushadi.
+        # Mock FAQAT dev/test rejimida zanjirga tushadi.
         if not provider_allowed(name):
             skipped_mock.append(name)
             continue
@@ -1124,7 +1124,7 @@ async def legacy_chain(prompt: str, system_instruction: str, lang: str | None = 
     * ``provider``/``provider_chain`` maydonlari va test monkeypatch
       nuqtalari (``ai_agent._run_ai_chain``) o'zgarmaydi — backward compat.
 
-    PHASE 6: bu yo'l ham telemetriyaga yoziladi (provayder + token/xarajat
+    bu yo'l ham telemetriyaga yoziladi (provayder + token/xarajat
     bahosi) — legacy oqim "ko'rinmas" sarf bo'lib qolmaydi. Foydalanuvchi
     konteksti yo'q, shuning uchun yozuvda ``task="legacy_chain"`` bo'ladi.
     """
@@ -1198,7 +1198,7 @@ async def legacy_chain(prompt: str, system_instruction: str, lang: str | None = 
 
         event = AIUsageEvent(**entry)
         default_recorder().record(event)
-        # 💰 STEP 1: legacy trafik ham kunlik/oylik byudjet ledger'iga tushadi.
+        # legacy trafik ham kunlik/oylik byudjet ledger'iga tushadi.
         from services.ai.cost_tracker import record_usage_event
 
         record_usage_event(event.as_dict())
@@ -1262,7 +1262,7 @@ def gateway_status(monitor=None) -> dict:
             "tasks": sorted(t for t, lbl in TASK_LANES.items() if lbl is lane),
         }
     try:
-        # PHASE 6: xarajat/telemetriya ko'rsatkichlari (jarayon davomida).
+        # xarajat/telemetriya ko'rsatkichlari (jarayon davomida).
         usage_stats = default_recorder().stats()
     except Exception:  # pragma: no cover — diagnostika yiqilmaydi
         usage_stats = {}
@@ -1295,7 +1295,7 @@ __all__ = [
     "generate_image_post",
     "Lane",
     "LaneSpec",
-    # PHASE 6 — mock siyosati
+    # mock siyosati
     "MOCK_PROVIDER_NAMES",
     "MOCK_MODE_OFF",
     "MOCK_MODE_TEST",

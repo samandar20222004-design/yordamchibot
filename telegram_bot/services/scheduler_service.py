@@ -1,6 +1,6 @@
 """SchedulerService — post yuborish (delivery) biznes mantiqi.
 
-PostAssist V2 (3-bosqich): ``post_deliveries`` jadvali Telegram delivery'sining
+``post_deliveries`` jadvali Telegram delivery'sining
 yagona, doimiy source-of-truth'i. Vaqtinchalik ``/tmp/*.json`` journalga
 tayanilmaydi — barcha holatlar (pending/processing/sent/failed/dead_letter)
 PostgreSQL'da saqlanadi va restart'lardan omon qoladi.
@@ -58,7 +58,7 @@ class SchedulerService:
     STATUS_SENT = "sent"
     STATUS_FAILED = "failed"
     STATUS_DEAD_LETTER = "dead_letter"
-    #: UNKNOWN_DELIVERY (11-bosqich): Telegram javobi olinmagan (albom
+    #: UNKNOWN_DELIVERY: Telegram javobi olinmagan (albom
     #: yuborishda TimedOut/NetworkError). Qayta yuborish TAQIQLANADI.
     STATUS_UNKNOWN = "unknown"
 
@@ -278,7 +278,7 @@ class SchedulerService:
     @staticmethod
     def mark_verify_pending_by_key(idempotency_key: str, error=None, attempt: int = 1,
                                    delay_seconds: float = 30.0) -> dict:
-        """P0: noaniq delivery'ni "kanal tekshiruvi kutilmoqda" holatiga o'tkazadi.
+        """noaniq delivery'ni "kanal tekshiruvi kutilmoqda" holatiga o'tkazadi.
 
         Blind retry TAQIQLANADI: yozuv ``failed`` bo'lib qoladi, lekin
         ``last_error`` da ``AMBIGUOUS_VERIFY attempt=<n>`` markeri turadi —
@@ -291,7 +291,7 @@ class SchedulerService:
 
     @staticmethod
     def clear_verify_pending_by_key(idempotency_key: str) -> bool:
-        """P0: post kanalda YO'Q ekani tasdiqlanganda markerni olib tashlaydi."""
+        """post kanalda YO'Q ekani tasdiqlanganda markerni olib tashlaydi."""
         return bool(clear_post_delivery_verify_pending(str(idempotency_key or "")))
 
     @staticmethod

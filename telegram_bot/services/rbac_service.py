@@ -1,4 +1,4 @@
-"""RBACService — PostAssist V2 (6-bosqich): rollar va ruxsatlar.
+"""RBACService — PostAssist V2: rollar va ruxsatlar.
 
 Rollar (``Role``)
 -----------------
@@ -20,7 +20,7 @@ Ruxsatlar
 * ``manage_users``     → MODERATOR, ADMIN, SUPER_ADMIN, OWNER
 * ``system_settings``  → OWNER
 
-PHASE 3 — resurs-ASOSIDAGI RBAC (markazlashuv) va IDOR himoyasi
+resurs-ASOSIDAGI RBAC (markazlashuv) va IDOR himoyasi
 ---------------------------------------------------------------
 1-7 bo'limlar (yuqorida) — BOT darajasidagi (global) rollar va admin
 ruxsatlari.  Ular **o'zgarmaydi**.
@@ -255,7 +255,7 @@ _MISS = object()
 _ROLE_CACHE: dict = {}
 _ROLE_CACHE_LOCK = threading.Lock()
 
-#: PHASE 3 — resurs (kanal) rollari kesh: ``(user_id, channel_id) → role``.
+#resurs (kanal) rollari kesh: ``(user_id, channel_id) → role``.
 #: Faqat MUSBAT natijalar keshlanadi (rad etish har doim qayta tekshiriladi).
 _RESOURCE_CACHE: dict = {}
 
@@ -565,7 +565,7 @@ def _resolve_denied_message(message, user_id=None) -> str:
 async def _send_denied(update, message: str) -> None:
     """Rad javobini foydalanuvchiga yetkazadi (xato bo'lsa jim o'tadi).
 
-    🧹 FAZA 26: ``adm:<kalit>`` markerli xabarlar avval foydalanuvchi
+    ``adm:<kalit>`` markerli xabarlar avval foydalanuvchi
     tilidagi matnga aylantiriladi (admin panel i18n pariteti).
     """
     message = _resolve_denied_message(message, _extract_user_id(update))
@@ -622,7 +622,7 @@ def _guard(checker, *, message: str, raise_error: bool, tag, value):
 
 
 # ============================================================
-# 7) ADMIN CALLBACK TAMPERING HIMOYASI (11-bosqich, P0)
+# 7) ADMIN CALLBACK TAMPERING HIMOYASI
 # ============================================================
 #
 # Inline callback ``data`` foydalanuvchi tomonidan SOXTALASHTIRILISHI mumkin
@@ -802,7 +802,7 @@ role_required = require_role
 
 
 # ============================================================
-# 8) RESURS-ASOSIDAGI RBAC — MARKAZIY RUXSAT NUQTASI (PHASE 3)
+# 8) RESURS-ASOSIDAGI RBAC — MARKAZIY RUXSAT NUQTASI
 # ============================================================
 #
 # Muammo (Phase 3 topshirig'i)

@@ -21,7 +21,7 @@ from telegram.ext import (
 from config import ADMIN_IDS_SET
 from keyboards.default import (
     exact,
-    # 🆕 3-QISM — asosiy menyu 7 TUGMA / 4 QATOR standarti (uz/ru/en):
+    # asosiy menyu 7 TUGMA / 4 QATOR standarti (uz/ru/en):
     #   [✨ Kontent yaratish] [📢 Kanallarim]
     #   [📅 Rejalashtirilgan] [📊 Statistika]
     #   [💎 PRO]              [👥 Do'stlarni taklif]
@@ -92,7 +92,7 @@ from handlers.start import (
     # tugmasining inline natijasi (3-QISM refaktori).
     referral_inline_query_handler,
     # ⚙️ Sozlamalar menyusidagi [🔄 Ballar o'tkazish] inline kirishi
-    # (PostAssist V2 · 3-qadam) — mavjud TRANSFER FSM oqimini ochadi.
+    # — mavjud TRANSFER FSM oqimini ochadi.
     transfer_inline_entry,
     TRANSFER_TARGET, TRANSFER_AMOUNT
 )
@@ -129,7 +129,7 @@ from handlers.manual_post import (
     manual_time_received, manual_reaction_custom_received,
     manual_url_received, manual_panel_callback, manual_stale_callback,
     manual_preview_emoji_received,
-    # FSM INPUT FALLBACK (PHASE 1) — bosqichda tugma/matn kutganda adashib
+    # FSM INPUT FALLBACK — bosqichda tugma/matn kutganda adashib
     # yuborilgan matn/media uchun yumshoq eslatma + menyuni qayta ko'rsatish.
     manual_preview_media_received, manual_channel_select_fallback,
     manual_reaction_custom_media_received, manual_url_media_received,
@@ -155,10 +155,10 @@ from handlers.channels import (
     # 📢 KANALLARIM — kanal boshqaruv ekrani (PostAssist V2, 4-mikro qadam)
     channel_open_callback, channel_new_post_callback, channel_scheduled_callback,
     channel_stats_callback, channel_settings_callback, channels_list_callback,
-    # 🧠 PHASE B — Channel Intelligence (DNA + Best Time)
+    # Channel Intelligence (DNA + Best Time)
     channel_dna_callback, channel_best_time_callback, channel_advice_callback,
     channel_advice_command,
-    # 🚀 PHASE 9 — Kontekstual kanal menyusi ([📋 Kontent reja] va [👥 Team])
+    # Kontekstual kanal menyusi ([📋 Kontent reja] va [👥 Team])
     channel_plan_callback, channel_team_callback,
     ADD_CHANNEL, SET_TONE
 )
@@ -290,7 +290,7 @@ from handlers.post_score import (
 )
 
 # 2g. 🧩 KONTENT YARATISH — submenu navigatsiyasi + ACTION-FIRST taklif
-# (PostAssist V2). Modul Magic Post oqimiga tayanadi — shu sababli yuqoridagi
+#. Modul Magic Post oqimiga tayanadi — shu sababli yuqoridagi
 # killer-featura importlaridan KEYIN turadi.
 from handlers.content_creation import (
     ContentOfferEntryHandler,
@@ -304,7 +304,7 @@ from handlers.content_plan import (
     PLAN_CHOOSE_CHANNEL, PLAN_GET_TOPIC, PLAN_VIEW
 )
 
-# 8b. SMART CONTENT CALENDAR — 7/30 kunlik reja oqimi (PostAssist V2 · 2-qadam).
+# 8b. SMART CONTENT CALENDAR — 7/30 kunlik reja oqimi.
 # «🤖 AI Yordamchi» → [🧠 Kontent reja] (``studio_content_plan``) shu modulga
 # kiradi; eski ``content_plan`` oqimi (BTN_CONTENT_PLAN, ``plan_*``) tegilmaydi.
 from handlers.content_calendar_flow import (
@@ -450,7 +450,7 @@ from handlers.queue import (
     QUEUE_MENU, SLOT_ADD,
 )
 
-# 13. 🩺 TIZIM HOLATI MONITORINGI (7-BOSQICH)
+# 13. 🩺 TIZIM HOLATI MONITORINGI
 from handlers.health import health_command
 
 # 13b. 🚪💰 SPRINT 4 — YOPIQ BETA DARVOZASI + UNIT ECONOMICS.
@@ -654,7 +654,7 @@ async def expired_session_callback(update, context):
     Chatda yangi xabar yuborILMAYDI: menyular orasida eski tugma bosilganda
     phantom xabarlar paydo bo'lmasligi uchun faqat callback toast.
 
-    🗝 FAZA 19 — CALLBACK REGISTRY VA FAIL-CLOSED XAVFSIZLIK:
+    CALLBACK REGISTRY VA FAIL-CLOSED XAVFSIZLIK:
     bu handler ENG PASTKI catch-all bo'lgani uchun shu yerga FAQAT registry'da
     (``keyboards.callback_data.REGISTERED_NAMESPACES`` /
     ``REGISTERED_STATIC_CALLBACKS``) yo'q callback'lar tushadi — ya'ni
@@ -887,7 +887,7 @@ async def unknown_message_fallback(update, context):
         else:
             from keyboards.default import get_main_keyboard
             is_admin = user_id in ADMIN_IDS_SET
-            # 🧩 PostAssist V2 · 3-mikro qadam (ACTION-FIRST): foydalanuvchi
+            # 3-mikro qadam (ACTION-FIRST): foydalanuvchi
             # menyu tashqarisida JO'N matn (post uchun yetarli material) yozsa
             # — avval «✨ Magic Post» taklifi beriladi. Matn saqlanadi va
             # taklif bosilganda to'g'ridan-to'g'ri uslub tanlash ekrani ochiladi.
@@ -936,7 +936,7 @@ def _admin_flow_state(text_handler, menu_jumps):
 
 
 def _build_all_menu_jumps():
-    """SPRINT 2 — DECOMPOSITION 1/4: "qat'iy navigatsiya" handlerlari ro'yxati.
+    """DECOMPOSITION 1/4: "qat'iy navigatsiya" handlerlari ro'yxati.
 
     Har bir funksional guruh (start/navigatsiya, yangi post, onboarding,
     kanallar, kutilayotgan postlar, konverter, admin, AI, kontent reja,
@@ -997,7 +997,7 @@ def _build_all_menu_jumps():
             exact(*PROFILE_ALIASES),
             lambda u, c: guard_menu(u, c, user_profile_menu),
         ),
-        # 👥 Do'stlarni taklif — referral endi ASOSIY menyuda (3-QISM):
+        # 👥 Do'stlarni taklif — referral endi ASOSIY menyuda:
         # to'g'ridan-to'g'ri havola + takliflar soni + ballar va inline
         # [📲 Do'stlarga ulashish] / [🎁 Kunlik bonus] tugmalari chiqadi.
         MessageHandler(exact(BTN_INVITE_FRIENDS, BTN_INVITE_FRIENDS_RU, BTN_INVITE_FRIENDS_EN), lambda u, c: guard_menu(u, c, user_invite_menu)),
@@ -1011,7 +1011,7 @@ def _build_all_menu_jumps():
         MessageHandler(exact(BTN_TRANSFER, BTN_TRANSFER_RU), lambda u, c: guard_entry(u, c, start_transfer_credits)),
         MessageHandler(exact(BTN_TRANSFER_EN), lambda u, c: guard_entry(u, c, start_transfer_credits)),
         # 🔄 Ballar o'tkazish — ⚙️ SOZLAMALAR menyusidagi inline tugma
-        # (PostAssist V2 · 3-qadam). ``start_handlers`` ichida turgani uchun
+        #. ``start_handlers`` ichida turgani uchun
         # u bir vaqtning o'zida: (1) main_conv entry point'i, (2) HAR BIR
         # faol holatda menyu sakrashi (all_menu_jumps) va (3) global reyestr
         # handleri. FSM o'zgarmaydi — oqim mavjud TRANSFER_TARGET →
@@ -1052,7 +1052,7 @@ def _build_all_menu_jumps():
     channels_handlers = [
         MessageHandler(exact(BTN_CHANNELS, BTN_CHANNELS_RU), lambda u, c: guard_menu(u, c, channels_menu)),
         MessageHandler(exact(BTN_CHANNELS_EN), lambda u, c: guard_menu(u, c, channels_menu)),
-        # 🆕 UX V2: "📢 Kanallarim" — asosiy menyu 6-tugma standarti.
+        # "📢 Kanallarim" — asosiy menyu 6-tugma standarti.
         MessageHandler(exact(BTN_MY_CHANNELS, BTN_MY_CHANNELS_RU, BTN_MY_CHANNELS_EN),
                        lambda u, c: guard_menu(u, c, channels_menu)),
         MessageHandler(exact(BTN_ADD_CHANNEL), lambda u, c: guard_entry(u, c, start_add_channel)),
@@ -1120,7 +1120,7 @@ def _build_all_menu_jumps():
         ),
     ]
 
-    # 7c. 🧩 BIRLASHTIRILGAN KONTENT YARATISH menyusi (PostAssist V2).
+    # 7c. 🧩 BIRLASHTIRILGAN KONTENT YARATISH menyusi.
     # Submenu'ning o'zi «✨ Kontent yaratish» tugmasi orqali ochiladi
     # (ai_handlers'dagi yuqoridagi qator). Menyu 3 ta mantiqiy yo'nalishga
     # birlashtirildi:
@@ -1208,7 +1208,7 @@ def _build_all_menu_jumps():
     # 12. Queue
     queue_handlers = [
         MessageHandler(exact(BTN_QUEUE, BTN_QUEUE_RU), lambda u, c: guard_menu(u, c, queue_menu)),
-        # 🆕 UX V2: "📅 Rejalashtirilgan" — asosiy menyu 6-tugma standarti.
+        # "📅 Rejalashtirilgan" — asosiy menyu 6-tugma standarti.
         MessageHandler(exact(BTN_SCHEDULED, BTN_SCHEDULED_RU, BTN_SCHEDULED_EN),
                        lambda u, c: guard_menu(u, c, queue_menu)),
     ]
@@ -1267,7 +1267,7 @@ def _main_entry_points(all_menu_jumps):
         # Conversation ichidagi new-post/photo-check holatlari o'zining
         # state handlerlari bilan ustun turadi — legacy oqimlar buzilmaydi.
         ImageEntryHandler(filters.PHOTO & filters.ChatType.PRIVATE, image_photo_received),
-        # 🧩 ACTION-FIRST (PostAssist V2, 3-qadam): menyu tashqarisida yozilgan
+        # 🧩 ACTION-FIRST: menyu tashqarisida yozilgan
         # xom matn uchun yuboriladigan «✨ Magic Post» taklifining tugmalari.
         # ContentOfferEntryHandler dialog ICHIDA mos KELMAYDI — faol suhbat
         # holati buzilmaydi; tugma «o'lik» holatda bossa esa oddiy
@@ -1287,7 +1287,7 @@ def _main_entry_points(all_menu_jumps):
         CallbackQueryHandler(edit_post_btn_start, pattern=r"^p_btn:"),
         CallbackQueryHandler(edit_post_react_start, pattern=r"^p_react:"),
         CallbackQueryHandler(add_channel_inline_entry, pattern=r"^add_channel_start$"),
-        # 💬 4-QISM — [💬 Qo'llab-quvvatlash]: BIR MARTALIK murojaat oqimi
+        # [💬 Qo'llab-quvvatlash]: BIR MARTALIK murojaat oqimi
         # (bir xabar → FSM darhol yopiladi → adminga yetkaziladi).
         # ``allow_reentry=True`` tufayli tugma boshqa FSM ichidan ham
         # xavfsiz qayta ochiladi; eski xabarlardagi tugma esa global
@@ -1310,20 +1310,20 @@ def _main_entry_points(all_menu_jumps):
         # shuning uchun oqim to'g'ridan-to'g'ri GET_CONTENT holatiga
         # kiradi (entry point bo'lishi SHART — u FSM holati qaytaradi).
         CallbackQueryHandler(channel_new_post_callback, pattern=r"^ch_np:"),
-        # ✍️ PHASE 9 — `[✍️ Post yaratish]` kontekstual menyusi (8 ta inline tugma)
+        # `[✍️ Post yaratish]` kontekstual menyusi (8 ta inline tugma)
         CallbackQueryHandler(contextual_post_menu_callback, pattern=r"^ctx_post:"),
-        # 📋 PHASE 9 — `[📢 Kanallarim]` → `[📋 Kontent reja]`
+        # `[📢 Kanallarim]` → `[📋 Kontent reja]`
         CallbackQueryHandler(channel_plan_callback, pattern=r"^ch_plan:"),
-        # 🚀 PHASE 9 — 2 daqiqalik Instant-Value Onboarding → 1-click 7 kunlik reja
+        # 2 daqiqalik Instant-Value Onboarding → 1-click 7 kunlik reja
         CallbackQueryHandler(onboarding_quick_plan_callback, pattern=r"^onb_plan:"),
-        # 🚀 PHASE C — Kanallarim → [🚀 AI Avtopilot]: 7 kunlik reja oqimi
+        # Kanallarim → [🚀 AI Avtopilot]: 7 kunlik reja oqimi
         # (mavzu → AI reja → tasdiqlash → atomik navbat). FSM holatini
         # qaytaradi — entry point bo'lishi shart.
         CallbackQueryHandler(channel_autopilot_entry, pattern=r"^ch_ap:"),
-        # 📋 PHASE C — Kanallarim → [📋 Shablonlar]: post shablonlari
+        # Kanallarim → [📋 Shablonlar]: post shablonlari
         # menyusi (yangi / ishlatish / o'chirish). FSM holatini qaytaradi.
         CallbackQueryHandler(channel_templates_entry, pattern=r"^ch_tpl:"),
-        # 📥 PHASE D (2/2) — Kanallarim → [📥 Kontent manbalari]: URL→post,
+        # Kanallarim → [📥 Kontent manbalari]: URL→post,
         # RSS/ATOM oqimi, Content Recycle va qoralamalar. FSM holatini
         # qaytaradi — entry point bo'lishi shart.
         CallbackQueryHandler(channel_sources_entry, pattern=r"^ch_src:"),
@@ -1347,7 +1347,7 @@ def _main_entry_points(all_menu_jumps):
             lambda u, c: guard_entry(u, c, ai_back_to_menu),
             pattern=r"^ai_back_to_menu$",
         ),
-        # 🧭 4-qadam: AI Yordamchi → [◀️ Orqaga] → Kontent yaratish
+        # AI Yordamchi → [◀️ Orqaga] → Kontent yaratish
         # submenyusi (eski tugma sessiya tugagach bosilsa ham ishlaydi).
         CallbackQueryHandler(
             lambda u, c: guard_entry(u, c, ai_back_to_content),
@@ -1435,7 +1435,7 @@ def _content_states(all_menu_jumps):
             # (masalan 😎 yoki 🔥 👍) — xato bermasdan reaksiya sifatida qabul qilinadi
             MessageHandler(filters.TEXT & ~filters.COMMAND,
                            manual_preview_emoji_received),
-            # FSM INPUT FALLBACK (PHASE 1): preview bosqichida adashib
+            # FSM INPUT FALLBACK: preview bosqichida adashib
             # MEDIA tashlansa — 💡 yumshoq eslatma + Preview menyusi qayta
             # ko'rsatiladi, FSM holati bekor bo'lib ketmaydi.
             MessageHandler(~filters.TEXT & ~filters.COMMAND,
@@ -1443,7 +1443,7 @@ def _content_states(all_menu_jumps):
         ],
         MANUAL_CHANNEL_SELECT: all_menu_jumps + [
             CallbackQueryHandler(manual_panel_callback, pattern=r"^mnp_"),
-            # FSM INPUT FALLBACK (PHASE 1): kanal tanlash bosqichida erkin
+            # FSM INPUT FALLBACK: kanal tanlash bosqichida erkin
             # matn/media — 💡 eslatma + tanlov klaviaturasi qayta (holat
             # saqlanadi, bot quruq javob bilan to'xtab qolmaydi).
             MessageHandler(filters.ALL & ~filters.COMMAND,
@@ -1463,7 +1463,7 @@ def _content_states(all_menu_jumps):
             CallbackQueryHandler(manual_panel_callback, pattern=r"^mnp_"),
             MessageHandler(filters.TEXT & ~filters.COMMAND,
                            manual_reaction_custom_received),
-            # FSM INPUT FALLBACK (PHASE 1): emoji o'rniga media tashlansa —
+            # FSM INPUT FALLBACK: emoji o'rniga media tashlansa —
             # 💡 eslatma + yo'rixnoma qayta (holat saqlanadi).
             MessageHandler(~filters.TEXT & ~filters.COMMAND,
                            manual_reaction_custom_media_received),
@@ -1472,7 +1472,7 @@ def _content_states(all_menu_jumps):
             CallbackQueryHandler(manual_panel_callback, pattern=r"^mnp_"),
             MessageHandler(filters.TEXT & ~filters.COMMAND,
                            manual_url_received),
-            # FSM INPUT FALLBACK (PHASE 1): "Matn - havola" o'rniga media
+            # FSM INPUT FALLBACK: "Matn - havola" o'rniga media
             # tashlansa — 💡 eslatma + yo'riqnoma qayta (holat saqlanadi).
             MessageHandler(~filters.TEXT & ~filters.COMMAND,
                            manual_url_media_received),
@@ -1815,7 +1815,7 @@ def _admin_states(all_menu_jumps):
             MessageHandler(filters.TEXT & ~filters.COMMAND, bot_reply_ad_received),
         ],
         SET_POST_TAG: all_menu_jumps + [
-            # 🧭 4-qadam: [⬅️ Orqaga]/[❌ Bekor qilish] (adm_back/adm_cancel)
+            # [⬅️ Orqaga]/[❌ Bekor qilish] (adm_back/adm_cancel)
             # holat ICHIDA ham ishlaydi — FSM to'g'ri yopiladi.
             CallbackQueryHandler(admin_dashboard_callback, pattern=r"^adm_"),
             MessageHandler(filters.TEXT & ~filters.COMMAND, post_tag_received)],
@@ -1876,7 +1876,7 @@ def _ai_assistant_states(all_menu_jumps):
         AI_TONE_SELECT: all_menu_jumps + [
             CallbackQueryHandler(ai_tone_callback, pattern=r"^ai_tone:"),
             CallbackQueryHandler(ai_studio_schedule_callback, pattern=r"^ai_studio_sched$"),
-            # 🌱 STEP 2 — post generatsiyasi ACTION tugmalari: [🔄 Yangi
+            # post generatsiyasi ACTION tugmalari: [🔄 Yangi
             # variant] (ai_regen → ai_tone_callback yadrosi), [📋 Nusxalash]
             # va IXTIYORIY [🔗 Do'stlarga ulashish] (postlarga reklama
             # qo'shmaydi).
@@ -1925,7 +1925,7 @@ def _ai_assistant_states(all_menu_jumps):
             MessageHandler(filters.TEXT & ~filters.COMMAND, ai_photo_edit_received),
         ],
 
-        # 7d-2. 🧭 AI POST — MAVZUNI ANIQLASHTIRISH WIZARD'I (3-qadam).
+        # 7d-2. 🧭 AI POST — MAVZUNI ANIQLASHTIRISH WIZARD'I.
         # Magic Post / AI Studio matn kiritishdan shu holatlarga o'tadi:
         # CLARIFY (yo'nalish tugmalari) → SALES/CUSTOM_INPUT (matn javobi)
         # → kelib chiqish oqimiga qaytish. Kvota shu holatlarda BRON
@@ -2105,7 +2105,7 @@ def _post_score_states(all_menu_jumps):
 def _support_queue_states(all_menu_jumps):
     """Qollab-quvvatlash murojaati va navbat menyusi holatlari."""
     return {
-        # 💬 4-QISM — QO'LLAB-QUVVATLASH: bir martalik murojaat holati.
+        # QO'LLAB-QUVVATLASH: bir martalik murojaat holati.
         #   * [◀️ Orqaga] — oqim yopiladi va 👤 Profil hub'i qaytadi;
         #   * foydalanuvchi xabari (matn yoki rasm+izoh) — murojaat
         #     adminga yuboriladi va holat DARHOL yopiladi (END), ya'ni
@@ -2166,7 +2166,7 @@ def _main_fallbacks():
 
 
 def _build_main_conversation_handler(all_menu_jumps):
-    """SPRINT 2 - DECOMPOSITION 2/4: asosiy FSM (``ConversationHandler``).
+    """DECOMPOSITION 2/4: asosiy FSM (``ConversationHandler``).
 
     Botning deyarli barcha bosqichma-bosqich oqimlari (yangi post, AI
     vositalar, kanal ulash, sozlamalar sehrgarlari va h.k.) shu YAGONA
@@ -2231,7 +2231,7 @@ def _build_main_conversation_handler(all_menu_jumps):
 
 
 def _register_global_commands(app):
-    """SPRINT 2 — DECOMPOSITION 3/4a: AUTH + global buyruqlar (``/start``,
+    """DECOMPOSITION 3/4a: AUTH + global buyruqlar (``/start``,
     ``/help``, ``/admin``, ``/stats``, rol boshqaruvi va h.k.) hamda Stars
     TO'LOV (payment) handlerlari (precheckout / successful payment).
     Conversation'dan MUSTAQIL — har doim ishlaydi.
@@ -2241,7 +2241,7 @@ def _register_global_commands(app):
     app.add_handler(CommandHandler("profile", user_profile_menu))
     # 👥 Do'stlar taklif — inline rejim: [📲 Do'stlarga ulashish]
     # (switch_inline_query) tanlangan chatda referal havola natijasini
-    # ulashadi (3-QISM). Botda BotFather orqali inline mode yoqilgan
+    # ulashadi. Botda BotFather orqali inline mode yoqilgan
     # bo'lishi kerak.
     app.add_handler(InlineQueryHandler(referral_inline_query_handler))
     # 👤 Profil / Sozlamalar — klaviatura matnini qo'lda yozish o'rniga
@@ -2255,33 +2255,33 @@ def _register_global_commands(app):
     # holatidan qat'i nazar darhol ishlaydi va ekran bir manbadan
     # (``stgs_clean`` bilan bir xil quruvchilardan) chiziladi.
     app.add_handler(CommandHandler("cleaner", cleaner_command))
-    # 🔐 SPRINT 1 (Privacy & GDPR): /privacy — bot qanday ma'lumotlarni
+    # /privacy — bot qanday ma'lumotlarni
     # saqlashini ochiq ko'rsatadi (uz/ru/en) va o'chirish tugmasini beradi.
     app.add_handler(CommandHandler("privacy", privacy_command))
     app.add_handler(CommandHandler("admin", admin_panel_menu))
     app.add_handler(CommandHandler("stats", show_statistics))
-    # PHASE E — kanal egasi yoki analyst uchun ehtimolli haftalik maslahatlar.
+    # kanal egasi yoki analyst uchun ehtimolli haftalik maslahatlar.
     app.add_handler(CommandHandler("channel_advice", channel_advice_command))
     app.add_handler(CommandHandler("cancel", cancel_handler))
     app.add_handler(CommandHandler("grant_pro", grant_pro_command))
     app.add_handler(CommandHandler("create_promo", create_promo_command))
     app.add_handler(CommandHandler("admin_stats", admin_stats_command))
-    # 📊 SPRINT 2 (VAZIFA 3) — eng ko'p/kam (<5%) ishlatilayotgan tugma va
+    # eng ko'p/kam (<5%) ishlatilayotgan tugma va
     # buyruqlar bo'yicha oddiy ichki agregatsiya (faqat admin).
     app.add_handler(CommandHandler("feature_usage", admin_feature_usage_command))
-    # 📝 6-bosqich: audit jurnali (faqat OWNER/SUPER_ADMIN — RBAC dekoratori)
+    # audit jurnali (faqat OWNER/SUPER_ADMIN — RBAC dekoratori)
     app.add_handler(CommandHandler("audit", admin_audit_command))
-    # 🩺 7-bosqich: tizim holati (faqat system_settings ruxsati — RBAC dekoratori)
+    # tizim holati (faqat system_settings ruxsati — RBAC dekoratori)
     app.add_handler(CommandHandler("health", health_command))
-    # 🎖 6-bosqich: rollarni boshqarish (faqat OWNER — RBAC dekoratori)
+    # rollarni boshqarish (faqat OWNER — RBAC dekoratori)
     app.add_handler(CommandHandler("setrole", admin_set_role_command))
     app.add_handler(CommandHandler("delrole", admin_del_role_command))
     # 🖼 /ai — AI Studio'ni ochadi; shundan keyin rasm yuborilsa Vision ishlaydi
     app.add_handler(CommandHandler("ai", lambda u, c: guard_entry(u, c, ai_studio_menu_entry)))
-    # 🚪 SPRINT 4 — yopiq beta darvozasi (faqat admin): rejim, kodlar,
+    # yopiq beta darvozasi (faqat admin): rejim, kodlar,
     # navbatdagi so'rovlarni tasdiqlash/rad etish.
     app.add_handler(CommandHandler("beta", beta_admin_command))
-    # 💰 SPRINT 4 — unit economics: AI xarajati, o'rtacha sarf va PRO marjasi.
+    # unit economics: AI xarajati, o'rtacha sarf va PRO marjasi.
     app.add_handler(CommandHandler("economics", economics_command))
 
     # Stars to'lov handlerlari — Telegram Stars (XTR) to'lovlari uchun.
@@ -2296,7 +2296,7 @@ def _register_global_commands(app):
 
 
 def _register_global_menu_fallback_handlers(app, all_menu_jumps):
-    """SPRINT 2 — DECOMPOSITION 3/4b: ``all_menu_jumps`` — har bir asosiy
+    """DECOMPOSITION 3/4b: ``all_menu_jumps`` — har bir asosiy
     menyu tugmasini conversation TASHQARISIDA ham (masalan, eski/keshdagi
     xabarda bosilsa) darhol ishlaydigan qilib global reyestrga qo'shadi.
     """
@@ -2307,7 +2307,7 @@ def _register_global_menu_fallback_handlers(app, all_menu_jumps):
 
 
 def _register_content_and_queue_callbacks(app):
-    """SPRINT 2 — DECOMPOSITION 3/4c: CONTENT — obuna (💎 PRO) va
+    """DECOMPOSITION 3/4c: CONTENT — obuna (💎 PRO) va
     📅 Rejalashtirilgan (navbat: ko'rish/o'chirish/surish) inline tugmalari.
     """
     # 4. Inline Callback Handlerlar
@@ -2348,7 +2348,7 @@ def _register_content_and_queue_callbacks(app):
 
 
 def _register_channel_callbacks(app):
-    """SPRINT 2 — DECOMPOSITION 3/4d: CHANNELS — 📢 Kanallarim boshqaruvi,
+    """DECOMPOSITION 3/4d: CHANNELS — 📢 Kanallarim boshqaruvi,
     kanal uslubi (Tone of Voice), Channel Intelligence (DNA / eng yaxshi
     vaqt) va kanal ovozi tahlili inline tugmalari.
     """
@@ -2369,7 +2369,7 @@ def _register_channel_callbacks(app):
     app.add_handler(CallbackQueryHandler(channel_scheduled_callback, pattern=r"^ch_sch:"))
     app.add_handler(CallbackQueryHandler(channel_stats_callback, pattern=r"^ch_st:"))
     app.add_handler(CallbackQueryHandler(channels_list_callback, pattern=r"^ch_back$"))
-    # 🧠 PHASE B — Channel Intelligence: [🧠 Kanal DNA] va [⏰ Eng yaxshi vaqt].
+    # Channel Intelligence: [🧠 Kanal DNA] va [⏰ Eng yaxshi vaqt].
     # Ikkalasi ham kanal KONTEKSTIDAN (channel_id payload) o'tadi va
     # ownership (fail-closed) tekshiruvi bilan himoyalangan (IDOR xavfsizligi).
     app.add_handler(CallbackQueryHandler(
@@ -2390,7 +2390,7 @@ def _register_channel_callbacks(app):
         channel_voice_analysis_callback,
         pattern="^" + re.escape(CB_CHANNEL_VOICE),
     ))
-    # PHASE E — approval card callbacks.  Authorization is repeated in the
+    # approval card callbacks.  Authorization is repeated in the
     # service, so forged callback payloads cannot approve another channel's post.
     app.add_handler(CallbackQueryHandler(team_approve_callback, pattern=r"^team_ok:"))
     app.add_handler(CallbackQueryHandler(team_edit_callback, pattern=r"^team_edit:"))
@@ -2404,7 +2404,7 @@ def _register_channel_callbacks(app):
 
 
 def _register_ai_and_media_callbacks(app):
-    """SPRINT 2 — DECOMPOSITION 3/4e: AI vositalari (Studio/Calendar/
+    """DECOMPOSITION 3/4e: AI vositalari (Studio/Calendar/
     Avtopilot/shablonlar/manbalar/Magic Post/AI Post wizard/Post Score/
     Voice/Image → Post) stale-session tugmalari va rasm/``/ai`` caption
     oqimi. ``cabinet_callback`` (👤 profil) ham tarixiy sababga ko'ra shu
@@ -2416,12 +2416,12 @@ def _register_ai_and_media_callbacks(app):
     # sessiya tugagach yoki boshqa oqim ichida bosilsa — «sessiya eskirgan»
     # toast ko'rsatiladi (xabar o'chirilmaydi, hech qanday crash yo'q).
     app.add_handler(CallbackQueryHandler(calendar_stale_callback, pattern=r"^cal_"))
-    # 🚀 PHASE C — AI Avtopilot stale tugmalari (ap_*): sessiya tugagach
+    # AI Avtopilot stale tugmalari (ap_*): sessiya tugagach
     # bosilgan eski tasdiq/tahrir tugmasi — muloyim toast, crash yo'q.
     app.add_handler(CallbackQueryHandler(autopilot_stale_callback, pattern=r"^ap_"))
-    # 📋 PHASE C — Post shablonlari stale tugmalari (tpl_*).
+    # Post shablonlari stale tugmalari (tpl_*).
     app.add_handler(CallbackQueryHandler(templates_stale_callback, pattern=r"^tpl_"))
-    # 📥 PHASE D (2/2) — Kontent manbalari stale tugmalari (src_*): sessiya
+    # Kontent manbalari stale tugmalari (src_*): sessiya
     # tugagach bosilgan eski format/amal tugmasi — muloyim toast, crash yo'q.
     app.add_handler(CallbackQueryHandler(sources_stale_callback, pattern=r"^src_"))
     # ✨ Magic Post stale tugmalari: sessiya tugagach eski natija/tanlov tugmasi
@@ -2456,12 +2456,12 @@ def _register_ai_and_media_callbacks(app):
 
 
 def _register_settings_and_support_callbacks(app):
-    """SPRINT 2 — DECOMPOSITION 3/4f: SETTINGS — ⚙️ Sozlamalar hub'i,
+    """DECOMPOSITION 3/4f: SETTINGS — ⚙️ Sozlamalar hub'i,
     🔐 Privacy/ma'lumot o'chirish tasdiqlash, Qo'llanma, qo'llab-quvvatlash
     (support) dispatcher hamda 💳 Karta cheki admin approval (payment-adjacent)
     inline tugmalari.
     """
-    # ⚙️ SOZLAMALAR (PostAssist V2, 2-bosqich) — 8 guruhli hub:
+    # ⚙️ SOZLAMALAR — 8 guruhli hub:
     # stgs_rewards va stgs_help_hub alohida handler sifatida ro'yxatda;
     # boshqa stgs_* callback'lar hamda eski callback aliaslari generic
     # settings handler orqali xavfsiz yo'naltiriladi.
@@ -2471,7 +2471,7 @@ def _register_settings_and_support_callbacks(app):
     app.add_handler(CallbackQueryHandler(
         settings_help_hub_callback, pattern=r"^stgs_help_hub$",
     ))
-    # 🔐 SPRINT 1 — o'chirishni TASDIQLASH va BEKOR QILISH. MUHIM: aniq
+    # o'chirishni TASDIQLASH va BEKOR QILISH. MUHIM: aniq
     # naqshlar generic ``stgs_`` handler'dan OLDIN ro'yxatdan o'tadi —
     # PTB handlerlarni qo'shilish tartibida tekshiradi, aks holda
     # ``stgs_privacy_del_ok`` generic menyuga tushib qolardi (ma'lumot
@@ -2492,11 +2492,11 @@ def _register_settings_and_support_callbacks(app):
     # ✨ Postga Tugma & Reaksiya: sessiya tugagach eski prevyu/hub tugmalari bosilsa —
     # xabarni buzmasdan jim javob (edit qilinmaydi).
     app.add_handler(CallbackQueryHandler(enh_stale_callback, pattern=r"^enh:"))
-    # 💬 4-QISM — qo'llab-quvvatlash: FSM sessiyasidan tashqarida bosilgan
+    # qo'llab-quvvatlash: FSM sessiyasidan tashqarida bosilgan
     # [◀️ Orqaga] (``sup_back``) tugmasi — xabar buzilmaydi, 👤 Profil hub'i
     # qayta chiziladi (o'lik tugma qolmaydi).
     app.add_handler(CallbackQueryHandler(support_back_callback, pattern=r"^sup_back$"))
-    # 💬 4-QISM — ADMIN REPLY DISPATCHER: admin bot yuborgan murojaat xabariga
+    # ADMIN REPLY DISPATCHER: admin bot yuborgan murojaat xabariga
     # Telegram'ning «Reply» funksiyasi bilan yozsa, javob murojaat egasiga
     # yetkaziladi. Handler FAQAT adminlar uchun va FAQAT reply xabarlariga
     # mos keladi (``SUPPORT_ADMIN_REPLY_FILTER``), shuning uchun oddiy
@@ -2516,7 +2516,7 @@ def _register_settings_and_support_callbacks(app):
 
 
 def _register_channel_realtime_and_fallback(app):
-    """SPRINT 2 — DECOMPOSITION 3/4g: CHANNELS — ulangan kanallardan real
+    """DECOMPOSITION 3/4g: CHANNELS — ulangan kanallardan real
     vaqtda post yozib borish HAMDA eng pastki ustuvorlikdagi "notanish
     xabar" fallback handleri. MUHIM: bu funksiya HAR DOIM
     ``register_all_handlers`` ketma-ketligida ENG OXIRIDA chaqirilishi
@@ -2545,7 +2545,7 @@ def register_all_handlers(app):
     """Botning barcha handlerlarini ro'yxatdan o'tkazadigan YAGONA kirish
     nuqtasi (``main.py`` shuni chaqiradi).
 
-    SPRINT 2 (VAZIFA 2) — bu funksiya ilgari ~1300 qatorlik monolit edi;
+    bu funksiya ilgari ~1300 qatorlik monolit edi;
     endi u faqat KETMA-KETLIKNI boshqaradi, haqiqiy ishni quyidagi
     funksional sub-register funksiyalariga topshiradi:
 

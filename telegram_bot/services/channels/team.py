@@ -355,7 +355,7 @@ def _post_channel(post: Any) -> str | None:
 
 # Stateless helper names are convenient for handler code and hidden integrations.
 async def check_permission(channel_id, user_id, action, db_module=None) -> bool:
-    """PHASE 3 — markaziy RBAC orqali ruxsat (zaxira: lokal ``authorize``)."""
+    """markaziy RBAC orqali ruxsat (zaxira: lokal ``authorize``)."""
     try:
         from services import rbac_service
 

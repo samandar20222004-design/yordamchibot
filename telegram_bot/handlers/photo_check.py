@@ -26,7 +26,7 @@ import database as db
 from keyboards.callback_data import CB_PHOTO_APPROVE, CB_PHOTO_REJECT, cb
 from locales.translations import get_lang, safe_t
 from utils.fsm_state import active_conversation_state
-# 6-bosqich: rasm tekshiruvi orqali PRO berish — 'manage_users' ruxsati.
+# rasm tekshiruvi orqali PRO berish — 'manage_users' ruxsati.
 from services.rbac_service import (
     PERM_MANAGE_USERS, has_permission, CallbackTampering, admin_callback_guard,
 )
@@ -254,7 +254,7 @@ async def handle_admin_check_photo_callback(update: Update, context: ContextType
         return
 
     action = parts[1]  # 'a' (tasdiq) yoki 'r' (rad)
-    # 11-bosqich (P0): payload'dagi user_id QAT'IY tekshiriladi va bosgan
+    # payload'dagi user_id QAT'IY tekshiriladi va bosgan
     # shaxs server-side admin/RBAC bo'lishi shart (tampering himoyasi).
     prefix = CB_PHOTO_APPROVE if action == "a" else CB_PHOTO_REJECT
     try:

@@ -72,12 +72,12 @@ AUTOPILOT_I18N = {
         "cancel_done": "❌ Avtopilot bekor qilindi.",
         "stale": "Sessiya eskirgan — avtopilotni qaytadan boshlang.",
         "no_channel": "Kanal topilmadi.",
-        # PHASE 3 — RBAC/IDOR: ruxsatsiz avtopilot urinishi (yopiq rad).
+        # RBAC/IDOR: ruxsatsiz avtopilot urinishi (yopiq rad).
         "no_permission": (
             "⛔ Ruxsat yo'q (Permission Denied). Bu kanalda avtopilot "
             "rejasini rejalashtirish huquqingiz yo'q."
         ),
-        # --- PHASE 8: 7-Day Autopilot V2 (Strategy & Approval Modes) ---
+        # 7-Day Autopilot V2 (Strategy & Approval Modes) ---
         "v2_strategy_box": (
             "\n\n🧭 <b>Strategiya (V2):</b>\n"
             "• 🎯 Maqsad: <b>{goal}</b>\n"
@@ -182,12 +182,12 @@ AUTOPILOT_I18N = {
         "cancel_done": "❌ Автопилот отменён.",
         "stale": "Сессия устарела — начните автопилот заново.",
         "no_channel": "Канал не найден.",
-        # PHASE 3 — RBAC/IDOR: отказ в доступе (закрытое отклонение).
+        # RBAC/IDOR: отказ в доступе (закрытое отклонение).
         "no_permission": (
             "⛔ Нет доступа (Permission Denied). У вас нет прав "
             "планировать автопилот в этом канале."
         ),
-        # --- PHASE 8: 7-Day Autopilot V2 (Strategy & Approval Modes) ---
+        # 7-Day Autopilot V2 (Strategy & Approval Modes) ---
         "v2_strategy_box": (
             "\n\n🧭 <b>Стратегия (V2):</b>\n"
             "• 🎯 Цель: <b>{goal}</b>\n"
@@ -292,12 +292,12 @@ AUTOPILOT_I18N = {
         "cancel_done": "❌ Autopilot cancelled.",
         "stale": "Session expired — start the autopilot again.",
         "no_channel": "Channel not found.",
-        # PHASE 3 — RBAC/IDOR: permission denied (closed rejection).
+        # RBAC/IDOR: permission denied (closed rejection).
         "no_permission": (
             "⛔ Permission denied. You are not allowed to schedule the "
             "autopilot plan in this channel."
         ),
-        # --- PHASE 8: 7-Day Autopilot V2 (Strategy & Approval Modes) ---
+        # 7-Day Autopilot V2 (Strategy & Approval Modes) ---
         "v2_strategy_box": (
             "\n\n🧭 <b>Strategy (V2):</b>\n"
             "• 🎯 Goal: <b>{goal}</b>\n"

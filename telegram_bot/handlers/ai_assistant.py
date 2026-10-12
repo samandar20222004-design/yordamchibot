@@ -8,7 +8,7 @@ from config import ADMIN_IDS_SET
 import database as db
 from keyboards.default import (
     get_cancel_keyboard, get_main_keyboard, get_ai_time_keyboard,
-    # 🧩 KONTENT YARATISH submenu'si (PostAssist V2) — yorliqlar va
+    # 🧩 KONTENT YARATISH submenu'si — yorliqlar va
     # MENU_TEXTS registry bilan bir xil manbadan chiziladi.
     get_content_creation_keyboard,
     # Uch tilli tugma registry: "⚡ 5 minutes" / "🔁 Daily (same time)" kabi
@@ -35,7 +35,7 @@ from translations import content_menu_t
 from locales.translations import (
     clear_fsm_data, get_lang, safe_t, localize_service_error,
 )
-# 🔒 PHASE 2 / 1-qadam — kvota + kredit BITTA atomik tranzaksiyada
+# kvota + kredit BITTA atomik tranzaksiyada
 # (services/ai_quota.py → database.reserve_ai_request / refund_ai_request).
 from services.ai_quota import (
     ai_quota_temp_error_text,
@@ -44,7 +44,7 @@ from services.ai_quota import (
     reserve_for_flow,
     take_reservation_id,
 )
-# 🧭 PostAssist V2 · 4-qadam — navigatsiya stacki (◀️ Orqaga / ❌ Bekor
+# 4-qadam — navigatsiya stacki (◀️ Orqaga / ❌ Bekor
 # qilish / 🏠 Asosiy menyu standarti, handlers/navigation.py).
 from handlers.navigation import (
     SECTION_AI_STUDIO, SECTION_CONTENT,
@@ -272,7 +272,7 @@ async def _edit_wait_message(wait_message, fallback_message, text: str, **kwargs
 def _ai_quota_temp_error_text(lang: str = "uz") -> str:
     """DB/pool xatosida AI kvotasini fail-closed rad etish uchun muloyim xabar.
 
-    PHASE 2 / 1-qadam: matn endi yagona manbadan
+    matn endi yagona manbadan
     (``services.ai_quota.ai_quota_temp_error_text``) olinadi — barcha AI
     oqimlari (Magic Post, Voice, Image, Post Score, AI Studio) bir xil
     UZ/RU/EN matnni ko'radi. Eski nom backward compatibility uchun saqlandi.
@@ -312,7 +312,7 @@ async def _studio_menu_text(user_id: int, lang: str) -> str:
 
 async def _content_learning_block(user_id: int, lang: str, *,
                                   require_reco: bool = False) -> str:
-    """📚 STEP 3 — CONTENT LEARNING: lokalizatsiya qilingan tavsiyalar bloki.
+    """CONTENT LEARNING: lokalizatsiya qilingan tavsiyalar bloki.
 
     Kanal analitikasi (REAL postlar tarixi) asosida yetishmayotgan formatlar
     (Q&A, tutorial, ijtimoiy isbot ...) uchun uz/ru/en tavsiyalar chizadi.
@@ -505,7 +505,7 @@ async def ai_input_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin:
         is_pro = await db.run_db(db.is_premium, user_id)
 
-    # 🔒 PHASE 2 / 1-QADAM: tarif bo'yicha kunlik kvota (database.PLAN_LIMITS)
+    # tarif bo'yicha kunlik kvota (database.PLAN_LIMITS)
     # va AI balli BITTA atomik tranzaksiyada bron qilinadi —
     # ``database.reserve_ai_request`` qatorni ``SELECT ... FOR UPDATE`` bilan
     # qulflaydi, avval bepul kunlik kvotadan, kvota tugagach kreditdan
@@ -575,7 +575,7 @@ async def ai_input_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if "error" in result:
         if not is_admin:
-            # 🔒 PHASE 2 / 1-qadam: bron ID'si bo'lsa ATOMIK va IDEMPOTENT
+            # bron ID'si bo'lsa ATOMIK va IDEMPOTENT
             # refund (kvota YOKI kredit — manbaga qarab, ikki marta emas).
             reservation_id = (take_reservation_id(context, "chat")
                               if not is_pro else None)
@@ -787,7 +787,7 @@ async def ai_confirm_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
     lang = get_lang(context)
 
     if data == "ai_post_cancel":
-        # 🧭 4-qadam: FSM ichida [🚫 Bekor qilish] — kontekst tozalanadi va
+        # FSM ichida [🚫 Bekor qilish] — kontekst tozalanadi va
         # BO'LIM BOSHIGA (AI Studio hub) qaytadi, asosiy menyuga emas.
         await query.answer(safe_t("ai_close_session", lang))
         clear_ai_context(user_id)
@@ -967,7 +967,7 @@ async def _studio_ai_preflight(update: Update, context: ContextTypes.DEFAULT_TYP
     """
     msg = update.message
     if msg is None and getattr(update, "callback_query", None) is not None:
-        # 🧭 3-QADAM: aniqlashtirish wizard'idan qaytgan generatsiya —
+        # aniqlashtirish wizard'idan qaytgan generatsiya —
         # rad/limit xabarlari o'sha callback xabariga yuboriladi.
         msg = update.callback_query.message
     user_id = update.effective_user.id
@@ -986,7 +986,7 @@ async def _studio_ai_preflight(update: Update, context: ContextTypes.DEFAULT_TYP
     if not is_admin:
         is_pro = await db.run_db(db.is_premium, user_id)
 
-    # 🔒 PHASE 2 / 1-QADAM: kunlik kvota va AI balli BITTA atomik
+    # kunlik kvota va AI balli BITTA atomik
     # tranzaksiyada bron qilinadi (qator qulfi + credits_ledger auditi +
     # ai_reservations bron qatori). Avvalgi ikki alohida tranzaksiya
     # (``check_ai_limit`` + ``use_user_credit``) race condition va yarim bron
@@ -1139,7 +1139,7 @@ async def ai_studio_hub_entry(update: Update, context: ContextTypes.DEFAULT_TYPE
         + "\n\n"
         + content_menu_t("cm_ai_hint", lang)
     )
-    # 📚 STEP 3 — CONTENT LEARNING: kanal analitikasi asosida lokalizatsiya
+    # CONTENT LEARNING: kanal analitikasi asosida lokalizatsiya
     # qilingan tavsiyalar (fail-soft: xatoda menyu o'zgarmaydi; real ma'lumot
     # bo'lmasa HALOL "yetarli ma'lumot yo'q" eslatmasi ko'rsatiladi — soxta
     # metrika yo'q).
@@ -1173,7 +1173,7 @@ async def ai_studio_nav_callback(update: Update, context: ContextTypes.DEFAULT_T
         return AI_PROMPT_INPUT
 
     if data == "studio_ai_photo":
-        # 📸 PostAssist V2 · 2-qadam (B2): AI Studio'dagi «🖼 Rasmdan post
+        # 2-qadam (B2): AI Studio'dagi «🖼 Rasmdan post
         # yaratish» tugmasi endi YAGONA «📸 Rasm → Post» oqimini ochadi
         # (Vision tahlili + Post Score, ``IMAGE_POST_INPUT``). Eski Vision
         # oqimi (AI_PHOTO_INPUT=408 …) ALIAS sifatida saqlanadi — eski
@@ -1207,7 +1207,7 @@ async def ai_studio_nav_callback(update: Update, context: ContextTypes.DEFAULT_T
         return EXTRACT_USERNAME
 
     if data == "studio_content_plan":
-        # 🧠 PostAssist V2 · 2-qadam: [🧠 Kontent reja] tugmasi endi SMART
+        # 2-qadam: [🧠 Kontent reja] tugmasi endi SMART
         # CONTENT CALENDAR (7/30 kunlik reja) oqimini boshlaydi —
         # ``handlers.content_calendar_flow`` (soha → davomiylik → AI reja →
         # kun tanlash → «✨ Magic Post»). Eski ``content_plan`` oqimi
@@ -1260,7 +1260,7 @@ async def ai_prompt_received(update: Update, context: ContextTypes.DEFAULT_TYPE)
             )
         return AI_PROMPT_INPUT
 
-    # 🧭 3-QADAM (UI/UX POLISH): qisqa (< 3 so'z) yoki umumiy mavzu
+    # qisqa (< 3 so'z) yoki umumiy mavzu
     # ("sport", "yangiliklar") darhol generatsiyaga emas, avval
     # aniqlashtirish wizard'iga yuboriladi — kvota BRON QILINMASDAN OLDIN.
     # Aniq/batafsil mavzular uchun None qaytadi — eski yo'l o'zgarmaydi.
@@ -1280,7 +1280,7 @@ async def _studio_generate_and_preview(update: Update, context: ContextTypes.DEF
                                        msg, text_input: str, lang: str):
     """AI Studio generatsiyasi: preflight → AI → preview (AI_TONE_SELECT).
 
-    🧭 3-QADAM (UI/UX POLISH): ``ai_prompt_received`` tanasidan ajratilgan —
+    ``ai_prompt_received`` tanasidan ajratilgan —
     xatti-harakat BITTA harfga o'zgarmagan, faqat qayta ishlatiladigan
     yordamchi. Aniqlashtirish wizard'i (``handlers.ai_post``) boyitilgan
     mavzu bilan shu funksiyani chaqiradi — generatsiya/kvota/refund/preview
@@ -1373,7 +1373,7 @@ async def _studio_generate_and_preview(update: Update, context: ContextTypes.DEF
             except Exception as _e:
                 logger.warning("AI Studio auto audit (PRO) xatosi: %s", _e)
 
-    # ⏱ STEP 2 — TTFV (Time-To-First-Value): "birinchi post GENERATSIYASI"
+    # TTFV (Time-To-First-Value): "birinchi post GENERATSIYASI"
     # momenti jarayon xotirasida belgilanadi (/start → ``record_start``;
     # birinchi generatsiya/rejalashtirish → ``record_first_post``).
     # Best-effort: telemetriya preview oqimini HECH QACHON buzmaydi.
@@ -1401,7 +1401,7 @@ async def _studio_generate_and_preview(update: Update, context: ContextTypes.DEF
 async def ai_tone_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """AI_TONE_SELECT: tanlangan uslubda qayta generatsiya qiladi.
 
-    🌱 STEP 2: ``ai_regen`` ([🔄 Yangi variant]) ham shu yadro orqali
+    ``ai_regen`` ([🔄 Yangi variant]) ham shu yadro orqali
     ishlaydi (kvota/rate-limit qoidalari uslub almashish bilan bir xil).
     """
     query = update.callback_query
@@ -1553,7 +1553,7 @@ AI_COPY_MAX_CHARS = 3800
 
 
 async def ai_copy_post_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """🌱 STEP 2 — [📋 Nusxalash]: post matni alohida xabarda <code> blokida
+    """[📋 Nusxalash]: post matni alohida xabarda <code> blokida
     yuboriladi (bosilsa to'liq nusxalanadi); preview ekrani O'ZGARMAYDI."""
     query = update.callback_query
     lang = get_lang(context)
@@ -1579,7 +1579,7 @@ async def ai_copy_post_callback(update: Update, context: ContextTypes.DEFAULT_TY
 
 
 async def ai_share_referral_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """🌱 STEP 2 — [🔗 Do'stlarga] (IXTIYORIY): referal havolasi alohida
+    """[🔗 Do'stlarga] (IXTIYORIY): referal havolasi alohida
     xabarda; publishing zanjiri ajratilgan — postlarga reklama QO'SHILMAYDI."""
     query = update.callback_query
     await query.answer()  # SPEKS: darhol answer
@@ -1691,7 +1691,7 @@ async def ai_audit_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin and not is_pro:
         await db.run_db(db.increment_ai_usage, user_id)
 
-    # 📚 STEP 3 — CONTENT LEARNING (Audit ekrani): kanalning REAL postlari
+    # CONTENT LEARNING (Audit ekrani): kanalning REAL postlari
     # tahlilidan lokalizatsiya qilingan tavsiyalar (Q&A, tutorial, ijtimoiy
     # isbot kabi yetishmayotgan formatlar). NO FABRICATION: real ma'lumot
     # bo'lmasa blok QO'SHILMAYDI (audit natijasi toza qoladi).
@@ -1719,7 +1719,7 @@ async def ai_back_to_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # 🔄 Avval barcha AI/studio post kontekstini tozalaymiz
     clear_ai_context(user_id)
     clear_fsm_data(context)
-    # 🧭 4-qadam: AI Studio hub'iga qaytdik — bo'lim yozuvi yangilanadi.
+    # AI Studio hub'iga qaytdik — bo'lim yozuvi yangilanadi.
     remember_section(context, SECTION_AI_STUDIO)
     lang = get_lang(context)
     await _safe_edit(
@@ -1733,7 +1733,7 @@ async def ai_back_to_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def ai_back_to_content(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """🧭 ◀️ Orqaga — AI Yordamchidan KONTENT YARATISH submenyusiga qaytadi.
 
-    PostAssist V2 · 4-qadam navigatsiya stacki: foydalanuvchi «✨ Kontent
+    4-qadam navigatsiya stacki: foydalanuvchi «✨ Kontent
     yaratish» → «🤖 AI Yordamchi» yo'li bilan kelgani uchun [◀️ Orqaga] ham
     aynan shu yo'lni TESKARI yuradi — asosiy menyuga sakrab ketmaydi.
     AI xotira va FSM konteksti tozalanadi, submenu reply-klaviaturasi bilan

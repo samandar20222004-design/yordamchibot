@@ -1,4 +1,4 @@
-"""🔍 KENGAYTIRILGAN POST AUDIT & SCORE — 33 va 50-band (PHASE 12).
+"""🔍 KENGAYTIRILGAN POST AUDIT & SCORE — 33 va 50-band.
 
 Postni **6 mezon** bo'yicha tekshiradi va to'liq hisobot chiqaradi::
 

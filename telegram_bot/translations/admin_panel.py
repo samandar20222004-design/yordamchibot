@@ -1,6 +1,6 @@
 """👑 ADMIN PANEL — i18n lug'ati (UZ / RU / EN, 100% paritet).
 
-FAZA 26 — ``handlers/admin.py`` dagi QOTIB QOLGAN (hardcoded) o'zbekcha
+``handlers/admin.py`` dagi QOTIB QOLGAN (hardcoded) o'zbekcha
 matnlar shu modulga ko'chirildi. Endi admin panelning BARCHA foydalanuvchi
 (admin) ko'radigan xabarlari ``admin_t()`` orqali, adminning TANLANGAN
 tilida chiqadi (uz/ru/en) — qotirilgan matn qolmaydi.
@@ -527,7 +527,7 @@ ADMIN_PANEL_I18N = {
         ),
         "lg_d1": "🔁 D1 retention: <b>{percent}%</b> ({returned}/{eligible})",
         "lg_d7": "🔁 D7 retention: <b>{percent}%</b> ({returned}/{eligible})",
-        # 🌱 STEP 2: taklif qilingan do'stlardan birinchi post yaratganlar
+        # taklif qilingan do'stlardan birinchi post yaratganlar
         # (aktiv referal konversiyasi — mukofot aynan shu amal uchun).
         "lg_referral_conv": (
             "🤝 Referral konversiyasi: <b>{percent}%</b> "
@@ -1032,7 +1032,7 @@ ADMIN_PANEL_I18N["ru"] = {
     ),
     "lg_d1": "🔁 D1 retention: <b>{percent}%</b> ({returned}/{eligible})",
     "lg_d7": "🔁 D7 retention: <b>{percent}%</b> ({returned}/{eligible})",
-    # 🌱 STEP 2: активная реферальная конверсия (первый пост друга).
+    # активная реферальная конверсия (первый пост друга).
     "lg_referral_conv": (
         "🤝 Конверсия рефералов: <b>{percent}%</b> "
         "({converted}/{referred} друзей создали первый пост)"
@@ -1534,7 +1534,7 @@ ADMIN_PANEL_I18N["en"] = {
     ),
     "lg_d1": "🔁 D1 retention: <b>{percent}%</b> ({returned}/{eligible})",
     "lg_d7": "🔁 D7 retention: <b>{percent}%</b> ({returned}/{eligible})",
-    # 🌱 STEP 2: active referral conversion (a friend created their first post).
+    # active referral conversion (a friend created their first post).
     "lg_referral_conv": (
         "🤝 Referral conversion: <b>{percent}%</b> "
         "({converted}/{referred} friends created their first post)"

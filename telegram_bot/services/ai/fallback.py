@@ -1,4 +1,4 @@
-"""PostAssist V2 — 4-BOSQICH: AI Multi-Provider Fallback Service.
+"""4-BOSQICH: AI Multi-Provider Fallback Service.
 
 Yagona provayderlar boshqaruvi (unified provider management) va resilient
 AI arxitektura. Foydalanuvchi xatolikni hech qachon ko'rmaydi: birlamchi
@@ -97,7 +97,7 @@ def provider_http_timeout() -> aiohttp.ClientTimeout:
 def provider_total_timeout() -> float:
     """Provayder sinovining qat'iy umumiy muddati.
 
-    2-BOSQICH: yuqori chegara 8s — sekin provayderdan tez fallback qilinadi
+    yuqori chegara 8s — sekin provayderdan tez fallback qilinadi
     (default 10 → 8s, atrof-muhit sozlamasi o'zgarmaydi).
     Quyi chegara 2s: ``AI_PROVIDER_TOTAL_TIMEOUT`` ga **hurmat** qilinadi,
     shuning uchun operator (yoki test) ataylab qisqa byudjet bersa — masalan
@@ -864,7 +864,7 @@ async def analyze_image(*args, **kwargs) -> dict:
     Lazy import circular dependencydan saqlaydi va test/mock uchun bitta aniq
     patch nuqtasini beradi: ``services.ai.fallback.analyze_image``.
 
-    STEP 1: tashqi chaqiruvda foydalanuvchi limiti/byudjeti qo'llanadi va
+    tashqi chaqiruvda foydalanuvchi limiti/byudjeti qo'llanadi va
     natija ``action_type=vision`` bilan telemetriyaga yoziladi. Rad etilsa —
     ``VisionUnavailableError`` (handler caption-fallback'ga o'tadi).
     """

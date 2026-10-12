@@ -18,7 +18,7 @@ from database import (
     _invalidate_user,
     _cache_clear,
 )
-# 6-bosqich: admin harakatlari auditi (promo-kod yaratish).
+# admin harakatlari auditi (promo-kod yaratish).
 from services.audit_service import AuditService
 
 logger = logging.getLogger(__name__)
@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 @contextmanager
 def transaction(commit: bool = True):
-    """Promo oqimi uchun BITTA atomik tranzaksiya bloki (5-bosqich).
+    """Promo oqimi uchun BITTA atomik tranzaksiya bloki.
 
     ``database.transaction()`` bilan bir xil semantika: blok ichidagi
     redemption + obuna + hisoblagich yozuvlari birga COMMIT yoki birga
@@ -59,7 +59,7 @@ class PromoService:
             max_uses: Maksimal ishlatish soni (None = cheksiz).
             expires_at: Amal qilish muddati (datetime, ixtiyoriy).
             plan_type: Beriladigan tarif (default: "pro").
-            admin_id: (6-bosqich) kodni yaratgan admin — berilsa harakat
+            admin_id: kodni yaratgan admin — berilsa harakat
                 ``admin_audit_logs`` jadvaliga SHU tranzaksiyada yoziladi.
         """
         code = (code or "").strip().upper()
@@ -90,7 +90,7 @@ class PromoService:
                 )
                 inserted = cur.rowcount > 0
                 if inserted and admin_id is not None:
-                    # 6-bosqich: audit yozuvi SHU tranzaksiyada (atomik) —
+                    # audit yozuvi SHU tranzaksiyada (atomik) —
                     # kod yaratildi, lekin audit yozuvi yo'q qolmaydi.
                     AuditService.log_promo_creation(
                         admin_id, code, duration_days=duration,
@@ -123,7 +123,7 @@ class PromoService:
         if not code:
             return False, "Promo-kod kiritilmadi."
         try:
-            # 5-bosqich: tekshiruv + redemption + obuna + hisoblagich —
+            # tekshiruv + redemption + obuna + hisoblagich —
             # hammasi BITTA atomik blokda (transaction).
             with transaction() as cur:
                 # FOR UPDATE — boshqa tranzaksiya shu qatorni o'zgartira olmaydi

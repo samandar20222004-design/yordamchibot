@@ -1,6 +1,6 @@
 """📅 REJALASHTIRILGAN — rejalashtirilgan postlarni ko'rish va boshqarish.
 
-PostAssist V2 · 4-mikro qadam. Bo'lim master plan standartiga keltirildi:
+4-mikro qadam. Bo'lim master plan standartiga keltirildi:
 
   * **NOMLANISH.** Eskirgan texnik nomlar («Postlar navbati», «Navbatdagi
     postlar», «Очередь постов», «Queued posts») foydalanuvchi ko'radigan
@@ -123,7 +123,7 @@ def _format_queue_item(row, index: int, lang: str = "uz") -> str:
 def _get_queue_list_keyboard(posts, offset: int, total: int, lang: str = "uz") -> InlineKeyboardMarkup:
     """📅 YAGONA Rejalashtirilgan ro'yxati uchun inline keyboard.
 
-    PostAssist V2 · 2-qadam (B1): «Kutilayotgan postlar» va «Rejalashtirilgan
+    2-qadam (B1): «Kutilayotgan postlar» va «Rejalashtirilgan
     postlar» bitta ekranga birlashtirildi, shu sababli har bir post ostida
     BARCHA amallar TO'LIQ jamlangan (``render_scheduled_full_actions``)::
 

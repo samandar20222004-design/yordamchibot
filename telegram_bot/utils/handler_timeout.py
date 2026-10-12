@@ -1,4 +1,4 @@
-"""FAZA 25 — Telegram update handlerlari uchun asinxron xavfsizlik chegaralari.
+"""Telegram update handlerlari uchun asinxron xavfsizlik chegaralari.
 
 Maqsad: og'ir AI yoki tahlil chaqiruvlari Telegram update qabul zanjirini
 (intake) hech qachon cheksiz bloklamasligi:

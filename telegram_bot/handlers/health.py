@@ -1,4 +1,4 @@
-"""/health — tizim holati monitoringi (PostAssist V2 — 7-BOSQICH).
+"""/health — tizim holati monitoringi.
 
 Faqat ``system_settings`` ruxsati (RBAC) bo'lgan adminlarga:
 

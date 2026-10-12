@@ -1,4 +1,4 @@
-"""🧭 PostAssist V2 · 4-QADAM — NAVIGATSIYA STACKI (◀️ Orqaga / ❌ Bekor qilish).
+"""4-QADAM — NAVIGATSIYA STACKI (◀️ Orqaga / ❌ Bekor qilish).
 
 STANDART (4-qadam topshirig'i):
 
@@ -230,7 +230,7 @@ async def render_section_start_message(msg, context, user_id: int,
                 return False
             stats = await db.run_db(db.get_admin_dashboard_stats)
             await msg.reply_text(
-                # 🧹 FAZA 26: dashboard admin tilida chiziladi.
+                # dashboard admin tilida chiziladi.
                 _build_dashboard_text(stats, lang),
                 reply_markup=get_admin_dashboard_keyboard(),
                 parse_mode="HTML",

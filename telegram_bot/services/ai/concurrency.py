@@ -1,6 +1,6 @@
 """AI Task Concurrency, Bounded Queue & Request Cancellation.
 
-PHASE 4 & 5: AI Concurrency, User Lock, Bounded Queue va Request Cancellation (13, 14, 15, 16-bandlar).
+AI Concurrency, User Lock, Bounded Queue va Request Cancellation (13, 14, 15, 16-bandlar).
 
 1. Bounded AI Queue & Rate Limit (13, 16-bandlar):
    - MAX_AI_CONCURRENCY (bir vaqtda ishlaydigan so'rovlar limiti)
@@ -254,7 +254,7 @@ class AIConcurrencyManager:
 
 
 # ---------------------------------------------------------------------------
-# STEP 1 — HAR FOYDALANUVCHI UCHUN FAOL AI JOBLAR LIMITI
+# HAR FOYDALANUVCHI UCHUN FAOL AI JOBLAR LIMITI
 # ---------------------------------------------------------------------------
 #: Bir foydalanuvchining bir vaqtdagi faol LLM generatsiyalari (standart 2).
 #: Global semafor (``MAX_AI_CONCURRENCY``) bitta foydalanuvchini boshqalardan

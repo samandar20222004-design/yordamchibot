@@ -20,7 +20,7 @@ from keyboards.inline import (
 )
 from locales.translations import get_lang, safe_t, normalize_lang
 from services.ai.progress import AIProgressReporter
-# 🔐 PHASE 3 — resurs (kanal) darajasidagi RBAC va IDOR himoyasi: markaziy
+# resurs (kanal) darajasidagi RBAC va IDOR himoyasi: markaziy
 # tekshiruv nuqtasi ``services.rbac_service.can()`` — handler ichida
 # takrorlanmaydi, faqat shu qatlam orqali chaqiriladi.
 from middlewares.rbac import enforce_resource_access
@@ -56,7 +56,7 @@ def parse_channel_target(text: str, lang: str = "uz"):
       * ``("@kanal", None)`` — username (t.me/kanal ham shunga aylantiriladi);
       * ``(None, xato)`` — tushunarsiz yoki yopiq (invite) havola.
 
-    🧹 FAZA 26: xato matnlari endi i18n kalitlaridan (``ch_empty_target`` /
+    xato matnlari endi i18n kalitlaridan (``ch_empty_target`` /
     ``ch_invite_blocked`` — uz/ru/en) olinadi; ``lang`` sukut bo'yicha ``uz``
     (orqaga moslik — eski chaqiruvlar o'zgarmaydi).
     """
@@ -90,7 +90,7 @@ def _retry_verify_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
     ]])
 
 # Tarif limiti (FREE vs PRO) tugaganda ko'rsatiladigan xabar va PRO tugmasi.
-# 🧹 FAZA 26: eski QOTIRILGAN (uz-only) konstantalar endi yagona i18n
+# eski QOTIRILGAN (uz-only) konstantalar endi yagona i18n
 # lug'atidan olinadi (``ch_limit_msg`` / ``ch_pro_btn`` — uz/ru/en). Jonli
 # oqimlar tilga mos variantlarni ishlatadi (_channel_limit_text /
 # _pro_upgrade_keyboard); bu konstantalar esa orqaga moslik uchun saqlanadi.
@@ -156,7 +156,7 @@ async def _owned_channel(user_id: int, channel_id: str):
 async def _rbac_channel_allowed(update, channel_id, action: str, *,
                                 context=None, allow_admin: bool = False,
                                 notify: bool = False) -> bool:
-    """🔐 PHASE 3 — kanal ustida amalga ruxsat (markaziy RBAC, fail-closed).
+    """kanal ustida amalga ruxsat (markaziy RBAC, fail-closed).
 
     ``_owned_channel`` — kanal YOZUVINI oladi (egasi uchun); bu funksiya esa
     RUXSATNI tekshiradi: kanal egasi (``owner``) yoki ``channel_members``
@@ -179,7 +179,7 @@ async def _rbac_channel_allowed(update, channel_id, action: str, *,
 def _channel_title(channel, lang: str = "uz") -> str:
     """Kanal sarlavhasi — HTML-xavfsiz, bo'sh bo'lsa ham tugma buzilmaydi.
 
-    🧹 FAZA 26: ``"Kanal"`` fallback'i endi i18n'dan
+    ``"Kanal"`` fallback'i endi i18n'dan
     (``cq_channel_generic_name`` — uz/ru/en) olinadi.
     """
     from translations import channels_queue_t
@@ -215,7 +215,7 @@ async def channels_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     lang = get_lang(context)
     user_id = update.effective_user.id
-    # 🧭 4-qadam: foydalanuvchi «📢 Kanallarim» bo'limida — shu bo'limdan
+    # foydalanuvchi «📢 Kanallarim» bo'limida — shu bo'limdan
     # boshlangan FSM oqimlari (kanal qo'shish va h.k.) bekor qilinsa,
     # foydalanuvchi aynan shu ro'yxatga qaytadi.
     from handlers.navigation import remember_section, SECTION_CHANNELS
@@ -429,7 +429,7 @@ async def channel_advice_callback(update: Update, context: ContextTypes.DEFAULT_
             return ConversationHandler.END
         # Owner title is available through the legacy isolated query.  For an
         # analyst member, use a neutral title rather than leaking channel data.
-        # 🧹 FAZA 26: neytral sarlavha endi i18n'dan (cq_channel_generic_title).
+        # neytral sarlavha endi i18n'dan (cq_channel_generic_title).
         title = channels_queue_t(
             "cq_channel_generic_title", lang, channel=html_escape(channel_id),
         )
@@ -457,7 +457,7 @@ async def channel_advice_command(update: Update, context: ContextTypes.DEFAULT_T
         await update.message.reply_text(channels_queue_t("cq_ch_empty", lang), parse_mode="HTML")
         return ConversationHandler.END
     if len(channels) > 1:
-        # 🧹 FAZA 26: matn foydalanuvchi tilida (cq_advice_pick_title).
+        # matn foydalanuvchi tilida (cq_advice_pick_title).
         await update.message.reply_text(
             channels_queue_t("cq_advice_pick_title", lang),
             reply_markup=render_channel_advice_menu(channels, lang))
@@ -553,7 +553,7 @@ async def _build_best_time_card(channel_id: str, title: str, lang: str) -> str:
 
 
 async def channel_plan_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """📋 [Kontent reja] — kanal ichidan kontent-reja tuzish oqimini ochadi (PHASE 9)."""
+    """📋 [Kontent reja] — kanal ichidan kontent-reja tuzish oqimini ochadi."""
     from handlers.content_plan import PLAN_GET_TOPIC
 
     query = update.callback_query
@@ -591,7 +591,7 @@ async def channel_plan_callback(update: Update, context: ContextTypes.DEFAULT_TY
 
 
 async def channel_team_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """👥 [Team] — kanal jamoasi va rol boshqaruvi ekrani (PHASE 9)."""
+    """👥 [Team] — kanal jamoasi va rol boshqaruvi ekrani."""
     query = update.callback_query
     try:
         await query.answer()
@@ -641,7 +641,7 @@ async def channel_settings_callback(update: Update, context: ContextTypes.DEFAUL
     user_id = query.from_user.id
     channel_id = (query.data or "").split(":", 1)[1] if ":" in (query.data or "") else ""
 
-    # 2-bosqich: sozlamalar ekrani ALLAQACHON ochiq → «🎨 Uslub» bosildi.
+    # sozlamalar ekrani ALLAQACHON ochiq → «🎨 Uslub» bosildi.
     if context.user_data.get("ch_settings_open") == channel_id:
         context.user_data.pop("ch_settings_open", None)
         return await tone_menu_callback(update, context)
@@ -651,7 +651,7 @@ async def channel_settings_callback(update: Update, context: ContextTypes.DEFAUL
     except Exception as _silent_exc:
         log_silent_failure("handlers.channels:channel_settings_callback", _silent_exc, user_id=user_id, channel_id=channel_id, lang=lang)
 
-    # 🔐 PHASE 3 — sozlamalar ekrani ham resurs ruxsatidan o'tadi (``view``):
+    # sozlamalar ekrani ham resurs ruxsatidan o'tadi (``view``):
     # begona kanal uchun ekran ochilmaydi (DB'dan uslub ham o'qilmaydi) —
     # so'rov YOPIQ rad etiladi va foydalanuvchi "Permission Denied" oladi.
     if not await _rbac_channel_allowed(update, channel_id, "view",
@@ -689,7 +689,7 @@ async def channel_new_post_callback(update: Update, context: ContextTypes.DEFAUL
     user_id = query.from_user.id
     channel_id = (query.data or "").split(":", 1)[1] if ":" in (query.data or "") else ""
 
-    # 🔐 PHASE 3 — IDOR: yangi post oqimini ochishdan OLDIN resurs ruxsati
+    # IDOR: yangi post oqimini ochishdan OLDIN resurs ruxsati
     # (``create``) tekshiriladi.  Rad etilsa — begona kanal uchun ekran
     # ochilmaydi (quyidagi "topilmadi" ekrani ko'rsatiladi).
     if not await _rbac_channel_allowed(update, channel_id, "create",
@@ -708,7 +708,7 @@ async def channel_new_post_callback(update: Update, context: ContextTypes.DEFAUL
 
     title = _channel_title(channel)
     context.user_data["selected_channel_id"] = str(channel_id)
-    # 🧹 FAZA 26: fallback nom foydalanuvchi tilida.
+    # fallback nom foydalanuvchi tilida.
     context.user_data["selected_channel_title"] = (
         channel[1] or channels_queue_t("cq_channel_generic_name", lang)
     )
@@ -904,7 +904,7 @@ async def add_channel_retry(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 # ============================================================
-# 🧠 3-BOSQICH — ONBOARDING: KANAL DNK SINOVI TAKLIFI
+# ONBOARDING: KANAL DNK SINOVI TAKLIFI
 # ------------------------------------------------------------
 # Eski xulq: kanal ulandi → «✅ Kanal muvaffaqiyatli ulandi!» → tugadi.
 # Yangi xulq: birinchi kanal ulangach «✅ ulandi» dan KEYIN darhol
@@ -922,7 +922,7 @@ async def add_channel_retry(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def _dna_prompt_block(channel_id, user_id: int, lang: str = "uz") -> str:
     """Kanal DNA 2.0 profilidan AI uchun ixcham uslub bloki (ixtiyoriy).
 
-    🧬 STEP 3: ``build_dna_prompt_2`` — bazaviy DNA bloki + ohang (tone),
+    ``build_dna_prompt_2`` — bazaviy DNA bloki + ohang (tone),
     uzunlik afzalligi, CTA uslubi va lug'at cheklovlari (faqat real profil
     ma'lumotlaridan). Ma'lumot yetarli bo'lmasa yoki xato bo'lsa — bo'sh
     qator qaytadi (namuna faqat ``tone`` bo'yicha yoziladi). Hech qachon
@@ -1482,7 +1482,7 @@ async def tone_chosen_callback(update: Update, context: ContextTypes.DEFAULT_TYP
 
     # Eslatma: amalni bajaruvchi ID **faqat** server-side ``from_user.id`` dan
     # olinadi (``_rbac_channel_allowed``) — payload'dagi ID'larga ishonilmaydi.
-    # 🔐 PHASE 3 — markaziy RBAC: kanal ustida ``edit`` (uslub almashtirish)
+    # markaziy RBAC: kanal ustida ``edit`` (uslub almashtirish)
     # huquqi.  Admin override eski xulq-atvorni saqlaydi.
     if not await _rbac_channel_allowed(update, channel_id, "edit",
                                        context=context, allow_admin=True,
@@ -1574,7 +1574,7 @@ async def channel_voice_analysis_callback(update: Update, context: ContextTypes.
     if not channel_id:
         return ConversationHandler.END
 
-    # 🔐 PHASE 3 — IDOR: tahlil natijasi kanal profiliga YOZILADI, shuning
+    # IDOR: tahlil natijasi kanal profiliga YOZILADI, shuning
     # uchun avval markaziy RBAC (``edit``) tekshiruvi.
     if not await _rbac_channel_allowed(update, channel_id, "edit",
                                        context=context):
@@ -1611,7 +1611,7 @@ async def channel_voice_analysis_callback(update: Update, context: ContextTypes.
                 log_silent_failure("handlers.channels:channel_voice_analysis_callback._finish_wait", _silent_exc)
         return await query.message.reply_text(text, **kwargs)
 
-    # 1) AI kutish holati: typing darhol, natija shu xabarda ko'rsatiladi (2-BOSQICH).
+    # 1) AI kutish holati: typing darhol, natija shu xabarda ko'rsatiladi.
     chat_id = query.message.chat_id
     try:
         await context.bot.send_chat_action(chat_id=chat_id, action="typing")
@@ -1748,7 +1748,7 @@ async def on_channel_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         logger.warning("on_channel_post saqlashda xato (%s): %s", channel_id, e)
 
-    # 🧠 PHASE B — Channel Intelligence: metama'lumotlarni (soat, hafta kuni,
+    # Channel Intelligence: metama'lumotlarni (soat, hafta kuni,
     # media turi/file_id, uzunlik, CTA, emoji zichligi) channel_post_events
     # jadvaliga ASINXRON VA BLOKLAMAYDIGAN rejimda yozamiz (background task;
     # idempotent — (channel_id, message_id) ON CONFLICT DO NOTHING). Media

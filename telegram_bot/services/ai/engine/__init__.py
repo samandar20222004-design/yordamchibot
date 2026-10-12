@@ -1,4 +1,4 @@
-"""AI ENGINE V2 — YAGONA KANONIK AI SHLYUZ (Faza 1, 2, 3).
+"""YAGONA KANONIK AI SHLYUZ (Faza 1, 2, 3).
 
 Repo AI qatlamlarining YAGONA kirish nuqtasi:
 
@@ -170,7 +170,7 @@ __all__ = [
     "canonical_prompt",
     "default_cache",
     "reset_cache",
-    # --- PHASE 6: yagona interfeys + xarajat/telemetriya ------------------
+    # yagona interfeys + xarajat/telemetriya ------------------
     "ai_gateway",
     "AIGateway",
     "resolve_model",

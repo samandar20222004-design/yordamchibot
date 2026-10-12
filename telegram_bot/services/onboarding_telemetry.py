@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""⏱ SPRINT 4 — ONBOARDING VA RETENTION TELEMETRIYASI (TTFP, D1/D7).
+"""ONBOARDING VA RETENTION TELEMETRIYASI (TTFP, D1/D7).
 
 Nima o'lchanadi (SPRINT 4, 3-band):
 
@@ -253,7 +253,7 @@ def record_first_post(user_id, ts: float | None = None) -> None:
 
 
 def record_first_value(user_id, ts: float | None = None) -> None:
-    """🌱 STEP 2 — TTFV (Time-To-First-Value) atama alias'i.
+    """TTFV (Time-To-First-Value) atama alias'i.
 
     TTFV = ``/start`` → birinchi post GENERATSIYASI/rejalashtirilishi.
     O'lchov mexanizmi TTFP bilan AYNAN bir xil (``record_start`` +
@@ -328,7 +328,7 @@ _ref_cache: dict = {"at": 0.0, "days": None, "stats": None}
 
 def fetch_referral_stats(db_module, days: int = DEFAULT_WINDOW_DAYS,
                          *, ttl: int = FETCH_CACHE_TTL) -> dict:
-    """🌱 STEP 2 — AKTIV REFERAL KONVERSIYASI (``/stats`` ekrani uchun).
+    """AKTIV REFERAL KONVERSIYASI (``/stats`` ekrani uchun).
 
     ``db_module.get_referral_conversion_stats(days)`` natijasi: oxirgi
     ``days`` kunlik kohortada referrer havolasi bilan kirganlar va shulardan
@@ -385,7 +385,7 @@ def fetch_report(db_module, days: int = DEFAULT_WINDOW_DAYS, *, now=None,
                  ttl: int = FETCH_CACHE_TTL) -> dict:
     """Kohortadan to'liq hisobot (baza + jarayon xotirasi).
 
-    🌱 STEP 2: baza moduli ``get_referral_conversion_stats`` ni bilsa,
+    baza moduli ``get_referral_conversion_stats`` ni bilsa,
     hisobotga ``"referral"`` bloki ham qo'shiladi (aktiv referal
     konversiyasi — /stats ekrani shu qatordan chizadi). Bilmasa (eski
     fake'lar) — hisobot O'ZGARMAYDI (orqa moslik).

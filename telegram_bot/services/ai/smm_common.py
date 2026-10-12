@@ -1,4 +1,4 @@
-"""Advanced SMM xizmatlari uchun YAGONA poydevor (PHASE 11 & 12).
+"""Advanced SMM xizmatlari uchun YAGONA poydevor.
 
 ``variants.py`` (48-band), ``repurpose.py`` (49-band), ``audit.py`` (33/50-band)
 va ``planner.py`` (51-band) shu modulga taylanadi — to'rt xizmat ham bir xil

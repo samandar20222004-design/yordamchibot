@@ -55,7 +55,7 @@ from keyboards.callback_data import (  # noqa: F401 — re-export (eski importla
     cb,
     is_callback_safe,
 )
-from keyboards.nav import nav_button  # 🧭 FAZA 17 — kanonik navigatsiya tugmalari
+from keyboards.nav import nav_button  # kanonik navigatsiya tugmalari
 
 # Telegram tugma matni bo'sh bo'lishi mumkin emas (BadRequest) va juda uzun
 # nom tugmani buzadi — shuning uchun barcha yorliqlar shu yerdan o'tkaziladi.
@@ -144,7 +144,7 @@ def get_cache_actions_keyboard() -> InlineKeyboardMarkup:
     """DB/kesh holati oynasi uchun tugmalar."""
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("🗑 Keshni tozalash", callback_data="cache_clear")],
-        # 🧭 FAZA 17: kanonik [❌ Yopish] (vaqtinchalik oynani yopish).
+        # kanonik [❌ Yopish] (vaqtinchalik oynani yopish).
         [nav_button("close")],
     ])
 
@@ -158,7 +158,7 @@ def get_sponsors_delete_keyboard(sponsors: list) -> InlineKeyboardMarkup:
             InlineKeyboardButton(f"❌ {label}", callback_data=cb(CB_SPONSOR_DELETE, s_id))
         ])
     # Ro'yxat oynasini yopish tugmasi — admin ekranda keraksiz xabar qolib ketmasligi uchun
-    # 🧭 FAZA 17: kanonik [❌ Yopish].
+    # kanonik [❌ Yopish].
     keyboard.append([nav_button("close")])
     return InlineKeyboardMarkup(keyboard)
 
@@ -176,7 +176,7 @@ def get_admin_sponsors_keyboard(sponsors: list) -> InlineKeyboardMarkup:
         InlineKeyboardButton("➕ Kanal", callback_data="adm_add_sponsor")
     ])
     keyboard.append([
-        # 🧭 FAZA 17: kanonik [⬅️ Orqaga] (dashboard) + [❌ Yopish].
+        # kanonik [⬅️ Orqaga] (dashboard) + [❌ Yopish].
         nav_button("back", "adm_back"),
         nav_button("close"),
     ])
@@ -226,7 +226,7 @@ def get_ad_hub_keyboard(channel_total: int = 0, channel_active: int = 0,
             InlineKeyboardButton(f"🔘 {ch_status}", callback_data="adm_channel_ad_toggle"),
         ],
         [
-            # 🧭 FAZA 17: kanonik [⬅️ Orqaga] + [❌ Bekor qilish].
+            # kanonik [⬅️ Orqaga] + [❌ Bekor qilish].
             nav_button("back", "adm_back"),
             nav_button("cancel", "adm_cancel"),
         ],
@@ -238,13 +238,13 @@ def get_hub_back_keyboard() -> InlineKeyboardMarkup:
     """Reklama hub'iga qaytish + bekor qilish (matn kutish ekranlari uchun)."""
     return InlineKeyboardMarkup([[
         InlineKeyboardButton("🎯 Markazga", callback_data="adm_adhub"),
-        # 🧭 FAZA 17: kanonik [❌ Bekor qilish].
+        # kanonik [❌ Bekor qilish].
         nav_button("cancel", "adm_cancel"),
     ]])
 
 
 # ============================================================
-# 👑 ADMIN DASHBOARD — YAGONA INLINE PANEL (3-bosqich)
+# 👑 ADMIN DASHBOARD — YAGONA INLINE PANEL
 # ============================================================
 # Layoutning YAGONA MANBASI: (yorliq, callback_data) qatorlari. Klaviatura
 # shu registrdan quriladi — testlar ham, hujjat ham shu yerdan o'qiydi.
@@ -277,7 +277,7 @@ ADMIN_DASHBOARD_CALLBACKS = tuple(
 
 
 def get_admin_dashboard_keyboard() -> InlineKeyboardMarkup:
-    """👑 Admin panel — YAGONA INLINE MARKAZ (3-bosqich).
+    """👑 Admin panel — YAGONA INLINE MARKAZ.
 
     Pastdagi 10 talik oq reply-klaviatura BUTUNLAY olib tashlandi: endi
     admin panel ochilganda faqat shu INLINE panel chiziladi (reply
@@ -315,7 +315,7 @@ def get_admin_monitoring_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("📜 Audit | 👥 Rollar", callback_data="adm_audit_roles")],
         [
-            # 🧭 FAZA 17: kanonik [⬅️ Orqaga] + [❌ Yopish].
+            # kanonik [⬅️ Orqaga] + [❌ Yopish].
             nav_button("back", "adm_back"),
             nav_button("close"),
         ],
@@ -328,7 +328,7 @@ def get_admin_back_keyboard(cancel: bool = True) -> InlineKeyboardMarkup:
     ``adm_cancel`` — jarayonni (FSM holatini) to'liq bekor qiladi va admin
     panelga qaytaradi. Shu sababli har bir tahrirlash ekranida mavjud.
 
-    🧭 FAZA 17: yorliqlar kanonik navigatsiya standartidan (``keyboards.nav``)
+    yorliqlar kanonik navigatsiya standartidan (``keyboards.nav``)
     olinadi — «⬅️ Orqaga» = parent oyna, «❌ Bekor qilish» = FSM to'xtatish,
     «❌ Yopish» = vaqtinchalik oynani yopish.
     """
@@ -383,7 +383,7 @@ def get_ad_pool_menu_keyboard(scope: str, ads: list = None,
     # dashboard'ga emas, Reklama markaziga qaytadi (bitta yagona oqim).
     keyboard.append([
         InlineKeyboardButton("🎯 Markazga", callback_data="adm_adhub"),
-        # 🧭 FAZA 17: kanonik [❌ Bekor qilish].
+        # kanonik [❌ Bekor qilish].
         nav_button("cancel", "adm_cancel"),
     ])
     return InlineKeyboardMarkup(keyboard)
@@ -414,7 +414,7 @@ def get_ad_edit_keyboard(ad: dict, scope: str) -> InlineKeyboardMarkup:
     keyboard.append([InlineKeyboardButton("🗑 O'chirish", callback_data=cb(f"adp:{scope}:rm:{ad_id}"))])
     keyboard.append([
         InlineKeyboardButton("⬅️ Menyuga", callback_data=cb(f"adp:{scope}:back")),
-        # 🧭 FAZA 17: kanonik [❌ Bekor qilish].
+        # kanonik [❌ Bekor qilish].
         nav_button("cancel", "adm_cancel"),
     ])
     return InlineKeyboardMarkup(keyboard)
@@ -430,7 +430,7 @@ def get_ad_interval_keyboard(scope: str = "channel", current: int = None) -> Inl
         row,
         [
             InlineKeyboardButton("⬅️ Menyuga", callback_data=cb(f"adp:{scope}:back")),
-            # 🧭 FAZA 17: kanonik [❌ Bekor qilish].
+            # kanonik [❌ Bekor qilish].
             nav_button("cancel", "adm_cancel"),
         ],
     ])
@@ -449,7 +449,7 @@ def get_ad_pool_delete_keyboard(ads: list, scope: str) -> InlineKeyboardMarkup:
             InlineKeyboardButton(f"❌ {label}", callback_data=cb(f"adp:{scope}:rm:{ad_id}"))
         ])
     keyboard.append([
-        # 🧭 FAZA 17: kanonik [⬅️ Orqaga] + [❌ Bekor qilish].
+        # kanonik [⬅️ Orqaga] + [❌ Bekor qilish].
         nav_button("back", cb(f"adp:{scope}:back")),
         nav_button("cancel", "adm_cancel"),
     ])
@@ -461,7 +461,7 @@ def get_ad_pool_back_keyboard(scope: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
         [
             InlineKeyboardButton("⬅️ Menyuga", callback_data=cb(f"adp:{scope}:back")),
-            # 🧭 FAZA 17: kanonik [❌ Bekor qilish].
+            # kanonik [❌ Bekor qilish].
             nav_button("cancel", "adm_cancel"),
         ],
     ])
@@ -517,7 +517,7 @@ def get_ai_studio_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
 
     Barcha yorliqlar foydalanuvchi tiliga (lang) mos tarjima qilinadi.
 
-    🧭 PostAssist V2 · 4-qadam — NAVIGATSIYA STACKI: pastki qatorda endi
+    4-qadam — NAVIGATSIYA STACKI: pastki qatorda endi
     IKKI alohida tugma bor:
       * [◀️ Orqaga] (``ai_back_to_content``) — foydalanuvchi shu bo'limga
         «✨ Kontent yaratish» submenyusidan kelgani uchun aynan SHU YERGA
@@ -542,10 +542,10 @@ def get_ai_studio_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
             InlineKeyboardButton(_calendar_hub_label(lang), callback_data="studio_content_plan"),
         ],
         [
-            # 🧭 4-qadam: ◀️ Orqaga → Kontent yaratish submenyusi.
+            # ◀️ Orqaga → Kontent yaratish submenyusi.
             InlineKeyboardButton(_content_back_label(lang), callback_data="ai_back_to_content"),
             # 🏠 Asosiy menyu → asosiy 6 tugmali menyu (eski studio_close).
-            # 🧭 FAZA 17: yagona kanonik yorliq — get_ai_studio_plan_keyboard
+            # yagona kanonik yorliq — get_ai_studio_plan_keyboard
             # bilan AYNAN bir xil (avval «⬅️ Asosiy menyu», endi «🔙 Asosiy
             # menyu» — bir xil vazifa, bir xil tugma).
             InlineKeyboardButton(get_text("btn_main_menu", lang), callback_data="studio_close"),
@@ -618,7 +618,7 @@ def get_ai_back_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
 def get_ai_tone_keyboard(selected: str = None, lang: str = "uz") -> InlineKeyboardMarkup:
     """AI post uslubini tanlash — tanlangan uslub ✅ bilan belgilanadi.
 
-    🌱 STEP 2 (ORGANIC GROWTH): preview ekrani O'ZGARMAYDI — uslub
+    preview ekrani O'ZGARMAYDI — uslub
     qatorlari va [📅 Rejalashtirish] o'z joyida. Ostiga intuitiv ACTION
     tugmalari qo'shildi: [📋 Nusxalash] [🔄 Yangi variant] va IXTIYORIY
     [🔗 Do'stlarga ulashish] (referal havolasi; ulashish kanal
@@ -678,7 +678,7 @@ def render_channels_list(channels: list, lang: str = "uz") -> InlineKeyboardMark
 
 
 # ============================================================
-# 📢 KANALLARIM — MASTER PLAN STANDARTI (PostAssist V2, 4-qadam)
+# 📢 KANALLARIM — MASTER PLAN STANDARTI
 # ============================================================
 # Eski ``render_channels_list`` ATAYLAB o'z joyida qoldirildi: kabinet
 # («👤 Sozlamalar» → kanallar) ekrani va chat tarixidagi eski xabarlar shu
@@ -711,7 +711,7 @@ def render_my_channels_list(channels: list, lang: str = "uz") -> InlineKeyboardM
 
 
 def get_post_creation_contextual_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
-    """✍️ PHASE 9 — `[✍️ Post yaratish]` bosilganda chiqadigan kontekstual menyu::
+    """`[✍️ Post yaratish]` bosilganda chiqadigan kontekstual menyu::
 
         [⚡ AI Post]        [📝 Oddiy Post]
         [🖼 Rasmdan Post]   [🎙 Ovozdan Post]
@@ -754,7 +754,7 @@ render_post_creation_menu = get_post_creation_contextual_keyboard
 
 
 def get_channel_contextual_keyboard(channel_id, lang: str = "uz") -> InlineKeyboardMarkup:
-    """📢 PHASE 9 — `[📢 Kanallarim]` ichida har bir kanal uchun kontekstual menyu::
+    """`[📢 Kanallarim]` ichida har bir kanal uchun kontekstual menyu::
 
         [➕ Kanal qo‘shish]
         [🚀 Autopilot]   [📋 Kontent reja]
@@ -813,7 +813,7 @@ def render_channel_panel(channel_id, lang: str = "uz") -> InlineKeyboardMarkup:
 
 
 def render_instant_plan_offer_keyboard(channel_id, lang: str = "uz") -> InlineKeyboardMarkup:
-    """🚀 PHASE 9 — 2 daqiqalik Instant-Value Onboarding: 1-click 7 kunlik reja tugmasi."""
+    """2 daqiqalik Instant-Value Onboarding: 1-click 7 kunlik reja tugmasi."""
     return InlineKeyboardMarkup([
         [InlineKeyboardButton(get_text("onb_btn_7day_plan", lang),
                               callback_data=cb(CB_ONB_PLAN, channel_id))],
@@ -821,7 +821,7 @@ def render_instant_plan_offer_keyboard(channel_id, lang: str = "uz") -> InlineKe
 
 
 def render_dna_onboarding_keyboard(channel_id, lang: str = "uz") -> InlineKeyboardMarkup:
-    """🧠 3-BOSQICH ONBOARDING — Kanal DNK sinovi taklif klaviaturası.
+    """Kanal DNK sinovi taklif klaviaturası.
 
     Kanal BIRINCHI marta ulanganda «✅ ulandi» dan keyin darhol shu
     taklif yuboriladi: bot kanal ovozini (Tone of Voice) o'rganib, kanal
@@ -886,7 +886,7 @@ def render_channel_settings(channel_id, lang: str = "uz") -> InlineKeyboardMarku
 
 
 # ============================================================
-# 📅 REJALASHTIRILGAN — post kartochkasi amallari (4-qadam)
+# 📅 REJALASHTIRILGAN — post kartochkasi amallari
 # ============================================================
 def render_scheduled_actions(post_id, lang: str = "uz") -> list:
     """Bitta rejalashtirilgan post ostidagi 3 ta amal (bitta tugma qatori).
@@ -910,7 +910,7 @@ def render_scheduled_actions(post_id, lang: str = "uz") -> list:
 def render_scheduled_full_actions(post_id, lang: str = "uz") -> list:
     """📅 YAGONA rejalashtirilgan ro'yxati uchun TO'LIQ amal to'plami.
 
-    PostAssist V2 · 2-qadam (B1 birlashtiruv): «Kutilayotgan postlar» va
+    2-qadam (B1 birlashtiruv): «Kutilayotgan postlar» va
     «Rejalashtirilgan postlar» bitta ekranga qo'shilgani uchun har bir post
     ostida BARCHA amallar ko'rinadi::
 
@@ -1148,7 +1148,7 @@ def get_settings_help_hub_keyboard(
 ) -> InlineKeyboardMarkup:
     """❓ Yordam & Ma'lumot submenu'si.
 
-    💬 4-QISM: sukut bo'yicha [💬 Qo'llab-quvvatlash] tugmasi BOT ICHIDAGI
+    sukut bo'yicha [💬 Qo'llab-quvvatlash] tugmasi BOT ICHIDAGI
     bir martalik murojaat oqimini ochadi (``help_support`` → one-time ticket
     FSM → admin javobi shu chatda). Eski tashqi ``t.me`` havolasi kerak
     bo'lsa ``support_username`` argumenti ATAYLAB uzatiladi (legacy).
@@ -1201,7 +1201,7 @@ def get_rewards_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
 
 
 def get_tools_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
-    """🧰 Vositalar — yordamchi vositalar submenyusi (PostAssist V2, 3-qadam).
+    """🧰 Vositalar — yordamchi vositalar submenyusi.
 
         [🔤 Kirill-Lotin Konvertor]
         [✨ Tugma & Reaksiyalar (Post Enhancer)]
@@ -1317,7 +1317,7 @@ CB_MANUAL_EDIT = "mnp_edit"          # ✏️ Tahrirlash (manual_edit)
 CB_MANUAL_CANCEL = "mnp_cancel"      # ❌ Bekor qilish (manual_cancel)
 CB_MANUAL_PANEL = "mnp_panel"        # ◀️ Orqaga (kanal tanlashdan panelga)
 CB_MANUAL_CHANNEL = "mnp_ch:"        # mnp_ch:<channel_id> — kanal tanlash
-# 2-QADAM UI/UX POLISH — preview panelini boyitish (reaksiyalar + URL tugma):
+# preview panelini boyitish (reaksiyalar + URL tugma):
 # barcha yangi callback'lar ham ``mnp_`` prefiksida — global stale handler
 # (``^mnp_``) ularni ham qamrab oladi, sessiya tugaganda crash bo'lmaydi.
 CB_MANUAL_REACT = "mnp_react"        # ❤️ Reaksiyalar (manual_add_reactions)
@@ -1344,7 +1344,7 @@ def manual_reaction_from_callback(data: str):
         return None
     emoji = data[len(prefix):].strip()
     return emoji or None
-# 🔁 PHASE C — dublikat detektori (post chiqarilishidan oldin): ogohlantirish
+# dublikat detektori (post chiqarilishidan oldin): ogohlantirish
 # oynasining 3 amali (SPEKS: [🚀 Baribir chiqarish] | [✨ AI bilan yangilash] |
 # [❌ Bekor qilish]; bekor qilish mavjud CB_MANUAL_CANCEL orqali ishlaydi).
 CB_MANUAL_DUP_FORCE = "mnp_dup_go"   # 🚀 Baribir chiqarish

@@ -1,4 +1,4 @@
-"""APPLICATION SERVICE — AI vazifalari uchun yagona yuqori qatlam (PHASE 6).
+"""APPLICATION SERVICE — AI vazifalari uchun yagona yuqori qatlam.
 
 Arxitektura oqimi (PHASE 6 talabi):
 
@@ -371,7 +371,7 @@ class AITaskService:
                 self.recorder.record(event)
             except Exception as _silent_exc:  # pragma: no cover — himoya
                 log_silent_failure("services.ai.engine.app_service:AITaskService.run:370", _silent_exc, user_id=user_id, channel_id=channel_id, lang=lang)
-            # 💰 SPRINT 4 — UNIT ECONOMICS: faqat shu yerda qurilgan yozuv ledger'ga
+            # UNIT ECONOMICS: faqat shu yerda qurilgan yozuv ledger'ga
             # yoziladi. Gateway yo'li (result.usage bor) ledger'ni o'zi to'ldiradi —
             # ikki marta hisoblanmasin.
             try:

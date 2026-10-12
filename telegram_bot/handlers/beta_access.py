@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""🚪 SPRINT 4 — YOPIQ BETA DARVOZASI: HANDLER QATLAMI.
+"""YOPIQ BETA DARVOZASI: HANDLER QATLAMI.
 
 Bu modul:
   * ``/start`` ichida chaqiriladigan :func:`enforce_beta_gate` — yangi

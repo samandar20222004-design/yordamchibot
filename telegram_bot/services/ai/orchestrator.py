@@ -6,13 +6,13 @@ Barcha qismlarni birlashtiruvchi markaz:
 1. Intent Routing (SMMIntentRouter)
 2. Quota Reserve (Phase 2 transactional reserve_ai_request)
 3. Concurrency & Bounded Queue (Phase 4/5 AIConcurrencyManager)
-4. Provider Fallback Chain (Gemini -> Groq -> OpenRouter; Mock faqat dev/test — P0-A)
+4. Provider Fallback Chain (Gemini -> Groq -> OpenRouter; Mock faqat dev/test)
 5. Output Validation (AIOutputValidator)
-6. Strict Quality Gate (P0-B): har bir provayder uchun
+6. Strict Quality Gate: har bir provayder uchun
    urinish -> validator -> AYNAN 1 retry -> validator -> keyingi HAQIQIY provayder;
    barcha provayderlar yaroqsiz bo'lsa — xavfsiz xato + TO'LIQ refund.
    Uzunlik (``len(...) >= 20``) hech qachon validatorni chetlab o'tmaydi.
-7. Prompt-leak himoyasi (P0-C): provayder javobidagi tizim/retry ko'rsatmalari
+7. Prompt-leak himoyasi: provayder javobidagi tizim/retry ko'rsatmalari
    (``services.ai.prompt_guard``) foydalanuvchiga yetib bormaydi.
 8. HTML Sanitization (Phase 2 telegram_sanitizer.sanitize_html)
 9. Fail-Closed Refund (xatolikda yoki bekor qilishda kvotani to'liq qaytarish)
@@ -104,7 +104,7 @@ class AIOrchestrationResult:
     error: str | None = None
     error_code: str | None = None
     generation_id: str | None = None
-    #: AI umuman ishlamaganda foydalanuvchiga ko'rsatiladigan xavfsiz xabar (P0-A).
+    #: AI umuman ishlamaganda foydalanuvchiga ko'rsatiladigan xavfsiz xabar.
     user_message: str | None = None
 
 
@@ -176,7 +176,7 @@ class AIOrchestrator:
                     generation_id=gen_id,
                 )
 
-        # PHASE B — Channel DNA: kanal kontekstida (``context["channel_id"]``)
+        # Channel DNA: kanal kontekstida (``context["channel_id"]``)
         # post generatsiya qilinayotganda, kanalning saqlangan uslubiy profili
         # ixcham system-prompt bloki sifatida ``ctx["system_prompt"]`` ga
         # ulanadi. FAIL-SOFT: DNA o'qilishi xatosi generatsiyani HECH QACHON
@@ -192,20 +192,20 @@ class AIOrchestrator:
         raw_output = ""
         provider_used = "none"
 
-        # 3. Provider Chain Execution ichki korutinasi — QAT'IY SIFAT SIKLI (P0-B)
+        # 3. Provider Chain Execution ichki korutinasi — QAT'IY SIFAT SIKLI
         async def _execute_ai():
             """Bitta provayder → validator → AYNAN 1 retry → validator.
 
-            P0-B: ilgari bu yerda ``if val_second.is_valid or len(retry_output) >= 20:``
+            ilgari bu yerda ``if val_second.is_valid or len(retry_output) >= 20:``
             bypass'i bor edi — 20+ belgili HAR QANDAY yaroqsiz javob (masalan
             ``<script>...`` yoki til mos kelmaydigan matn) qabul qilinardi.
             Endi uzunlik validator qoidasini CHETLAB O'TMAYDI.
 
-            P0-A: Mock faqat ``ProviderChain.usable_providers()`` ruxsat bergan
+            Mock faqat ``ProviderChain.usable_providers()`` ruxsat bergan
             muhitda (dev/test yoki AI_ALLOW_MOCK=1) sinaladi; production'da esa
             haqiqiy provayderlar tugashi bilan halol xato ko'tariladi.
 
-            P0-C: har bir javob ``sanitize_output()`` orqali tozalanadi —
+            har bir javob ``sanitize_output()`` orqali tozalanadi —
             tizim/retry ko'rsatmalari validator va foydalanuvchiga yetib bormaydi.
             """
             nonlocal retried
@@ -237,7 +237,7 @@ class AIOrchestrator:
                         quality_failures.append(f"{provider.name}: {prov_err}")
                         break
 
-                    # P0-C: ko'rsatma sizib chiqishini tozalash (validator ham,
+                    # ko'rsatma sizib chiqishini tozalash (validator ham,
                     # foydalanuvchi ham faqat toza matnni ko'radi)
                     clean_candidate, leak_found = sanitize_output(candidate)
                     if leak_found:
@@ -349,7 +349,7 @@ class AIOrchestrator:
             )
 
         except NoConfiguredProviderError as no_prov_err:
-            # P0-A: production'da haqiqiy provayder yo'q — soxta generatsiya YO'Q,
+            # production'da haqiqiy provayder yo'q — soxta generatsiya YO'Q,
             # foydalanuvchiga xavfsiz xabar + TO'LIQ refund.
             logger.error("P0-A: AI provayderlari sozlanmagan (user=%s): %s",
                          user_id, no_prov_err)
@@ -367,7 +367,7 @@ class AIOrchestrator:
         except Exception as exc:
             unavailable = isinstance(exc, AllProvidersFailedError)
             if unavailable:
-                # P0-A/P0-B: barcha HAQIQIY provayderlar yiqildi yoki yaroqsiz
+                # barcha HAQIQIY provayderlar yiqildi yoki yaroqsiz
                 # javob qaytardi — Mock ishlatilmaydi, kvota TO'LIQ qaytariladi.
                 logger.error("AI provayderlari ishlamadi (user=%s): %s", user_id, exc)
             else:

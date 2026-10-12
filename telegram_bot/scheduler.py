@@ -82,7 +82,7 @@ FLOOD_WAIT_SAFETY_SECONDS = 5.0
 # shu chegaragacha kutamiz, qolganini `retry_post` orqali DB'ga ko'chiramiz.
 FLOOD_WAIT_SLEEP_MAX = 60.0
 
-# 11-bosqich (P0): FloodWait butun schedulerni BLOKLAMAYDI. Tick ichida
+# FloodWait butun schedulerni BLOKLAMAYDI. Tick ichida
 # real kutish faqat shu chegaragacha (soniya); qolgan muddat DB'da
 # (``retry_post``) — aynan shu post uchun kechiktiriladi, qolgan kanallar
 # navbatdagi postlari davom etadi.
@@ -93,7 +93,7 @@ FLOOD_WAIT_INLINE_SLEEP_MAX = 5.0
 # (ular ham DB'da kechiktiriladi) — limit uzayib ketmasligi uchun.
 _CHANNEL_FLOOD_UNTIL: dict = {}
 
-# UNKNOWN_DELIVERY (P0): albom (media group) yuborishda TimedOut/NetworkError
+# UNKNOWN_DELIVERY: albom (media group) yuborishda TimedOut/NetworkError
 # bo'lsa Telegram xabarni qabul qilgan bo'lishi mumkin — qayta yuborish
 # dublikat albom chiqaradi. Bunday postlar 'unknown' bo'ladi va avtomatik
 # qayta yuborilmaydi (admin health panelida ko'rinadi).
@@ -119,7 +119,7 @@ def _resolve_sent_journal_path() -> str:
     """
     raw = os.getenv("SENT_JOURNAL_PATH")
     if raw is None:
-        # P0: normal operation no longer depends on a temporary JSON journal;
+        # normal operation no longer depends on a temporary JSON journal;
         # post_deliveries is the source of truth. Explicit path remains as a
         # legacy/test-only escape hatch for old deployments.
         return ""
@@ -231,7 +231,7 @@ async def _apply_sent_marker(marker: dict) -> bool:
     # delivery_key yo'q, shuning uchun eski restart oqimi ham saqlanadi.
     delivery_key = marker.get("delivery_key")
 
-    # 11-bosqich (P0): 'posted' (scheduled_posts) + 'sent' (post_deliveries)
+    # 'posted' (scheduled_posts) + 'sent' (post_deliveries)
     # BITTA atomik tranzaksiyada yoziladi — Telegram'ga chiqqan post DB'da
     # darhol va bo'linmas holda "yuborildi" bo'ladi. Crash bo'lsa ham ikkala
     # marker birga yoki umuman yozilmaydi (ikkinchi holatda in-memory guard
@@ -425,7 +425,7 @@ def _channel_key(channel_id) -> str:
 
 
 async def _delivery_send(bot, method: str, **kwargs):
-    """YAGONA delivery engine orqali Telegram yuborish (PHASE 5).
+    """YAGONA delivery engine orqali Telegram yuborish.
 
     Barcha kanal postlari ``services.delivery`` dvigatelidan o'tadi:
     1 post/s (kanal) + 30 msg/s (umumiy) rate-limit, RetryAfter tasnifi va
@@ -516,7 +516,7 @@ def stagger_quiet_hour_posts(posts, now=None, *, uniform=None):
 
 
 # --- Avto-o'chirish xatolarini tasniflash -----------------------------------
-# PHASE 9 & 10: MessageNotFound vs Forbidden xavfsiz ajratiladi.
+# MessageNotFound vs Forbidden xavfsiz ajratiladi.
 # Ikkalasi ham qayta urinilmaydi, lekin monitoringda farqlanadi.
 _DELETE_NOT_FOUND_PATTERNS = (
     "message to delete not found",
@@ -548,7 +548,7 @@ _DELETE_GONE_PATTERNS = _DELETE_NOT_FOUND_PATTERNS + _DELETE_FORBIDDEN_PATTERNS
 
 
 def classify_delete_error(error) -> str:
-    """Avto-o'chirish xatosi tasnifi (PHASE 9 & 10).
+    """Avto-o'chirish xatosi tasnifi.
 
     Qaytadi:
       * ``"gone"``       — xabar topilmadi / allaqachon o'chirilgan (MessageNotFound)
@@ -913,7 +913,7 @@ async def check_and_send_posts(bot):
         bilan kutiladi — navbat to'xtamaydi, post yo'qolmaydi.
     """
     try:
-        # 9-bosqich (graceful shutdown): yopilish boshlangan bo'lsa YANGI
+        # yopilish boshlangan bo'lsa YANGI
         # ishlar navbatdan OLINMAYDI — faol yuborishlar tugashiga ruxsat
         # beriladi, lekin yangi post 'processing' ga o'tkazilmaydi.
         if lifecycle.is_shutting_down():
@@ -946,7 +946,7 @@ async def check_and_send_posts(bot):
             # 1) Mikro-kechikish — birinchi postdan keyin har safar.
             if index:
                 await asyncio.sleep(SEND_MICRO_DELAY)
-            # 9-bosqich: paket o'rtasida shutdown so'ralgan bo'lsa — qolgan
+            # paket o'rtasida shutdown so'ralgan bo'lsa — qolgan
             # (hali Telegramga yuborilmagan) postlar darhol 'pending' ga
             # qaytariladi; ular keyingi ishga tushishda yuboriladi.
             if lifecycle.is_shutting_down():
@@ -1039,7 +1039,7 @@ async def _requeue_unsent_on_shutdown(posts) -> int:
 async def _mark_delivery_failed(delivery_key, error, is_transient: bool = True):
     """Delivery claim qilinganidan keyingi Telegram xatosini DB ga yozadi.
 
-    PostAssist V2: vaqtinchalik xatoda backoff (30s/2m/5m/15m) qo'yiladi,
+    vaqtinchalik xatoda backoff (30s/2m/5m/15m) qo'yiladi,
     doimiy xatoda yoki 5-urinishda ham xato bo'lsa ``dead_letter`` bo'ladi.
     Qaytadi: delivery_service natijasi (dict) yoki None (kalit yo'q / DB xatosi).
     ``None`` — chaqiruvchi eski oqimda davom etishi kerak (qayta navbat).
@@ -1099,7 +1099,7 @@ async def _mark_delivery_unknown(post_id, delivery_key, error) -> bool:
 
 
 # ============================================================================
-# P0 (VAZIFA 2): NOANIQ YETKAZIB BERISH — KANAL DEDUPLIKATSIYASI
+# NOANIQ YETKAZIB BERISH — KANAL DEDUPLIKATSIYASI
 # ----------------------------------------------------------------------------
 # TimedOut/NetworkError'da so'rov Telegramga ketgan bo'lishi mumkin. Bunday
 # holatda ko'r-ko'rrona qayta yuborish bitta postni kanalga IKKI MARTA chiqaradi.
@@ -1213,7 +1213,7 @@ async def _resolve_ambiguous_delivery(bot, post_id, channel_id, post_type, conte
 async def _handle_ambiguous_send_error(bot, post_id, channel_id, post_type, content,
                                        file_id, delivery_key, delivery_marker_key,
                                        album_api_started, error, verify_attempt: int = 1):
-    """TimedOut/NetworkError oqimi: ko'r-ko'rrona retry YO'Q (P0).
+    """TimedOut/NetworkError oqimi: ko'r-ko'rrona retry YO'Q.
 
     Eski xatti-harakat (regressiya yo'q): oddiy matn/media postda xato
     avvalgidek ``failed`` + ``retry_post`` bo'ladi, albomda esa — UNKNOWN.
@@ -1353,7 +1353,7 @@ async def _send_precheck_and_claim(bot, post):
     delivery_claim = await db.run_db(
         delivery_service.claim_post_for_delivery, post_id, channel_id, scheduled_time
     )
-    # P0: avvalgi noaniq urinishdan qolgan "kanal tekshiruvi kutilmoqda"
+    # avvalgi noaniq urinishdan qolgan "kanal tekshiruvi kutilmoqda"
     # markeri (bo'lsa) — yuborishdan oldin dedup tekshiruvi o'tkaziladi.
     delivery_claim_verify_attempt = delivery_service.delivery_verify_attempt(
         delivery_claim.get("last_error") if isinstance(delivery_claim, dict) else None
@@ -1652,14 +1652,14 @@ async def _finalize_sent_post(bot, ctx: dict, sent_marker: dict, sent_msg_id, ta
             # Pinning failure must never retry an already delivered post.
             logger.warning("Auto-pin failed (Post ID: %s)", ctx["post_id"], exc_info=True)
 
-    # 📊 SPRINT 2 (VAZIFA 3) — engil/asinxron analitika: qaysi post turi
+    # engil/asinxron analitika: qaysi post turi
     # qancha yuborilgani (shu orqali eng ko'p/kam ishlatilgan formatlar
     # keyinchalik ``event_tracker.usage_report()`` bilan aniqlanadi).
     event_tracker.track(ctx["user_id"], f"post_sent:{str(ctx['post_type']).lower()}")
 
 
 async def _execute_send(bot, post):
-    """Postni Telegramga yetkazish — 3 bosqichli orkestrator (SPRINT 2):
+    """Postni Telegramga yetkazish — 3 bosqichli orkestrator:
 
       1) :func:`_send_precheck_and_claim` — idempotentlik, holat, delivery
          claim (+ :func:`_verify_no_duplicate_before_send` — dedup gate);
@@ -1681,11 +1681,11 @@ async def _execute_send(bot, post):
 
     final_content = payload["final_content"]
 
-    # ── P0 (VAZIFA 2): YUBORISHDAN OLDIN DEDUP TEKSHIRUVI ──────────────────
+    # YUBORISHDAN OLDIN DEDUP TEKSHIRUVI ──────────────────
     if not await _verify_no_duplicate_before_send(bot, ctx, final_content):
         return
 
-    # ── P0: IDEMPOTENT DELIVERY LOCK ───────────────────────────────────────
+    # IDEMPOTENT DELIVERY LOCK ───────────────────────────────────────
     # DB claim allaqachon atomik; bu qo'shimcha qatlam bir jarayondagi
     # tasklar (va Redis mavjud bo'lsa — instansiyalar) orasida bir xil postni
     # IKKI MARTA yuborishni to'sadi.
@@ -1756,7 +1756,7 @@ async def _execute_send(bot, post):
             )
             await db.run_db(db.mark_post_status, post_id, "failed")
             return
-        # Aniq kutish vaqti + jitter (PHASE 5): DB retry vaqtiga 0..0.25s
+        # Aniq kutish vaqti + jitter: DB retry vaqtiga 0..0.25s
         # tasodifiy oraliq qo'shiladi — thundering-herd 429 oldini oladi.
         retry_at = now_tashkent() + timedelta(
             seconds=wait_seconds + FLOOD_WAIT_SAFETY_SECONDS
@@ -1765,7 +1765,7 @@ async def _execute_send(bot, post):
         await db.run_db(db.retry_post, post_id, retry_at)
         return
     except (TimedOut, NetworkError) as e:
-        # P0 (VAZIFA 2): noaniq holat — ko'r-ko'rrona retry TAQIQLANADI. Avval
+        # noaniq holat — ko'r-ko'rrona retry TAQIQLANADI. Avval
         # kanalning oxirgi xabarlari tekshiriladi (SHA256 fingerprint):
         # topilsa DELIVERED, yo'qligi tasdiqlansa xavfsiz retry, aks holda
         # verify_pending (yuborilmaydi) → urinishlar tugagach UNKNOWN.
@@ -1801,7 +1801,7 @@ async def _execute_send(bot, post):
             return
         raise
     finally:
-        # P0: idempotent delivery lock HAR QANDAY holatda bo'shatiladi
+        # idempotent delivery lock HAR QANDAY holatda bo'shatiladi
         # (xato/return/cancel — barchasida). DB'dagi 'processing' claim'i
         # marker yozilgunga qadar qo'shimcha himoya bo'lib qoladi.
         await delivery_service.release_delivery_lock(delivery_lock_key, lock_token)
@@ -1825,7 +1825,7 @@ async def _send_single_media(bot, target_chat, kind, file_id, caption, reply_mar
 async def check_and_delete_expired_posts(bot):
     """Avto-o'chirish muddati yetgan xabarlarni kanaldan o'chirish (har 1 daqiqada).
 
-    11-bosqich (P0): ``deleted=true`` FAQAT xabar haqiqatan o'chirilganda yoki
+    ``deleted=true`` FAQAT xabar haqiqatan o'chirilganda yoki
     Telegram uni topa olmaganda (``classify_delete_error == "gone"``) yoziladi.
     Vaqtinchalik xatoda (tarmoq, timeout, FloodWait) yozuv TEGILMAYDI —
     o'chirish ``AUTO_DELETE_RETRY_DELAY`` dan keyin qayta rejalashtiriladi.
@@ -1850,7 +1850,7 @@ async def check_and_delete_expired_posts(bot):
                     )
                     await _defer_deletion(pid, delay)
                     continue
-                # PHASE 9 & 10: gone (MessageNotFound) vs forbidden (bot kicked / no rights)
+                # gone (MessageNotFound) vs forbidden (bot kicked / no rights)
                 # ikkalasi ham qayta urinilmaydi, lekin log'da ajratiladi (diagnostika).
                 if kind == "forbidden":
                     logger.warning(
@@ -1882,7 +1882,7 @@ async def _defer_deletion(row_id, delay_seconds: float) -> None:
 
 
 async def recover_on_startup() -> dict:
-    """Restart recovery (P0): bot ishga tushganda 'processing' da qolib
+    """Restart recovery: bot ishga tushganda 'processing' da qolib
     ketgan postlarni XAVFSIZ tiklaydi — Telegramga chiqqanlari 'posted',
     UNKNOWN_DELIVERY bo'lganlari 'unknown', yuborilmaganlari 'pending'.
 
@@ -1926,7 +1926,7 @@ def _notice_escape(value) -> str:
 
 
 async def poll_content_sources_job(bot=None):
-    """📡 PHASE D (2/2) — vaqti kelgan RSS/ATOM manbalarini avtomatik tekshirish.
+    """vaqti kelgan RSS/ATOM manbalarini avtomatik tekshirish.
 
     Har 15 daqiqada bir marta: ``db.get_due_content_sources`` orqali intervali
     to'lgan FAOLLAR (``enabled``) manbalar olinadi va
@@ -2011,7 +2011,7 @@ async def poll_content_sources_job(bot=None):
 
 
 async def subscription_sweep_job():
-    """3-BOSQICH (P1): muddati o'tgan PRO/enterprise obunalarni FREE ga tushirish.
+    """muddati o'tgan PRO/enterprise obunalarni FREE ga tushirish.
 
     Har 15 daqiqada bitta indeksli UPDATE — obuna muddati tugagan foydalanuvchi
     ``SubscriptionService.get_status`` chaqirilmasa ham PRO AI/kanal limitlarida
@@ -2029,7 +2029,7 @@ async def subscription_sweep_job():
 
 
 async def cleanup_old_records_job():
-    """9-bosqich: kunlik (03:00 Toshkent) paketli tozalash worker'i.
+    """kunlik (03:00 Toshkent) paketli tozalash worker'i.
 
     ``services.cleanup_service.cleanup_old_records`` — 30 kundan eski 'sent'
     delivery jurnallari va 60 kundan eski / bekor qilingan vaqtinchalik
@@ -2052,7 +2052,7 @@ async def cleanup_old_records_job():
 
 
 # ============================================================
-# PHASE E — WEEKLY CHANNEL ADVISOR DELIVERY
+# WEEKLY CHANNEL ADVISOR DELIVERY
 # ============================================================
 async def weekly_channel_reports_job(bot=None):
     """Send a compact report to each channel owner every Monday morning.
@@ -2273,7 +2273,7 @@ async def uzbekistan_calendar_reminders_job(bot=None, today=None):
 
 
 async def referral_reward_notices_job(bot=None):
-    """🌱 STEP 2 — referal KONVERSIYA bildirishnomalari job'i (har 1 daq.).
+    """referal KONVERSIYA bildirishnomalari job'i (har 1 daq.).
 
     ``ReferralService.register_first_action`` (post yaratish/rejalashtirish
     hook'lari orqali) mukofot haqidagi bildirishnomalarni jarayon ichidagi

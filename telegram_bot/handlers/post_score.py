@@ -542,7 +542,7 @@ async def post_score_improve_callback(update: Update, context: ContextTypes.DEFA
         except Exception:
             is_pro = False
 
-    # 🔒 PHASE 2 / 1-QADAM: kunlik kvota YOKI AYNAN 1 kredit BITTA atomik
+    # kunlik kvota YOKI AYNAN 1 kredit BITTA atomik
     # tranzaksiyada bron qilinadi (qator qulfi + credits_ledger auditi).
     # Avvalgi ikki alohida tranzaksiya race condition va yarim bron xavfini
     # tug'dirar edi; DB xatosida esa faqat kredit qadami fail-closed edi,
@@ -648,7 +648,7 @@ async def _finish_send(query, context, targets: list) -> int:
         # AI kvotasining hisoblagichi (free uchun) — bir marta yoziladi.
         if not is_admin and not context.user_data.get("ps_usage_counted"):
             context.user_data["ps_usage_counted"] = True
-            # 🔒 PHASE 2 / 1-qadam: atomik bron sanagichni ALLAQACHON
+            # atomik bron sanagichni ALLAQACHON
             # oshirgan — double-count bo'lmasligi uchun atomik bronda
             # increment chaqirilmaydi (legacy bronda eski xatti-harakat).
             if not reservation_source(context, "score"):

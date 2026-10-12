@@ -130,11 +130,11 @@ UD_MEDIA_GROUP = "mnp_media_group"
 UD_MODE = "mnp_mode"
 UD_WHEN = "mnp_when"            # ISO datetime (rejalashtirish uchun)
 UD_REPEAT_TIME = "mnp_repeat_time"  # "HH:MM" (takroriy e'lon uchun)
-# 🔁 PHASE C — dublikat detektori holati (post chiqarilishidan oldin).
+# dublikat detektori holati (post chiqarilishidan oldin).
 UD_DUP_FORCE = "mnp_dup_force"          # foydalanuvchi "Baribir chiqarish" bosdi
 UD_DUP_CHANNEL_ID = "mnp_dup_channel"   # ogohlantirilgan kanal (id)
 UD_DUP_CHANNEL_TITLE = "mnp_dup_title"  # ogohlantirilgan kanal (nomi)
-# 2-QADAM UI/UX POLISH — reaksiyalar va havolali (URL) tugma holati.
+# reaksiyalar va havolali (URL) tugma holati.
 UD_REACTIONS = "mnp_reactions"  # tanlangan reaksiya emojilari (list[str])
 UD_URL_BTN_TEXT = "mnp_url_text"  # havolali tugma matni
 UD_URL_BTN_URL = "mnp_url_url"    # havolali tugma URL'i (xavfsiz protokol)
@@ -451,7 +451,7 @@ def split_custom_reaction_emojis(text: str,
 def _smart_extract_emojis(text: str, max_count: int = SMART_EMOJI_MAX) -> list:
     """Matndan emojilarni ajratib oladi (maksimal ``max_count`` tagacha) — KIRITISH TARTIBI SAQLANADI.
 
-    SMART EMOJI BUGFIX (2-qism):
+    SMART EMOJI BUGFIX:
       * Foydalanuvchi "😎" yoki "🔥 👍" kabi sof emoji yuborsa, xato berilmaydi.
       * Emoji(lar) ajratib olinib (maksimal 5 tagacha) saqlanadi.
       * Kiritish tartibi saqlanadi — masalan "🔥 👍" → ["🔥", "👍"], kanonik saralash emas.
@@ -560,7 +560,7 @@ def _manual_album_warning(context, lang: str) -> str:
 
 
 # ============================================================
-# FSM INPUT FALLBACK (PHASE 1) — yumshoq bosqich eslatmasi
+# FSM INPUT FALLBACK — yumshoq bosqich eslatmasi
 # ============================================================
 def _stage_hint(lang: str) -> str:
     """💡 Bosqich eslatmasi — tugma bosish kutilganda (yumshoq ogohlantirish)."""
@@ -782,7 +782,7 @@ async def _choose_channel_or_act(query_msg, context, user_id: int, lang: str):
 
 
 # ============================================================
-# PHASE 3 — RBAC/IDOR YORDAMCHISI (markaziy ruxsat tekshiruvi)
+# RBAC/IDOR YORDAMCHISI (markaziy ruxsat tekshiruvi)
 # ============================================================
 async def manual_channel_guard(user_id: int, channel_id, action: str = "create") -> bool:
     """Foydalanuvchi AYNAN shu kanal ustida amal bajara oladimi?
@@ -818,7 +818,7 @@ async def _publish(target_msg, context, user_id: int, channel_id,
                    channel_title, lang: str):
     """Tanlangan rejim bo'yicha postni DB'ga yozadi (scheduler darhol oladi).
 
-    🔁 PHASE C — DUBLIKAT DETEKTORI: post kanalga chiqarilishidan/rejalanishidan
+    DUBLIKAT DETEKTORI: post kanalga chiqarilishidan/rejalanishidan
     OLDIN kanalning oxirgi postlari bilan yengil (AI'siz) solishtiriladi.
     85%+ o'xshashlik topilsa — yozish TO'XTATILADI va SPEKS bo'yicha 3 tugmali
     ogohlantirish chiqadi: [🚀 Baribir chiqarish] | [✨ AI bilan yangilash] |
@@ -912,7 +912,7 @@ async def _publish(target_msg, context, user_id: int, channel_id,
     else:
         scheduled_time = now
 
-    # 2-QADAM UI/UX POLISH: preview'da tanlangan reaksiyalar va havolali
+    # preview'da tanlangan reaksiyalar va havolali
     # tugma DB'ga to'liq saqlanadi — scheduler kanalga xuddi shu
     # reply_markup bilan chiqaradi (btn_text/btn_url + enable_reactions +
     # reaction_emojis ustunlari orqali).
@@ -1328,7 +1328,7 @@ async def manual_preview_emoji_received(update: Update,
 
     Yechim: preview holatida ham sof emoji(lar) qabul qilinadi, 5 tagacha ajratib olinib
     reaksiyalar ro'yxatiga saqlanadi va preview darhol yangilanadi. Emoji bo'lmagan
-    matn bo'lsa — FSM INPUT FALLBACK (PHASE 1): 💡 yumshoq eslatma + preview qayta
+    matn bo'lsa — FSM INPUT FALLBACK: 💡 yumshoq eslatma + preview qayta
     ko'rsatiladi (xato berilmaydi, oqim va FSM holati uzilmaydi).
     """
     msg = update.message
@@ -1362,7 +1362,7 @@ async def manual_preview_emoji_received(update: Update,
         return MANUAL_PREVIEW
 
     # Emoji topilmadi — foydalanuvchi erkin matn yozib yubordi.
-    # FSM INPUT FALLBACK (PHASE 1): quruq javob YO'Q — 💡 yumshoq eslatma
+    # FSM INPUT FALLBACK: quruq javob YO'Q — 💡 yumshoq eslatma
     # beriladi va mavjud Preview menyusi (inline boshqaruv paneli) qayta
     # ko'rsatiladi; foydalanuvchi panel tugmalaridan foydalanadi.
     return await _preview_soft_fallback(msg, context, lang)
@@ -1437,7 +1437,7 @@ async def manual_url_received(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 
 # ============================================================
-# FSM INPUT FALLBACK (PHASE 1) — kiritish bosqichlari uchun
+# FSM INPUT FALLBACK — kiritish bosqichlari uchun
 # yumshoq eslatma + joriy menyuni qayta ko'rsatish (holat saqlanadi)
 # ============================================================
 async def manual_channel_select_fallback(update: Update,
@@ -1691,7 +1691,7 @@ async def manual_panel_callback(update: Update, context: ContextTypes.DEFAULT_TY
         context.user_data[UD_MODE] = MODE_24H
         return await _choose_channel_or_act(query.message, context, user_id, lang)
 
-    # 🔁 PHASE C — dublikat ogohlantirishi amallari (SPEKS: 3 tugma).
+    # dublikat ogohlantirishi amallari (SPEKS: 3 tugma).
     if data == CB_MANUAL_DUP_FORCE:
         context.user_data[UD_DUP_FORCE] = True
         dup_channel = context.user_data.get(UD_DUP_CHANNEL_ID)

@@ -149,7 +149,7 @@ def build_user_overview_text(stats: dict, credits: int = 0, lang: str = "uz",
         settings_stats_t("ss_my_credits", lang, n=int(credits or 0)),
     ]
 
-    # 💡 3-BOSQICH: aniq, bajariladigan tavsiya (kuruq raqamlar EMAS).
+    # aniq, bajariladigan tavsiya (kuruq raqamlar EMAS).
     # Kredit tugab qolganda — PRO taklifi MA'LUMOTDAN ustun (foydalanuvchiga
     # amaliy qadam kerak).
     if int(credits or 0) <= LOW_CREDITS_THRESHOLD:
@@ -194,7 +194,7 @@ async def show_user_statistics(update: Update, context: ContextTypes.DEFAULT_TYP
     else:
         credits = credits_r
 
-    # 💡 3-BOSQICH: kanal faollik signali asosida ANIQ tavsiya.
+    # kanal faollik signali asosida ANIQ tavsiya.
     advice = advice_r if not isinstance(advice_r, BaseException) else {}
 
     # Kanal bo'yicha analitikaga o'tilganda «◀️ Orqaga» shu ekranga qaytishi

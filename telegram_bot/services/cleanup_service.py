@@ -1,4 +1,4 @@
-"""CleanupService — PostAssist V2 (9-BOSQICH): davriy ma'lumotlar tozalash.
+"""CleanupService — PostAssist V2: davriy ma'lumotlar tozalash.
 
 Baza (Neon) vaqt o'tishi bilan shishib ketmasligi uchun scheduler har 24 soatda
 bir marta (kechasi soat 03:00, Toshkent vaqti) ``cleanup_old_records()``

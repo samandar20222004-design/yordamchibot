@@ -1,6 +1,6 @@
-"""P0-C — Tizim/retry ko'rsatmalarining post matniga sizib chiqishidan himoya.
+"""Tizim/retry ko'rsatmalarining post matniga sizib chiqishidan himoya.
 
-Muammo (Phase 0 auditi, P0-C)
+Muammo (Phase 0 auditi)
 -----------------------------
 Orkestratorning «kuchaytirilgan retry» ko'rsatmasi
 (masalan ``MUHIM: Oldingi javob juda qisqa ... TAQIQLANADI!``) ba'zi hollarda

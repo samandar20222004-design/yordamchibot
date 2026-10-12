@@ -1,4 +1,4 @@
-"""🧭 FAZA 17 — KANONIK NAVIGATSIYA STANDARTI (yagona ma'no qoidalari).
+"""KANONIK NAVIGATSIYA STANDARTI (yagona ma'no qoidalari).
 
 Loyihadagi HAR BIR inline va reply klaviatura tugmasi quyidagi qat'iy
 ma'no qoidasiga bo'ysunadi:

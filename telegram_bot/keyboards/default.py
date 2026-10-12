@@ -62,7 +62,7 @@ BTN_CANCEL_EN = get_text("btn_cancel", "en")
 # ============================================================
 # 🆕 ASOSIY MENYU: IXCHAM 5 TUGMA / 3 QATOR STANDARTI (uz/ru/en)
 # ============================================================
-# 3-BOSQICH: asosiy menyuda FAQAT va FAQAT quyidagi 5 ta tugma chiziladi:
+# asosiy menyuda FAQAT va FAQAT quyidagi 5 ta tugma chiziladi:
 #   [✍️ Post yaratish]       [📢 Kanallarim]
 #   [📅 Rejalashtirilgan]     [📊 Statistika]
 #   [⚙️ Sozlamalar / Ko'proq]
@@ -183,7 +183,7 @@ BTN_POST_SCORE_EN = _post_score_label("en")
 POST_SCORE_ALIASES = (BTN_POST_SCORE, BTN_POST_SCORE_RU, BTN_POST_SCORE_EN)
 
 # ============================================================
-# 🧩 KONTENT YARATISH — ichki submenu (PostAssist V2, 1-qadam)
+# 🧩 KONTENT YARATISH — ichki submenu
 # ============================================================
 # Asosiy menyudagi «✨ Kontent yaratish» tugmasi shu 5 ta yaratish yo'lini
 # ochadi (+ ◀️ Orqaga). Yorliqlar `translations/content_menu.py` dan olinadi
@@ -539,7 +539,7 @@ HELP_ALIASES = ("📖 Qo'llanma", "📖 Руководство", "📖 Guide", "
 EXTRAS_ALIASES = (
     "⚙️ Qo'shimcha", "⚙️ Дополнительные", "⚙️ Extra features", "⚙️ Extras",
 )
-# 3-QISM: «✨ Kontent yaratish» tugmasining O'Z oilasi bor
+# «✨ Kontent yaratish» tugmasining O'Z oilasi bor
 # (``create_content`` — kontent yaratish markazi oqimi). Eski asosiy menyu
 # «✨ AI Studio» yorliqlari shu oilada ALIAS bo'lib qoladi: keshdagi eski
 # klaviatura xabarlari bosilsa ham foydalanuvchi kontent yaratish
@@ -549,7 +549,7 @@ EXTRAS_ALIASES = (
 AI_STUDIO_ALIASES = (
     "✨ AI Studio", "✨ AI Студия", "✨ Studio",
 )
-# 3-BOSQICH: asosiy menyudagi «✨ Kontent yaratish» tugmasi endi
+# asosiy menyudagi «✨ Kontent yaratish» tugmasi endi
 # «✍️ Post yaratish» deb ataladi (emoji + nom aniqroq: foydalanuvchi
 # nima qilmoqchi, shu ko'rinadi). Oqim O'ZGARMADI — shu sababli eski
 # yorliqlar shu oilada routing ALIAS'i bo'lib qoladi: chat tarixidagi
@@ -562,7 +562,7 @@ NEW_POST_ALIASES = (
     "➕ Post yaratish", "➕ Создать пост", "➕ Новый пост",
     "➕ Yangi post yozish", "➕ Create post",
 )
-# UX V2: asosiy menyu yorlig'i endi «💎 PRO» — eski «⭐️ Premium» nomi
+# asosiy menyu yorlig'i endi «💎 PRO» — eski «⭐️ Premium» nomi
 # (keshdagi eski klaviatura xabarlari uchun) shu oilada saqlanadi.
 PREMIUM_ALIASES = (
     "💎 PRO",
@@ -572,7 +572,7 @@ CONTENT_PLAN_ALIASES = (
     "🧠 Kontent-reja", "🧠 Контент-план", "🧠 Content plan", "🧠 Content-plan",
 )
 ANALYTICS_ALIASES = ("📊 Analitika", "📊 Аналитика", "📊 Analytics")
-# UX V2: "📊 Statistika" asosiy menyudagi 6-tugma standartining yorlig'i —
+# "📊 Statistika" asosiy menyudagi 6-tugma standartining yorlig'i —
 # bir yagona "statistics" amali egasida (handlers/__init__.py dagi
 # statistics_button: admin → bot statistikasi, oddiy foydalanuvchi → o'z
 # kanallari analitikasi). Eski admin panel «📊 Statistika» tugmasi ham shu
@@ -632,7 +632,7 @@ def _uniq(*groups) -> tuple:
 MENU_TEXTS = {
     # --- Asosiy menyu (7 tugma + admin qatori) ---
     "new_post": button_texts("btn_new_post", extra=NEW_POST_ALIASES),
-    # 🤖 AI YORDAMCHI (3-QISM): «AI Studio» nomi «AI Yordamchi»ga
+    # 🤖 AI YORDAMCHI: «AI Studio» nomi «AI Yordamchi»ga
     # o'zgardi. Bu oila barcha 🤖 yorliqlarni (yangi cm_btn_studio +
     # eski cm_btn_ai aliaslari) bitta oqimga — audit/tahlil vositalari
     # bo'limiga (ai_studio_hub_entry) birlashtiradi.
@@ -647,9 +647,9 @@ MENU_TEXTS = {
     "create_content": button_texts("btn_create_content",
                                    extra=CREATE_CONTENT_LEGACY_ALIASES
                                    + AI_STUDIO_ALIASES),
-    # 👥 Do'stlarni taklif — referral endi asosiy menyuda (3-QISM).
+    # 👥 Do'stlarni taklif — referral endi asosiy menyuda.
     "invite_friends": button_texts("btn_invite_friends"),
-    # 🧩 BIRLASHTIRILGAN KONTENT YARATISH menyusi (PostAssist V2):
+    # 🧩 BIRLASHTIRILGAN KONTENT YARATISH menyusi:
     #   [✍️ Oddiy post (AI'siz)] [✨ AI bilan yaratish (Magic Post)]
     #   [🤖 AI Yordamchi] [◀️ Orqaga].
     # Eski bo'lingan tugmalar (📝 Matn → Post, 🎙 Ovoz → Post, 🤖 AI
@@ -692,7 +692,7 @@ MENU_TEXTS = {
     "transfer": button_texts("cab_btn_transfer", extra=TRANSFER_ALIASES),
     "content_plan": _uniq((BTN_CONTENT_PLAN,), CONTENT_PLAN_ALIASES),
     "analytics": _uniq((BTN_ANALYTICS,), ANALYTICS_ALIASES),
-    # UX V2: asosiy menyudagi "📊 Statistika" tugmasi — yagona statistics
+    # asosiy menyudagi "📊 Statistika" tugmasi — yagona statistics
     # amali (yukdagi statistics_button dispatcher orqali).
     "statistics": _uniq((BTN_STATISTICS, BTN_STATISTICS_RU, BTN_STATISTICS_EN),
                         STATISTICS_ALIASES),
@@ -867,7 +867,7 @@ def get_main_keyboard(is_admin=False, lang="uz", context=None,
                       include_image_post=None, include_post_score=None):
     """Asosiy reply-klaviatura — IXCHAM 5 TUGMA / 3 QATOR standarti.
 
-    3-BOSQICH: menyu maksimal 4-5 tugmaga qisqartirildi — foydalanuvchi
+    menyu maksimal 4-5 tugmaga qisqartirildi — foydalanuvchi
     endi chalkash 6 ta yorliqni emas, BITTA asosiy harakat, ikki qatorli
     yo'l va bitta «hammasi shu yerda» tugmasini ko'radi::
 
@@ -915,7 +915,7 @@ def get_main_keyboard(is_admin=False, lang="uz", context=None,
 
 
 def get_phase9_main_keyboard(is_admin=False, lang="uz", context=None):
-    """PHASE 9 — 5 ta yadro tugmali asosiy menyu (ixcham Sozlamalar yorlig'i bilan).
+    """5 ta yadro tugmali asosiy menyu (ixcham Sozlamalar yorlig'i bilan).
 
     Yadro tugmalar:
         [✍️ Post yaratish]   [📢 Kanallarim]
@@ -1101,7 +1101,7 @@ ADMIN_LEGACY_REPLY_TEXTS = _uniq(*ADMIN_LEGACY_REPLY_ROWS)
 def get_admin_panel_keyboard():
     """⛔️ DEPRECATED — eski admin reply-klaviaturasi ENDI MAVJUD EMAS.
 
-    3-bosqich: admin panelning pastdagi 10 talik oq reply-klaviaturasi
+    admin panelning pastdagi 10 talik oq reply-klaviaturasi
     butunlay olib tashlandi. Barcha admin boshqaruvi FAQAT yagona inline
     panel orqali (``adm_*`` callback'lari):
     ``keyboards.inline.get_admin_dashboard_keyboard()``.
