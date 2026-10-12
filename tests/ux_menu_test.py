@@ -25,11 +25,6 @@ from translations.settings_stats import (  # noqa: E402
 
 start = importlib.import_module("handlers.start")
 LANGS = ("uz", "ru", "en")
-HELP_LABELS = {
-    "uz": "ℹ️ Yordam va Qo'llanma",
-    "ru": "ℹ️ Помощь и руководство",
-    "en": "ℹ️ Help and Guide",
-}
 SAVE_LABELS = {
     "uz": "✅ Saqlash va davom etish",
     "ru": "✅ Сохранить и продолжить",
@@ -62,12 +57,11 @@ class UXMenuTests(unittest.IsolatedAsyncioTestCase):
             with self.subTest(lang=lang):
                 panel = kb.get_settings_profile_keyboard(lang)
                 flat = buttons(panel)
-                self.assertEqual([len(row) for row in panel.inline_keyboard], [2] * 5)
+                self.assertEqual([len(row) for row in panel.inline_keyboard], [2, 2])
                 self.assertEqual([b.callback_data for b in flat], list(CB_SETTINGS_HUB))
                 self.assertEqual([b.text for b in flat], [
                     settings_stats_t(key, lang) for key in SETTINGS_MENU_BUTTON_KEYS
                 ])
-                self.assertEqual(flat[-2].text, HELP_LABELS[lang])
                 self.assertNotIn("stgs_about", [b.callback_data for b in flat])
                 self.assertNotIn("help_support", [b.callback_data for b in flat])
                 help_buttons = buttons(kb.get_settings_help_hub_keyboard(lang))
@@ -93,7 +87,8 @@ class UXMenuTests(unittest.IsolatedAsyncioTestCase):
                 self.assertIn('<a href="https://t.me/support_user">@support_user</a>', text)
                 self.assertLessEqual(len(text), 4096)
                 markup = query.edit_message_text.call_args.kwargs["reply_markup"]
-                self.assertEqual([b.callback_data for b in buttons(markup)], ["help_support", "stgs_hub"])
+                self.assertEqual([b.callback_data for b in buttons(markup)],
+                                 ["help_support", "stgs_privacy", "stgs_delete_data", "stgs_hub"])
 
     async def test_help_without_username_keeps_ticket_access(self):
         for lang in LANGS:

@@ -487,16 +487,14 @@ def weekday_index(text):
 # Qoida: TILGA BOG'LIQ MATN HECH QACHON handler ichida qotirilmaydi —
 # klaviatura qaysi tilda chizilsa ham tugma bir xil ishlashi shart.
 PROFILE_ALIASES = (
-    # "Profil / Sozlamalar" — eski va alternative klaviatura yorliqlari.
-    # Uchala til ham qabul qilinadi, chunki chat tarixidagi eski xabarlarda
-    # aynan shu matnlar turgan bo'lishi mumkin. 3-QISM: asosiy menyu
-    # yorlig'i endi "👤 Profil" — eski "⚙️ Sozlamalar" va "👤 Kabinet &
-    # Sozlamalar" nomlari shu yerda (orqaga moslik: eski klaviatura
-    # xabarlari buzilmasligi uchun).
+    # Legacy profil yorliqlari endi alohida Profile submenu'ga boradi.
     "👤 Kabinet & Sozlamalar", "👤 Кабинет & Настройки", "👤 Account & Settings",
     "👤 Profil / Sozlamalar", "👤 Профиль / Настройки", "👤 Profile & Settings",
     "👤 Profil", "👤 Профиль", "👤 Profile",
     "👤 Kabinet", "👤 Кабинет", "👤 Account",
+)
+SETTINGS_ALIASES = (
+    # Eski settings yorliqlari settings hub'iga yo'naltiriladi.
     "⚙️ Sozlamalar", "⚙️ Настройки", "⚙️ Settings",
 )
 ADMIN_PANEL_ALIASES = ("⚙️ Admin panel", "⚙️ Админ панель", "⚙️ Админ-панель")
@@ -676,7 +674,8 @@ MENU_TEXTS = {
     "post_score": _uniq((BTN_POST_SCORE, BTN_POST_SCORE_RU, BTN_POST_SCORE_EN),
                         POST_SCORE_ALIASES),
     "premium": button_texts("btn_premium", extra=PREMIUM_ALIASES),
-    "settings": button_texts("btn_settings", extra=PROFILE_ALIASES),
+    "settings": button_texts("btn_settings", extra=SETTINGS_ALIASES),
+    "profile": _uniq(PROFILE_ALIASES,),
     "help": button_texts("btn_help", extra=HELP_ALIASES),
     "extras": button_texts("btn_extras", extra=EXTRAS_ALIASES),
     "main_menu": button_texts("btn_main_menu", extra=MAIN_MENU_ALIASES),

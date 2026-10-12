@@ -440,7 +440,7 @@ def test_navigation_stack_channels_back():
 def test_navigation_stack_settings_tools_back():
     print("== TEST 1c: ⚙️ Sozlamalar → 🧰 Vositalar → [◀️ Orqaga] → Sozlamalar ==")
 
-    # 1) Sozlamalar menyusi (8 guruh + ◀️ Orqaga).
+    # 1) Sozlamalar menyusi — statik 4 tugmali primary grid.
     fake = _FakeDB()
     ctx = _ctx("uz")
 
@@ -457,17 +457,19 @@ def test_navigation_stack_settings_tools_back():
     check("Vositalarda [◀️ Orqaga] → stgs_hub bor",
           "stgs_hub" in tools_cbs, str(tools_cbs))
 
-    # 3) [◀️ Orqaga] — SOZLAMALAR MENYUSIGA qaytadi (8 guruh + Orqaga).
+    # 3) [◀️ Orqaga] — Sozlamalar primary grid'iga qaytadi.
     q_back = _Query("stgs_hub", _Msg(), USER_ID)
     with _with_db(fake):
         _run(settings_mod.settings_menu_callback(_query_update(q_back), ctx))
     back_cbs = _cbs(q_back.screen.get("reply_markup"))
-    check("Orqaga → Sozlamalar menyusi (9 tugma)",
+    check("Orqaga → Sozlamalar menyusi (4 primary callbacks)",
           back_cbs == _cbs(get_settings_hub_keyboard("uz")), str(back_cbs))
     check("Orqaga → nav_section = settings",
           nav_mod.current_section(ctx) == nav_mod.SECTION_SETTINGS)
-    check("Orqaga → asosiy menyu klaviaturasi emas",
-          "close_msg" not in back_cbs and "stgs_back" in back_cbs, str(back_cbs))
+    check("Orqaga → four-button Settings root (not main-menu callbacks)",
+          back_cbs == ["stgs_lang", "stgs_clean", "stgs_notif", "sub_open"]
+          and "close_msg" not in back_cbs and "stgs_back" not in back_cbs,
+          str(back_cbs))
 
 
 # ===========================================================================

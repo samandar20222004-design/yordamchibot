@@ -32,7 +32,7 @@ Qamrov (topshiriq spetsifikatsiyasi bilan birma-bir):
            ishlaydi; ``stgs_tgl:clean:*`` OQ RO'YXAT qo'riqchisi joyida
            (soxta kalit → DB amali YO'Q).
   TEST 9:  💾 IMZO SAQLASH — ``normalize_signature`` boshqaruv/yo'nalish
-           belgilarini o'chiradi, ≤3 qator va ≤255 belgiga qisqadi;
+           belgilarini o'chiradi, ≤10 qator va ≤500 belgiga qisqadi;
            repository shu YAGONA qoidani ishlatadi (ikki nusxa yo'q).
   TEST 10: 🌐 i18n PARITET + 18-BELGI STANDARTI — yangi kalitlar uz/ru/en
            100% paritet, format argumentlari bir xil, inline yorliqlar ≤18.
@@ -316,13 +316,21 @@ def test_signature_injection():
     check("imzo boshga qo'shildi", start_out.lstrip().startswith("© Kanal"),
           start_out)
 
-    # 4g) Imzo normalize: ko'p qator / boshqaruv belgilari.
+    # 4g) Imzo normalize: multiline promo/link, 10 qator, NUL/bidi va 500 belgi.
     messy = normalize_signature("  a \n\n\n b \n\n c \n\n d\x00\u202eevil  ")
-    check("normalize: ≤3 qator", len(messy.split("\n")) <= 3, repr(messy))
+    check("normalize: bo'sh qatorlar yig'iladi", messy == "a\nb\nc\ndevil", repr(messy))
+    ten_lines = normalize_signature("\n".join(f"Promo {i}" for i in range(1, 12)))
+    check("normalize: ko'pi bilan 10 qator", len(ten_lines.split("\n")) == 10,
+          repr(ten_lines))
+    multiline_link = normalize_signature("Kanal\nhttps://t.me/example\nPromo\nNarx: 99")
+    check("normalize: multiline promo/link saqlanadi",
+          multiline_link == "Kanal\nhttps://t.me/example\nPromo\nNarx: 99",
+          repr(multiline_link))
     check("normalize: NUL o'chirildi", "\x00" not in messy, repr(messy))
     check("normalize: bidi-override o'chirildi", "\u202e" not in messy, repr(messy))
-    check("normalize: uzunlik chegarasi",
-          len(normalize_signature("x" * 900)) <= MAX_SIGNATURE_LEN)
+    check("normalize: 500 belgigacha saqlanadi",
+          normalize_signature("x" * 500) == "x" * MAX_SIGNATURE_LEN
+          and len(normalize_signature("x" * 900)) == MAX_SIGNATURE_LEN)
 
     # 4h) Bo'sh imzo — hech narsa qo'shilmaydi.
     empty_cfg = CleanerConfig(enabled=True, signature="   ", own_usernames=OWN)
@@ -425,19 +433,20 @@ def _rows(kb):
 
 
 def test_more_settings_navigation():
-    header("7", "🧭 KO'PROQ SOZLAMALAR — nested navigatsiya (hub 10 tugma)")
+    header("7", "🧭 SOZLAMALAR — primary 2×2 grid va toza submenu navigatsiyasi")
 
-    # 7a) ⚙️ Sozlamalar hub'i O'ZGARMAGAN — 10 tugma / 5 qator × 2.
+    # 7a) Sozlamalar hub'i to'rtta asosiy yo'nalish bilan ixcham qoladi.
     for lang in LANGS:
         kb = get_settings_profile_keyboard(lang)
         cbs = [cb for _, cb in _flat(kb)]
         rows = kb.inline_keyboard
-        check(f"[{lang}] hub = 10 tugma (layout buzilmadi)", len(cbs) == 10,
-              str(cbs))
-        check(f"[{lang}] hub = 5 qator × 2 (simmetrik)",
-              len(rows) == 5 and all(len(r) == 2 for r in rows), str(len(rows)))
-        check(f"[{lang}] hub'da YANGI cleaner tugmasi YO'Q (nested)",
-              not any(c.startswith("stgs_clean") or c == "stgs_more" for c in cbs),
+        check(f"[{lang}] hub = 4 asosiy tugma", cbs == [
+            "stgs_lang", "stgs_clean", "stgs_notif", "sub_open"], str(cbs))
+        check(f"[{lang}] hub = 2 qator × 2", len(rows) == 2
+              and all(len(r) == 2 for r in rows), str(len(rows)))
+        check(f"[{lang}] sekundar referral/payment/privacy hub'da yo'q",
+              not any(c in cbs for c in ("stgs_referral", "stgs_pay",
+                                         "stgs_privacy", "stgs_delete_data")),
               str(cbs))
 
     # 7b) ✍️ Post sozlamalari ekranidagi [⚙️ Ko'proq] — [◀️ Orqaga] bilan
@@ -467,28 +476,33 @@ def test_more_settings_navigation():
     # 7d) ⚙️ Ko'proq sozlamalar menyusi → 🧹 Avto-tozalash tugmasi bor.
     _check_more_menu()
 
-    # 7e) 🧹 Auto-cleaner klaviaturasi → [◀️ Orqaga] = stgs_more.
+    # 7e) Cleaner ekranidan [◀️ Orqaga] to'g'ridan-to'g'ri Settings hub'iga qaytadi.
     cleaner_values = {k: STG.SETTING_DEFAULTS[k] for k in STG.CLEANER_SETTING_KEYS}
     for lang in LANGS:
         ckb = STG._build_cleaner_keyboard(cleaner_values, lang)
         cbs = [cb for _, cb in _flat(ckb)]
-        check(f"[{lang}] cleaner ekrani: [◀️ Orqaga] → stgs_more",
-              cbs[-1] == "stgs_more", str(cbs))
+        check(f"[{lang}] cleaner ekrani: [◀️ Orqaga] → stgs_hub",
+              cbs[-1] == "stgs_hub", str(cbs))
         check(f"[{lang}] cleaner ekrani: bosh toggle bor",
               "stgs_tgl:clean:post_auto_clean" in cbs, str(cbs))
-        check(f"[{lang}] cleaner ekrani: ✍️ Imzo tugmasi bor",
+        check(f"[{lang}] cleaner ekrani: legacy watermark/imzo toggles bor",
+              "stgs_tgl:clean:post_watermark" in cbs
+              and "stgs_tgl:clean:post_signature" in cbs, str(cbs))
+        check(f"[{lang}] cleaner ekrani: ✍️ Imzo matni tugmasi bor",
               "stgs_clean_sig" in cbs, str(cbs))
         check(f"[{lang}] cleaner ekrani: 🧪 Namuna tugmasi bor",
               "stgs_clean_demo" in cbs, str(cbs))
         check(f"[{lang}] cleaner ekrani: 🗑 imzoni o'chirish bor",
               "stgs_clean_sig_clear" in cbs, str(cbs))
 
-    # 7f) Barcha yangi callback'lar REGISTRY'da (64-bayt limiti + prefix).
+    # 7f) Barcha cleaner callback'lar REGISTRY'da (64-bayt limiti + prefix).
     for cb in ("stgs_more", "stgs_clean", "stgs_clean_sig", "stgs_clean_demo",
                "stgs_clean_sig_clear", "stgs_tgl:clean:post_auto_clean",
                "stgs_tgl:clean:post_clean_mentions",
                "stgs_tgl:clean:post_clean_links",
-               "stgs_tgl:clean:post_clean_promo"):
+               "stgs_tgl:clean:post_clean_promo",
+               "stgs_tgl:clean:post_watermark",
+               "stgs_tgl:clean:post_signature"):
         check(f"registry: {cb}", is_registered_callback(cb))
 
     # IKKI QATLAMLI HIMOYA (repo arxitekturasi bilan bir xil): namespace
@@ -501,7 +515,7 @@ def test_more_settings_navigation():
           "clean" in STG._SETTING_SCOPES
           and set(STG.CLEANER_SETTING_KEYS) == {
               "post_auto_clean", "post_clean_mentions", "post_clean_links",
-              "post_clean_promo"},
+              "post_clean_promo", "post_watermark", "post_signature"},
           str(sorted(STG._SETTING_SCOPES.get("clean", {}))))
     check("OQ RO'YXAT'dan tashqari kalit rad etiladi (mantiq manbada)",
           "hacked_key" not in STG.CLEANER_SETTING_KEYS)
@@ -607,9 +621,17 @@ class _FakeDB:
         self.signature = signature
         self.set_calls = []
         self.signature_calls = []
+        self.combined_calls = 0
 
     async def run_db(self, fn, *args, **kwargs):
         name = getattr(fn, "__name__", str(fn))
+        if name == "get_user_settings_and_signature":
+            self.combined_calls += 1
+            keys = args[1] if len(args) > 1 else []
+            defaults = args[2] if len(args) > 2 else {}
+            values = {key: self.settings_store.get(key, bool(defaults.get(key, False)))
+                      for key in keys}
+            return values, self.signature
         if name == "get_user_settings_bulk":
             keys = args[1] if len(args) > 1 else []
             defaults = args[2] if len(args) > 2 else {}
@@ -660,6 +682,9 @@ def test_handler_routing():
           text[:160])
     check("stgs_clean: saqlangan imzo ko'rsatilgan",
           "https://t.me/my_channel" in text, text[-160:])
+    check("stgs_clean: toggles + imzo bitta DB read'da",
+          fake.combined_calls == 1 and not fake.signature_calls,
+          f"combined={fake.combined_calls}, signatures={fake.signature_calls}")
     check("stgs_clean: tavsifda 'formati saqlanadi' va'dasi bor",
           "saqlanadi" in text or "сохраняется" in text or "preserved" in text,
           text[:300])
@@ -704,7 +729,40 @@ def test_handler_routing():
           str(fake.signature_calls))
     check("clear: toast berildi", len(query.answered) >= 1, str(query.answered))
 
-    # 8f) Noma'lum stgs_* callback — jim, crash yo'q.
+    # 8f) To'liq 10 qator / 500 belgi imzo matni DB chegarasigacha saqlanadi.
+    from telegram.ext import ConversationHandler
+    long_signature = "\n".join(["x" * 50 for _ in range(9)] + ["y" * 41])
+    signature_replies = []
+
+    class _SignatureMessage:
+        text = long_signature
+
+        async def reply_text(self, text, **kwargs):
+            signature_replies.append(text)
+
+    signature_context = SimpleNamespace(
+        user_data={"lang": "uz", "cleaner_sig_chat": 555, "cleaner_sig_msg": 9001},
+        bot=_Bot(), chat_data={}, application=None,
+    )
+    signature_update = SimpleNamespace(
+        effective_user=SimpleNamespace(id=USER_ID),
+        effective_chat=SimpleNamespace(id=555),
+        message=_SignatureMessage(),
+    )
+    fake = _FakeDB()
+    signature_state = _with_db(
+        fake, lambda: STG.cleaner_signature_received(signature_update, signature_context),
+    )
+    check("signature input: 10 multiline lines / 500 chars accepted",
+          len(fake.signature) == 500 and len(fake.signature.split("\n")) == 10
+          and fake.signature == long_signature,
+          f"len={len(fake.signature)}, lines={len(fake.signature.splitlines())}")
+    check("signature input: multiline value persisted exactly",
+          fake.signature_calls == [(USER_ID, long_signature)] and signature_replies
+          and signature_state == ConversationHandler.END,
+          str(fake.signature_calls))
+
+    # 8g) Noma'lum stgs_* callback — jim, crash yo'q.
     fake = _FakeDB()
     query = _with_db(fake, lambda: _run_cb("stgs_totally_unknown"))
     check("noma'lum callback: crash yo'q, ekran yo'q",
@@ -735,7 +793,7 @@ def test_signature_storage():
           POST_SIGNATURE_MAX_LEN == MAX_SIGNATURE_LEN)
     samples = [
         ("  oddiy imzo  ", "oddiy imzo"),
-        ("a\n\n\nb\n\nc\n\nd", "a\nb\nc"),
+        ("a\n\n\nb\n\nc\n\nd", "a\nb\nc\nd"),
         ("x" * 900, "x" * MAX_SIGNATURE_LEN),
         ("evil\x00\u202e\u200e text", "evil text"),
         ("<b>teg</b>", "<b>teg</b>"),
@@ -755,9 +813,9 @@ def test_signature_storage():
     schema = (ROOT / "telegram_bot" / "schema.sql").read_text(encoding="utf-8")
     database_py = (ROOT / "telegram_bot" / "database.py").read_text(encoding="utf-8")
     check("schema.sql: post_signature_text ustuni bor",
-          "post_signature_text VARCHAR(255)" in schema)
+          "post_signature_text VARCHAR(500)" in schema)
     check("database.py: idempotent migratsiya bor",
-          "ADD COLUMN IF NOT EXISTS post_signature_text VARCHAR(255)" in database_py)
+          "ALTER COLUMN post_signature_text TYPE VARCHAR(500)" in database_py)
     check("database.py: funksiyalar eksport qilingan",
           "get_user_post_signature" in database_py
           and "set_user_post_signature" in database_py)

@@ -148,78 +148,46 @@ def test_main_menu_button_3_langs():
 # 3. KABINET INLINE KLAVIATURASI — har 3 tilda
 # ================================================================
 def test_cabinet_inline_keyboard_3_langs():
-    """Kabinet inline klaviaturasi 3 tilda to'g'ri yorliqlar va bir xil callback.
+    """Primary Settings grid stays 2×2 and localized in uz/ru/en."""
+    print("== Settings primary inline grid (uz/ru/en) ==")
+    from keyboards.inline import (get_cabinet_inline_keyboard,
+                                  get_profile_menu_keyboard,
+                                  get_settings_help_hub_keyboard)
 
-    Sozlamalar / Ko'proq — 10 tugma (5x2). Yordam, bot haqida va
-    qo'llab-quvvatlash yagona yordam oynasida; 🔐 Maxfiylik siyosati va
-    🗑 Ma'lumotlarimni o'chirish (SPRINT 1) alohida qatorda.
-    """
-    print("== Kabinet inline klaviaturasi (uz/ru/en) ==")
-    from keyboards.inline import get_cabinet_inline_keyboard
+    expected_cbs = ["stgs_lang", "stgs_clean", "stgs_notif", "sub_open"]
+    keyboards = {lang: get_cabinet_inline_keyboard(lang) for lang in ("uz", "ru", "en")}
+    for lang, kb in keyboards.items():
+        rows = [[(b.text, b.callback_data) for b in row] for row in kb.inline_keyboard]
+        cbs = [callback for row in rows for _, callback in row]
+        check(f"{lang} Settings: 2 qator × 2 tugma", [len(row) for row in rows] == [2, 2],
+              str(rows))
+        check(f"{lang} Settings: 4 primary callbacks", cbs == expected_cbs, str(cbs))
+        check(f"{lang} Settings: cleaner and PRO labels localized",
+              bool(rows[0][1][0]) and bool(rows[1][1][0]), str(rows))
 
-    # UZ inline keyboard
-    kb_uz = get_cabinet_inline_keyboard("uz")
-    rows_uz = [[(b.text, b.callback_data) for b in row] for row in kb_uz.inline_keyboard]
-    check("uz kabinet: 5 qator (10 tugmali panel)",
-          len(rows_uz) == 5, str(len(rows_uz)))
-    check("uz kabinet: Til + Post sozlamalari",
-          rows_uz[0] == [("🌐 Til / Язык", "stgs_lang"),
-                         ("✍️ Post sozlamalari", "stgs_post")], str(rows_uz[0]))
-    check("uz kabinet: Bildirishnomalar + Do'stlarni taklif",
-          rows_uz[1] == [("🔔 Bildirishnomalar", "stgs_notif"),
-                         ("👥 Do'stlarni taklif", "stgs_referral")], str(rows_uz[1]))
-    check("uz kabinet: To'lovlar tarixi + PRO",
-          rows_uz[2] == [("💳 To'lovlar tarixi", "stgs_pay"),
-                         ("💎 PRO", "sub_open")], str(rows_uz[2]))
-    check("uz kabinet: Maxfiylik + O'chirish (SPRINT 1 qatori)",
-          rows_uz[3] == [("🔐 Maxfiylik", "stgs_privacy"),
-                         ("🗑 O'chirish", "stgs_delete_data")],
-          str(rows_uz[3]))
-    check("uz kabinet: Yordam va Qo'llanma + Yopish",
-          rows_uz[4] == [("ℹ️ Yordam va Qo'llanma", "stgs_help_hub"),
-                         ("❌ Yopish", "stgs_back")], str(rows_uz[4]))
+    cbs_by_lang = [[b.callback_data for row in keyboards[lang].inline_keyboard for b in row]
+                   for lang in ("uz", "ru", "en")]
+    check("callback_data uz == ru == en",
+          cbs_by_lang[0] == cbs_by_lang[1] == cbs_by_lang[2])
 
-    # RU inline keyboard
-    kb_ru = get_cabinet_inline_keyboard("ru")
-    rows_ru = [[(b.text, b.callback_data) for b in row] for row in kb_ru.inline_keyboard]
-    check("ru kabinet: 5 qator (10 tugmali panel)", len(rows_ru) == 5)
-    check("ru kabinet: Язык tugmasi",
-          rows_ru[0][0] == ("🌐 Язык / Language", "stgs_lang"), str(rows_ru[0]))
-    check("ru kabinet: eski Til (cab_lang) tugmasi YO'Q",
-          all(cb != "cab_lang" for row in rows_ru for _label, cb in row))
+    # Secondary actions are reachable only through their natural parent menus.
+    profile_cbs = [b.callback_data for row in get_profile_menu_keyboard("uz").inline_keyboard
+                   for b in row]
+    help_cbs = [b.callback_data for row in
+                get_settings_help_hub_keyboard("uz").inline_keyboard for b in row]
+    check("Profile submenu exposes referral", "stgs_referral" in profile_cbs)
+    check("Help submenu exposes privacy/data deletion",
+          "stgs_privacy" in help_cbs and "stgs_delete_data" in help_cbs)
+    check("secondary callbacks are absent from primary grid",
+          not any(callback in expected_cbs for callback in
+                  ("stgs_referral", "stgs_pay", "stgs_privacy", "stgs_delete_data")))
 
-    # EN inline keyboard
-    kb_en = get_cabinet_inline_keyboard("en")
-    rows_en = [[(b.text, b.callback_data) for b in row] for row in kb_en.inline_keyboard]
-    check("en kabinet: 5 qator (10 tugmali panel)", len(rows_en) == 5)
-    check("en kabinet: Language tugmasi",
-          rows_en[0][0] == ("🌐 Language", "stgs_lang"), str(rows_en[0]))
-    check("en kabinet: eski Til (cab_lang) tugmasi YO'Q",
-          all(cb != "cab_lang" for row in rows_en for _label, cb in row))
-
-    # Callback data 3 tilda ham bir xil (tilga bog'liq emas)
-    cbs_uz = [b.callback_data for row in kb_uz.inline_keyboard for b in row]
-    cbs_ru = [b.callback_data for row in kb_ru.inline_keyboard for b in row]
-    cbs_en = [b.callback_data for row in kb_en.inline_keyboard for b in row]
-    check("callback_data uz == ru", cbs_uz == cbs_ru)
-    check("callback_data ru == en", cbs_ru == cbs_en)
-
-    # Har bir callback mavjud (barchasi MAVJUD stgs_*/help oqimlariga ulanadi)
-    # Eski about/support callback'lari routing'da qoladi, hub'da esa YO'Q.
-    expected_cbs = [
-        "stgs_lang", "stgs_post", "stgs_pay", "stgs_notif",
-        "stgs_referral", "sub_open", "stgs_help_hub", "stgs_back",
-    ]
-    for cb in expected_cbs:
-        check(f"callback '{cb}' mavjud", cb in cbs_uz)
-    for cb in ("stgs_rewards", "stgs_tools", "close_cabinet", "stgs_about", "help_support"):
-        check(f"eski guruh callback '{cb}' kabinetda YO'Q", cb not in cbs_uz)
     removed_cbs = [
         "cab_channels", "cab_analytics", "cab_pending", "cab_queue",
         "cab_balance", "cab_bonus", "cab_referral", "cab_lang",
     ]
     for cb in removed_cbs:
-        check(f"eski dublikat callback '{cb}' kabinetda YO'Q", cb not in cbs_uz)
+        check(f"legacy duplicate '{cb}' absent", cb not in cbs_by_lang[0])
 
 
 # ================================================================

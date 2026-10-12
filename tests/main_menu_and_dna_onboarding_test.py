@@ -13,9 +13,10 @@ Topshiriq spetsifikatsiyasi bilan birma-bir:
       KANONIK sozlamalar inline hub'ida (TEST 2).
       Admin uchun faqat oxirga [⚙️ Admin Panel] qatori qo'shiladi.
 
-  TEST 2 — ⚙️ SOZLAMALAR / KO'PROQ HUB'I
-      get_settings_profile_keyboard = 10 tugma / 5 qator (simmetrik 2+2),
-      [💎 PRO] (sub_open) va [❓ Yordam] (stgs_help_hub) qatorlari bilan;
+  TEST 2 — ⚙️ SOZLAMALAR PRIMARY GRID
+      get_settings_profile_keyboard = 4 tugma / 2×2 grid:
+      til, Auto-Cleaner & Imzo, bildirishnomalar, PRO/tariflar;
+      secondary actions live in Profile, PRO, and Help submenus.
       get_cabinet_inline_keyboard va get_settings_hub_keyboard AYNAN shu
       panelni qaytaradi (dublikat inline klaviatura YO'Q).
 
@@ -195,33 +196,30 @@ def test_1_compact_main_menu():
 # ===========================================================================
 # TEST 2 — ⚙️ SOZLAMALAR / KO'PROQ HUB'I
 # ===========================================================================
-def test_2_settings_more_hub():
-    header("2", "⚙️ Sozlamalar / Ko'proq — PRO va Yordam inline hub'ida")
+def test_2_settings_primary_grid():
+    header("2", "⚙️ Sozlamalar — four-button responsive primary grid")
     canonical = KI.get_settings_profile_keyboard("uz")
     check("PRO (sub_open) hub'da bor",
           "sub_open" in [cb for _, cb in ik_flat(canonical)], str(ik_flat(canonical)))
-    check("Yordam (stgs_help_hub) hub'da bor",
-          "stgs_help_hub" in [cb for _, cb in ik_flat(canonical)], str(ik_flat(canonical)))
 
     for lang in LANGS:
         kb = KI.get_settings_profile_keyboard(lang)
         rows = ik_rows(kb)
         cbs = [cb for _, cb in ik_flat(kb)]
         labels = [t for t, _ in ik_flat(kb)]
-        check(f"[{lang}] 10 tugma / 5 qator (simmetrik 2+2)",
-              len(labels) == 10 and len(rows) == 5
-              and all(len(r) == 2 for r in rows), str(rows))
+        check(f"[{lang}] 4 tugma / 2 qator × 2",
+              len(labels) == 4 and len(rows) == 2
+              and all(len(row) == 2 for row in rows), str(rows))
         check(f"[{lang}] callback tartibi SSOT bilan bir xil",
               cbs == list(CB_SETTINGS_HUB), str(cbs))
-        check(f"[{lang}] PRO yorlig'i = ss_btn_premium",
-              settings_stats_t("ss_btn_premium", lang) in labels, str(labels))
-        check(f"[{lang}] Yordam yorlig'i = ss_btn_help",
-              settings_stats_t("ss_btn_help", lang) in labels, str(labels))
-        # Navigatsiya standarti: oxirgi qator [ℹ️ Yordam va Qo'llanma | ❌ Yopish].
-        check(f"[{lang}] oxirgi qator kanonik [help | close]",
-              rows[-1] == [(settings_stats_t("ss_btn_help", lang), "stgs_help_hub"),
-                           (settings_stats_t("ss_btn_close", lang), "stgs_back")],
-              str(rows[-1]))
+        check(f"[{lang}] cleaner yorlig'i localized",
+              settings_stats_t("ss_btn_cleaner_primary", lang) in labels, str(labels))
+        check(f"[{lang}] PRO yorlig'i = ss_btn_pro_plans",
+              settings_stats_t("ss_btn_pro_plans", lang) in labels, str(labels))
+        check(f"[{lang}] referral/payment/privacy/help secondary buttons are moved",
+              not any(callback in cbs for callback in
+                      ("stgs_referral", "stgs_pay", "stgs_privacy", "stgs_delete_data",
+                       "stgs_help_hub")), str(cbs))
         # Dublikat inline klaviatura YO'Q (FAZA 18 qoidasi saqlanadi).
         check(f"[{lang}] get_cabinet_inline_keyboard == kanonik panel",
               ik_rows(KI.get_cabinet_inline_keyboard(lang)) == rows)
@@ -300,8 +298,11 @@ def test_3_backward_compatibility():
         ("⚙️ Sozlamalar", "user_cabinet_menu"),
         ("⚙️ Настройки", "user_cabinet_menu"),
         ("⚙️ Settings", "user_cabinet_menu"),
-        ("👤 Kabinet & Sozlamalar", "user_cabinet_menu"),
-        ("👤 Account & Settings", "user_cabinet_menu"),
+        ("👤 Kabinet & Sozlamalar", "user_profile_menu"),
+        ("👤 Кабинет & Настройки", "user_profile_menu"),
+        ("👤 Account & Settings", "user_profile_menu"),
+        ("👤 Profil", "user_profile_menu"),
+        ("👤 Profile", "user_profile_menu"),
         ("💎 PRO", "start_subscription"),
         ("⭐️ Premium", "start_subscription"),
     )
@@ -845,7 +846,7 @@ def main():
     print(" 🧭 3-BOSQICH — MENYU IXCHAMLIGI + ONBOARDING (KANAL DNK) TESTLARI")
     print("=" * 64)
     test_1_compact_main_menu()
-    test_2_settings_more_hub()
+    test_2_settings_primary_grid()
     test_3_backward_compatibility()
     test_4_dna_onboarding_offer()
     test_5_free_sample_draft()

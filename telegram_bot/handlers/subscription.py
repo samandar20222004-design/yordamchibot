@@ -527,6 +527,13 @@ def _get_subscription_keyboard(plan: str, lang: str = "uz") -> InlineKeyboardMar
         keyboard.append([
             InlineKeyboardButton(get_text("btn_card_payment", lang), callback_data="sub_card_pay"),
         ])
+    # Billing history belongs in the PRO hub, not in the primary settings grid.
+    from translations import settings_stats_t
+
+    keyboard.append([
+        InlineKeyboardButton(settings_stats_t("ss_btn_payments", lang),
+                             callback_data="sub_history")
+    ])
     keyboard.append([
         InlineKeyboardButton(get_text("sub_btn_promo", lang), callback_data="sub_promo")
     ])
@@ -707,6 +714,14 @@ async def subscription_callback(update: Update, context: ContextTypes.DEFAULT_TY
             )
         except Exception as _silent_exc:
             log_silent_failure("handlers.subscription:subscription_callback:667", _silent_exc)
+        return SUBSCRIPTION_VIEW
+
+    if data == "sub_history":
+        # Billing history is a natural child of PRO & Tariffs and returns to
+        # this same hub rather than back to the generic settings grid.
+        from handlers.settings import _render_payments
+
+        await _render_payments(query, user_id, lang, back_callback="sub_back")
         return SUBSCRIPTION_VIEW
 
     if data.startswith("sub_pay:"):

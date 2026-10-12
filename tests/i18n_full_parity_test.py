@@ -249,9 +249,8 @@ def test_reply_buttons_route_to_handlers():
           len(menu_handlers) >= 30, str(len(menu_handlers)))
 
     # Klaviatura tugma kaliti → kutilgan handler funksiyasi.
-    # (Klassik: «🤖 AI Yordamchi» — AI hub'ga olib boradi; «👥 Do'stlarni
-    # taklif» asosiy menyuda emas, lekin routing aliasi sifatida referral
-    # ekranini ochadi; «⚙️ Sozlamalar» — 7 tugmali profil paneli.)
+    # («⚙️ Sozlamalar» — tez, statik four-button Settings root; legacy
+    # Kabinet/Profile aliases alohida Profile ekraniga yo'naltiriladi.)
     routes = {
         "btn_new_post": "start_new_post",
         "btn_ai_studio": "ai_studio_hub_entry",
@@ -337,7 +336,7 @@ def test_reply_buttons_route_to_handlers():
     stray = [h for h in menu_handlers if h.check_update(upd)]
     check("begona matn menyu handlerlariga tushmaydi", not stray, str(len(stray)))
 
-    # Vazifada nomi qat'iy ko'rsatilgan uchlik aniq ishlashi alohida tasdiqlanadi.
+    # Vazifada nomi qat'iy ko'rsatilgan eski matnlar xavfsiz maqsadga boradi.
     for label in ("➕ Yangi post", "➕ Новый пост", "➕ New post"):
         upd = _mk_update(label)
         hits = [_target_of(H, h.callback) for h in menu_handlers if h.check_update(upd)]
@@ -349,8 +348,8 @@ def test_reply_buttons_route_to_handlers():
         upd = _mk_update(label)
         hits = [_target_of(H, h.callback) for h in menu_handlers if h.check_update(upd)]
         names = {getattr(m, "__name__", str(m)) for m in hits}
-        check(f"Sozlamalar uchligi → user_cabinet_menu: {label!r}",
-              names == {"user_cabinet_menu"}, str(names))
+        check(f"Legacy Profile alias → user_profile_menu: {label!r}",
+              names == {"user_profile_menu"}, str(names))
 
 
 def test_keyboard_refresh_on_language_change():

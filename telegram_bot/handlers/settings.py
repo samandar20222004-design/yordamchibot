@@ -46,7 +46,7 @@ import time
 from telegram import InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 
-from config import ADMIN_IDS_SET, BOT_VERSION, SUPPORT_USERNAME
+from config import ADMIN_IDS_SET, BOT_USERNAME, BOT_VERSION, SUPPORT_USERNAME
 import database as db
 from keyboards.callback_data import cb
 from keyboards.default import get_main_keyboard
@@ -57,6 +57,7 @@ from keyboards.inline import (
     get_settings_back_keyboard,
     get_settings_help_hub_keyboard,
     get_settings_profile_keyboard,
+    get_profile_menu_keyboard,
     get_settings_hub_keyboard,
     get_settings_rewards_keyboard,
 )
@@ -133,13 +134,9 @@ POST_SETTING_KEYS = {
     "post_watermark": "ss_post_watermark",
     "post_signature": "ss_post_signature",
 }
-#: 🧹 POST AUTO-CLEANER kalitlari (⚙️ Sozlamalar → ✍️ Post sozlamalari →
-#: ⚙️ Ko'proq sozlamalar → 🧹 Avto-tozalash ekrani).
-#:
-#: MUHIM: bu kalitlar ATAYLAB ``POST_SETTING_KEYS`` ga QO'SHILMAGAN — post
-#: sozlamalari ekranining qator tuzilishi (2 toggle + [◀️ Orqaga]) mavjud
-#: testlar bilan qat'iy qo'riqlanadi. Auto-cleaner o'z NESTED ekranida
-#: yashaydi, shu sababli ⚙️ Sozlamalar hub'i 10 tugma bo'lib qoladi.
+#: 🧹 Auto-cleaner ekranida ko'rsatiladigan sozlama kalitlari. Asosiy post
+#: toggles ham shu ekranda saqlanadi, shunda ixcham 4-button primary grid
+#: mavjud imkoniyatlarni yashirmaydi.
 #:
 #: ``post_auto_clean`` — bosh kalit (standart O'CHIRILGAN, opt-in):
 #: o'chirilganda dvigatel matnga UMUMAN tegmaydi. Qolganlari — nima
@@ -149,6 +146,8 @@ CLEANER_SETTING_KEYS = {
     "post_clean_mentions": "ss_post_watermark",
     "post_clean_links": "ss_post_watermark",
     "post_clean_promo": "ss_post_watermark",
+    "post_watermark": "ss_post_watermark",
+    "post_signature": "ss_post_signature",
 }
 #: Standart qiymatlar (sozlama hali saqlanmagan bo'lsa).
 SETTING_DEFAULTS = {
@@ -236,37 +235,22 @@ def _scope_key_label(key: str) -> str:
 async def build_settings_hub_text(user_id: int, lang: str, is_admin: bool,
                                   user_code=None, channels=None,
                                   stats=None, ad_line: str = "") -> str:
-    """⚙️ Sozlamalar hub ekranining matni (profil kartasi).
+    """⚙️ Sozlamalar hub'ining statik matni (DB/foydalanuvchi ma'lumoti yo'q).
 
-    Matn manbasi — ``handlers.start.build_cabinet_text`` (profil ekrani bilan
-    AYNAN bir xil), shu sababli hub va [👤 Profil] bir-biridan farq qilmaydi.
-    Agar ``user_code`` / ``channels`` / ``stats`` argumentlari berilmasa,
-    ma'lumotlar bazadan o'qiladi (ekran qayta chizilganda qayta o'qish uchun).
+    Profil ma'lumotlari `/profile` ichida ko'rsatiladi. Settings entry-point
+    esa statik qoladi: bu cold-start/inline navigation'da DB round-trip'larni
+    olib tashlaydi va ekran matnini/kb'ni har safar darhol qurish imkonini beradi.
+    Parametrlar eski chaqiruvchilar uchun API mosligi sifatida qoldirilgan.
     """
-    from handlers.start import build_cabinet_text, cabinet_credits_text, load_cabinet_data
-
-    if stats is None and channels is None and user_code is None:
-        # Odatdagi yo'l: RAM profil (0 DB) yoki BITTA birlashgan so'rov.
-        stats, channels_count, user_code = await load_cabinet_data(user_id)
-    else:
-        if stats is None:
-            stats = await db.run_db(db.get_referral_stats, user_id)
-        if channels is None:
-            channels = await db.run_db(db.get_user_channels, user_id)
-        if user_code is None:
-            user_code = await db.run_db(db.get_user_code, user_id)
-        channels_count = len(channels)
-    credits_text = cabinet_credits_text(is_admin, stats["ai_credits"], lang)
-    streak_text = get_text("cabinet_streak", lang, streak=stats.get("streak", 0))
-    return build_cabinet_text(
-        user_id, user_code, credits_text, streak_text,
-        channels_count, stats["referrals_count"], lang, ad_line,
-    )
+    return "".join((
+        settings_stats_t("ss_settings_hub_title", lang),
+        settings_stats_t("ss_settings_hub_hint", lang),
+    ))
 
 
 async def render_settings_hub(update_message, context, user_id: int,
                               lang: str, is_admin: bool) -> None:
-    """⚙️ Sozlamalar hub ekranini yuboradi (profil matni + 8 tugmali menyu)."""
+    """⚙️ Statik, to'rt tugmali Sozlamalar hub'ini yuboradi."""
     text = await build_settings_hub_text(user_id, lang, is_admin)
     await update_message.reply_text(
         text,
@@ -277,15 +261,14 @@ async def render_settings_hub(update_message, context, user_id: int,
 
 async def _render_hub_screen(query, context, user_id: int, lang: str,
                              is_admin: bool) -> None:
-    """⚙️ Sozlamalar hub'ini qayta chizadi (stgs_hub → shu ekran)."""
+    """⚙️ Sozlamalar hub'ini DB'siz qayta chizadi (stgs_hub → shu ekran)."""
     try:
         context.user_data.pop("settings_help_flow", None)
     except Exception as _silent_exc:
-        log_silent_failure("handlers.settings:_render_hub_screen", _silent_exc, user_id=user_id, lang=lang)
+        log_silent_failure("handlers.settings:_render_hub_screen", _silent_exc,
+                           user_id=user_id, lang=lang)
     text = await build_settings_hub_text(user_id, lang, is_admin)
-    await _edit_or_reply(
-        query, text, get_settings_hub_keyboard(lang),
-    )
+    await _edit_or_reply(query, text, get_settings_hub_keyboard(lang))
 
 
 async def _render_rewards_hub(query, lang: str) -> None:
@@ -450,18 +433,39 @@ def _cleaner_signature_line(user_id_signature: str, lang: str) -> str:
 
 
 async def _load_cleaner_state(user_id: int, values: dict | None = None) -> dict:
-    """🧹 Auto-cleaner holatini bazadan o'qiydi (toggle'lar + ✍️ imzo)."""
+    """🧹 Auto-cleaner holatini o'qiydi (toggle'lar + ✍️ imzo).
+
+    Repository qo'llasa sozlamalar va imzo bitta JOIN so'rovida olinadi;
+    legacy/mock adapterlar uchun ikkita avvalgi getter bilan fallback bor.
+    """
     keys = list(CLEANER_SETTING_KEYS)
+    signature = ""
+    combined_loaded = False
+    combined = getattr(db, "get_user_settings_and_signature", None)
+    if callable(combined):
+        try:
+            result = await db.run_db(
+                combined, user_id, keys, SETTING_DEFAULTS,
+            )
+            if isinstance(result, tuple) and len(result) == 2:
+                combined_values, signature = result
+                combined_loaded = True
+                if values is None:
+                    values = combined_values
+        except Exception:
+            log_silent_failure("handlers.settings:_load_cleaner_state:combined",
+                               None, user_id=user_id)
     if values is None:
         values = await db.run_db(
             db.get_user_settings_bulk, user_id, keys, SETTING_DEFAULTS,
         )
-    try:
-        signature = await db.run_db(db.get_user_post_signature, user_id)
-    except Exception:
-        signature = ""
-        log_silent_failure("handlers.settings:_load_cleaner_state", None,
-                           user_id=user_id)
+    if not combined_loaded:
+        try:
+            signature = await db.run_db(db.get_user_post_signature, user_id)
+        except Exception:
+            signature = ""
+            log_silent_failure("handlers.settings:_load_cleaner_state:signature",
+                               None, user_id=user_id)
     return {"values": values or {}, "signature": signature or ""}
 
 
@@ -484,11 +488,13 @@ def _build_cleaner_text(values: dict, signature: str, lang: str) -> str:
 def _build_cleaner_keyboard(values: dict, lang: str) -> InlineKeyboardMarkup:
     """🧹 Auto-cleaner klaviaturasi — toggle'lar + ✍️ imzo + 🧪 namuna.
 
-    Tugmalar juft qatorlarda (ixcham layout):
+    Tugmalar ixcham qatorlarda; auto-cleaner va umumiy post toggle'lari
+    bitta joyda saqlanadi:
 
-        [✅/⬜️ Avto-tozalash]                        ← bosh kalit
+        [✅/⬜️ Avto-tozalash]
         [✅/⬜️ @ Eslatmalar] [✅/⬜️ 🔗 Havolalar]
-        [✅/⬜️ 📢 Reklama]   [✍️ Imzo]
+        [✅/⬜️ 📢 Reklama]   [✍️ Suv belgisi]
+        [✍️ Muallif imzosi] [✍️ Imzo matni]
         [🧪 Namuna]         [🗑 Imzoni o'chir]
         [◀️ Orqaga]
     """
@@ -501,7 +507,8 @@ def _build_cleaner_keyboard(values: dict, lang: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
         [toggle("post_auto_clean")],
         [toggle("post_clean_mentions"), toggle("post_clean_links")],
-        [toggle("post_clean_promo"), _inline(
+        [toggle("post_clean_promo"), toggle("post_watermark")],
+        [toggle("post_signature"), _inline(
             settings_stats_t("ss_btn_clean_sig", lang),
             callback_data="stgs_clean_sig",
         )],
@@ -510,7 +517,7 @@ def _build_cleaner_keyboard(values: dict, lang: str) -> InlineKeyboardMarkup:
          _inline(settings_stats_t("ss_btn_clean_clear", lang),
                  callback_data="stgs_clean_sig_clear")],
         [_inline(settings_stats_t("ss_btn_back", lang),
-                 callback_data="stgs_more")],
+                 callback_data="stgs_hub")],
     ])
 
 
@@ -577,7 +584,7 @@ async def _render_cleaner_demo(query, user_id: int, lang: str) -> None:
         [_inline(settings_stats_t("ss_btn_cleaner", lang),
                  callback_data="stgs_clean")],
         [_inline(settings_stats_t("ss_btn_back", lang),
-                 callback_data="stgs_more")],
+                 callback_data="stgs_hub")],
     ]
     # ``html_to_text`` — parse_mode=None fallback uchun (xavfsiz oddiy matn).
     await _edit_or_reply(
@@ -660,7 +667,7 @@ async def cleaner_signature_received(update, context: ContextTypes.DEFAULT_TYPE)
     """✍️ Yuborilgan imzo/havolani tekshiradi, saqlaydi va ekranni qaytaradi.
 
     Xavfsizlik: matn ``normalize_signature`` orqali tozalanadi (boshqaruv/
-    yo'nalish belgilari yo'q, ≤3 qator, ≤255 belgi) va ekranda HTML-escape
+    yo'nalish belgilari yo'q, ≤10 qator, ≤500 belgi) va ekranda HTML-escape
     qilinadi — foydalanuvchi kiritgan ``<b>`` teg sifatida ishlamaydi.
     """
     from utils.post_signature import normalize_signature
@@ -783,9 +790,7 @@ async def _render_profile_screen(query, context, user_id: int, lang: str,
         sub_line = settings_stats_t("ss_profile_sub_free", lang)
     text = f"{text}\n{sub_line}"
 
-    await _edit_or_reply(
-        query, text, get_settings_profile_keyboard(lang),
-    )
+    await _edit_or_reply(query, text, get_profile_menu_keyboard(lang))
 
 
 def _edit_or_reply(query, text: str, reply_markup=None) -> None:
@@ -945,13 +950,16 @@ def _fmt_payment_date(value) -> str:
         return str(value)[:16]
 
 
-async def _render_payments(query, user_id: int, lang: str) -> None:
-    """💳 To'lovlar tarixi ekrani."""
+async def _render_payments(query, user_id: int, lang: str,
+                           *, back_callback: str = "stgs_hub") -> None:
+    """💳 To'lovlar tarixi ekrani (settings yoki PRO parentiga qaytadi)."""
     history = await db.run_db(db.get_user_payment_history, user_id, 10)
+    back_markup = InlineKeyboardMarkup([[
+        _inline(settings_stats_t("ss_btn_back", lang), callback_data=back_callback),
+    ]])
     if not history:
         await _edit_or_reply(
-            query, settings_stats_t("ss_pay_empty", lang),
-            get_settings_back_keyboard(lang),
+            query, settings_stats_t("ss_pay_empty", lang), back_markup,
         )
         return
     lines = [settings_stats_t("ss_pay_title", lang), ""]
@@ -976,9 +984,7 @@ async def _render_payments(query, user_id: int, lang: str) -> None:
             status=status_mark,
         ))
     lines += ["", settings_stats_t("ss_pay_count", lang, n=len(history))]
-    await _edit_or_reply(
-        query, "\n".join(lines), get_settings_back_keyboard(lang),
-    )
+    await _edit_or_reply(query, "\n".join(lines), back_markup)
 
 
 async def _render_referral(query, context, user_id: int, lang: str,
@@ -986,9 +992,11 @@ async def _render_referral(query, context, user_id: int, lang: str,
     """👥 Do'stlarni taklif qilish — referral menyu (ulashish + kunlik bonus)."""
     from handlers.start import cabinet_credits_text
 
-    bot_obj = await context.bot.get_me()
+    # Username config/cache'dan olinadi; Telegram getMe round-trip'i referral
+    # ekranini ochishni bloklamasin. Test/embedded botlarda bot.username ustun.
+    bot_username = (getattr(context.bot, "username", None) or BOT_USERNAME or "").strip().lstrip("@")
     stats = await db.run_db(db.get_referral_stats, user_id)
-    ref_link = f"https://t.me/{bot_obj.username}?start=ref_{user_id}"
+    ref_link = f"https://t.me/{bot_username}?start=ref_{user_id}"
     credits_text = cabinet_credits_text(is_admin, stats["ai_credits"], lang)
     text = get_text(
         "referral_menu", lang, credits=credits_text,

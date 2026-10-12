@@ -593,8 +593,10 @@ def test_one_time_ticket_flow():
         state5 = _run(sup.support_back_callback(_cb_update(query), ctx5))
     check("[◀️ Orqaga] → ConversationHandler.END",
           state5 == ConversationHandler.END, str(state5))
-    check("[◀️ Orqaga] → ⚙️ Sozlamalar hub'i qayta chizildi",
-          bool(query.edits) and "stgs_help_hub" in _flat_cbs(query.screen.get("markup")),
+    check("[◀️ Orqaga] → four-button ⚙️ Sozlamalar grid'i qayta chizildi",
+          bool(query.edits)
+          and _flat_cbs(query.screen.get("markup"))
+          == ["stgs_lang", "stgs_clean", "stgs_notif", "sub_open"],
           str(_flat_cbs(query.screen.get("markup"))))
 
     # 1g-2) Router darajasidagi isbot: 540 holatida HAM matn, HAM rasm+izoh
@@ -981,17 +983,14 @@ def test_regression_and_parity():
         check(f"database.{fn_name}() mavjud",
               callable(getattr(db_mod, fn_name, None)))
 
-    # ⚙️ Sozlamalar / Ko'proq — 8 tugma (4x2), support yordam oynasida.
-    #    (3-BOSQICH: PRO va Yordam asosiy reply-menudan shu hub'ga ko'chirildi.)
+    # ⚙️ Sozlamalar — four-button primary grid; support/privacy live in Help.
     from keyboards.inline import (get_settings_help_hub_keyboard,
                                   get_settings_hub_keyboard,
                                   get_support_ticket_keyboard)
 
     hub_cbs = _flat_cbs(get_settings_hub_keyboard("uz"))
-    check("hub: 10 tugma (5x2), yagona yordam kirishi",
-          hub_cbs == ["stgs_lang", "stgs_post", "stgs_notif", "stgs_referral",
-                      "stgs_pay", "sub_open", "stgs_privacy", "stgs_delete_data",
-                      "stgs_help_hub", "stgs_back"],
+    check("hub: four primary actions (2x2)",
+          hub_cbs == ["stgs_lang", "stgs_clean", "stgs_notif", "sub_open"],
           str(hub_cbs))
     profile_buttons = [b for row in get_settings_help_hub_keyboard("uz").inline_keyboard
                        for b in row if b.text.endswith("Qo'llab-quvvatlash")]

@@ -29,6 +29,7 @@ from keyboards.default import (
     BTN_CREATE_CONTENT, BTN_CREATE_CONTENT_RU, BTN_CREATE_CONTENT_EN,
     BTN_POST_CREATE, BTN_POST_CREATE_RU, BTN_POST_CREATE_EN,
     BTN_SETTINGS_CORE, BTN_SETTINGS_CORE_RU, BTN_SETTINGS_CORE_EN,
+    PROFILE_ALIASES,
     BTN_INVITE_FRIENDS, BTN_INVITE_FRIENDS_RU, BTN_INVITE_FRIENDS_EN,
     BTN_MY_CHANNELS, BTN_MY_CHANNELS_RU, BTN_MY_CHANNELS_EN,
     BTN_SCHEDULED, BTN_SCHEDULED_RU, BTN_SCHEDULED_EN,
@@ -84,7 +85,7 @@ from keyboards.inline import get_subscription_check_keyboard
 
 # 1. START & ASOSIY MODUL
 from handlers.start import (
-    start, user_cabinet_menu, user_invite_menu, daily_bonus_handler, start_transfer_credits, transfer_target_received, transfer_amount_received,
+    start, user_cabinet_menu, user_profile_menu, user_invite_menu, daily_bonus_handler, start_transfer_credits, transfer_target_received, transfer_amount_received,
     help_command, help_menu_callback, cancel_handler, subscription_check_callback, check_user_subscribed,
     cabinet_callback, extras_menu, extras_close_callback,
     # 👥 Do'stlarni taklif — [📲 Do'stlarga ulashish] (switch_inline_query)
@@ -988,6 +989,12 @@ def _build_all_menu_jumps():
                 BTN_SETTINGS_CORE, BTN_SETTINGS_CORE_RU, BTN_SETTINGS_CORE_EN,
             ),
             lambda u, c: guard_menu(u, c, user_cabinet_menu),
+        ),
+        # 👤 Eski Profil/Kabinet yorliqlari Settings grid emas, Profile
+        # submenu'ni ochadi (referral shu yerda saqlanadi).
+        MessageHandler(
+            exact(*PROFILE_ALIASES),
+            lambda u, c: guard_menu(u, c, user_profile_menu),
         ),
         # 👥 Do'stlarni taklif — referral endi ASOSIY menyuda (3-QISM):
         # to'g'ridan-to'g'ri havola + takliflar soni + ballar va inline
@@ -2230,7 +2237,7 @@ def _register_global_commands(app):
     """
     # 1. Global Buyruqlar
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("profile", user_cabinet_menu))
+    app.add_handler(CommandHandler("profile", user_profile_menu))
     # 👥 Do'stlar taklif — inline rejim: [📲 Do'stlarga ulashish]
     # (switch_inline_query) tanlangan chatda referal havola natijasini
     # ulashadi (3-QISM). Botda BotFather orqali inline mode yoqilgan

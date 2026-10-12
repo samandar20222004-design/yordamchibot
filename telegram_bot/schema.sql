@@ -49,8 +49,8 @@ CREATE TABLE IF NOT EXISTS users (
     -- bilan bir xil naqsh). NULL/bo'sh → imzo qo'shilmaydi.
     -- Bo'lishi mumkin bo'lgan qiymat HAR DOIM services.post_cleaner
     -- .normalize_signature orqali tozalanadi (boshqaruv belgilari yo'q,
-    -- ≤3 qator, ≤255 belgi) — payload'dan ixtiyoriy matn yozilmaydi.
-    post_signature_text VARCHAR(255)
+    -- ≤10 qator, ≤500 belgi) — payload'dan ixtiyoriy matn yozilmaydi.
+    post_signature_text VARCHAR(500)
 );
 
 CREATE TABLE IF NOT EXISTS channels (

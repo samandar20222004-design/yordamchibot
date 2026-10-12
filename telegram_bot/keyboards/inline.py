@@ -1053,49 +1053,19 @@ def render_pending_list(posts: list, user_code: str, lang: str = "uz") -> Inline
 
 
 def get_settings_profile_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
-    """⚙️ Sozlamalar / Ko'proq — 5 QATOR × 2 TUGMA = 10 TUGMALI panel (KANONIK).
+    """⚙️ Sozlamalar uchun kanonik, to'rt tugmali 2×2 grid.
 
-    🧹 FAZA 18 — DUBLIKAT KLAVIATURALAR TOZALANDI: bu funksiya profil/
-    kabinet/sozlamalar panelining YAGONA MANBASI. Boshqa barcha nomlar
-    (``get_cabinet_inline_keyboard``, ``get_settings_hub_keyboard``) endi
-    AYNAN SHU funksiyaga yo'naltiriladi — panel bir joyda, bitta tavsifda
-    saqlanadi, ikkita alohida nusxa paydo bo'lishi imkonsiz.
+    Sozlamalar sahifasi profil, PRO va yordam bo'limlaridan ajratilgan.
+    Ko'p ishlatiladigan to'rtta amaliyot shu yerda qoladi; referral Profile'da,
+    to'lovlar tarixi PRO hub'ida, maxfiylik esa Help ichida joylashadi.
+    Callback nomlari mavjud oqimlarga ulanadi, shu sababli eski xabarlardagi
+    callback'lar ham ishlashda davom etadi.
 
-    3-BOSQICH — SIMMETRIK JUFT LAYOUT (har qatorda aynan 2 ta tugma,
-    hech bir tugma yolg'iz qatorda QOLMAYDI):
+        [🌐 Til / Язык] [✍️ Post Auto-Cleaner & Imzo]
+        [🔔 Bildirishnomalar] [💎 PRO va Tariflar]
 
-        [🌐 Til / Язык]         [✍️ Post sozlamalari]
-        [🔔 Bildirishnomalar]   [👥 Do'stlarni taklif]
-        [💳 To'lovlar tarixi]   [💎 PRO]
-        [🔐 Maxfiylik siyosati] [🗑 Ma'lumotlarimni o'chirish]
-        [ℹ️ Yordam va Qo'llanma] [❌ Yopish]
-
-    🔐 SPRINT 1 (Privacy & GDPR): 4-qator — «Maxfiylik siyosati» va
-    «Ma'lumotlarimni o'chirish» (tasdiqlab, kaskadli soft-delete;
-    to'lov yozuvlari qonuniy audit uchun saqlanadi).
-
-    🧭 NIMA O'ZGARDI: asosiy reply-menudan chiqarilgan IKKILAMCHI
-    bo'limlar shu panelga ko'chirildi — shu bilan foydalanuvchi uchun
-    bitta «hammasi» nuqtasi qoldi, asosiy menyu esa ixcham (5 tugma):
-
-      * «💎 PRO» (``sub_open``) — asosiy menyudagi «💎 PRO» tugmasi
-        o'rniga shu qator; eski reply-tugma routing'da saqlanadi;
-      * «ℹ️ Yordam va Qo'llanma» (``stgs_help_hub``) — yagona yordam oynasi.
-
-    🧹 TOZA TARTIB (asosiy menyu bilan dublikatlar yo'q):
-      * «👥 Do'stlarni taklif» asosiy menyudan shu panelga ko'chirilgan
-        (stgs_referral — referral ekrani + kunlik bonus);
-      * «🎁 Bonuslar & Taklif» va «🧰 Vositalar» guruhlari olib
-        tashlangan — kunlik bonus referral ekranida, vositalar esa
-        o'z submenyusida (stgs_rewards / stgs_tools oqimlari eski
-        xabarlar uchun routing'da qoladi);
-      * «👤 Profil» alohida tugmasi YO'Q — panel matnining o'zi profil.
-
-    Callback'lar MAVJUD, sinovdan o'tgan ``stgs_*`` / ``sub_*`` oqimlariga
-    ulanadi — yangi handler/routing KIRITILMADI. Eski ``cab_*``
-    callback'lari chat tarixidagi eski xabarlar uchun routing'da
-    saqlanadi (backward compat). ``lang`` — foydalanuvchi tili
-    (uz/ru/en); callback_data tilga bog'liq emas.
+    ``get_cabinet_inline_keyboard`` va ``get_settings_hub_keyboard`` bu
+    funksiyaga delegatsiya qiladi — vizual tartibning bitta manbasi bor.
     """
     from translations import settings_stats_t
 
@@ -1103,81 +1073,45 @@ def get_settings_profile_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
         [
             InlineKeyboardButton(settings_stats_t("ss_btn_lang", lang),
                                  callback_data="stgs_lang"),
-            InlineKeyboardButton(settings_stats_t("ss_btn_post_settings", lang),
-                                 callback_data="stgs_post"),
+            InlineKeyboardButton(settings_stats_t("ss_btn_cleaner_primary", lang),
+                                 callback_data="stgs_clean"),
         ],
         [
             InlineKeyboardButton(settings_stats_t("ss_btn_notif", lang),
                                  callback_data="stgs_notif"),
-            InlineKeyboardButton(settings_stats_t("ss_rewards_referral", lang),
-                                 callback_data="stgs_referral"),
-        ],
-        [
-            InlineKeyboardButton(settings_stats_t("ss_btn_payments", lang),
-                                 callback_data="stgs_pay"),
-            InlineKeyboardButton(settings_stats_t("ss_btn_premium", lang),
+            InlineKeyboardButton(settings_stats_t("ss_btn_pro_plans", lang),
                                  callback_data="sub_open"),
-        ],
-        [
-            # 🔐 SPRINT 1 (Privacy & GDPR): maxfiylik siyosati va
-            # "Ma'lumotlarimni o'chirish" — Sozlamalar hub'ining 5-qatori.
-            InlineKeyboardButton(settings_stats_t("ss_btn_privacy", lang),
-                                 callback_data="stgs_privacy"),
-            InlineKeyboardButton(settings_stats_t("ss_btn_delete_data", lang),
-                                 callback_data="stgs_delete_data"),
-        ],
-        [
-            InlineKeyboardButton(settings_stats_t("ss_btn_help", lang),
-                                 callback_data="stgs_help_hub"),
-            InlineKeyboardButton(settings_stats_t("ss_btn_close", lang),
-                                 callback_data="stgs_back"),
         ],
     ])
 
 
-def get_cabinet_inline_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
-    """👤 Kabinet inline paneli — KANONIK ``get_settings_profile_keyboard``.
+def get_profile_menu_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
+    """👤 Profil bo'limi: takliflar/referral va qaytish Sozlamalarga."""
+    from translations import settings_stats_t
 
-    🧹 FAZA 18: bu funksiya endi MANTIQNI SAQLAMAYDI — u to'liq kanonik
-    quruvchiga yo'naltirilgan (delegation). Chat tarixidagi eski chaqiruvlar
-    va testlar uchun API nomi saqlanadi; panel AYNAN bir xil qoladi
-    (10 tugma: Til / Post sozlamalari / Bildirishnomalar / Do'stlarni
-    taklif / To'lovlar / PRO / 🔐 Maxfiylik / 🗑 O'chirish /
-    Yordam va Qo'llanma / ❌ Yopish).
-    """
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton(settings_stats_t("ss_rewards_referral", lang),
+                              callback_data="stgs_referral")],
+        [InlineKeyboardButton(settings_stats_t("ss_btn_back", lang),
+                              callback_data="stgs_hub")],
+    ])
+
+
+def get_cabinet_inline_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
+    """Kabinet aliasi — to'rt tugmali Sozlamalar gridini qaytaradi."""
     return get_settings_profile_keyboard(lang)
 
 
 # ============================================================
-# ⚙️ SOZLAMALAR / KO'PROQ — 10 TUGMALI HUB (5 qator × 2 tugma)
-# ------------------------------------------------------------
-# Asosiy menyudagi [⚙️ Sozlamalar / Ko'proq] tugmasi shu panelni ochadi:
-#
-#     [🌐 Til / Язык]         [✍️ Post sozlamalari]
-#     [🔔 Bildirishnomalar]   [👥 Do'stlarni taklif]
-#     [💳 To'lovlar tarixi]   [ℹ️ Bot haqida]
-#     [💎 PRO]                [❓ Yordam]
-#     [💬 Qo'llab-quvvatlash] [❌ Yopish]
-#
-# 3-BOSQICH: «💎 PRO» va «❓ Yordam» asosiy reply-menudan shu hub'ga
-# ko'chirildi. Eski callback'lar (stgs_rewards / stgs_tools / stgs_profile
-# kabilar) alohida handlerlarda saqlanadi — Telegram chat tarixidagi
-# eski inline tugmalar yangi oqimlarda "o'lik" bo'lib qolmaydi.
+# ⚙️ SOZLAMALAR — 4 TUGMALI HUB (2 qator × 2 tugma)
 # ============================================================
 
 
 def get_settings_hub_keyboard(lang: str = "uz", include_legacy: bool = False) -> InlineKeyboardMarkup:
-    """⚙️ Sozlamalar / Ko'proq hub'i — KANONIK ``get_settings_profile_keyboard``.
+    """Sozlamalar hub'i — kanonik 4-tugmali 2×2 panelga alias.
 
-    🧹 FAZA 18: yagona manba endi ``get_settings_profile_keyboard`` — bu
-    funksiya ham faqat yo'naltiruvchi (delegation). 10 tugma
-    (5 qator × 2): Til / Post sozlamalari / Bildirishnomalar /
-    Do'stlarni taklif / To'lovlar / Bot haqida / PRO / Yordam /
-    Qo'llab-quvvatlash / Yopish.
-
-    ``include_legacy`` avvalgi 8-tugmali API bilan chaqiruvchi kodlar uchun
-    saqlangan. Legacy tugmalar endi yangi hub'da ko'rsatilmaydi; ularning
-    callback'lari esa routing'da qo'llab-quvvatlanadi.
+    ``include_legacy`` argumenti eski integratsiyalar uchun API mosligini
+    saqlaydi; legacy tugmalar yangi primary grid'e qo'shilmaydi.
     """
     return get_settings_profile_keyboard(lang)
 
@@ -1227,6 +1161,12 @@ def get_settings_help_hub_keyboard(
     )
     return InlineKeyboardMarkup([
         [support_button],
+        [
+            InlineKeyboardButton(settings_stats_t("ss_btn_privacy", lang),
+                                 callback_data="stgs_privacy"),
+            InlineKeyboardButton(settings_stats_t("ss_btn_delete_data", lang),
+                                 callback_data="stgs_delete_data"),
+        ],
         [InlineKeyboardButton(settings_stats_t("ss_btn_back", lang),
                               callback_data="stgs_hub")],
     ])
@@ -1594,6 +1534,16 @@ def get_help_keyboard(support_username: str = "", lang: str = "uz") -> InlineKey
     keyboard.append([InlineKeyboardButton(
         get_text("help_btn_faq", lang), callback_data="help:faq"
     )])
+    # GDPR/Privacy opts are naturally grouped with help instead of the
+    # compact settings grid.
+    from translations import settings_stats_t
+
+    keyboard.append([
+        InlineKeyboardButton(settings_stats_t("ss_btn_privacy", lang),
+                             callback_data="stgs_privacy"),
+        InlineKeyboardButton(settings_stats_t("ss_btn_delete_data", lang),
+                             callback_data="stgs_delete_data"),
+    ])
     return InlineKeyboardMarkup(keyboard)
 
 

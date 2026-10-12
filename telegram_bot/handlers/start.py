@@ -20,6 +20,7 @@ from keyboards.inline import (
     get_channels_manage_keyboard, render_channels_list, no_channels_hint,
     get_help_keyboard, get_help_back_keyboard,
     get_settings_back_keyboard, get_settings_hub_keyboard,
+    get_profile_menu_keyboard,
     unpack_sponsor,
 )
 from locales.translations import (
@@ -94,6 +95,11 @@ async def ensure_user_lang(context, user_id: int) -> str:
         # Update'da foydalanuvchi bo'lmasa (odatda test-fake'lar) — DB so'rovsiz
         # keshdagi/default til qaytadi.
         return set_lang_cache(context, get_lang(context))
+    # Profile cache already contains the persisted locale after /start and
+    # common account reads; use it before scheduling a DB lookup.
+    prof = peek_profile(user_id)
+    if prof is not None and prof.get("lang"):
+        return set_lang_cache(context, prof["lang"])
     try:
         lang = await db.run_db(db.get_user_language, int(user_id))
     except Exception:
@@ -592,46 +598,55 @@ def build_daily_bonus_text(res: dict, lang: str = "uz") -> str:
 
 
 async def user_cabinet_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """⚙️ Sozlamalar — profil kartasi + 8 TUGMALI MENYU (4 qator × 2 tugma).
+    """⚙️ Sozlamalar — DB'siz, statik matn va 4 tugmali 2×2 grid.
 
-    Asosiy menyudagi [⚙️ Sozlamalar] tugmasi bosilganda foydalanuvchi
-    ma'lumotlari (ID, maxsus kod, AI so'rovlar, kunlik seriya, kanallar,
-    takliflar) bilan birga YAGONA menyu chiqadi
-    (handlers/settings.py — ``stgs_*`` callback'lari):
-
-        [🌐 Til / Язык]        [✍️ Post sozlamalari]
-        [🔔 Bildirishnomalar]  [👥 Do'stlarni taklif]
-        [💳 To'lovlar tarixi]  [💬 Qo'llab-quvvatlash]
-        [❌ Yopish]
-
-    «⚙️ Sozlamalar» va «👤 Shaxsiy kabinet» ikki xil profil chalkashligi
-    tugatildi: endi BITTA «⚙️ Sozlamalar» ekran bor. Referral (👥 Do'stlarni
-    taklif) shu menyuda; 🎁 Kunlik bonus referral ekranida. Mavjud kabinet
-    oqimlari (``cab_*``) esa eski xabarlar uchun saqlanadi.
+    Hisob ma'lumotlari alohida `/profile` ekranida ko'rsatiladi. Sozlamalar
+    menyusining ilk javobi profil/ads/statistika so'rovlarini kutmaydi; til
+    odatda user_data/profile cache'dan olinadi, keyin bitta kichik keyboard
+    va lokal matn bilan darhol chiziladi.
     """
     clear_fsm_data(context)
     user = update.effective_user
-    # Reply-tugma orqali kelgan so'rovda til keshda bo'lmasa (masalan, bot
-    # qayta ishga tushgach) — foydalanuvchi tilini DB'dan yuklaymiz. Aks holda
-    # rus foydalanuvchi kabinetni o'zbekchada ko'rib qolardi (get_lang uz).
+    if user is None or update.message is None:
+        return
     lang = await ensure_user_lang(context, user.id)
-    # 🧭 4-qadam: foydalanuvchi «⚙️ Sozlamalar» bo'limida — bu bo'limdan
-    # boshlangan FSM oqimlari (Vositalar → Konvertor/Enhancer va h.k.)
-    # bekor qilinsa, foydalanuvchi aynan shu menyuga qaytadi.
     from handlers.navigation import remember_section, SECTION_SETTINGS
+
     remember_section(context, SECTION_SETTINGS)
-    is_admin = (user.id in ADMIN_IDS_SET)
+    from translations import settings_stats_t
+
+    text = "".join((
+        settings_stats_t("ss_settings_hub_title", lang),
+        settings_stats_t("ss_settings_hub_hint", lang),
+    ))
+    await update.message.reply_text(
+        text, reply_markup=get_settings_hub_keyboard(lang), parse_mode="HTML",
+    )
+
+
+async def user_profile_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """👤 Profil — dinamik hisob kartasi va referral bo'limi.
+
+    Profil ma'lumotlari kerak bo'lgandagina o'qiladi; taklif/referral esa
+    profilning tabiiy submenu'sida qoladi, primary Settings grid'ni toza
+    saqlaydi.
+    """
+    clear_fsm_data(context)
+    user = update.effective_user
+    if user is None or update.message is None:
+        return
+    lang = await ensure_user_lang(context, user.id)
+    is_admin = user.id in ADMIN_IDS_SET
     stats, channels_count, user_code = await load_cabinet_data(user.id)
-
-    credits_text = cabinet_credits_text(is_admin, stats['ai_credits'], lang)
-    streak_text = get_text("cabinet_streak", lang, streak=stats.get('streak', 0))
-    ad_line = await get_smart_reply_ad_async(user.id)
-
+    credits_text = cabinet_credits_text(is_admin, stats.get("ai_credits", 0), lang)
+    streak_text = get_text("cabinet_streak", lang, streak=stats.get("streak", 0))
     text = build_cabinet_text(
         user.id, user_code, credits_text, streak_text,
-        channels_count, stats['referrals_count'], lang, ad_line,
+        channels_count, stats.get("referrals_count", 0), lang,
     )
-    await update.message.reply_text(text, reply_markup=get_settings_hub_keyboard(lang), parse_mode="HTML")
+    await update.message.reply_text(
+        text, reply_markup=get_profile_menu_keyboard(lang), parse_mode="HTML",
+    )
 
 async def daily_bonus_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user

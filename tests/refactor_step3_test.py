@@ -3,17 +3,12 @@
 
 Qamrov (3-qadam topshirig'i bo'yicha):
 
-  TEST 1 — ⚙️ SOZLAMALAR hub'i (SIMMETRIK 8 tugma, 4x2):
-           «👥 Do'stlarni taklif» asosiy menyudan shu hub'ga ko'chirildi;
-           dublikat guruhlar (🎁 Bonuslar & Taklif → kunlik bonus referral
-           ekranida, 🧰 Vositalar → /tools buyrug'i, ❓ Yordam →
-           💬 Qo'llab-quvvatlash bir tugmaga) menyu KO'RINISHIDAN olib
-           tashlandi — ularning oqimlari routing'da saqlanadi. Menyu endi
-           AYNAN 8 tugma (4 qator × 2) + uchala tilda speks tartibida:
-               [🌐 Til / Язык]        [✍️ Post sozlamalari]
-               [🔔 Bildirishnomalar]  [👥 Do'stlarni taklif]
-               [💳 To'lovlar tarixi]  [ℹ️ Bot haqida]
-               [💬 Qo'llab-quvvatlash] [❌ Yopish]
+  TEST 1 — ⚙️ SOZLAMALAR hub'i (4 tugma, 2×2 primary grid):
+           [🌐 Til / Язык] [✍️ Auto-Cleaner & Imzo]
+           [🔔 Bildirishnomalar] [💎 PRO va Tariflar].
+           Referral va billing Profile/PRO submenu'lariga, privacy va
+           data deletion Help submenu'iga joylashtiriladi; eski callback'lar
+           va reply aliases backward-compatible bo'lib qoladi.
   TEST 2 — 💎 Ballarim / 🔄 Ballar o'tkazish / 🎁 Kunlik bonus /
            👥 Do'stlarni taklif tugmalari O'Z oqimlarini ochadi:
            Ballar o'tkazish mavjud TRANSFER_TARGET → TRANSFER_AMOUNT FSM
@@ -111,26 +106,12 @@ def check(label, condition, extra=""):
 # SPEKS: menyu tarkibi va yorliqlari (uchala til)
 # ---------------------------------------------------------------------------
 HUB_LABELS = {
-    # ⚙️ Sozlamalar / Ko'proq — 10 tugma (SPRINT 1: 🔐 Maxfiylik siyosati va
-    # 🗑 Ma'lumotlarimni o'chirish 4-qatorga qo'shildi). 3-BOSQICH: asosiy
-    # reply-menudan olib tashlangan «💎 PRO» va «❓ Yordam» shu hub'ga
-    # ko'chirildi; «🎁 Bonuslar & Taklif» va «🧰 Vositalar» hub'dan olib
-    # tashlandi (oqimlar routing'da qoladi), [◀️ Orqaga] → [❌ Yopish].
-    "uz": (("🌐 Til / Язык", "✍️ Post sozlamalari"),
-           ("🔔 Bildirishnomalar", "👥 Do'stlarni taklif"),
-           ("💳 To'lovlar tarixi", "💎 PRO"),
-           ("🔐 Maxfiylik", "🗑 O'chirish"),
-           ("ℹ️ Yordam va Qo'llanma", "❌ Yopish")),
-    "ru": (("🌐 Язык / Language", "✍️ Настройки постов"),
-           ("🔔 Уведомления", "👥 Пригласить друзей"),
-           ("💳 История платежей", "💎 PRO"),
-           ("🔐 Приватность", "🗑 Удалить данные"),
-           ("ℹ️ Помощь и руководство", "❌ Закрыть")),
-    "en": (("🌐 Language", "✍️ Post settings"),
-           ("🔔 Notifications", "👥 Invite friends"),
-           ("💳 Payment history", "💎 PRO"),
-           ("🔐 Privacy", "🗑 Delete data"),
-           ("ℹ️ Help and Guide", "❌ Close")),
+    "uz": (("🌐 Til / Язык", "✍️ Post Auto-Cleaner & Imzo"),
+           ("🔔 Bildirishnomalar", "💎 PRO va Tariflar")),
+    "ru": (("🌐 Язык", "✍️ Автоочистка постов и подпись"),
+           ("🔔 Уведомления", "💎 PRO и тарифы")),
+    "en": (("🌐 Language", "✍️ Post Auto-Cleaner & Signature"),
+           ("🔔 Notifications", "💎 PRO & Plans")),
 }
 
 #: Legacy kabinet callback'lari — menyu KO'RINISHIDA bo'lmasligi shart
@@ -485,50 +466,39 @@ def _msg_entry_fn_names(app, text, as_command=False):
 # TEST 1 — ⚙️ SOZLAMALAR MENYUSI: LEGACY DUBLIKATLAR YO'Q + SPEKS TARTIBI
 # ===========================================================================
 def test_settings_hub_has_no_legacy_duplicates():
-    print("== TEST 1: ⚙️ Sozlamalar — 10 tugmali menyu (5x2) ==")
+    print("== TEST 1: ⚙️ Sozlamalar — four-button 2×2 primary grid ==")
 
     for lang in LANGS:
         kb = get_settings_hub_keyboard(lang)
         rows = _rows(kb)
         cbs = _cbs(kb)
 
-        check(f"[{lang}] menyu 5 qator (har birida 2 tugma)",
-              len(rows) == 5, str(len(rows)))
-        check(f"[{lang}] 10 tugma AYNAN speks tartibida",
-              [[t for t, _ in row] for row in rows]
-              == [list(pair) for pair in HUB_LABELS[lang]],
-              str([[t for t, _ in row] for row in rows]))
+        check(f"[{lang}] primary grid: 2 qator, har birida 2 tugma",
+              [len(row) for row in rows] == [2, 2], str(len(rows)))
+        check(f"[{lang}] four-button labels match the localized specification",
+              [[text for text, _ in row] for row in rows]
+              == [list(pair) for pair in HUB_LABELS[lang]], str(rows))
         check(f"[{lang}] callback tartibi speks bilan bir xil",
               cbs == list(CB_SETTINGS_HUB), str(cbs))
-        check(f"[{lang}] oxirgi qator = [ℹ️ Yordam va Qo'llanma | ❌ Yopish]",
-              rows[-1] == [(settings_stats_t("ss_btn_help", lang), "stgs_help_hub"),
-                          (settings_stats_t("ss_btn_close", lang), "stgs_back")],
-              str(rows[-1]))
-        check(f"[{lang}] jami 10 tugma (dublikat yo'q)",
-              len(cbs) == 10, str(len(cbs)))
-        check(f"[{lang}] stgs_profile hub'da YO'Q (matn o'zi profil)",
-              "stgs_profile" not in cbs, str(cbs))
+        check(f"[{lang}] secondary Profile/PRO/Help items are nested",
+              not any(callback in cbs for callback in
+                      ("stgs_referral", "stgs_pay", "stgs_privacy", "stgs_delete_data",
+                       "stgs_help_hub")), str(cbs))
         check(f"[{lang}] callback'lar takrorlanmaydi",
               len(set(cbs)) == len(cbs), str(cbs))
 
-        # 1a) LEGACY dublikatlar menyuda YO'Q (callback darajasida).
         found = [cb for cb in LEGACY_HUB_CALLBACKS if cb in cbs]
         check(f"[{lang}] legacy cab_* tugmalar yo'q", not found, str(found))
-
-        # 1b) LEGACY dublikatlar menyuda YO'Q (yorliq darajasida).
         labels = _labels(kb)
         dup_labels = [get_text(key, lang) for key in LEGACY_HUB_LABEL_KEYS
                       if get_text(key, lang) in labels]
         check(f"[{lang}] legacy yorliqlar yo'q", not dup_labels, str(dup_labels))
 
-        # 1c) `include_legacy=True` ham legacy tugmalarni chizmaydi
-        #     (eski chaqiruv kod TypeError bilan yiqilmaydi ham).
         legacy_kb = get_settings_hub_keyboard(lang, include_legacy=True)
         check(f"[{lang}] include_legacy=True — natija o'zgarmaydi",
               _cbs(legacy_kb) == cbs, str(_cbs(legacy_kb)))
 
-    # 1d) [⚙️ Sozlamalar] → user_cabinet_menu (reply) ham AYNAN shu menyuni
-    #     chizadi: profil matni + hech qanday legacy dublikat yo'q.
+    # Settings root uses only the static heading and primary grid.
     fake = _FakeDB()
     for lang in LANGS:
         with _with_db(fake):
@@ -536,29 +506,18 @@ def test_settings_hub_has_no_legacy_duplicates():
             _run(start_mod.user_cabinet_menu(_msg_update(msg), _ctx(lang)))
         last = msg.sent[-1]
         cbs = _cbs(last["reply_markup"])
-        check(f"[{lang}] hub ekrani 10 tugma bilan ochiladi",
-              len(cbs) == 10, str(cbs))
-        check(f"[{lang}] hub ekrani legacy tugmasiz",
-              not any(cb in cbs for cb in LEGACY_HUB_CALLBACKS), str(cbs))
-        check(f"[{lang}] hub profil kartasi bilan (Shaxsiy Kabinet)",
-              get_text("cabinet_title", lang, user_id=USER_ID, user_code="TST777",
-                       credits="7", streak="3/7", channels=2, referrals=2,
-                       ad_line="").splitlines()[0] in (last["text"] or ""),
+        check(f"[{lang}] Settings root: four callbacks", cbs == list(CB_SETTINGS_HUB), str(cbs))
+        check(f"[{lang}] Settings root: static heading",
+              settings_stats_t("ss_settings_hub_title", lang) in last["text"],
               (last["text"] or "")[:80])
 
-    # 1e) Eski GURUH tugmalari hub'da YO'Q — ularning oqimlari faqat
-    #     routing'da qoladi (TEST 2 shu callback'lar bilan tekshiradi).
-    #     3-BOSQICH esa «❓ Yordam» (stgs_help_hub) va «💎 PRO» (sub_open)
-    #     ni hub'ga QAYTARADI — bular guruh emas, to'g'ridan-to'g'ri oqim.
     uz_cbs = _cbs(get_settings_hub_keyboard("uz"))
-    for cb in ("stgs_rewards", "stgs_tools"):
-        check(f"hub: {cb} tugmasi YO'Q (ixcham)", cb not in uz_cbs, str(uz_cbs))
-    check("hub: stgs_help_hub («❓ Yordam») BOR — asosiy menudan ko'chirildi",
-          "stgs_help_hub" in uz_cbs, str(uz_cbs))
-    check("hub: sub_open («💎 PRO») BOR — asosiy menudan ko'chirildi",
+    check("hub: secondary referral/payment/privacy/help are not duplicated",
+          not any(callback in uz_cbs for callback in
+                  ("stgs_referral", "stgs_pay", "stgs_privacy", "stgs_delete_data",
+                   "stgs_help_hub")), str(uz_cbs))
+    check("hub: PRO (sub_open) remains a primary entry",
           "sub_open" in uz_cbs, str(uz_cbs))
-    check("hub: alohida help_support tugmasi YO'Q",
-          "help_support" not in uz_cbs, str(uz_cbs))
 
 
 # ===========================================================================
@@ -744,7 +703,7 @@ def test_tools_submenu_wires_converter_and_enhancer():
     with _with_db(_FakeDB()):
         q = _Query("stgs_hub")
         _run(settings_mod.settings_menu_callback(_query_update(q), _ctx("uz")))
-    check("vositalar → orqaga: ⚙️ Sozlamalar 8 tugmasi qaytdi",
+    check("vositalar → orqaga: ⚙️ Sozlamalar 4 tugmali primary grid qaytdi",
           _cbs(q.screen.get("reply_markup")) == list(CB_SETTINGS_HUB),
           str(_cbs(q.screen.get("reply_markup"))))
     check("vositalar → orqaga: yangi xabar yuborilmadi (edit)",
@@ -829,7 +788,9 @@ def test_legacy_callbacks_and_commands_still_work():
 
     # 4c) Legacy reply-tugmalar va buyruqlar router'da SAQLANADI.
     legacy_buttons = (
-        ("👤 Kabinet & Sozlamalar", "user_cabinet_menu"),
+        ("👤 Kabinet & Sozlamalar", "user_profile_menu"),
+        ("👤 Profil", "user_profile_menu"),
+        ("⚙️ Sozlamalar", "user_cabinet_menu"),
         ("🔄 Ballarni ulashish", "start_transfer_credits"),
         ("🚀 Do'stlarni taklif qilish", "user_invite_menu"),
         ("🎁 Kunlik bonus", "daily_bonus_handler"),
@@ -859,7 +820,7 @@ def test_legacy_callbacks_and_commands_still_work():
             for cmd in handler.commands:
                 commands.setdefault(cmd, []).extend(sorted(names))
     for command, target in (("settings", "user_cabinet_menu"),
-                            ("profile", "user_cabinet_menu"),
+                            ("profile", "user_profile_menu"),
                             ("queue", "queue_menu")):
         check(f"legacy buyruq /{command} → {target}",
               target in commands.get(command, []), str(commands.get(command)))
