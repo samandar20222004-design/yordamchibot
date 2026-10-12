@@ -32,14 +32,13 @@ from keyboards.inline import (
 )
 from utils.helpers import (
     html_escape, safe_html, parse_reactions_input,
-    get_auto_ad_injection_async, keep_typing,
+    keep_typing,
     parse_schedule_input, parse_daily_time_input, schedule_time_example,
     SCHEDULE_ERR_PAST,
 )
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from locales.translations import clear_fsm_data, get_lang, get_text
 from utils.date_format import format_datetime, format_time, weekday_label
-from keyboards.callback_data import cb as _cb_safe
 
 from utils.silent_errors import log_silent_failure
 
