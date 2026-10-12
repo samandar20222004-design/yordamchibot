@@ -1050,8 +1050,16 @@ async def _render_referral(query, context, user_id: int, lang: str,
     from handlers.start import cabinet_credits_text
 
     # Username config/cache'dan olinadi; Telegram getMe round-trip'i referral
-    # ekranini ochishni bloklamasin. Test/embedded botlarda bot.username ustun.
-    bot_username = (getattr(context.bot, "username", None) or BOT_USERNAME or "").strip().lstrip("@")
+    # ekranini ochishni bloklamasin. Test/embedded botlarda bot.username ustun,
+    # ikkalasi ham bo'sh bo'lsa get_me() zaxira sifatida chaqiriladi.
+    bot = getattr(context, "bot", None)
+    bot_username = (getattr(bot, "username", None) or BOT_USERNAME or "").strip().lstrip("@")
+    if not bot_username and callable(getattr(bot, "get_me", None)):
+        try:
+            bot_obj = await bot.get_me()
+            bot_username = (getattr(bot_obj, "username", None) or "").strip().lstrip("@")
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.settings:_render_referral", _silent_exc, user_id=user_id)
     stats = await db.run_db(db.get_referral_stats, user_id)
     ref_link = f"https://t.me/{bot_username}?start=ref_{user_id}"
     credits_text = cabinet_credits_text(is_admin, stats["ai_credits"], lang)

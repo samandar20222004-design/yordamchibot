@@ -57,11 +57,13 @@ class UXMenuTests(unittest.IsolatedAsyncioTestCase):
             with self.subTest(lang=lang):
                 panel = kb.get_settings_profile_keyboard(lang)
                 flat = buttons(panel)
-                self.assertEqual([len(row) for row in panel.inline_keyboard], [2, 2])
+                self.assertEqual([len(row) for row in panel.inline_keyboard], [2, 2, 2])
                 self.assertEqual([b.callback_data for b in flat], list(CB_SETTINGS_HUB))
                 self.assertEqual([b.text for b in flat], [
                     settings_stats_t(key, lang) for key in SETTINGS_MENU_BUTTON_KEYS
                 ])
+                self.assertIn("stgs_referral", [b.callback_data for b in flat])
+                self.assertIn("stgs_help_hub", [b.callback_data for b in flat])
                 self.assertNotIn("stgs_about", [b.callback_data for b in flat])
                 self.assertNotIn("help_support", [b.callback_data for b in flat])
                 help_buttons = buttons(kb.get_settings_help_hub_keyboard(lang))
@@ -69,6 +71,29 @@ class UXMenuTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual([b.text for b in help_buttons], [
                     settings_stats_t(key, lang) for key in SETTINGS_HELP_HUB_BUTTON_KEYS
                 ])
+
+    async def test_referral_click_shows_localized_referral_link_and_bonuses(self):
+        for lang in LANGS:
+            with self.subTest(lang=lang):
+                update = callback_update("stgs_referral")
+                query = update.callback_query
+                fake_stats = {"ai_credits": 10, "streak": 3, "referrals_count": 2}
+                ctx = SimpleNamespace(
+                    user_data={"lang": lang},
+                    bot=SimpleNamespace(username="postassist_test_bot"),
+                )
+                with patch.object(start, "ensure_user_lang", AsyncMock(return_value=lang)), \
+                     patch.object(settings.db, "run_db", AsyncMock(return_value=fake_stats)):
+                    await settings.settings_menu_callback(update, ctx)
+                query.answer.assert_awaited_once()
+                query.edit_message_text.assert_awaited_once()
+                text = query.edit_message_text.call_args.args[0]
+                self.assertIn("https://t.me/postassist_test_bot?start=ref_7", text)
+                markup = query.edit_message_text.call_args.kwargs["reply_markup"]
+                self.assertEqual(
+                    [b.callback_data for b in buttons(markup) if b.callback_data],
+                    ["claim_bonus", "stgs_hub"],
+                )
 
     async def test_help_click_shows_about_guide_and_contact_in_one_message(self):
         for lang in LANGS:

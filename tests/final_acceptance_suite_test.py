@@ -804,9 +804,12 @@ def test_k_statistics_isolation():
 
 
 def test_l_settings_menu_compact_profile_hub():
-    # Settings exposes four primary destinations; secondary actions are nested.
-    header("L", "⚙️ Sozlamalar — 4 tugma / 2×2 grid, uchala tilda bir xil")
-    expected_cbs = ["stgs_lang", "stgs_clean", "stgs_notif", "sub_open"]
+    # Settings exposes six primary destinations; billing/privacy remain nested.
+    header("L", "⚙️ Sozlamalar — 6 tugma / 3×2 grid, uchala tilda bir xil")
+    expected_cbs = [
+        "stgs_lang", "stgs_clean", "stgs_notif",
+        "sub_open", "stgs_referral", "stgs_help_hub",
+    ]
     base = None
     for lang in LANGS:
         kb = get_settings_hub_keyboard(lang)
@@ -814,15 +817,15 @@ def test_l_settings_menu_compact_profile_hub():
         labels = _labels(kb)
         if base is None:
             base = cbs
-        check(f"[{lang}] Sozlamalar hub = 4 primary actions / 2×2",
-              len(cbs) == 4 and [len(row) for row in kb.inline_keyboard] == [2, 2],
+        check(f"[{lang}] Sozlamalar hub = 6 primary actions / 3×2",
+              len(cbs) == 6 and [len(row) for row in kb.inline_keyboard] == [2, 2, 2],
               str(cbs))
-        check(f"[{lang}] secondary Profile/PRO/Help actions are nested",
-              not any(cb in cbs for cb in ("stgs_referral", "stgs_pay",
-                                            "stgs_privacy", "stgs_delete_data",
-                                            "stgs_help_hub")), str(cbs))
-        check(f"[{lang}] «💎 PRO» (sub_open) primary entry exists",
-              "sub_open" in cbs, str(cbs))
+        check(f"[{lang}] secondary PRO/Help actions are nested",
+              not any(cb in cbs for cb in ("stgs_pay",
+                                            "stgs_privacy", "stgs_delete_data")), str(cbs))
+        check(f"[{lang}] «💎 PRO» (sub_open), «👥 Do'stlarni taklif» va «ℹ️ Yordam» primary entries exist",
+              "sub_open" in cbs and "stgs_referral" in cbs and "stgs_help_hub" in cbs,
+              str(cbs))
         check(f"[{lang}] callback'lar kutilgan ro'yxat bilan AYNAN bir xil",
               cbs == expected_cbs, str(cbs))
         check(f"[{lang}] callback'lar UZ bilan bir xil (tilga bog'liq emas)",
@@ -834,7 +837,7 @@ def test_l_settings_menu_compact_profile_hub():
     with _with_db(fake), _quiet():
         _run(start_mod.user_cabinet_menu(_msg_update(msg), _ctx("uz")))
     drawn = _cbs(msg.sent[-1]["reply_markup"]) if msg.sent else []
-    check("user_cabinet_menu: four-button Settings grid is rendered",
+    check("user_cabinet_menu: six-button Settings grid is rendered",
           drawn == expected_cbs, str(drawn))
 
 

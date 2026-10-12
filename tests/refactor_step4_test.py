@@ -462,12 +462,15 @@ def test_navigation_stack_settings_tools_back():
     with _with_db(fake):
         _run(settings_mod.settings_menu_callback(_query_update(q_back), ctx))
     back_cbs = _cbs(q_back.screen.get("reply_markup"))
-    check("Orqaga → Sozlamalar menyusi (4 primary callbacks)",
+    check("Orqaga → Sozlamalar menyusi (6 primary callbacks)",
           back_cbs == _cbs(get_settings_hub_keyboard("uz")), str(back_cbs))
     check("Orqaga → nav_section = settings",
           nav_mod.current_section(ctx) == nav_mod.SECTION_SETTINGS)
-    check("Orqaga → four-button Settings root (not main-menu callbacks)",
-          back_cbs == ["stgs_lang", "stgs_clean", "stgs_notif", "sub_open"]
+    check("Orqaga → six-button Settings root (not main-menu callbacks)",
+          back_cbs == [
+              "stgs_lang", "stgs_clean", "stgs_notif",
+              "sub_open", "stgs_referral", "stgs_help_hub",
+          ]
           and "close_msg" not in back_cbs and "stgs_back" not in back_cbs,
           str(back_cbs))
 

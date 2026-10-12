@@ -133,10 +133,13 @@ def test_1_prompt_dynamic_date_and_anti_hallucination():
 
 
 # ---------------------------------------------------------------------------
-# TEST 2 — ⚙️ SOZLAMALAR / KO'PROQ: SIMMETRIK 8 TUGMA / 4 QATOR × 2
+# TEST 2 — ⚙️ SOZLAMALAR / KO'PROQ: SIMMETRIK 6 TUGMA / 3 QATOR × 2
 # About/guide/support yagona yordam oynasiga birlashtirildi.
 # ---------------------------------------------------------------------------
-EXPECTED_SETTINGS_CBS = ("stgs_lang", "stgs_clean", "stgs_notif", "sub_open")
+EXPECTED_SETTINGS_CBS = (
+    "stgs_lang", "stgs_clean", "stgs_notif",
+    "sub_open", "stgs_referral", "stgs_help_hub",
+)
 
 
 def _kb_rows(kb):
@@ -144,7 +147,7 @@ def _kb_rows(kb):
 
 
 def test_2_settings_compact_four_button_layout():
-    header("2", "⚙️ SOZLAMALAR — 4 TUGMA / 2×2 PRIMARY GRID (3 TIL)")
+    header("2", "⚙️ SOZLAMALAR — 6 TUGMA / 3×2 PRIMARY GRID (3 TIL)")
     from keyboards.inline import (get_cabinet_inline_keyboard,
                                   get_settings_hub_keyboard,
                                   get_settings_profile_keyboard)
@@ -155,19 +158,20 @@ def test_2_settings_compact_four_button_layout():
         rows = _kb_rows(kb)
         cbs = [c for row in rows for _t, c in row]
 
-        check(f"[{lang}] 2 qator, har birida 2 tugma",
-              len(rows) == 2 and all(len(r) == 2 for r in rows), str(rows))
-        check(f"[{lang}] jami 4 tugma", len(cbs) == 4, str(cbs))
+        check(f"[{lang}] 3 qator, har birida 2 tugma",
+              len(rows) == 3 and all(len(r) == 2 for r in rows), str(rows))
+        check(f"[{lang}] jami 6 tugma", len(cbs) == 6, str(cbs))
         check(f"[{lang}] callback'lar KANONIK tartibda",
               cbs == list(EXPECTED_SETTINGS_CBS), str(cbs))
         check(f"[{lang}] r1: [Til | Auto-Cleaner & Imzo]",
               rows[0][0][1] == "stgs_lang" and rows[0][1][1] == "stgs_clean", str(rows[0]))
         check(f"[{lang}] r2: [Bildirishnomalar | PRO va Tariflar]",
               rows[1][0][1] == "stgs_notif" and rows[1][1][1] == "sub_open", str(rows[1]))
-        check(f"[{lang}] referral/payment/privacy/help secondary actions are not in the grid",
+        check(f"[{lang}] r3: [Do'stlarni taklif | Yordam va Qo'llanma]",
+              rows[2][0][1] == "stgs_referral" and rows[2][1][1] == "stgs_help_hub", str(rows[2]))
+        check(f"[{lang}] payment/privacy secondary actions are not in the grid",
               not any(callback in cbs for callback in
-                      ("stgs_referral", "stgs_pay", "stgs_privacy", "stgs_delete_data",
-                       "stgs_help_hub")), str(cbs))
+                      ("stgs_pay", "stgs_privacy", "stgs_delete_data")), str(cbs))
         check(f"[{lang}] alohida about/support tugmalari YO'Q",
               "stgs_about" not in cbs and "help_support" not in cbs, str(cbs))
 
