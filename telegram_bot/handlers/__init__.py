@@ -1360,6 +1360,11 @@ def _content_states(all_menu_jumps):
             # ogohlantirish + [🖼 1-rasm] / [⏩ Tugmalarsiz albom] tugmalari.
             CallbackQueryHandler(album_choice_callback, pattern=r"^album_choice:"),
             MessageHandler(filters.TEXT & ~filters.COMMAND, btn_title_received),
+            # 🖼 10 TAGACHA FAYL = BITTA POST: tugma bosqichida yuborilgan
+            # KEYINGI media (rasm/video/hujjat) ham shu albomga qo'shiladi —
+            # ketma-ket yuborilgan fayllar alohida postlarga bo'linib ketmaydi
+            # (qisqa oyna ichida; oyna tugagach yangi post sifatida qabul qilinadi).
+            MessageHandler(~filters.TEXT & ~filters.COMMAND, content_received),
             CallbackQueryHandler(ai_action_menu_callback, pattern=r"^ai_menu$"),
             CallbackQueryHandler(ai_action_callback, pattern=r"^ai_act:"),
             CallbackQueryHandler(ai_result_callback, pattern=r"^ai_res:"),

@@ -1140,6 +1140,10 @@ echo "================= ALBOM & SKIP TEST ================="
 echo "=========== ALBOM OG'HOHLANTIRISH + TOZA KANAL ==========="
 "$PY" tests/album_warning_test.py || EXIT_CODE=1
 
+echo
+echo "===== 10 TA MEDIA (ALBOM) = BITTA POST TEST ====="
+"$PY" tests/album_media_group_10_test.py || EXIT_CODE=1
+
 echo "================= PHOTO LEAK & VOICE TEST ===================="
 "$PY" tests/photo_leak_test.py || EXIT_CODE=1
 

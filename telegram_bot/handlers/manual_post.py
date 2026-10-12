@@ -40,6 +40,8 @@ bilan konfliktsiz (430–442 magic/voice, 460+ post_score/calendar):
 
 from __future__ import annotations
 
+import asyncio
+import json
 import logging
 from datetime import datetime, timedelta
 
@@ -81,7 +83,7 @@ from keyboards.inline import (
     normalize_custom_reaction_emojis,
     strip_variation_selector,
 )
-from locales.translations import clear_fsm_data, get_lang
+from locales.translations import clear_fsm_data, get_lang, get_text
 from translations import manual_post_t
 from utils.date_format import format_datetime, format_time
 from utils.helpers import (
@@ -139,9 +141,29 @@ UD_URL_BTN_URL = "mnp_url_url"    # havolali tugma URL'i (xavfsiz protokol)
 # 📢 Kanal tanlash — target channel selector (1-vazifa)
 UD_SELECTED_CHANNEL_ID = "mnp_ch_id"
 UD_SELECTED_CHANNEL_TITLE = "mnp_ch_title"
+# 🖼 ALBOM (media_group) — 10 tagacha fayl BITTA post: yig'ilgan fayllar va
+# ularning guruhi (preview SPAM bo'lmasligi va post bo'linib ketmasligi uchun).
+UD_ALBUM_ITEMS = "mnp_album_items"   # JSON ro'yxat: [{"type","file_id","caption"}]
+UD_ALBUM_GROUP = "mnp_album_group"   # media_group_id (yoki None)
 
 #: Qabul qilinadigan media turlari → post_type.
 _SUPPORTED_MEDIA = ("photo", "video", "animation", "document")
+
+# ============================================================
+# 🖼 ALBOM YIG'ISH (ODDIY POST) — 10 TAGACHA FAYL = BITTA POST
+# ============================================================
+# Telegram albomning har bir fayli ALOHIDA update bo'lib keladi. Avvalgi
+# xatti-harakat: har fayl uchun yangi preview chiqardi va postda faqat OXIRGI
+# fayl qolar edi (10 ta rasm = 10 preview, kanalda 1 rasm). Endi:
+#   * guruhning barcha fayllari (10 tagacha) bitta draftga yig'iladi;
+#   * oraliq fayllar uchun preview SPAM qilinmaydi (bitta xabar yetarli);
+#   * "jimlik" oynasi tugagach BITTA yakuniy xabar chiqadi (nechta fayl) va
+#     post `post_type="album"` sifatida saqlanadi (bitta DB yozuvi = bitta
+#     kvota birligi);
+#   * albom to'lsa (10) — qo'shimcha fayl uchun aniq ogohlantirish.
+_MANUAL_ALBUM_TASKS: dict = {}          # user_id -> asyncio.Task (yakunlovchi)
+_MANUAL_ALBUM_WAIT_SECONDS = 2.5        # oxirgi fayldan keyingi jimlik oynasi
+_MANUAL_ALBUM_MAX_ITEMS = 10            # Telegram media-guruh chegarasi
 
 
 def _extract_media(msg):
@@ -160,10 +182,12 @@ def _extract_media(msg):
 def _has_content(context) -> bool:
     """Preview uchun kontent saqlanganmi (sessiya eskirmaganmi)."""
     ud = context.user_data
-    return bool(
-        (ud.get(UD_CONTENT) or "").strip()
-        or (ud.get(UD_FILE_ID) and ud.get(UD_POST_TYPE) in _SUPPORTED_MEDIA)
-    )
+    if (ud.get(UD_CONTENT) or "").strip():
+        return True
+    # 🖼 Albom: matn (caption) bo'lmasa ham yig'ilgan fayllar post hisoblanadi.
+    if ud.get(UD_FILE_ID) and ud.get(UD_POST_TYPE) == "album":
+        return True
+    return bool(ud.get(UD_FILE_ID) and ud.get(UD_POST_TYPE) in _SUPPORTED_MEDIA)
 
 
 def _clear_manual_state(context) -> None:
@@ -172,8 +196,143 @@ def _clear_manual_state(context) -> None:
                 UD_REPEAT_TIME, UD_DUP_FORCE, UD_DUP_CHANNEL_ID,
                 UD_DUP_CHANNEL_TITLE, UD_REACTIONS, UD_URL_BTN_TEXT,
                 UD_URL_BTN_URL, UD_DELIVERY, UD_SELECTED_CHANNEL_ID,
-                UD_SELECTED_CHANNEL_TITLE):
+                UD_SELECTED_CHANNEL_TITLE, UD_ALBUM_ITEMS, UD_ALBUM_GROUP):
         context.user_data.pop(key, None)
+    user_id = _manual_user_id(context)
+    if user_id:
+        _manual_album_cancel(user_id)
+
+
+def _manual_user_id(context) -> int:
+    """Kontekstdagi foydalanuvchi ID (topilmasa 0) — fon vazifalari uchun."""
+    for attr in ("_user_id", "user_id"):
+        value = getattr(context, attr, None)
+        if isinstance(value, int) and value:
+            return value
+    user = getattr(context, "user", None)
+    uid = getattr(user, "id", None)
+    return uid if isinstance(uid, int) else 0
+
+
+# ============================================================
+# 🖼 ALBOM (media_group) YORDAMCHILARI — 10 tagacha fayl = BITTA post
+# ============================================================
+def _manual_album_items(context) -> list:
+    """Yig'ilayotgan albom elementlarini qaytaradi (xato/buzilgan JSON → [])."""
+    raw = context.user_data.get(UD_ALBUM_ITEMS)
+    if not raw:
+        return []
+    try:
+        items = json.loads(raw) if isinstance(raw, str) else raw
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return []
+    if not isinstance(items, list):
+        return []
+    return [i for i in items if isinstance(i, dict) and i.get("file_id")]
+
+
+def _manual_album_store(context, items: list) -> None:
+    """Albom elementlarini hamda post maydonlarini (bitta post) yangilaydi."""
+    context.user_data[UD_ALBUM_ITEMS] = json.dumps(items, ensure_ascii=False)
+    context.user_data[UD_POST_TYPE] = "album"
+    context.user_data[UD_FILE_ID] = context.user_data[UD_ALBUM_ITEMS]
+    context.user_data[UD_MEDIA_GROUP] = True
+    context.user_data[UD_CONTENT] = _manual_album_caption(items)
+
+
+def _manual_album_caption(items: list) -> str:
+    """Albom uchun YAGONA caption: birinchi bo'sh bo'lmagan matn.
+
+    Caption butun guruhga tegishli — shu sababli u birinchi elementga
+    bog'lanadi, qolgan elementlardan olib tashlanadi (kanalda faqat bitta
+    caption ko'rinadi va u butun albomga taalluqli bo'ladi).
+    """
+    caption = ""
+    for item in items:
+        cap = (item.get("caption") or "").strip()
+        if cap:
+            caption = cap
+            break
+    for i, item in enumerate(items):
+        item["caption"] = caption if i == 0 else ""
+    return caption
+
+
+def _manual_album_cancel(user_id: int) -> None:
+    """Yig'ishni yakunlovchi fon vazifasini bekor qiladi (post buzilmaydi)."""
+    task = _MANUAL_ALBUM_TASKS.pop(user_id, None)
+    if task is not None and not task.done() and not task.cancelled():
+        task.cancel()
+
+
+def _manual_album_schedule(user_id: int, context, lang: str) -> None:
+    """Jimlik oynasi tugagach albomni BITTA post sifatida yakunlaydi.
+
+    Har bir yangi fayl vazifani qaytadan boshlaydi (idle timeout) — sekin
+    kelgan albom ham bo'linib ketmaydi. Handler ICHIDA sleep qilinmaydi
+    (per-user lock bloklanmasligi uchun vazifa arka fonda ishlaydi).
+    """
+    _manual_album_cancel(user_id)
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:  # pragma: no cover — sinxron chaqiruv
+        return
+    _MANUAL_ALBUM_TASKS[user_id] = loop.create_task(
+        _manual_album_finalize(user_id, context, lang)
+    )
+
+
+async def _manual_album_finalize(user_id: int, context, lang: str) -> None:
+    """Albom yig'ishni yakunlaydi va YAGONA xabar (nechta fayl) yuboradi."""
+    try:
+        await asyncio.sleep(_MANUAL_ALBUM_WAIT_SECONDS)
+    except asyncio.CancelledError:
+        return
+    _MANUAL_ALBUM_TASKS.pop(user_id, None)
+    items = _manual_album_items(context)
+    if len(items) < 2:
+        return
+    _manual_album_store(context, items)
+    bot = getattr(context, "bot", None)
+    chat_id = getattr(context, "chat_id", None)
+    if bot is None or chat_id is None or not hasattr(bot, "send_message"):
+        return
+    try:
+        await bot.send_message(
+            chat_id=chat_id,
+            text=get_text("np_album_received", lang, count=len(items)),
+            reply_markup=_manual_preview_markup(context, lang),
+            parse_mode="HTML",
+        )
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.manual_post:_manual_album_finalize",
+                           _silent_exc, user_id=user_id)
+
+
+def _manual_album_take(context, item: dict, group_id) -> tuple:
+    """Albom draft'ini yangilaydi.
+
+    Qaytaradi: ``(is_album, changed_silently, over_limit)``:
+      * ``is_album`` — kontent albom sifatida yig'ilmoqda;
+      * ``changed_silently`` — yangi fayl mavjud albomga qo'shildi
+        (preview SPAM qilinmasligi kerak);
+      * ``over_limit`` — albom 10 ta faylga to'lgan (ogohlantirish kerak).
+    """
+    items = _manual_album_items(context)
+    current_group = context.user_data.get(UD_ALBUM_GROUP)
+    if not items or current_group != group_id:
+        # Yangi albom boshlanadi. Birinchi fayl ODDIY media sifatida
+        # ko'rsatiladi (preview darhol chiqadi, holat o'zgarmaydi); post
+        # ikkinchi fayldan boshlab albomga aylanadi va kanalga 10 tagacha
+        # fayl BITTA post bo'lib chiqadi.
+        context.user_data[UD_ALBUM_GROUP] = group_id
+        context.user_data[UD_ALBUM_ITEMS] = json.dumps([item], ensure_ascii=False)
+        return True, False, False
+    if len(items) >= _MANUAL_ALBUM_MAX_ITEMS:
+        return True, True, True
+    items.append(item)
+    _manual_album_store(context, items)
+    return True, True, False
 
 
 def _get_selected_channel(context):
@@ -541,6 +700,12 @@ def _manual_extras_text(context, lang: str) -> str:
         lines.append(manual_post_t(
             "mp_url_on", lang, text=html_escape(url_btn[0]),
             url=html_escape(url_btn[1])))
+    # 🖼 ALBOM: nechta fayl bitta post bo'lishi preview'da aniq ko'rinadi
+    # (foydalanuvchi "fayllarim saqlandimi?" degan savol bilan qolmaydi).
+    if (context.user_data.get(UD_POST_TYPE) == "album"
+            and context.user_data.get(UD_MEDIA_GROUP)):
+        count = len(_manual_album_items(context)) or 1
+        lines.append(manual_post_t("mp_album_summary", lang, count=count))
     # 5-vazifa: albom + tugma cheklovi haqida ogohlantirish
     if context.user_data.get(UD_MEDIA_GROUP) and (reactions or url_btn):
         lines.append(manual_post_t("mp_album_warning", lang))
@@ -565,19 +730,28 @@ async def _show_preview(target_msg, context, lang: str):
     foot = manual_post_t("mp_preview_foot", lang)
     extras = _manual_extras_text(context, lang)
 
-    if post_type in _SUPPORTED_MEDIA and file_id:
+    # 🖼 ALBOM: preview'da birinchi fayl "muqova" sifatida ko'rsatiladi,
+    # qolgan fayllar soni esa matnda (mp_album_summary) yoziladi — kanalga
+    # esa barcha fayllar BITTA albom bo'lib chiqadi.
+    preview_kind, preview_file = post_type, file_id
+    if post_type == "album" and file_id:
+        items = _manual_album_items(context)
+        if items:
+            preview_kind = items[0].get("type") or "photo"
+            preview_file = items[0].get("file_id")
+    if preview_kind in _SUPPORTED_MEDIA and preview_file:
         # Caption Telegram chegarasi 1024 — preview matni ham caption'da.
         caption_text = f"{title}{content}{extras}{foot}"
         cap = sanitize_html(caption_text, 1024)
         kwargs = dict(caption=cap, reply_markup=panel, parse_mode="HTML")
         try:
-            if post_type == "photo":
-                return await target_msg.reply_photo(photo=file_id, **kwargs)
-            if post_type == "video":
-                return await target_msg.reply_video(video=file_id, **kwargs)
-            if post_type == "animation":
-                return await target_msg.reply_animation(animation=file_id, **kwargs)
-            return await target_msg.reply_document(document=file_id, **kwargs)
+            if preview_kind == "photo":
+                return await target_msg.reply_photo(photo=preview_file, **kwargs)
+            if preview_kind == "video":
+                return await target_msg.reply_video(video=preview_file, **kwargs)
+            if preview_kind == "animation":
+                return await target_msg.reply_animation(animation=preview_file, **kwargs)
+            return await target_msg.reply_document(document=preview_file, **kwargs)
         except Exception:
             logger.warning("Oddiy post media preview xatosi", exc_info=True)
             # Media preview imkonsiz bo'lsa — matn ko'rinishida davom etamiz.
@@ -952,12 +1126,18 @@ async def manual_content_received(update: Update, context: ContextTypes.DEFAULT_
     Matn, rasm, video, GIF yoki hujjat (caption bilan yokisiz) qabul
     qilinadi; qolgan turlar (stiker, ovoz, kontakt...) aniq izoh bilan
     rad etiladi — lekin oqim uzilmaydi.
+
+    🖼 ALBOM (media_group): guruhning BARCHA fayllari (10 tagacha) bitta
+    postga yig'iladi. Birinchi fayl uchun preview odatdagidek chiqadi;
+    qolganlarida preview TAKRORLANMAYDI (spam yo'q) — jimlik oynasi tugagach
+    bitta yakuniy xabar (nechta fayl) chiqadi va post ``album`` bo'ladi.
     """
     msg = update.message
     lang = get_lang(context)
 
     file_id, post_type = _extract_media(msg)
     text_input = (msg.text or msg.caption or "").strip()
+    group_id = getattr(msg, "media_group_id", None)
 
     if not file_id and not text_input:
         # Qo'llab-quvvatlanmaydigan xabar turi (stiker/ovoz/kontakt...).
@@ -968,10 +1148,46 @@ async def manual_content_received(update: Update, context: ContextTypes.DEFAULT_
         )
         return MANUAL_AWAIT_CONTENT
 
-    context.user_data[UD_CONTENT] = text_input
-    context.user_data[UD_POST_TYPE] = post_type if file_id else "text"
-    context.user_data[UD_FILE_ID] = file_id
-    context.user_data[UD_MEDIA_GROUP] = bool(getattr(msg, "media_group_id", None))
+    if file_id and group_id:
+        item = {"type": post_type, "file_id": file_id, "caption": text_input}
+        user_id = _manual_user_id(context) or getattr(
+            getattr(update, "effective_user", None), "id", 0) or 0
+        is_album, silent, over_limit = _manual_album_take(context, item, group_id)
+        if is_album:
+            if over_limit:
+                # Albom to'ldi (10 ta fayl) — qo'shimcha fayl JIMGINA
+                # yo'qolmaydi va joriy albom buzilmaydi.
+                try:
+                    await msg.reply_text(
+                        get_text("np_album_limit_notice", lang,
+                                 limit=_MANUAL_ALBUM_MAX_ITEMS),
+                        parse_mode="HTML",
+                    )
+                except Exception as _silent_exc:
+                    log_silent_failure(
+                        "handlers.manual_post:manual_content_received:album_limit",
+                        _silent_exc, user_id=user_id)
+                return MANUAL_PREVIEW
+            # Jimlik oynasini yangilaymiz (har yangi fayl hisobga olinadi).
+            _manual_album_schedule(user_id, context, lang)
+            if silent:
+                # Oraliq fayl — preview SPAM qilinmaydi; yakuniy xabar
+                # (nechta fayl saqlangani) fondagi vazifa tomonidan yuboriladi.
+                return MANUAL_PREVIEW
+            # Birinchi fayl — oddiy media sifatida ko'rsatiladi (quyida),
+            # albom holati esa ikkinchi fayldan boshlab o'rnatiladi.
+            context.user_data[UD_POST_TYPE] = post_type
+            context.user_data[UD_FILE_ID] = file_id
+            context.user_data[UD_CONTENT] = text_input
+            context.user_data[UD_MEDIA_GROUP] = False
+    else:
+        context.user_data[UD_CONTENT] = text_input
+        context.user_data[UD_POST_TYPE] = post_type if file_id else "text"
+        context.user_data[UD_FILE_ID] = file_id
+        context.user_data[UD_MEDIA_GROUP] = False
+        context.user_data.pop(UD_ALBUM_ITEMS, None)
+        context.user_data.pop(UD_ALBUM_GROUP, None)
+        _manual_album_cancel(_manual_user_id(context))
 
     # 1-vazifa: agar kanal hali tanlanmagan bo'lsa va bitta kanal bo'lsa — auto-select
     if not _get_selected_channel(context):
@@ -1000,6 +1216,10 @@ async def manual_edit_received(update: Update, context: ContextTypes.DEFAULT_TYP
         return MANUAL_EDIT_INPUT
 
     # Tahrirlash: media almashtirilsa — yangi media; matn har doim yangilanadi.
+    # 🖼 Albom yig'ish tahrirlash bilan bekor qilinadi (yangi kontent ustuvor).
+    _manual_album_cancel(_manual_user_id(context))
+    context.user_data.pop(UD_ALBUM_ITEMS, None)
+    context.user_data.pop(UD_ALBUM_GROUP, None)
     if file_id:
         context.user_data[UD_POST_TYPE] = post_type
         context.user_data[UD_FILE_ID] = file_id
