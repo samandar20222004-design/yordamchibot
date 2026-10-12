@@ -61,7 +61,12 @@ from keyboards.inline import (
     get_settings_hub_keyboard,
     get_settings_rewards_keyboard,
 )
-from locales.translations import get_text, localize_db_message, normalize_lang
+from locales.translations import (
+    clear_fsm_data,
+    get_text,
+    localize_db_message,
+    normalize_lang,
+)
 from translations import settings_stats_t
 from utils.helpers import html_escape
 
@@ -740,6 +745,58 @@ async def _send_cleaner_screen(context, user_id: int, chat_id: int,
         reply_markup=_build_cleaner_keyboard(state["values"], lang),
         parse_mode="HTML",
     )
+
+
+async def cleaner_command(update, context: ContextTypes.DEFAULT_TYPE):
+    """🧹 ``/cleaner`` — Post tozalagich va ✍️ Imzo ekranini DARHOL ochadi.
+
+    ☰ «Menu» tugmasidagi ``/cleaner`` buyrug'i uchun (uz/ru/en). Ekran
+    Sozlamalar ichida CHUQUR joylashgan (⚙️ Sozlamalar → ✍️ Post
+    sozlamalari → ⚙️ Ko'proq → 🧹 Avto-tozalash) — buyruq esa uni BIR
+    QADAMDA ochadi: oraliq menyular yo'q, foydalanuvchi darhol
+    toggle'lar, ✍️ imzo, 🧪 namuna va [◀️ Orqaga] tugmalarini ko'radi.
+
+    Ekran ``stgs_clean`` callback'i bilan AYNAN bir manbadan chiziladi
+    (``_load_cleaner_state`` / ``_build_cleaner_text`` /
+    ``_build_cleaner_keyboard``) — matn yoki klaviatura ikkinchi nusxasi
+    yo'q. FSM tozalanadi (yarim tugagan eski oqim davom etmaydi), til
+    foydalanuvchi profilidan olinadi va DB o'qish fail-soft (baza
+    javob bermasa standart holat ko'rsatiladi).
+
+    Handler global ``CommandHandler`` sifatida ro'yxatdan o'tadi
+    (``/settings`` va ``/help`` bilan bir qatorda) — shu sababli buyruq
+    faol FSM holatidan qat'i nazar DARHOL ishlaydi.
+    """
+    clear_fsm_data(context)
+    user = getattr(update, "effective_user", None)
+    user_id = getattr(user, "id", None)
+    lang = await _user_lang(context, user_id)
+    from handlers.navigation import SECTION_SETTINGS, remember_section
+
+    remember_section(context, SECTION_SETTINGS)
+    if user_id is None:
+        # Foydalanuvchi aniqlanmagan (nazariy holat) — DB o'qilmaydi,
+        # standart (o'chirilgan) holat ko'rsatiladi.
+        values = {key: bool(SETTING_DEFAULTS.get(key, False))
+                  for key in CLEANER_SETTING_KEYS}
+        state = {"values": values, "signature": ""}
+    else:
+        state = await _load_cleaner_state(user_id)
+    text = _build_cleaner_text(state["values"], state["signature"], lang)
+    keyboard = _build_cleaner_keyboard(state["values"], lang)
+
+    message = getattr(update, "message", None)
+    if message is not None:
+        await message.reply_text(text, reply_markup=keyboard, parse_mode="HTML")
+        return _end_state()
+    # Zaxira yo'l (masalan, buyruq rasm izohida kelganda ``message``
+    # o'rniga faqat chat bo'ladi) — ekran baribir chiziladi.
+    chat = getattr(update, "effective_chat", None)
+    if chat is not None:
+        await context.bot.send_message(
+            chat.id, text, reply_markup=keyboard, parse_mode="HTML",
+        )
+    return _end_state()
 
 
 async def _render_profile_screen(query, context, user_id: int, lang: str,

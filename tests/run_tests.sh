@@ -188,6 +188,21 @@
 #       mock nuqtasi kech bog'lanish orqali saqlanadi, import sikli yo'q;
 #       `db_atomic` tranzaksiya dekroratori + ulanish/offload leak
 #       o'lchovlari (tests/repository_layering_test.py)
+#   3Q) 📋 ☰ TELEGRAM «MENU» TUGMASI (set_my_commands) + ASOSIY BUYRUQLAR:
+#       (1) 5 ta asosiy amal uz/ru/en tavsiflari bilan YAGONA manbadan
+#       (`menu_commands`): /start, /newpost, /cleaner, /settings, /help —
+#       standart (language_code siz, UZ) ro'yxat + har bir til uchun
+#       ALOHIDA ro'yxat + «Menu» tugmasi turi MenuButtonCommands;
+#       (2) menyu IXCHAM — texnik/admin buyruqlari (imagepost/profile/
+#       channel_advice/cancel/admin/stats/privacy/audit) ro'yxatga
+#       chiqarilmaydi;
+#       (3) SEAMLESS ROUTING — har bir buyruq jonli handlerga ulangan
+#       (start / start_new_post / cleaner_command / user_cabinet_menu /
+#       help_command), /cleaner esa 🧹 Post tozalagich va ✍️ Imzo ekranini
+#       BIR QADAMDA ochadi (stgs_clean bilan bir manbadan chiziladi);
+#       (4) FAIL-SOFT — Telegram API xatosi bot startini buzmaydi;
+#       (5) paritet hisoboti, statik SSOT kontrakti va hujjat sinxroni
+#       (tests/menu_button_and_commands_test.py)
 #   4) TO'LIQ regressiya: ilgari telegram_bot/tests/ ostidagi barcha suite'lar
 #      endi yagona tests/ katalogidan ishga tushadi.
 #
@@ -1516,6 +1531,31 @@ echo "===== ⏱ SPRINT 4 — ONBOARDING TELEMETRIYASI (TTFP + D1/D7) ====="
 #     (telemetriya xatosi post yaratishni buzmaydi);
 # (7) Live PostgreSQL: real users/scheduled_posts → kohorta hisoboti.
 "$PY" tests/onboarding_telemetry_test.py || EXIT_CODE=1
+
+echo
+echo "===== 📋 ☰ TELEGRAM «MENU» TUGMASI (set_my_commands) + BUYRUQLAR ====="
+# (1) ☰ «Menu» tugmasi ro'yxati — 5 ta ASOSIY amal (spetsifikatsiyadagi
+#     tartibda): /start 🚀, /newpost ✍️, /cleaner 🧹, /settings ⚙️, /help ℹ️;
+#     tavsiflar uz/ru/en da YAGONA manbadan (`menu_commands`) olinadi va
+#     Telegram cheklovlariga mos (nom `a-z0-9_` 1..32, tavsif ≤256 belgi);
+# (2) `main.set_bot_commands` HAQIQIY chaqiriladi: standart (language_code
+#     siz, UZ) ro'yxat + `uz`/`ru`/`en` uchun ALOHIDA ro'yxatlar +
+#     «Menu» tugmasi turi `MenuButtonCommands` (buyruqlar ro'yxati);
+#     ro'yxat IXCHAM — texnik/admin buyruqlari (imagepost, profile,
+#     channel_advice, cancel, admin, stats, privacy, audit) chiqarilmaydi;
+# (3) FAIL-SOFT — Telegram API xatosi (tarmoq/429/qisman xato/API yo'q)
+#     bot startini buzmaydi va hisobotda yashirilmaydi;
+# (4) SEAMLESS ROUTING — haqiqiy PTB registratsiyasida har bir buyruq jonli
+#     handlerga ega: /start → start, /newpost → start_new_post (FSM entry),
+#     /cleaner → cleaner_command, /settings → user_cabinet_menu,
+#     /help → help_command;
+# (5) /cleaner ekrani DARHOL chiziladi (uz/ru/en), matn va klaviatura
+#     `stgs_clean` callback ekrani bilan AYNAN bir manbadan (ikki nusxa
+#     yo'q), FSM tozalanadi, DB xatosida ham fail-soft;
+# (6) /settings va /help — tayyor UI (oraliq qadamsiz);
+# (7) statik kontrakt: `main.py` da qo'lda yozilgan BotCommand ro'yxati
+#     YO'Q (SSOT — `menu_commands`), README hujjati sinxron.
+"$PY" tests/menu_button_and_commands_test.py || EXIT_CODE=1
 
 echo
 echo "=============================================================="

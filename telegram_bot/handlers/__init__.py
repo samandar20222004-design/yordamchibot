@@ -398,6 +398,7 @@ from handlers.payment_receipt import (
 # bilan ham ro'yxatdan o'tkaziladi — generic legacy aliaslar saqlanadi.
 from handlers.settings import (
     CLEANER_SIGNATURE_INPUT,
+    cleaner_command,
     cleaner_signature_entry,
     cleaner_signature_received,
     settings_help_hub_callback,
@@ -2247,6 +2248,13 @@ def _register_global_commands(app):
     # buyruq orqali ham kabinetga kirish mumkin (uz/ru/en — bitta yo'l).
     app.add_handler(CommandHandler("settings", user_cabinet_menu))
     app.add_handler(CommandHandler("help", help_command))
+    # 🧹 ☰ «MENU» TUGMASI — /cleaner: Post tozalagich va ✍️ Imzo ekrani
+    # BIR QADAMDA ochiladi (Sozlamalar → ✍️ Post sozlamalari → ⚙️ Ko'proq →
+    # 🧹 Avto-tozalash yo'lini yurish shart emas). Handler global ro'yxatda
+    # (``main_conv`` dan OLDIN) turadi — shu sababli buyruq faol FSM
+    # holatidan qat'i nazar darhol ishlaydi va ekran bir manbadan
+    # (``stgs_clean`` bilan bir xil quruvchilardan) chiziladi.
+    app.add_handler(CommandHandler("cleaner", cleaner_command))
     # 🔐 SPRINT 1 (Privacy & GDPR): /privacy — bot qanday ma'lumotlarni
     # saqlashini ochiq ko'rsatadi (uz/ru/en) va o'chirish tugmasini beradi.
     app.add_handler(CommandHandler("privacy", privacy_command))

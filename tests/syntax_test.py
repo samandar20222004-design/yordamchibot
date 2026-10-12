@@ -52,6 +52,10 @@ def main():
         # 📢 KANALLARIM + 📅 REJALASHTIRILGAN (PostAssist V2, 4-qadam)
         "translations.channels_queue",
         "keyboards.reply",
+        # 📋 ☰ «MENU» TUGMASI (set_my_commands) — buyruqlar ro'yxati va
+        # uz/ru/en tavsiflari uchun YAGONA manba (``main.set_bot_commands``
+        # shu moduldan o'qiydi).
+        "menu_commands",
         "handlers.content_creation",
         "utils.helpers",
         "utils.converter",

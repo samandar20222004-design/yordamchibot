@@ -95,10 +95,12 @@ yozuvni ko'rasiz. Endi Telegram'da botingizga `/start` yozing.
 
 | Buyruq | Vazifasi |
 |---|---|
-| `/start` | Botni tanishtirish |
-| `/newpost` | Yangi rejalashtirilgan xabar qo'shish |
+| `/start` | 🚀 Botni qayta ishga tushirish / asosiy menyu |
+| `/newpost` | ✍️ Yangi post yaratish (rejalashtirish) |
+| `/cleaner` | 🧹 Post tozalagich va ✍️ Imzo (tez sozlash ekrani) |
+| `/settings` | ⚙️ Sozlamalar hub'i |
+| `/help` | ℹ️ Yordam (qo'llanma + FAQ) |
 | `/profile` | Kabinet va sozlamalar |
-| `/help` | Yordam matni |
 | `/cancel` | Joriy amalni bekor qilish |
 | `/admin` | Admin paneli (faqat admin) |
 | `/audit [N]` | Oxirgi admin harakatlari jurnali (`OWNER`/`SUPER_ADMIN`, 6-bosqich) |
@@ -109,6 +111,42 @@ yozuvni ko'rasiz. Endi Telegram'da botingizga `/start` yozing.
 — xohlasangiz izoh bilan) → bir marta yoki har kuni → sana/vaqt yoki muddat
 (1 hafta / 1 oy / 3 oy / 6 oy / **1 yil** / cheksiz). Hammasi tugma orqali,
 yozish shart emas.
+
+### ☰ «Menu» tugmasi (set_my_commands)
+
+Chat maydoni yonidagi **«Menu» (☰)** tugmasi bosilganda Telegram
+`set_my_commands` ro'yxatini ko'rsatadi. Bot ishga tushganda
+`main.set_bot_commands()` bu ro'yxatni **uchala tilda** o'rnatadi:
+
+| Buyruq | UZ | RU | EN |
+|---|---|---|---|
+| `/start` | 🚀 Botni qayta ishga tushirish | 🚀 Перезапустить бота | 🚀 Restart bot |
+| `/newpost` | ✍️ Yangi post yaratish | ✍️ Создать пост | ✍️ Create new post |
+| `/cleaner` | 🧹 Post tozalagich va Imzo | 🧹 Авто-чистка и Подпись | 🧹 Post cleaner & signature |
+| `/settings` | ⚙️ Sozlamalar | ⚙️ Настройки | ⚙️ Settings |
+| `/help` | ℹ️ Yordam | ℹ️ Помощь | ℹ️ Help |
+
+Qanday ishlaydi:
+
+* ro'yxat **YAGONA manbadan** (`telegram_bot/menu_commands.py`) olinadi —
+  buyruq nomlari, tartibi va i18n kalitlari faqat shu yerda;
+* standart (`language_code` siz) ro'yxat UZ'da, ustiga `uz` / `ru` / `en`
+  uchun **alohida** ro'yxatlar o'rnatiladi — Telegram klient tilini o'zi
+  tanlaydi (mos til topilmasa UZ ko'rinadi);
+* «Menu» tugmasining turi `MenuButtonCommands` (buyruqlar ro'yxati) qilib
+  qo'yiladi;
+* menyu **ixcham**: 5 ta asosiy amal. Texnik/admin buyruqlari (`/admin`,
+  `/stats`, `/privacy`, `/audit` …) ishlashda davom etadi, lekin ☰
+  ro'yxatni to'ldirmaydi;
+* har bir buyruq **jonli handlerga** ulangan: `/cleaner` esa 🧹 Post
+  tozalagich va ✍️ Imzo ekranini **bir qadamda** ochadi (Sozlamalar →
+  ✍️ Post sozlamalari → ⚙️ Ko'proq → 🧹 Avto-tozalash yo'lini yurish
+  shart emas) va `stgs_clean` ekrani bilan **bir xil** manbadan chiziladi;
+* Telegram API xatosi (tarmoq/429) bot ishga tushishini **buzmaydi**:
+  har bir chaqiruv alohida `try/except` da, xato logga yoziladi.
+
+Tekshiruv: `python tests/menu_button_and_commands_test.py`
+(sintaksis + paritet + routing + ekran testlari, tarmoqsiz).
 
 ### Media fayllar haqida
 
