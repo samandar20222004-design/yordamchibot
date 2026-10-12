@@ -740,11 +740,14 @@ def test_unified_content_menu():
 
 
 # ============================================================================
-# TEST 6 — ⚙️ FOUR-BUTTON SETTINGS GRID AND SEPARATE PROFILE SCREEN
+# TEST 6 — ⚙️ SIX-BUTTON SETTINGS GRID AND SEPARATE PROFILE SCREEN
 # ============================================================================
 def test_profile_cleanup():
-    print("\n== TEST 6: ⚙️ Sozlamalar primary grid — 4 tugma (2×2) ==")
-    expected_settings_cbs = ["stgs_lang", "stgs_clean", "stgs_notif", "sub_open"]
+    print("\n== TEST 6: ⚙️ Sozlamalar primary grid — 6 tugma (3×2) ==")
+    expected_settings_cbs = [
+        "stgs_lang", "stgs_clean", "stgs_notif",
+        "sub_open", "stgs_referral", "stgs_help_hub",
+    ]
     for lang in LANGS:
         cbs = [b.callback_data for row in
                get_cabinet_inline_keyboard(lang).inline_keyboard for b in row]
@@ -752,17 +755,19 @@ def test_profile_cleanup():
                   get_cabinet_inline_keyboard(lang).inline_keyboard for b in row]
         check(f"[{lang}] profil klaviaturasida cab_lang YO'Q",
               "cab_lang" not in cbs, str(cbs))
-        check(f"[{lang}] Settings grid: four callbacks in specification order",
+        check(f"[{lang}] Settings grid: six callbacks in specification order",
               cbs == expected_settings_cbs, str(cbs))
         check(f"[{lang}] Settings grid: language and cleaner are first row",
               labels and labels[0].startswith("🌐") and labels[1].startswith("✍️"),
               str(labels))
         check(f"[{lang}] Settings grid: notifications and PRO are second row",
               labels and labels[2].startswith("🔔") and labels[3].startswith("💎"), str(labels))
+        check(f"[{lang}] Settings grid: referral and help are third row",
+              labels and labels[4].startswith("👥") and labels[5].startswith("ℹ️"), str(labels))
         check(f"[{lang}] profil: dublikat yo'q",
               len(labels) == len(set(labels)), str(labels))
 
-    # 2) Legacy cabinet keyboard alias and the Settings hub share the 2×2 grid.
+    # 2) Legacy cabinet keyboard alias and the Settings hub share the 3×2 grid.
     for lang in LANGS:
         hub_cbs = [b.callback_data for row in
                    get_settings_hub_keyboard(lang).inline_keyboard for b in row]

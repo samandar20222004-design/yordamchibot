@@ -220,9 +220,9 @@ def test_button_labels_3_langs():
         inline_labels = [
             b.text for row in get_cabinet_inline_keyboard(code).inline_keyboard for b in row
         ]
-        # Settings uses a localized 2×2 primary grid; secondary actions are nested.
-        check(f"{code}: Settings primary grid is complete (4 buttons)",
-              len(inline_labels) == 4 and all(str(x).strip() for x in inline_labels),
+        # Settings uses a localized 3×2 primary grid (6 buttons).
+        check(f"{code}: Settings primary grid is complete (6 buttons)",
+              len(inline_labels) == 6 and all(str(x).strip() for x in inline_labels),
               str(inline_labels[:3]))
         lang_cbs = [
             b.callback_data

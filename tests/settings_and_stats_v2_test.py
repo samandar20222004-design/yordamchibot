@@ -66,16 +66,22 @@ EXPECTED_STATS_MARKERS = {
            "📅 Scheduled posts", "🤖 AI requests", "Credits spent"),
 }
 
-# ⚙️ Primary Settings grid — four callbacks, ordered left-to-right/top-to-bottom.
-EXPECTED_SETTINGS_CBS = ("stgs_lang", "stgs_clean", "stgs_notif", "sub_open")
+# ⚙️ Primary Settings grid — six callbacks, ordered left-to-right/top-to-bottom.
+EXPECTED_SETTINGS_CBS = (
+    "stgs_lang", "stgs_clean", "stgs_notif",
+    "sub_open", "stgs_referral", "stgs_help_hub",
+)
 
 EXPECTED_SETTINGS_LABELS = {
     "uz": (("🌐 Til / Язык", "✍️ Post Auto-Cleaner & Imzo"),
-           ("🔔 Bildirishnomalar", "💎 PRO va Tariflar")),
+           ("🔔 Bildirishnomalar", "💎 PRO va Tariflar"),
+           ("👥 Do'stlarni taklif", "ℹ️ Yordam va Qo'llanma")),
     "ru": (("🌐 Язык", "✍️ Автоочистка постов и подпись"),
-           ("🔔 Уведомления", "💎 PRO и тарифы")),
+           ("🔔 Уведомления", "💎 PRO и тарифы"),
+           ("👥 Пригласить друзей", "ℹ️ Помощь и руководство")),
     "en": (("🌐 Language", "✍️ Post Auto-Cleaner & Signature"),
-           ("🔔 Notifications", "💎 PRO & Plans")),
+           ("🔔 Notifications", "💎 PRO & Plans"),
+           ("👥 Invite friends", "ℹ️ Help and Guide")),
 }
 
 
@@ -403,7 +409,7 @@ def test_statistics_overview_format():
 # TEST 2 — ⚙️ SOZLAMALAR: 7 TUGMALI MENYU (legacy aliaslar bilan)
 # ============================================================================
 def test_settings_menu_structure_and_flows():
-    print("\n== TEST 2: ⚙️ Sozlamalar — 4 tugma / 2×2 primary grid ==")
+    print("\n== TEST 2: ⚙️ Sozlamalar — 6 tugma / 3×2 primary grid ==")
 
     # Legacy kabinet tezkor tugmalari — menyuda KO'RINMASLIGI shart
     # (ular o'z asosiy menyularida bor: 📢 Kanallarim, 📅 Rejalashtirilgan...).
@@ -415,10 +421,10 @@ def test_settings_menu_structure_and_flows():
         kb = get_settings_hub_keyboard(lang)
         rows = kb_rows_inline(kb)
         expected = EXPECTED_SETTINGS_LABELS[lang]
-        check(f"{lang}: 2 qator × 2 tugma primary grid",
+        check(f"{lang}: 3 qator × 2 tugma primary grid",
               [[t for t, _ in row] for row in rows] == [list(r) for r in expected],
               str(rows))
-        check(f"{lang}: 4 tugma callback tartibi",
+        check(f"{lang}: 6 tugma callback tartibi",
               kb_flat_cbs(kb) == list(EXPECTED_SETTINGS_CBS),
               str(kb_flat_cbs(kb)))
         check(f"{lang}: legacy cab_* dublikatlar YO'Q",
@@ -446,10 +452,10 @@ def test_settings_menu_structure_and_flows():
         check(f"{lang}: static Settings heading is shown",
               settings_stats_t("ss_settings_hub_title", lang) in text
               and settings_stats_t("ss_settings_hub_hint", lang) in text, text[:100])
-        check(f"{lang}: exactly the four primary callbacks are shown",
+        check(f"{lang}: exactly the six primary callbacks are shown",
               cbs == list(EXPECTED_SETTINGS_CBS), str(cbs))
-        check(f"{lang}: Settings panel avoids secondary actions",
-              not any(cb in cbs for cb in ("stgs_referral", "stgs_pay",
+        check(f"{lang}: Settings panel avoids secondary payment/privacy actions",
+              not any(cb in cbs for cb in ("stgs_pay",
                                            "stgs_privacy", "stgs_delete_data")),
               str(cbs))
         check(f"{lang}: legacy reply-keyboard callbacks are absent",
