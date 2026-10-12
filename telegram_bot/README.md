@@ -797,7 +797,7 @@ AI_LANGUAGE_RULES = {
   ko'rsatmalari tozalanadi — **tizim promptida tillar aralashib qolmaydi**.
 - Router / kontent-reja / vision / rewrite / format promptlari **to'liq**
   uchala tilda yozilgan (tarjima qilingan, aralash emas).
-- `services/ai_service.py` (`run_ai_chain(..., lang=...)` →
+- `services/ai/fallback.py` (`run_ai_chain(..., lang=...)` →
   `AIFallbackService.generate(..., lang=...)` → `enforce_system_language()`)
   — orkestrator darajasidagi **yakuniy himoya qatlami**; xato/timeout xabarlari
   ham foydalanuvchi tilida (`ai_timeout_message(lang)`).

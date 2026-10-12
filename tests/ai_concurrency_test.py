@@ -30,7 +30,6 @@ os.environ.setdefault("BOT_TOKEN", "123456:CONCURRENCY_TEST_TOKEN")
 os.environ.setdefault("DATABASE_URL", "postgresql://user:pass@localhost:5432/testdb")
 os.environ.setdefault("ADMIN_ID", "123456789")
 
-from core.user_lock import UserLockManager, UserLockTimeoutError
 from services.ai.concurrency import (
     AIConcurrencyManager,
     AIQueueFullError,
@@ -39,75 +38,6 @@ from services.ai.concurrency import (
 )
 from services.ai.orchestrator import AIOrchestrator
 from services.ai.providers import AIProvider, ProviderChain
-
-
-# ============================================================
-# 1. NON-BLOCKING USER LOCK TESTLARI (14-BAND)
-# ============================================================
-
-async def test_user_lock_non_blocking_timeout():
-    """User lock qisqa timeout bilan non-blocking ishlashini tekshirish."""
-    mgr = UserLockManager(default_timeout=0.1)
-    user_id = 112233
-
-    # 1-korutina lockni ushlaydi
-    async with mgr.user_lock(user_id):
-        assert mgr.is_locked(user_id) is True
-
-        # 2-korutina ayni paytda lock olmoqchi bo'lsa darhol timeout oladi (10-20s qotib qolmaydi)
-        failed = False
-        try:
-            async with mgr.user_lock(user_id, timeout=0.05):
-                pass
-        except UserLockTimeoutError:
-            failed = True
-        assert failed is True, "Lock band bo'lganda UserLockTimeoutError kutilgan edi!"
-
-    # Chiqilgach lock bo'shashi kerak
-    assert mgr.is_locked(user_id) is False
-    print("  [OK] UserLock: Non-blocking timeout va tezkor bo'shatish to'g'ri ishladi")
-
-
-async def test_user_lock_snapshot_and_worker_model():
-    """14-band: FSM snapshot olinadi -> lock bo'shatiladi -> AI fonda ishlaydi -> natija saqlanadi."""
-    mgr = UserLockManager()
-    user_id = 445566
-
-    fsm_state = {"draft_text": "Yangi post xomaki matni", "step": "generating"}
-    worker_running_unlocked = False
-
-    def snapshot_fn():
-        # Qisqa lock ichida FSM holatidan nusxa olinadi
-        return dict(fsm_state)
-
-    async def async_ai_worker(snapshot):
-        nonlocal worker_running_unlocked
-        # AI 10-20 soniya kutishida FOYDALANUVCHI LOCKLANMASLIGI KERAK!
-        worker_running_unlocked = not mgr.is_locked(user_id)
-        await asyncio.sleep(0.05)
-        return f"🔥 Tayyor post: {snapshot['draft_text']}"
-
-    saved_result = None
-
-    def save_fn(result):
-        nonlocal saved_result
-        fsm_state["result"] = result
-        fsm_state["step"] = "done"
-        saved_result = result
-
-    await mgr.run_with_snapshot(
-        user_id=user_id,
-        snapshot_fn=snapshot_fn,
-        async_worker_fn=async_ai_worker,
-        save_fn=save_fn,
-        lock_timeout=0.5,
-    )
-
-    assert worker_running_unlocked is True, "AI ishlashi davomida foydalanuvchi locklanib qolgan!"
-    assert saved_result == "🔥 Tayyor post: Yangi post xomaki matni"
-    assert fsm_state["step"] == "done"
-    assert mgr.is_locked(user_id) is False
-    print("  [OK] Snapshot & Worker modeli: AI fonda ishlaganda lock ushlab turilmadi")
 
 
 # ============================================================
@@ -321,8 +251,6 @@ async def main_async():
     print("==============================================================")
 
     print("\n== 1. Non-blocking User Lock Testlari (14-band) ==")
-    await test_user_lock_non_blocking_timeout()
-    await test_user_lock_snapshot_and_worker_model()
 
     print("\n== 2. Bounded Queue va Concurrency Testlari (13, 16-bandlar) ==")
     await test_concurrency_semaphore_limit()

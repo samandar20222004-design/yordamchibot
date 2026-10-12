@@ -851,11 +851,6 @@ def content_creation_rows(lang: str = "uz") -> list:
     ]
 
 
-def content_creation_labels(lang: str = "uz") -> list:
-    """Submenu'dagi barcha tugma yorliqlari (3 yo'nalish + ◀️ Orqaga)."""
-    return [label for row in content_creation_rows(lang) for label in row]
-
-
 def get_content_creation_keyboard(lang: str = "uz", context=None):
     """🧩 KONTENT YARATISH ichki menyusi — 3 yo'nalish + ◀️ Orqaga (reply).
 

@@ -13,7 +13,7 @@ Bu modul kichik, xavfsiz in-memory kesh:
 * Faqat FAST lane default keshlanadi (Quality/Reasoning javoblari
   kontekstga bog'liq — kesh faqat aniq so'ralganda ishlaydi).
 
-Not: bu kesh FAQAT yangi shlyuz (``services.ai_engine.gateway``) uchun.
+Not: bu kesh FAQAT yangi shlyuz (``services.ai.engine.gateway``) uchun.
 Legacy ``generate_ai_response`` chaqiruvlari keshga tegmaydi (eski
 testlar/HTTP zanjir determinizmi saqlanadi).
 """

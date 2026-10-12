@@ -520,7 +520,7 @@ def test_vision_event_classification() -> None:
         normalize_analysis,
     )
     from handlers.image_post import _analysis_summary
-    from services.ai_service import _image_analysis_text
+    from services.ai.fallback import _image_analysis_text
     from locales.translations import get_text
 
     header("TEST 5 — 📸 Vision: mahsulot ⇄ voqea va AVTOMATIK toifa")

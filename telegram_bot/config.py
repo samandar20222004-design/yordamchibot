@@ -440,13 +440,6 @@ PLAN_LIMITS = {
 }
 
 
-def get_stars_plan(plan_key: str) -> dict | None:
-    return STARS_PLANS.get(str(plan_key or "").strip())
-
-
-def get_subscription_plan(plan_key: str) -> dict | None:
-    return SUBSCRIPTION_PLANS.get(str(plan_key or "").strip())
-
 # --- Sentry monitoring (ixtiyoriy, 10-BOSQICH: maxfiylik filtri bilan) ---
 # SENTRY_DSN berilsa va sentry_sdk o'rnatilgan bo'lsa, barcha xatolar
 # avtomatik yig'iladi. MUHIM: Sentry'ga yuborilishdan oldin har bir event

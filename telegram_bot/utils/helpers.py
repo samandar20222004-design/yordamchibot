@@ -111,15 +111,6 @@ def _next_ad_text(ads, scope: str) -> str:
     return ads[idx][1]
 
 
-def get_channel_ad_next() -> str:
-    """Sinxron: kanal posti uchun navbatdagi reklama. Pul bo'sh bo'lsa eski
-    ``channel_ad_text`` sozlamasiga (orqaga moslik) qaytadi."""
-    ads = db.get_ads(db.AD_SCOPE_CHANNEL) or []
-    if ads:
-        return _next_ad_text(ads, db.AD_SCOPE_CHANNEL)
-    return db.get_setting("channel_ad_text", "").strip()
-
-
 async def get_channel_ad_next_async() -> str:
     """Async: kanal posti uchun navbatdagi reklama (DB thread'da o'qiladi)."""
     ads = (await db.run_db(db.get_ads, db.AD_SCOPE_CHANNEL)) or []
@@ -519,11 +510,6 @@ _USER_INTERACTION_COUNT = {}
 _USER_INTERACTION_LOCK = threading.Lock()
 
 
-def get_user_interaction_count(user_id: int) -> int:
-    with _USER_INTERACTION_LOCK:
-        return _USER_INTERACTION_COUNT.get(user_id, 0)
-
-
 def reset_user_interaction_count(user_id: int):
     with _USER_INTERACTION_LOCK:
         _USER_INTERACTION_COUNT.pop(user_id, None)
@@ -605,12 +591,6 @@ def get_auto_ad_injection(user_id: int) -> str:
     if count % interval == 0:
         return f"\n\n📢 <b>Homiy:</b> {html_escape(ad_text)}"
     return ""
-
-
-async def inject_auto_ad_async(user_id: int, base_text: str) -> str:
-    """Matn oxiriga avtomatik reklamani qo'shib beradi."""
-    ad = await get_auto_ad_injection_async(user_id)
-    return f"{base_text}{ad}" if ad else base_text
 
 
 def inject_auto_ad(user_id: int, base_text: str) -> str:

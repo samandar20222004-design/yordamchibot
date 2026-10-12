@@ -127,8 +127,8 @@ def test_process_metrics():
 def test_ai_and_telegram_instrumentation():
     print("== PHASE 10: AI service + Bot API instrumentation ==")
     from services import observability as metrics
-    from services.ai_engine.app_service import AITaskService
-    from services.ai_engine.gateway import GatewayResult
+    from services.ai.engine.app_service import AITaskService
+    from services.ai.engine.gateway import GatewayResult
     from services.payment_service import PaymentService
     from telegram.ext import ExtBot
     from utils.telegram_delivery import SafeHTMLBot

@@ -38,7 +38,7 @@ SCHEMA = (ROOT / "schema.sql").read_text(encoding="utf-8")
 DB_SOURCE = (ROOT / "database.py").read_text(encoding="utf-8")
 
 EXPECTED_TABLES = (
-    "users", "channels", "sponsor_channels", "system_settings",
+    "users", "user_settings", "channels", "sponsor_channels", "system_settings",
     "bot_settings", "ad_pool", "channel_post_counters", "scheduled_posts",
     "post_reactions", "sent_post_messages", "promo_codes", "payments",
     "payment_receipts", "payment_orders", "channel_posts_history",
@@ -123,8 +123,8 @@ def test_schema_file_tables():
     # Indekslar soni: 31 → 33 (channel_dna uchun 2 yangi indeks).
     # admin xabar ID'si bo'yicha qidiruv UNIQUE constraint'ning implicit
     # indeksi orqali ishlaydi.
-    check("jadvallar soni 31",
-          SCHEMA.count("CREATE TABLE IF NOT EXISTS") == 31,
+    check("jadvallar soni 32",
+          SCHEMA.count("CREATE TABLE IF NOT EXISTS") == 32,
           f"topildi: {SCHEMA.count('CREATE TABLE IF NOT EXISTS')}")
 
 

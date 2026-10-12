@@ -333,17 +333,6 @@ def extract_json(text: Any) -> dict | None:
     return None
 
 
-def json_list(data: dict | None, *keys: str) -> list:
-    """JSON ob'ektidan ro'yxat maydonini olish (noto'g'ri shaklda bo'sh ro'yxat)."""
-    if not isinstance(data, dict):
-        return []
-    for key in keys:
-        value = data.get(key)
-        if isinstance(value, list):
-            return [item for item in value if item is not None]
-    return []
-
-
 def text_list(values: Iterable[Any], limit_each: int = 240, max_items: int = 6) -> list[str]:
     """Ishonchsiz ro'yxatdan toza, chegaralangan, takrorlanmas satrlar."""
     out: list[str] = []
@@ -613,13 +602,3 @@ class SMMFeatureService:
             log_silent_failure("services.ai.smm_common:SMMFeatureService._log", _silent_exc)
 
 
-def result_payload(result: Any) -> dict:
-    """Dataclass natijasini JSON-lug'atga aylantirish (handler/API uchun)."""
-    if hasattr(result, "as_dict"):
-        try:
-            return result.as_dict()
-        except Exception as exc:  # pragma: no cover - defensive
-            logger.debug("as_dict xatosi: %s", exc)
-    if isinstance(result, dict):
-        return result
-    return {"success": bool(getattr(result, "success", False))}

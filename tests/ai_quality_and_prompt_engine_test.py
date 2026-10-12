@@ -12,13 +12,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'telegram_bot'))
 os.environ.setdefault('BOT_TOKEN', '123456:TEST_TOKEN')
 os.environ.setdefault('DATABASE_URL', 'postgresql://user:pass@localhost/test')
 os.environ.setdefault('ENVIRONMENT', 'test')
-from services.ai_engine.prompts import PromptEngine
-from services.ai_engine.schemas import PostResult, AuditResult, PlanResult, parse_result
-from services.ai_engine.safety import contains_leak
-from services.ai_engine.validator import validate_output
-from services.ai_engine import gateway, providers
-from services.ai_engine.health import reset_health_monitor
-from services.ai_engine.cache import reset_cache
+from services.ai.engine.prompts import PromptEngine
+from services.ai.engine.schemas import PostResult, AuditResult, PlanResult, parse_result
+from services.ai.engine.safety import contains_leak
+from services.ai.engine.validator import validate_output
+from services.ai.engine import gateway, providers
+from services.ai.engine.health import reset_health_monitor
+from services.ai.engine.cache import reset_cache
 
 POST = PostResult('Yangi kurs uchun ro‘yxat ochildi',
                   'Darslar orqali siz Python dasturlash asoslarini amaliy misollar bilan o‘rganasiz.',

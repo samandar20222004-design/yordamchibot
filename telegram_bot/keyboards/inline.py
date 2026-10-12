@@ -1192,20 +1192,8 @@ def get_stgs_rewards_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
     return get_settings_rewards_keyboard(lang)
 
 
-def get_stgs_help_hub_keyboard(
-    lang: str = "uz", support_username: str | None = None,
-) -> InlineKeyboardMarkup:
-    return get_settings_help_hub_keyboard(lang, support_username)
-
-
 def get_rewards_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
     return get_settings_rewards_keyboard(lang)
-
-
-def get_help_hub_keyboard(
-    lang: str = "uz", support_username: str | None = None,
-) -> InlineKeyboardMarkup:
-    return get_settings_help_hub_keyboard(lang, support_username)
 
 
 def get_tools_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:

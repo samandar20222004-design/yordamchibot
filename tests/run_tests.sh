@@ -244,8 +244,10 @@ echo "[INFO] Python interpreter: $PY ($($PY --version 2>&1 || echo 'unknown'))"
 REPO_ROOT="$(pwd)"
 export PYTHONPATH="${REPO_ROOT}/telegram_bot:${REPO_ROOT}${PYTHONPATH:+:$PYTHONPATH}"
 EXIT_CODE=0
+FAILED_TESTS=()
+fail() { EXIT_CODE=1; FAILED_TESTS+=("$1"); }
 
-"$PY" tests/ai_quality_and_prompt_engine_test.py || EXIT_CODE=1
+"$PY" tests/ai_quality_and_prompt_engine_test.py || fail "tests/ai_quality_and_prompt_engine_test.py"
 
 # --- P0-A: TEST MUHITI ------------------------------------------------------
 # Barcha testlar OFFLINE (tashqi AI kalitisiz, MockProvider bilan) ishlaydi,
@@ -267,24 +269,24 @@ echo "=============================================================="
 
 echo
 echo "==================== 1) SYNTAX TEST ===================="
-"$PY" tests/syntax_test.py || EXIT_CODE=1
+"$PY" tests/syntax_test.py || fail "tests/syntax_test.py"
 
 echo
 echo "======= 2) 3-BOSQICH PRODUCTION ACCEPTANCE SUITE (18) ======="
-"$PY" tests/production_acceptance_suite_test.py || EXIT_CODE=1
+"$PY" tests/production_acceptance_suite_test.py || fail "tests/production_acceptance_suite_test.py"
 
 echo
 echo "======= 3) ✨ MAGIC POST OQIMI (KILLER FEATURE #1) ======="
 # Foydalanuvchi xom matn → 5 uslub menyusi → AI generatsiya (uslubga xos
 # tizim prompti) → [Kanalga yuborish] / [Rejalashtirish] / [Boshqa uslub]
 # + i18n UZ/RU/EN 100% paritet (tests/magic_post_flow_test.py).
-"$PY" tests/magic_post_flow_test.py || EXIT_CODE=1
+"$PY" tests/magic_post_flow_test.py || fail "tests/magic_post_flow_test.py"
 
 echo
 echo "======= 3a) 📸 IMAGE → POST (GEMINI VISION + PHOTO SCHEDULER) ======="
 # Mock Gemini Vision, 10MB/format guard, style tanlanguncha 0 credit,
 # tanlanganda 1 credit va photo+caption delivery/scheduler contract.
-"$PY" tests/image_to_post_flow_test.py || EXIT_CODE=1
+"$PY" tests/image_to_post_flow_test.py || fail "tests/image_to_post_flow_test.py"
 
 echo
 echo "======= 3a') 📸 IMAGE → POST — 3-BOSQICH VISION FALLBACK + CAPTION ======="
@@ -292,7 +294,7 @@ echo "======= 3a') 📸 IMAGE → POST — 3-BOSQICH VISION FALLBACK + CAPTION =
 # Vision xatosida QURUQ XATO YO'Q: caption → Magic Post generatori, caption
 # bo'lmasa muloyim mavzu so'rovi (IMAGE_TOPIC_INPUT); forward/caption
 # extraction; natijada Magic Post bilan bir xil ixcham tugmalar; i18n paritet.
-"$PY" tests/image_post_fallback_test.py || EXIT_CODE=1
+"$PY" tests/image_post_fallback_test.py || fail "tests/image_post_fallback_test.py"
 
 echo
 echo "======= 3b) 🎙 VOICE → POST (STT $0 + RESURS HIMOYASI) ======="
@@ -301,7 +303,7 @@ echo "======= 3b) 🎙 VOICE → POST (STT $0 + RESURS HIMOYASI) ======="
 # tanlanganda FAQAT 1 kredit atomik → tayyor post + amallar.
 # Kredit/limit transkripsiya va bekor qilishda TIYILMAYDI
 # (tests/voice_to_post_flow_test.py).
-"$PY" tests/voice_to_post_flow_test.py || EXIT_CODE=1
+"$PY" tests/voice_to_post_flow_test.py || fail "tests/voice_to_post_flow_test.py"
 
 echo
 echo "===== 3c) 📊 POST SCORE & IMPROVER (KILLER FEATURE #4) ====="
@@ -311,7 +313,7 @@ echo "===== 3c) 📊 POST SCORE & IMPROVER (KILLER FEATURE #4) ====="
 # atomik yechiladi (xatoda refund); bo'sh/yaroqsiz matnda xavfsiz
 # ogohlantirish + i18n UZ/RU/EN 100% paritet
 # (tests/post_score_flow_test.py).
-"$PY" tests/post_score_flow_test.py || EXIT_CODE=1
+"$PY" tests/post_score_flow_test.py || fail "tests/post_score_flow_test.py"
 
 echo
 echo "===== 3d) 🧭 UX V2 — ASOSIY MENYU QAT'IY 6 TUGMA STANDARTI ====="
@@ -321,7 +323,7 @@ echo "===== 3d) 🧭 UX V2 — ASOSIY MENYU QAT'IY 6 TUGMA STANDARTI ====="
 # (3) eski tarqoq tugmalar menyudan olingan, routing'da alias qoladi
 # (backward compatibility); (4) STARS_PLANS — yagona manba (config.STARS_PLANS:
 # precheckout + PaymentService, shadowing yo'q); (5) /start onboarding 3 tilda.
-"$PY" tests/ux_v2_main_menu_test.py || EXIT_CODE=1
+"$PY" tests/ux_v2_main_menu_test.py || fail "tests/ux_v2_main_menu_test.py"
 
 echo
 echo "======= 3d2) 🧭 MENYU IXCHAMLIGI + ONBOARDING (KANAL DNK) ======="
@@ -329,7 +331,7 @@ echo "======= 3d2) 🧭 MENYU IXCHAMLIGI + ONBOARDING (KANAL DNK) ======="
 # backward compatibility, Kanal DNK taklifi + bepul namunaviy
 # qoralama (atomik bron + fail-closed refund) va statistikada
 # 💡 aniq tavsiya — uchala tilda (tests/main_menu_and_dna_onboarding_test.py).
-"$PY" tests/main_menu_and_dna_onboarding_test.py || EXIT_CODE=1
+"$PY" tests/main_menu_and_dna_onboarding_test.py || fail "tests/main_menu_and_dna_onboarding_test.py"
 
 echo
 echo "===== 3e) 🧩 KONTENT YARATISH SUBMENYUSI + ACTION-FIRST ====="
@@ -339,7 +341,7 @@ echo "===== 3e) 🧩 KONTENT YARATISH SUBMENYUSI + ACTION-FIRST ====="
 # eski bo'lingan tugmalar faqat routing aliasi. ACTION-FIRST: menyu
 # tashqarisida ovoz → STT, rasm → Vision, xom matn → "✨ Magic Post" taklifi
 # (tests/content_creation_menu_test.py).
-"$PY" tests/content_creation_menu_test.py || EXIT_CODE=1
+"$PY" tests/content_creation_menu_test.py || fail "tests/content_creation_menu_test.py"
 
 echo
 echo "===== 3e2) ✍️ ODDIY (AI'SIZ) POSTING + BIRLASHTIRILGAN MENYU ====="
@@ -350,7 +352,7 @@ echo "===== 3e2) ✍️ ODDIY (AI'SIZ) POSTING + BIRLASHTIRILGAN MENYU ====="
 # profildan takroriy «🌐 Til» tugmasi chiqarilgan (til faqat Sozlamalar
 # ichida); birlashtirilgan menyu va i18n pariteti kafolatlanadi
 # (tests/manual_posting_and_unified_menu_test.py).
-"$PY" tests/manual_posting_and_unified_menu_test.py || EXIT_CODE=1
+"$PY" tests/manual_posting_and_unified_menu_test.py || fail "tests/manual_posting_and_unified_menu_test.py"
 
 echo
 echo "===== 3e3) ❤️ REAKSIYALAR + 🔗 HAVOLALI TUGMA — MANUAL PREVIEW BOYITISH ====="
@@ -362,7 +364,7 @@ echo "===== 3e3) ❤️ REAKSIYALAR + 🔗 HAVOLALI TUGMA — MANUAL PREVIEW BOY
 # tugmalar db.add_post → scheduler orqali kanalga to'liq reply_markup
 # bilan chiqadi; mavjud oqimlar buzilmaydi
 # (tests/manual_post_reactions_and_url_buttons_test.py).
-"$PY" tests/manual_post_reactions_and_url_buttons_test.py || EXIT_CODE=1
+"$PY" tests/manual_post_reactions_and_url_buttons_test.py || fail "tests/manual_post_reactions_and_url_buttons_test.py"
 
 echo
 echo "===== 3e5) 🎨 REAKSIYA EMOJILARI + ✏️ TAHRIRLASH MENYUSI + ❌ BEKOR QILISH ====="
@@ -385,7 +387,7 @@ echo "===== 3e5) 🎨 REAKSIYA EMOJILARI + ✏️ TAHRIRLASH MENYUSI + ❌ BEKOR
 #       so'ralmaydi, toifa AVTOMATIK tanlanadi («Mahsulot posti» yoki
 #       «Voqea / Qiziqarli kontent posti»).
 #       (tests/reactions_edit_cancel_vision_flow_test.py)
-"$PY" tests/reactions_edit_cancel_vision_flow_test.py || EXIT_CODE=1
+"$PY" tests/reactions_edit_cancel_vision_flow_test.py || fail "tests/reactions_edit_cancel_vision_flow_test.py"
 
 echo
 echo "===== 3e4) 💡 FSM INPUT FALLBACK — BOSQICHLARDA YUMSHOQ JAVOB (PHASE 1) ====="
@@ -398,7 +400,7 @@ echo "===== 3e4) 💡 FSM INPUT FALLBACK — BOSQICHLARDA YUMSHOQ JAVOB (PHASE 1
 # xabarlari (mp_url_invalid/mp_react_custom_invalid/mp_time_invalid)
 # o'zgarmaydi; mp_stage_hint uz/ru/en paritetda
 # (tests/manual_post_fsm_fallback_test.py).
-"$PY" tests/manual_post_fsm_fallback_test.py || EXIT_CODE=1
+"$PY" tests/manual_post_fsm_fallback_test.py || fail "tests/manual_post_fsm_fallback_test.py"
 
 echo
 echo "===== 3f) 📢 KANALLARIM + 📅 REJALASHTIRILGAN ====="
@@ -413,7 +415,7 @@ echo "===== 3f) 📢 KANALLARIM + 📅 REJALASHTIRILGAN ====="
 # o'tkazildi, eski yorliqlar routing ALIAS'i bo'lib qoldi; (5) UZ/RU/EN 100%
 # paritet + FSM/callback regressiya qo'riqonlari
 # (tests/channels_and_queue_v2_test.py).
-"$PY" tests/channels_and_queue_v2_test.py || EXIT_CODE=1
+"$PY" tests/channels_and_queue_v2_test.py || fail "tests/channels_and_queue_v2_test.py"
 
 echo
 echo "===== 3g) 📊 STATISTIKA + ⚙️ SOZLAMALAR + ADMIN RBAC ====="
@@ -428,7 +430,7 @@ echo "===== 3g) 📊 STATISTIKA + ⚙️ SOZLAMALAR + ADMIN RBAC ====="
 # to'lovlar); (4) translations/settings_stats.py UZ/RU/EN 100% paritet;
 # (5) regressiya qo'riqonlari (6-tugma menyu, FSM, eski callback'lar)
 # (tests/settings_and_stats_v2_test.py).
-"$PY" tests/settings_and_stats_v2_test.py || EXIT_CODE=1
+"$PY" tests/settings_and_stats_v2_test.py || fail "tests/settings_and_stats_v2_test.py"
 
 echo
 echo "===== 3h) 🗓 SMART CONTENT CALENDAR (7/30 KUNLIK REJA) ====="
@@ -440,7 +442,7 @@ echo "===== 3h) 🗓 SMART CONTENT CALENDAR (7/30 KUNLIK REJA) ====="
 # (5) xavfsizlik: entitlement DB xatosida FAIL-CLOSED, AI javobi faqat
 # lug'at shaklida va kunlar soni bilan cheklangan, ishonchsiz matn
 # HTML-escape qilinadi (tests/content_calendar_flow_test.py).
-"$PY" tests/content_calendar_flow_test.py || EXIT_CODE=1
+"$PY" tests/content_calendar_flow_test.py || fail "tests/content_calendar_flow_test.py"
 
 echo
 echo "===== 3i) 🔄 2-QADAM REFAKTORI: B1 NAVBAT + B2 RASM OQIMI ====="
@@ -459,7 +461,7 @@ echo "===== 3i) 🔄 2-QADAM REFAKTORI: B1 NAVBAT + B2 RASM OQIMI ====="
 # (5) yangi FSM holatlari (470–472) noyob, yangi callback'lar <=64 bayt,
 # eskirgan tugmalar toast bilan javob beradi, i18n UZ/RU/EN 100% paritet
 # (tests/refactor_step2_test.py).
-"$PY" tests/refactor_step2_test.py || EXIT_CODE=1
+"$PY" tests/refactor_step2_test.py || fail "tests/refactor_step2_test.py"
 
 echo
 echo "===== 3j) ⚙️ 3-QADAM REFAKTORI: SOZLAMALAR MENYUSI + VOSITALAR ====="
@@ -479,7 +481,7 @@ echo "===== 3j) ⚙️ 3-QADAM REFAKTORI: SOZLAMALAR MENYUSI + VOSITALAR ====="
 # TRANSFER_AMOUNT FSM oqimini ochadi; (5) i18n UZ/RU/EN 100% paritet
 # (in_sync: True) va barcha callback'lar 64-bayt chegarasida
 # (tests/refactor_step3_test.py).
-"$PY" tests/refactor_step3_test.py || EXIT_CODE=1
+"$PY" tests/refactor_step3_test.py || fail "tests/refactor_step3_test.py"
 
 echo
 echo "===== 3k) 🧭 4-QADAM + 3-BOSQICH: NAVIGATSIYA + YAGONA INLINE ADMIN PANEL ====="
@@ -508,7 +510,7 @@ echo "===== 3k) 🧭 4-QADAM + 3-BOSQICH: NAVIGATSIYA + YAGONA INLINE ADMIN PANE
 #     qanday klaviaturada chizilmaydi; «📜 Audit | 👥 Rollar» esa
 #     🩺 Tizim monitoringi ekraniga ko'chirildi
 #     (tests/refactor_step4_test.py → TEST 3/3b).
-"$PY" tests/refactor_step4_test.py || EXIT_CODE=1
+"$PY" tests/refactor_step4_test.py || fail "tests/refactor_step4_test.py"
 
 echo
 echo "===== 3k2) ⚡️ 5-QADAM (P1): ANALYTICS N+1 + INDEX TUNING ====="
@@ -536,7 +538,7 @@ echo "===== 3k2) ⚡️ 5-QADAM (P1): ANALYTICS N+1 + INDEX TUNING ====="
 #     database facade / services.channels eksportlari va eski kalitlar
 #     100% saqlangan; IDOR fail-closed; DB xatosida fail-soft
 #     (tests/refactor_step5_test.py).
-"$PY" tests/refactor_step5_test.py || EXIT_CODE=1
+"$PY" tests/refactor_step5_test.py || fail "tests/refactor_step5_test.py"
 
 echo
 echo "===== 3l) 🏁 YAKUNIY ACCEPTANCE SUITE (TEST A..AG — 33 TEKSHIRUV) ====="
@@ -556,7 +558,7 @@ echo "===== 3l) 🏁 YAKUNIY ACCEPTANCE SUITE (TEST A..AG — 33 TEKSHIRUV) ====
 # klaviatura qaytmaydi, layout 12 tugma (6 qator × 2), barcha adm_*
 # tugmalari adminga ishlaydi, RBAC oddiy foydalanuvchini yopadi
 # (tests/final_acceptance_suite_test.py).
-"$PY" tests/final_acceptance_suite_test.py || EXIT_CODE=1
+"$PY" tests/final_acceptance_suite_test.py || fail "tests/final_acceptance_suite_test.py"
 
 echo
 echo "===== 3m) 📊 STATISTIKA IZOLYATSIYASI (SHAXSIY vs ADMIN) ====="
@@ -574,7 +576,7 @@ echo "===== 3m) 📊 STATISTIKA IZOLYATSIYASI (SHAXSIY vs ADMIN) ====="
 # «📊 To'liq statistika» ichida (yagona egalik, kesishuvchi yorliq yo'q);
 # (5) UZ/RU/EN 100% paritet + haqiqiy router routing qo'riqonlari
 # (tests/statistics_isolation_test.py).
-"$PY" tests/statistics_isolation_test.py || EXIT_CODE=1
+"$PY" tests/statistics_isolation_test.py || fail "tests/statistics_isolation_test.py"
 
 echo
 echo "===== 3n) ✨ 2-BOSQICH: AI PROMPT VA MAGIC POST SIFATI ====="
@@ -588,7 +590,7 @@ echo "===== 3n) ✨ 2-BOSQICH: AI PROMPT VA MAGIC POST SIFATI ====="
 # MARTA qayta so'raydi; (4) ixcham mp_intro (SaaS taklifi) + natija
 # klaviaturasi faqat 5 amal [2,2,1]; (5) FSM/callback regressiya, Magic Post
 # ichida ovoz/rasm o'z oqimiga yo'naltiriladi (tests/ai_prompt_quality_test.py).
-"$PY" tests/ai_prompt_quality_test.py || EXIT_CODE=1
+"$PY" tests/ai_prompt_quality_test.py || fail "tests/ai_prompt_quality_test.py"
 
 echo
 echo "===== 3o) 🔒 PHASE 2 / 1-QADAM: ATOMIK KVOTA + KREDIT TRANZAKSIYASI ====="
@@ -609,11 +611,11 @@ echo "===== 3o) 🔒 PHASE 2 / 1-QADAM: ATOMIK KVOTA + KREDIT TRANZAKSIYASI ====
 #     transactional funksiyadan foydalanadi, hech birida fail-open qolmagan,
 #     eski DB funksiyalari backward compatibility uchun saqlangan
 #     (tests/atomic_quota_test.py).
-"$PY" tests/atomic_quota_test.py || EXIT_CODE=1
+"$PY" tests/atomic_quota_test.py || fail "tests/atomic_quota_test.py"
 
 echo
 echo "===== 3p) PHASE 2 / 2-QADAM: TELEGRAM HTML SANITIZER + DELIVERY ====="
-"$PY" tests/html_sanitizer_test.py || EXIT_CODE=1
+"$PY" tests/html_sanitizer_test.py || fail "tests/html_sanitizer_test.py"
 
 echo
 echo "===== 3q) 🔒 PHASE 2 / 3-QADAM: FSM TOZALASH VA MENYU XAVFSIZLIGI ====="
@@ -626,7 +628,7 @@ echo "===== 3q) 🔒 PHASE 2 / 3-QADAM: FSM TOZALASH VA MENYU XAVFSIZLIGI ====="
 #     tekshiriladi, non-admin show_alert=True bilan rad etiladi;
 # (4) Middleware qatlami (FSMCleanerMiddleware, admin_rbac_required)
 #     tizim yaxlitligini ta'minlaydi (tests/fsm_navigation_safety_test.py).
-"$PY" tests/fsm_navigation_safety_test.py || EXIT_CODE=1
+"$PY" tests/fsm_navigation_safety_test.py || fail "tests/fsm_navigation_safety_test.py"
 
 echo
 echo "===== 3r) 🤖 PHASE 3: AI ENGINE VA SMM ORKESTRATSIYASI ====="
@@ -637,7 +639,7 @@ echo "===== 3r) 🤖 PHASE 3: AI ENGINE VA SMM ORKESTRATSIYASI ====="
 #     aniqlab, kuchaytirilgan prompt bilan AYNAN 1 marta qayta so'rov);
 # (4) Phase 2 reserve_ai_request va fail-closed refund kafolati;
 # (5) Telegram HTML Sanitization integratsiyasi (tests/ai_orchestrator_test.py).
-"$PY" tests/ai_orchestrator_test.py || EXIT_CODE=1
+"$PY" tests/ai_orchestrator_test.py || fail "tests/ai_orchestrator_test.py"
 
 echo
 echo "===== 3s) ⚡️ PHASE 4 & 5: AI CONCURRENCY, USER LOCK & CANCELLATION ====="
@@ -647,7 +649,7 @@ echo "===== 3s) ⚡️ PHASE 4 & 5: AI CONCURRENCY, USER LOCK & CANCELLATION ===
 #     MAX_AI_CONCURRENCY va MAX_AI_QUEUE (fail-closed muloyim xabar);
 # (3) Request Cancellation — generation_id, asyncio.Task.cancel(), kechikkan
 #     natijani filtrlab tashlash va to'liq refund (tests/ai_concurrency_test.py).
-"$PY" tests/ai_concurrency_test.py || EXIT_CODE=1
+"$PY" tests/ai_concurrency_test.py || fail "tests/ai_concurrency_test.py"
 
 echo
 echo "===== 3t) 💳 PHASE 9 & 10: TO'LOVLAR IDEMPOTENCY + SCHEDULER RESILIENCE ====="
@@ -656,7 +658,7 @@ echo "===== 3t) 💳 PHASE 9 & 10: TO'LOVLAR IDEMPOTENCY + SCHEDULER RESILIENCE 
 # (3) Scheduler media group timeout: blind retry YO'Q, UNKNOWN ga o'tadi;
 # (4) Auto-delete: MessageNotFound vs Forbidden ajratiladi;
 # (5) pre_checkout_query payload/user/amount/currency qat'iy tekshiriladi.
-"$PY" tests/payment_and_scheduler_resilience_test.py || EXIT_CODE=1
+"$PY" tests/payment_and_scheduler_resilience_test.py || fail "tests/payment_and_scheduler_resilience_test.py"
 
 echo
 echo "===== 3u) 🚀 PHASE 11 & 12: AI ADVANCED SMM FEATURES (33, 48, 49, 50, 51) ====="
@@ -680,7 +682,7 @@ echo "===== 3u) 🚀 PHASE 11 & 12: AI ADVANCED SMM FEATURES (33, 48, 49, 50, 51
 # (7) 🧱 Regressiya: Intent Router, MockProvider eski javoblari, sanitizer,
 #     atomic kvota API'si va services.ai eksportlari buzilmagan
 #     (tests/ai_advanced_features_test.py).
-"$PY" tests/ai_advanced_features_test.py || EXIT_CODE=1
+"$PY" tests/ai_advanced_features_test.py || fail "tests/ai_advanced_features_test.py"
 
 echo
 echo "===== 3v) ⚡️ PHASE 13: YUKLAMA VA KONKURENTLIK (39-band) ====="
@@ -703,7 +705,7 @@ echo "===== 3v) ⚡️ PHASE 13: YUKLAMA VA KONKURENTLIK (39-band) ====="
 #     (DB_POOL_MAX=5) — deadlock/starvation yo'q;
 # (6) Muhit 100 ta to'liq yuklamani ko'tarmasa → aniq
 #     "NOT TESTED — resource limit" qayd etiladi (soxta PASS yo'q).
-"$PY" tests/concurrency_load_test.py || EXIT_CODE=1
+"$PY" tests/concurrency_load_test.py || fail "tests/concurrency_load_test.py"
 
 echo
 echo "===== 3v2) 🌀 PHASE 11: CHAOS & SECURITY — FAIL-CLOSED (DB/REDIS/AI/TG/SSRF) ====="
@@ -723,7 +725,7 @@ echo "===== 3v2) 🌀 PHASE 11: CHAOS & SECURITY — FAIL-CLOSED (DB/REDIS/AI/TG
 # (6) ♻️ Dublikat callback (rate-limiter), 10 parallel dublikat Stars to'lov
 #     (1 ta yangi + 9 duplicate + 1 ledger yozuvi), stale update indirolanishi;
 # (7) 💧 resurs holati: asyncio task leak yo'q, navbatlar bo'sh.
-"$PY" tests/phase11_chaos_security_test.py || EXIT_CODE=1
+"$PY" tests/phase11_chaos_security_test.py || fail "tests/phase11_chaos_security_test.py"
 
 echo
 echo "===== 3v3) 🐳 PHASE 12: PRODUCTION DOCKERFILE + GRACEFUL SHUTDOWN ====="
@@ -740,7 +742,7 @@ echo "===== 3v3) 🐳 PHASE 12: PRODUCTION DOCKERFILE + GRACEFUL SHUTDOWN ====="
 #     user-activity flush → web → DB pool → AI sessiya → Redis/cache);
 #     standart byudjet 15 s [5..30], timeout'da ishlar BEKOR QILINMAYDI;
 # (4) env hujjatlari pariteti (SHUTDOWN_GRACE_SECONDS=15).
-"$PY" tests/phase12_docker_and_shutdown_test.py || EXIT_CODE=1
+"$PY" tests/phase12_docker_and_shutdown_test.py || fail "tests/phase12_docker_and_shutdown_test.py"
 
 echo
 echo "===== 3w) 🛡 PHASE A: PRODUCTION SAFETY & VALIDATOR HARDENING (P0-A/B/C) ====="
@@ -758,7 +760,7 @@ echo "===== 3w) 🛡 PHASE A: PRODUCTION SAFETY & VALIDATOR HARDENING (P0-A/B/C)
 # (3) P0-C — prompt/retry ko'rsatmalari («MUHIM: Oldingi javob juda qisqa...»)
 #     provayder javobidan tozalanadi va foydalanuvchiga yetib bormaydi
 #     (tests/production_safety_and_validator_test.py).
-"$PY" tests/production_safety_and_validator_test.py || EXIT_CODE=1
+"$PY" tests/production_safety_and_validator_test.py || fail "tests/production_safety_and_validator_test.py"
 
 echo
 echo "===== 3w') 🧠 PHASE A: PROD SAFETY + CHANNEL INTELLIGENCE BASE ======="
@@ -768,7 +770,7 @@ echo "===== 3w') 🧠 PHASE A: PROD SAFETY + CHANNEL INTELLIGENCE BASE ======="
 #     creation & idempotency, VARCHAR(255) channel_id match, indexes,
 #     ENVIRONMENT/AI_ALLOW_MOCK exports va MOCK_ALLOWED_ENVIRONMENTS tightening
 #     (tests/production_safety_and_channel_intelligence_base_test.py).
-"$PY" tests/production_safety_and_channel_intelligence_base_test.py || EXIT_CODE=1
+"$PY" tests/production_safety_and_channel_intelligence_base_test.py || fail "tests/production_safety_and_channel_intelligence_base_test.py"
 
 echo
 echo "===== 3x) 🧠 PHASE B: CHANNEL INTELLIGENCE — DNA + BEST TIME + MONITORING ====="
@@ -791,7 +793,7 @@ echo "===== 3x) 🧠 PHASE B: CHANNEL INTELLIGENCE — DNA + BEST TIME + MONITOR
 #     routing, 64-bayt, i18n pariteti + AI orkestrator promptiga DNA
 #     ulanishi (faqat egasi kanalga, fail-soft)
 # (tests/channel_intelligence_dna_test.py).
-"$PY" tests/channel_intelligence_dna_test.py || EXIT_CODE=1
+"$PY" tests/channel_intelligence_dna_test.py || fail "tests/channel_intelligence_dna_test.py"
 
 echo
 echo "===== 3x2) 🧬 STEP 3: CHANNEL DNA 2.0 + CONTENT LEARNING INTEGRATION ====="
@@ -817,7 +819,7 @@ echo "===== 3x2) 🧬 STEP 3: CHANNEL DNA 2.0 + CONTENT LEARNING INTEGRATION ===
 #     va tavsiyalar UZ/RU/EN 100% paritet (kalitlar + format argumentlari,
 #     content_learning_parity_report: in_sync=True)
 # (tests/channel_dna2_content_learning_test.py).
-"$PY" tests/channel_dna2_content_learning_test.py || EXIT_CODE=1
+"$PY" tests/channel_dna2_content_learning_test.py || fail "tests/channel_dna2_content_learning_test.py"
 
 echo
 echo "===== 3y) 🚀 PHASE C: AI AUTOPILOT + POST SHABLONLARI + DUBLIKAT DETEKTOR ====="
@@ -837,7 +839,7 @@ echo "===== 3y) 🚀 PHASE C: AI AUTOPILOT + POST SHABLONLARI + DUBLIKAT DETEKTO
 # (4) FSM 480-490 holatlari boshqa oqimlar bilan to'qnashmaydi, routing,
 #     i18n paritet (uz/ru/en) va 64-bayt callback chegarasi
 # (tests/autopilot_templates_and_duplicates_test.py).
-"$PY" tests/autopilot_templates_and_duplicates_test.py || EXIT_CODE=1
+"$PY" tests/autopilot_templates_and_duplicates_test.py || fail "tests/autopilot_templates_and_duplicates_test.py"
 
 echo
 echo "===== 3z) 📥 PHASE D (2/2): KONTENT MANBALARI — URL→POST + RSS/ATOM + RECYCLE ====="
@@ -861,11 +863,11 @@ echo "===== 3z) 📥 PHASE D (2/2): KONTENT MANBALARI — URL→POST + RSS/ATOM 
 # (7) FSM 530–539 unikalligi, routing, stale tarmog'i, 64-bayt va
 #     uz/ru/en i18n pariteti
 # (tests/sources_rss_and_recycle_test.py).
-"$PY" tests/sources_rss_and_recycle_test.py || EXIT_CODE=1
+"$PY" tests/sources_rss_and_recycle_test.py || fail "tests/sources_rss_and_recycle_test.py"
 
 echo
 echo "===== 3E) PHASE E: TEAM ROLES + APPROVAL + AUDIENCE INSIGHTS ====="
-"$PY" tests/team_approval_and_insights_test.py || EXIT_CODE=1
+"$PY" tests/team_approval_and_insights_test.py || fail "tests/team_approval_and_insights_test.py"
 
 echo
 echo "===== 3F) 🧾 DEPLOYMENT READINESS: .env.example KANONIK HOLAT + PARITET ====="
@@ -877,7 +879,7 @@ echo "===== 3F) 🧾 DEPLOYMENT READINESS: .env.example KANONIK HOLAT + PARITET 
 #     GEMINI_VISION_MODEL = gemini-2.5-flash; (4) kodda o'qiladigan har bir
 #     production env o'zgaruvchisi hujjatlangan (orphans yo'q); (5) namunada
 #     haqiqiy secret qiymatlari bo'sh (tests/env_docs_parity_test.py).
-"$PY" tests/env_docs_parity_test.py || EXIT_CODE=1
+"$PY" tests/env_docs_parity_test.py || fail "tests/env_docs_parity_test.py"
 
 echo
 echo "===== 3F-bis) 🛡 MAXFIY KALIT SIZISH GARD'I ====="
@@ -890,7 +892,7 @@ echo "===== 3F-bis) 🛡 MAXFIY KALIT SIZISH GARD'I ====="
 # (4) .env.example dagi maxfiy kalit qiymatlari bo'sh;
 # (5) TO'LIQ git tarixida (barcha refs) haqiqiy token namuna yo'q
 #     (tests/secret_leak_scan_test.py).
-"$PY" tests/secret_leak_scan_test.py || EXIT_CODE=1
+"$PY" tests/secret_leak_scan_test.py || fail "tests/secret_leak_scan_test.py"
 
 echo
 echo "===== 3G) 🧭 3-QADAM: ANIQLASHTIRISH + FORMAT + FLUFF-GUARD ====="
@@ -905,7 +907,7 @@ echo "===== 3G) 🧭 3-QADAM: ANIQLASHTIRISH + FORMAT + FLUFF-GUARD ====="
 # (5) FSM 434/435/436 noyob, aip_ callback'lar ro'yxatda, Phase A-E
 #     xavfsizlik filtrlari buzilmagan
 #     (tests/ai_clarification_and_intent_test.py).
-"$PY" tests/ai_clarification_and_intent_test.py || EXIT_CODE=1
+"$PY" tests/ai_clarification_and_intent_test.py || fail "tests/ai_clarification_and_intent_test.py"
 
 echo
 echo "===== 3J) 🚦 AI ENGINE V2: YAGONA SHLYUZ + ROUTER + CIRCUIT BREAKER ====="
@@ -932,7 +934,7 @@ echo "===== 3J) 🚦 AI ENGINE V2: YAGONA SHLYUZ + ROUTER + CIRCUIT BREAKER ====
 #     Post uslub menyusida (mp_cancel) [❌ Bekor qilish] tugmasi, i18n
 #     paritet, 64-bayt callback xavfsizligi
 #     (tests/ai_engine_v2_test.py).
-"$PY" tests/ai_engine_v2_test.py || EXIT_CODE=1
+"$PY" tests/ai_engine_v2_test.py || fail "tests/ai_engine_v2_test.py"
 
 echo
 echo "===== 3K) 📢 FAZA 15 & 16: REKLAMA DVIGATELI + REKLAMA AUDITI ====="
@@ -958,7 +960,7 @@ echo "===== 3K) 📢 FAZA 15 & 16: REKLAMA DVIGATELI + REKLAMA AUDITI ====="
 #     uchun 1 bron, rad etilsa AI'ga chiqilmaydi, AI yiqilsa refund), Phase 2
 #     sanitizer va services.channels.dna qayta ishlatiladi; uz/ru/en paritet.
 #     (tests/advertisement_engine_and_audit_test.py).
-"$PY" tests/advertisement_engine_and_audit_test.py || EXIT_CODE=1
+"$PY" tests/advertisement_engine_and_audit_test.py || fail "tests/advertisement_engine_and_audit_test.py"
 
 echo
 echo "===== 3H) 💬 4-QISM: QO'LLAB-QUVVATLASH (ONE-TIME TICKET) + ADMIN REPLY ====="
@@ -983,7 +985,7 @@ echo "===== 3H) 💬 4-QISM: QO'LLAB-QUVVATLASH (ONE-TIME TICKET) + ADMIN REPLY 
 # (5) REGRESSIYA: i18n UZ↔RU↔EN paritet, FSM 540 unikal, schema.sql ↔
 #     database.EXPECTED_TABLES paralleligi, ⚙️ Sozlamalar hub'i o'zgarmagan
 #     (tests/support_ticket_flow_test.py).
-"$PY" tests/support_ticket_flow_test.py || EXIT_CODE=1
+"$PY" tests/support_ticket_flow_test.py || fail "tests/support_ticket_flow_test.py"
 
 echo
 echo "===== 3I) 🧭 FAZA 17/18/19/26 — UI/UX STANDARTLARI, CALLBACK REGISTRY, I18N PARITET ====="
@@ -1012,7 +1014,7 @@ echo "===== 3I) 🧭 FAZA 17/18/19/26 — UI/UX STANDARTLARI, CALLBACK REGISTRY,
 #     bir xil (dashboard/stats/dbcache/posts/sponsors oltin fragmentlari),
 #     CHANNEL_LIMIT_MSG/PRO_UPGRADE_KEYBOARD/parse_channel_target orqaga
 #     mosligi 3 tilda (tests/ui_ux_and_navigation_standards_test.py).
-"$PY" tests/ui_ux_and_navigation_standards_test.py || EXIT_CODE=1
+"$PY" tests/ui_ux_and_navigation_standards_test.py || fail "tests/ui_ux_and_navigation_standards_test.py"
 
 echo
 echo "===== 3L) 🛡⚡ FAZA 23/25/27/28/29: PRODUCTION HARDENING & CONCURRENCY ====="
@@ -1034,7 +1036,7 @@ echo "===== 3L) 🛡⚡ FAZA 23/25/27/28/29: PRODUCTION HARDENING & CONCURRENCY 
 #     kesiladi, asyncio task-leak tekshiruvi.
 # (4) Har bir natija FAQAT aniq fakt bilan belgilanadi: PASS / FAIL /
 #     NOT TESTED (soxta PASS taqiqlanadi).
-"$PY" tests/production_hardening_and_concurrency_test.py || EXIT_CODE=1
+"$PY" tests/production_hardening_and_concurrency_test.py || fail "tests/production_hardening_and_concurrency_test.py"
 
 echo
 echo "===== 3M) 🪄 POSTASSIST POLISH: DINAMIK SANA + 4 TUGMA + BOT HAQIDA + 18-BELGI ====="
@@ -1053,7 +1055,7 @@ echo "===== 3M) 🪄 POSTASSIST POLISH: DINAMIK SANA + 4 TUGMA + BOT HAQIDA + 18
 #     maqsadni va qisqa yo'riqnomani ko'rsatadi.
 # (4) 📏 18-BELGI STANDARTI: barcha statik inline tugma yorliqlari va
 #     45+ kanonik klaviatura render'da ≤18 belgi (vizual uzunlik).
-"$PY" tests/postassist_polish_test.py || EXIT_CODE=1
+"$PY" tests/postassist_polish_test.py || fail "tests/postassist_polish_test.py"
 
 echo
 echo "===== 3N) 🔒 PHASE 2: RATE LIMITING + REDIS / DISTRIBUTED STATE ====="
@@ -1073,7 +1075,7 @@ echo "===== 3N) 🔒 PHASE 2: RATE LIMITING + REDIS / DISTRIBUTED STATE ====="
 # (5) ⚙️ .env.example: REDIS_URL (ixtiyoriy), REDIS_ENABLED bayrog'i va
 #     RATE_LIMIT_* kalitlari — yagona kanonik nusxada
 #     (tests/rate_limiter_redis_test.py).
-"$PY" tests/rate_limiter_redis_test.py || EXIT_CODE=1
+"$PY" tests/rate_limiter_redis_test.py || fail "tests/rate_limiter_redis_test.py"
 
 echo
 echo "===== 3O) 🔐 PHASE 3: RBAC MARKAZLASHUVI + IDOR HIMOYASI ====="
@@ -1092,7 +1094,7 @@ echo "===== 3O) 🔐 PHASE 3: RBAC MARKAZLASHUVI + IDOR HIMOYASI ====="
 # (3) 🧱 Middleware qatlami (middlewares/rbac.py): resurs ID validatsiyasi,
 #     ``enforce_resource_access`` (alertli yopiq rad), ``resource_guard``
 #     dekoratori va ``ResourceRBACMiddleware`` (ApplicationHandlerStop).
-"$PY" tests/phase3_rbac_idor_test.py || EXIT_CODE=1
+"$PY" tests/phase3_rbac_idor_test.py || fail "tests/phase3_rbac_idor_test.py"
 
 echo
 echo "===== 3P) 🗂 PHASE 4: DATABASE MODULLASHUVI + REPOSITORY PATTERN ====="
@@ -1119,7 +1121,7 @@ echo "===== 3P) 🗂 PHASE 4: DATABASE MODULLASHUVI + REPOSITORY PATTERN ====="
 # (6) 💧 LEAK HIMOYASI: ulanish hisobi (`conn_balance()`), offload
 #     (thread pool saturation) o'lchovi va ular `get_db_pool_status()`
 #     ga ulandi (tests/repository_layering_test.py).
-"$PY" tests/repository_layering_test.py || EXIT_CODE=1
+"$PY" tests/repository_layering_test.py || fail "tests/repository_layering_test.py"
 
 echo
 echo "======== 4) TO'LIQ REGRESSIYA (yagona tests/ katalogi) ========"
@@ -1128,53 +1130,53 @@ echo "======== 4) TO'LIQ REGRESSIYA (yagona tests/ katalogi) ========"
 
 echo
 echo "================ DELIVERY OPTIONS TEST ==============="
-"$PY" tests/delivery_options_test.py || EXIT_CODE=1
+"$PY" tests/delivery_options_test.py || fail "tests/delivery_options_test.py"
 
 echo
 echo "==================== UNIT TEST ======================"
-"$PY" tests/unit_test.py || EXIT_CODE=1
+"$PY" tests/unit_test.py || fail "tests/unit_test.py"
 
 echo
 echo "==================== UX MENU TEST ===================="
-"$PY" tests/ux_menu_test.py || EXIT_CODE=1
+"$PY" tests/ux_menu_test.py || fail "tests/ux_menu_test.py"
 
 echo
 echo "==================== SERVICES TEST ===================="
-"$PY" tests/services_test.py || EXIT_CODE=1
+"$PY" tests/services_test.py || fail "tests/services_test.py"
 
 echo
 echo "================ SCHEDULER SERVICE TEST =============="
-"$PY" tests/scheduler_service_test.py || EXIT_CODE=1
+"$PY" tests/scheduler_service_test.py || fail "tests/scheduler_service_test.py"
 
 echo
 echo "================ NEW REQUIREMENTS TEST ==============="
-"$PY" tests/new_requirements_test.py || EXIT_CODE=1
+"$PY" tests/new_requirements_test.py || fail "tests/new_requirements_test.py"
 
 echo
 echo "================= ALBOM & SKIP TEST ================="
-"$PY" tests/album_skip_test.py || EXIT_CODE=1
+"$PY" tests/album_skip_test.py || fail "tests/album_skip_test.py"
 
 echo "=========== ALBOM OG'HOHLANTIRISH + TOZA KANAL ==========="
-"$PY" tests/album_warning_test.py || EXIT_CODE=1
+"$PY" tests/album_warning_test.py || fail "tests/album_warning_test.py"
 
 echo
 echo "===== 10 TA MEDIA (ALBOM) = BITTA POST TEST ====="
-"$PY" tests/album_media_group_10_test.py || EXIT_CODE=1
+"$PY" tests/album_media_group_10_test.py || fail "tests/album_media_group_10_test.py"
 
 echo "================= PHOTO LEAK & VOICE TEST ===================="
-"$PY" tests/photo_leak_test.py || EXIT_CODE=1
+"$PY" tests/photo_leak_test.py || fail "tests/photo_leak_test.py"
 
 echo
 echo "================= STICKER REACTION TEST ================="
-"$PY" tests/sticker_reaction_test.py || EXIT_CODE=1
+"$PY" tests/sticker_reaction_test.py || fail "tests/sticker_reaction_test.py"
 
 echo
 echo "=============== PREMIUM / EN i18n TEST ==============="
-"$PY" tests/premium_i18n_en_test.py || EXIT_CODE=1
+"$PY" tests/premium_i18n_en_test.py || fail "tests/premium_i18n_en_test.py"
 
 echo
 echo "===== TO'LOV MINTAQASI TANLOVI (UZ/RU/EN) ====="
-"$PY" tests/payment_region_selection_test.py || EXIT_CODE=1
+"$PY" tests/payment_region_selection_test.py || fail "tests/payment_region_selection_test.py"
 
 echo
 echo "===== ⚡️ PAYME MERCHANT API (JSON-RPC, Basic Auth, idempotentlik) ====="
@@ -1184,78 +1186,78 @@ echo "===== ⚡️ PAYME MERCHANT API (JSON-RPC, Basic Auth, idempotentlik) ====
 # payme_transaction_id + buyurtmada bitta faol tx + ledger kaliti);
 # aiohttp endpoint (POST /payments/payme) haqiqiy route jadvalida; real
 # PostgreSQL (pgserver) ustida qulflar va constraint'lar (bo'lmasa SKIP).
-"$PY" tests/payme_merchant_test.py || EXIT_CODE=1
+"$PY" tests/payme_merchant_test.py || fail "tests/payme_merchant_test.py"
 
 echo
 echo "========= 3 TILLIK (UZ/RU/EN) + AI TIL PARITETI ========="
-"$PY" tests/i18n_ai_parity_test.py || EXIT_CODE=1
+"$PY" tests/i18n_ai_parity_test.py || fail "tests/i18n_ai_parity_test.py"
 
 echo
 echo "=========== ACCOUNT & SETTINGS i18n TEST ============"
-"$PY" tests/account_settings_i18n_test.py || EXIT_CODE=1
+"$PY" tests/account_settings_i18n_test.py || fail "tests/account_settings_i18n_test.py"
 
 echo
 echo "====== REPLY TUGMA FILTRLARI (uz/ru/en) + SANA ======"
-"$PY" tests/reply_filters_i18n_dates_test.py || EXIT_CODE=1
+"$PY" tests/reply_filters_i18n_dates_test.py || fail "tests/reply_filters_i18n_dates_test.py"
 
 echo "========= UZ/RU/EN TO'LIQ PARITET AUDITI ========="
-"$PY" tests/i18n_full_parity_test.py || EXIT_CODE=1
+"$PY" tests/i18n_full_parity_test.py || fail "tests/i18n_full_parity_test.py"
 
 echo "===== AI MENU I18N + HARDCODED UI AST SCANNER ====="
-"$PY" tests/i18n_hardcoded_scanner_test.py || EXIT_CODE=1
+"$PY" tests/i18n_hardcoded_scanner_test.py || fail "tests/i18n_hardcoded_scanner_test.py"
 
 echo "=============== NEW POST / AI STUDIO i18n TEST ==============="
-"$PY" tests/new_post_i18n_test.py || EXIT_CODE=1
-"$PY" tests/ai_studio_plan_i18n_test.py || EXIT_CODE=1
+"$PY" tests/new_post_i18n_test.py || fail "tests/new_post_i18n_test.py"
+"$PY" tests/ai_studio_plan_i18n_test.py || fail "tests/ai_studio_plan_i18n_test.py"
 
 echo
 echo "==================== SCHEMA TEST ===================="
-"$PY" tests/schema_test.py || EXIT_CODE=1
+"$PY" tests/schema_test.py || fail "tests/schema_test.py"
 
 echo
 echo "============ DB INTEGRITY TEST (5-BOSQICH) ============"
-"$PY" tests/db_integrity_test.py || EXIT_CODE=1
+"$PY" tests/db_integrity_test.py || fail "tests/db_integrity_test.py"
 
 echo
 echo "==================== AI MOCK TEST ==================="
-"$PY" tests/ai_mock_test.py || EXIT_CODE=1
+"$PY" tests/ai_mock_test.py || fail "tests/ai_mock_test.py"
 
 echo
 echo "=========== PRODUCTION AI SECURITY P0/P1 TEST ==========="
-"$PY" tests/production_ai_security_p0_test.py || EXIT_CODE=1
+"$PY" tests/production_ai_security_p0_test.py || fail "tests/production_ai_security_p0_test.py"
 
 echo
 echo "==================== AI FALLBACK TEST (4-BOSQICH) ================"
-"$PY" tests/ai_fallback_test.py || EXIT_CODE=1
+"$PY" tests/ai_fallback_test.py || fail "tests/ai_fallback_test.py"
 
 echo
 echo "=========== PRO 2-BOSQICHLI AUDIT + FREE PROMPT STRUKTURASI ==========="
-"$PY" tests/post_enhancer_audit_test.py || EXIT_CODE=1
+"$PY" tests/post_enhancer_audit_test.py || fail "tests/post_enhancer_audit_test.py"
 
 echo
 echo "============== RBAC & SECURITY TEST (6-BOSQICH) =============="
-"$PY" tests/rbac_security_test.py || EXIT_CODE=1
+"$PY" tests/rbac_security_test.py || fail "tests/rbac_security_test.py"
 
 echo
 echo "====== HEALTH & MONITORING TEST (7-BOSQICH) ======"
-"$PY" tests/health_monitoring_test.py || EXIT_CODE=1
+"$PY" tests/health_monitoring_test.py || fail "tests/health_monitoring_test.py"
 
 echo
 echo "===== PHASE 10 — STRUCTURED OBSERVABILITY + PRIVATE READINESS ====="
-"$PY" tests/observability_test.py || EXIT_CODE=1
+"$PY" tests/observability_test.py || fail "tests/observability_test.py"
 
 echo
 echo "============ CREDITS LEDGER & REFERRAL TEST (8-BOSQICH) =========="
-"$PY" tests/credits_referral_test.py || EXIT_CODE=1
+"$PY" tests/credits_referral_test.py || fail "tests/credits_referral_test.py"
 
 echo
 echo "===== STEP 2 — ORGANIC GROWTH (action-based referral + TTFV) ====="
-"$PY" tests/organic_growth_referral_ttfv_test.py || EXIT_CODE=1
+"$PY" tests/organic_growth_referral_ttfv_test.py || fail "tests/organic_growth_referral_ttfv_test.py"
 
 echo
 echo "==================== P0 CONCURRENCY TEST ============="
 if "$PY" -c "import pytest" 2>/dev/null; then
-    "$PY" -m pytest tests/p0_concurrency_test.py -q || EXIT_CODE=1
+    "$PY" -m pytest tests/p0_concurrency_test.py -q || fail "tests/p0_concurrency_test.py"
 else
     echo "pytest topilmadi — P0 concurrency-test o'tkazib yuboriladi."
 fi
@@ -1263,59 +1265,59 @@ fi
 echo
 echo "==================== LOAD TEST ======================"
 if "$PY" -c "import pgserver" 2>/dev/null; then
-    "$PY" tests/load_test.py || EXIT_CODE=1
+    "$PY" tests/load_test.py || fail "tests/load_test.py"
 else
     echo "pgserver topilmadi — load-test o'tkazib yuboriladi (pip install pgserver)."
 fi
 
 echo
 echo "===== PHASE 11 — MOCK TELEGRAM YUKLAMA/STRESS ====="
-"$PY" tests/load_stress_mock_test.py || EXIT_CODE=1
+"$PY" tests/load_stress_mock_test.py || fail "tests/load_stress_mock_test.py"
 
 echo
 echo "===== STRESS & CONCURRENCY TEST (9-BOSQICH) ====="
-"$PY" tests/stress_concurrency_test.py || EXIT_CODE=1
+"$PY" tests/stress_concurrency_test.py || fail "tests/stress_concurrency_test.py"
 
 echo
 echo "===== YAKUNIY ACCEPTANCE TEST (10-BOSQICH) ====="
-"$PY" tests/final_acceptance_test.py || EXIT_CODE=1
+"$PY" tests/final_acceptance_test.py || fail "tests/final_acceptance_test.py"
 
 echo
 echo "===== PRODUCTION PAYMENTS P0 (SSOT / IDEMPOTENCY) ====="
-"$PY" tests/production_payments_p0_test.py || EXIT_CODE=1
+"$PY" tests/production_payments_p0_test.py || fail "tests/production_payments_p0_test.py"
 
 echo
 echo "===== PRODUCTION FINAL ACCEPTANCE (11-BOSQICH) ====="
-"$PY" tests/production_final_acceptance_test.py || EXIT_CODE=1
+"$PY" tests/production_final_acceptance_test.py || fail "tests/production_final_acceptance_test.py"
 
 echo
 echo "===== CHANNEL DNA & MONITORING TEST ====="
-"$PY" tests/channel_dna_and_monitoring_test.py || EXIT_CODE=1
+"$PY" tests/channel_dna_and_monitoring_test.py || fail "tests/channel_dna_and_monitoring_test.py"
 
 echo
 echo "===== DB POOL + PROFIL KESH TEST ====="
-"$PY" tests/pool_profile_cache_test.py || EXIT_CODE=1
+"$PY" tests/pool_profile_cache_test.py || fail "tests/pool_profile_cache_test.py"
 
 echo
 echo "===== URL SECURITY GATEWAY — SSRF HIMOYASI ====="
-"$PY" tests/url_security_gateway_test.py || EXIT_CODE=1
+"$PY" tests/url_security_gateway_test.py || fail "tests/url_security_gateway_test.py"
 
 echo
 echo "===== STATE & CACHE ADAPTER — REDIS ⇄ IN-MEMORY ====="
-"$PY" tests/cache_backend_test.py || EXIT_CODE=1
-"$PY" tests/phase2_admission_test.py || EXIT_CODE=1
+"$PY" tests/cache_backend_test.py || fail "tests/cache_backend_test.py"
+"$PY" tests/phase2_admission_test.py || fail "tests/phase2_admission_test.py"
 
 echo
 echo "===== ⚡ CALLBACK LATENCY + KESHLASH (darhol ack, parallel o'qish, TTL kesh) ====="
-"$PY" tests/callback_latency_cache_test.py || EXIT_CODE=1
+"$PY" tests/callback_latency_cache_test.py || fail "tests/callback_latency_cache_test.py"
 
 echo
 echo "===== PHASE 5 — TELEGRAM DELIVERY ENGINE ====="
-"$PY" tests/delivery_engine_test.py || EXIT_CODE=1
+"$PY" tests/delivery_engine_test.py || fail "tests/delivery_engine_test.py"
 
 echo
 echo "===== P1 (VAZIFA 4) — QUIET HOURS STAGGERING + ANTI-429 ====="
-"$PY" tests/quiet_hours_anti_flood_test.py || EXIT_CODE=1
+"$PY" tests/quiet_hours_anti_flood_test.py || fail "tests/quiet_hours_anti_flood_test.py"
 
 echo
 echo "===== P0 (VAZIFA 2) — NOANIQ YETKAZIB BERISH + POST DEDUPLIKATSIYASI ====="
@@ -1323,14 +1325,14 @@ echo "===== P0 (VAZIFA 2) — NOANIQ YETKAZIB BERISH + POST DEDUPLIKATSIYASI ===
 # imzo, idempotent delivery lock (SET NX) va _execute_send integratsiyasi:
 # post kanalda bo'lsa 0 duplikat (DELIVERED), yo'qligi tasdiqlansa xavfsiz
 # retry, aks holda verify_pending/UNKNOWN (ko'r-ko'rrona retry YO'Q).
-"$PY" tests/ambiguous_delivery_dedup_test.py || EXIT_CODE=1
+"$PY" tests/ambiguous_delivery_dedup_test.py || fail "tests/ambiguous_delivery_dedup_test.py"
 
 echo "===== PHASE 6 — AI GATEWAY + XARAJAT NAZORATI ====="
-"$PY" tests/ai_gateway_cost_control_test.py || EXIT_CODE=1
+"$PY" tests/ai_gateway_cost_control_test.py || fail "tests/ai_gateway_cost_control_test.py"
 
 echo
 echo "===== PHASE 6 — AI XARAJAT JURNALI + HISOBOT ====="
-"$PY" tests/ai_cost_tracking_db_test.py || EXIT_CODE=1
+"$PY" tests/ai_cost_tracking_db_test.py || fail "tests/ai_cost_tracking_db_test.py"
 
 echo
 echo "===== STEP 1 — AI XARAJAT HIMOYASI (unpriced, limit, byudjet, dedupe, marja) ====="
@@ -1338,15 +1340,15 @@ echo "===== STEP 1 — AI XARAJAT HIMOYASI (unpriced, limit, byudjet, dedupe, ma
 # (channel_dna + til + model versiyasi), foydalanuvchi parallel-job limiti,
 # FREE/PRO kunlik/oylik byudjet (bron + refund), fallback/legacy dedupe,
 # arzon model marshruti va /economics yalpi marjasi.
-"$PY" tests/ai_cost_protection_test.py || EXIT_CODE=1
+"$PY" tests/ai_cost_protection_test.py || fail "tests/ai_cost_protection_test.py"
 
 echo
 echo "===== PHASE 8 — 7-DAY AUTOPILOT V2 ====="
-"$PY" tests/autopilot_v2_test.py || EXIT_CODE=1
+"$PY" tests/autopilot_v2_test.py || fail "tests/autopilot_v2_test.py"
 
 echo
 echo "===== PHASE 9 — UX, ONBOARDING VA CONTEXTUAL MENUS ====="
-"$PY" tests/phase9_ux_onboarding_contextual_test.py || EXIT_CODE=1
+"$PY" tests/phase9_ux_onboarding_contextual_test.py || fail "tests/phase9_ux_onboarding_contextual_test.py"
 
 echo
 echo "======== 🧪 PRODUCTION RUNTIME & DEPLOYMENT VERIFICATION ========"
@@ -1382,7 +1384,7 @@ echo "======== 🧪 PRODUCTION RUNTIME & DEPLOYMENT VERIFICATION ========"
 #       darvozalari bor, .env.example da PAYME_MERCHANT_ID / PAYME_KEY /
 #       PAYME_CHECKOUT_URL / PAYME_ALLOW_REFUNDS va DEPLOYMENT.md da Payme
 #       webhook ulash tartibi hujjatlangan.
-"$PY" tests/smoke_test.py --offline || EXIT_CODE=1
+"$PY" tests/smoke_test.py --offline || fail "tests/smoke_test.py"
 
 echo
 echo "===== 🔐 MAXFIYLIK SIYOSATI + 🗑 MA'LUMOTLARNI O'CHIRISH (SPRINT 1, GDPR) ====="
@@ -1402,7 +1404,7 @@ echo "===== 🔐 MAXFIYLIK SIYOSATI + 🗑 MA'LUMOTLARNI O'CHIRISH (SPRINT 1, GD
 #       TO'LOV jadvallari (payments/payment_receipts/payment_orders/
 #       credits_ledger) SAQLANADI (qonuniy audit);
 #   (8) idempotentlik (already_deleted) va FAIL-CLOSED noto'g'ri user_id.
-"$PY" tests/privacy_and_data_deletion_test.py || EXIT_CODE=1
+"$PY" tests/privacy_and_data_deletion_test.py || fail "tests/privacy_and_data_deletion_test.py"
 
 echo
 echo "===== 🚀 DEPLOY BOOTSTRAP — YANGI (BO'SH) BAZADA 1-KOMANDALIK DEPLOY ====="
@@ -1415,11 +1417,11 @@ echo "===== 🚀 DEPLOY BOOTSTRAP — YANGI (BO'SH) BAZADA 1-KOMANDALIK DEPLOY =
 # o'zgarishsiz READ-ONLY bo'lib qoldi. Suite statik kontraktni VA haqiqiy
 # PostgreSQL (pgserver) ustidagi live xulq-atvorni tekshiradi (bo'sh baza →
 # migratsiya qo'llaniladi → idempotentlik → read-only rejim yozmaydi).
-"$PY" tests/deploy_bootstrap_fresh_db_test.py || EXIT_CODE=1
+"$PY" tests/deploy_bootstrap_fresh_db_test.py || fail "tests/deploy_bootstrap_fresh_db_test.py"
 
 echo
 echo "===== SPRINT 3 — DAILY DIGEST + UZBEKISTAN CALENDAR + AI PROGRESS ====="
-"$PY" tests/daily_retention_calendar_test.py || EXIT_CODE=1
+"$PY" tests/daily_retention_calendar_test.py || fail "tests/daily_retention_calendar_test.py"
 
 echo
 echo "===== 🌍 DINAMIK KO'P DAVLATLI KALENDAR + 🌊 AI STREAMING/RICH MESSAGING ====="
@@ -1446,7 +1448,7 @@ echo "===== 🌍 DINAMIK KO'P DAVLATLI KALENDAR + 🌊 AI STREAMING/RICH MESSAGI
 # (7) SCHEDULER — calendar job har bir foydalanuvchining maqsad davlatini
 #     (`users.target_country`) hisobga oladi, "bo'sh kun"da DB'ga tegmaydi
 #     va eski 6-ustunli qator shartnomasini saqlaydi.
-"$PY" tests/calendar_multi_country_test.py || EXIT_CODE=1
+"$PY" tests/calendar_multi_country_test.py || fail "tests/calendar_multi_country_test.py"
 
 echo
 echo "===== 🧹 POST AUTO-CLEANER & CUSTOM SIGNATURE (NESTED «KO'PROQ SOZLAMALAR») ====="
@@ -1480,14 +1482,14 @@ echo "===== 🧹 POST AUTO-CLEANER & CUSTOM SIGNATURE (NESTED «KO'PROQ SOZLAMAL
 # (7) 📥 INGEST — RSS build_draft va URL build_drafts MANBA matnini AI/digest
 #     dan OLDIN tozalaydi (botning o'z «🔗 Manba:» yorlig'i SAQLANADI),
 #     kanal-extract esa opt-in pass sifatida.
-"$PY" tests/post_auto_cleaner_test.py || EXIT_CODE=1
+"$PY" tests/post_auto_cleaner_test.py || fail "tests/post_auto_cleaner_test.py"
 
 echo
 echo "===== 🧠 AI PROGRESS — lokalizatsiya qilingan bosqichlar, ≤1 edit/s ====="
 # 🧠 → ✍️ → ✨ bosqichlari (uz/ru/en), xabar VA chat bo'yicha umumiy edit
 # soati, 429 RetryAfter (bosqich o'tkaziladi), "not modified", for_reply /
 # for_callback yordamchilari va handler darajasidagi end-to-end vaqt o'lchovi.
-"$PY" tests/ai_progress_stream_test.py || EXIT_CODE=1
+"$PY" tests/ai_progress_stream_test.py || fail "tests/ai_progress_stream_test.py"
 
 echo
 echo "===== 💰 SPRINT 4 — UNIT ECONOMICS (AI XARAJAT / PRO RENTABELLIK) ====="
@@ -1500,7 +1502,7 @@ echo "===== 💰 SPRINT 4 — UNIT ECONOMICS (AI XARAJAT / PRO RENTABELLIK) ====
 #     19 000 so'm marjasi, rentabellik xulosasi, zararsizlik nuqtasi;
 # (5) /economics buyrug'i uchala tilda, faqat admin, real PTB registratsiyasi;
 # (6) Live PostgreSQL: real ai_usage_events → user_ai_costs + economics.
-"$PY" tests/unit_economics_test.py || EXIT_CODE=1
+"$PY" tests/unit_economics_test.py || fail "tests/unit_economics_test.py"
 
 echo
 echo "===== 🚪 SPRINT 4 — YOPIQ BETA DARVOZASI (CLOSED BETA ACCESS) ====="
@@ -1516,7 +1518,7 @@ echo "===== 🚪 SPRINT 4 — YOPIQ BETA DARVOZASI (CLOSED BETA ACCESS) ====="
 #     navbat, `ref_<id>` + kod birgalikda;
 # (6) /beta admin buyrug'i: holat/kod/navbat/tasdiq/runtime on-off-reset;
 # (7) Hujjat: yagona .env.example'da yangi kalitlar.
-"$PY" tests/beta_gate_test.py || EXIT_CODE=1
+"$PY" tests/beta_gate_test.py || fail "tests/beta_gate_test.py"
 
 echo
 echo "===== ⏱ SPRINT 4 — ONBOARDING TELEMETRIYASI (TTFP + D1/D7) ====="
@@ -1530,7 +1532,7 @@ echo "===== ⏱ SPRINT 4 — ONBOARDING TELEMETRIYASI (TTFP + D1/D7) ====="
 # (6) Hooklar: /start → record_start, add_post → record_first_post
 #     (telemetriya xatosi post yaratishni buzmaydi);
 # (7) Live PostgreSQL: real users/scheduled_posts → kohorta hisoboti.
-"$PY" tests/onboarding_telemetry_test.py || EXIT_CODE=1
+"$PY" tests/onboarding_telemetry_test.py || fail "tests/onboarding_telemetry_test.py"
 
 echo
 echo "===== 📋 ☰ TELEGRAM «MENU» TUGMASI (set_my_commands) + BUYRUQLAR ====="
@@ -1555,13 +1557,14 @@ echo "===== 📋 ☰ TELEGRAM «MENU» TUGMASI (set_my_commands) + BUYRUQLAR ===
 # (6) /settings va /help — tayyor UI (oraliq qadamsiz);
 # (7) statik kontrakt: `main.py` da qo'lda yozilgan BotCommand ro'yxati
 #     YO'Q (SSOT — `menu_commands`), README hujjati sinxron.
-"$PY" tests/menu_button_and_commands_test.py || EXIT_CODE=1
+"$PY" tests/menu_button_and_commands_test.py || fail "tests/menu_button_and_commands_test.py"
 
 echo
 echo "=============================================================="
 if [ "$EXIT_CODE" -eq 0 ]; then
     echo "BARCHA TESTLAR 100% YASHIL ✔"
 else
-    echo "XATOLIK: ayrim testlar yiqildi (yuqoridagi [FAIL] qatorlarini ko'ring)."
+    echo "XATOLIK: quyidagi testlar yiqildi:"
+    printf '  - %s\n' "${FAILED_TESTS[@]}"
 fi
 exit "$EXIT_CODE"

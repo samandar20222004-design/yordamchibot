@@ -16,11 +16,11 @@ Lane'lar (``Lane``):
 
 Router HECH QACHON tarmoqqa chiqmaydi va provayder kodi BILMAYDI — u faqat
 kanonik provayder NOMLARI bo'yicha tartib qaytaradi
-(:func:`provider_order`). Haqiqiy HTTP ishlari ``services/ai_service.py``
+(:func:`provider_order`). Haqiqiy HTTP ishlari ``services/ai/fallback.py``
 dagi sinovdan o'tgan provayder adapterlarida qoladi (hech narsa noldan
 yozilmaydi — yagona shlyuz ularni qayta ishlatadi).
 
-Provayder nomlari ``services/ai_service.py`` kanonik nomlari bilan birxil:
+Provayder nomlari ``services/ai/fallback.py`` kanonik nomlari bilan birxil:
 ``Gemini, Groq, OpenRouter, Mistral, Cerebras, SambaNova, Cloudflare,
 Pollinations``.
 """
@@ -34,7 +34,7 @@ from enum import Enum
 from utils.silent_errors import log_silent_failure
 
 # ---------------------------------------------------------------------------
-# Kanonik provayder nomlari (services/ai_service.py bilan bir xil — yagona
+# Kanonik provayder nomlari (services/ai/fallback.py bilan bir xil — yagona
 # manba; bu yerda faqat "o'qiydigan" nusxa, o'zgartirish uchun emas).
 # ---------------------------------------------------------------------------
 PROVIDER_GEMINI = "Gemini"
@@ -349,7 +349,7 @@ def resolve_lane(
             if intent is SMMIntent.CONTENT_IDEAS:
                 return Lane.REASONING
         except Exception as _silent_exc:  # pragma: no cover — router bo'lmasa ham ishlaydi
-            log_silent_failure("services.ai_engine.router:resolve_lane", _silent_exc)
+            log_silent_failure("services.ai.engine.router:resolve_lane", _silent_exc)
     return Lane.QUALITY
 
 

@@ -263,11 +263,6 @@ async def cleanup_old_records(batch_size: int = None, max_batches: int = None,
     return summary
 
 
-def cleanup_old_records_sync(**kwargs) -> dict:
-    """Sinxron o'ram (admin buyruqlari / skriptlar uchun)."""
-    return asyncio.run(cleanup_old_records(**kwargs))
-
-
 class CleanupService:
     """Servis qatlamidagi nom (boshqa servislar uslubida)."""
 

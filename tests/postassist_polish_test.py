@@ -81,7 +81,7 @@ def header(code, title):
 # ---------------------------------------------------------------------------
 def test_1_prompt_dynamic_date_and_anti_hallucination():
     header("1", "🤖 AI PROMPT — DINAMIK SANA + ANTI-HALLUCINATION")
-    from services.ai_engine.prompts import PromptEngine, current_date
+    from services.ai.engine.prompts import PromptEngine, current_date
 
     today = datetime.now().strftime("%Y-%m-%d")
     check("current_date() = bugungi sana (YYYY-MM-DD)",

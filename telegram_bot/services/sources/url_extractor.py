@@ -516,16 +516,6 @@ def parse_telegram_url(url: str) -> dict:
     }
 
 
-def is_telegram_post_url(url: str) -> bool:
-    """``t.me/kanal/123`` ko'rinishidagi aniq post havolami (PURE)."""
-    return bool(parse_telegram_url(url).get("is_post"))
-
-
-def is_telegram_channel_only_url(url: str) -> bool:
-    """``t.me/kanal`` ko'rinishidagi kanal-only havolami (PURE)."""
-    return bool(parse_telegram_url(url).get("is_channel_only"))
-
-
 def build_telegram_preview_url(channel: str, post_id: int | None = None) -> str:
     """Ochiq preview manzili: ``https://t.me/s/<kanal>[/<post_id>]`` (PURE)."""
     name = str(channel or "").strip().lstrip("@")

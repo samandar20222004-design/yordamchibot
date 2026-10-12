@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from urllib.parse import urlsplit
 from types import SimpleNamespace
 import logging
+import os
 import signal
 import sys
 import time
@@ -185,6 +186,27 @@ def get_update_lock_key(update) -> str | None:
     return None
 
 
+#: Shu soniyadan uzoq ishlangan update logga WARNING sifatida yoziladi —
+#: sekinlik koddami yoki tarmoq/bazadami, logdan ko'rish uchun.
+SLOW_UPDATE_SECONDS = float(os.getenv("SLOW_UPDATE_SECONDS", "2.0"))
+
+
+def _log_if_slow(update, elapsed: float) -> None:
+    if elapsed < SLOW_UPDATE_SECONDS:
+        return
+    query = getattr(update, "callback_query", None)
+    message = getattr(update, "effective_message", None)
+    if query is not None:
+        what = f"tugma {str(getattr(query, 'data', '') or '')[:40]!r}"
+    elif message is not None and getattr(message, "text", None):
+        what = f"matn {message.text[:40]!r}"
+    else:
+        what = "boshqa update"
+    user = getattr(update, "effective_user", None)
+    logger.warning("Sekin javob: %.1f s — %s (user=%s)", elapsed, what,
+                   getattr(user, "id", None))
+
+
 class GuardedApplication(Application):
     """Hujum/ortiqcha yuklama himoyasi va per-user concurrency locking qo'shilgan Application.
 
@@ -244,10 +266,12 @@ class GuardedApplication(Application):
         # va handler (DB/AI) ishi buning ORTIDAN bajariladi. Handler o'zi
         # oldinroq javob bersa, ack vazifasi bekor qilinadi.
         ack_task = schedule_early_ack(getattr(update, "callback_query", None))
+        started = time.monotonic()
         try:
             return await self._process_update_guarded(update)
         finally:
             cancel_early_ack(ack_task)
+            _log_if_slow(update, time.monotonic() - started)
 
     async def _process_update_guarded(self, update):
         # 💰 STEP 1: shu update ichidagi barcha AI chaqiruvlari foydalanuvchiga

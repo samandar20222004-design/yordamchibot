@@ -988,7 +988,7 @@ async def _dup_ai_refresh(query, context, user_id: int, lang: str) -> int:
         return MANUAL_PREVIEW
 
     try:
-        from services.ai_engine import gateway
+        from services.ai.engine import gateway
         result = await gateway.legacy_chain(
             f"Quyidagi Telegram postini mavzusi saqlanib, lekin tuzilishi, "
             f"hook va so'zlari BUTUNLAY BOSHQAChA qilib qayta yozing "

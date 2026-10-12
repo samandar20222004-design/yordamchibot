@@ -248,24 +248,6 @@ comment_to_content = suggest_comment_to_content
 generate_faq_draft = build_faq_draft
 
 
-async def generate_ai_content_draft(repeated_questions: Iterable[dict], *, lang: str = "uz") -> dict:
-    """Turn an aggregate FAQ opportunity into a draft through the canonical AI engine."""
-    draft = build_faq_draft(repeated_questions, lang=lang)
-    if not draft:
-        return {"ok": False, "reason": "not_enough_repeated_questions"}
-    try:
-        from services.ai_engine import gateway
-        prompt = "Create a concise FAQ draft from these redacted audience intents. Keep placeholders for answers and require editor review:\n" + draft["content"]
-        result = await gateway.generate(prompt, task="simple_post", lang=lang,
-                                        system_instruction="Return a safe FAQ draft only; never infer personal data or promises.")
-        if getattr(result, "ok", False) and getattr(result, "text", "").strip():
-            draft["content"] = result.text.strip()
-            draft["ai_generated"] = True
-            return draft
-    except Exception:
-        logger.debug("AI FAQ draft unavailable; returning editorial draft", exc_info=True)
-    draft["ai_generated"] = False
-    return draft
 generate_faq_from_questions = build_faq_draft
 generate_faq_post = build_faq_draft
 

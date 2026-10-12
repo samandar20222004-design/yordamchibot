@@ -23,7 +23,7 @@ Bu modul YAGONA telemetriya manbai:
   kunlik/oylik hisobot agregatsiyasi (user/kanal kesimida).
 
 DB'ga yozish alohida **Application Service** qatlamida
-(``services.ai_engine.app_service``) bajariladi — bu modul tarmoqqa ham,
+(``services.ai.engine.app_service``) bajariladi — bu modul tarmoqqa ham,
 bazaga ham chiqmaydi (deterministik va test qilinadigan qoladi).
 """
 

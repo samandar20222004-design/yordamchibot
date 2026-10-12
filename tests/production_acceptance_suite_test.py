@@ -964,7 +964,7 @@ class _Stub:
 
 async def _test_11_12_async():
     from utils import ai_agent
-    from services.ai_service import AIFallbackService, AIProviderError
+    from services.ai.fallback import AIFallbackService, AIProviderError
 
     section("TEST 11: Gemini ishlamasa → Groq, Groq ham ishlamasa → OpenRouter")
     ai_agent._BREAKERS.clear()

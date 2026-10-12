@@ -12,7 +12,7 @@ URL→Post va RSS manbalar, ♻️ Content Recycle, 🧠 Channel DNA, ⏰ Smart 
   circuit-breaker + atomik kvota + fail-closed refund
 * **State/Cache:** Redis (ixtiyoriy, `REDIS_URL`) ⇄ In-Memory (TTL+LRU) —
   circuit breaker bilan avtomatik fallback; rate limitlar **granular**
-  (matn / `(user_id, callback_action)` / AI / URL-RSS) — `docs/archive/reports/PHASE2_RATE_LIMITING_REDIS_report.md`
+  (matn / `(user_id, callback_action)` / AI / URL-RSS)
 
 ## 📚 Hujjatlar
 
@@ -20,11 +20,9 @@ URL→Post va RSS manbalar, ♻️ Content Recycle, 🧠 Channel DNA, ⏰ Smart 
 |---|---|
 | **[DEPLOYMENT.md](DEPLOYMENT.md)** | **Serverga chiqarish: Render / VPS (systemd) / Docker — qadam-baqadam** |
 | [.env.example](.env.example) | Barcha muhit o'zgaruvchilari (yagona kanonik nusxa) |
-| **[PHASE2_RATE_LIMITING_REDIS_report.md](docs/archive/reports/PHASE2_RATE_LIMITING_REDIS_report.md)** | **Rate limiting + Redis/Distributed state arxitekturasi (Phase 2)** |
-| [docs/reports/PAYME_MERCHANT_API.md](docs/reports/PAYME_MERCHANT_API.md) | ⚡️ Payme Merchant API: sozlash, oqim, idempotentlik kafolatlari |
+| [docs/PAYME.md](docs/PAYME.md) | ⚡️ Payme Merchant API: sozlash, oqim, idempotentlik kafolatlari |
 | [telegram_bot/README.md](telegram_bot/README.md) | Funksiyalar, buyruqlar, arxitektura va bosqich bo'yicha to'liq hujjat |
-| [`docs/reports/`](docs/reports/) | Joriy operatsion hujjatlar |
-| [`docs/archive/reports/`](docs/archive/reports/) | Arxiv: audit va bosqich yakunlari (`AUDIT_*.md`, `PHASE*_report.md`, …) |
+| [docs/CALENDAR.md](docs/CALENDAR.md) | Ko'p davlatli bayram kalendari arxitekturasi |
 
 ## ⚡️ Tezkor start (lokal)
 
@@ -76,6 +74,5 @@ telegram_bot/
 ├── services/channels/ # DNA, best time, monitoring, team, recycle
 ├── keyboards/ translations/ locales/   # UI + uz/ru/en i18n
 tests/                 # yagona test suite + run_tests.sh
-docs/reports/          # joriy operatsion hujjatlar
-docs/archive/reports/  # arxivlangan audit/bosqich hisobotlari
+docs/                  # Payme va kalendar bo'yicha hujjatlar
 ```

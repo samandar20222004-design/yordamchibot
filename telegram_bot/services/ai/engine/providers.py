@@ -1,7 +1,7 @@
 """Provider Registry — AI ENGINE V2 (Faza 1).
 
 MUHIM SIYOSAT: **hech narsa noldan qayta yozilmaydi.** Barcha real HTTP
-ishlari sinovdan o'tgan ``services/ai_service.py`` provayder adapterlarida
+ishlari sinovdan o'tgan ``services/ai/fallback.py`` provayder adapterlarida
 (Gemini/Groq/OpenRouter/Mistral/Cerebras/SambaNova/Cloudflare/Pollinations)
 qoladi — ular:
 
@@ -19,7 +19,7 @@ Bu modul faqat REGISTR va nozik ijro yordamchisi:
 * :func:`execute_provider` — bitta provayderni qat'iy timeout bilan
   chaqiradi (natija: provayder qaytargan JSON dict).
 
-Shlyuz (:mod:`services.ai_engine.gateway`) shu uchtaga tayanadi.
+Shlyuz (:mod:`services.ai.engine.gateway`) shu uchtaga tayanadi.
 """
 
 from __future__ import annotations
@@ -38,13 +38,13 @@ class ProviderHandle:
     """Registr yozuvi: kanonik nom + sinovdan o'tgan adapter obyekti."""
 
     name: str
-    provider: object  # services.ai_service.AIProvider (adapter)
+    provider: object  # services.ai.fallback.AIProvider (adapter)
 
 
 def build_provider_handles() -> dict[str, ProviderHandle]:
     """Kanonik provayder nomlari → adapter xaritasi (har chaqiruvda yangi).
 
-    ``services.ai_service.build_default_providers()`` YAGONA manba bo'lib
+    ``services.ai.fallback.build_default_providers()`` YAGONA manba bo'lib
     qoladi — bu yerda provayder kodi TAKRORLANMAYDI.
     """
     from services.ai import fallback as ai_service

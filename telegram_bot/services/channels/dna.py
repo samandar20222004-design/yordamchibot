@@ -1167,25 +1167,6 @@ async def _db_call(db: Any, fn, *args, **kwargs):
     return fn(*args, **kwargs)
 
 
-def is_channel_owner(db: Any, user_id: int, channel_id: str) -> bool:
-    """Kanal AYNAN shu foydalanuvchiga tegishlimi (fail-closed).
-
-    Kanal yo'q, DB xato yoki user_id mos kelmasa — ``False``.
-    """
-    if user_id is None or not channel_id:
-        return False
-    try:
-        owner = db.get_channel_owner_id(channel_id)
-    except Exception:
-        return False
-    if owner is None:
-        return False
-    try:
-        return int(owner) == int(user_id)
-    except (TypeError, ValueError):
-        return False
-
-
 async def get_channel_dna(
     channel_id: str | int,
     user_id: int | None = None,

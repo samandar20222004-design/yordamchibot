@@ -83,8 +83,8 @@ def test_static_schema_and_api():
 
     # Jadval ``CREATE TABLE IF NOT EXISTS`` literal sonini o'zgartirmaydi
     # (locked count 31) — wrapper shaklida yozilgan.
-    check("schema.sql jadval literal soni 31 (regressiya yo'q)",
-          schema_sql.count("CREATE TABLE IF NOT EXISTS") == 31,
+    check("schema.sql jadval literal soni 32 (regressiya yo'q)",
+          schema_sql.count("CREATE TABLE IF NOT EXISTS") == 32,
           str(schema_sql.count("CREATE TABLE IF NOT EXISTS")))
 
     expected_columns = {
@@ -110,7 +110,7 @@ def test_static_schema_and_api():
 # ---------------------------------------------------------------------------
 def test_event_shape():
     print("\n== TEST 2: Telemetriya yozuvi → DB ustunlari ==")
-    from services.ai_engine import telemetry
+    from services.ai.engine import telemetry
 
     event = telemetry.AIUsageEvent(
         user_id=5, channel_id=-100, task="social_post", lane="FAST",
@@ -290,8 +290,8 @@ def test_live_postgres():
 
     # --- 3f) Application Service real adapter bilan ----------------------
     import asyncio
-    from services.ai_engine import providers as eng_providers
-    from services.ai_engine.app_service import ai_tasks
+    from services.ai.engine import providers as eng_providers
+    from services.ai.engine.app_service import ai_tasks
 
     handle = eng_providers.ProviderHandle(
         name="Gemini",

@@ -4682,7 +4682,7 @@ def translation_format_report(langs=SUPPORTED_LANGS, reference: str = DEFAULT_LA
 # ---------------------------------------------------------------------------
 # AI har bir foydalanuvchiga FAQAT uning tilida javob qaytarishi shart.
 # Qoidalar shu yerda (i18n qatlami) saqlanadi; ``utils/ai_agent.py`` va
-# ``services/ai_service.py`` aynan shu lug'atni ishlatadi — natijada prompt
+# ``services/ai/fallback.py`` aynan shu lug'atni ishlatadi — natijada prompt
 # matni va testlar hech qachon bir-biridan chetga chiqmaydi.
 AI_LANGUAGE_RULES = {
     "uz": "Barcha tahlil, post, reja va tavsiyalarni FAQAT O'ZBEK TILIDA yoz.",

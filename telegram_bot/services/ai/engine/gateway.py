@@ -6,7 +6,7 @@ yagona marshrutlash va tezkor kesh yo'q edi.
 
 Endi barcha AI so'rovlari uchun Bitta kirish nuqtasi — shu modul:
 
-    from services.ai_engine import ai_gateway
+    from services.ai.engine import ai_gateway
 
     res = await ai_gateway.generate(
         prompt="kofe do'koni uchun post",
@@ -19,7 +19,7 @@ Endi barcha AI so'rovlari uchun Bitta kirish nuqtasi — shu modul:
 Arxitektura (qatlamlar) — PHASE 6:
 
     handler / xizmat
-        └─ APPLICATION SERVICE (``services.ai_engine.app_service``):
+        └─ APPLICATION SERVICE (``services.ai.engine.app_service``):
              kvota bron/refund + telemetriyani DB'ga yozish + hisobot
              └─ AI GATEWAY (``ai_gateway``)                  ← YAGONA KIRISH
                   ├─ prompt guard (kirish/chiqish himoyasi)
@@ -34,7 +34,7 @@ Arxitektura (qatlamlar) — PHASE 6:
 
     Eski chaqiruvlar (backward compatibility):
         utils/ai_agent._run_ai_chain → gateway.legacy_chain →
-        services.ai_service.run_ai_chain (8-provayderli legacy zanjir,
+        services.ai.fallback.run_ai_chain (8-provayderli legacy zanjir,
         O'ZGARMAGAN — barcha mavjud testlar va chaqiruvchilar ishlaydi).
 
 Qat'iy qoidalar:
@@ -51,7 +51,7 @@ Qat'iy qoidalar:
   siyosatida zanjirga qo'shiladi, production'da esa **default O'CHIQ**
   (``mock_provider_allowed()`` — fail-closed).
 * **Telemetriya majburiy** — har bir so'rov (muvaffaqiyat ham, xato ham)
-  :mod:`services.ai_engine.telemetry` orqali qayd etiladi: model, provider,
+  :mod:`services.ai.engine.telemetry` orqali qayd etiladi: model, provider,
   input/output tokenlar, latency, taxminiy xarajat, status.
 * **Yagona sog'liq holati** — health monitori legacy ``_BREAKERS`` ni
   mirror qiladi (legacy va gateway bitta breaker siyosatida).
@@ -170,7 +170,7 @@ def mock_mode() -> str:
 
         allow_mock_var, truthy = AI_ALLOW_MOCK_VAR, _TRUTHY_VALUES
     except Exception as _silent_exc:  # pragma: no cover — izolyatsiyalangan muhit
-        log_silent_failure("services.ai_engine.gateway:mock_mode", _silent_exc)
+        log_silent_failure("services.ai.engine.gateway:mock_mode", _silent_exc)
     flag = (os.getenv(allow_mock_var, "0") or "").strip().lower()
     if flag in truthy:
         return MOCK_MODE_FORCED
@@ -226,7 +226,7 @@ def resolve_model(provider: str | None, result: dict | None = None) -> str:
         if isinstance(models, (list, tuple)) and models and isinstance(models[0], str):
             return models[0]
     except Exception as _silent_exc:  # pragma: no cover — model nomi ixtiyoriy
-        log_silent_failure("services.ai_engine.gateway:resolve_model", _silent_exc, provider=provider)
+        log_silent_failure("services.ai.engine.gateway:resolve_model", _silent_exc, provider=provider)
     return ""
 
 
@@ -866,7 +866,7 @@ def _guard_prompt(prompt: str) -> str:
             logger.warning("AI Engine prompt guard: kirishdan ko'rsatma bloklari olib tashlandi")
             return cleaned
     except Exception as _silent_exc:  # pragma: no cover — himoya
-        log_silent_failure("services.ai_engine.gateway:_guard_prompt", _silent_exc)
+        log_silent_failure("services.ai.engine.gateway:_guard_prompt", _silent_exc)
     return text
 
 
@@ -930,7 +930,7 @@ async def _generate_via_chain(
 ) -> GatewayResult:
     """Lane tartibida provayderlar zanjiri + circuit breaker avto-fallback.
 
-    Provayderlar ``services.ai_engine.health`` monitori bo'yicha sog'lom
+    Provayderlar ``services.ai.engine.health`` monitori bo'yicha sog'lom
     tartibda sinab ko'riladi: 429/timeout/5xx → qayta urinish (jitter'li
     backoff, siyosat bo'yicha) → keyingi SOG'LOM provayder.
     """
@@ -1116,7 +1116,7 @@ def _legacy_action_type(scope) -> str:
 async def legacy_chain(prompt: str, system_instruction: str, lang: str | None = None) -> dict:
     """Legacy zanjir adapteri (``utils.ai_agent._run_ai_chain`` delegati).
 
-    Eski 8-provayderli zanjir (``services.ai_service.run_ai_chain``) O'ZGARISHSIZ
+    Eski 8-provayderli zanjir (``services.ai.fallback.run_ai_chain``) O'ZGARISHSIZ
     qoladi — shu adapter orqali chaqiriladi. Shu tufayli:
 
     * ``generate_ai_response``/``audit_post``/``generate_magic_post`` va barcha
@@ -1214,10 +1214,10 @@ async def legacy_chain(prompt: str, system_instruction: str, lang: str | None = 
 # KANONIK OPERATSIYALAR — handler'lar AI uchun FAQAT shu sirttan import oladi
 # ---------------------------------------------------------------------------
 # Audit qoidasi: "Hech bir handler provayderga to'g'ridan-to'g'ri
-# bog'lanmasin!" — shu sababli handler'lar ``services.ai_service`` /
+# bog'lanmasin!" — shu sababli handler'lar ``services.ai.fallback`` /
 # ``services.ai.providers`` import QILMAYDI. Ushbu delegatlar xuddi shu
 # sinovdan o'tgan funksiyalarni (hech narsa noldan yozilmagan) kechikkan
-# bog'lanish (late binding) bilan chaqiradi: ``services.ai_service.X``
+# bog'lanish (late binding) bilan chaqiradi: ``services.ai.fallback.X``
 # testlarda monkeypatch qilinsa — delegat ham yangi qiymatni ko'radi.
 def _late_bind_service_op(name: str):
     async def _op(*args, **kwargs):
@@ -1227,7 +1227,7 @@ def _late_bind_service_op(name: str):
     _op.__name__ = name
     _op.__qualname__ = f"gateway.{name}"
     _op.__doc__ = (
-        f"Yagona shlyuz delegati: ``services.ai_service.{name}`` "
+        f"Yagona shlyuz delegati: ``services.ai.fallback.{name}`` "
         "(kechikkan bog'lanish — test monkeypatch'lari ishlashda davom etadi)."
     )
     return _op

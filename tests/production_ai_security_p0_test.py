@@ -159,7 +159,7 @@ class StubProvider:
 
 
 async def test_11_gemini_to_groq_openrouter_fallback():
-    from services.ai_service import AIFallbackService, AIProviderError
+    from services.ai.fallback import AIFallbackService, AIProviderError
     svc = AIFallbackService([
         StubProvider("Gemini", exc=AIProviderError(500, "server error", "Gemini")),
         StubProvider("Groq", result={"post_text": "Groq fallback"}),
@@ -171,7 +171,7 @@ async def test_11_gemini_to_groq_openrouter_fallback():
 
 
 async def test_12_all_providers_graceful():
-    from services.ai_service import AIFallbackService, AIProviderError
+    from services.ai.fallback import AIFallbackService, AIProviderError
     svc = AIFallbackService([
         StubProvider("Gemini", exc=AIProviderError(429, "rate limit", "Gemini")),
         StubProvider("Groq", exc=AIProviderError(503, "unavailable", "Groq")),

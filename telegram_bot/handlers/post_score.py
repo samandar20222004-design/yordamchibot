@@ -4,7 +4,7 @@ Oqim (FSM)::
 
     [📊 Post Score] tugmasi (asosiy menyu)
         └─ POST_SCORE_INPUT: foydalanuvchi post matnini yuboradi
-        └─ baholash — ``services.ai_engine.gateway.score_post`` (BEPUL: kredit
+        └─ baholash — ``services.ai.engine.gateway.score_post`` (BEPUL: kredit
            yechilmaydi, kunlik kvota sarflanmaydi) — 6 mezon (1–10) +
            100 ballik umumiy natija + 1–2 jumlalik tavsiya
         └─ POST_SCORE_RESULT: vizual natija ekrani + amallar
@@ -68,7 +68,7 @@ from services.ai_quota import (
     reserve_for_flow,
     take_reservation_id,
 )
-from services.ai_engine.gateway import improve_post_to_95, score_post
+from services.ai.engine.gateway import improve_post_to_95, score_post
 from translations import (
     POST_SCORE_CRITERIA_KEYS,
     post_score_advice,
@@ -146,11 +146,6 @@ def _ps_warn_suppressed(user_id: int, warn_key: str, text_sig: str) -> bool:
         for old_key in sorted(_PS_LAST_WARN, key=_PS_LAST_WARN.get)[:1000]:
             _PS_LAST_WARN.pop(old_key, None)
     return False
-
-
-def reset_post_score_warn_state() -> None:
-    """Ogohlantirish keshini tozalaydi (testlar/diagnostika uchun)."""
-    _PS_LAST_WARN.clear()
 
 
 async def _ps_send_warn(msg, user_id: int, warn_key: str, lang: str,

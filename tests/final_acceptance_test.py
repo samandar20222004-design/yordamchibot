@@ -388,7 +388,7 @@ class _FakeProvider:
 
 def test_ai_fallback_resilience():
     section("5) AI FALLBACK RESILIENCE — fake provayderlar")
-    from services.ai_service import AIFallbackService
+    from services.ai.fallback import AIFallbackService
     from utils import ai_agent as aa
 
     # 1-holat: birinchi provayder xato beradi → ikkinchisiga o'tiladi.

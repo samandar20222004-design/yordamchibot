@@ -407,7 +407,7 @@ def test_fallback_telemetry_and_gates():
 # ===========================================================================
 def test_legacy_dedupe():
     print("\n== TEST 7: Legacy zanjir — ikki marta hisoblanmaydi ==")
-    from services import ai_service as _public  # noqa: F401 — import sanity
+    from services.ai import fallback as _public  # noqa: F401 — import sanity
     from services.ai import fallback as ai_fb
 
     reset_state()

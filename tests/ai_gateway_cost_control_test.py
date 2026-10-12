@@ -98,23 +98,37 @@ def env(**values):
 # ---------------------------------------------------------------------------
 # IMPORTLAR (muhit sozlangandan KEYIN)
 # ---------------------------------------------------------------------------
-from services import ai_gateway as ag                              # noqa: E402
-from services.ai_engine import gateway as gw                       # noqa: E402
-from services.ai_engine import providers as eng_providers          # noqa: E402
-from services.ai_engine import router as eng_router                # noqa: E402
-from services.ai_engine import telemetry                           # noqa: E402
-from services.ai_engine.app_service import (                       # noqa: E402
+from services.ai.engine import app_service as _app_service         # noqa: E402
+from services.ai.engine import gateway as _gateway                 # noqa: E402
+from services.ai.engine import router as _router                   # noqa: E402
+
+# Eski ``services.ai_gateway`` sirti o'chirildi — test o'sha nomlarni
+# kanonik modullardan oladi.
+ag = types.SimpleNamespace(
+    **{n: getattr(_gateway, n) for n in (
+        "AIGateway", "GatewayResult", "MOCK_MODE_DEVELOPMENT", "MOCK_MODE_FORCED",
+        "MOCK_MODE_OFF", "MOCK_MODE_TEST", "ai_gateway", "environment",
+        "gateway_status", "mock_mode", "mock_provider_allowed", "provider_allowed")},
+    **{n: getattr(_app_service, n) for n in (
+        "TASK_OPERATION_TYPES", "ai_tasks", "operation_type_for", "run_ai_task")},
+    lane_alias=_router.lane_alias,
+)
+from services.ai.engine import gateway as gw                       # noqa: E402
+from services.ai.engine import providers as eng_providers          # noqa: E402
+from services.ai.engine import router as eng_router                # noqa: E402
+from services.ai.engine import telemetry                           # noqa: E402
+from services.ai.engine.app_service import (                       # noqa: E402
     ai_tasks, run_ai_task,
 )
-from services.ai_engine.cache import reset_cache                   # noqa: E402
-from services.ai_engine.health import (                            # noqa: E402
+from services.ai.engine.cache import reset_cache                   # noqa: E402
+from services.ai.engine.health import (                            # noqa: E402
     default_health_monitor, reset_health_monitor,
 )
-from services.ai_engine.retry import (                             # noqa: E402
+from services.ai.engine.retry import (                             # noqa: E402
     DEFAULT_RETRY_POLICY, KIND_QUALITY, NO_RETRY_POLICY, RetryPolicy, policy_for,
 )
-from services.ai_engine.router import Lane, lane_for_task, resolve_lane  # noqa: E402
-from services.ai_engine.validator import validate_output           # noqa: E402
+from services.ai.engine.router import Lane, lane_for_task, resolve_lane  # noqa: E402
+from services.ai.engine.validator import validate_output           # noqa: E402
 import database as db_mod                                          # noqa: E402
 
 
@@ -198,19 +212,19 @@ def test_canonical_gateway():
     reset_state()
 
     # 1a) Sirt mavjudligi: services.ai_gateway + ai_engine eksportlari.
-    from services import ai_engine as eng_pkg
-    check("services.ai_gateway.ai_gateway mavjud", hasattr(ag, "ai_gateway"))
+    from services.ai import engine as eng_pkg
+    check("ai_gateway mavjud", hasattr(ag, "ai_gateway"))
     check("ai_gateway — AIGateway nusxasi", isinstance(ag.ai_gateway, ag.AIGateway))
     check("GatewayResult sirtda", ag.GatewayResult is gw.GatewayResult)
     check("run_ai_task sirtda", callable(ag.run_ai_task))
     check("run_ai_task — ai_engine.app_service bilan AYNAN bir xil",
           ag.run_ai_task is run_ai_task)
     check("ai_tasks — yagona Application Service", ag.ai_tasks is ai_tasks)
-    check("services.ai_engine.ai_gateway eksport qilingan",
+    check("services.ai.engine.ai_gateway eksport qilingan",
           eng_pkg.ai_gateway is ag.ai_gateway)
-    check("services.ai_engine.ai_tasks eksport qilingan",
+    check("services.ai.engine.ai_tasks eksport qilingan",
           eng_pkg.ai_tasks is ag.ai_tasks)
-    check("services.ai_engine.run_ai_task eksport qilingan",
+    check("services.ai.engine.run_ai_task eksport qilingan",
           eng_pkg.run_ai_task is run_ai_task)
 
     # 1b) PHASE 6 imzosi: task/prompt/user_id/channel_id/lane.
@@ -246,7 +260,7 @@ def test_canonical_gateway():
     finally:
         restore_providers(real)
     check("gateway.generate — eski imzo ishlaydi", res_old.ok, str(res_old)[:120])
-    check("services.ai_engine.generate — eski import ishlaydi", res_engine.ok)
+    check("services.ai.engine.generate — eski import ishlaydi", res_engine.ok)
     check("GatewayResult eski maydonlari saqlangan",
           all(hasattr(res_old, f) for f in
               ("ok", "text", "provider", "lane", "task", "cached", "elapsed",
@@ -268,7 +282,7 @@ def test_canonical_gateway():
 # ===========================================================================
 def test_task_lane_map():
     print("\n== TEST 2: Router — kanonik vazifa nomlari ==")
-    from services.ai_engine.router import TASK_LANES
+    from services.ai.engine.router import TASK_LANES
 
     expected = {
         "social_post": Lane.FAST,
@@ -863,7 +877,7 @@ def test_prompt_guard_and_validator():
           str(validate_output(russian, lang="uz").error_code))
     check("begona til sababi LANGUAGE_MISMATCH",
           validate_output(russian, lang="uz").error_code == "LANGUAGE_MISMATCH")
-    from services.ai_engine.schemas import PostResult, parse_result
+    from services.ai.engine.schemas import PostResult, parse_result
     schema_result = validate_output('{"hook": "s"}', lang="uz", schema=PostResult)
     check("sxema buzilganda INVALID_SCHEMA (qat'iy)",
           schema_result.is_valid is False
@@ -882,7 +896,7 @@ def test_prompt_guard_and_validator():
         return re.sub(r"#[^\n]*", "", text)
 
     # AI STEK DE-BLOAT: kanonik AI shlyuz kodi `services/ai/engine/` ga
-    # ko'chirildi (`services/ai_engine/` — nol-logikali muvofiqlik shimi).
+    # ko'chirildi (`services/ai/engine/` — nol-logikali muvofiqlik shimi).
     # Skanerlanadigan FAYL YO'LLARI yangilandi; tekshiruv mezonlari
     # (bypass shakli va uzunlik qabul mezoni yo'qligi) O'ZGARMAGAN.
     ai_sources = {}
@@ -922,8 +936,8 @@ def test_handler_isolation_and_compat():
     print("\n== TEST 8: Handler izolyatsiyasi va backward compatibility ==")
     handlers_dir = ROOT / "handlers"
     forbidden = (
-        "services.ai_service", "from services.ai_service import",
-        "services.ai.providers", "services.ai_engine.providers",
+        "services.ai.fallback", "from services.ai.fallback import",
+        "services.ai.providers", "services.ai.engine.providers",
         "services.ai.orchestrator", "ai_engine import providers",
     )
     violations = []
@@ -933,7 +947,7 @@ def test_handler_isolation_and_compat():
         for needle in forbidden:
             if needle in src:
                 violations.append(f"{py.name}: {needle}")
-        if "services.ai_engine" in src or "services.ai_gateway" in src \
+        if "services.ai.engine" in src or "services.ai_gateway" in src \
                 or "services.ai_quota" in src:
             canonical_users.append(py.name)
     check("hech bir handler provayder qatlamiga bog'lanmaydi", not violations,
@@ -944,9 +958,9 @@ def test_handler_isolation_and_compat():
           (ROOT / "handlers" / "content_calendar_flow.py").read_text(
               encoding="utf-8").count("ai_gateway.generate") >= 1)
 
-    # 8b) Legacy adapter o'zgarmagan (services.ai_service.run_ai_chain delegati).
+    # 8b) Legacy adapter o'zgarmagan (services.ai.fallback.run_ai_chain delegati).
     reset_state()
-    from services import ai_service
+    from services.ai import fallback as ai_service
 
     async def fake_run_chain(prompt, system_instruction, lang=None):
         return {"content": "legacy javob", "provider": "LegacyChain"}
@@ -957,7 +971,7 @@ def test_handler_isolation_and_compat():
         result = run(gw.legacy_chain("p", "s", lang="uz"))
     finally:
         ai_service.run_ai_chain = real_chain
-    check("legacy_chain → services.ai_service.run_ai_chain",
+    check("legacy_chain → services.ai.fallback.run_ai_chain",
           result.get("provider") == "LegacyChain")
     check("legacy_chain natijasi o'zgarmagan (dict shakl)",
           result.get("content") == "legacy javob")
@@ -976,18 +990,11 @@ def test_handler_isolation_and_compat():
           set(status["lanes"]) == {"FAST", "QUALITY", "REASONING", "VISION"})
 
     # 8d) ai_engine paketidan yangi API'lar eksport qilinadi.
-    from services import ai_engine
+    from services.ai import engine as ai_engine
     for name in ("ai_gateway", "AIGateway", "ai_tasks", "run_ai_task",
                  "estimate_tokens", "estimate_cost", "ai_usage_report",
                  "RetryPolicy", "AIUsageEvent", "UsageRecorder", "mock_mode"):
         check(f"ai_engine.{name} eksport qilinadi", hasattr(ai_engine, name))
-
-    # 8e) Facade — AYNAN bir xil obyektlar (dublikat logika yo'q).
-    check("facade.run_ai_task — ai_engine.app_service bilan bir xil",
-          ag.run_ai_task is run_ai_task)
-    check("facade.ai_gateway — gateway.ai_gateway bilan bir xil",
-          ag.ai_gateway is gw.ai_gateway)
-    check("facade.ai_tasks — yagona servis", ag.ai_tasks is ai_tasks)
 
 
 # ===========================================================================

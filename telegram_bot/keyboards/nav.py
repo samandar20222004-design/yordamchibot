@@ -159,22 +159,6 @@ def classify_nav_label(text) -> str | None:
     return None
 
 
-def classify_nav_button(text, callback_data=None) -> str | None:
-    """Tugmani (yorliq + callback) navigatsiya semantikasi bo'yicha aniqlaydi.
-
-    Ikkala belgi ham bilsa va ular MOS KELMASA — yorliq (foydalanuvchi
-    ko'radigan standart) ustuvor hisoblanadi va ``label`` qaytariladi;
-    mos kelmaslik :func:`find_nav_conflicts` tomonidan QOIDABUZARLIK sifatida
-    qayd etiladi.
-    """
-    label_sem = classify_nav_label(text)
-    cb_sem = callback_semantic(callback_data) if callback_data else None
-    if label_sem and cb_sem and label_sem != cb_sem:
-        # Aniq yorliq ustuvor — lekin mosizlik qayd etiladi (detektor ko'radi).
-        return label_sem
-    return label_sem or cb_sem
-
-
 def _iter_buttons(markup):
     """InlineKeyboardMarkup yoki qatorlar ro'yxatidan tugmalarni yig'adi."""
     rows = getattr(markup, "inline_keyboard", None)

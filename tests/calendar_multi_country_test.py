@@ -413,7 +413,7 @@ def test_backward_compatibility():
 # ---------------------------------------------------------------------------
 def test_ai_prompt_calendar_context():
     print("\n-- 6) AI promptlar davlatga mos kalendar kontekstini yutadi --")
-    from services.ai import facade as ai
+    from services.ai import calendar_context as ai
     from services.ai.calendar_context import (
         AI_CALENDAR_MARKER, calendar_directive, strip_calendar_directive,
         supported_countries, with_calendar_context,
@@ -456,7 +456,7 @@ def test_ai_prompt_calendar_context():
 
     # Fasad orqali ham bir xil ishlaydi
     check(ai.with_calendar_context(base, "UZ", "uz", today=anchor) == once,
-          "services.ai.facade.with_calendar_context — bir xil natija")
+          "calendar_context.with_calendar_context — bir xil natija")
     check(ai.supported_countries() == supported_countries() == ("UZ",),
           "supported_countries — JSON profillaridan olinadi")
     check(ai.resolve_prompt_country("uzb") == "UZ", "resolve_prompt_country — normalizatsiya")

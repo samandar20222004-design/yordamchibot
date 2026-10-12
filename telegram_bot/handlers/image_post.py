@@ -45,7 +45,7 @@ from services.ai_quota import (
     release_ai_quota,
     reserve_ai_quota,
 )
-from services.ai_engine.gateway import generate_image_post
+from services.ai.engine.gateway import generate_image_post
 from services.delivery import delivery_service  # PHASE 5: yagona delivery engine
 from utils.ai_agent import pick_supported_kwargs
 from utils.telegram_sanitizer import sanitize_html, TELEGRAM_CAPTION_LIMIT

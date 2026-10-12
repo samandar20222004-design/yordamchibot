@@ -560,6 +560,3 @@ def configure_structured_logging(level: int = _logging.INFO,
     return target
 
 
-def scrub_log_line(text: str) -> str:
-    """Tayyor log satrini tozalash (tashqi log yozuvchilar uchun)."""
-    return scrub_text(text)

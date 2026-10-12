@@ -601,7 +601,7 @@ async def analyze_image(data: bytes | bytearray | memoryview,
     if not key:
         raise VisionUnavailableError("🔑 Vision tahlili hozircha sozlanmagan. Keyinroq urinib ko'ring.")
     body = _build_vision_body(payload, caption, lang)
-    from services.ai_engine.prompts import PromptEngine
+    from services.ai.engine.prompts import PromptEngine
     safe_prompt, safe_system = PromptEngine.build(
         caption, system=build_vision_system_prompt(lang), lang=lang,
         task="Analyze the image and extract caption facts using the specified JSON schema.")
@@ -635,7 +635,7 @@ async def analyze_image(data: bytes | bytearray | memoryview,
                 if not parsed:
                     last_error = VisionUnavailableError("⚠️ Rasmni tushunib bo'lmadi. Aniqroq rasm yuboring.")
                     continue
-                from services.ai_engine.safety import contains_leak
+                from services.ai.engine.safety import contains_leak
                 if contains_leak(json.dumps(parsed, ensure_ascii=False)):
                     continue
                 result = normalize_analysis(parsed, caption=caption)

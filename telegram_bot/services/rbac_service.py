@@ -1003,17 +1003,6 @@ def resource_role_permissions(role) -> frozenset:
     return RESOURCE_ROLE_PERMISSIONS.get(parsed, frozenset())
 
 
-def resource_role_covers(role, required_role) -> bool:
-    """``role`` talab qilingan resurs rolini qamrab oladimi (ruxsatlar bo'yicha)?"""
-    target = parse_resource_role(required_role)
-    if target is None:
-        return False
-    required_perms = RESOURCE_ROLE_PERMISSIONS.get(target, frozenset())
-    if not required_perms:
-        return False
-    return required_perms.issubset(resource_role_permissions(role))
-
-
 @dataclasses.dataclass(frozen=True)
 class AccessDecision:
     """Resurs tekshiruvi natijasi (``bool`` sifatida ham ishlaydi)."""
@@ -1366,25 +1355,6 @@ async def can(user_id, resource_type=RESOURCE_TYPE_CHANNEL, resource_id=None,
     return bool(decision.allowed)
 
 
-#: Qulaylik aliaslar (o'qish uchun tabiiy nomlar).
-async def check_resource_access(user_id, resource_type=RESOURCE_TYPE_CHANNEL,
-                                resource_id=None, action=ACTION_VIEW, **kwargs):
-    """:func:`check` bilan bir xil (nom boshqa modullarda qulayroq)."""
-    return await check(user_id, resource_type=resource_type,
-                       resource_id=resource_id, action=action, **kwargs)
-
-
-async def require_resource(user_id, resource_type=RESOURCE_TYPE_CHANNEL,
-                           resource_id=None, action=ACTION_VIEW, **kwargs) -> bool:
-    """:func:`can` — ruxsat bo'lmasa ``ResourcePermissionDenied`` ko'taradi."""
-    decision = await check(user_id, resource_type=resource_type,
-                           resource_id=resource_id, action=action, **kwargs)
-    if not decision.allowed:
-        _log_denied(decision)
-        raise ResourcePermissionDenied(decision)
-    return True
-
-
 def _log_denied(decision: AccessDecision) -> None:
     """Rad etilgan resurs so'rovini WARNING sifatida yozadi (audit izi)."""
     logger.warning(
@@ -1394,11 +1364,3 @@ def _log_denied(decision: AccessDecision) -> None:
     )
 
 
-async def can_any(user_id, resource_ids, resource_type=RESOURCE_TYPE_CHANNEL,
-                  action=ACTION_VIEW, **kwargs) -> bool:
-    """Berilgan resurslardan KAMIDA BITTASI uchun ruxsat bormi?"""
-    for resource_id in resource_ids or ():
-        if await can(user_id, resource_type=resource_type,
-                     resource_id=resource_id, action=action, **kwargs):
-            return True
-    return False

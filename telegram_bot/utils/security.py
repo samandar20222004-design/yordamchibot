@@ -287,10 +287,5 @@ def validate_button_url(url) -> bool:
 is_safe_button_url = validate_button_url
 
 
-def sanitize_button_url(url) -> str:
-    """Havolani qaytaradi (xavfsiz bo'lsa) yoki bo'sh satr."""
-    return str(url).strip() if validate_button_url(url) else ""
-
-
 #: Tashqi (AI/reklama) matnlarida uchraydigan havolalar uchun xuddi shu oq ro'yxat.
 validate_link = validate_button_url

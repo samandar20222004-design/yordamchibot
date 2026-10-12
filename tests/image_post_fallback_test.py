@@ -428,7 +428,7 @@ def test_non_recoverable_errors_still_ask_new_image():
 
 def test_text_based_generation_uses_magic_post():
     print("== TEST 7: matn asosidagi tahlil → Magic Post generatori ==")
-    from services import ai_service as svc
+    from services.ai import fallback as svc
     from utils import vision_analyzer as va
     from utils import ai_agent as aa
 

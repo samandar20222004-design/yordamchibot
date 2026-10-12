@@ -163,7 +163,7 @@ def sanitize_output(text: str | None) -> tuple[str, bool]:
     o'zgargan) holat; monitoring/logging uchun.
     """
     raw = "" if text is None else str(text)
-    from services.ai_engine.safety import contains_leak
+    from services.ai.engine.safety import contains_leak
     if contains_leak(raw):
         return "", True
     if not has_instruction_leak(raw):

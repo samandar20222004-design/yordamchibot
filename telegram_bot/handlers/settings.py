@@ -118,11 +118,6 @@ def _cached_static_text(name: str, lang: str, builder) -> str:
     return text
 
 
-def clear_settings_static_cache() -> None:
-    """Statik matnlar keshini tozalaydi (testlar/diagnostika uchun)."""
-    _STATIC_TEXT_CACHE.clear()
-
-
 # ============================================================
 # SOZLAMALAR OQ RO'YXATI (payload'dan boshqa kalit yozilmaydi)
 # ============================================================
