@@ -918,15 +918,18 @@ async def add_channel_retry(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ============================================================
 
 
-async def _dna_prompt_block(channel_id, user_id: int) -> str:
-    """Kanal DNA profilidan AI uchun ixcham uslub bloki (ixtiyoriy).
+async def _dna_prompt_block(channel_id, user_id: int, lang: str = "uz") -> str:
+    """Kanal DNA 2.0 profilidan AI uchun ixcham uslub bloki (ixtiyoriy).
 
-    Ma'lumot yetarli bo'lmasa yoki xato bo'lsa — bo'sh qator qaytadi
-    (namuna faqat ``tone`` bo'yicha yoziladi). Hech qachon istisno bermaydi.
+    🧬 STEP 3: ``build_dna_prompt_2`` — bazaviy DNA bloki + ohang (tone),
+    uzunlik afzalligi, CTA uslubi va lug'at cheklovlari (faqat real profil
+    ma'lumotlaridan). Ma'lumot yetarli bo'lmasa yoki xato bo'lsa — bo'sh
+    qator qaytadi (namuna faqat ``tone`` bo'yicha yoziladi). Hech qachon
+    istisno bermaydi.
     """
     try:
         from services.channels.dna import (
-            build_dna_system_prompt_extended, get_channel_dna,
+            build_dna_prompt_2, get_channel_dna,
         )
 
         res = await get_channel_dna(channel_id, user_id=user_id)
@@ -935,7 +938,7 @@ async def _dna_prompt_block(channel_id, user_id: int) -> str:
         profile = res.get("profile") or {}
         if not profile:
             return ""
-        return (build_dna_system_prompt_extended(profile, lang="uz") or "").strip()
+        return (build_dna_prompt_2(profile, lang=lang) or "").strip()
     except Exception:
         logger.debug("DNA blokini olishda xato (channel=%s)", channel_id,
                      exc_info=True)
@@ -968,7 +971,7 @@ async def _send_dna_sample(update: Update, context: ContextTypes.DEFAULT_TYPE,
     reservation_id = take_reservation_id(context, "dna")
 
     # --- 2) DNA profili + AI zanjiri orqali namunaviy matn ---
-    dna_block = await _dna_prompt_block(channel_id, user_id)
+    dna_block = await _dna_prompt_block(channel_id, user_id, lang)
     title = ""
     try:
         channels = await db.run_db(db.get_user_channels_with_tone, user_id)

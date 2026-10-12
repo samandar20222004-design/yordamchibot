@@ -99,6 +99,13 @@
 #       intelligence_profiles ga UPSERT, AI promptiga ulanadi), Smart Best
 #       Time (soxta raqamlarsiz) + IDOR himoyasi
 #       (tests/channel_intelligence_dna_test.py)
+#   3x2) 🧬 STEP 3 — CHANNEL DNA 2.0 & CONTENT LEARNING: generatsiya
+#       promptlariga tone/uzunlik/CTA/lug'at cheklovlari AVTOMATIK ulanadi,
+#       DNK tahlil qilinmagan kanallarda standart ohang fallback (xatosiz),
+#       AI Studio/Audit ekranlarida REAL postlar tahlilidan lokalizatsiya
+#       qilingan tavsiyalar (Q&A/tutorial/ijtimoiy isbot gap'lari — NO
+#       FABRICATION) va UZ/RU/EN 100% paritet
+#       (tests/channel_dna2_content_learning_test.py)
 #   3y) 🚀 PHASE C — AI AUTOPILOT + POST SHABLONLARI + DUBLIKAT DETEKTORI:
 #       7 kunlik atomik rejalashtirish (FREE limit qat'iy), post_templates
 #       (7 o'zgaruvchi, IDOR) va AI'siz dublikat detektori (0.85) manual
@@ -768,6 +775,32 @@ echo "===== 3x) 🧠 PHASE B: CHANNEL INTELLIGENCE — DNA + BEST TIME + MONITOR
 #     ulanishi (faqat egasi kanalga, fail-soft)
 # (tests/channel_intelligence_dna_test.py).
 "$PY" tests/channel_intelligence_dna_test.py || EXIT_CODE=1
+
+echo
+echo "===== 3x2) 🧬 STEP 3: CHANNEL DNA 2.0 + CONTENT LEARNING INTEGRATION ====="
+# (1) 🧬 DNA 2.0 PROMPT — post generatsiya promptlariga kanal OHANGI (tone),
+#     UZUNLIK AFZALLIGI (±20%), CTA USLUBI va LUG'AT CHEKLOVLARI (vocabulary
+#     limits) AVTOMATIK ulanadi (build_dna_prompt_2 — faqat REAL profil
+#     ma'lumotlaridan; legacy "KANAL USLUBI (DNA)" kontrakti saqlanadi;
+#     tone yo'q bo'lsa bo'lim UYDIRILMAYDI);
+# (2) 🛟 GRACEFUL FALLBACK — DNA hali tahlil qilinmagan kanal uchun standart
+#     ohang bloki (uz/ru/en): attach_dna_to_context xatosiz davom etadi,
+#     IDOR (begona kanal) va skip_dna'da kontekst O'ZGARMAYDI, kengaytirilgan
+#     channel_dna profili (tone bilan) PRIORITET, DB xatosida fail-soft;
+# (3) 🤖 ORKESTRATOR — DNA 2.0 bloki provayder kontekstida end-to-end;
+#     profilsiz kanalda standart ohang bilan generatsiya muvaffaqiyatli;
+# (4) 📚 CONTENT LEARNING & GAP DETECTION — kanalning REAL postlari tahlilidan
+#     yetishmayotgan formatlar (❓ Q&A, 🎓 tutorial, ⭐ ijtimoiy isbot, 📊
+#     so'rovnoma ...) AI Studio va Post auditi ekranlarida LOKALIZATSIYA
+#     QILINGAN tavsiyalar sifatida ko'rsatiladi; NO FABRICATION: postlar < 5
+#     bo'lsa halol "yetarli ma'lumot yo'q" xabari (real {n}/{min} sonlari),
+#     kanal ulanmagan bo'lsa "kanal ulang" ko'rsatmasi; IDOR — faqat O'Z
+#     kanallari (get_user_channels), DB xatosida fail-soft;
+# (5) 🌍 TRILINGUAL PARITY — barcha yangi prompt shablonlari, xato xabarlari
+#     va tavsiyalar UZ/RU/EN 100% paritet (kalitlar + format argumentlari,
+#     content_learning_parity_report: in_sync=True)
+# (tests/channel_dna2_content_learning_test.py).
+"$PY" tests/channel_dna2_content_learning_test.py || EXIT_CODE=1
 
 echo
 echo "===== 3y) 🚀 PHASE C: AI AUTOPILOT + POST SHABLONLARI + DUBLIKAT DETEKTOR ====="

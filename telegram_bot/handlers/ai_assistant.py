@@ -310,6 +310,42 @@ async def _studio_menu_text(user_id: int, lang: str) -> str:
     return safe_t("ai_studio_menu", lang, credits=credits_label)
 
 
+async def _content_learning_block(user_id: int, lang: str, *,
+                                  require_reco: bool = False) -> str:
+    """📚 STEP 3 — CONTENT LEARNING: lokalizatsiya qilingan tavsiyalar bloki.
+
+    Kanal analitikasi (REAL postlar tarixi) asosida yetishmayotgan formatlar
+    (Q&A, tutorial, ijtimoiy isbot ...) uchun uz/ru/en tavsiyalar chizadi.
+
+    Qat'iy qoidalar:
+      * NO FABRICATION — real kanal ma'lumoti bo'lmasa soxta metrika
+        ko'rsatilmaydi (halol "yetarli ma'lumot yo'q" xabari chiqadi);
+      * ``require_reco=True`` (Post auditi ekrani) — blok FAQAT aniq
+        tavsiyalar bo'lganda qaytadi (aks holda audit natijasi toza qoladi);
+      * FAIL-SOFT — hech qanday xato istisno ko'tarmaydi (bo'sh satr).
+    """
+    try:
+        if not user_id:
+            return ""
+        from services.channels.content_learning import (
+            get_content_learning_for_user, render_content_learning_text,
+        )
+
+        report = await get_content_learning_for_user(user_id, lang=lang,
+                                                     db_module=db)
+        if not isinstance(report, dict) or not report:
+            return ""
+        if require_reco and not report.get("recommendations"):
+            return ""
+        block = render_content_learning_text(report, lang)
+        # Ixcham ushlab turamiz (Telegram 4096 chegarasi xavfsizligi).
+        return sanitize_html(block, 1200) if block else ""
+    except Exception as _silent_exc:  # noqa: BLE001 — tavsiya bonus, bloklamaydi
+        log_silent_failure("handlers.ai_assistant:_content_learning_block",
+                           _silent_exc, user_id=user_id, lang=lang)
+        return ""
+
+
 async def start_ai_assistant(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """AI yordamchisi holatini (AI_INPUT) boshlaydi."""
     clear_fsm_data(context)
@@ -1098,10 +1134,20 @@ async def ai_studio_hub_entry(update: Update, context: ContextTypes.DEFAULT_TYPE
     user = getattr(update, "effective_user", None) or getattr(query, "from_user", None)
     user_id = user.id if user else 0
     remember_section(context, SECTION_AI_STUDIO)
-    await msg.reply_text(
+    studio_text = (
         await _studio_menu_text(user_id, lang)
         + "\n\n"
-        + content_menu_t("cm_ai_hint", lang),
+        + content_menu_t("cm_ai_hint", lang)
+    )
+    # 📚 STEP 3 — CONTENT LEARNING: kanal analitikasi asosida lokalizatsiya
+    # qilingan tavsiyalar (fail-soft: xatoda menyu o'zgarmaydi; real ma'lumot
+    # bo'lmasa HALOL "yetarli ma'lumot yo'q" eslatmasi ko'rsatiladi — soxta
+    # metrika yo'q).
+    learning_block = await _content_learning_block(user_id, lang)
+    if learning_block:
+        studio_text += "\n\n" + learning_block
+    await msg.reply_text(
+        studio_text,
         reply_markup=get_ai_studio_keyboard(lang),
         parse_mode="HTML",
     )
@@ -1645,9 +1691,20 @@ async def ai_audit_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin and not is_pro:
         await db.run_db(db.increment_ai_usage, user_id)
 
+    # 📚 STEP 3 — CONTENT LEARNING (Audit ekrani): kanalning REAL postlari
+    # tahlilidan lokalizatsiya qilingan tavsiyalar (Q&A, tutorial, ijtimoiy
+    # isbot kabi yetishmayotgan formatlar). NO FABRICATION: real ma'lumot
+    # bo'lmasa blok QO'SHILMAYDI (audit natijasi toza qoladi).
+    learning_block = await _content_learning_block(user_id, lang,
+                                                   require_reco=True)
+    audit_limit = 2600 if learning_block else 3500
+
     ad_line = await get_auto_ad_injection_async(user_id)
     await _edit_wait_message(msg_wait, msg,
-        safe_t("ai_audit_result_title", lang) + sanitize_html(audit, 3500) + ad_line,
+        safe_t("ai_audit_result_title", lang)
+        + sanitize_html(audit, audit_limit)
+        + (("\n\n" + learning_block) if learning_block else "")
+        + ad_line,
         reply_markup=get_ai_back_keyboard(lang),
         parse_mode="HTML",
     )
