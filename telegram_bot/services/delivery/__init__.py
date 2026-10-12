@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""PHASE 5 — Telegram Delivery Engine (yagona yetkazib berish nuqtasi).
+"""Telegram Delivery Engine (yagona yetkazib berish nuqtasi).
 
 Barcha kanal postlari, rejalashtirilgan yuborishlar, manual/autopilot
 publish va bulk broadcast shu paketdagi ``delivery_service`` orqali o'tadi:

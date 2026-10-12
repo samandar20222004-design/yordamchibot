@@ -4,15 +4,15 @@ Har bir servis o'z domeniga tegishli qoidalarni boshqaradi:
   - SubscriptionService: tariflar, obuna muddati, admin bonus
   - PaymentService: Stars to'lov, karta chek tasdiqlash
   - PromoService: promo-kod yaratish va faollashtirish
-  - AIFallbackService: AI multi-provider fallback (4-BOSQICH) —
+  - AIFallbackService: AI multi-provider fallback —
     Gemini → Groq → OpenRouter → zaxira zanjir, qat'iy timeout
-  - RBACService: rollar va ruxsatlar (6-BOSQICH) — OWNER/SUPER_ADMIN/ADMIN/
+  - RBACService: rollar va ruxsatlar — OWNER/SUPER_ADMIN/ADMIN/
     MODERATOR/FINANCE, ``@require_permission`` / ``@require_role``
-  - AuditService: admin harakatlari auditi (6-BOSQICH) — admin_audit_logs
-  - CleanupService: kunlik paketli tozalash (9-BOSQICH) — 30 kundan eski
+  - AuditService: admin harakatlari auditi — admin_audit_logs
+  - CleanupService: kunlik paketli tozalash — 30 kundan eski
     'sent' delivery jurnallari va 60 kundan eski/bekor qilingan vaqtinchalik
     qoldiqlar, LIMIT 1000 paketlar bilan alohida tranzaksiyalarda
-  - lifecycle_service: graceful shutdown holati (9-BOSQICH) — yangi ish
+  - lifecycle_service: graceful shutdown holati — yangi ish
     qabul qilishni to'xtatish, faol vazifalarni 5–10 s kutish
 
 database.py faqat CRUD (ma'lumotlar bazasi so'rovlari) bajaradi;

@@ -110,7 +110,7 @@ MANUAL_POST_I18N = {
         "mp_url_on": "🔗 Tugma: {text} → {url}",
         # --- Kanal tanlash ---
         "mp_choose_channel": "📢 <b>Qaysi kanalga chiqaramiz?</b>",
-        # --- PHASE 1 (FSM input fallback): bosqichda tugma kutganda —
+        # bosqichda tugma kutganda —
         #     yumshoq eslatma + joriy menyuni qayta ko'rsatish ---
         "mp_stage_hint": (
             "💡 Hozirgi bosqichda quyidagi tugmalardan birini "
@@ -171,7 +171,7 @@ MANUAL_POST_I18N = {
             "Iltimos, <b>matn</b>, <b>rasm</b> yoki <b>video</b> yuboring."
         ),
         "mp_cancelled": "❌ <b>Oddiy post bekor qilindi.</b> Hech narsa yuborilmadi.",
-        # 🔁 PHASE C — dublikat detektori (post chiqarilishidan oldin).
+        # dublikat detektori (post chiqarilishidan oldin).
         # DIQQAT: bu — istisnoiy ogohlantirish oynasi; oddiy oqimda AI
         # ishtirok etmaydi, [✨ AI bilan yangilash] faqat foydalanuvchi
         # o'zi bosganda ishlaydi.
@@ -199,7 +199,7 @@ MANUAL_POST_I18N = {
             "⚠️ Postni saqlashda xatolik yuz berdi. Iltimos, qayta urinib "
             "ko'ring."
         ),
-        # PHASE 3 — RBAC/IDOR: begona kanal ustida amal — yopiq rad etish.
+        # RBAC/IDOR: begona kanal ustida amal — yopiq rad etish.
         "mp_no_access": (
             "⛔ Ruxsat yo'q (Permission Denied). Bu kanal ustida ushbu "
             "amalni bajarish huquqingiz yo'q."
@@ -281,7 +281,7 @@ MANUAL_POST_I18N = {
         ),
         "mp_url_on": "🔗 Кнопка: {text} → {url}",
         "mp_choose_channel": "📢 <b>В какой канал публикуем?</b>",
-        # --- PHASE 1 (FSM input fallback): мягкое напоминание на шаге,
+        # мягкое напоминание на шаге,
         #     где ожидается нажатие кнопки ---
         "mp_stage_hint": (
             "💡 На текущем шаге нужно выбрать одну из кнопок ниже:"
@@ -335,7 +335,7 @@ MANUAL_POST_I18N = {
             "Отправьте <b>текст</b>, <b>фото</b> или <b>видео</b>."
         ),
         "mp_cancelled": "❌ <b>Обычный пост отменён.</b> Ничего не отправлено.",
-        # 🔁 PHASE C — детектор дубликатов (перед публикацией поста).
+        # детектор дубликатов (перед публикацией поста).
         "mp_dup_warning": (
             "⚠️ Найден похожий пост. Этот пост очень похож на ваш недавний."
             "\n\nСходство: <b>{score}%</b>\n\n"
@@ -359,7 +359,7 @@ MANUAL_POST_I18N = {
         "mp_save_error": (
             "⚠️ Ошибка при сохранении поста. Попробуйте ещё раз."
         ),
-        # PHASE 3 — RBAC/IDOR: чужой канал — закрытый отказ.
+        # RBAC/IDOR: чужой канал — закрытый отказ.
         "mp_no_access": (
             "⛔ Нет доступа (Permission Denied). У вас нет прав на это "
             "действие в этом канале."
@@ -442,7 +442,7 @@ MANUAL_POST_I18N = {
         ),
         "mp_url_on": "🔗 Button: {text} → {url}",
         "mp_choose_channel": "📢 <b>Which channel do we publish to?</b>",
-        # --- PHASE 1 (FSM input fallback): gentle hint on a step where a
+        # gentle hint on a step where a
         #     button press is expected ---
         "mp_stage_hint": (
             "💡 At this step, please choose one of the buttons below:"
@@ -496,7 +496,7 @@ MANUAL_POST_I18N = {
             "Please send <b>text</b>, a <b>photo</b> or a <b>video</b>."
         ),
         "mp_cancelled": "❌ <b>Regular post cancelled.</b> Nothing was sent.",
-        # 🔁 PHASE C — duplicate detector (before publishing).
+        # duplicate detector (before publishing).
         "mp_dup_warning": (
             "⚠️ Similar post found. This post is very similar to your "
             "recent one.\n\nSimilarity: <b>{score}%</b>\n\n"
@@ -519,7 +519,7 @@ MANUAL_POST_I18N = {
         "mp_save_error": (
             "⚠️ An error occurred while saving the post. Please try again."
         ),
-        # PHASE 3 — RBAC/IDOR: foreign channel — closed rejection.
+        # RBAC/IDOR: foreign channel — closed rejection.
         "mp_no_access": (
             "⛔ Permission denied. You are not allowed to perform this "
             "action on this channel."

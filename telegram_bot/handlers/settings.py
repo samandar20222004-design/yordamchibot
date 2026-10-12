@@ -118,11 +118,6 @@ def _cached_static_text(name: str, lang: str, builder) -> str:
     return text
 
 
-def clear_settings_static_cache() -> None:
-    """Statik matnlar keshini tozalaydi (testlar/diagnostika uchun)."""
-    _STATIC_TEXT_CACHE.clear()
-
-
 # ============================================================
 # SOZLAMALAR OQ RO'YXATI (payload'dan boshqa kalit yozilmaydi)
 # ============================================================
@@ -802,7 +797,7 @@ async def _render_profile_screen(query, context, user_id: int, lang: str,
                                  is_admin: bool) -> None:
     """👤 Profil — ID, obuna holati, balans/kreditlar va asosiy hisob ma'lumotlari.
 
-    3-QISM: Profil va Sozlamalar birlashdi — bu endi YAGONA Sozlamalar
+    Profil va Sozlamalar birlashdi — bu endi YAGONA Sozlamalar
     ekrani: cabinet_title (ID, so'rovlar, seriya) + obuna holati + 7
     tugmali inline menyu (Til / Post sozlamalari / Bildirishnomalar /
     Do'stlarni taklif / To'lovlar tarixi / Qo'llab-quvvatlash / Yopish).
@@ -1163,7 +1158,7 @@ async def settings_menu_callback(update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if data == "stgs_privacy":
-        # 🔐 SPRINT 1: maxfiylik siyosati ekrani (matn — translations/privacy.py).
+        # maxfiylik siyosati ekrani (matn — translations/privacy.py).
         from handlers.privacy import _render_policy
 
         await _render_policy(query, context, user_id, lang)
@@ -1236,7 +1231,7 @@ async def settings_menu_callback(update, context: ContextTypes.DEFAULT_TYPE):
 
     if data == "stgs_tools":
         # 🧰 Vositalar — Konverter + Post Enhancer submenyusi.
-        # 🧭 4-qadam: foydalanuvchi endi «Vositalar» bo'limida — bu yerden
+        # foydalanuvchi endi «Vositalar» bo'limida — bu yerden
         # boshlangan FSM oqimlari bekor qilinsa shu submenyuga qaytadi.
         from handlers.navigation import remember_section, SECTION_TOOLS
         remember_section(context, SECTION_TOOLS)
@@ -1245,7 +1240,7 @@ async def settings_menu_callback(update, context: ContextTypes.DEFAULT_TYPE):
 
     if data == "stgs_hub":
         # ◀️ Orqaga (submenyudan) — ⚙️ Sozlamalar menyusi qayta chiziladi.
-        # 🧭 4-qadam: bo'lim yozuvi Sozlamalarga qaytadi (cancel → hub).
+        # bo'lim yozuvi Sozlamalarga qaytadi (cancel → hub).
         from handlers.navigation import remember_section, SECTION_SETTINGS
         remember_section(context, SECTION_SETTINGS)
         await _render_hub_screen(query, context, user_id, lang, is_admin)

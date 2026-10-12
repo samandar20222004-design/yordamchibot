@@ -1,6 +1,6 @@
 """🧩 KONTENT YARATISH (submenu) — i18n lug'ati (UZ / RU / EN, 100% paritet).
 
-PostAssist V2 · 1-2 mikro qadamlar: asosiy menyudagi «✨ Kontent yaratish»
+1-2 mikro qadamlar: asosiy menyudagi «✨ Kontent yaratish»
 tugmasi endi 5 ta yaratish yo'lini ochuvchi ICHKI MENYUni chizadi:
 
   * tugma yorliqlari (``cm_btn_*``) — birlashtirilgan menyu: ✍️ Oddiy post
@@ -96,7 +96,7 @@ CONTENT_MENU_I18N = {
         ),
         "cm_offer_magic": "✨ Magic Post",
         "cm_offer_menu": "🔙 Asosiy menyu",
-        # --- PHASE 9: [✍️ Post yaratish] Contextual Inline Menu ---
+        # [✍️ Post yaratish] Contextual Inline Menu ---
         "ctx_post_intro": (
             "✍️ <b>Post yaratish</b> — kerakli formatni tanlang 👇\n\n"
             "<i>Yoki darhol rasm, ovoz yoxud matn yuboring.</i>"
@@ -155,7 +155,7 @@ CONTENT_MENU_I18N = {
         ),
         "cm_offer_magic": "✨ Magic Post",
         "cm_offer_menu": "🔙 Главное меню",
-        # --- PHASE 9: [✍️ Создать пост] Contextual Inline Menu (RU) ---
+        # [✍️ Создать пост] Contextual Inline Menu (RU) ---
         "ctx_post_intro": (
             "✍️ <b>Создать пост</b> — выберите нужный формат 👇\n\n"
             "<i>Или сразу отправьте фото, голосовое либо текст.</i>"
@@ -214,7 +214,7 @@ CONTENT_MENU_I18N = {
         ),
         "cm_offer_magic": "✨ Magic Post",
         "cm_offer_menu": "🔙 Main menu",
-        # --- PHASE 9: [✍️ Create post] Contextual Inline Menu (EN) ---
+        # [✍️ Create post] Contextual Inline Menu (EN) ---
         "ctx_post_intro": (
             "✍️ <b>Create post</b> — choose a format 👇\n\n"
             "<i>Or send a photo, voice note or text right away.</i>"

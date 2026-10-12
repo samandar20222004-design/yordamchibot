@@ -53,7 +53,7 @@ from telegram.ext import ContextTypes, ConversationHandler
 
 from config import ADMIN_IDS_SET, BOT_USERNAME
 import database as db
-from services.delivery import delivery_service  # PHASE 5: yagona delivery engine
+from services.delivery import delivery_service  # yagona delivery engine
 from keyboards.default import get_cancel_keyboard, get_main_keyboard
 from keyboards.callback_data import cb
 from keyboards.inline import (
@@ -946,8 +946,8 @@ async def _capture_post(update, context, msg, enh):
     is_pro = await _resolve_is_pro(user_id, enh)
 
     # ✨ PRO uchun avtomatik 2-bosqichli audit (task talab):
-    # 1-bosqich: foydalanuvchi yuborgan post (enh["post"]["content"] da)
-    # 2-bosqich: AUDIT_PRO_SYSTEM bilan yaxshilangan final variant
+    # foydalanuvchi yuborgan post (enh["post"]["content"] da)
+    # AUDIT_PRO_SYSTEM bilan yaxshilangan final variant
     # Foydalanuvchiga FAQAT 2-bosqich natijasi ko'rsatiladi.
     # FREE: bitta bosqich (ikkinchi AI chaqiruvi yo'q) — tezlik/xarajat.
     # Xatoliklarda (timeout, bo'sh javob, tarmoq) — asl post saqlanadi.
@@ -1109,8 +1109,8 @@ async def _audit_post_step(update, context, query, enh):
     """✨ AI audit (PRO): post matnini 2-bosqichli auditor orqali yaxshilaydi.
 
     Oqim (utils.ai_agent'dagi PRO auditor pipeline'i bilan bir xil):
-      1-bosqich — foydalanuvchi yuborgan/AI generatsiya qilgan post matni;
-      2-bosqich — ``_AUDIT_PRO_SYSTEM`` tizim prompti bilan ikkinchi AI
+      foydalanuvchi yuborgan/AI generatsiya qilgan post matni;
+      ``_AUDIT_PRO_SYSTEM`` tizim prompti bilan ikkinchi AI
       so'rovi: auditor kuchsiz joylarni bartaraf etib, TAYYOR yakuniy
       variantni qaytaradi va post shu variant bilan almashtiriladi.
 
@@ -1637,7 +1637,7 @@ def _build_album_media_local(items: list, caption: str, parse_mode: str = "HTML"
 async def _dispatch_message(bot, chat_id, ptype, file_id, text, markup, html=True, album_items=None):
     """Xabarni turiga qarab yuboradi. HTML parse xatosi bo'lsa — oddiy matn bilan qayta urinish.
 
-    PHASE 5: barcha kanal yuborishlari yagona ``delivery_service`` orqali
+    barcha kanal yuborishlari yagona ``delivery_service`` orqali
     o'tadi (1 post/s kanal + 30 msg/s umumiy limit, RetryAfter aniq kutish
     + jitter, permanent xatolar qayta urinilmaydi).
     """

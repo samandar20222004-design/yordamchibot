@@ -1131,7 +1131,7 @@ def test_main_menu_layout_v2():
     check("kabinet: 3 qatorli 3×2 primary grid", len(cab) == 3, str(cab))
     expected = [
         [("🌐 Til / Язык", "stgs_lang"),
-         ("✍️ Post Auto-Cleaner & Imzo", "stgs_clean")],
+         ("🧹 Post tozalash va imzo", "stgs_clean")],
         [("🔔 Bildirishnomalar", "stgs_notif"),
          ("💎 PRO va Tariflar", "sub_open")],
         [("👥 Do'stlarni taklif", "stgs_referral"),
@@ -6095,7 +6095,7 @@ def test_cabinet_i18n_suite():
     import sys as _sys
     from pathlib import Path
     from locales.translations import get_text, localize_db_message, TRANSLATIONS
-    from keyboards.default import get_main_keyboard, get_cabinet_keyboard, get_cancel_keyboard, exact, BTN_CHANNELS, BTN_CHANNELS_RU, BTN_CONVERTER, BTN_CONVERTER_RU, BTN_DAILY_BONUS, BTN_DAILY_BONUS_RU, BTN_INVITE, BTN_INVITE_RU, BTN_TRANSFER, BTN_TRANSFER_RU, BTN_BACK, BTN_BACK_RU, BTN_CANCEL, BTN_CANCEL_RU, BTN_PREMIUM_RU, BTN_SETTINGS_RU  # noqa: F401
+    from keyboards.default import get_main_keyboard, get_cancel_keyboard, exact, BTN_CHANNELS, BTN_CHANNELS_RU, BTN_CONVERTER, BTN_CONVERTER_RU, BTN_DAILY_BONUS, BTN_DAILY_BONUS_RU, BTN_INVITE, BTN_INVITE_RU, BTN_TRANSFER, BTN_TRANSFER_RU, BTN_BACK, BTN_BACK_RU, BTN_CANCEL, BTN_CANCEL_RU, BTN_PREMIUM_RU, BTN_SETTINGS_RU  # noqa: F401
     from keyboards.inline import (
         get_cabinet_inline_keyboard, get_cabinet_back_keyboard,
         get_channels_manage_keyboard, render_channels_list, no_channels_hint,
@@ -6135,29 +6135,6 @@ def test_cabinet_i18n_suite():
     # ---------- 2) Kabinet reply-klaviaturasi ----------
     def _rows(kb):
         return [[b.text for b in row] for row in kb.keyboard]
-
-    check("kabinet kb uz", _rows(get_cabinet_keyboard("uz")) == [
-        [BTN_CHANNELS, BTN_CONVERTER],
-        [BTN_DAILY_BONUS],
-        [BTN_INVITE, BTN_TRANSFER],
-        [BTN_BACK],
-    ], str(_rows(get_cabinet_keyboard("uz"))))
-    check("kabinet kb ru", _rows(get_cabinet_keyboard("ru")) == [
-        [BTN_CHANNELS_RU, BTN_CONVERTER_RU],
-        [BTN_DAILY_BONUS_RU],
-        [BTN_INVITE_RU, BTN_TRANSFER_RU],
-        [BTN_BACK_RU],
-    ], str(_rows(get_cabinet_keyboard("ru"))))
-    check("kabinet kb: default uz (eski chaqiruvlar buzilmaydi)",
-          _rows(get_cabinet_keyboard()) == _rows(get_cabinet_keyboard("uz")))
-
-    class _Ctx:
-        def __init__(self, data):
-            self.user_data = data
-
-    check("kabinet kb: context.user_data['lang'] hurmat qilinadi",
-          _rows(get_cabinet_keyboard(context=_Ctx({"lang": "ru"})))
-          == _rows(get_cabinet_keyboard("ru")))
 
     cancel_ru = [b.text for row in get_cancel_keyboard("ru").keyboard for b in row]
     check("bekor qilish kb ru", cancel_ru == [BTN_CANCEL_RU, BTN_BACK_RU], str(cancel_ru))
@@ -7211,13 +7188,13 @@ def test_extras_help_i18n_suite():
               "SUP_TAG" in guide and "{support}" not in guide, guide[-80:])
     guide_uz = get_text("help_guide", "uz", support="")
     # 3-QISM: qo'llanmada ham «AI Studio» → «AI Yordamchi».
-    check("help_guide uz: kanal/rejalashtirish/AI Yordamchi/extras",
-          all(w in guide_uz for w in ("Kanal", "rejalashtirish", "AI Yordamchi",
-                                      "Qo'shimcha funksiyalar", "Kunlik bonus")))
+    check("help_guide uz: kanal/rejalashtirish/AI Yordamchi/bonus",
+          all(w in guide_uz for w in ("Kanal", "Rejalashtirish", "AI Yordamchi",
+                                      "Bonuslar", "kunlik bonus")))
     guide_ru = get_text("help_guide", "ru", support="")
     check("help_guide ru: канал/планирование/AI Помощник/extras",
           all(w in guide_ru for w in ("канал", "Планирование", "AI Помощник",
-                                      "Дополнительные функции", "Ежедневный бонус")))
+                                      "Бонусы", "ежедневный бонус")))
     check("help_guide_admin uz/ru",
           "Admin buyruqlari" in get_text("help_guide_admin", "uz")
           and "администратора" in get_text("help_guide_admin", "ru"))
@@ -7383,8 +7360,8 @@ def test_extras_help_i18n_suite():
             msg2 = _FakeMsg(11, 111)
             await st_mod.help_command(_UpdUser(msg2), ctx2)
             hr = [c for c in bot.sent_of("reply_text")][-1]
-            check("help_command ru: Полное руководство matni",
-                  hr and "Полное руководство" in (hr[2] or "")
+            check("help_command ru: Руководство matni",
+                  hr and "Руководство" in (hr[2] or "")
                   and "@test_admin" in (hr[2] or ""),
                   str((hr[2] or "")[:80]))
             hflat = [b for row in hr[3].inline_keyboard for b in row]
@@ -7398,8 +7375,8 @@ def test_extras_help_i18n_suite():
             msg3 = _FakeMsg(12, 111)
             await st_mod.help_command(_UpdUser(msg3), ctx3)
             hr2 = [c for c in bot.sent_of("reply_text")][-1]
-            check("help_command uz: To'liq Qo'llanma, admin qo'shimchasiz",
-                  hr2 and "To'liq Qo'llanma" in (hr2[2] or "")
+            check("help_command uz: Qo'llanma, admin qo'shimchasiz",
+                  hr2 and "Qo'llanma" in (hr2[2] or "")
                   and "Admin buyruqlari" not in (hr2[2] or ""), str((hr2[2] or "")[:80]))
 
             # help_menu_callback — FAQ ↔ guide
@@ -7413,7 +7390,7 @@ def test_extras_help_i18n_suite():
             q_guide = _FakeQuery("help:guide", _FakeMsg(14, 111))
             await st_mod.help_menu_callback(_UpdQ(q_guide), ctx4)
             check("help:guide — RU guide qaytadi",
-                  q_guide.edits and "Полное руководство" in q_guide.edits[0][0],
+                  q_guide.edits and "Руководство" in q_guide.edits[0][0],
                   str(q_guide.edits[:1]))
 
             # extras_close_callback — xabar o'chiradi; '✅ Закрыто. (msg_closed)'

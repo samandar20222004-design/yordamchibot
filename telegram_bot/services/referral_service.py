@@ -1,4 +1,4 @@
-"""ReferralService — PostAssist V2: referal anti-abuse + ACTION-BASED mukofot.
+"""ReferralService: referal anti-abuse + ACTION-BASED mukofot.
 
 🌱 STEP 2 (ORGANIC GROWTH) refaktori: bonus endi /start paytida EMAS,
 taklif qilingan foydalanuvchi BIRINCHI YAROQLI AMALINI (post yaratish /
@@ -217,7 +217,7 @@ class ReferralService:
         return ref, REASON_OK
 
     # ──────────────────────────────────────────────────────────────
-    # DUPLICATE ACCOUNT FARMING DETEKTORI (STEP 2)
+    # DUPLICATE ACCOUNT FARMING DETEKTORI
     # ──────────────────────────────────────────────────────────────
     @staticmethod
     def is_duplicate_signup(cur, referrer_id: int, new_user_id: int,
@@ -249,7 +249,7 @@ class ReferralService:
     def grant_bonus_in_tx(cur, referrer_id: int, new_user_id: int) -> int:
         """Referrer'ga taklif mukofotini BERADI — chaqiruvchi tranzaksiyasida.
 
-        🌱 STEP 2: tarif hisobi (``database.referral_reward_for(n)``: 1-,
+        tarif hisobi (``database.referral_reward_for(n)``: 1-,
         2-, 3-do'st uchun +3 tadan, keyingi har biriga +1; PRO berilmaydi)
         endi FAQAT KONVERSIYA QILGAN do'stlar bo'yicha yuritiladi —
         ``referral_rewarded_at IS NOT NULL``. Chaqiruvchi
@@ -296,7 +296,7 @@ class ReferralService:
                           _retry: int = 3) -> dict:
         """Foydalanuvchini ro'yxatdan o'tkazadi (yoki ma'lumotini yangilaydi).
 
-        🌱 STEP 2: bu bosqichda bonus BERILMAYDI — referrer faqat
+        bu bosqichda bonus BERILMAYDI — referrer faqat
         biriktiriladi (attribution). Mukofot do'st birinchi postini
         yaratgach ``register_first_action`` orqali beriladi.
 
@@ -324,7 +324,7 @@ class ReferralService:
         try:
             with db.db_transaction() as cur:
                 # --- Takroriy referral himoyasi (birinchi tekshiruv) --------
-                # 1-BOSQICH: ``language_code`` ham SHU bir so'rovda olinadi —
+                # ``language_code`` ham SHU bir so'rovda olinadi —
                 # /start da eski foydalanuvchi uchun alohida
                 # ``get_user_language`` chaqiruvi (2-urishli round-trip)
                 # kerak bo'lmasligi kerak.
@@ -344,7 +344,7 @@ class ReferralService:
                         if existing_ref else REASON_EXISTING_USER
                     )
                     cur.execute(
-                        # 🔐 SPRINT 1: ilgari "Ma'lumotlarimni o'chirish" bilan
+                        # ilgari "Ma'lumotlarimni o'chirish" bilan
                         # soft-delete qilingan hisob qaytsa — belgi olinadi
                         # (balans/credits qayta BERILMAYDI: suiiste'moldan himoya).
                         "UPDATE users SET username = %s, full_name = %s, "
@@ -398,7 +398,7 @@ class ReferralService:
                      valid_ref, lang, fingerprint, block_reason),
                 )
 
-                # 🌱 STEP 2: bonus /start da BERILMAYDI — mukofot do'stning
+                # bonus /start da BERILMAYDI — mukofot do'stning
                 # birinchi postida (``register_first_action``) beriladi.
                 if valid_ref:
                     reward_status = (

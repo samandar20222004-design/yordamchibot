@@ -1,4 +1,4 @@
-"""🔁 DUBLIKAT DETEKTOR — kanalning oxirgi postlari bilan solishtirish (PHASE C).
+"""🔁 DUBLIKAT DETEKTOR — kanalning oxirgi postlari bilan solishtirish.
 
 Post kanalga **rejalashtirilishidan yoki chiqarilishidan oldin** yangi matn
 kanalning oxirgi postlari (``channel_posts_history``) bilan solishtiriladi.

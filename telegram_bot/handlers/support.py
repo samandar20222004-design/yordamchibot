@@ -1,6 +1,6 @@
 """💬 QO'LLAB-QUVVATLASH — BIR MARTALIK MUROJAAT + TO'G'RIDAN-TO'G'RI JAVOB.
 
-PostAssist V2 · 4-QISM (so'nggi qism).
+4-QISM (so'nggi qism).
 
 MUAMMO
 ------

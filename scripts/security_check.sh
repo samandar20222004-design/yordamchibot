@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ============================================================================
-# PostAssist V2 — XAVFSIZLIK VA QAT'IYLIK DARVOZASI (SERVERDA BITTA KOMANDA)
+# XAVFSIZLIK VA QAT'IYLIK DARVOZASI (SERVERDA BITTA KOMANDA)
 # ----------------------------------------------------------------------------
 # docs/ci-hardening.yml dagi taklif qilingan qoidalarning SERVER versiyasi.
 # GitHub Actions (` .github/workflows/ci.yml`) ham aynan shu skriptni chaqiradi,
@@ -138,7 +138,7 @@ run_gate() {
 }
 
 echo "=============================================================="
-echo " PostAssist V2 — XAVFSIZLIK / QAT'IYLIK DARVOZASI"
+echo " PostAssist — XAVFSIZLIK / QAT'IYLIK DARVOZASI"
 echo "=============================================================="
 echo "  Repo     : $REPO_ROOT"
 echo "  Python   : $PY ($($PY --version 2>&1 || echo 'noma lum'))"

@@ -90,7 +90,7 @@ _FORBIDDEN_URL_CHARS = frozenset('<>"\'`\\')
 MAX_URL_LENGTH = 2048
 
 # ============================================================
-# 2b) SSRF HIMOYASI — ICHKI TARMOQ MANZILLARI (FAZA 23)
+# 2b) SSRF HIMOYASI — ICHKI TARMOQ MANZILLARI
 # ============================================================
 # Havolali tugmalar va manbalar ICHKI TARMOQ manzillariga ishora
 # qilmasligi shart: localhost, 127.0.0.0/8, 10.0.0.0/8, 172.16.0.0/12,
@@ -257,7 +257,7 @@ def url_rejection_reason(url) -> str:
         return "bad_port"
 
     if scheme in ("http", "https"):
-        # FAZA 23 (SSRF): ichki tarmoq manzillari — localhost, 127.0.0.1,
+        # ichki tarmoq manzillari — localhost, 127.0.0.1,
         # 10.*, 172.16-31.*, 192.168.*, 169.254.* (bulut metadata) va
         # ichki domen nomlari havolali tugma/manbada QAT'IY bloklanadi.
         # Bu tekshiruv nuqta-syshildidan OLDIN turadi: ``2130706433``,
@@ -285,11 +285,6 @@ def validate_button_url(url) -> bool:
 
 #: Ba'zi chaqiruvchilar "mutlaqo xavfsiz" ma'nosida shu nomni ishlatadi.
 is_safe_button_url = validate_button_url
-
-
-def sanitize_button_url(url) -> str:
-    """Havolani qaytaradi (xavfsiz bo'lsa) yoki bo'sh satr."""
-    return str(url).strip() if validate_button_url(url) else ""
 
 
 #: Tashqi (AI/reklama) matnlarida uchraydigan havolalar uchun xuddi shu oq ro'yxat.

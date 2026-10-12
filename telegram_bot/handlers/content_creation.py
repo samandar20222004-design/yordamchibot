@@ -1,4 +1,4 @@
-"""🧩 KONTENT YARATISH — submenu navigatsiyasi va ACTION-FIRST kirish (PostAssist V2).
+"""🧩 KONTENT YARATISH — submenu navigatsiyasi va ACTION-FIRST kirish.
 
 Bu modul «✨ Kontent yaratish» ichki menyusi (5 yaratish yo'li + ◀️ Orqaga)
 uchun 2 qismni ushlaydi:
@@ -6,7 +6,7 @@ uchun 2 qismni ushlaydi:
   1. ``content_creation_back`` — [◀️ Orqaga] tugmasi: foydalanuvchini asosiy
      6 tugmali menyuga qaytaradi (reply-klaviatura almashtiriladi, FSM
      ma'lumotlari tozalanadi).
-  2. ACTION-FIRST (3-mikro qadam) — menyu tashqarisida xom MATN yuborilsa
+  2. ACTION-FIRST — menyu tashqarisida xom MATN yuborilsa
      ``unknown_message_fallback`` shu modulga murojaat qiladi va foydalanuvchiga
      «✨ Magic Post» taklifi (inline tugmalar) ko'rsatiladi. Taklif bosilsa
      xom matn yo'qolmaydi: to'g'ridan-to'g'ri Magic Post uslub tanlash
@@ -233,76 +233,11 @@ async def content_creation_back(update: Update, context: ContextTypes.DEFAULT_TY
         clear_fsm_data(context)
     except Exception as _silent_exc:  # pragma: no cover
         log_silent_failure("handlers.content_creation:content_creation_back", _silent_exc, user_id=user_id, lang=lang)
-    # 🧭 4-qadam: submenu yopildi — foydalanuvchi asosiy menyuda (bo'lim
+    # submenu yopildi — foydalanuvchi asosiy menyuda (bo'lim
     # yozuvi tozalanadi, keyingi [❌ Bekor qilish] asosiy menyuga qaytadi).
     from handlers.navigation import clear_section
     clear_section(context)
     # Eski taklif oynasi ochiq qolgan bo'lsa — yopiladi.
-    await _close_old_offer_window(context)
-    await msg.reply_text(
-        content_menu_t("cm_back_done", lang),
-        reply_markup=get_main_keyboard(user_id in ADMIN_IDS_SET, lang=lang),
-        parse_mode="HTML",
-    )
-    return ConversationHandler.END
-
-
-async def content_creation_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """[❌ Bekor qilish] — FSM tozalanadi, TO'G'RIDAN-TO'G'RI asosiy menyu.
-
-    Ham reply-tugma (``message``), ham inline-tugma (``callback_query``)
-    ko'rinishida ishlaydi. Eski oyna (taklif/submenu xabari) yopiladi —
-    ochiq qolmaydi. Har qanday holatda ``ConversationHandler.END``.
-    """
-    query = getattr(update, "callback_query", None)
-    msg = getattr(update, "message", None) or getattr(update, "effective_message", None)
-    user = getattr(update, "effective_user", None)
-    user_id = getattr(user, "id", 0) or 0
-    lang = get_lang(context)
-    _DIRECT_TEXT.pop(user_id, None)
-    try:
-        clear_fsm_data(context)
-    except Exception as _silent_exc:  # pragma: no cover
-        log_silent_failure("handlers.content_creation:content_creation_cancel:263", _silent_exc, user_id=user_id, lang=lang)
-    try:
-        from handlers.navigation import clear_section
-        clear_section(context)
-    except Exception as _silent_exc:  # pragma: no cover
-        log_silent_failure("handlers.content_creation:content_creation_cancel:268", _silent_exc, user_id=user_id, lang=lang)
-    if query is not None:
-        try:
-            await query.answer()
-        except Exception as _silent_exc:
-            log_silent_failure("handlers.content_creation:content_creation_cancel:273", _silent_exc)
-        await _close_old_offer_window(context, query)
-        try:
-            chat = getattr(getattr(query, "message", None), "chat", None)
-            chat_id = getattr(chat, "id", None) or user_id
-            sender = getattr(getattr(context, "bot", None), "send_message", None)
-            if callable(sender) and chat_id:
-                await sender(
-                    chat_id=chat_id,
-                    text=content_menu_t("cm_back_done", lang),
-                    reply_markup=get_main_keyboard(
-                        user_id in ADMIN_IDS_SET, lang=lang),
-                    parse_mode="HTML",
-                )
-                return ConversationHandler.END
-        except Exception as _silent_exc:
-            log_silent_failure("handlers.content_creation:content_creation_cancel:289", _silent_exc)
-        if msg is not None:
-            try:
-                await msg.reply_text(
-                    content_menu_t("cm_back_done", lang),
-                    reply_markup=get_main_keyboard(
-                        user_id in ADMIN_IDS_SET, lang=lang),
-                    parse_mode="HTML",
-                )
-            except Exception as _silent_exc:  # pragma: no cover
-                log_silent_failure("handlers.content_creation:content_creation_cancel:299", _silent_exc)
-        return ConversationHandler.END
-    if msg is None:
-        return ConversationHandler.END
     await _close_old_offer_window(context)
     await msg.reply_text(
         content_menu_t("cm_back_done", lang),

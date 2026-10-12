@@ -157,7 +157,7 @@ async def quick_ai_post_entry(update: Update, context: ContextTypes.DEFAULT_TYPE
 async def quick_photo_post_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """🖼 Rasmdan post olish — YAGONA «📸 Rasm → Post» oqimini ochadi (B2).
 
-    PostAssist V2 · 2-qadam: bu tugma endi eski Vision oqimining nusxasini
+    2-qadam: bu tugma endi eski Vision oqimining nusxasini
     emas, ``handlers/image_post`` dagi yagona implementatsiyani ochadi —
     ``image_post_entry`` (Vision tahlili + Post Score + bir xil kredit/limit
     qoidalari, ``IMAGE_POST_INPUT`` holati). Shu tariqa botda bitta rasm
@@ -233,7 +233,7 @@ async def analyze_quick_channel_dna(
     channel_title: str = "",
     lang: str = "uz",
 ) -> dict:
-    """3-qadam: Kanal ulangach — avtomatik tezkor Channel DNA tahlili.
+    """Kanal ulangach — avtomatik tezkor Channel DNA tahlili.
 
     Mavjud postlar bo'lsa ``services.channels.dna.get_channel_dna`` orqali
     tahlil qilinadi; yangi/bo'sh kanal bo'lsa xavfsiz boshlang'ich DNA
@@ -370,7 +370,7 @@ def _fallback_7day_items(channel_title: str, lang: str = "uz") -> list[dict]:
 async def onboarding_quick_plan_callback(
     update: Update, context: ContextTypes.DEFAULT_TYPE
 ):
-    """5-qadam: Bitta tugma (`onb_plan:<channel_id>`) bilan birinchi foydali natijani (7 kunlik reja) olish."""
+    """Bitta tugma (`onb_plan:<channel_id>`) bilan birinchi foydali natijani (7 kunlik reja) olish."""
     from handlers.autopilot import (
         AUTOPILOT_VIEW,
         UD_CHANNEL,

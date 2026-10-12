@@ -1,4 +1,4 @@
-"""🧰 VOSITALAR — yordamchi vositalar submenyusi (PostAssist V2 · 3-qadam).
+"""🧰 VOSITALAR — yordamchi vositalar submenyusi.
 
 Muammo (3-qadam auditi): ⚙️ Sozlamalar menyusi «yagona tartibli menyu»
 bo'lishi kerak edi, lekin ichida ikki xil muammo bor edi:

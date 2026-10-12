@@ -1,4 +1,4 @@
-"""🔄 CONTENT REPURPOSE — 49-band (PHASE 11).
+"""🔄 CONTENT REPURPOSE — 49-band.
 
 Mavjud kontentni (yoki mavzuni) **5 ta platforma formatiga** moslashtirish:
 
@@ -718,7 +718,7 @@ class RepurposeResult:
 # XIZMAT
 # ---------------------------------------------------------------------------
 class ContentRepurposeService(SMMFeatureService):
-    """Kontentni 5 platforma formatiga o'tkazish (49-band)."""
+    """Kontentni 5 platforma formatiga o'tkazish."""
 
     feature = "repurpose"
     quota_operation = "magic_post:repurpose"

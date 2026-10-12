@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 # ============================================================
-# PostAssist V2 — PRODUCTION Dockerfile (PHASE 12)
+# PRODUCTION Dockerfile
 #
 # Build:   docker build -t postassist-bot .
 # Run:     docker run --env-file .env --stop-timeout 20 postassist-bot
@@ -31,7 +31,7 @@
 # ============================================================
 
 # ------------------------------------------------------------
-# 1-BOSQICH (BUILDER): bog'liqliklarni izolyatsiyalangan virtualenv'ga yig'ish
+# bog'liqliklarni izolyatsiyalangan virtualenv'ga yig'ish
 # ------------------------------------------------------------
 FROM python:3.11-slim AS builder
 
@@ -55,7 +55,7 @@ RUN pip install --upgrade pip \
     && pip install --no-cache-dir -r /build/requirements.txt
 
 # ------------------------------------------------------------
-# 2-BOSQICH (RUNTIME): minimal, xavfsiz va non-root image
+# minimal, xavfsiz va non-root image
 # ------------------------------------------------------------
 FROM python:3.11-slim AS runtime
 

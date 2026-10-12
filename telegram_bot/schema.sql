@@ -53,6 +53,15 @@ CREATE TABLE IF NOT EXISTS users (
     post_signature_text VARCHAR(500)
 );
 
+-- Foydalanuvchining ha/yo'q sozlamalari (bildirishnomalar, auto-cleaner ...).
+CREATE TABLE IF NOT EXISTS user_settings (
+    user_id BIGINT NOT NULL,
+    key VARCHAR(64) NOT NULL,
+    value BOOLEAN NOT NULL DEFAULT FALSE,
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    PRIMARY KEY (user_id, key)
+);
+
 CREATE TABLE IF NOT EXISTS channels (
     id SERIAL PRIMARY KEY,
     user_id BIGINT NOT NULL,

@@ -1,4 +1,4 @@
-"""Sentry maxfiylik filtri (data scrubber) — PostAssist V2, 10-BOSQICH.
+"""Sentry maxfiylik filtri (data scrubber), 10-BOSQICH.
 
 Sentry'ga yuboriladigan HAR QANDAY event ushbu filtrdan o'tadi
 (``sentry_sdk.init(before_send=scrub_event)``). Maqsad — sezgir ma'lumotlar
@@ -560,6 +560,3 @@ def configure_structured_logging(level: int = _logging.INFO,
     return target
 
 
-def scrub_log_line(text: str) -> str:
-    """Tayyor log satrini tozalash (tashqi log yozuvchilar uchun)."""
-    return scrub_text(text)

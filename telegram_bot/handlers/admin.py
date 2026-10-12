@@ -26,12 +26,12 @@ from keyboards.inline import (
 from utils import ai_agent
 from services import event_tracker
 from locales.translations import clear_fsm_data, get_lang, get_text
-# 👑 FAZA 26 — admin panelning BARCHA matnlari yagona i18n lug'atidan
+# admin panelning BARCHA matnlari yagona i18n lug'atidan
 # (translations/admin_panel.py — uz/ru/en 100% paritet) olinadi.
 from translations import admin_t
-# 6-bosqich: RBAC (rollar/ruxsatlar) va admin harakatlari auditi.
+# RBAC (rollar/ruxsatlar) va admin harakatlari auditi.
 from keyboards.callback_data import CB_SPONSOR_DELETE
-from services.delivery import delivery_service, BROADCAST_INLINE_MAX_WAIT  # PHASE 5: yagona delivery engine
+from services.delivery import delivery_service, BROADCAST_INLINE_MAX_WAIT  # yagona delivery engine
 from services.rbac_service import (
     Role,
     CallbackTampering,
@@ -102,7 +102,7 @@ def _telegram_text_length(text: str) -> int:
 def format_admin_channels_list(channels: list, lang: str = "uz") -> str:
     """Eng so'nggi kanallar uchun HTML-xavfsiz, 4096 dan oshmaydigan matn.
 
-    🧹 FAZA 26: barcha yorliqlar i18n'dan (``admin_t``) — foydalanuvchi
+    barcha yorliqlar i18n'dan (``admin_t``) — foydalanuvchi
     (admin) tanlagan tilda.
     """
     header = (
@@ -163,7 +163,7 @@ def _ai_settings_text(lang: str = "uz") -> str:
 
 
 def _build_dashboard_text(stats: dict, lang: str = "uz") -> str:
-    """Admin dashboard matnini yaratadi (admin tilida — FAZA 26)."""
+    """Admin dashboard matnini yaratadi (admin tilida)."""
     return (
         admin_t("dash_title", lang) + "\n"
         "━━━━━━━━━━━━━━━━━\n"
@@ -185,7 +185,7 @@ def _build_full_stats_text(stats: dict, lang: str = "uz") -> str:
     callback'i, ``/admin_stats`` buyrug'i va «📊 Statistika» reply-tugmasi /
     ``/stats``). Endi hammasi SHU bitta builder'ga ulangan — ekran ham,
     raqamlar ham har doim bir xil (eski yo'llar alias sifatida ishlaydi).
-    FAZA 26: matn admin tilida (``lang``) chiziladi.
+    matn admin tilida (``lang``) chiziladi.
     """
     text = (
         admin_t("fs_title", lang) + "\n\n"
@@ -197,7 +197,7 @@ def _build_full_stats_text(stats: dict, lang: str = "uz") -> str:
         + admin_t("fs_cancelled", lang, cancelled=stats['cancelled']) + "\n"
         + admin_t("fs_failed", lang, failed=stats['failed'])
     )
-    # ⏱ SPRINT 4 — ixtiyoriy launch gauge bloki (TTFP, D1/D7). Blok FAQAT
+    # ixtiyoriy launch gauge bloki (TTFP, D1/D7). Blok FAQAT
     # ``stats["onboarding"]`` mavjud bo'lganda chiziladi — shu sababli eski
     # chaqiruvlar (7 kalitli lug'at) matni 100% o'zgarmaydi.
     onboarding = stats.get("onboarding") if isinstance(stats, dict) else None
@@ -232,7 +232,7 @@ def format_duration(seconds, lang: str = "uz") -> str:
 
 
 def _build_launch_gauges_text(report: dict, lang: str = "uz") -> str:
-    """⏱ SPRINT 4 — TTFP + D1/D7 bloki (pure: faqat hisobotni chizadi).
+    """TTFP + D1/D7 bloki (pure: faqat hisobotni chizadi).
 
     ``report`` — ``services.onboarding_telemetry.build_report`` natijasi.
     """
@@ -265,7 +265,7 @@ def _build_launch_gauges_text(report: dict, lang: str = "uz") -> str:
             returned=int(row.get("returned") or 0),
             eligible=int(row.get("eligible") or 0),
         ))
-    # 🌱 STEP 2 — AKTIV REFERAL KONVERSIYASI: referrer havolasi bilan
+    # AKTIV REFERAL KONVERSIYASI: referrer havolasi bilan
     # kirganlardan nechtaasi BIRINCHI postini yaratgan (mukofot aynan
     # shu amal uchun beriladi). Blok FAQAT ``report["referral"]``
     # mavjud bo'lganda chiziladi — eski hisobotlar matni o'zgarmaydi.
@@ -281,7 +281,7 @@ def _build_launch_gauges_text(report: dict, lang: str = "uz") -> str:
 
 
 async def enrich_stats_with_onboarding(stats: dict, lang: str = "uz") -> dict:
-    """⏱ SPRINT 4 — statistika lug'atiga ``onboarding`` hisobotini qo'shadi.
+    """statistika lug'atiga ``onboarding`` hisobotini qo'shadi.
 
     Best-effort: baza xatosi / bo'sh javob bo'lsa lug'at O'ZGARMAYDI
     (statistika ekrani har doim chiqadi, gauge bloki shunchaki tushmaydi).
@@ -348,7 +348,7 @@ def _build_dbcache_text(status: dict, lang: str = "uz",
                         pool_message: bool = True, cleared: bool = False) -> str:
     """🗄️ YAGONA «DB / Kesh holati» ekrani (``adm_dbcache`` + eski reply-tugma).
 
-    🧹 FAZA 26: ``cache_db_menu`` va ``cache_clear_callback`` ham shu
+    ``cache_db_menu`` va ``cache_clear_callback`` ham shu
     builder'dan foydalanadi — dublikat matn bloklari yo'q; matn admin
     tilida. ``cleared=True`` — kesh tozalangach ko'rsatiladigan footer.
     """
@@ -467,7 +467,7 @@ def is_admin(user_id: int) -> bool:
 
 
 def _remember_admin_section(context) -> None:
-    """🧭 4-qadam: admin bo'limi yozuvi — [❌ Bekor qilish] dashboard'ga qaytadi.
+    """admin bo'limi yozuvi — [❌ Bekor qilish] dashboard'ga qaytadi.
 
     Eski admin reply-tugmalari (⚙️ AI parametrlari, 🗄️ DB/Kesh, 🏷 Post
     nishoni, 📢 Ommaviy xabar ...) dashboard'ga integratsiya qilinganidan
@@ -494,7 +494,7 @@ async def admin_panel_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     (Health status) bloki ham ko'rsatiladi: Bot & DB, Scheduler, AI
     provayderlar (Gemini/Groq/OpenRouter) va pending manual to'lovlar.
 
-    ⛔️ 3-bosqich: pastdagi oq 10 talik ADMIN REPLY-KLAVIATURASI BU YERDA
+    pastdagi oq 10 talik ADMIN REPLY-KLAVIATURASI BU YERDA
     HAM, boshqa admin handlerlarida ham CHIZILMAYDI — panel faqat INLINE
     (``get_admin_dashboard_keyboard``) bo'lib qoldi. Reply klaviatura
     o'rnida foydalanuvchining mavjud asosiy menyusi saqlanadi; eski admin
@@ -503,7 +503,7 @@ async def admin_panel_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id):
         return ConversationHandler.END
     clear_fsm_data(context)
-    # 🧭 4-qadam: admin endi «👑 Admin» bo'limida — admin FSM oqimlarida
+    # admin endi «👑 Admin» bo'limida — admin FSM oqimlarida
     # [❌ Bekor qilish] (adm_cancel) aynan shu dashboard'ga qaytadi.
     from handlers.navigation import remember_section, SECTION_ADMIN
     remember_section(context, SECTION_ADMIN)
@@ -523,7 +523,7 @@ async def admin_panel_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def admin_feature_usage_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """`/feature_usage` — SPRINT 2 (VAZIFA 3): eng ko'p/kam ishlatilayotgan
+    """`/feature_usage` — SPRINT 2: eng ko'p/kam ishlatilayotgan
     tugma va buyruqlar bo'yicha oddiy ichki agregatsiya hisobot (faqat admin).
 
     Ma'lumot manbai — ``services.event_tracker`` (jarayon xotirasidagi
@@ -572,7 +572,7 @@ async def admin_feature_usage_command(update: Update, context: ContextTypes.DEFA
 async def admin_stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """`/admin_stats` — eski buyruq, endi YAGONA «To'liq statistika» ekrani.
 
-    4-qadam: dublikat statistika handlerlari (``/admin_stats``, ``/stats``
+    dublikat statistika handlerlari (``/admin_stats``, ``/stats``
     va «📊 Statistika» reply-tugmasi) bitta ekranga birlashtirildi — hammasi
     ``_build_full_stats_text`` orqali AYNAN bir xil matn chiqaradi.
     """
@@ -580,7 +580,7 @@ async def admin_stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE
         return
     _remember_admin_section(context)
     stats = await db.run_db(db.get_system_stats)
-    # ⏱ SPRINT 4: ekranga TTFP + D1/D7 gauge bloki qo'shiladi (best-effort).
+    # ekranga TTFP + D1/D7 gauge bloki qo'shiladi (best-effort).
     text = await build_stats_text_with_gauges(stats, get_lang(context))
     await update.message.reply_text(
         text,
@@ -717,7 +717,7 @@ async def _ad_hub_render(lang: str = "uz") -> tuple[str, InlineKeyboardMarkup]:
 def _build_sponsor_manage_text(sponsors: list, lang: str = "uz") -> str:
     """📢 Sponsor kanallar boshqaruvi matni (``adm_sponsors`` + ``del_sponsor``).
 
-    🧹 FAZA 26: ikkala handler AYNAN shu builder'dan foydalanadi — dublikat
+    ikkala handler AYNAN shu builder'dan foydalanadi — dublikat
     matn bloklari yo'q; matn admin tilida (uz/ru/en).
     """
     sponsors = sponsors or []
@@ -753,12 +753,12 @@ async def admin_dashboard_callback(update: Update, context: ContextTypes.DEFAULT
     if not is_admin(query.from_user.id):
         await query.answer(admin_t("rbac_denied", get_lang(context)), show_alert=True)
         return ConversationHandler.END
-    # 11-bosqich (P0): server-side RBAC — payload emas, from_user.id hal qiladi.
+    # server-side RBAC — payload emas, from_user.id hal qiladi.
     if not verify_admin_callback(update):
         await query.answer(admin_t("rbac_denied", get_lang(context)), show_alert=True)
         return ConversationHandler.END
     data = query.data
-    # 🧹 FAZA 26: butun dashboard adminning TANLANGAN tilida chiziladi.
+    # butun dashboard adminning TANLANGAN tilida chiziladi.
     lang = get_lang(context)
 
     if data == "adm_cancel":
@@ -772,7 +772,7 @@ async def admin_dashboard_callback(update: Update, context: ContextTypes.DEFAULT
     if data == "adm_stats":
         await query.answer()
         stats = await db.run_db(db.get_system_stats)
-        # 4-qadam: YAGONA statistika ekrani (reply-tugma va /admin_stats
+        # YAGONA statistika ekrani (reply-tugma va /admin_stats
         # buyrug'i ham aynan shu matnni chiqaradi).
         text = await build_stats_text_with_gauges(stats, lang)
         await _admin_edit(query, text, get_admin_back_keyboard())
@@ -880,7 +880,7 @@ async def admin_dashboard_callback(update: Update, context: ContextTypes.DEFAULT
         except Exception as e:
             logger.error("adm_health: hisobot yaratishda xato: %s", e)
             text = get_text("sys_busy", lang)
-        # 3-bosqich: «📜 Audit | 👥 Rollar» dashboard'dan shu monitoring
+        # «📜 Audit | 👥 Rollar» dashboard'dan shu monitoring
         # ekraniga ko'chirildi (yagona dashboard 12 tugma standarti), lekin
         # ``adm_audit_roles`` callback'i va uning RBAC tekshiruvi o'zgarmadi.
         await _admin_edit(query, text, get_admin_monitoring_keyboard())
@@ -1003,7 +1003,7 @@ async def admin_inline_text_handler(update: Update, context: ContextTypes.DEFAUL
 
     flow = context.user_data.get("admin_flow")
     text = update.message.text.strip()
-    # 🧹 FAZA 26: rad/xato xabarlari admin tilida.
+    # rad/xato xabarlari admin tilida.
     lang = get_lang(context)
 
     # "Bekor qilish"/"Asosiy menyu" har qanday admin oqimida va UCHALA TILDA
@@ -1389,7 +1389,7 @@ async def cache_db_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return ConversationHandler.END
     _remember_admin_section(context)
     status = await db.run_db(db.get_db_pool_status)
-    # 🧹 FAZA 26: matn endi yagona builder'dan va admin tilida.
+    # matn endi yagona builder'dan va admin tilida.
     await update.message.reply_text(
         _build_dbcache_text(status, get_lang(context)),
         reply_markup=get_cache_actions_keyboard(),
@@ -1414,7 +1414,7 @@ async def cache_clear_callback(update: Update, context: ContextTypes.DEFAULT_TYP
     await query.answer(admin_t("cache_clear_toast", lang))
     try:
         await query.edit_message_text(
-            # 🧹 FAZA 26: yagona builder (pool xabari bu yerda qisqa ko'rsatiladi)
+            # yagona builder (pool xabari bu yerda qisqa ko'rsatiladi)
             # + "tozalandi" footeri.
             _build_dbcache_text(status, lang, pool_message=False, cleared=True),
             reply_markup=get_cache_actions_keyboard(),
@@ -1448,7 +1448,7 @@ async def post_tag_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return ConversationHandler.END
     lang = get_lang(context)
     text = update.message.text.strip()
-    # 6-bosqich: eski qiymat audit uchun (o'zgarishdan oldin o'qiladi).
+    # eski qiymat audit uchun (o'zgarishdan oldin o'qiladi).
     old_tag = await db.run_db(db.get_setting, "post_tag_text", "")
     if text.lower() == "clear":
         await db.run_db(db.set_setting, "post_tag_text", "")
@@ -1488,7 +1488,7 @@ async def admin_set_role_command(update: Update, context: ContextTypes.DEFAULT_T
     jadvaliga yoziladi (``set_role`` / ``remove_role``).
     """
     args = getattr(context, "args", None) or []
-    # 🧹 FAZA 26: barcha javoblar buyruq yozgan admin tilida.
+    # barcha javoblar buyruq yozgan admin tilida.
     lang = get_lang(context)
     if len(args) < 2:
         await update.message.reply_text(
@@ -1596,7 +1596,7 @@ async def admin_audit_command(update: Update, context: ContextTypes.DEFAULT_TYPE
 async def show_statistics(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """«📊 Statistika» reply-tugmasi va ``/stats`` — YAGONA statistika ekrani.
 
-    4-qadam: ``adm_stats`` callback'i, ``/admin_stats`` buyrug'i va shu
+    ``adm_stats`` callback'i, ``/admin_stats`` buyrug'i va shu
     handler — hammasi ``_build_full_stats_text`` dan AYNAN bir xil matn
     oladi (dublikat ekranlar birlashtirildi; eski yo'llar alias qoldi).
     """
@@ -1604,7 +1604,7 @@ async def show_statistics(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     _remember_admin_section(context)
     stats = await db.run_db(db.get_system_stats)
-    # ⏱ SPRINT 4: TTFP (o'rtacha/median) va D1/D7 retention shu ekranda.
+    # TTFP (o'rtacha/median) va D1/D7 retention shu ekranda.
     text = await build_stats_text_with_gauges(stats, get_lang(context))
     await update.message.reply_text(
         text,
@@ -1788,7 +1788,7 @@ async def del_sponsor_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         except Exception as _silent_exc:
             log_silent_failure("handlers.admin:del_sponsor_callback:1620", _silent_exc)
         return
-    # 11-bosqich (P0): payload ID qat'iy tekshiriladi (tampering himoyasi).
+    # payload ID qat'iy tekshiriladi (tampering himoyasi).
     try:
         (s_id,) = admin_callback_guard(update, CB_SPONSOR_DELETE, 1)
     except CallbackTampering:
@@ -1800,7 +1800,7 @@ async def del_sponsor_callback(update: Update, context: ContextTypes.DEFAULT_TYP
             await query.message.reply_text(admin_t("sp_delete_failed", lang))
         except Exception as _silent_exc:
             log_silent_failure("handlers.admin:del_sponsor_callback:1633", _silent_exc)
-    # Yangilangan ro'yxatni qayta chizamiz (yagona builder — FAZA 26).
+    # Yangilangan ro'yxatni qayta chizamiz (yagona builder).
     sponsors = await db.run_db(db.get_sponsor_channels) or []
     text = _build_sponsor_manage_text(sponsors, lang)
 
@@ -1826,7 +1826,7 @@ async def del_sponsor_callback(update: Update, context: ContextTypes.DEFAULT_TYP
 #   • o'chirish.
 # Kanal postlarida reklama har nechanchi postda chiqishi ham shu yerda
 # sozlanadi (har 3-, 4- yoki 5-post) — sanagich HAR BIR KANAL uchun alohida.
-# 🧹 FAZA 26: scope sarlavhalari endi i18n kalitlari (``ad_scope_*``) —
+# scope sarlavhalari endi i18n kalitlari (``ad_scope_*``) —
 # matn ``admin_t()`` orqali tilga mos chiziladi.
 AD_SCOPE_META = {
     "channel": {
@@ -1990,7 +1990,7 @@ async def admin_ad_hub_entry(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 
 async def _ad_new_text_prompt(lang: str) -> str:
-    """«Yangi reklama matnini yozing» yo'riqnomasi (i18n, FAZA 26)."""
+    """«Yangi reklama matnini yozing» yo'riqnomasi (i18n)."""
     return (admin_t("ad_new_prompt", lang) + "\n"
             + _ad_html_hint(lang) + "\n\n"
             + admin_t("ad_cancel_hint", lang))
@@ -2037,12 +2037,12 @@ async def _ad_text_received(update, context, scope: str):
     state = _ad_scope_state(scope)
     text = (update.message.text or "").strip()
     pending = context.user_data.get("ad_edit") or {}
-    # 🧹 FAZA 26: barcha javoblar admin tilida (uz/ru/en).
+    # barcha javoblar admin tilida (uz/ru/en).
     lang = get_lang(context)
 
     # --- 1. Mavjud reklamaning inline URL tugmasini tahrirlash ---
     if pending.get("field") == "button" and pending.get("scope") == scope:
-        # 🌐 FAZA 26: "tozalash" buyrug'i uchala tilda ham qabul qilinadi
+        # "tozalash" buyrug'i uchala tilda ham qabul qilinadi
         # (bu Foydalanuvchi KIRITISH tokenlari — ko'rsatiladigan matn emas).
         if text.lower() in ("clear", "-", "yo'q", "yoq", "нет", "no", "none"):
             await db.run_db(db.update_ad, pending["id"], None, "", "")
@@ -2224,7 +2224,7 @@ async def ad_pool_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         log_silent_failure("handlers.admin:ad_pool_callback:2055", _silent_exc)
     if not is_admin(query.from_user.id):
         return ConversationHandler.END
-    # 11-bosqich (P0): server-side RBAC (payload'ga ishonilmaydi).
+    # server-side RBAC (payload'ga ishonilmaydi).
     if not verify_admin_callback(update):
         return ConversationHandler.END
 
@@ -2240,7 +2240,7 @@ async def ad_pool_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     meta = AD_SCOPE_META.get(scope)
     if not meta:
         return ConversationHandler.END
-    # 🧹 FAZA 26: sarlavha va barcha matnlar admin tilida (uz/ru/en).
+    # sarlavha va barcha matnlar admin tilida (uz/ru/en).
     lang = get_lang(context)
     title = _ad_scope_title(scope, lang)
     state = meta["state"]
@@ -2474,7 +2474,7 @@ async def broadcast_send(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def _run_broadcast(bot, user_ids, text, admin_id, lang: str = "uz"):
     """Broadcastni batch'lar bilan, rate-limit va retry bilan yuborish.
 
-    PHASE 5: har bir yuborish yagona ``delivery_service`` orqali o'tadi —
+    har bir yuborish yagona ``delivery_service`` orqali o'tadi —
     30 msg/s umumiy limit, RetryAfter uchun aniq kutish + jitter va
     failure classification dvigatel ichida. Bu funksiya faqat natija
     hisobini (sent/failed) boshqaradi.
@@ -2522,7 +2522,7 @@ async def _run_broadcast(bot, user_ids, text, admin_id, lang: str = "uz"):
     except Exception:
         logger.exception("Broadcast yakuni haqida admin xabari yuborilmadi")
     logger.info("Broadcast yakunlandi: sent=%d, failed=%d, total=%d", sent, failed, len(user_ids))
-    # 6-bosqich: broadcast ham admin harakati sifatida auditga yoziladi.
+    # broadcast ham admin harakati sifatida auditga yoziladi.
     try:
         await db.run_db(AuditService.log_action, admin_id, "broadcast",
                         target_type="users", target_id="all",

@@ -1,4 +1,4 @@
-"""LifecycleService — PostAssist V2 (9-BOSQICH): Graceful Shutdown holati.
+"""LifecycleService: Graceful Shutdown holati.
 
 Bot jarayoni ``SIGINT``/``SIGTERM`` olganda (Render deploy, ``Ctrl+C``,
 ``systemctl stop``) hech qanday ish yarim yo'lda tashlab ketilmasligi kerak:
@@ -284,25 +284,6 @@ async def wait_for_inflight(timeout: float | None = None) -> dict:
     return result
 
 
-def wait_for_inflight_sync(timeout: float | None = None) -> dict:
-    """``wait_for_inflight`` ning sinxron varianti (event loop'siz kontekst)."""
-    if timeout is None:
-        timeout = SHUTDOWN_GRACE_SECONDS
-    timeout = max(0.0, float(timeout))
-    started = time.monotonic()
-    deadline = started + timeout
-    while inflight_count() and time.monotonic() < deadline:
-        time.sleep(_POLL_INTERVAL)
-    remaining = inflight_count()
-    return {
-        "drained": remaining == 0,
-        "remaining": remaining,
-        "labels": inflight_labels(),
-        "waited": round(time.monotonic() - started, 3),
-        "timeout": timeout,
-    }
-
-
 async def wait_for_queues(timeout: float | None = None) -> dict:
     """Band navbatlar (delivery queue va h.k.) bo'shashini kutadi.
 
@@ -341,25 +322,6 @@ async def wait_for_queues(timeout: float | None = None) -> dict:
             result["remaining"], timeout, pending,
         )
     return result
-
-
-def wait_for_queues_sync(timeout: float | None = None) -> dict:
-    """``wait_for_queues`` ning sinxron varianti."""
-    if timeout is None:
-        timeout = SHUTDOWN_GRACE_SECONDS
-    timeout = max(0.0, float(timeout))
-    started = time.monotonic()
-    deadline = started + timeout
-    while queue_pending_total() and time.monotonic() < deadline:
-        time.sleep(_POLL_INTERVAL)
-    pending = queue_pending()
-    return {
-        "drained": not pending,
-        "remaining": sum(pending.values()),
-        "queues": pending,
-        "waited": round(time.monotonic() - started, 3),
-        "timeout": timeout,
-    }
 
 
 async def wait_for_drain(timeout: float | None = None) -> dict:

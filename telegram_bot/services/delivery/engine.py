@@ -3,7 +3,7 @@
  📮 TELEGRAM DELIVERY ENGINE — markazlashtirilgan yetkazib berish dvigateli
 =====================================================================
 
-PHASE 5: Telegram'ga yuboriladigan BARCHA post/media xabarlari yagona
+Telegram'ga yuboriladigan BARCHA post/media xabarlari yagona
 quvurdan o'tadi. Hech bir integratsiya nuqtasi to'g'ridan-to'g'ri
 ``bot.send_message`` ga murojaat qilmaydi.
 
@@ -97,7 +97,7 @@ FAILURE_RATE_LIMIT = "rate_limit"
 FAILURE_AMBIGUOUS = "ambiguous"
 FAILURE_TRANSIENT = "transient"
 
-# ── P0: NOANIQ (AMBIGUOUS) YETKAZIB BERISHNI KANAL BO'YICHA HAL QILISH ─────
+# NOANIQ (AMBIGUOUS) YETKAZIB BERISHNI KANAL BO'YICHA HAL QILISH ─────
 # TimedOut/NetworkError'da so'rov Telegramga KETGAN bo'lishi mumkin. Avtomatik
 # (ko'r-ko'rrona) retry bitta postni kanalga IKKI MARTA chiqaradi. Shuning
 # uchun qayta urinishdan OLDIN kanalning oxirgi xabarlari tekshiriladi:
@@ -116,7 +116,7 @@ VERIFY_PRESENT = "present"
 VERIFY_ABSENT = "absent"
 VERIFY_UNAVAILABLE = "unavailable"
 
-# ── P0: IDEMPOTENT DELIVERY LOCK (bir post — bir marta yuboriladi) ─────────
+# IDEMPOTENT DELIVERY LOCK (bir post — bir marta yuboriladi) ─────────
 # Uch qatlam: (1) DB claim — atomik, barcha worker'lar uchun asosiy kafolat;
 # (2) in-process asyncio lock — bitta jarayondagi tasklar uchun;
 # (3) Redis `SET NX` (cache backend) — bir nechta instansiya uchun (bo'lsa).
@@ -384,7 +384,7 @@ class _IntervalLimiter:
 class TelegramDeliveryService:
     """Yagona Telegram yetkazib berish dvigateli (transport + state machine)."""
 
-    # P0: noaniq yetkazib berish / dedup / lock sozlamalari (instance'dan ham
+    # noaniq yetkazib berish / dedup / lock sozlamalari (instance'dan ham
     # o'qiladi — scheduler va testlar shu yagona manbadan foydalanadi).
     AMBIGUOUS_VERIFY_LIMIT = AMBIGUOUS_VERIFY_LIMIT
     AMBIGUOUS_VERIFY_MAX_ATTEMPTS = AMBIGUOUS_VERIFY_MAX_ATTEMPTS
@@ -422,7 +422,7 @@ class TelegramDeliveryService:
         self.mark_as_failed = SchedulerService.mark_as_failed
         self.mark_failed_by_key = SchedulerService.mark_failed_by_key
         self.mark_unknown_by_key = SchedulerService.mark_unknown_by_key
-        # P0: noaniq (UNKNOWN) holatni kanal tekshiruvi bilan hal qilish uchun
+        # noaniq (UNKNOWN) holatni kanal tekshiruvi bilan hal qilish uchun
         # verify_pending markerini yozuvchi/tozalovchi DB funksiyalari.
         self.mark_verify_pending_by_key = SchedulerService.mark_verify_pending_by_key
         self.clear_verify_pending_by_key = SchedulerService.clear_verify_pending_by_key
@@ -434,12 +434,12 @@ class TelegramDeliveryService:
         self.STATUS_DEAD_LETTER = SchedulerService.STATUS_DEAD_LETTER
         self.STATUS_UNKNOWN = SchedulerService.STATUS_UNKNOWN
 
-        # P0: bir jarayon ichida bir xil delivery kaliti bilan yuborishni
+        # bir jarayon ichida bir xil delivery kaliti bilan yuborishni
         # to'suvchi in-process lock jadvali (DB claim'ga qo'shimcha qatlam).
         self._local_locks: dict = {}
 
     # ──────────────────────────────────────────────────────────────
-    # P0: FINGERPRINT / KANAL TEKSHIRUVI (ambiguous resolution)
+    # FINGERPRINT / KANAL TEKSHIRUVI (ambiguous resolution)
     # ──────────────────────────────────────────────────────────────
     build_delivery_signature = staticmethod(build_delivery_signature)
     post_media_count = staticmethod(post_media_count)
@@ -615,7 +615,7 @@ class TelegramDeliveryService:
             inline_max = max(0.0, float(inline_max_wait))
         chat_id = kwargs.get("chat_id")
         attempt = 0
-        # PHASE 12 · GRACEFUL SHUTDOWN: yuborilayotgan har bir xabar "delivery"
+        # GRACEFUL SHUTDOWN: yuborilayotgan har bir xabar "delivery"
         # navbatida band hisoblanadi. Shutdown boshlanganda main.py aynan shu
         # hisoblagichni kutib turadi (lifecycle.wait_for_queues) — navbat
         # drenajsiz konteyner yopilmaydi (post yarim yo'lda tashlanmaydi).
@@ -684,7 +684,7 @@ class TelegramDeliveryService:
         return await self.execute(bot, method, **opts, **kwargs)
 
     # ──────────────────────────────────────────────────────────────
-    # P0: NOANIQ YETKAZIB BERISHNI HAL QILISH (kanal deduplikatsiyasi)
+    # NOANIQ YETKAZIB BERISHNI HAL QILISH (kanal deduplikatsiyasi)
     # ──────────────────────────────────────────────────────────────
     async def resolve_ambiguous(
         self,
@@ -828,7 +828,7 @@ class TelegramDeliveryService:
         )
 
     # ──────────────────────────────────────────────────────────────
-    # P0: IDEMPOTENT DELIVERY LOCK (in-process + Redis SET NX)
+    # IDEMPOTENT DELIVERY LOCK (in-process + Redis SET NX)
     # ──────────────────────────────────────────────────────────────
     def _local_lock_for(self, key: str) -> asyncio.Lock:
         """Kalit uchun in-process ``asyncio.Lock`` (jadval chegaralangan)."""

@@ -1,4 +1,4 @@
-"""🧠 CHANNEL DNA — uslubiy profil (PostAssist V2 — PHASE B, 2-band + FAZA 8,9,22 kengaytma).
+"""🧠 CHANNEL DNA — uslubiy profil.
 
 Kanalning kuzatilgan postlari (``channel_post_events``) asosida Channel DNA
 profili hisoblanadi:
@@ -6,7 +6,7 @@ profili hisoblanadi:
     average_post_length, emoji_level (kam / o'rtacha / ko'p), cta_style,
     formatting_style, sample_size, confidence_score
 
-Kengaytirilgan profil (FAZA 8,9,22):
+Kengaytirilgan profil:
     language, tone, topics, avg_length, emoji_density, best_hours,
     best_weekdays, high_performing_formats — har bir metrika
     sample_size, confidence (0.0-1.0) va updated_at bilan.
@@ -20,7 +20,7 @@ Kafolatlari:
   * AI orkestrator post generatsiya qilganda (``context`` da ``channel_id``
     bo'lsa va kanal AYNAN shu foydalanuvchining bo'lsa — IDOR himoyasi) DNA
     ixcham system-prompt bloki sifatida ulanadi;
-  * 🧬 CHANNEL DNA 2.0 (STEP 3): ``build_dna_prompt_2`` post generatsiya
+  * 🧬 CHANNEL DNA 2.0: ``build_dna_prompt_2`` post generatsiya
     promptiga kanal **ohangi (tone)**, **uzunlik afzalligi**, **CTA uslubi**
     va **lug'at cheklovlari (vocabulary limits)** ni FAQAT real profil
     ma'lumotlaridan AVTOMATIK ulaydi; DNA hali tahlil qilinmagan kanallar
@@ -433,7 +433,7 @@ def compute_high_performing_formats(events: list[dict], top_n: int = 3) -> tuple
 
 
 def compute_channel_dna_extended(events: list[dict], now: str | None = None) -> dict:
-    """Kengaytirilgan Channel DNA (FAZA 8,9,22) — PURE, deterministik, AI'siz.
+    """Kengaytirilgan Channel DNA — PURE, deterministik, AI'siz.
 
     Har bir metrika: value, sample_size, confidence (0.0-1.0), updated_at.
 
@@ -786,12 +786,12 @@ def build_dna_system_prompt(profile: dict, lang: str = "uz") -> str:
 
 
 def build_dna_system_prompt_extended(profile: dict, lang: str = "uz") -> str:
-    """Kengaytirilgan DNA dan boy prompt (FAZA 8,9,22)."""
+    """Kengaytirilgan DNA dan boy prompt."""
     return build_dna_system_prompt(profile, lang=lang)
 
 
 # ---------------------------------------------------------------------------
-# 🧬 CHANNEL DNA 2.0 (STEP 3) — TONE + LENGTH + CTA + VOCABULARY LIMITS
+# 🧬 CHANNEL DNA 2.0 — TONE + LENGTH + CTA + VOCABULARY LIMITS
 # ---------------------------------------------------------------------------
 # Post generatsiya promptlariga kanalning REAL profilidan olingan 4 ta bo'lim
 # AVTOMATIK ulanadi:
@@ -1167,25 +1167,6 @@ async def _db_call(db: Any, fn, *args, **kwargs):
     return fn(*args, **kwargs)
 
 
-def is_channel_owner(db: Any, user_id: int, channel_id: str) -> bool:
-    """Kanal AYNAN shu foydalanuvchiga tegishlimi (fail-closed).
-
-    Kanal yo'q, DB xato yoki user_id mos kelmasa — ``False``.
-    """
-    if user_id is None or not channel_id:
-        return False
-    try:
-        owner = db.get_channel_owner_id(channel_id)
-    except Exception:
-        return False
-    if owner is None:
-        return False
-    try:
-        return int(owner) == int(user_id)
-    except (TypeError, ValueError):
-        return False
-
-
 async def get_channel_dna(
     channel_id: str | int,
     user_id: int | None = None,
@@ -1284,7 +1265,7 @@ async def get_channel_dna_extended(
     user_id: int | None = None,
     db_module: Any = None,
 ) -> dict:
-    """Kengaytirilgan Channel DNA (FAZA 8,9,22) — batch agregatsiya.
+    """Kengaytirilgan Channel DNA — batch agregatsiya.
 
     RBAC/IDOR himoyasi bilan, AI'siz, faqat DB agregatsiyasi.
     """
@@ -1315,7 +1296,7 @@ async def get_channel_dna_extended(
     events = await _db_call(db, db.get_channel_post_events, ch_id, 500)
     result = compute_channel_dna_extended(events)
 
-    # 📊 P1 (5-qadam): DB darajasidagi agregatsiya — o'rtacha ko'rishlar va
+    # DB darajasidagi agregatsiya — o'rtacha ko'rishlar va
     # eng yaxshi formatlar BITTA batch so'rovda (N+1 query YO'Q). Faqat
     # qo'shimcha kalit sifatida qaytariladi: eski iste'molchilar va profil
     # saqlash formati o'zgarmaydi. DB'da funksiya bo'lmasa — None.
@@ -1396,7 +1377,7 @@ async def attach_dna_to_context(
 ) -> dict:
     """AI orkestrator kontekstiga Channel DNA 2.0 ni ulaydi (ixcham prompt).
 
-    DNA 2.0 (STEP 3): post generatsiya promptiga kanalning **ohangi (tone)**,
+    DNA 2.0: post generatsiya promptiga kanalning **ohangi (tone)**,
     **uzunlik afzalligi**, **CTA uslubi** va **lug'at cheklovlari** AVTOMATIK
     ulanadi (``build_dna_prompt_2`` — faqat real profil ma'lumotlaridan).
 
@@ -1408,7 +1389,7 @@ async def attach_dna_to_context(
         ham ulanmaydi);
       * saqlangan profil mavjud va ``sample_size >= 5``.
 
-    GRACEFUL FALLBACK (STEP 3): kanal EGASI bo'lgan, lekin DNA hali tahlil
+    GRACEFUL FALLBACK: kanal EGASI bo'lgan, lekin DNA hali tahlil
     QILINMAGAN (profil yo'q yoki ``sample_size < 5``) bo'lsa — promptga
     standart ohang bloki (``build_default_tone_prompt``) qo'shiladi va
     ``ctx["channel_dna_default_tone"] = True`` belgilanadi. Hech qanday xato
@@ -1475,7 +1456,7 @@ async def attach_dna_to_context(
             ctx["system_prompt"] = f"{base}\n\n{block}".strip()
             ctx["channel_dna_attached"] = True
         else:
-            # 🧬 STEP 3 — GRACEFUL FALLBACK: DNA hali tahlil qilinmagan
+            # GRACEFUL FALLBACK: DNA hali tahlil qilinmagan
             # (yoki ma'lumot kam) — standart ohang bilan xatosiz davom etamiz.
             default_block = build_default_tone_prompt(lang)
             if default_block:

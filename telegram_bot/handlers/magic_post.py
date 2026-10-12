@@ -39,7 +39,6 @@ from handlers.ai_assistant import AI_GET_TIME, _show_time_prompt
 from keyboards.callback_data import CB_POST_SCORE_EVAL, cb
 from keyboards.default import (
     get_cancel_keyboard,
-    get_content_creation_keyboard,
 )
 from keyboards.inline import btn_label
 from locales.translations import clear_fsm_data, get_lang, safe_t
@@ -51,8 +50,8 @@ from services.ai_quota import (
     reserve_for_flow,
     take_reservation_id,
 )
-from translations import MAGIC_STYLE_KEYS, content_menu_t, magic_t, post_score_t
-from services.delivery import delivery_service  # PHASE 5: yagona delivery engine
+from translations import MAGIC_STYLE_KEYS, magic_t, post_score_t
+from services.delivery import delivery_service  # yagona delivery engine
 from utils.ai_agent import (
     generate_magic_post,
     normalize_magic_style,
@@ -326,7 +325,7 @@ async def magic_post_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Eski magic sessiyasi qoldiqlarini tozalaymiz (yangi oqim — toza boshlanish).
     for key in ("magic_raw_text", "magic_post_text", "magic_style",
                 "magic_channels", "magic_usage_counted",
-                # 🧭 3-QADAM: wizard qoldig'i yangi sessiyaga o'tmasligi uchun.
+                # wizard qoldig'i yangi sessiyaga o'tmasligi uchun.
                 "aip_topic", "aip_origin", "aip_format", "aip_format_hint"):
         context.user_data.pop(key, None)
     await msg.reply_text(
@@ -387,7 +386,7 @@ async def magic_text_received(update: Update, context: ContextTypes.DEFAULT_TYPE
         await msg.reply_text(magic_t("mp_text_hint", lang), parse_mode="HTML")
         return MAGIC_INPUT
 
-    # 🧭 3-QADAM (UI/UX POLISH): qisqa (< 3 so'z) yoki umumiy mavzu
+    # qisqa (< 3 so'z) yoki umumiy mavzu
     # ("sport", "yangiliklar") darhol uslublar menyusiga emas, avval
     # aniqlashtirish wizard'iga yuboriladi (kvota/kredit sarflanmaydi).
     # Aniq/batafsil mavzular uchun None qaytadi — eski yo'l o'zgarmaydi.
@@ -440,7 +439,7 @@ async def magic_style_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         except Exception:
             is_pro = False
 
-    # 🔒 PHASE 2 / 1-QADAM: kunlik kvota YOKI kredit BITTA atomik
+    # kunlik kvota YOKI kredit BITTA atomik
     # tranzaksiyada bron qilinadi (qator qulfi + credits_ledger auditi).
     # Avvalgi ikki qadam (check_ai_limit + use_user_credit) alohida
     # tranzaksiyalar edi → race condition va yarim bron xavfi bor edi;
@@ -492,7 +491,7 @@ async def magic_style_callback(update: Update, context: ContextTypes.DEFAULT_TYP
     else:
         wait_msg = query.message
 
-    # 🧭 3-QADAM (UI/UX POLISH): wizard'da tanlangan format ko'rsatmasi
+    # wizard'da tanlangan format ko'rsatmasi
     # generatsiya materialiga ulanadi (bir martalik — iste'mol qilinadi).
     # Wizard'siz oqimlarda hint bo'lmaydi → material == raw_text (o'zgarmaydi).
     fmt_hint = str(context.user_data.pop("aip_format_hint", "") or "").strip()
@@ -519,7 +518,7 @@ async def magic_style_callback(update: Update, context: ContextTypes.DEFAULT_TYP
             take_reservation_id(context, "magic"),
         )
         err_text = magic_t("mp_error", lang)
-        # 2-BOSQICH: placeholder aynan shu xabar edit_text bilan almashtiriladi.
+        # placeholder aynan shu xabar edit_text bilan almashtiriladi.
         if wait_msg is not None and hasattr(wait_msg, "edit_text"):
             try:
                 await wait_msg.edit_text(err_text, reply_markup=_magic_style_keyboard(lang), parse_mode="HTML")
@@ -534,7 +533,7 @@ async def magic_style_callback(update: Update, context: ContextTypes.DEFAULT_TYP
     context.user_data["magic_style"] = result.get("style", style)
     context.user_data["magic_usage_counted"] = False
 
-    # ⏱ STEP 2 — TTFV (Time-To-First-Value): birinchi post GENERATSIYASI
+    # TTFV (Time-To-First-Value): birinchi post GENERATSIYASI
     # jarayon xotirasida belgilanadi (/start → record_start). Best-effort:
     # telemetriya xatosi natija ekranini HECH QACHON buzmaydi.
     try:
@@ -565,7 +564,7 @@ async def magic_style_callback(update: Update, context: ContextTypes.DEFAULT_TYP
 async def _magic_deliver_one(bot, chat_id, post_text: str) -> bool:
     """Bitta kanalga post yuboradi (safe HTML, xato bo'lsa plain-text fallback).
 
-    PHASE 5: yagona ``delivery_service`` orqali — rate-limit (1 post/s kanal)
+    yagona ``delivery_service`` orqali — rate-limit (1 post/s kanal)
     va RetryAfter aniq kutish + jitter dvigatel tomonida boshqariladi.
     Tarmoq xatosida blind retry YO'Q (ikkinchi yuborish dublikat chiqarishi
     mumkin) — xato hanuz False sifatida qaytadi.
@@ -619,7 +618,7 @@ async def _magic_finish_send(query, context, targets: list) -> int:
         # AI ball "sarflandi" — birinchi muvaffaqiyatli yuborishda (free uchun).
         if not is_admin and not context.user_data.get("magic_usage_counted"):
             context.user_data["magic_usage_counted"] = True
-            # 🔒 PHASE 2 / 1-qadam: atomik bron kunlik sanagichni ALLAQACHON
+            # atomik bron kunlik sanagichni ALLAQACHON
             # oshirgan (reserve_ai_request). Shu sababli atomik bronda
             # increment_ai_usage chaqirilmaydi — double-count bo'lmasligi
             # uchun. Legacy bronda (test adapterlari / eski deploy) eski
@@ -823,11 +822,10 @@ async def magic_back_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
     except Exception as _silent_exc:
         log_silent_failure("handlers.magic_post:magic_back_callback:762", _silent_exc, lang=lang)
     try:
-        await query.message.reply_text(
-            content_menu_t("cm_menu_intro", lang),
-            reply_markup=get_content_creation_keyboard(lang),
-            parse_mode="HTML",
-        )
+        from keyboards.inline import post_creation_menu
+
+        text, markup = post_creation_menu(lang)
+        await query.message.reply_text(text, reply_markup=markup, parse_mode="HTML")
     except Exception as _silent_exc:
         log_silent_failure("handlers.magic_post:magic_back_callback:770", _silent_exc, lang=lang)
     return ConversationHandler.END

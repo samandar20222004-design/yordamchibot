@@ -111,15 +111,6 @@ def _next_ad_text(ads, scope: str) -> str:
     return ads[idx][1]
 
 
-def get_channel_ad_next() -> str:
-    """Sinxron: kanal posti uchun navbatdagi reklama. Pul bo'sh bo'lsa eski
-    ``channel_ad_text`` sozlamasiga (orqaga moslik) qaytadi."""
-    ads = db.get_ads(db.AD_SCOPE_CHANNEL) or []
-    if ads:
-        return _next_ad_text(ads, db.AD_SCOPE_CHANNEL)
-    return db.get_setting("channel_ad_text", "").strip()
-
-
 async def get_channel_ad_next_async() -> str:
     """Async: kanal posti uchun navbatdagi reklama (DB thread'da o'qiladi)."""
     ads = (await db.run_db(db.get_ads, db.AD_SCOPE_CHANNEL)) or []
@@ -239,7 +230,7 @@ def validate_ad_html(text: str, max_len: int = 1024) -> tuple[bool, str]:
 def validate_button_url(url: str) -> tuple[bool, str]:
     """Inline tugma havolasini tekshiradi. Qaytadi: ``(ok, xato_xabari)``.
 
-    6-bosqich: protokol/domen tekshiruvi yagona manbadan —
+    protokol/domen tekshiruvi yagona manbadan —
     ``utils.security.url_rejection_reason()`` — olinadi, shu sababli
     ``javascript:``, ``data:`` kabi xavfli protokollar bu yerda ham,
     yangi xavfsizlik modulida ham bir xil rad etiladi.
@@ -261,7 +252,7 @@ def validate_button_url(url: str) -> tuple[bool, str]:
         if reason == "credentials":
             return False, "Havolada login/parol ko'rsatilishi mumkin emas."
         if reason == "private_address":
-            # FAZA 23 (SSRF): ichki tarmoq manzillari (localhost, 127.x,
+            # ichki tarmoq manzillari (localhost, 127.x,
             # 10.x, 192.168.x, 169.254.x metadata) bloklangan.
             return False, (
                 "Ichki tarmoq manzillari (localhost, 127.x, 10.x, "
@@ -419,7 +410,7 @@ def check_rate_limit(user_id: int, max_requests: int = 3, window_seconds: float 
 def is_callback_throttled(user_id: int, data: str = "", window: float = None) -> bool:
     """Same user + callback_data within 1.5s → True (debounce).
 
-    ⚠️ PHASE 2: bu yordamchi **eskirgan (legacy)** — yangi, granula
+    bu yordamchi **eskirgan (legacy)** — yangi, granula
     chegaralar ``middlewares/rate_limiter.py`` da (``(user_id,
     callback_action)`` bo'yicha, Redis bilan multi-instance).
     Bot endi shu qatlam orqali throttle qilinadi; bu funksiya
@@ -519,11 +510,6 @@ _USER_INTERACTION_COUNT = {}
 _USER_INTERACTION_LOCK = threading.Lock()
 
 
-def get_user_interaction_count(user_id: int) -> int:
-    with _USER_INTERACTION_LOCK:
-        return _USER_INTERACTION_COUNT.get(user_id, 0)
-
-
 def reset_user_interaction_count(user_id: int):
     with _USER_INTERACTION_LOCK:
         _USER_INTERACTION_COUNT.pop(user_id, None)
@@ -605,12 +591,6 @@ def get_auto_ad_injection(user_id: int) -> str:
     if count % interval == 0:
         return f"\n\n📢 <b>Homiy:</b> {html_escape(ad_text)}"
     return ""
-
-
-async def inject_auto_ad_async(user_id: int, base_text: str) -> str:
-    """Matn oxiriga avtomatik reklamani qo'shib beradi."""
-    ad = await get_auto_ad_injection_async(user_id)
-    return f"{base_text}{ad}" if ad else base_text
 
 
 def inject_auto_ad(user_id: int, base_text: str) -> str:

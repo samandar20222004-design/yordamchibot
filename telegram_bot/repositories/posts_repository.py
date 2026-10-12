@@ -171,7 +171,7 @@ def add_post(
             post_id = cur.fetchone()[0]
         _invalidate_user(user_id)
         _cache_clear("system_stats")
-        # ⏱ SPRINT 4 — TTFP (Time To First Post): birinchi post yaratilgan
+        # TTFP (Time To First Post): birinchi post yaratilgan
         # payt jarayon xotirasida belgilanadi (baza agregati esa
         # ``users.created_at`` va ``scheduled_posts`` dan hisoblanadi).
         # Best-effort: analitika post saqlash oqimini HECH QACHON buzdirmaydi.
@@ -182,7 +182,7 @@ def add_post(
         except Exception:  # noqa: BLE001 — analitika best-effort
             logger.debug("TTFP belgilashda xato (post_id=%s)", post_id,
                          exc_info=True)
-        # 🌱 STEP 2 (ORGANIC GROWTH) — ACTION-BASED REFERAL MUKOFOTI:
+        # ACTION-BASED REFERAL MUKOFOTI:
         # taklif qilingan foydalanuvchining BIRINCHI yaroqli amali (post
         # yaratish/rejalashtirish) referrerga bonus beradi. Idempotent
         # (``users.referral_rewarded_at`` shartli UPDATE) va fail-soft:
@@ -425,7 +425,7 @@ def mark_post_as_sent(post_id: int, sent_message_id: int, channel_id: str = None
     ``True`` — commit bo'ldi; ``False`` — DB xatosi (istisno tashlanmaydi, chaqiruvchi
     qayta urinishi kerak: 'yuborildi' markeri idempotentlik kafolatining asosi).
 
-    11-bosqich (P0): ``delivery_key`` berilsa ``post_deliveries`` yozuvi ham
+    ``delivery_key`` berilsa ``post_deliveries`` yozuvi ham
     AYNI SHU tranzaksiyada ``'sent'`` bo'ladi — scheduled_posts 'posted' va
     delivery 'sent' markerlari hech qachon bir-biridan ajralib qolmaydi
     (crash oralig'ida "biri yozildi, biri yo'q" holati bo'lmaydi).
@@ -648,7 +648,7 @@ def get_queue_post_detail(post_id: int, user_id: int):
 def get_channel_post_stats(user_id: int, channel_id: str = None) -> dict:
     """Kanal post statistikasini qaytaradi.
 
-    P1 PERFORMANCE (5-qadam): ilgari bu funksiya **8 ta ketma-ket SQL**
+    ilgari bu funksiya **8 ta ketma-ket SQL**
     yuborardi (har bir ko'rsatkich uchun alohida SELECT — N+1 uslubi).
     Endi barcha hisob-kitob **DB darajasida agregatsiya** qilinadi va
     jami **3 ta so'rov** ketadi:
@@ -767,7 +767,7 @@ def get_channel_post_stats(user_id: int, channel_id: str = None) -> dict:
 
 
 # ============================================================
-# 📋 PHASE C — POST SHABLONLARI (post_templates CRUD)
+# POST SHABLONLARI (post_templates CRUD)
 # ------------------------------------------------------------
 # Foydalanuvchining takroriy post shablonlari. IDOR himoyasi:
 # barcha o'qish/o'chirish so'rovlari ``user_id`` bilan filtrlanadi —

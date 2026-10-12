@@ -1,4 +1,4 @@
-"""Provider Health — Circuit Breaker (AI ENGINE V2, Faza 1).
+"""Provider Health — Circuit Breaker.
 
 Audit topilmasi: provayder sog'lig'i ikki joyda nazorat qilinar edi —
 ``utils/ai_agent.py`` dagi modul-darajadagi ``_BREAKERS`` lug'ati va
@@ -16,7 +16,7 @@ mazali Circuit Breaker kerak:
 MUHIM (yagona manba siyosati — hech narsa noldan yozilmaydi): monitor
 holatini eski ``utils/ai_agent._BREAKERS`` lug'atiga ham MIRROR qiladi
 (xuddi shu ``{"fails": int, "until": float}`` shaklida). Shu tufayli
-legacy zanjir (``services.ai_service.AIFallbackService``) va yangi gateway
+legacy zanjir (``services.ai.fallback.AIFallbackService``) va yangi gateway
 BITTA sog'liq holatini ko'radi — provayder gateway tomonidan "ochilsa",
 legacy zanjir ham uni cooldown'da o'tkazib yuboradi.
 """
@@ -82,7 +82,7 @@ def classify_exception(exc: BaseException | str | None) -> str:
         if isinstance(exc, asyncio.TimeoutError):
             return FAILURE_TIMEOUT
     except Exception as _silent_exc:  # pragma: no cover — asyncio har doim bor
-        log_silent_failure("services.ai_engine.health:classify_exception", _silent_exc)
+        log_silent_failure("services.ai.engine.health:classify_exception", _silent_exc)
     text = str(exc).lower()
     # Tartib muhim: 429 "500" belgisini o'z ichiga olmaydi, lekin timeout
     # matnida boshqa raqamlar bo'lishi mumkin — avval maxsus turlar.
@@ -239,7 +239,7 @@ class ProviderHealthMonitor:
             else:
                 legacy[name] = {"fails": int(st.fails), "until": float(st.open_until)}
         except Exception as _silent_exc:  # pragma: no cover — mirror majburiy emas
-            log_silent_failure("services.ai_engine.health:ProviderHealthMonitor._mirror_legacy", _silent_exc)
+            log_silent_failure("services.ai.engine.health:ProviderHealthMonitor._mirror_legacy", _silent_exc)
 
 
 # ---------------------------------------------------------------------------

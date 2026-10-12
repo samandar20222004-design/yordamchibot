@@ -1,4 +1,4 @@
-"""📡 RSS / ATOM OQIMI — yangi elementlardan post qoralamalari (PHASE D, 12-band).
+"""📡 RSS / ATOM OQIMI — yangi elementlardan post qoralamalari.
 
 Funksional zanjir::
 

@@ -1,4 +1,4 @@
-"""🧭 FAZA 17 — KANONIK NAVIGATSIYA STANDARTI (yagona ma'no qoidalari).
+"""KANONIK NAVIGATSIYA STANDARTI (yagona ma'no qoidalari).
 
 Loyihadagi HAR BIR inline va reply klaviatura tugmasi quyidagi qat'iy
 ma'no qoidasiga bo'ysunadi:
@@ -157,22 +157,6 @@ def classify_nav_label(text) -> str | None:
     if any(t in low for t in _BACK_LABEL_TOKENS):
         return NAV_SEMANTIC_BACK
     return None
-
-
-def classify_nav_button(text, callback_data=None) -> str | None:
-    """Tugmani (yorliq + callback) navigatsiya semantikasi bo'yicha aniqlaydi.
-
-    Ikkala belgi ham bilsa va ular MOS KELMASA — yorliq (foydalanuvchi
-    ko'radigan standart) ustuvor hisoblanadi va ``label`` qaytariladi;
-    mos kelmaslik :func:`find_nav_conflicts` tomonidan QOIDABUZARLIK sifatida
-    qayd etiladi.
-    """
-    label_sem = classify_nav_label(text)
-    cb_sem = callback_semantic(callback_data) if callback_data else None
-    if label_sem and cb_sem and label_sem != cb_sem:
-        # Aniq yorliq ustuvor — lekin mosizlik qayd etiladi (detektor ko'radi).
-        return label_sem
-    return label_sem or cb_sem
 
 
 def _iter_buttons(markup):

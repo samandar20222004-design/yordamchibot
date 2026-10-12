@@ -1,6 +1,6 @@
 """📢 KANALLARIM + 📅 REJALASHTIRILGAN — i18n lug'ati (UZ / RU / EN, 100% paritet).
 
-PostAssist V2 · 4-mikro qadam. Master plan standarti bo'yicha ikkita bo'lim
+4-mikro qadam. Master plan standarti bo'yicha ikkita bo'lim
 qayta tuzildi va ularning BARCHA yangi matnlari shu modulda uchala tilda
 saqlanadi (``translations/content_menu.py`` bilan bir xil naqsh):
 
@@ -67,7 +67,7 @@ CHANNELS_QUEUE_I18N = {
         "cq_ch_btn_create_post": "➕ Post yaratish",
         "cq_ch_btn_scheduled": "📅 Rejalashtirilgan",
         "cq_ch_btn_stats": "📊 Statistika",
-        # 🧠 PHASE B — Channel Intelligence (DNA + Best Time)
+        # Channel Intelligence (DNA + Best Time)
         "cq_ch_btn_dna": "🧠 Kanal DNA",
         "cq_ch_btn_best_time": "⏰ Eng yaxshi vaqt",
         "cq_ch_btn_advice": "📊 Haftalik hisobot",
@@ -151,7 +151,7 @@ CHANNELS_QUEUE_I18N = {
         "cq_sch_channel_title": (
             "📅 <b>Rejalashtirilgan</b> — 📢 {channel} ({count} ta post):"
         ),
-        # Eslatma (B1 — 2-qadam): «Kutilayotgan postlar» va «Rejalashtirilgan
+        # Eslatma (B1): «Kutilayotgan postlar» va «Rejalashtirilgan
         # postlar» YAGONA ekranga birlashtirildi — bo'sh holat matni ham shu
         # sababli ikkala guruhni ham tilga oladi (eski `cab_pending` aliasi
         # shu matnni qaytaradi, shuning uchun eski oqim ham buzilmaydi).
@@ -185,9 +185,16 @@ CHANNELS_QUEUE_I18N = {
             "⌛ Bu tugma eskirgan. «📅 Rejalashtirilgan» bo'limini qaytadan "
             "oching."
         ),
+        "cq_sch_delete_confirm": "🗑 <b>Postni rejadan o'chirasizmi?</b>\n\nBu amalni qaytarib bo'lmaydi.",
+        "cq_ch_delete_confirm": (
+            "🗑 <b>{channel}</b> kanalini botdan uzasizmi?\n\n"
+            "Kanal ro'yxatdan olib tashlanadi. Keyin uni qaytadan ulashingiz mumkin."
+        ),
+        "cq_btn_confirm_delete": "✅ Ha, o'chirish",
+        "cq_btn_keep": "◀️ Yo'q, qaytish",
         "cq_sch_deleted_alert": "🗑 Post rejadan olib tashlandi.",
         "cq_sch_not_found": "⚠️ Post topilmadi — u allaqachon chiqib ketgan yoki o'chirilgan.",
-        # --- PHASE 9: [📢 Kanallarim] Contextual Channel Menu ---
+        # [📢 Kanallarim] Contextual Channel Menu ---
         "cq_ch_ctx_add": "➕ Kanal qo‘shish",
         "cq_ch_ctx_autopilot": "🚀 Autopilot",
         "cq_ch_ctx_plan": "📋 Kontent reja",
@@ -228,7 +235,7 @@ CHANNELS_QUEUE_I18N = {
         "cq_ch_btn_create_post": "➕ Создать пост",
         "cq_ch_btn_scheduled": "📅 Запланированные",
         "cq_ch_btn_stats": "📊 Статистика",
-        # 🧠 PHASE B — Channel Intelligence (DNA + Best Time)
+        # Channel Intelligence (DNA + Best Time)
         "cq_ch_btn_dna": "🧠 DNA канала",
         "cq_ch_btn_best_time": "⏰ Лучшее время",
         "cq_ch_btn_advice": "📊 AI-отчёт",
@@ -331,9 +338,16 @@ CHANNELS_QUEUE_I18N = {
             "⌛ Эта кнопка устарела. Откройте раздел «📅 Запланированные» "
             "заново."
         ),
+        "cq_sch_delete_confirm": "🗑 <b>Удалить пост из расписания?</b>\n\nЭто действие нельзя отменить.",
+        "cq_ch_delete_confirm": (
+            "🗑 Отключить канал <b>{channel}</b> от бота?\n\n"
+            "Канал исчезнет из списка. Позже его можно подключить снова."
+        ),
+        "cq_btn_confirm_delete": "✅ Да, удалить",
+        "cq_btn_keep": "◀️ Нет, назад",
         "cq_sch_deleted_alert": "🗑 Пост снят с расписания.",
         "cq_sch_not_found": "⚠️ Пост не найден — он уже опубликован или удалён.",
-        # --- PHASE 9: [📢 Мои каналы] Contextual Channel Menu (RU) ---
+        # [📢 Мои каналы] Contextual Channel Menu (RU) ---
         "cq_ch_ctx_add": "➕ Добавить канал",
         "cq_ch_ctx_autopilot": "🚀 Автопилот",
         "cq_ch_ctx_plan": "📋 Контент-план",
@@ -374,7 +388,7 @@ CHANNELS_QUEUE_I18N = {
         "cq_ch_btn_create_post": "➕ Create post",
         "cq_ch_btn_scheduled": "📅 Scheduled",
         "cq_ch_btn_stats": "📊 Statistics",
-        # 🧠 PHASE B — Channel Intelligence (DNA + Best Time)
+        # Channel Intelligence (DNA + Best Time)
         "cq_ch_btn_dna": "🧠 Channel DNA",
         "cq_ch_btn_best_time": "⏰ Best time",
         "cq_ch_btn_advice": "📊 Weekly AI report",
@@ -476,9 +490,16 @@ CHANNELS_QUEUE_I18N = {
         "cq_sch_stale": (
             "⌛ This button is outdated. Open the «📅 Scheduled» section again."
         ),
+        "cq_sch_delete_confirm": "🗑 <b>Remove this post from the schedule?</b>\n\nThis cannot be undone.",
+        "cq_ch_delete_confirm": (
+            "🗑 Disconnect <b>{channel}</b> from the bot?\n\n"
+            "The channel will be removed from your list. You can connect it again later."
+        ),
+        "cq_btn_confirm_delete": "✅ Yes, delete",
+        "cq_btn_keep": "◀️ No, go back",
         "cq_sch_deleted_alert": "🗑 Post removed from the schedule.",
         "cq_sch_not_found": "⚠️ Post not found — it was already published or deleted.",
-        # --- PHASE 9: [📢 My channels] Contextual Channel Menu (EN) ---
+        # [📢 My channels] Contextual Channel Menu (EN) ---
         "cq_ch_ctx_add": "➕ Add channel",
         "cq_ch_ctx_autopilot": "🚀 Autopilot",
         "cq_ch_ctx_plan": "📋 Content plan",

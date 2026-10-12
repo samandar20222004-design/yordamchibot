@@ -136,7 +136,7 @@ def reset_state(fresh_ledger: bool = True):
 # TEST 1 — NARX: UNPRICED TEG, $0 EMAS
 # ===========================================================================
 def test_pricing_status():
-    print("\n== TEST 1: Narx holati — unpriced (\$0 emas), priced, cached ==")
+    print("\n== TEST 1: Narx holati — unpriced ($0 emas), priced, cached ==")
     reset_state()
 
     priced = telemetry.build_usage_event(
@@ -153,7 +153,7 @@ def test_pricing_status():
         prompt="p" * 400, user_id=1, channel_id=-100)
     check("narxsiz model → cost_status=unpriced", unknown.cost_status == telemetry.COST_UNPRICED,
           unknown.cost_status)
-    check("narxsiz model → \$0 deb ko'rsatilmaydi (unpriced=True)",
+    check("narxsiz model → $0 deb ko'rsatilmaydi (unpriced=True)",
           unknown.as_dict().get("unpriced") is True)
     check("narxsiz model → estimated_cost = 0 (soxta raqam yo'q)",
           unknown.estimated_cost == 0.0)
@@ -407,7 +407,7 @@ def test_fallback_telemetry_and_gates():
 # ===========================================================================
 def test_legacy_dedupe():
     print("\n== TEST 7: Legacy zanjir — ikki marta hisoblanmaydi ==")
-    from services import ai_service as _public  # noqa: F401 — import sanity
+    from services.ai import fallback as _public  # noqa: F401 — import sanity
     from services.ai import fallback as ai_fb
 
     reset_state()
@@ -493,7 +493,7 @@ def test_economics_margin():
     check("yalpi marja = (PRO - o'rtacha) / PRO",
           abs(summary["margin_rate"] - (19000 - summary["avg_cost_uzs"]) / 19000) < 1e-3,
           str(summary["margin_rate"]))
-    check("unpriced so'rov sanaldi (\$0 emas)", summary["unpriced_requests"] == 1)
+    check("unpriced so'rov sanaldi ($0 emas)", summary["unpriced_requests"] == 1)
     text = build_economics_text(summary, lang="en")
     check("matnda yalpi marja (EN) ko'rsatildi", "Gross margin" in text)
     check("matnda PRO narxi ko'rsatildi", "19 000" in text)

@@ -314,7 +314,7 @@ def _extract_voice_media(msg):
 async def voice_post_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """«🎙 Ovoz → Post» bo'limini ochadi: yo'riqnoma + ovozli xabar kutiladi.
 
-    DIQQAT (2-qadam): «Iltimos, g'oyangizni ovozli xabar (1 daqiqa ichida)
+    DIQQAT: «Iltimos, g'oyangizni ovozli xabar (1 daqiqa ichida)
     qilib yuboring» talabi shu yerda ko'rsatiladi. Keyingi ovozli xabar
     ``VOICE_AWAIT`` holatidagi ``voice_message_received`` orqali STT oqimiga
     tushadi — ya'ni menyu orqali kirish ham, menyu tashqarisidagi
@@ -518,7 +518,7 @@ async def voice_style_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         except Exception:
             is_pro = False
 
-    # 🔒 PHASE 2 / 1-QADAM: kunlik kvota YOKI kredit BITTA atomik
+    # kunlik kvota YOKI kredit BITTA atomik
     # tranzaksiyada bron qilinadi (qator qulfi + credits_ledger auditi).
     # Avvalgi ikki qadam alohida tranzaksiyalar edi → race condition va
     # yarim bron xavfi; DB xatosida esa oqim DAVOM ETARDI (fail-open).
@@ -642,7 +642,7 @@ async def _voice_finish_send(query, context, targets: list) -> int:
         # (Kvota allaqachon uslub tanlashda atomik bron qilingan — no-op.)
         if not is_admin and not context.user_data.get("voice_usage_counted"):
             context.user_data["voice_usage_counted"] = True
-            # 🔒 PHASE 2 / 1-qadam: atomik bron sanagichni ALLAQACHON
+            # atomik bron sanagichni ALLAQACHON
             # oshirgan — double-count bo'lmasligi uchun atomik bronda
             # increment chaqirilmaydi (legacy bronda eski xatti-harakat).
             if not reservation_source(context, "voice"):

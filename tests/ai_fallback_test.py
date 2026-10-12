@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""AI Multi-Provider Fallback test — 4-BOSQICH (services/ai_service.py).
+"""AI Multi-Provider Fallback test — 4-BOSQICH (services/ai/fallback.py).
 
 Yagona provayderlar boshqaruvi va avtomatik fallback zanjiri tekshiriladi:
   1. Gemini (Primary)
@@ -88,7 +88,7 @@ os.environ["AI_MODEL_DISCOVERY"] = "1"
 
 from aiohttp import web  # noqa: E402
 from utils import ai_agent  # noqa: E402
-from services import ai_service  # noqa: E402
+from services.ai import fallback as ai_service  # noqa: E402
 
 # ---- Javob tanasi (har bir provayderga xos) ----
 GEMINI_JSON = '{"post_text": "Gemini post", "scheduled_time": null, "has_explicit_time": false, "target_all": false}'

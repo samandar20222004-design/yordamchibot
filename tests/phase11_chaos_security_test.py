@@ -339,16 +339,16 @@ def test_redis_down_fallback() -> None:
 def test_all_ai_providers_down() -> None:
     section("TEST 3) 🤖 BARCHA AI PROVAYDERLAR 500/TIMEOUT → MULOYM UX")
 
-    from services import ai_gateway
+    from services.ai.engine import gateway as ai_gateway
     from services.ai.providers import ai_unavailable_message
-    from services.ai_engine import providers as engine_providers
-    from services.ai_engine.router import provider_order as router_order
-    from services.ai_engine.router import resolve_lane  # noqa: F401
+    from services.ai.engine import providers as engine_providers
+    from services.ai.engine.router import provider_order as router_order
+    from services.ai.engine.router import resolve_lane  # noqa: F401
 
     class Provider500(RuntimeError):
         pass
 
-    from services.ai_engine import gateway as gw
+    from services.ai.engine import gateway as gw
 
     # Sinov mazmunli bo'lishi uchun: real kalitlar mavjud bo'lmasa ham zanjir
     # HAQIQATAN urinib ko'riladi — sintetik handle + doimiy xato beruvchi ijro.
@@ -416,7 +416,7 @@ def test_all_ai_providers_down() -> None:
           all(len(t) > 10 for t in texts.values()), str(texts)[:140])
 
     # run_ai_task: kvota QAYTARILADI (refund) — soxta generatsiya YO'Q.
-    from services.ai_engine.app_service import run_ai_task
+    from services.ai.engine.app_service import run_ai_task
 
     class _Outcome:
         def __init__(self):
@@ -441,7 +441,7 @@ def test_all_ai_providers_down() -> None:
         async def _no_write(*args, **kwargs):
             return None
 
-        from services.ai_engine import app_service as app
+        from services.ai.engine import app_service as app
 
         fake_db = SimpleNamespace()
         with patch("services.ai_quota.reserve_ai_quota", _reserve), \
@@ -457,7 +457,7 @@ def test_all_ai_providers_down() -> None:
         return outcome, refunds
 
     async def _ai_failing_generate(*args, **kwargs):
-        from services.ai_engine.gateway import GatewayResult, resolve_lane  # noqa: F811
+        from services.ai.engine.gateway import GatewayResult, resolve_lane  # noqa: F811
         return GatewayResult(
             ok=False, lane=resolve_lane(kwargs.get("lane") or "fast"),
             task=kwargs.get("task") or "", elapsed=0.01,
@@ -687,7 +687,9 @@ def test_ssrf_gateway() -> None:
 
     # Ochiq URL'lar hamon ishlaydi (regressiya yo'q).
     for good in ("http://example.com/", "https://example.com/page?x=1"):
-        result = gateway.validate_public_url(good)
+        # DNS soxtalashtirilgan: test internetga bog'liq bo'lmasin.
+        result = gateway.validate_public_url(
+            good, resolver=lambda host, port: ["93.184.215.14"])
         check(f"SSRF: ochiq URL ruxsat etiladi ({good})", bool(result.get("ok")),
               str(result)[:100])
 

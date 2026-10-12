@@ -1,4 +1,4 @@
-"""🧠 Channel Intelligence (PostAssist V2 — PHASE B + FAZA 8,9,22).
+"""🧠 Channel Intelligence.
 
 Kanal monitoringi va aqlli tahlil qatlami:
 
@@ -17,15 +17,15 @@ Kanal monitoringi va aqlli tahlil qatlami:
 * :mod:`services.channels.best_time` — post chiqarish statistikasi bo'yicha
   eng maqbul vaqt oynalari (soxta raqamlar UYDIRMAYDI — yetarli ma'lumot
   bo'lmasa "insufficient data" holati qaytadi);
-* :mod:`services.channels.analytics` — ⚡️ P1 (5-qadam): kanal tahlili N+1
+* :mod:`services.channels.analytics` — ⚡️ P1: kanal tahlili N+1
   query'siz — oxirgi 50–100 post metrikasi ``repositories.analytics_repository``
   orqali BITTA batch so'rovda (JOIN + GROUP BY), agregatsiya (o'rtacha
   ko'rishlar, eng yaxshi formatlar, eng faol soat) DB DARAJASIDA; so'rovlar
   soni postlar soniga bog'liq emas (IDOR fail-closed, DB xatosida fail-soft);
 * :mod:`services.channels.duplicate_detector` — post kanalga
   rejalashtirilishidan/chiqarilishidan oldin kanalning oxirgi postlari bilan
-  YENGIL (AI'siz, Jaccard/token-overlap) o'xshashlik tekshiruvi (PHASE C);
-* :mod:`services.channels.recycle` — ♻️ CONTENT RECYCLE (PHASE D, 13-band):
+  YENGIL (AI'siz, Jaccard/token-overlap) o'xshashlik tekshiruvi;
+* :mod:`services.channels.recycle` — ♻️ CONTENT RECYCLE:
   kanalning **14+ kun** oldingi, yaxshi ko'rsatkichli postlarini aniqlash va
   AI yordamida yangi **hook + sarlavha + CTA** bilan "yangilangan post"
   yaratish. Ko'r-ko'rona repost QAT'IYAN TAQIQLANADI (o'xshashlik chegarasi
@@ -226,7 +226,7 @@ __all__ = [
     "compute_channel_dna_extended",
     "compute_channel_dna_v2",
     "compute_content_gaps",
-    # 📚 STEP 3 — CONTENT LEARNING & GAP DETECTION
+    # CONTENT LEARNING & GAP DETECTION
     "CONTENT_FORMATS",
     "FORMAT_KEYWORDS",
     "MAX_RECOMMENDATIONS",
@@ -237,7 +237,7 @@ __all__ = [
     "extract_post_text",
     "get_content_learning_for_user",
     "render_content_learning_text",
-    # 🧬 STEP 3 — CHANNEL DNA 2.0 (tone/length/CTA/vocabulary + fallback)
+    # CHANNEL DNA 2.0 (tone/length/CTA/vocabulary + fallback)
     "CTA_STYLE_INSTRUCTIONS",
     "DEFAULT_TONE_PROMPTS",
     "DNA_TONE_LABELS",

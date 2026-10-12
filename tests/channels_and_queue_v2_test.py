@@ -656,7 +656,13 @@ def test_safety_and_ownership():
     # 🗑 O'chirish handleri — xatosiz ishlaydi va ro'yxatni yangilaydi.
     posts = [_post_row(201, _sched(hour=9)), _post_row(202, _sched(hour=18))]
     fake = _FakeDB(posts=posts)
-    q_del = _Query("qdel:201")
+    q_ask = _Query("qdel:201")
+    _with_db(fake, lambda: Q.queue_delete_callback(_upd_query(q_ask), _ctx("uz")))
+    check("🗑 O'chirish: birinchi bosish tasdiq so'raydi (o'chirilmadi)",
+          not any(c[0] == "cancel_post" for c in fake.calls), str(fake.calls))
+    check("🗑 O'chirish: tasdiq tugmasi qdel:201:ok",
+          "qdel:201:ok" in str(q_ask.edits), str(q_ask.edits)[:200])
+    q_del = _Query("qdel:201:ok")
     _with_db(fake, lambda: Q.queue_delete_callback(_upd_query(q_del), _ctx("uz")))
     check("🗑 O'chirish: cancel_post chaqirildi (user_id bilan)",
           ("cancel_post", (201, USER_ID)) in fake.calls, str(fake.calls))

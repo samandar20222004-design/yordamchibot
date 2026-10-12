@@ -1,4 +1,4 @@
-"""✨ MULTI-VARIANT GENERATOR — 48-band (PHASE 11).
+"""✨ MULTI-VARIANT GENERATOR — 48-band.
 
 Bitta post mavzusidan **5 ta bir-biridan farq qiluvchi** post:
 
@@ -460,7 +460,7 @@ class VariantsResult:
 # XIZMAT
 # ---------------------------------------------------------------------------
 class MultiVariantGenerator(SMMFeatureService):
-    """5 xil burchakdagi postlar generatori (48-band)."""
+    """5 xil burchakdagi postlar generatori."""
 
     feature = "variants"
     #: Atomik bron oq ro'yxatidagi asos: ``magic_post`` (``:variants`` — belgi).

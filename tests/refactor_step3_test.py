@@ -106,13 +106,13 @@ def check(label, condition, extra=""):
 # SPEKS: menyu tarkibi va yorliqlari (uchala til)
 # ---------------------------------------------------------------------------
 HUB_LABELS = {
-    "uz": (("🌐 Til / Язык", "✍️ Post Auto-Cleaner & Imzo"),
+    "uz": (("🌐 Til / Язык", "🧹 Post tozalash va imzo"),
            ("🔔 Bildirishnomalar", "💎 PRO va Tariflar"),
            ("👥 Do'stlarni taklif", "ℹ️ Yordam va Qo'llanma")),
-    "ru": (("🌐 Язык", "✍️ Автоочистка постов и подпись"),
+    "ru": (("🌐 Язык", "🧹 Автоочистка постов и подпись"),
            ("🔔 Уведомления", "💎 PRO и тарифы"),
            ("👥 Пригласить друзей", "ℹ️ Помощь и руководство")),
-    "en": (("🌐 Language", "✍️ Post Auto-Cleaner & Signature"),
+    "en": (("🌐 Language", "🧹 Post cleaner & signature"),
            ("🔔 Notifications", "💎 PRO & Plans"),
            ("👥 Invite friends", "ℹ️ Help and Guide")),
 }

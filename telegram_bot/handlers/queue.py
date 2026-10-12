@@ -1,6 +1,6 @@
 """📅 REJALASHTIRILGAN — rejalashtirilgan postlarni ko'rish va boshqarish.
 
-PostAssist V2 · 4-mikro qadam. Bo'lim master plan standartiga keltirildi:
+4-mikro qadam. Bo'lim master plan standartiga keltirildi:
 
   * **NOMLANISH.** Eskirgan texnik nomlar («Postlar navbati», «Navbatdagi
     postlar», «Очередь постов», «Queued posts») foydalanuvchi ko'radigan
@@ -96,7 +96,7 @@ def _content_preview(content: str, max_len: int = 40) -> str:
 def _format_queue_item(row, index: int, lang: str = "uz") -> str:
     """Bitta REJALASHTIRILGAN postni ixcham inline qatorga formatlaydi.
 
-    Master plan formati (4-mikro qadam)::
+    Master plan formati::
 
         1. 🕐 Bugun 18:00 — 📝 Yangi mahsulot chegirmasi | 📢 Mening kanalim
 
@@ -123,7 +123,7 @@ def _format_queue_item(row, index: int, lang: str = "uz") -> str:
 def _get_queue_list_keyboard(posts, offset: int, total: int, lang: str = "uz") -> InlineKeyboardMarkup:
     """📅 YAGONA Rejalashtirilgan ro'yxati uchun inline keyboard.
 
-    PostAssist V2 · 2-qadam (B1): «Kutilayotgan postlar» va «Rejalashtirilgan
+    2-qadam (B1): «Kutilayotgan postlar» va «Rejalashtirilgan
     postlar» bitta ekranga birlashtirildi, shu sababli har bir post ostida
     BARCHA amallar TO'LIQ jamlangan (``render_scheduled_full_actions``)::
 
@@ -421,32 +421,46 @@ async def queue_view_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 
 async def queue_delete_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Postni navbatdan o'chirish."""
+    """Postni navbatdan o'chirish: ``qdel:<id>`` — tasdiq so'raydi,
+    ``qdel:<id>:ok`` — o'chiradi."""
     query = update.callback_query
     lang = get_lang(context)
-    await query.answer(channels_queue_t("cq_sch_deleted_alert", lang))
     user_id = query.from_user.id
-    post_id = int(query.data.split(":")[1])
+    parts = str(query.data).split(":")
+    post_id = int(parts[1])
+    confirmed = len(parts) > 2 and parts[2] == "ok"
 
-    # 🔐 PHASE 3 — IDOR: callback'dagi ``post_id`` ga ISHONILMAYDI.  O'chirishdan
-    # OLDIN post AYNAN shu foydalanuvchiga tegishli ekani qayta tekshiriladi
-    # (``get_queue_post_detail`` so'rovi ``user_id`` bo'yicha filtrlaydi).
-    # Begona post topilmasa — DB'ga yozuv amali UMUMAN yuborilmaydi.
+    # Egalik tekshiruvi: callback'dagi ``post_id`` ga ishonilmaydi —
+    # ``get_queue_post_detail`` faqat shu foydalanuvchining postini topadi.
     owned = await db.run_db(db.get_queue_post_detail, post_id, user_id)
     if not owned:
-        logger.warning(
-            "RBAC/IDOR: navbatdagi postni o'chirish rad etildi "
-            "(user=%s, post=%s) — post topilmadi/egasi boshqa",
-            user_id, post_id,
-        )
+        logger.warning("Navbatdagi postni o'chirish rad etildi (user=%s, post=%s)",
+                       user_id, post_id)
+        await query.answer()
         try:
             await query.message.reply_text(
                 channels_queue_t("cq_sch_not_found", lang), parse_mode="HTML")
         except Exception as _silent_exc:
-            log_silent_failure("handlers.queue:queue_delete_callback:417", _silent_exc)
+            log_silent_failure("handlers.queue:queue_delete_callback:not_found", _silent_exc)
+        return QUEUE_MENU
+
+    if not confirmed:
+        await query.answer()
+        keyboard = InlineKeyboardMarkup([[
+            InlineKeyboardButton(channels_queue_t("cq_btn_confirm_delete", lang),
+                                 callback_data=cb(f"qdel:{post_id}:ok")),
+            InlineKeyboardButton(channels_queue_t("cq_btn_keep", lang),
+                                 callback_data=cb(f"qview:{post_id}")),
+        ]])
+        try:
+            await query.edit_message_text(channels_queue_t("cq_sch_delete_confirm", lang),
+                                          reply_markup=keyboard, parse_mode="HTML")
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.queue:queue_delete_callback:confirm", _silent_exc)
         return QUEUE_MENU
 
     await db.run_db(db.cancel_post, post_id, user_id)
+    await query.answer(channels_queue_t("cq_sch_deleted_alert", lang))
 
     # Ro'yxatni yangilash
     total = await db.run_db(db.get_queue_post_count, user_id)

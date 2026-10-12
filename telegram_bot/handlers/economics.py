@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""💰 SPRINT 4 — ``/economics``: UNIT ECONOMICS VA PRO TARIF RENTABELLIGI.
+"""``/economics``: UNIT ECONOMICS VA PRO TARIF RENTABELLIGI.
 
 Admin buyrug'i bitta ekranda javob beradi:
   * davr bo'yicha AI so'rovlar, tokenlar va umumiy xarajat (USD + so'm);

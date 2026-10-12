@@ -177,7 +177,7 @@ def compute_weekly_insights(items: Iterable[dict], *, now: datetime | None = Non
 async def generate_ai_advice(report: dict, *, lang: str = "uz") -> dict:
     """Explain measured insights with the canonical AI Engine (fail-soft)."""
     try:
-        from services.ai_engine import gateway
+        from services.ai.engine import gateway
         prompt = "Explain this channel report in plain language: " + str({
             "published_posts": report.get("published_posts", 0),
             "formats": report.get("formats", []),

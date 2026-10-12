@@ -10,7 +10,7 @@ from .rbac import (
     admin_rbac_required,
     check_callback_rbac,
     RBAC_DENIED_MESSAGE,
-    # PHASE 3 — resurs (kanal/post) darajasidagi RBAC va IDOR himoyasi.
+    # resurs (kanal/post) darajasidagi RBAC va IDOR himoyasi.
     RBAC_PERMISSION_DENIED_MESSAGE,
     RBAC_DENIED_TEXTS,
     ResourceRule,

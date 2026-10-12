@@ -889,7 +889,7 @@ def remove_channel(user_id: int, channel_id: str, is_admin: bool = False) -> boo
         _invalidate_user(user_id)
         if owner_id is not None and owner_id != user_id:
             _invalidate_user(owner_id)
-        # 🔐 PHASE 3: kanal uzildi — RBAC resurs keshini ham bekor qilamiz
+        # kanal uzildi — RBAC resurs keshini ham bekor qilamiz
         # (aks holda egasi TTL tugagunicha "owner" bo'lib qolaverardi).
         _invalidate_rbac_resource_cache(user_id, channel_id)
         if owner_id is not None and owner_id != user_id:
@@ -1098,7 +1098,7 @@ def get_channel_posts_history_stats(channel_id: str | int = None) -> dict:
 
 
 # ============================================================
-# 🧠 PHASE B — CHANNEL INTELLIGENCE (DNA, BEST TIME, EVENT INGESTION)
+# CHANNEL INTELLIGENCE (DNA, BEST TIME, EVENT INGESTION)
 # ------------------------------------------------------------
 # 1) channel_post_events — kanal postlarining metama'lumotlari
 #    (idempotent: (channel_id, message_id) UNIQUE, ON CONFLICT DO NOTHING).
@@ -1591,7 +1591,7 @@ get_channel_dna = get_channel_dna_profile
 
 
 # ============================================================
-# 📥 PHASE D — KONTENT MANBALARI (11, 12-bandlar)
+# KONTENT MANBALARI (11, 12-bandlar)
 # ------------------------------------------------------------
 # RSS/ATOM oqimi va URL→post oqimi uchun DB qatlami:
 #   * content_sources — manbalar (interval, enabled, autopublish);
@@ -2138,7 +2138,7 @@ def count_source_drafts(user_id: int, status: str = "pending") -> int:
 
 def get_recycle_candidates(channel_id: str | int, min_age_days: int = 14,
                            limit: int = 30) -> list[dict]:
-    """♻️ Recycle uchun eski postlar (PHASE D, 13-band).
+    """♻️ Recycle uchun eski postlar.
 
     ``channel_posts_history`` dan ``min_age_days`` kundan eski postlar
     olinadi (views + reaksiyalar soni bilan). Bu funksiya FAQAT xom

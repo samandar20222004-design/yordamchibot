@@ -1,4 +1,4 @@
-"""⚙️ SOZLAMALAR + 📊 STATISTIKA (PostAssist V2 — 5-mikro qadam) i18n lug'ati.
+"""⚙️ SOZLAMALAR + 📊 STATISTIKA i18n lug'ati.
 
 UZ / RU / EN — 100% paritet (``settings_stats_parity_report`` qo'riqlaydi).
 
@@ -62,7 +62,7 @@ SETTINGS_STATS_I18N = {
         ),
         "ss_btn_refresh": "🔄 Yangilash",
         "ss_btn_back": "◀️ Orqaga",
-        # 3-QISM: 👤 Profil ixcham menyusining yopish tugmasi.
+        # 👤 Profil ixcham menyusining yopish tugmasi.
         "ss_btn_close": "❌ Yopish",
         "ss_stats_refreshing": "🔄 Yangilanmoqda…",
 
@@ -111,7 +111,7 @@ SETTINGS_STATS_I18N = {
         # PRO va Yordam asosiy reply-menudan shu panelga ko'chirildi.
         "ss_btn_premium": "💎 PRO",
         "ss_btn_help": "ℹ️ Yordam va Qo'llanma",
-        # 🔐 SPRINT 1 (Privacy & GDPR): yangi qator — maxfiylik siyosati
+        # yangi qator — maxfiylik siyosati
         # va "Ma'lumotlarimni o'chirish" (Sozlamalar hub'i 5-qator).
         "ss_btn_privacy": "🔐 Maxfiylik",
         "ss_btn_delete_data": "🗑 O'chirish",
@@ -125,7 +125,7 @@ SETTINGS_STATS_I18N = {
         "ss_settings_hub_title": "⚙️ <b>Sozlamalar</b>",
         "ss_settings_hub_hint": "\n\nKerakli bo'limni tanlang 👇",
         "ss_btn_lang": "🌐 Til / Язык",
-        "ss_btn_cleaner_primary": "✍️ Post Auto-Cleaner & Imzo",
+        "ss_btn_cleaner_primary": "🧹 Post tozalash va imzo",
         "ss_btn_pro_plans": "💎 PRO va Tariflar",
         # 👤 Profil kartasi: obuna holati (ID/balans kabi asosiy ma'lumotlar
         # cabinet_title'da; Til tugmasi profildan olib tashlangan).
@@ -139,7 +139,7 @@ SETTINGS_STATS_I18N = {
         "ss_btn_referral": "🎁 Taklif qilish",
         "ss_btn_about": "ℹ️ Bot haqida",
         "ss_settings_legacy": "🗂 Tezkor bo'limlar",
-        # --- 3-qadam: hub'ning yangi (to'liq) tugmalari ---
+        # hub'ning yangi (to'liq) tugmalari ---
         # «🎁 Kunlik bonus» va «👥 Do'stlarni taklif» — asosiy lug'atdagi
         # yagona manbadan olinadi (``cab_btn_daily_bonus`` / ``cab_referral``),
         # shu sababli bu yerda TAKRORLANMAYDI (settings_stats_t fallback'i
@@ -367,7 +367,7 @@ SETTINGS_STATS_I18N = {
         # --- ⚙️ ШАГ 3: строки inline-hub «⚙️ Настройки / Ещё» ---
         "ss_btn_premium": "💎 PRO",
         "ss_btn_help": "ℹ️ Помощь и руководство",
-        # 🔐 SPRINT 1: политика конфиденциальности и удаление данных.
+        # политика конфиденциальности и удаление данных.
         "ss_btn_privacy": "🔐 Приватность",
         "ss_btn_delete_data": "🗑 Удалить данные",
 
@@ -380,7 +380,7 @@ SETTINGS_STATS_I18N = {
         "ss_settings_hub_title": "⚙️ <b>Настройки</b>",
         "ss_settings_hub_hint": "\n\nВыберите раздел 👇",
         "ss_btn_lang": "🌐 Язык",
-        "ss_btn_cleaner_primary": "✍️ Автоочистка постов и подпись",
+        "ss_btn_cleaner_primary": "🧹 Автоочистка постов и подпись",
         "ss_btn_pro_plans": "💎 PRO и тарифы",
         "ss_profile_sub_pro": "⭐️ Подписка: <b>PRO</b> (до {date})",
         "ss_profile_sub_free": "🆓 Подписка: <b>FREE</b>",
@@ -619,7 +619,7 @@ SETTINGS_STATS_I18N = {
         # --- ⚙️ STEP 3: inline-hub rows for «⚙️ Settings / More» ---
         "ss_btn_premium": "💎 PRO",
         "ss_btn_help": "ℹ️ Help and Guide",
-        # 🔐 SPRINT 1: privacy policy and data deletion entry.
+        # privacy policy and data deletion entry.
         "ss_btn_privacy": "🔐 Privacy",
         "ss_btn_delete_data": "🗑 Delete data",
 
@@ -632,7 +632,7 @@ SETTINGS_STATS_I18N = {
         "ss_settings_hub_title": "⚙️ <b>Settings</b>",
         "ss_settings_hub_hint": "\n\nChoose a section 👇",
         "ss_btn_lang": "🌐 Language",
-        "ss_btn_cleaner_primary": "✍️ Post Auto-Cleaner & Signature",
+        "ss_btn_cleaner_primary": "🧹 Post cleaner & signature",
         "ss_btn_pro_plans": "💎 PRO & Plans",
         "ss_profile_sub_pro": "⭐️ Subscription: <b>PRO</b> (until {date})",
         "ss_profile_sub_free": "🆓 Subscription: <b>FREE</b>",
@@ -818,9 +818,8 @@ SETTINGS_STATS_I18N = {
 SETTINGS_STATS_KEYS = tuple(sorted(SETTINGS_STATS_I18N["uz"].keys()))
 
 # ============================================================
-# ⚙️ SOZLAMALAR — 4 TUGMALI MENYU (2 qator × 2 tugma)
+# ⚙️ SOZLAMALAR MENYUSI (3 qator × 2 tugma)
 # ============================================================
-#: Faqat to'rtta tez-tez ishlatiladigan amal primary grid'da ko'rsatiladi.
 SETTINGS_MENU_BUTTON_KEYS = (
     "ss_btn_lang",
     "ss_btn_cleaner_primary",

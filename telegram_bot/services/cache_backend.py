@@ -1,4 +1,4 @@
-"""PHASE 2 · State & Cache Adapter — Redis ⇄ In-Memory (ixtiyoriy ulanish).
+"""State & Cache Adapter — Redis ⇄ In-Memory (ixtiyoriy ulanish).
 
 Muammo (multi-instance arxitekturasi):
   * Rate limitlar, "menu bosildi" holatlari va boshqa nozik holatlar bir

@@ -229,7 +229,7 @@ def test_2_settings_primary_grid():
               ik_rows(KI.get_settings_hub_keyboard(lang)) == rows)
         check(f"[{lang}] callback'lar takrorlanmaydi", len(set(cbs)) == len(cbs), str(cbs))
         check(f"[{lang}] eski guruh tugmalari yo'q (rewards/tools)",
-              not any(cb in cbs for cb in ("stgs_rewards", "stgs_tools")), str(cbs))
+              not any(cb in cbs for cb in ("stgs_tools",)), str(cbs))
 
 
 # ===========================================================================

@@ -1,4 +1,4 @@
-"""✨ PostAssist V2 — Killer Feature i18n paketi (UZ / RU / EN).
+"""Killer Feature i18n paketi (UZ / RU / EN).
 
 Killer funksiyalarning barcha matnshunosligi (tugmalar, yo'riqnomalar,
 uslub tavsiflari) shu paketda uchala tilda saqlanadi va paritet hisobotlari
@@ -13,22 +13,22 @@ Modullar:
     privacy — 🔐 MAXFIYLIK SIYOSATI + MA'LUMOTLARNI O'CHIRISH (SPRINT 1,
                  GDPR): PRIVACY_I18N lug'ati, ``privacy_t`` va paritet hisoboti.
     content_menu — 🧩 KONTENT YARATISH submenu: CONTENT_MENU_I18N lug'ati,
-                 ``content_menu_t`` va paritet hisoboti (PostAssist V2).
+                 ``content_menu_t`` va paritet hisoboti.
     manual_post — ✍️ ODDIY POST (AI'SIZ): MANUAL_POST_I18N lug'ati,
                  ``manual_post_t`` va paritet hisoboti (birlashtirilgan menyu).
     channels_queue — 📢 KANALLARIM + 📅 REJALASHTIRILGAN: CHANNELS_QUEUE_I18N
                  lug'ati, ``channels_queue_t``, kanal boshqaruv/post amal
-                 tugma kalitlari va paritet hisoboti (PostAssist V2, 4-qadam).
+                 tugma kalitlari va paritet hisoboti.
     support — 💬 QO'LLAB-QUVVATLASH: SUPPORT_I18N lug'ati, ``support_t``,
                  bir martalik murojaat (one-time ticket) va admin javobi
-                 matnlari hamda paritet hisoboti (PostAssist V2, 4-QISM).
+                 matnlari hamda paritet hisoboti.
     settings_stats — ⚙️ SOZLAMALAR + 📊 STATISTIKA + 🧰 VOSITALAR:
                  SETTINGS_STATS_I18N lug'ati, ``settings_stats_t``, sozlamalar
                  menyu (8 guruh + Orqaga), rewards/help submenu'lari, vositalar
                  submenyusi va statistika
                  qator kalitlari hamda paritet hisoboti
                  (PostAssist V2, 5-qadam + 3-qadam refaktori).
-    content_learning — 📚 KONTENT O'RGANISH (STEP 3, Channel DNA 2.0):
+    content_learning — 📚 KONTENT O'RGANISH:
                  CONTENT_LEARNING_I18N lug'ati, ``content_learning_t``, AI
                  Studio / Post auditi ekranlaridagi lokalizatsiya qilingan
                  tavsiyalar (yetishmayotgan formatlar: Q&A, tutorial,
@@ -141,7 +141,7 @@ from translations.support import (  # noqa: F401
     support_parity_report,
     support_t,
 )
-# 🔐 SPRINT 1 (Privacy & GDPR) — maxfiylik siyosati + "Ma'lumotlarimni
+# maxfiylik siyosati + "Ma'lumotlarimni
 # o'chirish" oqimi matnlari (handlers/privacy.py, keyboards/inline.py).
 from translations.privacy import (  # noqa: F401
     PRIVACY_DELETE_KEYS,
@@ -151,13 +151,13 @@ from translations.privacy import (  # noqa: F401
     privacy_parity_report,
     privacy_t,
 )
-# 👑 FAZA 26 — admin panel i18n (handlers/admin.py matnlari, uz/ru/en).
+# admin panel i18n (handlers/admin.py matnlari, uz/ru/en).
 from translations.admin_panel import (  # noqa: F401
     ADMIN_PANEL_I18N,
     admin_panel_parity_report,
     admin_t,
 )
-# 📚 STEP 3 (Channel DNA 2.0) — kontent o'rganish tavsiyalari matnlari
+# kontent o'rganish tavsiyalari matnlari
 # (AI Studio / Post auditi ekranlari, services/channels/content_learning.py).
 from translations.content_learning import (  # noqa: F401
     CONTENT_LEARNING_I18N,

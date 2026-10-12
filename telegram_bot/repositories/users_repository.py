@@ -103,7 +103,7 @@ def total_referral_reward(friends_count: int) -> int:
 class _UserSaveResult(int):
     """``save_user`` natijasi — ``bool`` bilan TO'LIQ mos, ammo boy maydonli.
 
-    Nega ``int`` subclassi (1-BOSQICH): eski chaqiruvchilar natijani
+    Nega ``int`` subclassi: eski chaqiruvchilar natijani
     ``if save_user(...):`` / ``== True`` / ``bool()`` shaklida ishlatadi —
     ``int`` merosxo'rligi shu qarorlarni O'ZGARMAGAN qiladi, shu bilan
     birga yangi maydonlar (``.lang``) orqali /start ikkinchi DB so'rovini
@@ -136,19 +136,19 @@ def save_user(user_id: int, username: str, full_name: str = "", referrer_id: int
               language_code: str = None) -> bool:
     """Foydalanuvchini saqlaydi: yangi — ro'yxatdan o'tkazadi, eski — yangilaydi.
 
-    8-bosqich: referal anti-abuse qoidalari (self-referral, takroriy
+    referal anti-abuse qoidalari (self-referral, takroriy
     referral, noma'lum referrer)
     ``services.referral_service.ReferralService.register_new_user`` orqali
     BIR atomik tranzaksiyada bajariladi.
 
-    🌱 STEP 2 (ORGANIC GROWTH): ball mukofoti /start da BERILMAYDI — u
+    ball mukofoti /start da BERILMAYDI — u
     taklif qilingan foydalanuvchi birinchi postini yaratgan/rejalashtirgan
     paytda (``posts_repository.add_post`` hook'i →
     ``ReferralService.register_first_action``) beriladi. Mukofot formulasi
     ``referral_reward_for(n)`` (1-3 do'st +3, keyingilar +1 — PRO berilmaydi)
     va har bir bonus ``credits_ledger`` jadvaliga audit yozuvi tushadi.
 
-    1-BOSQICH: natija ``_UserSaveResult`` — ``bool`` ga mos (orqa moslik),
+    natija ``_UserSaveResult`` — ``bool`` ga mos (orqa moslik),
     lekin ``.lang`` maydoni ham beriladi. Shu bilan ``/start`` da
     ``get_user_language`` uchun ALOHIDA (ikkinchi) DB so'rovi kerak bo'lmaydi:
     bitta upsert = bitta round-trip.
@@ -191,7 +191,7 @@ def claim_daily_streak_bonus(user_id: int) -> dict:
     today = _today_tashkent()
     reward_map = {1: 1, 2: 1, 3: 2, 4: 1, 5: 2, 6: 2, 7: 4}
 
-    # 8-bosqich: bonus ballini CreditsService orqali yechamiz (credits_ledger).
+    # bonus ballini CreditsService orqali yechamiz (credits_ledger).
     from services.credits_service import CreditsService
 
     try:
@@ -224,7 +224,7 @@ def claim_daily_streak_bonus(user_id: int) -> dict:
                 SET streak_days = %s, last_bonus_date = %s 
                 WHERE user_id = %s
             """, (streak, today, user_id))
-            # 8-bosqich: bonusni CreditsService orqali SHU tranzaksiyada
+            # bonusni CreditsService orqali SHU tranzaksiyada
             # qo'shamiz — balans va credits_ledger audit yozuvi (op_type=
             # 'daily_bonus') birga commit/rollback bo'ladi.
             grant = CreditsService.grant_in_tx(
@@ -256,7 +256,7 @@ def claim_daily_streak_bonus(user_id: int) -> dict:
 def add_user_credit(user_id: int, amount: int = 1) -> bool:
     """Ball qo'shadi (odatda 1 — AI xatosidagi refund).
 
-    8-bosqich: ``CreditsService.add_credits`` orqali — balans va
+    ``CreditsService.add_credits`` orqali — balans va
     ``credits_ledger`` audit yozuvi BIR tranzaksiyada (op_type='ai_request').
     """
     from services.credits_service import CreditsService
@@ -289,7 +289,7 @@ def get_user_credits(user_id: int) -> int:
 def use_user_credit(user_id: int) -> bool:
     """Atomically spend one credit; prevents double-spending on concurrent updates.
 
-    8-bosqich: ``CreditsService.spend_credits`` orqali — balans va
+    ``CreditsService.spend_credits`` orqali — balans va
     ``credits_ledger`` audit yozuvi BIR tranzaksiyada (op_type='ai_request').
     Balans yetarli bo'lmasa (InsufficientCreditsError) ``False`` qaytadi va
     hech qanday yarim yozuv qolmaydi.
@@ -328,7 +328,7 @@ def transfer_user_credits(from_user_id: int, to_user_id: int, amount: int) -> tu
 
     try:
         with db_cursor(commit=True) as cur:
-            # 9-bosqich (high-concurrency): ikkala foydalanuvchi qatori BITTA
+            # ikkala foydalanuvchi qatori BITTA
             # so'rovda, DOIM user_id o'sish tartibida qulflanadi. Aks holda
             # A→B va B→A o'tkazmalari bir vaqtda kelganda qulflar teskari
             # tartibda olinib PostgreSQL "deadlock detected" berardi.
@@ -356,7 +356,7 @@ def transfer_user_credits(from_user_id: int, to_user_id: int, amount: int) -> tu
             if int(to_user_id) not in locked:
                 return False, "Qabul qiluvchi foydalanuvchi topilmadi."
 
-            # 8-bosqich: ball o'tkazish CreditsService orqali — ikkala tomonning
+            # ball o'tkazish CreditsService orqali — ikkala tomonning
             # balans va credits_ledger audit yozuvlari SHU tranzaksiyada
             # (op_type='transfer'): yechilgan tomon manfiy, qabul qilgan musbat.
             from services.credits_service import CreditsService
@@ -450,7 +450,7 @@ def get_all_user_ids() -> list:
 
 
 def get_retention_cohort(days: int = 30, limit: int = 5000) -> list:
-    """SPRINT 4 — onboarding/retention kohortasi (TTFP + D1/D7 uchun xom qatorlar).
+    """onboarding/retention kohortasi (TTFP + D1/D7 uchun xom qatorlar).
 
     Har bir foydalanuvchi uchun: ro'yxatdan o'tish (``created_at``), oxirgi
     faollik (``last_active_at``) va BIRINCHI post vaqti
@@ -504,7 +504,7 @@ def get_retention_cohort(days: int = 30, limit: int = 5000) -> list:
 
 
 def get_referral_conversion_stats(days: int = 30) -> dict:
-    """🌱 STEP 2 — AKTIV REFERAL KONVERSIYASI (/stats ekrani uchun).
+    """AKTIV REFERAL KONVERSIYASI (/stats ekrani uchun).
 
     Oxirgi ``days`` kun ichida ro'yxatdan o'tgan foydalanuvchilar orasida:
 
@@ -711,7 +711,7 @@ def get_user_channel_list_for_analytics(user_id: int) -> list:
 
 
 def get_user_overview_stats(user_id: int) -> dict:
-    """📊 Statistika (PostAssist V2, 5-mikro qadam) — ixcham umumiy ko'rsatkichlar.
+    """📊 Statistika — ixcham umumiy ko'rsatkichlar.
 
     Asosiy menyudagi «📊 Statistika» ekrani uchun foydalanuvchi darajasidagi
     4 ta asosiy ko'rsatkich:
@@ -785,7 +785,7 @@ def invalidate_user_overview_stats(user_id: int) -> None:
 
 
 # ============================================================
-# ⚙️ FOYDALANUVCHI SOZLAMALARI (PostAssist V2, 5-mikro qadam)
+# ⚙️ FOYDALANUVCHI SOZLAMALARI
 # ============================================================
 # 🔔 Bildirishnomalar va 🎨 Post sozlamalari ekranlari shu jadvaldan
 # o'qiladi/yoziladi (user_settings). Kalitlar handler tomonida OQ RO'YXAT
@@ -872,7 +872,7 @@ def get_user_settings_and_signature(
 def set_user_setting(user_id: int, key: str, value: bool) -> bool:
     """Sozlamani saqlaydi (UPSERT). Muvaffaqiyatda ``True``."""
     try:
-        with db_cursor() as cur:
+        with db_cursor(commit=True) as cur:
             cur.execute(
                 "INSERT INTO user_settings (user_id, key, value, updated_at) "
                 "VALUES (%s, %s, %s, NOW()) "
@@ -1101,7 +1101,7 @@ def get_user_plan(user_id: int) -> dict:
 def check_channel_limit(user_id: int) -> tuple[bool, int, int]:
     """Kanal limitini tekshiradi. Returns: (can_add, current, max).
 
-    3-BOSQICH (P0): muddati o'tgan PRO/enterprise obunasi FREE limitlariga
+    muddati o'tgan PRO/enterprise obunasi FREE limitlariga
     tushadi (va lazy ravishda DB'da ham 'free' qilinadi) — eski ``plan_type``
     ustuni muddat tugaganidan keyin ham PRO limit berib qo'ymasligi uchun.
     """
@@ -1110,7 +1110,7 @@ def check_channel_limit(user_id: int) -> tuple[bool, int, int]:
             cur.execute("SELECT plan_type FROM users WHERE user_id = %s", (user_id,))
             row = cur.fetchone()
             plan = (row[0] if row else "free") or "free"
-            # 3-BOSQICH (P0): muddati o'tgan PRO → avtomatik FREE limitlari.
+            # muddati o'tgan PRO → avtomatik FREE limitlari.
             plan = _effective_plan(cur, plan, user_id)
             cur.execute(
                 "SELECT COUNT(*) FROM channels WHERE user_id = %s AND is_active = TRUE",
@@ -1127,7 +1127,7 @@ def check_channel_limit(user_id: int) -> tuple[bool, int, int]:
 def downgrade_expired_subscriptions() -> int:
     """Muddati o'tgan BARCHA PRO/enterprise obunalarni 'free' ga tushiradi.
 
-    3-BOSQICH (P1): ``SubscriptionService.get_status`` faqat bitta foydalanuvchini
+    ``SubscriptionService.get_status`` faqat bitta foydalanuvchini
     lazy downgrade qiladi; bu sweep esa periodik job (scheduler
     ``subscription_sweep_job``) orqali hamma bazani bir tranzaksiyada tozalaydi —
     muddati tugagan PRO hech qachon PRO limitlarda qolib ketmaydi.
@@ -1181,7 +1181,7 @@ def _consume_ai_quota_reservation(user_id: int) -> bool:
 def _subscription_expired(cur, user_id: int) -> bool:
     """PRO/enterprise obunasi muddati o'tganini tekshiradi (lazy downgrade uchun).
 
-    3-BOSQICH (P0): ``check_ai_limit`` / ``check_channel_limit`` avval faqat
+    ``check_ai_limit`` / ``check_channel_limit`` avval faqat
     ``plan_type`` ustuniga qaragan — muddati o'tgan, lekin hali ``get_status``
     chaqirilmagan PRO foydalanuvchi PRO limitlarini SAQLAB QOLAR edi. Endi
     pro/enterprise planlarda ``subscription_expires_at`` ham tekshiriladi.
@@ -1253,7 +1253,7 @@ def check_ai_limit(user_id: int) -> tuple[bool, int, int]:
                 return (False, 0, PLAN_LIMITS["free"]["daily_ai_requests"])
             plan, ai_used = row
             plan = plan or "free"
-            # 3-BOSQICH (P0): muddati o'tgan PRO → avtomatik FREE limitlari.
+            # muddati o'tgan PRO → avtomatik FREE limitlari.
             plan = _effective_plan(cur, plan, user_id)
             max_ai = PLAN_LIMITS.get(plan, PLAN_LIMITS["free"])["daily_ai_requests"]
             cur.execute(
@@ -1319,7 +1319,7 @@ def increment_ai_usage(user_id: int):
 
 
 # ============================================================
-# 🔒 PHASE 2 / 1-QADAM — ATOMIK AI BRON (KVOTA + KREDIT)
+# ATOMIK AI BRON (KVOTA + KREDIT)
 # ------------------------------------------------------------
 # Muammo (refaktorgacha): ``check_ai_limit`` va ``use_user_credit`` IKKITA
 # alohida tranzaksiyada ishlar edi. Natijada:
@@ -1850,7 +1850,7 @@ def set_user_plan(user_id: int, plan: str, days: int = None,
                   admin_id: int = None) -> bool:
     """Foydalanuvchi tarifini o'zgartiradi.
 
-    ``admin_id`` (6-bosqich) berilsa — PRO berish harakati
+    ``admin_id`` berilsa — PRO berish harakati
     ``admin_audit_logs`` jadvaliga yoziladi (atomik).
 
     .. deprecated:: v2
@@ -1884,7 +1884,7 @@ def create_promo_code(code: str, plan_type: str = "pro", duration_days: int = 30
                       max_uses: int = None, admin_id: int = None) -> bool:
     """Promo-kod yaratadi (admin).
 
-    ``admin_id`` (6-bosqich) berilsa — harakat ``admin_audit_logs``
+    ``admin_id`` berilsa — harakat ``admin_audit_logs``
     jadvaliga kod yaratilgan tranzaksiyada yoziladi (atomik).
 
     .. deprecated:: v2
@@ -1940,7 +1940,7 @@ def get_referrer_id(user_id: int) -> int | None:
 
 
 # ============================================================
-# 🔐 SPRINT 1 — MAXFIYLIK: «MA'LUMOTLARIMNI O'CHIRISH» (GDPR)
+# MAXFIYLIK: «MA'LUMOTLARIMNI O'CHIRISH» (GDPR)
 # ============================================================
 #: Foydalanuvchi o'chirganda SAQLANADIGAN (qonuniy audit) jadvallar.
 #: Bu ro'yxat matnda ham (``translations/privacy.py``), testlarda ham

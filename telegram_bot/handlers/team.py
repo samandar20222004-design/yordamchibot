@@ -3,7 +3,7 @@
 The legacy posting FSM is not replaced here.  These callbacks are an additive
 entry point for workflow rows created by ``TeamService``.
 
-PHASE 3 — IDOR himoyasi
+IDOR himoyasi
 -----------------------
 Tasdiqlash kartochkasidagi ``post_id`` foydalanuvchi tomonidan
 SOXTALASHTIRILISHI mumkin (``team_ok:<boshqa_post_id>``).  Shu sababli har bir
@@ -110,7 +110,7 @@ async def team_reject_callback(update: Update, context: ContextTypes.DEFAULT_TYP
 
 async def team_edit_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    # PHASE 3: tahrirlash ham resurs ruxsatini talab qiladi — ilgari bu yerda
+    # tahrirlash ham resurs ruxsatini talab qiladi — ilgari bu yerda
     # tekshiruv YO'Q edi (har qanday foydalanuvchi post ID'sini user_data'ga
     # yozib, tahrirlash oqimini ochib olardi).
     pid = await _authorized_post_id(update, query, CB_TEAM_EDIT)

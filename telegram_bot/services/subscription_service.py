@@ -21,7 +21,7 @@ from database import (
     _cache_clear,
     _ensure_limit_reset,
 )
-# 6-bosqich: admin harakatlari auditi (PRO berish/bekor qilish).
+# admin harakatlari auditi (PRO berish/bekor qilish).
 from services.audit_service import AuditService
 
 from utils.silent_errors import log_silent_failure
@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 
 @contextmanager
 def transaction(commit: bool = True):
-    """Obuna oqimi uchun BITTA atomik tranzaksiya bloki (5-bosqich).
+    """Obuna oqimi uchun BITTA atomik tranzaksiya bloki.
 
     ``database.transaction()`` bilan bir xil semantika (blok oxirida COMMIT,
     istisnoda ROLLBACK). Sinkron servis kodi uchun ``db_cursor`` primitivi
@@ -57,7 +57,7 @@ class SubscriptionService:
         muddat kuyib ketmaydi, yangi muddat qo'shiladi.
 
         Args:
-            admin_id: (6-bosqich) obunani bergan admin — berilsa harakat
+            admin_id: obunani bergan admin — berilsa harakat
                 ``admin_audit_logs`` ga SHU tranzaksiyada yoziladi (atomik).
         """
         if plan not in PLAN_LIMITS:
@@ -69,7 +69,7 @@ class SubscriptionService:
         if days <= 0:
             return False
         try:
-            # Tarif + muddat BITTA blokda yangilanadi (5-bosqich).
+            # Tarif + muddat BITTA blokda yangilanadi.
             with transaction() as cur:
                 cur.execute(
                     "UPDATE users SET plan_type = %s, "
@@ -81,7 +81,7 @@ class SubscriptionService:
                 )
                 updated = cur.rowcount > 0
                 if updated and admin_id is not None:
-                    # 6-bosqich: PRO berish auditi — shu tranzaksiyada.
+                    # PRO berish auditi — shu tranzaksiyada.
                     AuditService.log_pro_grant(
                         admin_id, user_id, days, plan=plan, cur=cur,
                     )
@@ -125,7 +125,7 @@ class SubscriptionService:
                 )
                 updated = cur.rowcount > 0
                 if updated and admin_id is not None:
-                    # 6-bosqich: muddat uzaytirish (PRO berish) auditi.
+                    # muddat uzaytirish (PRO berish) auditi.
                     AuditService.log_pro_grant(
                         admin_id, user_id, days, plan="pro", cur=cur,
                     )
@@ -258,7 +258,7 @@ class SubscriptionService:
                 )
                 updated = cur.rowcount > 0
                 if updated and admin_id is not None:
-                    # 6-bosqich: PRO bekor qilish auditi.
+                    # PRO bekor qilish auditi.
                     AuditService.log_pro_revoke(
                         admin_id, user_id, old_plan=old_plan, cur=cur,
                     )

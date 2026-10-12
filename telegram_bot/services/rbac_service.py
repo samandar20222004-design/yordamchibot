@@ -1,4 +1,4 @@
-"""RBACService — PostAssist V2 (6-bosqich): rollar va ruxsatlar.
+"""RBACService: rollar va ruxsatlar.
 
 Rollar (``Role``)
 -----------------
@@ -20,7 +20,7 @@ Ruxsatlar
 * ``manage_users``     → MODERATOR, ADMIN, SUPER_ADMIN, OWNER
 * ``system_settings``  → OWNER
 
-PHASE 3 — resurs-ASOSIDAGI RBAC (markazlashuv) va IDOR himoyasi
+resurs-ASOSIDAGI RBAC (markazlashuv) va IDOR himoyasi
 ---------------------------------------------------------------
 1-7 bo'limlar (yuqorida) — BOT darajasidagi (global) rollar va admin
 ruxsatlari.  Ular **o'zgarmaydi**.
@@ -255,7 +255,7 @@ _MISS = object()
 _ROLE_CACHE: dict = {}
 _ROLE_CACHE_LOCK = threading.Lock()
 
-#: PHASE 3 — resurs (kanal) rollari kesh: ``(user_id, channel_id) → role``.
+#resurs (kanal) rollari kesh: ``(user_id, channel_id) → role``.
 #: Faqat MUSBAT natijalar keshlanadi (rad etish har doim qayta tekshiriladi).
 _RESOURCE_CACHE: dict = {}
 
@@ -565,7 +565,7 @@ def _resolve_denied_message(message, user_id=None) -> str:
 async def _send_denied(update, message: str) -> None:
     """Rad javobini foydalanuvchiga yetkazadi (xato bo'lsa jim o'tadi).
 
-    🧹 FAZA 26: ``adm:<kalit>`` markerli xabarlar avval foydalanuvchi
+    ``adm:<kalit>`` markerli xabarlar avval foydalanuvchi
     tilidagi matnga aylantiriladi (admin panel i18n pariteti).
     """
     message = _resolve_denied_message(message, _extract_user_id(update))
@@ -622,7 +622,7 @@ def _guard(checker, *, message: str, raise_error: bool, tag, value):
 
 
 # ============================================================
-# 7) ADMIN CALLBACK TAMPERING HIMOYASI (11-bosqich, P0)
+# 7) ADMIN CALLBACK TAMPERING HIMOYASI
 # ============================================================
 #
 # Inline callback ``data`` foydalanuvchi tomonidan SOXTALASHTIRILISHI mumkin
@@ -802,7 +802,7 @@ role_required = require_role
 
 
 # ============================================================
-# 8) RESURS-ASOSIDAGI RBAC — MARKAZIY RUXSAT NUQTASI (PHASE 3)
+# 8) RESURS-ASOSIDAGI RBAC — MARKAZIY RUXSAT NUQTASI
 # ============================================================
 #
 # Muammo (Phase 3 topshirig'i)
@@ -1001,17 +1001,6 @@ def resource_role_permissions(role) -> frozenset:
     """Resurs roli uchun ruxsatlar to'plami (noma'lum rol → bo'sh to'plam)."""
     parsed = parse_resource_role(role)
     return RESOURCE_ROLE_PERMISSIONS.get(parsed, frozenset())
-
-
-def resource_role_covers(role, required_role) -> bool:
-    """``role`` talab qilingan resurs rolini qamrab oladimi (ruxsatlar bo'yicha)?"""
-    target = parse_resource_role(required_role)
-    if target is None:
-        return False
-    required_perms = RESOURCE_ROLE_PERMISSIONS.get(target, frozenset())
-    if not required_perms:
-        return False
-    return required_perms.issubset(resource_role_permissions(role))
 
 
 @dataclasses.dataclass(frozen=True)
@@ -1366,25 +1355,6 @@ async def can(user_id, resource_type=RESOURCE_TYPE_CHANNEL, resource_id=None,
     return bool(decision.allowed)
 
 
-#: Qulaylik aliaslar (o'qish uchun tabiiy nomlar).
-async def check_resource_access(user_id, resource_type=RESOURCE_TYPE_CHANNEL,
-                                resource_id=None, action=ACTION_VIEW, **kwargs):
-    """:func:`check` bilan bir xil (nom boshqa modullarda qulayroq)."""
-    return await check(user_id, resource_type=resource_type,
-                       resource_id=resource_id, action=action, **kwargs)
-
-
-async def require_resource(user_id, resource_type=RESOURCE_TYPE_CHANNEL,
-                           resource_id=None, action=ACTION_VIEW, **kwargs) -> bool:
-    """:func:`can` — ruxsat bo'lmasa ``ResourcePermissionDenied`` ko'taradi."""
-    decision = await check(user_id, resource_type=resource_type,
-                           resource_id=resource_id, action=action, **kwargs)
-    if not decision.allowed:
-        _log_denied(decision)
-        raise ResourcePermissionDenied(decision)
-    return True
-
-
 def _log_denied(decision: AccessDecision) -> None:
     """Rad etilgan resurs so'rovini WARNING sifatida yozadi (audit izi)."""
     logger.warning(
@@ -1394,11 +1364,3 @@ def _log_denied(decision: AccessDecision) -> None:
     )
 
 
-async def can_any(user_id, resource_ids, resource_type=RESOURCE_TYPE_CHANNEL,
-                  action=ACTION_VIEW, **kwargs) -> bool:
-    """Berilgan resurslardan KAMIDA BITTASI uchun ruxsat bormi?"""
-    for resource_id in resource_ids or ():
-        if await can(user_id, resource_type=resource_type,
-                     resource_id=resource_id, action=action, **kwargs):
-            return True
-    return False

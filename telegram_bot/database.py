@@ -4,7 +4,7 @@
  🗄 DATABASE — CORE RUNTIME + REPOSITORY FACADE
 =====================================================================
 
-PostAssist V2 — faza 4: database modularizatsiyasi va repository pattern.
+faza 4: database modularizatsiyasi va repository pattern.
 
 Bu modul endi **ikki qatlamdan** iborat:
 
@@ -88,7 +88,7 @@ PoolError = getattr(psycopg2.pool, "PoolError", RuntimeError)  # CI'dagi psycopg
 
 # Boshqariladigan PostgreSQL (Aiven va h.k.) uchun ulanishlar soni cheklangan.
 # DB_POOL_MAX ni oshirishdan oldin xizmatning ulanish limitini tekshiring.
-# 1-BOSQICH: DB_POOL_MIN standart 0 -> 2. Sabab: Aiven/Render free-tier
+# DB_POOL_MIN standart 0 -> 2. Sabab: Aiven/Render free-tier
 # da birinchi so'rov har doim TLS handshake + autentifikatsiyani TO'LIQ
 # to'lashdan keyin chiqadi (300-800 ms). ``min`` ulanishlar ``init_db``
 # paytida ``warm_pool()`` orqali ochiladi va ISITILADI — ya'ni foydalanuvchi
@@ -98,7 +98,7 @@ DB_POOL_MIN = max(0, int(os.getenv("DB_POOL_MIN", "2")))
 # minconn=2, maxconn=10 (ThreadedConnectionPool). Aiven ulanish limitini tekshiring.
 DB_POOL_MAX = max(DB_POOL_MIN + 1, int(os.getenv("DB_POOL_MAX", "10")))
 
-# PostAssist V2 (10-BOSQICH): DB_POOL_SIZE — pool hajmi uchun qulay alias.
+# DB_POOL_SIZE — pool hajmi uchun qulay alias.
 # Berilgan bo'lsa DB_POOL_MAX o'rniga shu qiymat ishlatiladi (Aiven ulanish
 # cheklovlariga moslash uchun). Noto'g'ri qiymat e'tiborga olinmaydi.
 _raw_pool_size = os.getenv("DB_POOL_SIZE", "").strip()
@@ -116,13 +116,13 @@ if _raw_pool_size:
 # (ulkan navbat bitta tick'ni to'sib qo'ymasligi uchun).
 POST_BATCH_SIZE = max(1, int(os.getenv("POST_BATCH_SIZE", "100")))
 
-# 1-BOSQICH: standart 20s -> 8s. Ulanish osilib qolganda 20 soniya kutish
+# standart 20s -> 8s. Ulanish osilib qolganda 20 soniya kutish
 # botni «o'lik» ko'rsatadi; Aiven/Render free-tier da ulanish 8 soniyadan
 # oshsa allaqasi muvaffaqiyatsiz bo'ladi, shunda tez urinish (retry) bilan
 # qayta ulanish tezroq natija beradi.
 DB_CONNECT_TIMEOUT = max(1, int(os.getenv("DB_CONNECT_TIMEOUT", "8")))
 
-# 1-BOSQICH: Aiven idle-timeout ulanishni «o'lik» qilganda avtomatik
+# Aiven idle-timeout ulanishni «o'lik» qilganda avtomatik
 # QAYTA ulanish urinishlari soni (standart 1 = bir marta qayta urinadi,
 # jami 2 urinish). 0 = faqat bir urinish, qayta urinish yo'q.
 DB_RECONNECT_RETRIES = max(0, int(os.getenv("DB_RECONNECT_RETRIES", "1")))
@@ -142,32 +142,32 @@ SCHEMA_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "schema.s
 # tests/schema_test.py buni tekshirib turadi). Legacy ro'yxatlar saqlanadi;
 # P0 obyektlari alohida REQUIRED_P0_* orqali ham startup'da tekshiriladi.
 EXPECTED_TABLES = (
-    "users", "channels", "sponsor_channels", "system_settings",
+    "users", "user_settings", "channels", "sponsor_channels", "system_settings",
     "bot_settings", "ad_pool", "channel_post_counters", "scheduled_posts",
     "post_reactions", "sent_post_messages", "promo_codes", "payments",
     "payment_receipts", "payment_orders", "channel_posts_history",
-    # PostAssist V2 (6-bosqich): RBAC rollari va admin auditi.
+    # RBAC rollari va admin auditi.
     "admin_roles", "admin_audit_logs",
-    # PostAssist V2 (8-bosqich): AI-ballar auditi (credits ledger).
+    # AI-ballar auditi (credits ledger).
     "credits_ledger",
-    # PHASE 2 / 1-qadam: atomik AI bron (kunlik kvota YOKI kredit).
+    # atomik AI bron (kunlik kvota YOKI kredit).
     "ai_reservations",
-    # PHASE A — Channel Intelligence baza poydevori (idempotent).
+    # Channel Intelligence baza poydevori (idempotent).
     "channel_intelligence_profiles",
     "channel_post_events",
     "channel_insights",
     # FAZA 8,9,22 — Kengaytirilgan Channel DNA (idempotent).
     "channel_dna",
-    # PHASE C — Post shablonlari (7/9/10-bandlar refaktori).
+    # Post shablonlari (7/9/10-bandlar refaktori).
     "post_templates",
-    # PHASE D — Kontent manbalari (11, 12-bandlar): RSS/ATOM oqimi.
+    # Kontent manbalari (11, 12-bandlar): RSS/ATOM oqimi.
     "content_sources",
     "source_items",
     "source_drafts",
-    # PHASE E — team membership + aggregate comment insights.
+    # team membership + aggregate comment insights.
     "channel_members",
     "channel_comment_insights",
-    # 💬 4-QISM — Qo'llab-quvvatlash: bir martalik murojaat (one-time ticket)
+    # Qo'llab-quvvatlash: bir martalik murojaat (one-time ticket)
     # va admin javobini murojaat egasiga bog'lovchi yozuvlar.
     "support_tickets",
     "support_ticket_deliveries",
@@ -184,20 +184,20 @@ EXPECTED_INDEXES = (
     "idx_channels_user_id",
     "idx_post_reactions_post_id",
     "idx_channel_posts_history_channel_date",
-    # PostAssist V2 (5-bosqich): scheduler/bot tezligi va FK ustunlari.
+    # scheduler/bot tezligi va FK ustunlari.
     "idx_posts_sched_status",
     "idx_deliveries_lookup",
     "idx_payments_user",
     "idx_channels_owner",
     "idx_scheduled_posts_channel",
     "idx_deliveries_post",
-    # PostAssist V2 (6-bosqich): admin harakatlari auditi indeksi.
+    # admin harakatlari auditi indeksi.
     "idx_audit_admin",
-    # PostAssist V2 (8-bosqich): foydalanuvchi ballar tarixi indeksi.
+    # foydalanuvchi ballar tarixi indeksi.
     "idx_ledger_user",
-    # PHASE 2 / 1-qadam: atomik AI bron indeksi (schema.sql'da mavjud).
+    # atomik AI bron indeksi (schema.sql'da mavjud).
     "idx_ai_reservations_user",
-    # PHASE A — Channel Intelligence indekslari.
+    # Channel Intelligence indekslari.
     "idx_channel_post_events_channel",
     "idx_channel_post_events_created",
     "idx_channel_insights_channel",
@@ -205,19 +205,19 @@ EXPECTED_INDEXES = (
     # FAZA 8,9,22 — Kengaytirilgan Channel DNA indekslari.
     "idx_channel_dna_channel",
     "idx_channel_dna_updated",
-    # PHASE C — Post shablonlari indeksi.
+    # Post shablonlari indeksi.
     "idx_post_templates_user",
-    # PHASE D — Kontent manbalari indekslari (RSS/ATOM oqimi).
+    # Kontent manbalari indekslari (RSS/ATOM oqimi).
     "idx_content_sources_user",
     "idx_content_sources_due",
     "idx_source_items_source",
     "idx_source_drafts_user",
-    # PHASE E — team membership + aggregate comment insights.
+    # team membership + aggregate comment insights.
     "idx_channel_members_channel",
     "idx_channel_members_user",
     "idx_comment_insights_channel",
 )
-# DIQQAT: P1 (5-qadam) analitika indekslari ATAYLAB bu ro'yxatga
+# DIQQAT: P1 analitika indekslari ATAYLAB bu ro'yxatga
 # qo'shilmagan — ``EXPECTED_INDEXES`` tarixiy (frozen) ro'yxat bo'lib,
 # tests/schema_test.py uni AYNAN shu 33 talik deb qulflaydi (xuddi
 # ``EXPECTED_TABLES`` / PHASE E va AI_USAGE ro'yxatlaridagi kabi).
@@ -228,7 +228,7 @@ REQUIRED_P0_TABLES = ("promo_redemptions", "post_deliveries")
 
 REQUIRED_P0_INDEXES = ("idx_deliveries_sched", "idx_deliveries_retry", "uq_payments_telegram_charge_id")
 
-# PHASE 6 — AI xarajat/telemetriya jurnali (schema.sql'dagi bilan bir xil).
+# AI xarajat/telemetriya jurnali (schema.sql'dagi bilan bir xil).
 # ``EXPECTED_TABLES`` ro'yxatiga ATAYLAB qo'shilmagan: u tarixiy (frozen)
 # ro'yxat bo'lib, schema_test.py dagi 31/33 hisoblagichlari bilan
 # qulflangan. PHASE 5 dagi ``REQUIRED_P0_TABLES`` kabi alohida tekshiriladi.
@@ -250,7 +250,7 @@ PHASE_E_INDEXES = ("idx_channel_members_channel", "idx_channel_members_user", "i
 
 APPROVAL_WORKFLOW_STATUSES = ("draft", "pending_approval", "approved", "scheduled", "published")
 
-# --- MA'LUMOTLAR BUTUNLIGI (PostAssist V2 — 5-bosqich) -------------------
+# --- MA'LUMOTLAR BUTUNLIGI -------------------
 # Kanonik ro'yxat: schema.sql'dagi "5-BOSQICH" bo'limi bilan bir xil bo'lishi
 # shart (tests/db_integrity_test.py buni tekshirib turadi). Har bir element
 # idempotent: obyekt allaqachon bo'lsa qayta yaratilmaydi, mavjud ma'lumotlar
@@ -340,7 +340,7 @@ INTEGRITY_CONSTRAINTS = (
         "note": "har bir ball audit yozuvi mavjud foydalanuvchiga tegishli",
     },
     {
-        # PHASE 2 / 1-qadam: atomik AI bron qatori yetim qolmasligi uchun.
+        # atomik AI bron qatori yetim qolmasligi uchun.
         "table": "ai_reservations",
         "name": "fk_ai_reservations_user",
         "kind": "fk",
@@ -475,7 +475,7 @@ INTEGRITY_INDEXES = (
 
 INTEGRITY_INDEX_NAMES = tuple(item["name"] for item in INTEGRITY_INDEXES)
 
-# --- P1 PERFORMANCE (5-qadam): ANALITIKA KOMPOZIT INDEKSLARI --------------
+# ANALITIKA KOMPOZIT INDEKSLARI --------------
 # Kanal tahlili (oxirgi 50-100 post + metrikalar) eng ko'p filtrlanadigan
 # ustunlar bo'yicha kompozit indekslar. Barchasi ``CREATE INDEX IF NOT
 # EXISTS`` — idempotent migratsiya: qayta-qayta bajarish xavfsiz va
@@ -1201,7 +1201,7 @@ def _connection_is_usable(conn) -> bool:
 def _acquire_connection():
     """Pool'dan ulanish olish (maks. 15 soniya). O'lik ulanishda qayta urinadi.
 
-    1-BOSQICH: urinishlar soni endi ``DB_RECONNECT_RETRIES`` (standart 1 →
+    urinishlar soni endi ``DB_RECONNECT_RETRIES`` (standart 1 →
     jami 2 urinish) orqali boshqariladi. Yaroqsiz ulanish FAQAT o'zi tashlanadi;
     pool BUTUNLAY qayta qurilmaydi: ``_reset_pool`` band ulanishlarni ham
     yopadi va yangi pool ``minconn`` ta ulanishni ketma-ket (har biri
@@ -1342,7 +1342,7 @@ def _discard_connection(conn):
         sem.release()
 
 # ============================================================
-# ATOMIK TRANZAKSIYA YORDAMCHILARI (PostAssist V2 — 5-bosqich)
+# ATOMIK TRANZAKSIYA YORDAMCHILARI
 # ------------------------------------------------------------
 # ``db_cursor(commit=True)`` avvallari ham bitta ulanishda implicit BEGIN +
 # COMMIT/ROLLBACK qilardi. 5-bosqichda bu xatti-harakat rasmiy, ismli API'ga
@@ -1381,7 +1381,8 @@ class _Transaction:
     """
 
     __slots__ = ("commit", "isolation_level", "readonly", "conn", "cur",
-                 "savepoint", "parent", "owns_conn", "_token", "after_commit")
+                 "savepoint", "parent", "owns_conn", "_token", "after_commit",
+                 "fast_read")
 
     def __init__(self, commit: bool = True, isolation_level: str = None,
                  readonly: bool = False):
@@ -1401,10 +1402,26 @@ class _Transaction:
         self.owns_conn = True
         self._token = None
         self.after_commit = []  # COMMIT'dan keyin chaqiriladigan funksiyalar (kesh tozalash)
+        # Oddiy o'qish (commit=False, qo'shimcha sozlamasiz) autocommit rejimida
+        # bajariladi: BEGIN/ROLLBACK yuborilmaydi, har bir so'rov bazaga
+        # 3 emas, 1 marta borib-keladi.
+        self.fast_read = not self.commit and level is None and not self.readonly
 
     # ---- kirish -------------------------------------------------------
     def enter(self):
         parent = _TX_CTX.get()
+        if parent is not None and parent.conn is not None and parent.fast_read:
+            if self.fast_read:
+                # O'qish ichidagi o'qish — tashqi blok ulanishidan foydalanamiz.
+                self.parent = parent
+                self.conn = parent.conn
+                self.owns_conn = False
+                self.cur = self.conn.cursor()
+                self._token = _TX_CTX.set(self)
+                return self.cur
+            # O'qish ichida yozish: tashqi blokda tranzaksiya yo'q, shuning
+            # uchun yozish o'z ulanishida alohida atomik tranzaksiya bo'ladi.
+            parent = None
         if parent is not None and parent.conn is not None:
             # Ich-ma-ich: BITTA ulanish, SAVEPOINT. Alohida kursor ochiladi —
             # shunda tashqi blokning natijalari (fetchone/fetchall) buzilmaydi.
@@ -1420,8 +1437,10 @@ class _Transaction:
         conn = _acquire_connection()
         self.conn = conn
         try:
+            if self.fast_read:
+                conn.autocommit = True
             self.cur = conn.cursor()
-            if getattr(conn, "autocommit", False):
+            if not self.fast_read and getattr(conn, "autocommit", False):
                 # Autocommit ulanishda tranzaksiyani qo'lbella ochamiz.
                 self.cur.execute("BEGIN")
             if self.isolation_level:
@@ -1460,6 +1479,12 @@ class _Transaction:
                 self._close_cursor()
             return
 
+        if self.fast_read and not self.owns_conn:
+            # Ichki o'qish: ulanish tashqi blokka tegishli.
+            self.conn = None
+            self._close_cursor()
+            return
+
         conn, self.conn = self.conn, None
         if conn is None:
             return
@@ -1467,6 +1492,15 @@ class _Transaction:
             self._close_cursor()
         except Exception as _silent_exc:
             log_silent_failure("database:_Transaction.finish", _silent_exc)
+        if self.fast_read:
+            broken = isinstance(exc, (psycopg2.OperationalError, psycopg2.InterfaceError))
+            if not broken:
+                try:
+                    conn.autocommit = False  # pool'ga odatiy holatda qaytadi
+                except Exception:
+                    broken = True
+            self._retire(conn, broken=broken)
+            return
         if exc is None:
             try:
                 if self.commit:
@@ -1720,7 +1754,7 @@ def ping_db() -> bool:
         return False
 
 # ============================================================
-# 🩺 SYSTEM HEALTH CHECK (PostAssist V2 — 7-BOSQICH)
+# 🩺 SYSTEM HEALTH CHECK
 # ------------------------------------------------------------
 # HealthService (services/health_service.py) ishlatadigan yengil
 # DB so'rovlari. HECH QANDAY mavjud funksiyani o'zgartirmaydi —
@@ -1756,7 +1790,7 @@ def ping_db_with_latency() -> dict:
         }
 
 def init_db():
-    # 1-BOSQICH: avval havuzni «isitish» — jadvallarni yaratishdan oldin
+    # avval havuzni «isitish» — jadvallarni yaratishdan oldin
     # ``SELECT 1;`` bilan ulanishlar tayyorlanadi, shunda startup'dagi
     # eng qimmat SQL (CREATE TABLE/INDEX) sovuq ulanish ustida emas,
     # iliq ulanish ustida bajariladi va Render port 0-dan tez ochiladi.
@@ -1900,7 +1934,7 @@ def _apply_integrity_indexes(cur) -> None:
             logger.warning("Integrity indeks yaratilmadi (%s): %s", ddl.split()[5], e)
 
 def _analytics_performance_index_statements() -> list:
-    """P1 (5-qadam) analitika indekslarining idempotent DDL ro'yxati."""
+    """P1 analitika indekslarining idempotent DDL ro'yxati."""
     return [item["ddl"] + ";" for item in ANALYTICS_PERFORMANCE_INDEXES]
 
 def _apply_analytics_performance_indexes(cur) -> None:
@@ -2099,7 +2133,7 @@ def _verify_schema(cur) -> None:
         "SELECT indexname FROM pg_indexes WHERE schemaname = current_schema()"
     )
     indexes = {row[0] for row in cur.fetchall()}
-    # P1 (5-qadam): analitika kompozit indekslari ham startup tekshiruviga
+    # analitika kompozit indekslari ham startup tekshiruviga
     # kiradi (alohida ro'yxat — ``EXPECTED_INDEXES`` frozen).
     required_indexes = (*EXPECTED_INDEXES, *REQUIRED_P0_INDEXES, *AI_USAGE_INDEXES,
                         *ANALYTICS_PERFORMANCE_INDEX_NAMES, *PAYME_INDEXES)
@@ -2133,7 +2167,7 @@ def _verify_schema(cur) -> None:
         len(required_indexes) - len(missing_indexes), len(required_indexes),
     )
 
-    # 5-bosqich: ma'lumotlar butunligi (FK / CHECK / UNIQUE) ham tekshiriladi.
+    # ma'lumotlar butunligi (FK / CHECK / UNIQUE) ham tekshiriladi.
     # Topilmasa — schema.sql + ichki migratsiya bloki qayta qo'llanadi; baribir
     # bo'lmasa ogohlantiramiz (bot ishlashda davom etadi — eski bazalarda
     # constraint qo'shish ma'lumot hajmi/tartibi tufayli imkonsiz bo'lishi mumkin).
@@ -2164,7 +2198,7 @@ def _verify_schema(cur) -> None:
 def _schema_bootstrap_complete(cur) -> bool:
     """Arzon (keshlanadigan) tekshiruv: barcha kutilgan jadval/indekslar bor.
 
-    SPRINT 2 (P1 PERFORMANCE) — ``_init_db_once`` ichidagi 700+ qatorlik
+    ``_init_db_once`` ichidagi 700+ qatorlik
     zaxira DDL bloki (``CREATE TABLE/INDEX IF NOT EXISTS``) mantiqan
     idempotent bo'lsa-da, Postgres HAR BIR startda ularning barchasini
     katalogdan qayta tekshiradi — bu normal (schema.sql allaqachon
@@ -2230,7 +2264,7 @@ def _init_db_once():
         # 1) Kanonik sxema — schema.sql (barcha operatorlar idempotent).
         _apply_schema_file(cur)
 
-        # 2) P1 PERFORMANCE (SPRINT 2): sxema allaqachon to'liq bo'lsa (eng
+        # 2) P1 PERFORMANCE: sxema allaqachon to'liq bo'lsa (eng
         # keng tarqalgan holat — har bir oddiy restart/deploy), 700+
         # qatorlik zaxira DDL blokini BUTUNLAY o'tkazib yuboramiz —
         # faqat yengil final tekshiruv (``_verify_schema``) ishlaydi.
@@ -2253,7 +2287,7 @@ def _init_db_once():
         _apply_integrity_indexes(cur)
         _apply_integrity_constraints(cur)
 
-        # 3b) P1 PERFORMANCE (5-qadam): analitika (kanal tahlili) uchun
+        # 3b) P1 PERFORMANCE: analitika (kanal tahlili) uchun
         # kompozit indekslar — hammasi ``CREATE INDEX IF NOT EXISTS``
         # ko'rinishida, ya'ni idempotent migratsiya.
         _apply_analytics_performance_indexes(cur)
@@ -2268,7 +2302,7 @@ AD_SCOPE_CHANNEL = "channel"
 
 AD_SCOPE_REPLY = "reply"
 
-# PostAssist V2 (3-bosqich): delivery backoff jadvali (urinish → kutish, soniya).
+# delivery backoff jadvali (urinish → kutish, soniya).
 # 1-urinishdagi transient xato → 30s, 2- → 2 daqiqa, 3- → 5 daqiqa,
 # 4- → 15 daqiqa; 5-urinishda ham xato bo'lsa → 'dead_letter' (qayta urinilmaydi).
 DELIVERY_BACKOFF_SECONDS = (30, 120, 300, 900)
@@ -2276,7 +2310,7 @@ DELIVERY_BACKOFF_SECONDS = (30, 120, 300, 900)
 # ============================================================
 # STARS PAYMENTS LOG
 # ============================================================
-# To'lov audit holatlari (5-bosqich). DB tomonida CHECK (chk_payments_status)
+# To'lov audit holatlari. DB tomonida CHECK (chk_payments_status)
 # bilan ham himolangan — Python to'plami bilan bir xil bo'lishi shart.
 PAYMENT_STATUS_PENDING = "pending"
 
@@ -2291,7 +2325,7 @@ RECEIPT_STATUS_REJECTED = "rejected"
 APPROVAL_STATUSES = ("draft", "pending_approval", "approved", "scheduled", "published")
 
 # ============================================================
-# 💬 POSTASSIST V2 · 4-QISM — QO'LLAB-QUVVATLASH (ONE-TIME TICKET)
+# 4-QISM — QO'LLAB-QUVVATLASH (ONE-TIME TICKET)
 # ------------------------------------------------------------
 # BIR MARTALIK MUROJAAT (one-time ticket) + DIRECT ADMIN REPLY
 # oqimining ma'lumot qatlami.
@@ -2415,7 +2449,7 @@ from repositories.posts_repository import (  # noqa: E402, F401
     retry_post, set_queue_slots, toggle_reaction, update_post_content,
     update_post_time
 )
-# --- 📊 ANALYTICS — kanal tahlili uchun BATCH (N+1'siz) o'qishlar (5-qadam/P1)
+# --- 📊 ANALYTICS — kanal tahlili uchun BATCH (N+1'siz) o'qishlar
 from repositories.analytics_repository import (  # noqa: E402, F401
     ANALYTICS_DEFAULT_DAYS, ANALYTICS_DEFAULT_LIMIT, ANALYTICS_MAX_BATCH_IDS,
     ANALYTICS_MAX_LIMIT, count_posts_by_format, format_from_media,
@@ -2608,7 +2642,7 @@ def _ddl_ads_and_posts(cur):
     """)
 
     # P0-01: doimiy, DB-backed delivery idempotency registry.
-    # PostAssist V2 (3-bosqich): backoff uchun next_retry_at va kalit
+    # backoff uchun next_retry_at va kalit
     # tarkibidagi scheduled_time ustunlari qo'shildi.
     cur.execute("""
         CREATE TABLE IF NOT EXISTS post_deliveries (
@@ -2782,7 +2816,7 @@ def _ddl_payments(cur):
         "ALTER TABLE payment_receipts ADD COLUMN IF NOT EXISTS order_id TEXT;"
     )
 
-    # ⚙️ SOZLAMALAR (PostAssist V2, 5-mikro qadam): foydalanuvchining
+    # ⚙️ SOZLAMALAR: foydalanuvchining
     # shaxsiy sozlamalari (🔔 Bildirishnomalar / 🎨 Post sozlamalari).
     # Kalitlar handler tomonida OQ RO'YXAT bilan cheklanadi — jadvalga
     # faqat ma'lum kalitlar yoziladi.
@@ -2852,7 +2886,7 @@ def _ddl_user_settings_and_migrations(cur):
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS language_code VARCHAR(10) DEFAULT 'uz';",
         # 🆕 Onboarding: "⚙️ To'liq menyuni ochish" bosilganini eslab qolamiz
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS full_menu_unlocked BOOLEAN DEFAULT FALSE;",
-        # 🆕 6-bosqich (RBAC): foydalanuvchi roli. DEFAULT 'user' — barcha
+        # foydalanuvchi roli. DEFAULT 'user' — barcha
         # eski yozuvlar oddiy foydalanuvchi bo'lib qoladi (backward-compatible).
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(20) DEFAULT 'user';",
         "ALTER TABLE sponsor_channels ADD COLUMN IF NOT EXISTS title TEXT;",
@@ -2871,10 +2905,10 @@ def _ddl_user_settings_and_migrations(cur):
         "ALTER TABLE channel_posts_history ADD COLUMN IF NOT EXISTS views INTEGER DEFAULT 0;",
         "ALTER TABLE channel_posts_history ADD COLUMN IF NOT EXISTS post_date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;",
         "ALTER TABLE channel_posts_history ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;",
-        # PostAssist V2 (3-bosqich): persistent delivery + backoff ustunlari.
+        # persistent delivery + backoff ustunlari.
         "ALTER TABLE post_deliveries ADD COLUMN IF NOT EXISTS scheduled_time TIMESTAMPTZ;",
         "ALTER TABLE post_deliveries ADD COLUMN IF NOT EXISTS next_retry_at TIMESTAMPTZ;",
-        # PostAssist V2 (5-bosqich): to'lov audit holati + idx_payments_user
+        # to'lov audit holati + idx_payments_user
         # (user_id, status) shu ustun bilan quriladi. DEFAULT tufayli eski
         # yozuvlar ham 'succeeded' hisoblanadi (ma'lumot o'zgarmaydi).
         "ALTER TABLE payments ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'succeeded';",
@@ -2887,7 +2921,7 @@ def _ddl_user_settings_and_migrations(cur):
         # bilan yozish uchun (eski cheklar: 0 — hisob kitobi buzilmaydi).
         "ALTER TABLE payment_receipts ADD COLUMN IF NOT EXISTS amount_uzs INT DEFAULT 0;",
         "ALTER TABLE payment_receipts ADD COLUMN IF NOT EXISTS order_id TEXT;",
-        # PHASE E — approval metadata (additive; existing single-owner rows unchanged).
+        # approval metadata (additive; existing single-owner rows unchanged).
         "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS delivery_options JSONB NOT NULL DEFAULT '{}'::jsonb;",
         "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS created_by BIGINT;",
         "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS approval_requested_at TIMESTAMPTZ;",
@@ -2943,7 +2977,7 @@ def _ddl_indexes_admin_credits(cur):
     cur.execute("CREATE INDEX IF NOT EXISTS idx_post_reactions_post_id ON post_reactions (post_id);")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_channel_posts_history_channel_date ON channel_posts_history (channel_id, post_date DESC);")
 
-    # 2b) PostAssist V2 (6-bosqich): RBAC rollari va admin auditi.
+    # 2b) PostAssist V2: RBAC rollari va admin auditi.
     # schema.sql fayli topilmasa ham bu jadvallar albatta yaratiladi.
     cur.execute("""
         CREATE TABLE IF NOT EXISTS admin_roles (
@@ -2972,7 +3006,7 @@ def _ddl_indexes_admin_credits(cur):
         "ON admin_audit_logs(admin_id, created_at);"
     )
 
-    # 💰 PostAssist V2 (8-bosqich): credits ledger — AI-ballar auditi.
+    # credits ledger — AI-ballar auditi.
     # schema.sql fayli topilmasa ham bu jadval albatta yaratiladi.
     cur.execute("""
         CREATE TABLE IF NOT EXISTS credits_ledger (
@@ -2990,7 +3024,7 @@ def _ddl_indexes_admin_credits(cur):
         "ON credits_ledger(user_id, created_at);"
     )
 
-    # 🔒 PHASE 2 / 1-qadam: AI so'rov bronlari (atomik kvota + kredit).
+    # AI so'rov bronlari (atomik kvota + kredit).
     # ``reserve_ai_request()`` kunlik kvota YOKI kreditni BITTA
     # tranzaksiyada band qiladi; ``refund_ai_request()`` esa bronni ID
     # bo'yicha IDEMPOTENT qaytaradi. schema.sql fayli topilmasa ham bu
@@ -3029,7 +3063,7 @@ def _ddl_ai_and_intelligence(cur):
         "ON ai_reservations(user_id, created_at);"
     )
 
-    # 🧾 PHASE 6 — AI xarajat/telemetriya jurnali. schema.sql fayli
+    # AI xarajat/telemetriya jurnali. schema.sql fayli
     # topilmasa ham bu jadval albatta yaratiladi (aks holda xarajat
     # hisoboti va limit nazorati ko'r bo'lib qolardi). Barcha operatorlar
     # IF NOT EXISTS — qayta-qayta bajarish xavfsiz.
@@ -3068,7 +3102,7 @@ def _ddl_ai_and_intelligence(cur):
         "ON ai_usage_events(channel_id, created_at DESC);"
     )
 
-    # 🧠 PHASE A — Channel Intelligence baza poydevori (idempotent).
+    # Channel Intelligence baza poydevori (idempotent).
     # schema.sql fayli topilmasa ham bu jadvallar albatta yaratiladi
     # (aks holda analytics/audit oqimi ishlamasdi). Barcha CREATE TABLE
     # va indekslar IF NOT EXISTS — qayta-qayta bajarish xavfsiz.
@@ -3103,7 +3137,7 @@ def _ddl_ai_and_intelligence(cur):
             CONSTRAINT uq_channel_post_events UNIQUE (channel_id, message_id)
         );
     """)
-    # PHASE B: eski (Phase A) bazalar uchun yangi ustunlar — idempotent.
+    # eski (Phase A) bazalar uchun yangi ustunlar — idempotent.
     # Media fayllarning O'ZI bazaga saqlanmaydi — faqat file_id va turi.
     cur.execute("ALTER TABLE channel_intelligence_profiles "
                 "ADD COLUMN IF NOT EXISTS formatting_style VARCHAR(64);")
@@ -3196,7 +3230,7 @@ def _ddl_dna_templates_sources(cur):
         "ON channel_dna (updated_at DESC);"
     )
 
-    # 📋 PHASE C — POST SHABLONLARI (7/9/10-bandlar refaktori).
+    # POST SHABLONLARI (7/9/10-bandlar refaktori).
     # Foydalanuvchining takroriy post shablonlari: variables JSONB'da
     # {TITLE}/{TEXT}/{PRICE}/{LINK}/{CTA}/{SOURCE}/{DATE} ro'yxati
     # saqlanadi. Barcha so'rovlar user_id bilan filtrlanadi (IDOR).
@@ -3216,7 +3250,7 @@ def _ddl_dna_templates_sources(cur):
         "ON post_templates (user_id, created_at DESC);"
     )
 
-    # 📥 PHASE D — KONTENT MANBALARI (11, 12-bandlar): RSS/ATOM manbalari,
+    # KONTENT MANBALARI (11, 12-bandlar): RSS/ATOM manbalari,
     # o'qilgan elementlar (dublikat kaliti UNIQUE(source_id, external_id))
     # va Channel DNA asosidagi post qoralamalari (source_drafts).
     # Barcha jadvallar idempotent va foydalanuvchi izolyatsiyasi bilan.
@@ -3279,7 +3313,7 @@ def _ddl_dna_templates_sources(cur):
         "ON source_drafts (user_id, status, created_at DESC);"
     )
 
-    # PHASE E — schema.sql fallback: team membership and aggregate audience
+    # schema.sql fallback: team membership and aggregate audience
     # insights must still exist if an operator accidentally deploys without
     # the canonical schema file.
 
@@ -3321,7 +3355,7 @@ def _ddl_team_and_support(cur):
     """)
     cur.execute("CREATE INDEX IF NOT EXISTS idx_comment_insights_channel ON channel_comment_insights (channel_id, occurrence_count DESC);")
 
-    # 💬 4-QISM — schema.sql fallback: qo'llab-quvvatlash murojaatlari va
+    # schema.sql fallback: qo'llab-quvvatlash murojaatlari va
     # admin javoblarini bog'lovchi jadvallar kanonik sxema fayli
     # qo'llanilmagan holatda ham mavjud bo'lishi shart.
     cur.execute("""
@@ -3348,7 +3382,7 @@ def _ddl_team_and_support(cur):
         );
     """)
 
-    # 3) PostAssist V2 (5-bosqich): scheduler tezligi uchun kompozit indekslar
+    # 3) PostAssist V2: scheduler tezligi uchun kompozit indekslar
     # va jadvallararo FK/CHECK/UNIQUE constraintlar. Ikkalasi ham idempotent
     # va ma'lumotni o'zgartirmaydi (tafsilot: ``build_integrity_block``).
 

@@ -29,11 +29,11 @@ SMM_MODE_VARIANTS = "VARIANTS"
 SMM_MODE_REPURPOSE = "REPURPOSE"
 SMM_MODE_AUDIT = "AUDIT"
 SMM_MODE_PLANNER = "PLANNER"
-# 📥 PHASE D — kontent manbalari (11, 12, 13-bandlar).
+# kontent manbalari (11, 12, 13-bandlar).
 SMM_MODE_URL_POST = "URL_POST"
 SMM_MODE_RSS = "RSS_DIGEST"
 SMM_MODE_RECYCLE = "RECYCLE"
-# 📢 FAZA 15 — REKLAMA DVIGATELI (services/ads): 4 xil format, NO FABRICATION.
+# REKLAMA DVIGATELI (services/ads): 4 xil format, NO FABRICATION.
 SMM_MODE_ADS = "ADS"
 SMM_MODES = (SMM_MODE_VARIANTS, SMM_MODE_REPURPOSE, SMM_MODE_AUDIT,
              SMM_MODE_PLANNER, SMM_MODE_URL_POST, SMM_MODE_RSS,
@@ -43,7 +43,7 @@ _LANGS = ("uz", "ru", "en")
 
 
 # ---------------------------------------------------------------------------
-# 1) MULTI-VARIANT (48-band) — har bir uslub ALOHIDA BURG'UCH (angle)
+# 1) MULTI-VARIANT — har bir uslub ALOHIDA BURG'UCH (angle)
 # ---------------------------------------------------------------------------
 #: style → lang → shablon. ``{topic}`` — foydalanuvchi mavzusi (escape qilingan).
 VARIANT_BANK: dict[str, dict[str, str]] = {
@@ -218,7 +218,7 @@ VARIANT_BANK: dict[str, dict[str, str]] = {
 
 
 # ---------------------------------------------------------------------------
-# 2) REPURPOSE (49-band) — platforma matnining «xom» qismi
+# 2) REPURPOSE — platforma matnining «xom» qismi
 # ---------------------------------------------------------------------------
 PLATFORM_BANK: dict[str, dict[str, str]] = {
     "telegram": {
@@ -275,7 +275,7 @@ PLATFORM_BANK: dict[str, dict[str, str]] = {
 }
 
 
-# 3) AUDIT (33/50-band) — model JSON kontraktsiyasi
+# 3) AUDIT — model JSON kontraktsiyasi
 # ---------------------------------------------------------------------------
 AUDIT_BANK: dict[str, dict[str, Any]] = {
     "uz": {
@@ -351,7 +351,7 @@ AUDIT_BANK: dict[str, dict[str, Any]] = {
 
 
 # ---------------------------------------------------------------------------
-# 4) PLANNER (51-band) — kunlar bo'yicha JSON batch
+# 4) PLANNER — kunlar bo'yicha JSON batch
 # ---------------------------------------------------------------------------
 PLAN_BANK: dict[str, dict[str, list[str]]] = {
     "uz": {
@@ -412,7 +412,7 @@ PLAN_BANK: dict[str, dict[str, list[str]]] = {
 
 
 # ---------------------------------------------------------------------------
-# 📥 PHASE D — URL→POST / RSS / RECYCLE banks (11, 12, 13-bandlar)
+# URL→POST / RSS / RECYCLE banks (11, 12, 13-bandlar)
 # ---------------------------------------------------------------------------
 #: URL→post: 4 format (news/short/expert/ads) — deterministik, faqat sarlavha.
 URL_POST_BANK: dict[str, dict[str, str]] = {
@@ -615,7 +615,7 @@ def smm_mock_reply(context: dict | None, topic: str = "") -> str | None:
         return plan_json(lang, int(context.get("smm_plan_batch") or 7),
                          int(context.get("smm_plan_start") or 1), topic)
 
-    # 📥 PHASE D — URL→post / RSS qoralamasi / recycle (11, 12, 13-bandlar).
+    # URL→post / RSS qoralamasi / recycle (11, 12, 13-bandlar).
     if mode == SMM_MODE_URL_POST:
         return url_post_json(lang, topic)
     if mode == SMM_MODE_RSS:
@@ -623,7 +623,7 @@ def smm_mock_reply(context: dict | None, topic: str = "") -> str | None:
     if mode == SMM_MODE_RECYCLE:
         return recycle_json(lang, topic)
 
-    # 📢 FAZA 15 — REKLAMA (4 xil format). Bank services/ads/templates da:
+    # REKLAMA (4 xil format). Bank services/ads/templates da:
     # u FAQAT brief'dagi faktlardan yig'iladi, shuning uchun mock rejimda ham
     # narx/kafolat/reyting UYDIRILMAYDI (NO FABRICATION).
     if mode == SMM_MODE_ADS:

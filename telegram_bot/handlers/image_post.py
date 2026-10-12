@@ -37,7 +37,7 @@ from keyboards.callback_data import CB_POST_SCORE_EVAL, cb
 from keyboards.default import get_cancel_keyboard
 from locales.translations import get_lang, safe_t
 from services.ai.progress import AIProgressReporter
-from translations import content_menu_t, magic_t, post_score_t
+from translations import magic_t, post_score_t
 from services.ai_quota import (
     ai_quota_temp_error_text,
     is_balance_reason,
@@ -45,8 +45,8 @@ from services.ai_quota import (
     release_ai_quota,
     reserve_ai_quota,
 )
-from services.ai_engine.gateway import generate_image_post
-from services.delivery import delivery_service  # PHASE 5: yagona delivery engine
+from services.ai.engine.gateway import generate_image_post
+from services.delivery import delivery_service  # yagona delivery engine
 from utils.ai_agent import pick_supported_kwargs
 from utils.telegram_sanitizer import sanitize_html, TELEGRAM_CAPTION_LIMIT
 from utils.helpers import html_escape, telegram_html_payload, parse_schedule_input
@@ -355,7 +355,7 @@ async def _download_image_bytes(bot, media) -> bytes:
 async def image_post_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """«📸 Rasm → Post» — YAGONA rasm oqimining kirish nuqtasi (B2).
 
-    PostAssist V2 · 2-qadam: AI Studio (``studio_ai_photo``) va Onboarding
+    2-qadam: AI Studio (``studio_ai_photo``) va Onboarding
     (``quick_photo_post_entry``) menyularidagi barcha «🖼 Rasmdan post...»
     tugmalari AYNAN shu funksiyaga yo'naltiriladi — endi botda ikkita
     chalg'ituvchi rasm oqimi emas, bitta implementatsiya (Vision + Post
@@ -644,7 +644,7 @@ async def _reserve_one_ai_credit(user_id: int, context=None) -> tuple:
 
     Returns ``(ok, is_admin, is_pro, reservation)``.
 
-    🔒 PHASE 2 / 1-QADAM: kunlik kvota YOKI kredit BITTA atomik tranzaksiyada
+    kunlik kvota YOKI kredit BITTA atomik tranzaksiyada
     (``database.reserve_ai_request``) bron qilinadi — avvalgi ikki alohida
     tranzaksiya (``check_ai_limit`` + ``use_user_credit``) race condition va
     yarim bron xavfini tug'dirar edi. Har qanday DB xatosi → ``ok=False``
@@ -841,7 +841,7 @@ async def image_style_callback(update: Update, context: ContextTypes.DEFAULT_TYP
     context.user_data["image_post_style"] = style
     context.user_data["image_post_credit_reserved"] = False
 
-    # 2-BOSQICH: placeholder aynan shu xabar edit_text bilan almashtiriladi.
+    # placeholder aynan shu xabar edit_text bilan almashtiriladi.
     if wait_msg is not None and hasattr(wait_msg, "edit_text"):
         try:
             await wait_msg.edit_text(safe_t("image_preview_ready", lang), parse_mode="HTML")
@@ -1063,13 +1063,10 @@ async def image_back_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
     except Exception as _silent_exc:
         log_silent_failure("handlers.image_post:image_back_callback:1032", _silent_exc, lang=lang)
     try:
-        from keyboards.default import get_content_creation_keyboard
+        from keyboards.inline import post_creation_menu
 
-        await query.message.reply_text(
-            content_menu_t("cm_menu_intro", lang),
-            reply_markup=get_content_creation_keyboard(lang),
-            parse_mode="HTML",
-        )
+        text, markup = post_creation_menu(lang)
+        await query.message.reply_text(text, reply_markup=markup, parse_mode="HTML")
     except Exception as _silent_exc:
         log_silent_failure("handlers.image_post:image_back_callback:1042", _silent_exc, lang=lang)
     return ConversationHandler.END

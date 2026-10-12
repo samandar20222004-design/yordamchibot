@@ -278,7 +278,7 @@ def with_language(system_instruction: str, lang) -> str:
     return f"{directive}\n\n{base}"
 
 
-#: ``services/ai_service.py`` shu nom bilan chaqiradi (orkestrator darajasida
+#: ``services/ai/fallback.py`` shu nom bilan chaqiradi (orkestrator darajasida
 #: yakuniy himoya qatlami).
 apply_language = with_language
 
@@ -903,7 +903,7 @@ async def _discover_openrouter_models(api_key: str) -> list | None:
         free_ids = [m.get("id", "") for m in data.get("data", []) if m.get("id", "").endswith(":free")]
         picked = _pick_models(free_ids, OPENROUTER_PREFERRED)
         if not picked and free_ids:
-            # 3-BOSQICH (P1): preferred (free-router) ID'si `:free` bilan
+            # preferred (free-router) ID'si `:free` bilan
             # tugamagani uchun `_pick_models` uni hech qachon topolmaydi —
             # natijada discovery doim bo'sh qaytarib, jonli :free modellar
             # hech qachon ishlatilmas edi. Endi afzal ro'yxat bo'sh qaytsa,
@@ -1037,8 +1037,8 @@ _FREE_POST_HINT_BY_LANG = {
 # ============================================================
 # PRO — 2-BOSQICHLI AVTOMATIK AUDIT OQIMI
 # ============================================================
-# 1-bosqich: post AIDA/PAS asosida generatsiya qilinadi (PRO prompti).
-# 2-bosqich: olingan matn mavjud ``_AUDIT_PRO_SYSTEM`` tizim prompti bilan
+# post AIDA/PAS asosida generatsiya qilinadi (PRO prompti).
+# olingan matn mavjud ``_AUDIT_PRO_SYSTEM`` tizim prompti bilan
 #            ikkinchi AI so'roviga yuboriladi — auditor kuchsiz joylarni
 #            bartaraf etib, TAYYOR yakuniy variantni qaytaradi.
 # Foydalanuvchiga FAQAT 2-bosqichning saralangan natijasi ko'rsatiladi.
@@ -1717,7 +1717,7 @@ async def _post_chat_completion(
     Muvaffaqiyatsizda: ProviderError(status, matn) tashlaydi.
 
     ``http_timeout`` berilmasa standart ``AI_HTTP_TIMEOUT`` ishlatiladi;
-    ``services/ai_service.py`` har bir provayder uchun qat'iyroq
+    ``services/ai/fallback.py`` har bir provayder uchun qat'iyroq
     (connect 3s / read 8s / total 10s) timeout uzatadi.
     """
     session = await _get_session()
@@ -1768,7 +1768,7 @@ def _ordered_models(models) -> list:
 
 
 def _note_model(model) -> None:
-    """Provayder urinishi ishlatayotgan modelni telemetriyaga qayd etadi (STEP 1).
+    """Provayder urinishi ishlatayotgan modelni telemetriyaga qayd etadi.
 
     Lazy import: ``services.ai`` paketi ``utils.ai_agent`` ni import qiladi — shu
     sabab modul darajasida import sikl hosil qilardi. Xato AI oqimini buzmaydi.
@@ -2177,7 +2177,7 @@ async def _run_ai_chain(prompt: str, system_instruction: str, lang: str = None) 
     "Gemini" → "Groq" → "OpenRouter" → "Mistral" → "Cerebras" →
     "SambaNova" → "Cloudflare" → "Pollinations" (kalitsiz)
 
-    4-BOSQICH: orkestratsiya endi ``services/ai_service.py`` dagi
+    orkestratsiya endi ``services/ai/fallback.py`` dagi
     ``AIFallbackService`` da — yagona provayderlar boshqaruvi:
 
     - har bir provayder uchun QAT'IY timeout (connect 3s / read 8s / jami 10s);
@@ -2195,20 +2195,20 @@ async def _run_ai_chain(prompt: str, system_instruction: str, lang: str = None) 
     Prompt max_prompt_chars belgidan oshsa kesiladi (admin sozlashi mumkin).
     Muvaffaqiyatda provayder qaytargan JSON dict qaytadi; xatolikda {"error": ...}.
 
-    🌐 3 TILLIK: ``lang`` berilsa, orkestrator (``services/ai_service.py``)
+    🌐 3 TILLIK: ``lang`` berilsa, orkestrator (``services/ai/fallback.py``)
     tizim promptiga qat'iy til qoidasini BIRIKTIRADI (idempotent). Til
     bloki shu yerda ham oldindan qo'shilgan bo'ladi — ikki qavatli himoya.
 
-    🚦 AI ENGINE V2 (kanonik shlyuz): bu funksiya endi to'g'ridan-to'g'ri
-    ``services.ai_service`` ga emas, balki YAGONA kanonik shlyuz —
-    ``services.ai_engine.gateway.legacy_chain`` adapteri orqali yuradi.
+    bu funksiya endi to'g'ridan-to'g'ri
+    ``services.ai.fallback`` ga emas, balki YAGONA kanonik shlyuz —
+    ``services.ai.engine.gateway.legacy_chain`` adapteri orqali yuradi.
     Adapter o'zi aynan shu legacy zanjirni (8 provayder, qat'iy timeout,
     circuit breaker) ishga tushiradi, shuning uchun xatti-harakat va
     ``provider``/``provider_chain`` javob shakli O'ZGARMAYDI (backward
     compatibility). Barcha AI chaqiruvlari endi bitta shlyuz nuqtasidan
     ko'rinadi — marshrutlash/kesh/breaker boshqaruvi yagona joyda.
     """
-    from services.ai_engine import gateway
+    from services.ai.engine import gateway
     runner = gateway.legacy_chain
     if lang and _chain_accepts_lang(runner):
         return await runner(prompt, system_instruction, lang=normalize_ai_lang(lang))
@@ -2420,8 +2420,8 @@ async def generate_post_two_stage(prompt: str, user_id: int = 0, is_pro: bool = 
                                   lang: str = "uz", timeout: float = None) -> dict:
     """PRO uchun 2-BOSQICHLI post generatsiyasi (ochiq/tashqi API).
 
-    1-bosqich: ``analyze_user_prompt`` — PRO'da AIDA/PAS professional uslub.
-    2-bosqich: FAQAT PRO'da — ``_AUDIT_PRO_SYSTEM`` auditori postni
+    ``analyze_user_prompt`` — PRO'da AIDA/PAS professional uslub.
+    FAQAT PRO'da — ``_AUDIT_PRO_SYSTEM`` auditori postni
     mukammallashtiradi (``analyze_user_prompt`` ichida avtomatik bajariladi).
     FREE: bitta AI so'rovi (2-bosqich chaqirilmaydi).
 
@@ -2699,65 +2699,6 @@ def _inject_tone(system_instruction: str, tone: str, lang: str = "uz") -> str:
     return system_instruction
 
 
-async def format_post_text_with_tone(text: str, action: str, tone: str = "friendly",
-                                     lang: str = "uz") -> dict:
-    """Post matnini kanal uslubini hisobga olgan holda formatlaydi.
-
-    Args:
-        text: formatlanadigan post matni
-        action: "grammar" | "emoji" | "hashtags" | "tldr"
-        tone: kanal uslubi ("formal" | "friendly" | "concise" | "engaging")
-        lang: foydalanuvchi tili ('uz' | 'ru' | 'en')
-
-    Returns:
-        {"formatted": "..."} yoki {"error": "..."}
-    """
-    code = normalize_ai_lang(lang)
-    if not text or not text.strip():
-        return {"error": localize_ai_error("Matn bo'sh.", code)}
-
-    if action not in _FORMAT_ACTION_PROMPTS:
-        return {"error": localize_ai_error(f"Noma'lum harakat: {action}", code)}
-
-    system_instruction = with_language(
-        _inject_tone(_format_action_prompt(action, code), tone, lang=code), code
-    )
-    prompt = f"Post matni:\n\n{text}"
-
-    try:
-        result = await _call_chain(prompt, system_instruction, lang=code)
-    except Exception as e:
-        logger.warning("AI format xatosi (%s, tone=%s): %s", action, tone, e)
-        return {"error": localize_ai_error(
-            f"⚠️ AI xizmatida vaqtinchalik uzilish. Asl matningiz saqlab qolindi.\n\n{e}",
-            code,
-        )}
-
-    if "error" in result:
-        return {"error": result["error"]}
-
-    formatted = ""
-    if isinstance(result, dict):
-        formatted = (
-            result.get("formatted")
-            or result.get("text")
-            or result.get("post_text")
-            or result.get("reply")
-            or result.get("content")
-            or ""
-        )
-        if not formatted:
-            for v in result.values():
-                if isinstance(v, str) and len(v) > 10:
-                    formatted = v
-                    break
-
-    if not formatted or not formatted.strip():
-        return {"error": "⚠️ AI javobi bo'sh qaytdi. Asl matningiz saqlab qolindi."}
-
-    return {"formatted": formatted.strip()}
-
-
 # ============================================================
 # KANAL OVOZI (TONE OF VOICE) TAHLILI
 # ============================================================
@@ -2913,7 +2854,7 @@ async def analyze_channel_voice(recent_posts: list, lang: str = "uz") -> dict:
 
 
 # ============================================================
-# 🧠 3-BOSQICH — KANAL DNK NAMUNASI (birinchi bepul qoralama)
+# KANAL DNK NAMUNASI (birinchi bepul qoralama)
 # ============================================================
 # Kanal ovozi tahlili yakunlangach foydalanuvchi "SOXTA tasdiq" olmaydi:
 # darhol kanal uslubiga moslashtirilgan 1 ta NAMUNAVIY qoralama post
@@ -4845,7 +4786,7 @@ async def generate_magic_post(
 
     system_instruction = with_language(build_magic_post_system(st, code), code)
 
-    # 🧭 3-QADAM (UI/UX POLISH): fluff'siz sifat standarti qo'shimchasi —
+    # fluff'siz sifat standarti qo'shimchasi —
     # kuchli Hook, Telegram HTML, ro'yxatlar va aniq mazmun talabi.
     # MAGIC_POST_SYSTEMS o'zgarmaydi (prompt arxitekturasi testlari yashil
     # qoladi) — standart faqat generatsiya chaqiruviga ulanadi.
@@ -4880,7 +4821,7 @@ async def generate_magic_post(
             "⚠️ AI bo'sh javob qaytardi — qayta urinib ko'ring.", code
         )}
 
-    # 🔁 SIFAT NAZORATI (2-BOSQICH): AI 1-2 qatorli quruq/robotik matn
+    # 🔁 SIFAT NAZORATI: AI 1-2 qatorli quruq/robotik matn
     # qaytarsa — kuchaytirilgan ko'rsatma bilan BIR MARTA qayta so'raymiz.
     # Ikkinchi urinish ham yupqa bo'lsa, undan yaxshirog'i foydalanuvchiga
     # baribir yetkaziladi (oqim hech qachon bo'sh qolmaydi).

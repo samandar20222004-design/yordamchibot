@@ -1,8 +1,8 @@
-"""AI ENGINE V2 — YAGONA KANONIK AI SHLYUZ (Faza 1, 2, 3).
+"""YAGONA KANONIK AI SHLYUZ.
 
 Repo AI qatlamlarining YAGONA kirish nuqtasi:
 
-    from services.ai_engine import gateway, Lane
+    from services.ai.engine import gateway, Lane
 
     res = await gateway.generate("kofe do'koni uchun post", task="simple_post")
     res.text, res.provider, res.lane
@@ -19,7 +19,7 @@ Modullar:
 * ``router``   — vazifaga qarab model tanlash: FAST / QUALITY / REASONING /
   VISION (Fast Path: qat'iy timeout + kesh);
 * ``providers``— provayder registrı (Gemini, Groq, OpenRouter + chuqur
-  zanjir — real HTTP ``services/ai_service.py`` adapterlarida, hech narsa
+  zanjir — real HTTP ``services/ai/fallback.py`` adapterlarida, hech narsa
   noldan yozilmagan);
 * ``health``   — Circuit Breaker: 429/timeout/5xx kuzatuvi, ketma-ket
   xatolar soni, sog'lom provayderga avto-fallback (legacy ``_BREAKERS``
@@ -170,7 +170,7 @@ __all__ = [
     "canonical_prompt",
     "default_cache",
     "reset_cache",
-    # --- PHASE 6: yagona interfeys + xarajat/telemetriya ------------------
+    # yagona interfeys + xarajat/telemetriya ------------------
     "ai_gateway",
     "AIGateway",
     "resolve_model",

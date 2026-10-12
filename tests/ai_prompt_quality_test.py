@@ -404,7 +404,7 @@ def test_regression_fsm_and_routing():
     check("mp_back: til saqlangan", ctx.user_data.get("lang") == "uz")
     check("mp_back: Kontent yaratish submenyusi yuborildi",
           q.message.replies and q.message.replies[0]["reply_markup"] is not None
-          and "Kontent" in q.message.replies[0]["text"], str(q.message.replies[:1]))
+          and "Post" in q.message.replies[0]["text"], str(q.message.replies[:1]))
 
     # Ovoz Magic Post ichida → voice oqimi (voice_message_received) chaqiriladi.
     routed = []

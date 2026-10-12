@@ -1,4 +1,4 @@
-"""PHASE 2 · Granular Rate Limiting — har bir harakat uchun ALOHIDA TTL.
+"""Granular Rate Limiting — har bir harakat uchun ALOHIDA TTL.
 
 Muammo (eski model): ``utils/helpers.py`` dagi ``_USER_HISTORY`` /
 ``_CB_THROTTLE`` — bitta ``dict`` butun bot uchun, chegara esa

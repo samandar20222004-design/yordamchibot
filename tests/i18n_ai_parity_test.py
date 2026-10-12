@@ -505,9 +505,9 @@ def test_vision_prompt_per_language():
 
 
 def test_ai_service_language_enforcement():
-    """``services/ai_service.py`` — orkestrator darajasidagi yakuniy himoya."""
+    """``services/ai/fallback.py`` — orkestrator darajasidagi yakuniy himoya."""
     print("== 12. ai_service: til qoidasini qat'iy qo'llash ==")
-    from services import ai_service
+    from services.ai import fallback as ai_service
 
     base = "Siz SMM mutaxassisisiz."
     for code in SUPPORTED_LANGS:

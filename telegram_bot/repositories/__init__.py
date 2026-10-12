@@ -46,7 +46,7 @@ __all__ = ["REPOSITORIES", "runtime"]
 #: ``REPOSITORIES`` (asosiy 8 ta domain moduli) tarixiy shartnoma bo'lib,
 #: ``tests/repository_layering_test.py`` uni AYNAN 8 talik deb qulflaydi —
 #: shuning uchun yangi qatlamlar shu alohida ro'yxatda e'lon qilinadi.
-#: ``repositories.analytics_repository`` — P1 (5-qadam) batch analitika
+#: ``repositories.analytics_repository`` — P1 batch analitika
 #: qatlami: N+1 query'siz kanal tahlili (bitta JOIN/GROUP BY + bitta
 #: DB darajasidagi agregatsiya). ``database`` facade'i ham uning barcha
 #: eksportlarini qayta chiqaradi (``database.get_channel_analytics_bundle``).

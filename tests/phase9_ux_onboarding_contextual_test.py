@@ -460,8 +460,8 @@ def test_instant_value_onboarding() -> None:
         f"got={greeting_uz}",
     )
     check(
-        "Onboarding matnida '7 kunlik kontent reja tuzamizmi?' eslatilgan",
-        "7 kunlik kontent reja tuzamizmi?" in greeting_uz,
+        "Onboarding matnida botni kanalga admin qilish aytilgan",
+        "admin" in greeting_uz,
     )
 
     for lang in ("uz", "ru", "en"):

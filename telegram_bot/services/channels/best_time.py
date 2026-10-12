@@ -1,4 +1,4 @@
-"""⏰ SMART BEST TIME GENERATOR (PostAssist V2 — PHASE B, 3-band).
+"""⏰ SMART BEST TIME GENERATOR.
 
 Kanalning kuzatilgan post chiqarish statistikasi (``channel_post_events``)
 bo'yicha eng maqbul vaqt oynalarini chiqaradi:

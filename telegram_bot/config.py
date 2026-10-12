@@ -56,7 +56,7 @@ except ValueError:
 if ADMIN_ID:
     _parsed_ids.add(ADMIN_ID)
 
-# SPRINT 1 (ADMIN_ID ⇄ ADMIN_IDS nomuvofiqligi): KANONIK nom — ``ADMIN_IDS``.
+# KANONIK nom — ``ADMIN_IDS``.
 #
 # Ilgari config faqat ``ADMIN_ID`` (legacy, bitta raqam) va ``ADMIN_IDS_SET``
 # ni eksport qilardi; ``from config import ADMIN_IDS`` qilgan modullar esa
@@ -194,13 +194,13 @@ FREE_DAILY_AI = _int_env("FREE_DAILY_AI", 5)
 PRO_MAX_CHANNELS = _int_env("PRO_MAX_CHANNELS", 999)
 PRO_DAILY_AI = _int_env("PRO_DAILY_AI", 999)
 
-# --- SPRINT 4: 💵 UNIT ECONOMICS (USD → UZS kursi) ---
+# 💵 UNIT ECONOMICS (USD → UZS kursi) ---
 # AI xarajati dollar hisobida yig'iladi (``ai_usage_events.estimated_cost``);
 # foydalanuvchiga/admin panelga so'mda ko'rsatish uchun kurs SHU YERDAN
 # o'qiladi (kodda qattiq yozilgan kurs yo'q). Standart: 12 600 so'm/$.
 USD_UZS_RATE = _int_env("USD_UZS_RATE", 12600)
 
-# --- SPRINT 4: 🚪 YOPIQ BETA DARVOZASI (closed beta access) ---
+# 🚪 YOPIQ BETA DARVOZASI (closed beta access) ---
 # BETA_INVITE_ONLY=true  → yangi foydalanuvchi faqat taklif kodi yoki admin
 #                          tasdig'i bilan kiradi (mavjud foydalanuvchilar
 #                          uzluksiz ishlayveradi);
@@ -213,7 +213,7 @@ USD_UZS_RATE = _int_env("USD_UZS_RATE", 12600)
 BETA_INVITE_ONLY = _env_flag("BETA_INVITE_ONLY", True)
 BETA_MAX_USERS = _int_env("BETA_MAX_USERS", 50)
 
-# --- FAZA 25: Update handler va fon vazifalari uchun timeout chegaralari ---
+# Update handler va fon vazifalari uchun timeout chegaralari ---
 # UPDATE_HANDLER_TIMEOUT_SECONDS — bitta Telegram update handlerining
 # bajarilishiga berilgan QAT'IY maksimal vaqt (soniya). Og'ir AI/tahlil
 # chaqiruvlari adatda bu chegaradan ancha pastraq muddatga ega
@@ -234,7 +234,7 @@ BACKGROUND_TASK_TIMEOUT_SECONDS = _int_env("BACKGROUND_TASK_TIMEOUT_SECONDS", 30
 # himoya qiladi; 0 emas, musbat qiymat bo'lishi shart.
 ANALYTICS_MAX_BATCH_IDS = max(1, _int_env("ANALYTICS_MAX_BATCH_IDS", 100))
 
-# --- 4-qadam: quiet-hours thundering-herd staggering -----------------------
+# quiet-hours thundering-herd staggering -----------------------
 # 08:00 dagi navbatni yoyish oynasi va bir kanal ichidagi minimum masofa.
 # scheduler bu qiymatlarni yana xavfsiz diapazonga qisadi.
 QUIET_STAGGER_MIN_SECONDS = max(0.0, _env_float("QUIET_STAGGER_MIN_SECONDS", 30.0))
@@ -246,7 +246,7 @@ CHANNEL_STAGGER_MIN_SECONDS = max(
     0.0, _env_float("CHANNEL_STAGGER_MIN_SECONDS", 60.0)
 )
 
-# --- 1-BOSQICH: Render Free tezligi va kechikishni yo'qotish -----------
+# Render Free tezligi va kechikishni yo'qotish -----------
 # STALE_UPDATE_SECONDS — bot o'chgan paytda Telegram serverida yig'ilib
 # qolgan ESKI xabarlarni filtrlash chegarasi (soniya). Bot o'chganda
 # foydalanuvchilar xabar yuboraveradi; ular Render'da qayta ishga
@@ -269,7 +269,7 @@ KEEP_ALIVE_URL = _str_env("KEEP_ALIVE_URL", "")
 KEEP_ALIVE_INTERVAL_SECONDS = max(60, _int_env("KEEP_ALIVE_INTERVAL_SECONDS", 600))
 
 # ============================================================================
-# PHASE 2 · DISTRIBUTED STATE / CACHE (Redis) + GRANULAR RATE LIMITING
+# DISTRIBUTED STATE / CACHE (Redis) + GRANULAR RATE LIMITING
 # ----------------------------------------------------------------------------
 # Bot bir necha instance'da (Render/Docker: 2+ replica) ishlayotgan holat
 # uchun holat (rate limit sanagichlari, kesh) UMUMIY manbada saqlanishi
@@ -440,19 +440,12 @@ PLAN_LIMITS = {
 }
 
 
-def get_stars_plan(plan_key: str) -> dict | None:
-    return STARS_PLANS.get(str(plan_key or "").strip())
-
-
-def get_subscription_plan(plan_key: str) -> dict | None:
-    return SUBSCRIPTION_PLANS.get(str(plan_key or "").strip())
-
 # --- Sentry monitoring (ixtiyoriy, 10-BOSQICH: maxfiylik filtri bilan) ---
 # SENTRY_DSN berilsa va sentry_sdk o'rnatilgan bo'lsa, barcha xatolar
 # avtomatik yig'iladi. MUHIM: Sentry'ga yuborilishdan oldin har bir event
 # `utils.sentry_scrubber.scrub_event` filtridan o'tadi — bot token, DB paroli,
 # karta rekvizitlari va API kalitlar loglarga HECH QACHON tushmaydi.
-# --- PHASE A: Production safety — ENVIRONMENT / AI_ALLOW_MOCK (P0-A) ---
+# Production safety — ENVIRONMENT / AI_ALLOW_MOCK ---
 # ENVIRONMENT: production|development|test default production (fail-closed).
 # AI_ALLOW_MOCK: 0|1 default 0 — MockProvider faqat dev/test yoki 1 bo'lganda.
 _raw_env = (os.getenv("ENVIRONMENT", "") or "").strip().lower()
@@ -478,7 +471,7 @@ def _db_password_from_url(url: str) -> str:
 def _register_known_secrets() -> None:
     """Ma'lum sezgir qiymatlarni scrubber ro'yxatiga oladi.
 
-    11-bosqich: Sentry yoqilgan-yoqilmaganidan QAT'I NAZAR chaqiriladi —
+    Sentry yoqilgan-yoqilmaganidan QAT'I NAZAR chaqiriladi —
     stdlib ``logging`` filtri (``utils.sentry_scrubber.install_logging_scrubber``)
     ham shu ro'yxatdan foydalanadi, shuning uchun bot token, DB paroli, karta
     raqami va API kalitlar oddiy loglarga ham tushmaydi.

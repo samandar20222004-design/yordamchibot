@@ -559,7 +559,7 @@ def test_router_prompt_details():
 def test_ai_service_orchestrator_language():
     """Orkestrator (services/ai_service) tizim promptiga qat'iy til biriktiradi."""
     print("== 9. AI orkestrator (fallback service) tili ==")
-    from services import ai_service
+    from services.ai import fallback as ai_service
     from locales.translations import normalize_lang
 
     for code in LANGS:

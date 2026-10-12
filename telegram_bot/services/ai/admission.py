@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""🛡 AI QABUL QILISH + TELEMETRIYA (STEP 1) — fallback yo'li uchun yagona qatlam.
+"""🛡 AI QABUL QILISH + TELEMETRIYA — fallback yo'li uchun yagona qatlam.
 
 Gateway yo'li (``AIGateway.generate``) o'z gate/byudjet/telemetriyasiga ega.
 Handler trafigi esa ko'pincha ``services.ai.fallback`` orqali o'tadi — bu

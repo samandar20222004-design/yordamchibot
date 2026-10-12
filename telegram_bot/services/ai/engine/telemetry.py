@@ -23,7 +23,7 @@ Bu modul YAGONA telemetriya manbai:
   kunlik/oylik hisobot agregatsiyasi (user/kanal kesimida).
 
 DB'ga yozish alohida **Application Service** qatlamida
-(``services.ai_engine.app_service``) bajariladi — bu modul tarmoqqa ham,
+(``services.ai.engine.app_service``) bajariladi — bu modul tarmoqqa ham,
 bazaga ham chiqmaydi (deterministik va test qilinadigan qoladi).
 """
 
@@ -43,7 +43,7 @@ from services.ai.usage_scope import action_type_for
 
 logger = logging.getLogger(__name__)
 
-#: Xarajat holati (STEP 1): narx jadvalida bor → ``priced``; cache → ``cached``;
+#: Xarajat holati: narx jadvalida bor → ``priced``; cache → ``cached``;
 #: xato → ``failed``; narx jadvalida YO'Q model → ``unpriced`` (0 emas — ochiq belgi).
 COST_PRICED = "priced"
 COST_UNPRICED = "unpriced"
@@ -210,7 +210,7 @@ class AIUsageEvent:
     prompt_hash: str = ""
     reservation_id: int | None = None
     created_at: float = field(default_factory=time.time)
-    #: Amal turi (STEP 1): ``post`` | ``vision`` | ``voice`` | ``audit``.
+    #: Amal turi: ``post`` | ``vision`` | ``voice`` | ``audit``.
     action_type: str = ""
     #: Xarajat holati: ``priced`` | ``unpriced`` | ``cached`` | ``failed``.
     cost_status: str = ""

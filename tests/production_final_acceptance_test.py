@@ -716,7 +716,7 @@ class _Stub:
 
 
 async def _ai_10_11_12():
-    from services.ai_service import AIFallbackService, AIProviderError
+    from services.ai.fallback import AIFallbackService, AIProviderError
     section("10) AI: Gemini yiqilsa → Groq")
     g = _Stub("Gemini", exc=AIProviderError(500, "server error", "Gemini"))
     q = _Stub("Groq", result={"post_text": "Groq ok"})

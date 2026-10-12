@@ -31,7 +31,7 @@ from database import (
     _cache_clear,
     _normalize_language_code,
 )
-# 6-bosqich: admin harakatlari auditi (chek tasdiqlash/rad etish).
+# admin harakatlari auditi (chek tasdiqlash/rad etish).
 from services.audit_service import AuditService
 from config import STARS_PLANS as CONFIG_STARS_PLANS
 
@@ -86,7 +86,7 @@ def currency_for_method(method: str) -> str:
 
 @contextmanager
 def transaction(commit: bool = True):
-    """To'lov oqimi uchun BITTA atomik tranzaksiya bloki (5-bosqich).
+    """To'lov oqimi uchun BITTA atomik tranzaksiya bloki.
 
     Blok ichidagi barcha SQL'lar bitta DB ulanishidan o'tadi va faqat blok
     muvaffaqiyatli tugaganda COMMIT qilinadi — istisnoda to'liq ROLLBACK.
@@ -230,7 +230,7 @@ class PaymentService:
         curcy = str(currency or "").strip().upper() or currency_for_method(method)
 
         try:
-            # PHASE 9 & 10 (P0): to'lov audit + obuna — BITTA atomik tranzaksiya.
+            # to'lov audit + obuna — BITTA atomik tranzaksiya.
             # Talab: telegram_payment_charge_id bo'yicha SELECT ... FOR UPDATE
             # bilan qulflab, duplicate PRO faollashtirish qat'iy bloklansin.
             # Tartib:
@@ -409,7 +409,7 @@ class PaymentService:
         ishlaydi: amount_uzs ixtiyoriy o'qiladi).
         """
         try:
-            # PHASE 9 & 10 (P0): Chek tasdiqlash — BITTA atomik tranzaksiya.
+            # Chek tasdiqlash — BITTA atomik tranzaksiya.
             # Talab: BEGIN -> LOCK payment_orders FOR UPDATE -> status pending
             # tekshirish -> PRO berish -> status approved -> audit -> COMMIT.
             # Parallel bosilganda ikkinchi bosish rad etilsin.
@@ -572,7 +572,7 @@ class PaymentService:
                     "decided_by = %s, reviewed_at = NOW() WHERE id = %s",
                     (int(admin_id), int(receipt_id)),
                 )
-                # 6-bosqich: audit yozuvi SHU tranzaksiyada (atomik).
+                # audit yozuvi SHU tranzaksiyada (atomik).
                 AuditService.log_receipt_decision(
                     admin_id, receipt_id, approved=False,
                     user_id=user_id, old_status=status, cur=cur,

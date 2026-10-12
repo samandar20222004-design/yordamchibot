@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""📊 CHANNEL ANALYTICS SERVICE — N+1'siz kanal tahlili (P1 / 5-qadam).
+"""📊 CHANNEL ANALYTICS SERVICE — N+1'siz kanal tahlili.
 
 Muammo (topshiriq)
 ------------------

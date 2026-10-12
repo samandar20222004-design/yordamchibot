@@ -1,4 +1,4 @@
-"""📋 POST SHABLONLARI xizmat qatlami (PostAssist V2 — PHASE C, 9-band).
+"""📋 POST SHABLONLARI xizmat qatlami.
 
 Shablon — takroriy ishlatiladigan post matni, ichida o'zgaruvchilar::
 

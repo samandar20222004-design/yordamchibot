@@ -1,4 +1,4 @@
-"""PostAssist V2 — 4-BOSQICH: AI Multi-Provider Fallback Service.
+"""4-BOSQICH: AI Multi-Provider Fallback Service.
 
 Yagona provayderlar boshqaruvi (unified provider management) va resilient
 AI arxitektura. Foydalanuvchi xatolikni hech qachon ko'rmaydi: birlamchi
@@ -97,7 +97,7 @@ def provider_http_timeout() -> aiohttp.ClientTimeout:
 def provider_total_timeout() -> float:
     """Provayder sinovining qat'iy umumiy muddati.
 
-    2-BOSQICH: yuqori chegara 8s — sekin provayderdan tez fallback qilinadi
+    yuqori chegara 8s — sekin provayderdan tez fallback qilinadi
     (default 10 → 8s, atrof-muhit sozlamasi o'zgarmaydi).
     Quyi chegara 2s: ``AI_PROVIDER_TOTAL_TIMEOUT`` ga **hurmat** qilinadi,
     shuning uchun operator (yoki test) ataylab qisqa byudjet bersa — masalan
@@ -602,7 +602,7 @@ class AIFallbackService:
         # Til qoidasi — eng yuqorida (idempotent: takror qo'shilmaydi).
         system_instruction = enforce_system_language(system_instruction, lang)
 
-        from services.ai_engine.prompts import PromptEngine
+        from services.ai.engine.prompts import PromptEngine
         prompt, system_instruction = PromptEngine.build(
             prompt, system=system_instruction, lang=lang or "uz")
 
@@ -636,7 +636,7 @@ class AIFallbackService:
                     _time.monotonic() + provider_total_timeout(),
                 )
                 try:
-                    from services.ai_engine.safety import contains_leak, sanitize
+                    from services.ai.engine.safety import contains_leak, sanitize
                     def clean_payload(value):
                         if isinstance(value, str):
                             return sanitize(value)
@@ -862,9 +862,9 @@ async def analyze_image(*args, **kwargs) -> dict:
     """Vision analyzer facade — public service API.
 
     Lazy import circular dependencydan saqlaydi va test/mock uchun bitta aniq
-    patch nuqtasini beradi: ``services.ai_service.analyze_image``.
+    patch nuqtasini beradi: ``services.ai.fallback.analyze_image``.
 
-    STEP 1: tashqi chaqiruvda foydalanuvchi limiti/byudjeti qo'llanadi va
+    tashqi chaqiruvda foydalanuvchi limiti/byudjeti qo'llanadi va
     natija ``action_type=vision`` bilan telemetriyaga yoziladi. Rad etilsa —
     ``VisionUnavailableError`` (handler caption-fallback'ga o'tadi).
     """
@@ -902,11 +902,6 @@ async def analyze_image(*args, **kwargs) -> dict:
             raise
         finally:
             admission.release()
-
-
-async def analyze_image_bytes(*args, **kwargs) -> dict:
-    """``analyze_image`` aliasi (aniq bytes nomi bilan integratsiya uchun)."""
-    return await analyze_image(*args, **kwargs)
 
 
 #: Image-post uslubi → Magic Post uslubi (matn asosidagi fallback uchun).
@@ -1020,11 +1015,6 @@ async def generate_image_post(analysis: dict, style: str = "sales",
     }
 
 
-async def generate_post_from_image(*args, **kwargs) -> dict:
-    """Public compatibility alias for ``generate_image_post``."""
-    return await generate_image_post(*args, **kwargs)
-
-
 # ============================================================
 # 📊 POST SCORE & IMPROVER (KILLER FEATURE #4)
 # ============================================================
@@ -1084,12 +1074,6 @@ async def score_post(text: str, lang: str = "uz", timeout: float = None,
 
     with usage_scope(action_type="audit"):
         return await _score(text, lang=lang, timeout=timeout, use_ai=use_ai)
-
-
-def score_post_local(text: str, lang: str = "uz") -> dict:
-    """Sof lokal (deterministik) baholash — AI'siz, tarmoqsiz, kreditsiz."""
-    from utils.post_scorer import score_post_locally
-    return score_post_locally(text, lang)
 
 
 async def improve_post_to_95(text: str, lang: str = "uz", is_pro: bool = False,

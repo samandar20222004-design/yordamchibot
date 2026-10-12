@@ -1,4 +1,4 @@
-"""Deterministik AI javob keshi (AI ENGINE V2, Faza 1).
+"""Deterministik AI javob keshi.
 
 Audit topilmasi: "tezkor kesh yo'q" — bir xil so'rov har safar provayderga
 yuborilardi (bepul RPM limitlarini keraksiz yeydi, foydalanuvchi kutardi).
@@ -13,7 +13,7 @@ Bu modul kichik, xavfsiz in-memory kesh:
 * Faqat FAST lane default keshlanadi (Quality/Reasoning javoblari
   kontekstga bog'liq — kesh faqat aniq so'ralganda ishlaydi).
 
-Not: bu kesh FAQAT yangi shlyuz (``services.ai_engine.gateway``) uchun.
+Not: bu kesh FAQAT yangi shlyuz (``services.ai.engine.gateway``) uchun.
 Legacy ``generate_ai_response`` chaqiruvlari keshga tegmaydi (eski
 testlar/HTTP zanjir determinizmi saqlanadi).
 """
@@ -46,7 +46,7 @@ _MODEL_LIST_ATTRS: tuple[str, ...] = (
 
 
 def model_version() -> str:
-    """Kesh kaliti uchun MODEL VERSIYASI (STEP 1).
+    """Kesh kaliti uchun MODEL VERSIYASI.
 
     Tarkib: sxema versiyasi + ops tomonidan qo'lda berilgan ``AI_MODEL_VERSION``
     + har provayderning birlamchi modeli (``utils.ai_agent`` ro'yxatlaridan).
@@ -80,7 +80,7 @@ def cache_ttl() -> float:
 def cache_max_entries() -> int:
     """Maksimal yozuvlar soni (LRU); 2-BOSQICH: 512MB limit uchun qat'iy chegara."""
     try:
-        # 2-BOSQICH: LRU maxsize — Render 512MB limitini himoya qilish.
+        # LRU maxsize — Render 512MB limitini himoya qilish.
         # Xavfsiz default 512, hard cap 1024 (8MB bytes limiti bilan birga).
         return min(1024, max(1, int(os.getenv("AI_CACHE_MAX_ENTRIES", "512"))))
     except (TypeError, ValueError):
@@ -170,7 +170,7 @@ class AIResponseCache:
 
     def __init__(self, max_entries: int | None = None, ttl: float | None = None,
                  max_bytes: int | None = None):
-        # 2-BOSQICH: qat'iy LRU chegara — cheksiz o'sish YO'Q (512MB himoyasi).
+        # qat'iy LRU chegara — cheksiz o'sish YO'Q (512MB himoyasi).
         self.max_entries = min(1024, max(1, int(max_entries or cache_max_entries())))
         self.ttl = min(86400.0, max(0.0, float(ttl if ttl is not None else cache_ttl())))
         self.max_bytes = min(64 * 1024 * 1024, max(1024, int(max_bytes or cache_max_bytes())))

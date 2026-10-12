@@ -1,4 +1,4 @@
-"""♻️ CONTENT RECYCLE — eski, yaxshi ko'rsatkichli postlarni YANGILASH (PHASE D, 13-band).
+"""♻️ CONTENT RECYCLE — eski, yaxshi ko'rsatkichli postlarni YANGILASH.
 
 Muammo: kanalda 14+ kun oldin chiqqan, yaxshi natija bergan postlar bor —
 ularni **ko'r-ko'rona qayta chiqarish (repost) TAQIQLANADI**. Xizmat esa

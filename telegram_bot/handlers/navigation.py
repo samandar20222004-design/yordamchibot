@@ -1,4 +1,4 @@
-"""🧭 PostAssist V2 · 4-QADAM — NAVIGATSIYA STACKI (◀️ Orqaga / ❌ Bekor qilish).
+"""4-QADAM — NAVIGATSIYA STACKI (◀️ Orqaga / ❌ Bekor qilish).
 
 STANDART (4-qadam topshirig'i):
 
@@ -174,14 +174,10 @@ async def render_section_start_message(msg, context, user_id: int,
     try:
         if section == SECTION_CONTENT:
             # 🧩 Kontent yaratish — bo'lim boshiga qaytish standarti.
-            from keyboards.default import get_content_creation_keyboard
-            from translations import content_menu_t
+            from keyboards.inline import post_creation_menu
 
-            await msg.reply_text(
-                content_menu_t("cm_menu_intro", lang),
-                reply_markup=get_content_creation_keyboard(lang),
-                parse_mode="HTML",
-            )
+            text, markup = post_creation_menu(lang)
+            await msg.reply_text(text, reply_markup=markup, parse_mode="HTML")
             return True
 
         if section == SECTION_AI_STUDIO:
@@ -230,7 +226,7 @@ async def render_section_start_message(msg, context, user_id: int,
                 return False
             stats = await db.run_db(db.get_admin_dashboard_stats)
             await msg.reply_text(
-                # 🧹 FAZA 26: dashboard admin tilida chiziladi.
+                # dashboard admin tilida chiziladi.
                 _build_dashboard_text(stats, lang),
                 reply_markup=get_admin_dashboard_keyboard(),
                 parse_mode="HTML",

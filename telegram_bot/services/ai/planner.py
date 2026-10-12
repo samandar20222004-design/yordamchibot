@@ -1,4 +1,4 @@
-"""🗓 KONTENT REJA GENERATORI — 51-band (PHASE 12).
+"""🗓 KONTENT REJA GENERATORI — 51-band.
 
 1, 7, 14 yoki 30 kunlik kontent rejasi: har bir kun uchun
 
@@ -560,7 +560,7 @@ def render_plan(items: list[PlanDay], topic: str, lang: str, weeks_header: bool 
 # XIZMAT
 # ---------------------------------------------------------------------------
 class ContentPlanService(SMMFeatureService):
-    """Kontent reja generatori (51-band)."""
+    """Kontent reja generatori."""
 
     feature = "planner"
     quota_operation = "content_calendar:plan"

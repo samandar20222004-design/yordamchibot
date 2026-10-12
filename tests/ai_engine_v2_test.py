@@ -27,7 +27,7 @@ Ushbu test quyidagilarni QAT'IY kafolatlaydi:
            chaqiruvlari kanonik shlyuz orqali yuradi (``gateway.legacy_chain``),
            eski monkeypatch nuqtalari (``ai_agent._run_ai_chain``) buzilmaydi.
   TEST 6 — HANDLER IZOLYATSIYASI: hech bir handler provayder qatlamiga
-           (``services.ai_service`` / ``services.ai.providers``) to'g'ridan-
+           (``services.ai.fallback`` / ``services.ai.providers``) to'g'ridan-
            to'g'ri bog'lanmaydi — hammasi shlyuz yoki legacy adapter orqali.
   TEST 7 — DEAD-END TUZOQLAR (Faza 21): aniqlashtirish wizard'i va Magic
            Post uslub menyusida [❌ Bekor qilish] tugmasi bor, callback'lar
@@ -85,8 +85,8 @@ def run(coro):
 # ---------------------------------------------------------------------------
 # IMPORTLAR (muhit sozlangandan KEYIN)
 # ---------------------------------------------------------------------------
-import services.ai_engine as ai_engine                      # noqa: E402
-from services.ai_engine import (                            # noqa: E402
+import services.ai.engine as ai_engine                      # noqa: E402
+from services.ai.engine import (                            # noqa: E402
     Lane,
     cache_key,
     canonical_prompt,
@@ -99,8 +99,8 @@ from services.ai_engine import (                            # noqa: E402
     provider_order,
     LANE_SPECS,
 )
-from services.ai_engine import gateway as gw                 # noqa: E402
-from services.ai_engine import providers as eng_providers    # noqa: E402
+from services.ai.engine import gateway as gw                 # noqa: E402
+from services.ai.engine import providers as eng_providers    # noqa: E402
 
 CALLS: list[str] = []
 
@@ -614,8 +614,8 @@ def test_legacy_adapter():
           result2.get("reply") == "eski uslubdagi javob", str(result2)[:120])
 
     # 5d) legacy_chain o'zi legacy zanjirga delegat (late binding —
-    # services.ai_service.run_ai_chain monkeypatch'i ko'rinadi).
-    from services import ai_service
+    # services.ai.fallback.run_ai_chain monkeypatch'i ko'rinadi).
+    from services.ai import fallback as ai_service
 
     async def fake_run_chain(prompt, system_instruction, lang=None):
         return {"content": "zanjir javobi", "provider": "Chain"}
@@ -626,7 +626,7 @@ def test_legacy_adapter():
         result3 = run(gw.legacy_chain("p", "s", lang="uz"))
     finally:
         ai_service.run_ai_chain = orig_rc
-    check("legacy_chain → services.ai_service.run_ai_chain (hech narsa noldan yozilmagan)",
+    check("legacy_chain → services.ai.fallback.run_ai_chain (hech narsa noldan yozilmagan)",
           result3.get("provider") == "Chain", str(result3)[:120])
 
 
@@ -640,10 +640,10 @@ def test_handler_isolation():
     for py in sorted(handlers_dir.glob("*.py")):
         src = py.read_text(encoding="utf-8", errors="ignore")
         for forbidden in (
-            "services.ai_service",
-            "from services.ai_service import",
+            "services.ai.fallback",
+            "from services.ai.fallback import",
             "services.ai.providers",
-            "services.ai_engine.providers",
+            "services.ai.engine.providers",
             "services.ai.orchestrator",
             "ai_engine import providers",
         ):
@@ -658,18 +658,18 @@ def test_handler_isolation():
     mnp = (handlers_dir / "manual_post.py").read_text(encoding="utf-8")
     ccf = (handlers_dir / "content_calendar_flow.py").read_text(encoding="utf-8")
     check("post_score → gateway sirti",
-          "services.ai_engine.gateway import" in gp, "")
+          "services.ai.engine.gateway import" in gp, "")
     check("image_post → gateway sirti",
-          "services.ai_engine.gateway import" in ip, "")
+          "services.ai.engine.gateway import" in ip, "")
     check("manual_post → gateway.legacy_chain",
-          "services.ai_engine import gateway" in mnp
+          "services.ai.engine import gateway" in mnp
           and "gateway.legacy_chain" in mnp, "")
     check("content_calendar_flow → gateway.legacy_chain",
-          "services.ai_engine import gateway" in ccf
+          "services.ai.engine import gateway" in ccf
           and "gateway.legacy_chain" in ccf, "")
 
     # Gateway delegatlari xuddi shu funksiyalarga kechikkan bog'lanishda.
-    from services import ai_service
+    from services.ai import fallback as ai_service
 
     check("gateway.score_post — ai_service delegati",
           gw.score_post.__name__ == "score_post"

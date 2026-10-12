@@ -616,7 +616,7 @@ def build_dna_block(profile: Any, lang: Any = DEFAULT_LANG) -> str:
 # 5) DVIGATEL
 # ===========================================================================
 class AdEngine(SMMFeatureService):
-    """4 xil formatdagi reklama generatori (FAZA 15).
+    """4 xil formatdagi reklama generatori.
 
     Kvota: butun batch (4 ta AI chaqiruvi) uchun BITTA atomik bron — Phase 2
     standarti. Xatoda bron qaytariladi (fail-closed refund).

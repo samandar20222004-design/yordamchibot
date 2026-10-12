@@ -1,6 +1,6 @@
 """Admin RBAC (Role-Based Access Control) Enforcement Middleware & Helpers.
 
-PHASE 2 · 3-QADAM: Admin callbacklarida RBAC (user_id admin ro'yxatida borligi)
+3-QADAM: Admin callbacklarida RBAC (user_id admin ro'yxatida borligi)
 qat'iy tekshiriladi (server-side from_user.id asosida).
 """
 
@@ -92,7 +92,7 @@ def check_callback_rbac(update: Update) -> bool:
 
 
 # ============================================================================
-# PHASE 3 — RESURS (KANAL/POST) DARAJASIDAGI RBAC VA IDOR HIMOYA QATLAMI
+# RESURS (KANAL/POST) DARAJASIDAGI RBAC VA IDOR HIMOYA QATLAMI
 # ============================================================================
 #
 # Muammo

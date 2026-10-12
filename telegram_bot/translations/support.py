@@ -1,6 +1,6 @@
 """💬 QO'LLAB-QUVVATLASH — i18n lug'ati (UZ / RU / EN, 100% paritet).
 
-PostAssist V2 · 4-QISM (so'nggi qism) — **BIR MARTALIK MUROJAAT** (one-time
+4-QISM (so'nggi qism) — **BIR MARTALIK MUROJAAT** (one-time
 ticket) va **ADMIN REPLY** oqimining yagona matn manbasi:
 
   * ``sp_prompt`` — [💬 Qo'llab-quvvatlash] bosilganda chiqadigan yo'riqnoma

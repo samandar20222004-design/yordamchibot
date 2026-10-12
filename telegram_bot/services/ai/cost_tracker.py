@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-"""💰 SPRINT 4 — UNIT ECONOMICS: AI XARAJATINI MODEL BO'YICHA HISOBLASH.
+"""UNIT ECONOMICS: AI XARAJATINI MODEL BO'YICHA HISOBLASH.
 
-Nima uchun bu modul (SPRINT 4, 1-band):
+Nima uchun bu modul:
     * ilgari xarajat faqat umumiy ``estimated_cost`` ko'rinishida yozilardi
       (``ai_usage_events``) — model bo'yicha narx (``$ / 1K token``) yagona
       jadvalda emas, "kim qancha sarflayapti" va "PRO tarif o'zini oqlaydimi"

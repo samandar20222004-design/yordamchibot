@@ -81,7 +81,7 @@ def header(code, title):
 # ---------------------------------------------------------------------------
 def test_1_prompt_dynamic_date_and_anti_hallucination():
     header("1", "🤖 AI PROMPT — DINAMIK SANA + ANTI-HALLUCINATION")
-    from services.ai_engine.prompts import PromptEngine, current_date
+    from services.ai.engine.prompts import PromptEngine, current_date
 
     today = datetime.now().strftime("%Y-%m-%d")
     check("current_date() = bugungi sana (YYYY-MM-DD)",
@@ -277,9 +277,9 @@ WHITELIST_LABELS = {
     "✍️ Post sozlamalari",        # 19 — speskda aniq yozilgan (uz)
     "✍️ Настройки постов",  # 19 — speskning ru varianti
     # Main Settings spec keeps the cleaner/signature action explicit.
-    "✍️ Post Auto-Cleaner & Imzo",
-    "✍️ Автоочистка постов и подпись",
-    "✍️ Post Auto-Cleaner & Signature",
+    "🧹 Post tozalash va imzo",
+    "🧹 Автоочистка постов и подпись",
+    "🧹 Post cleaner & signature",
     # ✏️ TAHRIRLASH TANLOV MENYUSI (2-vazifa): yorliqlar topshiriq matnida
     # AYNAN shu ko'rinishda yozilgan («[ 📝 Matnni o'zgartirish ] ...»).
     "📝 Matnni o'zgartirish",      # 21 — topshiriqda aniq yozilgan (uz)

@@ -1,4 +1,4 @@
-"""Global universal error handler — PostAssist V2 (7-BOSQICH).
+"""Global universal error handler.
 
 Telegram ``telegram.ext`` uchun YAGONA markazlashtirilgan xato ushlagich.
 Kafolotlar:
@@ -255,7 +255,7 @@ async def _audit_critical_error(user_id, summary: dict, handler_name: str) -> No
 
 
 # ──────────────────────────────────────────────────────────────
-# PHASE 9 — ERROR UX VA USER COMMUNICATION (ANIQ VA MULOYIM XABARLAR)
+# ERROR UX VA USER COMMUNICATION (ANIQ VA MULOYIM XABARLAR)
 # ──────────────────────────────────────────────────────────────
 _RAW_TECHNICAL_MARKERS = (
     "exception occurred",
@@ -309,7 +309,7 @@ _URL_ERROR_MARKERS = (
 
 
 def classify_user_error_kind(error) -> str:
-    """Foydalanuvchi UX uchun xato turini aniqlaydi (PHASE 9):
+    """Foydalanuvchi UX uchun xato turini aniqlaydi:
 
     - ``"ai_busy"``        → AI band / javob bermadi
     - ``"telegram_flood"`` → Telegram flood / RetryAfter
@@ -336,7 +336,7 @@ def classify_user_error_kind(error) -> str:
 
 
 def format_user_error_message(error, lang: str | None = "uz") -> str:
-    """Har bir xato uchun aniq, muloyim va harakatga yo'naltirilgan xabar (PHASE 9).
+    """Har bir xato uchun aniq, muloyim va harakatga yo'naltirilgan xabar.
 
     Hech qachon texnik ``Exception occurred`` yoki stacktrace qaytarmaydi:
       - AI band bo'lsa: "AI hozir band. 20 soniyadan keyin qayta urinib ko‘ring."

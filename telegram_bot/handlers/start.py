@@ -10,7 +10,7 @@ from handlers.onboarding import (
     main_menu_intro_suffix, resolve_main_keyboard, user_wants_simple_menu,
 )
 from keyboards.default import (
-    get_main_keyboard, get_cabinet_keyboard, get_cancel_keyboard, get_simple_keyboard,
+    get_main_keyboard, get_cancel_keyboard, get_simple_keyboard,
     get_refreshed_main_keyboard,
 )
 from keyboards.inline import (
@@ -236,7 +236,7 @@ check_user_sponsorship = check_user_subscribed
 
 
 # ============================================================
-# 🚀 1-BOSQICH: /start da IKKILAMCHI ISHLARNI FONGA YUKLASH
+# /start da IKKILAMCHI ISHLARNI FONGA YUKLASH
 # ------------------------------------------------------------
 # /start — eng ko'p chaqiriladigan buyruq. U holda:
 #   1) save_user  (upsert)                    — 1 DB so'rovi
@@ -255,14 +255,14 @@ check_user_sponsorship = check_user_subscribed
 async def _notify_referrer_reward(context, referrer_id: int) -> None:
     """Referrer'ga «do'st qo'shildi» xabarini yuboradi (FONDA, javobdan keyin).
 
-    🌱 STEP 2 (ORGANIC GROWTH): mukofot /start paytida BERILMAYDI — bonus
+    mukofot /start paytida BERILMAYDI — bonus
     ball do'st BIRINCHI postini yaratgan/rejalashtirgan paytda tushadi
     (``ReferralService.register_first_action``; konversiya xabari esa
     ``scheduler.referral_reward_notices_job`` orqali yuboriladi). Shu
     sababli bu xabar AXBOROTLI: do'st qo'shildi + mukofot uning birinchi
     postidan keyin beriladi ("siz bonus yutdingiz" deyilmaydi).
 
-    8-bosqich: self-referral rad etilgani uchun bonus YO'Q — xabar ham
+    self-referral rad etilgani uchun bonus YO'Q — xabar ham
     yuborilmaydi (referrer == user bo'lsa chaqiruvchi o'zi tekshiradi).
     Bu qadam foydalanuvchining /start javobini UZMAYDI: u boshqa chat'ga
     yuboriladigan xabar, shuning uchun kechiktirilishi mumkin.
@@ -296,7 +296,7 @@ async def _warm_user_stats(user_id: int) -> None:
 
 async def _beta_gate_decision(update: Update, context: ContextTypes.DEFAULT_TYPE,
                               user, *, is_new: bool, is_admin: bool):
-    """🚪 SPRINT 4 — ``/start`` uchun beta darvoza qarori.
+    """``/start`` uchun beta darvoza qarori.
 
     Returns:
         Qaror lug'ati (davom etish mumkin) yoki ``None`` (javob yuborildi —
@@ -338,7 +338,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             except ValueError:
                 referrer_id = None
 
-    # 1-BOSQICH: BITTA so'rov. ``db.save_user`` endi ``is_new`` va saqlangan
+    # BITTA so'rov. ``db.save_user`` endi ``is_new`` va saqlangan
     # tilni BIRGA qaytaradi (``_UserSaveResult``), shuning uchun eski
     # foydalanuvchi uchun alohida ``get_user_language`` chaqiruvi (2-urishli
     # round-trip) kerak emas. Eski test stub'lari ``bool`` qaytarsa,
@@ -366,7 +366,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     is_admin = (user.id in ADMIN_IDS_SET)
 
-    # 1-BOSQICH: obuna tekshiruvi va reklama bir-biriga bog'liq EMAS — ikkala
+    # obuna tekshiruvi va reklama bir-biriga bog'liq EMAS — ikkala
     # bir vaqtda (gather) ishga tushadi, shunda ularning DB so'rovlari ketma-
     # ket kutilmaydi. Reklama javob MATNIGA qo'shilgani uchun u kritik
     # yo'lda qoladi (javobdan keyinga ko'chirilsa, alohida xabar yuborish
@@ -411,7 +411,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return ConversationHandler.END
 
-    # 🚪 SPRINT 4 — YOPIQ BETA DARVOZASI (closed beta access).
+    # YOPIQ BETA DARVOZASI (closed beta access).
     # BETA_INVITE_ONLY=false bo'lsa qaror darhol "ochiq" bo'ladi
     # (qo'shimcha DB so'rovi YO'Q). Yoqilganda:
     #   * eski (beta'gacha ro'yxatdan o'tgan) foydalanuvchi — uzluksiz ishlaydi;
@@ -423,7 +423,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if gate_decision is None:
         return ConversationHandler.END
 
-    # ⏱ SPRINT 4 — TTFP (Time To First Post) hisobi uchun start belgisi
+    # TTFP (Time To First Post) hisobi uchun start belgisi
     # (birinchi post ``db.add_post`` da belgilanadi). Best-effort.
     if is_new:
         try:
@@ -466,8 +466,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # GC bo'lmaydi), BACKGROUND_TASK_TIMEOUT_SECONDS bilan cheksiz osilib
     # qolishdan qat'iyat qiladi va xatoni LOGGA yozadi (jimgina "failed
     # silently" bo'lmaydi).
-    # 8-bosqich: self-referral rad etilgani uchun bonus YO'Q.
-    # 🌱 STEP 2: bu xabar «do'st qo'shildi, mukofot uning birinchi
+    # self-referral rad etilgani uchun bonus YO'Q.
+    # bu xabar «do'st qo'shildi, mukofot uning birinchi
     # postidan keyin» deb aytadi (bonus /start da berilmaydi).
     if is_new and referrer_id and referrer_id != user.id:
         run_background_task(
@@ -479,6 +479,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         name=f"start:warm-stats:{user.id}",
     )
     return ConversationHandler.END
+
+
+def _main_menu_markup(update: Update, context, lang: str):
+    """Amal tugagach foydalanuvchiga qaytariladigan asosiy pastki menyu."""
+    user_id = getattr(update.effective_user, "id", None)
+    return get_main_keyboard(user_id in ADMIN_IDS_SET, lang=lang, context=context)
 
 
 async def send_main_menu(context, chat_id: int, lang: str, is_admin: bool,
@@ -660,7 +666,7 @@ async def daily_bonus_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
     res = await db.run_db(db.claim_daily_streak_bonus, user.id)
     if res.get("success"):
         text = build_daily_bonus_text(res, lang)
-        await update.message.reply_text(text, reply_markup=get_cabinet_keyboard(lang), parse_mode="HTML")
+        await update.message.reply_text(text, reply_markup=_main_menu_markup(update, context, lang), parse_mode="HTML")
     else:
         await update.message.reply_text(
             get_text(
@@ -668,7 +674,7 @@ async def daily_bonus_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
                 msg=localize_db_message(res.get("msg", ""), lang),
                 credits=res.get("credits", 0),
             ),
-            reply_markup=get_cabinet_keyboard(lang),
+            reply_markup=_main_menu_markup(update, context, lang),
             parse_mode="HTML"
         )
 
@@ -774,7 +780,7 @@ async def _begin_transfer_flow(update: Update, context: ContextTypes.DEFAULT_TYP
                 credits=my_credits,
                 guide=get_text("daily_bonus_guide", lang),
             ),
-            reply_markup=get_cabinet_keyboard(lang),
+            reply_markup=_main_menu_markup(update, context, lang),
             parse_mode="HTML"
         )
         return ConversationHandler.END
@@ -796,7 +802,7 @@ async def start_transfer_credits(update: Update, context: ContextTypes.DEFAULT_T
 async def transfer_inline_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """🔄 Ballar o'tkazish — ⚙️ Sozlamalar menyusidagi inline tugma orqali kirish.
 
-    PostAssist V2 · 3-qadam: menyudagi [🔄 Ballar o'tkazish] tugmasi mavjud
+    3-qadam: menyudagi [🔄 Ballar o'tkazish] tugmasi mavjud
     FSM oqimini AYNAN ochadi (yangi holat yaratilmaydi, eski callback'lar
     o'chirilmaydi). ``handlers/__init__.py`` da ``start_handlers`` ro'yxatiga
     qo'shilgani uchun u ham entry point, ham HAR BIR faol holatda "menyu
@@ -868,15 +874,16 @@ async def transfer_amount_received(update: Update, context: ContextTypes.DEFAULT
     if success:
         await update.message.reply_text(
             get_text("transfer_success", lang, name=html_escape(to_name), amount=amount),
-            reply_markup=get_cabinet_keyboard(lang),
+            reply_markup=_main_menu_markup(update, context, lang),
             parse_mode="HTML"
         )
         try:
             sender_name = update.effective_user.first_name
+            to_lang = await db.run_db(db.get_user_language, to_id)
             await context.bot.send_message(
                 chat_id=to_id,
                 text=get_text(
-                    "transfer_gift_notice", lang,
+                    "transfer_gift_notice", to_lang,
                     name=html_escape(sender_name), amount=amount,
                 ),
                 parse_mode="HTML"
@@ -886,7 +893,7 @@ async def transfer_amount_received(update: Update, context: ContextTypes.DEFAULT
     else:
         await update.message.reply_text(
             get_text("transfer_error", lang, msg=localize_db_message(msg, lang)),
-            reply_markup=get_cabinet_keyboard(lang),
+            reply_markup=_main_menu_markup(update, context, lang),
             parse_mode="HTML",
         )
         
@@ -983,7 +990,7 @@ async def extras_close_callback(update: Update, context: ContextTypes.DEFAULT_TY
 async def cancel_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """[❌ Bekor qilish] — FSM kontekst tozalanadi va BO'LIM BOSHIGA qaytadi.
 
-    PostAssist V2 · 4-qadam navigatsiya stacki standarti: jarayon (FSM)
+    4-qadam navigatsiya stacki standarti: jarayon (FSM)
     ichida [❌ Bekor qilish] bosilsa kontekst tozalanadi va foydalanuvchi
     O'SHA BO'LIM BOSHIGA qaytadi (masalan, «✨ Kontent yaratish» submenyusi
     yoki «🤖 AI Yordamchi» hub'iga kirib ketgan bo'lsa). Bo'lim noma'lum
@@ -1027,24 +1034,21 @@ async def cancel_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     section = current_section(context)
     clear_fsm_data(context)
-    if section != SECTION_MAIN:
-        # Bo'lim boshiga qaytish (Kontent submenu / AI Studio hub / ...).
-        # Xato bo'lsa — asosiy menyuga fallback (fail-safe).
-        try:
-            rendered = await render_section_start_message(
-                update.message, context, user_id, is_admin, lang,
-            )
-        except Exception:
-            rendered = False
-        if rendered:
-            return ConversationHandler.END
+    # Avval pastki klaviaturani asosiy menyuga qaytaramiz (aks holda
+    # «❌ Bekor qilish» tugmalari ekranda qolib ketadi), keyin foydalanuvchi
+    # turgan bo'limning boshlang'ich ekranini ko'rsatamiz.
     await update.message.reply_text(
         get_text("cancel_done", lang),
-        # 🆕 Yangi foydalanuvchi bekor qilgandan keyin ham sodda (3 tugmali)
-        # menyuga qaytadi — 6 talik menyu uni yana chalkashtirmaydi.
         reply_markup=await resolve_main_keyboard(user_id, is_admin, lang, context),
         parse_mode="HTML",
     )
+    if section != SECTION_MAIN:
+        try:
+            await render_section_start_message(
+                update.message, context, user_id, is_admin, lang,
+            )
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.start:cancel_handler:section", _silent_exc)
     return ConversationHandler.END
 
 
@@ -1281,7 +1285,7 @@ async def cabinet_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if data == "cab_pending":
-        # PostAssist V2 · 2-qadam (B1): eski «Kutilayotgan postlar» kabinet
+        # 2-qadam (B1): eski «Kutilayotgan postlar» kabinet
         # tugmasi endi YAGONA «📅 Rejalashtirilgan» ekranini ochadi —
         # `cab_queue` bilan AYNAN bir xil manba (handlers.queue.scheduled_view).
         await query.answer()

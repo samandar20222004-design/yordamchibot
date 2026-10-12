@@ -3,7 +3,7 @@
 EN_OVERLAY = {
     "btn_new_post": "➕ New post",
     "btn_ai_studio": "🤖 AI Assistant",
-    # UX V2 (classic 6-button standard) — EN parity (legacy names stay in
+    # EN parity (legacy names stay in
     # the alias lists in keyboards/default.py for backward compatibility).
     "btn_premium": "💎 PRO",
     # Step 3: PRO / Help / Referral moved into the inline hub under this
@@ -32,7 +32,7 @@ EN_OVERLAY = {
         "🤖 @PostAssistrobot — schedule posts on time, write copy and content plans with AI.\n\n"
         "Pick a section 👇"
     ),
-    # UX V2: compact onboarding — 3 input modes (photo / text / voice)
+    # compact onboarding — 3 input modes (photo / text / voice)
     # + promise (mirrors UZ/RU).
     "start_onboarding": (
         "👋 Hi!\n"
@@ -72,7 +72,7 @@ EN_OVERLAY = {
     "btn_main_menu": "🔙 Main menu",
     "btn_back": "⬅️ Back",
     "cab_close": "❌ Close",
-    # 🧹 UI/UX POLISH (1-qadam): yagona Shaxsiy kabinet paneli.
+    # 🧹 UI/UX POLISH: yagona Shaxsiy kabinet paneli.
     "cab_bonus_invite": "🎁 Bonuses & Invites",
     "cab_payments": "💳 Payment history",
     "cab_notifications": "🔔 Notifications",
@@ -216,7 +216,7 @@ EN_OVERLAY = {
         "<b>+{reward} AI credits</b> were added to your account. "
         "First 3 friends: +3 each, after that: +1 each. 🚀"
     ),
-    # 🌱 STEP 2: notice sent on /start — "friend joined, reward comes after
+    # notice sent on /start — "friend joined, reward comes after
     # their first post" (no credits are granted on /start alone).
     "referral_friend_joined_notice": (
         "👥 <b>A new friend joined!</b>\n\n"
@@ -321,7 +321,7 @@ EN_OVERLAY = {
         "This style has been saved to your channel profile and will be used in future AI generations."
     ),
     "ch_voice_error": "⚠️ Could not perform channel voice analysis. Please try again later.",
-    # 🧠 STEP 3 — ONBOARDING: CHANNEL DNA ACTIVATION. Right after the first
+    # ONBOARDING: CHANNEL DNA ACTIVATION. Right after the first
     # channel link the bot does not stop at "✅ connected" — it immediately
     # offers to learn the channel's Tone of Voice.
     "ch_dna_offer": (
@@ -594,29 +594,24 @@ EN_OVERLAY = {
         "<i>Example: Salom dunyo → Салом дунё</i>"
     ),
     "help_guide": (
-        "📖 <b>PostAssistrobot — Complete Guide:</b>\n\n"
-        "🔹 <b>1. Connect channel/group:</b>\n"
-        "• Add the bot as <b>administrator</b> to your channel (with permission to send messages).\n"
-        "• Go to «⚙️ Settings» or «📢 My channels» in the main menu and forward any post from the channel or send @username.\n\n"
-        "🔹 <b>2. Schedule a new post:</b>\n"
-        "• Schedule text, photo, video, audio or <b>album</b> (multiple photos/videos) for any date.\n"
-        "• URL buttons, reactions and auto-delete (12, 24, 48, 72 hours).\n"
-        "• <i>PRO posts are automatically 100% ad-free!</i>\n\n"
-        "🔹 <b>3. 🤖 AI Assistant:</b>\n"
-        "• Create AI post, photo-to-post (Vision), AI audit and content plan.\n"
-        "• Ask a question or send text/photo/forward — get a professional post.\n"
-        "• Free-form command: <i>«schedule to all channels tomorrow at 9 am»</i>.\n"
-        "• Edit post: <i>«add phone number at the end»</i>.\n\n"
-        "🔹 <b>4. Credits & Daily Streak:</b>\n"
-        "• Open the bot daily and tap <b>'🎁 Daily bonus'</b>.\n"
-        "• Day 1 (+1), Day 2 (+1), Day 3 (+2), ..., Day 7 (+4 credits)!\n\n"
-        "🔹 <b>5. ⚙️ Extra features:</b>\n"
-        "• ✨ Add Buttons & Reactions to post — instantly boost a ready post.\n"
-        "• 🔤 Latin ⇄ Cyrillic text converter.\n\n"
-        "⚙️ <b>Quick commands:</b>\n"
+        "📖 <b>Guide</b>\n\n"
+        "<b>1. Connect a channel</b>\n"
+        "• Add the bot to your channel as an <b>administrator</b> (with permission to post).\n"
+        "• «📢 My channels» → forward any post from the channel or send its @username.\n\n"
+        "<b>2. Create a post</b> — «✍️ Create post»\n"
+        "• <b>Regular post</b> — text, photo, video or album; add a button, reactions and auto-delete.\n"
+        "• <b>With AI</b> — write a topic and AI drafts a ready post.\n"
+        "• <b>AI Assistant</b> — send a photo, voice or link and it turns it into a post.\n\n"
+        "<b>3. Scheduling</b>\n"
+        "• Publish now or pick a time.\n"
+        "• «📅 Scheduled» — view, edit and delete queued posts.\n\n"
+        "<b>4. Statistics</b> — «📊 Statistics»: views, best posts and times.\n\n"
+        "<b>5. Settings</b> — «⚙️ Settings»: language, notifications, PRO, "
+        "🎁 Bonuses (daily bonus, invite friends) and ❓ Help.\n\n"
+        "⚙️ <b>Commands:</b>\n"
         "/start — Main menu\n"
         "/newpost — New post\n"
-        "/profile — Profile\n"
+        "/settings — Settings\n"
         "/help — Guide\n"
         "/cancel — Cancel\n\n"
         "{support}"
@@ -657,7 +652,7 @@ EN_OVERLAY = {
         "♻️ This button is stale (the bot was restarted). "
         "Open the menu again: /start"
     ),
-    # 🚪 SPRINT 4 — closed beta access messages.
+    # closed beta access messages.
     "beta_pending": (
         "🚪 <b>Closed beta</b>\n\n"
         "The bot is currently running in a closed test mode — access is only "
@@ -686,7 +681,7 @@ EN_OVERLAY = {
         "✅ <b>Your request has been approved!</b>\n\n"
         "To start using the bot, please send /start."
     ),
-    # 🗝 FAZA 19 — fail-closed rejection for unknown/tampered callbacks.
+    # fail-closed rejection for unknown/tampered callbacks.
     "callback_rejected": (
         "⛔ This action is unavailable or failed the security check. "
         "Please use the menu: /start"
@@ -714,7 +709,7 @@ EN_OVERLAY = {
         "image again."
     ),
 
-    # 🩺 PHASE 7: System health monitoring (/health — admins only)
+    # System health monitoring (/health — admins only)
     "health_title": "🩺 <b>SYSTEM HEALTH</b>",
     "health_overall": "📊 <b>Overall status:</b>",
     "health_checked_at": "🕐 Checked: {time} (UTC)",
@@ -844,7 +839,7 @@ EN_OVERLAY = {
     ),
     "ai_btn_back": "⬅️ Back",
     "ai_btn_close": "❌ Cancel",
-    # 🌱 STEP 2 — action buttons of the AI generation preview.
+    # action buttons of the AI generation preview.
     "ai_btn_copy": "📋 Copy text",
     "ai_btn_regen": "🔄 Regenerate",
     "ai_btn_share_ref": "🔗 Share referral",
@@ -2094,12 +2089,11 @@ EN_OVERLAY = {
     "err_ux_telegram_flood": "Telegram rate limit reached. Your message has been queued.",
     "err_ux_url_failed": "Could not safely download this link.",
     "onb_instant_steps": (
-        "🚀 <b>First result in 2 minutes:</b>\n"
-        "1️⃣ Short greeting\n"
-        "2️⃣ <b>Connect your Telegram channel</b>\n"
-        "3️⃣ Automatic quick Channel DNA analysis\n"
-        "4️⃣ Brief summary & “Shall we build a 7-day content plan?” offer\n"
-        "5️⃣ Get your first useful result with a single button!"
+        "🚀 <b>To get started:</b>\n"
+        "1️⃣ <b>Connect your Telegram channel</b> — add the bot to the channel as an admin "
+        "(with permission to post).\n"
+        "2️⃣ Tap «📢 Connect a channel» and forward me any post from the channel.\n"
+        "3️⃣ Done! Now you can write posts and schedule them for the right time."
     ),
     "onb_dna_summary_card": (
         "🧬 <b>Quick Channel DNA analysis is ready!</b>\n\n"

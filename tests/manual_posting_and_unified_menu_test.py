@@ -758,7 +758,7 @@ def test_profile_cleanup():
         check(f"[{lang}] Settings grid: six callbacks in specification order",
               cbs == expected_settings_cbs, str(cbs))
         check(f"[{lang}] Settings grid: language and cleaner are first row",
-              labels and labels[0].startswith("🌐") and labels[1].startswith("✍️"),
+              labels and labels[0].startswith("🌐") and labels[1].startswith("🧹"),
               str(labels))
         check(f"[{lang}] Settings grid: notifications and PRO are second row",
               labels and labels[2].startswith("🔔") and labels[3].startswith("💎"), str(labels))

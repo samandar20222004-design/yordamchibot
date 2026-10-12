@@ -1,4 +1,4 @@
-"""APPLICATION SERVICE — AI vazifalari uchun yagona yuqori qatlam (PHASE 6).
+"""APPLICATION SERVICE — AI vazifalari uchun yagona yuqori qatlam.
 
 Arxitektura oqimi (PHASE 6 talabi):
 
@@ -7,7 +7,7 @@ Arxitektura oqimi (PHASE 6 talabi):
 
 Handler hech qachon:
 
-* provayder adapteriga (``services.ai_service`` / ``services.ai.providers``)
+* provayder adapteriga (``services.ai.fallback`` / ``services.ai.providers``)
   murojaat qilmaydi;
 * kvota (kunlik AI so'rov / kredit) bronini o'zi ochmaydi;
 * telemetriya (token/xarajat) yozuvini o'zi shakllantirmaydi.
@@ -16,7 +16,7 @@ Bularning barchasi bitta joyda — :class:`AITaskService` da:
 
 * **kvota** — ``services.ai_quota.reserve_ai_quota`` (atomik, fail-closed);
   AI xatosi/timeout'da bron ``release_ai_quota`` bilan QAYTARILADI;
-* **shlyuz** — ``services.ai_engine.gateway.ai_gateway`` (kesh/breaker/
+* **shlyuz** — ``services.ai.engine.gateway.ai_gateway`` (kesh/breaker/
   retry/validator/telemetriya);
 * **telemetriya** — har bir so'rov ``ai_usage_events`` jadvaliga yoziladi
   (foydalanuvchi + kanal kesimida kunlik/oylik xarajat hisoboti uchun);
@@ -370,15 +370,15 @@ class AITaskService:
             try:
                 self.recorder.record(event)
             except Exception as _silent_exc:  # pragma: no cover — himoya
-                log_silent_failure("services.ai_engine.app_service:AITaskService.run:370", _silent_exc, user_id=user_id, channel_id=channel_id, lang=lang)
-            # 💰 SPRINT 4 — UNIT ECONOMICS: faqat shu yerda qurilgan yozuv ledger'ga
+                log_silent_failure("services.ai.engine.app_service:AITaskService.run:370", _silent_exc, user_id=user_id, channel_id=channel_id, lang=lang)
+            # UNIT ECONOMICS: faqat shu yerda qurilgan yozuv ledger'ga
             # yoziladi. Gateway yo'li (result.usage bor) ledger'ni o'zi to'ldiradi —
             # ikki marta hisoblanmasin.
             try:
                 from services.ai.cost_tracker import record_usage_event
                 record_usage_event(event_dict)
             except Exception as _silent_exc:  # noqa: BLE001
-                log_silent_failure("services.ai_engine.app_service:AITaskService.run:cost", _silent_exc, user_id=user_id, channel_id=channel_id, lang=lang)
+                log_silent_failure("services.ai.engine.app_service:AITaskService.run:cost", _silent_exc, user_id=user_id, channel_id=channel_id, lang=lang)
         try:
             from services.observability import record_ai_request
             record_ai_request(
@@ -388,7 +388,7 @@ class AITaskService:
                 cost_usd=event_dict.get("estimated_cost") or 0.0,
             )
         except Exception as _silent_exc:  # metrics never interrupt the AI request flow
-            log_silent_failure("services.ai_engine.app_service:AITaskService.run:380", _silent_exc, user_id=user_id, channel_id=channel_id, lang=lang)
+            log_silent_failure("services.ai.engine.app_service:AITaskService.run:380", _silent_exc, user_id=user_id, channel_id=channel_id, lang=lang)
         usage_id = None
         if persist_usage:
             usage_id = await self._save_usage(db, event_dict, reservation)

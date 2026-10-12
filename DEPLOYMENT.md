@@ -1,4 +1,4 @@
-# 🚀 PostAssist V2 (YORDAMCHIBOT) — DEPLOYMENT QO'LLANMASI
+# 🚀 DEPLOYMENT QO'LLANMASI
 
 > Maqsad: botni **serverda (Render yoki VPS) 24/7** ishga tushirish — qisqa va lo'nda.
 > Barcha sozlamalar faqat **muhit o'zgaruvchilari** orqali (`python-dotenv`
@@ -21,7 +21,7 @@ Bog'liq fayllar: `telegram_bot/main.py` (kirish nuqtasi) · `Dockerfile` ·
 | 5 | Kamida **bitta AI kaliti** (`GEMINI_API_KEY` / `GROQ_API_KEY` / `OPENROUTER_API_KEY`). |
 | 6 | Kalitlarni `.env` ga yozmangdan avval: `.env` — `.gitignore`'da, repoga tushmaydi. |
 
-**Production uchun ikkita "tetralgan" qiymat (P0-A):**
+**Production uchun ikkita "tetralgan" qiymat:**
 
 ```
 ENVIRONMENT=production     # bo'sh/yuqolsa ham default = production (fail-closed)
@@ -35,7 +35,7 @@ AI_ALLOW_MOCK=0            # Mock (shablon) javoblar production'da O'CHIQ
 To'lovlar uchun (ixtiyoriy): `CARD_NUMBER`, `CARD_HOLDER`, `PAYMENT_ADMIN_USERNAME`
 — karta rekvizitlari **kodda yo'q**, faqat shu o'zgaruvchilardan olinadi.
 
-**💬 Qo'llab-quvvatlash (4-QISM) — adminlar uchun muhim:** foydalanuvchi
+**💬 Qo'llab-quvvatlash — adminlar uchun muhim:** foydalanuvchi
 `👤 Profil → [💬 Qo'llab-quvvatlash]` orqali **bitta xabar** yozadi (FSM darhol
 yopiladi — ketma-ket yozish adminga spam bo'lib bormaydi) va murojaat
 `ADMIN_IDS` ro'yxatidagi **har bir** adminga yuboriladi. Javob berish uchun
@@ -63,7 +63,7 @@ bash scripts/deploy.sh             # ⚡️ PREFLIGHT → MIGRATION → START �
 
 | # | Bosqich | Nima tekshiriladi / bajariladi |
 |---|---|---|
-| 1 | 🛫 **Preflight** | `.env` to'liqligi: `BOT_TOKEN`, `DATABASE_URL` (+`sslmode`), `REDIS_URL`, `HEALTH_READY_TOKEN`, `ENVIRONMENT`/`AI_ALLOW_MOCK` (P0-A fail-closed), `PORT`, `ADMIN_*`, AI provayder kalitlari, DB pool izchilligi, quiet hours formati (`scripts/preflight_env.py`) |
+| 1 | 🛫 **Preflight** | `.env` to'liqligi: `BOT_TOKEN`, `DATABASE_URL` (+`sslmode`), `REDIS_URL`, `HEALTH_READY_TOKEN`, `ENVIRONMENT`/`AI_ALLOW_MOCK` (fail-closed), `PORT`, `ADMIN_*`, AI provayder kalitlari, DB pool izchilligi, quiet hours formati (`scripts/preflight_env.py`) |
 | 2 | 🗄 **Migration** | `schema.sql` **idempotent** qo'llaniladi + schema check (jadvallar/indekslar/integrity; baza "cold start"da retry) — `scripts/db_migrate.py` |
 | 3 | 🚀 **Start** | `telegram_bot/main.py`: web health-server `0.0.0.0:$PORT` (standart **8080**), Telegram polling, APScheduler workerlari (postlar, tozalash, RSS, obuna sweep) — parallel |
 | 4 | 🩺 **Health** | `GET /health/live` 200 (`{"status":"live"}`) bo'lguncha kutadi (standart 60 s) |
@@ -207,7 +207,7 @@ sudo nano /etc/postassist.env      # BOT_TOKEN, DATABASE_URL, ADMIN_IDS, AI kali
 
 ```ini
 [Unit]
-Description=PostAssist V2 Telegram bot
+Description=PostAssist Telegram bot
 After=network-online.target
 Wants=network-online.target
 
@@ -373,7 +373,7 @@ python3 tests/smoke_test.py --base-url http://127.0.0.1:8080
   qilish `-31007` bilan rad etiladi.
 * Kassa kaliti hech qachon log'ga yozilmaydi (`PaymeConfig.__repr__` va Sentry
   scrubber uni yashiradi).
-* Batafsil: [docs/reports/PAYME_MERCHANT_API.md](docs/reports/PAYME_MERCHANT_API.md).
+* Batafsil: [docs/PAYME.md](docs/PAYME.md).
 
 ---
 

@@ -25,7 +25,7 @@ from translations import settings_stats_t  # noqa: E402
 EXPECTED_LABELS = {
     "uz": [
         "🌐 Til / Язык",
-        "✍️ Post Auto-Cleaner & Imzo",
+        "🧹 Post tozalash va imzo",
         "🔔 Bildirishnomalar",
         "💎 PRO va Tariflar",
         "👥 Do'stlarni taklif",
@@ -33,7 +33,7 @@ EXPECTED_LABELS = {
     ],
     "ru": [
         "🌐 Язык",
-        "✍️ Автоочистка постов и подпись",
+        "🧹 Автоочистка постов и подпись",
         "🔔 Уведомления",
         "💎 PRO и тарифы",
         "👥 Пригласить друзей",
@@ -41,7 +41,7 @@ EXPECTED_LABELS = {
     ],
     "en": [
         "🌐 Language",
-        "✍️ Post Auto-Cleaner & Signature",
+        "🧹 Post cleaner & signature",
         "🔔 Notifications",
         "💎 PRO & Plans",
         "👥 Invite friends",

@@ -51,7 +51,6 @@ def main():
         "translations.content_menu",
         # 📢 KANALLARIM + 📅 REJALASHTIRILGAN (PostAssist V2, 4-qadam)
         "translations.channels_queue",
-        "keyboards.reply",
         # 📋 ☰ «MENU» TUGMASI (set_my_commands) — buyruqlar ro'yxati va
         # uz/ru/en tavsiflari uchun YAGONA manba (``main.set_bot_commands``
         # shu moduldan o'qiydi).
@@ -88,12 +87,12 @@ def main():
         "services.ai",
         # 🚦 AI ENGINE V2 — yagona kanonik AI shlyuz (gateway/router/health/
         # cache/providers). Barcha AI chaqiruvlari shu paket orqali yuradi.
-        "services.ai_engine",
-        "services.ai_engine.router",
-        "services.ai_engine.providers",
-        "services.ai_engine.health",
-        "services.ai_engine.cache",
-        "services.ai_engine.gateway",
+        "services.ai.engine",
+        "services.ai.engine.router",
+        "services.ai.engine.providers",
+        "services.ai.engine.health",
+        "services.ai.engine.cache",
+        "services.ai.engine.gateway",
         # 📢 FAZA 15 & 16: REKLAMA DVIGATELI + REKLAMA AUDITI — 4 xil format
         # (native/short/educational/soft), NO FABRICATION filtri va audit.
         # services.ai (orchestrator/kvota/sanitizer) va services.channels.dna
@@ -113,7 +112,6 @@ def main():
         "services.ai.progress",
         "services.ai.streaming",
         "services.ai.calendar_context",
-        "services.ai.facade",
         "middlewares",
         "middlewares.rate_limiter",
     ]

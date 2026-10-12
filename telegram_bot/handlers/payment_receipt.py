@@ -38,7 +38,7 @@ from keyboards.callback_data import (  # noqa: E402 — modul boshidagi importla
     CB_RECEIPT_REJECT,
     cb,
 )
-# 6-bosqich: chek tasdiqlash/rad etish — 'manage_payments' ruxsati.
+# chek tasdiqlash/rad etish — 'manage_payments' ruxsati.
 from services.rbac_service import (  # noqa: E402
     PERM_MANAGE_PAYMENTS, has_permission,
     CallbackTampering, admin_callback_guard,
@@ -280,14 +280,14 @@ async def receipt_admin_callback(update: Update, context: ContextTypes.DEFAULT_T
         log_silent_failure("handlers.payment_receipt:receipt_admin_callback:277", _silent_exc)
 
     admin_id = query.from_user.id
-    # 11-bosqich (P0) — callback tampering himoyasi: kim bosgani FAQAT
+    # callback tampering himoyasi: kim bosgani FAQAT
     # server-side ``from_user.id`` orqali aniqlanadi; admin bo'lmagan
     # foydalanuvchi soxta ``rc_ok:<id>`` yuborsa amal MUTLAQO bajarilmaydi.
     if admin_id not in ADMIN_IDS_SET:
         logger.warning("Receipt callback: admin bo'lmagan user=%s rad etildi (data=%r)",
                        admin_id, str(query.data)[:64])
         return None
-    # 6-bosqich: RBAC — to'lovni faqat 'manage_payments' ruxsati bor admin
+    # RBAC — to'lovni faqat 'manage_payments' ruxsati bor admin
     # tasdiqlashi/rad etishi mumkin (legacy adminlar avtomatik OWNER/SUPER_ADMIN).
     if not has_permission(admin_id, PERM_MANAGE_PAYMENTS):
         try:

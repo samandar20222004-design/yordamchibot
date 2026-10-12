@@ -1,6 +1,6 @@
-"""P0-C — Tizim/retry ko'rsatmalarining post matniga sizib chiqishidan himoya.
+"""Tizim/retry ko'rsatmalarining post matniga sizib chiqishidan himoya.
 
-Muammo (Phase 0 auditi, P0-C)
+Muammo (Phase 0 auditi)
 -----------------------------
 Orkestratorning «kuchaytirilgan retry» ko'rsatmasi
 (masalan ``MUHIM: Oldingi javob juda qisqa ... TAQIQLANADI!``) ba'zi hollarda
@@ -163,7 +163,7 @@ def sanitize_output(text: str | None) -> tuple[str, bool]:
     o'zgargan) holat; monitoring/logging uchun.
     """
     raw = "" if text is None else str(text)
-    from services.ai_engine.safety import contains_leak
+    from services.ai.engine.safety import contains_leak
     if contains_leak(raw):
         return "", True
     if not has_instruction_leak(raw):

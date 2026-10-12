@@ -1,4 +1,4 @@
-"""🔗 URL → POST — SSRF himoyasi + ochiq matn ajratish (PHASE D, 11-band).
+"""🔗 URL → POST — SSRF himoyasi + ochiq matn ajratish.
 
 Foydalanuvchi ommaviy maqola havolasini yuboradi; xizmat:
 
@@ -30,7 +30,7 @@ Modul tarmoqqa faqat aniq ruxsat berilgan ``http(s)`` manzillar orqali
 chiqadi; barcha funksiyalar xatoda ISTISNO KO'TARMAYDI (fail-soft, aniq
 ``error_code`` qaytaradi).
 
-PHASE 1 (URL Security Gateway): standart HTTP transport endi markazlashtirilgan
+standart HTTP transport endi markazlashtirilgan
 ``services/url_security_gateway.PinnedUrllibClient`` orqali ishlaydi —
 ulanish aynan tasdiqlangan IP'ga «pin» qilinadi (DNS rebinding himoyasi) va
 har bir redirect qayta tekshiriladi. Bu modulning o'z validatsiyasi, xato
@@ -516,16 +516,6 @@ def parse_telegram_url(url: str) -> dict:
     }
 
 
-def is_telegram_post_url(url: str) -> bool:
-    """``t.me/kanal/123`` ko'rinishidagi aniq post havolami (PURE)."""
-    return bool(parse_telegram_url(url).get("is_post"))
-
-
-def is_telegram_channel_only_url(url: str) -> bool:
-    """``t.me/kanal`` ko'rinishidagi kanal-only havolami (PURE)."""
-    return bool(parse_telegram_url(url).get("is_channel_only"))
-
-
 def build_telegram_preview_url(channel: str, post_id: int | None = None) -> str:
     """Ochiq preview manzili: ``https://t.me/s/<kanal>[/<post_id>]`` (PURE)."""
     name = str(channel or "").strip().lstrip("@")
@@ -709,7 +699,7 @@ def fetch_url(
     if client is not None:
         http = client
     else:
-        # PHASE 1 — URL Security Gateway: DNS-rebinding himoyasi bilan
+        # URL Security Gateway: DNS-rebinding himoyasi bilan
         # yagona transport. Pin allaqachon validate_public_url natijasidan
         # olinadi (ikkinchi DNS so'rovi kerak emas).
         from ..url_security_gateway import PinnedUrllibClient

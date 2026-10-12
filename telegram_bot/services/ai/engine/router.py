@@ -1,6 +1,6 @@
-"""Model Router — vazifaga qarab model/provayder tanlash (AI ENGINE V2).
+"""Model Router — vazifaga qarab model/provayder tanlash.
 
-DEEP AUDIT (Faza 2): AI chaqiruvlari ikkiga bo'lingan edi — eski modullar
+AI chaqiruvlari ikkiga bo'lingan edi — eski modullar
 ``utils/ai_agent.py`` ga, yangilari ``services/ai/*`` ga murojaat qilardi va
 yagona marshrutlash yo'q edi. Bu modul barcha lane'lar uchun YAGONA
 marshrutlash qatlamini beradi:
@@ -16,11 +16,11 @@ Lane'lar (``Lane``):
 
 Router HECH QACHON tarmoqqa chiqmaydi va provayder kodi BILMAYDI — u faqat
 kanonik provayder NOMLARI bo'yicha tartib qaytaradi
-(:func:`provider_order`). Haqiqiy HTTP ishlari ``services/ai_service.py``
+(:func:`provider_order`). Haqiqiy HTTP ishlari ``services/ai/fallback.py``
 dagi sinovdan o'tgan provayder adapterlarida qoladi (hech narsa noldan
 yozilmaydi — yagona shlyuz ularni qayta ishlatadi).
 
-Provayder nomlari ``services/ai_service.py`` kanonik nomlari bilan birxil:
+Provayder nomlari ``services/ai/fallback.py`` kanonik nomlari bilan birxil:
 ``Gemini, Groq, OpenRouter, Mistral, Cerebras, SambaNova, Cloudflare,
 Pollinations``.
 """
@@ -34,7 +34,7 @@ from enum import Enum
 from utils.silent_errors import log_silent_failure
 
 # ---------------------------------------------------------------------------
-# Kanonik provayder nomlari (services/ai_service.py bilan bir xil — yagona
+# Kanonik provayder nomlari (services/ai/fallback.py bilan bir xil — yagona
 # manba; bu yerda faqat "o'qiydigan" nusxa, o'zgartirish uchun emas).
 # ---------------------------------------------------------------------------
 PROVIDER_GEMINI = "Gemini"
@@ -155,7 +155,7 @@ LANE_SPECS: dict[Lane, LaneSpec] = {
 # Vazifa nomi → Lane (kanonik xarita). ``gateway.generate(task=...)`` va
 # handler'lar shu nomlar bilan lane tanlaydi.
 # ---------------------------------------------------------------------------
-#: PHASE 6 — kanonik lane ALIASLARI (yagona shlyuz interfeysi).
+#kanonik lane ALIASLARI (yagona shlyuz interfeysi).
 #:
 #: ``ai_gateway.generate(..., lane="fast" | "smart" | "premium")`` shaklida
 #: chaqiruvchilar lane'ni "mahsulot tili"da aytadi; bu xarita ularni
@@ -191,7 +191,7 @@ def lane_alias(name: str | None) -> Lane | None:
 
 TASK_LANES: dict[str, Lane] = {
     # --- FAST: oddiy, tez javob talab qiladigan vazifalar -------------------
-    # 2-BOSQICH: qisqa/tezkor vazifalar eng kam kechikishli provayder (Groq)
+    # qisqa/tezkor vazifalar eng kam kechikishli provayder (Groq)
     # birinchi navbatda sinadi — umumiy zanjir 12-15s, har bir provayder 6-8s.
     "rewrite": Lane.FAST,
     "restyle": Lane.FAST,
@@ -210,7 +210,7 @@ TASK_LANES: dict[str, Lane] = {
     "tone": Lane.FAST,
     "faq": Lane.FAST,
     "extract_time": Lane.FAST,
-    # PHASE 6 — kanonik "mahsulot" vazifa nomlari (yagona interfeys):
+    # kanonik "mahsulot" vazifa nomlari (yagona interfeys):
     "social_post": Lane.FAST,        # ijtimoiy tarmoq posti (arzon/tez)
     "quick_post": Lane.FAST,
     "caption": Lane.FAST,
@@ -285,7 +285,7 @@ def lane_for_task(task: str | Lane | None) -> Lane | None:
     lane = TASK_LANES.get(key)
     if lane is not None:
         return lane
-    # PHASE 6: kanonik aliaslar ("fast"/"smart"/"premium"/"quality"/...).
+    # kanonik aliaslar ("fast"/"smart"/"premium"/"quality"/...).
     alias = LANE_ALIASES.get(key)
     if alias is not None:
         return alias
@@ -349,7 +349,7 @@ def resolve_lane(
             if intent is SMMIntent.CONTENT_IDEAS:
                 return Lane.REASONING
         except Exception as _silent_exc:  # pragma: no cover — router bo'lmasa ham ishlaydi
-            log_silent_failure("services.ai_engine.router:resolve_lane", _silent_exc)
+            log_silent_failure("services.ai.engine.router:resolve_lane", _silent_exc)
     return Lane.QUALITY
 
 

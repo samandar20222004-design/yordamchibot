@@ -1,4 +1,4 @@
-"""CleanupService — PostAssist V2 (9-BOSQICH): davriy ma'lumotlar tozalash.
+"""CleanupService: davriy ma'lumotlar tozalash.
 
 Baza (Neon) vaqt o'tishi bilan shishib ketmasligi uchun scheduler har 24 soatda
 bir marta (kechasi soat 03:00, Toshkent vaqti) ``cleanup_old_records()``
@@ -261,11 +261,6 @@ async def cleanup_old_records(batch_size: int = None, max_batches: int = None,
         summary["batches"], summary["duration_ms"], len(summary["errors"]),
     )
     return summary
-
-
-def cleanup_old_records_sync(**kwargs) -> dict:
-    """Sinxron o'ram (admin buyruqlari / skriptlar uchun)."""
-    return asyncio.run(cleanup_old_records(**kwargs))
 
 
 class CleanupService:

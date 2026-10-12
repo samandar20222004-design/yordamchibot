@@ -216,7 +216,7 @@ def get_admin_dashboard_stats() -> dict:
 
 
 # ============================================================
-# POSTASSIST V2 — 6-BOSQICH: RBAC VA ADMIN AUDITI (DB CRUD)
+# 6-BOSQICH: RBAC VA ADMIN AUDITI (DB CRUD)
 # ------------------------------------------------------------
 # Rollar ``admin_roles`` jadvalida saqlanadi (asosiy manba) va
 # ``users.role`` ustunida aks ettiriladi (ko'rinish/moslik uchun).
@@ -755,7 +755,7 @@ def get_recent_support_tickets(limit: int = 20) -> list[dict]:
         return []
 
 # ====================================================================
-# 🧾 PHASE 6 — AI XARAJAT VA TELEMETRIYA JURNALI (ai_usage_events)
+# AI XARAJAT VA TELEMETRIYA JURNALI (ai_usage_events)
 # ====================================================================
 # Har bir AI so'rovi (muvaffaqiyat ham, xato ham) shu jadvalga yoziladi:
 # model, provayder, input/output tokenlar, kechikish, taxminiy xarajat va
