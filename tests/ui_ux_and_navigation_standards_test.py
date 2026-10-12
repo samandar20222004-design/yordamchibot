@@ -104,7 +104,7 @@ from locales.translations import (                          # noqa: E402
 from translations import (                                  # noqa: E402
     admin_panel_parity_report, admin_t,
     channels_queue_parity_report, channels_queue_t,
-    settings_stats_parity_report, settings_stats_t,
+    settings_stats_parity_report,
 )
 
 # Asosiy menyu — 3-BOSQICH IXCHAM 5 TUGMA / 3 QATOR

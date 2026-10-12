@@ -148,7 +148,6 @@ def test_2_settings_compact_four_button_layout():
     from keyboards.inline import (get_cabinet_inline_keyboard,
                                   get_settings_hub_keyboard,
                                   get_settings_profile_keyboard)
-    from translations.settings_stats import settings_stats_t
 
     for lang in LANGS:
         kb = get_settings_profile_keyboard(lang)

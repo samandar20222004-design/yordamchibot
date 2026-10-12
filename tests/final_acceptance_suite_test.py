@@ -99,7 +99,7 @@ from locales.translations import get_text  # noqa: E402
 from translations import (  # noqa: E402
     channels_queue_parity_report, content_menu_parity_report,
     content_menu_t, magic_post_parity_report, post_score_parity_report,
-    settings_stats_parity_report, settings_stats_t, voice_post_parity_report,
+    settings_stats_parity_report, voice_post_parity_report,
 )
 
 LANGS = ("uz", "ru", "en")
@@ -811,7 +811,6 @@ def test_l_settings_menu_compact_profile_hub():
     for lang in LANGS:
         kb = get_settings_hub_keyboard(lang)
         cbs = _cbs(kb)
-        labels = _labels(kb)
         if base is None:
             base = cbs
         check(f"[{lang}] Sozlamalar hub = 4 primary actions / 2×2",
