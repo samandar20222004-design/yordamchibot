@@ -49,23 +49,6 @@ _POST_ACTIONS = {
 }
 
 
-def _post_id(query) -> int | None:
-    """Eski yordamchi (orqaga moslik): ``team_ok:12`` → ``12``.
-
-    Faqat qat'iy musbat butun son qabul qilinadi (``12;DROP``, ``-1``, bo'sh —
-    ``None``).  Yangi kod ``post_id_from_callback(update, prefix)`` ishlatadi.
-    """
-    from services.rbac_service import parse_callback_id
-
-    data = getattr(query, "data", None)
-    if data is None:
-        return None
-    text = str(data)
-    if ":" not in text:
-        return None
-    return parse_callback_id(text.split(":", 1)[1])
-
-
 async def _finish(query, text: str):
     try:
         await query.answer(text[:180], show_alert=False)

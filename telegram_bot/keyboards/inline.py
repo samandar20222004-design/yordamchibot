@@ -1052,22 +1052,6 @@ def render_pending_list(posts: list, user_code: str, lang: str = "uz") -> Inline
     return InlineKeyboardMarkup(keyboard)
 
 
-def _profile_support_button(lang: str) -> InlineKeyboardButton:
-    """💬 Qo'llab-quvvatlash tugmasi → BOT ICHIDAGI yagona murojaat oqimi.
-
-    4-QISM: tugma endi tashqi ``t.me/<username>`` havolasi EMAS, balki
-    ``help_support`` callback'i — u bir martalik murojaat (one-time ticket)
-    FSM oqimini ochadi va admin ``ADMIN_IDS`` orqali to'g'ridan-to'g'ri
-    javob beradi (javob shu chatda keladi).
-    """
-    from translations import settings_stats_t
-
-    return InlineKeyboardButton(
-        settings_stats_t("ss_help_hub_support", lang),
-        callback_data="help_support",
-    )
-
-
 def get_settings_profile_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
     """⚙️ Sozlamalar / Ko'proq — 5 QATOR × 2 TUGMA = 10 TUGMALI panel (KANONIK).
 

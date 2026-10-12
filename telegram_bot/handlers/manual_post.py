@@ -502,28 +502,6 @@ def _smart_extract_emojis(text: str, max_count: int = SMART_EMOJI_MAX) -> list:
     return result[:max_count]
 
 
-
-
-def _is_pure_emoji_text(text: str) -> bool:
-    """Matn faqat emoji(lar) va ajratgichlardan iboratmi?
-
-    Masalan: \"😎\" → True, \"🔥 👍\" → True, \"salom 😎\" → False.
-    """
-    if not text or not str(text).strip():
-        return False
-    emojis = _smart_extract_emojis(text, max_count=10)
-    if not emojis:
-        return False
-    temp = str(text)
-    for e in emojis:
-        temp = temp.replace(e, "")
-    # Variation selector'larni ham olib tashlaymiz
-    temp = temp.replace("\ufe0f", "").replace("\ufe0e", "")
-    # Qolgan ajratgichlar (bo'sh joy, vergul, nuqta-vergul, | /) ni tozalaymiz
-    temp = _re.sub(r"[\s,;|/]+", "", temp)
-    return temp == ""
-
-
 def _smart_parse_url_button(raw_text: str):
     """Smart URL parser — \"Matn - Havola\" yoki faqat \"Havola\" formatlarini qo'llaydi.
 
