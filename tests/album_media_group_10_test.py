@@ -53,7 +53,7 @@ from handlers.new_post import (  # noqa: E402
     GET_CONTENT, GET_BTN_TITLE, content_received, confirm_post_callback,
     _ALBUM_MAX_ITEMS, _ALBUM_BUFFERS, _bind_album_caption,
     _album_items_to_post, _build_preview_text, _album_received_text,
-    _album_items_count_of, _UD_SEQ_TS, reset_callback_throttle,
+    _album_items_count_of, reset_callback_throttle,
 )
 from locales.translations import (  # noqa: E402
     get_text, has_key, translation_parity_report, translation_format_report,

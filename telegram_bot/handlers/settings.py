@@ -56,7 +56,6 @@ from keyboards.inline import (
     get_referral_share_keyboard,
     get_settings_back_keyboard,
     get_settings_help_hub_keyboard,
-    get_settings_profile_keyboard,
     get_profile_menu_keyboard,
     get_settings_hub_keyboard,
     get_settings_rewards_keyboard,
