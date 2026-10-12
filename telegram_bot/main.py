@@ -10,7 +10,16 @@ import time
 import pytz  # noqa: F401 — vaqt zonasi bilan ishlovchi modullar uchun saqlanadi
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from telegram.ext import ApplicationBuilder, Application
-from telegram import BotCommand, Update
+from telegram import Update
+# 📋 ☰ «MENU» TUGMASI (set_my_commands) — buyruq nomlari, TARTIBI va
+# uz/ru/en tavsiflari YAGONA manbadan (``menu_commands``) olinadi; shu
+# yerda nusxa ko'chirilgan ro'yxat yo'q.
+from menu_commands import (
+    DEFAULT_MENU_LANG,
+    build_bot_commands,
+    default_menu_button,
+    localized_command_lists,
+)
 from config import (
     BOT_TOKEN,
     UPDATE_HANDLER_TIMEOUT_SECONDS,
@@ -467,21 +476,90 @@ async def keep_alive_task() -> None:
             logger.warning("Keep-alive so'rovi muvaffaqiyatsiz (%s): %s", host, e)
 
 
-async def set_bot_commands(application):
-    commands = [
-        BotCommand("start", "Bosh menyu"),
-        BotCommand("newpost", "Yangi post rejalashtirish"),
-        BotCommand("imagepost", "Rasm orqali post yaratish"),
-        BotCommand("profile", "Kabinet va sozlamalar"),
-        BotCommand("help", "Yordam va qo'llanma"),
-        BotCommand("channel_advice", "Kanal haftalik hisoboti"),
-        BotCommand("cancel", "Amalni bekor qilish"),
-    ]
+async def _safe_bot_api_call(label: str, func, *args, **kwargs) -> bool:
+    """Telegram API chaqiruvini XAVFSIZ bajaradi (bot start buzilmaydi).
+
+    Bitta API xatosi (tarmoq, 429, eskirgan kutubxona) bot ko'tarilishini
+    TO'XTATMAYDI: xato logga yoziladi va ``False`` qaytadi — chaqiruvchi
+    keyingi qadamlarga o'taveradi.
+    """
     try:
-        await application.bot.set_my_commands(commands)
-        logger.info("Telegram Menyu buyruqlari muvaffaqiyatli o'rnatildi.")
+        await func(*args, **kwargs)
+        return True
     except Exception as e:
-        logger.warning(f"Menyu buyruqlarini o'rnatishda xatolik: {e}")
+        logger.warning("Telegram API xatosi (%s): %s", label, e)
+        return False
+
+
+async def set_bot_commands(application) -> dict:
+    """📋 ☰ «Menu» tugmasi + LOKALIZATSIYA qilingan buyruqlar ro'yxati.
+
+    Telegram'da chat maydoni yonidagi «Menu» (☰) tugmasi ``set_my_commands``
+    ro'yxatini ko'rsatadi. Ro'yxat TILGA QARAB tanlanadi, shu sababli:
+
+      1) ``language_code`` SIZ (standart) ro'yxat UZ'da o'rnatiladi —
+         mos til topilmagan klientlar ham tushunarli ro'yxat ko'radi;
+      2) ``uz`` / ``ru`` / ``en`` uchun ALOHIDA ro'yxatlar (har biri o'z
+         tilidagi tavsiflar bilan) — Telegram klient tilini o'zi tanlaydi;
+      3) «Menu» tugmasi turi AYNAN ``commands`` (``MenuButtonCommands``)
+         qilib qo'yiladi — tugma bosilganda doim buyruqlar ro'yxati
+         ochiladi, chatdagi tugmalar o'zgarmaydi.
+
+    Buyruqlar ro'yxatining o'zi ``menu_commands`` modulidan olinadi
+    (uz/ru/en tavsiflari, tartib va 5 ta asosiy amal — YAGONA manba).
+
+    Xatolik siyosati: har bir chaqiruv alohida ``try/except`` da — bittasi
+    yiqilsa qolganlari baribir bajariladi va funksiya hisobot qaytaradi
+    (hech qachon istisno tashlamaydi, bot starti buzilmaydi).
+
+    Qaytaradi (diagnostika/testlar uchun)::
+
+        {"default": True, "locales": {"uz": True, "ru": True, "en": True},
+         "menu_button": True}
+    """
+    report: dict = {"default": None, "locales": {}, "menu_button": None}
+    bot = getattr(application, "bot", None)
+    if bot is None:
+        logger.warning("Menyu sozlamalari o'rnatilmadi: application.bot yo'q.")
+        return report
+
+    # 1) STANDART ro'yxat (language_code'siz) — UZ (botning asosiy tili).
+    setter = getattr(bot, "set_my_commands", None)
+    if callable(setter):
+        report["default"] = await _safe_bot_api_call(
+            "set_my_commands(default)",
+            setter, build_bot_commands(DEFAULT_MENU_LANG),
+        )
+    else:  # pragma: no cover - juda eski kutubxona/mock
+        logger.warning("Bot.set_my_commands mavjud emas — menyu o'rnatilmadi.")
+        report["default"] = False
+
+    # 2) Har bir til uchun ALOHIDA ro'yxat (uz / ru / en).
+    if callable(setter):
+        for lang, commands in localized_command_lists().items():
+            report["locales"][lang] = await _safe_bot_api_call(
+                f"set_my_commands({lang})", setter, commands,
+                language_code=lang,
+            )
+
+    # 3) «Menu» tugmasining turi — standart BUYRUQLAR ro'yxati.
+    button_setter = getattr(bot, "set_chat_menu_button", None)
+    if callable(button_setter):
+        report["menu_button"] = await _safe_bot_api_call(
+            "set_chat_menu_button(commands)",
+            button_setter, menu_button=default_menu_button(),
+        )
+    else:  # pragma: no cover - juda eski kutubxona/mock
+        logger.warning("Bot.set_chat_menu_button mavjud emas — tugma turi "
+                       "o'rnatilmadi (standart «commands» bo'lib qoladi).")
+        report["menu_button"] = False
+
+    if report["default"] and all(report["locales"].values()) and report["menu_button"]:
+        logger.info("☰ Telegram «Menu» tugmasi va buyruqlar ro'yxati "
+                    "o'rnatildi (standart + uz/ru/en).")
+    else:
+        logger.warning("Menyu sozlamalari QISMAN o'rnatildi: %s", report)
+    return report
 
 
 # ============================================================

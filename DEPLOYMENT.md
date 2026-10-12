@@ -402,6 +402,10 @@ sudo systemctl restart postassist             # graceful: in-flight postlar tuga
       smoke test: **0 [FAIL]** (hisobot: `logs/smoke-*.json`).
 - [ ] Telegram: `/start` menyuda 6 ta tugma; `/health` (OWNER) → **HEALTHY**
       (DB latency, scheduler, AI provayderlar holati, xatolar soni).
+- [ ] ☰ **«Menu» tugmasi** (chat maydoni yonida): tilga mos 5 ta buyruq
+      ko'rinadi — `/start`, `/newpost`, `/cleaner`, `/settings`, `/help`
+      (uz/ru/en; mos til topilmasa UZ). Logda «☰ Telegram «Menu» tugmasi va
+      buyruqlar ro'yxati o'rnatildi» yozuvi bo'lishi kerak.
 - [ ] Sinov posti: `/newpost` → kanalga chiqdi; `pending` da qolib ketmadi.
 - [ ] Logda `[BOT_ERROR]` yo'q; Sentry ulangan bo'lsa eventlarda token/parol **yo'q**
       (scrubber ishlaydi).

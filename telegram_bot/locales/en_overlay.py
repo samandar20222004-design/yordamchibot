@@ -20,6 +20,13 @@ EN_OVERLAY = {
     "btn_scheduled": "📅 Scheduled",
     "btn_statistics": "📊 Statistics",
     "btn_invite_friends": "👥 Invite friends",
+    # 📋 ☰ «MENU» BUTTON (set_my_commands) — EN parity (1:1 with the UZ
+    # keys). Single source of truth: `telegram_bot/menu_commands.py`.
+    "menu_cmd_start": "🚀 Restart bot",
+    "menu_cmd_newpost": "✍️ Create new post",
+    "menu_cmd_cleaner": "🧹 Post cleaner & signature",
+    "menu_cmd_settings": "⚙️ Settings",
+    "menu_cmd_help": "ℹ️ Help",
     "start_hello": (
         "Hi, <b>{name}</b>! 👋\n\n"
         "🤖 @PostAssistrobot — schedule posts on time, write copy and content plans with AI.\n\n"

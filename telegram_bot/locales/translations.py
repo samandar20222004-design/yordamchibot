@@ -46,6 +46,16 @@ TRANSLATIONS = {
         "btn_scheduled": "📅 Rejalashtirilgan",
         "btn_statistics": "📊 Statistika",
         "btn_invite_friends": "👥 Do'stlarni taklif",
+        # 📋 ☰ «MENU» TUGMASI (set_my_commands) — chat maydoni yonidagi
+        # tugma bosilganda ko'rinadigan ASOSIY 5 buyruqning qisqa
+        # tavsiflari. YAGONA manba: `telegram_bot/menu_commands.py`
+        # (buyruq nomi → i18n kaliti). Tavsif Telegram cheklovi bilan
+        # ≤256 belgi (haqiqiy qiymatlar ancha qisqa).
+        "menu_cmd_start": "🚀 Botni qayta ishga tushirish",
+        "menu_cmd_newpost": "✍️ Yangi post yaratish",
+        "menu_cmd_cleaner": "🧹 Post tozalagich va Imzo",
+        "menu_cmd_settings": "⚙️ Sozlamalar",
+        "menu_cmd_help": "ℹ️ Yordam",
         "start_hello": (
             "Salom, <b>{name}</b>! 👋\n\n"
             "🤖 @PostAssistrobot — kanallarga postlarni vaqtida joylash, "
@@ -2186,6 +2196,13 @@ TRANSLATIONS = {
         "btn_scheduled": "📅 Запланированные",
         "btn_statistics": "📊 Статистика",
         "btn_invite_friends": "👥 Пригласить друзей",
+        # 📋 ☰ «МЕНЮ» (set_my_commands) — RU pariteti (UZ kalitlari bilan
+        # 1:1). Manba: `telegram_bot/menu_commands.py`.
+        "menu_cmd_start": "🚀 Перезапустить бота",
+        "menu_cmd_newpost": "✍️ Создать пост",
+        "menu_cmd_cleaner": "🧹 Авто-чистка и Подпись",
+        "menu_cmd_settings": "⚙️ Настройки",
+        "menu_cmd_help": "ℹ️ Помощь",
         "start_hello": (
             "Привет, <b>{name}</b>! 👋\n\n"
             "🤖 @PostAssistrobot — умный помощник для своевременной публикации "
