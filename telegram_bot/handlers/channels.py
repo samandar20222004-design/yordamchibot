@@ -10,7 +10,8 @@ from keyboards.default import (
     is_menu_text, tone_from_text, tone_labels,
 )
 from keyboards.callback_data import (
-    CB_CHANNEL_VOICE, CB_CHANNEL_ADVICE, CB_SET_STYLE, cb,  # noqa: F401
+    CB_CHANNEL_ADVICE, CB_CHANNEL_DELETE, CB_CHANNEL_OPEN, CB_CHANNEL_VOICE,  # noqa: F401
+    CB_SET_STYLE, cb,  # noqa: F401
 )
 from keyboards.inline import (
     render_channel_panel, render_channel_settings, render_channels_list,
@@ -1182,18 +1183,32 @@ async def remove_channel_callback(update: Update, context: ContextTypes.DEFAULT_
     except Exception as _silent_exc:
         log_silent_failure("handlers.channels:remove_channel_callback:1171", _silent_exc)
 
-    channel_id = query.data.split(":")[1]
+    # ``ch_del:<id>`` — tasdiq so'raladi, ``ch_del:<id>:ok`` — kanal uziladi.
+    parts = query.data.split(":")
+    channel_id = parts[1]
+    confirmed = len(parts) > 2 and parts[2] == "ok"
     user_id = query.from_user.id
     is_admin = (user_id in ADMIN_IDS_SET)
 
     lang = get_lang(context)
-    # 🔐 PHASE 3 — IDOR: kanalni uzish FAQAT kanal egasi (yoki admin) uchun.
-    # Callback payload'idagi ID'ga ishonilmaydi: ruxsat server-side
-    # ``from_user.id`` bo'yicha qayta tekshiriladi.  Rad etilsa — DB'ga
-    # UMUMAN murojaat qilinmaydi va so'rov yopiq rad etiladi.
+    # Kanalni faqat egasi (yoki admin) uzishi mumkin — ruxsat callback'dagi
+    # ID bo'yicha emas, ``from_user.id`` bo'yicha serverda tekshiriladi.
     if not await _rbac_channel_allowed(update, channel_id, "delete_channel",
                                        context=context, allow_admin=True,
                                        notify=True):
+        return ConversationHandler.END
+
+    if not confirmed:
+        channel = await _owned_channel(user_id, channel_id)
+        title = _channel_title(channel, lang) if channel else html_escape(channel_id)
+        keyboard = InlineKeyboardMarkup([[
+            InlineKeyboardButton(channels_queue_t("cq_btn_confirm_delete", lang),
+                                 callback_data=cb(CB_CHANNEL_DELETE, channel_id, "ok")),
+            InlineKeyboardButton(channels_queue_t("cq_btn_keep", lang),
+                                 callback_data=cb(CB_CHANNEL_OPEN, channel_id)),
+        ]])
+        await _safe_edit(query, channels_queue_t("cq_ch_delete_confirm", lang, channel=title),
+                         keyboard)
         return ConversationHandler.END
 
     removed = await db.run_db(db.remove_channel, user_id, channel_id, is_admin)

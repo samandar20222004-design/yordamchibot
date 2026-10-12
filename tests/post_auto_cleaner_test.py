@@ -441,8 +441,9 @@ def test_more_settings_navigation():
         cbs = [cb for _, cb in _flat(kb)]
         rows = kb.inline_keyboard
         check(f"[{lang}] hub = 4 asosiy tugma", cbs == [
-            "stgs_lang", "stgs_clean", "stgs_notif", "sub_open"], str(cbs))
-        check(f"[{lang}] hub = 2 qator × 2", len(rows) == 2
+            "stgs_lang", "stgs_clean", "stgs_notif", "sub_open",
+    "stgs_rewards", "stgs_help_hub"], str(cbs))
+        check(f"[{lang}] hub = 3 qator × 2", len(rows) == 3
               and all(len(r) == 2 for r in rows), str(len(rows)))
         check(f"[{lang}] sekundar referral/payment/privacy hub'da yo'q",
               not any(c in cbs for c in ("stgs_referral", "stgs_pay",

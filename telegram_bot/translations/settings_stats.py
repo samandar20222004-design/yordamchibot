@@ -125,7 +125,7 @@ SETTINGS_STATS_I18N = {
         "ss_settings_hub_title": "⚙️ <b>Sozlamalar</b>",
         "ss_settings_hub_hint": "\n\nKerakli bo'limni tanlang 👇",
         "ss_btn_lang": "🌐 Til / Язык",
-        "ss_btn_cleaner_primary": "✍️ Post Auto-Cleaner & Imzo",
+        "ss_btn_cleaner_primary": "🧹 Post tozalash va imzo",
         "ss_btn_pro_plans": "💎 PRO va Tariflar",
         # 👤 Profil kartasi: obuna holati (ID/balans kabi asosiy ma'lumotlar
         # cabinet_title'da; Til tugmasi profildan olib tashlangan).
@@ -380,7 +380,7 @@ SETTINGS_STATS_I18N = {
         "ss_settings_hub_title": "⚙️ <b>Настройки</b>",
         "ss_settings_hub_hint": "\n\nВыберите раздел 👇",
         "ss_btn_lang": "🌐 Язык",
-        "ss_btn_cleaner_primary": "✍️ Автоочистка постов и подпись",
+        "ss_btn_cleaner_primary": "🧹 Автоочистка постов и подпись",
         "ss_btn_pro_plans": "💎 PRO и тарифы",
         "ss_profile_sub_pro": "⭐️ Подписка: <b>PRO</b> (до {date})",
         "ss_profile_sub_free": "🆓 Подписка: <b>FREE</b>",
@@ -632,7 +632,7 @@ SETTINGS_STATS_I18N = {
         "ss_settings_hub_title": "⚙️ <b>Settings</b>",
         "ss_settings_hub_hint": "\n\nChoose a section 👇",
         "ss_btn_lang": "🌐 Language",
-        "ss_btn_cleaner_primary": "✍️ Post Auto-Cleaner & Signature",
+        "ss_btn_cleaner_primary": "🧹 Post cleaner & signature",
         "ss_btn_pro_plans": "💎 PRO & Plans",
         "ss_profile_sub_pro": "⭐️ Subscription: <b>PRO</b> (until {date})",
         "ss_profile_sub_free": "🆓 Subscription: <b>FREE</b>",
@@ -818,14 +818,15 @@ SETTINGS_STATS_I18N = {
 SETTINGS_STATS_KEYS = tuple(sorted(SETTINGS_STATS_I18N["uz"].keys()))
 
 # ============================================================
-# ⚙️ SOZLAMALAR — 4 TUGMALI MENYU (2 qator × 2 tugma)
+# ⚙️ SOZLAMALAR MENYUSI (3 qator × 2 tugma)
 # ============================================================
-#: Faqat to'rtta tez-tez ishlatiladigan amal primary grid'da ko'rsatiladi.
 SETTINGS_MENU_BUTTON_KEYS = (
     "ss_btn_lang",
     "ss_btn_cleaner_primary",
     "ss_btn_notif",
     "ss_btn_pro_plans",
+    "ss_btn_rewards",
+    "ss_btn_help_hub",
 )
 
 #: 🎁 Bonuslar & Ballar submenu'si tugma kalitlari.
@@ -877,12 +878,14 @@ CB_STATS_BACK = "an_close"
 CB_STATS_DETAIL = "an_detail"
 CB_STATS_OVERVIEW = "an_overview"
 
-#: ⚙️ Sozlamalar — asosiy 4 tugmali 2×2 grid.
+#: ⚙️ Sozlamalar — asosiy menyu (3 qator × 2 tugma).
 CB_SETTINGS_HUB = (
     "stgs_lang",
     "stgs_clean",
     "stgs_notif",
     "sub_open",
+    "stgs_rewards",
+    "stgs_help_hub",
 )
 
 #: 🎁 Bonuslar & Ballar submenu'si.

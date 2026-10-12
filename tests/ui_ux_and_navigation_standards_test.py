@@ -340,10 +340,11 @@ def test_3_inline_duplicates_removed():
         rows = KI.get_settings_profile_keyboard(lang).inline_keyboard
         cbs = [callback for _, callback in canon]
         check(f"[{lang}] panel: aynan 4 tugma / 2 qator × 2",
-              len(canon) == 4 and len(rows) == 2 and all(len(row) == 2 for row in rows),
+              len(canon) == 6 and len(rows) == 3 and all(len(row) == 2 for row in rows),
               str(rows))
         check(f"[{lang}] panel: to'rt asosiy yo'nalish callback tartibi",
-              cbs == ["stgs_lang", "stgs_clean", "stgs_notif", "sub_open"], str(cbs))
+              cbs == ["stgs_lang", "stgs_clean", "stgs_notif", "sub_open",
+    "stgs_rewards", "stgs_help_hub"], str(cbs))
         check(f"[{lang}] referral/payment/privacy Help/PRO ichida qoladi",
               not any(callback in cbs for callback in
                       ("stgs_referral", "stgs_pay", "stgs_privacy", "stgs_delete_data")),

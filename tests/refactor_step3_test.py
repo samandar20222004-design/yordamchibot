@@ -106,12 +106,15 @@ def check(label, condition, extra=""):
 # SPEKS: menyu tarkibi va yorliqlari (uchala til)
 # ---------------------------------------------------------------------------
 HUB_LABELS = {
-    "uz": (("🌐 Til / Язык", "✍️ Post Auto-Cleaner & Imzo"),
-           ("🔔 Bildirishnomalar", "💎 PRO va Tariflar")),
-    "ru": (("🌐 Язык", "✍️ Автоочистка постов и подпись"),
-           ("🔔 Уведомления", "💎 PRO и тарифы")),
-    "en": (("🌐 Language", "✍️ Post Auto-Cleaner & Signature"),
-           ("🔔 Notifications", "💎 PRO & Plans")),
+    "uz": (("🌐 Til / Язык", "🧹 Post tozalash va imzo"),
+           ("🔔 Bildirishnomalar", "💎 PRO va Tariflar"),
+           ("🎁 Bonuslar", "❓ Yordam")),
+    "ru": (("🌐 Язык", "🧹 Автоочистка постов и подпись"),
+           ("🔔 Уведомления", "💎 PRO и тарифы"),
+           ("🎁 Бонусы", "❓ Помощь")),
+    "en": (("🌐 Language", "🧹 Post cleaner & signature"),
+           ("🔔 Notifications", "💎 PRO & Plans"),
+           ("🎁 Bonuses", "❓ Help & Info")),
 }
 
 #: Legacy kabinet callback'lari — menyu KO'RINISHIDA bo'lmasligi shart
@@ -474,7 +477,7 @@ def test_settings_hub_has_no_legacy_duplicates():
         cbs = _cbs(kb)
 
         check(f"[{lang}] primary grid: 2 qator, har birida 2 tugma",
-              [len(row) for row in rows] == [2, 2], str(len(rows)))
+              [len(row) for row in rows] == [2, 2, 2], str(len(rows)))
         check(f"[{lang}] four-button labels match the localized specification",
               [[text for text, _ in row] for row in rows]
               == [list(pair) for pair in HUB_LABELS[lang]], str(rows))
@@ -482,8 +485,7 @@ def test_settings_hub_has_no_legacy_duplicates():
               cbs == list(CB_SETTINGS_HUB), str(cbs))
         check(f"[{lang}] secondary Profile/PRO/Help items are nested",
               not any(callback in cbs for callback in
-                      ("stgs_referral", "stgs_pay", "stgs_privacy", "stgs_delete_data",
-                       "stgs_help_hub")), str(cbs))
+                      ("stgs_referral", "stgs_pay", "stgs_privacy", "stgs_delete_data")), str(cbs))
         check(f"[{lang}] callback'lar takrorlanmaydi",
               len(set(cbs)) == len(cbs), str(cbs))
 
@@ -514,8 +516,7 @@ def test_settings_hub_has_no_legacy_duplicates():
     uz_cbs = _cbs(get_settings_hub_keyboard("uz"))
     check("hub: secondary referral/payment/privacy/help are not duplicated",
           not any(callback in uz_cbs for callback in
-                  ("stgs_referral", "stgs_pay", "stgs_privacy", "stgs_delete_data",
-                   "stgs_help_hub")), str(uz_cbs))
+                  ("stgs_referral", "stgs_pay", "stgs_privacy", "stgs_delete_data")), str(uz_cbs))
     check("hub: PRO (sub_open) remains a primary entry",
           "sub_open" in uz_cbs, str(uz_cbs))
 

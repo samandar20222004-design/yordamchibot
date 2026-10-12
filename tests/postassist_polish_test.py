@@ -136,7 +136,8 @@ def test_1_prompt_dynamic_date_and_anti_hallucination():
 # TEST 2 — ⚙️ SOZLAMALAR / KO'PROQ: SIMMETRIK 8 TUGMA / 4 QATOR × 2
 # About/guide/support yagona yordam oynasiga birlashtirildi.
 # ---------------------------------------------------------------------------
-EXPECTED_SETTINGS_CBS = ("stgs_lang", "stgs_clean", "stgs_notif", "sub_open")
+EXPECTED_SETTINGS_CBS = ("stgs_lang", "stgs_clean", "stgs_notif", "sub_open",
+    "stgs_rewards", "stgs_help_hub")
 
 
 def _kb_rows(kb):
@@ -155,8 +156,8 @@ def test_2_settings_compact_four_button_layout():
         cbs = [c for row in rows for _t, c in row]
 
         check(f"[{lang}] 2 qator, har birida 2 tugma",
-              len(rows) == 2 and all(len(r) == 2 for r in rows), str(rows))
-        check(f"[{lang}] jami 4 tugma", len(cbs) == 4, str(cbs))
+              len(rows) == 3 and all(len(r) == 2 for r in rows), str(rows))
+        check(f"[{lang}] jami 6 tugma", len(cbs) == 6, str(cbs))
         check(f"[{lang}] callback'lar KANONIK tartibda",
               cbs == list(EXPECTED_SETTINGS_CBS), str(cbs))
         check(f"[{lang}] r1: [Til | Auto-Cleaner & Imzo]",
@@ -165,8 +166,7 @@ def test_2_settings_compact_four_button_layout():
               rows[1][0][1] == "stgs_notif" and rows[1][1][1] == "sub_open", str(rows[1]))
         check(f"[{lang}] referral/payment/privacy/help secondary actions are not in the grid",
               not any(callback in cbs for callback in
-                      ("stgs_referral", "stgs_pay", "stgs_privacy", "stgs_delete_data",
-                       "stgs_help_hub")), str(cbs))
+                      ("stgs_referral", "stgs_pay", "stgs_privacy", "stgs_delete_data")), str(cbs))
         check(f"[{lang}] alohida about/support tugmalari YO'Q",
               "stgs_about" not in cbs and "help_support" not in cbs, str(cbs))
 
@@ -273,9 +273,9 @@ WHITELIST_LABELS = {
     "✍️ Post sozlamalari",        # 19 — speskda aniq yozilgan (uz)
     "✍️ Настройки постов",  # 19 — speskning ru varianti
     # Main Settings spec keeps the cleaner/signature action explicit.
-    "✍️ Post Auto-Cleaner & Imzo",
-    "✍️ Автоочистка постов и подпись",
-    "✍️ Post Auto-Cleaner & Signature",
+    "🧹 Post tozalash va imzo",
+    "🧹 Автоочистка постов и подпись",
+    "🧹 Post cleaner & signature",
     # ✏️ TAHRIRLASH TANLOV MENYUSI (2-vazifa): yorliqlar topshiriq matnida
     # AYNAN shu ko'rinishda yozilgan («[ 📝 Matnni o'zgartirish ] ...»).
     "📝 Matnni o'zgartirish",      # 21 — topshiriqda aniq yozilgan (uz)

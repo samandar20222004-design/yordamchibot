@@ -208,7 +208,7 @@ def test_2_settings_primary_grid():
         cbs = [cb for _, cb in ik_flat(kb)]
         labels = [t for t, _ in ik_flat(kb)]
         check(f"[{lang}] 4 tugma / 2 qator × 2",
-              len(labels) == 4 and len(rows) == 2
+              len(labels) == 6 and len(rows) == 3
               and all(len(row) == 2 for row in rows), str(rows))
         check(f"[{lang}] callback tartibi SSOT bilan bir xil",
               cbs == list(CB_SETTINGS_HUB), str(cbs))
@@ -218,8 +218,7 @@ def test_2_settings_primary_grid():
               settings_stats_t("ss_btn_pro_plans", lang) in labels, str(labels))
         check(f"[{lang}] referral/payment/privacy/help secondary buttons are moved",
               not any(callback in cbs for callback in
-                      ("stgs_referral", "stgs_pay", "stgs_privacy", "stgs_delete_data",
-                       "stgs_help_hub")), str(cbs))
+                      ("stgs_referral", "stgs_pay", "stgs_privacy", "stgs_delete_data")), str(cbs))
         # Dublikat inline klaviatura YO'Q (FAZA 18 qoidasi saqlanadi).
         check(f"[{lang}] get_cabinet_inline_keyboard == kanonik panel",
               ik_rows(KI.get_cabinet_inline_keyboard(lang)) == rows)
@@ -227,7 +226,7 @@ def test_2_settings_primary_grid():
               ik_rows(KI.get_settings_hub_keyboard(lang)) == rows)
         check(f"[{lang}] callback'lar takrorlanmaydi", len(set(cbs)) == len(cbs), str(cbs))
         check(f"[{lang}] eski guruh tugmalari yo'q (rewards/tools)",
-              not any(cb in cbs for cb in ("stgs_rewards", "stgs_tools")), str(cbs))
+              not any(cb in cbs for cb in ("stgs_tools",)), str(cbs))
 
 
 # ===========================================================================

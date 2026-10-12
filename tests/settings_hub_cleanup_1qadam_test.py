@@ -18,17 +18,18 @@ from keyboards.inline import (  # noqa: E402
 
 
 def test():
-    expected = ["stgs_lang", "stgs_clean", "stgs_notif", "sub_open"]
+    expected = ["stgs_lang", "stgs_clean", "stgs_notif", "sub_open",
+    "stgs_rewards", "stgs_help_hub"]
     for lang in ("uz", "ru", "en"):
         kb = get_settings_hub_keyboard(lang)
         cbs = [b.callback_data for row in kb.inline_keyboard for b in row]
         texts = [b.text for row in kb.inline_keyboard for b in row]
         assert cbs == expected, f"[{lang}] unexpected Settings callbacks: {cbs}"
-        assert [len(row) for row in kb.inline_keyboard] == [2, 2]
+        assert [len(row) for row in kb.inline_keyboard] == [2, 2, 2]
         assert get_settings_profile_keyboard(lang).inline_keyboard == kb.inline_keyboard
         # Secondary destinations are grouped under their natural parent menus.
         assert not {"stgs_referral", "stgs_pay", "stgs_privacy",
-                    "stgs_delete_data", "stgs_help_hub"}.intersection(cbs)
+                    "stgs_delete_data"}.intersection(cbs)
         assert "stgs_referral" in [
             b.callback_data for row in get_profile_menu_keyboard(lang).inline_keyboard
             for b in row
@@ -42,7 +43,7 @@ def test():
         forbidden = ("👥 Do'stlarni taklif", "💳 To'lovlar tarixi", "🔐 Maxfiylik",
                      "🗑 O'chirish", "ℹ️ Yordam va Qo'llanma")
         assert not any(label in texts for label in forbidden), (lang, texts)
-    print("✅ Settings primary grid is 2×2; Profile, PRO, and Help own secondary actions")
+    print("✅ Settings grid is 3×2; Bonuses and Help own secondary actions")
 
 
 if __name__ == "__main__":

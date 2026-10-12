@@ -1128,12 +1128,14 @@ def test_main_menu_layout_v2():
 
     cab = [[(b.text, b.callback_data) for b in row] for row in get_cabinet_inline_keyboard().inline_keyboard]
     # Four primary sections; secondary actions live in Profile, PRO, and Help.
-    check("kabinet: 2 qatorli 2×2 primary grid", len(cab) == 2, str(cab))
+    check("kabinet: 3 qatorli primary grid", len(cab) == 3, str(cab))
     expected = [
         [("🌐 Til / Язык", "stgs_lang"),
-         ("✍️ Post Auto-Cleaner & Imzo", "stgs_clean")],
+         ("🧹 Post tozalash va imzo", "stgs_clean")],
         [("🔔 Bildirishnomalar", "stgs_notif"),
          ("💎 PRO va Tariflar", "sub_open")],
+        [("🎁 Bonuslar", "stgs_rewards"),
+         ("❓ Yordam", "stgs_help_hub")],
     ]
     check("kabinet tartibi", cab == expected, str(cab))
     check("kabinet: cab_lang tugmasi YO'Q",
@@ -6181,7 +6183,8 @@ def test_cabinet_i18n_suite():
           str(cab_texts))
     # Secondary actions were moved out of the primary Settings grid.
     check("kabinet inline ru: four-button callback_data",
-          cab_cbs == ["stgs_lang", "stgs_clean", "stgs_notif", "sub_open"],
+          cab_cbs == ["stgs_lang", "stgs_clean", "stgs_notif", "sub_open",
+    "stgs_rewards", "stgs_help_hub"],
           str(cab_cbs))
     check("kabinet inline uz: default",
           [b.text for row in get_cabinet_inline_keyboard().inline_keyboard for b in row][0]
@@ -7206,13 +7209,13 @@ def test_extras_help_i18n_suite():
               "SUP_TAG" in guide and "{support}" not in guide, guide[-80:])
     guide_uz = get_text("help_guide", "uz", support="")
     # 3-QISM: qo'llanmada ham «AI Studio» → «AI Yordamchi».
-    check("help_guide uz: kanal/rejalashtirish/AI Yordamchi/extras",
-          all(w in guide_uz for w in ("Kanal", "rejalashtirish", "AI Yordamchi",
-                                      "Qo'shimcha funksiyalar", "Kunlik bonus")))
+    check("help_guide uz: kanal/rejalashtirish/AI Yordamchi/bonus",
+          all(w in guide_uz for w in ("Kanal", "Rejalashtirish", "AI Yordamchi",
+                                      "Bonuslar", "kunlik bonus")))
     guide_ru = get_text("help_guide", "ru", support="")
     check("help_guide ru: канал/планирование/AI Помощник/extras",
           all(w in guide_ru for w in ("канал", "Планирование", "AI Помощник",
-                                      "Дополнительные функции", "Ежедневный бонус")))
+                                      "Бонусы", "ежедневный бонус")))
     check("help_guide_admin uz/ru",
           "Admin buyruqlari" in get_text("help_guide_admin", "uz")
           and "администратора" in get_text("help_guide_admin", "ru"))
@@ -7378,8 +7381,8 @@ def test_extras_help_i18n_suite():
             msg2 = _FakeMsg(11, 111)
             await st_mod.help_command(_UpdUser(msg2), ctx2)
             hr = [c for c in bot.sent_of("reply_text")][-1]
-            check("help_command ru: Полное руководство matni",
-                  hr and "Полное руководство" in (hr[2] or "")
+            check("help_command ru: Руководство matni",
+                  hr and "Руководство" in (hr[2] or "")
                   and "@test_admin" in (hr[2] or ""),
                   str((hr[2] or "")[:80]))
             hflat = [b for row in hr[3].inline_keyboard for b in row]
@@ -7393,8 +7396,8 @@ def test_extras_help_i18n_suite():
             msg3 = _FakeMsg(12, 111)
             await st_mod.help_command(_UpdUser(msg3), ctx3)
             hr2 = [c for c in bot.sent_of("reply_text")][-1]
-            check("help_command uz: To'liq Qo'llanma, admin qo'shimchasiz",
-                  hr2 and "To'liq Qo'llanma" in (hr2[2] or "")
+            check("help_command uz: Qo'llanma, admin qo'shimchasiz",
+                  hr2 and "Qo'llanma" in (hr2[2] or "")
                   and "Admin buyruqlari" not in (hr2[2] or ""), str((hr2[2] or "")[:80]))
 
             # help_menu_callback — FAQ ↔ guide
@@ -7408,7 +7411,7 @@ def test_extras_help_i18n_suite():
             q_guide = _FakeQuery("help:guide", _FakeMsg(14, 111))
             await st_mod.help_menu_callback(_UpdQ(q_guide), ctx4)
             check("help:guide — RU guide qaytadi",
-                  q_guide.edits and "Полное руководство" in q_guide.edits[0][0],
+                  q_guide.edits and "Руководство" in q_guide.edits[0][0],
                   str(q_guide.edits[:1]))
 
             # extras_close_callback — xabar o'chiradi; '✅ Закрыто. (msg_closed)'

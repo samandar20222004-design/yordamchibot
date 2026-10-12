@@ -202,7 +202,8 @@ def test_3_keyboards():
         help_cbs = [b.callback_data for row in
                     get_settings_help_hub_keyboard(lang).inline_keyboard for b in row]
         check(f"[{lang}] primary Settings stays at four actions",
-              primary_cbs == ["stgs_lang", "stgs_clean", "stgs_notif", "sub_open"],
+              primary_cbs == ["stgs_lang", "stgs_clean", "stgs_notif", "sub_open",
+    "stgs_rewards", "stgs_help_hub"],
               str(primary_cbs))
         check(f"[{lang}] Help submenu owns privacy and deletion",
               "stgs_privacy" in help_cbs and "stgs_delete_data" in help_cbs,

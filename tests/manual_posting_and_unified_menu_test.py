@@ -744,7 +744,8 @@ def test_unified_content_menu():
 # ============================================================================
 def test_profile_cleanup():
     print("\n== TEST 6: ⚙️ Sozlamalar primary grid — 4 tugma (2×2) ==")
-    expected_settings_cbs = ["stgs_lang", "stgs_clean", "stgs_notif", "sub_open"]
+    expected_settings_cbs = ["stgs_lang", "stgs_clean", "stgs_notif", "sub_open",
+    "stgs_rewards", "stgs_help_hub"]
     for lang in LANGS:
         cbs = [b.callback_data for row in
                get_cabinet_inline_keyboard(lang).inline_keyboard for b in row]
@@ -755,7 +756,7 @@ def test_profile_cleanup():
         check(f"[{lang}] Settings grid: four callbacks in specification order",
               cbs == expected_settings_cbs, str(cbs))
         check(f"[{lang}] Settings grid: language and cleaner are first row",
-              labels and labels[0].startswith("🌐") and labels[1].startswith("✍️"),
+              labels and labels[0].startswith("🌐") and labels[1].startswith("🧹"),
               str(labels))
         check(f"[{lang}] Settings grid: notifications and PRO are second row",
               labels and labels[2].startswith("🔔") and labels[3].startswith("💎"), str(labels))

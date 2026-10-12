@@ -661,7 +661,7 @@ async def autopilot_strategy_callback(
     except Exception as _silent_exc:
         log_silent_failure("handlers.autopilot:autopilot_strategy_callback:659", _silent_exc, user_id=user_id, channel_id=channel_id, lang=lang)
 
-    title = str(context.user_data.get(UD_TITLE) or "Kanal")
+    title = html_escape(str(context.user_data.get(UD_TITLE) or "Kanal"))
     await _safe_edit(
         query,
         _render_intro_with_strategy(title, cfg, lang),

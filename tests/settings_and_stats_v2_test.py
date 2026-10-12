@@ -67,15 +67,19 @@ EXPECTED_STATS_MARKERS = {
 }
 
 # ⚙️ Primary Settings grid — four callbacks, ordered left-to-right/top-to-bottom.
-EXPECTED_SETTINGS_CBS = ("stgs_lang", "stgs_clean", "stgs_notif", "sub_open")
+EXPECTED_SETTINGS_CBS = ("stgs_lang", "stgs_clean", "stgs_notif", "sub_open",
+    "stgs_rewards", "stgs_help_hub")
 
 EXPECTED_SETTINGS_LABELS = {
-    "uz": (("🌐 Til / Язык", "✍️ Post Auto-Cleaner & Imzo"),
-           ("🔔 Bildirishnomalar", "💎 PRO va Tariflar")),
-    "ru": (("🌐 Язык", "✍️ Автоочистка постов и подпись"),
-           ("🔔 Уведомления", "💎 PRO и тарифы")),
-    "en": (("🌐 Language", "✍️ Post Auto-Cleaner & Signature"),
-           ("🔔 Notifications", "💎 PRO & Plans")),
+    "uz": (("🌐 Til / Язык", "🧹 Post tozalash va imzo"),
+           ("🔔 Bildirishnomalar", "💎 PRO va Tariflar"),
+           ("🎁 Bonuslar", "❓ Yordam")),
+    "ru": (("🌐 Язык", "🧹 Автоочистка постов и подпись"),
+           ("🔔 Уведомления", "💎 PRO и тарифы"),
+           ("🎁 Бонусы", "❓ Помощь")),
+    "en": (("🌐 Language", "🧹 Post cleaner & signature"),
+           ("🔔 Notifications", "💎 PRO & Plans"),
+           ("🎁 Bonuses", "❓ Help & Info")),
 }
 
 

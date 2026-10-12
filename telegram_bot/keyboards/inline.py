@@ -1053,16 +1053,14 @@ def render_pending_list(posts: list, user_code: str, lang: str = "uz") -> Inline
 
 
 def get_settings_profile_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
-    """⚙️ Sozlamalar uchun kanonik, to'rt tugmali 2×2 grid.
+    """⚙️ Sozlamalar menyusi (3 qator × 2 tugma).
 
-    Sozlamalar sahifasi profil, PRO va yordam bo'limlaridan ajratilgan.
-    Ko'p ishlatiladigan to'rtta amaliyot shu yerda qoladi; referral Profile'da,
-    to'lovlar tarixi PRO hub'ida, maxfiylik esa Help ichida joylashadi.
-    Callback nomlari mavjud oqimlarga ulanadi, shu sababli eski xabarlardagi
-    callback'lar ham ishlashda davom etadi.
+        [🌐 Til / Язык]        [🧹 Post tozalash va imzo]
+        [🔔 Bildirishnomalar]  [💎 PRO va Tariflar]
+        [🎁 Bonuslar]          [❓ Yordam]
 
-        [🌐 Til / Язык] [✍️ Post Auto-Cleaner & Imzo]
-        [🔔 Bildirishnomalar] [💎 PRO va Tariflar]
+    Bonuslar ichida: ballar, kunlik bonus, do'stlarni taklif.
+    Yordam ichida: qo'llab-quvvatlash, maxfiylik, ma'lumotlarni o'chirish.
 
     ``get_cabinet_inline_keyboard`` va ``get_settings_hub_keyboard`` bu
     funksiyaga delegatsiya qiladi — vizual tartibning bitta manbasi bor.
@@ -1081,6 +1079,12 @@ def get_settings_profile_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
                                  callback_data="stgs_notif"),
             InlineKeyboardButton(settings_stats_t("ss_btn_pro_plans", lang),
                                  callback_data="sub_open"),
+        ],
+        [
+            InlineKeyboardButton(settings_stats_t("ss_btn_rewards", lang),
+                                 callback_data="stgs_rewards"),
+            InlineKeyboardButton(settings_stats_t("ss_btn_help_hub", lang),
+                                 callback_data="stgs_help_hub"),
         ],
     ])
 

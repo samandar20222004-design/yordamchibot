@@ -806,7 +806,8 @@ def test_k_statistics_isolation():
 def test_l_settings_menu_compact_profile_hub():
     # Settings exposes four primary destinations; secondary actions are nested.
     header("L", "⚙️ Sozlamalar — 4 tugma / 2×2 grid, uchala tilda bir xil")
-    expected_cbs = ["stgs_lang", "stgs_clean", "stgs_notif", "sub_open"]
+    expected_cbs = ["stgs_lang", "stgs_clean", "stgs_notif", "sub_open",
+    "stgs_rewards", "stgs_help_hub"]
     base = None
     for lang in LANGS:
         kb = get_settings_hub_keyboard(lang)
@@ -814,12 +815,11 @@ def test_l_settings_menu_compact_profile_hub():
         if base is None:
             base = cbs
         check(f"[{lang}] Sozlamalar hub = 4 primary actions / 2×2",
-              len(cbs) == 4 and [len(row) for row in kb.inline_keyboard] == [2, 2],
+              len(cbs) == 6 and [len(row) for row in kb.inline_keyboard] == [2, 2, 2],
               str(cbs))
         check(f"[{lang}] secondary Profile/PRO/Help actions are nested",
               not any(cb in cbs for cb in ("stgs_referral", "stgs_pay",
-                                            "stgs_privacy", "stgs_delete_data",
-                                            "stgs_help_hub")), str(cbs))
+                                            "stgs_privacy", "stgs_delete_data")), str(cbs))
         check(f"[{lang}] «💎 PRO» (sub_open) primary entry exists",
               "sub_open" in cbs, str(cbs))
         check(f"[{lang}] callback'lar kutilgan ro'yxat bilan AYNAN bir xil",

@@ -596,7 +596,8 @@ def test_one_time_ticket_flow():
     check("[◀️ Orqaga] → four-button ⚙️ Sozlamalar grid'i qayta chizildi",
           bool(query.edits)
           and _flat_cbs(query.screen.get("markup"))
-          == ["stgs_lang", "stgs_clean", "stgs_notif", "sub_open"],
+          == ["stgs_lang", "stgs_clean", "stgs_notif", "sub_open",
+    "stgs_rewards", "stgs_help_hub"],
           str(_flat_cbs(query.screen.get("markup"))))
 
     # 1g-2) Router darajasidagi isbot: 540 holatida HAM matn, HAM rasm+izoh
@@ -990,7 +991,8 @@ def test_regression_and_parity():
 
     hub_cbs = _flat_cbs(get_settings_hub_keyboard("uz"))
     check("hub: four primary actions (2x2)",
-          hub_cbs == ["stgs_lang", "stgs_clean", "stgs_notif", "sub_open"],
+          hub_cbs == ["stgs_lang", "stgs_clean", "stgs_notif", "sub_open",
+    "stgs_rewards", "stgs_help_hub"],
           str(hub_cbs))
     profile_buttons = [b for row in get_settings_help_hub_keyboard("uz").inline_keyboard
                        for b in row if b.text.endswith("Qo'llab-quvvatlash")]

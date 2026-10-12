@@ -614,9 +614,13 @@ def test_channels_idor():
     check("ch_del: 'Permission Denied' alert",
           any("Ruxsat yo'q" in (a.get("text") or "") for a in q.answers), str(q.answers))
 
-    # --- 🗑 ch_del: egasi ishlaydi (regressiya) ---
+    # --- 🗑 ch_del: egasi ishlaydi — avval tasdiq, keyin uzish ---
     with FakeDB() as fake:
         q = _Query(f"ch_del:{CH_ID}", user_id=OWNER_ID)
+        asyncio.run(CH.remove_channel_callback(_update(q), _context()))
+        check("ch_del: birinchi bosish faqat tasdiq so'raydi (uzilmadi)",
+              not fake.wrote("remove_channel"), str(fake.writes))
+        q = _Query(f"ch_del:{CH_ID}:ok", user_id=OWNER_ID)
         asyncio.run(CH.remove_channel_callback(_update(q), _context()))
         check("ch_del: egasi kanalni uza oladi (regressiya yo'q)",
               bool(fake.wrote("remove_channel")), str(fake.writes))
@@ -825,7 +829,7 @@ def test_queue_idor():
               bool(q.message.sent) or bool(q.edits), str(q.message.sent)[:80])
 
     with FakeDB() as fake:
-        q2 = _Query(f"qdel:{POST_ID}", user_id=OWNER_ID)
+        q2 = _Query(f"qdel:{POST_ID}:ok", user_id=OWNER_ID)
         asyncio.run(Q.queue_delete_callback(_update(q2), _context()))
         check("qdel: egasi postni o'chira oladi (regressiya yo'q)",
               bool(fake.wrote("cancel_post")), str(fake.writes))

@@ -467,7 +467,8 @@ def test_navigation_stack_settings_tools_back():
     check("Orqaga → nav_section = settings",
           nav_mod.current_section(ctx) == nav_mod.SECTION_SETTINGS)
     check("Orqaga → four-button Settings root (not main-menu callbacks)",
-          back_cbs == ["stgs_lang", "stgs_clean", "stgs_notif", "sub_open"]
+          back_cbs == ["stgs_lang", "stgs_clean", "stgs_notif", "sub_open",
+    "stgs_rewards", "stgs_help_hub"]
           and "close_msg" not in back_cbs and "stgs_back" not in back_cbs,
           str(back_cbs))
 

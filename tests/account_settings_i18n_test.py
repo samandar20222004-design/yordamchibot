@@ -154,12 +154,13 @@ def test_cabinet_inline_keyboard_3_langs():
                                   get_profile_menu_keyboard,
                                   get_settings_help_hub_keyboard)
 
-    expected_cbs = ["stgs_lang", "stgs_clean", "stgs_notif", "sub_open"]
+    expected_cbs = ["stgs_lang", "stgs_clean", "stgs_notif", "sub_open",
+    "stgs_rewards", "stgs_help_hub"]
     keyboards = {lang: get_cabinet_inline_keyboard(lang) for lang in ("uz", "ru", "en")}
     for lang, kb in keyboards.items():
         rows = [[(b.text, b.callback_data) for b in row] for row in kb.inline_keyboard]
         cbs = [callback for row in rows for _, callback in row]
-        check(f"{lang} Settings: 2 qator × 2 tugma", [len(row) for row in rows] == [2, 2],
+        check(f"{lang} Settings: 2 qator × 2 tugma", [len(row) for row in rows] == [2, 2, 2],
               str(rows))
         check(f"{lang} Settings: 4 primary callbacks", cbs == expected_cbs, str(cbs))
         check(f"{lang} Settings: cleaner and PRO labels localized",

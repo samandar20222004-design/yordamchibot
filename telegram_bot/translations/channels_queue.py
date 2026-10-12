@@ -185,6 +185,13 @@ CHANNELS_QUEUE_I18N = {
             "⌛ Bu tugma eskirgan. «📅 Rejalashtirilgan» bo'limini qaytadan "
             "oching."
         ),
+        "cq_sch_delete_confirm": "🗑 <b>Postni rejadan o'chirasizmi?</b>\n\nBu amalni qaytarib bo'lmaydi.",
+        "cq_ch_delete_confirm": (
+            "🗑 <b>{channel}</b> kanalini botdan uzasizmi?\n\n"
+            "Kanal ro'yxatdan olib tashlanadi. Keyin uni qaytadan ulashingiz mumkin."
+        ),
+        "cq_btn_confirm_delete": "✅ Ha, o'chirish",
+        "cq_btn_keep": "◀️ Yo'q, qaytish",
         "cq_sch_deleted_alert": "🗑 Post rejadan olib tashlandi.",
         "cq_sch_not_found": "⚠️ Post topilmadi — u allaqachon chiqib ketgan yoki o'chirilgan.",
         # --- PHASE 9: [📢 Kanallarim] Contextual Channel Menu ---
@@ -331,6 +338,13 @@ CHANNELS_QUEUE_I18N = {
             "⌛ Эта кнопка устарела. Откройте раздел «📅 Запланированные» "
             "заново."
         ),
+        "cq_sch_delete_confirm": "🗑 <b>Удалить пост из расписания?</b>\n\nЭто действие нельзя отменить.",
+        "cq_ch_delete_confirm": (
+            "🗑 Отключить канал <b>{channel}</b> от бота?\n\n"
+            "Канал исчезнет из списка. Позже его можно подключить снова."
+        ),
+        "cq_btn_confirm_delete": "✅ Да, удалить",
+        "cq_btn_keep": "◀️ Нет, назад",
         "cq_sch_deleted_alert": "🗑 Пост снят с расписания.",
         "cq_sch_not_found": "⚠️ Пост не найден — он уже опубликован или удалён.",
         # --- PHASE 9: [📢 Мои каналы] Contextual Channel Menu (RU) ---
@@ -476,6 +490,13 @@ CHANNELS_QUEUE_I18N = {
         "cq_sch_stale": (
             "⌛ This button is outdated. Open the «📅 Scheduled» section again."
         ),
+        "cq_sch_delete_confirm": "🗑 <b>Remove this post from the schedule?</b>\n\nThis cannot be undone.",
+        "cq_ch_delete_confirm": (
+            "🗑 Disconnect <b>{channel}</b> from the bot?\n\n"
+            "The channel will be removed from your list. You can connect it again later."
+        ),
+        "cq_btn_confirm_delete": "✅ Yes, delete",
+        "cq_btn_keep": "◀️ No, go back",
         "cq_sch_deleted_alert": "🗑 Post removed from the schedule.",
         "cq_sch_not_found": "⚠️ Post not found — it was already published or deleted.",
         # --- PHASE 9: [📢 My channels] Contextual Channel Menu (EN) ---

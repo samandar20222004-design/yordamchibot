@@ -222,7 +222,7 @@ def test_button_labels_3_langs():
         ]
         # Settings uses a localized 2×2 primary grid; secondary actions are nested.
         check(f"{code}: Settings primary grid is complete (4 buttons)",
-              len(inline_labels) == 4 and all(str(x).strip() for x in inline_labels),
+              len(inline_labels) == 6 and all(str(x).strip() for x in inline_labels),
               str(inline_labels[:3]))
         lang_cbs = [
             b.callback_data
