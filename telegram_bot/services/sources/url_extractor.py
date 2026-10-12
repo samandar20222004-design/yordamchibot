@@ -1442,6 +1442,54 @@ def parse_variants(payload: Any, article: dict, *, lang: str = "uz",
 # ---------------------------------------------------------------------------
 # 9) XIZMAT — URL → 4 TA TAYYOR POST (Phase 3 orkestrator + Phase 2 kvota)
 # ---------------------------------------------------------------------------
+#: 🧹 Auto-cleaner konfiguratsiyasi UZATILMAGAN holat belgisi (``None`` emas —
+#: ``None`` "tozalashni O'CHIRISH" ma'nosini beradi, sentinel esa "o'zing
+#: o'qib ol" ma'nosini).
+_CLEANER_UNSET = object()
+
+
+async def _clean_source_article(source: dict, user_id: int | None,
+                                cleaner_config: Any,
+                                db_module: Any = None) -> dict:
+    """🧹 POST AUTO-CLEANER — manba maqolasini tozalaydi (fail-soft).
+
+    FAQAT ``text``/``title`` tozalanadi; ``source``/``url``/``published``
+    kabi META ma'lumotlarga tegilmaydi (ular postga havola sifatida
+    qo'yiladi va atributsiya uchun kerak).
+
+    Xatoda ASL dict qaytariladi — tozalash oqimni buzmaydi.
+    """
+    data = dict(source or {})
+    config = cleaner_config
+    if config is _CLEANER_UNSET:
+        if not user_id:
+            return data
+        try:
+            from ..post_cleaner import resolve_config
+
+            config = await resolve_config(user_id, db_module)
+        except Exception:  # noqa: BLE001 - fail-soft
+            logger.debug("URL: auto-cleaner konfiguratsiyasi o'qilmadi",
+                         exc_info=True)
+            return data
+    if config is None or not getattr(config, "enabled", False):
+        return data
+
+    try:
+        from ..post_cleaner import clean_plain
+
+        for field in ("title", "text"):
+            raw = data.get(field)
+            if raw:
+                cleaned = clean_plain(str(raw), None, config).text
+                if cleaned:
+                    data[field] = cleaned
+        return data
+    except Exception:  # noqa: BLE001 - fail-soft: asl matn qaytadi
+        logger.warning("URL: auto-cleaner qo'llanmadi", exc_info=True)
+        return dict(source or {})
+
+
 class UrlPostService(SMMFeatureService):
     """URL → post xizmati (SSRF himoyasi + untrusted data + kvota)."""
 
@@ -1468,12 +1516,18 @@ class UrlPostService(SMMFeatureService):
         resolver: Callable[..., list] | None = None,
         dna_block: str = "",
         allow_local: bool = False,
+        cleaner_config: Any = _CLEANER_UNSET,
     ) -> dict:
         """Manbadan 4 xil formatdagi post tayyorlaydi.
 
         ``article`` uzatilsa tarmoqqa chiqilmaydi (RSS/handler qayta
         ishlashi uchun). Kvota FAQAT bitta AI chaqiruvi uchun bir marta
         olinadi (Phase 2 atomik bron); AI yiqilsa — to'liq refund.
+
+        🧹 POST AUTO-CLEANER: ``cleaner_config`` (yoki ``user_id`` bo'yicha
+        o'qilgan sozlama) yoqilgan bo'lsa, MANBA matni AI promptiga
+        KIRISHDAN OLDIN tozalanadi — begona @username/havola va footer
+        reklama qatorlari o'chirilib, o'rniga foydalanuvchi imzosi qo'yiladi.
         """
         source = dict(article or {})
         injection: list[str] = list(source.get("injection_signals") or [])
@@ -1488,6 +1542,9 @@ class UrlPostService(SMMFeatureService):
                         "injection_signals": loaded.get("injection_signals") or []}
             source = dict(loaded.get("article") or {})
             injection = list(loaded.get("injection_signals") or [])
+
+        source = await _clean_source_article(source, user_id, cleaner_config,
+                                             db_module)
 
         prompt = build_article_prompt(source, lang=lang, dna_block=dna_block)
         ticket = await self.acquire_quota(db_module=db_module, user_id=user_id)

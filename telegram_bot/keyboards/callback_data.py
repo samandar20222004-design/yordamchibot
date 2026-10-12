@@ -349,6 +349,11 @@ REGISTERED_STATIC_CALLBACKS = frozenset({
     "stgs_referral", "stgs_pay", "stgs_credits", "stgs_transfer",
     "stgs_points", "stgs_bonus", "stgs_tools", "stgs_profile",
     "stgs_rewards", "stgs_help_hub", "stgs_help", "stgs_about",
+    # 🧹 ⚙️ Ko'proq sozlamalar (NESTED) + Post Auto-Cleaner & imzo.
+    # ``stgs_`` namespace allaqachon qamraydi, lekin aniq tokenlar bu yerda
+    # hujjatlashtiriladi (registry audit va ``callback_semantic`` uchun).
+    "stgs_more", "stgs_clean", "stgs_clean_sig", "stgs_clean_sig_clear",
+    "stgs_clean_demo",
     # 👤 Kabinet (legacy routing aliaslari).
     "cab_main", "cab_lang", "cab_lang_uz", "cab_lang_ru", "cab_lang_en",
     "cab_channels", "cab_channels_delete", "cab_analytics", "cab_converter",

@@ -2363,6 +2363,9 @@ from repositories.users_repository import (  # noqa: E402, F401
     # 🌍 Dinamik kalendar — foydalanuvchining maqsad davlati (ISO-3166-1 alpha-2)
     DEFAULT_TARGET_COUNTRY, TARGET_COUNTRY_COLUMN, TARGET_COUNTRY_MAX_LEN,
     normalize_target_country, get_user_target_country, set_user_target_country,
+    # 🧹 POST AUTO-CLEANER — maxsus imzo / almashtirish havolasi (matn)
+    POST_SIGNATURE_COLUMN, POST_SIGNATURE_MAX_LEN,
+    get_user_post_signature, set_user_post_signature, _normalize_post_signature,
 )
 # --- 📢 CHANNELS — kanal CRUD, monitoring, Channel DNA, manba/RSS, reklama
 from repositories.channels_repository import (  # noqa: E402, F401
@@ -2819,6 +2822,10 @@ def _ddl_user_settings_and_migrations(cur):
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS last_active_at TIMESTAMP WITH TIME ZONE;",
         # 🌍 Dinamik kalendar: maqsad davlat (ISO-3166-1 alpha-2, standart UZ).
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS target_country VARCHAR(8) DEFAULT 'UZ';",
+        # 🧹 POST AUTO-CLEANER: foydalanuvchi imzosi/almashtrish havolasi.
+        # user_settings.value BOOLEAN — matn u yerga sig'maydi (target_country
+        # bilan bir xil naqsh). NULL/bo'sh → imzo qo'shilmaydi.
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS post_signature_text VARCHAR(255);",
         "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS inline_button_text VARCHAR(255);",
         "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS inline_button_url TEXT;",
         "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS enable_reactions BOOLEAN DEFAULT FALSE;",

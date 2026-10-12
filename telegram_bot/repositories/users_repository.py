@@ -922,6 +922,82 @@ def set_user_target_country(user_id: int, country) -> bool:
 
 
 # ============================================================
+# 🧹 POST AUTO-CLEANER — MAXSUS IMZO / ALMASHTIRISH HAVOLASI
+# ============================================================
+# Tashqi manbalardan (RSS/URL/kanal) kelgan postlardagi begona @username
+# va footer reklama qatorlari ``services.post_cleaner`` tomonidan
+# ENTITY-SAFE tozalanadi; o'chirilgan joy o'rniga foydalanuvchi saqlagan
+# shu matn (havola yoki imzo) qo'yiladi.
+#
+# ``user_settings.value`` BOOLEAN bo'lgani uchun MATN u yerga sig'maydi —
+# shu sababli ``target_country`` bilan BIR XIL naqsh: alohida ustun.
+#
+# Xavfsizlik: yozishdan OLDIN har doim ``normalize_signature`` chaqiriladi
+# (boshqaruv/yo'nalish belgilari o'chadi, ≤3 qator, ≤255 belgi) — payload'dan
+# ixtiyoriy matn bazaga yozilmaydi. O'qishda xato bo'lsa bo'sh satr qaytadi
+# (fail-soft: tozalash davom etadi, faqat imzo qo'shilmaydi).
+
+#: ``users`` jadvalidagi ustun nomi (``user_settings`` kaliti EMAS).
+POST_SIGNATURE_COLUMN = "post_signature_text"
+#: Ustun kengligi (``VARCHAR(255)``) — ``services.post_cleaner`` bilan bir xil.
+POST_SIGNATURE_MAX_LEN = 255
+
+
+def _normalize_post_signature(value) -> str:
+    """Imzoni bazaga yozishga tayyorlaydi (yagona qoida — bitta manba).
+
+    Qoida ``utils.post_signature`` da yashaydi (HECH QANDAY bog'liqliksiz,
+    namespace package) — shu sababli ``repositories`` → ``services`` import
+    SIKLI yuzaga kelmaydi. Bu shunchaki nozik (thin) delegatsiya: modul
+    darajasidagi YAGONA manba buzilmaydi, ikki nusxa paydo bo'lmaydi.
+
+    Eslatma: funksiya ``database`` facade'ida ham eksport qilinadi —
+    ``tests/repository_layering_test.py`` repository modulida e'lon qilingan
+    HAR BIR belgining facade bilan bire-bir bo'lishini qat'iy talab qiladi.
+    """
+    from utils.post_signature import normalize_signature
+
+    return normalize_signature(value)
+
+
+def get_user_post_signature(user_id: int, default: str = "") -> str:
+    """Foydalanuvchining saqlangan imzosi (yo'q/xato → ``default``)."""
+    try:
+        with db_cursor() as cur:
+            cur.execute(
+                "SELECT post_signature_text FROM users WHERE user_id = %s",
+                (int(user_id),),
+            )
+            row = cur.fetchone()
+    except Exception as e:
+        logger.debug(f"get_user_post_signature xatosi (bo'sh qaytadi): {e}")
+        return default
+    if not row:
+        return default
+    stored = _normalize_post_signature(row[0] or "")
+    return stored or default
+
+
+def set_user_post_signature(user_id: int, value) -> bool:
+    """Imzoni saqlaydi (UPDATE; bo'sh satr = imzoni o'chirish).
+
+    Muvaffaqiyatda ``True``. Foydalanuvchi yozuvlari bazada bo'lmasa
+    (``rowcount == 0``) ``False`` — jim yolg'on javob berilmaydi.
+    """
+    text = _normalize_post_signature(value)
+    try:
+        with db_cursor(commit=True) as cur:
+            cur.execute(
+                "UPDATE users SET post_signature_text = %s WHERE user_id = %s",
+                (text or None, int(user_id)),
+            )
+            return cur.rowcount > 0
+    except Exception as e:
+        logger.error(f"set_user_post_signature xatosi: {e}")
+        return False
+
+
+# ============================================================
 # SUBSCRIPTIONS, LIMITS & MONETIZATION
 # ============================================================
 

@@ -128,11 +128,17 @@ def _clean_foreign_content(text: str, user_channels: list) -> str:
     return cleaned.strip()
 
 
-async def _adapt_post_with_ai(original_text: str, user_channels: list, tone: str, lang: str) -> str:
+async def _adapt_post_with_ai(original_text: str, user_channels: list, tone: str, lang: str,
+                              user_id: int | None = None) -> str:
     """AI orqali begona kontentni tozalab, foydalanuvchi kanaliga moslash.
 
     2-vazifa: "🎯 Kanalimga moslash" — begona havolalar, reklamalar, imzolarni
     tozalab, foydalanuvchi kanali uslubiga moslab qayta yozish.
+
+    🧹 POST AUTO-CLEANER (opt-in): foydalanuvchi ``⚙️ Sozlamalar → ✍️ Post
+    sozlamalari → ⚙️ Ko'proq sozlamalar → 🧹 Avto-tozalash`` da yoqqan bo'lsa,
+    ENTITY-SAFE dvigatel qo'shimcha pass sifatida ishlaydi va o'chirilgan
+    manba belgilari o'rniga foydalanuvchining imzosi/havolasi qo'yiladi.
     """
     # Avval regex bilan tozalash (fail-safe)
     cleaned = _clean_foreign_content(original_text, user_channels)
@@ -148,12 +154,33 @@ async def _adapt_post_with_ai(original_text: str, user_channels: list, tone: str
         if isinstance(result, dict) and not result.get("error"):
             new_text = str(result.get("post_text") or result.get("text") or "").strip()
             if new_text:
-                return new_text
+                return await _apply_auto_cleaner(new_text, user_id)
     except Exception as e:
         logger.debug(f"AI adapt xatosi: {e}", exc_info=True)
 
     # AI ishlamasa — regex tozalangan variantni qaytaramiz
-    return cleaned
+    return await _apply_auto_cleaner(cleaned, user_id)
+
+
+async def _apply_auto_cleaner(text: str, user_id: int | None) -> str:
+    """🧹 Auto-cleaner'ni qo'llaydi (faqat foydalanuvchi YOQQAN bo'lsa).
+
+    Fail-soft: sozlamani o'qib bo'lmasa yoki dvigatel xato bersa ASL matn
+    qaytariladi — post hech qachon yo'qolib qolmaydi.
+    """
+    if not text or not user_id:
+        return text
+    try:
+        from services.post_cleaner import clean_plain, resolve_config
+
+        config = await resolve_config(user_id)
+        if not config.enabled:
+            return text
+        cleaned = clean_plain(text, None, config).text
+        return cleaned or text
+    except Exception:  # noqa: BLE001 - fail-soft: tozalashsiz davom
+        logger.debug("channel_extract: auto-cleaner qo'llanmadi", exc_info=True)
+        return text
 
 
 def _get_post_list_keyboard(
@@ -601,13 +628,15 @@ async def extract_post_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE
         async with keep_typing(context.bot, chat_id):
             try:
                 adapted = await progress.run(
-                    _adapt_post_with_ai(original, user_channels, tone, lang)
+                    _adapt_post_with_ai(original, user_channels, tone, lang,
+                                        user_id)
                 )
             finally:
                 await progress.finish()
 
         if not adapted:
             adapted = _clean_foreign_content(original, user_channels)
+            adapted = await _apply_auto_cleaner(adapted, user_id)
 
         context.user_data["extract_rewritten"] = adapted
         context.user_data["content"] = adapted

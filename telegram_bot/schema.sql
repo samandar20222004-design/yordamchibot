@@ -40,7 +40,17 @@ CREATE TABLE IF NOT EXISTS users (
     -- ISO-3166-1 alpha-2 kodi; bayram/mavsum eslatmalari va AI prompt
     -- konteksti shu davlatga mos `locales/calendars/<cc>.json` qatlamidan
     -- yechiladi. NULL/bo'sh → standart 'UZ' (services.calendar_service).
-    target_country VARCHAR(8) DEFAULT 'UZ'
+    target_country VARCHAR(8) DEFAULT 'UZ',
+    -- 🧹 POST AUTO-CLEANER (2026-10): foydalanuvchi saqlagan ALMASHTIRISH
+    -- HAVOLASI / IMZOSI. Tashqi manbalardan kelgan postlardagi begona
+    -- @username va reklama qatorlari o'chirilgach, o'rniga shu matn qo'yiladi
+    -- (services.post_cleaner). `user_settings.value` BOOLEAN bo'lgani uchun
+    -- MATN u yerga sig'maydi — shu sababli alohida ustun (target_country
+    -- bilan bir xil naqsh). NULL/bo'sh → imzo qo'shilmaydi.
+    -- Bo'lishi mumkin bo'lgan qiymat HAR DOIM services.post_cleaner
+    -- .normalize_signature orqali tozalanadi (boshqaruv belgilari yo'q,
+    -- ≤3 qator, ≤255 belgi) — payload'dan ixtiyoriy matn yozilmaydi.
+    post_signature_text VARCHAR(255)
 );
 
 CREATE TABLE IF NOT EXISTS channels (

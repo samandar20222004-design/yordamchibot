@@ -133,6 +133,23 @@ POST_SETTING_KEYS = {
     "post_watermark": "ss_post_watermark",
     "post_signature": "ss_post_signature",
 }
+#: 🧹 POST AUTO-CLEANER kalitlari (⚙️ Sozlamalar → ✍️ Post sozlamalari →
+#: ⚙️ Ko'proq sozlamalar → 🧹 Avto-tozalash ekrani).
+#:
+#: MUHIM: bu kalitlar ATAYLAB ``POST_SETTING_KEYS`` ga QO'SHILMAGAN — post
+#: sozlamalari ekranining qator tuzilishi (2 toggle + [◀️ Orqaga]) mavjud
+#: testlar bilan qat'iy qo'riqlanadi. Auto-cleaner o'z NESTED ekranida
+#: yashaydi, shu sababli ⚙️ Sozlamalar hub'i 10 tugma bo'lib qoladi.
+#:
+#: ``post_auto_clean`` — bosh kalit (standart O'CHIRILGAN, opt-in):
+#: o'chirilganda dvigatel matnga UMUMAN tegmaydi. Qolganlari — nima
+#: aynan o'chirilishini boshqaradi.
+CLEANER_SETTING_KEYS = {
+    "post_auto_clean": "ss_clean_title",
+    "post_clean_mentions": "ss_post_watermark",
+    "post_clean_links": "ss_post_watermark",
+    "post_clean_promo": "ss_post_watermark",
+}
 #: Standart qiymatlar (sozlama hali saqlanmagan bo'lsa).
 SETTING_DEFAULTS = {
     "notify_scheduled": True,
@@ -141,11 +158,18 @@ SETTING_DEFAULTS = {
     "notify_uzbek_calendar": True,
     "post_watermark": True,
     "post_signature": False,
+    # 🧹 Auto-cleaner — OPT-IN: yangi foydalanuvchi uchun o'chirilgan,
+    # mavjud oqim hech qanday tarzda o'zgarmaydi (regressiya yo'q).
+    "post_auto_clean": False,
+    "post_clean_mentions": True,
+    "post_clean_links": True,
+    "post_clean_promo": True,
 }
 #: Callback'dagi scope → kalitlar oilasi.
 _SETTING_SCOPES = {
     "notif": NOTIF_SETTING_KEYS,
     "post": POST_SETTING_KEYS,
+    "clean": CLEANER_SETTING_KEYS,
 }
 
 
@@ -157,6 +181,11 @@ COMPACT_TOGGLE_LABELS = {
         "notify_uzbek_calendar": "Bayram eslatmalari",
         "post_watermark": "Suv belgisi",
         "post_signature": "Muallif imzosi",
+        # 🧹 Auto-cleaner (⚙️ Ko'proq sozlamalar ichida)
+        "post_auto_clean": "Avto-tozalash",
+        "post_clean_mentions": "@ Eslatmalar",
+        "post_clean_links": "🔗 Havolalar",
+        "post_clean_promo": "📢 Reklama",
     },
     "ru": {
         "notify_scheduled": "Напоминания",
@@ -165,6 +194,11 @@ COMPACT_TOGGLE_LABELS = {
         "notify_uzbek_calendar": "Праздничные напоминания",
         "post_watermark": "Водяной знак",
         "post_signature": "Подпись автора",
+        # 🧹 Автоочистка (внутри ⚙️ Дополнительные настройки)
+        "post_auto_clean": "Автоочистка",
+        "post_clean_mentions": "@ Упоминания",
+        "post_clean_links": "🔗 Ссылки",
+        "post_clean_promo": "📢 Реклама",
     },
     "en": {
         "notify_scheduled": "Reminders",
@@ -173,6 +207,11 @@ COMPACT_TOGGLE_LABELS = {
         "notify_uzbek_calendar": "Holiday reminders",
         "post_watermark": "Watermark",
         "post_signature": "Author signature",
+        # 🧹 Auto-cleaner (inside ⚙️ More settings)
+        "post_auto_clean": "Auto-clean",
+        "post_clean_mentions": "@ Mentions",
+        "post_clean_links": "🔗 Links",
+        "post_clean_promo": "📢 Ads",
     },
 }
 
@@ -353,6 +392,349 @@ async def _render_tools(query, lang: str) -> None:
     await render_tools_menu(query, lang)
 
 
+# ============================================================
+# ⚙️ KO'PROQ SOZLAMALAR (NESTED) + 🧹 POST AUTO-CLEANER & IMZO
+# ============================================================
+# Joylashuv (ataylab CHUQUR, hub'ga tegmasdan):
+#
+#   ⚙️ Sozlamalar (hub — 10 tugma, O'ZGARMAGAN)
+#     └── ✍️ Post sozlamalari (stgs_post)
+#           └── ⚙️ Ko'proq sozlamalar (stgs_more)      ← YANGI nested menyu
+#                 └── 🧹 Avto-tozalash (stgs_clean)    ← YANGI funksiya
+#
+# Nega shunday? ⚙️ Sozlamalar hub'i 10 tugma / 5 qator × 2 bo'lib qat'iy
+# standartlashtirilgan (simmetrik juft layout). Yangi tugma hub'ga qo'shilsa
+# o'sha layout buziladi; shu sababli bo'lim post sozlamalarining O'Z ichiga,
+# chuqurroqqa joylashtirildi. Post sozlamalari ekranidagi [⚙️ Ko'proq]
+# tugmasi [◀️ Orqaga] bilan BIR qatorda — mavjud kontrakt saqlanadi.
+
+#: ⚙️ Ko'proq sozlamalar menyusidagi bo'limlar (callback → i18n yorliq kaliti).
+MORE_SETTINGS_ITEMS = (
+    ("stgs_clean", "ss_btn_cleaner"),
+)
+
+
+async def _render_more_settings(query, lang: str) -> None:
+    """⚙️ Ko'proq sozlamalar — nested submenyu (``stgs_more``).
+
+    Hozircha bitta bo'lim: 🧹 Post Auto-Cleaner & Custom Signature. Ro'yxat
+    ``MORE_SETTINGS_ITEMS`` da — yangi bo'lim qo'shish uchun shu tuple'ni
+    kengaytirish kifoya (kod o'zgarmaydi).
+    """
+    rows = []
+    for callback_data, label_key in MORE_SETTINGS_ITEMS:
+        rows.append([_inline(
+            settings_stats_t(label_key, lang), callback_data=callback_data,
+        )])
+    rows.append([_inline(
+        settings_stats_t("ss_btn_back", lang), callback_data="stgs_post",
+    )])
+    text = "\n".join([
+        settings_stats_t("ss_more_title", lang),
+        "",
+        settings_stats_t("ss_more_hint", lang),
+    ])
+    await _edit_or_reply(query, text, InlineKeyboardMarkup(rows))
+
+
+def _cleaner_signature_line(user_id_signature: str, lang: str) -> str:
+    """✍️ Imzo qatori (HTML-xavfsiz: foydalanuvchi matni escape qilinadi)."""
+    from utils.telegram_sanitizer import escape_html
+
+    value = (user_id_signature or "").strip()
+    shown = (
+        settings_stats_t("ss_clean_sig_value", lang, value=escape_html(value))
+        if value else settings_stats_t("ss_clean_sig_empty", lang)
+    )
+    return settings_stats_t("ss_clean_sig_label", lang, value=shown)
+
+
+async def _load_cleaner_state(user_id: int, values: dict | None = None) -> dict:
+    """🧹 Auto-cleaner holatini bazadan o'qiydi (toggle'lar + ✍️ imzo)."""
+    keys = list(CLEANER_SETTING_KEYS)
+    if values is None:
+        values = await db.run_db(
+            db.get_user_settings_bulk, user_id, keys, SETTING_DEFAULTS,
+        )
+    try:
+        signature = await db.run_db(db.get_user_post_signature, user_id)
+    except Exception:
+        signature = ""
+        log_silent_failure("handlers.settings:_load_cleaner_state", None,
+                           user_id=user_id)
+    return {"values": values or {}, "signature": signature or ""}
+
+
+def _build_cleaner_text(values: dict, signature: str, lang: str) -> str:
+    """🧹 Auto-cleaner ekrani matni (holat + tavsif + ✍️ imzo)."""
+    status = (
+        settings_stats_t("ss_clean_on", lang)
+        if values.get("post_auto_clean", False)
+        else settings_stats_t("ss_clean_off", lang)
+    )
+    return "".join([
+        settings_stats_t("ss_clean_title", lang),
+        settings_stats_t("ss_clean_status", lang, status=status),
+        settings_stats_t("ss_clean_body", lang),
+        _cleaner_signature_line(signature, lang),
+        settings_stats_t("ss_clean_hint", lang),
+    ])
+
+
+def _build_cleaner_keyboard(values: dict, lang: str) -> InlineKeyboardMarkup:
+    """🧹 Auto-cleaner klaviaturasi — toggle'lar + ✍️ imzo + 🧪 namuna.
+
+    Tugmalar juft qatorlarda (ixcham layout):
+
+        [✅/⬜️ Avto-tozalash]                        ← bosh kalit
+        [✅/⬜️ @ Eslatmalar] [✅/⬜️ 🔗 Havolalar]
+        [✅/⬜️ 📢 Reklama]   [✍️ Imzo]
+        [🧪 Namuna]         [🗑 Imzoni o'chir]
+        [◀️ Orqaga]
+    """
+    def toggle(key: str):
+        return _inline(
+            settings_toggle_label(key, lang, values.get(key, False)),
+            callback_data=cb("stgs_tgl", "clean", key),
+        )
+
+    return InlineKeyboardMarkup([
+        [toggle("post_auto_clean")],
+        [toggle("post_clean_mentions"), toggle("post_clean_links")],
+        [toggle("post_clean_promo"), _inline(
+            settings_stats_t("ss_btn_clean_sig", lang),
+            callback_data="stgs_clean_sig",
+        )],
+        [_inline(settings_stats_t("ss_btn_clean_demo", lang),
+                 callback_data="stgs_clean_demo"),
+         _inline(settings_stats_t("ss_btn_clean_clear", lang),
+                 callback_data="stgs_clean_sig_clear")],
+        [_inline(settings_stats_t("ss_btn_back", lang),
+                 callback_data="stgs_more")],
+    ])
+
+
+async def _render_cleaner(query, user_id: int, lang: str,
+                          values: dict | None = None, *,
+                          allow_reply_fallback: bool = True) -> None:
+    """🧹 Post Auto-Cleaner & Custom Signature sozlama ekrani (``stgs_clean``)."""
+    state = await _load_cleaner_state(user_id, values)
+    await _edit_toggle_screen(
+        query,
+        _build_cleaner_text(state["values"], state["signature"], lang),
+        _build_cleaner_keyboard(state["values"], lang),
+        allow_reply_fallback=allow_reply_fallback,
+    )
+
+
+async def _render_cleaner_demo(query, user_id: int, lang: str) -> None:
+    """🧪 Namuna — tozalash dvigatelini real namunada ko'rsatadi.
+
+    Foydalanuvchi sozlamalari ASOSIDA ishlaydi (DB'ga hech narsa yozilmaydi),
+    shu sababli yoqishdan oldin natijani ko'rish mumkin.
+    """
+    from services.post_cleaner import (
+        DEMO_SOURCE_HTML, clean_html, load_cleaner_config, own_channel_usernames,
+    )
+    from utils.telegram_sanitizer import html_to_text, sanitize_html
+
+    config = await load_cleaner_config(
+        user_id, own_usernames=await own_channel_usernames(user_id),
+    )
+    # Ekranda ko'rsatish uchun dvigatel doim YOQILGAN holatda hisoblanadi —
+    # aks holda o'chirilgan sozlama bilan namuna hech narsa ko'rsatmaydi.
+    from dataclasses import replace as _replace
+
+    preview = _replace(config, enabled=True)
+    result = clean_html(DEMO_SOURCE_HTML, preview)
+
+    sig_note = (
+        settings_stats_t("ss_clean_demo_sig_added", lang)
+        if result.signature_added else ""
+    )
+    text = "".join([
+        settings_stats_t("ss_clean_demo_title", lang),
+        settings_stats_t(
+            "ss_clean_demo_before", lang,
+            before=sanitize_html(DEMO_SOURCE_HTML, 700),
+        ),
+        settings_stats_t(
+            "ss_clean_demo_after", lang,
+            after=sanitize_html(result.text, 700),
+        ),
+        settings_stats_t(
+            "ss_clean_demo_stats", lang,
+            mentions=result.removed_mentions,
+            links=result.removed_links,
+            promo=result.removed_promo_lines,
+            sig=sig_note,
+        ),
+    ])
+    if not result.changed:
+        text += settings_stats_t("ss_clean_demo_nochange", lang)
+
+    rows = [
+        [_inline(settings_stats_t("ss_btn_cleaner", lang),
+                 callback_data="stgs_clean")],
+        [_inline(settings_stats_t("ss_btn_back", lang),
+                 callback_data="stgs_more")],
+    ]
+    # ``html_to_text`` — parse_mode=None fallback uchun (xavfsiz oddiy matn).
+    await _edit_or_reply(
+        query, text if "<" in text else html_to_text(text),
+        InlineKeyboardMarkup(rows),
+    )
+
+
+async def _clear_cleaner_signature(query, context, user_id: int,
+                                   lang: str) -> None:
+    """🗑 Saqlangan imzoni o'chiradi va ekranni yangilaydi."""
+    saved = await db.run_db(db.set_user_post_signature, user_id, "")
+    toast = (
+        settings_stats_t("ss_clean_sig_cleared", lang) if saved
+        else settings_stats_t("ss_clean_sig_none", lang)
+    )
+    try:
+        await query.answer(toast, show_alert=False)
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.settings:_clear_cleaner_signature",
+                           _silent_exc, user_id=user_id)
+    await _render_cleaner(query, user_id, lang, allow_reply_fallback=False)
+
+
+# ============================================================
+# ✍️ IMZO KIRITISH FSM (bitta holat — matn kutiladi)
+# ============================================================
+#: FSM holati: foydalanuvchi ✍️ imzo/havola matnini yozishi kutilmoqda.
+#:
+#: 545 — TANLANGAN, chunki 5xx diapazoni band: 501–502 (analitika),
+#: 511–512 (transfer), 520–525 (image post), **530–539 (manbalar/SRC_*)**,
+#: 540 (support ticket). 541–599 bo'sh; 545 hech qaysi oqim bilan
+#: to'qnashmaydi (``tests/sources_rss_and_recycle_test.py`` 530–539
+#: blokini qat'iy qo'riqlaydi — shu sababli 530 ISHLATILMAYDI).
+CLEANER_SIGNATURE_INPUT = 545
+
+
+async def cleaner_signature_entry(update, context: ContextTypes.DEFAULT_TYPE):
+    """✍️ Imzoni kiritish oqimini boshlaydi (``stgs_clean_sig`` entry point).
+
+    ``main_conv`` entry point'i sifatida ro'yxatdan o'tadi — generic
+    ``^stgs_`` handler'idan OLDIN ishlaydi (``main_conv`` app'ga avval
+    qo'shiladi), shu sababli tugma "o'lik" qolmaydi.
+    """
+    from handlers.start import ensure_user_lang
+
+    query = getattr(update, "callback_query", None)
+    user_id = None
+    if query is not None:
+        user_id = query.from_user.id
+        try:
+            await query.answer()
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.settings:cleaner_signature_entry",
+                               _silent_exc, user_id=user_id)
+    lang = await ensure_user_lang(context, user_id)
+    context.user_data["cleaner_sig_chat"] = (
+        query.message.chat_id if query is not None else update.effective_chat.id
+    )
+    context.user_data["cleaner_sig_msg"] = (
+        query.message.message_id if query is not None else None
+    )
+    from utils.post_signature import MAX_SIGNATURE_LEN
+
+    prompt = settings_stats_t("ss_clean_sig_prompt", lang,
+                              max_len=MAX_SIGNATURE_LEN)
+    if query is not None:
+        try:
+            await query.edit_message_text(prompt, parse_mode="HTML")
+            return CLEANER_SIGNATURE_INPUT
+        except Exception:
+            pass
+    await context.bot.send_message(
+        context.user_data["cleaner_sig_chat"], prompt, parse_mode="HTML",
+    )
+    return CLEANER_SIGNATURE_INPUT
+
+
+async def cleaner_signature_received(update, context: ContextTypes.DEFAULT_TYPE):
+    """✍️ Yuborilgan imzo/havolani tekshiradi, saqlaydi va ekranni qaytaradi.
+
+    Xavfsizlik: matn ``normalize_signature`` orqali tozalanadi (boshqaruv/
+    yo'nalish belgilari yo'q, ≤3 qator, ≤255 belgi) va ekranda HTML-escape
+    qilinadi — foydalanuvchi kiritgan ``<b>`` teg sifatida ishlamaydi.
+    """
+    from utils.post_signature import normalize_signature
+
+    user_id = update.effective_user.id
+    lang = await _user_lang(context, user_id)
+    raw = update.message.text or "" if update.message else ""
+    text = normalize_signature(raw)
+
+    if not text:
+        # Bo'sh/jim qabul qilinmaydi — lekin oqim YOPILMAYDI (qayta urinish).
+        await update.message.reply_text(
+            settings_stats_t("ss_clean_sig_rejected", lang), parse_mode="HTML",
+        )
+        return CLEANER_SIGNATURE_INPUT
+
+    saved = await db.run_db(db.set_user_post_signature, user_id, text)
+    if not saved:
+        logger.warning("Imzoni saqlab bo'lmadi: user_id=%s", user_id)
+        await update.message.reply_text(
+            settings_stats_t("ss_clean_sig_rejected", lang), parse_mode="HTML",
+        )
+        return CLEANER_SIGNATURE_INPUT
+
+    await update.message.reply_text(
+        settings_stats_t("ss_clean_sig_saved", lang), parse_mode="HTML",
+    )
+    chat_id = context.user_data.pop("cleaner_sig_chat", None) or update.effective_chat.id
+    message_id = context.user_data.pop("cleaner_sig_msg", None)
+    # Sozlama ekranini joyida yangilaymiz (yangi xabar spam qilinmaydi).
+    if message_id:
+        try:
+            state = await _load_cleaner_state(user_id)
+            await context.bot.edit_message_text(
+                chat_id=chat_id, message_id=message_id,
+                text=_build_cleaner_text(state["values"], state["signature"], lang),
+                reply_markup=_build_cleaner_keyboard(state["values"], lang),
+                parse_mode="HTML",
+            )
+            return _end_state()
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.settings:cleaner_signature_received",
+                               _silent_exc, user_id=user_id)
+    # Fallback: ekran topilmasa yangi xabar bilan ochiladi.
+    await _send_cleaner_screen(context, user_id, chat_id, lang)
+    return _end_state()
+
+
+def _end_state():
+    """``ConversationHandler.END`` (import siklidan qochish uchun kech)."""
+    from telegram.ext import ConversationHandler
+
+    return ConversationHandler.END
+
+
+async def _user_lang(context, user_id: int) -> str:
+    """Foydalanuvchi tili (``handlers.start`` orqali — import sikli yo'q)."""
+    from handlers.start import ensure_user_lang
+
+    return await ensure_user_lang(context, user_id)
+
+
+async def _send_cleaner_screen(context, user_id: int, chat_id: int,
+                               lang: str) -> None:
+    """🧹 Auto-cleaner ekranini YANGI xabar sifatida yuboradi (fallback)."""
+    state = await _load_cleaner_state(user_id)
+    await context.bot.send_message(
+        chat_id,
+        _build_cleaner_text(state["values"], state["signature"], lang),
+        reply_markup=_build_cleaner_keyboard(state["values"], lang),
+        parse_mode="HTML",
+    )
+
+
 async def _render_profile_screen(query, context, user_id: int, lang: str,
                                  is_admin: bool) -> None:
     """👤 Profil — ID, obuna holati, balans/kreditlar va asosiy hisob ma'lumotlari.
@@ -440,7 +822,14 @@ def _build_toggles_text(title_key: str, hint_key: str, keys: dict,
 
 def _build_toggles_keyboard(scope: str, keys: dict, values: dict,
                             lang: str) -> InlineKeyboardMarkup:
-    """Toggle tugmalari (2 tadan qator) + [◀️ Orqaga]."""
+    """Toggle tugmalari (2 tadan qator) + [◀️ Orqaga].
+
+    🧹 NESTED «Ko'proq sozlamalar»: ``post`` doirasidagi [◀️ Orqaga]
+    qatoriga IKKINCHI tugma sifatida [⚙️ Ko'proq] qo'shiladi. Tartib
+    ataylab shunday — [◀️ Orqaga] qatordagi BIRINCHI tugma bo'lib qoladi
+    (mavjud test kontrakti buzilmaydi), ⚙️ Sozlamalar hub'i esa 10 tugma
+    bo'lib QOLADI: yangi bo'lim hub'ga emas, chuqurroqqa joylashadi.
+    """
     rows = []
     items = list(keys.items())
     for i in range(0, len(items), 2):
@@ -451,9 +840,15 @@ def _build_toggles_keyboard(scope: str, keys: dict, values: dict,
                 rows_label, callback_data=cb("stgs_tgl", scope, key),
             ))
         rows.append(row)
-    rows.append([_inline(
+    back_row = [_inline(
         settings_stats_t("ss_btn_back", lang), callback_data="stgs_hub",
-    )])
+    )]
+    if scope == "post":
+        # ⚙️ Ko'proq sozlamalar — nested submenyu (🧹 Auto-cleaner shu yerda).
+        back_row.append(_inline(
+            settings_stats_t("ss_btn_more", lang), callback_data="stgs_more",
+        ))
+    rows.append(back_row)
     return InlineKeyboardMarkup(rows)
 
 
@@ -466,6 +861,8 @@ def _toggle_screen_meta(scope: str):
     """Toggle scope uchun kalitlar va matn kalitlarini qaytaradi."""
     if scope == "notif":
         return NOTIF_SETTING_KEYS, "ss_notif_title", "ss_notif_hint"
+    if scope == "clean":
+        return CLEANER_SETTING_KEYS, "ss_clean_title", "ss_clean_hint"
     return POST_SETTING_KEYS, "ss_post_title", "ss_post_hint"
 
 
@@ -495,12 +892,23 @@ async def _edit_toggle_screen(query, text: str, markup: InlineKeyboardMarkup,
 async def _render_toggles(query, user_id: int, scope: str, lang: str,
                           *, allow_reply_fallback: bool = True,
                           values: dict | None = None) -> None:
-    """🔔 Bildirishnomalar / 🎨 Post sozlamalari ekranini chizadi."""
+    """🔔 Bildirishnomalar / 🎨 Post sozlamalari / 🧹 Auto-cleaner ekrani.
+
+    ``clean`` doirasi BOY ekranga yo'naltiriladi (toggle'lar + ✍️ imzo
+    boshqaruvi + 🧪 namuna) — shu sababli ``stgs_tgl:clean:*`` callback'lari
+    mavjud OQ RO'YXAT/fail-closed mantiqidan o'tib, o'z ekraniga qaytadi.
+    """
     keys, title, hint = _toggle_screen_meta(scope)
     if values is None:
         values = await db.run_db(
             db.get_user_settings_bulk, user_id, list(keys), SETTING_DEFAULTS,
         )
+    if scope == "clean":
+        await _render_cleaner(
+            query, user_id, lang, values,
+            allow_reply_fallback=allow_reply_fallback,
+        )
+        return
     text = _build_toggles_text(title, hint, keys, values, lang)
     markup = _build_toggles_keyboard(scope, keys, values, lang)
     await _edit_toggle_screen(
@@ -731,6 +1139,27 @@ async def settings_menu_callback(update, context: ContextTypes.DEFAULT_TYPE):
     if data in ("stgs_bonus", "claim_bonus"):
         # 🎁 Kunlik bonus — eski ``claim_bonus`` callback'i ham saqlanadi.
         await _render_daily_bonus(query, user_id, lang, is_admin)
+        return
+
+    if data == "stgs_more":
+        # ⚙️ Ko'proq sozlamalar — NESTED submenyu (🧹 Auto-cleaner shu yerda).
+        # Joylashuv ataylab chuqur: ⚙️ Sozlamalar hub'i 10 tugma bo'lib qoladi.
+        await _render_more_settings(query, lang)
+        return
+
+    if data == "stgs_clean":
+        # 🧹 Post Auto-Cleaner & Custom Signature sozlama ekrani.
+        await _render_cleaner(query, user_id, lang)
+        return
+
+    if data == "stgs_clean_demo":
+        # 🧪 Namuna — tozalash natijasini real namunada ko'rsatish.
+        await _render_cleaner_demo(query, user_id, lang)
+        return
+
+    if data == "stgs_clean_sig_clear":
+        # 🗑 Saqlangan imzoni o'chirish.
+        await _clear_cleaner_signature(query, context, user_id, lang)
         return
 
     if data == "stgs_tools":

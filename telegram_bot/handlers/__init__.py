@@ -396,6 +396,9 @@ from handlers.payment_receipt import (
 # (stgs_* callback'lari); rewards/help hub callback'lari alohida patternlar
 # bilan ham ro'yxatdan o'tkaziladi — generic legacy aliaslar saqlanadi.
 from handlers.settings import (
+    CLEANER_SIGNATURE_INPUT,
+    cleaner_signature_entry,
+    cleaner_signature_received,
     settings_help_hub_callback,
     settings_menu_callback,
     settings_rewards_callback,
@@ -1284,6 +1287,14 @@ def _main_entry_points(all_menu_jumps):
         CallbackQueryHandler(
             support_ticket_entry, pattern=r"^help_support$",
         ),
+        # 🧹 POST AUTO-CLEANER — [✍️ Imzo] tugmasi (⚙️ Sozlamalar →
+        # ✍️ Post sozlamalari → ⚙️ Ko'proq sozlamalar → 🧹 Avto-tozalash).
+        # ``main_conv`` entry point'i bo'lishi SHART: generic ``^stgs_``
+        # handler'i global reyestrda KEYIN ro'yxatdan o'tadi, aks holda
+        # tugma FSM'ni ochmasdan eski menyuga tushib qolardi.
+        CallbackQueryHandler(
+            cleaner_signature_entry, pattern=r"^stgs_clean_sig$",
+        ),
         # 🌅 Daily digest → idea picker; the selected idea then reuses Magic Post.
         CallbackQueryHandler(morning_digest_create_callback, pattern=r"^md_create:"),
         CallbackQueryHandler(uzbek_calendar_create_callback, pattern=r"^uzcal_create:"),
@@ -1754,6 +1765,23 @@ def _editing_tools_states(all_menu_jumps, _edit_post_menu_handlers):
 
 
 
+def _settings_cleaner_states(all_menu_jumps):
+    """🧹 ⚙️ Sozlamalar → ✍️ Post sozlamalari → ⚙️ Ko'proq sozlamalar →
+    🧹 Post Auto-Cleaner & Custom Signature.
+
+    Bitta holat: foydalanuvchi ✍️ imzo/almashtrish havolasi matnini yozadi.
+    Matn ``utils.post_signature.normalize_signature`` orqali tozalanadi
+    (boshqaruv/yo'nalish belgilari yo'q, ≤3 qator, ≤255 belgi) va
+    ``users.post_signature_text`` ustuniga yoziladi.
+    """
+    return {
+        CLEANER_SIGNATURE_INPUT: all_menu_jumps + [
+            MessageHandler(filters.TEXT & ~filters.COMMAND,
+                           cleaner_signature_received),
+        ],
+    }
+
+
 def _admin_states(all_menu_jumps):
     """Admin panel oqimlari (RBAC) va reklama sozlamalari holatlari."""
     return {
@@ -2184,6 +2212,7 @@ def _build_main_conversation_handler(all_menu_jumps):
             **_image_post_states(all_menu_jumps),
             **_post_score_states(all_menu_jumps),
             **_support_queue_states(all_menu_jumps),
+            **_settings_cleaner_states(all_menu_jumps),
             **_timeout_state(),
         },
         fallbacks=_main_fallbacks(),
