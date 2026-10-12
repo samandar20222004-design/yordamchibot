@@ -1127,15 +1127,15 @@ def test_main_menu_layout_v2():
     check("extras: yopish", ex[2][0] == ("❌ Yopish", "extra_close"), str(ex[2]))
 
     cab = [[(b.text, b.callback_data) for b in row] for row in get_cabinet_inline_keyboard().inline_keyboard]
-    # Four primary sections; secondary actions live in Profile, PRO, and Help.
-    check("kabinet: 3 qatorli primary grid", len(cab) == 3, str(cab))
+    # Six primary sections in a 3×2 grid.
+    check("kabinet: 3 qatorli 3×2 primary grid", len(cab) == 3, str(cab))
     expected = [
         [("🌐 Til / Язык", "stgs_lang"),
          ("🧹 Post tozalash va imzo", "stgs_clean")],
         [("🔔 Bildirishnomalar", "stgs_notif"),
          ("💎 PRO va Tariflar", "sub_open")],
-        [("🎁 Bonuslar", "stgs_rewards"),
-         ("❓ Yordam", "stgs_help_hub")],
+        [("👥 Do'stlarni taklif", "stgs_referral"),
+         ("ℹ️ Yordam va Qo'llanma", "stgs_help_hub")],
     ]
     check("kabinet tartibi", cab == expected, str(cab))
     check("kabinet: cab_lang tugmasi YO'Q",
@@ -6154,14 +6154,16 @@ def test_cabinet_i18n_suite():
     cab = get_cabinet_inline_keyboard("ru")
     cab_texts = [b.text for row in cab.inline_keyboard for b in row]
     cab_cbs = [b.callback_data for row in cab.inline_keyboard for b in row]
-    check("Settings inline ru: four primary labels are localized",
+    check("Settings inline ru: six primary labels are localized",
           all(settings_stats_t(key, "ru") in cab_texts for key in
-              ("ss_btn_lang", "ss_btn_cleaner_primary", "ss_btn_notif", "ss_btn_pro_plans")),
+              ("ss_btn_lang", "ss_btn_cleaner_primary", "ss_btn_notif",
+               "ss_btn_pro_plans", "ss_rewards_referral", "ss_btn_help")),
           str(cab_texts))
-    # Secondary actions were moved out of the primary Settings grid.
-    check("kabinet inline ru: four-button callback_data",
-          cab_cbs == ["stgs_lang", "stgs_clean", "stgs_notif", "sub_open",
-    "stgs_rewards", "stgs_help_hub"],
+    check("kabinet inline ru: six-button callback_data",
+          cab_cbs == [
+              "stgs_lang", "stgs_clean", "stgs_notif",
+              "sub_open", "stgs_referral", "stgs_help_hub",
+          ],
           str(cab_cbs))
     check("kabinet inline uz: default",
           [b.text for row in get_cabinet_inline_keyboard().inline_keyboard for b in row][0]

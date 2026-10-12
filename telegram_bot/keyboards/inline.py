@@ -1064,14 +1064,17 @@ def render_pending_list(posts: list, user_code: str, lang: str = "uz") -> Inline
 
 
 def get_settings_profile_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
-    """⚙️ Sozlamalar menyusi (3 qator × 2 tugma).
+    """⚙️ Sozlamalar uchun kanonik, olti tugmali 3×2 grid.
 
-        [🌐 Til / Язык]        [🧹 Post tozalash va imzo]
-        [🔔 Bildirishnomalar]  [💎 PRO va Tariflar]
-        [🎁 Bonuslar]          [❓ Yordam]
+    Sozlamalar sahifasida foydalanuvchi uchun zarur barcha asosiy bo'limlar
+    tartibli 3×2 ko'rinishda joylashadi; to'lovlar tarixi PRO hub'ida,
+    maxfiylik va ma'lumotlarni o'chirish esa Help ichida saqlanadi.
+    Callback nomlari mavjud oqimlarga ulanadi, shu sababli eski xabarlardagi
+    callback'lar ham ishlashda davom etadi.
 
-    Bonuslar ichida: ballar, kunlik bonus, do'stlarni taklif.
-    Yordam ichida: qo'llab-quvvatlash, maxfiylik, ma'lumotlarni o'chirish.
+        [🌐 Til / Язык] [🧹 Post tozalash va imzo]
+        [🔔 Bildirishnomalar] [💎 PRO va Tariflar]
+        [👥 Do'stlarni taklif] [ℹ️ Yordam va Qo'llanma]
 
     ``get_cabinet_inline_keyboard`` va ``get_settings_hub_keyboard`` bu
     funksiyaga delegatsiya qiladi — vizual tartibning bitta manbasi bor.
@@ -1092,9 +1095,9 @@ def get_settings_profile_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
                                  callback_data="sub_open"),
         ],
         [
-            InlineKeyboardButton(settings_stats_t("ss_btn_rewards", lang),
-                                 callback_data="stgs_rewards"),
-            InlineKeyboardButton(settings_stats_t("ss_btn_help_hub", lang),
+            InlineKeyboardButton(settings_stats_t("ss_rewards_referral", lang),
+                                 callback_data="stgs_referral"),
+            InlineKeyboardButton(settings_stats_t("ss_btn_help", lang),
                                  callback_data="stgs_help_hub"),
         ],
     ])
@@ -1113,17 +1116,17 @@ def get_profile_menu_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
 
 
 def get_cabinet_inline_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
-    """Kabinet aliasi — to'rt tugmali Sozlamalar gridini qaytaradi."""
+    """Kabinet aliasi — olti tugmali Sozlamalar gridini qaytaradi."""
     return get_settings_profile_keyboard(lang)
 
 
 # ============================================================
-# ⚙️ SOZLAMALAR — 4 TUGMALI HUB (2 qator × 2 tugma)
+# ⚙️ SOZLAMALAR — 6 TUGMALI HUB (3 qator × 2 tugma)
 # ============================================================
 
 
 def get_settings_hub_keyboard(lang: str = "uz", include_legacy: bool = False) -> InlineKeyboardMarkup:
-    """Sozlamalar hub'i — kanonik 4-tugmali 2×2 panelga alias.
+    """Sozlamalar hub'i — kanonik 6-tugmali 3×2 panelga alias.
 
     ``include_legacy`` argumenti eski integratsiyalar uchun API mosligini
     saqlaydi; legacy tugmalar yangi primary grid'e qo'shilmaydi.

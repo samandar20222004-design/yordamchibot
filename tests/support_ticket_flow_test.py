@@ -593,11 +593,13 @@ def test_one_time_ticket_flow():
         state5 = _run(sup.support_back_callback(_cb_update(query), ctx5))
     check("[◀️ Orqaga] → ConversationHandler.END",
           state5 == ConversationHandler.END, str(state5))
-    check("[◀️ Orqaga] → four-button ⚙️ Sozlamalar grid'i qayta chizildi",
+    check("[◀️ Orqaga] → six-button ⚙️ Sozlamalar grid'i qayta chizildi",
           bool(query.edits)
           and _flat_cbs(query.screen.get("markup"))
-          == ["stgs_lang", "stgs_clean", "stgs_notif", "sub_open",
-    "stgs_rewards", "stgs_help_hub"],
+          == [
+              "stgs_lang", "stgs_clean", "stgs_notif",
+              "sub_open", "stgs_referral", "stgs_help_hub",
+          ],
           str(_flat_cbs(query.screen.get("markup"))))
 
     # 1g-2) Router darajasidagi isbot: 540 holatida HAM matn, HAM rasm+izoh
@@ -984,15 +986,17 @@ def test_regression_and_parity():
         check(f"database.{fn_name}() mavjud",
               callable(getattr(db_mod, fn_name, None)))
 
-    # ⚙️ Sozlamalar — four-button primary grid; support/privacy live in Help.
+    # ⚙️ Sozlamalar — six-button primary grid; support/privacy live in Help.
     from keyboards.inline import (get_settings_help_hub_keyboard,
                                   get_settings_hub_keyboard,
                                   get_support_ticket_keyboard)
 
     hub_cbs = _flat_cbs(get_settings_hub_keyboard("uz"))
-    check("hub: four primary actions (2x2)",
-          hub_cbs == ["stgs_lang", "stgs_clean", "stgs_notif", "sub_open",
-    "stgs_rewards", "stgs_help_hub"],
+    check("hub: six primary actions (3x2)",
+          hub_cbs == [
+              "stgs_lang", "stgs_clean", "stgs_notif",
+              "sub_open", "stgs_referral", "stgs_help_hub",
+          ],
           str(hub_cbs))
     profile_buttons = [b for row in get_settings_help_hub_keyboard("uz").inline_keyboard
                        for b in row if b.text.endswith("Qo'llab-quvvatlash")]

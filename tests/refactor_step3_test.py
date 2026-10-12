@@ -108,13 +108,13 @@ def check(label, condition, extra=""):
 HUB_LABELS = {
     "uz": (("🌐 Til / Язык", "🧹 Post tozalash va imzo"),
            ("🔔 Bildirishnomalar", "💎 PRO va Tariflar"),
-           ("🎁 Bonuslar", "❓ Yordam")),
+           ("👥 Do'stlarni taklif", "ℹ️ Yordam va Qo'llanma")),
     "ru": (("🌐 Язык", "🧹 Автоочистка постов и подпись"),
            ("🔔 Уведомления", "💎 PRO и тарифы"),
-           ("🎁 Бонусы", "❓ Помощь")),
+           ("👥 Пригласить друзей", "ℹ️ Помощь и руководство")),
     "en": (("🌐 Language", "🧹 Post cleaner & signature"),
            ("🔔 Notifications", "💎 PRO & Plans"),
-           ("🎁 Bonuses", "❓ Help & Info")),
+           ("👥 Invite friends", "ℹ️ Help and Guide")),
 }
 
 #: Legacy kabinet callback'lari — menyu KO'RINISHIDA bo'lmasligi shart
@@ -469,23 +469,23 @@ def _msg_entry_fn_names(app, text, as_command=False):
 # TEST 1 — ⚙️ SOZLAMALAR MENYUSI: LEGACY DUBLIKATLAR YO'Q + SPEKS TARTIBI
 # ===========================================================================
 def test_settings_hub_has_no_legacy_duplicates():
-    print("== TEST 1: ⚙️ Sozlamalar — four-button 2×2 primary grid ==")
+    print("== TEST 1: ⚙️ Sozlamalar — six-button 3×2 primary grid ==")
 
     for lang in LANGS:
         kb = get_settings_hub_keyboard(lang)
         rows = _rows(kb)
         cbs = _cbs(kb)
 
-        check(f"[{lang}] primary grid: 2 qator, har birida 2 tugma",
+        check(f"[{lang}] primary grid: 3 qator, har birida 2 tugma",
               [len(row) for row in rows] == [2, 2, 2], str(len(rows)))
-        check(f"[{lang}] four-button labels match the localized specification",
+        check(f"[{lang}] six-button labels match the localized specification",
               [[text for text, _ in row] for row in rows]
               == [list(pair) for pair in HUB_LABELS[lang]], str(rows))
         check(f"[{lang}] callback tartibi speks bilan bir xil",
               cbs == list(CB_SETTINGS_HUB), str(cbs))
-        check(f"[{lang}] secondary Profile/PRO/Help items are nested",
+        check(f"[{lang}] secondary PRO/Help items are nested",
               not any(callback in cbs for callback in
-                      ("stgs_referral", "stgs_pay", "stgs_privacy", "stgs_delete_data")), str(cbs))
+                      ("stgs_pay", "stgs_privacy", "stgs_delete_data")), str(cbs))
         check(f"[{lang}] callback'lar takrorlanmaydi",
               len(set(cbs)) == len(cbs), str(cbs))
 
@@ -508,17 +508,18 @@ def test_settings_hub_has_no_legacy_duplicates():
             _run(start_mod.user_cabinet_menu(_msg_update(msg), _ctx(lang)))
         last = msg.sent[-1]
         cbs = _cbs(last["reply_markup"])
-        check(f"[{lang}] Settings root: four callbacks", cbs == list(CB_SETTINGS_HUB), str(cbs))
+        check(f"[{lang}] Settings root: six callbacks", cbs == list(CB_SETTINGS_HUB), str(cbs))
         check(f"[{lang}] Settings root: static heading",
               settings_stats_t("ss_settings_hub_title", lang) in last["text"],
               (last["text"] or "")[:80])
 
     uz_cbs = _cbs(get_settings_hub_keyboard("uz"))
-    check("hub: secondary referral/payment/privacy/help are not duplicated",
+    check("hub: secondary payment/privacy are not duplicated",
           not any(callback in uz_cbs for callback in
-                  ("stgs_referral", "stgs_pay", "stgs_privacy", "stgs_delete_data")), str(uz_cbs))
-    check("hub: PRO (sub_open) remains a primary entry",
-          "sub_open" in uz_cbs, str(uz_cbs))
+                  ("stgs_pay", "stgs_privacy", "stgs_delete_data")), str(uz_cbs))
+    check("hub: PRO (sub_open), referral (stgs_referral) and help (stgs_help_hub) are primary entries",
+          "sub_open" in uz_cbs and "stgs_referral" in uz_cbs and "stgs_help_hub" in uz_cbs,
+          str(uz_cbs))
 
 
 # ===========================================================================

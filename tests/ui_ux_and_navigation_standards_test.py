@@ -327,7 +327,7 @@ def test_2_canonical_navigation():
 # TEST 3 — INLINE DUBLIKATLAR TOZALANGAN (FAZA 18)
 # ============================================================================
 def test_3_inline_duplicates_removed():
-    header("3", "🧭 Settings aliases point to the canonical four-button grid")
+    header("3", "🧭 Settings aliases point to the canonical six-button grid")
     for lang in LANGS:
         canon = kb_flat_inline(KI.get_settings_profile_keyboard(lang))
         cab = kb_flat_inline(KI.get_cabinet_inline_keyboard(lang))
@@ -339,15 +339,17 @@ def test_3_inline_duplicates_removed():
               hub_legacy == canon)
         rows = KI.get_settings_profile_keyboard(lang).inline_keyboard
         cbs = [callback for _, callback in canon]
-        check(f"[{lang}] panel: aynan 4 tugma / 2 qator × 2",
+        check(f"[{lang}] panel: aynan 6 tugma / 3 qator × 2",
               len(canon) == 6 and len(rows) == 3 and all(len(row) == 2 for row in rows),
               str(rows))
-        check(f"[{lang}] panel: to'rt asosiy yo'nalish callback tartibi",
-              cbs == ["stgs_lang", "stgs_clean", "stgs_notif", "sub_open",
-    "stgs_rewards", "stgs_help_hub"], str(cbs))
-        check(f"[{lang}] referral/payment/privacy Help/PRO ichida qoladi",
+        check(f"[{lang}] panel: olti asosiy yo'nalish callback tartibi",
+              cbs == [
+                  "stgs_lang", "stgs_clean", "stgs_notif",
+                  "sub_open", "stgs_referral", "stgs_help_hub",
+              ], str(cbs))
+        check(f"[{lang}] payment/privacy Help/PRO ichida qoladi",
               not any(callback in cbs for callback in
-                      ("stgs_referral", "stgs_pay", "stgs_privacy", "stgs_delete_data")),
+                      ("stgs_pay", "stgs_privacy", "stgs_delete_data")),
               str(cbs))
     # Eski alias-funksiyalar ham kanonik manbaga tushadi.
     for fn in (KI.get_stgs_rewards_keyboard, KI.get_rewards_keyboard):

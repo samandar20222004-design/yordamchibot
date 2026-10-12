@@ -433,20 +433,20 @@ def _rows(kb):
 
 
 def test_more_settings_navigation():
-    header("7", "🧭 SOZLAMALAR — primary 2×2 grid va toza submenu navigatsiyasi")
+    header("7", "🧭 SOZLAMALAR — primary 3×2 grid va toza submenu navigatsiyasi")
 
-    # 7a) Sozlamalar hub'i to'rtta asosiy yo'nalish bilan ixcham qoladi.
+    # 7a) Sozlamalar hub'i oltita asosiy yo'nalish bilan tartibli qoladi.
     for lang in LANGS:
         kb = get_settings_profile_keyboard(lang)
         cbs = [cb for _, cb in _flat(kb)]
         rows = kb.inline_keyboard
-        check(f"[{lang}] hub = 4 asosiy tugma", cbs == [
-            "stgs_lang", "stgs_clean", "stgs_notif", "sub_open",
-    "stgs_rewards", "stgs_help_hub"], str(cbs))
+        check(f"[{lang}] hub = 6 asosiy tugma", cbs == [
+            "stgs_lang", "stgs_clean", "stgs_notif",
+            "sub_open", "stgs_referral", "stgs_help_hub"], str(cbs))
         check(f"[{lang}] hub = 3 qator × 2", len(rows) == 3
               and all(len(r) == 2 for r in rows), str(len(rows)))
-        check(f"[{lang}] sekundar referral/payment/privacy hub'da yo'q",
-              not any(c in cbs for c in ("stgs_referral", "stgs_pay",
+        check(f"[{lang}] sekundar payment/privacy hub'da yo'q",
+              not any(c in cbs for c in ("stgs_pay",
                                          "stgs_privacy", "stgs_delete_data")),
               str(cbs))
 

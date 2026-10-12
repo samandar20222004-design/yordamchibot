@@ -148,30 +148,33 @@ def test_main_menu_button_3_langs():
 # 3. KABINET INLINE KLAVIATURASI — har 3 tilda
 # ================================================================
 def test_cabinet_inline_keyboard_3_langs():
-    """Primary Settings grid stays 2×2 and localized in uz/ru/en."""
+    """Primary Settings grid stays 3×2 (6 buttons) and localized in uz/ru/en."""
     print("== Settings primary inline grid (uz/ru/en) ==")
     from keyboards.inline import (get_cabinet_inline_keyboard,
                                   get_profile_menu_keyboard,
                                   get_settings_help_hub_keyboard)
 
-    expected_cbs = ["stgs_lang", "stgs_clean", "stgs_notif", "sub_open",
-    "stgs_rewards", "stgs_help_hub"]
+    expected_cbs = [
+        "stgs_lang", "stgs_clean", "stgs_notif",
+        "sub_open", "stgs_referral", "stgs_help_hub",
+    ]
     keyboards = {lang: get_cabinet_inline_keyboard(lang) for lang in ("uz", "ru", "en")}
     for lang, kb in keyboards.items():
         rows = [[(b.text, b.callback_data) for b in row] for row in kb.inline_keyboard]
         cbs = [callback for row in rows for _, callback in row]
-        check(f"{lang} Settings: 2 qator × 2 tugma", [len(row) for row in rows] == [2, 2, 2],
+        check(f"{lang} Settings: 3 qator × 2 tugma", [len(row) for row in rows] == [2, 2, 2],
               str(rows))
-        check(f"{lang} Settings: 4 primary callbacks", cbs == expected_cbs, str(cbs))
-        check(f"{lang} Settings: cleaner and PRO labels localized",
-              bool(rows[0][1][0]) and bool(rows[1][1][0]), str(rows))
+        check(f"{lang} Settings: 6 primary callbacks", cbs == expected_cbs, str(cbs))
+        check(f"{lang} Settings: cleaner, PRO, referral, and help labels localized",
+              bool(rows[0][1][0]) and bool(rows[1][1][0])
+              and bool(rows[2][0][0]) and bool(rows[2][1][0]), str(rows))
 
     cbs_by_lang = [[b.callback_data for row in keyboards[lang].inline_keyboard for b in row]
                    for lang in ("uz", "ru", "en")]
     check("callback_data uz == ru == en",
           cbs_by_lang[0] == cbs_by_lang[1] == cbs_by_lang[2])
 
-    # Secondary actions are reachable only through their natural parent menus.
+    # Secondary actions (payment history, privacy, data deletion) remain in PRO/Help.
     profile_cbs = [b.callback_data for row in get_profile_menu_keyboard("uz").inline_keyboard
                    for b in row]
     help_cbs = [b.callback_data for row in
@@ -181,7 +184,7 @@ def test_cabinet_inline_keyboard_3_langs():
           "stgs_privacy" in help_cbs and "stgs_delete_data" in help_cbs)
     check("secondary callbacks are absent from primary grid",
           not any(callback in expected_cbs for callback in
-                  ("stgs_referral", "stgs_pay", "stgs_privacy", "stgs_delete_data")))
+                  ("stgs_pay", "stgs_privacy", "stgs_delete_data")))
 
     removed_cbs = [
         "cab_channels", "cab_analytics", "cab_pending", "cab_queue",

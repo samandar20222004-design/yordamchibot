@@ -825,8 +825,8 @@ SETTINGS_MENU_BUTTON_KEYS = (
     "ss_btn_cleaner_primary",
     "ss_btn_notif",
     "ss_btn_pro_plans",
-    "ss_btn_rewards",
-    "ss_btn_help_hub",
+    "ss_rewards_referral",
+    "ss_btn_help",
 )
 
 #: 🎁 Bonuslar & Ballar submenu'si tugma kalitlari.
@@ -878,13 +878,13 @@ CB_STATS_BACK = "an_close"
 CB_STATS_DETAIL = "an_detail"
 CB_STATS_OVERVIEW = "an_overview"
 
-#: ⚙️ Sozlamalar — asosiy menyu (3 qator × 2 tugma).
+#: ⚙️ Sozlamalar — asosiy 6 tugmali 3×2 grid.
 CB_SETTINGS_HUB = (
     "stgs_lang",
     "stgs_clean",
     "stgs_notif",
     "sub_open",
-    "stgs_rewards",
+    "stgs_referral",
     "stgs_help_hub",
 )
 

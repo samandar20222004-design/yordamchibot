@@ -197,7 +197,7 @@ def test_1_compact_main_menu():
 # TEST 2 — ⚙️ SOZLAMALAR / KO'PROQ HUB'I
 # ===========================================================================
 def test_2_settings_primary_grid():
-    header("2", "⚙️ Sozlamalar — four-button responsive primary grid")
+    header("2", "⚙️ Sozlamalar — six-button responsive primary grid")
     canonical = KI.get_settings_profile_keyboard("uz")
     check("PRO (sub_open) hub'da bor",
           "sub_open" in [cb for _, cb in ik_flat(canonical)], str(ik_flat(canonical)))
@@ -207,7 +207,7 @@ def test_2_settings_primary_grid():
         rows = ik_rows(kb)
         cbs = [cb for _, cb in ik_flat(kb)]
         labels = [t for t, _ in ik_flat(kb)]
-        check(f"[{lang}] 4 tugma / 2 qator × 2",
+        check(f"[{lang}] 6 tugma / 3 qator × 2",
               len(labels) == 6 and len(rows) == 3
               and all(len(row) == 2 for row in rows), str(rows))
         check(f"[{lang}] callback tartibi SSOT bilan bir xil",
@@ -216,9 +216,12 @@ def test_2_settings_primary_grid():
               settings_stats_t("ss_btn_cleaner_primary", lang) in labels, str(labels))
         check(f"[{lang}] PRO yorlig'i = ss_btn_pro_plans",
               settings_stats_t("ss_btn_pro_plans", lang) in labels, str(labels))
-        check(f"[{lang}] referral/payment/privacy/help secondary buttons are moved",
+        check(f"[{lang}] referral va help yorliqlari localized",
+              settings_stats_t("ss_rewards_referral", lang) in labels
+              and settings_stats_t("ss_btn_help", lang) in labels, str(labels))
+        check(f"[{lang}] payment/privacy secondary buttons are moved",
               not any(callback in cbs for callback in
-                      ("stgs_referral", "stgs_pay", "stgs_privacy", "stgs_delete_data")), str(cbs))
+                      ("stgs_pay", "stgs_privacy", "stgs_delete_data")), str(cbs))
         # Dublikat inline klaviatura YO'Q (FAZA 18 qoidasi saqlanadi).
         check(f"[{lang}] get_cabinet_inline_keyboard == kanonik panel",
               ik_rows(KI.get_cabinet_inline_keyboard(lang)) == rows)
