@@ -1432,6 +1432,40 @@ echo "===== 🌍 DINAMIK KO'P DAVLATLI KALENDAR + 🌊 AI STREAMING/RICH MESSAGI
 "$PY" tests/calendar_multi_country_test.py || EXIT_CODE=1
 
 echo
+echo "===== 🧹 POST AUTO-CLEANER & CUSTOM SIGNATURE (NESTED «KO'PROQ SOZLAMALAR») ====="
+# (1) ENTITY-SAFE TOZALASH — begona @username / t.me havolalari va footer
+#     reklama qatorlari o'chirilganda FORMATLASH DARAXTI 100% saqlanadi:
+#     HTML (<b>/<i>/<a>/<code>) balanslangan holda qayta yoziladi (XML
+#     simulyatsiyasi bilan tasdiqlanadi), Telegram MessageEntity offset'lari
+#     UTF-16 da aniq QAYTA HISOBLANADI (emoji = 2 birlik), to'liq o'chirilgan
+#     entity tushirib qoldiriladi, qisman o'chirilgani qirqiladi; code/pre
+#     ichidagi matn LITERAL — HECH QACHON tozalanmaydi; Markdown belgilari
+#     (**bold** / __italic__ / [t](u) / `code`) juft yopiladi.
+# (2) ✍️ CUSTOM SIGNATURE — foydalanuvchi saqlagan havola/imzo o'chirilgan
+#     manba belgilari o'rniga qo'yiladi (oxirga yoki boshga); URL bo'lsa
+#     <a> teg (validate_button_url — SSRF/javascript: rad etiladi), yozuvcha
+#     matn HTML-escape qilinadi (XSS yo'q), ikkinchi tozalashda DUPLIKAT
+#     qo'shilmaydi (idempotent).
+# (3) 🌍 KO'P DAVLATLILIK — reklama/atributsiya naqshlari uz/ru/en uchala
+#     tilda ishlaydi; mamlakat/mintaqa cheklovi YO'Q (kod faqat matn
+#     naqshiga qaraydi), yangi til = yangi kalit so'z (kod o'zgarmaydi).
+# (4) 🛟 FAIL-SAFE — o'chirilgan sozlama matnga UMUMAN tegmaydi (OPT-IN,
+#     standart OFF); tozalash matnni butunlay yeb qo'ysa ASL matn qaytadi;
+#     foydalanuvchining O'Z kanali va email'lari saqlanadi.
+# (5) 🧭 NAVIGATSIYA — ⚙️ Sozlamalar hub'i 10 TUGMA / 5 qator × 2 bo'lib
+#     QOLADI (layout buzilmaydi): yangi bo'lim NESTED —
+#     ✍️ Post sozlamalari → ⚙️ Ko'proq → 🧹 Avto-tozalash.
+# (6) 🔌 ROUTING + 💾 SAQLASH + 🌐 i18n — stgs_more/stgs_clean/stgs_clean_demo/
+#     stgs_clean_sig_clear haqiqiy handlerda; stgs_tgl:clean:* OQ RO'YXAT
+#     (soxta kalit → DB amali YO'Q); imzo normalize (boshqaruv/bidi
+#     belgilari yo'q, ≤3 qator, ≤255 belgi) YAGONA manbada; uz/ru/en 100%
+#     paritet + 18-belgi standarti.
+# (7) 📥 INGEST — RSS build_draft va URL build_drafts MANBA matnini AI/digest
+#     dan OLDIN tozalaydi (botning o'z «🔗 Manba:» yorlig'i SAQLANADI),
+#     kanal-extract esa opt-in pass sifatida.
+"$PY" tests/post_auto_cleaner_test.py || EXIT_CODE=1
+
+echo
 echo "===== 🧠 AI PROGRESS — lokalizatsiya qilingan bosqichlar, ≤1 edit/s ====="
 # 🧠 → ✍️ → ✨ bosqichlari (uz/ru/en), xabar VA chat bo'yicha umumiy edit
 # soati, 429 RetryAfter (bosqich o'tkaziladi), "not modified", for_reply /

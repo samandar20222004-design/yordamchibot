@@ -394,6 +394,54 @@ def is_source_due(source: dict, *, now: datetime | None = None) -> bool:
     return next_check_at(data, now=moment) <= moment
 
 
+#: 🧹 Auto-cleaner konfiguratsiyasi UZATILMAGAN holat belgisi (``None`` emas —
+#: ``None`` "tozalashni O'CHIRISH" ma'nosini beradi, sentinel esa "o'zing
+#: o'qib ol" ma'nosini).
+_CLEANER_UNSET = object()
+
+
+async def _clean_feed_item(item: FeedItem, user_id: int | None,
+                           cleaner_config: Any, db_module: Any = None) -> FeedItem:
+    """🧹 POST AUTO-CLEANER — MANBA elementini tozalaydi (fail-soft).
+
+    Nega MANBADA (AI/digest'dan OLDIN)? Chunki botning o'zi qo'shadigan
+    yorliqlar (``🔗 Manba:``, ``👉 Batafsil``) ``digest_draft`` ichida
+    YASALADI — tozalash ulardan oldin bo'lsa, bot o'z yorlig'ini o'chirib
+    yubormaydi, faqat TASHQI manbaning reklama/atributsiya qatorlari ketadi.
+
+    Xatoda ASL element qaytariladi: tozalash hech qachon oqimni buzmaydi.
+    """
+    if item is None:
+        return item
+    config = cleaner_config
+    if config is _CLEANER_UNSET:
+        if not user_id:
+            return item
+        try:
+            from ..post_cleaner import resolve_config
+
+            config = await resolve_config(user_id, db_module)
+        except Exception:  # noqa: BLE001 - fail-soft: tozalashsiz davom
+            logger.debug("RSS: auto-cleaner konfiguratsiyasi o'qilmadi",
+                         exc_info=True)
+            return item
+    if config is None or not getattr(config, "enabled", False):
+        return item
+
+    try:
+        from dataclasses import replace
+
+        from ..post_cleaner import clean_plain
+
+        title = clean_plain(item.title or "", None, config).text
+        summary = clean_plain(item.summary or "", None, config).text
+        return replace(item, title=title or item.title,
+                       summary=summary or item.summary)
+    except Exception:  # noqa: BLE001 - fail-soft: asl element qaytadi
+        logger.warning("RSS: auto-cleaner qo'llanmadi", exc_info=True)
+        return item
+
+
 def digest_draft(item: FeedItem, *, lang: str = "uz",
                  channel_title: str = "") -> str:
     """AI'siz, FAQAT oqim mazmunidan tuzilgan qoralama (fakt qo'shilmaydi).
@@ -474,12 +522,21 @@ class RssService(SMMFeatureService):
     async def build_draft(self, item: FeedItem, *, user_id: int | None = None,
                           lang: str = "uz", db_module: Any = None,
                           channel_title: str = "", dna_block: str = "",
-                          use_ai: bool = True) -> dict:
+                          use_ai: bool = True,
+                          cleaner_config: Any = _CLEANER_UNSET) -> dict:
         """Element uchun post qoralamasi (AI + Channel DNA yoki digest).
 
         ``use_ai=False`` yoki AI muvaffaqiyatsiz bo'lsa — deterministik digest
         qaytadi (``ai_used=False``), ya'ni oqim hech qachon "jim qolmaydi".
+
+        🧹 POST AUTO-CLEANER: ``cleaner_config`` berilsa (yoki ``user_id``
+        bo'yicha o'chirilmagan sozlama topilsa) MANBA matni tozalanadi —
+        begona @username/havola va footer reklama qatorlari o'chirilib,
+        o'rniga foydalanuvchi imzosi qo'yiladi. Tozalash AI promptiga
+        KIRISHDA bajariladi, shu sababli botning o'z yorliqlari
+        (``🔗 Manba:``) hech qachon o'chirilmaydi.
         """
+        item = await _clean_feed_item(item, user_id, cleaner_config, db_module)
         base_text = digest_draft(item, lang=lang, channel_title=channel_title)
         if not use_ai:
             return {"text": sanitize_html(base_text, 3600), "ai_used": False,
@@ -559,6 +616,19 @@ class RssService(SMMFeatureService):
         fresh = filter_new_items(all_items, known_ids)[:max(1, int(limit))]
         duplicates = max(0, len(all_items) - len(fresh))
 
+        # 🧹 AUTO-CLEANER: konfiguratsiya BIR MARTA o'qiladi va barcha
+        # elementlarga uzatiladi (N element uchun N×2 DB so'rovi bo'lmaydi).
+        cleaner_config = None
+        if data.get("user_id"):
+            try:
+                from ..post_cleaner import resolve_config
+
+                cleaner_config = await resolve_config(data.get("user_id"), db)
+            except Exception:  # noqa: BLE001 - fail-soft
+                logger.debug("RSS: auto-cleaner konfiguratsiyasi o'qilmadi",
+                             exc_info=True)
+                cleaner_config = None
+
         drafts: list[dict] = []
         saved_items: list[dict] = []
         for item in fresh:
@@ -579,7 +649,7 @@ class RssService(SMMFeatureService):
             draft = await self.build_draft(
                 item, user_id=data.get("user_id"), lang=lang, db_module=db,
                 channel_title=channel_title, dna_block=dna_block,
-                use_ai=use_ai)
+                use_ai=use_ai, cleaner_config=cleaner_config)
             draft_payload = {
                 "external_id": item.external_id,
                 "source_item_id": item_id,

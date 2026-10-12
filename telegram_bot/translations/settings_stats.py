@@ -198,6 +198,68 @@ SETTINGS_STATS_I18N = {
             "<i>Standartlar keyingi postlardan boshlab amal qiladi.</i>"
         ),
 
+        # --- ⚙️ Ko'proq sozlamalar (nested submenyu) ---
+        # Post sozlamalari ekranidagi [⚙️ Ko'proq] tugmasi shu menyuni
+        # ochadi; ⚙️ Sozlamalar hub'i 10 tugma bo'lib QOLADI.
+        "ss_btn_more": "⚙️ Ko'proq",
+        "ss_more_title": (
+            "⚙️ <b>Ko'proq sozlamalar</b>\n\n"
+            "Kengaytirilgan post sozlamalari:"
+        ),
+        "ss_more_hint": (
+            "<i>Bu bo'limdagi sozlamalar faqat sizning akkauntingizga "
+            "tegishli.</i>"
+        ),
+
+        # --- 🧹 Post Auto-Cleaner & Custom Signature ---
+        "ss_btn_cleaner": "🧹 Avto-tozalash",
+        "ss_clean_title": "🧹 <b>Post Auto-Cleaner va imzo</b>",
+        "ss_clean_status": "\n\nHolat: {status}",
+        "ss_clean_on": "✅ <b>Yoqilgan</b>",
+        "ss_clean_off": "⬜️ <b>O'chirilgan</b>",
+        "ss_clean_body": (
+            "\n\nTashqi manbalardan (📡 RSS, 🔗 havola, 📢 kanal) olingan "
+            "postlardan begona <b>@username</b> eslatmalari, Telegram "
+            "havolalari va pastdagi reklama/imzo qatorlari avtomatik "
+            "olib tashlanadi.\n\n"
+            "O'chirilgan joy o'rniga sizning <b>havolangiz yoki imzoingiz</b> "
+            "qo'yiladi. Post formati (<b>qalin</b>, <i>kursiv</i>, havolalar) "
+            "to'liq saqlanadi — kod namunalari ichidagi matnga tegilmaydi."
+        ),
+        "ss_clean_sig_label": "\n\n✍️ Imzo/havola: {value}",
+        "ss_clean_sig_empty": "<i>sozlanmagan</i>",
+        "ss_clean_sig_value": "<b>{value}</b>",
+        "ss_clean_hint": (
+            "\n\n<i>Sozlamalar keyingi olingan postlardan boshlab amal "
+            "qiladi. Avval yozilgan postlar o'zgarmaydi.</i>"
+        ),
+        "ss_btn_clean_sig": "✍️ Imzo",
+        "ss_btn_clean_clear": "🗑 Imzoni o'chir",
+        "ss_btn_clean_demo": "🧪 Namuna",
+        "ss_clean_sig_prompt": (
+            "✍️ <b>Imzo yoki havolani yuboring</b>\n\n"
+            "Masalan: <code>https://t.me/kanalingiz</code> yoki "
+            "<code>© Sizning kanal</code>.\n\n"
+            "• eng ko'pi {max_len} belgi va 3 qator;\n"
+            "• begona manba belgilari o'rniga shu matn qo'yiladi.\n\n"
+            "Bekor qilish uchun /cancel"
+        ),
+        "ss_clean_sig_saved": "✅ Imzo saqlandi",
+        "ss_clean_sig_cleared": "🗑 Imzo o'chirildi",
+        "ss_clean_sig_none": "Imzo hozircha sozlanmagan.",
+        "ss_clean_sig_rejected": (
+            "❌ Saqlab bo'lmadi. Matnni qayta yuboring yoki /cancel."
+        ),
+        "ss_clean_demo_title": "🧪 <b>Namuna: tozalash natijasi</b>",
+        "ss_clean_demo_before": "\n\n<b>Manba posti:</b>\n{before}",
+        "ss_clean_demo_after": "\n\n<b>Tozalandi:</b>\n{after}",
+        "ss_clean_demo_stats": (
+            "\n\n🧹 O'chirildi: {mentions} ta @eslatma, {links} ta havola, "
+            "{promo} ta reklama qatori{sig}."
+        ),
+        "ss_clean_demo_sig_added": ", ✍️ imzo qo'shildi",
+        "ss_clean_demo_nochange": "\n\n<i>Hech narsa o'zgarmadi.</i>",
+
         # --- Saqlanish toast'i ---
         "ss_saved": "✅ Saqlandi",
         "ss_switched_on": "✅ Yoqildi",
@@ -383,6 +445,67 @@ SETTINGS_STATS_I18N = {
         "ss_post_hint": (
             "<i>Стандарты действуют начиная со следующих постов.</i>"
         ),
+
+        # --- ⚙️ Ещё (вложенное подменю) ---
+        # Кнопка [⚙️ Ещё] на экране настроек постов открывает это меню;
+        # сам хаб ⚙️ Настройки остаётся 10 кнопками.
+        "ss_btn_more": "⚙️ Ещё",
+        "ss_more_title": (
+            "⚙️ <b>Дополнительные настройки</b>\n\n"
+            "Расширенные настройки постов:"
+        ),
+        "ss_more_hint": (
+            "<i>Настройки этого раздела относятся только к вашему "
+            "аккаунту.</i>"
+        ),
+
+        # --- 🧹 Автоочистка постов и своя подпись ---
+        "ss_btn_cleaner": "🧹 Автоочистка",
+        "ss_clean_title": "🧹 <b>Автоочистка постов и подпись</b>",
+        "ss_clean_status": "\n\nСтатус: {status}",
+        "ss_clean_on": "✅ <b>Включено</b>",
+        "ss_clean_off": "⬜️ <b>Выключено</b>",
+        "ss_clean_body": (
+            "\n\nИз постов, полученных из внешних источников (📡 RSS, "
+            "🔗 ссылка, 📢 канал), автоматически удаляются чужие упоминания "
+            "<b>@username</b>, ссылки Telegram и рекламные строки в конце.\n\n"
+            "Вместо удалённого добавляется <b>ваша ссылка или подпись</b>. "
+            "Форматирование поста (<b>жирный</b>, <i>курсив</i>, ссылки) "
+            "полностью сохраняется — текст внутри примеров кода не меняется."
+        ),
+        "ss_clean_sig_label": "\n\n✍️ Подпись/ссылка: {value}",
+        "ss_clean_sig_empty": "<i>не задана</i>",
+        "ss_clean_sig_value": "<b>{value}</b>",
+        "ss_clean_hint": (
+            "\n\n<i>Настройки действуют начиная со следующих полученных "
+            "постов. Уже созданные посты не меняются.</i>"
+        ),
+        "ss_btn_clean_sig": "✍️ Подпись",
+        "ss_btn_clean_clear": "🗑 Удалить",
+        "ss_btn_clean_demo": "🧪 Пример",
+        "ss_clean_sig_prompt": (
+            "✍️ <b>Отправьте подпись или ссылку</b>\n\n"
+            "Например: <code>https://t.me/ваш_канал</code> или "
+            "<code>© Ваш канал</code>.\n\n"
+            "• не более {max_len} символов и 3 строк;\n"
+            "• этот текст будет добавлен вместо чужих отметок источника.\n\n"
+            "Для отмены — /cancel"
+        ),
+        "ss_clean_sig_saved": "✅ Подпись сохранена",
+        "ss_clean_sig_cleared": "🗑 Подпись удалена",
+        "ss_clean_sig_none": "Подпись пока не задана.",
+        "ss_clean_sig_rejected": (
+            "❌ Не удалось сохранить. Отправьте текст ещё раз или /cancel."
+        ),
+        "ss_clean_demo_title": "🧪 <b>Пример: результат очистки</b>",
+        "ss_clean_demo_before": "\n\n<b>Исходный пост:</b>\n{before}",
+        "ss_clean_demo_after": "\n\n<b>После очистки:</b>\n{after}",
+        "ss_clean_demo_stats": (
+            "\n\n🧹 Удалено: {mentions} упоминаний, {links} ссылок, "
+            "{promo} рекламных строк{sig}."
+        ),
+        "ss_clean_demo_sig_added": ", ✍️ подпись добавлена",
+        "ss_clean_demo_nochange": "\n\n<i>Ничего не изменилось.</i>",
 
         # --- Тост сохранения ---
         "ss_saved": "✅ Сохранено",
@@ -570,6 +693,66 @@ SETTINGS_STATS_I18N = {
         "ss_post_hint": (
             "<i>Defaults apply starting from the next posts.</i>"
         ),
+
+        # --- ⚙️ More settings (nested submenu) ---
+        # The [⚙️ More] button on the post settings screen opens this menu;
+        # the ⚙️ Settings hub itself stays at 10 buttons.
+        "ss_btn_more": "⚙️ More",
+        "ss_more_title": (
+            "⚙️ <b>More settings</b>\n\n"
+            "Extended post settings:"
+        ),
+        "ss_more_hint": (
+            "<i>Settings in this section apply only to your account.</i>"
+        ),
+
+        # --- 🧹 Post Auto-Cleaner & Custom Signature ---
+        "ss_btn_cleaner": "🧹 Auto-clean",
+        "ss_clean_title": "🧹 <b>Post Auto-Cleaner & signature</b>",
+        "ss_clean_status": "\n\nStatus: {status}",
+        "ss_clean_on": "✅ <b>Enabled</b>",
+        "ss_clean_off": "⬜️ <b>Disabled</b>",
+        "ss_clean_body": (
+            "\n\nForeign <b>@username</b> mentions, Telegram links and footer "
+            "promo/signature lines are stripped automatically from posts "
+            "taken from external sources (📡 RSS, 🔗 link, 📢 channel).\n\n"
+            "Your own <b>link or signature</b> is inserted in their place. "
+            "Post formatting (<b>bold</b>, <i>italic</i>, links) is fully "
+            "preserved — text inside code samples is never touched."
+        ),
+        "ss_clean_sig_label": "\n\n✍️ Signature/link: {value}",
+        "ss_clean_sig_empty": "<i>not set</i>",
+        "ss_clean_sig_value": "<b>{value}</b>",
+        "ss_clean_hint": (
+            "\n\n<i>Settings apply from the next incoming posts onwards. "
+            "Already created posts are not changed.</i>"
+        ),
+        "ss_btn_clean_sig": "✍️ Signature",
+        "ss_btn_clean_clear": "🗑 Clear",
+        "ss_btn_clean_demo": "🧪 Preview",
+        "ss_clean_sig_prompt": (
+            "✍️ <b>Send your signature or link</b>\n\n"
+            "For example: <code>https://t.me/your_channel</code> or "
+            "<code>© Your channel</code>.\n\n"
+            "• at most {max_len} characters and 3 lines;\n"
+            "• this text replaces the removed foreign source marks.\n\n"
+            "To cancel send /cancel"
+        ),
+        "ss_clean_sig_saved": "✅ Signature saved",
+        "ss_clean_sig_cleared": "🗑 Signature cleared",
+        "ss_clean_sig_none": "No signature is set yet.",
+        "ss_clean_sig_rejected": (
+            "❌ Could not save. Send the text again or /cancel."
+        ),
+        "ss_clean_demo_title": "🧪 <b>Preview: cleaning result</b>",
+        "ss_clean_demo_before": "\n\n<b>Source post:</b>\n{before}",
+        "ss_clean_demo_after": "\n\n<b>After cleaning:</b>\n{after}",
+        "ss_clean_demo_stats": (
+            "\n\n🧹 Removed: {mentions} @mentions, {links} links, "
+            "{promo} promo lines{sig}."
+        ),
+        "ss_clean_demo_sig_added": ", ✍️ signature added",
+        "ss_clean_demo_nochange": "\n\n<i>Nothing changed.</i>",
 
         # --- Saved toast ---
         "ss_saved": "✅ Saved",
