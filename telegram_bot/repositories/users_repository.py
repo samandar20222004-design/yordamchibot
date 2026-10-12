@@ -831,6 +831,44 @@ def get_user_settings_bulk(user_id: int, keys: list, defaults: dict = None) -> d
     return result
 
 
+def get_user_settings_and_signature(
+    user_id: int, keys: list, defaults: dict = None,
+) -> tuple[dict, str]:
+    """User settings va cleaner imzosini bitta DB round-trip'da o'qiydi.
+
+    Cleaner UI ham ingest sozlama yuklash ham shu funksiyadan foydalanib
+    alohida `user_settings` va `users` SELECT'larini bir JOIN'ga birlashtiradi.
+    DB xatosi yoki foydalanuvchi topilmasa, standart sozlamalar va bo'sh imzo
+    qaytariladi (fail-soft).
+    """
+    keys = [str(key)[:64] for key in (keys or [])]
+    defaults = defaults or {}
+    values = {key: bool(defaults.get(key, False)) for key in keys}
+    signature = ""
+    try:
+        with db_cursor() as cur:
+            cur.execute(
+                "SELECT us.key, us.value, u.post_signature_text "
+                "FROM users AS u "
+                "LEFT JOIN user_settings AS us "
+                "ON us.user_id = u.user_id AND us.key = ANY(%s) "
+                "WHERE u.user_id = %s",
+                (keys, int(user_id)),
+            )
+            rows = cur.fetchall()
+        for row in rows or ():
+            key, value, stored_signature = row[:3]
+            if key in values:
+                values[key] = bool(value)
+            if stored_signature is not None:
+                signature = str(stored_signature)
+    except Exception as e:
+        logger.debug(
+            "get_user_settings_and_signature xatosi (defaultlar qaytadi): %s", e,
+        )
+    return values, _normalize_post_signature(signature)
+
+
 def set_user_setting(user_id: int, key: str, value: bool) -> bool:
     """Sozlamani saqlaydi (UPSERT). Muvaffaqiyatda ``True``."""
     try:
@@ -933,14 +971,14 @@ def set_user_target_country(user_id: int, country) -> bool:
 # shu sababli ``target_country`` bilan BIR XIL naqsh: alohida ustun.
 #
 # Xavfsizlik: yozishdan OLDIN har doim ``normalize_signature`` chaqiriladi
-# (boshqaruv/yo'nalish belgilari o'chadi, ≤3 qator, ≤255 belgi) — payload'dan
+# (boshqaruv/yo'nalish belgilari o'chadi, ≤10 qator, ≤500 belgi) — payload'dan
 # ixtiyoriy matn bazaga yozilmaydi. O'qishda xato bo'lsa bo'sh satr qaytadi
 # (fail-soft: tozalash davom etadi, faqat imzo qo'shilmaydi).
 
 #: ``users`` jadvalidagi ustun nomi (``user_settings`` kaliti EMAS).
 POST_SIGNATURE_COLUMN = "post_signature_text"
-#: Ustun kengligi (``VARCHAR(255)``) — ``services.post_cleaner`` bilan bir xil.
-POST_SIGNATURE_MAX_LEN = 255
+#: Ustun kengligi (``VARCHAR(500)``) — ``utils.post_signature`` bilan bir xil.
+POST_SIGNATURE_MAX_LEN = 500
 
 
 def _normalize_post_signature(value) -> str:

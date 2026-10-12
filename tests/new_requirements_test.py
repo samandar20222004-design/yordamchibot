@@ -228,19 +228,12 @@ def test_ru_cabinet_after_switch_no_crash():
             await st_mod.user_cabinet_menu(_Upd(msg, _User()), ctx)
             assert msg.replies, "kabinet javob bermadi"
             text, markup = msg.replies[0]
-            assert "<b>Профиль:</b>" in text, text[:120]
+            assert "<b>Настройки</b>" in text, text[:120]
             assert ctx.user_data.get("lang") == "ru", ctx.user_data  # DB'dan hydrate
             labels = [b.text for row in markup.inline_keyboard for b in row]
-            # Sozlamalar ekrani — 10 tugmali simmetrik panel (5x2;
-            # PRO va Yordam ham shu hub ichida).
+            # Settings root is the static 2×2 primary grid.
             cbs = [b.callback_data for row in markup.inline_keyboard for b in row]
-            assert cbs == [
-                "stgs_lang", "stgs_post",
-                "stgs_notif", "stgs_referral",
-                "stgs_pay", "sub_open",
-                "stgs_privacy", "stgs_delete_data",
-                "stgs_help_hub", "stgs_back",
-            ], cbs
+            assert cbs == ["stgs_lang", "stgs_clean", "stgs_notif", "sub_open"], cbs
             assert "cab_channels" not in cbs, cbs
             assert "stgs_profile" not in cbs, cbs
             assert get_text("cab_my_channels", "ru") not in labels, labels
@@ -2016,6 +2009,10 @@ def _run_start(is_new: bool, lang: str):
     async def fake_check(bot, uid):
         return True, []
 
+    async def fake_beta_gate(*args, **kwargs):
+        return {"allowed": True, "reason": "open_mode", "code": None,
+                "seats_left": None, "invite_only": False, "attempts": 0}
+
     class _Msg:
         def __init__(self):
             self.replies = []
@@ -2030,14 +2027,18 @@ def _run_start(is_new: bool, lang: str):
     upd = SimpleNamespace(message=msg, effective_user=user, effective_message=msg)
     ctx = SimpleNamespace(bot=_RecBot(), user_data={}, chat_data={}, args=[])
 
-    orig_run_db, orig_check = db_mod.run_db, st_mod.check_user_subscribed
+    orig_run_db, orig_check, orig_beta_gate = (
+        db_mod.run_db, st_mod.check_user_subscribed, st_mod._beta_gate_decision,
+    )
     db_mod.run_db = fake_run_db
     st_mod.check_user_subscribed = fake_check
+    st_mod._beta_gate_decision = fake_beta_gate
     try:
         _asyncio.run(st_mod.start(upd, ctx))
     finally:
         db_mod.run_db = orig_run_db
         st_mod.check_user_subscribed = orig_check
+        st_mod._beta_gate_decision = orig_beta_gate
     assert msg.replies, "start() javob bermadi"
     return msg.replies[0]
 

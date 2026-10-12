@@ -9,15 +9,11 @@ Qamrov (topshiriq spetsifikatsiyasi bilan birma-bir):
              📅 Rejalashtirilgan postlar soni / 🤖 AI so'rovlar & kreditlar.
            Natija ostida amallar: [🔄 Yangilash] [◀️ Orqaga]; Yangilash
            ma'lumotlarni qayta o'qiydi, Orqaga asosiy menyuga qaytaradi.
-  TEST 2:  ⚙️ SOZLAMALAR — [⚙️ Sozlamalar] bosilganda 8 ta guruhli hub:
-             [🌐 Til / Язык]         [🎁 Bonuslar & Taklif]
-             [🎨 Post sozlamalari]   [🔔 Bildirishnomalar]
-             [🔔 Bildirishnomalar]   [💳 To'lovlar tarixi]
-             [🧰 Vositalar]          [❓ Yordam & Ma'lumot]
-                          [◀️ Orqaga]
-           Bonuslar & Taklif hamda Yordam & Ma'lumot o'z submenu'larini
-           ochadi; ichki [◀️ Orqaga] har doim ``stgs_hub`` ga qaytadi.
-           Eski callback'lar to'liq alias sifatida ishlashda davom etadi.
+  TEST 2:  ⚙️ SOZLAMALAR — statik to'rt tugmali 2×2 primary grid:
+             [🌐 Til / Язык] [✍️ Auto-Cleaner & Imzo]
+             [🔔 Bildirishnomalar] [💎 PRO va Tariflar]
+           Referral va billing Profile/PRO ichiga, privacy/data-deletion
+           Help ichiga ko'chirilgan; eski callback'lar alias sifatida ishlaydi.
   TEST 3:  ⚙️ ADMIN PANEL — oddiy foydalanuvchiga HECH QACHON ko'rinmaydi
            (klaviatura + handlerlar fail-closed); admin kirganda tizim
            monitoringi (Bot & DB, Scheduler, AI provayderlar, Pending manual
@@ -34,6 +30,7 @@ Ishga tushirish:
 import asyncio
 import os
 import sys
+import time
 import warnings
 from pathlib import Path
 from types import SimpleNamespace
@@ -69,42 +66,16 @@ EXPECTED_STATS_MARKERS = {
            "📅 Scheduled posts", "🤖 AI requests", "Credits spent"),
 }
 
-# ⚙️ Sozlamalar menyusi — 7 tugma callback'lari (tartib bilan).
-# «👥 Do'stlarni taklif» asosiy menyudan shu hub'ga ko'chirildi
-# (stgs_referral); «🎁 Bonuslar & Taklif» (stgs_rewards), «🧰 Vositalar»
-# (stgs_tools) va «❓ Yordam & Ma'lumot» (stgs_help_hub) hub'dan OLIB
-# TASHLANDI: kunlik bonus referral ekranida; ularning oqimlari eski
-# xabarlar uchun routing'da qoladi.
-# 3-BOSQICH: «💎 PRO» va «❓ Yordam» asosiy reply-menudan shu hub'ga
-# ko'chirildi — jami 8 tugma / 4 qator.
-EXPECTED_SETTINGS_CBS = (
-    "stgs_lang",
-    "stgs_post",
-    "stgs_notif", "stgs_referral",
-    "stgs_pay", "sub_open",
-    "stgs_privacy", "stgs_delete_data",
-    "stgs_help_hub",
-    "stgs_back",
-)
+# ⚙️ Primary Settings grid — four callbacks, ordered left-to-right/top-to-bottom.
+EXPECTED_SETTINGS_CBS = ("stgs_lang", "stgs_clean", "stgs_notif", "sub_open")
 
-# ⚙️ Sozlamalar menyusi yorliqlari — SPEKS tartibi (10 tugma / 5 qator,
-# SPRINT 1: 4-qatorga 🔐 Maxfiylik + 🗑 O'chirish qo'shildi).
 EXPECTED_SETTINGS_LABELS = {
-    "uz": (("🌐 Til / Язык", "✍️ Post sozlamalari"),
-           ("🔔 Bildirishnomalar", "👥 Do'stlarni taklif"),
-           ("💳 To'lovlar tarixi", "💎 PRO"),
-           ("🔐 Maxfiylik", "🗑 O'chirish"),
-           ("ℹ️ Yordam va Qo'llanma", "❌ Yopish")),
-    "ru": (("🌐 Язык / Language", "✍️ Настройки постов"),
-           ("🔔 Уведомления", "👥 Пригласить друзей"),
-           ("💳 История платежей", "💎 PRO"),
-           ("🔐 Приватность", "🗑 Удалить данные"),
-           ("ℹ️ Помощь и руководство", "❌ Закрыть")),
-    "en": (("🌐 Language", "✍️ Post settings"),
-           ("🔔 Notifications", "👥 Invite friends"),
-           ("💳 Payment history", "💎 PRO"),
-           ("🔐 Privacy", "🗑 Delete data"),
-           ("ℹ️ Help and Guide", "❌ Close")),
+    "uz": (("🌐 Til / Язык", "✍️ Post Auto-Cleaner & Imzo"),
+           ("🔔 Bildirishnomalar", "💎 PRO va Tariflar")),
+    "ru": (("🌐 Язык", "✍️ Автоочистка постов и подпись"),
+           ("🔔 Уведомления", "💎 PRO и тарифы")),
+    "en": (("🌐 Language", "✍️ Post Auto-Cleaner & Signature"),
+           ("🔔 Notifications", "💎 PRO & Plans")),
 }
 
 
@@ -432,7 +403,7 @@ def test_statistics_overview_format():
 # TEST 2 — ⚙️ SOZLAMALAR: 7 TUGMALI MENYU (legacy aliaslar bilan)
 # ============================================================================
 def test_settings_menu_structure_and_flows():
-    print("\n== TEST 2: ⚙️ Sozlamalar — 10 tugmali menyu (5x2) ==")
+    print("\n== TEST 2: ⚙️ Sozlamalar — 4 tugma / 2×2 primary grid ==")
 
     # Legacy kabinet tezkor tugmalari — menyuda KO'RINMASLIGI shart
     # (ular o'z asosiy menyularida bor: 📢 Kanallarim, 📅 Rejalashtirilgan...).
@@ -444,17 +415,12 @@ def test_settings_menu_structure_and_flows():
         kb = get_settings_hub_keyboard(lang)
         rows = kb_rows_inline(kb)
         expected = EXPECTED_SETTINGS_LABELS[lang]
-        check(f"{lang}: 5 qator = speksdagi 10 tugma",
-              [[t for t, _ in row] for row in rows] == [
-                  list(r) for r in expected],
+        check(f"{lang}: 2 qator × 2 tugma primary grid",
+              [[t for t, _ in row] for row in rows] == [list(r) for r in expected],
               str(rows))
-        check(f"{lang}: 10 tugma callback tartibi",
+        check(f"{lang}: 4 tugma callback tartibi",
               kb_flat_cbs(kb) == list(EXPECTED_SETTINGS_CBS),
               str(kb_flat_cbs(kb)))
-        check(f"{lang}: oxirgi qator = [ℹ️ Yordam va Qo'llanma | ❌ Yopish]",
-              rows[-1] == [(settings_stats_t("ss_btn_help", lang), "stgs_help_hub"),
-                          (settings_stats_t("ss_btn_close", lang), "stgs_back")],
-              str(rows[-1]))
         check(f"{lang}: legacy cab_* dublikatlar YO'Q",
               not any(cb in kb_flat_cbs(kb) for cb in legacy_cbs),
               str(kb_flat_cbs(kb)))
@@ -477,16 +443,16 @@ def test_settings_menu_structure_and_flows():
         msg = _with_db(fake, lambda lang=lang: _open(lang))
         text = msg.sent[-1]["text"]
         cbs = kb_flat_cbs(msg.sent[-1]["reply_markup"])
-        check(f"{lang}: hub profil matni bilan ochiladi",
-              get_text("cabinet_title", lang, user_id=USER_ID, user_code="TST777",
-                       credits="7", streak="3/7", channels=2, referrals=2,
-                       ad_line="").splitlines()[0] in text, text[:80])
-        check(f"{lang}: 7 tugma callback menyuda",
-              all(cb in cbs for cb in EXPECTED_SETTINGS_CBS), str(cbs))
-        check(f"{lang}: stgs_back menyuda", "stgs_back" in cbs)
-        check(f"{lang}: stgs_profile hub'da YO'Q (matn o'zi profil)",
-              "stgs_profile" not in cbs, str(cbs))
-        check(f"{lang}: legacy tugmalar yo'q (user_cabinet_menu)",
+        check(f"{lang}: static Settings heading is shown",
+              settings_stats_t("ss_settings_hub_title", lang) in text
+              and settings_stats_t("ss_settings_hub_hint", lang) in text, text[:100])
+        check(f"{lang}: exactly the four primary callbacks are shown",
+              cbs == list(EXPECTED_SETTINGS_CBS), str(cbs))
+        check(f"{lang}: Settings panel avoids secondary actions",
+              not any(cb in cbs for cb in ("stgs_referral", "stgs_pay",
+                                           "stgs_privacy", "stgs_delete_data")),
+              str(cbs))
+        check(f"{lang}: legacy reply-keyboard callbacks are absent",
               not any(cb in cbs for cb in legacy_cbs), str(cbs))
         labels = [b.text for row in msg.sent[-1]["reply_markup"].inline_keyboard
                   for b in row]
@@ -495,11 +461,22 @@ def test_settings_menu_structure_and_flows():
               and get_text("cab_pending", lang) not in labels
               and get_text("cab_balance", lang) not in labels, str(labels))
 
+    async def _timed_settings_open():
+        msg = _Msg()
+        ctx = _ctx("uz")  # warmed language cache; fake DB raises if touched
+        started = time.perf_counter()
+        await ST.user_cabinet_menu(_upd_msg(msg), ctx)
+        return time.perf_counter() - started, msg
+
+    elapsed, msg = _with_db(_FakeDB(), _timed_settings_open())
+    check("Settings root: first render is DB-free and under 50 ms",
+          elapsed < 0.05 and bool(msg.sent), f"{elapsed * 1000:.2f} ms")
+
     # 2c) 🎁 Bonuslar & Taklif submenu'si — hub'dan olib tashlandi, lekin
     # eski callback nomlari/oqimi saqlanadi (backward compatibility).
     reward_cbs = ["stgs_credits", "stgs_transfer", "claim_bonus",
                   "referral_hub", "stgs_hub"]
-    help_cbs_expected = ["help_support", "stgs_hub"]
+    help_cbs_expected = ["help_support", "stgs_privacy", "stgs_delete_data", "stgs_hub"]
     for lang in LANGS:
         reward_kb = get_settings_rewards_keyboard(lang)
         help_kb = get_settings_help_hub_keyboard(lang, support_username="")
@@ -546,22 +523,17 @@ def test_settings_menu_structure_and_flows():
     prof_text = q.screen.get("text", "")
     prof_cbs = kb_flat_cbs(q.screen.get("reply_markup"))
     check("profil: cabinet_title matni", "Profil" in prof_text, prof_text[:80])
-    # Profil ekrani endi 10 TUGMALI panel (5x2: Til / Post sozlamalari /
-    # Bildirishnomalar / Do'stlarni taklif / To'lovlar / PRO /
-    # Maxfiylik / O'chirish (SPRINT 1) / Yordam va Qo'llanma /
-    # Yopish) — Sozlamalar hub'i bilan AYNAN bir xil.
-    check("profil: 10 tugmali panel (stgs_back = ❌ Yopish)",
-          prof_cbs == list(EXPECTED_SETTINGS_CBS), str(prof_cbs))
+    # Profile owns the referral entry and returns to the Settings grid.
+    check("profil: referral + Settings back actions",
+          prof_cbs == ["stgs_referral", "stgs_hub"], str(prof_cbs))
     check("profil: eski cab_* dublikatlari panel'da YO'Q",
           not any(cb in prof_cbs for cb in ("cab_channels", "cab_analytics",
                                             "cab_pending", "cab_queue", "cab_balance")),
           str(prof_cbs))
-    # 3-QISM: «🌐 Til» tugmasi PROFILDA — ixcham menyuning birinchi tugmasi
-    # (stgs_lang). Eski cab_lang callback'i esa routing'da qoladi.
-    check("profil: stgs_lang (🌐 Til) profilda BOR",
-          "stgs_lang" in prof_cbs, str(prof_cbs))
-    check("profil: cab_lang eski callback'i profilda YO'Q",
-          "cab_lang" not in prof_cbs, str(prof_cbs))
+    check("profil: referral tugmasi mavjud", "stgs_referral" in prof_cbs, str(prof_cbs))
+    check("profil: Settings qaytish tugmasi mavjud", "stgs_hub" in prof_cbs, str(prof_cbs))
+    check("profil: sozlama til callback'lari bu ekranda yo'q",
+          "stgs_lang" not in prof_cbs and "cab_lang" not in prof_cbs, str(prof_cbs))
     # ⭐️ Obuna holati profil kartasida ko'rsatiladi.
     check("profil: obuna holati kartada bor",
           ("Obuna" in prof_text) or ("Подписка" in prof_text)
@@ -678,6 +650,24 @@ def test_settings_menu_structure_and_flows():
     q = _with_db(fake, _pay)
     check("to'lovlar bo'sh: tushunarli ekran",
           "Hozircha to'lovlaringiz mavjud emas" in q.screen.get("text", ""))
+
+    # Payment history is a child of the PRO tariff screen, not the Settings grid.
+    import handlers.subscription as SUB
+    check("PRO tariff keyboard exposes billing history",
+          any(b.callback_data == "sub_history"
+              for row in SUB._get_subscription_keyboard("free", "uz").inline_keyboard
+              for b in row))
+
+    async def _pro_history():
+        q = _Query("sub_history")
+        state = await SUB.subscription_callback(_upd_query(q), _ctx("uz"))
+        return q, state
+
+    q, state = _with_db(_FakeDB(payments=[]), _pro_history())
+    check("PRO billing history returns to the PRO screen",
+          state == SUB.SUBSCRIPTION_VIEW
+          and kb_flat_cbs(q.screen.get("reply_markup")) == ["sub_back"],
+          str(kb_flat_cbs(q.screen.get("reply_markup"))))
 
     # 2i) 🎁 Do'stlarni taklif qilish — referral menyu shu yerda ochiladi.
     fake = _FakeDB()

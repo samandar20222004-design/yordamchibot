@@ -2354,7 +2354,8 @@ from repositories.users_repository import (  # noqa: E402, F401
     get_user_code, get_user_credits, get_user_language, get_user_onboarding,
     get_user_overview_stats, get_user_plan, get_user_setting,
     get_retention_cohort, get_referral_conversion_stats,
-    get_user_settings_bulk, increment_ai_usage, invalidate_user_overview_stats,
+    get_user_settings_bulk, get_user_settings_and_signature,
+    increment_ai_usage, invalidate_user_overview_stats,
     is_premium, redeem_promo_code, referral_reward_for, refund_ai_request,
     refund_ai_usage, reserve_ai_request, save_user,
     set_user_full_menu_unlocked, set_user_language, set_user_plan,
@@ -2825,7 +2826,9 @@ def _ddl_user_settings_and_migrations(cur):
         # 🧹 POST AUTO-CLEANER: foydalanuvchi imzosi/almashtrish havolasi.
         # user_settings.value BOOLEAN — matn u yerga sig'maydi (target_country
         # bilan bir xil naqsh). NULL/bo'sh → imzo qo'shilmaydi.
-        "ALTER TABLE users ADD COLUMN IF NOT EXISTS post_signature_text VARCHAR(255);",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS post_signature_text VARCHAR(500);",
+        # Existing installs may already have the earlier VARCHAR(255) column.
+        "ALTER TABLE users ALTER COLUMN post_signature_text TYPE VARCHAR(500);",
         "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS inline_button_text VARCHAR(255);",
         "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS inline_button_url TEXT;",
         "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS enable_reactions BOOLEAN DEFAULT FALSE;",

@@ -80,6 +80,7 @@ __all__ = [
     "own_channel_usernames",
     "DEMO_SOURCE_HTML",
     "MAX_SIGNATURE_LEN",
+    "MAX_SIGNATURE_LINES",
 ]
 
 # Imzo normalizatsiyasi BOG'LIQLIKSIZ modulda yashaydi (``utils`` namespace
@@ -89,6 +90,7 @@ __all__ = [
 # normalize_signature`` ham ishlayveradi.
 from utils.post_signature import (  # noqa: E402
     MAX_SIGNATURE_LEN,
+    MAX_SIGNATURE_LINES,
     normalize_signature,
     signature_is_empty,
 )
@@ -1132,17 +1134,37 @@ async def load_cleaner_config(user_id: int, *, db_module=None,
     db = db_module or db
     try:
         runner = getattr(db, "run_db", None)
+        combined_getter = getattr(db, "get_user_settings_and_signature", None)
         getter = getattr(db, "get_user_post_signature", None)
-        if callable(runner):
+        if callable(runner) and callable(combined_getter):
+            combined = await runner(
+                combined_getter, user_id, list(_SETTING_KEYS), _SETTING_DEFAULTS,
+            )
+            if isinstance(combined, tuple) and len(combined) == 2:
+                values, signature = combined
+            else:  # legacy adapter/test double without combined-query support
+                values = await runner(db.get_user_settings_bulk, user_id,
+                                      list(_SETTING_KEYS), _SETTING_DEFAULTS)
+                signature = await runner(getter, user_id) if callable(getter) else ""
+        elif callable(runner):
             values = await runner(db.get_user_settings_bulk, user_id,
                                   list(_SETTING_KEYS), _SETTING_DEFAULTS)
             signature = await runner(getter, user_id) if callable(getter) else ""
         else:
             import asyncio
 
-            values = await asyncio.to_thread(db.get_user_settings_bulk, user_id,
-                                             list(_SETTING_KEYS), _SETTING_DEFAULTS)
-            signature = await asyncio.to_thread(getter, user_id) if callable(getter) else ""
+            if callable(combined_getter):
+                combined = await asyncio.to_thread(
+                    combined_getter, user_id, list(_SETTING_KEYS), _SETTING_DEFAULTS,
+                )
+            else:
+                combined = None
+            if isinstance(combined, tuple) and len(combined) == 2:
+                values, signature = combined
+            else:
+                values = await asyncio.to_thread(db.get_user_settings_bulk, user_id,
+                                                 list(_SETTING_KEYS), _SETTING_DEFAULTS)
+                signature = await asyncio.to_thread(getter, user_id) if callable(getter) else ""
     except Exception:
         logger.debug("post_cleaner: sozlamalarni o'qib bo'lmadi (o'chirilgan)",
                      exc_info=True)

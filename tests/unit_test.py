@@ -1127,15 +1127,13 @@ def test_main_menu_layout_v2():
     check("extras: yopish", ex[2][0] == ("❌ Yopish", "extra_close"), str(ex[2]))
 
     cab = [[(b.text, b.callback_data) for b in row] for row in get_cabinet_inline_keyboard().inline_keyboard]
-    # Yordam, bot haqida va support bitta yordam oynasiga birlashtirilgan.
-    # SPRINT 1: 5-qatorga 🔐 Maxfiylik + 🗑 O'chirish qo'shildi (10 tugma).
-    check("kabinet: 5 qator (10 tugmali panel)", len(cab) == 5, str(cab))
+    # Four primary sections; secondary actions live in Profile, PRO, and Help.
+    check("kabinet: 2 qatorli 2×2 primary grid", len(cab) == 2, str(cab))
     expected = [
-        [("🌐 Til / Язык", "stgs_lang"), ("✍️ Post sozlamalari", "stgs_post")],
-        [("🔔 Bildirishnomalar", "stgs_notif"), ("👥 Do'stlarni taklif", "stgs_referral")],
-        [("💳 To'lovlar tarixi", "stgs_pay"), ("💎 PRO", "sub_open")],
-        [("🔐 Maxfiylik", "stgs_privacy"), ("🗑 O'chirish", "stgs_delete_data")],
-        [("ℹ️ Yordam va Qo'llanma", "stgs_help_hub"), ("❌ Yopish", "stgs_back")],
+        [("🌐 Til / Язык", "stgs_lang"),
+         ("✍️ Post Auto-Cleaner & Imzo", "stgs_clean")],
+        [("🔔 Bildirishnomalar", "stgs_notif"),
+         ("💎 PRO va Tariflar", "sub_open")],
     ]
     check("kabinet tartibi", cab == expected, str(cab))
     check("kabinet: cab_lang tugmasi YO'Q",
@@ -6177,17 +6175,14 @@ def test_cabinet_i18n_suite():
     cab = get_cabinet_inline_keyboard("ru")
     cab_texts = [b.text for row in cab.inline_keyboard for b in row]
     cab_cbs = [b.callback_data for row in cab.inline_keyboard for b in row]
-    check("kabinet inline ru: yorliqlar tarjimasi",
-          settings_stats_t("ss_btn_lang", "ru") in cab_texts
-          and settings_stats_t("ss_btn_close", "ru") in cab_texts, str(cab_texts))
-    # Sozlamalar / Ko'proq — 10 tugmali panel (5x2, hub bilan bir xil;
-    # SPRINT 1: 🔐 Maxfiylik + 🗑 O'chirish); eski cab_* va guruh
-    # callback'lari FAQAT routing'da saqlanadi.
-    check("kabinet inline ru: callback_data (10 tugmali panel)",
-          cab_cbs == ["stgs_lang", "stgs_post", "stgs_notif",
-                      "stgs_referral", "stgs_pay", "sub_open",
-                      "stgs_privacy", "stgs_delete_data",
-                      "stgs_help_hub", "stgs_back"], str(cab_cbs))
+    check("Settings inline ru: four primary labels are localized",
+          all(settings_stats_t(key, "ru") in cab_texts for key in
+              ("ss_btn_lang", "ss_btn_cleaner_primary", "ss_btn_notif", "ss_btn_pro_plans")),
+          str(cab_texts))
+    # Secondary actions were moved out of the primary Settings grid.
+    check("kabinet inline ru: four-button callback_data",
+          cab_cbs == ["stgs_lang", "stgs_clean", "stgs_notif", "sub_open"],
+          str(cab_cbs))
     check("kabinet inline uz: default",
           [b.text for row in get_cabinet_inline_keyboard().inline_keyboard for b in row][0]
           == settings_stats_t("ss_btn_lang", "uz"))
@@ -7244,9 +7239,12 @@ def test_extras_help_i18n_suite():
           any(b.callback_data == "help:faq"
               and b.text == get_text("help_btn_faq", "ru") for b in hk_flat))
     hk_no = get_help_keyboard("", "uz")
-    check("help kb: usernamesiz — faqat FAQ tugmasi",
-          len(hk_no.inline_keyboard) == 1
-          and hk_no.inline_keyboard[0][0].callback_data == "help:faq")
+    check("help kb: usernamesiz — FAQ, privacy va deletion bor; support URL yo'q",
+          len(hk_no.inline_keyboard) == 2
+          and hk_no.inline_keyboard[0][0].callback_data == "help:faq"
+          and [button.callback_data for button in hk_no.inline_keyboard[1]]
+          == ["stgs_privacy", "stgs_delete_data"]
+          and all(button.url is None for row in hk_no.inline_keyboard for button in row))
     hb = get_help_back_keyboard("ru")
     check("help back kb: ⬅️ Назад → help:guide",
           hb.inline_keyboard[0][0].text == get_text("btn_back", "ru")
@@ -8815,6 +8813,10 @@ def test_onboarding_start_integration():
     async def fake_ad(uid):
         return ""
 
+    async def fake_beta_gate(*args, **kwargs):
+        return {"allowed": True, "reason": "open_mode", "code": None,
+                "seats_left": None, "invite_only": False, "attempts": 0}
+
     def run_start():
         upd = _OnbUpdate(4242, lang=state["lang"])
         ctx = _OnbCtx(state["lang"], {"lang": state["lang"]})
@@ -8824,9 +8826,11 @@ def test_onboarding_start_integration():
     orig_db = db_mod.run_db
     orig_check = st_mod.check_user_subscribed
     orig_ad = st_mod.get_smart_reply_ad_async
+    orig_beta_gate = st_mod._beta_gate_decision
     db_mod.run_db = fake_run_db
     st_mod.check_user_subscribed = fake_check
     st_mod.get_smart_reply_ad_async = fake_ad
+    st_mod._beta_gate_decision = fake_beta_gate
     ob.invalidate_simple_menu()
     try:
         # a) Yangi foydalanuvchi → onboarding matni + SODDA klaviatura + yo'riqnoma
@@ -8923,6 +8927,7 @@ def test_onboarding_start_integration():
         db_mod.run_db = orig_db
         st_mod.check_user_subscribed = orig_check
         st_mod.get_smart_reply_ad_async = orig_ad
+        st_mod._beta_gate_decision = orig_beta_gate
         ob.invalidate_simple_menu()
 
 

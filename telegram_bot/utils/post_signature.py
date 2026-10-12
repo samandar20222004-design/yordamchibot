@@ -20,13 +20,16 @@ from __future__ import annotations
 
 import re
 
-__all__ = ["MAX_SIGNATURE_LEN", "normalize_signature", "signature_is_empty"]
+__all__ = [
+    "MAX_SIGNATURE_LEN", "MAX_SIGNATURE_LINES", "normalize_signature",
+    "signature_is_empty",
+]
 
-#: Imzo/havola uzunligi chegarasi (``users.post_signature_text VARCHAR(255)``).
-MAX_SIGNATURE_LEN = 255
+#: Imzo/havola uzunligi chegarasi (``users.post_signature_text VARCHAR(500)``).
+MAX_SIGNATURE_LEN = 500
 
 #: Imzoda ruxsat etilgan eng ko'p qator soni.
-MAX_SIGNATURE_LINES = 3
+MAX_SIGNATURE_LINES = 10
 
 #: Yo'nalish/boshqaruv belgilari (RTL/LRM/RLM, NUL, ESC) — imzoga kiritilmaydi.
 #: Bular foydalanuvchi interfeysini "buzish" (bidi override) uchun ishlatiladi.

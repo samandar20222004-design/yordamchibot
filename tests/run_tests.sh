@@ -18,8 +18,9 @@
 #   3d) 🧭 UX V2 — asosiy menyu 3-BOSQICH IXCHAM 5 TUGMA standarti
 #       (tests/ux_v2_main_menu_test.py)
 #   3d2) 🧭 3-BOSQICH — MENYU IXCHAMLIGI + ONBOARDING (KANAL DNK):
-#       asosiy reply-menyu 5 tugma (uz/ru/en), PRO/Yordam/Referral
-#       «⚙️ Sozlamalar / Ko'proq» inline hub'ida (10 tugma),
+#       asosiy reply-menyu 5 tugma (uz/ru/en), Settings primary grid
+#       4 tugmadan iborat; referral/billing/privacy Help va Profile/PRO
+#       submenu'lariga joylashtirilgan,
 #       backward compatibility (eski yorliqlar routingda), kanal
 #       birinchi ulanganda Kanal DNK sinovi taklifi + 1 ta bepul
 #       namunaviy qoralama (atomik bron/refund) va statistikada
@@ -48,8 +49,9 @@
 #       (tests/content_calendar_flow_test.py)
 #   3i) 🔄 POSTASSIST V2 2-QADAM REFAKTORI — B1 (navbat) + B2 (rasm) birlashtiruvi
 #       (tests/refactor_step2_test.py)
-#   3j) ⚙️ POSTASSIST V2 3-QADAM REFAKTORI — sozlamalar menyusi (legacy
-#       dublikatlarsiz, 8 guruh + rewards/help hub) + 🧰 Vositalar submenyusi
+#   3j) ⚙️ POSTASSIST V2 3-QADAM REFAKTORI — 4 tugmali Settings primary
+#       grid (legacy callback dublikatlarsiz, rewards/help submenyu) + 🧰 Vositalar
+#       submenyusi
 #       (Konvertor va Post Enhancer) (tests/refactor_step3_test.py)
 #   3j2) ⚡️ POSTASSIST V2 5-QADAM (P1 PERFORMANCE & DB OPTIMIZATION) —
 #       ANALYTICS N+1 → BATCH: kanalning 50/100/500 ta posti metrikasi
@@ -62,7 +64,7 @@
 #       IDOR fail-closed, DB xatosida fail-soft, mavjud interfeys 100%
 #       saqlangan (tests/refactor_step5_test.py)
 #   3m) 🔐 MAXFIYLIK SIYOSATI + 🗑 MA'LUMOTLARNI O'CHIRISH (SPRINT 1, GDPR):
-#       /privacy buyrug'i va Sozlamalar hub'idagi «🔐 Maxfiylik siyosati»
+#       /privacy buyrug'i va Help submenu'dagi «🔐 Maxfiylik siyosati»
 #       bo'limi bot saqlaydigan ma'lumotlarni OCHIQ ko'rsatadi (kanal ID,
 #       post matnlari, AI telemetriyasi, to'lov yozuvlari); «🗑 Ma'lumotlarimni
 #       o'chirish» IKKI BOSQICHLI tasdiqdan keyin hisobni, bog'langan kanallarni
@@ -527,7 +529,7 @@ echo "===== 3l) 🏁 YAKUNIY ACCEPTANCE SUITE (TEST A..AG — 33 TEKSHIRUV) ====
 # (A..D) asosiy menyu QAT'IY 5 tugma UZ/RU/EN; (E..G) Kontent va AI Studio
 # submenu pariteti (in_sync: True); (H..J) Kanallarim + Rejalashtirilgan
 # navigatsiyasi; (K..N) 📊 Statistika — FAQAT shaxsiy hisobot (ADMIN
-# STATISTIKASI IZOLYATSIYASI), ⚙️ Sozlamalar / Ko'proq 10 tugma + Orqaga, 💎 PRO,
+# STATISTIKASI IZOLYATSIYASI), ⚙️ Sozlamalar 4 tugmali primary grid, 💎 PRO,
 # 🧰 Vositalar;
 # (O) ko'rinadigan menyularda dublikat yo'q; (P..S) har bir tugma ishchi
 # handler/callback'ga ega (uchala tilda); (T..V) Back/Cancel/Exit stacki;
@@ -1020,7 +1022,7 @@ echo "===== 3L) 🛡⚡ FAZA 23/25/27/28/29: PRODUCTION HARDENING & CONCURRENCY 
 "$PY" tests/production_hardening_and_concurrency_test.py || EXIT_CODE=1
 
 echo
-echo "===== 3M) 🪄 POSTASSIST POLISH: DINAMIK SANA + 8 TUGMA + BOT HAQIDA + 18-BELGI ====="
+echo "===== 3M) 🪄 POSTASSIST POLISH: DINAMIK SANA + 4 TUGMA + BOT HAQIDA + 18-BELGI ====="
 # PostAssist POLISH qabul testi (tests/postassist_polish_test.py):
 # (1) 🤖 AI PROMPT: PromptEngine har chaqiruvda joriy sanani tizimga
 #     uzatadi («Joriy yil va sana: YYYY-MM-DD»); 2024 yoki undan eski
@@ -1029,9 +1031,9 @@ echo "===== 3M) 🪄 POSTASSIST POLISH: DINAMIK SANA + 8 TUGMA + BOT HAQIDA + 18
 #     «Kanalga obuna bo'ling» / «bizning kanal eng yaxshisi» kabi quruq
 #     shablon CTA'lar butunlay taqiqlangan; now= injeksiyasi bilan
 #     deterministik sana tekshiruvi.
-# (2) ⚙️ SOZLAMALAR: simmetrik 8 tugma / 4 qator × 2 (3 tilda) —
-#     hech bir tugma yolg'iz qatorda qolmaydi; r4 = [💬 Qo'llab-quvvatlash
-#     | ❌ Yopish]; callback'lar tilga bog'liq emas, KANONIK tartibda.
+# (2) ⚙️ SOZLAMALAR: 4 tugmali 2×2 primary grid (3 tilda); referral/billing
+#     Profile/PRO ichida, privacy/data deletion Help ichida; callback'lar
+#     tilga bog'liq emas, KANONIK tartibda.
 # (3) ℹ️ BOT HAQIDA: stgs_about ekrani bot versiyasini (config.BOT_VERSION),
 #     maqsadni va qisqa yo'riqnomani ko'rsatadi.
 # (4) 📏 18-BELGI STANDARTI: barcha statik inline tugma yorliqlari va

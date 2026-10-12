@@ -122,7 +122,11 @@ SETTINGS_STATS_I18N = {
             "Kerakli bo'limni tanlang 👇"
         ),
         "ss_btn_profile": "👤 Profil",
+        "ss_settings_hub_title": "⚙️ <b>Sozlamalar</b>",
+        "ss_settings_hub_hint": "\n\nKerakli bo'limni tanlang 👇",
         "ss_btn_lang": "🌐 Til / Язык",
+        "ss_btn_cleaner_primary": "✍️ Post Auto-Cleaner & Imzo",
+        "ss_btn_pro_plans": "💎 PRO va Tariflar",
         # 👤 Profil kartasi: obuna holati (ID/balans kabi asosiy ma'lumotlar
         # cabinet_title'da; Til tugmasi profildan olib tashlangan).
         "ss_profile_sub_pro": "⭐️ Obuna: <b>PRO</b> (muddatigacha: {date})",
@@ -240,7 +244,7 @@ SETTINGS_STATS_I18N = {
             "✍️ <b>Imzo yoki havolani yuboring</b>\n\n"
             "Masalan: <code>https://t.me/kanalingiz</code> yoki "
             "<code>© Sizning kanal</code>.\n\n"
-            "• eng ko'pi {max_len} belgi va 3 qator;\n"
+            "• eng ko'pi {max_len} belgi va 10 qator;\n"
             "• begona manba belgilari o'rniga shu matn qo'yiladi.\n\n"
             "Bekor qilish uchun /cancel"
         ),
@@ -373,7 +377,11 @@ SETTINGS_STATS_I18N = {
             "Выберите раздел 👇"
         ),
         "ss_btn_profile": "👤 Профиль",
-        "ss_btn_lang": "🌐 Язык / Language",
+        "ss_settings_hub_title": "⚙️ <b>Настройки</b>",
+        "ss_settings_hub_hint": "\n\nВыберите раздел 👇",
+        "ss_btn_lang": "🌐 Язык",
+        "ss_btn_cleaner_primary": "✍️ Автоочистка постов и подпись",
+        "ss_btn_pro_plans": "💎 PRO и тарифы",
         "ss_profile_sub_pro": "⭐️ Подписка: <b>PRO</b> (до {date})",
         "ss_profile_sub_free": "🆓 Подписка: <b>FREE</b>",
         "ss_btn_rewards": "🎁 Бонусы",
@@ -487,7 +495,7 @@ SETTINGS_STATS_I18N = {
             "✍️ <b>Отправьте подпись или ссылку</b>\n\n"
             "Например: <code>https://t.me/ваш_канал</code> или "
             "<code>© Ваш канал</code>.\n\n"
-            "• не более {max_len} символов и 3 строк;\n"
+            "• не более {max_len} символов и 10 строк;\n"
             "• этот текст будет добавлен вместо чужих отметок источника.\n\n"
             "Для отмены — /cancel"
         ),
@@ -621,7 +629,11 @@ SETTINGS_STATS_I18N = {
             "Pick a section 👇"
         ),
         "ss_btn_profile": "👤 Profile",
+        "ss_settings_hub_title": "⚙️ <b>Settings</b>",
+        "ss_settings_hub_hint": "\n\nChoose a section 👇",
         "ss_btn_lang": "🌐 Language",
+        "ss_btn_cleaner_primary": "✍️ Post Auto-Cleaner & Signature",
+        "ss_btn_pro_plans": "💎 PRO & Plans",
         "ss_profile_sub_pro": "⭐️ Subscription: <b>PRO</b> (until {date})",
         "ss_profile_sub_free": "🆓 Subscription: <b>FREE</b>",
         "ss_btn_rewards": "🎁 Bonuses",
@@ -734,7 +746,7 @@ SETTINGS_STATS_I18N = {
             "✍️ <b>Send your signature or link</b>\n\n"
             "For example: <code>https://t.me/your_channel</code> or "
             "<code>© Your channel</code>.\n\n"
-            "• at most {max_len} characters and 3 lines;\n"
+            "• at most {max_len} characters and 10 lines;\n"
             "• this text replaces the removed foreign source marks.\n\n"
             "To cancel send /cancel"
         ),
@@ -806,31 +818,14 @@ SETTINGS_STATS_I18N = {
 SETTINGS_STATS_KEYS = tuple(sorted(SETTINGS_STATS_I18N["uz"].keys()))
 
 # ============================================================
-# ⚙️ SOZLAMALAR — 10 TUGMALI MENYU (5 qator × 2 tugma)
+# ⚙️ SOZLAMALAR — 4 TUGMALI MENYU (2 qator × 2 tugma)
 # ============================================================
-#: Sozlamalar hub'idagi tugmalar — spetsifikatsiyadagi aniq tartib
-#: (POSTASSIST POLISH: simmetrik juft qatorlar; SPRINT 1 — 5-qator
-#: maxfiylik siyosati va ma'lumotlarni o'chirish bilan kengaytirildi):
-#:   [🌐 Til / Язык]         [✍️ Post sozlamalari]
-#:   [🔔 Bildirishnomalar]   [👥 Do'stlarni taklif]
-#:   [💳 To'lovlar tarixi]   [💎 PRO]
-#:   [🔐 Maxfiylik]        [🗑 O'chirish]
-#:   [ℹ️ Yordam va Qo'llanma] [❌ Yopish]
-#: «👥 Do'stlarni taklif» asosiy menyudan shu hub'ga ko'chirildi;
-#: «🎁 Bonuslar & Taklif», «🧰 Vositalar», «❓ Yordam & Ma'lumot» va
-#: [◀️ Orqaga] hub'dan OLIB TASHLANDI (kunlik bonus — referral
-#: ekranida); eski stgs_* callback oqimlari orqaga moslik uchun saqlanadi.
+#: Faqat to'rtta tez-tez ishlatiladigan amal primary grid'da ko'rsatiladi.
 SETTINGS_MENU_BUTTON_KEYS = (
     "ss_btn_lang",
-    "ss_btn_post_settings",
+    "ss_btn_cleaner_primary",
     "ss_btn_notif",
-    "ss_rewards_referral",
-    "ss_btn_payments",
-    "ss_btn_premium",
-    "ss_btn_privacy",
-    "ss_btn_delete_data",
-    "ss_btn_help",
-    "ss_btn_close",
+    "ss_btn_pro_plans",
 )
 
 #: 🎁 Bonuslar & Ballar submenu'si tugma kalitlari.
@@ -846,6 +841,8 @@ REWARDS_MENU_BUTTON_KEYS = SETTINGS_REWARDS_BUTTON_KEYS
 #: ❓ Yordam & Ma'lumot submenu'si tugma kalitlari.
 SETTINGS_HELP_HUB_BUTTON_KEYS = (
     "ss_help_hub_support",
+    "ss_btn_privacy",
+    "ss_btn_delete_data",
     "ss_btn_back",
 )
 HELP_HUB_BUTTON_KEYS = SETTINGS_HELP_HUB_BUTTON_KEYS
@@ -880,21 +877,12 @@ CB_STATS_BACK = "an_close"
 CB_STATS_DETAIL = "an_detail"
 CB_STATS_OVERVIEW = "an_overview"
 
-#: ⚙️ Sozlamalar — 10 tugmali hub (5 qator × 2 tugma).
-#: About/guide/support yagona stgs_help_hub oynasiga birlashtirilgan;
-#: 🔐 Maxfiylik / 🗑 O'chirish (SPRINT 1) oxirgi juftlikdan oldin turadi;
-#: eski callback'lar routing'da orqaga moslik uchun saqlanadi.
+#: ⚙️ Sozlamalar — asosiy 4 tugmali 2×2 grid.
 CB_SETTINGS_HUB = (
     "stgs_lang",
-    "stgs_post",
+    "stgs_clean",
     "stgs_notif",
-    "stgs_referral",
-    "stgs_pay",
     "sub_open",
-    "stgs_privacy",
-    "stgs_delete_data",
-    "stgs_help_hub",
-    "stgs_back",
 )
 
 #: 🎁 Bonuslar & Ballar submenu'si.
@@ -910,6 +898,8 @@ CB_REWARDS_HUB = CB_SETTINGS_REWARDS
 #: ❓ Yordam & Ma'lumot submenu'si.
 CB_SETTINGS_HELP_HUB = (
     "help_support",
+    "stgs_privacy",
+    "stgs_delete_data",
     "stgs_hub",
 )
 CB_HELP_HUB = CB_SETTINGS_HELP_HUB

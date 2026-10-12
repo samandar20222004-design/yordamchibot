@@ -15,7 +15,7 @@ Qamrov (32 ta belgilangan test):
                 UZ/RU/EN pariteti (``in_sync: True``).
   TEST H..J   — 📢 Kanallarim va 📅 Rejalashtirilgan (Queue) navigatsiyasi.
   TEST K..N   — 📊 Statistika (FAQAT shaxsiy hisobot + ADMIN IZOLYATSIYASI),
-                ⚙️ Sozlamalar (8 guruh + Orqaga), 💎 PRO va 🧰 Vositalar.
+                ⚙️ Sozlamalar (4 primary tugma), 💎 PRO va 🧰 Vositalar.
   TEST O      — Ko'rinadigan (visible) menyularda DUBLIKAT tugmalar yo'qligi.
   TEST P..S   — Uchala tildagi HAR BIR tugma ishchi handler/callback'ga ega.
   TEST T..V   — ◀️ Orqaga / ❌ Bekor qilish / 🏠 Asosiy menyu navigatsiya
@@ -804,16 +804,9 @@ def test_k_statistics_isolation():
 
 
 def test_l_settings_menu_compact_profile_hub():
-    # ⚙️ Sozlamalar / Ko'proq — 10 tugma (5x2). 3-BOSQICH: «💎 PRO» va
-    # «❓ Yordam» asosiy reply-menudan shu hub'ga ko'chirildi; «🎁 Bonuslar &
-    # Taklif» va 🧰 Vositalar esa ko'rinishdan chiqdi (oqimlar routing'da
-    # qoladi).
-    header("L", "⚙️ Sozlamalar — 10 tugma (5x2), uchala tilda bir xil")
-    expected_cbs = ["stgs_lang", "stgs_post",
-                    "stgs_notif", "stgs_referral",
-                    "stgs_pay", "sub_open",
-                    "stgs_privacy", "stgs_delete_data",
-                    "stgs_help_hub", "stgs_back"]
+    # Settings exposes four primary destinations; secondary actions are nested.
+    header("L", "⚙️ Sozlamalar — 4 tugma / 2×2 grid, uchala tilda bir xil")
+    expected_cbs = ["stgs_lang", "stgs_clean", "stgs_notif", "sub_open"]
     base = None
     for lang in LANGS:
         kb = get_settings_hub_keyboard(lang)
@@ -821,23 +814,17 @@ def test_l_settings_menu_compact_profile_hub():
         labels = _labels(kb)
         if base is None:
             base = cbs
-        check(f"[{lang}] Sozlamalar hub = 10 tugma", len(cbs) == 10, str(cbs))
-        check(f"[{lang}] stgs_profile hub'da YO'Q (matn o'zi profil)",
-              "stgs_profile" not in cbs, str(cbs))
-        # 3-BOSQICH: eski GURUHLAR (rewards/tools) hub'da yo'q; «❓ Yordam»
-        # esa endi ataylab [stgs_help_hub] submenyusi sifatida BOR.
-        check(f"[{lang}] eski guruhlar (rewards/tools) hub'da YO'Q",
-              not any(cb in cbs for cb in ("stgs_rewards", "stgs_tools")),
+        check(f"[{lang}] Sozlamalar hub = 4 primary actions / 2×2",
+              len(cbs) == 4 and [len(row) for row in kb.inline_keyboard] == [2, 2],
               str(cbs))
-        check(f"[{lang}] «❓ Yordam» (stgs_help_hub) hub'da BOR",
-              "stgs_help_hub" in cbs, str(cbs))
-        check(f"[{lang}] «💎 PRO» (sub_open) hub'da BOR",
+        check(f"[{lang}] secondary Profile/PRO/Help actions are nested",
+              not any(cb in cbs for cb in ("stgs_referral", "stgs_pay",
+                                            "stgs_privacy", "stgs_delete_data",
+                                            "stgs_help_hub")), str(cbs))
+        check(f"[{lang}] «💎 PRO» (sub_open) primary entry exists",
               "sub_open" in cbs, str(cbs))
         check(f"[{lang}] callback'lar kutilgan ro'yxat bilan AYNAN bir xil",
               cbs == expected_cbs, str(cbs))
-        check(f"[{lang}] oxirgi tugma — [❌ Yopish] (stgs_back)",
-              cbs[-1] == "stgs_back" and labels[-1] == settings_stats_t("ss_btn_close", lang),
-              str(labels[-1]))
         check(f"[{lang}] callback'lar UZ bilan bir xil (tilga bog'liq emas)",
               cbs == base, str(cbs))
 
@@ -847,7 +834,7 @@ def test_l_settings_menu_compact_profile_hub():
     with _with_db(fake), _quiet():
         _run(start_mod.user_cabinet_menu(_msg_update(msg), _ctx("uz")))
     drawn = _cbs(msg.sent[-1]["reply_markup"]) if msg.sent else []
-    check("user_cabinet_menu: 10 tugmali Sozlamalar klaviaturasini chizdi",
+    check("user_cabinet_menu: four-button Settings grid is rendered",
           drawn == expected_cbs, str(drawn))
 
 
@@ -1124,9 +1111,11 @@ def test_w_legacy_buttons_still_route():
     # Chat tarixida qolib ketgan qo'lda yozilgan yorliqlar.
     hard_legacy = (
         ("⭐️ Premium", "start_subscription"),
-        ("👤 Kabinet & Sozlamalar", "user_cabinet_menu"),
-        ("👤 Кабинет & Настройки", "user_cabinet_menu"),
-        ("👤 Account & Settings", "user_cabinet_menu"),
+        ("👤 Kabinet & Sozlamalar", "user_profile_menu"),
+        ("👤 Кабинет & Настройки", "user_profile_menu"),
+        ("👤 Account & Settings", "user_profile_menu"),
+        ("👤 Profil", "user_profile_menu"),
+        ("👤 Profile", "user_profile_menu"),
         ("✨ Magic Post", "magic_post_entry"),
         ("📸 Rasm → Post", "image_post_entry"),
         ("📊 Post Score", "post_score_entry"),

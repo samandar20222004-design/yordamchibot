@@ -55,6 +55,7 @@ import pytz  # noqa: E402
 import keyboards.default as kd  # noqa: E402
 from keyboards.default import (  # noqa: E402
     MENU_TEXTS,
+    PROFILE_ALIASES,
     exact,
     is_menu_text,
     weekday_index,
@@ -152,10 +153,11 @@ def test_registry_covers_three_languages():
         "btn_pending": "pending",
         "btn_queue": "queue",
     }
-    # Eski kalit nomi (btn_cabinet) ham shu tugma oilasiga kiradi — alohida
-    # tekshiriladi, chunki u lug'atda emas, aliaslar ro'yxatida yashaydi.
-    check("'👤 Kabinet' aliasi settings oilasida", is_menu_text("👤 Kabinet", "settings"))
-    check("'👤 Кабинет' aliasi settings oilasida", is_menu_text("👤 Кабинет", "settings"))
+    # Legacy Kabinet labels now open Profile; Settings labels remain separate.
+    check("'👤 Kabinet' aliasi profile oilasida", is_menu_text("👤 Kabinet", "profile"))
+    check("'👤 Кабинет' aliasi profile oilasida", is_menu_text("👤 Кабинет", "profile"))
+    check("Profile alias is not misrouted as settings",
+          not is_menu_text("👤 Кабинет", "settings"))
     for key, action in routes.items():
         family = MENU_TEXTS.get(action, ())
         for lang in LANGS:
@@ -186,10 +188,16 @@ def test_exact_filter_expands_languages():
     for text in ("➕ Yangi post", "➕ Новый пост", "➕ New post", "  ➕ New post  "):
         check(f"exact(BTN_NEW_POST, BTN_NEW_POST_RU) → {text!r}", filter_matches(flt, text))
 
-    flt2 = exact(kd.BTN_SETTINGS, kd.BTN_CABINET, kd.BTN_SETTINGS_RU, kd.BTN_SETTINGS_EN)
+    flt2 = exact(kd.BTN_SETTINGS, kd.BTN_SETTINGS_RU, kd.BTN_SETTINGS_EN,
+                 kd.BTN_SETTINGS_CORE, kd.BTN_SETTINGS_CORE_RU, kd.BTN_SETTINGS_CORE_EN)
+    for text in ("⚙️ Sozlamalar", "⚙️ Настройки", "⚙️ Settings"):
+        check(f"exact(Settings aliases) → {text!r}", filter_matches(flt2, text))
+
+    profile_filter = exact(*PROFILE_ALIASES)
     for text in ("👤 Kabinet & Sozlamalar", "👤 Кабинет & Настройки",
                  "👤 Account & Settings", "👤 Profile & Settings"):
-        check(f"exact(BTN_SETTINGS, …) → {text!r}", filter_matches(flt2, text))
+        check(f"exact(Profile legacy aliases) → {text!r}",
+              filter_matches(profile_filter, text))
 
     # Eski/legacy yorliqlar ham ishlaydi (chat tarixidagi klaviatura xabarlari).
     flt3 = exact("⏳ Kutilayotgan postlar", "⏳ Ожидающие посты")
@@ -226,7 +234,7 @@ def test_normalization_tolerance():
           normalize_button_text("⭐️ Premium") == normalize_button_text("⭐ Premium")
           and is_menu_text("⭐ Premium", "premium"))
     check("katta/kichik harf farqi yo'q", is_menu_text("➕ NEW POST", "new_post"))
-    check("kirill homoglyph bardoshli", is_menu_text("👤 Prоfile & Settings", "settings"))  # 'о' = kirill
+    check("kirill homoglyph bardoshli", is_menu_text("👤 Prоfile & Settings", "profile"))  # 'о' = kirill
     check("begona matn ushlanmaydi", not is_menu_text("➕ Bugun nima", "new_post"))
     check("bo'sh/None matn istisno bermaydi",
           normalize_button_text(None) == "" and not is_menu_text(None, "new_post")

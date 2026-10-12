@@ -220,10 +220,9 @@ def test_button_labels_3_langs():
         inline_labels = [
             b.text for row in get_cabinet_inline_keyboard(code).inline_keyboard for b in row
         ]
-        # Sozlamalar — 10 tugmali simmetrik panel (hub bilan bir xil, 5x2).
-        # SPRINT 1: 🔐 Maxfiylik siyosati + 🗑 Ma'lumotlarimni o'chirish.
-        check(f"{code}: kabinet inline menyusi to'liq (10 ta tugma)",
-              len(inline_labels) == 10 and all(str(x).strip() for x in inline_labels),
+        # Settings uses a localized 2×2 primary grid; secondary actions are nested.
+        check(f"{code}: Settings primary grid is complete (4 buttons)",
+              len(inline_labels) == 4 and all(str(x).strip() for x in inline_labels),
               str(inline_labels[:3]))
         lang_cbs = [
             b.callback_data

@@ -740,19 +740,11 @@ def test_unified_content_menu():
 
 
 # ============================================================================
-# TEST 6 — ⚙️ SOZLAMALAR / KO'PROQ: 10 tugmali menyusi (5x2, Til bilan birga)
+# TEST 6 — ⚙️ FOUR-BUTTON SETTINGS GRID AND SEPARATE PROFILE SCREEN
 # ============================================================================
 def test_profile_cleanup():
-    print("\n== TEST 6: ⚙️ Sozlamalar — 10 tugmali menyu (5x2) ==")
-    # 1) Sozlamalar inline klaviaturasi — 8 tugma (4x2): Til, Post
-    #    sozlamalari, Bildirishnomalar, Do'stlarni taklif, To'lovlar
-    #    tarixi, PRO, Yordam va Qo'llanma, Yopish.
-    #    Eski cab_* callback'lari YO'Q. (3-BOSQICH: PRO va Yordam asosiy
-    #    reply-menudan shu hub'ga ko'chirildi.)
-    expected_profile_cbs = ["stgs_lang", "stgs_post", "stgs_notif",
-                            "stgs_referral", "stgs_pay", "sub_open",
-                            "stgs_privacy", "stgs_delete_data",
-                            "stgs_help_hub", "stgs_back"]
+    print("\n== TEST 6: ⚙️ Sozlamalar primary grid — 4 tugma (2×2) ==")
+    expected_settings_cbs = ["stgs_lang", "stgs_clean", "stgs_notif", "sub_open"]
     for lang in LANGS:
         cbs = [b.callback_data for row in
                get_cabinet_inline_keyboard(lang).inline_keyboard for b in row]
@@ -760,23 +752,22 @@ def test_profile_cleanup():
                   get_cabinet_inline_keyboard(lang).inline_keyboard for b in row]
         check(f"[{lang}] profil klaviaturasida cab_lang YO'Q",
               "cab_lang" not in cbs, str(cbs))
-        check(f"[{lang}] profil: 10 tugma (speks tartibida)",
-              cbs == expected_profile_cbs, str(cbs))
-        check(f"[{lang}] profil: «🌐 Til» birinchi tugma",
-              labels and labels[0].startswith("🌐"), str(labels))
-        check(f"[{lang}] profil: «❌ Yopish» oxirgi tugma",
-              labels and labels[-1].startswith("❌"), str(labels))
+        check(f"[{lang}] Settings grid: four callbacks in specification order",
+              cbs == expected_settings_cbs, str(cbs))
+        check(f"[{lang}] Settings grid: language and cleaner are first row",
+              labels and labels[0].startswith("🌐") and labels[1].startswith("✍️"),
+              str(labels))
+        check(f"[{lang}] Settings grid: notifications and PRO are second row",
+              labels and labels[2].startswith("🔔") and labels[3].startswith("💎"), str(labels))
         check(f"[{lang}] profil: dublikat yo'q",
               len(labels) == len(set(labels)), str(labels))
 
-    # 2) 👤 Profil hub'i (Sozlamalar bilan birlashgan) — bir xil panel.
+    # 2) Legacy cabinet keyboard alias and the Settings hub share the 2×2 grid.
     for lang in LANGS:
         hub_cbs = [b.callback_data for row in
                    get_settings_hub_keyboard(lang).inline_keyboard for b in row]
-        check(f"[{lang}] profil hub'ida stgs_lang bor",
-              "stgs_lang" in hub_cbs, str(hub_cbs))
-        check(f"[{lang}] profil hub'i = cabinet paneli (yagona ekran)",
-              hub_cbs == expected_profile_cbs, str(hub_cbs))
+        check(f"[{lang}] Settings hub equals primary grid",
+              hub_cbs == expected_settings_cbs, str(hub_cbs))
 
     # 3) Til almashtirish oqimi (cab_lang_*) o'zgarmagan — routing saqlanadi.
     from keyboards.inline import get_language_keyboard
@@ -810,8 +801,8 @@ def test_profile_cleanup():
         check("profil ekran: balans/kredit ko'rsatiladi", "12" in text, text[:160])
         check("profil ekran: klaviaturada cab_lang YO'Q",
               "cab_lang" not in cbs, str(cbs))
-        check("profil ekran: ixcham menyu (stgs_back = ❌ Yopish) bor",
-              "stgs_back" in cbs and "stgs_hub" not in cbs, str(cbs))
+        check("profil ekran: referral action returns to Settings",
+              cbs == ["stgs_referral", "stgs_hub"], str(cbs))
     finally:
         fake.restore()
 

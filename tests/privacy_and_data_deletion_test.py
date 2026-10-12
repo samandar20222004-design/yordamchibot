@@ -11,8 +11,8 @@ SPRINT 1 (Privacy & GDPR) qabul mezonlari birma-bir:
           post matnlari, AI telemetriyasi, to'lov yozuvlari) va qanday
           huquqlar borligini tushuntiradi; matn HTML uchun xavfsiz;
   TEST 3: ⌨️ KLAVIATURALAR — siyosat ekrani [🗑 O'chirish | ◀️ Orqaga],
-          tasdiq ekrani [✅ Ha | ❌ Bekor], Sozlamalar hub'ida
-          ``stgs_privacy`` + ``stgs_delete_data`` mavjud;
+          tasdiq ekrani [✅ Ha | ❌ Bekor], Help submenu'da privacy/delete
+          amallari mavjud (primary Settings grid ixcham qoladi);
   TEST 4: 📣 ``/privacy`` HANDLERI — uchala tilda ishlaydi (buyruq hamda
           callback orqali), xabar ``reply_text`` bilan yuboriladi;
   TEST 5: 🛡 TASDIQ HIMOYASI — «🗑 O'chirish» bosilganda FAQAT tasdiq
@@ -175,7 +175,8 @@ def _kb_rows(kb):
 def test_3_keyboards():
     header("3", "⌨️ Klaviaturalar — siyosat, tasdiq, hub")
     from handlers.privacy import get_delete_confirm_keyboard, get_privacy_keyboard
-    from keyboards.inline import get_settings_profile_keyboard
+    from keyboards.inline import (get_settings_help_hub_keyboard,
+                                  get_settings_profile_keyboard)
 
     for lang in LANGS:
         pol = _kb_rows(get_privacy_keyboard(lang))
@@ -196,13 +197,18 @@ def test_3_keyboards():
         check(f"[{lang}] tasdiq va bekor ALOHIDA qatorlarda",
               conf[0][0][1] != conf[1][0][1], str(conf))
 
-        hub_cbs = [c for row in get_settings_profile_keyboard(lang).inline_keyboard
-                   for _t, c in [(b.text, b.callback_data) for b in row]]
-        check(f"[{lang}] hub: stgs_privacy BOR", "stgs_privacy" in hub_cbs, str(hub_cbs))
-        check(f"[{lang}] hub: stgs_delete_data BOR",
-              "stgs_delete_data" in hub_cbs, str(hub_cbs))
-        check(f"[{lang}] hub: callback'lar dublikat emas",
-              len(hub_cbs) == len(set(hub_cbs)), str(hub_cbs))
+        primary_cbs = [b.callback_data for row in
+                       get_settings_profile_keyboard(lang).inline_keyboard for b in row]
+        help_cbs = [b.callback_data for row in
+                    get_settings_help_hub_keyboard(lang).inline_keyboard for b in row]
+        check(f"[{lang}] primary Settings stays at four actions",
+              primary_cbs == ["stgs_lang", "stgs_clean", "stgs_notif", "sub_open"],
+              str(primary_cbs))
+        check(f"[{lang}] Help submenu owns privacy and deletion",
+              "stgs_privacy" in help_cbs and "stgs_delete_data" in help_cbs,
+              str(help_cbs))
+        check(f"[{lang}] Help submenu callback'lar dublikat emas",
+              len(help_cbs) == len(set(help_cbs)), str(help_cbs))
 
 
 # ============================================================================

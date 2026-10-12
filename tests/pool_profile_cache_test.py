@@ -579,28 +579,41 @@ def test_start_and_settings_answer_from_cache_without_db():
         asyncio.run(st.start(upd, ctx))
         check("ref-havola: save_user chaqirildi", "save_user" in calls, str(calls))
 
-        # Sozlamalar: kesh bor → 0 ta DB chaqiruvi
+        # Settings is static and DB-free regardless of whether profile cache exists.
         _prime(880013, lang="uz")
         calls.clear()
         msg = _Msg()
         upd = SimpleNamespace(message=msg, effective_user=_user(880013), effective_message=msg)
         ctx = SimpleNamespace(bot=SimpleNamespace(), user_data={"lang": "uz"}, chat_data={}, args=[])
         asyncio.run(st.user_cabinet_menu(upd, ctx))
-        check("Sozlamalar (kesh bor): DB chaqiruvi 0 ta", not calls, str(calls))
+        check("Settings (profile cache warm): DB chaqiruvi 0 ta", not calls, str(calls))
         text = msg.replies[0] if msg.replies else ""
-        check("Sozlamalar matni profil ma'lumotlarini ko'rsatdi (kod, 12 ball, 3 kanal, 5 do'st)",
-              all(x in text for x in ("zz9", "12", "3", "5")), text[:200])
-        # Sozlamalar: kesh yo'q (fake run_db profilni yuklamaydi) → eski 3 ta chaqiruv
+        check("Settings root: static heading, no profile details",
+              "Sozlamalar" in text and "zz9" not in text, text[:200])
+
+        # Settings: empty profile cache still does not trigger stats/channels/code reads.
         db._cache_clear()
         calls.clear()
         msg = _Msg()
         upd = SimpleNamespace(message=msg, effective_user=_user(880014), effective_message=msg)
         ctx = SimpleNamespace(bot=SimpleNamespace(), user_data={"lang": "uz"}, chat_data={}, args=[])
         asyncio.run(st.user_cabinet_menu(upd, ctx))
-        check("Sozlamalar (kesh yo'q): eski yo'l — stats, kanallar, kod",
-              calls[:3] == ["get_referral_stats", "get_user_channels", "get_user_code"], str(calls))
-        check("eski yo'lda matn to'g'ri (old1 kodi, 1 kanal, 9 ball)",
-              bool(msg.replies) and all(x in msg.replies[0] for x in ("old1", "9")), msg.replies[:1])
+        check("Settings (profile cache cold): DB chaqiruvi 0 ta", not calls, str(calls))
+        check("Settings (profile cache cold): 2×2 grid chiqdi",
+              bool(msg.replies) and "Sozlamalar" in msg.replies[0], msg.replies[:1])
+
+        # Dynamic account details now live on Profile and use the warm snapshot.
+        _prime(880015, lang="uz")
+        calls.clear()
+        msg = _Msg()
+        upd = SimpleNamespace(message=msg, effective_user=_user(880015), effective_message=msg)
+        ctx = SimpleNamespace(bot=SimpleNamespace(), user_data={"lang": "uz"}, chat_data={}, args=[])
+        asyncio.run(st.user_profile_menu(upd, ctx))
+        check("Profile (warm cache): DB chaqiruvi 0 ta", not calls, str(calls))
+        check("Profile: cached account details remain visible",
+              bool(msg.replies) and all(value in msg.replies[0]
+                                        for value in ("zz9", "12", "3", "5")),
+              msg.replies[:1])
 
     # reklama satri: PRO profil → is_premium so'ralmaydi
     from utils import helpers
