@@ -1179,6 +1179,15 @@ EN_OVERLAY = {
     "np_confirm_ok_btn": "✅ Schedule",
     "np_confirm_queue_btn": "⏳ Add to queue",
     "np_confirm_edit_btn": "✏️ Edit",
+    "np_album_received": (
+        "🖼 <b>Album received:</b> {count} media items — "
+        "saved as a single post."
+    ),
+    "np_album_limit_notice": (
+        "⚠️ <b>Album is full:</b> Telegram media group limit is {limit} files. "
+        "The extra file was not added to this post: finish the current album "
+        "first and send the remaining files as a new post."
+    ),
     "np_album_warning": (
         "⚠️ Due to Telegram limits, posts with buttons are sent with only 1 media. "
         "If you add a button, only the first media will be sent."

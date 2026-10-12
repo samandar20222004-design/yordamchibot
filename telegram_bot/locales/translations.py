@@ -864,6 +864,21 @@ TRANSLATIONS = {
         # Telegram Bot API qoidasi: sendMediaGroup'ga inline_keyboard (URL
         # tugma yoki reaksiya) ulab bo'lmaydi — albom yuborilganda foydalanuvchi
         # xushmuomala ogohlantirish + 2 ta tanlov oladi.
+        # 🖼 ALBOM QABUL TASDIG'I (10 tagacha fayl = BITTA post): albom
+        # yakunlanganda foydalanuvchi nechta fayl bitta post sifatida
+        # saqlanganini ANIQ ko'radi (chalkashlik va "faylim yo'qoldi" degan
+        # savol bo'lmasligi uchun).
+        "np_album_received": (
+            "🖼 <b>Albom qabul qilindi:</b> {count} ta media — "
+            "bitta post sifatida saqlanadi."
+        ),
+        # Albom 10 ta faylga to'lganda qo'shimcha fayl JIMGINA yo'qolmaydi —
+        # aniq ogohlantirish (joriy albom saqlanib qoladi).
+        "np_album_limit_notice": (
+            "⚠️ <b>Albom to'ldi:</b> Telegram media-guruh chegarasi — {limit} ta fayl. "
+            "Qo'shimcha fayl bu postga qo'shilmadi: avval joriy albomni yakunlang, "
+            "qolgan fayllarni esa yangi post sifatida yuboring."
+        ),
         "np_album_warning": (
             "⚠️ Telegram cheklovi sababli, tugmali postlar faqat 1 ta media bilan chiqadi. "
             "Tugma qo'shilsa, faqat birinchi media yuboriladi."
@@ -2984,6 +2999,17 @@ TRANSLATIONS = {
         # Правило Telegram Bot API: к sendMediaGroup нельзя привязать
         # inline_keyboard (URL-кнопку или реакции) — при отправке альбома
         # пользователь получает предупреждение + 2 варианта выбора.
+        # 🖼 ПОДТВЕРЖДЕНИЕ ПРИЁМА АЛЬБОМА (до 10 файлов = ОДИН пост).
+        "np_album_received": (
+            "🖼 <b>Альбом получен:</b> {count} медиа — "
+            "сохраняется как один пост."
+        ),
+        # Альбом заполнен (лимит 10) — лишний файл не теряется молча.
+        "np_album_limit_notice": (
+            "⚠️ <b>Альбом заполнен:</b> лимит медиагруппы Telegram — {limit} файлов. "
+            "Лишний файл не добавлен в этот пост: сначала завершите текущий альбом, "
+            "а остальные файлы отправьте новым постом."
+        ),
                 "np_album_warning": (
             "⚠️ Из-за ограничений Telegram посты с кнопками отправляются только с 1 медиа. "
             "Если добавить кнопку, будет отправлено только первое медиа."

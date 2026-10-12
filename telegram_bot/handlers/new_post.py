@@ -54,9 +54,25 @@ tashkent_tz = pytz.timezone("Asia/Tashkent")
 # Yechim: birinchi albom xabari kelganda arka fonda AJRATILGAN yig'uvchi task
 # (collector) ishga tushadi; qolgan xabarlar shu task kutayotganda buferga
 # yig'iladi; vaqt tugagach bitta "Albom" posti sifatida yakunlanadi.
-_ALBUM_BUFFERS: dict = {}       # (user_id, media_group_id) -> buffer dict
-_ALBUM_WAIT_SECONDS = 3.0       # Telegram albom qismlari kelishi uchun kutiladigan vaqt
-_ALBUM_MAX_ITEMS = 10           # Telegram albom chegarasi
+_ALBUM_BUFFERS: dict = {}       # (user_id, draft_key) -> buffer dict
+_ALBUM_WAIT_SECONDS = 3.0       # oxirgi fayldan keyingi "jimlik" oynasi (idle)
+_ALBUM_MAX_WAIT_SECONDS = 15.0  # umuman kutish chegarasi (sekin tarmoq himoyasi)
+_ALBUM_MAX_ITEMS = 10           # Telegram albom chegarasi (10 tagacha = BITTA post)
+_ALBUM_SEQ_KEY = "seq"          # media_group_id'siz (ketma-ket) draft kaliti
+# Ketma-ket (har biri alohida xabar bo'lib) kelgan fayllar shu oyna ichida
+# BITTA albom postiga birlashtiriladi.
+_ALBUM_MERGE_WINDOW_SECONDS = 3.0
+# Albom to'lganda (10 ta fayl) ogohlantirish SPAM bo'lmasligi uchun cheklov.
+_ALBUM_LIMIT_NOTICE_SECONDS = 3.0
+_ALBUM_LIMIT_NOTICES: dict = {}  # user_id -> timestamp
+
+#: Draft (post) tarkibidagi media turlari — yakka media ham albomga aylanishi mumkin.
+_ALBUM_MEDIA_TYPES = ("photo", "video", "document", "audio", "animation")
+
+#: user_data kalitlari: oxirgi media qachon va qaysi guruhda kelgani
+#: (ketma-ket yuborilgan fayllarni birlashtirish oynasi uchun).
+_UD_SEQ_TS = "_media_seq_ts"
+_UD_SEQ_GROUP = "_media_seq_group"
 
 # "⏩ O'tkazib yuborish" — pastki reply-klaviaturadagi skip tugmalari.
 # Eski/asosiy yorliqlar (⏭ ...), legacy "Tugmasiz davom etish" va qo'shimcha
@@ -332,6 +348,10 @@ def _purge_stale_albums():
     stale = [k for k, v in _ALBUM_BUFFERS.items() if now - v.get("ts", 0) > 120]
     for k in stale:
         _cancel_album_buffer(k)
+    stale_notices = [u for u, ts in _ALBUM_LIMIT_NOTICES.items()
+                     if now - ts > 120]
+    for u in stale_notices:
+        _ALBUM_LIMIT_NOTICES.pop(u, None)
 
 
 def _album_key_of(key) -> tuple:
@@ -359,19 +379,39 @@ def cancel_album_collections(user_id: int):
         _cancel_album_buffer(key)
 
 
-def _album_items_to_post(items: list) -> dict:
-    """Yig'ilgan albom elementlarini post user_data qiymatlariga aylantiradi.
+def _bind_album_caption(items: list) -> str:
+    """Albom uchun YAGONA caption'ni aniqlaydi va uni butun guruhga bog'laydi.
 
-    Caption har doim TO'LIQ olinadi (birinchisidan) — hech qanday qator/kesish
-    qilinmaydi. Bitta element bo'lsa ham yaxlit saqlanadi (scheduler keyinchalik
-    yakka media sifatida yuboradi).
+    Telegram media-guruhda caption faqat BITTA xabarda keladi (odatda
+    birinchisida) — qolgan fayllar caption'siz. Post uchun esa caption BUTUN
+    albomga tegishli: shu sababli u birinchi elementga bog'lanadi, boshqa
+    elementlardan olib tashlanadi (aks holda turli fayllarda har xil caption
+    qolib, kanalda faqat birinchisi ko'rinardi).
+
+    Caption hech qayerda kesilmaydi/qisqartirilmaydi — to'liq saqlanadi.
     """
     caption = ""
     for item in items:
+        if not isinstance(item, dict):
+            continue
         cap = (item.get("caption") or "").strip()
         if cap:
             caption = cap
             break
+    for i, item in enumerate(items):
+        if isinstance(item, dict):
+            item["caption"] = caption if i == 0 else ""
+    return caption
+
+
+def _album_items_to_post(items: list) -> dict:
+    """Yig'ilgan albom elementlarini post user_data qiymatlariga aylantiradi.
+
+    Caption har doim TO'LIQ olinadi (albomning istalgan faylidan) va butun
+    guruhga bir xil bog'lanadi. Bitta element bo'lsa ham yaxlit saqlanadi
+    (scheduler keyinchalik yakka media sifatida yuboradi).
+    """
+    caption = _bind_album_caption(items)
     if len(items) == 1:
         return {"post_type": items[0]["type"], "file_id": items[0]["file_id"], "content": caption}
     return {
@@ -386,6 +426,9 @@ def _finalize_album_buffer(key, cancel_task=False) -> dict | None:
 
     ``cancel_task=True`` — kutayotgan collector task bekor qilinadi (masalan,
     foydalanuvchi vaqt o'tmasdan matn yuborganda yoki yangi albom boshlaganda).
+
+    Idempotent: bufer bir marta yakunlanadi (``done``) va o'chiriladi — shu
+    sababli bitta albom HECH QACHON ikki post bo'lib yozilmaydi.
     """
     key = _album_key_of(key)
     buf = _ALBUM_BUFFERS.get(key)
@@ -410,7 +453,155 @@ def _finalize_album_buffer(key, cancel_task=False) -> dict | None:
             "_album_ready": True,
             "_album_count": len(items),
         })
+        # 🖼 Ketma-ket yuborilgan KEYINGI fayllar ham shu albomga qo'shilishi
+        # uchun "yangi media keldi" belgisi (qisqa oyna ichida) yangilanadi.
+        _mark_media_sequence_in(ud, buf.get("group_id"))
     return final
+
+
+def _mark_media_sequence_in(user_data, group_id=None) -> None:
+    """Media ketma-ketligi belgisini (vaqt + guruh) user_data'ga yozadi."""
+    if user_data is None:
+        return
+    try:
+        user_data[_UD_SEQ_TS] = time.time()
+        user_data[_UD_SEQ_GROUP] = group_id
+    except Exception:  # pragma: no cover — g'ayrioddiy user_data
+        return
+
+
+def _mark_media_sequence(context, group_id=None) -> None:
+    """Joriy sessiyada media qabul qilinganini belgilaydi (context orqali)."""
+    _mark_media_sequence_in(getattr(context, "user_data", None), group_id)
+
+
+def _clear_media_sequence(context) -> None:
+    """Media ketma-ketligi belgisini tozalaydi (oqim keyingi bosqichga o'tdi)."""
+    ud = getattr(context, "user_data", None)
+    if ud is None:
+        return
+    ud.pop(_UD_SEQ_TS, None)
+    ud.pop(_UD_SEQ_GROUP, None)
+
+
+def _draft_media_items(context) -> list:
+    """Joriy post draft'idagi media elementlar (albom yoki yakka media).
+
+    Ketma-ket yuborilgan fayllarni birlashtirishda "avvalgi fayl"ni
+    yo'qotmaslik uchun ishlatiladi (matnli draft → bo'sh ro'yxat).
+    """
+    ud = getattr(context, "user_data", None)
+    if not ud:
+        return []
+    if ud.get("post_type") == "album":
+        return _album_items_of(context)
+    file_id = ud.get("file_id")
+    kind = ud.get("post_type")
+    if isinstance(file_id, str) and file_id and kind in _ALBUM_MEDIA_TYPES:
+        return [{"type": kind, "file_id": file_id,
+                 "caption": ud.get("content") or ""}]
+    return []
+
+
+def _recent_draft_items(context, window: float = None) -> list:
+    """Yaqinda (``window`` soniya ichida) qabul qilingan draft elementlari.
+
+    Ketma-ket yuborilgan fayllar shu oyna ichida BITTA albomga birlashtiriladi;
+    oyna tugagach yangi media yangi post sifatida qabul qilinadi.
+    """
+    ud = getattr(context, "user_data", None)
+    if not ud:
+        return []
+    try:
+        ts = float(ud.get(_UD_SEQ_TS) or 0.0)
+    except (TypeError, ValueError):
+        return []
+    if ts <= 0:
+        return []
+    limit = _ALBUM_MERGE_WINDOW_SECONDS if window is None else window
+    if (time.time() - ts) > limit:
+        return []
+    return _draft_media_items(context)
+
+
+def _album_items_count_of(file_id) -> int:
+    """Albom ``file_id`` (JSON ro'yxat) ichidagi fayllar soni (xato → 0)."""
+    if not file_id:
+        return 0
+    try:
+        items = json.loads(file_id) if isinstance(file_id, str) else file_id
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return 0
+    return len(items) if isinstance(items, list) else 0
+
+
+def _album_received_text(count: int, lang: str) -> str:
+    """Albom qabul tasdig'i (fayllar soni) + Telegram cheklovi — YAGONA xabar.
+
+    Ikki alohida xabar (tasdiq + ogohlantirish) o'rniga bitta xabar: foydalanuvchi
+    nechta fayl bitta post bo'lishini ko'radi va ortiqcha takroriy so'rovlar
+    (prompt) chiqmaydi.
+    """
+    try:
+        ack = get_text("np_album_received", lang, count=int(count or 0))
+    except Exception:  # pragma: no cover — tarjima topilmasa ogohlantirish yuboriladi
+        ack = ""
+    warning = get_text("np_album_warning", lang)
+    return f"{ack}\n\n{warning}" if ack else warning
+
+
+async def _notify_album_limit(msg, context, lang, count: int = None) -> None:
+    """Albom to'lgani (10 ta fayl) haqida BIR MARTA ogohlantiradi.
+
+    Ortiqcha fayl JIMGINA yo'qolmaydi va joriy albom BUZILMAYDI — foydalanuvchi
+    aniq yo'riqnoma oladi. Xuddi shu oyna ichida takroriy ogohlantirish chiqmaydi.
+    """
+    user_id = getattr(getattr(msg, "from_user", None), "id", 0) or 0
+    now = time.time()
+    if user_id:
+        last = _ALBUM_LIMIT_NOTICES.get(user_id, 0.0)
+        if now - last < _ALBUM_LIMIT_NOTICE_SECONDS:
+            return
+        _ALBUM_LIMIT_NOTICES[user_id] = now
+    total = int(count or _ALBUM_MAX_ITEMS)
+    if total < _ALBUM_MAX_ITEMS:
+        total = _ALBUM_MAX_ITEMS
+    try:
+        await msg.reply_text(
+            get_text("np_album_limit_notice", lang, limit=_ALBUM_MAX_ITEMS),
+            parse_mode="HTML",
+        )
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.new_post:_notify_album_limit", _silent_exc,
+                           user_id=user_id, count=total)
+
+
+def _open_album_buffer(user_id, context, lang, seed_items=None,
+                       draft_key=None, chat_id=None, group_id=None):
+    """Yangi albom yig'uvchi bufer ochadi (arka fondagi collector bilan).
+
+    ``seed_items`` — allaqachon draft'da turgan fayllar (ketma-ket yuborilgan
+    media birlashtirilganda yo'qolib ketmasligi uchun).
+    """
+    key = (user_id, draft_key or group_id or _ALBUM_SEQ_KEY)
+    buf = {
+        "items": list(seed_items or []),
+        "task": None,
+        "user_data": getattr(context, "user_data", None),
+        "bot": getattr(context, "bot", None),
+        "chat_id": chat_id,
+        "lang": lang,
+        "ts": time.time(),
+        "done": False,
+        "group_id": group_id,
+    }
+    _ALBUM_BUFFERS[key] = buf
+    # Arka fondagi collector — handler bloklanmaydi, shuning uchun per-user
+    # lock albom qismlarini yig'ishga to'sqinlik qilmaydi.
+    buf["task"] = asyncio.get_running_loop().create_task(
+        _album_collector(key, buf["bot"], buf["chat_id"], buf["lang"], buf["user_data"])
+    )
+    return key, buf
 
 
 def _active_user_album_keys(user_id: int):
@@ -418,26 +609,48 @@ def _active_user_album_keys(user_id: int):
 
 
 async def _album_collector(key, bot, chat_id, lang, user_data):
-    """Arka fondagi albom yig'uvchi: kutish tugagach yaxlit post qilib yakunlaydi.
+    """Arka fondagi albom yig'uvchi: JIMLIK oynasi tugagach postni yakunlaydi.
 
     - Hech qachon handler'ni bloklamaydi (per-user lock ortida qolmaydi) —
       albomning barcha qismlari buferga yig'iladi.
+    - "Idle timeout": har bir YANGI fayl kutish oynasini qaytadan boshlaydi.
+      Shu sababli sekin kelgan albomning barcha qismlari (10 tagacha) bitta
+      postga tushadi (avvalgi kod birinchi xabardan keyingi 3 soniyada
+      yakunlanib, qolgan fayllarni bo'lib yuborishi mumkin edi).
+    - 10 ta fayl yig'ilishi bilan DARHOL yakunlanadi (ortiqcha kutish yo'q).
     - Yakun topgach user_data'ga post_type='album' + file_id (JSON ro'yxat)
-      yoziladi va foydalanuvchiga keyingi qadam (tugma so'rovi) yuboriladi.
+      yoziladi va foydalanuvchiga qabul tasdig'i (fayllar soni) bilan
+      keyingi qadam so'rovi yuboriladi.
     """
-    try:
-        await asyncio.sleep(_ALBUM_WAIT_SECONDS)
-    except asyncio.CancelledError:
-        return
+    deadline = time.time() + _ALBUM_MAX_WAIT_SECONDS
+    while True:
+        buf = _ALBUM_BUFFERS.get(key)
+        if not buf or buf.get("done"):
+            return
+        items = buf.get("items") or []
+        # 10 ta fayl = Telegram albom chegarasi — kutish shart emas.
+        if len(items) >= _ALBUM_MAX_ITEMS:
+            break
+        idle_left = _ALBUM_WAIT_SECONDS - (time.time() - float(buf.get("ts") or 0.0))
+        if idle_left <= 0:
+            break
+        remaining = deadline - time.time()
+        if remaining <= 0:
+            break
+        try:
+            await asyncio.sleep(min(idle_left, remaining))
+        except asyncio.CancelledError:
+            return
     buf = _ALBUM_BUFFERS.get(key)
     if not buf or buf.get("done"):
         return
+    count = len(buf.get("items") or [])
     final = _finalize_album_buffer(key)
     if not final:
         return
-    # Foydalanuvchiga keyingi qadam so'rovi:
-    #  • ALBOM (bir nechta fayl): sendMediaGroup'ga inline_keyboard ulab
-    #    bo'lmaydi — xushmuomala ogohlantirish + 2 ta tanlov;
+    # Foydalanuvchiga keyingi qadam xabari:
+    #  • ALBOM (bir nechta fayl): qabul tasdig'i ("N ta media — bitta post")
+    #    + sendMediaGroup cheklovi haqida ogohlantirish + 2 ta tanlov;
     #  • yakka media (bitta faylli albom yoki oddiy rasm): odatdagi
     #    "Tugma qo'shilsinmi?" so'rovi (eski oqim).
     try:
@@ -447,7 +660,7 @@ async def _album_collector(key, bot, chat_id, lang, user_data):
                 ud["_album_warning_stage"] = "button"
             await bot.send_message(
                 chat_id=chat_id,
-                text=get_text("np_album_warning", lang),
+                text=_album_received_text(count, lang),
                 reply_markup=_album_choice_keyboard(lang),
                 parse_mode="HTML",
             )
@@ -462,6 +675,73 @@ async def _album_collector(key, bot, chat_id, lang, user_data):
         # Xabar yuborib bo'lmasa ham post ma'lumotlari saqlanadi —
         # foydalanuvchi keyingi xabarni yuborganda oqim davom etadi.
         log_silent_failure("handlers.new_post:_album_collector", _silent_exc, chat_id=chat_id, lang=lang)
+
+
+async def _collect_media_into_album(update, context, item) -> int | None:
+    """Media elementini joriy albom draft'iga qo'shadi (10 tagacha BITTA post).
+
+    Qamrab oladi:
+      * ``media_group_id`` bilan kelgan albomning barcha qismlari;
+      * ketma-ket (har biri alohida xabar bo'lib) qisqa vaqt ichida
+        yuborilgan fayllar — ular ham BITTA postga birlashtiriladi;
+      * allaqachon yig'ilayotgan albomga qo'shilgan qo'shimcha fayllar.
+
+    Qaytaradi:
+      * ``GET_CONTENT`` — element albom draft'iga qo'shildi (yangi yakka post
+        OCHILMAYDI, kvota/DB yozuvi sarflanmaydi);
+      * ``None`` — element albomga kirmadi: oqim yakka media sifatida davom
+        etadi (eski xatti-harakat).
+    """
+    msg = update.message
+    user_id = update.effective_user.id
+    lang = get_lang(context)
+    group_id = getattr(msg, "media_group_id", None)
+
+    # 🎙 Ovozli xabar (voice) va stiker Telegram albomiga kirmaydi. Yakka
+    # yuborilganda esa eski xatti-harakat saqlanadi (``None`` → oqim yakka
+    # media sifatida davom etadi); faqat albom yig'ilayotganda ular draftga
+    # qo'shilmaydi va mavjud yig'ish ham buzilmaydi.
+    if item.get("type") in ("voice", "sticker"):
+        if group_id or _active_user_album_keys(user_id):
+            return GET_CONTENT
+        return None
+
+    active_keys = _active_user_album_keys(user_id)
+    buf_key = active_keys[-1] if active_keys else None
+    buf = _ALBUM_BUFFERS.get(buf_key) if buf_key else None
+
+    if buf is None:
+        seed = _recent_draft_items(context)
+        if not seed:
+            # Draft yo'q: media guruhi bo'lsa — yangi albom yig'ish boshlanadi;
+            # yakka media bo'lsa — eski (darhol) oqim ishlatiladi.
+            if not group_id:
+                return None
+            buf_key, buf = _open_album_buffer(
+                user_id, context, lang, draft_key=group_id,
+                chat_id=msg.chat_id, group_id=group_id)
+        else:
+            if len(seed) >= _ALBUM_MAX_ITEMS:
+                # Albom allaqachon to'lgan — yangi fayl uni buzmaydi.
+                await _notify_album_limit(msg, context, lang, count=len(seed))
+                return GET_CONTENT
+            # Ketma-ket yuborilgan fayllar: mavjud draft ALBOMGA aylanadi
+            # (avvalgi fayl yo'qolmaydi, yangi post ham ochilmaydi).
+            buf_key, buf = _open_album_buffer(
+                user_id, context, lang, seed_items=seed,
+                draft_key=group_id or _ALBUM_SEQ_KEY,
+                chat_id=msg.chat_id, group_id=group_id)
+
+    if len(buf.get("items") or []) >= _ALBUM_MAX_ITEMS:
+        # Albom TO'LDI — ortiqcha fayl jimgina yo'qolmaydi: aniq ogohlantirish.
+        await _notify_album_limit(msg, context, lang,
+                                  count=len(buf.get("items") or []))
+        return GET_CONTENT
+
+    buf["items"].append(item)
+    buf["ts"] = time.time()
+    _mark_media_sequence(context, group_id)
+    return GET_CONTENT
 
 
 def _build_album_summary(items: list, lang: str) -> str:
@@ -550,11 +830,20 @@ async def _show_album_warning(msg, context, stage: str):
     ``"reactions"``): foydalanuvchi [🖼 1-rasm] ni tanlasa, aynan shu
     bosqichdan davom ettiriladi. Konversatsiya holati O'ZGARMAYDI — tanlov
     callback'lari joriy holatda ro'yxatdan o'tgan.
+
+    Matn YAGONA: albom qabul tasdig'i (nechta fayl) + cheklov tushuntirishi —
+    foydalanuvchi "fayllarim saqlandimi?" degan savol bilan qolmaydi va
+    takroriy so'rovlar (prompt) chiqmaydi.
     """
     lang = get_lang(context)
     context.user_data["_album_warning_stage"] = stage
+    count = len(_album_items_of(context))
+    if count >= 2:
+        text = _album_received_text(count, lang)
+    else:
+        text = get_text("np_album_warning", lang)
     await msg.reply_text(
-        get_text("np_album_warning", lang),
+        text,
         reply_markup=_album_choice_keyboard(lang),
         parse_mode="HTML",
     )
@@ -589,6 +878,9 @@ async def _ask_reactions_step(msg, context):
     if _is_multi_album(context):
         await _show_album_warning(msg, context, "reactions")
         return GET_REACTIONS
+    # Media bosqichi yakunlandi (tugmasiz davom) — ketma-ket yuborilgan yangi
+    # fayllar endi ALBOMGA qo'shilmaydi (aks holda yakunlangan post o'zgarardi).
+    _clear_media_sequence(context)
     selected = context.user_data.setdefault("selected_reactions", [])
     await msg.reply_text(
         get_text("np_reactions_ask", lang),
@@ -620,6 +912,8 @@ async def _proceed_after_reactions(msg, context, selected_emojis):
     lang = get_lang(context)
     if _is_multi_album(context):
         selected_emojis = []
+    # Reaksiya bosqichi yakunlandi — media yig'ish oynasi yopiladi.
+    _clear_media_sequence(context)
     ordered = normalize_custom_reaction_emojis(selected_emojis)
     context.user_data["enable_reactions"] = bool(ordered)
     context.user_data["reaction_emojis"] = ordered
@@ -866,6 +1160,8 @@ async def _show_confirmation(target_msg, context):
     Tur o'zgargan yoki xabar tahrirlab bo'lmaydigan hollarda eskisi
     o'chirilib, yangi karta yuboriladi (ortiqcha kutishlarsiz).
     """
+    # Media bosqichi yakunlandi — keyingi fayllar bu postga qo'shilmaydi.
+    _clear_media_sequence(context)
     preview = _build_preview_text(context)
     post_type = context.user_data.get("post_type", "text")
     file_id = context.user_data.get("file_id")
@@ -982,53 +1278,23 @@ async def content_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
             _finalize_album_buffer(active[-1], cancel_task=True)
             return await btn_title_received(update, context)
 
-    # 3) ALBOM (media_group): barcha qismlar bitta buferga yig'iladi.
-    if msg.media_group_id:
-        item = _media_item_from_message(msg)
-        if not item or item["type"] in ("voice", "sticker"):
-            return GET_CONTENT
-
-        key = (user_id, msg.media_group_id)
-        # Aynan shu foydalanuvchining BOSHQA (eski) albomi hali yig'ilmoqda —
-        # uni darhol yakunlab, yangi albomni boshidan to'playmiz.
-        for old_key in _active_user_album_keys(user_id):
-            if old_key != key:
-                _cancel_album_buffer(old_key)
-        # Albom yakunlanishi kutilmagan paytda yangi albom boshlasa —
-        # eski "_album_ready" holati yangi yig'ish davomida oqimni buzmasin.
-        context.user_data.pop("_album_ready", None)
-
-        buf = _ALBUM_BUFFERS.get(key)
-        if not buf:
-            buf = {
-                "items": [],
-                "task": None,
-                "user_data": context.user_data,
-                "bot": context.bot if getattr(context, "bot", None) is not None else None,
-                "chat_id": msg.chat_id,
-                "lang": lang,
-                "ts": time.time(),
-                "done": False,
-            }
-            _ALBUM_BUFFERS[key] = buf
-            # Arka fondagi collector — handler bloklanmaydi, shuning uchun
-            # per-user lock albom qismlarini yig'ishga to'sqinlik qilmaydi.
-            buf["task"] = asyncio.get_running_loop().create_task(
-                _album_collector(key, buf["bot"], buf["chat_id"], buf["lang"], buf["user_data"])
-            )
-        if len(buf["items"]) < _ALBUM_MAX_ITEMS:
-            buf["items"].append(item)
-        buf["ts"] = time.time()
-        return GET_CONTENT
-
+    # 3) 🖼 ALBOM (10 tagacha fayl = BITTA post): ham Telegram media-guruhi
+    #    (media_group_id), ham KETMA-KET yuborilgan fayllar bitta draftga
+    #    yig'iladi. Yig'ish arka fondagi collector'da yakunlanadi; handler
+    #    bloklanmaydi va har bir fayl uchun ALOHIDA post ochilmaydi.
     item = _media_item_from_message(msg)
     if item:
+        collected = await _collect_media_into_album(update, context, item)
+        if collected is not None:
+            return collected
         _apply_single_media(context, item)
-    else:
-        context.user_data["post_type"] = "text"
-        context.user_data["file_id"] = None
-        context.user_data["content"] = msg.text or ""
+        _mark_media_sequence(context, msg.media_group_id)
+        return await _ask_button_prompt(msg, lang)
 
+    context.user_data["post_type"] = "text"
+    context.user_data["file_id"] = None
+    context.user_data["content"] = msg.text or ""
+    _clear_media_sequence(context)
     return await _ask_button_prompt(msg, lang)
 
 async def skip_url_step(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1398,6 +1664,8 @@ async def album_choice_callback(update: Update, context: ContextTypes.DEFAULT_TY
         ud["post_type"] = first.get("type") or "photo"
         ud["file_id"] = first.get("file_id")
         ud.pop("_album_count", None)
+        # Tanlov qilindi — yangi fayllar endi albomga qo'shilmaydi (yangi oqim).
+        _clear_media_sequence(context)
         try:
             await query.edit_message_reply_markup(reply_markup=None)
         except Exception as _silent_exc:

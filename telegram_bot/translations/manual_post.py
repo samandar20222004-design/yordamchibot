@@ -78,6 +78,9 @@ MANUAL_POST_I18N = {
             "yuboring — masalan: 🔥 ❤️ 👍 🎉"
         ),
         "mp_reactions_on": "❤️ Reaksiyalar: {emojis}",
+        "mp_album_summary": (
+            "🖼 Albom: {count} ta fayl — bitta post sifatida saqlanadi."
+        ),
         "mp_album_warning": (
             "⚠️ Telegram cheklovi sababli, tugmali postlar faqat 1 ta media bilan chiqadi. "
             "Tugma qo'shilsa, faqat birinchi media yuboriladi."
@@ -250,6 +253,9 @@ MANUAL_POST_I18N = {
             "например: 🔥 ❤️ 👍 🎉"
         ),
         "mp_reactions_on": "❤️ Реакции: {emojis}",
+        "mp_album_summary": (
+            "🖼 Альбом: {count} файлов — сохранится как один пост."
+        ),
         "mp_album_warning": (
             "⚠️ Из-за ограничений Telegram посты с кнопками отправляются только с 1 медиа. "
             "Если добавить кнопку, будет отправлено только первое медиа."
@@ -408,6 +414,9 @@ MANUAL_POST_I18N = {
             "for example: 🔥 ❤️ 👍 🎉"
         ),
         "mp_reactions_on": "❤️ Reactions: {emojis}",
+        "mp_album_summary": (
+            "🖼 Album: {count} files — saved as a single post."
+        ),
         "mp_album_warning": (
             "⚠️ Due to Telegram limits, posts with buttons are sent with only 1 media. "
             "If you add a button, only the first media will be sent."
