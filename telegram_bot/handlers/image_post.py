@@ -37,7 +37,7 @@ from keyboards.callback_data import CB_POST_SCORE_EVAL, cb
 from keyboards.default import get_cancel_keyboard
 from locales.translations import get_lang, safe_t
 from services.ai.progress import AIProgressReporter
-from translations import content_menu_t, magic_t, post_score_t
+from translations import magic_t, post_score_t
 from services.ai_quota import (
     ai_quota_temp_error_text,
     is_balance_reason,
@@ -1063,13 +1063,10 @@ async def image_back_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
     except Exception as _silent_exc:
         log_silent_failure("handlers.image_post:image_back_callback:1032", _silent_exc, lang=lang)
     try:
-        from keyboards.default import get_content_creation_keyboard
+        from keyboards.inline import post_creation_menu
 
-        await query.message.reply_text(
-            content_menu_t("cm_menu_intro", lang),
-            reply_markup=get_content_creation_keyboard(lang),
-            parse_mode="HTML",
-        )
+        text, markup = post_creation_menu(lang)
+        await query.message.reply_text(text, reply_markup=markup, parse_mode="HTML")
     except Exception as _silent_exc:
         log_silent_failure("handlers.image_post:image_back_callback:1042", _silent_exc, lang=lang)
     return ConversationHandler.END

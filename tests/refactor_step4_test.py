@@ -87,7 +87,7 @@ settings_mod = importlib.import_module("handlers.settings")
 nav_mod = importlib.import_module("handlers.navigation")
 
 from keyboards.default import (  # noqa: E402
-    BTN_ADMIN_PANEL, BTN_CANCEL, content_creation_rows, get_main_keyboard,
+    BTN_ADMIN_PANEL, BTN_CANCEL, get_main_keyboard,
 )
 from keyboards.inline import (  # noqa: E402
     ADMIN_DASHBOARD_ROWS, get_admin_dashboard_keyboard,
@@ -111,6 +111,8 @@ CH_ID = "-100200"
 PASSED = 0
 FAILURES = 0
 
+
+from keyboards.inline import post_creation_menu as _post_menu  # noqa: E402
 
 def check(label, condition, extra=""):
     """Bitta tekshiruv natijasini hisobga oladi va chop etadi."""
@@ -382,14 +384,15 @@ def test_navigation_stack_content_ai_back():
         screen = q.screen
         check(f"[{lang}] Orqaga → END (holat qolmaydi)",
               state == ConversationHandler.END, str(state))
-        check(f"[{lang}] Orqaga → KONTENT submenu matni chizildi",
-              (screen.get("text") or "") == content_menu_t("cm_menu_intro", lang),
+        menu_text, menu_markup = _post_menu(lang)
+        check(f"[{lang}] Orqaga → «Post yaratish» menyusi matni chizildi",
+              (screen.get("text") or "") == menu_text,
               (screen.get("text") or "")[:60])
-        check(f"[{lang}] Orqaga → Kontent submenu klaviaturasi (5 + Orqaga)",
-              _rows(screen.get("reply_markup")) == content_creation_rows(lang),
-              str(_rows(screen.get("reply_markup"))))
+        check(f"[{lang}] Orqaga → «Post yaratish» menyusi tugmalari",
+              _inline_rows(screen.get("reply_markup")) == _inline_rows(menu_markup),
+              str(screen.get("reply_markup"))[:120])
         # ASOSIY MENYUGA SAKRAB KETMADI: 6 tugmali menyu chizilmadi.
-        main_labels = [t for row in _rows(screen.get("reply_markup")) for t in row]
+        main_labels = [t for row in _inline_rows(screen.get("reply_markup")) for t, _ in row]
         check(f"[{lang}] asosiy menyuga sakrab ketmadi",
               get_text("btn_create_content", lang) not in main_labels,
               str(main_labels))
@@ -550,9 +553,12 @@ def test_fsm_cancel_returns_to_section_start():
         state = _run(start_mod.cancel_handler(_msg_update(msg), ctx))
     last = msg.sent[-1]
     check("Kontent FSM + Bekor → END", state == ConversationHandler.END)
-    check("Kontent FSM + Bekor → KONTENT SUBMENYU chizildi",
-          _rows(last["reply_markup"]) == content_creation_rows("uz"),
-          str(_rows(last["reply_markup"])))
+    check("Kontent FSM + Bekor → «Post yaratish» menyusi chizildi",
+          _inline_rows(last["reply_markup"]) == _inline_rows(_post_menu("uz")[1]),
+          str(last["reply_markup"])[:120])
+    check("Kontent FSM + Bekor → avval asosiy pastki menyu qaytarildi",
+          len(msg.sent) >= 2 and hasattr(msg.sent[-2]["reply_markup"], "keyboard"),
+          str(msg.sent[:1])[:120])
     check("Kontent FSM + Bekor → FSM kontekst tozalandi",
           "np_title" not in ctx.user_data and "magic_raw_text" not in ctx.user_data,
           str(ctx.user_data))
@@ -1113,7 +1119,7 @@ def test_i18n_and_callback_safety():
     fake = _FakeDB()
     cases = (
         (nav_mod.SECTION_CONTENT, lambda screen: screen["reply_markup"]
-         and _rows(screen["reply_markup"]) == content_creation_rows("uz")),
+         and _cbs(screen["reply_markup"]) == _cbs(_post_menu("uz")[1])),
         (nav_mod.SECTION_AI_STUDIO, lambda screen: _cbs(screen["reply_markup"])
          == _cbs(get_ai_studio_keyboard("uz"))),
         (nav_mod.SECTION_CHANNELS, lambda screen: screen["reply_markup"]

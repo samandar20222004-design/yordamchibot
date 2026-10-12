@@ -574,23 +574,6 @@ def test_navigation_buttons_3_langs():
 # ================================================================
 # 15. KABINET REPLY-KLAVIATURASI — 3 tilda
 # ================================================================
-def test_cabinet_reply_keyboard_3_langs():
-    """Kabinet reply-klaviaturasi — 3 tilda."""
-    print("== Kabinet reply-klaviaturasi (uz/ru/en) ==")
-    from keyboards.default import get_cabinet_keyboard
-    from locales.translations import get_text
-
-    for lang in ("uz", "ru", "en"):
-        kb = get_cabinet_keyboard(lang)
-        labels = [b.text for row in kb.keyboard for b in row]
-        # Tugmalar tilga mos
-        for key in ("cab_btn_channels", "cab_btn_converter", "cab_btn_daily_bonus",
-                     "cab_btn_invite", "cab_btn_transfer", "btn_main_menu"):
-            expected = get_text(key, lang)
-            check(f"{lang}: reply kb has '{key[:20]}'",
-                  expected in labels, f"expected={expected}, labels={labels}")
-
-
 # ================================================================
 # 16. PLACEHOLDER MOSLIGI — 3 tilda
 # ================================================================
@@ -705,7 +688,6 @@ def main():
     test_referral_3_langs()
     test_transfer_3_langs()
     test_navigation_buttons_3_langs()
-    test_cabinet_reply_keyboard_3_langs()
     test_placeholders_match()
     test_callback_data_safety()
     test_parity()

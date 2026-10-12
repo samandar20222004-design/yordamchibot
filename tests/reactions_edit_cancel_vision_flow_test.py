@@ -67,6 +67,8 @@ LANGS = ("uz", "ru", "en")
 TASHKENT = pytz.timezone("Asia/Tashkent")
 
 
+from keyboards.inline import post_creation_menu as _post_menu  # noqa: E402
+
 def check(name, cond, extra="") -> bool:
     global passed, failures
     if cond:
@@ -388,7 +390,7 @@ def test_cancel_flow_returns_to_scheduled_list() -> None:
     import database as db_mod
     from telegram.ext import ConversationHandler
     from handlers.start import cancel_handler
-    from translations import channels_queue_t, content_menu_t
+    from translations import channels_queue_t
     from locales.translations import get_text
 
     header("TEST 3 — ❌ «Bekor qilish»: Kontent yaratishga EMAS, 📅 ro'yxatga")
@@ -435,7 +437,7 @@ def test_cancel_flow_returns_to_scheduled_list() -> None:
             _FakeUpdate(message=msg3, user_id=700100001), ctx3))
         check("oddiy FSM + Bekor → KONTENT submenyusi (eski xulq buzilmadi)",
               state3 == ConversationHandler.END and msg3.sent
-              and content_menu_t("cm_menu_intro", "uz") in msg3.sent[-1]["text"],
+              and msg3.sent[-1]["text"] == _post_menu("uz")[0],
               str(msg3.sent)[:160])
 
         # 3d) «◀️ Orqaga» (p_edbk) — menyu 📅 ro'yxatiga qaytadi + FSM tozalanadi.

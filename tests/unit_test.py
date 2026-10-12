@@ -6095,7 +6095,7 @@ def test_cabinet_i18n_suite():
     import sys as _sys
     from pathlib import Path
     from locales.translations import get_text, localize_db_message, TRANSLATIONS
-    from keyboards.default import get_main_keyboard, get_cabinet_keyboard, get_cancel_keyboard, exact, BTN_CHANNELS, BTN_CHANNELS_RU, BTN_CONVERTER, BTN_CONVERTER_RU, BTN_DAILY_BONUS, BTN_DAILY_BONUS_RU, BTN_INVITE, BTN_INVITE_RU, BTN_TRANSFER, BTN_TRANSFER_RU, BTN_BACK, BTN_BACK_RU, BTN_CANCEL, BTN_CANCEL_RU, BTN_PREMIUM_RU, BTN_SETTINGS_RU  # noqa: F401
+    from keyboards.default import get_main_keyboard, get_cancel_keyboard, exact, BTN_CHANNELS, BTN_CHANNELS_RU, BTN_CONVERTER, BTN_CONVERTER_RU, BTN_DAILY_BONUS, BTN_DAILY_BONUS_RU, BTN_INVITE, BTN_INVITE_RU, BTN_TRANSFER, BTN_TRANSFER_RU, BTN_BACK, BTN_BACK_RU, BTN_CANCEL, BTN_CANCEL_RU, BTN_PREMIUM_RU, BTN_SETTINGS_RU  # noqa: F401
     from keyboards.inline import (
         get_cabinet_inline_keyboard, get_cabinet_back_keyboard,
         get_channels_manage_keyboard, render_channels_list, no_channels_hint,
@@ -6135,29 +6135,6 @@ def test_cabinet_i18n_suite():
     # ---------- 2) Kabinet reply-klaviaturasi ----------
     def _rows(kb):
         return [[b.text for b in row] for row in kb.keyboard]
-
-    check("kabinet kb uz", _rows(get_cabinet_keyboard("uz")) == [
-        [BTN_CHANNELS, BTN_CONVERTER],
-        [BTN_DAILY_BONUS],
-        [BTN_INVITE, BTN_TRANSFER],
-        [BTN_BACK],
-    ], str(_rows(get_cabinet_keyboard("uz"))))
-    check("kabinet kb ru", _rows(get_cabinet_keyboard("ru")) == [
-        [BTN_CHANNELS_RU, BTN_CONVERTER_RU],
-        [BTN_DAILY_BONUS_RU],
-        [BTN_INVITE_RU, BTN_TRANSFER_RU],
-        [BTN_BACK_RU],
-    ], str(_rows(get_cabinet_keyboard("ru"))))
-    check("kabinet kb: default uz (eski chaqiruvlar buzilmaydi)",
-          _rows(get_cabinet_keyboard()) == _rows(get_cabinet_keyboard("uz")))
-
-    class _Ctx:
-        def __init__(self, data):
-            self.user_data = data
-
-    check("kabinet kb: context.user_data['lang'] hurmat qilinadi",
-          _rows(get_cabinet_keyboard(context=_Ctx({"lang": "ru"})))
-          == _rows(get_cabinet_keyboard("ru")))
 
     cancel_ru = [b.text for row in get_cancel_keyboard("ru").keyboard for b in row]
     check("bekor qilish kb ru", cancel_ru == [BTN_CANCEL_RU, BTN_BACK_RU], str(cancel_ru))

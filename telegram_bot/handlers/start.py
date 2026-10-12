@@ -10,7 +10,7 @@ from handlers.onboarding import (
     main_menu_intro_suffix, resolve_main_keyboard, user_wants_simple_menu,
 )
 from keyboards.default import (
-    get_main_keyboard, get_cabinet_keyboard, get_cancel_keyboard, get_simple_keyboard,
+    get_main_keyboard, get_cancel_keyboard, get_simple_keyboard,
     get_refreshed_main_keyboard,
 )
 from keyboards.inline import (
@@ -481,6 +481,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 
+def _main_menu_markup(update: Update, context, lang: str):
+    """Amal tugagach foydalanuvchiga qaytariladigan asosiy pastki menyu."""
+    user_id = getattr(update.effective_user, "id", None)
+    return get_main_keyboard(user_id in ADMIN_IDS_SET, lang=lang, context=context)
+
+
 async def send_main_menu(context, chat_id: int, lang: str, is_admin: bool,
                          text: str | None = None, simple_menu: bool = False):
     """Asosiy reply-menyuni ``main_menu_hint`` bilan yuboradi (uz/ru).
@@ -660,7 +666,7 @@ async def daily_bonus_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
     res = await db.run_db(db.claim_daily_streak_bonus, user.id)
     if res.get("success"):
         text = build_daily_bonus_text(res, lang)
-        await update.message.reply_text(text, reply_markup=get_cabinet_keyboard(lang), parse_mode="HTML")
+        await update.message.reply_text(text, reply_markup=_main_menu_markup(update, context, lang), parse_mode="HTML")
     else:
         await update.message.reply_text(
             get_text(
@@ -668,7 +674,7 @@ async def daily_bonus_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
                 msg=localize_db_message(res.get("msg", ""), lang),
                 credits=res.get("credits", 0),
             ),
-            reply_markup=get_cabinet_keyboard(lang),
+            reply_markup=_main_menu_markup(update, context, lang),
             parse_mode="HTML"
         )
 
@@ -774,7 +780,7 @@ async def _begin_transfer_flow(update: Update, context: ContextTypes.DEFAULT_TYP
                 credits=my_credits,
                 guide=get_text("daily_bonus_guide", lang),
             ),
-            reply_markup=get_cabinet_keyboard(lang),
+            reply_markup=_main_menu_markup(update, context, lang),
             parse_mode="HTML"
         )
         return ConversationHandler.END
@@ -868,15 +874,16 @@ async def transfer_amount_received(update: Update, context: ContextTypes.DEFAULT
     if success:
         await update.message.reply_text(
             get_text("transfer_success", lang, name=html_escape(to_name), amount=amount),
-            reply_markup=get_cabinet_keyboard(lang),
+            reply_markup=_main_menu_markup(update, context, lang),
             parse_mode="HTML"
         )
         try:
             sender_name = update.effective_user.first_name
+            to_lang = await db.run_db(db.get_user_language, to_id)
             await context.bot.send_message(
                 chat_id=to_id,
                 text=get_text(
-                    "transfer_gift_notice", lang,
+                    "transfer_gift_notice", to_lang,
                     name=html_escape(sender_name), amount=amount,
                 ),
                 parse_mode="HTML"
@@ -886,7 +893,7 @@ async def transfer_amount_received(update: Update, context: ContextTypes.DEFAULT
     else:
         await update.message.reply_text(
             get_text("transfer_error", lang, msg=localize_db_message(msg, lang)),
-            reply_markup=get_cabinet_keyboard(lang),
+            reply_markup=_main_menu_markup(update, context, lang),
             parse_mode="HTML",
         )
         
@@ -1027,24 +1034,21 @@ async def cancel_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     section = current_section(context)
     clear_fsm_data(context)
-    if section != SECTION_MAIN:
-        # Bo'lim boshiga qaytish (Kontent submenu / AI Studio hub / ...).
-        # Xato bo'lsa — asosiy menyuga fallback (fail-safe).
-        try:
-            rendered = await render_section_start_message(
-                update.message, context, user_id, is_admin, lang,
-            )
-        except Exception:
-            rendered = False
-        if rendered:
-            return ConversationHandler.END
+    # Avval pastki klaviaturani asosiy menyuga qaytaramiz (aks holda
+    # «❌ Bekor qilish» tugmalari ekranda qolib ketadi), keyin foydalanuvchi
+    # turgan bo'limning boshlang'ich ekranini ko'rsatamiz.
     await update.message.reply_text(
         get_text("cancel_done", lang),
-        # 🆕 Yangi foydalanuvchi bekor qilgandan keyin ham sodda (3 tugmali)
-        # menyuga qaytadi — 6 talik menyu uni yana chalkashtirmaydi.
         reply_markup=await resolve_main_keyboard(user_id, is_admin, lang, context),
         parse_mode="HTML",
     )
+    if section != SECTION_MAIN:
+        try:
+            await render_section_start_message(
+                update.message, context, user_id, is_admin, lang,
+            )
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.start:cancel_handler:section", _silent_exc)
     return ConversationHandler.END
 
 

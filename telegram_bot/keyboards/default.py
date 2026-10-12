@@ -993,23 +993,6 @@ def get_simple_keyboard(lang="uz", context=None):
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
 
-def get_cabinet_keyboard(lang="uz", context=None):
-    """Kabinet reply-klaviaturasi — foydalanuvchi tilida (uz/ru).
-
-    ``context`` berilsa, til ``context.user_data['lang']`` dan olinadi
-    (xuddi :func:`get_main_keyboard` kabi).
-    """
-    if context is not None:
-        lang = get_lang(context, lang)
-    keyboard = [
-        [get_text("cab_btn_channels", lang), get_text("cab_btn_converter", lang)],
-        [get_text("cab_btn_daily_bonus", lang)],
-        [get_text("cab_btn_invite", lang), get_text("cab_btn_transfer", lang)],
-        [get_text("btn_main_menu", lang)]
-    ]
-    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
-
-
 def get_cancel_keyboard(lang="uz", context=None):
     """Jarayonni to'xtatish klaviaturasi: Bekor qilish + Asosiy menyu.
 

@@ -753,6 +753,17 @@ def get_post_creation_contextual_keyboard(lang: str = "uz") -> InlineKeyboardMar
 render_post_creation_menu = get_post_creation_contextual_keyboard
 
 
+def post_creation_menu(lang: str = "uz") -> tuple[str, InlineKeyboardMarkup]:
+    """«✍️ Post yaratish» ekrani: sarlavha matni va 8 tugmali menyu.
+
+    Bo'limga kirishda ham, ichki oqimlardan «◀️ Orqaga» bosilganda ham
+    aynan shu ekran ko'rsatiladi.
+    """
+    from translations import content_menu_t
+
+    return content_menu_t("ctx_post_intro", lang), get_post_creation_contextual_keyboard(lang)
+
+
 def get_channel_contextual_keyboard(channel_id, lang: str = "uz") -> InlineKeyboardMarkup:
     """`[📢 Kanallarim]` ichida har bir kanal uchun kontekstual menyu::
 

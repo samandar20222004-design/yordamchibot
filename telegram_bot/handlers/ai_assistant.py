@@ -10,9 +10,6 @@ from keyboards.default import (
     get_cancel_keyboard, get_main_keyboard, get_ai_time_keyboard,
     # 🧩 KONTENT YARATISH submenu'si — yorliqlar va
     # MENU_TEXTS registry bilan bir xil manbadan chiziladi.
-    get_content_creation_keyboard,
-    # Uch tilli tugma registry: "⚡ 5 minutes" / "🔁 Daily (same time)" kabi
-    # EN/RU yorliqlari ham shu yerdan taniladi.
     is_menu_text,
 )
 from keyboards.callback_data import CB_PHOTO_VARIANT, cb
@@ -1100,12 +1097,10 @@ async def ai_studio_menu_entry(update: Update, context: ContextTypes.DEFAULT_TYP
         return ConversationHandler.END
     lang = get_lang(context)
     remember_section(context, SECTION_CONTENT)
-    from keyboards.inline import get_post_creation_contextual_keyboard
-    await msg.reply_text(
-        content_menu_t("ctx_post_intro", lang),
-        reply_markup=get_post_creation_contextual_keyboard(lang),
-        parse_mode="HTML",
-    )
+    from keyboards.inline import post_creation_menu
+
+    text, markup = post_creation_menu(lang)
+    await msg.reply_text(text, reply_markup=markup, parse_mode="HTML")
     return ConversationHandler.END
 
 
@@ -1747,11 +1742,10 @@ async def ai_back_to_content(update: Update, context: ContextTypes.DEFAULT_TYPE)
     # Foydalanuvchi endi «🧩 Kontent yaratish» bo'limida.
     remember_section(context, SECTION_CONTENT)
     lang = get_lang(context)
-    await _safe_edit(
-        query,
-        content_menu_t("cm_menu_intro", lang),
-        get_content_creation_keyboard(lang),
-    )
+    from keyboards.inline import post_creation_menu
+
+    text, markup = post_creation_menu(lang)
+    await _safe_edit(query, text, markup)
     return ConversationHandler.END
 
 

@@ -39,7 +39,6 @@ from handlers.ai_assistant import AI_GET_TIME, _show_time_prompt
 from keyboards.callback_data import CB_POST_SCORE_EVAL, cb
 from keyboards.default import (
     get_cancel_keyboard,
-    get_content_creation_keyboard,
 )
 from keyboards.inline import btn_label
 from locales.translations import clear_fsm_data, get_lang, safe_t
@@ -51,7 +50,7 @@ from services.ai_quota import (
     reserve_for_flow,
     take_reservation_id,
 )
-from translations import MAGIC_STYLE_KEYS, content_menu_t, magic_t, post_score_t
+from translations import MAGIC_STYLE_KEYS, magic_t, post_score_t
 from services.delivery import delivery_service  # yagona delivery engine
 from utils.ai_agent import (
     generate_magic_post,
@@ -823,11 +822,10 @@ async def magic_back_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
     except Exception as _silent_exc:
         log_silent_failure("handlers.magic_post:magic_back_callback:762", _silent_exc, lang=lang)
     try:
-        await query.message.reply_text(
-            content_menu_t("cm_menu_intro", lang),
-            reply_markup=get_content_creation_keyboard(lang),
-            parse_mode="HTML",
-        )
+        from keyboards.inline import post_creation_menu
+
+        text, markup = post_creation_menu(lang)
+        await query.message.reply_text(text, reply_markup=markup, parse_mode="HTML")
     except Exception as _silent_exc:
         log_silent_failure("handlers.magic_post:magic_back_callback:770", _silent_exc, lang=lang)
     return ConversationHandler.END

@@ -111,6 +111,8 @@ PASSED = 0
 FAILURES = 0
 
 
+from keyboards.inline import post_creation_menu as _post_menu  # noqa: E402
+
 def check(label, condition, extra=""):
     """Bitta tekshiruv natijasini hisobga oladi va chop etadi."""
     global PASSED, FAILURES
@@ -1014,11 +1016,12 @@ def test_t_back_content_ai_returns_to_content_submenu():
             state = _run(ai_mod.ai_back_to_content(_query_update(q), ctx))
         screen = q.screen
         check(f"[{lang}] Orqaga → END", state == ConversationHandler.END, str(state))
-        check(f"[{lang}] Orqaga → KONTENT submenu matni",
-              (screen.get("text") or "") == content_menu_t("cm_menu_intro", lang),
+        menu_text, menu_markup = _post_menu(lang)
+        check(f"[{lang}] Orqaga → «Post yaratish» menyusi matni",
+              (screen.get("text") or "") == menu_text,
               (screen.get("text") or "")[:60])
-        check(f"[{lang}] Orqaga → kontent klaviaturasi",
-              _rows(screen.get("reply_markup")) == content_creation_rows(lang),
+        check(f"[{lang}] Orqaga → «Post yaratish» menyusi tugmalari",
+              _rows(screen.get("reply_markup")) == _rows(menu_markup),
               str(_rows(screen.get("reply_markup"))))
         check(f"[{lang}] asosiy menyuga SAKRAMADI",
               get_text("btn_create_content", lang) not in _flat(screen.get("reply_markup")))

@@ -174,14 +174,10 @@ async def render_section_start_message(msg, context, user_id: int,
     try:
         if section == SECTION_CONTENT:
             # 🧩 Kontent yaratish — bo'lim boshiga qaytish standarti.
-            from keyboards.default import get_content_creation_keyboard
-            from translations import content_menu_t
+            from keyboards.inline import post_creation_menu
 
-            await msg.reply_text(
-                content_menu_t("cm_menu_intro", lang),
-                reply_markup=get_content_creation_keyboard(lang),
-                parse_mode="HTML",
-            )
+            text, markup = post_creation_menu(lang)
+            await msg.reply_text(text, reply_markup=markup, parse_mode="HTML")
             return True
 
         if section == SECTION_AI_STUDIO:
