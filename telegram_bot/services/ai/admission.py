@@ -45,6 +45,11 @@ class Admission:
     gated_user: int | None = None
     ticket: object | None = None
 
+    async def finalize(self) -> None:
+        """Umumiy byudjet bronini yakunlaydi (haqiqiy sarf/aniq xato/noma'lum)."""
+        if self.ticket is not None:
+            await default_guard().finalize(self.ticket)
+
     def release(self) -> None:
         """Slot va byudjet bronini bo'shatadi (idempotent)."""
         if self.ticket is not None:

@@ -435,6 +435,9 @@ echo "===== 3f) 📢 KANALLARIM + 📅 REJALASHTIRILGAN ====="
 # Umumiy AI byudjeti: PostgreSQL atomik rezervatsiyasi (jonli DB: AI_BUDGET_TEST_DATABASE_URL).
 "$PY" tests/ai_budget_reservation_test.py || fail "tests/ai_budget_reservation_test.py"
 
+# Umumiy AI byudjeti: BudgetGuard integratsiyasi (parallel, fail-closed, yakunlash; jonli DB ixtiyoriy).
+"$PY" tests/ai_global_budget_test.py || fail "tests/ai_global_budget_test.py"
+
 echo
 echo "===== 3g) 📊 STATISTIKA + ⚙️ SOZLAMALAR + ADMIN RBAC ====="
 # (1) 📊 Statistika — aniq nom + ixcham 4 ko'rsatkich (📢 kanallar /
