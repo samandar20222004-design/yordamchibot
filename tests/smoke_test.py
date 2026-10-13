@@ -115,7 +115,6 @@ def check(name: str, condition: Any, detail: str = "") -> bool:
 
 def not_tested(name: str, reason: str) -> None:
     """Muhit imkoni yo'qligi (soxta PASS berilmaydi)."""
-    global NOT_TESTED
     NOT_TESTED.append((name, reason))
     print(f"  [NOT TESTED] {name} — {reason}")
     FINDINGS.append({"level": "NOT_TESTED", "name": name, "detail": reason})

@@ -2501,7 +2501,7 @@ from repositories.audit_repository import (  # noqa: E402, F401
     attach_support_ticket_delivery, count_admin_audit_logs,
     count_user_support_tickets, create_support_ticket, delete_admin_role,
     get_admin_audit_logs, get_admin_dashboard_stats, get_admin_role,
-    get_ai_usage_report, get_observability_metrics, get_recent_support_tickets, get_support_ticket,
+    get_ai_global_cost_usd, get_ai_usage_report, get_observability_metrics, get_recent_support_tickets, get_support_ticket,
     get_support_ticket_by_admin_message, get_system_stats, list_admin_roles,
     log_admin_action, mark_support_ticket_answered, purge_ai_usage_events,
     save_ai_usage_event, set_admin_role
