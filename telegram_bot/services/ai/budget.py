@@ -23,6 +23,14 @@ qulf ichida). Javob tugagach ``release`` bronni bo'shatadi; haqiqiy sarf
 telemetriya orqali ledger'ga yoziladi. Xato bo'lsa ham bron bo'shatiladi
 (refund) — foydalanuvchi byudjeti yonib ketmaydi.
 
+Umumiy chegara
+--------------
+``AI_GLOBAL_DAILY_USD`` — BARCHA foydalanuvchilar bo'yicha bir kunlik (UTC)
+AI xarajati chegarasi. Foydalanuvchi limitlari bilan birga tekshiriladi:
+umumiy sarf + barcha bronlar + yangi so'rov chegaradan oshsa so'rov rad
+etiladi (provayder chaqirilmaydi). ``0`` / bo'sh → umumiy cheklov yo'q.
+DB'dagi umumiy sarf ``GLOBAL_DB_CACHE_SECONDS`` davomida keshlanadi.
+
 Limit ``0`` yoki manfiy bo'lsa — shu metrika bo'yicha cheklov YO'Q.
 Byudjet xatosi (DB uzilishi) AI'ni to'xtatmaydi: DB'siz faqat jarayon
 xotirasidagi ledger ishlatiladi (fail-soft, lekin xarajat har doim yoziladi).
@@ -35,6 +43,7 @@ import logging
 import os
 import sys
 import threading
+import time
 import uuid
 from dataclasses import dataclass, field
 
@@ -53,6 +62,11 @@ REFERENCE_PRICE_MODEL = "gemini-2.5-flash"
 
 PERIOD_DAILY = "daily"
 PERIOD_MONTHLY = "monthly"
+#: Umumiy (barcha foydalanuvchilar) kunlik chegara tugaganda.
+PERIOD_GLOBAL = "global"
+
+#: Umumiy kunlik sarfning DB qiymati shuncha soniya keshlanadi.
+GLOBAL_DB_CACHE_SECONDS = 30.0
 
 
 # ---------------------------------------------------------------------------
@@ -126,6 +140,11 @@ def tier_budget(tier: str | None) -> TierBudget:
         monthly_tokens=_int_env(os.getenv("AI_BUDGET_FREE_MONTHLY_TOKENS"), 500_000),
         monthly_usd=_float_env(os.getenv("AI_BUDGET_FREE_MONTHLY_USD"), 0.15),
     )
+
+
+def global_daily_usd_cap() -> float:
+    """Umumiy kunlik AI xarajat chegarasi (USD); ``0`` → cheklov yo'q."""
+    return max(0.0, _float_env(os.getenv("AI_GLOBAL_DAILY_USD"), 0.0))
 
 
 def reserve_output_tokens() -> int:
@@ -243,6 +262,45 @@ async def _db_snapshot(user_id: int) -> Snapshot | None:
     return Snapshot(daily=daily, monthly=monthly)
 
 
+def _utc_day() -> str:
+    from datetime import datetime, timezone
+
+    return datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+
+_global_db_cache: dict = {"day": "", "at": 0.0, "usd": None}
+
+
+async def _db_global_daily_usd() -> float | None:
+    """Bugungi umumiy sarf (DB, keshlangan). DB yo'q / xato → ``None``."""
+    if not _db_ready():
+        return None
+    day = _utc_day()
+    now = time.monotonic()
+    cache = _global_db_cache
+    if (cache["day"] == day and cache["usd"] is not None
+            and now - cache["at"] < GLOBAL_DB_CACHE_SECONDS):
+        return cache["usd"]
+    try:
+        usd = await asyncio.wait_for(
+            asyncio.to_thread(sys.modules["database"].get_ai_global_cost_usd, PERIOD_DAILY),
+            DB_SNAPSHOT_TIMEOUT)
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("budget: umumiy sarf olinmadi: %s", exc)
+        return cache["usd"] if cache["day"] == day else None
+    if usd is None:
+        return cache["usd"] if cache["day"] == day else None
+    cache.update(day=day, at=now, usd=float(usd))
+    return float(usd)
+
+
+def _memory_global_daily_usd() -> float:
+    from services.ai import cost_tracker
+
+    return float(cost_tracker.default_ledger().totals(period=PERIOD_DAILY)
+                 .get("cost_usd") or 0.0)
+
+
 # ---------------------------------------------------------------------------
 # Byudjet bron (atomik) va refund
 # ---------------------------------------------------------------------------
@@ -257,12 +315,14 @@ class BudgetTicket:
 @dataclass(frozen=True)
 class BudgetDecision:
     allowed: bool
-    reason: str = "ok"          # ok | daily_tokens | daily_usd | monthly_tokens | monthly_usd
+    reason: str = "ok"  # ok | daily_* | monthly_* | global_daily_usd
     ticket: BudgetTicket | None = None
     tier: str = TIER_FREE
 
     @property
     def period(self) -> str:
+        if self.reason.startswith("global"):
+            return PERIOD_GLOBAL
         return PERIOD_MONTHLY if self.reason.startswith("monthly") else PERIOD_DAILY
 
 
@@ -274,6 +334,8 @@ class BudgetGuard:
         self._inflight: dict[int, Usage] = {}
         self._tickets: dict[str, BudgetTicket] = {}
         self.denied = 0
+        self.global_denied = 0
+        self._global_warned_day = ""
 
     def inflight(self, user_id) -> Usage:
         with self._lock:
@@ -286,7 +348,9 @@ class BudgetGuard:
             return BudgetDecision(True, "ok", None, tier)
         uid = int(user_id)
         limits = tier_budget(tier)
+        global_cap = global_daily_usd_cap()
         db_snap = await _db_snapshot(uid)          # tarmoq I/O — qulfdan TASHQARIDA
+        db_global = await _db_global_daily_usd() if global_cap > 0 else None
         with self._lock:
             committed = _memory_snapshot(uid)
             if db_snap is not None:
@@ -305,10 +369,28 @@ class BudgetGuard:
                 if cap and cap > 0 and projected > cap:
                     self.denied += 1
                     return BudgetDecision(False, reason, None, tier)
+            if global_cap > 0:
+                spent = max(_memory_global_daily_usd(), db_global or 0.0)
+                held_all = sum(u.usd for u in self._inflight.values())
+                if spent + held_all + usd > global_cap:
+                    self.denied += 1
+                    self.global_denied += 1
+                    self._warn_global(spent + held_all, global_cap)
+                    return BudgetDecision(False, "global_daily_usd", None, tier)
             ticket = BudgetTicket(uuid.uuid4().hex, uid, int(tokens), float(usd))
             self._tickets[ticket.ticket_id] = ticket
             self._inflight[uid] = Usage(held.tokens + ticket.tokens, held.usd + ticket.usd)
         return BudgetDecision(True, "ok", ticket, tier)
+
+    def _warn_global(self, spent: float, cap: float) -> None:
+        """Umumiy chegaraga yetilganini kuniga bir marta WARNING bilan yozadi."""
+        day = _utc_day()
+        if self._global_warned_day == day:
+            return
+        self._global_warned_day = day
+        logger.warning("AI umumiy kunlik byudjeti tugadi: sarf+bron=$%.4f, chegara=$%.4f "
+                       "(AI_GLOBAL_DAILY_USD) — yangi AI so'rovlari rad etilmoqda",
+                       spent, cap)
 
     def release(self, ticket: BudgetTicket | None) -> bool:
         """Bronni bo'shatadi (idempotent — ikkinchi chaqiruv no-op)."""
@@ -329,7 +411,9 @@ class BudgetGuard:
         with self._lock:
             return {"inflight_users": len(self._inflight),
                     "open_tickets": len(self._tickets),
-                    "denied": self.denied}
+                    "denied": self.denied,
+                    "global_denied": self.global_denied,
+                    "global_daily_usd_cap": global_daily_usd_cap()}
 
 
 _guard = BudgetGuard()
@@ -348,16 +432,22 @@ _TEXTS = {
         "daily": "kunlik", "monthly": "oylik",
         "msg": ("⏳ AI {period} xarajat byudjeti tugadi. Ertaga qayta urinib ko'ring "
                 "yoki PRO tarifga o'ting."),
+        "global": ("⏳ AI bugun vaqtincha mavjud emas — xizmatning kunlik limiti tugadi. "
+                   "Ertaga qayta urinib ko'ring. Postni qo'lda yozish ishlayveradi."),
     },
     "ru": {
         "daily": "дневной", "monthly": "месячный",
         "msg": ("⏳ Исчерпан {period} бюджет расходов на ИИ. Попробуйте завтра "
                 "или перейдите на тариф PRO."),
+        "global": ("⏳ ИИ сегодня временно недоступен — дневной лимит сервиса исчерпан. "
+                   "Попробуйте завтра. Ручное создание постов работает."),
     },
     "en": {
         "daily": "daily", "monthly": "monthly",
         "msg": ("⏳ The {period} AI spending budget is used up. Try again tomorrow "
                 "or upgrade to PRO."),
+        "global": ("⏳ AI is temporarily unavailable today — the service's daily limit "
+                   "is used up. Try again tomorrow. Manual posting still works."),
     },
 }
 
@@ -366,6 +456,8 @@ def budget_message(lang: str = "uz", period: str = PERIOD_DAILY) -> str:
     """Byudjet tugaganda foydalanuvchiga muloyim xabar (uz/ru/en)."""
     code = (lang or "uz").lower()
     table = _TEXTS.get(code, _TEXTS["uz"])
+    if period == PERIOD_GLOBAL:
+        return table["global"]
     label = table["monthly" if period == PERIOD_MONTHLY else "daily"]
     return table["msg"].format(period=label)
 
@@ -375,6 +467,7 @@ __all__ = [
     "BudgetGuard",
     "BudgetTicket",
     "PERIOD_DAILY",
+    "PERIOD_GLOBAL",
     "PERIOD_MONTHLY",
     "TIER_FREE",
     "TIER_PRO",
@@ -382,6 +475,7 @@ __all__ = [
     "budget_message",
     "default_guard",
     "estimate_request",
+    "global_daily_usd_cap",
     "pro_monthly_usd_default",
     "resolve_tier",
     "reserve_output_tokens",

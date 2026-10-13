@@ -850,6 +850,26 @@ def _ai_usage_window_sql(period: str) -> str:
     return "AND created_at >= date_trunc('day', NOW() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'"
 
 
+def get_ai_global_cost_usd(period: str = "daily"):
+    """Barcha foydalanuvchilar bo'yicha joriy kun/oy AI xarajati (USD).
+
+    Umumiy byudjet chegarasi (``AI_GLOBAL_DAILY_USD``) uchun yengil so'rov —
+    to'liq hisobotdagi guruhlashlarsiz. Xatoda ``None`` (fail-soft).
+    """
+    window = _ai_usage_window_sql(period if period in ("daily", "monthly") else "daily")
+    try:
+        with db_cursor() as cur:
+            cur.execute(
+                "SELECT COALESCE(SUM(estimated_cost), 0) FROM ai_usage_events "  # nosec B608 — window kod-konstanta
+                f"WHERE TRUE {window}"
+            )
+            row = cur.fetchone()
+        return round(float((row or (0,))[0] or 0.0), 6)
+    except Exception as e:
+        logger.error("get_ai_global_cost_usd xatosi (period=%s): %s", period, e)
+        return None
+
+
 def get_ai_usage_report(user_id=None, channel_id=None, period: str = "daily",
                         limit: int = 200):
     """Kunlik/oylik xarajat va foydalanish hisoboti (user/kanal kesimida).

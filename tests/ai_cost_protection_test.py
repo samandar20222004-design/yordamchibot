@@ -8,7 +8,8 @@ Qamrov:
   2) Yagona narx manbai: telemetriya jadvali ``cost_tracker.MODEL_PRICES`` ning hosilasi.
   3) Kesh kaliti: channel_context, prompt, til va model versiyasi kalitga kiradi.
   4) Foydalanuvchi konkurentligi: bir vaqtda faol joblar limiti (fail-fast).
-  5) Byudjet: FREE/PRO kunlik/oylik token+USD, bron, refund (idempotent).
+  5) Byudjet: FREE/PRO kunlik/oylik token+USD, bron, refund (idempotent);
+     umumiy kunlik chegara (AI_GLOBAL_DAILY_USD).
   6) Fallback yo'li: telemetriya BIR marta yoziladi (legacy_chain bilan dedupe),
      gate/byudjet rad etsa provayder CHAQIRILMAYDI, xatoda bron qaytariladi.
   7) Arzon model tartibi (faqat ``cheap`` transformatsiyalar) va amal turi (action_type).
@@ -324,6 +325,93 @@ def test_budget_guard():
 # ===========================================================================
 # TEST 6 — FALLBACK YO'LI: telemetriya, gate/byudjet, refund, dedupe
 # ===========================================================================
+def test_global_daily_budget():
+    print("\n== TEST 5b: Umumiy kunlik AI chegarasi (AI_GLOBAL_DAILY_USD) ==")
+    reset_state()
+    guard = budget.BudgetGuard()
+    roomy = dict(AI_BUDGET_FREE_DAILY_USD="10", AI_BUDGET_FREE_DAILY_TOKENS="0",
+                 AI_BUDGET_FREE_MONTHLY_USD="0", AI_BUDGET_FREE_MONTHLY_TOKENS="0")
+
+    with env(AI_GLOBAL_DAILY_USD=None, **roomy):
+        check("sukut bo'yicha umumiy cheklov yo'q", budget.global_daily_usd_cap() == 0.0
+              and run(guard.acquire(1, budget.TIER_FREE, 10, 5.0)).allowed)
+    reset_state()
+    guard = budget.BudgetGuard()
+    with env(AI_GLOBAL_DAILY_USD="abc", **roomy):
+        check("noto'g'ri qiymat → cheklov yo'q", budget.global_daily_usd_cap() == 0.0)
+
+    with env(AI_GLOBAL_DAILY_USD="0.10", **roomy):
+        a = run(guard.acquire(1, budget.TIER_FREE, 10, 0.06))
+        check("1-foydalanuvchi umumiy chegaraga sig'adi", a.allowed)
+        b = run(guard.acquire(2, budget.TIER_FREE, 10, 0.06))
+        check("boshqa foydalanuvchi bronlari ham hisobga olinadi (RAD)",
+              (not b.allowed) and b.reason == "global_daily_usd", b.reason)
+        check("umumiy rad → period=global", b.period == budget.PERIOD_GLOBAL)
+        check("status: global_denied va chegara ko'rinadi",
+              guard.status()["global_denied"] == 1
+              and guard.status()["global_daily_usd_cap"] == 0.10)
+        guard.release(a.ticket)
+        c = run(guard.acquire(2, budget.TIER_FREE, 10, 0.06))
+        check("bron bo'shatilgach umumiy byudjet qayta ochiladi", c.allowed)
+        guard.release(c.ticket)
+
+        # Bir nechta foydalanuvchining HAQIQIY sarfi (ledger) yig'iladi.
+        book = cost_tracker.default_ledger()
+        for uid in (3, 4):
+            book.record(user_id=uid, provider="x", model="y", cost=0.045)
+        d = run(guard.acquire(5, budget.TIER_FREE, 10, 0.02))
+        check("ledger'dagi umumiy sarf bilan chegara kesiladi",
+              (not d.allowed) and d.reason == "global_daily_usd", d.reason)
+        e = run(guard.acquire(5, budget.TIER_FREE, 10, 0.005))
+        check("chegaraga sig'adigan kichik so'rov o'tadi", e.allowed)
+        guard.release(e.ticket)
+
+        # DB qiymati xotiradan katta bo'lsa — DB ustun (bir nechta jarayon).
+        old_ready, old_db = budget._db_ready, budget._db_global_daily_usd
+        try:
+            budget._db_ready = lambda: False
+
+            async def _db_big():
+                return 0.5
+            budget._db_global_daily_usd = _db_big
+            f = run(guard.acquire(6, budget.TIER_FREE, 10, 0.001))
+            check("DB'dagi umumiy sarf hisobga olinadi",
+                  (not f.allowed) and f.reason == "global_daily_usd", f.reason)
+        finally:
+            budget._db_ready, budget._db_global_daily_usd = old_ready, old_db
+
+    msgs = {lang: budget.budget_message(lang, budget.PERIOD_GLOBAL) for lang in ("uz", "ru", "en")}
+    check("umumiy limit xabari uz/ru/en va PRO taklif qilmaydi",
+          len(set(msgs.values())) == 3 and all("PRO" not in m for m in msgs.values()),
+          str(msgs))
+
+    # DB kesh: bir kun ichida qayta so'ralmaydi.
+    calls = []
+
+    class _FakeDb:
+        _pool = object()
+
+        @staticmethod
+        def get_ai_global_cost_usd(period):
+            calls.append(period)
+            return 0.25
+
+    old_mod = sys.modules.get("database")
+    budget._global_db_cache.update(day="", at=0.0, usd=None)
+    try:
+        sys.modules["database"] = _FakeDb
+        v1 = run(budget._db_global_daily_usd())
+        v2 = run(budget._db_global_daily_usd())
+        check("DB umumiy sarfi o'qiladi va keshlanadi", v1 == v2 == 0.25 and len(calls) == 1,
+              f"{v1} {v2} {calls}")
+    finally:
+        if old_mod is not None:
+            sys.modules["database"] = old_mod
+        else:
+            sys.modules.pop("database", None)
+        budget._global_db_cache.update(day="", at=0.0, usd=None)
+
+
 def test_fallback_telemetry_and_gates():
     print("\n== TEST 6: Fallback — telemetriya, gate, byudjet, refund ==")
     reset_state()
@@ -587,6 +675,7 @@ def main() -> int:
         test_cache_key_strict,
         test_user_job_gate,
         test_budget_guard,
+        test_global_daily_budget,
         test_fallback_telemetry_and_gates,
         test_legacy_dedupe,
         test_cheap_routing_and_action_type,
