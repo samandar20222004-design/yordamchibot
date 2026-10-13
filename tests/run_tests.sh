@@ -438,6 +438,9 @@ echo "===== 3f) 📢 KANALLARIM + 📅 REJALASHTIRILGAN ====="
 # Umumiy AI byudjeti: BudgetGuard integratsiyasi (parallel, fail-closed, yakunlash; jonli DB ixtiyoriy).
 "$PY" tests/ai_global_budget_test.py || fail "tests/ai_global_budget_test.py"
 
+# Provayder zanjiri: oldingi noaniq natija (timeout...) oxirgi 429 bilan nol xarajat bo'lib ketmaydi.
+"$PY" tests/ai_chain_cost_unknown_test.py || fail "tests/ai_chain_cost_unknown_test.py"
+
 echo
 echo "===== 3g) 📊 STATISTIKA + ⚙️ SOZLAMALAR + ADMIN RBAC ====="
 # (1) 📊 Statistika — aniq nom + ixcham 4 ko'rsatkich (📢 kanallar /

@@ -237,6 +237,43 @@ svc_task._real_db = lambda db: True
 out = asyncio.run(svc_task._save_usage(_Db, {"persisted": True, "user_id": 1}, {}))
 check("gateway allaqachon yozgan hodisa AITaskService'da qayta yozilmaydi", out is None and saved == [])
 
+print("\n== 5b) AITaskService yo'lida shlyuz fon yozuvi o'chiriladi (regressiya: usage_id va yo'qolgan yozuv) ==")
+seen = {}
+
+
+class _FakeGateway:
+    async def generate(self, prompt, **kw):
+        # shlyuz ichidagi `_record` taqlidi: fon yozuvi navbatga qo'yilishi MUMKINmi?
+        seen["scheduled"] = usage_store.persist_usage_event({"user_id": 1, "status": "success"})
+
+        async def child():
+            seen["child_scheduled"] = usage_store.persist_usage_event({"user_id": 1, "status": "success"})
+        await asyncio.create_task(child())
+        return gw.GatewayResult(ok=True, text="x" * 80, provider="Gemini", model="gemini-2.5-flash",
+                                task="social_post")
+
+
+async def _task_flow(fake_db):
+    svc_t = app_service.AITaskService(gateway=_FakeGateway())
+    out = await svc_t.run(db=None, task="social_post", prompt="p", user_id=1,
+                          reserve_quota=False, use_cache=False)
+    outside = usage_store.persist_usage_event({"user_id": 1, "status": "success"})
+    await usage_store.drain(1.0)
+    return out, outside
+
+
+orig_db = usage_store._database
+fake_t = FakeDb()
+usage_store._database = lambda: fake_t
+try:
+    outcome, outside_flag = asyncio.run(_task_flow(fake_t))
+finally:
+    usage_store._database = orig_db
+check("AITaskService ichida shlyuz fon yozuvi navbatga qo'yilmaydi", seen.get("scheduled") is False, str(seen))
+check("bola task'da ham o'chirilgan (kontekst meros)", seen.get("child_scheduled") is False, str(seen))
+check("AITaskService tugagach fon yozuvi qayta yoqiladi", outside_flag is True)
+check("AITaskService yo'lida DB'ga ortiqcha yozuv ketmadi (faqat tashqaridagi 1 ta)", len(fake_t.rows) == 1, str(fake_t.rows))
+
 print("\n== 6) Jonli PostgreSQL ==")
 live_url = os.environ.get("AI_BUDGET_TEST_DATABASE_URL", "").strip()
 if not live_url:
