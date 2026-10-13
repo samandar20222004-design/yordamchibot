@@ -417,6 +417,9 @@ echo "===== 3f) 📢 KANALLARIM + 📅 REJALASHTIRILGAN ====="
 # (tests/channels_and_queue_v2_test.py).
 "$PY" tests/channels_and_queue_v2_test.py || fail "tests/channels_and_queue_v2_test.py"
 
+# Kanal uslubi: matnli va inline yo'l egalik (IDOR) tekshiruvidan o'tadi.
+"$PY" tests/channel_tone_ownership_test.py || fail "tests/channel_tone_ownership_test.py"
+
 echo
 echo "===== 3g) 📊 STATISTIKA + ⚙️ SOZLAMALAR + ADMIN RBAC ====="
 # (1) 📊 Statistika — aniq nom + ixcham 4 ko'rsatkich (📢 kanallar /
