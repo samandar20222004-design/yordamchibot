@@ -77,6 +77,7 @@ from scheduler import (
     resolve_channel_ad, build_ad_button_row,
 )
 # Album collection must not block the per-user update lock.
+from services.album_gate import take_album_payload
 from services.media_group_collector import MediaGroupCollector
 
 from locales.translations import clear_fsm_data, get_lang, get_text
@@ -894,6 +895,26 @@ async def _capture_post(update, context, msg, enh):
     user_id = update.effective_user.id
     chat_id = msg.chat_id
     lang = get_lang(context)
+    # 🖼 KONSOLIDATSIYALANGAN ALBOM: ``services/album_gate.py`` butun media
+    # guruhni yig'ib bitta update qilib qaytargan bo'lsa — barcha fayllar bir
+    # yo'la BITTA post sifatida qabul qilinadi (bitta preview paneli).
+    payload = take_album_payload(context, msg)
+    if payload is not None and payload.is_album:
+        items = [item for item in payload.media_items()
+                 if (item.get("type") or "") not in ("voice", "sticker")
+                 and item.get("file_id")]
+        if items:
+            caption = payload.caption or next(
+                (i.get("caption") for i in items if i.get("caption")), "")
+            enh["post"] = {
+                "type": "album",
+                "file_id": json.dumps(items, ensure_ascii=False),
+                "content": caption,
+            }
+            context.user_data.update(
+                post_type="album", file_id=enh["post"]["file_id"], content=caption)
+            await _finish_capture(context, msg, enh, user_id, chat_id, lang)
+            return ENH_POST
     if msg.media_group_id:
         item = _media_item_from_message(msg)
         if not item or item["type"] in ("voice", "sticker"):

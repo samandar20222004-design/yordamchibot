@@ -38,6 +38,10 @@ from utils.helpers import (
 )
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from locales.translations import clear_fsm_data, get_lang, get_text
+from services.album_gate import take_album_payload
+from services.media_group_collector import (
+    ALBUM_DEBOUNCE_SECONDS as _CANONICAL_ALBUM_DEBOUNCE_SECONDS,
+)
 from utils.date_format import format_datetime, format_time, weekday_label
 
 from utils.silent_errors import log_silent_failure
@@ -54,7 +58,8 @@ tashkent_tz = pytz.timezone("Asia/Tashkent")
 # (collector) ishga tushadi; qolgan xabarlar shu task kutayotganda buferga
 # yig'iladi; vaqt tugagach bitta "Albom" posti sifatida yakunlanadi.
 _ALBUM_BUFFERS: dict = {}       # (user_id, draft_key) -> buffer dict
-_ALBUM_WAIT_SECONDS = 1.5       # oxirgi fayldan keyingi "jimlik" oynasi (idle)
+# Oxirgi fayldan keyingi "jimlik" oynasi (idle) — YAGONA manba (qat'iy 2.0s).
+_ALBUM_WAIT_SECONDS = _CANONICAL_ALBUM_DEBOUNCE_SECONDS
 _ALBUM_MAX_WAIT_SECONDS = 15.0  # umuman kutish chegarasi (sekin tarmoq himoyasi)
 _ALBUM_MAX_ITEMS = 10           # Telegram albom chegarasi (10 tagacha = BITTA post)
 _ALBUM_SEQ_KEY = "seq"          # media_group_id'siz (ketma-ket) draft kaliti
@@ -743,6 +748,68 @@ async def _collect_media_into_album(update, context, item) -> int | None:
     return GET_CONTENT
 
 
+async def _collect_album_payload_into_draft(update, context, payload) -> str:
+    """🖼 Darvoza yig'gan TO'LIQ albomni bitta draftga (bitta postga) yozadi.
+
+    Telegram albomning barcha fayllari ``services/album_gate.py`` tomonidan
+    yig'ilib, BITTA konsolidatsiyalangan update sifatida keladi. Bu funksiya
+    o'sha paytda butun guruhni (10 tagacha fayl) bir yo'la draftga qo'shadi:
+    har bir fayl uchun alohida post/panel ochilmaydi — jimlik oynasidan keyin
+    FAQAT BITTA qabul xabari (fayllar soni bilan) chiqadi.
+    """
+    msg = update.message
+    user_id = update.effective_user.id
+    lang = get_lang(context)
+    group_id = getattr(payload, "media_group_id", None) or getattr(msg, "media_group_id", None)
+    items = []
+    for item in payload.media_items():
+        if (item.get("type") or "") in ("voice", "sticker"):
+            continue
+        items.append({
+            "type": item.get("type") or "photo",
+            "file_id": item.get("file_id"),
+            "caption": "",
+        })
+    items = [i for i in items if i.get("file_id")]
+    if not items:
+        return GET_CONTENT
+
+    # Yakka fayl (Telegram kamdan-kam hollarda shunday yuboradi) — oddiy
+    # media oqimi kabi ishlanadi (baribir oraliq preview chiqmaydi).
+    context.user_data.pop("_album_ready", None)
+    seed = _recent_draft_items(context)
+    seen = {(i.get("type"), i.get("file_id")) for i in seed}
+    for item in items:
+        key = (item.get("type"), item.get("file_id"))
+        if key in seen:
+            continue
+        seen.add(key)
+        seed.append(item)
+    if len(seed) > _ALBUM_MAX_ITEMS:
+        seed = seed[:_ALBUM_MAX_ITEMS]
+
+    active = _active_user_album_keys(user_id)
+    for key in active:
+        other = _ALBUM_BUFFERS.get(key)
+        if other is not None and not other.get("done"):
+            # Mavjud yig'ilayotgan buferga QO'SHAMIZ (yangi worker ochmaymiz).
+            other["items"] = seed
+            other["ts"] = time.time()
+            if group_id:
+                other["group_id"] = group_id
+            other["user_data"] = getattr(context, "user_data", None)
+            _mark_media_sequence(context, group_id)
+            return GET_CONTENT
+
+    _open_album_buffer(
+        user_id, context, lang, seed_items=seed,
+        draft_key=group_id or _ALBUM_SEQ_KEY,
+        chat_id=msg.chat_id, group_id=group_id,
+    )
+    _mark_media_sequence(context, group_id)
+    return GET_CONTENT
+
+
 def _build_album_summary(items: list, lang: str) -> str:
     """Albom uchun lokalizatsiya qilingan xulosa: '🖼 Albom: 6 ta rasm' kabi."""
     photos = sum(1 for i in items if (i.get("type") or "photo") in ("photo", "animation"))
@@ -1255,6 +1322,14 @@ async def content_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return GET_CONTENT
 
     _purge_stale_albums()
+
+    # 🖼 KONSOLIDATSIYALANGAN ALBOM: ``services/album_gate.py`` butun media
+    # guruhni yig'ib bitta update qilib qaytargan bo'lsa — barcha fayllar bir
+    # yo'la bitta draftga yoziladi. Shu sababli bitta albom uchun bitta panel,
+    # bitta post bo'ladi (fayllar alohida postlarga bo'linmaydi).
+    _album_payload = take_album_payload(context, msg)
+    if _album_payload is not None and _album_payload.count > 1:
+        return await _collect_album_payload_into_draft(update, context, _album_payload)
 
     # 1) Yakunlangan (collector tugagan) albom kutilmoqda:
     #    foydalanuvchi yuborgan KEYINGI matn — tugma so'rovining javobi.

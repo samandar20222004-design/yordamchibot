@@ -2590,6 +2590,11 @@ def register_all_handlers(app):
     # ✍️ «mnp_» eski panel tugmalari ham faol dialogni buzmasligi uchun.
     set_manual_application(app)
 
+    # 🖼 ALBOM (media_group) DARVOZASI (``services/album_gate.py``) bu yerda
+    # EMAS, ``main.py`` da o'rnatiladi: u ``main.py`` dagi boshqa handler-
+    # dan-oldingi qatlamlar (RateLimitMiddleware group=-1, RBAC group=-2)
+    # qatorida ``group=-3`` ga qo'shiladi. Bu funksiya esa faqat HANDLER
+    # ro'yxatini boshqaradi (testlar ham shu kontraktni qulflaydi).
     all_menu_jumps = _build_all_menu_jumps()
     main_conv = _build_main_conversation_handler(all_menu_jumps)
 

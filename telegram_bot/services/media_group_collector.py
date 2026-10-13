@@ -3,7 +3,7 @@
 Telegram albomning har bir faylini ALOHIDA update sifatida yuboradi (odatda
 0.1–0.5 soniya ichida). Handler har bir updatega alohida javob bersa, bitta
 albom bir nechta mustaqil postga bo'linib ketadi. Bu kollektor fayllarni
-``(foydalanuvchi, media_group_id)`` kaliti bo'yicha yig'adi va OXIRGI fayldan
+``(chat, media_group_id)`` kaliti bo'yicha yig'adi va OXIRGI fayldan
 ``delay`` soniya jimlik o'tgach BITTA ro'yxat sifatida ``on_ready`` ga beradi.
 
 Muhim:
@@ -21,19 +21,29 @@ Muhim:
   * ``max_wait`` — sekin tarmoqda ham yig'ish cheksiz cho'zilmaydi.
   * ``on_ready`` xatosi logga yoziladi va boshqa albomlarga ta'sir qilmaydi.
 
-Modul faqat stdlib + asyncio ishlatadi (telegram bog'liqligi yo'q).
+Modul faqat stdlib + asyncio ishlatadi (telegram bog'liqligi yo'q): xabar
+obyektlari duck-typing orqali o'qiladi, shu sababli modulni handlermasdan
+ham unit-test qilish mumkin.
+
+Standart debounce — **2.0 soniya** (``ALBUM_DEBOUNCE_SECONDS``). Bu qiymat
+butun loyiha uchun YAGONA manba: handlerlar o'z konstantalarini emas, shu
+moduldagi qiymatni ishlatadi.
 """
 
 from __future__ import annotations
 
 import asyncio
 import logging
+import time
+from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable, Hashable
 
 logger = logging.getLogger(__name__)
 
 __all__ = [
     "MediaGroupCollector",
+    "AlbumPayload",
+    "ALBUM_DEBOUNCE_SECONDS",
     "DEFAULT_DELAY_SECONDS",
     "DEFAULT_MAX_WAIT_SECONDS",
     "TELEGRAM_ALBUM_MAX_ITEMS",
@@ -41,14 +51,30 @@ __all__ = [
     "ADDED",
     "DUPLICATE",
     "FULL",
+    "get_album_collector",
+    "reset_album_collectors",
+    "media_type_of",
+    "media_file_id_of",
+    "media_group_id_of",
+    "is_media_group_message",
+    "extract_media_item",
+    "album_caption",
+    "apply_album_caption",
 ]
 
-#: Oxirgi fayldan keyingi jimlik oynasi (debounce).
-DEFAULT_DELAY_SECONDS = 1.5
-#: Birinchi fayldan boshlab umumiy kutish chegarasi.
-DEFAULT_MAX_WAIT_SECONDS = 10.0
+#: Oxirgi fayldan keyingi jimlik oynasi (debounce) — QAT'IY 2.0 soniya.
+#: Butun ilova (handlerlar, post tozalagich, oddiy post, enhancer) shu
+#: qiymatdan foydalanadi; boshqa joyda 1.5/2.0 adabiyot qiymat yozilmaydi.
+ALBUM_DEBOUNCE_SECONDS = 2.0
+#: Orqaga moslik uchun taxallus.
+DEFAULT_DELAY_SECONDS = ALBUM_DEBOUNCE_SECONDS
+#: Birinchi fayldan boshlab umumiy kutish chegarasi (sekin tarmoq himoyasi).
+DEFAULT_MAX_WAIT_SECONDS = 15.0
 #: Telegram albom chegarasi.
 TELEGRAM_ALBUM_MAX_ITEMS = 10
+
+#: Albom elementi bo'la oladigan media turlari (Telegram media group).
+ALBUM_MEDIA_KINDS = ("photo", "video", "document", "animation", "audio")
 
 #: ``add`` natijalari.
 ADDED_STARTED = "started"   # yangi bufer ochildi (shu albomning birinchi fayli)
@@ -57,6 +83,167 @@ DUPLICATE = "duplicate"     # shu ``message_id`` allaqachon bor
 FULL = "full"               # bufer to'lgan (fayl qo'shilmadi)
 
 ReadyCallback = Callable[[list], Awaitable[Any]]
+
+
+# =========================================================================
+# Media oxirigacha bog'liq yordamchilar (telegram-bog'liq EMAS, duck-typing)
+# =========================================================================
+def media_of(message) -> tuple:
+    """``(kind, media)`` — xabardagi media va uning turi (bo'lmasa ``(None, None)``).
+
+    ``photo`` — ro'yxat bo'lgani uchun eng katta (oxirgi) o'lcham olinadi.
+    """
+    for kind in ALBUM_MEDIA_KINDS:
+        media = getattr(message, kind, None)
+        if media:
+            if kind == "photo":
+                media = media[-1]
+            return kind, media
+    return None, None
+
+
+def media_type_of(message) -> str | None:
+    """Xabardagi media turi (``photo``/``video``/``document``...) yoki ``None``."""
+    return media_of(message)[0]
+
+
+def media_file_id_of(message) -> str | None:
+    """Xabardagi media ``file_id`` (bo'lmasa ``None``)."""
+    kind, media = media_of(message)
+    if kind is None or media is None:
+        return None
+    return getattr(media, "file_id", None)
+
+
+def media_group_id_of(message) -> str | None:
+    """Xabarning ``media_group_id``'si (bo'sh/xato bo'lsa ``None``)."""
+    value = getattr(message, "media_group_id", None)
+    if value is None:
+        return None
+    text = str(value)
+    return text or None
+
+
+def is_media_group_message(message) -> bool:
+    """Xabar Telegram albomining bir qismimi (media + ``media_group_id``)."""
+    if message is None:
+        return False
+    return bool(media_group_id_of(message)) and media_type_of(message) is not None
+
+
+def extract_media_item(message) -> dict | None:
+    """Xabarni albom elementi (dict) ga aylantiradi; media bo'lmasa ``None``.
+
+    Qaytarilgan dict::
+
+        {"message_id": int|None, "type": "photo", "file_id": str,
+         "caption": str, "caption_html": str|None, "entities": tuple}
+    """
+    kind, media = media_of(message)
+    file_id = getattr(media, "file_id", None) if media is not None else None
+    if not kind or not file_id:
+        return None
+    caption = getattr(message, "caption", None) or ""
+    caption_html = getattr(message, "caption_html", None)
+    return {
+        "message_id": getattr(message, "message_id", None),
+        "type": kind,
+        "file_id": file_id,
+        "caption": caption,
+        "caption_html": caption_html,
+        "entities": tuple(getattr(message, "caption_entities", None) or ()),
+    }
+
+
+def album_caption(items: list) -> str:
+    """Albom uchun YAGONA izoh: birinchi bo'sh bo'lmagan caption (strip qilinadi)."""
+    for item in items or ():
+        if isinstance(item, dict):
+            caption = (item.get("caption") or "").strip()
+            if caption:
+                return caption
+    return ""
+
+
+def album_caption_html(items: list) -> str | None:
+    """Albom uchun YAGONA HTML izoh (bo'lmasa ``None``)."""
+    for item in items or ():
+        if not isinstance(item, dict):
+            continue
+        value = item.get("caption_html")
+        if value and str(value).strip():
+            return str(value)
+    return None
+
+
+def apply_album_caption(items: list) -> str:
+    """Izohni faqat BIRINCHI elementda qoldiradi va u izohni qaytaradi.
+
+    Telegram albomda matn faqat bitta ``InputMedia`` elementida ko'rinadi,
+    shu sababli yig'ilgan ro'yxatni kanalga yuborishdan oldin izoh
+    birlashtiriladi (qolgan elementlardan olib tashlanadi).
+    """
+    caption = album_caption(items)
+    for index, item in enumerate(items or ()):
+        if isinstance(item, dict):
+            item["caption"] = caption if index == 0 else ""
+    return caption
+
+
+@dataclass
+class AlbumPayload:
+    """Yig'ilgan, TO'LIQ albom — bitta konsolidatsiyalangan post manbasi.
+
+    Voqea oqimi: birinchi fayl kelganda bufer ochiladi → qolgan fayllar
+    shu buferga qo'shiladi → jimlik oynasi (2.0s) tugagach **bitta**
+    ``AlbumPayload`` yasaladi va u orqali FAQAT BITTA preview render qilinadi.
+    """
+
+    media_group_id: str
+    items: list = field(default_factory=list)
+    chat_id: int | None = None
+    user_id: int | None = None
+    caption: str = ""
+    caption_html: str | None = None
+    message: Any = None          # muqova (cover) xabar — preview uchun
+    update: Any = None           # muqova update — dispatch uchun
+    key: Hashable | None = None
+    created_at: float = field(default_factory=time.monotonic)
+    released_at: float | None = None
+    consumed: bool = False
+
+    @property
+    def count(self) -> int:
+        """Albomdagi fayllar soni."""
+        return len(self.items or [])
+
+    @property
+    def is_album(self) -> bool:
+        """Bir nechta fayl (Telegram albomi) — bitta post sifatida chiqadi."""
+        return self.count > 1
+
+    def cover(self) -> dict | None:
+        """Muqova elementi (birinchi fayl)."""
+        return self.items[0] if self.items else None
+
+    def media_items(self) -> list:
+        """``sendMediaGroup`` uchun tayyor media elementlari (nusxa)."""
+        return [dict(item) for item in (self.items or [])]
+
+    def mark_consumed(self) -> bool:
+        """Payload'ni "iste'mol qilindi" deb belgilaydi (idempotent).
+
+        Qaytaradi: ``True`` — birinchi marta (handler ishlashi mumkin);
+        ``False`` — allaqachon iste'mol qilingan (takroriy preview TAQIQLANADI).
+        """
+        if self.consumed:
+            return False
+        self.consumed = True
+        return True
+
+    def to_items(self) -> list:
+        """Handlerlar kutadigan sof ro'yxat ko'rinishi."""
+        return self.media_items()
 
 
 class _Buffer:
@@ -94,6 +281,8 @@ class MediaGroupCollector:
         self._locks: dict[Hashable, asyncio.Lock] = {}
         # Fon vazifalarga kuchli havola — GC ularni yig'ib yubormasligi uchun.
         self._tasks: set[asyncio.Task] = set()
+        # Kuzatuv (health/test): nechta albom yig'ilib yakunlandi.
+        self._delivered = 0
 
     # -- holat --------------------------------------------------------------
     def pending(self, key: Hashable | None = None) -> int:
@@ -111,16 +300,43 @@ class MediaGroupCollector:
         buf = self._buffers.get(key)
         return buf.task if buf is not None else None
 
+    def keys(self) -> list:
+        """Hozir yig'ilayotgan barcha kalitlar."""
+        return list(self._buffers.keys())
+
+    def stats(self) -> dict:
+        """Kollektor hisoboti (kuzatuv/health uchun)."""
+        return {
+            "collecting_keys": len(self._buffers),
+            "pending_items": self.pending(),
+            "delivered_groups": self._delivered,
+            "delay": self.delay,
+            "max_wait": self.max_wait,
+            "max_items": self.max_items,
+        }
+
     # -- qo'shish -----------------------------------------------------------
     def add(self, key: Hashable, item: dict, on_ready: ReadyCallback) -> str:
         """Faylni buferga qo'shadi (event loop ichidan chaqiriladi).
 
         ``item`` — dict; ``message_id`` bo'lsa dublikat aniqlanadi va yakuniy
-        ro'yxat shu bo'yicha tartiblanadi (Telegram tartibi).
+        ro'yxat shu bo'yicha tartiblangan holda beriladi (Telegram tartibi).
 
         Metodda ``await`` yo'q: bitta asyncio event loop ichida append +
         ``last_at`` yangilanishi atomik bajariladi. Finalizer esa shu kalitning
         lock'i ichida vaqtni qayta tekshiradi.
+        """
+        return self.add_many(key, [item], on_ready)
+
+    def add_many(self, key: Hashable, items: list, on_ready: ReadyCallback) -> str:
+        """Bir nechta faylni BIR marta (atomik) buferga qo'shadi.
+
+        Konsolidatsiyalangan albom (masalan, darvoza tomonidan yig'ilgan
+        media group) shu metod orqali butunlay qo'shiladi — handler bir
+        marta chaqirilib, bitta preview render qiladi.
+
+        Qaytaradi: ``ADDED_STARTED`` (bufer ochildi), ``ADDED`` (mavjud
+        buferga qo'shildi), ``DUPLICATE`` yoki ``FULL``.
         """
         loop = asyncio.get_running_loop()
         now = loop.time()
@@ -130,16 +346,30 @@ class MediaGroupCollector:
             lock = self._locks.setdefault(key, asyncio.Lock())
             buf = _Buffer(now, on_ready, lock)
             self._buffers[key] = buf
-        message_id = item.get("message_id") if isinstance(item, dict) else None
-        if message_id is not None and message_id in buf.ids:
-            return DUPLICATE
-        if len(buf.items) >= self.max_items:
-            return FULL
-        buf.items.append(item)
-        if message_id is not None:
-            buf.ids.add(message_id)
-        # Muhim: debounce OXIRGI qabul qilingan elementdan qayta boshlanadi.
+        added = 0
+        duplicates = 0
+        full = False
+        for item in items:
+            outcome = self._append(buf, item)
+            if outcome == DUPLICATE:
+                duplicates += 1
+            elif outcome == FULL:
+                full = True
+            else:
+                added += 1
+        if not added:
+            if started:
+                # Bo'sh/yaroqsiz ro'yxat — bo'sh bufer ochib qo'ymaymiz.
+                self._buffers.pop(key, None)
+                lock = self._locks.get(key)
+                if lock is not None and not lock.locked():
+                    self._locks.pop(key, None)
+            if full:
+                return FULL
+            return DUPLICATE if duplicates else FULL
         buf.last_at = now
+        if buf.first_at > now:  # pragma: no cover - himoya
+            buf.first_at = now
         if started:
             # Bitta media_group uchun FAQAT bitta worker.
             buf.task = loop.create_task(self._run(key, buf))
@@ -148,6 +378,18 @@ class MediaGroupCollector:
             return ADDED_STARTED
         # Mavjud worker'ni uyg'otamiz; yangi preview/finalizer task ochilmaydi.
         buf.changed.set()
+        return ADDED
+
+    def _append(self, buf: _Buffer, item: dict) -> str:
+        """Bitta elementni buferga qo'shadi (dublikat/limit tekshiruvi bilan)."""
+        message_id = item.get("message_id") if isinstance(item, dict) else None
+        if message_id is not None and message_id in buf.ids:
+            return DUPLICATE
+        if len(buf.items) >= self.max_items:
+            return FULL
+        buf.items.append(item)
+        if message_id is not None:
+            buf.ids.add(message_id)
         return ADDED
 
     # -- bekor qilish -------------------------------------------------------
@@ -183,6 +425,14 @@ class MediaGroupCollector:
                 delivered = True
         finally:
             self._cleanup_lock(key, buf)
+        return delivered
+
+    async def flush_all(self) -> int:
+        """Barcha yig'ilayotgan albomlarni darhol yakunlaydi (test/o'chirish)."""
+        delivered = 0
+        for key in list(self._buffers):
+            if await self.flush(key):
+                delivered += 1
         return delivered
 
     async def wait_idle(self) -> None:
@@ -248,7 +498,31 @@ class MediaGroupCollector:
             key=lambda it: (it.get("message_id") is None, it.get("message_id") or 0)
             if isinstance(it, dict) else (True, 0),
         )
+        self._delivered += 1
         try:
             await buf.on_ready(items)
         except Exception:  # noqa: BLE001 — bitta albom xatosi boshqalarni buzmasin
             logger.exception("MediaGroupCollector: on_ready xatosi (%d ta fayl)", len(items))
+
+
+# =========================================================================
+# NOMLANGAN SINGLETON'LAR
+# =========================================================================
+#: Jarayon bo'yicha yagona kollektorlar: turli modullar (darvoza, post
+#: tozalagich, enhancer) bir xil navigatsiya/cleanup semantikasini saqlashi
+#: va testlarda bitta nuqtadan reset qilinishi uchun.
+_COLLECTORS: dict[str, MediaGroupCollector] = {}
+
+
+def get_album_collector(name: str = "global") -> MediaGroupCollector:
+    """Nomlangan umumiy kollektor (yaratilmasa — standart 2.0s bilan yasaladi)."""
+    collector = _COLLECTORS.get(name)
+    if collector is None:
+        collector = MediaGroupCollector()
+        _COLLECTORS[name] = collector
+    return collector
+
+
+def reset_album_collectors() -> None:
+    """Barcha nomlangan kollektorlarni tozalaydi (test/restart uchun)."""
+    _COLLECTORS.clear()
