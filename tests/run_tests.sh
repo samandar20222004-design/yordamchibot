@@ -429,6 +429,9 @@ echo "===== 3f) 📢 KANALLARIM + 📅 REJALASHTIRILGAN ====="
 # Narxi noma'lum AI so'rovlari: budjetda alohida taxminiy sarf (assumed_usd).
 "$PY" tests/ai_unpriced_budget_test.py || fail "tests/ai_unpriced_budget_test.py"
 
+# AI usage hodisalari production yo'lida DB'ga yoziladi (jonli qism: AI_BUDGET_TEST_DATABASE_URL).
+"$PY" tests/ai_usage_persistence_test.py || fail "tests/ai_usage_persistence_test.py"
+
 echo
 echo "===== 3g) 📊 STATISTIKA + ⚙️ SOZLAMALAR + ADMIN RBAC ====="
 # (1) 📊 Statistika — aniq nom + ixcham 4 ko'rsatkich (📢 kanallar /

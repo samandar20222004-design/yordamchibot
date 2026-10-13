@@ -760,6 +760,16 @@ async def graceful_shutdown(application=None, scheduler=None, web_runner=None,
             logger.exception("Scheduler'ni yopishda xatolik")
             _step("scheduler_shutdown", ok=False)
 
+    # 5a) AI usage hodisalari fonda yoziladi: DB pool yopilishidan oldin kutamiz.
+    try:
+        from services.ai.usage_store import drain as drain_ai_usage
+
+        left = await drain_ai_usage(3.0)
+        if left:
+            logger.warning("Shutdown: %d ta AI usage yozuvi tugamadi", left)
+    except Exception:
+        logger.warning("Shutdown vaqtida AI usage yozuvlarini kutib bo'lmadi")
+
     # 5b) PHASE 10: qolgan coalesced faol user ID'larini DB pool yopilishidan
     # oldin bir marta flush qilamiz. Xato shutdown jarayonini to'xtatmaydi.
     try:

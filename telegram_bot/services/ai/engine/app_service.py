@@ -207,6 +207,10 @@ class AITaskService:
             return None
         if not self._real_db(db):
             return None
+        if event_dict.get("persisted"):
+            # Gateway hodisani allaqachon DB'ga yozgan (services/ai/usage_store.py):
+            # ikki marta saqlanmasin.
+            return None
         fields = {
             "user_id": event_dict.get("user_id"),
             "channel_id": event_dict.get("channel_id"),

@@ -840,6 +840,11 @@ class AIGateway:
             from services.ai.cost_tracker import record_usage_event
 
             record_usage_event(result.usage)
+            # production: hodisa DB'ga ham yoziladi (fonda, best-effort).
+            from services.ai.usage_store import persist_usage_event
+
+            if persist_usage_event(result.usage):
+                result.usage["persisted"] = True
         except Exception as exc:  # noqa: BLE001 — telemetriya ixtiyoriy qatlam
             logger.warning("AI Engine telemetriya xatosi: %s", exc)
             result.input_tokens = result.input_tokens or 0
@@ -1202,6 +1207,9 @@ async def legacy_chain(prompt: str, system_instruction: str, lang: str | None = 
         from services.ai.cost_tracker import record_usage_event
 
         record_usage_event(event.as_dict())
+        from services.ai.usage_store import persist_usage_event
+
+        persist_usage_event(event.as_dict())
     except Exception as exc:  # noqa: BLE001 — telemetriya legacy yo'lni buza olmaydi
         logger.warning("Legacy telemetriya xatosi: %s", exc)
     finally:
