@@ -25,6 +25,8 @@ tayanadi (``repositories/ai_budget_repository.py``).
 from __future__ import annotations
 
 import asyncio
+import contextlib
+import contextvars
 import logging
 import os
 import sys
@@ -39,6 +41,22 @@ _FIELDS = (
     "priced", "status", "error_code", "cached", "attempts", "prompt_hash",
     "reservation_id",
 )
+
+
+#: ``True`` bo'lsa fon yozuvi O'TKAZIB YUBORILADI: chaqiruvchi (masalan ``AITaskService``)
+#: hodisani o'zi, kutib, ``reservation_id`` bilan yozadi. Ikki marta yozilmasin va
+#: ``usage_id`` qaytarilsin.
+_SUPPRESS: contextvars.ContextVar = contextvars.ContextVar("ai_usage_persist_suppress", default=False)
+
+
+@contextlib.contextmanager
+def suppress_persistence(active: bool = True):
+    """Shu blok ichidagi ``persist_usage_event`` chaqiruvlari yozmaydi (bola task'larda ham)."""
+    token = _SUPPRESS.set(bool(active))
+    try:
+        yield
+    finally:
+        _SUPPRESS.reset(token)
 
 
 def persist_enabled() -> bool:
@@ -62,7 +80,7 @@ def _fields_of(event: dict) -> dict:
 def persist_usage_event(event: dict) -> bool:
     """Hodisani fonda DB'ga yozishga navbatga qo'yadi. Qaytadi: navbatga qo'yildimi."""
     try:
-        if not persist_enabled() or not isinstance(event, dict):
+        if not persist_enabled() or not isinstance(event, dict) or _SUPPRESS.get():
             return False
         database = _database()
         if database is None:
@@ -96,4 +114,4 @@ async def drain(timeout: float = 5.0) -> int:
     return len([t for t in _PENDING if not t.done()])
 
 
-__all__ = ["drain", "persist_enabled", "persist_usage_event"]
+__all__ = ["drain", "persist_enabled", "persist_usage_event", "suppress_persistence"]

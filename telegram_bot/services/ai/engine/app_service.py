@@ -31,6 +31,7 @@ from dataclasses import dataclass, field
 
 from . import telemetry
 from .gateway import AIGateway, GatewayResult, ai_gateway
+from services.ai.usage_store import suppress_persistence
 
 from utils.silent_errors import log_silent_failure
 
@@ -333,15 +334,18 @@ class AITaskService:
                 )
 
         # 2) SHLYUZ (yagona interfeys) — telemetriya shlyuz ichida yoziladi.
+        #    DB yozuvini bu servis o'zi (kutib, reservation_id bilan, ID qaytarib) bajaradi:
+        #    shlyuzning fon yozuvi o'chiriladi (ikki marta yozilmasin, ``persist_usage`` hurmat).
         try:
-            result = await self.gateway.generate(
-                prompt, task=task, lane=lane, lang=lang,
-                system_instruction=system_instruction, timeout=timeout,
-                use_cache=use_cache, tone=tone, is_pro=is_pro, schema=schema,
-                channel_context=channel_context, user_id=user_id,
-                channel_id=channel_id, operation_type=op_type,
-                require_quality=require_quality, **kwargs,
-            )
+            with suppress_persistence():
+                result = await self.gateway.generate(
+                    prompt, task=task, lane=lane, lang=lang,
+                    system_instruction=system_instruction, timeout=timeout,
+                    use_cache=use_cache, tone=tone, is_pro=is_pro, schema=schema,
+                    channel_context=channel_context, user_id=user_id,
+                    channel_id=channel_id, operation_type=op_type,
+                    require_quality=require_quality, **kwargs,
+                )
         except Exception as exc:  # noqa: BLE001 — shlyuz istisno otmaydi, lekin himoya
             logger.error("AI shlyuz kutilmagan xatosi (task=%s): %s", task, exc)
             result = GatewayResult(
