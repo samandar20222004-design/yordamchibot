@@ -325,91 +325,106 @@ def test_budget_guard():
 # ===========================================================================
 # TEST 6 — FALLBACK YO'LI: telemetriya, gate/byudjet, refund, dedupe
 # ===========================================================================
+class _MemGlobalStore:
+    """Umumiy byudjet do'koni (xotirada): DB semantikasini taqlid qiladi.
+
+    Haqiqiy atomik PostgreSQL do'koni ``tests/ai_budget_reservation_test.py`` va
+    ``tests/ai_global_budget_test.py`` da (jonli DB) sinaladi.
+    """
+
+    def __init__(self, fail=None):
+        self.t, self.spent, self.fail = {}, 0.0, fail
+
+    def available(self):
+        return True
+
+    def _open(self):
+        return sum(v for v in self.t.values() if v is not None)
+
+    async def reserve(self, tid, uid, est, cap, ttl):
+        if self.fail:
+            raise self.fail
+        if round(self.spent + self._open() + est, 6) > round(cap, 6):
+            return {"granted": False, "reason": "global_daily_usd", "used": self.spent + self._open()}
+        self.t[tid] = est
+        return {"granted": True, "reason": "ok", "used": self.spent}
+
+    async def settle(self, tid, actual, assumed):
+        self.t[tid] = None
+        self.spent += actual + assumed
+
+    async def release(self, tid):
+        self.t[tid] = None
+
+    async def mark_unknown(self, tid):
+        self.spent += self.t.get(tid) or 0.0
+        self.t[tid] = None
+
+
 def test_global_daily_budget():
-    print("\n== TEST 5b: Umumiy kunlik AI chegarasi (AI_GLOBAL_DAILY_USD) ==")
+    print("\n== TEST 5b: Umumiy kunlik AI chegarasi (AI_GLOBAL_DAILY_USD, atomik do'kon) ==")
     reset_state()
+    store = _MemGlobalStore()
+    budget.set_global_store(store)
     guard = budget.BudgetGuard()
     roomy = dict(AI_BUDGET_FREE_DAILY_USD="10", AI_BUDGET_FREE_DAILY_TOKENS="0",
                  AI_BUDGET_FREE_MONTHLY_USD="0", AI_BUDGET_FREE_MONTHLY_TOKENS="0")
+    release_hint = {"ok": False, "failure_kind": "rate_limit"}
 
-    with env(AI_GLOBAL_DAILY_USD=None, **roomy):
-        check("sukut bo'yicha umumiy cheklov yo'q", budget.global_daily_usd_cap() == 0.0
-              and run(guard.acquire(1, budget.TIER_FREE, 10, 5.0)).allowed)
-    reset_state()
-    guard = budget.BudgetGuard()
-    with env(AI_GLOBAL_DAILY_USD="abc", **roomy):
-        check("noto'g'ri qiymat → cheklov yo'q", budget.global_daily_usd_cap() == 0.0)
+    try:
+        with env(AI_GLOBAL_DAILY_USD=None, **roomy):
+            check("sukut bo'yicha umumiy cheklov yo'q", budget.global_daily_usd_cap() == 0.0
+                  and run(guard.acquire(1, budget.TIER_FREE, 10, 5.0)).allowed)
+        reset_state()
+        guard = budget.BudgetGuard()
+        with env(AI_GLOBAL_DAILY_USD="abc", **roomy):
+            check("noto'g'ri qiymat → cheklov yo'q", budget.global_daily_usd_cap() == 0.0)
 
-    with env(AI_GLOBAL_DAILY_USD="0.10", **roomy):
-        a = run(guard.acquire(1, budget.TIER_FREE, 10, 0.06))
-        check("1-foydalanuvchi umumiy chegaraga sig'adi", a.allowed)
-        b = run(guard.acquire(2, budget.TIER_FREE, 10, 0.06))
-        check("boshqa foydalanuvchi bronlari ham hisobga olinadi (RAD)",
-              (not b.allowed) and b.reason == "global_daily_usd", b.reason)
-        check("umumiy rad → period=global", b.period == budget.PERIOD_GLOBAL)
-        check("status: global_denied va chegara ko'rinadi",
-              guard.status()["global_denied"] == 1
-              and guard.status()["global_daily_usd_cap"] == 0.10)
-        guard.release(a.ticket)
-        c = run(guard.acquire(2, budget.TIER_FREE, 10, 0.06))
-        check("bron bo'shatilgach umumiy byudjet qayta ochiladi", c.allowed)
-        guard.release(c.ticket)
+        with env(AI_GLOBAL_DAILY_USD="0.10", **roomy):
+            a = run(guard.acquire(1, budget.TIER_FREE, 10, 0.06))
+            check("1-foydalanuvchi umumiy chegaraga sig'adi", a.allowed)
+            b = run(guard.acquire(2, budget.TIER_FREE, 10, 0.06))
+            check("boshqa foydalanuvchi bronlari ham hisobga olinadi (RAD)",
+                  (not b.allowed) and b.reason == "global_daily_usd", b.reason)
+            check("umumiy rad → period=global", b.period == budget.PERIOD_GLOBAL)
+            check("status: global_denied va chegara ko'rinadi",
+                  guard.status()["global_denied"] == 1
+                  and guard.status()["global_daily_usd_cap"] == 0.10)
+            run(guard.finalize(a.ticket, release_hint))
+            guard.release(a.ticket)
+            c = run(guard.acquire(2, budget.TIER_FREE, 10, 0.06))
+            check("bron yakunlangach (qaytarilgach) umumiy byudjet qayta ochiladi", c.allowed)
+            run(guard.finalize(c.ticket, {"ok": True, "unpriced": False, "estimated_cost": 0.045,
+                                          "input_tokens": 1, "output_tokens": 1}))
+            guard.release(c.ticket)
 
-        # Bir nechta foydalanuvchining HAQIQIY sarfi (ledger) yig'iladi.
-        book = cost_tracker.default_ledger()
-        for uid in (3, 4):
-            book.record(user_id=uid, provider="x", model="y", cost=0.045)
-        d = run(guard.acquire(5, budget.TIER_FREE, 10, 0.02))
-        check("ledger'dagi umumiy sarf bilan chegara kesiladi",
-              (not d.allowed) and d.reason == "global_daily_usd", d.reason)
-        e = run(guard.acquire(5, budget.TIER_FREE, 10, 0.005))
-        check("chegaraga sig'adigan kichik so'rov o'tadi", e.allowed)
-        guard.release(e.ticket)
+            # Yakunlangan HAQIQIY sarf umumiy hisobga qo'shiladi (jarayonlararo, do'konda).
+            d = run(guard.acquire(5, budget.TIER_FREE, 10, 0.06))
+            check("do'kondagi umumiy sarf bilan chegara kesiladi",
+                  (not d.allowed) and d.reason == "global_daily_usd", d.reason)
+            e = run(guard.acquire(5, budget.TIER_FREE, 10, 0.005))
+            check("chegaraga sig'adigan kichik so'rov o'tadi", e.allowed)
+            guard.release(e.ticket)
 
-        # DB qiymati xotiradan katta bo'lsa — DB ustun (bir nechta jarayon).
-        old_ready, old_db = budget._db_ready, budget._db_global_daily_usd
-        try:
-            budget._db_ready = lambda: False
-
-            async def _db_big():
-                return 0.5
-            budget._db_global_daily_usd = _db_big
+        # DB himoyasi ishlamasa — yangi pullik so'rov rad etiladi (fail-closed), o'chiq bo'lsa o'tadi.
+        reset_state()
+        budget.set_global_store(_MemGlobalStore(fail=RuntimeError("db down")))
+        guard = budget.BudgetGuard()
+        with env(AI_GLOBAL_DAILY_USD="0.10", **roomy):
             f = run(guard.acquire(6, budget.TIER_FREE, 10, 0.001))
-            check("DB'dagi umumiy sarf hisobga olinadi",
-                  (not f.allowed) and f.reason == "global_daily_usd", f.reason)
-        finally:
-            budget._db_ready, budget._db_global_daily_usd = old_ready, old_db
+            check("chegara yoqilgan + DB xatosi → rad (global_unavailable)",
+                  (not f.allowed) and f.reason == "global_unavailable" and f.period == budget.PERIOD_GLOBAL,
+                  f.reason)
+        with env(AI_GLOBAL_DAILY_USD=None, **roomy):
+            check("chegara o'chirilgan + DB xatosi → AI bloklanmaydi",
+                  run(guard.acquire(6, budget.TIER_FREE, 10, 0.001)).allowed)
+    finally:
+        budget.set_global_store(None)
 
     msgs = {lang: budget.budget_message(lang, budget.PERIOD_GLOBAL) for lang in ("uz", "ru", "en")}
     check("umumiy limit xabari uz/ru/en va PRO taklif qilmaydi",
           len(set(msgs.values())) == 3 and all("PRO" not in m for m in msgs.values()),
           str(msgs))
-
-    # DB kesh: bir kun ichida qayta so'ralmaydi.
-    calls = []
-
-    class _FakeDb:
-        _pool = object()
-
-        @staticmethod
-        def get_ai_global_cost_usd(period):
-            calls.append(period)
-            return 0.25
-
-    old_mod = sys.modules.get("database")
-    budget._global_db_cache.update(day="", at=0.0, usd=None)
-    try:
-        sys.modules["database"] = _FakeDb
-        v1 = run(budget._db_global_daily_usd())
-        v2 = run(budget._db_global_daily_usd())
-        check("DB umumiy sarfi o'qiladi va keshlanadi", v1 == v2 == 0.25 and len(calls) == 1,
-              f"{v1} {v2} {calls}")
-    finally:
-        if old_mod is not None:
-            sys.modules["database"] = old_mod
-        else:
-            sys.modules.pop("database", None)
-        budget._global_db_cache.update(day="", at=0.0, usd=None)
 
 
 def test_fallback_telemetry_and_gates():

@@ -420,6 +420,24 @@ echo "===== 3f) 📢 KANALLARIM + 📅 REJALASHTIRILGAN ====="
 # Kanal uslubi: matnli va inline yo'l egalik (IDOR) tekshiruvidan o'tadi.
 "$PY" tests/channel_tone_ownership_test.py || fail "tests/channel_tone_ownership_test.py"
 
+# Stars to'lovi o'tgan, PRO faollashmasa: log (charge_id) + adminga xabar.
+"$PY" tests/stars_activation_failure_test.py || fail "tests/stars_activation_failure_test.py"
+
+# AI model narxi: provayder + model birgalikda (boshqa provayder narxi qo'llanmaydi).
+"$PY" tests/ai_price_lookup_test.py || fail "tests/ai_price_lookup_test.py"
+
+# Narxi noma'lum AI so'rovlari: budjetda alohida taxminiy sarf (assumed_usd).
+"$PY" tests/ai_unpriced_budget_test.py || fail "tests/ai_unpriced_budget_test.py"
+
+# AI usage hodisalari production yo'lida DB'ga yoziladi (jonli qism: AI_BUDGET_TEST_DATABASE_URL).
+"$PY" tests/ai_usage_persistence_test.py || fail "tests/ai_usage_persistence_test.py"
+
+# Umumiy AI byudjeti: PostgreSQL atomik rezervatsiyasi (jonli DB: AI_BUDGET_TEST_DATABASE_URL).
+"$PY" tests/ai_budget_reservation_test.py || fail "tests/ai_budget_reservation_test.py"
+
+# Umumiy AI byudjeti: BudgetGuard integratsiyasi (parallel, fail-closed, yakunlash; jonli DB ixtiyoriy).
+"$PY" tests/ai_global_budget_test.py || fail "tests/ai_global_budget_test.py"
+
 echo
 echo "===== 3g) 📊 STATISTIKA + ⚙️ SOZLAMALAR + ADMIN RBAC ====="
 # (1) 📊 Statistika — aniq nom + ixcham 4 ko'rsatkich (📢 kanallar /

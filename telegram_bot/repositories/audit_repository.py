@@ -977,12 +977,17 @@ def get_ai_usage_report(user_id=None, channel_id=None, period: str = "daily",
                 "COALESCE(SUM(estimated_cost), 0), "
                 "COALESCE(AVG(latency_ms), 0), "
                 "COUNT(*) FILTER (WHERE status = 'success' AND priced AND NOT cached), "
-                "COUNT(*) FILTER (WHERE status = 'success' AND NOT priced AND NOT cached) "
+                "COUNT(*) FILTER (WHERE status = 'success' AND NOT priced AND NOT cached), "
+                # Narxi noma'lum so'rovlar tokenlari: budjet taxmini (assumed_usd)
+                # shulardan hisoblanadi. Pul qiymati bu yerda YOZILMAYDI.
+                "COALESCE(SUM(input_tokens) FILTER (WHERE status = 'success' AND NOT priced AND NOT cached), 0), "
+                "COALESCE(SUM(output_tokens) FILTER (WHERE status = 'success' AND NOT priced AND NOT cached), 0) "
                 "FROM ai_usage_events "
                 f"WHERE {where_sql} {window}",
                 tuple(params),
             )
-            totals_row = cur.fetchone() or (0,) * 10
+            totals_row = cur.fetchone() or (0,) * 12
+            totals_row = tuple(totals_row) + (0,) * max(0, 12 - len(totals_row))
         return {
             "period": safe_period,
             "scope": {"user_id": user_id, "channel_id": channel_id},
@@ -998,6 +1003,8 @@ def get_ai_usage_report(user_id=None, channel_id=None, period: str = "daily",
                 "avg_latency_ms": round(float(totals_row[7] or 0.0), 1),
                 "priced_requests": int(totals_row[8] or 0),
                 "unpriced_requests": int(totals_row[9] or 0),
+                "unpriced_input_tokens": int(totals_row[10] or 0),
+                "unpriced_output_tokens": int(totals_row[11] or 0),
             },
             "by_provider": by_provider,
             "by_model": by_model,

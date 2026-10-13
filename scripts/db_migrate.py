@@ -223,7 +223,7 @@ def main(argv: list[str] | None = None) -> int:
 
     # ── 3) Schema check: jadvallar + indekslar ───────────────────────────
     required_tables = (*db.EXPECTED_TABLES, *db.REQUIRED_P0_TABLES, *db.AI_USAGE_TABLES,
-                       *getattr(db, "PAYME_TABLES", ()))
+                       *getattr(db, "AI_BUDGET_TABLES", ()), *getattr(db, "PAYME_TABLES", ()))
     # analitika kompozit indekslari ham tekshiriladi (ular
     # alohida ro'yxatda — ``EXPECTED_INDEXES`` tarixiy/frozen ro'yxat).
     # Payme jadval/indekslari ham alohida ro'yxatda (database.PAYME_*).

@@ -394,6 +394,10 @@ sudo systemctl restart postassist             # graceful: in-flight postlar tuga
 
 ## 5. Yakuniy tekshiruv checklisti
 
+- [ ] AI xarajat chegarasi yoqilgan bo'lsa (`AI_GLOBAL_DAILY_USD > 0`): `python scripts/db_migrate.py --check-only`
+      `ai_budget_days` / `ai_budget_reservations` jadvallarini ko'rsatadi (migratsiya `init_db()`
+      bilan idempotent bajariladi). Chegara yoqilganda DB uzilsa yangi pullik AI so'rovlari rad
+      etiladi (fail-closed); `AI_GLOBAL_DAILY_USD=0` bilan o'chiriladi.
 - [ ] `systemctl status postassist` → `active (running)` (Render: service `Live`).
 - [ ] `curl localhost:8080/health/live` → 200 `{"status":"live"}` (Docker/Render'da $PORT);
       `/health/ready` token bilan → 200 `{"status":"ready"}` (DB OK), tokensiz → 401

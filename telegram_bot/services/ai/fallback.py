@@ -589,7 +589,10 @@ class AIFallbackService:
                            started=started, failure_kind="other", error="exception")
             raise
         finally:
-            admission.release()
+            try:
+                await admission.finalize()
+            finally:
+                admission.release()
 
     async def _generate_chain(self, prompt: str, system_instruction: str,
                               lang: str = None) -> dict:
@@ -901,7 +904,10 @@ async def analyze_image(*args, **kwargs) -> dict:
                            failure_kind="vision_error", error=type(exc).__name__)
             raise
         finally:
-            admission.release()
+            try:
+                await admission.finalize()
+            finally:
+                admission.release()
 
 
 #: Image-post uslubi → Magic Post uslubi (matn asosidagi fallback uchun).

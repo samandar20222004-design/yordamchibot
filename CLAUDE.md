@@ -52,12 +52,21 @@ Oxirgi natija: ~16 970 `[OK]`, 0 `[FAIL]`, 6 `[SKIP]` (pgserver/redis yo'q).
   (`quick_clean`, `strip_tail_junk`), `scheduler.deliver_due_posts_now`,
   ustun `users.post_signature_html`. Test: `tests/post_cleaner_quick_test.py`.
 - `main` (PR #213 — Sozlamalar 3-qatori: Do'stlarni taklif + Yordam) branchga merge qilingan.
-- **Umumiy kunlik AI chegarasi:** `AI_GLOBAL_DAILY_USD` (USD, barcha foydalanuvchilar,
-  UTC kun; 0 = o'chiq, sukut). `BudgetGuard.acquire` foydalanuvchi limitlaridan keyin
-  tekshiradi: bugungi sarf (xotira ledger va DB `get_ai_global_cost_usd`, 30 s kesh) +
-  barcha bronlar + yangi so'rov. Oshsa — `global_daily_usd`, provayder chaqirilmaydi,
-  foydalanuvchiga «xizmat limiti» xabari (PRO taklif qilinmaydi), logda kuniga 1 WARNING.
-  Test: `tests/ai_cost_protection_test.py` (TEST 5b).
+- **Umumiy kunlik AI chegarasi:** `AI_GLOBAL_DAILY_USD` (USD, barcha foydalanuvchi va
+  instance'lar, UTC kun; 0 = o'chiq, sukut — DB'ga tegilmaydi). Tekshiruv va bron
+  PostgreSQL'da ATOMIK (`repositories/ai_budget_repository.py`, jadvallar
+  `ai_budget_days` / `ai_budget_reservations`, `pg_advisory_xact_lock`). `BudgetGuard.acquire`
+  foydalanuvchi limitlaridan keyin bron qiladi; `finalize` yakunlaydi: muvaffaqiyat →
+  `estimated_cost` va ALOHIDA `assumed_usd`; aniq xato (429/5xx/tarmoq) → bron qaytadi;
+  timeout/bekor/noma'lum → bron `unknown_usd` da hisobda QOLADI; TTL
+  (`AI_GLOBAL_TICKET_TTL_SECONDS`) bronni o'chirmaydi, `expired` → `unknown_usd`,
+  kechikkan `settle/release` to'g'rilaydi. Chegara yoqilgan va DB xato bersa —
+  yangi pullik so'rov rad (`global_unavailable`, fail-closed). Kesh va AI'siz
+  funksiyalar bloklanmaydi. Hodisalar `ai_usage_events` ga yoziladi
+  (`services/ai/usage_store.py`, `AI_USAGE_PERSIST`). Testlar:
+  `tests/ai_global_budget_test.py`, `tests/ai_budget_reservation_test.py`,
+  `tests/ai_usage_persistence_test.py` (jonli qism: `AI_BUDGET_TEST_DATABASE_URL` —
+  FAQAT sinov bazasi, jadvallar tozalanadi).
 
 ## Bilish kerak
 

@@ -23,13 +23,34 @@ qulf ichida). Javob tugagach ``release`` bronni bo'shatadi; haqiqiy sarf
 telemetriya orqali ledger'ga yoziladi. Xato bo'lsa ham bron bo'shatiladi
 (refund) — foydalanuvchi byudjeti yonib ketmaydi.
 
-Umumiy chegara
---------------
-``AI_GLOBAL_DAILY_USD`` — BARCHA foydalanuvchilar bo'yicha bir kunlik (UTC)
-AI xarajati chegarasi. Foydalanuvchi limitlari bilan birga tekshiriladi:
-umumiy sarf + barcha bronlar + yangi so'rov chegaradan oshsa so'rov rad
-etiladi (provayder chaqirilmaydi). ``0`` / bo'sh → umumiy cheklov yo'q.
-DB'dagi umumiy sarf ``GLOBAL_DB_CACHE_SECONDS`` davomida keshlanadi.
+Narxi noma'lum (``priced=False``) muvaffaqiyatli so'rovlar
+-----------------------------------------------------------
+Ular ``cost_usd = 0`` bilan yoziladi (soxta narx yo'q), lekin USD limitidan
+chetda qolmasligi uchun budjet alohida ``assumed_usd`` yuritadi: mos yozuv
+narxi (``cost_tracker.ASSUMED_PRICE_*``) × tokenlar. U haqiqiy sarf EMAS va
+``estimated_cost`` / ``priced`` ga yozilmaydi. Xato, timeout, kesh va rad
+etilgan so'rovlarga taxmin qo'shilmaydi. Fallback zanjirida yakuniy natijadan
+oldingi muvaffaqiyatsiz provayder urinishlari hozir umuman hisoblanmaydi.
+
+Umumiy chegara (PostgreSQL'da ATOMIK rezervatsiya)
+--------------------------------------------------
+``AI_GLOBAL_DAILY_USD`` — BARCHA foydalanuvchilar va BARCHA bot instance'lari
+bo'yicha bir kunlik (UTC) AI xarajati chegarasi; FREE ham, PRO ham bo'ysunadi.
+Tekshiruv va bron ``repositories/ai_budget_repository.py`` da bitta DB
+tranzaksiyasida (``pg_advisory_xact_lock``) bajariladi, jarayon xotirasiga
+tayanmaydi. ``0`` / bo'sh → umumiy cheklov YO'Q (bron ham olinmaydi).
+
+* Kesh hiti, AI ishlatmaydigan funksiyalar va ``user_id`` siz chaqiruvlar
+  umumiy bronga umuman tegmaydi.
+* Chegara yoqilgan va DB javob bermasa/xato bersa — yangi pullik so'rov
+  XAVFSIZ RAD etiladi (``global_unavailable``, fail-closed).
+* Chegaraga yetganda yangi so'rovlar rad etiladi; allaqachon bron qilinganlar
+  yakunlanadi (``finalize``): muvaffaqiyat → haqiqiy ``estimated_cost`` va
+  ALOHIDA ``assumed_usd`` yoziladi; aniq xato (provayder chaqirilmadi/429/5xx)
+  → bron qaytariladi; timeout, bekor qilish, kutilmagan xato → sarf NOMA'LUM
+  (``wait_for`` provayder xarajatini nol deb isbotlamaydi), bron hisobda
+  QOLADI; jarayon yakunlamasdan o'lsa — TTL dan keyin bron ``unknown_usd`` ga
+  o'tadi va hisobdan tushmaydi.
 
 Limit ``0`` yoki manfiy bo'lsa — shu metrika bo'yicha cheklov YO'Q.
 Byudjet xatosi (DB uzilishi) AI'ni to'xtatmaydi: DB'siz faqat jarayon
@@ -39,13 +60,13 @@ xotirasidagi ledger ishlatiladi (fail-soft, lekin xarajat har doim yoziladi).
 from __future__ import annotations
 
 import asyncio
+import contextvars
 import logging
 import os
 import sys
 import threading
-import time
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 logger = logging.getLogger(__name__)
 
@@ -65,8 +86,16 @@ PERIOD_MONTHLY = "monthly"
 #: Umumiy (barcha foydalanuvchilar) kunlik chegara tugaganda.
 PERIOD_GLOBAL = "global"
 
-#: Umumiy kunlik sarfning DB qiymati shuncha soniya keshlanadi.
-GLOBAL_DB_CACHE_SECONDS = 30.0
+#: Umumiy byudjet DB amallari (bron/yakunlash) uchun kutish chegarasi (soniya).
+GLOBAL_DB_TIMEOUT = 3.0
+#: Umumiy bron TTL standarti (soniya): tugagach bron O'CHMAYDI, noma'lum sarf bo'lib qoladi.
+GLOBAL_TICKET_TTL_DEFAULT = 180.0
+#: Natijasi aniq NOL xarajatli xato turlari (provayder javob ishlab chiqarmagan).
+#: ``error`` — provayder umuman chaqirilmagan (xato turi bo'sh); ``all_providers_failed``
+#: — fallback yo'lida barcha provayderlar xato qaytargan. Provayder darajasidagi
+#: timeout bu yo'lda xato sifatida (nol xarajat) sanaladi: bu ISBOTLANMAGAN taxmin.
+ZERO_COST_FAILURES = frozenset({"rate_limit", "server_error", "network", "user_busy",
+                                "budget_exceeded", "all_providers_failed", "error"})
 
 
 # ---------------------------------------------------------------------------
@@ -142,6 +171,12 @@ def tier_budget(tier: str | None) -> TierBudget:
     )
 
 
+def global_ticket_ttl() -> float:
+    """Umumiy bron TTL (soniya), env: ``AI_GLOBAL_TICKET_TTL_SECONDS``."""
+    return max(1.0, _float_env(os.getenv("AI_GLOBAL_TICKET_TTL_SECONDS"),
+                               GLOBAL_TICKET_TTL_DEFAULT))
+
+
 def global_daily_usd_cap() -> float:
     """Umumiy kunlik AI xarajat chegarasi (USD); ``0`` → cheklov yo'q."""
     return max(0.0, _float_env(os.getenv("AI_GLOBAL_DAILY_USD"), 0.0))
@@ -204,9 +239,19 @@ async def resolve_tier(user_id, is_pro: bool = False) -> str:
 class Usage:
     tokens: int = 0
     usd: float = 0.0
+    #: Narxi noma'lum muvaffaqiyatli so'rovlar uchun FAQAT budjet taxmini (USD).
+    #: ``usd`` (haqiqiy/estimated sarf) bilan aralashtirilmaydi; USD limit
+    #: tekshiruvida ``total_usd`` ishlatiladi.
+    assumed_usd: float = 0.0
+
+    @property
+    def total_usd(self) -> float:
+        """USD limit tekshiruvi uchun: haqiqiy sarf + noma'lum narx taxmini."""
+        return self.usd + self.assumed_usd
 
     def max_with(self, other: "Usage") -> "Usage":
-        return Usage(max(self.tokens, other.tokens), max(self.usd, other.usd))
+        return Usage(max(self.tokens, other.tokens), max(self.usd, other.usd),
+                     max(self.assumed_usd, other.assumed_usd))
 
 
 @dataclass
@@ -224,6 +269,7 @@ def _memory_snapshot(user_id: int) -> Snapshot:
         data = book.user_costs(user_id, period=period)
         slot.tokens = int(data.get("total_tokens") or 0)
         slot.usd = float(data.get("cost_usd") or 0.0)
+        slot.assumed_usd = float(data.get("assumed_cost_usd") or 0.0)
     return out
 
 
@@ -241,8 +287,15 @@ def _db_usage(user_id: int, period: str) -> Usage | None:
     if not isinstance(report, dict):
         return None
     totals = report.get("totals") or {}
+    from services.ai import cost_tracker
+
+    # Narxi noma'lum so'rovlar taxmini DB'dagi tokenlardan hisoblanadi
+    # (eski javobda maydonlar yo'q bo'lsa — 0).
+    assumed = cost_tracker.assumed_cost_usd(
+        int(totals.get("unpriced_input_tokens") or 0),
+        int(totals.get("unpriced_output_tokens") or 0))
     return Usage(int(totals.get("total_tokens") or 0),
-                 float(totals.get("estimated_cost_usd") or 0.0))
+                 float(totals.get("estimated_cost_usd") or 0.0), assumed)
 
 
 async def _db_snapshot(user_id: int) -> Snapshot | None:
@@ -268,37 +321,99 @@ def _utc_day() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
 
-_global_db_cache: dict = {"day": "", "at": 0.0, "usd": None}
+# ---------------------------------------------------------------------------
+# Umumiy byudjet do'koni (PostgreSQL) va yakunlash ma'lumoti
+# ---------------------------------------------------------------------------
+class GlobalBudgetStore:
+    """``database`` dagi atomik rezervatsiya funksiyalariga adapter (xatoda istisno ko'taradi)."""
+
+    def available(self) -> bool:
+        return _db_ready()
+
+    async def _call(self, name: str, *args):
+        fn = getattr(sys.modules["database"], name)
+        return await asyncio.wait_for(asyncio.to_thread(fn, *args), GLOBAL_DB_TIMEOUT)
+
+    async def reserve(self, ticket_id, user_id, est_usd, cap_usd, ttl) -> dict:
+        return await self._call("reserve_ai_budget", ticket_id, user_id, est_usd, cap_usd, ttl)
+
+    async def settle(self, ticket_id, actual_usd, assumed_usd):
+        return await self._call("settle_ai_budget", ticket_id, actual_usd, assumed_usd)
+
+    async def release(self, ticket_id):
+        return await self._call("release_ai_budget", ticket_id)
+
+    async def mark_unknown(self, ticket_id):
+        return await self._call("mark_ai_budget_unknown", ticket_id)
 
 
-async def _db_global_daily_usd() -> float | None:
-    """Bugungi umumiy sarf (DB, keshlangan). DB yo'q / xato → ``None``."""
-    if not _db_ready():
-        return None
-    day = _utc_day()
-    now = time.monotonic()
-    cache = _global_db_cache
-    if (cache["day"] == day and cache["usd"] is not None
-            and now - cache["at"] < GLOBAL_DB_CACHE_SECONDS):
-        return cache["usd"]
+_global_store: GlobalBudgetStore = GlobalBudgetStore()
+
+
+def set_global_store(store) -> None:
+    """Testlar/ops uchun umumiy byudjet do'konini almashtiradi (``None`` → DB)."""
+    global _global_store
+    _global_store = store or GlobalBudgetStore()
+
+
+def global_store():
+    return _global_store
+
+
+#: Joriy so'rovning yakuniy natijasi (``_record`` yozadi, ``finalize`` o'qiydi).
+_SETTLE_HINT: contextvars.ContextVar = contextvars.ContextVar("ai_settle_hint", default=None)
+
+
+def reset_settlement_hint() -> None:
+    _SETTLE_HINT.set(None)
+
+
+def note_settlement(event: dict) -> None:
+    """Telemetriya hodisasidan yakunlash ma'lumotini qayd etadi (best-effort)."""
     try:
-        usd = await asyncio.wait_for(
-            asyncio.to_thread(sys.modules["database"].get_ai_global_cost_usd, PERIOD_DAILY),
-            DB_SNAPSHOT_TIMEOUT)
-    except Exception as exc:  # noqa: BLE001
-        logger.debug("budget: umumiy sarf olinmadi: %s", exc)
-        return cache["usd"] if cache["day"] == day else None
-    if usd is None:
-        return cache["usd"] if cache["day"] == day else None
-    cache.update(day=day, at=now, usd=float(usd))
-    return float(usd)
+        ok = str(event.get("status") or "").lower() == "success"
+        cached = bool(event.get("cached"))
+        _SETTLE_HINT.set({
+            "ok": ok, "cached": cached,
+            "unpriced": ok and not cached and not bool(event.get("priced")),
+            "estimated_cost": float(event.get("estimated_cost") or 0.0),
+            "input_tokens": int(event.get("input_tokens") or 0),
+            "output_tokens": int(event.get("output_tokens") or 0),
+            "attempts": int(event.get("attempts") or 0),
+            "failure_kind": str(event.get("error_code") or ""),
+        })
+    except Exception:  # noqa: BLE001 — hisob AI oqimini buzmaydi
+        _SETTLE_HINT.set(None)
 
 
-def _memory_global_daily_usd() -> float:
-    from services.ai import cost_tracker
+def take_settlement_hint():
+    hint = _SETTLE_HINT.get()
+    _SETTLE_HINT.set(None)
+    return hint
 
-    return float(cost_tracker.default_ledger().totals(period=PERIOD_DAILY)
-                 .get("cost_usd") or 0.0)
+
+def classify_settlement(hint) -> tuple[str, float, float]:
+    """Yakunlash qarori: ``(settle|release|unknown, actual_usd, assumed_usd)``.
+
+    Ma'lumot yo'q (istisno, bekor qilish) yoki xato turi noma'lum (timeout,
+    sifat/boshqa) → ``unknown``: provayder xarajati nolligi ISBOTLANMAGAN.
+    """
+    if not hint or hint.get("unknown"):
+        return "unknown", 0.0, 0.0
+    if hint.get("cached"):
+        return "release", 0.0, 0.0
+    if hint.get("ok"):
+        actual = float(hint.get("estimated_cost") or 0.0)
+        assumed = 0.0
+        if hint.get("unpriced"):
+            from services.ai import cost_tracker
+
+            assumed = cost_tracker.assumed_cost_usd(
+                int(hint.get("input_tokens") or 0), int(hint.get("output_tokens") or 0))
+        return "settle", actual, assumed
+    if hint.get("failure_kind") in ZERO_COST_FAILURES:
+        return "release", 0.0, 0.0
+    return "unknown", 0.0, 0.0
 
 
 # ---------------------------------------------------------------------------
@@ -310,12 +425,14 @@ class BudgetTicket:
     user_id: int
     tokens: int
     usd: float
+    #: Umumiy (DB) bron olinganmi — yakunlash (``finalize``) kerak.
+    global_reserved: bool = False
 
 
 @dataclass(frozen=True)
 class BudgetDecision:
     allowed: bool
-    reason: str = "ok"  # ok | daily_* | monthly_* | global_daily_usd
+    reason: str = "ok"  # ok | daily_* | monthly_* | global_daily_usd | global_unavailable
     ticket: BudgetTicket | None = None
     tier: str = TIER_FREE
 
@@ -335,6 +452,9 @@ class BudgetGuard:
         self._tickets: dict[str, BudgetTicket] = {}
         self.denied = 0
         self.global_denied = 0
+        self.global_unavailable = 0
+        self.global_finalize_errors = 0
+        self._global_open: set = set()
         self._global_warned_day = ""
 
     def inflight(self, user_id) -> Usage:
@@ -348,9 +468,8 @@ class BudgetGuard:
             return BudgetDecision(True, "ok", None, tier)
         uid = int(user_id)
         limits = tier_budget(tier)
-        global_cap = global_daily_usd_cap()
+        reset_settlement_hint()                    # oldingi so'rov ma'lumoti qolmasin
         db_snap = await _db_snapshot(uid)          # tarmoq I/O — qulfdan TASHQARIDA
-        db_global = await _db_global_daily_usd() if global_cap > 0 else None
         with self._lock:
             committed = _memory_snapshot(uid)
             if db_snap is not None:
@@ -360,27 +479,95 @@ class BudgetGuard:
             checks = (
                 ("daily_tokens", committed.daily.tokens + held.tokens + tokens,
                  limits.daily_tokens),
-                ("daily_usd", committed.daily.usd + held.usd + usd, limits.daily_usd),
+                ("daily_usd", committed.daily.total_usd + held.usd + usd, limits.daily_usd),
                 ("monthly_tokens", committed.monthly.tokens + held.tokens + tokens,
                  limits.monthly_tokens),
-                ("monthly_usd", committed.monthly.usd + held.usd + usd, limits.monthly_usd),
+                ("monthly_usd", committed.monthly.total_usd + held.usd + usd, limits.monthly_usd),
             )
             for reason, projected, cap in checks:
                 if cap and cap > 0 and projected > cap:
                     self.denied += 1
                     return BudgetDecision(False, reason, None, tier)
-            if global_cap > 0:
-                spent = max(_memory_global_daily_usd(), db_global or 0.0)
-                held_all = sum(u.usd for u in self._inflight.values())
-                if spent + held_all + usd > global_cap:
-                    self.denied += 1
-                    self.global_denied += 1
-                    self._warn_global(spent + held_all, global_cap)
-                    return BudgetDecision(False, "global_daily_usd", None, tier)
             ticket = BudgetTicket(uuid.uuid4().hex, uid, int(tokens), float(usd))
             self._tickets[ticket.ticket_id] = ticket
             self._inflight[uid] = Usage(held.tokens + ticket.tokens, held.usd + ticket.usd)
+        global_cap = global_daily_usd_cap()
+        if global_cap > 0:
+            return await self._reserve_global(ticket, tier, global_cap)
         return BudgetDecision(True, "ok", ticket, tier)
+
+    async def _reserve_global(self, ticket: BudgetTicket, tier: str,
+                              cap: float) -> BudgetDecision:
+        """Umumiy kunlik chegara uchun DB'da atomik bron (I/O — qulfdan TASHQARIDA).
+
+        Chegara yoqilgan bo'lsa DB himoyasi ishlamasa so'rov RAD etiladi (fail-closed).
+        """
+        store = _global_store
+        tid = ticket.ticket_id
+        try:
+            if not store.available():
+                raise RuntimeError("DB mavjud emas")
+            result = await store.reserve(tid, ticket.user_id, ticket.usd, cap,
+                                         global_ticket_ttl())
+        except BaseException as exc:  # noqa: BLE001 — timeout, DB xatosi, bekor qilish
+            # Fon tranzaksiyasi keyin yetib borishi mumkin: qabr belgisi bilan yopamiz.
+            try:
+                await store.release(tid)
+            except Exception:  # noqa: BLE001
+                logger.debug("budget: qabr belgisi qo'yilmadi (ticket=%s)", tid)
+            self.release(ticket)
+            if not isinstance(exc, Exception):
+                raise
+            with self._lock:
+                self.denied += 1
+                self.global_unavailable += 1
+            logger.warning("AI umumiy byudjeti tekshirib bo'lmadi (%s) — yangi pullik "
+                           "so'rov rad etildi (fail-closed)", type(exc).__name__)
+            return BudgetDecision(False, "global_unavailable", None, tier)
+        if not result.get("granted"):
+            self.release(ticket)
+            with self._lock:
+                self.denied += 1
+                self.global_denied += 1
+            self._warn_global(float(result.get("used") or 0.0), cap)
+            return BudgetDecision(False, "global_daily_usd", None, tier)
+        with self._lock:
+            ticket = replace(ticket, global_reserved=True)
+            if tid in self._tickets:
+                self._tickets[tid] = ticket
+            self._global_open.add(tid)
+        return BudgetDecision(True, "ok", ticket, tier)
+
+    async def finalize(self, ticket: BudgetTicket | None, outcome=None) -> str:
+        """Umumiy bronni yakunlaydi (idempotent). Qaytadi: skip|done|settled|released|unknown|error.
+
+        ``outcome`` berilmasa — joriy so'rovning telemetriya ma'lumoti
+        (:func:`note_settlement`). Yakunlab bo'lmasa bron TTL dan keyin
+        ``unknown_usd`` ga o'tadi (hisobdan tushmaydi).
+        """
+        if ticket is None or not ticket.global_reserved:
+            return "skip"
+        with self._lock:
+            if ticket.ticket_id not in self._global_open:
+                return "done"
+            self._global_open.discard(ticket.ticket_id)
+        hint = outcome if outcome is not None else take_settlement_hint()
+        action, actual, assumed = classify_settlement(hint)
+        store = _global_store
+        try:
+            if action == "settle":
+                await store.settle(ticket.ticket_id, actual, assumed)
+            elif action == "release":
+                await store.release(ticket.ticket_id)
+            else:
+                await store.mark_unknown(ticket.ticket_id)
+            return {"settle": "settled", "release": "released", "unknown": "unknown"}[action]
+        except Exception as exc:  # noqa: BLE001
+            with self._lock:
+                self.global_finalize_errors += 1
+            logger.warning("AI umumiy bronni yakunlab bo'lmadi (%s): bron TTL dan keyin "
+                           "noma'lum sarf sifatida hisobda qoladi", type(exc).__name__)
+            return "error"
 
     def _warn_global(self, spent: float, cap: float) -> None:
         """Umumiy chegaraga yetilganini kuniga bir marta WARNING bilan yozadi."""
@@ -393,9 +580,15 @@ class BudgetGuard:
                        spent, cap)
 
     def release(self, ticket: BudgetTicket | None) -> bool:
-        """Bronni bo'shatadi (idempotent — ikkinchi chaqiruv no-op)."""
+        """Foydalanuvchi bronini bo'shatadi (idempotent — ikkinchi chaqiruv no-op).
+
+        Umumiy (DB) bron ``finalize`` chaqirilmagan bo'lsa, fonda yakunlanadi
+        (natija noma'lum bo'lsa — ``unknown``, ya'ni hisobda qoladi).
+        """
         if ticket is None:
             return False
+        if ticket.global_reserved:
+            self._finalize_in_background(ticket)
         with self._lock:
             if self._tickets.pop(ticket.ticket_id, None) is None:
                 return False
@@ -407,14 +600,34 @@ class BudgetGuard:
                 self._inflight[ticket.user_id] = left
         return True
 
+    def _finalize_in_background(self, ticket: BudgetTicket) -> None:
+        with self._lock:
+            pending = ticket.ticket_id in self._global_open
+        if not pending:
+            return
+        hint = take_settlement_hint() or {"unknown": True}
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            return              # sinxron kontekst: TTL dan keyin noma'lum sarf
+        task = loop.create_task(self.finalize(ticket, hint))
+        _BG_TASKS.add(task)
+        task.add_done_callback(_BG_TASKS.discard)
+
     def status(self) -> dict:
         with self._lock:
             return {"inflight_users": len(self._inflight),
                     "open_tickets": len(self._tickets),
                     "denied": self.denied,
                     "global_denied": self.global_denied,
+                    "global_unavailable": self.global_unavailable,
+                    "global_open_tickets": len(self._global_open),
+                    "global_finalize_errors": self.global_finalize_errors,
                     "global_daily_usd_cap": global_daily_usd_cap()}
 
+
+#: Fonda yakunlanayotgan umumiy bronlar (GC dan himoya).
+_BG_TASKS: set = set()
 
 _guard = BudgetGuard()
 
@@ -466,6 +679,7 @@ __all__ = [
     "BudgetDecision",
     "BudgetGuard",
     "BudgetTicket",
+    "GlobalBudgetStore",
     "PERIOD_DAILY",
     "PERIOD_GLOBAL",
     "PERIOD_MONTHLY",
@@ -476,6 +690,13 @@ __all__ = [
     "default_guard",
     "estimate_request",
     "global_daily_usd_cap",
+    "global_store",
+    "global_ticket_ttl",
+    "note_settlement",
+    "classify_settlement",
+    "reset_settlement_hint",
+    "set_global_store",
+    "take_settlement_hint",
     "pro_monthly_usd_default",
     "resolve_tier",
     "reserve_output_tokens",

@@ -29,6 +29,7 @@ from locales.translations import (
     get_text, get_lang, is_main_menu_text, localize_db_message,
 )
 from utils.helpers import html_escape
+from translations.admin_panel import admin_t
 # RBAC — /grant_pro va /create_promo endi ruxsatga bog'langan.
 from services.rbac_service import (
     PERM_MANAGE_PROMOS,
@@ -1108,6 +1109,45 @@ async def create_promo_command(update: Update, context: ContextTypes.DEFAULT_TYP
         )
 
 
+_ACTIVATION_REASON_MAX = 60
+
+
+def _safe_reason(reason) -> str:
+    """Xato sababini logga/adminga xavfsiz qisqa ko'rinishda beradi (kod, matn emas)."""
+    text = re.sub(r"[^A-Za-z0-9_.:-]", "", str(reason or ""))[:_ACTIVATION_REASON_MAX]
+    return text or "unknown"
+
+
+async def _report_stars_activation_failure(context, user_id, charge_id, days, reason) -> None:
+    """Stars to'lovi o'tgan, lekin PRO faollashmadi: log + adminlarga xabar.
+
+    To'lov QAYTA ISHLANMAYDI (ikki marta PRO berish xavfi): faqat kuzatuv.
+    Admin xabari yuborilmasa ham asosiy handler yiqilmaydi.
+    """
+    reason = _safe_reason(reason)
+    logger.error(
+        "Stars to'lovi qabul qilindi, lekin PRO faollashmadi: "
+        "user=%s charge_id=%s days=%s sabab=%s",
+        user_id, charge_id, days, reason,
+    )
+    bot = getattr(context, "bot", None)
+    for admin_id in ADMIN_IDS_SET:
+        try:
+            try:
+                admin_lang = await db.run_db(db.get_user_language, admin_id)
+            except Exception:  # noqa: BLE001 — til aniqlanmasa uz
+                admin_lang = "uz"
+            text = admin_t(
+                "stars_activation_failed_admin", admin_lang or "uz",
+                user_id=user_id, charge_id=html_escape(str(charge_id)),
+                days=days, reason=reason,
+            )
+            await bot.send_message(chat_id=admin_id, text=text, parse_mode="HTML")
+        except Exception as exc:  # noqa: BLE001 — bitta admin xatosi boshqasini to'xtatmasin
+            log_silent_failure("handlers.subscription:stars_activation_alert", exc,
+                               user_id=admin_id)
+
+
 async def successful_payment_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """SuccessfulPayment'ni qat'iy tekshiradi va atomik grant qiladi."""
     payment = getattr(getattr(update, "message", None), "successful_payment", None)
@@ -1139,16 +1179,26 @@ async def successful_payment_callback(update: Update, context: ContextTypes.DEFA
     # subscription UPDATE aynan shu
     # tranzaksiyada; bir xil charge_id qaytsa process_stars_payment duplicate
     # qaytaradi va obuna ikkinchi marta berilmaydi.
-    result = await db.run_db(
-        db.process_stars_payment,
-        user_id,
-        plan["stars"],
-        "XTR",
-        payload,
-        charge_id,
-        "pro",
-        plan["days"],
-    )
+    failure_reason = None
+    try:
+        result = await db.run_db(
+            db.process_stars_payment,
+            user_id,
+            plan["stars"],
+            "XTR",
+            payload,
+            charge_id,
+            "pro",
+            plan["days"],
+        )
+    except Exception as exc:  # noqa: BLE001 — to'lov o'tgan: jim qolmaslik kerak
+        result = None
+        failure_reason = type(exc).__name__
+    if not isinstance(result, dict) or not result.get("ok"):
+        if failure_reason is None:
+            failure_reason = (result or {}).get("reason") if isinstance(result, dict) else None
+        await _report_stars_activation_failure(
+            context, user_id, charge_id, plan["days"], failure_reason)
     lang = await ensure_user_lang(context, user_id)
     if not isinstance(result, dict) or not result.get("ok"):
         await update.message.reply_text(

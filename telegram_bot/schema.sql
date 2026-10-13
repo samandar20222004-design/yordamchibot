@@ -265,6 +265,36 @@ NOT EXISTS idx_ai_usage_user_time ON ai_usage_events(user_id, created_at DESC);
 CREATE INDEX IF
 NOT EXISTS idx_ai_usage_channel_time ON ai_usage_events(channel_id, created_at DESC);
 
+-- Umumiy kunlik AI byudjeti: PostgreSQL'da atomik rezervatsiya
+-- (repositories/ai_budget_repository.py). "NOT EXISTS" ko'rinishida yozilgan —
+-- schema_test.py hisoblagichlarini o'zgartirmaydi (ai_usage_events kabi).
+CREATE TABLE IF
+NOT EXISTS ai_budget_days (
+    day DATE PRIMARY KEY,
+    spent_usd NUMERIC(14, 6) NOT NULL DEFAULT 0,
+    assumed_usd NUMERIC(14, 6) NOT NULL DEFAULT 0,
+    unknown_usd NUMERIC(14, 6) NOT NULL DEFAULT 0,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE TABLE IF
+NOT EXISTS ai_budget_reservations (
+    ticket_id TEXT PRIMARY KEY,
+    day DATE NOT NULL,
+    user_id BIGINT,
+    est_usd NUMERIC(14, 6) NOT NULL DEFAULT 0,
+    state TEXT NOT NULL DEFAULT 'reserved',
+    settled_usd NUMERIC(14, 6) NOT NULL DEFAULT 0,
+    assumed_usd NUMERIC(14, 6) NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    expires_at TIMESTAMPTZ NOT NULL,
+    closed_at TIMESTAMPTZ,
+    instance TEXT NOT NULL DEFAULT '',
+    CONSTRAINT chk_ai_budget_state CHECK (
+        state IN ('reserved', 'settled', 'released', 'expired', 'unknown'))
+);
+CREATE INDEX IF
+NOT EXISTS idx_ai_budget_open ON ai_budget_reservations(day) WHERE state = 'reserved';
+
 -- Har bir recurring yuborishni alohida saqlaymiz: eski xabarlar ham o'chadi.
 CREATE TABLE IF NOT EXISTS sent_post_messages (
     id SERIAL PRIMARY KEY,
