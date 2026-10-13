@@ -69,6 +69,8 @@ from services.ai.budget import (
     budget_message,
     default_guard,
     estimate_request,
+    note_attempt,
+    note_chain_complete,
     resolve_tier,
 )
 from services.ai.concurrency import default_user_gate, user_busy_message
@@ -1018,6 +1020,8 @@ async def _generate_via_chain(
                 except OutputQualityError as exc:
                     kind = str(exc) or KIND_QUALITY
                     last_kind = kind
+                    # Javob ishlab chiqarilgan, lekin tashlandi: xarajat NOMA'LUM (nol emas).
+                    note_attempt(name, kind, unknown=True)
                     if policy.should_retry(attempts_done, KIND_QUALITY):
                         wait = policy.delay_for(
                             attempts_done,
@@ -1030,6 +1034,7 @@ async def _generate_via_chain(
                 except Exception as exc:  # noqa: BLE001 — fallback/retry qarori
                     kind = classify_exception(exc)
                     last_kind = kind
+                    note_attempt(name, kind)      # har bir urinish natijasi alohida qayd etiladi
                     if policy.should_retry(attempts_done, kind):
                         wait = policy.delay_for(
                             attempts_done,
@@ -1069,6 +1074,7 @@ async def _generate_via_chain(
             logger.warning("AI Engine [%s]: %s xato (%s, %s urinish) → keyingi provayder",
                            lane.value, name, kind, attempts_done)
 
+    note_chain_complete()      # barcha urinishlar yuqorida qayd etilgan
     detail = "; ".join(last_errors) or "mavjud provayder yo'q"
     if skipped_mock:
         detail += f" (mock taqiqlangan: {mock_mode()})"

@@ -63,6 +63,7 @@ import asyncio
 import contextvars
 import logging
 import os
+import re
 import sys
 import threading
 import uuid
@@ -90,12 +91,13 @@ PERIOD_GLOBAL = "global"
 GLOBAL_DB_TIMEOUT = 3.0
 #: Umumiy bron TTL standarti (soniya): tugagach bron O'CHMAYDI, noma'lum sarf bo'lib qoladi.
 GLOBAL_TICKET_TTL_DEFAULT = 180.0
-#: Natijasi aniq NOL xarajatli xato turlari (provayder javob ishlab chiqarmagan).
-#: ``error`` — provayder umuman chaqirilmagan (xato turi bo'sh); ``all_providers_failed``
-#: — fallback yo'lida barcha provayderlar xato qaytargan. Provayder darajasidagi
-#: timeout bu yo'lda xato sifatida (nol xarajat) sanaladi: bu ISBOTLANMAGAN taxmin.
-ZERO_COST_FAILURES = frozenset({"rate_limit", "server_error", "network", "user_busy",
-                                "budget_exceeded", "all_providers_failed", "error"})
+#: Natijasi aniq NOL xarajatli xato turlari (provayder javob ishlab chiqarmagan):
+#: 429, 5xx, tarmoq (ulanish), 4xx (so'rov rad etilgan) va bizning o'z rad etishlarimiz.
+#: ``timeout``, sifat bo'yicha tashlangan javob va boshqa/noma'lum xatolar bu yerda YO'Q:
+#: so'rov qabul qilingan va hisoblangan bo'lishi MUMKIN — xarajat NOMA'LUM (nol deb
+#: isbotlanmagan), lekin "albatta yuz berdi" ham deb da'vo qilinmaydi.
+ZERO_COST_FAILURES = frozenset({"rate_limit", "server_error", "network", "http_error",
+                                "user_busy", "budget_exceeded"})
 
 
 # ---------------------------------------------------------------------------
@@ -364,8 +366,72 @@ def global_store():
 _SETTLE_HINT: contextvars.ContextVar = contextvars.ContextVar("ai_settle_hint", default=None)
 
 
+#: Joriy so'rovdagi provayder urinishlari holati (``acquire`` yangilaydi). O'zgaruvchan
+#: lug'at BIR XIL obyekt sifatida bola task'lar (masalan ``asyncio.wait_for`` ichidagi
+#: zanjir) bilan umumiy bo'ladi, shuning uchun u yerda qayd etilganlar ko'rinadi.
+_COST_TRACK: contextvars.ContextVar = contextvars.ContextVar("ai_cost_track", default=None)
+
+
+def begin_cost_tracking() -> dict:
+    holder = {"unknown": False, "chain_complete": False, "attempts": []}
+    _COST_TRACK.set(holder)
+    return holder
+
+
 def reset_settlement_hint() -> None:
+    """Yangi so'rov: oldingi yakunlash ma'lumoti va urinishlar holati tozalanadi."""
     _SETTLE_HINT.set(None)
+    begin_cost_tracking()
+
+
+def attempt_kind_of(exc) -> str:
+    """Provayder urinishi istisnosining xarajat bo'yicha turi (HTTP status ustuvor)."""
+    status = getattr(exc, "status", None)
+    if isinstance(status, int) and not isinstance(status, bool):
+        if status == 429:
+            return "rate_limit"
+        if 500 <= status <= 599:
+            return "server_error"
+        if status in (400, 401, 403, 404, 413, 415):
+            return "http_error"
+    # Adapterlar ba'zan status'ni faqat matnda qaytaradi ("... HTTP 404: ..."): aniq HTTP
+    # xato statusi — so'rov rad etilgan (javob ishlab chiqarilmagan).
+    match = re.search(r"\bHTTP\s*(\d{3})\b", str(exc))
+    if match:
+        code = int(match.group(1))
+        if code == 429:
+            return "rate_limit"
+        if 500 <= code <= 599:
+            return "server_error"
+        if code in (400, 401, 403, 404, 413, 415):
+            return "http_error"
+    from services.ai.engine.health import classify_exception
+
+    return classify_exception(exc)
+
+
+def note_attempt(provider, kind, *, unknown: bool | None = None) -> None:
+    """Bitta provayder urinishining natijasini qayd etadi (muvaffaqiyatsiz urinishlar uchun).
+
+    ``unknown`` berilmasa: ``kind`` aniq nol xarajatli (:data:`ZERO_COST_FAILURES`) bo'lmasa
+    xarajat NOMA'LUM. Tarixga kamida bitta noaniq urinish tushsa, butun zanjir natijasi
+    ("oxirgi 429" bo'lsa ham) nol xarajat deb bo'shatilmaydi.
+    """
+    holder = _COST_TRACK.get()
+    if holder is None:
+        return
+    unk = (str(kind or "") not in ZERO_COST_FAILURES) if unknown is None else bool(unknown)
+    if len(holder["attempts"]) < 32:
+        holder["attempts"].append((str(provider or ""), str(kind or ""), unk))
+    if unk:
+        holder["unknown"] = True
+
+
+def note_chain_complete() -> None:
+    """Zanjir muvaffaqiyatsiz TUGADI va uning BARCHA urinishlari qayd etilgan."""
+    holder = _COST_TRACK.get()
+    if holder is not None:
+        holder["chain_complete"] = True
 
 
 def note_settlement(event: dict) -> None:
@@ -373,7 +439,12 @@ def note_settlement(event: dict) -> None:
     try:
         ok = str(event.get("status") or "").lower() == "success"
         cached = bool(event.get("cached"))
+        holder = _COST_TRACK.get()
         _SETTLE_HINT.set({
+            "tracked": holder is not None,
+            "cost_unknown": bool(holder and holder["unknown"]),
+            "chain_complete": bool(holder and holder["chain_complete"]),
+            "attempt_kinds": [a[1] for a in (holder["attempts"] if holder else [])],
             "ok": ok, "cached": cached,
             "unpriced": ok and not cached and not bool(event.get("priced")),
             "estimated_cost": float(event.get("estimated_cost") or 0.0),
@@ -395,8 +466,9 @@ def take_settlement_hint():
 def classify_settlement(hint) -> tuple[str, float, float]:
     """Yakunlash qarori: ``(settle|release|unknown, actual_usd, assumed_usd)``.
 
-    Ma'lumot yo'q (istisno, bekor qilish) yoki xato turi noma'lum (timeout,
-    sifat/boshqa) → ``unknown``: provayder xarajati nolligi ISBOTLANMAGAN.
+    Ma'lumot yo'q (istisno, bekor qilish) yoki xarajat noaniq (timeout, sifat/boshqa,
+    zanjirdagi noaniq urinish) → ``unknown``: provayder xarajati nolligi ISBOTLANMAGAN.
+    Muvaffaqiyatda oldingi noaniq urinishlar xarajati HISOBGA OLINMAYDI (cheklov).
     """
     if not hint or hint.get("unknown"):
         return "unknown", 0.0, 0.0
@@ -411,6 +483,14 @@ def classify_settlement(hint) -> tuple[str, float, float]:
             assumed = cost_tracker.assumed_cost_usd(
                 int(hint.get("input_tokens") or 0), int(hint.get("output_tokens") or 0))
         return "settle", actual, assumed
+    # Muvaffaqiyatsiz natija. Zanjirdagi BIRORTA noaniq urinish (timeout, tashlab yuborilgan
+    # javob, tarmoq uzilishi...) bo'lsa, oxirgi xato 429 bo'lsa ham nol xarajat ISBOTLANMAGAN.
+    if hint.get("cost_unknown"):
+        return "unknown", 0.0, 0.0
+    # Zanjir tugagan va barcha urinishlari qayd etilgan (hech biri noaniq emas) → aniq nol.
+    if hint.get("tracked") and hint.get("chain_complete"):
+        return "release", 0.0, 0.0
+    # Zanjir holati yo'q (masalan umumiy timeout, istisno): faqat aniq nol turlari.
     if hint.get("failure_kind") in ZERO_COST_FAILURES:
         return "release", 0.0, 0.0
     return "unknown", 0.0, 0.0
@@ -694,6 +774,10 @@ __all__ = [
     "global_ticket_ttl",
     "note_settlement",
     "classify_settlement",
+    "attempt_kind_of",
+    "begin_cost_tracking",
+    "note_attempt",
+    "note_chain_complete",
     "reset_settlement_hint",
     "set_global_store",
     "take_settlement_hint",

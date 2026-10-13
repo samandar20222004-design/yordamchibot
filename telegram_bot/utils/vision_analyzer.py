@@ -578,6 +578,25 @@ def _build_vision_body(payload: ImagePayload, caption: str, lang: str) -> dict:
     }
 
 
+def _note_attempt(model, kind, *, unknown=None) -> None:
+    """Vision urinishi natijasini byudjet kuzatuviga qayd etadi (AI oqimini buzmaydi)."""
+    try:
+        from services.ai.budget import note_attempt
+
+        note_attempt(model, kind, unknown=unknown)
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def _note_chain_complete() -> None:
+    try:
+        from services.ai.budget import note_chain_complete
+
+        note_chain_complete()
+    except Exception:  # noqa: BLE001
+        pass
+
+
 async def analyze_image(data: bytes | bytearray | memoryview,
                         caption: str = "",
                         api_key: str | None = None,
@@ -620,6 +639,7 @@ async def analyze_image(data: bytes | bytearray | memoryview,
                     status = int(getattr(response, "status", 0) or 0)
                     if status != 200:
                         logger.warning("Gemini Vision HTTP %s (%s)", status, selected_model)
+                        _note_attempt(selected_model, f"http_{status}", unknown=False)  # javob yo'q
                         if status in _RETRYABLE_STATUSES:
                             last_error = VisionUnavailableError(_safe_error_message(status))
                             continue
@@ -629,14 +649,17 @@ async def analyze_image(data: bytes | bytearray | memoryview,
                     response_data = await response.json()
                 text = _extract_response_text(response_data)
                 if not text:
+                    _note_attempt(selected_model, "empty", unknown=True)   # hisoblangan bo'lishi mumkin
                     last_error = VisionUnavailableError("⚠️ Vision bo'sh javob qaytardi. Boshqa rasm yuboring.")
                     continue
                 parsed = _parse_json_text(text)
                 if not parsed:
+                    _note_attempt(selected_model, "unparsable", unknown=True)
                     last_error = VisionUnavailableError("⚠️ Rasmni tushunib bo'lmadi. Aniqroq rasm yuboring.")
                     continue
                 from services.ai.engine.safety import contains_leak
                 if contains_leak(json.dumps(parsed, ensure_ascii=False)):
+                    _note_attempt(selected_model, "unsafe", unknown=True)
                     continue
                 result = normalize_analysis(parsed, caption=caption)
                 result["model"] = selected_model
@@ -645,14 +668,17 @@ async def analyze_image(data: bytes | bytearray | memoryview,
                 raise
             except (asyncio.TimeoutError, aiohttp.ClientError, binascii.Error, OSError) as exc:
                 logger.warning("Gemini Vision tarmoq xatosi (%s): %s", selected_model, type(exc).__name__)
+                _note_attempt(selected_model, "network_or_timeout", unknown=True)   # noaniq
                 last_error = VisionUnavailableError(_safe_error_message())
                 continue
             except (TypeError, ValueError, json.JSONDecodeError) as exc:
                 logger.warning("Gemini Vision javobini parse qilib bo'lmadi (%s): %s", selected_model, type(exc).__name__)
+                _note_attempt(selected_model, "unparsable", unknown=True)
                 last_error = VisionUnavailableError(
                     "⚠️ Vision javobi tushunarsiz. Birozdan so'ng qayta urinib ko'ring."
                 )
                 continue
+        _note_chain_complete()      # model zanjiri tugadi, barcha urinishlar qayd etilgan
         raise last_error or VisionUnavailableError(_safe_error_message())
     finally:
         if own_session:

@@ -325,7 +325,9 @@ def lifecycle_scenarios(label, make_store):
         async def complete(self, prompt, system_instruction, params, deadline=None):
             self.calls += 1
             if self.mode == "fail":
-                raise RuntimeError("provider down")
+                # Provayder HTTP xatosi (so'rov rad etilgan, javob yo'q) — aniq nol xarajat.
+                # (Tasniflanmagan umumiy istisno endi NOMA'LUM: tests/ai_chain_cost_unknown_test.py.)
+                raise fallback.AIProviderError(503, "provider down", self.name)
             note_model("fake-model-1")        # narxi noma'lum
             return {"post_text": "Kofe haqida qisqa va aniq post matni. " * 3}
 

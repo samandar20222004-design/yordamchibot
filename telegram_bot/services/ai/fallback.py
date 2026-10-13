@@ -202,6 +202,34 @@ def build_provider_chain() -> tuple[str, ...]:
 # PROVAYER ADAPTERLARI
 # ============================================================
 
+def _note_attempt(provider, kind, *, unknown=None) -> None:
+    """Urinish natijasini byudjet kuzatuviga qayd etadi (hech qachon AI oqimini buzmaydi)."""
+    try:
+        from services.ai.budget import note_attempt
+
+        note_attempt(provider, kind, unknown=unknown)
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def _note_chain_complete() -> None:
+    try:
+        from services.ai.budget import note_chain_complete
+
+        note_chain_complete()
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def _attempt_kind_of(exc) -> str:
+    try:
+        from services.ai.budget import attempt_kind_of
+
+        return attempt_kind_of(exc)
+    except Exception:  # noqa: BLE001
+        return "other"
+
+
 class AIProviderError(RuntimeError):
     """Provayder xatosi (status 0 = timeout/tarmoq xatosi)."""
 
@@ -676,8 +704,10 @@ class AIFallbackService:
                             result.setdefault("model", note.model)
                         return result
                     errors.append(f"{name}: javob formati noto'g'ri")
+                    _note_attempt(name, "bad_format", unknown=True)   # javob ishlab chiqarilgan
                 except asyncio.TimeoutError:
                     errors.append(f"{name}: timeout ({int(provider_total_timeout())}s)")
+                    _note_attempt(name, "timeout")       # qabul qilingan bo'lishi mumkin: noaniq
                     aa._breaker_fail(name)
                     logger.warning(
                         "%s qat'iy timeout ichida javob bermadi. Keyingi zaxiraga o'tilmoqda...",
@@ -685,9 +715,11 @@ class AIFallbackService:
                     )
                 except Exception as e:
                     errors.append(f"{name}: {e}")
+                    _note_attempt(name, _attempt_kind_of(e))
                     aa._breaker_fail(name)
                     logger.warning("%s ishlamadi (%s). Keyingi zaxiraga o'tilmoqda...", name, e)
 
+        _note_chain_complete()      # barcha urinishlar yuqorida qayd etilgan
         return _graceful_error(errors, lang)
 
     # ----------------------------------------------------------
