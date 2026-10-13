@@ -420,6 +420,21 @@ echo "===== 3f) 📢 KANALLARIM + 📅 REJALASHTIRILGAN ====="
 # Kanal uslubi: matnli va inline yo'l egalik (IDOR) tekshiruvidan o'tadi.
 "$PY" tests/channel_tone_ownership_test.py || fail "tests/channel_tone_ownership_test.py"
 
+# Bepul tarif nishoni: «🤖 @bot» post OXIRIGA (PRO/admin — toza), limit kesmaydi.
+"$PY" tests/free_watermark_footer_test.py || fail "tests/free_watermark_footer_test.py"
+
+# «Kanalga yuborish»: bitta kanal darhol, ko'p kanal — inline tanlov; natijada nom + @username.
+"$PY" tests/channel_send_notice_test.py || fail "tests/channel_send_notice_test.py"
+
+# Imzo/havola saqlash: t.me havolalari, @kanal, formatlangan matn qabul qilinadi.
+"$PY" tests/signature_link_validation_test.py || fail "tests/signature_link_validation_test.py"
+
+# Albom (media_group) yig'uvchi: 1 soniyalik debounce, bitta post, izoh butun albomga.
+"$PY" tests/media_group_album_test.py || fail "tests/media_group_album_test.py"
+
+# «Havoladan Post»: t.me post matni/media, preview→embed zaxirasi, 15 s chegara, AI'siz qoralama.
+"$PY" tests/telegram_link_scraper_test.py || fail "tests/telegram_link_scraper_test.py"
+
 # Stars to'lovi o'tgan, PRO faollashmasa: log (charge_id) + adminga xabar.
 "$PY" tests/stars_activation_failure_test.py || fail "tests/stars_activation_failure_test.py"
 

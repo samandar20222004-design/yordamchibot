@@ -64,6 +64,7 @@ from utils.helpers import (
     telegram_html_payload,
 )
 
+from utils.channel_labels import channel_label_html, sent_notice
 from utils.silent_errors import log_silent_failure
 
 logger = logging.getLogger(__name__)
@@ -612,7 +613,7 @@ async def _magic_finish_send(query, context, targets: list) -> int:
         ch_title = channel[1] if len(channel) > 1 else str(ch_id)
         if await _magic_deliver_one(context.bot, ch_id, post_text):
             sent += 1
-            sent_names.append(html_escape(str(ch_title or ch_id)))
+            sent_names.append(channel_label_html(ch_id, ch_title))
 
     if sent > 0:
         # AI ball "sarflandi" — birinchi muvaffaqiyatli yuborishda (free uchun).
@@ -630,11 +631,7 @@ async def _magic_finish_send(query, context, targets: list) -> int:
                     log_silent_failure("handlers.magic_post:_magic_finish_send:580", _silent_exc)
         try:
             await query.edit_message_text(
-                magic_t(
-                    "mp_sent_ok", lang,
-                    channels=", ".join(sent_names[:5]),
-                    count=sent,
-                ),
+                sent_notice(lang, sent_names),
                 parse_mode="HTML",
             )
         except Exception as _silent_exc:

@@ -48,6 +48,7 @@ from services.ai_quota import (
 from services.ai.engine.gateway import generate_image_post
 from services.delivery import delivery_service  # yagona delivery engine
 from utils.ai_agent import pick_supported_kwargs
+from utils.channel_labels import channel_label_html, sent_notice
 from utils.telegram_sanitizer import sanitize_html, TELEGRAM_CAPTION_LIMIT
 from utils.helpers import html_escape, telegram_html_payload, parse_schedule_input
 from utils.vision_analyzer import (
@@ -887,17 +888,19 @@ async def _deliver_targets(query, context, targets: list) -> int:
     file_id = context.user_data.get("image_post_file_id")
     caption = context.user_data.get("image_post_text") or ""
     sent = 0
+    sent_labels = []
     for channel in targets:
         channel_id, _title = _channel_values(channel)
         try:
             await _send_photo_to_chat(context.bot, channel_id, file_id, caption)
             sent += 1
+            sent_labels.append(channel_label_html(channel_id, _title))
         except Exception as exc:
             logger.warning("Image Post channel delivery failed: %s", type(exc).__name__)
     if sent:
         await _safe_edit(
             query,
-            safe_t("image_sent_ok", get_lang(context), count=sent),
+            sent_notice(get_lang(context), sent_labels),
             None,
         )
         _clear_image_session(context)

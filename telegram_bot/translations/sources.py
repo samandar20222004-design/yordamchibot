@@ -86,6 +86,11 @@ SOURCES_I18N = {
         "src_url_local_note": (
             "<i>ℹ️ Bu variant AI'siz, manba matnidan tuzildi.</i>"
         ),
+        "src_url_ai_fallback": (
+            "⚠️ AI hozir javob bera olmadi — kredit yechilmadi. Havoladagi matn "
+            "saqlandi: AI'siz oddiy qoralamalar tayyorladik, tahrirlab "
+            "foydalanishingiz mumkin."
+        ),
         "src_url_draft_title": "📝 <b>TAYYOR POST</b> ({label})\n\n",
         "src_url_draft_foot": (
             "\n\n👇 <b>Rejalashtirish</b> yoki <b>hozir chiqarish</b>ni "
@@ -261,6 +266,11 @@ SOURCES_I18N = {
         "src_url_local_note": (
             "<i>ℹ️ Этот вариант собран без ИИ, из текста источника.</i>"
         ),
+        "src_url_ai_fallback": (
+            "⚠️ ИИ сейчас не ответил — кредит не списан. Текст из ссылки "
+            "сохранён: мы подготовили простые черновики без ИИ, их можно "
+            "отредактировать и использовать."
+        ),
         "src_url_draft_title": "📝 <b>ГОТОВЫЙ ПОСТ</b> ({label})\n\n",
         "src_url_draft_foot": (
             "\n\n👇 Выберите <b>запланировать</b> или <b>опубликовать сейчас</b>."
@@ -431,6 +441,11 @@ SOURCES_I18N = {
         ),
         "src_url_local_note": (
             "<i>ℹ️ This variant was built without AI, from the source text.</i>"
+        ),
+        "src_url_ai_fallback": (
+            "⚠️ The AI did not respond — no credit was charged. The text from "
+            "the link is kept: we prepared simple drafts without AI that you "
+            "can edit and use."
         ),
         "src_url_draft_title": "📝 <b>READY POST</b> ({label})\n\n",
         "src_url_draft_foot": (

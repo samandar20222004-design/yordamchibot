@@ -67,10 +67,12 @@ from utils.helpers import (
     html_escape,
     safe_html,
     apply_post_watermark,
+    split_watermark_footer,
     check_rate_limit,
 )
 # ✨ PRO 2-bosqichli AI audit: auditor utils.ai_agent'da (_AUDIT_PRO_SYSTEM).
 from utils import ai_agent
+from utils.channel_labels import channel_label
 from scheduler import (
     compose_post_text, parse_album_items,
     resolve_channel_ad, build_ad_button_row,
@@ -1742,9 +1744,10 @@ async def _execute_send(update, context, query, enh):
         ad_button = build_ad_button_row(ad_info)
         brand_text = (await db.run_db(db.get_setting, "post_tag_text", "") or "").strip()
         watermarked = await apply_post_watermark(content, user_id, BOT_USERNAME)
+        watermarked, watermark_tail = split_watermark_footer(watermarked, BOT_USERNAME)
         text_limit = 4096 if ptype == "text" else 1024
         final_content = compose_post_text(watermarked, has_ad_free, channel_ad, brand_text,
-                                          limit=text_limit)
+                                          limit=text_limit, footer=watermark_tail)
     except Exception:
         logger.exception("Enhancer: matnni tayyorlashda xato")
         await _answer(query, get_text("enh_prepare_failed", lang), alert=True)
@@ -1788,7 +1791,7 @@ async def _execute_send(update, context, query, enh):
     logger.info("Enhancer: post kanalga yuborildi (%s → %s)", user_id, ch_id)
     enh["step"] = "sent"
     enh["sent_channel"] = ch_title or ""
-    text, markup_done = _success_view(ch_title or "", lang)
+    text, markup_done = _success_view(channel_label(ch_id, ch_title), lang)
     try:
         await query.edit_message_text(text, reply_markup=markup_done, parse_mode="HTML")
         enh["success_msg_id"] = query.message.message_id

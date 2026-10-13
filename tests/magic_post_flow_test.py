@@ -461,8 +461,9 @@ def test_result_actions_integration():
           len(sent) == 1 and sent[0]["chat_id"] == "-100333"
           and "Magic post" in sent[0]["text"])
     ok_edits = [e for e in q1.edits if isinstance(e.get("text"), str)]
-    check("muvaffaqiyat xabari (mp_sent_ok)",
-          any("muvaffaqiyatli" in e["text"] for e in ok_edits), str(ok_edits[-1:]))
+    check("muvaffaqiyat xabari: aniq nishon kanal nomi ko'rsatilgan",
+          any('"Mening Kanalim"' in e["text"] and "kanaliga yuborildi" in e["text"]
+              for e in ok_edits), str(ok_edits[-1:]))
 
     # --- 3c) Ko'p kanal → tanlov menyusi → tanlangan kanalga yuborish ---
     ctx2 = FakeContext(lang="uz")

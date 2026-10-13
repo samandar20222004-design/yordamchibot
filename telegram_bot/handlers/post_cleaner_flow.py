@@ -12,6 +12,10 @@ Foydalanuvchi oqimi:
 4. Tayyor post kanalga yuboriladi: «⚡ Darhol yuborish» yoqilgan va bitta
    kanal bo'lsa — avtomatik, aks holda post ostidagi kanal tugmasi bilan.
 
+Albom (bir nechta rasm/video) ``media_group_id`` bo'yicha 1 soniyalik
+debounce bilan yig'iladi va BITTA post (``album``) sifatida tozalanadi: izoh
+butun albomga biriktiriladi (``services/media_group_collector.py``).
+
 Tezlik: imzo, kanallar va tarif rejim ochilganda BIR MARTA yuklanadi
 (``user_data``), har bir post DB'ga murojaatsiz qayta ishlanadi.
 """
@@ -19,10 +23,20 @@ Tezlik: imzo, kanallar va tarif rejim ochilganda BIR MARTA yuklanadi
 from __future__ import annotations
 
 import asyncio
+import functools
 import itertools
+import json
 import logging
 
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram import (
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    InputMediaAudio,
+    InputMediaDocument,
+    InputMediaPhoto,
+    InputMediaVideo,
+    Update,
+)
 from telegram.ext import ContextTypes, ConversationHandler
 
 import database as db
@@ -34,15 +48,17 @@ from services.post_cleaner import (
     SIGNATURE_MAX_WORDS,
     TEXT_LIMIT,
     html_to_segment,
-    link_to_url,
+    find_link_url,
     own_channel_usernames,
     quick_clean,
     signature_from_message,
     signature_problems,
     wrap_signature_link,
 )
+from services.media_group_collector import FULL, MediaGroupCollector
 from translations import settings_stats_t as t
-from utils.helpers import html_escape
+from utils.channel_labels import channel_label_html, sent_notice
+from utils.helpers import html_escape, watermark_footer_length
 from utils.silent_errors import log_silent_failure
 
 logger = logging.getLogger(__name__)
@@ -79,6 +95,15 @@ _TOKENS = itertools.count(1)
 
 #: Telegram xabar turi → ``scheduled_posts.post_type`` va ``file_id`` manbai.
 _MEDIA_TYPES = ("photo", "video", "animation", "document", "audio", "voice")
+
+#: Albomga kira oladigan turlar (ovozli xabar albomga kirmaydi).
+_ALBUM_KINDS = ("photo", "video", "document", "audio", "animation")
+
+#: Albom (media_group) yig'uvchi: bir nechta fayl BITTA post bo'lib tozalanadi.
+#: Debounce — oxirgi fayldan 1 soniya jimlik; kutish fon vazifada (handler
+#: bloklanmaydi, foydalanuvchi updatelari ketma-ket ishlanadi).
+ALBUM_DEBOUNCE_SECONDS = 1.0
+_ALBUMS = MediaGroupCollector(delay=ALBUM_DEBOUNCE_SECONDS)
 
 
 async def _lang(context, user_id) -> str:
@@ -230,7 +255,7 @@ async def signature_link_received(update: Update, context: ContextTypes.DEFAULT_
     draft = context.user_data.get(_UD_SIG_DRAFT)
     if not draft:
         return await signature_entry_message(update, context, lang)
-    url = link_to_url(update.message.text or "")
+    url = find_link_url(update.message.text or "")
     if not url:
         await update.message.reply_text(t("ss_cl_bad_link", lang), parse_mode="HTML")
         return CLEANER_SIGNATURE_LINK
@@ -279,9 +304,9 @@ async def _load_session(user_id: int) -> dict:
         "autosend": bool(autosend),
         "channels": [(str(c[0]), str(c[1] or c[0])) for c in (channels or [])],
         "own": frozenset(own or ()),
-        # Bepul foydalanuvchi postining boshiga bot nomi qo'shiladi — joy qoldiramiz.
+        # Bepul foydalanuvchi postining OXIRIGA «🤖 @bot» qo'shiladi — joy qoldiramiz.
         "reserve": 0 if (premium or user_id in ADMIN_IDS_SET)
-        else len(f"@{BOT_USERNAME.lstrip('@')}\n\n"),
+        else watermark_footer_length(BOT_USERNAME),
     }
 
 
@@ -347,7 +372,50 @@ def _remember(context, item: dict) -> str:
     return token
 
 
-async def _send_preview(bot, chat_id: int, item: dict, markup) -> None:
+def _album_item(message) -> dict | None:
+    """Albom elementi: ``{message_id, type, file_id, caption, entities}`` (yoki ``None``)."""
+    for kind in _ALBUM_KINDS:
+        media = getattr(message, kind, None)
+        if not media:
+            continue
+        if kind == "photo":
+            media = media[-1]
+        return {
+            "message_id": getattr(message, "message_id", None),
+            "type": kind,
+            "file_id": media.file_id,
+            "caption": message.caption or "",
+            "entities": tuple(message.caption_entities or ()),
+        }
+    return None
+
+
+def _album_media(items: list, html: str) -> list:
+    """``send_media_group`` uchun InputMedia ro'yxati; izoh faqat BIRINCHI faylda."""
+    media = []
+    for index, entry in enumerate(items):
+        caption = (html or None) if index == 0 else None
+        mode = "HTML" if caption else None
+        kind, file_id = entry.get("type"), entry["file_id"]
+        if kind == "video":
+            media.append(InputMediaVideo(file_id, caption=caption, parse_mode=mode))
+        elif kind in ("document", "animation"):
+            media.append(InputMediaDocument(file_id, caption=caption, parse_mode=mode))
+        elif kind == "audio":
+            media.append(InputMediaAudio(file_id, caption=caption, parse_mode=mode))
+        else:
+            media.append(InputMediaPhoto(file_id, caption=caption, parse_mode=mode))
+    return media
+
+
+async def _send_preview(bot, chat_id: int, item: dict, markup, lang: str = "uz") -> None:
+    if item["type"] == "album":
+        entries = json.loads(item["file_id"])
+        await bot.send_media_group(chat_id, media=_album_media(entries, item["html"]))
+        if markup is not None:
+            await bot.send_message(chat_id, t("ss_cl_album_pick", lang, count=len(entries)),
+                                   parse_mode="HTML", reply_markup=markup)
+        return
     if item["type"] == "text":
         await bot.send_message(chat_id, item["html"], parse_mode="HTML", reply_markup=markup)
         return
@@ -369,7 +437,17 @@ async def post_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await message.reply_text(t("ss_cl_no_sig", lang), parse_mode="HTML")
         return ConversationHandler.END
     if message.media_group_id:
-        await message.reply_text(t("ss_cl_album", lang), parse_mode="HTML")
+        # Albom: fayllar fon kollektorida yig'iladi (handler darhol qaytadi),
+        # jimlikdan keyin BITTA post sifatida tozalanadi (izoh — albom izohi).
+        entry = _album_item(message)
+        if entry is None:
+            await message.reply_text(t("ss_cl_unsupported", lang), parse_mode="HTML")
+            return CLEANER_POST_INPUT
+        key = (user_id, str(message.media_group_id))
+        outcome = _ALBUMS.add(key, entry, functools.partial(
+            _album_ready, context, user_id, lang, message.chat_id))
+        if outcome == FULL:
+            logger.info("cleaner: albom 10 fayldan oshdi (user=%s) — ortiqchasi tashlandi", user_id)
         return CLEANER_POST_INPUT
     payload = _message_payload(message)
     if payload is None:
@@ -401,8 +479,58 @@ async def post_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
                   f"{CB_PUBLISH}:{token}:{index}")]
             for index, (_cid, title) in enumerate(channels[:_CHANNEL_BUTTONS_MAX])]
     await _send_preview(context.bot, message.chat_id, item,
-                        InlineKeyboardMarkup(rows) if rows else None)
+                        InlineKeyboardMarkup(rows) if rows else None, lang)
     return CLEANER_POST_INPUT
+
+
+async def _album_ready(context, user_id: int, lang: str, chat_id: int, entries: list) -> None:
+    """Albom yig'ildi: izoh tozalanadi → BITTA post (kanalga yoki tugmalar bilan)."""
+    session = context.user_data.get(_UD_SESSION)
+    if not session or not entries:
+        return  # tozalash rejimi bu orada to'xtatilgan
+    bot = context.bot
+    try:
+        # Izoh butun albomga tegishli: birinchi bo'sh bo'lmagan izoh ishlatiladi.
+        primary = next((e for e in entries if (e.get("caption") or "").strip()), None)
+        text = primary["caption"] if primary else ""
+        entities = primary["entities"] if primary else ()
+        result = quick_clean(text, entities, session["signature"], session["own"])
+        total = result.length + session["reserve"]
+        if total > CAPTION_LIMIT:
+            await bot.send_message(
+                chat_id,
+                t("ss_cl_too_long", lang, length=total, limit=CAPTION_LIMIT,
+                  note=t("ss_cl_limit_caption", lang), over=total - CAPTION_LIMIT),
+                parse_mode="HTML")
+            return
+        if len(entries) == 1:
+            single = entries[0]
+            item = {"type": single["type"], "file_id": single["file_id"], "html": result.html}
+        else:
+            files = [{"type": e["type"], "file_id": e["file_id"],
+                      "caption": result.html if i == 0 else ""}
+                     for i, e in enumerate(entries)]
+            item = {"type": "album", "file_id": json.dumps(files, ensure_ascii=False),
+                    "html": result.html}
+        channels = session["channels"]
+        if session["autosend"] and len(channels) == 1:
+            status = await bot.send_message(
+                chat_id, t("ss_cl_sending", lang, channel=html_escape(channels[0][1])),
+                parse_mode="HTML")
+            await publish(context, user_id, lang, item, channels[0], status)
+            return
+        token = _remember(context, item)
+        rows = [[_btn(t("ss_cl_btn_pub", lang, channel=title[:40]),
+                      f"{CB_PUBLISH}:{token}:{index}")]
+                for index, (_cid, title) in enumerate(channels[:_CHANNEL_BUTTONS_MAX])]
+        await _send_preview(bot, chat_id, item,
+                            InlineKeyboardMarkup(rows) if rows else None, lang)
+    except Exception as exc:  # noqa: BLE001 — fon vazifa foydalanuvchiga xabar beradi
+        log_silent_failure("handlers.post_cleaner_flow:_album_ready", exc, user_id=user_id)
+        try:
+            await bot.send_message(chat_id, t("ss_cl_album_fail", lang), parse_mode="HTML")
+        except Exception as notify_exc:  # noqa: BLE001
+            log_silent_failure("handlers.post_cleaner_flow:_album_ready:notify", notify_exc)
 
 
 # ============================================================
@@ -420,6 +548,7 @@ async def publish(context, user_id: int, lang: str, item: dict, channel: tuple,
 
     channel_id, title = channel
     safe_title = html_escape(title)
+    label = channel_label_html(channel_id, title)
     if not await manual_channel_guard(user_id, channel_id, "create"):
         await status_message.edit_text(t("ss_cl_no_access", lang), parse_mode="HTML")
         return False
@@ -435,14 +564,15 @@ async def publish(context, user_id: int, lang: str, item: dict, channel: tuple,
     from utils.handler_timeout import run_background_task
 
     run_background_task(
-        _deliver_and_report(context.bot, user_id, lang, post_id, safe_title, status_message),
+        _deliver_and_report(context.bot, user_id, lang, post_id, safe_title, status_message,
+                            label),
         name=f"cleaner:publish:{post_id}",
     )
     return True
 
 
 async def _deliver_and_report(bot, user_id: int, lang: str, post_id: int,
-                              safe_title: str, status_message) -> None:
+                              safe_title: str, status_message, label: str = "") -> None:
     from scheduler import deliver_due_posts_now
 
     await deliver_due_posts_now(bot)
@@ -453,7 +583,8 @@ async def _deliver_and_report(bot, user_id: int, lang: str, post_id: int,
             break
         await asyncio.sleep(_STATUS_POLL_DELAY)
     if status == "posted":
-        text = t("ss_cl_sent", lang, channel=safe_title)
+        # Aniq nishon: «Nomi» (@username) kanaliga yuborildi.
+        text = sent_notice(lang, [label or safe_title])
     elif status in ("pending", "processing"):
         return  # navbatda (masalan tungi soatlar) — rejalashtiruvchi yuboradi
     else:

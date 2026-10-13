@@ -72,7 +72,8 @@ Oxirgi natija: ~16 970 `[OK]`, 0 `[FAIL]`, 6 `[SKIP]` (pgserver/redis yo'q).
 
 - `BETA_INVITE_ONLY` sukut bo'yicha `true` — yangi foydalanuvchilar taklif kodisiz
   kira olmaydi. Production'da qiymatni egasi belgilaydi.
-- Bepul tarifda kanal postining boshiga `@BOT_USERNAME` qo'shiladi (mavjud qoida).
+- Bepul tarifda kanal postining OXIRIGA `\n\n🤖 @BOT_USERNAME` qo'shiladi (`utils/helpers.py`:
+  `apply_post_watermark`; limit kesishidan KEYIN `compose_post_text(footer=...)`). PRO/admin — toza.
 - Hostingga va production bazaga kirish yo'q; tezlik o'lchovlari faqat lokal.
 - Bu konteynerda fon PostgreSQL ba'zan to'xtaydi — test oldidan qayta ishga tushir.
 - Real-DB testlar (`refactor_step5_test.py`) toza bazani kutadi: qayta yugurishdan
@@ -85,7 +86,8 @@ Oxirgi natija: ~16 970 `[OK]`, 0 `[FAIL]`, 6 `[SKIP]` (pgserver/redis yo'q).
 1. PR #216 ni egasi merge qiladi; deploy'dan keyin «Sekin javob» loglarini ko'rish.
 2. ~~Umumiy kunlik AI xarajat chegarasi (`AI_GLOBAL_DAILY_USD`)~~ — qilindi;
    production'da qiymatni egasi belgilaydi (sukut 0 = o'chiq).
-3. Tozalagich: albom (bir nechta rasm) qo'llab-quvvatlash.
+3. ~~Tozalagich: albom (bir nechta rasm) qo'llab-quvvatlash~~ — qilindi
+   (`services/media_group_collector.py`, 1 s debounce; `tests/media_group_album_test.py`).
 4. Katta fayllarni bo'lish: `utils/ai_agent.py` (~4,9k qator), `handlers/__init__.py` (~2,6k).
 5. Takrorlanuvchi menyu testlarini birlashtirish; eski `get_content_creation_keyboard`
    faqat testlarda qolgan.
