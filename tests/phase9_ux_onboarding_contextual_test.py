@@ -144,7 +144,7 @@ def test_main_menu_consolidation() -> None:
 # 2. CONTEXTUAL MENULAR ([✍️ Post yaratish] va [📢 Kanallarim])
 # ======================================================================
 def test_post_creation_contextual_menu() -> None:
-    print("\n2A. [✍️ Post yaratish] kontekstual inline menyusi (4x2, 8 tugma, i18n, <=18 belgi)")
+    print("\n2A. [✍️ Post yaratish] kontekstual inline menyusi (3x2 + Post Score, 7 tugma, i18n, <=18 belgi)")
     from keyboards.callback_data import (
         CB_CTX_AI_ASSISTANT,
         CB_CTX_AI_POST,
@@ -164,10 +164,10 @@ def test_post_creation_contextual_menu() -> None:
         ["⚡ AI Post", "📝 Oddiy Post"],
         ["🖼 Rasmdan Post", "🎙 Ovozdan Post"],
         ["🔗 Havoladan Post", "♻️ Qayta ishlash"],
-        ["🤖 AI Yordamchi", "📊 Post Score"],
+        ["📊 Post Score"],
     ]
     check(
-        "[✍️ Post yaratish] UZ menyusi aynan 4x2 talab qilingan tartibda",
+        "[✍️ Post yaratish] UZ menyusi: 3x2 + Post Score (🤖 AI Yordamchi olib tashlangan)",
         rows_uz == expected_rows_uz,
         f"got={rows_uz}",
     )
@@ -177,9 +177,13 @@ def test_post_creation_contextual_menu() -> None:
         [CB_CTX_AI_POST, CB_CTX_MANUAL_POST],
         [CB_CTX_IMAGE_POST, CB_CTX_VOICE_POST],
         [CB_CTX_LINK_POST, CB_CTX_RECYCLE_POST],
-        [CB_CTX_AI_ASSISTANT, CB_CTX_POST_SCORE],
+        [CB_CTX_POST_SCORE],
     ]
-    check("Barcha 8 ta callback_data to'g'ri bog'langan", cbs_uz == expected_cbs)
+    check("Barcha 7 ta callback_data to'g'ri bog'langan", cbs_uz == expected_cbs)
+    check("«🤖 AI Yordamchi» callback'i menyuda YO'Q",
+          CB_CTX_AI_ASSISTANT not in [cb for row in cbs_uz for cb in row])
+    check("eski xabarlar uchun callback reyestrda saqlangan",
+          is_registered_callback(CB_CTX_AI_ASSISTANT))
     for row in expected_cbs:
         for cb_val in row:
             check(
@@ -191,8 +195,8 @@ def test_post_creation_contextual_menu() -> None:
         kb = get_post_creation_contextual_keyboard(lang)
         all_btns = [btn for row in kb.inline_keyboard for btn in row]
         check(
-            f"[{lang}] 8 ta tugma va har biri <= 18 belgi",
-            len(all_btns) == 8 and all(1 <= len(b.text) <= 18 for b in all_btns),
+            f"[{lang}] 7 ta tugma, AI Yordamchi yo'q, har biri <= 18 belgi",
+            len(all_btns) == 7 and CB_CTX_AI_ASSISTANT not in [b.callback_data for b in all_btns] and all(1 <= len(b.text) <= 18 for b in all_btns),
             f"lengths={[(b.text, len(b.text)) for b in all_btns]}",
         )
 

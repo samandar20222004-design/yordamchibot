@@ -74,26 +74,26 @@ EXPECTED_SUBMENU = {
 
 # PHASE 9: the current post-entry handler renders the compact inline action
 # panel. Keep the older 3+1 reply-menu contract above for its dedicated
-# keyboard/i18n tests, but validate this handler against its actual 4x2 UI.
+# keyboard/i18n tests, but validate this handler against its actual UI (3x2 + Post Score; 🤖 AI Yordamchi removed).
 EXPECTED_CONTEXTUAL_MENU = {
     "uz": [["⚡ AI Post", "📝 Oddiy Post"],
            ["🖼 Rasmdan Post", "🎙 Ovozdan Post"],
            ["🔗 Havoladan Post", "♻️ Qayta ishlash"],
-           ["🤖 AI Yordamchi", "📊 Post Score"]],
+           ["📊 Post Score"]],
     "ru": [["⚡ AI Пост", "📝 Обычный пост"],
            ["🖼 Пост из фото", "🎙 Пост из голоса"],
            ["🔗 Пост по ссылке", "♻️ Переработка"],
-           ["🤖 AI Помощник", "📊 Post Score"]],
+           ["📊 Post Score"]],
     "en": [["⚡ AI Post", "📝 Regular Post"],
            ["🖼 Image to Post", "🎙 Voice to Post"],
            ["🔗 Link to Post", "♻️ Recycle Post"],
-           ["🤖 AI Assistant", "📊 Post Score"]],
+           ["📊 Post Score"]],
 }
 EXPECTED_CONTEXTUAL_CALLBACKS = [
     ["ctx_post:ai", "ctx_post:manual"],
     ["ctx_post:image", "ctx_post:voice"],
     ["ctx_post:url", "ctx_post:recycle"],
-    ["ctx_post:assistant", "ctx_post:score"],
+    ["ctx_post:score"],
 ]
 
 # Har bir submenu tugmasi ochishi KERAK BO'LGAN oqim handleri.
@@ -615,7 +615,7 @@ def test_submenu_flows():
         check(f"[{lang}] post-entry inline klaviatura (PTB inline_keyboard)",
               markup is not None and hasattr(markup, "inline_keyboard"),
               type(markup).__name__ if markup is not None else "missing markup")
-        check(f"[{lang}] contextual menyu 4x2 tartibda",
+        check(f"[{lang}] contextual menyu tartibda (3x2 + Post Score)",
               bool(sent) and kb_rows(markup) == EXPECTED_CONTEXTUAL_MENU[lang],
               str(kb_rows(markup) if markup is not None else None))
         check(f"[{lang}] contextual callback'lar action-first oqimlarga ulangan",

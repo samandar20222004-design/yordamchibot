@@ -31,7 +31,6 @@ from keyboards.callback_data import (  # noqa: F401 — re-export (eski importla
     CB_CTX_VOICE_POST,
     CB_CTX_LINK_POST,
     CB_CTX_RECYCLE_POST,
-    CB_CTX_AI_ASSISTANT,
     CB_CTX_POST_SCORE,
     CB_ONB_PLAN,
     CB_SCHED_BTN_REACT,
@@ -716,7 +715,11 @@ def get_post_creation_contextual_keyboard(lang: str = "uz") -> InlineKeyboardMar
         [⚡ AI Post]        [📝 Oddiy Post]
         [🖼 Rasmdan Post]   [🎙 Ovozdan Post]
         [🔗 Havoladan Post] [♻️ Qayta ishlash]
-        [🤖 AI Yordamchi]   [📊 Post Score]
+        [📊 Post Score]
+
+    «🤖 AI Yordamchi» tugmasi olib tashlandi: yonidagi AI tugmalari (AI Post,
+    Rasmdan/Ovozdan/Havoladan Post, Post Score) uning vazifalarini qoplaydi.
+    ``ctx_post:assistant`` callback'i eski xabarlar uchun handlerda saqlangan.
 
     Barcha tugma yorliqlari ≤ 18 belgi va 3 tilda (UZ/RU/EN) to'liq sinxron.
     """
@@ -742,8 +745,6 @@ def get_post_creation_contextual_keyboard(lang: str = "uz") -> InlineKeyboardMar
                                  callback_data=CB_CTX_RECYCLE_POST),
         ],
         [
-            InlineKeyboardButton(content_menu_t("ctx_btn_assistant", lang),
-                                 callback_data=CB_CTX_AI_ASSISTANT),
             InlineKeyboardButton(content_menu_t("ctx_btn_post_score", lang),
                                  callback_data=CB_CTX_POST_SCORE),
         ],
