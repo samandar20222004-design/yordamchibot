@@ -426,6 +426,9 @@ echo "===== 3f) 📢 KANALLARIM + 📅 REJALASHTIRILGAN ====="
 # «Kanalga yuborish»: bitta kanal darhol, ko'p kanal — inline tanlov; natijada nom + @username.
 "$PY" tests/channel_send_notice_test.py || fail "tests/channel_send_notice_test.py"
 
+# Imzo/havola saqlash: t.me havolalari, @kanal, formatlangan matn qabul qilinadi.
+"$PY" tests/signature_link_validation_test.py || fail "tests/signature_link_validation_test.py"
+
 # Stars to'lovi o'tgan, PRO faollashmasa: log (charge_id) + adminga xabar.
 "$PY" tests/stars_activation_failure_test.py || fail "tests/stars_activation_failure_test.py"
 

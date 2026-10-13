@@ -34,7 +34,7 @@ from services.post_cleaner import (
     SIGNATURE_MAX_WORDS,
     TEXT_LIMIT,
     html_to_segment,
-    link_to_url,
+    find_link_url,
     own_channel_usernames,
     quick_clean,
     signature_from_message,
@@ -231,7 +231,7 @@ async def signature_link_received(update: Update, context: ContextTypes.DEFAULT_
     draft = context.user_data.get(_UD_SIG_DRAFT)
     if not draft:
         return await signature_entry_message(update, context, lang)
-    url = link_to_url(update.message.text or "")
+    url = find_link_url(update.message.text or "")
     if not url:
         await update.message.reply_text(t("ss_cl_bad_link", lang), parse_mode="HTML")
         return CLEANER_SIGNATURE_LINK

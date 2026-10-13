@@ -90,6 +90,7 @@ __all__ = [
     "strip_tail_junk",
     "signature_problems",
     "link_to_url",
+    "find_link_url",
     "signature_from_message",
     "wrap_signature_link",
     "quick_clean",
@@ -1422,12 +1423,32 @@ def signature_problems(text: str) -> dict:
     return problems
 
 
+#: Havola atrofidagi tasodifiy belgilar: ``<https://t.me/x>``, ``(t.me/x).``, «@x»,
+#: ``"https://..."`` va gap oxiridagi tinish belgilari.
+_LINK_WRAP_LEFT = "<([{«\"'`"
+_LINK_WRAP_RIGHT = ">)]}»\"'`.,;:!?…"
+#: Sxemasiz domen: ``example.com``, ``www.example.uz/yol`` (TO'LIQ moslik kerak).
+_BARE_DOMAIN_RE = re.compile(
+    r"(?:www\.)?(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,24}(?:[/?#]\S*)?"
+)
+
+
 def link_to_url(raw: str) -> str:
-    """``@kanal`` / ``t.me/kanal`` / ``https://...`` → xavfsiz URL (yoki ``""``)."""
+    """``@kanal`` / ``t.me/kanal`` / ``example.com`` / ``https://...`` → xavfsiz URL.
+
+    Qabul qilinadi: ``https://t.me/kanal``, ``t.me/kanal``, ``@kanal``,
+    sxemasiz domen (``example.com/yol``), burchak/qavs/qo'shtirnoq ichidagi va
+    gap oxiridagi tinish belgisi bilan yozilgan havola (``<https://t.me/x>``,
+    ``"@kanal".``). Xavfli sxemalar (``javascript:``, ``data:``) rad etiladi.
+    Yaroqsiz kiritish — ``""``.
+    """
     value = (raw or "").strip()
+    value = value.lstrip(_LINK_WRAP_LEFT).rstrip(_LINK_WRAP_RIGHT).strip()
     if re.fullmatch(r"@[A-Za-z][A-Za-z0-9_]{3,31}", value):
         value = f"https://t.me/{value[1:]}"
     elif re.fullmatch(r"(?:www\.)?(?:t\.me|telegram\.me)/\S+", value, re.IGNORECASE):
+        value = f"https://{value}"
+    elif _BARE_DOMAIN_RE.fullmatch(value):
         value = f"https://{value}"
     if not re.fullmatch(r"(?:https?|tg)://\S+", value, re.IGNORECASE):
         return ""
@@ -1436,6 +1457,22 @@ def link_to_url(raw: str) -> str:
     except Exception:  # pragma: no cover - himoya
         return ""
     return value if validate_button_url(value) else ""
+
+
+def find_link_url(raw: str) -> str:
+    """Matndan BIRINCHI yaroqli havolani topadi (``link_to_url`` + so'zma-so'z qidiruv).
+
+    Foydalanuvchi havolani izoh bilan yozishi mumkin: ``👉 Obuna: @kanal`` —
+    butun matn havola bo'lmasa, so'zlar ketma-ket tekshiriladi.
+    """
+    whole = link_to_url(raw)
+    if whole:
+        return whole
+    for token in str(raw or "").split():
+        url = link_to_url(token)
+        if url:
+            return url
+    return ""
 
 
 def signature_from_message(text: str, entities=None) -> tuple:
