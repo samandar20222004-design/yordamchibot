@@ -420,6 +420,9 @@ echo "===== 3f) 📢 KANALLARIM + 📅 REJALASHTIRILGAN ====="
 # Kanal uslubi: matnli va inline yo'l egalik (IDOR) tekshiruvidan o'tadi.
 "$PY" tests/channel_tone_ownership_test.py || fail "tests/channel_tone_ownership_test.py"
 
+# Stars to'lovi o'tgan, PRO faollashmasa: log (charge_id) + adminga xabar.
+"$PY" tests/stars_activation_failure_test.py || fail "tests/stars_activation_failure_test.py"
+
 echo
 echo "===== 3g) 📊 STATISTIKA + ⚙️ SOZLAMALAR + ADMIN RBAC ====="
 # (1) 📊 Statistika — aniq nom + ixcham 4 ko'rsatkich (📢 kanallar /

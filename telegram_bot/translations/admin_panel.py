@@ -515,6 +515,14 @@ ADMIN_PANEL_I18N = {
             "🎟 Kod: <code>{code}</code>\n"
             "📌 Sabab: {reason}"
         ),
+        "stars_activation_failed_admin": (
+            "🚨 <b>Stars to'lovi qabul qilindi, lekin PRO faollashmadi</b>\n"
+            "👤 Foydalanuvchi: <code>{user_id}</code>\n"
+            "🧾 Charge ID: <code>{charge_id}</code>\n"
+            "📅 Muddat: {days} kun\n"
+            "📌 Sabab: {reason}\n"
+            "Qo'lda tekshiring: PRO'ni /grant_pro bilan bering yoki to'lovni qaytaring."
+        ),
         "beta_admin_store_error": "⚠️ Holatni saqlash imkonsiz (baza xatosi). Keyinroq urinib ko'ring.",
 
         # --- ⏱ SPRINT 4: onboarding gauge (TTFP + D1/D7) ---
@@ -1020,6 +1028,14 @@ ADMIN_PANEL_I18N["ru"] = {
         "🎟 Код: <code>{code}</code>\n"
         "📌 Причина: {reason}"
     ),
+    "stars_activation_failed_admin": (
+        "🚨 <b>Оплата Stars получена, но PRO не активирован</b>\n"
+        "👤 Пользователь: <code>{user_id}</code>\n"
+        "🧾 Charge ID: <code>{charge_id}</code>\n"
+        "📅 Срок: {days} дн.\n"
+        "📌 Причина: {reason}\n"
+        "Проверьте вручную: выдайте PRO через /grant_pro или верните платёж."
+    ),
     "beta_admin_store_error": "⚠️ Не удалось сохранить состояние (ошибка базы). Попробуйте позже.",
 
     # --- ⏱ SPRINT 4: onboarding gauge (TTFP + D1/D7) ---
@@ -1521,6 +1537,14 @@ ADMIN_PANEL_I18N["en"] = {
         "👤 {username} (<code>{user_id}</code>)\n"
         "🎟 Code: <code>{code}</code>\n"
         "📌 Reason: {reason}"
+    ),
+    "stars_activation_failed_admin": (
+        "🚨 <b>Stars payment received, but PRO was not activated</b>\n"
+        "👤 User: <code>{user_id}</code>\n"
+        "🧾 Charge ID: <code>{charge_id}</code>\n"
+        "📅 Period: {days} days\n"
+        "📌 Reason: {reason}\n"
+        "Check manually: grant PRO with /grant_pro or refund the payment."
     ),
     "beta_admin_store_error": "⚠️ Could not save the state (database error). Please try again later.",
 
