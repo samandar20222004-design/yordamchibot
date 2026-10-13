@@ -86,7 +86,8 @@ Oxirgi natija: ~16 970 `[OK]`, 0 `[FAIL]`, 6 `[SKIP]` (pgserver/redis yo'q).
 1. PR #216 ni egasi merge qiladi; deploy'dan keyin «Sekin javob» loglarini ko'rish.
 2. ~~Umumiy kunlik AI xarajat chegarasi (`AI_GLOBAL_DAILY_USD`)~~ — qilindi;
    production'da qiymatni egasi belgilaydi (sukut 0 = o'chiq).
-3. Tozalagich: albom (bir nechta rasm) qo'llab-quvvatlash.
+3. ~~Tozalagich: albom (bir nechta rasm) qo'llab-quvvatlash~~ — qilindi
+   (`services/media_group_collector.py`, 1 s debounce; `tests/media_group_album_test.py`).
 4. Katta fayllarni bo'lish: `utils/ai_agent.py` (~4,9k qator), `handlers/__init__.py` (~2,6k).
 5. Takrorlanuvchi menyu testlarini birlashtirish; eski `get_content_creation_keyboard`
    faqat testlarda qolgan.

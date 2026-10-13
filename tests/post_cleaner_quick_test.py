@@ -237,7 +237,9 @@ def test_handlers():
     context = SimpleNamespace(user_data={}, bot=bot)
     msg = FakeMessage(bot, caption="x", photo=photo, media_group_id="g1")
     asyncio.run(clf.post_received(_update(msg), context))
-    check("albom: tushuntiriladi, yuborilmaydi", not calls["add_post"] and msg.replies)
+    check("albom: handler darhol qaytadi, fayl alohida post bo'lmaydi (fonda yig'iladi)",
+          not calls["add_post"] and clf._ALBUMS.is_collecting((7, "g1")))
+    clf._ALBUMS.cancel((7, "g1"))
 
 
 if __name__ == "__main__":
