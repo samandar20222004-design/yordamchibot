@@ -31,7 +31,7 @@ bash ../scripts/security_check.sh                        # ruff, flake8, pip-aud
 
 Haqiqiy PostgreSQL bilan testlar uchun `*_TEST_DATABASE_URL` (P0_, STEP5_, FINAL_,
 RBAC_, INTEGRITY_, LOAD_, STRESS_) o'zgaruvchilarini lokal bazaga qarating.
-Oxirgi natija: 117 skript, ~17 080 `[OK]`, 0 `[FAIL]`, 6 `[SKIP]` (pgserver/redis yo'q).
+Oxirgi natija: ~16 970 `[OK]`, 0 `[FAIL]`, 6 `[SKIP]` (pgserver/redis yo'q).
 
 ## Qilingan ishlar (PR samandar20222004-design/yordamchibot#216, branch `claude/bot-kod-tuzatish-vs3iix`)
 
@@ -52,6 +52,12 @@ Oxirgi natija: 117 skript, ~17 080 `[OK]`, 0 `[FAIL]`, 6 `[SKIP]` (pgserver/redi
   (`quick_clean`, `strip_tail_junk`), `scheduler.deliver_due_posts_now`,
   ustun `users.post_signature_html`. Test: `tests/post_cleaner_quick_test.py`.
 - `main` (PR #213 — Sozlamalar 3-qatori: Do'stlarni taklif + Yordam) branchga merge qilingan.
+- **Umumiy kunlik AI chegarasi:** `AI_GLOBAL_DAILY_USD` (USD, barcha foydalanuvchilar,
+  UTC kun; 0 = o'chiq, sukut). `BudgetGuard.acquire` foydalanuvchi limitlaridan keyin
+  tekshiradi: bugungi sarf (xotira ledger va DB `get_ai_global_cost_usd`, 30 s kesh) +
+  barcha bronlar + yangi so'rov. Oshsa — `global_daily_usd`, provayder chaqirilmaydi,
+  foydalanuvchiga «xizmat limiti» xabari (PRO taklif qilinmaydi), logda kuniga 1 WARNING.
+  Test: `tests/ai_cost_protection_test.py` (TEST 5b).
 
 ## Bilish kerak
 
@@ -60,12 +66,16 @@ Oxirgi natija: 117 skript, ~17 080 `[OK]`, 0 `[FAIL]`, 6 `[SKIP]` (pgserver/redi
 - Bepul tarifda kanal postining boshiga `@BOT_USERNAME` qo'shiladi (mavjud qoida).
 - Hostingga va production bazaga kirish yo'q; tezlik o'lchovlari faqat lokal.
 - Bu konteynerda fon PostgreSQL ba'zan to'xtaydi — test oldidan qayta ishga tushir.
+- Real-DB testlar (`refactor_step5_test.py`) toza bazani kutadi: qayta yugurishdan
+  oldin test bazasini qayta yarat. `BOT_TOKEN=1:x` bilan
+  `production_hardening_and_concurrency_test.py` 1 ta tekshiruvda yiqiladi (token
+  juda qisqa, scrubber ro'yxatga olmaydi) — `run_tests.sh` ni BOT_TOKEN'siz yugurt.
 
 ## Keyingi ishlar (ustuvorlik bo'yicha)
 
 1. PR #216 ni egasi merge qiladi; deploy'dan keyin «Sekin javob» loglarini ko'rish.
-2. Umumiy kunlik AI xarajat chegarasi (`AI_GLOBAL_DAILY_USD`) — hozir faqat
-   foydalanuvchi bo'yicha limit bor (`services/ai/budget.py`).
+2. ~~Umumiy kunlik AI xarajat chegarasi (`AI_GLOBAL_DAILY_USD`)~~ — qilindi;
+   production'da qiymatni egasi belgilaydi (sukut 0 = o'chiq).
 3. Tozalagich: albom (bir nechta rasm) qo'llab-quvvatlash.
 4. Katta fayllarni bo'lish: `utils/ai_agent.py` (~4,9k qator), `handlers/__init__.py` (~2,6k).
 5. Takrorlanuvchi menyu testlarini birlashtirish; eski `get_content_creation_keyboard`
