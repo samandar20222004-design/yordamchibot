@@ -162,7 +162,7 @@ _SUPPORTED_MEDIA = ("photo", "video", "animation", "document")
 #     kvota birligi);
 #   * albom to'lsa (10) — qo'shimcha fayl uchun aniq ogohlantirish.
 _MANUAL_ALBUM_TASKS: dict = {}          # user_id -> asyncio.Task (yakunlovchi)
-_MANUAL_ALBUM_WAIT_SECONDS = 2.5        # oxirgi fayldan keyingi jimlik oynasi
+_MANUAL_ALBUM_WAIT_SECONDS = 1.5        # oxirgi fayldan keyingi jimlik oynasi
 _MANUAL_ALBUM_MAX_ITEMS = 10            # Telegram media-guruh chegarasi
 
 
@@ -265,7 +265,7 @@ def _manual_album_cancel(user_id: int) -> None:
         task.cancel()
 
 
-def _manual_album_schedule(user_id: int, context, lang: str) -> None:
+def _manual_album_schedule(user_id: int, context, lang: str, chat_id=None) -> None:
     """Jimlik oynasi tugagach albomni BITTA post sifatida yakunlaydi.
 
     Har bir yangi fayl vazifani qaytadan boshlaydi (idle timeout) — sekin
@@ -278,11 +278,11 @@ def _manual_album_schedule(user_id: int, context, lang: str) -> None:
     except RuntimeError:  # pragma: no cover — sinxron chaqiruv
         return
     _MANUAL_ALBUM_TASKS[user_id] = loop.create_task(
-        _manual_album_finalize(user_id, context, lang)
+        _manual_album_finalize(user_id, context, lang, chat_id)
     )
 
 
-async def _manual_album_finalize(user_id: int, context, lang: str) -> None:
+async def _manual_album_finalize(user_id: int, context, lang: str, chat_id=None) -> None:
     """Albom yig'ishni yakunlaydi va YAGONA xabar (nechta fayl) yuboradi."""
     try:
         await asyncio.sleep(_MANUAL_ALBUM_WAIT_SECONDS)
@@ -290,11 +290,12 @@ async def _manual_album_finalize(user_id: int, context, lang: str) -> None:
         return
     _MANUAL_ALBUM_TASKS.pop(user_id, None)
     items = _manual_album_items(context)
-    if len(items) < 2:
+    if not items:
         return
-    _manual_album_store(context, items)
+    if len(items) > 1:
+        _manual_album_store(context, items)
     bot = getattr(context, "bot", None)
-    chat_id = getattr(context, "chat_id", None)
+    chat_id = chat_id or getattr(context, "chat_id", None)
     if bot is None or chat_id is None or not hasattr(bot, "send_message"):
         return
     try:
@@ -304,6 +305,13 @@ async def _manual_album_finalize(user_id: int, context, lang: str) -> None:
             reply_markup=_manual_preview_markup(context, lang),
             parse_mode="HTML",
         )
+        from scheduler import _build_album_media, _send_single_media
+        content = context.user_data.get(UD_CONTENT, "")
+        if len(items) > 1:
+            await bot.send_media_group(chat_id=chat_id, media=_build_album_media(items, content))
+        else:
+            await _send_single_media(bot, chat_id, items[0]["type"], items[0]["file_id"],
+                                     content, None, "HTML")
     except Exception as _silent_exc:
         log_silent_failure("handlers.manual_post:_manual_album_finalize",
                            _silent_exc, user_id=user_id)
@@ -328,9 +336,13 @@ def _manual_album_take(context, item: dict, group_id) -> tuple:
         context.user_data[UD_ALBUM_GROUP] = group_id
         context.user_data[UD_ALBUM_ITEMS] = json.dumps([item], ensure_ascii=False)
         return True, False, False
+    message_id = item.get("message_id")
+    if message_id is not None and any(i.get("message_id") == message_id for i in items):
+        return True, True, False
     if len(items) >= _MANUAL_ALBUM_MAX_ITEMS:
         return True, True, True
     items.append(item)
+    items.sort(key=lambda i: i.get("message_id") or 0)
     _manual_album_store(context, items)
     return True, True, False
 
@@ -708,13 +720,19 @@ async def _show_preview(target_msg, context, lang: str):
     foot = manual_post_t("mp_preview_foot", lang)
     extras = _manual_extras_text(context, lang)
 
-    # 🖼 ALBOM: preview'da birinchi fayl "muqova" sifatida ko'rsatiladi,
-    # qolgan fayllar soni esa matnda (mp_album_summary) yoziladi — kanalga
-    # esa barcha fayllar BITTA albom bo'lib chiqadi.
+    # Send the complete album; Telegram requires controls in a separate message.
+    # Older message adapters retain the cover-photo fallback.
     preview_kind, preview_file = post_type, file_id
     if post_type == "album" and file_id:
         items = _manual_album_items(context)
         if items:
+            if hasattr(target_msg, "reply_media_group"):
+                from scheduler import _build_album_media
+                await target_msg.reply_media_group(
+                    media=_build_album_media(items, content))
+                return await target_msg.reply_text(
+                    f"{title}{extras}{foot}", reply_markup=panel, parse_mode="HTML")
+            # Compatibility fallback for message adapters without album support.
             preview_kind = items[0].get("type") or "photo"
             preview_file = items[0].get("file_id")
     if preview_kind in _SUPPORTED_MEDIA and preview_file:
@@ -1127,7 +1145,9 @@ async def manual_content_received(update: Update, context: ContextTypes.DEFAULT_
         return MANUAL_AWAIT_CONTENT
 
     if file_id and group_id:
-        item = {"type": post_type, "file_id": file_id, "caption": text_input}
+        text_input = getattr(msg, "caption_html", None) or text_input
+        item = {"type": post_type, "file_id": file_id, "caption": text_input,
+                "message_id": getattr(msg, "message_id", None)}
         user_id = _manual_user_id(context) or getattr(
             getattr(update, "effective_user", None), "id", 0) or 0
         is_album, silent, over_limit = _manual_album_take(context, item, group_id)
@@ -1147,17 +1167,21 @@ async def manual_content_received(update: Update, context: ContextTypes.DEFAULT_
                         _silent_exc, user_id=user_id)
                 return MANUAL_PREVIEW
             # Jimlik oynasini yangilaymiz (har yangi fayl hisobga olinadi).
-            _manual_album_schedule(user_id, context, lang)
+            _manual_album_schedule(user_id, context, lang, msg.chat_id)
             if silent:
                 # Oraliq fayl — preview SPAM qilinmaydi; yakuniy xabar
                 # (nechta fayl saqlangani) fondagi vazifa tomonidan yuboriladi.
                 return MANUAL_PREVIEW
-            # Birinchi fayl — oddiy media sifatida ko'rsatiladi (quyida),
-            # albom holati esa ikkinchi fayldan boshlab o'rnatiladi.
+            # Keep a single-file draft until the remaining album updates arrive.
             context.user_data[UD_POST_TYPE] = post_type
             context.user_data[UD_FILE_ID] = file_id
             context.user_data[UD_CONTENT] = text_input
             context.user_data[UD_MEDIA_GROUP] = False
+            # Acknowledge collection, but do not expose publish controls for
+            # an incomplete album. The background task sends the full preview.
+            await msg.reply_text(get_text("np_album_received", lang, count=1),
+                                 parse_mode="HTML")
+            return MANUAL_PREVIEW
     else:
         context.user_data[UD_CONTENT] = text_input
         context.user_data[UD_POST_TYPE] = post_type if file_id else "text"

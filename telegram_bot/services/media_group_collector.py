@@ -39,7 +39,7 @@ __all__ = [
 ]
 
 #: Oxirgi fayldan keyingi jimlik oynasi (debounce).
-DEFAULT_DELAY_SECONDS = 1.0
+DEFAULT_DELAY_SECONDS = 1.5
 #: Birinchi fayldan boshlab umumiy kutish chegarasi.
 DEFAULT_MAX_WAIT_SECONDS = 10.0
 #: Telegram albom chegarasi.

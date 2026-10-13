@@ -35,7 +35,6 @@ import asyncio
 import json
 import logging
 import re
-import time
 from datetime import datetime, timedelta
 
 import pytz
@@ -77,14 +76,13 @@ from scheduler import (
     compose_post_text, parse_album_items,
     resolve_channel_ad, build_ad_button_row,
 )
-# Albom (media_group) yig'ish logikasi new_post bilan umumiy — buffer'lar ham.
+# Album collection must not block the per-user update lock.
+from services.media_group_collector import MediaGroupCollector
+
 from locales.translations import clear_fsm_data, get_lang, get_text
 from handlers.new_post import (
     _media_item_from_message,
     _apply_single_media,
-    _purge_stale_albums,
-    _ALBUM_BUFFERS,
-    _ALBUM_WAIT_SECONDS,
     parse_url_button_line,
     normalize_button_url as _np_normalize_button_url,
 )
@@ -889,6 +887,9 @@ async def enh_message_received(update: Update, context: ContextTypes.DEFAULT_TYP
     return ENH_POST
 
 
+_ENH_ALBUMS = MediaGroupCollector()
+
+
 async def _capture_post(update, context, msg, enh):
     user_id = update.effective_user.id
     chat_id = msg.chat_id
@@ -898,32 +899,25 @@ async def _capture_post(update, context, msg, enh):
         if not item or item["type"] in ("voice", "sticker"):
             await msg.reply_text(get_text("enh_album_reject", lang))
             return ENH_POST
-        _purge_stale_albums()
-        key = (user_id, msg.media_group_id)
-        buf = _ALBUM_BUFFERS.setdefault(key, {"items": [], "seq": 0, "ts": time.time()})
-        if len(buf["items"]) < 10:
-            buf["items"].append(item)
-        buf["seq"] += 1
-        buf["ts"] = time.time()
-        my_seq = buf["seq"]
-        await asyncio.sleep(0)
-        await asyncio.sleep(_ALBUM_WAIT_SECONDS)
-        current = _ALBUM_BUFFERS.get(key)
-        if not current or current.get("seq") != my_seq:
-            return ENH_POST
-        items = _ALBUM_BUFFERS.pop(key, {}).get("items") or [item]
-        caption = next((i.get("caption") or "" for i in items if i.get("caption")), "")
-        if len(items) == 1:
-            _apply_single_media(context, items[0])
-        else:
-            context.user_data["post_type"] = "album"
-            context.user_data["file_id"] = json.dumps(items, ensure_ascii=False)
-            context.user_data["content"] = caption
-        enh["post"] = {
-            "type": context.user_data["post_type"],
-            "file_id": context.user_data["file_id"],
-            "content": context.user_data["content"],
-        }
+        item["message_id"] = msg.message_id
+        key = (msg.chat_id, user_id, str(msg.media_group_id))
+
+        async def ready(items):
+            # Ignore a collector belonging to a discarded/restarted flow.
+            if context.user_data.get(_ENH_KEY) is not enh or enh.get("step", "content") != "content":
+                return
+            caption = next((i.get("caption") for i in items if i.get("caption")), "")
+            enh["post"] = {
+                "type": "album" if len(items) > 1 else items[0]["type"],
+                "file_id": json.dumps(items, ensure_ascii=False) if len(items) > 1 else items[0]["file_id"],
+                "content": caption,
+            }
+            context.user_data.update(
+                post_type=enh["post"]["type"], file_id=enh["post"]["file_id"], content=caption)
+            await _finish_capture(context, msg, enh, user_id, chat_id, lang)
+
+        _ENH_ALBUMS.add(key, item, ready)
+        return ENH_POST
     else:
         item = _media_item_from_message(msg)
         if item:
@@ -940,6 +934,10 @@ async def _capture_post(update, context, msg, enh):
                 return ENH_POST
             enh["post"] = {"type": "text", "file_id": None, "content": msg.text or ""}
 
+    return await _finish_capture(context, msg, enh, user_id, chat_id, lang)
+
+
+async def _finish_capture(context, msg, enh, user_id, chat_id, lang):
     enh["step"] = "hub"
     enh["hub_msg_id"] = None  # yangi hub xabari (post bilan bog'liq)
     await _drop_preview(context, chat_id, enh)  # eski post prevyusi eskirgan

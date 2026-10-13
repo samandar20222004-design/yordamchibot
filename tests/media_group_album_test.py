@@ -472,5 +472,154 @@ async def scenario_limits_and_stop():
 
 asyncio.run(scenario_limits_and_stop())
 
+# Concurrent Telegram updates must produce one durable post, not one per file.
+async def scenario_concurrent_delivery():
+    from unittest.mock import AsyncMock, patch
+    import scheduler
+    import utils.helpers as helpers
+    from services.media_group_collector import DEFAULT_DELAY_SECONDS
+
+    check("production debounce is 1.5 seconds",
+          DEFAULT_DELAY_SECONDS == clf.ALBUM_DEBOUNCE_SECONDS == 1.5)
+    for caption in (None, "Muhim xabar"):
+        calls = setup([("-100111", "Kanal A")], autosend=True, premium=False)
+        ctx = SimpleNamespace(user_data={}, bot=FakeBot())
+        # Force actual coroutine interleaving during session loading.
+        original_lang = clf._lang
+
+        async def yielding_lang(context, uid):
+            await asyncio.sleep(0)
+            return await original_lang(context, uid)
+
+        clf._lang = yielding_lang
+        messages = [Msg(403, "concurrent", kind="video"),
+                    Msg(401, "concurrent"),
+                    Msg(402, "concurrent", caption=caption,
+                        ents=[MessageEntity("bold", 0, 5)] if caption else ())]
+        await asyncio.gather(*(clf.post_received(upd(m), ctx) for m in messages))
+        await clf._ALBUMS.wait_idle()
+        check("concurrent updates create exactly one DB post", len(calls["add_post"]) == 1)
+        post = calls["add_post"][0]
+        send_ctx = dict(post, post_id=99, btn_text=None, btn_url=None,
+                        enable_reactions=False, reaction_emojis=None, delivery_kwargs={})
+        async def run_db(fn, *args, **kwargs):
+            if fn.__name__ == "is_premium":
+                return False
+            if fn.__name__ == "get_setting":
+                return ""
+            raise AssertionError(f"Unexpected DB call: {fn.__name__}")
+
+        sent = []
+        async def delivery(bot, method, **kwargs):
+            sent.append((method, kwargs))
+            return [SimpleNamespace(message_id=501 + i) for i in range(3)]
+
+        # Exercise the actual shared immediate/scheduled publishing pipeline,
+        # mocking only DB, entitlements and the outbound Telegram boundary.
+        with patch.object(scheduler.db, "run_db", run_db), \
+             patch.object(scheduler, "resolve_channel_ad", AsyncMock(return_value={})), \
+             patch.object(helpers, "is_watermark_exempt", AsyncMock(return_value=False)), \
+             patch.object(scheduler, "BOT_USERNAME", "PostAssistrobot"), \
+             patch.object(scheduler, "_delivery_send", delivery):
+            payload = await scheduler._build_send_payload(send_ctx)
+            await scheduler._dispatch_post_to_telegram(ctx.bot, send_ctx, payload, {})
+        check("scheduler calls sendMediaGroup exactly once",
+              len(sent) == 1 and sent[0][0] == "send_media_group")
+        media = sent[0][1]["media"]
+        check("all concurrent file IDs reach channel in Telegram order",
+              [m.media for m in media] == ["F401", "F402", "F403"])
+        check("album caption includes cleaner signature and mandatory Free watermark",
+              SIG in media[0].caption and media[0].caption.endswith("🤖 @PostAssistrobot"))
+        check("formatted caption preserved, other media have no caption",
+              (not caption or "<b>Muhim</b> xabar" in media[0].caption)
+              and all(m.caption is None for m in media[1:]))
+
+    setup([("-100111", "Kanal A")], premium=False)
+    ctx = SimpleNamespace(user_data={}, bot=FakeBot())
+    await asyncio.gather(*(clf.post_received(upd(Msg(i, "preview")), ctx) for i in (601, 602)))
+    await clf._ALBUMS.wait_idle()
+    check("Free preview is one album with signature and watermark",
+          len(ctx.bot.groups) == 1 and SIG in ctx.bot.groups[0][1][0].caption
+          and "🤖 @" in ctx.bot.groups[0][1][0].caption)
+    check("preview remembers exactly one unified post", len(ctx.user_data[clf._UD_PENDING]) == 1)
+
+
+asyncio.run(scenario_concurrent_delivery())
+
+
+async def scenario_enhancer_serial_updates():
+    from unittest.mock import AsyncMock, patch
+    from handlers import post_enhancer as enh
+
+    ctx = SimpleNamespace(user_data={"lang": "uz"}, bot=FakeBot())
+    collector = MediaGroupCollector(delay=0.05)
+    finish = AsyncMock()
+    with patch.object(enh, "_ENH_ALBUMS", collector), patch.object(enh, "_finish_capture", finish):
+        # Same order as GuardedApplication: await each handler before the next.
+        for mid in (702, 701, 703):
+            await asyncio.wait_for(enh.enh_message_received(
+                upd(Msg(mid, "enh", kind="video" if mid == 703 else "photo",
+                        caption="Album text" if mid == 702 else None)), ctx), timeout=0.04)
+        check("enhancer returns before debounce without finalizing partial posts", finish.await_count == 0)
+        await collector.wait_idle()
+        post = enh._payload(ctx)["post"]
+        check("enhancer finalizes serial updates exactly once", finish.await_count == 1)
+        check("enhancer keeps all files and album caption",
+              post["type"] == "album" and len(json.loads(post["file_id"])) == 3
+              and post["content"] == "Album text")
+
+
+asyncio.run(scenario_enhancer_serial_updates())
+
+async def scenario_manual_album_preview():
+    from unittest.mock import AsyncMock, patch
+    from handlers import manual_post as mp
+
+    ctx = SimpleNamespace(user_data={"lang": "uz"}, bot=FakeBot(), _user_id=7, chat_id=42)
+    with patch.object(mp, "_MANUAL_ALBUM_WAIT_SECONDS", 0.05):
+        messages = [Msg(803, "manual", kind="video"),
+                    Msg(801, "manual", caption="Manual caption"),
+                    Msg(802, "manual"), Msg(802, "manual")]
+        await asyncio.gather(*(mp.manual_content_received(upd(m), ctx) for m in messages))
+        check("manual handler does not preview an incomplete album", not ctx.bot.groups)
+        await asyncio.gather(*list(mp._MANUAL_ALBUM_TASKS.values()))
+        check("manual collector sends one complete album preview", len(ctx.bot.groups) == 1)
+        media = ctx.bot.groups[0][1]
+        check("manual album sorted and duplicate update ignored",
+              [m.media for m in media] == ["F801", "F802", "F803"])
+        check("manual caption belongs to the entire album",
+              media[0].caption == "Manual caption" and all(m.caption is None for m in media[1:]))
+        target = SimpleNamespace(reply_media_group=AsyncMock(), reply_text=AsyncMock())
+        await mp._show_preview(target, ctx, "uz")
+        check("manual preview screen renders the whole media group",
+              target.reply_media_group.await_count == 1
+              and len(target.reply_media_group.await_args.kwargs["media"]) == 3)
+        check("album controls use a separate message", target.reply_text.await_count == 1)
+
+
+asyncio.run(scenario_manual_album_preview())
+
+
+async def scenario_real_debounce_window():
+    delivered = []
+    collector = MediaGroupCollector()
+
+    async def ready(items):
+        delivered.append(items)
+
+    collector.add("real-window", {"message_id": 1}, ready)
+    await asyncio.sleep(0.8)
+    last_arrival = time.monotonic()
+    collector.add("real-window", {"message_id": 2}, ready)
+    await asyncio.sleep(0.8)
+    check("new update extends debounce beyond 1.5s from first arrival", not delivered)
+    await collector.wait_idle()
+    check("one album emitted after 1.5s of silence",
+          len(delivered) == 1 and len(delivered[0]) == 2
+          and time.monotonic() - last_arrival >= 1.5)
+
+
+asyncio.run(scenario_real_debounce_window())
+
 print(f"\nNATIJA: [OK]={passed}  [FAIL]={failures}")
 sys.exit(1 if failures else 0)
