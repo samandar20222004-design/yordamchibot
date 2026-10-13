@@ -397,14 +397,13 @@ from handlers.payment_receipt import (
 # (stgs_* callback'lari); rewards/help hub callback'lari alohida patternlar
 # bilan ham ro'yxatdan o'tkaziladi — generic legacy aliaslar saqlanadi.
 from handlers.settings import (
-    CLEANER_SIGNATURE_INPUT,
     cleaner_command,
     cleaner_signature_entry,
-    cleaner_signature_received,
     settings_help_hub_callback,
     settings_menu_callback,
     settings_rewards_callback,
 )
+from handlers.post_cleaner_flow import mode_entry as cleaner_mode_entry  # noqa: E402
 
 # 10d. 🔐 SPRINT 1 — MAXFIYLIK SIYOSATI + «MA'LUMOTLARIMNI O'CHIRISH»
 # (GDPR): ``/privacy`` buyrug'i va Sozlamalar hub'idagi 4-qator tugmalari.
@@ -1303,6 +1302,8 @@ def _main_entry_points(all_menu_jumps):
         CallbackQueryHandler(
             cleaner_signature_entry, pattern=r"^stgs_clean_sig$",
         ),
+        # 🧹 «Postni tozalashni boshlash» — tezkor tozalash rejimi.
+        CallbackQueryHandler(cleaner_mode_entry, pattern=r"^stgs_clean_go$"),
         # 🌅 Daily digest → idea picker; the selected idea then reuses Magic Post.
         CallbackQueryHandler(morning_digest_create_callback, pattern=r"^md_create:"),
         CallbackQueryHandler(uzbek_calendar_create_callback, pattern=r"^uzcal_create:"),
@@ -1774,18 +1775,30 @@ def _editing_tools_states(all_menu_jumps, _edit_post_menu_handlers):
 
 
 def _settings_cleaner_states(all_menu_jumps):
-    """🧹 ⚙️ Sozlamalar → ✍️ Post sozlamalari → ⚙️ Ko'proq sozlamalar →
-    🧹 Post Auto-Cleaner & Custom Signature.
+    """🧹 Post tozalash va imzo (``handlers/post_cleaner_flow.py``).
 
-    Bitta holat: foydalanuvchi ✍️ imzo/almashtrish havolasi matnini yozadi.
-    Matn ``utils.post_signature.normalize_signature`` orqali tozalanadi
-    (boshqaruv/yo'nalish belgilari yo'q, ≤3 qator, ≤255 belgi) va
-    ``users.post_signature_text`` ustuniga yoziladi.
+    * imzo matni → (havolasi bo'lmasa) havola so'raladi;
+    * tozalash rejimi: har bir yuborilgan post bir zumda tozalanadi.
+    Asosiy menyu tugmalari (all_menu_jumps) rejimdan chiqaradi.
     """
+    from handlers import post_cleaner_flow as clf
+
+    post_filter = (
+        (filters.TEXT & ~filters.COMMAND) | filters.PHOTO | filters.VIDEO
+        | filters.ANIMATION | filters.Document.ALL | filters.AUDIO | filters.VOICE
+    )
     return {
-        CLEANER_SIGNATURE_INPUT: all_menu_jumps + [
-            MessageHandler(filters.TEXT & ~filters.COMMAND,
-                           cleaner_signature_received),
+        clf.CLEANER_SIGNATURE_INPUT: all_menu_jumps + [
+            MessageHandler(filters.TEXT & ~filters.COMMAND, clf.signature_received),
+        ],
+        clf.CLEANER_SIGNATURE_LINK: all_menu_jumps + [
+            CallbackQueryHandler(clf.signature_nolink, pattern=rf"^{clf.CB_SIG_NOLINK}$"),
+            MessageHandler(filters.TEXT & ~filters.COMMAND, clf.signature_link_received),
+        ],
+        clf.CLEANER_POST_INPUT: all_menu_jumps + [
+            CallbackQueryHandler(clf.mode_stop, pattern=rf"^{clf.CB_STOP}$"),
+            CallbackQueryHandler(clf.publish_callback, pattern=rf"^{clf.CB_PUBLISH}:"),
+            MessageHandler(post_filter, clf.post_received),
         ],
     }
 

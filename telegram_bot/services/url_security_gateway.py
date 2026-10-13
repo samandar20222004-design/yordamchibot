@@ -204,8 +204,8 @@ def _ip_literal(host: str) -> str | None:
         return None
     try:
         return str(ipaddress.ip_address(text))
-    except ValueError as _silent_exc:
-        log_silent_failure("services.url_security_gateway:_ip_literal", _silent_exc)
+    except ValueError:
+        pass  # oddiy domen nomi — IP emas (kutilgan holat, xato emas)
     try:
         packed = socket.inet_aton(text)
     except OSError:

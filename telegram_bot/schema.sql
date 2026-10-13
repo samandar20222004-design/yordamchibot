@@ -50,7 +50,10 @@ CREATE TABLE IF NOT EXISTS users (
     -- Bo'lishi mumkin bo'lgan qiymat HAR DOIM services.post_cleaner
     -- .normalize_signature orqali tozalanadi (boshqaruv belgilari yo'q,
     -- ≤10 qator, ≤500 belgi) — payload'dan ixtiyoriy matn yozilmaydi.
-    post_signature_text VARCHAR(500)
+    post_signature_text VARCHAR(500),
+    -- 🧹 Tezkor tozalash imzosi (formatlangan HTML: havolali matn, qalin...).
+    -- Bo'sh bo'lsa post_signature_text ishlatiladi.
+    post_signature_html TEXT
 );
 
 -- Foydalanuvchining ha/yo'q sozlamalari (bildirishnomalar, auto-cleaner ...).
@@ -767,6 +770,8 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS full_menu_unlocked BOOLEAN DEFAULT FA
 ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(20) DEFAULT 'user';
 -- 🌍 DINAMIK KALENDAR (2026-10): maqsad davlat (ISO-3166-1 alpha-2).
 ALTER TABLE users ADD COLUMN IF NOT EXISTS target_country VARCHAR(8) DEFAULT 'UZ';
+-- 🧹 Tezkor tozalash: formatlangan imzo (havolali matn). Mavjud ma'lumotga tegmaydi.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS post_signature_html TEXT;
 -- 🌱 STEP 2 (ORGANIC GROWTH): action-based referral mukofoti va anti-abuse.
 -- referral_rewarded_at — taklif qilingan foydalanuvchi BIRINCHI postini
 --   yaratgan/rejalashtirgan payt (referrer mukofoti shu hodisadan keyin

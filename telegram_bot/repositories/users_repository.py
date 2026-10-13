@@ -1026,12 +1026,56 @@ def set_user_post_signature(user_id: int, value) -> bool:
     try:
         with db_cursor(commit=True) as cur:
             cur.execute(
-                "UPDATE users SET post_signature_text = %s WHERE user_id = %s",
+                "UPDATE users SET post_signature_text = %s, post_signature_html = NULL "
+                "WHERE user_id = %s",
                 (text or None, int(user_id)),
             )
             return cur.rowcount > 0
     except Exception as e:
         logger.error(f"set_user_post_signature xatosi: {e}")
+        return False
+
+
+def get_user_post_signature_html(user_id: int) -> str:
+    """Tezkor tozalash imzosi (HTML). Yangi ustun bo'sh bo'lsa — eski
+    oddiy matnli imzo HTML-escape qilinib qaytadi. Xato/yo'q → ``""``."""
+    from html import escape
+
+    try:
+        with db_cursor() as cur:
+            cur.execute(
+                "SELECT post_signature_html, post_signature_text FROM users "
+                "WHERE user_id = %s",
+                (int(user_id),),
+            )
+            row = cur.fetchone()
+    except Exception as e:
+        logger.debug(f"get_user_post_signature_html xatosi (bo'sh qaytadi): {e}")
+        return ""
+    if not row:
+        return ""
+    if row[0]:
+        return str(row[0])
+    plain = _normalize_post_signature(row[1] or "")
+    return escape(plain, quote=False) if plain else ""
+
+
+def set_user_post_signature_html(user_id: int, html: str, plain: str) -> bool:
+    """Imzoni saqlaydi: HTML (tezkor tozalash) + oddiy matn (eski oqimlar).
+
+    Bo'sh ``html`` — imzoni o'chiradi. Foydalanuvchi topilmasa ``False``.
+    """
+    try:
+        with db_cursor(commit=True) as cur:
+            cur.execute(
+                "UPDATE users SET post_signature_html = %s, post_signature_text = %s "
+                "WHERE user_id = %s",
+                ((html or "").strip() or None,
+                 _normalize_post_signature(plain) or None, int(user_id)),
+            )
+            return cur.rowcount > 0
+    except Exception as e:
+        logger.error(f"set_user_post_signature_html xatosi: {e}")
         return False
 
 

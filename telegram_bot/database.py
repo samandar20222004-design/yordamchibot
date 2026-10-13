@@ -2401,6 +2401,7 @@ from repositories.users_repository import (  # noqa: E402, F401
     # 🧹 POST AUTO-CLEANER — maxsus imzo / almashtirish havolasi (matn)
     POST_SIGNATURE_COLUMN, POST_SIGNATURE_MAX_LEN,
     get_user_post_signature, set_user_post_signature, _normalize_post_signature,
+    get_user_post_signature_html, set_user_post_signature_html,
 )
 # --- 📢 CHANNELS — kanal CRUD, monitoring, Channel DNA, manba/RSS, reklama
 from repositories.channels_repository import (  # noqa: E402, F401
@@ -2440,7 +2441,7 @@ from repositories.posts_repository import (  # noqa: E402, F401
     DEFAULT_QUEUE_SLOTS, POST_TEMPLATES_LIMIT, _template_row_to_dict, add_post,
     cancel_post, count_post_templates, create_post_template,
     defer_post_deletion, delete_post_template, get_channel_post_stats,
-    get_due_posts, get_pending_posts, get_post_by_id,
+    get_due_posts, get_pending_posts, get_post_by_id, get_post_status,
     get_post_delivery_options, get_post_health_counts, get_post_template,
     get_post_templates, get_posts_to_delete, get_queue_occupied_times,
     get_queue_post_count, get_queue_post_detail, get_queue_posts,
@@ -2861,6 +2862,7 @@ def _ddl_user_settings_and_migrations(cur):
         # user_settings.value BOOLEAN — matn u yerga sig'maydi (target_country
         # bilan bir xil naqsh). NULL/bo'sh → imzo qo'shilmaydi.
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS post_signature_text VARCHAR(500);",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS post_signature_html TEXT;",
         # Existing installs may already have the earlier VARCHAR(255) column.
         "ALTER TABLE users ALTER COLUMN post_signature_text TYPE VARCHAR(500);",
         "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS inline_button_text VARCHAR(255);",

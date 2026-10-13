@@ -516,7 +516,7 @@ def _build_cleaner_keyboard(values: dict, lang: str) -> InlineKeyboardMarkup:
          _inline(settings_stats_t("ss_btn_clean_clear", lang),
                  callback_data="stgs_clean_sig_clear")],
         [_inline(settings_stats_t("ss_btn_back", lang),
-                 callback_data="stgs_hub")],
+                 callback_data="stgs_clean")],
     ])
 
 
@@ -592,127 +592,12 @@ async def _render_cleaner_demo(query, user_id: int, lang: str) -> None:
     )
 
 
-async def _clear_cleaner_signature(query, context, user_id: int,
-                                   lang: str) -> None:
-    """🗑 Saqlangan imzoni o'chiradi va ekranni yangilaydi."""
-    saved = await db.run_db(db.set_user_post_signature, user_id, "")
-    toast = (
-        settings_stats_t("ss_clean_sig_cleared", lang) if saved
-        else settings_stats_t("ss_clean_sig_none", lang)
-    )
-    try:
-        await query.answer(toast, show_alert=False)
-    except Exception as _silent_exc:
-        log_silent_failure("handlers.settings:_clear_cleaner_signature",
-                           _silent_exc, user_id=user_id)
-    await _render_cleaner(query, user_id, lang, allow_reply_fallback=False)
-
-
-# ============================================================
-# ✍️ IMZO KIRITISH FSM (bitta holat — matn kutiladi)
-# ============================================================
-#: FSM holati: foydalanuvchi ✍️ imzo/havola matnini yozishi kutilmoqda.
-#:
-#: 545 — TANLANGAN, chunki 5xx diapazoni band: 501–502 (analitika),
-#: 511–512 (transfer), 520–525 (image post), **530–539 (manbalar/SRC_*)**,
-#: 540 (support ticket). 541–599 bo'sh; 545 hech qaysi oqim bilan
-#: to'qnashmaydi (``tests/sources_rss_and_recycle_test.py`` 530–539
-#: blokini qat'iy qo'riqlaydi — shu sababli 530 ISHLATILMAYDI).
-CLEANER_SIGNATURE_INPUT = 545
-
-
-async def cleaner_signature_entry(update, context: ContextTypes.DEFAULT_TYPE):
-    """✍️ Imzoni kiritish oqimini boshlaydi (``stgs_clean_sig`` entry point).
-
-    ``main_conv`` entry point'i sifatida ro'yxatdan o'tadi — generic
-    ``^stgs_`` handler'idan OLDIN ishlaydi (``main_conv`` app'ga avval
-    qo'shiladi), shu sababli tugma "o'lik" qolmaydi.
-    """
-    from handlers.start import ensure_user_lang
-
-    query = getattr(update, "callback_query", None)
-    user_id = None
-    if query is not None:
-        user_id = query.from_user.id
-        try:
-            await query.answer()
-        except Exception as _silent_exc:
-            log_silent_failure("handlers.settings:cleaner_signature_entry",
-                               _silent_exc, user_id=user_id)
-    lang = await ensure_user_lang(context, user_id)
-    context.user_data["cleaner_sig_chat"] = (
-        query.message.chat_id if query is not None else update.effective_chat.id
-    )
-    context.user_data["cleaner_sig_msg"] = (
-        query.message.message_id if query is not None else None
-    )
-    from utils.post_signature import MAX_SIGNATURE_LEN
-
-    prompt = settings_stats_t("ss_clean_sig_prompt", lang,
-                              max_len=MAX_SIGNATURE_LEN)
-    if query is not None:
-        try:
-            await query.edit_message_text(prompt, parse_mode="HTML")
-            return CLEANER_SIGNATURE_INPUT
-        except Exception:
-            pass
-    await context.bot.send_message(
-        context.user_data["cleaner_sig_chat"], prompt, parse_mode="HTML",
-    )
-    return CLEANER_SIGNATURE_INPUT
-
-
-async def cleaner_signature_received(update, context: ContextTypes.DEFAULT_TYPE):
-    """✍️ Yuborilgan imzo/havolani tekshiradi, saqlaydi va ekranni qaytaradi.
-
-    Xavfsizlik: matn ``normalize_signature`` orqali tozalanadi (boshqaruv/
-    yo'nalish belgilari yo'q, ≤10 qator, ≤500 belgi) va ekranda HTML-escape
-    qilinadi — foydalanuvchi kiritgan ``<b>`` teg sifatida ishlamaydi.
-    """
-    from utils.post_signature import normalize_signature
-
-    user_id = update.effective_user.id
-    lang = await _user_lang(context, user_id)
-    raw = update.message.text or "" if update.message else ""
-    text = normalize_signature(raw)
-
-    if not text:
-        # Bo'sh/jim qabul qilinmaydi — lekin oqim YOPILMAYDI (qayta urinish).
-        await update.message.reply_text(
-            settings_stats_t("ss_clean_sig_rejected", lang), parse_mode="HTML",
-        )
-        return CLEANER_SIGNATURE_INPUT
-
-    saved = await db.run_db(db.set_user_post_signature, user_id, text)
-    if not saved:
-        logger.warning("Imzoni saqlab bo'lmadi: user_id=%s", user_id)
-        await update.message.reply_text(
-            settings_stats_t("ss_clean_sig_rejected", lang), parse_mode="HTML",
-        )
-        return CLEANER_SIGNATURE_INPUT
-
-    await update.message.reply_text(
-        settings_stats_t("ss_clean_sig_saved", lang), parse_mode="HTML",
-    )
-    chat_id = context.user_data.pop("cleaner_sig_chat", None) or update.effective_chat.id
-    message_id = context.user_data.pop("cleaner_sig_msg", None)
-    # Sozlama ekranini joyida yangilaymiz (yangi xabar spam qilinmaydi).
-    if message_id:
-        try:
-            state = await _load_cleaner_state(user_id)
-            await context.bot.edit_message_text(
-                chat_id=chat_id, message_id=message_id,
-                text=_build_cleaner_text(state["values"], state["signature"], lang),
-                reply_markup=_build_cleaner_keyboard(state["values"], lang),
-                parse_mode="HTML",
-            )
-            return _end_state()
-        except Exception as _silent_exc:
-            log_silent_failure("handlers.settings:cleaner_signature_received",
-                               _silent_exc, user_id=user_id)
-    # Fallback: ekran topilmasa yangi xabar bilan ochiladi.
-    await _send_cleaner_screen(context, user_id, chat_id, lang)
-    return _end_state()
+# ✍️ Imzo kiritish va tezkor tozalash rejimi — handlers/post_cleaner_flow.py
+from handlers.post_cleaner_flow import (  # noqa: E402, F401 — qayta eksport
+    CLEANER_SIGNATURE_INPUT,
+    signature_entry as cleaner_signature_entry,
+    signature_received as cleaner_signature_received,
+)
 
 
 def _end_state():
@@ -729,67 +614,24 @@ async def _user_lang(context, user_id: int) -> str:
     return await ensure_user_lang(context, user_id)
 
 
-async def _send_cleaner_screen(context, user_id: int, chat_id: int,
-                               lang: str) -> None:
-    """🧹 Auto-cleaner ekranini YANGI xabar sifatida yuboradi (fallback)."""
-    state = await _load_cleaner_state(user_id)
-    await context.bot.send_message(
-        chat_id,
-        _build_cleaner_text(state["values"], state["signature"], lang),
-        reply_markup=_build_cleaner_keyboard(state["values"], lang),
-        parse_mode="HTML",
-    )
-
-
 async def cleaner_command(update, context: ContextTypes.DEFAULT_TYPE):
-    """🧹 ``/cleaner`` — Post tozalagich va ✍️ Imzo ekranini DARHOL ochadi.
-
-    ☰ «Menu» tugmasidagi ``/cleaner`` buyrug'i uchun (uz/ru/en). Ekran
-    Sozlamalar ichida CHUQUR joylashgan (⚙️ Sozlamalar → ✍️ Post
-    sozlamalari → ⚙️ Ko'proq → 🧹 Avto-tozalash) — buyruq esa uni BIR
-    QADAMDA ochadi: oraliq menyular yo'q, foydalanuvchi darhol
-    toggle'lar, ✍️ imzo, 🧪 namuna va [◀️ Orqaga] tugmalarini ko'radi.
-
-    Ekran ``stgs_clean`` callback'i bilan AYNAN bir manbadan chiziladi
-    (``_load_cleaner_state`` / ``_build_cleaner_text`` /
-    ``_build_cleaner_keyboard``) — matn yoki klaviatura ikkinchi nusxasi
-    yo'q. FSM tozalanadi (yarim tugagan eski oqim davom etmaydi), til
-    foydalanuvchi profilidan olinadi va DB o'qish fail-soft (baza
-    javob bermasa standart holat ko'rsatiladi).
-
-    Handler global ``CommandHandler`` sifatida ro'yxatdan o'tadi
-    (``/settings`` va ``/help`` bilan bir qatorda) — shu sababli buyruq
-    faol FSM holatidan qat'i nazar DARHOL ishlaydi.
-    """
-    clear_fsm_data(context)
-    user = getattr(update, "effective_user", None)
-    user_id = getattr(user, "id", None)
-    lang = await _user_lang(context, user_id)
+    """🧹 ``/cleaner`` — «Post tozalash va imzo» ekranini darhol ochadi."""
+    from handlers import post_cleaner_flow as clf
     from handlers.navigation import SECTION_SETTINGS, remember_section
 
+    clear_fsm_data(context)
+    user_id = getattr(getattr(update, "effective_user", None), "id", None)
+    lang = await _user_lang(context, user_id)
     remember_section(context, SECTION_SETTINGS)
     if user_id is None:
-        # Foydalanuvchi aniqlanmagan (nazariy holat) — DB o'qilmaydi,
-        # standart (o'chirilgan) holat ko'rsatiladi.
-        values = {key: bool(SETTING_DEFAULTS.get(key, False))
-                  for key in CLEANER_SETTING_KEYS}
-        state = {"values": values, "signature": ""}
-    else:
-        state = await _load_cleaner_state(user_id)
-    text = _build_cleaner_text(state["values"], state["signature"], lang)
-    keyboard = _build_cleaner_keyboard(state["values"], lang)
-
+        return _end_state()
+    text, markup = await clf.build_screen(user_id, lang)
     message = getattr(update, "message", None)
     if message is not None:
-        await message.reply_text(text, reply_markup=keyboard, parse_mode="HTML")
-        return _end_state()
-    # Zaxira yo'l (masalan, buyruq rasm izohida kelganda ``message``
-    # o'rniga faqat chat bo'ladi) — ekran baribir chiziladi.
-    chat = getattr(update, "effective_chat", None)
-    if chat is not None:
-        await context.bot.send_message(
-            chat.id, text, reply_markup=keyboard, parse_mode="HTML",
-        )
+        await message.reply_text(text, reply_markup=markup, parse_mode="HTML")
+    elif getattr(update, "effective_chat", None) is not None:
+        await context.bot.send_message(update.effective_chat.id, text,
+                                       reply_markup=markup, parse_mode="HTML")
     return _end_state()
 
 
@@ -1214,20 +1056,37 @@ async def settings_menu_callback(update, context: ContextTypes.DEFAULT_TYPE):
         await _render_more_settings(query, lang)
         return
 
-    if data == "stgs_clean":
-        # 🧹 Post Auto-Cleaner & Custom Signature sozlama ekrani.
-        await _render_cleaner(query, user_id, lang)
-        return
+    if data.startswith("stgs_clean"):
+        from handlers import post_cleaner_flow as clf
+
+        if data == clf.CB_SCREEN:
+            await clf.render_screen(query, user_id, lang)
+            return
+        if data == clf.CB_ADVANCED:
+            # Kanaldan/RSS'dan olingan postlar uchun avto-tozalash sozlamalari.
+            await _render_cleaner(query, user_id, lang)
+            return
+        if data == clf.CB_AUTO:
+            await clf.toggle_autosend(query, user_id, lang)
+            return
+        if data == clf.CB_SIG_CLEAR:
+            await clf.clear_signature(query, user_id, lang)
+            return
+        if data.startswith(clf.CB_PUBLISH + ":"):
+            await clf.publish_callback(update, context)
+            return
+        if data == clf.CB_STOP:
+            await clf.mode_stop(update, context)
+            return
+        if data == clf.CB_SIG_NOLINK:
+            await clf.signature_nolink(update, context)
+            return
 
     if data == "stgs_clean_demo":
         # 🧪 Namuna — tozalash natijasini real namunada ko'rsatish.
         await _render_cleaner_demo(query, user_id, lang)
         return
 
-    if data == "stgs_clean_sig_clear":
-        # 🗑 Saqlangan imzoni o'chirish.
-        await _clear_cleaner_signature(query, context, user_id, lang)
-        return
 
     if data == "stgs_tools":
         # 🧰 Vositalar — Konverter + Post Enhancer submenyusi.
