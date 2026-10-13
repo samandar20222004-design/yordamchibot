@@ -54,7 +54,7 @@ tashkent_tz = pytz.timezone("Asia/Tashkent")
 # (collector) ishga tushadi; qolgan xabarlar shu task kutayotganda buferga
 # yig'iladi; vaqt tugagach bitta "Albom" posti sifatida yakunlanadi.
 _ALBUM_BUFFERS: dict = {}       # (user_id, draft_key) -> buffer dict
-_ALBUM_WAIT_SECONDS = 3.0       # oxirgi fayldan keyingi "jimlik" oynasi (idle)
+_ALBUM_WAIT_SECONDS = 1.5       # oxirgi fayldan keyingi "jimlik" oynasi (idle)
 _ALBUM_MAX_WAIT_SECONDS = 15.0  # umuman kutish chegarasi (sekin tarmoq himoyasi)
 _ALBUM_MAX_ITEMS = 10           # Telegram albom chegarasi (10 tagacha = BITTA post)
 _ALBUM_SEQ_KEY = "seq"          # media_group_id'siz (ketma-ket) draft kaliti
@@ -323,7 +323,7 @@ async def channel_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 def _media_item_from_message(msg):
     """Bitta xabardan media elementi (albom yoki yakka). None = matn."""
-    caption = msg.caption or ""
+    caption = getattr(msg, "caption_html", None) or msg.caption or ""
     if msg.photo:
         return {"type": "photo", "file_id": msg.photo[-1].file_id, "caption": caption}
     if msg.video:
