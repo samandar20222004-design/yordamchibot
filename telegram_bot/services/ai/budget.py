@@ -23,6 +23,15 @@ qulf ichida). Javob tugagach ``release`` bronni bo'shatadi; haqiqiy sarf
 telemetriya orqali ledger'ga yoziladi. Xato bo'lsa ham bron bo'shatiladi
 (refund) — foydalanuvchi byudjeti yonib ketmaydi.
 
+Narxi noma'lum (``priced=False``) muvaffaqiyatli so'rovlar
+-----------------------------------------------------------
+Ular ``cost_usd = 0`` bilan yoziladi (soxta narx yo'q), lekin USD limitidan
+chetda qolmasligi uchun budjet alohida ``assumed_usd`` yuritadi: mos yozuv
+narxi (``cost_tracker.ASSUMED_PRICE_*``) × tokenlar. U haqiqiy sarf EMAS va
+``estimated_cost`` / ``priced`` ga yozilmaydi. Xato, timeout, kesh va rad
+etilgan so'rovlarga taxmin qo'shilmaydi. Fallback zanjirida yakuniy natijadan
+oldingi muvaffaqiyatsiz provayder urinishlari hozir umuman hisoblanmaydi.
+
 Limit ``0`` yoki manfiy bo'lsa — shu metrika bo'yicha cheklov YO'Q.
 Byudjet xatosi (DB uzilishi) AI'ni to'xtatmaydi: DB'siz faqat jarayon
 xotirasidagi ledger ishlatiladi (fail-soft, lekin xarajat har doim yoziladi).
@@ -185,9 +194,19 @@ async def resolve_tier(user_id, is_pro: bool = False) -> str:
 class Usage:
     tokens: int = 0
     usd: float = 0.0
+    #: Narxi noma'lum muvaffaqiyatli so'rovlar uchun FAQAT budjet taxmini (USD).
+    #: ``usd`` (haqiqiy/estimated sarf) bilan aralashtirilmaydi; USD limit
+    #: tekshiruvida ``total_usd`` ishlatiladi.
+    assumed_usd: float = 0.0
+
+    @property
+    def total_usd(self) -> float:
+        """USD limit tekshiruvi uchun: haqiqiy sarf + noma'lum narx taxmini."""
+        return self.usd + self.assumed_usd
 
     def max_with(self, other: "Usage") -> "Usage":
-        return Usage(max(self.tokens, other.tokens), max(self.usd, other.usd))
+        return Usage(max(self.tokens, other.tokens), max(self.usd, other.usd),
+                     max(self.assumed_usd, other.assumed_usd))
 
 
 @dataclass
@@ -205,6 +224,7 @@ def _memory_snapshot(user_id: int) -> Snapshot:
         data = book.user_costs(user_id, period=period)
         slot.tokens = int(data.get("total_tokens") or 0)
         slot.usd = float(data.get("cost_usd") or 0.0)
+        slot.assumed_usd = float(data.get("assumed_cost_usd") or 0.0)
     return out
 
 
@@ -222,8 +242,15 @@ def _db_usage(user_id: int, period: str) -> Usage | None:
     if not isinstance(report, dict):
         return None
     totals = report.get("totals") or {}
+    from services.ai import cost_tracker
+
+    # Narxi noma'lum so'rovlar taxmini DB'dagi tokenlardan hisoblanadi
+    # (eski javobda maydonlar yo'q bo'lsa — 0).
+    assumed = cost_tracker.assumed_cost_usd(
+        int(totals.get("unpriced_input_tokens") or 0),
+        int(totals.get("unpriced_output_tokens") or 0))
     return Usage(int(totals.get("total_tokens") or 0),
-                 float(totals.get("estimated_cost_usd") or 0.0))
+                 float(totals.get("estimated_cost_usd") or 0.0), assumed)
 
 
 async def _db_snapshot(user_id: int) -> Snapshot | None:
@@ -296,10 +323,10 @@ class BudgetGuard:
             checks = (
                 ("daily_tokens", committed.daily.tokens + held.tokens + tokens,
                  limits.daily_tokens),
-                ("daily_usd", committed.daily.usd + held.usd + usd, limits.daily_usd),
+                ("daily_usd", committed.daily.total_usd + held.usd + usd, limits.daily_usd),
                 ("monthly_tokens", committed.monthly.tokens + held.tokens + tokens,
                  limits.monthly_tokens),
-                ("monthly_usd", committed.monthly.usd + held.usd + usd, limits.monthly_usd),
+                ("monthly_usd", committed.monthly.total_usd + held.usd + usd, limits.monthly_usd),
             )
             for reason, projected, cap in checks:
                 if cap and cap > 0 and projected > cap:

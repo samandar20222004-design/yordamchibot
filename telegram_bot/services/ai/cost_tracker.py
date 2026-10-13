@@ -161,6 +161,25 @@ def price_for(provider, model) -> "ModelPrice | None":
     return match_price(MODEL_PRICES, provider, model)
 
 
+#: Narxi NOMA'LUM muvaffaqiyatli so'rovlar uchun BUDJET maqsadidagi taxmin
+#: shu mos yozuv modelning ro'yxat narxidan olinadi. Bu HAQIQIY tarif emas va
+#: hech qachon ``estimated_cost`` / ``cost_usd`` / ``priced`` ga yozilmaydi.
+ASSUMED_PRICE_PROVIDER = "Gemini"
+ASSUMED_PRICE_MODEL = "gemini-2.5-flash"
+
+
+def assumed_cost_usd(input_tokens: int, output_tokens: int) -> float:
+    """Narxi noma'lum so'rov uchun FAQAT budjet taxmini (USD, 6 xona).
+
+    Mos yozuv narxi × tokenlar. Haqiqiy sarf emas: ``assumed_cost_usd``
+    maydoniga alohida yoziladi. Mos yozuv narxi topilmasa ``0.0``.
+    """
+    price = price_for(ASSUMED_PRICE_PROVIDER, ASSUMED_PRICE_MODEL)
+    if price is None:
+        return 0.0
+    return price.cost(input_tokens, output_tokens)
+
+
 def is_priced(provider, model) -> bool:
     """Bu model uchun narx jadvalda BORmi (xarajat ma'nolimi)?"""
     return price_for(provider, model) is not None
@@ -234,10 +253,13 @@ class CostBucket:
     unpriced: int = 0
     #: Keshdan qaytgan so'rovlar (xarajat 0 — bu «noma'lum» emas).
     cached: int = 0
+    #: Narxi noma'lum so'rovlar uchun FAQAT budjet taxmini (USD). ``cost_usd``
+    #: ga QO'SHILMAYDI — haqiqiy/estimated sarfdan alohida saqlanadi.
+    assumed_cost_usd: float = 0.0
 
     def add(self, *, input_tokens: int, output_tokens: int, cost: float,
             failed: bool = False, priced: bool = False, unpriced: bool = False,
-            cached: bool = False) -> None:
+            cached: bool = False, assumed: float = 0.0) -> None:
         self.requests += 1
         if failed:
             self.failures += 1
@@ -250,6 +272,8 @@ class CostBucket:
         self.input_tokens += max(0, int(input_tokens or 0))
         self.output_tokens += max(0, int(output_tokens or 0))
         self.cost_usd = round(self.cost_usd + max(0.0, float(cost or 0.0)), 6)
+        self.assumed_cost_usd = round(
+            self.assumed_cost_usd + max(0.0, float(assumed or 0.0)), 6)
 
     def merge(self, other: "CostBucket") -> None:
         """Boshqa savat yig'indisini shu savatga qo'shadi."""
@@ -258,6 +282,7 @@ class CostBucket:
         self.input_tokens += other.input_tokens
         self.output_tokens += other.output_tokens
         self.cost_usd = round(self.cost_usd + other.cost_usd, 6)
+        self.assumed_cost_usd = round(self.assumed_cost_usd + other.assumed_cost_usd, 6)
         self.priced += other.priced
         self.unpriced += other.unpriced
         self.cached += other.cached
@@ -274,6 +299,8 @@ class CostBucket:
             "priced_requests": int(self.priced),
             "unpriced_requests": int(self.unpriced),
             "cached_requests": int(self.cached),
+            # Budjet taxmini (haqiqiy sarf EMAS): ``cost_usd`` ga qo'shilmagan.
+            "assumed_cost_usd": round(float(self.assumed_cost_usd), 6),
         }
 
 
@@ -329,6 +356,11 @@ class CostLedger:
             else:
                 cost_status = "priced" if priced else "unpriced"
         unpriced = (cost_status == "unpriced") and not failed and not cached
+        # Faqat narxi noma'lum MUVAFFAQIYATLI, keshdan EMAS so'rov uchun budjet
+        # taxmini. Xato/timeout/kesh/rad etilgan so'rovlarga taxmin qo'shilmaydi;
+        # fallback zanjirida yakuniy natijadan oldingi muvaffaqiyatsiz provayder
+        # urinishlari hozir umuman hisoblanmaydi (haqiqiy sarf taxmin qilinmaydi).
+        assumed = (assumed_cost_usd(input_tokens, output_tokens) if unpriced else 0.0)
         entry = {
             "user_id": int(user_id) if user_id is not None else None,
             "provider": str(provider or ""),
@@ -336,6 +368,7 @@ class CostLedger:
             "input_tokens": max(0, int(input_tokens or 0)),
             "output_tokens": max(0, int(output_tokens or 0)),
             "cost_usd": round(max(0.0, float(cost or 0.0)), 6),
+            "assumed_cost_usd": round(float(assumed), 6),
             "priced": bool(priced) and not cached,
             "unpriced": bool(unpriced),
             "cost_status": str(cost_status),
@@ -354,10 +387,10 @@ class CostLedger:
                          unpriced=entry["unpriced"], cached=bool(cached))
             bucket = daily.setdefault(_day_key(moment), CostBucket())
             bucket.add(input_tokens=input_tokens, output_tokens=output_tokens,
-                       cost=entry["cost_usd"], **flags)
+                       cost=entry["cost_usd"], assumed=assumed, **flags)
             month_bucket = monthly.setdefault(_month_key(moment), CostBucket())
             month_bucket.add(input_tokens=input_tokens, output_tokens=output_tokens,
-                             cost=entry["cost_usd"], **flags)
+                             cost=entry["cost_usd"], assumed=assumed, **flags)
             self._trim(daily, self._daily_keep)
             self._trim(monthly, self._monthly_keep)
         return entry

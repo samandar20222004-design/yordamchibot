@@ -426,6 +426,9 @@ echo "===== 3f) 📢 KANALLARIM + 📅 REJALASHTIRILGAN ====="
 # AI model narxi: provayder + model birgalikda (boshqa provayder narxi qo'llanmaydi).
 "$PY" tests/ai_price_lookup_test.py || fail "tests/ai_price_lookup_test.py"
 
+# Narxi noma'lum AI so'rovlari: budjetda alohida taxminiy sarf (assumed_usd).
+"$PY" tests/ai_unpriced_budget_test.py || fail "tests/ai_unpriced_budget_test.py"
+
 echo
 echo "===== 3g) 📊 STATISTIKA + ⚙️ SOZLAMALAR + ADMIN RBAC ====="
 # (1) 📊 Statistika — aniq nom + ixcham 4 ko'rsatkich (📢 kanallar /
