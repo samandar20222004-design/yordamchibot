@@ -83,6 +83,10 @@ from keyboards.inline import (
     strip_variation_selector,
 )
 from locales.translations import clear_fsm_data, get_lang, get_text
+from services.album_gate import take_album_payload
+from services.media_group_collector import (
+    ALBUM_DEBOUNCE_SECONDS as _CANONICAL_ALBUM_DEBOUNCE_SECONDS,
+)
 from services.media_group_collector import MediaGroupCollector
 from translations import manual_post_t
 from utils.date_format import format_datetime, format_time
@@ -163,7 +167,8 @@ _SUPPORTED_MEDIA = ("photo", "video", "animation", "document")
 #   * albom to'lsa (10) — qo'shimcha fayl uchun aniq ogohlantirish.
 _MANUAL_ALBUM_TASKS: dict = {}          # user_id -> yagona collector worker task'i
 _MANUAL_ALBUM_KEYS: dict = {}           # user_id -> (user_id, media_group_id)
-_MANUAL_ALBUM_WAIT_SECONDS = 1.5        # oxirgi fayldan keyingi jimlik oynasi
+# Oxirgi fayldan keyingi jimlik oynasi — YAGONA manba (qat'iy 2.0s).
+_MANUAL_ALBUM_WAIT_SECONDS = _CANONICAL_ALBUM_DEBOUNCE_SECONDS
 _MANUAL_ALBUM_MAX_ITEMS = 10            # Telegram media-guruh chegarasi
 # Umumiy collector har media_group uchun bitta worker + bitta asyncio.Lock
 # ishlatadi. Handlerlar faqat item qo'shadi; oraliq preview yubormaydi.
@@ -303,6 +308,38 @@ def _manual_album_schedule(user_id: int, context, lang: str, chat_id,
     task = _MANUAL_ALBUMS.task_for(key)
     if task is not None:
         # Eski test/cleanup kontrakti: har user uchun aynan bitta worker.
+        _MANUAL_ALBUM_TASKS[user_id] = task
+    return outcome
+
+
+def _manual_album_schedule_many(user_id: int, context, lang: str, chat_id,
+                                group_id, items: list) -> str:
+    """Yig'ilgan TO'LIQ albomni (barcha fayllar) bitta collector buferiga yozadi.
+
+    ``services/album_gate.py`` media guruhni bitta update qilib qaytargan
+    bo'lsa, fayllar bir yo'la (atomik) qo'shiladi: FAQAT bitta worker va
+    jimlik oynasidan keyin FAQAT bitta preview/publish bo'ladi.
+
+    Qaytaradi: collector natijasi (``ADDED_STARTED`` / ``ADDED`` / ...).
+    """
+    key = (user_id, str(group_id))
+    previous = _MANUAL_ALBUM_KEYS.get(user_id)
+    if previous is not None and previous != key:
+        _MANUAL_ALBUMS.cancel(previous)
+
+    # Testlar oynani qisqartira oladi; production qiymati qat'iy 2.0 soniya.
+    _MANUAL_ALBUMS.delay = max(0.0, float(_MANUAL_ALBUM_WAIT_SECONDS))
+    _MANUAL_ALBUMS.max_wait = max(_MANUAL_ALBUMS.delay, _MANUAL_ALBUMS.max_wait)
+
+    async def ready(ready_items):
+        await _manual_album_finalize(
+            user_id, context, lang, chat_id, items=ready_items, collector_key=key,
+        )
+
+    outcome = _MANUAL_ALBUMS.add_many(key, list(items), ready)
+    _MANUAL_ALBUM_KEYS[user_id] = key
+    task = _MANUAL_ALBUMS.task_for(key)
+    if task is not None:
         _MANUAL_ALBUM_TASKS[user_id] = task
     return outcome
 
@@ -1180,6 +1217,33 @@ async def manual_content_received(update: Update, context: ContextTypes.DEFAULT_
             parse_mode="HTML",
         )
         return MANUAL_AWAIT_CONTENT
+
+    # 🖼 KONSOLIDATSIYALANGAN ALBOM: ``services/album_gate.py`` butun media
+    # guruhni yig'ib BITTA update qilib qaytargan bo'lsa — barcha fayllar bir
+    # yo'la albom draftiga yoziladi va jimlikdan keyin FAQAT BITTA preview
+    # (muqova + "N ta fayl") chiqadi. Har bir fayl alohida preview qilmaydi.
+    _payload = take_album_payload(context, msg)
+    if _payload is not None and _payload.is_album:
+        user_id = _manual_user_id(context) or getattr(
+            getattr(update, "effective_user", None), "id", 0) or 0
+        album_items = []
+        for raw_item in _payload.media_items():
+            if (raw_item.get("type") or "") in ("voice", "sticker"):
+                continue
+            album_items.append({
+                "type": raw_item.get("type") or "photo",
+                "file_id": raw_item.get("file_id"),
+                "caption": raw_item.get("caption") or "",
+                "message_id": raw_item.get("message_id"),
+            })
+        album_items = [i for i in album_items if i.get("file_id")]
+        if len(album_items) > 1:
+            context.user_data[UD_ALBUM_GROUP] = group_id
+            _manual_album_store(context, album_items)
+            _manual_album_schedule_many(
+                user_id, context, lang, msg.chat_id, group_id, album_items,
+            )
+            return MANUAL_PREVIEW
 
     if file_id and group_id:
         text_input = getattr(msg, "caption_html", None) or text_input

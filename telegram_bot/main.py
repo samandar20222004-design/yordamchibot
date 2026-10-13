@@ -58,6 +58,7 @@ from utils.helpers import (
 )
 from services import cache_backend as cache_backend_svc
 from middlewares.rate_limiter import RateLimitMiddleware
+from services.album_gate import register_album_gate
 from middlewares.rbac import install_resource_middleware
 from handlers.error_handler import (
     global_error_handler,
@@ -981,6 +982,16 @@ async def main():
     # MUHIM: RateLimitMiddleware ``group=-1`` da qoladi —
     # tests/rate_limiter_redis_test.py shu ro'yxatga olishni qulflaydi.
     install_resource_middleware(application, group=-2)
+
+    # 🖼 ALBOM (media_group) DARVOZASI — xom media update'lar uchun tutqich.
+    # Telegram bitta albomning HAR BIR faylini ALOHIDA update qilib yuboradi;
+    # darvoza ularni ``group=-3`` da (barcha handler guruhlaridan OLDIN)
+    # buferga yig'adi va ``ALBUM_DEBOUNCE_SECONDS`` (qat'iy 2.0s) jimlikdan
+    # keyin BITTA konsolidatsiyalangan update qaytaradi: bitta preview va
+    # kanalga bitta ``sendMediaGroup`` — bir nechta karta/post muammosi
+    # tuzatiladi (services/album_gate.py).  Xom albom fayllari yagona media
+    # handlerlariga UMUMAN yetib bormaydi (ApplicationHandlerStop).
+    register_album_gate(application)
 
     register_all_handlers(application)
     # ``start_web_server()`` endi ``init_db()`` dan OLDIN

@@ -429,8 +429,14 @@ echo "===== 3f) 📢 KANALLARIM + 📅 REJALASHTIRILGAN ====="
 # Imzo/havola saqlash: t.me havolalari, @kanal, formatlangan matn qabul qilinadi.
 "$PY" tests/signature_link_validation_test.py || fail "tests/signature_link_validation_test.py"
 
-# Albom (media_group) yig'uvchi: last-item + 1.5 soniyalik debounce, bitta post.
+# Albom (media_group) yig'uvchi: last-item + 2.0 soniyalik debounce, bitta post.
 "$PY" tests/media_group_album_test.py || fail "tests/media_group_album_test.py"
+
+# 🖼 ALBOM INTERCEPTION: bitta media_group = BITTA post/preview. Xom media
+# update'lar (media_group_id) yagona handlerlarga DARHOL uzatilmaydi; darvoza
+# ularni 2.0s jimlik oynasigacha yig'adi, keyin AYNAN bitta konsolidatsiyalangan
+# update qaytaradi (1 preview + 1 sendMediaGroup).
+"$PY" tests/media_group_interception_test.py || fail "tests/media_group_interception_test.py"
 
 # «Havoladan Post»: t.me post matni/media, preview→embed zaxirasi, 15 s chegara, AI'siz qoralama.
 "$PY" tests/telegram_link_scraper_test.py || fail "tests/telegram_link_scraper_test.py"

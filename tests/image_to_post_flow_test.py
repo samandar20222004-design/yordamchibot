@@ -325,11 +325,131 @@ def test_photo_delivery_and_scheduler_payload():
     check("channel photo + caption birga", bot.photo_calls[0]["photo"] == "photo-1" and "Caption" in bot.photo_calls[0]["caption"])
 
 
+def test_album_preview_and_scheduler_payload():
+    print("== TEST 4: albom — 1 media-group preview + 1 sendMediaGroup (scheduler) ==")
+    from handlers import image_post as ip
+    from scheduler import parse_album_items
+
+    items = [
+        {"type": "photo", "file_id": f"alb-{i}", "caption": "Albom izohi" if i == 0 else ""}
+        for i in range(3)
+    ]
+
+    class AlbumTarget(FakeMessage):
+        def __init__(self):
+            super().__init__()
+            self.media_groups = []
+
+        async def reply_media_group(self, media):
+            self.media_groups.append(list(media))
+            return [SimpleNamespace(message_id=1)]
+
+    target = AlbumTarget()
+    panel = SimpleNamespace(inline_keyboard=[[SimpleNamespace(callback_data="x")]])
+    run(ip._send_album_preview(target, items, "Albom izohi", reply_markup=panel))
+
+    check("albom preview: AYNAN 1 marta reply_media_group",
+          len(target.media_groups) == 1, str(len(target.media_groups)))
+    check("albom preview: barcha 3 fayl bitta postda",
+          target.media_groups and len(target.media_groups[0]) == 3,
+          str(len(target.media_groups[0]) if target.media_groups else 0))
+    check("albom preview: izoh 1-faylda, boshqalarida yo'q",
+          bool(target.media_groups)
+          and target.media_groups[0][0].caption == "Albom izohi"
+          and all(getattr(m, "caption", None) is None
+                  for m in target.media_groups[0][1:]),
+          str([getattr(m, "caption", None) for m in (target.media_groups[0] if target.media_groups else [])]))
+    check("albom preview: yakka rasm kartasi YO'Q (reply_photo chaqirilmadi)",
+          [r for r in target.replies if r.get("kind") == "photo"] == [],
+          str(target.replies)[:120])
+    check("albom preview: boshqaruv paneli ALOHIDA xabarda",
+          len([r for r in target.replies if r.get("kind") == "text"]) == 1,
+          str(target.replies)[:120])
+
+    # Scheduler payload'i — BITTA ``post_type="album"`` yozuvi (N ta emas).
+    captured = {}
+
+    async def fake_runner(func, *args, **kwargs):
+        captured.update(kwargs)
+        return 777
+
+    post_id = run(ip.schedule_album_post(
+        771000, "-1001", items, "Albom izohi", "2026-09-13 18:30",
+        db_runner=fake_runner,
+    ))
+    check("scheduler post id qaytdi (albom)", post_id == 777, str(post_id))
+    check("scheduler post_type album", captured.get("post_type") == "album", str(captured))
+    check("scheduler content — yagona izoh", captured.get("content") == "Albom izohi",
+          str(captured.get("content")))
+    parsed = parse_album_items(captured.get("file_id"))
+    check("scheduler file_id — 3 faylli JSON ro'yxat",
+          [i.get("file_id") for i in parsed] == ["alb-0", "alb-1", "alb-2"],
+          str(parsed))
+
+
+def test_album_schedule_time_uses_single_album_record():
+    print("== TEST 5: albom rejalashtirish — bitta ''album'' yozuvi, bitta chaqiruv ==")
+    from handlers import image_post as ip
+
+    items = [{"type": "photo", "file_id": f"sch-{i}", "caption": ""} for i in range(4)]
+    bot = FakeBot(b"unused")
+    ctx = FakeContext(bot)
+    ctx.user_data.update({
+        "image_post_text": "Tayyor izoh",
+        "image_post_album_items": items,
+        "image_post_file_id": "sch-0",
+    })
+    message = FakeMessage(text="ertaga 12:00")
+    update = FakeUpdate(message=message)
+
+    calls = []
+
+    async def fake_schedule(uid, channel_id, album_items, caption, when, **kwargs):
+        calls.append({
+            "uid": uid, "channel_id": channel_id,
+            "items": list(album_items), "caption": caption, "when": when,
+        })
+        return 501
+
+    async def fake_channels(uid):
+        return [("-1001", "Demo kanal")]
+
+    original_parse = ip.parse_schedule_input
+    original_channels = ip._load_image_channels
+    original_schedule = ip.schedule_album_post
+    ip.parse_schedule_input = lambda text, now: (now, None)
+    ip._load_image_channels = fake_channels
+    ip.schedule_album_post = fake_schedule
+    try:
+        state = run(ip.image_schedule_time_received(update, ctx))
+    finally:
+        ip.parse_schedule_input = original_parse
+        ip._load_image_channels = original_channels
+        ip.schedule_album_post = original_schedule
+
+    check("albom rejalashtirish: schedule_album_post AYNAN 1 marta",
+          len(calls) == 1, str(len(calls)))
+    check("albom rejalashtirish: barcha 4 fayl bitta yozuvda",
+          calls and [i["file_id"] for i in calls[0]["items"]]
+          == ["sch-0", "sch-1", "sch-2", "sch-3"], str(calls)[:160])
+    check("albom rejalashtirish: izoh saqlandi",
+          calls and calls[0]["caption"] == "Tayyor izoh", str(calls)[:120])
+    check("albom rejalashtirish: oqim yakunlandi",
+          state == ip.ConversationHandler.END, str(state))
+    check("albom rejalashtirish: tasdiq xabari chiqdi",
+          any("Demo kanal" in (r.get("text") or "") or "501" in (r.get("text") or "")
+              for r in message.replies), str(message.replies)[:160])
+    check("albom rejalashtirish: sessiya tozalandi",
+          not ctx.user_data.get("image_post_album_items"), str(ctx.user_data))
+
+
 def main():
     test_image_validation_contract()
     test_gemini_vision_analysis()
     test_style_credit_contract()
     test_photo_delivery_and_scheduler_payload()
+    test_album_preview_and_scheduler_payload()
+    test_album_schedule_time_uses_single_album_record()
     print(f"\nIMAGE → POST: {passed} OK, {failures} FAIL")
     if failures:
         raise SystemExit(1)

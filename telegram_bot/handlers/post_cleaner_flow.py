@@ -55,6 +55,10 @@ from services.post_cleaner import (
     signature_problems,
     wrap_signature_link,
 )
+from services.album_gate import take_album_payload
+from services.media_group_collector import (
+    ALBUM_DEBOUNCE_SECONDS as _ALBUM_DEBOUNCE_SECONDS,
+)
 from services.media_group_collector import FULL, MediaGroupCollector
 from translations import settings_stats_t as t
 from utils.channel_labels import channel_label_html, sent_notice
@@ -100,9 +104,11 @@ _MEDIA_TYPES = ("photo", "video", "animation", "document", "audio", "voice")
 _ALBUM_KINDS = ("photo", "video", "document", "audio", "animation")
 
 #: Albom (media_group) yig'uvchi: bir nechta fayl BITTA post bo'lib tozalanadi.
-#: Debounce — oxirgi fayldan 1.5 soniya jimlik; kutish fon vazifada (handler
-#: bloklanmaydi, foydalanuvchi updatelari ketma-ket ishlanadi).
-ALBUM_DEBOUNCE_SECONDS = 1.5
+#: Debounce — oxirgi fayldan keyingi jimlik oynasi; YAGONA manba
+#: ``services.media_group_collector.ALBUM_DEBOUNCE_SECONDS`` (qat'iy 2.0s).
+#: Kutish fon vazifada (handler bloklanmaydi, foydalanuvchi updatelari ketma-ket
+#: ishlanadi).
+ALBUM_DEBOUNCE_SECONDS = _ALBUM_DEBOUNCE_SECONDS
 _ALBUMS = MediaGroupCollector(delay=ALBUM_DEBOUNCE_SECONDS)
 
 
@@ -436,6 +442,29 @@ async def post_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not session["signature"]:
         await message.reply_text(t("ss_cl_no_sig", lang), parse_mode="HTML")
         return ConversationHandler.END
+    # 🖼 KONSOLIDATSIYALANGAN ALBOM: ``services/album_gate.py`` butun media
+    # guruhni yig'ib BITTA update qilib qaytargan bo'lsa — barcha fayllar bir
+    # yo'la buferga yoziladi. Natijada bitta albom = bitta tozalangan post,
+    # bitta preview (kanalga esa bitta ``sendMediaGroup``).
+    _payload = take_album_payload(context, message)
+    if _payload is not None and _payload.is_album:
+        entries = [
+            {
+                "message_id": raw_item.get("message_id"),
+                "type": raw_item.get("type") or "photo",
+                "file_id": raw_item.get("file_id"),
+                "caption": raw_item.get("caption") or "",
+                "entities": tuple(raw_item.get("entities") or ()),
+            }
+            for raw_item in _payload.media_items()
+        ]
+        entries = [entry for entry in entries if entry["file_id"]]
+        if entries:
+            key = (user_id, str(_payload.media_group_id))
+            _ALBUMS.add_many(key, entries, functools.partial(
+                _album_ready, context, user_id, lang, message.chat_id))
+            return CLEANER_POST_INPUT
+
     if message.media_group_id:
         # Albom: fayllar fon kollektorida yig'iladi (handler darhol qaytadi),
         # jimlikdan keyin BITTA post sifatida tozalanadi (izoh — albom izohi).

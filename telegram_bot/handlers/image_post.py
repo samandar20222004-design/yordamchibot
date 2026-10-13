@@ -24,6 +24,7 @@ moderatsiya photo handlerlari bilan callback/state to'qnashuvini oldini oladi.
 
 from __future__ import annotations
 
+import json
 import logging
 from datetime import datetime
 from typing import Any
@@ -38,6 +39,7 @@ from keyboards.default import get_cancel_keyboard
 from locales.translations import get_lang, safe_t
 from services.ai.progress import AIProgressReporter
 from translations import magic_t, post_score_t
+from services.album_gate import take_album_payload
 from services.ai_quota import (
     ai_quota_temp_error_text,
     is_balance_reason,
@@ -171,7 +173,105 @@ _SESSION_KEYS = (
     "image_post_scheduled_time",
     "image_post_generating",
     "image_post_source",
+    # 🖼 ALBOM (media_group): yig'ilgan BARCHA fayllar — bitta post.
+    "image_post_album_items",
 )
+
+
+# ============================================================
+# 🖼 ALBOM (media_group) — bitta albom = bitta preview = bitta post
+# ============================================================
+def _image_album_items(context) -> list:
+    """Sessiyadagi albom elementlari (``[{"type","file_id","caption"}]``)."""
+    items = context.user_data.get("image_post_album_items")
+    if not isinstance(items, list):
+        return []
+    return [i for i in items if isinstance(i, dict) and i.get("file_id")]
+
+
+def _is_album_session(context) -> bool:
+    """Sessiya bir nechta faylli albommi (bitta rasm emas)."""
+    return len(_image_album_items(context)) > 1
+
+
+def _album_media_payload(items: list, caption: str):
+    """``sendMediaGroup`` uchun InputMedia ro'yxati (izoh faqat 1-faylda)."""
+    from scheduler import _build_album_media
+
+    return _build_album_media(items, caption)
+
+
+async def _send_album_preview(target, items: list, caption: str,
+                              reply_markup=None):
+    """Albom preview: BITTA ``sendMediaGroup`` + (tugmalar uchun) bitta panel xabari.
+
+    Telegram media-guruhga inline tugma ulash mumkin emas; shu sababli
+    boshqaruv tugmalari ALOHIDA xabarda chiqadi (oddiy post oqimi bilan bir
+    xil naqsh). Adapterda albom qo'llab-quvvatlanmasa — muqova rasmga
+    qaytamiz (eski xatti-harakat).
+    """
+    media = _album_media_payload(items, caption)
+    if hasattr(target, "reply_media_group"):
+        try:
+            await target.reply_media_group(media=media)
+        except Exception:  # noqa: BLE001 — adapterlar farqi
+            logger.warning("Image Post: albom preview xatosi", exc_info=True)
+            cover = items[0]
+            return await _send_photo_preview(
+                target, cover.get("file_id"), caption, reply_markup)
+        if reply_markup is not None and hasattr(target, "reply_text"):
+            payload, parse_mode = telegram_html_payload(caption or "", TELEGRAM_CAPTION_LIMIT)
+            try:
+                return await target.reply_text(
+                    payload or " ", reply_markup=reply_markup, parse_mode=parse_mode)
+            except Exception:  # noqa: BLE001
+                logger.debug("Image Post: albom panel xabari yuborilmadi", exc_info=True)
+        return None
+    cover = items[0]
+    return await _send_photo_preview(target, cover.get("file_id"), caption, reply_markup)
+
+
+async def _send_album_to_chat(bot, chat_id, items: list, caption: str):
+    """Kanalga BITTA ko'p-mediali post sifatida yuborish (``sendMediaGroup``)."""
+    media = _album_media_payload(items, caption)
+    try:
+        return await delivery_service.send_media_group(
+            bot, chat_id=chat_id, media=media)
+    except TypeError:
+        return await bot.send_media_group(chat_id=chat_id, media=media)
+
+
+def _register_album_items(context, message) -> list:
+    """Yig'ilgan albom elementlarini sessiyaga yozadi (yakka rasmda — tozalaydi).
+
+    ``services/album_gate.py`` FAQAT bitta (konsolidatsiyalangan) update
+    yuboradi, shu sababli bu funksiya albom uchun bir marta, bitta ro'yxat
+    bilan chaqiriladi: bitta preview va bitta post kafolati.
+    """
+    payload = take_album_payload(context, message)
+    if payload is None or not payload.is_album:
+        context.user_data.pop("image_post_album_items", None)
+        return []
+    items = []
+    for raw_item in payload.media_items():
+        if (raw_item.get("type") or "") not in ("photo", "video", "document", "animation"):
+            continue
+        if not raw_item.get("file_id"):
+            continue
+        items.append({
+            "type": raw_item.get("type") or "photo",
+            "file_id": raw_item["file_id"],
+            "caption": "",
+        })
+    if len(items) < 2:
+        context.user_data.pop("image_post_album_items", None)
+        return []
+    caption = payload.caption or ""
+    items[0]["caption"] = caption
+    context.user_data["image_post_album_items"] = items
+    context.user_data["image_post_caption"] = caption
+    context.user_data["image_post_file_id"] = items[0]["file_id"]
+    return items
 
 
 def _style_label(style: str, lang: str = "uz") -> str:
@@ -535,6 +635,13 @@ async def image_photo_received(update: Update, context: ContextTypes.DEFAULT_TYP
         return IMAGE_POST_INPUT
 
     caption = _message_caption(message)
+    # 🖼 ALBOM (media_group): darvoza butun guruhni yig'ib bitta update qilib
+    # qaytargan bo'lsa — BARCHA fayllar bilan bitta post tayyorlanadi.
+    # * Vision tahlili FAQAT muqova (birinchi fayl) ustida bajariladi —
+    #   N ta alohida AI chaqiruvi va N ta uslub menyusi BO'LMAYDI;
+    # * izoh (caption) butun albomga tegishli — yagona matn;
+    # * natija preview'i va kanalga yuborish BITTA ko'p-mediali post bo'ladi.
+    album_items = _register_album_items(context, message)
     # file_id Vision natijasidan qat'i nazar saqlanadi — fallback'da ham
     # tayyor post AYNAN shu rasm bilan yuboriladi.
     context.user_data["image_post_file_id"] = getattr(media, "file_id", None)
@@ -851,12 +958,21 @@ async def image_style_callback(update: Update, context: ContextTypes.DEFAULT_TYP
     else:
         await _safe_edit(query, safe_t("image_preview_ready", lang), None)
     try:
-        await _send_photo_preview(
-            query.message,
-            file_id,
-            post_text,
-            image_action_keyboard(lang),
-        )
+        album_items = _image_album_items(context)
+        if len(album_items) > 1:
+            # 🖼 Albom: BITTA ko'p-mediali preview + bitta boshqaruv paneli
+            # (N ta emas — foydalanuvchi bitta kartochka va bitta tugmalar
+            # to'plamini ko'radi).
+            await _send_album_preview(
+                query.message, album_items, post_text, image_action_keyboard(lang),
+            )
+        else:
+            await _send_photo_preview(
+                query.message,
+                file_id,
+                post_text,
+                image_action_keyboard(lang),
+            )
     except Exception:
         # Minimal test/adapters may not expose reply_photo; still keep the
         # result usable via text and action keyboard.
@@ -887,12 +1003,18 @@ async def _load_image_channels(user_id: int):
 async def _deliver_targets(query, context, targets: list) -> int:
     file_id = context.user_data.get("image_post_file_id")
     caption = context.user_data.get("image_post_text") or ""
+    album_items = _image_album_items(context)
     sent = 0
     sent_labels = []
     for channel in targets:
         channel_id, _title = _channel_values(channel)
         try:
-            await _send_photo_to_chat(context.bot, channel_id, file_id, caption)
+            if len(album_items) > 1:
+                # 🖼 Barcha yig'ilgan fayllar bitta ko'p-mediali postda
+                # (``sendMediaGroup``) — alohida-alohida yuborilmaydi.
+                await _send_album_to_chat(context.bot, channel_id, album_items, caption)
+            else:
+                await _send_photo_to_chat(context.bot, channel_id, file_id, caption)
             sent += 1
             sent_labels.append(channel_label_html(channel_id, _title))
         except Exception as exc:
@@ -976,6 +1098,32 @@ async def schedule_photo_post(user_id: int, channel_id, file_id: str,
         return 0
 
 
+async def schedule_album_post(user_id: int, channel_id, items: list,
+                             caption: str, scheduled_time,
+                             db_runner=None) -> int:
+    """🖼 Albomni rejalashtirish: ``post_type="album"`` + JSON ``file_id`` ro'yxati.
+
+    Scheduler bunday yozuvni BITTA ``sendMediaGroup`` posti sifatida yuboradi
+    (``scheduler.parse_album_items`` / ``_build_album_media``).
+    """
+    runner = db_runner or db.run_db
+    payload = json.dumps(list(items or []), ensure_ascii=False)
+    result = await runner(
+        db.add_post,
+        user_id=user_id,
+        channel_id=str(channel_id),
+        post_type="album",
+        content=str(caption or ""),
+        file_id=payload,
+        scheduled_time=scheduled_time,
+        recurrence_type="none",
+    )
+    try:
+        return int(result or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
 async def image_schedule_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """[📅 Rejalashtirish] — vaqt so'raydi, so'ng scheduler'ga photo saqlaydi."""
     query = update.callback_query
@@ -1014,13 +1162,23 @@ async def image_schedule_time_received(update: Update, context: ContextTypes.DEF
         await message.reply_text(safe_t("image_no_channels", lang), parse_mode="HTML")
         return ConversationHandler.END
     channel_id, title = _channel_values(channels[0])
-    post_id = await schedule_photo_post(
-        update.effective_user.id,
-        channel_id,
-        context.user_data.get("image_post_file_id"),
-        context.user_data.get("image_post_text") or "",
-        candidate,
-    )
+    album_items = _image_album_items(context)
+    if len(album_items) > 1:
+        post_id = await schedule_album_post(
+            update.effective_user.id,
+            channel_id,
+            album_items,
+            context.user_data.get("image_post_text") or "",
+            candidate,
+        )
+    else:
+        post_id = await schedule_photo_post(
+            update.effective_user.id,
+            channel_id,
+            context.user_data.get("image_post_file_id"),
+            context.user_data.get("image_post_text") or "",
+            candidate,
+        )
     if not post_id:
         await message.reply_text(safe_t("image_schedule_error", lang), parse_mode="HTML")
         return IMAGE_SCHEDULE_INPUT
@@ -1097,6 +1255,7 @@ __all__ = [
     "image_style_keyboard", "image_style_callback",
     "image_cancel_callback", "image_action_keyboard", "image_send_callback",
     "image_channel_callback", "image_schedule_callback", "image_schedule_time_received",
+    "schedule_album_post",
     "image_restyle_callback", "image_back_callback", "schedule_photo_post",
     "image_stale_callback",
 ]

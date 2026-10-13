@@ -109,7 +109,7 @@ async def collector_five_rapid_updates():
     async def create_aggregated_post(items):
         posts.append([item["file_id"] for item in items])
 
-    collector = MediaGroupCollector()  # production: last-item + 1.5s
+    collector = MediaGroupCollector()  # production: last-item + 2.0s
     for index in range(5):
         collector.add(
             "same-media-group-id",
@@ -511,8 +511,11 @@ async def scenario_concurrent_delivery():
     import utils.helpers as helpers
     from services.media_group_collector import DEFAULT_DELAY_SECONDS
 
-    check("production debounce is 1.5 seconds",
-          DEFAULT_DELAY_SECONDS == clf.ALBUM_DEBOUNCE_SECONDS == 1.5)
+    # QAT'IY 2.0 SONIYA: albom TO'LIQ yig'ilishi uchun yagona standart
+    # (``ALBUM_DEBOUNCE_SECONDS`` — butun loyiha uchun bitta manba).
+    check("production debounce is 2.0 seconds",
+          DEFAULT_DELAY_SECONDS == clf.ALBUM_DEBOUNCE_SECONDS == 2.0,
+          f"{DEFAULT_DELAY_SECONDS}/{clf.ALBUM_DEBOUNCE_SECONDS}")
     for caption in (None, "Muhim xabar"):
         calls = setup([("-100111", "Kanal A")], autosend=True, premium=False)
         ctx = SimpleNamespace(user_data={}, bot=FakeBot())
@@ -640,15 +643,16 @@ async def scenario_real_debounce_window():
         delivered.append(items)
 
     collector.add("real-window", {"message_id": 1}, ready)
-    await asyncio.sleep(0.8)
+    await asyncio.sleep(1.0)
     last_arrival = time.monotonic()
     collector.add("real-window", {"message_id": 2}, ready)
-    await asyncio.sleep(0.8)
-    check("new update extends debounce beyond 1.5s from first arrival", not delivered)
+    await asyncio.sleep(1.0)
+    # 2.0s debounce: ikkinchi fayldan keyin 1.0s jimlik hali YETARLI EMAS.
+    check("new update extends debounce beyond 2.0s from first arrival", not delivered)
     await collector.wait_idle()
-    check("one album emitted after 1.5s of silence",
+    check("one album emitted after 2.0s of silence",
           len(delivered) == 1 and len(delivered[0]) == 2
-          and time.monotonic() - last_arrival >= 1.5)
+          and time.monotonic() - last_arrival >= 2.0)
 
 
 asyncio.run(scenario_real_debounce_window())
