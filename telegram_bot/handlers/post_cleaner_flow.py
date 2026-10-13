@@ -42,6 +42,7 @@ from services.post_cleaner import (
     wrap_signature_link,
 )
 from translations import settings_stats_t as t
+from utils.channel_labels import channel_label_html, sent_notice
 from utils.helpers import html_escape, watermark_footer_length
 from utils.silent_errors import log_silent_failure
 
@@ -420,6 +421,7 @@ async def publish(context, user_id: int, lang: str, item: dict, channel: tuple,
 
     channel_id, title = channel
     safe_title = html_escape(title)
+    label = channel_label_html(channel_id, title)
     if not await manual_channel_guard(user_id, channel_id, "create"):
         await status_message.edit_text(t("ss_cl_no_access", lang), parse_mode="HTML")
         return False
@@ -435,14 +437,15 @@ async def publish(context, user_id: int, lang: str, item: dict, channel: tuple,
     from utils.handler_timeout import run_background_task
 
     run_background_task(
-        _deliver_and_report(context.bot, user_id, lang, post_id, safe_title, status_message),
+        _deliver_and_report(context.bot, user_id, lang, post_id, safe_title, status_message,
+                            label),
         name=f"cleaner:publish:{post_id}",
     )
     return True
 
 
 async def _deliver_and_report(bot, user_id: int, lang: str, post_id: int,
-                              safe_title: str, status_message) -> None:
+                              safe_title: str, status_message, label: str = "") -> None:
     from scheduler import deliver_due_posts_now
 
     await deliver_due_posts_now(bot)
@@ -453,7 +456,8 @@ async def _deliver_and_report(bot, user_id: int, lang: str, post_id: int,
             break
         await asyncio.sleep(_STATUS_POLL_DELAY)
     if status == "posted":
-        text = t("ss_cl_sent", lang, channel=safe_title)
+        # Aniq nishon: «Nomi» (@username) kanaliga yuborildi.
+        text = sent_notice(lang, [label or safe_title])
     elif status in ("pending", "processing"):
         return  # navbatda (masalan tungi soatlar) — rejalashtiruvchi yuboradi
     else:

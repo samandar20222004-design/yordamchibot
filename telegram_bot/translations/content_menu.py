@@ -109,6 +109,8 @@ CONTENT_MENU_I18N = {
         "ctx_btn_recycle": "♻️ Qayta ishlash",
         "ctx_btn_assistant": "🤖 AI Yordamchi",
         "ctx_btn_post_score": "📊 Post Score",
+        "sent_to_one": "✅ Post {channel} kanaliga yuborildi!",
+        "sent_to_many": "✅ Post {count} ta kanalga yuborildi:\n{channels}",
     },
     # ------------------------------------------------------------
     # 🇷🇺 RUS TILI
@@ -168,6 +170,8 @@ CONTENT_MENU_I18N = {
         "ctx_btn_recycle": "♻️ Переработка",
         "ctx_btn_assistant": "🤖 AI Помощник",
         "ctx_btn_post_score": "📊 Post Score",
+        "sent_to_one": "✅ Пост отправлен в канал {channel}!",
+        "sent_to_many": "✅ Пост отправлен в каналы ({count}):\n{channels}",
     },
     # ------------------------------------------------------------
     # 🇬🇧 INGLIZ TILI
@@ -227,6 +231,8 @@ CONTENT_MENU_I18N = {
         "ctx_btn_recycle": "♻️ Recycle Post",
         "ctx_btn_assistant": "🤖 AI Assistant",
         "ctx_btn_post_score": "📊 Post Score",
+        "sent_to_one": "✅ Post sent to channel {channel}!",
+        "sent_to_many": "✅ Post sent to {count} channels:\n{channels}",
     },
 }
 
