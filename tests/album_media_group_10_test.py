@@ -645,8 +645,8 @@ def test_manual_album_ten_photos_single_post():
             check(f"{i + 1}-rasm: holat MANUAL_PREVIEW", state == MANUAL_PREVIEW,
                   str(state))
             preview_counts.append(len(m.replies))
-        check("oraliq fayllar uchun preview SPAM qilinmadi (faqat 1-xabar)",
-              preview_counts == [1, 0, 0, 0, 0, 0, 0, 0, 0, 0], str(preview_counts))
+        check("partial preview yo'q (birinchi '1 ta media' xabari ham yuborilmadi)",
+              preview_counts == [0, 0, 0, 0, 0, 0, 0, 0, 0, 0], str(preview_counts))
         await asyncio.sleep(MP._MANUAL_ALBUM_WAIT_SECONDS + 0.4)
 
     try:

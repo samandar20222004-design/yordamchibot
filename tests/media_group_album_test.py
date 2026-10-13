@@ -101,6 +101,38 @@ async def collector_debounce():
 asyncio.run(collector_debounce())
 
 
+async def collector_five_rapid_updates():
+    """Regression: 5 ta 100ms-oraliqli update hech qachon 5 preview bo'lmaydi."""
+    posts = []
+    worker_ids = set()
+
+    async def create_aggregated_post(items):
+        posts.append([item["file_id"] for item in items])
+
+    collector = MediaGroupCollector()  # production: last-item + 1.5s
+    for index in range(5):
+        collector.add(
+            "same-media-group-id",
+            {"message_id": 100 + index, "file_id": f"rapid-{index}"},
+            create_aggregated_post,
+        )
+        worker_ids.add(id(collector.task_for("same-media-group-id")))
+        if index < 4:
+            await asyncio.sleep(0.1)
+
+    check("5 rapid update davomida partial preview yaratilmaydi", posts == [], str(posts))
+    check("bir media_group uchun faqat bitta worker ishlaydi", len(worker_ids) == 1,
+          str(worker_ids))
+    await collector.wait_idle()
+    check("5 rapid update faqat BIR aggregated post yaratadi", len(posts) == 1,
+          str(posts))
+    check("aggregated post barcha 5 itemni saqlaydi",
+          posts == [[f"rapid-{i}" for i in range(5)]], str(posts))
+
+
+asyncio.run(collector_five_rapid_updates())
+
+
 async def collector_edge():
     got = []
 

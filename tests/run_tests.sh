@@ -429,7 +429,7 @@ echo "===== 3f) 📢 KANALLARIM + 📅 REJALASHTIRILGAN ====="
 # Imzo/havola saqlash: t.me havolalari, @kanal, formatlangan matn qabul qilinadi.
 "$PY" tests/signature_link_validation_test.py || fail "tests/signature_link_validation_test.py"
 
-# Albom (media_group) yig'uvchi: 1 soniyalik debounce, bitta post, izoh butun albomga.
+# Albom (media_group) yig'uvchi: last-item + 1.5 soniyalik debounce, bitta post.
 "$PY" tests/media_group_album_test.py || fail "tests/media_group_album_test.py"
 
 # «Havoladan Post»: t.me post matni/media, preview→embed zaxirasi, 15 s chegara, AI'siz qoralama.
