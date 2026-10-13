@@ -84,11 +84,18 @@ from services.sources.rss_service import (
     parse_interval_input,
 )
 from services.sources.url_extractor import (
+    ERR_AI_FAILED,
+    ERR_EMPTY_CONTENT,
+    ERR_QUOTA,
     ERR_TELEGRAM_CHANNEL_ONLY,
+    ERR_TELEGRAM_PRIVATE,
+    ERR_TIMEOUT,
     FORMAT_KEYS,
+    TELEGRAM_TOTAL_TIMEOUT_SECONDS,
     UrlPostService,
     format_label,
     normalize_input_url,
+    parse_variants,
     validate_public_url,
 )
 from services.sources.url_extractor import user_message as url_error_message
@@ -134,6 +141,12 @@ UD_RECYCLE_IDX = "src_rec_idx"   # tanlangan nomzod indeksi
 MAX_DRAFT_BUTTONS = 12
 #: Preview matni uchun xavfsiz uzunlik (Telegram 4096 + teglar zaxirasi).
 PREVIEW_LIMIT = 3600
+#: Havolani o'qishning UMUMIY chegarasi (soniya): t.me post uchun 15 s urinishlar
+#: + zaxira. Thread osilib qolsa ham foydalanuvchi javobsiz qolmaydi.
+URL_FETCH_DEADLINE_SECONDS = TELEGRAM_TOTAL_TIMEOUT_SECONDS + 5.0
+#: Xato kodlari, ular uchun aniq (umumiy emas) xabar ko'rsatiladi.
+_SPECIFIC_URL_ERRORS = (ERR_TELEGRAM_CHANNEL_ONLY, ERR_TELEGRAM_PRIVATE,
+                        ERR_TIMEOUT, ERR_EMPTY_CONTENT)
 
 #: Xizmatlar — testlarda almashtirish (AI/orkestrator inject) uchun factory.
 SERVICE_FACTORIES = {}
@@ -556,18 +569,24 @@ async def url_text_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # 2) Tarmoq — event loop BLOKLANMASIN (thread'da).
     try:
-        loaded = await asyncio.to_thread(fetch_article_safe, url)
+        loaded = await asyncio.wait_for(
+            asyncio.to_thread(fetch_article_safe, url),
+            timeout=URL_FETCH_DEADLINE_SECONDS)
+    except asyncio.TimeoutError:
+        logger.info("manbalar: havola umumiy chegarada o'qilmadi (%s)", url)
+        loaded = {"ok": False, "error_code": ERR_TIMEOUT}
     except Exception:  # noqa: BLE001 — tarmoq xatosi fail-soft
         logger.info("manbalar: havola o'qilmadi (%s)", url, exc_info=True)
         loaded = {"ok": False, "error_code": "network_error"}
 
     if not loaded.get("ok"):
         from locales.translations import get_text
-        if loaded.get("error_code") == ERR_TELEGRAM_CHANNEL_ONLY:
-            # Kanal-only havola (t.me/kanal) — AI xatosi EMAS: foydalanuvchidan
-            # aniq bitta post havolasi so'raladi.
+        error_code = loaded.get("error_code")
+        if error_code in _SPECIFIC_URL_ERRORS:
+            # Kanal-only / yopiq kanal / vaqt tugadi / matn yo'q — AI xatosi EMAS:
+            # foydalanuvchiga aniq sabab va nima qilish kerakligi aytiladi.
             await _safe_send(
-                message, url_error_message(ERR_TELEGRAM_CHANNEL_ONLY, lang),
+                message, url_error_message(error_code, lang),
                 get_cancel_keyboard(lang))
         else:
             await _safe_send(message, get_text("err_ux_url_failed", lang),
@@ -590,6 +609,24 @@ async def url_text_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
         result = {"ok": False, "error_code": "ai_failed"}
 
     drafts = list(result.get("drafts") or [])
+    ai_fallback = False
+    quota_info = result.get("quota") if isinstance(result.get("quota"), dict) else {}
+    if not drafts and (result.get("error_code") == ERR_QUOTA
+                       or quota_info.get("allowed") is False):
+        # AI limiti tugagan — bu AI xatosi emas, aniq sabab aytiladi.
+        context.user_data.pop(UD_ARTICLE, None)
+        await _safe_send(message, url_error_message(ERR_QUOTA, lang),
+                         get_cancel_keyboard(lang))
+        return SRC_URL_INPUT
+    if not drafts and article.get("text") and result.get("error_code") == ERR_AI_FAILED:
+        # AI javob bermadi (xato/timeout/yaroqsiz javob): o'qilgan manba matni
+        # YO'QOLMAYDI — kredit yechilmagan, AI'siz oddiy qoralamalar beriladi
+        # (ai=False, preview'da «AI'siz» belgisi bilan).
+        drafts = parse_variants({}, article, lang=lang, allow_local=True)
+        ai_fallback = bool(drafts)
+        if ai_fallback:
+            logger.info("manbalar: AI javobsiz (%s) — mahalliy qoralamalar (user=%s)",
+                        result.get("error_code") or ERR_AI_FAILED, user_id)
     if not drafts:
         context.user_data.pop(UD_ARTICLE, None)
         await _safe_send(message, sources_t("src_url_ai_failed", lang),
@@ -607,6 +644,8 @@ async def url_text_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
         sources_t("src_url_article", lang, title=title, source=source,
                   chars=len(str(article.get("text") or "")), signals=signals),
     )
+    if ai_fallback:
+        await _safe_send(message, sources_t("src_url_ai_fallback", lang))
     await _safe_send(message, sources_t("src_url_formats", lang),
                      formats_keyboard(drafts, lang))
     return SRC_URL_FORMATS

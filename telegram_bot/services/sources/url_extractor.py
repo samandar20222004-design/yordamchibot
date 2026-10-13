@@ -43,6 +43,7 @@ import ipaddress
 import logging
 import re
 import socket
+import time
 from html import unescape
 from html.parser import HTMLParser
 from typing import Any, Callable, Iterable
@@ -61,6 +62,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 MAX_RESPONSE_BYTES = 5 * 1024 * 1024      # 5 MB — javob hajmi chegarasi
 FETCH_TIMEOUT_SECONDS = 10.0              # 10 soniya — tarmoq kutish chegarasi
+TELEGRAM_TOTAL_TIMEOUT_SECONDS = 15.0     # t.me post: barcha urinishlar uchun UMUMIY chegara
 MAX_REDIRECTS = 3                         # redirect zanjiri chegarasi
 READ_CHUNK_BYTES = 64 * 1024              # chunk-chunk o'qish (xotira himoyasi)
 
@@ -111,6 +113,8 @@ ERR_QUOTA = "quota_denied"
 #: Telegram kanal-only havola (t.me/kanal — post ID'siz): foydalanuvchidan
 #: aniq bitta post havolasi so'raladi (AI xatosi EMAS, yo'riqnoma).
 ERR_TELEGRAM_CHANNEL_ONLY = "telegram_channel_only"
+#: Yopiq kanal posti (``t.me/c/<id>/<post>``) — bot o'qiy olmaydi.
+ERR_TELEGRAM_PRIVATE = "telegram_private"
 
 ERROR_MESSAGES: dict[str, dict[str, str]] = {
     ERR_INVALID_URL: {
@@ -149,9 +153,9 @@ ERROR_MESSAGES: dict[str, dict[str, str]] = {
         "en": "⚠️ Could not connect to the site. Try again later.",
     },
     ERR_TIMEOUT: {
-        "uz": "⏱ Sayt 10 soniyada javob bermadi. Keyinroq urinib ko'ring.",
-        "ru": "⏱ Сайт не ответил за 10 секунд. Попробуйте позже.",
-        "en": "⏱ The site did not respond within 10 seconds. Try again later.",
+        "uz": "⏱ Sayt o'z vaqtida javob bermadi. Keyinroq urinib ko'ring.",
+        "ru": "⏱ Сайт не ответил вовремя. Попробуйте позже.",
+        "en": "⏱ The site did not respond in time. Try again later.",
     },
     ERR_TOO_LARGE: {
         "uz": "⚠️ Sahifa juda katta (5 MB dan oshdi) — qayta ishlanmadi.",
@@ -201,6 +205,15 @@ ERROR_MESSAGES: dict[str, dict[str, str]] = {
         "uz": "⚠️ AI limiti tugagan. 💎 PRO oling yoki ertaga qayta urinib ko'ring.",
         "ru": "⚠️ Лимит ИИ исчерпан. Оформите 💎 PRO или попробуйте завтра.",
         "en": "⚠️ AI limit reached. Get 💎 PRO or try again tomorrow.",
+    },
+    ERR_TELEGRAM_PRIVATE: {
+        "uz": ("🔒 Bu yopiq kanal posti — bot uni o'qiy olmaydi.\n"
+               "Ochiq kanal postining havolasini yuboring yoki post matnini "
+               "o'zingiz yuboring."),
+        "ru": ("🔒 Это пост из закрытого канала — бот не может его прочитать.\n"
+               "Отправьте ссылку на пост открытого канала или сам текст поста."),
+        "en": ("🔒 This is a post from a private channel — the bot cannot read it.\n"
+               "Send a link to a public channel post or paste the post text."),
     },
     ERR_TELEGRAM_CHANNEL_ONLY: {
         "uz": ("📩 Iltimos, aniq bitta post havolasini yuboring\n"
@@ -441,14 +454,25 @@ _TELEGRAM_BARE_RE = re.compile(
 _TELEGRAM_PATH_RE = re.compile(
     r"^/(?:s/)?(?P<channel>[A-Za-z0-9_]{5,32})(?:/(?P<post_id>\d{1,12}))?/?(?:[?#].*)?$")
 
+#: Yopiq kanal posti: /c/<raqamli id>/<post>.
+_TELEGRAM_PRIVATE_RE = re.compile(r"^/c/\d+(?:/\d+)?/?$")
+
 #: Preview HTML'dagi post bloki (``utils.channel_reader`` bilan bir naqsh).
 _TELEGRAM_POST_MARK_RE = re.compile(
     r'data-post="(?P<channel>[^"/\s]+)/(?P<post_id>\d+)"')
 _TELEGRAM_WRAP_SPLIT_RE = re.compile(
     r'<div[^>]*class="tgme_widget_message_wrap')
 _TELEGRAM_MSG_TEXT_RE = re.compile(
-    r'<div[^>]*class="tgme_widget_message_text[^"]*"[^>]*>(?P<body>.*?)</div>',
+    r'<div[^>]*class="(?P<cls>tgme_widget_message_text[^"]*)"[^>]*>(?P<body>.*?)</div>',
     re.DOTALL)
+#: Rasm: ``<a class="tgme_widget_message_photo_wrap" style="background-image:url('...')">``.
+_TELEGRAM_PHOTO_RE = re.compile(
+    r'tgme_widget_message_photo_wrap[^>]*style="[^"]*background-image:\s*url\((?:&quot;|\')?'
+    r'(?P<url>https?://[^\'"&)]+(?:&amp;[^\'"&)]+)*)',
+    re.IGNORECASE)
+#: Video: ``<video src="...">`` (preview sahifasida to'g'ridan-to'g'ri havola).
+_TELEGRAM_VIDEO_RE = re.compile(r'<video[^>]*\ssrc="(?P<url>https?://[^"]+)"', re.IGNORECASE)
+TELEGRAM_MAX_MEDIA = 10
 _TELEGRAM_TITLE_RE = re.compile(
     r'<meta[^>]+property="og:title"[^>]+content="(?P<title>[^"]+)"', re.IGNORECASE)
 _TELEGRAM_BR_RE = re.compile(r"<br\s*/?>", re.IGNORECASE)
@@ -494,6 +518,9 @@ def parse_telegram_url(url: str) -> dict:
     host = _normalize_host(parsed.hostname or "")
     if host not in TELEGRAM_HOSTS:
         return {"is_telegram": False}
+    if _TELEGRAM_PRIVATE_RE.match(parsed.path or ""):
+        return {"is_telegram": True, "is_post": False, "is_channel_only": False,
+                "is_private": True, "channel": "", "post_id": None, "preview_url": ""}
     match = _TELEGRAM_PATH_RE.match(parsed.path or "")
     if not match:
         # /joinchat, /addstickers, /share, /iv va h.k. — post manbai emas.
@@ -534,16 +561,75 @@ def _strip_telegram_html(fragment: str) -> str:
     return clean_text(value)
 
 
+def build_telegram_embed_url(channel: str, post_id: int | str) -> str:
+    """Bitta post uchun ochiq «embed» manzili: ``https://t.me/<kanal>/<id>?embed=1&mode=tme``."""
+    name = str(channel or "").strip().lstrip("@")
+    return f"https://t.me/{name}/{int(post_id)}?embed=1&mode=tme"
+
+
+def _find_telegram_post_block(html_text: str, name: str, wanted_id: str) -> str:
+    """Preview HTML ichidan aynan ``name/wanted_id`` postining bloki (yoki ``""``)."""
+    parts = _TELEGRAM_WRAP_SPLIT_RE.split(html_text)
+    if len(parts) > 1:
+        for chunk in parts[1:]:
+            mark = _TELEGRAM_POST_MARK_RE.search(chunk[:4000])
+            if (mark and mark.group("channel").lower() == name.lower()
+                    and mark.group("post_id") == wanted_id):
+                return chunk
+    # Zaxira: butun sahifadan belgi izlanadi (wrap bo'linmagan HTML).
+    pattern = re.compile(
+        r'data-post="%s/%s"' % (re.escape(name), re.escape(wanted_id)), re.IGNORECASE)
+    found = pattern.search(html_text)
+    if found:
+        return html_text[found.start():found.start() + 40000]
+    return ""
+
+
+def extract_telegram_media(block: str) -> list[dict]:
+    """Post blokidagi rasm/video havolalari: ``[{"type": "photo"|"video", "url": ...}]`` (PURE)."""
+    media: list[dict] = []
+    seen: set[str] = set()
+    for kind, regex in (("photo", _TELEGRAM_PHOTO_RE), ("video", _TELEGRAM_VIDEO_RE)):
+        for match in regex.finditer(str(block or "")):
+            url = unescape(match.group("url") or "").strip()
+            if url.lower().startswith("https://") and url not in seen:
+                seen.add(url)
+                media.append({"type": kind, "url": url})
+                if len(media) >= TELEGRAM_MAX_MEDIA:
+                    return media
+    return media
+
+
+def _telegram_main_text(block: str) -> str:
+    """Postning ASOSIY matni — javob (reply) iqtibosi emas.
+
+    Javob bergan postda iqtibos (``js-message_reply_text``) asosiy matndan
+    OLDIN keladi; birinchi ``tgme_widget_message_text`` ni olish noto'g'ri
+    (iqtibos) matnni qaytarardi.
+    """
+    for match in _TELEGRAM_MSG_TEXT_RE.finditer(block):
+        classes = match.group("cls") or ""
+        if "reply_text" in classes:
+            continue
+        text = _strip_telegram_html(match.group("body") or "")
+        if text:
+            return text
+    return ""
+
+
 def extract_telegram_post_from_html(html: str, channel: str,
                                     post_id: int | str) -> dict:
-    """Preview HTML'dan ANIQ bitta post matnini ajratadi (PURE).
+    """Preview/embed HTML'dan ANIQ bitta post matni va mediasini ajratadi (PURE).
 
-    ``html`` — ``https://t.me/s/<kanal>/<post_id>`` sahifasi manbai.
-    ``data-post="<kanal>/<post_id>"`` belgili blok topilib, uning
-    ``tgme_widget_message_text`` qismidan matn olinadi.
+    ``html`` — ``https://t.me/s/<kanal>/<post_id>`` yoki
+    ``https://t.me/<kanal>/<post_id>?embed=1`` sahifasi manbai.
+    ``data-post="<kanal>/<post_id>"`` belgili blok topilib, uning asosiy
+    ``tgme_widget_message_text`` qismidan matn olinadi (reply iqtibosi
+    o'tkazib yuboriladi).
 
-    Qaytadi: ``{"ok": True, "text": ..., "title": ...}`` yoki
-    ``{"ok": False, "error_code": "empty_content"}``.
+    Qaytadi: ``{"ok": True, "text", "title", "media"}`` yoki
+    ``{"ok": False, "error_code": "empty_content", "media": [...]}`` — media
+    bor, lekin matn yo'q (faqat rasm/video post) bo'lsa ``media`` to'ldiriladi.
     """
     html_text = str(html or "")
     name = str(channel or "").strip().lstrip("@")
@@ -552,34 +638,16 @@ def extract_telegram_post_from_html(html: str, channel: str,
     except (TypeError, ValueError):
         wanted_id = str(post_id or "").strip()
     if not html_text or not name or not wanted_id:
-        return {"ok": False, "error_code": ERR_EMPTY_CONTENT}
+        return {"ok": False, "error_code": ERR_EMPTY_CONTENT, "media": []}
 
-    target_block = ""
-    parts = _TELEGRAM_WRAP_SPLIT_RE.split(html_text)
-    if len(parts) > 1:
-        for chunk in parts[1:]:
-            mark = _TELEGRAM_POST_MARK_RE.search(chunk[:4000])
-            if (mark and mark.group("channel").lower() == name.lower()
-                    and mark.group("post_id") == wanted_id):
-                target_block = chunk
-                break
+    target_block = _find_telegram_post_block(html_text, name, wanted_id)
     if not target_block:
-        # Zaxira: butun sahifadan belgi izlanadi (wrap bo'linmagan HTML).
-        pattern = re.compile(
-            r'data-post="%s/%s"' % (re.escape(name), re.escape(wanted_id)),
-            re.IGNORECASE)
-        found = pattern.search(html_text)
-        if found:
-            target_block = html_text[found.start():found.start() + 40000]
-    if not target_block:
-        return {"ok": False, "error_code": ERR_EMPTY_CONTENT}
+        return {"ok": False, "error_code": ERR_EMPTY_CONTENT, "media": []}
 
-    text_match = _TELEGRAM_MSG_TEXT_RE.search(target_block)
-    if not text_match:
-        return {"ok": False, "error_code": ERR_EMPTY_CONTENT}
-    text = _strip_telegram_html(text_match.group("body") or "")
+    media = extract_telegram_media(target_block)
+    text = _telegram_main_text(target_block)
     if len(text) < TELEGRAM_MIN_POST_CHARS:
-        return {"ok": False, "error_code": ERR_EMPTY_CONTENT}
+        return {"ok": False, "error_code": ERR_EMPTY_CONTENT, "media": media}
 
     title = ""
     title_match = _TELEGRAM_TITLE_RE.search(html_text[:20000])
@@ -587,7 +655,78 @@ def extract_telegram_post_from_html(html: str, channel: str,
         title = clean_text(title_match.group("title") or "")[:MAX_TITLE_CHARS]
     if not title:
         title = clean_text(text.split("\n", 1)[0])[:MAX_TITLE_CHARS]
-    return {"ok": True, "error_code": None, "text": text, "title": title}
+    return {"ok": True, "error_code": None, "text": text, "title": title, "media": media}
+
+
+def fetch_telegram_post(tg: dict, *, normalized: str = "", lang: str = "uz",
+                        total_timeout: float = TELEGRAM_TOTAL_TIMEOUT_SECONDS,
+                        **fetch_kwargs) -> dict:
+    """Telegram post matni va mediasini ochiq manzillardan yuklaydi (fail-soft).
+
+    Urinishlar (umumiy vaqt ``total_timeout`` = 15 s ichida, istisno YO'Q):
+
+      1. ``t.me/s/<kanal>/<id>`` — ochiq veb-preview;
+      2. ``t.me/<kanal>/<id>?embed=1&mode=tme`` — bitta post «embed» vidjeti
+         (preview o'chirilgan/postni ko'rsatmasa zaxira).
+
+    Har ikkala urinishda ham ``data-post="<kanal>/<id>"`` belgisi aynan shu
+    postga mosligi tekshiriladi — boshqa post yoki kanal tavsifi hech qachon
+    «post» sifatida qaytarilmaydi. Natija :func:`fetch_and_extract` formatida.
+    """
+    channel, post_id = tg.get("channel"), tg.get("post_id")
+    attempts = [
+        ("preview", tg.get("preview_url") or build_telegram_preview_url(channel, post_id)),
+        ("embed", build_telegram_embed_url(channel, post_id)),
+    ]
+    started = time.monotonic()
+    per_request = float(fetch_kwargs.pop("timeout", FETCH_TIMEOUT_SECONDS))
+    errors: list[str] = []
+    saw_page = False
+    media: list[dict] = []
+    for via, url in attempts:
+        remaining = total_timeout - (time.monotonic() - started)
+        if remaining < 1.0:
+            errors.append(ERR_TIMEOUT)
+            break
+        fetched = fetch_url(url, timeout=min(per_request, remaining), **fetch_kwargs)
+        if not fetched.get("ok"):
+            errors.append(str(fetched.get("error_code") or ERR_NETWORK))
+            continue
+        saw_page = True
+        single = extract_telegram_post_from_html(fetched.get("text", ""), channel, post_id)
+        media = single.get("media") or media
+        if single.get("ok"):
+            text = str(single.get("text") or "")
+            title = str(single.get("title") or "")[:MAX_TITLE_CHARS]
+            if not title:
+                title = f"Telegram post {channel}/{post_id}"
+            article = {
+                "title": title,
+                "text": text[:MAX_ARTICLE_CHARS],
+                "summary": clean_text(text)[:MAX_SUMMARY_CHARS],
+                "chars": len(text),
+                "source": str(channel or ""),
+                "source_url": normalized or url,
+                "preview_url": url,
+                "telegram": tg,
+                "media": list(single.get("media") or []),
+                "via": via,
+                "paywall": {"detected": False, "signals": []},
+            }
+            signals = detect_prompt_injection(text)
+            article["injection_signals"] = signals
+            return {"ok": True, "error_code": None, "message": None,
+                    "article": article, "injection_signals": signals, "telegram": tg}
+
+    # Hech bir urinish matn bermadi: eng aniq sababni tanlaymiz.
+    if saw_page:
+        code = ERR_EMPTY_CONTENT   # sahifa ochildi, lekin postda o'qiladigan matn yo'q
+    elif ERR_TIMEOUT in errors:
+        code = ERR_TIMEOUT
+    else:
+        code = errors[0] if errors else ERR_NETWORK
+    return {"ok": False, "error_code": code, "message": user_message(code, lang),
+            "article": None, "injection_signals": [], "telegram": tg, "media": media}
 
 
 # ---------------------------------------------------------------------------
@@ -1061,54 +1200,11 @@ def fetch_and_extract(url: str, **kwargs) -> dict:
                     "article": None, "injection_signals": [],
                     "telegram": tg}
         if tg.get("is_post"):
-            preview_url = tg.get("preview_url") or build_telegram_preview_url(
-                tg.get("channel"), tg.get("post_id"))
-            fetched = fetch_url(preview_url, **fetch_kwargs)
-            if not fetched.get("ok"):
-                return {"ok": False, "error_code": fetched.get("error_code"),
-                        "message": fetched.get("message"), "article": None,
-                        "injection_signals": [], "telegram": tg}
-            single = extract_telegram_post_from_html(
-                fetched.get("text", ""), tg.get("channel"), tg.get("post_id"))
-            if not single.get("ok"):
-                # Zaxira: preview HTML'dan umumiy ajratish (kanal tavsifi va
-                # h.k. bo'lishi mumkin) — bo'lmasa aniq ``empty_content``.
-                generic = extract_article(
-                    fetched.get("text", ""),
-                    base_url=fetched.get("final_url") or preview_url)
-                if generic.get("ok"):
-                    text = generic.get("text", "")
-                    signals = detect_prompt_injection(text)
-                    generic["source_url"] = normalized
-                    generic["injection_signals"] = signals
-                    generic["telegram"] = tg
-                    return {"ok": True, "error_code": None, "message": None,
-                            "article": generic, "injection_signals": signals,
-                            "telegram": tg}
-                return {"ok": False, "error_code": ERR_EMPTY_CONTENT,
-                        "message": user_message(ERR_EMPTY_CONTENT, lang),
-                        "article": None, "injection_signals": [],
-                        "telegram": tg}
-            text = str(single.get("text") or "")
-            title = str(single.get("title") or "")[:MAX_TITLE_CHARS]
-            if not title:
-                title = f"Telegram post {tg.get('channel')}/{tg.get('post_id')}"
-            article = {
-                "title": title,
-                "text": text[:MAX_ARTICLE_CHARS],
-                "summary": clean_text(text)[:MAX_SUMMARY_CHARS],
-                "chars": len(text),
-                "source": str(tg.get("channel") or ""),
-                "source_url": normalized,
-                "preview_url": preview_url,
-                "telegram": tg,
-                "paywall": {"detected": False, "signals": []},
-            }
-            signals = detect_prompt_injection(text)
-            article["injection_signals"] = signals
-            return {"ok": True, "error_code": None, "message": None,
-                    "article": article, "injection_signals": signals,
-                    "telegram": tg}
+            return fetch_telegram_post(tg, normalized=normalized, lang=lang, **fetch_kwargs)
+        if tg.get("is_private"):
+            return {"ok": False, "error_code": ERR_TELEGRAM_PRIVATE,
+                    "message": user_message(ERR_TELEGRAM_PRIVATE, lang),
+                    "article": None, "injection_signals": [], "telegram": tg}
         # /joinchat, /share va h.k. — post manbai emas.
         return {"ok": False, "error_code": ERR_TELEGRAM_CHANNEL_ONLY,
                 "message": user_message(ERR_TELEGRAM_CHANNEL_ONLY, lang),
@@ -1597,12 +1693,14 @@ __all__ = [
     "ERR_BLOCKED_PORT", "ERR_PRIVATE_ADDRESS", "ERR_DNS_FAILURE",
     "ERR_NETWORK", "ERR_TIMEOUT", "ERR_TOO_LARGE", "ERR_HTTP_STATUS",
     "ERR_CONTENT_TYPE", "ERR_REDIRECT_LIMIT", "ERR_PAYWALL",
-    "ERR_EMPTY_CONTENT", "ERR_AI_FAILED", "ERR_QUOTA",
+    "ERR_EMPTY_CONTENT", "ERR_AI_FAILED", "ERR_QUOTA", "ERR_TELEGRAM_PRIVATE",
     "ERROR_MESSAGES", "user_message",
     "BLOCKED_NETWORKS", "BLOCKED_HOSTNAMES", "BLOCKED_HOST_SUFFIXES",
     "resolve_host", "is_blocked_ip", "validate_public_url", "safe_url_or_none",
     "SafeRedirectHandler", "UrllibHttpClient", "build_request", "fetch_url",
-    "fetch_and_extract", "extract_article", "clean_text", "detect_paywall",
+    "fetch_and_extract", "fetch_telegram_post", "extract_telegram_post_from_html",
+    "extract_telegram_media", "build_telegram_embed_url", "TELEGRAM_TOTAL_TIMEOUT_SECONDS",
+    "extract_article", "clean_text", "detect_paywall",
     "FENCE_OPEN", "FENCE_CLOSE", "detect_prompt_injection",
     "neutralize_untrusted_text", "build_untrusted_block",
     "FORMAT_KEYS", "FORMAT_LABELS", "FORMAT_INSTRUCTIONS", "format_label",
