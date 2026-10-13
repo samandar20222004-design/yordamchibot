@@ -998,6 +998,31 @@ async def check_and_send_posts(bot):
         logger.exception("Scheduler ishida kutilmagan xato")
 
 
+_IMMEDIATE_LOCK = asyncio.Lock()
+_IMMEDIATE_AGAIN = False
+
+
+async def deliver_due_posts_now(bot) -> None:
+    """Vaqti kelgan postlarni DARHOL yuboradi (daqiqalik tick'ni kutmasdan).
+
+    «Hozir yuborish» uchun: post ``scheduled_time=now`` bilan yozilgach
+    chaqiriladi. Postlar ``get_due_posts`` da atomik band qilinadi
+    (``FOR UPDATE SKIP LOCKED``), shuning uchun daqiqalik ish bilan parallel
+    ishlasa ham post ikki marta ketmaydi. Bir vaqtda bitta ishga tushadi;
+    ish davomida yangi so'rov kelsa — tugagach yana bir marta aylanadi.
+    """
+    global _IMMEDIATE_AGAIN
+    if _IMMEDIATE_LOCK.locked():
+        _IMMEDIATE_AGAIN = True
+        return
+    async with _IMMEDIATE_LOCK:
+        while True:
+            _IMMEDIATE_AGAIN = False
+            await check_and_send_posts(bot)
+            if not _IMMEDIATE_AGAIN:
+                break
+
+
 async def _requeue_post(post, delay_seconds: float) -> None:
     """Postni ``delay_seconds`` dan keyin qayta navbatga qo'yadi (xatosiz)."""
     if not post:

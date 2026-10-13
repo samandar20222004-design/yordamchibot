@@ -245,6 +245,24 @@ def get_pending_posts(user_id: int) -> list:
         return []
 
 
+def get_post_status(post_id: int, user_id: int) -> str:
+    """Foydalanuvchi postining holati (``pending``/``processing``/``posted``/…).
+
+    Topilmasa yoki xato bo'lsa ``""``.
+    """
+    try:
+        with db_cursor() as cur:
+            cur.execute(
+                "SELECT status FROM scheduled_posts WHERE id = %s AND user_id = %s",
+                (int(post_id), int(user_id)),
+            )
+            row = cur.fetchone()
+            return str(row[0] or "") if row else ""
+    except Exception as e:
+        logger.error(f"Post holatini olish xatosi: {e}")
+        return ""
+
+
 def get_post_by_id(post_id: int):
     try:
         with db_cursor() as cur:

@@ -482,8 +482,8 @@ def test_more_settings_navigation():
     for lang in LANGS:
         ckb = STG._build_cleaner_keyboard(cleaner_values, lang)
         cbs = [cb for _, cb in _flat(ckb)]
-        check(f"[{lang}] cleaner ekrani: [◀️ Orqaga] → stgs_hub",
-              cbs[-1] == "stgs_hub", str(cbs))
+        check(f"[{lang}] kengaytirilgan ekran: [◀️ Orqaga] → 🧹 tozalagich ekrani",
+              cbs[-1] == "stgs_clean", str(cbs))
         check(f"[{lang}] cleaner ekrani: bosh toggle bor",
               "stgs_tgl:clean:post_auto_clean" in cbs, str(cbs))
         check(f"[{lang}] cleaner ekrani: legacy watermark/imzo toggles bor",
@@ -644,6 +644,14 @@ class _FakeDB:
             return True
         if name == "get_user_post_signature":
             return self.signature
+        if name == "get_user_post_signature_html":
+            return self.signature
+        if name == "set_user_post_signature_html":
+            self.signature_calls.append((args[0], args[1]))
+            self.signature = str(args[1] or "")
+            return True
+        if name == "get_user_setting":
+            return self.settings_store.get(args[1], bool(args[2]) if len(args) > 2 else False)
         if name == "set_user_post_signature":
             self.signature_calls.append((args[0], args[1]))
             self.signature = str(args[1] or "")
@@ -669,12 +677,23 @@ def _with_db(fake, coro):
 def test_handler_routing():
     header("8", "🔌 HANDLER ROUTING — stgs_more / stgs_clean / demo / clear")
 
-    # 8a) stgs_clean → 🧹 sozlama ekrani (holat + tavsif + ✍️ imzo).
+    # 8a) stgs_clean → 🧹 tezkor tozalash ekrani (imzo + boshlash tugmasi).
     fake = _FakeDB(signature="https://t.me/my_channel")
     query = _with_db(fake, lambda: _run_cb("stgs_clean"))
     text = query.screen.get("text", "")
     cbs = [cb for _, cb in _flat(query.screen.get("reply_markup"))]
     check("stgs_clean: ekran chizildi", bool(text), text[:80])
+    check("stgs_clean: boshlash/imzo/darhol yuborish/qo'shimcha tugmalari",
+          all(cb in cbs for cb in ("stgs_clean_go", "stgs_clean_sig",
+                                   "stgs_clean_auto", "stgs_clean_adv")), str(cbs))
+    check("stgs_clean: saqlangan imzo ko'rsatilgan (tezkor ekran)",
+          "https://t.me/my_channel" in text, text[-160:])
+
+    # 8a') stgs_clean_adv → kanaldan olingan postlar uchun toggle'lar ekrani.
+    fake = _FakeDB(signature="https://t.me/my_channel")
+    query = _with_db(fake, lambda: _run_cb("stgs_clean_adv"))
+    text = query.screen.get("text", "")
+    cbs = [cb for _, cb in _flat(query.screen.get("reply_markup"))]
     check("stgs_clean: klaviatura chizildi (toggle + imzo + namuna)",
           "stgs_tgl:clean:post_auto_clean" in cbs and "stgs_clean_sig" in cbs
           and "stgs_clean_demo" in cbs, str(cbs))
@@ -725,41 +744,41 @@ def test_handler_routing():
     # 8e) stgs_clean_sig_clear → imzo o'chadi + toast.
     fake = _FakeDB(signature="https://t.me/my_channel")
     query = _with_db(fake, lambda: _run_cb("stgs_clean_sig_clear"))
-    check("clear: DB'ga bo'sh imzo yozildi",
+    check("clear: DB'ga bo'sh imzo yozildi (HTML + matn)",
           fake.signature_calls and fake.signature_calls[-1][1] == "",
           str(fake.signature_calls))
     check("clear: toast berildi", len(query.answered) >= 1, str(query.answered))
 
-    # 8f) To'liq 10 qator / 500 belgi imzo matni DB chegarasigacha saqlanadi.
+    # 8f) 10 qatorli, havolali imzo to'liq saqlanadi (yangi oqim, HTML).
     from telegram.ext import ConversationHandler
-    long_signature = "\n".join(["x" * 50 for _ in range(9)] + ["y" * 41])
+    long_signature = "\n".join(["x" * 50 for _ in range(9)] + ["https://t.me/my_channel"])
     signature_replies = []
 
     class _SignatureMessage:
         text = long_signature
+        entities = ()
 
         async def reply_text(self, text, **kwargs):
             signature_replies.append(text)
 
     signature_context = SimpleNamespace(
-        user_data={"lang": "uz", "cleaner_sig_chat": 555, "cleaner_sig_msg": 9001},
-        bot=_Bot(), chat_data={}, application=None,
+        user_data={"lang": "uz"}, bot=_Bot(), chat_data={}, application=None,
     )
     signature_update = SimpleNamespace(
         effective_user=SimpleNamespace(id=USER_ID),
         effective_chat=SimpleNamespace(id=555),
         message=_SignatureMessage(),
+        effective_message=_SignatureMessage(),
     )
     fake = _FakeDB()
     signature_state = _with_db(
         fake, lambda: STG.cleaner_signature_received(signature_update, signature_context),
     )
-    check("signature input: 10 multiline lines / 500 chars accepted",
-          len(fake.signature) == 500 and len(fake.signature.split("\n")) == 10
-          and fake.signature == long_signature,
+    check("signature input: 10 qatorli havolali imzo saqlandi",
+          fake.signature == long_signature and len(fake.signature.split("\n")) == 10,
           f"len={len(fake.signature)}, lines={len(fake.signature.splitlines())}")
-    check("signature input: multiline value persisted exactly",
-          fake.signature_calls == [(USER_ID, long_signature)] and signature_replies
+    check("signature input: saqlandi va oqim tugadi",
+          fake.signature_calls == [(USER_ID, long_signature)]
           and signature_state == ConversationHandler.END,
           str(fake.signature_calls))
 

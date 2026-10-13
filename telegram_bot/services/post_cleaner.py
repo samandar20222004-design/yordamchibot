@@ -81,6 +81,18 @@ __all__ = [
     "DEMO_SOURCE_HTML",
     "MAX_SIGNATURE_LEN",
     "MAX_SIGNATURE_LINES",
+    "SIGNATURE_MAX_LINES",
+    "SIGNATURE_MAX_WORDS",
+    "SIGNATURE_MAX_CHARS",
+    "TEXT_LIMIT",
+    "CAPTION_LIMIT",
+    "QuickCleanResult",
+    "strip_tail_junk",
+    "signature_problems",
+    "link_to_url",
+    "signature_from_message",
+    "wrap_signature_link",
+    "quick_clean",
 ]
 
 # Imzo normalizatsiyasi BOG'LIQLIKSIZ modulda yashaydi (``utils`` namespace
@@ -1245,3 +1257,251 @@ DEMO_SOURCE_HTML = (
     "Reklama: @promo_uz — obuna bo'ling!\n"
     "Manba: https://t.me/source_news/123"
 )
+
+
+# ============================================================
+# 9) TEZKOR REJIM — faqat post OXIRINI tozalash + imzo
+# ============================================================
+# «🧹 Postni tozalash» rejimi: foydalanuvchi postni yuboradi, bot faqat
+# OXIRIDAGI begona havola/reklama qatorlarini olib tashlaydi, post matnining
+# qolgan qismiga (va formatlashiga) TEGMAYDI, so'ng oxiriga foydalanuvchi
+# imzosini qo'shadi. Hech qanday tarmoq/DB chaqiruvi yo'q — bir zumda ishlaydi.
+
+#: Imzo cheklovlari (foydalanuvchiga aniq tushuntiriladi).
+SIGNATURE_MAX_LINES = 10
+SIGNATURE_MAX_WORDS = 300
+SIGNATURE_MAX_CHARS = 2000
+
+#: Telegram cheklovlari (UTF-16 birliklarida): oddiy xabar va media izohi.
+TEXT_LIMIT = 4096
+CAPTION_LIMIT = 1024
+
+#: Oxiridan ko'pi bilan shuncha qator olib tashlanadi (post "yeyilib" ketmasin).
+_TAIL_MAX_LINES = 6
+#: Begona havolasi bor qatorda (havolasiz) shundan ko'p so'z bo'lsa — kontent.
+_TAIL_POINTER_MAX_WORDS = 8
+
+_URL_RE = re.compile(r"https?://\S+", re.IGNORECASE)
+_ALNUM_RE = re.compile(r"[^\W_]", re.UNICODE)
+
+
+def _utf16(text: str) -> int:
+    return len(text.encode("utf-16-le")) // 2
+
+
+_TG_NAME_RE = re.compile(
+    r"(?:t\.me|telegram\.me|telegram\.dog)/(?:s/)?@?([A-Za-z0-9_+]+)", re.IGNORECASE,
+)
+
+
+def _is_foreign_url(url: str, own) -> bool:
+    """Havola foydalanuvchining O'Z kanaliga olib bormasa — begona."""
+    match = _TG_NAME_RE.search(url or "")
+    if match:
+        return match.group(1).lower() not in own
+    return bool(url)
+
+
+def _line_pointers(line: str, link_urls, own) -> tuple:
+    """Qatordagi begona havola/eslatmalar soni va ular olingandagi so'zlar."""
+    foreign = 0
+    for match in TELEGRAM_LINK_RE.finditer(line):
+        if _is_foreign_url(match.group(0), own):
+            foreign += 1
+    for match in MENTION_RE.finditer(line):
+        if match.group(1).lower() not in own:
+            foreign += 1
+    for match in _URL_RE.finditer(line):
+        if not TELEGRAM_LINK_RE.match(match.group(0)):
+            foreign += 1
+    for url in link_urls:
+        if _is_foreign_url(url, own):
+            foreign += 1
+    rest = _URL_RE.sub(" ", TELEGRAM_LINK_RE.sub(" ", MENTION_RE.sub(" ", line)))
+    words = [w for w in re.sub(r"[^\w\s']", " ", rest).split() if w]
+    return foreign, words
+
+
+def _is_tail_junk(line: str, link_urls, own, removed_so_far: int) -> bool:
+    stripped = line.strip()
+    if not stripped:
+        return False
+    if not _ALNUM_RE.search(stripped):
+        # Ajratuvchi/emoji qatori ("➖➖➖") — faqat reklama ostida qolsa.
+        return removed_so_far > 0 and not link_urls
+    foreign, words = _line_pointers(stripped, link_urls, own)
+    lowered = stripped.lower()
+    if STRONG_PROMO_RE.match(stripped) or COPYRIGHT_RE.match(stripped):
+        return True
+    if SOURCE_LINE_RE.match(stripped) and len(stripped) <= SOURCE_LINE_MAX_LEN:
+        return True
+    if foreign and len(words) <= _TAIL_POINTER_MAX_WORDS:
+        return True
+    if (len(stripped) <= PROMO_LINE_MAX_LEN and len(words) <= _TAIL_POINTER_MAX_WORDS
+            and any(kw in lowered for kw in PROMO_KEYWORDS)):
+        return True
+    return False
+
+
+def strip_tail_junk(segment: Segment, own=frozenset()) -> tuple:
+    """Post OXIRIDAGI begona havola/reklama qatorlarini olib tashlaydi.
+
+    Faqat ketma-ket oxirgi qatorlar tekshiriladi; birinchi "oddiy" qatorda
+    to'xtaydi — post matnining qolgan qismi va formatlashi o'zgarmaydi.
+    Kod (``code``/``pre``) ichidagi qatorlarga tegilmaydi. Tozalashdan keyin
+    matn bo'sh qolsa — asl post qaytariladi.
+
+    Qaytadi: ``(segment, olib_tashlangan_qatorlar_soni)``.
+    """
+    text = segment.text
+    own = frozenset(str(o).lower().lstrip("@") for o in own or ())
+    mask = segment.literal_mask()
+    lines, pos = [], 0
+    for line in text.split("\n"):
+        lines.append((pos, pos + len(line)))
+        pos += len(line) + 1
+
+    cut = len(text)
+    removed = 0
+    for start, end in reversed(lines):
+        line = text[start:end]
+        if not line.strip():
+            continue
+        if removed >= _TAIL_MAX_LINES or any(mask[start:end]):
+            break
+        link_urls = [s.url for s in segment.spans
+                     if s.kind == LINK and s.url and s.start < end and s.end > start]
+        if not _is_tail_junk(line, link_urls, own, removed):
+            break
+        removed += 1
+        cut = start
+
+    if not removed:
+        return segment, 0
+    new_text = text[:cut].rstrip()
+    if not new_text.strip():
+        return segment, 0
+    limit = len(new_text)
+    spans = tuple(
+        s.shifted(s.start, min(s.end, limit))
+        for s in segment.spans if s.start < limit and min(s.end, limit) > s.start
+    )
+    return Segment(new_text, spans), removed
+
+
+def _trim_segment(segment: Segment) -> Segment:
+    text = segment.text
+    left = len(text) - len(text.lstrip())
+    right = len(text.rstrip())
+    if left == 0 and right == len(text):
+        return segment
+    spans = []
+    for s in segment.spans:
+        start, end = max(s.start, left), min(s.end, right)
+        if end > start:
+            spans.append(s.shifted(start - left, end - left))
+    return Segment(text[left:right], tuple(spans))
+
+
+def signature_problems(text: str) -> dict:
+    """Imzo cheklovlarini tekshiradi → buzilgan cheklovlar lug'ati (bo'sh = OK).
+
+    Kalitlar: ``lines`` / ``words`` / ``chars`` — har biri ``(hozirgi, chegara)``.
+    """
+    body = (text or "").strip()
+    problems = {}
+    lines = len(body.split("\n")) if body else 0
+    words = len(body.split())
+    chars = _utf16(body)
+    if lines > SIGNATURE_MAX_LINES:
+        problems["lines"] = (lines, SIGNATURE_MAX_LINES)
+    if words > SIGNATURE_MAX_WORDS:
+        problems["words"] = (words, SIGNATURE_MAX_WORDS)
+    if chars > SIGNATURE_MAX_CHARS:
+        problems["chars"] = (chars, SIGNATURE_MAX_CHARS)
+    return problems
+
+
+def link_to_url(raw: str) -> str:
+    """``@kanal`` / ``t.me/kanal`` / ``https://...`` → xavfsiz URL (yoki ``""``)."""
+    value = (raw or "").strip()
+    if re.fullmatch(r"@[A-Za-z][A-Za-z0-9_]{3,31}", value):
+        value = f"https://t.me/{value[1:]}"
+    elif re.fullmatch(r"(?:www\.)?(?:t\.me|telegram\.me)/\S+", value, re.IGNORECASE):
+        value = f"https://{value}"
+    if not re.fullmatch(r"(?:https?|tg)://\S+", value, re.IGNORECASE):
+        return ""
+    try:
+        from utils.security import validate_button_url
+    except Exception:  # pragma: no cover - himoya
+        return ""
+    return value if validate_button_url(value) else ""
+
+
+def signature_from_message(text: str, entities=None) -> tuple:
+    """Telegram xabaridan imzo HTML'i → ``(html, havolasi_bormi)``.
+
+    Formatlash (qalin, kursiv, havola ulangan so'zlar) saqlanadi; xavfli
+    havolalar (``javascript:`` va h.k.) olib tashlanadi, matni qoladi.
+    """
+    raw = "" if text is None else str(text)
+    segment = _trim_segment(Segment(raw, entities_to_spans(raw, entities)))
+    spans = []
+    has_link = False
+    for span in segment.spans:
+        if span.kind == LINK:
+            url = link_to_url(span.url)
+            if not url:
+                continue
+            span = replace(span, url=url)
+            has_link = True
+        spans.append(span)
+    segment = Segment(segment.text, tuple(spans))
+    if (TELEGRAM_LINK_RE.search(segment.text) or MENTION_RE.search(segment.text)
+            or _URL_RE.search(segment.text)):
+        has_link = True
+    return segment_to_html(segment), has_link
+
+
+def wrap_signature_link(signature_html: str, url: str) -> str:
+    """Butun imzo matnini havolaga ulaydi (``<a href=url>…</a>``)."""
+    segment = html_to_segment(signature_html)
+    spans = tuple(s for s in segment.spans if s.kind != LINK)
+    spans += (Span(kind=LINK, start=0, end=len(segment.text), url=url),)
+    return segment_to_html(Segment(segment.text, spans))
+
+
+@dataclass(frozen=True)
+class QuickCleanResult:
+    """Tezkor tozalash natijasi."""
+
+    html: str
+    length: int
+    removed_lines: int = 0
+    signature_added: bool = False
+
+
+def quick_clean(text: str, entities=None, signature_html: str = "",
+                own=frozenset()) -> QuickCleanResult:
+    """Postni tezkor tozalaydi: oxiridagi keraksiz qatorlar → imzo.
+
+    ``length`` — Telegram hisoblaydigan uzunlik (UTF-16), cheklovni
+    tekshirish uchun (matn: 4096, media izohi: 1024).
+    """
+    raw = "" if text is None else str(text)
+    segment = Segment(raw, entities_to_spans(raw, entities))
+    body, removed = strip_tail_junk(segment, own)
+    body = _trim_segment(body)
+    body_html = segment_to_html(body)
+
+    sig_segment = html_to_segment(signature_html) if signature_html else Segment("")
+    sig_text = sig_segment.text.strip()
+    added = bool(sig_text) and not body.text.rstrip().endswith(sig_text)
+    if added:
+        html = f"{body_html}\n\n{signature_html}" if body.text else signature_html
+        length = _utf16(body.text) + (2 if body.text else 0) + _utf16(sig_segment.text)
+    else:
+        html = body_html
+        length = _utf16(body.text)
+    return QuickCleanResult(html=html, length=length, removed_lines=removed,
+                            signature_added=added)

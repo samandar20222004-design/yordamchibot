@@ -566,6 +566,12 @@ class _FakeDB:
             defaults = args[2] if len(args) > 2 else {}
             return {key: self.settings_store.get(key, bool(defaults.get(key, False)))
                     for key in keys}
+        if name in ("get_user_post_signature_html", "get_user_setting") and self.fail_settings:
+            raise RuntimeError("DB down")
+        if name == "get_user_post_signature_html":
+            return self.signature
+        if name == "get_user_setting":
+            return False
         if name == "get_user_post_signature":
             return self.signature
         if name == "get_user_language":
@@ -625,15 +631,15 @@ def test_cleaner_command_screen():
         text = sent.get("text", "")
         cbs = _cbs(sent.get("reply_markup"))
         check(f"[{lang}] 🧹 sarlavha o'sha tilda",
-              settings_stats_t("ss_clean_title", lang) in text, text[:120])
-        check(f"[{lang}] holat satri ko'rsatilgan",
-              settings_stats_t("ss_clean_off", lang) in text, text[:200])
+              settings_stats_t("ss_cl_title", lang) in text, text[:120])
+        check(f"[{lang}] «⚡ Darhol yuborish» holati ko'rsatilgan",
+              settings_stats_t("ss_cl_off", lang) in text, text[-200:])
         check(f"[{lang}] saqlangan ✍️ imzo ko'rsatilgan",
               "https://t.me/my_channel" in text, text[-160:])
         check(f"[{lang}] HTML rejim (formatlash saqlanadi)",
               sent.get("parse_mode") == "HTML", str(sent.get("parse_mode")))
-        for cbdata in ("stgs_tgl:clean:post_auto_clean", "stgs_clean_sig",
-                       "stgs_clean_demo", "stgs_clean_sig_clear", "stgs_hub"):
+        for cbdata in ("stgs_clean_go", "stgs_clean_sig", "stgs_clean_auto",
+                       "stgs_clean_sig_clear", "stgs_clean_adv", "stgs_hub"):
             check(f"[{lang}] klaviaturda {cbdata!r}",
                   cbdata in cbs, str(cbs))
         check(f"[{lang}] FSM tozalandi (eski holat qolmadi)",
@@ -683,7 +689,7 @@ def test_cleaner_command_screen():
     finally:
         STG._user_lang = original_lang
     check("til DB/profil bilan aniqlanadi (ru ekrani)",
-          settings_stats_t("ss_clean_title", "ru") in (msg.sent[0]["text"] if msg.sent else ""),
+          settings_stats_t("ss_cl_title", "ru") in (msg.sent[0]["text"] if msg.sent else ""),
           str(msg.sent)[:160])
 
 
