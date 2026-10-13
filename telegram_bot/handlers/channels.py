@@ -1392,6 +1392,15 @@ async def tone_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
     if not channel_id:
         return ConversationHandler.END
 
+    # Uslub o'zgartirish kanal egasi/muharriri uchun: begona kanal ID'si
+    # FSM'ga yozilmaydi (matnli ``tone_chosen`` ham shu ID'ga tayanadi).
+    if not await _rbac_channel_allowed(update, channel_id, "edit",
+                                       context=context, allow_admin=True,
+                                       notify=False):
+        context.user_data.pop("tone_channel_id", None)
+        await query.message.reply_text(safe_t("ch_tone_error", lang))
+        return ConversationHandler.END
+
     context.user_data["tone_channel_id"] = channel_id
     current_tone = await db.run_db(db.get_channel_tone, channel_id)
     labels = tone_labels(lang)
@@ -1431,7 +1440,12 @@ async def tone_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return SET_TONE
 
-    success = await db.run_db(db.set_channel_tone, channel_id, tone)
+    # Matnli yo'l ham inline yo'l (``tone_chosen_callback``) kabi resurs
+    # ruxsatidan o'tadi: ``tone_channel_id`` ga ko'r-ko'rona ishonilmaydi.
+    allowed = await _rbac_channel_allowed(update, channel_id, "edit",
+                                          context=context, allow_admin=True,
+                                          notify=False)
+    success = allowed and await db.run_db(db.set_channel_tone, channel_id, tone)
     if success:
         await update.message.reply_text(
             safe_t("ch_tone_success", lang, tone=labels[tone]),
