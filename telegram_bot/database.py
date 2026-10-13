@@ -234,6 +234,8 @@ REQUIRED_P0_INDEXES = ("idx_deliveries_sched", "idx_deliveries_retry", "uq_payme
 # qulflangan. PHASE 5 dagi ``REQUIRED_P0_TABLES`` kabi alohida tekshiriladi.
 AI_USAGE_TABLES = ("ai_usage_events",)
 AI_USAGE_INDEXES = ("idx_ai_usage_user_time", "idx_ai_usage_channel_time")
+# Umumiy AI byudjeti (atomik rezervatsiya): repositories/ai_budget_repository.py.
+AI_BUDGET_TABLES = ("ai_budget_days", "ai_budget_reservations")
 
 # 💳 PAYME MERCHANT API — avtomatik to'lov jadvallari (schema.sql). Xuddi
 # ``AI_USAGE_TABLES`` kabi frozen ``EXPECTED_*`` ro'yxatlaridan ALOHIDA:
@@ -2125,7 +2127,7 @@ def _verify_schema(cur) -> None:
         "WHERE table_schema = current_schema()"
     )
     tables = {row[0] for row in cur.fetchall()}
-    required_tables = (*EXPECTED_TABLES, *REQUIRED_P0_TABLES, *AI_USAGE_TABLES,
+    required_tables = (*EXPECTED_TABLES, *REQUIRED_P0_TABLES, *AI_USAGE_TABLES, *AI_BUDGET_TABLES,
                        *PAYME_TABLES)
     missing_tables = [t for t in required_tables if t not in tables]
 
@@ -2217,7 +2219,7 @@ def _schema_bootstrap_complete(cur) -> bool:
             "WHERE table_schema = current_schema()"
         )
         tables = {row[0] for row in cur.fetchall()}
-        required_tables = (*EXPECTED_TABLES, *REQUIRED_P0_TABLES, *AI_USAGE_TABLES,
+        required_tables = (*EXPECTED_TABLES, *REQUIRED_P0_TABLES, *AI_USAGE_TABLES, *AI_BUDGET_TABLES,
                        *PAYME_TABLES)
         if any(t not in tables for t in required_tables):
             return False
@@ -2281,6 +2283,7 @@ def _init_db_once():
         _ddl_user_settings_and_migrations(cur)
         _ddl_indexes_admin_credits(cur)
         _ddl_ai_and_intelligence(cur)
+        _ddl_ai_budget(cur)
         _ddl_dna_templates_sources(cur)
         _ddl_team_and_support(cur)
 
@@ -2505,6 +2508,11 @@ from repositories.audit_repository import (  # noqa: E402, F401
     get_support_ticket_by_admin_message, get_system_stats, list_admin_roles,
     log_admin_action, mark_support_ticket_answered, purge_ai_usage_events,
     save_ai_usage_event, set_admin_role
+)
+# --- 💰 UMUMIY AI BYUDJETI — atomik rezervatsiya
+from repositories.ai_budget_repository import (  # noqa: E402, F401
+    get_ai_budget_status, mark_ai_budget_unknown, release_ai_budget,
+    reserve_ai_budget, settle_ai_budget
 )
 
 
@@ -3184,6 +3192,40 @@ def _ddl_ai_and_intelligence(cur):
     # Idempotent: CREATE TABLE IF NOT EXISTS + indekslar IF NOT EXISTS.
 
 
+
+
+def _ddl_ai_budget(cur):
+    """Umumiy AI byudjeti jadvallari (schema.sql bilan bir xil; idempotent)."""
+    cur.execute('''
+        CREATE TABLE IF NOT EXISTS ai_budget_days (
+            day DATE PRIMARY KEY,
+            spent_usd NUMERIC(14, 6) NOT NULL DEFAULT 0,
+            assumed_usd NUMERIC(14, 6) NOT NULL DEFAULT 0,
+            unknown_usd NUMERIC(14, 6) NOT NULL DEFAULT 0,
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+    ''')
+    cur.execute('''
+        CREATE TABLE IF NOT EXISTS ai_budget_reservations (
+            ticket_id TEXT PRIMARY KEY,
+            day DATE NOT NULL,
+            user_id BIGINT,
+            est_usd NUMERIC(14, 6) NOT NULL DEFAULT 0,
+            state TEXT NOT NULL DEFAULT 'reserved',
+            settled_usd NUMERIC(14, 6) NOT NULL DEFAULT 0,
+            assumed_usd NUMERIC(14, 6) NOT NULL DEFAULT 0,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            expires_at TIMESTAMPTZ NOT NULL,
+            closed_at TIMESTAMPTZ,
+            instance TEXT NOT NULL DEFAULT '',
+            CONSTRAINT chk_ai_budget_state CHECK (
+                state IN ('reserved', 'settled', 'released', 'expired', 'unknown'))
+        );
+    ''')
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_ai_budget_open "
+        "ON ai_budget_reservations(day) WHERE state = 'reserved';"
+    )
 
 
 def _ddl_dna_templates_sources(cur):

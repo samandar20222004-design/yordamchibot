@@ -432,6 +432,9 @@ echo "===== 3f) 📢 KANALLARIM + 📅 REJALASHTIRILGAN ====="
 # AI usage hodisalari production yo'lida DB'ga yoziladi (jonli qism: AI_BUDGET_TEST_DATABASE_URL).
 "$PY" tests/ai_usage_persistence_test.py || fail "tests/ai_usage_persistence_test.py"
 
+# Umumiy AI byudjeti: PostgreSQL atomik rezervatsiyasi (jonli DB: AI_BUDGET_TEST_DATABASE_URL).
+"$PY" tests/ai_budget_reservation_test.py || fail "tests/ai_budget_reservation_test.py"
+
 echo
 echo "===== 3g) 📊 STATISTIKA + ⚙️ SOZLAMALAR + ADMIN RBAC ====="
 # (1) 📊 Statistika — aniq nom + ixcham 4 ko'rsatkich (📢 kanallar /
