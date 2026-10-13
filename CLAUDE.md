@@ -72,7 +72,8 @@ Oxirgi natija: ~16 970 `[OK]`, 0 `[FAIL]`, 6 `[SKIP]` (pgserver/redis yo'q).
 
 - `BETA_INVITE_ONLY` sukut bo'yicha `true` — yangi foydalanuvchilar taklif kodisiz
   kira olmaydi. Production'da qiymatni egasi belgilaydi.
-- Bepul tarifda kanal postining boshiga `@BOT_USERNAME` qo'shiladi (mavjud qoida).
+- Bepul tarifda kanal postining OXIRIGA `\n\n🤖 @BOT_USERNAME` qo'shiladi (`utils/helpers.py`:
+  `apply_post_watermark`; limit kesishidan KEYIN `compose_post_text(footer=...)`). PRO/admin — toza.
 - Hostingga va production bazaga kirish yo'q; tezlik o'lchovlari faqat lokal.
 - Bu konteynerda fon PostgreSQL ba'zan to'xtaydi — test oldidan qayta ishga tushir.
 - Real-DB testlar (`refactor_step5_test.py`) toza bazani kutadi: qayta yugurishdan

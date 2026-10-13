@@ -67,6 +67,7 @@ from utils.helpers import (
     html_escape,
     safe_html,
     apply_post_watermark,
+    split_watermark_footer,
     check_rate_limit,
 )
 # ✨ PRO 2-bosqichli AI audit: auditor utils.ai_agent'da (_AUDIT_PRO_SYSTEM).
@@ -1742,9 +1743,10 @@ async def _execute_send(update, context, query, enh):
         ad_button = build_ad_button_row(ad_info)
         brand_text = (await db.run_db(db.get_setting, "post_tag_text", "") or "").strip()
         watermarked = await apply_post_watermark(content, user_id, BOT_USERNAME)
+        watermarked, watermark_tail = split_watermark_footer(watermarked, BOT_USERNAME)
         text_limit = 4096 if ptype == "text" else 1024
         final_content = compose_post_text(watermarked, has_ad_free, channel_ad, brand_text,
-                                          limit=text_limit)
+                                          limit=text_limit, footer=watermark_tail)
     except Exception:
         logger.exception("Enhancer: matnni tayyorlashda xato")
         await _answer(query, get_text("enh_prepare_failed", lang), alert=True)

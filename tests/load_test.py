@@ -523,14 +523,14 @@ def test_album_and_no_watermark(db):
     album_texts = [t for t in texts if "Albom matni" in t]
     check("albom kamida 2 ta media", len(bot.sent) >= 2, f"sent={len(bot.sent)}")
     check("albom matni chiqdi", bool(album_texts), str(texts)[:200])
-    # user_id=1 — bepul foydalanuvchi: scheduler qoidasiga ko'ra post boshiga
-    # @PostAssistrobot (via/watermark) QO'SHILADI. Admin belgilagan majburiy
+    # user_id=1 — bepul foydalanuvchi: scheduler qoidasiga ko'ra post OXIRIGA
+    # «🤖 @PostAssistrobot» (watermark) QO'SHILADI. Admin belgilagan majburiy
     # nishon (post_tag_text) bo'sh — shuning uchun matn oxirida ikkinchi
     # belgi paydo bo'lmasligi kerak.
     check("free foydalanuvchi → @PostAssistrobot belgisi bor",
-          all(t.startswith("@PostAssistrobot") for t in album_texts), str(album_texts)[:200])
+          all(t.endswith("🤖 @PostAssistrobot") for t in album_texts), str(album_texts)[:200])
     check("majburiy brand nishoni yo'q (bitta belgi, oxirida qo'shimcha yo'q)",
-          all(t.count("@PostAssistrobot") == 1 and t.endswith("Albom matni") for t in album_texts),
+          all(t.count("@PostAssistrobot") == 1 and t.startswith("Albom matni") for t in album_texts),
           str(album_texts)[:200])
 
 

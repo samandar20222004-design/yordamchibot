@@ -420,6 +420,9 @@ echo "===== 3f) 📢 KANALLARIM + 📅 REJALASHTIRILGAN ====="
 # Kanal uslubi: matnli va inline yo'l egalik (IDOR) tekshiruvidan o'tadi.
 "$PY" tests/channel_tone_ownership_test.py || fail "tests/channel_tone_ownership_test.py"
 
+# Bepul tarif nishoni: «🤖 @bot» post OXIRIGA (PRO/admin — toza), limit kesmaydi.
+"$PY" tests/free_watermark_footer_test.py || fail "tests/free_watermark_footer_test.py"
+
 # Stars to'lovi o'tgan, PRO faollashmasa: log (charge_id) + adminga xabar.
 "$PY" tests/stars_activation_failure_test.py || fail "tests/stars_activation_failure_test.py"
 

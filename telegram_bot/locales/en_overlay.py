@@ -1659,8 +1659,8 @@ EN_OVERLAY = {
     "enh_btn_finish": "❌ Finish",
     "enh_note_admin": "👑 <i>Admin — the post goes out clean.</i>\n",
     "enh_note_free": (
-        "🆓 <i>Free plan: when sent to the channel, {bot} is added "
-        "to the top of the post.</i>\n"
+        "🆓 <i>Free plan: when sent to the channel, 🤖 {bot} is added "
+        "to the end of the post.</i>\n"
     ),
     "enh_use_buttons": (
         "👇 <b>To enhance the post, pick one of the buttons below.</b>\n"

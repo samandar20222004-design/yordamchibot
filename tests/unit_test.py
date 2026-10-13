@@ -230,10 +230,10 @@ def test_apply_post_watermark():
     admin_id = next(iter(ADMIN_IDS_SET), None)
     try:
         free = asyncio.run(apply_post_watermark("Salom", 555, "PostAssistrobot"))
-        check("free: watermark boshiga qo'shildi", free == "@PostAssistrobot\n\nSalom", free)
+        check("free: watermark OXIRIGA qo'shildi", free == "Salom\n\n🤖 @PostAssistrobot", free)
 
         empty = asyncio.run(apply_post_watermark("", 555, "@PostAssistrobot"))
-        check("free: bo'sh matn -> faqat username", empty == "@PostAssistrobot", empty)
+        check("free: bo'sh matn -> faqat nishon qatori", empty == "🤖 @PostAssistrobot", empty)
 
         twice = asyncio.run(apply_post_watermark(free, 555, "PostAssistrobot"))
         check("free: takrorlanmaydi", twice == free, twice)
@@ -4215,7 +4215,7 @@ def test_post_enhancer_channel_dispatch():
         chat_id, text, markup = sent[0][1], sent[0][2], sent[0][3]
         check("dispatch: to'g'ri kanalga (-1001234567890)", chat_id == -1001234567890, str(chat_id))
         check("dispatch: free → @PostAssistrobot belgisi bor",
-              text.startswith("@PostAssistrobot"), text)
+              text.endswith("🤖 @PostAssistrobot"), text)
         check("dispatch: asl matn buzilmadi", "Asl post matni" in text, text)
         flat = [b for row in markup.inline_keyboard for b in row] if markup else []
         check("dispatch: URL tugma kanalga chiqdi",

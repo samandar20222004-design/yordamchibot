@@ -297,6 +297,7 @@ def _ensure_scheduler_stubs():
         uh_mod.get_channel_ad_next_full_async = lambda *a, **k: {}
         uh_mod.should_show_channel_ad = lambda *a, **k: False
         uh_mod.apply_post_watermark = lambda c, u, b: c
+        uh_mod.split_watermark_footer = lambda t, b: (t, "")
         uh_mod.telegram_html_payload = lambda t, lbl=None: (t, None)
         sys.modules["utils.helpers"] = uh_mod
 

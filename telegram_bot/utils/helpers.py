@@ -44,39 +44,83 @@ async def is_user_ad_free_async(user_id: int) -> bool:
         return False
 
 
+#: Bepul tarif nishonidagi belgi: kanal postining OXIRIGA «🤖 @bot» qatori qo'shiladi.
+WATERMARK_EMOJI = "🤖"
+
+
+def _watermark_handle(bot_username: str) -> str:
+    """``PostAssistrobot`` / ``@PostAssistrobot`` → ``@PostAssistrobot``."""
+    name = str(bot_username or "").strip().lstrip("@")
+    return f"@{name}" if name else ""
+
+
+def watermark_line(bot_username: str) -> str:
+    """Nishon qatori: ``🤖 @PostAssistrobot`` (bot username sozlanmasa — ``""``)."""
+    handle = _watermark_handle(bot_username)
+    return f"{WATERMARK_EMOJI} {handle}" if handle else ""
+
+
+def watermark_footer(bot_username: str) -> str:
+    """Post oxiriga qo'shiladigan nishon: ``\n\n🤖 @PostAssistrobot``."""
+    line = watermark_line(bot_username)
+    return f"\n\n{line}" if line else ""
+
+
+def watermark_footer_length(bot_username: str) -> int:
+    """Nishonning UTF-16 uzunligi (Telegram limitlari shu birlikda hisoblaydi)."""
+    return len(watermark_footer(bot_username).encode("utf-16-le")) // 2
+
+
+def split_watermark_footer(text: str, bot_username: str) -> tuple:
+    """``(asosiy_matn, nishon)`` — matn nishon bilan tugasa, ajratib qaytaradi.
+
+    Yetkazish paytida nishon matn KESILGANDAN KEYIN qaytarib qo'shilishi uchun
+    kerak (``scheduler.compose_post_text``): shunda u Telegram limiti tufayli
+    hech qachon yo'qolib qolmaydi. Nishon yo'q bo'lsa — ``(text, "")``.
+    """
+    body = "" if text is None else str(text)
+    line = watermark_line(bot_username)
+    if not line:
+        return body, ""
+    stripped = body.rstrip()
+    if stripped == line:
+        return "", line
+    suffix = f"\n\n{line}"
+    if stripped.endswith(suffix):
+        return stripped[: -len(suffix)], line
+    return body, ""
+
+
+async def is_watermark_exempt(user_id: int) -> bool:
+    """Admin va PRO foydalanuvchilarga nishon qo'yilmaydi (DB xatosida — qo'yiladi)."""
+    if user_id in ADMIN_IDS_SET:
+        return True
+    try:
+        return bool(await db.run_db(db.is_premium, user_id))
+    except Exception as _silent_exc:
+        log_silent_failure("utils.helpers:is_watermark_exempt", _silent_exc, user_id=user_id)
+        return False
+
+
 async def apply_post_watermark(text: str, user_id: int, bot_username: str) -> str:
-    """Bepul foydalanuvchilar postlariga bot username'ini avtomatik qo'shadi.
+    """Bepul foydalanuvchilar postlarining OXIRIGA ``🤖 @bot`` nishonini qo'shadi.
 
     Qoidalar:
       - PRO foydalanuvchilar va adminlar uchun matn o'zgarmaydi.
-      - Bepul foydalanuvchilar uchun matn boshiga @username qo'shiladi.
-      - Agar matn allaqachon username bilan boshlangan bo'lsa, takrorlanmaydi.
+      - Bepul foydalanuvchilar uchun matn oxiriga ``\n\n🤖 @PostAssistrobot``
+        qo'shiladi (bo'sh matn bo'lsa — faqat nishon qatori).
+      - Matn allaqachon shu nishon bilan tugasa, takrorlanmaydi.
     """
-    from config import ADMIN_IDS_SET
-
-    # Admin va PRO foydalanuvchilarga watermark qo'yilmaydi
-    if user_id in ADMIN_IDS_SET:
+    line = watermark_line(bot_username)
+    if not line or await is_watermark_exempt(user_id):
         return text
 
-    try:
-        is_pro = await db.run_db(db.is_premium, user_id)
-        if is_pro:
-            return text
-    except Exception as _silent_exc:
-        log_silent_failure("utils.helpers:apply_post_watermark", _silent_exc, user_id=user_id)
-
-    # Username'ni tozalash va formatlash
-    clean_username = bot_username if bot_username.startswith("@") else f"@{bot_username}"
-
-    # Bo'sh matn bo'lsa, faqat username qaytariladi
-    if not text:
-        return clean_username
-
-    # Agar matn allaqachon username bilan boshlangan bo'lsa, o'zgartirilmaydi
-    if not text.startswith(clean_username):
-        return f"{clean_username}\n\n{text}"
-
-    return text
+    body = "" if text is None else str(text)
+    if not body.strip():
+        return line
+    if split_watermark_footer(body, bot_username)[1]:
+        return body
+    return f"{body.rstrip()}\n\n{line}"
 
 
 _USER_HISTORY = {}

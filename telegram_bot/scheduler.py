@@ -41,6 +41,7 @@ from utils.helpers import (
     get_channel_ad_next_full_async,
     should_show_channel_ad,
     apply_post_watermark,
+    split_watermark_footer,
     telegram_html_payload,
 )
 
@@ -639,7 +640,7 @@ def now_tashkent():
 
 
 def compose_post_text(content: str, has_ad_free: bool, channel_ad: str,
-                      brand_text: str = "", limit: int = None) -> str:
+                      brand_text: str = "", limit: int = None, footer: str = "") -> str:
     """Post matniga (ixtiyoriy) admin reklamasi va nishonni qo'shadi.
 
     ``brand_text`` — admin belgilagan so'z/watermark (masalan ``@PostAssistrobot``).
@@ -650,15 +651,18 @@ def compose_post_text(content: str, has_ad_free: bool, channel_ad: str,
     nishonga joy qoldirib kesiladi va nishon KESISHDAN KEYIN qo'shiladi — shu
     sababli u chegara tufayli hech qachon yo'qolib qolmaydi.
 
-    Eslatma: Watermark (@username) endi ``apply_post_watermark`` orqali content'ga
-    oldindan qo'shiladi (bepul foydalanuvchilar uchun). Bu funksiya faqat channel_ad
-    va brand_text'ni qo'shadi.
+    ``footer`` — bepul tarifning majburiy nishoni (``🤖 @bot``): ``apply_post_watermark``
+    qo'shgan, ``split_watermark_footer`` ajratgan qator. U ``brand_text`` kabi
+    kesishdan KEYIN, eng oxirida qo'shiladi — limit tufayli yo'qolmaydi.
     """
     text = content or ""
     ad = (channel_ad or "").strip()
     if not has_ad_free and ad:
         text = f"{text}\n\n{ad}" if text else ad
     brand = (brand_text or "").strip()
+    footer = (footer or "").strip()
+    if footer and footer not in brand:
+        brand = f"{brand}\n\n{footer}" if brand else footer
     html_mode = has_allowed_html(text) or has_allowed_html(brand)
     trim = sanitize_html if html_mode else truncate_text
     size = html_length if html_mode else utf16_length
@@ -1551,6 +1555,10 @@ async def _build_send_payload(ctx: dict):
 
     # WATERMARK: Bepul foydalanuvchilar postlariga bot username qo'shish
     watermarked_content = await apply_post_watermark(clean_content, user_id, BOT_USERNAME)
+    # Nishon (🤖 @bot) matndan ajratib olinadi va kesishdan KEYIN, eng oxirida
+    # qo'shiladi — Telegram limiti tufayli yo'qolib qolmaydi.
+    watermarked_content, watermark_tail = split_watermark_footer(
+        watermarked_content, BOT_USERNAME)
 
     # Telegram caption limiti 1024, oddiy matn limiti 4096 belgidan iborat.
     # Limit compose_post_text ichida qo'llanadi — nishon kesishdan KEYIN
@@ -1563,7 +1571,8 @@ async def _build_send_payload(ctx: dict):
     )
     try:
         final_content = compose_post_text(
-            watermarked_content, has_ad_free, channel_ad, brand_text, limit=text_limit
+            watermarked_content, has_ad_free, channel_ad, brand_text, limit=text_limit,
+            footer=watermark_tail,
         )
     except Exception:
         logger.exception("Post matnini tayyorlashda xatolik (Post ID: %s)", post_id)

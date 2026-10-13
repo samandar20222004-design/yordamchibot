@@ -1470,7 +1470,7 @@ TRANSLATIONS = {
         "enh_btn_finish": "❌ Tugatish",
         "enh_note_admin": "👑 <i>Admin — post toza chiqadi.</i>\n",
         "enh_note_pro": "✨ <i>PRO — via/watermark qo'shilmaydi, post toza chiqadi.</i>\n",
-        "enh_note_free": "🆓 <i>Bepul reja: kanalga yuborilganda post boshiga {bot} qo'shiladi.</i>\n",
+        "enh_note_free": "🆓 <i>Bepul reja: kanalga yuborilganda post oxiriga 🤖 {bot} qo'shiladi.</i>\n",
         "enh_use_buttons": (
             "👇 <b>Postni kuchaytirish uchun pastdagi tugmalardan birini tanlang.</b>\n"
             "Postni almashtirmoqchimisiz — <b>🔁 Postni almashtirish</b> tugmasini bosing."
@@ -3601,8 +3601,8 @@ TRANSLATIONS = {
         "enh_note_admin": "👑 <i>Админ — пост выйдет чистым.</i>\n",
         "enh_note_pro": "✨ <i>PRO — без via/водяного знака, пост выйдет чистым.</i>\n",
         "enh_note_free": (
-            "🆓 <i>Бесплатный план: при отправке в канал в начало поста "
-            "добавится {bot}.</i>\n"
+            "🆓 <i>Бесплатный план: при отправке в канал в конец поста "
+            "добавится 🤖 {bot}.</i>\n"
         ),
         "enh_use_buttons": (
             "👇 <b>Чтобы усилить пост, выберите одну из кнопок ниже.</b>\n"

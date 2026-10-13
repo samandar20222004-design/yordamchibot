@@ -42,7 +42,7 @@ from services.post_cleaner import (
     wrap_signature_link,
 )
 from translations import settings_stats_t as t
-from utils.helpers import html_escape
+from utils.helpers import html_escape, watermark_footer_length
 from utils.silent_errors import log_silent_failure
 
 logger = logging.getLogger(__name__)
@@ -279,9 +279,9 @@ async def _load_session(user_id: int) -> dict:
         "autosend": bool(autosend),
         "channels": [(str(c[0]), str(c[1] or c[0])) for c in (channels or [])],
         "own": frozenset(own or ()),
-        # Bepul foydalanuvchi postining boshiga bot nomi qo'shiladi — joy qoldiramiz.
+        # Bepul foydalanuvchi postining OXIRIGA «🤖 @bot» qo'shiladi — joy qoldiramiz.
         "reserve": 0 if (premium or user_id in ADMIN_IDS_SET)
-        else len(f"@{BOT_USERNAME.lstrip('@')}\n\n"),
+        else watermark_footer_length(BOT_USERNAME),
     }
 
 
