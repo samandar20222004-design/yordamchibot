@@ -39,6 +39,7 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta, timezone
 
 from services.ai.cost_tracker import MODEL_PRICES as _COST_MODEL_PRICES
+from services.ai.cost_tracker import match_price as _match_price
 from services.ai.usage_scope import action_type_for
 
 logger = logging.getLogger(__name__)
@@ -94,6 +95,9 @@ class PriceSpec:
     input_per_1k: float
     output_per_1k: float
     note: str = ""
+    #: Narx faqat shu provayderlarga tegishli (``None`` — chegarasiz);
+    #: ``cost_tracker.ModelPrice.providers`` bilan bir xil.
+    providers: tuple[str, ...] | None = None
 
 
 #: Model → narx. Kalitlar kichik harfda va model nomi/``provider model``
@@ -104,7 +108,7 @@ class PriceSpec:
 #: Bu jadval undan HOSILA (ikkinchi nusxa yo'q — narxlar ikki joyda farq
 #: qilmasin). Moslik: eng uzun kalit ustun (``price_spec``).
 PRICE_TABLE: "OrderedDict[str, PriceSpec]" = OrderedDict(
-    (key, PriceSpec(price.input_per_1k, price.output_per_1k, price.note))
+    (key, PriceSpec(price.input_per_1k, price.output_per_1k, price.note, price.providers))
     for key, price in _COST_MODEL_PRICES.items()
 )
 
@@ -143,10 +147,11 @@ def _longest_match(table, haystack: str):
 def price_spec(provider: str | None, model: str | None) -> PriceSpec:
     """Provayder/model uchun narx (topilmasa — nol narx, ``priced=False``).
 
-    Override'lar ustun; keyin yagona jadval — eng UZUN moslik.
+    Override'lar ustun; keyin yagona jadval — eng UZUN moslik, provayder
+    chegarasi bilan (``cost_tracker.match_price``).
     """
     haystack = _price_key(provider, model)
-    found = _longest_match(_PRICE_OVERRIDES, haystack) or _longest_match(PRICE_TABLE, haystack)
+    found = _longest_match(_PRICE_OVERRIDES, haystack) or _match_price(PRICE_TABLE, provider, model)
     if found is not None:
         return found
     return PriceSpec(0.0, 0.0, "noma'lum model — narx jadvalda yo'q")
@@ -156,7 +161,7 @@ def is_priced(provider: str | None, model: str | None) -> bool:
     """Bu juftlik uchun narx jadvalda BORmi (xarajat ma'nolimi)?"""
     haystack = _price_key(provider, model)
     return (_longest_match(_PRICE_OVERRIDES, haystack) is not None
-            or _longest_match(PRICE_TABLE, haystack) is not None)
+            or _match_price(PRICE_TABLE, provider, model) is not None)
 
 
 def estimate_cost(

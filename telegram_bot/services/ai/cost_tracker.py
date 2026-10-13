@@ -53,6 +53,9 @@ class ModelPrice:
     input_per_1k: float
     output_per_1k: float
     note: str = ""
+    #: Narx FAQAT shu provayderlar uchun to'g'ri (kichik harf, belgisiz:
+    #: ``("groq",)``). ``None`` — provayderga bog'liq emas (oila/umumiy kalit).
+    providers: "tuple[str, ...] | None" = None
 
     def cost(self, input_tokens: int, output_tokens: int) -> float:
         """Shu narx bo'yicha xarajat (USD)."""
@@ -67,6 +70,10 @@ class ModelPrice:
 
 #: Kalitlar kichik harfda — ``provider + model`` satrida QISMAN mos kelishi
 #: yetarli (eng uzun moslik ustun). Jadvalda yo'q model = narx NOMA'LUM.
+#: Narxi Groq tarifidan olingan kalitlar boshqa provayderdagi shu nomli modelga
+#: QO'LLANMAYDI (Cerebras/SambaNova/Cloudflare/OpenRouter narxi boshqa).
+_GROQ_ONLY: tuple[str, ...] = ("groq",)
+
 MODEL_PRICES: "OrderedDict[str, ModelPrice]" = OrderedDict([
     # --- Google Gemini ----------------------------------------------------
     ("gemini-2.5-flash", ModelPrice(0.0003, 0.0025, "Gemini 2.5 Flash — " + PRIZE_NOTE)),
@@ -80,12 +87,12 @@ MODEL_PRICES: "OrderedDict[str, ModelPrice]" = OrderedDict([
     ("o4-mini", ModelPrice(0.0011, 0.0044, "OpenAI o4-mini — " + PRIZE_NOTE)),
     ("openai", ModelPrice(0.0025, 0.01, "OpenAI oilasi (o'rtacha)")),
     # --- Groq (Llama / Mixtral / Qwen oilasi) ----------------------------
-    ("llama-3.3-70b", ModelPrice(0.00059, 0.00079, "Groq Llama 3.3 70B — " + PRIZE_NOTE)),
-    ("llama-3.1-8b", ModelPrice(0.00005, 0.00008, "Groq Llama 3.1 8B — " + PRIZE_NOTE)),
-    ("mixtral", ModelPrice(0.00024, 0.00024, "Groq Mixtral 8x7B — " + PRIZE_NOTE)),
+    ("llama-3.3-70b", ModelPrice(0.00059, 0.00079, "Groq Llama 3.3 70B — " + PRIZE_NOTE, providers=_GROQ_ONLY)),
+    ("llama-3.1-8b", ModelPrice(0.00005, 0.00008, "Groq Llama 3.1 8B — " + PRIZE_NOTE, providers=_GROQ_ONLY)),
+    ("mixtral", ModelPrice(0.00024, 0.00024, "Groq Mixtral 8x7B — " + PRIZE_NOTE, providers=_GROQ_ONLY)),
     ("qwen", ModelPrice(0.0002, 0.0006, "Qwen oilasi — " + PRIZE_NOTE)),
     ("llama", ModelPrice(0.0002, 0.0003, "Llama oilasi (o'rtacha)")),
-    ("groq", ModelPrice(0.0002, 0.0003, "Groq — o'rtacha baho")),
+    ("groq", ModelPrice(0.0002, 0.0003, "Groq — o'rtacha baho", providers=_GROQ_ONLY)),
     # --- Boshqa provayderlar (openrouter/mistral/...) --------------------
     ("openrouter", ModelPrice(0.0005, 0.0015, "OpenRouter — o'rtacha baho")),
     ("mistral", ModelPrice(0.0002, 0.0006, "Mistral — o'rtacha baho")),
@@ -106,21 +113,52 @@ def _price_key(provider, model) -> str:
     return f"{provider or ''} {model or ''}".strip().lower()
 
 
-def price_for(provider, model) -> "ModelPrice | None":
-    """Provayder/model uchun narx (jadvalda yo'q bo'lsa — ``None``).
+def _provider_token(provider) -> str:
+    """Provayder nomini taqqoslash shakliga keltiradi (``" Open-Router "`` → ``openrouter``)."""
+    return "".join(ch for ch in str(provider or "").lower() if ch.isalnum())
 
-    Moslik: eng UZUN kalit ustun (masalan ``gemini-2.5-flash`` ``gemini``
-    dan oldin tekshiriladi).
+
+def match_price(table, provider, model):
+    """``table`` (kalit → narx) dan provayder VA model mosligi bo'yicha narx.
+
+    * Kalit ``provider model`` satrida qidiriladi, eng UZUN moslik ustun.
+    * Narxda ``providers`` bo'lsa, u faqat shu provayderlarga tegishli:
+      provayder ko'rsatilgan va ro'yxatda yo'q bo'lsa, kalit o'tkazib yuboriladi.
+    * Model nomi boshqa provayderga chegaralangan kalitga mos kelsa — narx
+      NOMA'LUM (``None``): boshqa provayder narxi ham, "bepul" ham taxmin
+      qilinmaydi (natija kalit uzunligiga bog'liq bo'lmaydi).
+    * Provayder ko'rsatilmasa (``None``/``""``) chegara tekshirilmaydi
+      (eski chaqiruvlar bilan moslik).
     """
     haystack = _price_key(provider, model)
     if not haystack:
         return None
-    best: "ModelPrice | None" = None
-    best_len = 0
-    for key, price in MODEL_PRICES.items():
-        if key in haystack and len(key) > best_len:
+    token = _provider_token(provider)
+    best, best_len, blocked_len = None, 0, 0  # blocked_len > 0: boshqa provayder kaliti mos keldi
+    for key, price in table.items():
+        if not key or key not in haystack:
+            continue
+        scope = getattr(price, "providers", None)
+        if scope and token and token not in scope:
+            blocked_len = max(blocked_len, len(key))
+            continue
+        if len(key) > best_len:
             best, best_len = price, len(key)
+    if blocked_len:
+        # Model nomi boshqa provayder narxiga mos, lekin bu provayder uchun narx
+        # tasdiqlanmagan: uzunlikka qarab tasodifiy tanlamaymiz.
+        return None
     return best
+
+
+def price_for(provider, model) -> "ModelPrice | None":
+    """Provayder/model uchun narx (jadvalda yo'q yoki aniqlab bo'lmasa — ``None``).
+
+    Moslik: eng UZUN kalit ustun (masalan ``gemini-2.5-flash`` ``gemini``
+    dan oldin tekshiriladi); provayderga chegaralangan narxlar faqat o'z
+    provayderiga qo'llanadi (:func:`match_price`).
+    """
+    return match_price(MODEL_PRICES, provider, model)
 
 
 def is_priced(provider, model) -> bool:

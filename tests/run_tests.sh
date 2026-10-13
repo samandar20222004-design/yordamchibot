@@ -423,6 +423,9 @@ echo "===== 3f) 📢 KANALLARIM + 📅 REJALASHTIRILGAN ====="
 # Stars to'lovi o'tgan, PRO faollashmasa: log (charge_id) + adminga xabar.
 "$PY" tests/stars_activation_failure_test.py || fail "tests/stars_activation_failure_test.py"
 
+# AI model narxi: provayder + model birgalikda (boshqa provayder narxi qo'llanmaydi).
+"$PY" tests/ai_price_lookup_test.py || fail "tests/ai_price_lookup_test.py"
+
 echo
 echo "===== 3g) 📊 STATISTIKA + ⚙️ SOZLAMALAR + ADMIN RBAC ====="
 # (1) 📊 Statistika — aniq nom + ixcham 4 ko'rsatkich (📢 kanallar /
