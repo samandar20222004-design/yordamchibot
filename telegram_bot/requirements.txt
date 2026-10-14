@@ -14,3 +14,5 @@ sentry-sdk>=2.13.0
 # qiladi; u o'rnatilmagan bo'lsa import har so'rovda qayta urinadi va yuk ostida
 # (1000 parallel) p99 kechikish ~5 s dan oshadi.
 sniffio>=1.3.1
+# Redis mijozi: Mini App umumiy limiteri va kesh uchun (yo'q bo'lsa In-Memory fallback — Mini App 503 beradi).
+redis==5.2.1
