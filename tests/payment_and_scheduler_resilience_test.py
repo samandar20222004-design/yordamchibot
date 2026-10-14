@@ -116,6 +116,12 @@ def _ensure_scheduler_stubs():
             pass
         class Forbidden(TelegramError):
             pass
+        class InvalidToken(TelegramError):
+            pass
+        class Conflict(TelegramError):
+            pass
+        err_mod.InvalidToken = InvalidToken
+        err_mod.Conflict = Conflict
         err_mod.TelegramError = TelegramError
         err_mod.RetryAfter = RetryAfter
         err_mod.TimedOut = TimedOut

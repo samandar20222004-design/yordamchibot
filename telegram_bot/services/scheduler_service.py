@@ -420,8 +420,13 @@ class SchedulerService:
 
     @staticmethod
     def mark_failed_by_key(idempotency_key: str, error,
-                           is_transient: bool = True) -> dict:
+                           is_transient: bool = True,
+                           count_attempt: bool = True) -> dict:
         """Kalit bo'yicha xatoni qayd qilish (scheduler retry oqimi uchun).
+
+        ``count_attempt=False`` — vaqtinchalik tirbandlik (FloodWait/429): ``attempt_count`` OSHIRILMAYDI,
+        ``dead_letter`` ga o'tkazilmaydi; yozuv ``failed`` (backoff'siz) bo'ladi, post esa chaqiruvchi
+        tomonidan Telegram bergan muddatga qayta rejalanadi.
 
         Kalitdan post_id/channel ajratib bo'lmaydi, shuning uchun yozuv
         mavjud bo'lishi shart (claim avval qilingan bo'ladi).
@@ -446,7 +451,10 @@ class SchedulerService:
                     return {"ok": True, "status": status, "idempotency_key": key}
                 if status == SchedulerService.STATUS_DEAD_LETTER:
                     return {"ok": True, "status": status, "idempotency_key": key}
-                permanent = (not is_transient) or SchedulerService.is_permanent_error(error)
+                # count_attempt=False — chaqiruvchi xatoni vaqtinchalik deb QAT'IY belgilagan (FloodWait,
+                # InvalidToken): matn naqshi ("unauthorized" va h.k.) bu qarorni bekor qilmasin.
+                permanent = (not is_transient) or (
+                    count_attempt and SchedulerService.is_permanent_error(error))
                 if permanent:
                     cur.execute(
                         "UPDATE post_deliveries SET status = 'dead_letter', "
@@ -457,6 +465,15 @@ class SchedulerService:
                     return {"ok": True, "status": "dead_letter",
                             "reason": "permanent", "attempt_count": attempt_count,
                             "idempotency_key": key}
+                if not count_attempt:
+                    cur.execute(
+                        "UPDATE post_deliveries SET status = 'failed', "
+                        "last_error = %s, next_retry_at = NULL, updated_at = NOW() "
+                        "WHERE idempotency_key = %s",
+                        (error_text, key),
+                    )
+                    return {"ok": True, "status": "failed", "attempt_count": attempt_count,
+                            "backoff_seconds": 0, "counted": False, "idempotency_key": key}
                 new_attempt = attempt_count + 1
                 if new_attempt >= SchedulerService.MAX_ATTEMPTS:
                     cur.execute(

@@ -14,7 +14,7 @@ from telegram import (
     InputMediaDocument,
     InputMediaAudio,
 )
-from telegram.error import BadRequest, TelegramError, RetryAfter, TimedOut, NetworkError
+from telegram.error import BadRequest, Conflict, InvalidToken, TelegramError, RetryAfter, TimedOut, NetworkError
 from config import (
     ADMIN_IDS_SET,
     BOT_USERNAME,
@@ -82,6 +82,15 @@ FLOOD_WAIT_SAFETY_SECONDS = 5.0
 # qaytarsa (masalan 900s) scheduler ishini butunlay muzlatib qo'ymaymiz —
 # shu chegaragacha kutamiz, qolganini `retry_post` orqali DB'ga ko'chiramiz.
 FLOOD_WAIT_SLEEP_MAX = 60.0
+
+# Postni DB'da qayta rejalash va kanalni sovutish uchun yuqori chegara: Telegram bergan `retry_after` TO'LIQ
+# hurmat qilinadi (60 s ga qirqilsa post erta qayta yuborilib yana 429 oladi). Faqat ahmoqona katta qiymatlar
+# (soatlar) shu chegaragacha cheklanadi.
+FLOOD_WAIT_REQUEUE_MAX = 3600.0
+
+# Token/jarayon muammosi (InvalidToken, Conflict) POST xatosi emas: post dead_letter qilinmaydi, shu muddatdan
+# keyin qayta uriniladi (retry storm bo'lmasligi uchun uzoqroq).
+INFRA_ERROR_RETRY_SECONDS = 300.0
 
 # FloodWait butun schedulerni BLOKLAMAYDI. Tick ichida
 # real kutish faqat shu chegaragacha (soniya); qolgan muddat DB'da
@@ -426,6 +435,22 @@ def flood_wait_seconds(error, default: float = 5.0) -> float:
     if value <= 0:
         value = float(default)
     return max(1.0, min(value, FLOOD_WAIT_SLEEP_MAX))
+
+
+def flood_wait_requeue_seconds(error, default: float = 5.0) -> float:
+    """``RetryAfter`` bo'yicha postni QAYTA REJALASH muddati (soniya): Telegram bergan to'liq qiymat.
+
+    :func:`flood_wait_seconds` dan farqi: ``FLOOD_WAIT_SLEEP_MAX`` (60 s) ga qirqilmaydi, faqat
+    ``FLOOD_WAIT_REQUEUE_MAX`` gacha. Buzilgan qiymat (None/0/str) uchun ``default``.
+    """
+    raw = getattr(error, "retry_after", None)
+    try:
+        value = float(raw) if raw is not None else float(default)
+    except (TypeError, ValueError):
+        value = float(default)
+    if value <= 0:
+        value = float(default)
+    return max(1.0, min(value, FLOOD_WAIT_REQUEUE_MAX))
 
 
 def flood_wait_inline_sleep(wait_seconds: float) -> float:
@@ -942,6 +967,14 @@ async def check_and_send_posts(bot):
         # 0) Avvalgi tick'larda DB'ga yozilmay qolgan "yuborildi" markerlari —
         #    yangi postlarni olishdan OLDIN yoziladi (idempotentlik kafolati).
         await flush_unpersisted_sent_markers()
+        # 0b) Boshqa worker o'lib 'processing'da qoldirgan postlar (10 daqiqadan eski) — HAR tick'da tiklanadi.
+        #     Avval faqat startup'da va 6 soatlik cleanup'da edi (post 6 soatgacha yotardi). Yuborilgani dalili
+        #     bor post 'posted' qilinadi, qolgani 'pending'; keyingi qayta yuborishdan oldin delivery claim
+        #     (advisory lock + verify) dublikatdan himoya qiladi.
+        try:
+            await db.run_db(db.recover_stale_processing_posts)
+        except Exception:
+            logger.exception("Stale 'processing' postlarni har-tick tiklashda xato")
         now = now_tashkent()
         due_posts = await db.run_db(db.get_due_posts, now)
         if due_posts:
@@ -991,7 +1024,7 @@ async def check_and_send_posts(bot):
                 #    qisqa (≤ FLOOD_WAIT_INLINE_SLEEP_MAX) pauza, post esa
                 #    Telegram ko'rsatgan to'liq muddatga DB'da kechiktiriladi;
                 #    kanal sovutishga qo'yiladi, navbat XAVFSIZ davom etadi.
-                wait_seconds = flood_wait_seconds(e)
+                wait_seconds = flood_wait_requeue_seconds(e)
                 logger.warning(
                     "Telegram FloodWait (429): post %s %.0fs ga kechiktirildi (kanal %s)",
                     post[0] if post else "?", wait_seconds, channel_id,
@@ -1081,17 +1114,25 @@ async def _requeue_unsent_on_shutdown(posts) -> int:
     return count
 
 
-async def _mark_delivery_failed(delivery_key, error, is_transient: bool = True):
+async def _mark_delivery_failed(delivery_key, error, is_transient: bool = True,
+                                count_attempt: bool = True):
     """Delivery claim qilinganidan keyingi Telegram xatosini DB ga yozadi.
 
     vaqtinchalik xatoda backoff (30s/2m/5m/15m) qo'yiladi,
     doimiy xatoda yoki 5-urinishda ham xato bo'lsa ``dead_letter`` bo'ladi.
+    ``count_attempt=False`` — vaqtinchalik tirbandlik (FloodWait/429): urinish SANALMAYDI va
+    ``dead_letter`` bo'lmaydi (post Telegram bergan muddatdan keyin qayta uriniladi).
     Qaytadi: delivery_service natijasi (dict) yoki None (kalit yo'q / DB xatosi).
     ``None`` — chaqiruvchi eski oqimda davom etishi kerak (qayta navbat).
     """
     if not delivery_key:
         return None
     try:
+        if not count_attempt:
+            return await db.run_db(
+                delivery_service.mark_failed_by_key, delivery_key, error,
+                is_transient, False,
+            )
         return await db.run_db(
             delivery_service.mark_failed_by_key, delivery_key, error,
             is_transient,
@@ -1813,8 +1854,9 @@ async def _execute_send(bot, post):
         #    keyingi so'rovlar ham 429 bilan qaytadi va limit uzayadi).
         # 2) Post yo'qolmasligi uchun qayta navbatga qo'yamiz (5-urinishda
         #    ham 429 bo'lsa delivery dead_letter bo'lib, post yakunlanadi).
-        delivery_result = await _mark_delivery_failed(delivery_key, e, is_transient=True)
-        wait_seconds = flood_wait_seconds(e)
+        # 429 tirbandlik — XATO EMAS: urinish sanalmaydi (aks holda 5 ta FloodWait postni dead_letter qilardi).
+        delivery_result = await _mark_delivery_failed(delivery_key, e, is_transient=True, count_attempt=False)
+        wait_seconds = flood_wait_requeue_seconds(e)
         logger.warning(
             "Telegram FloodWait (Post ID: %s, kanal %s): post %.0fs ga kechiktiriladi",
             post_id, ctx["channel_id"], wait_seconds,
@@ -1858,6 +1900,14 @@ async def _execute_send(bot, post):
             verify_attempt=ctx["delivery_claim_verify_attempt"],
         )
         return
+    except (InvalidToken, Conflict) as e:
+        # Token bekor qilingan / boshqa nusxa bilan to'qnashuv: bu POSTning xatosi EMAS. Doimiy 'failed' qilinsa,
+        # token vaqtincha xato bergan paytda BARCHA due postlar yo'qolardi. Urinish sanalmaydi, keyinroq qayta uriniladi.
+        logger.error("Telegram infratuzilma xatosi (%s) — post %s dead_letter QILINMADI, %.0fs dan keyin qayta uriniladi",
+                     type(e).__name__, post_id, INFRA_ERROR_RETRY_SECONDS)
+        await _mark_delivery_failed(delivery_key, e, is_transient=True, count_attempt=False)
+        await db.run_db(db.retry_post, post_id, now_tashkent() + timedelta(seconds=INFRA_ERROR_RETRY_SECONDS))
+        return
     except TelegramError as e:
         # Noma'lum Telegram xatosi (masalan BadRequest): odatda doimiy
         # (noto'g'ri so'rov) — takrorlash foydasiz, dead_letter + 'failed'.
@@ -1895,6 +1945,92 @@ async def _send_single_media(bot, target_chat, kind, file_id, caption, reply_mar
     if kind == "animation":
         return await _delivery_send(bot, "send_animation", chat_id=target_chat, **delivery_kwargs, animation=file_id, caption=caption, reply_markup=reply_markup, parse_mode=parse_mode)
     return await _delivery_send(bot, "send_photo", chat_id=target_chat, **delivery_kwargs, photo=file_id, caption=caption, reply_markup=reply_markup, parse_mode=parse_mode)
+
+
+# ── Post muammosi haqida egasiga xabar (audit D-4) ─────────────────────────────────────────────────
+# Yetkazish yo'llariga TEGILMAYDI: davriy ish yaqinda ``dead_letter`` / ``unknown`` bo'lgan yetkazishlarni topadi.
+PROBLEM_NOTIFY_LOOKBACK_SECONDS = 900      # keyingi ishga tushirishlarda
+PROBLEM_NOTIFY_FIRST_LOOKBACK_SECONDS = 120   # jarayon yangi ishga tushganda (restartdan keyin eski xabarlarni qaytarmaslik)
+PROBLEM_NOTIFY_MAX_LINES = 5
+_PROBLEM_NOTIFIED: dict = {}      # (post_id, delivery_status) -> True (xotira; chegaralangan)
+_PROBLEM_NOTIFIED_MAX = 5000
+_problem_notify_first_run = True
+
+_RIGHTS_MARKERS = ("chat not found", "kicked", "forbidden", "not enough rights", "need administrator",
+                   "administrator rights", "have no rights", "bot was blocked", "chat_write_forbidden")
+_FORMAT_MARKERS = ("can't parse", "cant parse", "entities", "wrong url", "button", "caption is too long", "message is too long")
+_NETWORK_MARKERS = ("timedout", "timed out", "networkerror", "attempts", "urinishlar")
+
+
+def _problem_reason_key(delivery_status, last_error) -> str:
+    """Xato matnidan FOYDALANUVCHIGA tushunarli sabab kaliti (xom xato matni ko'rsatilmaydi)."""
+    if str(delivery_status) == "unknown":
+        return "post_problem_reason_unknown"
+    text = str(last_error or "").lower()
+    if any(m in text for m in _RIGHTS_MARKERS):
+        return "post_problem_reason_rights"
+    if any(m in text for m in _FORMAT_MARKERS):
+        return "post_problem_reason_format"
+    if any(m in text for m in _NETWORK_MARKERS):
+        return "post_problem_reason_network"
+    return "post_problem_reason_generic"
+
+
+async def notify_post_problems(bot) -> int:
+    """Yaqinda ``failed`` / ``unknown`` bo'lgan postlar egasiga BIR marta (foydalanuvchi bo'yicha guruhlab) xabar beradi.
+
+    Hech qachon istisno tashlamaydi (scheduler ishi buzilmasin). Qaytadi: xabar berilgan postlar soni.
+    Eslatma: dedup jarayon xotirasida — ko'p instansiyali deploy'da bir xabar har instansiyadan chiqishi mumkin.
+    """
+    global _problem_notify_first_run
+    lookback = PROBLEM_NOTIFY_FIRST_LOOKBACK_SECONDS if _problem_notify_first_run else PROBLEM_NOTIFY_LOOKBACK_SECONDS
+    try:
+        rows = await db.run_db(db.get_recent_problem_deliveries, lookback)
+    except Exception:
+        logger.exception("Muammoli postlarni o'qishda xato")
+        return 0
+    _problem_notify_first_run = False
+
+    from locales.translations import get_text
+    from utils.helpers import html_escape
+
+    by_user: dict = {}
+    for (_did, post_id, user_id, _chan, dstatus, last_error, preview, title) in rows or []:
+        key = (int(post_id), str(dstatus))
+        if key in _PROBLEM_NOTIFIED:
+            continue
+        by_user.setdefault(int(user_id), []).append((key, dstatus, last_error, preview, title))
+
+    notified = 0
+    for user_id, items in by_user.items():
+        try:
+            lang = await db.run_db(db.get_user_language, user_id)
+        except Exception:
+            lang = "uz"
+        lines = []
+        has_unknown = False
+        for _key, dstatus, last_error, preview, title in items[:PROBLEM_NOTIFY_MAX_LINES]:
+            has_unknown = has_unknown or str(dstatus) == "unknown"
+            lines.append(get_text(
+                "post_problem_line", lang,
+                channel=html_escape(str(title or "—")),
+                preview=html_escape((str(preview or "").replace("\n", " ").strip()[:60]) or "…"),
+                reason=get_text(_problem_reason_key(dstatus, last_error), lang),
+            ))
+        footer_key = "post_problem_footer_unknown" if has_unknown else "post_problem_footer_failed"
+        text = "\n".join([get_text("post_problem_header", lang, n=len(items)), "", *lines, "", get_text(footer_key, lang)])
+        # Urinishdan OLDIN belgilanadi: bot bloklangan bo'lsa ham qayta-qayta urinilmaydi.
+        for key, *_rest in items:
+            _PROBLEM_NOTIFIED[key] = True
+        if len(_PROBLEM_NOTIFIED) > _PROBLEM_NOTIFIED_MAX:
+            for old_key in list(_PROBLEM_NOTIFIED)[: len(_PROBLEM_NOTIFIED) - _PROBLEM_NOTIFIED_MAX]:
+                _PROBLEM_NOTIFIED.pop(old_key, None)
+        try:
+            await bot.send_message(chat_id=user_id, text=text, parse_mode="HTML")
+            notified += len(items)
+        except Exception as exc:  # noqa: BLE001 — bot bloklangan / chat yo'q: xabar muhim emas, ish davom etadi
+            logger.info("Post muammosi xabari yuborilmadi (user=%s): %s", user_id, type(exc).__name__)
+    return notified
 
 
 async def check_and_delete_expired_posts(bot):

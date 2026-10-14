@@ -515,6 +515,13 @@ ADMIN_PANEL_I18N = {
             "🎟 Kod: <code>{code}</code>\n"
             "📌 Sabab: {reason}"
         ),
+        "stars_refund_admin": (
+            "↩️ <b>Stars to'lovi QAYTARILDI (refund)</b>\n"
+            "👤 Foydalanuvchi: <code>{user_id}</code>\n"
+            "🧾 Charge ID: <code>{charge_id}</code>\n"
+            "💰 Summa: {amount} {currency}\n"
+            "⚠️ PRO huquqi avtomatik O'ZGARTIRILMADI — qaror sizda (kerak bo'lsa tarifni qo'lda tekshiring)."
+        ),
         "stars_activation_failed_admin": (
             "🚨 <b>Stars to'lovi qabul qilindi, lekin PRO faollashmadi</b>\n"
             "👤 Foydalanuvchi: <code>{user_id}</code>\n"
@@ -1028,6 +1035,13 @@ ADMIN_PANEL_I18N["ru"] = {
         "🎟 Код: <code>{code}</code>\n"
         "📌 Причина: {reason}"
     ),
+    "stars_refund_admin": (
+        "↩️ <b>Платёж Stars ВОЗВРАЩЁН (refund)</b>\n"
+        "👤 Пользователь: <code>{user_id}</code>\n"
+        "🧾 Charge ID: <code>{charge_id}</code>\n"
+        "💰 Сумма: {amount} {currency}\n"
+        "⚠️ Право PRO автоматически НЕ изменено — решение за вами (при необходимости проверьте тариф вручную)."
+    ),
     "stars_activation_failed_admin": (
         "🚨 <b>Оплата Stars получена, но PRO не активирован</b>\n"
         "👤 Пользователь: <code>{user_id}</code>\n"
@@ -1537,6 +1551,13 @@ ADMIN_PANEL_I18N["en"] = {
         "👤 {username} (<code>{user_id}</code>)\n"
         "🎟 Code: <code>{code}</code>\n"
         "📌 Reason: {reason}"
+    ),
+    "stars_refund_admin": (
+        "↩️ <b>Stars payment REFUNDED</b>\n"
+        "👤 User: <code>{user_id}</code>\n"
+        "🧾 Charge ID: <code>{charge_id}</code>\n"
+        "💰 Amount: {amount} {currency}\n"
+        "⚠️ PRO access was NOT changed automatically — the decision is yours (check the plan manually if needed)."
     ),
     "stars_activation_failed_admin": (
         "🚨 <b>Stars payment received, but PRO was not activated</b>\n"

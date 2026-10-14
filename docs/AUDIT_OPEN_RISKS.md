@@ -3,6 +3,32 @@
 Bu hujjat audit (AUDIT-001…015 + P3) davomida **o'zgartirilmagan**, lekin yo'qotilmasligi kerak bo'lgan xavflar va
 sabablarni qayd etadi. "Tuzatildi" bo'limi qisqacha; to'liq tafsilot — commit xabarlari va regression testlar.
 
+## Ikkinchi audit (2026-10) — tuzatilgan P0 bandlar
+Manba: 1-bosqich audit hisoboti (5 ta o'qish-faqat agent + qo'lda tekshiruv). Har bir band real-PG yoki DB'siz regression testi bilan (tuzatishsiz qizil ekani ko'rilgan).
+
+| ID | Nima | Test |
+|---|---|---|
+| D-1 | FloodWait (`RetryAfter`) urinish sanagichini OSHIRMAYDI va postni `dead_letter` qilmaydi; qayta rejalash Telegram bergan TO'LIQ muddat (1 soatgacha), 60 s emas. Sabab: `DELIVERY_CARRY_ATTEMPTS` (sukut yoqilgan) bilan 5 ta 429 postni `failed` qilardi. | `tests/scheduler_floodwait_test.py` |
+| D-2 (qisman) | `InvalidToken` / `Conflict` postni `dead_letter` QILMAYDI (token/jarayon muammosi, post xatosi emas): 300 s dan keyin qayta uriniladi. `ChatMigrated` — avtomatik `channel_id` ko'chirilmaydi (7+ jadvalda FK, `ON UPDATE CASCADE` yo'q; faqat oddiy guruh superguruhga o'tganda uchraydi), hozirgi doimiy `failed` xulqi testda qotirilgan. | `tests/scheduler_errclass_test.py` |
+| D-4 | Post `failed`/`unknown` bo'lganda EGASIGA xabar (uz/ru/en, foydalanuvchi bo'yicha guruhlangan, bir marta). Yetkazish yo'llariga tegilmaydi: `notify_post_problems` davriy ish. Cheklov: dedup jarayon xotirasida (ko'p instansiyada takror, restartdan keyin ~2 daqiqalik oyna). | `tests/scheduler_problem_notify_test.py` |
+| A-1 | Mini App `ai_generate` `usage_scope(user_id)` ichida: har-foydalanuvchi AI byudjeti va `AI_GLOBAL_DAILY_USD` Mini App uchun ham ishlaydi (oldin scope=None -> doim ruxsat). | `tests/miniapp_ai_scope_test.py` |
+
+## Ikkinchi audit — tuzatilgan P1 bandlar
+| ID | Nima | Test |
+|---|---|---|
+| D-5 | Qotib qolgan `processing` post (10 daqiqadan eski) har tick'da tiklanadi (oldin faqat startup va 6 soatlik cleanup). Yuborilgani dalili bor post `posted`, qolgani `pending`; qayta yuborishdan oldin delivery claim dublikatdan himoya qiladi. | `tests/scheduler_stale_tick_test.py` (real PG) |
+| A-2 | Legacy rasm->post yo'li (`_vision_run`, `_vision_run_variants`) AI limit/byudjet/telemetriya ostida: BITTA admission (3 variant = 1 ruxsat). Rad etilsa Gemini chaqirilmaydi va rasm yuklanmaydi. Cheklov: 3 parallel chaqiruv xarajati bitta so'rov sifatida baholanadi (taxminiy). | `tests/vision_admission_test.py` |
+| P-3 | Payme refund (`PAYME_ALLOW_REFUNDS=1`) muddatsiz PRO (admin bergan) ni `free` ga tushirmaydi (enterprise bilan bir xil qoida). | `tests/enterprise_plan_preservation_test.py` |
+| P-4 (variant 1) | Stars `refunded_payment`: log + adminlarga ogohlantirish. PRO huquqi va `payments` AVTOMATIK O'ZGARTIRILMAYDI (refund siyosati egasi qarori, AUDIT-006). | `tests/stars_refund_notice_test.py` |
+
+### Ataylab qoldirilgan (dizayn/biznes qarori kerak)
+* **P-1 — `photo_check` ✅ idempotent emas** (`handlers/photo_check.py:271`): har bosish +30 kun PRO, rasm BARCHA adminlarga alohida boradi. Variantlar: (a) so'rov uchun bitta qator (pending/approved) + `UPDATE ... WHERE status='pending'` — yangi jadval/migratsiya; (b) `payments` jadvaliga `photocheck:<uid>:<msg_id>` kaliti bilan 0-summali yozuv (callback_data formati o'zgaradi, daromad hisobotlariga ta'sirini tekshirish kerak). Xavf: callback formati va hisobotlar.
+* **P-2 — Payme `perform_transaction` PRO berilmaganini (foydalanuvchi qatori yo'q) e'tiborsiz qoldiradi.** Variantlar: (a) `PaymeError(ERR_CANNOT_PERFORM)` — tranzaksiya rollback, pul olinmaydi (Payme protokol xulqi o'zgaradi); (b) muvaffaqiyat + admin alert. Tanlov protokol/biznes qarori.
+* **D-3 — Telegram 5xx da ommaviy `unknown`:** qayta baholandi — 504 (Gateway Timeout) Telegram xabarni ALLAQACHON qayta ishlagan bo'lishi mumkin, shuning uchun "aniq yetkazilmagan" deb retry qilish dublikat xavfini qaytaradi. Hozirgi konservativ yo'l to'g'ri; zarari D-4 (egasiga xabar) bilan kamaytirildi.
+* **D-6/D-8** (kanal limiti 60/daq vs Telegram ~20/daq; 100 post/daq sig'im), **PTB pin va CI qattiqlashtirish** (`docs/ci-hardening.yml` ni egasi ko'chiradi; PTB versiyasini production `pip freeze` ga moslab pin qilish), **analitika sxemasi** (`views` NULL, `source`, `collected_at`; `getChatMemberCount` snapshot) — alohida, ko'rib chiqiladigan o'zgarishlar.
+
+**Tuzatma:** yuqoridagi "~22 daqiqa" taxmini noto'g'ri edi. Umumiy (`Exception`) xatoda post 60 s oralig'ida qayta uriniladi, shuning uchun 5 urinish ~5 daqiqada tugaydi; backoff jadvali (30s/2m/5m/15m) faqat noaniq-tarmoq yo'lida (`_handle_ambiguous_send_error`) qo'llanadi. Real uzilishda postlar `failed` bo'lishi mumkin; endi egasi xabar oladi (D-4).
+
 ## Tuzatilganlar (regression testi bilan)
 
 | ID | Nima | Test |

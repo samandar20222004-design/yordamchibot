@@ -159,6 +159,15 @@ try:
     mk(uid, "pro", "NOW() + interval '10 days'")
     payme_revoke(uid)
     check("Payme revoke | pro (+10 kun): muddat tugaydi -> free (avvalgi xulq saqlangan)", state(uid)[0] == "free", str(state(uid)))
+    # AUDIT (P-3): muddatsiz PRO (admin cheksiz bergan) Payme qaytarishida free ga tushmasligi kerak
+    uid += 1
+    mk(uid, "pro", "NULL")
+    payme_revoke(uid)
+    check("Payme revoke | pro MUDDATSIZ (admin bergan): tegilmaydi (free ga tushmaydi)", state(uid) == ("pro", True, None), str(state(uid)))
+    uid += 1
+    mk(uid, "free", "NULL")
+    payme_revoke(uid)
+    check("Payme revoke | free: o'zgarmaydi", state(uid) == ("free", True, None), str(state(uid)))
 finally:
     cleanup()
     db.close_pool()

@@ -383,6 +383,7 @@ from handlers.subscription import (
     start_subscription, subscription_callback, promo_code_received,
     grant_pro_command, create_promo_command,
     precheckout_callback, successful_payment_callback,
+    refunded_payment_callback, refunded_payment_filter,
     BotSubscriptionUpdatedHandler,
     SUBSCRIPTION_VIEW, PROMO_INPUT, RECEIPT_WAIT
 )
@@ -2305,6 +2306,10 @@ def _register_global_commands(app):
     # SuccessfulPayment: to'lov muvaffaqiyatli o'tgach PRO tarifni faollashtiramiz.
     app.add_handler(PreCheckoutQueryHandler(precheckout_callback))
     app.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_callback))
+    # Stars refund (Message.refunded_payment): log + admin ogohlantirishi (PRO huquqiga tegilmaydi — siyosat egasi qarori).
+    _refund_filter = refunded_payment_filter()
+    if _refund_filter is not None:
+        app.add_handler(MessageHandler(_refund_filter, refunded_payment_callback))
 
 
 

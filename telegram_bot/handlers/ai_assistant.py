@@ -14,6 +14,7 @@ from keyboards.default import (
 )
 from keyboards.callback_data import CB_PHOTO_VARIANT, cb
 from services.ai.progress import AIProgressReporter
+from services.ai.admission import VisionRejected, vision_admission
 from keyboards.inline import (
     get_ai_studio_keyboard, get_ai_back_keyboard, get_ai_tone_keyboard,
     get_ai_photo_keyboard, get_ai_confirm_keyboard, AI_TONE_KEYS,
@@ -1909,17 +1910,21 @@ async def _vision_run(file_id: str, extra_prompt: str, rewrite_context="",
     """
     tmp_path = None
     try:
-        tmp_path = await download_telegram_media_to_temp(file_id)
-        # ``lang`` — post foydalanuvchi tilida (uz/ru/en). Mock/eski imzolar
-        # ``lang`` ni bilmasa, u shunchaki tashlab yuboriladi.
-        gvp = globals().get("generate_vision_post") or generate_vision_post
-        return await gvp(
-            tmp_path,
-            **pick_supported_kwargs(
-                gvp, extra_prompt=extra_prompt,
-                rewrite_context=rewrite_context, lang=lang,
-            ),
-        )
+        # Foydalanuvchi limiti / AI byudjeti (audit A-2): rad etilsa rasm yuklanmaydi ham, Gemini chaqirilmaydi.
+        async with vision_admission(extra_prompt, lang):
+            tmp_path = await download_telegram_media_to_temp(file_id)
+            # ``lang`` — post foydalanuvchi tilida (uz/ru/en). Mock/eski imzolar
+            # ``lang`` ni bilmasa, u shunchaki tashlab yuboriladi.
+            gvp = globals().get("generate_vision_post") or generate_vision_post
+            return await gvp(
+                tmp_path,
+                **pick_supported_kwargs(
+                    gvp, extra_prompt=extra_prompt,
+                    rewrite_context=rewrite_context, lang=lang,
+                ),
+            )
+    except VisionRejected as e:
+        return {"error": str(e)}
     except VisionError as e:
         return {"error": str(e)}
     except Exception as e:
@@ -1943,22 +1948,24 @@ async def _vision_run_variants(file_id: str, extra_prompt: str, lang: str = "uz"
     variants: dict = {}
     errors = []
     try:
-        tmp_path = await download_telegram_media_to_temp(file_id)
+        # BITTA admission butun variantlar guruhiga (audit A-2): 3 parallel Gemini chaqiruvi = 1 ruxsat.
+        async with vision_admission(extra_prompt, lang):
+            tmp_path = await download_telegram_media_to_temp(file_id)
 
-        async def _run(style):
-            gvp = globals().get("generate_vision_post") or generate_vision_post
-            res = await gvp(
-                tmp_path,
-                **pick_supported_kwargs(
-                    gvp, extra_prompt=extra_prompt, tone=style, lang=lang
-                ),
+            async def _run(style):
+                gvp = globals().get("generate_vision_post") or generate_vision_post
+                res = await gvp(
+                    tmp_path,
+                    **pick_supported_kwargs(
+                        gvp, extra_prompt=extra_prompt, tone=style, lang=lang
+                    ),
+                )
+                return style, res
+
+            outcomes = await asyncio.gather(
+                *(_run(s) for s in PHOTO_VARIANT_STYLES),
+                return_exceptions=True,
             )
-            return style, res
-
-        outcomes = await asyncio.gather(
-            *(_run(s) for s in PHOTO_VARIANT_STYLES),
-            return_exceptions=True,
-        )
         for style, res in outcomes:
             if isinstance(res, Exception):
                 logger.warning("Vision varianti xatosi (%s): %s", style, res)
@@ -1970,6 +1977,8 @@ async def _vision_run_variants(file_id: str, extra_prompt: str, lang: str = "uz"
             text = ((res or {}).get("post_text") or "").strip()
             if text:
                 variants[style] = text
+    except VisionRejected as e:
+        errors.append(str(e))
     except Exception as e:
         logger.error("Vision variantlar xatosi: %s", e)
         errors.append(_photo_unavailable_msg(lang))

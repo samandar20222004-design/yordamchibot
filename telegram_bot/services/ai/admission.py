@@ -19,6 +19,7 @@ gate/byudjet qo'llanmaydi, lekin telemetriya (user_id=None) yoziladi.
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import time
 from dataclasses import dataclass
@@ -30,7 +31,7 @@ from services.ai.budget import (
     resolve_tier,
 )
 from services.ai.concurrency import default_user_gate, user_busy_message
-from services.ai.usage_scope import current_scope
+from services.ai.usage_scope import current_scope, usage_scope
 
 logger = logging.getLogger(__name__)
 
@@ -122,3 +123,40 @@ def record_request(*, ok: bool, provider: str = "", model: str = "", text: str =
 
 
 __all__ = ["Admission", "admit_ai_request", "record_request"]
+
+
+class VisionRejected(Exception):
+    """Foydalanuvchi limiti / AI byudjeti rasm tahlilini rad etdi; ``str(e)`` — foydalanuvchiga ko'rsatiladigan matn."""
+
+
+@contextlib.asynccontextmanager
+async def vision_admission(prompt: str = "", lang: str = "uz"):
+    """Legacy rasm->post yo'li (``generate_vision_post``) uchun BITTA admission: limit + byudjet + telemetriya.
+
+    ``analyze_image`` bilan bir xil qoidalar. Kirish nuqtasi bitta admission oladi (masalan 3 parallel variant = 1 ruxsat),
+    aks holda foydalanuvchining parallel-ish limiti o'z variantlarini rad etardi. Rad etilsa ``VisionRejected``;
+    ``suppress_recording`` ichida (ichki chaqiruv) qayta hisoblanmaydi.
+    """
+    scope = current_scope()
+    if scope is not None and scope.suppress_recording:
+        yield None
+        return
+    started = time.monotonic()
+    with usage_scope(action_type="vision"):
+        admission = await admit_ai_request(prompt, "", lang)
+        if not admission.allowed:
+            record_request(ok=False, prompt=prompt, started=started,
+                           failure_kind=admission.reason, error=admission.error)
+            admission.release()
+            raise VisionRejected(admission.error or "AI limit")
+        ok = False
+        try:
+            yield admission
+            ok = True
+        finally:
+            try:
+                record_request(ok=ok, provider="Gemini", prompt=prompt, started=started,
+                               failure_kind=None if ok else "vision_error")
+                await admission.finalize()
+            finally:
+                admission.release()
