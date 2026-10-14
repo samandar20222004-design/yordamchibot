@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
 import { ME, PAGE, errorBody, jsonResponse } from './test/helpers'
@@ -164,6 +164,6 @@ describe('App', () => {
     mockApi((url) => url.includes('/me') ? jsonResponse({ ...ME, user: { ...ME.user, language: 'ru' } }) : okRoutes(url))
     render(<App />)
     expect(await screen.findByText('Здравствуйте, Alice!')).toBeTruthy()
-    expect(document.documentElement.lang).toBe('ru')
+    await waitFor(() => expect(document.documentElement.lang).toBe('ru')) // lang atributi useEffect orqali yangilanadi
   })
 })
