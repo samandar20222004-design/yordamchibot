@@ -55,6 +55,20 @@ RUN pip install --upgrade pip \
     && pip install --no-cache-dir -r /build/requirements.txt
 
 # ------------------------------------------------------------
+# Mini App frontend (Vite + React) — FAQAT build bosqichi.
+# Node runtime image'ga TUSHMAYDI: bu stage'dan faqat statik `dist/` ko'chiriladi.
+# `MINIAPP_ENABLED=0` (sukut) bo'lsa Python serveri bu fayllarga umuman tegmaydi.
+# ------------------------------------------------------------
+FROM node:22-slim AS miniapp-build
+
+WORKDIR /miniapp
+# Lockfile ALOHIDA layer'da — kod o'zgarganda `npm ci` qayta ishlamaydi (kesh).
+COPY miniapp/package.json miniapp/package-lock.json ./
+RUN npm ci --no-audit --no-fund
+COPY miniapp/ ./
+RUN npm run build
+
+# ------------------------------------------------------------
 # minimal, xavfsiz va non-root image
 # ------------------------------------------------------------
 FROM python:3.11-slim AS runtime
@@ -82,6 +96,9 @@ WORKDIR /app
 # Tayyor virtualenv (builder'dan) + ilova kodi (appuser egaligida).
 COPY --from=builder /opt/venv /opt/venv
 COPY --chown=appuser:appgroup telegram_bot/ /app/
+# Mini App build natijasi (faqat statik fayllar). `miniapp_api.settings.default_dist_dir()`
+# `/app/miniapp/dist` ni shu joydan topadi; MINIAPP_DIST_DIR bilan o'zgartiriladi.
+COPY --from=miniapp-build --chown=appuser:appgroup /miniapp/dist /app/miniapp/dist
 # Deploy/bootstrap skriptlari (preflight, DB migratsiya/schema check,
 # smoke test) — konteyner ichida ham tekshirish mumkin:
 #     docker exec postassist-bot bash scripts/start_production.sh --check-only

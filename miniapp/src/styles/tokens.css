@@ -1,0 +1,50 @@
+/* Dizayn tokenlari. Telegram mavzu o'zgaruvchilari (--tg-theme-*) bo'lsa ular ishlatiladi,
+   bo'lmasa quyidagi zaxira qiymatlar (light/dark) qo'llanadi. */
+:root {
+  color-scheme: light;
+  --fb-bg: #f2f3f5;
+  --fb-surface: #ffffff;
+  --fb-text: #14171a;
+  --fb-hint: #596270;
+  --fb-accent: #1d6fc4;
+  --fb-on-accent: #ffffff;
+  --fb-danger: #c0271b;
+  --fb-success: #17703f;
+  --fb-warning: #8a5a00;
+
+  --bg: var(--tg-theme-secondary-bg-color, var(--fb-bg));
+  --surface: var(--tg-theme-section-bg-color, var(--tg-theme-bg-color, var(--fb-surface)));
+  --text: var(--tg-theme-text-color, var(--fb-text));
+  --hint: var(--tg-theme-hint-color, var(--fb-hint));
+  --accent: var(--tg-theme-button-color, var(--fb-accent));
+  --on-accent: var(--tg-theme-button-text-color, var(--fb-on-accent));
+  --link: var(--tg-theme-link-color, var(--fb-accent));
+  --danger: var(--tg-theme-destructive-text-color, var(--fb-danger));
+  --success: var(--fb-success);
+  --warning: var(--fb-warning);
+  --border: color-mix(in srgb, var(--text) 14%, transparent);
+  --accent-soft: color-mix(in srgb, var(--accent) 14%, var(--surface));
+
+  --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 24px; --s6: 32px;
+  --r-sm: 8px; --r-md: 12px; --r-lg: 16px;
+  --tap: 44px;
+  --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+
+  --safe-top: max(env(safe-area-inset-top, 0px), var(--tg-safe-area-inset-top, 0px), var(--tg-content-safe-area-inset-top, 0px));
+  --safe-bottom: max(env(safe-area-inset-bottom, 0px), var(--tg-safe-area-inset-bottom, 0px));
+  --safe-left: max(env(safe-area-inset-left, 0px), var(--tg-safe-area-inset-left, 0px));
+  --safe-right: max(env(safe-area-inset-right, 0px), var(--tg-safe-area-inset-right, 0px));
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --fb-bg: #0f1114;
+  --fb-surface: #1b1e23;
+  --fb-text: #f1f3f5;
+  --fb-hint: #a0a9b6;
+  --fb-accent: #5aa9f0;
+  --fb-on-accent: #0b1520;
+  --fb-danger: #ff7b72;
+  --fb-success: #5fd38d;
+  --fb-warning: #f2c35a;
+}

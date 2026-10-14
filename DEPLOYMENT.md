@@ -145,6 +145,20 @@ Loglar: `logs/deploy-<sana>.log` (git'ga tushmaydi — `.gitignore`).
   yuborilmaganlari `pending` ga qaytadi, `processing` qolganlari startdaki
   `recover_on_startup()` bilan tiklanadi.
 
+## 1-a. 📱 Mini App (ixtiyoriy, sukut bo'yicha O'CHIQ)
+
+`MINIAPP_ENABLED=0` (sukut) bo'lsa bot va web-server avvalgidek ishlaydi, Mini App marshrutlari ulanmaydi.
+Yoqish tartibi va barcha `MINIAPP_*` sozlamalari — `miniapp/README.md`. Qisqacha:
+
+* **Docker:** `Dockerfile` ichidagi `miniapp-build` (node:22) stage'i frontendni quradi va faqat statik `dist/` ni
+  `/app/miniapp/dist` ga ko'chiradi (runtime image'da Node YO'Q). Qo'shimcha qadam kerak emas.
+* **Render Native Python / VPS:** `miniapp/dist` ni quring — Build Command'ga
+  `&& bash ../scripts/build_miniapp.sh` qo'shing (Node ≥ 22.12 kerak, testlar uchun ≥ 22.22.2; Root Directory = `telegram_bot` bo'lsa ham
+  repozitoriy to'liq klon qilinganini tekshiring) yoki `MINIAPP_DIST_DIR` ni tayyor build papkasiga qarating.
+* Yoqishdan oldin: Redis (`REDIS_URL`, production'da majburiy), proksi sozlamasi (`MINIAPP_TRUSTED_PROXY_CIDRS`
+  yoki `MINIAPP_PROXY_ASSERT_EDGE_ONLY=1` + `MINIAPP_PROXY_HOPS`), `BOT_USERNAME`, beta qoidasi, so'ng `MINIAPP_ENABLED=1`.
+* Telegram'da ochilishi uchun BotFather'da Mini App/menyu tugmasi sozlanadi (botda hozir `web_app` tugmasi yo'q).
+
 ## 1-b. Render Docker varianti (ixtiyoriy)
 
 Root Directory = **repozitoriy ildizi** (`.`), Runtime = **Docker**,

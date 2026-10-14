@@ -334,6 +334,15 @@ class CreditsService:
         """Tranzaksiya ichidagi bonus yadrosi (hech qachon tashlamaydi)."""
         try:
             uid = int(user_id)
+            # 0) Foydalanuvchi qatorini QULFLASH: tekshiruv (1) va grant (3) orasida
+            #    parallel tranzaksiya (boshqa instance / parallel AI bron) o'tib
+            #    ketmasin — aks holda ikkalasi ham "bugun berilmagan" ko'rib bonusni
+            #    IKKI marta beradi (credits_ledger'da UNIQUE cheklov yo'q). Qulf
+            #    tranzaksiya oxirigacha ushlanadi; kutgan tranzaksiya (1) da
+            #    allaqachon yozilgan ledger qatorini ko'radi (READ COMMITTED).
+            cur.execute("SELECT 1 FROM users WHERE user_id = %s FOR UPDATE", (uid,))
+            if not cur.fetchone():
+                return {"granted": False, "reason": "user_not_found"}
             # 1) Bugun allaqachon berilganmi (kuniga 1 marta — idempotent)?
             cur.execute(
                 "SELECT 1 FROM credits_ledger WHERE user_id = %s AND "

@@ -114,8 +114,21 @@ def test_dockerfile() -> None:
           any("AS BUILDER" in ln.upper() for ln in froms), "")
     check("Dockerfile: runtime bosqichi aniq nomlangan (AS runtime)",
           any("AS RUNTIME" in ln.upper() for ln in froms), "")
-    check("Dockerfile: asos image python:3.11-slim",
-          all("python:3.11-slim" in ln for ln in froms), "")
+    # Mini App frontend build stage (`node:22-slim AS miniapp-build`) ixtiyoriy va faqat build uchun:
+    # builder/runtime stage'lari hamon python:3.11-slim, Node runtime image'ga TUSHMAYDI.
+    node_froms = [ln for ln in froms if "AS MINIAPP-BUILD" in ln.upper()]
+    py_froms = [ln for ln in froms if ln not in node_froms]
+    check("Dockerfile: asos image python:3.11-slim (builder va runtime)",
+          bool(py_froms) and all("python:3.11-slim" in ln for ln in py_froms), "")
+    check("Dockerfile: Mini App build stage faqat node (nomlangan, python emas)",
+          all(ln.upper().startswith("FROM NODE:") for ln in node_froms), str(node_froms))
+    check("Dockerfile: OXIRGI stage — runtime (python:3.11-slim), Node build stage emas",
+          "python:3.11-slim" in froms[-1] and "AS RUNTIME" in froms[-1].upper(), froms[-1])
+    runtime_part = text.split("AS runtime", 1)[-1]
+    check("Dockerfile: runtime'da Node/npm o'rnatilmaydi (faqat statik dist ko'chiriladi)",
+          "FROM node" not in runtime_part
+          and not re.search(r"apt-get install[^\n]*\b(nodejs|npm)\b", runtime_part)
+          and "COPY --from=miniapp-build" in runtime_part, "")
     check("Dockerfile: builder → runtime virtualenv ko'chirish (COPY --from)",
           "COPY --from=builder" in text, "")
     check("Dockerfile: runtime'da kompilyator/build-essential YO'Q",

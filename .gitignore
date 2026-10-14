@@ -77,3 +77,6 @@ yordamchi_pg_*/
 .vscode/
 .DS_Store
 Thumbs.db
+
+# --- Mini App (Vite + React) ---
+miniapp/node_modules/
