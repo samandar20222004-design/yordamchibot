@@ -574,6 +574,37 @@ def recover_processing_posts_on_startup(max_age_seconds: int = 0) -> dict:
     return result
 
 
+def get_recent_problem_deliveries(lookback_seconds: int = 900) -> list:
+    """Yaqinda ``dead_letter`` / ``unknown`` bo'lgan yetkazishlar (post egasiga xabar berish uchun).
+
+    Faqat post HOZIR ham ``failed`` / ``unknown`` bo'lsa (qayta rejalangan postlar kirmaydi).
+    Qaytadi: ``(delivery_id, post_id, user_id, channel_id, delivery_status, last_error, content_preview, channel_title)``.
+    DB xatosida bo'sh ro'yxat (istisno yo'q).
+    """
+    try:
+        age = max(1, int(lookback_seconds or 900))
+    except (TypeError, ValueError):
+        age = 900
+    try:
+        with db_cursor() as cur:
+            cur.execute(
+                "SELECT d.id, d.post_id, p.user_id, p.channel_id, d.status, d.last_error, "
+                "LEFT(COALESCE(p.content, ''), 80), c.channel_title "
+                "FROM post_deliveries d "
+                "JOIN scheduled_posts p ON p.id = d.post_id "
+                "LEFT JOIN channels c ON c.channel_id = p.channel_id "
+                "WHERE d.status IN ('dead_letter', 'unknown') "
+                "AND p.status IN ('failed', 'unknown') "
+                "AND d.updated_at > NOW() - (%s || ' seconds')::INTERVAL "
+                "ORDER BY d.id LIMIT 200",
+                (str(age),),
+            )
+            return list(cur.fetchall() or [])
+    except Exception as e:
+        logger.error(f"Muammoli yetkazishlarni o'qish xatosi: {e}")
+        return []
+
+
 def recover_stale_processing_posts():
     """Server crash/restart paytida 'processing' holatida qolib ketgan postlarni tiklash (idempotent).
 

@@ -2471,7 +2471,7 @@ from repositories.scheduler_repository import (  # noqa: E402, F401
     _DELIVERY_VERIFY_RE, _delivery_channel_number, _delivery_processing_is_stale,
     build_delivery_idempotency_key, claim_post_delivery, cleanup_old_data,
     clear_post_delivery_verify_pending, delivery_verify_attempt, delivery_verify_pending,
-    find_next_queue_slot, mark_post_delivery_failed, mark_post_delivery_sent,
+    find_next_queue_slot, get_recent_problem_deliveries, mark_post_delivery_failed, mark_post_delivery_sent,
     mark_post_delivery_unknown, mark_post_delivery_verify_pending,
     recover_processing_posts_on_startup,
     recover_stale_processing_posts, schedule_week_posts

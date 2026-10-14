@@ -485,7 +485,12 @@ class PostWriter:
             await refund()
             raise ApiError("service_unavailable", retry_after=5) from None
         try:
-            result = await ai.generate(text, style, ctx["language"], is_pro)
+            # Bot har update'ni usage_scope(user_id) ichida bajaradi (main.py); Mini App ham xuddi shunday — aks holda
+            # har-foydalanuvchi byudjeti va AI_GLOBAL_DAILY_USD chetlab o'tiladi (scope=None -> admission "doim ruxsat").
+            from services.ai.usage_scope import usage_scope
+
+            with usage_scope(user_id=int(user_id)):
+                result = await ai.generate(text, style, ctx["language"], is_pro)
         except asyncio.CancelledError:
             await asyncio.shield(refund())  # mijoz uzildi / timeout: bron qaytariladi
             raise

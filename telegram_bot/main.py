@@ -38,6 +38,7 @@ from handlers import register_all_handlers
 from scheduler import (
     check_and_send_posts,
     check_and_delete_expired_posts,
+    notify_post_problems,
     cleanup_old_data_job,
     cleanup_old_records_job,
     poll_content_sources_job,
@@ -1028,6 +1029,11 @@ async def main():
         id="check_and_send_posts", timezone=tashkent_tz,
         max_instances=1, coalesce=True, misfire_grace_time=300,
         next_run_time=now_tashkent(),
+    )
+    scheduler.add_job(
+        notify_post_problems, 'interval', minutes=1, args=[application.bot],
+        id="notify_post_problems", timezone=tashkent_tz,
+        max_instances=1, coalesce=True, misfire_grace_time=300,
     )
     scheduler.add_job(
         check_and_delete_expired_posts, 'interval', minutes=1, args=[application.bot],

@@ -98,8 +98,9 @@ def run_scenario(media_exc=None, follow_exc=None):
         rec["db"].append((getattr(fn, "__name__", str(fn)), a))
         return None
 
-    async def mark_failed(key, err, is_transient=True):
+    async def mark_failed(key, err, is_transient=True, count_attempt=True):
         rec["mark_failed"].append((type(err).__name__, is_transient))
+        rec.setdefault("count_attempt", []).append((type(err).__name__, count_attempt))
         # doimiy xato -> dead_letter, vaqtinchalik -> retry (haqiqiy delivery_service semantikasi)
         return {"status": s.delivery_service.STATUS_DEAD_LETTER if not is_transient else "retry"}
 
@@ -180,6 +181,8 @@ print("\n== NAZORAT: albomning O'ZI yuborilmasa eski xatti-harakat saqlanadi (mo
 rec = run_scenario(media_exc=RetryAfter(3))
 check("send_media_group RetryAfter: post qayta navbatga qo'yiladi (retry_post)", "retry_post" in db_names(rec), str(rec["db"]))
 check("send_media_group RetryAfter: nashr belgisi yo'q (finalize chaqirilmaydi)", rec["finalize"] == [])
+check("send_media_group RetryAfter: urinish SANALMAYDI (count_attempt=False, audit D-1)",
+      ("RetryAfter", False) in rec.get("count_attempt", []), str(rec.get("count_attempt")))
 rec = run_scenario(media_exc=BadRequest("Wrong file identifier"))
 check("send_media_group BadRequest: post 'failed' (haqiqiy albom xatosi)", failed_marked(rec), str(rec["db"]))
 check("send_media_group BadRequest: DOIMIY xato sifatida belgilanadi (NetworkError subklassi bo'lsa ham)",
