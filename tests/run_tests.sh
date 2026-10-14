@@ -1297,6 +1297,8 @@ echo
 echo "============ CREDITS LEDGER & REFERRAL TEST (8-BOSQICH) =========="
 "$PY" tests/credits_referral_test.py || fail "tests/credits_referral_test.py"
 "$PY" tests/credits_bonus_concurrency_test.py || fail "tests/credits_bonus_concurrency_test.py"
+"$PY" tests/enterprise_plan_preservation_test.py || fail "tests/enterprise_plan_preservation_test.py"
+"$PY" tests/ai_refund_period_test.py || fail "tests/ai_refund_period_test.py"
 
 echo
 echo "===== STEP 2 — ORGANIC GROWTH (action-based referral + TTFV) ====="
@@ -1634,6 +1636,8 @@ echo "===== 📱 MINI APP (API poydevori: auth, proksi, limiter, ownership, stat
 "$PY" tests/miniapp_menu_test.py || fail "tests/miniapp_menu_test.py"
 "$PY" tests/miniapp_ai_writes_test.py || fail "tests/miniapp_ai_writes_test.py"
 "$PY" tests/miniapp_writes_real_test.py || fail "tests/miniapp_writes_real_test.py"
+"$PY" tests/miniapp_bot_api_test.py || fail "tests/miniapp_bot_api_test.py"
+"$PY" tests/miniapp_scheduler_e2e_test.py || fail "tests/miniapp_scheduler_e2e_test.py"
 "$PY" tests/miniapp_static_regression_test.py || fail "tests/miniapp_static_regression_test.py"
 "$PY" tests/miniapp_db_real_test.py || fail "tests/miniapp_db_real_test.py"
 "$PY" tests/miniapp_navigation_test.py || fail "tests/miniapp_navigation_test.py"

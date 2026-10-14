@@ -165,11 +165,14 @@ class PromoService:
                     return False, "Siz bu promo-kodni avval ishlatgansiz."
 
                 # 5) Obuna berish: max(current_expiry, NOW()) + days
+                # Enterprise (muddatsiz) huquqi saqlanadi (qarang: PaymentService.process_stars_payment).
                 cur.execute(
-                    "UPDATE users SET plan_type = %s, "
-                    "subscription_expires_at = GREATEST("
-                    "COALESCE(subscription_expires_at, NOW()), NOW()) "
-                    "+ (%s || ' days')::INTERVAL "
+                    "UPDATE users SET plan_type = CASE WHEN plan_type = 'enterprise' "
+                    "THEN plan_type ELSE %s END, "
+                    "subscription_expires_at = CASE WHEN plan_type = 'enterprise' "
+                    "AND subscription_expires_at IS NULL THEN NULL ELSE "
+                    "GREATEST(COALESCE(subscription_expires_at, NOW()), NOW()) "
+                    "+ (%s || ' days')::INTERVAL END "
                     "WHERE user_id = %s",
                     (plan_type, str(duration_days), user_id),
                 )

@@ -35,11 +35,10 @@ def check(label, cond, detail=""):
         print(f"  [XATO] {label} {detail}")
 
 
-uri = ""
-for var in ("INTEGRITY_TEST_DATABASE_URL", "P0_TEST_DATABASE_URL"):
-    if os.getenv(var) and "user:pass" not in os.getenv(var, ""):
-        uri = os.environ[var]
-        break
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from pg_support import real_pg_url  # noqa: E402
+
+uri = real_pg_url("INTEGRITY_TEST_DATABASE_URL", "P0_TEST_DATABASE_URL", server_dir="yordamchi_pg_credits_bonus")
 if not uri:
     print("== Bonus parallelligi (real PG) ==")
     print("  [SKIP] INTEGRITY_TEST_DATABASE_URL / P0_TEST_DATABASE_URL yo'q — real PostgreSQL testi o'tkazilmadi")

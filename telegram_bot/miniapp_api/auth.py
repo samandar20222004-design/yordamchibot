@@ -20,8 +20,13 @@ bo'yicha shuni ko'rsatdi: (1) bot-token usuli — data-check-string = qabul qili
 `auth_date` eskirganini tekshirish tavsiya etiladi; (2) alohida uchinchi tomon usuli (Ed25519 `signature`, bot_id
 bilan) satrni `<bot_id>:WebAppData\n` prefiksi bilan quradi va `hash` HAMDA `signature` ni chiqaradi. Ikkinchi usulda
 `signature` ning alohida chiqarilishi birinchi usulda u chiqarilmasligini bilvosita tasdiqlaydi, lekin birinchi usul
-uchun "signature qoladi" degan jumla so'zma-so'z ko'rilmadi. Shu sababli holat: BILVOSITA tasdiqlangan, to'liq
-tasdiqlanmagan. Uchinchi tomon (rasmiy emas) implementatsiyalari bilan ham MOS: aiogram 3.31.0 va
+uchun "signature qoladi" degan jumla so'zma-so'z ko'rilmadi (qidiruv xulosalari bu masalada bir-biriga zid
+chiqdi: ba'zilari Ed25519 usuli uchun aytilgan "hash va signature chiqariladi" qoidasini ikkala usulga umumlashtirdi).
+EMPIRIK dalil (rasmiy emas, lekin Telegram'ning haqiqiy xatti-harakati): uchinchi tomon kutubxonasining (init-data-py
+1.0.0) test fixture'idagi HAQIQIY klientdan olingan, `signature` maydonli payload bu kod bilan (signature data-check-
+string ICHIDA) tasdiqlanadi, signature chiqarib hisoblansa — hash MOS KELMAYDI (ikkala variant sinab ko'rilgan). Demak
+Telegram serveri hash'ni signature'ni ham hisobga olib yaratadi. Shu sababli holat: BILVOSITA tasdiqlangan + bitta
+haqiqiy namuna bilan empirik tasdiqlangan; to'liq tasdiq uchun o'z test botingizdan olingan initData bilan smoke-test kerak. Uchinchi tomon (rasmiy emas) implementatsiyalari bilan ham MOS: aiogram 3.31.0 va
 @telegram-apps/init-data-node 2.0.10; ularning literal HMAC vektorlari bu kod bilan bir xil natija beradi
 (tests/miniapp_auth_test.py, 10-bo'lim). Haqiqiy Telegram klientidan olingan `initData` bilan sinov hali
 o'tkazilmagan (scripts/miniapp_initdata_smoke.py).

@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import re
 import time
 import uuid
@@ -291,5 +292,10 @@ def register_miniapp_routes(app: web.Application, *, env=None, **overrides) -> b
     app.add_subapp(API_PREFIX, build_api_app(settings, **overrides))
     app.router.add_route("*", "/api/{tail:.*}", _api_not_found)
     register_static_routes(app, settings.dist_dir)
+    if not os.path.isfile(os.path.join(settings.dist_dir, "index.html")):
+        # /app/ shunda 404 beradi: frontend build image'ga tushmagan (Docker runtime kerak).
+        logger.error("Mini App: %s/index.html TOPILMADI — /app/ 404 beradi "
+                     "(Dockerfile orqali build qiling yoki MINIAPP_DIST_DIR ni belgilang)",
+                     settings.dist_dir)
     logger.info("Mini App marshrutlari ulandi (%s, /app)", API_PREFIX)
     return True

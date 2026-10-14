@@ -544,7 +544,7 @@ class _ReceiptCursor:
         s = " ".join(str(q).split()).lower()
         if s.startswith("select status, user_id, days_granted"):
             self.row = (self.st.status, 777008, 30, 19000)
-        elif s.startswith("update users set plan_type = 'pro'"):
+        elif s.startswith("update users set plan_type = case when plan_type = 'enterprise' then plan_type else 'pro'"):
             self.st.grants += 1
         elif s.startswith("update payment_receipts set status = 'approved'"):
             self.st.status = "approved"

@@ -170,11 +170,14 @@ class PostgresPaymeUnitOfWork:
 
     def grant_subscription(self, user_id: int, days: int) -> bool:
         # Same additive formula as Stars / approved receipts.
+        # Enterprise (muddatsiz) huquqi saqlanadi (qoida: sync_stars_subscription bilan bir xil).
         self.cur.execute(
-            "UPDATE users SET plan_type = 'pro', "
-            "subscription_expires_at = GREATEST("
-            "COALESCE(subscription_expires_at, NOW()), NOW()) "
-            "+ (%s || ' days')::INTERVAL "
+            "UPDATE users SET plan_type = CASE WHEN plan_type = 'enterprise' "
+            "THEN plan_type ELSE 'pro' END, "
+            "subscription_expires_at = CASE WHEN plan_type = 'enterprise' "
+            "AND subscription_expires_at IS NULL THEN NULL ELSE "
+            "GREATEST(COALESCE(subscription_expires_at, NOW()), NOW()) "
+            "+ (%s || ' days')::INTERVAL END "
             "WHERE user_id = %s",
             (str(int(days)), int(user_id)),
         )
@@ -186,7 +189,9 @@ class PostgresPaymeUnitOfWork:
     def revoke_subscription(self, user_id: int, days: int) -> None:
         self.cur.execute(
             "UPDATE users SET "
-            "plan_type = CASE WHEN subscription_expires_at IS NULL "
+            "plan_type = CASE WHEN plan_type = 'enterprise' AND subscription_expires_at IS NULL "
+            "  THEN plan_type "  # muddatsiz enterprise: grant unga muddat qo'shmagan, qaytarish ham tegmaydi
+            "  WHEN subscription_expires_at IS NULL "
             "  OR subscription_expires_at - (%s || ' days')::INTERVAL <= NOW() "
             "  THEN 'free' ELSE plan_type END, "
             "subscription_expires_at = CASE WHEN subscription_expires_at IS NULL THEN NULL "
